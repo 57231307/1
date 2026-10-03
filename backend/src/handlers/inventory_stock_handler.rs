@@ -10,6 +10,7 @@ use crate::models::status::purchase_inventory::{
     inventory_stock_quality_status, inventory_stock_status,
 };
 use crate::services::inventory_stock_service::{CreateStockArgs, InventoryStockService};
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
@@ -118,8 +119,12 @@ pub async fn get_stock(
                 );
             }
             Ok(None) => {
+                // D-4 收口（PR #942 波次）：admin 判定走本仓唯一权威源
+                // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+                // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的
+                // 分支入口一次算出、每请求至多一次（admin_checker 内部带 5 分钟缓存）。
                 // 没有配置数据权限且不是管理员，使用默认字段隐藏
-                if role_id != 1 {
+                if !admin_checker::is_admin_role(&state.db, role_id).await {
                     if let Some(obj) = response_json.as_object_mut() {
                         obj.remove("quantity_on_hand");
                         obj.remove("quantity_available");
@@ -511,7 +516,11 @@ async fn apply_data_permission_filter(
             );
         }
         Ok(None) => {
-            if role_id != 1 {
+            // D-4 收口（PR #942 波次）：与 get_stock 同一单源判定
+            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+            // 禁止角色主键字面量判定；本辅助函数自带 state，判定在循环外的分支入口一次
+            // 算出，列表/导出每请求至多各调用本函数一次。
+            if !admin_checker::is_admin_role(&state.db, role_id).await {
                 for stock in stock_json {
                     if let Some(obj) = stock.as_object_mut() {
                         obj.remove("quantity_on_hand");

@@ -11,6 +11,7 @@ use crate::services::po::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdateOrderItemRequest,
     UpdatePurchaseOrderRequest,
 };
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -53,17 +54,37 @@ pub async fn list_orders(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // 非静默：原 `if let Ok(Some(_))` 把权限查询 Err 与 Ok(None) 静默合并，按
+        // 本仓既有做法（crm_handler::resolve_role_data_permission）对 Err 记 warn 后
+        // 同走 fail-closed 默认处理，出参语义与原实现逐字一致。
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_order")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_order",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             state.data_permission_service.filter_fields_batch(
                 &mut orders_json,
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // D-4 收口（PR #942 波次）：admin 判定走本仓唯一权威源
+            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+            // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
+            // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             for order in &mut orders_json {
                 if let Some(obj) = order.as_object_mut() {
@@ -130,17 +151,32 @@ pub async fn get_order(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // Err 记 warn 后同走 fail-closed 默认处理（与 list_orders 同款，不静默）
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_order")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_order",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             state.data_permission_service.filter_fields(
                 &mut order_json,
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // 与列表同一单源判定（见 list_orders 内 D-4 收口注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {
                 obj.remove("total_amount");

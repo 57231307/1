@@ -126,7 +126,10 @@ pub async fn list_pool(
     // 字段级数据权限：与 crm_handler::list_leads / get_lead 同一实现（同一判定源
     // get_role_data_permission + 同一掩码实现），公海侧不另造更松的规则：
     // - 配置了数据权限行 → filter_fields_batch（hidden/allowed 优先，不叠加默认打码）；
-    // - 无权限行且 role_id != 1 → 默认脱敏（查询 Err 与 role_id 缺失同走此分支，fail-closed）。
+    // - 无权限行且非 admin → 默认脱敏（查询 Err 与 role_id 缺失同走此分支，fail-closed）。
+    //   admin 判定基准以本仓唯一权威源 `admin_checker::is_admin_role`（roles.code='admin'，
+    //   查询失败 fail-closed=false）为准，禁止角色主键字面量判定（D-4 收口，PR #942 波次：
+    //   播种漂移时字面量要么静默剔 admin 字段、要么给恰好命中字面量的其他角色静默扩权）。
     // 本入口出参由上方按挑选字段构造，不含 address 键；mobile_phone/email 若存在则掩码。
     crate::handlers::crm_handler::apply_lead_field_permission(&state, auth.role_id, &mut items)
         .await;
