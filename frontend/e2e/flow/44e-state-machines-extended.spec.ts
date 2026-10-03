@@ -388,7 +388,11 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   test('44e-8 转账记录：REJECTED 后再审批被拒（fund_management_service.rs:408-448 仅 PENDING）', async ({
     page,
   }) => {
-    const r = await apiCallExpectFail(page, 'POST', '/fund/transfers/99999999/approve');
+    // 真实挂载为 /fund-management/transfers/{id}/approve（backend/src/routes/finance.rs:590
+    // fund_management()，经 sub_routes() nest 至 /api/v1/erp），旧写法 /fund/transfers
+    // 是测试侧路径错——命中的是白名单外路径，被鉴权层 403「未知的资源路径」拦截，
+    // 根本没到达服务层，404 断言验的不是状态机前提。仅改路径，断言强度不变。
+    const r = await apiCallExpectFail(page, 'POST', '/fund-management/transfers/99999999/approve');
     expect(r.status, `不存在转账审批应 404 not found，实际=${r.status}`).toBe(404);
   });
 

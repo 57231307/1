@@ -396,18 +396,19 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     ctx.arInvoiceId = result.data?.id;
     expect(ctx.arInvoiceId, '创建应收单应返回 id').toBeDefined();
 
-    // 回读校验：后端 ar_invoice_handler.rs list_ar_invoices 返回 ApiResponse<Vec<Model>>
-    // （ar_invoice_handler.rs:20 Ok(Json(ApiResponse::success(invoices)))），
-    // data 直接是裸数组、无 items 包装 → 声明为 'bare'。
+    // 回读校验：后端 ar_invoice_handler.rs list_ar_invoices 函数体（已逐行核对）返回
+    // Json(ApiResponse<PaginatedResponse<ar_invoice::Model>>)，即 data={items,total,page,page_size}
+    // → 声明为 'items'。此前声明 'bare' 依据的是 handler 旧形态/过时注释，与已落地
+    // 契约（utils/response.rs PaginatedResponse）不符，属测试侧信封声明错，以后端为准改判。
     // 原写法 `Array.isArray(invoices)?invoices:(invoices?.items??[])` 是双形状探测，
     // 且其后只 `expect(Array.isArray(invoiceList))` 验形状、未断言任何内容——应收单列表
-    // 恒空也会全绿。现改为单一形状直读 + 断言"刚创建的应收单确实在列表里且金额正确"。
+    // 恒空也会全绿。现保留单一形状直读 + 断言"刚创建的应收单确实在列表里且金额正确"。
     const invoices = await apiCallRaw<unknown>(page, 'GET', '/ar/invoices?page=1&page_size=200');
     // ar_invoice::Model 金额字段真实名为 invoice_amount（models/ar_invoice.rs:37），
     // 旧声明误写成 amount——原用例从不读该字段所以没暴露。
     const invoiceList = pickListArray<{ id: number; invoice_amount: number; status: string }>(
       invoices,
-      'bare',
+      'items',
       '2-8 AR 应收单列表'
     );
     const mine = invoiceList.find(i => i.id === ctx.arInvoiceId);
