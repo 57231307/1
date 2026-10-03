@@ -173,6 +173,26 @@ const EXPECTED: &[ColExpect] = &[
         column_default: None,
         why: "m0071：Option<Vec<String>>",
     },
+    // ---- m0073：色卡数量列收紧（SHADOWED DEFAULT 族，终结"写了 NOT NULL 却被
+    // ADD COLUMN IF NOT EXISTS 吃掉"的静默失效；模型侧是非 Option i32） ----
+    ColExpect {
+        table: "color_cards",
+        column: "stock_quantity",
+        data_type: "integer",
+        udt_name: "int4",
+        is_nullable: "NO",
+        column_default: Some("0"),
+        why: "m0073：models/color_card.rs:22 i32 非 Option；NULL 行读取即 ColumnNull",
+    },
+    ColExpect {
+        table: "color_cards",
+        column: "issued_quantity",
+        data_type: "integer",
+        udt_name: "int4",
+        is_nullable: "NO",
+        column_default: Some("0"),
+        why: "m0073：发放门 issued_qty <= stock_quantity 的比较依据，不可为 NULL",
+    },
 ];
 
 struct LiveCol {

@@ -68,6 +68,11 @@ pub(crate) mod m0068_add_chemical_code_partial_unique_constraints;
 // 访问 /inventory/pieces* 一律 403，详见文件头判责链）。目标表 role_permissions
 // 由 system 域 m0005 建表、roles 由 m0001 建表并种 3 角色，均早于本域执行，直接注册本域。
 mod m0069_grant_piece_read_and_print;
+// m0073 收紧 color_cards.stock_quantity / issued_quantity 为 NOT NULL DEFAULT 0：
+// 列由本域 inline SQL 先建成裸可空，finance 域的 NOT NULL DEFAULT 0 被
+// ADD COLUMN IF NOT EXISTS 吃成恒 no-op（scan_out.txt SHADOWED 第 244 行），
+// 而模型/出参都是非 Option i32 ⇒ NULL 行读取即 ColumnNull。判责链见文件头。
+mod m0073_normalize_color_card_quantities;
 
 pub struct Migration;
 
@@ -516,12 +521,20 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0069_grant_piece_read_and_print::Migration
             .up(manager)
             .await?;
+        // m0073 收紧色卡数量列（本域最后应用；目标表 color_cards 由本域建表建列）
+        m0073_normalize_color_card_quantities::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // m0069 最后应用故最先回滚（只回收本迁移按角色码授予的 pieces 键）
+        // m0073 最后应用故最先回滚（撤 NOT NULL/DEFAULT，回到修复前的可空无默认形态）
+        m0073_normalize_color_card_quantities::Migration
+            .down(manager)
+            .await?;
+        // m0069 次后应用（只回收本迁移按角色码授予的 pieces 键）
         m0069_grant_piece_read_and_print::Migration
             .down(manager)
             .await?;
