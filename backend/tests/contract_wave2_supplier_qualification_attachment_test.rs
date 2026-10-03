@@ -507,3 +507,79 @@ async fn download_without_attachment_returns_not_found() {
     let (status, _body, _ct) = get_attachment(&app, ids.supplier_a, ids.qual_no_attach).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// =========================================================
+// 3) 族别边界负例：请求体超过全局 12MB 上限（与 :389 的 5MB 校验族形成分界）
+// =========================================================
+
+/// 请求体超过 `constants::MAX_HTTP_BODY_BYTES`（12MB）时的**真实可达形态**钉版。
+///
+/// 读码依据（判定链条，逐跳带行号）：
+/// - handler 收 `Request` 后先单点覆写
+///   `DefaultBodyLimit::max(crate::constants::MAX_HTTP_BODY_BYTES).apply(&mut request)`
+///   （`supplier_handler.rs:803-804`），再手动 `Multipart::from_request`（:805）。
+///   axum 的 Multipart 提取器不在 from_request 期做体积拒绝，体积上限在**字段字节流读取**
+///   处生效（本文件既有修复说明 :797-799 同一机制的权威描述："超限文件在 Field::bytes()
+///   处即被 LengthLimitError 掐断"）；
+/// - 超限流读错误被 handler 显式映射为
+///   `AppError::business_displayable("附件文件读取失败，请重新上传")`
+///   （`next_field` 路径 :833-842、`field.bytes()` 路径 :847-856，两条映射同一信封），
+///   经 `utils/error.rs:362` BusinessErrorDisplayable → **( StatusCode::BAD_REQUEST,
+///   "BUSINESS_ERROR" )**（error_code 见 :746，可外显文案见 :769）。
+/// - 因此 **不是 413**（全链无 PAYLOAD_TOO_LARGE 映射点），也**不是** :389 那条
+///   400 VALIDATION「不能超过 5MB」——第 4) 步 5MB 显式校验（:872）要求字节**已完整读入**，
+///   超 12MB 的请求在 data 攒齐之前流读即失败，永远到不了 :872。断"5MB 文案"才是假绿。
+///
+/// 生产全局层 vs 测试裸 Router 的差异（为什么这里断 BUSINESS 在生产同样成立）：
+/// - 生产：全局 `DefaultBodyLimit::max(MAX_HTTP_BODY_BYTES)` 层挂在
+///   `bootstrap/middleware_bootstrap.rs:154`，与该 handler 的单点覆写**同源同值（12MB）**，
+///   超限点仍是流读 → 同一 BUSINESS 信封；
+/// - 裸测试 Router：无全局层，**若 handler 的单点覆写缺失**，Multipart 提取器自带 2MB
+///   默认上限会先在 2MB 处掐断（修复前 5MB 校验畸形的根因，见 :797-799 注释）。本用例
+///   因此同时是"handler 自覆写真实生效"的锁：给满 12MB+1MB 体积，若覆写回潮缺失，
+///   失败信封形状不变（同映射）但 5MB~12MB 区间用例会红——族别分界由 :389 与本例两侧
+///   共同夹住：≤12MB 且 >5MB ⇒ VALIDATION（业务校验真执行）；>12MB ⇒ BUSINESS（流读截断）。
+#[tokio::test]
+async fn upload_body_over_global_max_http_bytes_fails_as_business_stream_error_not_5mb_validation()
+{
+    let (app, db, ids) = seeded_app().await;
+    // 体积 = 全局上限 + 1MB 余量，确保总请求体（含 multipart 框架开销）严格超过 12MB
+    let mut data = b"%PDF-1.7 ".to_vec();
+    data.resize(
+        bingxi_backend::constants::MAX_HTTP_BODY_BYTES + 1024 * 1024,
+        0x20,
+    );
+    let (status, v) = post_attachment(
+        &app,
+        ids.supplier_a,
+        ids.qual_a2,
+        "over-global-limit.pdf",
+        "application/pdf",
+        &data,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "超全局 12MB 必须 4xx（禁裸 500/禁 413 未映射形态），实际: {v}"
+    );
+    assert_eq!(
+        v["code"], "BUSINESS_ERROR",
+        "超限请求在字段字节流读取处截断，由 handler 流读失败映射为 BUSINESS 族（非 413）"
+    );
+    let message = v["message"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("附件文件读取失败"),
+        "必须外显流读取失败文案（business_displayable 不脱敏），实际: {v}"
+    );
+    assert!(
+        !message.contains("不能超过 5MB"),
+        "第 4) 步 5MB 显式校验对 >12MB 请求不可达，本例不得伪造成校验族拒绝（假绿形态）"
+    );
+    // 截断拒绝不留任何写入痕迹
+    assert_eq!(
+        attachment_path_of(&db, ids.qual_a2).await,
+        None,
+        "超全局上限的请求不得写入 attachment_path"
+    );
+}

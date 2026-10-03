@@ -21,10 +21,13 @@
 //!   含错误族别、错误码、Display 原文与 400 信封映射
 //! - `#[ignore]` 活库用例：走真实 handler 在已迁移 PG 上建调拨单——
 //!   染色布缺缸号 → 400 VALIDATION_ERROR 且调拨单不残留、库存不动（事务回滚）；
-//!   白坯四维宽松 → 200（对照防过度收紧）。
+//!   白坯四维宽松 → 200（对照防过度收紧；种子含真白坯库存行，见 D 组前取证注）。
 //!   注：调拨 create 链路含 advisory_xact_lock 单号生成 + 频率检查用 Postgres 方言
 //!   原生 SQL（handler L113-134），**sqlite 无法非活库化此链**（该 PG 方言硬编码本身
 //!   已作为挂账记入交付报告）。
+//! - D 组 R-1「免填≠清空」真库回读锁：**非 ignore**（先例
+//!   `contract_piece_four_dim_outbound_ship_test.rs` 同夹具活库非 ignore），
+//!   白坯明细给值/不给值/给空白串三态经真实 create_transfer 落真库后回读比对。
 
 mod test_common;
 
@@ -279,7 +282,13 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
             inject_auth,
         ));
 
-    // —— 播种：产品/两仓/白坯库存行（数量 50）——
+    // —— 播种：产品/两仓/染色库存行（COL-A/DYE-9，50，供 ①染色组场景）
+    //          + 白坯库存行（色号空串/缸号 NULL 的白坯真实口径，50，供 ②白坯免缸号放行组）——
+    // 修复夹具坏前提（#4672 判责取证）：本用例头注释原自述"播种白坯库存行"，但下方只插了
+    // 染色行；②的请求色号缺席归一为空串，match_single_item_against_stocks
+    // （inv/stock.rs:88-105）按 `s.color_no == dims.color_no` 匹配，COL-A 行对白坯明细恒不命中
+    // ⇒ "无匹配库存"正当 400（BUSINESS），检验的并不是"白坯免缸号被过度收紧"。
+    // 补真白坯行后，②才真正走"白坯按款号+批次宽松放行"分支。
     let p = product::ActiveModel {
         name: Set("四维套件坯布".to_string()),
         code: Set(format!("PRD-TRF-{}", Utc::now().timestamp_nanos_opt().expect("测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达；旧 timestamp_nanos 超界同样 panic，行为等价"))),
@@ -326,6 +335,37 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
         batch_no: Set("B7".to_string()),
         color_no: Set("COL-A".to_string()),
         dye_lot_no: Set(Some("DYE-9".to_string())),
+        grade: Set("一等品".to_string()),
+        quantity_meters: Set(dec("50.00")),
+        quantity_kg: Set(Decimal::ZERO),
+        stock_status: Set("正常".to_string()),
+        quality_status: Set("合格".to_string()),
+        version: Set(0),
+        replenishment_strategy: Set("reorder_point".to_string()),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .unwrap();
+    // 白坯库存行（同料同批 B7）：色号空串 + 缸号 NULL 是白坯的真实落库口径
+    // （fabric_class.rs:17-18：color_no NOT NULL 空串、dye_lot_no 可空白坯合法 NULL；
+    // inv/stock.rs 单测先例 stock(1, "", None, "B1")），不塞假默认值。
+    let _greige_stock = inventory_stock::ActiveModel {
+        warehouse_id: Set(wh_ids[0]),
+        product_id: Set(p.id),
+        quantity_on_hand: Set(dec("50.00")),
+        quantity_available: Set(dec("50.00")),
+        quantity_reserved: Set(Decimal::ZERO),
+        quantity_shipped: Set(Decimal::ZERO),
+        quantity_incoming: Set(Decimal::ZERO),
+        reorder_point: Set(Decimal::ZERO),
+        max_stock_point: Set(Decimal::ZERO),
+        reorder_quantity: Set(Decimal::ZERO),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        batch_no: Set("B7".to_string()),
+        color_no: Set(String::new()),
+        dye_lot_no: Set(None),
         grade: Set("一等品".to_string()),
         quantity_meters: Set(dec("50.00")),
         quantity_kg: Set(Decimal::ZERO),
@@ -427,5 +467,289 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
     assert_eq!(
         v["data"]["status"], "pending",
         "调拨单初始态与写入方词表同源小写 pending"
+    );
+}
+
+// =========================================================
+// D) R-1「免填≠清空」真库回读行为锁（create_transfer 全链，活库、非 ignore）
+// =========================================================
+
+/// 白坯出库明细 `piece_no`/`dye_lot_no` **主动给值 ⇒ 归一后非空保留（trim）**；
+/// **不给值 ⇒ 缺省 None**；两者都**不得被清空/静默丢弃**。
+///
+/// 为什么 src 内既有锁不够（源码专家点名"需要测试补钉否则易回潮"）：
+/// - `fabric_class.rs:191-200`（#[cfg(test)] 反向锁）与 A 组纯函数矩阵只钉**归一函数**；
+/// - 真正会把用户给值"清空"的位置是**回写落库环节**——`inv/inventory_move.rs:323-345`
+///   `create_transfer_items_and_compute_total` 把 `dims` 如实 Set 进
+///   `inventory_transfer_item::ActiveModel`（`:336-345`，注释明言"禁止 NotSet 丢弃入参值"）。
+///   该环节退化成对白坯统一 `Set(None)`/清空重归一时，纯函数锁全绿、用户值却照样丢——
+///   只有走真实数据结构（真 HTTP create → 真 PG 明细行回读）才检得出。
+/// - 出参回显同样必须带上保留值：响应 items 由 `get_transfer_detail`（inventory_move.rs:149,197-210）
+///   真库重读，本用例同时钉响应与 DB 行两层。
+///
+/// 三组明细如何区分"退化形态"（防假绿设计）：
+/// 1. 明细 1 带空白padding 给值 `" DL-R1 "`/`" P-R1 "` ⇒ 回读必须等于 trim 后的非空值：
+///    实现若退化成"白坯统一归一 None/清空"（R-1 前的撒谎形态），此断言必红；
+/// 2. 明细 2 不给值 ⇒ piece_no 回读 NULL（None），dye_lot_no 回读无缸号内容
+///    （该列 DDL NOT NULL DEFAULT ''，migration/src/domain/system/mod.rs:296，
+///    归一层 None 已在 A 组 `white_fabric_passes_without_dye_lot_and_normalizes` 钉死）；
+/// 3. 明细 3 给空串/全空格 `"  "` ⇒ **视为未给**（fabric_class.rs:48-51,88-90 仅以是否为空判定）：
+///    回读无内容、建单不被拒。若实现退化 A"把空白串当值原样保留"⇒ 回读 Some("  ") 必红；
+///    若退化 B"白坯给空白串也报错"⇒ 建单 400 必红。与明细 1 的"给值保留"形成族别分界。
+///
+/// 通道如实说明（不美化）：白坯明细主动给匹号会进入第四维**存在性预检**
+/// （`inv/stock.rs:61-71`），预检过滤硬编码 `piece_type=dyed`
+/// （`piece_domain_service.rs:620-629` `outbound_piece_filter`），即白坯口径下给的任何匹号
+/// 都必须在调出仓按（款/仓/缸/批）tuple 命中一条**真实可用的染色匹**才放行。本用例据此
+/// 种一条 tuple 相符的染色匹行把通道打通——本锁钉的是"维度值如实保留、不被清空"的
+/// 回写链，**不背书**"白坯匹号预检仅染色族"这一口径的合理性；该疑点与 R-1"免填"语义的
+/// 张力已如实回报编排方，属另一族，不在本批动它。
+///
+/// 非 ignore 依据：与 `contract_piece_four_dim_outbound_ship_test.rs` 同一
+/// `test_common::setup_test_db()` 夹具、活库非 ignore 先例（CI Rust job 配已迁移 PG，
+/// 缺 `TEST_DATABASE_URL` 夹具直接 panic，不会静默降级成假绿）。
+#[tokio::test]
+async fn greige_outbound_dims_kept_as_given_readback_live_db() {
+    use axum::{
+        Router,
+        body::Body,
+        extract::State,
+        http::{Method, Request, StatusCode},
+        middleware::{Next, from_fn_with_state},
+        response::Response,
+        routing::post,
+    };
+    use bingxi_backend::container::AppState;
+    use bingxi_backend::handlers::inventory_transfer_handler;
+    use bingxi_backend::middleware::auth_context::AuthContext;
+    use bingxi_backend::models::inventory_piece;
+    use bingxi_backend::models::inventory_stock;
+    use bingxi_backend::models::inventory_transfer_item;
+    use bingxi_backend::models::product;
+    use bingxi_backend::models::status::purchase_inventory::inventory_piece as piece_status;
+    use bingxi_backend::models::warehouse;
+    use chrono::Utc;
+    use sea_orm::{
+        ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, Order, QueryFilter,
+        QueryOrder,
+    };
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    async fn inject_auth_r1(
+        State(auth): State<AuthContext>,
+        mut request: Request<Body>,
+        next: Next,
+    ) -> Response {
+        request.extensions_mut().insert(auth);
+        next.run(request).await
+    }
+
+    let db = Arc::new(test_common::setup_test_db().await);
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
+    let app = Router::new()
+        .route(
+            "/inventory/transfers",
+            post(inventory_transfer_handler::create_transfer),
+        )
+        .with_state(state)
+        .layer(from_fn_with_state(
+            AuthContext {
+                user_id: 9502,
+                username: "e2e_greige_r1_9502".to_string(),
+                role_id: Some(2),
+                department_id: Some(1),
+                data_scope: Some("all".to_string()),
+                dept_ids: None,
+                dept_member_user_ids: None,
+            },
+            inject_auth_r1,
+        ));
+
+    // —— 种子：白坯产品 + 两仓 + 白坯库存行（色号空串/缸号 NULL 真实口径）+ 一条
+    //    与明细 1 tuple 相符的染色匹（仅用于打通第四维存在性预检，见用例头"通道如实说明"）——
+    let suffix = Utc::now().timestamp_nanos_opt().expect(
+        "测试造数取当前时刻纳秒：Utc::now 必落在 chrono 纳秒可表示区间（约1678-2262 年），None 不可达",
+    );
+    let p = product::ActiveModel {
+        name: Set("R1回读锁白坯布".to_string()),
+        code: Set(format!("PRD-R1-{suffix}")),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .unwrap();
+    let mut wh_ids = Vec::new();
+    for tag in ["F", "T"] {
+        let wh = warehouse::ActiveModel {
+            warehouse_code: Set(format!("WH-R1-{tag}-{suffix}")),
+            name: Set(format!("R1回读锁{tag}仓")),
+            is_default: Set(false),
+            is_active: Set(true),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            ..Default::default()
+        }
+        .insert(&*db)
+        .await
+        .unwrap();
+        wh_ids.push(wh.id);
+    }
+    let _greige_stock = inventory_stock::ActiveModel {
+        warehouse_id: Set(wh_ids[0]),
+        product_id: Set(p.id),
+        quantity_on_hand: Set(dec("50.00")),
+        quantity_available: Set(dec("50.00")),
+        quantity_reserved: Set(Decimal::ZERO),
+        quantity_shipped: Set(Decimal::ZERO),
+        quantity_incoming: Set(Decimal::ZERO),
+        reorder_point: Set(Decimal::ZERO),
+        max_stock_point: Set(Decimal::ZERO),
+        reorder_quantity: Set(Decimal::ZERO),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        batch_no: Set("B-R1".to_string()),
+        color_no: Set(String::new()),
+        dye_lot_no: Set(None),
+        grade: Set("一等品".to_string()),
+        quantity_meters: Set(dec("50.00")),
+        quantity_kg: Set(Decimal::ZERO),
+        stock_status: Set("正常".to_string()),
+        quality_status: Set("合格".to_string()),
+        version: Set(0),
+        replenishment_strategy: Set("reorder_point".to_string()),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .unwrap();
+    let _piece = inventory_piece::ActiveModel {
+        piece_no: Set("P-R1".to_string()),
+        piece_type: Set("dyed".to_string()),
+        warehouse_id: Set(wh_ids[0]),
+        product_id: Set(p.id),
+        batch_no: Set("B-R1".to_string()),
+        color_no: Set(String::new()),
+        dye_lot_no: Set("DL-R1".to_string()),
+        length: Set(dec("30.00")),
+        status: Set(piece_status::AVAILABLE.to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .unwrap();
+
+    // —— 一次真实建单：三条白坯明细 = 给值 / 不给值 / 给空白串 ——
+    let body = json!({
+        "from_warehouse_id": wh_ids[0],
+        "to_warehouse_id": wh_ids[1],
+        "items": [
+            { "product_id": p.id, "quantity": "5.00", "batch_no": "B-R1",
+              "dye_lot_no": " DL-R1 ", "piece_no": " P-R1 " },
+            { "product_id": p.id, "quantity": "5.00", "batch_no": "B-R1" },
+            { "product_id": p.id, "quantity": "5.00", "batch_no": "B-R1",
+              "dye_lot_no": "   ", "piece_no": "  " },
+        ]
+    });
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/inventory/transfers")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+        panic!(
+            "白坯建单响应应为 JSON: {e}; body={}",
+            String::from_utf8_lossy(&bytes)
+        );
+    });
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "白坯给值/不给值/给空白串三种明细都必须放行（R-1 免填语义），实际 {v}"
+    );
+    let tid = v["data"]["id"].as_i64().expect("建单响应必须回传单据 id") as i32;
+
+    // 响应层回读（items 由 get_transfer_detail 真库重读，非请求体回显）
+    assert_eq!(
+        v["data"]["items"][0]["piece_no"].as_str(),
+        Some("P-R1"),
+        "出参必须如实回显主动给的匹号（trim），实际: {v}"
+    );
+    assert_eq!(
+        v["data"]["items"][0]["dye_lot_no"].as_str(),
+        Some("DL-R1"),
+        "出参必须如实回显主动给的缸号（trim），实际: {v}"
+    );
+
+    // DB 真相层回读：明细按插入顺序 id 升序
+    let items = inventory_transfer_item::Entity::find()
+        .filter(inventory_transfer_item::Column::TransferId.eq(tid))
+        .order_by(inventory_transfer_item::Column::Id, Order::Asc)
+        .all(&*db)
+        .await
+        .unwrap();
+    assert_eq!(items.len(), 3, "三条明细应全部落库，实际 {items:?}");
+
+    // —— 明细 1：主动给值 ⇒ 非空保留（检出"归一 None/清空"退化必红）——
+    assert_eq!(
+        items[0].color_no, "",
+        "白坯色号归一为空串（布种判定不被值污染）"
+    );
+    assert_eq!(
+        items[0].piece_no.as_deref(),
+        Some("P-R1"),
+        "R-1：白坯主动给匹号必须如实保留 trim 值，不得清空/静默丢弃（假保存形态）"
+    );
+    assert_eq!(
+        items[0].dye_lot_no.as_deref(),
+        Some("DL-R1"),
+        "R-1：白坯主动给缸号必须如实保留 trim 值，不得清空/静默丢弃"
+    );
+
+    // —— 明细 2：不给值 ⇒ 缺省 None（匹号列可空如实 NULL）——
+    assert_eq!(
+        items[1].piece_no, None,
+        "白坯不给匹号 ⇒ 缺省 None 落 NULL（免填≠必填，也不得被塞假默认）"
+    );
+    assert_eq!(
+        items[1].dye_lot_no.as_deref().unwrap_or(""),
+        "",
+        "白坯不给缸号 ⇒ 存储层无缸号内容（归一 None 已由 A 组钉；此处列 DDL NOT NULL DEFAULT ''）"
+    );
+
+    // —— 明细 3：给空串/空白 ⇒ 视为未给（族别分界，防止"保留空白串"或"空白即拒"两种漂移）——
+    assert_eq!(
+        items[2].piece_no, None,
+        "白坯给全空格匹号必须按未给处理（trim 后为空=未提交），不得原样保留空白串、也不得报错"
+    );
+    assert_eq!(
+        items[2].dye_lot_no.as_deref().unwrap_or(""),
+        "",
+        "白坯给全空格缸号必须按未给处理（仅以是否为空判定）"
+    );
+    assert_eq!(
+        items[2].color_no, "",
+        "空白串明细同为白坯口径（色号归一空串）"
     );
 }
