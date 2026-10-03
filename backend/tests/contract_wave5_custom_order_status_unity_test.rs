@@ -29,8 +29,8 @@ use bingxi_backend::services::custom_order_crud_service::CustomOrderCrudService;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait,
-    QueryFilter, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, DbBackend, EntityTrait, QueryFilter,
+    TransactionTrait,
 };
 use std::str::FromStr;
 use std::sync::Arc;

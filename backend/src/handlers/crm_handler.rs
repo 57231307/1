@@ -433,15 +433,15 @@ fn apply_export_field_permission(
 
 /// 导出文件默认字段处理的动作类型：
 /// - `MaskPhone` / `MaskEmail`：与列表/详情默认脱敏同一列集合、同一实现
-///   （`utils/field_mask::mask_phone` / `mask_email`）；
-/// - `Drop`：整列剔除（导出侧表现为空单元格），与 filter_fields 移除隐藏列的表现一致
-///   —— 商机金额在列表/详情走的就是"移除"而非掩码（`list_opportunities`），
-///   导出侧同口径移除，不新造第三种处理。
+///   （`utils/field_mask::mask_phone` / `mask_email`）。
+///
+/// 整列剔除（如商机金额）不在本枚举内：导出侧移除走与列表/详情同一实现
+/// `apply_export_field_permission`/`filter_fields`（按 `EXPORT_AMOUNT_COLUMNS` 真实列名移除），
+/// 本函数只承担掩码职责，不设也不使用"空单元格"动作，避免"读不存在键的移除恒不生效"回潮。
 #[derive(Clone, Copy)]
 enum ExportColumnAction {
     MaskPhone,
     MaskEmail,
-    Drop,
 }
 
 /// 按列定义表把列名定位成导出表下标。
@@ -490,7 +490,6 @@ fn apply_default_export_actions(
                 )));
             };
             match action {
-                ExportColumnAction::Drop => *cell = String::new(),
                 ExportColumnAction::MaskPhone | ExportColumnAction::MaskEmail => {
                     // 空值不掩码：掩码空串会产出 "*" 假数据，与列表"无值"表现不一致
                     if cell.is_empty() {
@@ -503,7 +502,6 @@ fn apply_default_export_actions(
                         ExportColumnAction::MaskEmail => {
                             crate::utils::field_mask::mask_email(cell.as_str())
                         }
-                        ExportColumnAction::Drop => String::new(),
                     };
                 }
             }
@@ -1877,7 +1875,7 @@ mod export_row_shape_guard_tests {
             apply_default_export_actions(
                 &mut t2,
                 &COLUMNS,
-                &[(pii_fields, ExportColumnAction::Drop)]
+                &[(pii_fields, ExportColumnAction::MaskPhone)]
             )
             .is_err()
         );

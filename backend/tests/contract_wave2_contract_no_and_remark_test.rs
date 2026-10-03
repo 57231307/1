@@ -54,7 +54,7 @@ use bingxi_backend::services::supplier_service::{
 use bingxi_backend::utils::error::AppError;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, EntityTrait, QuerySelect};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, DatabaseConnection, EntityTrait};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;

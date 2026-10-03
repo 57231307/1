@@ -44,7 +44,7 @@ use bingxi_backend::services::purchase_receipt_service::PurchaseReceiptService;
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait};
 use std::sync::Arc;
 
 fn date(y: i32, m: u32, d: u32) -> NaiveDate {

@@ -37,7 +37,7 @@ use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::so::order::SalesService;
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ConnectionTrait, DbBackend, Statement, Value};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 

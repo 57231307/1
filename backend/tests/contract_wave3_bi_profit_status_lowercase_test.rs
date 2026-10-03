@@ -144,7 +144,7 @@ async fn profit_shape_excludes_draft_and_cancelled_via_bound_lowercase_status() 
     let db = setup_db().await;
     let stmt = Statement::from_sql_and_values(
         DbBackend::Postgres,
-        &format!("{SHAPE_SELECT} WHERE s.status NOT IN ($1, $2)"),
+        format!("{SHAPE_SELECT} WHERE s.status NOT IN ($1, $2)"),
         vec![sales_order::CANCELLED.into(), sales_order::DRAFT.into()],
     );
     let row: ProfitShapeRow = ProfitShapeRow::find_by_statement(stmt)
@@ -177,7 +177,7 @@ async fn uppercase_literal_predicate_wrongly_includes_all_orders_defect_proof() 
     let db = setup_db().await;
     let stmt = Statement::from_sql_and_values(
         DbBackend::Postgres,
-        &format!("{SHAPE_SELECT} WHERE s.status NOT IN ('CANCELLED', 'DRAFT')"),
+        format!("{SHAPE_SELECT} WHERE s.status NOT IN ('CANCELLED', 'DRAFT')"),
         Vec::<Value>::new(),
     );
     let row: ProfitShapeRow = ProfitShapeRow::find_by_statement(stmt)

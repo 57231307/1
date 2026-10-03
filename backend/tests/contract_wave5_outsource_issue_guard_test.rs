@@ -65,8 +65,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::QueryFilter;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    PaginatorTrait, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbBackend, EntityTrait, PaginatorTrait, Set,
 };
 use serde_json::Value;
 use std::str::FromStr;

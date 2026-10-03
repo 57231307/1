@@ -38,7 +38,7 @@ use axum::{
     http::{Method, Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::Response,
-    routing::{get, put},
+    routing::get,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::customer_handler::{get_customer, update_customer};

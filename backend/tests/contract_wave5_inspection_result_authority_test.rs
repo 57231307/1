@@ -64,10 +64,7 @@ use bingxi_backend::services::purchase_inspection_service::{
 };
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, PaginatorTrait,
-    Set,
-};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, DbBackend, EntityTrait, PaginatorTrait, Set};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;

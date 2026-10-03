@@ -365,7 +365,7 @@ async fn stock_by_product_success_returns_200_shape() {
     let (status, v) = request_json(
         &app,
         Request::builder()
-            .uri(&format!(
+            .uri(format!(
                 "/inventory/stock/product/{product_id}?page=1&page_size=10"
             ))
             .body(Body::empty())

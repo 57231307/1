@@ -646,7 +646,7 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
             .filter(|c| !c.is_whitespace())
             .collect();
         assert!(
-            !flat.contains(&dead_shape),
+            !flat.contains(dead_shape),
             "{rel} 回潮 map_err 自造 DatabaseError 形态：会把 23505 与其他 DbErr 一并拍平成裸 500"
         );
     }

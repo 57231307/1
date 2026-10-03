@@ -81,31 +81,20 @@ const MASKED_B_PHONE: &str = "137****1111";
 const MASKED_B_TEL: &str = "010****6666";
 const MASKED_B_EMAIL: &str = "c***@example.com";
 
-/// 某一行的 PII 档案：原文（进禁止清单）+ 该行自己的掩码期望。
+/// 某一行的 PII 档案：该行自己的掩码期望（跨行禁止原文由 `ALL_BANNED_RAW_PII`
+/// 直接引用 A_*/B_* 常量成网，不再重复存一份 raw 值）。
 struct LeadPii {
-    raw_mobile: &'static str,
-    raw_tel: &'static str,
-    raw_email: &'static str,
-    raw_address: &'static str,
     masked_mobile: &'static str,
     masked_tel: &'static str,
     masked_email: &'static str,
 }
 
 const LEAD_1_PII: LeadPii = LeadPii {
-    raw_mobile: A_PHONE,
-    raw_tel: A_TEL,
-    raw_email: A_EMAIL,
-    raw_address: A_ADDRESS,
     masked_mobile: MASKED_PHONE,
     masked_tel: MASKED_TEL,
     masked_email: MASKED_EMAIL,
 };
 const LEAD_2_PII: LeadPii = LeadPii {
-    raw_mobile: B_PHONE,
-    raw_tel: B_TEL,
-    raw_email: B_EMAIL,
-    raw_address: B_ADDRESS,
     masked_mobile: MASKED_B_PHONE,
     masked_tel: MASKED_B_TEL,
     masked_email: MASKED_B_EMAIL,

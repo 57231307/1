@@ -31,7 +31,7 @@ mod test_common;
 use axum::response::IntoResponse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 use std::str::FromStr;
 use std::sync::Arc;
 

@@ -38,7 +38,7 @@ use bingxi_backend::services::environmental_tax_service::{
 };
 use bingxi_backend::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;

@@ -31,8 +31,7 @@ mod test_common;
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, PaginatorTrait,
-    QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, DbBackend, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 use std::str::FromStr;
 use std::sync::Arc;
