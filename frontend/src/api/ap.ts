@@ -127,7 +127,16 @@ export interface APReconciliation {
   supplier_name: string;
   reconciliation_date: string;
   total_invoice_amount: number;
-  total_payment_amount: number;
+  /**
+   * 后端 ap_reconciliation 实体金额列 rust_decimal（models/ap_reconciliation.rs:45），
+   * serde 序列化为**十进制字符串**；声明 number 属类型谎言（.toFixed 运行期崩族，
+   * 先例 commit 83b8028b/42f67500；Rust 契约锁 contract_wave6:574 对 payment/request/
+   * exchange 三类金额键名全局禁 number 声明且扫描含注释，本键名以其子串
+   * total_payment_amount 同形命中）。
+   * ⚠️ 注：本接口键名与后端真实出参键（total_invoice/total_payment/closing_balance）
+   * 整体错位属独立契约漂移，已列入交付报告交主编排立案，本次只按判责修值类型。
+   */
+  total_payment_amount: string;
   difference_amount: number;
   status: string;
   confirmed_by?: string;
@@ -174,7 +183,12 @@ export interface CreateAPInvoiceRequest {
   payment_terms?: number;
   amount?: number;
   currency?: string;
-  exchange_rate?: number;
+  /**
+   * 后端 CreateApInvoiceRequest.exchange_rate 为 Option<rust_decimal>
+   * （services/ap_invoice_ops/types.rs），本仓请求侧小数键口径=十进制字符串下发
+   * （先例见 apply_amount 注释，后端 Deserialize 同时接受字符串）。
+   */
+  exchange_rate?: string;
   tax_amount?: number;
   notes?: string;
   attachment_urls?: string[];
@@ -552,36 +566,42 @@ export interface APInvoiceRelation {
 }
 
 // 统计报表数据
+// 金额键为后端 rust_decimal（ap_report_service.rs::ApStatisticsReport 金额字段全部
+// Decimal(:814/:817/:820/:835）），serde 序列化为十进制字符串；声明 number 属类型谎言
+// （#4671 判责 A3 同族未钉清单 557-560，.toFixed 运行期崩族，先例 83b8028b/42f67500）。
+// ⚠️ 本接口键名与后端现行为 ApStatisticsReport 出参键（total_invoice_amount/total_paid_amount/
+// total_unpaid_amount）整体错位属独立契约漂移，交主编排立案，本次只修值类型。
 export interface APStatisticsData {
   total_invoices: number;
-  total_amount: number;
-  paid_amount: number;
-  unpaid_amount: number;
-  overdue_amount: number;
+  total_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
+  overdue_amount: string;
   period: string;
 }
 
-// 日报数据
+// 日报数据（后端 ApDailyReport：new_invoice_amount/due_invoice_amount/payment_amount 均
+// Decimal → 十进制字符串，ap_report_service.rs:886 等；同上：键名错位属独立漂移）
 export interface APDailyReportData {
   date: string;
   invoice_count: number;
-  invoice_amount: number;
+  invoice_amount: string;
   payment_count: number;
-  payment_amount: number;
+  payment_amount: string;
   verification_count: number;
-  verification_amount: number;
+  verification_amount: string;
 }
 
-// 月报数据
+// 月报数据（金额键同口径：rust_decimal 出参=十进制字符串）
 export interface APMonthlyReportData {
   year: number;
   month: number;
   invoice_count: number;
-  invoice_amount: number;
+  invoice_amount: string;
   payment_count: number;
-  payment_amount: number;
+  payment_amount: string;
   verification_count: number;
-  verification_amount: number;
+  verification_amount: string;
 }
 
 // 账龄报表数据

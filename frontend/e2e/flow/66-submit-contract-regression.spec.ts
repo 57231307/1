@@ -41,8 +41,10 @@ import {
  *   （purchase_contract_handler.rs:40-54）**该域无明细 items 字段**——"采购侧明细"真实载体是采购订单行
  *   POST /api/v1/erp/purchase/orders（services/po/mod.rs:33-79 CreatePurchaseOrderRequest，
  *   行级 quantity_tolerance_pct Some 时 [0,100]：po/mod.rs:123/196-204）与 GET /purchase/orders/{id}/items
- *   （purchase_order_handler.rs:381-387 出参 purchase_order_item::Model 裸数组；
- *   product_id/quantity/unit_price/quantity_tolerance_pct 键见 models/purchase_order_item.rs:24-78）
+ *   （purchase_order_handler.rs:378-387 → services/po/order_ops/query.rs:21-46 出参
+ *   **Vec<PurchaseOrderItemDto>**（services/po/order.rs:63-90），读键以 DTO rename 为准：
+ *   material_id=实体列 product_id（order.rs:65）、quantity_ordered=实体列 quantity（order.rs:71），
+ *   unit_price/quantity_tolerance_pct 无改名——#4671 判责 66-04 读实体原名 quantity/product_id 得 NaN 属用例读键错）
  * - PUT  /api/v1/erp/departments/{id}                        routes/iam.rs:68；UpdateDepartmentRequest 已含
  *   code: Option<String>（department_handler.rs:47，P0 契约修复：原缺字段⇒前端编辑编码被静默丢弃），
  *   service 侧非空才覆盖并查重排除自身（services/department_service.rs:247-263）
@@ -494,9 +496,15 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
       Number(row0.quantity_tolerance_pct),
       `采购明细回读：quantity_tolerance_pct 落库=8.00（被吞/键名错即本族缺陷复发），实际 ${JSON.stringify(row0.quantity_tolerance_pct)}`
     ).toBe(8);
-    expect(Number(row0.quantity), '采购明细回读：quantity=300.00').toBe(300);
+    // 读键=出参 DTO rename 后真键（services/po/order.rs:71 #[serde(rename =
+    // "quantity_ordered")] pub quantity、:65 #[serde(rename = "material_id")] pub product_id）。
+    // 读实体原名 quantity/product_id 恒 undefined→NaN，属本用例读键笔误（同 purchase/13-:182
+    // 族，#4671 判责 ②），后端出参契约无错——不加 ?? 兜底、不改期望值。
+    expect(Number(row0.quantity_ordered), '采购明细回读：quantity_ordered=300.00').toBe(300);
     expect(Number(row0.unit_price), '采购明细回读：unit_price=20.00').toBe(20);
-    expect(Number(row0.product_id), '采购明细回读：material_id 落 product_id 列').toBe(productId);
+    expect(Number(row0.material_id), '采购明细回读：material_id（DTO 键，落 product_id 列）').toBe(
+      productId
+    );
     expect(row0.notes, '采购明细回读：notes').toBe('E2E66 采购行');
 
     await tryCleanup(page, 'DELETE', `/purchase/orders/${poId}`, '[66-04] 采购订单');
