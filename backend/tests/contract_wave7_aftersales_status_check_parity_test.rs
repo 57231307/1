@@ -17,6 +17,14 @@
 //!
 //! 任何一端加/删/改 token 而其余两端未同步，本用例即红，
 //! 防止 accepted/evaluated 这类"写入方已可达、约束未覆盖"的裸 500 再次回归。
+//!
+//! ④ 类型族同型锁（本批次收口 m0074）：写入方 create 白名单
+//!    （`services/custom_order_aftersales_service.rs:151`，5 值含 return_goods）
+//!    == 生效 CHECK `chk_aftersales_type` 取值集（m0074 重建）
+//!    == 前端候选四处（AfterSalesPanel radio / getIssueTypeLabel known /
+//!    api/custom-order.ts AFTER_SALES_TYPE / zh-CN 与 en-US issueType 键）。
+//!    历史缺陷同型：m0044 CHECK 4 值而写入方/前端 5 值，创建"退货"工单撞
+//!    CHECK 冒 DATABASE_ERROR(500)。m0074 down 回滚集合亦钉死 m0044 原 4 值。
 
 use std::collections::BTreeSet;
 
@@ -116,14 +124,15 @@ fn parse_service_transitions() -> (BTreeSet<String>, BTreeSet<String>) {
 
 /// 从迁移源文件 [start_anchor, end_anchor) 区间提取单引号 token 列表。
 fn extract_quoted_tokens(path: &str, start_anchor: &str, end_anchor: &str) -> Vec<String> {
-    let src = std::fs::read_to_string(path).expect("读取 m0067 迁移源文件失败");
+    let src =
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("读取迁移源文件 {path} 失败: {e}"));
     let start = src
         .find(start_anchor)
-        .unwrap_or_else(|| panic!("m0067 缺少锚点: {start_anchor}"));
+        .unwrap_or_else(|| panic!("{path} 缺少锚点: {start_anchor}"));
     let rest = &src[start..];
     let end = rest
         .find(end_anchor)
-        .unwrap_or_else(|| panic!("m0067 锚点未闭合: {end_anchor}"));
+        .unwrap_or_else(|| panic!("{path} 锚点未闭合: {end_anchor}"));
     let slice = &rest[..end];
     let mut tokens = Vec::new();
     let mut cursor = slice;
@@ -279,4 +288,245 @@ fn extract_quoted_tokens_from_region(
         cursor = &cursor[close + 1..];
     }
     tokens
+}
+
+// =========================================================
+// ④ 类型族三端同源锁（波7 收口批次之二）：
+//    写入方白名单（service create）== DB CHECK（m0074 重建的 chk_aftersales_type）
+//    == 前端候选（radio / known / AFTER_SALES_TYPE / zh & en i18n 键）
+//    缺陷同型：m0044 建表 CHECK 只 4 值，写入方/前端已 5 值（+return_goods），
+//    创建"退货"工单撞 CHECK 冒裸 500。修复 = m0074（照 m0067 范式）。
+//    本锁防任何一端加/删/改 token 而其余两端未同步再次回归。
+// =========================================================
+
+/// 读取仓库内相对路径文件（backend CARGO_MANIFEST_DIR 起点，照
+/// color_card_status_vocabulary_test.rs::read_rel 先例，用于覆盖前端文件）。
+fn read_repo_file(rel: &str) -> String {
+    let path = format!("{}/{}", env!("CARGO_MANIFEST_DIR"), rel);
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path} 失败: {e}"))
+}
+
+/// 从服务层提取 create 类型白名单：`if ![" ... "] .contains(&dto.issue_type...)`。
+fn parse_service_type_whitelist() -> BTreeSet<String> {
+    let src = read_repo_file("/src/services/custom_order_aftersales_service.rs");
+    let start = src
+        .find("if ![\"")
+        .expect("服务层缺少 create 类型白名单数组（if ![\"...\"] 字面量）");
+    let block = &src[start..];
+    let arr_end = block.find(']').expect("类型白名单数组未闭合");
+    let slice = &block[..arr_end];
+    let mut tokens = BTreeSet::new();
+    let mut cursor = slice;
+    while let Some(open) = cursor.find('"') {
+        cursor = &cursor[open + 1..];
+        let close = cursor.find('"').expect("双引号未闭合");
+        let t = &cursor[..close];
+        if t.is_ascii_lowercase() && t.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
+            tokens.insert(t.to_string());
+        }
+        cursor = &cursor[close + 1..];
+    }
+    tokens
+}
+
+/// m0074 CHECK 取值集 == 服务层写入方白名单（双向逐 token）。
+#[test]
+fn m0074_check_tokens_equals_service_whitelist_bidirectional() {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/migration/src/domain/production/m0074_aftersales_type_add_missing_values.rs"
+    );
+    let check_tokens: BTreeSet<String> = extract_quoted_tokens(
+        path,
+        "const ALLOWED_TYPE_VALUES",
+        "#[derive(DeriveMigrationName)]",
+    )
+    .into_iter()
+    .collect();
+    let service_tokens = parse_service_type_whitelist();
+    assert_eq!(
+        check_tokens.len(),
+        service_tokens.len(),
+        "m0074 CHECK token 数量与写入方白名单不一致（先于集合比较报数，便于定位）"
+    );
+    // 白名单 ⊆ CHECK：写入方允许的取值不在约束里 ⇒ 必撞 CHECK 冒 500（本缺陷根因）
+    for v in &service_tokens {
+        assert!(
+            check_tokens.contains(v),
+            "写入方允许的类型「{v}」不在 m0074 CHECK 集合内：创建工单将违反约束冒裸 500"
+        );
+    }
+    // CHECK ⊆ 白名单：约束比写入方宽同样是漂移
+    for t in &check_tokens {
+        assert!(
+            service_tokens.contains(t),
+            "m0074 CHECK token「{t}」不在写入方白名单内：约束比写入方宽"
+        );
+    }
+    // up 的 NOTICE 逐值计数 ARRAY 与 const 白名单必须同集合（文件内两处不许漂移）
+    let notice_tokens: BTreeSet<String> = extract_quoted_tokens(path, "FROM unnest(ARRAY[", "]) v")
+        .into_iter()
+        .collect();
+    assert_eq!(
+        notice_tokens, check_tokens,
+        "m0074 up NOTICE 的取值 ARRAY 与 ALLOWED_TYPE_VALUES 不一致（文件内自漂移）"
+    );
+}
+
+/// m0074 约束名与 m0044 逐字符一致且不变；down 回滚集合钉死 m0044 原 4 值。
+#[test]
+fn m0074_constraint_name_stable_and_down_restores_original_four() {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/migration/src/domain/production/m0074_aftersales_type_add_missing_values.rs"
+    );
+    let src = std::fs::read_to_string(path).expect("读取 m0074 迁移源文件失败");
+    // 约束名保持不变：带双引号的字面出现至少 2 次（up/down 各 DROP+ADD 引用同名）
+    let quoted_name_hits = src.matches("\"chk_aftersales_type\"").count();
+    assert!(
+        quoted_name_hits >= 4,
+        "m0074 必须以带引号约束名 \"chk_aftersales_type\" 重建（up/down 各 DROP+ADD 共 4 处引用），实际出现 {quoted_name_hits} 次"
+    );
+    // m0044 原建表约束同名核对：两文件约束名逐字符一致
+    let m0044 = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/migration/src/domain/production/m0044_integrate_unreferenced_migrations.rs"
+    ))
+    .expect("读取 m0044 失败");
+    assert!(
+        m0044.contains("CONSTRAINT \"chk_aftersales_type\""),
+        "m0044 建表约束名已变化——m0074 的 DROP/ADD 名称需同步核对"
+    );
+    // down 段回滚集合钉死为 m0044 原 4 值（不含 return_goods）——回滚语义不许扩集
+    let down_pos = src.find("async fn down").expect("m0074 缺少 down");
+    let down_slice = &src[down_pos..];
+    let anchor = "ADD CONSTRAINT \"chk_aftersales_type\" CHECK (\"issue_type\" IN (";
+    let four: BTreeSet<String> = extract_quoted_tokens_from_region(down_slice, anchor, "));")
+        .into_iter()
+        .collect();
+    let expected: BTreeSet<String> = ["complaint", "repair", "exchange", "refund"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    assert_eq!(
+        four, expected,
+        "m0074 down 必须逐 token 恢复 m0044 原 4 值集（回滚语义不得扩集/缩水）"
+    );
+    // down 必须 fail-visible 探测 return_goods 在途行（拒绝回滚吞单据/静默洗数据）
+    assert!(
+        down_slice.contains("WHERE \"issue_type\" = 'return_goods'")
+            && down_slice.contains("RAISE EXCEPTION"),
+        "m0074 down 缺少 return_goods 存量行 fail-visible 探测"
+    );
+}
+
+/// 前端候选四处（创建表单 radio / getIssueTypeLabel known / AFTER_SALES_TYPE /
+/// zh-CN 与 en-US issueType 键）均与写入方白名单逐 token 相等（双向）。
+#[test]
+fn frontend_type_candidates_equal_service_whitelist() {
+    let service_tokens = parse_service_type_whitelist();
+
+    // 1) AfterSalesPanel.vue：创建表单 el-radio-group 的 label 候选
+    let panel = read_repo_file("../frontend/src/components/AfterSalesPanel.vue");
+    let rg_start = panel
+        .find("<el-radio-group v-model=\"form.issue_type\">")
+        .expect("AfterSalesPanel.vue 缺少类型 radio-group");
+    let rg_block = &panel[rg_start..];
+    let rg_end = rg_block
+        .find("</el-radio-group>")
+        .expect("radio-group 未闭合");
+    let rg_block = &rg_block[..rg_end];
+    let mut radio_tokens: BTreeSet<String> = BTreeSet::new();
+    let mut cursor = rg_block;
+    let needle = "label=\"";
+    while let Some(rel) = cursor.find(needle) {
+        let rest = &cursor[rel + needle.len()..];
+        let close = rest.find('"').expect("radio label 引号未闭合");
+        radio_tokens.insert(rest[..close].to_string());
+        cursor = &rest[close..];
+    }
+
+    // 2) AfterSalesPanel.vue：getIssueTypeLabel known 数组（单引号 token）
+    let label_pos = panel
+        .find("售后类型标签映射")
+        .expect("AfterSalesPanel.vue 缺少 getIssueTypeLabel 注释锚点");
+    let label_block = &panel[label_pos..];
+    let known_start = label_block
+        .find("const known = [")
+        .expect("getIssueTypeLabel 缺少 known 数组");
+    let known_block = &label_block[known_start..];
+    let known_end = known_block.find(']').expect("known 数组未闭合");
+    let mut known_tokens: BTreeSet<String> = BTreeSet::new();
+    let mut cursor = &known_block[..known_end];
+    while let Some(open) = cursor.find('\'') {
+        cursor = &cursor[open + 1..];
+        let close = cursor.find('\'').expect("known 单引号未闭合");
+        known_tokens.insert(cursor[..close].to_string());
+        cursor = &cursor[close + 1..];
+    }
+
+    // 3) api/custom-order.ts：AFTER_SALES_TYPE 键集（对象键在行首，8 空格缩进）
+    let api = read_repo_file("../frontend/src/api/custom-order.ts");
+    let at_start = api
+        .find("export const AFTER_SALES_TYPE")
+        .expect("custom-order.ts 缺少 AFTER_SALES_TYPE");
+    let at_block = &api[at_start..];
+    let at_end = at_block.find("};").expect("AFTER_SALES_TYPE 未闭合");
+    let at_keys = parse_ts_object_keys(&at_block[..at_end]);
+
+    // 4) locales：zh-CN / en-US common.afterSales.issueType 块键集
+    let zh = read_repo_file("../frontend/src/locales/zh-CN.ts");
+    let en = read_repo_file("../frontend/src/locales/en-US.ts");
+    let zh_keys = parse_issue_type_i18n_keys(&zh);
+    let en_keys = parse_issue_type_i18n_keys(&en);
+
+    for (name, got) in [
+        ("创建表单 radio 候选", radio_tokens),
+        ("getIssueTypeLabel known", known_tokens),
+        ("AFTER_SALES_TYPE 键集", at_keys),
+        ("zh-CN issueType 键集", zh_keys),
+        ("en-US issueType 键集", en_keys),
+    ] {
+        assert_eq!(
+            got, service_tokens,
+            "前端「{name}」与写入方白名单漂移（一边改一边忘；写入方集合={service_tokens:?}）"
+        );
+    }
+}
+
+/// 提取 `key: 'value',` 形态的 TS 对象块键名（键名行首缩进、不含引号）。
+fn parse_ts_object_keys(block: &str) -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    for line in block.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_suffix(',') {
+            if let Some((key, val)) = rest.split_once(':') {
+                let key = key.trim();
+                let val = val.trim();
+                if !key.is_empty()
+                    && key.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+                    && val.starts_with('\'')
+                {
+                    keys.insert(key.to_string());
+                }
+            }
+        }
+    }
+    keys
+}
+
+/// 定位 locales 文件 `afterSales: { ... issueType: { ... } }` 售后块内的
+/// issueType 键集。锚定顺序 afterSales → issueType 保证唯一
+/// （quality_issues 块也有 issueType 键，直接全局 find 会锚错）。
+fn parse_issue_type_i18n_keys(src: &str) -> BTreeSet<String> {
+    let as_start = src
+        .find("afterSales: {")
+        .expect("locales 缺少 afterSales 块");
+    let block = &src[as_start..];
+    let start = block
+        .find("issueType: {")
+        .expect("afterSales 块缺少 issueType 子块");
+    let block = &block[start..];
+    let end = block.find("},").expect("issueType 块未闭合");
+    parse_ts_object_keys(&block[..end])
 }

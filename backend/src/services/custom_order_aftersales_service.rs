@@ -1,6 +1,6 @@
 //! 定制订单售后服务
 //!
-//! 4 种售后类型：客诉 / 维修 / 换货 / 退款
+//! 5 种售后类型：客诉 / 维修 / 换货 / 退货 / 退款（权威白名单见 `create` 校验）
 //! 状态机（权威词表 `models/status/sales.rs::custom_order_ext::AFTERSALES_ALL`）：
 //! opened → accepted → processing → resolved → evaluated → closed；rejected/closed 为终态
 //! 创建时间: 2026-06-17
@@ -79,7 +79,7 @@ const AFTERSALES_TRANSITIONS: &[(&str, &[&str])] = &[
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CreateAfterSalesDto {
     pub customer_id: i32,
-    /// 售后类型：complaint / repair / exchange / refund
+    /// 售后类型：complaint / repair / exchange / return_goods / refund
     pub issue_type: String,
     pub description: String,
     pub refund_amount: Option<Decimal>,

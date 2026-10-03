@@ -73,6 +73,10 @@ mod m0069_grant_piece_read_and_print;
 // ADD COLUMN IF NOT EXISTS 吃成恒 no-op（scan_out.txt SHADOWED 第 244 行），
 // 而模型/出参都是非 Option i32 ⇒ NULL 行读取即 ColumnNull。判责链见文件头。
 mod m0073_normalize_color_card_quantities;
+// m0074 扩 chk_aftersales_type 取值集为写入方权威白名单的 5 值（+ return_goods，
+// 三端同源：service create 白名单 = CHECK = 前端候选）；目标表 after_sales 由本域
+// m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可（与 m0067 同口径）。
+mod m0074_aftersales_type_add_missing_values;
 
 pub struct Migration;
 
@@ -525,12 +529,22 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0073_normalize_color_card_quantities::Migration
             .up(manager)
             .await?;
+        // m0074 售后工单类型 CHECK 补齐 return_goods（三端同源，见文件头注释），
+        // 须晚于 m0044 建表；本域最后应用，down 最先回滚
+        m0074_aftersales_type_add_missing_values::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // m0073 最后应用故最先回滚（撤 NOT NULL/DEFAULT，回到修复前的可空无默认形态）
+        // m0074 最后应用故最先回滚（售后类型 CHECK 回 m0044 原 4 值，
+        // 含 return_goods 在途行 fail-visible 拒滚）
+        m0074_aftersales_type_add_missing_values::Migration
+            .down(manager)
+            .await?;
+        // m0073 次后应用（撤 NOT NULL/DEFAULT，回到修复前的可空无默认形态）
         m0073_normalize_color_card_quantities::Migration
             .down(manager)
             .await?;
