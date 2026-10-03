@@ -498,9 +498,7 @@ impl FinancialAnalysisService {
     async fn fallback_sales_revenue_from_ar(&self) -> Result<Decimal, AppError> {
         use crate::models::ar_invoice;
         let ar_total: Option<Decimal> = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne(
-                crate::models::status::common::STATUS_CANCELLED,
-            ))
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
             .all(&*self.db)
             .await?
             .iter()
@@ -514,9 +512,10 @@ impl FinancialAnalysisService {
     async fn fallback_purchase_cost_from_ap(&self) -> Result<Decimal, AppError> {
         use crate::models::ap_invoice;
         let ap_total: Option<Decimal> = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::InvoiceStatus.ne(
-                crate::models::status::common::STATUS_CANCELLED,
-            ))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .ne(crate::models::status::common::STATUS_CANCELLED),
+            )
             .all(&*self.db)
             .await?
             .iter()

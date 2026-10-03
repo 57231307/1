@@ -107,8 +107,7 @@ const EXPECTED: &[ColExpect] = &[
         udt_name: "_text",
         is_nullable: "YES",
         column_default: None,
-        why:
-            "m0071：models/crm_lead.rs:123；production/mod.rs:281 JSONB ADD 恒 no-op 不构成形态依据",
+        why: "m0071：models/crm_lead.rs:123；production/mod.rs:281 JSONB ADD 恒 no-op 不构成形态依据",
     },
     ColExpect {
         table: "crm_opportunity",

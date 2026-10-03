@@ -287,7 +287,11 @@ async fn w7_chemical_master_duplicate_code_rejected_with_real_message() {
     let msg = dup.1["message"].as_str().unwrap_or_default();
     // 双向钉：既不得回显既有行名称，也不得回显本次提交但未被落库的名称
     // （服务端只回显"用户自己提交且与判重直接相关"的编码，名称一律不外显）
-    for leaked in [existing_name.as_str(), dup_name, "chemical" /* 类型字段 */] {
+    for leaked in [
+        existing_name.as_str(),
+        dup_name,
+        "chemical", /* 类型字段 */
+    ] {
         assert!(
             !msg.contains(leaked),
             "既有行名称/其它记录字段不得回显（仅用户自己提交的编码可外显）：{msg}"

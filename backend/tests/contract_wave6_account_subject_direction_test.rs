@@ -673,7 +673,9 @@ fn source_scan_comparison_points_no_longer_match_chinese_literal() {
     for (file, src) in [
         (
             "account_subject_service.rs",
-            code_only(&include_str!("../src/services/account_subject_service.rs").replace('\r', "")),
+            code_only(
+                &include_str!("../src/services/account_subject_service.rs").replace('\r', ""),
+            ),
         ),
         (
             "voucher_ops/balance.rs",
@@ -692,7 +694,8 @@ fn source_scan_comparison_points_no_longer_match_chinese_literal() {
         );
     }
 
-    let svc = code_only(&include_str!("../src/services/account_subject_service.rs").replace('\r', ""));
+    let svc =
+        code_only(&include_str!("../src/services/account_subject_service.rs").replace('\r', ""));
     for needle in [
         "fn validate_balance_direction",
         "subject_status::ALL.contains(&direction)",

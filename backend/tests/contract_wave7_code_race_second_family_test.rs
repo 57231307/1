@@ -602,7 +602,10 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
         //    全不成立（#4671 判责 B1②：单行字面量 needle 假失败，改一处会连报三处）；
         // ② 说明性注释（"旧口径是脱敏 business，现升为 business_displayable"）不是
         //    执行体，禁项/必备项都只看代码文本。
-        let flat: String = code_only(&src).chars().filter(|c| !c.is_whitespace()).collect();
+        let flat: String = code_only(&src)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
         let key_flat: String = key.chars().filter(|c| !c.is_whitespace()).collect();
         assert!(
             flat.contains(&key_flat),
@@ -638,7 +641,10 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
         ),
     ] {
         let src = std::fs::read_to_string(manifest.join(rel)).unwrap();
-        let flat: String = code_only(&src).chars().filter(|c| !c.is_whitespace()).collect();
+        let flat: String = code_only(&src)
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
         assert!(
             !flat.contains(&dead_shape),
             "{rel} 回潮 map_err 自造 DatabaseError 形态：会把 23505 与其他 DbErr 一并拍平成裸 500"
@@ -647,7 +653,10 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
 
     // supplier：取号+判重+INSERT 唯一实现收口；旧的「generate → 直插 ?」旁路不得回潮
     let sup = std::fs::read_to_string(manifest.join("supplier_service.rs")).unwrap();
-    let sup_flat: String = code_only(&sup).chars().filter(|c| !c.is_whitespace()).collect();
+    let sup_flat: String = code_only(&sup)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
     assert!(
         sup_flat.contains("DocumentNumberGenerator::insert_with_no_retry("),
         "supplier_service create 必须走 insert_with_no_retry 唯一取号+撞号重试实现"
@@ -667,7 +676,10 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
 
     // warehouse：人工码分支的旧裸 `?` 直插形态不得回潮
     let wh = std::fs::read_to_string(manifest.join("warehouse_service.rs")).unwrap();
-    let wh_flat: String = code_only(&wh).chars().filter(|c| !c.is_whitespace()).collect();
+    let wh_flat: String = code_only(&wh)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
     assert!(
         !wh_flat.contains("build_warehouse_active_model(code,&req,manager_id).insert(&txn).await?"),
         "warehouse 人工码分支回潮裸 `?` 直插：撞 UNIQUE(23505) 将再次成为 500 DATABASE_ERROR"

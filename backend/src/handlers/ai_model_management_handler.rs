@@ -131,8 +131,7 @@ pub async fn detect_model_drift(
     // service 返回 (drift_detected, current_accuracy, baseline_accuracy, drift_percentage)
     //（见 ai_model_management_service.rs::detect_model_drift 文档），按位解构为
     // actual（实测=最新）/expected（基准=历史平均）。
-    let (has_drift, actual, expected, score) =
-        service.detect_model_drift(model_version_id).await?;
+    let (has_drift, actual, expected, score) = service.detect_model_drift(model_version_id).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "has_drift": has_drift,
         "expected_accuracy": expected,

@@ -710,10 +710,7 @@ fn canon(src: &str) -> String {
         .filter(|c| !c.is_whitespace())
         .collect();
     loop {
-        let next = out
-            .replace(",)", ")")
-            .replace(",]", "]")
-            .replace(",}", "}");
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
         if next == out {
             break;
         }
@@ -799,8 +796,10 @@ async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
         "update 的 return_quantity 分支必须有同一 <=0 门"
     );
     assert_eq!(
-        flat.matches(&canon("AppError::validation_displayable(\"收回数量必须大于零\")"))
-            .count(),
+        flat.matches(&canon(
+            "AppError::validation_displayable(\"收回数量必须大于零\")"
+        ))
+        .count(),
         2,
         "create 与 update 两处必须同源同文案（不得一个外显一个脱敏）"
     );
