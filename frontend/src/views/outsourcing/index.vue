@@ -129,7 +129,7 @@
                 }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="180" fixed="right">
+            <el-table-column :label="$t('common.operation')" width="180" fixed="right">
               <template #default="{ row }">
                 <!-- 确认入口与后端 confirm 两道硬拒同口径（提前提示，不替代后端校验）：
                      状态门 receipt.rs:326-331 仅 draft；数量门 receipt.rs:338-342
