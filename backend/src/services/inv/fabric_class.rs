@@ -20,7 +20,7 @@ use crate::utils::error::AppError;
 pub struct FabricTrace {
     /// trim 后的色号；白坯布为空串
     pub color_no: String,
-    /// 染色布为非空缸号；白坯布归一为 None
+    /// 染色布为非空缸号；白坯布免填（缺省为 None），给了则如实保留 trim 值（R-1 裁定）
     pub dye_lot_no: Option<String>,
     /// trim 后的批次（入库批次，任何布种都必填）
     pub batch_no: String,
@@ -33,12 +33,13 @@ pub struct FabricTrace {
 /// 按名称嗅探会把染色白色布误判为白坯而豁免缸号，破坏四维追溯。
 ///
 /// 统一规则（用户拍板）：
-/// - `color_no` 为空 → 白坯布：免缸号（`dye_lot_no` 归一为 None），但批次仍必填
-///   （批次是入库批次，与是否染色无关）；
+/// - `color_no` 为空 → 白坯布：缸号**免填**——即不作必填要求，缺省归一为 None；
+///   若主动提交了非空缸号则如实保留 trim 值（静默丢弃用户入参属本仓既定的"假保存"
+///   缺陷形态，禁止；R-1 裁定）；批次仍必填（批次是入库批次，与是否染色无关）；
 /// - `color_no` 非空 → 染色布：缸号、批次都必填，缺一即返回明确业务错误；
 /// - 不看色号文本内容，仅以是否为空判定布种。
 ///
-/// 出库方向在此基础上还强制第四维匹号，见 [`normalize_outbound_piece_no`]（同一实现处）。
+/// 出库方向在此基础上还强制第四维匹号（仅对染色布），见 [`normalize_outbound_piece_no`]。
 pub fn validate_fabric_trace(
     color_no: Option<String>,
     dye_lot_no: Option<String>,
@@ -74,7 +75,9 @@ pub fn validate_fabric_trace(
 ///
 /// 用户拍板（2026-10-02 纠正）：出库对染色布强制四维 = 缸号 / 色号 / 批次 / 匹号。
 /// 判据与三维判定同风格——仅以是否为空判定，不看匹号文本内容：
-/// - `color_no` 为空（白坯布）：匹号免填，归一为 None（生产匹走生产/委外链路，出库不强制）；
+/// - `color_no` 为空（白坯布）：匹号**免填**——即不作必填要求，缺省归一为 None（生产匹走
+///   生产/委外链路，出库不强制）；若主动提交非空匹号则如实保留 trim 值，不清空、
+///   不静默丢弃入参（R-1 裁定；丢弃用户提交值属本仓既定的"假保存"缺陷形态）；
 /// - `color_no` 非空（染色布）：匹号必填，trim 后为空即拒（字段必填族，`validation_displayable`，
 ///   文案为公开规则、只回显判定依据，不含内部 ID/数量）；匹号是否命中真实库存匹由
 ///   `services::piece_domain_service` 出库存在性/CAS 消耗校验负责（状态门族，BUSINESS）。
@@ -109,7 +112,7 @@ mod tests {
 
     #[test]
     fn empty_color_is_white_fabric_exempt_from_dye_lot() {
-        // 空色号 = 白坯布：免缸号，缸号归一为 None；批次仍必填
+        // 空色号 = 白坯布：缸号免填（空值/缺省 → None；主动给值如实保留）；批次仍必填
         let f = v(Some(""), Some(""), Some("B1"));
         assert_eq!(f.color_no, "");
         assert_eq!(f.dye_lot_no, None);
@@ -187,7 +190,7 @@ mod tests {
 
     #[test]
     fn greige_outbound_exempt_from_piece_no() {
-        // 白坯布（色号为空）免缸号亦免匹号：既有口径不动，匹号归一为 None
+        // 白坯布（色号为空）免缸号亦免匹号=不强制必填：缺省归一 None（R-1：主动给值如实保留）
         assert_eq!(normalize_outbound_piece_no("", None).unwrap(), None);
         // 白坯主动给了匹号也不报错，如实保留 trim 值（不静默丢弃入参）
         assert_eq!(

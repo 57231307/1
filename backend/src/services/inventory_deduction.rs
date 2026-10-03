@@ -209,18 +209,20 @@ fn dye_lot_order_key(dye_lot_no: &Option<String>) -> (u8, &str) {
 /// 出库单四维入参（色号 + 缸号 + 批次 + 匹号，trim 后 owned 值）。
 ///
 /// 前三维与入库侧 [`fabric_class`] 的判定结果 [`FabricTrace`] 同源归一（`validate_fabric_trace`），
-/// 第四维匹号由 [`fabric_class::normalize_outbound_piece_no`] 归一（仅出库强制，白坯为 None）。
-/// 白坯布 `color_no` 为空串、`dye_lot_no`/`piece_no` 为 None；染色布四维皆非空。
+/// 第四维匹号由 [`fabric_class::normalize_outbound_piece_no`] 归一（仅出库强制对染色布必填）。
+/// 白坯布 `color_no` 为空串；缸号/匹号对免填值归一 None、主动提交值如实保留（R-1 裁定）；
+/// 染色布四维皆非空。
 /// 独立成结构而非别名 `FabricTrace`：匹号是出库专属维度，入库方向不携带。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutboundDimensions {
     /// trim 后的色号；白坯布为空串
     pub color_no: String,
-    /// 染色布为非空缸号；白坯布归一为 None
+    /// 染色布为非空缸号；白坯布免填（缺省 None），主动提交则如实保留 trim 值（R-1 裁定）
     pub dye_lot_no: Option<String>,
     /// trim 后的批次（任何布种都必填）
     pub batch_no: String,
-    /// trim 后的匹号；染色布必填（用户 2026-10-02 口径：出库四维=缸/色/批/匹），白坯为 None
+    /// trim 后的匹号；染色布必填（用户 2026-10-02 口径：出库四维=缸/色/批/匹），
+    /// 白坯免填（缺省 None），主动提交则如实保留（R-1 裁定）
     pub piece_no: Option<String>,
 }
 
@@ -229,7 +231,8 @@ pub struct OutboundDimensions {
 /// 判定委托全仓唯一实现 [`fabric_class`]（三维 [`fabric_class::validate_fabric_trace`] +
 /// 出库第四维 [`fabric_class::normalize_outbound_piece_no`]），出库 / 入库同源，
 /// 不在出库侧再写第二份规则（业务铁律：白坯布 = 没有颜色的布）：
-/// - 白坯布（色号为空 / 空白）：免缸号免匹号，`dye_lot_no`/`piece_no` 归一为 None，批次仍必填；
+/// - 白坯布（色号为空 / 空白）：免缸号免匹号=不作必填要求（缺省归一 None；主动提交值
+///   如实保留 trim，不清空——R-1 裁定），批次仍必填；
 /// - 染色布（色号非空）：缸号、批次、匹号都必填，缺一返回明确校验错误（VALIDATION 族；
 ///   维度命中/库存充足性属状态门族 BUSINESS。不做兜底）；
 /// - 不以色号名称嗅探白坯（"本白""WHITE" 是已染色的白色布，必须带缸号+匹号追溯）。
@@ -549,12 +552,12 @@ mod tests {
 
     #[test]
     fn require_outbound_dimensions_white_greige_allows_empty_color_no_dye_lot() {
-        // 白坯布（色号为空 / 空白 / None）免缸号免匹号，批次仍必填；缸号归一为 None
+        // 白坯布（色号为空 / 空白 / None）免缸号免匹号（缺省 None，R-1 如实保留给值），批次仍必填
         let none_color =
             require_outbound_dimensions("销售发货", 7, None, None, Some("B1"), None).unwrap();
         assert_eq!(none_color.color_no, "");
         assert_eq!(none_color.dye_lot_no, None);
-        assert_eq!(none_color.piece_no, None, "白坯匹号免填归一为 None");
+        assert_eq!(none_color.piece_no, None, "白坯匹号免填（缺省）为 None");
         assert_eq!(none_color.batch_no, "B1");
 
         let blank_color =

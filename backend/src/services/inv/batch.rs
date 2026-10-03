@@ -509,7 +509,7 @@ impl InventoryTransferService {
         transfer: inventory_transfer::Model,
     ) -> Result<(), AppError> {
         let mut transfer_update: inventory_transfer::ActiveModel = transfer.into();
-        transfer_update.status = sea_orm::ActiveValue::Set("shipped".to_string());
+        transfer_update.status = sea_orm::ActiveValue::Set(transfer_status::SHIPPED.to_string());
         transfer_update.shipped_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         transfer_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -1127,7 +1127,8 @@ impl InventoryTransferService {
     /// 调拨单明细是出库方向单据，判定唯一来源为 [`fabric_class`]（三维
     /// `validate_fabric_trace` + 出库第四维 `normalize_outbound_piece_no`，
     /// 经 [`require_outbound_dimensions`] 统一包装），本方法仅委托之，避免多处判定漂移：
-    /// - 色号为空 → 白坯布：免缸号免匹号（归一为 None），批次仍必填；
+    /// - 色号为空 → 白坯布：缸号/匹号免填（不作必填要求；缺省 None，若提交则如实保留
+    ///   trim 值，不清空——R-1 裁定），批次仍必填；
     /// - 色号非空 → 染色布：缸号、批次、匹号都必填，缺一返回明确业务错误
     ///   （用户 2026-10-02 纠正口径：出库对染色布强制四维 = 缸号/色号/批次/匹号）；
     /// - 不以色号文本内容判定布种（带"白"字的色号是染色白色布）。
@@ -1374,15 +1375,16 @@ impl InventoryTransferService {
             )?;
             active.color_no = sea_orm::ActiveValue::Set(dims.color_no);
             // 缸号列 DDL 是 NOT NULL DEFAULT ''（system/mod.rs:292，且同迁移把历史 NULL
-            // 回填成 ''），所以 DB 里"无缸号"的合法表示是空串而不是 NULL：白坯归一为 None
-            // 时必须落 ''。此处若 Set(None) 会生成 `SET dye_lot_no = NULL` 撞 23502，
+            // 回填成 ''），所以 DB 里"无缸号"的合法表示是空串而不是 NULL：白坯未提供缸号
+            // （dims.dye_lot_no=None，主动提供则如实保留）时必须落 ''。此处若 Set(None)
+            // 会生成 `SET dye_lot_no = NULL` 撞 23502，
             // 被拍平成脱敏 DATABASE_ERROR 500（同批建单路径 batch.rs:1225 / inventory_move.rs:339
             // 用 NotSet 让 DEFAULT '' 生效，update 路径不能照抄——NotSet 会让"染色改白坯"
             // 残留旧缸号，同样是数据说谎）。
             active.dye_lot_no =
                 sea_orm::ActiveValue::Set(Some(dims.dye_lot_no.unwrap_or_default()));
             active.batch_no = sea_orm::ActiveValue::Set(dims.batch_no);
-            // 匹号为 DB 可空列（m0066）：染色布必填值 / 白坯归一 None 均如实落库
+            // 匹号为 DB 可空列（m0066）：染色布必填值 / 白坯缺省 None / 白坯主动给值如实保留，均如实落库
             active.piece_no = sea_orm::ActiveValue::Set(dims.piece_no);
         }
         active.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
@@ -1544,12 +1546,19 @@ mod tests {
 
     #[test]
     fn empty_color_no_is_greige_allows_null_dye_lot() {
-        // 新口径：色号为空 = 白坯布，免缸号免匹号但批次必填（委托 fabric_class 单一实现）
+        // 白坯（空色号）：缸号/匹号免填=不作必填要求，批次必填（委托 fabric_class 单一实现）。
+        // 匹号免填是"放松必填"，不是"主动清空"——白坯给了匹号按 R-1 裁定如实保留 trim 值
+        //（静默丢弃用户提交值属本仓既定的"假保存"缺陷形态；判定与保留行为见
+        // fabric_class.rs normalize_outbound_piece_no 及其反向锁测试）。
         let f = validate(Some("   "), None, Some("B1")).expect("空色号应视为白坯布并允许免缸号");
         assert_eq!(f.color_no, "");
-        assert_eq!(f.dye_lot_no, None);
+        assert_eq!(f.dye_lot_no, None, "白坯未给缸号 → 归一 None");
         assert_eq!(f.batch_no, "B1");
-        assert_eq!(f.piece_no, None, "白坯匹号免填归一为 None");
+        assert_eq!(
+            f.piece_no.as_deref(),
+            Some("P-9"),
+            "R-1：白坯主动给了匹号如实保留（免填≠清空）"
+        );
     }
 
     #[test]
