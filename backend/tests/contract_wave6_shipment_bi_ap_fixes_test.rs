@@ -468,25 +468,43 @@ async fn shipment_error_family_envelopes_exact() {
 }
 
 // ===========================================================================
-// 2) BI DELETE 403：键推导取证锁（根因 a = 推导键未登记）
+// 2) BI DELETE 403：键推导取证锁（消歧后事实 + 幽灵路径如实除名）
 // ===========================================================================
 
-/// BI 域 URL 段的权限键推导逐条钉死（middleware/permission.rs:259 extract_resource_info +
-/// method_to_action）。/bi 是模块前缀（utils/path_utils.rs:82），seg4 直接成为资源键名：
-/// DELETE /bi/sales/... → `sales:delete`；DELETE /bi/dashboards/1 → `dashboards:delete`。
-/// 这些键在权限注册/角色种子中不存在 → fail-closed 403（取证：根因 a，登记缺失）。
+/// BI 域 URL 段的权限键推导逐条钉死（middleware/permission.rs::extract_resource_info +
+/// method_to_action）。`/bi` 是模块前缀（utils/path_utils.rs:82）。
+///
+/// 期望值取的是**消歧之后**的事实，不是旧的"seg4 直接当资源名"：`("bi","sales")`
+/// 已在 `path_utils.rs:148` 消歧为 `bi-analysis`，与注册表权威名
+/// （`services/init_service.rs` 的 `"bi-analysis"`）和角色种子
+/// （`init_service_ops/permission.rs` 的 `bi-analysis:read` / data_analyst 的 `bi-analysis:*`）
+/// 三方互证一致。该映射在 #4672 的 head `90ae08ee` 就已存在（消歧是 #4671 判责修复批
+/// 有意为之的**收窄**：防止持销售域键的角色经 URL 词面顺带读走 BI 分析面）；
+/// 本文件此前仍按消歧前的规则期望 `sales`，故 #4672 报 `left bi-analysis / right sales`
+/// ——是测试自己的前提陈述过期，按后端事实改判，**不是**把源码改回 `sales`
+/// （那会同时打开越权面并把已登记的 bi-analysis 授权变成死码）。
+///
+/// ⚠️ dashboards/charts/favorites 三条是**幽灵路径**：`/bi` 挂载下只注册了
+/// `/bi/sales/*` 的 16 条 GET/POST（`frontend/scripts/route-snapshot.txt:239-250、1064-1067`
+/// 与 `backend/src/routes/analytics.rs:488-556` 双向核对），**不存在任何 `/bi/dashboards|
+/// charts|favorites` 路由、也不存在任何 BI DELETE 端点**，前端 `api/bi.ts` 亦无 delete 调用。
+/// 因此这三条只锁"推导形态"这一事实，不得再被读成"缺播种的根因 a"——幽灵键不该播种；
+/// 若产品确实要 BI 仪表盘/收藏的管理能力，那是"补功能立项"（端点+权限键+前端消费三件齐），
+/// 与 `/after-sales` 的处置口径同型。
 #[test]
 fn bi_delete_permission_key_derivation_is_locked() {
     let delete = method_to_action(&Method::DELETE);
     let read = method_to_action(&Method::GET);
     // (路径, 期望资源键, 期望动作)
     let cases: Vec<(&str, &str, &str)> = vec![
-        ("/api/v1/erp/bi/sales/by-time", "sales", delete.as_str()),
+        // 真实挂载的 /bi/sales/* 族：消歧后统一派生 bi-analysis
+        ("/api/v1/erp/bi/sales/by-time", "bi-analysis", delete.as_str()),
+        // 以下三条路径未注册（幽灵），仅锁推导形态，见函数头 ⚠️ 段
         ("/api/v1/erp/bi/dashboards/1", "dashboards", "delete"),
         ("/api/v1/erp/bi/charts/2", "charts", "delete"),
         ("/api/v1/erp/bi/favorites/3", "favorites", "delete"),
-        // GET 读键同源（对照：读能过是因为 sales:read 已随销售域登记）
-        ("/api/v1/erp/bi/sales/kpi", "sales", read.as_str()),
+        // GET 读键同源（对照：读能过靠的是 bi-analysis:read 种子，不是 sales:read）
+        ("/api/v1/erp/bi/sales/kpi", "bi-analysis", read.as_str()),
     ];
     for (path, want_resource, want_action) in cases {
         let (resource, _id) = extract_resource_info(path);
