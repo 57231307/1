@@ -170,9 +170,8 @@ test.describe('09 预算端到端与一致性', () => {
     expect(failureCode(fail), `机器码应为 BUSINESS_ERROR，实际=${fail.code}`).toBe(
       APP_ERROR_CODES.BUSINESS_ERROR
     );
-    expect(
-      fail.message,
-      `状态门应回显规则文案，实际=${JSON.stringify(fail.message)}`
-    ).toContain('无法审批');
+    expect(fail.message, `状态门应回显规则文案，实际=${JSON.stringify(fail.message)}`).toContain(
+      '无法审批'
+    );
   });
 });
