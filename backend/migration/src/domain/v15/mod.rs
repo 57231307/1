@@ -4609,10 +4609,22 @@ COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号�
         crate::domain::production::m0068_add_chemical_code_partial_unique_constraints::Migration
             .up(manager)
             .await?;
+        // m0075 委外收回入库单补三列打卷实测值：目标表 outsourcing_receipt 在本域内建表
+        // （:689），且带结构前提 fail-visible（表缺失即 RAISE EXCEPTION）与 up 末尾
+        // information_schema/pg_constraint 复核，必须晚于建表语句，照 m0058/m0063/m0065/m0068
+        // 先例后置到本域 up 末尾（晚于 m0068）。
+        crate::domain::production::m0075_add_outsourcing_receipt_measured_values::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 与 up 严格逆序：m0075 最后应用故最先回滚（撤三条值域 CHECK + 丢弃三列，
+        // 其 down 先点名"已补录实测值行数"再删除，不留静默）。
+        crate::domain::production::m0075_add_outsourcing_receipt_measured_values::Migration
+            .down(manager)
+            .await?;
         // 与 up 对称：m0068 最后应用故最先回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
         crate::domain::production::m0068_add_chemical_code_partial_unique_constraints::Migration
             .down(manager)

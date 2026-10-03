@@ -210,16 +210,22 @@ fn build_new_piece(
         barcode: Set(Some(new_piece_no)),
         parent_piece_id: Set(Some(parent.id)), // 关联母卷
         length: Set(cut_length),
+        // 子卷重量 = 本次剪裁提交的实测重量（cut_weight），维持既有语义：剪裁量是按秤入的，
+        // 不继承母卷整卷重量（那会把母卷剩余量重复计入）；未提交则保持 NULL（标签点名拒绝）。
         weight: Set(cut_weight),
         status: Set(piece_status::AVAILABLE.to_string()),
         remarks: Set(Some(format!("从布卷 {} 剪裁拆分而来", parent.piece_no))),
         scan_type: Set(None), // v11 批次 153 P2-A：拆分产生的新布卷无扫码类型
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
-        // v14 批次 416：新增的 nullable 字段，拆分产生的新布卷不设置这些字段
+        // 幅宽/克重：子卷是**同一母卷上剪下的另一段同一卷布**，横向裁切不改变幅宽与克重，
+        // 因此按母卷实测值继承属物理同源（同一实测事实的延续记录），不是"缺值兜底"——
+        // 母卷本身为 NULL（未补录）时子卷同样是 NULL，绝不猜值、不回落 products 标称值。
+        // 与 length/weight 的处理不矛盾：那两个量随剪裁被物理分割，这两个量不被分割。
+        width: Set(parent.width),
+        gram_weight: Set(parent.gram_weight),
+        // v14 批次 416：其余 nullable 字段拆分产生的新布卷不设置（保持 NULL）
         supplier_piece_no: sea_orm::ActiveValue::NotSet,
-        width: sea_orm::ActiveValue::NotSet,
-        gram_weight: sea_orm::ActiveValue::NotSet,
         position_no: sea_orm::ActiveValue::NotSet,
         package_no: sea_orm::ActiveValue::NotSet,
         production_date: sea_orm::ActiveValue::NotSet,

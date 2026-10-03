@@ -419,7 +419,7 @@ pub async fn mark_reserved_pieces_shipped_on_receipt<C: ConnectionTrait>(
     Ok(())
 }
 
-/// 委外回仓生成匹记录的上下文参数（聚合 9 个业务字段，替代 10 参数函数签名
+/// 委外回仓生成匹记录的上下文参数（聚合 12 个业务字段，替代 13 参数函数签名
 /// 以满足 clippy::too_many_arguments 上限；db 连接保持独立参数）
 pub struct OutsourcingReceiptPieceContext<'a> {
     pub receipt_no: &'a str,
@@ -429,6 +429,13 @@ pub struct OutsourcingReceiptPieceContext<'a> {
     pub product_id: i32,
     pub warehouse_id: Option<i32>,
     pub length_m: rust_decimal::Decimal,
+    // ========== #220 收回匹实测值补录（m0075 三列）==========
+    // 由收回单逐列透传：有值必落、无值落 NULL。本函数**不得**改用 products.width/gram_weight
+    // 之类的标称值兜底，也不得 unwrap_or(ZERO)——标签口径已锁死为"全取匹行实测值、
+    // 缺值 fail-closed 逐列点名"（print_service.rs:4991-5011），兜底会印出假实测档案。
+    pub weight: Option<rust_decimal::Decimal>,
+    pub width: Option<rust_decimal::Decimal>,
+    pub gram_weight: Option<rust_decimal::Decimal>,
     pub grade: Option<&'a str>,
     pub remarks: &'a str,
 }
@@ -443,7 +450,8 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
 ) -> Result<Option<inventory_piece::Model>, AppError> {
     use sea_orm::EntityTrait;
 
-    // 解构上下文为局部变量：与原平铺参数同名，函数体零改动
+    // 解构上下文为局部变量：与匹表列名逐列同名（weight/width/gram_weight 与
+    // inventory_piece 同名列同名同型，透传可逐列对照）
     let OutsourcingReceiptPieceContext {
         receipt_no,
         receipt_dye_lot_no,
@@ -452,6 +460,9 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         product_id,
         warehouse_id,
         length_m,
+        weight,
+        width,
+        gram_weight,
         grade,
         remarks,
     } = ctx;
@@ -557,9 +568,12 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         product_id: Set(product_id),
         warehouse_id: Set(warehouse_id),
         length: Set(length_m),
-        weight: Set(None),
-        width: Set(None),
-        gram_weight: Set(None),
+        // #220 收回匹实测值补录链：收回单三列逐列直落匹行（m0075→DTO→confirm→此处），
+        // 无实测值时保持 NULL —— 标签由 print_service.rs 的 fail-closed 逐列点名拒绝，
+        // 不在此处回落 products 主数据、不塞默认值（已锁口径）。
+        weight: Set(weight),
+        width: Set(width),
+        gram_weight: Set(gram_weight),
         production_date: Set(None),
         quality_status: Set(grade.map(|g| g.to_string())),
         inventory_status: Set(Some(piece_status::AVAILABLE.to_string())),

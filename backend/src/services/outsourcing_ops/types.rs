@@ -223,6 +223,15 @@ pub struct CreateOutsourcingReceiptRequest {
     pub quality_status: Option<String>,
     pub grade: Option<String>,
     pub remarks: Option<String>,
+    // ========== #220 收回匹实测值补录（m0075 三列如实透传，不回落主数据/不塞默认值）==========
+    // 门控口径：本批为"可空但如实透传"——有值必落、键缺席/显式 null 保持 NULL；
+    // "收回时是否必填"属业务裁量，待用户裁定（详见 PR 正文待裁定项），此处不得自行收紧为必填。
+    /// 实测重量（千克，>0；DB 可空列 outsourcing_receipt.weight）
+    pub weight: Option<Decimal>,
+    /// 实测幅宽（cm，>0；DB 可空列 outsourcing_receipt.width）
+    pub width: Option<Decimal>,
+    /// 实测克重（g/m²，>0；DB 可空列 outsourcing_receipt.gram_weight）
+    pub gram_weight: Option<Decimal>,
 }
 
 /// 更新委外收回入库单请求（仅 draft 状态可更新）
@@ -265,6 +274,18 @@ pub struct UpdateOutsourcingReceiptRequest {
     /// 备注：DB 可空 TEXT——显式 null 清空
     #[serde(default, deserialize_with = "double_option")]
     pub remarks: Option<Option<String>>,
+    // ========== #220 收回匹实测值三列（m0075，DB 可空无默认）==========
+    // 三态语义与其余可空列一致：键缺席=保持原值、显式 null=清空回"未补录"、有值=覆盖。
+    // 清空只把匹行/收回单退回 NULL（标签继续 fail-closed 点名），绝不代表回落主数据。
+    /// 实测重量（千克）：DB 可空 DECIMAL——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub weight: Option<Option<Decimal>>,
+    /// 实测幅宽（cm）：DB 可空 DECIMAL——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub width: Option<Option<Decimal>>,
+    /// 实测克重（g/m²）：DB 可空 DECIMAL——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub gram_weight: Option<Option<Decimal>>,
 }
 
 /// 委外收回入库单查询参数

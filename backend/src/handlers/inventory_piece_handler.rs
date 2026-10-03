@@ -53,6 +53,13 @@ pub struct PieceResponse {
     pub warehouse_in_at: Option<chrono::DateTime<chrono::Utc>>,
     pub length: rust_decimal::Decimal,
     pub weight: Option<rust_decimal::Decimal>,
+    /// 幅宽（cm，实测值；DB 可空列 inventory_piece.width）——#220 标签 fail-closed 的
+    /// 点名列之一，回读口必须与后端真实输出同源，前端据此判断"该匹能否打标签"。
+    pub width: Option<rust_decimal::Decimal>,
+    /// 克重（g/m²，实测值；DB 可空列 inventory_piece.gram_weight）
+    pub gram_weight: Option<rust_decimal::Decimal>,
+    /// 条码（= piece_no 口径由产匹链路写入；可空 = 未生成 ⇒ 标签拒绝）
+    pub barcode: Option<String>,
     pub batch_no: String,
     pub color_no: Option<String>,
     pub product_id: i32,
@@ -146,6 +153,13 @@ pub async fn list_pieces(
                 warehouse_in_at: p.warehouse_in_at,
                 length: p.length,
                 weight: p.weight,
+                // 三列实测值 + 条码原样回传（读键与后端输出同为 snake_case、与
+                // models/inventory_piece.rs 列名逐字符同源）：NULL 就是"未补录"，
+                // 不得在此 map_or(Decimal::ZERO) 或 unwrap_or_default 把缺值洗成 0，
+                // 否则前端会误判"该匹可打标签"，与 print_service 的 fail-closed 口径分裂。
+                width: p.width,
+                gram_weight: p.gram_weight,
+                barcode: p.barcode,
                 batch_no: p.batch_no,
                 color_no: Some(p.color_no),
                 product_id: p.product_id,

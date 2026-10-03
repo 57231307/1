@@ -77,6 +77,12 @@ mod m0073_normalize_color_card_quantities;
 // 三端同源：service create 白名单 = CHECK = 前端候选）；目标表 after_sales 由本域
 // m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可（与 m0067 同口径）。
 mod m0074_aftersales_type_add_missing_values;
+// m0075 委外收回入库单补三列打卷实测值（weight/width/gram_weight，#220 裁定"收回匹实测值补录"）：
+// 目标表 outsourcing_receipt 在 v15 域内建表（domain/v15/mod.rs:689），而 production 域早于 v15
+// 执行，直接注册本域会因 "relation outsourcing_receipt does not exist" 中断迁移链。
+// 照 m0058/m0063/m0065/m0068 先例，up/down 由 domain/v15/mod.rs 在全部建表完成后调用，
+// 此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0075_add_outsourcing_receipt_measured_values;
 
 pub struct Migration;
 

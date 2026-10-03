@@ -54,6 +54,37 @@ pub(crate) struct ReceiptCalculation {
     pub(crate) unit_cost: Decimal,
 }
 
+/// 校验收回单实测值三列的取值域：非空时必须 > 0。
+///
+/// 与 m0075 的值域 CHECK（`"{col}" IS NULL OR "{col}" > 0`）逐字同口径，两者不是一套以上
+/// 的取值域：服务层门给用户可外显的 400 点名（VALIDATION_ERROR 族），DB CHECK 是并发/旁路
+/// 写入的兜底。0/负数是**无业务含义的伪实测值**：标签 fail-closed 只判 NULL
+/// （`print_service.rs:4991-4999`），若放 0 进来就会被当作"已实测"直接印上标签，
+/// 与 #220 锁定的"缺值逐列点名"口径相反，因此在任何 DB 访问前拒绝。
+/// 留空（None）不在此门内——本批口径是"可空但如实透传"，NULL 表示未补录。
+fn validate_measured_value(label: &str, value: Option<Decimal>) -> Result<(), AppError> {
+    if let Some(v) = value {
+        if v <= Decimal::ZERO {
+            return Err(AppError::validation_displayable(format!(
+                "收回单{label}必须大于零（填 0 或负数属伪造实测值；暂无实测数据请留空，标签将在补录前按缺值拒绝打印）"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// 三列实测值成组校验（列名与标签 fail-closed 点名的列名逐字符一致：重量(weight) /
+/// 幅宽(width) / 克重(gram_weight)，便于用户按同一套叫法在表单与错误文案间对齐）。
+fn validate_measured_values(
+    weight: Option<Decimal>,
+    width: Option<Decimal>,
+    gram_weight: Option<Decimal>,
+) -> Result<(), AppError> {
+    validate_measured_value("重量(weight)", weight)?;
+    validate_measured_value("幅宽(width)", width)?;
+    validate_measured_value("克重(gram_weight)", gram_weight)
+}
+
 /// 校验收回单质检结论取值，返回 `outsourcing_receipt_quality_status` 中的规范值。
 ///
 /// 命中后一律回传常量本身的写法（大小写不敏感仅用于容错读取，落库值永远是规范值）；
@@ -194,6 +225,10 @@ impl OutsourcingReceiptService {
             validate_receipt_quality_status(raw)?;
         }
 
+        // 实测值三列取值域门：非空必 > 0（0/负数属伪造实测值，会绕过标签 fail-closed）；
+        // 留空是本批允许的"未补录"形态，不在此处收紧（门控前移待用户裁定，见 PR 正文）
+        validate_measured_values(req.weight, req.width, req.gram_weight)?;
+
         Ok(())
     }
 
@@ -228,6 +263,12 @@ impl OutsourcingReceiptService {
                     .unwrap_or_else(|| outsourcing_receipt_quality_status::PENDING.to_string()),
             )),
             grade: Set(req.grade.clone()),
+            // 实测值三列如实落库（#220 补录链的采集点）：有值必落、无值落 NULL。
+            // 这里不写 unwrap_or(ZERO)、不查 products 标称值——那等于伪造实测档案
+            // （口径见 m0075 文件头与 models/outsourcing_receipt.rs 列注释）。
+            weight: Set(req.weight),
+            width: Set(req.width),
+            gram_weight: Set(req.gram_weight),
             inventory_transaction_id: Set(None),
             status: Set(outsourcing_receipt_status::DRAFT.to_string()),
             remarks: Set(req.remarks.clone()),
@@ -324,6 +365,22 @@ impl OutsourcingReceiptService {
         }
         if let Some(v) = req.remarks {
             active.remarks = Set(v);
+        }
+        // 实测值三列（DB 可空 DECIMAL，m0075）：Some(None)=Set(None) 清空回"未补录"、
+        // Some(Some(v))=Set(v) 覆盖；覆盖值须 > 0（与 create 同族同文案）。
+        // 清空是纠错动作（把误录的 0/错值退回 NULL），标签随即继续 fail-closed 点名，
+        // 不存在"清空后回落主数据"的语义——主数据从未被读进这条链路。
+        if let Some(v) = req.weight {
+            validate_measured_value("重量(weight)", v)?;
+            active.weight = Set(v);
+        }
+        if let Some(v) = req.width {
+            validate_measured_value("幅宽(width)", v)?;
+            active.width = Set(v);
+        }
+        if let Some(v) = req.gram_weight {
+            validate_measured_value("克重(gram_weight)", v)?;
+            active.gram_weight = Set(v);
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
@@ -461,6 +518,11 @@ impl OutsourcingReceiptService {
                 product_id: updated_receipt.product_id,
                 warehouse_id: updated_receipt.warehouse_id,
                 length_m: updated_receipt.return_quantity,
+                // #220 实测值补录链：收回单登记的三列实测值逐列透传给匹行（同一单据同一事务，
+                // 不做二次读取/不做主数据回落）；NULL 原样透传 ⇒ 标签继续按缺值点名拒绝。
+                weight: updated_receipt.weight,
+                width: updated_receipt.width,
+                gram_weight: updated_receipt.gram_weight,
                 grade: updated_receipt.grade.as_deref(),
                 remarks: &format!(
                     "委外回仓 {} 生成（订单 {}）",

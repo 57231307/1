@@ -61,6 +61,22 @@ pub struct Model {
     pub quality_status: Option<String>,
     /// 等级：A/B/C
     pub grade: Option<String>,
+
+    // ========== #220 委外收回匹实测值补录（m0075）==========
+    // 三列是**实物经手环节的实测采集值**，与 inventory_piece 同名列逐字符同名同型
+    // （DECIMAL(18,4)，m0075 文件头论证），确认收回时如实透传进匹行；NULL = 未补录，
+    // 对应匹的成品布入库标签继续按 fail-closed 逐列点名拒绝（print_service.rs:4991-5011）。
+    // 禁止回落 products 主数据、禁止默认 0（#220 已锁口径）。
+    /// 实测重量（千克）
+    #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
+    pub weight: Option<Decimal>,
+    /// 实测幅宽（cm）
+    #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
+    pub width: Option<Decimal>,
+    /// 实测克重（g/m²）
+    #[sea_orm(column_type = "Decimal(Some((18, 4)))")]
+    pub gram_weight: Option<Decimal>,
+
     /// 关联库存流水 ID
     pub inventory_transaction_id: Option<i32>,
     /// 缺陷 2.2：关联质检记录 ID（确认收回时自动创建质检记录并回写）
