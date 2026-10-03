@@ -412,26 +412,65 @@ async fn authz_401_and_403_share_the_same_trace_within_one_request_scope() {
     assert_eq!(auth_hdr, perm_hdr);
 }
 
-/// 上游给出带 `-` 形态的 traceparent 时，出参两侧都必须统一到 canonical 的小写 hex：
-/// 不允许「响应头是上游原样串、响应体是另一种形态」，也不允许响应体仍是带 `-` 的现造 UUID。
+/// 上游给出**非规范** traceparent（trace_id 用带 `-` 的 UUID 写法 ⇒ 整串被拆成 5 段）时，
+/// 依据 R-8 采 W3C 严格丢弃：不得进入本次请求的 trace_id，出参必须是系统自生成的
+/// 32 位小写 hex，且响应头与响应体同源。
+///
+/// 为什么不"宽容归一"（原判责此处要求归一，已被推翻）：trace_id 是可被外部注入的关联键，
+/// 把非规范值洗成合法形态等于接受外部可控 id 进入日志/审计链，制造跨请求碰撞与污染面；
+/// 本仓对"外部输入不信任"是一贯口径（源码现状 `from_traceparent` 段数≠4 即 None、
+/// 落到 `new_root()` 自生成，见 observability/trace_context.rs:58-60、:136-145）。
 #[tokio::test]
-async fn hyphenated_upstream_traceparent_normalized_on_both_sides_of_authz_401() {
-    let upstream = "0af76519-16cd-43dd-8448-eb211c80319c"; // 同一 128-bit，带连字符写法
+async fn hyphenated_upstream_traceparent_is_discarded_not_normalized() {
+    use bingxi_backend::observability::trace_context::TraceContext;
+
+    let upstream = "0af76519-16cd-43dd-8448-eb211c80319c"; // 带连字符的 128-bit 写法
     let canonical = upstream.replace('-', "");
+    let header_value = format!("00-{upstream}-b7ad6b7169203331-01");
+
+    // 判据①（函数层负向锁）：非规范值必须被丢弃，而不是被"洗"成可用 id
+    assert!(
+        TraceContext::from_traceparent(&header_value).is_none(),
+        "带连字符 trace_id 使整串成 5 段，W3C 严格口径下必须解析失败（R-8）"
+    );
 
     let app = auth_app(AppState::default());
     let mut req = traceparent_request("GET", "/api/v1/erp/users");
     req.headers_mut().insert(
         "traceparent",
-        HeaderValue::from_str(&format!("00-{upstream}-b7ad6b7169203331-01")).unwrap(),
+        HeaderValue::from_str(&header_value).expect("测试夹具：header 值应合法"),
     );
 
     let resp = app.oneshot(req).await.expect("测试夹具：请求应被服务");
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     let hdr = trace_header(&resp);
     let json = read_json(resp).await;
-    assert_eq!(hdr, canonical, "响应头应被规范化为 32 位小写 hex");
-    assert_same_source(&hdr, &json, "auth 401（上游带连字符 traceparent）");
+
+    // 判据②（不外泄上游可控 id）：原样串与去连字符形态都不得成为出参 trace_id
+    assert_ne!(hdr, upstream, "响应头 trace_id 不得是上游非规范原样串");
+    assert_ne!(
+        hdr, canonical,
+        "响应头 trace_id 不得是上游 id 的规范化形态（那是注入面）"
+    );
+    assert_ne!(
+        json["trace_id"].as_str().unwrap_or_default(),
+        canonical,
+        "响应体 trace_id 不得采纳上游非规范 traceparent 的 id"
+    );
+
+    // 判据③（自生成 + 两侧同源 + 形态合法）
+    let body_trace = json["trace_id"]
+        .as_str()
+        .unwrap_or_else(|| panic!("失败信封的 trace_id 应是字符串，实际: {json}"));
+    assert_eq!(
+        body_trace, hdr,
+        "丢弃上游值后，响应体与响应头仍必须同源（都是本次自生成的 trace）"
+    );
+    assert_simple_hex_form(body_trace, "auth 401（非规范 traceparent 被丢弃后自生成）");
+    assert_ne!(
+        body_trace, REQUEST_TRACE_ID,
+        "非规范上游值被丢弃 ⇒ 出参绝不等于夹具里那条规范 traceparent 的 id，也不应复用上游值"
+    );
 }
 
 // ---------------------------------------------------------------------------
