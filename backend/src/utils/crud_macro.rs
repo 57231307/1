@@ -43,6 +43,16 @@ macro_rules! impl_generate_no {
 }
 
 /// 通用 CRUD Handler 生成宏（减少增删改查路由模板代码；要求 Service 实现 list/get/create/update/delete，update/delete 注入 user_id 审计；另有 define_tuple_crud_handlers! 变体适用于返回元组与 Option 的 Service）
+///
+/// 出参类型形参（批次 476 契约收紧）：`$list_resp_ty` 为 list 的**真实**载荷类型
+/// （各域 service 一律返回 `PaginatedResponse<T>`，序列化后顶层键为
+/// `items/total/page/page_size`，见 utils/response.rs:39-45），`$item_resp_ty` 为
+/// get/create/update 的真实单对象类型（各域 service 一律返回实体 `Model`）。
+/// 原实现把 typed 结果经 `serde_json::to_value` 塌成 `serde_json::Value`，出参形状
+/// 在类型层消失，前端与门禁（check-api-envelope）均无法静态验证分页信封键名与行类型，
+/// 只能记「未分类」；现类型化贯穿到出参，删除这次有损往返。
+/// 信封形状（`code/data/message/total` 键）、`ApiResponse::success` /
+/// `success_with_message` 选用、状态码与 `AppError` 错误通道语义均不变。
 #[macro_export]
 macro_rules! define_crud_handlers {
     (
@@ -50,7 +60,9 @@ macro_rules! define_crud_handlers {
         $create_req:ty,
         $update_req:ty,
         $query_params:ty,
-        $id_ty:ty
+        $id_ty:ty,
+        $list_resp_ty:ty,
+        $item_resp_ty:ty
     ) => {
         #[allow(dead_code, reason = "宏生成的 handler 可能未被所有调用方使用")]
         pub async fn list(
@@ -58,7 +70,7 @@ macro_rules! define_crud_handlers {
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Query(params): axum::extract::Query<$query_params>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$list_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&params) {
@@ -67,7 +79,7 @@ macro_rules! define_crud_handlers {
             let service = <$service_ty>::new(state.db.clone());
             let result = service.list(params).await?;
             Ok(axum::Json($crate::utils::response::ApiResponse::success(
-                serde_json::to_value(result).map_err($crate::utils::error::AppError::from)?,
+                result,
             )))
         }
 
@@ -76,13 +88,13 @@ macro_rules! define_crud_handlers {
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$item_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             let service = <$service_ty>::new(state.db.clone());
             let item = service.get(id).await?;
             Ok(axum::Json($crate::utils::response::ApiResponse::success(
-                serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
+                item,
             )))
         }
 
@@ -91,7 +103,7 @@ macro_rules! define_crud_handlers {
             auth: $crate::middleware::auth_context::AuthContext,
             axum::Json(req): axum::Json<$create_req>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$item_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
@@ -127,7 +139,7 @@ macro_rules! define_crud_handlers {
 
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
-                    serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
+                    item,
                     $crate::utils::messages::biz_msg::CREATE_OK,
                 ),
             ))
@@ -139,7 +151,7 @@ macro_rules! define_crud_handlers {
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
             axum::Json(req): axum::Json<$update_req>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$item_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
@@ -150,7 +162,7 @@ macro_rules! define_crud_handlers {
             let item = service.update(id, auth.user_id, req).await?;
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
-                    serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
+                    item,
                     $crate::utils::messages::biz_msg::UPDATE_OK,
                 ),
             ))

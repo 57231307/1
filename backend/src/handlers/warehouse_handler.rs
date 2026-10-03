@@ -120,12 +120,17 @@ pub struct UpdateWarehouseRequest {
     pub warehouse_type: Option<Option<String>>,
 }
 
+// define_crud_handlers! 出参实参 = service 的真实返回类型（批次 476 契约收紧）：
+// list -> PaginatedResponse<warehouse::Model>，get/create/update -> warehouse::Model
+// （证据 services/warehouse_service.rs:29/75/83/242）
 crate::define_crud_handlers!(
     WarehouseService,
     CreateWarehouseRequest,
     UpdateWarehouseRequest,
     WarehouseListQuery,
-    i32
+    i32,
+    crate::utils::response::PaginatedResponse<crate::models::warehouse::Model>,
+    crate::models::warehouse::Model
 );
 
 /// 查询参数 - 库位列表
