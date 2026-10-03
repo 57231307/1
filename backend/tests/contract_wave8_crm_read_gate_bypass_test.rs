@@ -34,7 +34,7 @@
 //! 表结构唯一来源 = backend/migration；users/customers/crm_opportunity 自种子
 //! （FK 父行先插）；roles/role_permissions 属**密封参照表**（不参与逐用例 TRUNCATE，
 //! 见 `services/test_common.rs::SEALED_REFERENCE_TABLES`），本文件用到的自造角色/
-//! 授权行一律"先删后插"保持幂等，且仅用高段 id（97/98/99）避免与迁移种子行
+//! 授权行一律"先删后插"保持幂等，且仅用高段 id（97/902）与迁移种子行
 //! （id=1 admin / id=2 非 admin）互踩。禁 sqlite、无自建 DDL、无 #[ignore]。
 
 mod test_common;
@@ -75,8 +75,12 @@ const USER_ADMIN_SEED: i32 = 70; // 走迁移种子 admin（role_id=1）
 
 const ROLE_SEED_NONADMIN: i32 = 2; // 迁移种子非 admin 角色（data_permissions FK 父行）
 const ROLE_PROXY_ALL: i32 = 97; // 自造 all 范围非 admin 角色（D-3 代操作键试验田）
-const ROLE_CODE_ADMIN: i32 = 99; // 自造 code='admin' 角色（D-4：admin 与主键无关）
-const ROLE_CODE_LEADER: i32 = 98; // 自造非 admin 的 all 范围角色（D-4 对照）
+const ROLE_CODE_ADMIN: i32 = 1; // 迁移种子 admin（code='admin'）——"admin 与主键无关"
+// 的判别面见 contract_wave8_admin_role_id_drift_test.rs：roles.code 带 UNIQUE，public 上
+// 构造不出第二条 code='admin'，故本文件不自造，只用种子 admin。
+const ROLE_CODE_LEADER: i32 = 902; // 自造非 admin 的 all 范围角色（D-4 对照）
+// 号段避开 98：contract_wave8_crm_360_pii_scope_test.rs 用 98 作它的探针角色，
+// roles 是密封参照表（不参与逐用例 TRUNCATE）且多用例并发跑同一库 ⇒ 同 id 会互撞。
 
 const OPP_A1_EST: i64 = 111_111;
 const OPP_A1_ACT: i64 = 122_222;
@@ -681,13 +685,23 @@ async fn cross_owner_conversion_denied_key_owner_and_grant_channels() {
 #[tokio::test]
 async fn admin_exception_follows_role_code_not_literal_one() {
     let db = seeded_db().await;
-    // 自造角色同样先删后插（密封表幂等）：99 code='admin'（id≠1）、98 code≠'admin'
-    exec(&db, "DELETE FROM roles WHERE id IN (98,99)").await;
+    // 对照角色 902（code≠'admin'、all 范围）先删后插保持幂等。
+    //
+    // ⚠️ 本用例**不再**自造第二条 code='admin' 的角色：`roles.code` 在库上是 UNIQUE
+    // （`migration/src/domain/system/m0001_initial_schema.rs:24-28`），而迁移种子已
+    // 用掉唯一的那个 'admin'（id=1，同文件 :609-612），再插一条必报 23505 并被
+    // `exec` 助手 panic——即"admin 落在 id≠1"这一场景在 public.roles 上结构上
+    // 构造不出来（要凑就得临时改挪种子行，那会级联污染全部依赖种子的用例）。
+    // ⇒ 判别"admin 到底看 code 还是看主键"的活体证明改在
+    // `contract_wave8_admin_role_id_drift_test.rs` 的**私有 schema roles 副本表**上做
+    // （两条漂移场景都能原样构造且不触碰 public）。本文件这一段仍守住"admin 享受
+    // 他人行金额原值 + 非 admin 的 all 范围角色不享受豁免"这层契约，只是 admin 取
+    // 种子 id=1，不再声称区分了主键。
+    exec(&db, "DELETE FROM roles WHERE id = 902").await;
     exec(
         &db,
         "INSERT INTO roles (id,name,code,is_system,data_scope,created_at,updated_at) VALUES
-         (98,'运营主管','ops_leader',FALSE,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
-         (99,'系统管理员二','admin',FALSE,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+         (902,'运营主管','ops_leader',FALSE,'all','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
     .await;
 
@@ -699,11 +713,12 @@ async fn admin_exception_follows_role_code_not_literal_one() {
         assert_eq!(
             amount_signature(&row_by_id(&rows, id)),
             (amount_text(est), amount_text(act)),
-            "code='admin' 角色（role_id≠1）他人行 {id} 金额必须原值（admin 例外契约，判据=roles.code）"
+            "种子 admin（code='admin'）他人行 {id} 金额必须原值（admin 例外契约）；
+             该判据不看主键这一面由 drift 测在私有 schema 副本上钉"
         );
     }
 
-    // 对照段：同账号、all 范围、但 code≠'admin'（role 98）**不享受**豁免——
+    // 对照段：同账号、all 范围、但 code≠'admin'（role 902）**不享受**豁免——
     // 宁缺勿泄不静默扩权；若把 admin 例外错绑到"scope=all"或任何主键字面量，此处即红。
     let app2 = build_app(&db, make_auth(USER_A, Some(ROLE_CODE_LEADER), "all"));
     let rows2 = list_rows(&app2).await;
