@@ -105,7 +105,8 @@ fn test_zlft() {
         assert_eq!(
             ArReconciliationService::compute_aging_bucket_index(days),
             expected_idx,
-            "days={}"
+            "days={} 应落桶索引 {}",
+            days, expected_idx
         );
     }
 }
