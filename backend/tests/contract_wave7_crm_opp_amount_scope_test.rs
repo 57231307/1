@@ -10,6 +10,16 @@
 //! 4. 入口一致：导出与列表/详情/写响应共用同一个
 //!    `crm_handler::apply_opportunity_field_permission`，不得再留导出独立分支
 //!    （"列表打码、导出原文"同资源不同入口旁路，本族已收口四轮）。
+//! 5. 判据字段：隐藏与否只看**行 `owner_id`** 是否等于当前登录用户
+//!    （`handlers/crm_handler.rs:176-179`；导出侧同源 `services/crm/opp.rs:318`），
+//!    与建单人 `created_by` 无关（本仓缺陷族：归属错用 created_by）。交叉归属种子
+//!    （owner ≠ created_by 两行）由 `amount_hide_gate_keys_on_owner_id_not_created_by`
+//!    覆盖——未种该形态时两种实现出参完全等价，锁没有区分力。
+//! 6. admin（`roles.code='admin'` / role_id==1）例外口径：跨 owner **读**含他人行金额
+//!    原文（`handlers/crm_handler.rs:168-170` + `data_permission_service.rs:64-71`
+//!    的空操作分支，即裁定 #3"既有原值契约，不叠加"）；跨 owner 限制只落在**写**侧
+//!    （`crm_write_guard::ensure_cross_owner_write_allowed`）。因此本文件的 admin 用例
+//!    必须同时带"非 admin 对照段"，否则"隐藏门整体丢失"会以"admin 全显"的形态假绿。
 //!
 //! 本文件断言口径：只断 HTTP `status` + 信封 `code`，不断案文案原文（权限拒绝出参
 //! 永久脱敏，见 utils/error.rs 固定信封）；金额可见性按"键是否存在/单元格是否空"断。
@@ -65,6 +75,13 @@ const A_EST_2: i64 = 133_333;
 const B_EST_1: i64 = 88_888;
 const B_ACT_1: i64 = 66_666;
 const B_EST_2: i64 = 55_555;
+// 交叉归属行（"归属转移后"形态，判定字段锁专用）：owner_id 与 created_by 不同人。
+// 未种这种形态时，误用 created_by 判归属与正确用 owner_id 判归属在所有出参上完全等价
+// （本仓缺陷族：归属判据错用 created_by 而非 owner_id），任何断言都区分不出来。
+const T_OWN_EST: i64 = 210_001; // owner=USER_A / created_by=USER_B
+const T_OWN_ACT: i64 = 210_002;
+const T_OTHER_EST: i64 = 210_003; // owner=USER_B / created_by=USER_A
+const T_OTHER_ACT: i64 = 210_004;
 
 fn amount(raw: i64) -> Decimal {
     Decimal::from(raw)
@@ -116,11 +133,16 @@ fn ts(y: i32, m: u32, d: u32) -> DateTime<Utc> {
         .and_utc()
 }
 
+/// 商机种子。`creator_id` 与 `owner_id` 是**两个独立入参**：隐藏判定的行归属来源是
+/// `owner_id`（`handlers/crm_handler.rs:176-179` 取 `owner_id` 比对当前登录用户；
+/// 导出侧同源 = `services/crm/opp.rs` 回传的 `opp.owner_id`），`created_by` 只是建单人
+/// 留痕、不参与判定。未发生归属转移的真实行传 `creator_id == owner_id`。
 async fn insert_opp(
     db: &sea_orm::DatabaseConnection,
     id: i32,
     owner_id: i32,
     owner_name: &str,
+    creator_id: i32,
     estimated: i64,
     actual: Option<i64>,
     created_at: DateTime<Utc>,
@@ -163,8 +185,8 @@ async fn insert_opp(
         tags: Set(None),
         created_at: Set(Some(created_at)),
         updated_at: Set(Some(created_at)),
-        created_by: Set(Some(owner_id)),
-        updated_by: Set(Some(owner_id)),
+        created_by: Set(Some(creator_id)),
+        updated_by: Set(Some(creator_id)),
     }
     .insert(db)
     .await
@@ -198,23 +220,45 @@ async fn seeded_db(permissions: Option<&str>) -> Arc<sea_orm::DatabaseConnection
         1,
         USER_A,
         "销售甲",
+        USER_A,
         A_EST_1,
         Some(A_ACT_1),
         ts(2026, 1, 1),
     )
     .await;
-    insert_opp(&db, 2, USER_A, "销售甲", A_EST_2, None, ts(2026, 1, 2)).await;
+    insert_opp(
+        &db,
+        2,
+        USER_A,
+        "销售甲",
+        USER_A,
+        A_EST_2,
+        None,
+        ts(2026, 1, 2),
+    )
+    .await;
     insert_opp(
         &db,
         3,
         USER_B,
         "销售乙",
+        USER_B,
         B_EST_1,
         Some(B_ACT_1),
         ts(2026, 1, 3),
     )
     .await;
-    insert_opp(&db, 4, USER_B, "销售乙", B_EST_2, None, ts(2026, 1, 4)).await;
+    insert_opp(
+        &db,
+        4,
+        USER_B,
+        "销售乙",
+        USER_B,
+        B_EST_2,
+        None,
+        ts(2026, 1, 4),
+    )
+    .await;
     if let Some(insert_sql) = permissions {
         exec(&db, insert_sql).await;
     }
@@ -278,6 +322,24 @@ async fn list_items(app: &Router) -> Vec<Value> {
 
 fn item_no(item: &Value) -> &str {
     item["opportunity_no"].as_str().unwrap_or_default()
+}
+
+/// 按商机编号取列表行：**禁止按位置索引取行**（列表排序契约 = `created_at DESC`，
+/// 见 `services/crm/opp.rs:179`；位置索引把排序当契约，种子时间一调整就假判红/假判绿）。
+/// 找不到行属可见集/契约漂移，直接 panic 打出全部单号，不静默降级。
+fn item_by_no<'a>(items: &'a [Value], no: &str) -> &'a Value {
+    items.iter().find(|i| item_no(i) == no).unwrap_or_else(|| {
+        panic!(
+            "列表缺行 {no}（按单号定位，不依赖排序）: {:?}",
+            items.iter().map(item_no).collect::<Vec<_>>()
+        )
+    })
+}
+
+/// 金额键是否仍在外显出参中（键被整键移除 = 隐藏；键存在但为 null = 库中本无值，
+/// 属"未剔除"，两种形态必须区分——隐藏实现是 `obj.remove(column)`，不是置 null）
+fn has_amount_key(item: &Value, column: &str) -> bool {
+    item.get(column).is_some()
 }
 
 async fn export_table(app: &Router) -> (Vec<String>, Vec<Vec<String>>) {
@@ -508,15 +570,8 @@ async fn admin_sees_all_amounts_on_all_rows() {
     // OPPB003 —— 那是把排序当契约的巧合，排序一漂移就假判红/假判绿（本轮该用例
     // Expected 88888.00 / Received 133333.00 即位置漂移产物）。改按单号逐行钉
     // 金额原值，且由"只断一行"收紧为"4 行预估 + 2 行实际金额全覆盖"。
-    let row_of_no = |no: &str| -> Value {
-        items
-            .iter()
-            .find(|i| item_no(i) == no)
-            .unwrap_or_else(|| panic!("列表缺行 {no}（按单号定位，不依赖排序）: {items:?}"))
-            .clone()
-    };
-    let est = |no: &str| row_of_no(no)["estimated_amount"].clone();
-    let act = |no: &str| row_of_no(no)["actual_amount"].clone();
+    let est = |no: &str| item_by_no(&items, no)["estimated_amount"].clone();
+    let act = |no: &str| item_by_no(&items, no)["actual_amount"].clone();
     assert_eq!(
         est("OPPA001"),
         Value::String(amount_text(A_EST_1)),
@@ -554,6 +609,192 @@ async fn admin_sees_all_amounts_on_all_rows() {
         row_of(&headers, &rows, "OPPB003")[column(&headers, "预估金额")],
         amount_text(B_EST_1)
     );
+
+    // 详情通道与列表同源同口径：admin 读**他人行**（OPPB003，owner_id=USER_B）详情原值。
+    // 依据：get_opportunity（handlers/crm_handler.rs:919-940）对单元素切片调同一个
+    // apply_opportunity_field_permission；admin 命中 get_role_data_permission 的
+    // 空操作分支（services/data_permission_service.rs:64-71 → allowed/hidden 均 None）
+    // 或 rid==1 提前返回（handlers/crm_handler.rs:168-170），两条都不剔金额列。
+    // 即"读跨 owner"在 admin 口径下**含**他人行金额原文（裁定 #3 既有原值契约；
+    // 跨 owner 的限制只落在写侧，见 update/delete/close 的 ensure_cross_owner_write_allowed）。
+    let (status, detail) = get_json(&app, "/erp/crm/opportunities/3").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "admin 读他人商机详情应 200: {detail}"
+    );
+    assert_eq!(
+        detail["data"]["estimated_amount"],
+        Value::String(amount_text(B_EST_1)),
+        "admin 详情出口他人行预估金额原值契约（与列表同口径，不得只在列表放行）"
+    );
+    assert_eq!(
+        detail["data"]["actual_amount"],
+        Value::String(amount_text(B_ACT_1)),
+        "admin 详情出口他人行实际金额原值契约"
+    );
+
+    // 【本用例的区分力所在】admin 全显有两种成因：①admin 豁免生效（正确）；
+    // ②"仅非本人行"隐藏门整体丢失（缺陷）。只断 admin 一侧的数无法区分二者——门被删
+    // 掉时本用例照样全绿。故同一份种子再以非 admin 的 dept 用户复跑，必须仍然
+    // "他人行金额整键移除 **且** 本人行金额原值可见"，两个方向同时断。
+    let dept_app = build_app(&db, make_auth(USER_A, Some(2), "dept"));
+    let dept_items = list_items(&dept_app).await;
+    assert_eq!(dept_items.len(), 4, "对照段可见集基线（dept 本部门 4 行）");
+    for no in ["OPPB003", "OPPB004"] {
+        let row = item_by_no(&dept_items, no);
+        assert!(
+            !has_amount_key(row, "estimated_amount") && !has_amount_key(row, "actual_amount"),
+            "对照段：非 admin 的他人行 {no} 金额应整键移除（门丢失即在此暴露）: {row}"
+        );
+    }
+    for no in ["OPPA001", "OPPA002"] {
+        let row = item_by_no(&dept_items, no);
+        assert!(
+            has_amount_key(row, "estimated_amount"),
+            "对照段：非 admin 的本人行 {no} 金额键不得被移除: {row}"
+        );
+    }
+    assert_eq!(
+        item_by_no(&dept_items, "OPPA001")["estimated_amount"],
+        Value::String(amount_text(A_EST_1)),
+        "对照段：本人行金额必须是原值而非掩码/占位（裁定 #2）"
+    );
+    assert_eq!(
+        item_by_no(&dept_items, "OPPA002")["estimated_amount"],
+        Value::String(amount_text(A_EST_2)),
+        "对照段：本人行金额必须是原值而非掩码/占位（裁定 #2）"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 3b) 隐藏判据字段锁：行归属一律按 `owner_id`，不得按 `created_by`
+//     （本仓缺陷族：归属判据错用 created_by）。种子刻意造出 owner_id ≠ created_by
+//     的"归属转移后"形态两行——若两种实现都能让本用例通过，说明种子没区分力。
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn amount_hide_gate_keys_on_owner_id_not_created_by() {
+    let db = seeded_db(None).await;
+    // OPPA005：owner=USER_A（本人行）、created_by=USER_B（他人建单）⇒ 金额必须可见
+    insert_opp(
+        &db,
+        5,
+        USER_A,
+        "销售甲",
+        USER_B,
+        T_OWN_EST,
+        Some(T_OWN_ACT),
+        ts(2026, 1, 5),
+    )
+    .await;
+    // OPPB006：owner=USER_B（他人行）、created_by=USER_A（本人建单）⇒ 金额必须被隐藏
+    insert_opp(
+        &db,
+        6,
+        USER_B,
+        "销售乙",
+        USER_A,
+        T_OTHER_EST,
+        Some(T_OTHER_ACT),
+        ts(2026, 1, 6),
+    )
+    .await;
+
+    let app = build_app(&db, make_auth(USER_A, Some(2), "dept"));
+    let items = list_items(&app).await;
+    assert_eq!(items.len(), 6, "dept 可见集（本部门 6 行，含两行交叉归属）");
+
+    let own = item_by_no(&items, "OPPA005");
+    assert_eq!(
+        own["owner_id"],
+        serde_json::json!(USER_A),
+        "种子前提：OPPA005 的 owner_id 是本人"
+    );
+    assert_eq!(
+        own["created_by"],
+        serde_json::json!(USER_B),
+        "种子前提：OPPA005 的 created_by 是他人（与 owner_id 不同人）"
+    );
+    assert_eq!(
+        own["estimated_amount"],
+        Value::String(amount_text(T_OWN_EST)),
+        "OPPA005 按 owner_id 判为本人行 ⇒ 预估金额原值可见（若判据误用 created_by 即被剔除，此处红）"
+    );
+    assert_eq!(
+        own["actual_amount"],
+        Value::String(amount_text(T_OWN_ACT)),
+        "OPPA005 实际金额同样按 owner_id 放行"
+    );
+
+    let other = item_by_no(&items, "OPPB006");
+    assert_eq!(
+        other["owner_id"],
+        serde_json::json!(USER_B),
+        "种子前提：OPPB006 的 owner_id 是他人"
+    );
+    assert_eq!(
+        other["created_by"],
+        serde_json::json!(USER_A),
+        "种子前提：OPPB006 的 created_by 是本人（若判据误用 created_by 就会被放行）"
+    );
+    assert!(
+        !has_amount_key(other, "estimated_amount") && !has_amount_key(other, "actual_amount"),
+        "OPPB006 按 owner_id 判为他人行 ⇒ 金额整键移除（若判据误用 created_by 则原文外显，此处红）: {other}"
+    );
+    let raw = serde_json::to_string(&items).unwrap();
+    for banned in [amount_text(T_OTHER_EST), amount_text(T_OTHER_ACT)] {
+        assert!(
+            !raw.contains(&banned),
+            "列表出参含按 owner_id 判定应隐藏的他人行金额原文 {banned}"
+        );
+    }
+
+    // 详情通道同一判据（同一个函数的单元素路径）
+    let (status, detail) = get_json(&app, "/erp/crm/opportunities/6").await;
+    assert_eq!(status, StatusCode::OK, "同部门他人行详情应 200: {detail}");
+    assert!(
+        detail["data"].get("estimated_amount").is_none()
+            && detail["data"].get("actual_amount").is_none(),
+        "详情出口按 owner_id 判他人行即剔金额（判据漂移会在此暴露）: {}",
+        detail["data"]
+    );
+    let (status, detail) = get_json(&app, "/erp/crm/opportunities/5").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "本人行（转移后 owner=本人）详情应 200: {detail}"
+    );
+    assert_eq!(
+        detail["data"]["estimated_amount"],
+        Value::String(amount_text(T_OWN_EST)),
+        "详情出口本人行（created_by 为他人）金额原值可见"
+    );
+
+    // 导出通道同一判据：行归属来源 = service 回传的 opp.owner_id
+    //（services/crm/opp.rs:318），不是 created_by；列表/导出仍逐行等值
+    assert_export_equals_list_for_amounts(&app).await;
+    let (headers, rows) = export_table(&app).await;
+    assert_eq!(
+        row_of(&headers, &rows, "OPPA005")[column(&headers, "预估金额")],
+        amount_text(T_OWN_EST),
+        "导出：owner=本人的转移行金额真实外显"
+    );
+    assert_eq!(
+        row_of(&headers, &rows, "OPPB006")[column(&headers, "预估金额")],
+        "",
+        "导出：owner=他人的行（即便 created_by=本人）金额不外显"
+    );
+
+    // admin 侧同一交叉形态：全显（豁免与判据无关，跨 owner 读含金额原文）
+    let admin_app = build_app(&db, make_auth(USER_ADMIN, Some(1), "all"));
+    let admin_items = list_items(&admin_app).await;
+    assert_eq!(
+        item_by_no(&admin_items, "OPPB006")["estimated_amount"],
+        Value::String(amount_text(T_OTHER_EST)),
+        "admin 对交叉他人行仍原值（裁定 #3 既有契约）"
+    );
+    assert_export_equals_list_for_amounts(&admin_app).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -691,7 +932,23 @@ fn amount_scope_ratchet_source_scan() {
         "默认处理必须比对行 owner_id 与当前登录用户（仅非本人行判据）"
     );
     assert!(
+        apply_body.contains("get(\"owner_id\")"),
+        "默认处理的行归属判据必须取 owner_id: {apply_body}"
+    );
+    assert_eq!(
+        apply_body.matches("created_by").count(),
+        0,
+        "回潮棘轮：商机金额隐藏判据出现 created_by（本仓缺陷族：归属错用 created_by 而非 owner_id）"
+    );
+    assert!(
         apply_body.contains("if rid == 1 {\n            return;"),
         "admin 保持既有原值契约（不进默认处理）"
+    );
+    // 导出通道的行归属来源与列表同源（handler 侧只能从 service 回传的 owner_id 注入，
+    // 不得改为 created_by，否则导出与列表的"本人行"集合会分叉）
+    let opp_svc = include_str!("../src/services/crm/opp.rs");
+    assert!(
+        opp_svc.contains("opportunities.iter().map(|opp| opp.owner_id).collect()"),
+        "导出回传的行归属来源必须是 opp.owner_id（与列表出参 owner_id 同一列）"
     );
 }
