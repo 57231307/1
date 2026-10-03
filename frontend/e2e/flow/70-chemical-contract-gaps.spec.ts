@@ -7,11 +7,13 @@ import {
   apiCallExpectFail,
   genCode,
   failureCode,
-  tryCleanup,
+  deferCleanup,
+  flushDeferredCleanups,
   verifyEndpointHealthy,
   APP_ERROR_CODES,
   BASE_URL,
   type ApiFailureResult,
+  type DeferredCleanup,
 } from './helpers';
 
 /**
@@ -66,6 +68,18 @@ import {
  */
 
 type Row = Record<string, unknown>;
+
+/**
+ * 延迟清理队列（范式同 purchase/03 的 CREATED_ORDER_IDS + afterEach、finance/01 的 CLEANUP[]）：
+ * 本 spec 大量用例在自建主数据上还留有后续读/判重断言（by-code 回读、"未删重复应被拒"），
+ * 若用同步 tryCleanup 当场软删，会把后续断言的前提数据删没（后端过滤 is_deleted=false 后
+ * 查不到行 → 回读 404 / 判重返回 200,对后端皆正确,却制造假红并曾被误判成后端缺陷）。
+ * 故所有 housekeeping 清理改为 deferCleanup 登记,统一在本文件每条用例结束后（全部断言之后）flush。
+ */
+const CLEANUP: DeferredCleanup[] = [];
+test.afterEach(async ({ page }) => {
+  await flushDeferredCleanups(page, CLEANUP);
+});
 
 /** rust_decimal 经 JSON 序列化为字符串，比较前归一 */
 const toNum = (v: unknown): number => Number(String(v));
@@ -151,7 +165,8 @@ async function createChemical(
   });
   const id = Number(res.data?.id);
   expect(id, `化料创建应返回 id：${JSON.stringify(res)}`).toBeGreaterThan(0);
-  await tryCleanup(page, 'DELETE', `/chemicals/${id}`, `[70] chemical ${code}`);
+  // 化料主数据在调用方（70-02 等）还要 by-code/详情回读，绝不能当场软删——登记到断言之后清理
+  deferCleanup(CLEANUP, 'DELETE', `/chemicals/${id}`, `[70] chemical ${code}`);
   return { id, code };
 }
 
@@ -171,7 +186,8 @@ async function createLot(
   });
   const id = Number(res.data?.id);
   expect(id, `批次创建应返回 id：${JSON.stringify(res)}`).toBeGreaterThan(0);
-  await tryCleanup(page, 'DELETE', `/chemical-lots/${id}`, `[70] lot ${lotNo}`);
+  // 批次在调用方（70-03 等）还要详情/by-no 回读，绝不能当场软删——登记到断言之后清理
+  deferCleanup(CLEANUP, 'DELETE', `/chemical-lots/${id}`, `[70] lot ${lotNo}`);
   return { id, lotNo };
 }
 
@@ -270,8 +286,10 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       newChildId > 0 && newChildId !== childId,
       `软删后同编码应可重建（新 id）：${JSON.stringify(recreated)}`
     ).toBe(true);
-    await tryCleanup(page, 'DELETE', `/chemical-categories/${newChildId}`, '[70] category 重建');
-    await tryCleanup(page, 'DELETE', `/chemical-categories/${rootId}`, '[70] category 根');
+    // 登记顺序：先父后子（flushDeferredCleanups 逆序执行 ⇒ 实际删除为子先父后，
+    // 与原即时清理「child→parent」的可达顺序一致，避免父因尚有未删子被引用守卫拒删而泄漏）
+    deferCleanup(CLEANUP, 'DELETE', `/chemical-categories/${rootId}`, '[70] category 根');
+    deferCleanup(CLEANUP, 'DELETE', `/chemical-categories/${newChildId}`, '[70] category 重建');
 
     // 负例：词表外类型 / 父不存在（均为 service 层 AppError，统一信封）。
     // 注意：**重复编码不在本用例断言**——判重只查未删行（category.rs:50-60，
@@ -320,12 +338,10 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     });
     const originId = Number(origin.data?.id);
     expect(originId, `判重主体分类应创建成功：${JSON.stringify(origin)}`).toBeGreaterThan(0);
-    await tryCleanup(
-      page,
-      'DELETE',
-      `/chemical-categories/${originId}`,
-      `[70] category ${dupCode}`
-    );
+    // 判重前提：主体分类必须**保持未删**——查重只过滤未删行（category.rs:54-68）。
+    // 清理绝不能当场发起（同步 tryCleanup 会立即软删，使下方"未删重复应被拒"的 POST 查不到未删行、
+    // 后端正当返回 200 → 用例假红、曾被误判后端缺陷）；改为登记，断言全部结束后再 flush 清理。
+    deferCleanup(CLEANUP, 'DELETE', `/chemical-categories/${originId}`, `[70] category ${dupCode}`);
 
     // 未删状态下同码再 POST → 必拒。本仓刚把该族拒绝从脱敏常量改为可外显
     // （AppError::business_displayable），故收紧为精确判定：400 + BUSINESS_ERROR，
@@ -524,7 +540,9 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     expect(newId > 0 && newId !== id, `软删后同编码应可重建：${JSON.stringify(revived)}`).toBe(
       true
     );
-    await tryCleanup(page, 'DELETE', `/chemicals/${newId}`, '[70] chemical 重建');
+    // 重建行 newId 在末尾还要按 code 走 verifyEndpointHealthy（by-code 命中未删的 newId）——
+    // 当场软删会让该健康探针 404，故登记到本用例断言之后再清理
+    deferCleanup(CLEANUP, 'DELETE', `/chemicals/${newId}`, '[70] chemical 重建');
 
     // UI 页面与端点严格健康（不重复 62 的 UI 编辑链路）
     await verifyEndpointHealthy(page, `/chemicals/by-code/${encodeURIComponent(code)}`);
@@ -651,7 +669,9 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     const no = String(mk.data?.requisition_no);
     expect(id, `领用单创建应返回 id：${JSON.stringify(mk)}`).toBeGreaterThan(0);
     expect(mk.data?.status, '新建领用单初始 draft（requisition.rs:122）').toBe('draft');
-    await tryCleanup(page, 'DELETE', `/chemical-requisitions/${id}`, `[70] req ${no}`);
+    // 该领用单 id 在下方还要 PUT 更新/approve/issue/close（draft 门控等断言）——当场软删会让这些写读全 404，
+    // 登记到断言之后再清理
+    deferCleanup(CLEANUP, 'DELETE', `/chemical-requisitions/${id}`, `[70] req ${no}`);
 
     const requiredDate = ymd(7);
     await apiCall(page, 'PUT', `/chemical-requisitions/${id}`, {
@@ -741,7 +761,8 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     });
     const id3 = Number(mk3.data?.id);
     expect(id3, '第三张（draft 负金额实验）应创建成功').toBeGreaterThan(0);
-    await tryCleanup(page, 'DELETE', `/chemical-requisitions/${id3}`, '[70] req3');
+    // 该单 id3 在下方还要 PUT 负金额 + 详情回读原值（无痕断言）——当场软删会让其 404，登记到断言之后清理
+    deferCleanup(CLEANUP, 'DELETE', `/chemical-requisitions/${id3}`, '[70] req3');
     const negPut = await apiCallExpectFail(page, 'PUT', `/chemical-requisitions/${id3}`, {
       total_amount: '-0.01',
     });

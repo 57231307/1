@@ -10,10 +10,12 @@ import {
   failureCode,
   verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
-  tryCleanup,
+  deferCleanup,
+  flushDeferredCleanups,
   APP_ERROR_CODES,
   BASE_URL,
   type ApiFailureResult,
+  type DeferredCleanup,
 } from './helpers';
 import { fillFieldByLabel } from './ui-helpers';
 
@@ -74,6 +76,18 @@ function expectRejected(r: ApiFailureResult, what: string): void {
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 
+/**
+ * 延迟清理队列（范式同 purchase/03 的 CREATED_ORDER_IDS + afterEach、finance/01 的 CLEANUP[]）：
+ * 本 spec 大量用例在自建主数据上还留有后续读断言（by-code 回读、by-no 回读、分页真值、
+ * 生产领用按缸号追溯等）。同步 tryCleanup 当场软删会让后端按 is_deleted=false 过滤后查不到行
+ * → 回读 404 / 关联校验被拒 → 用例假红、曾被误判成后端缺陷（见 #4669/#4671）。
+ * 故所有 housekeeping 清理改为 deferCleanup 登记，统一在每条用例（全部断言之后）flush。
+ */
+const CLEANUP: DeferredCleanup[] = [];
+test.afterEach(async ({ page }) => {
+  await flushDeferredCleanups(page, CLEANUP);
+});
+
 /** 后端词表合法、且无需附加必填分类字段的化料类型只有 chemical（dye/auxiliary 需附加字段） */
 async function createChemicalApi(
   page: import('@playwright/test').Page,
@@ -90,7 +104,9 @@ async function createChemicalApi(
   });
   const model = res.data;
   expect(model?.id, `化料创建应返回 id：${JSON.stringify(res)}`).toBeTruthy();
-  await tryCleanup(page, 'DELETE', `/chemicals/${Number(model?.id)}`, '[62] chemical');
+  // 62-02 稍后还要 by-code/详情/UI 列表回读并改名；62-03/05 还要以本化料 id 建批——当场软删会 404，
+  // 登记到断言之后再清理
+  deferCleanup(CLEANUP, 'DELETE', `/chemicals/${Number(model?.id)}`, '[62] chemical');
   return { model, code };
 }
 
@@ -123,7 +139,8 @@ async function seedDyeBatch(page: import('@playwright/test').Page): Promise<numb
   );
   const id = Number(mine?.id);
   expect(id, `按 batch_no=${batchNo} 应回查到自己创建的缸号`).toBeGreaterThan(0);
-  await tryCleanup(page, 'DELETE', `/production/dye-batches/${id}`, '[62] dye-batch');
+  // 62-04 用本缸号 id 建生产领用单并按缸号追溯回读——当场软删会让关联校验/追溯断言失败，登记之后再清理
+  deferCleanup(CLEANUP, 'DELETE', `/production/dye-batches/${id}`, '[62] dye-batch');
   return id;
 }
 
@@ -204,7 +221,8 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     expect(Number(c1.data?.total_cost), '总成本 = 500 × 2.5 = 1250 落库').toBe(1250);
     expect(c1.data?.inspection_status, '新建批次检验状态应为 pending').toBe('pending');
     expect(c1.data?.status, '新建批次库存状态应为 active').toBe('active');
-    await tryCleanup(page, 'DELETE', `/chemical-lots/${lot1}`, '[62] lot1');
+    // 批次1 稍后还要 by-no 回读、分页第二页真值、pass-inspection 流转断言——当场软删会 404，登记之后再清理
+    deferCleanup(CLEANUP, 'DELETE', `/chemical-lots/${lot1}`, '[62] lot1');
 
     await apiCall(page, 'POST', '/chemical-lots', {
       lot_no: lotNo2,

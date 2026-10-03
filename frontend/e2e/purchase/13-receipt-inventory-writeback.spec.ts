@@ -107,7 +107,9 @@ async function seedFourDimDraftReceipt(
 ): Promise<PurchaseReceiptLite> {
   const ctx = getCtx();
   const productId = ctx.productIds[0];
-  const prod = await apiCallRaw<{ code?: string; name?: string; unit?: string }>(
+  // GET /products/{id} 返回 product::Model（models/product.rs：name/code/unit 均 NOT NULL 真实键），
+  // 直取真键，禁 `?? 默认值` 掩盖——unit 非可空列，恒有值。
+  const prod = await apiCallRaw<{ code: string; name: string; unit: string }>(
     page,
     'GET',
     `/products/${productId}`
@@ -131,7 +133,7 @@ async function seedFourDimDraftReceipt(
         grade: '一等品',
         quantity: dims.qty,
         quantity_alt: dims.qty,
-        unit_master: prod.unit ?? '米',
+        unit_master: prod.unit,
         unit_price: '15.00',
       },
     ],
@@ -232,12 +234,14 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     expect(stock!.product_id, '库存行产品应为订单产品').toBe(productId);
 
     // 回读③：订单进度联动 —— 行 received_quantity 增加至 30，订单状态离开 APPROVED（部分/完成收货）
-    const orderItems = pickListArray<{ product_id: number; received_quantity: number | string }>(
+    // 出参键以 PurchaseOrderItemDto 为准（services/po/order.rs:61-91：product_id 经 serde 改名
+    // material_id，received_quantity 原名直出）——按真实键 material_id 定位本品行。
+    const orderItems = pickListArray<{ material_id: number; received_quantity: number | string }>(
       await apiCallRaw<unknown>(page, 'GET', `/purchase/orders/${po.id}/items`),
       'bare',
       '订单明细回读'
     );
-    const line = orderItems.find(i => i.product_id === productId);
+    const line = orderItems.find(i => i.material_id === productId);
     expect(line, '订单明细应含本产品行').toBeTruthy();
     expect(Number(line!.received_quantity), '订单行已收量应累加至 30').toBe(30);
     const afterPo = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${po.id}`);

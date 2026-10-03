@@ -3418,6 +3418,49 @@ export async function tryCleanup(
 }
 
 /**
+ * 「延迟清理」队列元素：记录一条要推迟到断言之后再发的清理动作（不发请求，仅登记）。
+ */
+export interface DeferredCleanup {
+  method: 'DELETE' | 'PUT' | 'POST';
+  path: string;
+  label?: string;
+}
+
+/**
+ * 登记一条「清理到断言之后执行」的动作，真正的 DELETE/PUT 由 {@link flushDeferredCleanups}
+ * （通常在 test.afterEach 或 try/finally）统一发起。
+ *
+ * 为什么要与同步 tryCleanup 并存（不替换、不改其即时语义）：`tryCleanup` 是**当场**发起的同步
+ * 软删。若用例在被测主数据上还留有后续读断言（by-code/详情回读、"未删状态下重复应被拒"的判重
+ * 前提等），当场软删会让后端按 is_deleted=false 过滤后查不到行 → 回读 404 / 判重返回 200——这对
+ * 后端是**正确行为**，却曾把用例推向假红并被 #4669/#4671 误判成后端缺陷。清理本质是 housekeeping,
+ * 语义上应发生在全部断言之后,故用队列延后 flush。
+ *
+ * 范式与 purchase/03（CREATED_ORDER_IDS + afterEach）、finance/01（CLEANUP[] + afterEach）一致：
+ * 队列由调用方 spec 自行持有（逐文件独立、afterEach flush 后清空），杜绝跨 spec 共享态泄漏；
+ * 本函数只 push、不发请求,向后兼容——不影响任何既有 tryCleanup 调用点。
+ */
+export function deferCleanup(
+  queue: DeferredCleanup[],
+  method: 'DELETE' | 'PUT' | 'POST',
+  path: string,
+  label?: string
+): void {
+  queue.push({ method, path, label });
+}
+
+/**
+ * 逆序 flush 延迟清理队列（子记录先于父记录删，尽量贴近引用顺序），逐条复用
+ * {@link tryCleanup} 的「失败仅告警不 rethrow」语义，随后清空队列防止跨用例泄漏。
+ */
+export async function flushDeferredCleanups(page: Page, queue: DeferredCleanup[]): Promise<void> {
+  for (const c of queue.slice().reverse()) {
+    await tryCleanup(page, c.method, c.path, c.label);
+  }
+  queue.length = 0;
+}
+
+/**
  * 断言 API 响应被拒绝（权限 403）
  *
  * 替代各 spec 中重复的: expect(result.status).toBe(403)

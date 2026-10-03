@@ -97,7 +97,9 @@ async function seedConfirmedReceipt(
 ): Promise<StockRowLite> {
   const ctx = getCtx();
   const warehouseId = ctx.warehouseIds[0];
-  const prod = await apiCallRaw<{ code?: string; name?: string; unit?: string }>(
+  // GET /products/{id} 返回 product::Model（name/code/unit 均 NOT NULL 真实键），直取真键，
+  // 禁 `?? 默认值` 掩盖缺键。
+  const prod = await apiCallRaw<{ code: string; name: string; unit: string }>(
     page,
     'GET',
     `/products/${productId}`
@@ -121,7 +123,7 @@ async function seedConfirmedReceipt(
         grade: '一等品',
         quantity: dims.qty,
         quantity_alt: dims.qty,
-        unit_master: prod.unit ?? '米',
+        unit_master: prod.unit,
         unit_price: '12.00',
       },
     ],
@@ -238,6 +240,11 @@ test.describe('14 采购退货过账 → 库存回退', () => {
       r => r.batch_no === dims.batchNo
     );
     expect(after, '过账后仍应能按批次回读到库存行').toBeTruthy();
+    // 四维回填：证明扣减命中的仍是当初入库那一行（退货只回退在库量，维度身份 product+batch+color+lot 不变）
+    expect(after!.product_id, '四维回填：命中行产品应为退货产品').toBe(productId);
+    expect(after!.batch_no, '四维回填：命中行批次应为入库批次').toBe(dims.batchNo);
+    expect(after!.color_no, '四维回填：命中行色号应为入库色号').toBe(dims.colorNo);
+    expect(after!.dye_lot_no, '四维回填：命中行缸号应为入库缸号').toBe(dims.dyeLotNo);
     expect(
       Number(after!.quantity_on_hand),
       `退货过账后 on_hand 应回退 60→40（实际 ${after!.quantity_on_hand}）`
@@ -249,12 +256,14 @@ test.describe('14 采购退货过账 → 库存回退', () => {
 
     // 订单进度联动现状锁：后端 approve_return 不回写采购订单 received_quantity，
     // 此断言如实锁定「退货不联动回退订单进度」这一当前实现事实（已作为功能缺口上报，非放宽掩盖）。
-    const orderItems = pickListArray<{ product_id: number; received_quantity: number | string }>(
+    // 出参键以 PurchaseOrderItemDto 为准（services/po/order.rs:65 product_id 经 serde 改名 material_id），
+    // 按真实键 material_id 定位本品行。
+    const orderItems = pickListArray<{ material_id: number; received_quantity: number | string }>(
       await apiCallRaw<unknown>(page, 'GET', `/purchase/orders/${po.id}/items`),
       'bare',
       '订单明细回读'
     );
-    const line = orderItems.find(i => i.product_id === productId);
+    const line = orderItems.find(i => i.material_id === productId);
     expect(
       Number(line!.received_quantity),
       '当前契约：退货过账不回退订单 received_quantity，应仍为入库量 60'
