@@ -13,7 +13,7 @@ use sea_orm::{
     Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 
 /// 预算域自动编码前缀（集中定义；与历史真实数据前缀逐字符一致，
 /// 如 `budget_items.item_code` 存量以 "BUD-" 开头，见 create_item 原 :168
@@ -158,7 +158,9 @@ impl BudgetManagementService {
         Ok(())
     }
 
-    /// 一致性校验：Σ 该方案下各明细 planned_amount == plan.total_amount（保存/审批时调用，不一致返回 AppError）
+    /// 审批前置一致性门：Σ 该方案下各明细 planned_amount 必须 == plan.total_amount。
+    /// 唯一调用点是 approve_plan，属审批前置状态门 → BUSINESS_ERROR 族；
+    /// 出参只回显公开规则文案，方案 ID / 方案号 / 两侧金额为查询所得实体数据，只进日志。
     pub async fn validate_plan_items_consistency(&self, plan_id: i32) -> Result<(), AppError> {
         let plan = self.get_plan_by_id(plan_id).await?;
         let items = budget_management::Entity::find()
@@ -167,10 +169,13 @@ impl BudgetManagementService {
             .await?;
         let items_sum: Decimal = items.iter().map(|i| i.planned_amount).sum();
         if items_sum != plan.total_amount {
-            return Err(AppError::validation(format!(
-                "预算明细合计与方案总额不一致，无法审批：Σ明细计划金额={}, 方案总额={}, 方案ID={}",
-                items_sum, plan.total_amount, plan_id
-            )));
+            warn!(
+                "预算方案审批被拒（明细合计 ≠ 方案总额）：方案ID={} 方案号={} Σ明细计划金额={} 方案总额={}",
+                plan_id, plan.plan_no, items_sum, plan.total_amount
+            );
+            return Err(AppError::business_displayable(
+                "预算明细合计与方案总额不一致，无法审批，请先调整明细金额使合计等于方案总额",
+            ));
         }
         Ok(())
     }

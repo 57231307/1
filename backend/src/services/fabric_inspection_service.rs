@@ -475,8 +475,14 @@ impl FabricInspectionService {
         // 根据评分制式判定等级
         let (grade, points_per_100_sq_yards) = if model.scoring_system == fabric_scoring::FOUR_POINT
         {
+            // 四分制评级强依赖幅宽（缺值 fail-closed，不以默认幅宽兜底）：属字段必填族
+            // → VALIDATION_ERROR 且可外显；内部记录 ID 与列名只进日志、不进 HTTP 出参
             let width = model.fabric_width_inches.ok_or_else(|| {
-                AppError::business("四分制评级需要幅宽(fabric_width_inches)，请先设置幅宽")
+                tracing::warn!(
+                    "验布记录 {} 未设置幅宽列 fabric_width_inches，四分制评级被拒",
+                    id
+                );
+                AppError::validation_displayable("四分制评级需要幅宽，请先在该验布单填写门幅(英寸)")
             })?;
             let p100 = calculate_points_per_100_sq_yards(total_points, req.inspected_yards, width)?;
             let g = determine_grade_by_four_point(p100);

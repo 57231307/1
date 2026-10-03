@@ -652,9 +652,14 @@ impl FundManagementService {
             .all(&*self.db)
             .await?;
 
-        // 应付流出：未付应付发票（未取消，未付金额>0，到期日在 [today, horizon]）
+        // 应付流出：未付应付发票（未取消，未付金额>0，到期日在 [today, horizon]）；
+        // 排除门取值同应收侧，引用写入方词表常量（ap_invoice.invoice_status 大写，
+        // CANCELLED 复用 common 词表，见 models/status/finance.rs:46 注释）
         let ap_invoices = crate::models::ap_invoice::Entity::find()
-            .filter(crate::models::ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(
+                crate::models::ap_invoice::Column::InvoiceStatus
+                    .ne(crate::models::status::common::STATUS_CANCELLED),
+            )
             .filter(crate::models::ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(crate::models::ap_invoice::Column::DueDate.gte(today))
             .filter(crate::models::ap_invoice::Column::DueDate.lte(horizon))

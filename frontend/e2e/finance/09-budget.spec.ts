@@ -5,9 +5,11 @@
 //         periods[] 数组（长度与 Σ期间 = 年度计划金额）→ GET 控制数据回读方案头 total_amount。
 //   09-02 期间分解和 ≠ 年度计划 → create_item 内 normalize_periods 报 400 VALIDATION_ERROR（预算控制负向）。
 //   09-03 Σ明细计划金额 > 方案总额 → approve_plan 的 validate_plan_items_consistency 报 400（"超"方案头被拒）。
-// 说明：两处拒绝文案构造点均为脱敏 `AppError::validation`（文案含金额数字/方案 ID，
-//   按 error.rs 安全边界不外显），出参 message 恒为常量"请求参数验证失败"，
-//   services/budget_management_service.rs:124、:170；真实原因只进服务端日志（trace_id 可查）。
+// 族别口径（两站点不同族，勿混）：
+//   09-02 是**字段内容校验**（期间分解 Σ ≠ 年度计划）→ services/budget_management_service.rs:124
+//     用脱敏 `AppError::validation`，出参 message 恒为常量"请求参数验证失败"，真实数字只进日志。
+//   09-03 是**审批前置状态门**（唯一调用点 approve_plan）→ :176 用 `business_displayable`，
+//     机器码 BUSINESS_ERROR、回显可外显规则文案；方案 ID/方案号/两侧金额是查询所得实体数据，只进日志。
 // 说明：花费超出"可用预算"的同步拦截（enforce_budget_available）挂在采购下单预算门
 //   （services/po/order_ops/crud.rs），属采购域，不在财务域自控端点内；本套件覆盖财务域自有、
 //   同步、可确定复现的预算一致性拒绝，全部断真实状态码 + 机器码 + 回读数值。
@@ -144,7 +146,7 @@ test.describe('09 预算端到端与一致性', () => {
     expect(fail.message, '脱敏站点 message 应为固定验证失败常量').toBe('请求参数验证失败');
   });
 
-  test('09-03 明细合计超过方案总额 → 审批方案被拒（400 VALIDATION_ERROR）', async ({ page }) => {
+  test('09-03 明细合计超过方案总额 → 审批方案被拒（400 BUSINESS_ERROR）', async ({ page }) => {
     const deptId = await seedDepartment(page);
     // 方案总额 1000，但只建一条计划 700 的明细 → Σ明细(700) ≠ 总额(1000)。
     const planId = await seedPlan(page, deptId, 1000);
@@ -162,12 +164,15 @@ test.describe('09 预算端到端与一致性', () => {
       approval_comment: 'E2E 应被拒',
     });
     expect(fail.status, `明细不平方案审批应被拒 400，实际=${fail.status}`).toBe(400);
-    // 装配点 budget_management_service.rs:170 用 AppError::validation（脱敏变体）：
-    // 文案含 Σ明细/方案总额数字与方案 ID，不外显原文，message 为固定常量（utils/messages.rs:41）。
-    // 注意该站点先于 approve_plan 的状态门（:489 business_displayable）执行，故本用例命中 validation。
-    expect(failureCode(fail), `机器码应为 VALIDATION_ERROR，实际=${fail.code}`).toBe(
-      APP_ERROR_CODES.VALIDATION_ERROR
+    // 装配点 budget_management_service.rs:165-179：Σ明细 ≠ 方案总额是 approve_plan 的
+    // **审批前置状态门**（不是字段格式校验）⇒ 归 BUSINESS_ERROR 族、用 business_displayable
+    // 回显可外显的规则文案；方案 ID/方案号/两侧金额是查询所得实体数据，只进服务端日志。
+    expect(failureCode(fail), `机器码应为 BUSINESS_ERROR，实际=${fail.code}`).toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
     );
-    expect(fail.message, '脱敏站点 message 应为固定验证失败常量').toBe('请求参数验证失败');
+    expect(
+      fail.message,
+      `状态门应回显规则文案，实际=${JSON.stringify(fail.message)}`
+    ).toContain('无法审批');
   });
 });
