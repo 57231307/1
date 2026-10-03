@@ -141,7 +141,10 @@ impl UserService {
                 username = %username,
                 "用户创建被拒：用户名已存在"
             );
-            return Err(AppError::business(format!("用户名 '{}' 已存在", username)));
+            return Err(AppError::business_displayable(format!(
+                "用户名 '{}' 已被占用，请更换用户名后重试",
+                username
+            )));
         }
 
         let active_user = user::ActiveModel {
