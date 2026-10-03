@@ -110,9 +110,7 @@ pub async fn create_bom(
     auth: AuthContext,
     Json(payload): Json<CreateBomPayload>,
 ) -> Result<Json<ApiResponse<BomDetailResponse>>, AppError> {
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let service = BomService::new(state.db.clone());
 

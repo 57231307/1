@@ -228,8 +228,10 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('crmCustomer.dialog.customerCode')" prop="customer_code">
+              <!-- 后端更新 DTO（UpdateEnhancedCustomerRequest）无 customer_code 键：编码建档后不可改，编辑态禁用避免假可编辑 -->
               <el-input
                 v-model="formData.customer_code"
+                :disabled="isEdit"
                 :placeholder="$t('crmCustomer.dialog.customerCodePlaceholder')"
               />
             </el-form-item>
@@ -361,6 +363,7 @@ import {
   createCustomer,
   type CustomerTag,
   type CustomerWithTags,
+  type EnhancedCustomerUpdateInput,
 } from '@/api/crm-enhanced';
 import { useTableApi } from '@/composables/useTableApi';
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
@@ -583,7 +586,22 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (isEdit.value) {
-        await updateCustomer(formData.id as number, formData);
+        // 按后端 UpdateEnhancedCustomerRequest 真实键集组下载荷（不含 customer_code/id——
+        // DTO 无此键，多发会被 serde 静默丢弃；customer_code 为建档即定的编码，编辑不修改）
+        const payload: EnhancedCustomerUpdateInput = {
+          customer_name: formData.customer_name,
+          contact_person: formData.contact_person,
+          contact_phone: formData.contact_phone,
+          contact_email: formData.contact_email,
+          address: formData.address,
+          customer_type: formData.customer_type,
+          tax_number: formData.tax_number,
+          credit_limit: formData.credit_limit,
+          bank_name: formData.bank_name,
+          bank_account: formData.bank_account,
+          status: formData.status,
+        };
+        await updateCustomer(formData.id as number, payload);
         ElMessage.success(t('crmCustomer.message.updateSuccess'));
       } else {
         await createCustomer(formData);

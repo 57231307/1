@@ -232,8 +232,7 @@ pub async fn list_waybills(
     // 非管理员对运单列表司机手机号脱敏
     let mut items = Vec::with_capacity(waybills.len());
     for waybill in &waybills {
-        let mut value = serde_json::to_value(waybill)
-            .map_err(|e| AppError::internal(format!("运单序列化失败: {}", e)))?;
+        let mut value = serde_json::to_value(waybill)?;
         match order_no_map.get(&waybill.order_id) {
             Some(order_no) => {
                 value["order_no"] = serde_json::Value::String(order_no.clone());
@@ -316,7 +315,9 @@ pub async fn update_waybill(
         Some(raw) => {
             let target = validate_status_param(raw, "status")?;
             if !is_legal_waybill_transition(&current, target) {
-                return Err(AppError::bad_request(format!(
+                // 状态门：运单当前状态不允许该流转，归业务族；
+                // 文案回显了记录的内部状态 token，按安全边界保持脱敏 business。
+                return Err(AppError::business(format!(
                     "非法状态流转：{} → {}；本接口仅支持 {} → {}，签收请使用签收接口",
                     current,
                     target,
@@ -413,7 +414,8 @@ pub async fn sign_waybill(
     // 校验：仅 DELIVERED 状态允许签收
     let current_status = waybill.status.as_deref().unwrap_or("");
     if current_status != waybill_status::DELIVERED {
-        return Err(AppError::bad_request(format!(
+        // 状态门：签收前置状态未满足，归业务族；文案含状态 token 保持脱敏 business
+        return Err(AppError::business(format!(
             "运单状态为 {}，仅 {} 状态允许签收",
             current_status,
             waybill_status::DELIVERED
@@ -422,7 +424,8 @@ pub async fn sign_waybill(
 
     // 校验：禁止重复签收
     if waybill.signed_by.is_some() {
-        return Err(AppError::bad_request(format!(
+        // 状态门（不可重复动作）：运单已签收，归业务族；文案含运单/用户内部 ID 保持脱敏
+        return Err(AppError::business(format!(
             "运单 {} 已由用户 {} 签收，禁止重复签收",
             id,
             waybill.signed_by.unwrap_or(0)
@@ -487,8 +490,7 @@ pub async fn get_waybill(
         .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
     // 非管理员对运单详情司机手机号脱敏；关联销售订单号由 order_id 回查补齐
-    let mut value = serde_json::to_value(&waybill)
-        .map_err(|e| AppError::internal(format!("运单序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(&waybill)?;
     let order_no_map = fetch_order_no_map(&*state.db, std::slice::from_ref(&waybill)).await?;
     match order_no_map.get(&waybill.order_id) {
         Some(order_no) => value["order_no"] = serde_json::Value::String(order_no.clone()),

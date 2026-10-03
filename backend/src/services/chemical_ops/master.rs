@@ -17,7 +17,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+    Set, SqlErr,
 };
 
 use crate::models::chemical_master::{
@@ -95,7 +95,9 @@ impl ChemicalMasterService {
         })
     }
 
-    /// 校验染化料编码唯一性（未删除记录中）
+    /// 校验染化料编码唯一性（未删除记录中——本表既定语义：软删后编码可复用，
+    /// 与 category/lot 同口径；判据"用户改一下编码即可通过"归可外显业务族，
+    /// 文案只回显用户自己提交的编码，真因同时落 WARN 日志，不静默）
     async fn check_chemical_code_uniqueness(
         db: &sea_orm::DatabaseConnection,
         chemical_code: &str,
@@ -106,8 +108,12 @@ impl ChemicalMasterService {
             .one(db)
             .await?
         {
-            return Err(AppError::business(format!(
-                "染化料编码 {} 已存在",
+            tracing::warn!(
+                "创建染化料主数据被拒：编码 {} 在未删除行中已存在",
+                chemical_code
+            );
+            return Err(AppError::business_displayable(format!(
+                "染化料编码 {} 已存在，请更换编码后重试",
                 chemical_code
             )));
         }
@@ -185,7 +191,25 @@ impl ChemicalMasterService {
         let result = active
             .insert(&*self.db)
             .await
-            .map_err(|e| AppError::database(format!("染化料主数据创建失败: {}", e)))?;
+            .map_err(|e| {
+                // 竞态兜底（同 category「预校验 + 竞态兜底」范式）：查重通过后并发
+                // 抢先插入同码时，DB 层 UNIQUE（chemical_master.chemical_code 部分唯一
+                // 索引，待数据库专家补，见 wave-i 报告）以 23505 显式拒绝；单语句
+                // INSERT 原子失败不留半行，归类与预检同口径，禁止拍平成 500 DATABASE_ERROR。
+                if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                    tracing::error!(
+                        "染化料主数据创建撞编码唯一约束（并发同码，chemical_code={}）：行未写入，底层错误={}",
+                        req.chemical_code,
+                        e
+                    );
+                    AppError::business_displayable(format!(
+                        "染化料编码 {} 已存在，请更换编码后重试",
+                        req.chemical_code
+                    ))
+                } else {
+                    AppError::database(format!("染化料主数据创建失败: {}", e))
+                }
+            })?;
         Ok(result)
     }
 
@@ -382,7 +406,8 @@ impl ChemicalMasterService {
                 && v != chemical_status::INACTIVE
                 && v != chemical_status::DISCONTINUED
             {
-                return Err(AppError::business(format!(
+                // 枚举取值非法（提交字段）→ 校验族，可外显
+                return Err(AppError::validation_displayable(format!(
                     "染化料状态必须是 active / inactive / discontinued，当前: {}",
                     v
                 )));

@@ -39,7 +39,8 @@ pub fn validate_lifecycle_status(status: &str) -> Result<(), AppError> {
             invalid_status = status,
             "缸号状态机校验失败：生命周期状态不在白名单内"
         );
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交的状态值不在白名单）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "缸号生命周期状态必须是 pending_schedule/scheduled/preparing/dyeing/washing/fixing/dehydrating/drying/inspecting/stored/shipped/cancelled/terminated/rework/on_hold/failed，当前: {}",
             status
         )));
@@ -74,7 +75,8 @@ pub fn validate_transition_code(code: &str) -> Result<(), AppError> {
             invalid_code = code,
             "缸号状态机校验失败：流转操作代码不在白名单内"
         );
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交的操作代码不在白名单）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "缸号流转操作代码必须是 schedule/prepare/start_dyeing/wash/fix/dehydrate/dry/inspect/store/ship/cancel/rework/terminate/hold/resume/fail，当前: {}",
             code
         )));
@@ -99,7 +101,8 @@ pub fn validate_rework_type(rework_type: &str) -> Result<(), AppError> {
             invalid_rework_type = rework_type,
             "缸号状态机校验失败：回修类型不在白名单内"
         );
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交的回修类型不在白名单）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "缸号回修类型必须是 color_difference/defect/specification_unqualified/re_dye/replenish_dye/other，当前: {}",
             rework_type
         )));
@@ -123,7 +126,8 @@ pub fn validate_rework_status(status: &str) -> Result<(), AppError> {
             invalid_status = status,
             "缸号状态机校验失败：回修单状态不在白名单内"
         );
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交的回修单状态不在白名单）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "缸号回修单状态必须是 draft/approved/in_progress/completed/cancelled，当前: {}",
             status
         )));
@@ -148,7 +152,8 @@ pub fn validate_operation_type(op_type: &str) -> Result<(), AppError> {
             invalid_op_type = op_type,
             "缸号状态机校验失败：操作类型不在白名单内"
         );
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交的操作类型不在白名单）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "缸号操作类型必须是 merge/split/priority_adjust/batch_change/schedule_change/terminate，当前: {}",
             op_type
         )));

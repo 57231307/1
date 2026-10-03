@@ -367,12 +367,21 @@ impl DashboardService {
     }
 
     /// 按日期范围查询每日销售金额聚合
+    /// 排除门口径（与 BI/利润分析及本文件分维、周转率排除门同源）：剔除
+    /// draft/cancelled，pending 等中间态仍计入；取值引用写入方权威词表 so_status
+    /// 小写常量，经 SeaORM 参数绑定（落为 Value::String 占位符）下推 SQL，
+    /// 禁止字符串拼接状态字面量。
     async fn query_daily_sales_amounts(
         &self,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> Result<Vec<(chrono::NaiveDate, Option<Decimal>)>, AppError> {
         let mut query = sales_order::Entity::find();
+        // 金额与其所在日分桶由同一谓词门控：draft/cancelled 行在聚合前即被剔除，
+        // SUM(total_amount) 与按日行数计数天然同口径，不存在"只滤金额不滤单数"。
+        query = query.filter(
+            sales_order::Column::Status.is_not_in([so_status::CANCELLED, so_status::DRAFT]),
+        );
         if let Some(start) = start_date {
             query = query.filter(sales_order::Column::OrderDate.gte(start.date_naive()));
         }
@@ -498,7 +507,11 @@ impl DashboardService {
             Some(sql) => sql,
             None => return Ok(vec![]),
         };
-        let (sql, params) = Self::append_date_filters(base_sql, start_date, end_date);
+        let (sql, date_params) = Self::append_date_filters(base_sql, start_date, end_date);
+        // 排除门取值绑定写入方权威词表（小写），$1/$2；日期过滤从 $3 起
+        let mut params: Vec<sea_orm::Value> =
+            vec![so_status::CANCELLED.into(), so_status::DRAFT.into()];
+        params.extend(date_params);
         let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, params);
         let rows = SalesByDimensionRow::find_by_statement(stmt)
             .all(self.db.as_ref())
@@ -518,7 +531,7 @@ impl DashboardService {
                     COUNT(s.id) as order_count
                 FROM sales_orders s
                 LEFT JOIN customers c ON c.id = s.customer_id
-                WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+                WHERE s.status NOT IN ($1, $2)
             "#
                 .to_string(),
             ),
@@ -530,7 +543,7 @@ impl DashboardService {
                     COUNT(DISTINCT si.order_id) as order_count
                 FROM sales_order_items si
                 INNER JOIN sales_orders s ON s.id = si.order_id
-                    AND s.status NOT IN ('CANCELLED', 'DRAFT')
+                    AND s.status NOT IN ($1, $2)
                 LEFT JOIN products p ON p.id = si.product_id
                 WHERE 1=1
             "#
@@ -544,7 +557,7 @@ impl DashboardService {
                     COUNT(s.id) as order_count
                 FROM sales_orders s
                 LEFT JOIN users u ON u.id = s.created_by
-                WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+                WHERE s.status NOT IN ($1, $2)
             "#
                 .to_string(),
             ),
@@ -553,13 +566,14 @@ impl DashboardService {
     }
 
     /// 追加日期过滤参数与分组排序
+    /// 基址为 $3：$1/$2 已被 build_dimension_sql 中的排除门状态绑定占位
     fn append_date_filters(
         mut sql: String,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = Vec::new();
-        let mut param_idx = 1usize;
+        let mut param_idx = 3usize;
 
         if let Some(start) = start_date {
             sql.push_str(&format!(" AND s.order_date >= ${} ", param_idx));
@@ -701,6 +715,8 @@ impl DashboardService {
             warehouses.into_iter().map(|w| (w.id, w)).collect();
 
         // 批次 135：按仓库分组查询库存价值（quantity_meters * cost_price）
+        // 库存门绑定中文词表常量 inventory_stock_status::NORMAL（$1）：本列权威取值为
+        // 正常/报废/已删除，PG 比较区分大小写且中英不同，旧英文小写裸字面量恒零命中。
         let warehouse_value_stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -709,10 +725,10 @@ impl DashboardService {
                 COALESCE(SUM(s.quantity_meters * COALESCE(p.cost_price, 0)), 0) as value
             FROM inventory_stocks s
             LEFT JOIN products p ON p.id = s.product_id
-            WHERE s.stock_status = 'active'
+            WHERE s.stock_status = $1
             GROUP BY s.warehouse_id
             "#,
-            [],
+            vec![inventory_stock_status::NORMAL.into()],
         );
         let warehouse_value_rows: Vec<WarehouseValueRow> =
             WarehouseValueRow::find_by_statement(warehouse_value_stmt)
@@ -743,6 +759,7 @@ impl DashboardService {
 
     /// 按品类分组聚合库存（批次 135 v9 P1 修复）（raw SQL 关联 products + product_categories 表，按品类名分组聚合数量与价值。）
     async fn query_inventory_by_category(&self) -> Result<Vec<InventoryByCategory>, AppError> {
+        // 库存门绑定中文词表常量 inventory_stock_status::NORMAL（$1），禁止裸英文/中文字面量
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -753,11 +770,11 @@ impl DashboardService {
             FROM inventory_stocks s
             LEFT JOIN products p ON p.id = s.product_id
             LEFT JOIN product_categories pc ON pc.id = p.category_id
-            WHERE s.stock_status = 'active'
+            WHERE s.stock_status = $1
             GROUP BY category_name
             ORDER BY quantity DESC
             "#,
-            [],
+            vec![inventory_stock_status::NORMAL.into()],
         );
 
         let rows = InventoryByCategoryRow::find_by_statement(stmt)
@@ -779,6 +796,7 @@ impl DashboardService {
     /// 库存账龄分析（批次 135 v9 P1 修复）
     /// 按 last_movement_date（NULL 时回退 created_at）计算账龄区间：0-30天；31-60天；61-90天；90天以上；返回每个区间的数量与百分比。
     async fn query_inventory_aging(&self) -> Result<Vec<AgingData>, AppError> {
+        // 库存门绑定中文词表常量 inventory_stock_status::NORMAL（$1），禁止裸英文/中文字面量
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -795,7 +813,7 @@ impl DashboardService {
                     END as age_range,
                     s.quantity_meters as quantity
                 FROM inventory_stocks s
-                WHERE s.stock_status = 'active'
+                WHERE s.stock_status = $1
             )
             SELECT
                 age_range,
@@ -803,7 +821,7 @@ impl DashboardService {
             FROM aging
             GROUP BY age_range
             "#,
-            [],
+            vec![inventory_stock_status::NORMAL.into()],
         );
 
         let rows = InventoryAgingRow::find_by_statement(stmt)
@@ -843,8 +861,15 @@ impl DashboardService {
     }
 
     /// 计算库存周转率（批次 135 v9 P1 修复）
-    /// 周转率 = 销售数量 / 库存数量（无量纲）；销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT；库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 'active'；返回保留 4 位小数的字符串。
+    /// 周转率 = 销售数量 / 库存数量（无量纲）；销售数量：SUM(sales_order_items.quantity) WHERE 订单状态非 CANCELLED/DRAFT；库存数量：SUM(inventory_stocks.quantity_meters) WHERE stock_status = 中文词表 inventory_stock_status::NORMAL（正常）；返回保留 4 位小数的字符串。
     async fn query_turnover_rate(&self) -> Result<String, AppError> {
+        // 排除门取值绑定写入方权威词表（小写）：$1=cancelled、$2=draft；
+        // 库存门绑定中文词表常量：$3=正常（基址避让 $1/$2，防占位撞号）
+        let values: Vec<sea_orm::Value> = vec![
+            so_status::CANCELLED.into(),
+            so_status::DRAFT.into(),
+            inventory_stock_status::NORMAL.into(),
+        ];
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
             r#"
@@ -852,14 +877,14 @@ impl DashboardService {
                 (SELECT COALESCE(SUM(si.quantity), 0::NUMERIC)
                    FROM sales_order_items si
                    INNER JOIN sales_orders s ON s.id = si.order_id
-                     AND s.status NOT IN ('CANCELLED', 'DRAFT')
+                     AND s.status NOT IN ($1, $2)
                 ) as sold_quantity,
                 (SELECT COALESCE(SUM(quantity_meters), 0::NUMERIC)
                    FROM inventory_stocks
-                   WHERE stock_status = 'active'
+                   WHERE stock_status = $3
                 ) as stock_quantity
             "#,
-            [],
+            values,
         );
 
         let row = TurnoverRateRow::find_by_statement(stmt)

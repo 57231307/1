@@ -2,9 +2,13 @@
 //!
 //! D10 第 5 批拆分：从原 flow_card_service.rs 迁移 QualityFeedbackService 的 5 个业务方法
 //!（create / handle / close / get_by_id / list_by_flow_card）。
-//! 单号生成纯函数 generate_feedback_no 保留在 facade，本模块通过 Self:: 调用。
+//! 反馈单号在 create 的事务内经 DocumentNumberGenerator 取号
+//!（前缀常量 flow_card_service::QUALITY_FEEDBACK_NO_PREFIX）；
+//! facade 不提供任何手写拼号函数，本模块只经统一生成器取号。
 
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+};
 
 use crate::models::process_quality_feedback::{
     self, ActiveModel as FeedbackActiveModel, Entity as FeedbackEntity, Model as FeedbackModel,
@@ -12,9 +16,11 @@ use crate::models::process_quality_feedback::{
 use crate::models::production_flow_card::{self, Entity as CardEntity};
 use crate::models::status::quality_feedback as feedback_status;
 use crate::services::flow_card_service::{
-    CreateFeedbackRequest, HandleFeedbackRequest, QualityFeedbackService,
+    CreateFeedbackRequest, HandleFeedbackRequest, QUALITY_FEEDBACK_NO_PREFIX,
+    QualityFeedbackService,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 impl QualityFeedbackService {
     /// 创建质量反馈单
@@ -51,7 +57,27 @@ impl QualityFeedbackService {
             )));
         }
 
-        let feedback_no = Self::generate_feedback_no();
+        // 反馈单号取号与 INSERT 同事务：process_quality_feedback.feedback_no
+        // NOT NULL 无 UNIQUE（migration/src/domain/v15/mod.rs:3278），旧手写
+        // "QF-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零；改为按
+        // QUALITY_FEEDBACK_NO_PREFIX 经生成器在事务内取号（advisory 锁持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let feedback_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            QUALITY_FEEDBACK_NO_PREFIX,
+            FeedbackEntity,
+            process_quality_feedback::Column::FeedbackNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = QUALITY_FEEDBACK_NO_PREFIX,
+                "质量反馈单号取号失败（flow_card_ops/feedback.create）"
+            );
+            AppError::business_displayable("质量反馈单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = FeedbackActiveModel {
@@ -77,9 +103,10 @@ impl QualityFeedbackService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("质量反馈单创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 

@@ -101,7 +101,10 @@ pub async fn share_customer(
     Json(req): Json<ShareCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CustomerTeamShareService::new(state.db.clone());
-    let dto = service.share_customer(req, auth.user_id).await?;
+    // 操作人展示名由入口以真实登录名（auth.username）作入参传入，服务层不得自造
+    let dto = service
+        .share_customer(req, auth.user_id, &auth.username)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(dto)?)))
 }
 

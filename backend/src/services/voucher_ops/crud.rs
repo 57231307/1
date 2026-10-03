@@ -11,6 +11,11 @@
 //! - 创建凭证：期间锁定校验 + 借贷平衡 + 生成凭证编号 + 事务内批量校验科目 + 批量插入分录
 //! - 状态门：仅 draft 状态可 update/delete（lock_exclusive 串行化并发）
 //! - 凭证编号前缀：记→JZ / 收→SK / 付→FK / 转→ZZ
+//!
+//! 错误族口径（判据见 `utils/error.rs` 模块文档）：
+//! - 借贷不平衡 = 提交明细金额自身不一致 → 校验族，文案含金额数字故脱敏
+//! - 分录引用的科目查无 → NOT_FOUND；科目存在但已停用 = 前置状态门 → 业务族（文案含 code/ID，脱敏）
+//! - 凭证状态不满足 update/delete 前置 → 业务族，纯公开规则文案可外显
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
@@ -53,11 +58,7 @@ impl VoucherService {
             .await?;
 
         // 3. 开启事务
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         // 4. 创建凭证主表
         let active_model = voucher::ActiveModel {
@@ -75,22 +76,17 @@ impl VoucherService {
             ..Default::default()
         };
 
-        let voucher = active_model
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        let voucher = active_model.insert(&txn).await?;
         info!("凭证创建成功：no={}", voucher.voucher_no);
 
-        // 5. 批量校验科目是否存在
+        // 5. 批量校验分录引用的科目（存在性 + 可用状态）
         Self::precheck_subjects_exist_txn(&req.items, &txn).await?;
 
         // 6. 批量插入凭证分录
         Self::insert_voucher_items_txn(voucher.id, &req.items, &txn).await?;
 
         // 7. 提交事务
-        txn.commit()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        txn.commit().await?;
 
         info!("凭证分录创建成功，共 {} 条", req.items.len());
 
@@ -122,10 +118,7 @@ impl VoucherService {
 
             if total_debit != total_credit {
                 warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-                return Err(AppError::bad_request(format!(
-                    "凭证借贷不平衡：借方 {} != 贷方 {}",
-                    total_debit, total_credit
-                )));
+                return Err(Self::balance_error(total_debit, total_credit));
             }
             return Ok(());
         }
@@ -141,19 +134,39 @@ impl VoucherService {
 
         if total_debit != total_credit {
             warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-            return Err(AppError::bad_request(format!(
-                "凭证借贷不平衡：借方 {} != 贷方 {}",
-                total_debit, total_credit
-            )));
+            return Err(Self::balance_error(total_debit, total_credit));
         }
 
         Ok(())
     }
 
-    /// P2 1-6 修复：批量校验科目是否存在（从 create 抽取）
+    /// 借贷不平衡的**唯一**错误装配点（create / update / workflow submit/review/post
+    /// 全部路径共用；workflow.rs 经 `pub(super)` 在 voucher_ops 模块树内共享，禁止另起炉灶）。
+    ///
+    /// 判族：借贷是否平衡完全由提交进来的分录金额决定，属「提交数据一致性校验」，
+    /// 归 **VALIDATION 族**（不是状态门，也不是 BAD_REQUEST 兜底族）。
+    /// 保密分层：文案携带借/贷合计金额数字，按 `utils/error.rs` 安全边界走**脱敏**
+    /// `AppError::validation`（出参 message 恒为常量「请求参数验证失败」），
+    /// 真实金额只进 tracing 日志，不外显。
+    pub(super) fn balance_error(total_debit: Decimal, total_credit: Decimal) -> AppError {
+        AppError::validation(format!(
+            "凭证借贷不平衡：借方 {} != 贷方 {}",
+            total_debit, total_credit
+        ))
+    }
+
+    /// P2 1-6 修复：批量校验凭证分录引用的科目（从 create 抽取）
     ///
     /// 契约对齐扩展：除按 subject_code 校验外，同时校验按 subject_id 提交的科目
     /// （前端 VoucherEntry 仅带科目 ID，不带 code）
+    ///
+    /// 这里的两种拒绝语义不同，必须分属两族（#942 族口径判据）：
+    /// - 查无此科目（分录引用了库里不存在的 code / id）→ 引用存在性缺失，
+    ///   归 [`AppError::not_found`]（HTTP 404 / `NOT_FOUND`），与 `voucher_ops/balance.rs`
+    ///   同族同文案；
+    /// - 科目存在但状态非 `active` → 引用主数据的**前置状态门**未满足，归业务族。
+    ///   文案携带科目 code / 记录 ID（内部编码），按 `utils/error.rs` 的安全边界走
+    ///   **脱敏** [`AppError::business`]，真实 code 只进 WARN 日志，不出 HTTP 出参。
     async fn precheck_subjects_exist_txn(
         items: &[VoucherItemRequest],
         txn: &sea_orm::DatabaseTransaction,
@@ -174,58 +187,65 @@ impl VoucherService {
             return Ok(());
         }
 
-        let mut existing_codes: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
-        let mut existing_ids: std::collections::HashSet<i32> = std::collections::HashSet::new();
+        // 连状态一起读出被引用的科目（不能用 Status=ACTIVE 过滤后再判），否则「不存在」与
+        // 「已停用」会被压成同一个分支，族归类就无从谈起了。
+        let mut status_by_code: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        let mut status_by_id: std::collections::HashMap<i32, String> =
+            std::collections::HashMap::new();
 
         if !subject_codes.is_empty() {
-            let existing = account_subject::Entity::find()
+            let found = account_subject::Entity::find()
                 .filter(
                     account_subject::Column::Code
                         .is_in(subject_codes.iter().cloned().collect::<Vec<_>>()),
                 )
-                .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
                 .all(txn)
-                .await
-                .map_err(|e| {
-                    tracing::error!("批量查询科目失败: {}", e);
-                    AppError::internal(format!("批量查询科目失败: {}", e))
-                })?;
-            existing_codes = existing.iter().map(|s| s.code.clone()).collect();
-            existing_ids.extend(existing.iter().map(|s| s.id));
+                .await?;
+            for s in found {
+                status_by_code.insert(s.code.clone(), s.status.clone());
+                status_by_id.insert(s.id, s.status);
+            }
         }
 
         if !subject_ids.is_empty() {
-            let existing = account_subject::Entity::find()
+            let found = account_subject::Entity::find()
                 .filter(
                     account_subject::Column::Id
                         .is_in(subject_ids.iter().copied().collect::<Vec<_>>()),
                 )
-                .filter(account_subject::Column::Status.eq(master_data::ACTIVE))
                 .all(txn)
-                .await
-                .map_err(|e| {
-                    tracing::error!("批量查询科目失败: {}", e);
-                    AppError::internal(format!("批量查询科目失败: {}", e))
-                })?;
-            existing_ids.extend(existing.iter().map(|s| s.id));
-            existing_codes.extend(existing.iter().map(|s| s.code.clone()));
+                .await?;
+            for s in found {
+                status_by_id.insert(s.id, s.status.clone());
+                status_by_code.insert(s.code, s.status);
+            }
         }
 
         for code in subject_codes {
-            if !existing_codes.contains(&code) {
-                return Err(AppError::bad_request(format!(
-                    "科目不存在或已停用：{}",
-                    code
-                )));
+            match status_by_code.get(&code) {
+                None => {
+                    warn!("凭证分录引用的科目不存在：code={}", code);
+                    return Err(AppError::not_found(format!("科目不存在：{}", code)));
+                }
+                Some(status) if status != master_data::ACTIVE => {
+                    warn!("凭证分录引用的科目已停用：code={}, status={}", code, status);
+                    return Err(AppError::business(format!("科目已停用：{}", code)));
+                }
+                Some(_) => {}
             }
         }
         for sid in subject_ids {
-            if !existing_ids.contains(&sid) {
-                return Err(AppError::bad_request(format!(
-                    "科目不存在或已停用：ID={}",
-                    sid
-                )));
+            match status_by_id.get(&sid) {
+                None => {
+                    warn!("凭证分录引用的科目不存在：id={}", sid);
+                    return Err(AppError::not_found(format!("科目不存在：ID={}", sid)));
+                }
+                Some(status) if status != master_data::ACTIVE => {
+                    warn!("凭证分录引用的科目已停用：id={}, status={}", sid, status);
+                    return Err(AppError::business(format!("科目已停用：ID={}", sid)));
+                }
+                Some(_) => {}
             }
         }
         Ok(())
@@ -242,8 +262,7 @@ impl VoucherService {
         let subjects = account_subject::Entity::find()
             .filter(account_subject::Column::Id.is_in(subject_ids.to_vec()))
             .all(txn)
-            .await
-            .map_err(|e| AppError::internal(format!("批量查询科目失败: {}", e)))?;
+            .await?;
         Ok(subjects
             .into_iter()
             .map(|s| (s.id, (s.code, s.name)))
@@ -291,10 +310,7 @@ impl VoucherService {
                 ..Default::default()
             };
 
-            item_active_model
-                .insert(txn)
-                .await
-                .map_err(|e| AppError::internal(e.to_string()))?;
+            item_active_model.insert(txn).await?;
         }
         Ok(())
     }
@@ -371,11 +387,7 @@ impl VoucherService {
     ) -> Result<voucher::Model, AppError> {
         info!("更新凭证 ID: {}, 操作用户: {}", id, user_id);
 
-        let txn = self
-            .db
-            .begin()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        let txn = self.db.begin().await?;
 
         let voucher_model = Self::load_voucher_for_update(id, &txn).await?;
         let mut active_model: voucher::ActiveModel = voucher_model.into_active_model();
@@ -400,9 +412,7 @@ impl VoucherService {
             Self::replace_voucher_items(id, &items, &txn).await?;
         }
 
-        txn.commit()
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+        txn.commit().await?;
 
         info!("凭证更新成功：no={}", updated_voucher.voucher_no);
         Ok(updated_voucher)
@@ -416,13 +426,14 @@ impl VoucherService {
         let voucher_model = voucher::Entity::find_by_id(id)
             .lock_exclusive()
             .one(txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?
+            .await?
             .ok_or_else(|| AppError::not_found(format!("凭证不存在：{}", id)))?;
 
         if voucher_model.status != crate::models::status::voucher::VOUCHER_DRAFT {
             warn!("只有草稿状态的凭证可以更新：{}", voucher_model.voucher_no);
-            return Err(AppError::bad_request(
+            // 状态门：凭证当前状态不满足更新前置，归业务族；出参文案只述公开规则
+            // （真实状态仅进 warn 日志），可外显。
+            return Err(AppError::business_displayable(
                 "只有草稿状态的凭证可以更新".to_string(),
             ));
         }
@@ -440,8 +451,7 @@ impl VoucherService {
         vi::Entity::delete_many()
             .filter(vi::Column::VoucherId.eq(voucher_id))
             .exec(txn)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+            .await?;
 
         Self::insert_voucher_items_for_update(voucher_id, items, txn).await
     }
@@ -451,10 +461,11 @@ impl VoucherService {
         let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
         let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
         if total_debit != total_credit {
-            return Err(AppError::bad_request(format!(
-                "凭证借贷不平衡：借方 {} != 贷方 {}",
+            warn!(
+                "凭证借贷不平衡（更新分录路径）：借={}, 贷={}",
                 total_debit, total_credit
-            )));
+            );
+            return Err(Self::balance_error(total_debit, total_credit));
         }
         Ok(())
     }
@@ -500,10 +511,7 @@ impl VoucherService {
                 unit_price: sea_orm::Set(item_req.unit_price),
                 created_at: sea_orm::Set(chrono::Utc::now()),
             };
-            item_active
-                .insert(txn)
-                .await
-                .map_err(|e| AppError::internal(e.to_string()))?;
+            item_active.insert(txn).await?;
         }
         Ok(())
     }
@@ -527,7 +535,8 @@ impl VoucherService {
         // 只有草稿状态可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
         if voucher.status != crate::models::status::voucher::VOUCHER_DRAFT {
             warn!("只有草稿状态的凭证可以删除：{}", voucher.voucher_no);
-            return Err(AppError::bad_request(
+            // 状态门：凭证当前状态不满足删除前置，归业务族；真实状态只进日志，出参可外显
+            return Err(AppError::business_displayable(
                 "只有草稿状态的凭证可以删除".to_string(),
             ));
         }

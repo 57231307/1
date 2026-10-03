@@ -35,7 +35,7 @@ pub async fn sales_forecast(
     // 物料 ID 缺失时拒绝预测，避免脏 product_id=0 污染
     let product_id: i32 = match payload.product_id {
         Some(id) => id as i32,
-        None => return Err(AppError::validation("预测请求缺少物料ID")),
+        None => return Err(AppError::validation_displayable("预测请求缺少物料ID")),
     };
 
     match service.forecast_sales(product_id, days).await {
@@ -77,8 +77,8 @@ pub async fn sales_forecast(
             Ok(Json(ApiResponse::success(response)))
         }
         Err(e) => {
-            tracing::error!("销售预测失败: {}", e);
-            Err(AppError::internal("销售预测失败"))
+            tracing::error!("销售预测失败: {e}");
+            Err(e)
         }
     }
 }

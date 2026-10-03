@@ -39,10 +39,26 @@ impl PurchaseReceiptService {
             .check_supplier_not_blacklisted(&txn, receipt.supplier_id)
             .await?;
 
-        // 关联采购单时更新已收数量
+        // 质检门控（合格方可入库）：inspection_status 非 PASSED 的收货单不得推进库存与
+        // PO 进度，判定必须先于 update_order_received_quantity / update_inventory_txn /
+        // COMPLETED 状态写入；与应付结算复用同一判定入口
+        // （PurchaseReceiptService::ensure_receipt_inspection_allows_flow，判定依据与
+        // PENDING/REJECTED/词表外三族的裁定见该函数文档），本处不另写第二套比较。
+        // 被拒时事务未写入任何行，drop 即整体回滚（零漂移由契约测试钉住）。
+        Self::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")?;
+
+        // 关联采购单时更新已收数量，并在**同一事务**内回写实际到货日
+        // （决策定案 #7：actual_delivery_date = 该单已确认收货的最大 receipt_date；
+        // 回写失败随本事务整体回滚，不允许进度与到货日半成功）
         if let Some(order_id) = receipt.order_id {
-            self.update_order_received_quantity(order_id, receipt_id, &txn, user_id)
-                .await?;
+            self.update_order_received_quantity(
+                order_id,
+                receipt_id,
+                receipt.receipt_date,
+                &txn,
+                user_id,
+            )
+            .await?;
         }
 
         // 事务内更新库存（入库明细口径：色号/缸号/批次/等级/克重/门幅）

@@ -13,8 +13,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -85,13 +85,20 @@ impl QuotationConvertService {
             .all(&txn)
             .await?;
 
-        // 4. 生成订单号
-        let order_no = Self::generate_order_no_static(&txn).await?;
-
-        // 5. 创建销售订单草稿
+        // 4./5. 取号 + 创建销售订单草稿：统一走生成器（SO + YYYYMMDD + 3 位流水），
+        // 在转单事务内取号（advisory 锁 + 占用探测），INSERT 撞 order_no 唯一约束时
+        // 保存点回滚重新取号重试，其余 SQL 错误显式上抛（utils/number_generator.rs）。
+        // 原私有 generate_order_no_static 自拼 `SO+YYYYMMDD+4位计数` 与销售订单域
+        // 标准格式不一致，且计数口径不含旁路写入的号段，已删除。
         let now = Utc::now();
-        let order =
-            Self::create_order_from_quotation(&quotation, user_id, order_no, now, &txn).await?;
+        let order = crate::utils::number_generator::DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "SO",
+            OrderEntity,
+            sales_order::Column::OrderNo,
+            |order_no| Self::build_order_from_quotation(&quotation, user_id, order_no, now),
+        )
+        .await?;
 
         // 6. 复制明细
         Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn).await?;
@@ -127,23 +134,22 @@ impl QuotationConvertService {
         Ok(())
     }
 
-    async fn create_order_from_quotation<C>(
+    /// 构建报价单转销售订单的主表 ActiveModel（单号由生成器在事务内提供）
+    fn build_order_from_quotation(
         quotation: &sales_quotation::Model,
         user_id: i32,
         order_no: String,
         now: chrono::DateTime<Utc>,
-        txn: &C,
-    ) -> Result<sales_order::Model, AppError>
-    where
-        C: sea_orm::ConnectionTrait,
-    {
-        let new_order = OrderActive {
+    ) -> OrderActive {
+        OrderActive {
             id: Default::default(),
             order_no: Set(order_no),
             customer_id: Set(quotation.customer_id),
             opportunity_id: Set(None),
             order_date: Set(now),
-            required_date: Set(Utc::now() + chrono::Duration::days(30)),
+            // 报价单的 valid_until 是报价有效期、不是交期，不可挪用；转单不带交期（如实 NULL），
+            // 由销售在订单表单补录（前端必填），禁止编造"当前+30 天"。
+            required_date: Set(None),
             ship_date: Set(None),
             status: Set("draft".to_string()),
             subtotal: Set(quotation.subtotal),
@@ -176,9 +182,7 @@ impl QuotationConvertService {
             approved_at: Set(None),
             created_at: Set(now),
             updated_at: Set(now),
-        };
-        let order = new_order.insert(txn).await?;
-        Ok(order)
+        }
     }
 
     async fn copy_quotation_items_to_order<C>(
@@ -414,19 +418,5 @@ impl QuotationConvertService {
         } else {
             parts.join("/")
         }
-    }
-
-    /// 生成销售订单号：SO + YYYYMMDD + 4 位当日序号
-    async fn generate_order_no_static<C>(txn: &C) -> Result<String, AppError>
-    where
-        C: sea_orm::ConnectionTrait,
-    {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let pattern = format!("SO{}%", today);
-        let count = OrderEntity::find()
-            .filter(sales_order::Column::OrderNo.like(pattern))
-            .count(txn)
-            .await?;
-        Ok(format!("SO{}{:04}", today, count + 1))
     }
 }

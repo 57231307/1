@@ -7,8 +7,11 @@ import {
   apiCallExpectFail,
   tryCleanup,
   ensureTestEntities,
-  ensureStockInWarehouse,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   getCtx,
+  seedInspectionPass,
 } from './helpers';
 
 /**
@@ -84,6 +87,15 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[48-1] 收货单' });
 
+    // 门控前置：质检 complete(pass) 整单合格并回读 PASSED（helpers.seedInspectionPass）。
+    // 应付侧同一口径（ap_invoice_ops/receipt.rs 复用 ensure_receipt_inspection_allows_flow），
+    // 所以"确认成功 → AP 补偿生成"这条链本身就是门控的正向镜像。
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: ctx.supplierId!,
+      context: '48-1 收货单',
+    });
+
     // 确认入库构成收货事实：库存收货与订单已收数量在确认事务内完成，
     // AP 由确认后的 PurchaseReceiptCompleted 下游补偿生成
     // （原实现把"确认必被拒"当成正确状态机行为，掩盖了草稿创建即自动收货的生命周期错位缺陷）
@@ -137,21 +149,27 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
 
     // 发货仓库必须取真实仓库编码：ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，
     // 原实现硬编码 `WH-MAIN` 在 CI 空库中不存在，会直接导致发货失败、后续凭证断言失去前提。
-    const warehouseId = ctx.warehouseIds[0];
-    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    const warehouseCode = wh?.warehouse_code;
-    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    // 出库四维（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）：
+    // ensureStockInWarehouse 命中的行 batch≠缸号，按写入方口径（染色匹 batch_no=缸号，
+    // piece_domain_service.rs:540）造不出命中匹 → 改用 seedDyedOutboundBundle
+    // （batch=缸号 库存行 + 委外染色真实链同维 AVAILABLE 匹）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '48-2',
+    });
+    const stockRow = bundle.stockRow;
+    const warehouseCode = target.code;
+    expect(warehouseCode, `仓库 ${target.id} 应返回 warehouse_code`).toBeTruthy();
     expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
     expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
     // 发货（ShipOrderRequest{order_id,warehouse_code,items[{product_id,quantity,
-    // color_no,batch_no,dye_lot_no}]}——services/so/delivery.rs:37-61；
-    // 出库按款号+色号+缸号+批次四维匹配扣减，维度取自真实入库库存行）
+    // color_no,batch_no,dye_lot_no,piece_no}]}——services/so/delivery.rs:37-67；
+    // 出库按款号+色号+缸号+批次四维匹配扣减并同事务 CAS 消耗匹，维度取自真实入库库存行）
     await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
@@ -162,9 +180,26 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
           color_no: stockRow.color_no,
           batch_no: stockRow.batch_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
+    // 第四维消耗回读（写后必回读）：被选定匹必须 AVAILABLE→SHIPPED
+    const shippedPiece = await readDyedPieceByNo(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(
+      shippedPiece,
+      `发货后应能按四维 tuple 回读到匹 ${bundle.pieces[0].piece_no}`
+    ).toBeTruthy();
+    expect(
+      String(shippedPiece!.status),
+      `匹状态应为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
+    ).toBe('SHIPPED');
     // 补偿产物：收入凭证按发货单挂账（source_bill_id/source_bill_no = 发货单），
     // 凭证里没有订单 ID，此前用 soId 在凭证 JSON 里找订单号，链路再好也不会命中。
     // 先取本订单的发货单，再按发货单号在凭证列表里定位那一笔转字凭证。

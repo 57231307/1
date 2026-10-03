@@ -24,6 +24,10 @@ pub struct SalesContractQueryParams {
 }
 
 /// 创建销售合同请求
+///
+/// - `delivery_date` 为 Option：真实列 sales_contracts.delivery_date 可空（m0011 DDL）。
+/// - 表头真实列 signed_date/effective_date/expiry_date/payment_method/delivery_location
+///   与 remark 全量落库（remark 列由 m0016 迁移补齐）。
 #[derive(Debug, Clone)]
 pub struct CreateSalesContractRequest {
     pub contract_no: String,
@@ -32,9 +36,47 @@ pub struct CreateSalesContractRequest {
     pub total_amount: Decimal,
     pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
-    pub delivery_date: NaiveDate,
+    pub delivery_date: Option<NaiveDate>,
+    pub signed_date: Option<NaiveDate>,
+    pub effective_date: Option<NaiveDate>,
+    pub expiry_date: Option<NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
     pub remark: Option<String>,
     /// 合同明细行
+    pub items: Option<Vec<CreateContractItemRequest>>,
+}
+
+/// 更新销售合同请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// - `None`（键缺席）＝保持原值；
+/// - `Some(None)`（显式 null）＝该列清空为 NULL（仅对 DB 可空列开放）；
+/// - `Some(Some(v))`（有值）＝覆盖。
+/// 可空性逐字段按 m0011 DDL + m0016 补列核实：total_amount/contract_type/payment_terms/
+/// delivery_date/signed_date/effective_date/expiry_date/payment_method/delivery_location/
+/// remark 为 NULLable 列；contract_name/customer_id 为 NOT NULL 列，不开 null 清空，
+/// update() 在任何 DB 访问前将 Some(None) 判为业务错误拒绝。
+/// 不得塌成单层 Option<T>：塌层后"显式 null"与"键缺席"同物，清空即被静默丢弃。
+/// items 为数组字段：整表替换（Some=替换、None=不动），清空明细须传空数组，不开放 Some(None) 语义。
+/// 不含 contract_no：合同编号由系统生成（单据号禁手打口径），更新链路不允许改写；
+/// 若放开改写，改成已存在编号会直接撞 sales_contracts.contract_no UNIQUE（无 23505→4xx
+/// 自动映射，只会裸 500），且篡改单据号本身违反编号即身份的业务规则。
+#[derive(Debug, Clone, Default)]
+pub struct UpdateSalesContractRequest {
+    pub contract_name: Option<Option<String>>,
+    pub customer_id: Option<Option<i32>>,
+    pub total_amount: Option<Option<Decimal>>,
+    pub contract_type: Option<Option<String>>,
+    pub payment_terms: Option<Option<String>>,
+    pub delivery_date: Option<Option<NaiveDate>>,
+    pub signed_date: Option<Option<NaiveDate>>,
+    pub effective_date: Option<Option<NaiveDate>>,
+    pub expiry_date: Option<Option<NaiveDate>>,
+    pub payment_method: Option<Option<String>>,
+    pub delivery_location: Option<Option<String>>,
+    pub remark: Option<Option<String>>,
+    /// Some(items)：整表替换明细行；None：不动明细
     pub items: Option<Vec<CreateContractItemRequest>>,
 }
 
@@ -98,15 +140,32 @@ impl SalesContractService {
         // 使用事务确保合同和明细行原子创建
         let txn = self.db.begin().await?;
 
+        // P0 契约修复：校验客户存在并回填冗余列 customer_name
+        //（原实现既不校验也不回填 ⇒ 悬挂 customer_id 可入库、列表/详情客户名恒空）
+        let customer = crate::models::customer::Entity::find_by_id(req.customer_id)
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::business_displayable("创建失败：所选客户不存在，请重新选择客户")
+            })?;
+
         let active_contract = sales_contract::ActiveModel {
             contract_no: Set(req.contract_no),
             contract_name: Set(req.contract_name),
             contract_type: Set(req.contract_type),
             customer_id: Set(req.customer_id),
+            customer_name: Set(Some(customer.customer_name)),
             total_amount: Set(Some(req.total_amount)),
             status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
-            delivery_date: Set(Some(req.delivery_date)),
+            delivery_date: Set(req.delivery_date),
+            // P0 契约修复：补齐真实列表头字段（原三处不一致中被 service 吞掉的一组）
+            signed_date: Set(req.signed_date),
+            effective_date: Set(req.effective_date),
+            expiry_date: Set(req.expiry_date),
+            payment_method: Set(req.payment_method),
+            delivery_location: Set(req.delivery_location),
+            remark: Set(req.remark),
             stamp_tax_amount: Set(stamp_tax),
             created_by: Set(user_id),
             ..Default::default()
@@ -115,31 +174,201 @@ impl SalesContractService {
         let contract = active_contract.insert(&txn).await?;
 
         // 创建明细行
-        if let Some(items) = req.items {
-            for (idx, item) in items.iter().enumerate() {
-                let amount = item.quantity * item.unit_price;
-                let active_item = sales_contract_item::ActiveModel {
-                    contract_id: Set(contract.id),
-                    product_id: Set(item.product_id),
-                    product_name: Set(item.product_name.clone()),
-                    product_spec: Set(item.product_spec.clone()),
-                    unit: Set(item.unit.clone()),
-                    quantity: Set(item.quantity),
-                    quantity_tolerance_pct: Set(item.quantity_tolerance_pct),
-                    unit_price: Set(item.unit_price),
-                    amount: Set(amount),
-                    delivery_date: Set(item.delivery_date),
-                    remarks: Set(item.remarks.clone()),
-                    sort_order: Set(idx as i32),
-                    ..Default::default()
-                };
-                active_item.insert(&txn).await?;
-            }
+        if let Some(items) = &req.items {
+            Self::insert_items_txn(&txn, contract.id, items).await?;
         }
 
         txn.commit().await?;
         info!("销售合同创建成功：{}（含明细行）", contract.contract_no);
         Ok(contract)
+    }
+
+    /// 事务内批量插入合同明细行（create 与 update 共用，金额=数量×单价同源）
+    async fn insert_items_txn(
+        txn: &sea_orm::DatabaseTransaction,
+        contract_id: i32,
+        items: &[CreateContractItemRequest],
+    ) -> Result<(), AppError> {
+        for (idx, item) in items.iter().enumerate() {
+            let amount = item.quantity * item.unit_price;
+            // sales_contract_items.created_at / updated_at 均为 NOT NULL 且 DDL 无默认值
+            // （`migration/src/domain/v15/mod.rs:3531`）：`..Default::default()` 会把这两列
+            // 留成 Unset → INSERT 传 NULL → 违反非空约束直接 500（CI #4669 用例
+            // 66-submit-contract-regression 的 POST /sales/sales-contracts）。
+            let now = chrono::Utc::now();
+            let active_item = sales_contract_item::ActiveModel {
+                contract_id: Set(contract_id),
+                product_id: Set(item.product_id),
+                product_name: Set(item.product_name.clone()),
+                product_spec: Set(item.product_spec.clone()),
+                unit: Set(item.unit.clone()),
+                quantity: Set(item.quantity),
+                quantity_tolerance_pct: Set(item.quantity_tolerance_pct),
+                unit_price: Set(item.unit_price),
+                amount: Set(amount),
+                delivery_date: Set(item.delivery_date),
+                remarks: Set(item.remarks.clone()),
+                sort_order: Set(idx as i32),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            };
+            active_item.insert(txn).await?;
+        }
+        Ok(())
+    }
+
+    /// 更新销售合同（表头 + 明细整表替换；表头三态字段语义：None=保持、Some(None)=置 NULL、Some(Some)=覆盖）
+    ///
+    /// P0 契约修复（本轮）：原 handler 内联实现只接受 contract_name/payment_terms，
+    /// 且 get_by_id 裸查询 + update 无事务边界。现改为：
+    /// begin txn + lock_exclusive + DRAFT 状态门 + 表头字段 Some=覆盖 + items 整表替换 + commit。
+    pub async fn update(
+        &self,
+        id: i32,
+        req: UpdateSalesContractRequest,
+        user_id: i32,
+    ) -> Result<sales_contract::Model, AppError> {
+        info!("用户 {} 正在更新销售合同 {}", user_id, id);
+
+        // NOT NULL 列门控（sales_contracts.contract_name / customer_id 均 NOT NULL，
+        // m0011 DDL 核实）：显式 null 是调用方错误，不是"保持原值"；
+        // 在任何 DB 访问之前拒绝，错误外显不脱敏。
+        if matches!(req.contract_name, Some(None)) {
+            return Err(AppError::business_displayable(
+                "合同名称不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.customer_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "客户不能清空：请选择有效客户",
+            ));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        let contract = sales_contract::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售合同不存在：{}", id)))?;
+
+        if contract.status != contract::DRAFT {
+            return Err(AppError::business_displayable(
+                "只有草稿状态的销售合同才能修改",
+            ));
+        }
+
+        // 客户变更：校验存在并同步冗余列 customer_name
+        let customer_name_override = match req.customer_id.flatten() {
+            Some(cid) if cid != contract.customer_id => {
+                let c = crate::models::customer::Entity::find_by_id(cid)
+                    .one(&txn)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::business_displayable("更新失败：所选客户不存在，请重新选择客户")
+                    })?;
+                Some(c.customer_name)
+            }
+            _ => None,
+        };
+
+        // 印花税生效值（在 contract 被 move 前捕获）：类型或金额任一键出现（含显式 null 清空）即重算。
+        // 键缺席 → 生效值取 DB 原值；显式 null（Some(None)）→ 生效值即 NULL（三态不得塌层）；
+        // 金额按既有口径：NULL 参与印花税计算记为 0（与历史 NULL 行的原实现处理一致）。
+        let stamp_tax_recalc_needed = req.contract_type.is_some() || req.total_amount.is_some();
+        let effective_contract_type = match &req.contract_type {
+            Some(v) => v.clone(),
+            None => contract.contract_type.clone(),
+        };
+        let effective_total_amount = match req.total_amount {
+            Some(v) => v,
+            None => contract.total_amount,
+        }
+        .unwrap_or(Decimal::ZERO);
+
+        let mut active: sales_contract::ActiveModel = contract.into();
+        // 三态写入规则（对齐 RFC 7386 JSON Merge Patch，字段类型 Option<Option<T>>）：
+        //   None          = 键缺席 → 不 Set 该列（保持 Unset，UPDATE 语句不含该列，原值不动）
+        //   Some(None)    = 显式 null → Set(None) → 该列写入 NULL
+        //   Some(Some(v)) = 有值 → Set(v)/Set(Some(v)) → 覆盖
+        // 三者不可塌成两层：塌成单层 Option<T> 后"清空"与"保持"共用同一表示，
+        // 可空列将永远无法置 NULL，用户删掉交货日期/备注保存即被静默丢弃——本轮要消灭的形态。
+        // contract_name/customer_id 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.contract_name.flatten() {
+            active.contract_name = Set(v);
+        }
+        if let Some(v) = req.customer_id.flatten() {
+            active.customer_id = Set(v);
+        }
+        if let Some(name) = customer_name_override {
+            active.customer_name = Set(Some(name));
+        }
+        // 以下均为 DB 可空列（m0011 DDL + m0016 补列逐字段核实）：开放 null 清空
+        if let Some(v) = req.contract_type {
+            active.contract_type = Set(v);
+        }
+        if let Some(v) = req.total_amount {
+            active.total_amount = Set(v);
+        }
+        if let Some(v) = req.payment_terms {
+            active.payment_terms = Set(v);
+        }
+        if let Some(v) = req.delivery_date {
+            active.delivery_date = Set(v);
+        }
+        if let Some(v) = req.signed_date {
+            active.signed_date = Set(v);
+        }
+        if let Some(v) = req.effective_date {
+            active.effective_date = Set(v);
+        }
+        if let Some(v) = req.expiry_date {
+            active.expiry_date = Set(v);
+        }
+        if let Some(v) = req.payment_method {
+            active.payment_method = Set(v);
+        }
+        if let Some(v) = req.delivery_location {
+            active.delivery_location = Set(v);
+        }
+        if let Some(v) = req.remark {
+            active.remark = Set(v);
+        }
+
+        // 印花税：合同类型或金额键任一出现（覆盖或显式清空）时按创建同口径重算（calculate_stamp_tax 单一真源）
+        if stamp_tax_recalc_needed {
+            let stamp_tax = Self::calculate_stamp_tax(
+                effective_contract_type.as_deref(),
+                effective_total_amount,
+            );
+            active.stamp_tax_amount = Set(stamp_tax);
+        }
+
+        active.updated_at = Set(chrono::Utc::now());
+
+        // 审计：update_with_audit 以更新后回读的 Model 生成 after_snapshot，
+        // Set(None) 的列在 UPDATE 真实落 NULL 后进入快照——审计反映变更后真实值，不留假旧值。
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        // 明细整表替换（Some 才动；None 保持原明细）
+        if let Some(items) = &req.items {
+            sales_contract_item::Entity::delete_many()
+                .filter(sales_contract_item::Column::ContractId.eq(id))
+                .exec(&txn)
+                .await?;
+            Self::insert_items_txn(&txn, id, items).await?;
+        }
+
+        txn.commit().await?;
+        info!("销售合同 {} 更新成功", updated.contract_no);
+        Ok(updated)
     }
 
     /// 获取合同列表（分页）
@@ -236,7 +465,8 @@ impl SalesContractService {
 
         // 检查合同状态
         if contract.status != contract::ACTIVE {
-            return Err(AppError::validation(
+            // 状态门：合同非活跃，执行前置未满足，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "只有活跃状态的合同才能执行".to_string(),
             ));
         }

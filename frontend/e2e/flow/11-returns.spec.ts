@@ -10,7 +10,9 @@ import {
   verifyAuditLog,
   ensureTestEntities,
   ensureStockInWarehouse,
-  seedFourDimStockIn,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
 } from './helpers';
 
 test.describe('采购退货完整流程', () => {
@@ -52,13 +54,40 @@ test.describe('采购退货完整流程', () => {
     ).toBeTruthy();
 
     // 添加退货明细（后端需要独立端点添加 items）
-    // 明细缺失会导致 approve 撞"退货单至少需要一行明细"，失败必须暴露
+    // 明细缺失会导致 approve 撞"退货单至少需要一行明细"，失败必须暴露。
+    // 审批扣库存门控（purchase_return_service.rs::return_item_stock_key :109-124 +
+    // apply 校验 :498-530）：退货明细按 产品+色号+缸号+批次 四维**精确匹配**库存行，
+    // 不兜底、不回退到"任意同产品行"（CI #4671 原文「退货明细的色号/缸号/批次在仓库中
+    // 没有对应的库存行」；backend.log 明示"不兜底"）。旧明细不带维度 ⇒ 落库空串 ⇒
+    // 审批必被正当拒绝。正解=把上面真实库存行的维度逐字段回填进退货明细（采购退货
+    // 定位键无第四维匹号，与出库/调拨四维口径不同，以写入方 StockDimKey 为准）。
+    const stockColorNo = String(stockRow.color_no ?? '');
+    const stockDyeLotNo = String(stockRow.dye_lot_no ?? '');
+    const stockBatchNo = String(stockRow.batch_no ?? '');
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/items`, {
       line_no: 1,
       material_id: Number(stockRow.product_id) || ctx.productIds[0] || 1,
       quantity_returned: '10',
       unit_price: '15.50',
+      color_no: stockColorNo,
+      dye_lot_no: stockDyeLotNo,
+      batch_no: stockBatchNo,
     });
+
+    // 写后必回读：明细落库维度必须等于所引用库存行的真实维度（不是响应假值）
+    const returnItems = await apiCallRaw<Array<Record<string, unknown>>>(
+      page,
+      'GET',
+      `/purchase/returns/${returnId}/items`
+    );
+    expect(Array.isArray(returnItems) && returnItems.length, '退货明细应至少一行').toBeGreaterThan(
+      0
+    );
+    expect(String(returnItems[0].color_no), '退货明细色号应等于库存行色号').toBe(stockColorNo);
+    expect(String(returnItems[0].dye_lot_no ?? ''), '退货明细缸号应等于库存行缸号').toBe(
+      stockDyeLotNo
+    );
+    expect(String(returnItems[0].batch_no), '退货明细批次应等于库存行批次').toBe(stockBatchNo);
 
     // 验证退货单状态
     const created = await apiCallRaw<{ return_status?: string; supplier_id: number }>(
@@ -116,32 +145,29 @@ test.describe('采购退货完整流程', () => {
   test('销售退货：追溯三列回写自原出库行（出库→退货→入库四维命中）', async ({ page }) => {
     const ctx = getCtx();
     const productId = ctx.productIds[0] || 1;
-    const warehouseId = ctx.warehouseIds[0];
+    // 确定性目标仓（可承载染色匹：未设类型/成品仓；胚布仓会被写入方
+    // validate_warehouse_for_piece_type 拒收染色匹）
+    const target = await pickDyeableWarehouse(page);
+    const warehouseId = target.id;
     expect(warehouseId, '需要真实仓库用于出库回写').toBeTruthy();
 
-    // 本轮唯一四维：出库明细将如实记录这组维度，作为退货追溯断言的基准
-    const stamp = Date.now().toString().slice(-6);
-    const colorNo = `E2E-RET-C${stamp}`;
-    const dyeLotNo = `E2E-RET-D${stamp}`;
-    const batchNo = `E2E-RET-B${stamp}`;
-
-    // 1. 按四维入库一行专属库存（发货扣减来源，qty 足够不触发跨缸拆分）
-    await seedFourDimStockIn(page, {
+    // 本轮唯一四维（出库口径按写入方：染色匹 batch_no = 缸号）：出库明细将如实记录这组
+    // 维度，作为退货追溯断言的基准。seed 走 helpers.seedDyedOutboundBundle：
+    // 一行 batch=缸号 的四维库存行 + 委外染色真实链生成的同 tuple AVAILABLE 染色匹，
+    // 染色布出库第四维（匹号）必带、必真（用户 2026-10-02 口径）。
+    const bundle = await seedDyedOutboundBundle(page, {
       productId,
       warehouseId,
-      colorNo,
-      dyeLotNo,
-      batchNo,
       quantityMeters: '1000',
+      pieceCount: 1,
+      context: '11-RET',
     });
+    const colorNo = bundle.colorNo;
+    const dyeLotNo = bundle.dyeLotNo;
+    const batchNo = bundle.dyeLotNo;
 
     // 2. 取真实仓库编码（ship 按 warehouse_code 匹配，硬编码在空库必失败）
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    const warehouseCode = wh?.warehouse_code;
+    const warehouseCode = target.code;
     expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
 
     // 3. 建销售订单 → 提交 → 审批
@@ -155,7 +181,7 @@ test.describe('采购退货完整流程', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
-    // 4. 四维发货：落库出库明细行 = 上面那组维度（实际被扣库存行的真实维度）
+    // 4. 四维发货：落库出库明细行 = 上面那组维度（实际被扣库存行的真实维度）+ 第四维匹号
     await apiCall(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
@@ -166,6 +192,7 @@ test.describe('采购退货完整流程', () => {
           color_no: colorNo,
           dye_lot_no: dyeLotNo,
           batch_no: batchNo,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
@@ -179,6 +206,22 @@ test.describe('采购退货完整流程', () => {
       deliveries?.list?.length ?? 0,
       `订单 ${soId} 应已生成出库单，作为退货追溯权威来源`
     ).toBeGreaterThan(0);
+    // 第四维消耗回读（写后必回读）：该匹必须 AVAILABLE→SHIPPED
+    const shippedPiece = await readDyedPieceByNo(page, {
+      productId,
+      warehouseId,
+      dyeLotNo,
+      batchNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(
+      shippedPiece,
+      `发货后应能按四维 tuple 回读到匹 ${bundle.pieces[0].piece_no}`
+    ).toBeTruthy();
+    expect(
+      String(shippedPiece!.status),
+      `匹状态应为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
+    ).toBe('SHIPPED');
 
     // 5. 建退货单（关联销售订单）
     const rtn = await apiCall<{ id?: number }>(page, 'POST', '/sales/sales-returns', {

@@ -12,7 +12,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -22,6 +22,13 @@ use crate::models::period_adjustment_record::{
     Model as AdjustmentModel,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 期末调整单号前缀（历史真实数据形如 `PA-{YYYYMMDDHHMMSS}-{3位随机}`，
+/// 见原 `generate_adjustment_no`；保留 `PA-` 业务前缀，尾部换当日流水）。
+/// 列 UNIQUE 证据：migration/src/domain/v15/mod.rs:2107（adjustment_no NOT NULL）
+/// + `uq_period_adjustment_record_no` 唯一索引（同文件 :2135）。
+const ADJUSTMENT_NO_PREFIX: &str = "PA-";
 
 /// 期末调整状态机常量
 pub mod period_adjustment_status {
@@ -79,14 +86,6 @@ impl PeriodAdjustmentService {
         Self { db }
     }
 
-    /// 生成调整单号：PA-YYYYMMDDHHMMSS-NNN
-    fn generate_adjustment_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PA-{}-{:03}", timestamp, random)
-    }
-
     /// 校验调整类型合法
     fn validate_adjustment_type(t: &str) -> Result<(), AppError> {
         match t {
@@ -117,20 +116,24 @@ impl PeriodAdjustmentService {
         }
 
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active = AdjustmentActiveModel {
+        // 取号收口到生成器：原实现「秒级时间戳+3位随机」同秒并发靠运气，
+        // 撞 `uq_period_adjustment_record_no` 直接 500（AppError::database 掩盖根因）。
+        // insert_with_no_retry：写入事务内 advisory lock 取号，23505 在保存点内重取重试。
+        let txn = (*self.db).begin().await?;
+        let build_active = |adjustment_no: String| AdjustmentActiveModel {
             id: Default::default(),
-            adjustment_no: Set(Self::generate_adjustment_no()),
-            adjustment_type: Set(req.adjustment_type),
-            period: Set(req.period),
-            description: Set(req.description),
-            debit_subject_code: Set(req.debit_subject_code),
-            debit_subject_name: Set(req.debit_subject_name),
-            credit_subject_code: Set(req.credit_subject_code),
-            credit_subject_name: Set(req.credit_subject_name),
+            adjustment_no: Set(adjustment_no),
+            adjustment_type: Set(req.adjustment_type.clone()),
+            period: Set(req.period.clone()),
+            description: Set(req.description.clone()),
+            debit_subject_code: Set(req.debit_subject_code.clone()),
+            debit_subject_name: Set(req.debit_subject_name.clone()),
+            credit_subject_code: Set(req.credit_subject_code.clone()),
+            credit_subject_name: Set(req.credit_subject_name.clone()),
             amount: Set(req.amount),
-            source_type: Set(req.source_type),
+            source_type: Set(req.source_type.clone()),
             source_bill_id: Set(req.source_bill_id),
-            source_bill_no: Set(req.source_bill_no),
+            source_bill_no: Set(req.source_bill_no.clone()),
             voucher_id: Set(None),
             reverse_voucher_id: Set(None),
             status: Set(period_adjustment_status::DRAFT.to_string()),
@@ -138,16 +141,25 @@ impl PeriodAdjustmentService {
             confirmed_at: Set(None),
             reversed_by: Set(None),
             reversed_at: Set(None),
-            remarks: Set(req.remarks),
+            remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
             created_by: Set(req.created_by),
             created_at: Set(now),
             updated_at: Set(now),
         };
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("期末调整记录创建失败: {}", e)))?;
+        let result = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            ADJUSTMENT_NO_PREFIX,
+            AdjustmentEntity,
+            period_adjustment_record::Column::AdjustmentNo,
+            build_active,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, period = %req.period, "期末调整单号生成/插入失败");
+            AppError::business_displayable("期末调整单号生成失败，请稍后重试")
+        })?;
+        txn.commit().await?;
         Ok(result)
     }
 

@@ -52,20 +52,12 @@ fn resolve_production_qty(actual_quantity: Option<Decimal>, planned_quantity: De
     actual_quantity.unwrap_or(planned_quantity)
 }
 
-/// 复现 generate_unique_order_no 的订单号格式校验（纯字符串校验）（格式：PO-{14位时间戳}-{4位随机数}）
+/// 复现 generate_unique_order_no 的订单号格式校验（纯字符串校验）（统一生成器格式：PO{8位日期}{3位流水}）
 fn is_valid_order_no_format(order_no: &str) -> bool {
-    if !order_no.starts_with("PO-") {
-        return false;
+    match order_no.strip_prefix("PO") {
+        Some(rest) => rest.len() == 11 && rest.chars().all(|c| c.is_ascii_digit()),
+        None => false,
     }
-    let parts: Vec<&str> = order_no.split('-').collect();
-    if parts.len() != 3 {
-        return false;
-    }
-    // 中段为 14 位时间戳，末段为 4 位数字
-    parts[1].len() == 14
-        && parts[1].chars().all(|c| c.is_ascii_digit())
-        && parts[2].len() == 4
-        && parts[2].chars().all(|c| c.is_ascii_digit())
 }
 
 // ============== 状态常量值正确性 ==============
@@ -457,7 +449,11 @@ fn test_cwxx_gzzxbczbhid() {
 #[test]
 fn test_cwxx_ddhyczbhddh() {
     let order_no = "PO-20260709000000-0001";
-    let err = AppError::validation(format!("订单号 {} 已存在", order_no));
+    // 跟随装配点 crud.rs::ensure_order_no_available —— 唯一性冲突属业务族，
+    // 且回显用户自己提交的单号，用可外显变型。
+    let err = AppError::business_displayable(format!("订单号 {} 已存在", order_no));
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
     let msg = err.to_string();
     assert!(msg.contains(order_no), "错误消息应包含订单号");
 }
@@ -483,18 +479,18 @@ fn test_cwxx_wzdkycktsmq() {
 /// test_cwxx_wfscwyddhtszs
 #[test]
 fn test_cwxx_wfscwyddhtszs() {
-    let err = AppError::internal("无法生成唯一订单号，请稍后重试".to_string());
+    let err = AppError::business_displayable("生产订单号生成失败，请稍后重试".to_string());
     let msg = err.to_string();
-    assert!(msg.contains("无法生成唯一订单号"));
+    assert!(msg.contains("生产订单号生成失败"));
     assert!(msg.contains("稍后重试"));
 }
 
 // ============== 订单号格式 ==============
 
-/// test_ddhgs_hfgstgjy（验证 generate_unique_order_no 生成的 "PO-{14位时间戳}-{4位数字}" 格式合法。）
+/// test_ddhgs_hfgstgjy（验证 generate_unique_order_no 生成的 "PO{8位日期}{3位流水}" 格式合法。）
 #[test]
 fn test_ddhgs_hfgstgjy() {
-    assert!(is_valid_order_no_format("PO-20260709103000-0042"));
+    assert!(is_valid_order_no_format("PO20260709042"));
 }
 
 /// test_ddhgs_qsqzbhf
@@ -567,13 +563,14 @@ async fn test_fwslh_sysqlitencsjk() {
 }
 
 /// test_qqjg_cjddqqkgz（验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。）
+/// 形态锁（任务 #153 缺陷3）：结构体不存在 order_no 字段（单据号禁手输、一律服务端取号），
+/// planned_quantity 为必填 Decimal（NOT NULL 列不设 Option 兜底）。
 #[test]
 fn test_qqjg_cjddqqkgz() {
     let req = CreateProductionOrderRequest {
-        order_no: Some("PO-TEST-001".to_string()),
         sales_order_id: None,
         product_id: 1,
-        planned_quantity: Some(decs!("100")),
+        planned_quantity: decs!("100"),
         planned_start_date: Some(ymd!(2026, 7, 1)),
         planned_end_date: Some(ymd!(2026, 7, 31)),
         priority: Some(5),
@@ -582,23 +579,24 @@ fn test_qqjg_cjddqqkgz() {
         created_by: 1,
     };
     assert_eq!(req.product_id, 1);
-    assert_eq!(req.planned_quantity, Some(decs!("100")));
+    assert_eq!(req.planned_quantity, decs!("100"));
     assert_eq!(req.priority, Some(5));
 }
 
 /// test_qqjg_gxddqqkgz
 #[test]
 fn test_qqjg_gxddqqkgz() {
+    // 三态 DTO（Option<Option<T>>）：Some(Some(v))=覆盖；本用例锁"有值覆盖"形态
     let req = UpdateProductionOrderRequest {
-        planned_quantity: Some(decs!("200")),
-        planned_start_date: Some(ymd!(2026, 8, 1)),
-        planned_end_date: Some(ymd!(2026, 8, 31)),
-        priority: Some(8),
-        work_center_id: Some(2),
-        remarks: Some("更新后备注".to_string()),
+        planned_quantity: Some(Some(decs!("200"))),
+        planned_start_date: Some(Some(ymd!(2026, 8, 1))),
+        planned_end_date: Some(Some(ymd!(2026, 8, 31))),
+        priority: Some(Some(8)),
+        work_center_id: Some(Some(2)),
+        remarks: Some(Some("更新后备注".to_string())),
     };
-    assert_eq!(req.planned_quantity, Some(decs!("200")));
-    assert_eq!(req.priority, Some(8));
+    assert_eq!(req.planned_quantity, Some(Some(decs!("200"))));
+    assert_eq!(req.priority, Some(Some(8)));
 }
 
 /// test_cxcs_fycskgz

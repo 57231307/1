@@ -213,20 +213,20 @@ pub async fn drill_down_report(
     let service = FinanceReportService::new(state.db.clone());
     let details = match query.report_type.as_str() {
         "trial_balance" => {
-            let period = query
-                .period
-                .ok_or_else(|| AppError::validation("trial_balance 穿透需要 period 参数"))?;
-            let subject_code = query
-                .subject_code
-                .ok_or_else(|| AppError::validation("trial_balance 穿透需要 subject_code 参数"))?;
+            let period = query.period.ok_or_else(|| {
+                AppError::validation_displayable("trial_balance 穿透需要 period 参数")
+            })?;
+            let subject_code = query.subject_code.ok_or_else(|| {
+                AppError::validation_displayable("trial_balance 穿透需要 subject_code 参数")
+            })?;
             service
                 .drill_down_by_period_and_subject(period, subject_code)
                 .await?
         }
         _ => {
-            let subject_prefix = query
-                .subject_prefix
-                .ok_or_else(|| AppError::validation("报表穿透需要 subject_prefix 参数"))?;
+            let subject_prefix = query.subject_prefix.ok_or_else(|| {
+                AppError::validation_displayable("报表穿透需要 subject_prefix 参数")
+            })?;
             let start_date = query.start_date.unwrap_or_else(|| {
                 chrono::NaiveDate::from_ymd_opt(
                     chrono::Datelike::year(&chrono::Utc::now().date_naive()),

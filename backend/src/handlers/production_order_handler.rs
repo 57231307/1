@@ -30,11 +30,14 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use std::sync::Arc;
 
 /// 创建生产订单请求
+///
+/// 单号禁手输（任务 #153 缺陷3）：DTO 上**不存在** order_no 字段，单号一律服务端取号
+/// （`PO{YYYYMMDD}{3位流水}`，DocumentNumberGenerator），前端已同步不再传该字段。
+/// 旧客户端仍携带 order_no 时经 flatten 残差映射识别为非空字符串 → warn 日志（不静默、
+/// 不透传服务层）。本 handler 未采用 `Json<Value>` 全量透传形态，仅用 flatten 收集未声明键。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateProductionOrderPayload {
-    /// 订单编号：可空，缺省时由后端自动生成（防止单据号重复）
-    pub order_no: Option<String>,
     pub sales_order_id: Option<i32>,
     pub product_id: i32,
     pub planned_quantity: Decimal,
@@ -43,18 +46,53 @@ pub struct CreateProductionOrderPayload {
     pub priority: Option<i32>,
     pub work_center_id: Option<i32>,
     pub remarks: Option<String>,
+    /// 未声明键的残差收集（serde flatten）：仅用于识别被禁的 order_no 手输并 warn，
+    /// 其中任何内容都不参与建单。
+    #[serde(flatten)]
+    forwarded_unknown_fields: std::collections::HashMap<String, serde_json::Value>,
+}
+
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 形态与 handlers/department_handler.rs 中同名私有适配器一致（跨域合并到共享工具需动 utils，超本波授权范围）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 更新生产订单请求
+///
+/// 字段三态语义（对齐 handlers/department_handler.rs::UpdateDepartmentRequest）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（planned_quantity/priority，m0007 DDL）显式 null 由 service 入口拒绝。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductionOrderPayload {
-    pub planned_quantity: Option<Decimal>,
-    pub planned_start_date: Option<chrono::NaiveDate>,
-    pub planned_end_date: Option<chrono::NaiveDate>,
-    pub priority: Option<i32>,
-    pub work_center_id: Option<i32>,
-    pub remarks: Option<String>,
+    /// 计划数量：NOT NULL（m0007:78）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub planned_quantity: Option<Option<Decimal>>,
+    /// 计划开始日期：DB 可空（m0007:80）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub planned_start_date: Option<Option<chrono::NaiveDate>>,
+    /// 计划结束日期：DB 可空（m0007:81）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub planned_end_date: Option<Option<chrono::NaiveDate>>,
+    /// 优先级：NOT NULL DEFAULT 5（m0007:84）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub priority: Option<Option<i32>>,
+    /// 工作中心 ID：DB 可空（m0007:85）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub work_center_id: Option<Option<i32>>,
+    /// 备注：DB 可空 TEXT（m0007:86）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
 }
 
 /// P1-2f 修复（批次 81 v1 复审）：更新生产订单状态请求 DTO 替代 update_production_order_status
@@ -175,17 +213,30 @@ pub async fn create_production_order(
     auth: AuthContext,
     Json(payload): Json<CreateProductionOrderPayload>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
+
+    // 单号禁手输（任务 #153 缺陷3）：DTO 无 order_no 字段、服务层请求结构无注入口，
+    // 单号一律服务端取号。旧前端仍携带非空 order_no 时经残差映射显式 warn（不静默），
+    // 该值不进建单流程——修复前它会被 resolve_order_no 原样入库，可伪造单号/撞 UNIQUE。
+    let forwarded_order_no = payload
+        .forwarded_unknown_fields
+        .get("order_no")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty());
+    if let Some(forwarded) = forwarded_order_no {
+        tracing::warn!(
+            user_id = auth.user_id,
+            forwarded_order_no = %forwarded,
+            "创建生产订单请求携带 order_no：单据号禁止手输，该值已被服务端忽略，单号由服务端统一生成"
+        );
+    }
 
     let service = ProductionOrderService::new(state.db.clone());
 
     let req = CreateProductionOrderRequest {
-        order_no: payload.order_no,
         sales_order_id: payload.sales_order_id,
         product_id: payload.product_id,
-        planned_quantity: Some(payload.planned_quantity),
+        planned_quantity: payload.planned_quantity,
         planned_start_date: payload.planned_start_date,
         planned_end_date: payload.planned_end_date,
         priority: payload.priority,
@@ -295,6 +346,12 @@ pub async fn submit_for_approval(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护：提交审批前先按当前用户数据范围校验资源归属（与 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 同源），越权由 get_by_id 内部 check_resource_owner
+    // 返回 403（permission_denied）；submit_for_approval 服务侧仅 find_by_id+lock_exclusive，无归属校验。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     let model = service
         .submit_for_approval(id, auth.user_id, &auth.username)
         .await?;
@@ -315,6 +372,14 @@ pub async fn approve_production_order(
     Json(req): Json<ApprovalRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护（任务 #153 缺陷2）：审批前先按当前用户数据范围校验资源归属（与同域
+    // update/delete/submit_for_approval 的 get_by_id(Some(&data_scope_ctx)) 同源范式），
+    // 越权由 get_by_id 内部归属校验返回 403（permission_denied）。
+    // approve_order 服务侧仅 find_by_id+lock_exclusive+状态门，无归属校验，
+    // 此前本端点是同域唯一缺归属预检的写端点（任意登录用户可对他人订单执行审批）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     let model = service
         .approve_order(id, auth.user_id, &auth.username, req.approved, req.opinion)
         .await?;
@@ -344,20 +409,32 @@ pub async fn delete_production_order(
 }
 
 /// 更新生产进度请求
+///
+/// 三态语义（RFC 7386）：actual_quantity/remarks 均为 DB 可空列
+/// （m0007:79 actual_quantity、m0007:86 remarks）——
+/// 键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateProgressRequest {
-    pub actual_quantity: Option<Decimal>,
-    pub remarks: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub actual_quantity: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
 }
 
 /// 更新生产订单进度
 pub async fn update_production_progress(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProgressRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
+    // IDOR 防护：改写前先按当前用户数据范围校验资源归属（与 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 同源），越权返回 403。下方 find_by_id 仅用于读取回写实体，无归属校验。
+    let service = ProductionOrderService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+
     // 该路径为写操作、直接返回更新后的实体（无需 product_name JOIN），
     // 故用 find_by_id 读取生产订单 Model（get_by_id 现返回富化 DTO，不含回写所需的实体）。
     let model = crate::models::production_order::Entity::find_by_id(id)
@@ -365,12 +442,27 @@ pub async fn update_production_progress(
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
+    // 状态门（任务 #153 缺陷1）：actual_quantity/remarks 是成本归集与审计口径的写入口，
+    // 必须参与写入方状态机（services/production_order_ops/crud.rs::validate_status_transition
+    // + models/status/* 词表）：仅 IN_PROGRESS 允许上报进度。此前"只有 IN_PROGRESS 能报进度"
+    // 只存在于前端 ProductionTable.vue 的按钮门控，属 UI 约束而非安全边界——DRAFT/
+    // SCHEDULED/PENDING_APPROVAL/APPROVED/REJECTED/COMPLETED/CANCELLED 任意状态可直连
+    // POST /{id}/progress 覆写产量。状态值来自用户已可见的订单数据，无内部 ID/敏感量，
+    // 用 business_displayable 外显真实拒绝文案（AppError::business 出参会被脱敏）。
+    if model.status != crate::models::status::production::PRODUCTION_IN_PROGRESS {
+        return Err(AppError::business_displayable(format!(
+            "订单当前状态为 {}，仅生产中（IN_PROGRESS）的订单可上报生产进度",
+            model.status
+        )));
+    }
+
     let mut active_model: crate::models::production_order::ActiveModel = model.into();
+    // 三态写入（可空列）：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖、None=不 Set
     if let Some(qty) = payload.actual_quantity {
-        active_model.actual_quantity = Set(Some(qty));
+        active_model.actual_quantity = Set(qty);
     }
     if let Some(remarks) = payload.remarks {
-        active_model.remarks = Set(Some(remarks));
+        active_model.remarks = Set(remarks);
     }
     active_model.updated_at = Set(Utc::now());
 
@@ -385,10 +477,20 @@ pub async fn update_production_progress(
 /// audit_logs 表，按 resource_id = order_id 过滤，按 created_at 倒序返回。
 pub async fn get_production_order_logs(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护：操作日志只读同样需 data-scope。get_order_logs 服务侧无归属校验，
+    // 故在 handler 入口先按当前用户数据范围校验该订单归属（复用同文件 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 范式），越权由 get_by_id 内部 check_resource_owner 返回 403；
+    // 订单不存在返回 404（与 get_production_order 同源）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let _ = service
+        .get_by_id(id, Some(&data_scope_ctx))
+        .await?
+        .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+
     let logs = service.get_order_logs(id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -401,16 +503,18 @@ pub async fn get_production_order_logs(
 /// 更新生产订单状态
 pub async fn update_production_order_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<UpdateProductionOrderStatusDto>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     // P1-2f 修复（批次 81 v1 复审）：强类型 DTO + validator + 状态白名单 替代 Json<Value>
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let service = ProductionOrderService::new(state.db.clone());
+    // IDOR 防护：状态改写前先按当前用户数据范围校验资源归属（与 update/delete 的
+    // get_by_id(Some(&data_scope_ctx)) 同源），越权返回 403；update_status 服务侧仅 find_by_id+lock_exclusive，无归属校验。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
     let actual_quantity = payload
         .actual_quantity

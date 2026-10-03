@@ -1,8 +1,8 @@
 <!--
   system-update/index.vue - 系统更新管理（拆分重构版）
   任务编号: P14 批 2 I-3 第 1 批
-  拆分：725 行 → ~150 行 + 6 子组件 + 2 composable + 1 工具
-  批次 283：useSysUpd 返回改为 reactive 包装，父组件改为 upd.xxx 访问 + v-model:page/page-size
+  拆分：725 行 → 精简 + 子组件 + 2 composable + 1 工具
+  版本 tab 随「无真实版本列表端点」移除；任务/备份 tab 走真实 PaginatedResponse 端点
 -->
 <template>
   <div class="system-update-page">
@@ -24,24 +24,12 @@
       :current-version="upd.currentVersion"
       :latest-version="upd.latestVersion"
       :has-update="upd.hasUpdate"
+      :is-updating="upd.isUpdating"
+      :format-file-size="formatFileSize"
+      @trigger-update="upd.triggerUpdate"
     />
 
     <el-tabs v-model="activeTab">
-      <el-tab-pane :label="t('systemUpdate.index.tabVersions')" name="versions">
-        <SystemUpdateVersionTab
-          v-model:page="upd.versionPage"
-          v-model:page-size="upd.versionPageSize"
-          :versions="upd.versions"
-          :loading="upd.versionLoading"
-          :total="upd.versionTotal"
-          :version-status-type-map="versionStatusTypeMap"
-          :format-file-size="formatFileSize"
-          @download="proc.handleDownload"
-          @install="proc.handleInstall"
-          @view-detail="upd.viewVersionDetail"
-        />
-      </el-tab-pane>
-
       <el-tab-pane :label="t('systemUpdate.index.tabTasks')" name="tasks">
         <SystemUpdateTaskTab
           v-model:page="upd.taskPage"
@@ -65,9 +53,6 @@
           :total="upd.backupTotal"
           :backup-status-type-map="backupStatusTypeMap"
           :format-file-size="formatFileSize"
-          @download="proc.handleDownloadBackup"
-          @restore="proc.handleRestore"
-          @delete="proc.handleDeleteBackup"
           @view-detail="upd.viewBackupDetail"
         />
       </el-tab-pane>
@@ -96,7 +81,7 @@
       </el-descriptions>
     </el-dialog>
 
-    <!-- 任务详情（getUpdateTask 回源） -->
+    <!-- 任务详情（getUpdateTask 回源）。后端进度值无中间态，故详情不展示误导性百分比，仅显状态 -->
     <el-dialog
       v-model="taskDetailVisible"
       :title="t('systemUpdate.taskTab.buttonDetail')"
@@ -108,19 +93,11 @@
           upd.currentTaskDetail.task_type
         }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ upd.currentTaskDetail.status }}</el-descriptions-item>
-        <el-descriptions-item label="进度 %">{{
-          upd.currentTaskDetail.progress ?? '-'
-        }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">{{
           upd.currentTaskDetail.created_at
         }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
-
-    <SystemUpdateVersionDetail
-      v-model:visible="versionDetailVisible"
-      :current-version-detail="upd.currentVersionDetail"
-    />
 
     <SystemUpdateBackupForm
       v-model:visible="backupDialogVisible"
@@ -139,18 +116,16 @@ import { Refresh, FolderAdd } from '@element-plus/icons-vue';
 import { useSysUpd } from './composables/useSysUpd';
 import { useSysUpdProc } from './composables/useSysUpdProc';
 import * as sysUpdFmts from './composables/sysUpdFmts';
-import SystemUpdateVersionTab from './tabs/SystemUpdateVersionTab.vue';
 import SystemUpdateTaskTab from './tabs/SystemUpdateTaskTab.vue';
 import SystemUpdateBackupTab from './tabs/SystemUpdateBackupTab.vue';
 import SystemUpdateInfoCards from './components/SystemUpdateInfoCards.vue';
-import SystemUpdateVersionDetail from './components/SystemUpdateVersionDetail.vue';
 import SystemUpdateBackupForm from './components/SystemUpdateBackupForm.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
-const activeTab = ref('versions');
+const activeTab = ref('tasks');
 
-// 批次 283：useSysUpd 返回 reactive 包装，改为 upd.xxx 访问
+// useSysUpd 返回 reactive 包装，通过 upd.xxx 访问
 const upd = useSysUpd();
 
 // 备份/任务详情对话框可见性（内容来自 useSysUpd 的 currentBackupDetail/currentTaskDetail）
@@ -164,23 +139,19 @@ watch(
   }
 );
 
-// 流程性方法（下载/安装/回滚/取消/恢复/下载备份/删除）
+// 流程性方法（回滚/取消；备份删除/恢复/下载后端端点不存在，按钮已置灰，不挂死调用）
 const proc = useSysUpdProc({
-  fetchVersions: upd.fetchVersions,
   fetchTasks: upd.fetchTasks,
-  fetchBackups: upd.fetchBackups,
 });
 
 // 状态类型映射（el-tag type，非文本，不需 i18n）+ 文件大小格式化（来自 sysUpdFmts 工具）
-const { VERSION_STATUS_TYPE, TASK_STATUS_TYPE, BACKUP_STATUS_TYPE, formatFileSize } = sysUpdFmts;
+const { TASK_STATUS_TYPE, BACKUP_STATUS_TYPE, formatFileSize } = sysUpdFmts;
 
 // 模板里用 statusTypeMap 短名（与子组件 props 名称对齐）
-const versionStatusTypeMap = VERSION_STATUS_TYPE;
 const taskStatusTypeMap = TASK_STATUS_TYPE;
 const backupStatusTypeMap = BACKUP_STATUS_TYPE;
 
 // 对话框可见性本地 ref
-const versionDetailVisible = ref(false);
 const backupDialogVisible = ref(false);
 
 /** 打开创建备份对话框 */
@@ -195,7 +166,7 @@ const onBackupSubmit = async () => {
   if (ok) backupDialogVisible.value = false;
 };
 
-// 批次 283：移除 3 个 fetch（useTableApi setup 自动加载），保留 fetchCurrentVersion
+// 移除 useTableApi 自动加载的 3 个 fetch 中的版本 fetch；保留 fetchCurrentVersion
 onMounted(() => {
   upd.fetchCurrentVersion();
 });

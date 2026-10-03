@@ -6,13 +6,33 @@ use crate::models::status::approval;
 // 批次 209 P2-5 修复（v12 复审）：预算方案/项目状态字符串替换为 budget 常量
 use crate::models::status::budget;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, ExprTrait,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
+
+/// 预算域自动编码前缀（集中定义；与历史真实数据前缀逐字符一致，
+/// 如 `budget_items.item_code` 存量以 "BUD-" 开头，见 create_item 原 :168
+/// `format!("BUD-{ts}-{4}")`，仅为说明前缀来源，新号统一走生成器拼
+/// `{前缀}{YYYYMMDD}{流水}`）
+mod no_prefix {
+    /// 预算科目代码（budget_items.item_code，DDL 无 UNIQUE：
+    /// m0012_add_ap_ar_finance_analysis.rs:462）
+    pub const ITEM_CODE: &str = "BUD-";
+    /// 预算调整单号（budget_adjustments.adjustment_no，DDL UNIQUE：同文件 :496）
+    pub const ADJUST_NO: &str = "BA";
+    /// 零基预算方案号前缀（budget_plans.plan_no，DDL 无 UNIQUE：同文件 :442；
+    /// 历史格式 `ZB-{年}-{部门}-{ts}`，保留年/部门业务段，尾部时间戳换流水）
+    pub const PLAN_ZERO_BASED: &str = "ZB";
+    /// 滚动预算方案号前缀
+    pub const PLAN_ROLLING: &str = "RL";
+    /// 增量预算方案号前缀
+    pub const PLAN_INCREMENTAL: &str = "IN";
+}
 
 // 纯数据 DTO 已迁移至 models/dto/budget_management_dto.rs
 pub use crate::models::dto::budget_management_dto::*;
@@ -138,7 +158,9 @@ impl BudgetManagementService {
         Ok(())
     }
 
-    /// 一致性校验：Σ 该方案下各明细 planned_amount == plan.total_amount（保存/审批时调用，不一致返回 AppError）
+    /// 审批前置一致性门：Σ 该方案下各明细 planned_amount 必须 == plan.total_amount。
+    /// 唯一调用点是 approve_plan，属审批前置状态门 → BUSINESS_ERROR 族；
+    /// 出参只回显公开规则文案，方案 ID / 方案号 / 两侧金额为查询所得实体数据，只进日志。
     pub async fn validate_plan_items_consistency(&self, plan_id: i32) -> Result<(), AppError> {
         let plan = self.get_plan_by_id(plan_id).await?;
         let items = budget_management::Entity::find()
@@ -147,10 +169,13 @@ impl BudgetManagementService {
             .await?;
         let items_sum: Decimal = items.iter().map(|i| i.planned_amount).sum();
         if items_sum != plan.total_amount {
-            return Err(AppError::validation(format!(
-                "预算明细合计与方案总额不一致，无法审批：Σ明细计划金额={}, 方案总额={}, 方案ID={}",
-                items_sum, plan.total_amount, plan_id
-            )));
+            warn!(
+                "预算方案审批被拒（明细合计 ≠ 方案总额）：方案ID={} 方案号={} Σ明细计划金额={} 方案总额={}",
+                plan_id, plan.plan_no, items_sum, plan.total_amount
+            );
+            return Err(AppError::business_displayable(
+                "预算明细合计与方案总额不一致，无法审批，请先调整明细金额使合计等于方案总额",
+            ));
         }
         Ok(())
     }
@@ -161,16 +186,16 @@ impl BudgetManagementService {
         req: CreateBudgetItemRequest,
         user_id: i32,
     ) -> Result<budget_management::Model, AppError> {
-        // 自动生成科目代码
-        let item_code = req.item_code.unwrap_or_else(|| {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            format!("BUD-{}-{:04}", timestamp, random)
-        });
+        // 用户显式传入的科目代码原样保留；缺省时在写入事务内走统一生成器
+        // 取号（原实现 "BUD-"+秒级时间戳+4位随机，同秒并发可撞且无 UNIQUE 兜底，
+        // 见本文件核实记录：budget_items.item_code DDL 无唯一约束）
+        let manual_item_code = req.item_code.clone();
 
         info!(
             "用户 {} 正在创建预算科目：{}（方案ID={}）",
-            user_id, item_code, req.plan_id
+            user_id,
+            manual_item_code.as_deref().unwrap_or("(自动生成)"),
+            req.plan_id
         );
 
         // 校验所属方案存在（plan_id NOT NULL 外键；不存在显式报错，不静默）
@@ -192,6 +217,24 @@ impl BudgetManagementService {
 
         // 明细主体 + 期间行在同一事务内写入，保证聚合一致性
         let txn = (*self.db).begin().await?;
+
+        // 自动代码在写入事务内取号：advisory lock 持到提交，串行化同日并发的
+        // 「计数→探测→插入」；item_code 无 DB UNIQUE，事务外取号给不出并发保证
+        let item_code = match manual_item_code {
+            Some(c) => c,
+            None => DocumentNumberGenerator::generate_no_with_width_txn(
+                &txn,
+                no_prefix::ITEM_CODE,
+                budget_management::Entity,
+                budget_management::Column::ItemCode,
+                3,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "预算科目代码生成失败");
+                AppError::business_displayable("预算科目代码生成失败，请稍后重试")
+            })?,
+        };
 
         let active_item = budget_management::ActiveModel {
             item_code: Set(item_code),
@@ -335,7 +378,10 @@ impl BudgetManagementService {
         let children_count = 0;
 
         if children_count > 0 {
-            return Err(AppError::validation("存在子科目，无法删除".to_string()));
+            // 状态/前置门：方案仍被子科目引用，业务前置未满足，归业务族；文案无内部信息可外显
+            return Err(AppError::business_displayable(
+                "存在子科目，无法删除".to_string(),
+            ));
         }
 
         budget_management::Entity::delete_many()
@@ -444,7 +490,10 @@ impl BudgetManagementService {
         if plan.status.as_deref() != Some(budget::DRAFT)
             && plan.status.as_deref() != Some(budget::REJECTED)
         {
-            return Err(AppError::validation("预算方案状态不允许审批".to_string()));
+            // 状态门：方案当前状态不满足审批前置，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
+                "预算方案状态不允许审批".to_string(),
+            ));
         }
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
@@ -477,7 +526,10 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", req.plan_id)))?;
 
         if plan.status.as_deref() != Some(budget::APPROVED) {
-            return Err(AppError::validation("预算方案未审批，无法执行".to_string()));
+            // 状态门：方案未审批这一前置未满足，归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
+                "预算方案未审批，无法执行".to_string(),
+            ));
         }
 
         // v11 批次 145 P1-8：在事务内创建预算执行明细
@@ -681,9 +733,11 @@ impl BudgetManagementService {
             .await?
             .ok_or_else(|| AppError::not_found("预算方案不存在"))?;
 
-        // 记录调整单（审批流修复：创建为 PENDING 状态，待审批通过后才生效）
-        let adjust_no = format!("BA{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
-        let adjustment = crate::models::budget_adjustment::ActiveModel {
+        // 记录调整单（审批流修复：创建为 PENDING 状态，待审批通过后才生效）。
+        // 原实现 "BA"+Local 秒级时间戳：同秒并发调整必撞 adjustment_no UNIQUE
+        // （DDL：m0012_add_ap_ar_finance_analysis.rs:496）表现为裸 500，
+        // 改走生成器：事务内 advisory lock 取号 + 23505 保存点重试。
+        let build_adjustment = |adjust_no: String| crate::models::budget_adjustment::ActiveModel {
             adjustment_no: sea_orm::Set(adjust_no),
             budget_id: sea_orm::Set(plan.id),
             adjustment_date: sea_orm::Set(chrono::Local::now().naive_local().date()),
@@ -695,13 +749,24 @@ impl BudgetManagementService {
             amount: sea_orm::Set(req.adjust_amount.abs()),
             budget_before: sea_orm::Set(plan.total_amount),
             budget_after: sea_orm::Set(plan.total_amount + req.adjust_amount),
-            reason: sea_orm::Set(req.reason.unwrap_or_default()),
+            reason: sea_orm::Set(req.reason.clone().unwrap_or_default()),
             approval_status: sea_orm::Set(approval::PENDING.to_string()),
             created_by: sea_orm::Set(user_id),
             ..Default::default()
-        }
-        .insert(&txn)
-        .await?;
+        };
+        let adjustment = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            no_prefix::ADJUST_NO,
+            crate::models::budget_adjustment::Entity,
+            crate::models::budget_adjustment::Column::AdjustmentNo,
+            build_adjustment,
+        )
+        .await
+        .map_err(|e| {
+            // 生成器内部已 error! 记录 23505/SQL 根因；这里补域上下文并给用户可见原因
+            tracing::error!(error = %e, budget_plan_id = plan.id, "预算调整单取号/插入失败");
+            AppError::business_displayable("预算调整单号生成失败，请稍后重试")
+        })?;
 
         txn.commit().await?;
         info!(
@@ -734,7 +799,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算调整单不存在：{}", adjustment_id)))?;
 
         if adjustment.approval_status != approval::PENDING {
-            return Err(AppError::validation(
+            // 状态门：调整单前置状态未满足（仅待审批可审批），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "预算调整单状态不允许审批（仅待审批状态可审批）".to_string(),
             ));
         }
@@ -794,7 +860,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算调整单不存在：{}", adjustment_id)))?;
 
         if adjustment.approval_status != approval::PENDING {
-            return Err(AppError::validation(
+            // 状态门：调整单前置状态未满足（仅待审批可驳回），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "预算调整单状态不允许驳回（仅待审批状态可驳回）".to_string(),
             ));
         }
@@ -827,7 +894,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算方案不存在：{}", plan_id)))?;
 
         if plan.status.as_deref() != Some(budget::DRAFT) {
-            return Err(AppError::validation(
+            // 状态门：方案前置状态未满足（仅草稿可驳回），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
                 "预算方案状态不允许驳回（仅草稿状态可驳回）".to_string(),
             ));
         }
@@ -863,6 +931,9 @@ impl BudgetManagementService {
         // 验证部门匹配
         if let Some(plan_dept_id) = plan.department_id {
             if plan_dept_id != department_id {
+                // 判族：两个引用（方案 / 部门）互相不一致，属「提交字段取值合法性」→ 校验族
+                // （不是状态门，也不是唯一性冲突）。保持脱敏 `validation`：该分支在现有调用链里
+                // 是由服务端反查出的方案与部门对照，真实 ID 对照细节只进日志，不外显。
                 return Err(AppError::validation("预算方案与部门不匹配".to_string()));
             }
         }
@@ -871,7 +942,11 @@ impl BudgetManagementService {
         if plan.status.as_deref() != Some(budget::APPROVED)
             && plan.status.as_deref() != Some(budget::ACTIVE)
         {
-            return Err(AppError::validation("预算方案未审批或未激活".to_string()));
+            // 前置状态门：方案当前状态不满足占用前置，归业务族（不是提交字段格式问题）；
+            // 文案是纯公开规则、不含状态 token / 记录 ID / 金额，可外显。
+            return Err(AppError::business_displayable(
+                "预算方案未审批或未激活，无法占用".to_string(),
+            ));
         }
 
         // 计算已执行金额
@@ -917,7 +992,9 @@ impl BudgetManagementService {
             .get_available_plan_by_department(department_id)
             .await?
             .ok_or_else(|| {
-                AppError::validation(format!(
+                // 前置门：部门无可用预算方案，属业务流程前置未满足，归业务族；
+                // 文案含内部部门 ID，按 error.rs 安全边界保持脱敏 business。
+                AppError::business(format!(
                     "部门 {} 无可用预算方案，无法提交单据（V15 P0-B06 强制拦截）",
                     department_id
                 ))
@@ -949,7 +1026,9 @@ impl BudgetManagementService {
                 .sum();
 
             let available_amount = issued_amount - executed_amount;
-            return Err(AppError::validation(format!(
+            // 额度门：提交量受系统记录的预算余额约束，属业务族；文案含余额数字，
+            // 按 error.rs 安全边界不得外显，保持脱敏 business。
+            return Err(AppError::business(format!(
                 "预算余额不足，无法提交单据（V15 P0-B06 强制拦截）：申请金额={}, 可用金额={}, 已下达={}, 已执行={}",
                 amount, available_amount, issued_amount, executed_amount
             )));
@@ -979,7 +1058,10 @@ impl BudgetManagementService {
             .check_budget_available(department_id, plan_id, amount)
             .await?;
         if !available {
-            return Err(AppError::validation("预算余额不足，无法占用".to_string()));
+            // 额度门：可用预算不足，归业务族；文案不含余额数字可外显
+            return Err(AppError::business_displayable(
+                "预算余额不足，无法占用".to_string(),
+            ));
         }
 
         // 创建预算执行记录
@@ -1154,12 +1236,18 @@ impl BudgetManagementService {
         match mode {
             BudgetMode::ZeroBased => {
                 // 零基预算：空白方案，待逐项申报
-                let plan_no = format!(
-                    "ZB-{}-{}-{}",
-                    target_year,
-                    department_id,
-                    chrono::Local::now().format("%Y%m%d%H%M%S")
-                );
+                // 号形保留业务段 `ZB-{年}-{部门}-`，尾部由生成器补 {YYYYMMDD}{3位流水}
+                // （原实现尾部落 %Y%m%d%H%M%S 时间戳，同秒并发重号且 plan_no 无
+                // UNIQUE 兜底，见 no_prefix::PLAN_ZERO_BASED 注释）
+                let txn = (*self.db).begin().await?;
+                let plan_no = self
+                    .generate_plan_no_txn(
+                        &txn,
+                        no_prefix::PLAN_ZERO_BASED,
+                        target_year,
+                        department_id,
+                    )
+                    .await?;
                 let active = budget_plan::ActiveModel {
                     plan_no: Set(plan_no.clone()),
                     plan_name: Set(format!("{}年度零基预算-部门{}", target_year, department_id)),
@@ -1172,7 +1260,8 @@ impl BudgetManagementService {
                     prepared_by: Set(Some(user_id)),
                     ..Default::default()
                 };
-                let plan = active.insert(&*self.db).await?;
+                let plan = active.insert(&txn).await?;
+                txn.commit().await?;
                 info!("零基预算方案已创建：{}", plan_no);
                 Ok(plan)
             }
@@ -1191,12 +1280,10 @@ impl BudgetManagementService {
                         ))
                     })?;
 
-                let plan_no = format!(
-                    "RL-{}-{}-{}",
-                    target_year,
-                    department_id,
-                    chrono::Local::now().format("%Y%m%d%H%M%S")
-                );
+                let txn = (*self.db).begin().await?;
+                let plan_no = self
+                    .generate_plan_no_txn(&txn, no_prefix::PLAN_ROLLING, target_year, department_id)
+                    .await?;
                 let active = budget_plan::ActiveModel {
                     plan_no: Set(plan_no.clone()),
                     plan_name: Set(format!(
@@ -1215,7 +1302,8 @@ impl BudgetManagementService {
                     prepared_by: Set(Some(user_id)),
                     ..Default::default()
                 };
-                let plan = active.insert(&*self.db).await?;
+                let plan = active.insert(&txn).await?;
+                txn.commit().await?;
                 info!("滚动预算方案已创建：{}（源年度 {}）", plan_no, source_year);
                 Ok(plan)
             }
@@ -1236,12 +1324,15 @@ impl BudgetManagementService {
 
                 let growth_rate = Decimal::new(5, 2); // 0.05
                 let new_total = source_plan.total_amount * (Decimal::from(1) + growth_rate);
-                let plan_no = format!(
-                    "IN-{}-{}-{}",
-                    target_year,
-                    department_id,
-                    chrono::Local::now().format("%Y%m%d%H%M%S")
-                );
+                let txn = (*self.db).begin().await?;
+                let plan_no = self
+                    .generate_plan_no_txn(
+                        &txn,
+                        no_prefix::PLAN_INCREMENTAL,
+                        target_year,
+                        department_id,
+                    )
+                    .await?;
                 let active = budget_plan::ActiveModel {
                     plan_no: Set(plan_no.clone()),
                     plan_name: Set(format!(
@@ -1260,7 +1351,8 @@ impl BudgetManagementService {
                     prepared_by: Set(Some(user_id)),
                     ..Default::default()
                 };
-                let plan = active.insert(&*self.db).await?;
+                let plan = active.insert(&txn).await?;
+                txn.commit().await?;
                 info!(
                     "增量预算方案已创建：{}（源年度 {} + 5%）",
                     plan_no, source_year
@@ -1268,6 +1360,31 @@ impl BudgetManagementService {
                 Ok(plan)
             }
         }
+    }
+
+    /// 写入事务内生成预算方案号：`{模式前缀}-{年}-{部门}-{YYYYMMDD}{3位流水}`。
+    /// 取号必须与方案 INSERT 同事务（advisory lock 持到提交），plan_no 列无
+    /// UNIQUE 约束（m0012:442），事务外取号无法给出并发唯一保证。
+    async fn generate_plan_no_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        mode_prefix: &str,
+        budget_year: i32,
+        department_id: i32,
+    ) -> Result<String, AppError> {
+        let prefix = format!("{}-{}-{}-", mode_prefix, budget_year, department_id);
+        DocumentNumberGenerator::generate_no_with_width_txn(
+            txn,
+            &prefix,
+            budget_plan::Entity,
+            budget_plan::Column::PlanNo,
+            3,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, mode_prefix, budget_year, department_id, "预算方案号生成失败");
+            AppError::business_displayable("预算方案号生成失败，请稍后重试")
+        })
     }
 
     /// V15 P1 17.7-D4：预算执行预警（扫描所有执行中的预算方案，按执行率（已执行/已下达）分级预警：黄色预警：执行率 ≥ 80%；红色预警：执行率 ≥ 100%（超支）；返回所有触发预警的方案列表）
@@ -1395,7 +1512,8 @@ impl BudgetManagementService {
             .ok_or_else(|| AppError::not_found(format!("预算版本不存在：{}", version_id)))?;
 
         if version.status != "draft" {
-            return Err(AppError::bad_request("只有草稿状态的版本才能审批"));
+            // 状态门：版本前置状态未满足（仅草稿可审批），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable("只有草稿状态的版本才能审批"));
         }
 
         let mut active: budget_version::ActiveModel = version.into();

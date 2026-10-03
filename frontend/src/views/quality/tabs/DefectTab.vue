@@ -68,21 +68,87 @@
               type="primary"
               link
               size="small"
-              @click="processDefect(row)"
+              @click="openProcessDialog(row)"
               >{{ t('quality.defectTab.buttonProcess') }}</el-button
             >
           </template>
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!--
+      处理缺陷对话框：后端 ProcessUnqualifiedRequest 要求 unqualified_qty / unqualified_reason /
+      handling_method 三个必填项（services/quality_inspection_service.rs:179-186），
+      原先仅 prompt 收集 remark 的写法必然 422，这里改为真实采集全部必填项。
+    -->
+    <el-dialog
+      v-model="processDialogVisible"
+      :title="t('quality.defectTab.messageProcessTitle')"
+      width="520px"
+      :aria-label="t('quality.defectTab.dialogAriaLabel')"
+    >
+      <el-form label-width="100px">
+        <el-form-item :label="t('quality.defectTab.dialogUnqualifiedQty')" required>
+          <el-input-number
+            v-model="processForm.unqualified_qty"
+            :min="0"
+            style="width: 100%"
+            :aria-label="t('quality.defectTab.dialogUnqualifiedQty')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('quality.defectTab.dialogHandlingMethod')" required>
+          <el-select
+            v-model="processForm.handling_method"
+            :placeholder="t('quality.defectTab.dialogHandlingMethod')"
+            style="width: 100%"
+          >
+            <el-option
+              :label="t('quality.defectTab.handlingDowngradeSale')"
+              value="downgrade_sale"
+            />
+            <el-option :label="t('quality.defectTab.handlingRework')" value="rework" />
+            <el-option :label="t('quality.defectTab.handlingScrap')" value="scrap" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('quality.defectTab.dialogUnqualifiedReason')" required>
+          <el-input
+            v-model="processForm.unqualified_reason"
+            type="textarea"
+            :rows="2"
+            :placeholder="t('quality.defectTab.dialogUnqualifiedReason')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('quality.defectTab.dialogHandlingResult')">
+          <el-input
+            v-model="processForm.handling_result"
+            :placeholder="t('quality.defectTab.dialogHandlingResult')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('quality.defectTab.dialogRemark')">
+          <el-input v-model="processForm.remark" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="processDialogVisible = false">{{
+          t('quality.recordDialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="processing" @click="submitProcess">
+          {{ t('quality.recordDialog.confirm') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { processDefect as processDefectApi, type Defect } from '@/api/quality';
+import { ElMessage } from 'element-plus';
+import {
+  processDefect as processDefectApi,
+  type Defect,
+  type DefectHandlingMethod,
+} from '@/api/quality';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -121,20 +187,64 @@ const fetchDefects = async () => {
   }
 };
 
-const processDefect = async (row: Defect) => {
+const processDialogVisible = ref(false);
+const processing = ref(false);
+const processTarget = ref<Defect | null>(null);
+const processForm = reactive({
+  unqualified_qty: undefined as number | undefined,
+  handling_method: '' as DefectHandlingMethod | '',
+  unqualified_reason: '',
+  handling_result: '',
+  remark: '',
+});
+
+const openProcessDialog = (row: Defect) => {
+  processTarget.value = row;
+  Object.assign(processForm, {
+    unqualified_qty: undefined,
+    handling_method: '',
+    unqualified_reason: '',
+    handling_result: '',
+    remark: '',
+  });
+  processDialogVisible.value = true;
+};
+
+const submitProcess = async () => {
+  const row = processTarget.value;
+  if (!row) return;
+  const { unqualified_qty, handling_method, unqualified_reason, handling_result, remark } =
+    processForm;
+  if (unqualified_qty === undefined || unqualified_qty < 0) {
+    ElMessage.warning(t('quality.defectTab.ruleQtyRequired'));
+    return;
+  }
+  if (!handling_method) {
+    ElMessage.warning(t('quality.defectTab.ruleMethodRequired'));
+    return;
+  }
+  if (!unqualified_reason.trim()) {
+    ElMessage.warning(t('quality.defectTab.ruleReasonRequired'));
+    return;
+  }
+  processing.value = true;
   try {
-    const { value } = await ElMessageBox.prompt(
-      t('quality.defectTab.messageProcessPrompt'),
-      t('quality.defectTab.messageProcessTitle')
-    );
-    await processDefectApi(row.id, { remark: value });
+    // Option<String> 字段空值时省略键（Some("") 会被后端原样写库），参照 UserTab.vue:358-359 范式
+    await processDefectApi(row.id, {
+      unqualified_qty,
+      unqualified_reason: unqualified_reason.trim(),
+      handling_method,
+      ...(handling_result.trim() ? { handling_result: handling_result.trim() } : {}),
+      ...(remark.trim() ? { remark: remark.trim() } : {}),
+    });
     ElMessage.success(t('quality.defectTab.messageProcessSuccess'));
+    processDialogVisible.value = false;
     fetchDefects();
   } catch (error) {
-    if (error !== 'cancel') {
-      const err = error as Error;
-      ElMessage.error(err.message || t('quality.defectTab.messageOperationFailed'));
-    }
+    const err = error as Error;
+    ElMessage.error(err.message || t('quality.defectTab.messageOperationFailed'));
+  } finally {
+    processing.value = false;
   }
 };
 

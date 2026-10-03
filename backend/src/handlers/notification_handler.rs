@@ -245,19 +245,23 @@ pub async fn create_announcement(
     let title = req.title.trim();
     let content = req.content.trim();
     if title.is_empty() {
-        return Err(AppError::validation("公告标题不能为空"));
+        return Err(AppError::validation_displayable("公告标题不能为空"));
     }
     if title.chars().count() > 100 {
-        return Err(AppError::validation("公告标题不能超过 100 字符"));
+        return Err(AppError::validation_displayable(
+            "公告标题不能超过 100 字符",
+        ));
     }
     if content.is_empty() {
-        return Err(AppError::validation("公告内容不能为空"));
+        return Err(AppError::validation_displayable("公告内容不能为空"));
     }
     if content.chars().count() > 2000 {
-        return Err(AppError::validation("公告内容不能超过 2000 字符"));
+        return Err(AppError::validation_displayable(
+            "公告内容不能超过 2000 字符",
+        ));
     }
     if req.user_ids.is_empty() {
-        return Err(AppError::validation("目标用户列表不能为空"));
+        return Err(AppError::validation_displayable("目标用户列表不能为空"));
     }
     // 去重，避免同一用户重复投递
     let mut user_ids = req.user_ids;

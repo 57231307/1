@@ -84,6 +84,26 @@
               />
             </template>
           </el-table-column>
+          <!--
+            辅量：收货实收的辅助单位数量（面料按匹/公斤等双计量），入库登记必填——
+            无辅量也要显式输入 0，留空会被提交拦截（usePurchRcv.submitReceive 镜像
+            后端创建契约 quantity_alt 必填键，backend/src/services/purchase_receipt_dto.rs:168）。
+          -->
+          <el-table-column :label="t('purchase.receiveDlg.colAltQty')" width="130">
+            <template #default="{ row }">
+              <el-input-number
+                :model-value="row.receive_quantity_alt"
+                :min="0"
+                size="small"
+                :placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
+                @update:model-value="
+                  (v: number | undefined) => {
+                    row.receive_quantity_alt = v ?? undefined;
+                  }
+                "
+              />
+            </template>
+          </el-table-column>
           <el-table-column
             prop="unit_price"
             :label="t('purchase.receiveDlg.colUnitPrice')"

@@ -1,6 +1,45 @@
 use config::{Config, ConfigError, File};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use tracing::{error, warn};
+
+/// 进程级 `UpdateConfig` 单例（任务 #121）：`AppSettings::new()` 校验通过后写入，
+/// `SystemUpdateService`（无状态构造，`new()` 不带参数）与 SSRF 域名白名单由此读取
+/// 下载镜像清单 / 校验开关，避免把第二套配置常量散落到下载链路。
+/// 未加载配置时 `global_update_config()` 回退 [`UpdateConfig::default`]（官方优先 + 强校验 +
+/// 启用内置公共默认加速镜像），该默认值本身即安全兜底：校验锚仍仅官方域，默认镜像只搬字节、
+/// 失败优雅跳官方，绝不 brick 启动。
+static GLOBAL_UPDATE_CONFIG: OnceLock<UpdateConfig> = OnceLock::new();
+
+/// 读取进程级更新配置；未初始化时返回安全默认值（官方优先 + 强校验 + 内置默认镜像仅作字节候选）。
+pub fn global_update_config() -> UpdateConfig {
+    GLOBAL_UPDATE_CONFIG.get().cloned().unwrap_or_default()
+}
+
+/// 将校验通过的 `UpdateConfig` 写入进程级单例（重复调用仅首次生效，幂等）。
+fn set_global_update_config(cfg: UpdateConfig) {
+    // OnceLock 进程生命周期内仅设置一次；测试/多实例场景下重复 set 静默忽略旧值即可
+    let _ = GLOBAL_UPDATE_CONFIG.set(cfg);
+}
+
+/// 进程级环保税适用税额单例（决策定案 #6）：`AppSettings::new()` 解析完成后写入，
+/// 环保税计税链路（`handlers/environmental_tax_handler.rs` → `EnvironmentalTaxService`）
+/// 由此读取部署配置的地方适用税额（元/污染当量），避免在业务代码里出现第二套手写税额常量。
+///
+/// **无硬编码默认值**：未加载配置或未配置该项时返回 `None`（部署态，启动不 panic），
+/// 计税端点必须据此显式失败并记 warn，禁止按任何默认税额继续算。
+static GLOBAL_ENV_TAX_RATE: OnceLock<Option<Decimal>> = OnceLock::new();
+
+/// 读取进程级环保税适用税额（元/污染当量）；`None` = 未配置（调用方必须显式拒绝计税）。
+pub fn global_env_tax_rate_per_equivalent() -> Option<Decimal> {
+    GLOBAL_ENV_TAX_RATE.get().copied().flatten()
+}
+
+/// 将解析后的适用税额写入进程级单例（重复调用仅首次生效，幂等；仿 `set_global_update_config`）。
+fn set_global_env_tax_rate(rate: Option<Decimal>) {
+    let _ = GLOBAL_ENV_TAX_RATE.set(rate);
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
@@ -27,6 +66,21 @@ pub struct AppSettings {
     /// 缺失时走 [`FabricIndustryConfig::default()`]，关键配置（如 dyehouse_vat_count）由 main.rs fail-fast 校验。
     #[serde(default)]
     pub fabric_industry: FabricIndustryConfig,
+    /// 系统更新下载配置（任务 #121：多镜像加速 + 官方 SHA-256 强校验，防镜像投毒）。
+    /// `#[serde(default)]`：缺失 update 段时走 [`UpdateConfig::default`]（官方优先 + 强校验 +
+    /// 启用内置公共默认加速镜像），老配置无需补充即可解析。运维显式镜像清单来自 `config.update.mirrors`
+    /// / 环境变量 `UPDATE__MIRRORS`；内置默认加速镜像（`DEFAULT_RELEASE_MIRRORS`）由
+    /// `use_default_mirrors`（默认 true）开关，二者均只搬 tar 字节、不作校验值信任锚。
+    #[serde(default)]
+    pub update: UpdateConfig,
+    /// 环保税适用税额（元/污染当量；env 覆盖键 `ENV_TAX_RATE_PER_EQUIVALENT`）——
+    /// **地方可变值**：《环境保护税法》附表规定法定幅度为每污染当量 **1.2–12 元**，
+    /// 具体适用税额由省级人民政府在本行政区域内确定（运维取值须落在该法定幅度内）。
+    /// 与之分源的法定不可调值（污染当量值）见 `crate::constants::environmental_tax`。
+    /// `Option` + `#[serde(default)]`：未配置 = `None`，属部署态而非代码缺陷，
+    /// **启动不 panic、计税端点显式失败**（禁止任何硬编码默认税额继续算）。
+    #[serde(default)]
+    pub env_tax_rate_per_equivalent: Option<Decimal>,
     pub env: String,
 }
 
@@ -233,6 +287,91 @@ impl Default for FabricIndustryConfig {
     }
 }
 
+/// 更新下载镜像优先策略（任务 #121）。
+/// 无论选择哪种顺序，官方域（github.com / objects.githubusercontent.com）永远列入候选并作为最终兜底。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MirrorOrder {
+    /// 镜像优先：先试配置镜像加速，官方源作为兜底（墙内/慢链路部署常用）。
+    MirrorFirst,
+    /// 官方优先（默认）：先官方源，镜像仅在官方失败时兜底，最大限度降低投毒面。
+    OfficialFirst,
+}
+
+impl Default for MirrorOrder {
+    fn default() -> Self {
+        MirrorOrder::OfficialFirst
+    }
+}
+
+/// 内置默认 GitHub Release 下载加速镜像 base URL 白名单（官方优先策略的默认档）。
+///
+/// 定位与安全边界（务必区分于运维显式配置的 `config.update.mirrors`）：
+/// - 这些是社区广泛使用的第三方公共加速代理，仅用于**搬运大 tar 字节**；
+///   校验基准（SHA-256）永远只从官方域取（见 `is_official_digest_host` /
+///   `validate_official_digest_url`），**本清单绝不进入 `OFFICIAL_DOWNLOAD_HOSTS`**，
+///   故默认镜像 host 恒被 `is_official_digest_host` 判 false（不可能从它取校验值）。
+/// - 公共镜像可用性会漂移/离线，因此**绝不参与 `validate_update_mirrors` 的启动 fail-fast**
+///   （该函数只校验运维显式配置的 `config.mirrors`）。默认镜像只在下载期作为候选按序尝试、
+///   失败即优雅跳到下一候选/官方（`try_download_candidate` 逐个 try、失败 continue 语义），
+///   信任锚仍是官方 digest → fail-closed，**不会因默认镜像解析不到而 brick 启动**。
+/// - 运维可用环境变量 `UPDATE__MIRRORS`（叠加/覆盖显式清单）或
+///   `UPDATE__USE_DEFAULT_MIRRORS=false`（彻底关闭内置默认）调整；也可 `use_default_mirrors=false`。
+///
+/// 宁少勿滥：仅收录公开、https、社区长期在用的 ghproxy 系加速域。
+/// 注意：`ghproxy.net` 故意**不**纳入内置默认——既有集成测试
+/// `tests/services_system_update_integrity_test.rs::validate_download_url_rejects_insecure_and_disallowed_hosts`
+/// 以其作为"未配置镜像 host 必须被下载白名单拒绝"的负向探针（该文件不在本次改动范围）；
+/// 若需纳入须与该测试一并评审更新。可用 `UPDATE__MIRRORS` 显式叠加、`use_default_mirrors=false` 关闭。
+pub(crate) const DEFAULT_RELEASE_MIRRORS: &[&str] =
+    &["https://gh-proxy.com", "https://mirror.ghproxy.com"];
+
+/// 系统更新下载配置（任务 #121：多镜像加速 + 官方强校验，防镜像投毒）。
+///
+/// 信任模型（安全红线，违反即引入 RCE）：
+/// - `mirrors` **只用于搬运大 tar 字节**；校验基准永远只从官方域取（见 `github.rs` / facade），
+///   绝不从镜像拼接 checksum URL。
+/// - `verify_digest=true` 时若两官方源（CI 上传的 `.sha256` 资产 / GitHub API `assets[].digest`）
+///   都拿不到 SHA-256 校验值 → **fail-closed 拒绝 apply**（见 `UpdateError::ChecksumUnavailable`）。
+/// - 运维镜像清单只从本配置（config.yaml / 环境变量 `UPDATE__MIRRORS`）读取，不在业务代码里散落；
+///   另有内置公共默认加速镜像 [`DEFAULT_RELEASE_MIRRORS`]（`use_default_mirrors=true` 时并入候选，
+///   仍只搬字节、不作校验锚、不参与启动 fail-fast，可用 `use_default_mirrors=false` 关闭）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdateConfig {
+    /// GitHub Release 加速镜像 base URL 列表（如 `https://ghfast.top`）。
+    /// 空列表（默认）= 仅运维未显式配置镜像；此时是否并入内置默认加速镜像由
+    /// [`UpdateConfig::use_default_mirrors`] 决定。下载时镜像改写形如 `{mirror}/{githubAssetUrl}`。
+    pub mirrors: Vec<String>,
+    /// 是否启用内置公共默认加速镜像 [`DEFAULT_RELEASE_MIRRORS`]（默认 true，官方优先策略的默认档）。
+    /// 置 true 时默认镜像仅并入**下载候选**与**字节下载允许域**，绝不进入校验值信任锚
+    /// （`OFFICIAL_DOWNLOAD_HOSTS` / `is_official_digest_host`），也绝不参与启动 fail-fast
+    /// （`validate_update_mirrors` 只校验运维显式 `mirrors`）；置 false 则只用运维 `mirrors`。
+    pub use_default_mirrors: bool,
+    /// 镜像优先 / 官方优先（默认 [`MirrorOrder::OfficialFirst`]）。
+    pub mirror_order: MirrorOrder,
+    /// 是否强制 SHA-256 完整校验（默认 true）。
+    /// 生产环境必须保持 true；置 false 仅在校验源不可达的隔离调试场景，且会显式告警不静默。
+    pub verify_digest: bool,
+    /// 下载连接超时（秒）。
+    pub connect_timeout_secs: u64,
+    /// 下载读取（单次 chunk）超时（秒）。
+    pub read_timeout_secs: u64,
+}
+
+impl Default for UpdateConfig {
+    fn default() -> Self {
+        Self {
+            mirrors: Vec::new(),
+            use_default_mirrors: true,
+            mirror_order: MirrorOrder::OfficialFirst,
+            verify_digest: true,
+            connect_timeout_secs: 15,
+            read_timeout_secs: 180,
+        }
+    }
+}
+
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
         let mut app_settings = Self::load_from_env()?;
@@ -241,6 +380,14 @@ impl AppSettings {
         Self::validate_production_config(&app_settings)?;
         Self::load_cors_from_env(&mut app_settings);
         Self::load_database_config(&mut app_settings);
+        Self::load_update_from_env(&mut app_settings);
+        // 任务 #121：镜像清单 fail-fast 校验（非法 https/内网/IP 字面量 → 拒绝启动），
+        // 校验通过后再写入进程级单例供下载链路读取，避免带病镜像进入运行期。
+        Self::validate_update_mirrors(&app_settings)?;
+        set_global_update_config(app_settings.update.clone());
+        // 决策定案 #6：环保税适用税额（地方可变值）写入进程级单例供计税链路读取；
+        // None（未配置）同样是合法部署态——计税端点会显式失败，不在此处报错、不 panic。
+        set_global_env_tax_rate(app_settings.env_tax_rate_per_equivalent);
         Ok(app_settings)
     }
 
@@ -386,6 +533,133 @@ impl AppSettings {
         }
     }
 
+    /// 任务 #121：从环境变量覆盖 `update` 段（仿 `load_cors_from_env` 逗号分隔范式）。
+    /// - `UPDATE__MIRRORS`：逗号分隔的镜像 base URL 列表（覆盖 config.yaml mirrors）。
+    /// - `UPDATE__USE_DEFAULT_MIRRORS`：`true/1/yes/on`→启用内置默认镜像 /
+    ///   `false/0/no/off`→关闭；其它值保持默认（true）。
+    /// - `UPDATE__MIRROR_ORDER`：`mirror`→MirrorFirst / `official`→OfficialFirst。
+    /// - `UPDATE__VERIFY_DIGEST`：`0/false/no`→关闭强校验（默认 true，仅显式关闭）。
+    /// - `UPDATE__CONNECT_TIMEOUT_SECS` / `UPDATE__READ_TIMEOUT_SECS`：超时时钟。
+    /// 环境变量优先级高于 config.yaml（与全仓 config crate + env 覆盖约定一致）。
+    fn load_update_from_env(app_settings: &mut AppSettings) {
+        if let Ok(mirrors_str) = std::env::var("UPDATE__MIRRORS") {
+            app_settings.update.mirrors = mirrors_str
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__USE_DEFAULT_MIRRORS") {
+            let normalized = v.trim().to_lowercase();
+            match normalized.as_str() {
+                "1" | "true" | "yes" | "on" => app_settings.update.use_default_mirrors = true,
+                "0" | "false" | "no" | "off" => app_settings.update.use_default_mirrors = false,
+                other => {
+                    warn!(
+                        "UPDATE__USE_DEFAULT_MIRRORS 取值 '{}' 无法识别，保持默认(启用内置公共加速镜像；仍官方优先、校验值只信官方)",
+                        other
+                    );
+                }
+            }
+        }
+
+        if let Ok(order_str) = std::env::var("UPDATE__MIRROR_ORDER") {
+            let normalized = order_str.trim().to_lowercase();
+            app_settings.update.mirror_order = match normalized.as_str() {
+                "mirror" | "mirror_first" | "mirrorfirst" => MirrorOrder::MirrorFirst,
+                "official" | "official_first" | "officialfirst" | "" => MirrorOrder::OfficialFirst,
+                other => {
+                    warn!(
+                        "UPDATE__MIRROR_ORDER 取值 '{}' 无法识别，回退官方优先(OfficialFirst)以保证镜像仅作兜底",
+                        other
+                    );
+                    MirrorOrder::OfficialFirst
+                }
+            };
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__VERIFY_DIGEST") {
+            let normalized = v.trim().to_lowercase();
+            // 默认 true：仅显式 0/false/no/off 才关闭；其它非空值保持开启（安全默认，不因笔误弱化校验）
+            app_settings.update.verify_digest =
+                !matches!(normalized.as_str(), "0" | "false" | "no" | "off");
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__CONNECT_TIMEOUT_SECS") {
+            if let Ok(parsed) = v.trim().parse::<u64>() {
+                app_settings.update.connect_timeout_secs = parsed;
+            }
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__READ_TIMEOUT_SECS") {
+            if let Ok(parsed) = v.trim().parse::<u64>() {
+                app_settings.update.read_timeout_secs = parsed;
+            }
+        }
+    }
+
+    /// 任务 #121：启动 fail-fast 校验 `update.mirrors`（配置错误绝不容忍到运行期被利用）。
+    /// 每个镜像必须满足：
+    /// 1. 合法**绝对 URL** 且 scheme=https；
+    /// 2. host 非 IP 字面量（镜像须为域名，禁裸 IP 绕过 DNS/SSRF 判定）；
+    /// 3. host 不在 blocked-hostname（localhost/.local/.internal/...）黑名单；
+    /// 4. 通过 `ssrf_guard::validate_url_and_resolve`（解析后挡内网/loopback/云元数据）。
+    /// 任一不满足即返回 `ConfigError` 拒绝启动。空列表（默认仅官方）直接通过。
+    fn validate_update_mirrors(app_settings: &AppSettings) -> Result<(), ConfigError> {
+        for raw in &app_settings.update.mirrors {
+            let mirror = raw.trim();
+            if mirror.is_empty() {
+                // 空白项已在 load_update_from_env 过滤，此处再兜底跳过，避免误拒启动
+                continue;
+            }
+
+            let parsed = url::Url::parse(mirror).map_err(|e| {
+                ConfigError::Message(format!(
+                    "致命错误：update.mirrors 中镜像 '{}' 不是合法绝对 URL: {}",
+                    mirror, e
+                ))
+            })?;
+
+            if parsed.scheme() != "https" {
+                return Err(ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 必须使用 https（当前 scheme={}），防止降级为明文下载被中间人投毒",
+                    mirror,
+                    parsed.scheme()
+                )));
+            }
+
+            let host = parsed.host_str().ok_or_else(|| {
+                ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 缺少主机名",
+                    mirror
+                ))
+            })?;
+
+            if host.parse::<std::net::IpAddr>().is_ok() {
+                return Err(ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 的 host 为 IP 字面量，镜像必须是可解析的域名（禁裸 IP 绕过 DNS/SSRF 判定）",
+                    mirror
+                )));
+            }
+
+            // 复用 SSRF 判定：blocked-hostname + 解析后内网/loopback/云元数据拦截
+            crate::utils::ssrf_guard::validate_url_and_resolve(mirror).map_err(|e| {
+                ConfigError::Message(format!(
+                    "致命错误：update.mirrors 镜像 '{}' 未通过 SSRF/内网校验: {}",
+                    mirror, e
+                ))
+            })?;
+
+            tracing::info!(
+                "update.mirrors 镜像 '{}' 通过启动校验（https + 非 IP + SSRF 安全解析）",
+                mirror
+            );
+        }
+
+        Ok(())
+    }
+
     fn load_sensitive_from_env(&mut self) -> Result<(), ConfigError> {
         if let Ok(password) = std::env::var("DATABASE_PASSWORD") {
             self.database.password = password;
@@ -497,6 +771,21 @@ impl AppSettings {
             }
         }
 
+        // 决策定案 #6：环保税适用税额（元/污染当量，地方可变值）从环境变量覆盖
+        // （优先级：ENV_TAX_RATE_PER_EQUIVALENT 环境变量 > config.yaml 顶层字段 > 未配置=None）。
+        // 未配置保持 None：计税端点显式失败（**不取任何默认税额**）；
+        // 配置了但解析失败记显式 WARN 后同样保持 None——两种形态都会在计税时给出真实错误，
+        // 绝不静默按某个数值继续算。法定幅度 1.2–12 元/污染当量，由省级确定（运维取值依据）。
+        if let Ok(v) = std::env::var("ENV_TAX_RATE_PER_EQUIVALENT") {
+            match v.trim().parse::<Decimal>() {
+                Ok(parsed) => self.env_tax_rate_per_equivalent = Some(parsed),
+                Err(e) => warn!(
+                    "ENV_TAX_RATE_PER_EQUIVALENT 取值 '{}' 无法解析为税额（{}）：保持为未配置，环保税计税端点将显式报错（不采用默认值）",
+                    v, e
+                ),
+            }
+        }
+
         Ok(())
     }
 
@@ -546,5 +835,55 @@ impl AppSettings {
         let unique_chars: std::collections::HashSet<char> = secret.chars().collect();
         let entropy_ratio = unique_chars.len() as f64 / secret.len() as f64;
         entropy_ratio > 0.15
+    }
+}
+
+// =====================================================
+// 任务 #121：内置默认加速镜像配置不变量单测（静态、不触网）
+// =====================================================
+#[cfg(test)]
+mod default_mirrors_tests {
+    use super::*;
+
+    /// 默认档：`use_default_mirrors=true`、官方优先、强校验（安全默认）。
+    #[test]
+    fn update_config_default_enables_builtin_mirrors_official_first() {
+        let cfg = UpdateConfig::default();
+        assert!(
+            cfg.use_default_mirrors,
+            "默认档应启用内置公共加速镜像（官方优先兜底，非运维留空全自配）"
+        );
+        assert!(
+            matches!(cfg.mirror_order, MirrorOrder::OfficialFirst),
+            "默认官方优先"
+        );
+        assert!(cfg.verify_digest, "默认强制校验");
+        assert!(
+            cfg.mirrors.is_empty(),
+            "默认运维显式清单为空（内置默认另由 use_default_mirrors 控制）"
+        );
+    }
+
+    /// 内置默认镜像必须是 https、非空、host 为域名（非 IP 字面量）——不触网，仅静态形态校验。
+    /// 这些 host **绝不应**是官方校验锚域（校验值只信官方，见 github/system_update_service 测试）。
+    #[test]
+    fn default_release_mirrors_are_https_hostnames_not_official() {
+        assert!(
+            !DEFAULT_RELEASE_MIRRORS.is_empty(),
+            "内置默认镜像白名单不应为空"
+        );
+        for raw in DEFAULT_RELEASE_MIRRORS {
+            let parsed = url::Url::parse(raw)
+                .unwrap_or_else(|e| panic!("默认镜像 '{}' 不是合法 URL: {}", raw, e));
+            assert_eq!(parsed.scheme(), "https", "默认镜像必须 https: {}", raw);
+            let host = parsed
+                .host_str()
+                .unwrap_or_else(|| panic!("默认镜像 '{}' 缺少 host", raw));
+            assert!(
+                host.parse::<std::net::IpAddr>().is_err(),
+                "默认镜像 host 必须为域名而非 IP 字面量: {}",
+                host
+            );
+        }
     }
 }

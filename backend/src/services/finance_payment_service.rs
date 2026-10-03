@@ -3,6 +3,7 @@ use crate::models::status::finance_payment as payment_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
 use chrono::{DateTime, Utc};
@@ -19,7 +20,10 @@ pub struct FinancePaymentService {
 /// 创建付款输入参数（service 层，payment_no/payment_date 已由 handler 解析为非 Option）
 #[derive(Debug, Clone)]
 pub struct CreatePaymentInput {
-    pub payment_no: String,
+    /// 付款单号：`None` 时由服务在写入事务内经 DocumentNumberGenerator 生成
+    /// （原实现在 handler 里事务外「秒级时间戳+4位随机」拼号，见
+    /// handlers/finance_payment_handler.rs create_payment）
+    pub payment_no: Option<String>,
     pub invoice_id: Option<i32>,
     pub amount: Decimal,
     pub payment_date: DateTime<Utc>,
@@ -27,6 +31,10 @@ pub struct CreatePaymentInput {
     pub notes: Option<String>,
     pub created_by: Option<i32>,
 }
+
+/// 付款单号前缀（存量数据以 "PAY-" 开头；列 `"payment_no" VARCHAR(50) NOT NULL UNIQUE`，
+/// DDL 证据 migration/src/domain/system/m0001_initial_schema.rs:499）
+const PAYMENT_NO_PREFIX: &str = "PAY-";
 
 impl FinancePaymentService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -92,21 +100,39 @@ impl FinancePaymentService {
             }
         }
 
-        let active_payment = finance_payment::ActiveModel {
+        // 单号缺省时与 INSERT 同事务取号（生成器 advisory lock + 23505 保存点重试）；
+        // 用户传入的号仍按原样插入，撞 UNIQUE 由数据库显式拒绝（不吞不掩盖）。
+        let build_active = |payment_no: String| finance_payment::ActiveModel {
             id: Default::default(),
-            payment_no: Set(input.payment_no),
+            payment_no: Set(payment_no),
             invoice_id: Set(input.invoice_id),
             amount: Set(input.amount),
             payment_date: Set(input.payment_date),
-            payment_method: Set(input.payment_method),
-            notes: Set(input.notes),
+            payment_method: Set(input.payment_method.clone()),
+            notes: Set(input.notes.clone()),
             status: Set(payment_status::PENDING.to_string()),
             created_by: Set(input.created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
         };
-
-        let result = active_payment.insert(&txn).await.map_err(AppError::from)?;
+        let result = match input.payment_no.clone() {
+            Some(no) => build_active(no)
+                .insert(&txn)
+                .await
+                .map_err(AppError::from)?,
+            None => DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                PAYMENT_NO_PREFIX,
+                finance_payment::Entity,
+                finance_payment::Column::PaymentNo,
+                build_active,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "付款单号生成失败");
+                AppError::business_displayable("付款单号生成失败，请稍后重试")
+            })?,
+        };
 
         txn.commit().await?;
 

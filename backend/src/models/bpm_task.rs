@@ -30,12 +30,19 @@ pub struct Model {
 
     pub priority: Option<String>,
 
+    // ===== 以下四列生效 DDL 为 JSONB（migration system/mod.rs:96-100）=====
+    // 无 column_type 属性时 SeaORM 按 Vec<T> 推断为 PG 数组类型，读 JSONB 列即
+    // ColumnDecode、写整链带病；范本见 models/lab_dip_sample.rs formula_detail。
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub assignee_ids: Option<Vec<i32>>,
 
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub assignee_names: Option<Vec<String>>,
 
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub candidate_role_ids: Option<Vec<i32>>,
 
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub candidate_user_ids: Option<Vec<i32>>,
 
     pub actual_handler_id: Option<i32>,

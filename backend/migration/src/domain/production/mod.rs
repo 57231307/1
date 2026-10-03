@@ -35,6 +35,44 @@ pub(crate) mod m0058_add_delivery_tolerance;
 mod m0059_add_product_piece_roll_conversion;
 mod m0060_add_so_item_tolerance;
 mod m0061_custom_order_status_add_lab_dip_quotation;
+mod m0062_add_dye_batch_actual_output;
+// m0063 为 9 张单据表补单号列 UNIQUE 兜底：其中 outsourcing_order /
+// outsourcing_receipt / finance_invoices 在 v15 域内建表，而 production 域
+// 早于 v15 执行，直接注册本域会因 "relation ... does not exist" 中断迁移链。
+// 照 m0058 先例（见上方注释与 domain/v15/mod.rs），up/down 由 v15 域在
+// 全部建表完成后调用，此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0063_add_document_no_unique_constraints;
+// m0064 扩 chk_custom_order_status 取值集为权威模块 custom_order::ALL 的 11 值
+// （+ change_pending）；目标表 custom_orders 由本域 m0044 建表（早于本迁移执行），
+// 直接注册本域 up 末尾即可。
+mod m0064_custom_order_status_add_change_pending;
+// m0065 委外发料匹占用存量回填：目标表 outsourcing_order / outsourcing_order_item
+// 在 v15 域内建表（v15/mod.rs:3227/:671），而 production 域早于 v15 执行，直接注册
+// 本域会因 "relation ... does not exist" 中断迁移链。照 m0058/m0063 先例，
+// up/down 由 domain/v15/mod.rs 在全部建表完成后调用，此处仅保留定义，
+// 提升可见性为 pub(crate)。
+pub(crate) mod m0065_backfill_outsourcing_reserved_pieces;
+// m0066 调拨出库明细补匹号列（出库四维=缸/色/批/匹，用户 2026-10-02 纠正口径）：
+// 目标表 inventory_transfer_items 由 system 域 m0001 建表，早于本域执行，直接注册本域。
+mod m0066_add_piece_no_to_transfer_items;
+// m0067 扩 chk_aftersales_status 取值集为写入方权威词表 AFTERSALES_ALL 的 7 值
+// （+ accepted/evaluated，三端同源收口 CI #4669 65-01）；目标表 after_sales 由本域
+// m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可。
+mod m0067_aftersales_status_add_accepted_evaluated;
+// m0068 化学品三表编码列部分唯一索引：目标表 chemical_category/chemical_master/
+// chemical_lot 均在 v15 域内建表（v15/mod.rs:2457/:2499/:2472），production 域早于
+// v15 执行。照 m0058/m0063/m0065 先例，up/down 由 domain/v15/mod.rs 在建表完成后
+// 调用，此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0068_add_chemical_code_partial_unique_constraints;
+// m0069 存量库补授 pieces:read / pieces:print（匹号领域权限键自始未注册，非 admin
+// 访问 /inventory/pieces* 一律 403，详见文件头判责链）。目标表 role_permissions
+// 由 system 域 m0005 建表、roles 由 m0001 建表并种 3 角色，均早于本域执行，直接注册本域。
+mod m0069_grant_piece_read_and_print;
+// m0073 收紧 color_cards.stock_quantity / issued_quantity 为 NOT NULL DEFAULT 0：
+// 列由本域 inline SQL 先建成裸可空，finance 域的 NOT NULL DEFAULT 0 被
+// ADD COLUMN IF NOT EXISTS 吃成恒 no-op（scan_out.txt SHADOWED 第 244 行），
+// 而模型/出参都是非 Option i32 ⇒ NULL 行读取即 ColumnNull。判责链见文件头。
+mod m0073_normalize_color_card_quantities;
 
 pub struct Migration;
 
@@ -162,6 +200,24 @@ impl MigrationTrait for Migration {
         m0060_add_so_item_tolerance::Migration.up(manager).await?;
         // 定制订单状态 CHECK 补齐 lab_dip/quotation（与状态机 as_str() 同源），须在建表后执行
         m0061_custom_order_status_add_lab_dip_quotation::Migration
+            .up(manager)
+            .await?;
+        // 缸号完工实际产出三列（dye_batch 表由 system 域 m0003 建表，早于 production 域执行）
+        m0062_add_dye_batch_actual_output::Migration
+            .up(manager)
+            .await?;
+        // 定制订单状态 CHECK 扩为权威词表 11 值（+ change_pending，写入方
+        // submit_change_request），存量词表外取值 fail-visible 中止，须晚于
+        // m0044 建表与 m0061 十值重建（同域顺序执行）
+        m0064_custom_order_status_add_change_pending::Migration
+            .up(manager)
+            .await?;
+        // 调拨出库明细补匹号列（出库四维=缸/色/批/匹 落库点，见文件头注释）
+        m0066_add_piece_no_to_transfer_items::Migration
+            .up(manager)
+            .await?;
+        // 售后工单状态 CHECK 补齐 accepted/evaluated（三端同源，见文件头注释），须晚于 m0044 建表
+        m0067_aftersales_status_add_accepted_evaluated::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -460,11 +516,43 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // m0069 存量库补授 pieces:read / pieces:print（本域最后应用；依赖的
+        // role_permissions/roles 由 system 域 m0005/m0001 建表，早于本域执行）
+        m0069_grant_piece_read_and_print::Migration
+            .up(manager)
+            .await?;
+        // m0073 收紧色卡数量列（本域最后应用；目标表 color_cards 由本域建表建列）
+        m0073_normalize_color_card_quantities::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // m0073 最后应用故最先回滚（撤 NOT NULL/DEFAULT，回到修复前的可空无默认形态）
+        m0073_normalize_color_card_quantities::Migration
+            .down(manager)
+            .await?;
+        // m0069 次后应用（只回收本迁移按角色码授予的 pieces 键）
+        m0069_grant_piece_read_and_print::Migration
+            .down(manager)
+            .await?;
+        // m0067 次后应用（售后状态 CHECK 回原 5 值，含在途行 fail-visible 拒滚）
+        m0067_aftersales_status_add_accepted_evaluated::Migration
+            .down(manager)
+            .await?;
+        // m0066 次后应用（调拨明细匹号列）
+        m0066_add_piece_no_to_transfer_items::Migration
+            .down(manager)
+            .await?;
+        // m0064 次后应用（带在途 change_pending 行的 fail-visible 拒滚检查）
+        m0064_custom_order_status_add_change_pending::Migration
+            .down(manager)
+            .await?;
+        m0062_add_dye_batch_actual_output::Migration
+            .down(manager)
+            .await?;
         m0061_custom_order_status_add_lab_dip_quotation::Migration
             .down(manager)
             .await?;

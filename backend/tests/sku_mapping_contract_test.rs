@@ -12,10 +12,13 @@
 //!   `AppError::business` 真实文案不外显（防止调货模型泄露到销售可见面）。
 //! - 前端契约：resolve 返回对象不带 `.mapping` 包裹、列表 DTO 用 `color_no`。
 //!
-//! 说明：本仓 `setup_test_db` 无 schema harness（sqlite::memory 无表、`#[ignore]` 真库
-//! 用例仅在本地 TEST_DATABASE_URL 指向已迁移 PG 时运行）。因此需要真实数据分支的
-//! 行为级验证集中在：① 源码结构契约（编译期即锁死分支语义）② e2e 打真实 server+DB
-//! （frontend/e2e/purchase/sku-mapping.spec.ts）。此处不 mock、不 skip、不放宽断言。
+//! 说明（前提订正，#4671 判责 B3"前提过期"族）：`setup_test_db` 已真库化——
+//! 语义为「已迁移 PostgreSQL（`TEST_DATABASE_URL` 必填，缺失即 panic，禁 sqlite 回退）
+//! + 业务表 TRUNCATE」，本文件的 `#[ignore]` 真库姊妹用例由 CI ignored 专用 job
+//! （`sku_mapping_integration_test.rs`）真实执行。本文件为纯静态/序列化契约锁，
+//! 不依赖 DB。所有源码扫描断言统一在"剥整行注释后的文本"上判定（正向必备项
+//! 走 canon 规范形防折行/尾逗号脆断，负向禁项只剥注释不 canon），防止
+//! "注释命中禁词=假判违例"与"注释里有 needle=假绿"两个方向（#4671 §2.2 B1 三形态）。
 
 use bingxi_backend::services::sku_mapping_service::{ImportMappingResult, ResolvedSku};
 use bingxi_backend::utils::error::AppError;
@@ -72,13 +75,14 @@ fn business_error_http_message_is_sanitized_not_leaked() {
 /// 由调用方按受众决定措辞。锁死该分支的存在性，防止后续误改成 Err。
 #[test]
 fn resolve_returns_ok_none_when_no_mapping_source_contract() {
+    let code = code_only(SERVICE_SRC);
     // 命中判定后 else 分支显式返回 Ok(None)
     assert!(
-        SERVICE_SRC.contains("return Ok(None);"),
+        code.contains("return Ok(None);"),
         "resolve_supplier_sku 无映射应显式 return Ok(None)"
     );
     // 该方法体内不得对「查无映射」构造 business/validation 错误（措辞在调用方）
-    let resolve_body = extract_fn(SERVICE_SRC, "pub async fn resolve_supplier_sku");
+    let resolve_body = extract_fn(&code, "pub async fn resolve_supplier_sku");
     assert!(
         !resolve_body.contains("AppError::business") && !resolve_body.contains("validation("),
         "resolve_supplier_sku 自身不应抛出面向受众的错误文案，措辞须交给调用方"
@@ -88,15 +92,18 @@ fn resolve_returns_ok_none_when_no_mapping_source_contract() {
 /// resolve 命中时按 priority 升序取第一条（priority 最小），验证排序方向。
 #[test]
 fn resolve_orders_by_priority_ascending_source_contract() {
-    let resolve_body = extract_fn(SERVICE_SRC, "pub async fn resolve_supplier_sku");
+    let code = code_only(SERVICE_SRC);
+    let resolve_body = extract_fn(&code, "pub async fn resolve_supplier_sku");
     assert!(
-        resolve_body.contains("order_by(product_supplier_mapping::Column::Priority, Order::Asc)")
-            || resolve_body.contains("Order::Asc"),
+        canon_contains(
+            resolve_body,
+            "order_by(product_supplier_mapping::Column::Priority, Order::Asc)"
+        ) || canon_contains(resolve_body, "Order::Asc"),
         "resolve 应按 priority 升序取最小的一条"
     );
     // 仅取启用映射
     assert!(
-        resolve_body.contains("IsEnabled.eq(true)"),
+        canon_contains(resolve_body, "IsEnabled.eq(true)"),
         "resolve 应只匹配 is_enabled=true 的映射"
     );
 }
@@ -107,12 +114,14 @@ fn resolve_orders_by_priority_ascending_source_contract() {
 
 #[test]
 fn create_and_update_map_unique_violation_to_business() {
+    let code = code_only(SERVICE_SRC);
     assert!(
-        SERVICE_SRC.contains("is_unique_violation(&e)"),
+        canon_contains(&code, "is_unique_violation(&e)"),
         "create/update 应捕获唯一约束冲突"
     );
-    // 两处（create 与 update）均落 business
-    let dup_msg_count = SERVICE_SRC
+    // 两处（create 与 update）均落 business —— 计数在剥注释文本上做：
+    // 文案若在说明注释里再出现一次，旧写法会把 3 当违例、或把注释当命中。
+    let dup_msg_count = code
         .matches("该产品+色号+供应商组合的对照记录已存在，请勿重复创建")
         .count();
     assert_eq!(
@@ -120,7 +129,7 @@ fn create_and_update_map_unique_violation_to_business() {
         "create 与 update 各应有一处重复组合 business 文案（实得 {dup_msg_count}）"
     );
     assert!(
-        SERVICE_SRC.contains("AppError::business("),
+        canon_contains(&code, "AppError::business("),
         "重复组合应使用 AppError::business"
     );
 }
@@ -131,33 +140,37 @@ fn create_and_update_map_unique_violation_to_business() {
 
 #[test]
 fn validate_refs_each_branch_uses_validation_error() {
-    let body = extract_fn(SERVICE_SRC, "async fn validate_refs");
-    // 空白归一化后再 contains：源码里 `AppError::validation(format!( … ))` 的参数会被
-    // rustfmt 拆成多行（换行 + 缩进），单行字面 needle 直接匹配会因折行而假失败
-    // （CI 分片 6 的 G4 根因：源码正确，仅测断言写法过脆）。契约只要求「该失败分支确实
-    // 写了」，与折行/缩进无关，故双侧剥离全部空白再比对。仅用于正向 contains（去空白会
-    // 扩大匹配面，负向 !contains 断言不可套用，否则把「不含」误判成「含」）。
-    let body_c = strip_ws(body);
+    let code = code_only(SERVICE_SRC);
+    let body = extract_fn(&code, "async fn validate_refs");
+    // 空白归一 + 消尾逗号后再 contains：源码里 `AppError::validation(format!( … ))`
+    // 与多行 `_displayable("…",)` 调用被 rustfmt 拆行后，末实参/末元素必带 `,`，
+    // 单行字面 needle 或"仅去空白"都会因折行尾逗号假失败
+    // （CI #4671 分片 p6 本用例恒红的根因：`validation_displayable("…",)` 的尾逗号，
+    // 源码正确，测断言写法过脆）。契约只要求「该失败分支确实写了」，
+    // 与折行/缩进/尾逗号无关。仅用于正向 contains（负向 !contains 不套 canon）。
+    let body_c = canon(body);
     let expected = [
         "AppError::validation(format!(\"产品 ID {} 不存在\"",
-        "AppError::validation(\"产品色号不属于指定的产品\")",
+        "AppError::validation_displayable(\"产品色号不属于指定的产品\")",
         "AppError::validation(format!(\"供应商 ID {} 不存在\"",
         "AppError::validation(format!(",
-        "AppError::validation(\"供应商商品不属于指定的供应商\")",
-        "AppError::validation(\"供应商色号不属于指定的供应商商品\")",
+        "AppError::validation_displayable(\"供应商商品不属于指定的供应商\")",
+        "AppError::validation_displayable(\"供应商色号不属于指定的供应商商品\")",
     ];
     for needle in expected {
         assert!(
-            body_c.contains(&strip_ws(needle)),
+            body_c.contains(&canon(needle)),
             "validate_refs 缺少预期失败分支：{needle}"
         );
     }
-    // 「色号不属于该产品」等三类归属校验都必须是 validation（422 语义 → 本仓 400），
-    // 不得是 business（那会走脱敏文案、丢失定位信息，且语义错误）。
+    // 「色号不属于该产品」等三类归属校验都必须是 validation 族（422 语义 → 本仓 400），
+    // 且必须是 _displayable 变体（普通 `AppError::validation` 出参会被脱敏成
+    // 「请求参数验证失败」，用户丢失定位信息）；不得是 business（语义错误）。
+    // 含内部记录 ID 的「产品 ID 不存在」类仍走脱敏 validation（不外泄 ID）。
     assert!(
-        body_c.contains(&strip_ws("不属于指定的产品"))
-            && body_c.contains(&strip_ws("不属于指定的供应商"))
-            && body_c.contains(&strip_ws("不属于指定的供应商商品")),
+        body_c.contains(&canon("不属于指定的产品"))
+            && body_c.contains(&canon("不属于指定的供应商"))
+            && body_c.contains(&canon("不属于指定的供应商商品")),
         "三类归属校验文案应齐全"
     );
 }
@@ -188,9 +201,25 @@ fn import_result_serializes_error_count_not_fail_count() {
 /// UPSERT 使用 ON CONFLICT (product_id, product_color_id, supplier_id) DO UPDATE，保证幂等。
 #[test]
 fn import_batch_upsert_on_conflict_contract() {
+    // 该字面量当前在三处**注释**（:444/:583/:636）与 upsert_mapping 的 raw SQL
+    // 执行体中同时出现——旧写法即使执行体删掉 SQL、只剩注释也会假绿。
+    // 判据收紧：锁定对象 = `upsert_mapping` 执行体内的 SQL（剥注释后仍可命中，
+    // 因为 SQL 在 raw string 内、非注释行）；若真执行体被删，剥注释后必红。
     assert!(
-        SERVICE_SRC.contains("ON CONFLICT (product_id, product_color_id, supplier_id) DO UPDATE"),
+        canon_contains(
+            SERVICE_SRC,
+            "ON CONFLICT (product_id, product_color_id, supplier_id) DO UPDATE"
+        ),
         "import_batch 必须对 (product_id,product_color_id,supplier_id) 做 UPSERT 以保证幂等"
+    );
+    let code = code_only(SERVICE_SRC);
+    let upsert_body = extract_fn(&code, "async fn upsert_mapping");
+    assert!(
+        canon_contains(
+            upsert_body,
+            "ON CONFLICT (product_id, product_color_id, supplier_id) DO UPDATE"
+        ),
+        "UPSERT 冲突目标必须真实写在 upsert_mapping 执行体里，而不是只存在于注释"
     );
 }
 
@@ -201,7 +230,9 @@ fn import_batch_upsert_on_conflict_contract() {
 /// 无对照时的拒绝文案必须中性：含「无该色号」，且绝不出现泄露调货模型的词。
 #[test]
 fn po_hook_no_mapping_message_is_neutral_no_leak() {
-    let idx = PO_CRUD_SRC
+    // 锚点在剥注释文本上定位：说明注释里引用该模板不算"hook 已接线"。
+    let code = code_only(PO_CRUD_SRC);
+    let idx = code
         .find("第 {} 行无该色号，无法转采购")
         .expect("转采购 hook 应包含中性文案模板");
     // 取该字面量所在语句局部窗口做泄露扫描（该模板串本身即被扫描对象）
@@ -217,7 +248,7 @@ fn po_hook_no_mapping_message_is_neutral_no_leak() {
     // 但要把「无该色号」如实回显给用户（脱敏 business 会让用户只看到「业务处理失败」，
     // 违背「message 含无该色号」的产品要求）。
     assert!(
-        PO_CRUD_SRC.contains("AppError::business_displayable(format!("),
+        canon_contains(&code, "AppError::business_displayable(format!("),
         "无对照拒绝应使用 business_displayable 让中性文案如实外显，而非脱敏 business"
     );
     // 且转采购可见面严禁出现供应商维护类敏感词（保密：不泄露调货模型）。
@@ -233,25 +264,33 @@ fn po_hook_no_mapping_message_is_neutral_no_leak() {
 /// supplier_color_no 快照列（写入发生在 resolve 命中之后）。
 #[test]
 fn po_hook_backfills_supplier_snapshot_columns_contract() {
+    // 判据对象是**回填执行体**（剥注释后仍须命中）；canon 使多行折行不参与判定。
+    let code = code_only(PO_CRUD_SRC);
     assert!(
-        PO_CRUD_SRC.contains("resolved.supplier_product_code"),
+        canon_contains(&code, "resolved.supplier_product_code"),
         "命中对照后应读取 resolved.supplier_product_code"
     );
     assert!(
-        PO_CRUD_SRC.contains("resolved.supplier_color_no"),
+        canon_contains(&code, "resolved.supplier_color_no"),
         "命中对照后应读取 resolved.supplier_color_no"
     );
     assert!(
-        PO_CRUD_SRC.contains("order_item.supplier_product_code = Set(resolved_product_code)"),
+        canon_contains(
+            &code,
+            "order_item.supplier_product_code = Set(resolved_product_code)"
+        ),
         "应把供应商商品编码回填到明细快照列"
     );
     assert!(
-        PO_CRUD_SRC.contains("order_item.supplier_color_no = Set(resolved_color_no)"),
+        canon_contains(
+            &code,
+            "order_item.supplier_color_no = Set(resolved_color_no)"
+        ),
         "应把供应商色号回填到明细快照列"
     );
-    // 反查色号不存在的中性文案（第 350–377 行分支）
+    // 反查色号不存在的中性文案（写回执行体，非注释）
     assert!(
-        PO_CRUD_SRC.contains("第 {} 行色号「{}」在产品 {} 下不存在，无法转采购"),
+        code.contains("第 {} 行色号「{}」在产品 {} 下不存在，无法转采购"),
         "色号在产品下不存在的分支应给出定位文案"
     );
 }
@@ -260,8 +299,9 @@ fn po_hook_backfills_supplier_snapshot_columns_contract() {
 /// 普通自建采购单不做对照，避免误伤。
 #[test]
 fn po_hook_only_triggers_on_source_sales_order() {
+    let code = code_only(PO_CRUD_SRC);
     assert!(
-        PO_CRUD_SRC.contains("req.source_sales_order_id.is_some()"),
+        canon_contains(&code, "req.source_sales_order_id.is_some()"),
         "仅当带来源销售订单时才执行对照翻译"
     );
 }
@@ -274,13 +314,18 @@ fn po_hook_only_triggers_on_source_sales_order() {
 /// 从数据模型层面锁死「供应商编号/色号绝不进销售明细」。
 #[test]
 fn sales_order_item_model_has_no_supplier_fields() {
-    let lower = SALES_ITEM_SRC.to_lowercase();
+    // 保密禁项只看执行体：本模型当前无任何 supplier 词元（代码与注释均无）；
+    // 若未来有人在**文档注释**里写"本模型刻意不含 supplier 字段"，
+    // 原文扫描会把这条正确自述假判成违例（#4671 B1① crm_pool_handler 同型）。
+    // 真正的字段回潮一定以代码行出现，剥注释后照样红——判据不放松。
+    let code = code_only(SALES_ITEM_SRC);
+    let lower = code.to_lowercase();
     assert!(
         !lower.contains("supplier"),
         "sales_order_item 模型不得包含任何 supplier 字段（销售域保密）"
     );
     assert!(
-        !SALES_ITEM_SRC.contains("product_supplier_mapping"),
+        !code.contains("product_supplier_mapping"),
         "sales_order_item 模型不应引用供应商映射实体"
     );
 }
@@ -321,38 +366,72 @@ fn resolve_result_has_no_mapping_wrapper() {
 /// 与转采购 hook 的中性文案形成受众分层：采购可指路、销售可见面中性。
 #[test]
 fn resolve_handler_preview_allows_guidance_text() {
+    let code = code_only(HANDLER_SRC);
     assert!(
-        HANDLER_SRC.contains("该产品色号暂无供应商对照，请先维护对照表"),
+        code.contains("该产品色号暂无供应商对照，请先维护对照表"),
         "采购预览 resolve 端点应给出可指路的 business 文案"
     );
     // 且该文案是 AppError::business（出参脱敏），指路信息只进日志，
     // 真正面向采购的引导由前端 i18n（skuMappingNotFound）承担。
     assert!(
-        HANDLER_SRC.contains(".ok_or_else(|| AppError::business("),
+        canon_contains(&code, ".ok_or_else(|| AppError::business("),
         "resolve 无映射应返回 AppError::business（脱敏）"
     );
 }
 
 // ---------------------------------------------------------------------------
-// 辅助：从源码中粗略截取某个函数体（到下一个同级 `\\n    }` 前的行块）
+// 辅助：源码扫描三件套（与 contract_wave5_outsource_issue_guard_test.rs 同式先例）
 // ---------------------------------------------------------------------------
 
-/// 以签名行为锚点，向后截取到函数结束（大括号配对的最小实现，仅用于契约字面量定位）。
-fn extract_fn<'a>(src: &'a str, sig: &str) -> &'a str {
-    let start = src.find(sig).unwrap_or(0);
-    // 从签名往后取一段足够覆盖函数体的窗口（这些函数都在 100 行以内）。
-    let rest = &src[start..];
-    // 找到函数体结束：首个「\n    }\n」缩进闭合
+/// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
+/// 双向都必要：禁项命中"旧实现这里是 X"类注释=假判违例；正向 needle 只在注释
+/// 出现（如 ON CONFLICT 的三处注释先例）=假绿。按行剥不做字符级引号配平——
+/// 被扫源码含跨行 raw string SQL，字符级会把真代码当字符串吃掉（宁少剥不误吃）。
+fn code_only(src: &str) -> String {
+    src.lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 规范形（**仅用于正向 contains / 定位**）：`code_only` 后剔全部空白并消闭合
+/// 定界符前的尾逗号/尾分号前逗号（rustfmt 把长调用拆多行后末实参必带 `,`，
+/// 是折行必然产物非语义——#4671 `validate_refs_each_branch` 恒假的根因）。
+/// 负向 `!contains` 一律只用 `code_only` 原文：去空白扩大匹配面，会把"不含"
+/// 误判成"含"，不参与判定语义。
+fn canon(src: &str) -> String {
+    let mut out: String = code_only(src)
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    loop {
+        let next = out.replace(",)", ")").replace(",]", "]").replace(",}", "}");
+        if next == out {
+            break;
+        }
+        out = next;
+    }
+    out
+}
+
+/// 正向必备项判据：`canon(被扫源码).contains(canon(needle))`，排版（折行/缩进/
+/// 尾逗号）不参与判定，但缺失仍然必红——不改变判据语义，只解耦排版脆性。
+fn canon_contains(src: &str, needle: &str) -> bool {
+    canon(src).contains(&canon(needle))
+}
+
+/// 以签名行为锚点，向后截取到函数结束（首个「\n    }」缩进闭合前的行块）。
+/// 锚点丢失必须 panic：旧实现 `unwrap_or(0)` 会把"锚点没了"降级成"拿文件头
+/// 当函数体"，必备项若恰在文件头出现即假绿（本仓定性的假绿形态，改紧）。
+/// 调用方传入的必须是 `code_only` 文本——否则注释里的同名签名会骗走窗起点。
+fn extract_fn<'a>(code_src: &'a str, sig: &str) -> &'a str {
+    let start = code_src.find(sig).unwrap_or_else(|| {
+        panic!("源码锚点丢失: {sig}（若确已改名/删除，请连同本锁一起更新判据）")
+    });
+    let rest = &code_src[start..];
     if let Some(end) = rest.find("\n    }") {
         &rest[..end]
     } else {
         rest
     }
-}
-
-/// 剥离全部空白（空格/制表/换行），供源码字面契约做「不依赖 rustfmt 折行」的匹配。
-/// 契约断言的是「源码里确实写了该分支」，折行与缩进属实现细节，不应成为断言失败根因。
-/// 仅用于正向 `contains`（去空白只会扩大匹配面，负向 `!contains` 断言不可套用）。
-fn strip_ws(s: &str) -> String {
-    s.chars().filter(|c| !c.is_whitespace()).collect()
 }

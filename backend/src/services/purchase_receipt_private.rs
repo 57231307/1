@@ -160,17 +160,65 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 更新采购订单的已入库数量与状态（事务内调用）
+    /// 回写采购订单实际到货日（决策定案 #7，确认收货同一事务内调用）
+    ///
+    /// 语义：该 PO **已确认收货中的最大 `receipt_date`**（部分到货也回写；
+    /// 补录的更早收货单不得把更晚日期回退）。`purchase_receipt.receipt_date`
+    /// 为 NOT NULL 列且入口已守显式清空（`purchase_receipt_ops/crud.rs` 的
+    /// `update_receipt` 门控），此处取真实值直写，不得用确认时间/当前时间顶替。
+    ///
+    /// 失败以 `?` 整单上抛随事务回滚，严禁 `let _ =` / `.ok()` 吞错——否则会
+    /// 出现「已收数量进度写了、到货日没写」的半成功，交期绩效统计
+    /// （`purchase_delivery_calculator` 要求 `actual_delivery_date IS NOT NULL`）
+    /// 将再次退化为恒空集。
+    async fn write_back_actual_delivery_date(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        receipt_date: chrono::NaiveDate,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let order = crate::models::purchase_order::Entity::find_by_id(order_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+        let target = order
+            .actual_delivery_date
+            .map(|existing| existing.max(receipt_date))
+            .unwrap_or(receipt_date);
+        // 值未变化（重复确认/更早补录）则不写不刷审计，语义仍是"已确认为最大值"
+        if order.actual_delivery_date == Some(target) {
+            return Ok(());
+        }
+        let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
+        active_order.actual_delivery_date = Set(Some(target));
+        active_order.updated_at = Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active_order,
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 更新采购订单的已入库数量、实际到货日与状态（事务内调用）
+    ///
+    /// `receipt_date` 取自被确认的入库单（NOT NULL 列），用于同事务回写
+    /// `purchase_orders.actual_delivery_date`（决策定案 #7）。
     pub async fn update_order_received_quantity(
         &self,
         order_id: i32,
         receipt_id: i32,
+        receipt_date: chrono::NaiveDate,
         txn: &sea_orm::DatabaseTransaction,
         user_id: i32,
     ) -> Result<(), AppError> {
         let (items, order_item_map) =
             Self::fetch_receipt_items_with_order_map(txn, receipt_id).await?;
         Self::update_order_items_received_quantity(txn, items, order_item_map, user_id).await?;
+        // 确认即回写到货日（先于状态判定，与进度同事务原子落库）
+        Self::write_back_actual_delivery_date(txn, order_id, receipt_date, user_id).await?;
         if let Some(new_status) = Self::determine_order_receipt_status(txn, order_id).await? {
             Self::save_order_status_update(txn, order_id, new_status, user_id).await?;
         }

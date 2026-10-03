@@ -134,6 +134,32 @@
           width="100"
           align="right"
         />
+        <!-- 完工登记实际产出三列（真实列名对齐后端 models/dye_batch.rs；Decimal 字符串
+             Number() 归一后格式化，NULL 显 '-'，不做任何兜底掩盖） -->
+        <el-table-column
+          prop="actual_output_kg"
+          :label="t('dyeBatch.index.colActualOutputKg')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.actual_output_kg) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="actual_output_m"
+          :label="t('dyeBatch.index.colActualOutputM')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.actual_output_m) }}</template>
+        </el-table-column>
+        <el-table-column
+          prop="greige_input_kg"
+          :label="t('dyeBatch.index.colGreigeInputKg')"
+          width="130"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatDecimal(row.greige_input_kg) }}</template>
+        </el-table-column>
         <el-table-column
           prop="status"
           :label="t('dyeBatch.index.colStatus')"
@@ -221,8 +247,10 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="t('dyeBatch.index.colBatchNo')" prop="batch_no">
+              <!-- 后端 UpdateDyeBatchRequest 无 batch_no 键：编辑态不可改，编号在创建时定稿 -->
               <el-input
                 v-model="formData.batch_no"
+                :disabled="!!formData.id"
                 :placeholder="t('dyeBatch.index.placeholderBatchNo')"
               />
             </el-form-item>
@@ -254,10 +282,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="t('dyeBatch.index.colColorCode')" prop="color_code">
+            <!-- 纺织四维口径：色号非空即染色布，缸号必填；色号留空表示白坯可免缸号 -->
+            <el-form-item :label="t('dyeBatch.index.colDyeLotNo')" prop="dye_lot_no">
               <el-input
-                v-model="formData.color_code"
-                :placeholder="t('dyeBatch.index.placeholderColorCode')"
+                v-model="formData.dye_lot_no"
+                :placeholder="t('dyeBatch.index.placeholderDyeLotNo')"
               />
             </el-form-item>
           </el-col>
@@ -265,10 +294,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="t('dyeBatch.index.colDyeDate')" prop="dye_date">
+              <!-- 后端 UpdateDyeBatchRequest 无 dye_date 键：编辑态不可改 -->
               <el-date-picker
                 v-model="formData.dye_date"
                 type="date"
                 value-format="YYYY-MM-DD"
+                :disabled="!!formData.id"
                 :placeholder="t('dyeBatch.index.placeholderSelectDyeDate')"
                 style="width: 100%"
               />
@@ -303,6 +334,13 @@
         }}</el-button>
       </template>
     </el-dialog>
+
+    <!-- 完工登记对话框：强制采集实际产出三值（后端 CompleteDyeBatchRequest 必填契约） -->
+    <CompleteDyeBatchDialog
+      v-model="completeDialogVisible"
+      :batch="completingBatch"
+      @success="handleCompleteSuccess"
+    />
   </div>
 </template>
 
@@ -312,14 +350,9 @@ import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
-import {
-  createDyeBatch,
-  updateDyeBatch,
-  deleteDyeBatch,
-  completeDyeBatch,
-  exportDyeBatches,
-} from '@/api/dye-batch';
-import type { DyeBatch } from '@/api/dye-batch';
+import { createDyeBatch, updateDyeBatch, deleteDyeBatch, exportDyeBatches } from '@/api/dye-batch';
+import type { CreateDyeBatchPayload, DyeBatch, UpdateDyeBatchPayload } from '@/api/dye-batch';
+import CompleteDyeBatchDialog from '@/components/CompleteDyeBatchDialog.vue';
 import {
   DYE_BATCH_LIFECYCLE_STATUS,
   DYE_BATCH_LIFECYCLE_STATUSES,
@@ -365,13 +398,14 @@ const dialogTitle = ref('');
 const formRef = ref();
 const isView = ref(false);
 
-// 表单数据
+// 表单数据：键集与后端 Create/UpdateDyeBatchRequest 对齐（颜色代码由后端从 color_no 派生，
+// 表单不再采集；缸号 dye_lot_no 真实采集，染色布必填）
 const formData = reactive({
   id: undefined as number | undefined,
   batch_no: '',
   greige_fabric_id: undefined as number | undefined,
   color_no: '',
-  color_code: '',
+  dye_lot_no: '',
   dye_date: '',
   planned_quantity: 0,
   remarks: '',
@@ -383,7 +417,19 @@ const formRules = {
   greige_fabric_id: [
     { required: true, message: t('dyeBatch.index.ruleProductRequired'), trigger: 'change' },
   ],
-  color_no: [{ required: true, message: t('dyeBatch.index.ruleColorNoRequired'), trigger: 'blur' }],
+  // 纺织四维口径：色号不无条件必填（留空=白坯）；染色布（色号非空）缸号必填
+  dye_lot_no: [
+    {
+      validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+        if (formData.color_no.trim() && !String(value ?? '').trim()) {
+          callback(new Error(t('dyeBatch.index.ruleDyeLotNoRequired')));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
   dye_date: [
     { required: true, message: t('dyeBatch.index.ruleDyeDateRequired'), trigger: 'change' },
   ],
@@ -438,7 +484,7 @@ const handleCreate = () => {
     batch_no: '',
     greige_fabric_id: undefined,
     color_no: '',
-    color_code: '',
+    dye_lot_no: '',
     dye_date: '',
     planned_quantity: 0,
     remarks: '',
@@ -446,11 +492,25 @@ const handleCreate = () => {
   dialogVisible.value = true;
 };
 
+/** 行数据 → 表单：Decimal 出参字符串归一为 number；started_at 回填染色日期（YYYY-MM-DD） */
+const fillFormFromRow = (row: DyeBatch) => {
+  Object.assign(formData, {
+    id: row.id,
+    batch_no: row.batch_no,
+    greige_fabric_id: row.greige_fabric_id ?? undefined,
+    color_no: row.color_no ?? '',
+    dye_lot_no: row.dye_lot_no ?? '',
+    dye_date: row.started_at ? row.started_at.slice(0, 10) : '',
+    planned_quantity: row.planned_quantity != null ? Number(row.planned_quantity) : 0,
+    remarks: row.remarks ?? '',
+  });
+};
+
 // 查看（v14 P0-3 修复：实现只读查看功能，原 handler 为空导致业务失效）
 const handleView = (row: DyeBatch) => {
   dialogTitle.value = t('dyeBatch.index.titleView');
   isView.value = true;
-  Object.assign(formData, row);
+  fillFormFromRow(row);
   dialogVisible.value = true;
 };
 
@@ -458,24 +518,23 @@ const handleView = (row: DyeBatch) => {
 const handleEdit = (row: DyeBatch) => {
   dialogTitle.value = t('dyeBatch.index.titleEdit');
   isView.value = false;
-  Object.assign(formData, row);
+  fillFormFromRow(row);
   dialogVisible.value = true;
 };
 
-// 完成
-const handleComplete = async (row: DyeBatch) => {
-  try {
-    await ElMessageBox.confirm(
-      t('dyeBatch.index.messageConfirmComplete'),
-      t('dyeBatch.index.titlePrompt'),
-      { type: 'warning' }
-    );
-    await completeDyeBatch(row.id);
-    ElMessage.success(t('dyeBatch.index.messageOperationSuccess'));
-    refresh();
-  } catch (error) {
-    logger.error(t('dyeBatch.index.messageOperationFailed'), error);
-  }
+// 完成：后端 complete 端点强制采集实际产出三值（CompleteDyeBatchRequest），
+// 原"确认框即提交"形态已废弃——无产出登记的完工会让成本/能耗分母重新断链。
+// 打开受控对话框采集，提交由 CompleteDyeBatchDialog 完成并回调刷新。
+const completeDialogVisible = ref(false);
+const completingBatch = ref<DyeBatch | null>(null);
+
+const handleComplete = (row: DyeBatch) => {
+  completingBatch.value = row;
+  completeDialogVisible.value = true;
+};
+
+const handleCompleteSuccess = () => {
+  refresh();
 };
 
 // 删除
@@ -517,9 +576,27 @@ const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate();
     if (formData.id) {
-      await updateDyeBatch(formData.id, formData);
+      // 更新载荷对齐 UpdateDyeBatchRequest：batch_no/dye_date/color_code 不在该 DTO 内，不提交；
+      // 色号留空=白坯，整键省略（后端把空串当白坯，勿提交 ''）
+      const payload: UpdateDyeBatchPayload = {
+        greige_fabric_id: formData.greige_fabric_id,
+        color_no: formData.color_no.trim() || undefined,
+        dye_lot_no: formData.dye_lot_no.trim() || undefined,
+        planned_quantity: formData.planned_quantity,
+        remarks: formData.remarks || undefined,
+      };
+      await updateDyeBatch(formData.id, payload);
     } else {
-      await createDyeBatch(formData);
+      const payload: CreateDyeBatchPayload = {
+        batch_no: formData.batch_no,
+        greige_fabric_id: formData.greige_fabric_id,
+        color_no: formData.color_no.trim() || undefined,
+        dye_lot_no: formData.dye_lot_no.trim() || undefined,
+        planned_quantity: formData.planned_quantity,
+        remarks: formData.remarks || undefined,
+        dye_date: formData.dye_date || undefined,
+      };
+      await createDyeBatch(payload);
     }
     ElMessage.success(t('dyeBatch.index.messageSaveSuccess'));
     dialogVisible.value = false;
@@ -564,6 +641,11 @@ const canComplete = (row: DyeBatch): boolean =>
 
 // started_at 为时间戳列，列表仅展示日期部分
 const formatDate = (value: string | null): string => (value ? value.slice(0, 10) : '');
+
+// Decimal 出参为字符串（rust_decimal serde），Number() 归一后按列精度(12,2)格式化；
+// null（未完工/历史行）显 '-'，不做假值兜底
+const formatDecimal = (value: string | null): string =>
+  value === null || value === undefined ? '-' : Number(value).toFixed(2);
 
 const hasLoaded = createLazyLoader();
 

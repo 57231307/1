@@ -4,6 +4,13 @@
  * 提供销售合同列表查询、表单管理、客户加载、CRUD 等核心方法
  * 业务流程（提交审批/审批/执行/打印/导出）由 useScProc 提供
  * 批次 284：contractList 接入 useTableApi，移除手写分页/加载逻辑
+ *
+ * P0 契约修复（本轮）：
+ * 1. 明细回源：后端 get_list/get_by_id 从不返回 items（实体无该键），原 prepareEdit 直接读
+ *    row.items ⇒ 恒为空数组，保存后再编辑明细全丢。现改为打开编辑前调用既有端点
+ *    GET /sales/sales-contracts/:id/items 回填（数量/单价 Decimal→string 需 Number() 归一）。
+ * 2. 表头键名三端对齐：create/update payload 补齐 signed_date/effective_date/expiry_date/
+ *    payment_method/delivery_location 真实列；update 由「只发 2 个字段」改为全量 PATCH。
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -11,14 +18,27 @@ import { msg } from '@/utils/message';
 import {
   createSalesContract,
   updateSalesContract,
+  getSalesContractItems,
   type SalesContract,
   type CreateSalesContractPayload,
+  type CreateContractItemInput,
+  type UpdateSalesContractPayload,
 } from '@/api/sales-contract';
 // D14 Batch 5b：原 customerApi 对象已转风格 B 函数
 import { getCustomerList, type Customer } from '@/api/customer';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
+
+/**
+ * DB 可空列入参归一（三态语义，对齐后端 RFC 7386 显式 null 清空）：
+ * ''/null/undefined → null（显式清空该列），非空 → 原值（覆盖）。
+ * 禁止塌成 `|| undefined`：省略键在后端语义是「保持原值」，
+ * 用户清空交货日期/备注后保存会被静默丢弃——本轮要消灭的形态。
+ * （与 usePc.ts 同名助手形状一致；共享 utils 文件超出本批授权范围，暂各自私有。）
+ */
+const explicitToNull = (v: string | null | undefined): string | null =>
+  v === null || v === undefined || v === '' ? null : v;
 
 /**
  * 销售合同 composable
@@ -63,27 +83,35 @@ export function useSc() {
   const dialogTitle = ref('');
 
   // 表单数据
+  // 可空列字段如实声明 string | null：编辑回显直接承接后端真实 NULL（出参键值），
+  // 提交时经 explicitToNull 显式回传 null（清空语义），不再用 '' 掩盖空值状态。
   const formData = reactive({
     id: undefined as number | undefined,
     contract_no: '',
     contract_name: '',
     customer_id: undefined as number | undefined,
-    contract_type: '',
+    contract_type: '' as string | null,
     total_amount: 0,
-    signed_date: '',
-    effective_date: '',
-    expiry_date: '',
-    payment_terms: '',
-    payment_method: '',
-    delivery_date: '',
-    delivery_location: '',
-    remarks: '',
+    signed_date: '' as string | null,
+    effective_date: '' as string | null,
+    expiry_date: '' as string | null,
+    payment_terms: '' as string | null,
+    payment_method: '' as string | null,
+    delivery_date: '' as string | null,
+    delivery_location: '' as string | null,
+    remarks: '' as string | null,
     items: [] as Array<{
       product_name: string;
       unit: string;
       quantity: number;
       unit_price: number;
       quantity_tolerance_pct: number | undefined;
+      // 实体真实列（表单不采集、不可见，但编辑保存=明细整表 delete+重插，
+      // 必须随 items 原样回传，否则每次保存被洗成 NULL）：
+      product_id: number | null;
+      product_spec: string | null;
+      delivery_date: string | null;
+      remarks: string | null;
     }>,
   });
 
@@ -155,28 +183,108 @@ export function useSc() {
     });
   };
 
-  /** 准备编辑表单（父组件需自行打开对话框） */
-  const prepareEdit = (row: SalesContract) => {
+  /**
+   * 准备编辑表单（P0 修复：异步回源明细后再返回，父组件 await 后打开对话框）
+   * - 表头：列表行 = 后端 sales_contract::Model 全列，直接映射（total_amount Decimal→string 需 Number()）
+   * - 明细：后端行对象不含 items，必须调 GET /:id/items 回填；
+   *   quantity/unit_price/quantity_tolerance_pct 出参为 string，绑定数值控件前归一为 number
+   */
+  const prepareEdit = async (row: SalesContract) => {
     dialogTitle.value = '编辑销售合同';
+    // 可空列出参为真实 null 时原样承接（不再 `?? ''` 洗成空串）：
+    // 回显忠实是「显式 null 清空」三态语义的前提——未动的 NULL 行提交同一 NULL 即幂等。
     Object.assign(formData, {
-      ...row,
-      items: (row.items ?? []).map(it => ({
+      id: row.id,
+      contract_no: row.contract_no,
+      contract_name: row.contract_name,
+      customer_id: row.customer_id,
+      contract_type: row.contract_type,
+      total_amount: Number(row.total_amount ?? 0),
+      signed_date: row.signed_date,
+      effective_date: row.effective_date,
+      expiry_date: row.expiry_date,
+      payment_terms: row.payment_terms,
+      payment_method: row.payment_method,
+      delivery_date: row.delivery_date,
+      delivery_location: row.delivery_location,
+      // 后端真实列/出参键为 remark（单数），表单键为 remarks：回显必须显式映射。
+      // 不回显则 update payload 会以「表单为空」把已存在的 remark 送 null 洗掉。
+      remarks: row.remark,
+    });
+    try {
+      const res = await getSalesContractItems(row.id);
+      formData.items = (res.data ?? []).map(it => ({
         product_name: it.product_name,
         unit: it.unit,
-        quantity: it.quantity,
-        unit_price: it.price,
-        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+        quantity: Number(it.quantity),
+        unit_price: Number(it.unit_price),
+        // 出参 quantity_tolerance_pct 为 Decimal 字符串或 null：真实空值保持 undefined
         quantity_tolerance_pct:
           it.quantity_tolerance_pct != null ? Number(it.quantity_tolerance_pct) : undefined,
-      })),
-    });
+        // 实体真实列原样保留（表单不可见但保存时须回传，整表重插不洗列）：
+        product_id: it.product_id,
+        product_spec: it.product_spec,
+        delivery_date: it.delivery_date,
+        remarks: it.remarks,
+      }));
+    } catch (error) {
+      logger.error('获取销售合同明细失败:', error);
+      formData.items = [];
+      ElMessage.error(
+        (error instanceof Error ? error.message : '') ||
+          msg.translate('loadSalesContractListFailed')
+      );
+    }
   };
+
+  /**
+   * 表单明细行 → 后端 CreateContractItemDto。
+   * 后端 update 对明细走「delete_many + 整表重插」（services/sales_contract_service.rs:316-321），
+   * 回显保留的真实列 product_id/product_spec/delivery_date/remarks 必须原样回传
+   * （null=真实空值，禁止塞默认值），否则每次编辑保存把这几列洗成 NULL。
+   */
+  const buildItemsPayload = (): CreateContractItemInput[] =>
+    formData.items
+      .filter(i => i.product_name && i.quantity > 0)
+      .map(i => ({
+        product_id: i.product_id,
+        product_name: i.product_name,
+        product_spec: i.product_spec,
+        unit: i.unit,
+        quantity: i.quantity,
+        // el-input-number 清空为 undefined ⇒ JSON 序列化后为缺省，后端 Option=None（走默认允差解析）
+        quantity_tolerance_pct: i.quantity_tolerance_pct,
+        unit_price: i.unit_price,
+        delivery_date: i.delivery_date,
+        remarks: i.remarks,
+      }));
 
   /** 提交表单 */
   const handleSubmitForm = async () => {
     try {
       if (formData.id) {
-        await updateSalesContract(formData.id, formData as unknown as Partial<SalesContract>);
+        // 表头全量提交 + 三态语义（对齐后端 RFC 7386 显式 null 清空）：
+        // 可空列空值经 explicitToNull 显式送 null（清空该列）；NOT NULL 列
+        // （contract_name/customer_id）空则省略键（=保持原值，送显式 null 被后端业务错误拒绝）。
+        // 明细整表替换：items 必须随表头一起回传（product_id/product_spec/delivery_date/remarks
+        // 四列真实值原样保留，防重插洗 NULL 的既有修复不得回退）。
+        const updatePayload: UpdateSalesContractPayload = {
+          // 不发送 contract_no：后端 UpdateSalesContractDto 无该字段（编号系统生成，编辑链路忽略）
+          contract_name: formData.contract_name || undefined,
+          customer_id: formData.customer_id,
+          total_amount: formData.total_amount,
+          contract_type: explicitToNull(formData.contract_type),
+          payment_terms: explicitToNull(formData.payment_terms),
+          delivery_date: explicitToNull(formData.delivery_date),
+          signed_date: explicitToNull(formData.signed_date),
+          effective_date: explicitToNull(formData.effective_date),
+          expiry_date: explicitToNull(formData.expiry_date),
+          payment_method: explicitToNull(formData.payment_method),
+          delivery_location: explicitToNull(formData.delivery_location),
+          remark: explicitToNull(formData.remarks),
+          items: buildItemsPayload(),
+        };
+        await updateSalesContract(formData.id, updatePayload);
       } else {
         const payload: CreateSalesContractPayload = {
           contract_no: formData.contract_no,
@@ -185,17 +293,15 @@ export function useSc() {
           total_amount: formData.total_amount,
           contract_type: formData.contract_type || undefined,
           payment_terms: formData.payment_terms || undefined,
+          // 后端 delivery_date 已对齐真实列可空性（Option<NaiveDate>），未填不再 400
           delivery_date: formData.delivery_date || undefined,
+          signed_date: formData.signed_date || undefined,
+          effective_date: formData.effective_date || undefined,
+          expiry_date: formData.expiry_date || undefined,
+          payment_method: formData.payment_method || undefined,
+          delivery_location: formData.delivery_location || undefined,
           remark: formData.remarks || undefined,
-          items: formData.items
-            .filter(i => i.product_name && i.quantity > 0)
-            .map(i => ({
-              product_name: i.product_name,
-              unit: i.unit,
-              quantity: i.quantity,
-              unit_price: i.unit_price,
-              quantity_tolerance_pct: i.quantity_tolerance_pct,
-            })),
+          items: buildItemsPayload(),
         };
         await createSalesContract(payload);
       }

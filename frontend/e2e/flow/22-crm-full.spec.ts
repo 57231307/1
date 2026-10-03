@@ -66,10 +66,11 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       }
     }
     await apiCallRaw(page, 'GET', `/crm/customers/${customerId}`);
-    // credit/360/rfm 等子资源依赖客户已有对应业务数据（信用评级/跟进记录等），
-    // 新建客户可能没有 → 404 可接受，用 verifyEndpointHealthy 容忍（仅拦截 5xx）
+    // credit/360/rfm 等子资源后端已注册（crm.rs:48/550/561），admin 下应 2xx，strict 验证
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
+    // 客户关系汇总（crm.rs:537 已注册，Path(customer_id) 取上面真实 seed 客户 id，service 汇总计数
+    // 空关系仍返回 200）：迁回严格。
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/summary`);
     // 360 契约校验升级（假绿解封）：旧写法 verifyEndpointHealthy('/crm/customers/{id}/360')
     // 只拦 5xx，对"200 但缺 tags/shipping_addresses 数组键"的信封盲区无感——而详情页
@@ -120,10 +121,9 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
           expect(typeof tag.id, `tag.id 应为 number，实际=${JSON.stringify(tag.id)}`).toBe(
             'number'
           );
-          expect(
-            typeof tag.name,
-            `tag.name 应为 string，实际=${JSON.stringify(tag.name)}`
-          ).toBe('string');
+          expect(typeof tag.name, `tag.name 应为 string，实际=${JSON.stringify(tag.name)}`).toBe(
+            'string'
+          );
           expect((tag.name as string)?.length, 'tag.name 不应为空字符串').toBeGreaterThan(0);
           expect(
             typeof tag.color,
@@ -197,7 +197,15 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
     await apiCallRaw(page, 'GET', '/crm/customers/enhanced?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/crm/customers/field-permissions/1');
+    const roleId =
+      ctx.roleId ??
+      (await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1'))
+        .items?.[0]?.id;
+    expect(
+      roleId,
+      '无法获取任何角色 id（ensureTestEntities.ctx.roleId 缺失且角色列表为空）'
+    ).toBeTruthy();
+    await verifyEndpointHealthy(page, `/crm/customers/field-permissions/${roleId}`);
     await verifyEndpointHealthy(page, '/crm/rfm/distribution');
     await apiCallRaw(page, 'GET', '/crm/sales-users');
   });
@@ -293,7 +301,17 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', '/crm/pool/rules');
     await apiCallRaw(page, 'GET', '/crm/assignments?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/assignments/history');
-    await verifyEndpointHealthy(page, '/crm/assignments/workload');
+    // 线索负载（crm.rs:343 已注册）：handler 必填 user_ids(逗号分隔)，缺省会返 400 校验；
+    // 取 ensureTestEntities 从 /auth/me 落地的真实登录用户 id 作入参，admin 上下文应 2xx → 迁回严格。
+    // 省略/臆造 user_ids（如固定 1）会致假红，故用真实 id，空则 fail-fast 暴露 setup 问题而非端点假红。
+    const ctx = getCtx();
+    const workloadUserId = ctx.userIds[0];
+    if (!workloadUserId) {
+      throw new Error(
+        '[flow/22 workload] ctx.userIds 为空（/auth/me 未返回 id），拒绝以臆造入参 strict 校验'
+      );
+    }
+    await verifyEndpointHealthy(page, `/crm/assignments/workload?user_ids=${workloadUserId}`);
     await verifyEndpointHealthy(page, '/crm/transfer-approvals?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/recycle-rules');
     await verifyEndpointHealthy(page, '/crm/competitors?page=1&page_size=5');

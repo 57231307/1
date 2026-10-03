@@ -170,6 +170,29 @@ export interface CreateColorPriceDto {
   notes?: string | null;
 }
 
+/**
+ * 更新色号价格载荷：对齐后端 models/color_price_dto.rs::UpdateColorPriceDto
+ * （处理器 handlers/color_price_handler.rs:181-191；服务层 services/color_price_crud_service.rs:152-207，
+ * 全字段 Option，缺键/null 即跳过更新）。
+ * product_id / color_id 不在更新契约内（禁止像旧 Partial<CreateColorPriceDto> 那样混入）；
+ * 空值请省略该键而非提交 null/""（后端无显式清空通道）。
+ * Decimal 字段（base_price/min_quantity/max_quantity）JSON 兼容 number/string。
+ */
+export interface UpdateColorPriceDto {
+  currency?: string;
+  base_price?: number | string;
+  effective_from?: string;
+  effective_to?: string;
+  customer_level?: string;
+  min_quantity?: number | string;
+  max_quantity?: number | string;
+  customer_id?: number;
+  season?: string;
+  is_active?: boolean;
+  priority?: number;
+  notes?: string;
+}
+
 export interface BatchAdjustItem {
   price_id: number;
   adjustment_type: 'percentage' | 'fixed';
@@ -274,7 +297,7 @@ export function getColorPrice(id: number) {
 }
 
 // 4. 更新
-export function updateColorPrice(id: number, data: Partial<CreateColorPriceDto>) {
+export function updateColorPrice(id: number, data: UpdateColorPriceDto) {
   return request.put<ColorPriceDetail>(`${BASE_URL}/${id}`, data);
 }
 

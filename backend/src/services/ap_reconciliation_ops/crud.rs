@@ -14,6 +14,7 @@ use sea_orm::{
 };
 
 use crate::models::status::ap_reconciliation as reconciliation_status;
+use crate::models::status::common;
 use crate::models::status::payment;
 use crate::models::{ap_invoice, ap_payment, ap_reconciliation};
 use crate::services::ap_reconciliation_ops::types::{
@@ -35,10 +36,13 @@ impl ApReconciliationService {
         // 1. 生成对账单号
         let reconciliation_no = self.generate_reconciliation_no().await?;
 
-        // 2. 查询该供应商在对账期间内的应付单
+        // 2. 查询该供应商在对账期间内的应付单（草稿与已取消不计入对账口径）
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(req.supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
             .filter(ap_invoice::Column::InvoiceDate.gte(req.start_date))
             .filter(ap_invoice::Column::InvoiceDate.lte(req.end_date))
             .all(&txn)
@@ -53,10 +57,13 @@ impl ApReconciliationService {
             .all(&txn)
             .await?;
 
-        // 4. 计算期初余额（对账开始日期前的未付金额）
+        // 4. 计算期初余额（对账开始日期前的未付金额，草稿与已取消不计入）
         let opening_balance = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(req.supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
             .filter(ap_invoice::Column::InvoiceDate.lt(req.start_date))
             .all(&txn)
             .await?

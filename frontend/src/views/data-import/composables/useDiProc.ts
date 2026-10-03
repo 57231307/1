@@ -11,7 +11,6 @@ import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
-  createImportTemplate,
   updateImportTemplate,
   deleteImportTemplate,
   downloadImportTemplate,
@@ -21,6 +20,8 @@ import {
   downloadErrorLog,
   type ImportTemplate,
   type ImportTask,
+  type ImportColumn,
+  type UpdateImportTemplateRequest,
 } from '@/api/data-import';
 import { logger } from '@/utils/logger';
 
@@ -38,6 +39,28 @@ export interface DataImportTemplateFormData {
   sample_data?: unknown[];
   status?: string;
   [key: string]: unknown;
+}
+
+/**
+ * 列定义守卫（唯一真相：import_export_handler.rs:506 ImportColumnDto，
+ * 必填键 key/label/type/required；default_value/validation_rule 为 Option。
+ * type 后端为自由 String，前端按 ImportColumn 声明的取值域收紧）
+ */
+const IMPORT_COLUMN_TYPES: readonly ImportColumn['type'][] = [
+  'string',
+  'number',
+  'date',
+  'boolean',
+];
+function isImportColumn(v: unknown): v is ImportColumn {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.key === 'string' &&
+    typeof o.label === 'string' &&
+    (IMPORT_COLUMN_TYPES as readonly unknown[]).includes(o.type) &&
+    typeof o.required === 'boolean'
+  );
 }
 
 /**
@@ -131,12 +154,38 @@ export function useDiProc(cb: DiCallbacks) {
           }
         }
         if (templateForm.id) {
-          await updateImportTemplate(
-            templateForm.id,
-            templateForm as unknown as Partial<ImportTemplate>
-          );
+          // 载荷按后端 UpdateImportTemplateRequest 键集显式构造：
+          // template_code/id/created_at/updated_at/import_type 非更新 DTO 字段，
+          // 整表单直传只会被 serde 静默丢弃；template_name 带 length(min=1) 校验，
+          // 空串必须省略该键（发送 "" 直接 422）。
+          const payload: UpdateImportTemplateRequest = {};
+          if (templateForm.template_name) payload.template_name = templateForm.template_name;
+          if (templateForm.description !== undefined)
+            payload.description = templateForm.description;
+          if (templateForm.module) payload.module = templateForm.module;
+          if (templateForm.file_format) payload.file_format = templateForm.file_format;
+          if (templateForm.columns) {
+            // columns 来自用户 JSON 文本框（unknown[]），逐元素守卫收窄为 ImportColumn
+            //（对齐后端 ImportColumnDto 必填键 key/label/type/required）；
+            // 非法元素如实报错，禁止 as 断言伪契约、禁止静默过滤丢数据
+            const invalid = templateForm.columns.find(c => !isImportColumn(c));
+            if (invalid !== undefined) {
+              msg.error('invalidColumnDefinition');
+              return;
+            }
+            // 上一行已保证全部通过守卫，此处 filter 仅做类型收窄，输出与输入逐元素相同
+            payload.columns = templateForm.columns.filter(isImportColumn);
+          }
+          if (templateForm.sample_data) payload.sample_data = templateForm.sample_data;
+          if (templateForm.status) payload.status = templateForm.status;
+          await updateImportTemplate(templateForm.id, payload);
         } else {
-          await createImportTemplate(templateForm as unknown as Partial<ImportTemplate>);
+          // 后端无 POST /data-import/templates（routes/mod.rs 仅 GET），"新建模板"
+          // 属后端缺口（已登记串行清单）：如实失败并给出可读原因，不发不存在的端点、
+          // 不伪报成功。按钮移除与否待产品拍板。
+          msg.error('createTemplateUnsupported');
+          logger.error('后端未提供导入模板创建端点（POST /data-import/templates 不存在）');
+          return;
         }
         msg.success('operationSuccess');
         templateDialogVisible.value = false;

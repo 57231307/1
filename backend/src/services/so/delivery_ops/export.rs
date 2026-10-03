@@ -91,7 +91,9 @@ impl SalesService {
         );
         row.insert(
             "要求交货日期".to_string(),
-            o.required_date.format("%Y-%m-%d %H:%M:%S").to_string(),
+            o.required_date
+                .map(|d: chrono::DateTime<chrono::Utc>| d.format("%Y-%m-%d %H:%M:%S").to_string())
+                .unwrap_or_default(),
         );
         row.insert(
             "发货日期".to_string(),

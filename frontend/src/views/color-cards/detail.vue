@@ -23,12 +23,30 @@
             <el-button :icon="Download" @click="handleExport">{{
               $t('colorCards.detail.exportExcel')
             }}</el-button>
-            <el-button type="primary" :icon="Plus" @click="showAddItemDialog = true">{{
-              $t('colorCards.detail.addItem')
-            }}</el-button>
-            <el-button :icon="Box" @click="showImportDialog = true">{{
-              $t('colorCards.detail.batchImport')
-            }}</el-button>
+            <!-- 色号维护入口按卡状态门控（后端 98f3bb0b：色号创建只允许草稿态色卡）。
+                 判据与 color-cards/list.vue:138 归档按钮同源（status === draft，
+                 token 由 COLOR_CARD_STATUS 权威表锁定）；非草稿态禁用入口并给出
+                 有解释的 tooltip，消除“按钮永远可点、点了必失败”的假可用 -->
+            <el-tooltip :disabled="isDraftCard" :content="addItemDisabledTip" placement="top">
+              <span>
+                <el-button
+                  type="primary"
+                  :icon="Plus"
+                  :disabled="!isDraftCard"
+                  @click="showAddItemDialog = true"
+                >
+                  {{ $t('colorCards.detail.addItem') }}
+                </el-button>
+              </span>
+            </el-tooltip>
+            <!-- 批量导入入口与单条添加同源门控：批量端点同样落色号创建 -->
+            <el-tooltip :disabled="isDraftCard" :content="batchImportDisabledTip" placement="top">
+              <span>
+                <el-button :icon="Box" :disabled="!isDraftCard" @click="showImportDialog = true">
+                  {{ $t('colorCards.detail.batchImport') }}
+                </el-button>
+              </span>
+            </el-tooltip>
           </div>
         </div>
       </template>
@@ -202,9 +220,11 @@ import {
   batchImportItems,
   scanColorCode,
   exportColorCardUrl,
+  COLOR_CARD_STATUS,
   COLOR_CARD_STATUS_COLORS,
   type ColorCardDetail,
   type ColorItemInfo,
+  type ColorItemPayload,
   type IssueRecordInfo,
 } from '@/api/color-card';
 import ColorCardGrid from '@/components/ColorCardGrid.vue';
@@ -244,6 +264,25 @@ const items = ref<ColorItemInfo[]>([]);
 const issueRecords = ref<IssueRecordInfo[]>([]);
 const activeTab = ref('info');
 
+// ===== 色号维护入口的草稿态门控 =====
+// 色卡状态 token 锁定在 api/color-card.ts 权威表 COLOR_CARD_STATUS 的键上
+//（键 = 后端 chk_color_card_status 全集 token，值为标签）——'draft' 字面量
+// 经 keyof 编译期校验，不新引入第二套词表，拼错即红。
+type ColorCardStatusToken = keyof typeof COLOR_CARD_STATUS;
+const DRAFT: ColorCardStatusToken = 'draft';
+// 判据与 color-cards/list.vue 归档按钮（row.status === 'draft'）同源
+const isDraftCard = computed(() => card.value?.status === DRAFT);
+
+// 非草稿态禁用解释文案：全部由既有条目词表动态组装（卡状态标签、入口名），不硬编码文案。
+const draftOnlyTip = (actionLabel: string) =>
+  t('colorCards.detail.draftOnlyTip', {
+    draft: getStatusLabel(DRAFT),
+    action: actionLabel,
+    current: card.value ? getStatusLabel(card.value.status) : '',
+  });
+const addItemDisabledTip = computed(() => draftOnlyTip(t('colorCards.detail.addItem')));
+const batchImportDisabledTip = computed(() => draftOnlyTip(t('colorCards.detail.batchImport')));
+
 const showAddItemDialog = ref(false);
 const adding = ref(false);
 const newItem = ref<Partial<ColorItemInfo>>({
@@ -280,14 +319,48 @@ const loadData = async () => {
   }
 };
 
+// 编辑器绑定的是采集态（Partial），提交前收敛为后端 ColorItemDto 全量必填载荷
+const buildColorItemPayload = (n: Partial<ColorItemInfo>): ColorItemPayload => {
+  const r = n.rgb_r ?? 0;
+  const g = n.rgb_g ?? 0;
+  const b = n.rgb_b ?? 0;
+  const hexFromRgb = `#${[r, g, b]
+    .map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase()}`;
+  const payload: ColorItemPayload = {
+    color_code: n.color_code ?? '',
+    color_name: n.color_name ?? '',
+    rgb_r: r,
+    rgb_g: g,
+    rgb_b: b,
+    // 后端要求 hex 恰为 #RRGGBB（validate length=7 + service 格式校验），非法/缺失时按 RGB 兜底换算
+    hex_value: n.hex_value && /^#[0-9A-Fa-f]{6}$/.test(n.hex_value) ? n.hex_value : hexFromRgb,
+  };
+  // Option 字段空值省略键（Some("") 会被后端原样写库），CMYK/Lab 省略由后端自动计算
+  if (n.pantone_code) payload.pantone_code = n.pantone_code;
+  if (n.cncs_code) payload.cncs_code = n.cncs_code;
+  if (n.custom_code) payload.custom_code = n.custom_code;
+  if (n.swatch_image_url) payload.swatch_image_url = n.swatch_image_url;
+  if (typeof n.sequence === 'number') payload.sequence = n.sequence;
+  return payload;
+};
+
 const handleAddItem = async () => {
+  // 双保险：入口按钮已由 isDraftCard 禁用，提交路径再校验一次（防对话框
+  // 已打开时卡状态变化后的竞态提交）；非草稿态显式拒绝并解释，
+  // 不是“点了必失败”地放行给后端 98f3bb0b 的 400
+  if (!isDraftCard.value) {
+    ElMessage.warning(addItemDisabledTip.value);
+    return;
+  }
   if (!newItem.value.color_code || !newItem.value.color_name) {
     ElMessage.warning(t('colorCards.detail.message.codeAndNameRequired'));
     return;
   }
   adding.value = true;
   try {
-    await createColorItem(cardId.value, newItem.value);
+    await createColorItem(cardId.value, buildColorItemPayload(newItem.value));
     ElMessage.success(t('colorCards.detail.message.addItemSuccess'));
     showAddItemDialog.value = false;
     newItem.value = {
@@ -337,6 +410,11 @@ const handleScanItem = async (item: ColorItemInfo) => {
 };
 
 const handleBatchImport = async () => {
+  // 与单条添加同源门控：批量端点同样落色号创建，非草稿态拒绝提交
+  if (!isDraftCard.value) {
+    ElMessage.warning(batchImportDisabledTip.value);
+    return;
+  }
   if (!importText.value.trim()) {
     ElMessage.warning(t('colorCards.detail.message.importEmpty'));
     return;

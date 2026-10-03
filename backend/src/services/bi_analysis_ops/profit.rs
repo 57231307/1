@@ -7,6 +7,10 @@
 //!
 //! 业务规则：
 //! - 利润 = 销售额 - 成本，成本 = SUM(sales_order_items.quantity * products.cost_price)
+//! - 排除 cancelled（已取消）和 draft（草稿）状态的订单——取值来自权威词表
+//!   `crate::models::status::sales::sales_order`（小写），SQL 中一律以绑定参数引用，
+//!   禁止 `'CANCELLED'`/`'DRAFT'` 大写硬编码字面量（Postgres 大小写敏感，大写比较
+//!   恒不命中，会把草稿/已取消单误计入利润与 KPI）。
 //! - KPI 同比增长率 = (本月销售额 - 去年同月销售额) / 去年同月销售额 * 100
 //! - KPI 环比增长率 = (本月销售额 - 上月销售额) / 上月销售额 * 100
 //! - V15 P0-B10：所有查询注入行级数据权限过滤
@@ -14,6 +18,7 @@
 use chrono::Datelike;
 use sea_orm::{FromQueryResult, Statement};
 
+use crate::models::status::sales::sales_order;
 use crate::services::bi_analysis_ops::types::{
     KpiCurrentMetrics, KpiRow, KpiSummary, MoMRow, ProfitAnalysis, ProfitRow, YoYRow,
 };
@@ -30,7 +35,8 @@ impl BiAnalysisService {
         }
 
         // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s）
-        let (scope_sql, scope_values) = self.scope_sql("s", 1);
+        // 参数顺序：$1=cancelled、$2=draft、$3 起=数据范围
+        let (scope_sql, scope_values) = self.scope_sql("s", 3);
 
         let sql = format!(
             r#"
@@ -44,13 +50,14 @@ impl BiAnalysisService {
                 )), 0) as total_cost,
                 COUNT(*) as order_count
             FROM sales_orders s
-            WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            WHERE s.status NOT IN ($1, $2)
             {scope_sql}
             "#,
             scope_sql = scope_sql,
         );
 
-        let mut values: Vec<sea_orm::Value> = Vec::new();
+        let mut values: Vec<sea_orm::Value> =
+            vec![sales_order::CANCELLED.into(), sales_order::DRAFT.into()];
         values.extend(scope_values);
         let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
@@ -119,7 +126,8 @@ impl BiAnalysisService {
 
     /// 查询当前周期 KPI（总销售额/订单数/客户数/客单价），注入数据范围过滤
     async fn fetch_current_kpi(&self) -> Result<KpiCurrentMetrics, AppError> {
-        let (scope_sql, scope_values) = self.scope_sql("", 1);
+        // 参数顺序：$1=cancelled、$2=draft、$3 起=数据范围
+        let (scope_sql, scope_values) = self.scope_sql("", 3);
         let sql = format!(
             r#"
             SELECT
@@ -127,12 +135,13 @@ impl BiAnalysisService {
                 COUNT(*) as order_count,
                 COUNT(DISTINCT customer_id) as customer_count
             FROM sales_orders
-            WHERE status NOT IN ('CANCELLED', 'DRAFT')
+            WHERE status NOT IN ($1, $2)
             {scope_sql}
             "#,
             scope_sql = scope_sql,
         );
-        let mut values: Vec<sea_orm::Value> = Vec::new();
+        let mut values: Vec<sea_orm::Value> =
+            vec![sales_order::CANCELLED.into(), sales_order::DRAFT.into()];
         values.extend(scope_values);
         let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
         let row: KpiRow = KpiRow::find_by_statement(stmt)
@@ -164,19 +173,23 @@ impl BiAnalysisService {
         let this_year = now.format("%Y").to_string();
         let last_year = (this_year.parse::<i32>().unwrap_or(2026) - 1).to_string();
         let month = now.format("%m").to_string();
-        // 同比 2 个子查询，每个注入数据范围过滤（参数 $3/$4 起）
-        let (scope_sql_1, scope_values_1) = self.scope_sql("", 3);
-        let (scope_sql_2, scope_values_2) = self.scope_sql("", 4);
+        // 同比 2 个子查询，每个注入数据范围过滤（$6/$7 起）
+        // 参数顺序：$1=this_year、$2=month、$3=last_year、$4=cancelled、$5=draft、
+        // $6/$7 起=两个子查询各自的数据范围。排除门状态值在两个子查询间复用同一
+        // 占位符（PG 协议允许 $N 重复引用）。原 scope 基址 $3/$4 与 last_year($3)
+        // 撞号（Self/Dept 范围下 created_by/department_id 会绑上年份字符串），已一并移正。
+        let (scope_sql_1, scope_values_1) = self.scope_sql("", 6);
+        let (scope_sql_2, scope_values_2) = self.scope_sql("", 7);
         let sql = format!(
             r#"
             SELECT
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
-                 WHERE status NOT IN ('CANCELLED', 'DRAFT')
+                 WHERE status NOT IN ($4, $5)
                    AND to_char(order_date, 'YYYY') = $1
                    AND to_char(order_date, 'MM') = $2
                    {scope_sql_1}) as this_year,
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
-                 WHERE status NOT IN ('CANCELLED', 'DRAFT')
+                 WHERE status NOT IN ($4, $5)
                    AND to_char(order_date, 'YYYY') = $3
                    AND to_char(order_date, 'MM') = $2
                    {scope_sql_2}) as last_year
@@ -184,7 +197,13 @@ impl BiAnalysisService {
             scope_sql_1 = scope_sql_1,
             scope_sql_2 = scope_sql_2,
         );
-        let mut values = vec![this_year.into(), month.into(), last_year.into()];
+        let mut values: Vec<sea_orm::Value> = vec![
+            this_year.into(),
+            month.into(),
+            last_year.into(),
+            sales_order::CANCELLED.into(),
+            sales_order::DRAFT.into(),
+        ];
         values.extend(scope_values_1);
         values.extend(scope_values_2);
         let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
@@ -220,19 +239,22 @@ impl BiAnalysisService {
         } else {
             this_year.clone()
         };
-        // 环比 2 个子查询，每个注入数据范围过滤（参数 $5/$6 起）
-        let (scope_sql_1, scope_values_1) = self.scope_sql("", 5);
-        let (scope_sql_2, scope_values_2) = self.scope_sql("", 6);
+        // 环比 2 个子查询，每个注入数据范围过滤（$7/$8 起）
+        // 参数顺序：$1=this_year、$2=month、$3=last_month_year、$4=last_month、
+        // $5=cancelled、$6=draft、$7/$8 起=两个子查询各自的数据范围。排除门状态值
+        // 在两个子查询间复用同一占位符（PG 协议允许 $N 重复引用）。
+        let (scope_sql_1, scope_values_1) = self.scope_sql("", 7);
+        let (scope_sql_2, scope_values_2) = self.scope_sql("", 8);
         let sql = format!(
             r#"
             SELECT
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
-                 WHERE status NOT IN ('CANCELLED', 'DRAFT')
+                 WHERE status NOT IN ($5, $6)
                    AND to_char(order_date, 'YYYY') = $1
                    AND to_char(order_date, 'MM') = $2
                    {scope_sql_1}) as this_month,
                 (SELECT COALESCE(SUM(total_amount), 0) FROM sales_orders
-                 WHERE status NOT IN ('CANCELLED', 'DRAFT')
+                 WHERE status NOT IN ($5, $6)
                    AND to_char(order_date, 'YYYY') = $3
                    AND to_char(order_date, 'MM') = $4
                    {scope_sql_2}) as last_month
@@ -240,11 +262,13 @@ impl BiAnalysisService {
             scope_sql_1 = scope_sql_1,
             scope_sql_2 = scope_sql_2,
         );
-        let mut values = vec![
+        let mut values: Vec<sea_orm::Value> = vec![
             this_year.into(),
             month.into(),
             last_month_year.into(),
             format!("{:02}", last_month).into(),
+            sales_order::CANCELLED.into(),
+            sales_order::DRAFT.into(),
         ];
         values.extend(scope_values_1);
         values.extend(scope_values_2);

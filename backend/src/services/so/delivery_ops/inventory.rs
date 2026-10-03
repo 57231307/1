@@ -181,13 +181,29 @@ impl SalesService {
 
         for item in items {
             // 缺维度先报错：即使存在产品级预留也不能掩盖出库单维度缺失（不做兜底）
+            // 出库对染色布强制四维=缸号/色号/批次/匹号（用户 2026-10-02 纠正口径）
             let dims = require_outbound_dimensions(
                 "销售发货明细",
                 item.product_id,
                 item.color_no.as_deref(),
                 item.dye_lot_no.as_deref(),
                 item.batch_no.as_deref(),
+                item.piece_no.as_deref(),
             )?;
+
+            // 染色布匹号存在性预检（只读、不占用；真实消耗在 reduce_inventory_four_dim
+            // 扣减事务内 CAS，消除 TOCTOU，与调拨 check/ship 分工同构）
+            if let Some(piece_no) = dims.piece_no.as_deref() {
+                let ctx = crate::services::piece_domain_service::OutboundPieceContext {
+                    product_id: item.product_id,
+                    warehouse_id,
+                    dye_lot_no: dims.dye_lot_no.as_deref().unwrap_or_default(),
+                    batch_no: &dims.batch_no,
+                    piece_no,
+                };
+                crate::services::piece_domain_service::validate_dyed_piece_for_outbound(txn, &ctx)
+                    .await?;
+            }
 
             // 预留分支不再短路 continue：产品级预留只保证锁定数量，四维口径校验必须与
             // reduce_inventory_four_dim 同源——存在预留时先校验其数量是否覆盖发货量，随后仍
@@ -222,20 +238,24 @@ impl SalesService {
         Ok(())
     }
 
-    /// 扣减库存（出库四维匹配：款号+色号+缸号+批次）
+    /// 扣减库存（出库四维匹配：款号+色号+缸号+批次；染色布另强制匹号消耗）
     ///
-    /// 规则（用户拍板，禁止兜底）：
-    /// - 出库明细必须显式携带色号/缸号/批次（款号由 product_id 承载），缺失直接业务错误；
+    /// 规则（用户拍板，禁止兜底；2026-10-02 纠正：出库对染色布强制四维=缸/色/批/匹）：
+    /// - 出库明细必须显式携带色号/缸号/批次/匹号（款号由 product_id 承载；白坯免缸号免匹号），
+    ///   缺失直接业务错误；
     /// - 优先扣"款号+色号+缸号+批次"精确命中的库存行；
     /// - 仅当指定缸号在该款号+色号+批次下数量不足时，才走**显式跨缸回退**，
     ///   次序确定可解释：缸号字典序升序（无缸号行最后）→ 入库时间升序 → 库存行 ID 升序；
     /// - 返回每一笔实际扣减的库存行（真实缸号/批次 + 前后数量 + 是否跨缸），
-    ///   调用方必须按此逐笔写出库明细与库存流水，不得合并掩盖实际扣的哪个缸。
+    ///   调用方必须按此逐笔写出库明细与库存流水，不得合并掩盖实际扣的哪个缸；
+    /// - 米数扣减完成后，染色布指定匹在**同一发货事务内** CAS 消耗（AVAILABLE→SHIPPED），
+    ///   匹未命中真实可用库存（假匹号/已被并发出库消耗）即整单拒绝、随事务回滚。
     pub(crate) async fn reduce_inventory_four_dim(
         &self,
         item: &ShipOrderItemRequest,
         warehouse_id: i32,
         order_id: i32,
+        operator_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<Vec<StockReduction>, AppError> {
         let dims = require_outbound_dimensions(
@@ -244,6 +264,7 @@ impl SalesService {
             item.color_no.as_deref(),
             item.dye_lot_no.as_deref(),
             item.batch_no.as_deref(),
+            item.piece_no.as_deref(),
         )?;
 
         // 批次 9（2026-06-28）：加 FOR UPDATE 行锁，防止并发发货导致超扣
@@ -322,6 +343,24 @@ impl SalesService {
                 requested_dye_lot_no: dims.dye_lot_no.clone().unwrap_or_default(),
                 source: alloc.source,
             });
+        }
+
+        // 出库四维之匹号消耗（染色布）：米数扣减完成后在同一事务内 CAS（AVAILABLE→SHIPPED），
+        // 未命中即整单拒绝回滚——库存按匹真实扣减，不允许"账面扣了米、匹还挂着可用"。
+        if let Some(piece_no) = dims.piece_no.as_deref() {
+            let ctx = crate::services::piece_domain_service::OutboundPieceContext {
+                product_id: item.product_id,
+                warehouse_id,
+                dye_lot_no: dims.dye_lot_no.as_deref().unwrap_or_default(),
+                batch_no: &dims.batch_no,
+                piece_no,
+            };
+            crate::services::piece_domain_service::consume_dyed_piece_for_outbound(
+                txn,
+                &ctx,
+                Some(operator_id),
+            )
+            .await?;
         }
 
         // 标记预留为已完成（产品级预留，四维消耗完成后同样置 consumed）

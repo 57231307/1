@@ -6,10 +6,40 @@ export interface QualityStandard {
   standard_code: string;
   standard_name: string;
   version: string;
-  type: 'product' | 'process';
-  status: 'draft' | 'approved' | 'published';
+  /**
+   * 类型列真实键名为 standard_type（models/quality_standard.rs:13；
+   * DDL standard_type VARCHAR(50) NOT NULL、无 CHECK——migration/src/domain/system/
+   * m0005_add_basic_data_and_system_tables.rs:111，故必填、非字面量联合）。
+   * 取值词表：写入方文档口径 product/process（quality_standard_handler.rs:40-41）；
+   * 服务层缺省落 "general"（quality_standard_service.rs:122-125），存量行可能为该值；
+   * 数据库无 CHECK 约束，界面下拉仅 product/process 两项，回填词表外值时原样展示不猜。
+   */
+  standard_type: string;
+  /**
+   * 状态列：后端 Model 为 String（models/quality_standard.rs:25），DDL
+   * "status" VARCHAR(20) DEFAULT 'draft' 无 CHECK
+   * （migration/src/domain/system/m0005_add_basic_data_and_system_tables.rs:122，
+   * v15 域尾亦未对该列补 CHECK），且 update_standard 对传入 status 原样落库、
+   * 不做词表校验（quality_standard_service.rs:181-183）——故非闭合字面量联合，
+   * 类型如实为 string（与同文件 standard_type :11-16 同一判定法）。
+   * 权威取值集合（状态流转端点代码实际写入，均出自词表常量）：
+   * draft（创建，service:128）、approved（approve，service:314）、
+   * rejected（reject，service:351）、active（publish，service:417 落
+   * master_data::ACTIVE="active"，models/status/general.rs:52）、
+   * archived（archive，service:384 落 master_data::ARCHIVED，general.rs:73）；
+   * quality_standard 专属常量见 models/status/quality_dyeing.rs:11-20
+   * （draft/approved/rejected）。
+   * ⚠ "published" 为幽灵值：handler 文档注释（quality_standard_handler.rs:64）
+   * 口径过时，后端全仓源码无任何写入 "published" 的路径（发布落 active），
+   * 旧前端以 published 判定发布行导致归档按钮恒不出现——已按代码真相纠正。
+   * 词表外存量值（经无校验 update 端点可被写入任意串）界面原样展示、不猜默认
+   * （views/quality-standards/index.vue getStatusLabel `|| status` 直出）。
+   */
+  status: string;
   content: string;
-  attachments: string[];
+  // 幽灵键 attachments 已删：后端实体无此列（models/quality_standard.rs:8-31 全列核对）、
+  // create/update DTO 均不接收（quality_standard_handler.rs:35-52/57-68），
+  // 读取恒 undefined、提交被 serde 静默丢弃，属纯假字段（红线：不保留假字段）。
   created_by: number;
   created_by_name: string;
   approved_by: number;
@@ -77,8 +107,30 @@ export interface CreateQualityRecordPayload {
   dye_lot_no?: string;
 }
 
-/** 更新质检记录：后端按 Option 逐字段判空更新，只提交改动过的项 */
-export type UpdateQualityRecordPayload = Partial<CreateQualityRecordPayload>;
+// 质检记录更新载荷 —— 对齐后端 UpdateInspectionRecordRequest（handlers/quality_inspection_handler.rs，
+// 三态语义 RFC 7386）：键缺席=保持原值、显式 null=清空为 NULL（仅下列可空列）、有值=覆盖。
+// 可空列依据 m0005/system 域 DDL（batch_no m0005:162、inspector_id :167、qualified_qty :169、
+// unqualified_qty :170 及 system/mod.rs:183-195 补列 color_no/defect_type/dye_lot_no/grade/
+// qualification_rate/remark）。
+// NOT NULL/模型非 Option 列（inspection_type/inspection_date/total_qty/inspected_qty/
+// inspection_result）不声明 null——显式 null 会被后端 business_displayable 拒绝。
+export interface UpdateQualityRecordPayload {
+  inspection_type?: string;
+  batch_no?: string | null;
+  inspection_date?: string;
+  inspector_id?: number | null;
+  total_qty?: string | number;
+  inspected_qty?: string | number;
+  qualified_qty?: string | number | null;
+  unqualified_qty?: string | number | null;
+  qualification_rate?: string | number | null;
+  inspection_result?: string;
+  remark?: string | null;
+  defect_type?: string | null;
+  grade?: string | null;
+  color_no?: string | null;
+  dye_lot_no?: string | null;
+}
 
 export interface Defect {
   id: number;
@@ -115,15 +167,49 @@ export function getQualityStandard(id: number): Promise<ApiResponse<QualityStand
   return request.get(`/quality-standards/${id}`);
 }
 
+/**
+ * 创建质量标准载荷：逐键对齐后端 CreateQualityStandardRequest
+ * （handlers/quality_standard_handler.rs:35-52）。类型键名为 standard_type——此前直传实体
+ * （键 type）会被 serde 静默丢弃，服务层落缺省 "general"（quality_standard_service.rs:122-125），
+ * 用户所选类型从未入库。id/status/attachments 不在创建 DTO 内，禁止入载荷。
+ * standard_code 为 Option：服务层按 is_none() 区分自动生成/手工码（service:116-117），
+ * 空字符串会走手工分支落空码，未填时必须省略该键而非传 ""。
+ */
+export interface CreateQualityStandardPayload {
+  standard_code?: string;
+  standard_name: string;
+  standard_type?: string;
+  version?: string;
+  content?: string;
+  /** 格式 YYYY-MM-DD（handler:46-48），省略时服务端取当天 */
+  effective_date?: string;
+  expiry_date?: string;
+  remark?: string;
+}
+
 export function createQualityStandard(
-  data: Partial<QualityStandard>
+  data: CreateQualityStandardPayload
 ): Promise<ApiResponse<QualityStandard>> {
   return request.post('/quality-standards', data);
 }
 
+/**
+ * 更新质量标准载荷：对齐后端 UpdateQualityStandardRequest
+ * （handlers/quality_standard_handler.rs:57-68，字段 standard_name/standard_type/content/status/remark 全 Option）。
+ * 入参与实体出参的该列键名一致，都是 standard_type（models/quality_standard.rs:13）；
+ * id / standard_code / version / attachments 不在更新契约内，提交会被 serde 静默丢弃，禁止放入载荷。
+ * 状态流转（审批/驳回/发布/归档）走各自端点，更新接口不提交 status。
+ */
+export interface UpdateQualityStandardPayload {
+  standard_name?: string;
+  standard_type?: string;
+  content?: string;
+  remark?: string;
+}
+
 export function updateQualityStandard(
   id: number,
-  data: Partial<QualityStandard>
+  data: UpdateQualityStandardPayload
 ): Promise<ApiResponse<QualityStandard>> {
   return request.put(`/quality-standards/${id}`, data);
 }
@@ -209,7 +295,64 @@ export function getDefectList(params?: DefectListParams): Promise<ApiResponse<De
   return request.get('/production/quality-inspection/defects', { params });
 }
 
-export function processDefect(id: number, data: { remark: string }): Promise<ApiResponse<void>> {
+/**
+ * 不合格品处理方式取值：与后端 services/quality_inspection_service.rs:45-47 常量逐字一致
+ * （downgrade_sale 降级销售 / rework 返工 / scrap 报废）。
+ * 后端会按质检记录等级校验合法组合（A 级拒绝处理，B 级必须降级销售，C 级必须返工或报废，
+ * 见 validate_handling_method_by_grade，quality_inspection_service.rs:73-），非法组合返回业务错误。
+ */
+export type DefectHandlingMethod = 'downgrade_sale' | 'rework' | 'scrap';
+
+/**
+ * 处理缺陷请求体：对齐后端 ProcessUnqualifiedRequest
+ * （services/quality_inspection_service.rs:179-186）。
+ * unqualified_qty / unqualified_reason / handling_method 为非 Option 必填，缺任一项即被 serde 反序列化拒绝（422）；
+ * remark / handling_result 为 Option<String>，空值时必须省略该键。
+ * unqualified_qty 为 rust_decimal，提交 number 或十进制字符串均可。
+ */
+export interface ProcessDefectPayload {
+  unqualified_qty: string | number;
+  unqualified_reason: string;
+  handling_method: DefectHandlingMethod;
+  remark?: string;
+  handling_result?: string;
+}
+
+/**
+ * 处理缺陷出参：后端 handlers/quality_inspection_handler.rs::process_defect 返回
+ * models/unqualified_product.rs::Model；Decimal 序列化为字符串，渲染前先 Number() 归一。
+ */
+export interface UnqualifiedProductRecord {
+  id: number;
+  unqualified_no: string;
+  inspection_id: number | null;
+  product_id: number;
+  batch_no: string | null;
+  unqualified_qty: string;
+  unqualified_reason: string;
+  handling_method: string;
+  handling_status: string;
+  handling_by: number | null;
+  handling_at: string | null;
+  remark: string | null;
+  grade: string | null;
+  handling_result: string | null;
+  created_at: string;
+  updated_at: string;
+  stock_grade_synced: boolean;
+  stock_id: number | null;
+  scrap_approval_status: string;
+  approver_id_fin: number | null;
+  approver_id_gm: number | null;
+  approved_at_fin: string | null;
+  approved_at_gm: string | null;
+  scrap_loss_amount: string | null;
+}
+
+export function processDefect(
+  id: number,
+  data: ProcessDefectPayload
+): Promise<ApiResponse<UnqualifiedProductRecord>> {
   return request.post(`/production/quality-inspection/defects/${id}/process`, data);
 }
 

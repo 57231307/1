@@ -65,7 +65,7 @@ pub fn validate_stock_status_param(raw: Option<&str>) -> Result<(), AppError> {
     if inventory_stock_status::ALL.contains(&value) {
         return Ok(());
     }
-    Err(AppError::validation(format!(
+    Err(AppError::validation_displayable(format!(
         "无效的库存台账状态：{}（允许值：{}）",
         value,
         inventory_stock_status::ALL.join("/")
@@ -148,6 +148,19 @@ pub async fn create_stock(
     _auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
+    // DTO 校验补齐：此前复用 CreateStockFabricRequest 却从未 validate()，
+    // 四维字段原样落库，"有色号无缸号"的染色布脏行入库后按四维全等永远提不出来
+    payload.validate().map_err(AppError::from)?;
+
+    // 白坯/染色追溯口径（色号/缸号/批次）与 POST /inventory/stock/fabric 同一收口：
+    // 判定委托唯一权威 inv::fabric_class::validate_fabric_trace（白坯空色号合法、
+    // 染色布缺缸号返回用户可见的业务错误），本文件不另写规则
+    let trace = super::inventory_stock_handler_fabric::admit_stock_fabric_trace(
+        payload.color_no,
+        payload.dye_lot_no,
+        Some(payload.batch_no),
+    )?;
+
     let service = InventoryStockService::new(state.db.clone());
 
     let (stock_status, quality_status) = initial_stock_statuses();
@@ -155,12 +168,12 @@ pub async fn create_stock(
         .create_stock(CreateStockArgs {
             warehouse_id: payload.warehouse_id,
             product_id: payload.product_id,
-            batch_no: payload.batch_no,
-            color_no: payload.color_no,
+            batch_no: trace.batch_no,
+            color_no: trace.color_no,
             quantity_meters: payload.quantity_meters,
             quantity_kg: payload.quantity_kg.unwrap_or(Decimal::ZERO),
             grade: payload.grade,
-            dye_lot_no: payload.dye_lot_no,
+            dye_lot_no: trace.dye_lot_no,
             gram_weight: payload.gram_weight,
             width: payload.width,
             stock_status,
@@ -179,6 +192,24 @@ pub async fn update_stock(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateStockWithVersionRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
+    // NOT NULL 列门控（quantity_on_hand/quantity_available/quantity_reserved/
+    // reorder_point/max_stock_point/reorder_quantity，inventory_stocks 模型为非 Option 列）：
+    // 显式 null 是调用方错误，不是"保持原值"；在任何 DB 访问之前拒绝，错误外显不脱敏。
+    for (field, value) in [
+        ("在库数量", &payload.quantity_on_hand),
+        ("可用数量", &payload.quantity_available),
+        ("预留数量", &payload.quantity_reserved),
+        ("订货点", &payload.reorder_point),
+        ("库存上限", &payload.max_stock_point),
+        ("补货量", &payload.reorder_quantity),
+    ] {
+        if matches!(value, Some(None)) {
+            return Err(AppError::business_displayable(format!(
+                "{field}不能清空：该字段为必填项"
+            )));
+        }
+    }
+
     let service = InventoryStockService::new(state.db.clone());
 
     // P2-1 修复（批次 388 v13 复审）：原 map_err 将所有错误映射为 not_found，改为 ? 透传
@@ -194,26 +225,30 @@ pub async fn update_stock(
     use sea_orm::{ActiveModelTrait, Set};
     let mut active_model: crate::models::inventory_stock::ActiveModel = stock.into();
 
-    if let Some(qoh) = payload.quantity_on_hand {
+    // 三态写入规则：None=不 Set（列保持 Unset，UPDATE 不含该列，原值不动）；
+    // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+    // NOT NULL 列的 Some(None) 已在入口拒绝：仅覆盖/保持
+    if let Some(qoh) = payload.quantity_on_hand.flatten() {
         active_model.quantity_on_hand = Set(qoh);
     }
-    if let Some(qavail) = payload.quantity_available {
+    if let Some(qavail) = payload.quantity_available.flatten() {
         active_model.quantity_available = Set(qavail);
     }
-    if let Some(qres) = payload.quantity_reserved {
+    if let Some(qres) = payload.quantity_reserved.flatten() {
         active_model.quantity_reserved = Set(qres);
     }
-    if let Some(rop) = payload.reorder_point {
+    if let Some(rop) = payload.reorder_point.flatten() {
         active_model.reorder_point = Set(rop);
     }
-    if let Some(msp) = payload.max_stock_point {
+    if let Some(msp) = payload.max_stock_point.flatten() {
         active_model.max_stock_point = Set(msp);
     }
-    if let Some(roq) = payload.reorder_quantity {
+    if let Some(roq) = payload.reorder_quantity.flatten() {
         active_model.reorder_quantity = Set(roq);
     }
+    // bin_location 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
     if let Some(bl) = payload.bin_location {
-        active_model.bin_location = Set(Some(bl));
+        active_model.bin_location = Set(bl);
     }
     active_model.version = Set(payload.version + 1);
     active_model.updated_at = Set(Utc::now());
@@ -248,9 +283,7 @@ pub async fn list_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
-    params
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    params.validate().map_err(AppError::from)?;
     validate_stock_status_param(params.stock_status.as_deref())?;
 
     let service = InventoryStockService::new(state.db.clone());
@@ -299,6 +332,9 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
         product_code: None,
         product_name: None,
         warehouse_name: None,
+        // 乐观锁版本号：真实列直映（PUT /stock/{id} 的 UpdateStockWithVersionRequest.version
+        // 必填，前端只能从这里取真值；写假值会让任何编辑都必然冲突）
+        version: stock.version,
         created_at: stock.created_at,
         updated_at: stock.updated_at,
     }
@@ -621,9 +657,7 @@ pub async fn export_stock(
     auth: AuthContext,
     Query(params): Query<ListStockParams>,
 ) -> Result<axum::response::Response, AppError> {
-    params
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    params.validate().map_err(AppError::from)?;
     // 导出与列表同一口径，含越界台账状态一律拒绝
     validate_stock_status_param(params.stock_status.as_deref())?;
 

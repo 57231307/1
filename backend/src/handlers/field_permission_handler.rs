@@ -83,8 +83,7 @@ pub async fn list_field_permissions(
 
     let permissions = service
         .list_field_permissions(query.resource_type.as_deref(), query.role_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let responses: Vec<FieldPermissionResponse> = permissions
         .into_iter()
@@ -114,10 +113,7 @@ pub async fn get_field_permission(
     require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
-    let perm = service
-        .get_field_permission(id)
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    let perm = service.get_field_permission(id).await?;
 
     Ok(Json(ApiResponse::success(FieldPermissionResponse {
         id: perm.id,
@@ -151,10 +147,7 @@ pub async fn create_field_permission(
         mask_strategy: payload.mask_strategy,
     };
 
-    let perm = service
-        .create_field_permission(request)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let perm = service.create_field_permission(request).await?;
 
     Ok(Json(ApiResponse::success(FieldPermissionResponse {
         id: perm.id,
@@ -187,10 +180,7 @@ pub async fn update_field_permission(
         is_enabled: payload.is_enabled,
     };
 
-    let perm = service
-        .update_field_permission(id, request)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let perm = service.update_field_permission(id, request).await?;
 
     Ok(Json(ApiResponse::success(FieldPermissionResponse {
         id: perm.id,
@@ -215,10 +205,7 @@ pub async fn delete_field_permission(
     require_admin_role(&state, &auth).await?;
     let service = FieldPermissionService::new(state.db.clone());
 
-    service
-        .delete_field_permission(id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    service.delete_field_permission(id).await?;
 
     Ok(Json(ApiResponse::success(())))
 }

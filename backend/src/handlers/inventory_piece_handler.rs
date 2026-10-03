@@ -6,6 +6,7 @@
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::status::purchase_inventory::inventory_piece as piece_status;
 use crate::models::{inventory_piece, warehouse};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -33,6 +34,10 @@ pub struct ListPieceParams {
     pub batch_no: Option<String>,
     /// 染色批号
     pub dye_lot_no: Option<String>,
+    /// 匹状态过滤（词表唯一来源 models/status/purchase_inventory.rs::inventory_piece，
+    /// 如 AVAILABLE=可出库匹）。出库/调拨对话框的"该缸该批现存可用匹"选择器按此下推查询，
+    /// 不接受前端自行推断——状态集合是后端权威语义，前端只透传词表值。
+    pub status: Option<String>,
 }
 
 /// 匹号列表响应条目（含仓库名便于追溯展示）
@@ -88,6 +93,24 @@ pub async fn list_pieces(
     }
     if let Some(lot) = &params.dye_lot_no {
         condition = condition.add(inventory_piece::Column::DyeLotNo.eq(lot));
+    }
+    // 状态过滤取值域 = models/status/purchase_inventory.rs::inventory_piece 词表（唯一来源），
+    // 词表外取值显式拒绝（400 VALIDATION_ERROR，公开规则文案可外显），不静默返回空集
+    if let Some(st) = &params.status {
+        const PIECE_STATUS_DOMAIN: &[&str] = &[
+            piece_status::AVAILABLE,
+            piece_status::RESERVED,
+            piece_status::SHIPPED,
+            piece_status::DEFECT,
+            piece_status::UNAVAILABLE,
+            piece_status::SAMPLE,
+        ];
+        if !PIECE_STATUS_DOMAIN.contains(&st.as_str()) {
+            return Err(AppError::validation_displayable(format!(
+                "非法匹状态过滤值：{st}（允许值：AVAILABLE/RESERVED/SHIPPED/DEFECT/UNAVAILABLE/SAMPLE）"
+            )));
+        }
+        condition = condition.add(inventory_piece::Column::Status.eq(st));
     }
 
     let paginator = inventory_piece::Entity::find()

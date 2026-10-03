@@ -14,11 +14,15 @@
 //! - 仅 pending/sampling 可更新，仅 pending 可删除
 //! - 送客户确认前必须至少有 1 个小样；OK 样确认需选中属于该通知单的小样
 //!
-//! 纯函数（generate_request_no / validate_status_transition / validate_can_update
-//! / validate_can_delete）与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
+//! 打样通知单号在 create 的事务内经 DocumentNumberGenerator 取号
+//!（前缀常量 lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX）；facade 不提供
+//! 任何手写拼号函数，本模块只经统一生成器取号。
+//! 其余纯函数（validate_status_transition / validate_can_update / validate_can_delete）
+//! 与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 
 use crate::models::lab_dip_request::{
@@ -29,7 +33,9 @@ use crate::models::lab_dip_sample::{
 };
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_sample as sample_status;
+use crate::services::lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::lab_dip_ops::types::{
     CreateLabDipRequestRequest, LabDipRequestQuery, UpdateLabDipRequestRequest,
@@ -61,7 +67,27 @@ impl LabDipRequestService {
             return Err(AppError::business("客户要求交期不能早于今天"));
         }
 
-        let request_no = Self::generate_request_no();
+        // 打样通知单号取号与 INSERT 同事务：lab_dip_request.request_no NOT NULL
+        // 无 UNIQUE（migration/src/domain/v15/mod.rs:2986），旧手写
+        // "LD-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零；改为按
+        // LAB_DIP_REQUEST_NO_PREFIX 经生成器在事务内取号（pg_advisory_xact_lock
+        // 持有到提交，参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let request_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            LAB_DIP_REQUEST_NO_PREFIX,
+            RequestEntity,
+            lab_dip_request::Column::RequestNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = LAB_DIP_REQUEST_NO_PREFIX,
+                "打样通知单号取号失败（lab_dip_ops/request.create）"
+            );
+            AppError::business_displayable("打样通知单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RequestActiveModel {
@@ -95,76 +121,100 @@ impl LabDipRequestService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("打样通知单创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 更新打样通知单（仅 pending/sampling 状态可更新）
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列（light_source/sample_versions/required_date，v15 lab_dip_request DDL）
+    /// 的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateLabDipRequestRequest,
     ) -> Result<RequestModel, AppError> {
+        if matches!(req.light_source, Some(None)) {
+            return Err(AppError::business_displayable(
+                "主对色光源不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.sample_versions, Some(None)) {
+            return Err(AppError::business_displayable(
+                "打样版数不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.required_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "客户要求交期不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
         Self::validate_can_update(&model.status)?;
 
         let mut active: RequestActiveModel = model.into();
 
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
         if let Some(v) = req.customer_id {
-            active.customer_id = Set(Some(v));
+            active.customer_id = Set(v);
         }
         if let Some(v) = req.customer_color_no {
-            active.customer_color_no = Set(Some(v));
+            active.customer_color_no = Set(v);
         }
         if let Some(v) = req.customer_color_name {
-            active.customer_color_name = Set(Some(v));
+            active.customer_color_name = Set(v);
         }
         if let Some(v) = req.sample_type {
-            active.sample_type = Set(Some(v));
+            active.sample_type = Set(v);
         }
         if let Some(v) = req.fabric_spec {
-            active.fabric_spec = Set(Some(v));
+            active.fabric_spec = Set(v);
         }
         if let Some(v) = req.fabric_component {
-            active.fabric_component = Set(Some(v));
+            active.fabric_component = Set(v);
         }
         if let Some(v) = req.sample_size {
-            active.sample_size = Set(Some(v));
+            active.sample_size = Set(v);
         }
-        if let Some(v) = req.light_source {
+        if let Some(v) = req.secondary_light_source {
+            active.secondary_light_source = Set(v);
+        }
+        if let Some(v) = req.color_fastness_req {
+            active.color_fastness_req = Set(v);
+        }
+        if let Some(v) = req.eco_requirement {
+            active.eco_requirement = Set(v);
+        }
+        if let Some(v) = req.dye_category {
+            active.dye_category = Set(v);
+        }
+        if let Some(v) = req.expected_days {
+            active.expected_days = Set(v);
+        }
+        if let Some(v) = req.remarks {
+            active.remarks = Set(v);
+        }
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.light_source.flatten() {
             if v.trim().is_empty() {
                 return Err(AppError::business("对色光源不能为空"));
             }
             active.light_source = Set(v);
         }
-        if let Some(v) = req.secondary_light_source {
-            active.secondary_light_source = Set(Some(v));
-        }
-        if let Some(v) = req.color_fastness_req {
-            active.color_fastness_req = Set(Some(v));
-        }
-        if let Some(v) = req.eco_requirement {
-            active.eco_requirement = Set(Some(v));
-        }
-        if let Some(v) = req.sample_versions {
+        if let Some(v) = req.sample_versions.flatten() {
             if !(1..=10).contains(&v) {
                 return Err(AppError::business("打样版数范围 1-10"));
             }
             active.sample_versions = Set(v);
         }
-        if let Some(v) = req.dye_category {
-            active.dye_category = Set(Some(v));
-        }
-        if let Some(v) = req.required_date {
+        if let Some(v) = req.required_date.flatten() {
             active.required_date = Set(v);
-        }
-        if let Some(v) = req.expected_days {
-            active.expected_days = Set(Some(v));
-        }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

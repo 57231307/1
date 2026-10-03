@@ -32,7 +32,7 @@ fn validate_enum_param<'a>(
         .find(|v| v.eq_ignore_ascii_case(raw))
         .copied()
         .ok_or_else(|| {
-            AppError::validation(format!(
+            AppError::validation_displayable(format!(
                 "无效的{}：{}（允许值：{}）",
                 field,
                 raw,

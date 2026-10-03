@@ -168,7 +168,7 @@ pub async fn create_request(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 创建付款申请验证失败：{}", auth.username, e);
-        AppError::validation(e.to_string())
+        AppError::from(e)
     })?;
 
     let service = ApPaymentRequestService::new(state.db.clone());
@@ -197,7 +197,7 @@ pub async fn update_request(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 更新付款申请验证失败：{}", auth.username, e);
-        AppError::validation(e.to_string())
+        AppError::from(e)
     })?;
 
     let service = ApPaymentRequestService::new(state.db.clone());

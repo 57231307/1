@@ -12,7 +12,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -22,6 +22,25 @@ use crate::models::dye_recipe::{
 };
 use crate::models::status::dye_recipe as recipe_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 配方编号（dye_recipe.recipe_no）自动编码前缀：沿用原手写格式
+/// "DR-{时间戳}-{随机}" 的业务前缀 DR，新格式统一为 {DR}{YYYYMMDD}{3位流水}。
+pub const DYE_RECIPE_NO_PREFIX: &str = "DR";
+
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时直接调 visit_none()，
+/// 把"显式 null"塌成外层 `None`，与"键缺席"不可区分。本适配器先按内层 `Option<T>` 反序列化
+/// 再包一层：键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 形态与 handlers/department_handler.rs 中同名私有适配器一致（跨域合并到共享 utils 超本波授权范围）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
 
 /// 创建染色配方请求
 #[derive(Debug, Clone, Deserialize)]
@@ -47,21 +66,44 @@ pub struct CreateDyeRecipeRequest {
 }
 
 /// 更新染色配方请求
+///
+/// 三态语义（RFC 7386，对齐 handlers/department_handler.rs 范式）：
+/// 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// 本域可空列依据：dye_recipe 补列全部为可空 ALTER
+/// （color_no system/mod.rs:118、color_name :117、fabric_type :120、dye_type :119、
+/// chemical_formula :116、temperature :129、time_minutes :130、ph_value :125、
+/// liquor_ratio :123、auxiliaries :115、status :128、remarks :127）。
+/// color_code 例外：建表即 NOT NULL（system/m0003_add_dye_tables.rs:30），
+/// 显式 null 由 service 入口在任何 DB 访问前拒绝。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct UpdateDyeRecipeRequest {
-    pub color_no: Option<String>,
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<Decimal>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<Decimal>,
-    pub liquor_ratio: Option<Decimal>,
-    pub auxiliaries: Option<Vec<crate::models::dye_recipe::AuxiliariesItem>>,
-    pub status: Option<String>,
-    pub remarks: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_no: Option<Option<String>>,
+    /// 色代码：DB NOT NULL（m0003:30）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_code: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_name: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub fabric_type: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub dye_type: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub chemical_formula: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub temperature: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub time_minutes: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub ph_value: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub liquor_ratio: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub auxiliaries: Option<Option<Vec<crate::models::dye_recipe::AuxiliariesItem>>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub status: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
 }
 
 /// 染色配方查询参数
@@ -84,19 +126,6 @@ pub struct DyeRecipeService {
 impl DyeRecipeService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成配方编号（格式：DR-{时间戳}-{4位随机}）
-    /// 若调用方提供了非空编号则直接使用
-    pub fn generate_recipe_no(provided: Option<&str>) -> String {
-        if let Some(no) = provided {
-            if !no.is_empty() {
-                return no.to_string();
-            }
-        }
-        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_4_digit();
-        format!("DR-{}-{:04}", timestamp, random)
     }
 
     /// 校验配方状态流转是否合法
@@ -178,7 +207,39 @@ impl DyeRecipeService {
 
     /// 创建染色配方
     pub async fn create(&self, req: CreateDyeRecipeRequest) -> Result<DyeRecipeModel, AppError> {
-        let recipe_no = Self::generate_recipe_no(req.recipe_no.as_deref());
+        // 取号与 INSERT 同事务：调用方显式提供非空编号时尊重手工值（既有契约）；
+        // 否则经通用生成器在事务内
+        // 取 {DR}{YYYYMMDD}{3位流水}。
+        // 为什么不再用旧的 "DR-{14位时间戳}-{4位随机}"：同秒并发碰撞概率非零，且
+        // recipe_no 是配方业务识别与检索键（list 按前缀 contains 过滤、版本号按
+        // "{recipe_no}-V{n}" 派生）。DDL 事实：recipe_no 为
+        // migration/src/domain/system/mod.rs:126 ALTER 追加的 VARCHAR(255) 列、
+        // 无 UNIQUE 约束，唯一性由生成器 advisory 锁 + 事务内取号 + 占用探测保证
+        //（参照 services/quotation_ops/lifecycle.rs:54 的事务内取号路径）。
+        let provided_no = req
+            .recipe_no
+            .clone()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let txn = (*self.db).begin().await?;
+        let recipe_no = match provided_no {
+            Some(no) => no,
+            None => DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                DYE_RECIPE_NO_PREFIX,
+                DyeRecipeEntity,
+                dye_recipe::Column::RecipeNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    prefix = DYE_RECIPE_NO_PREFIX,
+                    "配方号取号失败（dye_recipe_service.create）"
+                );
+                AppError::business_displayable("配方号生成失败，请稍后重试")
+            })?,
+        };
 
         let active = ActiveModel {
             id: Default::default(),
@@ -219,9 +280,10 @@ impl DyeRecipeService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("配方创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -268,11 +330,21 @@ impl DyeRecipeService {
     }
 
     /// 更新配方
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列 color_code（m0003:30）的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateDyeRecipeRequest,
     ) -> Result<DyeRecipeModel, AppError> {
+        if matches!(req.color_code, Some(None)) {
+            return Err(AppError::business_displayable(
+                "色代码不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
         // 在转为 ActiveModel 前记录当前状态，用于状态流转校验
         // 注意：必须 clone 后再 model.into()，否则 as_deref() 借用 model.status 会与
@@ -283,46 +355,51 @@ impl DyeRecipeService {
             .unwrap_or_else(|| recipe_status::DRAFT.to_string());
         let mut active: ActiveModel = model.into();
 
-        if let Some(color_no) = req.color_no {
-            active.color_no = Set(Some(color_no));
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.color_no {
+            active.color_no = Set(v);
         }
-        if let Some(color_code) = req.color_code {
-            active.color_code = Set(Some(color_code));
+        // color_code：NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.color_code.flatten() {
+            active.color_code = Set(Some(v));
         }
-        if let Some(color_name) = req.color_name {
-            active.color_name = Set(Some(color_name));
+        if let Some(v) = req.color_name {
+            active.color_name = Set(v);
         }
-        if let Some(fabric_type) = req.fabric_type {
-            active.fabric_type = Set(Some(fabric_type));
+        if let Some(v) = req.fabric_type {
+            active.fabric_type = Set(v);
         }
-        if let Some(dye_type) = req.dye_type {
-            active.dye_type = Set(Some(dye_type));
+        if let Some(v) = req.dye_type {
+            active.dye_type = Set(v);
         }
-        if let Some(chemical_formula) = req.chemical_formula {
-            active.chemical_formula = Set(Some(chemical_formula));
+        if let Some(v) = req.chemical_formula {
+            active.chemical_formula = Set(v);
         }
-        if let Some(temperature) = req.temperature {
-            active.temperature = Set(Some(temperature));
+        if let Some(v) = req.temperature {
+            active.temperature = Set(v);
         }
-        if let Some(time_minutes) = req.time_minutes {
-            active.time_minutes = Set(Some(time_minutes));
+        if let Some(v) = req.time_minutes {
+            active.time_minutes = Set(v);
         }
-        if let Some(ph_value) = req.ph_value {
-            active.ph_value = Set(Some(ph_value));
+        if let Some(v) = req.ph_value {
+            active.ph_value = Set(v);
         }
-        if let Some(liquor_ratio) = req.liquor_ratio {
-            active.liquor_ratio = Set(Some(liquor_ratio));
+        if let Some(v) = req.liquor_ratio {
+            active.liquor_ratio = Set(v);
         }
-        if let Some(auxiliaries) = req.auxiliaries {
-            active.auxiliaries = Set(Some(crate::models::dye_recipe::Auxiliaries(auxiliaries)));
+        if let Some(v) = req.auxiliaries {
+            active.auxiliaries = Set(v.map(crate::models::dye_recipe::Auxiliaries));
         }
-        if let Some(status) = req.status {
-            // 校验状态流转合法性
-            Self::validate_status_transition(&current_status, &status)?;
-            active.status = Set(Some(status));
+        // status：DB 可空列（system/mod.rs:128 补列无 NOT NULL；CHECK chk_dye_recipe_status
+        // 对 NULL 恒成立）——Some(None)=Set(None) 清空回"未定状态"，覆盖时校验状态流转
+        if let Some(v) = req.status {
+            if let Some(v) = v.as_ref() {
+                Self::validate_status_transition(&current_status, v)?;
+            }
+            active.status = Set(v);
         }
-        if let Some(remarks) = req.remarks {
-            active.remarks = Set(Some(remarks));
+        if let Some(v) = req.remarks {
+            active.remarks = Set(v);
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());

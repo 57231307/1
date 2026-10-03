@@ -39,7 +39,7 @@ pub fn validate_url(url_str: &str) -> Result<(), AppError> {
     match parsed.scheme() {
         "http" | "https" => {}
         scheme => {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "URL 协议不允许：{}（仅允许 http/https）",
                 scheme
             )));
@@ -49,7 +49,7 @@ pub fn validate_url(url_str: &str) -> Result<(), AppError> {
     // 3. 提取主机名
     let host = parsed
         .host_str()
-        .ok_or_else(|| AppError::validation("URL 缺少主机名".to_string()))?;
+        .ok_or_else(|| AppError::validation_displayable("URL 缺少主机名".to_string()))?;
 
     // 4. 主机名黑名单（不依赖 DNS 解析）
     if is_blocked_hostname(host) {
@@ -110,7 +110,7 @@ pub fn validate_url_and_resolve(
     match parsed.scheme() {
         "http" | "https" => {}
         scheme => {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "URL 协议不允许：{}（仅允许 http/https）",
                 scheme
             )));
@@ -120,7 +120,7 @@ pub fn validate_url_and_resolve(
     // 3. 提取主机名
     let host = parsed
         .host_str()
-        .ok_or_else(|| AppError::validation("URL 缺少主机名".to_string()))?
+        .ok_or_else(|| AppError::validation_displayable("URL 缺少主机名".to_string()))?
         .to_string();
 
     // 4. 主机名黑名单

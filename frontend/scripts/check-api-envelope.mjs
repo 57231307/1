@@ -2,7 +2,7 @@
 /**
  * check-api-envelope.mjs —— 「前端响应信封形状 ↔ 后端 handler 实际载荷」一致性门禁
  *
- * ⚠️ 当前未接入 CI：本脚本仅作为静态分析工具存在，是否升级为阻断门禁由用户拍板。
+ * ⚠️ 状态更新：本脚本已接入 CI（.github/workflows/ci-cd.yml · ci-static-checks · 阻断）。
  *    运行：`cd frontend && node scripts/check-api-envelope.mjs`（退出码 0=无失配/无未分类）。
  *
  * 背景（本仓库反复出现的假绿缺陷类）：
@@ -1615,13 +1615,17 @@ function parseFrontendApiFunctions(tsIndex) {
     const src = readFileSync(f, 'utf-8');
     const consts = constStringMap(src);
     const rel = f.replace(FRONTEND, '').replace(/\\/g, '/');
-    // 逐个 `export function NAME(...) : Promise<...> { body }`
+    // 逐个 `export function NAME(...) (: Promise<...>)? { body }`
+    // 返回类型注解必须是可选匹配：本仓大量 `export function createArReconciliation(data:
+    // Partial<X>) { return request.post(...) }` 不写 `: Promise<...>`，旧正则要求它，
+    // 整条函数对两套契约门禁都不可见 —— 真·静默跳过（挂账盲区 (a)）。
+    // 无注解时只登记确实含 request 调用的函数，避免把纯工具导出拉进统计。
     const fnRe =
-      /export\s+(?:async\s+)?function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*:\s*Promise<([\s\S]*?)>\s*\{/g;
+      /export\s+(?:async\s+)?function\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*(?::\s*Promise<([\s\S]*?)>)?\s*\{/g;
     let m;
     while ((m = fnRe.exec(src))) {
       const name = m[1];
-      const retType = m[3].trim();
+      const retType = (m[3] || '').trim();
       // 函数体（配平大括号）
       let i = m.index + m[0].length;
       let depth = 1;
@@ -1646,7 +1650,12 @@ function parseFrontendApiFunctions(tsIndex) {
       const line = src.slice(0, m.index).split('\n').length;
       // (method, url)：取函数体内第一个 request.<method>(...)
       const call = extractFirstCall(body, consts);
-      const feShape = classifyFrontendReturn(retType, tsIndex);
+      // 无 `: Promise<...>` 注解的导出函数：响应形状无从判定 -> 显式 opaque
+      // （envelope 侧按盲区 skip），但没有 request 调用的纯工具导出不登记，避免刷统计。
+      if (!retType && !call) continue;
+      const feShape = retType
+        ? classifyFrontendReturn(retType, tsIndex)
+        : { kind: 'opaque', raw: '(无显式返回类型注解)' };
       list.push({ name, file: rel, line, feShape, retType, call, sig: m[2] || '' });
     }
     // 逐个 `export const NAME = (...) => request.get<ApiResponse<X>>(url, ...)`
@@ -1686,11 +1695,68 @@ function parseFrontendApiFunctions(tsIndex) {
         feShape: classifyFrontendReturn(retType, tsIndex),
         retType,
         call,
-        sig: '',
+        // 挂账盲区 (a)：箭头函数的形参签名此前写死 ''，check-api-request 拿不到
+        // `data: Partial<X>` 之类的类型注解，229 条落进「形参在签名里找不到类型」。
+        // 现在从「导出符号 -> 调用点」的片段里还原参数表。
+        sig: sigForSymbol(src, nm.index, gm.index),
+      });
+    }
+    // 第三趟：既无 `: Promise<...>` 注解、调用又无泛型返回标注（`request.post('/x', data)`）
+    // 的箭头函数/声明函数 —— 前两趟都看不见它们，整个接口对门禁不存在（真·静默跳过）。
+    // 载荷侧（check-api-request）必须看到它们：sig 回填形参类型，请求体/查询键集照常比对。
+    const plainRe = /request\.(get|post|put|delete|patch)\s*\(/g;
+    let pm;
+    while ((pm = plainRe.exec(src))) {
+      const paren = pm.index + pm[0].length - 1;
+      const argCap = captureBalanced(src, paren, '(', ')');
+      if (!argCap) continue;
+      const argTexts = splitTopLevelRust(argCap[1]).map(a => a.trim());
+      const url = resolveFrontendUrl(argTexts[0] || '', consts);
+      if (!url) continue; // URL 不可静态还原：路由存在性由 check-api-paths 专门判负
+      let path = url;
+      if (!path.startsWith(BASE_URL)) path = BASE_URL + (path.startsWith('/') ? path : '/' + path);
+      const call = { method: pm[1].toUpperCase(), path: normalizePath(path), args: argTexts };
+      const head = src.slice(0, pm.index);
+      const nm = [
+        ...head.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z_]\w*)/g),
+      ].pop();
+      if (!nm) continue;
+      const name = nm[1];
+      if (list.some(r => r.name === name && r.call && r.call.path === call.path)) continue;
+      const line = head.split('\n').length;
+      const seg = src.slice(nm.index, pm.index);
+      const rm = /:\s*Promise<([\s\S]*?)>\s*(?:=>|\{)/.exec(seg);
+      const retType = rm ? rm[1].trim() : '';
+      list.push({
+        name,
+        file: rel,
+        line,
+        feShape: retType
+          ? classifyFrontendReturn(retType, tsIndex)
+          : { kind: 'opaque', raw: '(无显式返回类型注解)' },
+        retType,
+        call,
+        sig: sigForSymbol(src, nm.index, pm.index),
       });
     }
   }
   return list;
+}
+
+// 从「导出符号起点 -> 调用点」片段里还原被调用函数的参数表文本。
+// 支持三种真实写法：`export function NAME(a: X, b: Y)`、
+// `export const NAME = (a: X, b: Y) =>`、`export const NAME: Fn = (a) =>`（带注解的退化为 ''，
+// 与旧行为一致，不猜）。返回 '' 表示取不到 —— 调用方必须按盲区处理，禁止当无参数。
+function sigForSymbol(src, symIdx, callIdx) {
+  const seg = src.slice(symIdx, Math.min(callIdx, symIdx + 20000));
+  let m = /^export\s+(?:async\s+)?function\s+[A-Za-z_]\w*\s*\(([^)]*)\)/.exec(seg);
+  if (m) return m[1];
+  const ai = seg.indexOf('=>');
+  const head = (ai >= 0 ? seg.slice(0, ai) : seg).trimEnd();
+  m = /=\s*(?:async\s*)?\(([^)]*)\)\s*(?::[\s\S]*)?$/.exec(head);
+  if (m) return m[1];
+  m = /=\s*(?:async\s+)?([A-Za-z_]\w*)\s*$/.exec(head);
+  return m ? m[1] : '';
 }
 
 function extractFirstCall(body, consts) {
@@ -1777,7 +1843,6 @@ function readdirSyncLocal(dir) {
 // 用途：后端确为动态 JSON / 有意裸数组等「静态不可判定但经人工确认无缺陷」的端点。
 // 禁止整片前缀/方法批量塞入以掩盖真实漂移。
 const EXEMPTIONS = new Map([
-
   [
     `${BASE_URL}/crm/five-dimension/stats GET`,
     'five_dimension_handler.rs:78-79 Ok(ApiResponse::success(json!({"items": stats.0, …})))：顶层 items 由 json! 手拼，前端 {items} 与之相符',
@@ -2144,6 +2209,7 @@ export {
   readUntilStatementEnd,
   resolveHandlerSymbol,
   resolveHandlerSymbolPath,
+  sigForSymbol,
   splitObjFields,
   splitTopLevelRust,
 };

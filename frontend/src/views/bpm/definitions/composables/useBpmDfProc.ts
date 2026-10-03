@@ -21,6 +21,8 @@ import {
   type ProcessDefinition,
   type ProcessNode,
   type ProcessVersion,
+  type CreateProcessDefinitionPayload,
+  type UpdateProcessDefinitionPayload,
 } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
 
@@ -108,7 +110,6 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
 
   /** 重置（批次 282：page 独立 ref，queryParams 为 Record<string, unknown>） */
   const handleReset = () => {
-    cb.queryParams.keyword = '';
     cb.queryParams.category = '';
     cb.page = 1;
     cb.fetchDefinitions();
@@ -173,10 +174,12 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     try {
       // 后端契约：流程节点持久化在 config.nodes（bpm_service.rs:141），顶层 nodes 非契约字段
       // 会被 serde 忽略 → 节点静默丢失。提交时把 nodes 包进 config，并按 DTO 真实键名构造载荷
-      // （create/update 走 process_key/process_name 别名映射到 name/code，见 bpm_dto.rs）。
+      // （name/code 为 CreateProcessDefinitionRequest/UpdateProcessDefinitionRequest 的 Rust
+      // 字段名；serde alias process_name/process_key 门禁不识别且视图内部键与 UI 表单解耦，
+      // 统一按真实字段名提交）。
       if (cb.isEdit && cb.formData.id) {
-        const payload: Partial<ProcessDefinition> = {
-          process_name: cb.formData.process_name,
+        const payload: UpdateProcessDefinitionPayload = {
+          name: cb.formData.process_name,
           description: cb.formData.description,
           category: cb.formData.category,
           config: { nodes: cb.formData.nodes },
@@ -184,9 +187,9 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
         await updateBpmDefinition(cb.formData.id, payload);
         msg.success('updateSuccess');
       } else {
-        const payload: Partial<ProcessDefinition> = {
-          process_key: cb.formData.process_key,
-          process_name: cb.formData.process_name,
+        const payload: CreateProcessDefinitionPayload = {
+          code: cb.formData.process_key,
+          name: cb.formData.process_name,
           description: cb.formData.description,
           category: cb.formData.category,
           config: { nodes: cb.formData.nodes },

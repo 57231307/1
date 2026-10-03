@@ -243,11 +243,20 @@ const handleDelete = async (row: Supplier) => {
 const handleSubmit = async () => {
   submitLoading.value = true;
   try {
+    // 后端 CreateSupplierRequest.supplier_short_name（length min=2/max=100）、credit_code（length equal=18）
+    // 均为 Option，validator 框架对 Some(空串) 判长度失败触发 422、对 None（缺省不携带该键）跳过校验；
+    // 仿 UserTab 条件展开范式，空则省略该键、非空仍提交（edit 语义下不提交=保持原值，而非清空）。
+    const { supplier_short_name, credit_code, ...rest } = formData;
+    const payload = {
+      ...rest,
+      ...(supplier_short_name ? { supplier_short_name } : {}),
+      ...(credit_code ? { credit_code } : {}),
+    };
     if (isEdit.value) {
-      await updateSupplier(formData.id!, formData);
+      await updateSupplier(formData.id!, payload);
       ElMessage.success(t('supplier.index.message.updateSuccess'));
     } else {
-      await createSupplier(formData);
+      await createSupplier(payload);
       ElMessage.success(t('supplier.index.message.createSuccess'));
     }
     dialogVisible.value = false;

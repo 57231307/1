@@ -109,7 +109,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：金额必须大于零"
             );
-            return Err(AppError::validation("核销金额必须大于零"));
+            return Err(AppError::validation_displayable("核销金额必须大于零"));
         }
         if amount.round_dp(2) != amount {
             // 批次 389 P2-2：精度校验失败记录 warn 日志
@@ -122,7 +122,9 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：精度超过 2 位小数"
             );
-            return Err(AppError::validation("核销金额精度不能超过 2 位小数"));
+            return Err(AppError::validation_displayable(
+                "核销金额精度不能超过 2 位小数",
+            ));
         }
         Ok(())
     }
@@ -165,7 +167,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：未收金额不足"
             );
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "应收单 {} 未收金额 {} 小于核销金额 {}",
                 invoice.invoice_no, invoice.unpaid_amount, amount
             )));
@@ -198,7 +200,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：收款单未确认"
             );
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "收款单 {} 状态为 {}，未确认不可核销",
                 payment.collection_no, payment.status
             )));
@@ -215,7 +217,9 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：发票客户与收款客户不一致"
             );
-            return Err(AppError::business("发票客户与收款客户不一致，不可核销"));
+            return Err(AppError::business_displayable(
+                "发票客户与收款客户不一致，不可核销",
+            ));
         }
         Ok(payment)
     }
@@ -251,7 +255,7 @@ impl ArService {
                 operator = user_id,
                 "AR 手动核销被拒：收款单可用余额不足"
             );
-            return Err(AppError::business(format!(
+            return Err(AppError::business_displayable(format!(
                 "收款单 {} 可用余额 {} 小于核销金额 {}",
                 payment.collection_no, available, amount
             )));
@@ -487,7 +491,14 @@ impl ArService {
             invoice.unpaid_amount =
                 (invoice.invoice_amount - invoice.received_amount).max(Decimal::ZERO);
             invoice.status = Self::restored_invoice_status(invoice);
-            let inv_active: ar_invoice::ActiveModel = invoice.clone().into();
+            // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+            // 取消核销是资金反向操作，回退的三列必须显式 Set，否则 cancel 只改核销单状态、
+            // 发票 received/unpaid 不回退。
+            let mut inv_active: ar_invoice::ActiveModel = invoice.clone().into();
+            inv_active.received_amount = Set(invoice.received_amount);
+            inv_active.unpaid_amount = Set(invoice.unpaid_amount);
+            inv_active.status = Set(invoice.status.clone());
+            inv_active.updated_at = Set(Utc::now());
             crate::services::audit_log_service::AuditLogService::update_with_audit::<
                 ar_invoice::Entity,
                 _,

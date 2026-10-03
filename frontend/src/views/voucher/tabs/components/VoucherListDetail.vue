@@ -15,7 +15,8 @@
       <div class="voucher-header">
         <div class="header-left">
           <span class="voucher-no">{{ viewData.voucher_no }}</span>
-          <span class="voucher-type">{{ getTypeLabel(viewData.type) }}</span>
+          <!-- P0 修复：真实键 voucher_type，展示后端词表 code（记/收/付/转） -->
+          <span class="voucher-type">{{ viewData.voucher_type }}</span>
         </div>
         <div class="header-right">
           <span>{{ viewData.voucher_date }}</span>
@@ -24,7 +25,7 @@
           </span>
         </div>
       </div>
-      <div v-if="viewData.description" class="voucher-desc">{{ viewData.description }}</div>
+      <!-- P0 修复：移除 viewData.description 展示——后端 vouchers 表无该列，历史恒不渲染 -->
       <div class="entries-table">
         <div class="entries-header">
           <span class="col-subject">{{ t('voucher.voucherListDetail.columnSubject') }}</span>
@@ -41,28 +42,26 @@
           <span class="col-desc">{{ entry.description || '-' }}</span>
         </div>
       </div>
+      <!-- 借贷合计：后端无合计列，由详情 entries 前端派生（真实分录求和） -->
       <div class="total-row">
         <div class="total-item">
           <span class="label">{{ t('voucher.voucherListDetail.labelDebitTotal') }}</span>
-          <span class="value debit">{{ Number(viewData.total_debit ?? 0).toFixed(2) }}</span>
+          <span class="value debit">{{ totalDebit.toFixed(2) }}</span>
         </div>
         <div class="total-item">
           <span class="label">{{ t('voucher.voucherListDetail.labelCreditTotal') }}</span>
-          <span class="value credit">{{ Number(viewData.total_credit ?? 0).toFixed(2) }}</span>
+          <span class="value credit">{{ totalCredit.toFixed(2) }}</span>
         </div>
       </div>
       <ElDescriptions :column="3" border class="voucher-meta">
-        <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelCreatedBy')">{{
-          viewData.created_by_name || '-'
-        }}</ElDescriptionsItem>
         <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelApprovedBy')">{{
-          viewData.approved_by_name || '-'
+          viewData.reviewed_by ?? '-'
         }}</ElDescriptionsItem>
         <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelPostedBy')">{{
-          viewData.posted_by_name || '-'
+          viewData.posted_by ?? '-'
         }}</ElDescriptionsItem>
         <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelApprovedAt')">{{
-          viewData.approved_at || '-'
+          viewData.reviewed_at || '-'
         }}</ElDescriptionsItem>
         <ElDescriptionsItem :label="t('voucher.voucherListDetail.labelPostedAt')">{{
           viewData.posted_at || '-'
@@ -76,6 +75,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { VoucherEntity } from '@/api/voucher';
 import { getStatusClass } from '../composables/vchrLstFmts';
@@ -98,26 +98,24 @@ const emit = defineEmits<{
   'update:visible': [v: boolean];
 }>();
 
-/** 状态 → 国际化标签（语言切换时响应式刷新） */
+/** 借贷合计：后端无合计列，由详情真实分录 entries 派生 */
+const totalDebit = computed(() =>
+  (props.viewData?.entries ?? []).reduce((sum, e) => sum + Number(e.debit_amount ?? 0), 0)
+);
+const totalCredit = computed(() =>
+  (props.viewData?.entries ?? []).reduce((sum, e) => sum + Number(e.credit_amount ?? 0), 0)
+);
+
+/** 状态 → 国际化标签（词表对齐后端 status::finance::voucher：draft/submitted/reviewed/posted） */
 const getStatusLabel = (value: string) => {
   const map: Record<string, string> = {
     draft: t('voucher.voucherListDetail.statusDraft'),
-    approved: t('voucher.voucherListDetail.statusApproved'),
+    submitted: t('voucher.voucherListDetail.statusSubmitted'),
+    reviewed: t('voucher.voucherListDetail.statusReviewed'),
     posted: t('voucher.voucherListDetail.statusPosted'),
   };
   return map[value] || value;
 };
-
-/** 凭证类型 → 国际化标签 */
-const getTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    general: t('voucher.voucherListDetail.typeGeneral'),
-    customized: t('voucher.voucherListDetail.typeCustomized'),
-  };
-  return map[type] || type;
-};
-
-void props;
 </script>
 
 <style scoped>

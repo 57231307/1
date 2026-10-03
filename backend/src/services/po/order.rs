@@ -40,6 +40,13 @@ pub struct PurchaseOrderDto {
     pub payment_terms: Option<String>,
     pub shipping_terms: Option<String>,
     pub notes: Option<String>,
+    /// 附件 URL 列表：purchase_orders.attachment_urls 真实列（TEXT[]，
+    /// models/purchase_order.rs:87，DDL migration/src/domain/system/mod.rs:326）。
+    /// 键名与模型列同源 snake_case；list_orders/get_order 走 Entity::find()
+    /// 全列 SELECT + into_model::<Dto>() 按列名直映（本仓读取富化唯一范式，
+    /// 参照 crud.rs:657 column_as+LeftJoin 链路），禁止二次查询拼 N+1。
+    /// 写入侧同源：crud.rs:268（创建）/ :591-592（更新）。
+    pub attachment_urls: Option<Vec<String>>,
     pub created_by: i32,
     /// 创建人姓名：created_by -> users.real_name（LEFT JOIN，可空）
     pub creator_name: Option<String>,
@@ -63,11 +70,23 @@ pub struct PurchaseOrderItemDto {
     pub material_name: Option<String>,
     #[serde(rename = "quantity_ordered")]
     pub quantity: rust_decimal::Decimal,
+    /// 换算后辅助单位数量（面料行业米/公斤双计量：主单位 quantity 对应的辅单位已存列
+    /// purchase_order_item.quantity_alt，由转采购/创建链路按产品 UOM 换算结果写入；
+    /// list_order_items 走 `Entity::find()` 全列 SELECT，此字段按列名直映真实列，非现算/非默认。
+    /// 语义：主单位为匹/码/卷/张等时本列为米数；主单位为米时本列为公斤数（克重×幅宽换算）。
+    pub quantity_alt: rust_decimal::Decimal,
+    /// 交货数量允收容差（百分比，可空）：NULL = 未行级指定，按「品类默认 > 全局默认」解析。
+    /// purchase_order_item 真实列，经 list_order_items 全列 SELECT 按列名直映。
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
     pub unit_price: rust_decimal::Decimal,
     #[serde(rename = "tax_rate")]
     pub tax_percent: rust_decimal::Decimal,
+    /// 折扣率（百分比）：purchase_order_item.discount_percent 真实列（NOT NULL）。
+    pub discount_percent: rust_decimal::Decimal,
     pub amount: rust_decimal::Decimal,
     pub tax_amount: rust_decimal::Decimal,
+    /// 折扣金额（本位币）：purchase_order_item.discount_amount 真实列（NOT NULL）。
+    pub discount_amount: rust_decimal::Decimal,
     pub total_amount: rust_decimal::Decimal,
     pub received_quantity: rust_decimal::Decimal,
     pub returned_quantity: rust_decimal::Decimal,
@@ -76,6 +95,8 @@ pub struct PurchaseOrderItemDto {
     // 保密：销售域响应不含这两列——此 DTO 仅由 /purchase/orders/{id}/items 返回。
     pub supplier_product_code: Option<String>,
     pub supplier_color_no: Option<String>,
+    /// 色号（面料行业追溯字段，DB 列名 color_code）：purchase_order_item 真实列，可空。
+    pub color_code: Option<String>,
     pub notes: Option<String>,
 }
 

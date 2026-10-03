@@ -6,11 +6,17 @@
 //! - 收款状态机门（pending → confirmed）
 //! - 核销金额贪心匹配算法
 //! - ArService 实例化
+//!
+//! 通道（路线一，#4669 判责）：实例化用例经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL。原写法 `TEST_DATABASE_URL` 缺失时**静默回退 sqlite::memory:**，
+//! 正是本批假绿的根：它让"分片 job 已起 PG 并跑完迁移"这件事对该用例毫无作用，
+//! 报告页却显示通过。夹具现在缺变量/指 sqlite 直接 panic，不再有回退分支。
+
+mod test_common;
 
 use bingxi_backend::models::status;
 use bingxi_backend::services::ar_service::ArService;
 use rust_decimal::Decimal;
-use sea_orm::Database;
 use std::sync::Arc;
 
 /// 复现 create_payment 中的收款金额校验逻辑
@@ -168,14 +174,12 @@ fn test_hxjetxppsf() {
     assert_eq!(remaining, Decimal::new(200, 0));
 }
 
-/// test_fwslh_sqlitencsjk（验证 ArService 能在 SQLite 内存数据库上实例化（new 不触发 DB 操作））
+/// test_fwslh_sqlitencsjk（验证 ArService 能在测试库上实例化（new 不触发 DB 操作）。
+/// 函数名中的 sqlite 为历史命名；通道已按路线一改为 `test_common::setup_test_db()`
+/// 连已迁移 PostgreSQL，表结构唯一来源 = backend/migration。）
 #[tokio::test]
 async fn test_fwslh_sqlitencsjk() {
-    let db_url =
-        std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
-    let db = Database::connect(&db_url)
-        .await
-        .expect("测试夹具：数据库连接失败");
-    let service = ArService::new(std::sync::Arc::new(db));
+    let db = test_common::setup_test_db().await;
+    let service = ArService::new(Arc::new(db));
     let _ = service;
 }

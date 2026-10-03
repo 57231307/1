@@ -19,8 +19,8 @@
         :aria-label="t('system.webhook.aria.list')"
       >
         <el-table-column prop="name" :label="t('system.webhook.column.name')" width="150" />
-        <el-table-column prop="url" label="URL" min-width="250" show-overflow-tooltip />
-        <el-table-column prop="event_type" :label="t('system.webhook.column.event')" width="120" />
+        <el-table-column prop="webhook_url" label="URL" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="platform" :label="t('system.webhook.column.platform')" width="120" />
         <el-table-column
           prop="is_active"
           :label="t('system.webhook.column.status')"
@@ -82,22 +82,12 @@
         <el-form-item :label="t('system.webhook.form.label.name')" prop="name">
           <el-input v-model="webhookForm.name" />
         </el-form-item>
-        <el-form-item label="URL" prop="url">
-          <el-input v-model="webhookForm.url" placeholder="https://" />
+        <el-form-item label="URL" prop="webhook_url">
+          <el-input v-model="webhookForm.webhook_url" placeholder="https://" />
         </el-form-item>
-        <el-form-item :label="t('system.webhook.form.label.eventType')">
-          <el-select v-model="webhookForm.event_type" style="width: 100%">
-            <el-option :label="t('system.webhook.event.orderCreated')" value="order.created" />
-            <el-option :label="t('system.webhook.event.orderUpdated')" value="order.updated" />
-            <el-option
-              :label="t('system.webhook.event.inventoryChanged')"
-              value="inventory.changed"
-            />
-            <el-option
-              :label="t('system.webhook.event.approvalCompleted')"
-              value="approval.completed"
-            />
-            <el-option :label="t('system.webhook.event.all')" value="all" />
+        <el-form-item :label="t('system.webhook.form.label.platform')" prop="platform">
+          <el-select v-model="webhookForm.platform" style="width: 100%">
+            <el-option :label="t('system.webhook.platform.GENERIC')" value="GENERIC" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('system.webhook.form.label.secret')">
@@ -141,10 +131,23 @@ const getStatusLabel = (active: boolean): string =>
 interface WebhookRow {
   id: number;
   name: string;
-  url: string;
-  event_type: string;
+  platform: string;
+  webhook_url: string;
   is_active: boolean;
-  secret?: string;
+  last_triggered_at: string | null;
+  last_status: string | null;
+  created_at: string;
+}
+
+// 编辑对话框表单状态：与后端 CreateWebhookIntegrationRequest /
+// UpdateWebhookIntegrationRequest 的键逐一对齐（webhook_url + platform，无 event_type）
+interface WebhookForm {
+  id: number;
+  name: string;
+  platform: string;
+  webhook_url: string;
+  secret: string;
+  is_active: boolean;
 }
 
 const webhookList = ref<WebhookRow[]>([]);
@@ -152,11 +155,11 @@ const webhookLoading = ref(false);
 const submitLoading = ref(false);
 const webhookDialogVisible = ref(false);
 const webhookFormRef = ref<FormInstance>();
-const webhookForm = reactive<WebhookRow>({
+const webhookForm = reactive<WebhookForm>({
   id: 0,
   name: '',
-  url: '',
-  event_type: 'all',
+  platform: 'GENERIC',
+  webhook_url: '',
   secret: '',
   is_active: true,
 });
@@ -164,9 +167,9 @@ const webhookForm = reactive<WebhookRow>({
 const fetchWebhooks = async () => {
   webhookLoading.value = true;
   try {
-    const res = await request.get<ApiResponse<unknown[]>>('/webhooks/integrations');
-    // 拦截器返回 ApiResponse 信封，业务数组在 data 字段（信封对象直赋表格会触发 rows not iterable 崩溃）
-    webhookList.value = (res.data as WebhookRow[]) ?? [];
+    const res = await request.get<ApiResponse<WebhookRow[]>>('/webhooks/integrations');
+    // list_integrations 出参为 ApiResponse<Vec<WebhookIntegrationItem>>，业务数组即 data 字段
+    webhookList.value = res.data;
   } catch (_e) {
     logger.error(t('system.webhook.message.loadFailed'), _e);
     webhookList.value = [];
@@ -177,16 +180,20 @@ const fetchWebhooks = async () => {
 
 const openWebhookDialog = (row?: WebhookRow) => {
   if (row) {
-    Object.assign(webhookForm, row);
+    // 后端出参不回显 secret，编辑时留空表示不修改现有密钥
+    webhookForm.id = row.id;
+    webhookForm.name = row.name;
+    webhookForm.platform = row.platform;
+    webhookForm.webhook_url = row.webhook_url;
+    webhookForm.secret = '';
+    webhookForm.is_active = row.is_active;
   } else {
-    Object.assign(webhookForm, {
-      id: 0,
-      name: '',
-      url: '',
-      event_type: 'all',
-      secret: '',
-      is_active: true,
-    });
+    webhookForm.id = 0;
+    webhookForm.name = '';
+    webhookForm.platform = 'GENERIC';
+    webhookForm.webhook_url = '';
+    webhookForm.secret = '';
+    webhookForm.is_active = true;
   }
   webhookDialogVisible.value = true;
 };
@@ -196,9 +203,31 @@ const saveWebhook = async () => {
   submitLoading.value = true;
   try {
     if (webhookForm.id) {
-      await request.put(`/webhooks/integrations/${webhookForm.id}`, webhookForm);
+      // UpdateWebhookIntegrationRequest：platform 不参与更新；secret 仅在用户填写时提交，
+      // 缺席即保持后端原值（后端出参不含 secret，避免每次编辑都清空密钥）
+      const payload: {
+        name: string;
+        webhook_url: string;
+        is_active: boolean;
+        secret?: string;
+      } = {
+        name: webhookForm.name,
+        webhook_url: webhookForm.webhook_url,
+        is_active: webhookForm.is_active,
+      };
+      if (webhookForm.secret !== '') {
+        payload.secret = webhookForm.secret;
+      }
+      await request.put(`/webhooks/integrations/${webhookForm.id}`, payload);
     } else {
-      await request.post('/webhooks/integrations', webhookForm);
+      // CreateWebhookIntegrationRequest：platform + webhook_url 为非 Option 必填
+      await request.post('/webhooks/integrations', {
+        name: webhookForm.name,
+        platform: webhookForm.platform,
+        webhook_url: webhookForm.webhook_url,
+        secret: webhookForm.secret === '' ? null : webhookForm.secret,
+        is_active: webhookForm.is_active,
+      });
     }
     ElMessage.success(t('system.webhook.message.saveSuccess'));
     webhookDialogVisible.value = false;

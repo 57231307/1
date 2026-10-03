@@ -8,6 +8,8 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
   tryCleanup,
 } from './helpers';
 
@@ -20,13 +22,39 @@ test.describe('面料单据专用字段全链路验证', () => {
   // ============================================================
   test('库存调拨：面料追溯三件套验证', async ({ page }) => {
     const ctx = getCtx();
-    const colorNo = ctx.colorNos[0] || 'CN-001';
-    const dyeLotNo = ctx.dyeLotNo || genCode('DL');
-    const batchNo = genCode('BN');
+
+    // 根因C + 用户 2026-10-02 口径（出库四维第四维=匹号）：调拨明细是出库方向单据，
+    // 染色布（color_no 非空）建单期即强制 缸号+色号+批次+匹号 四维
+    // （inv/fabric_class.rs::normalize_outbound_piece_no 全仓唯一实现，经
+    // inventory_deduction.rs::require_outbound_dimensions 包装），同时
+    // inv/stock.rs::check_from_warehouse_inventory 要求调出仓有维度匹配的足量库存行、
+    // 匹号必须命中真实 AVAILABLE 染色匹（piece_domain_service 存在性预检）。
+    // 旧 seedFourDimStockIn 只灌 batch≠缸号 的库存行——写入方（piece_domain_service.rs:518-556）
+    // 的染色匹恒 batch_no=dye_lot_no=缸号，按旧 tuple 造不出真实匹，本批门控下建单必被拒
+    // （CI #4671 原文「染色布必须提供匹号」）。改用仓库既有匹感知 seed 先例
+    // （flow/07 委外染色真实链、flow/12 同法）：batch=缸号 库存行 + 真实链同维 AVAILABLE 匹，
+    // seed 维度与被测明细逐一对应，不造假、不绕门控。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '1000',
+      pieceCount: 1,
+      context: '21c-T1',
+    });
+    const colorNo = bundle.colorNo;
+    const dyeLotNo = bundle.dyeLotNo;
+    const batchNo = bundle.dyeLotNo; // 写入方口径：染色匹 批次=缸号
+    const pieceNo = bundle.pieces[0].piece_no;
+    const fromWarehouseId = target.id;
+    const toWarehouseId =
+      ctx.warehouseIds.find(id => id !== fromWarehouseId) ||
+      ctx.warehouseIds[1] ||
+      ctx.warehouseIds[0];
 
     const transferData = {
-      from_warehouse_id: ctx.warehouseIds[0],
-      to_warehouse_id: ctx.warehouseIds[1] || ctx.warehouseIds[0],
+      from_warehouse_id: fromWarehouseId,
+      to_warehouse_id: toWarehouseId,
       transfer_date: new Date().toISOString(),
       notes: '面料追溯测试',
       items: [
@@ -36,6 +64,7 @@ test.describe('面料单据专用字段全链路验证', () => {
           color_no: colorNo,
           dye_lot_no: dyeLotNo,
           batch_no: batchNo,
+          piece_no: pieceNo,
         },
       ],
     };
@@ -60,26 +89,42 @@ test.describe('面料单据专用字段全链路验证', () => {
     expect(detail.items.length, '建单明细必须可在详情中读回').toBeGreaterThan(0);
     const item = detail.items[0];
 
-    // 面料追溯三件套：三列都必须等于建单时传入的真实值（fail-closed 写入
-    // inventory_move.rs:282-288，出参如实回传）
+    // 面料追溯三件套 + 出库第四维（匹号，用户 2026-10-02 拍板）：
+    // 四列都必须等于建单时传入的真实值（fail-closed 写入 inventory_move.rs 明细
+    // 落库，出参按 InventoryTransferItemDetail 如实回传，匹号列 m0066 补列）
     expect(item.color_no, '调拨明细 color_no 应等于建单传入值').toBe(colorNo);
     expect(item.dye_lot_no, '调拨明细 dye_lot_no 应等于建单传入缸号').toBe(dyeLotNo);
     expect(item.batch_no, '调拨明细 batch_no 应等于建单传入批号').toBe(batchNo);
+    expect(item.piece_no, '调拨明细 piece_no 应等于建单传入匹号（第四维如实回传）').toBe(pieceNo);
   });
 
   // ============================================================
   // add_item 端点（POST /inventory/transfers/{id}/items）的追溯字段写入验证。
-  // batch.rs:1073-1076 的 add_item 把 color_no/dye_lot_no/batch_no 置 NotSet
-  // （"让 DB 默认值处理"），入参被整体丢弃——下列断言按契约（DTO 收这三字段、
-  // 出参 DTO 回传这三字段）写，会在 CI 暴露该缺陷，不做绕行。
+  // add_item 同为出库单写入口：batch.rs::add_item 先经 require_outbound_dimensions
+  // 强制四维（染色布缺匹号即 4xx「染色布必须提供匹号」，CI #4671 原文），再对
+  // transfer.from_warehouse_id 做 validate_dyed_piece_for_outbound 匹存在性预检
+  // （拒绝假匹号入单）——追溯四字段如实落库并回显（禁止 NotSet 丢入参的历史缺陷已修）。
+  // 故本用例必须先用匹感知 seed 在调出仓造真实 AVAILABLE 染色匹，再带四维加明细。
   // ============================================================
   test('库存调拨 add_item：追溯三字段必须随请求落库并回显', async ({ page }) => {
     const ctx = getCtx();
 
-    // 先建一张无明细的调拨单（items 为空 → 不触发明细级校验）
+    // 调出仓取可承载染色匹的仓库（未设类型/成品仓），并造真实链同维 AVAILABLE 匹；
+    // 维度常量全部取 bundle 真实落库值（写入方口径：染色匹 batch_no=缸号）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '1000',
+      pieceCount: 1,
+      context: '21c-AI',
+    });
+
+    // 先建一张无明细的调拨单（items 为空 → 不触发明细级校验），调出仓 = seed 匹的仓库
     const created = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: ctx.warehouseIds[0],
-      to_warehouse_id: ctx.warehouseIds[1] || ctx.warehouseIds[0],
+      from_warehouse_id: target.id,
+      to_warehouse_id:
+        ctx.warehouseIds.find(id => id !== target.id) || ctx.warehouseIds[1] || target.id,
       transfer_date: new Date().toISOString(),
       notes: 'E2E add_item 追溯字段验证',
       items: [],
@@ -87,25 +132,31 @@ test.describe('面料单据专用字段全链路验证', () => {
     const transferId = created.data?.id;
     expect(transferId, '调拨单创建应返回 id').toBeTruthy();
 
-    const colorNo = ctx.colorNos[0];
-    const dyeLotNo = ctx.dyeLotNo;
-    const batchNo = genCode('BN-ADD');
+    const colorNo = bundle.colorNo;
+    const dyeLotNo = bundle.dyeLotNo;
+    const batchNo = bundle.dyeLotNo; // 写入方口径：染色匹 批次=缸号
+    const pieceNo = bundle.pieces[0].piece_no;
 
     const added = await apiCallRaw<{
       color_no: string | null;
       dye_lot_no: string | null;
       batch_no: string | null;
+      piece_no: string | null;
     }>(page, 'POST', `/inventory/transfers/${transferId}/items`, {
       product_id: ctx.productIds[0],
       quantity: '1',
       color_no: colorNo,
       dye_lot_no: dyeLotNo,
       batch_no: batchNo,
+      piece_no: pieceNo,
     });
 
     expect(added.color_no, 'add_item 必须回写入参 color_no').toBe(colorNo);
     expect(added.dye_lot_no, 'add_item 必须回写入参 dye_lot_no').toBe(dyeLotNo);
     expect(added.batch_no, 'add_item 必须回写入参 batch_no').toBe(batchNo);
+    expect(added.piece_no, 'add_item 必须回写入参 piece_no（出库第四维如实落库回显）').toBe(
+      pieceNo
+    );
   });
 
   // ============================================================
@@ -148,17 +199,39 @@ test.describe('面料单据专用字段全链路验证', () => {
     ).toBeLessThan(500);
 
     // 2) 对照组：白色号 + 带缸号 → 建单成功，证明上一条被拒确因缺缸号
+    // 根因C + 2026-10-02 口径：本对照组要「建单成功」，color_no=本白（非空）= 染色布，
+    // 出库明细强制四维 = 缸号+色号+批次+匹号；调出仓须先有 batch=缸号 的足量库存行
+    // 且匹号命中真实 AVAILABLE 染色匹，否则 check_from_warehouse_inventory/四维门控
+    // 正确拒单、拿不到 id。改用匹感知 seed（batch=缸号 库存行 + 委外染色真实链匹，
+    // 先例 flow/07、flow/12），seed 维度与随后 POST 明细逐一对应，不造假库存。
+    const posTarget = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId,
+      warehouseId: posTarget.id,
+      colorNo: whiteDyedColorNo,
+      quantityMeters: '1000',
+      pieceCount: 1,
+      context: '21c-WHITE',
+    });
+    const posDyeLotNo = bundle.dyeLotNo;
+    const posBatchNo = bundle.dyeLotNo; // 写入方口径：染色匹 批次=缸号
+    const posPieceNo = bundle.pieces[0].piece_no;
+    const posFromWarehouseId = posTarget.id;
     const accepted = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: fromWarehouseId,
-      to_warehouse_id: toWarehouseId,
+      from_warehouse_id: posFromWarehouseId,
+      to_warehouse_id:
+        ctx.warehouseIds.find(id => id !== posFromWarehouseId) ||
+        toWarehouseId ||
+        posFromWarehouseId,
       transfer_date: transferDate,
       items: [
         {
           product_id: productId,
           quantity: '1',
           color_no: whiteDyedColorNo,
-          dye_lot_no: genCode('DL-WHITE'),
-          batch_no: genCode('BN-WHITE-POS'),
+          dye_lot_no: posDyeLotNo,
+          batch_no: posBatchNo,
+          piece_no: posPieceNo,
         },
       ],
     });

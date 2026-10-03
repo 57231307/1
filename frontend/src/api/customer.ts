@@ -73,16 +73,74 @@ export const getCustomerById = (id: number) =>
   request.get<ApiResponse<Customer>>(`/crm/customers/${id}`);
 
 // D14 Batch 5b：原 customerApi.create 转为风格 B 函数
-/** 创建/更新客户入参：后端 CreateCustomerRequest 的 credit_limit 为字符串（显式格式校验），兼容历史 number 传参 */
-export interface CustomerCreatePayload extends Partial<Omit<Customer, 'credit_limit'>> {
-  credit_limit?: string | number;
+/**
+ * 创建客户入参 —— 逐键对齐后端 handlers/customer_handler.rs::CreateCustomerRequest（:23-72）。
+ * 此前 `extends Partial<Omit<Customer,'credit_limit'>>` 把响应模型 Customer 的只读生成列
+ * id/created_at/updated_at 一并冒充为可写入参（后端 DTO 无此三键，serde 静默丢弃=契约漂移）。
+ * credit_limit 后端为 Option<String>（:42，JSON number 反序列化即 422），类型只收 string。
+ * customer_code 仅创建 DTO 有（:25，Option，未传由服务端按建档规则生成）；更新 DTO 无此键。
+ */
+export interface CustomerCreatePayload {
+  customer_code?: string;
+  customer_name: string;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  credit_limit?: string;
+  payment_terms?: number;
+  tax_id?: string;
+  bank_name?: string;
+  bank_account?: string;
+  customer_type?: string;
+  country?: string;
+  status?: string;
+  customer_industry?: string;
+  main_products?: string;
+  annual_purchase?: number;
+  quality_requirement?: string;
+  inspection_standard?: string;
+  notes?: string;
+}
+
+/**
+ * 更新客户入参 —— 逐键对齐后端 customer_handler.rs::UpdateCustomerRequest（:93-139）。
+ * 全字段 Option（缺键=不改）；DTO 不含 customer_code（编码建档即定，编辑不可改），
+ * 也不含 id/created_at/updated_at 只读生成列，故本类型均不接受。
+ */
+export interface CustomerUpdatePayload {
+  customer_name?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  credit_limit?: string;
+  payment_terms?: number;
+  tax_id?: string;
+  bank_name?: string;
+  bank_account?: string;
+  customer_type?: string;
+  country?: string;
+  status?: string;
+  customer_industry?: string;
+  main_products?: string;
+  annual_purchase?: number;
+  quality_requirement?: string;
+  inspection_standard?: string;
+  notes?: string;
 }
 
 export const createCustomer = (data: CustomerCreatePayload) =>
   request.post<ApiResponse<Customer>>('/crm/customers', data);
 
 // D14 Batch 5b：原 customerApi.update 转为风格 B 函数
-export const updateCustomer = (id: number, data: CustomerCreatePayload) =>
+export const updateCustomer = (id: number, data: CustomerUpdatePayload) =>
   request.put<ApiResponse<Customer>>(`/crm/customers/${id}`, data);
 
 // D14 Batch 5b：原 customerApi.delete 转为风格 B 函数

@@ -3,15 +3,21 @@ use crate::models::fund_transfer_record;
 // 批次 210 P2-5 修复（v12 复审）：资金账户状态字符串替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 use chrono::{Duration, Local, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// 资金转账单号前缀（存量数据以 "TR" 开头，见原 create_transfer_record
+/// `format!("TR{ts}")`；列无 UNIQUE，DDL 证据
+/// m0012_add_ap_ar_finance_analysis.rs:591）
+const FUND_TRANSFER_NO_PREFIX: &str = "TR";
 
 /// V15 P1 17.6-D3：资金账户类型常量（不同账户类型对账方式与风控规则不同，需差异化处理。）
 pub mod account_type {
@@ -322,7 +328,11 @@ impl FundManagementService {
         let account = self.get_account_by_id(account_id).await?;
 
         if account.balance != Decimal::ZERO {
-            return Err(AppError::validation("账户余额不为零，无法删除".to_string()));
+            // 状态/额度门：账户仍有余额这一业务前置未满足，归业务族；
+            // 文案只述"不为零"这一事实、不回显余额数字，满足安全边界可外显。
+            return Err(AppError::business_displayable(
+                "账户余额不为零，无法删除".to_string(),
+            ));
         }
 
         fund_management::Entity::delete_many()
@@ -368,7 +378,23 @@ impl FundManagementService {
         user_id: i32,
         status: &str,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        let transfer_no = format!("TR{}", chrono::Local::now().format("%Y%m%d%H%M%S"));
+        // 转账单号收口到生成器：原 "TR"+Local 秒级时间戳，同秒两笔转账产生
+        // 重复单号且 fund_transfers.transfer_no 无 UNIQUE 兜底（DDL：
+        // m0012_add_ap_ar_finance_analysis.rs:591），错误无法被发现。
+        // 列无唯一约束 → 用「写入事务内取号」路径（advisory lock 持到提交）。
+        let txn = self.db.begin().await?;
+        let transfer_no = DocumentNumberGenerator::generate_no_with_width_txn(
+            &txn,
+            FUND_TRANSFER_NO_PREFIX,
+            crate::models::fund_transfer_record::Entity,
+            crate::models::fund_transfer_record::Column::TransferNo,
+            3,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "资金转账单号生成失败");
+            AppError::business_displayable("资金转账单号生成失败，请稍后重试")
+        })?;
         let record = crate::models::fund_transfer_record::ActiveModel {
             transfer_no: sea_orm::Set(transfer_no),
             from_account_id: sea_orm::Set(Some(req.from_account_id)),
@@ -381,8 +407,9 @@ impl FundManagementService {
             applied_by: sea_orm::Set(Some(user_id)),
             ..Default::default()
         }
-        .insert(&*self.db)
+        .insert(&txn)
         .await?;
+        txn.commit().await?;
         Ok(record)
     }
 
@@ -407,7 +434,8 @@ impl FundManagementService {
 
         // 只有待审批状态的记录才能审批
         if record.status.as_deref() != Some("PENDING") {
-            return Err(AppError::validation(format!(
+            // 状态门：转账记录当前非待审批，前置状态未满足，归业务族；文案含记录 ID/状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "转账记录 {} 状态为 {:?}，无法审批",
                 transfer_id, record.status
             )));
@@ -442,7 +470,8 @@ impl FundManagementService {
 
         // 只有待审批状态的记录才能拒绝
         if record.status.as_deref() != Some("PENDING") {
-            return Err(AppError::validation(format!(
+            // 状态门：转账记录当前非待审批，前置状态未满足，归业务族；文案含记录 ID/状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "转账记录 {} 状态为 {:?}，无法拒绝",
                 transfer_id, record.status
             )));
@@ -610,18 +639,27 @@ impl FundManagementService {
             .await?;
         let opening_balance: Decimal = accounts.iter().map(|a| a.available_balance).sum();
 
-        // 应收流入：未核销应收发票（未取消，未付金额>0，到期日在 [today, horizon]）
+        // 应收流入：未核销应收发票（未付金额>0，到期日在 [today, horizon]）；
+        // 统计口径与 AR 报表/BI/仪表盘同源：草稿与取消都不计入（取值引用写入方词表常量）
         let ar_invoices = crate::models::ar_invoice::Entity::find()
-            .filter(crate::models::ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(crate::models::ar_invoice::Column::Status.is_not_in([
+                crate::models::status::common::STATUS_CANCELLED,
+                crate::models::status::common::STATUS_DRAFT,
+            ]))
             .filter(crate::models::ar_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(crate::models::ar_invoice::Column::DueDate.gte(today))
             .filter(crate::models::ar_invoice::Column::DueDate.lte(horizon))
             .all(&*self.db)
             .await?;
 
-        // 应付流出：未付应付发票（未取消，未付金额>0，到期日在 [today, horizon]）
+        // 应付流出：未付应付发票（未取消，未付金额>0，到期日在 [today, horizon]）；
+        // 排除门取值同应收侧，引用写入方词表常量（ap_invoice.invoice_status 大写，
+        // CANCELLED 复用 common 词表，见 models/status/finance.rs:46 注释）
         let ap_invoices = crate::models::ap_invoice::Entity::find()
-            .filter(crate::models::ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(
+                crate::models::ap_invoice::Column::InvoiceStatus
+                    .ne(crate::models::status::common::STATUS_CANCELLED),
+            )
             .filter(crate::models::ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .filter(crate::models::ap_invoice::Column::DueDate.gte(today))
             .filter(crate::models::ap_invoice::Column::DueDate.lte(horizon))

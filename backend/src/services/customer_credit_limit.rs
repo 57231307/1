@@ -101,12 +101,15 @@ impl CustomerCreditService {
 
         if credit.status != master_data::ACTIVE {
             txn.rollback().await?;
-            return Err(AppError::validation("客户信用状态非活跃"));
+            // 状态门：信用评级记录当前非活跃，前置状态未满足，归业务族
+            return Err(AppError::business_displayable("客户信用状态非活跃"));
         }
 
         if amount > credit.available_credit {
             txn.rollback().await?;
-            return Err(AppError::validation(format!(
+            // 额度门：请求超出系统记录的可用额度，属业务族；文案含可用余额数字，
+            // 按 error.rs 安全边界不得外显，保持脱敏 business。
+            return Err(AppError::business(format!(
                 "可用额度不足：请求 {}，可用 {}",
                 amount, credit.available_credit
             )));
@@ -151,7 +154,10 @@ impl CustomerCreditService {
 
         if amount > credit.used_credit {
             txn.rollback().await?;
-            return Err(AppError::validation("释放额度超过已占用额度".to_string()));
+            // 额度门：释放量受系统记录的已占用额度约束，属业务族；文案不含数字可外显
+            return Err(AppError::business_displayable(
+                "释放额度超过已占用额度".to_string(),
+            ));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
@@ -199,7 +205,8 @@ impl CustomerCreditService {
                 // 确保降低后的额度不低于已使用额度
                 if decreased < credit.used_credit {
                     txn.rollback().await?;
-                    return Err(AppError::validation(
+                    // 额度门：调整后额度受系统记录的已使用额度约束，属业务族；文案不含数字可外显
+                    return Err(AppError::business_displayable(
                         "降低后的额度不能低于已使用额度".to_string(),
                     ));
                 }
@@ -207,7 +214,7 @@ impl CustomerCreditService {
             }
             _ => {
                 txn.rollback().await?;
-                return Err(AppError::validation("无效的额度调整类型"));
+                return Err(AppError::validation_displayable("无效的额度调整类型"));
             }
         };
 
@@ -314,7 +321,8 @@ impl CustomerCreditService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.used_credit > rust_decimal::Decimal::ZERO {
-            return Err(AppError::validation(
+            // 状态门：记录仍有占用额度这一业务前置未满足，不可停用，归业务族；文案不含数字可外显
+            return Err(AppError::business_displayable(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
         }

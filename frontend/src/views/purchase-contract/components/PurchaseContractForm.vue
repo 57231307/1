@@ -198,22 +198,23 @@ import type { Supplier } from '@/api/supplier';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单数据类型（所有字段可选，兼容 Partial<PurchaseContract>）
+// 表单数据类型（可空列如实声明 string | null：编辑回显承接后端真实 NULL，
+// 提交时由 usePc 的 explicitToNull 显式回传 null 清空，禁止 '' 掩盖空值状态）
 interface PurchaseContractFormData {
   id?: number | undefined;
   contract_no?: string;
   contract_name?: string;
   supplier_id?: number | undefined;
-  contract_type?: string;
+  contract_type?: string | null;
   total_amount?: number;
-  signed_date?: string;
-  effective_date?: string;
-  expiry_date?: string;
-  payment_terms?: string;
-  payment_method?: string;
-  delivery_date?: string;
-  delivery_location?: string;
-  remarks?: string;
+  signed_date?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  payment_terms?: string | null;
+  payment_method?: string | null;
+  delivery_date?: string | null;
+  delivery_location?: string | null;
+  remarks?: string | null;
 }
 
 const props = defineProps<{

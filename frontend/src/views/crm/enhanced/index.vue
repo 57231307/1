@@ -450,8 +450,12 @@ const unwrapList = <T,>(payload: unknown): T[] => {
   return paged?.items ?? paged?.history ?? [];
 };
 
-const fmtAmount = (value: number | null | undefined): string =>
-  value == null ? '-' : Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
+// 金额按真实可空语义显示：null/空串 = 无值 → '-' 占位（不伪装成 0.00，
+// 后端已不再用 unwrap_or(0) 伪造金额）；Decimal 出参为 JSON 字符串，须经 Number 归一
+const fmtAmount = (value: string | number | null | undefined): string =>
+  value === null || value === undefined || value === ''
+    ? '-'
+    : Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 
 const fmtRate = (value: number | null | undefined): string =>
   value == null ? '-' : `${Number(value).toFixed(1)}%`;

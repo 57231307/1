@@ -34,7 +34,11 @@ pub struct SalesContractQuery {
 }
 
 /// 创建销售合同请求 DTO
-#[allow(dead_code, reason = "序列化/反序列化字段")]
+///
+/// P0 契约修复（本轮）：
+/// - `delivery_date` 改 Option：真实列 sales_contracts.delivery_date 可空，原非 Option
+///   导致前端未填时反序列化失败 → 400「参数错误」。
+/// - 补齐表头真实列 signed_date/effective_date/expiry_date/payment_method/delivery_location。
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateSalesContractRequestDto {
     pub contract_no: String,
@@ -43,7 +47,12 @@ pub struct CreateSalesContractRequestDto {
     pub total_amount: rust_decimal::Decimal,
     pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
-    pub delivery_date: chrono::NaiveDate,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    pub signed_date: Option<chrono::NaiveDate>,
+    pub effective_date: Option<chrono::NaiveDate>,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
     pub remark: Option<String>,
     /// 合同明细行
     #[validate(nested)]
@@ -83,16 +92,93 @@ fn validate_quantity_tolerance_pct(
     Ok(())
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/purchase_contract_handler.rs 中同名适配器形状一致（本批授权文件仅限
+/// 合同/部门，各域 handler 内私有定义；跨域合并到共享工具需动 utils，超出本批授权范围）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// P1-2o 修复（批次 81 v1 复审）：更新销售合同请求 DTO
-/// 替代 update_contract 中的 Json<serde_json::Value>，提供强类型校验
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖；items=明细整表替换。
+/// NOT NULL 列（contract_name/customer_id，m0011 DDL）不开 null 清空，显式 null 由 service 拒绝。
+/// 不含 contract_no：合同编号属系统生成单据号（前端预生成 + /document-no/check 查重，
+/// 数据库 UNIQUE 兜底），编辑链路不接受改写；请求里携带的 contract_no 一律忽略。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateSalesContractDto {
-    /// 合同名称：可选
+    /// 合同名称：NOT NULL 列——显式 null 被 service 拒绝（业务错误，非脱敏）
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 200, message = "合同名称长度不能超过200字符"))]
-    pub contract_name: Option<String>,
-    /// 付款条款：可选
-    pub payment_terms: Option<String>,
+    pub contract_name: Option<Option<String>>,
+    /// 客户ID：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub customer_id: Option<Option<i32>>,
+    /// 合同金额：DB 可空列 total_amount DECIMAL(15,2)（m0011 DDL 核实）
+    #[serde(default, deserialize_with = "double_option")]
+    pub total_amount: Option<Option<rust_decimal::Decimal>>,
+    /// 合同类型：DB 可空列 contract_type VARCHAR(50)（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub contract_type: Option<Option<String>>,
+    /// 付款条款：DB 可空列 payment_terms TEXT（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub payment_terms: Option<Option<String>>,
+    /// 交货日期：DB 可空列 delivery_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub delivery_date: Option<Option<chrono::NaiveDate>>,
+    /// 签订日期：DB 可空列 signed_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub signed_date: Option<Option<chrono::NaiveDate>>,
+    /// 生效日期：DB 可空列 effective_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub effective_date: Option<Option<chrono::NaiveDate>>,
+    /// 到期日期：DB 可空列 expiry_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub expiry_date: Option<Option<chrono::NaiveDate>>,
+    /// 付款方式：DB 可空列 payment_method VARCHAR(50)（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub payment_method: Option<Option<String>>,
+    /// 交货地点：DB 可空列 delivery_location VARCHAR(200)（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub delivery_location: Option<Option<String>>,
+    /// 备注：DB 可空列 remark TEXT（m0016 补列）
+    #[serde(default, deserialize_with = "double_option")]
+    pub remark: Option<Option<String>>,
+    /// 明细行（含 quantity_tolerance_pct 的 [0,100] 行级校验，与 create 同口径）。
+    /// 数组字段不开放"显式 null 清全表"：清空明细须传空数组 `[]`，与"键缺席=不动明细"区分。
+    #[validate(nested)]
+    pub items: Option<Vec<CreateContractItemDto>>,
+}
+
+fn map_item_d_tos(
+    items: Option<Vec<CreateContractItemDto>>,
+) -> Option<Vec<CreateContractItemRequest>> {
+    items.map(|items| {
+        items
+            .into_iter()
+            .map(|item| CreateContractItemRequest {
+                product_id: item.product_id,
+                product_name: item.product_name,
+                product_spec: item.product_spec,
+                unit: item.unit,
+                quantity: item.quantity,
+                quantity_tolerance_pct: item.quantity_tolerance_pct,
+                unit_price: item.unit_price,
+                delivery_date: item.delivery_date,
+                remarks: item.remarks,
+            })
+            .collect()
+    })
 }
 
 /// 合同执行请求 DTO
@@ -223,23 +309,13 @@ pub async fn create_contract(
         contract_type: req.contract_type,
         payment_terms: req.payment_terms,
         delivery_date: req.delivery_date,
+        signed_date: req.signed_date,
+        effective_date: req.effective_date,
+        expiry_date: req.expiry_date,
+        payment_method: req.payment_method,
+        delivery_location: req.delivery_location,
         remark: req.remark,
-        items: req.items.map(|items| {
-            items
-                .into_iter()
-                .map(|item| CreateContractItemRequest {
-                    product_id: item.product_id,
-                    product_name: item.product_name,
-                    product_spec: item.product_spec,
-                    unit: item.unit,
-                    quantity: item.quantity,
-                    quantity_tolerance_pct: item.quantity_tolerance_pct,
-                    unit_price: item.unit_price,
-                    delivery_date: item.delivery_date,
-                    remarks: item.remarks,
-                })
-                .collect()
-        }),
+        items: map_item_d_tos(req.items),
     };
 
     let contract = service.create(create_req, auth.user_id).await?;
@@ -324,32 +400,27 @@ pub async fn update_contract(
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
+    // P0 契约修复（本轮）：原实现在 handler 内联「取模型→改 2 个字段→保存」，
+    // 无事务/无行锁且其余表头字段与明细全部丢失。改为下沉 service.update
+    // （txn + lock_exclusive + DRAFT 状态门 + 表头全集 + 明细整表替换）。
     let service = SalesContractService::new(state.db.clone());
+    let update_req = crate::services::sales_contract_service::UpdateSalesContractRequest {
+        contract_name: req.contract_name,
+        customer_id: req.customer_id,
+        total_amount: req.total_amount,
+        contract_type: req.contract_type,
+        payment_terms: req.payment_terms,
+        delivery_date: req.delivery_date,
+        signed_date: req.signed_date,
+        effective_date: req.effective_date,
+        expiry_date: req.expiry_date,
+        payment_method: req.payment_method,
+        delivery_location: req.delivery_location,
+        remark: req.remark,
+        items: map_item_d_tos(req.items),
+    };
 
-    // 获取现有合同
-    let mut contract = service.get_by_id(id).await?;
-
-    // 检查状态
-    if contract.status != crate::models::status::contract::DRAFT {
-        return Err(AppError::validation(
-            "只有草稿状态的合同才能修改".to_string(),
-        ));
-    }
-
-    // 更新字段
-    if let Some(name) = req.contract_name {
-        contract.contract_name = name;
-    }
-    if let Some(terms) = req.payment_terms {
-        contract.payment_terms = Some(terms);
-    }
-
-    // 保存更新
-    use sea_orm::ActiveModelTrait;
-    let mut active_model: crate::models::sales_contract::ActiveModel = contract.into();
-    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
-
-    let updated = active_model.update(&*state.db).await?;
+    let updated = service.update(id, update_req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated)?,
@@ -372,7 +443,8 @@ pub async fn delete_contract(
 
     // 检查状态
     if contract.status != crate::models::status::contract::DRAFT {
-        return Err(AppError::validation(
+        // 状态门：合同非草稿，删除前置未满足，归业务族；文案纯规则可外显
+        return Err(AppError::business_displayable(
             "只有草稿状态的合同才能删除".to_string(),
         ));
     }

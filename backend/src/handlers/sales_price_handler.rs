@@ -103,7 +103,7 @@ pub async fn approve_price(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // 批次 199 P1-6：真实接入请求体，原 stub 丢弃 _req 导致 approved=false 仍执行批准
     if !req.approved {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "审批拒绝请使用专用拒绝接口，本接口仅处理批准操作",
         ));
     }

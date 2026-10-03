@@ -39,6 +39,28 @@
       width="120"
     />
     <el-table-column
+      prop="total_quantity"
+      :label="t('purchaseReceipt.table.column.quantity')"
+      width="110"
+      align="right"
+    >
+      <template #default="scope">
+        <!-- rust_decimal 出参为十进制字符串，原样回显（合计必落库，非空列） -->
+        {{ scope.row.total_quantity }}
+      </template>
+    </el-table-column>
+    <el-table-column
+      prop="total_quantity_alt"
+      :label="t('purchaseReceipt.table.column.quantityAlt')"
+      width="110"
+      align="right"
+    >
+      <template #default="scope">
+        <!-- 辅量合计：无辅量采集时为 0.0000（后端 unwrap_or(ZERO) 累加口径），原样回显 -->
+        {{ scope.row.total_quantity_alt }}
+      </template>
+    </el-table-column>
+    <el-table-column
       prop="total_amount"
       :label="t('purchaseReceipt.table.column.amount')"
       width="120"

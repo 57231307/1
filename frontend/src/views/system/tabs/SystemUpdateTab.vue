@@ -47,17 +47,31 @@ import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
+import type { ApiResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
-interface VersionInfo {
+// 对应 backend/src/handlers/system_update_handler.rs get_version → VersionResponse
+interface VersionResponse {
   version: string;
-  updated_at: string;
-  message?: string;
-  has_update?: boolean;
+  release_date: string;
+  changelog: string | null;
 }
 
-const systemVersion = ref('v2026.x.x');
+// 对应 backend/src/handlers/system_update_handler.rs check_for_updates → CheckUpdateResponse
+interface CheckUpdateResponse {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  download_url: string | null;
+  file_size: number | null;
+  release_notes: string | null;
+  published_at: string | null;
+  current_release_notes: string | null;
+  current_published_at: string | null;
+}
+
+const systemVersion = ref('-');
 const lastUpdate = ref('-');
 const hasUpdate = ref(false);
 const updateInfo = ref('');
@@ -67,10 +81,11 @@ const applyUpdateLoading = ref(false);
 const checkUpdate = async () => {
   checkUpdateLoading.value = true;
   try {
-    const res = await request.get<VersionInfo>('/system-update/check');
-    const info = res;
-    updateInfo.value = info?.message || t('system.systemUpdate.message.upToDate');
-    hasUpdate.value = info?.has_update || false;
+    const res = await request.get<ApiResponse<CheckUpdateResponse>>('/system-update/check');
+    hasUpdate.value = res.data.has_update;
+    updateInfo.value = res.data.has_update
+      ? t('system.systemUpdate.message.newVersion', { version: res.data.latest_version })
+      : t('system.systemUpdate.message.upToDate');
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('system.systemUpdate.message.checkFailed'));
@@ -94,10 +109,9 @@ const applyUpdate = async () => {
 
 const fetchSystemVersion = async () => {
   try {
-    const res = await request.get<VersionInfo>('/system-update/version');
-    const info = res;
-    systemVersion.value = info?.version || 'unknown';
-    lastUpdate.value = info?.updated_at || '-';
+    const res = await request.get<ApiResponse<VersionResponse>>('/system-update/version');
+    systemVersion.value = res.data.version;
+    lastUpdate.value = res.data.release_date;
   } catch (_e) {
     logger.error(t('system.systemUpdate.message.loadVersionFailed'), _e);
   }

@@ -38,8 +38,7 @@ pub async fn list_inspections(
         )
         .await?;
 
-    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -196,8 +195,7 @@ pub async fn create_inspection_item(
     auth: AuthContext,
     Json(req): Json<CreateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     // handler DTO 转 service DTO
     let svc_req = CreateInspectionItemRequest {
@@ -226,8 +224,7 @@ pub async fn update_inspection_item(
     auth: AuthContext,
     Json(req): Json<UpdateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     // handler DTO 转 service DTO
     let svc_req = UpdateInspectionItemRequest {

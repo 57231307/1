@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, ErrorResponse, PaginatedResponse } from '@/types/api';
 import type { ApproveTransferPayload } from './inventory';
 
 /**
@@ -49,8 +49,8 @@ export interface InventoryTransferEntity {
 }
 
 /**
- * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs:57 InventoryTransferItemDetail`
- * 逐字段对齐。面料四维（色号/缸号/批次）后端全部回传，
+ * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs InventoryTransferItemDetail`
+ * 逐字段对齐。面料四维（色号/缸号/批次/匹号）后端全部回传，
  * 产品主数据名称（code/name/等级/单位）不在该结构里。
  */
 export interface TransferItem {
@@ -65,6 +65,11 @@ export interface TransferItem {
   color_no: string;
   dye_lot_no: string | null;
   batch_no: string;
+  /**
+   * 匹号（出库第四维）：DB 可空列 inventory_transfer_items.piece_no（m0066）——
+   * 白坯行为合法 NULL；染色布建单已强制必填，回显恒有值（mod.rs:110 Option<String>）。
+   */
+  piece_no: string | null;
   created_at: string;
   updated_at: string;
   /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.product_code */
@@ -94,8 +99,12 @@ export interface CreateInventoryTransferPayload {
 }
 
 /**
- * 明细行入参：与后端 `services/inv/mod.rs:87 InventoryTransferItemRequest` 对齐。
+ * 明细行入参：与后端 `services/inv/mod.rs InventoryTransferItemRequest` 对齐。
  * quantity/unit_cost 是 `Option<Decimal>`，按 e2e 造数口径以字符串提交避免精度丢失。
+ * piece_no（出库第四维）：染色布（色号非空）必填——后端 fabric_class::normalize_outbound_piece_no
+ * 强制，缺失回 400 VALIDATION_ERROR，且建单期 piece_domain_service::validate_dyed_piece_for_outbound
+ * 按 产品+调出仓+缸号+批次+匹号 全 tuple 校验须命中真实 AVAILABLE 匹（BUSINESS 族）；
+ * 白坯免填——无值时**省略该键**（禁发 null/空串占位），取值仅允许来自 GET /inventory/pieces。
  */
 export interface InventoryTransferItemPayload {
   product_id?: number;
@@ -105,16 +114,43 @@ export interface InventoryTransferItemPayload {
   dye_lot_no?: string;
   batch_no?: string;
   unit_cost?: string;
+  piece_no?: string;
 }
 
 /**
- * 更新入参：与后端 `services/inv/mod.rs:100 UpdateInventoryTransferRequest` 对齐——
+ * 更新入参：与后端 `services/inv/mod.rs UpdateInventoryTransferRequest` 对齐——
  * 只有 status/notes/items 三字段，表单里改动的仓库与调拨日期不会被该端点接收。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空、有值=覆盖。
+ * - status 映射非 Option 模型列：禁止送 null（后端 400「调拨状态不能清空」）；
+ * - notes 为 DB 可空列（m0001 DDL）：清空须显式送 null；
+ * - items 为明细整表替换数组：清空明细须传空数组 `[]`，不支持 `null` 清全表。
  */
 export interface UpdateInventoryTransferPayload {
   status?: string;
-  notes?: string;
+  notes?: string | null;
   items?: InventoryTransferItemPayload[];
+}
+
+/**
+ * 更新调拨明细入参：与后端 `services/inv/mod.rs UpdateInventoryTransferItemRequest` 对齐
+ * （PUT /inventory/transfers/items/{item_id}）。三态语义：键缺席=保持、显式 null=清空
+ * （仅 DB 可空列）、有值=覆盖。
+ * - product_id/quantity/color_no/batch_no 映射 NOT NULL 列：禁止送 null
+ *   （后端 400「XX不能清空：该字段为必填项」）；"色号改回白坯"提交空串而非 null；
+ * - notes/unit_cost/dye_lot_no 为 DB 可空列：清空须显式送 null；
+ *   染色布行（生效色号非空）清空缸号按四维追溯不变量被拒。
+ * - piece_no 为 DB 可空列（Option<Option<String>>，mod.rs:217）：清空仅对白坯行合法，
+ *   染色布行清空/缺匹号按四维追溯不变量被拒（400）。
+ */
+export interface UpdateTransferItemPayload {
+  product_id?: number;
+  quantity?: string;
+  notes?: string | null;
+  unit_cost?: string | null;
+  color_no?: string;
+  dye_lot_no?: string | null;
+  batch_no?: string;
+  piece_no?: string | null;
 }
 
 // 列表查询参数键与后端 `handlers/inventory_transfer_handler.rs:23 InventoryTransferQuery`
@@ -157,7 +193,7 @@ export function createTransferItem(id: number, data: InventoryTransferItemPayloa
   return request.post(`/inventory/transfers/${id}/items`, data);
 }
 
-export function updateTransferItem(itemId: number, data: InventoryTransferItemPayload) {
+export function updateTransferItem(itemId: number, data: UpdateTransferItemPayload) {
   return request.put(`/inventory/transfers/items/${itemId}`, data);
 }
 
@@ -174,3 +210,147 @@ export function deleteTransferItem(itemId: number) {
  */
 export const generateInventoryTransferNo = (): Promise<ApiResponse<{ transfer_no: string }>> =>
   request.get('/inventory/transfers/generate-no');
+
+/**
+ * 匹状态词表（出库第四维选择器用到的取值）。唯一事实来源 = 后端写入方
+ * `models/status/purchase_inventory.rs::inventory_piece`（大写 token，与
+ * `handlers/inventory_piece_handler.rs` 的 PIECE_STATUS_DOMAIN 逐字符相同）。
+ * 出库/调拨选择器只透传 AVAILABLE（现存可出库匹），状态集合语义由后端权威判定，
+ * 前端不推断、不改写。
+ */
+export const INVENTORY_PIECE_STATUS = {
+  AVAILABLE: 'AVAILABLE',
+  RESERVED: 'RESERVED',
+  SHIPPED: 'SHIPPED',
+  DEFECT: 'DEFECT',
+  UNAVAILABLE: 'UNAVAILABLE',
+  SAMPLE: 'SAMPLE',
+} as const;
+
+/**
+ * 匹类型词表（#220 成品布标签打印入口的 dyed 过滤维度）。唯一事实来源 = 后端
+ * `services/piece_domain_service.rs:18-19`（PIECE_TYPE_GREIGE/PIECE_TYPE_DYED，
+ * 小写 token），与 `handlers/inventory_piece_handler.rs` ListPieceParams.piece_type
+ * 的取值逐字符相同。类型语义由后端权威判定，前端只透传词表值、不推断。
+ */
+export const PIECE_TYPE = {
+  /** 生产匹（白坯） */
+  GREIGE: 'greige',
+  /** 染色匹（验布打卷/委外收回产出，成品布标签唯一允许的类型） */
+  DYED: 'dyed',
+} as const;
+
+/**
+ * 可出库匹行：与后端 `handlers/inventory_piece_handler.rs:45 PieceResponse` 逐字段对齐
+ * （GET /inventory/pieces -> PaginatedResponse<PieceResponse>）。
+ * length/weight 是 rust_decimal `Decimal`，序列化为字符串，展示前 Number() 归一，禁 .toFixed 造数。
+ * dye_lot_no/color_no 后端包 Some(...) 但类型 Option<String>，故 `string | null`。
+ */
+export interface InventoryPieceRow {
+  id: number;
+  piece_no: string;
+  /** greige=生产匹 / dyed=染色匹 */
+  piece_type: string;
+  dye_lot_id: number | null;
+  dye_lot_no: string | null;
+  machine_no: string | null;
+  machine_operator: string | null;
+  warehouse_in_at: string | null;
+  /** 匹长（Decimal 串） */
+  length: string;
+  /** 匹重（Decimal 串，可空） */
+  weight: string | null;
+  batch_no: string;
+  color_no: string | null;
+  product_id: number;
+  warehouse_id: number;
+  warehouse_name: string | null;
+  warehouse_type: string | null;
+  parent_piece_id: number | null;
+  piece_seq: number | null;
+  status: string;
+  quality_status: string | null;
+  created_at: string;
+}
+
+/** GET /inventory/pieces 查询参数（键与后端 ListPieceParams 同名，inventory_piece_handler.rs:22） */
+export interface InventoryPieceQueryParams {
+  page?: number;
+  page_size?: number;
+  piece_no?: string;
+  piece_type?: string;
+  product_id?: number;
+  warehouse_id?: number;
+  batch_no?: string;
+  dye_lot_no?: string;
+  /** 取值域 = INVENTORY_PIECE_STATUS；词表外后端 400 拒绝 */
+  status?: string;
+}
+
+/**
+ * 查询「该调出仓 + 该产品 + 该缸 + 该批」现存可出库真实匹（出库第四维数据源）。
+ * status=AVAILABLE 由调用方下推——匹是否可出库是后端权威语义，此处只透传不判定。
+ */
+export function getAvailablePieces(params: InventoryPieceQueryParams) {
+  return request.get<ApiResponse<PaginatedResponse<InventoryPieceRow>>>('/inventory/pieces', {
+    params,
+  });
+}
+
+/**
+ * GET /inventory/pieces 的通用过滤查询（四维追溯/类型过滤）。
+ * 与 getAvailablePieces 同端点同契约，区别仅在调用场景命名：本函数供标签打印入口
+ * 按 piece_type=dyed 下推、不筛 status（已出库匹仍需补打标签，是否允许打印由后端门控判定）。
+ */
+export function listInventoryPieces(params: InventoryPieceQueryParams) {
+  return request.get<ApiResponse<PaginatedResponse<InventoryPieceRow>>>('/inventory/pieces', {
+    params,
+  });
+}
+
+/**
+ * 从下载类端点（responseType:'blob'）的失败响应提取 AppError 失败信封
+ * （ErrorResponse：全站唯一失败形状，types/api-response.ts:39-44，
+ * 对应 backend/src/utils/error.rs:303-308 固定四键 code/message/trace_id/timestamp）。
+ * blob 语义下失败体也会被 axios 包成 Blob，须先 await blob.text() 再 JSON.parse
+ * （先例 views/supplier/enhanced/index.vue extractBackendErrorReason）。
+ * 四键校验不过（非 JSON/形状异常）返回 null——调用方必须继续显式报错并留
+ * status/原始错误日志，禁止把"解析失败"当成功或静默吞掉。
+ */
+export async function extractAppErrorEnvelope(error: unknown): Promise<ErrorResponse | null> {
+  const data = (error as { response?: { data?: unknown } } | undefined)?.response?.data;
+  let body: unknown = data;
+  if (data instanceof Blob) {
+    try {
+      body = JSON.parse(await data.text());
+    } catch {
+      return null;
+    }
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const { code, message, trace_id, timestamp } = body as Record<string, unknown>;
+  if (
+    typeof code !== 'string' ||
+    typeof message !== 'string' ||
+    typeof trace_id !== 'string' ||
+    typeof timestamp !== 'number'
+  ) {
+    return null;
+  }
+  return { code, message, trace_id, timestamp };
+}
+
+/**
+ * #220 成品布入库打印标签：后端 GET /inventory/pieces/{id}/print
+ * （routes/inventory.rs:46-56 piece_routes → print_handler::inventory_piece_label_print_docx）
+ * 成功 = docx 二进制（Content-Disposition attachment），失败 = 非 2xx + AppError 信封。
+ * responseType:'blob' 先例照 api/ap.ts:279-283 printAPPaymentDocx；
+ * 成功响应非 Blob 属契约异状，显式抛错不掩盖（不兜底、不"解析失败当成功"）。
+ */
+export async function printInventoryPieceLabelDocx(id: number): Promise<Blob> {
+  const res = await request.get<Blob>(`/inventory/pieces/${id}/print`, { responseType: 'blob' });
+  if (res instanceof Blob) return res;
+  const payload = (res as unknown as { data?: unknown }).data;
+  if (payload instanceof Blob) return payload;
+  throw new Error(`GET /inventory/pieces/${id}/print 成功响应不是 Blob（契约异状）: ${typeof res}`);
+}

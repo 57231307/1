@@ -5,7 +5,9 @@ import {
   apiCallRaw,
   tryCleanup,
   ensureTestEntities,
-  ensureStockInWarehouse,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   getCtx,
   listNotifications,
 } from './helpers';
@@ -36,6 +38,36 @@ const NOTIF_SETTLE_MS = 3000;
 /** 清理动作：走 helpers 的 CSRF/重试链路，失败仅记录（行为已由用例断言验证） */
 async function markRead(page: import('@playwright/test').Page, id: number): Promise<void> {
   await tryCleanup(page, 'POST', `/notifications/${id}/read`, '[31d] 标记已读');
+}
+
+/**
+ * 「标记已读」本身是被测动作，不能只当清理用。
+ * 原写法把它包进 tryCleanup（失败仅 warn），于是 POST /notifications/{id}/read 整体坏掉
+ * 也不会有任何用例察觉——W5b 全仓审计把这处列为"吞错软化"。现改为执行后立即两侧回读，
+ * 把行为真实钉住：UNREAD 里不再有它、READ 里必须有它。
+ * 清理用的 delete 仍走 tryCleanup（删除本身由 45-deletion-guards 等套件负责验证）。
+ */
+async function markReadAndAssert(
+  page: import('@playwright/test').Page,
+  id: number,
+  tag: string
+): Promise<void> {
+  const res = await apiCall(page, 'POST', `/notifications/${id}/read`);
+  expect(res?.code, `[31d-${tag}] 标记已读应返回成功码 200，实际信封：${JSON.stringify(res)}`).toBe(
+    200
+  );
+
+  const unread = await listNotifications(page, 'UNREAD');
+  expect(
+    unread.some(n => n.id === id),
+    `[31d-${tag}] 标记已读后 id=${id} 不应仍出现在 UNREAD 列表`
+  ).toBe(false);
+
+  const read = await listNotifications(page, 'READ');
+  expect(
+    read.some(n => n.id === id),
+    `[31d-${tag}] 标记已读后应能在 READ 列表回读到 id=${id}`
+  ).toBe(true);
 }
 
 async function deleteNotification(
@@ -126,9 +158,9 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    await markRead(page, orderNotif!.id);
+    await markReadAndAssert(page, orderNotif!.id, 'A');
     await deleteNotification(page, orderNotif!.id);
-    await markRead(page, createdNotif!.id);
+    await markReadAndAssert(page, createdNotif!.id, 'A');
     await deleteNotification(page, createdNotif!.id);
 
     // 清理订单
@@ -179,7 +211,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    await markRead(page, approvalNotif!.id);
+    await markReadAndAssert(page, approvalNotif!.id, 'B');
     await deleteNotification(page, approvalNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-B]');
@@ -215,23 +247,28 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     const before = await listNotifications(page);
 
     // ship.rs:135 按 warehouse::Column::WarehouseCode 查仓，原实现硬编码 'WH001'
-    // 在 CI 空库中不存在 → 发货接口回 NOT_FOUND。改为按 ctx 真实仓库反查其编码，
-    // 并保障该仓库有可发出库存。
-    // 出库四维扣减（款号+色号+缸号+批次）：发货明细必须携带与真实入库库存行一致的维度。
-    const warehouseId = ctx.warehouseIds[0];
-    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    expect(wh?.warehouse_code, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    // 在 CI 空库中不存在 → 发货接口回 NOT_FOUND。改为确定性选定可承载染色匹的仓库并带出其编码。
+    // 出库四维扣减（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）：
+    // 发货明细必须携带与真实库存行一致的维度并消耗同 tuple 真实匹。
+    // ensureStockInWarehouse 命中的库存行 batch≠缸号，按写入方口径（piece_domain_service.rs:540
+    // 染色匹 batch_no=缸号）造不出可命中匹，故改用 seedDyedOutboundBundle：
+    // batch=缸号 库存行 + 委外染色真实链同维 AVAILABLE 匹。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '31d-C',
+    });
+    const stockRow = bundle.stockRow;
+    expect(target.code, `仓库 ${target.id} 应返回 warehouse_code`).toBeTruthy();
     expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
     expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
     await apiCall(page, 'POST', `/sales/orders/${orderId}/ship`, {
       order_id: orderId,
-      warehouse_code: wh.warehouse_code,
+      warehouse_code: target.code,
       items: [
         {
           product_id: ctx.productIds[0],
@@ -239,10 +276,25 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
           color_no: stockRow.color_no,
           batch_no: stockRow.batch_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
-    console.warn(`[31d-C] 订单发货成功（仓库编码 ${wh.warehouse_code}）`);
+    console.warn(`[31d-C] 订单发货成功（仓库编码 ${target.code}）`);
+
+    // 第四维消耗回读（写后必回读，不靠通知/日志反推）：匹必须 AVAILABLE→SHIPPED
+    const shippedPiece = await readDyedPieceByNo(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(shippedPiece, '发货后应能按四维 tuple 回读到被消耗匹').toBeTruthy();
+    expect(
+      String(shippedPiece!.status),
+      `匹状态应为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
+    ).toBe('SHIPPED');
 
     await page.waitForTimeout(NOTIF_SETTLE_MS);
     const after = await listNotifications(page);
@@ -256,7 +308,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    await markRead(page, shipNotif!.id);
+    await markReadAndAssert(page, shipNotif!.id, 'C');
     await deleteNotification(page, shipNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-C]');
@@ -284,7 +336,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     );
 
     if (stockNotif) {
-      await markRead(page, stockNotif.id);
+      await markReadAndAssert(page, stockNotif.id, 'D');
       await deleteNotification(page, stockNotif.id);
     } else {
       // TODO(doto iter23)：本链路要变成硬断言，需先把某商品的 safety_stock 抬到
@@ -379,7 +431,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .join('|')}）`
     ).toBeTruthy();
 
-    await markRead(page, payNotif!.id);
+    await markReadAndAssert(page, payNotif!.id, 'E');
     await deleteNotification(page, payNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/ap/payment-requests/${requestId}`, '[31d-F]');

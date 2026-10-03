@@ -57,14 +57,77 @@ export interface SalesOrderItem {
   quantity_tolerance_pct: number | string | null;
 }
 
+/**
+ * GET /sales/orders 查询参数 —— 对齐 handlers/sales_order_handler.rs::SalesOrderQuery
+ * （无 rename_all，snake_case，全部 Option）。无 keyword/order_date_from/order_date_to 键：
+ * 订单号模糊用 order_no、客户名模糊用 customer_name、日期区间用 start_date/end_date（NaiveDate）。
+ */
 export interface SalesOrderQueryParams {
   page?: number;
   page_size?: number;
-  keyword?: string;
-  customer_id?: number;
   status?: string;
-  order_date_from?: string;
-  order_date_to?: string;
+  customer_id?: number;
+  order_no?: string;
+  customer_name?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
+/**
+ * 销售订单明细行载荷 —— 对齐 services/so/mod.rs::SalesOrderItemRequest。
+ * product_id/quantity/unit_price 为非 Option 必填（不得标 ?）；quantity/unit_price 为
+ * rust_decimal 入参，以 JSON number 提交。响应模型里的 unit/subtotal/shipped_quantity 等
+ * 不是请求字段，禁止用 Partial<SalesOrderItem> 冒充。
+ * color_no 业务语义：空串=白坯布、非空=染色布，故按表单原样透传（不按空值省略）。
+ */
+export interface SalesOrderItemPayload {
+  product_id: number;
+  quantity: number;
+  unit_price: number;
+  color_no?: string;
+  /** 后端 Option<Decimal> + [0,100] 自定义校验；未填传 null（=走默认解析：品类>全局） */
+  quantity_tolerance_pct?: number | null;
+  notes?: string;
+}
+
+/**
+ * 创建销售订单载荷 —— 对齐 services/so/mod.rs::CreateSalesOrderRequest。
+ * customer_id 必填(range min1)、items 必填(min1)；order_date/required_date 为 DateTime<Utc>（ISO 串）。
+ * 响应模型 SalesOrder 含 order_no/customer_name/total_amount 等生成列，不能当载荷。
+ */
+export interface CreateSalesOrderPayload {
+  customer_id: number;
+  order_date?: string;
+  required_date?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  status?: string;
+  shipping_address?: string;
+  notes?: string;
+  items: SalesOrderItemPayload[];
+}
+
+/**
+ * 更新销售订单载荷 —— 对齐 services/so/mod.rs::UpdateSalesOrderRequest（全部 Option）。
+ * 注意：后端更新契约不含 customer_id/order_date/contact_*（编辑这些字段需后端支持，已登记后端串行清单），
+ * 前端不发送后端不读的键。
+ */
+export interface UpdateSalesOrderPayload {
+  required_date?: string;
+  status?: string;
+  shipping_address?: string;
+  billing_address?: string;
+  notes?: string;
+  items?: SalesOrderItemPayload[];
+}
+
+/**
+ * 创建发货单载荷 —— 对齐 handlers/sales_order_handler.rs::CreateDeliveryDto。
+ * 后端仅读 warehouse_id（Option，但 handler 运行期强制必须给，缺失 422「发货必须指定仓库 ID」）；
+ * 发货数量/明细不在该端点（真实出库走 POST /sales/orders/{id}/ship 的 ShipOrderRequest）。
+ */
+export interface CreateSalesDeliveryPayload {
+  warehouse_id?: number;
 }
 
 export interface SalesDelivery {
@@ -104,10 +167,14 @@ export interface SalesDeliveryQueryParams {
   delivery_date_to?: string;
 }
 
+/**
+ * GET /sales/orders/statistics 查询参数（唯一真相：
+ * handlers/sales_order_handler.rs:781 OrderStatisticsQuery{start_date,end_date,customer_id}，
+ * 全 Option；原键 date_from/date_to/group_by 后端不存在，被 Axum 静默丢弃=假筛选，删除）。
+ */
 export interface SalesStatisticsParams {
-  date_from?: string;
-  date_to?: string;
-  group_by?: 'day' | 'week' | 'month';
+  start_date?: string;
+  end_date?: string;
   customer_id?: number;
 }
 
@@ -129,11 +196,11 @@ export const getSalesOrderById = (id: number) =>
   request.get<ApiResponse<SalesOrder>>(`/sales/orders/${id}`);
 
 // D14 Batch 5b：原 salesApi.createOrder 转为风格 B 函数
-export const createSalesOrder = (data: Partial<SalesOrder>) =>
+export const createSalesOrder = (data: CreateSalesOrderPayload) =>
   request.post<ApiResponse<SalesOrder>>('/sales/orders', data);
 
 // D14 Batch 5b：原 salesApi.updateOrder 转为风格 B 函数
-export const updateSalesOrder = (id: number, data: Partial<SalesOrder>) =>
+export const updateSalesOrder = (id: number, data: UpdateSalesOrderPayload) =>
   request.put<ApiResponse<SalesOrder>>(`/sales/orders/${id}`, data);
 
 // D14 Batch 5b：原 salesApi.deleteOrder 转为风格 B 函数
@@ -157,7 +224,7 @@ export const cancelSalesOrder = (id: number) =>
   request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`);
 
 // D14 Batch 5b：原 salesApi.createDelivery 转为风格 B 函数
-export const createSalesDelivery = (orderId: number, data: Partial<SalesDelivery>) =>
+export const createSalesDelivery = (orderId: number, data: CreateSalesDeliveryPayload) =>
   request.post<ApiResponse<SalesDelivery>>(`/sales/orders/${orderId}/deliveries`, data);
 
 // D14 Batch 5b：原 salesApi.getDeliveries 转为风格 B 函数
@@ -169,8 +236,9 @@ export const getSalesDeliveryList = (orderId: number) =>
 /**
  * 销售发货出库（真实扣减库存）——与后端 ShipOrderRequest/ShipOrderItemRequest 同构
  * （backend/src/services/so/delivery.rs）。
- * 出库按"款号(product_id)+色号+缸号+批次"四维匹配扣减：三个维度必填，
+ * 出库对染色布强制四维=缸号+色号+批次+匹号（款号由 product_id 承载），四维齐才匹配扣减；
  * 指定缸号数量不足时后端才走显式跨缸回退，并把实际扣减缸号记入出库明细/流水。
+ * 白坯布（色号为空）免缸号免匹号，匹号无值时**省略该键**（不发空串/占位值）。
  */
 export interface SalesShipItem {
   product_id: number;
@@ -178,6 +246,7 @@ export interface SalesShipItem {
   color_no: string;
   dye_lot_no: string;
   batch_no: string;
+  /** 染色布必填（后端 fabric_class::normalize_outbound_piece_no 判定）；白坯省略该键 */
   piece_no?: string;
 }
 

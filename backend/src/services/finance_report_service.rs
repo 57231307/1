@@ -475,10 +475,12 @@ impl FinanceReportService {
     ) -> Result<TrialBalance, AppError> {
         let period_str = period.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
 
+        // 写入方权威词表：account_subjects.status 为小写主数据状态（DDL DEFAULT 'active' +
+        // models/status/general.rs master_data::{ACTIVE,INACTIVE}，批次 208 P2-5 明确与
+        // common::STATUS_ACTIVE 大写区分）。此前用大写 "ACTIVE" 等值过滤导致所有科目被排除、
+        // entries 恒空（试算平衡取不到分录的根因）。比较点必须与写入值逐字符同源。
         let subjects = account_subject::Entity::find()
-            .filter(
-                account_subject::Column::Status.eq(crate::models::status::common::STATUS_ACTIVE),
-            )
+            .filter(account_subject::Column::Status.eq(crate::models::status::master_data::ACTIVE))
             .all(self.db.as_ref())
             .await?;
 
@@ -810,22 +812,26 @@ impl FinanceReportService {
         // 解析 period (YYYY-MM) 为日期范围
         let parts: Vec<&str> = period.split('-').collect();
         if parts.len() != 2 {
-            return Err(AppError::validation("period 格式必须为 YYYY-MM"));
+            return Err(AppError::validation_displayable(
+                "period 格式必须为 YYYY-MM",
+            ));
         }
         let year: i32 = parts[0]
             .parse()
-            .map_err(|_| AppError::validation("period 年份无效"))?;
+            .map_err(|_| AppError::validation_displayable("period 年份无效"))?;
         let month: u32 = parts[1]
             .parse()
-            .map_err(|_| AppError::validation("period 月份无效"))?;
+            .map_err(|_| AppError::validation_displayable("period 月份无效"))?;
         if !(1..=12).contains(&month) {
-            return Err(AppError::validation("period 月份必须在 1-12 之间"));
+            return Err(AppError::validation_displayable(
+                "period 月份必须在 1-12 之间",
+            ));
         }
         let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::validation("period 起始日期无效"))?;
+            .ok_or_else(|| AppError::validation_displayable("period 起始日期无效"))?;
         let end_date = chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
             .or_else(|| chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1))
-            .ok_or_else(|| AppError::validation("period 结束日期无效"))?
+            .ok_or_else(|| AppError::validation_displayable("period 结束日期无效"))?
             - chrono::Duration::days(1);
 
         // 复用前缀穿透方法（subject_code 作为前缀，支持一级科目下所有明细）
@@ -841,7 +847,7 @@ impl FinanceReportService {
         month: u32,
     ) -> Result<IncotermMonthlyReport, AppError> {
         if !(1..=12).contains(&month) {
-            return Err(AppError::validation("month 必须在 1-12 之间"));
+            return Err(AppError::validation_displayable("month 必须在 1-12 之间"));
         }
         let (start_date, end_date) = Self::compute_incoterm_month_range(year, month)?;
 
@@ -875,8 +881,7 @@ impl FinanceReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("术语月报聚合查询失败: {}", e)))?;
+            .await?;
 
         let mut raw_rows: Vec<(String, i64, Decimal, Decimal, Decimal, Decimal)> =
             Vec::with_capacity(rows.len());

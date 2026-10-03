@@ -130,17 +130,37 @@ export function getAvailableFields(
   return request.get(`/reports/enhanced/fields/${templateType}`);
 }
 
+/**
+ * POST /reports/enhanced/templates/{id}/export 载荷（唯一真相：
+ * report_enhanced_handler::TemplateExportRequest{format,title}，全 Option）。
+ * 后端仅识别 format='pdf'（其余值统一走 xlsx）；无 date_range/filters 字段
+ * （此前传入即被 serde 丢弃，导出条件过滤属后端缺口，已登记串行清单）。
+ */
+export interface ReportExportRequest {
+  format?: 'pdf' | 'excel';
+  title?: string;
+}
+
+/**
+ * 导出响应（唯一真相：export_handler json! 构造，report_enhanced_handler.rs:488-495）。
+ * 后端返回 JSON 信封 + base64 content，并非二进制流——禁止 responseType:'blob'
+ * （blob 会把整个 JSON 信封存进"xlsx 文件"，得到损坏文件）。
+ */
+export interface ReportExportResult {
+  template_id: number;
+  filename: string;
+  size: number;
+  content_type: string;
+  /** base64（标准 alphabet）编码的文件字节流 */
+  content: string;
+  message: string;
+}
+
 export function exportReport(
   templateId: number,
-  params: {
-    format: 'pdf' | 'excel';
-    date_range?: { start: string; end: string };
-    filters?: ReportFilterCondition[];
-  }
-): Promise<Blob> {
-  return request.post(`/reports/enhanced/templates/${templateId}/export`, params, {
-    responseType: 'blob',
-  });
+  data?: ReportExportRequest
+): Promise<ApiResponse<ReportExportResult>> {
+  return request.post(`/reports/enhanced/templates/${templateId}/export`, data ?? {});
 }
 
 // P2-16 修复（批次 86 v2 复审）：previewReport ApiResponse<any> → 显式接口

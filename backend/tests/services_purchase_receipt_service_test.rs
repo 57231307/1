@@ -132,7 +132,10 @@ async fn test_purchasereceiptservice_get_receipt_ksjkfherr() {
 async fn test_purchasereceiptservice_list_receipts_ksjkfherr() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.list_receipts(1, 20, None, None, None).await;
+    // 后 4 个 None = status/supplier_id/order_id 之外新增的 keyword/仓库/日期区间筛选全不传
+    let result = svc
+        .list_receipts(1, 20, None, None, None, None, None, None, None)
+        .await;
     // SQLite 内存数据库无 purchase_receipts 表，应返回 Err
     assert!(result.is_err());
 }

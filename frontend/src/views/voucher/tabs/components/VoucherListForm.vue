@@ -25,15 +25,19 @@
         </ElCol>
         <ElCol :span="12">
           <ElFormItem :label="t('voucher.voucherListForm.labelVoucherDate')" prop="voucher_date">
-            <ElDatePicker v-model="localForm.voucher_date" type="date" />
+            <!-- P0 修复：value-format 输出 YYYY-MM-DD 字符串，与后端 NaiveDate 契约一致
+                 （原无 value-format 时 v-model 为 Date 对象，序列化成 RFC3339 导致解析失败/400） -->
+            <ElDatePicker v-model="localForm.voucher_date" type="date" value-format="YYYY-MM-DD" />
           </ElFormItem>
         </ElCol>
       </ElRow>
       <ElRow :gutter="20">
         <ElCol :span="12">
-          <ElFormItem :label="t('voucher.voucherListForm.labelVoucherType')" prop="type">
+          <!-- P0 修复：绑定后端真实键 voucher_type（原自创键 type 提交即 400/更新 no-op）；
+               选项来自 GET /vouchers/types（后端 available_voucher_types 单一真源） -->
+          <ElFormItem :label="t('voucher.voucherListForm.labelVoucherType')" prop="voucher_type">
             <ElSelect
-              v-model="localForm.type"
+              v-model="localForm.voucher_type"
               :placeholder="t('voucher.voucherListForm.placeholderVoucherType')"
             >
               <ElOption
@@ -43,14 +47,6 @@
                 :value="vt.value"
               />
             </ElSelect>
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem :label="t('voucher.voucherListForm.labelSummary')" prop="description">
-            <ElInput
-              v-model="localForm.description"
-              :placeholder="t('voucher.voucherListForm.placeholderSummary')"
-            />
           </ElFormItem>
         </ElCol>
       </ElRow>
@@ -128,36 +124,30 @@ import { deepClone } from '@/utils';
 import { ref, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatAmount } from '../composables/vchrLstFmts';
-import type { VoucherEntity, VoucherEntry as ApiVoucherEntry } from '@/api/voucher';
 
 const { t } = useI18n({ useScope: 'global' });
 
 /**
  * 分录编辑模型：ElInputNumber 双向绑定与借贷合计实时计算均以 number 为契约。
  * 入参金额来自后端 rust_decimal（JSON 序列化为字符串，见 @/api/voucher 的 VoucherEntry），
- * 在 prop→local 边界经 toLocalForm 归一为 number，避免以字符串驱动数值控件。
+ * 在 prop→local 边界经 Number() 归一，避免以字符串驱动数值控件。
+ * UI 键沿用后端详情双命名里的 account_subject_id 与 debit/credit 金额、description 一族。
  */
-interface VoucherEntry {
-  id?: number;
+interface VoucherEntryForm {
   account_subject_id: number;
-  account_subject_code?: string;
-  account_subject_name?: string;
-  debit_amount: number;
-  credit_amount: number;
-  description?: string;
+  debit_amount: number | string;
+  credit_amount: number | string;
+  description?: string | null;
 }
 
-/** 父组件传 Partial 类型，所有字段均可选 */
-interface VoucherForm {
+/** 表单模型（P0 契约修复：真实键 voucher_type；删除后端不存在列的 type/description/total_* 键） */
+interface VoucherFormData {
   id?: number;
   voucher_no?: string;
   voucher_date?: string;
-  type?: string;
+  voucher_type?: string;
   status?: string;
-  description?: string;
-  total_debit?: number;
-  total_credit?: number;
-  entries?: VoucherEntry[];
+  entries?: VoucherEntryForm[];
   [key: string]: unknown;
 }
 
@@ -176,7 +166,7 @@ const props = defineProps<{
   // 对话框标题
   title: string;
   // 表单数据（由父组件管理，金额字段为后端 Decimal 字符串，子组件通过 emit 回写）
-  form: Partial<VoucherEntity>;
+  form: Partial<VoucherFormData>;
   // 凭证类型下拉选项
   voucherTypes: { label: string; value: string }[];
   // 科目下拉选项
@@ -193,37 +183,30 @@ const emit = defineEmits<{
   // 提交表单
   (e: 'submit'): void;
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
-  (e: 'update:form', form: VoucherForm): void;
+  (e: 'update:form', form: VoucherFormData): void;
 }>();
 
 // prop→local 边界归一：后端 Decimal 字符串金额转为 number（nullish 视为 0）。
-const toNumberEntry = (e: ApiVoucherEntry): VoucherEntry => ({
-  id: e.id,
-  account_subject_id: e.account_subject_id,
-  account_subject_code: e.account_subject_code,
-  account_subject_name: e.account_subject_name,
+const toNumberEntry = (e: VoucherEntryForm): VoucherEntryForm => ({
+  account_subject_id: Number(e.account_subject_id ?? 0),
   debit_amount: Number(e.debit_amount ?? 0),
   credit_amount: Number(e.credit_amount ?? 0),
   description: e.description,
 });
 
-const toLocalForm = (f: Partial<VoucherEntity>): VoucherForm => ({
+const toLocalForm = (f: Partial<VoucherFormData>): VoucherFormData => ({
   ...f,
   entries: (f.entries ?? []).map(toNumberEntry),
 });
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：表单内有 entries 数组，需要深拷贝以保证本地修改与父组件解耦
-const localForm = ref<VoucherForm>(toLocalForm(deepClone(props.form)));
+const localForm = ref<VoucherFormData>(toLocalForm(deepClone(props.form)));
 
 // 借/贷合计按本地分录实时派生，用于底部展示与不平衡提示。
-// 与 useVchrLst.ts:calculateTotals 同源（对 entries 求和，金额 nullish 视为 0）。
-// 不读 localForm.total_debit / localForm.total_credit：这两个字段只能靠父组件
-// 计算后经 props 回灌，而回灌会被下方 syncing echo 抑制吞掉（emit 与 props watch
-// 落在同一 flushJobs 周期内、nextTick 复位尚未执行），导致真实录入不平衡时提示
-// 永不刷新。直接以 entries 派生可脱离该同步时序，且与提交校验读取的父侧合计等价。
-const sumEntries = (pick: (entry: VoucherEntry) => number | undefined) =>
-  (localForm.value.entries || []).reduce((sum, entry) => sum + (pick(entry) || 0), 0);
+// 与 useVchrLst.ts 的 totalDebit/totalCredit 同源（对 entries 求和，nullish 视为 0）。
+const sumEntries = (pick: (entry: VoucherEntryForm) => number | string | undefined) =>
+  (localForm.value.entries || []).reduce((sum, entry) => sum + Number(pick(entry) || 0), 0);
 const totalDebit = computed(() => sumEntries(e => e.debit_amount));
 const totalCredit = computed(() => sumEntries(e => e.credit_amount));
 

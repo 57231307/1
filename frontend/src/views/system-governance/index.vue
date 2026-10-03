@@ -226,19 +226,36 @@
 
     <el-dialog v-model="delegationDialogVisible" title="新建权限委托" width="480">
       <el-form :model="delegationForm" label-width="110px">
+        <!-- 后端 CreateDelegationRequest：delegator 取当前登录用户（谁委托自己的权限），
+             一条委托仅一个 permission_code（String 列），时间必填 RFC3339 -->
+        <el-form-item label="委托人">
+          <span>当前登录用户（ID：{{ userStore.userInfo?.id || '-' }}）</span>
+        </el-form-item>
         <el-form-item label="受托人ID" required
           ><el-input-number v-model="delegationForm.delegatee_id" :min="1"
         /></el-form-item>
         <el-form-item label="权限码" required
           ><el-input
-            v-model="delegationForm.permission_codes"
-            placeholder="多个用英文逗号分隔，如 user:read,user:write"
+            v-model="delegationForm.permission_code"
+            placeholder="单个权限码，如 user:read"
           />
         </el-form-item>
-        <el-form-item label="开始日期"
-          ><el-input v-model="delegationForm.start_date"
-        /></el-form-item>
-        <el-form-item label="结束日期"><el-input v-model="delegationForm.end_date" /></el-form-item>
+        <el-form-item label="开始时间" required>
+          <el-date-picker
+            v-model="delegationForm.valid_from"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="结束时间" required>
+          <el-date-picker
+            v-model="delegationForm.valid_until"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            class="w-full"
+          />
+        </el-form-item>
         <el-form-item label="委托原因"><el-input v-model="delegationForm.reason" /></el-form-item>
       </el-form>
       <template #footer>
@@ -249,22 +266,23 @@
 
     <el-dialog v-model="roleChangeDialogVisible" title="新建角色变更审批" width="500">
       <el-form :model="roleChangeForm" label-width="120px">
+        <!-- change_type 取值域=后端服务层白名单（越界 422）；target_role_code 为非 Option 必填；
+             后端 DTO/审批表均无 reason 字段，变更原因输入被丢弃（缺失已登记串行清单），故移除 -->
         <el-form-item label="变更类型" required>
           <el-select v-model="roleChangeForm.change_type" style="width: 100%">
-            <el-option label="新增角色" value="create_role" />
-            <el-option label="修改角色" value="update_role" />
-            <el-option label="删除角色" value="delete_role" />
-            <el-option label="权限变更" value="permission_change" />
+            <el-option label="分配角色" value="assign_role" />
+            <el-option label="授予权限" value="assign_permission" />
+            <el-option label="移除权限" value="remove_permission" />
           </el-select>
         </el-form-item>
         <el-form-item label="目标角色ID" required
           ><el-input-number v-model="roleChangeForm.target_role_id" :min="1"
         /></el-form-item>
+        <el-form-item label="目标角色编码" required
+          ><el-input v-model="roleChangeForm.target_role_code" placeholder="如 warehouse_keeper"
+        /></el-form-item>
         <el-form-item label="目标用户ID"
           ><el-input-number v-model="roleChangeForm.target_user_id" :min="1"
-        /></el-form-item>
-        <el-form-item label="变更原因" required
-          ><el-input v-model="roleChangeForm.reason" type="textarea" :rows="3"
         /></el-form-item>
       </el-form>
       <template #footer>
@@ -284,6 +302,8 @@ import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { ApiResponse } from '@/types/api';
+import { useUserStore } from '@/store/user';
+import type { CreatePermissionDelegationPayload, RoleChangeType } from '@/api/system-governance';
 import {
   approveModelVersion,
   reconcileMonthly,
@@ -321,6 +341,8 @@ import {
 } from '@/api/system-governance';
 
 const { t } = useI18n({ useScope: 'global' });
+// 权限委托委托人=当前登录用户（后端 delegator_id 必填，真实取值不手填）
+const userStore = useUserStore();
 
 const activeTab = ref('delegation');
 // 权限委托 / 角色关系 / AI 模型版本 / 生效中委托：后端 ApiResponse::success(Vec) → data 为裸数组
@@ -348,22 +370,39 @@ async function loadDelegations() {
   try {
     delegations.value = unwrapDataArray(await getDelegationList());
     delegationCols.value = cols(delegations.value, ['id'], 6);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
   } finally {
     loading.value = false;
   }
 }
 
 async function onExpireOverdue() {
-  const res = await expireOverdueDelegations();
-  ElMessage.success(`已清理过期委托：${JSON.stringify(res).slice(0, 60)}`);
-  await loadDelegations();
+  try {
+    const res = await expireOverdueDelegations();
+    ElMessage.success(`已清理过期委托：${JSON.stringify(res).slice(0, 60)}`);
+    await loadDelegations();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
 }
 
 async function onRevoke(row: Record<string, unknown>) {
-  await ElMessageBox.confirm('确认撤销该委托？', '确认');
-  await revokeDelegation(row.id as number);
-  ElMessage.success('已撤销');
-  await loadDelegations();
+  try {
+    await ElMessageBox.confirm('确认撤销该委托？', '确认', { type: 'warning' });
+  } catch {
+    return; // 用户取消不是失败，静默返回（rejection 已捕获）
+  }
+  try {
+    await revokeDelegation(row.id as number);
+    ElMessage.success('已撤销');
+    await loadDelegations();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  }
 }
 
 // 委托详情弹窗（复用 detail-json 展示）
@@ -412,31 +451,54 @@ async function onLoadActiveDelegations() {
 
 // 新建委托
 const delegationDialogVisible = ref(false);
+// 后端 CreateDelegationRequest 键集：delegator_id/delegatee_id/permission_code/
+// valid_from/valid_until/reason；委托人=当前登录用户（真实取值，非手填）
 const delegationForm = reactive({
   delegatee_id: 1,
-  permission_codes: '',
-  start_date: '',
-  end_date: '',
+  permission_code: '',
+  valid_from: '',
+  valid_until: '',
   reason: '',
 });
 
 async function onSaveDelegation() {
-  if (!delegationForm.delegatee_id || !delegationForm.permission_codes.trim()) {
-    ElMessage.warning('请填写受托人与权限码');
+  if (!delegationForm.delegatee_id || !delegationForm.permission_code.trim()) {
+    ElMessage.warning(t('systemGovernance.delegation.fillDelegateePermission'));
+    return;
+  }
+  if (!delegationForm.valid_from || !delegationForm.valid_until) {
+    ElMessage.warning(t('systemGovernance.delegation.fillTimeRange'));
+    return;
+  }
+  // 后端 DateTime<Utc> 反序列化要求 RFC3339：本地时间字符串显式转 UTC ISO
+  const validFrom = new Date(delegationForm.valid_from);
+  const validUntil = new Date(delegationForm.valid_until);
+  if (Number.isNaN(validFrom.getTime()) || Number.isNaN(validUntil.getTime())) {
+    ElMessage.warning(t('systemGovernance.delegation.invalidTimeFormat'));
+    return;
+  }
+  if (validUntil <= validFrom) {
+    ElMessage.warning(t('systemGovernance.delegation.endBeforeStart'));
+    return;
+  }
+  const delegatorId = userStore.userInfo?.id;
+  if (!delegatorId) {
+    ElMessage.warning(t('systemGovernance.delegation.noCurrentUser'));
     return;
   }
   try {
-    await createPermissionDelegation({
+    // 载荷键集与后端 CreateDelegationRequest 逐字一致；可选 reason 空则省略键
+    // （条件赋值而非 `|| undefined` 兜底，见 Option 空值省略键范式）
+    const payload: CreatePermissionDelegationPayload = {
+      delegator_id: delegatorId,
       delegatee_id: delegationForm.delegatee_id,
-      permission_codes: delegationForm.permission_codes
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean),
-      start_date: delegationForm.start_date || undefined,
-      end_date: delegationForm.end_date || undefined,
-      reason: delegationForm.reason || undefined,
-    });
-    ElMessage.success('委托已创建');
+      permission_code: delegationForm.permission_code.trim(),
+      valid_from: validFrom.toISOString(),
+      valid_until: validUntil.toISOString(),
+    };
+    if (delegationForm.reason.trim()) payload.reason = delegationForm.reason.trim();
+    await createPermissionDelegation(payload);
+    ElMessage.success(t('systemGovernance.delegation.created'));
     delegationDialogVisible.value = false;
     await loadDelegations();
   } catch (e) {
@@ -673,7 +735,16 @@ const onDecisionLogs = async () => {
 // 角色变更审批：列表 + L1/L2 审批/驳回/撤销
 const roleChanges = ref<Record<string, unknown>[]>([]);
 const roleChangeLoading = ref(false);
-const roleChangeCols = ['id', 'role_id', 'status', 'reason', 'created_at'];
+// 列键取后端 role_change_approvals::Model 真实键（role_id/reason 不存在，恒空白已修）
+const roleChangeCols = [
+  'id',
+  'approval_no',
+  'change_type',
+  'target_role_id',
+  'target_role_code',
+  'status',
+  'created_at',
+];
 
 const loadRoleChanges = async () => {
   roleChangeLoading.value = true;
@@ -690,26 +761,42 @@ const loadRoleChanges = async () => {
 
 // 新建角色变更审批
 const roleChangeDialogVisible = ref(false);
+// 键集与后端 CreateRoleChangeApprovalRequest 逐字一致：
+// change_type/target_role_id/target_role_code 必填；无 reason（后端缺口，见串行清单）
+// change_type 源保持 string 供 el-select v-model 回写，提交前用守卫收窄（禁止裸断言）
+const ROLE_CHANGE_TYPES: readonly RoleChangeType[] = [
+  'assign_role',
+  'assign_permission',
+  'remove_permission',
+];
+const isRoleChangeType = (v: string): v is RoleChangeType =>
+  (ROLE_CHANGE_TYPES as readonly string[]).includes(v);
+
 const roleChangeForm = reactive({
-  change_type: 'permission_change',
+  change_type: 'assign_role',
   target_role_id: 1,
+  target_role_code: '',
   target_user_id: undefined as number | undefined,
-  reason: '',
 });
 
 const onSaveRoleChange = async () => {
-  if (!roleChangeForm.reason.trim()) {
-    ElMessage.warning('请填写变更原因');
+  if (!roleChangeForm.target_role_code.trim()) {
+    ElMessage.warning(t('systemGovernance.roleChange.fillTargetRoleCode'));
+    return;
+  }
+  const changeType = roleChangeForm.change_type;
+  if (!isRoleChangeType(changeType)) {
+    ElMessage.warning(t('systemGovernance.roleChange.invalidChangeType'));
     return;
   }
   try {
     await createRoleChangeApproval({
-      change_type: roleChangeForm.change_type,
+      change_type: changeType,
       target_role_id: roleChangeForm.target_role_id,
+      target_role_code: roleChangeForm.target_role_code.trim(),
       target_user_id: roleChangeForm.target_user_id,
-      reason: roleChangeForm.reason,
     });
-    ElMessage.success('审批单已创建');
+    ElMessage.success(t('systemGovernance.roleChange.created'));
     roleChangeDialogVisible.value = false;
     await loadRoleChanges();
   } catch (e) {
@@ -750,7 +837,9 @@ const onRoleChangeAction = async (
     if (action === 'approve-l1') await approveRoleChangeL1(Number(row.id));
     else if (action === 'approve-l2') await approveRoleChangeL2(Number(row.id));
     else if (action === 'reject')
-      await rejectRoleChangeApproval(Number(row.id), { opinion: reason });
+      // 后端 reject/approve 共用 ApproveRoleChangeRequest，意见键名 comments
+      //（原键 opinion 后端不存在，驳回原因被 serde 静默丢弃）
+      await rejectRoleChangeApproval(Number(row.id), { comments: reason });
     else await cancelRoleChangeApproval(Number(row.id));
     ElMessage.success(t('common.success'));
     loadRoleChanges();

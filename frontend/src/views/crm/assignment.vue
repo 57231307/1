@@ -249,7 +249,6 @@ import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import type { User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
@@ -261,6 +260,7 @@ import {
   getCustomerPoolList,
   type AssignableCustomer,
   type RecycleRule,
+  type SalesUser,
 } from '@/api/crm-enhanced';
 import RuleDialogTab from './tabs/RuleDialogTab.vue';
 import ManualAssignDialogTab from './tabs/ManualAssignDialogTab.vue';
@@ -277,7 +277,7 @@ const assignLoading = ref(false);
 const assignableCustomers = ref<AssignableCustomer[]>([]);
 const assignQuery = reactive({ keyword: '' });
 
-const users = ref<User[]>([]);
+const users = ref<SalesUser[]>([]);
 
 // 规则行对齐后端 RecycleRule 契约（name/days/is_enabled）
 const ruleDialogVisible = ref(false);
@@ -327,7 +327,7 @@ const fetchUsers = async () => {
     // 有差异修正：手动分配的分配对象应为销售员（后端 /crm/sales-users），
     // 原实现取全量系统用户（getUserList），语义不符
     const res = await getSalesUserList();
-    users.value = (res.data || []) as unknown as User[];
+    users.value = res.data;
   } catch (error) {
     logAuxLoadFailure(t('crmAssignment.message.loadSalesUsersFailed'), error);
     users.value = [];
@@ -369,13 +369,19 @@ const handleBatchAssign = async () => {
     ElMessage.warning(t('crmAssignment.batchAssign.required'));
     return;
   }
+  // 后端契约 BatchAssignRequest（crm_assignment_handler.rs:37-42）：
+  // 多条 lead_ids 分配给同一负责人；assignee_id/assignee_name 非 Option 必填
+  const assignee = users.value.find(u => u.id === batchForm.assignTo);
+  if (!assignee) {
+    ElMessage.warning(t('crmAssignment.batchAssign.required'));
+    return;
+  }
   batchSaving.value = true;
   try {
     await batchAssignCustomers({
-      assignments: ids.map(customer_id => ({
-        customer_id,
-        assign_to: batchForm.assignTo as number,
-      })),
+      lead_ids: ids,
+      assignee_id: assignee.id,
+      assignee_name: assignee.real_name || assignee.username,
     });
     ElMessage.success(t('crmAssignment.batchAssign.success', { count: ids.length }));
     batchAssignVisible.value = false;

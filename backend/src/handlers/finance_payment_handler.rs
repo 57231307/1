@@ -66,10 +66,9 @@ pub async fn get_payment(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let payment = service
-        .find_by_id(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    // service 返回的本就是 AppError（不存在=404、越权=403），透传保留真实 status/code；
+    // 原 `.map_err(|e| AppError::not_found(e.to_string()))` 会把 403/系统错误统一压成 404。
+    let payment = service.find_by_id(id, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(PaymentResponse {
         id: payment.id,
@@ -90,16 +89,15 @@ pub async fn create_payment(
     payload.validate()?;
     let service = FinancePaymentService::new(state.db.clone());
 
-    // 自动生成付款单号
-    let payment_no = payload.payment_no.unwrap_or_else(|| {
-        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_4_digit();
-        format!("PAY-{}-{:04}", timestamp, random)
-    });
-
+    // 单号缺省交由 service 在写入事务内走统一生成器取号
+    // （原实现在此处事务外「时间戳+4位随机」拼号：并发同秒可撞
+    // finance_payments.payment_no UNIQUE，见 m0001_initial_schema.rs:499）。
+    // service 返回的本就是 AppError（含 business_displayable 的用户可见单号失败原因），
+    // 原 `.map_err(|e| AppError::internal(e.to_string()))` 会把校验/取号类业务错误
+    // 统一降级为 500 并丢失可展示标记，这里按原样传播。
     let payment = service
         .create_payment(CreatePaymentInput {
-            payment_no,
+            payment_no: payload.payment_no,
             invoice_id: payload.invoice_id,
             amount: payload.amount,
             payment_date: payload.payment_date.unwrap_or_else(chrono::Utc::now),
@@ -107,8 +105,7 @@ pub async fn create_payment(
             notes: payload.notes,
             created_by: Some(auth.user_id),
         })
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(PaymentResponse {
         id: payment.id,
@@ -129,6 +126,7 @@ pub async fn list_payments(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
+    // service 返回的本就是 AppError，透传保留真实 status/code
     let (payments, total) = service
         .list_payments(
             params.page.unwrap_or(1).clamp(1, 1000),
@@ -136,8 +134,7 @@ pub async fn list_payments(
             params.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let payment_responses: Vec<PaymentResponse> = payments
         .into_iter()

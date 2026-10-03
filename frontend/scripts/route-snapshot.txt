@@ -1,4 +1,4 @@
-# layers=8 endpoints=1758
+# layers=8 endpoints=1764
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -562,6 +562,7 @@ GET	/api/v1/erp/inventory/counts/generate-no	inventory_count_handler::generate_n
 GET	/api/v1/erp/inventory/logistics	logistics_handler::list_waybills	inventory
 GET	/api/v1/erp/inventory/logistics/*	logistics_handler::get_waybill	inventory
 GET	/api/v1/erp/inventory/pieces	crate::handlers::inventory_piece_handler::list_pieces	inventory
+GET	/api/v1/erp/inventory/pieces/*/print	print_handler::inventory_piece_label_print_docx	inventory
 GET	/api/v1/erp/inventory/reservations	inventory_reservation_handler::list_reservations	inventory
 GET	/api/v1/erp/inventory/stock	inventory_stock_handler::list_stock	inventory
 GET	/api/v1/erp/inventory/stock/*	inventory_stock_handler::get_stock	inventory
@@ -797,6 +798,7 @@ GET	/api/v1/erp/purchase/orders/generate-no	purchase_order_handler::generate_ord
 GET	/api/v1/erp/purchase/purchase-contracts	purchase_contract_handler::list_contracts	purchase
 GET	/api/v1/erp/purchase/purchase-contracts/*	purchase_contract_handler::get_contract	purchase
 GET	/api/v1/erp/purchase/purchase-contracts/*/print	print_handler::purchase_contract_print_docx	purchase
+GET	/api/v1/erp/purchase/purchase-contracts/export	purchase_contract_handler::export_purchase_contracts	purchase
 GET	/api/v1/erp/purchase/purchase-prices	purchase_price_handler::list_prices	purchase
 GET	/api/v1/erp/purchase/purchase-prices/*	purchase_price_handler::get_price	purchase
 GET	/api/v1/erp/purchase/purchase-prices/*/history	purchase_price_handler::get_price_history	purchase
@@ -836,6 +838,7 @@ GET	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::list_supplier_co
 GET	/api/v1/erp/purchase/suppliers/*/evaluations	supplier_evaluation_handler::list_evaluation_records	purchase
 GET	/api/v1/erp/purchase/suppliers/*/purchase-history	supplier_handler::get_supplier_purchase_history	purchase
 GET	/api/v1/erp/purchase/suppliers/*/qualifications	supplier_handler::list_supplier_qualifications	purchase
+GET	/api/v1/erp/purchase/suppliers/*/qualifications/*/attachment	supplier_handler::get_supplier_qualification_attachment	purchase
 GET	/api/v1/erp/purchase/suppliers/abnormal-orders	supplier_handler::detect_abnormal_orders	purchase
 GET	/api/v1/erp/purchase/suppliers/export	supplier_handler::export_suppliers	purchase
 GET	/api/v1/erp/purchase/suppliers/select	supplier_handler::list_suppliers	purchase
@@ -929,16 +932,15 @@ GET	/api/v1/erp/subjects/*	account_subject_handler::get_subject	finance
 GET	/api/v1/erp/subjects/export	account_subject_handler::export_subjects	finance
 GET	/api/v1/erp/subjects/tree	account_subject_handler::get_subject_tree	finance
 GET	/api/v1/erp/suppliers/select	crate::handlers::supplier_handler::list_suppliers	mod
-GET	/api/v1/erp/system-update/backups	system_update_handler::get_backup_versions	mod
+GET	/api/v1/erp/system-update/backups	system_update_handler::list_backup_tasks	mod
 GET	/api/v1/erp/system-update/check	system_update_handler::check_for_updates	system
 GET	/api/v1/erp/system-update/current-version	system_update_handler::get_version	mod
 GET	/api/v1/erp/system-update/local-check	system_update_handler::check_for_local_updates	system
 GET	/api/v1/erp/system-update/local-releases	system_update_handler::list_local_releases	system
-GET	/api/v1/erp/system-update/tasks	system_update_handler::get_update_status	mod
+GET	/api/v1/erp/system-update/tasks	system_update_handler::list_update_tasks	mod
 GET	/api/v1/erp/system-update/tasks/*	system_update_handler::get_update_task_by_id	mod
 GET	/api/v1/erp/system-update/update-status	system_update_handler::get_update_status	system
 GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
-GET	/api/v1/erp/system-update/versions	system_update_handler::get_backup_versions	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
@@ -1446,6 +1448,8 @@ POST	/api/v1/erp/production/production-recipes/additions/*/close	production_reci
 POST	/api/v1/erp/production/production-recipes/calculate	production_recipe_handler::calculate	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/handle	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process	quality_inspection_handler::process_defect	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/financial	quality_inspection_handler::approve_scrap_financial	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/gm	quality_inspection_handler::approve_scrap_gm	production
 POST	/api/v1/erp/production/quality-inspection/records	quality_inspection_handler::create_record	production
 POST	/api/v1/erp/production/quality-inspection/standards	quality_inspection_handler::create_standard	production
 POST	/api/v1/erp/production/wage-rates	wage_handler::create_wage_rate	production
@@ -1502,6 +1506,7 @@ POST	/api/v1/erp/purchase/suppliers	supplier_handler::create_supplier	purchase
 POST	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::create_supplier_contact	purchase
 POST	/api/v1/erp/purchase/suppliers/*/evaluate	supplier_evaluation_handler::create_evaluation_record	purchase
 POST	/api/v1/erp/purchase/suppliers/*/qualifications	supplier_handler::create_supplier_qualification	purchase
+POST	/api/v1/erp/purchase/suppliers/*/qualifications/*/attachment	supplier_handler::upload_supplier_qualification_attachment	purchase
 POST	/api/v1/erp/purchase/suppliers/*/status	supplier_handler::toggle_supplier_status	purchase
 POST	/api/v1/erp/quality-8d-reports	quality_8d_handler::start_8d	quality_8d
 POST	/api/v1/erp/quality-8d-reports/*/advance	quality_8d_handler::advance	quality_8d
@@ -1572,6 +1577,7 @@ POST	/api/v1/erp/social-insurance/*/cancel	social_insurance_handler::cancel	soci
 POST	/api/v1/erp/social-insurance/*/mark-paid	social_insurance_handler::mark_paid	social_insurance
 POST	/api/v1/erp/subjects	account_subject_handler::create_subject	finance
 POST	/api/v1/erp/subjects/*/refresh-balance	account_subject_handler::refresh_subject_balance	finance
+POST	/api/v1/erp/supplier-qualifications/scan-expiry-warnings	supplier_qualification_gate_handler::scan_expiry_warnings	supplier_qualification_gate
 POST	/api/v1/erp/system-update/backups	system_update_handler::create_backup_task	mod
 POST	/api/v1/erp/system-update/local-update	system_update_handler::apply_local_update	system
 POST	/api/v1/erp/system-update/rollback	system_update_handler::rollback_version	system

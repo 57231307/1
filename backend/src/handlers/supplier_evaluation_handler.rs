@@ -279,8 +279,7 @@ pub async fn update_evaluation(
     info!("用户 {} 更新评估: ID={}", auth.username, id);
 
     // P1-2k 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = SupplierEvaluationService::new(state.db.clone());
 

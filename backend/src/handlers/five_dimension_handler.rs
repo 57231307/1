@@ -168,8 +168,7 @@ pub async fn parse_five_dimension_id(
     Json(req): Json<ParseFiveDimensionIdDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2l 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FiveDimensionService::new(state.db.clone());
 

@@ -16,8 +16,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -36,7 +36,13 @@ use crate::models::notification::{NotificationPriority, NotificationType};
 use crate::models::status::common;
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
+
+/// 财务预警单号前缀（存量数据形如 `FA-{YYYYMMDD}-{4位序号}`；列
+/// `"alert_no" VARCHAR(50) NOT NULL UNIQUE`，DDL 证据 v15/mod.rs:175；
+/// 保留 `FA-` 前缀与 4 位流水宽度）
+const FINANCE_ALERT_NO_PREFIX: &str = "FA-";
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -157,7 +163,6 @@ impl FinanceAlertService {
         let scan_types = Self::parse_scan_types(&req)?;
         let txn = (*self.db).begin().await?;
         let now = Utc::now();
-        let today = now.date_naive();
         let mut created: Vec<finance_alert::Model> = Vec::new();
 
         for scan_type in scan_types {
@@ -166,7 +171,9 @@ impl FinanceAlertService {
                 if Self::alert_already_exists(&txn, &cand).await? {
                     continue;
                 }
-                let alert_no = format!("FA-{}-{:04}", today.format("%Y%m%d"), created.len() + 1);
+                // 取号收口到生成器（原 `created.len()+1` 只对本次扫描计数，
+                // 与当日库中已有号段无关，第二条同日预警即可撞 alert_no UNIQUE）
+                let alert_no = Self::generate_alert_no_txn(&txn).await?;
                 let active = Self::build_alert_active(&cand, &alert_no, now, triggered_by);
                 let model = active.insert(&txn).await?;
                 let model = self
@@ -215,6 +222,27 @@ impl FinanceAlertService {
         } else {
             Ok(false)
         }
+    }
+
+    /// 写入事务内生成预警单号 `FA-{YYYYMMDD}{4位流水}`。
+    /// 保留存量 4 位宽度所以未走 `insert_with_no_retry`（其流水宽度固定 3），
+    /// 但取号与 INSERT 同事务：advisory lock 持到提交，串行化并发「计数→插入」，
+    /// 消除原「当日 count+1 / created.len()+1」两处的重号路径。
+    async fn generate_alert_no_txn(txn: &DatabaseTransaction) -> Result<String, FinanceAlertError> {
+        DocumentNumberGenerator::generate_no_with_width_txn(
+            txn,
+            FINANCE_ALERT_NO_PREFIX,
+            Entity,
+            finance_alert::Column::AlertNo,
+            4,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "财务预警单号生成失败");
+            FinanceAlertError::App(AppError::business_displayable(
+                "财务预警单号生成失败，请稍后重试",
+            ))
+        })
     }
 
     /// 构建预警 ActiveModel
@@ -501,14 +529,10 @@ impl FinanceAlertService {
         }
 
         let now = Utc::now();
-        let today = now.date_naive();
-        // 生成 alert_no：FA-YYYYMMDD-NNN（基于当日已有数 + 1）
-        let prefix = format!("FA-{}-", today.format("%Y%m%d"));
-        let count_today = Entity::find()
-            .filter(finance_alert::Column::AlertNo.starts_with(&prefix))
-            .count(&*self.db)
-            .await?;
-        let alert_no = format!("FA-{}-{:04}", today.format("%Y%m%d"), count_today + 1);
+        // 取号 + 插入同事务（原「事务外 count+1」并发手动建警可撞 alert_no UNIQUE，
+        // 见 generate_alert_no_txn 注释）
+        let txn = (*self.db).begin().await?;
+        let alert_no = Self::generate_alert_no_txn(&txn).await?;
 
         let active = ActiveModel {
             id: Default::default(),
@@ -536,7 +560,8 @@ impl FinanceAlertService {
             created_at: Set(now),
             updated_at: Set(now),
         };
-        let model = active.insert(&*self.db).await?;
+        let model = active.insert(&txn).await?;
+        txn.commit().await?;
         Ok(model)
     }
 

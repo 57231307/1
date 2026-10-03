@@ -18,6 +18,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use chrono::NaiveDate;
 use sea_orm::EntityTrait;
 use serde::Deserialize;
 use validator::Validate;
@@ -36,6 +37,10 @@ pub async fn list_receipts(
             params.status,
             params.supplier_id,
             params.order_id,
+            params.keyword,
+            params.warehouse_id,
+            parse_receipt_date_param(params.receipt_date_from.as_deref(), "receipt_date_from")?,
+            parse_receipt_date_param(params.receipt_date_to.as_deref(), "receipt_date_to")?,
         )
         .await?;
 
@@ -74,8 +79,7 @@ pub async fn list_receipts(
         total,
         params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    ))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -88,8 +92,7 @@ pub async fn get_receipt(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let receipt = service.get_receipt(id).await?;
-    let mut receipt_json = serde_json::to_value(receipt)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut receipt_json = serde_json::to_value(receipt)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -243,8 +246,7 @@ pub async fn list_receipt_items(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
     let items = service.list_receipt_items(receipt_id).await?;
-    let mut items_json = serde_json::to_value(items)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut items_json = serde_json::to_value(items)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
@@ -333,17 +335,19 @@ pub async fn delete_receipt_item(
     )))
 }
 
-/// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`RK{yyyyMMdd}{4 位流水}`
-/// 例如 `RK202605140001`。 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
+/// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`PR{yyyyMMdd}{3 位流水}`
+/// 例如 `PR20260514001`。前缀/位数与落库权威
+/// `PurchaseReceiptService::generate_receipt_no`（impl_generate_no! "PR"，默认 3 位）逐字一致，
+/// 任务 #154 修复展示码≠落库码双轨缺陷（原展示 "RK"/4 位）。
+/// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let receipt_no = DocumentNumberGenerator::generate_no_with_width(
+    let receipt_no = DocumentNumberGenerator::generate_no(
         &*state.db,
-        "RK",
+        "PR",
         purchase_receipt::Entity,
         purchase_receipt::Column::ReceiptNo,
-        4,
     )
     .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -371,6 +375,25 @@ pub async fn recalculate_receipt_total(
 // 请求 DTO
 // =====================================================
 
+/// 日期查询参数按 `%Y-%m-%d` 严格解析（本仓同款惯例：
+/// `budget_management_handler.rs:408-409`、`tracking_handler.rs:235-247`）。
+/// 为什么不把 DTO 字段直接写成 `Option<NaiveDate>`：`axum::Query` 的类型化反序列化
+/// 失败走 QueryRejection，出参是纯文本 400、不经过 `AppError` 信封（本仓未覆盖
+/// Rejection 响应，见 `handlers_query_param_coercion_test.rs` 对拒绝体的文本断言），
+/// 会违背「字段取值错误 = VALIDATION_ERROR 信封」裁定
+/// （先例：`contract_wave4_api_key_echo_and_expiry_test.rs` 非法日期断言
+/// `code=VALIDATION_ERROR` + 真实文案外显）。
+fn parse_receipt_date_param(raw: Option<&str>, field: &str) -> Result<Option<NaiveDate>, AppError> {
+    raw.map(|v| {
+        NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|e| {
+            AppError::validation_displayable(format!(
+                "{field} 日期格式无效（应为 YYYY-MM-DD）：{e}"
+            ))
+        })
+    })
+    .transpose()
+}
+
 /// 采购入库单查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -380,4 +403,23 @@ pub struct ReceiptQueryParams {
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
     pub order_id: Option<i32>,
+    /// 关键字：匹配入库单号或明细物料名（purchase_receipt_item.material_name）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub keyword: Option<String>,
+    pub warehouse_id: Option<i32>,
+    /// 入库日期区间下界（YYYY-MM-DD，含当日）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub receipt_date_from: Option<String>,
+    /// 入库日期区间上界（YYYY-MM-DD，含当日）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub receipt_date_to: Option<String>,
 }

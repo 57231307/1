@@ -5,29 +5,14 @@
 
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import { CUSTOM_ORDER_STATUSES } from '@/utils/custom-order-status';
 
-// 状态枚举（使用显式索引签名以支持外部字符串索引）
-export const CUSTOM_ORDER_STATUS: { [key: string]: string } = {
-  draft: '草稿',
-  yarn_purchasing: '纱线采购中',
-  dyeing: '染整中',
-  finishing: '后整理中',
-  delivery: '交付中',
-  after_sales: '售后中',
-  completed: '已完成',
-  cancelled: '已取消',
-};
-
-export const CUSTOM_ORDER_STATUS_COLORS: { [key: string]: string } = {
-  draft: 'info',
-  yarn_purchasing: 'primary',
-  dyeing: 'warning',
-  finishing: 'warning',
-  delivery: 'success',
-  after_sales: 'danger',
-  completed: 'success',
-  cancelled: 'info',
-};
+// 定制订单状态词表的唯一前端权威在 utils/custom-order-status.ts
+//（与后端 models/status/sales.rs::custom_order::ALL 逐字符同源的 11 态，
+// 含 lab_dip/quotation/change_pending）。本文件不再手写第二套中文词表——
+// 旧 CUSTOM_ORDER_STATUS 硬编码 map（仅 8 token，缺三真实可达态）已删除；
+// 标签文案一律走 utils 的 labelKey + i18n，筛选选项由 CUSTOM_ORDER_STATUSES 派生。
+export { CUSTOM_ORDER_STATUSES };
 
 export const NODE_STATUS: { [key: string]: string } = {
   pending: '待开始',
@@ -65,10 +50,14 @@ export const AFTER_SALES_TYPE: Record<string, string> = {
   refund: '退款',
 };
 
+// 任务 #148 缺陷 B：词表对齐后端写入方（custom_order_aftersales_service.rs
+// is_valid_transition + accept/evaluate 方法实际写入的状态全集），补齐 accepted/evaluated
 export const AFTER_SALES_STATUS: Record<string, string> = {
   opened: '已开',
+  accepted: '已受理',
   processing: '处理中',
   resolved: '已解决',
+  evaluated: '已评价',
   closed: '已关闭',
   rejected: '已拒绝',
 };
@@ -155,9 +144,11 @@ export interface NodeLogCreateDto {
 }
 
 /** 上报质量异常请求（对齐后端 ReportQualityIssueDto）
- * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+ * - custom_order_id **不属于请求体**（任务 #148 同构契约修复）：异常归属由 URL
+ *   path 参数权威提供（handler `service.report_issue(id, dto)` 注入），后端 DTO
+ *   已删除该字段，body 即使携带也会被 serde 忽略（防伪造覆盖）。此前声明为
+ *   虚标可选键，掩盖了后端曾必填 422 的真实契约缺口。 */
 export interface QualityIssueCreateDto {
-  custom_order_id?: number;
   process_node_id?: number;
   issue_type: string;
   severity: string;
@@ -174,33 +165,55 @@ export interface QualityIssueQueryParams {
   severity?: string;
 }
 
-/** 售后工单信息（对齐后端 AfterSalesInfo） */
+/** 售后工单信息（对齐后端 AfterSalesInfo）
+ * 注意：refund_amount 后端为 rust_decimal::Decimal，JSON 出参序列化为**字符串**
+ *（如 "1200.50"），消费处不得按 number 直接做算术 / .toFixed，
+ *  展示统一走 utils/formatCurrency 的 Number() 归一（任务 #148 缺陷 D）。 */
 export interface AfterSales {
   id: number;
   issue_type: string;
+  /** 后端实体 after_sales.customer_id 为 NOT NULL i32，出参恒有键，不得标可选 */
+  customer_id: number;
+  /** 客户名：后端读侧 LEFT JOIN customers + column_as(customer_name) 富化，
+   *  出参恒含该键；客户行缺失时 JOIN 产生 NULL → null（前端显示 '-'），
+   *  禁止用 customer_id 冒充名称显示 */
+  customer_name: string | null;
   description: string;
   status: string;
   opened_at: string;
   closed_at?: string;
   resolution?: string;
-  refund_amount?: number;
+  refund_amount?: string;
+  quality_issue_id?: number;
+  /** 原因分类（后端权威词表 quality/logistics/customer_preference/other，可空） */
+  reason_category?: string;
+  /** 原因明细（自由文本，可空） */
+  reason_detail?: string;
 }
 
-/** 创建售后工单请求（对齐后端 CreateAfterSalesDto）
- * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+/** 创建售后工单请求（任务 #148 契约修复，逐字段对齐后端 CreateAfterSalesDto）
+ * - custom_order_id **不属于请求体**：工单归属由 URL path 参数权威提供，
+ *   body 即使携带也会被后端忽略（防伪造覆盖）。
+ * - issue_type / customer_id / description 对应后端 NOT NULL 必填列，不得标可选；
+ * - refund_amount 后端为 Option<Decimal>，serde 同时接受 number 与 string，
+ *   refund 类型时后端业务校验必填；
+ * - quality_issue_id / reason_category / reason_detail 为后端可选字段，如实声明。 */
 export interface AfterSalesCreateDto {
-  custom_order_id?: number;
-  customer_id?: number;
+  customer_id: number;
   issue_type: string;
   description: string;
-  refund_amount?: number;
+  refund_amount?: string | number;
+  quality_issue_id?: number;
+  reason_category?: string;
+  reason_detail?: string;
 }
 
-/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto） */
+/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto，全部可选；
+ * refund_amount 为 Option<Decimal>，入参接受 string | number） */
 export interface AfterSalesUpdateDto {
   status?: string;
   resolution?: string;
-  refund_amount?: number;
+  refund_amount?: string | number;
 }
 
 /** 售后列表查询参数 */

@@ -12,7 +12,8 @@ use crate::models::status::crm_lead as lead_status;
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    DataScopeContext, apply_department_scope_with_pool, check_resource_owner,
+    DataScope, DataScopeContext, PoolVisibility, apply_department_scope_with_pool,
+    check_resource_owner, check_resource_write_owner,
 };
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
@@ -27,10 +28,18 @@ use super::cust::CrmService;
 
 impl CrmService {
     /// 创建线索
+    ///
+    /// `operator_name`：真实操作人展示名，由调用方从 `AuthContext.username` 传入
+    /// （与 `services/crm/pool.rs::claim_pool_customers` 同一口径：`AuthContext` 只有
+    /// username 一个身份展示字段，无真实姓名，取 `users.real_name` 需新增跨模块查库）。
+    /// 本参数是 `owner_name` 的唯一合法取值来源——修复前它由 `format!("用户{user_id}")`
+    /// 拼出，属本仓硬规则禁止的造假展示名（既不可读也不可回查）。批量导入 `import_leads`
+    /// 按行调用本方法，展示名同样由入口一次性传入，禁止为取名字在此逐行查库（N+1）。
     pub async fn create_lead(
         &self,
         req: crate::models::dto::crm_dto::CreateLeadRequest,
         user_id: i32,
+        operator_name: &str,
     ) -> Result<crm_lead::Model, AppError> {
         // P1 3-13 修复（批次 60）：包裹事务，确保单号生成的 advisory_xact_lock
         // 与 INSERT 在同一事务内，锁覆盖完整临界区
@@ -51,7 +60,7 @@ impl CrmService {
         };
         let lead_source = req.lead_source.unwrap_or_else(|| "OTHER".to_string());
         let owner_id = user_id;
-        let owner_name = format!("用户{}", user_id);
+        let owner_name = operator_name.to_string();
         let contact_name = req.contact_name.unwrap_or_else(|| {
             req.company_name
                 .clone()
@@ -147,6 +156,7 @@ impl CrmService {
                 crm_lead::Column::OwnerId,
                 crm_lead::Column::DepartmentId,
                 crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                PoolVisibility::Open,
             );
         }
 
@@ -168,11 +178,115 @@ impl CrmService {
         }))
     }
 
+    /// 线索导出列定义：`(crm_lead 列名, 中文表头)`，**列序/表头/取值的唯一事实来源**。
+    ///
+    /// 列名逐字取 `models/crm_lead.rs` 的字段名（= list_leads/get_lead 出参键），
+    /// 因此 handler 侧可直接用同一份 `allowed_fields`/`hidden_fields`（按列名配置）
+    /// 与同一份 `filter_fields` 判定，不为导出另造第二套字段权限规则（#207）；
+    /// handler 需掩码/剔除某列时按列名经 `export_column_index` 定位，不重复硬编码下标。
+    ///
+    /// 顺序同时是 `import_leads` 的解析口径（`build_lead_request_from_row` 按下标取值），
+    /// 调整本表必须同步调整导入，二者不得各写一套。
+    pub const EXPORT_LEAD_COLUMNS: &[(&str, &str)] = &[
+        ("lead_no", "线索编号"),
+        ("company_name", "公司名称"),
+        ("contact_name", "联系人"),
+        ("contact_title", "职位"),
+        ("mobile_phone", "手机号"),
+        ("tel_phone", "座机"),
+        ("email", "邮箱"),
+        ("lead_source", "线索来源"),
+        ("lead_status", "线索状态"),
+        ("owner_name", "负责人"),
+        ("priority", "优先级"),
+        ("created_at", "创建时间"),
+    ];
+
+    /// 含个人信息（PII）的导出列：手机号/座机走 `field_mask::mask_phone`，
+    /// 邮箱走 `field_mask::mask_email` —— 与列表/详情默认脱敏同一列集合、同一实现。
+    pub const EXPORT_PII_PHONE_COLUMNS: &'static [&'static str] = &["mobile_phone", "tel_phone"];
+    pub const EXPORT_PII_EMAIL_COLUMNS: &'static [&'static str] = &["email"];
+
+    /// 线索默认字段脱敏的**唯一实现**（"无角色数据权限行且非 admin"分支，即 P1-08-5 分支），
+    /// 供四个出口共用：`crm_handler::list_leads`（列表）、`crm_handler::get_lead`（详情）、
+    /// `crm_pool_handler::list_pool`（公海列表）、`claim_from_pool`/`recycle_to_pool`（写响应）。
+    ///
+    /// 为什么必须收敛成一个函数而不是各写一份内联分支：掩码列集合一旦出现第二份手写实现
+    /// 就会漂移。本波次实证到的两处漂移即此因：
+    /// - 列表/详情漏 `tel_phone`（座机），而导出侧 `EXPORT_PII_PHONE_COLUMNS` 已含它
+    ///   → 同一角色"导出被打码、列表/详情原文"；
+    /// - 公海写响应整行原文回传（含 mobile_phone/tel_phone/email/address）
+    ///   → "列表打码、写响应原文"的旁路。
+    ///
+    /// 电话/邮箱列集合不在本函数重写：直接复用本仓 PII 列集合的权威定义
+    /// `utils::field_mask::mask_contact_fields_for_role`（电话类含 `mobile_phone` 与
+    /// `tel_phone`，邮箱类含 `email`；该函数自身对 `role_id==Some(1)` 放行原文），
+    /// 本函数只补它未覆盖的 `address` 整键移除（详情级个人信息，非 admin 不外显，
+    /// 与列表既有口径一致）。角色数据权限"有权限行 → filter_fields"这一层不在此函数内：
+    /// 判定源仍是 `data_permission_service.get_role_data_permission`，见
+    /// `crm_handler::apply_lead_field_permission`。
+    pub fn mask_lead_pii_defaults(
+        value: serde_json::Value,
+        role_id: Option<i32>,
+    ) -> serde_json::Value {
+        let mut masked = crate::utils::field_mask::mask_contact_fields_for_role(value, role_id);
+        // admin 保持原文契约（含 address）：与 mask_contact_fields_for_role 自身的
+        // role_id==Some(1) 放行判定同一口径，不在此处另判一次列集合。
+        if role_id != Some(1) {
+            if let Some(obj) = masked.as_object_mut() {
+                obj.remove("address");
+            }
+        }
+        masked
+    }
+
+    /// 在导出列定义表中按列名定位下标（供 handler 以列名而非魔法下标操作导出表）。
+    /// 列定义表由调用方传入（线索 `EXPORT_LEAD_COLUMNS`、商机
+    /// `EXPORT_OPP_COLUMNS`（定义在 `services/crm/opp.rs`）各自单一事实来源），
+    /// 使两张导出表共用同一个定位实现，不再各写一份"按位置猜列"。
+    pub fn export_column_index(columns: &[(&str, &str)], field: &str) -> Option<usize> {
+        columns.iter().position(|(name, _)| *name == field)
+    }
+
+    /// 取单个导出单元格的原文（列名未命中定义表属编程错误，不静默放空值：
+    /// 记录 error 日志后返回空串，调用方按列名取值前应已用 export_column_index 校验）
+    fn export_cell(lead: &crm_lead::Model, field: &str) -> String {
+        match field {
+            "lead_no" => lead.lead_no.clone(),
+            "company_name" => lead.company_name.clone().unwrap_or_default(),
+            "contact_name" => lead.contact_name.clone(),
+            "contact_title" => lead.contact_title.clone().unwrap_or_default(),
+            "mobile_phone" => lead.mobile_phone.clone().unwrap_or_default(),
+            "tel_phone" => lead.tel_phone.clone().unwrap_or_default(),
+            "email" => lead.email.clone().unwrap_or_default(),
+            "lead_source" => lead.lead_source.clone(),
+            "lead_status" => lead.lead_status.clone().unwrap_or_default(),
+            "owner_name" => lead.owner_name.clone(),
+            "priority" => lead.priority.clone().unwrap_or_default(),
+            "created_at" => lead.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            other => {
+                tracing::error!(
+                    field = %other,
+                    "导出列定义 EXPORT_LEAD_COLUMNS 与 export_cell 取值分支不一致"
+                );
+                String::new()
+            }
+        }
+    }
+
     /// 导出线索为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    /// v11 批次 141 新增：前端 exportLeads API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间
+    /// v11 批次 141 新增：前端 exportLeads API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段见 `EXPORT_LEAD_COLUMNS`
+    ///
+    /// #207 行级数据权限：`data_scope` 与 `list_leads` 同语义 —— 传入 ctx 时套用同一个
+    /// `apply_department_scope_with_pool`（含公海放行分支），使导出的行集合与该用户
+    /// 列表可见集严格一致；传 None 则整体跳过行级过滤（修复前 export 恒为此路径，
+    /// self/dept 用户可一次导出全库线索，属越权读 + 个人信息外泄）。
+    /// 字段级掩码不在此处做：判定源（角色数据权限 + admin 例外）在 handler，
+    /// 与列表/详情共用同一函数，见 `crm_handler::export_leads`。
     pub async fn export_leads(
         &self,
         query: crate::models::dto::crm_dto::LeadQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<XlsxTable, AppError> {
         let mut q = crm_lead::Entity::find();
 
@@ -192,6 +306,23 @@ impl CrmService {
                     .add(crm_lead::Column::Email.like(&pattern)),
             );
         }
+        // 与 list_leads（本文件 :136-139）同口径的 industry 过滤：修复前导出漏接该
+        // 条件，用户按行业筛选后导出得到的行集与列表不一致（多导出行 = 可见集漂移）
+        if let Some(industry) = query.industry {
+            q = q.filter(crm_lead::Column::Industry.eq(industry));
+        }
+
+        // 行级数据权限过滤：与 list_leads(:143-151) 完全同一函数、同一公海条件
+        if let Some(ctx) = data_scope {
+            q = apply_department_scope_with_pool(
+                q,
+                ctx,
+                crm_lead::Column::OwnerId,
+                crm_lead::Column::DepartmentId,
+                crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                PoolVisibility::Open,
+            );
+        }
 
         // 限制导出最大 10000 条，防止 DoS
         let leads: Vec<crm_lead::Model> = q
@@ -200,38 +331,18 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        let headers = vec![
-            "线索编号".to_string(),
-            "公司名称".to_string(),
-            "联系人".to_string(),
-            "职位".to_string(),
-            "手机号".to_string(),
-            "座机".to_string(),
-            "邮箱".to_string(),
-            "线索来源".to_string(),
-            "线索状态".to_string(),
-            "负责人".to_string(),
-            "优先级".to_string(),
-            "创建时间".to_string(),
-        ];
+        let headers = Self::EXPORT_LEAD_COLUMNS
+            .iter()
+            .map(|(_, label)| label.to_string())
+            .collect::<Vec<String>>();
 
         let rows: Vec<Vec<String>> = leads
             .iter()
             .map(|lead| {
-                vec![
-                    lead.lead_no.clone(),
-                    lead.company_name.clone().unwrap_or_default(),
-                    lead.contact_name.clone(),
-                    lead.contact_title.clone().unwrap_or_default(),
-                    lead.mobile_phone.clone().unwrap_or_default(),
-                    lead.tel_phone.clone().unwrap_or_default(),
-                    lead.email.clone().unwrap_or_default(),
-                    lead.lead_source.clone(),
-                    lead.lead_status.clone().unwrap_or_default(),
-                    lead.owner_name.clone(),
-                    lead.priority.clone().unwrap_or_default(),
-                    lead.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
-                ]
+                Self::EXPORT_LEAD_COLUMNS
+                    .iter()
+                    .map(|(field, _)| Self::export_cell(lead, field))
+                    .collect::<Vec<String>>()
             })
             .collect();
 
@@ -314,10 +425,14 @@ impl CrmService {
 
     /// 批量导入线索（v11 批次 157d-4 新增）：解析 xlsx 字节并逐行创建线索
     /// xlsx 列顺序与 export_leads 一致：线索编号/公司名称/联系人/职位/手机号/座机/邮箱/线索来源/线索状态/负责人/优先级/创建时间；失败行不影响其他行，最终返回成功/失败统计与错误详情
+    ///
+    /// `operator_name`：真实操作人登录名，由入口 handler 传 `&auth.username`，一次性
+    /// 透传给每一行 `create_lead` 落 `owner_name`——禁止为取名字在 `create_lead` 内逐行查库。
     pub async fn import_leads(
         &self,
         file_bytes: Vec<u8>,
         user_id: i32,
+        operator_name: &str,
     ) -> Result<crate::models::dto::crm_dto::ImportLeadsResult, AppError> {
         let data_rows = Self::read_xlsx_rows(file_bytes).await?;
         let total = data_rows.len() as u32;
@@ -327,7 +442,7 @@ impl CrmService {
         for (idx, row) in data_rows.iter().enumerate() {
             let row_no = (idx + 2) as u32; // 行号从 2 开始（1 为表头）
             let req = Self::build_lead_request_from_row(row);
-            match self.create_lead(req, user_id).await {
+            match self.create_lead(req, user_id, operator_name).await {
                 Ok(_) => success_count += 1,
                 Err(e) => errors.push(crate::models::dto::crm_dto::ImportLeadError {
                     row: row_no,
@@ -516,7 +631,7 @@ impl CrmService {
     /// create_lead / update_lead / update_lead_status 三个写入口共用。
     fn ensure_valid_lead_status(status: &str) -> Result<(), AppError> {
         if !lead_status::ALL.contains(&status) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "非法线索状态 '{}'，合法取值为：{}",
                 status,
                 lead_status::ALL.join("/")
@@ -565,14 +680,14 @@ impl CrmService {
         Ok(lead)
     }
 
-    /// 从线索构造客户 ActiveModel（纯函数，无 IO）
+    /// 从线索构造客户 ActiveModel（纯函数，无 IO；customer_code 由调用方经统一生成器取号后传入）
     fn build_customer_active(
         lead: &crm_lead::Model,
         req: &crate::models::dto::crm_dto::ConvertLeadRequest,
         customer_name: &str,
         user_id: i32,
+        customer_code: String,
     ) -> customer::ActiveModel {
-        let customer_code = format!("C{}", chrono::Utc::now().timestamp());
         let customer_type = req
             .customer_type
             .clone()
@@ -638,14 +753,14 @@ impl CrmService {
         Ok(())
     }
 
-    /// 从线索构造初步接洽商机 ActiveModel（纯函数，无 IO）
+    /// 从线索构造初步接洽商机 ActiveModel（纯函数，无 IO；opportunity_no 由调用方经统一生成器取号后传入）
     fn build_opportunity_active(
         lead: &crm_lead::Model,
         customer_id: i32,
         customer_name: &str,
         user_id: i32,
+        opportunity_no: String,
     ) -> crm_opportunity::ActiveModel {
-        let opportunity_no = format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let opportunity_name = format!("{} - 初步接洽", customer_name);
         crm_opportunity::ActiveModel {
             id: Default::default(),
@@ -687,13 +802,46 @@ impl CrmService {
             .company_name
             .clone()
             .unwrap_or_else(|| lead.contact_name.clone());
-        let new_customer = Self::build_customer_active(&lead, &req, &customer_name, user_id)
-            .insert(&txn)
-            .await?;
+        // 客户编码：统一生成器（CUS{YYYYMMDD}{3位流水}，与 customer_ops::generate_customer_code 同源）
+        let customer_code =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "CUS",
+                customer::Entity,
+                customer::Column::CustomerCode,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "线索转换客户编码生成失败");
+                AppError::business_displayable("客户编码生成失败，请稍后重试")
+            })?;
+        let new_customer =
+            Self::build_customer_active(&lead, &req, &customer_name, user_id, customer_code)
+                .insert(&txn)
+                .await?;
         Self::mark_lead_converted(&txn, &lead, new_customer.id, user_id).await?;
-        Self::build_opportunity_active(&lead, new_customer.id, &customer_name, user_id)
-            .insert(&txn)
-            .await?;
+        // 商机编号：统一生成器（OPP{YYYYMMDD}{3位流水}，与 crm/opp::create_opportunity 同源）
+        let opportunity_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "OPP",
+                crm_opportunity::Entity,
+                crm_opportunity::Column::OpportunityNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "线索转换商机编号生成失败");
+                AppError::business_displayable("商机编号生成失败，请稍后重试")
+            })?;
+        Self::build_opportunity_active(
+            &lead,
+            new_customer.id,
+            &customer_name,
+            user_id,
+            opportunity_no,
+        )
+        .insert(&txn)
+        .await?;
         txn.commit().await?;
         Ok(serde_json::json!({
             "customer_id": new_customer.id,
@@ -796,21 +944,39 @@ impl CrmService {
     }
 
     /// V15 P1 18.1-D2：线索去重检测（按手机号/公司名检测重复线索，返回重复组列表。；手机号完全匹配或公司名完全匹配（忽略前后空格+大小写）视为重复。）
+    ///
+    /// 行级数据权限（`data_scope`）为硬约束：出参组内含 `lead_no`/`company_names`，
+    /// 不注入 scope 时任意登录用户可用一个手机号枚举该号下**他人名下**线索的编号与公司名
+    /// （越权读）。两次查询均套用与 `list_leads` **同一个**
+    /// `apply_department_scope_with_pool`（owner=OwnerId，dept=DepartmentId，公海放行同口径），
+    /// 使可见集与列表严格一致。被过滤掉的行不进组：过滤后不足 2 条不构成重复组
+    /// （`leads.len() > 1` 判据不变）。`match_key` 回显调用方自己提交的号码，非服务端查得数据。
     pub async fn detect_duplicate_leads(
         &self,
         mobile_phone: Option<&str>,
         company_name: Option<&str>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<DuplicateLeadGroup>, AppError> {
         let mut groups: Vec<DuplicateLeadGroup> = Vec::new();
 
         // 按手机号去重
         if let Some(mobile) = mobile_phone {
             if !mobile.trim().is_empty() {
-                let leads = crm_lead::Entity::find()
+                let mut q = crm_lead::Entity::find()
                     .filter(crm_lead::Column::MobilePhone.eq(mobile))
-                    .filter(crm_lead::Column::LeadStatus.is_not_null())
-                    .all(&*self.db)
-                    .await?;
+                    .filter(crm_lead::Column::LeadStatus.is_not_null());
+                // 行级数据权限：与 list_leads（本文件）同一个 scope 函数与同一放行条件
+                if let Some(ctx) = data_scope {
+                    q = apply_department_scope_with_pool(
+                        q,
+                        ctx,
+                        crm_lead::Column::OwnerId,
+                        crm_lead::Column::DepartmentId,
+                        crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                        PoolVisibility::Open,
+                    );
+                }
+                let leads = q.all(&*self.db).await?;
                 if leads.len() > 1 {
                     groups.push(DuplicateLeadGroup {
                         match_key: format!("mobile:{}", mobile),
@@ -831,10 +997,20 @@ impl CrmService {
         if let Some(company) = company_name {
             let company_trimmed = company.trim();
             if !company_trimmed.is_empty() {
-                let leads = crm_lead::Entity::find()
-                    .filter(Expr::col(crm_lead::Column::CompanyName).ilike(company_trimmed))
-                    .all(&*self.db)
-                    .await?;
+                let mut q = crm_lead::Entity::find()
+                    .filter(Expr::col(crm_lead::Column::CompanyName).ilike(company_trimmed));
+                // 行级数据权限：与手机号分支、list_leads 同一个 scope 函数与同一放行条件
+                if let Some(ctx) = data_scope {
+                    q = apply_department_scope_with_pool(
+                        q,
+                        ctx,
+                        crm_lead::Column::OwnerId,
+                        crm_lead::Column::DepartmentId,
+                        crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                        PoolVisibility::Open,
+                    );
+                }
+                let leads = q.all(&*self.db).await?;
                 if leads.len() > 1 {
                     groups.push(DuplicateLeadGroup {
                         match_key: format!("company:{}", company_trimmed),
@@ -855,11 +1031,26 @@ impl CrmService {
     }
 
     /// V15 P1 18.1-D2：合并重复线索（将多个重复线索合并到主线索（保留主线索数据，副线索标记为 lost 并记录合并原因）。）
+    ///
+    /// 行级数据权限（`data_scope`）是**写路径**硬约束：合并不可逆，不注入 scope 时
+    /// 任何用户都可把自己看不到的他人线索合并掉（越权写）。主线索与每一条重复线索
+    /// （存在行）都必须通过**写侧归属门**——方案 A（用户 2026-10-02 裁定）：读可 All、
+    /// 写须 owner 本人或持有 `crm/cross_owner_write` 代表键（`behalf_granted`，由 handler
+    /// 经 `crm_write_guard::cross_owner_write_behalf_granted` 查得，N 行只查一次键），
+    /// 判定源 = `utils::data_scope::check_resource_write_owner`（Dept 代管本职无需键、
+    /// Self_ 仅本人行；**读门 `check_resource_owner` 不得复用为写门**——那正是本缺陷成因）。
+    /// **任一行未过写门即整笔拒绝**（403），禁止"跳过不可见行继续合并其余"的静默降级；
+    /// 预校验全部通过后才落写，保证拒绝时零漂移。真实原因只进日志
+    /// （`AppError::permission_denied` 出参恒为固定脱敏文案 + FORBIDDEN 码）。
+    /// 代他人合并（All + 键 + 非本人行）逐行打 `tracing::info!` 留痕，与单行写入口
+    /// `ensure_cross_owner_write_allowed` 同构口径。
     pub async fn merge_leads(
         &self,
         master_lead_id: i32,
         duplicate_lead_ids: Vec<i32>,
         user_id: i32,
+        data_scope: Option<&DataScopeContext>,
+        behalf_granted: bool,
     ) -> Result<MergeResult, AppError> {
         let txn = self.db.begin().await?;
 
@@ -870,9 +1061,38 @@ impl CrmService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("主线索不存在：{}", master_lead_id)))?;
 
-        let mut merged_count = 0i32;
-        let mut merged_lead_nos = Vec::new();
+        // 预校验（先判后写）：主线索必须过**写侧**归属门（方案 A）
+        if let Some(ctx) = data_scope {
+            if !check_resource_write_owner(
+                ctx,
+                Some(master.owner_id),
+                master.department_id,
+                behalf_granted,
+            ) {
+                tracing::warn!(
+                    actor = ctx.user_id,
+                    lead_id = master_lead_id,
+                    resource_owner = master.owner_id,
+                    "合并主线索未过跨 owner 写门，整笔拒绝（原因不外显）"
+                );
+                return Err(AppError::permission_denied(format!(
+                    "无权合并线索 {}（数据范围限制：主线索非本人行且未持代操作授权）",
+                    master_lead_id
+                )));
+            }
+            if behalf_granted && master.owner_id != ctx.user_id && ctx.scope == DataScope::All {
+                tracing::info!(
+                    actor = ctx.user_id,
+                    resource = "线索合并（主线索）",
+                    resource_owner = master.owner_id,
+                    "代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键，合并入口）"
+                );
+            }
+        }
 
+        // 预校验每一条重复线索（存在的行）均过写侧归属门并收集待合并行；
+        // 任一行被拒即整笔拒绝，此时尚无任何写操作，天然零漂移
+        let mut dup_targets: Vec<crm_lead::Model> = Vec::new();
         for dup_id in &duplicate_lead_ids {
             if *dup_id == master_lead_id {
                 continue;
@@ -882,18 +1102,53 @@ impl CrmService {
                 .one(&txn)
                 .await?;
             if let Some(dup) = dup_lead {
-                let mut dup_active: crm_lead::ActiveModel = dup.into();
-                dup_active.lead_status = Set(Some(lead_status::LOST.to_string()));
-                dup_active.lost_reason = Set(Some(format!(
-                    "合并到主线索 {} ({})",
-                    master.lead_no, master_lead_id
-                )));
-                dup_active.updated_at = Set(Some(chrono::Utc::now()));
-                dup_active.updated_by = Set(Some(user_id));
-                let updated = dup_active.update(&txn).await?;
-                merged_lead_nos.push(updated.lead_no);
-                merged_count += 1;
+                if let Some(ctx) = data_scope {
+                    if !check_resource_write_owner(
+                        ctx,
+                        Some(dup.owner_id),
+                        dup.department_id,
+                        behalf_granted,
+                    ) {
+                        tracing::warn!(
+                            actor = ctx.user_id,
+                            lead_id = *dup_id,
+                            resource_owner = dup.owner_id,
+                            "合并重复线索未过跨 owner 写门，整笔拒绝（原因不外显）"
+                        );
+                        return Err(AppError::permission_denied(format!(
+                            "无权合并线索 {}（数据范围限制：重复线索非本人行且未持代操作授权）",
+                            dup_id
+                        )));
+                    }
+                    if behalf_granted && dup.owner_id != ctx.user_id && ctx.scope == DataScope::All
+                    {
+                        tracing::info!(
+                            actor = ctx.user_id,
+                            resource = "线索合并（重复线索）",
+                            resource_owner = dup.owner_id,
+                            "代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键，合并入口）"
+                        );
+                    }
+                }
+                dup_targets.push(dup);
             }
+        }
+
+        let mut merged_count = 0i32;
+        let mut merged_lead_nos = Vec::new();
+
+        for dup in dup_targets {
+            let mut dup_active: crm_lead::ActiveModel = dup.into();
+            dup_active.lead_status = Set(Some(lead_status::LOST.to_string()));
+            dup_active.lost_reason = Set(Some(format!(
+                "合并到主线索 {} ({})",
+                master.lead_no, master_lead_id
+            )));
+            dup_active.updated_at = Set(Some(chrono::Utc::now()));
+            dup_active.updated_by = Set(Some(user_id));
+            let updated = dup_active.update(&txn).await?;
+            merged_lead_nos.push(updated.lead_no);
+            merged_count += 1;
         }
 
         txn.commit().await?;

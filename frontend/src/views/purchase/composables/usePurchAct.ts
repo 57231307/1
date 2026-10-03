@@ -58,6 +58,23 @@ export function usePurchAct(
   };
 
   /**
+   * 明细行保存成功后回源刷新对话框数据（任务 #145）：
+   * 派生金额列（subtotal/discount_amount/tax_amount/total_amount）与供应商保密
+   * 快照列均由后端权威口径重算/反查，前端不得本地拼算——重取详情覆盖 viewData，
+   * 保证"保存后重开仍是完整值"。取不到新数据时如实记日志并保留旧值，不清空。
+   */
+  const refreshViewData = async () => {
+    const current = viewData.value;
+    if (!current) return;
+    try {
+      const res = await getPurchaseOrderById(current.id);
+      if (res.data) viewData.value = res.data;
+    } catch (error) {
+      logger.error(msg.translate('loadPurchaseOrderDetailFailed'), error);
+    }
+  };
+
+  /**
    * 审批采购单
    */
   const handleApprove = async (row: PurchaseOrder) => {
@@ -225,6 +242,7 @@ export function usePurchAct(
     viewDialogVisible,
     viewData,
     handleView,
+    refreshViewData,
     handleApprove,
     handlePrint,
     handleExport,

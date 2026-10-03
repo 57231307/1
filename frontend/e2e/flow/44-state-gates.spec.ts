@@ -5,7 +5,7 @@ import {
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
-  expectBadRequest,
+  expectBusinessRejection,
   tryCleanup,
   ensureTestEntities,
   getCtx,
@@ -103,7 +103,7 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
         { subject_code: '1002', debit: '0.00', credit: '99.00', summary: '44d-1 贷方' },
       ],
     });
-    expectBadRequest(r, '借贷不平衡凭证创建应被拒（借100 != 贷99）');
+    expectBusinessRejection(r, '借贷不平衡凭证创建应被拒（借100 != 贷99）');
   });
 
   test('44d-2 借贷平衡：draft 直接过账被拒（workflow.rs:131-133 仅 reviewed 可过账）', async ({
@@ -112,14 +112,14 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     const id = await createVoucher(page, '100.00', '100.00');
     expect(id, '平衡凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/post`);
-    expectBadRequest(r, 'draft 凭证直接过账应被拒（仅 reviewed 可过账）');
+    expectBusinessRejection(r, 'draft 凭证直接过账应被拒（仅 reviewed 可过账）');
   });
 
   test('44d-3 状态不可逆：draft 直接审核被拒（需先 submit）', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '100.00');
     expect(id, '凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/review`);
-    expectBadRequest(r, 'draft 凭证直接审核应被拒（需先 submit → reviewed）');
+    expectBusinessRejection(r, 'draft 凭证直接审核应被拒（需先 submit → reviewed）');
   });
 
   test('44d-4 状态机不可逆：提交→提交重复被拒（防重复提交）', async ({ page }) => {
@@ -128,7 +128,7 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     const r1 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expect(r1.status, '平衡凭证首次提交应成功').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
-    expectBadRequest(r2, '已提交凭证再次提交应被拒（draft→submitted 不可逆）');
+    expectBusinessRejection(r2, '已提交凭证再次提交应被拒（draft→submitted 不可逆）');
   });
 });
 
@@ -172,7 +172,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       items: [],
     });
-    expectBadRequest(r, '空明细采购订单创建/提交应被拒');
+    expectBusinessRejection(r, '空明细采购订单创建/提交应被拒');
   });
 
   test('44b-2 二次提交拦截（contract.rs:63-71 仅 DRAFT/REJECTED 可提交）', async ({ page }) => {
@@ -181,7 +181,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     const r1 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${orderId}/submit`);
     expect(r1.status, '首次提交应成功').toBeLessThan(300);
     const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${orderId}/submit`);
-    expectBadRequest(r2, '已提交订单二次提交应被拒（防重复提交幂等）');
+    expectBusinessRejection(r2, '已提交订单二次提交应被拒（防重复提交幂等）');
   });
 
   test('44b-3 DRAFT 直接审批被拒（contract.rs:160-165 仅 PENDING_APPROVAL 可审批）', async ({
@@ -190,12 +190,12 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     const id = await createOrder(page);
     expect(id, 'PO 创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/approve`);
-    expectBadRequest(r, 'DRAFT 订单直接审批应被状态门拒绝');
+    expectBusinessRejection(r, 'DRAFT 订单直接审批应被状态门拒绝');
   });
 
   test('44b-4 不存在订单操作返回 4xx（路由健壮性）', async ({ page }) => {
     const r = await apiCallExpectFail(page, 'POST', '/purchase/orders/99999999/approve');
-    expectBadRequest(r, '不存在订单的审批应 4xx');
+    expect(r.status, `不存在订单的审批应 404 not found，实际=${r.status}`).toBe(404);
   });
 
   test('44b-5 close 状态门（lifecycle.rs:43 订单状态不允许关闭）', async ({ page }) => {
@@ -203,7 +203,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     expect(id, 'PO 创建失败').toBeTruthy();
     // DRAFT 不在可关闭状态集
     const r = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/close`);
-    expectBadRequest(r, 'DRAFT 订单关闭应被拒（订单状态不允许关闭）');
+    expectBusinessRejection(r, 'DRAFT 订单关闭应被拒（订单状态不允许关闭）');
   });
 
   test('44b-6 取消状态门：DRAFT 可取消（正向）+ 二次取消被拒', async ({ page }) => {
@@ -216,10 +216,10 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
     const r2 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/cancel`, {
       reason: 'E2E 44b-6 二次取消',
     });
-    expectBadRequest(r2, 'CANCELLED 为终态，二次取消应被拒');
+    expectBusinessRejection(r2, 'CANCELLED 为终态，二次取消应被拒');
     // 取消后提交被拒（终态拦截）
     const r3 = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/submit`);
-    expectBadRequest(r3, '已取消订单提交应被拒');
+    expectBusinessRejection(r3, '已取消订单提交应被拒');
   });
 });
 
@@ -241,7 +241,7 @@ test.describe.serial('44g 唯一性/幂等负例（盘点规则抽样）', () =>
       name,
       description: '44g 唯一性负例-重名',
     });
-    expectBadRequest(r2, '重名部门创建应被拒');
+    expectBusinessRejection(r2, '重名部门创建应被拒');
   });
 
   test('44g-2 凭证列表可达（对照 44d 负例的 sanity check）', async ({ page }) => {

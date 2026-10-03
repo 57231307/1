@@ -6,7 +6,8 @@ use crate::models::role_permission;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::admin_checker;
 use crate::utils::path_utils::{
-    is_known_resource_segment, is_module_prefix, resolve_module_prefixed_resource,
+    is_known_resource_segment, is_module_prefix, is_nested_module_prefix,
+    resolve_module_prefixed_resource,
 };
 use crate::utils::request_ext::PublicPathCache;
 use crate::utils::response::{forbidden_response, unauthorized_response};
@@ -98,9 +99,14 @@ pub async fn permission_middleware(
     let auth = extract_auth_context(&request).map_err(|e| *e)?;
     tracing::debug!("权限检查: user_id={}, path={}", auth.user_id, path);
 
-    let role_id = extract_role_id(&auth).map_err(|e| *e)?;
-
-    // V15 P1-5-3：认证豁免 RBAC 路径（如前端打印审计埋点），仅需认证 + role_id
+    // V15 P1-5-3：认证豁免 RBAC 路径（自服务端点）——仅需 JWT 认证，不查业务权限码，
+    // 也不要求 role_id。
+    // 本判定必须在 extract_role_id **之前**：白名单里三个端点（/auth/me、/ws/ticket、
+    // /users/change-password）都只按调用者自身身份工作、不需要任何业务权限码；
+    // 若先取 role_id，未分配角色的账号连"读自己的身份/改自己的密码"都会被
+    // extract_role_id 的固定 403「没有关联角色」拦死（与批次 24 v6 P0-2 为 /auth/me
+    // 根治的"刷新即 403 跳登录"完全同型，只是命中的是改密自助面）。
+    // 越权面不因此放宽：跳过 RBAC 后各 handler 自身的"只操作 auth.user_id"约束不变。
     if is_auth_only_path(path) {
         tracing::debug!(
             "认证豁免 RBAC 路径放行: path={}, user_id={}",
@@ -109,6 +115,8 @@ pub async fn permission_middleware(
         );
         return Ok(next.run(request).await);
     }
+
+    let role_id = extract_role_id(&auth).map_err(|e| *e)?;
 
     validate_route_whitelist(path).map_err(|e| *e)?;
     let (resource_type, resource_id, action) = extract_route_info(path, uri, method);
@@ -272,7 +280,7 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         // 当 segment3 与 segment4 均为模块前缀时，使用 segment5 作为资源类型
         // V15 P1-14.4-C：对模块前缀下的资源进行消歧（如 purchase/orders → purchase-orders）
         let resource_type = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
-            if is_module_prefix(path_parts[4]) && path_parts.len() >= 6 {
+            if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
                 resolve_module_prefixed_resource(path_parts[3], path_parts[5])
             } else {
                 resolve_module_prefixed_resource(path_parts[3], path_parts[4])
@@ -285,7 +293,7 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         // V15 P0-S20 修复：跳过路径中的动作段（如 approve/export/print），
         // 避免动作关键字被误认为资源ID
         let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
-            if is_module_prefix(path_parts[4]) && path_parts.len() >= 6 {
+            if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
                 6
             } else {
                 5

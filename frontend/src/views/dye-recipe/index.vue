@@ -347,7 +347,7 @@ import {
   exportDyeRecipes,
 } from '@/api/dye-recipe';
 import { DYE_RECIPE_STATUS } from '@/api/dye-recipe';
-import type { DyeRecipe, DyeRecipeStatus } from '@/api/dye-recipe';
+import type { DyeRecipe, DyeRecipeStatus, DyeRecipeUpdatePayload } from '@/api/dye-recipe';
 import { logger } from '@/utils/logger';
 import { useUserStore } from '@/store/user';
 import { useTableApi } from '@/composables/useTableApi';
@@ -460,7 +460,8 @@ const handleCreate = () => {
 const handleView = (row: DyeRecipe) => {
   dialogTitle.value = t('dyeRecipe.index.titleView');
   isView.value = true;
-  Object.assign(formData, row);
+  // 正文回显：后端出参键为 chemical_formula，对话框绑定 content——不显式映射则编辑/查看正文恒空
+  Object.assign(formData, row, { content: row.chemical_formula ?? '' });
   dialogVisible.value = true;
 };
 
@@ -468,7 +469,7 @@ const handleView = (row: DyeRecipe) => {
 const handleEdit = (row: DyeRecipe) => {
   dialogTitle.value = t('dyeRecipe.index.titleEdit');
   isView.value = false;
-  Object.assign(formData, row);
+  Object.assign(formData, row, { content: row.chemical_formula ?? '' });
   dialogVisible.value = true;
 };
 
@@ -526,7 +527,7 @@ const handleViewVersion = (row: DyeRecipe) => {
   versionVisible.value = false;
   dialogTitle.value = t('dyeRecipe.index.titleViewVersion', { version: row.version });
   isView.value = true;
-  Object.assign(formData, row);
+  Object.assign(formData, row, { content: row.chemical_formula ?? '' });
   dialogVisible.value = true;
 };
 
@@ -553,14 +554,29 @@ const handleSubmitForm = async () => {
   try {
     await formRef.value?.validate();
     // 后端 CreateDyeRecipeRequest 字段为 color_code（表单绑定 color_no），
-    // 提交时映射，否则 serde 忽略 color_no → color_code=None → DB NOT NULL 违反 500
-    const payload = {
-      ...formData,
-      color_code: formData.color_no,
-    };
+    // 提交时映射，否则 serde 忽略 color_no → color_code=None → DB NOT NULL 违反 500。
+    // 正文列后端键为 chemical_formula（表单绑定 content）——此前整表单直传时 content
+    // 被 serde 丢弃、正文从未落库，现显式映射（契约修复，需联调验证编辑回写）。
     if (formData.id) {
-      await updateDyeRecipe(formData.id, payload);
+      // 三态语义（后端 UpdateDyeRecipeRequest DoubleOption，RFC 7386）：
+      // 对话框已回显原值；可空列 UI 清空 ⇒ 送显式 null（=清空为 NULL）、未改动 ⇒ 原值回传；
+      // color_code 为 NOT NULL（m0003:30）恒送值（送 null 会被后端拒绝）；
+      // 未采集键（fabric_type/dye_type/temperature/time_minutes/ph_value/
+      // liquor_ratio/auxiliaries/status）省略 = 保持原值
+      const updatePayload: DyeRecipeUpdatePayload = {
+        color_no: formData.color_no || null,
+        color_code: formData.color_no,
+        color_name: formData.color_name || null,
+        chemical_formula: formData.content || null,
+        remarks: formData.remarks || null,
+      };
+      await updateDyeRecipe(formData.id, updatePayload);
     } else {
+      const payload = {
+        ...formData,
+        color_code: formData.color_no,
+        chemical_formula: formData.content || null,
+      };
       await createDyeRecipe(payload);
     }
     ElMessage.success(t('dyeRecipe.index.messageSaveSuccess'));

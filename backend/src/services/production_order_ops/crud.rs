@@ -1,7 +1,7 @@
 //! 生产订单-CRUD 子模块（production_order_ops/crud）
 //!
 //! 批次 488 D10-2 拆分：从原 `production_order_service.rs` L92-624 迁移。
-//! 包含 14 个 CRUD 与状态校验方法：
+//! 包含 13 个 CRUD 与状态校验方法：
 //! - validate_product_exists / validate_sales_order_exists / validate_work_center_exists（私有 &self）
 //! - generate_unique_order_no / generate_rework_order_no（私有 &self）
 //! - validate_status_transition（`pub(crate)` associated function，测试 + approval 子模块跨 impl 块调用）
@@ -11,7 +11,7 @@
 //!
 //! 业务规则：
 //! - 创建订单后触发 MRP 物料需求计算（失败 warn 不阻塞）
-//! - 返工订单使用 RW- 前缀，不触发 MRP
+//! - 返工订单使用 RW 前缀，不触发 MRP
 //! - 状态转换校验基于状态机白名单（validate_status_transition）
 //! - COMPLETED 状态走 complete_production_order 专用路径（completion 子模块）
 //! - 排产状态变更走 check_capacity_for_scheduling 产能校验（completion 子模块）
@@ -20,8 +20,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, JoinType, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, JoinType, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::models::production_order::{
@@ -87,27 +87,19 @@ impl ProductionOrderService {
         Ok(())
     }
 
-    /// 生成唯一订单号（带重试机制）
+    /// 生成生产订单号（统一生成器：`PO{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
     async fn generate_unique_order_no(&self) -> Result<String, AppError> {
-        let max_retries = 5;
-        for _ in 0..max_retries {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            let order_no = format!("PO-{}-{:04}", timestamp, random);
-
-            // 检查订单号是否已存在
-            let existing = ProductionOrderEntity::find()
-                .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
-                .one(&*self.db)
-                .await?;
-
-            if existing.is_none() {
-                return Ok(order_no);
-            }
-        }
-        Err(AppError::internal(
-            "无法生成唯一订单号，请稍后重试".to_string(),
-        ))
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PO",
+            ProductionOrderEntity,
+            crate::models::production_order::Column::OrderNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "生产订单号生成失败");
+            AppError::business_displayable("生产订单号生成失败，请稍后重试")
+        })
     }
 
     /// 验证状态转换是否合法（`pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。）
@@ -174,13 +166,17 @@ impl ProductionOrderService {
         }
     }
 
-    /// 创建生产订单（校验引用 + 解析订单号 + 写入 + 触发 MRP 计算，失败 warn 不阻塞）
+    /// 创建生产订单（校验引用 + 服务端取号 + 写入 + 触发 MRP 计算，失败 warn 不阻塞）
+    ///
+    /// 单号禁手输（任务 #153 缺陷3）：`CreateProductionOrderRequest` 类型上不存在
+    /// `order_no` 字段，任何调用方都无法注入外部编号；单号一律经
+    /// `DocumentNumberGenerator` 取号（advisory lock 串行化 + order_no UNIQUE 兜底）。
     pub async fn create(
         &self,
         req: CreateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
         self.validate_create_references(&req).await?;
-        let order_no = self.resolve_order_no(req.order_no.as_deref()).await?;
+        let order_no = self.generate_unique_order_no().await?;
         let active_model = Self::build_create_active_model(order_no, &req);
         let model = self.insert_production_order(active_model).await?;
         self.trigger_mrp_for_order(&model, req.planned_end_date)
@@ -216,37 +212,28 @@ impl ProductionOrderService {
         Ok(())
     }
 
-    /// 解析订单号：用户提供则校验唯一，否则自动生成
-    async fn resolve_order_no(&self, order_no: Option<&str>) -> Result<String, AppError> {
-        match order_no {
-            Some(no) => {
-                let existing = ProductionOrderEntity::find()
-                    .filter(crate::models::production_order::Column::OrderNo.eq(no))
-                    .one(&*self.db)
-                    .await?;
-                if existing.is_some() {
-                    return Err(AppError::validation(format!("订单号 {} 已存在", no)));
-                }
-                Ok(no.to_string())
-            }
-            None => self.generate_unique_order_no().await,
-        }
-    }
-
-    /// 构建创建生产订单的 ActiveModel（DRAFT 状态 + 默认优先级 0）
+    /// 构建创建生产订单的 ActiveModel
+    ///
+    /// 默认值单一来源纪律（任务 #153）：
+    /// - `status` 不显式 Set：由 DB `DEFAULT 'DRAFT'`（m0007:84）生效，代码侧不再
+    ///   硬编码第二处 DRAFT 字面量（PG 下 insert 经 RETURNING 回填完整实体）；
+    /// - `priority` 为 None 时不 Set：由 DB `DEFAULT 5`（m0007:85）生效，不再
+    ///   `unwrap_or_default()` 把"未指定"塌成 0（0 会抢占最高优先级）；
+    /// - `planned_quantity` 类型上必填（NOT NULL m0007:78，无 DB 默认值可回落），
+    ///   缺键由请求 DTO 的 serde required 语义 400 拒绝，服务层不做默认。
     fn build_create_active_model(
         order_no: String,
         req: &CreateProductionOrderRequest,
     ) -> ActiveModel {
-        ActiveModel {
+        let mut active_model = ActiveModel {
             order_no: Set(order_no),
             sales_order_id: Set(req.sales_order_id),
             product_id: Set(req.product_id),
-            planned_quantity: Set(req.planned_quantity.unwrap_or_default()),
+            planned_quantity: Set(req.planned_quantity),
             planned_start_date: Set(req.planned_start_date),
             planned_end_date: Set(req.planned_end_date),
-            status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            priority: Set(req.priority.unwrap_or_default()),
+            status: NotSet,
+            priority: NotSet,
             // order_type 列 NOT NULL 且无 DB 默认值，普通创建固定 'normal'
             //（返工路径见 create_rework_order，Set 'rework'）；缺失会 500
             order_type: Set("normal".to_string()),
@@ -256,7 +243,11 @@ impl ProductionOrderService {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
+        };
+        if let Some(priority) = req.priority {
+            active_model.priority = Set(priority);
         }
+        active_model
     }
 
     /// 插入生产订单（处理唯一约束冲突为 validation 错误）
@@ -267,7 +258,8 @@ impl ProductionOrderService {
         active.insert(&*self.db).await.map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                AppError::validation("订单号已存在，请稍后重试")
+                // 唯一性冲突（DB 约束兜底）：归业务族；文案已剔除 SQL/约束原文，只述业务事实可外显
+                AppError::business_displayable("订单号已存在，请稍后重试")
             } else {
                 AppError::database(e.to_string())
             }
@@ -306,7 +298,7 @@ impl ProductionOrderService {
     }
 
     /// V15 Batch 479 P0-F21：创建返工生产订单
-    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；自动生成订单号 RW-YYYYMMDD-NNN
+    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；自动生成订单号 RW{YYYYMMDD}{NNN}
     pub async fn create_rework_order(
         &self,
         product_id: i32,
@@ -323,7 +315,7 @@ impl ProductionOrderService {
             self.validate_sales_order_exists(sales_order_id).await?;
         }
 
-        // 生成返工订单号 RW-YYYYMMDD-NNN
+        // 生成返工订单号 RW{YYYYMMDD}{NNN}（统一生成器）
         let order_no = self.generate_rework_order_no().await?;
 
         let now = Utc::now();
@@ -350,7 +342,8 @@ impl ProductionOrderService {
         let model = active_model.insert(&*self.db).await.map_err(|e| {
             let err_str = e.to_string();
             if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                AppError::validation("返工订单号已存在，请稍后重试")
+                // 唯一性冲突（返工单号 DB 约束兜底）：归业务族；文案不含 SQL/表名可外显
+                AppError::business_displayable("返工订单号已存在，请稍后重试")
             } else {
                 AppError::database(e.to_string())
             }
@@ -362,33 +355,20 @@ impl ProductionOrderService {
         Ok(model)
     }
 
-    /// 生成唯一返工订单号 RW-YYYYMMDD-NNN（与 generate_unique_order_no 区别：使用 RW- 前缀标识返工订单）
+    /// 生成返工订单号（统一生成器：`RW{YYYYMMDD}{3位流水}`，与 PO 前缀区分返工订单；
+    /// RW 与 PO 同表同列，前缀不同、流水互不侵占）
     async fn generate_rework_order_no(&self) -> Result<String, AppError> {
-        let date_str = chrono::Utc::now().format("%Y%m%d").to_string();
-        for attempt in 0..10 {
-            let seq = if attempt == 0 {
-                // 首次尝试基于当前秒数生成，减少 DB 查询
-                let secs = chrono::Utc::now().timestamp() % 1000;
-                format!("{:03}", secs)
-            } else {
-                format!("{:03}", 100 + attempt)
-            };
-            let order_no = format!("RW-{}-{}", date_str, seq);
-            let exists = ProductionOrderEntity::find()
-                .filter(crate::models::production_order::Column::OrderNo.eq(&order_no))
-                .one(&*self.db)
-                .await?
-                .is_some();
-            if !exists {
-                return Ok(order_no);
-            }
-        }
-        // 兜底：使用 UUID 片段
-        Ok(format!(
-            "RW-{}-{}",
-            date_str,
-            chrono::Utc::now().timestamp_millis() % 10000
-        ))
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "RW",
+            ProductionOrderEntity,
+            crate::models::production_order::Column::OrderNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "返工订单号生成失败");
+            AppError::business_displayable("返工订单号生成失败，请稍后重试")
+        })
     }
 
     /// 根据ID获取生产订单
@@ -497,11 +477,28 @@ impl ProductionOrderService {
     }
 
     /// 更新生产订单
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set（列不进 UPDATE，原值不动）；Some(None)=Set(None) 置 NULL（仅 DB 可空列）；
+    /// Some(Some(v))=Set(v) 覆盖。NOT NULL 列（planned_quantity/priority）的显式 null
+    /// 在任何 DB 访问前以业务错误拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateProductionOrderRequest,
     ) -> Result<ProductionOrderModel, AppError> {
+        // NOT NULL 列门控（planned_quantity NOT NULL m0007:78、priority NOT NULL m0007:84）：
+        if matches!(req.planned_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "计划数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.priority, Some(None)) {
+            return Err(AppError::business_displayable(
+                "优先级不能清空：该字段为必填项",
+            ));
+        }
+
         let model = ProductionOrderEntity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -521,23 +518,25 @@ impl ProductionOrderService {
 
         let mut active_model: ActiveModel = model.into();
 
-        if let Some(planned_quantity) = req.planned_quantity {
-            active_model.planned_quantity = Set(planned_quantity);
+        // planned_quantity/priority 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.planned_quantity.flatten() {
+            active_model.planned_quantity = Set(v);
         }
-        if let Some(planned_start_date) = req.planned_start_date {
-            active_model.planned_start_date = Set(Some(planned_start_date));
+        if let Some(v) = req.priority.flatten() {
+            active_model.priority = Set(v);
         }
-        if let Some(planned_end_date) = req.planned_end_date {
-            active_model.planned_end_date = Set(Some(planned_end_date));
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.planned_start_date {
+            active_model.planned_start_date = Set(v);
         }
-        if let Some(priority) = req.priority {
-            active_model.priority = Set(priority);
+        if let Some(v) = req.planned_end_date {
+            active_model.planned_end_date = Set(v);
         }
-        if let Some(work_center_id) = req.work_center_id {
-            active_model.work_center_id = Set(Some(work_center_id));
+        if let Some(v) = req.work_center_id {
+            active_model.work_center_id = Set(v);
         }
-        if let Some(remarks) = req.remarks {
-            active_model.remarks = Set(Some(remarks));
+        if let Some(v) = req.remarks {
+            active_model.remarks = Set(v);
         }
 
         active_model.updated_at = Set(Utc::now());

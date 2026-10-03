@@ -113,13 +113,13 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
 
   test('P1-5 验证未知路由 fail-closed', async ({ page }) => {
     const result = await apiCallExpectFail(page, 'GET', '/unknown-module/unknown-resource');
-    expect(result.status).toBeGreaterThanOrEqual(400);
+    expect(result.status, '未注册路由应返回 404（而非 500 或其他 4xx/5xx）').toBe(404);
   });
 
   test('P1-6 验证资源 ID 精确匹配（防垂直越权）', async ({ page }) => {
-    // 尝试访问不存在的资源 ID
+    // 尝试访问不存在的资源 ID：后端应返回 404（not found），非 403（forbidden）
     const result = await apiCallExpectFail(page, 'GET', '/users/99999999');
-    expect(result.status === 404 || result.status === 403 || result.status >= 400).toBeTruthy();
+    expect(result.status, `不存在的用户 ID 应返回 404 not found，实际=${result.status}`).toBe(404);
   });
 
   test('P1-7 验证数据权限行级隔离（Dept 级别）', async ({ page }) => {

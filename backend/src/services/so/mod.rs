@@ -47,7 +47,7 @@ pub struct SalesOrderDetail {
     pub customer_name: Option<String>,
     pub opportunity_id: Option<i32>,
     pub order_date: chrono::DateTime<chrono::Utc>,
-    pub required_date: chrono::DateTime<chrono::Utc>,
+    pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     pub ship_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: String,
     pub subtotal: rust_decimal::Decimal,

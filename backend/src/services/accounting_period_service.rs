@@ -143,7 +143,7 @@ impl AccountingPeriodService {
         reason: &str,
     ) -> Result<accounting_period::Model, AppError> {
         if reason.trim().is_empty() {
-            return Err(AppError::validation("反结账失败：原因不能为空"));
+            return Err(AppError::validation_displayable("反结账失败：原因不能为空"));
         }
         let txn = (*self.db).begin().await?;
         // 锁定期间防止并发

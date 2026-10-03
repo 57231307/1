@@ -137,8 +137,7 @@ pub async fn create_indicator(
     Json(req): Json<CreateIndicatorDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FinancialAnalysisService::new(state.db.clone());
 
@@ -181,7 +180,7 @@ pub async fn get_trends(
     // 指标 ID 缺失时返回 4xx 错误，避免脏 indicator_id=0 污染
     let indicator_id: i32 = params
         .indicator_id
-        .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
+        .ok_or_else(|| AppError::validation_displayable("财务分析请求缺少指标ID"))?;
     let limit = params.page_size.unwrap_or(50).clamp(1, 100);
 
     let trends = service
@@ -213,7 +212,7 @@ pub async fn get_trend_analysis(
 
     let indicator_id: i32 = params
         .indicator_id
-        .ok_or_else(|| AppError::validation("财务分析请求缺少指标ID"))?;
+        .ok_or_else(|| AppError::validation_displayable("财务分析请求缺少指标ID"))?;
 
     let analysis = service
         .get_trend_analysis(
@@ -235,8 +234,7 @@ pub async fn create_trend(
     Json(req): Json<CreateTrendDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FinancialAnalysisService::new(state.db.clone());
 
@@ -264,25 +262,26 @@ pub async fn create_trend(
 }
 
 /// GET /api/v1/erp/financial-analysis/reports - 财务分析报告列表
+///
+/// `Query<serde_json::Value>` + `as_i64()` 对 urlencoded 的 `?page=3` 恒失败并静默回落第 1 页。
+/// 改 typed DTO：serde 完成字符串→整数转换，非法值 400，分页真正生效。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ListReportsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_reports(
     State(state): State<AppState>,
     _auth: AuthContext,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<ListReportsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params
-        .get("page")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1)
-        .clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-
-    let page_size = params
-        .get("page_size")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(20)
-        .clamp(1, 100); // v11 批次 36 修复：防止 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v11 批次 36 修复：防止 DoS
 
     let query_params = IndicatorQueryParams {
         page: page.saturating_sub(1),
@@ -412,8 +411,7 @@ pub async fn update_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let existing = financial_analysis::Entity::find_by_id(id)
         .one(state.db.as_ref())

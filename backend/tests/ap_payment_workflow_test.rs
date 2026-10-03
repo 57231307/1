@@ -77,20 +77,31 @@ async fn test_appaymentservice_slhbcfdb() {
     let _ = svc;
 }
 
-/// test_appaymentservice_get_by_id_kdbfherr
+/// test_appaymentservice_get_by_id_kdbfherr —— 依据 R-9 拆前提后**只钉一件事**：
+/// schema 缺失（表根本不存在）时的报错形态。
 ///
-/// 验证在空 SQLite 数据库上 get_by_id 方法返回 Err 而非 panic。
+/// 原写法与兄弟 `get_list` 共用 `setup_test_db()`（语义早已改为"已迁移 PG + TRUNCATE
+/// 业务表"，见 `src/services/test_common.rs`），两条断同一个 `is_err()`：
+/// 那样必有一条是假绿——空表上 `get_by_id` 走"记录不存在"、空表上 `get_list` 走
+/// `Ok(空)`，两者语义完全不同。本条改绑 `connect_empty_schema_db()`（对不跑迁移的
+/// `bingxi_empty` 库），钉的是"表不存在 ⇒ 返回 Err 而不是 panic"。
 #[tokio::test]
 async fn test_appaymentservice_get_by_id_kdbfherr() {
-    let db = setup_test_db().await;
+    let db = test_common::connect_empty_schema_db().await;
     let svc = ApPaymentService::new(Arc::new(db));
     let result = svc.get_by_id(1, None).await;
-    assert!(result.is_err(), "空 DB 上 get_by_id 应返回 Err");
+    assert!(
+        result.is_err(),
+        "schema 缺失（无 ap_payment 表）时 get_by_id 必须返回 Err 而非 panic"
+    );
 }
 
-/// test_appaymentservice_get_list_kdbfherr
+/// test_appaymentservice_get_list_kdbfherr —— 依据 R-9 只钉另一件事：
+/// 已建库、业务表已清空 ⇒ `get_list` 不 panic 且返回**空集**（total=0）。
 ///
-/// 验证在空 SQLite 数据库上 get_list 方法返回 Err 而非 panic。
+/// 原断 `is_err()` 是把"真库化夹具"当成"空 SQLite"的过期前提：TRUNCATE 后表存在且为空，
+/// 返回 `Ok(([], 0))` 才是正确契约（判责原文 ci4671-triage.md:139）。
+/// 要验 schema 缺失的报错形态请见上一条用例。
 #[tokio::test]
 async fn test_appaymentservice_get_list_kdbfherr() {
     let db = setup_test_db().await;
@@ -104,8 +115,16 @@ async fn test_appaymentservice_get_list_kdbfherr() {
         page: 1,
         page_size: 20,
     };
-    let result = svc.get_list(query, None).await;
-    assert!(result.is_err(), "空 DB 上 get_list 应返回 Err");
+    let (items, total) = svc
+        .get_list(query, None)
+        .await
+        .expect("已建库空表上 get_list 应返回 Ok 空集，而非 Err/panic");
+    assert!(
+        items.is_empty(),
+        "夹具已 TRUNCATE 业务表，列表必须是空集，实得 {} 行",
+        items.len()
+    );
+    assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
 /// test_appaymentservice_confirm_kdbfherr

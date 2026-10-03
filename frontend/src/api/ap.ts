@@ -42,10 +42,17 @@ export interface APPayment {
   /** 来源付款申请 ID（后端 models/ap_payment.rs:33 request_id: Option<i32>，nullable 故前端 ? ） */
   request_id?: number;
   payment_date: string;
-  payment_amount: number;
+  /**
+   * 后端 models/ap_payment.rs:41 payment_amount 为 rust_decimal（serde 序列化为**十进制字符串**），
+   * 声明成 number 会在 `.toFixed` 处运行期崩（先例 commit 83b8028b/42f67500）。
+   */
+  payment_amount: string;
   payment_method: string;
   payment_status: APPaymentStatus;
-  currency?: string;
+  /** 后端列 NOT NULL（models/ap_payment.rs:49 currency: String），缺键即契约断裂，前端不得标 `?` */
+  currency: string;
+  /** 后端 models/ap_payment.rs:53 exchange_rate 为 rust_decimal NOT NULL，出参十进制字符串 */
+  exchange_rate: string;
   bank_name?: string;
   bank_account?: string;
   transaction_no?: string;
@@ -78,12 +85,17 @@ export interface APPaymentRequest {
   id: number;
   request_no: string;
   supplier_id: number;
-  request_amount: number;
+  /** GET /ap/payment-requests 直接序列化实体 models/ap_payment_request.rs:42，
+   * request_amount 为 rust_decimal，出参是**十进制字符串**（number 声明会在 .toFixed 运行期崩） */
+  request_amount: string;
   request_date: string;
   approval_status: APPaymentRequestStatus;
-  payment_method?: string;
-  payment_type?: string;
-  currency?: string;
+  /** 以下四列后端均 NOT NULL（models/ap_payment_request.rs:30-54），响应必存在，不得标 `?` */
+  payment_method: string;
+  payment_type: string;
+  currency: string;
+  /** rust_decimal 出参十进制字符串（models/ap_payment_request.rs:54） */
+  exchange_rate: string;
   expected_payment_date?: string;
   bank_name?: string;
   bank_account?: string;
@@ -115,7 +127,16 @@ export interface APReconciliation {
   supplier_name: string;
   reconciliation_date: string;
   total_invoice_amount: number;
-  total_payment_amount: number;
+  /**
+   * 后端 ap_reconciliation 实体金额列 rust_decimal（models/ap_reconciliation.rs:45），
+   * serde 序列化为**十进制字符串**；声明 number 属类型谎言（.toFixed 运行期崩族，
+   * 先例 commit 83b8028b/42f67500；Rust 契约锁 contract_wave6:574 对 payment/request/
+   * exchange 三类金额键名全局禁 number 声明且扫描含注释，本键名以其子串
+   * total_payment_amount 同形命中）。
+   * ⚠️ 注：本接口键名与后端真实出参键（total_invoice/total_payment/closing_balance）
+   * 整体错位属独立契约漂移，已列入交付报告交主编排立案，本次只按判责修值类型。
+   */
+  total_payment_amount: string;
   difference_amount: number;
   status: string;
   confirmed_by?: string;
@@ -148,7 +169,32 @@ export function getAPInvoice(id: number): Promise<ApiResponse<APInvoice>> {
   return request.get(`/ap/invoices/${id}`);
 }
 
-export function createAPInvoice(data: Partial<APInvoice>): Promise<ApiResponse<APInvoice>> {
+/**
+ * 创建应付单请求体：逐字段对齐后端
+ * `services/ap_invoice_ops/types.rs::CreateApInvoiceRequest`（全 Option）。
+ */
+export interface CreateAPInvoiceRequest {
+  supplier_id?: number;
+  invoice_type?: string;
+  /** NaiveDate: YYYY-MM-DD */
+  invoice_date?: string;
+  /** NaiveDate: YYYY-MM-DD */
+  due_date?: string;
+  payment_terms?: number;
+  amount?: number;
+  currency?: string;
+  /**
+   * 后端 CreateApInvoiceRequest.exchange_rate 为 Option<rust_decimal>
+   * （services/ap_invoice_ops/types.rs），本仓请求侧小数键口径=十进制字符串下发
+   * （先例见 apply_amount 注释，后端 Deserialize 同时接受字符串）。
+   */
+  exchange_rate?: string;
+  tax_amount?: number;
+  notes?: string;
+  attachment_urls?: string[];
+}
+
+export function createAPInvoice(data: CreateAPInvoiceRequest): Promise<ApiResponse<APInvoice>> {
   return request.post('/ap/invoices', data);
 }
 
@@ -268,6 +314,65 @@ export interface ApPaymentRequestQueryParams {
   page_size?: number;
 }
 
+/**
+ * 付款申请明细行入参：逐字段对齐后端 `ApPaymentRequestItemDto`
+ * （backend/src/services/ap_payment_request_service.rs:660-670）。
+ * apply_amount 为 rust_decimal：请求侧以十进制字符串下发（后端 Deserialize 接受字符串，
+ * 且字符串可避免 number 浮点表示误差落进金额字段）。
+ */
+export interface ApPaymentRequestItemInput {
+  invoice_id: number;
+  apply_amount: string;
+  notes?: string;
+}
+
+/**
+ * 创建付款申请入参：逐字段对齐后端 `CreateApPaymentRequest`
+ * （backend/src/services/ap_payment_request_service.rs:599-657）。
+ * items 为 Option<Vec<...>>（:655-656 #[serde(default)]）：创建可缺省明细，
+ * 但 submit 门控强制「至少一条真实已审批应付单明细」（同文件 :330-339），
+ * 无明细的申请不可提交审批。
+ */
+export interface CreateApPaymentRequestInput {
+  supplier_id: number;
+  /** NaiveDate：YYYY-MM-DD */
+  request_date: string;
+  payment_type: string;
+  payment_method: string;
+  /** rust_decimal：十进制字符串 */
+  request_amount: string;
+  currency?: string;
+  /** rust_decimal：十进制字符串；后端校验 >0 且 ≠0.01（validate_exchange_rate_payment :685-696） */
+  exchange_rate?: string;
+  expected_payment_date?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_account_name?: string;
+  notes?: string;
+  attachment_urls?: string[];
+  items?: ApPaymentRequestItemInput[];
+}
+
+/**
+ * 更新付款申请入参：逐字段对齐后端 `UpdateApPaymentRequest`
+ * （backend/src/services/ap_payment_request_service.rs:699-730）。
+ * 注意：更新契约**不含 items 与 supplier_id**——明细只能在创建时录入，
+ * 后端无付款申请明细的行级端点（routes/finance.rs:708-746 仅表头 CRUD + submit/approve/reject）。
+ */
+export interface UpdateApPaymentRequestInput {
+  request_date?: string;
+  payment_type?: string;
+  payment_method?: string;
+  /** rust_decimal：十进制字符串 */
+  request_amount?: string;
+  expected_payment_date?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_account_name?: string;
+  notes?: string;
+  attachment_urls?: string[];
+}
+
 export function getAPPaymentRequestList(
   params?: ApPaymentRequestQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APPaymentRequest>>> {
@@ -279,14 +384,14 @@ export function getAPPaymentRequest(id: number): Promise<ApiResponse<APPaymentRe
 }
 
 export function createAPPaymentRequest(
-  data: Partial<APPaymentRequest>
+  data: CreateApPaymentRequestInput
 ): Promise<ApiResponse<APPaymentRequest>> {
   return request.post('/ap/payment-requests', data);
 }
 
 export function updateAPPaymentRequest(
   id: number,
-  data: Partial<APPaymentRequest>
+  data: UpdateApPaymentRequestInput
 ): Promise<ApiResponse<APPaymentRequest>> {
   return request.put(`/ap/payment-requests/${id}`, data);
 }
@@ -461,36 +566,42 @@ export interface APInvoiceRelation {
 }
 
 // 统计报表数据
+// 金额键为后端 rust_decimal（ap_report_service.rs::ApStatisticsReport 金额字段全部
+// Decimal(:814/:817/:820/:835）），serde 序列化为十进制字符串；声明 number 属类型谎言
+// （#4671 判责 A3 同族未钉清单 557-560，.toFixed 运行期崩族，先例 83b8028b/42f67500）。
+// ⚠️ 本接口键名与后端现行为 ApStatisticsReport 出参键（total_invoice_amount/total_paid_amount/
+// total_unpaid_amount）整体错位属独立契约漂移，交主编排立案，本次只修值类型。
 export interface APStatisticsData {
   total_invoices: number;
-  total_amount: number;
-  paid_amount: number;
-  unpaid_amount: number;
-  overdue_amount: number;
+  total_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
+  overdue_amount: string;
   period: string;
 }
 
-// 日报数据
+// 日报数据（后端 ApDailyReport：new_invoice_amount/due_invoice_amount/payment_amount 均
+// Decimal → 十进制字符串，ap_report_service.rs:886 等；同上：键名错位属独立漂移）
 export interface APDailyReportData {
   date: string;
   invoice_count: number;
-  invoice_amount: number;
+  invoice_amount: string;
   payment_count: number;
-  payment_amount: number;
+  payment_amount: string;
   verification_count: number;
-  verification_amount: number;
+  verification_amount: string;
 }
 
-// 月报数据
+// 月报数据（金额键同口径：rust_decimal 出参=十进制字符串）
 export interface APMonthlyReportData {
   year: number;
   month: number;
   invoice_count: number;
-  invoice_amount: number;
+  invoice_amount: string;
   payment_count: number;
-  payment_amount: number;
+  payment_amount: string;
   verification_count: number;
-  verification_amount: number;
+  verification_amount: string;
 }
 
 // 账龄报表数据

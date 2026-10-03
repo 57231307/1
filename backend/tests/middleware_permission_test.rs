@@ -751,3 +751,69 @@ fn test_matches_permission_wildcard_resource_still_requires_id_match() {
     assert!(matches_permission(&p, "users", Some(100), "read"));
     assert!(matches_permission(&p, "users", Some(200), "read"));
 }
+
+// ===== 生产工单资源段消歧（path_utils.rs ("production","orders") → production-orders）=====
+// 缺陷背景：`/erp/production/production-orders/orders*` 是双层模块前缀，取 seg5="orders"
+// 走默认分支后派生成**销售订单**的 orders:* 码——销售角色（持 ("orders","read")）可越过
+// 生产域这道门读生产工单，而生产侧自己的 ("production-orders","*") 反成死码。
+// 本组用例双向钉：资源名对齐注册表权威名，且记录级 id 不得因此丢失。
+
+#[test]
+fn production_orders_route_resolves_to_production_orders_resource() {
+    let (rt, rid) = extract_resource_info("/api/v1/erp/production/production-orders/orders");
+    assert_eq!(
+        rt, "production-orders",
+        "生产工单列表不得再派生成销售的 orders 码"
+    );
+    assert_eq!(rid, None);
+
+    let (rt, rid) = extract_resource_info("/api/v1/erp/production/production-orders/orders/123");
+    assert_eq!(rt, "production-orders");
+    assert_eq!(
+        rid,
+        Some(123),
+        "消歧后记录级 id 必须仍被提取（否则对象级授权被拆掉）"
+    );
+
+    let (rt, rid) =
+        extract_resource_info("/api/v1/erp/production/production-orders/orders/123/approve");
+    assert_eq!(rt, "production-orders");
+    assert_eq!(rid, Some(123));
+    // 动作仍来自末段关键字（审批链权限键不因消歧漂移）
+    assert_eq!(
+        extract_action_from_path("/api/v1/erp/production/production-orders/orders/123/approve")
+            .as_deref(),
+        Some("approve")
+    );
+}
+
+#[test]
+fn sales_orders_code_no_longer_grants_production_orders_route() {
+    // 越权负例：销售侧 orders 读码不得覆盖生产工单端点（修复前 rt 恰为 "orders" 即放行）
+    let sales_orders = make_permission("orders", None, "read");
+    let (rt, rid) = extract_resource_info("/api/v1/erp/production/production-orders/orders");
+    assert!(
+        !matches_permission(&sales_orders, &rt, rid, "read"),
+        "持 orders:read 的销售角色必须被挡在生产工单之外"
+    );
+    // 生产侧自有码恢复生效
+    let production_star = make_permission("production-orders", None, "*");
+    assert!(
+        matches_permission(&production_star, &rt, rid, "read"),
+        "生产岗的 production-orders:* 不得再是死码"
+    );
+}
+
+#[test]
+fn sales_and_purchase_orders_disambiguation_unchanged() {
+    // 同名字段其它域的既有口径零回归
+    assert_eq!(
+        extract_resource_info("/api/v1/erp/sales/orders/456").0,
+        "orders",
+        "sales 域 orders 保留原名（种子即 orders:*）"
+    );
+    assert_eq!(
+        extract_resource_info("/api/v1/erp/purchase/orders/9").0,
+        "purchase-orders"
+    );
+}

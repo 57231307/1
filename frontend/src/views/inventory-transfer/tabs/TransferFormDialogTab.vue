@@ -12,6 +12,7 @@
         : $t('inventoryTransfer.transferForm.createTitle')
     "
     width="800px"
+    destroy-on-close
     :aria-label="
       mode === 'view'
         ? $t('inventoryTransfer.transferForm.viewDialogTitle')
@@ -97,13 +98,30 @@
           :disabled="!formData.from_warehouse_id || !item.product_id"
           style="flex: 3"
           @visible-change="(v: boolean) => v && void onStockRowDropdownOpen(item)"
-          @change="(v: string) => onStockRowChange(item, v)"
+          @change="(v: string) => void onStockRowChange(item, v)"
         >
           <el-option
             v-for="s in stockRowsMap[item.product_id] || []"
             :key="stockRowKey(s)"
             :label="stockRowLabel(s)"
             :value="stockRowKey(s)"
+          />
+        </el-select>
+        <!-- 出库第四维（染色布=色号非空强制）：匹号只能从调出仓该缸该批真实 AVAILABLE 匹
+             （GET /inventory/pieces 下推查询）中选定；白坯不参与匹号维度，不渲染本控件 -->
+        <el-select
+          v-if="item.color_no"
+          v-model="item.piece_no"
+          :placeholder="$t('inventoryTransfer.transferForm.pieceNoPlaceholder')"
+          :disabled="!item.batch_no || !item.dye_lot_no"
+          style="flex: 1.5"
+          @visible-change="(v: boolean) => v && void loadAvailablePieces(item)"
+        >
+          <el-option
+            v-for="p in availablePieces(item)"
+            :key="p.piece_no"
+            :label="pieceOptionLabel(p)"
+            :value="p.piece_no"
           />
         </el-select>
         <el-input-number
@@ -232,7 +250,10 @@ import {
   createTransferItem,
   updateTransferItem,
   deleteTransferItem,
+  getAvailablePieces,
+  INVENTORY_PIECE_STATUS,
   type CreateInventoryTransferPayload,
+  type InventoryPieceRow,
   type InventoryTransferEntity,
   type InventoryTransferItemPayload,
 } from '@/api/inventory-transfer';
@@ -277,6 +298,11 @@ interface TransferItemForm {
   color_no: string;
   dye_lot_no: string;
   batch_no: string;
+  /**
+   * 出库第四维匹号：染色布（色号非空）必填，取值仅允许来自该缸该批现存 AVAILABLE 真实匹
+   * （GET /inventory/pieces 下推查询）；白坯恒为空串且提交时省略该键。
+   */
+  piece_no: string;
   /** 选中库存行的组合键（选项定位用） */
   stock_row_key: string;
 }
@@ -290,6 +316,7 @@ const newItemForm = (): TransferItemForm => ({
   color_no: '',
   dye_lot_no: '',
   batch_no: '',
+  piece_no: '',
   stock_row_key: '',
 });
 
@@ -336,20 +363,62 @@ const onStockRowDropdownOpen = async (item: TransferItemForm) => {
   await loadStockRows(item.product_id);
 };
 
+// ===== 出库第四维（匹号）：调出仓该缸该批现存可出库真实匹 =====
+// GET /inventory/pieces 按 产品+调出仓+批次+缸号+status=AVAILABLE 全维下推查询（不手写死数据、
+// 不自由输入）；缓存键 = 产品 + 库存行三维组合键，跨缸/跨批互不混用。
+const piecesMap = ref<Record<string, InventoryPieceRow[]>>({});
+
+const piecesKey = (item: TransferItemForm) => `${item.product_id}__${stockRowKey(item)}`;
+
+const availablePieces = (item: TransferItemForm) => piecesMap.value[piecesKey(item)] || [];
+
+const pieceOptionLabel = (p: InventoryPieceRow) =>
+  `${t('inventoryTransfer.transferForm.colPieceNo')}: ${p.piece_no} · ${t('inventoryTransfer.transferForm.colPieceLength')}: ${p.length}`;
+
+const loadAvailablePieces = async (item: TransferItemForm) => {
+  // 白坯（色号空）不参与匹号维度；染色布须先选定 批次+缸号 才可取匹
+  if (!item.color_no || !item.product_id || !item.batch_no || !item.dye_lot_no) return;
+  if (!formData.from_warehouse_id) return;
+  const key = piecesKey(item);
+  if (piecesMap.value[key]) return;
+  try {
+    const res = await getAvailablePieces({
+      product_id: item.product_id,
+      warehouse_id: formData.from_warehouse_id,
+      batch_no: item.batch_no,
+      dye_lot_no: item.dye_lot_no,
+      status: INVENTORY_PIECE_STATUS.AVAILABLE,
+      page: 1,
+      page_size: 100,
+    });
+    piecesMap.value = {
+      ...piecesMap.value,
+      [key]: (res.data as { items?: InventoryPieceRow[] } | null)?.items || [],
+    };
+  } catch (error) {
+    logger.error(t('inventoryTransfer.transferForm.pieceNoLoadFailed'), error);
+    ElMessage.error(t('inventoryTransfer.transferForm.pieceNoLoadFailed'));
+  }
+};
+
 const onItemProductChange = async (item: TransferItemForm) => {
   item.color_no = '';
   item.dye_lot_no = '';
   item.batch_no = '';
   item.stock_row_key = '';
+  item.piece_no = '';
   await loadStockRows(item.product_id);
 };
 
-const onStockRowChange = (item: TransferItemForm, key: string) => {
+const onStockRowChange = async (item: TransferItemForm, key: string) => {
+  // 维度改选即旧匹号失效（匹按 产品+缸+批 tuple 归属），先清空再按新维度重取
+  item.piece_no = '';
   const stock = (stockRowsMap.value[item.product_id] || []).find(s => stockRowKey(s) === key);
   if (!stock) return;
   item.color_no = stock.color_no ?? '';
   item.batch_no = stock.batch_no ?? '';
   item.dye_lot_no = stock.dye_lot_no ?? '';
+  await loadAvailablePieces(item);
 };
 
 // 调出仓变更：旧仓库存行失效，清空缓存与各行已选维度
@@ -357,11 +426,13 @@ watch(
   () => formData.from_warehouse_id,
   () => {
     stockRowsMap.value = {};
+    piecesMap.value = {};
     formData.items.forEach(item => {
       item.color_no = '';
       item.dye_lot_no = '';
       item.batch_no = '';
       item.stock_row_key = '';
+      item.piece_no = '';
     });
   }
 );
@@ -374,6 +445,7 @@ const resetForm = () => {
   formData.status = INVENTORY_TRANSFER_STATUS.PENDING;
   formData.items = [newItemForm()];
   stockRowsMap.value = {};
+  piecesMap.value = {};
 };
 
 const addItem = () => {
@@ -396,16 +468,26 @@ watch(
     if (val) {
       if (props.currentRow) {
         Object.assign(formData, props.currentRow);
-        // 归一化明细行：补齐出库四维字段默认值（服务端行可能缺 stock_row_key 等前端字段）
-        formData.items = (formData.items || []).map(i => ({ ...newItemForm(), ...i }));
+        // 归一化明细行：补齐出库四维字段默认值（服务端行可能缺 stock_row_key 等前端字段；
+        // 服务端匹号为可空列，白坯/历史行为 null，归一为空串=未选定态）
+        formData.items = (formData.items || []).map(i => ({
+          ...newItemForm(),
+          ...i,
+          piece_no: i.piece_no ?? '',
+        }));
         if (!formData.items || formData.items.length === 0) {
           formData.items = [newItemForm()];
         }
         stockRowsMap.value = {};
+        piecesMap.value = {};
         if (props.mode === 'view' && formData.id) void fetchServerItems();
       } else {
         resetForm();
       }
+    } else {
+      // 关闭即清空明细数据：destroy-on-close 已卸载对话框 DOM，此处同步重置 reactive items，
+      // 确保复用的常驻组件在下一次打开时只渲染干净单行，杜绝残留的隐藏数量输入。
+      resetForm();
     }
   }
 );
@@ -498,16 +580,26 @@ const handleDeleteItem = async (row: ServerItem) => {
   }
 };
 
-/** 明细行 → 后端入参：字段名逐一对应 services/inv/mod.rs:87 InventoryTransferItemRequest */
-const toItemPayload = (item: TransferItemForm): InventoryTransferItemPayload => ({
-  product_id: item.product_id,
-  quantity: String(item.quantity),
-  unit_cost: String(item.cost_price),
-  notes: item.remark,
-  color_no: item.color_no,
-  dye_lot_no: item.dye_lot_no,
-  batch_no: item.batch_no,
-});
+/**
+ * 明细行 → 后端入参：字段名逐一对应 services/inv/mod.rs InventoryTransferItemRequest。
+ * 匹号（第四维）：染色布经提交前校验保证已选定真实 AVAILABLE 匹后携带；
+ * 白坯/未选定**省略该键**（禁发 null/空串占位，后端 Option<String> 缺席即不写）。
+ */
+const toItemPayload = (item: TransferItemForm): InventoryTransferItemPayload => {
+  const payload: InventoryTransferItemPayload = {
+    product_id: item.product_id,
+    quantity: String(item.quantity),
+    unit_cost: String(item.cost_price),
+    notes: item.remark,
+    color_no: item.color_no,
+    dye_lot_no: item.dye_lot_no,
+    batch_no: item.batch_no,
+  };
+  if (item.color_no && item.piece_no) {
+    payload.piece_no = item.piece_no;
+  }
+  return payload;
+};
 
 const handleSubmit = async () => {
   // 出库维度口径与后端同源（fabric_class 唯一判定，禁止第二份规则）：
@@ -517,6 +609,15 @@ const handleSubmit = async () => {
   );
   if (missingDim) {
     ElMessage.warning(t('inventoryTransfer.transferForm.stockRowRequired'));
+    return;
+  }
+  // 第四维匹号：色号非空的染色布必选（后端 fabric_class::normalize_outbound_piece_no 强制，
+  // 且建单期按 产品+调出仓+缸+批+匹 全 tuple 预检真实可用匹）；白坯布免匹号，行为不变。
+  const missingPiece = formData.items.find(
+    i => i.product_id && i.quantity > 0 && i.color_no && !i.piece_no
+  );
+  if (missingPiece) {
+    ElMessage.warning(t('inventoryTransfer.transferForm.pieceNoRequired'));
     return;
   }
   submitLoading.value = true;

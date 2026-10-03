@@ -140,8 +140,7 @@ impl AiExtendService {
 
         // 2. 落库
         let request_id = format!("proc-{}", Uuid::new_v4());
-        let candidates_json = serde_json::to_value(&resp.candidates)
-            .map_err(|e| AppError::internal(format!("序列化 candidates 失败: {}", e)))?;
+        let candidates_json = serde_json::to_value(&resp.candidates)?;
 
         let now = chrono::Utc::now();
         let active = ProcessActiveModel {
@@ -204,8 +203,7 @@ impl AiExtendService {
         let mut ids = Vec::new();
         for (resp, dto) in items {
             let request_id = format!("proc-{}", Uuid::new_v4());
-            let candidates_json = serde_json::to_value(&resp.candidates)
-                .map_err(|e| AppError::internal(format!("序列化 candidates 失败: {}", e)))?;
+            let candidates_json = serde_json::to_value(&resp.candidates)?;
             let now = chrono::Utc::now();
             let active = ProcessActiveModel {
                 request_id: Set(request_id),
@@ -372,7 +370,9 @@ impl AiExtendService {
         active.applied_by = Set(dto.operator_id);
         if let Some(score) = dto.feedback_score {
             if !(1..=5).contains(&score) {
-                return Err(AppError::validation("feedback_score 必须在 1-5 范围内"));
+                return Err(AppError::validation_displayable(
+                    "feedback_score 必须在 1-5 范围内",
+                ));
             }
             active.feedback_score = Set(Some(score));
         }
@@ -428,12 +428,9 @@ impl AiExtendService {
         let latency_ms = infer_start.elapsed().as_millis().min(i32::MAX as u128) as i32;
 
         let request_id = format!("qual-{}", Uuid::new_v4());
-        let top_issues_json = serde_json::to_value(&resp.top_issues)
-            .map_err(|e| AppError::internal(format!("序列化 top_issues 失败: {}", e)))?;
-        let recommendations_json = serde_json::to_value(&resp.recommendations)
-            .map_err(|e| AppError::internal(format!("序列化 recommendations 失败: {}", e)))?;
-        let period_breakdown_json = serde_json::to_value(&resp.period_breakdown)
-            .map_err(|e| AppError::internal(format!("序列化 period_breakdown 失败: {}", e)))?;
+        let top_issues_json = serde_json::to_value(&resp.top_issues)?;
+        let recommendations_json = serde_json::to_value(&resp.recommendations)?;
+        let period_breakdown_json = serde_json::to_value(&resp.period_breakdown)?;
 
         let now = chrono::Utc::now();
         let trend_label = match resp.trend.as_str() {

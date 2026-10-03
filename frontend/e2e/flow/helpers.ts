@@ -1,5 +1,11 @@
 /* eslint-disable no-console */
-import { expect, type Page, type APIResponse } from '@playwright/test';
+import {
+  expect,
+  type Page,
+  type APIResponse,
+  type Browser,
+  type BrowserContext,
+} from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
 // 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
@@ -79,6 +85,10 @@ export const APP_ERROR_CODES = {
   BUSINESS_ERROR: 'BUSINESS_ERROR',
   /** error.rs:464 AppError::BadRequest */
   BAD_REQUEST: 'BAD_REQUEST',
+  /** utils/error.rs:709 `CODE_FORBIDDEN`；中间件与 AppError::PermissionDenied 同码 */
+  FORBIDDEN: 'FORBIDDEN',
+  /** utils/error.rs:739 AppError::NotFound 分支的机器码 */
+  NOT_FOUND: 'NOT_FOUND',
 } as const;
 
 /**
@@ -2131,6 +2141,442 @@ export async function seedFourDimStockIn(
   return row;
 }
 
+/**
+ * 白坯布库存播种（color_no 为空、无缸号、有批次）。
+ *
+ * 入库端点选择：POST /inventory/stock（通用建库存 handler `create_stock`，
+ * backend/src/handlers/inventory_stock_handler.rs:146）。
+ * 该 handler 虽复用 `CreateStockFabricRequest` DTO（含 color_no min=1 校验注解），
+ * 但**不调用 payload.validate()**（区别于 /stock/fabric 的 `create_stock_fabric`），
+ * service 层 `create_stock`（inventory_stock_service.rs:276）直接 Set(color_no) 落库，
+ * 且 DB 列 `inventory_stocks.color_no VARCHAR(255)` 无 CHECK 约束——
+ * 因此传 color_no="" 可合法写入白坯库存行。
+ *
+ * 另一条合法路径为采购收货入库（purchase_receipt_private.rs:327
+ * `item.color_code.clone().unwrap_or_default()` 当 color_code=None 时落空串），
+ * 但构造完整采购链（订单→收货→确认）复杂度过高且非本用例意图，
+ * 故 e2e seed 统一走 /inventory/stock 通用端点。
+ *
+ * seed 维度与调拨出库白坯口径一致：color_no=""、batch_no 必填、dye_lot_no 为空/不传。
+ */
+export async function seedGreigeStockIn(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    batchNo: string;
+    quantityMeters: string;
+  }
+): Promise<Record<string, unknown>> {
+  await apiCall(page, 'POST', '/inventory/stock', {
+    warehouse_id: opts.warehouseId,
+    product_id: opts.productId,
+    batch_no: opts.batchNo,
+    color_no: '',
+    grade: '一等品',
+    quantity_meters: opts.quantityMeters,
+    quantity_kg: opts.quantityMeters,
+  });
+  // 回读验证：按 product+warehouse+batch 查询，确认落库行 color_no 为空
+  const path =
+    `/inventory/stock?product_id=${opts.productId}` +
+    `&warehouse_id=${opts.warehouseId}` +
+    `&batch_no=${encodeURIComponent(opts.batchNo)}` +
+    `&page=1&page_size=50`;
+  const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
+  const row = res.items?.find(r => !r.color_no || String(r.color_no) === '');
+  if (!row) {
+    throw new Error(
+      `[seedGreigeStockIn] POST /inventory/stock 成功但回读未命中白坯行：` +
+        `product=${opts.productId} warehouse=${opts.warehouseId} batch=${opts.batchNo} ` +
+        `—— 落库行 color_no 非空或行不存在，见 reports/backend.log`
+    );
+  }
+  return row;
+}
+
+/**
+ * 出库第四维（匹号）seed 族 —— 出库对染色布强制四维 = 缸号/色号/批次/匹号
+ * （用户 2026-10-02 拍板；后端 services/so/delivery_ops/inventory.rs 按四维 tuple 校验
+ *  + services/piece_domain_service.rs:606 outbound_piece_filter CAS 消耗匹号）。
+ *
+ * 写入方口径（唯一事实源，禁按测试偏好臆造维度）：
+ * backend/src/services/piece_domain_service.rs:518-556 —— 染色外发回仓确认生成染色匹：
+ *   piece_type='dyed'、piece_no=`{缸号}-{seq:03}`、**batch_no = 缸号（dye_lot_no 同源）**、
+ *   color_no 从回仓单/委外订单透传、status='AVAILABLE'、warehouse_id = 回仓单仓库。
+ * 因此出库可命中的染色匹 tuple 恒有 batch_no == dye_lot_no == 缸号；
+ * 历史 seedFourDimStockIn 以独立 batch 值灌的染色库存行（batch≠缸号）按该 tuple
+ * **造不出真实匹**（写入方不产出这种组合），凡要走 UI/API 出染色布的用例一律改用
+ * 本节的 seedDyedOutboundBundle（库存行 batch=缸号 + 委外真实链同维染色匹）。
+ *
+ * 链路先例：flow/07-fabric-four-dim.spec.ts（生产单→流转卡→报工逐匹→染色外发→回仓确认）
+ * 与 inventory/05-piece-split.spec.ts（写后必回读 GET /inventory/pieces，词表大写
+ * models/status/purchase_inventory.rs::inventory_piece）。
+ */
+
+/** GET /inventory/pieces 回读行（PieceResponse 中本族用到的字段） */
+export interface DyedSeedPiece {
+  id: number;
+  piece_no: string;
+  piece_type: string;
+  status: string;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  batch_no: string;
+  product_id: number;
+  warehouse_id: number;
+  length: number | string;
+}
+
+/**
+ * 选一个"可承载染色匹"的仓库（piece_domain_service.rs:25-49 validate_warehouse_for_piece_type：
+ * 染色匹只允许 成品仓(finished) 或 未设类型(NULL) 仓；胚布仓(greige) 必被拒）。
+ * 返回含 warehouse_name/warehouse_code（发货对话框按名称选仓、API 出库按编码）。
+ */
+export async function pickDyeableWarehouse(
+  page: Page
+): Promise<{ id: number; name: string; code: string; warehouse_type: string | null }> {
+  const res = await apiCallRaw<{ items?: unknown }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const rows = pickListArray<Record<string, unknown>>(
+    res,
+    'items',
+    '四维seed 仓库列表 /warehouses'
+  );
+  const hit = rows.find(
+    w => w.warehouse_type === null || w.warehouse_type === undefined || w.warehouse_type === ''
+  ) as Record<string, unknown> | undefined;
+  const fallback = rows.find(w => w.warehouse_type === 'finished') as
+    Record<string, unknown> | undefined;
+  const target = hit ?? fallback;
+  if (!target) {
+    throw new Error(
+      '[pickDyeableWarehouse] 仓库列表中不存在可承载染色匹的仓库（需未设类型仓或成品仓；' +
+        '胚布仓按 validate_warehouse_for_piece_type 必拒染色匹入库）——真实链造不出匹，显式判红'
+    );
+  }
+  const name = String(target.warehouse_name ?? target.name ?? '');
+  const code = String(target.warehouse_code ?? target.code ?? '');
+  if (!name || !code) {
+    throw new Error(
+      `[pickDyeableWarehouse] 仓库 ${JSON.stringify(target).slice(0, 200)} 缺 warehouse_name/warehouse_code`
+    );
+  }
+  return {
+    id: Number(target.id),
+    name,
+    code,
+    warehouse_type: (target.warehouse_type as string | null | undefined) ?? null,
+  };
+}
+
+/** 按四维回读 AVAILABLE 染色匹候选（与发货对话框 loadDeliveryPieces 同一 UI/API 查询口径） */
+export async function fetchAvailableDyedPieces(
+  page: Page,
+  dims: { productId: number; warehouseId: number; dyeLotNo: string; batchNo?: string }
+): Promise<DyedSeedPiece[]> {
+  const qs =
+    `product_id=${dims.productId}&warehouse_id=${dims.warehouseId}` +
+    `&dye_lot_no=${encodeURIComponent(dims.dyeLotNo)}` +
+    `&batch_no=${encodeURIComponent(dims.batchNo ?? dims.dyeLotNo)}` +
+    '&status=AVAILABLE&page=1&page_size=50';
+  const res = await apiCallRaw<unknown>(page, 'GET', `/inventory/pieces?${qs}`);
+  const rows = pickListArray<DyedSeedPiece>(res, 'items', '染色匹候选 /inventory/pieces');
+  return rows.filter(p => p.piece_type === 'dyed' && String(p.status) === 'AVAILABLE');
+}
+
+/** 按匹号+四维 tuple 回读单匹（消耗后状态断言用；同匹号跨缸可重复，必须带 tuple 归因） */
+export async function readDyedPieceByNo(
+  page: Page,
+  dims: {
+    productId: number;
+    warehouseId: number;
+    dyeLotNo: string;
+    batchNo: string;
+    pieceNo: string;
+  }
+): Promise<DyedSeedPiece | null> {
+  const res = await apiCallRaw<unknown>(
+    page,
+    'GET',
+    `/inventory/pieces?piece_no=${encodeURIComponent(dims.pieceNo)}&product_id=${dims.productId}` +
+      `&warehouse_id=${dims.warehouseId}&page=1&page_size=20`
+  );
+  const rows = pickListArray<DyedSeedPiece>(res, 'items', '匹号回读 /inventory/pieces');
+  return (
+    rows.find(
+      p =>
+        p.piece_no === dims.pieceNo &&
+        p.product_id === dims.productId &&
+        p.warehouse_id === dims.warehouseId &&
+        String(p.dye_lot_no) === dims.dyeLotNo &&
+        String(p.batch_no) === dims.batchNo &&
+        p.piece_type === 'dyed'
+    ) ?? null
+  );
+}
+
+/**
+ * 真实委外染色链生成 N 匹 AVAILABLE 染色匹（不造假：全程状态机 + 写后必回读）。
+ *
+ * 链：生产订单 → 流转卡（schedule→备布→完成备布）→ 工序启动 → 报工逐匹（N 匹生产匹入非成品仓）
+ *  → N 笔染色委外单（同缸号同色号；发料明细逐匹引用 AVAILABLE 生产匹——
+ *    piece_domain_service.rs:160-205 发料必须精确到匹）→ 逐笔发料 → 回仓单（入目标仓）→ 确认
+ *  → 每笔确认生成 1 匹染色匹（同缸 piece_seq 递增 → {缸号}-001/-002…，batch_no=缸号）。
+ */
+export async function seedDyedPieceChain(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    colorNo: string;
+    dyeLotNo: string;
+    pieceCount?: number;
+    lengthPerPieceMeters?: number;
+    context?: string;
+  }
+): Promise<DyedSeedPiece[]> {
+  const tag = opts.context ?? 'DYEDSEED';
+  const pieceCount = opts.pieceCount ?? 1;
+  const length = opts.lengthPerPieceMeters ?? 100;
+  const ctx = getCtx();
+  if (!ctx.supplierId) {
+    throw new Error(`[${tag}] 前置缺失：ctx.supplierId 未就绪（染色委外单必填加工厂）`);
+  }
+
+  // 仓库类型口径：染色匹回仓入 opts.warehouseId（须非胚布仓）；生产匹（胚布匹）入仓不得为成品仓。
+  const whRes = await apiCallRaw<{ items?: unknown }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const whRows = pickListArray<Record<string, unknown>>(whRes, 'items', `${tag} 仓库列表`);
+  const target = whRows.find(w => Number(w.id) === opts.warehouseId);
+  if (!target) throw new Error(`[${tag}] 仓库 ${opts.warehouseId} 不在 /warehouses 列表中`);
+  if (target.warehouse_type === 'greige') {
+    throw new Error(
+      `[${tag}] 目标仓 ${opts.warehouseId} 为胚布仓（greige），validate_warehouse_for_piece_type ` +
+        '拒绝染色匹入仓——染色布出库 seed 必须选未设类型/成品仓，显式判红（勿 skip）'
+    );
+  }
+  const greigeWh =
+    target.warehouse_type !== 'finished'
+      ? opts.warehouseId
+      : Number((whRows.find(w => w.warehouse_type !== 'finished')?.id ?? 0) as number);
+  if (!greigeWh) {
+    throw new Error(`[${tag}] 无可用非成品仓存放产匹（发料前置），链断，显式判红`);
+  }
+
+  // 1. 生产订单 + 流转卡 + 备布完成（07 先例 7-2/7-3 同构载荷）
+  const productionOrderNo = genCode(`${tag}PO`);
+  const po = await apiCall<{ id?: number; order_no?: string }>(
+    page,
+    'POST',
+    '/production/production-orders/orders',
+    {
+      order_no: productionOrderNo,
+      product_id: opts.productId,
+      planned_quantity: pieceCount * length,
+    }
+  );
+  if (!po.data?.id)
+    throw new Error(`[${tag}] 生产订单创建未返回 id：${JSON.stringify(po).slice(0, 200)}`);
+  const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+    production_order_id: po.data.id,
+    product_id: opts.productId,
+    product_name: genName(`${tag}胚布`),
+    planned_fabric_weight: pieceCount * length,
+  });
+  const cardId = card.data?.id;
+  if (!cardId)
+    throw new Error(`[${tag}] 流转卡创建未返回 id：${JSON.stringify(card).slice(0, 200)}`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/schedule`, {});
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/start-preparing`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/complete-preparing`, {
+    actual_fabric_weight: pieceCount * length,
+  });
+
+  // 2. 工序报工逐匹：N 匹生产匹（发料必须逐匹引用，07 先例 7-4 同构载荷）
+  const step = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards/steps/start', {
+    flow_card_id: cardId,
+  });
+  const stepId = step.data?.id;
+  if (!stepId) throw new Error(`[${tag}] 工序启动未返回 id：${JSON.stringify(step).slice(0, 200)}`);
+  const greigePieceNos = Array.from(
+    { length: pieceCount },
+    (_, i) => `GR-${genCode(`${tag}P`)}-${String(i + 1).padStart(3, '0')}`
+  );
+  await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
+    actual_quantity: pieceCount * length,
+    qualified_quantity: pieceCount * length,
+    pieces: greigePieceNos.map(no => ({
+      piece_no: no,
+      machine_no: 'M-E2E-DYEED-SEED',
+      machine_operator: 'E2E开机人',
+      length,
+      weight: length / 2,
+      warehouse_id: greigeWh,
+    })),
+  });
+
+  // 3. 每匹一笔染色委外（同缸同色）：订单→发料明细（逐匹）→发料→回仓（入目标仓）→确认。
+  //    一笔订单确认收回后即 received，不再接受第二张回仓单（validate_receipt_eligibility），
+  //    故 N 匹必须 N 笔独立委外单——这是真实写入方口径，不是测试绕行。
+  const issueDate = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < pieceCount; i++) {
+    const order = await apiCall<{ id?: number }>(page, 'POST', '/production/outsourcing-orders', {
+      order_no: genCode(`${tag}OS`),
+      order_type: 'dyeing',
+      supplier_id: ctx.supplierId,
+      production_order_id: po.data.id,
+      dye_lot_no: opts.dyeLotNo,
+      color_no: opts.colorNo,
+      issue_date: issueDate,
+      issue_quantity: length,
+      issue_unit: '米',
+      material_cost: 100,
+    });
+    const orderId = order.data?.id;
+    if (!orderId)
+      throw new Error(`[${tag}] 染色委外单创建未返回 id：${JSON.stringify(order).slice(0, 200)}`);
+    await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+      outsourcing_order_id: orderId,
+      product_id: opts.productId,
+      color_no: opts.colorNo,
+      dye_lot_no: opts.dyeLotNo,
+      piece_no: greigePieceNos[i],
+      quantity: length,
+      unit: '米',
+      unit_cost: 1,
+    });
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
+    const receipt = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: genCode(`${tag}RC`),
+        outsourcing_order_id: orderId,
+        receipt_date: issueDate,
+        product_id: opts.productId,
+        dye_lot_no: opts.dyeLotNo,
+        color_no: opts.colorNo,
+        warehouse_id: opts.warehouseId,
+        return_quantity: length,
+        quality_status: 'qualified',
+        grade: 'A',
+      }
+    );
+    const receiptId = receipt.data?.id;
+    if (!receiptId)
+      throw new Error(`[${tag}] 回仓单创建未返回 id：${JSON.stringify(receipt).slice(0, 200)}`);
+    await apiCall(page, 'POST', `/production/outsourcing-receipts/${receiptId}/confirm`);
+  }
+
+  // 4. 写后必回读：四维 tuple 下的 AVAILABLE 染色匹数量必须与 pieceCount 一致，
+  //    且逐匹字段与写入方口径一致（batch_no=缸号、piece_type=dyed、大写 AVAILABLE）。
+  const pieces = await fetchAvailableDyedPieces(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    dyeLotNo: opts.dyeLotNo,
+    batchNo: opts.dyeLotNo,
+  });
+  if (pieces.length < pieceCount) {
+    throw new Error(
+      `[${tag}] 委外染色链回仓确认 ${pieceCount} 次后，GET /inventory/pieces 按 ` +
+        `product=${opts.productId} warehouse=${opts.warehouseId} 缸=${opts.dyeLotNo} ` +
+        `批=${opts.dyeLotNo} status=AVAILABLE 仅命中 ${pieces.length} 匹染色匹——真实链断裂` +
+        `（缸号建档/匹生成/回读口径任一断点），显式判红，勿 skip/放宽`
+    );
+  }
+  for (const p of pieces.slice(0, pieceCount)) {
+    if (p.piece_type !== 'dyed' || String(p.status) !== 'AVAILABLE') {
+      throw new Error(
+        `[${tag}] 匹 ${p.piece_no} 非 染色匹+AVAILABLE（实际 piece_type=${p.piece_type} status=${p.status}），` +
+          '词表来源 models/status/purchase_inventory.rs::inventory_piece（大写），出库 tuple 必不命中，显式判红'
+      );
+    }
+    if (String(p.batch_no) !== opts.dyeLotNo || String(p.dye_lot_no) !== opts.dyeLotNo) {
+      throw new Error(
+        `[${tag}] 匹 ${p.piece_no} 维度与写入方口径矛盾（batch=${p.batch_no} dye=${p.dye_lot_no}，应同为 ${opts.dyeLotNo}）`
+      );
+    }
+  }
+  console.log(
+    `[${tag}] 真实链染色匹就绪：缸=${opts.dyeLotNo} 色=${opts.colorNo} 批=缸 仓=${opts.warehouseId} ` +
+      `匹号=${pieces
+        .slice(0, pieceCount)
+        .map(p => p.piece_no)
+        .join(',')}`
+  );
+  return pieces.slice(0, pieceCount);
+}
+
+/**
+ * 染色布出库一体包：一行 batch=缸号 的四维库存行 + 同 tuple 真实 AVAILABLE 染色匹 N 匹。
+ * 返回的 stockRow/pieces 四维逐字段一致（色号/缸号/批次/产品/仓库），出库必真实命中。
+ */
+export async function seedDyedOutboundBundle(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    quantityMeters: string;
+    pieceCount?: number;
+    colorNo?: string;
+    context?: string;
+  }
+): Promise<{
+  dyeLotNo: string;
+  colorNo: string;
+  stockRow: Record<string, unknown>;
+  pieces: DyedSeedPiece[];
+}> {
+  const tag = opts.context ?? 'DYEDBUNDLE';
+  const pieceCount = opts.pieceCount ?? 1;
+  const dyeLotNo = genDyeLotNo();
+  const colorNo = opts.colorNo ?? `E2EC-${genCode('C')}`;
+  if (!colorNo) throw new Error(`[${tag}] 染色布 bundle 色号必须非空`);
+
+  // 库存行按写入方口径造：batch_no = 缸号（与染色匹 tuple 同源同值）
+  const stockRow = await seedFourDimStockIn(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    colorNo,
+    dyeLotNo,
+    batchNo: dyeLotNo,
+    quantityMeters: opts.quantityMeters,
+  });
+  if (
+    String(stockRow.dye_lot_no) !== dyeLotNo ||
+    String(stockRow.batch_no) !== dyeLotNo ||
+    String(stockRow.color_no) !== colorNo
+  ) {
+    throw new Error(
+      `[${tag}] 库存行落库维度与入参矛盾：期望 色=${colorNo} 缸=批=${dyeLotNo}，` +
+        `实际=${JSON.stringify({ color_no: stockRow.color_no, dye_lot_no: stockRow.dye_lot_no, batch_no: stockRow.batch_no })}`
+    );
+  }
+
+  const total = Number(opts.quantityMeters);
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error(`[${tag}] quantityMeters 必须为正数米数，实际 ${opts.quantityMeters}`);
+  }
+  const pieces = await seedDyedPieceChain(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    colorNo,
+    dyeLotNo,
+    pieceCount,
+    lengthPerPieceMeters: Math.max(1, Math.floor(total / pieceCount)),
+    context: tag,
+  });
+  return { dyeLotNo, colorNo, stockRow, pieces };
+}
+
 export async function verifyAuditLog(
   page: Page,
   action: string,
@@ -2528,18 +2974,97 @@ export async function safePostAction(
 }
 
 /**
- * 验证端点可达但不崩溃（用于报表/统计类端点）
+ * 端点健康校验参数。
+ *
+ * - `allowForbidden`：该端点是否属于「权限外探测」场景（用一个无权角色去访问、
+ *   预期被鉴权中间件 403 拒绝）。仅在此类显式声明时 403 才算健康；默认 false，
+ *   403 视为失败——避免把「未授权访问被拒」误当成路由/权限回归的绿灯掩盖。
  */
-export async function verifyEndpointHealthy(page: Page, path: string): Promise<void> {
+export interface EndpointHealthOptions {
+  allowForbidden?: boolean;
+}
+
+/**
+ * 验证「应当注册存在」的端点可达且不崩溃（严格模式，默认）。
+ *
+ * 判红口径（收紧假绿）：
+ * - 2xx            → 健康。
+ * - 5xx            → 失败（服务器内部错误）。
+ * - 404            → 失败（端点未注册 / 路由漂移：这正是过去被吞掉的回归）。
+ * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝）。
+ * - 其它 4xx       → 失败（请求契约破坏，如非法参数命中该端点）。
+ *
+ * 本仓不存在「允许缺失、可用 404/403 装作健康」的端点类别：未注册端点必须补注册
+ * 或登记进 scripts/check-api-paths.mjs 显式缺口清单，禁止以任何宽松探测把 404/403
+ * 伪装成健康（系统性假绿源，此类可选探测 helper 已删除）。
+ */
+export async function verifyEndpointHealthy(
+  page: Page,
+  path: string,
+  opts: EndpointHealthOptions = {}
+): Promise<void> {
+  let status: number;
   try {
-    await apiCallRaw(page, 'GET', path);
+    const res = await apiCallRaw(page, 'GET', path);
+    // apiCallRaw 成功即 2xx（非 2xx 会抛），无返回值也视为健康
+    void res;
+    return;
   } catch (e) {
-    const err = e as { status?: number };
-    if (err.status && err.status >= 500) {
-      throw new Error(`GET ${path} 返回 ${err.status}（服务器内部错误）`);
-    }
-    // 404/403 可接受（端点未实现或权限不足）
+    const err = e as { status?: number; message?: string };
+    status = err.status || 0;
   }
+
+  if (status >= 500) {
+    throw new Error(`GET ${path} 返回 ${status}（服务器内部错误）`);
+  }
+  if (status === 404) {
+    throw new Error(`GET ${path} 返回 404：端点未注册或路由已漂移（严格健康检查判红，不再吞 404）`);
+  }
+  if (status === 403) {
+    if (opts.allowForbidden === true) {
+      return; // 显式权限外探测：403 属预期，健康
+    }
+    throw new Error(
+      `GET ${path} 返回 403：鉴权拒绝。若这是权限外探测端点，请显式传 { allowForbidden: true }；否则视为权限/路由回归判红（不存在可吞 403 的宽松健康探测函数，见本文件 strict 口径注释）`
+    );
+  }
+  if (status >= 400) {
+    throw new Error(`GET ${path} 返回 ${status}（请求契约破坏）`);
+  }
+  // status === 0：网络层错误（apiCall 已抛非数字状态）
+  throw new Error(`GET ${path} 请求异常（status=${status}）`);
+}
+
+/**
+ * 验证返回二进制/非 JSON 的下载类端点（xlsx / docx / zip 等）严格健康。
+ *
+ * `verifyEndpointHealthy` 走 apiCall → response.text() + JSON.parse()，对**二进制 2xx**
+ * 响应会因 JSON.parse 失败而抛错（status 仍是 200），落入其末尾分支误判「请求异常」——
+ * 对导出端点是假红。本函数改用原始响应状态判定，语义与 verifyEndpointHealthy 的严格口径一致：
+ * - 2xx            → 健康。
+ * - 5xx            → 失败（服务器内部错误）。
+ * - 404            → 失败（端点未注册 / 路由漂移）。
+ * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝 / fail-closed）。
+ * - 其它非 2xx     → 失败（重定向、请求契约破坏等）。
+ *
+ * 适用于 admin 上下文应直接 2xx 的导出端点（如 /production/wage-records/export）。
+ */
+export async function verifyDownloadEndpointHealthy(
+  page: Page,
+  path: string,
+  opts: EndpointHealthOptions = {}
+): Promise<void> {
+  const res = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
+  const status = res.status();
+  if (status >= 200 && status < 300) {
+    return;
+  }
+  if (status === 403 && opts.allowForbidden === true) {
+    return;
+  }
+  throw new Error(
+    `GET ${path} 返回 ${status}（下载端点严格健康检查：期望 2xx；404=路由漂移/未注册，403=权限拒，5xx=服务错误，其它非 2xx 均判红）`
+  );
 }
 
 // ==================== P3.2 E2E 公共断言库 ====================
@@ -2785,6 +3310,90 @@ export function getRoleCredential(role: string): RoleCredential | null {
   }
 }
 
+/** 隔离会话：独立 BrowserContext + 一个已登录 Page，供水平越权等多用户测试使用。 */
+export interface IsolatedAuthedSession {
+  context: BrowserContext;
+  page: Page;
+  username: string;
+  close: () => Promise<void>;
+}
+
+/**
+ * 在一个全新的隔离 BrowserContext 内用指定账号真实登录（cookie 会话独立，与默认 fixture
+ * context 互不干扰），返回该会话。用于水平越权：以 B 账号凭证去改/删 A 账号的资源。
+ *
+ * 走后端真实登录（POST /auth/login，Set-Cookie 写入本 context），不使用 UI 表单——UI 登录
+ * 会改写模块级共享 LOGGED_IN 标志并依赖 storageState，多 context 下不可靠。/auth/login 免
+ * 鉴权且 CSRF 豁免，故无需预取 csrf token。登录成功后校验 access_token 已落本 context，
+ * 否则判红（前置未就绪，不得伪装成"越权被拒"的绿灯）。
+ */
+export async function loginInIsolatedContext(
+  browser: Browser,
+  username: string,
+  password: string
+): Promise<IsolatedAuthedSession> {
+  // 不继承 storageState，确保是干净的独立会话（用另一账号重新登录）
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+    data: { username, password },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  if (!loginResp.ok()) {
+    const body = await loginResp.text().catch(() => '');
+    await context.close();
+    throw new Error(
+      `loginInIsolatedContext：账号 ${username} 登录失败 HTTP ${loginResp.status()} body=${body.slice(0, 200)}`
+    );
+  }
+  const cookies = await context.cookies();
+  if (!cookies.some(c => c.name === 'access_token')) {
+    await context.close();
+    throw new Error(`loginInIsolatedContext：账号 ${username} 登录后未获得 access_token cookie`);
+  }
+  return {
+    context,
+    page,
+    username,
+    close: async () => {
+      await context.close().catch(e => {
+        console.warn(`[loginInIsolatedContext] 关闭 context 失败: ${(e as Error).message}`);
+      });
+    },
+  };
+}
+
+/**
+ * 取一个与默认分片账号（TEST_USERNAME，即"用户 A"）不同的"用户 B"凭证。
+ * 从 role-credentials.json 中选一个 username 明确不等于 TEST_USERNAME 的角色账号，
+ * 保证 B 是独立身份的账号（水平越权前提：两个不同 owner）。找不到即判红，
+ * 不允许退化成"用同一账号自己测自己"的假越权。
+ */
+export function pickDifferentUserCredential(): { username: string; password: string } {
+  try {
+    if (!existsSync(ROLE_CREDENTIALS_PATH)) {
+      throw new Error(
+        `凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（global-setup ensureRoleUsers 未运行？）`
+      );
+    }
+    const data = JSON.parse(readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8')) as Record<
+      string,
+      RoleCredential
+    >;
+    const candidate = Object.values(data).find(
+      c => c && c.username && c.username !== TEST_USERNAME
+    );
+    if (!candidate) {
+      throw new Error(
+        `role-credentials.json 中找不到与分片账号 ${TEST_USERNAME} 不同的第二个账号，无法构造水平越权前提`
+      );
+    }
+    return { username: candidate.username, password: candidate.password };
+  } catch (e) {
+    throw new Error(`pickDifferentUserCredential 失败：${(e as Error).message}`);
+  }
+}
+
 // ===========================================================================
 // 公共步骤原语（消除 spec 重复代码）
 // ===========================================================================
@@ -2809,6 +3418,49 @@ export async function tryCleanup(
 }
 
 /**
+ * 「延迟清理」队列元素：记录一条要推迟到断言之后再发的清理动作（不发请求，仅登记）。
+ */
+export interface DeferredCleanup {
+  method: 'DELETE' | 'PUT' | 'POST';
+  path: string;
+  label?: string;
+}
+
+/**
+ * 登记一条「清理到断言之后执行」的动作，真正的 DELETE/PUT 由 {@link flushDeferredCleanups}
+ * （通常在 test.afterEach 或 try/finally）统一发起。
+ *
+ * 为什么要与同步 tryCleanup 并存（不替换、不改其即时语义）：`tryCleanup` 是**当场**发起的同步
+ * 软删。若用例在被测主数据上还留有后续读断言（by-code/详情回读、"未删状态下重复应被拒"的判重
+ * 前提等），当场软删会让后端按 is_deleted=false 过滤后查不到行 → 回读 404 / 判重返回 200——这对
+ * 后端是**正确行为**，却曾把用例推向假红并被 #4669/#4671 误判成后端缺陷。清理本质是 housekeeping,
+ * 语义上应发生在全部断言之后,故用队列延后 flush。
+ *
+ * 范式与 purchase/03（CREATED_ORDER_IDS + afterEach）、finance/01（CLEANUP[] + afterEach）一致：
+ * 队列由调用方 spec 自行持有（逐文件独立、afterEach flush 后清空），杜绝跨 spec 共享态泄漏；
+ * 本函数只 push、不发请求,向后兼容——不影响任何既有 tryCleanup 调用点。
+ */
+export function deferCleanup(
+  queue: DeferredCleanup[],
+  method: 'DELETE' | 'PUT' | 'POST',
+  path: string,
+  label?: string
+): void {
+  queue.push({ method, path, label });
+}
+
+/**
+ * 逆序 flush 延迟清理队列（子记录先于父记录删，尽量贴近引用顺序），逐条复用
+ * {@link tryCleanup} 的「失败仅告警不 rethrow」语义，随后清空队列防止跨用例泄漏。
+ */
+export async function flushDeferredCleanups(page: Page, queue: DeferredCleanup[]): Promise<void> {
+  for (const c of queue.slice().reverse()) {
+    await tryCleanup(page, c.method, c.path, c.label);
+  }
+  queue.length = 0;
+}
+
+/**
  * 断言 API 响应被拒绝（权限 403）
  *
  * 替代各 spec 中重复的: expect(result.status).toBe(403)
@@ -2821,9 +3473,131 @@ export function expectDenied(result: { status: number }, context = ''): void {
  * 断言 API 响应为业务错误（status >= 400）
  *
  * 替代各 spec 中重复的: expect(result.status >= 400).toBe(true)
+ *
+ * 注意：本函数刻意保留「宽松」语义仅供确实只关心"被拒且非 5xx"的历史调用点。
+ * 删除/引用等防护类断言禁止用它兜底，应改用 expectBusinessRejection（钉死 400 + 业务码
+ * + 错误 message），否则后端裸 500 会被 >=400 伪装成"删除守卫生效"的绿灯。
  */
 export function expectBadRequest(result: { status: number }, context = ''): void {
   expect(result.status, context || '应返回 400+ 业务错误').toBeGreaterThanOrEqual(400);
+}
+
+/** 500/501 家族机器码：命中即"后端未实现前置校验、靠 DB 约束/未处理 panic 裸抛"——非业务拒绝。 */
+const SERVER_FAULT_CODES: ReadonlySet<string> = new Set([
+  'INTERNAL_ERROR',
+  'DATABASE_ERROR',
+  'NOT_IMPLEMENTED',
+]);
+
+/**
+ * 断言「删除/引用防护被业务规则正确拒绝」的精确契约（收紧 >=400 假绿）。
+ *
+ * 三条同时成立才算通过：
+ * 1. HTTP 状态恰为 400（业务拒绝的正确契约，非 500 裸崩、非 404 路径错误）；
+ * 2. 响应 code 为字符串业务机器码且不属于 500 家族（INTERNAL_ERROR/DATABASE_ERROR/
+ *    NOT_IMPLEMENTED）——排除"靠 DB FK 约束在 delete 阶段裸抛 500"被当成守卫；
+ * 3. 响应含非空业务错误 message（守卫命中必带可读拒绝原因）。
+ *
+ * 判责：若后端实为裸 500（如引用校验前置缺失、FK 直接炸），本断言会红——这是源码缺陷，
+ * 应保持红并交后端修复（补前置业务校验返回 400 BUSINESS_ERROR），禁止把断言放宽回 >=400 蒙过。
+ */
+export function expectBusinessRejection(
+  result: ApiFailureResult,
+  context = '删除/引用防护应被业务拒绝（HTTP 400 + 业务码 + 拒绝原因）'
+): void {
+  expect(
+    result.status,
+    `${context}：实际 status=${result.status} code=${result.code ?? '(none)'} message=${result.message ?? '(none)'}`
+  ).toBe(400);
+  const code = typeof result.code === 'string' ? result.code : undefined;
+  expect(
+    code,
+    `${context}：code 应为字符串业务机器码（非数字/非缺失），实际 raw code=${JSON.stringify(result.code)} message=${result.message ?? '(none)'}`
+  ).toBeTruthy();
+  expect(
+    code === undefined || !SERVER_FAULT_CODES.has(code),
+    `${context}：code=${code} 属 5xx 裸崩家族（后端缺少删除前置校验，靠 DB 约束/panic 兜底），应返回 400 业务码——源码缺陷，勿放宽本断言`
+  ).toBe(true);
+  expect(
+    typeof result.message === 'string' && result.message.trim().length > 0,
+    `${context}：响应应含非空业务错误 message，实际 message=${JSON.stringify(result.message)}`
+  ).toBe(true);
+}
+
+/**
+ * 「质检合格方可入库/结算」门控（commit 48aa4395）要求的真实前置链。
+ *
+ * 后端 backend/src/services/purchase_receipt_service.rs::ensure_receipt_inspection_allows_flow
+ * 只放行 inspection_status == PASSED 的收货单；新建收货单恒为 PENDING
+ * （purchase_receipt.inspection_status 列 NOT NULL DEFAULT 'PENDING'），REJECTED 也拒。
+ * PASSED 的唯一业务写入口是采购质检完成回写（purchase_inspection_service.rs::complete_inspection
+ * → to_receipt_inspection_status），不存在任何直改状态的旁路端点。
+ *
+ * 因此凡是要 `POST /purchase/receipts/{id}/confirm`（或 `POST /ap/invoices/auto-generate`）
+ * 的用例，都必须先跑完本函数：建质检单 → complete(pass) → 回读必须真读到 PASSED。
+ * 任一步不达预期立即抛错，**不允许**继续去 confirm 撞 400 —— 那会把"回写链断了"
+ * 伪装成"确认接口故障"，正是本仓反复踩过的隐性红。
+ * 结论 token 用权威词表原值 pass/fail/partial（models/status/purchase_inventory.rs），
+ * fail/partial 都会得到 REJECTED，故本函数只用于 pass 场景。
+ *
+ * @returns 质检单 id（供用例断言待质检列表或清理用）
+ */
+export async function seedInspectionPass(
+  page: Page,
+  opts: {
+    receiptId: number;
+    supplierId: number;
+    /** 合格数量；省略时取收货单 total_quantity（即"整单全数合格"） */
+    passQuantity?: string | number;
+    context?: string;
+  }
+): Promise<number> {
+  const tag = opts.context ?? `receipt#${opts.receiptId}`;
+  let passQuantity = opts.passQuantity;
+  if (passQuantity === undefined) {
+    const head = await apiCall<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/receipts/${opts.receiptId}`
+    );
+    // 出参 total_quantity 是 rust_decimal 序列化的十进制字符串，原样透传即可
+    passQuantity = (head?.data as Record<string, unknown>)?.total_quantity as string | undefined;
+    if (!passQuantity) {
+      throw new Error(
+        `[${tag}] 收货单回读缺 total_quantity，无法按"整单全数合格"完成质检：` +
+          `${JSON.stringify(head)?.slice(0, 300)}`
+      );
+    }
+  }
+  const created = await apiCall<Record<string, unknown>>(page, 'POST', '/purchase/inspections', {
+    receipt_id: opts.receiptId,
+    supplier_id: opts.supplierId,
+    inspection_date: new Date().toISOString().slice(0, 10),
+  });
+  const inspId = (created?.data as Record<string, unknown>)?.id as number | undefined;
+  if (!inspId) {
+    throw new Error(`[${tag}] 建质检单未取到 id，响应=${JSON.stringify(created)?.slice(0, 300)}`);
+  }
+  await apiCall(page, 'POST', `/purchase/inspections/${inspId}/complete`, {
+    // 必须传局部变量：opts.passQuantity 省略时上面刚从收货单 total_quantity 推导出来，
+    // 直接回读 opts 会把 undefined 送出去（JSON.stringify 丢键 → 后端必填 400，种子步成片真红）。
+    pass_quantity: passQuantity,
+    reject_quantity: 0,
+    inspection_result: 'pass',
+  });
+  const readBack = await apiCall<Record<string, unknown>>(
+    page,
+    'GET',
+    `/purchase/receipts/${opts.receiptId}`
+  );
+  const inspectionStatus = (readBack?.data as Record<string, unknown>)?.inspection_status;
+  if (inspectionStatus !== 'PASSED') {
+    throw new Error(
+      `[${tag}] 质检 complete(pass) 后收货单 inspection_status=${String(inspectionStatus)}，` +
+        '期望 PASSED（词表 backend models/status/purchase_inventory.rs::purchase_receipt_inspection）'
+    );
+  }
+  return inspId;
 }
 
 /**
@@ -2884,4 +3658,75 @@ export async function withEntity(
     const delPath = options?.deletePath ? options.deletePath(id) : `${createPath}/${id}`;
     await tryCleanup(page, 'DELETE', delPath, label);
   }
+}
+
+/**
+ * 【新增函数（CI #4669 I 族收口）】为「染色批次/缸号」建一条真实的色卡档案前置。
+ *
+ * 后端强校验（正当，不得放松）：dye_batch_handler.rs::resolve_dye_identity 归一
+ * （backend/src/handlers/dye_batch_handler.rs:203-254）要求 color_no 非空即染色布，且该色号
+ * 必须在全仓唯一的色卡明细档案 `color_card_items.color_code` 上**恰好命中一条**：
+ * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（CI #4669 红 03-production:87、
+ *   21d:237 的原文，即本函数消灭的前置缺失）；
+ * - 同色号多条 → 显式业务错「无法唯一定位」，故色号取 genCode（时间戳+随机）保证全局唯一。
+ *
+ * 前置链全部走真实端点（与 fabric/02-dye.spec.ts 既有 seedColorCardItem 先例同型，本函数是
+ * 其 helpers 版收口，供 flow 族多文件复用；不改动任何既有函数）：
+ * 1. POST /color-cards（handlers/color_card/crud.rs:78-101，创建即 draft——色卡主体词表
+ *    color_card::DRAFT；出参 ColorCardListItem 含 id）；
+ * 2. POST /color-cards/{id}/items（handlers/color_card/items.rs:48-58；服务门控
+ *    EDITABLE_CARD_STATUSES=[draft]（color_card_item_service.rs:65），新建卡恒可挂色号；
+ *    出参 ColorItemInfo 含 id/color_code）。
+ *
+ * 色卡档案不做清理：DELETE 端点是**归档**语义（crud.rs archive，非物理删除），物理删档会
+ * 破坏历史染色批次的派生链；每次运行新建专属卡+唯一色号，跨分片互不干扰。
+ *
+ * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；itemId 色号明细 id
+ */
+export async function seedColorCardArchive(
+  page: Page,
+  opts?: { context?: string }
+): Promise<{ cardId: number; colorCode: string; itemId: number }> {
+  const tag = opts?.context ?? 'seedColorCardArchive';
+  const colorCode = genCode('E2E-ARCH');
+  const card = await apiCall<{ id?: number; card_no?: string }>(page, 'POST', '/color-cards', {
+    card_no: genCode('E2E-ARCHCC'),
+    card_name: `E2E 档案前置色卡 ${colorCode}`,
+    card_type: 'CUSTOM',
+  });
+  const cardId = card?.data?.id;
+  if (!cardId) {
+    throw new Error(
+      `[${tag}] 前置色卡创建未返回 id（后端契约：ColorCardListItem 必含 id）：${JSON.stringify(card)}`
+    );
+  }
+  // 载荷对照 ColorItemDto（backend/src/models/color_card_item_dto.rs:12-66）：
+  // color_code/color_name/rgb_r/g/b 必填，hex_value 必填且长度恰为 7（#RRGGBB）。
+  const item = await apiCall<{ id?: number; color_code?: string }>(
+    page,
+    'POST',
+    `/color-cards/${cardId}/items`,
+    {
+      color_code: colorCode,
+      color_name: 'E2E 档案前置色号',
+      rgb_r: 220,
+      rgb_g: 20,
+      rgb_b: 60,
+      hex_value: '#DC143C',
+    }
+  );
+  const itemId = item?.data?.id;
+  if (!itemId) {
+    throw new Error(
+      `[${tag}] 色号明细创建未返回 id（后端契约：ColorItemInfo 必含 id）：${JSON.stringify(item)}`
+    );
+  }
+  if (item.data.color_code !== colorCode) {
+    throw new Error(
+      `[${tag}] 色号明细回显与提交不一致（期望 ${colorCode}，实际 ${JSON.stringify(item)}）` +
+        '——色卡状态门控或端点契约漂移属后端问题，不得在此放宽'
+    );
+  }
+  console.log(`[${tag}] 色卡档案前置就绪：card=${cardId} item=${itemId} color_code=${colorCode}`);
+  return { cardId, colorCode, itemId };
 }

@@ -33,6 +33,11 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 产品目录域 =====
     "products",
     "categories",
+    // 产品分类路由别名段的运行时权限键（`/product-categories*` ⇒ `product-categories:*`，
+    // 见 routes/mod.rs:368-391 与 middleware/permission.rs 的资源段取自路径段）。
+    // 与 "categories" 是两条不同资源码，`categories:*` 不覆盖它 ⇒ 采购岗读分类树
+    // 必须授此键（CI #4671 矩阵 purchaser 真缺口，裁定 R-6）。
+    "product-categories",
     "warehouses",
     "boms",
     "chemicals",
@@ -42,6 +47,11 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 库存仓储域 =====
     "inventory",
     "stock",
+    // 匹号领域查询与成品布入库标签（GET /inventory/pieces、/inventory/pieces/{id}/print）。
+    // 必须在此注册：`middleware/permission.rs::extract_resource_info` 对模块前缀 inventory
+    // 取 segment4 作资源段（utils/path_utils.rs:102-117 默认分支），运行时权限键是
+    // `pieces:read` / `pieces:print`，与 `inventory:*` 不同源、不会被其覆盖。
+    "pieces",
     "piece-split",
     "transfers",
     "adjustments",
@@ -269,7 +279,9 @@ impl From<InitError> for AppError {
             InitError::DatabaseError(e) => AppError::database(e),
             InitError::UserNotFound => AppError::not_found("用户不存在"),
             InitError::ConfigError(e) => AppError::bad_request(format!("配置错误: {}", e)),
-            InitError::ValidationError(e) => AppError::validation(format!("参数校验失败: {}", e)),
+            InitError::ValidationError(e) => {
+                AppError::validation_displayable(format!("参数校验失败: {}", e))
+            }
         }
     }
 }

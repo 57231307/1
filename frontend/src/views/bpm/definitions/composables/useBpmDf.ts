@@ -34,7 +34,9 @@ export function useBpmDf() {
     url: '/bpm/definitions',
     // 后端 page_to_frontend_json 以统一分页信封承载列表，键为 `items`，显式钉住 listKey。
     listKey: 'items',
-    defaultParams: { keyword: '', category: '' },
+    // 后端 ProcessDefinitionQuery 仅 {category,status,page,page_size}：无 keyword（名称模糊搜索
+    // 属后端缺口，已登记串行清单），发送只会被 Axum 静默丢弃，故筛选参数不再声明 keyword。
+    defaultParams: { category: '' },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '获取流程定义列表失败';
       logger.error(msg);

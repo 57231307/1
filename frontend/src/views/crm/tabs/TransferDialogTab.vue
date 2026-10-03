@@ -90,13 +90,19 @@ const handleSubmit = async () => {
     ElMessage.warning(t('crmTransferDialog.message.ownerRequired'));
     return;
   }
+  // 后端 AssignCustomerRequest：单条 lead_id 分配，assignee_id/assignee_name 非 Option 必填
+  const assignee = props.users.find(u => u.id === form.ownerId);
+  if (!assignee) {
+    ElMessage.warning(t('crmTransferDialog.message.ownerRequired'));
+    return;
+  }
   try {
     submitLoading.value = true;
-    // P1-5：实际调用分配 API
     await assignCustomer({
-      customer_ids: [props.customerId],
-      assign_to: form.ownerId,
-      reason: form.reason,
+      lead_id: props.customerId,
+      assignee_id: assignee.id,
+      assignee_name: assignee.real_name || assignee.username,
+      notes: form.reason || undefined,
     });
     ElMessage.success(t('crmTransferDialog.message.success'));
     visible.value = false;

@@ -168,10 +168,17 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    await setCreditRating(form.customer_id as number, {
-      rating: form.creditLevel,
+    // 请求体对齐后端 CreditRatingRequestDto（api/customer-credit.ts::SetCreditRatingInput）：
+    // customer_id 必填走请求体（该 handler 不读路径 id）；表单已采集的 credit_score/credit_days
+    // 此前被整键丢弃，现随 credit_level/credit_limit/remark 一并提交。
+    const customerId = form.customer_id as number;
+    await setCreditRating(customerId, {
+      customer_id: customerId,
+      credit_level: form.creditLevel,
+      credit_score: form.creditScore,
       credit_limit: form.creditLimit,
-      reason: form.remark,
+      credit_days: form.creditDays,
+      remark: form.remark,
     });
     ElMessage.success(t('customerCredit.rating.message.success'));
     visible.value = false;

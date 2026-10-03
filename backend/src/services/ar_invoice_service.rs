@@ -103,19 +103,21 @@ impl ArInvoiceService {
     fn validate_create_request(req: &CreateArInvoiceRequest) -> Result<(i32, Decimal), AppError> {
         let customer_id = req
             .customer_id
-            .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("客户ID不能为空"))?;
         if customer_id <= 0 {
-            return Err(AppError::validation("客户ID无效"));
+            return Err(AppError::validation_displayable("客户ID无效"));
         }
         let invoice_amount = req
             .invoice_amount
-            .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("发票金额不能为空"))?;
         if invoice_amount <= Decimal::ZERO {
-            return Err(AppError::validation("发票金额必须大于零"));
+            return Err(AppError::validation_displayable("发票金额必须大于零"));
         }
         // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
         if invoice_amount.round_dp(2) != invoice_amount {
-            return Err(AppError::validation("发票金额精度不能超过 2 位小数"));
+            return Err(AppError::validation_displayable(
+                "发票金额精度不能超过 2 位小数",
+            ));
         }
         Ok((customer_id, invoice_amount))
     }
@@ -168,15 +170,15 @@ impl ArInvoiceService {
     ) -> Result<ar_invoice::Model, AppError> {
         let customer_id = req
             .customer_id
-            .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("客户ID不能为空"))?;
         let source_bill_id = req.source_bill_id.unwrap_or(0);
 
         let invoice_amount = req
             .invoice_amount
-            .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("发票金额不能为空"))?;
         // 红字允许负数，但不允许 0
         if invoice_amount == Decimal::ZERO {
-            return Err(AppError::validation("红字应收单金额不能为零"));
+            return Err(AppError::validation_displayable("红字应收单金额不能为零"));
         }
 
         // 幂等检查：同退货单不重复创建红字应收单
@@ -326,7 +328,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable(
                 "非草稿状态的应收单无法修改".to_string(),
             ));
         }
@@ -342,7 +345,9 @@ impl ArInvoiceService {
         if let Some(amt) = req.invoice_amount {
             // P2-10 修复（批次 86 v2 复审）：金额精度校验，最多 2 位小数（货币精度）
             if amt.round_dp(2) != amt {
-                return Err(AppError::validation("应收单金额精度不能超过 2 位小数"));
+                return Err(AppError::validation_displayable(
+                    "应收单金额精度不能超过 2 位小数",
+                ));
             }
             let new_unpaid = (amt - invoice.received_amount).max(Decimal::ZERO);
             active_invoice.invoice_amount = sea_orm::ActiveValue::Set(amt);
@@ -380,7 +385,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable(
                 "非草稿状态的应收单无法删除".to_string(),
             ));
         }
@@ -409,7 +415,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request("只能审批草稿状态的应收单"));
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable("只能审批草稿状态的应收单"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();

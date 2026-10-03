@@ -24,10 +24,14 @@
     >
       <el-row :gutter="20">
         <el-col :span="12">
+          <!-- 任务 #153 缺陷3：单据号系统生成禁手打。后端 crud.rs::resolve_order_no 缺省时
+               经统一生成器 utils/number_generator.rs 取号（PO{YYYYMMDD}{3位流水}），
+               前端不得手输、不必填：新建只读留空由后端落库时取号；编辑只读回显（单号不可改）。 -->
           <el-form-item :label="t('production.form.labelOrderNo')" prop="order_no">
             <el-input
               v-model="localForm.order_no"
-              :placeholder="t('production.form.placeholderOrderNo')"
+              disabled
+              :placeholder="localForm.id ? '' : '单据号由系统自动生成，无需填写'"
             />
           </el-form-item>
         </el-col>

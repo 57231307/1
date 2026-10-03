@@ -19,6 +19,14 @@ export interface PurchaseReceiptEntity {
   receipt_status: string;
   /** 质检状态：后端 purchase_receipt.inspection_status（大写 PENDING/PASSED/REJECTED），同样随 Model 返回 */
   inspection_status: string;
+  /**
+   * 入库数量合计/辅助数量合计：后端 services/purchase_receipt_dto.rs:27-28 PurchaseReceiptDto
+   * total_quantity/total_quantity_alt 为 rust_decimal —— serde 默认输出**十进制字符串**
+   * （见 Cargo.toml rust_decimal features=["serde"]），前端类型必须 string，写成 number
+   * 会在 .toFixed 等 number 方法处运行期崩。
+   */
+  total_quantity: string;
+  total_quantity_alt: string;
   total_amount: number;
   remark?: string;
   created_at?: string;
@@ -33,7 +41,12 @@ export interface PurchaseReceiptEntity {
 /**
  * 入库明细行：字段名与后端 purchase_receipt_item Model /
  * CreateReceiptItemRequest 对齐（material_code/material_name/unit_master/
- * quantity_alt/unit_price/notes）；编辑回显直接消费后端返回，不再另起别名
+ * quantity_alt/unit_price/notes）；编辑回显直接消费后端返回，不再另起别名。
+ * ⚠️ 出参十进制列（quantity/quantity_alt/unit_price/amount/gram_weight/width）
+ * 为 rust_decimal 序列化的**十进制字符串**（可空列无值时为 null）；本接口把表单
+ * 模型声明为 number（历史沿用，usePi 等跨域消费方依赖），加载边界必须显式解析
+ * （见 views/purchase-receipt/composables/usePrcProc.ts 的 normalizeReceiptItemForForm），
+ * 禁止把未解析的字符串直接绑进 el-input-number 或调 .toFixed。
  */
 export interface ReceiptItem {
   id?: number;
@@ -63,6 +76,9 @@ export interface ReceiptItem {
 }
 
 // P2-9c 修复（批次 82 v1 复审）：PurchaseReceiptQueryParams 已在 purchase.ts 定义，此处复用避免重复导出
+// （键集逐字段对齐后端 purchase_receipt_handler.rs:376-382 ReceiptQueryParams：
+//  仅 page/page_size/status/supplier_id/order_id；keyword/warehouse_id/日期区间后端不接收，
+//  已随该类型一并摘除，勿再补回——后端缺口派单见看板 #205 修复报告）
 import type { PurchaseReceiptQueryParams } from './purchase';
 export type { PurchaseReceiptQueryParams };
 
@@ -105,8 +121,13 @@ export interface CreateReceiptItemRequest {
 
 /**
  * 更新入库明细请求 —— 与后端 DTO 逐字段对齐
- * backend/src/services/purchase_receipt_dto.rs:123 UpdateReceiptItemRequest
- * PUT /{id}/items/{itemId} 端点消费此结构，全部字段 Option（仅应用的字段落库）；
+ * backend/src/services/purchase_receipt_dto.rs UpdateReceiptItemRequest
+ * PUT /{id}/items/{itemId} 端点消费此结构。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - line_no/material_id/material_code/material_name/quantity 映射 NOT NULL 列（m0009 DDL）：
+ *   禁止送 null（后端 400「XX不能清空：该字段为必填项」）——不改即省略键；
+ * - batch_no/color_code/lot_no/grade/gram_weight/width/quantity_alt/unit_price/
+ *   location_code/notes/piece_no 为 DB 可空列（m0009 DDL）：清空须显式送 null。
  * 键名 snake_case，禁止用旧 Partial<ReceiptItem>（含 product_id/amount 等响应模型键）
  * 冒充请求契约——那会让 batch_no/缸号等维度在类型层缺席、编译期无从校验。
  */
@@ -115,18 +136,18 @@ export interface UpdateReceiptItemRequest {
   material_id?: number;
   material_code?: string;
   material_name?: string;
-  batch_no?: string;
-  color_code?: string;
-  lot_no?: string;
-  grade?: string;
-  gram_weight?: number;
-  width?: number;
+  batch_no?: string | null;
+  color_code?: string | null;
+  lot_no?: string | null;
+  grade?: string | null;
+  gram_weight?: number | null;
+  width?: number | null;
   quantity?: number;
-  quantity_alt?: number;
-  unit_price?: number;
-  location_code?: string;
-  notes?: string;
-  piece_no?: string;
+  quantity_alt?: number | null;
+  unit_price?: number | null;
+  location_code?: string | null;
+  notes?: string | null;
+  piece_no?: string | null;
 }
 
 /**
@@ -149,6 +170,28 @@ export interface CreatePurchaseReceiptRequest {
   items: CreateReceiptItemRequest[];
 }
 
+/**
+ * 更新入库单表头请求 —— 与后端 DTO 逐字段对齐
+ * backend/src/services/purchase_receipt_dto.rs UpdatePurchaseReceiptRequest。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - supplier_id/receipt_date 映射 NOT NULL 列（m0009 DDL）：禁止送 null
+ *   （后端 400「供应商/入库日期不能清空：该字段为必填项」）——不改即省略键；
+ * - department_id/inspector_id/notes/attachment_urls 为 DB 可空列（m0009 DDL）：
+ *   清空须显式送 null，禁止塌成 `|| undefined`（省略=保持原值）。
+ * PUT 仅接受这 6 个表头字段：receipt_no/receipt_status/warehouse_id/total_amount/items 等均不在
+ * 更新契约（单号与状态走专用端点、仓库不可改、明细走 item 级端点）。
+ * 备注的真实键名是 notes（响应模型无 remark 列）。
+ */
+export interface UpdatePurchaseReceiptPayload {
+  supplier_id?: number;
+  /** receipt_date 后端为 NaiveDate，格式 YYYY-MM-DD */
+  receipt_date?: string;
+  department_id?: number | null;
+  inspector_id?: number | null;
+  notes?: string | null;
+  attachment_urls?: string[] | null;
+}
+
 export function getPurchaseReceiptList(params?: PurchaseReceiptQueryParams) {
   return request.get<ApiResponse<{ items: PurchaseReceiptEntity[]; total: number }>>(
     '/purchase/receipts',
@@ -164,7 +207,7 @@ export function createPurchaseReceipt(data: CreatePurchaseReceiptRequest) {
   return request.post<ApiResponse<PurchaseReceiptEntity>>('/purchase/receipts', data);
 }
 
-export function updatePurchaseReceipt(id: number, data: Partial<PurchaseReceiptEntity>) {
+export function updatePurchaseReceipt(id: number, data: UpdatePurchaseReceiptPayload) {
   return request.put<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}`, data);
 }
 

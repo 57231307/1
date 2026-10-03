@@ -137,7 +137,7 @@ fn validate_greige_status(status: &str) -> Result<(), AppError> {
     if greige_fabric_status::ALL.contains(&status) {
         return Ok(());
     }
-    Err(AppError::validation(format!(
+    Err(AppError::validation_displayable(format!(
         "无效的坯布状态：{}（允许值：{}）",
         status,
         greige_fabric_status::ALL.join("/")
@@ -225,7 +225,7 @@ pub async fn create_greige_fabric(
     let fabric_type = req
         .fabric_type
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| AppError::validation("坯布类型(fabric_type)不能为空"))?;
+        .ok_or_else(|| AppError::validation_displayable("坯布类型(fabric_type)不能为空"))?;
 
     // 自动生成编号
     let fabric_no = req.fabric_no.unwrap_or_else(|| {
@@ -311,7 +311,9 @@ pub async fn update_greige_fabric(
     if let Some(fabric_type) = req.fabric_type {
         let fabric_type = fabric_type.trim().to_string();
         if fabric_type.is_empty() {
-            return Err(AppError::validation("坯布类型(fabric_type)不能为空"));
+            return Err(AppError::validation_displayable(
+                "坯布类型(fabric_type)不能为空",
+            ));
         }
         fabric.fabric_type = Set(fabric_type);
     }
@@ -390,7 +392,9 @@ pub async fn delete_greige_fabric(
         .ok_or_else(|| AppError::not_found("坯布不存在"))?;
 
     if fabric.status.as_deref() == Some(greige_fabric_status::IN_STOCK) {
-        return Err(AppError::business("在库坯布不允许删除，请先完成出库"));
+        return Err(AppError::business_displayable(
+            "在库坯布不允许删除，请先完成出库",
+        ));
     }
 
     // 软删除

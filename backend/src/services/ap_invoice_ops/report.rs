@@ -31,15 +31,13 @@ impl ApInvoiceService {
             query = query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
 
-        // 查询未付清的应付单
+        // 查询未付清的应付单（DRAFT/CANCELLED 一律不计入账龄，与 AR 账龄同口径）
         let invoices = query
-            .filter(
-                ap_invoice::Column::InvoiceStatus.ne(crate::models::status::payment::PAYMENT_PAID),
-            )
-            .filter(
-                ap_invoice::Column::InvoiceStatus
-                    .ne(crate::models::status::common::STATUS_CANCELLED),
-            )
+            .filter(ap_invoice::Column::InvoiceStatus.is_not_in([
+                crate::models::status::payment::PAYMENT_PAID,
+                crate::models::status::common::STATUS_CANCELLED,
+                crate::models::status::common::STATUS_DRAFT,
+            ]))
             .all(&*self.db)
             .await?;
 
@@ -97,12 +95,12 @@ impl ApInvoiceService {
             query = query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
 
-        // 查询所有有效应付单
+        // 查询所有有效应付单（草稿与已取消不计入余额）
         let invoices = query
-            .filter(
-                ap_invoice::Column::InvoiceStatus
-                    .ne(crate::models::status::common::STATUS_CANCELLED),
-            )
+            .filter(ap_invoice::Column::InvoiceStatus.is_not_in([
+                crate::models::status::common::STATUS_CANCELLED,
+                crate::models::status::common::STATUS_DRAFT,
+            ]))
             .all(&*self.db)
             .await?;
 
@@ -129,7 +127,7 @@ impl ApInvoiceService {
         &self,
         supplier_id: Option<i32>,
     ) -> Result<ApInvoiceStatistics, AppError> {
-        // 1. 余额汇总（排除已取消）
+        // 1. 余额汇总（排除草稿与已取消）
         let balance_summary = self.get_balance_summary(supplier_id).await?;
 
         // 2. 账龄分析（未付清的应付单）

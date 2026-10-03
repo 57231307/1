@@ -178,7 +178,7 @@ pub async fn create_quotation(
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     use validator::Validate;
     if let Err(e) = dto.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let service = QuotationService::from_state(&state);
@@ -200,7 +200,7 @@ pub async fn update_quotation(
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     use validator::Validate;
     if let Err(e) = dto.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let service = QuotationService::from_state(&state);
@@ -251,7 +251,9 @@ pub async fn reject_quotation(
     Json(body): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     if body.reason.trim().is_empty() {
-        return Err(AppError::validation("拒绝原因不能为空".to_string()));
+        return Err(AppError::validation_displayable(
+            "拒绝原因不能为空".to_string(),
+        ));
     }
     let service = QuotationApprovalService::from_state(&state);
     let model = service.reject(id, auth.user_id, body.reason).await?;
@@ -401,12 +403,19 @@ pub async fn list_expired(
     let today = Utc::now().date_naive();
 
     use crate::models::sales_quotation;
-    use sea_orm::sea_query::Expr;
+    use crate::models::status::quotation_ext;
+    use sea_orm::Condition;
+    // 状态过滤统一走 SeaORM Column 表达式 + status 词表常量绑定，
+    // 与写入侧 models::status 同源（此前手写裸 SQL 字面量绕过了唯一词表来源）。
+    // NOT IN (cancelled, expired, converted) 展开为逐列 ne 的 AND 组合。
     let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
         .filter(sales_quotation::Column::ValidUntil.lt(today))
-        .filter(Expr::cust(
-            "status NOT IN ('cancelled', 'converted', 'expired')",
-        ))
+        .filter(
+            Condition::all()
+                .add(sales_quotation::Column::Status.ne(quotation_status::CANCELLED))
+                .add(sales_quotation::Column::Status.ne(quotation_ext::EXPIRED))
+                .add(sales_quotation::Column::Status.ne(quotation_ext::CONVERTED)),
+        )
         .all(&*state.db)
         .await?
         .into_iter()
@@ -553,9 +562,14 @@ impl From<ServiceError> for AppError {
     fn from(e: ServiceError) -> Self {
         match e {
             ServiceError::NotFound => AppError::not_found("报价单不存在"),
-            ServiceError::InvalidState => AppError::validation("当前状态不允许此操作".to_string()),
-            ServiceError::Validation(msg) => AppError::validation(msg),
-            ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
+            // 状态门装配点：报价域 ServiceError::InvalidState 与 finance/quality/bad_debt
+            // 各域的 *::InvalidState 同属「前置状态未满足」，族必须一致归 business。
+            // 文案「当前状态不允许此操作」只述公开业务规则、不含内部状态 token/ID，可外显。
+            ServiceError::InvalidState => {
+                AppError::business_displayable("当前状态不允许此操作".to_string())
+            }
+            ServiceError::Validation(msg) => AppError::validation_displayable(msg),
+            ServiceError::Database(db_err) => AppError::database(db_err.to_string()),
             // 批次 265：paginate_with_total 返回的 AppError 直接透传
             ServiceError::App(e) => e,
         }

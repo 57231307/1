@@ -5,7 +5,9 @@
 //! `impl SalesService`，handler 仅保留参数提取 + 调用 service。
 //!
 //! 业务规则：
-//! - 订单号生成：`SO{yyyymmddHHMMSS}`（简单时间戳单号，与原 handler 保持一致）
+//! - 订单号生成：统一走 `DocumentNumberGenerator`（`SO{YYYYMMDD}{3位流水}`，
+//!   事务内取号 + 23505 保存点重试；原 `SO{yyyymmddHHMMSS}` 秒级时间戳同秒必撞、
+//!   且与销售订单域标准流水格式不一致，已废弃）
 //! - 明细校验：数量/单价非负，价格精度 2 位小数（P2-11 修复逻辑下沉）
 //! - 总金额 = Σ(quantity_meters × final_price)，主表与明细在同一事务内提交
 //! - 审核流：pending → approved（记录 approved_at）
@@ -20,6 +22,7 @@ use serde::Deserialize;
 use crate::models::{sales_order, sales_order_item};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 /// 创建面料销售订单明细请求（handler DTO 直接透传，字段与原 handler 一致）
 /// 批次说明：product_name / batch_no / dye_lot_no 为前端表单冗余字段，明细落库时
@@ -185,21 +188,23 @@ impl SalesService {
         Self::validate_fabric_order_items(&req.items)?;
 
         let txn = (*self.db).begin().await?;
-        let order_no = format!("SO{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let total_amount = Self::calculate_fabric_order_totals(&req.items);
 
-        let order = Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id);
-        let created_order = order
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::bad_request(format!("创建订单失败：{}", e)))?;
+        // 订单号统一走生成器：在本事务内取号（advisory 锁 + 占用探测），
+        // INSERT 撞 order_no 唯一约束时保存点回滚重新取号重试，
+        // 其余 SQL 错误显式上抛（不再拼时间戳、也不再伪装成 400 掩盖错误）
+        let created_order = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "SO",
+            sales_order::Entity,
+            sales_order::Column::OrderNo,
+            |order_no| Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id),
+        )
+        .await?;
 
         for item in &req.items {
             let order_item = Self::build_fabric_order_item_active_model(item, created_order.id);
-            order_item
-                .insert(&txn)
-                .await
-                .map_err(|e| AppError::bad_request(format!("创建订单明细失败：{}", e)))?;
+            order_item.insert(&txn).await?;
         }
 
         txn.commit().await?;
@@ -219,7 +224,7 @@ impl SalesService {
             .into();
 
         if let Some(date) = req.required_date {
-            order.required_date = Set(date);
+            order.required_date = Set(Some(date));
         }
         if let Some(status) = req.status {
             order.status = Set(status);
@@ -285,25 +290,25 @@ impl SalesService {
     /// 校验单个明细项
     fn validate_fabric_item(item: &FabricOrderItemRequest, idx: usize) -> Result<(), AppError> {
         if item.quantity_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 quantity_meters 不能为负数",
                 idx + 1
             )));
         }
         if item.quantity_kg < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 quantity_kg 不能为负数",
                 idx + 1
             )));
         }
         if item.unit_price_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 unit_price_meters 不能为负数",
                 idx + 1
             )));
         }
         if item.unit_price_meters.round_dp(2) != item.unit_price_meters {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 unit_price_meters 精度不能超过 2 位小数",
                 idx + 1
             )));
@@ -320,14 +325,14 @@ impl SalesService {
     /// 校验可选价格字段的非负与精度（货币精度 2 位小数）
     fn validate_price_precision(p: Decimal, field: &str, idx: usize) -> Result<(), AppError> {
         if p < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 {} 不能为负数",
                 idx + 1,
                 field
             )));
         }
         if p.round_dp(2) != p {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 {} 精度不能超过 2 位小数",
                 idx + 1,
                 field
@@ -362,7 +367,7 @@ impl SalesService {
             customer_id: Set(req.customer_id),
             opportunity_id: Set(None),
             order_date: Set(req.order_date),
-            required_date: Set(req.required_date),
+            required_date: Set(Some(req.required_date)),
             ship_date: Set(None),
             status: Set("pending".to_string()),
             subtotal: Set(total_amount),

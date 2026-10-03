@@ -118,7 +118,7 @@ impl IncotermsService {
         insurance_cost: Option<Decimal>,
         duty_cost: Option<Decimal>,
     ) -> (Decimal, Option<Decimal>, Option<Decimal>, Option<Decimal>) {
-        // EXW/FCA/FAS 不含运费
+        // EXW/FCA/FAS/FOB 不含主运费（FOB 主运费由买方订立，ICC Incoterms 2020）
         let freight = if incoterm.includes_freight() {
             freight_cost
         } else {
@@ -146,13 +146,13 @@ impl IncotermsService {
         month: u32,
     ) -> Result<IncotermsMonthlyReport, AppError> {
         let start_date = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::validation("无效的年月".to_string()))?;
+            .ok_or_else(|| AppError::validation_displayable("无效的年月".to_string()))?;
         let next_month = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
             NaiveDate::from_ymd_opt(year, month + 1, 1)
         }
-        .ok_or_else(|| AppError::validation("无效的年月".to_string()))?;
+        .ok_or_else(|| AppError::validation_displayable("无效的年月".to_string()))?;
 
         let sql = r#"
             SELECT

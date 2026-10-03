@@ -52,12 +52,18 @@ pub enum BulkColorApprovalError {
     SalesOrderNotFound,
     #[error("染色批次不存在")]
     DyeBatchNotFound,
+    #[error("关联生产订单不存在")]
+    ProductionOrderNotFound,
     #[error("客户不存在")]
     CustomerNotFound,
     #[error("当前状态 {0} 不允许此操作")]
     InvalidState(String),
     #[error("参数校验失败: {0}")]
     Validation(String),
+    /// 服务端内部不变量违例（如必填字段缺失、引用数据不一致），非用户输入校验，
+    /// 不得走 Validation 通道出 400。
+    #[error("内部不变量违例: {0}")]
+    Internal(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
 }
@@ -373,14 +379,14 @@ impl BulkColorApprovalService {
             let po = production_order::Entity::find_by_id(po_id)
                 .one(&txn)
                 .await?
-                .ok_or(BulkColorApprovalError::Validation(
-                    "关联生产订单不存在".to_string(),
-                ))?;
+                // 存在性缺失：引用的生产订单不存在 → NOT_FOUND 族（与 DyeBatchNotFound 同构），
+                // 不属状态门也不属输入校验，独立判定为记录不存在
+                .ok_or(BulkColorApprovalError::ProductionOrderNotFound)?;
             if po.status != "COMPLETED" {
-                return Err(BulkColorApprovalError::Validation(format!(
-                    "生产订单状态必须为 COMPLETED，当前为 {}",
-                    po.status
-                )));
+                // 状态门：关联生产订单未完成，剪样前置未满足，归业务族
+                return Err(BulkColorApprovalError::InvalidState(
+                    "关联生产订单尚未完成，不能剪样".to_string(),
+                ));
             }
         }
 
@@ -390,10 +396,10 @@ impl BulkColorApprovalService {
             .await?
             .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
         if dye_batch.status.as_deref() != Some("completed") {
-            return Err(BulkColorApprovalError::Validation(format!(
-                "染色批次状态必须为 completed，当前为 {:?}",
-                dye_batch.status
-            )));
+            // 状态门：关联染色批次未完成，剪样前置未满足，归业务族
+            return Err(BulkColorApprovalError::InvalidState(
+                "关联染色批次尚未完成，不能剪样".to_string(),
+            ));
         }
 
         // 业务规则 3：剪样库存联动
@@ -404,16 +410,17 @@ impl BulkColorApprovalService {
             .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
             .one(&txn)
             .await?
-            .ok_or(BulkColorApprovalError::Validation(
+            // 资源/额度门：尚无合格大货库存记录可供剪样，属业务前置未满足，归业务族（与库存不足同族）
+            .ok_or(BulkColorApprovalError::InvalidState(
                 "未找到合格的大货库存记录".to_string(),
             ))?;
 
         // 检查库存是否足够
         if stock.quantity_meters < sample_length {
-            return Err(BulkColorApprovalError::Validation(format!(
-                "库存不足，当前库存 {}m，需要 {}m",
-                stock.quantity_meters, sample_length
-            )));
+            // 额度门：库存数量不足，属业务族；文案不回显库存数字，保持脱敏 business 亦满足安全边界
+            return Err(BulkColorApprovalError::InvalidState(
+                "大货库存不足，无法剪样".to_string(),
+            ));
         }
 
         // 扣减大货库存
@@ -758,7 +765,7 @@ impl BulkColorApprovalService {
         use crate::services::production_order_service::ProductionOrderService;
 
         let product_id = model.product_id.ok_or_else(|| {
-            BulkColorApprovalError::Validation(
+            BulkColorApprovalError::Internal(
                 "返工创建生产订单失败：bulk_color_approval.product_id 为空，无法创建返工订单"
                     .to_string(),
             )

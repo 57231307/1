@@ -131,11 +131,14 @@ fn test_edcxjc_zycejy() {
     assert!(amount_over > model.available_credit);
 
     // 复现 occupy_credit 的错误构造，验证错误类型
-    let err = AppError::validation(format!(
+    // 断言跟随源码变更（任务 #165）：额度门归业务族；文案含查询所得可用余额数字，
+    // 源码保持脱敏 AppError::business（出参 code 仍为 BUSINESS_ERROR）。
+    let err = AppError::business(format!(
         "可用额度不足：请求 {}，可用 {}",
         amount_over, model.available_credit
     ));
-    assert!(matches!(err, AppError::ValidationError(_)));
+    assert!(matches!(err, AppError::BusinessError(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
 
 /// test_edcxjc_zyztfhy（验证 occupy_credit 中 status != ACTIVE 时应拒绝）
@@ -147,8 +150,11 @@ fn test_edcxjc_zyztfhy() {
     let should_reject = model.status != master_data::ACTIVE;
     assert!(should_reject);
 
-    let err = AppError::validation("客户信用状态非活跃");
-    assert!(matches!(err, AppError::ValidationError(_)));
+    // 断言跟随源码变更（任务 #165）：「客户信用状态非活跃」是前置状态未满足的状态门，
+    // 源码 occupy_credit 已改为 AppError::business_displayable，族 = BUSINESS_ERROR。
+    let err = AppError::business_displayable("客户信用状态非活跃");
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
 
     // 状态为 ACTIVE 时不应该拒绝
     let model_active = make_credit_model(2, decs!("10000"), Decimal::ZERO, master_data::ACTIVE);
@@ -168,8 +174,10 @@ fn test_edcxjc_sfcejy() {
     let amount_over = model.used_credit + decs!("0.01");
     assert!(amount_over > model.used_credit);
 
-    let err = AppError::validation("释放额度超过已占用额度".to_string());
-    assert!(matches!(err, AppError::ValidationError(_)));
+    // 断言跟随源码变更（任务 #165）：额度门归业务族，源码为 business_displayable（文案无数字可外显）
+    let err = AppError::business_displayable("释放额度超过已占用额度".to_string());
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
 
 /// test_yyedjs_tzzjlx
@@ -215,8 +223,10 @@ fn test_yyedjs_tzjsdyyyed() {
     let should_reject = decreased < model.used_credit;
     assert!(should_reject);
 
-    let err = AppError::validation("降低后的额度不能低于已使用额度".to_string());
-    assert!(matches!(err, AppError::ValidationError(_)));
+    // 断言跟随源码变更（任务 #165）：额度门归业务族，源码为 business_displayable（文案无数字可外显）
+    let err = AppError::business_displayable("降低后的额度不能低于已使用额度".to_string());
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
 
 /// test_yyedjs_wxtzlx（验证 adjust_credit_limit 中非 increase/decrease 类型应被拒绝）
@@ -227,8 +237,11 @@ fn test_yyedjs_wxtzlx() {
     let is_valid = matches!(adjustment_type, "increase" | "decrease");
     assert!(!is_valid);
 
-    let err = AppError::validation("无效的额度调整类型");
-    assert!(matches!(err, AppError::ValidationError(_)));
+    // 断言跟随源码变更（任务 #165）：调整类型取值非法属输入校验，族保持 VALIDATION_ERROR，
+    // 源码用 validation_displayable 外显真实原因（不是放宽，而是与源码变体一致）。
+    let err = AppError::validation_displayable("无效的额度调整类型");
+    assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
 
     // 合法类型应通过
     assert!(matches!("increase", "increase" | "decrease"));
@@ -319,8 +332,10 @@ fn test_tyxy_yzyedjj() {
     let should_reject = model.used_credit > Decimal::ZERO;
     assert!(should_reject);
 
-    let err = AppError::validation("客户仍有占用额度，无法停用".to_string());
-    assert!(matches!(err, AppError::ValidationError(_)));
+    // 断言跟随源码变更（任务 #165）：停用前置（占用额度未清零）属状态门，归业务族
+    let err = AppError::business_displayable("客户仍有占用额度，无法停用".to_string());
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
 
 /// test_tyxy_wzyedyx（验证 deactivate 中 used_credit == 0 时允许停用，停用后状态应为 INACTIVE）

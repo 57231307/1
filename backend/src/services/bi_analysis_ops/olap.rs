@@ -10,10 +10,14 @@
 //! - 切块（dice）：多维范围筛选（按日期范围返回按日聚合）
 //! - 上卷（rollup）：细粒度 → 粗粒度聚合（day → month 等）
 //! - 透视（pivot）：行列转换，按 row_dim × col_dim 构建二维聚合矩阵
+//! - 聚合排除 cancelled（已取消）/draft（草稿）状态：取值来自权威词表
+//!   `crate::models::status::sales::sales_order`（小写），SQL 以绑定参数引用，禁止
+//!   `'CANCELLED'`/`'DRAFT'` 大写硬编码（Postgres 大小写敏感，大写比较恒不命中）
 //! - V15 P0-B10：pivot 查询注入行级数据权限过滤
 
 use sea_orm::{FromQueryResult, Statement};
 
+use crate::models::status::sales::sales_order;
 use crate::services::bi_analysis_ops::types::PivotRow;
 use crate::services::bi_analysis_service::{
     BiAnalysisService, dec_to_f64, dim_to_expr, measure_to_expr,
@@ -30,7 +34,10 @@ impl BiAnalysisService {
     ) -> Result<serde_json::Value, AppError> {
         let valid_dims = ["time", "customer", "product", "region", "category"];
         if !valid_dims.contains(&dimension) {
-            return Err(AppError::validation(format!("不支持的维度: {}", dimension)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的维度: {}",
+                dimension
+            )));
         }
 
         let result = match dimension {
@@ -88,7 +95,7 @@ impl BiAnalysisService {
     ) -> Result<serde_json::Value, AppError> {
         let valid_levels = ["day", "week", "month", "quarter", "year"];
         if !valid_levels.contains(&from_level) || !valid_levels.contains(&to_level) {
-            return Err(AppError::validation("无效的粒度级别"));
+            return Err(AppError::validation_displayable("无效的粒度级别"));
         }
 
         let end = chrono::Local::now().date_naive();
@@ -110,18 +117,27 @@ impl BiAnalysisService {
     fn validate_pivot_params(row_dim: &str, col_dim: &str, measure: &str) -> Result<(), AppError> {
         let valid_dims = ["customer", "product", "region", "category", "time"];
         if !valid_dims.contains(&row_dim) {
-            return Err(AppError::validation(format!("不支持的行维度: {}", row_dim)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的行维度: {}",
+                row_dim
+            )));
         }
         if !valid_dims.contains(&col_dim) {
-            return Err(AppError::validation(format!("不支持的列维度: {}", col_dim)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的列维度: {}",
+                col_dim
+            )));
         }
         if row_dim == col_dim {
-            return Err(AppError::validation("行维度与列维度不能相同"));
+            return Err(AppError::validation_displayable("行维度与列维度不能相同"));
         }
 
         let valid_measures = ["total_amount", "order_count", "quantity", "profit_amount"];
         if !valid_measures.contains(&measure) {
-            return Err(AppError::validation(format!("不支持的度量: {}", measure)));
+            return Err(AppError::validation_displayable(format!(
+                "不支持的度量: {}",
+                measure
+            )));
         }
         Ok(())
     }
@@ -157,8 +173,9 @@ impl BiAnalysisService {
             (joins, measure_expr)
         };
 
-        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，无其他参数，scope 从 $1 开始）
-        let (scope_sql, scope_values) = self.scope_sql("s", 1);
+        // V15 P0-B10：注入数据范围过滤（sales_orders 别名为 s，$1/$2 为排除门状态
+        // 绑定值，scope 从 $3 起）
+        let (scope_sql, scope_values) = self.scope_sql("s", 3);
 
         let sql = format!(
             r#"
@@ -171,7 +188,7 @@ impl BiAnalysisService {
             FROM sales_orders s
             LEFT JOIN customers c ON c.id = s.customer_id
             {joins}
-            WHERE s.status NOT IN ('CANCELLED', 'DRAFT')
+            WHERE s.status NOT IN ($1, $2)
               {scope_sql}
             GROUP BY row_key, row_label, col_key, col_label
             ORDER BY row_label ASC, col_label ASC
@@ -185,8 +202,10 @@ impl BiAnalysisService {
             scope_sql = scope_sql,
         );
 
-        let stmt =
-            Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, scope_values);
+        let mut values: Vec<sea_orm::Value> =
+            vec![sales_order::CANCELLED.into(), sales_order::DRAFT.into()];
+        values.extend(scope_values);
+        let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, values);
 
         PivotRow::find_by_statement(stmt)
             .all(&*self.db)

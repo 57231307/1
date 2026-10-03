@@ -20,6 +20,7 @@ import {
   type SalesReturn,
   type SalesReturnQueryParams,
   type CreateSalesReturnRequest,
+  type UpdateSalesReturnRequest,
   type CreateSalesReturnItemRequest,
 } from '@/api/sales-return';
 import { getSalesOrderList } from '@/api/sales';
@@ -368,6 +369,22 @@ export function useSr() {
     notes: formData.remarks || undefined,
   });
 
+  // 编辑表头载荷（三态契约，RFC 7386，对齐后端 UpdateSalesReturnRequest DoubleOption）：
+  // NOT NULL 列 customer_id/return_date/warehouse_id/reason_type 恒送值（送 null 被后端 400 拒绝）；
+  // order_id/notes 为 DB 可空列——UI 无值 ⇒ 送显式 null（order_id=解除来源订单关联、
+  // notes=清空备注），塌成 `|| undefined` 省略键会"改了不生效"；
+  // reason_detail 为虚拟入参（reason 复合列的 detail 部分），随 reason_type 提交，
+  // 清空 ⇒ null（后端仅落 type 段）。
+  const buildUpdateHeadBody = (): UpdateSalesReturnRequest => ({
+    order_id: formData.salesOrderId ?? null,
+    customer_id: formData.customerId as number,
+    return_date: formData.returnDate,
+    warehouse_id: formData.warehouseId as number,
+    reason_type: formData.reasonType,
+    reason_detail: formData.reasonDetail || null,
+    notes: formData.remarks || null,
+  });
+
   // 明细同步：无 id 的新增行 POST，已存在的行 PUT（后端 PUT 仅接受数量/单价/原因），
   // 用户在表单里删掉的已有行按 id 先 DELETE
   const syncItems = async (returnId: number) => {
@@ -391,10 +408,12 @@ export function useSr() {
         };
         await createSalesReturnItem(returnId, body);
       } else {
+        // 三态契约（后端 UpdateReturnItemRequest DoubleOption）：quantity/unit_price 为
+        // NOT NULL 列恒送值；reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
         await updateSalesReturnItem(returnId, it.id, {
           quantity: it.quantity,
           unit_price: it.unitPrice,
-          reason: it.reason || undefined,
+          reason: it.reason || null,
         });
       }
     }
@@ -424,7 +443,7 @@ export function useSr() {
         msg.success('createSuccess');
       } else {
         const returnId = formData.id as number;
-        await updateSalesReturn(returnId, headBody);
+        await updateSalesReturn(returnId, buildUpdateHeadBody());
         await syncItems(returnId);
         msg.success('updateSuccess');
       }

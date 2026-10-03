@@ -84,7 +84,7 @@ impl RoleChangeApprovalService {
             "assign_role" => ChangeType::AssignRole,
             "assign_permission" => ChangeType::AssignPermission,
             "remove_permission" => ChangeType::RemovePermission,
-            _ => return Err(AppError::validation("无效的变更类型")),
+            _ => return Err(AppError::validation_displayable("无效的变更类型")),
         };
 
         // 生成审批单号

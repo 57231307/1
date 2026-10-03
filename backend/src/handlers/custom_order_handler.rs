@@ -66,8 +66,14 @@ fn crud_err(e: crate::services::custom_order_crud_service::CrudError) -> AppErro
     use crate::services::custom_order_crud_service::CrudError::*;
     match e {
         NotFound => AppError::not_found("定制订单不存在"),
+        // 族装配点判定：状态门一律 BUSINESS_ERROR。
+        // - `InvalidState`（无文案/含内部判定依据）→ 脱敏 business
+        // - `InvalidStateDisplayable`（公开业务规则文案）→ business_displayable 外显
+        // - `Validation`（数量/规格等提交字段校验）→ 校验族；文案只述请求字段，
+        //   按 error.rs 规则用 validation_displayable 外显真实原因
         InvalidState => AppError::business("当前状态不允许此操作"),
-        Validation(msg) => AppError::validation(msg),
+        InvalidStateDisplayable(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
@@ -101,8 +107,13 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
     use crate::services::custom_order_quality_service::QualityError::*;
     match e {
         NotFound => AppError::not_found("质量异常不存在"),
-        InvalidState(msg) => AppError::business(msg),
-        Validation(msg) => AppError::validation(msg),
+        // 族装配点校正：`Validation(msg)` 通道承载的是用户提交字段的取值/范围/必填
+        // 越界（非法严重度、ΔE 为负、色牢度等级越界），属输入校验族，必须出
+        // VALIDATION_ERROR；此前被误映射为 business 使前端把「我填错了」当业务提示。
+        // InvalidState（记录当前状态门）保持 business。二者族语义各自归位，混合语义已在
+        // 服务层拆分（状态门走 InvalidState、字段校验走 Validation）。
+        InvalidState(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
@@ -115,12 +126,17 @@ fn aftersales_err(
     use crate::services::custom_order_aftersales_service::AfterSalesError::*;
     match e {
         NotFound => AppError::not_found("售后工单不存在"),
-        InvalidState(msg) => AppError::business(msg),
-        Validation(msg) => AppError::validation(msg),
+        // 族装配点校正：`Validation(msg)` 通道承载用户提交字段的取值/范围/必填越界
+        // （非法售后类型、缺退款金额、评价分数越界、非法年月），属输入校验族 → VALIDATION_ERROR。
+        // `InvalidState(msg)` 通道才是记录当前状态门（含本工单自身状态回显，公开业务规则）
+        // → BUSINESS_ERROR。二者族语义各自归位；触发质量调查的状态门已在服务层改走 InvalidState。
+        InvalidState(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         // 批次 263：paginate_with_total 返回的 AppError 直接透传
         App(e) => e,
-        // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）
+        // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）。
+        // 文案含内部记录 ID，按 error.rs 安全边界不得外显，保持脱敏 business。
         AlreadyLinked(after_sales_id, qi_id) => AppError::business(format!(
             "售后工单 {} 已关联质量异常 {}，禁止重复触发",
             after_sales_id, qi_id
@@ -269,7 +285,9 @@ pub async fn get_custom_order(
             notes: order.notes,
             process_nodes: map_process_nodes(nodes),
             quality_issues: map_quality_issues(issues),
-            after_sales: map_after_sales(after_sales_list),
+            // after_sales_list 由 service::list_by_order 的 LEFT JOIN 富化查询直接产出，
+            // customer_name 即 JOIN 真值（客户行缺失为 null），此处不再逐字段构造
+            after_sales: after_sales_list,
         })
     })
     .await
@@ -315,23 +333,6 @@ fn map_quality_issues(issues: Vec<crate::models::quality_issue::Model>) -> Vec<Q
             resolved_at: i.resolved_at,
             resolution: i.resolution,
             status: i.status,
-        })
-        .collect()
-}
-
-/// 转换售后记录列表为响应 DTO
-fn map_after_sales(list: Vec<crate::models::after_sales::Model>) -> Vec<AfterSalesInfo> {
-    list.into_iter()
-        .map(|a| AfterSalesInfo {
-            id: a.id,
-            issue_type: a.issue_type,
-            description: a.description,
-            status: a.status,
-            opened_at: a.opened_at,
-            closed_at: a.closed_at,
-            resolution: a.resolution,
-            refund_amount: a.refund_amount,
-            quality_issue_id: a.quality_issue_id,
         })
         .collect()
 }
@@ -572,16 +573,18 @@ pub async fn get_timeline(
 // ----------------------------------------------------------------------
 
 /// POST /api/v1/erp/custom-orders/:id/issues - 上报异常
+///
+/// 契约修复（任务 #148 售后先例同构）：归属 `custom_order_id` 由 path 权威注入
+/// `service.report_issue(id, dto)`，body 不再携带该字段（伪造键被 serde 忽略，
+/// 越权防护为结构性排除，不再依赖"反序列化后覆盖"）
 pub async fn report_quality_issue(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(mut dto): Json<ReportQualityIssueDto>,
+    Path(id): Path<i64>,
+    Json(dto): Json<ReportQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
-    // URL 中的 id 与 body 中 custom_order_id 一致时，使用 URL 的 id 作为权威
-    dto.custom_order_id = _id;
     let service = CustomOrderQualityService::from_state(&state);
-    let issue = service.report_issue(dto).await.map_err(quality_err)?;
+    let issue = service.report_issue(id, dto).await.map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,
@@ -665,26 +668,36 @@ pub async fn resolve_quality_issue(
 // ----------------------------------------------------------------------
 
 /// POST /api/v1/erp/custom-orders/:id/after-sales - 创建售后工单
+///
+/// 任务 #148 契约修复：工单归属以 path 参数 `:id` 为唯一权威来源，
+/// `CreateAfterSalesDto` 不再包含 `custom_order_id` 字段——修复前 DTO 为非 Option
+/// 必填，而前端 payload 从不携带该键，反序列化层直接 "missing field" 报参数错误，
+/// 创建必失败；且旧代码 "先反序列化 body、后 dto.custom_order_id = path" 的覆盖
+/// 使 body 值本就无语义。现在客户端即使伪造发送 `custom_order_id` 也会被 serde
+/// 忽略未知字段而结构性排除，归属不可能被 body 覆盖（越权防护对齐
+/// `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)` 先例）。
 pub async fn create_after_sales(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(mut dto): Json<CreateAfterSalesDto>,
+    Path(id): Path<i64>,
+    Json(dto): Json<CreateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
-    dto.custom_order_id = _id;
     let service = CustomOrderAfterSalesService::from_state(&state);
-    let after = service.create(dto).await.map_err(aftersales_err)?;
-    Ok(Json(ApiResponse::success(AfterSalesInfo {
-        id: after.id,
-        issue_type: after.issue_type,
-        description: after.description,
-        status: after.status,
-        opened_at: after.opened_at,
-        closed_at: after.closed_at,
-        resolution: after.resolution,
-        refund_amount: after.refund_amount,
-        quality_issue_id: after.quality_issue_id,
-    })))
+    let after = service.create(id, dto).await.map_err(aftersales_err)?;
+    // 出参与列表/详情同源：写入后回读一次带 customers LEFT JOIN 的富化查询，
+    // customer_name 取 JOIN 真值（客户行缺失为 null）；本仓禁止在构造点填 None
+    // 或拼装名，回读不到刚写入的行即数据异常，如实报错
+    let info = service
+        .find_dto_by_id(after.id)
+        .await
+        .map_err(aftersales_err)?
+        .ok_or_else(|| {
+            AppError::InternalError(format!(
+                "售后工单创建成功（id={}）但富化回读未命中，读侧链路与写入不一致",
+                after.id
+            ))
+        })?;
+    Ok(Json(ApiResponse::success(info)))
 }
 
 /// GET /api/v1/erp/custom-orders/:id/after-sales - 售后列表
@@ -697,28 +710,15 @@ pub async fn list_after_sales(
     let service = CustomOrderAfterSalesService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    // service::list_by_order 即带 customers LEFT JOIN + column_as(customer_name) +
+    // into_model::<AfterSalesInfo> 的单次富化查询，items 已是出参 DTO，不得再逐字段构造
     let (items, total) = service
         .list_by_order(id, page, page_size)
         .await
         .map_err(aftersales_err)?;
 
-    let list: Vec<AfterSalesInfo> = items
-        .into_iter()
-        .map(|a| AfterSalesInfo {
-            id: a.id,
-            issue_type: a.issue_type,
-            description: a.description,
-            status: a.status,
-            opened_at: a.opened_at,
-            closed_at: a.closed_at,
-            resolution: a.resolution,
-            refund_amount: a.refund_amount,
-            quality_issue_id: a.quality_issue_id,
-        })
-        .collect();
-
     Ok(Json(ApiResponse::success(PagedResponse {
-        items: list,
+        items,
         total,
         page,
         page_size,
@@ -734,17 +734,14 @@ pub async fn update_after_sales(
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
     let service = CustomOrderAfterSalesService::from_state(&state);
     let after = service.update(id, dto).await.map_err(aftersales_err)?;
-    Ok(Json(ApiResponse::success(AfterSalesInfo {
-        id: after.id,
-        issue_type: after.issue_type,
-        description: after.description,
-        status: after.status,
-        opened_at: after.opened_at,
-        closed_at: after.closed_at,
-        resolution: after.resolution,
-        refund_amount: after.refund_amount,
-        quality_issue_id: after.quality_issue_id,
-    })))
+    // 与创建端点同口径：更新后回读带 customers LEFT JOIN 的富化查询出参，
+    // customer_name 取 JOIN 真值；回读未命中说明行已被并发移除，如实 404
+    let info = service
+        .find_dto_by_id(after.id)
+        .await
+        .map_err(aftersales_err)?
+        .ok_or_else(|| AppError::not_found("售后工单不存在"))?;
+    Ok(Json(ApiResponse::success(info)))
 }
 
 // ----------------------------------------------------------------------

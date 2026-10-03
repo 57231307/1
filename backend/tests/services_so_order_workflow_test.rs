@@ -28,7 +28,7 @@ fn make_order_model(
         customer_id,
         opportunity_id: None,
         order_date: Utc::now(),
-        required_date: Utc::now(),
+        required_date: Some(Utc::now()),
         ship_date: None,
         status: status.to_string(),
         subtotal: total_amount,

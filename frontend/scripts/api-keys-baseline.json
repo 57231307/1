@@ -1,13 +1,12 @@
 {
-  "total": 176,
+  "total": 148,
   "files": {
-    "frontend/src/api/account-subject.ts": {
-      "count": 1,
-      "keys": ["AccountSubjectEntity.balance_type"]
-    },
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
-      "keys": ["ProcessOptCandidate.case_id", "QualityTopIssue.issue"]
+      "keys": [
+        "ProcessOptCandidate.case_id",
+        "QualityTopIssue.issue"
+      ]
     },
     "frontend/src/api/ap.ts": {
       "count": 11,
@@ -26,19 +25,12 @@
       ]
     },
     "frontend/src/api/ar-reconciliation-enhanced.ts": {
-      "count": 6,
+      "count": 3,
       "keys": [
         "CustomerConfirmation.confirm_amount",
         "CustomerConfirmation.confirm_status",
-        "CustomerConfirmation.disputed_amount",
-        "DisputeRecord.confirmation_id",
-        "DisputeRecord.dispute_amount",
-        "DisputeRecord.dispute_type"
+        "CustomerConfirmation.disputed_amount"
       ]
-    },
-    "frontend/src/api/ar-reconciliation.ts": {
-      "count": 2,
-      "keys": ["ArReconciliationEntity.total_adjustment", "ReconciliationDetail.source_date"]
     },
     "frontend/src/api/ar.ts": {
       "count": 10,
@@ -74,29 +66,31 @@
     },
     "frontend/src/api/bi.ts": {
       "count": 1,
-      "keys": ["PivotResult.cells"]
+      "keys": [
+        "PivotResult.cells"
+      ]
     },
     "frontend/src/api/bpm-enhanced.ts": {
-      "count": 9,
+      "count": 5,
       "keys": [
         "ProcessDefinition.form_schema",
         "ProcessNode.assignee_type",
         "ProcessNode.assignee_value",
         "ProcessNode.next_nodes",
-        "ProcessTemplate.icon",
-        "ProcessTemplate.process_definition",
-        "ProcessTemplate.template_key",
-        "ProcessTemplate.usage_count",
         "ProcessVersion.change_log"
       ]
     },
     "frontend/src/api/budget.ts": {
       "count": 1,
-      "keys": ["Budget.budget_no"]
+      "keys": [
+        "Budget.budget_no"
+      ]
     },
     "frontend/src/api/business-trace.ts": {
       "count": 1,
-      "keys": ["TraceSnapshotCreateDto.snapshot_type"]
+      "keys": [
+        "TraceSnapshotCreateDto.snapshot_type"
+      ]
     },
     "frontend/src/api/capacity.ts": {
       "count": 10,
@@ -115,10 +109,12 @@
     },
     "frontend/src/api/color-price.ts": {
       "count": 1,
-      "keys": ["TagType.default"]
+      "keys": [
+        "TagType.default"
+      ]
     },
     "frontend/src/api/crm-enhanced.ts": {
-      "count": 9,
+      "count": 8,
       "keys": [
         "AssignmentRecord.assign_type",
         "AssignmentRecord.assigned_from",
@@ -127,8 +123,7 @@
         "Customer360Summary.rfm_score",
         "CustomerWithTags.last_follow_up",
         "RfmScore.monetary",
-        "RfmScore.recency",
-        "SalesUser.active"
+        "RfmScore.recency"
       ]
     },
     "frontend/src/api/crm.ts": {
@@ -142,7 +137,9 @@
     },
     "frontend/src/api/customer-credit.ts": {
       "count": 1,
-      "keys": ["CustomerCredit.valid_to"]
+      "keys": [
+        "CustomerCredit.valid_to"
+      ]
     },
     "frontend/src/api/dashboard.ts": {
       "count": 4,
@@ -173,15 +170,15 @@
     },
     "frontend/src/api/export-approvals.ts": {
       "count": 1,
-      "keys": ["ExportApprovalRequest.approval_context"]
-    },
-    "frontend/src/api/fabric.ts": {
-      "count": 2,
-      "keys": ["Fabric.fabric_code", "Fabric.image_url"]
+      "keys": [
+        "ExportApprovalRequest.approval_context"
+      ]
     },
     "frontend/src/api/finance-report.ts": {
       "count": 1,
-      "keys": ["FinanceReportQueryParams.company_id"]
+      "keys": [
+        "FinanceReportQueryParams.company_id"
+      ]
     },
     "frontend/src/api/fund.ts": {
       "count": 6,
@@ -196,15 +193,8 @@
     },
     "frontend/src/api/greige-fabric.ts": {
       "count": 1,
-      "keys": ["GreigeFabric.fabric_code"]
-    },
-    "frontend/src/api/inventory.ts": {
-      "count": 4,
       "keys": [
-        "InventoryQueryParams.low_stock",
-        "InventoryReservation.expire_date",
-        "InventoryReservation.reserved_quantity",
-        "ReservationData.expire_date"
+        "GreigeFabric.fabric_code"
       ]
     },
     "frontend/src/api/notification.ts": {
@@ -221,7 +211,9 @@
     },
     "frontend/src/api/oa-announcement.ts": {
       "count": 1,
-      "keys": ["OaAnnouncement.notified_count"]
+      "keys": [
+        "OaAnnouncement.notified_count"
+      ]
     },
     "frontend/src/api/omni-audit.ts": {
       "count": 5,
@@ -233,13 +225,11 @@
         "AuditStats.total_events"
       ]
     },
-    "frontend/src/api/product.ts": {
-      "count": 2,
-      "keys": ["ProductColor.price_adjustment", "ProductColor.rgb"]
-    },
     "frontend/src/api/purchase-contract.ts": {
       "count": 1,
-      "keys": ["PurchaseContract.delivery_terms"]
+      "keys": [
+        "PurchaseContract.delivery_terms"
+      ]
     },
     "frontend/src/api/purchase-inspection.ts": {
       "count": 5,
@@ -261,7 +251,10 @@
     },
     "frontend/src/api/quality.ts": {
       "count": 2,
-      "keys": ["Defect.processed", "Defect.processed_by"]
+      "keys": [
+        "Defect.processed",
+        "Defect.processed_by"
+      ]
     },
     "frontend/src/api/report-enhanced.ts": {
       "count": 6,
@@ -289,25 +282,17 @@
         "SalesTrendResult.profit"
       ]
     },
-    "frontend/src/api/sales-contract.ts": {
-      "count": 3,
-      "keys": [
-        "SalesContract.contract_date",
-        "SalesContract.delivery_terms",
-        "SalesContract.return_items"
-      ]
-    },
     "frontend/src/api/sales-price.ts": {
       "count": 1,
-      "keys": ["PricingStrategyRule.strategy_id"]
+      "keys": [
+        "PricingStrategyRule.strategy_id"
+      ]
     },
     "frontend/src/api/sales.ts": {
-      "count": 5,
+      "count": 3,
       "keys": [
         "SalesDeliveryQueryParams.delivery_date_from",
         "SalesDeliveryQueryParams.delivery_date_to",
-        "SalesOrderQueryParams.order_date_from",
-        "SalesOrderQueryParams.order_date_to",
         "SalesStatisticsData.trends"
       ]
     },
@@ -338,26 +323,21 @@
     },
     "frontend/src/api/supplier-evaluation.ts": {
       "count": 1,
-      "keys": ["SupplierScore.rank"]
-    },
-    "frontend/src/api/system-governance.ts": {
-      "count": 2,
       "keys": [
-        "CreatePermissionDelegationPayload.permission_codes",
-        "PermissionDelegation.permission_codes"
+        "SupplierScore.rank"
       ]
     },
     "frontend/src/api/user-profile.ts": {
-      "count": 2,
-      "keys": ["ChangePasswordRequest.confirm_password", "UserProfile.role_names"]
+      "count": 1,
+      "keys": [
+        "UserProfile.role_names"
+      ]
     },
     "frontend/src/api/user.ts": {
       "count": 1,
-      "keys": ["User.role_names"]
-    },
-    "frontend/src/api/voucher.ts": {
-      "count": 1,
-      "keys": ["VoucherEntity.posted_by_name"]
+      "keys": [
+        "User.role_names"
+      ]
     }
   }
 }

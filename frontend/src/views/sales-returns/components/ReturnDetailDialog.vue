@@ -247,10 +247,12 @@ const handleUpdateItem = async () => {
   if (!props.currentReturn?.id || !editingItemId.value) return;
   itemSaving.value = true;
   try {
+    // 三态契约（后端 UpdateReturnItemRequest DoubleOption）：quantity/unit_price 为
+    // NOT NULL 列恒送值；reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
     await updateSalesReturnItem(props.currentReturn.id, editingItemId.value, {
       quantity: newItem.quantity,
       unit_price: newItem.unitPrice,
-      reason: newItem.reason || undefined,
+      reason: newItem.reason || null,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
     editingItemId.value = null;

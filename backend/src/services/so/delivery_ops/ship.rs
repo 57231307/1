@@ -11,7 +11,7 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
 };
 
@@ -96,6 +96,41 @@ impl SalesService {
         Ok(())
     }
 
+    /// 发货明细的产品必须出现在该销售订单的明细行中（款号维度一致性门控）。
+    ///
+    /// 原实现不校验：订单外的产品会一路走到
+    /// - `lookup_line_price` → 取不到订单行，按 `(0, 0)` 兜底 ⇒ 发货单金额恒 0、
+    ///   收入凭证被 `create_revenue_voucher_for_delivery` 判「含税金额为 0」跳过（CI #4669 制品日志原话）；
+    /// - `update_order_item_shipped_qty` → `WHERE order_id AND product_id` 匹配 0 行，
+    ///   一行发货量都没写进去 ⇒ `check_order_fully_shipped` 恒假，订单永远停在 `partial_shipped`。
+    /// 两处静默兜底叠加的结果是「发货成功、账实两头空」，属必须 fail-closed 的前置缺失，
+    /// 故在扣库存/写流水之前整单拒绝。拒绝原因是公开业务规则（用户改一下发货明细即可自行处理）
+    /// ⇒ 可外显；但产品 ID 属内部标识，只进日志不出参。
+    fn ensure_ship_items_belong_to_order(
+        order_id: i32,
+        order_items: &[sales_order_item::Model],
+        items: &[ShipOrderItemRequest],
+    ) -> Result<(), AppError> {
+        let mut out_of_order: Vec<i32> = items
+            .iter()
+            .filter(|it| !order_items.iter().any(|oi| oi.product_id == it.product_id))
+            .map(|it| it.product_id)
+            .collect();
+        if out_of_order.is_empty() {
+            return Ok(());
+        }
+        out_of_order.sort_unstable();
+        out_of_order.dedup();
+        tracing::warn!(
+            "销售订单 {} 发货被拒：发货明细产品 {:?} 不在该订单明细行中（既无单价也无发货量可回写）",
+            order_id,
+            out_of_order
+        );
+        Err(AppError::business_displayable(
+            "发货明细中存在该销售订单未包含的产品，请按订单明细选择产品后重新发货",
+        ))
+    }
+
     /// 事务内加载发货上下文：订单锁定 + 明细 + 产品 + 仓库 + 库存校验
     async fn load_ship_order_context(
         &self,
@@ -117,6 +152,9 @@ impl SalesService {
             .filter(sales_order_item::Column::OrderId.eq(request.order_id))
             .all(txn)
             .await?;
+        // 发货明细必须属于该订单的明细行（款号维度）：越界产品一律整单拒绝，
+        // 不再让它流到下游被静默按 0 单价/0 发货量处理（见 ensure_ 方法注释）
+        Self::ensure_ship_items_belong_to_order(request.order_id, &order_items, &request.items)?;
         // v14 批次 418 修复 G-P0-1：批量查询产品获取 gram_weight/width，
         // 用于库存流水的 quantity_kg 双单位换算（替代原 Decimal::ZERO 硬编码）
         let product_ids: Vec<i32> = order_items.iter().map(|oi| oi.product_id).collect();
@@ -192,9 +230,10 @@ impl SalesService {
 
     /// 循环处理发货明细：四维扣减库存 + 生成库存流水 + 累加金额 + 批量 INSERT
     ///
-    /// 出库四维规则（款号+色号+缸号+批次）：一笔发货明细可能拆成多笔实际扣减
+    /// 出库四维规则（用户 2026-10-02 纠正口径：染色布强制 缸号/色号/批次/匹号，
+    /// 款号由 product_id 承载；白坯免缸号免匹号）：一笔发货明细可能拆成多笔实际扣减
     /// （指定缸不足时显式跨缸回退），每一笔实际扣减单独生成一行出库明细与一条库存流水，
-    /// 如实记录实际扣到的缸号/批次与该行前后数量。
+    /// 如实记录实际扣到的缸号/批次与该行前后数量；染色布指定匹在同一事务内 CAS 消耗。
     async fn process_shipment_items(
         &self,
         request: &ShipOrderRequest,
@@ -218,7 +257,7 @@ impl SalesService {
         for item in &request.items {
             let (unit_price, tax_percent) = Self::lookup_line_price(&order_item_map, item);
             let reductions = self
-                .reduce_inventory_four_dim(item, ctx.warehouse.id, request.order_id, txn)
+                .reduce_inventory_four_dim(item, ctx.warehouse.id, request.order_id, user_id, txn)
                 .await?;
             for reduction in reductions {
                 let line_amount = (reduction.quantity * unit_price).round_dp(2);
@@ -259,6 +298,9 @@ impl SalesService {
                 request.order_id,
                 item.product_id,
                 item.quantity,
+                ctx.product_map
+                    .get(&item.product_id)
+                    .map(|p| p.unit.as_str()),
             )
             .await?;
         }
@@ -276,8 +318,14 @@ impl SalesService {
 
     /// 销售发货超发容差门控（纯校验，无 DB）。
     ///
-    /// 规则：同一订单行「累计已发 + 本次发货」不得超过「订单行数量×(1+容差)」上界；
-    /// 落在 `数量×(1±容差)` 区间内一律放行（不拒发），仅越界时返回含上下界的业务错误。
+    /// 规则：同一产品「累计已发 + 本次发货」不得超过该产品**全部订单行**的
+    /// 「行数量×(1+容差)」上界之和；落在 `数量×(1±容差)` 区间内一律放行（不拒发），
+    /// 仅越界时返回含上下界的业务错误。
+    ///
+    /// 口径修正（CI #4669 G 族）：同一面料常因跨缸/分色号被拆成多条订单明细行，
+    /// 原实现用 `order_items.iter().find(product_id)` 只取**第一条**行做上下界，
+    /// 其余同产品行既不计入允许上界（正确性相反方向：把可发总量算少），
+    /// 也不计入已发量 ⇒ 与按行回写的发货量无法对账。现按产品聚合全部行。
     ///
     /// 容差解析优先级：行显式值 > 品类默认（按产品计量单位：面料/按量→5%、计件→0%）> 全局默认（5%）。
     fn validate_shipment_within_tolerance(
@@ -287,26 +335,35 @@ impl SalesService {
         use std::collections::HashMap;
         let mut running: HashMap<i32, Decimal> = HashMap::new();
         for item in &request.items {
-            let oi = match ctx
+            let lines: Vec<&sales_order_item::Model> = ctx
                 .order_items
                 .iter()
-                .find(|oi| oi.product_id == item.product_id)
-            {
-                Some(oi) => oi,
-                // 订单行不存在：由既有发货/价格链路负责裁决，此处不重复判定
-                None => continue,
-            };
+                .filter(|oi| oi.product_id == item.product_id)
+                .collect();
+            if lines.is_empty() {
+                // 订单行不存在：已由 ensure_ship_items_belong_to_order 在任何写操作前整单拒绝，
+                // 此处不再重复判定，保留原分支作为纯函数的独立防御
+                continue;
+            }
             let unit = ctx
                 .product_map
                 .get(&item.product_id)
                 .map(|p| p.unit.as_str());
-            let pct = crate::utils::delivery_tolerance::resolve_tolerance_pct(
-                oi.quantity_tolerance_pct,
-                unit,
-            );
-            let (lower, upper) =
-                crate::utils::delivery_tolerance::tolerance_bounds(oi.quantity, pct);
-            let cumulative = oi.shipped_quantity
+            let mut lower = Decimal::ZERO;
+            let mut upper = Decimal::ZERO;
+            let mut already_shipped = Decimal::ZERO;
+            for oi in &lines {
+                let pct = crate::utils::delivery_tolerance::resolve_tolerance_pct(
+                    oi.quantity_tolerance_pct,
+                    unit,
+                );
+                let (line_lower, line_upper) =
+                    crate::utils::delivery_tolerance::tolerance_bounds(oi.quantity, pct);
+                lower += line_lower;
+                upper += line_upper;
+                already_shipped += oi.shipped_quantity;
+            }
+            let cumulative = already_shipped
                 + running
                     .get(&item.product_id)
                     .copied()
@@ -426,21 +483,69 @@ impl SalesService {
         order_id: i32,
         product_id: i32,
         quantity: Decimal,
+        unit: Option<&str>,
     ) -> Result<(), AppError> {
-        sales_order_item::Entity::update_many()
+        // 同一产品的多条订单行（跨缸/分色号拆行）必须逐行分配，不能整笔加到每一行：
+        // 原实现 `update_many().filter(order_id).filter(product_id)` 会把本次发货量
+        // 同时累加到该产品**每一条**订单行（发 500 米 ⇒ 两行各 +500），
+        // 行进度与 `check_order_fully_shipped` 的「所有行 shipped >= quantity」双双失真
+        // （要么提前判成全额发货，要么与出库明细对不上账）。
+        //
+        // 分配口径：按订单行 ID 升序（建单次序，确定性可重放）逐行补到本行允许上界
+        // `数量×(1+容差)` 为止；订单行已被订单头 `lock_exclusive` 串行化，事务内重查即最新值。
+        let lines = sales_order_item::Entity::find()
             .filter(sales_order_item::Column::OrderId.eq(order_id))
             .filter(sales_order_item::Column::ProductId.eq(product_id))
-            .col_expr(
-                sales_order_item::Column::ShippedQuantity,
-                sea_orm::sea_query::Expr::col(sales_order_item::Column::ShippedQuantity)
-                    .add(quantity),
-            )
-            .col_expr(
-                sales_order_item::Column::UpdatedAt,
-                sea_orm::sea_query::Expr::val(chrono::Utc::now()),
-            )
-            .exec(txn)
+            .order_by_asc(sales_order_item::Column::Id)
+            .all(txn)
             .await?;
+        let mut remaining = quantity;
+        for line in lines {
+            if remaining.is_zero() {
+                break;
+            }
+            let line_shipped = line.shipped_quantity;
+            let pct = crate::utils::delivery_tolerance::resolve_tolerance_pct(
+                line.quantity_tolerance_pct,
+                unit,
+            );
+            let (_line_lower, line_upper) =
+                crate::utils::delivery_tolerance::tolerance_bounds(line.quantity, pct);
+            let capacity = line_upper - line_shipped;
+            if capacity <= Decimal::ZERO {
+                continue;
+            }
+            let allocated = if capacity < remaining {
+                capacity
+            } else {
+                remaining
+            };
+            let mut active: sales_order_item::ActiveModel = line.into();
+            active.shipped_quantity = Set(line_shipped + allocated);
+            active.updated_at = Set(chrono::Utc::now());
+            active.update(txn).await?;
+            remaining -= allocated;
+        }
+        // 分配不完 = 本次发货量超过该产品全部订单行的可发余量：整单回滚拒绝，
+        // 严禁把余量静默丢弃（丢弃即「出库了但订单行没记」的账实脱节）
+        if !remaining.is_zero() {
+            tracing::warn!(
+                "销售订单 {} 产品 {} 发货量回写失败：仍有 {} 无法分配到任何订单行（各行均已达允许上界或无订单行）",
+                order_id,
+                product_id,
+                remaining
+            );
+            return Err(AppError::business(format!(
+                "产品 {} 本次发货量 {} 无法分配到销售订单明细行（各行均已达到允许发货上界），拒绝发货",
+                product_id, quantity
+            )));
+        }
+        tracing::info!(
+            "销售订单 {} 产品 {} 发货量回写完成：{}（按订单明细行逐行分配）",
+            order_id,
+            product_id,
+            quantity
+        );
         Ok(())
     }
 
@@ -464,6 +569,15 @@ impl SalesService {
         } else {
             so_status::PARTIAL_SHIPPED
         };
+        // 状态推进结论必须显式可查：partial_shipped 到底是「还有行没发满」还是
+        // 「发货量根本没回写到行」，靠这条日志 + 上一行（逐行回写完成）即可二分定位
+        tracing::info!(
+            "销售订单 {} 发货后状态判定：{}（明细行数 {}，全额发货 {}）",
+            request.order_id,
+            new_status,
+            order_items_total.len(),
+            is_fully_shipped
+        );
         // P1 3-7/5-1 修复（批次 62）：保存发货上下文用于 AR 生成和事件发布
         // order 在下方 .into() 被消费，提前保存所需字段
         // F-P0-6 修复（批次 382 v13 复审）：移除 ship_order_no，收入凭证改用 delivery_no

@@ -78,9 +78,41 @@ export function createDyeRecipe(data: Partial<DyeRecipe>): Promise<ApiResponse<D
   return request.post('/production/dye-recipes', data);
 }
 
+/**
+ * 染色配方更新载荷 —— 逐字段对齐后端 UpdateDyeRecipeRequest
+ * （services/dye_recipe_service.rs，三态语义 RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空为 NULL（仅声明 `| null` 的 DB 可空列）、有值=覆盖。
+ * 可空列依据 system 域 DDL（system/mod.rs:113-131 补列全部可空）。
+ * color_code 为建表 NOT NULL（system/m0003_add_dye_tables.rs:30），不声明 null——
+ * 显式 null 会被后端 business_displayable 拒绝。此前用 Partial<DyeRecipe>（出参形状）
+ * 冒充更新契约：含后端更新 DTO 不消费的 recipe_no/recipe_name/recipe_items 等键（serde 丢弃），
+ * 且可空列无法表达显式 null。
+ */
+export interface DyeRecipeAuxiliary {
+  name: string;
+  amount: number;
+  unit: string;
+}
+
+export interface DyeRecipeUpdatePayload {
+  color_no?: string | null;
+  color_code?: string;
+  color_name?: string | null;
+  fabric_type?: string | null;
+  dye_type?: string | null;
+  chemical_formula?: string | null;
+  temperature?: number | null;
+  time_minutes?: number | null;
+  ph_value?: number | null;
+  liquor_ratio?: number | null;
+  auxiliaries?: DyeRecipeAuxiliary[] | null;
+  status?: string | null;
+  remarks?: string | null;
+}
+
 export function updateDyeRecipe(
   id: number,
-  data: Partial<DyeRecipe>
+  data: DyeRecipeUpdatePayload
 ): Promise<ApiResponse<DyeRecipe>> {
   return request.put(`/production/dye-recipes/${id}`, data);
 }

@@ -63,7 +63,7 @@ pub async fn create_webhook(
     let service = WebhookService::new(state.db);
     let events: Vec<&str> = req.events.iter().map(|s| s.as_str()).collect();
 
-    match service
+    let webhook = service
         .create_webhook(
             auth.user_id,
             &req.name,
@@ -71,14 +71,8 @@ pub async fn create_webhook(
             &events,
             req.secret.as_deref(),
         )
-        .await
-    {
-        Ok(webhook) => Ok(Json(ApiResponse::success(WebhookResponse::from(webhook)))),
-        Err(e) => {
-            tracing::error!("创建 Webhook 失败: {}", e);
-            Err(AppError::internal("创建 Webhook 失败"))
-        }
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(WebhookResponse::from(webhook))))
 }
 
 pub async fn list_webhooks(
@@ -87,17 +81,9 @@ pub async fn list_webhooks(
 ) -> Result<Json<ApiResponse<Vec<WebhookResponse>>>, AppError> {
     let service = WebhookService::new(state.db);
 
-    match service.list_webhooks(auth.user_id).await {
-        Ok(webhooks) => {
-            let responses: Vec<WebhookResponse> =
-                webhooks.into_iter().map(WebhookResponse::from).collect();
-            Ok(Json(ApiResponse::success(responses)))
-        }
-        Err(e) => {
-            tracing::error!("获取 Webhook 列表失败: {}", e);
-            Err(AppError::internal("获取 Webhook 列表失败"))
-        }
-    }
+    let webhooks = service.list_webhooks(auth.user_id).await?;
+    let responses: Vec<WebhookResponse> = webhooks.into_iter().map(WebhookResponse::from).collect();
+    Ok(Json(ApiResponse::success(responses)))
 }
 
 pub async fn delete_webhook(
@@ -107,16 +93,11 @@ pub async fn delete_webhook(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = WebhookService::new(state.db);
 
-    match service.delete_webhook(auth.user_id, id).await {
-        Ok(()) => Ok(Json(ApiResponse::success_with_message(
-            (),
-            biz_msg::DELETE_OK,
-        ))),
-        Err(e) => {
-            tracing::error!("删除 Webhook 失败: {}", e);
-            Err(AppError::internal("删除 Webhook 失败"))
-        }
-    }
+    service.delete_webhook(auth.user_id, id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        biz_msg::DELETE_OK,
+    )))
 }
 
 // ============================================================================
@@ -158,20 +139,13 @@ pub async fn test_webhook(
 
     let service = WebhookService::new(state.db);
 
-    match service.test_webhook(auth.user_id, id).await {
-        Ok(mut result) => {
-            // SSRF 缓解：测试接口不回显目标响应体，防止攻击者读取内网数据
-            result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
-            Ok(Json(ApiResponse::success_with_message(
-                result,
-                "测试消息已发送",
-            )))
-        }
-        Err(e) => {
-            tracing::error!("测试 Webhook 失败: {}", e);
-            Err(AppError::internal(format!("测试 Webhook 失败: {}", e)))
-        }
-    }
+    let mut result = service.test_webhook(auth.user_id, id).await?;
+    // SSRF 缓解：测试接口不回显目标响应体，防止攻击者读取内网数据
+    result.response_body = Some("出于安全原因，已隐藏响应内容".to_string());
+    Ok(Json(ApiResponse::success_with_message(
+        result,
+        "测试消息已发送",
+    )))
 }
 
 /// 重试 Webhook（POST /webhooks/:id/retry）；对上一次失败的 webhook 调用进行重试。批次 251 修复： 使用持久化的 last_payload + last_event
@@ -231,21 +205,11 @@ pub async fn retry_webhook(
                 )))
             }
         }
-        // 批次 109 P1-2：trigger_webhook 对"事件不匹配"/"webhook 已禁用"返回 BusinessError(400)，
-        // 对"webhook 不存在"返回 NotFound(404)，这些属于客户端错误，应直接透传而非包装为 500。
-        // 仅对数据库错误等内部异常记录 error 日志并包装为 500。
-        Err(e) => match &e {
-            AppError::BusinessError(_)
-            | AppError::ValidationError(_)
-            | AppError::NotFound(_)
-            | AppError::BadRequest(_)
-            | AppError::Unauthorized(_)
-            | AppError::PermissionDenied(_) => Err(e),
-            _ => {
-                tracing::error!("重试 Webhook 失败: {}", e);
-                Err(AppError::internal(format!("重试 Webhook 失败: {}", e)))
-            }
-        },
+        // 批次 109 P1-2：trigger_webhook 返回的即是带真实 status/code 的 AppError
+        // （事件不匹配/已禁用→BusinessError 400、不存在→NotFound 404、越权→PermissionDenied 403、
+        // 数据库故障→DatabaseError 500），一律原样透传，不再重包为 500 丢失语义。
+        // AppError::into_response 会按各自族记录 WARN/ERROR 日志，无需在此重复脱敏包装。
+        Err(e) => Err(e),
     }
 }
 
@@ -273,24 +237,17 @@ pub async fn get_webhook_logs(
     let service = WebhookService::new(state.db);
 
     // M-4 修复：get_webhook 内部已校验所有权
-    match service.get_webhook(auth.user_id, id).await {
-        Ok(webhook) => {
-            let log = WebhookLogEntry {
-                id: webhook.id,
-                name: webhook.name,
-                url: webhook.url,
-                events: webhook.events,
-                is_active: webhook.is_active,
-                last_triggered_at: webhook.last_triggered_at.map(|t| t.to_rfc3339()),
-                last_status: webhook.last_status,
-                retry_count: webhook.retry_count,
-                max_retry_count: crate::services::webhook_service::MAX_RETRY_COUNT,
-            };
-            Ok(Json(ApiResponse::success(log)))
-        }
-        Err(e) => {
-            tracing::error!("获取 Webhook 日志失败: {}", e);
-            Err(AppError::internal(format!("获取 Webhook 日志失败: {}", e)))
-        }
-    }
+    let webhook = service.get_webhook(auth.user_id, id).await?;
+    let log = WebhookLogEntry {
+        id: webhook.id,
+        name: webhook.name,
+        url: webhook.url,
+        events: webhook.events,
+        is_active: webhook.is_active,
+        last_triggered_at: webhook.last_triggered_at.map(|t| t.to_rfc3339()),
+        last_status: webhook.last_status,
+        retry_count: webhook.retry_count,
+        max_retry_count: crate::services::webhook_service::MAX_RETRY_COUNT,
+    };
+    Ok(Json(ApiResponse::success(log)))
 }

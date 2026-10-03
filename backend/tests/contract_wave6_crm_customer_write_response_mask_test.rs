@@ -1,0 +1,919 @@
+//! 契约波次 6 · 看板 #212-A/#212-B：CRM 客户域写响应不得整行原文回传 PII，
+//! 共享落库展示名不得 `format!` 造假
+//!
+//! 根因（与已修的线索/公海写响应 #204/#209 同一旁路类，换了端点与资源）：
+//! 1. **客户域写响应整行原文回传**：`crm_customer_handler` 的
+//!    `create_customer`（增强建档，落 `crm_lead` 行）/ `update_customer`（增强更新，落
+//!    `customers` 行）/ `add_tags`（更新线索行）/ `create_contact` / `update_contact`
+//!    （`customer_contacts` 行）五个成功响应此前都是 `serde_json::to_value(Model)?` 直出，
+//!    携带 `contact_phone`/`contact_email`/`mobile_phone`/`tel_phone`/`email`/`phone`/
+//!    `address` 明文。
+//!    收口：新增客户域字段级权限唯一实现
+//!    `crm_customer_handler::apply_customer_field_permission`（判定源
+//!    `get_role_data_permission(role_id, "customer")` —— 与既有客户域读出口
+//!    `customer_handler.rs:154/:177/:222/:239` 用的同一个真实 resource_type 取值，不是新键；
+//!    字段过滤复用同一个 `filter_fields_batch`；默认脱敏复用
+//!    `CrmService::mask_customer_pii_defaults` → 权威列集合 `utils/field_mask`），
+//!    线索形状的两出口（`create_customer`/`add_tags`）复用线索侧既有
+//!    `crm_handler::apply_lead_field_permission`（行形状决定 resource_type，不新造口径）。
+//! 2. **共享落库展示名造假**：`customer_team_share_service::share_customer` 为取操作人姓名
+//!    额外查一次 `users`，查不到即 `format!("用户{operator_id}")` 落 `shared_by_user_name`。
+//!    收口照 `services/crm/{pool,lead,opp}.rs` 的做法：操作人姓名由调用方以
+//!    `AuthContext.username`（真实登录名）作入参传入，service 内那次取名查询整体删除。
+//!
+//! 【同域后续收口登记（本文件写响应锁保持有效）】
+//! 1) `customer_transfer_approval_service.rs` 的 `manager_approve`/`director_approve`
+//!    `to_user_name`：该列语义是被转移人（第三方）展示名，不得 `format!` 造名也不得用
+//!    审批人姓名顶替；现由 `execute_transfer` 透传 `transfer_lead` 已解析的
+//!    `TransferLeadResult.to_user_name`（真实 `users.username`，零额外查询）在转移成功后
+//!    回写审批行，下方零命中棘轮已纳入该文件。
+//! 2) `crm_customer_handler.rs` 的**读**出口（list_customers/get_customer/list_contacts）与
+//!    `customer_handler.rs` 读写出口：整行原文直出已收口到客户域唯一实现
+//!    `apply_customer_field_permission`（判定源 resource_type=customer），运行时断言与
+//!    棘轮见 `contract_wave6_crm_customer_read_exits_mask_test.rs`。
+//!
+//! 前端消费面证据（写响应 mask 的影响面）：
+//! - `frontend/src/views/crm/tabs/CustomerListTab.vue:604/607`：`updateCustomer`/`createCustomer`
+//!   之后 `await` 丢弃响应体，靠 `fetchCustomerList()` 重新拉列表；
+//! - `frontend/src/views/crm/detail.vue:496/499`：联系人写之后 `fetchContacts()` 重新 GET；
+//! - `frontend/e2e/crm/05-assign-share-merge.spec.ts:264`：`POST /crm/customers/{id}/contacts`
+//!   的响应体不取任何键，联系方式回读走 `GET /crm/customers/{id}/contacts` 且只断言 `name`；
+//! - `frontend/src/api/crm-enhanced.ts`：`POST /crm/customers/enhanced/{id}/tags` 无调用方
+//!   （前端用 `/tags/{tagId}`），`add_tags` 出参无人消费。
+//! → 写响应掩码/移除 address 不破坏任何既有前端流程；本仓亦不以"为了让断言过"放行原文。
+
+use axum::{
+    Router,
+    body::Body,
+    extract::State,
+    http::{Method, Request, StatusCode},
+    middleware::{Next, from_fn_with_state},
+    response::Response,
+    routing::{post, put},
+};
+use bingxi_backend::container::AppState;
+use bingxi_backend::handlers::crm_customer_handler::{
+    add_tags, create_contact, create_customer, update_contact, update_customer,
+};
+use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::models::customer_share;
+use bingxi_backend::services::crm::customer_team_share_service::{
+    CustomerTeamShareService, ShareCustomerRequest,
+};
+use bingxi_backend::services::data_permission_service::DataPermissionService;
+use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, Statement};
+use serde_json::{Value, json};
+use std::sync::Arc;
+use tower::ServiceExt;
+
+// ---------------------------------------------------------------------------
+// 种子与夹具（路线一，#4669 判责：全部用例经 test_common::setup_test_db() 连已迁移
+// PostgreSQL；表结构唯一来源 = backend/migration，本文件不再自建任何 DDL。
+// roles 属迁移种子参照表（id=1 code='admin'、id=2 manager 已播种且不清空），不再插；
+// users/customers/crm_lead 属被清空业务表，按裁定 R1 自种子合法父行。）
+// ---------------------------------------------------------------------------
+
+mod test_common;
+
+const OWNER: i32 = 50;
+const ADMIN: i32 = 70;
+const OWNER_LOGIN: &str = "sales_a";
+const ADMIN_LOGIN: &str = "admin_user";
+/// 被共享方（第三方）——其姓名取自己那行 `users.username`，不得被操作人姓名顶替
+const SHARED_TO: i32 = 51;
+const SHARED_TO_LOGIN: &str = "shared_to_wangwu";
+/// 操作人真实登录名（B：`shared_by_user_name` 期望值）
+const OPERATOR_LOGIN: &str = "sharer_zhangsan";
+
+const C_PHONE: &str = "13812348888";
+const C_EMAIL: &str = "alice@example.com";
+const C_ADDRESS: &str = "河北省邢台市某某路 1 号";
+const MASKED_PHONE: &str = "138****8888";
+const MASKED_EMAIL: &str = "a***@example.com";
+/// 联系人子资源行的电话/邮箱（列名与 customers 不同：`phone`/`email`）
+const CONTACT_PHONE: &str = "13900002222";
+const CONTACT_EMAIL: &str = "contact@example.com";
+const MASKED_CONTACT_PHONE: &str = "139****2222";
+const MASKED_CONTACT_EMAIL: &str = "c***@example.com";
+
+fn make_auth(user_id: i32, username: &str, role_id: Option<i32>, data_scope: &str) -> AuthContext {
+    AuthContext {
+        user_id,
+        username: username.to_string(),
+        role_id,
+        department_id: Some(1),
+        data_scope: Some(data_scope.to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    }
+}
+
+async fn inject_auth(
+    State(auth): State<AuthContext>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    request.extensions_mut().insert(auth);
+    next.run(request).await
+}
+
+async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        sql,
+        Vec::<sea_orm::Value>::new(),
+    ))
+    .await
+    .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
+}
+
+async fn base_state(permissions: Option<&str>) -> AppState {
+    let db = test_common::setup_test_db().await;
+    // users：归属人 50 / 被共享方 51 / admin 70（裁定 R1 自种子；share_customer
+    // 服务会真查 users 取被共享方 username）。布尔列按 PG 写 TRUE/FALSE。
+    exec(
+        &db,
+        "INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES
+         (50,'sales_a','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (51,'shared_to_wangwu','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z'),
+         (70,'admin_user','x',TRUE,FALSE,1,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    // 一条归属 OWNER 的客户主数据行，联系方式与地址均为原文（写响应必须打码）。
+    // credit_limit 真表为 DECIMAL(12,2)、payment_terms INTEGER（模型非 Option）、
+    // status/customer_type 为权威词表 token；department_id 由触发器按 owner 维护。
+    exec(
+        &db,
+        &format!(
+            "INSERT INTO customers (id,customer_code,customer_name,contact_person,
+             contact_phone,contact_email,address,credit_limit,payment_terms,status,
+             customer_type,owner_id,created_at,updated_at) VALUES
+             (1,'CUS-0001','甲客户','张三','{C_PHONE}','{C_EMAIL}','{C_ADDRESS}',
+              0,30,'active','retail',{OWNER},
+              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+        ),
+    )
+    .await;
+    // 一条归属 OWNER 的线索行（增强建档/挂标签出参是线索形状）
+    exec(
+        &db,
+        &format!(
+            "INSERT INTO crm_lead (id,lead_no,lead_source,lead_status,company_name,
+             contact_name,mobile_phone,tel_phone,email,address,owner_id,owner_name,
+             priority,created_at,updated_at) VALUES
+             (1,'LD001','website','new','甲公司','张三','{C_PHONE}','03191234567',
+              '{C_EMAIL}','{C_ADDRESS}',{OWNER},'销售甲','low',
+              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+        ),
+    )
+    .await;
+    // 显式 id 种子后对齐 crm_lead 自增序列：POST /crm/customers/enhanced 建档走
+    // SERIAL，RESTART IDENTITY 已把序列复位到 1，不对齐会撞上种子行 id=1（假红）。
+    exec(
+        &db,
+        "SELECT setval(pg_get_serial_sequence('crm_lead','id'),
+                       (SELECT COALESCE(MAX(id),1) FROM crm_lead))",
+    )
+    .await;
+
+    if let Some(insert_sql) = permissions {
+        exec(&db, insert_sql).await;
+    }
+
+    let mut state = AppState::default();
+    state.db = Arc::new(db);
+    state.data_permission_service = Arc::new(DataPermissionService::new(state.db.clone()));
+    state
+}
+
+/// 客户域五个写出口按真实挂载路径（`routes/crm.rs::crm_customers()`）建路由
+fn build_app(state: AppState, auth: AuthContext) -> Router {
+    Router::new()
+        .route("/erp/crm/customers/enhanced", post(create_customer))
+        .route("/erp/crm/customers/enhanced/{id}", put(update_customer))
+        .route("/erp/crm/customers/{id}/tags", post(add_tags))
+        .route("/erp/crm/customers/{id}/contacts", post(create_contact))
+        .route(
+            "/erp/crm/customers/{id}/contacts/{contact_id}",
+            put(update_contact),
+        )
+        .with_state(state)
+        .layer(from_fn_with_state(auth, inject_auth))
+}
+
+async fn send(app: &Router, method: Method, uri: &str, body: Value) -> (StatusCode, Value) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 8 * 1024 * 1024)
+        .await
+        .unwrap();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+            panic!(
+                "响应非 JSON（{uri}）: {e}; body={}",
+                String::from_utf8_lossy(&bytes)
+            )
+        }),
+    )
+}
+
+async fn put_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    send(app, Method::PUT, uri, body).await
+}
+
+async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
+    send(app, Method::POST, uri, body).await
+}
+
+/// 出参字符串里不得出现任何原文 PII（无论列名如何、无论嵌套形状）
+fn assert_no_raw_pii(value: &Value, where_label: &str) {
+    let raw = value.to_string();
+    for banned in [C_PHONE, C_EMAIL, C_ADDRESS, CONTACT_PHONE, CONTACT_EMAIL] {
+        assert!(
+            !raw.contains(banned),
+            "{where_label}：成功响应体含未脱敏个人信息 {banned}（整行原文回传旁路回潮）\n出参: {raw}"
+        );
+    }
+}
+
+/// 客户主数据行的默认脱敏断言（列名取自 models/customer.rs，掩码实现属 utils/field_mask 权威集合）
+fn assert_customer_row_default_masked(row: &Value, where_label: &str) {
+    assert_eq!(
+        row["contact_phone"],
+        json!(MASKED_PHONE),
+        "{where_label}：contact_phone 未走 utils/field_mask 权威集合掩码"
+    );
+    assert_eq!(
+        row["contact_email"],
+        json!(MASKED_EMAIL),
+        "{where_label}：contact_email 未走 utils/field_mask 权威集合掩码"
+    );
+    assert!(
+        row.get("address").is_none(),
+        "{where_label}：address 应被整键移除（与线索侧 mask_lead_pii_defaults 同一口径）: {row}"
+    );
+    assert_no_raw_pii(row, where_label);
+}
+
+// ---------------------------------------------------------------------------
+// A-1 · 客户主数据写响应（PUT /crm/customers/enhanced/:id）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn non_admin_update_customer_response_is_masked_not_raw_pii() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(OWNER, OWNER_LOGIN, Some(2), "self"),
+    );
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/customers/enhanced/1",
+        json!({"customer_name": "甲客户改名"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "归属人更新自己客户应成功: {v}");
+    let data = &v["data"];
+    assert_eq!(
+        data["customer_name"],
+        json!("甲客户改名"),
+        "更新须真实生效（非只回掩码）"
+    );
+    assert_customer_row_default_masked(data, "PUT /crm/customers/enhanced/:id 写响应");
+}
+
+#[tokio::test]
+async fn admin_update_customer_response_keeps_raw_pii() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(ADMIN, ADMIN_LOGIN, Some(1), "all"),
+    );
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/customers/enhanced/1",
+        json!({"customer_name": "甲客户admin改"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "admin 更新应成功: {v}");
+    // admin 原值契约（role_id==Some(1) 由 mask_contact_fields_for_role 自身放行，含 address）
+    let data = &v["data"];
+    assert_eq!(
+        data["contact_phone"],
+        json!(C_PHONE),
+        "admin contact_phone 原值契约"
+    );
+    assert_eq!(
+        data["contact_email"],
+        json!(C_EMAIL),
+        "admin contact_email 原值契约"
+    );
+    assert_eq!(
+        data["address"],
+        json!(C_ADDRESS),
+        "admin address 原值契约（不得移除）"
+    );
+}
+
+#[tokio::test]
+async fn missing_role_update_customer_response_is_fail_closed_masked() {
+    // role_id 缺失（None）属 fail-closed 分支：必须按无权限行走默认脱敏，不得原文放行
+    let app = build_app(
+        base_state(None).await,
+        make_auth(OWNER, OWNER_LOGIN, None, "self"),
+    );
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/customers/enhanced/1",
+        json!({"customer_name": "无角色改"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "role_id 缺失不影响更新本身: {v}");
+    assert_customer_row_default_masked(&v["data"], "role_id 缺失（fail-closed）写响应");
+}
+
+#[tokio::test]
+async fn customer_write_response_honors_hidden_fields_of_customer_resource() {
+    // 判定源真实取值 resource_type='customer'（与 customer_handler.rs 读出口同一取值）：
+    // 叠加语义 = 第 1 层默认掩码（非 admin 恒定）+ 第 2 层 filter_fields_batch（hidden 删键）
+    let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
+        allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
+        VALUES (1,2,'customer','SELF',NULL,'["contact_phone"]',TRUE,
+        '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
+    let app = build_app(
+        base_state(Some(insert)).await,
+        make_auth(OWNER, OWNER_LOGIN, Some(2), "self"),
+    );
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/customers/enhanced/1",
+        json!({"customer_name": "甲客户改名"}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "更新应成功: {v}");
+    let data = &v["data"];
+    assert!(
+        data.get("contact_phone").is_none(),
+        "客户写响应应与读出口共用同一个 filter_fields_batch 移除 hidden 列: {data}"
+    );
+    // 叠加语义：第 1 层默认掩码对非 admin 恒定生效，第 2 层 allowed/hidden 只在其上删键。
+    // 因此 hidden 未覆盖的 PII 列是**掩码值**而不是原文——改造前本域读出口就是无条件
+    // 掩码（customer_handler.rs），若此处放行原文即借"收敛唯一实现"放松权限；
+    // 同时保证增强入口与本入口对同一角色结果一致（否则又是"同资源不同入口"旁路）。
+    assert_eq!(
+        data["contact_email"],
+        json!(MASKED_EMAIL),
+        "默认掩码必须叠加在权限行过滤之上（hidden 只负责删键，不得还原原文）"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// A-2 · 联系人子资源写响应（POST/PUT /crm/customers/:id/contacts）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn non_admin_create_contact_response_is_masked() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(OWNER, OWNER_LOGIN, Some(2), "self"),
+    );
+    let (status, v) = post_json(
+        &app,
+        "/erp/crm/customers/1/contacts",
+        json!({"name": "联系人甲", "phone": CONTACT_PHONE, "email": CONTACT_EMAIL}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "创建联系人应成功: {v}");
+    let data = &v["data"];
+    assert_eq!(
+        data["phone"],
+        json!(MASKED_CONTACT_PHONE),
+        "联系人 phone 未走 utils/field_mask 权威集合掩码"
+    );
+    assert_eq!(
+        data["email"],
+        json!(MASKED_CONTACT_EMAIL),
+        "联系人 email 未走 utils/field_mask 权威集合掩码"
+    );
+    assert_eq!(data["name"], json!("联系人甲"), "非 PII 列不受影响");
+    assert_no_raw_pii(data, "POST /crm/customers/:id/contacts 写响应");
+}
+
+#[tokio::test]
+async fn admin_create_contact_response_keeps_raw_pii() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(ADMIN, ADMIN_LOGIN, Some(1), "all"),
+    );
+    let (status, v) = post_json(
+        &app,
+        "/erp/crm/customers/1/contacts",
+        json!({"name": "联系人甲", "phone": CONTACT_PHONE, "email": CONTACT_EMAIL}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "admin 创建联系人应成功: {v}");
+    assert_eq!(
+        v["data"]["phone"],
+        json!(CONTACT_PHONE),
+        "admin phone 原值契约"
+    );
+    assert_eq!(
+        v["data"]["email"],
+        json!(CONTACT_EMAIL),
+        "admin email 原值契约"
+    );
+}
+
+#[tokio::test]
+async fn contact_update_response_is_masked_and_shares_customer_judgement_source() {
+    // 同一判定源验证：role 2 配了 resource_type='customer' 的 hidden=["phone"] 时，
+    // 联系人写响应走"第 1 层默认掩码 + 第 2 层 filter_fields_batch 删键"的叠加语义
+    let insert = r#"INSERT INTO data_permissions (id,role_id,resource_type,scope_type,
+        allowed_fields,hidden_fields,is_enabled,created_at,updated_at)
+        VALUES (1,2,'customer','SELF',NULL,'["phone"]',TRUE,
+        '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#;
+    let state = base_state(Some(insert)).await;
+    // is_primary 真表为 BOOLEAN（0/1 是 sqlite 时代写法）；本用例种子非主联系人，
+    // 避开 uk_customer_contacts_primary 部分唯一索引（同客户主联系人至多一条）。
+    exec(
+        &*state.db,
+        &format!(
+            "INSERT INTO customer_contacts (id,customer_id,name,phone,email,is_primary,
+             created_at,updated_at) VALUES
+             (1,1,'联系人甲','{CONTACT_PHONE}','{CONTACT_EMAIL}',FALSE,
+              '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"
+        ),
+    )
+    .await;
+    let app = build_app(state, make_auth(OWNER, OWNER_LOGIN, Some(2), "self"));
+    let (status, v) = put_json(
+        &app,
+        "/erp/crm/customers/1/contacts/1",
+        json!({"name": "联系人甲改", "phone": CONTACT_PHONE, "email": CONTACT_EMAIL}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "更新联系人应成功: {v}");
+    assert!(
+        v["data"].get("phone").is_none(),
+        "联系人写响应应与客户域读出口共用同一个 filter_fields_batch（hidden 列移除）: {}",
+        v["data"]
+    );
+    // 叠加语义：hidden 删掉 phone 键，未被覆盖的 email 仍是掩码值（本域默认掩码对
+    // 非 admin 恒定执行，配了权限行也不得把原文放回——那会比改造前的标准入口更松）
+    assert_eq!(
+        v["data"]["email"],
+        json!(MASKED_CONTACT_EMAIL),
+        "默认掩码叠加在权限行过滤之上：hidden 仅删键，不得还原原文"
+    );
+    assert_eq!(v["data"]["name"], json!("联系人甲改"), "更新须真实生效");
+}
+
+// ---------------------------------------------------------------------------
+// A-3 · 客户域中形状是"线索行"的两个写出口（复用线索侧同一实现，不新造口径）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn enhanced_create_customer_response_is_masked_lead_row() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(OWNER, OPERATOR_LOGIN, Some(2), "self"),
+    );
+    // 显式 lead_no 跳过 PG advisory_xact_lock 取号（与既有线索写响应锁同一做法）
+    let (status, v) = post_json(
+        &app,
+        "/erp/crm/customers/enhanced",
+        json!({
+            "lead_no": "LD-CUS-9001",
+            "company_name": "建档甲公司",
+            "contact_name": "建档联系人",
+            "mobile_phone": C_PHONE,
+            "tel_phone": "03191234567",
+            "email": C_EMAIL,
+            "address": C_ADDRESS,
+            "lead_status": "new",
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "增强建档应成功: {v}");
+    let data = &v["data"];
+    assert_eq!(
+        data["mobile_phone"],
+        json!(MASKED_PHONE),
+        "建档响应 mobile_phone 未掩码"
+    );
+    assert_eq!(
+        data["tel_phone"],
+        json!("031****4567"),
+        "建档响应 tel_phone 未掩码"
+    );
+    assert_eq!(data["email"], json!(MASKED_EMAIL), "建档响应 email 未掩码");
+    assert!(
+        data.get("address").is_none(),
+        "建档响应 address 应整键移除: {data}"
+    );
+    assert_no_raw_pii(data, "POST /crm/customers/enhanced 写响应（线索形状）");
+    // B 同源口径：建档归属名是真实登录名，不是 format! 造名
+    assert_eq!(
+        data["owner_name"],
+        json!(OPERATOR_LOGIN),
+        "建档 owner_name 应为传入登录名"
+    );
+}
+
+#[tokio::test]
+async fn admin_enhanced_create_customer_response_keeps_raw_pii() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(ADMIN, ADMIN_LOGIN, Some(1), "all"),
+    );
+    let (status, v) = post_json(
+        &app,
+        "/erp/crm/customers/enhanced",
+        json!({
+            "lead_no": "LD-CUS-9002",
+            "company_name": "建档乙公司",
+            "contact_name": "建档联系人乙",
+            "mobile_phone": C_PHONE,
+            "email": C_EMAIL,
+            "address": C_ADDRESS,
+            "lead_status": "new",
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "admin 建档应成功: {v}");
+    assert_eq!(v["data"]["mobile_phone"], json!(C_PHONE), "admin 原值契约");
+    assert_eq!(v["data"]["email"], json!(C_EMAIL), "admin 原值契约");
+    assert_eq!(
+        v["data"]["address"],
+        json!(C_ADDRESS),
+        "admin address 原值契约"
+    );
+}
+
+#[tokio::test]
+async fn add_tags_response_is_masked_lead_row() {
+    let app = build_app(
+        base_state(None).await,
+        make_auth(OWNER, OWNER_LOGIN, Some(2), "self"),
+    );
+    let (status, v) = post_json(
+        &app,
+        "/erp/crm/customers/1/tags",
+        json!({"tags": ["重点", "纺织"]}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "挂标签应成功: {v}");
+    // 出参必须是那条真实线索行（非空壳）；以稳定字符串/数值列证明。
+    // tags 的回显形状不属本锁范围（本锁只断言 PII 不再整行原文直出）。
+    assert_eq!(
+        v["data"]["company_name"],
+        json!("甲公司"),
+        "应回写真实线索行"
+    );
+    assert_eq!(v["data"]["owner_id"], json!(OWNER), "应回写真实线索行");
+    assert_customer_lead_masked(&v["data"]);
+    assert_no_raw_pii(
+        &v["data"],
+        "POST /crm/customers/:id/tags 写响应（线索形状）",
+    );
+}
+
+fn assert_customer_lead_masked(lead: &Value) {
+    assert_eq!(
+        lead["mobile_phone"],
+        json!(MASKED_PHONE),
+        "线索形状 mobile_phone 未掩码"
+    );
+    assert_eq!(lead["email"], json!(MASKED_EMAIL), "线索形状 email 未掩码");
+    assert!(
+        lead.get("address").is_none(),
+        "线索形状 address 应被移除: {lead}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// B · 共享落库展示名 = 传入的真实登录名（不造名、不为取名额外查库）
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn share_customer_lands_real_operator_login_and_keeps_third_party_name() {
+    let state = base_state(None).await;
+    let db = state.db.clone();
+
+    let svc = CustomerTeamShareService::new(db.clone());
+    let dto = svc
+        .share_customer(
+            ShareCustomerRequest {
+                customer_id: 1,
+                shared_to_user_id: SHARED_TO,
+                permission: Some("view".to_string()),
+                duration_days: Some(30),
+                share_reason: Some("E2E 协作".to_string()),
+            },
+            OWNER,
+            OPERATOR_LOGIN,
+        )
+        .await
+        .expect("owner 共享客户应成功");
+
+    // 操作人列（shared_by_user_name）：等于调用方传入的真实登录名
+    assert_eq!(
+        dto.shared_by_user_name.as_deref(),
+        Some(OPERATOR_LOGIN),
+        "shared_by_user_name 必须等于传入的真实登录名"
+    );
+    let shared_by = dto.shared_by_user_name.clone().unwrap_or_default();
+    assert!(
+        !shared_by.starts_with("用户"),
+        "B 负向锁：shared_by_user_name 不得是 format!(\"用户{{id}}\") 造出的展示名，实际: {shared_by}"
+    );
+
+    // 第三方列（shared_to_user_name）：必须是被共享方自己的 users.username，
+    // 不得被操作人姓名顶替（本轮未改该列来源，此处即为其行为锁）
+    assert_eq!(
+        dto.shared_to_user_name.as_deref(),
+        Some(SHARED_TO_LOGIN),
+        "shared_to_user_name 必须是被共享方 users.username，不得用操作人姓名冒充"
+    );
+
+    // 回读落库行（不信 DTO 自说自话）
+    let row = customer_share::Entity::find_by_id(dto.id)
+        .one(&*db)
+        .await
+        .expect("查询落库共享记录失败")
+        .expect("共享记录必须真实落库");
+    assert_eq!(
+        row.shared_by_user_name.as_deref(),
+        Some(OPERATOR_LOGIN),
+        "落库 shared_by_user_name 应为传入登录名"
+    );
+    assert!(
+        !row.shared_by_user_name
+            .unwrap_or_default()
+            .starts_with("用户"),
+        "B 负向锁：落库值不得为造名"
+    );
+}
+
+#[tokio::test]
+async fn share_customer_does_not_query_users_for_operator_name() {
+    // 操作人 999 在 users 表不存在（修复前会 fallback 到 format!("用户999")）：
+    // 现姓名完全来自入参，不查库 ⇒ 仍原样落传入值，且整体成功（不静默、不兜底）。
+    let state = base_state(None).await;
+    let db = state.db.clone();
+    exec(
+        &db,
+        "INSERT INTO customers (id,customer_code,customer_name,contact_phone,contact_email,
+             credit_limit,payment_terms,status,customer_type,owner_id,created_at,updated_at)
+             VALUES (2,'CUS-0002','乙客户','13711112222','b@example.com',0,30,'active',
+                     'retail',999,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
+    )
+    .await;
+    let svc = CustomerTeamShareService::new(db.clone());
+    let dto = svc
+        .share_customer(
+            ShareCustomerRequest {
+                customer_id: 2,
+                shared_to_user_id: SHARED_TO,
+                permission: None,
+                duration_days: None,
+                share_reason: None,
+            },
+            999,
+            "ghost_operator_login",
+        )
+        .await
+        .expect("操作人姓名来自入参，与 users 是否有该行无关");
+    assert_eq!(
+        dto.shared_by_user_name.as_deref(),
+        Some("ghost_operator_login"),
+        "不再为取名查库：入参登录名即落库值"
+    );
+    assert_eq!(
+        dto.shared_to_user_name.as_deref(),
+        Some(SHARED_TO_LOGIN),
+        "第三方姓名仍取被共享方自己的 users.username"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// C · 源码扫描棘轮（shrink-only）
+// ---------------------------------------------------------------------------
+
+/// 客户域五个写出口必须挂在字段级权限唯一实现上，不得退回整行原文直出。
+/// 线索形状两出口 → `apply_lead_field_permission`；客户形状三出口 →
+/// `apply_customer_field_permission`。
+#[test]
+fn customer_write_exits_all_route_through_field_permission() {
+    let handler = include_str!("../src/handlers/crm_customer_handler.rs");
+
+    assert!(
+        handler.contains("pub(crate) async fn apply_customer_field_permission"),
+        "客户域字段级权限唯一实现缺失"
+    );
+    // 同一判定源：resource_type 用库内真实取值 "customer"，不是新造键
+    assert!(
+        handler.contains(r#"get_role_data_permission(rid, "customer")"#),
+        "apply_customer_field_permission 未使用真实 resource_type=customer 判定源"
+    );
+    // 同一字段过滤函数
+    assert!(
+        handler.contains("filter_fields_batch("),
+        "客户域必须复用 data_permission_service::filter_fields_batch"
+    );
+    // fail-closed：role_id 缺失与权限查询 Err 都不得原文放行
+    assert!(
+        handler.contains("if let Some(rid) = role_id"),
+        "客户域缺 role_id 缺失分支（无角色 = 原文放行旁路）"
+    );
+    assert!(
+        handler.contains("tracing::warn!(") && handler.contains("fail-closed"),
+        "权限查询失败必须显式记 warn 并 fail-closed，不得静默"
+    );
+
+    let body_of = |name: &str| -> String {
+        handler
+            .split(&format!("pub async fn {name}"))
+            .nth(1)
+            .unwrap_or_else(|| panic!("{name} 定义缺失"))
+            .split("pub async fn ")
+            .next()
+            .unwrap_or_else(|| panic!("{name} 函数体边界缺失"))
+            .to_string()
+    };
+
+    for name in ["update_customer", "create_contact", "update_contact"] {
+        let body = body_of(name);
+        assert!(
+            body.contains("apply_customer_field_permission("),
+            "回潮棘轮：客户域 {name} 成功响应未走客户字段级权限唯一实现（整行原文回传 PII）"
+        );
+    }
+    for name in ["create_customer", "add_tags"] {
+        let body = body_of(name);
+        assert!(
+            body.contains("apply_lead_field_permission("),
+            "回潮棘轮：{name} 出参形状是线索行，却未复用线索侧同一实现（口径分叉）"
+        );
+    }
+    // 三个读出口（后续批次收口）：增强页列表/详情/联系人统一挂客户域唯一实现
+    // （裁定口径：同页四形状同一 resource_type=customer 判定行，不引用 crm_lead 行配置；
+    // 默认脱敏分支掩码等价 + 非 admin 移除 address，行为只更严不放松）
+    for name in ["list_customers", "get_customer", "list_contacts"] {
+        let body = body_of(name);
+        assert!(
+            body.contains("apply_customer_field_permission("),
+            "回潮棘轮：读出口 {name} 又整行原文直出（未挂客户域唯一实现）"
+        );
+    }
+    assert!(
+        body_of("list_customers").contains("paginated_list_array_mut("),
+        "增强页列表必须复用 paginated_list_array_mut（data/list 双键兼容，定位失败显式 error）"
+    );
+    // 每个**出口体内**都不得把整行 Model 直接塞进 ApiResponse（读打码、写原文旁路的字面形态）。
+    // 本文件的读/写出口现全部挂在字段级权限唯一实现上，做逐出口负断言。
+    for name in [
+        "create_customer",
+        "update_customer",
+        "add_tags",
+        "create_contact",
+        "update_contact",
+        "list_customers",
+        "get_customer",
+        "list_contacts",
+    ] {
+        let body = body_of(name);
+        for raw_exit in [
+            "ApiResponse::success(serde_json::to_value(lead)?)",
+            "ApiResponse::success(serde_json::to_value(customer)?)",
+            "ApiResponse::success(serde_json::to_value(result)?)",
+            "ApiResponse::success(serde_json::to_value(contacts)?)",
+            "serde_json::to_value(contact)?,",
+        ] {
+            assert!(
+                !body.contains(raw_exit),
+                "回潮棘轮：出口 {name} 又出现整行原文直出 → {raw_exit}"
+            );
+        }
+    }
+}
+
+/// 默认脱敏必须是"复用 utils/field_mask 权威集合 + address 整键移除"，且权威集合
+/// 确实覆盖客户域真实列（读错键 = 该列脱敏恒不生效，正是本波次线索侧的根因）。
+#[test]
+fn customer_default_mask_is_single_implementation_on_real_columns() {
+    let service = include_str!("../src/services/crm/cust.rs");
+    let field_mask = include_str!("../src/utils/field_mask.rs");
+
+    assert!(
+        service.contains("pub fn mask_customer_pii_defaults"),
+        "客户域默认脱敏唯一实现缺失"
+    );
+    assert!(
+        service.contains("mask_contact_fields_for_role"),
+        "客户域默认脱敏必须复用 utils/field_mask 权威列集合，不得另造第二套列名清单"
+    );
+    // 客户域不得在 handler/service 里手写掩码分支（列集合只在 utils/field_mask 一处）
+    let handler = include_str!("../src/handlers/crm_customer_handler.rs");
+    for banned in [
+        "mask_phone(",
+        "mask_email(",
+        r#"obj.remove("contact_phone")"#,
+    ] {
+        assert!(
+            !handler.contains(banned),
+            "回潮棘轮：crm_customer_handler.rs 出现内联掩码写回分支 → {banned}"
+        );
+    }
+
+    let phone_keys = field_mask
+        .split("pub fn mask_contact_fields_for_role")
+        .nth(1)
+        .expect("mask_contact_fields_for_role 定义缺失")
+        .split("let email_keys")
+        .next()
+        .expect("电话列集合边界缺失");
+    for key in ["contact_phone", "phone", "mobile_phone", "tel_phone"] {
+        assert!(
+            phone_keys.contains(&format!("\"{key}\"")),
+            "utils/field_mask.rs 电话列集合缺客户/联系人/线索真实列 {key}（默认脱敏对该列恒不生效）"
+        );
+    }
+    let email_keys = field_mask
+        .split("let email_keys")
+        .nth(1)
+        .expect("邮箱列集合边界缺失");
+    for key in ["contact_email", "email"] {
+        assert!(
+            email_keys.contains(&format!("\"{key}\"")),
+            "utils/field_mask.rs 邮箱列集合缺客户/联系人真实列 {key}"
+        );
+    }
+}
+
+/// B 造名零命中棘轮：把本批改掉的文件纳入既有集合（`contract_wave6_crm_write_response_mask_test.rs`
+/// 已锁 `services/crm/{lead,opp,pool}.rs`），并显式登记**未纳入**者及原因——
+/// 不为让锁通过而假装改掉。
+#[test]
+fn customer_team_share_must_not_fabricate_operator_name() {
+    let share_service = include_str!("../src/services/crm/customer_team_share_service.rs");
+
+    assert!(
+        !share_service.contains("format!(\"用户{}"),
+        "回潮棘轮：customer_team_share_service.rs 用 format! 伪造展示名"
+    );
+    assert!(
+        !share_service.contains("user::Entity::find_by_id(operator_id)"),
+        "回潮棘轮：又出现为取操作人姓名额外查 users（姓名应由调用方传入 auth.username）"
+    );
+    // 正向锁：操作人展示名来自入参；被共享方（第三方）姓名来自其自己的真实行
+    assert!(
+        share_service.contains("shared_by_user_name: Set(Some(shared_by_user_name))"),
+        "share_customer 的 shared_by_user_name 必须来自 operator_name 入参"
+    );
+    assert!(
+        share_service.contains("shared_to_user_name: Set(Some(to_user.username.clone()))"),
+        "shared_to_user_name 必须是被共享方 users.username（第三方），不得由操作人姓名顶替"
+    );
+
+    // 【已纳入零命中集合（裁定落地）】`customer_transfer_approval_service.rs` 的
+    // to_user_name 两处 `format!("用户{to_user_id}")` 造名已改为透传
+    // `transfer_lead` 已解析的 `TransferLeadResult.to_user_name`（真实 users.username，
+    // 零额外 SELECT；转移失败沿 AppError 信封显式上抛，不静默不落空）。
+    // 运行时链路锁见 contract_wave6_crm_transfer_approval_to_user_name_test.rs。
+    let transfer_service =
+        include_str!("../src/services/crm/customer_transfer_approval_service.rs");
+    assert!(
+        !transfer_service.contains("format!(\"用户{}\")"),
+        "回潮棘轮：customer_transfer_approval_service.rs 用 format! 伪造被转移人展示名"
+    );
+    assert!(
+        !transfer_service.contains("待用户裁定"),
+        "回潮棘轮：已裁定的造名点不得遗留占位标注（占位=未收口的静默）"
+    );
+    assert!(
+        transfer_service.contains("Set(Some(transfer_result.to_user_name))"),
+        "to_user_name 必须由 execute_transfer 透传的 TransferLeadResult.to_user_name 回写"
+    );
+}
+
+/// 调用点完整性锁：`share_customer` 服务方法的唯一调用方必须传真实登录名
+/// （Windows 本地 `cargo check` 不带 `--all-targets` 抓不到跨文件签名漏改，故加字面锁）。
+#[test]
+fn share_customer_call_site_passes_real_login() {
+    let handler = include_str!("../src/handlers/customer_team_share_handler.rs");
+    assert!(
+        handler.contains(".share_customer(req, auth.user_id, &auth.username)"),
+        "share_customer 调用点必须以 &auth.username 传入操作人真实登录名"
+    );
+}

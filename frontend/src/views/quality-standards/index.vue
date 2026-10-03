@@ -28,6 +28,11 @@
           @clear="handleSearch"
           @keyup.enter="handleSearch"
         />
+        <!-- 状态筛选词表与后端权威集合同源（详见 api/quality.ts::QualityStandard.status 注释）：
+             draft/approved/rejected/active/archived。发布态落 master_data::ACTIVE="active"
+             （quality_standard_service.rs:417），published 为后端从不产出的幽灵值，
+             文案复用 status.published（"已发布"，语义即发布动作后的状态）。
+             rejected 用本命名空间的 status.rejected 键（中英双侧已登记）。 -->
         <el-select
           v-model="listQuery.status"
           :placeholder="$t('qualityStandards.filter.statusPlaceholder')"
@@ -36,19 +41,21 @@
         >
           <el-option :label="$t('qualityStandards.status.draft')" value="draft" />
           <el-option :label="$t('qualityStandards.status.approved')" value="approved" />
-          <el-option :label="$t('qualityStandards.status.published')" value="published" />
+          <el-option :label="$t('qualityStandards.status.rejected')" value="rejected" />
+          <el-option :label="$t('qualityStandards.status.published')" value="active" />
           <el-option :label="$t('qualityStandards.status.archived')" value="archived" />
         </el-select>
+        <!-- 类型筛选词表对齐后端写入方文档口径 product/process（quality_standard_handler.rs:40-41）；
+             safety/environmental 为后端词表外自造值（DDL 无 CHECK、服务层仅缺省 general，
+             quality_standard_service.rs:122-125），选了只会筛出空列表，已移除。 -->
         <el-select
-          v-model="listQuery.type"
+          v-model="listQuery.standard_type"
           :placeholder="$t('qualityStandards.filter.typePlaceholder')"
           clearable
           style="width: 120px"
         >
           <el-option :label="$t('qualityStandards.type.product')" value="product" />
           <el-option :label="$t('qualityStandards.type.process')" value="process" />
-          <el-option :label="$t('qualityStandards.type.safety')" value="safety" />
-          <el-option :label="$t('qualityStandards.type.environmental')" value="environmental" />
         </el-select>
         <el-button type="primary" @click="handleSearch">
           <el-icon><Search /></el-icon>
@@ -72,9 +79,13 @@
           :label="$t('qualityStandards.table.standardName')"
           min-width="180"
         />
-        <el-table-column prop="type" :label="$t('qualityStandards.table.type')" width="100">
+        <el-table-column
+          prop="standard_type"
+          :label="$t('qualityStandards.table.type')"
+          width="100"
+        >
           <template #default="{ row }">
-            {{ getTypeLabel(row.type) }}
+            {{ getTypeLabel(row.standard_type) }}
           </template>
         </el-table-column>
         <el-table-column prop="version" :label="$t('qualityStandards.table.version')" width="80" />
@@ -130,8 +141,11 @@
               @click="handlePublish(row)"
               >{{ $t('qualityStandards.table.publish') }}</el-button
             >
+            <!-- 发布行后端落值为 active（quality_standard_service.rs:417），
+                 原判定 'published' 永不命中致归档按钮从不渲染；归档端点守卫即
+                 approved/active 两态（service:377），与此处条件一致 -->
             <el-button
-              v-if="row.status === 'published'"
+              v-if="row.status === 'active'"
               type="info"
               link
               size="small"
@@ -198,16 +212,16 @@
             :placeholder="$t('qualityStandards.dialog.standardNamePlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="$t('qualityStandards.dialog.type')" prop="type">
+        <el-form-item :label="$t('qualityStandards.dialog.type')" prop="standard_type">
+          <!-- 可提交取值仅后端文档口径 product/process（quality_standard_handler.rs:40-41）；
+               safety/environmental 为自造词表已移除，存量 general 行原样展示不猜（见 getTypeLabel） -->
           <el-select
-            v-model="form.type"
+            v-model="form.standard_type"
             :placeholder="$t('qualityStandards.dialog.typePlaceholder')"
             style="width: 100%"
           >
             <el-option :label="$t('qualityStandards.type.product')" value="product" />
             <el-option :label="$t('qualityStandards.type.process')" value="process" />
-            <el-option :label="$t('qualityStandards.type.safety')" value="safety" />
-            <el-option :label="$t('qualityStandards.type.environmental')" value="environmental" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('qualityStandards.dialog.version')" prop="version">
@@ -224,13 +238,9 @@
             :placeholder="$t('qualityStandards.dialog.contentPlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="$t('qualityStandards.dialog.attachments')" prop="attachments">
-          <el-input
-            v-model="attachmentsText"
-            type="textarea"
-            :placeholder="$t('qualityStandards.dialog.attachmentsPlaceholder')"
-          />
-        </el-form-item>
+        <!-- 附件录入项已整体移除：后端实体无 attachments 列、create/update DTO 均不接收
+             （models/quality_standard.rs:8-31；quality_standard_handler.rs:35-52/57-68），
+             原录入读取恒空、提交即被 serde 丢弃，属纯假字段，不再提供入口。 -->
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{
@@ -269,7 +279,7 @@ const { t } = useI18n({ useScope: 'global' });
 const listQuery = reactive({
   keyword: '',
   status: '',
-  type: '',
+  standard_type: '',
 });
 
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
@@ -297,7 +307,7 @@ const {
 const syncQueryParams = () => {
   setQueryParam('keyword', listQuery.keyword || undefined);
   setQueryParam('status', listQuery.status || undefined);
-  setQueryParam('type', listQuery.type || undefined);
+  setQueryParam('standard_type', listQuery.standard_type || undefined);
 };
 
 // 批次 277：搜索/重置统一入口：同步筛选条件 + 回到首页 + 拉取
@@ -318,21 +328,30 @@ const handleSizeChange = (s: number) => {
 };
 
 // D05 Batch 5：typeMap/statusMap 改为函数，使 t() 在每次渲染时响应式求值
+// 类型词表 = 后端文档口径 product/process（quality_standard_handler.rs:40-41）；
+// 存量行可能为服务层缺省 general（quality_standard_service.rs:122-125），
+// 词表外值原样展示、不猜默认（safety/environmental 自造项已移除）。
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
     product: t('qualityStandards.type.product'),
     process: t('qualityStandards.type.process'),
-    safety: t('qualityStandards.type.safety'),
-    environmental: t('qualityStandards.type.environmental'),
   };
   return labels[type] || type;
 };
 
+// 状态词表 = 后端流转端点实际落值集合：
+// draft/approved/rejected（models/status/quality_dyeing.rs:11-20，
+// service:128/314/351）、active（发布落 master_data::ACTIVE，
+// general.rs:52，service:417）、archived（归档落 master_data::ARCHIVED，
+// general.rs:73，service:384）。published 为后端从不写入的幽灵值已剔除；
+// 词表外存量值原样展示、不兜底成默认状态。
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
     draft: t('qualityStandards.status.draft'),
     approved: t('qualityStandards.status.approved'),
-    published: t('qualityStandards.status.published'),
+    rejected: t('qualityStandards.status.rejected'),
+    // 发布态文案「已发布」，对应后端落值 active（locales 键名沿用 published 语义一致）
+    active: t('qualityStandards.status.published'),
     archived: t('qualityStandards.status.archived'),
   };
   return labels[status] || status;
@@ -341,22 +360,21 @@ const getStatusLabel = (status: string) => {
 const statusTypeMap: Record<string, string> = {
   draft: 'info',
   approved: 'warning',
-  published: 'success',
+  rejected: 'danger',
+  active: 'success',
   archived: 'info',
 };
 
 const dialogVisible = ref(false);
 const formRef = ref<FormInstance>();
 const submitLoading = ref(false);
-const attachmentsText = ref('');
 const form = reactive<Partial<QualityStandard>>({
   id: undefined,
   standard_code: '',
   standard_name: '',
   version: '1.0',
-  type: 'product',
+  standard_type: 'product',
   content: '',
-  attachments: [],
 });
 
 const rules: FormRules = {
@@ -374,8 +392,12 @@ const rules: FormRules = {
       trigger: 'blur',
     },
   ],
-  type: [
-    { required: true, message: t('qualityStandards.validation.typeRequired'), trigger: 'change' },
+  standard_type: [
+    {
+      required: true,
+      message: t('qualityStandards.validation.typeRequired'),
+      trigger: 'change',
+    },
   ],
   version: [
     { required: true, message: t('qualityStandards.validation.versionRequired'), trigger: 'blur' },
@@ -388,18 +410,15 @@ const rules: FormRules = {
 const openDialog = (row?: QualityStandard) => {
   if (row) {
     Object.assign(form, row);
-    attachmentsText.value = JSON.stringify(row.attachments || [], null, 2);
   } else {
     Object.assign(form, {
       id: undefined,
       standard_code: '',
       standard_name: '',
       version: '1.0',
-      type: 'product',
+      standard_type: 'product',
       content: '',
-      attachments: [],
     });
-    attachmentsText.value = '';
   }
   dialogVisible.value = true;
 };
@@ -411,18 +430,32 @@ const handleSubmit = async () => {
 
     submitLoading.value = true;
     try {
-      if (attachmentsText.value) {
-        try {
-          form.attachments = JSON.parse(attachmentsText.value);
-        } catch (e) {
-          ElMessage.error(t('qualityStandards.message.attachmentsFormatError'));
+      if (form.id) {
+        // 后端 UpdateQualityStandardRequest 只认 standard_name/standard_type/content/status/remark
+        // （quality_standard_handler.rs:57-68），直传实体时 standard_code/version 等键会被
+        // serde 静默丢弃，这里只提交契约内字段
+        await updateQualityStandard(form.id, {
+          standard_name: form.standard_name,
+          standard_type: form.standard_type,
+          content: form.content,
+        });
+      } else {
+        // 创建载荷按 CreateQualityStandardPayload 逐键构造（类型键为 standard_type，
+        // quality_standard_handler.rs:41；实体上不存在的 type/status 等键提交即被丢弃）。
+        // standard_code 空串必须省略键：服务层按 is_none() 区分自动生成/手工码
+        // （quality_standard_service.rs:116-117），空串会落手工分支存成空码。
+        const standardName = form.standard_name;
+        if (standardName === undefined) {
+          // validate() 已拦下必填缺失；这里只让类型收敛到后端要求的非空值
           return;
         }
-      }
-      if (form.id) {
-        await updateQualityStandard(form.id, form);
-      } else {
-        await createQualityStandard(form);
+        await createQualityStandard({
+          standard_code: form.standard_code || undefined,
+          standard_name: standardName,
+          standard_type: form.standard_type,
+          version: form.version,
+          content: form.content,
+        });
       }
       ElMessage.success(t('qualityStandards.message.operationSuccess'));
       dialogVisible.value = false;
@@ -524,12 +557,12 @@ const handleArchive = async (row: QualityStandard) => {
 // 导出 Excel（V15 P0-S12 修复 Batch 475d）
 // 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
 // 改为调用后端 GET /quality-standards/export，后端注入水印 + 异步审计日志
-// 传入当前筛选条件：listQuery.type 映射为后端 standard_type 字段，status 与后端一致
+// 传入当前筛选条件：standard_type / status 与后端 QualityStandardQuery 同名（quality_standard_handler.rs:25-30）
 const handleExport = async () => {
   await exportFromBackend(
     '/quality-standards/export',
     {
-      standard_type: listQuery.type || undefined,
+      standard_type: listQuery.standard_type || undefined,
       status: listQuery.status || undefined,
     },
     'quality_standards_export'

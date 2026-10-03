@@ -47,6 +47,8 @@ pub mod warehouse_handler;
 // 供应商管理模块
 pub mod supplier_handler;
 pub mod supplier_blacklist_handler;
+// 供应商资质到期预警扫描 handler（门控本体在 services::supplier_qualification_gate）
+pub mod supplier_qualification_gate_handler;
 // 采购管理模块
 pub mod purchase_inspection_handler;
 pub mod purchase_order_handler;
@@ -152,6 +154,7 @@ pub mod ai_model_management_handler;
 pub mod contract_signature_handler;
 pub mod customer_team_share_handler;
 pub mod crm_pool_handler;
+pub mod crm_write_guard;
 // V15 P0-S08 修复：客户转移审批 handler
 pub mod customer_transfer_approval_handler;
 // V15 P2 B05-P2-7：PDA/工控终端连接资源管理 Handler

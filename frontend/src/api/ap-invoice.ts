@@ -9,6 +9,7 @@ export {
   approveAPInvoice,
   cancelAPInvoice,
   type APInvoice,
+  type CreateAPInvoiceRequest,
 } from './ap';
 
 /**

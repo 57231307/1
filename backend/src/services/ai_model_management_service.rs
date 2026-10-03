@@ -284,7 +284,7 @@ impl AiModelManagementService {
             master_data::ARCHIVED,
         ];
         if !VALID_MODEL_STATUS.contains(&status) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "模型状态非法：{}，应为 {}",
                 status,
                 VALID_MODEL_STATUS.join("/")
@@ -300,7 +300,7 @@ impl AiModelManagementService {
             master_data::REJECTED,
         ];
         if !VALID_APPROVAL_STATUS.contains(&status) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "审批状态非法：{}，应为 {}",
                 status,
                 VALID_APPROVAL_STATUS.join("/")
@@ -362,7 +362,7 @@ impl AiModelManagementService {
     pub fn validate_metric_range(name: &str, value: Option<Decimal>) -> Result<(), AppError> {
         if let Some(v) = value {
             if v < Decimal::ZERO || v > Decimal::ONE {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "{} 取值范围 [0.0, 1.0]，当前 {}",
                     name, v
                 )));
@@ -478,7 +478,10 @@ impl AiModelManagementService {
                 | "recommendation"
         );
         if !valid {
-            return Err(AppError::validation(format!("decision_type 非法：{}", dt)));
+            return Err(AppError::validation_displayable(format!(
+                "decision_type 非法：{}",
+                dt
+            )));
         }
         Ok(())
     }

@@ -19,7 +19,9 @@ use crate::services::customer_ops::types::build_select_only_query;
 use crate::services::customer_service::CustomerService;
 use crate::utils::PaginatedResponse;
 use crate::utils::data_permission::DataPermissionFilter;
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope_with_pool};
+use crate::utils::data_scope::{
+    DataScopeContext, PoolVisibility, apply_department_scope_with_pool,
+};
 use crate::utils::error::AppError;
 
 impl CustomerService {
@@ -44,10 +46,7 @@ impl CustomerService {
         let items: Vec<serde_json::Value> = paged
             .items
             .into_iter()
-            .map(|c| {
-                serde_json::to_value(c)
-                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-            })
+            .map(|c| serde_json::to_value(c).map_err(AppError::from))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Some(PaginatedResponse::new(
             items,
@@ -72,6 +71,8 @@ impl CustomerService {
                 customer::Column::OwnerId,
                 customer::Column::DepartmentId,
                 customer::Column::OwnerId.eq(0),
+                // 客户公海（owner_id=0）可见面本轮零变化（同上，Open 与否另待拍板）
+                PoolVisibility::Scoped,
             );
         }
         if let Some(status) = status {
@@ -124,10 +125,7 @@ impl CustomerService {
             .await?;
         let json_rows: Vec<serde_json::Value> = rows
             .into_iter()
-            .map(|c| {
-                serde_json::to_value(c)
-                    .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-            })
+            .map(|c| serde_json::to_value(c).map_err(AppError::from))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(json_rows)
     }
@@ -196,8 +194,7 @@ impl CustomerService {
                 .await?
                 .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?
         } else {
-            serde_json::to_value(model)
-                .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?
+            serde_json::to_value(model)?
         };
 
         Ok(customer)

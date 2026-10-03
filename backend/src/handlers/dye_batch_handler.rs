@@ -7,24 +7,33 @@ use axum::{
 use rust_decimal::Decimal;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, FromQueryResult, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, ConnectionTrait, EntityTrait,
+    FromQueryResult, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+    Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::color_card_item;
 use crate::models::dye_batch;
 use crate::models::greige_fabric;
+use crate::models::status::quality_dyeing::dye_batch_lifecycle_status as batch_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
 use crate::services::dye_batch_state_machine_validation;
+
+/// 缸号（dye_batch.batch_no）自动编码前缀：沿用原手写格式 "DB-{时间戳}-{随机}"
+/// 的业务前缀 DB，新格式统一为 {DB}{YYYYMMDD}{3位流水}（前缀集中定义，禁止散落）。
+pub const DYE_BATCH_NO_PREFIX: &str = "DB";
 
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -42,7 +51,9 @@ pub struct DyeBatchListQuery {
 pub struct CreateDyeBatchRequest {
     pub batch_no: Option<String>,
     pub greige_fabric_id: Option<i32>,
+    // 色号：空（None/空白）= 白坯；非空 = 染色布，必须能在色卡档案反查到。
     pub color_no: Option<String>,
+    // 染色批号：染色布（color_no 非空）必填，缺失显式拒绝；白坯归一为空串。禁止占位假值。
     pub dye_lot_no: Option<String>,
     pub planned_quantity: Option<f64>,
     pub status: Option<String>,
@@ -64,6 +75,24 @@ pub struct UpdateDyeBatchRequest {
     pub remarks: Option<String>,
 }
 
+/// 完工登记请求（任务 #168）：完工时强制登记实际产出三值，粒度 kg + 米 + 坯布投料量。
+/// 依据：fabric-industry-research.md:149-158 缸号承载"最终落布重量"；印染完工申报必登记
+/// 实际产量（单位成本/单位能耗均以产量为分母）。三值必填、为正、≤10 亿、最多 2 位小数
+/// （DECIMAL(12,2) 列精度），复用全仓统一范围校验 `utils::validator::validate_amount_range`
+/// （先例：ar_payment_handler.rs:33）。产出/投料比不做拒绝门：仓内唯一权威失重率口径是
+/// 委外域"正常/异常损耗"核算分类标准（outsourcing_service.rs:76-97 染色 5%，§5.7 行业中值），
+/// 语义为损耗分类而非完工拒绝边界，硬套会误伤真实发生的异常损耗完工；
+/// 完工拒绝阈值待产品给口径（见交付报告登记项）。
+#[derive(Debug, Deserialize, Validate)]
+pub struct CompleteDyeBatchRequest {
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
+    pub actual_output_kg: Decimal,
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
+    pub actual_output_m: Decimal,
+    #[validate(custom(function = "crate::utils::validator::validate_amount_range"))]
+    pub greige_input_kg: Decimal,
+}
+
 /// 缸号列表出参 DTO：实体 `dye_batch::Model` 全字段 + 经 LEFT JOIN 富化的坯布名称。
 /// 严格对齐前端 `api/dye-batch.ts::DyeBatch` 键集；可空列以 `Option` 表达，NOT NULL 列不用 `Option`。
 /// 唯一富化方式：`column_as(greige_fabric.fabric_name, "greige_fabric_name")` + `LeftJoin`
@@ -78,6 +107,9 @@ pub struct DyeBatchDto {
     pub color_no: Option<String>,
     pub dye_lot_no: String,
     pub planned_quantity: Option<Decimal>,
+    pub actual_output_kg: Option<Decimal>,
+    pub actual_output_m: Option<Decimal>,
+    pub greige_input_kg: Option<Decimal>,
     pub status: Option<String>,
     pub started_at: Option<DateTimeWithTimeZone>,
     pub completed_at: Option<DateTimeWithTimeZone>,
@@ -144,6 +176,83 @@ pub async fn get_dye_batch(
     Ok(Json(ApiResponse::success(batch)))
 }
 
+/// 缸号染色身份解析结果（color_no / color_code / color_name / dye_lot_no 四列的唯一落库来源）。
+#[derive(Debug, Clone)]
+pub struct ResolvedDyeIdentity {
+    pub color_no: Option<String>,
+    pub color_code: String,
+    pub color_name: String,
+    pub dye_lot_no: String,
+}
+
+/// 新建链路白坯/染色身份归一（唯一入口，禁止任何造假默认值：值只能来自用户提交或主数据派生）。
+///
+/// 口径与 `services/inv/fabric_class.rs:25-65`（白坯/染色判定全仓唯一实现）同型：
+/// - `color_no` 为空（None/纯空白，trim 归一）⇒ 白坯：色号的真实表示就是"没有颜色"，
+///   `color_code`/`color_name` 为 NOT NULL 列，白坯以空串落库表达（同源收口先例：
+///   `handlers/inventory_stock_handler_dto.rs:19` "白坯空值以空串表达，落库列 NOT NULL"、
+///   `services/purchase_return_service.rs` 三维归一空串口径）；白坯免缸号 ⇒ `dye_lot_no`
+///   归一为空串（`handlers/inventory_stock_handler_fabric.rs:137-160`：白坯携带染缸料将
+///   永久提不出，故主动归一，不得回填占位值）。
+/// - `color_no` 非空 ⇒ 染色布：`dye_lot_no` 必填，缺失即显式 400（fabric_class:54-58 同文案
+///   "染色布必须提供缸号"）；`color_code`/`color_name` 由色号主数据派生——按 color_code
+///   全局反查色卡明细（查询形态同 `services/color_card_scan_service.rs:71-82`，本仓唯一
+///   不带 product_id 的色号→名称权威查找；`product_colors` 是产品维度档案，dye_batch 无
+///   product_id，不可用作反查源）。档案无此色 ⇒ 显式 400（文案只回显用户提交的色号）；
+///   同色号多条记录无法唯一定位 ⇒ 显式业务错，不任选不兜底（四维歧义报业务错同源口径）。
+pub async fn resolve_dye_color_identity<C: ConnectionTrait>(
+    db: &C,
+    color_no: Option<String>,
+    dye_lot_no: Option<String>,
+) -> Result<ResolvedDyeIdentity, AppError> {
+    let color_no = color_no
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let dye_lot_no = dye_lot_no
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let Some(color_no) = color_no else {
+        return Ok(ResolvedDyeIdentity {
+            color_no: None,
+            color_code: String::new(),
+            color_name: String::new(),
+            dye_lot_no: String::new(),
+        });
+    };
+
+    let dye_lot_no = dye_lot_no.ok_or_else(|| {
+        AppError::validation_displayable(format!(
+            "染色布必须提供缸号（color_no={color_no} 但 dye_lot_no 为空）"
+        ))
+    })?;
+
+    let items = color_card_item::Entity::find()
+        .filter(color_card_item::Column::ColorCode.eq(&color_no))
+        .all(db)
+        .await?;
+    let item = match items.as_slice() {
+        [] => {
+            return Err(AppError::validation_displayable(format!(
+                "色号 {color_no} 在色卡档案中不存在"
+            )));
+        }
+        [only] => only.clone(),
+        _ => {
+            return Err(AppError::business_displayable(format!(
+                "色号 {color_no} 在色卡档案中存在多条记录，无法唯一定位名称"
+            )));
+        }
+    };
+
+    Ok(ResolvedDyeIdentity {
+        color_no: Some(color_no),
+        color_code: item.color_code,
+        color_name: item.color_name,
+        dye_lot_no,
+    })
+}
+
 pub async fn create_dye_batch(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -157,19 +266,19 @@ pub async fn create_dye_batch(
             }
             Some(s)
         }
-        None => Some("pending_schedule".to_string()),
+        None => Some(batch_status::PENDING_SCHEDULE.to_string()),
     };
 
-    // 自动生成缸号
-    let batch_no = req.batch_no.unwrap_or_else(|| {
-        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_4_digit();
-        format!("DB-{}-{:04}", timestamp, random)
-    });
-
-    // V15 P0-F01：dye_lot_no 默认 'DEFAULT'，新接口允许调用方传入实际染色批号
-    // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
-    let dye_lot_no = req.dye_lot_no.unwrap_or_else(|| "DEFAULT".to_string());
+    // 染色身份归一：值只能来自用户提交或主数据派生，禁止造假默认值。旧形态在色号缺失时
+    // 把 color_code/color_name/dye_lot_no 回退为占位假值（测试用字面量与写死的假色名），
+    // 假数据会出现在列表、打印单据与成本归集四维标识
+    //（services/dye_batch_cost_bridge_service.rs:129-175）上。
+    // 术语：dye_lot_no（染色批号）与 batch_no（缸号）是两个概念、非同一值
+    //（models/dye_batch.rs:20-21 与 dye_batch_cost_bridge_service.rs:142 术语注释），
+    // 故新建时染色批号由表单真实采集，缺失即显式拒绝，不从 batch_no 派生、不写占位值。
+    let identity =
+        resolve_dye_color_identity(&*state.db, req.color_no.clone(), req.dye_lot_no.clone())
+            .await?;
 
     // 染色日期：新建表单采集的 dye_date 落库映射到既有 started_at 时间戳列（00:00:00 UTC）。
     // 说明：dye_batch 无独立的"染色日期"DATE 列，此处按实体既有语义写入 started_at；
@@ -181,40 +290,69 @@ pub async fn create_dye_batch(
             .with_timezone(&crate::utils::date_utils::utc_offset())
     });
 
-    let batch = dye_batch::ActiveModel {
+    // 缸号落库形态集中构建：手工传入与自动生成两条插入路径共用同一 ActiveModel 组装，
+    // 避免两条路径字段漂移。
+    let build_active = |batch_no: String| dye_batch::ActiveModel {
         id: NotSet,
         batch_no: Set(batch_no),
         greige_fabric_id: Set(req.greige_fabric_id),
-        color_code: Set(req.color_no.clone().unwrap_or_else(|| "TEST".to_string())),
-        color_name: Set(req
-            .color_no
-            .clone()
-            .unwrap_or_else(|| "测试色号".to_string())),
-        color_no: Set(req.color_no),
-        dye_lot_no: Set(dye_lot_no),
+        color_code: Set(identity.color_code.clone()),
+        color_name: Set(identity.color_name.clone()),
+        color_no: Set(identity.color_no.clone()),
+        dye_lot_no: Set(identity.dye_lot_no.clone()),
         planned_quantity: Set(req.planned_quantity.and_then(Decimal::from_f64_retain)),
-        status: Set(status),
+        // 完工实际产出三列仅由 complete 端点登记，新建时为 NULL（真实空值，不占位）
+        actual_output_kg: Set(None),
+        actual_output_m: Set(None),
+        greige_input_kg: Set(None),
+        status: Set(status.clone()),
         started_at: Set(started_at),
         completed_at: Set(None),
-        remarks: Set(req.remarks),
+        remarks: Set(req.remarks.clone()),
         is_deleted: Set(Some(false)),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
 
-    // 使用 insert 获取返回的 Model
-    dye_batch::Entity::insert(batch)
-        .exec_without_returning(&*state.db)
-        .await?;
-
-    // 重新查询获取创建的记录
-    // 批次 407 修复：DB 回查错误不能吞，返回空模型但消息说"创建成功"会误导用户，改为返回错误
-    let created = dye_batch::Entity::find()
-        .order_by_desc(dye_batch::Column::Id)
-        .one(&*state.db)
+    // 自动生成缸号：取号与主表 INSERT 收口到同一写入事务。
+    // 为什么：dye_batch.batch_no 带 UNIQUE 约束（migration/src/domain/system/
+    // m0003_add_dye_tables.rs:12 `"batch_no" VARCHAR(50) NOT NULL UNIQUE`），
+    // 旧手写 "DB-{14位时间戳}-{4位随机}" 同秒并发碰撞概率非零，撞约束即 500。
+    // 现走 DocumentNumberGenerator::insert_with_no_retry：pg_advisory_xact_lock
+    // 事务内取号 + INSERT 撞 23505 时在保存点内重新取号重试
+    //（用法参照 services/so/order_crud.rs:125）。
+    let txn = (*state.db).begin().await?;
+    let provided_no = req
+        .batch_no
+        .clone()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let created = match provided_no {
+        // 调用方显式传入非空缸号时尊重手工值（既有契约不变）；若与存量重复，
+        // UNIQUE 违规经 AppError 的 DbErr 映射显式上抛，不静默改写、不兜底。
+        Some(batch_no) => build_active(batch_no).insert(&txn).await?,
+        None => DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            DYE_BATCH_NO_PREFIX,
+            dye_batch::Entity,
+            dye_batch::Column::BatchNo,
+            build_active,
+        )
         .await
-        .map_err(|e| AppError::internal(format!("缸号创建后回查失败: {}", e)))?
-        .ok_or_else(|| AppError::internal("缸号创建后回查未找到记录"))?;
+        .map_err(|e| {
+            // fail-visible：记录根因。生成器取号类失败自带 business_displayable
+            // 出参；INSERT 的非唯一约束 SQL 错误（如 FK 缺行）责任在数据/引用参数，
+            // 原样上抛避免被"缸号生成失败"误导。
+            tracing::error!(
+                error = %e,
+                prefix = DYE_BATCH_NO_PREFIX,
+                "缸号取号或插入失败（create_dye_batch）"
+            );
+            e
+        })?,
+    };
+    txn.commit().await?;
+
     Ok(Json(ApiResponse::success_with_message(
         created,
         "缸号创建成功",
@@ -236,7 +374,7 @@ pub async fn update_dye_batch(
     let current_status = model
         .status
         .clone()
-        .unwrap_or_else(|| "pending_schedule".to_string());
+        .unwrap_or_else(|| batch_status::PENDING_SCHEDULE.to_string());
     let mut batch: dye_batch::ActiveModel = model.into();
 
     if let Some(greige_fabric_id) = req.greige_fabric_id {
@@ -273,7 +411,13 @@ pub async fn update_dye_batch(
         // 自动设置时间戳：染色中及之后工序记录开始时间
         let in_production = matches!(
             status.as_str(),
-            "preparing" | "dyeing" | "washing" | "fixing" | "dehydrating" | "drying" | "inspecting"
+            batch_status::PREPARING
+                | batch_status::DYEING
+                | batch_status::WASHING
+                | batch_status::FIXING
+                | batch_status::DEHYDRATING
+                | batch_status::DRYING
+                | batch_status::INSPECTING
         );
         if in_production {
             let needs_start_time = batch.started_at.as_ref().is_none();
@@ -282,7 +426,10 @@ pub async fn update_dye_batch(
             }
         }
         // 入库及之后状态记录完成时间
-        let is_finished = matches!(status.as_str(), "stored" | "shipped");
+        let is_finished = matches!(
+            status.as_str(),
+            batch_status::STORED | batch_status::SHIPPED
+        );
         if is_finished {
             batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
         }
@@ -310,15 +457,17 @@ pub async fn delete_dye_batch(
 
     if matches!(
         batch.status.as_deref(),
-        Some("preparing")
-            | Some("dyeing")
-            | Some("washing")
-            | Some("fixing")
-            | Some("dehydrating")
-            | Some("drying")
-            | Some("inspecting")
+        Some(batch_status::PREPARING)
+            | Some(batch_status::DYEING)
+            | Some(batch_status::WASHING)
+            | Some(batch_status::FIXING)
+            | Some(batch_status::DEHYDRATING)
+            | Some(batch_status::DRYING)
+            | Some(batch_status::INSPECTING)
     ) {
-        return Err(AppError::business("生产中的缸号不允许删除，请先取消或完成"));
+        return Err(AppError::business_displayable(
+            "生产中的缸号不允许删除，请先取消或完成",
+        ));
     }
 
     // 软删除
@@ -330,11 +479,21 @@ pub async fn delete_dye_batch(
     Ok(Json(ApiResponse::success_with_message((), "缸号删除成功")))
 }
 
+/// 完工登记：强制采集实际产出三值（kg/米/坯布投料量）→ 落库三列 → 走既有 14 态状态机
+/// 流转至 stored。校验顺序：先输入校验（validate_amount_range，失败 400 且不推进状态），
+/// 再状态机门控（沿用本 handler 既有 business 族，不改错误族选择）。
+/// 落库后的实际产量是成本归集/能耗分摊分母的唯一来源
+/// （services/dye_batch_cost_bridge_service.rs 回填 cost_collection.output_quantity_*）。
 pub async fn complete_dye_batch(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     _auth: AuthContext,
+    Json(req): Json<CompleteDyeBatchRequest>,
 ) -> Result<Json<ApiResponse<dye_batch::Model>>, AppError> {
+    // 输入校验先于状态推进：非法产出值一律 validation_displayable（只回显用户提交数值），
+    // 绝不静默推进状态。From<ValidationErrors> 已统一映射为可外显 400（utils/error.rs:449）。
+    req.validate().map_err(AppError::from)?;
+
     let model = dye_batch::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
@@ -343,24 +502,54 @@ pub async fn complete_dye_batch(
     let current_status = model
         .status
         .clone()
-        .unwrap_or_else(|| "pending_schedule".to_string());
+        .unwrap_or_else(|| batch_status::PENDING_SCHEDULE.to_string());
+    let greige_input_kg = req.greige_input_kg;
+    let actual_output_kg = req.actual_output_kg;
     let mut batch: dye_batch::ActiveModel = model.into();
 
     // 检查当前状态是否允许完成（流转到 stored 终态前态）
-    if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, "stored") {
+    if !dye_batch_state_machine_validation::is_valid_status_transition(
+        &current_status,
+        batch_status::STORED,
+    ) {
         return Err(AppError::business(format!(
-            "状态流转不合法：{} -> stored",
-            current_status
+            "状态流转不合法：{} -> {}",
+            current_status,
+            batch_status::STORED
         )));
     }
 
     // 染色完成时发布 DyeBatchCompleted 业务事件，供质检单生成、染缸产能统计、
     // 成本结转、BI 生产报表等下游被动感知
-    batch.status = Set(Some("stored".to_string()));
+    batch.actual_output_kg = Set(Some(actual_output_kg));
+    batch.actual_output_m = Set(Some(req.actual_output_m));
+    batch.greige_input_kg = Set(Some(greige_input_kg));
+    batch.status = Set(Some(batch_status::STORED.to_string()));
     batch.completed_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
     batch.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
     let updated = batch.update(&*state.db).await?;
+
+    // 失重率参考日志（非拒绝门）：仓内权威染色损耗标准 5%（§5.7 行业中值，
+    // outsourcing_service.rs::compute_standard_loss_rate，与委外域同源）。超过标准仅
+    // fail-visible 记 warn 供追查，不阻断完工——完工拒绝阈值待产品给口径（见交付报告）。
+    let standard_loss = crate::services::outsourcing_service::compute_standard_loss_rate(
+        crate::models::status::wage_energy_chemical_business::outsourcing_order_type::DYEING,
+    );
+    if actual_output_kg <= greige_input_kg {
+        let loss_rate = (greige_input_kg - actual_output_kg) / greige_input_kg;
+        if loss_rate > standard_loss {
+            tracing::warn!(
+                batch_id = updated.id,
+                batch_no = %updated.batch_no,
+                actual_output_kg = %actual_output_kg,
+                greige_input_kg = %greige_input_kg,
+                loss_rate = %loss_rate.round_dp(4),
+                standard_loss_rate = %standard_loss,
+                "完工失重率超过染色标准损耗率（仅记录不拒绝；完工阈值待产品口径）"
+            );
+        }
+    }
 
     // 落库成功后发布 DyeBatchCompleted 事件
     crate::services::event_bus::EVENT_BUS.publish(
@@ -376,7 +565,10 @@ pub async fn complete_dye_batch(
     tracing::info!(
         batch_id = updated.id,
         batch_no = %updated.batch_no,
-        "染色完成，已发布 DyeBatchCompleted 事件"
+        actual_output_kg = %updated.actual_output_kg.unwrap_or(rust_decimal::Decimal::ZERO),
+        actual_output_m = %updated.actual_output_m.unwrap_or(rust_decimal::Decimal::ZERO),
+        greige_input_kg = %updated.greige_input_kg.unwrap_or(rust_decimal::Decimal::ZERO),
+        "染色完成，实际产出已登记，已发布 DyeBatchCompleted 事件"
     );
 
     Ok(Json(ApiResponse::success_with_message(

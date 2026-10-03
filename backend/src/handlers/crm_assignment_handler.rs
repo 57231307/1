@@ -50,12 +50,31 @@ pub async fn assign_customer(
     let crm_service = CrmService::new(state.db.clone());
     let history_service = AssignmentHistoryService::new(state.db.clone());
 
-    // 获取线索（业务操作，不注入数据权限）
-    let lead = crm_service.get_lead(req.lead_id, None).await?;
+    // 方案 A（用户 2026-10-02 裁定）⑤：分配写的是**他人名下线索行**（改 lead_status、
+    // 落分配历史），属跨 owner 写。修复前这里 `get_lead(id, None)` 整体跳过行级判定、
+    // 之后直接 update_lead——任意过 RBAC 的用户可按 id 分配任何人名下的线索。
+    // 现与其它写入口同门：先按 ctx 读行（可见性同 `get_lead` 判定源），再过跨 owner 写门
+    // （owner=owner_id、dept=department_id）：本人行恒可分配；Dept 经理代管本部门
+    // 为 dept 本职；All 范围改他人行须持 crm/cross_owner_write 代表键并逐次留痕；
+    // Self_ 一律拒。被拒出参恒为固定脱敏文案 + FORBIDDEN 码，原因只进日志。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let lead = crm_service
+        .get_lead(req.lead_id, Some(&data_scope_ctx))
+        .await?;
 
     // 记录原归属人
     let from_user_id = lead.owner_id;
     let from_user_name = lead.owner_name.clone();
+
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(from_user_id),
+        lead.department_id,
+        "线索分配",
+    )
+    .await?;
 
     // 更新线索归属人
     let update_req = crate::models::dto::crm_dto::UpdateLeadRequest {
@@ -118,7 +137,47 @@ pub async fn batch_assign(
     let history_service = AssignmentHistoryService::new(state.db.clone());
 
     // v16 批次 44 修复：循环外批量查询所有 lead，避免循环内逐个 get_lead（N+1 查询）
-    let lead_map = load_lead_map(&state.db, &req.lead_ids).await;
+    let lead_map = load_lead_map(&state.db, &req.lead_ids).await?;
+
+    // 方案 A（用户 2026-10-02 裁定）⑤：批量分配逐行都是跨 owner 写。**先判后写**：
+    // 在落任何一笔写之前对批次内每一存在行过写侧归属门（判定源
+    // `check_resource_write_owner`，代表键 N 行只查一次），任一行被拒即整笔 403——
+    // 不把权限拒绝逐行写进 errors 明细（权限拒绝出参永久脱敏，且部分提交会让调用方
+    // 无法区分"哪些他人行已被改"）；不存在的 id 仍按既有逐行错误语义处理（非权限族）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let behalf_granted = crate::handlers::crm_write_guard::cross_owner_write_behalf_granted(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+    )
+    .await;
+    for lead_id in &req.lead_ids {
+        if let Some(lead) = lead_map.get(lead_id) {
+            if !crate::utils::data_scope::check_resource_write_owner(
+                &data_scope_ctx,
+                Some(lead.owner_id),
+                lead.department_id,
+                behalf_granted,
+            ) {
+                tracing::warn!(
+                    actor = auth.user_id,
+                    lead_id = *lead_id,
+                    resource_owner = lead.owner_id,
+                    "批量分配存在未过跨 owner 写门的行，整笔拒绝（原因不外显）"
+                );
+                return Err(AppError::permission_denied(format!(
+                    "无权批量分配线索（第 {} 行非本人行且未持代操作授权）",
+                    lead_id
+                )));
+            }
+            crate::handlers::crm_write_guard::trace_behalf_write_granted(
+                &auth,
+                &data_scope_ctx,
+                lead.owner_id,
+                "线索批量分配",
+            );
+        }
+    }
 
     let ctx = LeadAssignCtx {
         crm_service: &crm_service,
@@ -160,24 +219,24 @@ struct LeadAssignCtx<'a> {
 }
 
 /// 批量查询 lead 列表，返回以 id 为键的 map（空 ids 返回空 map）
+/// 查询失败必须显式上抛：原 `unwrap_or_default()` 会把 DB 错误吞成空 map，
+/// 于是每条线索都被当成"不存在"写进 success 信封的 errors 里，调用方无法区分
+/// "查询失败"与"这些 lead 确实不存在"。
 async fn load_lead_map(
     db: &std::sync::Arc<sea_orm::DatabaseConnection>,
     lead_ids: &[i32],
-) -> std::collections::HashMap<i32, crate::models::crm_lead::Model> {
+) -> Result<std::collections::HashMap<i32, crate::models::crm_lead::Model>, AppError> {
     if lead_ids.is_empty() {
-        return std::collections::HashMap::new();
+        return Ok(std::collections::HashMap::new());
     }
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    // is_in 需要 IntoIterator<Item = T> where T: Into<Value>，&i32 不满足，需 copied 到 i32
     // ConnectionTrait 为 DatabaseConnection 实现，需 db.as_ref() 解引用 Arc
-    // is_in 需要 IntoIterator<Item = T> where T: Into<Value>，&i32 不满足，需 cloned 到 i32
-    crate::models::crm_lead::Entity::find()
+    let leads = crate::models::crm_lead::Entity::find()
         .filter(crate::models::crm_lead::Column::Id.is_in(lead_ids.iter().copied()))
         .all(db.as_ref())
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|l| (l.id, l))
-        .collect()
+        .await?;
+    Ok(leads.into_iter().map(|l| (l.id, l)).collect())
 }
 
 /// 执行批量分配循环，返回 (成功数, 失败数, 错误列表)
@@ -324,6 +383,26 @@ pub async fn transfer_lead(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmAssignService::new(state.db.clone());
 
+    // 方案 A（用户 2026-10-02 裁定）⑤：转移改写的是**当前归属人名下行**的 owner_id，
+    // 典型跨 owner 写。修复前 handler 不读行、service 内 find_by_id 无任何归属判定，
+    // 任意过 RBAC 用户可按 id 把他人线索转给任何人。现先按 ctx 读行（与 get_lead
+    // 同判定源）再过跨 owner 写门；service 内既有业务校验（未转化/非自转/新归属人
+    // 活跃）逐字保留在门之后。
+    let crm_service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let lead = crm_service
+        .get_lead(req.lead_id, Some(&data_scope_ctx))
+        .await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(lead.owner_id),
+        lead.department_id,
+        "线索转移",
+    )
+    .await?;
+
     let result = service
         .transfer_lead(req, auth.user_id, &auth.username)
         .await?;
@@ -356,15 +435,32 @@ pub async fn list_workload(
     _auth: AuthContext,
     Query(query): Query<WorkloadQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 逗号分隔列表逐个显式校验：任一元素非法即整体拒绝。
+    // 原实现 filter_map + parse().ok() 会无声丢弃非法项（如 ?user_ids=1,abc 只剩 1），
+    // 调用方误以为查询/分配覆盖了全部提交的 ID。
+    if query.user_ids.trim().is_empty() {
+        return Err(AppError::validation_displayable("user_ids 参数不能为空"));
+    }
     let user_ids: Vec<i32> = query
         .user_ids
         .split(',')
-        .filter_map(|s| s.trim().parse::<i32>().ok())
-        .collect();
-
-    if user_ids.is_empty() {
-        return Err(AppError::validation("user_ids 参数不能为空"));
-    }
+        .enumerate()
+        .map(|(idx, raw)| {
+            let token = raw.trim();
+            if token.is_empty() {
+                return Err(AppError::validation_displayable(format!(
+                    "user_ids 第 {} 项为空，逗号分隔列表中不允许空项",
+                    idx + 1
+                )));
+            }
+            token.parse::<i32>().map_err(|_| {
+                AppError::validation_displayable(format!(
+                    "user_ids 第 {} 项「{token}」不是合法整数，列表中每一项都必须是整数",
+                    idx + 1
+                ))
+            })
+        })
+        .collect::<Result<Vec<i32>, AppError>>()?;
 
     let service = CrmAssignService::new(state.db.clone());
     let workload = service.list_assignee_workload(&user_ids).await?;

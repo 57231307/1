@@ -30,15 +30,55 @@ export function getPrintTemplate(id: number): Promise<ApiResponse<PrintTemplate>
   return request.get(`/print-templates/${id}`);
 }
 
+/**
+ * POST /print-templates 载荷（唯一真相：print_handler::CreatePrintTemplateRequest）。
+ * template_name 必填且后端 #[validate(length(min=1,max=100))] → 空串 422；
+ * type 键经 #[serde(rename="type")] 对应 Rust template_type；
+ * DTO 无 id/created_by/created_by_name/created_at/updated_at（禁止整实体 Partial 当载荷）。
+ */
+export interface CreatePrintTemplateRequest {
+  template_name: string;
+  template_code?: string;
+  description?: string;
+  module?: PrintTemplate['module'];
+  type?: PrintTemplate['type'];
+  paper_size?: PrintTemplate['paper_size'];
+  orientation?: PrintTemplate['orientation'];
+  content?: string;
+  css_styles?: string;
+  variables?: Record<string, unknown>;
+  is_default?: boolean;
+  status?: PrintTemplate['status'];
+}
+
+/**
+ * PUT /print-templates/{id} 载荷（唯一真相：UpdatePrintTemplateRequest，全字段 Option）。
+ * template_name 可选但带 length(min=1) 校验 → 空串必须省略该键，不得发送 ""。
+ */
+export interface UpdatePrintTemplateRequest {
+  template_name?: string;
+  template_code?: string;
+  description?: string;
+  module?: PrintTemplate['module'];
+  type?: PrintTemplate['type'];
+  paper_size?: PrintTemplate['paper_size'];
+  orientation?: PrintTemplate['orientation'];
+  content?: string;
+  css_styles?: string;
+  variables?: Record<string, unknown>;
+  is_default?: boolean;
+  status?: PrintTemplate['status'];
+}
+
 export function createPrintTemplate(
-  data: Partial<PrintTemplate>
+  data: CreatePrintTemplateRequest
 ): Promise<ApiResponse<PrintTemplate>> {
   return request.post('/print-templates', data);
 }
 
 export function updatePrintTemplate(
   id: number,
-  data: Partial<PrintTemplate>
+  data: UpdatePrintTemplateRequest
 ): Promise<ApiResponse<PrintTemplate>> {
   return request.put(`/print-templates/${id}`, data);
 }

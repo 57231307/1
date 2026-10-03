@@ -43,10 +43,6 @@ export function getBudgetList(
   return request.get('/budgets', { params });
 }
 
-export function createBudget(data: Partial<Budget>): Promise<ApiResponse<Budget>> {
-  return request.post('/budgets', data);
-}
-
 export function updateBudget(id: number, data: Partial<Budget>): Promise<ApiResponse<Budget>> {
   return request.put(`/budgets/${id}`, data);
 }

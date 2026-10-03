@@ -58,6 +58,19 @@ fn record_print_audit(state: &AppState, auth: &AuthContext, doc_type: &str, doc_
     svc.record_async(event, None);
 }
 
+/// #220 成品布入库打印标签（doc_type inventory_piece_label，路由 /inventory/pieces/{id}/print）：
+/// 数据装配与 fail-closed 校验（非 dyed/样布业务族拒绝、缺字段逐列点名 VALIDATION 族）
+/// 全部收敛在 PrintService::get_inventory_piece_label_print_data，本 handler 仅走既有渲染+审计范式
+pub async fn inventory_piece_label_print_docx(
+    Path(piece_id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "inventory_piece_label", piece_id).await?;
+    record_print_audit(&state, &auth, "inventory_piece_label", piece_id);
+    Ok(resp)
+}
+
 pub async fn sales_order_print_docx(
     Path(doc_id): Path<i32>,
     State(state): State<AppState>,

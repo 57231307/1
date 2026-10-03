@@ -23,10 +23,12 @@ use serde_json::{Value, json};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::{api_endpoint, log_api_access};
+use crate::models::{api_endpoint, api_key, log_api_access};
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::services::api_key_service::ApiKeyService;
+use crate::services::api_key_service::{
+    self, ApiKeyService, ApiKeyWithCreator, UpdateApiKeyPayload,
+};
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -91,17 +93,64 @@ pub struct UpsertApiEndpointRequest {
     pub deprecation_note: Option<String>,
 }
 
+/// 双层 Option 反序列化适配器（本仓权威范式，见 `department_handler.rs` /
+/// `asset_category_handler.rs` / `services/{purchase,sales}_contract_service.rs`）。
+///
+/// serde 对 `Option<Option<T>>` 的默认行为在遇到 JSON null 时直接 `visit_none()`，
+/// 把「显式 null」塌成外层 `None`，与「键缺席」不可区分，于是 service 侧
+/// `Some(None)=清空列` 的三态能力从 HTTP 根本发不出来。本适配器先按内层
+/// `Option<T>` 反序列化再包一层：
+/// 键缺席（配 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新 API 密钥请求 DTO
+///
+/// 可空列 `description` / `expires_at` 走显式三态（RFC 7386 口径）：
+/// 键缺席=保持原值、显式 `null`=清空（description→NULL、expires_at→永不过期）、有值=覆盖。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateApiKeyGwRequest {
     pub key_name: Option<String>,
-    /// 批次 158 v11 真实接入：API 密钥描述（migration m0044 新增，原 #[allow(dead_code)] 移除）
-    pub description: Option<String>,
+    /// API 密钥描述（`api_keys.description` 可空列，migration m0044）
+    #[serde(default, deserialize_with = "double_option")]
+    pub description: Option<Option<String>>,
     pub permissions: Option<Vec<String>>,
     pub rate_limit: Option<i32>,
-    pub expires_at: Option<String>,
+    /// 过期时间（ISO 8601 字符串）；格式非法 → 400，绝不静默当成「永不过期」
+    #[serde(default, deserialize_with = "double_option")]
+    pub expires_at: Option<Option<String>>,
     pub status: Option<String>,
+}
+
+/// `expires_at` 解析失败的用户可见文案（不含内部机制术语）
+const EXPIRES_AT_FORMAT_ERROR: &str = "有效期格式不正确，应为 ISO 8601（如 2026-12-31T23:59:59Z）";
+
+/// 严格解析 ISO 8601 过期时间：失败即 400 VALIDATION_ERROR 外显原因。
+///
+/// 旧链路 `parse_from_rfc3339(s).ok()` 把解析失败变成 `None`，落到
+/// `expires_at = NULL`（= 永不过期）——日期写错就等于偷偷撤销有效期，属安全缺陷。
+fn parse_expires_at(raw: &str) -> Result<chrono::DateTime<Utc>, AppError> {
+    chrono::DateTime::parse_from_rfc3339(raw)
+        .map(|d| d.with_timezone(&Utc))
+        .map_err(|_| AppError::validation_displayable(EXPIRES_AT_FORMAT_ERROR))
+}
+
+/// `Option<Option<String>>`（DTO 三态）→ `Option<Option<DateTime>>`（payload 三态）：
+/// 缺席/清空原样透传，仅在「有值」分支做严格解析。
+fn parse_optional_expires_at(
+    raw: Option<Option<String>>,
+) -> Result<Option<Option<chrono::DateTime<Utc>>>, AppError> {
+    match raw {
+        None => Ok(None),
+        Some(None) => Ok(Some(None)),
+        Some(Some(v)) => Ok(Some(Some(parse_expires_at(&v)?))),
+    }
 }
 
 // ============== 辅助函数 ==============
@@ -110,7 +159,7 @@ pub struct UpdateApiKeyGwRequest {
 fn validate_rate_limit(v: Option<i32>) -> Result<Option<i32>, AppError> {
     if let Some(rl) = v {
         if !(0..=10000).contains(&rl) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "rate_limit 必须在 0-10000 之间，当前: {}",
                 rl
             )));
@@ -174,9 +223,17 @@ fn log_to_json(m: log_api_access::Model) -> Value {
     })
 }
 
-/// 将 api_key::Model 转换为前端期望的 JSON 结构；批次 112 P1-9：created_by 直接从 model.created_by
-/// 读取（migration m0039 新增列）， 不再需要调用方传 0 占位。历史数据 created_by 为 NULL 时返回 0 保持前端兼容。
-fn key_to_json(m: &crate::models::api_key::Model) -> Value {
+/// 将读侧富化视图（`api_keys` 全列 + LEFT JOIN `users`）转换为前端期望的 JSON 结构。
+///
+/// 可空列一律「NULL → JSON null」，不再塌成空串/`unwrap_or_default()`：
+/// - `description`：真实列值（此前硬写 `""`，用户填的描述存进去却永远显示不出来）；
+/// - `expires_at`：null = 永不过期（列真值），与「解析失败的脏值」可区分；
+/// - `created_by_name`：LEFT JOIN `users.username` 真值，用户行缺失时 null（禁止空串/假名）；
+/// - `last_used_at`：null = 从未使用（与 expires_at 同一口径，同源修复）。
+///
+/// 批次 112 P1-9：created_by 直接从视图 `created_by` 读取（migration m0039 新增列）。
+/// 历史数据 created_by 为 NULL 时返回 0 保持前端 `created_by: number` 兼容。
+fn key_to_json(m: &ApiKeyWithCreator) -> Value {
     // permissions 字段为 JSON 字符串，解析为 string[]
     let permissions: Value = m
         .permissions
@@ -202,15 +259,15 @@ fn key_to_json(m: &crate::models::api_key::Model) -> Value {
         "key_name": &m.name,
         "api_key": &m.key_prefix,
         "app_id": &m.key_prefix,
-        "description": "",
+        "description": &m.description,
         "permissions": permissions,
         "rate_limit": m.rate_limit_per_minute,
-        "expires_at": m.expires_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
+        "expires_at": m.expires_at.as_ref().map(|d| d.to_rfc3339()),
         "status": status,
         "created_by": m.created_by.unwrap_or(0),
-        "created_by_name": "",
+        "created_by_name": &m.created_by_name,
         "created_at": m.created_at.to_rfc3339(),
-        "last_used_at": m.last_used_at.as_ref().map(|d| d.to_rfc3339()).unwrap_or_default(),
+        "last_used_at": m.last_used_at.as_ref().map(|d| d.to_rfc3339()),
     })
 }
 
@@ -289,10 +346,10 @@ pub async fn create_api_endpoint(
     let rate_limit = validate_rate_limit(req.rate_limit)?;
     let path = req
         .path
-        .ok_or_else(|| AppError::validation("path 为必填项"))?;
+        .ok_or_else(|| AppError::validation_displayable("path 为必填项"))?;
     let method = req
         .method
-        .ok_or_else(|| AppError::validation("method 为必填项"))?;
+        .ok_or_else(|| AppError::validation_displayable("method 为必填项"))?;
 
     // 唯一性检查（path + method）
     // 批次 95 P3-10 修复：显式检查仅作友好提示；并发场景下 TOCTOU 由数据库唯一约束
@@ -573,6 +630,9 @@ pub async fn get_api_stats(
 // 批次 91 P0-1 重新实现 keys 端点，统一返回前端期望的结构。
 
 /// GET /api-gateway/keys — 列出 API 密钥（分页）
+///
+/// 读侧走 `api_key_service::select_with_creator()` 唯一富化链路（`column_as` +
+/// `LeftJoin` + `into_model`），与详情 / 写后回读同源，`created_by_name` 恒含键。
 pub async fn list_api_keys(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -580,32 +640,34 @@ pub async fn list_api_keys(
 ) -> Result<Json<ApiResponse<Vec<Value>>>, AppError> {
     let (offset, limit) = page_offset(&query);
 
-    let mut sel = crate::models::api_key::Entity::find();
+    let mut sel = api_key_service::select_with_creator();
     if let Some(ref kw) = query.keyword {
-        sel = sel.filter(crate::models::api_key::Column::Name.contains(kw));
+        sel = sel.filter(api_key::Column::Name.contains(kw));
     }
     // status 参数：active/inactive
     if let Some(ref status) = query.status {
         match status.as_str() {
             master_data::ACTIVE => {
-                sel = sel.filter(crate::models::api_key::Column::IsActive.eq(true));
+                sel = sel.filter(api_key::Column::IsActive.eq(true));
             }
             master_data::INACTIVE => {
-                sel = sel.filter(crate::models::api_key::Column::IsActive.eq(false));
+                sel = sel.filter(api_key::Column::IsActive.eq(false));
             }
             _ => {}
         }
     }
 
+    // LEFT JOIN 目标侧为 users.id（主键唯一），一条密钥至多匹配一行用户，总数不被放大
     let total = sel.clone().count(&*state.db).await?;
     let rows = sel
-        .order_by_desc(crate::models::api_key::Column::CreatedAt)
+        .order_by_desc(api_key::Column::CreatedAt)
         .offset(offset)
         .limit(limit)
+        // 链式顺序 offset→limit→into_model 与本仓 purchase_contract_service.rs:350-355 一致
+        .into_model::<ApiKeyWithCreator>()
         .all(&*state.db)
         .await?;
 
-    // 批次 112 P1-9：created_by 从 model.created_by 读取（migration m0039 新增列）
     let data: Vec<Value> = rows.iter().map(key_to_json).collect();
     Ok(Json(ApiResponse {
         code: Some(200),
@@ -633,30 +695,32 @@ pub async fn create_api_key(
         .map_err(AppError::from)?;
     let rate_limit = rate_limit.unwrap_or(100);
 
-    // expires_at 字符串 → expires_days 数值
-    let expires_days = req.expires_at.as_ref().and_then(|s| {
-        if s.is_empty() {
-            None
-        } else {
-            chrono::DateTime::parse_from_rfc3339(s)
-                .ok()
-                .map(|d| std::cmp::Ord::max((d.with_timezone(&Utc) - Utc::now()).num_days(), 1))
-        }
-    });
+    // expires_at 严格解析：格式非法 → 400（旧链路 .ok() 把解析失败变成「永不过期」）
+    let expires_at = req
+        .expires_at
+        .as_ref()
+        .map(|raw| parse_expires_at(raw))
+        .transpose()?;
 
-    let (model, plain_key) = service
+    let (created, plain_key) = service
         .create_api_key(
             &req.key_name,
+            // 契约收口：创建 DTO 真实接收并落库 description（此前该字段根本不采集）
+            req.description.as_deref(),
             permissions.as_deref(),
             rate_limit,
-            expires_days,
+            expires_at,
             // 批次 112 P1-9：注入真实创建者 user_id（migration m0039 持久化到 created_by 列）
             auth.user_id,
         )
         .await?;
 
-    // 批次 112 P1-9：key_to_json 直接从 model.created_by 读取
-    let mut data = key_to_json(&model);
+    // 写后经同一条 LEFT JOIN 富化链路回读出参，created_by_name 与列表/详情同源
+    let view = service
+        .get_api_key_with_creator(created.id)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 创建后回读失败", created.id)))?;
+    let mut data = key_to_json(&view);
     if let Some(obj) = data.as_object_mut() {
         obj.insert("plain_key".to_string(), Value::String(plain_key));
     }
@@ -674,17 +738,20 @@ pub async fn get_api_key(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let service = ApiKeyService::new(state.db.clone());
-    let model = service
-        .get_api_key_by_id(id)
+    let view = service
+        .get_api_key_with_creator(id)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
     // V15 主线审计 High 修复：仅本人或 admin 可查看密钥详情。
-    ensure_can_manage_api_key(&state, &auth, model.created_by).await?;
-    // 批次 112 P1-9：created_by 从 model.created_by 读取
-    Ok(Json(ApiResponse::success(key_to_json(&model))))
+    ensure_can_manage_api_key(&state, &auth, view.created_by).await?;
+    Ok(Json(ApiResponse::success(key_to_json(&view))))
 }
 
 /// PUT /api-gateway/keys/:id — 更新 API 密钥
+///
+/// `description` / `expires_at` 三态：键缺席=保持原值、显式 null=清空
+/// （描述→NULL、有效期→永不过期）、有值=覆盖；有值但格式非法一律 400，
+/// 绝不把「解析失败」当成「清空」落库。
 #[axum::debug_handler]
 pub async fn update_api_key(
     State(state): State<AppState>,
@@ -694,7 +761,7 @@ pub async fn update_api_key(
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     let rate_limit = validate_rate_limit(req.rate_limit)?;
     // V15 主线审计 High 修复：变更前先校验对象级授权。
-    let existing = crate::models::api_key::Entity::find_by_id(id)
+    let existing = api_key::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
@@ -712,28 +779,29 @@ pub async fn update_api_key(
     // status → is_active
     let is_active = req.status.as_deref().map(|s| s == master_data::ACTIVE);
 
-    // expires_at: ISO 字符串 → DateTime
-    let expires_at = req.expires_at.as_ref().map(|s| {
-        chrono::DateTime::parse_from_rfc3339(s)
-            .map(|d| d.with_timezone(&Utc))
-            .ok()
-    });
+    // expires_at 三态：缺席=保持、null=永不过期、有值=严格解析
+    let expires_at = parse_optional_expires_at(req.expires_at)?;
 
-    let model = service
-        .update_api_key(crate::services::api_key_service::UpdateApiKeyPayload {
+    let updated = service
+        .update_api_key(UpdateApiKeyPayload {
             id,
             name: req.key_name,
             permissions,
             rate_limit_per_minute: rate_limit,
             expires_at,
             is_active,
+            // 三态原样透传：Some(None) 由 service 落 NULL
             description: req.description,
         })
         .await?;
 
-    // 批次 112 P1-9：created_by 从 model.created_by 读取
+    // 写后经同一条 LEFT JOIN 富化链路回读出参（与列表/详情同源，含真实 description）
+    let view = service
+        .get_api_key_with_creator(updated.id)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 更新后回读失败", updated.id)))?;
     Ok(Json(ApiResponse::success_with_message(
-        key_to_json(&model),
+        key_to_json(&view),
         "密钥更新成功",
     )))
 }
@@ -745,7 +813,7 @@ pub async fn delete_api_key(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // V15 主线审计 High 修复：撤销前先校验对象级授权。
-    let existing = crate::models::api_key::Entity::find_by_id(id)
+    let existing = api_key::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
@@ -763,13 +831,13 @@ pub async fn regenerate_api_key(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Value>>, AppError> {
     // V15 主线审计 High 修复：重新生成前先校验对象级授权。
-    let existing = crate::models::api_key::Entity::find_by_id(id)
+    let existing = api_key::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found(format!("API 密钥 {} 不存在", id)))?;
     ensure_can_manage_api_key(&state, &auth, existing.created_by).await?;
     let service = ApiKeyService::new(state.db.clone());
-    let (model, plain_key) = service
+    let (regenerated, plain_key) = service
         .regenerate_api_key(
             id,
             Some(&state.cache),
@@ -778,8 +846,14 @@ pub async fn regenerate_api_key(
         )
         .await?;
 
-    // 批次 112 P1-9：key_to_json 直接从 model.created_by 读取
-    let mut data = key_to_json(&model);
+    // 写后经同一条 LEFT JOIN 富化链路回读出参，created_by_name 与列表/详情同源
+    let view = service
+        .get_api_key_with_creator(regenerated.id)
+        .await?
+        .ok_or_else(|| {
+            AppError::not_found(format!("API 密钥 {} 重新生成后回读失败", regenerated.id))
+        })?;
+    let mut data = key_to_json(&view);
     if let Some(obj) = data.as_object_mut() {
         obj.insert("plain_key".to_string(), Value::String(plain_key));
     }
@@ -792,11 +866,15 @@ pub async fn regenerate_api_key(
 
 // ============== 请求 DTO ==============
 
-/// 创建 API 密钥请求（前端 key_name/permissions[]/rate_limit/expires_at）
+/// 创建 API 密钥请求（前端 key_name/description/permissions[]/rate_limit/expires_at）
+///
+/// `description` 为真实落库列（`api_keys.description` 可空）：不采集=省略键（NULL）、
+/// 显式 null=不填、有值=写入；`expires_at` 为 ISO 8601 字符串，格式非法一律 400。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyGwRequest {
     pub key_name: String,
+    pub description: Option<String>,
     #[serde(default)]
     pub permissions: Option<Vec<String>>,
     pub rate_limit: Option<i32>,

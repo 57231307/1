@@ -86,20 +86,68 @@ pub mod quotation {
     pub const CANCELLED: &str = "cancelled";
 }
 
-/// 定制订单状态（custom_order.status，小写值）
-/// 批次 234 v13 真实接入：custom_order_crud_service.rs 中订单状态字符串字面量统一引用此模块（规则 0）
+/// 定制订单状态（custom_orders.status，小写值）——本域唯一权威词表
+///
+/// 取值域 = 状态机 `utils/process_state_machine.rs::CustomOrderStatus::as_str()`
+/// 的 10 个工艺态 + 大额变更挂起态 `change_pending`
+/// （`custom_order_crud_service.rs::submit_change_request` 金额变化超阈值写入，
+/// `approve_change` 按该值比较），与迁移 m0064 的 `chk_custom_order_status`
+/// 取值集合逐项相等（契约锁：`tests/contract_wave5_custom_order_status_unity_test.rs`）。
+///
+/// 原模块仅 4 token 且 `pending` 为悬空 token（不在 DB CHECK 集内，
+/// 实际仅被 process_nodes 借用）：已移除；process_nodes.status 的取值
+/// 权威改 `models/status/production.rs::process_node`（含 pending/in_progress/
+/// completed/blocked，与其 chk_node_status 一致）。
+/// 新增代码必须引用本模块常量，禁止字面量（规则 0）。
 pub mod custom_order {
     /// 草稿：订单初始状态，可编辑
     pub const DRAFT: &str = "draft";
 
-    /// 待处理：等待排产
-    pub const PENDING: &str = "pending";
+    /// 打样中：关联 lab_dip_request，客户确认 OK 样后推进（V15 P0-B11）
+    pub const LAB_DIP: &str = "lab_dip";
+
+    /// 报价中：关联 sales_quotation，报价审批通过后推进（V15 P0-B11）
+    pub const QUOTATION: &str = "quotation";
+
+    /// 纱线采购中
+    pub const YARN_PURCHASING: &str = "yarn_purchasing";
+
+    /// 染整中
+    pub const DYEING: &str = "dyeing";
+
+    /// 后整理中
+    pub const FINISHING: &str = "finishing";
+
+    /// 交付中
+    pub const DELIVERY: &str = "delivery";
+
+    /// 售后中
+    pub const AFTER_SALES: &str = "after_sales";
+
+    /// 变更挂起：金额变化超阈值进入二级审批（submit_change_request 写入，
+    /// approve_change 状态门按该值比较）
+    pub const CHANGE_PENDING: &str = "change_pending";
 
     /// 已完成：订单流程完结
     pub const COMPLETED: &str = "completed";
 
     /// 已取消：订单作废
     pub const CANCELLED: &str = "cancelled";
+
+    /// 全部合法取值（与 m0064 CHECK 取值集合逐项相等，双向锁定）
+    pub const ALL: &[&str] = &[
+        DRAFT,
+        LAB_DIP,
+        QUOTATION,
+        YARN_PURCHASING,
+        DYEING,
+        FINISHING,
+        DELIVERY,
+        AFTER_SALES,
+        CHANGE_PENDING,
+        COMPLETED,
+        CANCELLED,
+    ];
 }
 
 /// 报价单状态（sales_quotation.status 小写，批次 236 v13 补充 quotation 模块审批/转换流程专属状态）
@@ -141,6 +189,39 @@ pub mod custom_order_ext {
 
     /// 售后-已拒绝
     pub const AFTERSALES_REJECTED: &str = "rejected";
+
+    /// 售后-已受理（V15 P1 batch-19 缺陷 23.3.2：opened → accepted，写 accepted_at）
+    pub const AFTERSALES_ACCEPTED: &str = "accepted";
+
+    /// 售后-处理中（accepted → processing → resolved）
+    pub const AFTERSALES_PROCESSING: &str = "processing";
+
+    /// 售后-已解决（processing → resolved，写 closed_at 以外的结论态）
+    pub const AFTERSALES_RESOLVED: &str = "resolved";
+
+    /// 售后-已评价（V15 P1 batch-19 缺陷 23.3.2：resolved → evaluated，写评价三列）
+    pub const AFTERSALES_EVALUATED: &str = "evaluated";
+
+    /// 售后-已关闭（终态，任一非终态均可关闭；写 closed_at）
+    pub const AFTERSALES_CLOSED: &str = "closed";
+
+    /// 售后工单状态全部合法取值（写入方 `services/custom_order_aftersales_service.rs`
+    /// 状态机 `AFTERSALES_TRANSITIONS` 的节点集，与其逐 token 相等）。
+    ///
+    /// ⚠️ DB 侧 CHECK `chk_aftersales_status`（migration
+    /// `m0044_integrate_unreferenced_migrations.rs:251`）当前只覆盖
+    /// opened/processing/resolved/closed/rejected，缺 `accepted`/`evaluated`
+    /// ⇒ 写这两态必撞 CHECK 返回裸 500（CI #4669 用例 65-01）。
+    /// 迁移须把本列表补齐进 CHECK（三端同源：写入方词表 = 本列表 = CHECK 取值集）。
+    pub const AFTERSALES_ALL: &[&str] = &[
+        AFTERSALES_OPENED,
+        AFTERSALES_ACCEPTED,
+        AFTERSALES_PROCESSING,
+        AFTERSALES_RESOLVED,
+        AFTERSALES_EVALUATED,
+        AFTERSALES_CLOSED,
+        AFTERSALES_REJECTED,
+    ];
 
     /// 工序-待处理
     pub const PROCESS_PENDING: &str = "pending";

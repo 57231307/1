@@ -345,6 +345,34 @@ const formRules = computed<FormRules>(() => ({
       trigger: 'blur',
     },
   ],
+  supplier_short_name: [
+    {
+      validator: (_rule, value, callback) => {
+        // 后端 CreateSupplierRequest.supplier_short_name 为 Option + length(min=2,max=100)：
+        // 未填写（空串）时由父组件省略该键、validator 不触发，填写则须 2-100 字符，否则撞后端 422。
+        if (value && (value.length < 2 || value.length > 100)) {
+          callback(new Error(t('supplier.dialog.validation.shortNameLength')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  credit_code: [
+    {
+      validator: (_rule, value, callback) => {
+        // 后端 CreateSupplierRequest.credit_code 为 Option + length(equal=18)：
+        // 未填写时省略该键，填写则必须恰为 18 位，否则撞后端 422。
+        if (value && value.length !== 18) {
+          callback(new Error(t('supplier.dialog.validation.creditCodeLength')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
 }));
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props

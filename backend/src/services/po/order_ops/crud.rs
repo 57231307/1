@@ -2,7 +2,9 @@
 //!
 //! 拆分自原 `po/order.rs` 的 `impl PurchaseOrderService` 块。
 //! 包含创建 / 更新 / 删除 / 列表 / 详情方法及其私有 helper：
-//! - `generate_order_no_with_txn`（宏生成，`pub`，price 子模块跨 impl 块调用）
+//! - `generate_order_no_with_txn`（宏生成，`pub`）——「调用方自行插入」路径的取号入口
+//!   （price 子模块缺料转采购跨 impl 块调用）；`create_order_header` 走生成器的
+//!   `insert_with_no_retry`（事务内取号 + 23505 保存点重试）。两者前缀/位数一致
 //! - `create_order` / `validate_order_request` / `create_order_header` /
 //!   `validate_products_exist_txn` / `calculate_item_amounts` /
 //!   `build_order_item_active_model` / `create_order_items`（创建链路 + 私有 helper）
@@ -31,29 +33,43 @@ use crate::services::po::order::{PurchaseOrderDto, PurchaseOrderService};
 use crate::services::po::{CreatePurchaseOrderRequest, UpdatePurchaseOrderRequest};
 use crate::services::sku_mapping_service::SkuMappingService;
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
+use crate::services::supplier_qualification_gate::SupplierQualificationGate;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
+// 单号取号+插入的唯一入口（事务内取号 + 23505 保存点重试），见 `create_order_header`
 use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 
-/// 单行明细金额计算结果（create_order_items 内部 helper 数据载体）
-struct ItemAmounts {
-    quantity_ordered: Decimal,
-    unit_price: Decimal,
-    quantity_alt_ordered: Decimal,
-    tax_percent: Decimal,
-    discount_percent: Decimal,
-    amount: Decimal,
-    tax_amount: Decimal,
-    discount_amount: Decimal,
+/// 单行明细金额计算结果（`calculate_item_amounts` 权威口径的数据载体；
+/// 创建与明细更新两条链路共用，故 pub(crate)）
+pub(crate) struct ItemAmounts {
+    pub(crate) quantity_ordered: Decimal,
+    pub(crate) unit_price: Decimal,
+    pub(crate) quantity_alt_ordered: Decimal,
+    pub(crate) tax_percent: Decimal,
+    pub(crate) discount_percent: Decimal,
+    pub(crate) amount: Decimal,
+    pub(crate) tax_amount: Decimal,
+    pub(crate) discount_amount: Decimal,
 }
 
 impl PurchaseOrderService {
-    // 生成采购订单号（使用事务连接）
-    // 格式：PO + 年月日 + 三位序号（PO20260315001）
+    // 采购订单号取号入口：`PO` + `YYYYMMDD` + 3 位当日流水（PO20260315001）。
+    //
+    // 必须是「写入事务内」变体（宏体走 `DocumentNumberGenerator::generate_no_with_width_txn`，
+    // 见 `utils/crud_macro.rs:37`）：`pg_advisory_xact_lock(prefix+date)` 持锁到调用方事务提交，
+    // 并在同一持锁事务内探测候选号是否已被占用，从而把并发的「取号 → 插入」整体串行化。
+    // 若改用 `generate_no`（`utils/number_generator.rs::generate_no_with_width` 自开计数事务），
+    // 锁随该内层事务提交即释放，返回号只保证「提交那一刻未被占用」，调用方 INSERT 前存在并发窗口，
+    // 会撞 `purchase_orders.order_no` UNIQUE
+    // （`migration/src/domain/system/m0001_initial_schema.rs:453`）表现为 500。
+    // 域内所有建单路径统一走生成器：本模块 `create_order_header` 走
+    // `DocumentNumberGenerator::insert_with_no_retry`（内部即调用本事务内取号，
+    // 并对 INSERT 撞 23505 做保存点重试），`po/price.rs:101`/`:332` 缺料转采购走本函数取号；
+    // 不得再各写一套前缀/位数。
     crate::impl_generate_no!(
         generate_order_no_with_txn,
         "PO",
@@ -71,7 +87,8 @@ impl PurchaseOrderService {
         let txn = (*self.db).begin().await?;
 
         // 1. 验证请求参数
-        let (warehouse_id, department_id) = self.validate_order_request(&req, &txn).await?;
+        let (warehouse_id, department_id) =
+            self.validate_order_request(&req, user_id, &txn).await?;
 
         // 2. 创建订单主表
         let order = self
@@ -113,6 +130,7 @@ impl PurchaseOrderService {
     async fn validate_order_request(
         &self,
         req: &CreatePurchaseOrderRequest,
+        user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(i32, i32), AppError> {
         // 检查供应商是否存在
@@ -130,6 +148,19 @@ impl PurchaseOrderService {
         // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
         SupplierBlacklistService::new(self.db.clone())
             .check_supplier_not_blacklisted(txn, req.supplier_id)
+            .await?;
+
+        // 采购门控：供应商资质过期分级门控（黑名单门控同一落点、同一事务内读资质行，消除 TOCTOU）。
+        // 法定许可类过期→阻断新建单；一般类过期→存量不阻断仅出预警、新供应商首单阻断；
+        // 例外放行需 supplier_qualification:waive 权限并携带原因，同事务落审计。
+        // 拒绝文案 business_displayable 外显（business 会被出参脱敏为用户看不到的「业务处理失败」）。
+        SupplierQualificationGate::new(self.db.clone())
+            .check_purchase_order_gate(
+                txn,
+                req.supplier_id,
+                user_id,
+                req.qualification_waiver_reason.as_deref(),
+            )
             .await?;
 
         // 检查仓库是否存在
@@ -173,7 +204,16 @@ impl PurchaseOrderService {
         Ok((warehouse_id, department_id))
     }
 
-    /// 创建采购订单主表
+    /// 创建采购订单主表：单号统一由生成器产生（`PO` + `YYYYMMDD` + 3 位当日流水）。
+    ///
+    /// 取号在本事务内完成（`pg_advisory_xact_lock(prefix+date)` 持锁到 create_order
+    /// 提交，并在同一持锁事务内探测候选号空闲），并进一步用
+    /// `DocumentNumberGenerator::insert_with_no_retry` 把 INSERT 包进保存点：
+    /// 撞 `purchase_orders.order_no` UNIQUE
+    /// （`migration/src/domain/system/m0001_initial_schema.rs:453`，来源是旁路写入或
+    /// `handlers/purchase_order_handler.rs:641` 事务外预生成号）时自动回滚本次尝试、
+    /// 重新取号重试，而不是裸 500；其余 SQL 错误显式上抛，不吞、不改写。
+    /// 禁止时间戳/随机数拼号（绕过 order_no UNIQUE 语义、制造脏数据）。
     async fn create_order_header(
         &self,
         req: &CreatePurchaseOrderRequest,
@@ -182,17 +222,33 @@ impl PurchaseOrderService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<purchase_order::Model, AppError> {
-        // 生成订单号
-        let order_no = DocumentNumberGenerator::generate_no(
+        DocumentNumberGenerator::insert_with_no_retry(
             txn,
             "PO",
             purchase_order::Entity,
             purchase_order::Column::OrderNo,
+            |order_no| {
+                Self::build_order_header_active_model(
+                    req,
+                    warehouse_id,
+                    department_id,
+                    user_id,
+                    order_no,
+                )
+            },
         )
-        .await?;
+        .await
+    }
 
-        // 创建采购订单主表
-        let order = purchase_order::ActiveModel {
+    /// 构建采购订单主表 ActiveModel（单号由生成器提供）
+    fn build_order_header_active_model(
+        req: &CreatePurchaseOrderRequest,
+        warehouse_id: i32,
+        department_id: i32,
+        user_id: i32,
+        order_no: String,
+    ) -> purchase_order::ActiveModel {
+        purchase_order::ActiveModel {
             order_no: Set(order_no),
             supplier_id: Set(req.supplier_id),
             order_date: Set(req.order_date),
@@ -220,10 +276,6 @@ impl PurchaseOrderService {
             total_quantity_alt: Set(Decimal::ZERO),
             ..Default::default()
         }
-        .insert(txn)
-        .await?;
-
-        Ok(order)
     }
 
     /// 批量校验订单明细引用的产品是否存在
@@ -260,8 +312,13 @@ impl PurchaseOrderService {
         Ok(())
     }
 
-    /// 计算单行明细金额（round_dp(2) 精度归一化）
-    fn calculate_item_amounts(item: &crate::services::po::CreateOrderItemRequest) -> ItemAmounts {
+    /// 计算单行明细金额（round_dp(2) 精度归一化）——purchase_order_item 金额口径的
+    /// **唯一权威实现**：创建路径（`create_order_items`）与更新明细路径
+    /// （`receipt::update_order_item` 重算 subtotal/discount_amount/tax_amount/
+    /// total_amount 派生列）共用，禁止另写第二套公式。
+    pub(crate) fn calculate_item_amounts(
+        item: &crate::services::po::CreateOrderItemRequest,
+    ) -> ItemAmounts {
         let quantity_ordered = item.quantity_ordered.unwrap_or(Decimal::ZERO);
         let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
         let amount = (quantity_ordered * unit_price).round_dp(2);
@@ -289,9 +346,9 @@ impl PurchaseOrderService {
         index: usize,
         amounts: &ItemAmounts,
     ) -> Result<purchase_order_item::ActiveModel, AppError> {
-        let material_id = item
-            .material_id
-            .ok_or_else(|| AppError::validation(format!("订单行 {} 缺少物料ID", index + 1)))?;
+        let material_id = item.material_id.ok_or_else(|| {
+            AppError::validation_displayable(format!("订单行 {} 缺少物料ID", index + 1))
+        })?;
         Ok(purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
@@ -323,6 +380,59 @@ impl PurchaseOrderService {
         })
     }
 
+    /// 色号反查 + 供应商 SKU 对照（保密映射）解析——创建路径（转采购）与明细更新路径
+    /// 共用的**唯一权威实现**，禁止在任何一侧复制粘贴出第二套规则：
+    /// - `svc = None`：创建的非转采购场景，不反查、不解析对照，返回 `None`（既有口径）。
+    /// - `svc = Some`：`color_no` 非空时先按 (product_id, color_no) 反查 `product_colors.id`
+    ///   （查不到 → `business` 拒绝，文案含内部 product_id，保持脱敏）；再经
+    ///   `SkuMappingService::resolve_supplier_sku` 解析供应商侧快照，解析不到 →
+    ///   `business_displayable`「第 N 行无该色号」——措辞中性可外显：只回显用户自己
+    ///   提交的行号，不泄露该产品是调货还是自制，也不外显对照内容。
+    ///
+    /// 返回值即 `supplier_product_code`/`supplier_color_no` 保密快照列的唯一来源，
+    /// 任何写侧请求 DTO 都不得直接携带这两列。
+    pub(crate) async fn resolve_supplier_sku_snapshot(
+        txn: &sea_orm::DatabaseTransaction,
+        svc: Option<&SkuMappingService>,
+        product_id: i32,
+        color_no: &Option<String>,
+        supplier_id: i32,
+        line_no: usize,
+    ) -> Result<Option<crate::services::sku_mapping_service::ResolvedSku>, AppError> {
+        let Some(svc) = svc else {
+            return Ok(None);
+        };
+        // 按 color_no 反查 product_colors.id
+        let product_color_id = match color_no {
+            Some(cn) if !cn.is_empty() => {
+                let pc = product_color::Entity::find()
+                    .filter(product_color::Column::ProductId.eq(product_id))
+                    .filter(product_color::Column::ColorNo.eq(cn))
+                    .one(txn)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::business(format!(
+                            "第 {} 行色号「{}」在产品 {} 下不存在，无法转采购",
+                            line_no, cn, product_id
+                        ))
+                    })?;
+                Some(pc.id)
+            }
+            _ => None,
+        };
+
+        let resolved = svc
+            .resolve_supplier_sku(product_id, product_color_id, supplier_id)
+            .await?
+            .ok_or_else(|| {
+                // 措辞须中性且可外显：不得泄露该产品是调货还是自制，
+                // 但要把「无该色号」如实回给用户（用 displayable，非脱敏 business）。
+                AppError::business_displayable(format!("第 {} 行无该色号，无法转采购", line_no))
+            })?;
+
+        Ok(Some(resolved))
+    }
+
     /// 创建采购订单明细
     async fn create_order_items(
         &self,
@@ -347,49 +457,18 @@ impl PurchaseOrderService {
         for (index, item) in items.iter().enumerate() {
             let mut amounts = Self::calculate_item_amounts(item);
 
-            // 预分配 resolved 快照
-            let mut resolved_product_code: Option<String> = None;
-            let mut resolved_color_no: Option<String> = None;
+            let resolved = Self::resolve_supplier_sku_snapshot(
+                txn,
+                sku_service.as_ref(),
+                item.material_id.unwrap_or(0),
+                &item.color_no,
+                req.supplier_id,
+                index + 1,
+            )
+            .await?;
 
-            if let Some(ref svc) = sku_service {
-                let product_id = item.material_id.unwrap_or(0);
-                // 按 color_no 反查 product_colors.id
-                let product_color_id = match &item.color_no {
-                    Some(cn) if !cn.is_empty() => {
-                        let pc = product_color::Entity::find()
-                            .filter(product_color::Column::ProductId.eq(product_id))
-                            .filter(product_color::Column::ColorNo.eq(cn))
-                            .one(txn)
-                            .await?
-                            .ok_or_else(|| {
-                                AppError::business(format!(
-                                    "第 {} 行色号「{}」在产品 {} 下不存在，无法转采购",
-                                    index + 1,
-                                    cn,
-                                    product_id
-                                ))
-                            })?;
-                        Some(pc.id)
-                    }
-                    _ => None,
-                };
-
-                let resolved = svc
-                    .resolve_supplier_sku(product_id, product_color_id, req.supplier_id)
-                    .await?
-                    .ok_or_else(|| {
-                        // 措辞须中性且可外显：不得泄露该产品是调货还是自制，
-                        // 但要把「无该色号」如实回给用户（用 displayable，非脱敏 business）。
-                        AppError::business_displayable(format!(
-                            "第 {} 行无该色号，无法转采购",
-                            index + 1
-                        ))
-                    })?;
-
-                resolved_product_code = Some(resolved.supplier_product_code);
-                resolved_color_no = resolved.supplier_color_no;
-
-                // 若请求未显式指定单价，用 supplier_price 作为默认
+            // 若请求未显式指定单价，用 supplier_price 作为默认
+            if let Some(resolved) = &resolved {
                 if item.unit_price.is_none() || item.unit_price == Some(Decimal::ZERO) {
                     if let Some(price) = resolved.supplier_price {
                         amounts.unit_price = price;
@@ -407,11 +486,11 @@ impl PurchaseOrderService {
             let mut order_item =
                 Self::build_order_item_active_model(item, order_id, index, &amounts)?;
 
-            // 设置转采购快照列
-            if resolved_product_code.is_some() {
+            // 设置转采购快照列（唯一来源：resolve_supplier_sku_snapshot 权威解析）
+            if let Some(resolved) = &resolved {
+                let resolved_product_code = Some(resolved.supplier_product_code.clone());
+                let resolved_color_no = resolved.supplier_color_no.clone();
                 order_item.supplier_product_code = Set(resolved_product_code);
-            }
-            if resolved_color_no.is_some() {
                 order_item.supplier_color_no = Set(resolved_color_no);
             }
 

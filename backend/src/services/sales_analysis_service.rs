@@ -354,12 +354,12 @@ impl SalesAnalysisService {
         match format.as_str() {
             "xlsx" => {}
             "csv" => {
-                return Err(AppError::validation(
+                return Err(AppError::validation_displayable(
                     "CSV 格式已禁用，请使用 xlsx 格式导出（规则 3 合规）",
                 ));
             }
             other => {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "不支持的导出格式：{}，当前仅支持 xlsx",
                     other
                 )));

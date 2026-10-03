@@ -82,6 +82,7 @@
             <el-date-picker
               v-model="localFormData.signed_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('salesContract.form.placeholderSignedDate')"
               style="width: 100%"
             />
@@ -94,6 +95,7 @@
             <el-date-picker
               v-model="localFormData.effective_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('salesContract.form.placeholderEffectiveDate')"
               style="width: 100%"
             />
@@ -104,6 +106,7 @@
             <el-date-picker
               v-model="localFormData.expiry_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('salesContract.form.placeholderExpiryDate')"
               style="width: 100%"
             />
@@ -141,6 +144,7 @@
             <el-date-picker
               v-model="localFormData.delivery_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('salesContract.form.placeholderDeliveryDate')"
               style="width: 100%"
             />
@@ -264,6 +268,14 @@ interface ContractItemForm {
   unit_price: number;
   /** 交货容差百分比（undefined=未填，提交时转为 null） */
   quantity_tolerance_pct: number | undefined;
+  /**
+   * 实体真实列（本表单不采集、界面不可见）：编辑保存=后端明细整表重插，
+   * 回显带入的真实值必须随行保留并原样提交（新建行=null），禁止被洗成默认值。
+   */
+  product_id: number | null;
+  product_spec: string | null;
+  delivery_date: string | null;
+  remarks: string | null;
 }
 
 interface ScFormData {
@@ -271,16 +283,18 @@ interface ScFormData {
   contract_no: string;
   contract_name: string;
   customer_id: number | undefined;
-  contract_type: string;
+  // DB 可空列如实声明 string | null：编辑回显承接后端真实 NULL（ElInput/ElSelect/
+  // ElDatePicker 的 modelValue 类型均含 null），提交时由 useSc 的 explicitToNull 显式回传。
+  contract_type: string | null;
   total_amount: number;
-  signed_date: string;
-  effective_date: string;
-  expiry_date: string;
-  payment_terms: string;
-  payment_method: string;
-  delivery_date: string;
-  delivery_location: string;
-  remarks: string;
+  signed_date: string | null;
+  effective_date: string | null;
+  expiry_date: string | null;
+  payment_terms: string | null;
+  payment_method: string | null;
+  delivery_date: string | null;
+  delivery_location: string | null;
+  remarks: string | null;
   items: ContractItemForm[];
 }
 
@@ -346,6 +360,10 @@ const addItem = () => {
     quantity: 0,
     unit_price: 0,
     quantity_tolerance_pct: undefined,
+    product_id: null,
+    product_spec: null,
+    delivery_date: null,
+    remarks: null,
   });
 };
 

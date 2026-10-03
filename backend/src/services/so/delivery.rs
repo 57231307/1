@@ -60,7 +60,9 @@ pub struct ShipOrderItemRequest {
     /// 缸号 —— 出库四维扣减必填；仅当该缸数量不足时才允许显式跨缸回退
     #[validate(length(max = 50, message = "缸号长度不能超过50个字符"))]
     pub dye_lot_no: Option<String>,
-    /// 染色匹号（匹号领域：出库使用染色匹号）
+    /// 染色匹号 —— 出库对染色布强制四维（缸/色/批/匹，用户 2026-10-02 纠正口径）必填；
+    /// 白坯布（色号为空）免填；serde 层保持 Option（白坯合法），必填判定在
+    /// fabric_class::normalize_outbound_piece_no（经 require_outbound_dimensions）
     pub piece_no: Option<String>,
 }
 
@@ -105,15 +107,6 @@ pub fn validate_dye_lot_consistency(items: &[ShipOrderItemRequest]) -> Result<()
 }
 
 impl SalesService {
-    // 生成销售订单号
-    // 格式：SO + 年月日 + 三位序号（SO20260315001）
-    crate::impl_generate_no!(
-        generate_order_no,
-        "SO",
-        sales_order::Entity,
-        sales_order::Column::OrderNo
-    );
-
     /// 获取订单发货记录
     pub async fn get_order_deliveries(
         &self,

@@ -36,6 +36,11 @@ pub(crate) const COLOR_DIFF_OK_GRADE: i32 = 4;
 // 打样通知单 Service struct 定义（业务 impl 块在 lab_dip_ops::request）
 // ============================================================================
 
+/// 打样通知单号（lab_dip_request.request_no）自动编码前缀：沿用原手写格式
+/// "LD-{时间戳}-{随机}" 的业务前缀 LD，新格式统一为 {LD}{YYYYMMDD}{3位流水}
+///（前缀集中定义于此，ops 子模块只引用常量，不散落字面量）。
+pub const LAB_DIP_REQUEST_NO_PREFIX: &str = "LD";
+
 /// 打样通知单 Service
 pub struct LabDipRequestService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -44,14 +49,6 @@ pub struct LabDipRequestService {
 impl LabDipRequestService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成打样通知单号：LD-YYYYMMDDHHMMSS-NNN
-    pub fn generate_request_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("LD-{}-{:03}", timestamp, random)
     }
 
     // ===== 状态流转校验（纯函数）=====
@@ -125,6 +122,10 @@ impl LabDipSampleService {
 // 复样记录 Service struct 定义（业务 impl 块在 lab_dip_ops::resample）
 // ============================================================================
 
+/// 复样单号（lab_dip_resample.resample_no）自动编码前缀：沿用原手写格式
+/// "RS-{时间戳}-{随机}" 的业务前缀 RS，新格式统一为 {RS}{YYYYMMDD}{3位流水}。
+pub const LAB_DIP_RESAMPLE_NO_PREFIX: &str = "RS";
+
 /// 复样记录 Service
 pub struct LabDipResampleService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -133,14 +134,6 @@ pub struct LabDipResampleService {
 impl LabDipResampleService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成复样单号：RS-YYYYMMDDHHMMSS-NNN
-    pub fn generate_resample_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("RS-{}-{:03}", timestamp, random)
     }
 }
 

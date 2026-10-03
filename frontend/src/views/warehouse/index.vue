@@ -129,11 +129,12 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" :label="t('warehouse.index.colStatus')" width="80">
+        <el-table-column prop="is_active" :label="t('warehouse.index.colStatus')" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
+            <!-- 响应无 status 键（它是表单专用映射字段），启用状态以 warehouses.is_active 为准 -->
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
               {{
-                row.status === 'active'
+                row.is_active
                   ? t('warehouse.index.statusActive')
                   : t('warehouse.index.statusInactive')
               }}
@@ -304,7 +305,9 @@
           detailWarehouse.warehouse_name
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('warehouse.index.colStatus')">{{
-          detailWarehouse.status
+          detailWarehouse.is_active
+            ? t('warehouse.index.statusActive')
+            : t('warehouse.index.statusInactive')
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('warehouse.index.colCapacity')">{{
           detailWarehouse.capacity ? `${detailWarehouse.capacity} m³` : '-'
@@ -567,6 +570,10 @@ const handleCreate = () => {
 const handleEdit = (row: Warehouse) => {
   resetForm();
   Object.assign(formData, row);
+  // status 为表单专用字段（响应只回 is_active，NOT NULL），回显必须由 is_active 换算；
+  // 否则停用仓库编辑弹窗默认显示"启用"，保存时会把它翻回 active（假回显污染真实状态）
+  formData.status = row.is_active ? 'active' : 'inactive';
+  formData.description = row.notes ?? '';
   isEdit.value = true;
   dialogVisible.value = true;
 };
@@ -601,10 +608,35 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (isEdit.value) {
-        await updateWarehouse(formData.id!, formData);
+        // 更新契约字段名是 name（无 warehouse_name 别名）；warehouse_code/description 不在更新契约。
+        // 三态语义（后端 UpdateWarehouseRequest DoubleOption，RFC 7386）：
+        // NOT NULL 列 name/is_default/status 恒送值（送 null 被后端 400「XX不能清空」拒绝）；
+        // DB 可空列 address/phone/contact_person/warehouse_type/capacity UI 清空 ⇒
+        // 送显式 null（=清空为 NULL）——此前"空串键省略"塌成保持原值，清空保存不生效；
+        // manager 不在本表单采集范围 ⇒ 不提交该键（缺席=保持原经理）。
+        await updateWarehouse(formData.id!, {
+          name: formData.warehouse_name,
+          address: formData.address || null,
+          phone: formData.phone || null,
+          contact_person: formData.contact_person || null,
+          warehouse_type: formData.warehouse_type || null,
+          capacity: formData.capacity ?? null,
+          is_default: formData.is_default,
+          status: formData.status,
+        });
         ElMessage.success(t('warehouse.index.messageUpdateSuccess'));
       } else {
-        await createWarehouse(formData);
+        await createWarehouse({
+          name: formData.warehouse_name,
+          ...(formData.warehouse_code ? { code: formData.warehouse_code } : {}),
+          ...(formData.address ? { address: formData.address } : {}),
+          ...(formData.phone ? { phone: formData.phone } : {}),
+          ...(formData.contact_person ? { contact_person: formData.contact_person } : {}),
+          ...(formData.warehouse_type ? { warehouse_type: formData.warehouse_type } : {}),
+          ...(formData.description ? { description: formData.description } : {}),
+          ...(formData.capacity !== undefined ? { capacity: formData.capacity } : {}),
+          is_default: formData.is_default,
+        });
         ElMessage.success(t('warehouse.index.messageCreateSuccess'));
       }
       dialogVisible.value = false;
@@ -650,11 +682,11 @@ const handlePrint = () => {
       { key: 'contact_person', title: t('warehouse.index.colContact'), width: '80px' },
       { key: 'phone', title: t('warehouse.index.colPhone'), width: '120px' },
       {
-        key: 'status',
+        key: 'is_active',
         title: t('warehouse.index.colStatus'),
         width: '60px',
         formatter: v =>
-          v === 'active' ? t('warehouse.index.statusActive') : t('warehouse.index.statusInactive'),
+          v ? t('warehouse.index.statusActive') : t('warehouse.index.statusInactive'),
       },
     ],
     data: warehouses.value as unknown as Record<string, unknown>[],
@@ -732,9 +764,11 @@ const openLocationForm = async (row?: WarehouseLocation) => {
     }
     Object.assign(locForm, {
       location_code: row.location_code,
-      location_type: row.location_type || '',
-      max_weight: row.max_weight ?? undefined,
-      max_height: row.max_height ?? undefined,
+      location_type: row.location_type ?? '',
+      // max_weight/max_height 为 rust_decimal 出参字符串（如 "1250.00"），
+      // 绑定 el-input-number 前 Number() 归一；NULL 保持未填（省略键，不落 0）
+      max_weight: row.max_weight === null ? undefined : Number(row.max_weight),
+      max_height: row.max_height === null ? undefined : Number(row.max_height),
       is_batch_managed: row.is_batch_managed ?? false,
       is_color_managed: row.is_color_managed ?? false,
     });
@@ -756,15 +790,29 @@ const handleSaveLocation = async () => {
     ElMessage.warning(t('warehouse.index.messageOperationFailed'));
     return;
   }
+  if (!currentWarehouse.value) return;
   locSaving.value = true;
   try {
     if (editingLocId.value) {
-      await updateWarehouseLocation(editingLocId.value, locForm);
+      await updateWarehouseLocation(editingLocId.value, {
+        location_code: locForm.location_code,
+        // 可选字符串空值省略键（范式同 UserTab）；数值未填不传（None=不改）
+        ...(locForm.location_type ? { location_type: locForm.location_type } : {}),
+        ...(locForm.max_weight !== undefined ? { max_weight: locForm.max_weight } : {}),
+        ...(locForm.max_height !== undefined ? { max_height: locForm.max_height } : {}),
+        is_batch_managed: locForm.is_batch_managed,
+        is_color_managed: locForm.is_color_managed,
+      });
       ElMessage.success(t('warehouse.index.messageUpdateSuccess'));
     } else {
+      // 创建契约无 is_batch_managed/is_color_managed（后端 handler 固定 true），不发送被丢弃的键；
+      // warehouse_id 为非 Option 必填，由当前打开库位管理的仓库带出
       await createWarehouseLocation({
-        ...locForm,
-        warehouse_id: currentWarehouse.value?.id,
+        warehouse_id: currentWarehouse.value.id,
+        location_code: locForm.location_code,
+        ...(locForm.location_type ? { location_type: locForm.location_type } : {}),
+        ...(locForm.max_weight !== undefined ? { max_weight: locForm.max_weight } : {}),
+        ...(locForm.max_height !== undefined ? { max_height: locForm.max_height } : {}),
       });
       ElMessage.success(t('warehouse.index.messageCreateSuccess'));
     }

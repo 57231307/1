@@ -21,6 +21,8 @@ export interface PurchaseContract {
   payment_method: string | null;
   delivery_date: string | null;
   delivery_location: string | null;
+  /** 真实列 remark（m0016 迁移补列，可空）；后端出参键为单数 remark，非 remarks */
+  remark: string | null;
   status: string;
   created_by: number;
   created_at: string;
@@ -60,31 +62,61 @@ export interface PurchaseContractQuery {
 
 /**
  * 创建采购合同请求（严格对齐 backend CreateContractRequestDto，
- * handlers/purchase_contract_handler.rs:31）。
- * 注意：后端字段是 remark（单数），前端历史用 remarks（复数）⇒ 键名不对齐导致 remark 恒为 None。
- * contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
- * 为真实 DB 列但不在 CreateContractRequestDto 内（schema gap）。
+ * handlers/purchase_contract_handler.rs）。
+ * P0 契约修复（本轮）：
+ * - 后端 delivery_date 改 Option（真实列 purchase_contracts.delivery_date 可空）；
+ *   前端表单口径保持必填（产品要求录入交货日期），类型上可选不冲突。
+ * - 补齐真实列 contract_type/signed_date/effective_date/expiry_date/payment_method/
+ *   delivery_location（此前「DTO 不收、service 不写、表单有输入框」⇒ 创建即丢数据）。
+ * - 后端字段是 remark（单数），非 remarks。remark 为 m0016 迁移补齐的真实可空列，
+ *   DTO 接收并落库。
  */
 export interface CreatePurchaseContractPayload {
   contract_no: string;
   contract_name: string;
   supplier_id: number;
   total_amount: number;
+  contract_type?: string;
   payment_terms?: string;
-  /** 后端为 chrono::NaiveDate（必填），格式 YYYY-MM-DD */
-  delivery_date: string;
+  delivery_date?: string;
+  signed_date?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  payment_method?: string;
+  delivery_location?: string;
   /** 后端字段名为 remark（单数），非 remarks */
   remark?: string;
 }
 
 /**
- * 更新采购合同请求（严格对齐 backend UpdateContractDto，
- * handlers/purchase_contract_handler.rs:45）。
- * 仅 contract_name/payment_terms 可更新；其余字段为 schema gap。
+ * 更新采购合同请求（严格对齐 backend UpdateContractDto）。
+ * 字段语义 = 显式三态（RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空该列为 NULL、有值=覆盖。
+ * - contract_name/supplier_id 为 NOT NULL 列：不开 null 清空，空则应省略键（保持原值），
+ *   发送显式 null 会被后端判业务错误（400 + 外显文案）。
+ * - 其余可空列（total_amount/contract_type/payment_terms/delivery_date/signed_date/
+ *   effective_date/expiry_date/payment_method/delivery_location/remark，逐字段对
+ *   m0009 DDL + m0016 补列核实）类型如实声明 `T | null`：清空须送 null，禁止改回
+ *   `|| undefined` 省略键——省略=保持原值，正是本轮消灭的"删了日期/备注保存后还在"。
+ * - 不含 contract_no：后端 UpdateContractDto 无该字段（编号系统生成、编辑链路忽略），
+ *   前端发送它只会构成"后端不读"的死键（check-api-request 判负）。
  */
 export interface UpdatePurchaseContractPayload {
+  /** NOT NULL 列：空则省略键，禁止显式 null */
   contract_name?: string;
-  payment_terms?: string;
+  /** NOT NULL 列：空则省略键，禁止显式 null */
+  supplier_id?: number;
+  /** 以下均为 DB 可空列：有值=覆盖、null=清空、键缺席=保持原值 */
+  total_amount?: number | null;
+  contract_type?: string | null;
+  payment_terms?: string | null;
+  delivery_date?: string | null;
+  signed_date?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  payment_method?: string | null;
+  delivery_location?: string | null;
+  remark?: string | null;
 }
 
 export function getPurchaseContractList(

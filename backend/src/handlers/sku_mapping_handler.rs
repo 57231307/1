@@ -269,17 +269,15 @@ fn to_upsert_input(
     use std::str::FromStr;
 
     let sp = match supplier_price {
-        Some(s) if !s.is_empty() => Some(
-            Decimal::from_str(s)
-                .map_err(|_| AppError::validation(format!("supplier_price 格式错误: {}", s)))?,
-        ),
+        Some(s) if !s.is_empty() => Some(Decimal::from_str(s).map_err(|_| {
+            AppError::validation_displayable(format!("supplier_price 格式错误: {}", s))
+        })?),
         _ => None,
     };
     let moq = match min_order_quantity {
-        Some(s) if !s.is_empty() => Some(
-            Decimal::from_str(s)
-                .map_err(|_| AppError::validation(format!("min_order_quantity 格式错误: {}", s)))?,
-        ),
+        Some(s) if !s.is_empty() => Some(Decimal::from_str(s).map_err(|_| {
+            AppError::validation_displayable(format!("min_order_quantity 格式错误: {}", s))
+        })?),
         _ => None,
     };
 

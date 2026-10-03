@@ -147,7 +147,7 @@ impl XlsxImporter {
         use std::io::Cursor;
 
         if !Self::verify_magic(data) {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "文件内容不是有效的 xlsx 格式（magic bytes 校验失败）".to_string(),
             ));
         }
@@ -159,7 +159,7 @@ impl XlsxImporter {
             .sheet_names()
             .first()
             .cloned()
-            .ok_or_else(|| AppError::validation("xlsx 文件无工作表".to_string()))?;
+            .ok_or_else(|| AppError::validation_displayable("xlsx 文件无工作表".to_string()))?;
         let range = workbook
             .worksheet_range(&sheet_name)
             .map_err(|e| AppError::validation(format!("读取工作表失败: {}", e)))?;

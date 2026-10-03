@@ -11,6 +11,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyDownloadEndpointHealthy,
   ensureTestEntities,
 } from './helpers';
 
@@ -107,7 +108,9 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
   test('产量工资：工价+工票+计算+确认+支付', async ({ page }) => {
     await verifyEndpointHealthy(page, '/production/wage-rates?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/wage-records?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/production/wage-records/export');
+    // 工资记录导出 xlsx（production.rs:322 已注册，handler 直出二进制、无 download_token fail-closed 网关）；
+    // 返回非 JSON，故用下载专用严格校验（2xx=健康；404 路由漂移/403 权限/5xx 均判红），不再 optional 吞 404。
+    await verifyDownloadEndpointHealthy(page, '/production/wage-records/export');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -166,13 +169,16 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
   });
 
   test('产能分析+排程+质量标准+质量检验+BOM+打样+缺料+缸号状态机+委外', async ({ page }) => {
-    // 产能
+    // 产能（overview/bottlenecks/load-analysis/overload-check 为 BI 统计类增强端点，后端已注册）
     await verifyEndpointHealthy(page, '/production/capacity/overview');
     await verifyEndpointHealthy(page, '/production/capacity/bottlenecks');
     await verifyEndpointHealthy(page, '/production/capacity/work-centers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/capacity/load-analysis');
     await verifyEndpointHealthy(page, '/production/capacity/overload-check');
-    // 排程
+    // 排程（gantt 后端已注册：routes/mod.rs:150 → scheduling_handler::get_gantt_data，
+    // GanttQuery 三字段全 Option（scheduling_handler.rs:134-138），无 query 参也返回
+    // 2xx 结构体（空数据 items 为空数组）→ admin 必 2xx，迁 strict，不再 optional 吞 404；
+    // conflicts 后端已注册须 strict）
     await verifyEndpointHealthy(page, '/scheduling/gantt');
     await verifyEndpointHealthy(page, '/scheduling/conflicts');
     await verifyEndpointHealthy(page, '/scheduling/tasks?page=1&page_size=5');
@@ -212,7 +218,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/start-sampling`);
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/complete`);
     }
-    // 缺料预警
+    // 缺料预警（alerts/threshold/summary 后端均已注册，strict 验证）
     await verifyEndpointHealthy(page, '/material-shortage/alerts?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/material-shortage/summary');
     await verifyEndpointHealthy(page, '/material-shortage/threshold');

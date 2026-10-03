@@ -29,8 +29,50 @@ import {
   type ReceiptItem,
   type CreatePurchaseReceiptRequest,
   type CreateReceiptItemRequest,
+  type UpdateReceiptItemRequest,
 } from '@/api/purchase-receipt';
 import type { PrcForm } from './usePrc';
+
+/**
+ * 十进制出参解析（rust_decimal 序列化输出十进制**字符串**，models/purchase_receipt_item.rs
+ * 的 quantity/quantity_alt/unit_price/amount 均为 Decimal 列）：
+ * 表单模型（el-input-number / 金额计算）只接受 number，加载边界必须显式解析，
+ * 禁止 `?? 0` 把缺值/脏值伪装成合法数量。
+ * - 必填（NOT NULL 列 quantity）：缺席/非法即抛错，由调用方拒绝回显并留痕——
+ *   那是契约违例，不能静默渲染；
+ * - 可空（DB nullable 列 quantity_alt/unit_price/amount）：null/undefined ⇒ undefined（未采集）；
+ *   有值非法同样抛错留痕。
+ */
+function toRequiredDecimal(value: unknown, field: string, lineNo: unknown): number {
+  if (value === null || value === undefined) {
+    throw new Error(`入库明细第 ${String(lineNo)} 行缺少必填十进制列 ${field}`);
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    throw new Error(`入库明细第 ${String(lineNo)} 行的 ${field} 不是合法十进制：${String(value)}`);
+  }
+  return n;
+}
+
+function toOptionalDecimal(value: unknown, field: string, lineNo: unknown): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    throw new Error(`入库明细第 ${String(lineNo)} 行的 ${field} 不是合法十进制：${String(value)}`);
+  }
+  return n;
+}
+
+/** 后端明细行 → 表单模型：十进制字符串显式转 number，可空列 null → undefined（未采集，提交时按三态处理） */
+function normalizeReceiptItemForForm(it: ReceiptItem): ReceiptItem {
+  return {
+    ...it,
+    quantity: toRequiredDecimal(it.quantity, 'quantity', it.line_no),
+    quantity_alt: toOptionalDecimal(it.quantity_alt, 'quantity_alt', it.line_no),
+    unit_price: toOptionalDecimal(it.unit_price, 'unit_price', it.line_no),
+    amount: toOptionalDecimal(it.amount, 'amount', it.line_no),
+  };
+}
 
 /**
  * 流程回调（接收 usePrc 返回的状态，自动解包后的值类型）
@@ -78,6 +120,9 @@ export function usePrcProc(cb: PrcCallbacks) {
   /** 打开新增对话框（预生成单号供参考，后端保存时以最终生成为准） */
   const openAddDialog = () => {
     cb.dialogTitle = msg.translate('addReceiptTitle');
+    // 编辑态残留（已删行 / 辅量原值表）随新建作废
+    removedItemIds.value = [];
+    altQtyOriginals.value.clear();
     cb.form = {
       receipt_no: '',
       receipt_date: new Date().toISOString().split('T')[0],
@@ -88,7 +133,7 @@ export function usePrcProc(cb: PrcCallbacks) {
         {
           product_id: 0,
           quantity: 0,
-          quantity_alt: 0,
+          // 辅量不预置 0：0 是「实测为 0」，未录入必须保持未采集（undefined）
           unit_price: 0,
           amount: 0,
           batch_no: '',
@@ -116,10 +161,23 @@ export function usePrcProc(cb: PrcCallbacks) {
   /** 打开编辑对话框 */
   const openEditDialog = async (row: PurchaseReceiptEntity) => {
     cb.dialogTitle = msg.translate('editReceiptTitle');
-    const res = await getPurchaseReceipt(row.id!);
-    const itemsRes = await getReceiptItems(row.id!);
-    cb.form = { ...(res.data as unknown as PrcForm), items: itemsRes.data };
-    cb.dialogVisible = true;
+    try {
+      const res = await getPurchaseReceipt(row.id!);
+      const itemsRes = await getReceiptItems(row.id!);
+      // 十进制字符串出参在加载边界显式解析为 number（详见 normalizeReceiptItemForForm）
+      const items = itemsRes.data.map(normalizeReceiptItemForForm);
+      // 记录各行辅量原值，供提交时三态判定（清空→显式 null / 未动→原值 / 未采集→省略键）
+      altQtyOriginals.value = new Map(
+        items
+          .filter(i => i.id != null)
+          .map(i => [i.id as number, i.quantity_alt == null ? null : i.quantity_alt])
+      );
+      cb.form = { ...(res.data as unknown as PrcForm), items };
+      cb.dialogVisible = true;
+    } catch (error) {
+      logger.error(`[入库编辑] 入库单 ${row.receipt_no} 明细回显失败（十进制解析契约违例）`, error);
+      msg.error('loadDetailFailed');
+    }
   };
 
   /** 打开详情对话框 */
@@ -141,7 +199,7 @@ export function usePrcProc(cb: PrcCallbacks) {
     cb.form.items.push({
       product_id: 0,
       quantity: 0,
-      quantity_alt: 0,
+      // 辅量保持未采集（undefined）：预置 0 会把「没量过」伪装成「量过且为 0」
       unit_price: 0,
       amount: 0,
       batch_no: '',
@@ -153,6 +211,11 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   /** 删除明细（编辑态记录已删除的明细 ID，提交时走 deleteReceiptItem） */
   const removedItemIds = ref<number[]>([]);
+  /**
+   * 编辑态各行辅量「原值」快照（openEditDialog 写入）：
+   * number=库里已采集值；null=该行原本未采集。提交时与当前值对比重建三态。
+   */
+  const altQtyOriginals = ref<Map<number, number | null>>(new Map());
   const removeItem = (index: number) => {
     if ((cb.form.items || []).length > 1) {
       const removed = cb.form.items![index];
@@ -207,6 +270,23 @@ export function usePrcProc(cb: PrcCallbacks) {
       return;
     }
 
+    // 辅量（quantity_alt）录入拦截：创建契约中该键为**非 Option 必填**
+    // （backend/src/services/purchase_receipt_dto.rs:168 `pub quantity_alt: Decimal`，
+    // 缺键=反序列化直接拒绝），故新建单行与编辑态追加分录行必须由操作人实测录入——
+    // 未采集不得塌成 0（0 会被累加进 received_quantity_alt/total_quantity_alt 成为假量，
+    // 正是本批要消灭的辅量断链镜像）。三态中的「留空省略键」仅更新契约可表达，见 mapItemUpdate。
+    const isCreateRow = (it: ReceiptItem) => !cb.form.id || it.id == null;
+    const missingAltIndex = validItems.findIndex(
+      it => isCreateRow(it) && (it.quantity_alt == null || !Number.isFinite(it.quantity_alt))
+    );
+    if (missingAltIndex >= 0) {
+      msg.warning('receiptItemAltQtyRequired', { line: missingAltIndex + 1 });
+      logger.warn(
+        `[入库明细] 第 ${missingAltIndex + 1} 行未录入辅助数量（创建契约必填键 quantity_alt），拒绝提交`
+      );
+      return;
+    }
+
     // 明细字段映射到后端 CreateReceiptItemRequest 契约（键名严格对齐 DTO：
     // material_id/material_code/material_name/batch_no/color_code/lot_no/grade/
     // line_no/quantity/quantity_alt/unit_master/unit_price）。
@@ -223,22 +303,56 @@ export function usePrcProc(cb: PrcCallbacks) {
       lot_no: it.lot_no?.trim() || undefined,
       grade: it.grade?.trim() || undefined,
       quantity: it.quantity,
-      quantity_alt: it.quantity_alt ?? 0,
+      // 非空断言：创建路径的辅量已由上方拦截保证已采集（quantity_alt 必填键，禁止 ?? 0 伪装）
+      quantity_alt: it.quantity_alt!,
       unit_master: it.unit_master!,
       unit_price: it.unit_price || undefined,
     });
 
+    // 更新明细映射到后端 UpdateReceiptItemRequest 三态契约（RFC 7386）：
+    // NOT NULL 列 line_no/material_id/material_code/material_name/quantity 恒送值
+    //（送 null 被后端 400「XX不能清空」拒绝）；DB 可空列 batch_no/color_code/lot_no/
+    // grade/unit_price UI 清空 ⇒ 送显式 null（=清空为 NULL）——沿用 mapItem 的
+    // `|| undefined` 会把"清空维度"塌成"保持原值"，正是本轮消灭的静默丢弃形态。
+    // quantity_alt 按三态细分（m0009 可空列 + UpdateReceiptItemRequest double_option :236-238）：
+    // 有值=覆盖；清空且原值已采集=显式 null；原本未采集且仍留空=**省略键**（不送 0、不送 null 假清空）。
+    const mapItemUpdate = (it: ReceiptItem, idx: number): UpdateReceiptItemRequest => {
+      const patch: UpdateReceiptItemRequest = {
+        line_no: idx + 1,
+        material_id: it.product_id,
+        material_code: it.material_code!,
+        material_name: it.material_name!,
+        batch_no: it.batch_no!.trim() || null,
+        color_code: it.color_code?.trim() || null,
+        lot_no: it.lot_no?.trim() || null,
+        grade: it.grade?.trim() || null,
+        quantity: it.quantity,
+        unit_price: it.unit_price ?? null,
+      };
+      const original = it.id != null ? altQtyOriginals.value.get(it.id) : undefined;
+      if (it.quantity_alt != null && Number.isFinite(it.quantity_alt)) {
+        patch.quantity_alt = it.quantity_alt;
+      } else if (original != null) {
+        patch.quantity_alt = null;
+      }
+      // original == null 且当前留空 ⇒ 未采集，省略 quantity_alt 键
+      return patch;
+    };
+
     try {
       if (cb.form.id) {
-        // 编辑：明细走 item 级端点（PUT /{id} 仅接受表头字段，原整单 PUT 会静默丢弃明细改动）
-        await updatePurchaseReceipt(
-          cb.form.id,
-          cb.form as unknown as Partial<PurchaseReceiptEntity>
-        );
+        // 编辑：表头 PUT 仅提交 UpdatePurchaseReceiptRequest 契约内的字段（此前把整个 cb.form
+        // ——含 id/receipt_no/warehouse_id/status/items 等非契约键——强转提交，全部被 serde 丢弃，
+        // 属假保存）；明细改动走 item 级端点（POST/PUT/DELETE /{id}/items）。
+        // warehouse_id 不在更新契约（后端更新 DTO 无该列，换仓需后端支持，已登记后端串行清单）。
+        await updatePurchaseReceipt(cb.form.id, {
+          supplier_id: cb.form.supplier_id as number,
+          receipt_date: cb.form.receipt_date as string,
+        });
         let idx = 0;
         for (const it of validItems) {
           if (it.id) {
-            await updateReceiptItem(cb.form.id, it.id, mapItem(it, idx));
+            await updateReceiptItem(cb.form.id, it.id, mapItemUpdate(it, idx));
           } else {
             await createReceiptItem(cb.form.id, mapItem(it, idx));
           }
@@ -248,6 +362,7 @@ export function usePrcProc(cb: PrcCallbacks) {
           await deleteReceiptItem(cb.form.id, itemId);
         }
         removedItemIds.value = [];
+        altQtyOriginals.value.clear();
         msg.success('updateSuccess');
       } else {
         // 建单：显式组装 CreatePurchaseReceiptRequest，不再把整个 cb.form（含 id/status/receipt_no

@@ -1,9 +1,28 @@
 import { request } from './request';
+import type { ApiResponse } from '@/types/api';
 
 export interface FabricInspection {
   id: number;
   status: string;
   [key: string]: unknown;
+}
+
+/**
+ * 打卷入库入参：与后端 `RollFabricRequest` 逐字段一致
+ * （backend/src/services/fabric_inspection_service.rs:201-209，键名不变）。
+ * #220 裁定 §3：roll_weight/roll_width/roll_gram_weight 为实测值必填——后端类型虽写作
+ * `Option<Decimal>`，但 `#[validate(required)]` + service 入口 `req.validate()` 强制
+ * 缺失即 400 VALIDATION_ERROR（外显「打卷入库必须填写××」），故前端不标 `?`。
+ * 取值范围口径 = `validate_roll_preconditions`（:592-609）：四数值均须 >0，
+ * 后端无上限/精度约束，前端校验不多不少（不额外收紧）。
+ * Decimal 序列化为字符串是出参侧；入参按 JSON number 提交（serde Decimal 接受数字）。
+ */
+export interface RollFabricPayload {
+  warehouse_id: number;
+  roll_length: number;
+  roll_weight: number;
+  roll_width: number;
+  roll_gram_weight: number;
 }
 
 export function getFabricInspectionList(params?: Record<string, unknown>) {
@@ -69,8 +88,16 @@ export function closeFabricInspection(id: number) {
   return request.post(`/production/fabric-inspections/${id}/close`);
 }
 
-export function addFabricRoll(id: number, data: Record<string, unknown>) {
-  return request.post(`/production/fabric-inspections/${id}/roll`, data);
+/**
+ * 打卷入库（graded → rolled，生成 inventory_piece 染色匹）：后端 roll_fabric
+ * 返回更新后的验布记录（InspectionModel，backend/src/services/fabric_inspection_service.rs:552-579）。
+ * 三实测值必填口径见 RollFabricPayload；提交前必须先过对话框校验（rules 与后端 DTO 同口径）。
+ */
+export function addFabricRoll(id: number, data: RollFabricPayload) {
+  return request.post<ApiResponse<FabricInspection>>(
+    `/production/fabric-inspections/${id}/roll`,
+    data
+  );
 }
 
 export function createFabricDefect(data: Record<string, unknown>) {

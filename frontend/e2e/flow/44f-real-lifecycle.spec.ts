@@ -2,13 +2,16 @@ import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
   ensureTestEntities,
-  ensureStockInWarehouse,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   getCtx,
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
   tryCleanup,
   BASE_URL,
+  seedInspectionPass,
 } from './helpers';
 
 /**
@@ -155,22 +158,35 @@ test.describe.serial('44f 真实实体全流转链', () => {
   test('44f-3 库存调拨 pending→approved→ship→receive 全链', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    // 出库按四维（款号+色号+缸号+批次）在源仓库核实真实库存行（inv/batch.rs：
-    // 四维在源仓库无库存记录即拒绝出库，不回退到产品+色号扣减）。原实现把 batch_no
-    // 写成一次性随机串、且从未预置匹配的四维库存 → approve 之后 ship 恒 400
-    // （"在源仓库无任何库存记录，出库被拒绝"）。与 44f-5 同法：先确保源仓库存在
-    // 带全四维的库存行，再用该行的真实维度构造调拨明细，ship 才能命中库存。
-    const stockRow = await ensureStockInWarehouse(
-      page,
-      ctx.productIds[0],
-      ctx.warehouseIds[0],
-      ctx.colorNos[0]
-    );
+    // 出库按四维（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）
+    // 在源仓库核实真实库存行（inv/batch.rs：四维在源仓库无库存记录即拒绝出库，不回退到
+    // 产品+色号扣减；染色明细建单期即按 outbound_piece_filter 校验真实可用匹，
+    // batch.rs:1193-1201 validate_dyed_piece_for_outbound）。原实现把 batch_no 写成一次性
+    // 随机串、且从未预置匹配的四维库存 → approve 之后 ship 恒 400。ensureStockInWarehouse
+    // 命中的行 batch≠缸号，按写入方口径（染色匹 batch_no=缸号）配不出命中匹，
+    // 改用 seedDyedOutboundBundle（batch=缸号 库存行 + 委外染色真实链同维 AVAILABLE 匹），
+    // 与 44f-5 同法。
+    const target = await pickDyeableWarehouse(page);
+    const toWh = ctx.warehouseIds.find(w => w !== target.id);
+    if (!toWh) {
+      throw new Error(
+        '[44f-3] 前置缺失：ctx.warehouseIds 中没有第二个仓库作为调入仓，调拨链无从验证，显式判红'
+      );
+    }
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '44f-3',
+    });
+    const stockRow = bundle.stockRow;
     const tf = await apiCall<{ id?: number }>(page, 'POST', '/inventory/transfers', {
-      from_warehouse_id: ctx.warehouseIds[0],
-      to_warehouse_id: ctx.warehouseIds[1],
+      from_warehouse_id: target.id,
+      to_warehouse_id: toWh,
       transfer_date: new Date().toISOString(),
-      // inv/inventory_move.rs:239-255（缺陷 6.2）：batch_no 必填；提供 color_no 时 dye_lot_no 必填
+      // inv/inventory_move.rs:239-255（缺陷 6.2）：batch_no 必填；提供 color_no 时 dye_lot_no 必填；
+      // 染色布再强制 piece_no（第四维，与源仓真实 AVAILABLE 匹同 tuple）
       items: [
         {
           product_id: ctx.productIds[0],
@@ -178,6 +194,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
           batch_no: stockRow.batch_no,
           color_no: stockRow.color_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
@@ -256,6 +273,14 @@ test.describe.serial('44f 真实实体全流转链', () => {
     expect(receiptId, '收货单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: '[44f-4] 收货单' });
 
+    // 门控前置：整单质检 complete(pass) 并回读 PASSED，首次确认才可能成功
+    // （helpers.seedInspectionPass——本用例测的就是"正常确认应当成功"）
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: ctx.supplierId!,
+      context: '44f-4 收货单',
+    });
+
     const c1 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c1.status, '首次确认应成功').toBeLessThan(300);
     // 确认事务内按入库明细完成库存收货并置 COMPLETED；轮询等待终态而非依赖同步返回体
@@ -275,6 +300,14 @@ test.describe.serial('44f 真实实体全流转链', () => {
     // 重复确认幂等拦截（po/receipt.rs:33-40）
     const c2 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
     expect(c2.status, 'COMPLETED 后重复确认应被拒').toBeGreaterThanOrEqual(400);
+    // 归因锁：这条拒必须来自"已确认/状态门"，不能由质检门代劳
+    // （首次确认若被质检门抢拒，c1 的 <300 已先红，此处再锁 code 与文案防同形假绿）
+    expect(c2.code, `重复确认应落在 BUSINESS_ERROR 族，实际 code=${c2.code}`).toBe(
+      'BUSINESS_ERROR'
+    );
+    expect(c2.message, `重复确认的拒绝原因不应是质检门文案：${c2.message}`).not.toMatch(
+      /质检尚未完成|质检不合格/
+    );
   });
 
   test('44f-5 销售发货全链+shipped 后修改被拒', async ({ page }) => {
@@ -294,20 +327,25 @@ test.describe.serial('44f 真实实体全流转链', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
     // 发货仓库必须传真实仓库编码：ship.rs 按 warehouse_code 查仓，
-    // 原实现硬编码 'WH-MAIN' 在 CI 空库里不存在 → 404（该用例此前被前面的串行失败挡住未跑）
-    const warehouseId = ctx.warehouseIds[0];
-    const stockRow = await ensureStockInWarehouse(page, ctx.productIds[0], warehouseId);
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    const warehouseCode = wh?.warehouse_code;
-    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    // 原实现硬编码 'WH-MAIN' 在 CI 空库里不存在 → 404（该用例此前被前面的串行失败挡住未跑）。
+    // 出库四维（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）：
+    // ensureStockInWarehouse 命中的行 batch≠缸号，按写入方口径（染色匹 batch_no=缸号）
+    // 配不出命中匹、发货必被拒；改用 seedDyedOutboundBundle（与 44f-3 同法）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '44f-5',
+    });
+    const stockRow = bundle.stockRow;
+    const warehouseCode = target.code;
+    expect(warehouseCode, `仓库 ${target.id} 应返回 warehouse_code`).toBeTruthy();
     expect(stockRow.batch_no, '发货前库存行应带批次号（四维出库入参来源）').toBeTruthy();
     expect(stockRow.dye_lot_no, '发货前库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
-    // 出库四维扣减（款号+色号+缸号+批次）：维度取自真实入库库存行
+    // 出库四维扣减（款号+色号+缸号+批次+匹号）：维度取自真实入库库存行，匹号取自真实链匹
     const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
@@ -318,12 +356,29 @@ test.describe.serial('44f 真实实体全流转链', () => {
           color_no: stockRow.color_no,
           batch_no: stockRow.batch_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
     expect(ship.status, `发货应成功（status=${ship.status} code=${ship.code ?? ''}）`).toBeLessThan(
       300
     );
+    // 第四维消耗回读：匹必须 AVAILABLE→SHIPPED
+    const shippedPiece = await readDyedPieceByNo(page, {
+      productId: ctx.productIds[0],
+      warehouseId: target.id,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(
+      shippedPiece,
+      `发货后应能按四维 tuple 回读到匹 ${bundle.pieces[0].piece_no}`
+    ).toBeTruthy();
+    expect(
+      String(shippedPiece!.status),
+      `匹状态应为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
+    ).toBe('SHIPPED');
 
     const st = await apiCall<{ status?: string }>(page, 'GET', `/sales/orders/${soId}`);
     const statusStr = JSON.stringify(st).toLowerCase();

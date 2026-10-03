@@ -1,114 +1,112 @@
+//! 通道（路线一，#4669 判责）：夹具经 `test_common::setup_test_db()` 连已迁移
+//! PostgreSQL，表结构唯一来源 = `backend/migration`；缺 `TEST_DATABASE_URL` 或指向
+//! sqlite 时夹具直接 panic。原写法在变量缺失时**静默回退 sqlite::memory:**，
+//! 那正是本批假绿的根（"没连上真库也算通过"），回退分支已彻底删除。
+//! 本文件用例锁的是"非法参数在触库前必须被拒"，因此断言与后端方言无关，
+//! 但在真库通道上跑才有意义：若未来有人把校验挪到 SQL 之后，用例会显式变红。
+mod test_common;
+
 use bingxi_backend::database::*;
 use bingxi_backend::handlers::bi_handler::*;
 use bingxi_backend::services::bi_analysis_service::*;
 use chrono::NaiveDate;
 use std::sync::Arc;
 
-/// 测试辅助：构造一个未连接数据库的 service 实例（仅用于参数校验测试）
-/// 由于 DatabaseConnection::default() 在 sea-orm 1.1 中可能不存在或不安全，；测试仅验证参数校验逻辑（在调用 DB 查询前返回错误）。
-async fn make_service() -> Option<BiAnalysisService> {
-    // 尝试从环境变量连接测试数据库，失败则跳过测试
-    let db_url = std::env::var("DATABASE_URL").ok()?;
-    let db = sea_orm::Database::connect(&db_url).await.ok()?;
-    Some(BiAnalysisService::new(std::sync::Arc::new(db)))
+/// 测试辅助：构造连到测试库的 service 实例（参数校验测试仅调用 DB 查询前的校验路径）。
+///
+/// 原实现返回 `Option` 并在 `DATABASE_URL` 缺失/连接失败时让调用方 `if let Some`
+/// 整体跳过断言 = "没跑也算 PASS" 的假绿守卫；随后一版改为读 `TEST_DATABASE_URL`
+/// 并回退 `sqlite::memory:` —— 回退同样是假绿（从未验证生产方言却显示通过）。
+/// 现统一走路线一夹具：连接失败或环境缺失即 panic，断言无条件执行。
+async fn make_service() -> BiAnalysisService {
+    let db = test_common::setup_test_db().await;
+    BiAnalysisService::new(Arc::new(db))
 }
 
 #[tokio::test]
 async fn test_drilldown_invalid_year() {
-    // 参数校验在 DB 查询前，即使无 DB 也能通过
-    if let Some(service) = make_service().await {
-        let result = service.drilldown_year_to_month(1800).await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.drilldown_year_to_month(1800).await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_slice_invalid_dimension() {
-    if let Some(service) = make_service().await {
-        let result = service.slice("invalid_dim", &serde_json::json!({})).await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.slice("invalid_dim", &serde_json::json!({})).await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_sales_by_time_invalid_dates() {
-    if let Some(service) = make_service().await {
-        let result = service
-            .sales_by_time(
-                chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
-                chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
-                "month",
-            )
-            .await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service
+        .sales_by_time(
+            chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+            chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            "month",
+        )
+        .await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_drilldown_invalid_month() {
-    if let Some(service) = make_service().await {
-        let result = service.drilldown_month_to_day(2026, 13).await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.drilldown_month_to_day(2026, 13).await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_drilldown_customer_invalid_id() {
-    if let Some(service) = make_service().await {
-        let result = service.drilldown_customer_to_order(0).await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.drilldown_customer_to_order(0).await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_drilldown_product_invalid_id() {
-    if let Some(service) = make_service().await {
-        let result = service.drilldown_product_to_order(-1).await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.drilldown_product_to_order(-1).await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_rollup_invalid_level() {
-    if let Some(service) = make_service().await {
-        let result = service.rollup("invalid", "month").await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.rollup("invalid", "month").await;
+    assert!(result.is_err());
 }
 
 /// v11 批次 144 P1-3：透视矩阵参数校验测试
 #[tokio::test]
 async fn test_pivot_invalid_row_dim() {
-    if let Some(service) = make_service().await {
-        let result = service.pivot("invalid", "customer", "total_amount").await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.pivot("invalid", "customer", "total_amount").await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_pivot_invalid_col_dim() {
-    if let Some(service) = make_service().await {
-        let result = service.pivot("customer", "invalid", "total_amount").await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.pivot("customer", "invalid", "total_amount").await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_pivot_same_dim() {
-    if let Some(service) = make_service().await {
-        let result = service.pivot("customer", "customer", "total_amount").await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service.pivot("customer", "customer", "total_amount").await;
+    assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_pivot_invalid_measure() {
-    if let Some(service) = make_service().await {
-        let result = service
-            .pivot("customer", "product", "invalid_measure")
-            .await;
-        assert!(result.is_err());
-    }
+    let service = make_service().await;
+    let result = service
+        .pivot("customer", "product", "invalid_measure")
+        .await;
+    assert!(result.is_err());
 }
 
 // ==================== 批次 252：dim_to_expr / measure_to_expr 单元测试 ====================

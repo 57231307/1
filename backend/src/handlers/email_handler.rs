@@ -220,7 +220,7 @@ async fn apply_template_rendering(
         // template_params 必须配合 template_id 使用，且必须为 JSON 对象
         if let Some(params) = req.template_params.clone() {
             if !params.is_object() {
-                return Err(AppError::validation(
+                return Err(AppError::validation_displayable(
                     "template_params 必须为 JSON 对象（如 {\"name\": \"张三\"}）",
                 ));
             }
@@ -232,7 +232,7 @@ async fn apply_template_rendering(
             req.html_content = Some(template.body_template);
         }
     } else if req.template_params.is_some() {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "template_params 必须配合 template_id 使用",
         ));
     }

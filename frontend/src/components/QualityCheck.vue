@@ -286,12 +286,11 @@ async function handleReportSubmit() {
   }
   submitting.value = true;
   try {
-    // 后端 ReportQualityIssueDto.custom_order_id 为必填 i64（models/quality_issue_dto.rs:14，
-    // NOT NULL 列、非 Option），请求体缺失会被 serde 判 422；reportForm 未含该字段，
-    // 此处以组件持有的 orderId 补齐（handler 再以 URL id 为权威覆盖，两者同值）。
+    // 任务 #148 同构契约修复：归属 custom_order_id 不属于请求体，
+    // 由 URL path（props.orderId）权威提供；后端 DTO 已删除该字段，
+    // body 携带也会被忽略，此处不再发送（对齐 AfterSalesPanel.vue 先例）。
     await reportQualityIssue(props.orderId, {
       ...reportForm.value,
-      custom_order_id: props.orderId,
     });
     ElMessage.success(t('common.qualityCheck.reportSuccess'));
     reportVisible.value = false;

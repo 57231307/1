@@ -125,12 +125,12 @@ pub async fn list_slow_queries(
     let total = paginator
         .num_items()
         .await
-        .map_err(|e| AppError::internal(format!("统计慢查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("统计慢查询失败: {}", e)))?;
     let logs = paginator
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
         .fetch_page(page.clamp(1, 1000).saturating_sub(1))
         .await
-        .map_err(|e| AppError::internal(format!("查询慢查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询慢查询失败: {}", e)))?;
 
     let items: Vec<SlowQueryDto> = logs.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(SlowQueryListResponse {
@@ -168,7 +168,7 @@ pub async fn get_slow_query_stats(
             sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询慢查询统计失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询慢查询统计失败: {}", e)))?;
 
     let mut top10: Vec<SlowQueryStatDto> = Vec::with_capacity(query_result.len());
     for row in query_result {
@@ -201,7 +201,7 @@ pub async fn get_slow_query_stats(
             count_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("统计慢查询总数失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("统计慢查询总数失败: {}", e)))?;
     let total_count: i64 = count_row
         .and_then(|r| r.try_get_by_index(0).ok())
         .unwrap_or(0);
@@ -251,7 +251,7 @@ pub async fn get_slow_query_summary(
             total_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询慢查询总数失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询慢查询总数失败: {}", e)))?;
     let total_queries = total_result
         .and_then(|r| r.try_get::<i64>("", "total").ok())
         .unwrap_or(0);
@@ -266,7 +266,7 @@ pub async fn get_slow_query_summary(
             today_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询今日慢查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询今日慢查询失败: {}", e)))?;
     let queries_today = today_result
         .and_then(|r| r.try_get::<i64>("", "today").ok())
         .unwrap_or(0);
@@ -281,7 +281,7 @@ pub async fn get_slow_query_summary(
             avg_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询平均执行时间失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询平均执行时间失败: {}", e)))?;
     let avg_execution_time = avg_result
         .and_then(|r| r.try_get::<f64>("", "avg_time").ok())
         .unwrap_or(0.0);
@@ -296,7 +296,7 @@ pub async fn get_slow_query_summary(
             max_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询最大执行时间失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询最大执行时间失败: {}", e)))?;
     let max_execution_time = max_result
         .and_then(|r| r.try_get::<f64>("", "max_time").ok())
         .unwrap_or(0.0);
@@ -312,7 +312,7 @@ pub async fn get_slow_query_summary(
             frequent_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询最频繁查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询最频繁查询失败: {}", e)))?;
     let most_frequent_query =
         frequent_result.and_then(|r| r.try_get::<String>("", "query_text").ok());
 
@@ -331,7 +331,7 @@ pub async fn get_slow_query_summary(
             status_sql.to_string(),
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询优化状态失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询优化状态失败: {}", e)))?;
 
     let optimization_status = OptimizationStatusSummary {
         pending: status_result
@@ -373,15 +373,10 @@ pub async fn refresh_slow_queries(
     // TODO: 从 AppState.settings 读取配置，需要将 settings 存入 AppState
     let collector = Arc::new(SlowQueryCollector::new(state.db.clone(), 100.0, 100));
 
-    let inserted = collector.collect_once().await.map_err(|e| {
-        // pg_stat_statements 不可用时返回友好提示
-        let msg = e.to_string();
-        if msg.contains("does not exist") || msg.contains("pg_stat_statements") {
-            AppError::internal("pg_stat_statements 扩展不可用，请联系管理员启用".to_string())
-        } else {
-            AppError::internal(format!("手动采集慢查询失败: {}", e))
-        }
-    })?;
+    // collect_once 返回的即是带真实 status/code 的 AppError（含 pg_stat_statements
+    // 不可用等环境故障诊断），原样透传，不再重包为 internal 丢失语义。
+    // 采集失败的排障详情由 collector 侧的 ERROR 日志承载（不在此脱敏重包）。
+    let inserted = collector.collect_once().await?;
 
     let message = if inserted == 0 {
         "本次未发现新的慢查询（最近 5 分钟内无 mean_exec_time > 100ms 的查询）".to_string()
@@ -433,7 +428,7 @@ pub async fn update_slow_query_optimization(
     let existing = slow_query::Entity::find_by_id(id)
         .one(state.db.as_ref())
         .await
-        .map_err(|e| AppError::internal(format!("查询慢查询记录失败: {}", e)))?
+        .map_err(|e| AppError::database(format!("查询慢查询记录失败: {}", e)))?
         .ok_or_else(|| AppError::not_found(format!("慢查询记录 {} 不存在", id)))?;
 
     // 更新字段
@@ -451,7 +446,7 @@ pub async fn update_slow_query_optimization(
     let updated = active
         .update(state.db.as_ref())
         .await
-        .map_err(|e| AppError::internal(format!("更新慢查询优化状态失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("更新慢查询优化状态失败: {}", e)))?;
 
     Ok(Json(ApiResponse::success(updated.into())))
 }
@@ -493,7 +488,7 @@ pub async fn get_weekly_report(
         .filter(slow_query::Column::CapturedAt.gte(week_start))
         .count(state.db.as_ref())
         .await
-        .map_err(|e| AppError::internal(format!("查询慢查询总数失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询慢查询总数失败: {}", e)))?;
 
     // 查询新增慢查询（本周首次出现的）
     let new_queries = slow_query::Entity::find()
@@ -501,7 +496,7 @@ pub async fn get_weekly_report(
         .filter(slow_query::Column::OptimizationStatus.is_null())
         .count(state.db.as_ref())
         .await
-        .map_err(|e| AppError::internal(format!("查询新增慢查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询新增慢查询失败: {}", e)))?;
 
     // 查询已优化的慢查询
     let optimized_queries = slow_query::Entity::find()
@@ -509,7 +504,7 @@ pub async fn get_weekly_report(
         .filter(slow_query::Column::OptimizationStatus.eq("optimized"))
         .count(state.db.as_ref())
         .await
-        .map_err(|e| AppError::internal(format!("查询已优化慢查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询已优化慢查询失败: {}", e)))?;
 
     // 查询平均执行时间
     let avg_sql = format!(
@@ -524,7 +519,7 @@ pub async fn get_weekly_report(
             avg_sql,
         ))
         .await
-        .map_err(|e| AppError::internal(format!("查询平均执行时间失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询平均执行时间失败: {}", e)))?;
     let avg_execution_time = avg_result
         .map(|r| r.try_get::<f64>("", "avg_time").unwrap_or(0.0))
         .unwrap_or(0.0);
@@ -536,7 +531,7 @@ pub async fn get_weekly_report(
         .limit(10)
         .all(state.db.as_ref())
         .await
-        .map_err(|e| AppError::internal(format!("查询 TOP 慢查询失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("查询 TOP 慢查询失败: {}", e)))?;
 
     let top_queries: Vec<SlowQueryStatDto> = top_queries_raw
         .into_iter()

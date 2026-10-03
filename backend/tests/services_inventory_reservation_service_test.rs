@@ -125,6 +125,10 @@ fn test_ztpp_jdclztksc() {
 }
 
 /// test_cwxx_sdsbbhztzyzwsm（复现 lock_reservation 中非 PENDING 状态的错误消息构造：消息应包含实际状态值与"只有待处理状态的预留可以锁定"中文说明。）
+///
+/// 装配点对齐 `services/inventory_reservation_service.rs:68-75`：状态门拒绝用
+/// `AppError::business_displayable`（族=BUSINESS_ERROR，出参 message **外显**真实拒绝原因，
+/// 不是脱敏常量），与本仓 `contract_wave2_reservation_error_mapping_test.rs` 的钉法一致。
 #[test]
 fn test_cwxx_sdsbbhztzyzwsm() {
     let status = reservation_status::LOCKED;
@@ -135,13 +139,18 @@ fn test_cwxx_sdsbbhztzyzwsm() {
     // 包含中文说明
     assert!(msg.contains("只有待处理状态的预留可以锁定"));
 
-    // 构造为业务错误并验证类型与 Display
-    let err = AppError::business(msg.clone());
-    assert!(matches!(err, AppError::BusinessError(_)));
+    // 构造为**可外显**业务错误并验证族别/错误码/出参文案
+    let err = AppError::business_displayable(msg.clone());
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
     assert!(err.to_string().contains(&msg));
+    // displayable 的 HTTP 出参必须携带真实原因（若误退回脱敏 business 即红）
+    assert_eq!(err.to_response().message, msg);
 }
 
 /// test_cwxx_sfsbbhztzyzwsm（复现 release_reservation 中非 LOCKED/PENDING 状态的错误消息构造：消息应包含实际状态值与"只有已锁定或待处理状态的预留可以释放"中文说明。）
+///
+/// 装配点对齐 `services/inventory_reservation_service.rs:107-115`（business_displayable）。
 #[test]
 fn test_cwxx_sfsbbhztzyzwsm() {
     let status = reservation_status::CONSUMED;
@@ -150,12 +159,16 @@ fn test_cwxx_sfsbbhztzyzwsm() {
     assert!(msg.contains(reservation_status::CONSUMED));
     assert!(msg.contains("只有已锁定或待处理状态的预留可以释放"));
 
-    let err = AppError::business(msg.clone());
-    assert!(matches!(err, AppError::BusinessError(_)));
+    let err = AppError::business_displayable(msg.clone());
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
     assert!(err.to_string().contains(&msg));
+    assert_eq!(err.to_response().message, msg);
 }
 
 /// test_cwxx_scsbbhztzyzwsm（复现 delete_reservation 中非 PENDING 状态的错误消息构造：消息应包含实际状态值与"只有待处理状态的预留可以删除"中文说明。）
+///
+/// 装配点对齐 `services/inventory_reservation_service.rs:218-225`（business_displayable）。
 #[test]
 fn test_cwxx_scsbbhztzyzwsm() {
     let status = reservation_status::LOCKED;
@@ -164,9 +177,11 @@ fn test_cwxx_scsbbhztzyzwsm() {
     assert!(msg.contains(reservation_status::LOCKED));
     assert!(msg.contains("只有待处理状态的预留可以删除"));
 
-    let err = AppError::business(msg.clone());
-    assert!(matches!(err, AppError::BusinessError(_)));
+    let err = AppError::business_displayable(msg.clone());
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
     assert!(err.to_string().contains(&msg));
+    assert_eq!(err.to_response().message, msg);
 }
 
 /// test_cjyl_mrztwdcl（复现 create_reservation 中的初始状态设置：status 字段初始化为 PENDING，；数量字段通过 decs! 夹具解析，验证初始状态非其他终态。）

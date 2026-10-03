@@ -136,7 +136,11 @@ pub fn issue_err(e: IssueError) -> AppError {
         IssueError::CustomerNotFound => AppError::not_found("客户不存在"),
         IssueError::RecordNotFound => AppError::not_found("发放记录不存在"),
         IssueError::InvalidState(msg) => AppError::business(msg),
-        IssueError::Validation(msg) => AppError::validation(msg),
+        // 闸门 1（色卡可发放态门）：拒绝依据"只有草稿态色卡可以发放"是纯公开业务规则，
+        // 变体本身不携带内部状态 token/记录 ID/库存数字 ⇒ 满足 business_displayable
+        // 安全边界，外显真实原因（与 98f3bb0b 色号创建门 ItemError::InvalidState 同族同策）。
+        IssueError::CardNotIssuable => AppError::business_displayable("只有草稿态色卡可以发放"),
+        IssueError::Validation(msg) => AppError::validation_displayable(msg),
         IssueError::GateCheckFailed(msg) => AppError::business(msg),
         IssueError::Database(e) => AppError::database(e.to_string()),
     }
@@ -157,8 +161,7 @@ pub(crate) async fn require_issue_permission(
     let svc = RolePermissionService::new(state.db.clone());
     let allowed = svc
         .check_permission(role_id, "color_card_issue", action, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
     if !allowed {
         return Err(AppError::permission_denied(format!(
             "没有 color_card_issue:{} 权限",

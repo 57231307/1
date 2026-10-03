@@ -56,9 +56,20 @@
             :label="t('purchaseReceipt.detail.column.productName')"
             width="150"
           />
+          <!-- 四维回显（批次/色号/缸号/等级，与后端建单准入 validate_receipt_item_dimensions 同口径）＋辅量 -->
+          <el-table-column
+            prop="batch_no"
+            :label="t('purchaseReceipt.detail.column.batchNo')"
+            width="110"
+          />
           <el-table-column
             prop="color_code"
             :label="t('purchaseReceipt.detail.column.colorNo')"
+            width="100"
+          />
+          <el-table-column
+            prop="lot_no"
+            :label="t('purchaseReceipt.detail.column.lotNo')"
             width="100"
           />
           <el-table-column
@@ -78,7 +89,12 @@
             :label="t('purchaseReceipt.detail.column.quantityAlt')"
             width="100"
             align="right"
-          />
+          >
+            <template #default="scope">
+              <!-- 后端可空列：null=未采集，如实留白，不渲染成 0 -->
+              {{ scope.row.quantity_alt == null ? '' : scope.row.quantity_alt }}
+            </template>
+          </el-table-column>
           <el-table-column
             prop="unit_price"
             :label="t('purchaseReceipt.detail.column.price')"

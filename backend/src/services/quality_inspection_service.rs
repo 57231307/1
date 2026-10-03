@@ -249,14 +249,6 @@ impl QualityInspectionService {
         Ok(result)
     }
 
-    pub async fn get_standard_by_id(&self, id: i32) -> Result<quality_inspection::Model, AppError> {
-        let standard = quality_inspection::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("质量检验标准不存在：{}", id)))?;
-        Ok(standard)
-    }
-
     pub async fn get_record_by_id(
         &self,
         id: i32,

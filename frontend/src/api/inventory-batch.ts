@@ -63,14 +63,22 @@ export interface CreateBatchRequest {
   remarks?: string;
 }
 
-/** 更新批次：字段对齐 `inventory_batch_handler.rs` 的 `UpdateBatchRequest`（全部可选） */
+/**
+ * 更新批次：字段对齐 `inventory_batch_handler.rs` 的 `UpdateBatchRequest`。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - color_no/grade/stock_status/quality_status 映射 NOT NULL 列（inventory_stocks 模型
+ *   非 Option）：禁止送 null（后端 400「XX不能清空」）——不改即省略键；
+ * - dye_lot_no/gram_weight/width/expiry_date 为 DB 可空列（m0010 扩展）：清空须显式送 null；
+ * - remarks 无对应 DB 列（后端模型无该列，服务端不写库），保留键仅兼容旧调用方。
+ */
 export interface UpdateBatchRequest {
   color_no?: string;
-  dye_lot_no?: string;
+  dye_lot_no?: string | null;
   grade?: string;
-  gram_weight?: number;
-  width?: number;
-  expiry_date?: string;
+  gram_weight?: number | null;
+  width?: number | null;
+  expiry_date?: string | null;
+  /** 幽灵键：后端无落库目标，请勿依赖其持久化 */
   remarks?: string;
   stock_status?: string;
   quality_status?: string;

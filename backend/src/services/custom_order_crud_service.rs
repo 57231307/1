@@ -21,9 +21,16 @@ use crate::models::custom_order_create_dto::{
 };
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
+use crate::models::status::process_node as node_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::process_state_machine::default_process_nodes;
+
+/// 定制订单号前缀（存量真实数据形如 `CO202609200001`，前缀 + 4 位流水均保留，
+/// 仅把「事务外 count+1」换成生成器事务内取号；列 UNIQUE 证据：
+/// migration/src/domain/production/m0044_integrate_unreferenced_migrations.rs:101）
+const ORDER_NO_PREFIX: &str = "CO";
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -32,6 +39,11 @@ pub enum CrudError {
     NotFound,
     #[error("当前状态不允许此操作")]
     InvalidState,
+    /// 状态门（携带可外显文案）：与 `InvalidState`（固定脱敏文案）同属业务族，
+    /// 区别仅在于本变体的文案是公开业务规则、不含记录 ID/状态 token，可安全外显。
+    /// 任务 #165：状态门语义不得借用 `Validation` 通道出 VALIDATION_ERROR。
+    #[error("当前状态不允许此操作: {0}")]
+    InvalidStateDisplayable(String),
     #[error("参数校验失败: {0}")]
     Validation(String),
     #[error("数据库错误: {0}")]
@@ -68,25 +80,41 @@ impl CustomOrderCrudService {
         // 1. 业务校验
         self.validate_create(&dto)?;
 
-        // 2. 生成 order_no（CO + YYYYMMDD + 4 位序号）
-        let order_no = self.generate_order_no().await?;
-
-        // 3. 开始事务
+        // 2-4. 取号 + 主表插入收进同一事务：原 `generate_order_no` 在事务外
+        // count+1 拼号，并发建单读到同一当日计数生成相同 CO 号，撞
+        // custom_orders.order_no UNIQUE（DDL：production/m0044:101
+        // `"order_no" VARCHAR(50) UNIQUE NOT NULL`）直接 500。
+        // 生成器在事务内 advisory lock 串行化取号，保留存量真实格式
+        // `CO{YYYYMMDD}{4位流水}`（宽度 4 与既有数据一致）。
         let txn = self.db.begin().await?;
+        let order_no = DocumentNumberGenerator::generate_no_with_width_txn(
+            &txn,
+            ORDER_NO_PREFIX,
+            CustomOrderEntity,
+            custom_order::Column::OrderNo,
+            4,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "定制订单号生成失败");
+            CrudError::App(AppError::business_displayable(
+                "定制订单号生成失败，请稍后重试",
+            ))
+        })?;
 
-        // 4. 插入主表
+        // 5. 插入主表
         let now = Utc::now();
         let active = Self::build_custom_order_active(order_no, dto, user_id, now);
         let result = active.insert(&txn).await?;
 
-        // 5. 自动生成 5 阶段工艺节点
+        // 6. 自动生成 5 阶段工艺节点
         for (node_type, node_name, sequence) in default_process_nodes() {
             let node =
                 Self::build_process_node_active(result.id, node_type, node_name, sequence, now);
             node.insert(&txn).await?;
         }
 
-        // 6. 提交事务
+        // 7. 提交事务
         txn.commit().await?;
         Ok(result)
     }
@@ -148,7 +176,10 @@ impl CustomOrderCrudService {
             node_type: Set(node_type.to_string()),
             node_name: Set(node_name.to_string()),
             sequence: Set(sequence),
-            status: Set(co_status::PENDING.to_string()),
+            // process_nodes.status 的权威词表是 status::process_node（与其
+            // chk_node_status 一致）；此前跨表借用 status::custom_order::PENDING
+            // 属悬空引用——custom_orders 的取值域从未包含 pending。
+            status: Set(node_status::PENDING.to_string()),
             planned_start_date: Set(None),
             planned_end_date: Set(None),
             actual_start_date: Set(None),
@@ -324,7 +355,9 @@ impl CustomOrderCrudService {
             .ok_or(CrudError::NotFound)?;
 
         if existing.customer_approved_at.is_some() {
-            return Err(CrudError::Validation(
+            // 状态门（已处于某态不可重复动作）：原走 Validation 通道误出 VALIDATION_ERROR，
+            // 按 #165 判据改走业务族可外显变体
+            return Err(CrudError::InvalidStateDisplayable(
                 "订单已客户签字确认，禁止重复确认".to_string(),
             ));
         }
@@ -356,7 +389,9 @@ impl CustomOrderCrudService {
             .ok_or(CrudError::NotFound)?;
 
         if existing.customer_approved_at.is_none() {
-            return Err(CrudError::Validation(
+            // 状态门（前置状态未满足）：原走 Validation 通道误出 VALIDATION_ERROR，
+            // 按 #165 判据改走业务族可外显变体
+            return Err(CrudError::InvalidStateDisplayable(
                 "未客户签字确认的订单不允许变更".to_string(),
             ));
         }
@@ -369,8 +404,9 @@ impl CustomOrderCrudService {
 
         let mut active: CustomOrderActive = existing.into();
         if change_amount.abs() > Decimal::from(10000) {
-            // 金额变化>1万，进入二级审批
-            active.status = Set("change_pending".to_string());
+            // 金额变化>1万，进入二级审批（挂起态由本域权威词表 status::custom_order
+            // 提供，取值已纳入 m0064 重建后的 chk_custom_order_status）
+            active.status = Set(co_status::CHANGE_PENDING.to_string());
             // 生成简单审批实例 ID（实际应调用 BPM 服务）
             let approval_instance_id = chrono::Utc::now().timestamp_millis();
             active.approval_instance_id = Set(Some(approval_instance_id));
@@ -407,7 +443,7 @@ impl CustomOrderCrudService {
             .await?
             .ok_or(CrudError::NotFound)?;
 
-        if existing.status != "change_pending" {
+        if existing.status != co_status::CHANGE_PENDING {
             return Err(CrudError::InvalidState);
         }
 
@@ -432,16 +468,6 @@ impl CustomOrderCrudService {
     // ----------------------------------------------------------------------
     // 私有辅助
     // ----------------------------------------------------------------------
-
-    async fn generate_order_no(&self) -> Result<String, CrudError> {
-        let today = Utc::now().format("%Y%m%d").to_string();
-        let pattern = format!("CO{}%", today);
-        let count = CustomOrderEntity::find()
-            .filter(custom_order::Column::OrderNo.like(pattern))
-            .count(&*self.db)
-            .await?;
-        Ok(format!("CO{}{:04}", today, count + 1))
-    }
 
     fn validate_create(&self, dto: &CreateCustomOrderDto) -> Result<(), CrudError> {
         if dto.quantity <= rust_decimal::Decimal::ZERO {

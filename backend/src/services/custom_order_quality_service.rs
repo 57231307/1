@@ -51,8 +51,13 @@ impl CustomOrderQualityService {
     }
 
     /// 上报质量异常
+    ///
+    /// 契约修复（任务 #148 售后先例同构）：`custom_order_id` 由调用方（handler）
+    /// 从路由 path 参数权威传入，不从请求体 DTO 取值，客户端 body 伪造归属被
+    /// 结构性排除。
     pub async fn report_issue(
         &self,
+        custom_order_id: i64,
         dto: ReportQualityIssueDto,
     ) -> Result<quality_issue::Model, QualityError> {
         // 校验严重度
@@ -90,7 +95,7 @@ impl CustomOrderQualityService {
         let now = Utc::now();
         let active = ActiveModel {
             id: Default::default(),
-            custom_order_id: Set(dto.custom_order_id),
+            custom_order_id: Set(custom_order_id),
             process_node_id: Set(dto.process_node_id),
             issue_type: Set(dto.issue_type),
             severity: Set(dto.severity),
@@ -119,7 +124,7 @@ impl CustomOrderQualityService {
         detail: serde_json::Value,
     ) -> Result<quality_issue::Model, AppError> {
         if !["5why", "fishbone", "other"].contains(&method) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "根因分析方法必须是 5why/fishbone/other，当前: {}",
                 method
             )));

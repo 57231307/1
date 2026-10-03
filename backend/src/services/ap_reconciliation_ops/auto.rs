@@ -98,6 +98,10 @@ impl ApReconciliationService {
         }
         Ok(ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.is_in(supplier_ids.to_vec()))
+            .filter(ap_invoice::Column::InvoiceStatus.is_not_in([
+                crate::models::status::general::common::STATUS_CANCELLED,
+                crate::models::status::general::common::STATUS_DRAFT,
+            ]))
             .filter(ap_invoice::Column::InvoiceDate.gte(start_date))
             .filter(ap_invoice::Column::InvoiceDate.lte(end_date))
             .all(db)
@@ -123,6 +127,10 @@ impl ApReconciliationService {
         }
         Ok(ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.is_in(supplier_ids.to_vec()))
+            .filter(
+                ap_payment::Column::PaymentStatus
+                    .eq(crate::models::status::general::payment::PAYMENT_CONFIRMED),
+            )
             .filter(ap_payment::Column::PaymentDate.gte(start_date))
             .filter(ap_payment::Column::PaymentDate.lte(end_date))
             .all(db)
@@ -196,7 +204,7 @@ impl ApReconciliationService {
             closing_balance: Decimal::ZERO,
             invoice_count: 0,
             payment_count: 0,
-            status: "FAILED".to_string(),
+            status: crate::models::status::general::reconcile_result::FAILED.to_string(),
             message: format!("Failed: {}", error),
         }
     }

@@ -137,28 +137,58 @@ async fn test_purchasereceiptservice_get_receipt_kdbfherr() {
 async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
     let db = setup_test_db().await;
     let svc = PurchaseReceiptService::new(Arc::new(db));
-    let result = svc.list_receipts(1, 20, None, None, None).await;
+    // 后 4 个 None = status/supplier_id/order_id 之外新增的 keyword/仓库/日期区间筛选全不传
+    let result = svc
+        .list_receipts(1, 20, None, None, None, None, None, None, None)
+        .await;
     assert!(result.is_err(), "空 DB 上 list_receipts 应返回 Err");
 }
 
 // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====
 
-/// 集成测试：采购收货全流程 create(DRAFT) → confirm(CONFIRMED)
+/// 集成测试：采购收货全流程 create(PENDING 质检) → 门控拒确认 → 质检合格回写 → confirm(COMPLETED)
 ///
 /// 需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据。
+/// 门控口径（models/status/purchase_inventory.rs::purchase_receipt_inspection）：
+/// 新建收货单检验状态恒为 PENDING，质检合格（PASSED）前确认入库必须被业务拒绝。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库 + 前置采购订单/产品/仓库数据"]
 async fn test_cgshqlc_cjdqr() {
+    use bingxi_backend::models::purchase_receipt as receipt_entity;
+    use bingxi_backend::models::status::purchase_inventory::purchase_receipt_inspection;
+    use bingxi_backend::utils::error::AppError;
+    use sea_orm::{ActiveModelTrait, Set};
+
     let db_url = std::env::var("TEST_DATABASE_URL").expect("需设置 TEST_DATABASE_URL 环境变量");
     let db = Database::connect(&db_url).await.expect("DB 连接失败");
-    let svc = PurchaseReceiptService::new(Arc::new(db));
+    let svc = PurchaseReceiptService::new(Arc::new(db.clone()));
 
-    // 1. 创建（DRAFT）
+    // 1. 创建（DRAFT，检验状态 PENDING）
     let req = sample_request();
     let receipt = svc.create_receipt(req, 1).await.expect("创建失败");
     assert_eq!(receipt.receipt_status, purchase_receipt::DRAFT);
+    assert_eq!(
+        receipt.inspection_status,
+        purchase_receipt_inspection::PENDING
+    );
 
-    // 2. 确认（DRAFT → COMPLETED，事务内完成库存入库、订单已收数量推进与应付账单生成）
+    // 2. 质检未合格前确认 → 门控拒绝（PENDING 不放行，无配置旁路）
+    let err = svc
+        .confirm_receipt(receipt.id, 1)
+        .await
+        .expect_err("质检未合格的收货单确认入库必须被拒绝");
+    assert!(
+        matches!(&err, AppError::BusinessErrorDisplayable(_)),
+        "门控拒绝必须外显真实文案，实际: {err:?}"
+    );
+
+    // 3. 质检合格回写（模拟采购质检完成链路的最终状态；完整回写链由
+    //    contract_wave5_inspection_result_authority_test 活库用例钉住）
+    let mut active: receipt_entity::ActiveModel = receipt.into();
+    active.inspection_status = Set(purchase_receipt_inspection::PASSED.to_string());
+    let receipt = active.update(&db).await.expect("回写检验状态失败");
+
+    // 4. 确认（DRAFT → COMPLETED，事务内完成库存入库、订单已收数量推进与应付账单生成）
     let receipt = svc.confirm_receipt(receipt.id, 1).await.expect("确认失败");
     assert_eq!(receipt.receipt_status, purchase_receipt::COMPLETED);
 }

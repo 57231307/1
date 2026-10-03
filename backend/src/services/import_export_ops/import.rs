@@ -56,7 +56,7 @@ impl ImportExportService {
                 }
             }
             _ => {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "不支持的导入类型: {}",
                     import_type
                 )));
@@ -88,13 +88,18 @@ impl ImportExportService {
         // 原 unwrap_or(0.0) 会让 "abc" 等非法价格静默变成 0，导致产品以错误成本价入库。
         let price = match row.get(4) {
             Some(s) if !s.trim().is_empty() => s.trim().parse::<f64>().map_err(|_| {
-                AppError::validation(format!("产品 {} 的价格列无法解析为数字: {}", code, s))
+                AppError::validation_displayable(format!(
+                    "产品 {} 的价格列无法解析为数字: {}",
+                    code, s
+                ))
             })?,
             _ => 0.0,
         };
 
         if code.is_empty() || name.is_empty() {
-            return Err(AppError::validation("产品编码和名称不能为空".to_string()));
+            return Err(AppError::validation_displayable(
+                "产品编码和名称不能为空".to_string(),
+            ));
         }
 
         // 检查编码是否已存在
@@ -161,7 +166,9 @@ impl ImportExportService {
         let phone = row.get(3).map(|s| s.trim().to_string()).unwrap_or_default();
 
         if code.is_empty() || name.is_empty() {
-            return Err(AppError::validation("客户编码和名称不能为空".to_string()));
+            return Err(AppError::validation_displayable(
+                "客户编码和名称不能为空".to_string(),
+            ));
         }
 
         // 检查编码是否已存在

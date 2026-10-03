@@ -290,6 +290,33 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <!-- 后端创建 DTO 必填（CreateCostCollectionInput.processing_fee/dyeing_fee，
+               NOT NULL 列且参与 total_cost 求和），表单必须采集 -->
+          <el-col :span="12">
+            <el-form-item
+              :label="t('cost.collectionList.dialog.processingFee')"
+              prop="processing_fee"
+            >
+              <el-input-number
+                v-model="form.processing_fee"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item :label="t('cost.collectionList.dialog.dyeingFee')" prop="dyeing_fee">
+              <el-input-number
+                v-model="form.dyeing_fee"
+                :min="0"
+                :precision="2"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item :label="t('cost.collectionList.dialog.remark')">
           <el-input v-model="form.remark" type="textarea" :rows="3" />
         </el-form-item>
@@ -376,7 +403,24 @@ const handleSizeChange = (_s: number) => {
   page.value = 1;
 };
 
-const form = reactive<Partial<CostCollection>>({
+// 表单模型 = 归集单编辑所需实体字段 + 创建必填的两项费用。
+// processing_fee/dyeing_fee 为后端 CreateCostCollectionRequestDto 非 Option 必填
+// （见 api/cost.ts::CreateCostCollectionInput），此前表单未采集 ⇒ 创建请求体缺键、后端 400。
+interface CollectionFormModel {
+  id?: number;
+  collection_date: string;
+  batch_no?: string;
+  color_no?: string;
+  period?: string;
+  direct_material: number;
+  direct_labor: number;
+  manufacturing_overhead: number;
+  processing_fee: number;
+  dyeing_fee: number;
+  remark?: string;
+}
+
+const form = reactive<CollectionFormModel>({
   id: undefined,
   collection_date: new Date().toISOString().split('T')[0],
   batch_no: '',
@@ -385,6 +429,8 @@ const form = reactive<Partial<CostCollection>>({
   direct_material: 0,
   direct_labor: 0,
   manufacturing_overhead: 0,
+  processing_fee: 0,
+  dyeing_fee: 0,
   remark: '',
 });
 
@@ -405,13 +451,27 @@ const rules: FormRules = {
       trigger: 'blur',
     },
   ],
+  // 后端创建 DTO 必填（CreateCostCollectionInput）
+  processing_fee: [
+    { required: true, message: t('cost.validation.processingFeeRequired'), trigger: 'blur' },
+  ],
+  dyeing_fee: [
+    { required: true, message: t('cost.validation.dyeingFeeRequired'), trigger: 'blur' },
+  ],
 };
 
-const totalCost = computed(() => {
-  return (
-    (form.direct_material || 0) + (form.direct_labor || 0) + (form.manufacturing_overhead || 0)
-  );
-});
+// 与后端 total_cost 重算口径逐项一致：五项费用求和
+// （create：cost_collection_service.rs:82-86；update：:265-272）。
+// form 金额恒为 number（初始化/el-input-number/openDialog 归一三路保证），直接 + 求和；
+// 原先的 `|| 0` 会把字符串金额放行（"100.50"||0 仍是非空串）导致 + 变字符串拼接——归一后不再需要。
+const totalCost = computed(
+  () =>
+    form.direct_material +
+    form.direct_labor +
+    form.manufacturing_overhead +
+    form.processing_fee +
+    form.dyeing_fee
+);
 
 const getStatusLabel = (status: string) => t(`cost.collectionList.status.${status}`);
 
@@ -442,7 +502,23 @@ const handleReset = () => {
 const openDialog = (row?: CostCollection) => {
   formRef.value?.resetFields();
   if (row) {
+    // 后端 rust_decimal 仅 serde 特性 → 金额序列化为十进制字符串（models/cost_collection.rs:24-30，
+    // 本文件列表列 :93 的 Number() 归一即佐证）。金额直灌进 form 会让 totalCost 的 + 变字符串拼接、
+    // el-input-number 收到 string，故进 form 即逐键归一为 number；
+    // 词表外脏值 Number() 得 NaN 会显式暴露，不静默吞。
+    // 提交方向：后端 Decimal 反序列化 string/number 均可（service CreateCostCollectionRequest:48-52
+    // 为非 Option Decimal 直收），按表单模型送 number。
     Object.assign(form, row);
+    const amountKeys = [
+      'direct_material',
+      'direct_labor',
+      'manufacturing_overhead',
+      'processing_fee',
+      'dyeing_fee',
+    ] as const;
+    amountKeys.forEach(key => {
+      form[key] = Number(form[key]);
+    });
   } else {
     form.id = undefined;
     form.collection_date = new Date().toISOString().split('T')[0];
@@ -452,6 +528,8 @@ const openDialog = (row?: CostCollection) => {
     form.direct_material = 0;
     form.direct_labor = 0;
     form.manufacturing_overhead = 0;
+    form.processing_fee = 0;
+    form.dyeing_fee = 0;
     form.remark = '';
   }
   dialogVisible.value = true;
@@ -463,15 +541,26 @@ const handleSubmit = async () => {
     if (!valid) return;
     submitLoading.value = true;
     try {
-      const data: Partial<CostCollection> = {
-        ...form,
-        total_cost: totalCost.value,
-      };
       if (form.id) {
+        // UpdateCostCollectionRequest（cost_collection_service.rs:21-32）无 total_cost 键——
+        // total_cost 由服务端按五项求和重算（:265-272），前端不代劳、不提交将被 serde 丢弃的键值
+        const data: Partial<CostCollection> = { ...form };
         await updateCostCollection(form.id, data);
         ElMessage.success(t('message.updateSuccess'));
       } else {
-        await createCostCollection(data);
+        // 创建载荷按后端 DTO 逐键构造（api/cost.ts::CreateCostCollectionInput）：
+        // id/period/remark/total_cost 等非 CreateCostCollectionRequestDto 键不提交，
+        // total_cost 由服务端五项求和计算（cost_collection_service.rs:82-86），前端不代劳。
+        await createCostCollection({
+          collection_date: form.collection_date,
+          batch_no: form.batch_no,
+          color_no: form.color_no,
+          direct_material: form.direct_material,
+          direct_labor: form.direct_labor,
+          manufacturing_overhead: form.manufacturing_overhead,
+          processing_fee: form.processing_fee,
+          dyeing_fee: form.dyeing_fee,
+        });
         ElMessage.success(t('message.createSuccess'));
       }
       dialogVisible.value = false;

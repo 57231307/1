@@ -60,7 +60,7 @@ impl ProductionRecipeService {
             }
         }
 
-        let recipe_no = Self::generate_recipe_no();
+        let recipe_no = self.generate_recipe_no().await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RecipeActiveModel {

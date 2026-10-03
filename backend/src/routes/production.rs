@@ -538,6 +538,17 @@ pub fn quality_inspection() -> Router<AppState> {
             "/quality-inspection/defects/{id}/handle",
             post(quality_inspection_handler::process_defect),
         )
+        // P1 batch-18 缺陷 5.3 报废两级审批（财务一级 → 总经理二级）：
+        // {id} = unqualified_products.id（与 defects 列表同一实体）；权限键沿用 URL 段推导
+        // （production 模块前缀 → resource=quality-inspection），与本区块 defects/{id}/process 同源。
+        .route(
+            "/quality-inspection/defects/{id}/scrap-approval/financial",
+            post(quality_inspection_handler::approve_scrap_financial),
+        )
+        .route(
+            "/quality-inspection/defects/{id}/scrap-approval/gm",
+            post(quality_inspection_handler::approve_scrap_gm),
+        )
         .route(
             "/quality/inspections/{id}/print",
             get(print_handler::quality_inspection_record_print_docx),

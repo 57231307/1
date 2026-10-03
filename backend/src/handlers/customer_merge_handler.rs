@@ -47,6 +47,32 @@ pub async fn merge_customers(
         .await?
         .ok_or_else(|| AppError::not_found("目标客户不存在"))?;
 
+    // 方案 A（用户 2026-10-02 裁定）：合并会改他人行——源客户行被置 merged、目标客户行
+    // 吸收其全部关联数据，两行都必须在**写**侧过跨 owner 门（owner=created_by、
+    // dept=department_id，判定与标准客户写入口逐字同源）。修复前本端点**完全无归属校验**，
+    // 任何过 RBAC 的用户可按 id 合并掉他人客户。任一行被拒即整笔 403（先判后写、零漂移），
+    // 出参恒为固定脱敏文案 + FORBIDDEN 码，真实原因只进日志。admin 经 is_admin_role 放行，
+    // 代他人合并须持 crm/cross_owner_write 键并留痕（ensure_ 内部完成）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        source.created_by,
+        source.department_id,
+        "客户合并（源客户）",
+    )
+    .await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        target.created_by,
+        target.department_id,
+        "客户合并（目标客户）",
+    )
+    .await?;
+
     // 开始事务
     let txn = state.db.begin().await?;
 

@@ -127,12 +127,19 @@ impl ProductionRecipeService {
         Self { db }
     }
 
-    /// 生成大货处方单号：PR-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
-    pub fn generate_recipe_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PR-{}-{:03}", timestamp, random)
+    /// 生成大货处方单号（统一生成器：`PR{YYYYMMDD}{3位流水}`，`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
+    pub(crate) async fn generate_recipe_no(&self) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PR",
+            crate::models::production_recipe::Entity,
+            crate::models::production_recipe::Column::RecipeNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "大货处方单号生成失败");
+            AppError::business_displayable("大货处方单号生成失败，请稍后重试")
+        })
     }
 
     /// 解析浴比字符串（如 "1:8"）为浴比数值（8.0）（真实业务：浴比格式为 "1:N"，N 通常为 5-20）
@@ -284,12 +291,19 @@ impl ProductionRecipeAdditionService {
         Self { db }
     }
 
-    /// 生成加料处方单号：PA-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
-    pub fn generate_addition_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PA-{}-{:03}", timestamp, random)
+    /// 生成加料处方单号（统一生成器：`PA{YYYYMMDD}{3位流水}`，`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
+    pub(crate) async fn generate_addition_no(&self) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PA",
+            crate::models::production_recipe_addition::Entity,
+            crate::models::production_recipe_addition::Column::AdditionNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "加料处方单号生成失败");
+            AppError::business_displayable("加料处方单号生成失败，请稍后重试")
+        })
     }
 
     // ===== 状态流转校验 =====

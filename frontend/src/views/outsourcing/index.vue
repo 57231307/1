@@ -11,8 +11,8 @@
             <el-table-column prop="order_type" label="类型" width="100" />
             <el-table-column label="状态" width="110">
               <template #default="{ row }">
-                <el-tag :type="statusTag(row.status)">{{
-                  OUTSOURCING_STATUS_LABEL[row.status] ?? row.status
+                <el-tag :type="outsourcingStatusTagType(row.status)">{{
+                  $t(outsourcingStatusLabelKey(row.status))
                 }}</el-tag>
               </template>
             </el-table-column>
@@ -23,32 +23,47 @@
             <el-table-column label="操作" width="340" fixed="right">
               <template #default="{ row }">
                 <el-button size="small" @click="openDetail(row)">详情</el-button>
-                <el-button v-if="row.status === 'draft'" size="small" @click="openEdit(row)"
+                <el-button
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
+                  size="small"
+                  @click="openEdit(row)"
                   >编辑</el-button
                 >
                 <el-button
-                  v-if="row.status === 'draft'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="primary"
                   @click="onIssue(row)"
                   >发出</el-button
                 >
                 <el-button
-                  v-if="row.status === 'issued'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.issued"
                   size="small"
                   type="primary"
                   @click="onProcess(row)"
                   >加工中</el-button
                 >
-                <el-button
-                  v-if="row.status === 'processing'"
-                  size="small"
-                  type="success"
-                  @click="onSettle(row)"
-                  >结算</el-button
+                <!-- 结算入口与后端 settle 两道硬拒同口径（提前提示，不替代后端校验，
+                     后端拒绝原因仍由失败信封正常外显）：状态门 order.rs:594-597 仅 received；
+                     费用门 order.rs:607-611 processing_fee+freight_fee<=0 拒 400 -->
+                <el-tooltip
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.received"
+                  :content="$t('outsourcing.gate.zeroFeeSettleTip')"
+                  placement="top"
+                  :disabled="!isZeroFeeOrder(row)"
                 >
+                  <span>
+                    <el-button
+                      size="small"
+                      type="success"
+                      :disabled="isZeroFeeOrder(row)"
+                      @click="onSettle(row)"
+                      >结算</el-button
+                    >
+                  </span>
+                </el-tooltip>
                 <el-button
-                  v-if="row.status === 'settled'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.settled"
                   size="small"
                   type="success"
                   plain
@@ -56,7 +71,7 @@
                   >关闭</el-button
                 >
                 <el-button
-                  v-if="row.status === 'draft'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="danger"
                   plain
@@ -64,7 +79,7 @@
                   >取消</el-button
                 >
                 <el-button
-                  v-if="row.status === 'draft'"
+                  v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="danger"
                   @click="onDelete(row)"
@@ -105,13 +120,25 @@
             </el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
-                <el-button
+                <!-- 确认入口与后端 confirm 两道硬拒同口径（提前提示，不替代后端校验）：
+                     状态门 receipt.rs:326-331 仅 draft；数量门 receipt.rs:338-342
+                     return_quantity<=0 拒 400（存量 0 量草稿同样拦） -->
+                <el-tooltip
                   v-if="row.status === 'draft'"
-                  size="small"
-                  type="success"
-                  @click="onConfirmReceipt(row)"
-                  >确认</el-button
+                  :content="$t('outsourcing.gate.zeroQtyConfirmTip')"
+                  placement="top"
+                  :disabled="!isZeroQtyReceipt(row)"
                 >
+                  <span>
+                    <el-button
+                      size="small"
+                      type="success"
+                      :disabled="isZeroQtyReceipt(row)"
+                      @click="onConfirmReceipt(row)"
+                      >确认</el-button
+                    >
+                  </span>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
@@ -170,6 +197,35 @@
             class="w-full"
           />
         </el-form-item>
+        <!-- 三费录入（缺陷②修复）：outsourcing_order NOT NULL 列（后端 v15:3247-3249），
+             建单必填可填 0；结算 FEE 凭证金额=加工费+运费，不录入成本链恒 0 -->
+        <el-form-item label="加工费" required>
+          <el-input-number
+            v-model="form.processing_fee"
+            :min="0"
+            :precision="2"
+            placeholder="结算 FEE 凭证按 加工费+运费 计"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="运费" required>
+          <el-input-number
+            v-model="form.freight_fee"
+            :min="0"
+            :precision="2"
+            placeholder="计入总成本与 FEE 凭证"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item label="税额" required>
+          <el-input-number
+            v-model="form.tax_amount"
+            :min="0"
+            :precision="2"
+            placeholder="进项税额，结算时记入 FEE 凭证 tax_amount"
+            class="w-full"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -184,7 +240,7 @@
         <el-descriptions-item label="委外单号">{{ detailOrder.order_no }}</el-descriptions-item>
         <el-descriptions-item label="类型">{{ detailOrder.order_type }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{
-          OUTSOURCING_STATUS_LABEL[detailOrder.status] ?? detailOrder.status
+          $t(outsourcingStatusLabelKey(detailOrder.status))
         }}</el-descriptions-item>
         <el-descriptions-item label="供应商ID">{{ detailOrder.supplier_id }}</el-descriptions-item>
         <el-descriptions-item label="发出日期">{{ detailOrder.issue_date }}</el-descriptions-item>
@@ -198,15 +254,20 @@
           detailOrder.issue_unit || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('outsourcing.form.materialCost')">{{
-          detailOrder.material_cost ?? '-'
+          detailOrder.material_cost
         }}</el-descriptions-item>
+        <!-- 三费与成本链回显（后端 outsourcing_order 真实 NOT NULL 列，键恒在，Decimal 出参为字符串） -->
+        <el-descriptions-item label="加工费">{{ detailOrder.processing_fee }}</el-descriptions-item>
+        <el-descriptions-item label="运费">{{ detailOrder.freight_fee }}</el-descriptions-item>
+        <el-descriptions-item label="税额">{{ detailOrder.tax_amount }}</el-descriptions-item>
+        <el-descriptions-item label="总成本">{{ detailOrder.total_cost }}</el-descriptions-item>
       </el-descriptions>
 
       <div class="items-section">
         <div class="items-toolbar">
           <span class="items-title">发料明细</span>
           <el-button
-            v-if="detailOrder && detailOrder.status === 'draft'"
+            v-if="detailOrder && detailOrder.status === OUTSOURCING_ORDER_STATUS.draft"
             type="primary"
             size="small"
             @click="itemDialogVisible = true"
@@ -335,6 +396,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
 import {
+  OUTSOURCING_ORDER_STATUS,
+  outsourcingStatusLabelKey,
+  outsourcingStatusTagType,
+} from '@/utils/outsourcing-status';
+import {
   OUTSOURCING_QUALITY_FORM_VALUES,
   OUTSOURCING_QUALITY_STATUS,
   OUTSOURCING_QUALITY_STATUS_LABELS,
@@ -357,8 +423,9 @@ import {
   getOutsourcingReceiptList,
   createOutsourcingReceipt,
   confirmOutsourcingReceipt,
-  OUTSOURCING_STATUS_LABEL,
   type OutsourcingOrder,
+  type OutsourcingOrderItem,
+  type OutsourcingReceipt,
 } from '@/api/outsourcing';
 
 /**
@@ -392,6 +459,10 @@ const editingId = ref<number | null>(null);
 /** 打开新建委外单：自动预生成单据号（查重唯一后只读展示，防手动输入重复） */
 const openCreate = async () => {
   editingId.value = null;
+  // 三费回到未填态（NOT NULL 列 0 为合法值，须显式填写而非沿用上次编辑回显值）
+  form.processing_fee = undefined;
+  form.freight_fee = undefined;
+  form.tax_amount = undefined;
   form.order_no = await generateUniqueDocNo('OUT', 'outsourcing_order');
   dialogVisible.value = true;
 };
@@ -405,40 +476,39 @@ const form = reactive({
   issue_quantity: undefined as number | undefined,
   issue_unit: '',
   material_cost: undefined as number | undefined,
+  // 三费：outsourcing_order NOT NULL 列（后端 v15:3247-3249），建单必填（0 为合法值，
+  // 判空用 ==null，不得用 !value 误判 0）；编辑回显经 Number() 归一（Decimal 出参是字符串）
+  processing_fee: undefined as number | undefined,
+  freight_fee: undefined as number | undefined,
+  tax_amount: undefined as number | undefined,
 });
-
-const unwrapList = (p: unknown): OutsourcingOrder[] =>
-  (p as { data: { items: OutsourcingOrder[] } }).data.items;
-
-const statusTag = (s: string) =>
-  ({
-    draft: 'info',
-    issued: 'primary',
-    processing: 'warning',
-    settled: 'success',
-    closed: 'info',
-    cancelled: 'danger',
-  })[s] ?? 'info';
 
 async function load() {
   loading.value = true;
   try {
-    orders.value = unwrapList(await getOutsourcingOrderList());
+    // GET /production/outsourcing-orders 出参 = ApiResponse<PaginatedResponse>
+    // （handlers/outsourcing_handler.rs:113-137）：分页唯一形状 {items,total,page,page_size}
+    // （utils/response.rs:38-43），读取键固定 data.items，不做形状探测、不做 ?? 兜底。
+    const res = await getOutsourcingOrderList();
+    orders.value = res.data.items;
   } finally {
     loading.value = false;
   }
 }
 
 async function onCreate() {
-  // material_cost 后端允许为 0（真实成本可为 0），仅校验是否填写，不能用 !value 误判 0
+  // material_cost/三费后端允许为 0（真实成本可为 0），仅校验是否填写，不能用 !value 误判 0
   if (
     !form.order_no ||
     !form.supplier_id ||
     !form.issue_date ||
     !form.issue_quantity ||
-    form.material_cost == null
+    form.material_cost == null ||
+    form.processing_fee == null ||
+    form.freight_fee == null ||
+    form.tax_amount == null
   ) {
-    ElMessage.warning('请填写必填项：单号/供应商/日期/数量/材料成本');
+    ElMessage.warning('请填写必填项：单号/供应商/日期/数量/材料成本/加工费/运费/税额');
     return;
   }
   saving.value = true;
@@ -452,12 +522,18 @@ async function onCreate() {
       issue_quantity: form.issue_quantity,
       issue_unit: form.issue_unit || undefined,
       material_cost: form.material_cost,
+      processing_fee: form.processing_fee,
+      freight_fee: form.freight_fee,
+      tax_amount: form.tax_amount,
     });
     ElMessage.success('委外单已创建');
     dialogVisible.value = false;
     form.order_no = '';
     form.issue_quantity = undefined;
     form.material_cost = undefined;
+    form.processing_fee = undefined;
+    form.freight_fee = undefined;
+    form.tax_amount = undefined;
     await load();
   } finally {
     saving.value = false;
@@ -473,9 +549,14 @@ const openEdit = (row: OutsourcingOrder) => {
     supplier_id: row.supplier_id,
     issue_date: row.issue_date || '',
     expected_return_date: row.expected_return_date || '',
-    issue_quantity: row.issue_quantity,
+    // 后端 Decimal 列出参为字符串（如 "100.0000"），el-input-number 绑定必须 Number() 归一
+    // （NOT NULL 列键恒在，无需 ?? 兜底缺键）
+    issue_quantity: Number(row.issue_quantity),
     issue_unit: row.issue_unit || '',
-    material_cost: row.material_cost as number | undefined,
+    material_cost: Number(row.material_cost),
+    processing_fee: Number(row.processing_fee),
+    freight_fee: Number(row.freight_fee),
+    tax_amount: Number(row.tax_amount),
   });
   dialogVisible.value = true;
 };
@@ -492,10 +573,18 @@ const onSave = async () => {
         order_type: form.order_type,
         supplier_id: form.supplier_id,
         issue_date: form.issue_date,
-        expected_return_date: form.expected_return_date || undefined,
+        // expected_return_date 为 DB 可空列（三态）：对话框已回显原值，
+        // UI 清空 ⇒ 送显式 null（=清空），未改动 ⇒ 原值回传；其余未采集键省略=保持原值
+        expected_return_date: form.expected_return_date || null,
         issue_quantity: form.issue_quantity,
         issue_unit: form.issue_unit || undefined,
         material_cost: form.material_cost,
+        // 三费 NOT NULL 列：编辑框已回显库中原值，UI 清空归一为 0 显式覆盖
+        //（0 为合法值；显式 null 会被后端拒"不能清空"，键缺席=保持原值，
+        // 两种写法都不如把用户看到的空如实写成 0——不留静默歧义）
+        processing_fee: form.processing_fee ?? 0,
+        freight_fee: form.freight_fee ?? 0,
+        tax_amount: form.tax_amount ?? 0,
       });
       ElMessage.success('委外单已更新');
       dialogVisible.value = false;
@@ -529,7 +618,7 @@ const onDelete = async (row: OutsourcingOrder) => {
 // 详情 + 发料明细
 const detailVisible = ref(false);
 const detailOrder = ref<OutsourcingOrder | null>(null);
-const orderItems = ref<Array<Record<string, unknown>>>([]);
+const orderItems = ref<OutsourcingOrderItem[]>([]);
 const itemLoading = ref(false);
 const itemDialogVisible = ref(false);
 const itemSaving = ref(false);
@@ -550,10 +639,11 @@ const openDetail = async (row: OutsourcingOrder) => {
   detailVisible.value = true;
   itemLoading.value = true;
   try {
+    // 后端 outsourcing_handler.rs::list_outsourcing_items 出参 ApiResponse<Vec<Model>>：
+    // 成功信封载荷在 res.data（明细数组本身），非 res.items。按端点定型读取单一键，
+    // 不做 items/data 双形状探测、不做 ?? [] 兜底（缺键属契约失配，须暴露不得掩盖）。
     const res = await getOutsourcingItems(row.id);
-    orderItems.value = Array.isArray(res)
-      ? res
-      : ((res as { items?: Array<Record<string, unknown>> })?.items ?? []);
+    orderItems.value = res.data;
   } finally {
     itemLoading.value = false;
   }
@@ -587,7 +677,7 @@ const onSaveItem = async () => {
 };
 
 // 收回单
-const receipts = ref<Array<Record<string, unknown>>>([]);
+const receipts = ref<OutsourcingReceipt[]>([]);
 const receiptLoading = ref(false);
 const receiptDialogVisible = ref(false);
 const receiptSaving = ref(false);
@@ -608,10 +698,11 @@ const receiptForm = reactive({
 async function loadReceipts() {
   receiptLoading.value = true;
   try {
+    // 后端 outsourcing_handler.rs::list_outsourcing_receipts 出参 ApiResponse<PaginatedResponse>：
+    // 分页唯一形状 {items,total,page,page_size}（utils/response.rs:38-43），载荷在 res.data.items，
+    // 非 res.items。按单一形状取键，不做 ?? 兜底。
     const res = await getOutsourcingReceiptList();
-    receipts.value = Array.isArray(res)
-      ? res
-      : ((res as { items?: Array<Record<string, unknown>> })?.items ?? []);
+    receipts.value = res.data.items;
   } finally {
     receiptLoading.value = false;
   }
@@ -656,16 +747,31 @@ const onSaveReceipt = async () => {
   }
 };
 
-const onConfirmReceipt = async (row: Record<string, unknown>) => {
+/**
+ * 结算前端门（与后端 settle 费用门 order.rs:607-611 同口径 `processing_fee + freight_fee <= 0`，
+ * 提前提示不可结算，不替代后端校验——后端拒绝仍走失败信封正常外显）。
+ * 两列为 NOT NULL DECIMAL（v15/mod.rs:3247-3248），出参恒为字符串键，Number() 归一求和，无缺键兜底。
+ */
+const isZeroFeeOrder = (row: OutsourcingOrder) =>
+  Number(row.processing_fee) + Number(row.freight_fee) <= 0;
+
+/**
+ * 收回确认前端门（与后端 confirm 数量门 receipt.rs:338-342 同口径 `return_quantity <= 0`；
+ * 存量 0 量草稿由本门先拦，点击路径不可达，后端仍会硬拒兜底）。
+ */
+const isZeroQtyReceipt = (row: OutsourcingReceipt) => Number(row.return_quantity) <= 0;
+
+const onConfirmReceipt = async (row: OutsourcingReceipt) => {
   try {
     await ElMessageBox.confirm(`确认收回单 #${row.id}？确认后触发入库与质检。`, '确认');
   } catch {
     return;
   }
   try {
-    await confirmOutsourcingReceipt(row.id as number);
+    await confirmOutsourcingReceipt(row.id);
     ElMessage.success('收回单已确认');
     await loadReceipts();
+    await load();
   } catch (e) {
     ElMessage.error((e as Error).message || '确认失败');
   }

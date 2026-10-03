@@ -410,16 +410,14 @@ async fn check_account_lockout(
         .filter(log_login::Column::LoginTime.gte(since))
         .filter(log_login::Column::IpAddress.eq(client_ip))
         .count(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询 IP 登录失败次数失败: {}", e)))?;
+        .await?;
 
     let recent_user_failures = log_login::Entity::find()
         .filter(log_login::Column::Username.eq(username))
         .filter(log_login::Column::Status.eq("FAILED"))
         .filter(log_login::Column::LoginTime.gte(since))
         .count(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询用户登录失败次数失败: {}", e)))?;
+        .await?;
 
     if recent_ip_failures >= MAX_FAILED_ATTEMPTS as u64 {
         tracing::warn!(

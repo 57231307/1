@@ -118,24 +118,16 @@ pub async fn list_orders(
                         obj.remove("paid_amount");
                         obj.remove("balance_amount");
 
-                        // P1-08-5：手机号/邮箱脱敏（移除金额字段后仍需脱敏联系电话）
+                        // P1-08-5：手机号脱敏（移除金额字段后仍需脱敏联系电话）。
+                        // sales_orders 出参由 sales_order::Model 序列化生成，
+                        // contact_phone 是真实列（models/sales_order.rs:30），
+                        // 该模型无 email 列，出参不存在 email 类键。
                         if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
                             if !phone.is_empty() {
                                 obj.insert(
                                     "contact_phone".to_string(),
                                     serde_json::Value::String(
                                         crate::utils::field_mask::mask_phone(phone),
-                                    ),
-                                );
-                            }
-                        }
-
-                        if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
-                            if !email.is_empty() {
-                                obj.insert(
-                                    "contact_email".to_string(),
-                                    serde_json::Value::String(
-                                        crate::utils::field_mask::mask_email(email),
                                     ),
                                 );
                             }
@@ -201,20 +193,13 @@ pub async fn get_order(
                 obj.remove("paid_amount");
                 obj.remove("balance_amount");
 
-                // P1-08-5：手机号/邮箱脱敏
+                // P1-08-5：手机号脱敏（sales_order::Model 无 email 列，
+                // contact_phone 是真实列，models/sales_order.rs:30）
                 if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
                     if !phone.is_empty() {
                         obj.insert(
                             "contact_phone".to_string(),
                             serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)),
-                        );
-                    }
-                }
-                if let Some(email) = obj.get("contact_email").and_then(|v| v.as_str()) {
-                    if !email.is_empty() {
-                        obj.insert(
-                            "contact_email".to_string(),
-                            serde_json::Value::String(crate::utils::field_mask::mask_email(email)),
                         );
                     }
                 }
@@ -245,7 +230,7 @@ pub async fn create_order(
     // 输入验证
     use validator::Validate;
     if let Err(e) = request.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
@@ -287,7 +272,7 @@ pub async fn update_order(
     {
         use validator::Validate;
         if let Err(e) = request.validate() {
-            return Err(AppError::validation(e.to_string()));
+            return Err(AppError::from(e));
         }
     }
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
@@ -413,6 +398,18 @@ pub async fn ship_order(
     Json(payload): Json<crate::services::so::delivery::ShipOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    // 消除双源错位：路径 :id 与 payload.order_id 必须一致，否则以路径为准将错就错或
+    // 静默发往另一订单（发货用 payload.order_id，详情/通知用 :id）。此处强校验，不一致直接拒绝，不静默。
+    if payload.order_id != id {
+        return Err(AppError::bad_request("发货订单 ID 与路径参数不一致"));
+    }
+    // IDOR 防护：发货前先按当前用户数据范围校验订单归属（复用 get_order_detail 内部的
+    // validate_order_data_scope），与 customer/supplier 的「先 get_X(Some(&data_scope_ctx))」写法同源；
+    // ship_order 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权返回 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 调用原有 ship_order(request, user_id)
     sales_service.ship_order(payload, auth.user_id).await?;
     // 重新获取订单详情用于通知（发货操作后内部调用，无数据权限过滤）
@@ -547,8 +544,7 @@ pub async fn export_orders(
             start_date: query.start_date,
             end_date: query.end_date,
         })
-        .await
-        .map_err(|e| AppError::internal(format!("导出失败: {}", e)))?;
+        .await?;
 
     let row_count = rows.len();
 
@@ -642,10 +638,11 @@ pub async fn reject_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    // service 直接返回 AppError（状态机拒绝 business / 404 not_found 等 4xx），
+    // 透传保留其 status/code/文案；此前 map_err(internal) 会把业务拒绝压成 500。
     sales_service
         .reject_order(id, req.reason, _auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("拒绝订单失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "订单已拒绝"
@@ -661,10 +658,7 @@ pub async fn cancel_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    let _order = sales_service
-        .cancel_order(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("取消订单失败: {}", e)))?;
+    let _order = sales_service.cancel_order(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "订单已取消"
@@ -682,10 +676,7 @@ pub async fn get_order_deliveries(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    let deliveries = sales_service
-        .get_order_deliveries(id)
-        .await
-        .map_err(|e| AppError::internal(format!("获取发货记录失败: {}", e)))?;
+    let deliveries = sales_service.get_order_deliveries(id).await?;
 
     let result = serde_json::json!({
         "list": deliveries,
@@ -704,21 +695,18 @@ pub async fn create_delivery(
     Json(payload): Json<CreateDeliveryDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2d 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    payload.validate().map_err(AppError::from)?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // 批次 407 修复：warehouse_id 缺失时不可默认为 0，否则发货可能落到非法仓库
     let warehouse_id = payload
         .warehouse_id
-        .ok_or_else(|| AppError::validation("发货必须指定仓库 ID"))?;
+        .ok_or_else(|| AppError::validation_displayable("发货必须指定仓库 ID"))?;
 
     let delivery = sales_service
         .create_delivery(id, warehouse_id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("创建发货失败: {}", e)))?;
+        .await?;
 
     let delivery_json = serde_json::to_value(delivery)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
@@ -732,15 +720,13 @@ pub async fn cancel_delivery(
     Path((_order_id, delivery_id)): Path<(i32, i32)>,
     Json(req): Json<CancelDeliveryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     let delivery = sales_service
         .cancel_delivery(delivery_id, req.reason.clone(), auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("取消发货单失败: {}", e)))?;
+        .await?;
 
     let delivery_json = serde_json::to_value(delivery)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
@@ -762,17 +748,40 @@ pub struct CancelDeliveryRequest {
 
 /// 获取订单统计
 /// GET /api/v1/erp/sales/orders/statistics
+///
+/// `Query<serde_json::Value>` 透传给 service 时，service 用 `as_i64()` 读 `customer_id`，而
+/// urlencoded 下该值恒为 `Value::String` ⇒ `customer_id` 筛选静默失效（统计恒为全量）。
+/// 改 typed DTO 定型解析（非法值 400），再把 `customer_id` 以 `Value::Number` 重建，令既有
+/// service 查询契约真正生效；`start_date`/`end_date` 按原键名以字符串透传，保持 service 兼容。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct OrderStatisticsQuery {
+    pub start_date: Option<String>,
+    pub end_date: Option<String>,
+    pub customer_id: Option<i64>,
+}
+
 pub async fn get_order_statistics(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Query(query): Query<serde_json::Value>,
+    Query(q): Query<OrderStatisticsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    let mut params = serde_json::Map::new();
+    if let Some(v) = q.start_date {
+        params.insert("start_date".to_string(), serde_json::Value::String(v));
+    }
+    if let Some(v) = q.end_date {
+        params.insert("end_date".to_string(), serde_json::Value::String(v));
+    }
+    if let Some(v) = q.customer_id {
+        params.insert("customer_id".to_string(), serde_json::Value::from(v));
+    }
+
     let statistics = sales_service
-        .get_order_statistics(query)
-        .await
-        .map_err(|e| AppError::internal(format!("获取订单统计失败: {}", e)))?;
+        .get_order_statistics(serde_json::Value::Object(params))
+        .await?;
 
     Ok(Json(ApiResponse::success(statistics)))
 }

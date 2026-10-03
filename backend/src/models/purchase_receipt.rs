@@ -46,7 +46,9 @@ pub struct Model {
     /// 质检员 ID
     pub inspector_id: Option<i32>,
 
-    /// 质检状态：PENDING=待质检，INSPECTING=质检中，PASSED=合格，FAILED=不合格
+    /// 质检状态（词表唯一来源 models/status/purchase_inventory.rs 的 purchase_receipt_inspection，
+    /// 大写三态）：PENDING=待检验，PASSED=质检合格（允许后续入库/结算流转），
+    /// REJECTED=质检不合格（走让步接收或退货流程）。本列没有 INSPECTING/FAILED 取值。
     #[sea_orm(column_type = "String(N(20))", default = "'PENDING'")]
     pub inspection_status: String,
 

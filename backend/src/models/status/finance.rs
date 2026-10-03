@@ -73,6 +73,23 @@ pub mod voucher {
     pub const VOUCHER_POSTED: &str = "posted";
 }
 
+/// 会计科目余额方向常量（account_subjects.balance_direction，小写英文值，任务 #198）
+///
+/// 写入方权威词表三处同源均为英文：前端 SubjectTab.vue / SubjectListTab.vue 提交值、
+/// 迁移 m0006 DDL `DEFAULT 'debit'`、domain/finance 迁移种子 28 行全部 debit/credit；
+/// 中文「借/贷」仅存在于历史 e2e 直灌与 legacy 快照，已由 m0007 归一迁移收敛为英文。
+/// 所有比较点、默认值与写入白名单必须引用本模块，禁止裸串（本仓规则：状态词表唯一来源 models/status/**）。
+pub mod account_subject {
+    /// 借方方向（account_subjects.balance_direction = 'debit'）
+    pub const DIRECTION_DEBIT: &str = "debit";
+
+    /// 贷方方向（account_subjects.balance_direction = 'credit'）
+    pub const DIRECTION_CREDIT: &str = "credit";
+
+    /// 全部合法余额方向，入参校验（写入白名单）的唯一取值来源
+    pub const ALL: &[&str] = &[DIRECTION_DEBIT, DIRECTION_CREDIT];
+}
+
 /// 会计期间状态常量（大写值，批次 232 v13 P1-1，状态机 OPEN→CLOSED）
 pub mod accounting_period {
     /// 开放：期间可进行凭证录入

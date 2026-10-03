@@ -231,6 +231,12 @@ pub fn purchase_contracts() -> Router<AppState> {
             "/purchase-contracts",
             post(purchase_contract_handler::create_contract),
         )
+        // 静态路径 /purchase-contracts/export 必须在 /purchase-contracts/{id} 之前注册，
+        // 避免 axum 把 "export" 当作 {id} 参数匹配
+        .route(
+            "/purchase-contracts/export",
+            get(purchase_contract_handler::export_purchase_contracts),
+        )
         .route(
             "/purchase-contracts/{id}",
             get(purchase_contract_handler::get_contract),
@@ -354,6 +360,14 @@ pub fn suppliers() -> Router<AppState> {
             "/suppliers/{id}/qualifications/{qualification_id}",
             put(supplier_handler::update_supplier_qualification)
                 .delete(supplier_handler::delete_supplier_qualification),
+        )
+        // 资质附件真上传（POST multipart）+ 受鉴权读取（GET，fail-closed：
+        // uploads/qualifications 目录不挂任何匿名静态路由，字节只能经本鉴权端点读出；
+        // 权限键由 URL 段推导为 suppliers:create / suppliers:read，与既有资质端点同源）
+        .route(
+            "/suppliers/{id}/qualifications/{qualification_id}/attachment",
+            get(supplier_handler::get_supplier_qualification_attachment)
+                .post(supplier_handler::upload_supplier_qualification_attachment),
         )
         .route(
             "/suppliers/{id}/evaluate",

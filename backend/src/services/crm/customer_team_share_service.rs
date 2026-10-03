@@ -24,11 +24,11 @@
 use chrono::{DateTime, Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    QueryOrder, Set, SqlErr, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info};
 
 use crate::models::customer_share as share_model;
 use crate::models::customer_team_member as team_model;
@@ -74,7 +74,8 @@ pub struct RevokeShareRequest {
 /// 团队成员 DTO
 #[derive(Debug, Clone, Serialize)]
 pub struct TeamMemberDto {
-    pub id: i32,
+    /// 主键——宽度跟随 `customer_team_members.id`（BIGSERIAL/INT8），非手写第二套常量
+    pub id: i64,
     pub customer_id: i32,
     pub user_id: i32,
     pub user_name: Option<String>,
@@ -104,7 +105,8 @@ impl From<customer_team_member::Model> for TeamMemberDto {
 /// 共享记录 DTO
 #[derive(Debug, Clone, Serialize)]
 pub struct CustomerShareDto {
-    pub id: i32,
+    /// 主键——宽度跟随 `customer_shares.id`（BIGSERIAL/INT8），非手写第二套常量
+    pub id: i64,
     pub customer_id: i32,
     pub shared_by_user_id: i32,
     pub shared_by_user_name: Option<String>,
@@ -185,7 +187,8 @@ impl CustomerTeamShareService {
             .await?
             .ok_or_else(|| AppError::validation(format!("用户 {} 不存在", req.user_id)))?;
         if !member_user.is_active {
-            return Err(AppError::validation(format!(
+            // 前置状态门：待加入用户已停用，业务前置未满足，归业务族；文案含用户 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "用户 {} 已停用，无法加入团队",
                 req.user_id
             )));
@@ -359,7 +362,7 @@ impl CustomerTeamShareService {
             team_model::TEAM_ROLE_PRIMARY
             | team_model::TEAM_ROLE_MEMBER
             | team_model::TEAM_ROLE_ASSISTANT => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的团队角色：{}，必须是 primary/member/assistant",
                 role
             ))),
@@ -415,10 +418,21 @@ impl CustomerTeamShareService {
 
     /// 共享客户给其他用户（带时效和权限）
     /// 业务规则：1. 客户必须存在；2. 被共享方用户必须存在且活跃；3. 不能共享给自己；4. 操作人必须是客户 owner / primary / full 共享权限；5. 同一客户不能对同一用户重复共享（active 状态）；6. duration_days 为 None 时永久共享（建议设置时效）
+    ///
+    /// `operator_name`：操作人（当前登录人）落库展示名 `shared_by_user_name` 的唯一合法来源，
+    /// 由调用方从 `AuthContext.username` 传入（与 `services/crm/{pool,lead,opp}.rs` 同一口径：
+    /// `AuthContext` 只有 username 一个身份展示字段，无真实姓名，见
+    /// `middleware/auth_context.rs:58-83`）。修复前此处为取操作人姓名**额外**查一次
+    /// `users`（find_by_id(operator_id)），查不到时 `format!("用户{operator_id}")` 造假名落库；
+    /// 现该次查询整体删除（本方法不再为取名查库），真实登录名由入参带入。
+    /// 注意：`shared_to_user_name` 取的是**被共享方**（第三方）的 `username`，来源是同方法内
+    /// 既有"被共享方必须存在且活跃"校验那次查询（`user::Entity::find_by_id(req.shared_to_user_id)`）
+    /// 的真实结果，不是操作人姓名，本轮不动、也不得以 `operator_name` 顶替。
     pub async fn share_customer(
         &self,
         req: ShareCustomerRequest,
         operator_id: i32,
+        operator_name: &str,
     ) -> Result<CustomerShareDto, AppError> {
         // 1. 校验客户存在
         let customer = customer::Entity::find_by_id(req.customer_id)
@@ -434,7 +448,8 @@ impl CustomerTeamShareService {
                 AppError::validation(format!("被共享方用户 {} 不存在", req.shared_to_user_id))
             })?;
         if !to_user.is_active {
-            return Err(AppError::validation(format!(
+            // 前置状态门：被共享方用户已停用，业务前置未满足，归业务族；文案含用户 ID 保持脱敏
+            return Err(AppError::business(format!(
                 "被共享方用户 {} 已停用，无法共享",
                 req.shared_to_user_id
             )));
@@ -442,7 +457,7 @@ impl CustomerTeamShareService {
 
         // 3. 不能共享给自己
         if req.shared_to_user_id == operator_id {
-            return Err(AppError::validation("共享失败：不能共享给自己"));
+            return Err(AppError::validation_displayable("共享失败：不能共享给自己"));
         }
 
         // 4. 校验操作人权限
@@ -475,17 +490,16 @@ impl CustomerTeamShareService {
             .duration_days
             .map(|days| now + Duration::days(days as i64));
 
-        // 8. 查询操作人姓名
-        let operator = user::Entity::find_by_id(operator_id).one(&*self.db).await?;
-        let operator_name = operator
-            .map(|u| u.username)
-            .unwrap_or_else(|| format!("用户{}", operator_id));
+        // 8. 操作人展示名：直接取调用方传入的真实登录名（`AuthContext.username`）。
+        //    修复前此处为取名额外查一次 users，查不到即 format! 造「用户{id}」落库；
+        //    现在既不额外查库，也不留任何造名兜底分支。
+        let shared_by_user_name = operator_name.to_string();
 
         let share = customer_share::ActiveModel {
             id: Default::default(),
             customer_id: Set(req.customer_id),
             shared_by_user_id: Set(operator_id),
-            shared_by_user_name: Set(Some(operator_name)),
+            shared_by_user_name: Set(Some(shared_by_user_name)),
             shared_to_user_id: Set(req.shared_to_user_id),
             shared_to_user_name: Set(Some(to_user.username.clone())),
             permission: Set(permission),
@@ -500,7 +514,29 @@ impl CustomerTeamShareService {
             updated_at: Set(now),
         }
         .insert(&*self.db)
-        .await?;
+        .await
+        .map_err(|e| {
+            // 并发竞态分类（与 `delete_lead` 的 FK 竞态降级同族修法，非吞异常）：
+            // 上方第 6 步预检与 INSERT 之间，另一请求可对同一 (customer_id,
+            // shared_to_user_id) 抢先落入 active 行，命中 DDL 唯一约束
+            // `uk_cs_customer_to_user_active`（SQLSTATE 23505）。该拒绝是**可读的
+            // 业务前置冲突**，语义与预检命中分支完全相同，必须走
+            // `AppError::business`（400 / `BUSINESS_ERROR`，文案含 ID 走脱敏变体）；
+            // 让 `From<DbErr>` 把它拍平成 500 `DATABASE_ERROR` 属错误分类——
+            // 用户与 e2e 都只能看到「数据库错误」，真因被吞。
+            // 非唯一约束类 DbErr 原样经 `From<DbErr>` 上报，不改道、不兜底。
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                error!(
+                    "共享客户撞唯一约束 uk_cs_customer_to_user_active（并发重复共享，customer_id={}, shared_to_user_id={}, operator={})：按业务拒绝归类，底层错误={}",
+                    req.customer_id, req.shared_to_user_id, operator_id, e
+                );
+                AppError::business(
+                    "共享失败：该客户对此用户已存在 active 共享（并发冲突），请先撤销原共享",
+                )
+            } else {
+                AppError::from(e)
+            }
+        })?;
 
         info!(
             "用户 {} 共享客户 {} 给用户 {}（权限={}，过期={:?}）",
@@ -679,7 +715,7 @@ impl CustomerTeamShareService {
             share_model::SHARE_PERMISSION_VIEW
             | share_model::SHARE_PERMISSION_EDIT
             | share_model::SHARE_PERMISSION_FULL => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的共享权限：{}，必须是 view/edit/full",
                 permission
             ))),

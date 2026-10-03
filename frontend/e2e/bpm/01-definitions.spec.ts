@@ -88,12 +88,28 @@ test.describe('01 流程定义', () => {
   });
 
   test('01-03 流程定义筛选功能可用', async ({ page }) => {
-    // 筛选栏真实 label 为「流程名称」（bpm.definitions.filter.processName），并不存在「关键词」字段
+    // 判责 #4669 J-3（测试缺陷）：「流程名称」筛选控件已被前端有意移除——后端
+    // ProcessDefinitionQuery 仅有 category/status/page/page_size（models/dto/bpm_dto.rs:34-39），
+    // 无 keyword 字段，发送即被静默丢弃=假筛选（BpmDefinitionFilter.vue:10-11 注释点名，
+    // CI error-context a11y 快照逐字证实筛选表单内只有 流程分类 combobox + 查询/重置）。
+    // 原用例 getByLabel('流程名称').fill(...) 恒 0 命中 → fill 30s 超时。
+    // 保留「筛选功能可用」的用例意图并对真实控件验证：选分类 → 查询请求真实携带
+    // category=finance（waitForRequest 注册在点击前；不发请求/不带条件即自然超时判红，不吞）。
     await page.goto('/bpm/definitions');
-    await page.getByLabel('流程名称').fill('E2E');
-    await page.getByRole('button', { name: '查询' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-    await page.getByRole('button', { name: '重置' }).click();
+    const filterForm = page.getByLabel('流程定义筛选表单');
+    await pickSelectIn(filterForm, page, '流程分类', { optionText: '财务' });
+    const queried = page.waitForRequest(
+      r =>
+        r.url().includes('/bpm/definitions') &&
+        r.method() === 'GET' &&
+        new URL(r.url()).searchParams.get('category') === 'finance',
+      { timeout: 15000 }
+    );
+    await filterForm.getByRole('button', { name: '查询' }).click();
+    await queried;
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
+    await filterForm.getByRole('button', { name: '重置' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 

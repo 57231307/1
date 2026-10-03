@@ -85,10 +85,24 @@ export function createProductionOrder(
   return request.post('/production/production-orders/orders', data);
 }
 
+// 更新生产订单载荷 —— 逐字段对齐后端 UpdateProductionOrderPayload
+// （handlers/production_order_handler.rs，三态语义 RFC 7386 JSON Merge Patch）：
+// 键缺席=保持原值、显式 null=清空为 NULL（仅后端 DB 可空列，见下 | null 声明）、有值=覆盖。
+// NOT NULL 列（planned_quantity/priority，backend/migration/src/domain/business/m0007_add_mrp_production_bom.rs:78/84）
+// 不声明 null：清空必被后端 business_displayable 拒绝，前端禁送。
+export interface UpdateProductionOrderPayload {
+  planned_quantity?: number;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
+  priority?: number;
+  work_center_id?: number | null;
+  remarks?: string | null;
+}
+
 // 更新生产订单
 export function updateProductionOrder(
   id: number,
-  data: Partial<ProductionOrder>
+  data: UpdateProductionOrderPayload
 ): Promise<ApiResponse<ProductionOrder>> {
   return request.put(`/production/production-orders/orders/${id}`, data);
 }
@@ -120,13 +134,15 @@ export function approveProductionOrder(
 }
 
 // 汇报生产进度
-// 后端 UpdateProgressRequest（handlers/production_order_handler.rs:320）仅接受
-// actual_quantity / remarks 两字段，无次品数量列——故此处不再发送 defect_quantity（详见交付报告的能力缺口）。
+// 后端 UpdateProgressRequest（handlers/production_order_handler.rs）现为三态 DTO
+// （actual_quantity/remarks 均 DB 可空列 m0007:79/86）：
+// 键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+// 无次品数量列——此处不发送 defect_quantity（详见交付报告能力缺口）。
 export function reportProductionProgress(
   id: number,
   data: {
-    actual_quantity: number;
-    remarks?: string;
+    actual_quantity?: number | null;
+    remarks?: string | null;
   }
 ): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/progress`, data);

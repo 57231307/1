@@ -16,6 +16,9 @@ use crate::models::custom_order_update_dto::{
 };
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
+// process_nodes.status 取值权威 = models/status/production.rs::process_node
+// （与建表约束 chk_node_status 四值逐字符一致，提交 494dd0f3）；禁止本文件再写第二套字面量。
+use crate::models::status::production::process_node as node_status;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -57,7 +60,7 @@ impl CustomOrderProcessService {
             node_type: Set(dto.node_type),
             node_name: Set(dto.node_name),
             sequence: Set(dto.sequence),
-            status: Set("pending".to_string()),
+            status: Set(node_status::PENDING.to_string()),
             planned_start_date: Set(dto.planned_start_date),
             planned_end_date: Set(dto.planned_end_date),
             actual_start_date: Set(None),
@@ -115,12 +118,12 @@ impl CustomOrderProcessService {
             .ok_or(ProcessError::NotFound)?;
 
         let new_status = match dto.action.as_str() {
-            "start" => "in_progress",
-            "pause" => "pending",
-            "resume" => "in_progress",
-            "complete" => "completed",
-            "block" => "blocked",
-            "unblock" => "in_progress",
+            "start" => node_status::IN_PROGRESS,
+            "pause" => node_status::PENDING,
+            "resume" => node_status::IN_PROGRESS,
+            "complete" => node_status::COMPLETED,
+            "block" => node_status::BLOCKED,
+            "unblock" => node_status::IN_PROGRESS,
             _ => {
                 return Err(ProcessError::InvalidState(format!(
                     "不支持的操作: {}",

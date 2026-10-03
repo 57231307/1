@@ -144,10 +144,12 @@ pub async fn get_stock_by_product(
     let page_size = query.page_size.clamp(1, 100);
     // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
     let page = query.page.clamp(1, 1000);
+    // service 已返回 AppError（DbErr 经 From<DbErr> 按约束名归 DATABASE_ERROR 族），
+    // 直接 `?` 透传保留真实 status/code；此前 map_err(internal) 重包会把 4xx/分类错误
+    // 伪装成 500 且把错误原文拼进入参文案（销售发货提交链取可发库存的实际站点）。
     let (stocks, total) = service
         .get_stock_by_product(product_id, page, page_size)
-        .await
-        .map_err(|e| AppError::internal(format!("查询产品库存失败: {}", e)))?;
+        .await?;
 
     let result = serde_json::json!({
         "list": stocks,

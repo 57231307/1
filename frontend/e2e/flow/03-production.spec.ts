@@ -13,6 +13,7 @@ import {
   ensureTestEntities,
   expectBadRequest,
   genName,
+  seedColorCardArchive,
 } from './helpers';
 
 test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', () => {
@@ -86,17 +87,26 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
   test('3-3 创建染色批次（缸号）', async ({ page }) => {
     const ctx = getCtx();
+    // I 族前置（CI #4669 判责 §③「色号 RED-001 在色卡档案中不存在」）：后端
+    // resolve_dye_color_identity（backend/src/handlers/dye_batch_handler.rs:203-254）对非空
+    // color_no 强制反查色卡明细档案且要求全局唯一命中——该校验正当，不得放松。
+    // 原写死的 'RED-001' 属测试缺前置：本用例自建专属色卡+唯一色号（seedColorCardArchive，
+    // 与 fabric/02-dye 先例同型），用入档后的唯一色号替代硬编码。
+    const archive = await seedColorCardArchive(page, { context: '03-production 3-3' });
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
       batch_no: genCode('缸'),
       dye_lot_no: dyeLotNo,
       greige_fabric_id: ctx.greigeFabricId,
-      color_no: 'RED-001',
+      color_no: archive.colorCode,
       planned_quantity: 1000,
       status: 'pending_schedule',
     });
     ctx.dyeBatchId = result.data?.id;
     ctx.dyeLotNo = dyeLotNo;
-    expect(ctx.dyeBatchId).toBeDefined();
+    expect(
+      ctx.dyeBatchId,
+      `染色批次创建应返回 data.id（建单响应回 id 为后端契约），实际响应：${JSON.stringify(result).slice(0, 300)}`
+    ).toBeDefined();
   });
 
   test('3-4 缸号状态机流转（14 态：pending_schedule→scheduled→preparing→dyeing→stored）', async ({

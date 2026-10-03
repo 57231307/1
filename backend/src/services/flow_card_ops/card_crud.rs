@@ -2,11 +2,15 @@
 //!
 //! D10 第 5 批拆分：从原 flow_card_service.rs 迁移 FlowCardService 的 7 个 CRUD/查询方法
 //!（create / update / delete / get_by_id / get_by_barcode / get_by_dye_lot / list）。
-//! 单号生成与状态校验纯函数保留在 facade，本模块通过 Self:: 调用。
+//! 流转卡号在 create 的事务内经 DocumentNumberGenerator 取号
+//!（前缀常量 flow_card_service::FLOW_CARD_NO_PREFIX），条码与卡号同体；
+//! facade 不提供任何手写拼号函数（卡号/条码均经统一生成器取号），
+//! 状态校验纯函数仍保留在 facade，本模块通过 Self:: 调用。
 
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 
 use crate::models::production_flow_card::{
@@ -14,9 +18,11 @@ use crate::models::production_flow_card::{
 };
 use crate::models::status::flow_card as card_status;
 use crate::services::flow_card_service::{
-    CreateFlowCardRequest, FlowCardQuery, FlowCardService, UpdateFlowCardRequest,
+    CreateFlowCardRequest, FLOW_CARD_NO_PREFIX, FlowCardQuery, FlowCardService,
+    UpdateFlowCardRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 impl FlowCardService {
     /// 创建流转卡
@@ -35,8 +41,33 @@ impl FlowCardService {
             }
         }
 
-        let card_no = Self::generate_card_no();
-        let barcode = Self::generate_barcode();
+        // 卡号 + 条码与主表 INSERT 收口到同一写入事务。
+        // 为什么：production_flow_card.card_no/barcode 均 NOT NULL 且无 UNIQUE 约束
+        //（migration/src/domain/v15/mod.rs:3372-3373），旧手写
+        // "FC-{14位时间戳}-{3位随机}" 与 "FC{14位时间戳}{6位随机}" 同秒并发碰撞概率
+        // 非零；条码重复会让扫码路径 get_by_barcode 的 `.one()` 直接报错。
+        // 现按 FLOW_CARD_NO_PREFIX 在事务内经生成器取号（pg_advisory_xact_lock
+        // 持有到本事务提交，串行化并发取号，参照
+        // services/quotation_ops/lifecycle.rs:54 的事务内取号路径）；
+        // 条码不再独立拼随机数，改为卡号同体（条码是卡号的扫码载体，
+        // get_by_barcode/list 均按等值匹配存量值，历史条码不受影响）。
+        let txn = (*self.db).begin().await?;
+        let card_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            FLOW_CARD_NO_PREFIX,
+            CardEntity,
+            production_flow_card::Column::CardNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = FLOW_CARD_NO_PREFIX,
+                "流转卡号取号失败（flow_card_ops/card_crud.create）"
+            );
+            AppError::business_displayable("流转卡号生成失败，请稍后重试")
+        })?;
+        let barcode = card_no.clone();
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = CardActiveModel {
@@ -74,9 +105,10 @@ impl FlowCardService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("流转卡创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
