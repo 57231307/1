@@ -24,6 +24,10 @@ import {
  *
  * 派生侧（期望集）= 角色真实权限码（GET /auth/me，守卫的同一输入源）
  *                 × 路由 meta.permission（src/router/index.ts 实时解析，真实来源）。
+ *                 纯别名路由（redirect 且无自身组件，如 /workflow → /bpm）在解析侧继承
+ *                 目标路由的门控——vue-router 在守卫前完成 redirect，实测面读到的本来就是
+ *                 目标的 meta；不继承则别名恒派生"可达"、与实测分叉（CI #4671 的 31 条
+ *                 /workflow 伪红族），继承口径与防漂移登记见 permission-model.ts。
  * 旧实现用侧边栏 `<a href>` 锚点嗅探当派生，而菜单实际渲染为 <el-menu-item role="menuitem">
  * （MainLayout.vue:24 起），根本没有锚点——期望集恒空、98/99 项恒"派生 denied"，
  * 属测量伪影（CI #4669 R-角色矩阵判责报告），锚点嗅探已整体移除。

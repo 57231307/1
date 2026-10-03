@@ -440,6 +440,10 @@ const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
 const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // purchaser 对齐 permission.rs 的 purchase_clerk 权限集（read/create/update，不含 delete）。
   // 覆盖 sku-mapping.spec.ts A/C/D1/D2b/E1 用例：产品/供应商只读 + 目录 + 对照 CRUD。
+  // product-categories:read —— /product 页挂载即拉产品分类树（api/product.ts GET
+  // /product-categories、/product-categories/tree），缺码则该页对 purchaser 恒 403 噪声
+  // （CI #4671 矩阵 purchaser 真缺口红）。用户裁定口径为"purchaser 应见产品分类树、补真实
+  // 种子"（非前端降级隐藏）；init 矩阵/迁移通道①②须与此同口径落地（三通道同口径锁）。
   purchaser: [
     'sku-mappings:read',
     'sku-mappings:create',
@@ -451,6 +455,7 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
     'supplier-product-colors:create',
     'supplier-product-colors:update',
     'products:read',
+    'product-categories:read',
     'suppliers:read',
   ],
   // salesperson 对齐 permission.rs 的 sales_rep 权限集：可读销售订单（保密扫描用例

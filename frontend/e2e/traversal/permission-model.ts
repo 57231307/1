@@ -7,6 +7,11 @@
  *      33 个分片角色均以自身身份取码，不借 admin 会话、不撒伪权限码）；
  *   2. 路由 meta.permission：对 src/router/index.ts 源文件实时静态解析（loadRouterPermissions），
  *      路由不存在 ⇒ 该模块不可达（守卫将跳 /404，人人被拒）。
+ *      纯别名路由（redirect 指向目标且自身无组件/子树）继承**目标路由**的门控：
+ *      vue-router 在守卫执行前完成 redirect 解析，守卫读到的一直是 to=目标路由 的 meta；
+ *      实测面 goto /workflow 落点即 /bpm 的门控判定。不跟随 redirect 链会把别名恒派生为
+ *      "登录即可达"，与实测分叉（CI #4671 角色矩阵 31 条 /workflow 伪影红的根因）。
+ *      链上的 redirect 目标缺失/成环/非字面量一律抛错判红交人工，禁止静默降级。
  *   匹配语义逐一对齐 router/index.ts:1474-1560 的 splitPermissionCode / actionEquivalent /
  *   hasRoutePermission（通配 *:*、resource:*、read↔view、update↔edit）。
  *
@@ -88,6 +93,11 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   production: 'inventory:read',
   bpm: 'audit-logs:read',
   crm: 'customers:read',
+  // /workflow 是纯别名（router/index.ts:1382-1383 `redirect: '/bpm'`），门控事实来源是
+  // 目标路由 /bpm 的 meta——登记本条不是为了参与派生（派生走 redirect 链继承，见
+  // parseRouterPermissions），而是把"workflow→bpm 的对应关系"钉进人工评审锚：
+  // /bpm 或 /workflow 任一侧被改动（如 redirect 换目标、bpm 换权限码）都会触发防漂移判红。
+  workflow: 'audit-logs:read',
 };
 
 // ==================== 派生侧：权限码 × 路由 meta（均为真实来源） ====================
@@ -123,12 +133,15 @@ const ROUTES_START = 'const routes: RouteRecordRaw[]';
 const ROUTES_END = 'createRouter(';
 
 /**
- * 从 router 源文本解析 全路由路径 → meta.permission。
+ * 从 router 源文本解析 全路由路径 → meta.permission（含 redirect 别名继承）。
  *
  * 口径：router/index.ts 为"单一 children 数组扁平登记"（MainLayout 父级 '/' 下子路径均不带
  * 前导 '/'，如 'system/audit-log'），故 path 值不带前导 '/' 时按 '/' 拼接为完整路径。
- * 每个路由对象的 meta 块位于本条 `path:` 与下一条 `path:` 之间；`permission:` 兼容
- * 字符串与数组两种写法；解析不出边界（结构改版）时抛错判红，绝不静默降级为空表。
+ * 每个路由对象的块位于本条 `path:` 与下一条 `path:` 之间；`permission:` 兼容
+ * 字符串与数组两种写法；`redirect:` 仅当块内**不含 component/children**（纯别名）时生效，
+ * 解析结果为跟随链继承目标路由的门控（见文件头口径）。
+ * 解析不出边界（结构改版）、别名目标缺失/成环/非字符串字面量时抛错判红，绝不静默降级为空表
+ * 或"登录即可达"。
  */
 export function parseRouterPermissions(source: string): Record<string, RoutePermValue> {
   const start = source.indexOf(ROUTES_START);
@@ -151,6 +164,8 @@ export function parseRouterPermissions(source: string): Record<string, RoutePerm
   }
 
   const map: Record<string, RoutePermValue> = {};
+  /** 纯别名路由：path → redirect 字面量目标（完整路径） */
+  const aliases: Record<string, string> = {};
   for (let i = 0; i < hits.length; i++) {
     const blockEnd = i + 1 < hits.length ? hits[i + 1].from : body.length;
     const block = body.slice(hits[i].to, blockEnd);
@@ -167,8 +182,18 @@ export function parseRouterPermissions(source: string): Record<string, RoutePerm
     } else {
       map[fullPath] = perm;
     }
+    const alias = extractBlockRedirectAlias(block, fullPath);
+    if (alias !== undefined) {
+      if (fullPath in aliases && aliases[fullPath] !== alias) {
+        throw new Error(
+          `别名路由 ${fullPath} 出现多次且 redirect 目标不一致（${aliases[fullPath]} vs ${alias}）` +
+            `——派生输入有歧义，判红交人工。`
+        );
+      }
+      aliases[fullPath] = alias;
+    }
   }
-  return map;
+  return inheritRedirectPermissions(map, aliases);
 }
 
 function extractBlockPermission(block: string): RoutePermValue {
@@ -178,6 +203,69 @@ function extractBlockPermission(block: string): RoutePermValue {
   }
   const single = block.match(/permission:\s*'([^']*)'/);
   return single ? single[1] : null;
+}
+
+/**
+ * 纯别名（path + redirect、无 component/children）的 redirect 目标提取。
+ * 返回 undefined = 本块不是纯别名（无 redirect，或带自身组件的重定向由目标 route
+ * 之外的渲染逻辑处理，门控以本块 meta 为准——现行 router 不存在该形态，出现时按下方
+ * 抛错路径交人工复核）。
+ */
+function extractBlockRedirectAlias(block: string, fullPath: string): string | undefined {
+  if (!block.includes('redirect:')) return undefined;
+  // component/children 出现在块内 ⇒ 非纯别名（如 MainLayout 父级 '/' 的块窗口）
+  if (/\b(component|children):/.test(block)) return undefined;
+  const lit = block.match(/redirect:\s*'([^']*)'/);
+  if (!lit) {
+    throw new Error(
+      `别名路由 ${fullPath} 的 redirect 目标不是单引号字符串字面量（函数/对象/命名路由形态）` +
+        `——静态解析无法跟随，禁止把它按"登录即可达"静默派生（#4671 /workflow 伪影同源），需人工复核本解析口径。`
+    );
+  }
+  if (!lit[1].startsWith('/')) {
+    throw new Error(
+      `别名路由 ${fullPath} 的 redirect 目标 '${lit[1]}' 不是绝对路径——相对目标的解析父级无法由扁平文本口径确定，需人工复核。`
+    );
+  }
+  return lit[1];
+}
+
+/**
+ * redirect 链继承：别名路由的有效门控 = 链尾真实路由的 meta.permission。
+ * 目标缺失 / 成环 / 链上自指一律抛错（静默按 null 派生会复现"期望可达、实测被拒"的伪红族）。
+ */
+function inheritRedirectPermissions(
+  map: Record<string, RoutePermValue>,
+  aliases: Record<string, string>
+): Record<string, RoutePermValue> {
+  const effective: Record<string, RoutePermValue> = { ...map };
+  for (const [startPath, firstTarget] of Object.entries(aliases)) {
+    const seen = new Set<string>([startPath]);
+    let current = firstTarget;
+    for (;;) {
+      if (seen.has(current)) {
+        throw new Error(
+          `别名路由 ${startPath} 的 redirect 链成环（${[...seen, current].join(' → ')}）` +
+            `——router 配置异常，判红交人工。`
+        );
+      }
+      seen.add(current);
+      if (!(current in map)) {
+        throw new Error(
+          `别名路由 ${startPath} 的 redirect 目标 ${current} 不在 router 已解析路由表中` +
+            `——无法继承目标门控；按"登录即可达"派生即是 #4671 那族伪红的机制，判红交人工。`
+        );
+      }
+      const next = aliases[current];
+      if (next) {
+        current = next;
+        continue;
+      }
+      effective[startPath] = map[current];
+      break;
+    }
+  }
+  return effective;
 }
 
 /** 读取并解析 router 源文件（Playwright worker 的 cwd = frontend/，与既有制品相对路径口径一致） */
