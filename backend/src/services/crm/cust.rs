@@ -20,7 +20,7 @@ use crate::models::{
     sales_order::{Column as SalesOrderColumn, Entity as SalesOrderEntity},
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, check_resource_owner};
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, PaginatorTrait,
@@ -214,10 +214,25 @@ impl CrmService {
             }
         }
 
-        // 关联商机
-        let opportunities: Vec<super::OpportunityBrief> = CrmOpportunityEntity::find()
+        // 关联商机：行级数据权限与列表端点 `list_opportunities`（本模块 opp.rs）复用
+        // **同一个** `apply_department_scope`（判据列同为 OwnerId/DepartmentId；
+        // 商机无公海领取语义，不接带 pool 放行支的 `apply_department_scope_with_pool`，
+        // 与 opp.rs 列表/导出调用点同形）。上方 `check_resource_owner` 只回答"这份
+        // 客户行本身可否读"，不能代替关联商机逐行的归属判定——缺本过滤时，他人/他部门
+        // 商机行仅换 360 出口即原样出现（存在性/标题/阶段可见），构成与列表同形的
+        // 行级读侧旁路；字段级（金额）门在 handler 侧与本过滤叠加，两口径互不复制。
+        let mut opps_query = CrmOpportunityEntity::find()
             .filter(crm_opportunity::Column::CustomerId.eq(customer_id))
-            .order_by(crm_opportunity::Column::CreatedAt, sea_orm::Order::Desc)
+            .order_by(crm_opportunity::Column::CreatedAt, sea_orm::Order::Desc);
+        if let Some(ctx) = data_scope {
+            opps_query = apply_department_scope(
+                opps_query,
+                ctx,
+                crm_opportunity::Column::OwnerId,
+                crm_opportunity::Column::DepartmentId,
+            );
+        }
+        let opportunities: Vec<super::OpportunityBrief> = opps_query
             .into_model::<super::OpportunityBrief>()
             .all(&*self.db)
             .await?;

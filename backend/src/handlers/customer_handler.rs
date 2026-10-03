@@ -139,6 +139,46 @@ pub struct UpdateCustomerRequest {
     pub notes: Option<String>,
 }
 
+/// 客户域标准入口第一层：`field_permissions` 表驱动的字段级读过滤（历史 12.3-3 接入）。
+///
+/// 由 `list_customers`/`get_customer` 两处**逐字内联的同型代码块**纯提取为唯一实现，
+/// 判定顺序与语义保持不变：对持 `role_id` 的角色查 `resource_type="customer"` 的字段
+/// 配置，非空时逐行先 `filter_fields_by_read_permission`（`can_read=false` 整键移除）、
+/// 再 `mask_fields`（`!can_read && mask_strategy=="MASK"` 置 `"***"`——`"***"` 字面量
+/// 属 `FieldPermissionService` 既有实现，本函数不重写、不复制）。`role_id` 缺失或配置
+/// 为空 = 空操作（原内联行为）；配置查询 `Err` 按空配置继续（原内联
+/// `unwrap_or_default` 形态原样保留，非本轮新引入的回落）。
+///
+/// 与第二层 `crm_customer_handler::apply_customer_field_permission`（`data_permissions`
+/// 行 + 默认脱敏掩码）是**两个判定源、两层叠加**，不是二选一：客户域读出口（列表/详情/
+/// 360）按"先本函数、后第二层"的既有顺序串联调用；不消费 `field_permissions` 配置行的
+/// 其它出口维持单层调用（其改造前形态）。360 出口接线本函数即为"与列表端点看到的
+/// 完全一致"的等式前提——不在 360 里复制一份内联配置处理。
+pub(crate) async fn apply_customer_field_config_mask(
+    state: &AppState,
+    role_id: Option<i32>,
+    rows: &mut [serde_json::Value],
+) {
+    let Some(role_id) = role_id else {
+        return;
+    };
+    let field_perm_svc =
+        crate::services::field_permission_service::FieldPermissionService::new(state.db.clone());
+    let field_perms = field_perm_svc
+        .list_field_permissions(Some("customer"), Some(role_id))
+        .await
+        .unwrap_or_default();
+    if field_perms.is_empty() {
+        return;
+    }
+    for row in rows.iter_mut() {
+        // 先过滤无读权限的字段
+        field_perm_svc.filter_fields_by_read_permission(row, &field_perms);
+        // 再对需要掩码的字段进行掩码处理
+        field_perm_svc.mask_fields(row, &field_perms);
+    }
+}
+
 /// 获取客户列表
 pub async fn list_customers(
     State(state): State<AppState>,
@@ -169,33 +209,10 @@ pub async fn list_customers(
         )
         .await?;
 
-    // 12.3-3：字段级读权限过滤（field_permissions 接入）
-    let items = if let Some(role_id) = auth.role_id {
-        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(
-            state.db.clone(),
-        );
-        let field_perms = field_perm_svc
-            .list_field_permissions(Some("customer"), Some(role_id))
-            .await
-            .unwrap_or_default();
-        if !field_perms.is_empty() {
-            result
-                .items
-                .into_iter()
-                .map(|mut v| {
-                    // 先过滤无读权限的字段
-                    field_perm_svc.filter_fields_by_read_permission(&mut v, &field_perms);
-                    // 再对需要掩码的字段进行掩码处理
-                    field_perm_svc.mask_fields(&mut v, &field_perms);
-                    v
-                })
-                .collect()
-        } else {
-            result.items
-        }
-    } else {
-        result.items
-    };
+    // 12.3-3：字段级读权限过滤（field_permissions 接入）——判定语义见
+    // `apply_customer_field_config_mask`（本出口与详情/360 共用同一实现，不再内联）
+    let mut masked_items = result.items;
+    apply_customer_field_config_mask(&state, auth.role_id, &mut masked_items).await;
 
     // P1-08-5：非管理员对客户列表手机号/邮箱脱敏——收口到客户域字段级权限唯一实现
     // `apply_customer_field_permission`（终局口径：同资源同形状同一行配置判定）。
@@ -203,7 +220,6 @@ pub async fn list_customers(
     // `mask_contact_fields_for_role`（权威列集合唯一=utils/field_mask，只掩码不删键），
     // 另加非 admin `address` 整键移除=只更严不放松；有权限行时走同一
     // filter_fields_batch，不再维护第二套内联分支。
-    let mut masked_items = items;
     apply_customer_field_permission(&state, auth.role_id, &mut masked_items).await;
 
     Ok(Json(ApiResponse::success(
@@ -233,23 +249,15 @@ pub async fn get_customer(
         .get_customer_with_filter(id, permission_filter, Some(&data_scope_ctx))
         .await?;
 
-    // 12.3-3：字段级读权限过滤（field_permissions 接入）
+    // 12.3-3：字段级读权限过滤（field_permissions 接入）——与列表出口共用
+    // `apply_customer_field_config_mask` 同一实现（判定顺序与语义逐字同原内联块）
     let mut customer_json = customer_json;
-    if let Some(role_id) = auth.role_id {
-        let field_perm_svc = crate::services::field_permission_service::FieldPermissionService::new(
-            state.db.clone(),
-        );
-        let field_perms = field_perm_svc
-            .list_field_permissions(Some("customer"), Some(role_id))
-            .await
-            .unwrap_or_default();
-        if !field_perms.is_empty() {
-            // 先过滤无读权限的字段
-            field_perm_svc.filter_fields_by_read_permission(&mut customer_json, &field_perms);
-            // 再对需要掩码的字段进行掩码处理
-            field_perm_svc.mask_fields(&mut customer_json, &field_perms);
-        }
-    }
+    apply_customer_field_config_mask(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut customer_json),
+    )
+    .await;
 
     // P1-08-5：非管理员对客户详情手机号/邮箱脱敏——与列表同一收口（终局口径：
     // 权限版 `apply_customer_field_permission`；默认脱敏掩码等价旧内联

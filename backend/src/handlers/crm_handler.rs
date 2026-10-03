@@ -1137,13 +1137,21 @@ pub struct FollowUpQuery {
 
 /// GET /api/v1/erp/crm/customers/:id/360 - 客户 360 全景视图
 ///
-/// D-1（读侧旁路收口，PR #942）：360 返回体内嵌的"商机简报"（opportunities 子集）
-/// 过去**不走**商机字段级出参门——列表端点隐藏的 `estimated_amount`/`actual_amount`，
-/// 换一个出口整份可读。现与 `list_opportunities`/`get_opportunity`/写响应共用同一个
-/// `apply_opportunity_field_permission`（不复制逻辑、不造第二口径）；owner 判据同源：
-/// 简报行对象携带 `owner_id`（投影自 `crm_opportunity.owner_id`，见
-/// `services/crm/mod.rs::OpportunityBrief`），默认分支"仅剔非本人行金额"与 admin
-/// 例外的判定输入与列表端点逐字一致。
+/// 出参按子集挂与同级列表/详情**同一实现**的权限门，不在本出口复制第二口径：
+/// - `customer`（客户主数据行）：与非 admin 的标准客户列表/详情所见逐列一致——
+///   两层门按既有顺序串联：第一层 `customer_handler::apply_customer_field_config_mask`
+///   （`field_permissions` 配置层），第二层 `crm_customer_handler::apply_customer_field_permission`
+///   （客户域字段级权限唯一实现：`mask_customer_pii_defaults` 默认掩码（非 admin 电话/
+///   邮箱掩码保留键、`address` 整键移除）+ `data_permissions` 行 allowed/hidden 过滤）。
+///   本出口过去整行原文直出：列表/详情看不到的 PII，打开 360 即可读到，属读侧旁路。
+/// - `opportunities`（商机简报子集）：**行级**在服务层复用与列表端点同一个
+///   `apply_department_scope`（`services/crm/opp.rs::list_opportunities`，判据列同为
+///   OwnerId/DepartmentId；商机无公海语义，不接带 pool 放行的口径），无权行不再随
+///   360 出现其存在性/标题/阶段；**字段级**挂与列表同一个
+///   `apply_opportunity_field_permission`（金额隐藏口径单源），owner 判据同源：
+///   简报行对象携带 `owner_id`（投影自 `crm_opportunity.owner_id`，见
+///   `services/crm/mod.rs::OpportunityBrief`）。
+/// - 任一定位失败（键缺失/形状漂移）= 门无处可施 = 原文直通，显式记 error 不静默。
 pub async fn get_customer_360(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -1153,8 +1161,30 @@ pub async fn get_customer_360(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let mut value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
-    // 商机子集挂与列表同一个字段级门；定位不到数组 = 门无处可施 = 原文直通，
-    // 属形状漂移而非正常分支，显式记 error 不静默（与 paginated_list_array_mut 同口径）。
+    // 客户主数据行：挂与标准列表/详情同一两层字段门（共用实现，本处不内联
+    // 配置处理/掩码分支——内联分支正是"换出口另一口径"的诞生方式）。
+    if let Some(customer) = value.get_mut("customer") {
+        crate::handlers::customer_handler::apply_customer_field_config_mask(
+            &state,
+            auth.role_id,
+            std::slice::from_mut(customer),
+        )
+        .await;
+        crate::handlers::crm_customer_handler::apply_customer_field_permission(
+            &state,
+            auth.role_id,
+            std::slice::from_mut(customer),
+        )
+        .await;
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 customer 对象，客户域字段级数据权限未应用"
+        );
+    }
+    // 商机子集挂与列表同一个字段级门（行级过滤已在服务层与列表同源套用）；
+    // 定位不到数组 = 门无处可施 = 原文直通，属形状漂移而非正常分支，显式记 error
+    // 不静默（与 paginated_list_array_mut 同口径）。
     if let Some(opps) = value.get_mut("opportunities").and_then(Value::as_array_mut) {
         apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, opps).await;
     } else {
