@@ -16,13 +16,26 @@ export interface Bom {
   updated_at?: string;
 }
 
+/**
+ * BOM 明细行，键名对齐后端 handlers/bom_handler.rs::BomItemResponse
+ * （id/bom_id/material_id/quantity/unit/scrap_rate/sort_order，snake_case 原样输出）。
+ * 原声明的 material_name/loss_rate 后端从不存在：material_name 无出参键（恒空），
+ * loss_rate 键名错位导致提交被 serde 忽略、损耗率静默丢失——按真实契约纠正。
+ */
 export interface BomItem {
   id?: number;
   bom_id?: number;
-  material_name: string;
+  material_id: number;
   quantity: number;
-  unit: string;
-  loss_rate: number;
+  /** DDL bom_items.unit VARCHAR(20)（m0007:40），后端 DTO 已同步 max=20 校验 */
+  unit: string | null;
+  /**
+   * 损耗率（API 百分比数值口径：10 = 10%）。提交与回显同字段同口径：
+   * 后端写/读边界经 BomService::scrap_percent_to_ratio / scrap_ratio_to_percent
+   * 与 DECIMAL(5,4) 存储比率（0–1）换算，前端不再二次乘除。
+   */
+  scrap_rate: number | null;
+  sort_order?: number | null;
 }
 
 /**

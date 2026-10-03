@@ -104,13 +104,22 @@
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.unit')" width="100">
           <template #default="{ row }">
-            <el-input v-model="row.unit" :placeholder="$t('bomModule.form.unitPlaceholder')" />
+            <!-- maxlength 对齐后端 DDL bom_items.unit VARCHAR(20)（m0007:40）与
+                 DTO 校验 max=20（bom_handler.rs::CreateBomItemPayload） -->
+            <el-input
+              v-model="row.unit"
+              :maxlength="20"
+              :placeholder="$t('bomModule.form.unitPlaceholder')"
+            />
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.lossRate')" width="130">
           <template #default="{ row }">
+            <!-- 损耗率 = API 百分比数值口径（10 = 10%），键名与后端 scrap_rate 同名；
+                 0–100 + 两位小数（0.01% 粒度）与后端写边界校验同口径，
+                 比率换算只发生在后端边界，前端不二次乘除 -->
             <el-input-number
-              v-model="row.loss_rate"
+              v-model="row.scrap_rate"
               :min="0"
               :max="100"
               :precision="2"
@@ -159,12 +168,16 @@ const props = defineProps<{
     is_default: boolean;
     status: 'draft' | 'active' | 'archived';
     remark: string;
+    // 行对象键名对齐后端 BomItemResponse（见 api/bom.ts BomItem 注释）：
+    // 编辑回显直接灌 GET /boms/:id 的 items，同名键才接得住
     items: Array<{
+      id?: number;
+      bom_id?: number;
       material_id?: number;
-      material_name: string;
       quantity: number;
-      unit: string;
-      loss_rate: number;
+      unit: string | null;
+      scrap_rate: number | null;
+      sort_order?: number | null;
     }>;
   };
   mode: 'create' | 'edit';
@@ -232,10 +245,9 @@ const formRules: FormRules = {
 const handleAddItem = () => {
   localFormData.value.items.push({
     material_id: undefined,
-    material_name: '',
     quantity: 1,
     unit: '',
-    loss_rate: 0,
+    scrap_rate: 0,
   });
 };
 

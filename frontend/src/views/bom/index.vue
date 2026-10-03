@@ -337,11 +337,16 @@ const formData = reactive({
   is_default: false,
   status: 'draft' as 'draft' | 'active' | 'archived',
   remark: '',
+  // 行对象键名对齐后端 BomItemResponse（api/bom.ts::BomItem）：
+  // handleEdit 灌入 GET /boms/:id 的 items，同名键才能接住回显
   items: [] as Array<{
-    material_name: string;
+    id?: number;
+    bom_id?: number;
+    material_id?: number;
     quantity: number;
-    unit: string;
-    loss_rate: number;
+    unit: string | null;
+    scrap_rate: number | null;
+    sort_order?: number | null;
   }>,
 });
 
