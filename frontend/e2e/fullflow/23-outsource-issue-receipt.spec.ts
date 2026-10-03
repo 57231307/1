@@ -39,6 +39,10 @@
 //   API 可录入回读，FEE 凭证金额取真实值。23-03 由缺陷钉转为回归钉，再红即回归。
 //   本批后端新增两道硬拒（commit 0d74c04f）⇒ 前端门控与之同口径，契约级由本例锁定：
 //   零费用结算拒（order.rs:607-611，23-04）；零数量收回入口拒（receipt.rs:99-101，23-02-G）。
+// PR #942/#220 实测值三列（weight/width/gram_weight，receipt.rs:76-85/:230/:269-271/:373-383/:523-525）
+//   e2e 活体覆盖：23-05 建单落值+回读+三态（键缺席保持/显式 null 清空/有值覆盖）+confirm 出参透传；
+//   23-06 值域负例（0/负数建单与更新口一律 400+VALIDATION_ERROR，拒绝零变化）。
+//   权限/校验类拒绝文案永久脱敏 ⇒ 只断 status+信封 code，不断任何中文文案（与 23-02 D2 同口径）。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -96,6 +100,64 @@ function requireNum(v: unknown, label: string): number {
   if (!Number.isFinite(n) || n <= 0)
     throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
+}
+
+/**
+ * #220 实测值三列（weight/width/gram_weight）出参类型如实性断言。
+ *
+ * 类型事实（不许用 Number()/parseFloat() 归一把"类型谎言"洗成通过行）：
+ *   - rust_decimal 在本仓仅启用 serde feature（backend/Cargo.toml:60 `features=["serde"]`，
+ *     未启用 serde-float），JSON 序列化为**十进制字符串**；
+ *   - DECIMAL(18,4) 列（models/outsourcing_receipt.rs:70-78）经 DB RETURNING/回读后
+ *     可能按列 scale 补尾零（"1.5"→"1.5000"，同型先例 flow/21a-fabric-sales-order.spec.ts:103）。
+ * 因此断言分两层：
+ *   ① 键必在场且 typeof === 'string'（值非 null 时）——出参退化成 number、缺键（会被前端
+ *      `??` 兜底洗成"已实测"，与标签 fail-closed 口径分裂）在此层必红；
+ *   ② 数值按**十进制串逐位归一**（去整数前导零/小数尾零）比较，只容忍尾零形状差异，
+ *      不改值域——真值回归（如 21.5→21.6、串被洗成 "0"）仍必红。
+ * null 分支用 toBeNull 严格锁定"显式清空后=未补录"：后端若把 null 当"不改"残留旧值、
+ * 或把 NULL 洗成 0/''/缺键，该分支与键在场检查都能抓到——这是三态语义唯一活体证明点。
+ */
+function canonDecimalStr(s: string): string {
+  const neg = s.startsWith('-');
+  const body = neg ? s.slice(1) : s;
+  const [int, frac = ''] = body.split('.');
+  const i = int.replace(/^0+/, '') || '0';
+  const f = frac.replace(/0+$/, '');
+  const unsigned = `${i}${f ? `.${f}` : ''}`;
+  return neg && unsigned !== '0' ? `-${unsigned}` : unsigned;
+}
+
+function expectMeasured(
+  obj: Record<string, unknown>,
+  key: 'weight' | 'width' | 'gram_weight',
+  expected: string | null,
+  label: string
+) {
+  if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+    throw new Error(
+      `${label}：响应缺实测值键 "${key}"，实际键=${Object.keys(obj).join(',')}` +
+        `（收回单端点出参=outsourcing_receipt::Model 直接序列化，三键必须恒在场——缺键会被前端 ?? 兜底掩盖成"已实测"）`
+    );
+  }
+  const v = obj[key];
+  if (expected === null) {
+    expect(
+      v,
+      `${label}："${key}" 应为严格 null（未补录），实际=${JSON.stringify(v)}——0/''/旧值残留都不是"清空"`
+    ).toBeNull();
+    return;
+  }
+  if (typeof v !== 'string') {
+    throw new Error(
+      `${label}："${key}" 出参应为 rust_decimal 十进制字符串（Cargo.toml:60 未启用 serde-float），` +
+        `实际类型=${v === null ? 'null' : typeof v} raw=${JSON.stringify(v)}——类型回归，禁止 Number() 归一蒙绿`
+    );
+  }
+  expect(
+    canonDecimalStr(v),
+    `${label}："${key}" 期望=${expected} 实际=${v}（十进制逐位归一比较，仅容忍列 scale 尾零补形）`
+  ).toBe(canonDecimalStr(expected));
 }
 
 function todayStr(): string {
@@ -693,5 +755,237 @@ test.describe('23 委外发料→收回→结算契约链', () => {
       !vouchers.some(v => v.voucher_type === 'fee'),
       '零费用被拒不应留下 fee 凭证（拒绝点见 order.rs:601-611 注释）'
     ).toBe(true);
+  });
+
+  test('23-05 #220 实测值三列活体证明：建单落值(串型)→by-no/列表双路回读→三态(键缺席保持/显式null清空/有值覆盖)→confirm 出参逐列透传', async ({
+    page,
+  }) => {
+    const ctx = getCtx();
+    // 真实前置：订单经 seedOutsourcingOrder 自建（supplierId/productIds 来自 ensureTestEntities，
+    // 与 23-01/23-04 同取值路径，无假 id），发料后收回单才允许 confirm（资格门 order.rs:42-52）
+    const order = await seedOutsourcingOrder(page, 'MEAS');
+    const orderId = requireNum(order.id, 'MEAS 订单');
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
+
+    const receiptNo = `E23-RM${genCode('RC')}`;
+    const created = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: receiptNo,
+        outsourcing_order_id: orderId,
+        receipt_date: todayStr(),
+        product_id: ctx.productIds[0],
+        return_quantity: '95',
+        quality_status: 'qualified',
+        // 提交值一律十进制字符串（与后端集成锁 contract_wave7 receipt_body 同口径，不经浮点）；
+        // 三值形状刻意不同：一位小数 / 整数 / 两位小数，钉 DECIMAL(18,4) 无损透传
+        weight: '21.5',
+        width: '185',
+        gram_weight: '200.25',
+      }
+    );
+    const rcptId = requireNum(created.id, '建收回单(带实测值)');
+    CLEANUP.push({
+      path: `/production/outsourcing-receipts/${rcptId}`,
+      label: `receipt(meas)#${rcptId}`,
+    });
+
+    // ① POST 出参三键：串型+值等（前端补录表单即时回显的契约面，receipt.rs:269-271 写入形状）
+    expectMeasured(created, 'weight', '21.5', 'POST 建单出参');
+    expectMeasured(created, 'width', '185', 'POST 建单出参');
+    expectMeasured(created, 'gram_weight', '200.25', 'POST 建单出参');
+
+    // ② by-no 回读＝活库行：证明值真实落库，而非请求层内存回显
+    const byNo = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/production/outsourcing-receipts/by-no/${receiptNo}`
+    );
+    expectKeyValue(byNo, 'id', rcptId, 'by-no 回读');
+    expectMeasured(byNo, 'weight', '21.5', 'by-no 回读');
+    expectMeasured(byNo, 'width', '185', 'by-no 回读');
+    expectMeasured(byNo, 'gram_weight', '200.25', 'by-no 回读');
+
+    // ③ 列表回读（前端表格渲染源，handler=list_outsourcing_receipts 同一 Model 序列化）：
+    //    列不是只在详情端点存在——两条读取路径同源同形
+    const listRows = pickListArray<Record<string, unknown>>(
+      await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/production/outsourcing-receipts?outsourcing_order_id=${orderId}&page=1&page_size=20`
+      ),
+      'items',
+      '收回单列表(实测值)'
+    );
+    const row = listRows.find(r => Number(r.id) === rcptId);
+    expect(
+      row,
+      `列表应含自建行 id=${rcptId}，实际 ids=${JSON.stringify(listRows.map(r => r.id))}`
+    ).toBeTruthy();
+    expectMeasured(row!, 'weight', '21.5', '列表回读');
+    expectMeasured(row!, 'width', '185', '列表回读');
+    expectMeasured(row!, 'gram_weight', '200.25', '列表回读');
+
+    // ④ 三态·键缺席=保持（types.rs:239 RFC 7386 口径）：只 PUT remarks，三键整体缺席 ⇒
+    //    三列必须原样。后端若把"键缺席"当"清空"（洗成 NULL）或塞 0，此处即红
+    await apiCall(page, 'PUT', `/production/outsourcing-receipts/${rcptId}`, {
+      remarks: 'E2E-三态-键缺席探针',
+    });
+    const afterAbsent = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/production/outsourcing-receipts/by-no/${receiptNo}`
+    );
+    expectKeyValue(afterAbsent, 'remarks', 'E2E-三态-键缺席探针', '键缺席探针 PUT 应真实生效');
+    expectMeasured(afterAbsent, 'weight', '21.5', '键缺席=保持');
+    expectMeasured(afterAbsent, 'width', '185', '键缺席=保持');
+    expectMeasured(afterAbsent, 'gram_weight', '200.25', '键缺席=保持');
+
+    // ⑤ 三态·显式 null=清空（本用例核心活体证明点，receipt.rs:373-375 Some(None)=Set(None)）：
+    //    后端若退化为"null 当不改"⇒ 回读残留 "21.5"，toBeNull 必红；洗成 0/'' 同样必红。
+    //    另两列不得被连带改动——逐列独立性锁
+    await apiCall(page, 'PUT', `/production/outsourcing-receipts/${rcptId}`, { weight: null });
+    const afterNull = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/production/outsourcing-receipts/by-no/${receiptNo}`
+    );
+    expectMeasured(afterNull, 'weight', null, '显式 null=清空');
+    expectMeasured(afterNull, 'width', '185', '清空 weight 不得连带改 width');
+    expectMeasured(afterNull, 'gram_weight', '200.25', '清空 weight 不得连带改 gram_weight');
+
+    // ⑥ 三态·有值=覆盖（清空后按实补录，NULL 不是一扇门）
+    await apiCall(page, 'PUT', `/production/outsourcing-receipts/${rcptId}`, { weight: '22.25' });
+    const afterOverwrite = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/production/outsourcing-receipts/by-no/${receiptNo}`
+    );
+    expectMeasured(afterOverwrite, 'weight', '22.25', '有值=覆盖（清后补录）');
+    expectMeasured(afterOverwrite, 'width', '185', '有值=覆盖不得连带洗邻居');
+    expectMeasured(afterOverwrite, 'gram_weight', '200.25', '有值=覆盖不得连带洗邻居');
+
+    // ⑦ confirm 出参逐列透传（handler 返回 final_receipt=DB 行；receipt.rs:523-525 匹行透传
+    //    的数据源就是这三列，落匹行侧由后端集成锁 wave7① 真库钉死，此处锁 API 契约面）
+    const confirmed = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      `/production/outsourcing-receipts/${rcptId}/confirm`
+    );
+    expectKeyValue(confirmed, 'status', 'confirmed', 'confirm 出参词值');
+    expectMeasured(confirmed, 'weight', '22.25', 'confirm 出参三列');
+    expectMeasured(confirmed, 'width', '185', 'confirm 出参三列');
+    expectMeasured(confirmed, 'gram_weight', '200.25', 'confirm 出参三列');
+  });
+
+  test('23-06 #220 实测值值域负例：建单/更新口 0 与负数一律 400+VALIDATION_ERROR，被拒写入零变化（只断 status+信封 code，不断脱敏文案）', async ({
+    page,
+  }) => {
+    const ctx = getCtx();
+    const order = await seedOutsourcingOrder(page, 'MZV');
+    const orderId = requireNum(order.id, 'MZV 订单');
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
+
+    // A) 建单口逐列点名：weight=0 ⇒ 值域门（receipt.rs:230 validate_measured_values → :65-74，
+    //    与 m0075 DB CHECK 逐字同口径）先于 INSERT 拒绝；拒绝必须零落库——by-no 回读 404/NOT_FOUND
+    const badNoW = `E23-RW0${genCode('W0')}`;
+    const fa = await apiCallExpectFail(page, 'POST', '/production/outsourcing-receipts', {
+      receipt_no: badNoW,
+      outsourcing_order_id: orderId,
+      receipt_date: todayStr(),
+      product_id: ctx.productIds[0],
+      return_quantity: '10',
+      quality_status: 'qualified',
+      weight: '0',
+    });
+    expect(fa.status, `建单 weight=0 应 400，实际=${fa.status} body=${JSON.stringify(fa)}`).toBe(
+      400
+    );
+    expect(failureCode(fa), '建单实测值 0 机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    const faGone = await apiCallExpectFail(
+      page,
+      'GET',
+      `/production/outsourcing-receipts/by-no/${badNoW}`
+    );
+    expect(faGone.status, '被拒建单应零落库（by-no 回读 404）').toBe(404);
+    expect(failureCode(faGone), '被拒建单零落库回读机器码').toBe(APP_ERROR_CODES.NOT_FOUND);
+
+    // B) 建单口·width 负数（逐列成组校验缺一列＝该列可被伪造实测值绕过标签 fail-closed）
+    const fb = await apiCallExpectFail(page, 'POST', '/production/outsourcing-receipts', {
+      receipt_no: `E23-RW1${genCode('W1')}`,
+      outsourcing_order_id: orderId,
+      receipt_date: todayStr(),
+      product_id: ctx.productIds[0],
+      return_quantity: '10',
+      quality_status: 'qualified',
+      width: '-5',
+    });
+    expect(fb.status, `建单 width=-5 应 400，实际=${fb.status}`).toBe(400);
+    expect(failureCode(fb), '建单 width 负数机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+
+    // C) 建单口·gram_weight 负小数（-0.5 钉"<=0 拒绝"不是"<0"松门）
+    const fc = await apiCallExpectFail(page, 'POST', '/production/outsourcing-receipts', {
+      receipt_no: `E23-RW2${genCode('W2')}`,
+      outsourcing_order_id: orderId,
+      receipt_date: todayStr(),
+      product_id: ctx.productIds[0],
+      return_quantity: '10',
+      quality_status: 'qualified',
+      gram_weight: '-0.5',
+    });
+    expect(fc.status, `建单 gram_weight=-0.5 应 400，实际=${fc.status}`).toBe(400);
+    expect(failureCode(fc), '建单 gram_weight 负数机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+
+    // D) 对照组：正常带值 draft 收回单（更新口负例的零变化基准）
+    const okNo = `E23-RK${genCode('OK')}`;
+    const okRcpt = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: okNo,
+        outsourcing_order_id: orderId,
+        receipt_date: todayStr(),
+        product_id: ctx.productIds[0],
+        return_quantity: '10',
+        quality_status: 'qualified',
+        weight: '21.5',
+        width: '185',
+        gram_weight: '200.25',
+      }
+    );
+    const okId = requireNum(okRcpt.id, '对照组收回单');
+    CLEANUP.push({
+      path: `/production/outsourcing-receipts/${okId}`,
+      label: `receipt(mzv)#${okId}`,
+    });
+
+    // E/F/G) 更新口逐列值域门（receipt.rs:373-384 校验 `?` 前置于 active.update :387 ⇒
+    //    拒绝=库内零变化）：每列被拒后回读三列全部原值——既钉"越界没写进去"，
+    //    也钉"被拒更新没有半行副作用/没把别的列顺手洗掉"
+    for (const [col, bad] of [
+      ['weight', '0'],
+      ['width', '-1'],
+      ['gram_weight', '-0.01'],
+    ] as const) {
+      const f = await apiCallExpectFail(page, 'PUT', `/production/outsourcing-receipts/${okId}`, {
+        [col]: bad,
+      });
+      expect(
+        f.status,
+        `更新 ${col}=${bad} 应 400，实际=${f.status} body=${JSON.stringify(f)}`
+      ).toBe(400);
+      expect(failureCode(f), `更新 ${col} 越界机器码`).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+      const still = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/production/outsourcing-receipts/by-no/${okNo}`
+      );
+      expectMeasured(still, 'weight', '21.5', `${col}=${bad} 被拒后零变化`);
+      expectMeasured(still, 'width', '185', `${col}=${bad} 被拒后零变化`);
+      expectMeasured(still, 'gram_weight', '200.25', `${col}=${bad} 被拒后零变化`);
+    }
   });
 });
