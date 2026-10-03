@@ -13202,6 +13202,31 @@ export default {
       closed: 'Closed',
       cancelled: 'Cancelled',
     },
+    receipt: {
+      measuredTitle: 'Rolled measured values (data source of the finished-fabric stock-in label)',
+      measured: {
+        weight: 'Weight (kg)',
+        width: 'Width (cm)',
+        gramWeight: 'Gram weight (g/m²)',
+        hint: 'Leave empty when not measured; pieces produced by this receipt cannot print a finished-fabric stock-in label.',
+        weightPositive:
+          'Weight must be greater than 0; entering 0 fabricates a measured value. Leave empty if not measured.',
+        widthPositive:
+          'Width must be greater than 0; entering 0 fabricates a measured value. Leave empty if not measured.',
+        gramWeightPositive:
+          'Gram weight must be greater than 0; entering 0 fabricates a measured value. Leave empty if not measured.',
+        notRecorded: 'Not recorded',
+        editTitle: 'Record rolled measured values',
+        saved: 'Measured values recorded',
+        cleared: 'Measured values cleared; this piece cannot print a label yet',
+        weightRequired:
+          'Enter the measured weight; the stock-in label reads its weight from this value',
+        widthRequired:
+          'Enter the measured width; the stock-in label reads its width from this value',
+        gramWeightRequired:
+          'Enter the measured gram weight; the stock-in label reads its gram weight from this value',
+      },
+    },
   },
   occupationalHealth: {
     examType: {

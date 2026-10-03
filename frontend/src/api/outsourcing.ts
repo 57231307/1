@@ -246,6 +246,14 @@ export interface OutsourcingReceipt {
   abnormal_loss_amount: string;
   quality_status: string | null;
   grade: string | null;
+  // #220 打卷实测值三列（m0075 DB 可空列，CHECK >0 或 NULL）：键逐字符对齐
+  // backend/src/models/outsourcing_receipt.rs:72,75,78（Option<Decimal>）。
+  // rust_decimal 序列化为 JSON **字符串**（如 "12.5000"）→ string 而非 number；
+  // null = 未补录。参与数值运算/回显数值输入控件前须 Number() 归一，
+  // 直接把出参当 number 用（.toFixed 等）属类型谎言（运行期崩过）。
+  weight: string | null;
+  width: string | null;
+  gram_weight: string | null;
   inventory_transaction_id: number | null;
   inspection_id: number | null;
   status: string;
@@ -273,6 +281,58 @@ export function getOutsourcingReceiptList(
 
 export function createOutsourcingReceipt(data: Record<string, unknown>) {
   return request.post('/production/outsourcing-receipts', data);
+}
+
+/**
+ * 更新收回单载荷 —— 逐字段对齐后端 UpdateOutsourcingReceiptRequest
+ * （services/outsourcing_ops/types.rs:243-289，三态语义 RFC 7386）：
+ * 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+ * 仅 draft 状态可更新（receipt.rs:316-321）。
+ * NOT NULL 列（receipt_date/product_id/return_quantity/loss_quantity）不声明 null——
+ * 显式 null 被后端"不能清空"拒绝（receipt.rs:296-313）。
+ * 打卷实测值三列 weight/width/gram_weight 为 DB 可空 DECIMAL（types.rs:282-288，
+ * 值域 >0，validate_measured_values receipt.rs:76-86）：传 null=清空回"未补录"，
+ * 清空仅退回 NULL，不存在回落主数据语义。rust_decimal 入参以 JSON number 提交。
+ */
+export interface UpdateOutsourcingReceiptPayload {
+  /** 收回日期（NOT NULL 列）：有值覆盖/键缺席保持，禁显式 null */
+  receipt_date?: string;
+  /** 成品 ID（NOT NULL 列）：同上 */
+  product_id?: number;
+  /** 色号（DB 可空）：显式 null=清空 */
+  color_no?: string | null;
+  /** 缸号（DB 可空）：显式 null=清空 */
+  dye_lot_no?: string | null;
+  /** 匹号（DB 可空）：显式 null=清空 */
+  batch_no?: string | null;
+  /** 入库仓库 ID（DB 可空）：显式 null=清空 */
+  warehouse_id?: number | null;
+  /** 收回数量（NOT NULL 列，>0）：禁显式 null */
+  return_quantity?: number;
+  /** 损耗数量（NOT NULL 列）：禁显式 null */
+  loss_quantity?: number;
+  /** 质检结论（DB 可空，词表 outsourcing_receipt_quality_status）：显式 null=清空 */
+  quality_status?: string | null;
+  /** 等级（DB 可空）：显式 null=清空 */
+  grade?: string | null;
+  /** 备注（DB 可空）：显式 null=清空 */
+  remarks?: string | null;
+  /** 实测重量 kg（DB 可空，>0）：null=清空回"未补录" */
+  weight?: number | null;
+  /** 实测幅宽 cm（DB 可空，>0）：null=清空回"未补录" */
+  width?: number | null;
+  /** 实测克重 g/m²（DB 可空，>0）：null=清空回"未补录" */
+  gram_weight?: number | null;
+}
+
+export function updateOutsourcingReceipt(
+  id: number,
+  data: UpdateOutsourcingReceiptPayload
+): Promise<ApiResponse<OutsourcingReceipt>> {
+  return request.put<ApiResponse<OutsourcingReceipt>>(
+    `/production/outsourcing-receipts/${id}`,
+    data
+  );
 }
 
 /**

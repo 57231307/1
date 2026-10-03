@@ -13138,6 +13138,25 @@ export default {
       closed: '已关闭',
       cancelled: '已取消',
     },
+    receipt: {
+      measuredTitle: '打卷实测值（成品布入库标签数据源）',
+      measured: {
+        weight: '重量(kg)',
+        width: '幅宽(cm)',
+        gramWeight: '克重(g/m²)',
+        hint: '留空表示未补录；该收回单产出的匹将无法打印成品布入库标签',
+        weightPositive: '重量必须大于 0；填 0 属伪造实测值，无实测数据请留空',
+        widthPositive: '幅宽必须大于 0；填 0 属伪造实测值，无实测数据请留空',
+        gramWeightPositive: '克重必须大于 0；填 0 属伪造实测值，无实测数据请留空',
+        notRecorded: '未补录',
+        editTitle: '补录打卷实测值',
+        saved: '实测值已补录',
+        cleared: '已清空实测值，该匹将暂不可打印标签',
+        weightRequired: '请录入实测重量，成品布入库标签的重量取该实测值',
+        widthRequired: '请录入实测幅宽，成品布入库标签的幅宽取该实测值',
+        gramWeightRequired: '请录入实测克重，成品布入库标签的克重取该实测值',
+      },
+    },
   },
   occupationalHealth: {
     examType: {

@@ -111,6 +111,17 @@
               </template>
             </el-table-column>
             <el-table-column prop="grade" label="等级" width="80" />
+            <!-- 打卷实测值三列（#220 成品布入库标签数据源）：出参为 Decimal 字符串，
+                 未录入（null）显示「未补录」占位文案，不显示空/0（0 属伪造实测值） -->
+            <el-table-column :label="$t('outsourcing.receipt.measured.weight')" width="110">
+              <template #default="{ row }">{{ measuredCellText(row.weight) }}</template>
+            </el-table-column>
+            <el-table-column :label="$t('outsourcing.receipt.measured.width')" width="110">
+              <template #default="{ row }">{{ measuredCellText(row.width) }}</template>
+            </el-table-column>
+            <el-table-column :label="$t('outsourcing.receipt.measured.gramWeight')" width="110">
+              <template #default="{ row }">{{ measuredCellText(row.gram_weight) }}</template>
+            </el-table-column>
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'confirmed' ? 'success' : 'info'">{{
@@ -118,7 +129,7 @@
                 }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
                 <!-- 确认入口与后端 confirm 两道硬拒同口径（提前提示，不替代后端校验）：
                      状态门 receipt.rs:326-331 仅 draft；数量门 receipt.rs:338-342
@@ -139,6 +150,15 @@
                     >
                   </span>
                 </el-tooltip>
+                <!-- 补录打卷实测值：可见性与本页既有收回单操作按钮同款写法（状态门控、
+                     无独立权限键）；后端 update 状态门 receipt.rs:316-321 仅 draft，
+                     confirmed 后实测值已随确认透传进匹行，本入口不再可达属预期 -->
+                <el-button
+                  v-if="row.status === 'draft'"
+                  size="small"
+                  @click="openMeasuredDialog(row)"
+                  >{{ $t('outsourcing.receipt.measured.editTitle') }}</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -378,6 +398,40 @@
         <el-form-item label="等级">
           <el-input v-model="receiptForm.grade" placeholder="A / B / C" />
         </el-form-item>
+        <!-- 打卷实测值（#220 成品布入库标签数据源）：DB 可空列，可留空不录入；
+             建单直写口径（CreateOutsourcingReceiptRequest types.rs:230-234），
+             留空=落 NULL（未补录），填 0/负数本地按 >0 拦下（同后端 validate_measured_values） -->
+        <el-divider content-position="left">{{
+          $t('outsourcing.receipt.measuredTitle')
+        }}</el-divider>
+        <el-form-item :label="$t('outsourcing.receipt.measured.weight')">
+          <el-input-number
+            v-model="receiptForm.weight"
+            :min="0"
+            :precision="4"
+            :placeholder="$t('outsourcing.receipt.measured.weightRequired')"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('outsourcing.receipt.measured.width')">
+          <el-input-number
+            v-model="receiptForm.width"
+            :min="0"
+            :precision="4"
+            :placeholder="$t('outsourcing.receipt.measured.widthRequired')"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('outsourcing.receipt.measured.gramWeight')">
+          <el-input-number
+            v-model="receiptForm.gram_weight"
+            :min="0"
+            :precision="4"
+            :placeholder="$t('outsourcing.receipt.measured.gramWeightRequired')"
+            class="w-full"
+          />
+        </el-form-item>
+        <div class="measured-hint">{{ $t('outsourcing.receipt.measured.hint') }}</div>
         <el-form-item label="备注"
           ><el-input v-model="receiptForm.remarks" type="textarea" :rows="2"
         /></el-form-item>
@@ -387,11 +441,57 @@
         <el-button type="primary" :loading="receiptSaving" @click="onSaveReceipt">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 补录打卷实测值（仅 draft，后端 update 状态门 receipt.rs:316-321）：
+         三态提交——改动/录入=覆盖、清空已有值=显式 null 清空回未补录、未动=键缺席保持 -->
+    <el-dialog
+      v-model="measuredDialogVisible"
+      :title="$t('outsourcing.receipt.measured.editTitle')"
+      width="560"
+    >
+      <el-form label-width="110px">
+        <el-form-item :label="$t('outsourcing.receipt.measured.weight')">
+          <el-input-number
+            v-model="measuredForm.weight"
+            :min="0"
+            :precision="4"
+            :placeholder="$t('outsourcing.receipt.measured.weightRequired')"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('outsourcing.receipt.measured.width')">
+          <el-input-number
+            v-model="measuredForm.width"
+            :min="0"
+            :precision="4"
+            :placeholder="$t('outsourcing.receipt.measured.widthRequired')"
+            class="w-full"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('outsourcing.receipt.measured.gramWeight')">
+          <el-input-number
+            v-model="measuredForm.gram_weight"
+            :min="0"
+            :precision="4"
+            :placeholder="$t('outsourcing.receipt.measured.gramWeightRequired')"
+            class="w-full"
+          />
+        </el-form-item>
+        <div class="measured-hint">{{ $t('outsourcing.receipt.measured.hint') }}</div>
+      </el-form>
+      <template #footer>
+        <el-button @click="measuredDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="measuredSaving" @click="onSaveMeasured">{{
+          $t('common.save')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
@@ -422,11 +522,15 @@ import {
   createOutsourcingItem,
   getOutsourcingReceiptList,
   createOutsourcingReceipt,
+  updateOutsourcingReceipt,
   confirmOutsourcingReceipt,
   type OutsourcingOrder,
   type OutsourcingOrderItem,
   type OutsourcingReceipt,
+  type UpdateOutsourcingReceiptPayload,
 } from '@/api/outsourcing';
+
+const { t } = useI18n();
 
 /**
  * 收回质检结论展示：结论为空只可能出现在未归一的历史行上（v15 域内的归一语句 已把
@@ -693,6 +797,10 @@ const receiptForm = reactive({
   quality_status: OUTSOURCING_QUALITY_STATUS.qualified,
   grade: '',
   remarks: '',
+  // 打卷实测值（DB 可空列，可留空=未补录；0 非合法实测值，判空一律 == null）
+  weight: undefined as number | undefined,
+  width: undefined as number | undefined,
+  gram_weight: undefined as number | undefined,
 });
 
 async function loadReceipts() {
@@ -709,9 +817,42 @@ async function loadReceipts() {
 }
 
 const openCreateReceipt = async () => {
+  // 实测值回到未填态（可空列，NULL=未补录），不沿用上一单的编辑残留
+  receiptForm.weight = undefined;
+  receiptForm.width = undefined;
+  receiptForm.gram_weight = undefined;
   receiptForm.receipt_no = await generateUniqueDocNo('ORC', 'outsourcing_receipt');
   receiptDialogVisible.value = true;
 };
+
+/**
+ * 实测值 >0 本地校验（与后端 validate_measured_values receipt.rs:76-86 同口径）：
+ * 留空放行（DB 可空=未补录）；0/负数按列点名拒绝并给出留空指引，不放行到后端吃 400。
+ */
+function checkMeasuredPositive(form: {
+  weight?: number | null;
+  width?: number | null;
+  gram_weight?: number | null;
+}): boolean {
+  if (form.weight != null && form.weight <= 0) {
+    ElMessage.warning(t('outsourcing.receipt.measured.weightPositive'));
+    return false;
+  }
+  if (form.width != null && form.width <= 0) {
+    ElMessage.warning(t('outsourcing.receipt.measured.widthPositive'));
+    return false;
+  }
+  if (form.gram_weight != null && form.gram_weight <= 0) {
+    ElMessage.warning(t('outsourcing.receipt.measured.gramWeightPositive'));
+    return false;
+  }
+  return true;
+}
+
+/** 实测值列表格单元：null=未补录显示占位文案（不显示空/0）；有值如实显示后端出参原文 */
+function measuredCellText(value: string | null): string {
+  return value == null ? t('outsourcing.receipt.measured.notRecorded') : value;
+}
 
 const onSaveReceipt = async () => {
   if (
@@ -722,6 +863,9 @@ const onSaveReceipt = async () => {
     !receiptForm.return_quantity
   ) {
     ElMessage.warning('请填写必填项：单号/委外单/日期/产品/数量');
+    return;
+  }
+  if (!checkMeasuredPositive(receiptForm)) {
     return;
   }
   receiptSaving.value = true;
@@ -738,12 +882,102 @@ const onSaveReceipt = async () => {
       quality_status: receiptForm.quality_status || null,
       grade: receiptForm.grade || null,
       remarks: receiptForm.remarks || null,
+      // 建单直写口径（CreateOutsourcingReceiptRequest.weight/width/gram_weight
+      // types.rs:230-234 Option<Decimal>）：留空=??null 如实落 NULL（未补录），
+      // 建单无"保持原值"态故不涉及键缺席；>0 已由 checkMeasuredPositive 前置拦截
+      weight: receiptForm.weight ?? null,
+      width: receiptForm.width ?? null,
+      gram_weight: receiptForm.gram_weight ?? null,
     });
     ElMessage.success('收回单已创建');
     receiptDialogVisible.value = false;
     await loadReceipts();
   } finally {
     receiptSaving.value = false;
+  }
+};
+
+// ========== 补录打卷实测值（PUT /production/outsourcing-receipts/{id}，仅 draft） ==========
+const measuredDialogVisible = ref(false);
+const measuredSaving = ref(false);
+const measuredReceiptId = ref<number | null>(null);
+/** 打开对话框时的库中原值（后端出参 string|null），三态 diff 的基准，保存前不被改写 */
+const measuredOriginal = reactive<{
+  weight: string | null;
+  width: string | null;
+  gram_weight: string | null;
+}>({ weight: null, width: null, gram_weight: null });
+const measuredForm = reactive({
+  weight: undefined as number | undefined,
+  width: undefined as number | undefined,
+  gram_weight: undefined as number | undefined,
+});
+
+const openMeasuredDialog = (row: OutsourcingReceipt) => {
+  measuredReceiptId.value = row.id;
+  measuredOriginal.weight = row.weight;
+  measuredOriginal.width = row.width;
+  measuredOriginal.gram_weight = row.gram_weight;
+  // 回显：Decimal 出参为字符串，el-input-number 绑定须 Number() 归一；null=未补录=留空
+  measuredForm.weight = row.weight == null ? undefined : Number(row.weight);
+  measuredForm.width = row.width == null ? undefined : Number(row.width);
+  measuredForm.gram_weight = row.gram_weight == null ? undefined : Number(row.gram_weight);
+  measuredDialogVisible.value = true;
+};
+
+/**
+ * 单字段三态映射（UpdateOutsourcingReceiptRequest double_option 三态语义
+ * types.rs:282-288 / receipt.rs:373-383）：
+ * 留空且原值空 ⇒ undefined（键缺席=保持原值，不下发该键）；
+ * 留空且原值有 ⇒ null（显式清空回"未补录"）；
+ * 有值 ⇒ 覆盖写入。
+ */
+function measuredTriState(cur: number | undefined, orig: string | null): number | null | undefined {
+  if (cur == null) {
+    return orig == null ? undefined : null;
+  }
+  return cur;
+}
+
+const onSaveMeasured = async () => {
+  if (measuredReceiptId.value == null) {
+    return;
+  }
+  if (!checkMeasuredPositive(measuredForm)) {
+    return;
+  }
+  const weight = measuredTriState(measuredForm.weight, measuredOriginal.weight);
+  const width = measuredTriState(measuredForm.width, measuredOriginal.width);
+  const gramWeight = measuredTriState(measuredForm.gram_weight, measuredOriginal.gram_weight);
+  const payload: UpdateOutsourcingReceiptPayload = {};
+  if (weight !== undefined) {
+    payload.weight = weight;
+  }
+  if (width !== undefined) {
+    payload.width = width;
+  }
+  if (gramWeight !== undefined) {
+    payload.gram_weight = gramWeight;
+  }
+  if (!('weight' in payload) && !('width' in payload) && !('gram_weight' in payload)) {
+    // 三字段均无改动：不发请求、不伪造"已保存"提示，直接关闭
+    measuredDialogVisible.value = false;
+    return;
+  }
+  measuredSaving.value = true;
+  try {
+    await updateOutsourcingReceipt(measuredReceiptId.value, payload);
+    // 本次提交仅含清空（无任何写入值）⇒ 清空提示；含写入/覆盖 ⇒ 补录成功提示
+    const clearedOnly =
+      [weight, width, gramWeight].some(v => v === null) &&
+      [weight, width, gramWeight].every(v => v === null || v === undefined);
+    ElMessage.success(
+      t(clearedOnly ? 'outsourcing.receipt.measured.cleared' : 'outsourcing.receipt.measured.saved')
+    );
+    measuredDialogVisible.value = false;
+    await loadReceipts();
+  } finally {
+    measuredSaving.value = false;
   }
 };
 
@@ -825,5 +1059,11 @@ onMounted(() => {
 .items-title {
   font-weight: 600;
   font-size: 14px;
+}
+.measured-hint {
+  margin: -8px 0 12px 110px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
 }
 </style>
