@@ -37,7 +37,6 @@ import {
   ensureTestEntities,
   failureCode,
   genCode,
-  getCtx,
   loginViaUI,
   tryCleanup,
   API_BASE,
@@ -57,7 +56,6 @@ test.describe('系统管理 - 03 用户改密闭环', () => {
     // ---- 前置：admin 真实登录（建用户需要 admin 会话）----
     await loginViaUI(page);
     await ensureTestEntities(page);
-    const ctx = getCtx();
 
     const username = `e2e_pwd_${genCode('U')}`.toLowerCase();
     const suffix = Math.floor(Math.random() * 1e6)
@@ -70,17 +68,32 @@ test.describe('系统管理 - 03 用户改密闭环', () => {
     expect(pwOld.toLowerCase().includes(username), '前置：P0 不得含用户名').toBe(false);
     expect(pwNew.toLowerCase().includes(username), '前置：P1 不得含用户名').toBe(false);
 
-    const created = await apiCall<{ id?: number; username?: string }>(page, 'POST', '/users', {
-      username,
-      password: pwOld,
-      role_id: ctx.roleId ?? undefined,
-    });
+    // 一次性用户**故意不带角色**建：#4671 本用例的真红是 `POST /users/change-password`
+    // 返回 403 `FORBIDDEN`「没有关联角色，无法访问」（xr35/backend.log:38084，认证成功
+    // user_id=42 之后被 permission.rs 的 extract_role_id 拦死）。改密只操作调用者自身凭据，
+    // 属自助端点，不得要求任何业务角色/权限码；把"无角色"从偶然前提改为显式前提并回读校验，
+    // 本用例才成为该豁免（middleware/public_routes.rs AUTH_ONLY_PATHS + permission.rs
+    // 判定顺序前移）的活体锁——将来 setup 若给账号自动塞角色，用例会绿而回归检不出来。
+    // 用户名同样保持分片/进程唯一（genCode 范式），不复用任何种子账号名。
+    const created = await apiCall<{ id?: number; username?: string; role_id?: number | null }>(
+      page,
+      'POST',
+      '/users',
+      {
+        username,
+        password: pwOld,
+      }
+    );
     const userId = created.data?.id;
     expect(
       userId,
       `创建一次性用户应返回 id（POST /users 真实响应）：${JSON.stringify(created)}`
     ).toBeTruthy();
     expect(created.data?.username, '创建响应应回显用户名').toBe(username);
+    expect(
+      created.data?.role_id ?? null,
+      `[system/03] 前置：一次性用户必须无角色（role_id=NULL），实际 ${JSON.stringify(created.data)}——带角色即本用例失去对"自助端点被 RBAC 拦死"回归的检出力`
+    ).toBeNull();
 
     try {
       // ---- 1. 新用户以旧密码建立真实会话（login 免 CSRF，Set-Cookie 入本 context）----
