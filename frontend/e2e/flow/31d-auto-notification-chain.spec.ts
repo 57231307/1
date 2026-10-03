@@ -40,6 +40,36 @@ async function markRead(page: import('@playwright/test').Page, id: number): Prom
   await tryCleanup(page, 'POST', `/notifications/${id}/read`, '[31d] 标记已读');
 }
 
+/**
+ * 「标记已读」本身是被测动作，不能只当清理用。
+ * 原写法把它包进 tryCleanup（失败仅 warn），于是 POST /notifications/{id}/read 整体坏掉
+ * 也不会有任何用例察觉——W5b 全仓审计把这处列为"吞错软化"。现改为执行后立即两侧回读，
+ * 把行为真实钉住：UNREAD 里不再有它、READ 里必须有它。
+ * 清理用的 delete 仍走 tryCleanup（删除本身由 45-deletion-guards 等套件负责验证）。
+ */
+async function markReadAndAssert(
+  page: import('@playwright/test').Page,
+  id: number,
+  tag: string
+): Promise<void> {
+  const res = await apiCall(page, 'POST', `/notifications/${id}/read`);
+  expect(res?.code, `[31d-${tag}] 标记已读应返回成功码 200，实际信封：${JSON.stringify(res)}`).toBe(
+    200
+  );
+
+  const unread = await listNotifications(page, 'UNREAD');
+  expect(
+    unread.some(n => n.id === id),
+    `[31d-${tag}] 标记已读后 id=${id} 不应仍出现在 UNREAD 列表`
+  ).toBe(false);
+
+  const read = await listNotifications(page, 'READ');
+  expect(
+    read.some(n => n.id === id),
+    `[31d-${tag}] 标记已读后应能在 READ 列表回读到 id=${id}`
+  ).toBe(true);
+}
+
 async function deleteNotification(
   page: import('@playwright/test').Page,
   id: number
@@ -128,9 +158,9 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    await markRead(page, orderNotif!.id);
+    await markReadAndAssert(page, orderNotif!.id, 'A');
     await deleteNotification(page, orderNotif!.id);
-    await markRead(page, createdNotif!.id);
+    await markReadAndAssert(page, createdNotif!.id, 'A');
     await deleteNotification(page, createdNotif!.id);
 
     // 清理订单
@@ -181,7 +211,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    await markRead(page, approvalNotif!.id);
+    await markReadAndAssert(page, approvalNotif!.id, 'B');
     await deleteNotification(page, approvalNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-B]');
@@ -278,7 +308,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .map(n => n.title)
         .join('|')}）`
     ).toBeTruthy();
-    await markRead(page, shipNotif!.id);
+    await markReadAndAssert(page, shipNotif!.id, 'C');
     await deleteNotification(page, shipNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-C]');
@@ -306,7 +336,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     );
 
     if (stockNotif) {
-      await markRead(page, stockNotif.id);
+      await markReadAndAssert(page, stockNotif.id, 'D');
       await deleteNotification(page, stockNotif.id);
     } else {
       // TODO(doto iter23)：本链路要变成硬断言，需先把某商品的 safety_stock 抬到
@@ -401,7 +431,7 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
         .join('|')}）`
     ).toBeTruthy();
 
-    await markRead(page, payNotif!.id);
+    await markReadAndAssert(page, payNotif!.id, 'E');
     await deleteNotification(page, payNotif!.id);
 
     await tryCleanup(page, 'DELETE', `/ap/payment-requests/${requestId}`, '[31d-F]');
