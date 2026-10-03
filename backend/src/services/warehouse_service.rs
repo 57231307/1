@@ -1,14 +1,15 @@
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, NotSet, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, SqlErr, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, ExprTrait, NotSet, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, SqlErr, TransactionTrait,
 };
 
 use crate::models::warehouse::{self, Entity as WarehouseEntity};
 // 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::messages::err_msg;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::sql_escape::safe_like_pattern;
 
@@ -332,13 +333,178 @@ impl WarehouseService {
         Ok(result)
     }
 
-    /// 删除仓库（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际删除人。）
+    /// 删除仓库（含真实操作人 user_id 审计追溯）。
+    ///
+    /// 口径与 supplier_service::delete_supplier / crm lead 同族：先做引用存在性预检，
+    /// 命中即返回可外显业务拒绝（HTTP 400 / BUSINESS_ERROR），不再让数据库 FK 约束在
+    /// DELETE 阶段裸冒 DATABASE_ERROR(500)（CI run #4672：DELETE /warehouses/3 被
+    /// fk_greige_fabric_warehouse 拒绝后 500）。禁止 CASCADE 静默删子行，禁止吞错返回成功。
+    ///
+    /// 与 supplier 先例的差异（更严）：预检查询全部放进与删除**同一事务**、且在父行
+    /// lock_exclusive 之后执行——PG 子表插入会对父行取 FOR KEY SHARE，与 FOR UPDATE 互斥，
+    /// 并发"插入引用行"要么先提交被本事务的 COUNT 看到、要么阻塞到仓库行已删（其 FK
+    /// 校验自然失败），"预检→删除"之间的 TOCTOU 窗口就此关闭。
     pub async fn delete(&self, id: i32, user_id: i32) -> Result<(), AppError> {
-        // P0 8-3 修复：delete 操作补审计日志
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<
-            WarehouseEntity,
-            _,
-        >(&*self.db, "warehouse", id, Some(user_id))
-        .await
+        let txn = (*self.db).begin().await?;
+
+        // 存在性校验 + 父行排他锁（锁持有至 txn 提交）；缺失 → 404，与既有语义一致
+        warehouse::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("仓库不存在"))?;
+
+        // 引用存在性预检：命中任一引用即拒绝，文案只给"数量 + 业务名"，
+        // 不输出表名/约束名/内部 ID 列表（防出参泄露面）。
+        if let Some((label, count)) = self.find_warehouse_references(id, &txn).await? {
+            return Err(AppError::business_displayable(format!(
+                "该仓库已被 {count}{label}占用，无法删除，请先处理关联数据"
+            )));
+        }
+
+        // P0 8-3 修复：delete 操作补审计日志（resource_type 保持 "warehouse"，审计查询口径不变）
+        let delete_result =
+            crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+                WarehouseEntity,
+                _,
+            >(&txn, "warehouse", id, Some(user_id))
+            .await;
+        // 兜底映射（非吞异常、非返回成功）：引用表未纳入前置枚举或 deferred 约束在 DELETE
+        // 阶段真正命中 FK 时，降级为可读业务拒绝；其余 DB 错误原样传播（真实故障保留 500）。
+        if let Err(e) = delete_result {
+            return Err(Self::map_warehouse_fk_error(e));
+        }
+
+        txn.commit()
+            .await
+            .map_err(|e| Self::map_warehouse_fk_error(AppError::from(e)))
+    }
+
+    /// 将删除阶段命中数据库 FK/关联错误（`AppError::DatabaseError(DB_RELATION)`，由
+    /// `From<DbErr>` 对 foreign key 违规归类）映射为可外显业务拒绝；非 FK 类数据库错误
+    /// 原样返回。与 supplier_service::map_supplier_fk_error 同型。
+    fn map_warehouse_fk_error(err: AppError) -> AppError {
+        match &err {
+            AppError::DatabaseError(m) if m == err_msg::DB_RELATION => {
+                AppError::business_displayable("该仓库仍被业务数据占用，无法删除，请先处理关联数据")
+            }
+            _ => err,
+        }
+    }
+
+    /// 枚举所有对 warehouses(id) 建外键的表，返回首个存在引用的 (业务可读名称, 数量)。
+    /// 清单与迁移 grep `REFERENCES "warehouses" ("id")` 逐一对齐：
+    /// purchase_receipt / sales_delivery / sales_return / inventory_transfers(from+to 双列) /
+    /// inventory_adjustments / greige_fabric / inventory_stocks / inventory_reservations /
+    /// inventory_transactions / inventory_piece / inventory_count_items / warehouse_locations /
+    /// products。FK 不区分业务状态与软删标记（如 greige_fabric.is_deleted），计数口径与 FK
+    /// 对齐：只要存在任意引用行，删除即会被数据库拒绝，故此处一律计入。
+    /// products.warehouse_id 为 m0001 DDL 遗留列（实体 models/product.rs 未映射该列），
+    /// 按 DDL 用参数化原生 COUNT 核对，不为凑实体字段新造第二套映射。
+    async fn find_warehouse_references<C: ConnectionTrait>(
+        &self,
+        id: i32,
+        db: &C,
+    ) -> Result<Option<(&'static str, u64)>, AppError> {
+        use crate::models::{
+            greige_fabric, inventory_adjustment, inventory_count_item, inventory_piece,
+            inventory_reservation, inventory_stock, inventory_transaction, inventory_transfer,
+            location, purchase_receipt, sales_delivery, sales_return,
+        };
+
+        // 单据类在前、台账/库位/档案类在后：用户最先能行动的是"处理单据"
+        macro_rules! first_hit {
+            ($entity:ident, $col:expr, $label:literal) => {{
+                let n = $entity::Entity::find()
+                    .filter($col.eq(id))
+                    .count(db)
+                    .await?;
+                if n > 0 {
+                    return Ok(Some(($label, n)));
+                }
+            }};
+        }
+
+        first_hit!(
+            purchase_receipt,
+            purchase_receipt::Column::WarehouseId,
+            "张入库单"
+        );
+        first_hit!(
+            sales_delivery,
+            sales_delivery::Column::WarehouseId,
+            "张销售出库单"
+        );
+        first_hit!(
+            sales_return,
+            sales_return::Column::WarehouseId,
+            "张销售退货单"
+        );
+        first_hit!(
+            inventory_adjustment,
+            inventory_adjustment::Column::WarehouseId,
+            "张库存调整单"
+        );
+
+        // 调拨单：from/to 双列各建一条 FK（fk_inventory_transfers_from/to_warehouse）
+        let n = inventory_transfer::Entity::find()
+            .filter(
+                inventory_transfer::Column::FromWarehouseId
+                    .eq(id)
+                    .or(inventory_transfer::Column::ToWarehouseId.eq(id)),
+            )
+            .count(db)
+            .await?;
+        if n > 0 {
+            return Ok(Some(("张调拨单", n)));
+        }
+
+        first_hit!(
+            greige_fabric,
+            greige_fabric::Column::WarehouseId,
+            "条坯布库存记录"
+        );
+        first_hit!(
+            inventory_stock,
+            inventory_stock::Column::WarehouseId,
+            "条库存台账记录"
+        );
+        first_hit!(
+            inventory_reservation,
+            inventory_reservation::Column::WarehouseId,
+            "条库存预留记录"
+        );
+        first_hit!(
+            inventory_transaction,
+            inventory_transaction::Column::WarehouseId,
+            "条出入库流水记录"
+        );
+        first_hit!(
+            inventory_piece,
+            inventory_piece::Column::WarehouseId,
+            "条库存匹码记录"
+        );
+        first_hit!(
+            inventory_count_item,
+            inventory_count_item::Column::WarehouseId,
+            "条盘点明细记录"
+        );
+        first_hit!(location, location::Column::WarehouseId, "个库位");
+
+        let row: Option<sea_orm::QueryResult> = db
+            .query_one_raw(sea_orm::Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                r#"SELECT COUNT(*) FROM "products" WHERE "warehouse_id" = $1"#,
+                [id.into()],
+            ))
+            .await?;
+        let n = row
+            .and_then(|r| r.try_get_by_index::<i64>(0).ok())
+            .unwrap_or(0);
+        if n > 0 {
+            return Ok(Some(("个产品档案的默认仓关联", n as u64)));
+        }
+
+        Ok(None)
     }
 }
