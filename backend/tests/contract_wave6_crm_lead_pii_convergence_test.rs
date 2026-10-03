@@ -65,10 +65,58 @@ const A_PHONE: &str = "13812348888";
 const A_TEL: &str = "03191234567";
 const A_EMAIL: &str = "alice@example.com";
 const A_ADDRESS: &str = "河北省邢台市某某路 1 号";
+/// lead 2（回收目标）自身的 PII 原文——#4671 判责 :137：本族旧写法把掩码期望
+/// 硬编码成 lead 1 的 `138****8888`，回收 lead 2 得 `137****1111`（已正确掩码）
+/// 却因"未按被断言行参数化"而红。正解是**参数化 + 收紧**：每行断言自己的
+/// 掩码期望，同时禁止出参出现**两行任何一列**的原文（跨行泄漏也在网内）。
+const B_PHONE: &str = "13700001111";
+const B_TEL: &str = "01088886666";
+const B_EMAIL: &str = "carol@example.com";
+const B_ADDRESS: &str = "地址乙";
 /// 掩码后期望值（与 utils/field_mask.rs::mask_phone/mask_email 逐字符一致）
 const MASKED_PHONE: &str = "138****8888";
 const MASKED_TEL: &str = "031****4567";
 const MASKED_EMAIL: &str = "a***@example.com";
+const MASKED_B_PHONE: &str = "137****1111";
+const MASKED_B_TEL: &str = "010****6666";
+const MASKED_B_EMAIL: &str = "c***@example.com";
+
+/// 某一行的 PII 档案：原文（进禁止清单）+ 该行自己的掩码期望。
+struct LeadPii {
+    raw_mobile: &'static str,
+    raw_tel: &'static str,
+    raw_email: &'static str,
+    raw_address: &'static str,
+    masked_mobile: &'static str,
+    masked_tel: &'static str,
+    masked_email: &'static str,
+}
+
+const LEAD_1_PII: LeadPii = LeadPii {
+    raw_mobile: A_PHONE,
+    raw_tel: A_TEL,
+    raw_email: A_EMAIL,
+    raw_address: A_ADDRESS,
+    masked_mobile: MASKED_PHONE,
+    masked_tel: MASKED_TEL,
+    masked_email: MASKED_EMAIL,
+};
+const LEAD_2_PII: LeadPii = LeadPii {
+    raw_mobile: B_PHONE,
+    raw_tel: B_TEL,
+    raw_email: B_EMAIL,
+    raw_address: B_ADDRESS,
+    masked_mobile: MASKED_B_PHONE,
+    masked_tel: MASKED_B_TEL,
+    masked_email: MASKED_B_EMAIL,
+};
+
+/// 出参禁止出现的原文清单：**两行全部 PII 恒禁**（不限于被断言行自身）——
+/// 行 1 的响应里出现行 2 的手机号同样是泄漏；旧写法只禁 A 行四件套，属未参数化
+/// 的半张网，本次随参数化一并收紧。
+const ALL_BANNED_RAW_PII: [&str; 8] = [
+    A_PHONE, A_TEL, A_EMAIL, A_ADDRESS, B_PHONE, B_TEL, B_EMAIL, B_ADDRESS,
+];
 
 fn make_auth(user_id: i32, role_id: i32, data_scope: &str) -> AuthContext {
     AuthContext {
@@ -128,8 +176,8 @@ async fn seeded_state(permissions: Option<&str>) -> AppState {
              priority,created_at,updated_at) VALUES
              (1,'LD001','website','pool','甲公司','张三','{A_PHONE}','{A_TEL}','{A_EMAIL}',
               '{A_ADDRESS}',{USER_A},'销售甲','low','2026-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
-             (2,'LD002','ad','new','乙公司','李四','13700001111','01088886666','carol@example.com',
-              '地址乙',{USER_A},'销售甲','high','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z')"
+             (2,'LD002','ad','new','乙公司','李四','{B_PHONE}','{B_TEL}','{B_EMAIL}',
+              '{B_ADDRESS}',{USER_A},'销售甲','high','2026-01-02T00:00:00Z','2020-01-01T00:00:00Z')"
         ),
     )
     .await;
@@ -212,31 +260,33 @@ async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) 
 }
 
 /// 默认脱敏四件套断言：mobile_phone/tel_phone/email 掩码 + address 整键移除。
+/// **按被断言行参数化**（`pii` 传入该行自己的原文与掩码期望；#4671 判责 :137
+/// 的旧形态是把 lead 1 的掩码常量硬编码进通用断言，回收/领取其它行时假判）。
 /// `where_label` 只用于失败信息定位是哪个出口泄露（四个出口共用一个实现，
 /// 任一处回潮都应在本函数报错）。
-fn assert_default_masked(lead: &Value, where_label: &str) {
+fn assert_default_masked(lead: &Value, where_label: &str, pii: &LeadPii) {
     assert_eq!(
         lead["mobile_phone"],
-        json!(MASKED_PHONE),
-        "{where_label}：mobile_phone 未掩码（mask_phone 未生效）"
+        json!(pii.masked_mobile),
+        "{where_label}：mobile_phone 未掩码为本行期望值（mask_phone 未生效或未按行参数化）"
     );
     assert_eq!(
         lead["tel_phone"],
-        json!(MASKED_TEL),
+        json!(pii.masked_tel),
         "{where_label}：tel_phone 未掩码（本波次根因：内联分支漏座机列）"
     );
     assert_eq!(
         lead["email"],
-        json!(MASKED_EMAIL),
+        json!(pii.masked_email),
         "{where_label}：email 未掩码"
     );
     assert!(
         lead.get("address").is_none(),
         "{where_label}：address 应被整键移除（P1-08-5 既有语义）: {lead}"
     );
-    // 泄露面锁死：出参任何字符串值都不得含原文 PII
+    // 泄露面锁死：出参任何字符串值都不得含**任一行**的原文 PII（跨行泄漏同样判红）
     let raw = lead.to_string();
-    for banned in [A_PHONE, A_TEL, A_EMAIL, A_ADDRESS] {
+    for banned in ALL_BANNED_RAW_PII {
         assert!(
             !raw.contains(banned),
             "{where_label}：出参含未脱敏个人信息 {banned}"
@@ -286,10 +336,10 @@ async fn list_and_detail_default_mask_covers_tel_phone_and_drops_address() {
         .iter()
         .find(|i| i["id"] == json!(1))
         .expect("id=1 应在列表");
-    assert_default_masked(pool_row, "GET /crm/leads 列表");
+    assert_default_masked(pool_row, "GET /crm/leads 列表", &LEAD_1_PII);
 
     let (_, v) = get_json(&app, "/erp/crm/leads/1").await;
-    assert_default_masked(&v["data"], "GET /crm/leads/:id 详情");
+    assert_default_masked(&v["data"], "GET /crm/leads/:id 详情", &LEAD_1_PII);
 }
 
 // ---------------------------------------------------------------------------
@@ -304,7 +354,7 @@ async fn claim_response_does_not_leak_raw_pii() {
     // 状态流转不回潮（领取仍写 new，且 owner 已转移 → 见 pool_owner 锁）
     assert_eq!(v["data"]["lead_status"], json!("new"));
     assert_eq!(v["data"]["owner_id"], json!(USER_A));
-    assert_default_masked(&v["data"], "POST /crm/pool/claim 写响应");
+    assert_default_masked(&v["data"], "POST /crm/pool/claim 写响应", &LEAD_1_PII);
 }
 
 #[tokio::test]
@@ -318,7 +368,9 @@ async fn recycle_response_does_not_leak_raw_pii() {
     .await;
     assert_eq!(status, StatusCode::OK, "本人回收应成功: {v}");
     assert_eq!(v["data"]["lead_status"], json!("pool"));
-    assert_default_masked(&v["data"], "POST /crm/pool/recycle 写响应");
+    // 回收的是 **lead 2**：断言按 lead 2 自己的 PII 档案参数化（#4671 判责 :137
+    // 的"硬编码 lead 1 掩码常量"假判形态不得回潮），禁止清单则覆盖两行全部原文
+    assert_default_masked(&v["data"], "POST /crm/pool/recycle 写响应", &LEAD_2_PII);
 }
 
 // ---------------------------------------------------------------------------

@@ -323,12 +323,16 @@ async fn date_range_is_inclusive_on_both_ends() {
     let body = call_list(&state, p).await;
     assert_eq!(sorted(items(&body)), ["PRW6FLAG001", "PRW6FLAG002"]);
 
-    // 区间收紧到界外一天：08-10 与 09-30 都不含 → 空集（证明边界真实参与比较）
+    // 真空窗：08-11 ~ 09-14 落在 08-10 与 09-15 两行种子之间，三行全部在界外 ⇒ 0 行
+    // （证明边界真实参与比较）。原判据写"08-11~09-29 → 空集"是**假空窗**：
+    // 该区间含 09-15（PRW6FLAG002），返回 1 行才是正确契约，断 0 属断言侧算错
+    // （判责 ci4671-triage.md :135，正解即"改真空窗"，不得把期望改成 1——那会把
+    // 空窗防线丢掉）。"两端闭"这一真实判据已由上面三条通过证明。
     let mut p = params();
     p.receipt_date_from = Some("2026-08-11".to_string());
-    p.receipt_date_to = Some("2026-09-29".to_string());
+    p.receipt_date_to = Some("2026-09-14".to_string());
     let body = call_list(&state, p).await;
-    assert_eq!(total(&body), 0, "区间外不得混入任何行");
+    assert_eq!(total(&body), 0, "真空窗不得混入任何行");
     assert!(items(&body).is_empty());
 }
 

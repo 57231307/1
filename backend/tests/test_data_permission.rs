@@ -144,3 +144,94 @@ fn test_data_scope_as_str() {
     assert_eq!(DataScope::Dept.as_str(), "dept");
     assert_eq!(DataScope::Self_.as_str(), "self");
 }
+
+// ===== 同源重建（#4671 判责 §⑤ W4·D）=====
+// 本节把 data_permission 侧断言与 `src/utils/data_scope.rs` 真实实现**同源**钉死，
+// 作为"公海领取/超管跨 owner 写"两条拍板口径的纯函数行为锁。背景（判责 §2.3 A4）：
+// handler 级活体锁（contract_wave6_crm_pool_owner_test 5 条）被 AppState::default()
+// 的 Disconnected 哨兵 panic 遮蔽、本轮一条没跑到；在夹具修复前该两条口径"不可证"。
+// 纯函数锁不依赖任何连接/AppState，立即可跑且确定性——**这是补位前提，不是替代**：
+// 活体锁盲区仍单列记账（交付报告 H 节），不得据本节宣称两条口径已端到端验证。
+
+/// 读门 `check_resource_owner` 三档 + 边界，逐分支对照实现（data_scope.rs:155-177）：
+/// - `All` 恒真（可见性语义，与写门分家，:161）；
+/// - `Dept` 判据 = 资源部门 ∈ 可见部门集合；**owner=本人但部门列 None 也拒**
+///   （:164-167，Dept 读门无"本人行豁免"支，与写门 :203-205 刻意不对称，如实钉死）；
+/// - `Self_` 判据 = owner 与本人匹配；owner None 拒（:169-175）。
+#[test]
+fn check_resource_owner_read_gate_matches_impl() {
+    use bingxi_backend::utils::data_scope::{DataScope, DataScopeContext, check_resource_owner};
+
+    let ctx = |scope: DataScope, dept_ids: Vec<i32>| DataScopeContext {
+        scope,
+        user_id: 50,
+        department_id: Some(1),
+        dept_ids,
+        dept_member_user_ids: vec![50],
+    };
+
+    let all = ctx(DataScope::All, vec![1]);
+    assert!(check_resource_owner(&all, Some(999), Some(999)), "All 恒真");
+    assert!(check_resource_owner(&all, None, None), "All 对空归属也真");
+
+    let dept = ctx(DataScope::Dept, vec![1, 2]);
+    assert!(
+        check_resource_owner(&dept, Some(999), Some(2)),
+        "部门∈可见集放行"
+    );
+    assert!(
+        !check_resource_owner(&dept, Some(999), Some(20)),
+        "部门∉可见集拒绝"
+    );
+    assert!(
+        !check_resource_owner(&dept, Some(50), None),
+        "Dept 读门无本人豁免：本人行但部门列为 None 也拒绝（实现 :166，与写门不对称）"
+    );
+
+    let own = ctx(DataScope::Self_, vec![1]);
+    assert!(
+        check_resource_owner(&own, Some(50), Some(20)),
+        "Self 本人行放行"
+    );
+    assert!(
+        !check_resource_owner(&own, Some(51), Some(1)),
+        "Self 他人行拒绝"
+    );
+    assert!(
+        !check_resource_owner(&own, None, Some(1)),
+        "Self owner 缺失 fail-closed 拒绝"
+    );
+}
+
+/// 词表同源锁：`data_permissions.scope_type` 的**存储词表**（服务侧大写常量，
+/// `services/data_permission_service.rs:19-31`）必须能被
+/// `DataScope::parse_scope`（`utils/data_scope.rs:29-35`，大小写不敏感、未知值
+/// fail-closed 回退 Self_）正确解析；`CUSTOM` 现实现回退 Self_，本条**如实钉现状**
+/// ——若未来裁定 CUSTOM 走独立档位，让本条显形红触发口径讨论，不预先放宽。
+#[test]
+fn scope_type_vocabulary_shared_by_service_and_data_scope() {
+    use bingxi_backend::services::data_permission_service::data_scope;
+    use bingxi_backend::utils::data_scope::DataScope;
+
+    assert_eq!(DataScope::parse_scope(data_scope::ALL), DataScope::All);
+    assert_eq!(DataScope::parse_scope(data_scope::DEPT), DataScope::Dept);
+    assert_eq!(DataScope::parse_scope(data_scope::SELF), DataScope::Self_);
+    assert_eq!(
+        DataScope::parse_scope(data_scope::CUSTOM),
+        DataScope::Self_,
+        "CUSTOM 现实现无独立档位，fail-closed 回退 Self_（data_scope.rs:33）"
+    );
+
+    // 三档往返：as_str 的输出必须原样被 parse_scope 解析回同一档
+    for s in [DataScope::All, DataScope::Dept, DataScope::Self_] {
+        assert_eq!(
+            DataScope::parse_scope(s.as_str()),
+            s,
+            "as_str↔parse_scope 往返"
+        );
+    }
+
+    // 空串与垃圾值同样 fail-closed 到最严档（实现 :33，权限面禁止默认放行）
+    assert_eq!(DataScope::parse_scope(""), DataScope::Self_);
+    assert_eq!(DataScope::parse_scope("Everybody"), DataScope::Self_);
+}

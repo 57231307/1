@@ -1,6 +1,7 @@
 //! 库存盘点服务集成测试（V15 P2 B06-P2-5）
 //!
-//! 覆盖：盘点状态常量值 + Service 构造签名 + 请求 DTO 字段语义 + 空 DB 异常路径。
+//! 覆盖：盘点状态常量值 + Service 构造签名 + 请求 DTO 字段语义 + 已建库空表异常路径
+//! （判责 §⑤ W4：旧"空 DB=空 SQLite"前提已随真库化过期，各条契约按被测函数体核定）。
 //! InventoryCountService 所有业务方法（create_count / record_count_items /
 //! submit_for_approval / approve_count 等）均需数据库事务，
 //! 完整业务流程由 CI 集成环境执行（同 test_quality_standard.rs / ap_payment_workflow_test.rs 模式）。
@@ -87,16 +88,37 @@ async fn test_inventory_count_service_instantiation() {
 
 // ===== 空 DB 异常路径（验证优雅降级，不 panic）=====
 
-/// 验证在空 SQLite 库上 get_count 返回 Err 而非 panic。
+/// 验证在**已建库空表**上 get_count 不存在记录返回 Err(NOT_FOUND) 而非 panic。
+///
+/// 真库化夹具前提校准（#4671 判责 §⑤ W4，手法同 ap_payment R-9 族）：旧注释
+/// "空 SQLite 库"过期——`setup_test_db()` 现为"已迁移 PG + TRUNCATE 业务表"
+/// （`src/services/test_common.rs:17-24`）。真实契约按读函数体判定：
+/// `inventory_count_service.rs:285-293` find_by_id 空表 ⇒ None ⇒ `AppError::not_found`
+/// ⇒ Err 方向成立，断言由裸 `is_err()` 收紧为钉机器码。
 #[tokio::test]
 async fn test_get_count_returns_err_on_empty_db() {
     let db = setup_test_db().await;
     let svc = InventoryCountService::new(Arc::new(db));
-    let result = svc.get_count(fixtures::NON_EXISTENT_COUNT_ID, None).await;
-    assert!(result.is_err(), "空 DB 上 get_count 应返回 Err");
+    let err = svc
+        .get_count(fixtures::NON_EXISTENT_COUNT_ID, None)
+        .await
+        .expect_err("已建库空表上 get_count 不存在记录必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 get_count 必须命中 not_found（inventory_count_service.rs:293），实得 {}",
+        err.error_code()
+    );
 }
 
-/// 验证在空 SQLite 库上 create_count 返回 Err 而非 panic。
+/// 验证在**已建库空表**上 create_count 命中"仓库下无库存记录"业务门 ⇒
+/// Err(BUSINESS_ERROR) 而非 panic。
+///
+/// 真实契约依据（读函数体，非读注释）：`inventory_count_service.rs:107-130`
+/// create_count 先取号、再 `fetch_stocks_for_count_txn`，`inventory_stocks` 属业务表
+/// 被 TRUNCATE ⇒ 快照恒空 ⇒ `AppError::business("仓库 … 下无库存记录…")`。
+/// 原注释"空 SQLite"前提过期；断言收紧为钉机器码——若未来把该门控误接成
+/// 静默建空单（Ok）或退化 DATABASE_ERROR，本条必须红。
 #[tokio::test]
 async fn test_create_count_returns_err_on_empty_db() {
     let db = setup_test_db().await;
@@ -108,8 +130,16 @@ async fn test_create_count_returns_err_on_empty_db() {
         created_by: Some(fixtures::CREATED_BY),
         stock_ids: None,
     };
-    let result = svc.create_count(req).await;
-    assert!(result.is_err(), "空 DB 上 create_count 应返回 Err");
+    let err = svc
+        .create_count(req)
+        .await
+        .expect_err("已建库空表上对无库存仓库 create_count 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "BUSINESS_ERROR",
+        "空库存建盘点单必须命中业务门控族（inventory_count_service.rs:126），实得 {}",
+        err.error_code()
+    );
 }
 
 // ===== 请求 DTO 字段语义 =====

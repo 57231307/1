@@ -52,26 +52,52 @@ async fn test_outsourcingreceiptservice_slhbcfdb() {
     std::mem::drop(svc);
 }
 
-/// test_outsourcingreceiptservice_confirm_kdbfherr
+/// test_outsourcingreceiptservice_confirm_kdbfherr —— 真库化夹具前提校准（同
+/// ap_payment_workflow_test 的 R-9 拆分族手法；判责依据 ci4671-triage.md §⑤ W4
+/// "无 schema/空表应 Err 族逐条核契约"）：
+/// 钉"已建库空业务表上 confirm 不存在的收回单 ⇒ **NOT_FOUND 机器码**，不 panic"。
 ///
-/// 验证在空 SQLite 数据库上 confirm 方法返回 Err 而非 panic。
+/// 真实契约依据（读函数体，非读注释）：`src/services/outsourcing_ops/receipt.rs:351-363`
+/// confirm 先 begin，`find_by_id + lock_exclusive` 空表 ⇒ None ⇒ `AppError::not_found`。
+/// 原注释"空 SQLite 数据库"前提已过期——`setup_test_db()` 现语义 = 已迁移 PG +
+/// TRUNCATE 业务表（`src/services/test_common.rs:17-24`）。断言由裸 `is_err()`
+/// **收紧**为钉机器码（夹具退化出 DATABASE_ERROR 时本条必须红），不比对 message。
 #[tokio::test]
 async fn test_outsourcingreceiptservice_confirm_kdbfherr() {
     let db = setup_test_db().await;
     let svc = OutsourcingReceiptService::new(Arc::new(db));
-    let result = svc.confirm(1, None).await;
-    assert!(result.is_err(), "空 DB 上 confirm 应返回 Err");
+    let err = svc
+        .confirm(1, None)
+        .await
+        .expect_err("已建库空表上 confirm 不存在的收回单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 confirm 必须命中 not_found 机器码（receipt.rs:363），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_outsourcingreceiptservice_get_by_id_kdbfherr
-///
-/// 验证在空 SQLite 数据库上 get_by_id 方法返回 Err 而非 panic。
+/// test_outsourcingreceiptservice_get_by_id_kdbfherr —— 同上族，本条真实契约经读
+/// 函数体确认为 **Err(NOT_FOUND)** 而非 Ok：`receipt.rs:685-691` find_by_id +
+/// is_deleted 过滤，空表 ⇒ None ⇒ `AppError::not_found`。
+/// 故保留 `setup_test_db()`（已建库空表）并把裸 `is_err()` 收紧为 NOT_FOUND 机器码；
+/// 不绑 `connect_empty_schema_db()`——两条前提验证的是不同事，这里钉的是"记录不存在"
+/// 的服务语义，schema 缺失族已由 ap_payment 同族用例统一覆盖。
 #[tokio::test]
 async fn test_outsourcingreceiptservice_get_by_id_kdbfherr() {
     let db = setup_test_db().await;
     let svc = OutsourcingReceiptService::new(Arc::new(db));
-    let result = svc.get_by_id(1).await;
-    assert!(result.is_err(), "空 DB 上 get_by_id 应返回 Err");
+    let err = svc
+        .get_by_id(1)
+        .await
+        .expect_err("已建库空表上 get_by_id 不存在记录必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 get_by_id 必须命中 not_found 机器码（receipt.rs:690），实得 {}",
+        err.error_code()
+    );
 }
 
 /// 集成测试：委外收货全流程 create(draft) → confirm(confirmed)

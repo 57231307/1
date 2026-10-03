@@ -127,15 +127,31 @@ async fn test_appaymentservice_get_list_kdbfherr() {
     assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
-/// test_appaymentservice_confirm_kdbfherr
+/// test_appaymentservice_confirm_kdbfherr —— 同族收口（裁决 R-9，范本见本文件
+/// get_by_id/get_list 两条的拆分注释；判责依据 ci4671-triage.md §2.3 B3 :139、§⑤ W4）：
+/// 钉"已建库空业务表上，confirm 不存在的单必须返回 **NOT_FOUND 机器码**而非 panic"。
 ///
-/// 验证在空 SQLite 数据库上 confirm 方法返回 Err 而非 panic。
+/// 真实契约依据（读函数体确认，非读注释）：`src/services/ap_payment_service.rs:194-226`
+/// confirm 先 begin，再 `find_by_id + lock_exclusive`，空表 ⇒ None ⇒
+/// `AppError::not_found`。⇒ `is_err()` 方向本身成立，但原注释"空 SQLite 数据库"的
+/// 前提已过期（`setup_test_db()` 现语义 = 已迁移 PostgreSQL + TRUNCATE 业务表，
+/// 见 `src/services/test_common.rs:17-24`），且只钉 is_err 会把"任何 Err 都算过"的
+/// 漂移放进来（如未来夹具退化 ⇒ DATABASE_ERROR 也过）。本条**收紧**为钉机器码，
+/// 不比对 message 原文（脱敏红线）。
 #[tokio::test]
 async fn test_appaymentservice_confirm_kdbfherr() {
     let db = setup_test_db().await;
     let svc = ApPaymentService::new(Arc::new(db));
-    let result = svc.confirm(1, 1).await;
-    assert!(result.is_err(), "空 DB 上 confirm 应返回 Err");
+    let err = svc
+        .confirm(1, 1)
+        .await
+        .expect_err("已建库空表上 confirm 不存在的付款单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 confirm 必须命中 not_found 机器码（ap_payment_service.rs:226），实得 {}",
+        err.error_code()
+    );
 }
 
 // ===== 完整业务流程测试（需要真实 PostgreSQL，标记 ignore）=====

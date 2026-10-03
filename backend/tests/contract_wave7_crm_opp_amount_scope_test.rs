@@ -503,10 +503,49 @@ async fn admin_sees_all_amounts_on_all_rows() {
     let app = build_app(&db, make_auth(USER_ADMIN, Some(1), "all"));
     let items = list_items(&app).await;
     assert_eq!(items.len(), 4, "admin 可见全库");
+    // **按单号定位，禁按位置索引**（判责 ci4671-triage.md :134）：列表契约排序是
+    // created_at DESC（services/crm/opp.rs:179），种子 ts 递增时 items[2] 恰落在
+    // OPPB003 —— 那是把排序当契约的巧合，排序一漂移就假判红/假判绿（本轮该用例
+    // Expected 88888.00 / Received 133333.00 即位置漂移产物）。改按单号逐行钉
+    // 金额原值，且由"只断一行"收紧为"4 行预估 + 2 行实际金额全覆盖"。
+    let row_of_no = |no: &str| -> Value {
+        items
+            .iter()
+            .find(|i| item_no(i) == no)
+            .unwrap_or_else(|| panic!("列表缺行 {no}（按单号定位，不依赖排序）: {items:?}"))
+            .clone()
+    };
+    let est = |no: &str| row_of_no(no)["estimated_amount"].clone();
+    let act = |no: &str| row_of_no(no)["actual_amount"].clone();
     assert_eq!(
-        items[2]["estimated_amount"],
+        est("OPPA001"),
+        Value::String(amount_text(A_EST_1)),
+        "admin 对 OPPA001 预估金额原值契约"
+    );
+    assert_eq!(
+        est("OPPA002"),
+        Value::String(amount_text(A_EST_2)),
+        "admin 对 OPPA002 预估金额原值契约"
+    );
+    assert_eq!(
+        est("OPPB003"),
         Value::String(amount_text(B_EST_1)),
-        "admin 对他行金额原值契约"
+        "admin 对他行（OPPB003）金额原值契约"
+    );
+    assert_eq!(
+        est("OPPB004"),
+        Value::String(amount_text(B_EST_2)),
+        "admin 对他行（OPPB004）金额原值契约"
+    );
+    assert_eq!(
+        act("OPPA001"),
+        Value::String(amount_text(A_ACT_1)),
+        "admin 对 OPPA001 实际金额原值契约"
+    );
+    assert_eq!(
+        act("OPPB003"),
+        Value::String(amount_text(B_ACT_1)),
+        "admin 对 OPPB003 实际金额原值契约"
     );
     assert_export_equals_list_for_amounts(&app).await;
     // admin 导出同样原值（等式已锁"导出=列表"，此处补一句直接断言便于定位）
