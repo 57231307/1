@@ -200,7 +200,10 @@ impl ImportExportService {
             bank_name: Set(None),
             bank_account: Set(None),
             status: Set(master_data::ACTIVE.to_string()),
-            customer_type: Set("RETAIL".to_string()),
+            // 缺陷修（波0，非值域变更）：此前硬编码大写 "RETAIL"，而全部读侧对
+            // customers.customer_type 是小写精确匹配（services/customer_ops/crud.rs:136、
+            // query.rs:82）⇒ 导入客户的类型筛选永不命中。归一为唯一词表模块的真实 token。
+            customer_type: Set(crate::constants::customer_type::RETAIL.to_string()),
             notes: Set(None),
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_customers_dept 触发器自动维护

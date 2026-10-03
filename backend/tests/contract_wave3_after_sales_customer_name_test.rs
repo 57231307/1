@@ -81,7 +81,12 @@ async fn seed_customer(db: &sea_orm::DatabaseConnection, id: i32, code: &str, na
     // 已编译写法 src/utils/number_generator.rs:263）；execute(&S: StatementBuilder) 不适用
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        // 波0 夹具补 NULL 地雷：customers.customer_type 模型非 Option（models/customer.rs:65）
+        // 而 DDL 可空，省略该列的种下行按模型读出即 SeaORM 类型错；补真实白名单值（唯一词表模块）。
+        format!(
+            "INSERT INTO customers (id, customer_code, customer_name, customer_type) VALUES ($1, $2, $3, '{}')",
+            bingxi_backend::constants::customer_type::RETAIL
+        ),
         vec![id.into(), code.to_string().into(), name.to_string().into()],
     ))
     .await

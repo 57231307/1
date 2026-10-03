@@ -95,7 +95,12 @@ fn make_auth(user_id: i32) -> AuthContext {
 async fn seed_fk_prerequisites(db: &sea_orm::DatabaseConnection) {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        // 波0 夹具补 NULL 地雷：customers.customer_type 模型非 Option 而 DDL 可空，
+        // 省略该列的种下行按模型读出即 SeaORM 类型错；补真实白名单值（唯一词表模块）。
+        format!(
+            "INSERT INTO customers (id, customer_code, customer_name, customer_type) VALUES ($1, $2, $3, '{}')",
+            bingxi_backend::constants::customer_type::RETAIL
+        ),
         vec![
             10i32.into(),
             "W4SO-C10".to_string().into(),

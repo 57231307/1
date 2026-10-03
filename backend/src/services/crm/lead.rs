@@ -688,6 +688,15 @@ impl CrmService {
         user_id: i32,
         customer_code: String,
     ) -> customer::ActiveModel {
+        // ⚠️ 已登记的大写脏值来源（波0 契约测钉死，值本波**不改**，等业务口径裁定）：
+        // - 缺省 "POTENTIAL" 不在唯一词表 `constants::customer_type::ALLOWED` 内
+        //   （该集合逐字符等于标准入口现行五值白名单，收编与否属待裁项）；
+        // - `potential` 这一 token 已被 CLV 分层占用（services/crm/cust.rs:670-680
+        //   segment 词表 champion/loyal/potential/at_risk/lost；
+        //   models/customer_lifetime_value.rs:40）⇒ 属"渠道 vs 分层"**混维撞名**；
+        // - 显式提供的 customer_type 已在 handler 层（crm_handler.rs convert_lead）经
+        //   `constants::customer_type::validate` 拒绝非法值，此处只承接缺省分支。
+        // 待裁后再定：改小写、并入 ALLOWED 或删除缺省（届时同步更新契约测登记锁）。
         let customer_type = req
             .customer_type
             .clone()

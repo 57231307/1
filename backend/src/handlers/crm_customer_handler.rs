@@ -233,6 +233,17 @@ pub async fn update_customer(
     Path(id): Path<i32>,
     Json(req): Json<UpdateEnhancedCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 波0 收编无校验写口：customer_type 经唯一词表模块 `constants::customer_type::validate`
+    // 校验，拒绝族别/文案与标准入口（customer_handler validator 通道）逐字符同源
+    // （400 + VALIDATION_ERROR，message `customer_type: invalid_customer_type`）。
+    // 校验置于任何触库之前，与标准入口"validator 先于 DB"同形。
+    // None（字段缺省）= 本列不更新，维持 `update.rs::apply_customer_field_updates`
+    // 的 `if let Some(v)` 语义原样透传；不把缺失静默写成缺省值（与创建入口不同）。
+    let customer_type = match req.customer_type.as_deref() {
+        Some(raw) => Some(crate::constants::customer_type::validate(Some(raw))?),
+        None => None,
+    };
+
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
     // 行级数据权限门（与其它写入口同判定源，非新增机制）：增强页 PUT 落的是 customers 表行，
@@ -279,7 +290,7 @@ pub async fn update_customer(
             tax_id: req.tax_number,
             bank_name: req.bank_name,
             bank_account: req.bank_account,
-            customer_type: req.customer_type,
+            customer_type,
             status: req.status,
             country: None,
             customer_industry: None,

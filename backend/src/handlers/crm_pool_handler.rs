@@ -399,6 +399,10 @@ pub async fn create_pool_rule(
             "规则类型必须为 protection_period / claim_limit / max_holdings",
         ));
     }
+    // ⚠️ 本四值（all/wholesale/retail/vip）是 **pool 规则表**里"规则作用域"的取值
+    // （crm_pool_rules 之类，规则按客户类型分档），与 customers.customer_type 列的
+    // 唯一词表（`constants::customer_type::ALLOWED`）是**两回事**，不并入、不共享：
+    // 字面重合的 retail/wholesale 只是巧合同名 token，语义层不同。本处允许集本波不动。
     if !matches!(
         req.customer_type.as_str(),
         "all" | "wholesale" | "retail" | "vip"

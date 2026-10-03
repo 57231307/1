@@ -72,20 +72,10 @@ pub struct CreateCustomerRequest {
     pub notes: Option<String>,
 }
 
-/// 验证客户类型
+/// 验证客户类型：委托唯一词表模块 `constants::customer_type::check`
+/// （波0 等价重构——允许值集合与拒绝 code/族别/文案逐字符不变，值集合只在该模块出现一次）
 fn validate_customer_type(customer_type: &str) -> Result<(), validator::ValidationError> {
-    let valid_types = [
-        "retail",
-        "wholesale",
-        "distributor",
-        "manufacturer",
-        "other",
-    ];
-    if valid_types.contains(&customer_type) {
-        Ok(())
-    } else {
-        Err(validator::ValidationError::new("invalid_customer_type"))
-    }
+    crate::constants::customer_type::check(customer_type)
 }
 
 /// 更新客户请求
@@ -291,9 +281,10 @@ pub async fn create_customer(
         _ => rust_decimal::Decimal::ZERO,
     };
 
-    let customer_type = payload
-        .customer_type
-        .unwrap_or_else(|| "retail".to_string());
+    // 缺省与词表收编到唯一模块：None→Ok(RETAIL) 等于重构前内联缺省 `"retail"`；
+    // Some 合法值原文返回（上方 payload.validate() 已拒非法值，此步不可能新增拒绝）。
+    let customer_type =
+        crate::constants::customer_type::validate(payload.customer_type.as_deref())?;
 
     // 自动生成客户编码
     let customer_code = match payload.customer_code {

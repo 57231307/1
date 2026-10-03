@@ -47,7 +47,15 @@ async fn make_seeded_service() -> BiAnalysisService {
 async fn exec_seed(db: &DatabaseConnection) {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        "INSERT INTO customers (id, customer_code, customer_name) VALUES ($1, $2, $3)",
+        // 波0 补 NULL 地雷：customers.customer_type 列 DDL 可空而模型为
+        // `pub customer_type: String`（models/customer.rs:65 非 Option），
+        // 夹具省略该列 ⇒ 种下 NULL 行，任何按模型读 customers 的查询即 SeaORM 类型错。
+        // 补真实白名单值（唯一词表模块 RETAIL）。"模型非 Option vs DDL 可空"的收口
+        // （NOT NULL DEFAULT 还是 Option<String>）等存量回填波裁定，本波只补数据不动 schema。
+        format!(
+            "INSERT INTO customers (id, customer_code, customer_name, customer_type) VALUES ($1, $2, $3, '{}')",
+            bingxi_backend::constants::customer_type::RETAIL
+        ),
         vec![
             1i32.into(),
             "BI-SEED-C1".to_string().into(),
