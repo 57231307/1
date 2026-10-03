@@ -1278,6 +1278,42 @@ async function refreshCsrfToken(page: Page): Promise<string> {
 }
 
 /**
+ * CSRF 竞败重放的最大次数（有界，不是无限退避）。
+ *
+ * 为什么不能只重放一次：后端 token 是一次性消费（csrf.rs:110 consume + :216-224 轮换），
+ * 而同一浏览器上下文里除了本 helper，UI 自己的写请求也在消费同一个 token
+ * （前端 axios 拦截器同样"403 → 用 X-New-CSRF-Token 重放一次"，api/request.ts:197-223）。
+ * 两侧各重放一次时，helper 换回的新 token 仍可能被对侧那次在途请求抢先消费——
+ * 单侧重放把这种交错固化成"偶发成片 403"红（#4671 shard19/32/34/35 的
+ * POST /products、POST /incoterms/cost-calculation、POST /production/dye-batches 即此族）。
+ * 上限内每次重放都取"后端权威 token"（恢复头，缺失时重登），上限用尽仍被拒即判红：
+ * CSRF 拒绝不是业务成功，绝不静默放过、也绝不无限重试掩盖。
+ */
+const CSRF_RECOVERY_MAX_ATTEMPTS = 2;
+
+/**
+ * CSRF 竞败后取回一个存活 token 所用：优先后端 `x-new-csrf-token` 恢复头
+ * （csrf.rs:144-151，并发竞败场景的权威来源，无需重登），无恢复头时重新登录换新 token。
+ * 返回用该 token 重放后的响应（调用方负责继续判定，仍 403 则按各自语义判红）。
+ */
+async function replayAfterCsrfRejection(
+  page: Page,
+  url: string,
+  rejected: APIResponse,
+  doFetch: (token: string) => Promise<APIResponse>
+): Promise<APIResponse> {
+  const recoveryToken = rejected.headers()['x-new-csrf-token'];
+  let token: string;
+  if (recoveryToken) {
+    await writeCsrfCookie(page, url, recoveryToken);
+    token = recoveryToken;
+  } else {
+    token = await refreshCsrfToken(page);
+  }
+  return doFetch(token);
+}
+
+/**
  * loginViaUI 短路路径的 csrf 活性探测（缺陷1 修复点4）。
  *
  * 背景：storage-state 里的 csrf_token 是"服务端一次性消费"的凭证，会被第一个使用它的
@@ -1336,7 +1372,7 @@ export async function apiCall<T = unknown>(
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  let csrfToken =
+  const csrfToken =
     (await getCsrfToken(page).catch(e => {
       console.warn(
         `[apiCall] ${method} ${path} CSRF cookie 提取失败（未登录态）: ${(e as Error).message}`
@@ -1385,35 +1421,18 @@ export async function apiCall<T = unknown>(
     throw httpErr;
   }
 
-  // CSRF 校验失败恢复（两级）：
-  // 1. 优先读取后端 X-New-CSRF-Token 恢复头（并发竞败场景的权威来源，无需重新登录）
-  // 2. 无恢复头时重新登录获取全新 token
-  // CSRF 拒绝走 middleware/csrf.rs:234-242 直出体（字符串机器码 CSRF_* + HTTP 403），
-  // 统一失败信封的 FORBIDDEN/UNAUTHORIZED 也是字符串码，故用 failureCode() + status===403
-  // 双判据区分，避免把权限拒绝误当成 CSRF 竞败。
-  if (isCsrfRejection(response.status(), json)) {
-    const recoveryToken = response.headers()['x-new-csrf-token'];
+  // CSRF 校验失败恢复：有界重放（见 CSRF_RECOVERY_MAX_ATTEMPTS 的成因说明），
+  // 每次优先读取后端 X-New-CSRF-Token 恢复头，无恢复头时重新登录取全新 token。
+  // 判据同 csrf.rs:234-242 直出体（字符串机器码 CSRF_* + HTTP 403）：统一失败信封的
+  // FORBIDDEN/UNAUTHORIZED 也是字符串码，故用 failureCode() + status===403 双判据区分，
+  // 权限拒绝不会被当成竞败而重试吞掉。
+  for (
+    let attempt = 1;
+    attempt <= CSRF_RECOVERY_MAX_ATTEMPTS && isCsrfRejection(response.status(), json);
+    attempt++
+  ) {
     try {
-      if (recoveryToken) {
-        // 将恢复 token 写入 context Cookie，供后续请求复用
-        const urlObj = new URL(url);
-        await page.context().addCookies([
-          {
-            name: 'csrf_token',
-            value: recoveryToken,
-            domain: urlObj.hostname,
-            path: '/',
-            httpOnly: false,
-            secure: false,
-            sameSite: 'Strict',
-            expires: Math.floor(Date.now() / 1000) + 1800,
-          },
-        ]);
-        csrfToken = recoveryToken;
-      } else {
-        csrfToken = await refreshCsrfToken(page);
-      }
-      response = await doFetch(csrfToken);
+      response = await replayAfterCsrfRejection(page, url, response, doFetch);
       text = await response.text();
       try {
         json = JSON.parse(text);
@@ -1432,6 +1451,17 @@ export async function apiCall<T = unknown>(
       if (innerStatus) wrapped.status = innerStatus;
       throw wrapped;
     }
+  }
+
+  // 重放上限用尽仍被 CSRF 中间件拒绝：直接判红并点名是 CSRF 面（不是业务面），
+  // 绝不返回/放行一个"看起来像成功"的会话状态。
+  if (isCsrfRejection(response.status(), json)) {
+    const csrfErr = new Error(
+      `API ${method} ${path} CSRF 恢复耗尽（已重放 ${CSRF_RECOVERY_MAX_ATTEMPTS} 次仍被 CSRF 中间件拒绝，` +
+        `status=${response.status()} code=${json.code}）——属会话/中间件面失败，判红不放过`
+    ) as Error & { status?: number };
+    csrfErr.status = response.status();
+    throw csrfErr;
   }
 
   // 写请求（含 CSRF 竞败重试后的最终 response）完成后，先同步轮换后的 csrf 到会话，
@@ -1473,7 +1503,7 @@ export async function apiCallExpectFail(
   body?: Record<string, unknown>
 ): Promise<ApiFailureResult> {
   const url = `${API_BASE}${API_PREFIX}${path}`;
-  let csrfToken =
+  const csrfToken =
     (await getCsrfToken(page).catch(e => {
       console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 提取失败: ${(e as Error).message}`);
       return null;
@@ -1504,30 +1534,15 @@ export async function apiCallExpectFail(
     );
   }
 
-  // CSRF 竞败恢复（与 apiCall 一致的两级策略），避免把 CSRF 失败误判为业务错误。
-  // 判据同 apiCall：csrf.rs:234-242 直出体（字符串机器码）+ HTTP 403。
-  if (isCsrfRejection(response.status(), json)) {
-    const recoveryToken = response.headers()['x-new-csrf-token'];
+  // CSRF 竞败恢复：与 apiCall 同一有界重放策略（共用 CSRF_RECOVERY_MAX_ATTEMPTS），
+  // 避免把 CSRF 失败误判为业务错误——被测的拒绝必须是业务/校验拒绝，不能是竞败中间态。
+  for (
+    let attempt = 1;
+    attempt <= CSRF_RECOVERY_MAX_ATTEMPTS && isCsrfRejection(response.status(), json);
+    attempt++
+  ) {
     try {
-      if (recoveryToken) {
-        const urlObj = new URL(url);
-        await page.context().addCookies([
-          {
-            name: 'csrf_token',
-            value: recoveryToken,
-            domain: urlObj.hostname,
-            path: '/',
-            httpOnly: false,
-            secure: false,
-            sameSite: 'Strict',
-            expires: Math.floor(Date.now() / 1000) + 1800,
-          },
-        ]);
-        csrfToken = recoveryToken;
-      } else {
-        csrfToken = await refreshCsrfToken(page);
-      }
-      response = await doFetch(csrfToken);
+      response = await replayAfterCsrfRejection(page, url, response, doFetch);
       text = await response.text();
       try {
         json = JSON.parse(text);
@@ -1537,8 +1552,21 @@ export async function apiCallExpectFail(
         );
       }
     } catch (e) {
-      console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+      // 重放动作本身异常（网络/重登失败）：如实报出，不静默。返回的仍是 CSRF 403，
+      // 调用方的拒绝码集合不含 CSRF_* ⇒ 用例判红，根因由本行日志外显。
+      console.error(
+        `[apiCallExpectFail] ${method} ${path} CSRF 第 ${attempt} 次重放异常: ${(e as Error).message}`
+      );
+      break;
     }
+  }
+
+  if (isCsrfRejection(response.status(), json)) {
+    console.error(
+      `[apiCallExpectFail] ${method} ${path} 最终响应仍是 CSRF 中间件拒绝` +
+        `（status=${response.status()} code=${json.code}，重放上限 ${CSRF_RECOVERY_MAX_ATTEMPTS}）——` +
+        `这不是被测的业务拒绝，调用方按拒绝码集合断言即判红`
+    );
   }
 
   // CSRF 恢复/业务错误后 token 可能已被消费并轮换（后端 middleware 在校验通过后
