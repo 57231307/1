@@ -12,7 +12,6 @@ import {
   getCtx,
   pickDyeableWarehouse,
   seedDyedOutboundBundle,
-  seedFourDimStockIn,
   seedGreigeStockIn,
 } from '../flow/helpers';
 import { pickSelect, pickSelectIn, fillFieldByLabel, escRe } from '../flow/ui-helpers';
@@ -214,40 +213,48 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
     // 否则返回 BUSINESS_ERROR（无匹配库存，4xx）。原实现直接 POST /inventory/transfers 而未造源库存
     // → 建单被正确拒绝、拿不到 data.id → 本用例红（后端行为正确，测试缺前置 seed）。
     //
-    // 布种口径说明：本用例只验证「pending→审批→approved」状态流，与白坯/染色无关。
-    // 由于 /inventory/stock/fabric 入库端点对 color_no 强制 length(min=1)
-    // （backend/src/handlers/inventory_stock_handler_dto.rs:20-21，白坯空色号无法经此端点播种），
-    // 故此处采用染色布口径（色号/缸号/批次齐全），并以 seedFourDimStockIn 在调出仓为「同一产品+同一
-    // 四维」造一行足量库存——seed 维度与随后 POST 的调拨明细三字段逐一对应（不造假库存）。
+    // 第四维（匹号）门控扩散（b61b8d44 / services/inv/fabric_class.rs:81-95 normalize_outbound_piece_no，
+    // 经 services/inv/inventory_move.rs:308 require_outbound_dimensions 在**建单明细**即生效）：
+    // 调拨明细=出库方向，色号非空=染色布 ⇒ piece_no 必填，缺失即正当 400
+    // 「染色布必须提供匹号」。本用例只验证「pending→审批→approved」状态流（不 ship），
+    // 但建单四维必须如实齐全——按本仓既有 seed 范式（见文件头 seedTransferSource 同款说明：
+    // 可命中的真实染色匹只由写入方链产出、batch_no=缸号）改用 seedDyedOutboundBundle
+    // 灌 库存行(batch=缸) + 真实链 AVAILABLE 染色匹，明细四维 + 匹号全部取 seed 回读真值，
+    // 不塞假默认（piece_no 来自 GET /inventory/pieces 回读的 bundle.pieces[0]）。
     const tag = Date.now().toString().slice(-6);
-    const colorNo = `E2E-AP-C${tag}`;
-    const dyeLotNo = `E2E-AP-D${tag}`;
-    const batchNo = `E2E-AP-B${tag}`;
-    await seedFourDimStockIn(page, {
+    const dyeableWh = await pickDyeableWarehouse(page);
+    const targetWhId = ctx.warehouseIds.find(id => id !== dyeableWh.id);
+    expect(targetWhId, '前置：需要与可染调出仓不同的调入仓').toBeTruthy();
+    const bundle = await seedDyedOutboundBundle(page, {
       productId: ctx.productIds[0],
-      warehouseId: ctx.warehouseIds[0],
-      colorNo,
-      dyeLotNo,
-      batchNo,
+      warehouseId: dyeableWh.id,
+      colorNo: `E2E-AP-C${tag}`,
       quantityMeters: '1000',
+      pieceCount: 1,
+      context: `TRF-AP${tag}`,
     });
+    expect(
+      bundle.pieces.length,
+      `前置：seed 应产出真实 AVAILABLE 染色匹（匹号取它的真值），实际=${bundle.pieces.length}`
+    ).toBeGreaterThanOrEqual(1);
 
     const created = await apiCall<{ id?: number; transfer_no?: string }>(
       page,
       'POST',
       '/inventory/transfers',
       {
-        from_warehouse_id: ctx.warehouseIds[0],
-        to_warehouse_id: ctx.warehouseIds[1],
+        from_warehouse_id: dyeableWh.id,
+        to_warehouse_id: targetWhId!,
         transfer_date: new Date().toISOString(),
         notes: 'E2E 审批用例造数',
         items: [
           {
             product_id: ctx.productIds[0],
             quantity: '5',
-            color_no: colorNo,
-            dye_lot_no: dyeLotNo,
-            batch_no: batchNo,
+            color_no: bundle.colorNo,
+            dye_lot_no: bundle.dyeLotNo,
+            batch_no: bundle.dyeLotNo,
+            piece_no: bundle.pieces[0].piece_no,
           },
         ],
       }

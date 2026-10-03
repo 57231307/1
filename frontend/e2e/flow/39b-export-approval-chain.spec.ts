@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, loginAsRole } from './helpers';
+import { loginViaUI, loginAsRole, apiCall } from './helpers';
 
 /**
  * P5.9b 敏感导出完整审批链
@@ -23,49 +23,27 @@ interface ApprovalModel {
   resource_type: string;
 }
 
-const JSON_HEADERS = {
-  'X-Requested-With': 'XMLHttpRequest',
-  'Content-Type': 'application/json',
-} as const;
-
 /**
- * 本用例走原始 page.request 而非 helpers.apiCall，因此必须自行携带 CSRF 双提交头。
- * 后端 middleware/csrf.rs 对状态变更请求（POST）校验 X-CSRF-Token 与 csrf_token Cookie
- * 一致，缺失即 403 CSRF_TOKEN_MISSING。登录（loginAsRole/loginViaUI）已把 csrf_token
- * 写入 context Cookie，这里读取并回填到请求头。
+ * 写请求（POST /export-approvals、POST /export-approvals/{id}/approve）统一走 helpers.apiCall：
+ * 它先读 csrf_token cookie、命中 403 且判据为 CSRF（csrf.rs 直出体 MISSING/INVALID）时用后端
+ * x-new-csrf-token 恢复头在 CSRF_RECOVERY_MAX_ATTEMPTS 上限内有界重放，耗尽仍被拒即抛错判红。
+ * 本用例原先自持 csrfJsonHeaders 直连 page.request.post，只取一次 cookie 里的 token、无任何重放
+ * ——一次性 token 被并发/UI 抢先消费后即 403 CSRF_TOKEN_INVALID（#4672 新红）。改用 apiCall 复用
+ * 同一有界重放原语，不 skip、不放宽 CSRF 断言。GET 导出为安全方法不消费 CSRF，仍直连。
  */
-async function csrfJsonHeaders(
-  page: import('@playwright/test').Page
-): Promise<Record<string, string>> {
-  const cookies = await page.context().cookies();
-  const csrf = cookies.find(c => c.name === 'csrf_token')?.value ?? '';
-  return { ...JSON_HEADERS, 'X-CSRF-Token': csrf };
-}
-
-/** manager 身份创建 customer 导出审批申请，返回审批单 id */
 async function createApprovalAsManager(page: import('@playwright/test').Page): Promise<number> {
   await loginAsRole(page, 'manager');
-  const resp = await page.request.post(`${API_BASE}${API_PREFIX}/export-approvals`, {
-    data: {
-      resource_type: 'customer',
-      export_params: { page: 1, page_size: 10 },
-      estimated_rows: 10,
-      file_format: 'xlsx',
-    },
-    headers: await csrfJsonHeaders(page),
+  const res = await apiCall<ApprovalModel>(page, 'POST', '/export-approvals', {
+    resource_type: 'customer',
+    export_params: { page: 1, page_size: 10 },
+    estimated_rows: 10,
+    file_format: 'xlsx',
   });
-  const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
-  const id = body?.data?.id;
-  // 原 `expect(resp.ok() && id).toBe(true)`：`&&` 短路会把数字 id（1、2…）当返回值喂给
-  // toBe(true) 恒假（id 非布尔），功能其实正常（后端 code:200 且 data.id 有值）。
-  // 拆成两条清晰断言，如实反映"HTTP 成功"且"返回有效正整数 id"，不掩盖任何真实失败。
-  expect(
-    resp.ok(),
-    `manager 创建导出审批申请 HTTP 非 2xx：status=${resp.status()} body=${JSON.stringify(body).slice(0, 200)}`
-  ).toBe(true);
+  const id = res.data?.id;
+  // 内容断言不放宽：申请成功必须返回有效正整数 id（HTTP/CSRF/业务失败已由 apiCall 抛红）。
   expect(
     id,
-    `manager 创建导出审批申请成功但响应体缺少有效 data.id：body=${JSON.stringify(body).slice(0, 200)}`
+    `manager 创建导出审批申请成功但响应体缺少有效 data.id：${JSON.stringify(res.data).slice(0, 200)}`
   ).toBeGreaterThan(0);
   console.log(`[39b] manager 已创建 customer 导出审批申请 id=${id}`);
   return id as number;
@@ -78,16 +56,13 @@ async function approveAsAdmin(
   comments: string
 ): Promise<ApprovalModel> {
   await loginViaUI(page, undefined, undefined, true);
-  const resp = await page.request.post(
-    `${API_BASE}${API_PREFIX}/export-approvals/${approvalId}/approve`,
-    { data: { comments }, headers: await csrfJsonHeaders(page) }
+  const res = await apiCall<ApprovalModel>(
+    page,
+    'POST',
+    `/export-approvals/${approvalId}/approve`,
+    { comments }
   );
-  const body = (await resp.json().catch(() => null)) as { data?: ApprovalModel } | null;
-  expect(
-    resp.ok(),
-    `admin 审批申请 ${approvalId} 失败 status=${resp.status()} body=${JSON.stringify(body).slice(0, 200)}`
-  ).toBe(true);
-  const approved = body?.data;
+  const approved = res.data;
   expect(
     approved?.status ?? '',
     `审批后状态应含 approved，实际：${JSON.stringify(approved).slice(0, 200)}`

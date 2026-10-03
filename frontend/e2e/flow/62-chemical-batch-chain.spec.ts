@@ -7,6 +7,8 @@ import {
   ensureTestEntities,
   getCtx,
   genCode,
+  genDyeLotNo,
+  seedColorCardArchive,
   failureCode,
   verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
@@ -121,12 +123,21 @@ function requireItems(data: { items?: unknown }, endpoint: string): Array<Record
 }
 
 /** 缸号创建接口回查用「全局最大 id」（dye_batch_handler.rs:212-217）并发分片下可能返回别人的记录，
- *  因此本用例一律按 batch_no 从列表回查定位自己的缸号。 */
+ *  因此本用例一律按 batch_no 从列表回查定位自己的缸号。
+ *
+ * 四维门控前置（dye_batch_handler.rs:203-254 resolve_dye_color_identity 函数体）：
+ * color_no 非空 ⇒ 染色布 ⇒ dye_lot_no 必填，且 color_no 必须在色卡档案（color_card_item）
+ * 中按 color_code 唯一可查，否则 400「色号…在色卡档案中不存在」。原 seed 提交未入档的
+ * 编造色号 `E2E-CN62xxxx` 且缺 dye_lot_no，被正当门控拒绝——按本仓既有 seed 范式
+ * （10a-extended-inventory-approval.spec.ts:175-181 / fabric/02-dye.spec.ts:43-49）补前置：
+ * 先建专属色卡+唯一色号（值真实可追溯），再带统一取号器生成的缸号建批次。 */
 async function seedDyeBatch(page: import('@playwright/test').Page): Promise<number> {
   const batchNo = genCode('E2E-DB62');
+  const archive = await seedColorCardArchive(page, { context: '62 缸号链色卡前置' });
   await apiCall(page, 'POST', '/production/dye-batches', {
     batch_no: batchNo,
-    color_no: `E2E-CN62${batchNo.slice(-6)}`,
+    color_no: archive.colorCode,
+    dye_lot_no: genDyeLotNo(),
     planned_quantity: 100,
   });
   const listed = await apiCallRaw<{ items?: unknown }>(
