@@ -334,6 +334,46 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
       listed.total,
       `被拒的库存直建不得半落库：batch_no=${batchNo} 应 0 行，实际 ${JSON.stringify(listed.items)}`
     ).toBe(0);
+
+    // 正例（同一条门控的另一侧，缺一即成"永远拒"的过杀盲区）：把缸号补齐后同一四维组合
+    // 必须 200 落库。入库方向按既定口径只强制三维（色号/缸号/批次，
+    // services/inv/fabric_class.rs:36-72 validate_fabric_trace），第四维匹号只在出库强制
+    //（同文件 normalize_outbound_piece_no:83-101，仅出库侧调用）⇒ 本正例**故意不传 piece_no**，
+    // 若入库也被迫要匹号，这里就会红，正是该口径的负向锁。
+    const dyeLotOk = genCode('E2E67DL');
+    const okBatchNo = genCode('E2E67BNO');
+    const stocked = await apiCall<Row>(page, 'POST', '/inventory/stock', {
+      warehouse_id: ctx.warehouseIds[0],
+      product_id: productId,
+      batch_no: okBatchNo,
+      color_no: colorNo,
+      dye_lot_no: dyeLotOk,
+      grade: '一等品',
+      quantity_meters: '100.00',
+    });
+    const stockId = Number(stocked.data?.id);
+    expect(stockId, `[67-04] 补齐缸号后应入库成功：${JSON.stringify(stocked)}`).toBeGreaterThan(0);
+    // 落库回读逐维（读键=StockResponse 真键 snake_case：batch_no/color_no/dye_lot_no/quantity_meters）
+    expect(
+      stocked.data?.color_no,
+      `[67-04] 落库色号应=提交值，实际 ${JSON.stringify(stocked.data)}`
+    ).toBe(colorNo);
+    expect(stocked.data?.dye_lot_no, '染色布落库缸号应=提交值（被吞/置空即门控写侧缺陷）').toBe(
+      dyeLotOk
+    );
+    expect(stocked.data?.batch_no, '落库批次应=提交值').toBe(okBatchNo);
+    expect(
+      Number(stocked.data?.quantity_meters),
+      '落库米数应=提交 100.00（Decimal 字符串需 Number 归一）'
+    ).toBe(100);
+    const okListEp = `/inventory/stock?product_id=${productId}&batch_no=${encodeURIComponent(okBatchNo)}&page=1&page_size=10`;
+    const okListed = requireItemsEnvelope(await apiCallRaw(page, 'GET', okListEp), okListEp);
+    expect(
+      okListed.items.some(r => Number(r.id) === stockId),
+      `正例库存行应可按批次筛出（筛不出=四维追溯链断），实际 ${JSON.stringify(okListed.items)}`
+    ).toBe(true);
+
+    await tryCleanup(page, 'DELETE', `/inventory/stock/${stockId}`, '[67-04] 正例库存行');
   });
 
   test('67-05 库存直建(fabric)·白坯缺批次：应外显 DTO 的"批次号长度必须在1-50个字符之间"', async ({
@@ -357,6 +397,31 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
       quantity_meters: '50.00',
     });
     expectVisibleBusinessRejection(r, '批次', '67-05 白坯直建缺批次应外显四维准入原因');
+
+    // 正例（同一 DTO 规则的另一侧）：批次补齐后白坯必须 200——白坯只免缸号/匹号、
+    // 批次任何布种都必填（fabric_class.rs:36-72 + DTO :17-18），且 handler 侧把白坯主动
+    // 给出的缸号归一为 None（inventory_stock_handler_fabric.rs:146+ 收口，出库规划只接受
+    // dye_lot_no IS NULL 的白坯行）。断言逐维回读，缺任一即门控过杀或写侧吞值。
+    const greigeBatch = genCode('E2E67GB');
+    const greige = await apiCall<Row>(page, 'POST', '/inventory/stock/fabric', {
+      warehouse_id: ctx.warehouseIds[0],
+      product_id: productId,
+      batch_no: greigeBatch,
+      color_no: '',
+      grade: '一等品',
+      quantity_meters: '50.00',
+    });
+    const greigeId = Number(greige.data?.id);
+    expect(greigeId, `[67-05] 补齐批次后白坯应入库：${JSON.stringify(greige)}`).toBeGreaterThan(0);
+    expect(greige.data?.batch_no, '白坯落库批次应=提交值').toBe(greigeBatch);
+    expect(greige.data?.color_no, '白坯色号应落空串（NOT NULL 列以空串表达白坯）').toBe('');
+    expect(
+      greige.data?.dye_lot_no,
+      `白坯缸号应被归一为 NULL，不得保留入参，实际 ${JSON.stringify(greige.data?.dye_lot_no)}`
+    ).toBeNull();
+    expect(Number(greige.data?.quantity_meters), '白坯落库米数应=提交 50.00').toBe(50);
+
+    await tryCleanup(page, 'DELETE', `/inventory/stock/${greigeId}`, '[67-05] 白坯库存行');
   });
 
   test('67-06 供应商资质日期倒挂：外显"不能早于发证日期"且资质列表无痕（预计判绿）', async ({
