@@ -135,7 +135,7 @@ impl AccountingPeriodService {
     }
 
     /// V15 P1 17.1-D2：反结账（重开期间）
-    /// 业务规则：1. 仅 CLOSED 状态的期间可反结账；CLOSING 状态不可（结账中无法重开）；2. 仅最近一个已结账期间可反结账（防止跳过中间期间导致数据断层）；3. 下一个期间必须存在且为 OPEN 状态（确保期间连续性）；4. 反结账后期间状态恢复为 OPEN，清空 closed_at/closed_by；5. 操作写入审计日志，记录"反结账"操作类型
+    /// 业务规则：1. 仅 CLOSED 状态的期间可反结账；CLOSING 状态不可（结账中无法重开）；2. 仅最近一个已结账期间可反结账（防止跳过中间期间导致数据断层）；3. 连续性：最新一期刚结账时其后期间可能尚未创建，回退不产生悬空期间应放行；只有当其后期间已承接结转并发生过账业务时，回退才会造成断层，此时才拒绝；4. 反结账后期间状态恢复为 OPEN，清空 closed_at/closed_by；5. 操作写入审计日志，记录"反结账"操作类型
     pub async fn reopen_period(
         &self,
         period_id: i32,
@@ -175,26 +175,19 @@ impl AccountingPeriodService {
                 )));
             }
         }
-        // 校验下一个期间存在且为 OPEN（确保期间连续性）
-        let (next_year, next_period) = calc_next_period(period.year, period.period);
-        let next_period_exists = accounting_period::Entity::find()
-            .filter(accounting_period::Column::Year.eq(next_year))
-            .filter(accounting_period::Column::Period.eq(next_period))
-            .one(&txn)
+        // 连续性守护：仅当本期间之后已有过账凭证时才拒绝反结账。
+        // 最新一期刚结账时其后期间可能尚未创建，回退本身不产生悬空期间，应放行；
+        // 只有后续期间已承接本期结转并发生业务（已过账凭证）时，回退才会造成数据断层。
+        let later_posted_vouchers = crate::models::voucher::Entity::find()
+            .filter(crate::models::voucher::Column::VoucherDate.gt(period.end_date))
+            .filter(crate::models::voucher::Column::Status.eq(VOUCHER_POSTED))
+            .count(&txn)
             .await?;
-        if next_period_exists.is_none() {
-            return Err(AppError::business(format!(
-                "反结账失败：下一期间 {}-{:02} 不存在，无法保证期间连续性",
-                next_year, next_period
+        if later_posted_vouchers > 0 {
+            return Err(AppError::business_displayable(format!(
+                "反结账失败：{} 之后已有过账凭证，请先处理后续期间的业务后再回退本期间",
+                period.period_name
             )));
-        }
-        if let Some(next_p) = &next_period_exists {
-            if next_p.status != period_status::OPEN {
-                return Err(AppError::business(format!(
-                    "反结账失败：下一期间 {} 状态为 {}，必须为 OPEN",
-                    next_p.period_name, next_p.status
-                )));
-            }
         }
         // 反结账：状态恢复 OPEN，清空 closed_at/closed_by
         let mut active: accounting_period::ActiveModel = period.into();
