@@ -1,8 +1,9 @@
 //! 集成测试公共夹具（tests/ 侧入口）
 //!
-//! 实现只有一份：`bingxi_backend::services::test_common`（本仓 20 处 src 内单测
-//! 也直接用它，避免"tests/ 与 src/ 两套夹具、只有一套被改"的漂移）。本模块只做
-//! 再导出，让 `mod test_common; use test_common::setup_test_db;` 的既有写法继续成立。
+//! 实现只有一份：`bingxi_backend::services::test_common`。本模块只做再导出，
+//! 让 `mod test_common; use test_common::setup_test_db;` 的既有写法继续成立，
+//! 避免"tests/ 与 src/ 两套夹具、只有一套被改"的漂移。再导出清单按真实
+//! 消费者收窄（`grep -rn 'test_common::' tests/` 可复核），src 内当前无夹具调用点。
 //!
 //! 语义要点（详见实现文件头注释）：
 //! - `setup_test_db()` 必须连已迁移的 PostgreSQL，缺 `TEST_DATABASE_URL` 或指向
@@ -15,6 +16,5 @@
 // 在 shim 处统一放行（不是把实现变成死代码——实现只有 lib 那一份）。
 #[allow(unused_imports, reason = "shim 再导出：各测试文件按需取用")]
 pub use bingxi_backend::services::test_common::{
-    SEALED_REFERENCE_TABLES, connect_empty_schema_db, connect_live_db, reset_business_tables,
-    setup_test_db,
+    connect_empty_schema_db, connect_live_db, setup_test_db,
 };

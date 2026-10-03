@@ -32,7 +32,11 @@ use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, QueryRes
 /// 迁移种子写入、测试不得清空的参照表。
 /// 逐条来自 `grep -rhoiE 'INSERT INTO [^ (;]+' backend/migration/src/`。
 /// 注意 `users` / `permissions` **不在**其中：迁移不播种，用例必须自己插。
-pub const SEALED_REFERENCE_TABLES: &[&str] = &[
+#[allow(
+    dead_code,
+    reason = "警告仅由 server bin 目标报出（src/main.rs:12 以 `mod services;` 镜像整棵 lib 模块树，夹具链在 bin crate 内无任何调用方；lib 与集成测试编译均不报，日志 target name=server/kind=bin 可证）。本清单由同文件 business_tables 消费，是 TRUNCATE 排除种子参照表的判据；口径引用见 tests/contract_wave5_voucher_budget_family_test.rs:113、tests/contract_wave8_crm_read_gate_bypass_test.rs:36"
+)]
+const SEALED_REFERENCE_TABLES: &[&str] = &[
     "account_subjects",
     "budget_item_periods",
     "budget_plans",
@@ -55,8 +59,16 @@ pub const SEALED_REFERENCE_TABLES: &[&str] = &[
 ];
 
 /// 迁移记账表前缀（同样不参与清空，清掉会让后续 migrate 判定错乱）
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;` 把夹具编进 bin，链上无 bin 调用路径）；消费者为同文件 business_tables，是排除 _seaorm_ 记账表的判据"
+)]
 const MIGRATION_BOOKKEEPING_PREFIXES: &[&str] = &["_seaorm_", "seaorm_"];
 
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 connect_live_db——真实使用点 tests/bi_analysis_test.rs:26、tests/contract_wave2_explicit_null_clear_test.rs:107、tests/number_generator_document_no_taken_registry_test.rs:251"
+)]
 fn live_database_url() -> String {
     let url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
         panic!(
@@ -75,6 +87,10 @@ fn live_database_url() -> String {
     url
 }
 
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 connect_empty_schema_db——真实使用点 tests/ap_payment_workflow_test.rs:90、tests/services_voucher_service_test.rs:516 等 30+ 处负前提交集用例"
+)]
 fn empty_database_url() -> String {
     std::env::var("TEST_EMPTY_DATABASE_URL").unwrap_or_else(|_| {
         panic!(
@@ -87,6 +103,10 @@ fn empty_database_url() -> String {
 }
 
 /// 只连接、不清空（同一用例内需要保留前序写入、或多段共用一库时使用）。
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`，夹具非 bin 生产路径）；真实使用点 tests/bi_analysis_test.rs:26、tests/contract_wave2_explicit_null_clear_test.rs:107、tests/number_generator_document_no_taken_registry_test.rs:251/274，另被同文件 setup_test_db 调用"
+)]
 pub async fn connect_live_db() -> DatabaseConnection {
     Database::connect(live_database_url())
         .await
@@ -94,6 +114,10 @@ pub async fn connect_live_db() -> DatabaseConnection {
 }
 
 /// 表名白名单：只接受迁移产出的小写标识符，杜绝把任何外部串拼进 TRUNCATE。
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 business_tables，是 TRUNCATE 拼接前的标识符白名单校验"
+)]
 fn is_safe_ident(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 63
@@ -103,6 +127,10 @@ fn is_safe_ident(name: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 business_tables，用于解码 pg_tables.tablename 列"
+)]
 fn col_string(row: &QueryResult, idx: usize) -> String {
     row.try_get_by_index::<Option<String>>(idx)
         .unwrap_or_else(|e| panic!("夹具：pg_tables.tablename 应可解码为文本，第 {idx} 列: {e}"))
@@ -110,6 +138,10 @@ fn col_string(row: &QueryResult, idx: usize) -> String {
 }
 
 /// public schema 下、排除参照种子与迁移记账后的全部业务表名。
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 reset_business_tables，属 setup_test_db 夹具链（集成测试普遍使用，如 tests/ap_payment_workflow_test.rs:75）"
+)]
 async fn business_tables(db: &DatabaseConnection) -> Vec<String> {
     let rows: Vec<QueryResult> = db
         .query_all_raw(Statement::from_string(
@@ -135,7 +167,11 @@ async fn business_tables(db: &DatabaseConnection) -> Vec<String> {
 /// 把业务表清到空：`RESTART IDENTITY` 让自增 ID 从 1 起，`CASCADE` 处理外键依赖。
 ///
 /// 分块执行只为控制单条 SQL 长度，语义等价于一次全表 TRUNCATE。
-pub async fn reset_business_tables(db: &DatabaseConnection) {
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 setup_test_db（tests/ 集成测试普遍经 shim 使用），tests/ 侧无直接调用方故不再是 pub"
+)]
+async fn reset_business_tables(db: &DatabaseConnection) {
     let tables = business_tables(db).await;
     if tables.is_empty() {
         panic!("测试夹具：public schema 下没有可清空的业务表 —— 迁移未生效，拒绝以空库跑测试");
@@ -166,6 +202,10 @@ pub async fn setup_test_db() -> DatabaseConnection {
 /// 拍平成 500，或被静默吞成空结果）。该库由 CI 单独创建、**不跑迁移**，因此不会与
 /// [`setup_test_db`] 的已迁移库互相污染。落地时反向校验它确实是空库——若里面已经有
 /// 业务表，说明 env 指错了库，那条锁验证的就是假前提。
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`，夹具非 bin 生产路径）；真实使用点 tests/ap_payment_workflow_test.rs:90、tests/services_inventory_stock_service_test.rs:207、tests/services_voucher_service_test.rs:516 等 30+ 处空 schema 负前提交集用例"
+)]
 pub async fn connect_empty_schema_db() -> DatabaseConnection {
     let db = Database::connect(empty_database_url())
         .await

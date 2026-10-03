@@ -367,7 +367,7 @@ async fn opp_status(db: &DatabaseConnection, id: i32) -> String {
     let rows = db
         .query_all_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            &format!("SELECT opportunity_status FROM crm_opportunity WHERE id={id}"),
+            format!("SELECT opportunity_status FROM crm_opportunity WHERE id={id}"),
             Vec::<sea_orm::Value>::new(),
         ))
         .await
@@ -799,7 +799,7 @@ fn read_gate_bypass_source_ratchet() {
         .next()
         .expect("函数体边界缺失");
     assert!(
-        canon(&apply_body).contains("admin_checker::is_admin_role(&state.db,rid).await"),
+        canon(apply_body).contains("admin_checker::is_admin_role(&state.db,rid).await"),
         "D-4 回潮棘轮：商机金额门 admin 例外不再调用权威源 admin_checker::is_admin_role"
     );
     assert_eq!(

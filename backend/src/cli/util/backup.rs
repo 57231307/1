@@ -1,6 +1,10 @@
 //! 备份与恢复子命令实现：Backup / Restore
 
 use super::{get_backup_dir, get_install_dir, require_env, require_root, run_cmd, timestamp};
+
+// `fs::` 仅在下面 compress_backup 的 `#[cfg(unix)]` 权限设置块里使用：
+// 导入收进同一 cfg 作用域，Windows 编译不再报 unused import，Linux 行为逐字节不变。
+#[cfg(unix)]
 use std::fs;
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，

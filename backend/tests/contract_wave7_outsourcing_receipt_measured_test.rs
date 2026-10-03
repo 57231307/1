@@ -199,8 +199,7 @@ fn docx_label_text(bytes: &[u8]) -> String {
     let xml = docx_document_xml(bytes);
     let mut text = String::new();
     let mut rest: &str = &xml;
-    loop {
-        let Some(open) = rest.find("<w:t") else { break };
+    while let Some(open) = rest.find("<w:t") {
         let after = &rest[open..];
         // 只认真正的文本跑：<w:t> 或 <w:t xml:space="...">；<w:tc>/<w:tab/> 等一律跳过
         let is_text_run = after.starts_with("<w:t>") || after.starts_with("<w:t ");
