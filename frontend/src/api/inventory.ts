@@ -197,8 +197,9 @@ export interface StockAdjustmentData {
  * 创建预留入参 = 后端 CreateReservationRequest
  * （handlers/inventory_reservation_handler.rs，非 Option 必填：order_id/product_id/warehouse_id/quantity）。
  * 后端没有 order_no/expire_date 键（此前前端多传 = serde 静默丢弃的假字段）；
- * quantity 为 Decimal 入参，按本仓口径传字符串（整数 number 亦可反序列化，含小数的 JSON
- * 浮点在无 serde-float 的 rust_decimal 上会被拒 → 422「参数错误」）。
+ * quantity 为 Decimal 入参，按本仓口径传字符串（整数与浮点 number 都能反序列化成功——默认
+ * feature 下 rust_decimal 走 visit_f64，见 rust_decimal-1.42.1/src/serde.rs:343-348，不会因此
+ * 报 422；但浮点只有约 17 位有效数字，末位会静默失真，所以传 string 才是精确且全域的写法）。
  * notes 为 Option<String>：空值省略该键，不传空串。
  */
 export interface CreateReservationPayload {

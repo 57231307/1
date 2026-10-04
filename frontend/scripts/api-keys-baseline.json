@@ -1,5 +1,5 @@
 {
-  "total": 148,
+  "total": 147,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -280,12 +280,6 @@
         "SalesStats.profitTrend",
         "SalesTrendResult.growth_rate",
         "SalesTrendResult.profit"
-      ]
-    },
-    "frontend/src/api/sales-price.ts": {
-      "count": 1,
-      "keys": [
-        "PricingStrategyRule.strategy_id"
       ]
     },
     "frontend/src/api/sales.ts": {

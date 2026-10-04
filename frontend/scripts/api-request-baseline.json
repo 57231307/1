@@ -42,8 +42,6 @@
     "/src/api/production.ts createProductionOrder /api/v1/erp/production/production-orders/orders POST",
     "/src/api/purchase.ts getPurchaseOrderList /api/v1/erp/purchase/orders GET",
     "/src/api/purchase.ts updatePurchaseOrder /api/v1/erp/purchase/orders/* PUT",
-    "/src/api/sales-price.ts createSalesPrice /api/v1/erp/sales/sales-prices POST",
-    "/src/api/sales-price.ts updateSalesPrice /api/v1/erp/sales/sales-prices/* PUT",
     "/src/api/scheduling.ts autoSchedule /api/v1/erp/scheduling/auto-schedule POST",
     "/src/api/scheduling.ts getSchedulingGanttData /api/v1/erp/scheduling/gantt GET",
     "/src/api/supplier.ts createSupplier /api/v1/erp/purchase/suppliers POST",
