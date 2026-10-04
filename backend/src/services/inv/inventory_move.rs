@@ -510,7 +510,14 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
         if transfer.status == transfer_status::COMPLETED {
-            return Err(AppError::business("调拨单已完成，不允许修改".to_string()));
+            // 状态门拒绝文案是用户可理解的公开业务规则（已完成单据不可编辑、状态须走
+            // 审批/发货/收货权威操作），不含数据库记录 ID、不含 SQL/表名/他人数据，满足
+            // `utils/error.rs` 模块文档的可外显安全边界 ⇒ 走 `business_displayable`，
+            // 与相邻状态门 `Self::validate_transfer_status_write` 口径一致；
+            // 若仍走脱敏 `business`，出参被替换成 `err_msg::BUSINESS_PUBLIC`，用户看不到拒绝原因。
+            return Err(AppError::business_displayable(
+                "调拨单已完成，不允许修改：调拨单状态只能通过审批、发货、收货操作变更，编辑保存不改变状态",
+            ));
         }
         Ok(transfer)
     }
@@ -731,8 +738,11 @@ impl InventoryTransferService {
 
         // 检查状态，只有待审核的调拨单可以审核
         if transfer.status != transfer_status::PENDING {
-            return Err(AppError::business(
-                "只有待审核状态的调拨单可以审核".to_string(),
+            // 同族状态门：拒绝文案「只有待审核状态的调拨单可以审核」是静态公开业务规则，
+            // 不含记录 ID/查询所得实体数据/权限判定依据，满足 `utils/error.rs` 的可外显安全边界
+            // ⇒ 走 `business_displayable`，与建单/编辑/完成各状态门口径一致，让用户看到拒绝原因。
+            return Err(AppError::business_displayable(
+                "只有待审核状态的调拨单可以审核",
             ));
         }
 
@@ -825,6 +835,9 @@ impl InventoryTransferService {
             || transfer.status == transfer_status::SHIPPED
             || transfer.status == transfer_status::COMPLETED
         {
+            // 保持脱敏 `business`：文案经 `format!` 塞入服务端查得的 `transfer.status`（实体数据），
+            // 触到 `utils/error.rs`「禁止把查询到的实体数据拼进可外显文案」硬边界，
+            // 与建单/审批/完成门（静态规则文案）不同族 ⇒ 不随本批收口为 displayable。
             return Err(AppError::business(format!(
                 "调拨单状态 {} 不允许删除",
                 transfer.status
