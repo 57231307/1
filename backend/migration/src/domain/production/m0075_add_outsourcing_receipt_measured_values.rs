@@ -142,6 +142,7 @@ $$;
 DO $$
 DECLARE
     col_count    INTEGER;
+    type_agg     TEXT;
     nn_flag      TEXT;
     def_flag     TEXT;
     chk_count    INTEGER;
@@ -157,8 +158,15 @@ BEGIN
       WHERE table_name = 'outsourcing_receipt'
         AND column_name IN ('weight', 'width', 'gram_weight')
         AND data_type IN ('numeric', 'decimal');
+    -- 拒绝面要报"实际是什么型"而不是只报"不对"：col_count 在这里只是判定量，把它塞进
+    -- 一条没有 % 占位符的文案会让 PG 在**编译 DO 块时**就报 42601 too many parameters
+    -- （CI run #4674 实测：迁移链在 v15 域中断 ⇒ 40 E2E + 11 Rust 测试 job 连带红）。
+    -- 改为聚合出三列的真实 data_type 逐列点名，既配平占位符也让判责一步到位。
+    SELECT string_agg(data_type, ',') INTO type_agg FROM information_schema.columns
+      WHERE table_name = 'outsourcing_receipt'
+        AND column_name IN ('weight', 'width', 'gram_weight');
     IF col_count <> 3 THEN
-        RAISE EXCEPTION 'm0075：三列 data_type 非 numeric/decimal（须与 inventory_piece 同名列 DECIMAL(18,4) 同型以保证透传无损），中止。', col_count;
+        RAISE EXCEPTION 'm0075：三列 data_type 非 numeric/decimal（实际 data_type 聚合=%，期望三列均为 numeric；须与 inventory_piece 同名列 DECIMAL(18,4) 同型以保证透传无损），中止。', type_agg;
     END IF;
 
     -- 可空 + 无默认是口径本身：NULL 表达"未补录"，DEFAULT 0 会把无据伪装成实测值
