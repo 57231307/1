@@ -3,23 +3,43 @@
 //! 从原 `init_service.rs` 迁移 2 个方法：
 //! - create_default_role_permissions：为全部角色创建 role_permission 权限矩阵（覆盖 60+ 资源 × 11 操作码）
 //! - create_default_role_conflicts：初始化默认角色互斥规则（SoD 职责分离）
+//!
+//! 授权落库口径（CI run #4675 E6 根修，本模块唯一判据）：矩阵的幂等按**角色 × (resource,action)
+//! 逐条对账**，不再用"role_permissions 表整体有行就跳过"；三类缺口一律 fail-visible 点名报错，
+//! 不许静默 skip 后返回成功——① 资源码不在 `PERMISSION_RESOURCES` 注册表（授予也是死码）、
+//! ② 角色码在 roles 表解析不到（上游建角色链断）、③ 写后"应写 vs 实写"对账不足。
+//! 授权语义（哪个角色该有哪些资源码）在本模块的定义表里，本修**不改动**任何授予面。
+//!
+//! E6 的因果分工（避免下个改动把根因认错）：CI #4675 里业务授权没落库的**直接**原因是
+//! `init_service_ops/role.rs::create_default_roles` 旧写法"admin 已存在即整体早退"，
+//! 矩阵 37 个角色码里只有 2 个能在 roles 表解析到；本模块的 `count>0` 整体跳过守卫是
+//! **第二道**会吞授权的雷（存量库或已被迁移/e2e 授过部分码时重放 init 必然吞掉首建），
+//! 两道都已闭合，行为级证据见 `tests/services_init_role_permission_matrix_test.rs`
+//! （①②③ 各钉一条：真库回读授权行确实存在、重放逐条等价、缺角色时点名判红且零写入）。
+use std::collections::{HashMap, HashSet};
+
 use crate::models::{role, role_conflict, role_permission};
-use crate::services::init_service::{InitError, InitService};
+use crate::services::init_service::{InitError, InitService, PERMISSION_RESOURCES};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use tracing::warn;
 
 // ===== 类型别名（避免 clippy `type_complexity` 警告：嵌套引用切片类型过深）=====
+//
+// 前三个别名 `pub` 的必要性：`find_unregistered_matrix_resources` 是注册表 fail-visible
+// 闸门，除生产链内部调用外还要能被集成测试用"未登记资源码"直接驱动负向断言
+// （tests/services_init_role_permission_matrix_test.rs）。闸门只有一道实现，
+// 测试喂的是同一道闸门的入参形态，不存在第二套判定。
 
 /// 资源-操作对（如 ("users", "read")）
-type PermPair = (&'static str, &'static str);
+pub type PermPair = (&'static str, &'static str);
 
 /// 角色权限定义组：角色代码 + 该角色的资源操作列表
-type RoleResourceGroup = (&'static str, &'static [PermPair]);
+pub type RoleResourceGroup = (&'static str, &'static [PermPair]);
 
 /// 单个域的角色权限定义切片（多个角色权限组）
-type RoleResourceSlice = &'static [RoleResourceGroup];
+pub type RoleResourceSlice = &'static [RoleResourceGroup];
 
-/// 全部域的角色权限定义分组列表
+/// 全部域的角色权限定义分组列表（仅本模块内部聚合用，不进公开签名）
 type RoleResourceGroups = Vec<RoleResourceSlice>;
 
 /// 应用外壳权限码：每个角色都必须具备的两项。
@@ -33,26 +53,200 @@ type RoleResourceGroups = Vec<RoleResourceSlice>;
 /// 缺码的角色登录后会被路由守卫送到 /403，或每次进主页都在控制台抛 403。
 const SHELL_PERMISSIONS: &[PermPair] = &[("dashboard", "read"), ("notifications", "read")];
 
+/// 库里"已经算授权到位"的 role_permission 索引（按角色归组的 (resource,action) 集合）。
+///
+/// 判据必须是**角色级 + allowed=true**，不是"同键有行就算"：
+/// - 记录级行（`resource_id = Some(..)`）按 `matches_permission`
+///   （`middleware/permission.rs:619-637`：`(Some(_), None) => false`）不能放行整集合请求。
+///   若拿它顶替角色级授权，矩阵会跳过写入、生产工单列表 403 依旧，而 init 报"成功"——
+///   这正是"半截授权被当成已授权"的形态之一，故记录级行两侧都不计入。
+/// - `allowed = false` 是显式拒绝型权限（`role_permission_service.rs:366` 口径：
+///   "allowed=false 的拒绝型权限不构成冲突"），矩阵不得覆盖它（覆盖＝放大授权面，
+///   属授权语义变更，不在本修范围），但必须点名留痕，不得静默当成已授权。
+struct ExistingRoleGrants {
+    /// 角色级、allowed=true：矩阵幂等跳过的依据
+    granted: HashMap<i32, HashSet<(String, String)>>,
+    /// 角色级、allowed=false：矩阵不覆盖，逐条点名留痕
+    denied: HashMap<i32, HashSet<(String, String)>>,
+}
+
+/// (角色码, 资源码, 操作码) 三元组，仅用于缺口点名
+type PermTriple = (&'static str, &'static str, &'static str);
+
+/// 一轮授权建立的差集计划（应写集合 + 待点名缺口）。
+struct PermissionWritePlan {
+    /// 待写模型（库里缺失的角色级授权）
+    to_insert: Vec<role_permission::ActiveModel>,
+    /// 本轮真正涉及的角色 ID（写后对账按这批角色计数）
+    pending_role_ids: Vec<i32>,
+    /// 应写条数（= to_insert 长度，另存一份供对账与日志）
+    expected_total: usize,
+    /// 在 roles 表解析不到的角色码（闸门②点名对象）
+    missing_role_codes: Vec<&'static str>,
+    /// 矩阵想授、库里却是同键显式拒绝行的组合
+    explicit_denied_kept: Vec<PermTriple>,
+}
+
+/// 未登记资源码的点名结果：(资源码, 引用它的角色码列表)
+pub type UnregisteredResource = (String, Vec<String>);
+
+/// 找出矩阵定义里未登记在 `PERMISSION_RESOURCES` 中的资源码（闸门①的判据）。
+///
+/// 纯函数、不碰库，返回 `Vec<(资源码, 引用它的角色码列表)>`，空集即全部合法。
+/// 生产闸门 `InitService::assert_matrix_resources_registered` 与集成测试共用这同一份
+/// 判据（不造第二套判定）：测试可直接喂未登记资源码驱动负向断言，只判返回集合、不判文案。
+/// 写成模块级自由函数而非 `InitService` 的关联函数：它不属于任何实例，也不建实例。
+pub fn find_unregistered_matrix_resources(
+    groups: &[RoleResourceSlice],
+) -> Vec<UnregisteredResource> {
+    let registry: HashSet<&str> = PERMISSION_RESOURCES.iter().copied().collect();
+    let mut unknown: Vec<UnregisteredResource> = Vec::new();
+    for definition in groups {
+        for (role_code, resources) in *definition {
+            for (resource, _action) in *resources {
+                if registry.contains(resource) {
+                    continue;
+                }
+                match unknown.iter_mut().find(|(res, _)| res == resource) {
+                    Some((_, roles)) => {
+                        if !roles.contains(&role_code.to_string()) {
+                            roles.push(role_code.to_string());
+                        }
+                    }
+                    None => unknown.push((resource.to_string(), vec![role_code.to_string()])),
+                }
+            }
+        }
+    }
+    unknown
+}
+
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）。
-    pub(crate) async fn create_default_role_permissions(&self) -> Result<(), InitError> {
-        if Self::role_permissions_already_exist(self.db.as_ref()).await {
-            return Ok(());
-        }
+    ///
+    /// 幂等与可观测性口径（CI run #4675 根修，见本模块顶部说明）：
+    /// - 幂等**按角色逐条 (resource,action) 对账**：库里已有的角色级授权跳过（可重入、不重复插），
+    ///   库里缺失的组合补齐。旧的全表 `count>0 即整体跳过` 会把"迁移/e2e 半截补建的少量授权行"
+    ///   误当成全矩阵已落地，从而吞掉 production-orders 等业务授权的首建（本条是 E6 的第二道雷，
+    ///   直接原因见模块头"E6 的因果分工"），予以废除。
+    /// - fail-visible 三道闸门，任一不过一律点名报错，禁止静默 skip 后返回成功：
+    ///   ① 矩阵引用的资源码必须已登记在 `PERMISSION_RESOURCES`（未登记=写进库也永不生效的死码授权）；
+    ///   ② 角色码必须在 roles 表解析得到（解析不到=上游建角色链断，该角色授权一条都写不进）；
+    ///   ③ 写后按"应写 vs 实写"对账，实写 < 应写即落库缺口。
+    /// - 同键显式拒绝行不被覆盖，但逐条点名留痕。
+    ///
+    /// 可见性 `pub`：生产路径仍只由 `initialize` 链内部调用；放开是为了让集成测试能在
+    /// 真库上行为级驱动"授权到底有没有落库"（tests/services_init_role_permission_matrix_test.rs），
+    /// 而不是让测试另造一套等价实现来"自证"。
+    pub async fn create_default_role_permissions(&self) -> Result<(), InitError> {
+        let db = self.db.as_ref();
         let now = chrono::Utc::now();
-        let mut perms: Vec<role_permission::ActiveModel> = Vec::new();
-        for definitions in Self::all_role_permission_definition_groups() {
-            Self::extend_perms_from_definitions(self.db.as_ref(), definitions, now, &mut perms)
+
+        // 闸门①：纯静态校验，放在任何写之前——资源码没登记就别写，写了也是死码。
+        Self::assert_matrix_resources_registered()?;
+
+        // 一次性拉取现有授权并按 role_id 归组，避免逐角色 N+1。
+        let existing = Self::load_existing_permissions(db).await?;
+
+        // 逐角色解析、diff 出库里缺失的授权；缺口只收集不静默丢弃。
+        let PermissionWritePlan {
+            to_insert,
+            pending_role_ids,
+            expected_total,
+            missing_role_codes,
+            explicit_denied_kept,
+        } = Self::collect_missing_permission_writes(db, &existing, now).await?;
+
+        // 闸门②：任一角色码在 roles 表解析不到 = 授权建立上游断链，必须红。
+        if !missing_role_codes.is_empty() {
+            return Err(InitError::DatabaseError(format!(
+                "角色权限矩阵建立不完整：{} 个角色码在 roles 表解析不到、其授权一条都未写入：{:?}",
+                missing_role_codes.len(),
+                missing_role_codes
+            )));
+        }
+
+        // 显式拒绝保持不覆盖（不改授权语义），但必须点名——否则就是"半截授权被当成已授权"。
+        if !explicit_denied_kept.is_empty() {
+            let samples: Vec<String> = explicit_denied_kept
+                .iter()
+                .take(10)
+                .map(|(r, res, act)| format!("{}:{}.{}", r, res, act))
+                .collect();
+            warn!(
+                "角色权限矩阵存在同键显式拒绝行（allowed=false），按最小惊讶原则不覆盖、本批未补写授权：{} 条，样例 {:?}",
+                explicit_denied_kept.len(),
+                samples
+            );
+        }
+
+        let mut written = 0usize;
+        if !to_insert.is_empty() {
+            written = Self::persist_and_reconcile(db, to_insert, pending_role_ids, expected_total)
                 .await?;
         }
-        Self::batch_insert_permissions(self.db.as_ref(), perms).await;
+
+        tracing::info!(
+            "角色权限矩阵建立完成：应写 {} 条、实写 {} 条（库里已授权的角色级组合按条幂等跳过，同键显式拒绝 {} 条保持不覆盖）",
+            expected_total,
+            written,
+            explicit_denied_kept.len()
+        );
         Ok(())
     }
 
-    /// 检查 role_permission 表是否已有记录（幂等，查询错误时视为 0 条继续执行）。
-    async fn role_permissions_already_exist(db: &DatabaseConnection) -> bool {
-        let count = role_permission::Entity::find().count(db).await.unwrap_or(0);
-        count > 0
+    /// 闸门①：矩阵（含应用外壳码）引用的资源码必须已在 `PERMISSION_RESOURCES` 登记。
+    ///
+    /// 为什么算缺口而不是"多余授权"：运行时权限键由 URL 段推导并与注册表同源
+    /// （`middleware/permission.rs::validate_route_whitelist` + `utils/path_utils.rs`），
+    /// 没登记的资源段一律被判"未知的资源路径"403 ⇒ 该授权行写进 `role_permissions`
+    /// 也永不命中，属于"看起来授权过、其实那条授权是死码"的静默缺陷，与授权没落库同罪。
+    fn assert_matrix_resources_registered() -> Result<(), InitError> {
+        let mut groups = Self::all_role_permission_definition_groups();
+        // 应用外壳码同样是矩阵写入的一部分，一并纳入闸门校验（标一个可读的来源标签，
+        // 便于缺口点名时直接看出是外壳码没登记，而不是某个业务角色的码表写错）
+        groups.push(&[("ALL·应用外壳码", SHELL_PERMISSIONS)]);
+        let unknown = find_unregistered_matrix_resources(&groups);
+        if unknown.is_empty() {
+            return Ok(());
+        }
+        Err(InitError::DatabaseError(format!(
+            "角色权限矩阵存在未登记的资源码 {} 个（授予后运行期永不命中，等于没授权）：{}",
+            unknown.len(),
+            unknown
+                .iter()
+                .map(|(res, roles)| format!("{}(被引用角色 {:?})", res, roles))
+                .collect::<Vec<String>>()
+                .join("、")
+        )))
+    }
+
+    /// 拉取现有全部 role_permission 行，按 role_id 归组为 (resource_type, action) 集合。
+    /// 供逐条幂等 diff 使用，单次查询避免 N+1。判据见 [`ExistingRoleGrants`]。
+    async fn load_existing_permissions(
+        db: &DatabaseConnection,
+    ) -> Result<ExistingRoleGrants, InitError> {
+        let rows = role_permission::Entity::find().all(db).await.map_err(|e| {
+            InitError::DatabaseError(format!("查询现有角色权限失败，无法对账: {}", e))
+        })?;
+        let mut granted: HashMap<i32, HashSet<(String, String)>> = HashMap::new();
+        let mut denied: HashMap<i32, HashSet<(String, String)>> = HashMap::new();
+        for row in rows {
+            // 记录级授权与矩阵的角色级授权不是同一维度：既不顶替、也不算拒绝
+            if row.resource_id.is_some() {
+                continue;
+            }
+            let bucket = if row.allowed {
+                &mut granted
+            } else {
+                &mut denied
+            };
+            bucket
+                .entry(row.role_id)
+                .or_default()
+                .insert((row.resource_type, row.action));
+        }
+        Ok(ExistingRoleGrants { granted, denied })
     }
 
     /// 汇总全部域的角色权限定义分组（管理/高管/销售/采购/库存/生产/质量/财务/CRM物流HR/其他）。
@@ -72,32 +266,131 @@ impl InitService {
         ]
     }
 
-    /// 遍历角色权限定义分组，查询角色 ID 并扩展权限 ActiveModel 列表。
-    async fn extend_perms_from_definitions(
+    /// 遍历全部域的角色权限定义，逐角色解析并 diff 出"库里缺失"的授权待写集合。
+    ///
+    /// 角色解析不到者不静默丢弃，而是记入 `missing_role_codes` 交调用方判红；库里已存在的
+    /// **角色级 allowed=true** (resource,action) 逐条跳过，已完整授权的角色自然 0 补写
+    /// （可重入），半截授权的角色只补齐缺失项（不吞首建）；同键显式拒绝行记入
+    /// `explicit_denied_kept` 点名留痕、不覆盖。
+    async fn collect_missing_permission_writes(
         db: &DatabaseConnection,
-        definitions: RoleResourceSlice,
+        existing: &ExistingRoleGrants,
         now: chrono::DateTime<chrono::Utc>,
-        perms: &mut Vec<role_permission::ActiveModel>,
-    ) -> Result<(), InitError> {
-        for (role_code, resources) in definitions {
-            let mut effective: Vec<PermPair> = resources.to_vec();
-            for shell in SHELL_PERMISSIONS {
-                if !effective.contains(shell) {
-                    effective.push(*shell);
+    ) -> Result<PermissionWritePlan, InitError> {
+        let mut to_insert: Vec<role_permission::ActiveModel> = Vec::new();
+        let mut pending_role_ids: Vec<i32> = Vec::new();
+        let mut missing_role_codes: Vec<&'static str> = Vec::new();
+        let mut explicit_denied_kept: Vec<PermTriple> = Vec::new();
+        let mut expected_total: usize = 0;
+
+        for definitions in Self::all_role_permission_definition_groups() {
+            for (role_code, resources) in definitions {
+                // 应用外壳码：每个角色都必须具备 dashboard/notifications，缺则登录后停在 /403。
+                let mut effective: Vec<PermPair> = resources.to_vec();
+                for shell in SHELL_PERMISSIONS {
+                    if !effective.contains(shell) {
+                        effective.push(*shell);
+                    }
                 }
-            }
-            let role_model = role::Entity::find()
-                .filter(role::Column::Code.eq(*role_code))
-                .one(db)
-                .await
-                .map_err(|e| {
-                    InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e))
-                })?;
-            if let Some(r) = role_model {
-                perms.extend(Self::make_permission_models(r.id, &effective, now));
+
+                let role_model = role::Entity::find()
+                    .filter(role::Column::Code.eq(*role_code))
+                    .one(db)
+                    .await
+                    .map_err(|e| {
+                        InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e))
+                    })?;
+
+                // 角色解析不到：旧写法 `if let Some(r) {..}` 无 else 分支，会静默跳过、
+                // 一条不写也不报错（本仓硬教训：init 找不到 code 只 warn+skip =
+                // "看起来跑过了其实没写"）。这里点名收集，交由调用方 fail-visible 判红。
+                let Some(role) = role_model else {
+                    missing_role_codes.push(*role_code);
+                    continue;
+                };
+
+                // 逐条 diff：仅保留库里缺失"角色级 allowed=true"的 (resource,action) 组合。
+                let granted = existing.granted.get(&role.id);
+                let denied = existing.denied.get(&role.id);
+                let mut missing_perms: Vec<PermPair> = Vec::new();
+                for (res, act) in effective {
+                    let key = (res.to_string(), act.to_string());
+                    if granted.is_some_and(|set| set.contains(&key)) {
+                        continue;
+                    }
+                    if denied.is_some_and(|set| set.contains(&key)) {
+                        // 库里是同键显式拒绝：覆盖它会放大授权面（语义变更，本修不做），
+                        // 但绝不静默——点名交给调用方留痕。
+                        explicit_denied_kept.push((*role_code, res, act));
+                        continue;
+                    }
+                    missing_perms.push((res, act));
+                }
+
+                if missing_perms.is_empty() {
+                    // 该角色已按矩阵完整授权（可重入分支），跳过。
+                    continue;
+                }
+
+                expected_total += missing_perms.len();
+                pending_role_ids.push(role.id);
+                to_insert.extend(Self::make_permission_models(role.id, &missing_perms, now));
             }
         }
-        Ok(())
+
+        Ok(PermissionWritePlan {
+            to_insert,
+            pending_role_ids,
+            expected_total,
+            missing_role_codes,
+            explicit_denied_kept,
+        })
+    }
+
+    /// 落库并做"应写 vs 实写"对账：写失败或实写条数不足应写条数，一律点名判红。
+    ///
+    /// 返回**实写条数**给调用方留痕，避免日志把"应写"当"已写"播报。
+    async fn persist_and_reconcile(
+        db: &DatabaseConnection,
+        to_insert: Vec<role_permission::ActiveModel>,
+        pending_role_ids: Vec<i32>,
+        expected_total: usize,
+    ) -> Result<usize, InitError> {
+        // 写前基线：这些待补角色当前已有行数（写后精确算实写条数用）。
+        let before = role_permission::Entity::find()
+            .filter(role_permission::Column::RoleId.is_in(pending_role_ids.clone()))
+            .count(db)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("写前统计角色权限基线失败: {}", e)))?;
+
+        // 落库失败直接上抛（写不进 = 授权没落库 = 必须红），不再只 warn 后假绿。
+        role_permission::Entity::insert_many(to_insert)
+            .exec(db)
+            .await
+            .map_err(|e| {
+                InitError::DatabaseError(format!(
+                    "批量写入角色权限失败（本轮应写 {} 条）: {}",
+                    expected_total, e
+                ))
+            })?;
+
+        // 对账：写后总行数 - 写前基线 = 实写；不足应写即有行未真正落库（约束/触发器/静默丢行），
+        // 缺口显式化并判红。
+        let after = role_permission::Entity::find()
+            .filter(role_permission::Column::RoleId.is_in(pending_role_ids))
+            .count(db)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("写后角色权限对账计数失败: {}", e)))?;
+        let written = after.saturating_sub(before);
+        if written < expected_total as u64 {
+            return Err(InitError::DatabaseError(format!(
+                "角色权限落库对账缺口：应写 {} 条，实写 {} 条（差额 {} 条未落库）",
+                expected_total,
+                written,
+                expected_total as u64 - written
+            )));
+        }
+        Ok(written as usize)
     }
 
     /// 为指定角色按 resource×action 列表生成权限 ActiveModel（全部 allowed=true）。
@@ -120,19 +413,6 @@ impl InitService {
                 updated_at: Set(now),
             })
             .collect()
-    }
-
-    /// 批量插入角色权限记录（空列表跳过，失败仅 warn 不阻断初始化）。
-    async fn batch_insert_permissions(
-        db: &DatabaseConnection,
-        perms: Vec<role_permission::ActiveModel>,
-    ) {
-        if perms.is_empty() {
-            return;
-        }
-        if let Err(e) = role_permission::Entity::insert_many(perms).exec(db).await {
-            warn!("批量创建角色权限失败: {}, 可能部分已存在", e);
-        }
     }
 
     // ===== 角色权限数据定义（按域分组，每组 ≤50 行）=====

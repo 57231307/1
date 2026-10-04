@@ -78,6 +78,14 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "suppliers",
     "supplier-evaluations",
     "supplier-blacklists",
+    // 供应商 SKU 对照表与其父级目录（路由挂在 purchase 模块下：
+    // `routes/purchase.rs:461/488/507` 的 `/sku-mappings`、`/supplier-products`、
+    // `/supplier-product-colors`）。运行时权限键取 segment4（同 `purchase-orders` 的推导口径），
+    // 所以这三条是与 `suppliers` 彼此独立的资源码；矩阵 `init_service_ops/permission.rs`
+    // 已在授予它们，注册表缺登记就会让闸门①（未登记资源码 = 授予后永不命中）判红。
+    "sku-mappings",
+    "supplier-products",
+    "supplier-product-colors",
     // ===== 生产域（面料行业深化）=====
     "production-orders",
     "dye-batches",
