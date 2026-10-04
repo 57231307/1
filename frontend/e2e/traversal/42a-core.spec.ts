@@ -6,13 +6,14 @@ import {
   BROWSER_NETWORK_NOISE,
 } from '../flow/helpers';
 import { TRAVERSAL_MODULES, type TraversalModule } from './modules.config';
+import { probeListApiIfConfigured } from './list-api-probe';
 
 /**
  * P5.12 全量遍历 spec（数据驱动，4 个分域 spec 之一）
  *
- * Tier A 模块：visit → 白屏断言 → （有 listApi 的）列表 API 回读断言
- * Tier B 模块：visit → 白屏断言（真实创建链在专项 spec 覆盖）
- * Tier C 模块：visit → 白屏断言 + 表头/卡片渲染断言
+ * Tier A 模块：visit → 白屏断言 → 新建入口断言 →（有 listApi 的）列表 API 回读断言
+ * Tier B 模块：visit → 白屏断言 →（有 listApi 的）列表 API 回读断言（真实创建链在专项 spec 覆盖）
+ * Tier C 模块：visit → 白屏断言 + 表头/卡片渲染断言 →（有 listApi 的）列表 API 回读断言
  *
  * 统一断言：零 pageerror、零未捕获 console.error、零 5xx、主容器非白屏
  * 数据隔离：遍历产生的测试数据带 TRV 前缀 + 时间戳，跑完按 uniqueKey 清理
@@ -31,13 +32,10 @@ async function visitModule(
   // 统一健康断言
   await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
 
-  // Tier A 且有 listApi：列表 API 回读断言（数据层连通性）
-  if (mod.tier === 'A' && mod.listApi) {
-    const resp = await page.request.get(
-      `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`
-    );
-    expect(resp.status()).toBeLessThan(500);
-  }
+  // 列表 API 回读断言（数据层连通性）：凡配置 listApi 即 strict 真探，
+  // 判据与"配了不发"的死配置闭口见 ./list-api-probe.ts（原 <500 判据在
+  // admin 上下文把 403/404 都洗成绿，且 tier==='A' 门槛使 Tier B 条目零断言）。
+  await probeListApiIfConfigured(page, mod);
 
   // 有新建入口的模块（读配置判定，不再用运行时 isVisible() 猜测）：
   // Tier A 且未显式标注 noCreate ⇒ 新建按钮必须存在且可点开弹窗/抽屉或触发跳转；

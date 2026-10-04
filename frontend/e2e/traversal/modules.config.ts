@@ -20,6 +20,12 @@ export interface TraversalModule {
   route: string;
   domain: string;
   tier: 'A' | 'B' | 'C';
+  /**
+   * 集合列表 GET 路径（/api/v1/erp 之后、以 route-snapshot.txt 为准）。
+   * 消费语义：凡配置了 listApi 的模块（不分 tier）都由 42a-42d 经
+   * ./list-api-probe.ts 的 strict 健康判据真实探测（2xx 判绿，401/403/404/
+   * 其它 4xx/5xx 一律判红）——没有"配了但不发请求"的死配置档位。
+   */
   listApi?: string;
   uniqueKey?: string;
   noCreate?: boolean;
@@ -62,8 +68,12 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   // ===== finance 域 =====
   { id: 'finance', route: '/finance', domain: 'finance', tier: 'C', noCreate: true },
   { id: 'voucher', route: '/voucher', domain: 'finance', tier: 'B', listApi: '/vouchers' },
-  { id: 'account-subject', route: '/account-subject', domain: 'finance', tier: 'A', listApi: '/finance/subjects' },
-  { id: 'accounting-period', route: '/accounting-period', domain: 'finance', tier: 'A', listApi: '/accounting-periods' },
+  // 科目集合 GET 注册在根级而非 /finance 前缀下：gl()（finance.rs:187 `.route("/subjects", get)`）
+  // 经 sub_routes()（finance.rs:1163/1165 merge）在 mod.rs:513 挂 /api/v1/erp
+  //（route-snapshot.txt:930 `GET /api/v1/erp/subjects`）。
+  { id: 'account-subject', route: '/account-subject', domain: 'finance', tier: 'A', listApi: '/subjects' },
+  // route-snapshot.txt:494 `GET /api/v1/erp/finance/accounting-periods`（账期挂在 /finance 前缀下）
+  { id: 'accounting-period', route: '/accounting-period', domain: 'finance', tier: 'A', listApi: '/finance/accounting-periods' },
   { id: 'finance-report', route: '/finance-report', domain: 'finance', tier: 'C', noCreate: true },
   { id: 'ar-reconciliation', route: '/ar-reconciliation', domain: 'finance', tier: 'B', listApi: '/ar-reconciliations' },
   { id: 'ar-reconciliation-enhanced', route: '/ar-reconciliation/enhanced', domain: 'finance', tier: 'C', noCreate: true },
@@ -79,9 +89,12 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
 
   // ===== sales 域 =====
   { id: 'sales', route: '/sales', domain: 'sales', tier: 'C', noCreate: true },
-  { id: 'sales-returns', route: '/sales-returns', domain: 'sales', tier: 'B', listApi: '/sales-returns' },
-  { id: 'sales-contract', route: '/sales-contract', domain: 'sales', tier: 'B', listApi: '/sales-contracts' },
-  { id: 'sales-price', route: '/sales-price', domain: 'sales', tier: 'A', listApi: '/sales-prices' },
+  // 三个 sales 子资源的集合 GET 均在 /sales 组下注册（mod.rs:462 nest /api/v1/erp/sales；
+  // sales_return_handler.rs:43 为 check-route-mount 白名单内的 handler 委托 router）：
+  // route-snapshot.txt:900 /sales/sales-returns、:890 /sales/sales-contracts、:895 /sales/sales-prices
+  { id: 'sales-returns', route: '/sales-returns', domain: 'sales', tier: 'B', listApi: '/sales/sales-returns' },
+  { id: 'sales-contract', route: '/sales-contract', domain: 'sales', tier: 'B', listApi: '/sales/sales-contracts' },
+  { id: 'sales-price', route: '/sales-price', domain: 'sales', tier: 'A', listApi: '/sales/sales-prices' },
   { id: 'sales-analysis-bi', route: '/bi/sales-analysis', domain: 'sales', tier: 'C', noCreate: true },
   { id: 'quotations', route: '/quotations', domain: 'sales', tier: 'B', listApi: '/quotations' },
   { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },
@@ -95,8 +108,11 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   // ===== purchase 域 =====
   { id: 'purchase', route: '/purchase', domain: 'purchase', tier: 'C', noCreate: true },
   { id: 'purchase-receipt', route: '/purchase-receipt', domain: 'purchase', tier: 'B', listApi: '/purchase/receipts' },
-  { id: 'purchase-contract', route: '/purchase-contract', domain: 'purchase', tier: 'B', listApi: '/purchase-contracts' },
-  { id: 'purchase-price', route: '/purchase-price', domain: 'purchase', tier: 'A', listApi: '/purchase-prices' },
+  // 两个 purchase 子资源集合 GET 在 /purchase 组下（mod.rs:511 nest；purchase.rs:227 合同
+  // get(list_contracts)、:273 价格 get(list_prices)）：route-snapshot.txt:798 /purchase/purchase-contracts、
+  // :802 /purchase/purchase-prices
+  { id: 'purchase-contract', route: '/purchase-contract', domain: 'purchase', tier: 'B', listApi: '/purchase/purchase-contracts' },
+  { id: 'purchase-price', route: '/purchase-price', domain: 'purchase', tier: 'A', listApi: '/purchase/purchase-prices' },
   { id: 'purchase-inspection', route: '/purchase-inspection', domain: 'purchase', tier: 'B', listApi: '/purchase/inspections' },
   { id: 'purchase-return', route: '/purchase-return', domain: 'purchase', tier: 'B', listApi: '/purchase/returns' },
   {
@@ -120,29 +136,37 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'crm-assignment', route: '/crm/assignment', domain: 'crm', tier: 'C', noCreate: true },
   { id: 'crm-leads', route: '/crm/leads', domain: 'crm', tier: 'A', listApi: '/crm/leads' },
   { id: 'crm-opportunities', route: '/crm/opportunities', domain: 'crm', tier: 'A', listApi: '/crm/opportunities' },
-  { id: 'customer', route: '/customer', domain: 'crm', tier: 'A', listApi: '/customers', uniqueKey: 'name' },
+  // 客户集合 GET 在 /crm 组下（mod.rs:515 nest /api/v1/erp/crm）：route-snapshot.txt:359
+  { id: 'customer', route: '/customer', domain: 'crm', tier: 'A', listApi: '/crm/customers', uniqueKey: 'name' },
   { id: 'customer-credit', route: '/customer-credit', domain: 'crm', tier: 'C', noCreate: true },
 
   // ===== supplier 域 =====
-  { id: 'supplier', route: '/supplier', domain: 'supplier', tier: 'A', listApi: '/suppliers', uniqueKey: 'name' },
+  // 供应商集合 GET 在 /purchase 组下（route-snapshot.txt:834）；根级只注册了
+  // /suppliers/select 别名（snapshot:934），不存在根级集合 GET——不带前缀的 /suppliers
+  // 打 GET 落 404，且 seg3 "suppliers" 虽在白名单（path_utils 词表）也无 GET 契约可寻。
+  { id: 'supplier', route: '/supplier', domain: 'supplier', tier: 'A', listApi: '/purchase/suppliers', uniqueKey: 'name' },
 
   // ===== product/fabric 域 =====
   { id: 'product', route: '/product', domain: 'product', tier: 'A', listApi: '/products', uniqueKey: 'name' },
   { id: 'fabric', route: '/fabric', domain: 'fabric', tier: 'C', noCreate: true },
-  { id: 'greige-fabrics', route: '/greige-fabrics', domain: 'fabric', tier: 'A', listApi: '/greige-fabrics' },
+  // 坯布/染整三资源集合 GET 在 /production 组下（mod.rs:514 nest；route-snapshot.txt:722
+  // /production/greige-fabrics、:687 /production/dye-recipes、:681 /production/dye-batches）
+  { id: 'greige-fabrics', route: '/greige-fabrics', domain: 'fabric', tier: 'A', listApi: '/production/greige-fabrics' },
   { id: 'color-cards-list', route: '/color-cards/list', domain: 'fabric', tier: 'B', listApi: '/color-cards' },
   { id: 'color-cards-issues', route: '/color-cards/issues', domain: 'fabric', tier: 'B', listApi: '/color-cards/issues' },
   { id: 'color-prices-list', route: '/color-prices/list', domain: 'fabric', tier: 'A', listApi: '/color-prices' },
   { id: 'color-prices-batch', route: '/color-prices/batch-adjust', domain: 'fabric', tier: 'C', noCreate: true },
-  { id: 'dye-recipe', route: '/dye-recipe', domain: 'fabric', tier: 'B', listApi: '/dye-recipes' },
-  { id: 'dye-batch', route: '/dye-batch', domain: 'fabric', tier: 'B', listApi: '/dye-batches' },
+  { id: 'dye-recipe', route: '/dye-recipe', domain: 'fabric', tier: 'B', listApi: '/production/dye-recipes' },
+  { id: 'dye-batch', route: '/dye-batch', domain: 'fabric', tier: 'B', listApi: '/production/dye-batches' },
 
   // ===== inventory 域 =====
   { id: 'inventory', route: '/inventory', domain: 'inventory', tier: 'C', noCreate: true },
   { id: 'warehouse', route: '/warehouse', domain: 'inventory', tier: 'A', listApi: '/warehouses' },
   { id: 'inventory-count', route: '/inventory-count', domain: 'inventory', tier: 'B', listApi: '/inventory/counts' },
-  { id: 'inventory-transfer', route: '/inventory-transfer', domain: 'inventory', tier: 'B', listApi: '/transfers' },
-  { id: 'inventory-adjustment', route: '/inventory-adjustment', domain: 'inventory', tier: 'B', listApi: '/adjustments' },
+  // 调拨/调整集合 GET 在 /inventory 组下（route-snapshot.txt:576 /inventory/transfers、
+  // :552 /inventory/adjustments；根级无同名 GET——/transfers 只出现在 /fund-management/transfers(:540)，不同资源）
+  { id: 'inventory-transfer', route: '/inventory-transfer', domain: 'inventory', tier: 'B', listApi: '/inventory/transfers' },
+  { id: 'inventory-adjustment', route: '/inventory-adjustment', domain: 'inventory', tier: 'B', listApi: '/inventory/adjustments' },
   { id: 'inventory-batch', route: '/inventory-batch', domain: 'inventory', tier: 'C', noCreate: true },
   { id: 'five-dimension', route: '/five-dimension', domain: 'inventory', tier: 'C', noCreate: true },
   { id: 'barcode-scanner', route: '/barcode-scanner', domain: 'inventory', tier: 'C', noCreate: true },
