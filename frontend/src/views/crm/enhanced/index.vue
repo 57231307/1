@@ -197,10 +197,10 @@
               fmtAmount(creditInfo.credit_limit)
             }}</el-descriptions-item>
             <el-descriptions-item label="当前占用">{{
-              fmtAmount(creditInfo.current_balance)
+              fmtAmount(creditInfo.used_credit)
             }}</el-descriptions-item>
             <el-descriptions-item label="可用额度">{{
-              fmtAmount(creditInfo.available)
+              fmtAmount(creditInfo.available_credit)
             }}</el-descriptions-item>
           </el-descriptions>
 
@@ -433,6 +433,7 @@ import {
   type CustomerAddress,
   type CustomerAuditLog,
   type CustomerClv,
+  type CustomerCreditInfo,
 } from '@/api/customer';
 import {
   getCustomerRfmScore,
@@ -689,9 +690,9 @@ const handleCalculateClv = async () => {
 
 // ===== 客户信用 =====
 const creditLoading = ref(false);
-const creditInfo = ref<{ credit_limit: number; current_balance: number; available: number } | null>(
-  null
-);
+// 载荷形状由 api/customer.ts::CustomerCreditInfo 对齐后端实体，金额列是 Decimal 的
+// JSON 字符串（rust_decimal 未启 serde-float），展示一律走 fmtAmount 归一
+const creditInfo = ref<CustomerCreditInfo | null>(null);
 const handleCreditQuery = async () => {
   const customerId = clvCustomerId.value;
   if (!customerId) {
@@ -701,7 +702,9 @@ const handleCreditQuery = async () => {
   creditLoading.value = true;
   try {
     const res = await getCustomerCreditInfo(customerId);
-    creditInfo.value = res.data ?? null;
+    // 后端无评级行时以 AppError::not_found 返回（customer_credit_handler.rs:122-125），
+    // 2xx 的 data 恒是实体本体，不存在 null 分支，故不写 `?? null` 兜底
+    creditInfo.value = res.data;
   } catch {
     ElMessage.error('查询客户信用失败');
   } finally {

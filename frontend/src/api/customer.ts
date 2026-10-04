@@ -13,7 +13,11 @@ export interface Customer {
   province?: string;
   country?: string;
   postal_code?: string;
-  credit_limit?: number;
+  // 后端 models/customer.rs:47 是 NOT NULL `Decimal`，本仓 rust_decimal 未启 serde-float
+  // （backend/Cargo.toml:60 只有 features = ["serde"]）→ 序列化线上恒为 JSON 字符串
+  // （"1234.56"）。声明成 number 是类型谎言：运行期 .toFixed() / 数值比较 / 算术全部失真。
+  // 列 NOT NULL，故不标 ?（标 ? 会诱导消费点写 `?? 0` 把缺键伪造成 0）。
+  credit_limit: string;
   payment_terms?: number;
   tax_id?: string;
   bank_name?: string;
@@ -26,7 +30,9 @@ export interface Customer {
   notes?: string;
   customer_industry?: string;
   main_products?: string;
-  annual_purchase?: number;
+  // 后端 models/customer.rs:89 是 `Option<Decimal>`（同一未启 serde-float 的 rust_decimal）
+  // → 线上是十进制字符串或 null；number 声明会让数值消费点拿到字符串后静默算错。
+  annual_purchase: string | null;
   quality_requirement?: string;
   inspection_standard?: string;
   created_at?: string;
@@ -150,11 +156,40 @@ export const updateCustomer = (id: number, data: CustomerUpdatePayload) =>
 export const deleteCustomer = (id: number) =>
   request.delete<ApiResponse<null>>(`/crm/customers/${id}`);
 
+/**
+ * GET /crm/customers/{id}/credit 的 data 载荷 —— 逐键对齐后端真实出参
+ * `handlers/customer_credit_handler.rs:111-133`（`ApiResponse::success(credit)`，
+ * credit = `models/customer_credit.rs:10-27` 的 Model 本体序列化，无 DTO 改名）。
+ *
+ * 此前声明的 `current_balance` / `available` 两个键后端不存在（真实键是 `used_credit` /
+ * `available_credit`），属前端自造键：页面"当前占用/可用额度"消费的是 undefined，
+ * 与"额度为 0/空"不可区分，是契约谎言而非类型细节，故按实体键集重建而不是把 number 改成 string。
+ * credit_limit/used_credit/available_credit 为 NOT NULL Decimal（models/customer_credit.rs:17-19），
+ * rust_decimal 未启 serde-float → 线上是 JSON 字符串。
+ * 注意：`api/customer-credit.ts::CustomerCredit` 是同一实体的另一处声明（含 credit_rating/
+ * valid_from/valid_to/remarks 等后端不存在的键），其收口属另一批契约核查，本类型不复用它。
+ */
+export interface CustomerCreditInfo {
+  id: number;
+  customer_id: number;
+  customer_name: string | null;
+  credit_level: string | null;
+  credit_score: number | null;
+  credit_limit: string;
+  used_credit: string;
+  available_credit: string;
+  credit_days: number | null;
+  last_assessment_date: string | null;
+  next_assessment_date: string | null;
+  status: string;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // D14 Batch 5b：原 customerApi.getCreditInfo 转为风格 B 函数
 export const getCustomerCreditInfo = (id: number) =>
-  request.get<ApiResponse<{ credit_limit: number; current_balance: number; available: number }>>(
-    `/crm/customers/${id}/credit`
-  );
+  request.get<ApiResponse<CustomerCreditInfo>>(`/crm/customers/${id}/credit`);
 
 // D14 Batch 5b：原 customerApi.export 转为风格 B 函数
 // V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
