@@ -599,16 +599,18 @@ impl SupplierService {
     /// 枚举所有对 suppliers(id) 建外键（或语义上引用供应商）的业务/档案表，
     /// 返回首个存在引用的表的可读名称。任一命中即不应删除供应商。
     /// 与数据库 FK 集对齐：迁移 grep `REFERENCES "suppliers" ("id")` 得到的引用表清单
-    /// （purchase_orders / purchase_receipt / purchase_contracts / ap_payment_request /
-    /// ap_invoice / ap_payment / ap_reconciliation / ap_verification /
+    /// （purchase_orders / purchase_receipt / purchase_contracts / purchase_prices /
+    /// ap_payment_request / ap_invoice / ap_payment / ap_reconciliation / ap_verification /
     /// product_supplier_mappings / supplier_evaluation_records / greige_fabric）。
+    /// 其中 purchase_prices.supplier_id 的 FK 由 migration::domain::price_fk 补齐，
+    /// 此前仅靠 map_supplier_fk_error 兜底、拒绝文案无法点名，现纳入前置枚举。
     /// 说明：purchase_orders 原实现仅统计“未完成”状态，但 FK 不区分状态，
     /// 只要存在任意历史订单删除即会 500，故此处改为统计全部状态以与 FK 对齐。
     async fn find_supplier_reference(&self, id: i32) -> Result<Option<&'static str>, AppError> {
         use crate::models::{
             ap_invoice, ap_payment, ap_payment_request, ap_reconciliation, ap_verification,
             greige_fabric, product_supplier_mapping, purchase_contract, purchase_order,
-            purchase_receipt, supplier_evaluation_record,
+            purchase_price, purchase_receipt, supplier_evaluation_record,
         };
 
         // (实体查询闭包, 引用类型名称)；顺序即用户看到的优先级（先财务硬引用后档案）。
@@ -653,6 +655,10 @@ impl SupplierService {
             (
                 count_refs!(purchase_contract, purchase_contract::Column::SupplierId),
                 "采购合同",
+            ),
+            (
+                count_refs!(purchase_price, purchase_price::Column::SupplierId),
+                "采购价目",
             ),
             (
                 count_refs!(
