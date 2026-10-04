@@ -51,7 +51,18 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       page,
       `/color-cards/customer-color-cards?page=1&page_size=5&customer_id=${ccCustomerId}`
     );
-    await verifyEndpointHealthy(page, '/color-cards/reorder-dye-lot?page=1&page_size=5');
+    // reorder-dye-lot 与上一行同一契约族（analytics.rs:407-413 query_reorder_dye_lot →
+    // required_query_i64(params,"customer_id")，:333-345 数字字符串兼容、缺参即 400
+    // 【验证错误】缺少 customer_id 参数——CI run #4675 shard7 backend.log:5819 实证）；
+    // service query_reorder_dye_lot（color_card_issue_service.rs:838-860）先校验客户
+    // 真实存在（不存在→IssueError::CustomerNotFound→analytics.rs:355 not_found 404，
+    // verifyEndpointHealthy 对 404 判红），无发放记录返回空数组仍 200。
+    // 旧探针漏传 customer_id=测试前提写错；复用上方同一真实客户 id（先查后建 CRM 链），
+    // 绝不塞 1/0 假 id。
+    await verifyEndpointHealthy(
+      page,
+      `/color-cards/reorder-dye-lot?page=1&page_size=5&customer_id=${ccCustomerId}`
+    );
     await verifyEndpointHealthy(page, '/color-cards/statistics/daily');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,

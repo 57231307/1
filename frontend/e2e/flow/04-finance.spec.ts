@@ -31,7 +31,10 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
       `科目列表 data 非裸数组（契约漂移，后端 list_subjects 返回 Vec）：${JSON.stringify(subjects).slice(0, 200)}`
     ).toBe(true);
     const subjectList = subjects;
-    // 默认会计科目表由迁移种子写入；原写法 >=0 恒真，列表为空也绿    expect(subjectList.length, '默认会计科目表应可被查询到（科目种子未落地？）').toBeGreaterThan(0);
+    // 默认会计科目表由迁移种子写入（backend/migration/src/domain/finance/mod.rs:720/:756
+    // INSERT INTO account_subjects）；原写法把 expect 拼在同一行行注释尾部被整体注释掉
+    // =空操作假绿，恢复为独立断言。
+    expect(subjectList.length, '默认会计科目表应可被查询到（科目种子未落地？）').toBeGreaterThan(0);
     for (const s of subjectList.slice(0, 10)) {
       expect(String(s.code ?? ''), `科目行缺少 code：${JSON.stringify(s)}`).not.toBe('');
       expect(String(s.name ?? ''), `科目行缺少 name：${JSON.stringify(s)}`).not.toBe('');
@@ -125,17 +128,40 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
   });
 
   test('4-6 验证 AR 应收单', async ({ page }) => {
-    // list_ar_invoices 返回 ApiResponse<Vec<Model>>：data 直接是数组，无 items 包装
-    // （与 02-o2c 2-8 同源），原实现读 arInvoices.items 恒 undefined 且无匹配器
-    const arInvoices = await apiCallRaw<Array<{ id: number; amount: number; status: string }>>(
-      page,
-      'GET',
-      '/ar/invoices?page=1&page_size=5'
-    );
-    console.log(
-      `[4-6] AR 应收单数组长度=${Array.isArray(arInvoices) ? arInvoices.length : '非数组'}`
-    );
-    expect(Array.isArray(arInvoices), 'AR 应收单列表应返回数组').toBe(true);
+    // 后端契约（逐行读源，非推测）：ar_invoice_handler.rs:61-88 list_ar_invoices 返回
+    // Json<ApiResponse<PaginatedResponse<ar_invoice::Model>>>，success_paginated
+    // （utils/response.rs:97-112）把分页信封完整放进 data：
+    // data={items,total,page,page_size}（PaginatedResponse 定义 utils/response.rs:39-45）。
+    // CI run #4675 shard2 本用例红（Array.isArray(data)=false）根因即测试侧前提过期：
+    // 旧注释与断言仍按"ApiResponse<Vec 裸数组"写；同文件 4-5 AP 用例（ap_invoice_handler.rs:67）
+    // 与 02-o2c 2-8（该 spec:399-412）均已按 items 读，唯此处未同步。
+    // total 语义=筛选条件下全量条数（service.get_list 返回 (invoices,total) 二元，
+    // handler:74-76/:85-87 原样入信封），不是本页 items.length ⇒ 断 total ≥ items.length。
+    const arInvoices = await apiCallRaw<{
+      items: Array<{ id: number; invoice_amount: string | number; status: string }>;
+      total: number;
+      page: number;
+      page_size: number;
+    }>(page, 'GET', '/ar/invoices?page=1&page_size=5');
+    expect(
+      Array.isArray(arInvoices?.items),
+      `AR 应收单应返回分页信封 items 数组（PaginatedResponse），实际 data=${JSON.stringify(arInvoices).slice(0, 200)}`
+    ).toBe(true);
+    expect(
+      typeof arInvoices.total,
+      `AR 信封 total 应为数字（全量条数），实际=${JSON.stringify(arInvoices.total)}`
+    ).toBe('number');
+    expect(
+      Number.isInteger(arInvoices.total) && arInvoices.total >= 0,
+      `total 应为非负整数，实际=${arInvoices.total}`
+    ).toBe(true);
+    expect(
+      arInvoices.total >= arInvoices.items.length,
+      `total(全量 ${arInvoices.total}) 应 ≥ 本页 items 数(${arInvoices.items.length})`
+    ).toBe(true);
+    expect(arInvoices.page, `page 应回显请求页 1，实际=${arInvoices.page}`).toBe(1);
+    expect(arInvoices.page_size, `page_size 应回显请求值 5，实际=${arInvoices.page_size}`).toBe(5);
+    console.log(`[4-6] AR 应收单 items 长度=${arInvoices.items.length} total=${arInvoices.total}`);
   });
 
   test('4-7 验证付款/收款记录', async ({ page }) => {

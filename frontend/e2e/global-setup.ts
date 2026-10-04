@@ -2628,6 +2628,106 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
+  // ---- 21. 客户信用评级种子（GET /crm/customers/{id}/credit 404 的数据层根因，CI run #4675 flow shard6 实证）----
+  // 后端契约事实（逐行读源，非推测）：
+  //   ① routes/crm.rs:48-9 注册 "/customers/{id}/credit" → customer_credit_handler::get_credit，
+  //      Path 参数是客户 id（handler:112 Path(customer_id)）；查无行时
+  //      customer_credit_service::get_by_customer_id（customer_credit_service.rs:77-86）返回
+  //      None → handler:125 AppError::not_found（HTTP 404，文案"客户 X 的信用评级不存在"）。
+  //      shard6 backend.log:37987 显示 handler 命中并返回 NotFound ⇒ 404 来自缺数据，非路由漂移。
+  //   ② 与本位币（第 20 节，无创建端点只能 psql 直连）相反：本数据存在官方创建端点
+  //      POST /crm/customer-credits（crm.rs:93-94 → create_credit handler:267，
+  //      body=CreditRatingRequestDto :37-49：customer_id 必填 i32；credit_level ≤20 字符、
+  //      credit_limit 0~10 亿且 ≤2 位小数（utils/validator.rs:28-40）、credit_days/score 可选）
+  //      ⇒ 按"有创建端点就优先走 API"口径经该端点登记，不新开 DB 直连第二套写路径。
+  //   ③ 落库表 customer_credit_ratings（models/customer_credit.rs:9；DDL
+  //      m0012_add_ap_ar_finance_analysis.rs:615-634）：customer_id INTEGER NOT NULL（**无
+  //      UNIQUE、无 FK**），credit_limit/status NOT NULL，id SERIAL ⇒ 同客户多行在 DB 层不被
+  //      禁止，幂等只能靠"先查后建"；service set_credit_rating（customer_credit_limit.rs:31-71）
+  //      是先查后写 upsert，但其**更新分支会把请求缺省字段刷回默认值**
+  //      （level='B'/score=60/days=30，:41-45）⇒ 已有评级必须跳过、绝不 POST 覆盖
+  //      （本位币"不抢位"的同款互斥语义在此=不覆盖既有评级行；该表无全局唯一位概念）。
+  // 探针目标漂移说明：flow/22 用例的 customerId 实时取 /crm/customers?page=1&page_size=1
+  //   items[0]，而后端列表排序为 created_at DESC（customer_ops/query.rs:104/:121/:129），
+  //   运行期其它用例新建客户会让首位漂移 ⇒ 本节保证"库内存在带评级的客户数据层前置"
+  //   （含空库时全局客户尚未存在的兜底路径），flow/22 用例内另按同一先查后建口径为
+  //   实时解析出的探针客户登记评级（见该 spec 内注释），两层合力使 strict 探针拿到真实数据。
+  // 幂等：先 GET credit——200 即跳过；404 才 POST；POST 后回读 GET 必须 200 才算就绪。
+  //   重跑不产生第二行（GET 命中即跳过；即便竞跑，service upsert 亦先查后写）。
+  // 失败口径：列表空/先查非 200 且非 404/POST 非 2xx/回读非 200 → recordSeedFailure 计入
+  //   台账（写请求经 reportSeedWrite 同口径入账），由函数末尾既有汇总统一显式判红，
+  //   不静默 catch。
+  {
+    const creditLabel = '客户信用评级种子';
+    try {
+      const cusResp = await ctx.get(`${API_PREFIX}/crm/customers?page=1&page_size=1`, { headers });
+      if (!cusResp.ok()) {
+        const bodyText = await cusResp.text().catch(() => '');
+        recordSeedFailure(
+          `${creditLabel}·客户列表查询`,
+          `HTTP ${cusResp.status()} body=${bodyText.slice(0, 200)}`
+        );
+      } else {
+        const cusBody = await safeJson(cusResp);
+        const creditTarget = extractItems<{ id: number }>(cusBody)[0];
+        if (!creditTarget?.id) {
+          recordSeedFailure(
+            `${creditLabel}·客户列表`,
+            'GET /crm/customers?page=1&page_size=1 列表为空——无客户可登记评级，数据层前置不成立'
+          );
+        } else {
+          const targetCustomerId = creditTarget.id;
+          const probeResp = await ctx.get(
+            `${API_PREFIX}/crm/customers/${targetCustomerId}/credit`,
+            { headers }
+          );
+          const probeStatus = probeResp.status();
+          if (probeStatus === 200) {
+            console.log(
+              `[globalSeed] 客户 ${targetCustomerId} 已有信用评级，跳过（不覆盖既有等级/额度）`
+            );
+          } else if (probeStatus === 404) {
+            const creditCreate = await seedPost(`${API_PREFIX}/crm/customer-credits`, {
+              customer_id: targetCustomerId,
+              credit_level: 'B',
+              credit_score: 60,
+              credit_limit: '100000',
+              credit_days: 30,
+            });
+            if (!creditCreate.ok()) {
+              await reportSeedWrite(
+                creditCreate,
+                `${creditLabel}·创建评级(客户${targetCustomerId})`
+              );
+            } else {
+              const creditReadBack = await ctx.get(
+                `${API_PREFIX}/crm/customers/${targetCustomerId}/credit`,
+                { headers }
+              );
+              if (creditReadBack.status() !== 200) {
+                const rbBody = await creditReadBack.text().catch(() => '');
+                recordSeedFailure(
+                  `${creditLabel}·回读`,
+                  `POST 已 2xx 但 GET /crm/customers/${targetCustomerId}/credit 回读 status=${creditReadBack.status()} body=${rbBody.slice(0, 200)}——评级未真实生效`
+                );
+              } else {
+                console.log(`[globalSeed] 客户 ${targetCustomerId} 信用评级种子就绪`);
+              }
+            }
+          } else {
+            const probeBody = await probeResp.text().catch(() => '');
+            recordSeedFailure(
+              `${creditLabel}·先查`,
+              `GET /crm/customers/${targetCustomerId}/credit status=${probeStatus} body=${probeBody.slice(0, 200)}`
+            );
+          }
+        }
+      }
+    } catch (e) {
+      recordSeedFailure(creditLabel, (e as Error).message);
+    }
+  }
+
   // 种子失败汇总：缺行/软失败都不让它隐身——下游用例的红要先看这里，再判用例本身。
   // CI #4669 §6.3 收口：本清单非空时**显式 throw 判红**（旧口径"打印后继续"把
   // 「种子没就绪」放大成下游成片红且根因隐身；本仓纪律=静默失败必须响亮化）。

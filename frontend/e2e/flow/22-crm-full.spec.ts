@@ -71,6 +71,39 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       }
     }
     await apiCallRaw(page, 'GET', `/crm/customers/${customerId}`);
+    // E3 用例内前置（CI run #4675 shard6 判责）：GET /crm/customers/{id}/credit 的 404
+    // 判据是"该客户无信用评级记录"而非路由漂移——路由已注册（routes/crm.rs:48-49 →
+    // customer_credit_handler.rs:111 get_credit，Path 参数即客户 id），无行时
+    // customer_credit_service::get_by_customer_id（:77-86）返回 None → handler:125
+    // AppError::not_found（backend.log:37987 命中 handler 实证）。
+    // global-setup 的评级数据层前置保证"库内存在带评级的客户"，但本用例的 customerId
+    // 实时取 /crm/customers 列表 items[0]，而后端列表排序为 created_at DESC
+    // （services/customer_ops/query.rs:104/:121/:129），同库其它用例新建客户会让首位
+    // 漂移到尚未登记评级的客户。故此处沿官方创建端点补全前置：先查（200=已有评级则
+    // 绝不 POST——set_credit_rating 的更新分支会把请求缺省字段刷回默认值
+    // customer_credit_limit.rs:41-45，覆盖既有等级/额度），缺（404）则为本探针实时
+    // 解析出的真实客户经 POST /crm/customer-credits（handler:267 create_credit）登记
+    // 评级；创建失败 apiCall 直接抛真实原因判红，不静默 catch。探针本身保持 strict：
+    // 前置之后仍 404/400/403/5xx 即真实回归，不再可能是缺数据。
+    const creditPre = await page.request.fetch(
+      `${API_BASE}${API_PREFIX}/crm/customers/${customerId}/credit`,
+      {
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      }
+    );
+    if (creditPre.status() === 404) {
+      // CreditRatingRequestDto（customer_credit_handler.rs:37-49）：customer_id 必填；
+      // 其余取值与"客户信用管理"用例一致的真实合法值（level ≤20 字符、limit 0~10 亿
+      // 两位小数 validator.rs:28-40），落库 status 由 service 置 active（:66）。
+      await apiCall(page, 'POST', '/crm/customer-credits', {
+        customer_id: customerId,
+        credit_level: 'B',
+        credit_score: 60,
+        credit_limit: '100000',
+        credit_days: 30,
+      });
+    }
     // credit/360/rfm 等子资源后端已注册（crm.rs:48/550/561），admin 下应 2xx，strict 验证
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/credit`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/addresses`);
@@ -395,7 +428,19 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/crm/five-dimension/list');
     await verifyEndpointHealthy(page, '/crm/five-dimension/summary');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/statistics');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/trends');
+    // E4 契约补全（CI run #4675 shard6 判责）：trends 的 period 是【必填】——
+    // sales_analysis_handler.rs:33-35 TrendQuery { period: String }（无 Option），缺参即
+    // axum rejection 400「missing field 'period'」（backend.log:51321/51325 实证）；
+    // service get_trends（sales_analysis_service.rs:51-61）按 sales_analysis.period 等值
+    // 过滤、空命中仍 200，路由已注册（crm.rs:175-176）。旧探针漏传 period=测试前提写错。
+    // ⚠️ 口径不对称（登记交契约拍板，测试不越权改后端）：同族 statistics/rankings 的
+    //    period 均为 Option<String>（handler:26/:40），唯 trends 必填，必填性不一致。
+    // 取值合法且真实：period 词形沿用本仓对同一 period 列的既有口径"YYYY-Qn"（targets
+    //    端点按 period 定位 sales_analysis 行、前端占位文案 zh-CN.ts:7585「例如：2024-Q1」），
+    // 按查询执行时刻的当前年季度动态生成，不写死快照值。
+    const nowForTrends = new Date();
+    const trendsPeriod = `${nowForTrends.getFullYear()}-Q${Math.floor(nowForTrends.getMonth() / 3) + 1}`;
+    await verifyEndpointHealthy(page, `/crm/sales-analysis/trends?period=${trendsPeriod}`);
     await verifyEndpointHealthy(page, '/crm/sales-analysis/rankings');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/stats');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
