@@ -275,8 +275,8 @@ test.describe('09 采购价格', () => {
     // approved=false：采购侧 approve 端点仅处理批准（purchase_price_handler.rs::approve_price 对
     // approved=false 直接 validation_displayable ⇒ 400 + VALIDATION_ERROR，映射见 utils/error.rs）；
     // 采购侧未注册 reject 路由（backend/src/routes/purchase.rs 价格段无 reject 端点），故前端确认框必须
-    // 是"批准/取消"二值——此钉与 09-03 的确认框行为互为两面（若前端改接
-    // promptApproval 的拒绝分支，将把必然 400 的语义缺陷送进 UI）。
+    // 是"批准/取消"二值——此钉与 09-03 的确认框行为互为两面（若前端改出"拒绝"分支，
+    // 就是把必然 400 的语义缺陷送进 UI；销售价目侧同理，见 useSpProc.handleApprove）。
     const rejectAttempt = await apiCallExpectFail(
       page,
       'POST',

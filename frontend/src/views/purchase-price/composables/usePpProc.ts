@@ -56,8 +56,8 @@ export function usePpProc(refresh: RefreshCallbacks) {
    * （approved: bool 必填且仅受理 true——false 在 handler::approve_price 直接 400"请使用专用拒绝接口"；
    * 服务层状态门（仅 pending 可批）在同 service::approve_price，契约钉
    * backend/tests/contract_wave8_price_approve_gate_test.rs；
-   * 采购侧无 reject 路由 ⇒ 仅批准语义，
-   * 不复用销售侧 promptApproval 的"通过/拒绝"采集器，拒绝分支对该端点必然 400）。
+   * 采购侧无 reject 路由 ⇒ 仅批准语义，确认框因此只做"批准/取消"二值；
+   * 销售价目侧同款语义见 frontend/src/views/sales-price/composables/useSpProc.ts 的 handleApprove。
    * 成功后 refresh.getList() 回读列表（后端 approve_price 已提交状态+审计），
    * 不以 toast 作为生效证据。
    */
