@@ -45,6 +45,7 @@ export default {
     disable: '禁用',
     status: '状态',
     statusUnknown: '未知',
+    valueMissing: '（缺值）',
     create: '创建',
     update: '更新',
     name: '名称',
@@ -9236,7 +9237,6 @@ export default {
         status: '状态',
         effectiveDate: '生效日期',
         expiryDate: '到期日期',
-        remark: '备注',
       },
     },
     filter: {
@@ -9274,7 +9274,6 @@ export default {
         priceType: '价格类型',
         effectiveDate: '生效日期',
         expiryDate: '到期日期',
-        remark: '备注',
       },
       placeholder: {
         product: '请选择产品',
@@ -9284,7 +9283,6 @@ export default {
         priceType: '请选择价格类型',
         effectiveDate: '请选择生效日期',
         expiryDate: '请选择到期日期',
-        remark: '请输入备注',
       },
       currency: {
         CNY: '人民币',
@@ -9339,10 +9337,14 @@ export default {
       button: {
         view: '查看',
         edit: '编辑',
+        approve: '审批',
         disable: '停用',
         history: '历史',
       },
       ariaLabelPagination: '采购价格列表分页',
+    },
+    proc: {
+      approveConfirm: '确认批准该待审批的采购价格？批准后即生效并留痕。',
     },
   },
   purchaseReturn: {
@@ -10495,6 +10497,10 @@ export default {
     },
   },
   salesPrice: {
+    statusLabels: {
+      pending: '待审批',
+      approved: '已审批',
+    },
     index: {
       pageTitle: '销售价格管理',
       breadcrumbHome: '首页',
@@ -10514,8 +10520,10 @@ export default {
       strategyTypeTiered: '阶梯定价',
       strategyTypeVolume: '批量定价',
       strategyTypeContract: '合同定价',
-      strategyStatusActive: '活跃',
-      strategyStatusInactive: '停用',
+      effectiveDialogTitle: '当前生效价目',
+      effectiveDialogAriaLabel: '当前生效价目对话框',
+      effectiveTableAriaLabel: '当前生效价目列表',
+      effectiveColumnProductId: '产品 ID',
     },
     filter: {
       ariaLabel: '销售价格筛选表单',
@@ -10528,9 +10536,7 @@ export default {
       labelStatus: '价格状态',
       placeholderStatus: '选择状态',
       optionPending: '待审批',
-      optionActive: '已生效',
-      optionExpired: '已过期',
-      optionInactive: '已停用',
+      optionApproved: '已审批',
       buttonSearch: '查询',
       buttonReset: '重置',
     },
@@ -10557,6 +10563,11 @@ export default {
       optionStandard: '标准价',
       optionAgreed: '协议价',
       optionPromotion: '促销价',
+      priceType: {
+        STANDARD: '标准价',
+        AGREED: '协议价',
+        PROMOTION: '促销价',
+      },
       labelPriceLevel: '价格等级',
       placeholderPriceLevel: '请选择价格等级',
       optionLevelA: 'A级',
@@ -10582,9 +10593,6 @@ export default {
       columnStatus: '状态',
       columnCreatedAt: '创建时间',
       statusPending: '待审批',
-      statusActive: '已生效',
-      statusExpired: '已过期',
-      statusInactive: '已停用',
     },
     table: {
       ariaLabel: '销售价格列表',
@@ -10610,9 +10618,6 @@ export default {
       priceTypeAgreed: '协议价',
       priceTypePromotion: '促销价',
       statusPending: '待审批',
-      statusActive: '已生效',
-      statusExpired: '已过期',
-      statusInactive: '已停用',
     },
     view: {
       dialogTitle: '价格详情',
@@ -10633,9 +10638,6 @@ export default {
       priceTypeAgreed: '协议价',
       priceTypePromotion: '促销价',
       statusPending: '待审批',
-      statusActive: '已生效',
-      statusExpired: '已过期',
-      statusInactive: '已停用',
     },
   },
   salesReturns: {

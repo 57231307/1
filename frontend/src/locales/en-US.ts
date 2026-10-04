@@ -42,6 +42,7 @@ export default {
     disable: 'Disable',
     status: 'Status',
     statusUnknown: 'Unknown',
+    valueMissing: '(missing)',
     create: 'Create',
     update: 'Update',
     name: 'Name',
@@ -9289,7 +9290,6 @@ export default {
         status: 'Status',
         effectiveDate: 'Effective Date',
         expiryDate: 'Expiry Date',
-        remark: 'Remark',
       },
     },
     filter: {
@@ -9327,7 +9327,6 @@ export default {
         priceType: 'Price Type',
         effectiveDate: 'Effective Date',
         expiryDate: 'Expiry Date',
-        remark: 'Remark',
       },
       placeholder: {
         product: 'Please select product',
@@ -9337,7 +9336,6 @@ export default {
         priceType: 'Please select price type',
         effectiveDate: 'Please select effective date',
         expiryDate: 'Please select expiry date',
-        remark: 'Please enter remark',
       },
       currency: {
         CNY: 'CNY',
@@ -9392,10 +9390,15 @@ export default {
       button: {
         view: 'View',
         edit: 'Edit',
+        approve: 'Approve',
         disable: 'Disable',
         history: 'History',
       },
       ariaLabelPagination: 'Purchase Price List Pagination',
+    },
+    proc: {
+      approveConfirm:
+        'Approve this pending purchase price? It becomes effective and is recorded once approved.',
     },
   },
   purchaseReturn: {
@@ -10548,6 +10551,10 @@ export default {
     },
   },
   salesPrice: {
+    statusLabels: {
+      pending: 'Pending',
+      approved: 'Approved',
+    },
     index: {
       pageTitle: 'Sales Price Management',
       breadcrumbHome: 'Home',
@@ -10567,8 +10574,10 @@ export default {
       strategyTypeTiered: 'Tiered Pricing',
       strategyTypeVolume: 'Volume Pricing',
       strategyTypeContract: 'Contract Pricing',
-      strategyStatusActive: 'Active',
-      strategyStatusInactive: 'Disabled',
+      effectiveDialogTitle: 'Effective Prices',
+      effectiveDialogAriaLabel: 'Effective prices dialog',
+      effectiveTableAriaLabel: 'Effective prices list',
+      effectiveColumnProductId: 'Product ID',
     },
     filter: {
       ariaLabel: 'Sales Price Filter Form',
@@ -10581,9 +10590,7 @@ export default {
       labelStatus: 'Price Status',
       placeholderStatus: 'Select Status',
       optionPending: 'Pending Approval',
-      optionActive: 'Active',
-      optionExpired: 'Expired',
-      optionInactive: 'Inactive',
+      optionApproved: 'Approved',
       buttonSearch: 'Search',
       buttonReset: 'Reset',
     },
@@ -10610,6 +10617,11 @@ export default {
       optionStandard: 'Standard Price',
       optionAgreed: 'Agreed Price',
       optionPromotion: 'Promotion Price',
+      priceType: {
+        STANDARD: 'Standard',
+        AGREED: 'Agreed',
+        PROMOTION: 'Promotion',
+      },
       labelPriceLevel: 'Price Level',
       placeholderPriceLevel: 'Please Select Price Level',
       optionLevelA: 'Level A',
@@ -10635,9 +10647,6 @@ export default {
       columnStatus: 'Status',
       columnCreatedAt: 'Created At',
       statusPending: 'Pending Approval',
-      statusActive: 'Active',
-      statusExpired: 'Expired',
-      statusInactive: 'Inactive',
     },
     table: {
       ariaLabel: 'Sales Price List',
@@ -10663,9 +10672,6 @@ export default {
       priceTypeAgreed: 'Agreed Price',
       priceTypePromotion: 'Promotion Price',
       statusPending: 'Pending Approval',
-      statusActive: 'Active',
-      statusExpired: 'Expired',
-      statusInactive: 'Inactive',
     },
     view: {
       dialogTitle: 'Price Detail',
@@ -10686,9 +10692,6 @@ export default {
       priceTypeAgreed: 'Agreed Price',
       priceTypePromotion: 'Promotion Price',
       statusPending: 'Pending Approval',
-      statusActive: 'Active',
-      statusExpired: 'Expired',
-      statusInactive: 'Inactive',
     },
   },
   salesReturns: {
