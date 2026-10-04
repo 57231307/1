@@ -1,4 +1,5 @@
 import { request } from '@playwright/test';
+import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync } from 'fs';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
@@ -2553,6 +2554,77 @@ async function ensureGlobalBusinessSeed(
       }
     } catch (e) {
       recordSeedFailure('对照表种子', (e as Error).message);
+    }
+  }
+
+  // ---- 20. 本位币种子（GET /currencies/base 404 的数据层根因，CI run #4675 flow shard8 实证）----
+  // 后端契约事实（逐行读源，非推测）：
+  //   ① currency_handler::get_base_currency —— currency_service::get_base_currency 查不到
+  //      currencies 表 is_base=true 行时返回 AppError::not_found（HTTP 404），
+  //      判据=库内无本位币行，与路由注册无关（routes/finance.rs::currencies 已挂载）；
+  //   ② routes/finance.rs::currencies 只注册 list/base/set-base/rates-history/convert/sync-all/
+  //      supported，**不存在任何"创建币种"端点**，且全仓迁移（m0005 建表 + system/mod.rs 补列）
+  //      均无币种行预置 ⇒ 种子无 API 写入口，唯一路径是直连 DB；与 setup-wizard/
+  //      00-setup-wizard.spec.ts「初始化后数据库真实校验」同款 psql 直连方案（复用既有挂点
+  //      ensureGlobalBusinessSeed + recordSeedFailure 台账，不新开第二套种子机制）；
+  //   ③ currency_service::set_base_currency —— "本位币唯一"由应用层事务保证（先全置 false
+  //      再置目标 true），DB 无约束兜底 ⇒ 种子只在**全局无本位币**时把 CNY 置本位，
+  //      已有其它本位币时不抢位（探针只要求存在本位币，不要求必须是 CNY）；
+  //   ④ create_exchange_rate 的 validate_currency_code 白名单只管汇率写入路径，currencies
+  //      表插入不经过该函数；CNY 仍取白名单内真实 ISO 4217 码。
+  // 幂等：currencies.code 为 m0005 的 UNIQUE 列；插入用 INSERT...SELECT WHERE NOT EXISTS，
+  //   置本位 UPDATE 同样带 NOT EXISTS 守卫 ⇒ 重跑不产生重复行、不产生第二个本位币。
+  // 争用：Playwright 的 globalSetup 在每个 `npx playwright test` 进程内、workers 启动前
+  //   只执行一次；ci-e2e 各分片 job 拥有独立 postgres service 容器（ci-cd.yml services.postgres），
+  //   不存在跨进程同库并发写。
+  // 取值：CNY = backend/src/constants.rs::DEFAULT_CURRENCY，与业务单据列 DEFAULT 'CNY' 同源；
+  //   id 不写死（serial 自增）；precision/symbol 按 models/currency.rs 可空列给真实值。
+  // 失败口径：psql 缺失/连不上/SQL 报错/回读无本位币 → recordSeedFailure 计入台账，
+  //   由函数末尾既有汇总统一显式判红（不静默 catch 吞掉——本仓前科教训）。
+  {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      recordSeedFailure(
+        '本位币种子',
+        'DATABASE_URL 未设置——币种无创建端点，直连 DB 是唯一写路径，缺 URL 即种子失败'
+      );
+    } else {
+      // SQL 经 psql -f - 从 stdin 传入，规避内嵌单引号/中文的 shell 转义问题；
+      // URL 用单引号包裹并对内部单引号做 shell 标准转义（当前 URL 无单引号，防御性处理）
+      const psqlTarget = `'${dbUrl.replace(/'/g, `'\\''`)}'`;
+      const seedSql =
+        'INSERT INTO currencies (code, name, symbol, "precision", is_base, is_active, is_deleted, created_at, updated_at)\n' +
+        "SELECT 'CNY', '人民币', '¥', 2, true, true, false, now(), now()\n" +
+        "WHERE NOT EXISTS (SELECT 1 FROM currencies WHERE code = 'CNY');\n" +
+        'UPDATE currencies SET is_base = true, updated_at = now()\n' +
+        "WHERE code = 'CNY'\n" +
+        '  AND NOT EXISTS (SELECT 1 FROM currencies WHERE is_base = true);\n';
+      try {
+        execSync(`psql -d ${psqlTarget} -v ON_ERROR_STOP=1 -q -f -`, {
+          input: seedSql,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: { ...process.env, PGCONNECT_TIMEOUT: '5' },
+        });
+        // 回读核验：真实存在 is_base=true 行才算就绪（打印实际 code，不夸大）
+        const baseCode = execSync(
+          `psql -d ${psqlTarget} -tAc "SELECT code FROM currencies WHERE is_base = true LIMIT 1"`,
+          {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, PGCONNECT_TIMEOUT: '5' },
+          }
+        )
+          .toString()
+          .trim();
+        if (!baseCode) {
+          recordSeedFailure('本位币种子回读', '写语句已执行但查无 is_base=true 行——种子未真实生效');
+        } else {
+          console.log(`[globalSeed] 本位币就绪：code=${baseCode}`);
+        }
+      } catch (e) {
+        const err = e as { stderr?: { toString(): string }; message?: string };
+        const detail = String(err.stderr?.toString() ?? err.message ?? e).slice(0, 300);
+        recordSeedFailure('本位币种子（直连 DB 写入）', detail);
+      }
     }
   }
 

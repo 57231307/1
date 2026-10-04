@@ -28,3 +28,29 @@ declare const process: {
   /** 结束进程（ensure-role-users 脚本的退出路径） */
   exit(code?: number): never;
 };
+
+/**
+ * execSync 最小面声明（本文件既定流程：新代码用 Node API 须在此显式补声明）。
+ * 使用方与用到的成员逐一对应，不伪造完整 child_process API 面：
+ * - global-setup.ts::ensureGlobalBusinessSeed 本位币种子（币种无创建端点，只能 psql 直连写库）：
+ *   command 字符串 + options { input, stdio(数组形), env }，返回体 .toString()；
+ * - setup-wizard/00-setup-wizard.spec.ts 数据级校验与后端重启脚本：
+ *   options { cwd, stdio: 'inherit', env }，返回体 .toString()。
+ * 失败路径：Node 抛出的 error 带 stderr/ message，调用点按此窄形状读取。
+ */
+interface NodeExecSyncOptions {
+  input?: string;
+  cwd?: string;
+  env?: Record<string, string | undefined>;
+  stdio?: 'inherit' | Array<'pipe' | 'ignore' | 'inherit'>;
+  encoding?: string;
+  maxBuffer?: number;
+}
+
+interface NodeExecSyncResult {
+  toString(encoding?: string): string;
+}
+
+declare module 'child_process' {
+  export function execSync(command: string, options?: NodeExecSyncOptions): NodeExecSyncResult;
+}
