@@ -2,46 +2,74 @@
   <div class="page">
     <el-card shadow="never">
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="委外单" name="orders">
+        <el-tab-pane :label="$t('outsourcing.tabs.orders')" name="orders">
           <div class="toolbar mb">
-            <el-button type="primary" @click="openCreate">新建委外单</el-button>
+            <el-button type="primary" @click="openCreate">{{
+              $t('outsourcing.actions.createOrder')
+            }}</el-button>
           </div>
           <el-table v-loading="loading" :data="orders" border>
-            <el-table-column prop="order_no" label="委外单号" width="150" />
-            <el-table-column prop="order_type" label="类型" width="100" />
-            <el-table-column label="状态" width="110">
+            <el-table-column
+              prop="order_no"
+              :label="$t('outsourcing.columns.orderNo')"
+              width="150"
+            />
+            <el-table-column
+              prop="order_type"
+              :label="$t('outsourcing.columns.orderType')"
+              width="100"
+            />
+            <el-table-column :label="$t('common.status')" width="110">
               <template #default="{ row }">
                 <el-tag :type="outsourcingStatusTagType(row.status)">{{
                   $t(outsourcingStatusLabelKey(row.status))
                 }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="supplier_id" label="供应商ID" width="100" />
-            <el-table-column prop="issue_date" label="发出日期" width="120" />
-            <el-table-column prop="expected_return_date" label="预计回厂" width="120" />
-            <el-table-column prop="issue_quantity" label="发出数量" width="110" />
-            <el-table-column label="操作" width="340" fixed="right">
+            <el-table-column
+              prop="supplier_id"
+              :label="$t('outsourcing.columns.supplierId')"
+              width="100"
+            />
+            <el-table-column
+              prop="issue_date"
+              :label="$t('outsourcing.columns.issueDate')"
+              width="120"
+            />
+            <el-table-column
+              prop="expected_return_date"
+              :label="$t('outsourcing.columns.expectedReturnDate')"
+              width="120"
+            />
+            <el-table-column
+              prop="issue_quantity"
+              :label="$t('outsourcing.columns.issueQuantity')"
+              width="110"
+            />
+            <el-table-column :label="$t('common.operation')" width="340" fixed="right">
               <template #default="{ row }">
-                <el-button size="small" @click="openDetail(row)">详情</el-button>
+                <el-button size="small" @click="openDetail(row)">{{
+                  $t('common.detail')
+                }}</el-button>
                 <el-button
                   v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   @click="openEdit(row)"
-                  >编辑</el-button
+                  >{{ $t('common.edit') }}</el-button
                 >
                 <el-button
                   v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="primary"
                   @click="onIssue(row)"
-                  >发出</el-button
+                  >{{ $t('outsourcing.actions.issue') }}</el-button
                 >
                 <el-button
                   v-if="row.status === OUTSOURCING_ORDER_STATUS.issued"
                   size="small"
                   type="primary"
                   @click="onProcess(row)"
-                  >加工中</el-button
+                  >{{ $t('outsourcing.actions.markProcessing') }}</el-button
                 >
                 <!-- 结算入口与后端 settle 两道硬拒同口径（提前提示，不替代后端校验，
                      后端拒绝原因仍由失败信封正常外显）：状态门 order.rs:594-597 仅 received；
@@ -58,7 +86,7 @@
                       type="success"
                       :disabled="isZeroFeeOrder(row)"
                       @click="onSettle(row)"
-                      >结算</el-button
+                      >{{ $t('outsourcing.actions.settle') }}</el-button
                     >
                   </span>
                 </el-tooltip>
@@ -68,7 +96,7 @@
                   type="success"
                   plain
                   @click="onClose(row)"
-                  >关闭</el-button
+                  >{{ $t('common.close') }}</el-button
                 >
                 <el-button
                   v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
@@ -76,41 +104,67 @@
                   type="danger"
                   plain
                   @click="onCancel(row)"
-                  >取消</el-button
+                  >{{ $t('common.cancel') }}</el-button
                 >
                 <el-button
                   v-if="row.status === OUTSOURCING_ORDER_STATUS.draft"
                   size="small"
                   type="danger"
                   @click="onDelete(row)"
-                  >删除</el-button
+                  >{{ $t('common.delete') }}</el-button
                 >
               </template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
 
-        <el-tab-pane label="收回单" name="receipts">
+        <el-tab-pane :label="$t('outsourcing.tabs.receipts')" name="receipts">
           <div class="toolbar mb">
-            <el-button type="primary" @click="openCreateReceipt">新建收回单</el-button>
-            <el-button plain @click="loadReceipts">刷新</el-button>
+            <el-button type="primary" @click="openCreateReceipt">{{
+              $t('outsourcing.actions.createReceipt')
+            }}</el-button>
+            <el-button plain @click="loadReceipts">{{ $t('common.refresh') }}</el-button>
           </div>
           <el-table v-loading="receiptLoading" :data="receipts" border>
             <el-table-column prop="id" label="ID" width="70" />
-            <el-table-column prop="receipt_no" label="收回单号" width="160" />
-            <el-table-column prop="outsourcing_order_id" label="委外单ID" width="100" />
-            <el-table-column prop="receipt_date" label="收回日期" width="120" />
-            <el-table-column prop="product_id" label="产品ID" width="90" />
-            <el-table-column prop="return_quantity" label="收回数量" width="110" />
-            <el-table-column prop="loss_quantity" label="损耗数量" width="110" />
-            <el-table-column label="质量状态" width="110">
+            <el-table-column
+              prop="receipt_no"
+              :label="$t('outsourcing.columns.receiptNo')"
+              width="160"
+            />
+            <el-table-column
+              prop="outsourcing_order_id"
+              :label="$t('outsourcing.columns.outsourcingOrderId')"
+              width="100"
+            />
+            <el-table-column
+              prop="receipt_date"
+              :label="$t('outsourcing.columns.receiptDate')"
+              width="120"
+            />
+            <el-table-column
+              prop="product_id"
+              :label="$t('outsourcing.columns.productId')"
+              width="90"
+            />
+            <el-table-column
+              prop="return_quantity"
+              :label="$t('outsourcing.columns.returnQuantity')"
+              width="110"
+            />
+            <el-table-column
+              prop="loss_quantity"
+              :label="$t('outsourcing.columns.lossQuantity')"
+              width="110"
+            />
+            <el-table-column :label="$t('outsourcing.columns.qualityStatus')" width="110">
               <template #default="{ row }">
                 <el-tag :type="qualityTagType(row.quality_status)" size="small">
                   {{ qualityLabel(row.quality_status) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="grade" label="等级" width="80" />
+            <el-table-column prop="grade" :label="$t('outsourcing.columns.grade')" width="80" />
             <!-- 打卷实测值三列（#220 成品布入库标签数据源）：出参为 Decimal 字符串，
                  未录入（null）显示「未补录」占位文案，不显示空/0（0 属伪造实测值） -->
             <el-table-column :label="$t('outsourcing.receipt.measured.weight')" width="110">
@@ -122,7 +176,7 @@
             <el-table-column :label="$t('outsourcing.receipt.measured.gramWeight')" width="110">
               <template #default="{ row }">{{ measuredCellText(row.gram_weight) }}</template>
             </el-table-column>
-            <el-table-column label="状态" width="100">
+            <el-table-column :label="$t('common.status')" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.status === 'confirmed' ? 'success' : 'info'">{{
                   row.status
@@ -146,7 +200,7 @@
                       type="success"
                       :disabled="isZeroQtyReceipt(row)"
                       @click="onConfirmReceipt(row)"
-                      >确认</el-button
+                      >{{ $t('common.confirm') }}</el-button
                     >
                   </span>
                 </el-tooltip>
@@ -166,22 +220,28 @@
       </el-tabs>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑委外单' : '新建委外单'" width="560">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="
+        editingId ? $t('outsourcing.dialog.editOrder') : $t('outsourcing.actions.createOrder')
+      "
+      width="560"
+    >
       <el-form :model="form" label-width="110px">
-        <el-form-item v-if="!editingId" label="委外单号" required>
+        <el-form-item v-if="!editingId" :label="$t('outsourcing.columns.orderNo')" required>
           <el-input v-model="form.order_no" readonly />
         </el-form-item>
-        <el-form-item label="类型" required>
+        <el-form-item :label="$t('outsourcing.columns.orderType')" required>
           <el-select v-model="form.order_type" class="w-full">
-            <el-option label="染色加工" value="dyeing" />
-            <el-option label="后整理" value="finishing" />
-            <el-option label="其他" value="other" />
+            <el-option :label="$t('outsourcing.orderTypes.dyeing')" value="dyeing" />
+            <el-option :label="$t('outsourcing.orderTypes.finishing')" value="finishing" />
+            <el-option :label="$t('outsourcing.orderTypes.other')" value="other" />
           </el-select>
         </el-form-item>
-        <el-form-item label="供应商ID" required>
+        <el-form-item :label="$t('outsourcing.columns.supplierId')" required>
           <el-input-number v-model="form.supplier_id" :min="1" class="w-full" />
         </el-form-item>
-        <el-form-item label="发出日期" required>
+        <el-form-item :label="$t('outsourcing.columns.issueDate')" required>
           <el-date-picker
             v-model="form.issue_date"
             type="date"
@@ -189,7 +249,7 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="预计回厂">
+        <el-form-item :label="$t('outsourcing.columns.expectedReturnDate')">
           <el-date-picker
             v-model="form.expected_return_date"
             type="date"
@@ -197,7 +257,7 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="发出数量" required>
+        <el-form-item :label="$t('outsourcing.columns.issueQuantity')" required>
           <el-input-number
             v-model="form.issue_quantity"
             :min="0.01"
@@ -205,7 +265,7 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="单位">
+        <el-form-item :label="$t('outsourcing.columns.unit')">
           <el-input v-model="form.issue_unit" placeholder="kg / m" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.form.materialCost')" required>
@@ -219,115 +279,163 @@
         </el-form-item>
         <!-- 三费录入（缺陷②修复）：outsourcing_order NOT NULL 列（后端 v15:3247-3249），
              建单必填可填 0；结算 FEE 凭证金额=加工费+运费，不录入成本链恒 0 -->
-        <el-form-item label="加工费" required>
+        <el-form-item :label="$t('outsourcing.columns.processingFee')" required>
           <el-input-number
             v-model="form.processing_fee"
             :min="0"
             :precision="2"
-            placeholder="结算 FEE 凭证按 加工费+运费 计"
+            :placeholder="$t('outsourcing.formPlaceholders.processingFee')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="运费" required>
+        <el-form-item :label="$t('outsourcing.columns.freightFee')" required>
           <el-input-number
             v-model="form.freight_fee"
             :min="0"
             :precision="2"
-            placeholder="计入总成本与 FEE 凭证"
+            :placeholder="$t('outsourcing.formPlaceholders.freightFee')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="税额" required>
+        <el-form-item :label="$t('outsourcing.columns.taxAmount')" required>
           <el-input-number
             v-model="form.tax_amount"
             :min="0"
             :precision="2"
-            placeholder="进项税额，结算时记入 FEE 凭证 tax_amount"
+            :placeholder="$t('outsourcing.formPlaceholders.taxAmount')"
             class="w-full"
           />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
         <el-button type="primary" :loading="saving" @click="onSave">{{
-          editingId ? '更新' : '保存'
+          editingId ? $t('common.update') : $t('common.save')
         }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVisible" title="委外单详情" width="820">
+    <el-dialog v-model="detailVisible" :title="$t('outsourcing.dialog.orderDetail')" width="820">
       <el-descriptions v-if="detailOrder" :column="2" border>
-        <el-descriptions-item label="委外单号">{{ detailOrder.order_no }}</el-descriptions-item>
-        <el-descriptions-item label="类型">{{ detailOrder.order_type }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{
+        <el-descriptions-item :label="$t('outsourcing.columns.orderNo')">{{
+          detailOrder.order_no
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.orderType')">{{
+          detailOrder.order_type
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('common.status')">{{
           $t(outsourcingStatusLabelKey(detailOrder.status))
         }}</el-descriptions-item>
-        <el-descriptions-item label="供应商ID">{{ detailOrder.supplier_id }}</el-descriptions-item>
-        <el-descriptions-item label="发出日期">{{ detailOrder.issue_date }}</el-descriptions-item>
-        <el-descriptions-item label="预计回厂">{{
+        <el-descriptions-item :label="$t('outsourcing.columns.supplierId')">{{
+          detailOrder.supplier_id
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.issueDate')">{{
+          detailOrder.issue_date
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.expectedReturnDate')">{{
           detailOrder.expected_return_date || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="发出数量">{{
+        <el-descriptions-item :label="$t('outsourcing.columns.issueQuantity')">{{
           detailOrder.issue_quantity
         }}</el-descriptions-item>
-        <el-descriptions-item label="单位">{{
+        <el-descriptions-item :label="$t('outsourcing.columns.unit')">{{
           detailOrder.issue_unit || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('outsourcing.form.materialCost')">{{
           detailOrder.material_cost
         }}</el-descriptions-item>
         <!-- 三费与成本链回显（后端 outsourcing_order 真实 NOT NULL 列，键恒在，Decimal 出参为字符串） -->
-        <el-descriptions-item label="加工费">{{ detailOrder.processing_fee }}</el-descriptions-item>
-        <el-descriptions-item label="运费">{{ detailOrder.freight_fee }}</el-descriptions-item>
-        <el-descriptions-item label="税额">{{ detailOrder.tax_amount }}</el-descriptions-item>
-        <el-descriptions-item label="总成本">{{ detailOrder.total_cost }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.processingFee')">{{
+          detailOrder.processing_fee
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.freightFee')">{{
+          detailOrder.freight_fee
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.taxAmount')">{{
+          detailOrder.tax_amount
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="$t('outsourcing.columns.totalCost')">{{
+          detailOrder.total_cost
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <div class="items-section">
         <div class="items-toolbar">
-          <span class="items-title">发料明细</span>
+          <span class="items-title">{{ $t('outsourcing.dialog.itemsTitle') }}</span>
           <el-button
             v-if="detailOrder && detailOrder.status === OUTSOURCING_ORDER_STATUS.draft"
             type="primary"
             size="small"
             @click="itemDialogVisible = true"
-            >添加明细</el-button
+            >{{ $t('outsourcing.actions.addItem') }}</el-button
           >
         </div>
         <el-table v-loading="itemLoading" :data="orderItems" border size="small" max-height="300">
           <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column prop="product_id" label="产品ID" width="90" />
-          <el-table-column prop="color_no" label="色号" width="110" />
-          <el-table-column prop="dye_lot_no" label="缸号" width="110" />
-          <el-table-column prop="quantity" label="数量" width="100" />
-          <el-table-column prop="unit" label="单位" width="80" />
-          <el-table-column prop="unit_cost" label="单价" width="100" />
-          <el-table-column prop="processing_fee" label="加工费" width="100" />
-          <el-table-column prop="freight_fee" label="运费" width="100" />
+          <el-table-column
+            prop="product_id"
+            :label="$t('outsourcing.columns.productId')"
+            width="90"
+          />
+          <el-table-column prop="color_no" :label="$t('outsourcing.columns.colorNo')" width="110" />
+          <el-table-column
+            prop="dye_lot_no"
+            :label="$t('outsourcing.columns.dyeLotNo')"
+            width="110"
+          />
+          <el-table-column
+            prop="quantity"
+            :label="$t('outsourcing.columns.quantity')"
+            width="100"
+          />
+          <el-table-column prop="unit" :label="$t('outsourcing.columns.unit')" width="80" />
+          <el-table-column
+            prop="unit_cost"
+            :label="$t('outsourcing.columns.unitCost')"
+            width="100"
+          />
+          <el-table-column
+            prop="processing_fee"
+            :label="$t('outsourcing.columns.processingFee')"
+            width="100"
+          />
+          <el-table-column
+            prop="freight_fee"
+            :label="$t('outsourcing.columns.freightFee')"
+            width="100"
+          />
         </el-table>
       </div>
       <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button @click="detailVisible = false">{{ $t('common.close') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="itemDialogVisible" title="添加发料明细" width="520">
+    <el-dialog
+      v-model="itemDialogVisible"
+      :title="$t('outsourcing.dialog.addItemTitle')"
+      width="520"
+    >
       <el-form :model="itemForm" label-width="110px">
-        <el-form-item label="产品ID" required>
+        <el-form-item :label="$t('outsourcing.columns.productId')" required>
           <el-input-number v-model="itemForm.product_id" :min="1" class="w-full" />
         </el-form-item>
-        <el-form-item label="色号"><el-input v-model="itemForm.color_no" /></el-form-item>
-        <el-form-item label="缸号"><el-input v-model="itemForm.dye_lot_no" /></el-form-item>
-        <el-form-item label="数量" required>
+        <el-form-item :label="$t('outsourcing.columns.colorNo')"
+          ><el-input v-model="itemForm.color_no"
+        /></el-form-item>
+        <el-form-item :label="$t('outsourcing.columns.dyeLotNo')"
+          ><el-input v-model="itemForm.dye_lot_no"
+        /></el-form-item>
+        <el-form-item :label="$t('outsourcing.columns.quantity')" required>
           <el-input-number v-model="itemForm.quantity" :min="0.01" :precision="2" class="w-full" />
         </el-form-item>
-        <el-form-item label="单位"
+        <el-form-item :label="$t('outsourcing.columns.unit')"
           ><el-input v-model="itemForm.unit" placeholder="kg / m"
         /></el-form-item>
-        <el-form-item label="单价" required>
+        <el-form-item :label="$t('outsourcing.columns.unitCost')" required>
           <el-input-number v-model="itemForm.unit_cost" :min="0" :precision="2" class="w-full" />
         </el-form-item>
-        <el-form-item label="加工费">
+        <el-form-item :label="$t('outsourcing.columns.processingFee')">
           <el-input-number
             v-model="itemForm.processing_fee"
             :min="0"
@@ -335,28 +443,34 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="运费">
+        <el-form-item :label="$t('outsourcing.columns.freightFee')">
           <el-input-number v-model="itemForm.freight_fee" :min="0" :precision="2" class="w-full" />
         </el-form-item>
-        <el-form-item label="备注"
+        <el-form-item :label="$t('outsourcing.columns.remarks')"
           ><el-input v-model="itemForm.remarks" type="textarea" :rows="2"
         /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="itemDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="itemSaving" @click="onSaveItem">保存</el-button>
+        <el-button @click="itemDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="itemSaving" @click="onSaveItem">{{
+          $t('common.save')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="receiptDialogVisible" title="新建收回单" width="560">
+    <el-dialog
+      v-model="receiptDialogVisible"
+      :title="$t('outsourcing.actions.createReceipt')"
+      width="560"
+    >
       <el-form :model="receiptForm" label-width="110px">
-        <el-form-item label="收回单号" required>
+        <el-form-item :label="$t('outsourcing.columns.receiptNo')" required>
           <el-input v-model="receiptForm.receipt_no" readonly />
         </el-form-item>
-        <el-form-item label="委外单ID" required>
+        <el-form-item :label="$t('outsourcing.columns.outsourcingOrderId')" required>
           <el-input-number v-model="receiptForm.outsourcing_order_id" :min="1" class="w-full" />
         </el-form-item>
-        <el-form-item label="收回日期" required>
+        <el-form-item :label="$t('outsourcing.columns.receiptDate')" required>
           <el-date-picker
             v-model="receiptForm.receipt_date"
             type="date"
@@ -364,12 +478,16 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="产品ID" required>
+        <el-form-item :label="$t('outsourcing.columns.productId')" required>
           <el-input-number v-model="receiptForm.product_id" :min="1" class="w-full" />
         </el-form-item>
-        <el-form-item label="色号"><el-input v-model="receiptForm.color_no" /></el-form-item>
-        <el-form-item label="缸号"><el-input v-model="receiptForm.dye_lot_no" /></el-form-item>
-        <el-form-item label="收回数量" required>
+        <el-form-item :label="$t('outsourcing.columns.colorNo')"
+          ><el-input v-model="receiptForm.color_no"
+        /></el-form-item>
+        <el-form-item :label="$t('outsourcing.columns.dyeLotNo')"
+          ><el-input v-model="receiptForm.dye_lot_no"
+        /></el-form-item>
+        <el-form-item :label="$t('outsourcing.columns.returnQuantity')" required>
           <el-input-number
             v-model="receiptForm.return_quantity"
             :min="0.01"
@@ -377,7 +495,7 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="损耗数量">
+        <el-form-item :label="$t('outsourcing.columns.lossQuantity')">
           <el-input-number
             v-model="receiptForm.loss_quantity"
             :min="0"
@@ -385,7 +503,7 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="质量状态">
+        <el-form-item :label="$t('outsourcing.columns.qualityStatus')">
           <el-select v-model="receiptForm.quality_status" class="w-full">
             <el-option
               v-for="value in OUTSOURCING_QUALITY_FORM_VALUES"
@@ -395,7 +513,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="等级">
+        <el-form-item :label="$t('outsourcing.columns.grade')">
           <el-input v-model="receiptForm.grade" placeholder="A / B / C" />
         </el-form-item>
         <!-- 打卷实测值（#220 成品布入库标签数据源）：DB 可空列，可留空不录入；
@@ -432,13 +550,15 @@
           />
         </el-form-item>
         <div class="measured-hint">{{ $t('outsourcing.receipt.measured.hint') }}</div>
-        <el-form-item label="备注"
+        <el-form-item :label="$t('outsourcing.columns.remarks')"
           ><el-input v-model="receiptForm.remarks" type="textarea" :rows="2"
         /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="receiptDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="receiptSaving" @click="onSaveReceipt">保存</el-button>
+        <el-button @click="receiptDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="receiptSaving" @click="onSaveReceipt">{{
+          $t('common.save')
+        }}</el-button>
       </template>
     </el-dialog>
 
@@ -495,6 +615,8 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
+import { isDialogDismissal } from '@/utils/monitor';
 import {
   OUTSOURCING_ORDER_STATUS,
   outsourcingStatusLabelKey,
@@ -612,7 +734,7 @@ async function onCreate() {
     form.freight_fee == null ||
     form.tax_amount == null
   ) {
-    ElMessage.warning('请填写必填项：单号/供应商/日期/数量/材料成本/加工费/运费/税额');
+    ElMessage.warning(t('outsourcing.message.requiredOrderFields'));
     return;
   }
   saving.value = true;
@@ -630,7 +752,7 @@ async function onCreate() {
       freight_fee: form.freight_fee,
       tax_amount: form.tax_amount,
     });
-    ElMessage.success('委外单已创建');
+    ElMessage.success(t('outsourcing.message.orderCreated'));
     dialogVisible.value = false;
     form.order_no = '';
     form.issue_quantity = undefined;
@@ -668,7 +790,7 @@ const openEdit = (row: OutsourcingOrder) => {
 const onSave = async () => {
   if (editingId.value) {
     if (!form.supplier_id || !form.issue_date || !form.issue_quantity) {
-      ElMessage.warning('请填写必填项：供应商/日期/数量');
+      ElMessage.warning(t('outsourcing.message.requiredEditFields'));
       return;
     }
     saving.value = true;
@@ -690,7 +812,7 @@ const onSave = async () => {
         freight_fee: form.freight_fee ?? 0,
         tax_amount: form.tax_amount ?? 0,
       });
-      ElMessage.success('委外单已更新');
+      ElMessage.success(t('outsourcing.message.orderUpdated'));
       dialogVisible.value = false;
       editingId.value = null;
       await load();
@@ -706,16 +828,25 @@ const onSave = async () => {
 // 删除委外单（draft 态）
 const onDelete = async (row: OutsourcingOrder) => {
   try {
-    await ElMessageBox.confirm(`确认删除委外单 ${row.order_no}？`, '确认', { type: 'warning' });
-  } catch {
+    await ElMessageBox.confirm(
+      t('outsourcing.message.confirmDeleteOrder', { orderNo: row.order_no }),
+      t('message.confirmTitle'),
+      { type: 'warning' }
+    );
+  } catch (e) {
+    // 取消/关闭确认框是正常中止路径，不是错误；其余 reject 按真实失败外显并留痕
+    if (!isDialogDismissal(e)) {
+      logger.error('[outsourcing] 删除确认对话框异常', e);
+      ElMessage.error((e as Error).message || t('message.deleteFailed'));
+    }
     return;
   }
   try {
     await deleteOutsourcingOrder(row.id);
-    ElMessage.success('删除成功');
+    msg.deleteOk();
     await load();
   } catch (e) {
-    ElMessage.error((e as Error).message || '删除失败');
+    ElMessage.error((e as Error).message || t('message.deleteFailed'));
   }
 };
 
@@ -755,7 +886,7 @@ const openDetail = async (row: OutsourcingOrder) => {
 
 const onSaveItem = async () => {
   if (!detailOrder.value || !itemForm.product_id || !itemForm.quantity) {
-    ElMessage.warning('请填写必填项：产品/数量');
+    ElMessage.warning(t('outsourcing.message.requiredItemFields'));
     return;
   }
   itemSaving.value = true;
@@ -772,7 +903,7 @@ const onSaveItem = async () => {
       freight_fee: itemForm.freight_fee || null,
       remarks: itemForm.remarks || null,
     });
-    ElMessage.success('明细已添加');
+    ElMessage.success(t('outsourcing.message.itemAdded'));
     itemDialogVisible.value = false;
     await openDetail(detailOrder.value);
   } finally {
@@ -862,7 +993,7 @@ const onSaveReceipt = async () => {
     !receiptForm.product_id ||
     !receiptForm.return_quantity
   ) {
-    ElMessage.warning('请填写必填项：单号/委外单/日期/产品/数量');
+    ElMessage.warning(t('outsourcing.message.requiredReceiptFields'));
     return;
   }
   if (!checkMeasuredPositive(receiptForm)) {
@@ -889,7 +1020,7 @@ const onSaveReceipt = async () => {
       width: receiptForm.width ?? null,
       gram_weight: receiptForm.gram_weight ?? null,
     });
-    ElMessage.success('收回单已创建');
+    ElMessage.success(t('outsourcing.message.receiptCreated'));
     receiptDialogVisible.value = false;
     await loadReceipts();
   } finally {
@@ -997,37 +1128,96 @@ const isZeroQtyReceipt = (row: OutsourcingReceipt) => Number(row.return_quantity
 
 const onConfirmReceipt = async (row: OutsourcingReceipt) => {
   try {
-    await ElMessageBox.confirm(`确认收回单 #${row.id}？确认后触发入库与质检。`, '确认');
-  } catch {
+    await ElMessageBox.confirm(
+      t('outsourcing.message.confirmReceiptAction', { id: row.id }),
+      t('message.confirmTitle')
+    );
+  } catch (e) {
+    // 取消/关闭确认框是正常中止路径，不是错误；其余 reject 按真实失败外显并留痕
+    if (!isDialogDismissal(e)) {
+      logger.error('[outsourcing] 收回确认对话框异常', e);
+      ElMessage.error((e as Error).message || t('outsourcing.message.confirmReceiptFailed'));
+    }
     return;
   }
   try {
     await confirmOutsourcingReceipt(row.id);
-    ElMessage.success('收回单已确认');
+    ElMessage.success(t('outsourcing.message.receiptConfirmed'));
     await loadReceipts();
     await load();
   } catch (e) {
-    ElMessage.error((e as Error).message || '确认失败');
+    ElMessage.error((e as Error).message || t('outsourcing.message.confirmReceiptFailed'));
   }
 };
 
+/**
+ * 状态流转通用动作：confirmKey/successKey 均为字面 i18n 完整键（调用点传入，
+ * check-i18n 对动态 t(var) 不判定，键存在性由调用点字面键与语言包双侧保证）。
+ */
 const act = async (
   row: OutsourcingOrder,
   fn: (id: number, d?: Record<string, unknown>) => Promise<unknown>,
-  msg: string,
+  confirmKey: string,
+  successKey: string,
   prompt = false
 ) => {
-  if (prompt) await ElMessageBox.confirm(`确认${msg}？`, '确认');
+  if (prompt) {
+    try {
+      await ElMessageBox.confirm(t(confirmKey), t('message.confirmTitle'));
+    } catch (e) {
+      // 弹窗取消不是错误：isDialogDismissal 命中即静默中止；其余 reject 外显并留痕
+      if (!isDialogDismissal(e)) {
+        logger.error('[outsourcing] 操作确认对话框异常', e);
+        ElMessage.error((e as Error).message || t('message.operationFailed'));
+      }
+      return;
+    }
+  }
   await fn(row.id);
-  ElMessage.success(msg + '成功');
+  ElMessage.success(t(successKey));
   await load();
 };
 
-const onIssue = (row: OutsourcingOrder) => act(row, issueOutsourcingOrder, '发出', true);
-const onProcess = (row: OutsourcingOrder) => act(row, processOutsourcingOrder, '开始加工', true);
-const onSettle = (row: OutsourcingOrder) => act(row, settleOutsourcingOrder, '结算', true);
-const onClose = (row: OutsourcingOrder) => act(row, closeOutsourcingOrder, '关闭', true);
-const onCancel = (row: OutsourcingOrder) => act(row, cancelOutsourcingOrder, '取消', true);
+const onIssue = (row: OutsourcingOrder) =>
+  act(
+    row,
+    issueOutsourcingOrder,
+    'outsourcing.message.confirmIssue',
+    'outsourcing.message.issueSuccess',
+    true
+  );
+const onProcess = (row: OutsourcingOrder) =>
+  act(
+    row,
+    processOutsourcingOrder,
+    'outsourcing.message.confirmProcess',
+    'outsourcing.message.processSuccess',
+    true
+  );
+const onSettle = (row: OutsourcingOrder) =>
+  act(
+    row,
+    settleOutsourcingOrder,
+    'outsourcing.message.confirmSettle',
+    'outsourcing.message.settleSuccess',
+    true
+  );
+const onClose = (row: OutsourcingOrder) =>
+  act(
+    row,
+    closeOutsourcingOrder,
+    'outsourcing.message.confirmClose',
+    'outsourcing.message.closeSuccess',
+    true
+  );
+const onCancel = (row: OutsourcingOrder) =>
+  act(
+    row,
+    cancelOutsourcingOrder,
+    'outsourcing.message.confirmCancel',
+    'outsourcing.message.cancelSuccess',
+    true
+  );
 
 onMounted(() => {
   load();
