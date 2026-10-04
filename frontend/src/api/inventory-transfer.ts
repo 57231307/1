@@ -265,13 +265,13 @@ export interface InventoryPieceRow {
   weight: string | null;
   /**
    * 幅宽 cm（实测值，#220 标签 fail-closed 点名列之一）。
-   * 后端 inventory_piece_handler.rs:58 `pub width: Option<Decimal>` ⇒ JSON 串（可空），
+   * 后端 inventory_piece_handler.rs:60 `pub width: Option<Decimal>` ⇒ JSON 串（可空），
    * null = 未补录（打卷必填，委外收回产匹该列可为 NULL）；非后端回落主数据。
    */
   width: string | null;
-  /** 克重 g/m²（实测值；后端 :60 `pub gram_weight: Option<Decimal>` ⇒ 串，可空，null=未补录） */
+  /** 克重 g/m²（实测值；后端 :62 `pub gram_weight: Option<Decimal>` ⇒ 串，可空，null=未补录） */
   gram_weight: string | null;
-  /** 条码（后端 :62 `pub barcode: Option<String>`；null=未生成 ⇒ 标签按缺列拒绝，非回落） */
+  /** 条码（后端 :64 `pub barcode: Option<String>`；null=未生成 ⇒ 标签按缺列拒绝，非回落） */
   barcode: string | null;
   batch_no: string;
   color_no: string | null;

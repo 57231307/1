@@ -148,7 +148,9 @@ export interface CustomerEntity {
   province: string | null;
   country: string | null;
   postal_code: string | null;
-  credit_limit: number;
+  // rust_decimal 出参（Cargo.toml 未启 serde-float）线上是 JSON 字符串，如实声明；
+  // 归一只发生在控件绑定/格式化边界，数据层不伪造类型。
+  credit_limit: string;
   payment_terms: number;
   tax_id: string | null;
   bank_name: string | null;
@@ -161,7 +163,7 @@ export interface CustomerEntity {
   updated_at: string;
   customer_industry: string | null;
   main_products: string | null;
-  annual_purchase: number | null;
+  annual_purchase: string | null;
   quality_requirement: string | null;
   inspection_standard: string | null;
   owner_id: number;
@@ -174,7 +176,7 @@ export interface CustomerEntity {
 
 /**
  * 360 视图 summary 载荷 = backend services/crm/mod.rs::CustomerRelationSummary
- * 的真实序列化键（total_order_amount 为 Option<Decimal> → number | null）。
+ * 的真实序列化键（total_order_amount 为 Option<Decimal> → 线上 JSON 字符串或 null）。
  * 注意：后端该结构体并无 rfm_score 键 —— 下方 rfm_score 声明是已登记的契约谎言
  * （RFM 卡因此恒渲染空态），修复口径待产品裁定后另行收口，不在本批顺手改。
  */
@@ -183,7 +185,7 @@ export interface Customer360Summary {
   total_leads: number;
   total_opportunities: number;
   total_orders: number;
-  total_order_amount: number | null;
+  total_order_amount: string | null;
   last_interaction_at: string | null;
   follow_up_count: number;
   rfm_score: RfmScore;

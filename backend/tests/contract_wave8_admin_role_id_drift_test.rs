@@ -15,9 +15,10 @@
 //! public.roles 是密封参照表（test_common.rs:39-59，不参与逐用例 TRUNCATE），且
 //! `code` 列带 UNIQUE（m0001_initial_schema.rs:23-27）、主键 id=1 被种子 admin 永久
 //! 占据（m0001:609-612 首行 admin，新表自增从 1 起）—— ⇒ 在 public 上
-//! ①再插一条 code='admin' 与 UNIQUE 冲突（注：contract_wave8_crm_read_gate_bypass_
-//! test.rs:688-692 正是这么干的，若 CI 库确有该 UNIQUE，那条用例必因 23505 红，
-//! 已作为独立发现上报编排方，本文件不跟随该写法）；②"非 admin 坐 id=1"与种子行
+//! ①再插一条 code='admin' 与 UNIQUE 冲突（同批的
+//! contract_wave8_crm_read_gate_bypass_test.rs 原先正是这么写的，:684-696 现已改为
+//! **不再**自造第二条 admin、并把"admin 落在 id≠1"的活体证明让给本文件——依据正是这条
+//! UNIQUE；本文件也不跟随"往 public 插第二条 admin"的写法）；②"非 admin 坐 id=1"与种子行
 //! PK 冲突。两条都只有临时改名/挪位种子行才能凑出来，而那会污染全部依赖种子的
 //! 用例（密封表红线）。私有 schema 副本表（列集 = models/role.rs:8-20 实体列）+
 //! 专用连接池 `set_schema_search_path`（sea-orm 2.0.2 能力，池内每条物理连接建连时
