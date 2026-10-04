@@ -869,7 +869,8 @@ async fn piece_split_with_null_parent_keeps_child_null_and_label_still_refuses()
 }
 
 // ---------------------------------------------------------------------------
-// ⑥ 回读闭环：PieceResponse 回传三列 + barcode（NULL 如实回 null）
+// ⑥ 回读闭环：PieceResponse 回传三列 + barcode（三实测列缺值如实回 null；barcode 非缺值
+//    考察对象，按生产口径恒为 piece_no 派生值，见用例内族F 注记）
 // ---------------------------------------------------------------------------
 
 /// Decimal 出参按本仓口径序列化为字符串，按串解码后数值比较（不做 .toFixed 造数）
@@ -957,7 +958,13 @@ async fn pieces_list_returns_measured_columns_and_barcode() {
         .find(|i| i["id"] == json!(111))
         .expect("id=111 行应存在");
     let miss_obj = miss.as_object().expect("条目应是对象");
-    for key in ["weight", "width", "gram_weight", "barcode"] {
+    // 缺值考察对象仅为三实测列（本例种子有意缺 width/gram_weight/weight）；
+    // barcode **不在**本清单：生产全部产匹路径都按"由 piece_no 派生"落库
+    // （piece_domain_service.rs:186/:657、fabric_inspection_service.rs:688、
+    // piece_split_handler.rs:229），本文件 seed_parent:428 同口径写入 ⇒ 它恒非 null，
+    // 旧断言循环把它列进"缺值必须回 null"是测试自身矛盾（CI #4675 族F 实得
+    // barcode="OS220-L111" 判红）。双向覆盖：这里改钉"键存在 + 等于生产派生值"。
+    for key in ["weight", "width", "gram_weight"] {
         assert!(
             miss_obj.contains_key(key),
             "缺值行的 {key} 键必须仍存在且值为 null（省略键会让前端 ?? 兜底掩盖缺值），实得: {miss}"
@@ -967,6 +974,16 @@ async fn pieces_list_returns_measured_columns_and_barcode() {
             "缺值列必须如实回 null，实得 {miss}"
         );
     }
+    assert!(
+        miss_obj.contains_key("barcode"),
+        "缺值行的 barcode 键必须仍存在（省略键同样会被前端 ?? 兜底掩盖），实得键集: {:?}",
+        miss_obj.keys().collect::<Vec<_>>()
+    );
+    assert_eq!(
+        miss["barcode"],
+        json!("OS220-L111"),
+        "barcode 必须等于生产口径派生值（= 该匹 piece_no），不是随便非空；实得 {miss}"
+    );
 }
 
 // ---------------------------------------------------------------------------
