@@ -439,7 +439,9 @@ export function loadE2eProbeEndpoints() {
       for (const raw of block.split(/\r?\n/)) {
         const line = raw.trim();
         if (!line || line.startsWith('//') || line.startsWith('*')) continue;
-        const m = line.match(/^'([^']+)',?$/);
+        // 允许尾随同行注释（清单成员普遍带 `// snapshot:行号` 之类的证据注记）；
+        // 除此之外取不到字面量就抛错——静默跳过等于把这条探针放出门禁扫描面。
+        const m = line.match(/^'([^']+)',?(\s*\/\/.*)?$/);
         if (!m) throw new Error(`${reg.file}: 清单成员取不到字面值，本检查无法核对：${line}`);
         urls.push(m[1]);
       }
