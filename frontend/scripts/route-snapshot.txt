@@ -1,4 +1,4 @@
-# layers=8 endpoints=1764
+# layers=8 endpoints=1763
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -896,7 +896,6 @@ GET	/api/v1/erp/sales/sales-prices	sales_price_handler::list_prices	sales
 GET	/api/v1/erp/sales/sales-prices/*	sales_price_handler::get_price	sales
 GET	/api/v1/erp/sales/sales-prices/export	sales_price_handler::export_prices	sales
 GET	/api/v1/erp/sales/sales-prices/history/*	sales_price_handler::get_price_history	sales
-GET	/api/v1/erp/sales/sales-prices/strategies	sales_price_handler::list_strategies	sales
 GET	/api/v1/erp/sales/sales-returns	list_sales_returns	sales_return_handler
 GET	/api/v1/erp/sales/sales-returns/*	get_sales_return	sales_return_handler
 GET	/api/v1/erp/sales/sales-returns/*/items	list_return_items	sales_return_handler
