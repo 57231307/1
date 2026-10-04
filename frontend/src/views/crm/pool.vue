@@ -51,9 +51,15 @@
             clearable
             @change="handleQuery"
           >
-            <el-option :label="t('crmPool.customerType.normal')" value="normal" />
-            <el-option :label="t('crmPool.customerType.vip')" value="vip" />
+            <!-- 公海列表行的 customer_type 显示/筛选线：value 取后端渠道词表
+                 constants::customer_type::ALLOWED 五值。分层词 normal/vip 不属本列。
+                 ⚠️ 公海规则(rule scope)的 all/wholesale/retail/vip 是另一套词表
+                 （crm_pool_handler 规则作用域），本批不动。 -->
+            <el-option :label="t('crmPool.customerType.retail')" value="retail" />
             <el-option :label="t('crmPool.customerType.wholesale')" value="wholesale" />
+            <el-option :label="t('crmPool.customerType.distributor')" value="distributor" />
+            <el-option :label="t('crmPool.customerType.manufacturer')" value="manufacturer" />
+            <el-option :label="t('crmPool.customerType.other')" value="other" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('crmPool.filter.daysInPool')">
@@ -353,17 +359,28 @@ const handleCurrentChange = (val: number) => {
   page.value = val;
 };
 
+// 公海行回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表取文案；
+// 未知/历史脏值不吞不造假名，回落显示原始 token。
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
-    normal: t('crmPool.customerType.normal'),
-    vip: t('crmPool.customerType.vip'),
+    retail: t('crmPool.customerType.retail'),
     wholesale: t('crmPool.customerType.wholesale'),
+    distributor: t('crmPool.customerType.distributor'),
+    manufacturer: t('crmPool.customerType.manufacturer'),
+    other: t('crmPool.customerType.other'),
   };
   return labelMap[type] || type;
 };
 
+// tag 颜色仅供列表视觉区分，不承载状态/层级语义。
 const getCustomerTypeTag = (type: string) => {
-  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' };
+  const typeMap: Record<string, string> = {
+    retail: '',
+    wholesale: 'success',
+    distributor: 'warning',
+    manufacturer: 'info',
+    other: 'danger',
+  };
   return typeMap[type] || '';
 };
 

@@ -3858,9 +3858,11 @@ export default {
       reset: '重置',
     },
     customerType: {
-      normal: '普通客户',
-      vip: 'VIP客户',
+      retail: '零售客户',
       wholesale: '批发客户',
+      distributor: '经销商',
+      manufacturer: '制造商',
+      other: '其它',
     },
     status: {
       active: '启用',
@@ -6309,9 +6311,11 @@ export default {
       defaultAddress: '默认',
     },
     customerType: {
-      normal: '普通客户',
-      vip: 'VIP客户',
+      retail: '零售客户',
       wholesale: '批发客户',
+      distributor: '经销商',
+      manufacturer: '制造商',
+      other: '其它',
     },
     rfmEmpty: '暂无 RFM 数据',
     addressEmpty: '暂无收货地址',
@@ -6380,9 +6384,11 @@ export default {
       reset: '重置',
     },
     customerType: {
-      normal: '普通客户',
-      vip: 'VIP客户',
+      retail: '零售客户',
       wholesale: '批发客户',
+      distributor: '经销商',
+      manufacturer: '制造商',
+      other: '其它',
     },
     table: {
       ariaLabel: '公海客户列表',
@@ -6958,7 +6964,9 @@ export default {
       option: {
         typeRetail: '零售',
         typeWholesale: '批发',
-        typeVip: 'VIP',
+        typeDistributor: '经销商',
+        typeManufacturer: '制造商',
+        typeOther: '其它',
       },
       status: {
         active: '启用',
@@ -7007,9 +7015,11 @@ export default {
         statusPlaceholder: '选择状态',
       },
       filterOption: {
-        typeNormal: '普通客户',
-        typeVip: 'VIP客户',
+        typeRetail: '零售客户',
         typeWholesale: '批发客户',
+        typeDistributor: '经销商',
+        typeManufacturer: '制造商',
+        typeOther: '其它',
         statusActive: '启用',
         statusInactive: '禁用',
       },
@@ -7029,11 +7039,6 @@ export default {
           status: '状态',
           action: '操作',
         },
-      },
-      typeLabel: {
-        retail: '零售',
-        vip: 'VIP',
-        wholesale: '批发',
       },
       statusLabel: {
         active: '启用',

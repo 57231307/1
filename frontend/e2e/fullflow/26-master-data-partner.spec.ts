@@ -13,10 +13,13 @@
 //   3) 客户创建契约：编码缺省时服务端生成（前缀 CUS，customer_ops/update.rs:57-65）、
 //      缺省 status=active（词表 models/status/general.rs:53 master_data::ACTIVE，写入点
 //      customer_ops/update.rs:104-107）、缺省 country="中国"（update.rs:95-97）、
-//      payment_terms 缺省 30（customer_handler.rs:299-301 + constants.rs:20）；
-//      customer_type 取值校验（customer_handler.rs:74-88 白名单 retail/wholesale/
-//      distributor/manufacturer/other）越界归 VALIDATION_ERROR；编码重复归业务族
-//      （customer_ops/crud.rs:47-49）。
+//      payment_terms 缺省 30（customer_handler.rs:308-310 + constants.rs:24
+//      DEFAULT_PAYMENT_TERMS_DAYS）；
+//      customer_type 取值校验委托唯一词表模块 `backend/src/constants/customer_type.rs`
+//      的 `ALLOWED = [retail, wholesale, distributor, manufacturer, other]`（小写精确匹配，
+//      handler 侧钩子 customer_handler.rs:51/:77-78 `validate_customer_type` → 同模块 `check`），
+//      未提供该字段时缺省补 `OTHER`（`validate(None)`，渠道未知不猜零售）；越界归
+//      VALIDATION_ERROR；编码重复归业务族（customer_ops/crud.rs:47-49）。
 //   4) 客户删除是**软删除状态机**：DELETE 后记录仍在（status=inactive，词表
 //      general.rs:56，写入点 customer_ops/crud.rs:178），重复 DELETE 被状态门拒绝
 //      （crud.rs:170-175）。断"404"即假绿。
@@ -189,11 +192,16 @@ test.describe('26 往来主数据契约链', () => {
     // 词表 models/status/general.rs:53（master_data::ACTIVE，小写）；写入点 customer_ops/update.rs:104-107
     expect(back.status, '新客默认状态 active（小写词表）').toBe('active');
     expect(back.country, '缺省国家（update.rs:95-97）').toBe('中国');
-    expect(Number(back.payment_terms), '缺省账期 30（constants.rs:20）').toBe(30);
-    expect(back.customer_type, '缺省客户类型 retail（customer_handler.rs:276-278）').toBe('retail');
+    expect(Number(back.payment_terms), '缺省账期 30（constants.rs:24）').toBe(30);
+    // 缺省渠道 other：请求未提供 customer_type 时 handler 走
+    // `constants::customer_type::validate(None)` → OTHER（渠道未知，不猜零售）
+    expect(back.customer_type, '缺省客户类型 other（constants/customer_type.rs OTHER）').toBe(
+      'other'
+    );
     expectDecimal(back.credit_limit, 0, '缺省信用额度（handler 未传置 ZERO，:267-274）');
 
-    // 负例 1：customer_type 越界 = 取值族 VALIDATION_ERROR（customer_handler.rs:74-88 白名单）
+    // 负例 1：customer_type 越界 = 取值族 VALIDATION_ERROR（constants/customer_type.rs ALLOWED
+    // 五值之外的任何 token 一律拒绝；VIP_GOLD 是"分层词+后缀"的混维值，属负例不得当合法值）
     const badType = await apiCallExpectFail(page, 'POST', '/crm/customers', {
       customer_name: genName('F26非法'),
       customer_type: 'VIP_GOLD',

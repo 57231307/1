@@ -18,7 +18,10 @@ export interface Customer {
   tax_id?: string;
   bank_name?: string;
   bank_account?: string;
-  customer_type?: string;
+  // 渠道 token，值域 = 后端 constants::customer_type::ALLOWED（retail/wholesale/
+  // distributor/manufacturer/other）。列在 DB 侧是 NOT NULL DEFAULT 'other'、实体为
+  // 非 Option，响应恒回该键，故此处不标可选（标 ? 会诱导出 `?? ''` 式空值兜底假绿）。
+  customer_type: string;
   status: string;
   notes?: string;
   customer_industry?: string;

@@ -3895,9 +3895,11 @@ export default {
       reset: 'Reset',
     },
     customerType: {
-      normal: 'Normal Customer',
-      vip: 'VIP Customer',
+      retail: 'Retail Customer',
       wholesale: 'Wholesale Customer',
+      distributor: 'Distributor',
+      manufacturer: 'Manufacturer',
+      other: 'Other',
     },
     status: {
       active: 'Active',
@@ -6354,9 +6356,11 @@ export default {
       defaultAddress: 'Default',
     },
     customerType: {
-      normal: 'Normal Customer',
-      vip: 'VIP Customer',
+      retail: 'Retail Customer',
       wholesale: 'Wholesale Customer',
+      distributor: 'Distributor',
+      manufacturer: 'Manufacturer',
+      other: 'Other',
     },
     rfmEmpty: 'No RFM data',
     addressEmpty: 'No shipping address',
@@ -6425,9 +6429,11 @@ export default {
       reset: 'Reset',
     },
     customerType: {
-      normal: 'Normal Customer',
-      vip: 'VIP Customer',
+      retail: 'Retail Customer',
       wholesale: 'Wholesale Customer',
+      distributor: 'Distributor',
+      manufacturer: 'Manufacturer',
+      other: 'Other',
     },
     table: {
       ariaLabel: 'Pool customer list',
@@ -7003,7 +7009,9 @@ export default {
       option: {
         typeRetail: 'Retail',
         typeWholesale: 'Wholesale',
-        typeVip: 'VIP',
+        typeDistributor: 'Distributor',
+        typeManufacturer: 'Manufacturer',
+        typeOther: 'Other',
       },
       status: {
         active: 'Enabled',
@@ -7052,9 +7060,11 @@ export default {
         statusPlaceholder: 'Select status',
       },
       filterOption: {
-        typeNormal: 'Normal Customer',
-        typeVip: 'VIP Customer',
+        typeRetail: 'Retail Customer',
         typeWholesale: 'Wholesale Customer',
+        typeDistributor: 'Distributor',
+        typeManufacturer: 'Manufacturer',
+        typeOther: 'Other',
         statusActive: 'Enabled',
         statusInactive: 'Disabled',
       },
@@ -7074,11 +7084,6 @@ export default {
           status: 'Status',
           action: 'Action',
         },
-      },
-      typeLabel: {
-        retail: 'Retail',
-        vip: 'VIP',
-        wholesale: 'Wholesale',
       },
       statusLabel: {
         active: 'Enabled',

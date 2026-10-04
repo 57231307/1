@@ -378,17 +378,28 @@ const contactFormRules: FormRules = {
   email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
 };
 
+// 详情回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表取文案；
+// 未知/历史脏值不吞不造假名，回落显示原始 token（getTypeLabel 的 `|| type` 分支即此行为）。
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: t('crmDetail.customerType.normal'),
-    vip: t('crmDetail.customerType.vip'),
+    retail: t('crmDetail.customerType.retail'),
     wholesale: t('crmDetail.customerType.wholesale'),
+    distributor: t('crmDetail.customerType.distributor'),
+    manufacturer: t('crmDetail.customerType.manufacturer'),
+    other: t('crmDetail.customerType.other'),
   };
   return labels[type] || type;
 };
 
+// tag 颜色仅供视觉区分，不承载状态/层级语义。
 const getTypeTag = (type: string) => {
-  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' };
+  const typeMap: Record<string, string> = {
+    retail: '',
+    wholesale: 'success',
+    distributor: 'warning',
+    manufacturer: 'info',
+    other: 'danger',
+  };
   return typeMap[type] || '';
 };
 

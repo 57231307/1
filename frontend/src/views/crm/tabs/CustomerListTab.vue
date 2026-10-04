@@ -63,9 +63,13 @@
             :placeholder="$t('crmCustomer.filter.customerTypePlaceholder')"
             clearable
           >
-            <el-option :label="$t('crmCustomer.customerType.normal')" value="normal" />
-            <el-option :label="$t('crmCustomer.customerType.vip')" value="vip" />
+            <!-- value 取后端唯一词表 constants::customer_type::ALLOWED 的五个渠道 token；
+                 分层词 normal/vip 不属本列（后端 400 拒绝）。 -->
+            <el-option :label="$t('crmCustomer.customerType.retail')" value="retail" />
             <el-option :label="$t('crmCustomer.customerType.wholesale')" value="wholesale" />
+            <el-option :label="$t('crmCustomer.customerType.distributor')" value="distributor" />
+            <el-option :label="$t('crmCustomer.customerType.manufacturer')" value="manufacturer" />
+            <el-option :label="$t('crmCustomer.customerType.other')" value="other" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('crmCustomer.filter.tag')">
@@ -279,9 +283,19 @@
                 :placeholder="$t('crmCustomer.dialog.customerTypePlaceholder')"
                 style="width: 100%"
               >
-                <el-option :label="$t('crmCustomer.customerType.normal')" value="normal" />
-                <el-option :label="$t('crmCustomer.customerType.vip')" value="vip" />
+                <!-- 与筛选下拉同源：五个渠道 token（constants::customer_type::ALLOWED）全覆盖，
+                     少列 distributor/manufacturer 就建不出这两类客户。 -->
+                <el-option :label="$t('crmCustomer.customerType.retail')" value="retail" />
                 <el-option :label="$t('crmCustomer.customerType.wholesale')" value="wholesale" />
+                <el-option
+                  :label="$t('crmCustomer.customerType.distributor')"
+                  value="distributor"
+                />
+                <el-option
+                  :label="$t('crmCustomer.customerType.manufacturer')"
+                  value="manufacturer"
+                />
+                <el-option :label="$t('crmCustomer.customerType.other')" value="other" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -430,6 +444,11 @@ const syncQueryParams = () => {
   setQueryParam('tag_id', queryParams.tag_id);
 };
 
+// 缺省渠道与后端 `constants::customer_type::validate(None)` 同源（详见 formData 处注释）。
+// 显式标注 string：const 字面量的类型是 `"other"`，直接喂给 reactive 会让 customer_type
+// 收窄成该单一 token，下拉改选其它渠道时模板赋值过不了 vue-tsc。
+const DEFAULT_CUSTOMER_TYPE: string = 'other';
+
 const formData = reactive({
   id: undefined as number | undefined,
   customer_code: '',
@@ -438,7 +457,9 @@ const formData = reactive({
   contact_phone: '',
   contact_email: '',
   address: '',
-  customer_type: 'normal',
+  // 缺省与后端 `constants::customer_type::validate(None)` 同源写 `other`（渠道未知），
+  // 不由前端替业务方断言"零售/普通"；后端该字段为 Option 无必填门，此处不额外收紧校验。
+  customer_type: DEFAULT_CUSTOMER_TYPE,
   tax_number: '',
   credit_limit: 0,
   bank_name: '',
@@ -471,20 +492,29 @@ const dialogTitle = computed(() =>
 );
 
 // D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
+// 回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表逐值取文案；
+// 未知/历史脏值不吞不造假名，回落显示原始 token。
+// 入参非可选：列表行类型 crm-enhanced.ts 里 customer_type 是必填 string（后端 NOT NULL 列），
+// 前端不得用可选/兜底参数掩盖缺键。
 const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: t('crmCustomer.customerType.normal'),
-    vip: t('crmCustomer.customerType.vip'),
+    retail: t('crmCustomer.customerType.retail'),
     wholesale: t('crmCustomer.customerType.wholesale'),
+    distributor: t('crmCustomer.customerType.distributor'),
+    manufacturer: t('crmCustomer.customerType.manufacturer'),
+    other: t('crmCustomer.customerType.other'),
   };
   return labels[type] || type;
 };
 
+// tag 颜色仅供列表视觉区分，不承载状态/层级语义（同 token 在不同页面配色不同不影响契约）。
 const getCustomerTypeTag = (type: string) => {
   const typeMap: Record<string, string> = {
-    normal: '',
-    vip: 'warning',
+    retail: '',
     wholesale: 'success',
+    distributor: 'warning',
+    manufacturer: 'info',
+    other: 'danger',
   };
   return typeMap[type] || '';
 };
@@ -535,7 +565,7 @@ const resetForm = () => {
   formData.contact_phone = '';
   formData.contact_email = '';
   formData.address = '';
-  formData.customer_type = 'normal';
+  formData.customer_type = DEFAULT_CUSTOMER_TYPE;
   formData.tax_number = '';
   formData.credit_limit = 0;
   formData.bank_name = '';

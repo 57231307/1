@@ -72,9 +72,14 @@
               :placeholder="t('customer.form.placeholder.customerType')"
               style="width: 100%"
             >
+              <!-- value 一律是后端唯一词表 constants::customer_type::ALLOWED 的渠道 token
+                   （小写精确匹配，不 trim、不归一大小写）；分层词 vip/normal 不属本列，
+                   提交即被 400 VALIDATION_ERROR 拒绝。五个合法值全列，缺一即建不出该类客户。 -->
               <el-option :label="t('customer.form.option.typeRetail')" value="retail" />
               <el-option :label="t('customer.form.option.typeWholesale')" value="wholesale" />
-              <el-option :label="t('customer.form.option.typeVip')" value="vip" />
+              <el-option :label="t('customer.form.option.typeDistributor')" value="distributor" />
+              <el-option :label="t('customer.form.option.typeManufacturer')" value="manufacturer" />
+              <el-option :label="t('customer.form.option.typeOther')" value="other" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -271,6 +276,15 @@ const visible = ref(props.modelValue);
 const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
+// 客户类型（渠道）缺省值与后端 `constants::customer_type::validate(None)` 的缺省口径同源：
+// 后端在请求未提供该字段时补 `OTHER`（语义=渠道未知）。前端未选时若替业务方断言"零售"
+// 会污染渠道维度的下游筛选与统计，故初值/reset 一律写 `other`，不写 `retail`。
+// 该字段后端 DTO 为 Option、无必填门（`validate_customer_type` 只在 Some 时校验取值），
+// 故此处维持同等校验强度，不额外加前端必填规则。
+// 显式标注 string：const 字面量的类型是 `"other"`，直接喂给 reactive 会让 customer_type
+// 收窄成该单一 token，下拉改选其它渠道时模板赋值过不了 vue-tsc。
+const DEFAULT_CUSTOMER_TYPE: string = 'other';
+
 const formData = reactive({
   id: undefined as number | undefined,
   customer_code: '',
@@ -283,7 +297,7 @@ const formData = reactive({
   province: '',
   country: '',
   postal_code: '',
-  customer_type: 'retail',
+  customer_type: DEFAULT_CUSTOMER_TYPE,
   tax_id: '',
   credit_limit: 0,
   payment_terms: 30,
@@ -363,7 +377,7 @@ const resetForm = () => {
   formData.province = '';
   formData.country = '';
   formData.postal_code = '';
-  formData.customer_type = 'retail';
+  formData.customer_type = DEFAULT_CUSTOMER_TYPE;
   formData.tax_id = '';
   formData.credit_limit = 0;
   formData.payment_terms = 30;

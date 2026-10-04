@@ -8,11 +8,16 @@
 //      （lead.rs:514-526 ensure_valid_lead_status，词表 models/status/bpm_crm_contract.rs:119-143
 //      小写 new/contacted/qualified/assigned/converted/pool/lost）——非法取值 400 VALIDATION_ERROR，
 //      不存在线索 404。
-//   2) 线索转化"一转三写"（lead.rs:678-736）：lead→converted+converted_customer_id+converted_at；
-//      新客 status=active/source='lead'/customer_type='POTENTIAL'（lead.rs:576-612，词表
-//      general.rs:53）；自动生成"初步接洽"商机 stage=QUALIFICATION、status=OPEN、
-//      赢率 20（lead.rs:649-673；词表 bpm_crm_contract.rs:153-187 大写）；
-//      重复转化被状态门拒绝（lead.rs:562-564 BUSINESS_ERROR）。
+//   2) 线索转化"一转三写"（lead.rs `convert_lead_to_customer`：建客户 + mark_lead_converted
+//      + 自动建商机，同事务）：lead→converted+converted_customer_id+converted_at；
+//      新客 status=active（词表 general.rs:53）/source='lead'/customer_type='other'
+//      ——customer_type 是**渠道**列，线索转化时渠道未知，写入点 lead.rs
+//      `build_customer_active` 的缺省分支补 `constants::customer_type::OTHER`；钉 'other' 而非
+//      分层词的理由：potential 属 CLV 分层 segment 词表（champion/loyal/potential/at_risk/lost），
+//      混维写进渠道列就是缺陷值，读侧按渠道精确匹配永不命中，故本链只能钉渠道 token；
+//      自动生成"初步接洽"商机 stage=QUALIFICATION、status=OPEN、
+//      赢率 20（词表 bpm_crm_contract.rs:153-187 大写）；
+//      重复转化被状态门拒绝（lead.rs `validate_lead_for_conversion` BUSINESS_ERROR）。
 //   3) 商机创建门：客户不存在 404（services/crm/opp.rs:75-78）、阶段越表 400 VALIDATION
 //      （opp.rs:56-63）；阶段流转机（opp.rs:278-305）非法跳转 400 BUSINESS、合法流转自动重算
 //      默认赢率（opp.rs:394-401 + :41-47：NEEDS_ANALYSIS=25）。
@@ -212,7 +217,8 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
     );
     expect(leadBack.converted_at, 'converted_at 必须真实写入').toBeTruthy();
 
-    // 2) 客户回读：active 词表（general.rs:53）/source=lead/customer_type=POTENTIAL（lead.rs:576-612）
+    // 2) 客户回读：active 词表（general.rs:53）/source=lead/customer_type=other
+    //    （写入点 lead.rs `build_customer_active`，渠道列缺省 = constants::customer_type::OTHER）
     const cust = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
@@ -221,11 +227,17 @@ test.describe('27 CRM 线索→商机→订单契约链', () => {
     expect(cust.status, '转化客户默认 active（小写主数据词表）').toBe('active');
     expect(String(cust.customer_code ?? ''), '客户编码服务端取号 CUS 前缀').toMatch(/^CUS/);
     expect(cust.customer_name, '客户名继承线索公司名').toBe(String(lead.company_name));
-    expect(cust.source, '来源标记 lead（lead.rs:612）').toBe('lead');
-    expect(cust.customer_type, '转化缺省类型 POTENTIAL（lead.rs:576-579 写入点）').toBe(
-      'POTENTIAL'
+    expect(cust.source, '来源标记 lead（lead.rs build_customer_active 的 source 字段）').toBe(
+      'lead'
     );
-    expect(cust.notes, 'notes 取请求 notes（lead.rs:599 优先 req.notes）').toBe('E2F27 转化备注');
+    expect(
+      cust.customer_type,
+      '转化缺省渠道 other（lead.rs build_customer_active 缺省分支写 constants::customer_type::OTHER）'
+    ).toBe('other');
+    expect(
+      cust.notes,
+      'notes 取请求 notes（lead.rs build_customer_active 的 notes 字段：req.notes 优先）'
+    ).toBe('E2F27 转化备注');
     expect(Number(cust.created_by ?? 0), 'created_by=操作人').toBe(ctx.userIds[0]);
 
     // 3) 自动商机回读：QUALIFICATION/OPEN/赢率20（lead.rs:649-673；大写词表 bpm_crm_contract.rs:153-187）
