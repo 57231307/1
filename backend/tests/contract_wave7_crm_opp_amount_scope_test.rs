@@ -565,7 +565,7 @@ async fn admin_sees_all_amounts_on_all_rows() {
     let app = build_app(&db, make_auth(USER_ADMIN, Some(1), "all"));
     let items = list_items(&app).await;
     assert_eq!(items.len(), 4, "admin 可见全库");
-    // **按单号定位，禁按位置索引**（判责 ci4671-triage.md :134）：列表契约排序是
+    // **按单号定位，禁按位置索引**：列表契约排序是
     // created_at DESC（services/crm/opp.rs:179），种子 ts 递增时 items[2] 恰落在
     // OPPB003 —— 那是把排序当契约的巧合，排序一漂移就假判红/假判绿（本轮该用例
     // Expected 88888.00 / Received 133333.00 即位置漂移产物）。改按单号逐行钉

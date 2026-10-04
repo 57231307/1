@@ -62,7 +62,7 @@ export interface PurchasePriceQueryParams {
  * services/purchase_price_service.rs:59-70）。
  * unit/price_type 必填：后端列 NOT NULL 无 DB 默认（m0009），缺失即被 400 校验拒绝。
  * Decimal 入参线格式：rust_decimal 的反序列化对 JSON 字符串与整数都接受，**浮点字面量同样被接受**
- * （默认 feature 下走 visit_f64，见 rust_decimal-1.42.1/src/serde.rs:343-348），不会因此 400；
+ * （rust_decimal 在本仓构建图启用的 base serde feature 下走 visit_f64），不会因此 400；
  * 但浮点只有约 17 位有效数字，DECIMAL(18,6) 的末位会在静默失真中丢失，所以 string 才是
  * 精确且全域的写线格式。这里暂以 `string | number` 放宽，是因为既有调用点 usePp.ts 的 formData
  * 以 number 初始化 price/min_order_qty（:70/:73），该文件不在本轮派工范围；收敛为 string 的

@@ -18,12 +18,12 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   // ============================================================
-  // 【响应 id 契约取证 + 唯一编码回读（CI #4669 第 3 项收口）】
-  // 建单响应必须回新建行 id 是后端契约（wave-e2e-misc.md 核实表：本端点
-  // outsourcing_handler.rs:140-146 返回 outsourcing_order::Model，含 id）。
+  // 【响应 id 契约取证 + 唯一编码回读】
+  // 建单响应必须回新建行 id 是后端契约（handlers/outsourcing_handler.rs::create_outsourcing_order
+  // 返回 outsourcing_order::Model，含 id）。
   // 响应缺 id → 显式判红（不静默绕行）；而后续步骤使用的 id **不依赖响应体**，
-  // 改由唯一 order_no 经真实端点 GET /outsourcing-orders/by-no/{no}（routes/production.rs:402）
-  // 回读获得，并交叉校验两者一致——把「响应契约」与「链路可用」两件事分开取证。
+  // 改由唯一 order_no 经真实端点 GET /outsourcing-orders/by-no/{no}（挂载点见 routes/production.rs
+  // 的 get_outsourcing_order_by_no）回读获得，并交叉校验两者一致——把「响应契约」与「链路可用」两件事分开取证。
   test('委外加工订单：面料追溯字段验证', async ({ page }) => {
     const ctx = getCtx();
     const colorNo = ctx.colorNos[0] || 'CN-001';

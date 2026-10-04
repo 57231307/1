@@ -23,7 +23,7 @@ pub mod timeout;
 pub mod trace_context;
 // A.21.1：RLS 行级安全上下文中间件（SET LOCAL app.user_id 激活 PostgreSQL RLS）
 pub mod rls_context;
-// P1 修复：init 端点 token 校验中间件（bug.md #3）
+// P1 修复：init 端点 token 校验中间件（.monkeycode/bug.md #3）
 pub mod init_token;
 // v3 P2-7~P2-10：删除 4 个未挂载的 dead middleware 文件
 // operation_log / trace / logger_middleware / security_headers

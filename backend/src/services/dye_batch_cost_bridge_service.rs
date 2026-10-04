@@ -1,6 +1,6 @@
 // v14 批次 422 T-P1-7：染色完成→成本归集桥接服务
 //
-// 依据：fabric-industry-research.md §5.6 月末成本单价计算
+// 依据：.monkeycode/docs/research/fabric-industry-research.md §5.6 月末成本单价计算
 // 业务规则：染色完成后自动创建成本归集草稿记录（status=draft），
 // 关联 batch_no/color_no，后续由财务人员补充直接材料/直接人工/制造费用/外协加工费/染费明细并审核。
 //
@@ -128,7 +128,7 @@ impl DyeBatchCostBridgeServiceInternal {
     }
 
     /// 处理染色完成事件，创建成本归集草稿记录
-    /// 创建一个 draft 状态的 cost_collection 记录，所有成本字段初始化为 0，；关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。；依据：fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号；V15 P0-F01：补全 dye_lot_no 关联；原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、；成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
+    /// 创建一个 draft 状态的 cost_collection 记录，所有成本字段初始化为 0，；关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。；依据：.monkeycode/docs/research/fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号；V15 P0-F01：补全 dye_lot_no 关联；原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、；成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
     ///
     /// 任务 #168：产量分母回填——dye_lot_no 与 actual_output_kg/actual_output_m 取自同一
     /// dye_batch 行（完工端点强制必填后必有真值）。原实现把 output_quantity_kg/_meters

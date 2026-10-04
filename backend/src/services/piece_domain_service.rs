@@ -1,4 +1,4 @@
-//! 匹号领域服务（设计见 docs/piece-number-domain-design.md）
+//! 匹号领域服务（设计见 .monkeycode/docs/piece-number-domain-design.md）
 //!
 //! 领域规则（用户确认，2026-09-05）：
 //! - 生产报工逐匹登记生产匹号 + 机台号 + 开机人（胚布无缸号，机台号仅存在于生产环节）

@@ -1,6 +1,7 @@
 //! Wave-H 契约测（CI #4669 H 族）：提取器拒绝必须走统一 `AppError` 失败信封
 //!
-//! 锁定口径（判责依据 `C:/Users/57231/wave-f-endpoint-contract.md` 第五节）：
+//! 锁定口径（收口链路见 `middleware/trace_context.rs::catch_panic_middleware` 与
+//! `utils/error.rs::into_response`，各条由本文件断言自证）：
 //! - `Json<T>` 解码失败（缺必填键 / 字段类型错 / JSON 语法错）：axum 默认 **422/400
 //!   纯文本、无机器码** → 必须被 `middleware::trace_context` 的 catch_panic 响应侧
 //!   收口归一为 **HTTP 400 + code=VALIDATION_ERROR** + 固定公开规则文案；

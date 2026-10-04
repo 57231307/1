@@ -53,7 +53,7 @@ pub struct ShipOrderItemRequest {
     #[validate(length(max = 50, message = "批次号长度不能超过50个字符"))]
     pub batch_no: Option<String>,
     // v14 批次 421 T-P1-5：缸号同订单校验支持字段
-    // 依据：fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
+    // 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
     /// 色号 —— 出库四维扣减必填（缺失报业务错误，不做兜底）
     #[validate(length(max = 50, message = "色号长度不能超过50个字符"))]
     pub color_no: Option<String>,

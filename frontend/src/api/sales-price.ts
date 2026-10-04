@@ -57,12 +57,11 @@ export interface SalesPrice {
 // rust_decimal 条目）在本构建图仅启用 base serde feature（backend/Cargo.toml rust_decimal 依赖行；
 // sea-orm/sea-query/sqlx 不追加 serde-str/serde-float/
 // arbitrary-precision），入参走 deserialize_any+DecimalVisitor：
-//   visit_str 精确解析（registry rust_decimal-1.42.1/src/serde.rs:362-368）、
-//   visit_i64/u64 精确（:322-340）、visit_f64 经 f64::to_string 兜底（:342-348，不拒但
-//   丢精度——DECIMAL(18,6) 合法域 18 位有效数字 > f64 ~17 位，number 无法精确表达）。
-// ⇒ string 是唯一精确且全域的写线格式（依据即上列 serde.rs 行号的实测实现）。
+//   JSON 字符串经 visit_str 精确解析、整数精确；浮点字面量经 f64::to_string 兜底，不拒但
+//   丢精度——DECIMAL(18,6) 合法域 18 位有效数字 > f64 ~17 位，number 无法精确表达。
+// ⇒ string 是唯一精确且全域的写线格式。
 // 编辑态（el-input-number）仍为 number，由 composables/useSp.ts 在提交边界转十进制字符串；
-// 缺值必须省略键（不许伪造 0/''，教训：提交 bd6c407c）。
+// 缺值必须省略键（不许伪造 0/''）。
 export interface SalesPriceCreateInput {
   product_id: number;
   customer_id?: number | null;
@@ -150,7 +149,8 @@ export function deleteSalesPrice(id: number): Promise<ApiResponse<void>> {
 // 审批销售定价请求体：对齐后端 sales_price_handler::ApprovePriceRequest（approved: bool 必填 + remark: Option<String>）。
 // 该端点仅批准语义：approved=false 在 handler::approve_price 直接 400（"审批拒绝请使用专用拒绝接口"），
 // 且销售价目域无 reject 路由 ⇒ 前端审批入口收敛为单向"批准生效"，不提供"拒绝"选项
-// （价目拒绝能力是否存在属挂账的产品口径，见 C:/Users/57231/ruling-approval-reject-gap.md §五裁定 B 挂账项，未实现）。
+// （价目拒绝能力属挂账的产品口径、未实现：sales-prices 资源仅挂载 approve 端点，无 reject 路由，
+// 可由 routes/sales.rs 与 routes/purchase.rs 挂载点自证）。
 // 状态门（仅 pending 可批）在 sales_price_service.rs::approve_price，
 // 契约锁 backend/tests/contract_wave8_price_approve_gate_test.rs 钉采购侧批准门与两侧列表筛选 400 化。
 // remark 是请求体真实字段但不落库（sales_price Model 无 remark 列，仅入 tracing 日志）⇒

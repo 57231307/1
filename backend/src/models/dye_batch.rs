@@ -27,7 +27,7 @@ pub struct Model {
     // 完工登记实际产出三列（迁移 domain/production/m0062）：完工端点强制必填，
     // 实体保持 Option 以承载未完工行与历史行为 NULL 的真实形态；
     // 命名与 cost_collection.output_quantity_kg/_meters 分母列语义对齐。
-    // 依据：fabric-industry-research.md:149-158 缸号须承载"最终落布重量"。
+    // 依据：.monkeycode/docs/research/fabric-industry-research.md:149-158 缸号须承载"最终落布重量"。
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub actual_output_kg: Option<Decimal>,
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]

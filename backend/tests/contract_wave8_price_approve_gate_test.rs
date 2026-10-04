@@ -1,6 +1,6 @@
 //! 价格域批次 C-1/C-2 —— 审批状态门 + 列表筛选 400 化 真库契约锁（后端线）
 //!
-//! 被测事实（缺陷，裁定书 `ruling-purchase-lifecycle.md` C-1/C-2）：
+//! 被测事实（两项回归锁，由本文件断言逐条钉死）：
 //! - C-1（D7）：`purchase_price_service::approve_price` 原先**没有**"仅 pending 可审批"
 //!   的状态门且不写 `approved_at` ⇒ pending/approved/inactive 都能被反复直批成
 //!   approved（旁路 UI 流转），与销售侧 `sales_price_service::approve_price`（:153 有门、

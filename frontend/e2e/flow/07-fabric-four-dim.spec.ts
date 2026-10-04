@@ -11,7 +11,7 @@ import {
 } from './helpers';
 import { uiCreateDialog, pickListArray } from './ui-helpers';
 
-// 匹号/缸号领域真实链路测试（docs/piece-number-domain-design.md）
+// 匹号/缸号领域真实链路测试（.monkeycode/docs/piece-number-domain-design.md）
 // 编号语义（用户 2026-09-05 二次确认）：
 //   生产匹 = 生产单号下的产品生产出来的第 * 匹（batch_no 记生产单号）
 //   染色匹 = 缸号/染色批次号染色后的第 * 匹（piece_no={缸号}-{seq:03}，batch_no=缸号，piece_seq 同缸递增）

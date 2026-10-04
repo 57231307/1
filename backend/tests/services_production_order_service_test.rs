@@ -449,7 +449,7 @@ fn test_cwxx_gzzxbczbhid() {
 #[test]
 fn test_cwxx_ddhyczbhddh() {
     let order_no = "PO-20260709000000-0001";
-    // 跟随装配点 crud.rs::ensure_order_no_available —— 唯一性冲突属业务族，
+    // 跟随装配点 production_order_ops/crud.rs::create 的单号 UNIQUE 兜底分支 —— 唯一性冲突属业务族，
     // 且回显用户自己提交的单号，用可外显变型。
     let err = AppError::business_displayable(format!("订单号 {} 已存在", order_no));
     assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));

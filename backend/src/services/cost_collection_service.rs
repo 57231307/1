@@ -42,7 +42,7 @@ pub struct CreateCostCollectionRequest {
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
     // v14 批次 422 T-P1-6：按缸号核算成本（面料行业实际成本法基础）
-    // 依据：fabric-industry-research.md §5.2 核算对象——按缸号实际成本法
+    // 依据：.monkeycode/docs/research/fabric-industry-research.md §5.2 核算对象——按缸号实际成本法
     pub dye_lot_no: Option<String>,
     pub workshop: Option<String>,
     pub direct_material: Decimal,

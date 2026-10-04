@@ -122,8 +122,8 @@ async fn test_productionorderservice_create_kdbfherr() {
     );
 }
 
-/// test_productionorderservice_get_by_id_kdbfherr —— 依据裁决 R-9（同 ap_payment
-/// `get_by_id` 先例，判责依据 ci4671-triage.md §2.3 B3 :139）：**必须改绑**
+/// test_productionorderservice_get_by_id_kdbfherr —— 同 ap_payment_workflow_test.rs
+/// 的 get_by_id 拆分先例：**必须改绑**
 /// `connect_empty_schema_db()`，钉"schema 缺失（production_orders 表根本不存在）时
 /// 返回 Err 而非 panic"。
 ///
@@ -131,9 +131,9 @@ async fn test_productionorderservice_create_kdbfherr() {
 /// `production_order_ops/crud.rs:375-402` get_by_id 返回 `Result<Option<Dto>, _>`，
 /// 已建库空表上 `.one()` 得 None ⇒ **Ok(None)** 才是真实契约，`is_err()` 在真库化
 /// 夹具下必红——原断言的隐含前提是"SQLite 内存库无 schema"（文件头旧注释自陈），
-/// 该前提已随 b09614f7 真库化失效。留 Ok(None) 判据会丢掉本条原本要锁的
-/// "缺表必须报错、绝不静默吞成不存在"防线，故按 R-9 拆到空 schema 库上，
-/// **断言语义不变**（判责原文 §⑤ W4 对"无 schema 族"的指定正解）。
+/// 该前提已随夹具真库化失效。留 Ok(None) 判据会丢掉本条原本要锁的
+/// "缺表必须报错、绝不静默吞成不存在"防线，故拆到空 schema 库上，
+/// **断言语义不变**（"无 schema 族"的指定正解）。
 #[tokio::test]
 async fn test_productionorderservice_get_by_id_kdbfherr() {
     let db = test_common::connect_empty_schema_db().await;
@@ -150,7 +150,7 @@ async fn test_productionorderservice_get_by_id_kdbfherr() {
 ///
 /// 真实契约依据（读函数体）：`production_order_ops/crud.rs:423-` list 对空表
 /// LEFT JOIN 分页返回 `Ok(([], 0))`；原断 `is_err()` 是把真库化夹具当"空 SQLite"
-/// 的过期前提（判责原文 ci4671-triage.md :139/:141，§⑤ W4）。schema 缺失的报错
+/// 的过期前提。schema 缺失的报错
 /// 形态已由上一条用例在 `bingxi_empty` 上钉死，本条不重复、不放宽。
 #[tokio::test]
 async fn test_productionorderservice_list_kdbfherr() {

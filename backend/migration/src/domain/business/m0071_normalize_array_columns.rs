@@ -1,5 +1,5 @@
-//! 数组语义列 TEXT→PG 数组类型归一（run #4671 W1 · "ADD COLUMN IF NOT EXISTS /
-//! 列型漂移被静默吞掉"族，判责原文 ci4671-triage.md §2.3 A1 簇 p3*/p2 行 / §⑤ W1）
+//! 数组语义列 TEXT→PG 数组类型归一（"ADD COLUMN IF NOT EXISTS /
+//! 列型漂移被静默吞掉"族）
 //!
 //! 根因形态：模型侧是 SeaORM 原生数组类型（`Option<Vec<String>>` / `Option<Vec<i32>>`，
 //! 均**无** `#[sea_orm(column_type = "Json")]` 属性 ⇒ 编解码只认 PG 数组类型），
@@ -30,8 +30,8 @@
 //!   （add_tags handler 仍覆盖式更新该数组）"⇒ 同名同语义列的仓库既定形态就是数组；
 //! - `production/mod.rs:281` 对 crm_lead.tags 的 `ADD COLUMN IF NOT EXISTS "tags" JSONB`
 //!   因列已存在（business/m0013 先执行）是**恒 no-op**，从未生效，不构成反例；
-//! - 反向修法（模型降级 `Option<String>`）被判责明确禁止（"会分叉出第二套附件口径"，
-//!   ci4671-triage §2.3 A1）；标量 TEXT 与无 Json 属性的 Vec 模型在读写两侧都不可成立。
+//! - 反向修法（模型降级 `Option<String>`）明确禁止（会分叉出第二套附件口径）；
+//!   标量 TEXT 与无 Json 属性的 Vec 模型在读写两侧都不可成立。
 //!
 //! 本批**不动**的同型列（修复方向在模型侧，交后端 W2 批处理）：
 //! bpm_task.assignee_ids/assignee_names/candidate_role_ids/candidate_user_ids、

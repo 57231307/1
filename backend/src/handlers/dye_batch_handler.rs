@@ -76,7 +76,7 @@ pub struct UpdateDyeBatchRequest {
 }
 
 /// 完工登记请求（任务 #168）：完工时强制登记实际产出三值，粒度 kg + 米 + 坯布投料量。
-/// 依据：fabric-industry-research.md:149-158 缸号承载"最终落布重量"；印染完工申报必登记
+/// 依据：.monkeycode/docs/research/fabric-industry-research.md:149-158 缸号承载"最终落布重量"；印染完工申报必登记
 /// 实际产量（单位成本/单位能耗均以产量为分母）。三值必填、为正、≤10 亿、最多 2 位小数
 /// （DECIMAL(12,2) 列精度），复用全仓统一范围校验 `utils::validator::validate_amount_range`
 /// （先例：ar_payment_handler.rs:33）。产出/投料比不做拒绝门：仓内唯一权威失重率口径是

@@ -4,15 +4,15 @@
 //! 夹具 = `test_common::setup_test_db()`（缺 TEST_DATABASE_URL 直接 panic，禁 sqlite 回退）；
 //! FK 父行自种子（warehouses/products/batch_dye_lot 等被清空且不播种）。
 //!
-//! 钉死行为（决策报告 C:/Users/57231/wave220-decision.md 主编排裁定）：
+//! 钉死行为（各条由本文件断言自证）：
 //! ① 齐维 dyed 匹 GET /inventory/pieces/{id}/print → 2xx docx，标签正文含该匹**真实字段值**
 //!    （缸号/色号/批次/匹号/米数/重量/幅宽/克重/条码文本 + JOIN products 的款号/品名），
-//!    且**绝不出现** supplier_piece_no（保密口径 §6）；
+//!    且**绝不出现** supplier_piece_no（保密口径）；
 //! ② 8 必填字段任一为空（幅宽 NULL / 条码 NULL / 色号空串）→ 400 VALIDATION_ERROR，
 //!    message 逐列点名（含 API 列名与匹号）且 ≠ 脱敏常量「请求参数验证失败」，不外显表名/内部 ID；
 //! ③ 非 dyed（greige 生产匹）/ 样布（SAMPLE）→ BUSINESS_ERROR 族拒绝（门控先于字段校验）；
 //! ④ 打卷入库缺 幅宽/克重/重量 → 400 VALIDATION_ERROR 且**不产生匹行**；补齐后 200，
-//!    落库匹行 width/gram_weight/weight 三列非 NULL（实测值直落，裁定 §3）。
+//!    落库匹行 width/gram_weight/weight 三列非 NULL（实测值直落）。
 
 mod test_common;
 

@@ -1,5 +1,5 @@
-//! customers.owner_id 真实列形态归一（run #4671 W1 · "ADD COLUMN IF NOT EXISTS
-//! 被当改列约束用"族，判责原文 ci4671-triage.md §2.3 A1 簇 / §⑤ W1）
+//! customers.owner_id 真实列形态归一（"ADD COLUMN IF NOT EXISTS
+//! 被当改列约束用"族）
 //!
 //! 根因（全部 file:line 实测）：
 //! - `domain/system/mod.rs:229` = `ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS

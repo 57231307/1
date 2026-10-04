@@ -100,7 +100,7 @@ async fn test_appaymentservice_get_by_id_kdbfherr() {
 /// 已建库、业务表已清空 ⇒ `get_list` 不 panic 且返回**空集**（total=0）。
 ///
 /// 原断 `is_err()` 是把"真库化夹具"当成"空 SQLite"的过期前提：TRUNCATE 后表存在且为空，
-/// 返回 `Ok(([], 0))` 才是正确契约（判责原文 ci4671-triage.md:139）。
+/// 返回 `Ok(([], 0))` 才是正确契约（由本用例断言自证）。
 /// 要验 schema 缺失的报错形态请见上一条用例。
 #[tokio::test]
 async fn test_appaymentservice_get_list_kdbfherr() {
@@ -127,8 +127,8 @@ async fn test_appaymentservice_get_list_kdbfherr() {
     assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
-/// test_appaymentservice_confirm_kdbfherr —— 同族收口（裁决 R-9，范本见本文件
-/// get_by_id/get_list 两条的拆分注释；判责依据 ci4671-triage.md §2.3 B3 :139、§⑤ W4）：
+/// test_appaymentservice_confirm_kdbfherr —— 同族收口（范本见本文件
+/// get_by_id/get_list 两条的拆分注释）：
 /// 钉"已建库空业务表上，confirm 不存在的单必须返回 **NOT_FOUND 机器码**而非 panic"。
 ///
 /// 真实契约依据（读函数体确认，非读注释）：`src/services/ap_payment_service.rs:194-226`

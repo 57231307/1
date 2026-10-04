@@ -70,7 +70,7 @@ impl SalesService {
         request: &ShipOrderRequest,
     ) -> Result<(), AppError> {
         // v14 批次 421 T-P1-5：缸号同订单校验
-        // 依据：fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
+        // 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
         // 必须在开启事务前校验，避免无效请求占用数据库事务资源
         super::super::delivery::validate_dye_lot_consistency(&request.items)?;
         // V15 P0-F19：发货前校验大货批色门禁

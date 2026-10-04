@@ -927,7 +927,7 @@ impl FabricDefectService {
 // V15 P1-3: 面料物理指标检测 Service（十项指标）
 // ============================================================================
 
-/// 物理指标检测项目常量（十项指标，对应 fabric-industry-research.md §4.7）
+/// 物理指标检测项目常量（十项指标，对应 .monkeycode/docs/research/fabric-industry-research.md §4.7）
 pub mod physical_test_item {
     pub const SKEWNESS: &str = "skewness";
     pub const SHRINKAGE: &str = "shrinkage";

@@ -22,9 +22,8 @@ const STORAGE_STATE_PATH = 'e2e/.auth/storage-state.json';
  * requestWithCsrfRecovery / assignPermissionList 的响应契约（单一声明点）。
  *
  * 对齐 Playwright 真实类型 APIResponse：
- * node_modules/playwright-core/types/types.d.ts:12137 `export interface APIResponse<T = any>`
- *   :12178 `ok(): boolean;`     —— ok 是**方法**不是属性
- *   :12143 `json(): Promise<T>;`
+ *   `ok(): boolean` —— ok 是**方法**不是属性；
+ *   `json(): Promise<T>`
  * 此前本文件内联声明写成 `ok: boolean`（同文件 loginWithRetry 用的却是正确的
  * `ok: () => boolean`），导致把真实 APIRequestContext 传进来时类型不匹配（5 处 TS2345）、
  * 3 处运行时完全正确的 `resp.ok()` 报 TS2349、`resp.json()` 报 TS2339。

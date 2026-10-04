@@ -1,12 +1,12 @@
-// 面料管理 E2E 套件 — 05 成品布入库标签打印（#220，BE-220/FE-220 交付的 CI 内容级验证）
-// 被测契约（先读交付报告 C:/Users/57231/wave220-backend.md 与 wave220-frontend.md，本文件逐条对齐）：
+// 面料管理 E2E 套件 — 05 成品布入库标签打印（CI 内容级验证）
+// 被测契约（本文件断言逐条对齐下列仓内实现）：
 // - 端点 GET /inventory/pieces/{id}/print（backend/src/routes/inventory.rs piece_routes），
 //   doc_type inventory_piece_label，成功=docx 二进制，失败=全站唯一 AppError 信封；
 // - 8 必填字段全取 inventory_piece 自身行实测值（缸号/色号/批次/匹号/米数/重量/幅宽/克重）
 //   + 条码 + 等级，款号/品名 LeftJoin products（print_service.rs::get_inventory_piece_label_print_data）；
 // - 仅 piece_type='dyed' 可打；样布(SAMPLE)/生产匹 → BUSINESS 族；缺任一必填列 → 400
 //   VALIDATION_ERROR 且 message 逐列点名（≠脱敏常量「请求参数验证失败」）；
-// - 保密口径（裁定 §6）：supplier_piece_no/供应商侧编码/成本列不得进入标签正文；
+// - 保密口径：supplier_piece_no/供应商侧编码/成本列不得进入标签正文；
 // - 打卷三实测值（roll_weight/roll_width/roll_gram_weight）已改必填（RollFabricRequest
 //   validator required），本套件按真实契约传实测值。
 //
@@ -17,7 +17,7 @@
 // 3. 保密反证：哨兵值注入可行性已核实为「真造不出」（详见用例内证据链注释），不造假不 skip，
 //    落键名/语义级零出现反证；
 // 4. 缺列 fail-closed：委外染整收回生成的真实 dyed 匹（width/gram_weight/weight 三列 NULL，
-//    写入点 backend/src/services/piece_domain_service.rs:560-562，后端报告 §⑤ 声明的现状）
+//    写入点 backend/src/services/piece_domain_service.rs::create_piece_from_outsourcing_receipt）
 //    → 400 VALIDATION_ERROR 且点名缺的列；
 // 5. 门控：生产匹（greige，同链报工产出）→ 只断 status/code=BUSINESS_ERROR 族（脱敏出参不断原因）。
 //

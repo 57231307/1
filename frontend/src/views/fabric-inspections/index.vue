@@ -832,7 +832,7 @@ async function openPieceLabelDialog(row: FabricInspection) {
 
 /**
  * 单匹下载标签 docx（不做批量——后端端点即单匹形状，勿臆想功能）。
- * 失败分支对齐后端 fail-closed 文案族（wave220-backend.md §③）：
+ * 失败分支对齐后端 fail-closed 文案族（拒绝口径见 backend/src/services/print_service.rs::get_inventory_piece_label_print_data）：
  * - BUSINESS_ERROR：出参脱敏为固定文案，真实原因仅服务端日志——前端只陈述公开规则，
  *   不臆造后端原因（样布/非染色匹门控即此族）；
  * - VALIDATION_ERROR（缺维逐列点名）等可外显信封：message 本身即用户可读文案，原样展示；

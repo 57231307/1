@@ -53,8 +53,7 @@ async fn test_outsourcingreceiptservice_slhbcfdb() {
 }
 
 /// test_outsourcingreceiptservice_confirm_kdbfherr —— 真库化夹具前提校准（同
-/// ap_payment_workflow_test 的 R-9 拆分族手法；判责依据 ci4671-triage.md §⑤ W4
-/// "无 schema/空表应 Err 族逐条核契约"）：
+/// ap_payment_workflow_test.rs 的拆分族手法：无 schema/空表逐条核契约）：
 /// 钉"已建库空业务表上 confirm 不存在的收回单 ⇒ **NOT_FOUND 机器码**，不 panic"。
 ///
 /// 真实契约依据（读函数体，非读注释）：`src/services/outsourcing_ops/receipt.rs:351-363`

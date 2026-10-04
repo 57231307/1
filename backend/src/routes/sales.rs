@@ -114,12 +114,9 @@ fn sales_fabric_order_routes() -> Router<AppState> {
 
 /// 销售订单路由（nest 到 /api/v1/erp/sales，合并订单 + 面料订单）
 pub fn sales() -> Router<AppState> {
-    // P1-4 修复（2026-06-25 综合审计）：移除 quotations 双重路由注册。
-    // 销售报价单已由 routes/quotations.rs::routes() 统一挂载至
-    // /api/v1/erp/quotations/*（mod.rs:339），该处提供 12 个端点（超集）。
-    // 原 sales.rs::quotations() 仅 8 个端点（子集），双重注册导致：
-    // - 同一资源暴露在两路径，能力不同，前端调用混乱
-    // - 同一报价操作可能命中不同端点，行为不可预测
+    // 销售报价单路由统一由 routes/quotations.rs::routes 挂载至 /api/v1/erp/quotations
+    // （nest 注册见 routes/mod.rs 的 quotations::routes()），本函数不再注册 quotations 端点，
+    // 避免同一资源双路径暴露、行为不可预测。
     Router::new()
         .merge(sales_order_crud_routes())
         .merge(sales_order_delivery_report_routes())

@@ -441,7 +441,7 @@ async fn test_qxfh_xyzssjk() {
 }
 
 // ===== v14 批次 421 T-P1-5：缸号同订单校验 validate_dye_lot_consistency =====
-// 依据：fabric-industry-research.md §2.3 约束 5
+// 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5
 // 业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺
 
 /// test_ghtddjy_kfhmxtg（无发货明细时校验通过（边界场景）。）

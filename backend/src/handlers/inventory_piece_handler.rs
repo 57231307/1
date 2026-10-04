@@ -1,6 +1,6 @@
 //! 匹号（布卷）查询处理器
 //!
-//! 匹号领域四维追溯的最小查询闭环（设计文档 docs/piece-number-domain-design.md）：
+//! 匹号领域四维追溯的最小查询闭环（设计文档 .monkeycode/docs/piece-number-domain-design.md）：
 //! - 按产品/匹号/匹类型/仓库过滤分页列表
 //! - 供前端追溯页与 E2E 四维追溯断言使用
 
