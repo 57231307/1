@@ -55,10 +55,11 @@ export interface ExportInspectionListQuery {
   page_size?: number;
 }
 
-/** 商检单分页载荷：与后端 PaginatedResponse<export_inspection::Model> 逐字段对齐（data 内层） */
-export type ExportInspectionPage = PaginatedResponse<ExportInspection>;
-
-/** 商检单结果 → 标签类型映射 */
+/**
+ * 商检结果值 → el-tag 色的展示层映射（非后端接口字段，键取自实体 result 列的取值域）。
+ * 与后端契约 interface 分离声明：本常量是把 `ExportInspection.result` 的取值渲染成
+ * 标签颜色，键是 result 的词表值而非出参/入参字段名。
+ */
 export const inspectionResultTagMap: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
   pending: 'info',
   pass: 'success',
@@ -104,3 +105,6 @@ export function getExportCertificates(
 export function getCertificateDetail(id: number): Promise<unknown> {
   return bareApi.get(`/certificates/${id}`).then(r => r.data);
 }
+
+/** 商检单分页载荷别名：与后端 PaginatedResponse<export_inspection::Model> 的 data 内层逐字段对齐 */
+export type ExportInspectionPage = PaginatedResponse<ExportInspection>;
