@@ -12,6 +12,8 @@
 //! - crm_vocab_check: CRM 状态词表 DB CHECK 约束（crm_lead/crm_opportunity，依赖 business 建表）
 //! - price_vocab_check: 价格状态词表 DB CHECK 约束（sales_prices/purchase_prices，依赖 business
 //!   建表与 v15 的默认值收敛/'ACTIVE' 回填）
+//! - price_fk: 价格两表引用列外键（依赖 system 的 products/customers/suppliers 建表；有孤儿行
+//!   时守卫 RAISE EXCEPTION 中止，不在迁移内洗数据）
 
 pub mod system;
 pub mod business;
@@ -24,3 +26,4 @@ pub mod rls_dept_user_sync;
 pub mod crm_lead_claim_record;
 pub mod crm_vocab_check;
 pub mod price_vocab_check;
+pub mod price_fk;
