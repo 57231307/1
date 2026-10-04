@@ -57,10 +57,12 @@ const ROUTES: string[] = [
   '/production/energy-consumptions',
   '/production/energy-meters',
   '/production/energy-rules',
-  // '/production/fabric-defects' 已移出扫描清单：该全局集合 GET 未注册（快照只有 POST、
-  // GET /*、DELETE /*），留在清单里只会以 403/404 计一次崩溃级红，且它没有消费方；
-  // 真实形态是按验布单查询的 /production/fabric-inspections/{id}/defects，需要活体 id，
-  // 本静态清单给不出，已由 flow/24-production-full.spec.ts 以同源 inspId 探测覆盖。
+  // '/production/fabric-defects' 显式移出静态清单（非静默删断言）：全局集合 GET 未注册
+  // （route-snapshot.txt :80/:708/:1384 只有 by-id DELETE / by-id GET / 创建 POST——
+  // 对裸路径打 GET 只会得到 405 方法不匹配，留在此处等于扫描一条不存在的契约）。
+  // 疵点契约的真实形态是按验布单归属查询 GET /production/fabric-inspections/{id}/defects
+  // （snapshot :711），需活体 id、静态清单给不出；由 flow/24-production-full.spec.ts
+  // 以真实 seed 行/用例内自建验布单做严格探测（seed 为空亦覆盖，拒绝臆造 id）。
   '/production/fabric-inspections',
   '/fixed-assets',
   '/production/flow-cards',

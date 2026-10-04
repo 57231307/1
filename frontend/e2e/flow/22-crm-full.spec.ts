@@ -13,6 +13,9 @@ import {
   safeGetList,
   getRoleCredential,
   loginInIsolatedContext,
+  failureCode,
+  APP_ERROR_CODES,
+  type ApiFailureBody,
   safePostAction,
   verifyEndpointHealthy,
   ensureTestEntities,
@@ -332,9 +335,17 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     // （crm_handler.rs:1476-1485，不查权限键也不套行级 scope），而 competitors:read
     // 既不在资源注册表（init_service.rs:70-130）也未授给任何角色
     // （init_service_ops/permission.rs 零命中），前端 src 亦零消费方 ⇒ 只有 admin
-    // 靠 is_admin_role 短路进得来。保留健康面，另起一条用例把"非 admin 恒 403"
-    // 钉成显式契约（见下一条用例），不把它混进通用健康清单里静默放宽。
-    await verifyEndpointHealthy(page, '/crm/competitors?page=1&page_size=5');
+    // 靠 is_admin_role 短路进得来。保留健康面并钉成功信封形状（apiCall 非 2xx 或
+    // code≠200/0 即抛，404/403/5xx 均判红，语义同 strict 健康口径），另起一条用例把
+    // "非 admin 恒 403"钉成显式契约（见下一条用例），不把它混进通用健康清单里静默放宽。
+    const adminCompetitors = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      '/crm/competitors?page=1&page_size=5'
+    );
+    // handler 直出 Vec<competitor::Model>（crm_handler.rs:1481-1483 → service crm/opp.rs:1130-1138），
+    // 故 data 形状必须是数组而非分页对象——空表也不豁免形状断言
+    expect(Array.isArray(adminCompetitors), '竞品 admin 面 data 应为数组（Vec 直出）').toBe(true);
   });
 
   test('竞品端点契约锁：非 admin 角色恒 403（孤儿端点现状，不静默放宽）', async ({ browser }) => {
@@ -349,17 +360,28 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     }
     const session = await loginInIsolatedContext(browser, cred.username, cred.password);
     try {
-      const res = await apiCallExpectFail(
-        session.page,
-        'GET',
-        '/crm/competitors?page=1&page_size=5'
+      // 走原始响应而非 apiCallExpectFail：后者只回传 status/code/message，统一失败信封的
+      // trace_id/timestamp 两键（utils/error.rs:697-702 ErrorResponse）拿不到，形状钉不全。
+      const res = await session.page.request.get(
+        `${API_BASE}${API_PREFIX}/crm/competitors?page=1&page_size=5`,
+        { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
       );
-      // 权限类拒绝永久脱敏：只断 status 与信封 code，不断任何原因文案
+      const bodyText = await res.text();
+      // 权限类拒绝文案永久脱敏：只断 status、机器码与四键形状，绝不断 message 内容，
+      // 也不断"谁拥有这行"
       expect(
-        res.status,
-        `竞品端点应拒绝非 admin（实际 ${res.status} code=${res.code ?? '(none)'}）`
+        res.status(),
+        `竞品端点应拒绝非 admin（实际 ${res.status()} body=${bodyText.slice(0, 200)}）`
       ).toBe(403);
-      expect(res.code, '403 必须走 AppError 信封且 code=FORBIDDEN').toBe('FORBIDDEN');
+      const failureBody = JSON.parse(bodyText) as ApiFailureBody;
+      expect(
+        failureCode(failureBody),
+        `403 必须走 AppError 统一信封且 code=${APP_ERROR_CODES.FORBIDDEN}，实际 body=${bodyText.slice(0, 200)}`
+      ).toBe(APP_ERROR_CODES.FORBIDDEN);
+      // 四键形状 {code,message,trace_id,timestamp}（error.rs:697-702），只钉形状不钉内容
+      expect(typeof failureBody.message, '失败信封应含 message 键（内容不钉）').toBe('string');
+      expect(typeof failureBody.trace_id, '失败信封应含 trace_id 键').toBe('string');
+      expect(typeof failureBody.timestamp, '失败信封应含 timestamp 键').toBe('number');
     } finally {
       await session.close();
     }

@@ -75,15 +75,18 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/fabric-inspections/${inspId}/roll`);
       await safePostAction(page, `/production/fabric-inspections/${inspId}/close`);
     }
-    // 不再有"全局疵点列表"探针：GET /production/fabric-defects 未注册且无任何消费方
-    // （route-snapshot 只有 POST、GET /*、DELETE /*）。疵点在业务上按验布单归属查询，
-    // 真实端点 GET /production/fabric-inspections/{id}/defects 已在本用例上方以同源
-    // inspId 探测（fabric-inspections 列表 → items[0].id），此处不重复打臆造路径。
-    // 确保有验布记录（CI 库可能为空）：无则先创建一条，物理测试挂在其上
+    // 疵点列表在业务上按验布单归属查询（全局疵点列表无消费方、不注册）：
+    // GET /production/fabric-defects 未注册——route-snapshot.txt :80/:708/:1384 分别只有
+    // by-id DELETE / by-id GET / 创建 POST，且前端 src 无任何消费方；真实契约是
+    // GET /production/fabric-inspections/{id}/defects（snapshot :711，后端
+    // routes/production.rs:287，前端消费方 api/fabric-inspection.ts listFabricDefectsByInspection）。
+    // {id} 与真实行同源：seed 列表首行 inspId 存在则直接用；CI 库为空则按本仓
+    // "自建自流转"范式于用例内 POST 一张验布单再查其疵点。严禁臆造入参（1/TEST001 等）——
+    // 参数命不中真实行会把契约探测变成 404/500 假红或空转假绿。
     // inspId 由 items?.[0]?.id 取值，空列表时为 undefined（noUncheckedIndexedAccess
     // 关闭使编译器把索引结果误判为 number），显式标注可选以匹配真实运行形状
-    let phyInspId: number | undefined = inspId;
-    if (!phyInspId) {
+    let defectInspId: number | undefined = inspId;
+    if (defectInspId == null) {
       const created = await apiCall<{ id?: number }>(
         page,
         'POST',
@@ -94,19 +97,24 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
           color_no: 'E2E-CN',
         }
       );
-      phyInspId = created.data?.id;
+      defectInspId = created.data?.id;
     }
-    if (phyInspId) {
-      // 物理指标仅 inspecting/graded 状态可录入：先把验布记录推进到 inspecting
-      await safePostAction(page, `/production/fabric-inspections/${phyInspId}/start`);
-      await safePostAction(page, '/production/fabric-inspections/physical-tests', {
-        // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
-        inspection_id: phyInspId,
-        test_item: 'tensile_strength',
-        test_value: 500,
-        test_result: 'pass',
-      });
+    if (defectInspId == null) {
+      throw new Error(
+        '[flow/24 疵点] 验布单 seed 列表为空且自建未返回 id，拒绝以臆造 id 探测疵点端点，判红暴露 setup 问题'
+      );
     }
+    await verifyEndpointHealthy(page, `/production/fabric-inspections/${defectInspId}/defects`);
+    // 物理测试挂在同一张真实验布单上（复用上方已解析的 defectInspId，不再二次创建）
+    // 物理指标仅 inspecting/graded 状态可录入：先把验布记录推进到 inspecting
+    await safePostAction(page, `/production/fabric-inspections/${defectInspId}/start`);
+    await safePostAction(page, '/production/fabric-inspections/physical-tests', {
+      // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
+      inspection_id: defectInspId,
+      test_item: 'tensile_strength',
+      test_value: 500,
+      test_result: 'pass',
+    });
   });
 
   test('产量工资：工价+工票+计算+确认+支付', async ({ page }) => {
