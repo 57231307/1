@@ -1,5 +1,5 @@
 {
-  "total": 147,
+  "total": 143,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -107,12 +107,6 @@
         "CapacityTrend.planned_hours"
       ]
     },
-    "frontend/src/api/color-price.ts": {
-      "count": 1,
-      "keys": [
-        "TagType.default"
-      ]
-    },
     "frontend/src/api/crm-enhanced.ts": {
       "count": 8,
       "keys": [
@@ -181,12 +175,9 @@
       ]
     },
     "frontend/src/api/fund.ts": {
-      "count": 6,
+      "count": 3,
       "keys": [
         "FundAccount.account_code",
-        "FundAccountStatusType.active",
-        "FundAccountStatusType.frozen",
-        "FundAccountStatusType.inactive",
         "FundTransferRecord.from_account_name",
         "FundTransferRecord.to_account_name"
       ]
