@@ -380,6 +380,89 @@ function loadBackendEndpoints() {
   return walkBackendRoutes().endpoints;
 }
 
+// ---------- e2e 探针路径注册表（#260 覆盖盲区补齐） ----------
+/**
+ * A 类只比对 `src/api/**` 的 request.get/post 与后端展开路由，但本仓另有两份**绕过
+ * src/api、直接拼 URL 发出**的 e2e 探针注册表，门禁从来看不见它们：
+ *   - `e2e/flow/51-endpoint-health-scan.spec.ts` 的 `const ROUTES: string[]`
+ *     ——`page.request.get(API_BASE + API_PREFIX + path)`；
+ *   - `e2e/traversal/modules.config.ts` 的 `listApi: '...'`
+ *     ——`/api/v1/erp${listApi}?page=1&page_size=1`。
+ * 实案（判责见 #260）：这两处同时存在 21 条"后端无该 GET"的路径。14 条 listApi 的消费
+ * 判据是 `status() < 500`，admin 会话下 403/404 一律判绿；4 条对着**只注册 POST 的同一
+ * 静态节点**打 GET 得到 405，而 51 把非 CRASH 码只塞进不参与断言的 warns 数组。⇒ 探针
+ * "存在且跑过"不等于契约成立，必须在静态面核对。
+ *
+ * 判据：登记表里每条 (path, GET) 都必须在后端展开路由集合里存在，缺一即失败（与 A 类同
+ * 等严重）。**本检查不设豁免表**：探针的意义就是对着真实契约打真实请求，后端若确实没有
+ * 该 GET，正确动作是把这条移出清单并注明由哪个用例覆盖，而不是登记成例外。
+ * 405 语义的**负向**探针（GET 打 POST-only 节点应得 405）不属本判据，不在扫描面内。
+ *
+ * 反空操作：定位不到清单声明、清单里出现取不到字面值的成员（模板串/变量/拼接），一律
+ * 直接抛错退出，绝不把"解析不到"当成"没有漂移"（门禁形同空操作是本轮反复出现的事故根因）。
+ */
+const E2E_PROBE_REGISTRIES = [
+  {
+    file: 'e2e/flow/51-endpoint-health-scan.spec.ts',
+    label: '51 GET 健康扫描清单',
+    method: 'GET',
+    // 声明标记 + 数组右括号；ROUTES 是唯一的正向 GET 探针清单
+    decl: 'const ROUTES: string[] = [',
+    close: '\n];',
+  },
+  {
+    file: 'e2e/traversal/modules.config.ts',
+    label: '遍历模块 listApi 清单',
+    method: 'GET',
+    // 配置对象里的 `listApi: '...'` 逐条出现在 40+ 个模块对象中，无单一数组边界
+    decl: null,
+    close: null,
+  },
+];
+
+export function loadE2eProbeEndpoints() {
+  const out = [];
+  for (const reg of E2E_PROBE_REGISTRIES) {
+    const abs = join(FRONTEND, reg.file);
+    const src = readFileSync(abs, 'utf-8');
+    const urls = [];
+    if (reg.decl) {
+      const at = src.indexOf(reg.decl);
+      if (at < 0)
+        throw new Error(`${reg.file}: 找不到声明 ${reg.decl}（清单改名/重构会让本检查静默失焦）`);
+      const body = src.slice(at + reg.decl.length);
+      const end = body.indexOf(reg.close);
+      if (end < 0)
+        throw new Error(`${reg.file}: ${reg.decl} 未找到数组右括号 ${JSON.stringify(reg.close)}`);
+      const block = body.slice(0, end);
+      // 只认"整行一个单引号字面量（可带尾逗号）"；注释行忽略；其余非空行必须报错
+      for (const raw of block.split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line || line.startsWith('//') || line.startsWith('*')) continue;
+        const m = line.match(/^'([^']+)',?$/);
+        if (!m) throw new Error(`${reg.file}: 清单成员取不到字面值，本检查无法核对：${line}`);
+        urls.push(m[1]);
+      }
+    } else {
+      const re = /^\s*listApi:\s*'([^']+)'\s*,?\s*$/gm;
+      let m;
+      while ((m = re.exec(src))) urls.push(m[1]);
+      if (!urls.length)
+        throw new Error(`${reg.file}: 一条 listApi 都没解析到，解析形态已变，拒绝以空集当通过`);
+    }
+    for (const url of urls) {
+      out.push({
+        key: `${normalizePath(BASE_URL + url)} ${reg.method}`,
+        url,
+        file: reg.file,
+        label: reg.label,
+      });
+    }
+    if (!urls.length) throw new Error(`${reg.file}: ${reg.label} 解析为空集，拒绝当通过`);
+  }
+  return out;
+}
+
 // ---------- 已知例外（逐条显式登记，禁止通配/静默） ----------
 // 分为两类，每条附「具体原因」。命中者不计入 A 类失败，但仍每次运行逐条打印，
 // 以免被误当作稳态；本轮修完两类后仍无法在既定范围内消除者才登记于此。
@@ -469,6 +552,10 @@ function main() {
   const fe = loadFrontendEndpoints();
   const be = loadBackendEndpoints();
 
+  // e2e 探针注册表核对（#260）：与 A 类同等严重，不设豁免
+  const probes = loadE2eProbeEndpoints();
+  const probeMisses = probes.filter(p => !be.has(p.key));
+
   const aClass = [];
   const gaps = [];
   for (const [key, occ] of fe) {
@@ -495,6 +582,23 @@ function main() {
   console.log(`  ├─ A 类(未登记/可修): ${aClass.length}`);
   console.log(`  └─ 已登记功能缺口:     ${gaps.length}`);
   console.log(`后端存在但前端该路径零调用: ${beNoFeCall}`);
+  console.log(
+    `e2e 探针注册表条目: ${probes.length}（51 ROUTES + modules.config listApi），` +
+      `其中后端无该 GET: ${probeMisses.length}`
+  );
+
+  // 探针注册表失配先于 A 类报出：A 类的 console.error 会立刻 exit，顺序错了就看不见这族。
+  if (probeMisses.length) {
+    console.error('\n[E 类 · e2e 探针注册表里的路径后端没有对应 GET —— 必须修复]');
+    console.error('  这些 URL 不经 src/api、由 page.request.get 直接拼出，探针对着不存在的');
+    console.error('  契约跑，判据又常写成 status<500 / 非 CRASH 码只记 warn ⇒ 403/404/405 全绿。');
+    for (const p of probeMisses) {
+      console.error(`  - ${p.key}`);
+      console.error(`      ${p.file}  ("${p.url}")  [${p.label}]`);
+    }
+    console.error(`\nFAIL: E 类 ${probeMisses.length} 条（本检查无豁免表，修法见文件头注释）`);
+    process.exit(1);
+  }
 
   if (gaps.length) {
     console.log('\n[功能缺口 · 待产品/后端确认，非本轮静默豁免，逐条附原因]');
@@ -515,7 +619,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log('\nOK: A 类为 0（功能缺口已逐条显式登记，非静默豁免）。');
+  console.log('\nOK: A 类为 0（功能缺口已逐条显式登记，非静默豁免）；E 类探针注册表为 0。');
 }
 
 // 仅在作为脚本直接执行时跑主流程；被其它门禁 import 复用解析能力时不触发（不改退出码）。
