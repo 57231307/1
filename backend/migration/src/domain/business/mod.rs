@@ -23,6 +23,11 @@ mod m0071_normalize_array_columns;
 // run #4671 R-6：product-categories:read 存量库补授（roles/role_permissions 属 system 域、
 // 早于本域，故可直接注册在 business 域 up 链尾/down 链首）
 mod m0072_grant_product_categories_read;
+// #259 customer_type 渠道词表收口：m0077 只读点名（现状有哪些脏值/各多少行），
+// m0078 才回填 + 加 DEFAULT/NOT NULL/CHECK。两者必须同域且 m0077 在前——"回填没
+// 干净就不许进 CHECK"的判据依据就是 m0077 留在迁移日志里的逐值分账。
+mod m0077_report_customer_type_dirty_values;
+mod m0078_finalize_customer_type_domain;
 
 pub struct Migration;
 
@@ -219,11 +224,29 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0072_grant_product_categories_read::Migration
             .up(manager)
             .await?;
+        // #259：customer_type 渠道词表收口注册在本域 up 链尾——目标表 customers 由
+        // system/m0001 建（VARCHAR(20)、可空、无 CHECK，m0001:332），点名与回填必须
+        // 晚于建表；finance 域那段 `ADD COLUMN IF NOT EXISTS customer_type VARCHAR(255)`
+        // 恒 no-op（列早已存在），排在其前不构成干扰。
+        m0077_report_customer_type_dirty_values::Migration
+            .up(manager)
+            .await?;
+        m0078_finalize_customer_type_domain::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // #259：最后应用者最先回滚——先撤 CHECK/NOT NULL/DEFAULT 并自备份列还原原值，
+        // 再回滚只读点名（其 up 对库内状态零改变，down 是显式 no-op）。
+        m0078_finalize_customer_type_domain::Migration
+            .down(manager)
+            .await?;
+        m0077_report_customer_type_dirty_values::Migration
+            .down(manager)
+            .await?;
         // run #4671 R-6：最后应用者最先回滚（只回收本迁移按角色码授予的 read 键）
         m0072_grant_product_categories_read::Migration
             .down(manager)
