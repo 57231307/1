@@ -15,7 +15,9 @@
 //! 2. 越界入参 (>=100 / <0 / 精度超 0.01%) => VALIDATION_ERROR 400 + 可读文案外显
 //! 3. None 透传 None，0 透传 Some(0)
 //! 4. 读边界 scrap_ratio_to_percent 为写边界的精确逆函数（回显与提交同口径），
-//!    树端点序列化亦输出百分比（结构体内部保持存储比率参与计算）
+//!    树端点序列化亦输出百分比（结构体内部保持存储比率参与计算）。回显契约分两层钉：
+//!    纯函数层只钉**数值**（round_dp 不补零、scale 非语义），两位小数的**可见形状**
+//!    由经真库读写链路的用例钉（补零来源 = DECIMAL(5,4) 列 scale）。
 //! 5. 源码扫描锁：写/读边界换算的接线位置（create_bom、update_bom、4 处响应构造、
 //!    copy 直通禁止二次换算、update_bom 补 validate）——漏换算/绕过即红
 
@@ -266,13 +268,22 @@ fn test_scrap_read_boundary_none() {
     assert_eq!(BomService::scrap_ratio_to_percent(None), None);
 }
 
-/// 树端点序列化口径：BomTreeNode 内部字段保持存储比率参与 collect_requirements，
-/// 序列化输出为百分比（POST 10 ⇒ /boms/:id/tree 回显 10.00，同一字段两种口径即红）
+/// 树端点序列化口径（纯函数层，只钉**数值**）：BomTreeNode 内部字段保持存储比率参与
+/// collect_requirements，序列化输出为百分比（POST 10 ⇒ 回显 10，同一字段两种口径即红）。
+///
+/// 口径分工声明（CI #4675 族G）：本链**不过 DB**——`scrap_percent_to_ratio` 的
+/// `round_dp(4)` 与 `scrap_ratio_to_percent` 的 `round_dp(2)` 都只做数值舍入、
+/// **不补零位**（bom_service.rs:185/:205，10.0 ⇒ 0.1 ⇒ 10.0，scale 保持 1），
+/// 所以这里断言 `"10.00"` 字符串逐位相等测的并不是本链能决定的东西——
+/// 两位小数补零形态产生于 DB 列 `DECIMAL(5,4)` 的 scale（读回 0.1000 ⇒ ×100 ⇒
+/// round_dp(2) ⇒ 10.00）。scale 不是语义：纯函数层判**数值相等**；
+/// 用户可见的两位小数**形状**由下方 `test_bom_tree_node_via_real_db_serializes_two_decimal_percent`
+/// 经真实 DB 读写链路钉住，两层合起来才完整覆盖"回显==提交口径"契约。
 #[test]
 fn test_bom_tree_node_serializes_percent_not_ratio() {
     let stored = BomService::scrap_percent_to_ratio(Some(dec("10.0")))
         .unwrap()
-        .unwrap(); // 0.1000 存储比率
+        .unwrap(); // 纯函数链得 0.1（scale 1，round_dp 不补位）
     let node = bingxi_backend::services::bom_service::BomTreeNode {
         id: "bom-1".to_string(),
         product_id: 1,
@@ -283,10 +294,82 @@ fn test_bom_tree_node_serializes_percent_not_ratio() {
         children: vec![],
     };
     let json = serde_json::to_value(&node).expect("BomTreeNode 序列化失败");
+    let echoed: Decimal = serde_json::from_value(json["scrap_rate"].clone()).unwrap_or_else(|e| {
+        panic!(
+            "scrap_rate 应序列化为十进制值，实得 {}: {e}",
+            json["scrap_rate"]
+        )
+    });
+    assert_eq!(
+        echoed,
+        dec("10"),
+        "树端点出参 scrap_rate 必须是 API 百分比口径且与提交值数值相等（存储 0.1 ⇒ 10），实际: {json}"
+    );
+    // 反向负锁：绝不能把存储比率原样输出（0.1 直出=同一字段两种口径回潮）
+    assert_ne!(
+        echoed, stored,
+        "出参数值必须已换算为百分比口径，不得等于存储比率，实际: {json}"
+    );
+}
+
+/// 树端点序列化**形状**活体锁（族G 第二条，与上一测试分工：数值 vs 可见形状）：
+/// 真库 create（写入边界换算后 0.1）⇒ `bom_items.scrap_rate DECIMAL(5,4)` 落库
+/// ⇒ 服务事务内回查（bom_ops/crud.rs:83-87，读回的是 DB 渲染值）⇒ BomTreeNode 序列化
+/// 必须输出两位小数字符串 "10.00"（用户在 /boms/:id/tree 与响应回显里看到的形状）。
+/// 先点名钉"补零发生在 DB 列 scale"（读回逐字符 0.1000）：若 PG 侧渲染口径变动导致
+/// 本例判红，失败信息直接指向形状来源漂移，而不是静默放宽。
+#[tokio::test]
+async fn test_bom_tree_node_via_real_db_serializes_two_decimal_percent() {
+    let db = setup_test_db().await;
+    let service = BomService::new(Arc::new(db));
+
+    let stored = BomService::scrap_percent_to_ratio(Some(dec("10.0")))
+        .expect("10% 应在合法域内")
+        .expect("Some 入参不应得 None");
+    let detail = service
+        .create(CreateBomRequest {
+            product_id: 99993, // 无 FK 约束，测试隔离用大数（与本文件 9999x/8888x 带一致）
+            version: Some(1),
+            is_default: Some(false),
+            remarks: Some("contract_wave8 percent shape pin".to_string()),
+            created_by: 1,
+            items: vec![CreateBomItemRequest {
+                material_id: 88884,
+                quantity: dec("3.0"),
+                unit: Some("米".to_string()),
+                scrap_rate: Some(stored),
+                sort_order: None,
+            }],
+        })
+        .await
+        .expect("合法 10% 经写边界换算后应创建成功");
+
+    let item = detail
+        .items
+        .iter()
+        .find(|it| it.material_id == 88884)
+        .expect("回查应含 material_id=88884 行");
+    let stored_back = item.scrap_rate.expect("scrap_rate 应如实回读 Some");
+    assert_eq!(
+        stored_back.to_string(),
+        "0.1000",
+        "DB 读回值应为 DECIMAL(5,4) 列 scale 渲染的 0.1000（补零来源即在此），实际: {stored_back}"
+    );
+
+    let node = bingxi_backend::services::bom_service::BomTreeNode {
+        id: "bom-db".to_string(),
+        product_id: 99993,
+        product_name: None,
+        quantity: dec("1"),
+        unit: None,
+        scrap_rate: item.scrap_rate,
+        children: vec![],
+    };
+    let json = serde_json::to_value(&node).expect("BomTreeNode 序列化失败");
     assert_eq!(
         json["scrap_rate"],
         serde_json::json!("10.00"),
-        "树端点出参 scrap_rate 必须是 API 百分比口径（存储 0.1000 ⇒ 10.00），实际: {json}"
+        "经真实 DB 读写链路后，对外输出必须保持两位小数形状（用户可见口径），实际: {json}"
     );
 }
 
