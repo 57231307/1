@@ -11,7 +11,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 /// 双层 Option 反序列化适配器（本仓权威范式，见 `department_handler.rs:46` /
@@ -185,8 +185,11 @@ impl SalesPriceService {
     ///    500 `DATABASE_ERROR`（同 `inventory_reservation_service::create_reservation` 头注
     ///    所述缺陷族），用户拿不到可外显的拒绝原因；引用不存在是「用户自己提交的字段非法」，
     ///    按 `utils/error.rs` 模块文档的铁律走 `AppError::validation_displayable`
-    ///    （HTTP 400 + code=VALIDATION_ERROR，出参携带真实原因；文案只含请求字段自身的 ID，
-    ///    满足其安全边界）。
+    ///    （HTTP 400 + code=VALIDATION_ERROR，出参携带真实原因）。
+    ///    可外显文案**只含资源名与操作指引、不含数据库记录 ID**——`utils/error.rs`
+    ///    「安全边界，硬性规则」的禁止示例明确列着「业务模式 42 不存在（含内部记录 ID）」，
+    ///    记录 ID 属内部标识，一律不得进对外 message；具体 ID 只进本函数的 warn 日志，
+    ///    保证出参摘除后线上仍可定位（不静默）。
     ///
     /// 存在性判定只取主键列（同 `sku_mapping_service::validate_refs` 对 suppliers 的
     /// select_only 口径）：判定本身只需要 id，整行解码会让历史列漂移行误报 500。
@@ -202,9 +205,12 @@ impl SalesPriceService {
             .await?
             .is_some();
         if !exists {
-            return Err(AppError::validation_displayable(format!(
-                "产品 ID {product_id} 不存在"
-            )));
+            warn!(
+                "销售价格引用预检被拒：产品记录 ID {product_id} 不存在（记录 ID 只进日志，不进对外文案）"
+            );
+            return Err(AppError::validation_displayable(
+                "所选产品不存在，请重新选择",
+            ));
         }
         Ok(())
     }
@@ -221,9 +227,11 @@ impl SalesPriceService {
             .await?
             .is_some();
         if !exists {
-            return Err(AppError::validation_displayable(format!(
-                "客户 ID {customer_id} 不存在"
-            )));
+            warn!(
+                "销售价格引用预检被拒：客户记录 ID {customer_id} 不存在（记录 ID 只进日志，不进对外文案）"
+            );
+            // 客户带 owner 归属语义：不区分「不存在」与「你不可见」，避免存在性探测泄露。
+            return Err(AppError::validation_displayable("所选客户不存在或不可用"));
         }
         Ok(())
     }
