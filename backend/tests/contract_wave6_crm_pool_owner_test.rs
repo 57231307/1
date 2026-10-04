@@ -79,6 +79,7 @@ use bingxi_backend::handlers::crm_pool_handler::{
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::crm_lead;
+use bingxi_backend::services::data_permission_service::DataPermissionService;
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, Statement};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -165,8 +166,17 @@ async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
 }
 
 fn build_app(db: &Arc<sea_orm::DatabaseConnection>, auth: AuthContext) -> Router {
+    // 装配补全（族I Disconnected 根因）：handler 走两条独立的数据库把手——写路径用
+    // state.db（CrmService::new(state.db)，见 crm_pool_handler.rs:197/266），
+    // 出参字段级权限走 state.data_permission_service 内嵌连接
+    // （crm_handler.rs:57 resolve_role_data_permission）。AppState::default() 用
+    // DatabaseConnection::default()（= sea-orm Disconnected，container/mod.rs:334）
+    // 构造 data_permission_service，只覆盖 db 字段会让后者仍持 Disconnected，
+    // mask_lead_write_response → get_role_data_permission 直接 panic（Disconnected）。
+    // 与生产装配链同形（container/mod.rs:221）：用同一真实测试库重建后注入。
     let state = AppState {
         db: db.clone(),
+        data_permission_service: Arc::new(DataPermissionService::new(db.clone())),
         ..Default::default()
     };
     Router::new()
