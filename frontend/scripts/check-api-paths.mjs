@@ -446,11 +446,24 @@ export function loadE2eProbeEndpoints() {
         urls.push(m[1]);
       }
     } else {
-      const re = /^\s*listApi:\s*'([^']+)'\s*,?\s*$/gm;
-      let m;
-      while ((m = re.exec(src))) urls.push(m[1]);
+      // 数据条目形如 `{ id: 'x', route: '/y', listApi: '/crm/customers' }`，绝大多数与
+      // 其它键同一行；早先用"独占整行"的锚定正则只能捞到 1/43 条，等于把 listApi 半区
+      // 整片放出门禁扫描面而计数看起来正常（本仓门禁空操作事故族）。现按"键出现次数 ==
+      // 解析到的字面量次数"自证：少一个就是模板串/变量/跨行写法在静默漏检，直接抛错。
+      const keyCount = (src.match(/\blistApi:/g) || []).length;
+      const declCount = (src.match(/\blistApi\?:/g) || []).length;
+      const literalRe = /\blistApi:\s*'([^']+)'/g;
+      let mm;
+      while ((mm = literalRe.exec(src))) urls.push(mm[1]);
       if (!urls.length)
-        throw new Error(`${reg.file}: 一条 listApi 都没解析到，解析形态已变，拒绝以空集当通过`);
+        throw new Error(
+          `${reg.file}: 一条 listApi 都没解析到（接口声明 ${declCount} 处不计条目），解析形态已变，拒绝以空集当通过`
+        );
+      if (urls.length !== keyCount)
+        throw new Error(
+          `${reg.file}: 出现 ${keyCount} 个 listApi: 键，却只解析到 ${urls.length} 个字符串字面量——` +
+            '差值即被静默漏掉的探针条目（模板串/变量/跨行写法），本检查无法核对'
+        );
     }
     for (const url of urls) {
       out.push({
@@ -584,9 +597,12 @@ function main() {
   console.log(`  ├─ A 类(未登记/可修): ${aClass.length}`);
   console.log(`  └─ 已登记功能缺口:     ${gaps.length}`);
   console.log(`后端存在但前端该路径零调用: ${beNoFeCall}`);
+  const probeByLabel = {};
+  for (const p of probes) probeByLabel[p.label] = (probeByLabel[p.label] || 0) + 1;
   console.log(
-    `e2e 探针注册表条目: ${probes.length}（51 ROUTES + modules.config listApi），` +
-      `其中后端无该 GET: ${probeMisses.length}`
+    `e2e 探针注册表条目: ${probes.length}（${Object.entries(probeByLabel)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(' + ')}），` + `其中后端无该 GET: ${probeMisses.length}`
   );
 
   // 探针注册表失配先于 A 类报出：A 类的 console.error 会立刻 exit，顺序错了就看不见这族。
