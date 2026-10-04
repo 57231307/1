@@ -445,12 +445,15 @@ jobs:
         working-directory: frontend
         run: node scripts/check-api-envelope.mjs
 
-      # 迁移 SQL 里的 PL/pgSQL 块配平。实案 run #4673：m0076 的只读点名块漏写
-      # `END IF;` ⇒ PG 报 42601 打断整条迁移链 ⇒ 后续表全缺 ⇒ Setup/flow×20/smoke×5/
-      # traversal×5/extras×8/Rust×10/真实性门禁/收尾清理共 60 job 齐红，一个语法错伪装成
-      # 60 个缺陷。rustfmt 与 cargo check 都不校验 SQL 文本、本机又无 PG，只有静态配平
-      # 能在推前拦住。判负口径与其它门禁一致：解析不出块即失败，不设豁免表。
-      - name: 迁移 SQL 的 PL/pgSQL 块配平（防整条迁移链被语法错打断）
+      # 迁移 SQL 里的 PL/pgSQL 块配平。同一条 42601 打断整条迁移链已在两个连续 run 上各炸一次：
+      # run #4673 = m0076 的点名块漏写 `END IF;` ⇒ Setup/flow×20/smoke×5/traversal×5/extras×8/
+      # Rust×10/真实性门禁/收尾清理 60 job 齐红；run #4674 = m0075 的自证块里 RAISE 文案一个
+      # `%` 都没写却传了实参 ⇒ PG 编译 DO 块即报 "too many parameters specified for RAISE"，
+      # 迁移链在更晚的 v15 域中断 ⇒ 15 绿/59 红。一个语法错伪装成几十个缺陷，而 rustfmt 与
+      # cargo check 都不校验 SQL 文本、本机又无 PG，只有静态配平能在推前拦住。判负口径与其它
+      # 门禁一致：解析不出块/RAISE 即失败，不设豁免表；判定器自身先跑内联夹具自证（正例零发现、
+      # 反例必抓到），防止"0 异常"其实是空操作。
+      - name: 迁移 SQL 的 PL/pgSQL 块配平与 RAISE 占位符配平（防整条迁移链被打断）
         if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-migration-sql.mjs
