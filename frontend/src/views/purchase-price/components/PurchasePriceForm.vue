@@ -134,14 +134,6 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="t('purchasePrice.form.label.remark')" prop="remarks">
-        <el-input
-          v-model="localFormData.remarks"
-          type="textarea"
-          :rows="3"
-          :placeholder="t('purchasePrice.form.placeholder.remark')"
-        />
-      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{
@@ -174,7 +166,6 @@ interface PpFormData {
   price_type?: string;
   effective_date?: string;
   expiry_date?: string;
-  remarks?: string;
 }
 
 /**

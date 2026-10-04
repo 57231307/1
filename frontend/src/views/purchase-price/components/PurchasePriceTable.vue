@@ -118,6 +118,22 @@
             @click="emit('disable', row as PurchasePrice)"
             >{{ t('purchasePrice.table.button.disable') }}</el-button
           >
+          <!-- F3 修复：pending 行原为零出边死态。审批出边对齐后端既有端点
+               POST /purchase/purchase-prices/{id}/approve（routes/purchase.rs:294-297）。
+               权限码取后端注册表真值 purchase-prices:approve
+               （init_service_ops/permission.rs:355-356 purchase_manager 显式授予；
+               线格式 {resource}:{action} 见 auth_handler.rs:52-53，判定链
+               directives/permission.ts → router hasRoutePermission，'*' 通配命中）。
+               状态判据用 ppFmts 常量（词表权威 models/status/sales.rs::price_approval），不写裸字面量。 -->
+          <el-button
+            v-if="row.status === PURCHASE_PRICE_STATUS.PENDING"
+            v-permission="'purchase-prices:approve'"
+            type="success"
+            link
+            size="small"
+            @click="emit('approve', row as PurchasePrice)"
+            >{{ t('purchasePrice.table.button.approve') }}</el-button
+          >
           <el-button type="info" link size="small" @click="emit('history', row as PurchasePrice)">{{
             t('purchasePrice.table.button.history')
           }}</el-button>
@@ -172,6 +188,7 @@ defineProps<{
 const emit = defineEmits<{
   view: [row: PurchasePrice];
   edit: [row: PurchasePrice];
+  approve: [row: PurchasePrice];
   disable: [row: PurchasePrice];
   history: [row: PurchasePrice];
   'update:page': [v: number];

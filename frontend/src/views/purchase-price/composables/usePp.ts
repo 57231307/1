@@ -74,7 +74,6 @@ export function usePp() {
     price_type: 'STANDARD',
     effective_date: '',
     expiry_date: '',
-    remarks: '',
   });
 
   // 表单验证规则
@@ -177,7 +176,6 @@ export function usePp() {
       price_type: 'STANDARD',
       effective_date: '',
       expiry_date: '',
-      remarks: '',
     });
   };
 
