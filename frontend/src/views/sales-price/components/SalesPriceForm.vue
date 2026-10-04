@@ -51,7 +51,15 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('salesPrice.form.labelPrice')" prop="price">
+          <el-form-item prop="price">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('salesPrice.form.labelPrice') }}
+                <el-tooltip :content="t('salesPrice.form.tipPrice')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-input-number
               v-model="localFormData.price"
               :precision="6"
@@ -126,7 +134,15 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('salesPrice.form.labelEffectiveDate')" prop="effective_date">
+          <el-form-item prop="effective_date">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('salesPrice.form.labelEffectiveDate') }}
+                <el-tooltip :content="t('salesPrice.form.tipEffectiveDate')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-date-picker
               v-model="localFormData.effective_date"
               type="date"
@@ -136,7 +152,15 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('salesPrice.form.labelExpiryDate')" prop="expiry_date">
+          <el-form-item prop="expiry_date">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('salesPrice.form.labelExpiryDate') }}
+                <el-tooltip :content="t('salesPrice.form.tipExpiryDate')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-date-picker
               v-model="localFormData.expiry_date"
               type="date"
@@ -161,6 +185,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { QuestionFilled } from '@element-plus/icons-vue';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 
@@ -260,3 +285,15 @@ const onVisibleChange = (v: boolean) => {
   emit('update:visible', v);
 };
 </script>
+
+<style scoped>
+.form-label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.form-label-tip {
+  color: var(--el-text-color-secondary);
+  cursor: help;
+}
+</style>
