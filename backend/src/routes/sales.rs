@@ -200,10 +200,6 @@ pub fn sales_prices() -> Router<AppState> {
             "/sales-prices/history/{product_id}",
             get(sales_price_handler::get_price_history),
         )
-        .route(
-            "/sales-prices/strategies",
-            get(sales_price_handler::list_strategies),
-        )
 }
 
 /// 销售退货路由（由 sales_return_handler 模块内部定义，自带独立前缀）

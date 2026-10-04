@@ -30,6 +30,24 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    /// 关联产品（product_id -> products.id）：仅供列表 `keyword` 按"产品名称"过滤时
+    /// LeftJoin 使用（照 purchase_price.rs:31-38 先例）；不追加 SELECT 列，响应仍为整 Model。
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id"
+    )]
+    Product,
+
+    /// 关联客户（customer_id -> customers.id）：仅供 `keyword` 按"客户名称"过滤时
+    /// LeftJoin 使用；标准价行 customer_id 为 NULL，LEFT JOIN 下该行仅不被客户名命中。
+    #[sea_orm(
+        belongs_to = "super::customer::Entity",
+        from = "Column::CustomerId",
+        to = "super::customer::Column::Id"
+    )]
+    Customer,
+}
 
 impl ActiveModelBehavior for ActiveModel {}

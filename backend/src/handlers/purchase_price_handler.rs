@@ -1,6 +1,7 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_price;
+use crate::models::status::price_approval;
 use crate::services::purchase_price_service::{
     CreatePurchasePriceInput, PurchasePriceService, PurchasePriceView,
 };
@@ -39,11 +40,34 @@ pub struct UpdatePriceRequest {
     pub status: Option<String>,
 }
 
+/// 采购价目列表 `status` 筛选入参校验（取值域 = `price_approval::ALL`，与 DB CHECK
+/// `chk_purchase_price_status` 全等，词表单源不写字符串字面量）。
+///
+/// 此前该参数原样下推成 SQL 等值条件，越界值恒零命中并静默返回 200 + 空列表，把拼写
+/// 错误伪装成"没有数据"，与采购写入侧（update_price 非法 status 已 400 收口）自相矛盾。
+/// 现按取值域拒绝并回显允许值；`None` 或去空白后的空串视为不加筛选（trim 语义与
+/// greige_fabric / inventory_stock 同族先例一致，空串另有 `normalize_empty_query_params`
+/// 中间件在链路更外层先行剔除）。
+fn validate_purchase_price_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    if price_approval::ALL.contains(&value) {
+        return Ok(());
+    }
+    Err(AppError::validation_displayable(format!(
+        "采购价格状态筛选值 {value} 不是合法取值，允许值：{}",
+        price_approval::ALL.join("/")
+    )))
+}
+
 pub async fn list_prices(
     Query(params): Query<PurchasePriceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<PurchasePriceView>>>, AppError> {
+    validate_purchase_price_status_param(params.status.as_deref())?;
+
     info!("用户 {} 正在查询采购价格列表", auth.user_id);
 
     let service = PurchasePriceService::new(state.db.clone());

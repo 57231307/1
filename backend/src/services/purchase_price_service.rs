@@ -1,5 +1,5 @@
 use crate::models::purchase_price;
-use crate::models::status::master_data;
+use crate::models::status::price_approval;
 use crate::models::{product, supplier};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
@@ -145,7 +145,7 @@ impl PurchasePriceService {
                 .parse()
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
             expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
-            status: Set(master_data::PENDING.to_string()),
+            status: Set(price_approval::PENDING.to_string()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         };
@@ -180,9 +180,20 @@ impl PurchasePriceService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
 
+        // 状态门：价格流转前置与写入值逐字符同源（price_approval::PENDING）。非待审批
+        // （approved/inactive）直接批准属状态机前置未满足，归业务族；文案含当前状态
+        // token，保持脱敏（与销售侧 approve_price 同一口径，出参 code=BUSINESS_ERROR）。
+        if price_model.status != price_approval::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审批状态的采购价格可以批准，当前状态：{}",
+                price_model.status
+            )));
+        }
+
         let mut price: purchase_price::ActiveModel = price_model.into();
-        price.status = Set(master_data::APPROVED.to_string());
+        price.status = Set(price_approval::APPROVED.to_string());
         price.approved_by = Set(Some(user_id));
+        price.approved_at = Set(Some(chrono::Utc::now()));
 
         // 使用 update_with_audit 在事务内同步写入审计日志
         // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
@@ -240,6 +251,15 @@ impl PurchasePriceService {
                 })?));
         }
         if let Some(s) = status {
+            // 入参取值域校验先于 DB CHECK：非法值归字段校验族（400/VALIDATION_ERROR），
+            // 避免撞 chk_purchase_price_status 退化为裸 500 DATABASE_ERROR。
+            if !price_approval::ALL.contains(&s.as_str()) {
+                return Err(AppError::validation_displayable(format!(
+                    "价格状态 {} 不是合法取值，允许值：{}",
+                    s,
+                    price_approval::ALL.join("/")
+                )));
+            }
             price_model.status = Set(s);
         }
 

@@ -1,11 +1,12 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
+use crate::models::status::price_approval;
 use crate::services::sales_price_service::{
-    CreateSalesPriceInput, SalesPriceService, UpdateSalesPriceInput,
+    CreateSalesPriceInput, SalesPriceService, SalesPriceView, UpdateSalesPriceInput,
 };
+use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
-use crate::utils::{ApiResponse, PaginatedResponse};
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
@@ -25,6 +26,12 @@ use validator::Validate;
 #[derive(Debug, Clone, Deserialize)]
 pub struct SalesPriceQuery {
     pub product_id: Option<i32>,
+    /// 客户等值筛选：前端筛选栏（SalesPriceFilter.vue 客户下拉）一直在传，此前本结构无键、
+    /// serde 静默忽略 ⇒ 假筛选（#206/#160 同族），本轮接收并下推 service 谓词。
+    pub customer_id: Option<i32>,
+    /// 关键词筛选：语义 =「产品名称/客户名称」模糊匹配（筛选栏 placeholderKeyword 承诺），
+    /// 经 LeftJoin 下推（多对一，不倍增行）。
+    pub keyword: Option<String>,
     pub customer_type: Option<String>,
     pub status: Option<String>,
     pub page: Option<i64>,
@@ -40,16 +47,45 @@ pub struct ApprovePriceRequest {
     pub remark: Option<String>,
 }
 
+/// 销售价目列表 `status` 筛选取值域：**分表钉**，等于权威词表 `price_approval` 去掉
+/// `inactive`（销售侧无 inactive 写入方，DB CHECK `chk_sales_price_status` 即此二值集合）。
+/// 绝不与采购侧取并集——并集会让 `inactive` 在销售侧回到"合法但恒空"的假筛选老路。
+const SALES_PRICE_STATUS_FILTER_ALLOWED: &[&str] =
+    &[price_approval::PENDING, price_approval::APPROVED];
+
+/// 销售价目列表 `status` 筛选入参校验。
+///
+/// 此前该参数原样下推成 SQL 等值条件，越界值恒零命中并静默返回 200 + 空列表，把拼写
+/// 错误伪装成"没有数据"。现按取值域拒绝并回显允许值；`None` 或去空白后的空串视为不加
+/// 筛选（trim 语义与 greige_fabric / inventory_stock 同族先例一致，空串另有
+/// `normalize_empty_query_params` 中间件在链路更外层先行剔除）。
+fn validate_sales_price_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    if SALES_PRICE_STATUS_FILTER_ALLOWED.contains(&value) {
+        return Ok(());
+    }
+    Err(AppError::validation_displayable(format!(
+        "销售价格状态筛选值 {value} 不是合法取值，允许值：{}",
+        SALES_PRICE_STATUS_FILTER_ALLOWED.join("/")
+    )))
+}
+
 pub async fn list_prices(
     Query(params): Query<SalesPriceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_price::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<SalesPriceView>>>, AppError> {
+    validate_sales_price_status_param(params.status.as_deref())?;
+
     info!("用户 {} 正在查询销售价格列表", auth.user_id);
 
     let service = SalesPriceService::new(state.db.clone());
     let query_params = crate::services::sales_price_service::SalesPriceQueryParams {
         product_id: params.product_id,
+        customer_id: params.customer_id,
+        keyword: params.keyword,
         customer_type: params.customer_type,
         status: params.status,
         page: params.page.unwrap_or(1).clamp(1, 1000),
@@ -134,32 +170,6 @@ pub async fn get_price_history(
     info!("价格历史查询成功，共 {} 条记录", history.len());
 
     Ok(Json(ApiResponse::success(history)))
-}
-
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
-pub struct StrategiesQuery {
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
-}
-
-pub async fn list_strategies(
-    Query(params): Query<StrategiesQuery>,
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> Result<Json<ApiResponse<PaginatedResponse<sales_price::Model>>>, AppError> {
-    info!("用户 {} 正在查询销售价格策略", auth.user_id);
-
-    let page = params.page.unwrap_or(1).clamp(1, 1000) as u64; // 批次 95 P3-3~8：分页 clamp 防 DoS
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100) as u64;
-
-    let service = SalesPriceService::new(state.db.clone());
-    let (strategies, total) = service.list_strategies(page, page_size).await?;
-    info!("销售价格策略查询成功，共 {} 条记录", strategies.len());
-
-    Ok(Json(ApiResponse::success_paginated(
-        strategies, total, page, page_size,
-    )))
 }
 
 pub async fn update_price(
@@ -306,11 +316,17 @@ pub async fn export_prices(
             .enforce_export_download(download_token.as_deref(), "price_list")
             .await?;
 
+    // 导出与列表同一筛选口径：越界 status 在列表已 400 化（C-2/R3），导出此前不收口
+    // 仍会静默产出空表；同族缺陷同批修，校验放在审批令牌之后避免向未授权方外显。
+    validate_sales_price_status_param(query.status.as_deref())?;
+
     let service = SalesPriceService::new(state.db.clone());
 
     // V15 P0-S12 修复（Batch 475d）：导出全量数据
     let query_params = crate::services::sales_price_service::SalesPriceQueryParams {
         product_id: query.product_id,
+        customer_id: query.customer_id,
+        keyword: query.keyword,
         customer_type: query.customer_type,
         status: query.status,
         page: 1,
