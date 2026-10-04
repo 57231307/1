@@ -626,8 +626,38 @@ fn price_vocab_authority_is_self_consistent_and_lowercase() {
 // 2. 写入方可写集 == 真库 CHECK 允许值集（逐表、集合相等）
 // ---------------------------------------------------------------------------
 
-/// 写入方登记表完整性：src/ 下任何新增的 `price_approval::` 引用点都必须先在此登记，
-/// 否则"词表==CHECK"这条锁会被"新增写入方没人核对约束"绕开（本文件要防的正是这个）。
+/// 真实写入方特征（本锁登记表与源码扫描的**共用**判据）：文件必须对 `status` 列存在
+/// 落库写入形态，而不是仅仅引用 `price_approval::`：
+/// - 形态①常量直写：同一行同时含 `Set(price_approval::` 与 `status`/`Status`
+///   （建单 PENDING / 审批 APPROVED / 质检联动 APPROVED 三点均属此类）；
+/// - 形态②守卫后透传：文件出现 `price_approval::ALL.contains(` 入参守卫，**且**同文件
+///   存在含 `Set(` 的 status 写列行（守卫本身不写列不算——那只是读/筛选参数校验）。
+/// 背景（CI #4675 族C）：旧判据「文件里出现 `price_approval::` 就算写入方」把两个 handler
+/// 的**读/筛选白名单**（`SALES_PRICE_STATUS_FILTER_ALLOWED`、`validate_purchase_price_status_param`）
+/// 误当写入方，锁测量的不是它声称测的东西。判据收窄为真实写列特征后，新增写列文件
+/// （无论常量直写还是守卫透传）仍会被抓到并因未登记而判红；只加读引用的文件不再误伤。
+fn is_status_writer(src: &str) -> bool {
+    let mut const_write = false;
+    let mut vocab_guard = false;
+    let mut status_set_line = false;
+    for line in src.lines() {
+        let t = line.trim();
+        let touches_status = t.contains("status") || t.contains("Status");
+        if t.contains("Set(price_approval::") && touches_status {
+            const_write = true;
+        }
+        if t.contains("price_approval::ALL.contains(") {
+            vocab_guard = true;
+        }
+        if t.contains("Set(") && touches_status {
+            status_set_line = true;
+        }
+    }
+    const_write || (vocab_guard && status_set_line)
+}
+
+/// 写入方登记表完整性：src/ 下任何新增的**真实 status 写入方**（判据见 `is_status_writer`）
+/// 都必须先在此登记，否则"词表==CHECK"这条锁会被"新增写入方没人核对约束"绕开（本文件要防的正是这个）。
 #[test]
 fn price_vocab_writer_registry_is_complete() {
     let root = format!("{}/src", env!("CARGO_MANIFEST_DIR"));
@@ -648,7 +678,7 @@ fn price_vocab_writer_registry_is_complete() {
             }
             let src = std::fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
-            if src.contains("price_approval::") {
+            if is_status_writer(&src) {
                 let rel = path
                     .strip_prefix(env!("CARGO_MANIFEST_DIR"))
                     .unwrap()
@@ -662,10 +692,13 @@ fn price_vocab_writer_registry_is_complete() {
     let declared: BTreeSet<String> = PRICE_WRITERS.iter().map(|w| w.file.to_string()).collect();
     assert_eq!(
         found, declared,
-        "src/ 下引用 `price_approval::` 的文件集合与本锁的写入方登记表不一致。\n\
-         实际引用点={found:?}\n登记表={declared:?}\n\
-         新增引用点必须先在 PRICE_WRITERS 登记并核对该表 CHECK 取值集（漏登记=新增写入方无人核对约束，\
-         本契约锁即失效）；删除引用点则应同步收缩登记表。"
+        "src/ 下真实 status 写入方（判据=is_status_writer：对 status 列有 Set(...) 落库写入，\
+         含常量直写与守卫后透传两形态）的文件集合与本锁的写入方登记表不一致。\n\
+         实际写入方={found:?}\n登记表={declared:?}\n\
+         新增写入方必须先在 PRICE_WRITERS 登记并核对该表 CHECK 取值集（漏登记=新增写入方无人核对约束，\
+         本契约锁即失效）；删除写入点则应同步收缩登记表。只引用 `price_approval::` 做读/筛选白名单\
+         的文件（如 handler 参数校验）**不属于**本登记表——写入方的义务是核对自己写进列的值域，\
+         读侧过滤由各自的入参校验锁钉。"
     );
 }
 
