@@ -546,8 +546,12 @@ async fn test_fwslcj() {
 
 // ===== 数据库交互测试（标注 #[ignore]） =====
 
-/// test_cjdzd_xysjk
-/// 需要 ar_reconciliations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；有 schema 时验证 create 方法完整调用路径。
+/// test_cjdzd_xysjk（真库正向口径：对账单 create 落库并回读落库值。）
+/// 历史前提更正（CI #4675 族H 同族既存红）：本例曾用于「库未迁移/无 schema」时期的
+/// 负探测（"无 schema 时应返回数据库错误"）；ignored 专用 job 现跑**真库真迁移**
+/// （该 job「迁移本 job PostgreSQL service」步骤 success），负前提不再成立——
+/// CI 里 create 成功是正确行为，旧负断言是过期前提的假红。现由真库夹具取代：
+/// 断言创建成功 + 回读落库值，正向证明写链可用。
 #[tokio::test]
 #[ignore]
 async fn test_cjdzd_xysjk() {
@@ -566,10 +570,56 @@ async fn test_cjdzd_xysjk() {
         notes: None,
     };
 
-    // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无 schema 时返回数据库错误；有 schema 时验证调用路径不 panic
-    let result = service.create(req).await;
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let created = service
+        .create(req)
+        .await
+        .expect("真库（已迁移）上 create 必须成功；此处失败说明对账单写链真实断裂");
+    assert!(
+        created.id > 0,
+        "落库后应回收自增主键，实际 id={}",
+        created.id
+    );
+    assert_eq!(created.reconciliation_no, "RC-TEST-0001", "单号应原样落库");
+    assert_eq!(
+        created.closing_balance,
+        decs!("12000"),
+        "期末余额必须由服务侧权威公式算出（10000+5000-3000=12000），不是请求回显"
+    );
+    assert_eq!(
+        created.reconciliation_status.as_deref(),
+        Some(recon_status::DRAFT),
+        "初始状态必须落 draft（与 status::ar 小写词表逐字符一致）"
+    );
+
+    // 回读落库值：正向证明链路真实经过 DB，而非仅出参透传
+    let reloaded = service
+        .get_by_id(created.id)
+        .await
+        .expect("回读查询不应报错")
+        .expect("刚创建的对账单必须可按 id 查到");
+    assert_eq!(reloaded.customer_id, 1, "customer_id 应如实落库");
+    assert_eq!(
+        reloaded.period_start,
+        ymd!(2026, 1, 1),
+        "period_start 应如实落库"
+    );
+    assert_eq!(
+        reloaded.period_end,
+        ymd!(2026, 1, 31),
+        "period_end 应如实落库"
+    );
+    assert_eq!(reloaded.opening_balance, decs!("10000"), "期初应如实落库");
+    assert_eq!(reloaded.total_invoices, decs!("5000"), "本期应收应如实落库");
+    assert_eq!(
+        reloaded.total_collections,
+        decs!("3000"),
+        "本期收款应如实落库"
+    );
+    assert_eq!(
+        reloaded.closing_balance,
+        decs!("12000"),
+        "期末余额落库回读一致"
+    );
 }
 
 /// test_hqdzd_xysjk（需要 ar_reconciliations 表 schema，标注 #[ignore] 仅在本地手动运行。；无 schema 时返回数据库错误；无记录时返回 Ok(None)。）

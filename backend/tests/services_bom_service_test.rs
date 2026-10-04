@@ -312,7 +312,12 @@ async fn test_fwslcj() {
     let service = BomService::new(Arc::new(db));
 }
 
-/// test_cjbom_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic；无 schema 时返回数据库错误。）
+/// test_cjbom_xyzssjk（真库正向口径：BOM create 全链路落库并回读落库值。）
+/// 历史前提更正（CI #4675 族H）：本例曾用于「库未迁移/无 schema」时期的负探测
+/// （`assert!(result.is_err())`，注释自述"无 schema 时返回数据库错误"）；ignored 专用
+/// job 现跑**真库真迁移**（该 job「迁移本 job PostgreSQL service」步骤 success），
+/// 负前提不再成立——CI #4675 里 create 成功正是正确行为，旧负断言反而是过期前提的假红。
+/// 现由真库夹具取代：断言创建成功 + **回读落库值**，正向证明写链可用。
 #[tokio::test]
 #[ignore]
 async fn test_cjbom_xyzssjk() {
@@ -334,9 +339,46 @@ async fn test_cjbom_xyzssjk() {
             sort_order: None,
         }],
     };
-    let result = service.create(req).await;
-    // 无 schema 时返回数据库错误
-    assert!(result.is_err());
+    let detail = service
+        .create(req)
+        .await
+        .expect("真库（已迁移）上 create 必须成功；此处失败说明 BOM 写链真实断裂");
+    assert!(
+        detail.bom.id > 0,
+        "落库后应回收自增主键，实际 id={}",
+        detail.bom.id
+    );
+    assert_eq!(
+        detail.items.len(),
+        1,
+        "一条明细应如实落库，实际: {:?}",
+        detail
+            .items
+            .iter()
+            .map(|i| i.material_id)
+            .collect::<Vec<_>>()
+    );
+
+    // 回读落库值（正向证明链路可用；create 服务在事务内回查 DB，bom_ops/crud.rs:83-87）
+    let reloaded = service
+        .get_by_id(detail.bom.id)
+        .await
+        .expect("回读查询不应报错")
+        .expect("刚创建的 BOM 必须可按 id 查到");
+    assert_eq!(reloaded.bom.product_id, 1, "product_id 应如实落库");
+    assert_eq!(reloaded.bom.version, 1, "version 应如实落库");
+    assert_eq!(reloaded.items.len(), 1, "bom_items 应落 1 行");
+    assert_eq!(reloaded.items[0].material_id, 101, "material_id 应如实落库");
+    assert_eq!(
+        reloaded.items[0].quantity,
+        decs!("2"),
+        "quantity 落库回读应为 2（DECIMAL 按数值相等核）"
+    );
+    assert_eq!(
+        reloaded.items[0].scrap_rate,
+        Some(decs!("0.1")),
+        "scrap_rate 存储口径比率应原样落库回读"
+    );
 }
 
 /// test_hqboms_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
