@@ -1,12 +1,13 @@
 //! 数据库迁移模块
 //!
-//! 按业务域聚合，每个域 1 个迁移文件，共 10 个：
+//! 按业务域聚合，每个域 1 个迁移文件，共 11 个：
 //! system → business → sales_crm → production → finance → v15 → rls_dept
-//!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check
+//!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check → price_vocab_check
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
 //!         m_rls_dept_user_sync / m_crm_lead_claim_record / m_crm_vocab_check
+//!         / m_price_vocab_check
 //!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
@@ -22,6 +23,8 @@
 //!     （依赖 business 建的 crm_lead；补列类迁移先于 CHECK 词表迁移收尾，故置于其前）
 //! 8. crm_vocab_check: CRM 状态词表 CHECK（依赖 business 建的 crm_lead/crm_opportunity，
 //!    排最后确保全部建表/回填类迁移（含 m0044 fix_fk_types）先行完成）
+//! 9. price_vocab_check: 价格状态词表 CHECK（依赖 business 建表与 v15 的默认值收敛与
+//!    'ACTIVE' 回填；排链尾满足"补列/回填先于 CHECK"原则，全新库与存量库均不违反 CHECK）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -43,6 +46,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::rls_dept_user_sync::Migration),
             Box::new(domain::crm_lead_claim_record::Migration),
             Box::new(domain::crm_vocab_check::Migration),
+            Box::new(domain::price_vocab_check::Migration),
         ]
     }
 }

@@ -4424,10 +4424,12 @@ UPDATE "bpm_task" SET "status" = 'pending' WHERE "status" = 'PENDING';
 ALTER TABLE "dye_batch" ALTER COLUMN "status" SET DEFAULT 'pending_schedule';
 UPDATE "dye_batch" SET "status" = 'pending_schedule' WHERE "status" = 'pending';
 
--- 6) sales_prices.status / purchase_prices.status：词表 models/status/general.rs 的
---    master_data = {active, inactive, pending, approved, ...} 小写；建单写
---    master_data::PENDING（sales_price_service.rs:113 / purchase_price_service.rs:101），
---    审批写 approved、列表按 active 过滤，全为小写。m0009:249 / m0011:188 建表写
+-- 6) sales_prices.status / purchase_prices.status：价格域权威词表 = models/status/sales.rs 的
+--    price_approval = {pending, approved, inactive} 小写；建单写 pending、审批写 approved、
+--    采购侧停用写 inactive，读侧比对全小写。general.rs 的 master_data 是给
+--    supplier/customer/fixed_asset 的启用/停用词表，价格域曾借用它作权威属误挂——
+--    值域 CHECK 已由 m_price_vocab_check 按两表各自写入方全集分钉，契约测试锁词表==约束。
+--    m0009:249 / m0011:188 建表写
 --    DEFAULT 'ACTIVE'（大写越界，绕过 service 的价目行既不落入 pending 审批流也不被 active 过滤命中）。
 --    回填 pending（建单显式写值）。
 ALTER TABLE "sales_prices"    ALTER COLUMN "status" SET DEFAULT 'pending';

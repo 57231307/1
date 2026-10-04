@@ -6,6 +6,7 @@ use crate::models::status::purchase_inventory::{
 use crate::models::unqualified_product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::models::status::price_approval;
 use crate::models::status::quality_dyeing::quality_handling;
 use crate::models::status::quality_dyeing::quality_inspection_result;
 use crate::utils::error::AppError;
@@ -568,7 +569,7 @@ impl QualityInspectionService {
         //    取最新一条（按 effective_date 倒序）
         let standard_price = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
-            .filter(price_model::Column::Status.eq(master_data::APPROVED))
+            .filter(price_model::Column::Status.eq(price_approval::APPROVED))
             .filter(
                 price_model::Column::PriceLevel
                     .eq(STANDARD_PRICE_LEVEL_A)
@@ -594,7 +595,7 @@ impl QualityInspectionService {
         let existing_b = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
             .filter(price_model::Column::PriceLevel.eq(DOWNGRADE_PRICE_LEVEL_B))
-            .filter(price_model::Column::Status.eq(master_data::APPROVED))
+            .filter(price_model::Column::Status.eq(price_approval::APPROVED))
             .one(&*self.db)
             .await?;
 
@@ -628,7 +629,7 @@ impl QualityInspectionService {
                 effective_date: Set(standard.effective_date),
                 expiry_date: Set(standard.expiry_date),
                 // 二等品价直接 approved（由降级流程触发，避免重复审批延误销售）
-                status: Set(master_data::APPROVED.to_string()),
+                status: Set(price_approval::APPROVED.to_string()),
                 approved_by: Set(None),
                 approved_at: Set(Some(now)),
                 created_by: Set(None),
