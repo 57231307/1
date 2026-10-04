@@ -100,12 +100,6 @@ export function useSp() {
     price_level: '',
     effective_date: '',
     expiry_date: '',
-    // ⚠️ 后端 sales_price_service.rs::CreateSalesPriceInput/::UpdateSalesPriceInput 无 remark/remarks
-    // 字段，price_level 亦不在两 DTO 中 ⇒ "备注"与"价格等级"输入内容提交即被 serde 静默丢弃
-    // （models/sales_price.rs::Model 有 price_level 列、无 remarks 列——备注读回也恒空）。
-    // 收集不可持久化数据的 UI 属在案缺陷，处置（删控件或后端加 DTO 字段/加列）超出本两项收口
-    // 范围，交回主编排决策。
-    remarks: '',
   });
 
   // 表单验证规则
@@ -174,7 +168,6 @@ export function useSp() {
       price_level: '',
       effective_date: '',
       expiry_date: '',
-      remarks: '',
     });
   };
 
@@ -185,8 +178,7 @@ export function useSp() {
     // 1) 读接口 price/min_order_qty 是 Decimal 字符串（后端 models/sales_price.rs::Model 两字段
     //    Decimal、rust_decimal 仅启用 serde feature ⇒ JSON 线格式为字符串），
     //    编辑态控件 el-input-number 需要 number ⇒ 此处做有意的线格式→编辑态换算；
-    // 2) 不再把行对象上的非表单键（status/created_at 等）连带塞进 formData；
-    // 3) remarks 后端无存储列（见 formData 注释），重置为空以免残留上一次编辑的脏输入。
+    // 2) 不再把行对象上的非表单键（status/created_at 等）连带塞进 formData。
     Object.assign(formData, {
       id: row.id,
       product_id: row.product_id,
@@ -199,7 +191,6 @@ export function useSp() {
       price_level: row.price_level ?? '',
       effective_date: row.effective_date ?? '',
       expiry_date: row.expiry_date ?? '',
-      remarks: '',
     });
   };
 

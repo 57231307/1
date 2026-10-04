@@ -146,14 +146,6 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="t('salesPrice.form.labelRemarks')" prop="remarks">
-        <el-input
-          v-model="localFormData.remarks"
-          type="textarea"
-          :rows="3"
-          :placeholder="t('salesPrice.form.placeholderRemarks')"
-        />
-      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{
@@ -192,7 +184,6 @@ interface SpFormData {
   price_level?: string;
   effective_date?: string;
   expiry_date?: string;
-  remarks?: string;
 }
 
 // 表单校验规则
