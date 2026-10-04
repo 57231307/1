@@ -39,6 +39,10 @@ pub mod ar {
     /// 核销明细已匹配（ar_reconciliation_item.match_status，大写值）
     pub const MATCH_MATCHED: &str = "MATCHED";
 
+    /// 核销明细部分匹配（ar_reconciliation_item.match_status，大写值，
+    /// 与实体 MatchStatus::Partial 的 string_value 逐字符一致）
+    pub const MATCH_PARTIAL: &str = "PARTIAL";
+
     /// 核销明细未匹配（ar_reconciliation_item.match_status，大写值）
     pub const MATCH_UNMATCHED: &str = "UNMATCHED";
 }

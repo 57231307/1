@@ -127,13 +127,12 @@ impl ArReconciliationService {
     }
 
     /// 匹配明细状态判定（纯判定，生产与集成测试同源调用）：
-    /// matched == amount → ar::MATCH_MATCHED（"MATCHED"）；否则 "PARTIAL"
-    /// （注："PARTIAL" 在 status 模块无对应常量，沿用本模块字面量）。
+    /// matched == amount → ar::MATCH_MATCHED；否则 → ar::MATCH_PARTIAL。
     pub fn classify_match_status(matched: Decimal, amount: Decimal) -> &'static str {
         if matched == amount {
             ar_status::MATCH_MATCHED
         } else {
-            "PARTIAL"
+            ar_status::MATCH_PARTIAL
         }
     }
 

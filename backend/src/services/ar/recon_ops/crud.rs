@@ -150,7 +150,11 @@ impl ArReconciliationService {
         let opening = *active_model.opening_balance.as_ref();
         let invoices = *active_model.total_invoices.as_ref();
         let collections = *active_model.total_collections.as_ref();
-        active_model.closing_balance = Set(opening + invoices - collections);
+        active_model.closing_balance = Set(Self::compute_closing_balance(
+            opening,
+            invoices,
+            collections,
+        ));
 
         active_model.updated_at = Set(Utc::now());
 
