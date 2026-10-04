@@ -337,14 +337,15 @@ impl SalesPriceService {
                 .effective_date
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
+                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?),
             // 到期日与生效日同口径严格解析：此前 `.and_then(|d| d.parse().ok())` 把
             // 非法日期串静默吞成 NULL（不报错、不落值），属"不静默"红线缺陷，改 fail-visible 400。
             expiry_date: Set(req
                 .expiry_date
                 .map(|d| {
-                    d.parse()
-                        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))
+                    d.parse().map_err(|e| {
+                        AppError::validation_displayable(format!("日期格式错误：{}", e))
+                    })
                 })
                 .transpose()?),
             status: Set(price_approval::PENDING.to_string()),
@@ -487,7 +488,7 @@ impl SalesPriceService {
         if let Some(effective_date) = req.effective_date.flatten() {
             active.effective_date = Set(effective_date
                 .parse()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?);
+                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?);
         }
         // expiry_date 三态（可空列统一清空口径，任务板 #169；写法照 department_service.rs:258-261
         // 的三态注释）：None=不 Set（列保持原值）/ Some(None)=Set(None) 清空为 NULL /
@@ -496,10 +497,9 @@ impl SalesPriceService {
             None => {}
             Some(None) => active.expiry_date = Set(None),
             Some(Some(expiry_date)) => {
-                active.expiry_date =
-                    Set(Some(expiry_date.parse().map_err(|e| {
-                        AppError::validation(format!("日期格式错误：{}", e))
-                    })?));
+                active.expiry_date = Set(Some(expiry_date.parse().map_err(|e| {
+                    AppError::validation_displayable(format!("日期格式错误：{}", e))
+                })?));
             }
         }
 

@@ -202,7 +202,7 @@ impl PurchasePriceService {
                 .effective_date
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
+                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?),
             // 到期日与生效日同口径严格解析（map + map_err + transpose，写法与销售侧
             // `services/sales_price_service::create_price` 的 expiry_date 分支同形）：
             // 非法日期串一律 fail-visible 拒绝，绝不落 NULL——NULL 是「长期有效」的既有
@@ -323,7 +323,7 @@ impl PurchasePriceService {
         if let Some(ed) = expiry_date {
             price_model.expiry_date =
                 Set(Some(ed.parse().map_err(|e| {
-                    AppError::validation(format!("日期格式错误：{}", e))
+                    AppError::validation_displayable(format!("日期格式错误：{}", e))
                 })?));
         }
         if let Some(s) = status {
