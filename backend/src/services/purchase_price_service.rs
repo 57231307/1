@@ -79,6 +79,59 @@ impl PurchasePriceService {
         Self { db }
     }
 
+    /// 产品引用存在性预检。
+    ///
+    /// 范式照 `sku_mapping_service::validate_refs` 与 `inventory_reservation_service::create_reservation`：
+    /// 坏引用绝不交给 DB 兜底，理由有二——
+    /// 1. `purchase_prices` 当前**没有**指向 products/suppliers 的外键（FK 迁移尚未上线），
+    ///    不给应用层预检则不存在的 product_id/supplier_id 静默落库成孤儿价目行
+    ///    （列表侧 `PurchasePriceView` 的 JOIN 名列如实 NULL 即其下游形态）；
+    /// 2. 即便 FK 上线，23503 违约经 `AppError::From<DbErr>` 的 Exec 分支只落裸
+    ///    500 `DATABASE_ERROR`（同 `inventory_reservation_service::create_reservation` 头注
+    ///    所述缺陷族），用户拿不到可外显的拒绝原因；引用不存在是「用户自己提交的字段非法」，
+    ///    按 `utils/error.rs` 模块文档的铁律走 `AppError::validation_displayable`
+    ///    （HTTP 400 + code=VALIDATION_ERROR，出参携带真实原因；文案只含请求字段自身的 ID，
+    ///    满足其安全边界）。
+    ///
+    /// 存在性判定只取主键列（同 `sku_mapping_service::validate_refs` 对 suppliers 的
+    /// select_only 口径——`models/supplier.rs` 把 supplier_type/credit_code/legal_representative
+    /// 等经 ALTER 以可空列加入的扩展列声明为非 Option，整行解码会在历史/手工行上误抛 500，
+    /// 该实证注释就写在 `sku_mapping_service::validate_refs` 内）；products 同口径统一。
+    async fn assert_product_exists(&self, product_id: i32) -> Result<(), AppError> {
+        let exists = product::Entity::find()
+            .filter(product::Column::Id.eq(product_id))
+            .select_only()
+            .column(product::Column::Id)
+            .into_tuple::<i32>()
+            .one(&*self.db)
+            .await?
+            .is_some();
+        if !exists {
+            return Err(AppError::validation_displayable(format!(
+                "产品 ID {product_id} 不存在"
+            )));
+        }
+        Ok(())
+    }
+
+    /// 供应商引用存在性预检（同 `Self::assert_product_exists` 口径）
+    async fn assert_supplier_exists(&self, supplier_id: i32) -> Result<(), AppError> {
+        let exists = supplier::Entity::find()
+            .filter(supplier::Column::Id.eq(supplier_id))
+            .select_only()
+            .column(supplier::Column::Id)
+            .into_tuple::<i32>()
+            .one(&*self.db)
+            .await?
+            .is_some();
+        if !exists {
+            return Err(AppError::validation_displayable(format!(
+                "供应商 ID {supplier_id} 不存在"
+            )));
+        }
+        Ok(())
+    }
+
     /// 获取采购价格列表
     pub async fn get_prices_list(
         &self,
@@ -129,6 +182,12 @@ impl PurchasePriceService {
             user_id, req.product_id, req.supplier_id
         );
 
+        // 引用存在性预检先于任何写库动作（口径见 `Self::assert_product_exists`
+        // 文档注）：product_id/supplier_id 均为 NOT NULL 必检；拒绝路径零副作用（不落行）。
+        // update_price 不收 product_id/supplier_id 键（无引用改道），故其路径无需预检。
+        self.assert_product_exists(req.product_id).await?;
+        self.assert_supplier_exists(req.supplier_id).await?;
+
         let active_price = purchase_price::ActiveModel {
             product_id: Set(req.product_id),
             supplier_id: Set(req.supplier_id),
@@ -144,7 +203,24 @@ impl PurchasePriceService {
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
                 .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
-            expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
+            // 到期日与生效日同口径严格解析（map + map_err + transpose，写法与销售侧
+            // `services/sales_price_service::create_price` 的 expiry_date 分支同形）：
+            // 非法日期串一律 fail-visible 拒绝，绝不落 NULL——NULL 是「长期有效」的既有
+            // 业务语义，不得让非法输入冒名顶替成成功行。错误走
+            // `AppError::validation_displayable`：HTTP 400 + 机器码 VALIDATION_ERROR，
+            // 出参携带真实拒绝原因；文案只描述用户自己提交的字段格式，满足
+            // `utils/error.rs` 模块文档的安全边界（先例：
+            // `handlers/budget_management_handler.rs` / `handlers/inventory_count_handler.rs`
+            // 的日期解析拒绝点）。禁止改用 `AppError::business`（出参被脱敏成固定文案，
+            // 用户看不到原因），也禁止 `AppError::internal`（把校验失败拍平成 500）。
+            expiry_date: Set(req
+                .expiry_date
+                .map(|d| {
+                    d.parse().map_err(|e| {
+                        AppError::validation_displayable(format!("日期格式错误：{}", e))
+                    })
+                })
+                .transpose()?),
             status: Set(price_approval::PENDING.to_string()),
             created_by: Set(Some(user_id)),
             ..Default::default()

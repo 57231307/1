@@ -9,6 +9,7 @@ use crate::models::status::master_data;
 use crate::models::status::price_approval;
 use crate::models::status::quality_dyeing::quality_handling;
 use crate::models::status::quality_dyeing::quality_inspection_result;
+use crate::services::sales_price_service::effective_on;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -561,12 +562,20 @@ impl QualityInspectionService {
 
     /// 缺陷 5.1：B 级降级联动销售价格调整
     /// 策略：查询产品当前生效的 A 级（标准）销售价，按 80% 折扣生成/更新二等品销售价。
-    /// 若已存在二等品价则更新价格；若无标准价则跳过（仅记录 warn，避免误覆盖）。
+    /// 「当前生效」= 命中 `services/sales_price_service::effective_on` 的闭区间窗口
+    /// （到期日当天仍有效、`expiry_date IS NULL` 为长期有效），未来生效或已过期的价目一律不取。
+    /// 若已存在二等品价则更新价格；若无生效标准价则跳过（仅记录 warn，不阻断主流程，避免误覆盖）。
     async fn sync_sales_price_for_downgrade(&self, product_id: i32) -> Result<(), AppError> {
         use crate::models::sales_price::{self as price_model, Entity as PriceEntity};
 
-        // 1. 查询该产品当前生效的 A 级标准价（price_level 为 "一等品" 或 NULL，status=approved）
-        //    取最新一条（按 effective_date 倒序）
+        // 1. 查询该产品**当前生效**的 A 级标准价（price_level 为 "一等品" 或 NULL，status=approved）。
+        //    生效窗口谓词由 `services/sales_price_service::effective_on` 单点定义（闭区间：
+        //    生效日 <= 今天，且到期日为空（长期有效）或到期日 >= 今天（到期日当天仍有效）），
+        //    口径与定价域 `utils/price_calculator.rs::find_customer_special_price` /
+        //    `::find_seasonal_adjustment` 一致；「今天」取 `chrono::Utc::now().date_naive()`，
+        //    与 `utils/price_calculator.rs::calculate_price` 的 calc_date 兜底同源。
+        //    未来生效或已过期的价目一律不取，防止误参与二等品定价（标准价 × 80% 后写回 sales_prices）。
+        let today = chrono::Utc::now().date_naive();
         let standard_price = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
             .filter(price_model::Column::Status.eq(price_approval::APPROVED))
@@ -575,7 +584,10 @@ impl QualityInspectionService {
                     .eq(STANDARD_PRICE_LEVEL_A)
                     .or(price_model::Column::PriceLevel.is_null()),
             )
+            .filter(effective_on(today))
             .order_by(price_model::Column::EffectiveDate, Order::Desc)
+            // 次级排序仅为消除「窗口内同日多行」取用的不确定性，不改变业务口径
+            .order_by(price_model::Column::Id, Order::Desc)
             .one(&*self.db)
             .await?;
 

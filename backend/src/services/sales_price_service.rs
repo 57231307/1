@@ -56,6 +56,33 @@ fn validate_price_level_input(raw: Option<String>) -> Result<Option<String>, App
     )))
 }
 
+/// 销售价目「生效窗口」谓词（**单点定义**，防口径漂移）：
+/// `effective_date <= on_date` 且（`expiry_date IS NULL` 或 `expiry_date >= on_date`）。
+///
+/// 口径与本仓定价业务域既有先例同形：`utils/price_calculator.rs::find_customer_special_price`
+/// 与 `utils/price_calculator.rs::find_seasonal_adjustment` 都是「生效日 `lte(calc_date)`」
+/// 叠加「到期日 `gte(calc_date).or(到期日 is_null())`」，即
+/// **到期日当天仍然有效**（闭区间窗口）、`expiry_date IS NULL` 表示长期有效。
+/// 注意：工资域 `services/wage_ops/rate.rs::get_effective_by_route` 的窗口是另一套口径，
+/// 与本谓词无关，两者禁止互抄（本函数固定为闭区间，不得改成右开）。
+///
+/// 消费方：质检 B 级降级联动取「产品当前生效的 A 级标准价」
+/// （`services/quality_inspection_service.rs::sync_sales_price_for_downgrade`）。
+/// 后续列表/导出若要按生效态筛选，必须复用本函数，不得再写一份字面量谓词。
+///
+/// `on_date` 由调用方按定价域既有「今天」口径提供（`chrono::Utc::now().date_naive()`，
+/// 与 `utils/price_calculator.rs::calculate_price` 的 `calc_date` 兜底同源），
+/// 本函数不自造时区口径。
+pub(crate) fn effective_on(on_date: chrono::NaiveDate) -> Condition {
+    Condition::all()
+        .add(sales_price::Column::EffectiveDate.lte(on_date))
+        .add(
+            Condition::any()
+                .add(sales_price::Column::ExpiryDate.is_null())
+                .add(sales_price::Column::ExpiryDate.gte(on_date)),
+        )
+}
+
 /// 销售价目列表读模型：实体全列 + LEFT JOIN 关联出的产品名/产品编码/客户名/客户编码
 /// （实体仅有外键 ID，列表与导出的消费方需要人类可读标识）。
 ///
@@ -147,6 +174,60 @@ impl SalesPriceService {
         Self { db }
     }
 
+    /// 产品引用存在性预检。
+    ///
+    /// 范式照 `sku_mapping_service::validate_refs` 与 `inventory_reservation_service::create_reservation`：
+    /// 坏引用绝不交给 DB 兜底，理由有二——
+    /// 1. `sales_prices` 当前**没有**指向 products/customers 的外键（FK 迁移尚未上线），
+    ///    不给应用层预检则不存在的 product_id/customer_id 静默落库成孤儿价目行
+    ///    （列表侧 `SalesPriceView` 的 JOIN 名列如实 NULL 即其下游形态）；
+    /// 2. 即便 FK 上线，23503 违约经 `AppError::From<DbErr>` 的 Exec 分支只落裸
+    ///    500 `DATABASE_ERROR`（同 `inventory_reservation_service::create_reservation` 头注
+    ///    所述缺陷族），用户拿不到可外显的拒绝原因；引用不存在是「用户自己提交的字段非法」，
+    ///    按 `utils/error.rs` 模块文档的铁律走 `AppError::validation_displayable`
+    ///    （HTTP 400 + code=VALIDATION_ERROR，出参携带真实原因；文案只含请求字段自身的 ID，
+    ///    满足其安全边界）。
+    ///
+    /// 存在性判定只取主键列（同 `sku_mapping_service::validate_refs` 对 suppliers 的
+    /// select_only 口径）：判定本身只需要 id，整行解码会让历史列漂移行误报 500。
+    /// 「软删/停用视同不存在」（`inventory_reservation_service::create_reservation` 口径）
+    /// 不在本预检范围内——价目列表本就如实展示软删品名，纳入与否属产品口径，待终裁。
+    async fn assert_product_exists(&self, product_id: i32) -> Result<(), AppError> {
+        let exists = product::Entity::find()
+            .filter(product::Column::Id.eq(product_id))
+            .select_only()
+            .column(product::Column::Id)
+            .into_tuple::<i32>()
+            .one(&*self.db)
+            .await?
+            .is_some();
+        if !exists {
+            return Err(AppError::validation_displayable(format!(
+                "产品 ID {product_id} 不存在"
+            )));
+        }
+        Ok(())
+    }
+
+    /// 客户引用存在性预检（同 `Self::assert_product_exists` 口径；customer_id 可空，
+    /// 仅显式传值时校验，NULL = 通用价目语义不得被拦）
+    async fn assert_customer_exists(&self, customer_id: i32) -> Result<(), AppError> {
+        let exists = customer::Entity::find()
+            .filter(customer::Column::Id.eq(customer_id))
+            .select_only()
+            .column(customer::Column::Id)
+            .into_tuple::<i32>()
+            .one(&*self.db)
+            .await?
+            .is_some();
+        if !exists {
+            return Err(AppError::validation_displayable(format!(
+                "客户 ID {customer_id} 不存在"
+            )));
+        }
+        Ok(())
+    }
+
     /// 销售价目列表（读模型富化版）。
     ///
     /// `total` 在带筛选的基础查询上统计（无富化 JOIN；keyword 谓词命中时含其所需的
@@ -228,6 +309,14 @@ impl SalesPriceService {
             "用户 {} 正在创建销售价格，产品 ID: {}",
             user_id, req.product_id
         );
+
+        // 引用存在性预检先于任何写库动作（口径见 `Self::assert_product_exists`
+        // 文档注）：product_id 必检；customer_id 可空，仅显传值时检——NULL 是「通用价目」
+        // 的既有语义载体，不得被预检误拦。拒绝路径零副作用（不落行）。
+        self.assert_product_exists(req.product_id).await?;
+        if let Some(customer_id) = req.customer_id {
+            self.assert_customer_exists(customer_id).await?;
+        }
 
         let active_price = sales_price::ActiveModel {
             product_id: Set(req.product_id),
@@ -359,6 +448,17 @@ impl SalesPriceService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售价格 {} 未找到", id)))?;
+
+        // 引用存在性预检先于任何写动作（口径见 `Self::assert_product_exists`
+        // 文档注）；update 侧 product_id/customer_id 为 Option，仅显式传值时校验，
+        // 键缺席 = 不改该引用，不校验。放在行加载（404 优先）之后、ActiveModel 改动
+        // 之前：被拒更新零副作用，原行数据逐列不动。
+        if let Some(product_id) = req.product_id {
+            self.assert_product_exists(product_id).await?;
+        }
+        if let Some(customer_id) = req.customer_id {
+            self.assert_customer_exists(customer_id).await?;
+        }
 
         let mut active: sales_price::ActiveModel = price_model.into_active_model();
 
