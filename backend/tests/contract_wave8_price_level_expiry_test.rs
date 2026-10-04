@@ -86,7 +86,10 @@ async fn seed_customer(db: &Arc<DatabaseConnection>, id: i32, name: &str) {
         credit_limit: Set(Decimal::ZERO),
         payment_terms: Set(30),
         status: Set("active".to_string()),
-        customer_type: Set("direct".to_string()),
+        // 词表安全侧：constants::customer_type::ALLOWED 成员（见 models/customer.rs 列注）。
+        // 旧值 "direct" 不在 chk_customers_customer_type 五值集合内，种子插入即被 DB 拒绝
+        // （CI #4675 族A 8 例同因），此处仅改数据取值对齐姊妹文件，不动任何断言。
+        customer_type: Set("retail".to_string()),
         created_at: Set(now()),
         updated_at: Set(now()),
         ..Default::default()
@@ -101,7 +104,9 @@ fn create_input(price_level: Option<&str>, expiry_date: Option<&str>) -> CreateS
     CreateSalesPriceInput {
         product_id: SEED_PRODUCT_ID,
         customer_id: Some(SEED_CUSTOMER_ID),
-        customer_type: Some("direct".to_string()),
+        // 与种子客户同口径：constants::customer_type::ALLOWED 成员（sales_prices 侧为透传列，
+        // 值仍取词表合法成员，避免与 customers 行语义互相矛盾）
+        customer_type: Some("retail".to_string()),
         price: Decimal::new(10000, 2),
         currency: Some("CNY".to_string()),
         unit: "米".to_string(),
