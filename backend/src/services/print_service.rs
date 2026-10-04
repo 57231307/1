@@ -18,6 +18,11 @@ pub struct PrintData {
     pub template: String,
     pub data: HashMap<String, serde_json::Value>,
     pub items: Vec<HashMap<String, serde_json::Value>>,
+    /// 可选嵌入位图（当前唯一消费方：#220 成品布入库标签的 Code128 条码图）。
+    /// `#[serde(skip)]`：打印数据 JSON 出参形态不因图形新增而变化（不破坏既有前端契约），
+    /// 字节只走 generate_docx → docx-rs media 打包这一条渲染线。
+    #[serde(skip)]
+    pub image: Option<crate::utils::docx_export::DocxImage>,
 }
 
 /// 打印服务（V15 P0-S17：持有数据库连接，6 个 get_*_print_data 方法真实查询数据库）
@@ -166,6 +171,7 @@ impl PrintService {
             template: "sales_order".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -461,6 +467,7 @@ impl PrintService {
             template: "sales_contract".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -475,6 +482,7 @@ impl PrintService {
             template: "purchase_order".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -748,6 +756,7 @@ impl PrintService {
             template: "purchase_receipt".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -760,6 +769,7 @@ impl PrintService {
             template: "inventory_transfer".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -995,6 +1005,7 @@ impl PrintService {
             template: "voucher".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -1065,6 +1076,7 @@ impl PrintService {
             template: "production_flow_card".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1139,6 +1151,7 @@ impl PrintService {
             template: "fabric_inspection".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1200,6 +1213,7 @@ impl PrintService {
             template: "dye_batch_card".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1252,6 +1266,7 @@ impl PrintService {
             template: "color_card_issue".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1328,6 +1343,7 @@ impl PrintService {
             template: "bulk_color_approval".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1432,6 +1448,7 @@ impl PrintService {
             template: "lab_dip_request".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -1518,6 +1535,7 @@ impl PrintService {
             template: "production_order".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1600,6 +1618,7 @@ impl PrintService {
             template: "production_recipe".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -1688,6 +1707,7 @@ impl PrintService {
             template: "quality_inspection_record".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1774,6 +1794,7 @@ impl PrintService {
             template: "sales_delivery".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -1824,6 +1845,7 @@ impl PrintService {
             template: "ar_collection".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1882,6 +1904,7 @@ impl PrintService {
             template: "ap_payment".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -1944,6 +1967,7 @@ impl PrintService {
             template: "ap_invoice".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2034,6 +2058,7 @@ impl PrintService {
             template: "sales_quotation".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -2111,6 +2136,7 @@ impl PrintService {
             template: "sales_return".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -2211,6 +2237,7 @@ impl PrintService {
             template: "purchase_return".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -2309,6 +2336,7 @@ impl PrintService {
             template: "outsourcing_order".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -2387,6 +2415,7 @@ impl PrintService {
             template: "outsourcing_receipt".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2458,6 +2487,7 @@ impl PrintService {
             template: "logistics_waybill".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2513,6 +2543,7 @@ impl PrintService {
             template: "certificate_of_origin".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2562,6 +2593,7 @@ impl PrintService {
             template: "export_customs_declaration".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2629,6 +2661,7 @@ impl PrintService {
             template: "solid_waste_disposal".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2683,6 +2716,7 @@ impl PrintService {
             template: "unqualified_product".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2742,6 +2776,7 @@ impl PrintService {
             template: "chemical_requisition".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2796,6 +2831,7 @@ impl PrintService {
             template: "export_inspection".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -2874,6 +2910,7 @@ impl PrintService {
             template: "ap_payment_request".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -2928,6 +2965,7 @@ impl PrintService {
             template: "ap_reconciliation".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3024,6 +3062,7 @@ impl PrintService {
             template: "purchase_inspection".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -3105,6 +3144,7 @@ impl PrintService {
             template: "inventory_adjustment".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -3171,6 +3211,7 @@ impl PrintService {
             template: "bom".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -3231,6 +3272,7 @@ impl PrintService {
             template: "material_shortage".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3298,6 +3340,7 @@ impl PrintService {
             template: "quality_8d_report".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3362,6 +3405,7 @@ impl PrintService {
             template: "labor_contract".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3459,6 +3503,7 @@ impl PrintService {
             template: "wage_record".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -3533,6 +3578,7 @@ impl PrintService {
             template: "energy_consumption_record".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3616,6 +3662,7 @@ impl PrintService {
             template: "purchase_contract".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3675,6 +3722,7 @@ impl PrintService {
             template: "supplier_evaluation_record".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3734,6 +3782,7 @@ impl PrintService {
             template: "safety_accident_report".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3797,6 +3846,7 @@ impl PrintService {
             template: "occupational_hazard_monitoring".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3856,6 +3906,7 @@ impl PrintService {
             template: "pollution_permit".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3896,6 +3947,7 @@ impl PrintService {
             template: "process_route".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -3953,6 +4005,7 @@ impl PrintService {
             template: "foreign_exchange_verification".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4010,6 +4063,7 @@ impl PrintService {
             template: "export_refund_declaration".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4082,6 +4136,7 @@ impl PrintService {
             template: "fixed_asset".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4136,6 +4191,7 @@ impl PrintService {
             template: "scheduling_result".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4186,6 +4242,7 @@ impl PrintService {
             template: "inventory_write_down".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4286,6 +4343,7 @@ impl PrintService {
             template: "fixed_asset_count".to_string(),
             data,
             items: item_list,
+            image: None,
         })
     }
 
@@ -4345,6 +4403,7 @@ impl PrintService {
             template: "social_insurance_record".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4396,6 +4455,7 @@ impl PrintService {
             template: "occupational_health_exam".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4465,6 +4525,7 @@ impl PrintService {
             template: "dye_batch_rework".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4519,6 +4580,7 @@ impl PrintService {
             template: "bad_debt_writeoff".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4598,6 +4660,7 @@ impl PrintService {
             template: "custom_order".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4654,6 +4717,7 @@ impl PrintService {
             template: "ppe_distribution".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4722,6 +4786,7 @@ impl PrintService {
             template: "customer_credit".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4799,6 +4864,7 @@ impl PrintService {
             template: "after_sales".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4862,6 +4928,7 @@ impl PrintService {
             template: "quality_issue".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4924,6 +4991,7 @@ impl PrintService {
             template: "ar_reconciliation".to_string(),
             data,
             items: Vec::new(),
+            image: None,
         })
     }
 
@@ -4934,7 +5002,9 @@ impl PrintService {
     /// 3. fail-closed（VALIDATION_ERROR 族/400）：缸号/色号/批次/匹号/米数/重量/幅宽/克重
     ///    八个必填字段与条码任一为空即拒绝打印，错误逐字段点名缺哪一列；
     ///    文案只回显公开规则与该匹匹号（操作员点选的用户可见值），不含内部 ID/表名/SQL；
-    /// 4. 保密口径：标签绝不出现 supplier_piece_no、供应商侧商品/色号编码、供应商名称、成本单价。
+    /// 4. 条码图形：校验通过的 `barcode` 码值经 utils::barcode 渲成 Code128 PNG，
+    ///    随 PrintData.image 进 docx（文本码值行与图形同源同值）；
+    /// 5. 保密口径：标签绝不出现 supplier_piece_no、供应商侧商品/色号编码、供应商名称、成本单价。
     async fn get_inventory_piece_label_print_data(
         &self,
         piece_id: i32,
@@ -5005,7 +5075,15 @@ impl PrintService {
         if view.gram_weight.is_none() {
             missing.push("克重(gram_weight)");
         }
-        if view.barcode.is_none() {
+        // 条码缺值口径（决策 §2 原文含空串）：NULL 与 Some(空白串) 同为「无码可打」；
+        // 放宽成只判 is_none 会让空条码静默出一张扫不出的空白图形，fail-closed 不允许。
+        if view
+            .barcode
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
+        {
             missing.push("条码(barcode)");
         }
         if !missing.is_empty() {
@@ -5038,6 +5116,11 @@ impl PrintService {
             .barcode
             .clone()
             .expect("fail-closed 校验已保证条码非空，此处不可达");
+
+        // Code128 图形：编码内容=上面已校验的 `barcode` 列码值本身（口径：三处写入点
+        // 均等于 piece_no，扫码出库按该列查匹；不另造语义、不放行空值——空值已在上文拒打）。
+        // 编码器（子集切换+校验位）来自 code128 crate；渲染见 utils::barcode。
+        let barcode_image = crate::utils::barcode::render_code128_png(&barcode)?;
 
         let fmt_dec = |d: rust_decimal::Decimal| d.normalize().to_string();
         let fields: Vec<(&str, serde_json::Value)> = vec![
@@ -5080,6 +5163,7 @@ impl PrintService {
             template: "inventory_piece_label".to_string(),
             data,
             items: Vec::new(),
+            image: Some(barcode_image),
         })
     }
 
@@ -5193,6 +5277,12 @@ impl PrintService {
             })
             .collect();
 
-        crate::utils::docx_export::build_docx_with_kv(title, &kv, &detail_headers, &detail_rows)
+        crate::utils::docx_export::build_docx_with_kv_and_image(
+            title,
+            &kv,
+            &detail_headers,
+            &detail_rows,
+            print_data.image.as_ref(),
+        )
     }
 }

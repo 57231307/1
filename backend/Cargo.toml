@@ -146,6 +146,8 @@ async-trait = "0.1"
 # optional = true 避免在 default features 下编译 criterion，减少 CI cargo test/build 编译时间
 # 运行性能基准：cargo bench --features bench
 criterion = { version = "0.5", features = ["async_tokio"], optional = true }
+code128 = { version = "0.2.1", default-features = false }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 
 [dev-dependencies]
 # 开发测试相关依赖
