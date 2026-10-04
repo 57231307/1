@@ -1,19 +1,19 @@
 //! `color_cards.stock_quantity` / `issued_quantity` 收紧为 NOT NULL DEFAULT 0
-//! （run #4671 W1 移交的 SHADOWED 族 · 色卡种子红的迁移半根因）
+//! （库存/发放计数列的形态收口——防"DDL 写了 NOT NULL 却被 ADD COLUMN IF NOT EXISTS 整句吃掉"）
 //!
-//! 缺陷事实（三段证据，非推断）：
-//! - 列由 production 域先建，形态是**裸可空无默认**：`migration/src/domain/production/mod.rs:432`
-//!   （`ADD COLUMN IF NOT EXISTS "issued_quantity" INTEGER`）、`:434`（`"stock_quantity" INTEGER`）；
+//! 缺陷事实（三段证据，均为仓内可复核位置，非推断）：
+//! - 列由 production 域先建，形态是**裸可空无默认**：`migration/src/domain/production/mod.rs:457`
+//!   （`ADD COLUMN IF NOT EXISTS "stock_quantity" INTEGER`）、`:455`（`"issued_quantity" INTEGER`）；
 //! - finance 域随后写的权威形态 `ALTER TABLE "color_cards" ADD COLUMN IF NOT EXISTS
 //!   "stock_quantity" INTEGER NOT NULL DEFAULT 0`（`migration/src/domain/finance/mod.rs:296-298`）
-//!   因列已存在（production 域先执行）而被 `IF NOT EXISTS` **整句吞成恒 no-op**，
-//!   NOT NULL 与 DEFAULT 从未生效——这正是 W1 穷举器 `C:/Users/57231/scan_out.txt` SHADOWED 段
-//!   第 244 行点名的形态，也是 #4671 §2.4-C「色卡种子缺列/缺值」红的**迁移侧根因**
-//!   （只补夹具不修这里，下一轮仍红：见判责 §⑤ W4 与 W1 报告 §③）；
-//! - 模型与出参却都按非空整数声明：`src/models/color_card.rs:22,24`（`i32`）、
-//!   `src/models/color_card_response_dto.rs:32,52`（`i32`）⇒ 库里任何 NULL 行在读取时即
-//!   `ColumnNull` 解码失败（列表/详情/发放校验整链 500），发放门的
-//!   `issued_qty <= stock_quantity` 比较也失去依据。
+//!   因列已存在（production 域先执行）而被 `IF NOT EXISTS` **整句吞成恒 no-op**，NOT NULL 与
+//!   DEFAULT 从未生效——本迁移 up 段回读 `information_schema.tables` / `information_schema.columns`
+//!   复现同一形态（:53-63 的结构前提 fail-visible 检查：表在、列在，但列仍可空且无默认，与
+//!   finance 的成文口径不符）；
+//! - 模型与出参都按非空整数声明：`src/models/color_card.rs:22,24`（`i32`）、
+//!   `src/models/color_card_response_dto.rs:32,34` 与 `:52,54`（均 `i32`）⇒ 库里任何 NULL 行读取时即
+//!   `ColumnNull` 解码失败（列表/详情/发放校验整链 500），发放门 `issued_qty <= stock_quantity` 失去
+//!   依据。本迁移防的就是这一件事：两列不再以 NULL/无默认形态与读取口径不一致（:108-113 回读复核）。
 //!
 //! 为什么方向是"收紧列"而不是"模型改 Option"：
 //! - 两列的成文口径就是带默认值的计数列（finance DDL 明文 `NOT NULL DEFAULT 0` +

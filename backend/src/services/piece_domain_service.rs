@@ -498,10 +498,10 @@ pub struct OutsourcingReceiptPieceContext<'a> {
     pub product_id: i32,
     pub warehouse_id: Option<i32>,
     pub length_m: rust_decimal::Decimal,
-    // ========== #220 收回匹实测值补录（m0075 三列）==========
-    // 由收回单逐列透传：有值必落、无值落 NULL。本函数**不得**改用 products.width/gram_weight
-    // 之类的标称值兜底，也不得 unwrap_or(ZERO)——标签口径已锁死为"全取匹行实测值、
-    // 缺值 fail-closed 逐列点名"（print_service.rs:4991-5011），兜底会印出假实测档案。
+    // 收回单实测三列（m0075 建列为 DECIMAL(18,4)，migration/src/domain/production/
+    // m0075_add_outsourcing_receipt_measured_values.rs:105）逐列透传：有值必落、无值落 NULL。
+    // 不得改用 products.width/gram_weight 之类的标称值兜底，也不得 unwrap_or(ZERO)——成品布入库
+    // 标签全取匹行实测值、缺值 fail-closed 逐列点名（print_service.rs:4982-5010），兜底会印出假档案。
     pub weight: Option<rust_decimal::Decimal>,
     pub width: Option<rust_decimal::Decimal>,
     pub gram_weight: Option<rust_decimal::Decimal>,
@@ -641,9 +641,9 @@ pub async fn create_piece_from_outsourcing_receipt<C: ConnectionTrait>(
         product_id: Set(product_id),
         warehouse_id: Set(warehouse_id),
         length: Set(length_m),
-        // #220 收回匹实测值补录链：收回单三列逐列直落匹行（m0075→DTO→confirm→此处），
-        // 无实测值时保持 NULL —— 标签由 print_service.rs 的 fail-closed 逐列点名拒绝，
-        // 不在此处回落 products 主数据、不塞默认值（已锁口径）。
+        // 收回单实测三列逐列直落匹行（建列 m0075 → 收回单 DTO → confirm 收回 → 此处，调用点
+        // outsourcing_ops/receipt.rs 构造 OutsourcingReceiptPieceContext）；无实测值保持 NULL，
+        // 由标签侧 fail-closed 逐列点名拒绝（print_service.rs:4982-5010），此处不回落主数据/不兜底。
         weight: Set(weight),
         width: Set(width),
         gram_weight: Set(gram_weight),

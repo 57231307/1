@@ -54,14 +54,14 @@ pub(crate) struct ReceiptCalculation {
     pub(crate) unit_cost: Decimal,
 }
 
-/// 校验收回单实测值三列的取值域：非空时必须 > 0。
+/// 校验收回单实测值三列的取值域：非空时必须 > 0，留空（None）不在本门内（NULL = 未补录）。
 ///
-/// 与 m0075 的值域 CHECK（`"{col}" IS NULL OR "{col}" > 0`）逐字同口径，两者不是一套以上
-/// 的取值域：服务层门给用户可外显的 400 点名（VALIDATION_ERROR 族），DB CHECK 是并发/旁路
-/// 写入的兜底。0/负数是**无业务含义的伪实测值**：标签 fail-closed 只判 NULL
-/// （`print_service.rs:4991-4999`），若放 0 进来就会被当作"已实测"直接印上标签，
-/// 与 #220 锁定的"缺值逐列点名"口径相反，因此在任何 DB 访问前拒绝。
-/// 留空（None）不在此门内——本批口径是"可空但如实透传"，NULL 表示未补录。
+/// 与 m0075 的值域 CHECK（`"{col}" IS NULL OR "{col}" > 0`，migration/src/domain/production/
+/// m0075_add_outsourcing_receipt_measured_values.rs:107）是同一套取值域，不新造第二套：本门给用户
+/// 可外显的 400 点名（VALIDATION_ERROR 族，调用方 `validate_create_request`、`update`），DB CHECK
+/// 兜并发/旁路写入。0 与负数是**无业务含义的伪实测值**：标签 fail-closed 只判 NULL
+/// （`print_service.rs:4999-5007`），放 0 进来就会被当作"已实测"直接印上标签，与"缺值逐列点名
+/// 拒绝"的口径相反，因此在任何 DB 访问前拒绝；三列由 `validate_measured_values` 成组调用。
 fn validate_measured_value(label: &str, value: Option<Decimal>) -> Result<(), AppError> {
     if let Some(v) = value {
         if v <= Decimal::ZERO {

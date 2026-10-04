@@ -223,9 +223,9 @@ pub struct CreateOutsourcingReceiptRequest {
     pub quality_status: Option<String>,
     pub grade: Option<String>,
     pub remarks: Option<String>,
-    // ========== #220 收回匹实测值补录（m0075 三列如实透传，不回落主数据/不塞默认值）==========
-    // 门控口径：本批为"可空但如实透传"——有值必落、键缺席/显式 null 保持 NULL；
-    // "收回时是否必填"属业务裁量，待用户裁定（详见 PR 正文待裁定项），此处不得自行收紧为必填。
+    // 收回匹实测值三列（m0075 建列，取值域门见 outsourcing_ops/receipt.rs 的 validate_measured_value）：
+    // 入参可空、如实透传——有值必落，键缺席或显式 null 保持 NULL（= 未补录），不回落 products 主数据、
+    // 不塞默认值；非空时必须 > 0。创建侧不强制必填，缺值由标签侧 fail-closed 逐列点名拒绝。
     /// 实测重量（千克，>0；DB 可空列 outsourcing_receipt.weight）
     pub weight: Option<Decimal>,
     /// 实测幅宽（cm，>0；DB 可空列 outsourcing_receipt.width）

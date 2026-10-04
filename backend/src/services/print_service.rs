@@ -4978,7 +4978,7 @@ impl PrintService {
             )));
         }
 
-        // —— fail-closed：8 必填字段 + 条码，任一为空即拒打，逐字段点名（决策 §3 裁定 A）——
+        // —— fail-closed：8 必填字段 + 条码，任一缺值即拒打并逐字段点名（绝不把缺值印成 0/空串）——
         let mut missing: Vec<&'static str> = Vec::new();
         if view.dye_lot_no.trim().is_empty() {
             missing.push("缸号(dye_lot_no)");

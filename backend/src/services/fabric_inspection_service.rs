@@ -193,10 +193,10 @@ pub struct GradeInspectionRequest {
 
 /// 打卷入库请求（graded → rolled）
 ///
-/// #220 裁定 §3：打卷即「成品布入库」的实测采集时刻，幅宽/克重/重量为成品布标签
-/// 必填字段来源，**真实必填**（validator required，缺失/置空 → 400 VALIDATION_ERROR），
-/// 不再允许留 NULL 造成「无据标签」。必填性由 service 入口 `req.validate()` 强制，
-/// handler 侧 JSON 反序列化保持 Option 以进入 validator 族（而非 serde 裸拒绝）。
+/// 打卷即「成品布入库」的实测采集时刻，重量/幅宽/克重是成品布标签对应三列的取值来源，故**真实
+/// 必填**：字段级 `#[validate(required)]` + `Self::roll_fabric` 入口的 `req.validate()`，缺值即
+/// 400 VALIDATION_ERROR 并点名提交字段，不允许留 NULL 造成「无据标签」。字段保持 Option 是为走
+/// validator 族的可读外显而非 serde 裸拒绝；调用方为 `fabric_inspection_handler.rs` 的 roll_fabric。
 #[derive(Debug, Clone, Deserialize, validator::Validate)]
 pub struct RollFabricRequest {
     pub warehouse_id: i32,
@@ -560,8 +560,8 @@ impl FabricInspectionService {
         id: i32,
         req: RollFabricRequest,
     ) -> Result<InspectionModel, AppError> {
-        // #220 裁定 §3：幅宽/克重/重量实测值必填（字段校验族=VALIDATION_ERROR/400，
-        // 文案经 From<validator::ValidationErrors> 可读外显，点名缺哪个提交字段）
+        // 打卷实测三列（重量/幅宽/克重）必填门：缺值即 400，走字段校验族 VALIDATION_ERROR，
+        // 文案经 From<validator::ValidationErrors> 可读外显，点名缺哪个提交字段（见 RollFabricRequest）
         req.validate()?;
         let model = self.get_by_id(id).await?;
         Self::validate_roll_preconditions(&model, &req)?;
