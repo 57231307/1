@@ -4,7 +4,11 @@
   拆分日期：2026-06-22 P9-3 批次 E 样板 2
   拆分目的：supplier/index.vue 458 行 → 约 290 行（主文件）+ 本子组件 ~230 行
   行为完全保持一致（仅结构重构）
-  P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
+  表单数据同步契约：父组件（index.vue）是表单唯一权威源；本组件在对话框打开时
+  从 props.formData 向下快照同步一次，用户编辑只向上回写（emit update:formData）。
+  禁止 prop↔local 双向回写环 + 全局冷却标志：打开时父组件同步赋好的行数据，
+  会被任何"旧快照（含空白表单）异步回写"在 watcher flush 阶段覆盖回空值，
+  冷却标志还会吞掉行数据触发的向下同步——编辑弹窗可选字段因此只剩 placeholder。
 -->
 <template>
   <el-dialog
@@ -231,61 +235,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
+// 表单模型与空白态以 ./supplier-form 为单一定义（与父组件 index.vue 共用，禁止两处各写一份）
+import type { SupplierFormData } from './supplier-form';
 
 const { t } = useI18n({ useScope: 'global' });
-
-// 表单数据结构（与 supplier/index.vue 中 formData 完全一致）
-interface SupplierFormData {
-  id: number | undefined;
-  supplier_code: string;
-  supplier_name: string;
-  supplier_short_name: string;
-  supplier_type: string;
-  credit_code: string;
-  registered_address: string;
-  business_address: string;
-  legal_representative: string;
-  registered_capital: number;
-  contact_phone: string;
-  fax: string;
-  website: string;
-  contact_email: string;
-  main_business: string;
-  taxpayer_type: string;
-  bank_name: string;
-  bank_account: string;
-  grade: string;
-  status: string;
-  remarks: string;
-}
-
-// 默认空表单（用于 reset）
-const emptyForm = (): SupplierFormData => ({
-  id: undefined,
-  supplier_code: '',
-  supplier_name: '',
-  supplier_short_name: '',
-  supplier_type: '',
-  credit_code: '',
-  registered_address: '',
-  business_address: '',
-  legal_representative: '',
-  registered_capital: 0,
-  contact_phone: '',
-  fax: '',
-  website: '',
-  contact_email: '',
-  main_business: '',
-  taxpayer_type: '',
-  bank_name: '',
-  bank_account: '',
-  grade: '',
-  status: 'active',
-  remarks: '',
-});
 
 const props = defineProps<{
   // 对话框可见性
@@ -375,36 +331,30 @@ const formRules = computed<FormRules>(() => ({
   ],
 }));
 
-// 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+// 本地表单镜像：避免直接改 prop（vue/no-mutating-props），同步方向为
+// 「打开时向下快照 + 编辑时向上回写」的单向环（无向下回灌 watcher，回写不可能成环）。
 const localFormData = ref<SupplierFormData>({ ...props.formData });
 
-// 同步标志位：防止 prop → local 与 local → emit 形成循环
-let syncing = false;
-
-// 外部 prop 变化时同步到 local
+// 打开即向下同步：此刻父组件已在同一 tick 内同步完成
+// 「重置空白 → Object.assign(formData, 行数据)」，props.formData 即最终权威值；
+// 每个可编辑字段按后端出参原值如实回填（缺值列由后端如实返回 null/空串，不做 || 兜底改写）。
+// 同时清理上次会话遗留的校验红字。
 watch(
-  () => props.formData,
-  newForm => {
-    if (syncing) return;
-    syncing = true;
-    localFormData.value = { ...newForm };
-    nextTick(() => {
-      syncing = false;
-    });
-  },
-  { deep: true }
+  () => props.visible,
+  open => {
+    if (open) {
+      localFormData.value = { ...props.formData };
+      formRef.value?.clearValidate();
+    }
+  }
 );
 
-// 本地变化时通知父组件
+// 向上回写：仅把用户编辑结果同步给父组件（父组件提交时读的是它持有的 formData）。
+// 打开向下同步触发的这次回写内容与父组件当前值一致，属幂等覆盖，不会洗掉数据。
 watch(
   localFormData,
   newForm => {
-    if (syncing) return;
-    syncing = true;
     emit('update:formData', { ...newForm });
-    nextTick(() => {
-      syncing = false;
-    });
   },
   { deep: true }
 );
@@ -428,12 +378,6 @@ const onSubmit = async () => {
   });
 };
 
-// 暴露 reset 方法供父组件调用（通过 defineExpose）
-/** 重置表单到初始状态 */
-const resetForm = () => {
-  localFormData.value = emptyForm();
-  formRef.value?.clearValidate();
-};
-
-defineExpose({ resetForm });
+// 无 defineExpose：表单状态的清空由父组件（权威源）负责，本组件只在打开时向下同步，
+// 不存在需要父组件命令子组件"先清空再赋值"的第二写入方（那正是旧快照竞态的来源）。
 </script>
