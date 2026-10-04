@@ -1,31 +1,32 @@
 #!/usr/bin/env node
 /**
- * 迁移/内联 SQL 里 PL/pgSQL 块的静态配平检查（#260 同族：门禁测不到的那类红）
+ * 迁移/内联 SQL 里 PL/pgSQL 块的静态配平检查
  *
- * 为什么必须有这条：`DO $$ … $$;` 的内容是**文本形态的 PL/pgSQL**，rustfmt 只保证 Rust
- * 能解析、`cargo check` 不校验 SQL 语义，本机又没有 PostgreSQL 可跑迁移。实案：m0076 的
- * 只读点名块漏写 `END IF;`，CI 里 PG 报 `42601 syntax error at end of input`（pl_scanner.c
- * /plpgsql_yyerror），迁移链当场打断 ⇒ 后续表全部缺失（`permission_change_audits`、
- * `users.totp_recovery_codes` 不存在），Setup/flow×20/smoke×5/traversal×5/extras×8/
- * Rust 测试×10/真实性门禁/收尾清理共 60 个 job 齐红——**一个语法错伪装成 60 个缺陷**。
+ * 功能：在不连数据库的前提下，静态校验 Rust 源码中以文本形式书写的 `DO $$ … $$;`
+ * PL/pgSQL 块是否语法自洽。rustfmt 只保证 Rust 可解析、`cargo check` 不校验 SQL 语义，
+ * 而这类块里的语法错会在 PG **编译块时**（执行前）就失败，一个块不成立即打断整条迁移链，
+ * 连带后端无法启动。
  *
- * 判据（每个 PL/pgSQL 块逐条核，任一不满足即 exit 1）：
- *  1. 语句 `IF … THEN` 的数量 == `END IF;` 的数量。只数"需要 END IF"的 IF：从 IF 向后
- *     在遇到 `;` 之前能看到 `THEN` 才是语句 IF；`ADD COLUMN IF NOT EXISTS "x"`、
- *     `DROP CONSTRAINT IF EXISTS` 这类 DDL 守卫不配 END IF，误计会把全仓既有迁移打成
- *     假红（首版就因此误报 111/117，据此收紧）。
+ * 调用方：CI job `ci-static-checks` 的步骤「迁移 SQL 的 PL/pgSQL 块配平与 RAISE 占位符配平」
+ * （`.github/workflows/ci-cd.yml`），以及本地门禁 `fe_gate_all.sh` 的 G16。
+ * 输入：`backend/migration/src`、`backend/src`、`backend/tests` 下的全部 `.rs`。
+ * 输出：stdout 报告扫描的文件/块/RAISE 计数与逐条发现；exit 0 通过、exit 1 判负（阻断 CI 步骤）。
+ * 持久化：不落盘、不写任何文件。
+ *
+ * 判据（每个块逐条核，任一不满足即 exit 1）：
+ *  1. 语句 `IF … THEN` 的数量 == `END IF;` 的数量。只数"需要 END IF"的语句 IF：从 IF 向后
+ *     在遇到 `;` 之前能看到 `THEN` 才算；`ADD COLUMN IF NOT EXISTS "x"`、
+ *     `DROP CONSTRAINT IF EXISTS` 这类 DDL 守卫不配 END IF，不计入。
  *  2. 块体最后一个非空 token 必须是 `END`（顶层块收尾），否则视为块被截断/漏写。
  *  3. `RAISE [EXCEPTION|NOTICE|…] '文案'` 里 `%` 占位符的个数必须等于其后顶层逗号分隔的
- *     实参个数（`%%` 是转义的百分号、不算占位符；`USING …` 子句不带实参）。这是同一条
- *     42601 族的第二个入口：实案 m0075:161 文案里一个 `%` 都没写却传了 `col_count`，
- *     PG 在**编译 DO 块时**就报 `too many parameters specified for RAISE`，迁移链在 v15 域
- *     中断 ⇒ 40 个 E2E + 11 个 Rust 测试 job 连带红（CI run #4674 实测原文）。占位符多于
- *     实参同理致命（PG 报 too few parameters），故按"不等即红"双向判定。
+ *     实参个数（`%%` 是转义的百分号、不算占位符；`USING …` 子句不带实参）。多于或少于
+ *     占位符数，PG 都会在编译块时报 `too many/too few parameters specified for RAISE`，
+ *     故按"不等即判负"双向核。
  * 字符串字面量与 `--`、`/* *​/` 注释先剔除，避免把文案里的 "IF" 当关键字。
  *
- * 反空操作：扫不到任何 `$$` 块时直接失败退出——目录指错/文件改名不能让本检查"零异常"
- * 地被当成通过。RAISE 语句同理：块里一条 RAISE 都没解析到但源码里出现了 RAISE 字样，
- * 说明解析形态已变，同样拒绝把"没查出问题"当通过。
+ * 反空操作：扫不到任何 `$$` 块、或块里一条 RAISE 文案都解析不到时直接失败退出——目录指错、
+ * 文件改名、解析形态变化都不能被当成"零异常"通过。判定器另以内联夹具自证（正例零发现、
+ * 反例必被抓到），未过自证不扫库。
  */
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, resolve, dirname } from 'path';
@@ -174,7 +175,7 @@ export function stripCommentsKeepStrings(raw) {
  *
  * 扫描器**逐字符**走而不是全局正则找 "RAISE"：文案里合法地会出现 "RAISE" 字样（例：
  * m0077 的点名文案正文写着"m0078 遇其残留将 RAISE EXCEPTION 拒绝收口"），正则会把它
- * 当成一条语句去解析实参，得出假红。遇到字符串字面量整体跳过，只在字面量之外认 RAISE。
+ * 当成一条语句去解析实参而误报。遇到字符串字面量整体跳过，只在字面量之外认 RAISE。
  */
 export function checkRaiseArity(raw) {
   const errors = [];
@@ -238,7 +239,7 @@ export function checkRaiseArity(raw) {
         continue;
       }
       // 实参段以分隔逗号开头（PG 语法：'文案', a, b）；先摘掉这个逗号再数顶层逗号，
-      // 否则每个单实参语句都会被多数 1 个（首版即因此把全仓迁移打成假红）。
+      // 否则每个单实参语句都会被多计 1 个实参。
       const trimmed = rest.trim();
       let args;
       if (!trimmed) args = 0;
@@ -349,7 +350,7 @@ END`,
       expectFindings: 0,
     },
     {
-      name: '反例：#4674 原样（文案无占位符却传了实参）',
+      name: '反例：文案无占位符却传了实参',
       block: `BEGIN
     RAISE EXCEPTION '三列 data_type 非 numeric/decimal（期望三列均为 numeric），中止。', col_count;
 END`,

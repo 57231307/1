@@ -1,60 +1,51 @@
-//! 委外收回入库单补三列打卷实测值：`weight` / `width` / `gram_weight`（任务 #220 用户裁定项
-//! "委外收回匹实测值补录 —— 立项，并完成"，硬约束"优先排查已有资源，禁止盲目新建"）
+//! 委外收回入库单（`outsourcing_receipt`）补三列打卷实测值：`weight` / `width` / `gram_weight`。
 //!
-//! 缺陷事实（三段证据，非推断）：
-//! - 成品布入库标签的字段口径已由 #220 锁死为**全取匹行实测值、不回落主数据、缺值 fail-closed
-//!   逐列点名**：`services/print_service.rs:4991-5001` 按 `view.weight/width/gram_weight/barcode`
-//!   逐列判空并 `validation_displayable` 点名（文案 `:5011`「请先补录打卷实测值」）；
-//! - 委外收回确认产匹时这三列被**显式写成 NULL**：`services/piece_domain_service.rs:560-562`
-//!   （`create_piece_from_outsourcing_receipt` 的上下文 `OutsourcingReceiptPieceContext`
-//!   `:424-434` 根本没有这三个值，调用点 `services/outsourcing_ops/receipt.rs:450-471`）；
-//! - 上游根因是**收回单本身没有实测字段**：`models/outsourcing_receipt.rs:16-78` 无此三列，
-//!   v15 建表 DDL（`domain/v15/mod.rs:689-712`）同样没有，收回表单因而无处录入。
-//!   ⇒ 委外收回匹**根本打不出标签**，且该路径不受打卷入口的
-//!   `RollFabricRequest #[validate(required)]`（`services/fabric_inspection_service.rs:200-210`）
-//!   覆盖，属真实的业务断链，不是测试夹具问题。
+//! 功能：成品布入库标签的重量/幅宽/克重只认匹行实测值，而委外收回匹的这三列取自收回单确认
+//! 产匹时的逐列透传，所以实测值的采集点必须落在实物经手的收回入库环节——本迁移建的就是这组采集列。
 //!
-//! 为什么是"给收回单加列"而不是别的三条（复用审计结论）：
-//! ① 回落 `products.width/gram_weight`（标称值）——违背 #220 已锁口径，标签会掺标称值，
-//!    破坏「账（匹行）→标（签）→实（卷）」同一性，禁止；
-//! ② 塞默认值 0 让 fail-closed 通过——0 kg / 0 cm 是无业务含义的伪实测值（同族门见
-//!    `print_service.rs:4987-4989` 已把 `length ≤ 0` 视同"无实测依据"），禁止；
-//! ③ 只在拆匹路径继承（`handlers/piece_split_handler.rs`）——收回匹本身不是拆出来的，
-//!    解决不了源头缺字段；
-//! ④ 本迁移：把实测值的**采集点**建在实物经手的环节（委外收回入库），并如实透传到匹行。
-//!    同族先例：`m0062_add_dye_batch_actual_output`（缸号完工实际产出三列，同为可空新增列 +
-//!    列注释声明"强制必填由端点校验保证"）。
+//! 字段口径（全取匹行实测值、不回落主数据、缺值写 NULL 并由标签逐列点名拒绝）：
+//! - 标签侧 fail-closed 逐列判空点名：`services/print_service.rs:4999-5010`
+//!   （`get_inventory_piece_label_print_data` 按 `view.weight/width/gram_weight/barcode` 收集缺失列），
+//!   拒绝文案「请先补录打卷实测值」在 `services/print_service.rs:5018-5022`；米数列虽是 NOT NULL，
+//!   `≤ 0` 同样视同无实测依据（`services/print_service.rs:4995-4998`）。
+//! - 透传落库：`services/piece_domain_service.rs:647-649`（`create_piece_from_outsourcing_receipt`
+//!   `:516` 把上下文 `OutsourcingReceiptPieceContext` `:493-510` 的三列原样写入匹行；缺值保持 NULL），
+//!   调用点 `services/outsourcing_ops/receipt.rs:507-525`（确认收回时取收回单行的三列）。
+//! - 收回路径不经打卷入口，打卷侧的必填门（`RollFabricRequest #[validate(required)]`，
+//!   `services/fabric_inspection_service.rs:200-210`）覆盖不到它，实测值只能由收回单自身承载。
+//! - 故新列可空且不带 DEFAULT：NULL 表达"未补录"，对应匹的标签继续被拒绝打印。回落
+//!   `products.width/gram_weight` 标称值会让标签掺印标称值，破坏「账（匹行）→标（签）→实（卷）」
+//!   同一性；塞默认值 0 是把无据伪装成实测值（0 kg / 0 cm 无业务含义，且标签只判 NULL，见上）。
 //!
 //! 列形态（与目标列严格同型，保证透传无损）：
-//! - 类型取 `inventory_piece` 同名列的 `DECIMAL(18,4)`（生效 DDL
-//!   `domain/production/mod.rs:340/:362/:363`），单位同模型注释：weight=千克、width=cm、
-//!   gram_weight=g/m²；**不加 DEFAULT**——缺值必须是 NULL（"未补录"），默认 0 会把无据
-//!   伪装成实测值并绕过标签 fail-closed；
-//! - 可空（NULL=未补录）：收回时是否**必填**属业务裁量，本批按"可空但如实透传"落地，
-//!   门控前移待用户裁定（见 PR 正文"待裁定"项）；
+//! - 类型取 `inventory_piece` 同名列的 `DECIMAL(18,4)`（生效 DDL `domain/production/mod.rs:376`
+//!   weight / `:377` width / `:354` gram_weight），单位同模型注释：weight=千克、width=cm、
+//!   gram_weight=g/m²；消费侧对应 `models/outsourcing_receipt.rs:71-78`（`Option<Decimal>`）与
+//!   入参 `services/outsourcing_ops/types.rs:230-234`；
+//! - 可空（NULL=未补录）：收回时是否强制必填由端点/业务侧门控，不由本迁移收紧——同形态先例
+//!   `m0062_add_dye_batch_actual_output`（同为可空新增列 `:30-32`，必填由端点校验保证 `:15`，
+//!   并在列注释里声明 `:33-35`）；
 //! - 必要约束 = 值域 CHECK（非空时必须 > 0）：三列各自独立命名，使 23514 的归因能精确到列；
-//!   服务层另有同域值的 400 门（`outsourcing_ops/receipt.rs`），CHECK 是并发/旁路写入的兜底，
-//!   两者取值域逐字符一致，不新造第二套口径。
+//!   服务层另有同域值的 400 门（`services/outsourcing_ops/receipt.rs:65-74`，建单 `:230`、
+//!   编辑 `:373-383`），CHECK 是并发/旁路写入的兜底，两者取值域逐字符一致，不新造第二套口径。
 //!
-//! 域内注册位置：`outsourcing_receipt` 由 v15 域内建表（`domain/v15/mod.rs:689`），而
-//! production 域早于 v15 执行——直接注册本域会因 "relation outsourcing_receipt does not
-//! exist" 中断整条迁移链。照 m0058/m0063/m0065/m0068 先例，迁移文件仍属 production 域
-//! （本文件），up/down 由 `domain/v15/mod.rs` 在建表完成后调用（up 挂尾、down 挂头，
-//! 顺序严格对应）。
+//! 注册位置：目标表 `outsourcing_receipt` 由 v15 域内建表（`domain/v15/mod.rs:689-714`，建表语句
+//! 本身不含这三列，其唯一来源即本迁移），而 production 域早于 v15 执行——直接注册本域会因
+//! "relation outsourcing_receipt does not exist" 中断整条迁移链。照 m0058/m0063/m0065/m0068 先例，
+//! 迁移文件仍属 production 域（本文件），up/down 由 `domain/v15/mod.rs` 在建表完成后调用
+//! （up 挂在 v15 域 up 末尾 `:4616-4618`、down 挂在 v15 域 down 开头 `:4625-4627`，顺序严格对应）。
 //!
-//! SHADOWED 事故族防线（本仓纪律，见 m0073 文件头）：`ADD COLUMN IF NOT EXISTS` 之后**不再**
-//! 用 `IF NOT EXISTS` 补 NOT NULL/DEFAULT（那种写法在列已存在时被整句吃成恒 no-op）。本迁移
-//! 只用 `ADD COLUMN IF NOT EXISTS` 建可空无默认列，值域 CHECK 用
-//! `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` 重建（幂等且必然生效），并在 up 末尾回读
-//! information_schema / pg_constraint 自证，不信任"执行过=生效过"。
+//! 幂等写法（重跑等价）：只用 `ADD COLUMN IF NOT EXISTS` 建可空无默认列（列已存在即 no-op，
+//! 形态即目标形态）；值域 CHECK 用 `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` 重建
+//! （幂等且必然生效）。不在
+//! `ADD COLUMN IF NOT EXISTS` 之后再用 `IF NOT EXISTS` 补 NOT NULL/DEFAULT——那种写法在列已存在时
+//! 会被整句吃成恒 no-op，目标形态永不生效。up 末尾回读 information_schema / pg_constraint 自证，
+//! 不信任"执行过=生效过"。
 //!
 //! 存量数据策略（fail-visible，禁止静默洗数据）：新增列对历史行恒为 NULL，up 只统计并
-//! RAISE NOTICE 点名"历史收回单零实测值"的行数（这些匹的标签继续被 fail-closed 拒绝，
-//! 需人工按实补录——补录是业务动作，不属迁移职责，绝不 UPDATE 造值）。表不存在视为结构
-//! 漂移 → RAISE EXCEPTION 中止。
-//!
-//! 幂等：列已存在则 ADD COLUMN no-op（形态即本迁移目标形态）；CHECK 约束先 DROP 再 ADD；
-//! 重跑等价。
+//! RAISE NOTICE 点名"历史收回单零实测值"的行数（这些匹的标签继续被 fail-closed 逐列点名拒绝，
+//! 需由收回单编辑口按实补录——补录是业务动作，不属迁移职责，绝不 UPDATE 造值）。表不存在视为
+//! 结构漂移 → RAISE EXCEPTION 中止。
 //!
 //! down 真实可逆（禁止空实现）：撤掉三条 CHECK 与三列，回到本迁移前的表形态，并回读
 //! information_schema / pg_constraint 证明残留为 0（与 up 的复核对称，不信任"执行过=生效过"）。
@@ -92,8 +83,8 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // 1) 结构前提 fail-visible：表由本域（v15）建表语句创建，缺失说明迁移链形态与
-        //    本迁移前提不符（注册位置被改动），拒绝"跳过即通过"。
+        // 1) 结构前提 fail-visible：表由 v15 域建表语句（domain/v15/mod.rs:689）创建，缺失说明
+        //    迁移链形态与本迁移前提不符（注册位置被改动），拒绝"跳过即通过"。
         let probe = r#"
 DO $$
 BEGIN
@@ -108,7 +99,7 @@ $$;
 
         // 2) 逐列新增（可空、无默认）+ 值域 CHECK 重建 + 列注释。
         //    ADD COLUMN IF NOT EXISTS 之后不再叠加任何 IF NOT EXISTS 的 NOT NULL/DEFAULT
-        //    （SHADOWED 恒 no-op 事故族，见文件头）。
+        //    （列已存在时整句会被吃成恒 no-op，见文件头）。
         for (column, constraint, comment) in MEASURED_COLUMNS {
             let sql = format!(
                 r#"ALTER TABLE "outsourcing_receipt" ADD COLUMN IF NOT EXISTS "{column}" DECIMAL(18,4);
@@ -158,10 +149,9 @@ BEGIN
       WHERE table_name = 'outsourcing_receipt'
         AND column_name IN ('weight', 'width', 'gram_weight')
         AND data_type IN ('numeric', 'decimal');
-    -- 拒绝面要报"实际是什么型"而不是只报"不对"：col_count 在这里只是判定量，把它塞进
-    -- 一条没有 % 占位符的文案会让 PG 在**编译 DO 块时**就报 42601 too many parameters
-    -- （CI run #4674 实测：迁移链在 v15 域中断 ⇒ 40 E2E + 11 Rust 测试 job 连带红）。
-    -- 改为聚合出三列的真实 data_type 逐列点名，既配平占位符也让判责一步到位。
+    -- PG 在编译 DO 块时就校验 RAISE 的 % 占位符数与实参数是否一致，不一致直接 42601 并打断
+    -- 整条迁移链，因此拒绝面要报"实际是什么型"而不是只报"不对"：col_count 只是本段判定量，
+    -- 实参改用下面聚合出的三列真实 data_type，既配平占位符也让失败信息可直接定位。
     SELECT string_agg(data_type, ',') INTO type_agg FROM information_schema.columns
       WHERE table_name = 'outsourcing_receipt'
         AND column_name IN ('weight', 'width', 'gram_weight');
