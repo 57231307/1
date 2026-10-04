@@ -548,19 +548,32 @@ impl AppError {
 
 impl From<sea_orm::DbErr> for AppError {
     fn from(err: sea_orm::DbErr) -> Self {
-        let err_str = err.to_string();
         match &err {
             sea_orm::DbErr::Conn(_) => {
                 tracing::error!("{}：{}", err_msg::DB_CONN_FAIL, err);
                 AppError::database(err_msg::DB_CONN_FAIL)
             }
             sea_orm::DbErr::Exec(_) => {
-                let error_kind = classify_db_exec_error(&err_str);
+                let error_kind = classify_db_constraint(&err).unwrap_or(err_msg::DB_EXEC);
                 tracing::error!("{} [{}]: {}", err_msg::DB_EXEC, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
             sea_orm::DbErr::Query(_) => {
-                let error_kind = classify_db_query_error(&err_str);
+                // 约束违例经 sea-orm insert 路径以 Query 形态返回，必须与 Exec 形态
+                // 产出同一 err_msg 常量，否则 services::product_ops::crud::ProductService::map_product_fk_error
+                // 等既有兜底映射对该形态失效（落 500 且文案脱敏）。
+                let error_kind = match classify_db_constraint(&err) {
+                    Some(kind) => kind,
+                    // 认不出的一律保持本分支默认归类 DB_QUERY，不猜为约束违例
+                    None => {
+                        if db_sql_state(&err).as_deref() == Some("42601") {
+                            // 42601 = PostgreSQL syntax_error（判据用错误码而非文案子串）
+                            err_msg::DB_QUERY_SYNTAX
+                        } else {
+                            err_msg::DB_QUERY
+                        }
+                    }
+                };
                 tracing::error!("{} [{}]: {}", err_msg::DB_QUERY, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
@@ -569,7 +582,7 @@ impl From<sea_orm::DbErr> for AppError {
                 AppError::not_found(msg.clone())
             }
             sea_orm::DbErr::Custom(_) => {
-                let error_kind = classify_db_custom_error(&err_str);
+                let error_kind = classify_db_custom_error(&err.to_string());
                 tracing::error!("{} [{}]: {}", err_msg::DB_CUSTOM, error_kind, err);
                 AppError::database(error_kind.to_string())
             }
@@ -593,24 +606,62 @@ impl From<sea_orm::DbErr> for AppError {
     }
 }
 
-fn classify_db_exec_error(err_str: &str) -> &'static str {
-    if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-        err_msg::DB_DUPLICATE
-    } else if err_str.contains("foreign key constraint") || err_str.contains("references") {
-        err_msg::DB_RELATION
-    } else {
-        err_msg::DB_EXEC
+/// 从驱动错误原文取后端错误码（PostgreSQL 即 SQLSTATE），Exec/Query 两形态同判据。
+///
+/// 功能：为约束分类提供与错误文案无关的判据原料；Postgres 报错文案随
+/// `lc_messages` 与版本变化，按 Display 子串匹配做分类判据是假绿来源。
+/// 入参：任意 `DbErr`；出参：仅 `Exec`/`Query` 且内部为 `RuntimeErr::SqlxError`
+/// 且驱动给出错误码时为 SQLSTATE 串，其余形态（如 `RuntimeErr::Internal`）返回 `None`。
+/// 证据：sea-orm-2.0.2::RuntimeErr::SqlxError 包 `Arc<sqlx::Error>`；
+/// sqlx-core-0.9.0::DatabaseError::code 返回 SQLSTATE（sqlx-postgres-0.9.0 实现）。
+fn db_sql_state(err: &sea_orm::DbErr) -> Option<String> {
+    if let sea_orm::DbErr::Exec(sea_orm::RuntimeErr::SqlxError(sqlx_err))
+    | sea_orm::DbErr::Query(sea_orm::RuntimeErr::SqlxError(sqlx_err)) = err
+        && let sea_orm::sqlx::Error::Database(db_err) = sqlx_err.as_ref()
+    {
+        return db_err.code().map(|code| code.into_owned());
+    }
+    None
+}
+
+/// 按后端错误码归类常见约束违例，Exec/Query 两形态产出同一 `err_msg` 常量。
+///
+/// 功能：把 FK/UNIQUE/CHECK/NOT NULL 四类约束违例映射到统一分类常量，
+/// 使 utils::error::From<sea_orm::DbErr> 之后各 service 的兜底映射
+/// （map_product_fk_error / map_supplier_fk_error / map_warehouse_fk_error）
+/// 对两种 DbErr 形态行为一致。
+/// 入参：任意 `DbErr`；出参：认不出的一律 `None`（由调用方保留各分支默认归类，
+/// 不把未知错误猜成约束违例，避免掩盖真实故障）。
+/// 证据：sea-orm-2.0.2::DbErr::sql_err 对 Exec/Query 同形态按驱动错误码判定，
+/// 只识别 FK 与 UNIQUE；CHECK/NOT NULL 需按 SQLSTATE 补充判据。
+fn classify_db_constraint(err: &sea_orm::DbErr) -> Option<&'static str> {
+    // 先取 sea-orm 可移植分类（判据即后端错误码，跨 MySQL/Postgres/SQLite）
+    match err.sql_err() {
+        Some(sea_orm::SqlErr::ForeignKeyConstraintViolation(_)) => {
+            return Some(err_msg::DB_RELATION);
+        }
+        Some(sea_orm::SqlErr::UniqueConstraintViolation(_)) => {
+            return Some(err_msg::DB_DUPLICATE);
+        }
+        _ => {}
+    }
+    // SqlErr 未覆盖的约束类型按 PostgreSQL SQLSTATE 补充归类（错误码原文见
+    // PostgreSQL 附录 ERRCODES：23503 foreign_key_violation、23505 unique_violation、
+    // 23514 check_violation、23502 not_null_violation）
+    match db_sql_state(err).as_deref() {
+        Some("23503") => Some(err_msg::DB_RELATION),
+        Some("23505") => Some(err_msg::DB_DUPLICATE),
+        Some("23514") => Some(err_msg::DB_CHECK),
+        Some("23502") => Some(err_msg::DB_NOT_NULL),
+        _ => None,
     }
 }
 
-fn classify_db_query_error(err_str: &str) -> &'static str {
-    if err_str.contains("syntax error") {
-        err_msg::DB_QUERY_SYNTAX
-    } else {
-        err_msg::DB_QUERY
-    }
-}
-
+/// 归类 `DbErr::Custom`。
+///
+/// 判据仍是文案子串的原因（如实说明）：sea-orm-2.0.2::DbErr::Custom 变体只携带
+/// 纯 String、不包驱动错误，无法取得 SQLSTATE；其内容来自应用侧自定义抛出，
+/// 不含驱动约束违例，不属「按文案判约束违例」的假绿家族。
 fn classify_db_custom_error(err_str: &str) -> &'static str {
     if err_str.contains("timeout") {
         err_msg::DB_TIMEOUT
