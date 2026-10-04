@@ -15,6 +15,9 @@ use sea_orm::{
 ///   同前缀同日的并发取号在锁上串行化，锁持有到最外层事务结束。
 /// - 候选号基数与真实号段同源：`max(当日已有单号后缀流水) + 1` 起逐位
 ///   探测占用（非 `count + 1`：行数会把软删/旁路行计入基数导致跳号）。
+///   `{流水}-{派生行}` 形态的派生变体行（如 MRP 批次行号）**同样参与基数**：
+///   基数头本身可能不落库，只有派生行落库，排除它们会重发同一基数导致派生行
+///   直撞单据号列 UNIQUE（见 `base_seq_from_suffix` 判据）。
 ///   软删行仍占用号段，基数与探测都按全表真实单号计算；同事务内自己的
 ///   未提交插入对本连接可见，因此 `取号→插入→取号→插入` 的多次取号是安全的。
 /// - 号段之外的旁路写入/人工输入重复号，最终由单据号列的数据库 UNIQUE
@@ -269,6 +272,31 @@ impl DocumentNumberGenerator {
         Ok(())
     }
 
+    /// 从单号后缀解析出「基数流水」（`allocate_no` 的基数判据）。
+    ///
+    /// 两种合法形态都参与基数：
+    /// - 纯流水 `{seq}`：常规单号行；
+    /// - `{seq}-{派生行}` 派生形态（如 `12-0`、`12-0-1`）：以同一基数派生后
+    ///   落在**同一 UNIQUE 单据号列**上的行号行。典型调用方
+    ///   `services/mrp_engine_ops/calculation.rs::batch_calculate`：批次基数
+    ///   本身不落库，落库的是 `{基数}-{行序}`（及其 BOM 子行 `{基数}-{行序}-{子行}`），
+    ///   若把这类行排除在基数之外，第二次批量计算会重发同一基数，`{基数}-0`
+    ///   直接撞 `mrp_results.calculation_no` UNIQUE（实证：CI run #4675，
+    ///   rs37/backend.log:16642-16645，同订单连算两次 MRP 第二次 500）。
+    /// 其余后缀（含字母混排、人工输入）不视为基数派生态、不参与 max，
+    /// 由调用方逐条 warn 显式暴露——不做“猜首段数字”，避免把真正的旁路号
+    /// 误当基数导致无谓跳号。
+    /// 本判据只影响基数取值（方向上只会抬高基数、不会压低），占用探测与
+    /// 23505 保存点重试语义不变。
+    fn base_seq_from_suffix(suffix: &str) -> Option<u64> {
+        if let Ok(seq) = suffix.parse::<u64>() {
+            return Some(seq);
+        }
+        // 仅认「连续数字开头且紧跟 `-`」的派生行形态（`12-0` / `12-0-1`）
+        let (head, _rest) = suffix.split_once('-')?;
+        head.parse::<u64>().ok()
+    }
+
     /// 在持有咨询锁的同一连接/事务内分配一个未被占用的候选号。
     ///
     /// 基数与真实号段同源：投影当日单号列（`select_only + into_tuple`，不读整行），
@@ -278,7 +306,8 @@ impl DocumentNumberGenerator {
     /// 软删行**参与**基数是刻意为之：软删行仍占用该号，且单据号列带 UNIQUE
     /// 索引（migration m0063），复用旧号会直接撞 23505——探测可见、索引兜底，
     /// 二者口径一致才叫"与真实号段同源"。
-    /// 非数字后缀（旁路/人工输入的单号）不参与 max，但逐条 warn 显式暴露。
+    /// 带 `-派生行` 后缀的基数派生行同样参与基数（判据见 `base_seq_from_suffix`）；
+    /// 其余非数字后缀（旁路/人工输入的单号）不参与 max，但逐条 warn 显式暴露。
     /// 探测能看见本事务未提交的插入，因此事务内「取号→插入→取号」序列安全。
     async fn allocate_no<E, C>(
         conn: &impl ConnectionTrait,
@@ -312,13 +341,13 @@ impl DocumentNumberGenerator {
                 );
                 continue;
             };
-            match suffix.parse::<u64>() {
-                Ok(seq) => max_seq = Some(max_seq.map_or(seq, |m| std::cmp::max(m, seq))),
-                Err(_) => tracing::warn!(
+            match Self::base_seq_from_suffix(suffix) {
+                Some(seq) => max_seq = Some(max_seq.map_or(seq, |m| std::cmp::max(m, seq))),
+                None => tracing::warn!(
                     date_prefix,
                     doc_no = %no,
                     suffix,
-                    "单号后缀不是纯数字流水（旁路/人工输入），不参与序号基数"
+                    "单号后缀既非纯数字流水也非 流水-派生行 派生态（旁路/人工输入），不参与序号基数"
                 ),
             }
         }
