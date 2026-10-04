@@ -507,13 +507,16 @@ pub async fn complete_dye_batch(
     let actual_output_kg = req.actual_output_kg;
     let mut batch: dye_batch::ActiveModel = model.into();
 
-    // 检查当前状态是否允许完成（流转到 stored 终态前态）。状态推进唯一经
-    // dye_batch_state_machine_validation 权威流转表判定，禁止旁路直改状态列；
-    // 本调用点保持单行形态（源码扫描锁 wave5 按 `is_valid_status_transition(&current_status, "stored")`
-    // 逐字锚定"确实走流转函数"，链路断行重排会造成漏检假死码判红）。
-    // 第二参目标态字面量与写入方常量的同源性由下行 debug_assert 钉死，漂移即炸。
-    debug_assert_eq!("stored", batch_status::STORED);
-    if !dye_batch_state_machine_validation::is_valid_status_transition(&current_status, "stored") {
+    // 检查当前状态是否允许完成（流转到 STORED 终态的前态）。状态推进唯一经
+    // `services/dye_batch_state_machine_validation.rs::is_valid_status_transition` 权威流转表判定，
+    // 禁止旁路直改状态列。目标态一律引写入方权威常量
+    // `models/status/quality_dyeing.rs::dye_batch_lifecycle_status::STORED`：缸号生命周期词表的
+    // 唯一来源是写入方常量模块，handler 内出现状态字面量即与词表脱钩，故此处不写状态字面量；
+    // 原 `debug_assert_eq!` 断言的是「常量与其自身相等」，换成引常量后即为死码，一并删除。
+    if !dye_batch_state_machine_validation::is_valid_status_transition(
+        &current_status,
+        batch_status::STORED,
+    ) {
         return Err(AppError::business(format!(
             "状态流转不合法：{} -> {}",
             current_status,
