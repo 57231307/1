@@ -6,18 +6,23 @@
 // 后端事实来源（写入方为准，逐字段核对）：
 // - 退货过账：POST /purchase/returns/{id}/approve（purchase_return_service.rs::approve_return）：
 //     ① 状态 SUBMITTED → APPROVED；
-//     ② 事务内扣减库存 deduct_stock_for_return_items → update_stock_quantity_with_optimistic_lock_txn
-//        把命中库存行的 quantity_meters 设为 (原 - 退货量)，同步刷新 quantity_on_hand/quantity_available
-//        （inventory_stock_txn.rs:28-42），即退货使在库量回退。
-//   ⚠ 关键契约事实：退货扣减仅按「退货单 warehouse_id + 明细 product_id」定位库存行
-//     （purchase_return_service.rs:365-370，stock_map 以 product_id 为键、取该产品在该仓的第一行），
-//     并非按四维精确定位；且 approve_return 全程未回写采购订单 received_quantity/状态。
-//     故本例：
-//       (a) 用「专用产品 ctx.productIds[1]」并在目标仓仅保留唯一一行四维库存，使「产品+仓库」定位
-//           恰等价于四维回读，扣减可精确归因（多于 1 行则显式 skip，不放宽）；
-//       (b) 如实断言当前契约：退货回读 quantity_on_hand 减少；采购订单 received_quantity **不因退货而回退**
-//           ——此行为后端未实现「退货回退订单进度」的客观现状，本例锁定该现状并据实上报为覆盖/功能缺口，
-//           绝不虚构「received_quantity 应减少」的断言去制造假绿或假红。
+//     ② 事务内扣减库存 deduct_stock_for_return_items：按退货明细真实携带的四维
+//        (产品+色号+缸号+批次，StockDimKey；仓库=退货单 warehouse_id) **精确命中**库存行
+//        （purchase_return_service.rs::return_item_stock_key/stock_row_key，缸号两侧 trim 归一空串），
+//        四维命中不到库存行 → 400 BUSINESS_ERROR 显式拒绝（不兜底、不任选行）；同键多行（仅等级
+//        不同，退货明细不携等级）→ 歧义显式拒绝。命中后 update_stock_quantity_with_optimistic_lock_txn
+//        把该行 quantity_meters 设为 (原 - 退货量)，同步刷新 quantity_on_hand/quantity_available，
+//        即退货使在库量按维度真实回退。
+//     ③ 同一事务内 writeback_source_order_received_quantity 按产品归集退货量、在该订单同产品
+//        明细行按 line_no 升序逐行把 received_quantity 减回（min 保下限 0），并重算 PO 状态
+//        （全收 COMPLETED / 有收 PARTIAL_RECEIVED / 归零回 APPROVED）。
+//   ⚠ CI #4675 E11 判责更新：旧版本文件头注「仅按产品+仓库定位第一行、approve 不回写订单进度」
+//     是旧契约描述，现源码两条都已推翻——退货明细必须携带与入库一致的色号/缸号/批次
+//     （CreateReturnItemRequest.color_no/dye_lot_no/batch_no），扣减才按四维真实发生；
+//     且退货过账**会**回退来源 PO received_quantity 并重算状态。本例据此如实断言新契约，
+//     维度值取自本用例自建入库后回读的真实库存行（不硬编码、不塞 TEST 假值）。
+//     四维口径核对：本退货链路后端定位键 = 产品+色号+缸号+批次（三维追溯 + 产品），
+//     不含匹号——出库销售侧的「缸号/色号/批次/匹号」四维强制不适用于采购退货，未擅自扩维。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -165,7 +170,7 @@ test.describe('14 采购退货过账 → 库存回退', () => {
     await ensureTestEntities(page);
   });
 
-  test('14-01 退货过账后回读 quantity_on_hand 回退 + 退货单状态机联动（并锁定订单进度现状）', async ({
+  test('14-01 退货过账后回读 quantity_on_hand 四维回退 + 状态机联动 + 来源订单进度回写', async ({
     page,
   }) => {
     const ctx = getCtx();
@@ -182,15 +187,13 @@ test.describe('14 采购退货过账 → 库存回退', () => {
     const before = await seedConfirmedReceipt(page, po, productId, dims);
     expect(Number(before.quantity_on_hand), '入库确认后 on_hand 基线应为 60').toBe(60);
 
-    // 隔离前提：退货按「产品+仓库」定位库存行，若该产品在目标仓多于 1 行（并发污染）则无法精确归因
-    const candidates = await readStockByProduct(page, productId, warehouseId);
-    test.skip(
-      candidates.length > 1,
-      `[并发隔离] 仓库 ${warehouseId} 下专用产品 ${productId} 库存行数=${candidates.length}（>1），` +
-        `退货按产品+仓库定位库存行会命中非本例行，扣减无法精确归因——真实共享库多分片污染，非可放宽，跳过以免假绿`
-    );
+    // 四维定位契约（return_item_stock_key vs stock_row_key）下，同产品同仓存在其它批次行
+    // 不构成歧义——扣减按 (产品+色号+缸号+批次) 唯一命中，仅当同四维键多行（差异只在等级）
+    // 才触发后端歧义拒绝；本用例维度值带唯一 tag，天然排除该形态。
+    // 旧版此处 test.skip(行数>1) 的前提是「按产品+仓库取第一行」的旧契约，已被源码推翻，
+    // 条件跳过会制造假绿盲区，故删除 skip，如实走四维扣减。
 
-    // 建退货单（draft）→ 加明细（退货 20）→ submit → approve（过账，触发库存回退）
+    // 建退货单（draft）→ 加明细（退货 20，**带与入库一致的真实三维**）→ submit → approve（过账）
     const ret = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', {
       supplier_id: ctx.supplierId,
       order_id: po.id,
@@ -205,11 +208,24 @@ test.describe('14 采购退货过账 → 库存回退', () => {
     if (!returnId) throw new Error(`建退货单未返回 id：${JSON.stringify(ret)}`);
     CREATED_RETURN_IDS.push(returnId);
 
+    // CI #4675 E11 修复：退货明细补传 color_no/dye_lot_no/batch_no——CreateReturnItemRequest
+    // 本就支持这三键（purchase_return_service.rs::CreateReturnItemRequest，落库 NOT NULL DEFAULT ''）。
+    // 取值全部来自本用例自建入库后 GET /inventory/stock 回读的那一行真实维度（before 行），
+    // 不硬编码假值、不塞 TEST；缺维度时后端按空串四维匹配不到入库行，
+    // approve 会 400 BUSINESS_ERROR fail-closed（正是 run 4675 的红因）。
+    const returnDims = {
+      colorNo: before.color_no,
+      dyeLotNo: before.dye_lot_no ?? '',
+      batchNo: before.batch_no,
+    };
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/items`, {
       line_no: 1,
       material_id: productId,
       quantity_returned: '20',
       unit_price: '12.00',
+      color_no: returnDims.colorNo,
+      dye_lot_no: returnDims.dyeLotNo,
+      batch_no: returnDims.batchNo,
     });
 
     const draftDetail = await apiCallRaw<{ return_status: string }>(
@@ -218,6 +234,29 @@ test.describe('14 采购退货过账 → 库存回退', () => {
       `/purchase/returns/${returnId}`
     );
     expect(draftDetail.return_status, '新建退货单应为 draft').toBe('draft');
+
+    // 写后必回读（过账前）：GET items 为裸数组信封（list_purchase_return_items 返回
+    // Vec<PurchaseReturnItemDto>），明细落库的三维必须与入库库存行逐字段一致——
+    // 这是四维扣减将要真实发生的前提证据，而非只信 POST 返回。
+    const returnItems = pickListArray<{
+      line_no: number;
+      material_id: number;
+      color_no: string;
+      dye_lot_no: string;
+      batch_no: string;
+      quantity_returned: number | string;
+    }>(
+      await apiCallRaw<unknown>(page, 'GET', `/purchase/returns/${returnId}/items`),
+      'bare',
+      '退货明细回读'
+    );
+    const retLine = returnItems.find(i => i.line_no === 1);
+    expect(retLine, '退货明细回读应含 line_no=1 行').toBeTruthy();
+    expect(retLine!.material_id, '明细产品应为入库产品').toBe(productId);
+    expect(retLine!.color_no, '明细色号应与入库库存行一致').toBe(returnDims.colorNo);
+    expect(retLine!.dye_lot_no, '明细缸号应与入库库存行一致').toBe(returnDims.dyeLotNo);
+    expect(retLine!.batch_no, '明细批次应与入库库存行一致').toBe(returnDims.batchNo);
+    expect(Number(retLine!.quantity_returned), '明细退货量应落库为 20').toBe(20);
 
     await apiCall(page, 'POST', `/purchase/returns/${returnId}/submit`);
     const submitted = await apiCallRaw<{ return_status: string }>(
@@ -254,8 +293,9 @@ test.describe('14 采购退货过账 → 库存回退', () => {
       `退货过账后 available 应回退 60→40（实际 ${after!.quantity_available}）`
     ).toBe(40);
 
-    // 订单进度联动现状锁：后端 approve_return 不回写采购订单 received_quantity，
-    // 此断言如实锁定「退货不联动回退订单进度」这一当前实现事实（已作为功能缺口上报，非放宽掩盖）。
+    // 订单进度回写（新契约，非"现状锁"）：approve_return 与库存扣减同一事务内执行
+    // writeback_source_order_received_quantity——按产品归集退货量、同产品订单行按 line_no
+    // 升序逐行把 received_quantity 减回（60 - 20 = 40），并重算 PO 状态（40 < 订购 100 → PARTIAL_RECEIVED）。
     // 出参键以 PurchaseOrderItemDto 为准（services/po/order.rs:65 product_id 经 serde 改名 material_id），
     // 按真实键 material_id 定位本品行。
     const orderItems = pickListArray<{ material_id: number; received_quantity: number | string }>(
@@ -266,12 +306,12 @@ test.describe('14 采购退货过账 → 库存回退', () => {
     const line = orderItems.find(i => i.material_id === productId);
     expect(
       Number(line!.received_quantity),
-      '当前契约：退货过账不回退订单 received_quantity，应仍为入库量 60'
-    ).toBe(60);
+      `退货过账应回写来源订单 received_quantity 60→40（实际 ${line!.received_quantity}）`
+    ).toBe(40);
     const poAfter = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${po.id}`);
     expect(
-      ['COMPLETED', 'PARTIAL_RECEIVED'].includes(poAfter.status),
-      `退货过账不改变订单收货态，应维持入库确认后的收货进度态（实际 ${poAfter.status}）`
-    ).toBe(true);
+      poAfter.status,
+      `退货回写后 40<订购100 且 >0，PO 应按 determine_order_status_after_return 判 PARTIAL_RECEIVED（实际 ${poAfter.status}）`
+    ).toBe('PARTIAL_RECEIVED');
   });
 });

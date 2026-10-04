@@ -1,6 +1,15 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, BASE_URL, ensureTestEntities } from './helpers';
-import { findTableRow, pickSelect, fillFieldByLabel } from './ui-helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  BASE_URL,
+  ensureTestEntities,
+  getCtx,
+  genCode,
+  genName,
+} from './helpers';
+import { findTableRow, pickSelect, fillFieldByLabel, pickListArray } from './ui-helpers';
 
 /**
  * 新增域业务流转链防线（flow/54-new-domains-lifecycle）
@@ -194,10 +203,124 @@ test.describe.serial('新域业务流转链', () => {
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
   });
 
-  test('委外：创建 → 发出 → 加工中 → 结算（无 body 状态操作链）', async ({ page }) => {
+  test('委外：建生产匹 → 建单 → 登记发料明细 → 发出（匹号门控真实链）', async ({ page }) => {
     await loginViaUI(page);
+    await ensureTestEntities(page);
+    const ctx = getCtx();
     await page.goto(`${BASE_URL}/outsourcing`);
     await expect(page.locator('.page')).toBeVisible();
+
+    // 前置（CI #4675 E7 判责：测试前提缺失，源码 fail-closed 正确）：
+    // 委外发料门控对 issue 无条件生效（outsourcing_ops/order.rs::issue_order 事务内
+    // reserve_pieces_for_issue → piece_domain_service.rs::validate_pieces_for_issue）：
+    // 明细集合为空整单拒绝「委外订单没有发料明细，无法发料；发料必须精确到匹」，
+    // 且明细必须引用真实存在、状态 AVAILABLE 的生产匹——匹号领域二期故意的 fail-closed，
+    // 禁止兜底放行。门控设计符合行业口径（发料精确到匹、账实核对），源码侧无需改；
+    // 正解是按生产真实流程先造出可发料的生产匹再登记明细，而不是绕门或放宽断言。
+    // 链与 flow/07-fabric-four-dim.spec.ts 7-1~7-4 及 helpers.seedDyedPieceChain 步骤1-2同构：
+    // 生产订单 → 流转卡（schedule→备布→完成备布）→ 工序启动 → 报工逐匹登记 1 匹生产匹。
+    const productId = ctx.productIds[0];
+    if (!productId) throw new Error('前置缺失：ctx.productIds[0] 未就绪');
+    if (!ctx.supplierId) throw new Error('前置缺失：ctx.supplierId 未就绪（委外单必填加工厂）');
+    // 生产匹（胚布 greige）入仓：优先胚布仓，其次未设类型仓；成品仓被
+    // validate_warehouse_for_piece_type 必拒（piece_domain_service.rs:82-107），
+    // 列表无可入仓时显式判红（不 skip、不塞非法仓 id）。
+    const whRes = await apiCallRaw<{ items?: unknown }>(
+      page,
+      'GET',
+      '/warehouses?page=1&page_size=200'
+    );
+    const warehouses = pickListArray<Record<string, unknown>>(whRes, 'items', '54 仓库列表');
+    const greigeWh = (warehouses.find(w => w.warehouse_type === 'greige') ??
+      warehouses.find(
+        w => w.warehouse_type === null || w.warehouse_type === undefined || w.warehouse_type === ''
+      )) as Record<string, unknown> | undefined;
+    if (!greigeWh) {
+      throw new Error(
+        '[54-委外] 仓库列表既无胚布仓(greige)也无未设类型仓，生产匹无处入库（成品仓必被 ' +
+          'validate_warehouse_for_piece_type 拒）——真实前置造不出，显式判红'
+      );
+    }
+    const greigeWarehouseId = Number(greigeWh.id);
+
+    const productionOrderNo = genCode('54PO');
+    const po = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/production-orders/orders',
+      {
+        order_no: productionOrderNo,
+        product_id: productId,
+        planned_quantity: 100,
+      }
+    );
+    const productionOrderId = po.data?.id;
+    expect(productionOrderId, '委外前置：生产订单创建应返回 id').toBeTruthy();
+    const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+      production_order_id: productionOrderId,
+      product_id: productId,
+      product_name: genName('54胚布'),
+      planned_fabric_weight: 100,
+    });
+    const cardId = card.data?.id;
+    expect(cardId, '委外前置：流转卡创建应返回 id').toBeTruthy();
+    await apiCall(page, 'POST', `/production/flow-cards/${cardId}/schedule`, {});
+    await apiCall(page, 'POST', `/production/flow-cards/${cardId}/start-preparing`);
+    await apiCall(page, 'POST', `/production/flow-cards/${cardId}/complete-preparing`, {
+      actual_fabric_weight: 100,
+    });
+    const step = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/flow-cards/steps/start',
+      {
+        flow_card_id: cardId,
+      }
+    );
+    const stepId = step.data?.id;
+    expect(stepId, '委外前置：工序启动应返回 id').toBeTruthy();
+    const pieceNo = `GR-${genCode('54P')}-001`;
+    await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
+      actual_quantity: 100,
+      qualified_quantity: 100,
+      pieces: [
+        {
+          piece_no: pieceNo,
+          machine_no: 'M-E2E-54',
+          machine_operator: 'E2E开机人',
+          length: 100,
+          weight: 50,
+          warehouse_id: greigeWarehouseId,
+        },
+      ],
+    });
+    // 写后必回读（本仓红线：不造数不假设）：生产匹必须真实存在且 AVAILABLE，
+    // 其维度（batch_no=生产单号、color_no/dye_lot_no 空串）是后续发料明细唯一来源，
+    // 禁止硬编码假维度。词表大写来源 models/status/purchase_inventory.rs::inventory_piece。
+    interface PieceRow {
+      piece_no: string;
+      status: string;
+      color_no: string | null;
+      dye_lot_no: string | null;
+      batch_no: string;
+      warehouse_id: number;
+      product_id: number;
+    }
+    const pieceRows = pickListArray<PieceRow>(
+      await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/inventory/pieces?piece_no=${encodeURIComponent(pieceNo)}&page=1&page_size=10`
+      ),
+      'items',
+      '54 生产匹回读'
+    );
+    const piece = pieceRows.find(p => p.piece_no === pieceNo);
+    expect(piece, `报工后应能按匹号回读到生产匹 ${pieceNo}`).toBeTruthy();
+    expect(
+      String(piece!.status),
+      `生产匹 ${pieceNo} 入库后应为 AVAILABLE（实际 ${piece!.status}）`
+    ).toBe('AVAILABLE');
 
     await page.getByRole('button', { name: '新建委外单' }).click();
     const dialog = page.locator('.el-dialog:visible').first();
@@ -206,7 +329,7 @@ test.describe.serial('新域业务流转链', () => {
     // 委外单号由 openCreate() 客户端自动生成（generateUniqueDocNo），readonly 不可 fill。
     // 选类型 el-select（dialog 内唯一 el-select）、填供应商ID/发出数量/发出日期。
     await pickSelect(page, dialog.locator('.el-select').first(), '染色加工');
-    await dialog.locator('.el-input-number input').first().fill('1'); // 供应商ID
+    await dialog.locator('.el-input-number input').first().fill(String(ctx.supplierId)); // 供应商ID
     const today = new Date().toISOString().slice(0, 10);
     const dateInput = dialog
       .locator('.el-form-item')
@@ -240,19 +363,92 @@ test.describe.serial('新域业务流转链', () => {
     ]);
     const respData = await respPromise.json();
     const orderNo = String(respData?.data?.order_no ?? '');
+    const orderId = Number(respData?.data?.id ?? 0);
     expect(
       orderNo,
       `创建委外单应返回 order_no，实际=${JSON.stringify(respData).slice(0, 200)}`
     ).not.toBe('');
+    expect(
+      orderId,
+      `创建委外单应返回 id，实际=${JSON.stringify(respData).slice(0, 200)}`
+    ).toBeGreaterThan(0);
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 
-    // 状态链：draft → issued（发出）
+    // 发料明细登记（POST /production/outsourcing-orders/items，CreateOutsourcingOrderItemRequest）：
+    // piece_no 必填且引用上面回读的真实 AVAILABLE 生产匹；维度取自匹行回读值
+    // （生产匹 batch_no=生产单号、胚布无缸号 color_no/dye_lot_no 为空串），仓库取匹行所在仓，
+    // 与 outsourcing_ops/order_item.rs::create 落库键完全同源。数量 100 / 单位成本 5
+    // 使明细成本合计与单头材料成本 500 一致（真实业务口径，非凑数）。
+    const item = await apiCall<{ id?: number; piece_no?: string }>(
+      page,
+      'POST',
+      '/production/outsourcing-orders/items',
+      {
+        outsourcing_order_id: orderId,
+        product_id: piece!.product_id,
+        color_no: piece!.color_no ?? '',
+        dye_lot_no: piece!.dye_lot_no ?? '',
+        batch_no: piece!.batch_no,
+        warehouse_id: piece!.warehouse_id,
+        piece_no: pieceNo,
+        quantity: 100,
+        unit: '米',
+        unit_cost: 5,
+      }
+    );
+    expect(
+      item.data?.id,
+      `发料明细创建应返回 id：${JSON.stringify(item).slice(0, 200)}`
+    ).toBeTruthy();
+    // 写后必回读：GET items/by-order 返回裸数组（list_outsourcing_items 信封 Vec<Model>），
+    // 明细须真实挂在本单下且匹号与登记一致——否则后续"发出"点的就是空明细单。
+    const itemRows = pickListArray<{
+      id: number;
+      piece_no: string | null;
+      quantity: string | number;
+    }>(
+      await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/production/outsourcing-orders/items/by-order/${orderId}`
+      ),
+      'bare',
+      '54 发料明细回读'
+    );
+    const registered = itemRows.find(r => r.id === item.data?.id);
+    expect(registered, `by-order 回读应含刚登记明细 id=${item.data?.id}`).toBeTruthy();
+    expect(registered!.piece_no, '发料明细匹号回读应与登记一致').toBe(pieceNo);
+
+    // 状态链：draft → issued（发出）。发料事务内 CAS 置匹 AVAILABLE→RESERVED。
     const row = await findTableRow(page, orderNo);
     expect(row, `列表中应存在单号 ${orderNo} 的行，否则无法执行发出`).toBeTruthy();
     await row!.getByRole('button', { name: '发出' }).click();
     await page.locator('.el-message-box__btns .el-button--primary').click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
     await expect(row!).toContainText('已发出', { timeout: 5000 });
+
+    // 回读断言（只断 toast/行文本不算证据）：订单状态与匹占用必须真实落库。
+    const orderAfter = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/production/outsourcing-orders/${orderId}`
+    );
+    expect(orderAfter.status, '发出后订单状态应真实落库为 issued').toBe('issued');
+    const occupiedRows = pickListArray<PieceRow>(
+      await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/inventory/pieces?piece_no=${encodeURIComponent(pieceNo)}&page=1&page_size=10`
+      ),
+      'items',
+      '54 发料占用回读'
+    );
+    const occupied = occupiedRows.find(p => p.piece_no === pieceNo);
+    expect(occupied, `发出后应能回读生产匹 ${pieceNo}`).toBeTruthy();
+    expect(
+      String(occupied!.status),
+      `生产匹 ${pieceNo} 应被发料占用为 RESERVED（CAS 闭环，实际 ${occupied!.status}）`
+    ).toBe('RESERVED');
   });
 
   test('客户协作：合同签署（contract_id+signed_by_user_id）→ 列表呈现', async ({ page }) => {

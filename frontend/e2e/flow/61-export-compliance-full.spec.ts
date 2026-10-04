@@ -475,11 +475,33 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     expectRejected(badMonth, 'month=13 非法年月');
   });
 
-  test('61-09 环保税：排放记录落库当量/税额真值 + 期间申报汇总 + 负例', async ({ page }) => {
+  test('61-09 环保税：缺法定当量配置 fail-closed 拒绝计税且零落库 + 税额未配置 fail-visible + 负例族', async ({
+    page,
+  }) => {
+    // 契约真相（CI #4675 E8 判责：测试前提过期，源码一侧已被证为正确）：
+    // 提交 cfcd6bf3 按裁定 #6 拆掉「未知污染物按 1kg 兜底、默认税率 2.4」的旧行为。
+    // environmental_tax_service.rs::calculate_tax 现为双门 fail-closed，且都发生在 insert 之前
+    // （create_discharge_record 先算税再落库）：
+    // ① 法定当量门（constants/environmental_tax.rs::statutory_pollution_equivalent）：
+    //    税目表只登记 COD/cod、氨氮/NH3-N、VOCs/vocs、污泥/sludge；表外污染物一律
+    //    400 + VALIDATION_ERROR（validation_displayable），禁止任何估算值兜底；
+    // ② 适用税额门：税额是地方可变值，只来自部署配置 env_tax_rate_per_equivalent /
+    //    环境变量 ENV_TAX_RATE_PER_EQUIVALENT（settings.rs OnceLock 启动期注入，无运行时改口端点）。
+    // ⚠️ 本用例按裁定改走**显式负例**而非正向真值的原因（如实登记，不硬造正向）：
+    //    CI e2e 后端启动环境全仓 grep 未设置 ENV_TAX_RATE_PER_EQUIVALENT、config.yaml 不入库
+    //    （example 中该项注释掉），税率=未配置 → 即使改用税目表内真实污染物（COD），
+    //    计税仍在第二门被 400 + BUSINESS_ERROR 显式拒绝，e2e 侧无法注入配置走通正向链。
+    //    正向税额真值链（当量=排放量÷法定值、税额=当量×配置税率）由后端契约测
+    //    tests/contract_wave5_env_tax_rates_from_config_test.rs 以注入配置税率的方式钉死；
+    //    若将来 CI 部署配置了税率，本用例应恢复正向断言（已登记为残余风险交编排方）。
     const tag = Date.now().toString().slice(-6);
     const uniq = `E2EPF${tag}`;
-    // 2098-07 专属期间；污染当量默认值 1kg、税率 2.4（environmental_tax_service.rs:152-172）
-    const r1 = await apiCall<Record<string, unknown>>(
+    // 2098-07 专属期间（全仓 e2e grep 无其它用例在该期间造数），负例零落库可精确回读。
+    const period = { period_year: 2098, period_month: 7 };
+
+    // 负例1｜税目表外污染物（随机名保证必然未登记）→ 400 + VALIDATION_ERROR，
+    // 只判 HTTP 状态 + 信封机器码，不断错误文案。
+    const unregistered = await apiCallExpectFail(
       page,
       'POST',
       '/environmental-tax/discharge-records',
@@ -487,35 +509,32 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
         discharge_type: 'wastewater',
         pollutant_name: uniq,
         discharge_amount: '250',
-        period_year: 2098,
-        period_month: 7,
+        ...period,
       }
     );
-    expect(Number(r1.data?.tax_unit_equivalent), '250kg / 当量值1kg = 250 当量').toBe(250);
-    expect(Number(r1.data?.tax_amount), '250 当量 × 2.4 = 600 元').toBe(600);
-    await apiCall(page, 'POST', '/environmental-tax/discharge-records', {
-      discharge_type: 'wastewater',
-      pollutant_name: uniq,
-      discharge_amount: '50',
-      period_year: 2098,
-      period_month: 7,
-    });
-    // COD 特例当量值 1kg 对照：100kg → 100 当量 → 240 元
-    const cod = await apiCall<Record<string, unknown>>(
-      page,
-      'POST',
-      '/environmental-tax/discharge-records',
-      {
-        discharge_type: 'wastewater',
-        pollutant_name: `COD${tag}`,
-        discharge_amount: '100',
-        period_year: 2098,
-        period_month: 7,
-      }
+    expect(unregistered.status, `表外污染物应 400 拒绝计税：${JSON.stringify(unregistered)}`).toBe(
+      400
     );
-    expect(Number(cod.data?.tax_amount), 'COD 100kg 税额应为 240').toBe(240);
+    expect(
+      failureCode(unregistered),
+      `表外污染物机器码应为 VALIDATION_ERROR：${JSON.stringify(unregistered)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 
-    // 回读列表：两条 uniq 记录都真实落库且税额链正确（handler 返回 Vec<Model> 数组）
+    // 负例2｜税目表内真实污染物（COD 法定当量 1kg）在当前部署「适用税额未配置」下
+    // 同样必须 fail-visible 显式拒绝（400 + BUSINESS_ERROR），禁止静默算出"看似正常"的税额。
+    const noRate = await apiCallExpectFail(page, 'POST', '/environmental-tax/discharge-records', {
+      discharge_type: 'wastewater',
+      pollutant_name: 'COD',
+      discharge_amount: '100',
+      ...period,
+    });
+    expect(noRate.status, `COD 在税额未配置部署下应 400：${JSON.stringify(noRate)}`).toBe(400);
+    expect(failureCode(noRate), `COD 机器码应为 BUSINESS_ERROR：${JSON.stringify(noRate)}`).toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+
+    // 回读证明零落库（fail-closed 拒绝不产生半行）：专属期间列表按数组信封显式断言，
+    // 且不含本轮任何被拒探针（uniq 随机名 + COD/100kg 组合在负例下不可能入库）。
     const list = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
@@ -525,14 +544,17 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
       Array.isArray(list),
       `discharge-records GET 应返回数组，实际 ${JSON.stringify(list)}`
     ).toBe(true);
-    const mine = list.filter(it => it.pollutant_name === uniq);
-    expect(mine.length, '期间列表应回读到 2 条 uniq 记录').toBe(2);
     expect(
-      mine.reduce((s, it) => s + Number(it.tax_amount), 0),
-      '两条记录税额合计应为 720'
-    ).toBe(720);
+      list.filter(it => it.pollutant_name === uniq).length,
+      `表外污染物被拒后 ${uniq} 不得有任何落库行`
+    ).toBe(0);
+    expect(
+      list.filter(it => it.pollutant_name === 'COD' && String(it.discharge_amount) === '100')
+        .length,
+      'COD 探针被税额门拒绝后不得落库（该专属期间无正向造数）'
+    ).toBe(0);
 
-    // 申报汇总：按污染物聚合 tax_amount=720 / 当量=300（Vec<EnvironmentalTaxResult> 数组）
+    // 申报汇总同理为空聚合（generate_tax_declaration 读的是同一张零写入的期间表）
     const decl = await apiCallRaw<Array<Record<string, unknown>>>(
       page,
       'GET',
@@ -542,33 +564,39 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
       Array.isArray(decl),
       `tax-declarations GET 应返回数组，实际 ${JSON.stringify(decl)}`
     ).toBe(true);
-    const agg = decl.find(it => it.pollutant_name === uniq);
-    expect(agg, `申报表应聚合出 ${uniq}`).toBeTruthy();
-    expect(Number(agg?.tax_unit_equivalent), '聚合当量=250+50=300').toBe(300);
-    expect(Number(agg?.tax_amount), '聚合税额=600+120=720').toBe(720);
+    expect(decl.filter(it => it.pollutant_name === uniq).length, '申报表不应聚合出被拒污染物').toBe(
+      0
+    );
 
-    // 负例：非法排放类型 / 负排放量 / 缺 period 必填
+    // 负例3｜非法排放类型（validate_discharge_type 先于计税执行）→ 400 + BAD_REQUEST。
     const badType = await apiCallExpectFail(page, 'POST', '/environmental-tax/discharge-records', {
       discharge_type: 'radioactive',
-      pollutant_name: uniq,
+      pollutant_name: 'COD',
       discharge_amount: '1',
-      period_year: 2098,
-      period_month: 7,
+      ...period,
     });
-    expectRejected(badType, '非法排放类型');
+    expect(badType.status, `非法排放类型应 400：${JSON.stringify(badType)}`).toBe(400);
+    expect(failureCode(badType), `非法排放类型机器码应为 BAD_REQUEST`).toBe(
+      APP_ERROR_CODES.BAD_REQUEST
+    );
+
+    // 负例4｜负排放量 → 400 + BAD_REQUEST（create_discharge_record 入参门）。
     const neg = await apiCallExpectFail(page, 'POST', '/environmental-tax/discharge-records', {
       discharge_type: 'wastewater',
-      pollutant_name: uniq,
+      pollutant_name: 'COD',
       discharge_amount: '-5',
-      period_year: 2098,
-      period_month: 7,
+      ...period,
     });
-    expectRejected(neg, '负排放量');
+    expect(neg.status, `负排放量应 400：${JSON.stringify(neg)}`).toBe(400);
+    expect(failureCode(neg), `负排放量机器码应为 BAD_REQUEST`).toBe(APP_ERROR_CODES.BAD_REQUEST);
+
+    // 负例5｜GET 缺必填 period_year/period_month（handler PeriodQuery 非 Option）
+    // → 提取器拒绝统一信封 400 + VALIDATION_ERROR（error.rs::request_decoding_failed 族）。
     const noPeriod = await apiCallExpectFail(page, 'GET', '/environmental-tax/discharge-records');
-    expect(
-      noPeriod.status >= 400 && noPeriod.status < 500,
-      `GET 缺 period_year/period_month 必填应 4xx（前端不带参即缺陷）：${JSON.stringify(noPeriod)}`
-    ).toBe(true);
+    expect(noPeriod.status, `GET 缺 period 必填应 400：${JSON.stringify(noPeriod)}`).toBe(400);
+    expect(failureCode(noPeriod), 'GET 缺必填参数机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
   });
 });
 
