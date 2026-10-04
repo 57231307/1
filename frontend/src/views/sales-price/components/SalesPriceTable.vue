@@ -18,18 +18,21 @@
         width="60"
         align="center"
       />
-      <el-table-column
-        prop="product_name"
-        :label="t('salesPrice.table.columnProductName')"
-        min-width="150"
-        show-overflow-tooltip
-      />
-      <el-table-column
-        prop="customer_name"
-        :label="t('salesPrice.table.columnCustomer')"
-        width="150"
-        show-overflow-tooltip
-      />
+      <!--
+        此处原有"产品名称/客户名称"两列（prop=product_name / customer_name），因后端销售价目
+        读链路从不输出这两个键而删除：sales_price::Model（models/sales_price.rs）无
+        product_name/product_code/customer_name/remark 列；sales_price_handler.rs 的
+        list_prices/get_price/create_price/update_price/get_price_history/list_strategies
+        全部直接序列化 Model，sales_price_service.rs::get_prices_list 以 Entity::find() 为主体，
+        keyword 筛选仅 LeftJoin(product/customer) 做谓词、不追加 SELECT 列（响应仍是整 Model）；
+        信封（utils/response.rs::ApiResponse/PaginatedResponse）只补
+        code/data/message/total 与 items/total/page/page_size ⇒ 两列自表存在起恒空白（幽灵列）。
+        purchase 侧同名字段是真实的：purchase_price_service.rs::get_prices_list 以
+        column_as+LEFT JOIN 产出 PurchasePriceView（product_name/product_code/supplier_name），
+        两域接口此前同构抄写即漂移根源。列表因此不再能标识产品/客户，补齐方案
+        （后端加 JOIN 输出名列，或改显示 product_id/customer_id）属产品语义决策，
+        已交回主编排，当前为待决策项；禁止前端造名填充。
+      -->
       <el-table-column
         prop="price"
         :label="t('salesPrice.table.columnPrice')"
@@ -149,7 +152,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SalesPrice } from '@/api/sales-price';
-import { formatCurrency, getStatusType } from '../composables/spFmts';
+// 价格类型/状态文案统一走 spFmts（i18n 键 + 未知 token 抛错；词表权威 models/status/sales.rs::price_approval），删除组件局部 map
+import {
+  formatCurrency,
+  getStatusType,
+  getStatusLabel,
+  getPriceTypeLabel,
+} from '../composables/spFmts';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
@@ -179,27 +188,6 @@ const emit = defineEmits<{
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();
-
-/** 获取价格类型标签（i18n 响应式） */
-const getPriceTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    STANDARD: t('salesPrice.table.priceTypeStandard'),
-    AGREED: t('salesPrice.table.priceTypeAgreed'),
-    PROMOTION: t('salesPrice.table.priceTypePromotion'),
-  };
-  return map[type] || type;
-};
-
-/** 获取销售价格状态标签（i18n 响应式） */
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: t('salesPrice.table.statusPending'),
-    active: t('salesPrice.table.statusActive'),
-    expired: t('salesPrice.table.statusExpired'),
-    inactive: t('salesPrice.table.statusInactive'),
-  };
-  return map[status] || status;
-};
 </script>
 
 <style scoped>

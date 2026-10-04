@@ -62,7 +62,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SalesPrice } from '@/api/sales-price';
-import { formatCurrency, getStatusType } from '../composables/spFmts';
+// 状态文案统一走 spFmts（词表 models/status/sales.rs::price_approval，i18n 键+未知 token 抛错），删除组件局部 map
+import { formatCurrency, getStatusType, getStatusLabel } from '../composables/spFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -79,17 +80,6 @@ defineProps<{
 const emit = defineEmits<{
   'update:visible': [v: boolean];
 }>();
-
-/** 获取销售价格状态标签（i18n 响应式） */
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: t('salesPrice.history.statusPending'),
-    active: t('salesPrice.history.statusActive'),
-    expired: t('salesPrice.history.statusExpired'),
-    inactive: t('salesPrice.history.statusInactive'),
-  };
-  return map[status] || status;
-};
 
 /** 关闭对话框 */
 const onVisibleChange = (v: boolean) => {

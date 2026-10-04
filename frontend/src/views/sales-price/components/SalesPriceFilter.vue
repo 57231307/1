@@ -48,10 +48,13 @@
           clearable
           @change="handleSearch"
         >
+          <!-- 销售侧写入方状态全集仅 pending/approved（sales_price_service.rs::create_price 建单写 PENDING、
+               ::approve_price 审批写 APPROVED；词表 models/status/sales.rs::price_approval，
+               DB CHECK chk_sales_price_status 同集：migration/src/domain/price_vocab_check）；
+               active/expired/inactive 无销售侧生产者 ⇒ 选项删除，“当前生效”属查询侧语义
+               （::list_strategies 判据：approved+有效期覆盖今天），不做成状态选项 -->
           <el-option :label="t('salesPrice.filter.optionPending')" value="pending" />
-          <el-option :label="t('salesPrice.filter.optionActive')" value="active" />
-          <el-option :label="t('salesPrice.filter.optionExpired')" value="expired" />
-          <el-option :label="t('salesPrice.filter.optionInactive')" value="inactive" />
+          <el-option :label="t('salesPrice.filter.optionApproved')" value="approved" />
         </el-select>
       </el-form-item>
       <el-form-item>

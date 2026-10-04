@@ -9,12 +9,41 @@ import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { FormInstance } from 'element-plus';
 import { msg } from '@/utils/message';
-import { createSalesPrice, updateSalesPrice, type SalesPrice } from '@/api/sales-price';
+import {
+  createSalesPrice,
+  updateSalesPrice,
+  type SalesPrice,
+  type SalesPriceCreateInput,
+  type SalesPriceUpdateInput,
+} from '@/api/sales-price';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
+
+/**
+ * 编辑态（el-input-number 的 number）→ 写线格式（Decimal 十进制字符串）。
+ * undefined = 缺值 ⇒ 返回 undefined，由载荷构造处省略键（严禁伪造 0/''，教训：提交 bd6c407c；
+ * 0 是合法业务值，会被如实转成 "0" 提交，与"缺值"可区分）。
+ * String(number) 输出十进制或科学计数法（如 1e+21），两者均被后端 visit_str 的
+ * from_str().or_else(from_scientific) 精确接收（rust_decimal-1.42.1/src/serde.rs:362-368）。
+ */
+const toDecimalWire = (value: number | undefined): string | undefined =>
+  value === undefined ? undefined : String(value);
+
+/** 表单可选 Decimal 字段 → 线格式对象（缺值省略键；两字段在 wire 上均可为 string） */
+const decimalFieldsToWire = (form: {
+  price?: number;
+  min_order_qty?: number;
+}): { price?: string; min_order_qty?: string } => {
+  const price = toDecimalWire(form.price);
+  const minOrderQty = toDecimalWire(form.min_order_qty);
+  return {
+    ...(price !== undefined ? { price } : {}),
+    ...(minOrderQty !== undefined ? { min_order_qty: minOrderQty } : {}),
+  };
+};
 
 /**
  * 销售价格 composable
@@ -56,18 +85,26 @@ export function useSp() {
   const formRef = ref<FormInstance>();
 
   // 表单数据
+  // price/min_order_qty 为「编辑态」number（el-input-number 数值控件），初值不得伪造 0：
+  // undefined=用户未填 ⇒ 提交时省略键（缺值写 0 覆盖旧值的事故教训：提交 bd6c407c）。
+  // 写线格式 string 的换算只发生在 handleSubmitForm 边界（toDecimalWire）。
   const formData = reactive({
     id: undefined as number | undefined,
     product_id: undefined as number | undefined,
     customer_id: undefined as number | undefined,
-    price: 0,
+    price: undefined as number | undefined,
     currency: 'CNY',
     unit: 'meter',
-    min_order_qty: 0,
+    min_order_qty: undefined as number | undefined,
     price_type: 'STANDARD',
     price_level: '',
     effective_date: '',
     expiry_date: '',
+    // ⚠️ 后端 sales_price_service.rs::CreateSalesPriceInput/::UpdateSalesPriceInput 无 remark/remarks
+    // 字段，price_level 亦不在两 DTO 中 ⇒ "备注"与"价格等级"输入内容提交即被 serde 静默丢弃
+    // （models/sales_price.rs::Model 有 price_level 列、无 remarks 列——备注读回也恒空）。
+    // 收集不可持久化数据的 UI 属在案缺陷，处置（删控件或后端加 DTO 字段/加列）超出本两项收口
+    // 范围，交回主编排决策。
     remarks: '',
   });
 
@@ -129,10 +166,10 @@ export function useSp() {
       id: undefined,
       product_id: undefined,
       customer_id: undefined,
-      price: 0,
+      price: undefined,
       currency: 'CNY',
       unit: 'meter',
-      min_order_qty: 0,
+      min_order_qty: undefined,
       price_type: 'STANDARD',
       price_level: '',
       effective_date: '',
@@ -144,17 +181,68 @@ export function useSp() {
   /** 准备编辑表单（父组件需自行打开对话框） */
   const prepareEdit = (row: SalesPrice) => {
     dialogTitle.value = '编辑销售价格';
-    Object.assign(formData, row);
+    // 显式逐字段映射（替代整体 Object.assign(formData, row)）：
+    // 1) 读接口 price/min_order_qty 是 Decimal 字符串（后端 models/sales_price.rs::Model 两字段
+    //    Decimal、rust_decimal 仅启用 serde feature ⇒ JSON 线格式为字符串），
+    //    编辑态控件 el-input-number 需要 number ⇒ 此处做有意的线格式→编辑态换算；
+    // 2) 不再把行对象上的非表单键（status/created_at 等）连带塞进 formData；
+    // 3) remarks 后端无存储列（见 formData 注释），重置为空以免残留上一次编辑的脏输入。
+    Object.assign(formData, {
+      id: row.id,
+      product_id: row.product_id,
+      customer_id: row.customer_id ?? undefined,
+      price: Number(row.price),
+      currency: row.currency,
+      unit: row.unit,
+      min_order_qty: Number(row.min_order_qty),
+      price_type: row.price_type ?? 'STANDARD',
+      price_level: row.price_level ?? '',
+      effective_date: row.effective_date ?? '',
+      expiry_date: row.expiry_date ?? '',
+      remarks: '',
+    });
   };
 
   /** 提交表单 */
   const handleSubmitForm = async (): Promise<boolean> => {
     try {
       await formRef.value?.validate();
+      // 载荷按后端 DTO 键集构造（sales_price_service.rs::CreateSalesPriceInput/::UpdateSalesPriceInput）：
+      // 只发两 DTO 认识的键；
+      // 空串/undefined 一律省略键（'' 对 date 字段会让 update 侧 parse 失败裸 400，
+      // 对 Decimal 字段则是脏值——省略=不变/走默认，才是"未填"的忠实编码）。
+      const optionals = {
+        ...(formData.customer_id !== undefined ? { customer_id: formData.customer_id } : {}),
+        ...(formData.effective_date ? { effective_date: formData.effective_date } : {}),
+        ...(formData.expiry_date ? { expiry_date: formData.expiry_date } : {}),
+        ...(formData.currency ? { currency: formData.currency } : {}),
+      };
+      const decimals = decimalFieldsToWire({
+        price: formData.price,
+        min_order_qty: formData.min_order_qty,
+      });
       if (formData.id) {
-        await updateSalesPrice(formData.id, formData);
+        const payload: SalesPriceUpdateInput = {
+          ...(formData.product_id !== undefined ? { product_id: formData.product_id } : {}),
+          ...optionals,
+          ...decimals,
+        };
+        await updateSalesPrice(formData.id, payload);
       } else {
-        await createSalesPrice(formData);
+        // product_id/price/unit/price_type 为后端必填（CreateSalesPriceInput 非 Option），
+        // 由 formRules required 保证提交时已填；as 仅把该校验承诺传达给类型系统
+        // （与 usePp.ts createPayload 既有范式一致）。
+        const payload: SalesPriceCreateInput = {
+          product_id: formData.product_id as number,
+          price: decimals.price as string,
+          unit: formData.unit,
+          price_type: formData.price_type,
+          ...optionals,
+          ...(decimals.min_order_qty !== undefined
+            ? { min_order_qty: decimals.min_order_qty }
+            : {}),
+        };
+        await createSalesPrice(payload);
       }
       msg.success('saveSuccess');
       await getList();

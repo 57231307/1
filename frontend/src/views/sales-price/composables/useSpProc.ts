@@ -13,7 +13,6 @@ import {
   getPriceHistory,
   getPricingStrategyList,
   type SalesPrice,
-  type PricingStrategy,
 } from '@/api/sales-price';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /sales/sales-prices/export 已就绪（含异步审计日志 + 水印）
@@ -44,15 +43,19 @@ export function useSpProc(refresh: RefreshCallbacks) {
   const historyVisible = ref(false);
   const historyList = ref<SalesPrice[]>([]);
 
-  // 价格策略对话框状态（批次 95 P3-17 修复）
+  // 当前生效价目对话框状态（判据 = sales_price_service.rs::list_strategies：approved + 有效期覆盖今天；
+  // /strategies 端点保留（挂载于 routes/sales.rs），返回类型实为 sales_price::Model 分页
+  // ⇒ 语义改名“当前生效价目”，变量名沿用 strategy*）
   const strategyVisible = ref(false);
-  const strategyList = ref<PricingStrategy[]>([]);
+  const strategyList = ref<SalesPrice[]>([]);
   const strategyLoading = ref(false);
 
   /** 审批 */
   const handleApprove = async (row: SalesPrice) => {
-    // 后端 ApprovePriceRequest 必填 approved（通过/拒绝均留痕）+ 可选 remark：
-    // 采集器让用户显式选择通过/不通过，取消即中断，不预设结论。
+    // 后端 sales_price_handler::ApprovePriceRequest.approved: bool（必填）+ 可选 remark。
+    // 该端点仅处理批准：approved=false 在 handler::approve_price 直接 400（销售价目无 reject 路由），
+    // 采集器"不通过"分支对本端点必失败——拒绝语义缺后端承接，在案缺口交回主编排，前端不得兜底掩盖。
+    // remark 仅入 tracing 日志不落库（Model 无 remark 列）。采集器取消即中断，不预设结论。
     const decision = await promptApproval();
     if (!decision) return;
     try {
@@ -85,13 +88,14 @@ export function useSpProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 价格策略（批次 95 P3-17 修复：拉取策略列表并打开对话框） */
+  /** 当前生效价目（判据 = sales_price_service.rs::list_strategies：approved + 有效期区间覆盖今天；
+   *  路由 /strategies 保留（挂载于 routes/sales.rs），是否删除待用户单独授权） */
   const handleStrategy = async () => {
     strategyVisible.value = true;
     strategyLoading.value = true;
     try {
       const res = await getPricingStrategyList();
-      // 后端 list_strategies 返回 PaginatedResponse ⇒ data.items
+      // 后端 list_strategies 返回 PaginatedResponse ⇒ data.items（sales_price::Model 行）
       strategyList.value = res.data.items;
     } catch (error: unknown) {
       // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
@@ -128,7 +132,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
     historyVisible,
     historyList,
     handleHistory,
-    // 价格策略（批次 95 P3-17 修复）
+    // 当前生效价目（判据见 sales_price_service.rs::list_strategies；端点/路由保留待单独授权）
     strategyVisible,
     strategyList,
     strategyLoading,

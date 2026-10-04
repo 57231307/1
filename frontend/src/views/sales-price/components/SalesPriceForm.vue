@@ -174,7 +174,12 @@ import type { Product } from '@/api/product';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单数据类型（所有字段可选，兼容 Partial<SalesPrice>）
+// 表单数据类型 = 编辑态（el-input-number/el-select/el-date-picker 的原生值形态），
+// 与父组件 useSp.ts formData 一一对应；price/min_order_qty 在此保持 number|undefined，
+// undefined=未填（占位为空，不再伪造 0）。写线格式（Decimal 十进制字符串、缺值省略键）
+// 由 useSp.handleSubmitForm 在提交边界换算（SalesPriceCreateInput/SalesPriceUpdateInput，
+// 依据见 api/sales-price.ts 头注与后端 sales_price_service.rs::CreateSalesPriceInput/::UpdateSalesPriceInput），
+// 控件层不承载换算职责。
 interface SpFormData {
   id?: number | undefined;
   product_id?: number | undefined;
