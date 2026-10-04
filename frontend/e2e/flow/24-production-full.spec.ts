@@ -64,7 +64,8 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     const inspId = list.items?.[0]?.id;
     if (inspId) {
       await apiCallRaw(page, 'GET', `/production/fabric-inspections/${inspId}`);
-      await verifyEndpointHealthy(page, `/production/fabric-inspections/${inspId}/defects`);
+      // 疵点列表断言统一收敛到下方"真实端点 + 同源 id"一处（seed 有行走 inspId、空库走自建，
+      // 两条分支都被覆盖），不再在此处对同一 URL 重复探测
       await safePostAction(page, `/production/fabric-inspections/${inspId}/start`);
       // grade 需携带 GradeInspectionRequest（fabric_inspection_service.rs:181）：
       // inspected_yards 必填(Decimal>0)。空体 → serde 422 missing field inspected_yards。
@@ -74,7 +75,10 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/fabric-inspections/${inspId}/roll`);
       await safePostAction(page, `/production/fabric-inspections/${inspId}/close`);
     }
-    await verifyEndpointHealthy(page, '/production/fabric-defects?page=1&page_size=5');
+    // 不再有"全局疵点列表"探针：GET /production/fabric-defects 未注册且无任何消费方
+    // （route-snapshot 只有 POST、GET /*、DELETE /*）。疵点在业务上按验布单归属查询，
+    // 真实端点 GET /production/fabric-inspections/{id}/defects 已在本用例上方以同源
+    // inspId 探测（fabric-inspections 列表 → items[0].id），此处不重复打臆造路径。
     // 确保有验布记录（CI 库可能为空）：无则先创建一条，物理测试挂在其上
     // inspId 由 items?.[0]?.id 取值，空列表时为 undefined（noUncheckedIndexedAccess
     // 关闭使编译器把索引结果误判为 number），显式标注可选以匹配真实运行形状

@@ -11,6 +11,8 @@ import {
   API_PREFIX,
   safeGet,
   safeGetList,
+  getRoleCredential,
+  loginInIsolatedContext,
   safePostAction,
   verifyEndpointHealthy,
   ensureTestEntities,
@@ -326,7 +328,44 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, `/crm/assignments/workload?user_ids=${workloadUserId}`);
     await verifyEndpointHealthy(page, '/crm/transfer-approvals?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/crm/recycle-rules');
+    // admin 可达面：竞品是**孤儿端点**——handler 的 auth 参数未消费
+    // （crm_handler.rs:1476-1485，不查权限键也不套行级 scope），而 competitors:read
+    // 既不在资源注册表（init_service.rs:70-130）也未授给任何角色
+    // （init_service_ops/permission.rs 零命中），前端 src 亦零消费方 ⇒ 只有 admin
+    // 靠 is_admin_role 短路进得来。保留健康面，另起一条用例把"非 admin 恒 403"
+    // 钉成显式契约（见下一条用例），不把它混进通用健康清单里静默放宽。
     await verifyEndpointHealthy(page, '/crm/competitors?page=1&page_size=5');
+  });
+
+  test('竞品端点契约锁：非 admin 角色恒 403（孤儿端点现状，不静默放宽）', async ({ browser }) => {
+    // 用户裁定（PR #942）：本波不补授权、不删端点，只把现状钉成契约。
+    // 凭据取不到即前置判红——禁止改用 admin 身份兜底（那等于把这条锁改成空操作）。
+    const cred = getRoleCredential('salesperson');
+    if (!cred) {
+      throw new Error(
+        '[flow/22 competitors] role-credentials.json 无 salesperson 凭证：前置缺失判红，' +
+          '不得改用其它身份兜底（本锁的判据正是"非 admin 拿不到"）'
+      );
+    }
+    const session = await loginInIsolatedContext(browser, cred.username, cred.password);
+    try {
+      const res = await apiCallExpectFail(
+        session.page,
+        'GET',
+        '/crm/competitors?page=1&page_size=5'
+      );
+      // 权限类拒绝永久脱敏：只断 status 与信封 code，不断任何原因文案
+      expect(
+        res.status,
+        `竞品端点应拒绝非 admin（实际 ${res.status} code=${res.code ?? '(none)'}）`
+      ).toBe(403);
+      expect(res.code, '403 必须走 AppError 信封且 code=FORBIDDEN').toBe('FORBIDDEN');
+    } finally {
+      await session.close();
+    }
+    // ⚠️ 反转条件：该端点当前无鉴权、无行级 scope。若将来给 competitors:read 授权给任何
+    //    角色，持证者会读到全量竞品（跨 owner 泄漏），届时必须同时补鉴权+scope，
+    //    并把本锁反转为"非 admin 亦可 2xx 且只返回其可见行"。
   });
 
   test('五维管理+销售分析+标签', async ({ page }) => {
