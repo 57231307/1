@@ -2007,13 +2007,19 @@ export async function verifyIllegalTransition(
   action: string
 ): Promise<void> {
   const result = await apiCallExpectFail(page, 'POST', `${endpoint}/${id}/${action}`);
-  if (result.status < 400) {
-    throw new Error(
-      `Illegal transition ${action} on ${endpoint}/${id} was not rejected (status ${result.status})`
-    );
-  }
+  expectStateGateRejection(result, `非法流转 ${action} @ ${endpoint}/${id} 应被状态机门拒绝`);
 }
 
+/**
+ * 越权请求必须被**权限门**拒绝（HTTP 403 + 权限机器码 FORBIDDEN）。
+ *
+ * 判据全部下沉到 {@link expectDenied}（status + 信封机器码双钉），本函数只负责
+ * 发起真实请求并转交判定；签名与返回形态（async → Promise<void>）保持向后兼容。
+ * 为什么不能只判 status：本仓 CSRF 中间件与权限门**都**直出 403
+ * （csrf.rs:232-234 → code=CSRF_*；response.rs:145 + error.rs:709/742 → code=FORBIDDEN），
+ * 只判 status 时权限门被删掉用例照样绿。详见 expectDenied 的判据说明。
+ * 禁止断言或读取错误文案（权限拒绝文案永久脱敏）。
+ */
 export async function verifyPermissionDenied(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
@@ -2021,9 +2027,7 @@ export async function verifyPermissionDenied(
   body?: Record<string, unknown>
 ): Promise<void> {
   const result = await apiCallExpectFail(page, method, path, body);
-  if (result.status !== 403) {
-    throw new Error(`Expected 403 for ${method} ${path}, got ${result.status}`);
-  }
+  expectDenied(result, `${method} ${path} 应被权限门拒绝`);
 }
 
 /**
@@ -2767,12 +2771,29 @@ export async function verifySoDConflict(
   }
 }
 
+/**
+ * 大货批色发货门禁是否**真的以业务拒绝生效**（返回布尔，签名与返回形态不变）。
+ *
+ * 原实现 `return result.status >= 400` 有三处假绿：CSRF 中间件的一次性 token 竞败 403、
+ * 后端裸 5xx、端点未注册的 404 都会被判成"门禁生效"。现复用 {@link isStateGateRejection}：
+ * 必须 HTTP 恰 400 且 code ∈ {VALIDATION_ERROR, BUSINESS_ERROR, BAD_REQUEST}。
+ * 后端契约原文：services/so/delivery_ops/ship.rs:85-94 把
+ * BulkColorApprovalError::InvalidState 映射为 `AppError::business` →
+ * utils/error.rs:361 `(BAD_REQUEST, "BusinessError")`，出参机器码 BUSINESS_ERROR。
+ * 判定结果与原始 status/code 一律打日志外显，不静默（发货成功返回 false 也看得见）。
+ */
 export async function verifyBulkColorDeliveryBlock(
   page: Page,
   salesOrderId: number
 ): Promise<boolean> {
   const result = await apiCallExpectFail(page, 'POST', `/sales/orders/${salesOrderId}/ship`);
-  return result.status >= 400;
+  const blocked = isStateGateRejection(result);
+  console.log(
+    `[verifyBulkColorDeliveryBlock] POST /sales/orders/${salesOrderId}/ship → ` +
+      `status=${result.status} code=${JSON.stringify(result.code)}；` +
+      `门禁拒绝判据命中=${blocked}（要求 HTTP 400 + 状态门机器码族，CSRF/5xx/404 一律不算）`
+  );
+  return blocked;
 }
 
 export async function verifyWeightConversion(
@@ -3488,13 +3509,105 @@ export async function flushDeferredCleanups(page: Page, queue: DeferredCleanup[]
   queue.length = 0;
 }
 
+/** CSRF 家族机器码全集（csrf.rs:37-43 CODE_MISS/CODE_INVAL/CODE_IP_MM），均由中间件直出 HTTP 403 */
+const CSRF_REJECT_CODES: ReadonlySet<string> = new Set<string>(Object.values(CSRF_ERROR_CODES));
+
 /**
- * 断言 API 响应被拒绝（权限 403）
+ * 断言 API 响应被**权限门**拒绝（HTTP 403 + 权限机器码 FORBIDDEN）。
  *
- * 替代各 spec 中重复的: expect(result.status).toBe(403)
+ * 判据 = status + `AppError` 信封机器码双钉，永不读取错误文案
+ * （本仓权限拒绝文案永久脱敏，文案只可能空转，不能承载归因）。
+ * 为什么只判 status 是假绿：本仓 CSRF 中间件与权限门**都**直出 403——
+ * - CSRF 面：csrf.rs:232-234 `csrf_error_response` → `unified_error_response(FORBIDDEN, "CSRF_*")`；
+ *   且一次性 token 竞败重放耗尽/异常时 apiCallExpectFail 仍返回该 403（仅记日志不抛），
+ *   `CSRF_IP_MISMATCH` 不在 isCsrfRejection 重放判据内、首次即原样返回。
+ * - 权限面：RBAC 直出 response.rs:145 与 AppError::PermissionDenied（error.rs:709/742）同码 `FORBIDDEN`。
+ * 只判 status 时，CSRF-403 会冒名权限-403 通过——权限门即使被删，本类用例照样绿。
+ * 故拒绝归因必须钉到权限家族唯一机器码 `FORBIDDEN`：实际 code 为 CSRF_* 即判红并点名
+ * "会话 CSRF 前置问题"（修复方向是确保调用前会话持有存活 token——复用本 helpers 既有的
+ * getCsrfToken / syncCsrfFromResponse / 有界重放机制，而非放宽本断言）。
+ *
+ * 参数类型向后兼容：apiCallExpectFail 的 ApiFailureResult 及既有裸 {status} 形态均可传入；
+ * code 缺失/非字符串（如响应体非 JSON）无法完成归因，同样判红而非静默放过。
  */
-export function expectDenied(result: { status: number }, context = ''): void {
-  expect(result.status, context || '应返回 403 权限拒绝').toBe(403);
+export function expectDenied(
+  result: { status: number; code?: string | number },
+  context = ''
+): void {
+  const prefix = context || '应返回 403 权限拒绝';
+  expect(result.status, `${prefix}：实际 status=${result.status}`).toBe(403);
+  const code = typeof result.code === 'string' ? result.code : undefined;
+  expect(
+    CSRF_REJECT_CODES.has(code ?? ''),
+    `${prefix}：该 403 的 code=${code ?? JSON.stringify(result.code)} 属 CSRF 中间件拒绝` +
+      `（${[...CSRF_REJECT_CODES].join('/')}），是会话 CSRF 前置未成立而非权限门判定——` +
+      `假绿拦截：禁止只判 status 放行，应确认会话持有存活 CSRF token（既有重放机制），勿放宽本断言`
+  ).toBe(false);
+  expect(
+    code,
+    `${prefix}：403 必须归因到权限门机器码 ${APP_ERROR_CODES.FORBIDDEN}（RBAC 直出与 AppError::PermissionDenied 同源），` +
+      `实际 code=${JSON.stringify(result.code)}（缺失/非字符串=响应体非统一信封，无法归因，同样判红）`
+  ).toBe(APP_ERROR_CODES.FORBIDDEN);
+}
+
+/**
+ * 状态机/业务门禁拒绝的机器码族。唯一事实来源是后端 HTTP 映射
+ * （backend/src/utils/error.rs:358-366 `error_status_and_type`）：
+ * ValidationError / ValidationErrorDisplayable / BusinessError / BusinessErrorDisplayable /
+ * BadRequest 全部映射到 **HTTP 400**，对应字符串码
+ * （error.rs:743-746 + error.rs:464）VALIDATION_ERROR / BUSINESS_ERROR / BAD_REQUEST。
+ * 403 不在此列——权限门与状态门是两条不同的门，混用即假绿。
+ */
+const STATE_GATE_REJECT_CODES: ReadonlySet<string> = new Set<string>([
+  APP_ERROR_CODES.VALIDATION_ERROR,
+  APP_ERROR_CODES.BUSINESS_ERROR,
+  APP_ERROR_CODES.BAD_REQUEST,
+]);
+
+/**
+ * 纯判据：失败体是否构成**状态机/业务门禁拒绝**（不抛错，供需要返回布尔的调用方复用）。
+ * 三条同时成立：HTTP 恰 400 + code 为字符串机器码 + code ∈ STATE_GATE_REJECT_CODES。
+ */
+export function isStateGateRejection(result: ApiFailureResult): boolean {
+  const code = failureCode(result);
+  return result.status === 400 && code !== undefined && STATE_GATE_REJECT_CODES.has(code);
+}
+
+/**
+ * 断言「非法状态转换/业务门禁确实被状态门拒绝」（收紧只判 status 的假绿）。
+ *
+ * 原 `verifyIllegalTransition` 写法是 `if (status < 400) throw`，三处假绿：
+ * 1. **CSRF 冒名**：写方法的一次性 token 竞败重放耗尽后 apiCallExpectFail 原样返回
+ *    403 + `CSRF_*`（见本文件 1564-1570 的日志分支）→ 状态门即使被整条删掉，用例照样"通过"；
+ * 2. **裸 5xx**：INTERNAL_ERROR/DATABASE_ERROR（后端缺前置校验，靠 DB 约束或 panic 兜底）
+ *    也被当成"拒绝生效"；
+ * 3. **404**：端点未注册/路由漂移/资源不存在同样被当成"拒绝生效"。
+ * 现在钉死 HTTP=400 + 状态门机器码族，归因到 `AppError` 信封机器码，
+ * **永不读取错误文案**（文案脱敏，只能空转）。
+ *
+ * 判责：若后端对某条非法流转返回 403（权限门冒名状态门）或裸 5xx，本断言会红——
+ * 那是真实缺陷（契约不符或权限/状态门混用），禁止放宽回 `>=400`。
+ */
+export function expectStateGateRejection(result: ApiFailureResult, context = ''): void {
+  const prefix = context || '非法流转应被状态机门拒绝';
+  const code = failureCode(result);
+  expect(
+    result.status,
+    `${prefix}：应恰为 HTTP 400（backend utils/error.rs:358-366 状态映射），实际 status=${result.status}` +
+      ` code=${JSON.stringify(result.code)}——403 属 CSRF 中间件拒绝或权限门（两条门都不是状态门）、` +
+      `404 属端点未注册/路由漂移、5xx 属后端裸崩，均不构成"状态门拒绝生效"`
+  ).toBe(400);
+  expect(
+    code,
+    `${prefix}：拒绝必须带字符串机器码（统一失败信封 utils/error.rs ErrorResponse），` +
+      `实际 code=${JSON.stringify(result.code)}（缺失/非字符串=响应体非统一信封，无法归因）`
+  ).toBeTruthy();
+  expect(
+    code !== undefined && STATE_GATE_REJECT_CODES.has(code),
+    `${prefix}：code=${code ?? JSON.stringify(result.code)} 不属状态门拒绝族` +
+      ` {${[...STATE_GATE_REJECT_CODES].join('/')}}——假绿拦截：勿放宽本断言，` +
+      `若后端确以其它族拒绝，应改后端契约而不是改这里`
+  ).toBe(true);
 }
 
 /**
