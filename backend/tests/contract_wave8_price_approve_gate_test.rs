@@ -21,13 +21,18 @@
 //! - 空串/缺省 = 不加筛选（trim 语义，照 greige_fabric 先例）；越界 = 400 +
 //!   `VALIDATION_ERROR`。
 //! - 真库夹具（`setup_test_db`，已迁移 PostgreSQL），种子自建自清（夹具逐例 TRUNCATE）。
+//! - FK 前提（2026-10 适配，非本批断言对象）：`migration/src/domain/price_fk/mod.rs` 已给
+//!   `sales_prices.product_id/customer_id`、`purchase_prices.product_id/supplier_id` 施加外键，
+//!   故价目种子**必须先种真实父行**（products 属业务表逐例清空、可显式固定 id；suppliers 属
+//!   `SEALED_REFERENCE_TABLES` 不被清空、显式 id 会跨例撞主键，须自增回读——形状照
+//!   `contract_wave8_price_ref_existence_test.rs::seed_product/seed_supplier`）。
 
 mod test_common;
 
 use bingxi_backend::models::purchase_price;
 use bingxi_backend::models::sales_price;
 use bingxi_backend::models::status::price_approval;
-use bingxi_backend::models::user;
+use bingxi_backend::models::{product, supplier, user};
 use bingxi_backend::services::purchase_price_service::PurchasePriceService;
 use bingxi_backend::utils::error::AppError;
 use chrono::{DateTime, Utc};
@@ -36,8 +41,8 @@ use std::sync::Arc;
 use test_common::setup_test_db;
 
 const OPERATOR_ID: i32 = 9431;
+/// 逐例种入的**真实**产品父行主键（products 是业务表、夹具逐例 TRUNCATE 后可显式固定 id）
 const SEED_PRODUCT_ID: i32 = 9401;
-const SEED_SUPPLIER_ID: i32 = 9402;
 
 fn now() -> DateTime<Utc> {
     Utc::now()
@@ -60,11 +65,68 @@ async fn seed_operator(db: &Arc<DatabaseConnection>) {
     .unwrap_or_else(|e| panic!("种子操作人插入失败: {e}"));
 }
 
-/// 直接落一行采购价目（绕开服务口，状态夹具可控；列逐一对 models/purchase_price.rs 核对）
-async fn seed_purchase_price(db: &Arc<DatabaseConnection>, status: &str) -> purchase_price::Model {
+/// 种子真实产品父行（purchase_prices/sales_prices 的 product_id FK 参照对象；
+/// 形状照 `contract_wave8_price_ref_existence_test.rs::seed_product`）
+async fn seed_product(db: &Arc<DatabaseConnection>, id: i32, name: &str, code: &str) {
+    product::ActiveModel {
+        id: Set(id),
+        name: Set(name.to_string()),
+        code: Set(code.to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(now()),
+        updated_at: Set(now()),
+        ..Default::default()
+    }
+    .insert(db.as_ref())
+    .await
+    .unwrap_or_else(|e| panic!("种子产品 {id} 插入失败: {e}"));
+}
+
+/// 种子真实供应商父行：`suppliers` 是迁移种子参照表、夹具不清空 ⇒ 不指定显式 id，
+/// 自增插入后回读真实主键给采购价目种子使用（形状照
+/// `contract_wave8_price_ref_existence_test.rs::seed_supplier`，列对 models/supplier.rs
+/// NOT NULL 列逐一核对）
+async fn seed_supplier(db: &Arc<DatabaseConnection>, code: &str) -> i32 {
+    let ts = supplier::ActiveModel {
+        supplier_code: Set(code.to_string()),
+        supplier_name: Set("价格审批门契约锁供应商".to_string()),
+        supplier_short_name: Set("审供".to_string()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set("91330000TEST00000X".to_string()),
+        registered_address: Set("测试注册地址".to_string()),
+        legal_representative: Set("测试法人".to_string()),
+        registered_capital: Set(rust_decimal::Decimal::ZERO),
+        establishment_date: Set(chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("夹具日期常量")),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set("测试银行".to_string()),
+        bank_account: Set("6222000000000000".to_string()),
+        contact_phone: Set("13800000000".to_string()),
+        created_at: Set(now().into()),
+        updated_at: Set(now().into()),
+        // is_processor 为 NOT NULL bool 列（models/supplier.rs），显式给值不赌库端默认
+        is_processor: Set(false),
+        ..Default::default()
+    }
+    .insert(db.as_ref())
+    .await
+    .unwrap_or_else(|e| panic!("种子供应商插入失败: {e}"));
+    ts.id
+}
+
+/// 直接落一行采购价目（绕开服务口，状态夹具可控；列逐一对 models/purchase_price.rs 核对。
+/// FK 前提：product_id/supplier_id 必须引用先种好的**真实**父行，否则撞 23503）
+async fn seed_purchase_price(
+    db: &Arc<DatabaseConnection>,
+    status: &str,
+    product_id: i32,
+    supplier_id: i32,
+) -> purchase_price::Model {
     purchase_price::ActiveModel {
-        product_id: Set(SEED_PRODUCT_ID),
-        supplier_id: Set(SEED_SUPPLIER_ID),
+        product_id: Set(product_id),
+        supplier_id: Set(supplier_id),
         price: Set(rust_decimal::Decimal::new(1234, 2)),
         currency: Set("CNY".to_string()),
         unit: Set("米".to_string()),
@@ -85,10 +147,15 @@ async fn seed_purchase_price(db: &Arc<DatabaseConnection>, status: &str) -> purc
     .unwrap_or_else(|e| panic!("种子采购价目（{status}）插入失败: {e}"))
 }
 
-/// 直接落一行销售价目（列逐一对 models/sales_price.rs 核对）
-async fn seed_sales_price(db: &Arc<DatabaseConnection>, status: &str) -> sales_price::Model {
+/// 直接落一行销售价目（列逐一对 models/sales_price.rs 核对。FK 前提：product_id 必须引用
+/// 先种好的**真实**产品父行；customer_id 置 NULL 是标准价合法语义，FK 天然允许 NULL）
+async fn seed_sales_price(
+    db: &Arc<DatabaseConnection>,
+    status: &str,
+    product_id: i32,
+) -> sales_price::Model {
     sales_price::ActiveModel {
-        product_id: Set(SEED_PRODUCT_ID),
+        product_id: Set(product_id),
         customer_id: Set(None),
         customer_type: Set(Some("standard".to_string())),
         price: Set(rust_decimal::Decimal::new(1234, 2)),
@@ -219,10 +286,12 @@ async fn get_json(app: &axum::Router, uri: &str) -> (axum::http::StatusCode, ser
 async fn approve_non_pending_purchase_price_is_business_error_and_changes_nothing() {
     let db = Arc::new(setup_test_db().await);
     seed_operator(&db).await;
+    seed_product(&db, SEED_PRODUCT_ID, "审批门面料甲", "PRD-W8GATE-T1").await;
+    let supplier_id = seed_supplier(&db, "SUP-W8GATE-T1").await;
     let svc = PurchasePriceService::new(db.clone());
 
     for illegal in [price_approval::APPROVED, price_approval::INACTIVE] {
-        let row = seed_purchase_price(&db, illegal).await;
+        let row = seed_purchase_price(&db, illegal, SEED_PRODUCT_ID, supplier_id).await;
         let err = svc
             .approve_price(row.id, OPERATOR_ID)
             .await
@@ -251,9 +320,11 @@ async fn approve_non_pending_purchase_price_is_business_error_and_changes_nothin
 async fn approve_pending_purchase_price_transitions_and_stamps_approved_at() {
     let db = Arc::new(setup_test_db().await);
     seed_operator(&db).await;
+    seed_product(&db, SEED_PRODUCT_ID, "审批门面料甲", "PRD-W8GATE-T2").await;
+    let supplier_id = seed_supplier(&db, "SUP-W8GATE-T2").await;
     let svc = PurchasePriceService::new(db.clone());
 
-    let row = seed_purchase_price(&db, price_approval::PENDING).await;
+    let row = seed_purchase_price(&db, price_approval::PENDING, SEED_PRODUCT_ID, supplier_id).await;
     assert!(row.approved_at.is_none(), "种子行必须从空白审批痕迹起步");
 
     svc.approve_price(row.id, OPERATOR_ID)
@@ -284,8 +355,12 @@ async fn approve_pending_purchase_price_transitions_and_stamps_approved_at() {
 #[tokio::test]
 async fn purchase_list_status_filter_rejects_out_of_domain_and_treats_empty_as_no_filter() {
     let (db, app) = price_list_app().await;
-    let pending = seed_purchase_price(&db, price_approval::PENDING).await;
-    let inactive = seed_purchase_price(&db, price_approval::INACTIVE).await;
+    seed_product(&db, SEED_PRODUCT_ID, "审批门面料甲", "PRD-W8GATE-T3").await;
+    let supplier_id = seed_supplier(&db, "SUP-W8GATE-T3").await;
+    let pending =
+        seed_purchase_price(&db, price_approval::PENDING, SEED_PRODUCT_ID, supplier_id).await;
+    let inactive =
+        seed_purchase_price(&db, price_approval::INACTIVE, SEED_PRODUCT_ID, supplier_id).await;
 
     for illegal in ["bogus", "ACTIVE", "Pending", "active"] {
         let (status, v) =
@@ -330,9 +405,14 @@ async fn purchase_list_status_filter_rejects_out_of_domain_and_treats_empty_as_n
 #[tokio::test]
 async fn purchase_list_status_filter_allows_full_purchase_domain_and_reads_back() {
     let (db, app) = price_list_app().await;
-    let pending = seed_purchase_price(&db, price_approval::PENDING).await;
-    let approved = seed_purchase_price(&db, price_approval::APPROVED).await;
-    let inactive = seed_purchase_price(&db, price_approval::INACTIVE).await;
+    seed_product(&db, SEED_PRODUCT_ID, "审批门面料甲", "PRD-W8GATE-T4").await;
+    let supplier_id = seed_supplier(&db, "SUP-W8GATE-T4").await;
+    let pending =
+        seed_purchase_price(&db, price_approval::PENDING, SEED_PRODUCT_ID, supplier_id).await;
+    let approved =
+        seed_purchase_price(&db, price_approval::APPROVED, SEED_PRODUCT_ID, supplier_id).await;
+    let inactive =
+        seed_purchase_price(&db, price_approval::INACTIVE, SEED_PRODUCT_ID, supplier_id).await;
 
     for (value, expect_id, expect_status) in [
         (price_approval::PENDING, pending.id, price_approval::PENDING),
@@ -380,8 +460,9 @@ async fn purchase_list_status_filter_allows_full_purchase_domain_and_reads_back(
 #[tokio::test]
 async fn sales_list_status_filter_pins_sales_domain_not_union() {
     let (db, app) = price_list_app().await;
-    let pending = seed_sales_price(&db, price_approval::PENDING).await;
-    let approved = seed_sales_price(&db, price_approval::APPROVED).await;
+    seed_product(&db, SEED_PRODUCT_ID, "审批门面料甲", "PRD-W8GATE-T5").await;
+    let pending = seed_sales_price(&db, price_approval::PENDING, SEED_PRODUCT_ID).await;
+    let approved = seed_sales_price(&db, price_approval::APPROVED, SEED_PRODUCT_ID).await;
 
     // 允许值放行 + 回读
     for (value, expect_id) in [

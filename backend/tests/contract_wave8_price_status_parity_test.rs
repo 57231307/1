@@ -47,14 +47,27 @@
 //! `sales_prices`/`purchase_prices` 都是逐用例 TRUNCATE 的业务表（不在 `SEALED_REFERENCE_TABLES`），
 //! 本文件只用显式 id 带 **941_0xx（sales）/ 947_0xx（purchase）**（仓内空闲段，
 //! 已被占用的 990_1xx/992_0xx/991_0xx 不碰），种子自建自清（依赖夹具 TRUNCATE，不依赖他人留下的行）。
-//! 两表 `product_id/supplier_id/created_by` 无 FOREIGN KEY（m0009/m0011 建表列清单可查），
-//! 故种子无需父行——缺 FK 这一事实由本行如实陈述，本文件不掩盖也不依赖它。
+//!
+//! ## FK 前提（2026-10 适配；此前本段写"无 FOREIGN KEY、种子无需父行"，该前提已失实）
+//! `backend/migration/src/domain/price_fk/mod.rs`（注册在 `migration/src/lib.rs` 迁移链尾）
+//! 已给 `sales_prices.product_id/customer_id`、`purchase_prices.product_id/supplier_id`
+//! 施加外键 ⇒ **凡是期望成功的写入都必须先种真实父行**：
+//! - `products` 属业务表、逐例 TRUNCATE ⇒ 按本文件显式 id 带种 `SEED_PRODUCT_ID` 固定父行；
+//! - `suppliers` 属 `SEALED_REFERENCE_TABLES`（夹具不清空、跨例累积）⇒ 不可用显式 id
+//!   （第二例起会撞主键），必须自增插入并回读真实主键——形状照
+//!   `contract_wave8_price_ref_existence_test.rs::seed_product/seed_supplier`。
+//! 词表外拒绝探针与 NULL 探针同样使用真实父行：FK 侧保持干净，23514/23502 的
+//! 归因才唯一指向 CHECK/NOT NULL 本身，不依赖"CHECK/NOT NULL 先于 FK 触发"的执行顺序论证。
+//! `customer_id` 在本文件所有写入中省略（NULL，标准价合法语义，FK 天然允许）；
+//! `created_by` 仍无 FK（price_fk 只覆盖上述四列），维持既有省略形态。
 
 mod test_common;
 
 use bingxi_backend::models::status::sales::price_approval;
+use bingxi_backend::models::{product, supplier};
 use sea_orm::{
-    ConnectionTrait, DatabaseConnection, DbBackend, DbErr, RuntimeErr, Statement, Value,
+    ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, RuntimeErr, Set,
+    Statement, Value,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use test_common::setup_test_db;
@@ -107,7 +120,9 @@ const SALES_ID_DEFAULT_PROBE: i32 = 941_020; // 省略 status ⇒ DEFAULT 必须
 const SALES_ID_NULL_PROBE: i32 = 941_021; // 显式 NULL ⇒ 必须撞 NOT NULL(23502)
 const SALES_PROBE_BASE: i32 = 941_030; // 词表外拒绝探针基址（每 token 一行）
 const SALES_LEGAL_BASE: i32 = 941_050; // 合法值对照基址（与拒绝探针同模板，必须插得进）
-const SEED_PRODUCT_ID: i32 = 941_900; // 无 FK，仅为可追溯的固定引用值
+/// 逐例种入的**真实**产品父行主键（products 是业务表、夹具逐例 TRUNCATE 后可显式固定 id；
+/// price_fk 迁移已给 product_id 施加 FK，父行缺失会撞 23503——见文件头「FK 前提」段）
+const SEED_PRODUCT_ID: i32 = 941_900;
 
 /// purchase_prices 显式 id 带（947_0xx）
 const PURCHASE_ID_DEFAULT_PROBE: i32 = 947_020;
@@ -115,7 +130,9 @@ const PURCHASE_ID_NULL_PROBE: i32 = 947_021;
 const PURCHASE_ID_INACTIVE: i32 = 947_022; // inactive 在采购侧必须可写（不对称锁）
 const PURCHASE_PROBE_BASE: i32 = 947_030;
 const PURCHASE_LEGAL_BASE: i32 = 947_050;
-const SEED_SUPPLIER_ID: i32 = 947_900;
+// 供应商父行主键**不设为常量**：`suppliers` 属 `SEALED_REFERENCE_TABLES`（夹具不清空、
+// 跨例累积），显式固定 id 从第二个用例起必撞主键 ⇒ 逐例自增插入并回读真实 id（照
+// `contract_wave8_price_ref_existence_test.rs::seed_supplier` 形状）
 
 // ---------------------------------------------------------------------------
 // 通用助手（裸 SQL 一律走 execute_raw / query_*_raw，不引入第二套连接方式）
@@ -386,21 +403,77 @@ async fn db_check_allowed_values(
 // 种子（自建自清：夹具 setup_test_db 已 TRUNCATE 业务表，本文件不依赖他人留下的行）
 // ---------------------------------------------------------------------------
 
+/// 种**真实**产品父行（price_fk 的 products.id 参照对象；products 逐例被 TRUNCATE，
+/// 显式固定 id 安全。形状照 `contract_wave8_price_ref_existence_test.rs::seed_product`）
+async fn seed_product_row(db: &DatabaseConnection, id: i32, name: &str, code: &str) {
+    product::ActiveModel {
+        id: Set(id),
+        name: Set(name.to_string()),
+        code: Set(code.to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("种子产品 {id} 插入失败: {e}"));
+}
+
+/// 种**真实**供应商父行：`suppliers` 是迁移种子参照表、夹具不清空 ⇒ 不指定显式 id，
+/// 自增插入后回读真实主键给采购价目写入使用（形状照
+/// `contract_wave8_price_ref_existence_test.rs::seed_supplier`，列对 models/supplier.rs
+/// NOT NULL 列逐一核对；supplier_code 逐例取不同值避免跨例累积撞唯一键）
+async fn seed_supplier_row(db: &DatabaseConnection, code: &str) -> i32 {
+    let ts = supplier::ActiveModel {
+        supplier_code: Set(code.to_string()),
+        supplier_name: Set("价格词表parity契约锁供应商".to_string()),
+        supplier_short_name: Set("parity供".to_string()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set("91330000TEST00000X".to_string()),
+        registered_address: Set("测试注册地址".to_string()),
+        legal_representative: Set("测试法人".to_string()),
+        registered_capital: Set(rust_decimal::Decimal::ZERO),
+        establishment_date: Set(chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("夹具日期常量")),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set("测试银行".to_string()),
+        bank_account: Set("6222000000000000".to_string()),
+        contact_phone: Set("13800000000".to_string()),
+        created_at: Set(chrono::Utc::now().into()),
+        updated_at: Set(chrono::Utc::now().into()),
+        // is_processor 为 NOT NULL bool 列（models/supplier.rs），显式给值不赌库端默认
+        is_processor: Set(false),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("种子供应商插入失败: {e}"));
+    ts.id
+}
+
 /// 裸 SQL 往 status 列写指定值（`None` = 显式 NULL）；返回驱动错误供 SQLSTATE 级断言。
 /// 走裸 SQL 而非 ORM 的用意：绕开所有服务层入参校验，模拟"旁路/脚本写入"这一 CHECK 要拦的形态。
+/// product_id/supplier_id 必须是先种好的**真实**父行 id（price_fk 已施加 FK，见文件头）。
 async fn insert_sales_price_status(
     db: &DatabaseConnection,
     id: i32,
+    product_id: i32,
     status: Option<&str>,
 ) -> Result<(), DbErr> {
-    let values = vec![id.into(), Value::String(status.map(|s| s.to_string()))];
+    let values = vec![
+        id.into(),
+        product_id.into(),
+        Value::String(status.map(|s| s.to_string())),
+    ];
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        format!(
-            "INSERT INTO sales_prices \
-             (id,product_id,price,unit,price_type,min_order_qty,effective_date,status) \
-             VALUES ($1,{SEED_PRODUCT_ID},'12.340000','米','base',0,'2026-01-01',$2)"
-        ),
+        "INSERT INTO sales_prices \
+         (id,product_id,price,unit,price_type,min_order_qty,effective_date,status) \
+         VALUES ($1,$2,'12.340000','米','base',0,'2026-01-01',$3)"
+            .to_string(),
         values,
     ))
     .await
@@ -408,15 +481,18 @@ async fn insert_sales_price_status(
 }
 
 /// 省略 status 列的写入 —— DEFAULT 唯一能生效的形态（显式 NULL 走的是 NOT NULL，两条分支不同）
-async fn insert_sales_price_omitting_status(db: &DatabaseConnection, id: i32) -> Result<(), DbErr> {
+async fn insert_sales_price_omitting_status(
+    db: &DatabaseConnection,
+    id: i32,
+    product_id: i32,
+) -> Result<(), DbErr> {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        format!(
-            "INSERT INTO sales_prices \
-             (id,product_id,price,unit,price_type,min_order_qty,effective_date) \
-             VALUES ($1,{SEED_PRODUCT_ID},'12.340000','米','base',0,'2026-01-01')"
-        ),
-        vec![id.into()],
+        "INSERT INTO sales_prices \
+         (id,product_id,price,unit,price_type,min_order_qty,effective_date) \
+         VALUES ($1,$2,'12.340000','米','base',0,'2026-01-01')"
+            .to_string(),
+        vec![id.into(), product_id.into()],
     ))
     .await
     .map(|_| ())
@@ -425,16 +501,22 @@ async fn insert_sales_price_omitting_status(db: &DatabaseConnection, id: i32) ->
 async fn insert_purchase_price_status(
     db: &DatabaseConnection,
     id: i32,
+    product_id: i32,
+    supplier_id: i32,
     status: Option<&str>,
 ) -> Result<(), DbErr> {
-    let values = vec![id.into(), Value::String(status.map(|s| s.to_string()))];
+    let values = vec![
+        id.into(),
+        product_id.into(),
+        supplier_id.into(),
+        Value::String(status.map(|s| s.to_string())),
+    ];
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        format!(
-            "INSERT INTO purchase_prices \
-             (id,product_id,supplier_id,price,unit,price_type,min_order_qty,effective_date,status) \
-             VALUES ($1,{SEED_PRODUCT_ID},{SEED_SUPPLIER_ID},'12.340000','米','base',0,'2026-01-01',$2)"
-        ),
+        "INSERT INTO purchase_prices \
+         (id,product_id,supplier_id,price,unit,price_type,min_order_qty,effective_date,status) \
+         VALUES ($1,$2,$3,'12.340000','米','base',0,'2026-01-01',$4)"
+            .to_string(),
         values,
     ))
     .await
@@ -444,15 +526,16 @@ async fn insert_purchase_price_status(
 async fn insert_purchase_price_omitting_status(
     db: &DatabaseConnection,
     id: i32,
+    product_id: i32,
+    supplier_id: i32,
 ) -> Result<(), DbErr> {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        format!(
-            "INSERT INTO purchase_prices \
-             (id,product_id,supplier_id,price,unit,price_type,min_order_qty,effective_date) \
-             VALUES ($1,{SEED_PRODUCT_ID},{SEED_SUPPLIER_ID},'12.340000','米','base',0,'2026-01-01')"
-        ),
-        vec![id.into()],
+        "INSERT INTO purchase_prices \
+         (id,product_id,supplier_id,price,unit,price_type,min_order_qty,effective_date) \
+         VALUES ($1,$2,$3,'12.340000','米','base',0,'2026-01-01')"
+            .to_string(),
+        vec![id.into(), product_id.into(), supplier_id.into()],
     ))
     .await
     .map(|_| ())
@@ -676,6 +759,9 @@ async fn writer_status_set_equals_live_db_check_set_exactly() {
 #[tokio::test]
 async fn status_column_default_is_pending_and_not_null() {
     let db = setup_test_db().await;
+    // FK 前提（price_fk）：本例全部是"期望成功"的写入，必须先种真实父行
+    seed_product_row(&db, SEED_PRODUCT_ID, "词表parity面料甲", "PRD-W8PARITY-DEF").await;
+    let supplier_id = seed_supplier_row(&db, "SUP-W8PARITY-DEF").await;
 
     for table in [SALES_TABLE, PURCHASE_TABLE] {
         let nullable = one_text(
@@ -730,13 +816,13 @@ async fn status_column_default_is_pending_and_not_null() {
             PURCHASE_ID_DEFAULT_PROBE
         };
         if table == SALES_TABLE {
-            insert_sales_price_omitting_status(&db, probe_id)
+            insert_sales_price_omitting_status(&db, probe_id, SEED_PRODUCT_ID)
                 .await
                 .unwrap_or_else(|e| {
                     panic!("{table} 省略 status 的写入应成功（DEFAULT 兜底）: {e}")
                 });
         } else {
-            insert_purchase_price_omitting_status(&db, probe_id)
+            insert_purchase_price_omitting_status(&db, probe_id, SEED_PRODUCT_ID, supplier_id)
                 .await
                 .unwrap_or_else(|e| {
                     panic!("{table} 省略 status 的写入应成功（DEFAULT 兜底）: {e}")
@@ -765,6 +851,11 @@ async fn status_column_default_is_pending_and_not_null() {
 #[tokio::test]
 async fn bypass_write_of_out_of_vocab_status_is_refused_by_db() {
     let db = setup_test_db().await;
+    // FK 前提（price_fk）：拒绝探针（23514/23502）与合法对照/采购 inactive（期望成功）
+    // 共用同一批**真实**父行——FK 侧保持干净，SQLSTATE 归因才唯一指向 CHECK/NOT NULL 本身，
+    // 不必借道"CHECK/NOT NULL 先于 FK 触发"的顺序论证（见文件头「FK 前提」段）。
+    seed_product_row(&db, SEED_PRODUCT_ID, "词表parity面料甲", "PRD-W8PARITY-BYP").await;
+    let supplier_id = seed_supplier_row(&db, "SUP-W8PARITY-BYP").await;
 
     // —— 4a. 两表各自的历史值/大写/空串/造词一律 23514 拒，且点名到本表 CHECK ——
     for (table, conname, banned, base) in [
@@ -784,13 +875,13 @@ async fn bypass_write_of_out_of_vocab_status_is_refused_by_db() {
         for (idx, token) in banned.iter().copied().enumerate() {
             let id = base + idx as i32;
             let err = if table == SALES_TABLE {
-                insert_sales_price_status(&db, id, Some(token))
+                insert_sales_price_status(&db, id, SEED_PRODUCT_ID, Some(token))
                     .await
                     .expect_err(&format!(
                         "{table}.status='{token}' 属权威词表外取值，裸 SQL 旁路写入必须被数据库拒绝"
                     ))
             } else {
-                insert_purchase_price_status(&db, id, Some(token))
+                insert_purchase_price_status(&db, id, SEED_PRODUCT_ID, supplier_id, Some(token))
                     .await
                     .expect_err(&format!(
                         "{table}.status='{token}' 属权威词表外取值，裸 SQL 旁路写入必须被数据库拒绝"
@@ -831,9 +922,16 @@ async fn bypass_write_of_out_of_vocab_status_is_refused_by_db() {
                 PURCHASE_LEGAL_BASE + idx as i32
             };
             let res = if table == SALES_TABLE {
-                insert_sales_price_status(&db, id, Some(token.as_str())).await
+                insert_sales_price_status(&db, id, SEED_PRODUCT_ID, Some(token.as_str())).await
             } else {
-                insert_purchase_price_status(&db, id, Some(token.as_str())).await
+                insert_purchase_price_status(
+                    &db,
+                    id,
+                    SEED_PRODUCT_ID,
+                    supplier_id,
+                    Some(token.as_str()),
+                )
+                .await
             };
             res.unwrap_or_else(|e| {
                 panic!("{table} 写合法 status='{token}'（{conname} 允许值）应成功，实际被拒: {e}")
@@ -852,11 +950,11 @@ async fn bypass_write_of_out_of_vocab_status_is_refused_by_db() {
             PURCHASE_ID_NULL_PROBE
         };
         let null_err = if table == SALES_TABLE {
-            insert_sales_price_status(&db, null_id, None)
+            insert_sales_price_status(&db, null_id, SEED_PRODUCT_ID, None)
                 .await
                 .expect_err("显式 NULL 必须被 NOT NULL 拒绝")
         } else {
-            insert_purchase_price_status(&db, null_id, None)
+            insert_purchase_price_status(&db, null_id, SEED_PRODUCT_ID, supplier_id, None)
                 .await
                 .expect_err("显式 NULL 必须被 NOT NULL 拒绝")
         };
@@ -877,9 +975,14 @@ async fn bypass_write_of_out_of_vocab_status_is_refused_by_db() {
 
     // —— 4d. 跨表不对称活性锁：inactive 在销售侧被拒、在采购侧被收（并集/交集漂移都判红）——
     let sales_inactive_id = SALES_LEGAL_BASE + 40;
-    let err = insert_sales_price_status(&db, sales_inactive_id, Some(price_approval::INACTIVE))
-        .await
-        .expect_err("销售侧无 inactive 写入方：旁路写 inactive 必须被 chk_sales_price_status 拒绝");
+    let err = insert_sales_price_status(
+        &db,
+        sales_inactive_id,
+        SEED_PRODUCT_ID,
+        Some(price_approval::INACTIVE),
+    )
+    .await
+    .expect_err("销售侧无 inactive 写入方：旁路写 inactive 必须被 chk_sales_price_status 拒绝");
     assert_eq!(
         sqlstate_of(&err).as_deref(),
         Some("23514"),
@@ -898,11 +1001,19 @@ async fn bypass_write_of_out_of_vocab_status_is_refused_by_db() {
         "被拒的销售侧 inactive 写入必须零落库"
     );
 
-    insert_purchase_price_status(&db, PURCHASE_ID_INACTIVE, Some(price_approval::INACTIVE))
-        .await
-        .unwrap_or_else(|e| {
-            panic!("采购侧 inactive 有真实生产者（采购价目页 PUT 透传 status），必须可写，实际被拒: {e}")
-        });
+    insert_purchase_price_status(
+        &db,
+        PURCHASE_ID_INACTIVE,
+        SEED_PRODUCT_ID,
+        supplier_id,
+        Some(price_approval::INACTIVE),
+    )
+    .await
+    .unwrap_or_else(|e| {
+        panic!(
+            "采购侧 inactive 有真实生产者（采购价目页 PUT 透传 status），必须可写，实际被拒: {e}"
+        )
+    });
     assert_eq!(
         status_of(&db, PURCHASE_TABLE, PURCHASE_ID_INACTIVE)
             .await
