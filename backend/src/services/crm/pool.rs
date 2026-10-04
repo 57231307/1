@@ -270,6 +270,12 @@ impl CrmService {
 
     /// V15 P0-S08：获取公海规则值
     /// 按规则类型查询启用的规则值，取第一条匹配的（同类型规则应唯一启用）；若无配置则返回默认值：protection_period=7, claim_limit=5, max_holdings=50
+    ///
+    /// ⚠️ 已登记（只登记，不改作用域语义、不删值域）：这里固定 `CustomerType.eq("all")`，
+    /// 是本服务**唯一**读取 pool 规则作用域的地方 ⇒ 只有 `all` 档真正参与判定，
+    /// 规则表里的 wholesale/retail/vip 三档写进去后永不被读（`PoolRuleService::list_rules`
+    /// 只把规则回显给管理端，不参与生效），per-type 分支为死分支。
+    /// 让 per-type 作用域真正生效需要与 customers 渠道/分层维度重设计同批做，另立功能波。
     async fn get_rule_value(&self, rule_type: &str) -> Result<i32, AppError> {
         let rule = customer_pool_rule::Entity::find()
             .filter(customer_pool_rule::Column::RuleType.eq(rule_type))

@@ -140,7 +140,7 @@ impl CustomerTransferApprovalService {
     }
 
     /// 创建转移审批申请
-    /// 业务规则：1. 线索必须存在且未转化为客户；2. 新归属人必须不等于当前归属人；3. 大客户（关联 customer 信用额度 > 阈值，或客户类型 vip）需总监二次审批；4. 同一线索不能存在 pending 状态的审批单
+    /// 业务规则：1. 线索必须存在且未转化为客户；2. 新归属人必须不等于当前归属人；3. 大客户（关联 customer 信用额度 > 阈值）需总监二次审批；4. 同一线索不能存在 pending 状态的审批单
     pub async fn create_approval(
         &self,
         req: CreateTransferApprovalRequest,
@@ -518,17 +518,16 @@ impl CustomerTransferApprovalService {
     }
 
     /// 检查是否大客户转移
-    /// 判断依据（满足任一即为大客户）：1. 线索已转化为客户，且 customer.credit_limit > 阈值；2. 线索已转化为客户，且 customer.customer_type = 'vip'
+    /// 判断依据（唯一判据）：线索已转化为客户，且 customer.credit_limit > 阈值。
+    /// 不看 customer_type——该列是渠道词表（`constants::customer_type::ALLOWED`），
+    /// 分层词 `vip` 不属其值域且被各写入口校验拒死（列上永不可能出现 vip），
+    /// 把它当判据等于把业务规则建在自己的漏洞上；大客户是信用概念，只用信用额度表达。
     async fn check_large_customer(&self, lead: &crm_lead::Model) -> Result<bool, AppError> {
         if let Some(customer_id) = lead.converted_customer_id {
             let customer = CustomerEntity::find_by_id(customer_id)
                 .one(&*self.db)
                 .await?;
             if let Some(c) = customer {
-                // vip 客户或信用额度超阈值
-                if c.customer_type == "vip" {
-                    return Ok(true);
-                }
                 let threshold =
                     rust_decimal::Decimal::from(DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD);
                 if c.credit_limit > threshold {

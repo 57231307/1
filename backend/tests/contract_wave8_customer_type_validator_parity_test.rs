@@ -16,11 +16,13 @@
 //! ④ 唯一模块与标准入口行为等价：同一输入表逐值比对"validator 通道结果"与
 //!    "模块 validate 结果"（现树函数产生，不手抄期望）——接受/拒绝一致、拒绝信封一致、
 //!    通过值原文返回（不 trim、不归一大小写）。
-//! ⑤ 登记性负例：转化缺省 `"POTENTIAL"` **不属** ALLOWED（本波待裁不改值，只钉成
-//!    "已登记的大写脏值来源"；不许为了绿把 POTENTIAL 加进 ALLOWED）。
-//!    `potential` 这个 token 已被 CLV 分层占用（services/crm/cust.rs:670-680
-//!    segment=champion/loyal/potential/at_risk/lost；models/customer_lifetime_value.rs:40），
-//!    属混维撞名，等业务口径裁定后统一处理。
+//! ⑤ 缺省口径锁：本列语义=渠道，**缺省一律 `other`**（未知渠道不猜零售）——
+//!    标准创建入口（`validate(None)`）与线索转化 service 缺省分支同一口径；
+//!    `"POTENTIAL"` / `vip` / `normal` 一律**不属** ALLOWED（分层词不入渠道列，
+//!    `potential` 已被 CLV 分层 segment 占用：services/crm/cust.rs:670-680
+//!    segment=champion/loyal/potential/at_risk/lost；models/customer_lifetime_value.rs:40）。
+//! ⑥ 判据锁：`customer_type` 不得再作任何业务判据——大客户转移审批只认 credit_limit
+//!    阈值（原 `customer_type == "vip"` 分支受校验链永不可达，属把规则建在自己的漏洞上）。
 //!
 //! 运行前提：①② 仅依赖"validator/校验先于触库"，无 DB；③④⑤ 纯静态/纯函数，无 DB。
 
@@ -381,13 +383,28 @@ async fn module_validate_is_equivalent_to_standard_validator_channel() {
 }
 
 #[tokio::test]
-async fn module_none_default_equals_create_entry_default_and_is_allowed() {
-    // 缺省语义锁：validate(None) == 标准 create 入口现行缺省（"retail"），且该缺省 ∈ ALLOWED。
+async fn module_none_default_equals_create_entry_default_and_is_other() {
+    // 缺省口径锁：validate(None) 必须 = `OTHER`（"other"）且 ∈ ALLOWED。
+    // 缺省表达"渠道未知"，不是"猜零售"——写回 RETAIL 即业务口径回潮，本测必红。
     let default_value = customer_type::validate(None)
-        .expect("None 缺省分支不得报错（现行行为：创建入口缺省 retail）");
+        .expect("None 缺省分支不得报错（现行行为：创建入口缺省 other）");
+    assert_eq!(
+        default_value,
+        customer_type::OTHER,
+        "创建入口缺省必须等于 constants::customer_type::OTHER"
+    );
+    assert_eq!(
+        default_value, "other",
+        "缺省 token 字面值必须是小写 other（与 DB 列 DEFAULT 'other' 同源）"
+    );
     assert!(
         customer_type::ALLOWED.contains(&default_value.as_str()),
         "创建入口缺省值必须是 ALLOWED 成员，当前：{default_value}"
+    );
+    assert_ne!(
+        default_value,
+        customer_type::RETAIL,
+        "缺省不得等于 retail：未知渠道不猜零售"
     );
     // validator 通道对 None 不触发 custom 函数（Option 跳过）：
     let req: customer_handler::CreateCustomerRequest =
@@ -413,37 +430,84 @@ fn vocabulary_not_rehardcoded_in_standard_handler() {
 }
 
 // =========================================================
-// ⑤ 登记性负例：转化缺省 "POTENTIAL" 是已登记的大写脏值来源（本波不改，待裁）
+// ⑤ 缺省口径锁：线索转化缺省 = other；分层词 POTENTIAL/vip/normal 永不入渠道列
 // =========================================================
 
 #[test]
-fn lead_conversion_potential_default_is_registered_dirty_value_not_in_allowed() {
-    // 朴素断言：经 services/crm/lead.rs:691-694（缺省分支）落库的值 "POTENTIAL"
-    // 不等于 ALLOWED 集合内任何值——精确比较 + 忽略大小写比较都不等（大小写/词表双重不等）。
-    let entry_default = "POTENTIAL";
-    assert!(
-        customer_type::ALLOWED.iter().all(|t| *t != entry_default),
-        "POTENTIAL 不得出现在 ALLOWED（本波未裁不许并入；为绿加值即违红线）"
-    );
-    assert!(
-        customer_type::ALLOWED
-            .iter()
-            .all(|t| t.to_lowercase() != entry_default.to_lowercase()),
-        "POTENTIAL 连大小写变体都不属于 ALLOWED ⇒ 经该入口落库的行必然落在词表之外"
-    );
-    // 且模块对该值判拒（混维撞名细节见文件头注释：potential 已被 CLV 分层占用）
-    assert!(
-        customer_type::check(entry_default).is_err(),
-        "模块必须拒 POTENTIAL（缺省分支只在 service 层承接，写口显式传值一律走校验）"
-    );
+fn lead_conversion_default_is_other_and_tier_tokens_never_enter_channel_column() {
+    // 分层词不是渠道值：POTENTIAL / potential / vip / normal 大小写变体都不许出现在 ALLOWED
+    // （为绿把它们并进 ALLOWED 即混维回潮，违红线）。
+    for tier_token in ["POTENTIAL", "potential", "vip", "VIP", "normal"] {
+        assert!(
+            customer_type::ALLOWED
+                .iter()
+                .all(|t| *t != tier_token && t.to_lowercase() != tier_token.to_lowercase()),
+            "{tier_token} 属分层词，不得出现在渠道词表 ALLOWED 内"
+        );
+        assert!(
+            customer_type::check(tier_token).is_err(),
+            "模块必须拒 {tier_token}"
+        );
+    }
 
-    // 登记锁：转化入口缺省**当前仍是** "POTENTIAL"（本波不改值）。
-    // 若后续波改了该缺省而未同步本登记，本扫描即红，强制两处一起收口。
+    // 转化入口缺省已收口到唯一词表的 OTHER：
+    // 若改回裸字面量 "POTENTIAL"（或缺省猜 retail），下面两条扫描锁即红。
     let path =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/services/crm/lead.rs");
     let src = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
     assert!(
-        src.contains(r#".unwrap_or_else(|| "POTENTIAL".to_string())"#),
-        "lead.rs 转化缺省已非 \"POTENTIAL\"：裁定波须同步撤换本登记锁与 lead.rs 注释（勿只改一边）"
+        src.contains(r#".unwrap_or_else(|| crate::constants::customer_type::OTHER.to_string())"#),
+        "lead.rs 转化缺省必须是 constants::customer_type::OTHER（值只允许在唯一模块出现一次）"
+    );
+    assert!(
+        !src.contains("POTENTIAL"),
+        "lead.rs 回潮大写脏值 \"POTENTIAL\"：渠道列写分层词 ⇒ 读侧小写精确匹配永不命中（混维撞名）"
+    );
+    assert!(
+        !src.contains(r#"customer_type::RETAIL.to_string())"#),
+        "lead.rs 转化缺省不得改成 RETAIL：未知渠道不猜零售"
+    );
+
+    // "来源=线索" 由 customers.source 承载，不许新造 customer_type token 表达来源。
+    assert!(
+        src.contains(r#"source: Set(Some("lead".to_string()))"#),
+        "lead.rs 必须继续写 source='lead'（转化来源语义的既有载体）"
+    );
+}
+
+// =========================================================
+// ⑥ 判据锁：customer_type 不作业务判据——大客户转移审批只认 credit_limit 阈值
+// =========================================================
+
+#[test]
+fn transfer_approval_large_customer_trigger_is_credit_limit_only() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/services/crm/customer_transfer_approval_service.rs");
+    let src = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
+
+    // 正判据仍在：credit_limit > DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD ⇒ 走二级审批
+    assert!(
+        src.contains("rust_decimal::Decimal::from(DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD)"),
+        "大客户判据必须保留 credit_limit 阈值比较（唯一判据）"
+    );
+    assert!(
+        src.contains("if c.credit_limit > threshold {"),
+        "check_large_customer 必须以 credit_limit 阈值比较作为触发条件"
+    );
+
+    // 被清除的伪判据：customer_type == "vip" 受写入口校验永不可达（列上不可能有 vip），
+    // 留着它等于把业务规则建在自己的漏洞上；不许以别名或注释掉的死代码形式回潮。
+    // （说明性文字里提到 vip/customer_type 是允许的，本锁钉的是**比较表达式**与**带引号的字面量**。）
+    assert!(
+        !src.contains(".customer_type"),
+        "审批服务不得再读取 customers.customer_type 作判据（vip 分支须删干净，不留别名/死代码）"
+    );
+    assert!(
+        !src.contains("customer_type =="),
+        "审批服务不许回潮 customer_type 比较表达式"
+    );
+    assert!(
+        !src.contains("\"vip\""),
+        "审批服务内不许再出现 \"vip\" 字符串字面量（分层词不属渠道列，判据只认信用额度）"
     );
 }

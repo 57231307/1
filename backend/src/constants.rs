@@ -7,7 +7,8 @@
 /// 环保税法定常量（污染当量值＝法定不可调值，唯一来源）
 pub mod environmental_tax;
 
-/// customers.customer_type 唯一词表（允许值集合与写入口校验的单一来源，波0收编）
+/// customers.customer_type 唯一词表（列语义=渠道；允许值集合、缺省 `other`
+/// 与各写入口校验的单一来源）
 pub mod customer_type;
 
 /// 默认币种码（ISO 4217）

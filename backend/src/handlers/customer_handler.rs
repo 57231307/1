@@ -281,7 +281,7 @@ pub async fn create_customer(
         _ => rust_decimal::Decimal::ZERO,
     };
 
-    // 缺省与词表收编到唯一模块：None→Ok(RETAIL) 等于重构前内联缺省 `"retail"`；
+    // 缺省与词表收编到唯一模块：None→Ok(OTHER)（渠道未知不猜零售）；
     // Some 合法值原文返回（上方 payload.validate() 已拒非法值，此步不可能新增拒绝）。
     let customer_type =
         crate::constants::customer_type::validate(payload.customer_type.as_deref())?;

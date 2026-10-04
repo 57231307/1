@@ -61,7 +61,9 @@ pub struct Model {
     /// 状态：active-活跃，inactive-停用，blacklist-黑名单
     pub status: String,
 
-    /// 客户类型：retail-零售，wholesale-批发，vip-VIP
+    /// 客户渠道类型（本列语义=渠道）：取值只允许 `constants::customer_type::ALLOWED`
+    /// = retail / wholesale / distributor / manufacturer / other，缺省 other；
+    /// 分层词 vip / normal 不属本列值域（本仓暂无客户分层列承接）
     pub customer_type: String,
 
     /// 备注

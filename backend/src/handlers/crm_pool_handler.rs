@@ -363,7 +363,8 @@ pub struct CreatePoolRuleRequest {
     /// 规则类型：protection_period / claim_limit / max_holdings
     pub rule_type: String,
     pub rule_value: i32,
-    /// 适用客户类型：all / wholesale / retail / vip
+    /// 适用客户类型：all / wholesale / retail / vip（规则作用域档位，非 customers 列值域；
+    /// 运行时只有 `all` 生效，其余三档为已登记的死分支，见 `create_pool_rule` 注释）
     pub customer_type: String,
     pub notes: Option<String>,
 }
@@ -405,7 +406,13 @@ pub async fn create_pool_rule(
     // ⚠️ 本四值（all/wholesale/retail/vip）是 **pool 规则表**里"规则作用域"的取值
     // （crm_pool_rules 之类，规则按客户类型分档），与 customers.customer_type 列的
     // 唯一词表（`constants::customer_type::ALLOWED`）是**两回事**，不并入、不共享：
-    // 字面重合的 retail/wholesale 只是巧合同名 token，语义层不同。本处允许集本波不动。
+    // 字面重合的 retail/wholesale 只是巧合同名 token，语义层不同（本处 `vip` 也只是
+    // 规则作用域档位，不代表 customers 行能有 vip）。
+    // ⚠️ 已登记（本批只登记，不删字段、不删值域）：运行时**只有 `all` 被消费**——
+    // `services/crm/pool.rs` 取规则值时固定 `CustomerType.eq("all")`，
+    // wholesale/retail/vip 三档写进规则表后没有任何判定分支读取（`list_rules` 只回显、
+    // 不参与规则生效）⇒ per-type 是死分支，配了也不生效。作用域维度的真正生效需要
+    // 与 customers 渠道/分层重设计一起做，另立功能波，不在本批处理。
     if !matches!(
         req.customer_type.as_str(),
         "all" | "wholesale" | "retail" | "vip"

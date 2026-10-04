@@ -1112,11 +1112,10 @@ pub async fn convert_lead(
     Path(id): Path<i32>,
     Json(req): Json<ConvertLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 波0 收编无校验写口（ConvertLeadRequest 此前裸 Deserialize、连 Validate derive 都没有）：
     // customer_type 显式提供时经唯一词表模块校验，拒绝族别/文案与标准客户入口同源
     // （400 + VALIDATION_ERROR）。校验先于任何触库。
-    // 缺省（None）**不在这里补值**——service 层 `build_customer_active` 仍按现行缺省
-    // `"POTENTIAL"` 落库（该大写脏值来源已登记于契约测与 lead.rs 注释，等业务口径裁定后统一处理）。
+    // 缺省（None）**不在这里补值**——由 service 层 `build_customer_active` 统一写
+    // `constants::customer_type::OTHER`（渠道未知），handler 侧不做兜底以免出现第二套缺省口径。
     if let Some(raw) = req.customer_type.as_deref() {
         crate::constants::customer_type::validate(Some(raw))?;
     }
