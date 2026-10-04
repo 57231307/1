@@ -342,7 +342,7 @@ impl ProductService {
             .count(db)
             .await?;
         if sales > 0 {
-            return Ok(Some(("条销售价目记录", sales)));
+            return Ok(Some(("销售价目记录", sales)));
         }
 
         let purchase = purchase_price::Entity::find()
@@ -350,7 +350,7 @@ impl ProductService {
             .count(db)
             .await?;
         if purchase > 0 {
-            return Ok(Some(("条采购价目记录", purchase)));
+            return Ok(Some(("采购价目记录", purchase)));
         }
 
         Ok(None)
