@@ -16,6 +16,7 @@ import {
   failureCode,
   type ApiFailureBody,
   CSRF_ERROR_CODES,
+  APP_ERROR_CODES,
 } from './helpers';
 
 test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓存）', () => {
@@ -111,9 +112,46 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     }
   });
 
-  test('P1-5 验证未知路由 fail-closed', async ({ page }) => {
-    const result = await apiCallExpectFail(page, 'GET', '/unknown-module/unknown-resource');
-    expect(result.status, '未注册路由应返回 404（而非 500 或其他 4xx/5xx）').toBe(404);
+  test('P1-5 验证未知路由 fail-closed（双语义分别钉：非白名单段 403 / 白名单内不存在 404）', async ({
+    page,
+  }) => {
+    // 本用例原本把两种不同的 fail-closed 语义混判成同一个 404，导致断言与既有安全设计冲突
+    // （收严成 toBe(404) 后，非白名单段实得 403 判红）。正解是把两种语义**分别钉死**，
+    // 且每条都同时判 HTTP 状态码与错误信封机器码（本仓红线：判权拒绝与 CSRF 拒绝都是 403，
+    // 只判状态码会假绿；权限文案永久脱敏，绝不断言 message 原文）。
+    //
+    // 语义①：第三段（module）不在资源白名单 → 中间件在 admin 旁路**之前**就 fail-closed 到 403。
+    //   证据链：backend/src/middleware/permission.rs:59-69 `validate_route_whitelist` 对
+    //   `unknown-module` 判 `is_known_resource_segment` 为假，直接 `forbidden_response(未知的资源路径)`
+    //   （utils/response.rs:144 CODE_FORBIDDEN）；该白名单机制自 PR #758（commit 8757c3a2）即存在，
+    //   非本批引入。所以"未注册路由"命中白名单时按设计就是 403 FORBIDDEN，而非 404。
+    const notWhitelisted = await apiCallExpectFail(page, 'GET', '/unknown-module/unknown-resource');
+    expect(
+      notWhitelisted.status,
+      `非白名单模块段应在权限中间件 fail-closed 为 403（#758 白名单设计，先于 admin 旁路），实际=${notWhitelisted.status}`
+    ).toBe(403);
+    expect(
+      failureCode(notWhitelisted),
+      `403 必须归因到权限机器码 ${APP_ERROR_CODES.FORBIDDEN}（而非 CSRF_* 或其它码），实际：${JSON.stringify(
+        notWhitelisted
+      ).slice(0, 200)}`
+    ).toBe(APP_ERROR_CODES.FORBIDDEN);
+
+    // 语义②：module 段在白名单内、但目标资源 ID 不存在 → 穿过白名单与 admin 旁路到达 handler，
+    //   由 handler 判 not found 返回真 404（机器码 NOT_FOUND，utils/error.rs:739 AppError::NotFound）。
+    //   这条才对应旧断言误用的 404 语义（`users` 在白名单内，99999999 无此行）。
+    //   与语义①的 403/FORBIDDEN 形成对照，证明两种 fail-closed 语义不可混判。
+    const whitelistedMissing = await apiCallExpectFail(page, 'GET', '/users/99999999');
+    expect(
+      whitelistedMissing.status,
+      `白名单内不存在的资源 ID 应穿过白名单门到 handler 判 404，实际=${whitelistedMissing.status}`
+    ).toBe(404);
+    expect(
+      failureCode(whitelistedMissing),
+      `404 必须归因到 NOT_FOUND 机器码（而非 403/FORBIDDEN，否则是白名单误拦），实际：${JSON.stringify(
+        whitelistedMissing
+      ).slice(0, 200)}`
+    ).toBe(APP_ERROR_CODES.NOT_FOUND);
   });
 
   test('P1-6 验证资源 ID 精确匹配（防垂直越权）', async ({ page }) => {
