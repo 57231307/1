@@ -13,18 +13,19 @@
   >
     <el-descriptions :column="2" border>
       <!--
-        此处原有"产品名称/客户名称/备注"三项，因后端读链路从不输出这三个键而删除：
-        后端 sales_price::Model（models/sales_price.rs）既无名列（product_name/customer_name），
-        也无 remark/remarks 列（建表 DDL migration/src/domain/business/
-        m0011_add_sales_and_logistics_extensions.rs 的 sales_prices 表定义逐列核对，全列无备注）；
-        sales_price_handler.rs::get_price 直接序列化 Model（find_by_id 单表查询，keyword 类
-        LeftJoin 谓词也不追加 SELECT 列），信封（utils/response.rs::ApiResponse）不补键
-        ⇒ 三项自始空白。其中"备注"因本组件局部 SpViewData 曾声明
-        remarks? 而传入对象实为 SalesPrice（index.vue 直传 spProc.viewData，该类型从未有 remarks 键），
-        配合 `|| '-'` 把不存在的键伪装成"无备注"的正常空态（掩盖型渲染，正解是删掉不存在的东西）。
-        `remark` 在本域只存在于审批请求体 sales_price_handler::ApprovePriceRequest（入参不是出参，
-        且仅入 tracing 日志、无落库列）。
+        产品名称/客户两项的数据源 = 详情行对象（列表富化行 SalesPriceView，后端 LEFT JOIN 产出）。
+        两表无外键 ⇒ 孤儿引用/无客户标准价行的名称为 NULL（后端 Option<String>），
+        el-descriptions 将 null 渲染为空白——如实呈现，禁止 '未知'/'-' 造名或本地缓存回填。
+        "备注"项仍不存在：sales_price::Model 与 SalesPriceView 均无 remark/remarks 列
+        （建表 DDL m0011 sales_prices 逐列核对无该列；审批入参 ApprovePriceRequest.remark 是入参
+        且仅入 tracing 日志不落库，不是出参）。
       -->
+      <el-descriptions-item :label="t('salesPrice.view.labelProductName')">{{
+        viewData.product_name
+      }}</el-descriptions-item>
+      <el-descriptions-item :label="t('salesPrice.view.labelCustomer')">{{
+        viewData.customer_name
+      }}</el-descriptions-item>
       <el-descriptions-item :label="t('salesPrice.view.labelPrice')">{{
         formatCurrency(viewData.price)
       }}</el-descriptions-item>
@@ -71,10 +72,14 @@ import {
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 查看详情数据类型（本局部接口按后端 sales_price::Model 逐列收窄，
-// 删除幽灵键 product_name/customer_name/remarks——models/sales_price.rs::Model 无名列亦无备注列，
-// 详见模板内注释；index.vue 直传的 SalesPrice 也不含这些键）
+// 查看详情数据类型（本局部接口按传入行对象收窄：详情与列表共用同一行
+// （useSpProc.handleView 直接把列表行交给本对话框，不单独调 get_price），
+// 名列 product_name/customer_name 与 api/sales-price.ts SalesPriceRow 的可空性对齐——
+// 后端 SalesPriceView 为 Option<String> ⇒ string | null 必键可空值；
+// remarks 不声明：后端任何读路径都无该列（详见模板内注释）。
 interface SpViewData {
+  product_name: string | null;
+  customer_name: string | null;
   price?: string;
   currency?: string;
   unit?: string;

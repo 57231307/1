@@ -1,8 +1,8 @@
 /**
  * useActionPrompts.ts — 状态动作类端点所需用户输入的统一采集器。
  *
- * 背景：后端若干动作类端点（取消发票/核销/合同、执行合同、审批定价、报表订阅启停）
- * 以 `Json<T>` 强类型接收请求体，其中「取消原因 / 执行方式·执行金额·执行日期 / 审批通过与否」
+ * 背景：后端若干动作类端点（取消发票/核销/合同、执行合同、报表订阅启停）
+ * 以 `Json<T>` 强类型接收请求体，其中「取消原因 / 执行方式·执行金额·执行日期」
  * 为必填字段。此前前端 `request.post(url)` 空手请求 → Axum 直接 400。
  *
  * 本模块用 Element Plus `ElMessageBox` 弹出输入框/选择框真实采集这些值，并做必填校验；
@@ -34,51 +34,6 @@ export async function promptCancelReason(): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-/** 审批结果：approved 必填布尔（后端 ApprovePriceRequest）；remark 可选。 */
-export interface ApprovalResult {
-  approved: boolean;
-  remark?: string;
-}
-
-/**
- * 采集器：定价审批通过/不通过 + 可选审批意见。
- * 通过=confirm，不通过=cancel 按钮，关闭(ESC/X)=中断返回 null，避免误提交。
- */
-export async function promptApproval(): Promise<ApprovalResult | null> {
-  let approved: boolean;
-  try {
-    await ElMessageBox.confirm(tt('actionForm.approveAsk'), tt('actionForm.approveTitle'), {
-      type: 'warning',
-      confirmButtonText: tt('actionForm.approvePass'),
-      cancelButtonText: tt('actionForm.approveReject'),
-      distinguishCancelAndClose: true,
-    });
-    approved = true;
-  } catch (action) {
-    if (action === 'cancel') approved = false;
-    else return null;
-  }
-  // 审批意见可选：取消/空 → undefined（不发该字段，后端 remark 为 Option）。
-  let remark: string | undefined;
-  try {
-    const { value } = await ElMessageBox.prompt(
-      tt('actionForm.approveRemarkTip'),
-      tt('actionForm.approveRemarkTitle'),
-      {
-        inputType: 'textarea',
-        inputPlaceholder: tt('actionForm.optionalPlaceholder'),
-        confirmButtonText: tt('actionForm.confirm'),
-        cancelButtonText: tt('actionForm.cancel'),
-      }
-    );
-    const trimmed = value?.trim();
-    if (trimmed) remark = trimmed;
-  } catch {
-    // 用户跳过审批意见：视为无意见，继续提交（approved 决策已确定）。
-  }
-  return { approved, remark };
 }
 
 /** 采集器：执行合同入参。销售无执行日期（hasDate=false），采购有执行日期（hasDate=true）。 */

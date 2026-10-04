@@ -5,72 +5,86 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
-import { promptApproval } from '@/composables/useActionPrompts';
+import { i18n } from '@/i18n';
+import { isDialogDismissal } from '@/utils/monitor';
+import { logger } from '@/utils/logger';
 import {
   approveSalesPrice,
   getPriceHistory,
-  getPricingStrategyList,
   type SalesPrice,
+  type SalesPriceRow,
 } from '@/api/sales-price';
-// V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
+// 导出改用后端带水印 xlsx 接口
 // 后端 GET /sales/sales-prices/export 已就绪（含异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export';
 
 /**
  * 刷新回调
  *
- * V15 P0-S12 修复（Batch 475d）：新增 getQueryParams，用于导出时传递列表筛选条件
- * 保证导出数据与当前列表筛选一致（product_id/status）
+ * getQueryParams：导出时传递列表筛选条件，与后端 SalesPriceQuery（list/export 共用同一结构体）
+ * 同口径 = 透传筛选全集（product_id/customer_id/keyword/status）
  */
 interface RefreshCallbacks {
   getList: () => Promise<void>;
-  // V15 P0-S12 修复（Batch 475d）：获取当前筛选条件（product_id/status），用于导出
-  getQueryParams?: () => { product_id?: number; status?: string };
+  getQueryParams?: () => {
+    product_id?: number;
+    customer_id?: number;
+    keyword?: string;
+    status?: string;
+  };
 }
 
 /**
  * 销售价格流程操作方法集合
  */
 export function useSpProc(refresh: RefreshCallbacks) {
-  // 查看详情对话框状态
+  // 查看详情对话框状态（详情与列表共用同一行对象：后端 list_prices 出参 SalesPriceView 富化行，
+  // 详情不再单独调 get_price ⇒ 名称列在详情同样可见）
   const viewDialogVisible = ref(false);
-  // v11 批次 174 P2-1 修复：ref<any>({}) 改为 ref<SalesPrice>，初始空对象通过断言
-  const viewData = ref<SalesPrice>({} as SalesPrice);
+  // ref<any>({}) 旧写法已收紧；空对象仅初始态占位，经断言 bypass（打开即整行覆盖）
+  const viewData = ref<SalesPriceRow>({} as SalesPriceRow);
 
-  // 历史记录对话框状态
+  // 历史记录对话框状态（get_price_history 后端仍整 Model 序列化，出参无名列 ⇒ 行型保持 SalesPrice）
   const historyVisible = ref(false);
   const historyList = ref<SalesPrice[]>([]);
 
-  // 当前生效价目对话框状态（判据 = sales_price_service.rs::list_strategies：approved + 有效期覆盖今天；
-  // /strategies 端点保留（挂载于 routes/sales.rs），返回类型实为 sales_price::Model 分页
-  // ⇒ 语义改名“当前生效价目”，变量名沿用 strategy*）
-  const strategyVisible = ref(false);
-  const strategyList = ref<SalesPrice[]>([]);
-  const strategyLoading = ref(false);
-
-  /** 审批 */
+  /**
+   * 审批（批准生效）——单向确认，照采购侧 usePpProc 范式。
+   * 端点契约：POST /sales/sales-prices/{id}/approve，体 sales_price_handler::ApprovePriceRequest
+   * （approved: bool 必填且仅受理 true——false 在 handler::approve_price 直接 400
+   * "审批拒绝请使用专用拒绝接口"；销售价目无 reject 路由 ⇒ 该端点仅批准语义，
+   * UI 不提供"拒绝"选项；服务层状态门（仅 pending 可批）在同 service::approve_price，
+   * 契约钉 backend/tests/contract_wave8_price_approve_gate_test.rs）。
+   * 价目"拒绝"业务语义是否存在属挂账的产品口径（决策建议书裁定 B），本前端不隐式实现、不再制造
+   * 点得动但必然 400 的入口。
+   * remark 不采集不发送：它是请求体真实字段但只进 tracing 日志、不落库
+   * （backend/src/models/sales_price.rs 无 remark 列）⇒ 不收集无法持久化的数据。
+   * 成功后 refresh.getList() 回读列表（后端已提交状态+审计），不以 toast 作为生效证据。
+   */
   const handleApprove = async (row: SalesPrice) => {
-    // 后端 sales_price_handler::ApprovePriceRequest.approved: bool（必填）+ 可选 remark。
-    // 该端点仅处理批准：approved=false 在 handler::approve_price 直接 400（销售价目无 reject 路由），
-    // 采集器"不通过"分支对本端点必失败——拒绝语义缺后端承接，在案缺口交回主编排，前端不得兜底掩盖。
-    // remark 仅入 tracing 日志不落库（Model 无 remark 列）。采集器取消即中断，不预设结论。
-    const decision = await promptApproval();
-    if (!decision) return;
     try {
-      await approveSalesPrice(row.id, { approved: decision.approved, remark: decision.remark });
+      await ElMessageBox.confirm(
+        i18n.global.t('actionForm.approveTitle'),
+        i18n.global.t('common.confirmTitle'),
+        { type: 'warning' }
+      );
+      await approveSalesPrice(row.id, { approved: true });
       msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg) ElMessage.error(errMsg || msg.translate('approveFailed'));
+      // ElMessageBox 取消/X 关闭以 'cancel'|'close' reject：流程中止，不是错误（全站统一判别）
+      if (isDialogDismissal(error)) return;
+      // 非取消的失败必须留痕并外显（request.ts 拦截器已透出后端信封 message，
+      // 此处补记操作上下文 + 固定失败文案，不裸 catch 吞错）
+      logger.error('销售价目审批失败:', error);
+      msg.error('approveFailed');
     }
   };
 
-  /** 查看详情（弹出对话框） */
-  const handleView = (row: SalesPrice) => {
+  /** 查看详情（弹出对话框；行对象即列表富化行，详情与列表共用同一读模型，无需二次取数） */
+  const handleView = (row: SalesPriceRow) => {
     viewData.value = row;
     viewDialogVisible.value = true;
   };
@@ -88,35 +102,20 @@ export function useSpProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 当前生效价目（判据 = sales_price_service.rs::list_strategies：approved + 有效期区间覆盖今天；
-   *  路由 /strategies 保留（挂载于 routes/sales.rs），是否删除待用户单独授权） */
-  const handleStrategy = async () => {
-    strategyVisible.value = true;
-    strategyLoading.value = true;
-    try {
-      const res = await getPricingStrategyList();
-      // 后端 list_strategies 返回 PaginatedResponse ⇒ data.items（sales_price::Model 行）
-      strategyList.value = res.data.items;
-    } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || msg.translate('loadPriceStrategyFailed'));
-    } finally {
-      strategyLoading.value = false;
-    }
-  };
-
   /**
-   * 导出 Excel（V15 P0-S12 修复 Batch 475d）
+   * 导出 Excel
    *
-   * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
-   * 改为调用后端 GET /sales/sales-prices/export，后端注入水印 + 异步审计日志
-   * 传入当前列表筛选条件（product_id/status），保证导出与列表一致
+   * 导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）；
+   * 调用后端 GET /sales/sales-prices/export（后端注入水印 + 异步审计日志），
+   * 透传当前列表筛选全集（product_id/customer_id/keyword/status），与列表同口径
+   *（后端 list/export 共用同一 SalesPriceQuery 结构体；空串/undefined 由 serializeParams 剔除）
    */
   const handleExport = async () => {
     const filters = refresh.getQueryParams?.() ?? {};
     const params: Record<string, unknown> = {
       product_id: filters.product_id,
+      customer_id: filters.customer_id,
+      keyword: filters.keyword || undefined,
       status: filters.status || undefined,
     };
     await exportFromBackend('/sales/sales-prices/export', params, 'sales_prices_export');
@@ -132,11 +131,6 @@ export function useSpProc(refresh: RefreshCallbacks) {
     historyVisible,
     historyList,
     handleHistory,
-    // 当前生效价目（判据见 sales_price_service.rs::list_strategies；端点/路由保留待单独授权）
-    strategyVisible,
-    strategyList,
-    strategyLoading,
-    handleStrategy,
     // 流程
     handleApprove,
     handleExport,

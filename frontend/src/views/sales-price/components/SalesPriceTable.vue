@@ -19,20 +19,24 @@
         align="center"
       />
       <!--
-        此处原有"产品名称/客户名称"两列（prop=product_name / customer_name），因后端销售价目
-        读链路从不输出这两个键而删除：sales_price::Model（models/sales_price.rs）无
-        product_name/product_code/customer_name/remark 列；sales_price_handler.rs 的
-        list_prices/get_price/create_price/update_price/get_price_history/list_strategies
-        全部直接序列化 Model，sales_price_service.rs::get_prices_list 以 Entity::find() 为主体，
-        keyword 筛选仅 LeftJoin(product/customer) 做谓词、不追加 SELECT 列（响应仍是整 Model）；
-        信封（utils/response.rs::ApiResponse/PaginatedResponse）只补
-        code/data/message/total 与 items/total/page/page_size ⇒ 两列自表存在起恒空白（幽灵列）。
-        purchase 侧同名字段是真实的：purchase_price_service.rs::get_prices_list 以
-        column_as+LEFT JOIN 产出 PurchasePriceView（product_name/product_code/supplier_name），
-        两域接口此前同构抄写即漂移根源。列表因此不再能标识产品/客户，补齐方案
-        （后端加 JOIN 输出名列，或改显示 product_id/customer_id）属产品语义决策，
-        已交回主编排，当前为待决策项；禁止前端造名填充。
+        产品名称/客户列的数据源 = 后端列表读模型 SalesPriceView 的 LEFT JOIN 富化列
+        （sales_price_service.rs::get_prices_list 以 column_as + LeftJoin(products/customers) 产出，
+        防漂移锁 backend/tests/sales_price_read_enrichment_drift_test.rs 钉死）。
+        两表无外键 ⇒ 孤儿引用与无客户标准价行名称为 NULL，el-table 将 null 渲染为空白——如实呈现，
+        禁止 '未知'/'-' 造名或本地缓存回填（列表显名唯一正解 = 后端 JOIN）。
       -->
+      <el-table-column
+        prop="product_name"
+        :label="t('salesPrice.table.columnProductName')"
+        min-width="150"
+        show-overflow-tooltip
+      />
+      <el-table-column
+        prop="customer_name"
+        :label="t('salesPrice.table.columnCustomer')"
+        min-width="150"
+        show-overflow-tooltip
+      />
       <el-table-column
         prop="price"
         :label="t('salesPrice.table.columnPrice')"
@@ -106,7 +110,7 @@
         fixed="right"
       >
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view', row as SalesPrice)">{{
+          <el-button type="primary" link size="small" @click="emit('view', row as SalesPriceRow)">{{
             t('salesPrice.table.buttonView')
           }}</el-button>
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
@@ -116,7 +120,7 @@
             type="primary"
             link
             size="small"
-            @click="emit('edit', row as SalesPrice)"
+            @click="emit('edit', row as SalesPriceRow)"
             >{{ t('salesPrice.table.buttonEdit') }}</el-button
           >
           <el-button
@@ -124,10 +128,10 @@
             type="success"
             link
             size="small"
-            @click="emit('approve', row as SalesPrice)"
+            @click="emit('approve', row as SalesPriceRow)"
             >{{ t('salesPrice.table.buttonApprove') }}</el-button
           >
-          <el-button type="info" link size="small" @click="emit('history', row as SalesPrice)">{{
+          <el-button type="info" link size="small" @click="emit('history', row as SalesPriceRow)">{{
             t('salesPrice.table.buttonHistory')
           }}</el-button>
         </template>
@@ -151,7 +155,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { SalesPrice } from '@/api/sales-price';
+import type { SalesPriceRow } from '@/api/sales-price';
 // 价格类型/状态文案统一走 spFmts（i18n 键 + 未知 token 抛错；词表权威 models/status/sales.rs::price_approval），删除组件局部 map
 import {
   formatCurrency,
@@ -168,8 +172,8 @@ const { t } = useI18n({ useScope: 'global' });
  * 销售价格列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
-  // 列表数据
-  priceList: SalesPrice[];
+  // 列表数据（后端 list_prices 富化行 SalesPriceView ⇒ SalesPriceRow）
+  priceList: SalesPriceRow[];
   // 加载状态
   loading: boolean;
   // 总数
@@ -181,10 +185,10 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  view: [row: SalesPrice];
-  edit: [row: SalesPrice];
-  approve: [row: SalesPrice];
-  history: [row: SalesPrice];
+  view: [row: SalesPriceRow];
+  edit: [row: SalesPriceRow];
+  approve: [row: SalesPriceRow];
+  history: [row: SalesPriceRow];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();

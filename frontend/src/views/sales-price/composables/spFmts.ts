@@ -10,8 +10,8 @@
  * 收敛为 'pending'）—— 旧前端以它们做筛选与标签 ⇒ 筛选恒 0 行、标签回显裸 token。
  * 词表权威 backend/src/models/status/sales.rs::price_approval（小写 pending/approved/inactive，
  * 销售侧取值域为其去掉 inactive 的子集）；契约锁
- * backend/tests/contract_wave8_price_status_parity_test.rs 钉 词表常量==DB CHECK==list_strategies
- * 判据（含旁路写 inactive 被拒负例）；该测试不读前端文件，本模块数组与销售侧取值集的一致性
+ * backend/tests/contract_wave8_price_status_parity_test.rs 钉 词表常量==DB CHECK（含旁路写
+ * inactive 被拒负例）；该测试不读前端文件，本模块数组与销售侧取值集的一致性
  * 由下方 SALES_PRICE_STATUS 常量与本注释同文维持。
  * 本模块以 pending/approved 原值为比较对象，文案走 i18n 键（salesPrice.statusLabels.*），
  * 未知 token 记日志后抛错（fail-visible），禁止 `|| status` 兜底外显。

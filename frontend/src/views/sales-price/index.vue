@@ -22,10 +22,6 @@
           <el-icon><Plus /></el-icon>
           {{ t('salesPrice.index.buttonCreatePrice') }}
         </el-button>
-        <el-button @click="spProc.handleStrategy">
-          <el-icon><Setting /></el-icon>
-          {{ t('salesPrice.index.buttonPriceStrategy') }}
-        </el-button>
         <el-button v-permission="'sales.price.export'" @click="onExport">
           <el-icon><Download /></el-icon>
           {{ t('salesPrice.index.buttonExport') }}
@@ -41,10 +37,12 @@
       @update:query-params="v => Object.assign(sp.queryParams, v)"
     />
 
+    <!-- 列表行实际形态 = SalesPriceRow（后端 list_prices 出参 SalesPriceView 富化行）；
+         useTableApi 泛型在 useSp.ts 侧仍声明 SalesPrice（该文件本轮冻结），此处边界断言补齐 -->
     <SalesPriceTable
       v-model:page="sp.page"
       v-model:page-size="sp.pageSize"
-      :price-list="sp.priceList"
+      :price-list="sp.priceList as SalesPriceRow[]"
       :loading="sp.loading"
       :total="sp.total"
       @view="spProc.handleView"
@@ -67,82 +65,14 @@
     <SalesPriceView v-model:visible="spProc.viewDialogVisible" :view-data="spProc.viewData" />
 
     <SalesPriceHistory v-model:visible="spProc.historyVisible" :history-list="spProc.historyList" />
-
-    <!-- 当前生效价目对话框（判据 = sales_price_service.rs::list_strategies：approved + 有效期覆盖今天；
-         /strategies 端点保留待单独授权，返回实为 sales_price::Model 分页 ⇒ 列按真实字段呈现；价格/状态走 spFmts 统一格式化） -->
-    <el-dialog
-      :model-value="spProc.strategyVisible"
-      :title="t('salesPrice.index.effectiveDialogTitle')"
-      width="800px"
-      :aria-label="t('salesPrice.index.effectiveDialogAriaLabel')"
-      @update:model-value="(v: boolean) => (spProc.strategyVisible = v)"
-    >
-      <el-table
-        v-loading="spProc.strategyLoading"
-        :data="spProc.strategyList"
-        border
-        :aria-label="t('salesPrice.index.effectiveTableAriaLabel')"
-      >
-        <el-table-column
-          prop="product_id"
-          :label="t('salesPrice.index.effectiveColumnProductId')"
-          width="100"
-          align="center"
-        />
-        <el-table-column
-          prop="price"
-          :label="t('salesPrice.table.columnPrice')"
-          width="140"
-          align="right"
-        >
-          <template #default="{ row }">{{ formatCurrency(row.price) }}</template>
-        </el-table-column>
-        <el-table-column
-          prop="currency"
-          :label="t('salesPrice.table.columnCurrency')"
-          width="80"
-          align="center"
-        />
-        <el-table-column
-          prop="unit"
-          :label="t('salesPrice.table.columnUnit')"
-          width="80"
-          align="center"
-        />
-        <el-table-column
-          prop="effective_date"
-          :label="t('salesPrice.table.columnEffectiveDate')"
-          width="120"
-          align="center"
-        />
-        <el-table-column
-          prop="expiry_date"
-          :label="t('salesPrice.table.columnExpiryDate')"
-          width="120"
-          align="center"
-        />
-        <el-table-column
-          prop="status"
-          :label="t('salesPrice.table.columnStatus')"
-          width="100"
-          align="center"
-        >
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Plus, Setting, Download } from '@element-plus/icons-vue';
-import type { SalesPrice } from '@/api/sales-price';
-// 当前生效价目对话框的价格/状态走 spFmts 统一格式化（未知 token 抛错，不兜底；词表权威 models/status/sales.rs::price_approval）
-import { formatCurrency, getStatusType, getStatusLabel } from './composables/spFmts';
+import { Plus, Download } from '@element-plus/icons-vue';
+import type { SalesPrice, SalesPriceRow } from '@/api/sales-price';
 import { useSp } from './composables/useSp';
 import { useSpProc } from './composables/useSpProc';
 import SalesPriceFilter from './components/SalesPriceFilter.vue';
@@ -156,10 +86,14 @@ const { t } = useI18n({ useScope: 'global' });
 const sp = useSp();
 const spProc = useSpProc({
   getList: sp.getList,
-  // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
+  // 导出与列表同口径：透传当前筛选全集（product_id/customer_id/keyword/status），
+  // 后端 SalesPriceQuery 八键全部真实接收且 list/export 共用同一结构体；
+  // 空串/undefined 由 request.ts serializeParams 剔除（= 省略键，与列表链路同源）。
   // useTableApi 的 queryParams 为 Ref<Record<string, unknown>>，需类型断言以满足回调返回类型
   getQueryParams: () => ({
     product_id: sp.queryParams.product_id as number | undefined,
+    customer_id: sp.queryParams.customer_id as number | undefined,
+    keyword: sp.queryParams.keyword as string | undefined,
     status: sp.queryParams.status as string | undefined,
   }),
 });
