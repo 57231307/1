@@ -15,7 +15,7 @@ use crate::models::{
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::inventory_stock_query::RecordTransactionArgs;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{apply_data_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -177,6 +177,7 @@ impl PurchaseReturnService {
             updated_by: Set(None),
             approved_by: Set(None),
             approved_at: Set(None),
+            approval_reason: Set(None),
             rejected_reason: Set(None),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -295,10 +296,13 @@ impl PurchaseReturnService {
     }
 
     /// 审批采购退货单
+    /// 通过理由属选填采集通道：handler 已将空/纯空白归一为 None，Some 才落
+    /// approval_reason 专列，None 不动该列（保持 NULL=未采集）。
     pub async fn approve_return(
         &self,
         return_id: i32,
         user_id: i32,
+        approval_reason: Option<String>,
     ) -> Result<purchase_return::Model, AppError> {
         // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
         // 原实现先在事务外用 &*self.db 裸查询退货单状态，再 begin() 开启事务，
@@ -311,7 +315,8 @@ impl PurchaseReturnService {
 
         let return_order = Self::load_and_validate_return_for_approval(&txn, return_id).await?;
         let return_order =
-            Self::update_return_status_to_approved(&txn, return_order, user_id).await?;
+            Self::update_return_status_to_approved(&txn, return_order, user_id, approval_reason)
+                .await?;
 
         // 1. 扣减库存（在事务内执行，保证原子性）
         let (items, stock_index) =
@@ -389,17 +394,21 @@ impl PurchaseReturnService {
         Ok(return_order)
     }
 
-    /// 更新退货单状态为 APPROVED + 写入审计日志
+    /// 更新退货单状态为 APPROVED + 写入审计日志（选填通过理由随同一事务落专列）
     async fn update_return_status_to_approved(
         txn: &sea_orm::DatabaseTransaction,
         return_order: purchase_return::Model,
         user_id: i32,
+        approval_reason: Option<String>,
     ) -> Result<purchase_return::Model, AppError> {
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some(pr_status::APPROVED.to_string()));
         return_active.approved_by = Set(Some(user_id));
         return_active.approved_at = Set(Some(Utc::now()));
         return_active.updated_at = Set(Utc::now());
+        if let Some(reason) = approval_reason {
+            return_active.approval_reason = Set(Some(reason));
+        }
 
         let return_order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
@@ -848,7 +857,10 @@ impl PurchaseReturnService {
         // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut return_active: purchase_return::ActiveModel = return_order.into();
         return_active.return_status = Set(Some(pr_status::REJECTED.to_string()));
-        return_active.reason_detail = Set(Some(reason));
+        // 止毁：拒绝理由落 rejected_reason 专列（m0009 建列，此前无写入方）；
+        // reason_detail 回归建单时的"退货原因明细"语义，只由 create/update 路径写。
+        // 存量被历史实现覆盖进 reason_detail 的拒绝理由不回填（回填策略待终裁）。
+        return_active.rejected_reason = Set(Some(reason));
         return_active.updated_at = Set(Utc::now());
 
         // reject_return 已在批次 59b 透传 user_id（原 TODO 已随实现落地移除）

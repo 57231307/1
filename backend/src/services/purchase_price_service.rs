@@ -252,8 +252,13 @@ impl PurchasePriceService {
         Ok(price)
     }
 
-    /// 批准采购价格
-    pub async fn approve_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+    /// 批准采购价格：pending→approved，通过理由真实落 `approval_reason` 列。
+    pub async fn approve_price(
+        &self,
+        id: i32,
+        user_id: i32,
+        approval_reason: String,
+    ) -> Result<(), AppError> {
         info!("用户 {} 正在批准采购价格，ID: {}", user_id, id);
 
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
@@ -279,6 +284,8 @@ impl PurchasePriceService {
         price.status = Set(price_approval::APPROVED.to_string());
         price.approved_by = Set(Some(user_id));
         price.approved_at = Set(Some(chrono::Utc::now()));
+        // 通过理由真实落列（handler 侧已保证 trim 非空），不再只进日志。
+        price.approval_reason = Set(Some(approval_reason));
 
         // 使用 update_with_audit 在事务内同步写入审计日志
         // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
@@ -294,6 +301,57 @@ impl PurchasePriceService {
         txn.commit().await?;
 
         info!("采购价格批准成功，ID: {}", id);
+        Ok(())
+    }
+
+    /// 拒绝采购价格：pending→rejected 终态流转，拒绝理由落 `rejected_reason` 列。
+    pub async fn reject_price(
+        &self,
+        id: i32,
+        user_id: i32,
+        reason: String,
+    ) -> Result<(), AppError> {
+        info!("用户 {} 正在拒绝采购价格，ID: {}", user_id, id);
+
+        // 与 approve_price 同形：lock_exclusive 事务串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
+        let price_model = purchase_price::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
+
+        // 状态门：拒绝只允许 pending 起拒。rejected 与 approved 同为审批结论终态，
+        // 不出 rejected→pending/approved 的回退边——需变更请重新发起新价目行；
+        // 前置未满足归业务族，文案含状态 token 保持脱敏（与 approve_price 同口径）。
+        if price_model.status != price_approval::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审批状态的采购价格可以拒绝，当前状态：{}",
+                price_model.status
+            )));
+        }
+
+        let mut price: purchase_price::ActiveModel = price_model.into();
+        price.status = Set(price_approval::REJECTED.to_string());
+        price.rejected_reason = Set(Some(reason));
+        // 拒绝结论同样记录决策人与决策时间：本域决策人/决策时间只有
+        // approved_by/approved_at 一列套（无独立拒绝人列），结论由 status 区分。
+        price.approved_by = Set(Some(user_id));
+        price.approved_at = Set(Some(chrono::Utc::now()));
+
+        // 审计留痕沿用本域既有调用点口径（事务内 update_with_audit）
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            price,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        info!("采购价格拒绝成功，ID: {}", id);
         Ok(())
     }
 

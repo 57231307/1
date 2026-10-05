@@ -1,8 +1,8 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -398,13 +398,35 @@ pub async fn submit_order(
 
 /// 审核销售订单
 /// POST /api/v1/erp/sales/orders/:id/approve
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由选填并落
+// approval_reason 专列；拒绝动作在 /reject（理由落 rejected_reason 专列）。
 pub async fn approve_order(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    payload: Option<Json<ApproveSalesOrderRequest>>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+
+    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
+    // 现存不带 body 的调用方（前端 api/sales.ts 批准不发体）若改强类型 `Json<T>`
+    // 会在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键在选填档直接按未采集放行。
+    // 选填口径：空/纯空白一律归一为 None ⇒ 列保持 NULL，不得伪造成必填、也不得落空串。
+    let approval_reason = payload
+        .map(|Json(req)| req)
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
     let order = sales_service.approve_order(id, auth.user_id).await?;
+
+    // 通过理由补写（选填通道；与 approve 分事务的边界原因见 so/contract.rs 注释，
+    // 失败如实上抛，不静默丢理由）
+    if let Some(ref reason) = approval_reason {
+        sales_service
+            .record_approval_reason(id, auth.user_id, reason)
+            .await?;
+    }
 
     // 订单审批成功后发送通知给申请人
     if state.event_notification_service.is_none() {
@@ -559,7 +581,7 @@ pub async fn get_order_history(
 
 // ========== 数据导出接口 ==========
 
-use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
+use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
@@ -665,14 +687,24 @@ pub async fn generate_order_no(
 
 // ========== 订单状态操作接口 ==========
 
-/// 拒绝销售订单请求（字段与校验对齐 purchase_order_handler.rs::RejectOrderRequest，
+/// 拒绝销售订单请求：长度下限与 purchase_order_handler.rs::RejectOrderRequest 同族，
+/// 上限不设——sales_orders.rejected_reason 为 TEXT（migration m0079），无列宽截断风险；
+/// PO 侧 255 上限是 VARCHAR(255) 列型对齐，两域列型不同不强行取同值。
 /// 此前本 handler 无 Json 提取器，前端传来的拒绝原因被 Axum 丢弃、
-/// 审计里恒为写死的「订单被拒绝」）
+/// 审计里恒为写死的「订单被拒绝」。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct RejectSalesOrderRequest {
-    #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
+    #[validate(length(min = 1, message = "拒绝原因不能为空"))]
     pub reason: String,
+}
+
+/// 审批通过请求体（选填档）：通过理由缺失/空串/纯空白一律按未采集落 NULL。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用与选填语义在同一
+/// 形态下解码通过，不产生解码层裸 400。
+#[derive(Debug, Deserialize)]
+pub struct ApproveSalesOrderRequest {
+    pub approval_reason: Option<String>,
 }
 
 /// 拒绝订单
@@ -683,12 +715,24 @@ pub async fn reject_order(
     Path(id): Path<i32>,
     Json(req): Json<RejectSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 死注解收口：校验真实执行；validator 的 min=1 拦不住纯空白，trim 非空门在后，
+    // 落库为 trim 后的值（口径同 quotation_handler.rs / sales_price_handler.rs reject 先例）。
+    req.validate()?;
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        tracing::warn!(
+            "用户 {} 拒绝销售订单被拒：单据 ID {id} 拒绝理由为纯空白（ID 只进日志不进文案）",
+            _auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // service 直接返回 AppError（状态机拒绝 business / 404 not_found 等 4xx），
     // 透传保留其 status/code/文案；此前 map_err(internal) 会把业务拒绝压成 500。
     sales_service
-        .reject_order(id, req.reason, _auth.user_id)
+        .reject_order(id, reason, _auth.user_id)
         .await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({

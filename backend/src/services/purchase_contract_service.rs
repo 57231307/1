@@ -483,8 +483,13 @@ impl PurchaseContractService {
         }
     }
 
-    /// 审核合同
-    pub async fn approve(&self, contract_id: i32, user_id: i32) -> Result<(), AppError> {
+    /// 审核合同（通过动作）：draft → active，通过理由真实落 `approval_reason` 列
+    pub async fn approve(
+        &self,
+        contract_id: i32,
+        user_id: i32,
+        approval_reason: String,
+    ) -> Result<(), AppError> {
         info!("用户 {} 正在审核合同 {}", user_id, contract_id);
 
         // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
@@ -509,6 +514,8 @@ impl PurchaseContractService {
         // 3. 更新状态 + 审计日志（事务内原子提交）
         let mut contract_active: purchase_contract::ActiveModel = contract.into();
         contract_active.status = Set(contract::ACTIVE.to_string());
+        // 通过理由真实落列（handler 侧已保证 trim 非空），不再只进日志
+        contract_active.approval_reason = Set(Some(approval_reason));
         contract_active.updated_at = Set(chrono::Utc::now());
 
         crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -522,6 +529,59 @@ impl PurchaseContractService {
         txn.commit().await?;
 
         info!("合同 {} 审核成功", contract_id);
+        Ok(())
+    }
+
+    /// 拒绝合同（拒绝动作）：draft → rejected 终态流转，拒绝理由落 `rejected_reason` 列
+    ///
+    /// 状态门只允许 draft 起拒：active（权利义务已生效）与 cancelled（已作废）一律拦，
+    /// rejected 本身为终态——本批不出 rejected→draft 出边（重开须重新发起新合同）。
+    /// 门控值与写入值同源自 `models::status::contract`，禁止字面量。
+    pub async fn reject(
+        &self,
+        contract_id: i32,
+        user_id: i32,
+        reason: String,
+    ) -> Result<(), AppError> {
+        info!(
+            "用户 {} 正在拒绝合同 {}，拒绝理由：{}",
+            user_id, contract_id, reason
+        );
+
+        // 与 approve 同形：begin txn + lock_exclusive 串行化并发状态变更 + update_with_audit
+        let txn = (*self.db).begin().await?;
+
+        let contract = purchase_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购合同不存在：{}", contract_id)))?;
+
+        if contract.status != contract::DRAFT {
+            // 状态门：前置状态未满足（仅草稿可拒绝），归业务族；文案纯规则可外显
+            return Err(AppError::business_displayable(
+                "只有草稿状态的合同才能拒绝".to_string(),
+            ));
+        }
+
+        let mut contract_active: purchase_contract::ActiveModel = contract.into();
+        contract_active.status = Set(contract::REJECTED.to_string());
+        // 两动作两列：拒绝只落 rejected_reason，不挪用 approval_reason；
+        // cancel（作废）动作不使用本列，故 cancelled 行为 NULL 是预期取值域。
+        contract_active.rejected_reason = Set(Some(reason));
+        contract_active.updated_at = Set(chrono::Utc::now());
+
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contract_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        info!("合同 {} 拒绝成功", contract_id);
         Ok(())
     }
 

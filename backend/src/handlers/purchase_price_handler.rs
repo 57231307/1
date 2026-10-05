@@ -5,14 +5,14 @@ use crate::models::status::price_approval;
 use crate::services::purchase_price_service::{
     CreatePurchasePriceInput, PurchasePriceService, PurchasePriceView,
 };
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::ApiResponse;
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use serde::Deserialize;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -25,11 +25,19 @@ pub struct PurchasePriceQuery {
     pub page_size: Option<i64>,
 }
 
-#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApprovePriceRequest {
     pub approved: bool,
-    pub remark: Option<String>,
+    /// 审批通过理由：本域服务端必填（缺失/空串/纯空白一律拒绝）。字段保持
+    /// `Option<String>` 是为了让"缺键"调用走到统一的 `AppError` 校验信封，
+    /// 而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+    pub approval_reason: Option<String>,
+}
+
+/// 审批拒绝入参：拒绝理由全域必填（trim 非空）并落 `rejected_reason` 列。
+#[derive(Debug, Deserialize)]
+pub struct RejectPriceRequest {
+    pub reason: String,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -160,22 +168,79 @@ pub async fn approve_price(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-    Json(req): Json<ApprovePriceRequest>,
+    payload: Option<Json<ApprovePriceRequest>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 批次 199 P1-6：真实接入请求体，原 stub 丢弃 _req 导致 approved=false 仍执行批准
-    if !req.approved {
+    // 入参保持 `Option<Json<T>>` 形态（本仓先例：advanced/forecast.rs:94、
+    // advanced/rec.rs:23、print_handler.rs:1520/1559）：改强类型 `Json<T>` 会让
+    // 现存不带 body 的调用方在 axum 解码层收到无信封裸 400，属破坏性变更；
+    // 缺 body/缺键改由下方"通过理由必填"校验分支给出统一 AppError 信封。
+    let req = payload.map(|Json(req)| req);
+
+    // 端点单一职责：本端点只处理批准，approved=false 不做任何写入，拒绝指向真实
+    // 存在的独立拒绝端点（reject_price）。
+    if matches!(&req, Some(r) if !r.approved) {
+        warn!(
+            "用户 {} 批准采购价格被拒：记录 ID {id} 提交 approved=false（ID 只进日志不进文案）",
+            auth.user_id
+        );
         return Err(AppError::validation_displayable(
-            "审批拒绝请使用专用拒绝接口，本接口仅处理批准操作",
+            "审批拒绝请提交至价格拒绝接口，本接口仅处理批准操作",
         ));
     }
+
+    // 通过理由本域必填：缺失/空串/纯空白一律 400 VALIDATION_ERROR；可外显文案
+    // 定性、不含记录 ID（utils/error.rs 安全边界），ID 只进 warn 日志。
+    let approval_reason = req
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            warn!(
+                "用户 {} 批准采购价格被拒：记录 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
     info!(
-        "用户 {} 正在批准采购价格，ID: {}，备注: {:?}",
-        auth.user_id, id, req.remark
+        "用户 {} 正在批准采购价格，ID: {}，通过理由: {}",
+        auth.user_id, id, approval_reason
     );
 
     let service = PurchasePriceService::new(state.db.clone());
-    service.approve_price(id, auth.user_id).await?;
-    info!("采购价格批准成功，ID: {}，备注: {:?}", id, req.remark);
+    service
+        .approve_price(id, auth.user_id, approval_reason)
+        .await?;
+    info!("采购价格批准成功，ID: {}", id);
+
+    Ok(Json(ApiResponse::success(())))
+}
+
+pub async fn reject_price(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(req): Json<RejectPriceRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    // 拒绝理由必填样板照 quotation_handler.rs:253-257：trim 非空，空串/纯空白
+    // 400 VALIDATION_ERROR；落库为 trim 后的值；可外显文案不含记录 ID。
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝采购价格被拒：记录 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
+    info!(
+        "用户 {} 正在拒绝采购价格，ID: {}，拒绝理由: {}",
+        auth.user_id, id, reason
+    );
+
+    let service = PurchasePriceService::new(state.db.clone());
+    service.reject_price(id, auth.user_id, reason).await?;
+    info!("采购价格拒绝成功，ID: {}", id);
 
     Ok(Json(ApiResponse::success(())))
 }

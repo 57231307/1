@@ -50,7 +50,9 @@ impl SalesService {
         let customer_id_for_event = order.customer_id;
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = Set(so_status::REJECTED.to_string());
-        order_update.notes = Set(Some(reason));
+        // 拒绝理由落 rejected_reason 专列（m0079）；notes 回归订单备注语义，
+        // 此前 reject 覆盖写 notes 属挪用毁数，存量不回填（无标记无法定性）。
+        order_update.rejected_reason = Set(Some(reason));
         order_update.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
@@ -72,6 +74,39 @@ impl SalesService {
             },
         );
 
+        Ok(())
+    }
+
+    /// 记录审批通过理由（选填采集通道）：handler 仅在 trim 后非空时调用，落
+    /// approval_reason 专列。
+    /// 事务边界说明：approve_order 定义在 so/order_workflow.rs，其签名改造不在
+    /// 本批允许范围，故理由在审批提交后以独立事务 + lock_exclusive 补写，失败
+    /// 如实上抛不吞（订单已审批与理由缺失是两个可独立观测的事实）；枢纽批次放开
+    /// order_workflow.rs 后应收进 approve 单事务，与
+    /// po/contract.rs::approve_order_with_reason 同形收口。
+    pub async fn record_approval_reason(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        reason: &str,
+    ) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let order = sales_order::Entity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("订单不存在"))?;
+        let mut order_update: sales_order::ActiveModel = order.into();
+        order_update.approval_reason = Set(Some(reason.to_string()));
+        order_update.updated_at = Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            order_update,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
         Ok(())
     }
 }

@@ -16,8 +16,8 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, RelationTrait};
 use serde::{Deserialize, Serialize};
@@ -314,15 +314,30 @@ pub async fn submit_order(
 }
 
 /// 审批采购订单
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由选填并落
+// approval_reason 专列；拒绝动作在 /reject（理由落 rejected_reason 专列）。
 pub async fn approve_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
+    payload: Option<Json<ApprovePurchaseOrderRequest>>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    let order = service.approve_order(id, user_id).await?;
+    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
+    // 现存不带 body 的调用方（前端 api/purchase.ts 批准不发体）若改强类型 `Json<T>`
+    // 会在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键在选填档直接按未采集放行。
+    // 选填口径：空/纯空白一律归一为 None ⇒ 列保持 NULL，不得伪造成必填、也不得落空串。
+    let approval_reason = payload
+        .map(|Json(req)| req)
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let order = service
+        .approve_order_with_reason(id, user_id, approval_reason)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(order)?,
@@ -338,12 +353,23 @@ pub async fn reject_order(
     State(state): State<AppState>,
     Json(req): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 死注解收口：校验真实执行（此前 #[validate] 从 handler 摘除即死码）；
+    // validator 的 min=1 拦不住纯空白，trim 非空门在后，落库为 trim 后的值
+    // （口径同 quotation_handler.rs / sales_price_handler.rs reject 先例）。
+    req.validate()?;
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        tracing::warn!(
+            "用户 {} 拒绝采购订单被拒：单据 ID {id} 拒绝理由为纯空白（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    let order = service
-        .reject_order(id, req.reason.clone(), user_id)
-        .await?;
+    let order = service.reject_order(id, reason.clone(), user_id).await?;
 
     // 发送审批拒绝通知
     if state.event_notification_service.is_none() {
@@ -358,7 +384,7 @@ pub async fn reject_order(
                 false,
                 auth.user_id,
                 &auth.username,
-                Some(&req.reason),
+                Some(&reason),
             )
             .await
         {
@@ -573,12 +599,21 @@ pub struct OrderQueryParams {
     pub keyword: Option<String>,
 }
 
-/// 拒绝订单请求
+/// 拒绝订单请求：长度上限与列型对齐——purchase_orders.rejected_reason 为
+/// VARCHAR(255)（migration system/mod.rs:344），超 255 在库侧必报错，应用侧先行 400
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct RejectOrderRequest {
-    #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
+    #[validate(length(min = 1, max = 255, message = "拒绝原因不能为空且最长255字符"))]
     pub reason: String,
+}
+
+/// 审批通过请求体（选填档）：通过理由缺失/空串/纯空白一律按未采集落 NULL。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用与选填语义在同一
+/// 形态下解码通过，不产生解码层裸 400。
+#[derive(Debug, Deserialize)]
+pub struct ApprovePurchaseOrderRequest {
+    pub approval_reason: Option<String>,
 }
 
 /// 取消采购订单请求（批次 215 P2-1）
@@ -592,7 +627,7 @@ pub struct CancelOrderRequest {
 // ========== 数据导出接口 ==========
 
 // V15 P0-S15 修复（Batch 475b）：导出注入水印（操作员/导出时间/导出条数）
-use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

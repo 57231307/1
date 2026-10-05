@@ -279,14 +279,20 @@ impl QuotationApprovalService {
     }
 
     /// 构造审批通过的 ActiveModel
+    ///
+    /// 通过理由真实落 `approval_reason` 列（handler 侧已保证 trim 非空），不再只进日志。
+    /// BPM 侧裁决意见的唯一载体仍是 `bpm_task.approval_opinion`，本列只承载业务侧裁量，
+    /// 两端不互写（避免同一裁量双源）。
     fn build_approved_quotation_active_model(
         quotation: sales_quotation::Model,
         approver_id: i32,
+        approval_reason: String,
     ) -> QuotationActive {
         let mut active: QuotationActive = quotation.into();
         active.status = Set(quotation_status::APPROVED.to_string());
         active.approved_by = Set(Some(approver_id as i64));
         active.approved_at = Set(Some(Utc::now()));
+        active.approval_reason = Set(Some(approval_reason));
         active.updated_at = Set(Utc::now());
         active
     }
@@ -391,17 +397,23 @@ impl QuotationApprovalService {
     }
 
     /// 经理/总经理审批通过
+    ///
+    /// `approval_reason` 为业务侧通过理由（handler 已收口 trim 非空），真实落
+    /// `approval_reason` 列；BPM 待办的裁决意见另由 `bpm_task.approval_opinion` 承载，
+    /// 本方法不把业务理由回灌 BPM、也不从 BPM 反灌业务列（禁双写）。
     pub async fn approve(
         &self,
         quotation_id: i64,
         approver_id: i32,
+        approval_reason: String,
     ) -> Result<sales_quotation::Model, AppError> {
         // 事务包裹查询+状态检查+审计更新，BPM 任务审批在事务外执行（容错）
         let txn = (*self.db).begin().await?;
         let quotation = self
             .lock_and_validate_quotation_for_approval_txn(quotation_id, &txn)
             .await?;
-        let active = Self::build_approved_quotation_active_model(quotation, approver_id);
+        let active =
+            Self::build_approved_quotation_active_model(quotation, approver_id, approval_reason);
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -460,8 +472,11 @@ impl QuotationApprovalService {
             .await?;
         let mut active: QuotationActive = quotation.into();
         active.status = Set(quotation_status::REJECTED.to_string());
-        active.approved_by = Set(Some(approver_id as i64));
         active.rejection_reason = Set(Some(reason.to_string()));
+        // 结论人/结论时间列口径与 approve 路径一致：本域只有 approved_by/approved_at
+        // 一列套承载"审批结论"，结论性质由 status 区分，拒绝同样必须留决策时间与决策人。
+        active.approved_by = Set(Some(approver_id as i64));
+        active.approved_at = Set(Some(Utc::now()));
         active.updated_at = Set(Utc::now());
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,

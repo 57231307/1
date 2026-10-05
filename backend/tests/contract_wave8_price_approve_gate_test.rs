@@ -13,9 +13,10 @@
 //! - 审批门归 **BUSINESS 族**（HTTP 400 + `code=BUSINESS_ERROR`，与销售侧同族；
 //!   与 traversal/41-approve-endpoints 矩阵 `REGISTERED_REJECT_CODES` 兼容）。
 //!   本仓业务拒绝文案永久脱敏，故本文件**只断 status 与信封机器码，不断文案原文**。
-//! - 列表筛选白名单**分表钉、绝不取并集**：sales = {pending, approved}（与
-//!   `chk_sales_price_status` 同源），purchase = `price_approval::ALL`
-//!   {pending, approved, inactive}（与 `chk_purchase_price_status` 全等）。
+//! - 列表筛选白名单**分表钉、绝不取并集**：sales = {pending, approved, rejected}
+//!   （与扩 rejected 后的 `chk_sales_price_status` 同源；rejected 由 m0080 扩集后继
+//!   纳入，销售拒绝端点为其唯一写入方），purchase = `price_approval::ALL`
+//!   {pending, approved, rejected, inactive}（与 `chk_purchase_price_status` 全等）。
 //!   `inactive` 在 purchase 侧必须放行、在 sales 侧必须 400 —— 任何"两侧共用一个
 //!   并集白名单"的实现必被第 4/5 例抓住。
 //! - 空串/缺省 = 不加筛选（trim 语义，照 greige_fabric 先例）；越界 = 400 +
@@ -41,6 +42,9 @@ use std::sync::Arc;
 use test_common::setup_test_db;
 
 const OPERATOR_ID: i32 = 9431;
+/// 审批通过理由（夹具文案）：`approve_price` 现真实落 `approval_reason` 列，
+/// 服务层入参为必填 String（必填档在 handler 收口，本锁钉落库回读）。
+const APPROVAL_REASON: &str = "通过：价格符合市场行情与客户资信";
 /// 逐例种入的**真实**产品父行主键（products 是业务表、夹具逐例 TRUNCATE 后可显式固定 id）
 const SEED_PRODUCT_ID: i32 = 9401;
 
@@ -293,7 +297,7 @@ async fn approve_non_pending_purchase_price_is_business_error_and_changes_nothin
     for illegal in [price_approval::APPROVED, price_approval::INACTIVE] {
         let row = seed_purchase_price(&db, illegal, SEED_PRODUCT_ID, supplier_id).await;
         let err = svc
-            .approve_price(row.id, OPERATOR_ID)
+            .approve_price(row.id, OPERATOR_ID, APPROVAL_REASON.to_string())
             .await
             .expect_err(&format!(
                 "{illegal} 状态不得被 approve_price 直批（状态机前置未满足）"
@@ -327,13 +331,18 @@ async fn approve_pending_purchase_price_transitions_and_stamps_approved_at() {
     let row = seed_purchase_price(&db, price_approval::PENDING, SEED_PRODUCT_ID, supplier_id).await;
     assert!(row.approved_at.is_none(), "种子行必须从空白审批痕迹起步");
 
-    svc.approve_price(row.id, OPERATOR_ID)
+    svc.approve_price(row.id, OPERATOR_ID, APPROVAL_REASON.to_string())
         .await
         .expect("pending → approved 权威路径必须成功（门不得误伤合法流转）");
 
     let after = reload_purchase(&db, row.id).await;
     assert_eq!(after.status, price_approval::APPROVED);
     assert_eq!(after.approved_by, Some(OPERATOR_ID));
+    assert_eq!(
+        after.approval_reason.as_deref(),
+        Some(APPROVAL_REASON),
+        "审批通过理由必须逐字落 approval_reason 列（不再只进日志）"
+    );
     assert!(
         after.approved_at.is_some(),
         "审批成功必须同步落 approved_at（对齐销售侧 sales_price_service.rs:164）"
@@ -341,7 +350,7 @@ async fn approve_pending_purchase_price_transitions_and_stamps_approved_at() {
 
     // 批完再批：第二次必须被门拒（防"反复直批"回潮）
     let err = svc
-        .approve_price(row.id, OPERATOR_ID)
+        .approve_price(row.id, OPERATOR_ID, APPROVAL_REASON.to_string())
         .await
         .expect_err("已 approved 的记录不得被重复直批");
     expect_business_gate(&err);
@@ -513,9 +522,11 @@ async fn sales_list_status_filter_pins_sales_domain_not_union() {
 
 // ---------------------------------------------------------------------------
 // 6. 防回潮源码扫描锁（"把门从落点上摘掉就必红"的结构性证明）
-//    ①采购 approve 函数体必须就地判 PENDING 且落 approved_at（不能只留 API 层校验）；
+//    ①采购 approve 函数体必须就地判 PENDING、落 approved_at 与 approval_reason
+//      （不能只留 API 层校验）；
 //    ②两个列表 handler 的入口必须各自调用筛选校验；
-//    ③销售白名单常量必须是 PENDING/APPROVED 两值且不含 INACTIVE（并集化的源码指纹）。
+//    ③销售白名单常量必须是 PENDING/APPROVED/REJECTED 三值且不含
+//      INACTIVE（并集化的源码指纹）。
 // ---------------------------------------------------------------------------
 #[test]
 fn source_scan_price_gates_are_wired_at_the_right_points() {
@@ -538,6 +549,10 @@ fn source_scan_price_gates_are_wired_at_the_right_points() {
         body.contains("price.approved_at = Set(Some(chrono::Utc::now()));"),
         "审批成功必须同步落 approved_at（对齐销售侧 :164；删掉即 C-1 回归）"
     );
+    assert!(
+        body.contains("price.approval_reason = Set(Some(approval_reason));"),
+        "通过理由必须真实落 approval_reason 列（只进日志即回潮，落库口径见已定案裁定）"
+    );
 
     let po_src = std::fs::read_to_string("src/handlers/purchase_price_handler.rs")
         .expect("读取 purchase_price_handler.rs 失败");
@@ -556,9 +571,32 @@ fn source_scan_price_gates_are_wired_at_the_right_points() {
         sa_src.contains("SALES_PRICE_STATUS_FILTER_ALLOWED"),
         "销售筛选白名单必须分表钉为常量（与 chk_sales_price_status 同源）"
     );
-    assert!(
-        sa_src.contains("&[price_approval::PENDING, price_approval::APPROVED]"),
-        "销售白名单取值必须逐条为词表常量 PENDING/APPROVED（rustfmt 折行后仍连续的字面口径）"
+    // 白名单条目集合按**解析**钉死（rustfmt 对三值定义会逐元素折行，连续字面量口径
+    // 已失效；解析后集合相等仍与原"逐条为词表常量"判据等价，不放松）
+    let allow_start = sa_src
+        .find("const SALES_PRICE_STATUS_FILTER_ALLOWED")
+        .expect("销售白名单常量必须存在（分表钉，不得内联临时字面量）");
+    let mut allow_def = &sa_src[allow_start..];
+    let def_end = allow_def.find("];").expect("销售白名单常量定义未闭合") + 2;
+    allow_def = &allow_def[..def_end];
+    let lit_start = allow_def
+        .rfind("&[")
+        .expect("白名单常量 = 号后必须是数组字面量");
+    let after_lit = &allow_def[lit_start + 2..];
+    let inner = &after_lit[..after_lit.find(']').expect("数组字面量未闭合")];
+    let elems: Vec<&str> = inner
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    assert_eq!(
+        elems,
+        vec![
+            "price_approval::PENDING",
+            "price_approval::APPROVED",
+            "price_approval::REJECTED",
+        ],
+        "销售白名单取值必须逐条为词表常量 PENDING/APPROVED/REJECTED 三值（rejected 随 m0080 扩集入白名单；增删值是产品口径变更，须走裁定）"
     );
     assert!(
         !sa_src.contains("SALES_PRICE_STATUS_FILTER_ALLOWED")
@@ -572,8 +610,9 @@ fn source_scan_price_gates_are_wired_at_the_right_points() {
         &[
             price_approval::PENDING,
             price_approval::APPROVED,
+            price_approval::REJECTED,
             price_approval::INACTIVE,
         ],
-        "采购白名单取值集必须逐条等于既有 price_approval 三常量（增删值是产品口径变更，须走裁定）"
+        "采购白名单取值集必须逐条等于既有 price_approval 四常量（rejected 随 m0080 扩集入词表与两侧 CHECK；增删值是产品口径变更，须走裁定）"
     );
 }

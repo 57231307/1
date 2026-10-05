@@ -29,9 +29,10 @@ use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
+use tracing::warn;
 
 // ----------------------------------------------------------------------
 // 公共 DTO
@@ -64,6 +65,14 @@ pub struct ListQuotationsResponse {
 #[derive(Debug, Deserialize)]
 pub struct RejectRequest {
     pub reason: String,
+}
+
+/// 审批通过请求体：通过理由本域必填（缺失/空串/纯空白一律服务端拒绝）。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用走到统一的 `AppError`
+/// 校验信封，而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+#[derive(Debug, Deserialize)]
+pub struct ApproveQuotationRequest {
+    pub approval_reason: Option<String>,
 }
 
 /// 即将到期 / 已过期查询参数
@@ -230,13 +239,34 @@ pub async fn submit_quotation(
 }
 
 /// POST /api/v1/erp/quotations/:id/approve
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由必填并真实落
+// `approval_reason` 列；拒绝动作在 /reject（理由落既有专列 `rejection_reason`）。
 pub async fn approve_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    payload: Option<Json<ApproveQuotationRequest>>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
+    // 改强类型 `Json<T>` 会让现存不带 body 的调用方（前端 api/quotation.ts 批准不发体）
+    // 在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键改由下方必填分支给出
+    // 统一 AppError 信封。
+    let approval_reason = payload
+        .map(|Json(req)| req)
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            // 可外显文案只定性规则、不带记录 ID（utils/error.rs 安全边界），ID 只进日志。
+            warn!(
+                "用户 {} 批准报价单被拒：单据 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
     let service = QuotationApprovalService::from_state(&state);
-    let model = service.approve(id, auth.user_id).await?;
+    let model = service.approve(id, auth.user_id, approval_reason).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
         "报价单已批准",
@@ -250,13 +280,20 @@ pub async fn reject_quotation(
     Path(id): Path<i64>,
     Json(body): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
-    if body.reason.trim().is_empty() {
+    // 拒绝理由服务端必填（trim 非空），落库为 trim 后的值——与 approve 的通过理由
+    // 同一收口口径；可外显文案定性、不带记录 ID。
+    let reason = body.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝报价单被拒：单据 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
         return Err(AppError::validation_displayable(
             "拒绝原因不能为空".to_string(),
         ));
     }
     let service = QuotationApprovalService::from_state(&state);
-    let model = service.reject(id, auth.user_id, body.reason).await?;
+    let model = service.reject(id, auth.user_id, reason).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
         "报价单已拒绝",

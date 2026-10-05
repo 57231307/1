@@ -8,8 +8,8 @@
 
 use crate::container::AppState;
 use axum::{
-    Router,
     routing::{delete, get, post, put},
+    Router,
 };
 
 use crate::handlers::{
@@ -254,6 +254,10 @@ pub fn purchase_contracts() -> Router<AppState> {
             post(purchase_contract_handler::approve_contract),
         )
         .route(
+            "/purchase-contracts/{id}/reject",
+            post(purchase_contract_handler::reject_contract),
+        )
+        .route(
             "/purchase-contracts/{id}/execute",
             put(purchase_contract_handler::execute_contract),
         )
@@ -294,6 +298,10 @@ pub fn purchase_prices() -> Router<AppState> {
         .route(
             "/purchase-prices/{id}/approve",
             post(purchase_price_handler::approve_price),
+        )
+        .route(
+            "/purchase-prices/{id}/reject",
+            post(purchase_price_handler::reject_price),
         )
         // batch-13 P3: 价格清单导入
         .route(

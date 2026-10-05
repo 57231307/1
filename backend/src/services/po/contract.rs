@@ -142,10 +142,25 @@ impl PurchaseOrderService {
 
     /// 审批采购订单
     /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id；原 `approve_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，；并发审批同一订单可能基于过期快照导致重复审批或状态覆盖；同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 无审批理由的旧调用形态（BPM 回调等）走本门面：BPM 裁决意见只存
+    /// bpm_task.approval_opinion，不回写 approval_reason 列（m0079 迁移文档否决双源）。
     pub async fn approve_order(
         &self,
         order_id: i32,
         user_id: i32,
+    ) -> Result<purchase_order::Model, AppError> {
+        self.approve_order_with_reason(order_id, user_id, None)
+            .await
+    }
+
+    /// 审批采购订单（携带选填通过理由）
+    /// 通过理由属采集通道：handler 已将空/纯空白归一为 None，此处 Some 才落
+    /// approval_reason 专列，None 不 Set（列保持 NULL=未采集），禁止伪造成必填。
+    pub async fn approve_order_with_reason(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        approval_reason: Option<String>,
     ) -> Result<purchase_order::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
@@ -172,6 +187,9 @@ impl PurchaseOrderService {
         order_active.approved_at = Set(Some(now));
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(now);
+        if let Some(reason) = approval_reason {
+            order_active.approval_reason = Set(Some(reason));
+        }
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
@@ -242,7 +260,7 @@ impl PurchaseOrderService {
     }
 
     /// 取消采购订单
-    /// 批次 215 P2-1 修复（v12 复审）：实现采购订单 cancel_order 功能，；移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。；业务规则：允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED；（已收货部分通过采购退货流程处理，取消仅作用于未收货部分）；禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）；取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）；取消原因记录到 rejected_reason 字段（语义扩展为"拒绝/取消原因"，避免新增字段）
+    /// 批次 215 P2-1 修复（v12 复审）：实现采购订单 cancel_order 功能，；移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。；业务规则：允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED；（已收货部分通过采购退货流程处理，取消仅作用于未收货部分）；禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）；取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）；取消原因落 cancel_reason 专列（m0079 拆列），rejected_reason 回归只承载 reject 拒绝结论，两动作两列
     pub async fn cancel_order(
         &self,
         order_id: i32,
@@ -277,11 +295,11 @@ impl PurchaseOrderService {
         //    查询 budget_execution 表中该订单的"使用"类型记录，若存在则插入反向"调整"冲销
         self.release_budget_occupation(&order, &txn).await;
 
-        // 4. 更新状态为 CANCELLED，记录取消原因
+        // 4. 更新状态为 CANCELLED，取消原因落 cancel_reason 专列（不再挪用 rejected_reason）
         let now = chrono::Utc::now();
         let mut order_active: purchase_order::ActiveModel = order.into();
         order_active.order_status = Set(status::purchase_order::CANCELLED.to_string());
-        order_active.rejected_reason = Set(Some(reason));
+        order_active.cancel_reason = Set(Some(reason));
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(now);
 

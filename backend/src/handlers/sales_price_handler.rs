@@ -5,20 +5,20 @@ use crate::models::status::price_approval;
 use crate::services::sales_price_service::{
     CreateSalesPriceInput, SalesPriceService, SalesPriceView, UpdateSalesPriceInput,
 };
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::ApiResponse;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use serde::Deserialize;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 // V15 P0-S12 修复（Batch 475d）：派生 Clone，export_prices 需要 clone 后覆盖分页参数用于全量导出
@@ -40,18 +40,30 @@ pub struct SalesPriceQuery {
     pub download_token: Option<String>,
 }
 
-#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApprovePriceRequest {
     pub approved: bool,
-    pub remark: Option<String>,
+    /// 审批通过理由：本域服务端必填（缺失/空串/纯空白一律拒绝）。字段保持
+    /// `Option<String>` 是为了让"缺键"调用走到统一的 `AppError` 校验信封，
+    /// 而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+    pub approval_reason: Option<String>,
+}
+
+/// 审批拒绝入参：拒绝理由全域必填（trim 非空）并落 `rejected_reason` 列。
+#[derive(Debug, Deserialize)]
+pub struct RejectPriceRequest {
+    pub reason: String,
 }
 
 /// 销售价目列表 `status` 筛选取值域：**分表钉**，等于权威词表 `price_approval` 去掉
-/// `inactive`（销售侧无 inactive 写入方，DB CHECK `chk_sales_price_status` 即此二值集合）。
+/// `inactive`（销售侧无 inactive 写入方，DB CHECK `chk_sales_price_status` 即此三值
+/// 集合 pending/approved/rejected——rejected 由扩集后继迁移 m0080 纳入，白名单同批补齐）。
 /// 绝不与采购侧取并集——并集会让 `inactive` 在销售侧回到"合法但恒空"的假筛选老路。
-const SALES_PRICE_STATUS_FILTER_ALLOWED: &[&str] =
-    &[price_approval::PENDING, price_approval::APPROVED];
+const SALES_PRICE_STATUS_FILTER_ALLOWED: &[&str] = &[
+    price_approval::PENDING,
+    price_approval::APPROVED,
+    price_approval::REJECTED,
+];
 
 /// 销售价目列表 `status` 筛选入参校验。
 ///
@@ -135,22 +147,79 @@ pub async fn approve_price(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-    Json(req): Json<ApprovePriceRequest>,
+    payload: Option<Json<ApprovePriceRequest>>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 批次 199 P1-6：真实接入请求体，原 stub 丢弃 _req 导致 approved=false 仍执行批准
-    if !req.approved {
+    // 入参保持 `Option<Json<T>>` 形态（本仓先例：advanced/forecast.rs:94、
+    // advanced/rec.rs:23、print_handler.rs:1520/1559）：改强类型 `Json<T>` 会让
+    // 现存不带 body 的调用方在 axum 解码层收到无信封裸 400，属破坏性变更；
+    // 缺 body/缺键改由下方"通过理由必填"校验分支给出统一 AppError 信封。
+    let req = payload.map(|Json(req)| req);
+
+    // 端点单一职责：本端点只处理批准，approved=false 不做任何写入，拒绝指向真实
+    // 存在的独立拒绝端点（reject_price）。
+    if matches!(&req, Some(r) if !r.approved) {
+        warn!(
+            "用户 {} 批准销售价格被拒：记录 ID {id} 提交 approved=false（ID 只进日志不进文案）",
+            auth.user_id
+        );
         return Err(AppError::validation_displayable(
-            "审批拒绝请使用专用拒绝接口，本接口仅处理批准操作",
+            "审批拒绝请提交至价格拒绝接口，本接口仅处理批准操作",
         ));
     }
+
+    // 通过理由本域必填：缺失/空串/纯空白一律 400 VALIDATION_ERROR；可外显文案
+    // 定性、不含记录 ID（utils/error.rs 安全边界），ID 只进 warn 日志。
+    let approval_reason = req
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            warn!(
+                "用户 {} 批准销售价格被拒：记录 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
     info!(
-        "用户 {} 正在批准销售价格，ID: {}，备注: {:?}",
-        auth.user_id, id, req.remark
+        "用户 {} 正在批准销售价格，ID: {}，通过理由: {}",
+        auth.user_id, id, approval_reason
     );
 
     let service = SalesPriceService::new(state.db.clone());
-    service.approve_price(id, auth.user_id).await?;
-    info!("销售价格批准成功，ID: {}，备注: {:?}", id, req.remark);
+    service
+        .approve_price(id, auth.user_id, approval_reason)
+        .await?;
+    info!("销售价格批准成功，ID: {}", id);
+
+    Ok(Json(ApiResponse::success(())))
+}
+
+pub async fn reject_price(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(req): Json<RejectPriceRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    // 拒绝理由必填样板照 quotation_handler.rs:253-257：trim 非空，空串/纯空白
+    // 400 VALIDATION_ERROR；落库为 trim 后的值；可外显文案不含记录 ID。
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝销售价格被拒：记录 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
+    info!(
+        "用户 {} 正在拒绝销售价格，ID: {}，拒绝理由: {}",
+        auth.user_id, id, reason
+    );
+
+    let service = SalesPriceService::new(state.db.clone());
+    service.reject_price(id, auth.user_id, reason).await?;
+    info!("销售价格拒绝成功，ID: {}", id);
 
     Ok(Json(ApiResponse::success(())))
 }

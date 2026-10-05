@@ -8,8 +8,8 @@
 
 use crate::container::AppState;
 use axum::{
-    Router,
     routing::{delete, get, post, put},
+    Router,
 };
 
 use crate::handlers::{
@@ -156,6 +156,10 @@ pub fn sales_contracts() -> Router<AppState> {
             post(sales_contract_handler::approve_contract),
         )
         .route(
+            "/sales-contracts/{id}/reject",
+            post(sales_contract_handler::reject_contract),
+        )
+        .route(
             "/sales-contracts/{id}/execute",
             put(sales_contract_handler::execute_contract),
         )
@@ -192,6 +196,10 @@ pub fn sales_prices() -> Router<AppState> {
         .route(
             "/sales-prices/{id}/approve",
             post(sales_price_handler::approve_price),
+        )
+        .route(
+            "/sales-prices/{id}/reject",
+            post(sales_price_handler::reject_price),
         )
         .route(
             "/sales-prices/history/{product_id}",

@@ -507,9 +507,14 @@ impl SalesContractService {
         Ok(())
     }
 
-    /// 审核合同
+    /// 审核合同（通过动作）：draft → active，通过理由真实落 `approval_reason` 列
     /// 批次 22（2026-06-28 v5 P0-6）：重构 approve 补全事务边界 + lock_exclusive + update_with_audit；原 `approve` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，；并发审核同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
-    pub async fn approve(&self, contract_id: i32, user_id: i32) -> Result<(), AppError> {
+    pub async fn approve(
+        &self,
+        contract_id: i32,
+        user_id: i32,
+        approval_reason: String,
+    ) -> Result<(), AppError> {
         info!("用户 {} 正在审核销售合同 {}", user_id, contract_id);
 
         let txn = (*self.db).begin().await?;
@@ -530,6 +535,8 @@ impl SalesContractService {
 
         let mut contract_active: sales_contract::ActiveModel = contract.into();
         contract_active.status = Set(contract::ACTIVE.to_string());
+        // 通过理由真实落列（handler 侧已保证 trim 非空），不再只进日志
+        contract_active.approval_reason = Set(Some(approval_reason));
         contract_active.updated_at = Set(chrono::Utc::now());
 
         // 走 update_with_audit 保留审计追溯
@@ -546,6 +553,60 @@ impl SalesContractService {
         txn.commit().await?;
 
         info!("销售合同 {} 审核成功", contract_id);
+        Ok(())
+    }
+
+    /// 拒绝合同（拒绝动作）：draft → rejected 终态流转，拒绝理由落 `rejected_reason` 列
+    ///
+    /// 状态门只允许 draft 起拒：active（权利义务已生效）与 cancelled（已作废）一律拦，
+    /// rejected 本身为终态——本批不出 rejected→draft 出边（重开须重新发起新合同）。
+    /// 门控值与写入值同源自 `models::status::contract`，禁止字面量；形态与本文件
+    /// approve/cancel 一致（begin txn + lock_exclusive + update_with_audit + commit）。
+    pub async fn reject(
+        &self,
+        contract_id: i32,
+        user_id: i32,
+        reason: String,
+    ) -> Result<(), AppError> {
+        info!(
+            "用户 {} 正在拒绝销售合同 {}，拒绝理由：{}",
+            user_id, contract_id, reason
+        );
+
+        let txn = (*self.db).begin().await?;
+
+        // 状态门查询加 lock_exclusive 串行化并发 reject（与 approve 同一行锁口径）
+        let contract = sales_contract::Entity::find_by_id(contract_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售合同 {}", contract_id)))?;
+
+        if contract.status != contract::DRAFT {
+            return Err(AppError::business(format!(
+                "合同状态为{}，不可拒绝（仅草稿状态可拒绝）",
+                contract.status
+            )));
+        }
+
+        let mut contract_active: sales_contract::ActiveModel = contract.into();
+        contract_active.status = Set(contract::REJECTED.to_string());
+        // 两动作两列：拒绝只落 rejected_reason，不挪用 approval_reason；
+        // cancel（作废）动作不使用本列，故 cancelled 行为 NULL 是预期取值域。
+        contract_active.rejected_reason = Set(Some(reason));
+        contract_active.updated_at = Set(chrono::Utc::now());
+
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            contract_active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        info!("销售合同 {} 拒绝成功", contract_id);
         Ok(())
     }
 

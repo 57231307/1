@@ -1,4 +1,4 @@
-# layers=8 endpoints=1763
+# layers=8 endpoints=1767
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -1480,8 +1480,10 @@ POST	/api/v1/erp/purchase/orders/*/submit	purchase_order_handler::submit_order	p
 POST	/api/v1/erp/purchase/orders/delivery-date	purchase_order_handler::calculate_delivery_date	purchase
 POST	/api/v1/erp/purchase/purchase-contracts	purchase_contract_handler::create_contract	purchase
 POST	/api/v1/erp/purchase/purchase-contracts/*/approve	purchase_contract_handler::approve_contract	purchase
+POST	/api/v1/erp/purchase/purchase-contracts/*/reject	purchase_contract_handler::reject_contract	purchase
 POST	/api/v1/erp/purchase/purchase-prices	purchase_price_handler::create_price	purchase
 POST	/api/v1/erp/purchase/purchase-prices/*/approve	purchase_price_handler::approve_price	purchase
+POST	/api/v1/erp/purchase/purchase-prices/*/reject	purchase_price_handler::reject_price	purchase
 POST	/api/v1/erp/purchase/purchase-prices/import	purchase_price_handler::import_prices	purchase
 POST	/api/v1/erp/purchase/receipts	purchase_receipt_handler::create_receipt	purchase
 POST	/api/v1/erp/purchase/receipts/*/confirm	purchase_receipt_handler::confirm_receipt	purchase
@@ -1557,8 +1559,10 @@ POST	/api/v1/erp/sales/orders/*/ship	sales_order_handler::ship_order	sales
 POST	/api/v1/erp/sales/orders/*/submit	sales_order_handler::submit_order	sales
 POST	/api/v1/erp/sales/sales-contracts	sales_contract_handler::create_contract	sales
 POST	/api/v1/erp/sales/sales-contracts/*/approve	sales_contract_handler::approve_contract	sales
+POST	/api/v1/erp/sales/sales-contracts/*/reject	sales_contract_handler::reject_contract	sales
 POST	/api/v1/erp/sales/sales-prices	sales_price_handler::create_price	sales
 POST	/api/v1/erp/sales/sales-prices/*/approve	sales_price_handler::approve_price	sales
+POST	/api/v1/erp/sales/sales-prices/*/reject	sales_price_handler::reject_price	sales
 POST	/api/v1/erp/sales/sales-returns	create_sales_return	sales_return_handler
 POST	/api/v1/erp/sales/sales-returns/*/approve	approve_sales_return	sales_return_handler
 POST	/api/v1/erp/sales/sales-returns/*/execute	execute_sales_return	sales_return_handler

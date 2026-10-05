@@ -5,20 +5,20 @@ use crate::services::sales_contract_service::{
     CreateContractItemRequest, CreateSalesContractRequest, ExecuteSalesContractRequest,
     SalesContractService,
 };
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::ApiResponse;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 /// 销售合同查询参数 DTO
@@ -199,6 +199,20 @@ pub struct CancelSalesContractRequest {
     pub reason: String,
 }
 
+/// 审批通过请求 DTO：通过理由本域必填（缺失/空串/纯空白一律服务端拒绝）。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用走到统一的 `AppError`
+/// 校验信封，而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+#[derive(Debug, Deserialize)]
+pub struct ApproveSalesContractRequest {
+    pub approval_reason: Option<String>,
+}
+
+/// 审批拒绝请求 DTO：拒绝理由全域必填（trim 非空）并落 `rejected_reason` 列。
+#[derive(Debug, Deserialize)]
+pub struct RejectSalesContractRequest {
+    pub reason: String,
+}
+
 /// 获取销售合同列表
 pub async fn list_contracts(
     Query(params): Query<SalesContractQuery>,
@@ -324,18 +338,74 @@ pub async fn create_contract(
     Ok(Json(ApiResponse::success(contract)))
 }
 
-/// 审核销售合同
+/// 审核销售合同（通过动作）
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由必填并真实落
+// `approval_reason` 列；拒绝动作在 /reject（理由落 `rejected_reason` 列）。
 pub async fn approve_contract(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
+    payload: Option<Json<ApproveSalesContractRequest>>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在审核销售合同 {}", auth.user_id, id);
+    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
+    // 现存不带 body 的调用方（前端 api/sales-contract.ts 批准不发体）若改强类型
+    // `Json<T>` 会在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键由下方必填
+    // 分支给出统一 AppError 信封。
+    let approval_reason = payload
+        .map(|Json(req)| req)
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            // 可外显文案只定性规则、不带记录 ID（utils/error.rs 安全边界），ID 只进日志。
+            warn!(
+                "用户 {} 审核销售合同被拒：合同 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
+    info!(
+        "用户 {} 正在审核销售合同 {}，通过理由: {}",
+        auth.user_id, id, approval_reason
+    );
 
     let service = SalesContractService::new(state.db.clone());
-    service.approve(id, auth.user_id).await?;
+    service.approve(id, auth.user_id, approval_reason).await?;
 
     let message = format!("合同 {} 审核成功", id);
+    info!("{}", message);
+
+    Ok(Json(ApiResponse::success(message)))
+}
+
+/// 拒绝销售合同（拒绝动作）：draft → rejected 终态流转，拒绝理由落 `rejected_reason` 列
+pub async fn reject_contract(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<RejectSalesContractRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    // 拒绝理由服务端必填（trim 非空），落库为 trim 后的值——与通过理由同一收口口径；
+    // 可外显文案定性、不带记录 ID。
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝销售合同被拒：合同 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
+    info!(
+        "用户 {} 正在拒绝销售合同 {}，拒绝理由: {}",
+        auth.user_id, id, reason
+    );
+
+    let service = SalesContractService::new(state.db.clone());
+    service.reject(id, auth.user_id, reason).await?;
+
+    let message = format!("合同 {} 已拒绝", id);
     info!("{}", message);
 
     Ok(Json(ApiResponse::success(message)))
