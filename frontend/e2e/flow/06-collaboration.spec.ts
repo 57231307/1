@@ -1,6 +1,8 @@
 import { test, expect } from '../diagnose-fixture';
 import {
   BASE_URL,
+  API_BASE,
+  API_PREFIX,
   apiCall,
   apiCallExpectFail,
   apiCallRaw,
@@ -11,6 +13,7 @@ import {
   loginViaUI,
   verifyAuditLog,
   verifyPermissionDenied,
+  CSRF_ERROR_CODES,
 } from './helpers';
 
 test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', () => {
@@ -138,8 +141,12 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   });
 
   test('6-6 验证非法 API 调用被拒绝', async ({ page }) => {
+    // 契约（收紧 `>=400` 来者不拒）：/nonexistent-resource 未在任何 nest 注册
+    // （backend/src/routes/mod.rs 全量路由表），axum 匹配不到 handler 只能返回 404。
+    // 判红场景：出现 400/403（该路径被误注册进了鉴权/校验链）或 5xx（路由层 panic）；
+    // 不判机器码——未匹配路由出参由框架给出，无 AppError 信封可归因。
     const result = await apiCallExpectFail(page, 'GET', '/nonexistent-resource');
-    expect(result.status).toBeGreaterThanOrEqual(400);
+    expect(result.status, `未注册路由应恰为 404，实际 ${JSON.stringify(result)}`).toBe(404);
   });
 
   test('6-7 验证审计日志记录所有操作', async ({ page }) => {
@@ -216,9 +223,13 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   });
 
   test('6-10 验证 CSRF 保护', async ({ page }) => {
-    // 不带 CSRF Token 的 POST 请求应被拒绝
+    // 不带合法 CSRF Token 的写请求应被拒。会话 Cookie 由 loginViaUI 的 storageState 携带
+    // （auth_middleware 在 csrf 之外层先执行，middleware_bootstrap.rs::apply_auth_chain），
+    // 携带 X-CSRF-Token: 'invalid-token' 必然走到 csrf.rs::consume_csrf_token 失配分支：
+    // **恰 403 + 机器码 CSRF_TOKEN_INVALID**（csrf.rs:40 CODE_INVAL，统一错误体
+    // response::unified_error_response）。判状态+机器码，不判文案。
     const csrfToken = 'invalid-token';
-    const response = await page.request.fetch('http://localhost:8082/api/v1/erp/departments', {
+    const response = await page.request.fetch(`${API_BASE}${API_PREFIX}/departments`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -227,13 +238,12 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
       },
       data: JSON.stringify({ name: 'CSRF Test', code: 'CSRF-TEST' }),
     });
-    // 无效 CSRF Token 应返回 403
-    // 不带合法 CSRF Token 的写请求必须被拒（403 或任意 4xx）；
-    // 原写法 expect(a === 403 || a >= 400) 没有匹配器，永远不会失败
+    expect(response.status(), `无效 CSRF Token 的 POST 应恰为 403`).toBe(403);
+    const body = (await response.json().catch(() => null)) as { code?: unknown } | null;
     expect(
-      response.status(),
-      `缺少 CSRF Token 的 POST 应被拒绝，实际 HTTP ${response.status()}`
-    ).toBeGreaterThanOrEqual(400);
+      body?.code,
+      `CSRF 拒绝必须带机器码 CSRF_TOKEN_INVALID（csrf.rs CODE_INVAL），实际 ${JSON.stringify(body)}`
+    ).toBe(CSRF_ERROR_CODES.INVALID);
   });
 
   test('6-11 验证数据权限行级隔离', async ({ page }) => {

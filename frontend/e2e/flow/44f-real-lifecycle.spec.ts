@@ -12,21 +12,40 @@ import {
   tryCleanup,
   BASE_URL,
   seedInspectionPass,
+  failureCode,
+  APP_ERROR_CODES,
+  type ApiFailureResult,
 } from './helpers';
 
 /**
  * 44f 真实实体全流转链（创建→逐状态推进→每步 API 回读）
  *
  * rule provenance（全部对照后端 handler/DTO 实际字段）：
- * - 流转卡：models/dto/flow_card_dto.rs:44-56（production_order_id 必填）+
- *   routes/production.rs:242-250（schedule/start-preparing/complete-preparing/
+ * - 流转卡：models/dto/flow_card_dto.rs（production_order_id 必填）+
+ *   routes/production.rs（schedule/start-preparing/complete-preparing/
  *   start-dyeing/complete-dyeing/start-inspecting/ship/terminate）
- * - 调拨：services/inv/mod.rs:71-88（from/to_warehouse_id/items[product_id,quantity]）+
- *   routes/inventory.rs:115-123（approve/ship/receive）
- * - 收货：purchase_receipt_dto.rs:11-95；确认 routes/purchase.rs:107
- * - 发货：services/so/delivery.rs:37-61（order_id/warehouse_code/items）
- * - 生产订单：services/production_order_ops/types.rs:11-21（product_id 必填）
+ * - 调拨：services/inv/mod.rs（from/to_warehouse_id/items[product_id,quantity]）+
+ *   routes/inventory.rs（approve/ship/receive）
+ * - 收货：purchase_receipt_dto.rs；确认 routes/purchase.rs
+ * - 发货：services/so/delivery.rs（order_id/warehouse_code/items）
+ * - 生产订单：services/production_order_ops/types.rs（product_id 必填）
  */
+
+/**
+ * 状态门拒绝的精确契约（收紧原「status>=400（连 5xx/404/403 都算过）」假绿）：
+ * HTTP 恰 400（backend/utils/error.rs:356-373）+ 机器码 BUSINESS_ERROR
+ * （error.rs::error_code；下列门全部以 AppError::business(_displayable) 构造，
+ * 写入方逐条注释在各调用点）。不判文案（business 脱敏为常量，判了就是空转）。
+ */
+function expectStateGateRejection(r: ApiFailureResult, what: string, gateProvenance: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400（${gateProvenance}），实际 ${JSON.stringify(r)}`).toBe(
+    400
+  );
+  expect(
+    failureCode(r),
+    `${what}：机器码应为 BUSINESS_ERROR（${gateProvenance}），实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+}
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -78,7 +97,11 @@ test.describe.serial('44f 真实实体全流转链', () => {
       'POST',
       `/production/production-orders/orders/${id}/submit-approval`
     );
-    expect(dup.status, 'PENDING_APPROVAL 二次提交应被拒').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      dup,
+      'PENDING_APPROVAL 二次提交应被拒',
+      'production_order_ops/crud.rs::validate_status_transition'
+    );
 
     // ApprovalRequest { approved: bool, opinion? } 必填（自审修复：缺 body 恒 400）
     await apiCall(page, 'POST', `/production/production-orders/orders/${id}/approve`, {
@@ -130,7 +153,11 @@ test.describe.serial('44f 真实实体全流转链', () => {
 
     // pending 态非法直跳 dyeing（start-dyeing 端点应被状态门拒绝）
     const skip = await apiCallExpectFail(page, 'POST', `/production/flow-cards/${id}/start-dyeing`);
-    expect(skip.status, 'pending 直跳 dyeing 应被拒').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      skip,
+      'pending 直跳 dyeing 应被拒',
+      'flow_card_service.rs::validate_status_transition'
+    );
 
     await apiCall(page, 'POST', `/production/flow-cards/${id}/schedule`, {});
     expect(await rd()).toContain('scheduled');
@@ -140,7 +167,11 @@ test.describe.serial('44f 真实实体全流转链', () => {
       'POST',
       `/production/flow-cards/${id}/complete-dyeing`
     );
-    expect(skip2.status, 'scheduled 直跳 dyed 应被拒').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      skip2,
+      'scheduled 直跳 dyed 应被拒',
+      'flow_card_service.rs::validate_status_transition'
+    );
 
     await apiCall(page, 'POST', `/production/flow-cards/${id}/start-preparing`, {});
     expect(await rd()).toContain('preparing');
@@ -202,10 +233,12 @@ test.describe.serial('44f 真实实体全流转链', () => {
     expect(id, '调拨单创建失败').toBeTruthy();
     CLEANUP.push({ path: `/inventory/transfers/${id}`, label: '[44f-3] 调拨' });
 
-    // pending 时 ship 被拒
+    // pending 时 ship 被拒（状态门：仅 approved 可发出）
     const skip = await apiCallExpectFail(page, 'POST', `/inventory/transfers/${id}/ship`);
-    expect(skip.status, 'pending 直接收发应被拒（inv/batch.rs:100-104）').toBeGreaterThanOrEqual(
-      400
+    expectStateGateRejection(
+      skip,
+      'pending 直接收发应被拒',
+      'inv/batch.rs::lock_and_validate_transfer_for_ship'
     );
 
     // ApproveTransferRequest { approved: bool（必填）, notes: Option }——
@@ -297,14 +330,17 @@ test.describe.serial('44f 真实实体全流转链', () => {
         { message: `入库单 ${receiptId} 确认后经收货事件应进入 COMPLETED`, timeout: 20000 }
       )
       .toBe(true);
-    // 重复确认幂等拦截（po/receipt.rs:33-40）
+    // 重复确认幂等拦截（purchase_receipt_ops/state.rs::lock_and_validate_receipt_txn → business）
     const c2 = await apiCallExpectFail(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
-    expect(c2.status, 'COMPLETED 后重复确认应被拒').toBeGreaterThanOrEqual(400);
-    // 归因锁：这条拒必须来自"已确认/状态门"，不能由质检门代劳
-    // （首次确认若被质检门抢拒，c1 的 <300 已先红，此处再锁 code 与文案防同形假绿）
-    expect(c2.code, `重复确认应落在 BUSINESS_ERROR 族，实际 code=${c2.code}`).toBe(
-      'BUSINESS_ERROR'
+    expectStateGateRejection(
+      c2,
+      'COMPLETED 后重复确认应被拒',
+      'purchase_receipt_ops/state.rs::lock_and_validate_receipt_txn'
     );
+    // 归因锁：这条拒必须来自"已确认/状态门"（脱敏 message=业务处理失败常量），
+    // 不能由质检门（business_displayable，外显「质检不合格…」，purchase_receipt_service.rs::
+    // ensure_receipt_inspection_allows_flow）代劳——两门同码 BUSINESS_ERROR，仅外显形态可区分；
+    // 首次确认若被质检门抢拒，c1 的 <300 已先红。
     expect(c2.message, `重复确认的拒绝原因不应是质检门文案：${c2.message}`).not.toMatch(
       /质检尚未完成|质检不合格/
     );
@@ -387,11 +423,15 @@ test.describe.serial('44f 真实实体全流转链', () => {
       '发货后订单应为 shipped/partial_shipped'
     ).toBe(true);
 
-    // shipped 后修改被拒（order_crud.rs:599-608）
+    // shipped 后修改被拒（so/order_crud.rs::validate_order_status_for_update → business）
     const upd = await apiCallExpectFail(page, 'PUT', `/sales/orders/${soId}`, {
       order_date: new Date().toISOString().slice(0, 10),
     });
-    expect(upd.status, 'shipped 订单修改应被拒').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      upd,
+      'shipped 订单修改应被拒',
+      'so/order_crud.rs::validate_order_status_for_update'
+    );
   });
 
   test('44f-6 凭证全链：draft→submitted→reviewed→posted+终态全拒', async ({ page }) => {
@@ -421,10 +461,15 @@ test.describe.serial('44f 真实实体全流转链', () => {
       'posted'
     );
 
-    // posted 终态：提交/审核/过账全拒（workflow.rs 状态机不可逆）
+    // posted 终态：提交/审核/过账全拒（voucher_ops/workflow.rs 状态机不可逆，
+    // submit/review/post 三门均以 AppError::business_displayable 构造 → 400 BUSINESS_ERROR）
     for (const ep of ['submit', 'review', 'post'] as const) {
       const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/${ep}`);
-      expect(r.status, `posted 后 ${ep} 应被拒`).toBeGreaterThanOrEqual(400);
+      expectStateGateRejection(
+        r,
+        `posted 后 ${ep} 应被拒`,
+        'voucher_ops/workflow.rs::submit/review/post 状态门'
+      );
     }
   });
 
@@ -476,29 +521,43 @@ test.describe.serial('44f 真实实体全流转链', () => {
     });
     expect(await rd(), '审核后应为 approved').toContain('approved');
 
-    // 非 draft 不可更新（validate_can_update）：这是"审核后处方冻结"的真实约束
+    // 非 draft 不可更新（production_recipe_service.rs::validate_can_update → business）：
+    // 这是"审核后处方冻结"的真实约束
     const upd = await apiCallExpectFail(page, 'PUT', `/production/production-recipes/${id}`, {
       fabric_weight: 200,
       liquor_ratio: '1:8',
     });
-    expect(upd.status, '已审核处方不应可改').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      upd,
+      '已审核处方不应可改',
+      'production_recipe_service.rs::validate_can_update'
+    );
 
     await apiCall(page, 'POST', `/production/production-recipes/${id}/close`);
     expect(await rd(), '关闭后应为 closed 终态').toContain('closed');
 
     // closed 为终态：再次审核必须被状态机拒绝
+    //（production_recipe_service.rs::validate_status_transition → business）
     const reApprove = await apiCallExpectFail(
       page,
       'POST',
       `/production/production-recipes/${id}/approve`,
       { approved_by: myId }
     );
-    expect(reApprove.status, '终态处方不应再被审核').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      reApprove,
+      '终态处方不应再被审核',
+      'production_recipe_service.rs::validate_status_transition'
+    );
 
-    // 已离开 draft 的处方后端禁止删除（validate_can_delete），清理走 cancel 也不可达：
+    // 已离开 draft 的处方后端禁止删除（validate_can_delete → business），清理走 cancel 也不可达：
     // 记录归档即设计约束，故本用例不注册删除型清理。
     const del = await apiCallExpectFail(page, 'DELETE', `/production/production-recipes/${id}`);
-    expect(del.status, '非 draft 处方应拒删').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      del,
+      '非 draft 处方应拒删',
+      'production_recipe_service.rs::validate_can_delete'
+    );
   });
 
   test('44f-8 打样通知单 pending→sampling→submitted→approved 全链', async ({ page }) => {
@@ -527,9 +586,13 @@ test.describe.serial('44f 真实实体全流转链', () => {
     expect(await rd()).toContain('pending');
     await apiCall(page, 'POST', `/production/lab-dip/requests/${id}/start-sampling`);
     expect(await rd()).toContain('sampling');
-    // 非 pending 删除被拒（lab_dip_service.rs:91-99）
+    // 非 pending 删除被拒（lab_dip_service.rs::validate_can_delete → business）
     const del = await apiCallExpectFail(page, 'DELETE', `/production/lab-dip/requests/${id}`);
-    expect(del.status, 'sampling 态删除应被拒（仅 pending 可删）').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      del,
+      'sampling 态删除应被拒（仅 pending 可删）',
+      'lab_dip_service.rs::validate_can_delete'
+    );
 
     // submit 前置：submit_to_customer 校验"送客户确认前必须至少有 1 个小样"
     //（services/lab_dip_ops/request.rs:242-250），原用例从不建样、直接 submit 必被业务错误拒。
@@ -568,9 +631,13 @@ test.describe.serial('44f 真实实体全流转链', () => {
       await apiCall(page, 'GET', `/production/dye-recipes/${id}`)
     ).toLowerCase();
     expect(st1).toContain('approved');
-    // approved 禁删（dye_recipe_service.rs:119-125）
+    // approved 禁删（dye_recipe_service.rs::validate_can_delete → business）
     const del = await apiCallExpectFail(page, 'DELETE', `/production/dye-recipes/${id}`);
-    expect(del.status, '已审核配方删除应被拒').toBeGreaterThanOrEqual(400);
+    expectStateGateRejection(
+      del,
+      '已审核配方删除应被拒',
+      'dye_recipe_service.rs::validate_can_delete'
+    );
     // approved→disabled→approved（:101-117 可逆对）
     // 唯一停用路径：PUT /{id}（UpdateDyeRecipeRequest.status）。dye_recipe.status 是
     // 闭合小写英文词表（draft/pending_approval/approved/disabled，见 models/status/quality_dyeing.rs:38），

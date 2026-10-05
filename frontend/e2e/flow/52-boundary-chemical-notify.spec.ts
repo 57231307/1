@@ -7,6 +7,7 @@ import {
   genCode,
   failureCode,
   APP_ERROR_CODES,
+  type ApiFailureResult,
 } from './helpers';
 
 /**
@@ -22,15 +23,22 @@ import {
 const CLEANUP: Array<{ path: string; label: string }> = [];
 
 /**
- * 负例允许的 AppError 拒绝机器码（backend/src/utils/error.rs:461-476 error_code()）。
- * 原先各处写 `String(r.code ?? '')` 配正则：既绕过类型收窄（数字码会被误当字符串），
- * 又把机器码字面量散在 4 个用例里。改为对白名单做精确成员判断。
+ * 负值拒绝的精确契约断言（收紧原「status>=400 + 三族机器码来者不拒」假绿）：
+ * - HTTP 必须恰为 400（backend/utils/error.rs:356-373）；
+ * - 化料 B1-B4：chemical_ops/master.rs 数值范围门用 AppError::business 构造
+ *   → 机器码必为 BUSINESS_ERROR；
+ * - 信用额度 B6：handlers/customer_credit_handler.rs `req.validate()`（validator 框架，
+ *   utils/validator.rs::validate_credit_limit_range）经 error.rs
+ *   From<validator::ValidationErrors> → VALIDATION_ERROR。
+ * 机器码族由每条调用点显式声明；永不读文案（脱敏分层不可判）。
  */
-const APP_REJECT_CODES: string[] = [
-  APP_ERROR_CODES.VALIDATION_ERROR,
-  APP_ERROR_CODES.BUSINESS_ERROR,
-  APP_ERROR_CODES.BAD_REQUEST,
-];
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${JSON.stringify(r)}`).toBe(400);
+  expect(
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
+}
 test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
@@ -51,47 +59,45 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     unit: 'kg',
   });
 
-  test('52-B1 化料标准价为负拒绝（master.rs:61）', async ({ page }) => {
+  test('52-B1 化料标准价为负拒绝', async ({ page }) => {
     const code = `52A${genCode('C').slice(-5)}`;
     const r = await apiCallExpectFail(page, 'POST', '/chemicals', {
       ...chemBase(code),
       standard_price: '-1.00',
     });
-    expect(r.status, '标准价负数必须拒绝').toBeGreaterThanOrEqual(400);
-    // 后端 public_message 脱敏，改断言 code
-    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
+    // chemical_ops/master.rs 标准价门 → AppError::business
+    expectRejected(r, '标准价负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
-  test('52-B2 化料成本价为负拒绝（master.rs:65）', async ({ page }) => {
+  test('52-B2 化料成本价为负拒绝', async ({ page }) => {
     const code = `52B${genCode('C').slice(-5)}`;
     const r = await apiCallExpectFail(page, 'POST', '/chemicals', {
       ...chemBase(code),
       cost_price: '-0.50',
     });
-    expect(r.status, '成本价负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
+    // chemical_ops/master.rs 成本价门 → AppError::business
+    expectRejected(r, '成本价负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
-  test('52-B3 化料安全库存为负拒绝（master.rs:69）', async ({ page }) => {
+  test('52-B3 化料安全库存为负拒绝', async ({ page }) => {
     const code = `52C${genCode('C').slice(-5)}`;
     const r = await apiCallExpectFail(page, 'POST', '/chemicals', {
       ...chemBase(code),
       safety_stock: '-5',
     });
-    expect(r.status, '安全库存负数必须拒绝').toBeGreaterThanOrEqual(400);
-    // 后端 HTTP 响应统一脱敏（utils/error.rs:95-96），business 文案只有"业务处理失败"，
-    // 断言 code 而非 message（与 B1/B2 一致）；dye_category 由 chemBase 提供，确保命中的是库存校验分支
-    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
+    // chemical_ops/master.rs 安全库存门 → AppError::business（后端脱敏出参，只判状态+机器码；
+    // dye_category 由 chemBase 提供，确保命中的是库存校验分支）
+    expectRejected(r, '安全库存负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
-  test('52-B4 化料再订货点为负拒绝（master.rs:73）', async ({ page }) => {
+  test('52-B4 化料再订货点为负拒绝', async ({ page }) => {
     const code = `52D${genCode('C').slice(-5)}`;
     const r = await apiCallExpectFail(page, 'POST', '/chemicals', {
       ...chemBase(code),
       reorder_point: '-2',
     });
-    expect(r.status, '再订货点负数必须拒绝').toBeGreaterThanOrEqual(400);
-    expect(APP_REJECT_CODES, 'code 应为校验/业务/请求类机器码').toContain(failureCode(r));
+    // chemical_ops/master.rs 再订货点门 → AppError::business
+    expectRejected(r, '再订货点负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('52-B5 化料正常创建正例（对照负例防规则过紧）', async ({ page }) => {
@@ -106,12 +112,15 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     if (id) CLEANUP.push({ path: `/chemicals/${id}`, label: '[52-B5] 化料' });
   });
 
-  test('52-B6 信用额度为负拒绝（validate_credit_limit_range）', async ({ page }) => {
+  test('52-B6 信用额度为负拒绝', async ({ page }) => {
     const r = await apiCallExpectFail(page, 'POST', '/crm/customer-credits', {
       customer_id: 1,
       credit_limit: '-100.00',
     });
-    expect(r.status, '负信用额度必须拒绝').toBeGreaterThanOrEqual(400);
+    // handlers/customer_credit_handler.rs req.validate()（validator 框架，
+    // utils/validator.rs::validate_credit_limit_range）→ From<ValidationErrors>
+    // 归 error.rs VALIDATION_ERROR 族（error.rs 模块文档：HTTP 400/code=VALIDATION_ERROR）
+    expectRejected(r, '负信用额度必须拒绝', APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('52-N1 公告发送契约与去重语义（create_announcement / notification_service dedup）', async ({

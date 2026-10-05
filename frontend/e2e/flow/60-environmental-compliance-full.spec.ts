@@ -43,23 +43,24 @@ import { fillFieldByLabel, formItemByExactLabel, pickSelectIn } from './ui-helpe
  * locales 中不存在对应 key，故不适用「i18n key 口径」，不存在裸字面量漂移风险。
  */
 
-const APP_REJECT_CODES: string[] = [
-  APP_ERROR_CODES.VALIDATION_ERROR,
-  APP_ERROR_CODES.BUSINESS_ERROR,
-  APP_ERROR_CODES.BAD_REQUEST,
-];
-
-/** 断言 4xx 业务/校验拒绝（统一 AppError 信封：字符串机器码），5xx 一律判红 */
-function expectRejected(r: ApiFailureResult, what: string): void {
+/**
+ * 断言精确拒绝契约（收紧原「任意 4xx + 三族机器码来者不拒」的假绿）：
+ * - HTTP 必须恰为 400（backend/utils/error.rs:356-373：ValidationError/BusinessError/
+ *   BadRequest 全部映射 BAD_REQUEST 状态，本域拒绝不存在 409/其它 4xx 分支）；
+ * - 机器码必须逐条等于调用点期望族——词表/参数校验族 = BAD_REQUEST
+ *   （error.rs:791），状态门/唯一性/内控规则族 = BUSINESS_ERROR（error.rs:796-797）。
+ * 两族可区分"后端做了参数校验"与"后端做了业务门禁"，混发即门别串号，判红交后端。
+ * 永不读取 message 文案（AppError::business 出参脱敏为常量，文案不可判）。
+ */
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
   expect(
     r.status,
-    `${what}：应被 4xx 拒绝，实际 ${r.status} ${JSON.stringify(r)}`
-  ).toBeGreaterThanOrEqual(400);
-  expect(r.status, `${what}：不得以 5xx 冒充拒绝（${JSON.stringify(r)}）`).toBeLessThan(500);
+    `${what}：应恰为 HTTP 400（error.rs:356-373），实际 ${r.status} ${JSON.stringify(r)}`
+  ).toBe(400);
   expect(
-    APP_REJECT_CODES,
-    `${what}：机器码应为校验/业务/请求类，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
-  ).toContain(failureCode(r));
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
 }
 
 const ymd = (daysFromToday: number): string =>
@@ -188,9 +189,9 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
     );
     expect(detail.status, '撤销后落库 status 应为 revoked').toBe('revoked');
 
-    // 重复撤销：服务层显式拒绝（pollution_permit_service.rs:181-188）
+    // 重复撤销：服务层显式拒绝（pollution_permit_service.rs::revoke，AppError::business）
     const dup = await apiCallExpectFail(page, 'POST', `/pollution-permits/${id}/revoke`);
-    expectRejected(dup, `重复撤销许可证 ${permitNo}`);
+    expectRejected(dup, `重复撤销许可证 ${permitNo}`, APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('60-04 许可证负例：非法类型（含 UI 选项 exhaust_gas/noise）、到期≤发证、编号重复', async ({
@@ -208,9 +209,10 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
         expiry_date: ymd(365),
         issuing_authority: 'E2E负例局',
       });
-      expectRejected(r, `非法许可证类型 ${badType} 应被拒绝`);
+      // pollution_permit_service.rs::validate_permit_type → AppError::bad_request（词表族）
+      expectRejected(r, `非法许可证类型 ${badType} 应被拒绝`, APP_ERROR_CODES.BAD_REQUEST);
     }
-    // 到期日期必须晚于发证日期（同文件 :92-94）
+    // 到期日期必须晚于发证日期（同文件 create：AppError::bad_request，参数校验族）
     const same = await apiCallExpectFail(page, 'POST', '/pollution-permits', {
       permit_no: genCode('E2E-DT'),
       permit_type: 'wastewater',
@@ -218,7 +220,7 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
       expiry_date: ymd(10),
       issuing_authority: 'E2E负例局',
     });
-    expectRejected(same, '到期=发证应被拒绝');
+    expectRejected(same, '到期=发证应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
 
     const permitNo = genCode('E2E-DUP');
     await createPermitApi(page, {
@@ -235,7 +237,8 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
       expiry_date: ymd(300),
       issuing_authority: 'E2E唯一性局',
     });
-    expectRejected(dup, `重复编号 ${permitNo} 应被拒绝`);
+    // pollution_permit_service.rs::create 编号唯一性 → AppError::business
+    expectRejected(dup, `重复编号 ${permitNo} 应被拒绝`, APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('60-05 UI 新建超标监测记录 → 超标标签 → 落库真值 + exceedance-alerts 命中', async ({
@@ -336,7 +339,8 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
       ...base,
       limit_value: '0',
     });
-    expectRejected(zeroLimit, '限值=0 应被拒绝（pollution_monitoring_service.rs:127-129）');
+    // pollution_monitoring_service.rs::create_monitoring_record 限值≤0 → AppError::bad_request
+    expectRejected(zeroLimit, '限值=0 应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
 
     // 后端词表 wastewater/exhaust/noise/solid_waste（pollution_monitoring_service.rs:340-347）。
     // 前端选项 exhaust_gas / soil（index.vue:119/121）不在词表 → 一律被拒（词表漂移证据）。
@@ -345,7 +349,8 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
         ...base,
         monitoring_type: badType,
       });
-      expectRejected(r, `非法监测类型 ${badType} 应被拒绝`);
+      // pollution_monitoring_service.rs::validate_monitoring_type → AppError::bad_request
+      expectRejected(r, `非法监测类型 ${badType} 应被拒绝`, APP_ERROR_CODES.BAD_REQUEST);
     }
     // 词表合法对照：noise 必须能通过（防校验过紧误杀）
     await apiCall(page, 'POST', '/pollution-monitoring/records', {
@@ -462,7 +467,8 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
       `/pollution-monitoring/solid-waste-disposals/${id}/status`,
       { status: 'transporting' }
     );
-    expectRejected(bad, 'disposed 回退 transporting 应被拒绝');
+    // 状态门拒绝（pollution_monitoring_service.rs::update_waste_status 非法流转 → AppError::business）
+    expectRejected(bad, 'disposed 回退 transporting 应被拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
 
     // 非法跨级：pending 直接 disposed（服务层只允许 pending→transporting/cancelled）
     const skip = await apiCall<Record<string, unknown>>(
@@ -485,9 +491,9 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
       `/pollution-monitoring/solid-waste-disposals/${skipId}/status`,
       { status: 'disposed' }
     );
-    expectRejected(skipRes, 'pending 跨级到 disposed 应被拒绝');
+    expectRejected(skipRes, 'pending 跨级到 disposed 应被拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
 
-    // 危废双证必填（《固废法》校验分支：:217-224）
+    // 危废双证必填（pollution_monitoring_service.rs::create_solid_waste_disposal → AppError::business）
     const hz = await apiCallExpectFail(
       page,
       'POST',
@@ -501,7 +507,7 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
         disposal_method: 'incineration',
       }
     );
-    expectRejected(hz, '危废缺运输/处置许可证号应被拒绝');
+    expectRejected(hz, '危废缺运输/处置许可证号应被拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
 
     // 非法处置方式词表外拒绝
     const badMethod = await apiCallExpectFail(
@@ -517,7 +523,8 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
         disposal_method: 'ocean_dumping',
       }
     );
-    expectRejected(badMethod, '词表外处置方式应被拒绝');
+    // pollution_monitoring_service.rs::validate_disposal_method 词表外 → AppError::bad_request
+    expectRejected(badMethod, '词表外处置方式应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
 
     await verifyDownloadEndpointHealthy(
       page,

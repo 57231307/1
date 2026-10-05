@@ -8,13 +8,29 @@ import {
   apiCallRaw,
   tryCleanup,
   genCode,
+  failureCode,
+  APP_ERROR_CODES,
+  type ApiFailureResult,
 } from './helpers';
 
 /**
  * 47 边界值 / 审批纵深 / 幂等 / 审计完整性（L3+L4+L5+审计防线合并）
  *
- * rule provenance：每条用例标注后端规则代码位置。
+ * rule provenance：每条用例标注后端规则所在 文件::符号。
  */
+
+/**
+ * 精确拒绝契约（收紧原「status>=400（连 5xx 都算过）」与 code 子串匹配的假绿）：
+ * HTTP 恰 400 + 机器码逐条等于调用点期望族；族别依据各调用点旁注释（error.rs:356-373
+ * 客户端族全映射 400；business(_displayable)→BUSINESS_ERROR，error.rs::error_code）。
+ */
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${JSON.stringify(r)}`).toBe(400);
+  expect(
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
+}
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -31,9 +47,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
 
   // ============ L3 边界值 ============
 
-  test('47-B1 汇率=0.01 拒绝（P0-1 历史缺陷回归防线 ap_invoice_service.rs:87-95）', async ({
-    page,
-  }) => {
+  test('47-B1 汇率=0.01 拒绝（P0-1 历史缺陷回归防线）', async ({ page }) => {
     await ensureTestEntities(page);
     const today = new Date().toISOString().slice(0, 10);
     const r001 = await apiCallExpectFail(page, 'POST', '/exchange-rates', {
@@ -42,9 +56,8 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       rate: '0.01',
       effective_date: today,
     });
-    expect(r001.status, '汇率 0.01 必须拒绝').toBeGreaterThanOrEqual(400);
-    // 后端 public_message 脱敏为'业务处理失败'，改断言 code=BUSINESS_ERROR
-    expect(String(r001.code ?? ''), '0.01 汇率应被拒绝 code=BUSINESS_ERROR').toContain('BUSINESS');
+    // currency_service.rs::create_exchange_rate P0-1 门 → AppError::business（脱敏出参，只判状态+机器码）
+    expectRejected(r001, '汇率 0.01 必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('47-B2 汇率=0 拒绝（汇率必须 > 0）', async ({ page }) => {
@@ -56,7 +69,8 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       rate: '0',
       effective_date: today,
     });
-    expect(r0.status, '汇率 0 必须拒绝').toBeGreaterThanOrEqual(400);
+    // 同函数非正汇率门 → AppError::business
+    expectRejected(r0, '汇率 0 必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   // ============ L4 审批纵深 ============
@@ -83,12 +97,13 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     const approve = await apiCall(page, 'POST', `/purchase/orders/${id}/approve`);
     expect(approve, '审批应成功').toBeTruthy();
     const reject = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/reject`);
-    expect(reject.status, 'APPROVED 后拒绝应被状态门拦截').toBeGreaterThanOrEqual(400);
+    // po/contract.rs::reject_order 状态门（仅 PENDING_APPROVAL 可拒绝 → AppError::business）
+    expectRejected(reject, 'APPROVED 后拒绝应被状态门拦截', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   // ============ L5 幂等/唯一性 ============
 
-  test('47-I1 用户名重复创建被拒（user_service.rs:90-103 先查后插）', async ({ page }) => {
+  test('47-I1 用户名重复创建被拒（user_service.rs::create_user 先查后插）', async ({ page }) => {
     await ensureTestEntities(page);
     const username = `47dup${genCode('U').slice(-6)}`;
     // 前置角色
@@ -119,7 +134,8 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       email: `${username}2@test.com`,
       role_id: roleId,
     });
-    expect(r2.status, '重复用户名创建必须被拒').toBeGreaterThanOrEqual(400);
+    // user_service.rs::create_user 唯一性门 → AppError::business_displayable（判码不判文案）
+    expectRejected(r2, '重复用户名创建必须被拒', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('47-I2 角色编码重复创建被拒（role_permission_service.rs:167-174）', async ({ page }) => {
@@ -139,7 +155,8 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       code,
       description: '47-I2 重复',
     });
-    expect(r2.status, '重复角色编码必须被拒').toBeGreaterThanOrEqual(400);
+    // role_permission_service.rs::create_role 编码唯一门 → AppError::business
+    expectRejected(r2, '重复角色编码必须被拒', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   // ============ 审计完整性（用户报障：审计日志记录不全）============

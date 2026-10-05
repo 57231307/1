@@ -83,23 +83,23 @@ const toNum = (v: unknown): number => Number(String(v));
 const ymd = (daysFromToday: number): string =>
   new Date(Date.now() + daysFromToday * 86_400_000).toISOString().slice(0, 10);
 
-const APP_REJECT_CODES: string[] = [
-  APP_ERROR_CODES.VALIDATION_ERROR,
-  APP_ERROR_CODES.BUSINESS_ERROR,
-  APP_ERROR_CODES.BAD_REQUEST,
-];
-
-/** 断言 4xx 业务/校验拒绝（统一 AppError 信封：字符串机器码），5xx 一律判红 */
-function expectRejected(r: ApiFailureResult, what: string): void {
+/**
+ * 断言精确拒绝契约（收紧原「任意 4xx + 三族机器码来者不拒」的假绿）：
+ * - HTTP 必须恰为 400（backend/utils/error.rs:356-373：本域拒绝全部映射 BAD_REQUEST 状态）；
+ * - 机器码逐条等于调用点期望族。写入方真相 occupational_health_service.rs：
+ *   枚举词表/数值范围/日期先后 = AppError::bad_request → BAD_REQUEST
+ *   （validate_hazard_type/validate_exam_type/validate_exam_result/validate_ppe_type、
+ *   create_hazard_monitoring 限值门、create_health_exam 日期门、create_ppe_distribution 数量/效期门）；
+ *   业务内控门/状态门 = AppError::business → BUSINESS_ERROR
+ *   （in_service 必带 next_exam_date、return_ppe 仅 distributed 可回收）。
+ * 永不读取文案（business 族出参脱敏，不可判）。
+ */
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${r.status} ${JSON.stringify(r)}`).toBe(400);
   expect(
-    r.status,
-    `${what}：应被 4xx 拒绝，实际 ${r.status} ${JSON.stringify(r)}`
-  ).toBeGreaterThanOrEqual(400);
-  expect(r.status, `${what}：不得以 5xx 冒充拒绝（${JSON.stringify(r)}）`).toBeLessThan(500);
-  expect(
-    APP_REJECT_CODES,
-    `${what}：机器码应为校验/业务/请求类，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
-  ).toContain(failureCode(r));
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
 }
 
 /** axum 提取器拒绝（缺必填 JSON 字段）：原文只进日志，出参由 trace_context 归一成
@@ -261,7 +261,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
         monitoring_date: ymd(0),
       }
     );
-    expectRejected(badType, '非法危害类型 radiation 应被拒绝');
+    // validate_hazard_type → AppError::bad_request（词表族）
+    expectRejected(badType, '非法危害类型 radiation 应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
     // 负例：限值 ≤ 0（:200-202）
     const zeroLimit = await apiCallExpectFail(
       page,
@@ -277,7 +278,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
         monitoring_date: ymd(0),
       }
     );
-    expectRejected(zeroLimit, '限值=0 应被拒绝');
+    // create_hazard_monitoring 限值门 → AppError::bad_request
+    expectRejected(zeroLimit, '限值=0 应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
     // 负例：复刻 UI 危害弹窗真实请求体 {hazard_factor, monitor_value, monitor_point}
     //（视图 :110-121，缺后端全部必填 → 提取器 400，见头部缺陷②）
     const driftPoint = genCode('E2E69DP');
@@ -395,7 +397,12 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       exam_date: ymd(0),
       exam_result: 'normal',
     });
-    expectRejected(missingNext, 'in_service 缺 next_exam_date 应被拒绝');
+    // create_health_exam 内控门（in_service 必带 next_exam_date）→ AppError::business
+    expectRejected(
+      missingNext,
+      'in_service 缺 next_exam_date 应被拒绝',
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     // next_exam_date 必须晚于 exam_date（:298-303）
     const badNext = await apiCallExpectFail(page, 'POST', '/occupational-health/health-exams', {
       worker_id: workerId,
@@ -404,7 +411,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       next_exam_date: ymd(10),
       exam_result: 'normal',
     });
-    expectRejected(badNext, '下次体检=本次体检应被拒绝');
+    // create_health_exam 日期先后门 → AppError::bad_request
+    expectRejected(badNext, '下次体检=本次体检应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
 
     // 词表负例（UI 复刻）：exam_type 'periodic' 不在后端词表 → 400（头部缺陷①），
     // 且被拒写必须无痕：exam_type=periodic 过滤集合恒空（该 token 仅能经此端点入库）
@@ -414,7 +422,12 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       exam_date: ymd(0),
       exam_result: 'normal',
     });
-    expectRejected(periodic, "exam_type='periodic'（UI 默认值）应被词表拒绝");
+    // validate_exam_type → AppError::bad_request（词表族）
+    expectRejected(
+      periodic,
+      "exam_type='periodic'（UI 默认值）应被词表拒绝",
+      APP_ERROR_CODES.BAD_REQUEST
+    );
     const ghostType = await readList(
       page,
       '/occupational-health/health-exams?exam_type=periodic&page=1&page_size=20',
@@ -428,7 +441,12 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       exam_date: ymd(0),
       exam_result: '正常',
     });
-    expectRejected(zhResult, "exam_result='正常'（中文自由文本）应被词表拒绝");
+    // validate_exam_result → AppError::bad_request（词表族；exam_type 侧本例为合法值）
+    expectRejected(
+      zhResult,
+      "exam_result='正常'（中文自由文本）应被词表拒绝",
+      APP_ERROR_CODES.BAD_REQUEST
+    );
     // 缺必填字段（提取器层 400，非统一信封）
     const missingField = await apiCallExpectFail(
       page,
@@ -517,7 +535,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       quantity: 0,
       distribution_date: ymd(0),
     });
-    expectRejected(badQty, 'quantity=0 应被拒绝（service :409-411）');
+    // create_ppe_distribution 数量门 → AppError::bad_request
+    expectRejected(badQty, 'quantity=0 应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
     const badExpiry = await apiCallExpectFail(
       page,
       'POST',
@@ -531,7 +550,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
         expiry_date: ymd(10),
       }
     );
-    expectRejected(badExpiry, '到期=发放日应被拒绝（:413-418）');
+    // create_ppe_distribution 效期先后门 → AppError::bad_request
+    expectRejected(badExpiry, '到期=发放日应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
     const badType = await apiCallExpectFail(
       page,
       'POST',
@@ -544,7 +564,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
         distribution_date: ymd(0),
       }
     );
-    expectRejected(badType, "ppe_type='helmet' 不在词表应被拒绝（:587-594）");
+    // validate_ppe_type → AppError::bad_request（词表族）
+    expectRejected(badType, "ppe_type='helmet' 不在词表应被拒绝", APP_ERROR_CODES.BAD_REQUEST);
 
     // 回收 distributed → returned，落库回读
     await apiCall(page, 'POST', `/occupational-health/ppe-distributions/${distId}/return`);
@@ -563,7 +584,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       'POST',
       `/occupational-health/ppe-distributions/${distId}/return`
     );
-    expectRejected(reReturn, 'returned 再回收应被状态机拒绝');
+    // return_ppe 状态门（仅 distributed 可回收）→ AppError::business
+    expectRejected(reReturn, 'returned 再回收应被状态机拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
     const stillReturned = await readList(
       page,
       `/occupational-health/ppe-distributions?worker_id=${workerId}&status=returned&page=1&page_size=100`,
@@ -627,7 +649,8 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       'POST',
       `/occupational-health/ppe-distributions/${Number(expiredPpe.data?.id)}/return`
     );
-    expectRejected(returnExpired, 'expired 状态回收应被状态机拒绝');
+    // return_ppe 状态门（expired 非 distributed）→ AppError::business
+    expectRejected(returnExpired, 'expired 状态回收应被状态机拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
     // 防过杀：未过期记录扫描后仍 distributed
     const stillDist = await readList(
       page,

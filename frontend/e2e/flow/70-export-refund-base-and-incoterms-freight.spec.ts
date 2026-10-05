@@ -112,9 +112,20 @@ async function seedCustomsDeclaration(
   return d as Row;
 }
 
-function expectRejected4xx(r: ApiFailureResult, what: string): void {
-  expect(r.status, `${what}：应 4xx，实际 ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(400);
-  expect(r.status, `${what}：不得以 5xx 冒充拒绝（${JSON.stringify(r)}）`).toBeLessThan(500);
+/**
+ * 断言精确拒绝契约（收紧原「任意 4xx、只判区间」的假绿）：
+ * - HTTP 必须恰为 400；机器码逐条等于调用点期望族。
+ * 本文件两个调用点都是 **提取器层拒绝**（incoterm 为 serde UPPERCASE 枚举
+ * backend/src/utils/incoterms.rs::Incoterms2020；CalculateCostsRequest.product_cost 必填非
+ * Option，handlers/incoterms_handler.rs），serde 拒绝由
+ * middleware/trace_context.rs::normalize_extractor_rejection 收进统一信封
+ * 400 + code=VALIDATION_ERROR。永不判文案（serde 原文只进后端日志）。
+ */
+function expectRejected4xx(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${JSON.stringify(r)}`).toBe(400);
+  expect(failureCode(r), `${what}：机器码应为 ${expectedCode}，实际 ${JSON.stringify(r)}`).toBe(
+    expectedCode
+  );
 }
 
 test.describe.serial('70 退税申报基数收紧 + Incoterms 主运费口径全量判定', () => {
@@ -315,19 +326,24 @@ test.describe.serial('70 退税申报基数收紧 + Incoterms 主运费口径全
   test('70-04 成本计算非法值/缺省边界：小写术语拒绝、缺 product_cost 拒绝、CIF 未提交运费→null（与显式 0 区分）', async ({
     page,
   }) => {
-    // serde rename_all=UPPERCASE（utils/incoterms.rs:14）：'fob' 不是合法 token，必须 4xx
+    // serde rename_all=UPPERCASE（utils/incoterms.rs::Incoterms2020）：'fob' 不是合法 token，
+    // Json 反序列化失败 → trace_context.rs 归一 400 + VALIDATION_ERROR
     const lower = await apiCallExpectFail(page, 'POST', '/incoterms/cost-calculation', {
       incoterm: 'fob',
       product_cost: '100',
     });
-    expectRejected4xx(lower, "小写 incoterm 'fob'（词表只认大写）");
+    expectRejected4xx(
+      lower,
+      "小写 incoterm 'fob'（词表只认大写）",
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
 
-    // 必填 product_cost 缺失 → 反序列化拒绝（不许静默按 0 计算）
+    // 必填 product_cost 缺失 → 反序列化拒绝（不许静默按 0 计算），同一提取器归一族
     const missing = await apiCallExpectFail(page, 'POST', '/incoterms/cost-calculation', {
       incoterm: 'CIF',
       freight_cost: '30',
     });
-    expectRejected4xx(missing, '缺必填 product_cost');
+    expectRejected4xx(missing, '缺必填 product_cost', APP_ERROR_CODES.VALIDATION_ERROR);
 
     // Option 缺省语义：CIF 含运费但未提交 freight_cost → null（"没报运费"），
     // 与显式 '0'（"报了 0"）可区分；顺带钉住 0 值原样透传

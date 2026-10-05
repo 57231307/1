@@ -49,22 +49,23 @@ import { fillFieldByLabel, formItemByExactLabel } from './ui-helpers';
  * 断言词与该组件源文件逐字符一致；locales 无对应 key，不适用 i18n 口径亦无漂移风险。
  */
 
-const APP_REJECT_CODES: string[] = [
-  APP_ERROR_CODES.VALIDATION_ERROR,
-  APP_ERROR_CODES.BUSINESS_ERROR,
-  APP_ERROR_CODES.BAD_REQUEST,
-];
-
-function expectRejected(r: ApiFailureResult, what: string): void {
+/**
+ * 断言精确拒绝契约（收紧原「任意 4xx + 三族机器码来者不拒」的假绿）：
+ * - HTTP 必须恰为 400（backend/utils/error.rs:356-373 客户端族全映射 BAD_REQUEST 状态；
+ *   middleware/trace_context.rs::normalize_extractor_rejection 把提取器拒绝同样归 400）；
+ * - 机器码必须逐条等于调用点期望族：唯一性/业务规则 = BUSINESS_ERROR
+ *   （export_refund_service.rs::create_customs_declaration → AppError::business），
+ *   参数范围门 = BAD_REQUEST（同函数 bad_request），
+ *   提取器缺参/枚举反序列化失败/年月非法 = VALIDATION_ERROR
+ *   （trace_context.rs::normalize_extractor_rejection + incoterms_service.rs::monthly_usage_report
+ *   → validation_displayable）。门别串号即判红交后端，永不读取文案（脱敏出参不可判）。
+ */
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${r.status} ${JSON.stringify(r)}`).toBe(400);
   expect(
-    r.status,
-    `${what}：应被 4xx 拒绝，实际 ${r.status} ${JSON.stringify(r)}`
-  ).toBeGreaterThanOrEqual(400);
-  expect(r.status, `${what}：不得以 5xx 冒充拒绝（${JSON.stringify(r)}）`).toBeLessThan(500);
-  expect(
-    APP_REJECT_CODES,
-    `${what}：机器码应为校验/业务/请求类，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
-  ).toContain(failureCode(r));
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
 }
 
 /** 报关单号唯一化（服务端按 declaration_no 做唯一性校验，export_refund_service.rs:106-116） */
@@ -174,7 +175,8 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     };
     await apiCall(page, 'POST', '/export-refunds/customs-declarations', base);
     const dup = await apiCallExpectFail(page, 'POST', '/export-refunds/customs-declarations', base);
-    expectRejected(dup, `重复报关单号 ${no}`);
+    // 唯一性门（export_refund_service.rs::create_customs_declaration → AppError::business）
+    expectRejected(dup, `重复报关单号 ${no}`, APP_ERROR_CODES.BUSINESS_ERROR);
 
     const badRate = await apiCallExpectFail(page, 'POST', '/export-refunds/customs-declarations', {
       declaration_no: declNo(),
@@ -183,7 +185,8 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
       total_amount: '500',
       exchange_rate: '0',
     });
-    expectRejected(badRate, '汇率=0（服务层 :100-102 要求 >0）');
+    // 汇率≤0 参数门（同函数 → AppError::bad_request）
+    expectRejected(badRate, '汇率=0 应被拒绝', APP_ERROR_CODES.BAD_REQUEST);
 
     const negAmt = await apiCallExpectFail(page, 'POST', '/export-refunds/customs-declarations', {
       declaration_no: declNo(),
@@ -192,7 +195,8 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
       total_amount: '-1',
       exchange_rate: '1',
     });
-    expectRejected(negAmt, '负报关金额');
+    // 金额为负参数门（同函数 → AppError::bad_request）
+    expectRejected(negAmt, '负报关金额', APP_ERROR_CODES.BAD_REQUEST);
   });
 
   test('61-04 退税要素计算（免抵退公式精确真值，两组分支 + 缺参负例）', async ({ page }) => {
@@ -230,15 +234,19 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     expect(Number(b.exempt_vat_amount), '免抵税额=130-130').toBe(0);
     expect(Number(b.carryforward_amount), '结转下期=500-130').toBe(370);
 
-    // 缺必填字段必须 4xx（handler 用 Json<RefundCalculationInput>，serde 缺字段即拒）
+    // 缺必填字段 = Json 提取器拒绝（handler Json<RefundCalculationInput>，serde 缺字段即拒）
+    // → middleware/trace_context.rs::normalize_extractor_rejection 归一为 400 + VALIDATION_ERROR
     const missing = await apiCallExpectFail(page, 'POST', '/export-refunds/refund-calculation', {
       export_sales_amount: '100',
     });
     expect(
       missing.status,
-      `退税计算缺参应 4xx，实际 ${JSON.stringify(missing)}`
-    ).toBeGreaterThanOrEqual(400);
-    expect(missing.status, '缺参不得以 5xx 冒充').toBeLessThan(500);
+      `退税计算缺参应恰为 400（提取器拒绝归一族），实际 ${JSON.stringify(missing)}`
+    ).toBe(400);
+    expect(
+      failureCode(missing),
+      `退税计算缺参机器码应为 VALIDATION_ERROR，实际 ${failureCode(missing)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('61-05 退税申报表：2099-01 专属期间生成 → 列表回读金额链落库真值 → docx 打印', async ({
@@ -409,24 +417,36 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     expect(Number(ddp.insurance_cost), 'DDP 含保险').toBe(5);
     expect(Number(ddp.duty_cost), 'DDP 含关税').toBe(20);
 
+    // incoterm 为 serde 枚举（backend/src/utils/incoterms.rs Incoterms2020，UPPERCASE 词表）：
+    // FOOBAR 反序列化失败 = Json 提取器拒绝 → trace_context.rs::normalize_extractor_rejection
+    // 归一 400 + VALIDATION_ERROR。判状态+机器码，不判文案（serde 原文只进后端日志）。
     const bad = await apiCallExpectFail(page, 'POST', '/incoterms/cost-calculation', {
       incoterm: 'FOOBAR',
       ...costs,
     });
-    expect(bad.status >= 400 && bad.status < 500, `非法术语应 4xx：${JSON.stringify(bad)}`).toBe(
-      true
+    expect(bad.status, `非法术语应恰为 400（提取器拒绝归一族），实际 ${JSON.stringify(bad)}`).toBe(
+      400
+    );
+    expect(failureCode(bad), `非法术语机器码应为 VALIDATION_ERROR，实际 ${failureCode(bad)}`).toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
     );
   });
 
   test('61-08 术语使用月报：缺参判红（契约）+ 自建 FOB 报价单进入当期统计', async ({ page }) => {
-    // 契约真相：year/month 为必填 Query（incoterms_handler.rs:17-22），缺参必须 4xx。
+    // 契约真相：year/month 为必填 Query（incoterms_handler.rs::UsageReportQuery 非 Option），
+    // 缺参 = Query 提取器拒绝 → trace_context.rs::normalize_extractor_rejection 归一
+    // 400 + VALIDATION_ERROR。
     // 前端「术语使用报表」按钮不带参（api/export-compliance.ts:33-35）→ 该按钮恒失败，
     // 属源码缺陷（见交付报告），此处不放宽。
     const noParam = await apiCallExpectFail(page, 'GET', '/incoterms/usage-report');
     expect(
-      noParam.status >= 400 && noParam.status < 500,
-      `缺参月报应 4xx：${JSON.stringify(noParam)}`
-    ).toBe(true);
+      noParam.status,
+      `缺参月报应恰为 400（提取器拒绝归一族），实际 ${JSON.stringify(noParam)}`
+    ).toBe(400);
+    expect(
+      failureCode(noParam),
+      `缺参月报机器码应为 VALIDATION_ERROR，实际 ${failureCode(noParam)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 
     const q = await seedFobQuotation(page);
     await apiCall(page, 'POST', `/quotations/${q}/submit`);
@@ -466,13 +486,13 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     ).toBeTruthy();
     expect(Number(fobItem?.count) >= 1, 'FOB 使用次数应 ≥1').toBe(true);
 
-    // 非法年月（month=13）→ 校验拒绝（incoterms_service.rs:148-150）
     const badMonth = await apiCallExpectFail(
       page,
       'GET',
       '/incoterms/usage-report?year=2026&month=13'
     );
-    expectRejected(badMonth, 'month=13 非法年月');
+    // incoterms_service.rs::monthly_usage_report → validation_displayable（400 + VALIDATION_ERROR）
+    expectRejected(badMonth, 'month=13 非法年月', APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('61-09 环保税：缺法定当量配置 fail-closed 拒绝计税且零落库 + 税额未配置 fail-visible + 负例族', async ({

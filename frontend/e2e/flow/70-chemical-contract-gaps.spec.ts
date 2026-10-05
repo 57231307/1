@@ -88,27 +88,35 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 const ymd = (daysFromToday: number): string =>
   new Date(Date.now() + daysFromToday * 86_400_000).toISOString().slice(0, 10);
 
-const APP_REJECT_CODES: string[] = [
-  APP_ERROR_CODES.VALIDATION_ERROR,
-  APP_ERROR_CODES.BUSINESS_ERROR,
-  APP_ERROR_CODES.BAD_REQUEST,
-];
-
-function expectRejected(r: ApiFailureResult, what: string): void {
+/**
+ * 断言精确拒绝契约（收紧原「任意 4xx + 三族机器码来者不拒」的假绿）：
+ * - HTTP 必须恰为 400（backend/utils/error.rs:356-373：本域拒绝全部映射 BAD_REQUEST 状态）；
+ * - 机器码逐条等于调用点期望族。chemical_ops 域写入方真相：
+ *   枚举词表校验 = AppError::validation_displayable → VALIDATION_ERROR
+ *   （chemical_service.rs::validate_chemical_type、chemical_ops/master.rs 状态词表门）；
+ *   引用存在性/唯一性/数值范围/删除守卫/状态门 = AppError::business(_displayable) → BUSINESS_ERROR
+ *   （chemical_ops/category.rs::create/delete、master.rs 建改门、lot.rs 检验与更新门、
+ *   requisition.rs 各状态门）。门别串号即判红交后端。
+ */
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${r.status} ${JSON.stringify(r)}`).toBe(400);
   expect(
-    r.status,
-    `${what}：应被 4xx 拒绝，实际 ${r.status} ${JSON.stringify(r)}`
-  ).toBeGreaterThanOrEqual(400);
-  expect(r.status, `${what}：不得以 5xx 冒充拒绝（${JSON.stringify(r)}）`).toBeLessThan(500);
-  expect(
-    APP_REJECT_CODES,
-    `${what}：机器码应为校验/业务/请求类，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
-  ).toContain(failureCode(r));
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
 }
 
-/** 提取器层拒绝（缺必填 JSON 键）走 axum 默认纯文本 400，非统一 JSON 信封——只断真实 status */
+/**
+ * 提取器层拒绝（缺必填 JSON 键）：serde 原文只进日志，出参由
+ * middleware/trace_context.rs::normalize_extractor_rejection 收进统一信封
+ * （HTTP 400 + code=VALIDATION_ERROR）。判状态**且**判机器码，两者都是成文契约。
+ */
 function expectExtractorReject(r: ApiFailureResult, what: string): void {
   expect(r.status, `${what}：应被 400 拒绝（提取器层），实际 ${JSON.stringify(r)}`).toBe(400);
+  expect(
+    failureCode(r),
+    `${what}：提取器拒绝归一后机器码应为 VALIDATION_ERROR，实际 ${JSON.stringify(r)}`
+  ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 }
 
 /** 分页信封四键全断（PaginatedResponse{items,total,page,page_size}，utils/response.rs:34-39） */
@@ -264,9 +272,9 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       '停用应真实落库 is_active=false'
     ).toBe(false);
 
-    // 删除守卫：父有未删子分类必拒（category.rs:124-133），且被拒无痕（GET 父仍 200）
+    // 删除守卫：父有未删子分类必拒（chemical_ops/category.rs::delete → business），且被拒无痕（GET 父仍 200）
     const delParent = await apiCallExpectFail(page, 'DELETE', `/chemical-categories/${rootId}`);
-    expectRejected(delParent, '存在子分类时删除父分类');
+    expectRejected(delParent, '存在子分类时删除父分类', APP_ERROR_CODES.BUSINESS_ERROR);
     const parentStill = await apiCallRaw<Row>(page, 'GET', `/chemical-categories/${rootId}`);
     expect(Number(parentStill.id), '被拒删除后父分类应仍可读').toBe(rootId);
 
@@ -291,8 +299,9 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     deferCleanup(CLEANUP, 'DELETE', `/chemical-categories/${rootId}`, '[70] category 根');
     deferCleanup(CLEANUP, 'DELETE', `/chemical-categories/${newChildId}`, '[70] category 重建');
 
-    // 负例：词表外类型 / 父不存在（均为 service 层 AppError，统一信封）。
-    // 注意：**重复编码不在本用例断言**——判重只查未删行（category.rs:50-60，
+    // 负例：词表外类型（validate_chemical_type → validation_displayable）/
+    // 父不存在（category.rs::create → business），均为 service 层 AppError，统一信封。
+    // 注意：**重复编码不在本用例断言**——判重只查未删行（chemical_ops/category.rs::create，
     // 本表既定语义"软删后同码可复用"），而本用例上文已把根分类软删（:tryCleanup），
     // 此处对已软删的 rootCode 再断"重复应拒"与同用例的"软删可复用"断言语义互斥，
     // 后端不可两全。"未删状态下重复必拒"由紧随的 70-01b 独立用例锁定，
@@ -302,14 +311,18 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       category_name: '词表外类型',
       category_type: 'other',
     });
-    expectRejected(badType, "category_type='other' 不在 dye/auxiliary/chemical 词表");
+    expectRejected(
+      badType,
+      "category_type='other' 不在 dye/auxiliary/chemical 词表",
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
     const ghostParent = await apiCallExpectFail(page, 'POST', '/chemical-categories', {
       category_code: genCode('E2E70CGP'),
       category_name: '幽灵父',
       category_type: 'dye',
       parent_id: 999999999,
     });
-    expectRejected(ghostParent, '父分类不存在应被拒（category.rs:38-47）');
+    expectRejected(ghostParent, '父分类不存在应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     // 缺必填 category_code → 400（types.rs:121-129 必填非 Option；提取器拒绝已被
     // trace_context.rs normalize_extractor_rejection 收进 400+VALIDATION_ERROR 信封，
     // 状态码判定不变）
@@ -427,26 +440,27 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
   test('70-02 主数据：必填对词表/状态流转/非法状态原值不变/软删三读路径 404/编码复用', async ({
     page,
   }) => {
-    // dye 缺 dye_category、auxiliary 缺 auxiliary_category 必拒（master.rs:53-58）
+    // dye 缺 dye_category、auxiliary 缺 auxiliary_category 必拒（chemical_ops/master.rs 必填对门 → business）
     const dyeMiss = await apiCallExpectFail(page, 'POST', '/chemicals', {
       chemical_code: genCode('E2E70DM'),
       chemical_name: '缺染料类别',
       chemical_type: 'dye',
     });
-    expectRejected(dyeMiss, 'dye 缺 dye_category（master.rs:53-55）');
+    expectRejected(dyeMiss, 'dye 缺 dye_category', APP_ERROR_CODES.BUSINESS_ERROR);
     const auxMiss = await apiCallExpectFail(page, 'POST', '/chemicals', {
       chemical_code: genCode('E2E70AM'),
       chemical_name: '缺助剂类别',
       chemical_type: 'auxiliary',
     });
-    expectRejected(auxMiss, 'auxiliary 缺 auxiliary_category（master.rs:56-58）');
+    expectRejected(auxMiss, 'auxiliary 缺 auxiliary_category', APP_ERROR_CODES.BUSINESS_ERROR);
     // 词表外类型 'other'（UI 弹窗第三项，62 号头部缺陷③）→ 必须被拒
+    //（chemical_service.rs::validate_chemical_type → validation_displayable）
     const otherType = await apiCallExpectFail(page, 'POST', '/chemicals', {
       chemical_code: genCode('E2E70OT'),
       chemical_name: '词表外 other',
       chemical_type: 'other',
     });
-    expectRejected(otherType, "chemical_type='other' 不在词表（chemical_service.rs:63-76）");
+    expectRejected(otherType, "chemical_type='other' 不在词表", APP_ERROR_CODES.VALIDATION_ERROR);
 
     // 合法 dye 正例（GHS/MSDS 字段链：msds_url 提供则 msds_updated_at 落值，master.rs:81-85）
     const { id, code } = await createChemical(page, {
@@ -488,23 +502,27 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       '状态过滤应命中自建 discontinued 记录'
     ).toBe('discontinued');
 
-    // 非法状态词表外（master.rs:376-396）→ 拒绝且回读原值未变
+    // 非法状态词表外（chemical_ops/master.rs 更新门 → validation_displayable）→ 拒绝且回读原值未变
     const badStatus = await apiCallExpectFail(page, 'PUT', `/chemicals/${id}`, {
       status: 'archived',
     });
-    expectRejected(badStatus, "status='archived' 不在 active/inactive/discontinued 词表");
+    expectRejected(
+      badStatus,
+      "status='archived' 不在 active/inactive/discontinued 词表",
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
     expect(
       (await apiCallRaw<Row>(page, 'GET', `/chemicals/${id}`)).status,
       '被拒状态更新后落库值应仍为 discontinued（无痕）'
     ).toBe('discontinued');
-    // 负价 PUT（master.rs:263-267）→ 拒绝且标准价未变
+    // 负价 PUT（chemical_ops/master.rs 更新门 → business）→ 拒绝且标准价未变
     const priceBefore = toNum(
       (await apiCallRaw<Row>(page, 'GET', `/chemicals/${id}`)).standard_price
     );
     const badPrice = await apiCallExpectFail(page, 'PUT', `/chemicals/${id}`, {
       standard_price: '-1.00',
     });
-    expectRejected(badPrice, 'PUT 负标准价应被拒');
+    expectRejected(badPrice, 'PUT 负标准价应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     expect(
       toNum((await apiCallRaw<Row>(page, 'GET', `/chemicals/${id}`)).standard_price),
       '被拒改价后应仍为原值（无痕）'
@@ -556,7 +574,7 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     const chem = await createChemical(page);
 
     // 不合格检验链：pending → failed，报告 URL 同体落库；failed 后 pass 必须被拒且无痕
-    //（检验闭包只允许 pending/quarantine 出发，lot.rs:186-233；quarantine 无端点入口见头部声明①）
+    //（检验闭包只允许 pending/quarantine 出发，chemical_ops/lot.rs::pass_inspection → business）
     const failLot = await createLot(page, chem.id, {
       quantity_received: '10',
       unit_cost: '1.00',
@@ -573,7 +591,11 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       `/chemical-lots/${failLot.id}/pass-inspection`,
       {}
     );
-    expectRejected(revivePass, 'failed 终态再 pass-inspection 应被状态机拒绝');
+    expectRejected(
+      revivePass,
+      'failed 终态再 pass-inspection 应被状态机拒绝',
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     expect(
       (await apiCallRaw<Row>(page, 'GET', `/chemical-lots/${failLot.id}`)).inspection_status,
       '被拒 pass 后应仍为 failed（无痕）'
@@ -604,11 +626,11 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     expect(toNum(after.total_cost), '总成本应重算为 500×3=1500').toBe(1500);
     expect(toNum(after.quantity_received), '改价不得动接收量').toBe(500);
     expect(after.remarks, '同体 remarks 应落库').toBe('E2E70 改价');
-    // 负单位成本 → 拒绝且原重算值未变（无痕）
+    // 负单位成本 → 拒绝且原重算值未变（无痕）（chemical_ops/lot.rs::update → business）
     const negCost = await apiCallExpectFail(page, 'PUT', `/chemical-lots/${costLot.id}`, {
       unit_cost: '-1',
     });
-    expectRejected(negCost, 'PUT 负单位成本应被拒（lot.rs:151-153）');
+    expectRejected(negCost, 'PUT 负单位成本应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     expect(
       toNum((await apiCallRaw<Row>(page, 'GET', `/chemical-lots/${costLot.id}`)).total_cost),
       '被拒改价后总成本应仍为 1500（无痕）'
@@ -682,17 +704,17 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     expect(updated.remarks, 'draft PUT remarks 应落库 R2').toBe('E2E70-R2');
     expect(String(updated.required_date), 'required_date 应逐字落库').toBe(requiredDate);
 
-    // approve 后 PUT 必拒（仅 draft 可更新，:148-153），且被拒更新无痕
+    // approve 后 PUT 必拒（chemical_ops/requisition.rs::update 仅 draft 可更新 → business），且被拒更新无痕
     await apiCall(page, 'POST', `/chemical-requisitions/${id}/approve`);
     const latePut = await apiCallExpectFail(page, 'PUT', `/chemical-requisitions/${id}`, {
       remarks: 'E2E70-应被拒',
     });
-    expectRejected(latePut, 'approved 后 PUT 更新');
+    expectRejected(latePut, 'approved 后 PUT 更新', APP_ERROR_CODES.BUSINESS_ERROR);
     const afterReject = await apiCallRaw<Row>(page, 'GET', `/chemical-requisitions/${id}`);
     expect(afterReject.remarks, '被拒 PUT 后 remarks 应仍为 R2（原值未变）').toBe('E2E70-R2');
     expect(afterReject.status, '被拒 PUT 后状态应仍为 approved').toBe('approved');
 
-    // closed 终态不可 cancel（:263-265），且状态未变
+    // closed 终态不可 cancel（requisition.rs::cancel → business），且状态未变
     await apiCall(page, 'POST', `/chemical-requisitions/${id}/issue`);
     await apiCall(page, 'POST', `/chemical-requisitions/${id}/close`);
     const cancelClosed = await apiCallExpectFail(
@@ -700,7 +722,7 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
       'POST',
       `/chemical-requisitions/${id}/cancel`
     );
-    expectRejected(cancelClosed, 'closed 后 cancel 应被拒绝');
+    expectRejected(cancelClosed, 'closed 后 cancel 应被拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
     expect(
       (await apiCallRaw<Row>(page, 'GET', `/chemical-requisitions/${id}`)).status,
       '被拒 cancel 后应仍为 closed（无痕）'
@@ -718,16 +740,25 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     await apiCall(page, 'POST', `/chemical-requisitions/${id2}/cancel`);
     const cancelled = await apiCallRaw<Row>(page, 'GET', `/chemical-requisitions/${id2}`);
     expect(cancelled.status, 'cancel 后应落库 cancelled').toBe('cancelled');
+    // cancelled 各门（requisition.rs::approve/cancel/delete → business）
     const approveCancelled = await apiCallExpectFail(
       page,
       'POST',
       `/chemical-requisitions/${id2}/approve`
     );
-    expectRejected(approveCancelled, 'cancelled 再 approve 应被状态机拒绝');
+    expectRejected(
+      approveCancelled,
+      'cancelled 再 approve 应被状态机拒绝',
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     const reCancel = await apiCallExpectFail(page, 'POST', `/chemical-requisitions/${id2}/cancel`);
-    expectRejected(reCancel, 'cancelled 重复 cancel 应被拒（:266-267）');
+    expectRejected(reCancel, 'cancelled 重复 cancel 应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     const delCancelled = await apiCallExpectFail(page, 'DELETE', `/chemical-requisitions/${id2}`);
-    expectRejected(delCancelled, 'cancelled 删除应被拒（仅 draft 可删，:185-192）');
+    expectRejected(
+      delCancelled,
+      'cancelled 删除应被拒（仅 draft 可删）',
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     const stillThere = await apiCallRaw<Row>(
       page,
       'GET',
@@ -740,19 +771,21 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     const missDate = await apiCallExpectFail(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'lab',
     });
-    expectExtractorReject(missDate, '缺 requisition_date 必填应 400（types.rs:210-220）');
+    expectExtractorReject(missDate, '缺 requisition_date 必填应 400');
     const ghostOrder = await apiCallExpectFail(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'lab',
       requisition_date: today(),
       production_order_id: 999999999,
     });
-    expectRejected(ghostOrder, '不存在生产订单应被拒（requisition.rs:74-82）');
+    // 生产订单存在性门（chemical_ops/requisition.rs::create → business）
+    expectRejected(ghostOrder, '不存在生产订单应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     const negAmount = await apiCallExpectFail(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'lab',
       requisition_date: today(),
       total_amount: '-1',
     });
-    expectRejected(negAmount, '负总金额应被拒（:84-87）');
+    // 总金额范围门（同函数 → business）
+    expectRejected(negAmount, '负总金额应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     // PUT 负总金额（draft 态）同样被拒且原值未变
     const mk3 = await apiCall<Row>(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'lab',
@@ -763,10 +796,11 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     expect(id3, '第三张（draft 负金额实验）应创建成功').toBeGreaterThan(0);
     // 该单 id3 在下方还要 PUT 负金额 + 详情回读原值（无痕断言）——当场软删会让其 404，登记到断言之后清理
     deferCleanup(CLEANUP, 'DELETE', `/chemical-requisitions/${id3}`, '[70] req3');
+    // draft PUT 负总金额（requisition.rs::update → business）
     const negPut = await apiCallExpectFail(page, 'PUT', `/chemical-requisitions/${id3}`, {
       total_amount: '-0.01',
     });
-    expectRejected(negPut, 'draft PUT 负总金额应被拒（:169-172）');
+    expectRejected(negPut, 'draft PUT 负总金额应被拒', APP_ERROR_CODES.BUSINESS_ERROR);
     expect(
       toNum((await apiCallRaw<Row>(page, 'GET', `/chemical-requisitions/${id3}`)).total_amount),
       '被拒改额后应仍为 10（无痕）'

@@ -58,22 +58,23 @@ import { fillFieldByLabel } from './ui-helpers';
  * 创建链路走后端真实契约在 API 层覆盖。
  */
 
-const APP_REJECT_CODES: string[] = [
-  APP_ERROR_CODES.VALIDATION_ERROR,
-  APP_ERROR_CODES.BUSINESS_ERROR,
-  APP_ERROR_CODES.BAD_REQUEST,
-];
-
-function expectRejected(r: ApiFailureResult, what: string): void {
+/**
+ * 断言精确拒绝契约（收紧原「任意 4xx + 三族机器码来者不拒」的假绿）：
+ * - HTTP 必须恰为 400（backend/utils/error.rs:356-373：ValidationError/BusinessError/
+ *   BadRequest 全部映射 BAD_REQUEST 状态，本域拒绝不存在其它 4xx 分支）；
+ * - 机器码逐条等于调用点期望族。chemical_ops 域写入方真相：
+ *   唯一性/引用存在性/数值范围/状态门 = AppError::business(_displayable) → BUSINESS_ERROR
+ *   （chemical_ops/lot.rs::create/consume/scrap、chemical_ops/requisition.rs 各门）；
+ *   枚举词表校验 = AppError::validation_displayable → VALIDATION_ERROR
+ *   （chemical_service.rs::validate_requisition_type）。
+ * 门别串号即判红交后端；永不读取文案（business 族出参脱敏，不可判）。
+ */
+function expectRejected(r: ApiFailureResult, what: string, expectedCode: string): void {
+  expect(r.status, `${what}：应恰为 HTTP 400，实际 ${r.status} ${JSON.stringify(r)}`).toBe(400);
   expect(
-    r.status,
-    `${what}：应被 4xx 拒绝，实际 ${r.status} ${JSON.stringify(r)}`
-  ).toBeGreaterThanOrEqual(400);
-  expect(r.status, `${what}：不得以 5xx 冒充拒绝（${JSON.stringify(r)}）`).toBeLessThan(500);
-  expect(
-    APP_REJECT_CODES,
-    `${what}：机器码应为校验/业务/请求类，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
-  ).toContain(failureCode(r));
+    failureCode(r),
+    `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
+  ).toBe(expectedCode);
 }
 
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -289,19 +290,19 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
       chemical_id: chemId,
       quantity_received: '1',
     });
-    expectRejected(dup, `重复批号 ${lotNo1}`);
+    expectRejected(dup, `重复批号 ${lotNo1}`, APP_ERROR_CODES.BUSINESS_ERROR);
     const ghost = await apiCallExpectFail(page, 'POST', '/chemical-lots', {
       lot_no: genCode('E2E-LOTG'),
       chemical_id: 999999999,
       quantity_received: '1',
     });
-    expectRejected(ghost, '不存在化料 id 建批');
+    expectRejected(ghost, '不存在化料 id 建批', APP_ERROR_CODES.BUSINESS_ERROR);
     const neg = await apiCallExpectFail(page, 'POST', '/chemical-lots', {
       lot_no: genCode('E2E-LOTN'),
       chemical_id: chemId,
       quantity_received: '-1',
     });
-    expectRejected(neg, '负接收数量');
+    expectRejected(neg, '负接收数量', APP_ERROR_CODES.BUSINESS_ERROR);
   });
 
   test('62-04 领用链路：生产领用→审批→发料→关闭逐态回读 + 按缸号追溯；负例与删除门控', async ({
@@ -374,26 +375,26 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     expect(Number(hit?.total_amount), '追溯命中记录金额应为 100').toBe(100);
 
     // 负例（自建自流转，不复用上单）：
-    // ① 非法类型词表值
+    // ① 非法类型词表值（chemical_service.rs::validate_requisition_type → validation_displayable）
     const badType = await apiCallExpectFail(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'warehouse',
       requisition_date: today(),
     });
-    expectRejected(badType, '非法领用类型 warehouse');
-    // ② 生产领用缺缸号（requisition.rs:56-62）
+    expectRejected(badType, '非法领用类型 warehouse', APP_ERROR_CODES.VALIDATION_ERROR);
+    // ② 生产领用缺缸号（chemical_ops/requisition.rs::create → AppError::business 内控门）
     const missBatch = await apiCallExpectFail(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'production',
       requisition_date: today(),
     });
-    expectRejected(missBatch, '生产领用缺 dye_batch_id');
-    // ③ 缸号不存在
+    expectRejected(missBatch, '生产领用缺 dye_batch_id', APP_ERROR_CODES.BUSINESS_ERROR);
+    // ③ 缸号不存在（同函数引用存在性门 → AppError::business）
     const ghostBatch = await apiCallExpectFail(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'production',
       requisition_date: today(),
       dye_batch_id: 999999999,
     });
-    expectRejected(ghostBatch, '不存在的缸号');
-    // ④ draft 直接发料必须被状态机拒绝
+    expectRejected(ghostBatch, '不存在的缸号', APP_ERROR_CODES.BUSINESS_ERROR);
+    // ④ draft 直接发料必须被状态机拒绝（requisition.rs::issue 仅 approved 可发料）
     const d2 = await apiCall<Record<string, unknown>>(page, 'POST', '/chemical-requisitions', {
       requisition_type: 'lab',
       requisition_date: today(),
@@ -405,13 +406,13 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
       'POST',
       `/chemical-requisitions/${id2}/issue`
     );
-    expectRejected(illegalIssue, 'draft 直接 issue');
-    // ⑤ 终态后重复审批拒绝
+    expectRejected(illegalIssue, 'draft 直接 issue', APP_ERROR_CODES.BUSINESS_ERROR);
+    // ⑤ 终态后重复审批拒绝（requisition.rs::approve 仅 draft 可审批）
     const reApprove = await apiCallExpectFail(page, 'POST', `/chemical-requisitions/${id}/approve`);
-    expectRejected(reApprove, 'closed 再 approve');
-    // ⑥ 删除门控：closed 不可删、draft 可删（删后 by-no 404）
+    expectRejected(reApprove, 'closed 再 approve', APP_ERROR_CODES.BUSINESS_ERROR);
+    // ⑥ 删除门控：closed 不可删、draft 可删（删后 by-no 404）（requisition.rs::delete 仅 draft）
     const delClosed = await apiCallExpectFail(page, 'DELETE', `/chemical-requisitions/${id}`);
-    expectRejected(delClosed, 'closed 领用单删除');
+    expectRejected(delClosed, 'closed 领用单删除', APP_ERROR_CODES.BUSINESS_ERROR);
     await apiCall(page, 'DELETE', `/chemical-requisitions/${id2}`);
     const gone = await apiCallExpectFail(
       page,
@@ -443,11 +444,11 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     const detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/chemical-lots/${id}`);
     expect(detail.status, '详情回读同为 consumed').toBe('consumed');
 
-    // 非 active 终态再 consume / scrap 均被拒（lot.rs:240-244/257-261）
+    // 非 active 终态再 consume / scrap 均被拒（chemical_ops/lot.rs::consume/scrap 状态门）
     const again = await apiCallExpectFail(page, 'POST', `/chemical-lots/${id}/consume`);
-    expectRejected(again, 'consumed 再 consume');
+    expectRejected(again, 'consumed 再 consume', APP_ERROR_CODES.BUSINESS_ERROR);
     const scrapAfter = await apiCallExpectFail(page, 'POST', `/chemical-lots/${id}/scrap`);
-    expectRejected(scrapAfter, 'consumed 后 scrap');
+    expectRejected(scrapAfter, 'consumed 后 scrap', APP_ERROR_CODES.BUSINESS_ERROR);
 
     // 报废正例（自建新批次，不依赖上单）
     const mk2 = await apiCall<Record<string, unknown>>(page, 'POST', '/chemical-lots', {
