@@ -165,23 +165,28 @@ pub mod quotation_ext {
 /// 价格域权威词表（sales_prices.status / purchase_prices.status，小写值）
 ///
 /// 与迁移 CHECK `chk_sales_price_status` / `chk_purchase_price_status` 取值集逐项相等
-/// （契约锁：`tests/contract_wave8_price_status_parity_test.rs`）：
-/// - 写入方全集产 pending→approved（销售侧仅这两态，见 `sales_price_service.rs`）；
+/// （基线 `migration/src/domain/price_vocab_check/mod.rs`，扩集后继
+/// `migration/src/domain/price_vocab_extend/m0080_extend_price_status_check_rejected.rs`；
+/// 契约锁：`tests/contract_wave8_price_status_parity_test.rs`）：
+/// - 审批有通过/拒绝两种结论，落库值分别为 approved / rejected（两表均含）；
 /// - 采购侧停用态 inactive 由 `purchase_price_service.rs::update_price` 透传写入，
-///   `chk_sales_price_status` 是本集合去掉 inactive 的子集。
+///   `chk_sales_price_status` 是本集合去掉 inactive 的子集（两表 CHECK 差集恰为 {inactive}）。
 /// 不设 active/expired 存储态：所谓"当前生效"只在查询侧按 status + 有效期区间计算。
 pub mod price_approval {
     /// 待审批：价格待审批
     pub const PENDING: &str = "pending";
 
-    /// 已审批：价格已审批
+    /// 已审批：价格审批通过
     pub const APPROVED: &str = "approved";
+
+    /// 已拒绝：价格审批拒绝（与采购侧记录级停用 inactive 语义不同，不可互相替代）
+    pub const REJECTED: &str = "rejected";
 
     /// 已停用：采购侧记录级停用（销售侧无此写入方）
     pub const INACTIVE: &str = "inactive";
 
     /// 全部合法取值（价格状态入参校验取值域，禁止把任意字符串写进状态列）
-    pub const ALL: &[&str] = &[PENDING, APPROVED, INACTIVE];
+    pub const ALL: &[&str] = &[PENDING, APPROVED, REJECTED, INACTIVE];
 }
 
 /// 定制订单售后/质量/工序状态（小写值）

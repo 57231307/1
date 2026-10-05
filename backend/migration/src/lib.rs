@@ -26,6 +26,8 @@
 //!    排最后确保全部建表/回填类迁移（含 m0044 fix_fk_types）先行完成）
 //! 9. price_vocab_check: 价格状态词表 CHECK（依赖 business 建表与 v15 的默认值收敛与
 //!    'ACTIVE' 回填；排链尾满足"补列/回填先于 CHECK"原则，全新库与存量库均不违反 CHECK）
+//! 9.5 price_vocab_extend: 价格状态词表扩 rejected 后按同约束名重建 CHECK
+//!    （依赖 9 刚完成的默认值收敛与回填；施加前先点名词表外存量，非 0 即中止不造值）
 //! 10. price_fk: 价格两表引用列外键（依赖 system 的 products/customers/suppliers；
 //!    排在全部建表/回填之后，孤儿行存在时守卫中止而非静默删数据）
 
@@ -50,6 +52,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::crm_lead_claim_record::Migration),
             Box::new(domain::crm_vocab_check::Migration),
             Box::new(domain::price_vocab_check::Migration),
+            Box::new(domain::price_vocab_extend::Migration),
             Box::new(domain::price_fk::Migration),
         ]
     }

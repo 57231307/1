@@ -91,6 +91,12 @@ pub(crate) mod m0075_add_outsourcing_receipt_measured_values;
 // 而 lib.rs 域顺序为 system→business→sales_crm→**production**（business 早于本域执行），
 // 故直接注册本域即可，无需像 m0075 那样挂到 v15 之后。
 mod m0076_add_inventory_piece_measured_checks;
+// m0079 交易域审批「通过/拒绝」双理由专列（价目/报价/合同/两订单/采购退货 8 表 14 列）：
+// 目标表 sales_quotations 由 sales_crm 域建表（lib.rs 域序 system→business→sales_crm→
+// production，sales_crm 早于本域），其余 7 表由 system/m0001 与 business/m0009、m0011
+// 更早建表，故直接注册本域 up 链尾即可，全部目标表届时应存在。
+// 链序约束：加列必须先于 price_vocab_check 的后继 CHECK 迁移（补列先于 CHECK 的既定链序）。
+mod m0079_add_approval_reason_columns;
 
 pub struct Migration;
 
@@ -552,11 +558,20 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0076_add_inventory_piece_measured_checks::Migration
             .up(manager)
             .await?;
+        // m0079 交易域审批双理由专列（8 表 14 列，全部可空 ADD IF NOT EXISTS；
+        // 目标表均由更早的 system/business/sales_crm 域建表，注册本域 up 链尾）
+        m0079_add_approval_reason_columns::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // m0079 最后应用故最先回滚（对称 DROP 本迁移新增的 14 列，不触碰既有列）
+        m0079_add_approval_reason_columns::Migration
+            .down(manager)
+            .await?;
         // m0076 最后应用故最先回滚（撤三条值域 CHECK + 丢弃三列，带在途实测值时
         // fail-visible 拒滚，见该文件 down 注释）
         m0076_add_inventory_piece_measured_checks::Migration

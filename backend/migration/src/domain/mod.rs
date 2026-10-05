@@ -26,4 +26,5 @@ pub mod rls_dept_user_sync;
 pub mod crm_lead_claim_record;
 pub mod crm_vocab_check;
 pub mod price_vocab_check;
+pub mod price_vocab_extend;
 pub mod price_fk;

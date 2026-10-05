@@ -27,8 +27,11 @@
 //!    不是把期望值抄进测试。钉住三种漂移：
 //!      · 词表/写入方扩值而 CHECK 未跟上 ⇒ 写入撞 23514 冒裸 500（本批根因同型）；
 //!      · CHECK 比写入方宽 ⇒ 旁路脚本可写出从未被业务产生的脏 token；
-//!      · 两表被"图省事"合并成同一个并集/交集 ⇒ 本批已定案按表分钉
-//!        （sales={pending,approved}、purchase={pending,approved,inactive}，见迁移头注释 :16-19），
+//!      · 两表被"图省事"合并成同一个并集/交集 ⇒ 按表分钉
+//!        （sales={pending,approved,rejected}、
+//!        purchase={pending,approved,rejected,inactive}，
+//!        基线见迁移头注释 :16-19，扩 rejected 后继见
+//!        `price_vocab_extend/m0080_extend_price_status_check_rejected.rs`），
 //!        差集必须恰为 `{inactive}`，两侧各自逐 token 相等。
 //! 3. `status_column_default_is_pending_and_not_null`
 //!    ——目录断言（`is_nullable='NO'`、`column_default` 是 'pending' 字面量）+ **行为回读**
@@ -614,11 +617,16 @@ fn price_vocab_authority_is_self_consistent_and_lowercase() {
         Some(price_approval::INACTIVE),
         "INACTIVE 常量与文本解析不一致"
     );
-    // 本批定案：词表恰 3 值（新增第 4 值必须同时改两处 CHECK 与本锁，不许"先加常量"）
+    assert_eq!(
+        consts.get("REJECTED").map(String::as_str),
+        Some(price_approval::REJECTED),
+        "REJECTED 常量与文本解析不一致"
+    );
+    // 词表恰 4 值（pending/approved/rejected/inactive）；两处 CHECK 与本锁随扩集同步
     assert_eq!(
         runtime_all.len(),
-        3,
-        "price_approval::ALL 应恰为 pending/approved/inactive 3 值，实际: {runtime_all:?}"
+        4,
+        "price_approval::ALL 应恰为 pending/approved/rejected/inactive 4 值，实际: {runtime_all:?}"
     );
 }
 
@@ -738,8 +746,8 @@ async fn writer_status_set_equals_live_db_check_set_exactly() {
     );
     assert_eq!(
         sales_check, sales_written,
-        "{SALES_TABLE}.status 的 DB CHECK 允许值集 != 销售侧写入方可写集（本批定案应为 \
-         pending/approved）。\nDB CHECK={sales_check:?}\n写入方={sales_written:?}\n\
+        "{SALES_TABLE}.status 的 DB CHECK 允许值集 != 销售侧写入方可写集（定案应为 \
+         pending/approved/rejected，rejected 由审批拒绝写入方产生）。\nDB CHECK={sales_check:?}\n写入方={sales_written:?}\n\
          DB 多于写入方=旁路脚本可写入业务永不产生的脏 token；DB 少于写入方=该写入必撞 23514 冒裸 500。"
     );
     assert_eq!(
@@ -751,8 +759,8 @@ async fn writer_status_set_equals_live_db_check_set_exactly() {
     );
     assert_eq!(
         purchase_check, purchase_written,
-        "{PURCHASE_TABLE}.status 的 DB CHECK 允许值集 != 采购侧写入方可写集（本批定案应为 \
-         pending/approved/inactive，inactive 有真实生产者：采购价目页 PUT 透传 status）。\n\
+        "{PURCHASE_TABLE}.status 的 DB CHECK 允许值集 != 采购侧写入方可写集（定案应为 \
+         pending/approved/rejected/inactive，inactive 有真实生产者：采购价目页 PUT 透传 status）。\n\
          DB CHECK={purchase_check:?}\n写入方={purchase_written:?}"
     );
 
@@ -765,9 +773,10 @@ async fn writer_status_set_equals_live_db_check_set_exactly() {
         [price_approval::INACTIVE.to_string()]
             .into_iter()
             .collect::<BTreeSet<_>>(),
-        "两表 CHECK 差集必须恰为 {{inactive}}（迁移头注释 :16-19 的分表口径）；\n\
+        "两表 CHECK 差集必须恰为 {{inactive}}（分表口径自基线迁移 m_price_vocab_check 起、\
+         经扩 rejected 的后继迁移 m_price_vocab_extend 保持不变）；\n\
          实际仅采购侧有={only_purchase:?} 仅销售侧有={only_sales:?}\n\
-         取并集⇒销售侧旁路能写 inactive；取交集⇒采购侧真实停用被拒。两者都是本批已否决的口径。"
+         取并集⇒销售侧旁路能写 inactive；取交集⇒采购侧真实停用被拒。两者都是已否决的口径。"
     );
     assert!(
         only_sales.is_empty(),
@@ -827,10 +836,12 @@ async fn status_column_default_is_pending_and_not_null() {
             "column_default",
         )
         .await;
-        let default_rendering = default_raw.unwrap_or_else(|| panic!(
+        let default_rendering = default_raw.unwrap_or_else(|| {
+            panic!(
             "{table}.status 这一列在 information_schema.columns 里查不到（列不存在或与 m0009:249/\
              m0011:188 建表形态漂移），无法判定默认值"
-        ));
+        )
+        });
         assert!(
             PENDING_DEFAULT_RENDERINGS.contains(&default_rendering.as_str()),
             "{table}.status 的 column_default 必须是 'pending' 字面量（允许带/不带 varchar 类型标注 \

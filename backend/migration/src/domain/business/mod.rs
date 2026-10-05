@@ -28,6 +28,9 @@ mod m0072_grant_product_categories_read;
 // 干净就不许进 CHECK"的判据依据就是 m0077 留在迁移日志里的逐值分账。
 mod m0077_report_customer_type_dirty_values;
 mod m0078_finalize_customer_type_domain;
+// 审批改造波：合同/价格 reject 存量库补授（roles/role_permissions 属 system 域、早于
+// 本域，注册在 business 域 up 链尾/down 链首，同 m0072 授权补种范式）
+mod m0081_grant_contract_price_reject;
 
 pub struct Migration;
 
@@ -234,11 +237,20 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0078_finalize_customer_type_domain::Migration
             .up(manager)
             .await?;
+        // 审批改造波：合同/价格 reject 存量库补授，注册在本域 up 链尾（角色表与权限表
+        // 均由 system 域先建，见 m0081 文件头）
+        m0081_grant_contract_price_reject::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // 审批改造波：最后应用者最先回滚（只回收本迁移按角色码授予的四对 reject 键）
+        m0081_grant_contract_price_reject::Migration
+            .down(manager)
+            .await?;
         // #259：最后应用者最先回滚——先撤 CHECK/NOT NULL/DEFAULT 并自备份列还原原值，
         // 再回滚只读点名（其 up 对库内状态零改变，down 是显式 no-op）。
         m0078_finalize_customer_type_domain::Migration

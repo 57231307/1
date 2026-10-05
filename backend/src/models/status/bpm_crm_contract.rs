@@ -30,7 +30,8 @@ pub mod budget {
     pub const ACTIVE: &str = "active";
 }
 
-/// 合同状态常量（小写值，批次 210 P2-5，状态机 draft→active→cancelled）
+/// 合同状态常量（小写值，sales_contract/purchase_contract 两侧共用本词表，禁止另立第二套）
+/// 状态机 draft→active→cancelled；rejected 为审批拒绝终态（拒绝动作落库，与取消 cancelled 语义不同）
 pub mod contract {
     /// 草稿：合同初始状态，可编辑
     pub const DRAFT: &str = "draft";
@@ -40,6 +41,12 @@ pub mod contract {
 
     /// 已取消：合同作废
     pub const CANCELLED: &str = "cancelled";
+
+    /// 已拒绝：合同审批拒绝
+    pub const REJECTED: &str = "rejected";
+
+    /// 全部合法取值（合同 status 入参校验与写入方取值域的唯一同源来源）
+    pub const ALL: &[&str] = &[DRAFT, ACTIVE, CANCELLED, REJECTED];
 }
 
 /// 运单状态常量（大写值，状态机 IN_TRANSIT→DELIVERED→SIGNED，SIGNED 触发 AR 应收确认）
