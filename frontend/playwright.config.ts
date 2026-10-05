@@ -101,7 +101,6 @@ export default defineConfig({
   // testMatch，且不需要锚点，天然对两种分隔符一致）。新增测试目录无需登记，
   // 忘记登记也不会再出现"目录写了 spec 但主套件不收"的漂移。
   testIgnore: /[/\\]setup-wizard[/\\]/,
-  testIgnore: /[/\\]setup-wizard[/\\]/,
   projects: [
     {
       name: 'chromium',
