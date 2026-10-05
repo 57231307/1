@@ -1,15 +1,10 @@
 /**
  * useActionPrompts.ts — 状态动作类端点所需用户输入的统一采集器。
- *
- * 背景：后端若干动作类端点（取消发票/核销/合同、执行合同、报表订阅启停、
- * 价目与合同的审批通过/拒绝）以 `Json<T>` 或 `Option<Json<T>>` 接收请求体，
- * 其中「取消原因 / 审批通过理由 / 审批拒绝理由 / 执行方式·执行金额·执行日期」
- * 为必填字段。此前前端 `request.post(url)` 空手请求 → 后端必填校验收 400。
- *
- * 本模块用 Element Plus `ElMessageBox` 弹出输入框/选择框真实采集这些值，并做必填校验；
- * 严禁在代码里塞默认值（如 reason='用户取消'）冒充用户输入。
- * 约定：任一采集器在用户主动取消/关闭时返回 null，调用方据此中断整条操作链。
- * 约定：返回值区分「未采集（null，用户取消）」与「采集到的字符串（可能是空串）」，
+ * 覆盖后端以请求体接收的必填/选填字段：取消原因、审批通过理由、审批拒绝理由、
+ * 合同执行方式·执行金额·执行日期；用 ElMessageBox 真实采集并校验，
+ * 严禁在代码里塞默认值冒充用户输入。
+ * 约定：取消/关闭返回 null，调用方据此中断整条操作链（null 表示未采集，不是错误）。
+ * 约定：返回值区分「未采集（null）」与「采集到的字符串（可能是空串）」，
  *       调用方必须用 `=== null` 判中断，不得用真值判断把空理由误当成取消。
  */
 import { ElMessageBox } from 'element-plus';
@@ -19,7 +14,7 @@ import { isDialogDismissal } from '@/utils/monitor';
 /** 取已翻译文案（i18n 全局实例，无需在采集器内注入 useI18n）。 */
 const tt = (key: string): string => String(i18n.global.t(key));
 
-/** 采集器：取消原因（后端 CancelInvoiceRequest/CancelVerificationRequest/CancelReason/CancelContractRequest 必填）。 */
+/** 采集器：取消原因（发票/核销/合同的 cancel 端点必填）。 */
 export async function promptCancelReason(): Promise<string | null> {
   try {
     const { value } = await ElMessageBox.prompt(
@@ -40,8 +35,8 @@ export async function promptCancelReason(): Promise<string | null> {
   }
 }
 
-/** 采集器：审批通过理由（后端 approve 端点 approval_reason 必填并真实落库）。
- *  required=true：空值/纯空白不允许继续（后端对缺失与空白一律 400 VALIDATION_ERROR）；
+/** 采集器：审批通过理由（approve 端点的 approval_reason，真实落各域审批理由列）。
+ *  required=true：空值/纯空白不允许继续（后端对缺失与空白一律 400）；
  *  required=false：允许留空提交，返回空串由调用方决定是否省略该键。
  *  取消/关闭返回 null（流程中止，不是错误）；非取消形态的 reject 原样上抛，不静默降级。 */
 export async function promptApprovalReason(required: boolean): Promise<string | null> {
@@ -68,7 +63,7 @@ export async function promptApprovalReason(required: boolean): Promise<string | 
   }
 }
 
-/** 采集器：审批拒绝理由（后端 reject 端点 reason 必填并真实落库，全域必填）。
+/** 采集器：审批拒绝理由（reject 端点的 reason，全域必填，真实落各域拒绝理由列）。
  *  取消/关闭返回 null（流程中止，不是错误）；非取消形态的 reject 原样上抛。 */
 export async function promptRejectReason(): Promise<string | null> {
   try {

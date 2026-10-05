@@ -12,16 +12,16 @@ export interface SalesOrder {
   total_amount: number;
   tax_amount?: number;
   discount_amount?: number;
-  /** 后端 SalesOrderDetail 未返回此键（services/so/mod.rs:43 仅 created_by），需后端补进详情 DTO */
+  /** 后端 SalesOrderDetail 未返回此键（仅 created_by），需后端补进详情 DTO */
   contact_person: string | null;
-  /** 后端 SalesOrderDetail 未返回此键（services/so/mod.rs:43 仅 created_by），需后端补进详情 DTO */
+  /** 后端 SalesOrderDetail 未返回此键（仅 created_by），需后端补进详情 DTO */
   contact_phone: string | null;
   delivery_address?: string;
   /** 后端 sales_orders.shipping_address（收货地址快照） */
   shipping_address?: string;
   /** 后端 sales_orders.notes（备注） */
   notes?: string;
-  /** 后端 SalesOrderDetail 未返回创建人名称（services/so/mod.rs:43 仅 created_by id），需后端 JOIN users 补 creator_name */
+  /** 后端 SalesOrderDetail 未返回创建人名称（仅 created_by id），需后端 JOIN users 补 creator_name */
   creator_name: string | null;
   created_at?: string;
   updated_at?: string;
@@ -35,10 +35,10 @@ export interface SalesOrderItem {
   product_code: string;
   /** 色号：后端 sales_order_items.color_no（String）。空串=白坯布，非空=染色布 */
   color_no?: string;
-  /** 后端 SalesOrderItemDetail.dye_lot_requirement（services/so/mod.rs:109） */
+  /** 后端 SalesOrderItemDetail.dye_lot_requirement（缸号要求） */
   dye_lot_requirement: string | null;
   quantity: number;
-  /** 后端 SalesOrderItemDetail 无 unit 键（services/so/mod.rs:80 至 :116 全字段核对），需后端补 unit */
+  /** 后端 SalesOrderItemDetail 无 unit 键，需后端补 unit */
   unit: string | null;
   unit_price: number;
   tax_rate?: number;
@@ -46,13 +46,12 @@ export interface SalesOrderItem {
   discount_rate?: number;
   discount_amount?: number;
   subtotal: number;
-  /** 后端 SalesOrderItemDetail.shipped_quantity（services/so/mod.rs:94），非 delivered_quantity */
+  /** 后端出参键为 shipped_quantity（非 delivered_quantity） */
   shipped_quantity: number;
   /**
    * 后端 sales_order_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
-   * 后端 rust_decimal 经 JSON 序列化为字符串（如 "5.00"），NULL→null；
-   * 本接口同时用于创建/更新入参（表单侧提交数值），故取并集 number | string | null。
-   * 消费点：详情展示需 Number() 归一；编辑回显 useOlv.prepareEdit 转数值绑定 el-input-number。
+   * 出参 Decimal 为字符串（如 "5.00"）、入参侧提交数值，故取并集 number | string | null；
+   * 详情展示需 Number() 归一，编辑回显转数值绑定 el-input-number。
    */
   quantity_tolerance_pct: number | string | null;
 }
@@ -109,7 +108,7 @@ export interface CreateSalesOrderPayload {
 
 /**
  * 更新销售订单载荷 —— 对齐 services/so/mod.rs::UpdateSalesOrderRequest（全部 Option）。
- * 注意：后端更新契约不含 customer_id/order_date/contact_*（编辑这些字段需后端支持，已登记后端串行清单），
+ * 注意：后端更新契约不含 customer_id/order_date/contact_*（编辑这些字段需后端支持，属既有缺口），
  * 前端不发送后端不读的键。
  */
 export interface UpdateSalesOrderPayload {
@@ -168,9 +167,9 @@ export interface SalesDeliveryQueryParams {
 }
 
 /**
- * GET /sales/orders/statistics 查询参数（唯一真相：
- * handlers/sales_order_handler.rs:781 OrderStatisticsQuery{start_date,end_date,customer_id}，
- * 全 Option；原键 date_from/date_to/group_by 后端不存在，被 Axum 静默丢弃=假筛选，删除）。
+ * GET /sales/orders/statistics 查询参数 —— 对齐后端 OrderStatisticsQuery：
+ * 仅 start_date/end_date/customer_id（全 Option）；其他键（date_from/date_to/group_by 等）
+ * 后端不存在，发出即被丢弃=假筛选，不得声明。
  */
 export interface SalesStatisticsParams {
   start_date?: string;
@@ -185,54 +184,44 @@ export interface SalesStatisticsData {
   trends: { date: string; amount: number; orders: number }[];
 }
 
-// D14 Batch 5b：原 salesApi.getOrderList 转为风格 B 函数
 export const getSalesOrderList = (params?: SalesOrderQueryParams) =>
   request.get<ApiResponse<{ items: SalesOrder[]; total: number }>>('/sales/orders', {
     params,
   });
 
-// D14 Batch 5b：原 salesApi.getOrderById 转为风格 B 函数
 export const getSalesOrderById = (id: number) =>
   request.get<ApiResponse<SalesOrder>>(`/sales/orders/${id}`);
 
-// D14 Batch 5b：原 salesApi.createOrder 转为风格 B 函数
 export const createSalesOrder = (data: CreateSalesOrderPayload) =>
   request.post<ApiResponse<SalesOrder>>('/sales/orders', data);
 
-// D14 Batch 5b：原 salesApi.updateOrder 转为风格 B 函数
 export const updateSalesOrder = (id: number, data: UpdateSalesOrderPayload) =>
   request.put<ApiResponse<SalesOrder>>(`/sales/orders/${id}`, data);
 
-// D14 Batch 5b：原 salesApi.deleteOrder 转为风格 B 函数
 export const deleteSalesOrder = (id: number) =>
   request.delete<ApiResponse<null>>(`/sales/orders/${id}`);
 
-// D14 Batch 5b：原 salesApi.submitOrder 转为风格 B 函数
 export const submitSalesOrder = (id: number) =>
   request.post<ApiResponse<null>>(`/sales/orders/${id}/submit`);
 
-// 审批「通过」：POST /sales/orders/{id}/approve，体 sales_order_handler::ApproveSalesOrderRequest
-// （approval_reason 为 Option<String> ⇒ 选填：留空即省略该键，后端 handler::approve_order 归一为 None，
-// 不伪造成必填、不落空串）。采集见 useActionPrompts.promptApprovalReason(false)。
+// 审批「通过」：POST /sales/orders/{id}/approve。approval_reason 选填：
+// 留空即省略该键，sales_orders.approval_reason 列写 NULL（不伪造成必填、不落空串）。
+// 采集见 useActionPrompts.promptApprovalReason(false)。
 export const approveSalesOrder = (id: number, approvalReason?: string) =>
   request.post<ApiResponse<null>>(
     `/sales/orders/${id}/approve`,
     approvalReason ? { approval_reason: approvalReason } : {}
   );
 
-// D14 Batch 5b：原 salesApi.rejectOrder 转为风格 B 函数
 export const rejectSalesOrder = (id: number, reason: string) =>
   request.post<ApiResponse<null>>(`/sales/orders/${id}/reject`, { reason });
 
-// D14 Batch 5b：原 salesApi.cancelOrder 转为风格 B 函数
 export const cancelSalesOrder = (id: number) =>
   request.post<ApiResponse<null>>(`/sales/orders/${id}/cancel`);
 
-// D14 Batch 5b：原 salesApi.createDelivery 转为风格 B 函数
 export const createSalesDelivery = (orderId: number, data: CreateSalesDeliveryPayload) =>
   request.post<ApiResponse<SalesDelivery>>(`/sales/orders/${orderId}/deliveries`, data);
 
-// D14 Batch 5b：原 salesApi.getDeliveries 转为风格 B 函数
 export const getSalesDeliveryList = (orderId: number) =>
   request.get<ApiResponse<{ list: SalesDelivery[]; total: number }>>(
     `/sales/orders/${orderId}/deliveries`
@@ -265,15 +254,13 @@ export interface SalesShipPayload {
 export const shipSalesOrder = (orderId: number, data: SalesShipPayload) =>
   request.post<ApiResponse<null>>(`/sales/orders/${orderId}/ship`, data);
 
-// D14 Batch 5b：原 salesApi.getOrderStatistics 转为风格 B 函数
 export const getSalesOrderStatistics = (params: SalesStatisticsParams) =>
   request.get<ApiResponse<SalesStatisticsData>>('/sales/orders/statistics', { params });
 
 /**
- * 生成销售订单号（P1-1 补齐 generate-no 端点）
+ * 生成销售订单号（创建表单预填用）
  * 后端: GET /api/v1/erp/sales/orders/generate-no
  * 返回: { prefix: "SO", order_no: "SO20260617001" }
  */
-// D14 Batch 5b：原 salesApi.generateOrderNo 转为风格 B 函数
 export const generateSalesOrderNo = () =>
   request.get<ApiResponse<{ prefix: string; order_no: string }>>('/sales/orders/generate-no');

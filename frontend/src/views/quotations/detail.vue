@@ -192,10 +192,6 @@
 </template>
 
 <script setup lang="ts">
-// 报价单详情页脚本
-// - 加载报价单
-// - 按钮按状态显示
-// - 提交/批准/拒绝/转订单/取消
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -237,7 +233,6 @@ async function loadData() {
     const res = await getQuotation(id);
     quotation.value = res.data as QuotationResponseDto;
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.detail.loadFailed')
     );
@@ -306,7 +301,7 @@ async function handleSubmit() {
 /** 批准 */
 async function handleApprove() {
   if (!quotation.value) return;
-  // 报价批准理由后端必填 ⇒ 经统一采集器采集后再提交；取消即中止整条链。
+  // 批准理由后端必填：先经 promptApprovalReason(true) 采集再提交，取消即中止；理由落 sales_quotations.approval_reason 列
   const approvalReason = await promptApprovalReason(true);
   if (approvalReason === null) return;
   await approveQuotation(quotation.value.id, approvalReason);
@@ -317,7 +312,7 @@ async function handleApprove() {
 /** 拒绝 */
 async function handleReject() {
   if (!quotation.value) return;
-  // 拒绝理由后端必填 ⇒ 改用统一采集器，去掉本页手搓输入校验；取消即中止。
+  // 拒绝理由后端必填：经 promptRejectReason() 采集，取消即中止；理由落 sales_quotations.rejection_reason 列
   const reason = await promptRejectReason();
   if (reason === null) return;
   await rejectQuotation(quotation.value.id, reason);

@@ -2,21 +2,13 @@ import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
 /**
- * 列表/详情出参 = 后端 sales_contract::Model（handlers/sales_contract_handler.rs
- * list_contracts/get_contract 直接序列化实体）+ created_by_name 富化键。
- *
- * P0 契约修复（本轮）：
- * - 删除历史自创键 contract_date/start_date/end_date/currency/delivery_terms/remarks/items：
- *   后端从不返回这些键（models/sales_contract.rs 全字段核对），读取恒 undefined，
- *   属「前端类型 ≠ 后端出参」的第二套假契约。
- * - rust_decimal::Decimal 序列化为**字符串**（如 "12345.67"），total_amount/stamp_tax_amount
- *   声明为 string | null，展示/回填处 Number() 归一。
- * - status 词表出自后端 models/status/bpm_crm_contract.rs:35-50 contract 模块：
- *   draft/active/cancelled/rejected（approve 写 active、reject 写 rejected，两动作两列）。
- * - 审批理由两列（approval_reason/rejected_reason，models/sales_contract.rs:29-31，m0079 加列）
- *   本接口刻意不声明：当前详情/列表均无展示位，补键即恒空假列（与价目域同一口径）。
- * - 明细行不在本对象上（后端 get_list/get_by_id 不联查 items），编辑回显需调
- *   getSalesContractItems（GET /sales/sales-contracts/:id/items，后端既有端点）。
+ * 列表/详情出参 = 后端 sales_contract::Model（handler 直接序列化实体）+ created_by_name 富化键。
+ * - total_amount/stamp_tax_amount 为后端 Decimal ⇒ JSON 字符串（或 null），展示/回填处 Number() 归一。
+ * - status 词表 draft/active/cancelled/rejected（权威 models/status/bpm_crm_contract.rs::contract，
+ *   采销两合同域共用；approve 写 active、reject 写 rejected，两动作各落一列理由）。
+ * - 审批理由两列（approval_reason/rejected_reason，m0079 加列）本接口刻意不声明：
+ *   当前列表/详情均无展示位，补键即恒空假列（与价目域同一口径）。
+ * - 明细行不在本对象上（后端 list/get 不联查 items），编辑回显需调 getSalesContractItems。
  */
 export interface SalesContract {
   id: number;
@@ -41,13 +33,13 @@ export interface SalesContract {
   created_by_name?: string | null;
   created_at: string;
   updated_at: string;
-  /** V15 电子签章列（可空） */
+  /** 电子签章列（可空） */
   signed_at: string | null;
   signed_by_user_id: number | null;
   signature_hash: string | null;
   signature_image_url: string | null;
   signature_certificate: string | null;
-  /** V15 P2 合同条款列（可空） */
+  /** 合同条款列（可空） */
   quality_terms: string | null;
   breach_liability: string | null;
   dispute_resolution: string | null;
@@ -104,8 +96,8 @@ export function getSalesContractItems(id: number): Promise<ApiResponse<SalesCont
 }
 
 /**
- * 创建合同明细行入参（对齐后端 CreateContractItemDto，handlers/sales_contract_handler.rs:65-78）。
- * 入参数值类型：serde/rust_decimal 同时接受 JSON number 与 string，输入方向保持 number。
+ * 创建合同明细行入参，逐字段对齐后端 CreateContractItemDto。
+ * 数值以 JSON number 提交（serde/rust_decimal 入参同时接受 number 与 string）。
  * 必填性以 DTO 为准：product_name/unit/quantity/unit_price 后端非 Option ⇒ 不得标可选；
  * product_id/product_spec/delivery_date/remarks 后端 Option ⇒ 可 null（编辑保存为明细整表
  * 重插，回显的真实值必须原样回传，null 即真实空值，禁止塞默认值）。
@@ -123,13 +115,11 @@ export interface CreateContractItemInput {
 }
 
 /**
- * 创建销售合同入参（对齐后端 CreateSalesContractRequestDto）。
- * P0 契约修复（本轮）：
- * - delivery_date 后端已改 Option（真实列可空）⇒ 前端可缺省，不再触发 400。
- * - 补齐 signed_date/effective_date/expiry_date/payment_method/delivery_location
- *   （真实 DB 列，此前「DTO 不收、service 不写、表单却有输入框」⇒ 创建即丢数据）。
- * - remark：DTO 仍接收但 sales_contracts 无 remark 列（迁移需求已上报后端负责人），
- *   落库前该字段不生效。
+ * 创建销售合同入参，逐字段对齐后端 CreateSalesContractRequestDto。
+ * - delivery_date 后端可空（真实列可空）⇒ 前端可缺省。
+ * - signed_date/effective_date/expiry_date/payment_method/delivery_location 均为真实 DB 列，
+ *   DTO 接收并落库，须随建单入参提交。
+ * - remark：DTO 接收并由后端真实落 sales_contracts.remark 列（m0016 补列，可空）。
  */
 export interface CreateSalesContractPayload {
   contract_no: string;
@@ -155,10 +145,8 @@ export interface CreateSalesContractPayload {
  * items 传数组=明细整表替换，不传=不动明细（数组字段不开放 null 清空，清空须送 []）。
  * - contract_name/customer_id 为 NOT NULL 列：不开 null 清空，空则应省略键（保持原值），
  *   发送显式 null 会被后端判业务错误（400 + 外显文案）。
- * - 其余可空列（total_amount/contract_type/payment_terms/delivery_date/signed_date/
- *   effective_date/expiry_date/payment_method/delivery_location/remark，逐字段对
- *   m0011 DDL + m0016 补列核实）类型如实声明 `T | null`：清空须送 null，
- *   禁止改回 `|| undefined` 省略键——省略=保持原值，正是本轮消灭的静默丢弃。
+ * - 其余均为 DB 可空列，类型如实声明 `T | null`：清空须送 null，
+ *   禁止塌成 `|| undefined` 省略键（省略=保持原值）。
  * - 不含 contract_no：后端 UpdateSalesContractDto 无该字段（编号系统生成、编辑链路忽略），
  *   前端发送它只会构成"后端不读"的死键（check-api-request 判负）。
  */
@@ -198,27 +186,24 @@ export function deleteSalesContract(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/sales/sales-contracts/${id}`);
 }
 
-// 审批「通过」请求体：对齐后端 sales_contract_handler::ApproveSalesContractRequest
-// （handlers/sales_contract_handler.rs:205-208）。approval_reason 后端为 Option<String> 只为让
-// "缺键/不带 body" 落到统一 AppError 校验信封（而非 axum 解码层裸 400），必填语义在
-// approve_contract:354-365 收口：缺失/空串/纯空白一律 400，非空值真实落
-// sales_contracts.approval_reason 列（services/sales_contract_service.rs::approve）⇒ 前端必带且必采。
+// 审批「通过」请求体，对齐后端 ApproveSalesContractRequest。
+// approval_reason 必填语义在后端 handler 收口（缺失/空串/纯空白一律 400），
+// 值落 sales_contracts.approval_reason 列 ⇒ 前端必带且必采（采集见 useActionPrompts）。
 export interface ApproveSalesContractRequest {
   approval_reason: string;
 }
 
-// 审批「拒绝」请求体：对齐后端 sales_contract_handler::RejectSalesContractRequest
-// （handlers/sales_contract_handler.rs:211-214，reason: String 非 Option 且抽取器为强类型
-// `Json<T>` ⇒ 必带体）；trim 后空串 400，非空值真实落 sales_contracts.rejected_reason 列。
+// 审批「拒绝」请求体，对齐后端 RejectSalesContractRequest：reason 为 String 非 Option ⇒ 必带体；
+// trim 后空串 400，非空值落 sales_contracts.rejected_reason 列。
 export interface RejectSalesContractRequest {
   reason: string;
 }
 
-// approve/reject 两个端点成功出参均为 ApiResponse<String>（后端回 "合同 {id} 审核成功" 这类
-// 含记录 ID 的拼接文案）。该 data 不外显：文案一律走前端 i18n，ID 不进用户可见文案
-// （后端 utils/error.rs 的同一条脱敏边界）。故调用方只判成功与否，不使用 data。
+// approve/reject 两个端点成功出参均为 ApiResponse<String>（后端回含记录 ID 的拼接文案）：
+// 该 data 不外显，文案一律走前端 i18n，ID 不进用户可见文案；调用方只判成功与否。
+// 状态门：仅 draft 可通过/拒绝。
 
-/** 审批通过销售合同（draft → active，状态门 services/sales_contract_service.rs::approve） */
+/** 审批通过销售合同（draft → active，端点 POST /sales/sales-contracts/{id}/approve） */
 export function approveSalesContract(
   id: number,
   data: ApproveSalesContractRequest
@@ -226,7 +211,7 @@ export function approveSalesContract(
   return request.post(`/sales/sales-contracts/${id}/approve`, data);
 }
 
-/** 拒绝销售合同（draft → rejected 终态，后端 routes/sales.rs:158-161 挂载） */
+/** 拒绝销售合同（draft → rejected 终态，端点 POST /sales/sales-contracts/{id}/reject，与 approve 各自独立） */
 export function rejectSalesContract(
   id: number,
   data: RejectSalesContractRequest

@@ -22,8 +22,7 @@ export type CustomerLevel = 'VIP' | 'NORMAL';
 export type TermType = 'logistics' | 'payment' | 'sample' | 'inspection';
 
 /**
- * 阶梯定价项（批次 98 P2-D 修复 v5 复审：原 any 改为显式接口）
- * 后端 tier_pricing 字段为 JSON 数组，每项描述一个数量区间的单价
+ * 阶梯定价项：后端 tier_pricing 字段为 JSON 数组，每项描述一个数量区间的单价
  */
 export interface TierPricingItem {
   /** 起订数量（含） */
@@ -85,10 +84,10 @@ export interface QuotationResponseDto {
   id: number;
   quotation_no: string;
   customer_id: number;
-  /** 后端 QuotationResponseDto 无 customer_name（models/quotation_response_dto.rs:17 仅 customer_id），需后端 JOIN customers 补 customer_name */
+  /** 后端 QuotationResponseDto 仅 customer_id，需后端 JOIN customers 补 customer_name */
   customer_name: string | null;
   sales_user_id: number;
-  /** 后端 QuotationResponseDto 无 sales_user_name（models/quotation_response_dto.rs:17 仅 sales_user_id），需后端 JOIN users 补 sales_user_name */
+  /** 后端 QuotationResponseDto 仅 sales_user_id，需后端 JOIN users 补 sales_user_name */
   sales_user_name: string | null;
   quotation_date: string;
   valid_until: string;
@@ -108,7 +107,7 @@ export interface QuotationResponseDto {
   tax_amount: number;
   total_amount: number;
   approved_by?: number;
-  /** 后端 QuotationResponseDto 无 approved_by_name（models/quotation_response_dto.rs:17 仅 approved_by id），需后端 JOIN users 补 approved_by_name */
+  /** 后端 QuotationResponseDto 仅 approved_by id，需后端 JOIN users 补 approved_by_name */
   approved_by_name: string | null;
   approved_at?: string;
   rejection_reason?: string;
@@ -125,9 +124,9 @@ export interface QuotationResponseDto {
 export interface QuotationItemResponseDto {
   id: number;
   product_id: number;
-  /** 后端 QuotationItemResponseDto 无 product_name（models/quotation_response_dto.rs:104 仅 product_id），需后端 JOIN products 补 product_name */
+  /** 后端 QuotationItemResponseDto 仅 product_id，需后端 JOIN products 补 product_name */
   product_name: string | null;
-  /** 后端 QuotationItemResponseDto 无 product_code（models/quotation_response_dto.rs:104 仅 product_id），需后端 JOIN products 补 product_code */
+  /** 后端 QuotationItemResponseDto 仅 product_id，需后端 JOIN products 补 product_code */
   product_code: string | null;
   color_id?: number;
   color_code?: string;
@@ -201,7 +200,7 @@ export interface RejectRequest {
   reason: string;
 }
 
-/** 列表分页响应（后端实际为数组，部分端点返回 list/total） */
+/** 列表响应信封类型；真实列表键以各端点出参注为准（见 getQuotationList/getColorPrices 函数注） */
 export interface ListResponse {
   items: QuotationResponseDto[];
   total: number;
@@ -210,15 +209,13 @@ export interface ListResponse {
 /**
  * 列出报价单（分页）
  * @param params 查询参数
- * 后端 quotation_handler::list_quotations 返回 ApiResponse<ListQuotationsResponse>，
- * ListQuotationsResponse { list, total, page, page_size }，真实列表键为 list（非裸数组）。
+ * 后端出参 { list, total, page, page_size }，真实列表键为 list（非裸数组）。
  */
 export function getQuotationList(
   params: QuotationListQuery = {}
 ): Promise<
   ApiResponse<{ list: QuotationResponseDto[]; total: number; page: number; page_size: number }>
 > {
-  // P2 1-11 修复：去掉 as any，使用显式泛型传递类型契约
   return request.get<
     ApiResponse<{ list: QuotationResponseDto[]; total: number; page: number; page_size: number }>
   >('/quotations', { params });
@@ -265,7 +262,7 @@ export function submitQuotation(id: number): Promise<ApiResponse<null>> {
 /**
  * 审批通过
  * @param id 报价单 ID
- * @param approvalReason 审批通过理由，落 sales_quotations.approval_reason
+ * @param approvalReason 审批通过理由（后端必填，落 sales_quotations.approval_reason 列）
  */
 export function approveQuotation(id: number, approvalReason: string): Promise<ApiResponse<null>> {
   return request.post<ApiResponse<null>>(`/quotations/${id}/approve`, {
@@ -276,7 +273,7 @@ export function approveQuotation(id: number, approvalReason: string): Promise<Ap
 /**
  * 审批拒绝
  * @param id 报价单 ID
- * @param reason 拒绝原因
+ * @param reason 拒绝原因（后端必填，落 sales_quotations.rejection_reason 列）
  */
 export function rejectQuotation(id: number, reason: string): Promise<ApiResponse<null>> {
   return request.post<ApiResponse<null>>(`/quotations/${id}/reject`, { reason });
@@ -345,10 +342,8 @@ export function calculatePrice(
 /**
  * 获取色号价格（分页）
  * @param productColorId 产品色号 ID
- * 后端 quotation_handler::list_color_prices 返回 ApiResponse<PaginatedResponse<product_color_price::Model>>，
- * data 为信封 { items, total, page, page_size }，真实列表键为 items（非裸数组）。
+ * 后端出参为 PaginatedResponse 信封，列表键 items；行型后端未定型，以 unknown 承载。
  */
-// P2 1-11 修复：去掉 as any 和 any 类型，使用 unknown 占位（后端返回结构待定义 DTO）
 export function getColorPrices(
   productColorId: number
 ): Promise<ApiResponse<{ items: unknown[]; total: number; page: number; page_size: number }>> {

@@ -1,8 +1,6 @@
 /**
  * usePrRtnProc.ts - 采购退货业务流程 composable
- * 任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
  * 提供采购退货提交流程（提交审批/审批/拒绝/删除）操作
- * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -51,9 +49,9 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   };
 
   /**
-   * 审批通过（submitted → approved）：通过理由选填。
-   * 交互：先经统一采集器 promptApprovalReason(false) 采集理由（允许留空→省略该键，后端归一为 NULL），
-   * 取消即中止整条链（非错误，不记错误日志）。
+   * 审批通过（submitted → approved），理由选填：先经 promptApprovalReason(false) 采集，
+   * 取消即中止（非错误，不记错误日志）。留空时省略 approval_reason 键，
+   * purchase_return.approval_reason 列写 NULL（不伪造空串）。
    */
   const handleApproveConfirm = async () => {
     const approvalReason = await promptApprovalReason(false);
@@ -71,9 +69,8 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
   };
 
   /**
-   * 审批拒绝（→ rejected，理由落 rejected_reason 专列 TEXT 无上限）：拒绝理由后端必填（trim 非空）。
-   * 交互：改用统一采集器 promptRejectReason()（此前经对话框可空提交，会把空 reason 发给现已收口必填的
-   * 服务端 → 必收 400），取消即中止；服务端定性 400 文案原样透出（只说该做什么，不带字段名/机制名词）。
+   * 审批拒绝（→ rejected）：拒绝理由后端必填（trim 非空），先经 promptRejectReason() 采集再提交，
+   * 取消即中止；理由落 purchase_return.rejected_reason 专列，服务端定性 400 文案原样透出。
    */
   const handleReject = async () => {
     const reason = await promptRejectReason();

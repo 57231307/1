@@ -1,6 +1,5 @@
 /**
  * usePcProc.ts - 采购合同流程操作 composable
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-contract/index.vue）
  * 封装采购合同提交审批/审批（通过/拒绝）/执行/删除/导出等流程性方法
  */
 import { ElMessageBox } from 'element-plus';
@@ -16,7 +15,6 @@ import {
   approvePurchaseContract,
   rejectPurchaseContract,
   executePurchaseContract,
-  // 批次 94 P2-12 修复：导入 exportPurchaseContracts 用于实现真实导出
   exportPurchaseContracts,
   type PurchaseContract,
 } from '@/api/purchase-contract';
@@ -32,15 +30,11 @@ interface RefreshCallbacks {
  */
 export function usePcProc(refresh: RefreshCallbacks) {
   /**
-   * 审批通过（draft → active）。
-   * 交互：先用 promptApprovalReason(true) 采集通过理由（必填、trim 非空才允许继续），再提交；
-   * 取消采集框即中止整条链（不弹错误提示）。
-   * 端点：POST /purchase/purchase-contracts/{id}/approve（routes/purchase.rs:252-255），
-   * 体 purchase_contract_handler::ApproveContractRequest（approval_reason 必填语义在 handler 收口，
-   * 值由 service::approve 落 purchase_contracts.approval_reason 列）；
-   * 状态门（仅 draft 可审）在 purchase_contract_service.rs::approve。
+   * 审批通过（draft → active，仅 draft 可审）：理由必填，先经 promptApprovalReason(true) 采集再提交，
+   * 取消采集框即中止整条链（不是失败，不弹错误）。
+   * 端点 POST /purchase/purchase-contracts/{id}/approve，理由落 purchase_contracts.approval_reason 列；
+   * 拒绝走独立端点（见 handleReject），禁止用本端点兼职放行拒绝。
    * 端点成功出参是含记录 ID 的后端拼接文案 ⇒ 不外显，提示一律走 i18n。
-   * 成功后 refresh.getList() 回读列表，不以 toast 作为生效证据。
    */
   const handleApprove = async (row: PurchaseContract) => {
     const approvalReason = await promptApprovalReason(true);
@@ -56,20 +50,18 @@ export function usePcProc(refresh: RefreshCallbacks) {
   };
 
   /**
-   * 提交审批入口。
-   * 后端合同状态机只有 draft→active（approve）与 draft→rejected（reject），无「待审批」中间态、
-   * 也没有独立的提交端点 ⇒ 本入口与「审批通过」是同一个端点的同一个动作，
-   * 因此复用 handleApprove 的理由采集与提交，不发空体（approve_contract 对通过理由必填，
-   * 缺体/空白一律 400）。两个按钮是否都保留属产品口径，已上报编排者裁决。
+   * 提交审批入口。后端合同状态机只有 draft→active（approve）与 draft→rejected（reject），
+   * 无「待审批」中间态、也没有独立提交端点 ⇒ 本入口与「审批通过」是同一端点同一动作，
+   * 直接复用 handleApprove 的理由采集与提交，不发空体（通过理由必填，缺体/空白一律 400）。
    */
   const handleSubmit = (row: PurchaseContract) => handleApprove(row);
 
   /**
-   * 审批拒绝（draft → rejected 终态，与作废 cancelled 语义不同）。
-   * 交互：先用 promptRejectReason() 采集拒绝理由（必填），再提交；取消即中止整条链。
-   * 端点：POST /purchase/purchase-contracts/{id}/reject（routes/purchase.rs:256-259），
-   * 体 purchase_contract_handler::RejectContractRequest（reason: String 非 Option ⇒ 必带体），
-   * 值由 service::reject 落 purchase_contracts.rejected_reason 列；状态门仅 draft 起拒。
+   * 审批拒绝（draft → rejected 终态，与作废 cancelled 语义不可互替，仅 draft 可拒）：
+   * 理由必填，先经 promptRejectReason() 采集再提交，取消采集框即中止整条链。
+   * 端点 POST /purchase/purchase-contracts/{id}/reject（与 approve 各自独立），
+   * 理由落 purchase_contracts.rejected_reason 列。
+   * 端点成功出参是含记录 ID 的后端拼接文案 ⇒ 不外显，提示一律走 i18n。
    */
   const handleReject = async (row: PurchaseContract) => {
     const reason = await promptRejectReason();
@@ -86,8 +78,8 @@ export function usePcProc(refresh: RefreshCallbacks) {
 
   /** 执行 */
   const handleExecute = async (row: PurchaseContract) => {
-    // 后端 ExecuteContractRequestDto 必填 execution_type/execution_amount/execution_date：
-    // 逐项弹框真实采集，取消即中断，绝不塞默认值。词表取自 purchase_contract_execution 模型（PARTIAL/COMPLETE）。
+    // 后端执行请求必填 execution_type/execution_amount/execution_date：
+    // 逐项弹框真实采集，取消即中断，绝不塞默认值；execution_type 取值 = purchase_contract_execution 词表（PARTIAL/COMPLETE）。
     const form = await promptContractExecute(
       [
         { value: 'PARTIAL', label: i18n.global.t('actionForm.executeTypePartial') },
@@ -122,7 +114,7 @@ export function usePcProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 导出（批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载） */
+  /** 导出采购合同 xlsx（GET /purchase/purchase-contracts/export 返回 blob，触发浏览器下载） */
   const handleExport = async () => {
     try {
       const blob = await exportPurchaseContracts();

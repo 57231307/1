@@ -1,8 +1,6 @@
 /**
  * useOlvProc.ts - 销售订单列表流程操作 composable
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales/views/OrderListView.vue）
  * 封装销售订单审批/取消/发货/表单提交等业务流程
- * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -49,7 +47,7 @@ interface SalesShipForm {
  * 销售订单列表流程操作方法集合
  */
 export function useOlvProc(refresh: RefreshCallbacks) {
-  /** 审批通过（pending → approved）：通过理由选填，先经统一采集器 promptApprovalReason(false) 采集（留空即省略键），取消即中止。 */
+  /** 审批通过（pending → approved）：理由选填，先经 promptApprovalReason(false) 采集，取消即中止；留空时省略键，sales_orders.approval_reason 列写 NULL（不伪造空串）。 */
   const handleApprove = async (row: SalesOrder) => {
     const approvalReason = await promptApprovalReason(false);
     if (approvalReason === null) return;
@@ -105,8 +103,8 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   const handleFormSubmit = async (data: OrderForm) => {
     try {
       if (data.id) {
-        // 更新契约（UpdateSalesOrderRequest）仅 required_date/status/shipping_address/
-        // billing_address/notes/items；客户/下单日期/联系人不在其中（编辑需后端支持，已登记串行清单）
+        // 更新契约（后端 UpdateSalesOrderRequest）仅 required_date/status/shipping_address/
+        // billing_address/notes/items；客户/下单日期/联系人不在其中（编辑这些字段需后端支持，属既有缺口）
         await updateSalesOrder(data.id, {
           required_date: toIsoDateTime(data.required_date),
           shipping_address: data.shipping_address || undefined,
@@ -200,7 +198,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 驳回订单（原因必填，落 rejected_reason 专列）：先经统一采集器 promptRejectReason() 采集必填理由，取消即中止。 */
+  /** 驳回订单：理由必填，先经 promptRejectReason() 采集再提交，取消即中止；理由落 sales_orders.rejected_reason 专列。 */
   const handleReject = async (row: SalesOrder) => {
     const reason = await promptRejectReason();
     if (reason === null) return;

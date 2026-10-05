@@ -1,6 +1,5 @@
 /**
  * usePpProc.ts - 采购价格流程操作 composable
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-price/index.vue）
  * 封装采购价格停用/审批（通过/拒绝）/查看/历史/导出等流程性方法
  */
 import { ref, reactive } from 'vue';
@@ -36,11 +35,9 @@ export function usePpProc(refresh: RefreshCallbacks) {
   const historyList = ref<PurchasePrice[]>([]);
 
   /**
-   * 停用（记录级停用：status → inactive，由 purchase_price_service.rs::update_price 按
-   * price_approval::ALL 白名单校验后落库；与审批拒绝 rejected 是两种语义，不可互替）。
-   * 后端 UpdatePriceRequest.price 必填 ⇒ 停用时回传当前价格原值不变。
-   * row.price 由 api 层如实声明为后端 Decimal 序列化字符串（models/purchase_price.rs::Model.price
-   * 为 Decimal 且 rust_decimal 仅启用 serde feature），故直接透传，不再 String() 归一。
+   * 停用（记录级停用：status → inactive，落 purchase_prices.status；
+   * 与审批拒绝 rejected 是两种语义，不可互替）。
+   * 后端更新请求 price 必填 ⇒ 停用时原值回传当前价格，价格不变。
    */
   const handleDisable = async (row: PurchasePrice) => {
     try {
@@ -61,17 +58,12 @@ export function usePpProc(refresh: RefreshCallbacks) {
   };
 
   /**
-   * 审批通过（pending → approved）。
-   * 交互：先用 promptApprovalReason(true) 采集通过理由（必填、trim 非空才允许继续），再提交；
-   * 取消采集框即中止整条链（不弹错误提示）。
-   * 端点：POST /purchase/purchase-prices/{id}/approve，体 purchase_price_handler::ApprovePriceRequest
-   * （approved 非 Option ⇒ 恒伴发 true，handler::approve_price 只受理批准；approval_reason 必填语义
-   * 在同 handler 收口，值由 service::approve_price 落 purchase_prices.approval_reason 列）；
-   * 状态门（仅 pending 可批）在 purchase_price_service.rs::approve_price，
-   * 契约钉 backend/tests/contract_wave8_price_approve_gate_test.rs。
-   * 销售价目侧同款双动作语义见 frontend/src/views/sales-price/composables/useSpProc.ts。
-   * 成功后 refresh.getList() 回读列表（后端 approve_price 已提交状态+审计），
-   * 不以 toast 作为生效证据。
+   * 审批通过（pending → approved）：理由必填，先经 promptApprovalReason(true) 采集再提交，
+   * 取消采集框即中止整条链（不是失败，不弹错误）。
+   * 端点 POST /purchase/purchase-prices/{id}/approve 只受理批准，理由落
+   * purchase_prices.approval_reason 列；拒绝走独立端点（见 handleReject），
+   * 禁止用本端点兼职放行拒绝。
+   * 成功后 refresh.getList() 回读列表，以列表数据为准。
    */
   const handleApprove = async (row: PurchasePrice) => {
     const approvalReason = await promptApprovalReason(true);
@@ -81,20 +73,16 @@ export function usePpProc(refresh: RefreshCallbacks) {
       msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
-      // 非取消的 reject 必须留痕并外显（request.ts 拦截器已透出后端信封 message，
-      // 此处补记操作上下文 + 固定失败文案，不裸 catch 吞错）
       logger.error('采购价格审批通过失败:', error);
       msg.error('approveFailed');
     }
   };
 
   /**
-   * 审批拒绝（pending → rejected 终态，与记录级停用 inactive 语义不同）。
-   * 交互：先用 promptRejectReason() 采集拒绝理由（必填），再提交；取消即中止整条链。
-   * 端点：POST /purchase/purchase-prices/{id}/reject（routes/purchase.rs:302-305），
-   * 体 purchase_price_handler::RejectPriceRequest（reason: String 非 Option ⇒ 必带体），
-   * 值由 service::reject_price 落 purchase_prices.rejected_reason 列；
-   * 状态门：仅 pending 起拒，rejected 与 approved 同为审批结论终态。
+   * 审批拒绝（pending → rejected 审批终态，与记录级停用 inactive 语义不可互替）：
+   * 理由必填，先经 promptRejectReason() 采集再提交，取消采集框即中止整条链。
+   * 端点 POST /purchase/purchase-prices/{id}/reject（与 approve 各自独立），
+   * 理由落 purchase_prices.rejected_reason 列。
    * 成功后 refresh.getList() 回读列表。
    */
   const handleReject = async (row: PurchasePrice) => {
