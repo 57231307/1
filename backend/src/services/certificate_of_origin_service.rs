@@ -2,6 +2,7 @@
 //! V15 P2 B08-12：产地证 CRUD + 到期预警
 use crate::models::certificate_of_origin::{ActiveModel, Column, Entity as Co, Model};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use rust_decimal::Decimal;
 use sea_orm::*;
 use std::sync::Arc;
@@ -17,7 +18,32 @@ impl CertificateOfOriginService {
         Self { db }
     }
 
+    /// 查询产地证列表（分页）。
+    ///
+    /// 功能：按商检单/状态过滤，返回当前页行集与命中总数（按签发日期倒序）。
+    /// 调用方：handlers/certificate_of_origin_handler.rs::list_certificates。
+    /// 入参：params.page 为 1-based 页码（缺省第 1 页）；params.page_size 为每页行数
+    ///       （缺省 20，合法范围 1-100）；page=0 或 page_size 越界按 400
+    ///       VALIDATION_ERROR fail-visible 拒绝，不静默夹紧。
+    /// 传给谁：SeaORM 分页器交 utils::pagination::paginate_with_total（本仓分页偏移
+    ///       唯一权威，内部已做 1-based→0-based 转换，调用方不得再自行减 1）。
+    /// 存什么·存哪里：只读查询，不落任何数据。
     pub async fn list(&self, params: ListParams) -> Result<(Vec<Model>, u64), AppError> {
+        // 页码语义=1-based（与全站 PaginatedResponse.page 回显口径一致），缺省即第 1 页。
+        let page = params.page.unwrap_or(1);
+        // 每页上限 100 是全仓统一分页边界（既有站点 clamp(1,100) 的同一取值），
+        // 越界处置按本仓口径回 400 点名允许值，不静默夹紧。
+        let page_size = params.page_size.unwrap_or(20);
+        if page == 0 {
+            return Err(AppError::validation_displayable(
+                "page 必须是从 1 开始的页码，第一页请传 page=1",
+            ));
+        }
+        if page_size == 0 || page_size > 100 {
+            return Err(AppError::validation_displayable(
+                "page_size 必须在 1-100 之间（每页返回的行数）",
+            ));
+        }
         let mut query = Co::find();
         if let Some(inspection_id) = params.inspection_id {
             query = query.filter(Column::InspectionId.eq(inspection_id));
@@ -27,9 +53,8 @@ impl CertificateOfOriginService {
         }
         let paginator = query
             .order_by_desc(Column::IssueDate)
-            .paginate(&*self.db, params.page_size.unwrap_or(20));
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(params.page.unwrap_or(0)).await?;
+            .paginate(&*self.db, page_size);
+        let (items, total) = paginate_with_total(paginator, page).await?;
         Ok((items, total))
     }
 
