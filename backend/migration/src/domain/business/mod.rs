@@ -31,6 +31,9 @@ mod m0078_finalize_customer_type_domain;
 // 审批改造波：合同/价格 reject 存量库补授（roles/role_permissions 属 system 域、早于
 // 本域，注册在 business 域 up 链尾/down 链首，同 m0072 授权补种范式）
 mod m0081_grant_contract_price_reject;
+// customer_credit_ratings 补 customer_id 全表唯一 + customers 外键（本表由本域 m0012
+// 建、参照表 customers 由 system 域 m0001 建，均早于链尾；守卫与语义论证见文件头）
+mod m0082_add_customer_credit_uniqueness_and_fk;
 
 pub struct Migration;
 
@@ -242,11 +245,21 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0081_grant_contract_price_reject::Migration
             .up(manager)
             .await?;
+        // customer_credit_ratings 单行唯一 + 客户外键，注册在本域 up 链最末：建表在
+        // 本域 m0012、参照表 customers 在 system 域 m0001，均先于此处（见 m0082 文件头）
+        m0082_add_customer_credit_uniqueness_and_fk::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // customer_credit_ratings 约束：最后应用者最先回滚（只移除本迁移施加的
+        // 唯一索引与 FK，不触碰数据行）
+        m0082_add_customer_credit_uniqueness_and_fk::Migration
+            .down(manager)
+            .await?;
         // 审批改造波：最后应用者最先回滚（只回收本迁移按角色码授予的四对 reject 键）
         m0081_grant_contract_price_reject::Migration
             .down(manager)
