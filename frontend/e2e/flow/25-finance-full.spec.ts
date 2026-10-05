@@ -110,7 +110,16 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     }
     // 科目
     await verifyEndpointHealthy(page, '/subjects?page=1&page_size=50');
-    await verifyEndpointHealthy(page, '/assist-accounting?page=1&page_size=5');
+    // assist-accounting 域为 nest 挂载（routes/analytics.rs:596 .nest("/assist-accounting", …)），
+    // 注册面只有子路径 dimensions/records/records/business/records/five-dimension/{id}/
+    // summary/drill-down/balance/check-balance（analytics.rs:44-79，
+    // route-snapshot.txt:219-226 逐一在册）；裸 "/assist-accounting" 根路径【本就无路由】，
+    // 404 是注册面事实而非缺口——该域功能齐全（前端 api/assist-accounting.ts 也只消费子路径），
+    // 旧裸前缀探针属路径写错，改钉真实子路径，不进任何豁免清单。
+    // /records 契约：AssistRecordQueryParams 全 Option（assist_accounting_handler.rs:83-90），
+    // page 缺省 1、page_size 缺省 20 并 clamp；service query_assist_records 无过滤即全表分页，
+    // 空表仍 200（assist_accounting_service.rs:151-171，fetch_page 已做 1→0 对齐）。
+    await verifyEndpointHealthy(page, '/assist-accounting/records?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/period-adjustments?page=1&page_size=5');
   });
 

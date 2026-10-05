@@ -63,7 +63,26 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       page,
       `/color-cards/reorder-dye-lot?page=1&page_size=5&customer_id=${ccCustomerId}`
     );
-    await verifyEndpointHealthy(page, '/color-cards/statistics/daily');
+    // /statistics/daily 契约（缺 date 即 400，旧探针漏参=测试前提写错）：
+    // routes/color_card.rs:127-130 注册 → analytics.rs:312-321 generate_daily_stats，
+    // Query<DailyStatsQuery> 且 DailyStatsQuery { pub date: NaiveDate } 必填无 Option
+    // （analytics.rs:63-66）；date 走 chrono::NaiveDate 默认反序列化=ISO 日历日期
+    // （端点自身文档注释 analytics.rs:311 写明 ?date=YYYY-MM-DD，非本探针臆测格式）。
+    // service 按该日 Utc 零点到 23:59:59 窗口统计（color_card_issue_statistics_service.rs:43-58），
+    // 空命中仍 200 且原样回显 date（DailyStats{ date, … } :19-26）。
+    // 取执行时刻的 UTC 当日，与 Utc 窗口口径对齐，不写死历史快照。
+    const dailyStatsDate = new Date().toISOString().slice(0, 10);
+    // apiCallRaw 对非 2xx 或信封 code≠200/0 一律抛真实原因判红（helpers.ts apiCall），
+    // 成功即真实 200；再钉 data.date 回显等于请求日期，证明必填参真正参与解析而非被忽略。
+    const dailyStats = await apiCallRaw<{ date: string }>(
+      page,
+      'GET',
+      `/color-cards/statistics/daily?date=${dailyStatsDate}`
+    );
+    expect(
+      dailyStats.date,
+      `日统计应回显请求日期 ${dailyStatsDate}（NaiveDate 往返一致），实际 ${dailyStats.date}`
+    ).toBe(dailyStatsDate);
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',

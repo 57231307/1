@@ -235,13 +235,16 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/audit-logs`);
     await verifyEndpointHealthy(page, `/crm/customers/${customerId}/clv`);
     await apiCallRaw(page, 'GET', '/crm/customers/enhanced?page=1&page_size=5');
+    // /roles 真实出参（只按此形状取值，禁止双形状探测）：role_handler.rs:113-142 list_roles
+    // 直出 ApiResponse<RoleListResponse>，data = { roles, total }（结构体 role_handler.rs:78-81），
+    // 全量返回无分页（handler 无 Query 提取器，:134 注释明示 total=len），
+    // 不是本仓通用分页信封 {items,total,page,page_size}；读法与 global-setup.ts:204-230 一致。
     const roleId =
       ctx.roleId ??
-      (await apiCallRaw<{ items: Array<{ id: number }> }>(page, 'GET', '/roles?page=1&page_size=1'))
-        .items?.[0]?.id;
+      (await apiCallRaw<{ roles: Array<{ id: number }> }>(page, 'GET', '/roles')).roles?.[0]?.id;
     expect(
       roleId,
-      '无法获取任何角色 id（ensureTestEntities.ctx.roleId 缺失且角色列表为空）'
+      '无法获取任何角色 id（ensureTestEntities.ctx.roleId 缺失且 /roles 出参 roles 数组为空）'
     ).toBeTruthy();
     await verifyEndpointHealthy(page, `/crm/customers/field-permissions/${roleId}`);
     await verifyEndpointHealthy(page, '/crm/rfm/distribution');
@@ -428,24 +431,30 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/crm/five-dimension/list');
     await verifyEndpointHealthy(page, '/crm/five-dimension/summary');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/statistics');
-    // E4 契约补全（CI run #4675 shard6 判责）：trends 的 period 是【必填】——
-    // sales_analysis_handler.rs:33-35 TrendQuery { period: String }（无 Option），缺参即
-    // axum rejection 400「missing field 'period'」（backend.log:51321/51325 实证）；
-    // service get_trends（sales_analysis_service.rs:51-61）按 sales_analysis.period 等值
-    // 过滤、空命中仍 200，路由已注册（crm.rs:175-176）。旧探针漏传 period=测试前提写错。
-    // ⚠️ 口径不对称（登记交契约拍板，测试不越权改后端）：同族 statistics/rankings 的
-    //    period 均为 Option<String>（handler:26/:40），唯 trends 必填，必填性不一致。
-    // 取值合法且真实：period 词形沿用本仓对同一 period 列的既有口径"YYYY-Qn"（targets
-    //    端点按 period 定位 sales_analysis 行、前端占位文案 zh-CN.ts:7585「例如：2024-Q1」），
+    // trends 与其别名 trend 共用同一 handler get_trends（routes/crm.rs:175-176 与 :194-197 两处
+    // 均指向 sales_analysis_handler::get_trends）；TrendQuery { period: String } 必填无 Option
+    // （sales_analysis_handler.rs:33-35），缺 period 即 axum Query rejection 400；
+    // service get_trends（sales_analysis_service.rs:51-61）按 sales_analysis.period 等值过滤、
+    // 空命中仍 200。两条路径共用下面这一个显式带 period 参数的 helper（period 无默认值，
+    // 漏传编译期即报错），防止只修其一、别名另一条再撞 400。
+    // period 词形沿用本仓对同一 period 列的既有口径"YYYY-Qn"（targets 端点按 period 定位
+    // sales_analysis 行、前端占位文案 zh-CN.ts:7585「例如：2024-Q1」），
     // 按查询执行时刻的当前年季度动态生成，不写死快照值。
+    // ⚠️ 必填性口径不对称（登记交契约拍板，本用例不越权改后端）：同域 statistics 的 period 为
+    //    Option<String>（handler:26）、rankings 为 Option（handler:40）、stats/product-ranking/
+    //    customer-ranking/targets 无必填查询参（get_stats:142-150 无 Query；
+    //    sales_analysis_dto.rs:33-52 全 Option；TargetQuery:46-49 全 Option）——
+    //    这些不带 period 的探针与各自契约一致，维持原样。
     const nowForTrends = new Date();
     const trendsPeriod = `${nowForTrends.getFullYear()}-Q${Math.floor(nowForTrends.getMonth() / 3) + 1}`;
-    await verifyEndpointHealthy(page, `/crm/sales-analysis/trends?period=${trendsPeriod}`);
+    const verifySalesTrendHealthy = (trendPath: string, period: string) =>
+      verifyEndpointHealthy(page, `${trendPath}?period=${period}`);
+    await verifySalesTrendHealthy('/crm/sales-analysis/trends', trendsPeriod);
     await verifyEndpointHealthy(page, '/crm/sales-analysis/rankings');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/stats');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
-    await verifyEndpointHealthy(page, '/crm/sales-analysis/trend');
+    await verifySalesTrendHealthy('/crm/sales-analysis/trend', trendsPeriod);
     await verifyEndpointHealthy(page, '/crm/sales-analysis/targets');
     await verifyEndpointHealthy(page, '/crm/tags');
   });
