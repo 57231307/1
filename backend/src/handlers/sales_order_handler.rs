@@ -418,15 +418,12 @@ pub async fn approve_order(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
 
-    let order = sales_service.approve_order(id, auth.user_id).await?;
-
-    // 通过理由补写（选填通道；与 approve 分事务的边界原因见 so/contract.rs 注释，
-    // 失败如实上抛，不静默丢理由）
-    if let Some(ref reason) = approval_reason {
-        sales_service
-            .record_approval_reason(id, auth.user_id, reason)
-            .await?;
-    }
+    // 状态与通过理由在同一事务、同一行锁下单条 UPDATE 落库（服务侧
+    // approve_order_with_reason）：理由写不进即状态一并回滚，不存在
+    // "已批准但理由缺失"的半程态，也不产生第二条 UPDATE 审计行。
+    let order = sales_service
+        .approve_order_with_reason(id, auth.user_id, approval_reason)
+        .await?;
 
     // 订单审批成功后发送通知给申请人
     if state.event_notification_service.is_none() {

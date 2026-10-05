@@ -302,19 +302,40 @@ impl SalesService {
         );
     }
 
-    /// 审核订单：通过或拒绝
+    /// 审核订单（无审批理由形态）：BPM 回调等不携带通过理由的调用走本门面，
+    /// 委托 approve_order_with_reason 并传 None——approval_reason 列保持 NULL
+    /// （未采集），不伪造成空串。
     pub async fn approve_order(
         &self,
         order_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
-        // 批次 12（2026-06-28）：事务包裹"查询 + 状态检查 + update_with_audit"，
+        self.approve_order_with_reason(order_id, user_id, None)
+            .await
+    }
+
+    /// 审核订单：通过或拒绝（可携带选填通过理由）。
+    /// 入参 reason 为 handler 归一后的选填理由：Some 才 Set 进 approval_reason
+    /// 专列，None 不 Set（列保持 NULL=未采集）；空/纯空白归一在 handler 侧完成。
+    /// 事务边界：begin → lock_exclusive 行锁读单 → 状态门 → update_with_audit
+    /// 单条 UPDATE（状态三件套与理由同写一行）→ commit；理由写入失败即整体
+    /// 回滚，不存在"已批准但理由缺失"的半程态。
+    /// 调用方：sales_order_handler approve 端点（带理由）、approve_order 门面（无理由）。
+    pub async fn approve_order_with_reason(
+        &self,
+        order_id: i32,
+        user_id: i32,
+        reason: Option<String>,
+    ) -> Result<sales_order::Model, AppError> {
+        // 事务包裹"查询 + 状态检查 + update_with_audit"，
         // 加 lock_exclusive 防止并发审批同一订单导致重复审批或字段覆盖
         let txn = (*self.db).begin().await?;
 
         let order = self.lookup_order_for_approval(&txn, order_id).await?;
         self.validate_order_for_approval(&order)?;
-        let order = self.update_order_to_approved(&txn, order, user_id).await?;
+        let order = self
+            .update_order_to_approved(&txn, order, user_id, reason)
+            .await?;
 
         txn.commit().await?;
 
@@ -352,17 +373,24 @@ impl SalesService {
         Ok(())
     }
 
+    /// 在已有事务 + 行锁内把订单写为已审核：status/approved_by/approved_at 三件套
+    /// 与选填通过理由同一 ActiveModel 单条 UPDATE 落 sales_orders 表；reason 为
+    /// Some 才 Set approval_reason 列（None 保持 NULL，不覆写为初值）。
     async fn update_order_to_approved(
         &self,
         txn: &sea_orm::DatabaseTransaction,
         order: sales_order::Model,
         user_id: i32,
+        reason: Option<String>,
     ) -> Result<sales_order::Model, AppError> {
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = sea_orm::ActiveValue::Set(so_status::APPROVED.to_string());
         order_update.approved_by = sea_orm::ActiveValue::Set(Some(user_id));
         order_update.approved_at = sea_orm::ActiveValue::Set(Some(chrono::Utc::now()));
         order_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+        if let Some(reason) = reason {
+            order_update.approval_reason = sea_orm::ActiveValue::Set(Some(reason));
+        }
 
         // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID，
         // 原 Some(0) 硬编码导致审计日志无法追溯审批人。
