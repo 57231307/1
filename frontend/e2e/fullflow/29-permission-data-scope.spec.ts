@@ -3,11 +3,15 @@
 // **声明：本文件未在本地实跑（本机禁跑 Playwright），仅按后端源码契约编写，待 CI/联调验证。**
 //
 // 本链证明什么（覆盖此前"能进页面即绿"的权限域）：
-//   1) RBAC 按 URL 段推导的权限键真实生效：权限键 = /api/v1/erp/{seg3}/{seg4} 消歧后的
-//      seg4（middleware/permission.rs:259-315 extract_resource_info，'crm/leads'→resource
-//      'leads'，path_utils.rs:75 白名单含 'crm'；action=method_to_action :317-327）。
-//      新角色零授权 → 一切业务端点 403（check_permission :524-599 查 role_permission 表，
-//      admin 短路 :536）；仅授 'leads' 后 /crm/leads 通、/departments 仍 403——
+//   1) RBAC 按 URL 段推导的权限键真实生效：权限键 = /api/v1/erp/{seg3}/{seg4} 消歧后的资源键
+//      （middleware/permission.rs:267-300 extract_resource_info：seg3='crm'、seg4='leads' 不构成
+//      双层模块前缀（path_utils.rs:113-132 is_nested_module_prefix 未登记 crm/leads），故走
+//      resolve_module_prefixed_resource('crm','leads')（path_utils.rs:135-182，:166 消歧分支）
+//      ⇒ 运行时权威键是 **`crm-leads`**，与注册表同名（init_service.rs:143 PERMISSION_RESOURCES）；
+//      action=method_to_action :325-327）。授未登记的 'leads' 假键不会命中任何派生键（授码端点
+//      不按注册表校验 resource_type，role_permission_service.rs:472-487 直插 ⇒ 授权行成死码）。
+//      新角色零授权 → 一切业务端点 403（check_permission :532 起查 role_permission 表，
+//      admin 短路 :496）；仅授 `crm-leads` 后 /crm/leads 通、/departments 仍 403——
 //      逐资源粒度，不是"非黑即白"。
 //   2) 行级数据范围 SELF 真实过滤行：新角色默认 data_scope=self
 //      （services/role_permission_service.rs:184-185；词表 all/dept/self，
@@ -182,14 +186,14 @@ test.describe('29 权限键与数据范围契约链', () => {
     }
   });
 
-  test('29-02 授权 leads 后逐资源粒度生效；SELF 行过滤：他人行不可见、自建行可见且 email 脱敏/address 移除', async ({
+  test('29-02 授权 crm-leads 后逐资源粒度生效；SELF 行过滤：他人行不可见、自建行可见且 email 脱敏/address 移除', async ({
     page,
     browser,
   }) => {
     const adminLeadId = await seedLeadAsAdmin(page, 'A2');
     const { roleId, userId, username, password } = await seedRoleAndUser(page, 'Z2');
-    await grantPermission(page, roleId, 'leads', 'read');
-    await grantPermission(page, roleId, 'leads', 'create');
+    await grantPermission(page, roleId, 'crm-leads', 'read');
+    await grantPermission(page, roleId, 'crm-leads', 'create');
 
     let session: IsolatedAuthedSession | undefined;
     try {
@@ -256,10 +260,10 @@ test.describe('29 权限键与数据范围契约链', () => {
   }) => {
     const adminLeadId = await seedLeadAsAdmin(page, 'A3');
     const { roleId, username, password } = await seedRoleAndUser(page, 'Z3');
-    await grantPermission(page, roleId, 'leads', 'read');
-    await grantPermission(page, roleId, 'leads', 'create');
-    await grantPermission(page, roleId, 'leads', 'update');
-    await grantPermission(page, roleId, 'leads', 'delete');
+    await grantPermission(page, roleId, 'crm-leads', 'read');
+    await grantPermission(page, roleId, 'crm-leads', 'create');
+    await grantPermission(page, roleId, 'crm-leads', 'update');
+    await grantPermission(page, roleId, 'crm-leads', 'delete');
 
     let session: IsolatedAuthedSession | undefined;
     try {
@@ -311,8 +315,8 @@ test.describe('29 权限键与数据范围契约链', () => {
     browser,
   }) => {
     const { roleId, username, password } = await seedRoleAndUser(page, 'Z4');
-    await grantPermission(page, roleId, 'leads', 'read');
-    await grantPermission(page, roleId, 'leads', 'create');
+    await grantPermission(page, roleId, 'crm-leads', 'read');
+    await grantPermission(page, roleId, 'crm-leads', 'create');
 
     // 非法 scope_type → 400 VALIDATION（data_permission_handler.rs:143-146 白名单）
     const badScope = await apiCallExpectFail(page, 'POST', '/data-permissions', {

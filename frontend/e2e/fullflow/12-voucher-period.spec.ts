@@ -4,7 +4,9 @@
 // finance/06（借贷不平拒绝）、finance/07（停用持久化+引用防护）、finance/08（关账后过账/收款锁）
 // 互补，本文件补未覆盖的契约面（用户缺陷①②靶心）：
 //   ①凭证/科目全键建单 → GET 详情/列表逐字段回读（含分录双命名键、源单号、批色号）；
-//   ②期间重复建单等创建链 4xx 的 message 必须是具体原因（不得为脱敏常量）。
+//   ②凭证/科目/期间的创建与门控链：4xx 一律锁 **HTTP 状态 + 机器码**（可外显站——构造点为
+//     business_displayable/validation_displayable——才额外断具体文案；脱敏站禁断用户可见文案，
+//     改用真实回读证明"拒绝确实发生"）。某脱敏站是否应改为外显原因，属产品口径，不在用例侧代裁。
 // 契约真值源：
 //   CreateVoucherRequestDto handlers/voucher_handler.rs:44-55；VoucherItemDto:64-95
 //     （alias 双命名：account_subject_id/debit_amount/credit_amount/description）
@@ -18,8 +20,9 @@
 //     重复编码 business_displayable（services/account_subject_service.rs:83-88）；
 //     删除门 :280-329（子科目/凭证引用/余额记录 均 AppError::business→BUSINESS_ERROR，
 //     引用条数文案按 error.rs 安全边界脱敏）
-//   会计期间 handlers/missing_handlers.rs:103-164（CreateAccountingPeriodPayload year+period，
-//     period 1-12 校验；重复 business **脱敏** ⇒ 该断言预期判红并报 file:line）；
+//   会计期间 handlers/missing_handlers.rs:110-164（CreateAccountingPeriodPayload year+period，
+//     period 1-12 校验；重复创建在 :125 用 AppError::business ⇒ 属脱敏通道，出参 message 恒为
+//     「业务处理失败」⇒ 该站只锁 400+BUSINESS_ERROR 并回读唯一索引行证伪重复落库，不断文案）；
 //     状态词表 OPEN/CLOSED（models/status/finance.rs:77-83）；
 //     update 仅 OPEN/CLOSING（missing_handlers.rs:194-200）；close/reopen
 //     handlers/accounting_period_handler.rs:36-71（reopen 需 {reason}）
@@ -411,7 +414,7 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
     expectKeyValue(d2, 'assist_batch', true, '科目 PUT(未碰保持)');
   });
 
-  test('12-06 会计期间：新建回读→重复建 4xx 必须具体原因（预期判红候选）→非法 period 拒绝', async ({
+  test('12-06 会计期间：新建回读→重复建锁 400+BUSINESS_ERROR 且唯一行不被顶替（脱敏站不断文案）→非法 period 拒绝', async ({
     page,
   }) => {
     const created = await apiCallRaw<Record<string, unknown>>(
@@ -447,19 +450,33 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
     expect(fRange.status, 'period 越界应 400').toBe(400);
     expect(failureCode(fRange), 'period 越界机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 
-    // 重复期间 → 当前 AppError::business（missing_handlers.rs:119-125）⇒ message 脱敏为
-    // 「业务处理失败」——本断言按任务红线要求 message 必须具体，**预期判红**并点名该 file:line；
-    // 这是缺陷②「提交只报请求错误看不到原因」的族系实证，禁止放宽。
+    // 重复期间 → 后端用 AppError::business（missing_handlers.rs:125），属**脱敏通道**：
+    // 出参 message 恒为固定常量「业务处理失败」，真实原因只进 tracing（error.rs:5-11 模块文档、
+    // :184-186 business 构造、:361 BusinessError→400、:813 public_message）。
+    // 本仓红线：脱敏站禁断用户可见文案 ⇒ 此处只锁 HTTP 状态 + 机器码，再用真实回读证明
+    // "拒绝确实发生"（防只断错误体却实际落库的假绿）。是否该把原因外显给期末建期间的用户，
+    // 属产品口径（需决策专家/用户裁），不在测试侧替产品改文案、更不在后端侧擅改构造点。
     const fDup = await apiCallExpectFail(page, 'POST', '/finance/accounting-periods', {
       year: 2035,
       period: 8,
     });
     expect(fDup.status, '重复期间应 400').toBe(400);
     expect(failureCode(fDup), '重复期间机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    // 拒绝生效的真实证据（与文案无关）：(year,period) 有唯一索引（migration/src/domain/system/
+    // m0006_add_general_ledger_and_finance_base.rs:95 idx_accounting_periods_unique），自建行仍是唯一一行
+    const afterDupList = await apiCallRaw<unknown>(page, 'GET', '/finance/accounting-periods');
+    if (!Array.isArray(afterDupList))
+      throw new Error('期间列表应为裸数组（missing_handlers.rs:72-85）');
+    const dupRows = (afterDupList as Array<Record<string, unknown>>).filter(
+      r => Number(r.year) === 2035 && Number(r.period) === 8
+    );
     expect(
-      typeof fDup.message === 'string' && !DESENSITIZED_CONSTANTS.includes(fDup.message),
-      `重复期间 4xx 的 message 必须是具体原因而非脱敏常量（backend/src/handlers/missing_handlers.rs:119-125 使用 AppError::business 未迁移 displayable ⇒ 判红交编排派修），实际=${JSON.stringify(fDup.message)}`
-    ).toBe(true);
+      dupRows.length,
+      `重复创建被拒后 (2035,8) 仍应只有 1 行，实际=${dupRows.length} 行 id=${dupRows
+        .map(r => r.id)
+        .join(',')}`
+    ).toBe(1);
+    expect(Number(dupRows[0]?.id), '被拒的重复请求不得顶替自建期间').toBe(id);
 
     // 期间列表（GET /finance/accounting-periods 返回数组）含自建期间
     const list = await apiCallRaw<unknown>(page, 'GET', '/finance/accounting-periods');
