@@ -187,7 +187,15 @@ test.describe('02 采购订单审批', () => {
     // 该单状态确实变了（双重真证据）：① 专属单行状态标签真实变为「已驳回」；② 后端回查 REJECTED。
     await expect(row.getByText('已驳回')).toBeVisible({ timeout: 30000 });
     // 后端真实状态字面量（大写词表）：驳回后为 REJECTED
-    const after = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${id}`);
+    const after = await apiCallRaw<{ status: string; rejected_reason: string | null }>(
+      page,
+      'GET',
+      `/purchase/orders/${id}`
+    );
     expect(after.status, `驳回后状态应为 REJECTED（实际 ${after.status}）`).toBe('REJECTED');
+    // 理由必须落库可追溯（本轮止毁：reject 落 rejected_reason 专列，非只测状态=半级假绿）：逐字回读
+    expect(after.rejected_reason, '驳回理由应逐字落 rejected_reason 专列').toBe(
+      'E2E 测试驳回：数量超预算'
+    );
   });
 });

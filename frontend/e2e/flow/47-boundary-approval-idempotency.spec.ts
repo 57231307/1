@@ -96,7 +96,12 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
     await apiCall(page, 'POST', `/purchase/orders/${id}/submit`);
     const approve = await apiCall(page, 'POST', `/purchase/orders/${id}/approve`);
     expect(approve, '审批应成功').toBeTruthy();
-    const reject = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/reject`);
+    // reject 服务端必填理由（handler 先做 reason 校验再走状态门）：不带理由会先撞 400
+    // VALIDATION_ERROR，触达不到 po/contract.rs::reject_order 的状态门。补理由让链真正走到状态门，
+    // APPROVED 后拒绝仍被拦为 400 BUSINESS_ERROR（断言不变，非迁就）。
+    const reject = await apiCallExpectFail(page, 'POST', `/purchase/orders/${id}/reject`, {
+      reason: 'E2E-47A1 状态门负例理由',
+    });
     // po/contract.rs::reject_order 状态门（仅 PENDING_APPROVAL 可拒绝 → AppError::business）
     expectRejected(reject, 'APPROVED 后拒绝应被状态门拦截', APP_ERROR_CODES.BUSINESS_ERROR);
   });

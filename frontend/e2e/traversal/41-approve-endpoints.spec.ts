@@ -3,7 +3,7 @@ import { loginViaUI, apiCall } from '../flow/helpers';
 import { APPROVE_ENDPOINTS } from './endpoints.config';
 
 /**
- * P5.11 审批端点全量矩阵（48 端点，配置驱动）——可达性判定
+ * P5.11 审批端点全量矩阵（条目数以 APPROVE_ENDPOINTS 配置为准，配置驱动）——可达性判定
  *
  * 每端点以 id=1 按配置 method（缺省 POST）发 {comments}，按 apiCall 抛错信息做真实判定
  * （不再 404/400 → test.skip）：

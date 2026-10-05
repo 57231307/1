@@ -424,4 +424,94 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     const chk = await apiCallExpectFail(page, 'GET', `/sales/orders/${id}`);
     expect(chk.status, '删除后回读应 404').toBe(404);
   });
+
+  test('44e-11 销售价格状态机：pending→approved/rejected 双向出边 + 理由必填/落库 + 空理由与缺通过理由负例', async ({
+    page,
+  }) => {
+    // 销售价目侧与采购价目同族（price_approval 小写 pending/approved/rejected）。此前销售侧仅 flow/27
+    // verifyEndpointHealthy 假绿族探测，无拒绝链真断言——本例补真实状态机出边与理由列逐字回读。
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    if (!ctx.productIds[0]) throw new Error('前置缺失：ctx.productIds[0] 未就绪');
+    const mkPrice = async (): Promise<number> => {
+      const price = `7777.${String(Date.now() % 1_000_000).padStart(6, '0')}`;
+      const created = await apiCallRaw<{ id: number; status: string }>(
+        page,
+        'POST',
+        '/sales/sales-prices',
+        { product_id: ctx.productIds[0], price, unit: 'meter', price_type: 'STANDARD' }
+      );
+      if (!created.id) throw new Error(`销售价格 seed 未返回 id：${JSON.stringify(created)}`);
+      expect(created.status, '新建销售价格应为 pending').toBe('pending');
+      CLEANUP.push({ path: `/sales/sales-prices/${created.id}`, label: 'sales_price' });
+      return created.id;
+    };
+
+    // —— 正例 A：带理由拒绝 pending → rejected + rejected_reason 逐字回读（不止断状态）
+    const idReject = await mkPrice();
+    const rejectReason = `E2E-SP-拒绝-${Date.now()}`;
+    await apiCall(page, 'POST', `/sales/sales-prices/${idReject}/reject`, { reason: rejectReason });
+    const afterReject = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      approval_reason: string | null;
+    }>(page, 'GET', `/sales/sales-prices/${idReject}`);
+    expect(afterReject.status, '拒绝后状态应落库为 rejected').toBe('rejected');
+    expect(afterReject.rejected_reason, '拒绝理由应逐字落 rejected_reason 专列').toBe(rejectReason);
+    expect(afterReject.approval_reason, '拒绝不得写 approval_reason（两动作两列）').toBeNull();
+
+    // —— 状态门：rejected 终态再拒绝 → 400 BUSINESS_ERROR（reject_price 仅 pending 可拒）
+    const repeatReject = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-prices/${idReject}/reject`,
+      { reason: 'E2E-SP-重复拒绝' }
+    );
+    expect(repeatReject.status, '已拒绝价目再次拒绝应被状态门拦为 400').toBe(400);
+    expect(failureCode(repeatReject), '重复拒绝机器码应为 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+
+    // —— 正例 B：带通过理由批准 pending → approved + approval_reason 逐字回读
+    const idApprove = await mkPrice();
+    const approvalReason = `E2E-SP-批准-${Date.now()}`;
+    await apiCall(page, 'POST', `/sales/sales-prices/${idApprove}/approve`, {
+      approved: true,
+      approval_reason: approvalReason,
+    });
+    const afterApprove = await apiCallRaw<{ status: string; approval_reason: string | null }>(
+      page,
+      'GET',
+      `/sales/sales-prices/${idApprove}`
+    );
+    expect(afterApprove.status, '批准后状态应落库为 approved').toBe('approved');
+    expect(afterApprove.approval_reason, '通过理由应逐字落 approval_reason 列').toBe(
+      approvalReason
+    );
+
+    // —— 负例：approve 缺通过理由 → 400 VALIDATION_ERROR（必填档）
+    const idNoReason = await mkPrice();
+    const approveNoReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-prices/${idNoReason}/approve`,
+      { approved: true }
+    );
+    expect(approveNoReason.status, 'approve 缺 approval_reason 应返回 HTTP 400').toBe(400);
+    expect(failureCode(approveNoReason), 'approve 缺理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+
+    // —— 负例：空/纯空白拒绝理由 → 400 VALIDATION_ERROR（reject reason 必填）
+    const emptyReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-prices/${idNoReason}/reject`,
+      { reason: '   ' }
+    );
+    expect(emptyReason.status, '纯空白拒绝理由应返回 HTTP 400').toBe(400);
+    expect(failureCode(emptyReason), '纯空白拒绝理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+  });
 });

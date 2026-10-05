@@ -4,12 +4,15 @@ import {
   loginViaUI,
   apiCall,
   apiCallRaw,
+  apiCallExpectFail,
   ensureTestEntities,
   ensureBudgetPlan,
   getCtx,
   genCode,
   tryCleanup,
   verifyEndpointHealthy,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 /**
@@ -588,5 +591,104 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     ).toBe(creditCode);
 
     await tryCleanup(page, 'DELETE', `/purchase/suppliers/${id}`, '[66-06] 供应商');
+  });
+
+  test('66-07 销售合同拒绝链：reject 端点理由必填落 rejected_reason + 空理由/缺通过理由/状态门负例', async ({
+    page,
+  }) => {
+    // 销售合同与采购合同同族（contract 小写 draft/active/rejected/cancelled）。此前销售侧仅 66-03
+    // 建单落库正向、无拒绝链真断言。本例补 reject 出边与理由列逐字回读（防"只测状态"半级假绿）。
+    const customerId = await seedCustomer(page, '销拒');
+    const productId = await seedProduct(page, '销拒');
+    const createdIds: number[] = [];
+    const mkContract = async (): Promise<number> => {
+      const contractNo = genCode('E2E66SCR');
+      const created = await apiCall<Row>(page, 'POST', '/sales/sales-contracts', {
+        contract_no: contractNo,
+        contract_name: `66号销售拒绝合同_${contractNo}`,
+        customer_id: customerId,
+        total_amount: '1000.00',
+        contract_type: 'sale',
+        payment_terms: '月结30天',
+        items: [
+          {
+            product_id: productId,
+            product_name: 'E2E66 拒绝用例产品',
+            unit: 'm',
+            quantity: '10.00',
+            unit_price: '100.00',
+          },
+        ],
+      });
+      const cid = Number(created.data?.id);
+      expect(cid, `销售合同建单应回 id：${JSON.stringify(created)}`).toBeGreaterThan(0);
+      createdIds.push(cid);
+      return cid;
+    };
+
+    // —— 正例：带理由拒绝 draft → rejected + rejected_reason 逐字回读，approval_reason 不被挪用
+    const idReject = await mkContract();
+    const rejectReason = `E2E-SC-拒绝-${Date.now()}`;
+    await apiCall(page, 'POST', `/sales/sales-contracts/${idReject}/reject`, {
+      reason: rejectReason,
+    });
+    const after = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      approval_reason: string | null;
+    }>(page, 'GET', `/sales/sales-contracts/${idReject}`);
+    expect(after.status, '拒绝后状态应落库为 rejected').toBe('rejected');
+    expect(after.rejected_reason, '拒绝理由应逐字落 rejected_reason 专列').toBe(rejectReason);
+    expect(after.approval_reason, '拒绝不得写 approval_reason（两动作两列）').toBeNull();
+
+    // —— 状态门：rejected 终态再拒绝 → 400 BUSINESS_ERROR（reject 仅 draft 起拒）
+    const repeatReject = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-contracts/${idReject}/reject`,
+      { reason: 'E2E-SC-重复拒绝' }
+    );
+    expect(repeatReject.status, '已拒绝合同再次拒绝应被状态门拦为 400').toBe(400);
+    expect(failureCode(repeatReject), '重复拒绝机器码应为 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+
+    // —— 负例：空/纯空白拒绝理由 → 400 VALIDATION_ERROR（reason 服务端必填）
+    const idEmpty = await mkContract();
+    const emptyReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-contracts/${idEmpty}/reject`,
+      {
+        reason: '   ',
+      }
+    );
+    expect(emptyReason.status, '纯空白拒绝理由应返回 HTTP 400').toBe(400);
+    expect(failureCode(emptyReason), '纯空白拒绝理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    const stillDraft = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/sales/sales-contracts/${idEmpty}`
+    );
+    expect(stillDraft.status, '空理由 reject 被拒不得改变状态').toBe('draft');
+
+    // —— 负例：approve 缺通过理由 → 400 VALIDATION_ERROR（必填档）
+    const approveNoReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/sales-contracts/${idEmpty}/approve`
+    );
+    expect(approveNoReason.status, 'approve 缺 approval_reason 应返回 HTTP 400').toBe(400);
+    expect(failureCode(approveNoReason), 'approve 缺理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+
+    // 尽力清理（rejected 合同删除可能命中状态门告警，属预期，与既有流转型用例清理同则）
+    for (const cid of createdIds) {
+      await tryCleanup(page, 'DELETE', `/sales/sales-contracts/${cid}`, `[66-07] 销售合同#${cid}`);
+    }
+    await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[66-07] 客户');
   });
 });

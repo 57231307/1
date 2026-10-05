@@ -3,10 +3,12 @@
 //   02-01 Tab 加载          → 09-01
 //   02-02 新建采购价格      → 09-02
 //
-// 状态机真值（backend/src/models/status/sales.rs::price_approval，全小写 pending/approved/inactive；
-//   旧注释曾误指向 general.rs::master_data——那是 supplier/customer 的启用/停用词表 {active,inactive}，指向错，已纠正）：
+// 状态机真值（backend/src/models/status/sales.rs::price_approval，全小写 pending/approved/rejected/inactive）：
 //   create_price 写 pending（purchase_price_service.rs::create_price 写 price_approval::PENDING），
-//   批准端点写 approved（::approve_price，含"仅 pending 可批"状态门）、停用写 inactive（::update_price 按 price_approval::ALL 白名单透传）。前端比较对象见 views/purchase-price/composables/ppFmts.ts。
+//   批准端点写 approved（::approve_price，含"仅 pending 可批"状态门；approve 端点 approval_reason 必填、
+//     approved=false 一律 400 VALIDATION_ERROR——approve 单一职责只受理批准）、
+//   拒绝端点写 rejected（::reject_price，同"仅 pending 可拒"状态门，reason 必填落 rejected_reason 列）、
+//   停用写 inactive（::update_price 按 price_approval::ALL 白名单透传）。前端比较对象见 views/purchase-price/composables/ppFmts.ts。
 // 后端 list_prices 仅支持 product_id / supplier_id / status 过滤（无 keyword），
 // 故回读按建单返回的 product_id 检索列表 + 按 id 回读详情，二者结合确认真实落库。
 import { test, expect } from '@playwright/test';
@@ -200,9 +202,12 @@ test.describe('09 采购价格', () => {
       .catch(() => null);
     await row.getByRole('button', { name: '审批' }).click();
     const msgBox = page.locator('.el-message-box:visible');
-    await expect(msgBox, '点审批应弹确认框（确认→批准，取消→中止）').toBeVisible({
+    // approve 现要求通过理由必填：usePpProc.handleApprove 先经 promptApprovalReason(true) 采集
+    // （ElMessageBox.prompt，textarea），空/纯空白被 inputValidator 拦在提交前 ⇒ 必须先填理由再确定
+    await expect(msgBox, '点审批应弹「通过理由」输入框（填写→批准，取消→中止）').toBeVisible({
       timeout: 10000,
     });
+    await msgBox.getByRole('textbox').fill('E2E 采购价目通过理由');
     await msgBox.locator('.el-message-box__btns button:has-text("确定")').click();
 
     const resp = await approveResp;
@@ -238,8 +243,12 @@ test.describe('09 采购价格', () => {
   }) => {
     const { id } = await seedPendingPrice(page);
 
-    // 先经 API 批准一次（pending 门放行 → approved），回读钉住正例基线
-    await apiCall(page, 'POST', `/purchase/purchase-prices/${id}/approve`, { approved: true });
+    // 先经 API 批准一次（pending 门放行 → approved），回读钉住正例基线。
+    // approve 现要求 approval_reason 必填（缺失/空白即 400 VALIDATION_ERROR），基线批准须带理由。
+    await apiCall(page, 'POST', `/purchase/purchase-prices/${id}/approve`, {
+      approved: true,
+      approval_reason: 'E2E 采购价目批准基线',
+    });
     const afterFirst = await apiCallRaw<{ status: string }>(
       page,
       'GET',
@@ -251,12 +260,15 @@ test.describe('09 采购价格', () => {
     // 前置状态恰为 price_approval::PENDING，否则 AppError::business）⇒ 契约钉 HTTP 400
     //（utils/error.rs 的 BusinessError 映射）+ 机器码 BUSINESS_ERROR
     //（utils/error.rs 的 code 映射表）。文案永久脱敏，禁止断言 message 原文。
+    // 必须带 approval_reason：handler 先于状态门校验通过理由必填（缺理由会先撞 400
+    // VALIDATION_ERROR，触达不到状态门）——补理由让链真正走到 service 状态门后仍断 BUSINESS_ERROR。
     const repeat = await apiCallExpectFail(
       page,
       'POST',
       `/purchase/purchase-prices/${id}/approve`,
       {
         approved: true,
+        approval_reason: 'E2E 采购价目重复批准负例',
       }
     );
     expectStateGateRejection(repeat, '对已批准采购价格再次批准应被状态门拒绝');
@@ -272,11 +284,9 @@ test.describe('09 采购价格', () => {
     );
     expect(stillApproved.status, '被拒的二次批准不得改变已落库状态').toBe('approved');
 
-    // approved=false：采购侧 approve 端点仅处理批准（purchase_price_handler.rs::approve_price 对
-    // approved=false 直接 validation_displayable ⇒ 400 + VALIDATION_ERROR，映射见 utils/error.rs）；
-    // 采购侧未注册 reject 路由（backend/src/routes/purchase.rs 价格段无 reject 端点），故前端确认框必须
-    // 是"批准/取消"二值——此钉与 09-03 的确认框行为互为两面（若前端改出"拒绝"分支，
-    // 就是把必然 400 的语义缺陷送进 UI；销售价目侧同理，见 useSpProc.handleApprove）。
+    // approved=false：approve 端点单一职责——本端点只受理批准，approved=false 不做任何写入，
+    // 直接 validation_displayable ⇒ 400 + VALIDATION_ERROR（purchase_price_handler.rs::approve_price，
+    // 映射见 utils/error.rs）。拒绝动作有独立 /reject 端点（见 09-05），不经由 approve。
     const rejectAttempt = await apiCallExpectFail(
       page,
       'POST',
@@ -287,5 +297,68 @@ test.describe('09 采购价格', () => {
     expect(failureCode(rejectAttempt), 'approved=false 机器码应为 VALIDATION_ERROR').toBe(
       APP_ERROR_CODES.VALIDATION_ERROR
     );
+  });
+
+  test('09-05 拒绝 pending 采购价格（reject 端点：理由必填落 rejected_reason + 空理由/缺通过理由负例）', async ({
+    page,
+  }) => {
+    const { id } = await seedPendingPrice(page);
+
+    // 正例：带理由拒绝 → pending→rejected 终态 + 逐字回读 rejected_reason（不止断状态，防"理由丢失用例仍绿"）
+    const rejectReason = `E2E-PP-拒绝-${Date.now()}`;
+    await apiCall(page, 'POST', `/purchase/purchase-prices/${id}/reject`, { reason: rejectReason });
+    const after = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      approval_reason: string | null;
+    }>(page, 'GET', `/purchase/purchase-prices/${id}`);
+    expect(after.status, '拒绝后状态应落库为 rejected').toBe('rejected');
+    expect(after.rejected_reason, '拒绝理由应逐字落 rejected_reason 专列').toBe(rejectReason);
+    // 两动作两列：拒绝只写 rejected_reason，不得挪用 approval_reason
+    expect(after.approval_reason, '拒绝不得写入 approval_reason（两动作两列）').toBeNull();
+
+    // 状态门：rejected 终态再拒绝 → 400 BUSINESS_ERROR（reject_price 仅 pending 可拒）
+    const repeatReject = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/purchase-prices/${id}/reject`,
+      { reason: 'E2E-PP-重复拒绝' }
+    );
+    expectStateGateRejection(repeatReject, '已拒绝价目再次拒绝应被状态门拦截');
+    expect(failureCode(repeatReject), '重复拒绝机器码应为 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+
+    // 空/纯空白理由 → 400 VALIDATION_ERROR（reason 服务端必填，trim 非空门）
+    const newPending = await seedPendingPrice(page);
+    const emptyReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/purchase-prices/${newPending.id}/reject`,
+      { reason: '   ' }
+    );
+    expect(emptyReason.status, '纯空白拒绝理由应返回 HTTP 400').toBe(400);
+    expect(failureCode(emptyReason), '纯空白拒绝理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+
+    // approve 缺通过理由 → 400 VALIDATION_ERROR（必填档）
+    const approveNoReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/purchase-prices/${newPending.id}/approve`,
+      { approved: true }
+    );
+    expect(approveNoReason.status, 'approve 缺 approval_reason 应返回 HTTP 400').toBe(400);
+    expect(failureCode(approveNoReason), 'approve 缺理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    // 缺理由的 approve 被拒后状态不得改变（仍是 pending）
+    const stillPending = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/purchase/purchase-prices/${newPending.id}`
+    );
+    expect(stillPending.status, '缺理由 approve 被拒不得改变状态').toBe('pending');
   });
 });

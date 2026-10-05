@@ -167,6 +167,10 @@ test.describe('03 销售订单审批', () => {
   test('03-03 待审批订单行内可驳回（原因必填）', async ({ page }) => {
     const { id, order_no: orderNo } = await seedSalesOrder(page, 'pending');
     await locateRowByOrderNo(page, orderNo);
+    // 双列锁前置基线：先回读建单 notes（seed 写入的唯一码），reject 后必须逐字不变
+    //（本轮止毁缺陷回归：销售订单 reject 曾挪用覆写 notes；现 reject 落 rejected_reason 专列，notes 回归备注语义）
+    const before = await apiCallRaw<{ notes: string | null }>(page, 'GET', `/sales/orders/${id}`);
+    expect(before.notes, '建单 notes 基线应已落库（seed 唯一码）').toBeTruthy();
     // sales.table.reject = '驳回'，触发 ElMessageBox.prompt('请输入驳回原因')
     await orderActionBtn(page, '驳回').click();
     const msgBox = page.locator('.el-message-box');
@@ -177,7 +181,17 @@ test.describe('03 销售订单审批', () => {
     // 断言成功提示元素出现（仅成功分支渲染），不依赖缺失的中文文案
     await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 30000 });
     // 后端真实状态字面量：驳回后为 rejected
-    const after = await apiCallRaw<SalesOrderLite>(page, 'GET', `/sales/orders/${id}`);
+    const after = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      notes: string | null;
+    }>(page, 'GET', `/sales/orders/${id}`);
     expect(after.status, `驳回后状态应为 rejected（实际 ${after.status}）`).toBe('rejected');
+    // 理由必须落库可追溯（半级假绿防线：不止断状态，逐字回读 rejected_reason 专列值）
+    expect(after.rejected_reason, '驳回理由应逐字落 rejected_reason 专列').toBe(
+      'E2E 测试驳回：价格不符合规范'
+    );
+    // 双列锁：reject 不得覆写 notes——另一列必须"没被写"（止毁回归的行为级锁）
+    expect(after.notes, 'reject 不得覆写 notes（应逐字保持建单基线）').toBe(before.notes);
   });
 });
