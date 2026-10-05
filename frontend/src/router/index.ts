@@ -294,7 +294,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '坯布管理',
           icon: 'Goods',
-          permission: 'inventory:read',
+          permission: ['greige-fabrics:read'],
           requiresAuth: true,
         },
       },
@@ -398,7 +398,12 @@ const routes: RouteRecordRaw[] = [
         path: 'quality',
         name: 'Quality',
         component: () => import('@/views/quality/index.vue'),
-        meta: { title: '质量管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '质量管理',
+          icon: 'Cpu',
+          permission: ['quality-standards:read', 'quality-inspections:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'crm',
@@ -464,7 +469,12 @@ const routes: RouteRecordRaw[] = [
         path: 'production',
         name: 'Production',
         component: () => import('@/views/production/index.vue'),
-        meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '生产计划',
+          icon: 'Cpu',
+          permission: ['production-orders:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'customer-collab',
@@ -546,7 +556,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '染化料管理',
           icon: 'Connection',
-          permission: 'inventory:read',
+          permission: ['chemicals:read'],
           requiresAuth: true,
         },
       },
@@ -557,7 +567,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '验布管理',
           icon: 'Search',
-          permission: 'inventory:read',
+          permission: ['fabric-inspections:read'],
           requiresAuth: true,
         },
       },
@@ -582,7 +592,12 @@ const routes: RouteRecordRaw[] = [
         path: 'outsourcing',
         name: 'Outsourcing',
         component: () => import('@/views/outsourcing/index.vue'),
-        meta: { title: '委外管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
+        meta: {
+          title: '委外管理',
+          icon: 'Box',
+          permission: ['outsourcing-orders:read', 'outsourcing-receipts:read'],
+          requiresAuth: true,
+        },
       },
       {
         path: 'flow-cards',
@@ -591,7 +606,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '流转卡管理',
           icon: 'Tickets',
-          permission: 'inventory:read',
+          permission: ['flow-cards:read'],
           requiresAuth: true,
         },
       },
@@ -602,7 +617,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '打样管理',
           icon: 'Brush',
-          permission: 'inventory:read',
+          permission: ['lab-dip:read'],
           requiresAuth: true,
         },
       },
@@ -624,7 +639,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '生产配方',
           icon: 'Document',
-          permission: 'inventory:read',
+          permission: ['production-recipes:read'],
           requiresAuth: true,
         },
       },
@@ -632,13 +647,13 @@ const routes: RouteRecordRaw[] = [
         path: 'bom',
         name: 'Bom',
         component: () => import('@/views/bom/index.vue'),
-        meta: { title: 'BOM管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: 'BOM管理', icon: 'Cpu', permission: ['boms:read'], requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'mrp',
         name: 'Mrp',
         component: () => import('@/views/mrp/index.vue'),
-        meta: { title: 'MRP计算', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: 'MRP计算', icon: 'Cpu', permission: ['mrp:read'], requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'mrp/history',
@@ -647,7 +662,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'MRP历史记录',
           icon: 'Cpu',
-          permission: 'inventory:read',
+          permission: ['mrp:read'],
           requiresAuth: true,
           hidden: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
@@ -656,13 +671,18 @@ const routes: RouteRecordRaw[] = [
         path: 'capacity',
         name: 'Capacity',
         component: () => import('@/views/capacity/index.vue'),
-        meta: { title: '产能分析', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '产能分析', icon: 'Cpu', permission: ['capacity:read'], requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'material-shortage',
         name: 'MaterialShortage',
         component: () => import('@/views/material-shortage/index.vue'),
-        meta: { title: '缺料预警', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '缺料预警',
+          icon: 'Cpu',
+          permission: ['material-shortage:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'cost',
@@ -766,7 +786,12 @@ const routes: RouteRecordRaw[] = [
         path: 'scheduling',
         name: 'Scheduling',
         component: () => import('@/views/scheduling/index.vue'),
-        meta: { title: '生产排程', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '生产排程',
+          icon: 'Cpu',
+          permission: ['scheduling:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'scheduling/gantt',
@@ -775,7 +800,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '排程甘特图',
           icon: 'Cpu',
-          permission: 'inventory:read',
+          permission: ['scheduling:read'],
           requiresAuth: true,
           hidden: true,
         }, // 批次 22（v5 P0-4）：补齐 meta.permission
@@ -959,13 +984,23 @@ const routes: RouteRecordRaw[] = [
         path: 'dye-recipe',
         name: 'DyeRecipe',
         component: () => import('@/views/dye-recipe/index.vue'),
-        meta: { title: '染色配方', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '染色配方',
+          icon: 'Cpu',
+          permission: ['dye-recipes:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'dye-batch',
         name: 'DyeBatch',
         component: () => import('@/views/dye-batch/index.vue'),
-        meta: { title: '染色批次', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '染色批次',
+          icon: 'Cpu',
+          permission: ['dye-batches:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'purchase-contract',
@@ -1065,7 +1100,12 @@ const routes: RouteRecordRaw[] = [
         path: 'quality-standards',
         name: 'QualityStandards',
         component: () => import('@/views/quality-standards/index.vue'),
-        meta: { title: '质量标准', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '质量标准',
+          icon: 'Cpu',
+          permission: ['quality-standards:read'],
+          requiresAuth: true,
+        }, // 批次 22（v5 P0-4）：补齐 meta.permission
       },
       {
         path: 'data-import',
