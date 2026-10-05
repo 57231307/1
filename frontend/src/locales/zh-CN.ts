@@ -10468,6 +10468,7 @@ export default {
       buttonConfirm: '确定',
     },
     table: {
+      statusDraft: '草稿',
       statusPending: '待审批',
       statusActive: '执行中',
       statusCompleted: '已完成',

@@ -1343,25 +1343,96 @@ export async function uiImportUpload(
 // ---------------------------------------------------------------------------
 
 /**
- * 按列值查找可见表格行
+ * 表格行 DOM 形态：
+ * - 'standard'：Element Plus `<el-table>`，行类名 `.el-table__row`，单元格 `td`
+ *   （如 occupational-health 危害监测表 index.vue:38）。
+ * - 'virtual'：`<el-table-v2>`（本仓 components/V2Table 包装），行类名 `.el-table-v2__row`、
+ *   单元格 `.el-table-v2__row-cell`（如 sales-contract 列表 SalesContractTable.vue 已迁移）。
+ * 两形态行类名互不通用：`.el-table__row` 对虚拟表恒空（N4/S6 直接来源）。
+ */
+export type TableRowShape = 'standard' | 'virtual';
+
+/** findTableRow 匹配方式。 */
+export interface FindTableRowOptions {
+  /** 显式指定表格形态；省略时按页面实际挂载的表格容器唯一确定（见 resolveRowShape）。 */
+  shape?: TableRowShape;
+  /**
+   * 匹配粒度：
+   * - 'row-contains'（默认）：整行 textContent 含目标值（适合唯一业务编码/名称，如合同号）。
+   * - 'first-cell-equals'：仅首列文本严格等于目标值（适合按自增主键 id 精确定位自建行，
+   *   规避数字子串误命中，如 id=1 命中 id=12/101）。
+   */
+  match?: 'row-contains' | 'first-cell-equals';
+}
+
+/** 某形态的行选择器（不含 :visible，由调用方拼接）。 */
+function rowSelectorFor(shape: TableRowShape): string {
+  return shape === 'virtual' ? '.el-table-v2__row' : '.el-table__row';
+}
+
+/** 某形态行内首单元格选择器。 */
+function firstCellSelectorFor(shape: TableRowShape): string {
+  return shape === 'virtual' ? '.el-table-v2__row-cell' : 'td';
+}
+
+/**
+ * 显式确定目标表格形态（禁止跨形态静默兜底探测）：
+ * - 调用方传了 shape → 直接用（并存页必须由调用方点名要操作哪张表）。
+ * - 未传：按页面挂载的表格容器唯一判定——只虚拟→virtual、只普通→standard。
+ * - 两形态并存且未点名 → 抛错（要求调用方传 shape，不猜）。
+ * - 两形态都没有 → 抛错点名两个容器定位器 + 当前 URL + DOM 片段（fail-visible）。
+ */
+async function resolveRowShape(page: Page, shape?: TableRowShape): Promise<TableRowShape> {
+  if (shape) return shape;
+  // 按「可见」容器判定：EP el-dialog 关闭不销毁内部 DOM（display:none 子树不计入 :visible），
+  // 否则列表 V2Table 与隐藏表单里的 el-table 会被误判为「两形态并存」。
+  const virtualCount = await page.locator('.el-table-v2:visible').count();
+  const standardCount = await page.locator('.el-table:visible').count();
+  if (virtualCount > 0 && standardCount > 0) {
+    throw new Error(
+      `[findTableRow] 页面同时可见 .el-table-v2(${virtualCount}) 与 .el-table(${standardCount}) ` +
+        `两种表格形态且调用方未指定 shape，无法自动判定目标表（URL=${page.url()}）——须显式传 opts.shape`
+    );
+  }
+  if (virtualCount > 0) return 'virtual';
+  if (standardCount > 0) return 'standard';
+  const dom = await page
+    .locator('body')
+    .innerText()
+    .catch(() => '<读取失败>');
+  throw new Error(
+    `[findTableRow] 页面无任何可见表格容器（.el-table-v2=${virtualCount}, .el-table=${standardCount}，` +
+      `URL=${page.url()}，body 片段=${JSON.stringify(dom.slice(0, 300))}）——表格未渲染即判红，不返回 null 掩盖`
+  );
+}
+
+/**
+ * 按列值查找可见表格行（同源收口，标准表 + 虚拟表两形态）。
  *
- * 替代各 spec 中重复的"遍历 .el-table__row → textContent 匹配 → 返回 target"循环。
- * 仅搜索可见行（:visible），排除隐藏 Tab 渲染的 DOM。
+ * 替代各 spec 里重复/各写一套的"遍历行→匹配→返回"循环，并统一修复此前只认
+ * `.el-table__row` 而对 el-table-v2 虚拟表恒空的缺陷（N4 销售合同 / S6）。
+ * 形态按 resolveRowShape 显式判定；表格容器都不存在时直接抛错（fail-visible），
+ * 目标行在已判定形态下找不到才返回 null（交由调用方按唯一键断言，不放宽）。
  *
  * @param page          Playwright Page
- * @param value         要匹配的列值（toString 后 includes 匹配）
+ * @param value         目标值（toString 后匹配）
  * @param minRows       最少等待行数（默认 1），列表未渲染时先等
- * @param filterKeyword 可选：先在列表搜索框按该关键字过滤再扫描目标行。并行模式下
- *                      他人用例（如 31b 并发写产品）可能令列表膨胀到目标行不在首页 20 行内，
- *                      仅扫首页会漏找；传关键字走搜索框收敛结果，规避分页/膨胀。
+ * @param filterKeyword 可选：先在 .filter-card 搜索框按该关键字过滤再扫目标行；并行模式下列表
+ *                      膨胀时收敛结果，规避分页。无搜索框则告警回退首页扫描。
+ * @param opts.shape    表格形态；省略时按页面唯一挂载的表格容器判定（并存须点名）。
+ * @param opts.match    'row-contains'（默认，整行含值）| 'first-cell-equals'（首列严格等，按 id 精确）。
  * @returns 目标行 Locator 或 null
  */
 export async function findTableRow(
   page: Page,
   value: string | number,
   minRows = 1,
-  filterKeyword?: string
+  filterKeyword?: string,
+  opts: FindTableRowOptions = {}
 ): Promise<Locator | null> {
+  const shape = await resolveRowShape(page, opts.shape);
+  const rowSel = rowSelectorFor(shape);
+  const match = opts.match ?? 'row-contains';
   if (filterKeyword !== undefined) {
     // 与 31c 用户 Tab 既有写法一致：仅命中当前激活区可见搜索框（隐藏 Tab 的 filter-card 不抢）
     const keywordInput = page.locator('.filter-card input:visible').first();
@@ -1369,9 +1440,9 @@ export async function findTableRow(
     if (hasSearch) {
       await keywordInput.fill(String(filterKeyword));
       await keywordInput.press('Enter');
-      // 等 keyword 请求返回 + 表格重渲染出结果行
+      // 等 keyword 请求返回 + 表格按当前形态重渲染出结果行
       await page
-        .locator('.el-table__row')
+        .locator(`${rowSel}:visible`)
         .first()
         .waitFor({ state: 'visible', timeout: 10_000 })
         .catch(() => {});
@@ -1382,23 +1453,30 @@ export async function findTableRow(
       );
     }
   }
-  const rows = page.locator('.el-table__row:visible');
+  const rows = page.locator(`${rowSel}:visible`);
   await rows
     .first()
     .waitFor({ state: 'visible', timeout: 10000 })
     .catch(() => {});
   const rowCount = await rows.count();
   if (rowCount < minRows) {
-    console.warn(`[findTableRow] 列表仅 ${rowCount} 行（期望≥${minRows}），可能未加载`);
+    console.warn(
+      `[findTableRow] ${shape} 表（${rowSel}）仅 ${rowCount} 行（期望≥${minRows}），可能未加载`
+    );
   }
   const target = String(value);
   for (let i = 0; i < rowCount; i++) {
-    const txt = await rows
-      .nth(i)
-      .textContent()
-      .catch(() => '');
-    if (txt?.includes(target)) {
-      return rows.nth(i);
+    const row = rows.nth(i);
+    if (match === 'first-cell-equals') {
+      const cellText = await row
+        .locator(firstCellSelectorFor(shape))
+        .first()
+        .textContent()
+        .catch(() => '');
+      if ((cellText ?? '').trim() === target) return row;
+    } else {
+      const txt = await row.textContent().catch(() => '');
+      if (txt?.includes(target)) return row;
     }
   }
   return null;

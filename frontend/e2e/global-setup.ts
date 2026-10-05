@@ -40,8 +40,9 @@ interface SetupApiResponse {
   text(): Promise<string>;
 }
 
-/** 仅声明 setup 用到的写方法 + storageState（CSRF 轮换后需重取 token） */
+/** 仅声明 setup 用到的写方法 + 权限回读 GET + storageState（CSRF 轮换后需重取 token） */
 interface CsrfCapableRequestContext {
+  get(url: string, options: object): Promise<SetupApiResponse>;
   post(url: string, options: object): Promise<SetupApiResponse>;
   put(url: string, options: object): Promise<SetupApiResponse>;
   storageState(): Promise<{
@@ -461,16 +462,17 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // salesperson 对齐 permission.rs 的 sales_rep 权限集：可读销售订单（保密扫描用例
   // "响应体不含 supplier_ 键"要求 200 才有效），但绝不授任何 purchase/supplier 侧权限，
   // 保证 sku-mappings/supplier-products/supplier-product-colors 三端点 403 负向真实成立。
-  // leads:* —— enhanced/data-scope-isolation.spec.ts 的 User A：POST/GET/DELETE /crm/leads
-  // 需真实通过 RBAC（/crm/leads 经 path_utils.rs:102 消歧后运行时资源段为 "leads"），
-  // 缺码则建线索被 RBAC 403 拦下，self 隔离前提整体不存在（用例红且根因难查）。
-  // 只授 leads 族，不越界授 purchase/supplier 码，保密面负向断言不受影响。
+  // crm-leads:* —— enhanced/data-scope-isolation.spec.ts 的 User A：POST/GET/DELETE /crm/leads
+  // 需真实通过 RBAC。运行时键由 URL 段消歧得到（path_utils 的 ("crm","leads") → crm-leads），
+  // 与注册表权威名 crm-leads 和前端 constants/permissions 的 CRM_LEAD_* 同源；缺码则建线索被
+  // RBAC 403 拦下，self 隔离前提整体不存在（用例红且根因难查）。
+  // 只授线索族，不越界授 purchase/supplier 码，保密面负向断言不受影响。
   salesperson: [
     'orders:read',
-    'leads:read',
-    'leads:create',
-    'leads:update',
-    'leads:delete',
+    'crm-leads:read',
+    'crm-leads:create',
+    'crm-leads:update',
+    'crm-leads:delete',
     // 发货对话框第四维匹号候选来自 GET /inventory/pieces（与后端 permission.rs 的
     // sales_rep ("pieces","read") 同口径；只读，不授打印）
     'pieces:read',
@@ -478,11 +480,13 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // sales_manager 对齐 permission.rs：orders 只读+审批链（此处仅补读，其余 approve/reject
   // 由后端角色 init 授予，本 spec 只依赖 GET 列表/详情）。不授 purchase 侧任何码。
   sales_manager: ['orders:read'],
-  // customer_service —— data-scope-isolation 的 User B：需要 leads 读/建/删才能把
+  // customer_service —— data-scope-isolation 的 User B：需要线索读/建/删才能把
   // "B 列表看不到 A 私有行 / B 按 ID GET A 的行 → 403 来自 check_resource_owner"
-  // 钉在数据范围层；若缺 leads:read，B 的 403 将来自 RBAC（message=「权限不足，无法
+  // 钉在数据范围层；若缺 crm-leads:read，B 的 403 将来自 RBAC（message=「权限不足，无法
   // 访问该资源」）而非行级隔离（message=「无权限」），安全断言被层错位伪造。
-  customer_service: ['leads:read', 'leads:create', 'leads:update', 'leads:delete'],
+  // 该角色由后端 init 建角并自带 crm-leads 分组（系统角色不允许经 API 改权限），
+  // 此处按目标键回读校验其真实就位，授码 POST 被拒时仍由回读判据兜住。
+  customer_service: ['crm-leads:read', 'crm-leads:create', 'crm-leads:update', 'crm-leads:delete'],
   // inventory_manager —— 02-adjustment.spec.ts IDOR 钉的第二用户 B。刻意对齐后端
   // init permission.rs:427-441 同名角色的 ("adjustments","*")：本 spec 仅经
   // GET/PUT/DELETE /inventory/adjustments/... 四类调用，逐动作授 read/update/delete
@@ -574,24 +578,89 @@ async function requestWithCsrfRecovery(
 }
 
 /**
- * 为角色分配权限码（POST /roles/{id}/permissions 单条模式，幂等）
- * 权限码格式 'product:print' → { resource_type: 'product', action: 'print', allowed: true }
- * 单条失败返回收集项由调用方分级处置：
- * - SHELL/装饰性授码失败 → 告警不中断（黑名单断言对无权限码场景仍成立，只是失去"持码仍拒"精度）
- * - SEED_ROLE_EXTRA_PERMISSIONS（spec 前提性授码）失败 → 调用方必须判红：
- *   缺码会让负向 403 断言的拒绝来源层错位（RBAC 拦 ≠ 数据范围拒），安全用例被静默伪造。
+ * 失败响应机器码提取：只读 AppError 出参的 `code` 字段（error.rs:303-307 固定四键
+ * code/message/trace_id/timestamp；BUSINESS_ERROR 等），绝不解析 message 文案原文
+ * （文案默认脱敏为常量，且判据只看 HTTP 码 + 机器码）。解析不到归 'UNKNOWN'。
+ */
+async function readMachineCode(resp: SetupApiResponse): Promise<string> {
+  const json = (await resp.json().catch(() => null)) as { code?: unknown } | null;
+  return typeof json?.code === 'string' && json.code ? json.code : 'UNKNOWN';
+}
+
+/**
+ * 判定某目标权限键 `resource:action` 是否已在角色权限集合中生效。
+ * 接受精确键，也接受该资源的通配授权 `resource:*`
+ * （init 矩阵对 inventory_manager 等以 ("adjustments","*") 播种，运行时段推导
+ * 对 adjustments:read 命中通配行即放行；回读须与此口径一致，不可只字面比 action）。
+ */
+function permissionKeyPresent(present: Set<string>, code: string): boolean {
+  if (present.has(code)) return true;
+  const resource = code.split(':')[0];
+  return present.has(`${resource}:*`);
+}
+
+/**
+ * 回读某角色当前 allowed=true 的权限键集合。
+ * 调用方：grantAndVerifyRolePermissions（授码后自检的唯一权威）。
+ * 入参：roleId + 复用的 CSRF headers。
+ * 传给谁：GET /roles/{id}/permissions（后端 role_handler.rs:511-531）。
+ * 出参形状：ApiResponse<Vec<PermissionResponse>> → data 为裸数组，
+ *   元素 { resource_type, resource_id, action, allowed }（同文件 :520-529）。
+ * 存什么/存哪里：不持久化，返回 Set<'resource:action'>（仅收 allowed===true 的行）。
+ * GET 非 2xx 或 data 非数组一律显式抛错，绝不吞成"空集合"后误判 missing。
+ */
+async function readRolePermissionKeys(
+  ctx: CsrfCapableRequestContext,
+  roleId: number,
+  headers: Record<string, string>
+): Promise<Set<string>> {
+  const resp = await ctx.get(`${API_PREFIX}/roles/${roleId}/permissions`, { headers });
+  if (!resp.ok()) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `readRolePermissionKeys: 角色 id=${roleId} 权限回读失败 HTTP ${resp.status()} ${body.slice(0, 200)}`
+    );
+  }
+  const json = (await resp.json().catch(() => null)) as {
+    data?: Array<{ resource_type?: unknown; action?: unknown; allowed?: unknown }>;
+  } | null;
+  if (!json || !Array.isArray(json.data)) {
+    throw new Error(
+      `readRolePermissionKeys: 角色 id=${roleId} 权限回读 data 非数组（契约 role_handler.rs:511-531），` +
+        `实际片段=${JSON.stringify(json).slice(0, 200)}`
+    );
+  }
+  const keys = new Set<string>();
+  for (const p of json.data) {
+    if (
+      p?.allowed === true &&
+      typeof p.resource_type === 'string' &&
+      typeof p.action === 'string'
+    ) {
+      keys.add(`${p.resource_type}:${p.action}`);
+    }
+  }
+  return keys;
+}
+
+/**
+ * 为角色逐条授码（POST /roles/{id}/permissions 单条 upsert）。
+ * 返回每个目标键"最近一次 POST 的失败分类"（成功者不入表），供调用方回读缺失时点名。
+ * 本函数**不再判定成败、也不再吞 400/409 当幂等放行**：
+ * 真正的成败由 grantAndVerifyRolePermissions 的回读裁决。
  */
 async function assignPermissionList(
   ctx: CsrfCapableRequestContext,
   roleId: number,
   permissionCodes: string[],
   headers: Record<string, string>
-): Promise<string[]> {
-  const failures: string[] = [];
+): Promise<Map<string, string>> {
+  const rejectReason = new Map<string, string>();
   for (const code of permissionCodes) {
     const [resourceType, action] = code.split(':');
     if (!resourceType || !action) {
       console.warn(`[globalSetup] 权限码格式非法（应为 resource:action）: ${code}`);
+      rejectReason.set(code, '权限码格式非法');
       continue;
     }
     try {
@@ -602,17 +671,62 @@ async function assignPermissionList(
         headers,
         { resource_type: resourceType, action, allowed: true }
       );
-      if (!resp.ok() && resp.status() !== 400 && resp.status() !== 409) {
-        const body = await resp.text().catch(() => '');
-        failures.push(`${code} HTTP ${resp.status()} ${body.slice(0, 200)}`);
-        console.warn(`[globalSetup] 权限 ${code} 分配失败 HTTP ${resp.status()}`);
+      if (resp.ok()) {
+        rejectReason.delete(code); // 本次授码成功（或 upsert 更新成功）
+      } else {
+        // 只按 HTTP 码 + 机器码分类，不解析文案：
+        // 系统角色拒改 → HTTP 400 code=BUSINESS_ERROR（role_permission_service.rs:354-356）；
+        // 可授角色的"权限行已存在"走 update → 200，不经此分支。故 400 只可能是真拒绝，
+        // 旧写法把 400 当幂等放行会静默吞掉全部 init 角色的 extras 授码（N1/N2 族根因）。
+        const machineCode = await readMachineCode(resp);
+        rejectReason.set(code, `HTTP ${resp.status()} code=${machineCode}`);
       }
     } catch (e) {
-      failures.push(`${code} 异常 ${(e as Error).message}`);
-      console.warn(`[globalSetup] 权限 ${code} 分配异常:`, (e as Error).message);
+      rejectReason.set(code, `POST 异常 ${(e as Error).message}`);
     }
   }
-  return failures;
+  return rejectReason;
+}
+
+/**
+ * 授码 + 回读自检（幂等、fail-visible）。
+ * 入参：角色码/id + 目标权限键列表 + 复用的 CSRF headers。
+ * 传给谁：assignPermissionList 尝试授码 → readRolePermissionKeys 回读。
+ * 返回：缺失项描述数组（每项含权限键与其 POST 失败分类）；空数组=全部目标键已就位。
+ * 判定唯一权威是回读：
+ *   目标键已在（无论本次 POST 落的、还是 init 早已播种的）→ 幂等成立、不计缺失，
+ *     此时系统角色的 400 属"键已就位、无需也许可被 API 再改"的正常态；
+ *   目标键确实不在 → 计入缺失（点名 POST 分类，如 HTTP 400 code=BUSINESS_ERROR），
+ *     由调用方记入 seed 失败账并判红。
+ * 严禁为绕过而改 is_system 或写库——缺失只能由后端补 init 矩阵分组/受控通道解决。
+ */
+async function grantAndVerifyRolePermissions(
+  ctx: CsrfCapableRequestContext,
+  roleId: number,
+  roleCode: string,
+  permissionCodes: string[],
+  headers: Record<string, string>
+): Promise<string[]> {
+  if (permissionCodes.length === 0) return [];
+  const rejectReason = await assignPermissionList(ctx, roleId, permissionCodes, headers);
+  const present = await readRolePermissionKeys(ctx, roleId, headers);
+  const missing: string[] = [];
+  for (const code of permissionCodes) {
+    if (!permissionKeyPresent(present, code)) {
+      missing.push(`${code}（POST：${rejectReason.get(code) ?? '未尝试'}）`);
+    }
+  }
+  if (missing.length > 0) {
+    console.error(
+      `[globalSetup] 角色 ${roleCode}(id=${roleId}) 权限回读缺失 ${missing.length}/${permissionCodes.length}：` +
+        `${missing.join('； ')}`
+    );
+  } else {
+    console.log(
+      `[globalSetup] 角色 ${roleCode} 权限回读校验通过（${permissionCodes.length} 项目标键全部就位）`
+    );
+  }
+  return missing;
 }
 
 /**
@@ -703,6 +817,10 @@ export async function ensureRoleUsers(): Promise<void> {
     if (r.code) roleCodeToId.set(r.code, r.id);
   }
 
+  // seed 失败账：收集"授码后回读仍缺的目标键"（角色码/权限键/POST 机器码），
+  // 跨建角色分支与 step 3.5 累加，函数末尾一次性判红（不静默、不带病出凭证）。
+  const seedFailures: string[] = [];
+
   for (const role of allRolesToEnsure) {
     const createRoleResp = await requestWithCsrfRecovery(
       loginCtx,
@@ -721,19 +839,34 @@ export async function ensureRoleUsers(): Promise<void> {
       })) as { data?: { id: number } } | null;
       if (created?.data?.id) {
         roleCodeToId.set(role.code, created.data.id);
-        // 分配权限（POST /roles/{id}/permissions 单条模式：resource_type+action）
+        // 分配权限（POST 单条 upsert）后立即回读自检：新建角色为 e2e 非系统角色，
+        // 授码应成功且回读应在，缺失即记入 seed 失败账。
         if (role.permissions.length > 0) {
-          await assignPermissionList(loginCtx, created.data.id, role.permissions, headers);
+          const missing = await grantAndVerifyRolePermissions(
+            loginCtx,
+            created.data.id,
+            role.code,
+            role.permissions,
+            headers
+          );
+          for (const m of missing) seedFailures.push(`${role.code}: ${m}`);
         }
         console.log(`[globalSetup] 角色 ${role.code} 创建成功 (id=${created.data.id})`);
       }
     } else if (createRoleResp.status() === 400 || createRoleResp.status() === 409) {
       console.log(`[globalSetup] 角色 ${role.code} 已存在，跳过创建`);
-      // 已存在角色也补齐权限码（幂等；33b 黑名单断言依赖"持码仍拒"）
+      // 已存在角色也补齐权限码并回读自检（幂等；33b 黑名单断言依赖"持码仍拒"）
       if (role.permissions.length > 0) {
         const roleId = roleCodeToId.get(role.code);
         if (roleId) {
-          await assignPermissionList(loginCtx, roleId, role.permissions, headers);
+          const missing = await grantAndVerifyRolePermissions(
+            loginCtx,
+            roleId,
+            role.code,
+            role.permissions,
+            headers
+          );
+          for (const m of missing) seedFailures.push(`${role.code}: ${m}`);
         }
       }
     }
@@ -779,28 +912,50 @@ export async function ensureRoleUsers(): Promise<void> {
     );
   }
 
-  // 3.5 幂等补授 SEED_ROLE_EXTRA_PERMISSIONS：即便目标角色此前已存在（409 分支不触发
-  // assignPermissionList），也要保证本 spec 依赖的业务权限码落库——POST /roles/:id/permissions
-  // 由后端处理为 upsert，重复授同码安全。此步保证 purchaser/salesperson/sales_manager 三
-  // 角色对 purchase/sku-mapping.spec.ts 的读写/403 断言前提稳定成立。
-  // 授码失败 = spec 前提缺失（如缺 adjustments:read 时 02-adjustment 的 B 会被 RBAC 拦、
-  // 403 拒绝来源层从数据范围校验漂移为 RBAC），必须响亮判红，不允许 warn 后继续假绿。
+  // 3.5 幂等补授 SHELL + SEED_ROLE_EXTRA_PERMISSIONS，并回读自检。
+  // 为何含 SHELL：后端 init 矩阵对每个在册角色自动附加 SHELL（dashboard/notifications read，
+  // 见 init_service_ops/permission.rs::SHELL_PERMISSIONS 附加逻辑），e2e 侧必须同口径补授，
+  // 否则"后端先建角、e2e 后授权"且此前只补 extras 的角色会缺 dashboard:read 被路由守卫送 /403
+  // （customer_service 即此形态，N1）。
+  // 为何以回读为唯一权威：init 播种角色全部 is_system=true，POST /roles/:id/permissions 对
+  // 系统角色一律 HTTP 400 code=BUSINESS_ERROR 拒改（role_permission_service.rs:354-356）；
+  // 若 init 已把目标键播进矩阵，回读即在 → 幂等放行；回读仍缺 → 该 spec 前提确实未成立且
+  // e2e 无法经 API 落地 → 记入 seed 失败账、末尾判红，绝不吞码、绝不为绕过改 is_system 或写库。
   for (const [code, extras] of Object.entries(SEED_ROLE_EXTRA_PERMISSIONS)) {
     const roleId = roleCodeToId.get(code);
     if (!roleId) {
-      throw new Error(
-        `ensureRoleUsers: SEED_ROLE_EXTRA_PERMISSIONS 角色 ${code} 不在 roleCodeToId（` +
-          `角色既未存在于后端也未补建成功），其 spec 前提无法成立——属 setup 缺陷判红`
+      seedFailures.push(
+        `${code}: 角色不在 roleCodeToId（既未存在于后端也未补建成功），spec 前提无法成立`
+      );
+      continue;
+    }
+    const targetCodes = [...SHELL_PERMISSIONS, ...extras];
+    const missing = await grantAndVerifyRolePermissions(
+      loginCtx,
+      roleId,
+      code,
+      targetCodes,
+      headers
+    );
+    for (const m of missing) seedFailures.push(`${code}: ${m}`);
+    if (missing.length === 0) {
+      console.log(
+        `[globalSetup] 角色 ${code} SHELL+业务权限码补授并回读通过（${targetCodes.length} 项）`
       );
     }
-    const failures = await assignPermissionList(loginCtx, roleId, extras, headers);
-    if (failures.length > 0) {
-      throw new Error(
-        `ensureRoleUsers: 角色 ${code} 前提性权限授码失败 ${failures.length}/${extras.length} 项：` +
-          `${failures.join(' | ')}（缺码会使 spec 的 403/200 断言层错位，禁止静默继续）`
-      );
-    }
-    console.log(`[globalSetup] 角色 ${code} 业务权限码补授完成（${extras.length} 项）`);
+  }
+
+  // seed 失败账收口：任何"授码后回读仍缺"的目标键，都是 spec 前提未落地，必须判红。
+  // 逐条已含 角色码 / 权限键 / POST 机器码；系统角色拒改（HTTP 400 code=BUSINESS_ERROR）且
+  // 回读仍缺者，须由后端补 init 矩阵分组或提供受控授码通道，e2e 侧无合法绕过路径。
+  if (seedFailures.length > 0) {
+    throw new Error(
+      `ensureRoleUsers: seed 权限授码回读失败 ${seedFailures.length} 项：\n  ` +
+        seedFailures.join('\n  ') +
+        `\n——缺码会使 spec 的 403/200 断言层错位（RBAC 拦 ≠ 数据范围拒），禁止静默继续。` +
+        `若某项 POST 分类为 HTTP 400 code=BUSINESS_ERROR 且回读仍缺，即该 init 系统角色拒 API 改权限` +
+        `且 init 矩阵未播种此键，须后端对齐（补分组/统一运行时资源段），不得在 e2e 侧绕过。`
+    );
   }
 
   // 4. 为每个角色创建测试账号

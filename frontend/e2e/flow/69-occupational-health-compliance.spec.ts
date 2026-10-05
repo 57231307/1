@@ -13,6 +13,7 @@ import {
   BASE_URL,
   type ApiFailureResult,
 } from './helpers';
+import { findTableRow } from './ui-helpers';
 
 /**
  * 69 职业健康合规域（环保合规域最后一块零覆盖区）——落库回读 + 状态机 + 词表负例
@@ -311,14 +312,14 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
 
     // 先用表内唯一锚点（首列 ID = 本用例自建行）定位，再断**该行渲染出来的单元格内容**：
     // 危害类型必须逐字等于我提交的 chemical、危害名称等于「苯」——不止"有一行看得见"。
-    const ownRow = page
-      .locator('.el-table__row')
-      .filter({ has: page.locator(`td:first-child:text-is("${id}")`) })
-      .first();
-    await expect(ownRow, `危害监测表格应存在本用例自建行 id=${id}`).toBeVisible({
-      timeout: 15_000,
+    // 收口到同源 helper findTableRow：本表为标准 el-table（index.vue:38 显式指定 shape
+    // 避免与页面其它形态混判），首列 id 用 first-cell-equals 严格匹配（规避数字子串误命中）。
+    const ownRow = await findTableRow(page, id, 1, undefined, {
+      shape: 'standard',
+      match: 'first-cell-equals',
     });
-    const ownRowText = await ownRow.innerText();
+    expect(ownRow, `危害监测表格应存在本用例自建行 id=${id}`).toBeTruthy();
+    const ownRowText = await ownRow!.innerText();
     expect(
       ownRowText,
       `UI 行应逐字回读提交的 hazard_type=chemical，实际行文本=${JSON.stringify(ownRowText)}`
