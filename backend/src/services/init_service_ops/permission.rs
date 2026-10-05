@@ -8,7 +8,9 @@
 //! 逐条对账**，不再用"role_permissions 表整体有行就跳过"；三类缺口一律 fail-visible 点名报错，
 //! 不许静默 skip 后返回成功——① 资源码不在 `PERMISSION_RESOURCES` 注册表（授予也是死码）、
 //! ② 角色码在 roles 表解析不到（上游建角色链断）、③ 写后"应写 vs 实写"对账不足。
-//! 授权语义（哪个角色该有哪些资源码）在本模块的定义表里，本修**不改动**任何授予面。
+//! 授权语义（哪个角色该有哪些资源码）是本模块定义表的唯一职责：改授予面 = 改本表，
+//! 且新角色码必须同步在 `role.rs::create_default_roles` 在册、新资源码必须已在
+//! `PERMISSION_RESOURCES` 登记，闸门①②会对违约直接判红。
 //!
 //! E6 的因果分工（避免下个改动把根因认错）：CI #4675 里业务授权没落库的**直接**原因是
 //! `init_service_ops/role.rs::create_default_roles` 旧写法"admin 已存在即整体早退"，
@@ -1066,6 +1068,30 @@ impl InitService {
                     ("customers", "create"),
                 ],
             ),
+            // 客户服务：线索域四动作（read/create/update/delete），与
+            // frontend/e2e/global-setup.ts SEED_ROLE_EXTRA_PERMISSIONS.customer_service
+            // 的动作集逐码对齐（资源名取注册表/前端常量 `permissions.ts` 的规范码
+            // crm-leads，e2e extras 用的是 /crm/leads 消歧前的运行时段 leads，
+            // 两码同源一名之差，见本分组下方运行时资源段备注）。
+            // 角色本体已由 role.rs 播种但矩阵此前无分组 ⇒ 角色级授权零行 ⇒ 登录后
+            // 路由守卫送 /403；本分组同时让其经 SHELL_PERMISSIONS 拿到
+            // dashboard/notifications 读，落地页恢复。
+            // 刻意**不**附带 customers/crm-customers/商机等别岗码：data-scope-isolation
+            // 用例的 403 必须来自行级归属校验（check_resource_owner，文案层判"无权限"），
+            // 越界扩权会把拒绝来源层上移到 RBAC，破坏该安全断言的层级判据。
+            // 运行时键同源：`/crm/leads` 的 URL 段派生已由
+            // utils/path_utils.rs::resolve_module_prefixed_resource 消歧到本规范码
+            // ("crm","leads") → crm-leads，与注册表登记名一致，故本授权行在 RBAC 匹配层
+            // 真实命中（crm_manager/crm_rep 的同域既有码同时被复活）。
+            (
+                "customer_service",
+                &[
+                    ("crm-leads", "read"),
+                    ("crm-leads", "create"),
+                    ("crm-leads", "update"),
+                    ("crm-leads", "delete"),
+                ],
+            ),
             (
                 "logistics_coordinator",
                 &[
@@ -1135,6 +1161,15 @@ impl InitService {
                     ("audit-logs", "read"),
                 ],
             ),
+            // 审计员：只读审计面，写法对齐上列 safety_officer 的只读审计授权
+            // （audit-logs/reports 仅 read，零写码，最小授权）。
+            // 该角色码被 utils/admin_checker.rs::AUDITOR_ROLE_CODE 与
+            // handlers/audit_log_handler.rs（审计日志查询 admin/auditor 双角色深度
+            // 防御）硬引用，必须是 roles 表在册岗位（由 role.rs 同码播种）而非
+            // e2e 补建 fixture；缺册时闸门②点名判红，不会静默。
+            // /audit-logs 的资源段是 seg3 直接资源（audit-logs 自身即注册码），
+            // 本授权行运行期可命中，与 audit_log_handler 的角色深度防御双层一致。
+            ("auditor", &[("audit-logs", "read"), ("reports", "read")]),
             (
                 "system_admin",
                 &[

@@ -298,6 +298,14 @@ impl InitService {
                 "安全生产与环保合规",
                 "self",
             ),
+            // 审计岗位：permission.rs 矩阵已给 ("auditor", 只读审计面) 分组，角色必须
+            // 同码在册，否则闸门②（角色码解析不到）点名判红；且
+            // utils/admin_checker.rs::AUDITOR_ROLE_CODE 与 handlers/audit_log_handler.rs
+            // 的运行期深度防御按该 code 判定，它不能只是 e2e 补建 fixture。
+            // data_scope=all：审计/报表为跨域只读观察面（授权侧零写码），
+            // 与同区 system_admin/data_analyst 的 all 口径一致，不按 self 过滤即
+            // 无法履行全量审计职责；审计端点另有 handler 层 admin/auditor 角色门。
+            ("审计员", "auditor", "审计与合规只读查询", "all"),
             // IT/数据域
             ("系统管理员", "system_admin", "系统配置与用户管理", "all"),
             ("数据分析师", "data_analyst", "BI报表与数据分析", "all"),

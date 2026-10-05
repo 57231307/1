@@ -156,6 +156,14 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         ("sales", "returns") => "sales-returns".to_string(),
         ("sales", "contracts") => "sales-contracts".to_string(),
         ("sales", "prices") => "sales-prices".to_string(),
+        // ===== CRM 域：`/erp/crm/leads*` 的资源段消歧 =====
+        // "leads" 未登记在 `init_service::PERMISSION_RESOURCES`，注册表权威名是
+        // `crm-leads`。不消歧的后果双向都错：① 矩阵里已登记的 ("crm-leads", *) 授权行
+        // （crm_manager/crm_rep/customer_service 等）对本域列表/详情/写操作是**死码**，
+        // 持权岗位访问自己的线索反而 403；② 运行时要匹配上只能靠库里存在未登记的
+        // ("leads", *) 行，等于把权限键名定在注册表之外。
+        // 消歧到注册表权威名 crm-leads，与 purchase-/sales- 前缀族同构，纯对齐不新增授权。
+        ("crm", "leads") => "crm-leads".to_string(),
         // ===== 生产域：`/erp/production/production-orders/orders*` 的资源段消歧 =====
         // 该路由是双层模块前缀（seg3=production、seg4=production-orders 均在
         // is_module_prefix 表内），extract_resource_info（middleware/permission.rs:274-279）
