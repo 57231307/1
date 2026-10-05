@@ -11,14 +11,14 @@
 #              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
 #              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
 #            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（40 分片并行端到端）],
+#                         [ci-e2e（42 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 40 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 42 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
@@ -2321,6 +2321,16 @@ jobs:
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
 
+      - name: E2E 分片覆盖自检（分配并集 == --list 全集）
+        working-directory: frontend
+        run: |
+          # 任务 #306 门禁：ci-e2e 的"目录分组 + hash 分片"是手工登记，历史上
+          # e2e/fullflow/（96 条）漏登记导致主 CI 全绿但整目录从未执行。本步用真实
+          # `playwright test --list`（只收集不执行）三层校验：workflow 解析锚点、
+          # 每分组 --shard 序号 1..N 无缺口、分组并集==chromium 全集。
+          # 失败即 ci-build-fe 红 → ci-e2e（needs ci-build-fe）不启动，假绿不可能发生。
+          node scripts/check-e2e-shard-coverage.mjs
+
       - name: 构建前端
         working-directory: frontend
         run: |
@@ -2692,9 +2702,12 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        # 40 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
-        #            / 30-39 extras（10 片，按目录域重排，见下方 extras 分支说明。
-        #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑）
+        # 42 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+        #            / 30-41 extras（12 片，按目录域重排，见下方 extras 分支说明。
+        #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑；
+        #            shard 40/41（e2e/fullflow/，96 条契约链用例）是 #306 补上的
+        #            "testMatch 全集内但从未被分片命令传入"的漏登记目录，
+        #            由 ci-build-fe 的 check-e2e-shard-coverage.mjs 自检强制并集==全集）
         # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
         # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
         # "flow: 11~22-returns/inventory/crm"）是错的——run 35722450943 该分片实际
@@ -2783,6 +2796,10 @@ jobs:
             label: "extras: ai+quotations+system"
           - shard: 39
             label: "extras: dashboard+e2e 根级 3 spec"
+          - shard: 40
+            label: "extras: fullflow 1/2（--shard hash 分片）"
+          - shard: 41
+            label: "extras: fullflow 2/2（--shard hash 分片）"
     services:
       postgres:
         image: postgres:16-alpine
@@ -2971,10 +2988,10 @@ jobs:
             SHARD_NO=$((SHARD - 24))
             SHARD_LIMIT=1800
           else
-            # 分片 30-39: testMatch 内、但分片命令从不传的全部目录 ——
+            # 分片 30-41: testMatch 内、但分片命令从不传的全部目录 ——
             # enhanced/purchase/sales/quality/finance/crm/bpm
             # + e2e/ 根级 3 spec + ai/dashboard/fabric/inventory/mrp/production/
-            # quotations/system。
+            # quotations/system/fullflow。
             # 这批此前在 CI 里从未执行过：playwright.config.ts 的 chromium testMatch
             # 早早就把它们纳入（注释写着"去 mock 后全部进主 CI testMatch"），
             # 但分片矩阵只跑 e2e/flow、e2e/smoke、e2e/traversal 三个目录，
@@ -2991,9 +3008,12 @@ jobs:
             # ②extras SHARD_LIMIT=1800 只有 flow 的一半，而 :2906 注释自己写着
             #   "收紧上限只会把真实性能回归伪装成超时"——18:25:25 起跑 1800s 整被
             #   kill（exit 124），兜底传导正确，但 13 条用例根本没跑（覆盖丢失）。
-            # 正解：按域显式分组切 10 片，慢域（purchase/finance）各自 2 片，
+            # 正解：按域显式分组切 12 片（#306 补 fullflow 2 片后），慢域（purchase/finance/
+            # fullflow）各自 2 片，
             # 其余按实测条数配平到 ≤48 条/片；上限对齐 flow 基线 3600；并行度
             # 对齐 flow 取 3。禁止用减用例/拆断言/跳慢用例的方式凑窗口。
+            # "分组清单是否覆盖 testMatch 全集"不再靠人肉对账：ci-build-fe 的
+            # check-e2e-shard-coverage.mjs 每轮用真实 --list 断言 分配并集==全集。
             SHARD_LIMIT=3600
             SHARD_WORKERS=3
             case "$SHARD" in
@@ -3007,9 +3027,13 @@ jobs:
               37) SPEC_TARGETS="e2e/bpm/ e2e/fabric/ e2e/mrp/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
               38) SPEC_TARGETS="e2e/ai/ e2e/quotations/ e2e/system/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
               39) SPEC_TARGETS="e2e/dashboard/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              # fullflow（96 条契约链用例，此前从未被任何分片传入 → 任务 #306 静默丢覆盖）：
+              # 按 extras 注释自己定的 ≤48 条/片 配平切 2 片，慢域对齐基线（3600s / 3 workers）。
+              40) SPEC_TARGETS="e2e/fullflow/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
+              41) SPEC_TARGETS="e2e/fullflow/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
               # 矩阵 extras 段与这里的 case 是同一份切分的两处表达，必须同步演进；
               # 漏同步时宁可整步红，不能静默少跑目录。
-              *) echo "::error::extras 分片 $SHARD 未在按域重排清单中登记（应为 30-39），拒绝以空目标集静默通过"; exit 1 ;;
+              *) echo "::error::extras 分片 $SHARD 未在按域重排清单中登记（应为 30-41），拒绝以空目标集静默通过"; exit 1 ;;
             esac
           fi
           if [ -n "$SPEC_TARGETS" ]; then
@@ -3651,7 +3675,7 @@ jobs:
 # - 初始化完全通过 Setup 向导 UI 真实点击完成（test-database → initialize-with-db
 #   → 真实迁移 60+ 个 + 种子数据 + Argon2id 管理员 → 后端自退）
 # - 后端重启完整模式 → 真实登录验证（Argon2id 校验 + Cookie 会话 + *:* 权限）
-# - 不污染 ci-e2e 的 34 分片共享库（bingxi_test 由 CI init step 初始化）
+# - 不污染 ci-e2e 的 42 分片共享库（bingxi_test 由 CI init step 初始化）
   ci-e2e-setup-wizard:
     name: 🧭 Setup 向导真实链路 E2E
     runs-on: ubuntu-latest
@@ -3989,7 +4013,7 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 40 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "✅ 全部 E2E job（ci-e2e 42 分片 / setup-wizard / role-permission-matrix）真实执行成功"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
         # 步骤级兜底：动态步在上游红时 exit 1，步骤默认 success() 会让本步又被吞——
