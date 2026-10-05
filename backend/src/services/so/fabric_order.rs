@@ -392,6 +392,9 @@ impl SalesService {
             department_id: Set(None),
             approved_by: Set(None),
             approved_at: Set(None),
+            // 建单路径不采集审批/拒绝理由，专列落 NULL
+            approval_reason: Set(None),
+            rejected_reason: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         }

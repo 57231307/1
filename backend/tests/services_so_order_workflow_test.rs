@@ -32,6 +32,8 @@ fn make_order_model(
         order_date: Utc::now(),
         required_date: Some(Utc::now()),
         ship_date: None,
+        approval_reason: None,
+        rejected_reason: None,
         status: status.to_string(),
         subtotal: total_amount,
         tax_amount: Decimal::ZERO,

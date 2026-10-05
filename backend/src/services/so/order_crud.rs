@@ -304,6 +304,9 @@ impl SalesService {
             department_id: sea_orm::ActiveValue::NotSet,
             approved_by: sea_orm::ActiveValue::NotSet,
             approved_at: sea_orm::ActiveValue::NotSet,
+            // 建单路径不采集审批/拒绝理由，专列落 NULL
+            approval_reason: sea_orm::ActiveValue::Set(None),
+            rejected_reason: sea_orm::ActiveValue::Set(None),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
         }
