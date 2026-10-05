@@ -22,6 +22,10 @@ pub struct Model {
     pub status: String,
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
+    /// 审批通过理由（m0079 加列，TEXT 可空；NULL=历史行未采集或选填留空）
+    pub approval_reason: Option<String>,
+    /// 审批拒绝理由（m0079 加列，TEXT 可空；与 approval_reason 两动作两列）
+    pub rejected_reason: Option<String>,
     pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

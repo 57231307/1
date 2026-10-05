@@ -372,7 +372,11 @@ async fn quotation_approve_writeback_completes_bpm_live() {
     let tasks = assert_case_split_mechanism(&*db, instance_id).await;
 
     let approved = svc
-        .approve(quotation_id, approver)
+        .approve(
+            quotation_id,
+            approver,
+            "同意：符合协议区间与报价口径".to_string(),
+        )
         .await
         .expect("业务侧批准必须成功");
     assert_eq!(approved.status, quotation::APPROVED);

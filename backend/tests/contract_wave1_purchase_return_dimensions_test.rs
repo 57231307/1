@@ -548,7 +548,7 @@ async fn purchase_return_approve_ambiguous_four_dim_stock_rejected() {
         .await
         .expect("建单/提交应成功");
     let err = svc
-        .approve_return(ret_id, 100)
+        .approve_return(ret_id, 100, None)
         .await
         .expect_err("同四维多行必须显式报错（不兜底、不任选）");
     assert!(matches!(err, AppError::BusinessError(_)), "实际: {err:?}");

@@ -143,6 +143,8 @@ impl QuotationConvertService {
     ) -> OrderActive {
         OrderActive {
             id: Default::default(),
+            approval_reason: Set(None),
+            rejected_reason: Set(None),
             order_no: Set(order_no),
             customer_id: Set(quotation.customer_id),
             opportunity_id: Set(None),

@@ -35,6 +35,8 @@ use std::sync::Arc;
 use test_common::setup_test_db;
 
 const OPERATOR_ID: i32 = 9451;
+/// 审批通过理由（价格域通过理由必填口径，服务层入参）
+const APPROVAL_REASON: &str = "标准价核准";
 const SEED_PRODUCT_ID: i32 = 9452;
 const SEED_CUSTOMER_ID: i32 = 9453;
 const OTHER_PRODUCT_ID: i32 = 9454;
@@ -268,10 +270,10 @@ async fn create_without_or_empty_price_level_falls_null_and_stays_standard_price
     assert_eq!(created_empty.price_level, None, "空串等级必须落 NULL");
 
     // 审批后两行仍真实落库：status=approved 且等级保持 NULL（标准价语义）
-    svc.approve_price(created.id, OPERATOR_ID)
+    svc.approve_price(created.id, OPERATOR_ID, APPROVAL_REASON.to_string())
         .await
         .expect("pending → approved 权威路径必须成功");
-    svc.approve_price(created_empty.id, OPERATOR_ID)
+    svc.approve_price(created_empty.id, OPERATOR_ID, APPROVAL_REASON.to_string())
         .await
         .expect("pending → approved 权威路径必须成功");
     for id in [created.id, created_empty.id] {

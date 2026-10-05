@@ -73,6 +73,7 @@ impl QuotationService {
     ) -> QuotationActive {
         QuotationActive {
             id: Default::default(),
+            approval_reason: Set(None),
             quotation_no: Set(quotation_no),
             customer_id: Set(dto.customer_id),
             sales_user_id: Set(dto.sales_user_id),
