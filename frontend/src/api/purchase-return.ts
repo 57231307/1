@@ -180,12 +180,18 @@ export const deletePurchaseReturn = (id: number) =>
 export const submitPurchaseReturn = (id: number) =>
   request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/submit`);
 
-// D14 Batch 5b：原 purchaseReturnApi.approve 转为风格 B 函数
-export const approvePurchaseReturn = (id: number) =>
-  request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/approve`);
+// 审批「通过」：POST /purchase/returns/{id}/approve，体 purchase_return_handler::ApproveReturnRequest
+// （approval_reason 为 Option<String> ⇒ 选填：留空即省略该键，后端归一为 None，purchase_return.approval_reason
+// 专列保持 NULL，不伪造成必填、不落空串）。采集见 useActionPrompts.promptApprovalReason(false)。
+export const approvePurchaseReturn = (id: number, approvalReason?: string) =>
+  request.post<ApiResponse<PurchaseReturn>>(
+    `/purchase/returns/${id}/approve`,
+    approvalReason ? { approval_reason: approvalReason } : {}
+  );
 
-// D14 Batch 5b：原 purchaseReturnApi.reject 转为风格 B 函数
-export const rejectPurchaseReturn = (id: number, reason?: string) =>
+// 审批「拒绝」：reason 后端为强类型 Json<RejectReturnRequest>（String 非 Option）且服务端 trim 非空必填
+// ⇒ 必带体、必发非空 reason（不得标 `?` 掩盖必填）。采集见 useActionPrompts.promptRejectReason()。
+export const rejectPurchaseReturn = (id: number, reason: string) =>
   request.post<ApiResponse<PurchaseReturn>>(`/purchase/returns/${id}/reject`, { reason });
 
 // D14 Batch 5b：原 purchaseReturnApi.listItems 转为风格 B 函数

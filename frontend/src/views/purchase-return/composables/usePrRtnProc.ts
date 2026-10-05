@@ -5,8 +5,9 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   submitPurchaseReturn,
   approvePurchaseReturn,
@@ -49,26 +50,42 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
     approveDialogVisible.value = true;
   };
 
-  /** 审批通过 */
+  /**
+   * 审批通过（submitted → approved）：通过理由选填。
+   * 交互：先经统一采集器 promptApprovalReason(false) 采集理由（允许留空→省略该键，后端归一为 NULL），
+   * 取消即中止整条链（非错误，不记错误日志）。
+   */
   const handleApproveConfirm = async () => {
+    const approvalReason = await promptApprovalReason(false);
+    if (approvalReason === null) return;
     try {
-      await approvePurchaseReturn(approveForm.id);
+      await approvePurchaseReturn(approveForm.id, approvalReason);
       msg.success('approveSuccess');
       approveDialogVisible.value = false;
       await deps.fetchData();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('approveFailed'));
       logger.error('审批失败:', error);
     }
   };
 
-  /** 审批拒绝 */
+  /**
+   * 审批拒绝（→ rejected，理由落 rejected_reason 专列 TEXT 无上限）：拒绝理由后端必填（trim 非空）。
+   * 交互：改用统一采集器 promptRejectReason()（此前经对话框可空提交，会把空 reason 发给现已收口必填的
+   * 服务端 → 必收 400），取消即中止；服务端定性 400 文案原样透出（只说该做什么，不带字段名/机制名词）。
+   */
   const handleReject = async () => {
+    const reason = await promptRejectReason();
+    if (reason === null) return;
     try {
-      await rejectPurchaseReturn(approveForm.id, approveForm.remark);
-      msg.success('rejected');
+      await rejectPurchaseReturn(approveForm.id, reason);
+      msg.success('rejectSuccess');
       approveDialogVisible.value = false;
       await deps.fetchData();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('rejectFailed'));
       logger.error('拒绝失败:', error);
     }
   };

@@ -211,9 +211,14 @@ export const deleteSalesOrder = (id: number) =>
 export const submitSalesOrder = (id: number) =>
   request.post<ApiResponse<null>>(`/sales/orders/${id}/submit`);
 
-// D14 Batch 5b：原 salesApi.approveOrder 转为风格 B 函数
-export const approveSalesOrder = (id: number) =>
-  request.post<ApiResponse<null>>(`/sales/orders/${id}/approve`);
+// 审批「通过」：POST /sales/orders/{id}/approve，体 sales_order_handler::ApproveSalesOrderRequest
+// （approval_reason 为 Option<String> ⇒ 选填：留空即省略该键，后端 handler::approve_order 归一为 None，
+// 不伪造成必填、不落空串）。采集见 useActionPrompts.promptApprovalReason(false)。
+export const approveSalesOrder = (id: number, approvalReason?: string) =>
+  request.post<ApiResponse<null>>(
+    `/sales/orders/${id}/approve`,
+    approvalReason ? { approval_reason: approvalReason } : {}
+  );
 
 // D14 Batch 5b：原 salesApi.rejectOrder 转为风格 B 函数
 export const rejectSalesOrder = (id: number, reason: string) =>

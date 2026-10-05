@@ -22,6 +22,8 @@ import {
 import type { OrderForm, OrderItemForm } from './useOlv';
 import { logger } from '@/utils/logger';
 import { msg } from '@/utils/message';
+import { isDialogDismissal } from '@/utils/monitor';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import type { CreateSalesOrderPayload, SalesOrderItemPayload, SalesShipItem } from '@/api/sales';
 
 /** 刷新回调 */
@@ -47,18 +49,18 @@ interface SalesShipForm {
  * 销售订单列表流程操作方法集合
  */
 export function useOlvProc(refresh: RefreshCallbacks) {
-  /** 审批订单 */
+  /** 审批通过（pending → approved）：通过理由选填，先经统一采集器 promptApprovalReason(false) 采集（留空即省略键），取消即中止。 */
   const handleApprove = async (row: SalesOrder) => {
+    const approvalReason = await promptApprovalReason(false);
+    if (approvalReason === null) return;
     try {
-      await ElMessageBox.confirm('确定审批此订单吗？', '确认', { type: 'info' });
-      await approveSalesOrder(row.id);
+      await approveSalesOrder(row.id, approvalReason);
       msg.success('approveSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
-        const err = error as { message?: string };
-        ElMessage.error(err.message || msg.translate('operationFailed'));
-      }
+      if (isDialogDismissal(error)) return;
+      const err = error as { message?: string };
+      ElMessage.error(err.message || msg.translate('operationFailed'));
     }
   };
 
@@ -198,19 +200,10 @@ export function useOlvProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 驳回订单（提交后退回，需填写原因） */
+  /** 驳回订单（原因必填，落 rejected_reason 专列）：先经统一采集器 promptRejectReason() 采集必填理由，取消即中止。 */
   const handleReject = async (row: SalesOrder) => {
-    let reason = '';
-    try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', '驳回订单', {
-        type: 'warning',
-        inputPattern: /\S+/,
-        inputErrorMessage: '驳回原因不能为空',
-      });
-      reason = value;
-    } catch {
-      return;
-    }
+    const reason = await promptRejectReason();
+    if (reason === null) return;
     try {
       await rejectSalesOrder(row.id, reason);
       msg.success('rejectSuccess');

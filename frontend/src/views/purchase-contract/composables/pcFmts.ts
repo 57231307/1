@@ -2,10 +2,12 @@
  * pcFmts.ts - 采购合同格式化工具
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-contract/index.vue）
  *
- * 状态词表以写入方为准：建单写 contract::DRAFT，审批 draft→ACTIVE（purchase_contract_service.rs:263/271），
- * 取消 draft|active→CANCELLED（:312/320）。models/status/bpm_crm_contract.rs 的 contract 仅
- * draft/active/cancelled 三态——历史前端映射里的 pending/completed 后端永不产生，门控按钮恒不可达。
- * 本模块以三态原值为比较对象，未知 token 抛错并记日志，文案走 i18n 键（purchaseContract.status.*）。
+ * 状态词表以写入方为准：建单写 contract::DRAFT，审批通过 draft→ACTIVE
+ * （purchase_contract_service.rs::approve），审批拒绝 draft→REJECTED（::reject，与取消 cancelled
+ * 语义不同：cancelled 是作废、rejected 是审批不通过），取消 draft|active→CANCELLED（::cancel）。
+ * 词表权威 models/status/bpm_crm_contract.rs:35-50 的 contract = draft/active/cancelled/rejected
+ * ——历史前端映射里的 pending/completed 后端永不产生，门控按钮恒不可达。
+ * 本模块以四态原值为比较对象，未知 token 抛错并记日志，文案走 i18n 键（purchaseContract.status.*）。
  */
 import { logger } from '@/utils/logger';
 import { i18n } from '@/i18n';
@@ -14,6 +16,7 @@ export const PURCHASE_CONTRACT_STATUS = {
   DRAFT: 'draft',
   ACTIVE: 'active',
   CANCELLED: 'cancelled',
+  REJECTED: 'rejected',
 } as const;
 
 export type PurchaseContractStatus =
@@ -28,6 +31,7 @@ export const PURCHASE_CONTRACT_STATUS_LABEL_KEYS: Record<PurchaseContractStatus,
   draft: 'purchaseContract.status.draft',
   active: 'purchaseContract.status.active',
   cancelled: 'purchaseContract.status.cancelled',
+  rejected: 'purchaseContract.status.rejected',
 };
 
 export const PURCHASE_CONTRACT_STATUS_TAG_TYPES: Record<
@@ -37,6 +41,7 @@ export const PURCHASE_CONTRACT_STATUS_TAG_TYPES: Record<
   draft: 'info',
   active: 'success',
   cancelled: 'danger',
+  rejected: 'danger',
 };
 
 export function normalizePurchaseContractStatus(

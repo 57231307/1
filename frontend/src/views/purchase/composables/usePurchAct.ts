@@ -7,6 +7,8 @@ import { ref } from 'vue';
 import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { isDialogDismissal } from '@/utils/monitor';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
 import {
   getPurchaseOrderById,
@@ -75,21 +77,21 @@ export function usePurchAct(
   };
 
   /**
-   * 审批采购单
+   * 审批通过（pending_approval → approved）：通过理由选填。
+   * 交互：先经统一采集器 promptApprovalReason(false) 弹框采集理由（允许留空），取消即中止（非错误）；
+   * 留空时不传 approval_reason（api 层按选填档省略该键，后端归一为 NULL）。
    */
   const handleApprove = async (row: PurchaseOrder) => {
+    const approvalReason = await promptApprovalReason(false);
+    if (approvalReason === null) return;
     try {
-      await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', {
-        type: 'success',
-      });
-      await approvePurchaseOrder(row.id);
+      await approvePurchaseOrder(row.id, approvalReason);
       msg.success('purchaseOrderApproved', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || msg.translate('approveFailed'));
-      }
+      if (isDialogDismissal(error)) return;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('approveFailed'));
     }
   };
 
@@ -154,20 +156,13 @@ export function usePurchAct(
   };
 
   /**
-   * 驳回采购单（原因必填）
+   * 驳回采购单（原因必填，落 rejected_reason 专列，列型 VARCHAR(255)）：
+   * 交互：先经统一采集器 promptRejectReason() 采集必填理由（trim 非空才允许继续），取消即中止。
+   * 后端对超列宽/空白返回带定性文案的 400，此处原样透出（不外显字段名/机制名词）。
    */
   const handleReject = async (row: PurchaseOrder) => {
-    let reason = '';
-    try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 ${row.order_no}`, {
-        type: 'warning',
-        inputPattern: /\S+/,
-        inputErrorMessage: '驳回原因不能为空',
-      });
-      reason = value;
-    } catch {
-      return;
-    }
+    const reason = await promptRejectReason();
+    if (reason === null) return;
     try {
       await rejectPurchaseOrder(row.id, reason);
       msg.success('purchaseOrderRejected', { orderNo: row.order_no });

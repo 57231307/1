@@ -1,16 +1,21 @@
 /**
  * useScProc.ts - 销售合同流程操作 composable
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 sales-contract/index.vue）
- * 封装销售合同提交审批/审批/执行/删除/打印/导出/查看等流程性方法
- * 行为完全保持一致（仅结构重构）
+ * 封装销售合同提交审批/审批（通过/拒绝）/执行/删除/打印/导出/查看等流程性方法
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
-import { promptContractExecute } from '@/composables/useActionPrompts';
+import { logger } from '@/utils/logger';
+import {
+  promptApprovalReason,
+  promptRejectReason,
+  promptContractExecute,
+} from '@/composables/useActionPrompts';
 import {
   deleteSalesContract,
   approveSalesContract,
+  rejectSalesContract,
   executeSalesContract,
   type SalesContract,
 } from '@/api/sales-contract';
@@ -44,35 +49,57 @@ interface RefreshCallbacks {
  * 销售合同流程操作方法集合
  */
 export function useScProc(refresh: RefreshCallbacks) {
-  /** 提交审批 */
-  const handleSubmitForApproval = async (row: SalesContract) => {
-    try {
-      await ElMessageBox.confirm('确认提交该合同审批？', '提示', { type: 'warning' });
-      await approveSalesContract(row.id);
-      msg.success('submitSuccess');
-      await refresh.getList();
-    } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || msg.translate('submitFailed'));
-      }
-    }
-  };
-
-  /** 审批 */
+  /**
+   * 审批通过（draft → active）。
+   * 交互：先用 promptApprovalReason(true) 采集通过理由（必填、trim 非空才允许继续），再提交；
+   * 取消采集框即中止整条链（不弹错误提示）。
+   * 端点：POST /sales/sales-contracts/{id}/approve，体
+   * sales_contract_handler::ApproveSalesContractRequest（approval_reason 必填语义在 handler 收口，
+   * 值由 service::approve 落 sales_contracts.approval_reason 列）；
+   * 状态门（仅 draft 可审）在 sales_contract_service.rs::approve。
+   * 端点成功出参是含记录 ID 的后端拼接文案 ⇒ 不外显，提示一律走 i18n。
+   * 成功后 refresh.getList() 回读列表，不以 toast 作为生效证据。
+   */
   const handleApprove = async (row: SalesContract) => {
+    const approvalReason = await promptApprovalReason(true);
+    if (approvalReason === null) return;
     try {
-      await ElMessageBox.confirm('确认审批通过该合同？', '提示', { type: 'warning' });
-      await approveSalesContract(row.id);
+      await approveSalesContract(row.id, { approval_reason: approvalReason });
       msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || msg.translate('approveFailed'));
-      }
+      logger.error('销售合同审批通过失败:', error);
+      msg.error('approveFailed');
+    }
+  };
+
+  /**
+   * 提交审批入口。
+   * 后端合同状态机只有 draft→active（approve）与 draft→rejected（reject），无「待审批」中间态、
+   * 也没有独立的提交端点 ⇒ 本入口与「审批通过」是同一个端点的同一个动作
+   * （routes/sales.rs:154-157 → sales_contract_handler::approve_contract），
+   * 因此复用 handleApprove 的理由采集与提交，不发空体（approve_contract 对通过理由必填，
+   * 缺体/空白一律 400）。两个按钮是否都保留属产品口径，已上报编排者裁决。
+   */
+  const handleSubmitForApproval = (row: SalesContract) => handleApprove(row);
+
+  /**
+   * 审批拒绝（draft → rejected 终态，与作废 cancelled 语义不同）。
+   * 交互：先用 promptRejectReason() 采集拒绝理由（必填），再提交；取消即中止整条链。
+   * 端点：POST /sales/sales-contracts/{id}/reject（routes/sales.rs:158-161），
+   * 体 sales_contract_handler::RejectSalesContractRequest（reason: String 非 Option ⇒ 必带体），
+   * 值由 service::reject 落 sales_contracts.rejected_reason 列；状态门仅 draft 起拒。
+   */
+  const handleReject = async (row: SalesContract) => {
+    const reason = await promptRejectReason();
+    if (reason === null) return;
+    try {
+      await rejectSalesContract(row.id, { reason });
+      msg.success('rejectSuccess');
+      await refresh.getList();
+    } catch (error: unknown) {
+      logger.error('销售合同审批拒绝失败:', error);
+      msg.error('rejectFailed');
     }
   };
 
@@ -207,6 +234,7 @@ export function useScProc(refresh: RefreshCallbacks) {
   return {
     handleSubmitForApproval,
     handleApprove,
+    handleReject,
     handleExecute,
     handleDelete,
     handleView,

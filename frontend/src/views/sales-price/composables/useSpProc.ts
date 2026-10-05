@@ -1,17 +1,16 @@
 /**
  * useSpProc.ts - 销售价格流程操作 composable
  * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales-price/index.vue）
- * 封装销售价格审批/查看/历史/导出等流程性方法
- * 行为完全保持一致（仅结构重构）
+ * 封装销售价格审批（通过/拒绝）/查看/历史/导出等流程性方法
  */
 import { ref, reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
-import { i18n } from '@/i18n';
-import { isDialogDismissal } from '@/utils/monitor';
 import { logger } from '@/utils/logger';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   approveSalesPrice,
+  rejectSalesPrice,
   getPriceHistory,
   type SalesPrice,
   type SalesPriceRow,
@@ -51,35 +50,52 @@ export function useSpProc(refresh: RefreshCallbacks) {
   const historyList = ref<SalesPrice[]>([]);
 
   /**
-   * 审批（批准生效）——单向确认，照采购侧 usePpProc 范式。
-   * 端点契约：POST /sales/sales-prices/{id}/approve，体 sales_price_handler::ApprovePriceRequest
-   * （approved: bool 必填且仅受理 true——false 在 handler::approve_price 直接 400
-   * "审批拒绝请使用专用拒绝接口"；销售价目无 reject 路由 ⇒ 该端点仅批准语义，
-   * UI 不提供"拒绝"选项；服务层状态门（仅 pending 可批）在同 service::approve_price，
-   * 契约钉 backend/tests/contract_wave8_price_approve_gate_test.rs）。
-   * 价目"拒绝"业务语义是否存在属挂账的产品口径（决策建议书裁定 B），本前端不隐式实现、不再制造
-   * 点得动但必然 400 的入口。
-   * remark 不采集不发送：它是请求体真实字段但只进 tracing 日志、不落库
-   * （backend/src/models/sales_price.rs 无 remark 列）⇒ 不收集无法持久化的数据。
+   * 审批通过（pending → approved）。
+   * 交互：先用 promptApprovalReason(true) 采集通过理由（必填、trim 非空才允许继续），再提交；
+   * 取消采集框即中止整条链（不弹错误提示）。
+   * 端点：POST /sales/sales-prices/{id}/approve，体 sales_price_handler::ApprovePriceRequest
+   * （approved 非 Option ⇒ 恒伴发 true，handler::approve_price 对 approved=false 直接 400 并把拒绝
+   * 指向真实存在的 reject 端点；approval_reason 必填语义在同 handler 收口，值由
+   * service::approve_price 落 sales_prices.approval_reason 列）。
+   * 状态门（仅 pending 可批）在 sales_price_service.rs::approve_price，
+   * 契约钉 backend/tests/contract_wave8_price_approve_gate_test.rs。
    * 成功后 refresh.getList() 回读列表（后端已提交状态+审计），不以 toast 作为生效证据。
    */
   const handleApprove = async (row: SalesPrice) => {
+    const approvalReason = await promptApprovalReason(true);
+    if (approvalReason === null) return;
     try {
-      await ElMessageBox.confirm(
-        i18n.global.t('actionForm.approveTitle'),
-        i18n.global.t('common.confirmTitle'),
-        { type: 'warning' }
-      );
-      await approveSalesPrice(row.id, { approved: true });
+      await approveSalesPrice(row.id, { approved: true, approval_reason: approvalReason });
       msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
-      // ElMessageBox 取消/X 关闭以 'cancel'|'close' reject：流程中止，不是错误（全站统一判别）
-      if (isDialogDismissal(error)) return;
       // 非取消的失败必须留痕并外显（request.ts 拦截器已透出后端信封 message，
       // 此处补记操作上下文 + 固定失败文案，不裸 catch 吞错）
-      logger.error('销售价目审批失败:', error);
+      logger.error('销售价目审批通过失败:', error);
       msg.error('approveFailed');
+    }
+  };
+
+  /**
+   * 审批拒绝（pending → rejected 终态）。
+   * 交互：先用 promptRejectReason() 采集拒绝理由（必填、trim 非空才允许继续），再提交；
+   * 取消采集框即中止整条链。
+   * 端点：POST /sales/sales-prices/{id}/reject（routes/sales.rs:200-203），
+   * 体 sales_price_handler::RejectPriceRequest（reason: String 非 Option ⇒ 必带体），
+   * 值由 service::reject_price 落 sales_prices.rejected_reason 列；
+   * 状态门：仅 pending 起拒，rejected 与 approved 同为审批结论终态、无回退边。
+   * 成功后 refresh.getList() 回读列表，不以 toast 作为生效证据。
+   */
+  const handleReject = async (row: SalesPrice) => {
+    const reason = await promptRejectReason();
+    if (reason === null) return;
+    try {
+      await rejectSalesPrice(row.id, { reason });
+      msg.success('rejectSuccess');
+      await refresh.getList();
+    } catch (error: unknown) {
+      logger.error('销售价目审批拒绝失败:', error);
+      msg.error('rejectFailed');
     }
   };
 
@@ -133,6 +149,7 @@ export function useSpProc(refresh: RefreshCallbacks) {
     handleHistory,
     // 流程
     handleApprove,
+    handleReject,
     handleExport,
   });
 }

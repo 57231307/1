@@ -200,6 +200,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   getQuotation,
   submitQuotation,
@@ -305,16 +306,10 @@ async function handleSubmit() {
 /** 批准 */
 async function handleApprove() {
   if (!quotation.value) return;
-  try {
-    await ElMessageBox.confirm(
-      t('quotations.detail.approveConfirmText'),
-      t('quotations.detail.approveConfirmTitle'),
-      { type: 'warning' }
-    );
-  } catch {
-    return;
-  }
-  await approveQuotation(quotation.value.id);
+  // 报价批准理由后端必填 ⇒ 经统一采集器采集后再提交；取消即中止整条链。
+  const approvalReason = await promptApprovalReason(true);
+  if (approvalReason === null) return;
+  await approveQuotation(quotation.value.id, approvalReason);
   ElMessage.success(t('quotations.detail.approveSuccess'));
   loadData();
 }
@@ -322,21 +317,9 @@ async function handleApprove() {
 /** 拒绝 */
 async function handleReject() {
   if (!quotation.value) return;
-  let reason = '';
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t('quotations.detail.rejectPromptText'),
-      t('quotations.detail.rejectTitle'),
-      {
-        inputValidator: (v: string) =>
-          v && v.trim() ? true : t('quotations.detail.rejectReasonRequired'),
-        inputErrorMessage: t('quotations.detail.rejectReasonRequired'),
-      }
-    );
-    reason = value;
-  } catch {
-    return;
-  }
+  // 拒绝理由后端必填 ⇒ 改用统一采集器，去掉本页手搓输入校验；取消即中止。
+  const reason = await promptRejectReason();
+  if (reason === null) return;
   await rejectQuotation(quotation.value.id, reason);
   ElMessage.success(t('quotations.detail.rejectSuccess'));
   loadData();

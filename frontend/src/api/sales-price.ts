@@ -7,10 +7,11 @@ import type { ApiResponse } from '@/types/api';
 // 前端如实声明为 string，数值解析与定点格式化统一走 composables/spFmts.ts 的 formatCurrency。
 export type DecimalString = string;
 
-// 读接口基型 SalesPrice = 后端 sales_price::Model 逐列如实映射（backend/src/models/sales_price.rs::Model）。
+// 读接口基型 SalesPrice = 后端 sales_price::Model 逐列如实映射（backend/src/models/sales_price.rs::Model），
+// 唯一例外 = 审批理由两列（approval_reason/rejected_reason）刻意不声明，理由见下方 status 字段注。
 // 详情/新建/更新/历史端点仍整 Model 直接序列化（sales_price_handler.rs 的 get_price/create_price/
 // update_price/get_price_history）；列表端点 list_prices 已换为富化读模型 SalesPriceView
-// （backend/src/services/sales_price_service.rs:65-88：Model 全列 + LEFT JOIN 四列
+// （backend/src/services/sales_price_service.rs:92-115：Model 全列 + LEFT JOIN 四列
 // product_name/product_code/customer_name/customer_code），其前端行型即下方 SalesPriceRow。
 // 历史幽灵键 remark 已删（Model 无该列，任何端点都不输出）。
 // purchase 侧同构读模型是 PurchasePriceView（purchase_price_service.rs），两域此前"接口同构抄写、
@@ -34,16 +35,22 @@ export interface SalesPrice {
   // 消费侧（SalesPriceView.vue 的 SpViewData.expiry_date）已同步放宽为 `string | null`；
   // el-table 各 prop="expiry_date" 列对 null/undefined 同为空白，无连动残留。
   expiry_date: string | null;
-  // 销售侧写入方取值全集 = pending/approved：
-  // sales_price_service.rs::create_price 写 price_approval::PENDING、::approve_price 写 APPROVED；
+  // 销售侧写入方取值全集 = pending/approved/rejected：
+  // sales_price_service.rs::create_price 写 price_approval::PENDING、::approve_price 写 APPROVED、
+  // ::reject_price 写 REJECTED；
   // inactive 无销售侧生产者（词表权威 backend/src/models/status/sales.rs::price_approval；
   // 契约锁 backend/tests/contract_wave8_price_status_parity_test.rs 钉 词表常量==DB CHECK
   // 与跨表不对称负例（旁路写 inactive 被销售侧 chk_sales_price_status 拒绝）；
   // 该测试不读前端文件 ⇒ 前端数组一致性由本接口字面量类型与 composables/spFmts.ts 数组同文维持）。
   // 旧值 active/expired 无服务层写入方；建表 DEFAULT 'ACTIVE' 属词表外历史值，
   // 已由 migration/src/domain/price_vocab_check 收敛默认值为 'pending' 并回填存量。
-  // DB CHECK chk_sales_price_status IN ('pending','approved') 即该迁移施加，与本取值集逐项相等。
-  status: 'pending' | 'approved';
+  // DB CHECK chk_sales_price_status IN ('pending','approved','rejected')：窄集由 price_vocab_check
+  // 施加、rejected 由后继 migration/src/domain/price_vocab_extend/m0080_extend_price_status_check_rejected.rs
+  // 扩集，与本取值集逐项相等；列表 status 筛选白名单同集（handlers/sales_price_handler.rs:62-66）。
+  // 审批理由两列（approval_reason/rejected_reason，m0079 加列）本接口刻意不声明：详情端点虽会输出，
+  // 但当前无消费方展示，且列表读模型 SalesPriceView 不携带这两列
+  // （services/sales_price_service.rs:92-115），在行型上补键只会造出恒空的假列。
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   updated_at: string;
 }
@@ -112,7 +119,7 @@ export interface SalesPriceQuery {
 }
 
 // 后端 sales_price_handler::list_prices 返回 ApiResponse<Vec<SalesPriceView>> ⇒ 裸数组行对象。
-// 列表行 = SalesPrice 全列 + 四个 JOIN 名列（SalesPriceView，sales_price_service.rs:65-88）。
+// 列表行 = SalesPrice 全列 + 四个 JOIN 名列（SalesPriceView，sales_price_service.rs:92-115）。
 export interface SalesPriceRow extends SalesPrice {
   // 四列均为 LEFT JOIN 产出：两表无外键 ⇒ 孤儿引用与无客户标准价行如实输出 NULL（键必存在、值可空）。
   // 消费端显示约定：NULL 即空白，禁止 '未知'/'-' 造名，也禁止用本地缓存的 products/customers 回填
@@ -146,25 +153,40 @@ export function deleteSalesPrice(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/sales/sales-prices/${id}`);
 }
 
-// 审批销售定价请求体：对齐后端 sales_price_handler::ApprovePriceRequest（approved: bool 必填 + remark: Option<String>）。
-// 该端点仅批准语义：approved=false 在 handler::approve_price 直接 400（"审批拒绝请使用专用拒绝接口"），
-// 且销售价目域无 reject 路由 ⇒ 前端审批入口收敛为单向"批准生效"，不提供"拒绝"选项
-// （价目拒绝能力属挂账的产品口径、未实现：sales-prices 资源仅挂载 approve 端点，无 reject 路由，
-// 可由 routes/sales.rs 与 routes/purchase.rs 挂载点自证）。
-// 状态门（仅 pending 可批）在 sales_price_service.rs::approve_price，
-// 契约锁 backend/tests/contract_wave8_price_approve_gate_test.rs 钉采购侧批准门与两侧列表筛选 400 化。
-// remark 是请求体真实字段但不落库（sales_price Model 无 remark 列，仅入 tracing 日志）⇒
-// 前端不采集、不发送该键（不收集无法持久化的数据）；类型如实保留为可选以匹配后端线契约。
+// 审批「通过」请求体：对齐后端 sales_price_handler::ApprovePriceRequest（handlers/sales_price_handler.rs:43-50）。
+// approved 为 `bool`（非 Option）⇒ 线上必带该键；handler:160-165 对 approved=false 直接 400
+// "审批拒绝请提交至价格拒绝接口"，本端点只受理批准 ⇒ 类型收敛为字面量 true，杜绝误发 false。
+// approval_reason 后端为 Option<String> 仅为了不脱化为无信封裸 400，必填语义在 handler:169-176 收口：
+// 缺失/空串/纯空白一律 400 VALIDATION_ERROR，非空值真实落 sales_prices.approval_reason 列
+// （services/sales_price_service.rs:408-412）⇒ 前端必带且必采（采集见 composables/useActionPrompts.ts）。
+// 旧键 remark 已从后端 DTO 删除 ⇒ 不再声明（历史注释称"后端真实字段但不落库"，该前提已不成立）。
 export interface ApproveSalesPriceRequest {
-  approved: boolean;
-  remark?: string;
+  approved: true;
+  approval_reason: string;
 }
 
+/** 批准销售价格（pending → approved，状态门 services/sales_price_service.rs::approve_price）。 */
 export function approveSalesPrice(
   id: number,
   data: ApproveSalesPriceRequest
 ): Promise<ApiResponse<void>> {
   return request.post(`/sales/sales-prices/${id}/approve`, data);
+}
+
+// 审批「拒绝」请求体：对齐后端 sales_price_handler::RejectPriceRequest（handlers/sales_price_handler.rs:52-56，
+// reason: String 非 Option 且抽取器为强类型 `Json<T>` ⇒ 必带体，缺失即解码失败）。
+// handler:200-204 对 trim 后空串回 400；非空值真实落 sales_prices.rejected_reason 列
+// （services/sales_price_service.rs:460-461，状态门仅 pending 起拒）。
+export interface RejectSalesPriceRequest {
+  reason: string;
+}
+
+/** 拒绝销售价格（pending → rejected 终态，后端 routes/sales.rs:200-203 挂载）。 */
+export function rejectSalesPrice(
+  id: number,
+  data: RejectSalesPriceRequest
+): Promise<ApiResponse<void>> {
+  return request.post(`/sales/sales-prices/${id}/reject`, data);
 }
 
 export function getPriceHistory(productId: number): Promise<ApiResponse<SalesPrice[]>> {

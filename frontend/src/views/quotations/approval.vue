@@ -96,6 +96,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   getQuotation,
   submitQuotation,
@@ -153,18 +154,13 @@ async function handleSubmit() {
 
 async function handleApprove() {
   if (!quotation.value) return;
-  try {
-    await ElMessageBox.confirm(
-      t('quotations.approval.approveConfirmText'),
-      t('quotations.approval.approveConfirmTitle'),
-      { type: 'warning' }
-    );
-  } catch {
-    return;
-  }
+  // 报价批准理由为后端必填（quotation_handler::approve_quotation 对缺失/空/纯空白一律 400，
+  // 并真实落 approval_reason 列）⇒ 提交前先经统一采集器 promptApprovalReason(true) 采集必填理由，取消即中止。
+  const approvalReason = await promptApprovalReason(true);
+  if (approvalReason === null) return;
   submitting.value = true;
   try {
-    await approveQuotation(quotation.value.id);
+    await approveQuotation(quotation.value.id, approvalReason);
     ElMessage.success(t('quotations.approval.approveSuccess'));
     loadData();
   } finally {
@@ -174,20 +170,10 @@ async function handleApprove() {
 
 async function handleReject() {
   if (!quotation.value) return;
-  let reason = '';
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t('quotations.approval.rejectPromptText'),
-      t('quotations.approval.rejectTitle'),
-      {
-        inputValidator: (v: string) =>
-          v && v.trim() ? true : t('quotations.approval.rejectReasonRequired'),
-      }
-    );
-    reason = value;
-  } catch {
-    return;
-  }
+  // 拒绝理由后端必填（reject_quotation 落 rejection_reason 专列）⇒ 改用统一采集器 promptRejectReason()，
+  // 去掉本页手搓 inputValidator；取消即中止整条链。
+  const reason = await promptRejectReason();
+  if (reason === null) return;
   submitting.value = true;
   try {
     await rejectQuotation(quotation.value.id, reason);

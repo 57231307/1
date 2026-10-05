@@ -1493,6 +1493,7 @@ export default {
     submitSuccess: '提交成功',
     submitFailed: '提交失败',
     rejectSuccess: '驳回成功',
+    rejectFailed: '驳回失败',
     purchaseOrderSubmitted: '采购订单 {orderNo} 已提交',
     purchaseOrderRejected: '采购订单 {orderNo} 已驳回',
     auditSuccess: '审核成功',
@@ -1534,6 +1535,7 @@ export default {
     statusUpdateSuccess: '状态更新成功',
     signSuccess: '签收成功，应收已确认',
     disableSuccess: '停用成功',
+    disableFailed: '停用失败',
     loadWorkCenterFailed: '获取工作中心列表失败',
     noReceiptDetails: '该入库单暂无明细',
     executeSuccess: '执行成功',
@@ -5789,8 +5791,16 @@ export default {
     cancelReasonTip: '请填写取消原因（必填）',
     cancelReasonPlaceholder: '请输入取消该单据的原因',
     cancelReasonRequired: '取消原因不能为空',
-    // 定价审批（通过/拒绝均需留痕）
-    approveTitle: '审批定价',
+    // 审批理由（价目与合同的通过/拒绝两条动作共用同一组文案）
+    approvalReasonTitle: '审批通过理由',
+    approvalReasonTip: '请填写审批通过理由（必填）',
+    approvalReasonOptionalTip: '请填写审批通过理由（可留空）',
+    approvalReasonPlaceholder: '请输入审批通过理由',
+    approvalReasonRequired: '审批通过理由不能为空',
+    rejectReasonTitle: '审批拒绝理由',
+    rejectReasonTip: '请填写审批拒绝理由（必填）',
+    rejectReasonPlaceholder: '请输入审批拒绝理由',
+    rejectReasonRequired: '审批拒绝理由不能为空',
     // 合同执行
     executeTypeTitle: '执行方式',
     executeTypeTip: '请选择执行方式',
@@ -9037,6 +9047,7 @@ export default {
       active: '已生效',
       completed: '已完成',
       cancelled: '已取消',
+      rejected: '已驳回',
     },
   },
   purchaseInspection: {
@@ -9203,6 +9214,7 @@ export default {
     statusLabels: {
       inactive: '已停用',
       approved: '已批准',
+      rejected: '已驳回',
       pending: '待审批',
     },
     index: {
@@ -9343,7 +9355,7 @@ export default {
       ariaLabelPagination: '采购价格列表分页',
     },
     proc: {
-      approveConfirm: '确认批准该待审批的采购价格？批准后即生效并留痕。',
+      disableConfirm: '确认停用该采购价格？',
     },
   },
   purchaseReturn: {
@@ -10473,6 +10485,7 @@ export default {
       statusActive: '执行中',
       statusCompleted: '已完成',
       statusCancelled: '已取消',
+      statusRejected: '已驳回',
       buttonView: '查看',
       buttonEdit: '编辑',
       buttonSubmit: '提交',
@@ -10500,6 +10513,7 @@ export default {
     statusLabels: {
       pending: '待审批',
       approved: '已审批',
+      rejected: '已驳回',
     },
     index: {
       pageTitle: '销售价格管理',

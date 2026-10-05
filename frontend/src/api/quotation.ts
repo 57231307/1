@@ -265,9 +265,12 @@ export function submitQuotation(id: number): Promise<ApiResponse<null>> {
 /**
  * 审批通过
  * @param id 报价单 ID
+ * @param approvalReason 审批通过理由，落 sales_quotations.approval_reason
  */
-export function approveQuotation(id: number): Promise<ApiResponse<null>> {
-  return request.post<ApiResponse<null>>(`/quotations/${id}/approve`);
+export function approveQuotation(id: number, approvalReason: string): Promise<ApiResponse<null>> {
+  return request.post<ApiResponse<null>>(`/quotations/${id}/approve`, {
+    approval_reason: approvalReason,
+  });
 }
 
 /**

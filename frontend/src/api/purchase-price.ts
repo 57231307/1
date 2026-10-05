@@ -3,11 +3,17 @@ import type { ApiResponse } from '@/types/api';
 
 // 列表出参 = 后端 PurchasePriceView（services/purchase_price_service.rs get_prices_list），
 // 详情/历史出参 = purchase_price::Model（get_price/get_price_history，handlers/purchase_price_handler.rs）。
-// status 词表权威 = backend/src/models/status/sales.rs:173-185 price_approval（全小写）；采购侧三值均有写入方：
-// 建单 pending（purchase_price_service.rs:148）、审批 approved（:184）、update_price 按 price_approval::ALL
-// 校验后透传（:245-252）；DB CHECK chk_purchase_price_status 与 {pending,approved,inactive} 恰等
-// （migration/src/domain/price_vocab_check/mod.rs:102）。旧注释误指向 general.rs 的 master_data
-// （值恰同、指向错），本次纠正。表内无产品/供应商名称列，需后端 JOIN。
+// 审批理由两列（approval_reason/rejected_reason，models/purchase_price.rs:26-28，m0079 加列）本接口
+// 刻意不声明：当前无消费方展示，且列表读模型 PurchasePriceView 不携带这两列
+// （services/purchase_price_service.rs:20-40），在行型上补键只会造出恒空的假列。
+// status 词表权威 = backend/src/models/status/sales.rs:175-190 price_approval（全小写）；采购侧四值均有写入方：
+// 建单 pending（purchase_price_service.rs create_price）、审批 approved（::approve_price）、
+// 拒绝 rejected（::reject_price）、update_price 按 price_approval::ALL 校验后透传（::update_price）；
+// DB CHECK chk_purchase_price_status 与 {pending,approved,rejected,inactive} 恰等
+// （migration/src/domain/price_vocab_check 施加窄集 + 后继
+// migration/src/domain/price_vocab_extend/m0080_extend_price_status_check_rejected.rs 扩 rejected）；
+// 列表 status 筛选白名单同源 price_approval::ALL（handlers/purchase_price_handler.rs:51-59）。
+// 旧注释误指向 general.rs 的 master_data（值恰同、指向错），本次纠正。表内无产品/供应商名称列，需后端 JOIN。
 // 读接口 Decimal 线格式：rust_decimal 在 Cargo.toml:60 仅启用 serde、未启 serde-float
 // ⇒ 序列化为 JSON 字符串；模型证据 backend/src/models/purchase_price.rs:14 price / :17 min_order_qty
 // 均为 Decimal 且非 Option ⇒ 线格式恒在；建表列 NOT NULL：m0009_add_purchase_extensions.rs:242/:245。
@@ -29,8 +35,8 @@ export interface PurchasePrice {
   price_type: string;
   effective_date: string;
   expiry_date: string | null;
-  // 取值域 = 采购侧写入方全集 = price_approval 三值（见文件头注），与 chk_purchase_price_status 恰等
-  status: 'pending' | 'approved' | 'inactive';
+  // 取值域 = 采购侧写入方全集 = price_approval 四值（见文件头注），与 chk_purchase_price_status 恰等
+  status: 'pending' | 'approved' | 'rejected' | 'inactive';
   approved_by: number | null;
   approved_at: string | null;
   created_by: number | null;
@@ -86,13 +92,13 @@ export interface CreatePurchasePricePayload {
  * 更新采购价格请求（严格对齐 backend UpdatePriceRequest，
  * handlers/purchase_price_handler.rs:36-40）。
  * 后端 price 是 String（非数值），必须以字符串形式提交（否则 Serde 反序列化失败）。
- * status 透传前由后端按 price_approval::ALL 白名单校验（purchase_price_service.rs:245-252），
- * 前端如实收敛为采购侧写入方全集三值。
+ * status 透传前由后端按 price_approval::ALL 白名单校验（purchase_price_service.rs::update_price），
+ * 前端如实收敛为采购侧写入方全集四值。
  */
 export interface UpdatePurchasePricePayload {
   price: string;
   expiry_date?: string;
-  status?: 'pending' | 'approved' | 'inactive';
+  status?: 'pending' | 'approved' | 'rejected' | 'inactive';
 }
 
 export function getPurchasePriceList(
@@ -120,22 +126,25 @@ export function updatePurchasePrice(
 }
 
 /**
- * 审批请求体（严格对齐 backend ApprovePriceRequest，handlers/purchase_price_handler.rs:30-33，
- * serde 无 rename ⇒ snake_case 同名）。approved 必填布尔：handler 用 Json<T> 抽取器，空体必 400；
- * 采购侧 approve 端点仅处理批准，approved=false 被 :166-170 拒绝（VALIDATION_ERROR，
- * "审批拒绝请使用专用拒绝接口"——purchase-prices 未注册 reject 路由，routes/purchase.rs:271-307），
- * 故本请求恒发 approved:true。remark 为后端 Option<String>，省略即不发该字段。
+ * 审批「通过」请求体（严格对齐 backend ApprovePriceRequest，handlers/purchase_price_handler.rs:28-35，
+ * serde 无 rename ⇒ snake_case 同名）。approved 为 `bool`（非 Option）⇒ 线上必带该键；
+ * handler 的 approve_price 只受理批准，approved=false 直接被拒并指向真实存在的拒绝端点，
+ * 故类型收敛为字面量 true，杜绝误发 false 走成必然失败的调用。
+ * approval_reason 后端为 Option<String> 只为让"缺键"落到统一 AppError 校验信封（而非 axum 解码层
+ * 裸 400），必填语义在 handler 收口：缺失/空串/纯空白一律 400，非空值真实落
+ * purchase_prices.approval_reason 列 ⇒ 前端必带且必采（采集见 composables/useActionPrompts.ts）。
+ * 旧键 remark 已从后端 DTO 删除 ⇒ 不再声明。
  */
 export interface ApprovePurchasePriceRequest {
-  approved: boolean;
-  remark?: string;
+  approved: true;
+  approval_reason: string;
 }
 
 /**
  * 批准采购价格（pending → approved）。
  * 路径/方法逐字对齐后端：POST /api/v1/erp/purchase/purchase-prices/{id}/approve
- * （routes/mod.rs:511 nest + routes/purchase.rs:294-297；服务层 approve_price 事务 +
- * lock_exclusive + 状态门 + 审计，purchase_price_service.rs:171-213）。
+ * （routes/purchase.rs nest + `/purchase-prices/{id}/approve` → purchase_price_handler::approve_price；
+ * 服务层 approve_price 事务 + lock_exclusive + 仅 pending 可批的状态门 + 审计）。
  * 成功出参 ApiResponse<()> ⇒ data 为 null，与 updatePurchasePrice 同形。
  */
 export function approvePurchasePrice(
@@ -143,6 +152,28 @@ export function approvePurchasePrice(
   data: ApprovePurchasePriceRequest
 ): Promise<ApiResponse<null>> {
   return request.post(`/purchase/purchase-prices/${id}/approve`, data);
+}
+
+/**
+ * 审批「拒绝」请求体（对齐后端 RejectPriceRequest，handlers/purchase_price_handler.rs:37-41，
+ * reason: String 非 Option 且抽取器为强类型 `Json<T>` ⇒ 必带体）。
+ * handler 的 reject_price 对 trim 后空串回 400；非空值真实落 purchase_prices.rejected_reason 列，
+ * 状态门仅 pending 起拒（purchase_price_service.rs::reject_price）。
+ */
+export interface RejectPurchasePriceRequest {
+  reason: string;
+}
+
+/**
+ * 拒绝采购价格（pending → rejected 终态）。
+ * 路径逐字对齐后端：POST /api/v1/erp/purchase/purchase-prices/{id}/reject
+ * （routes/purchase.rs `/purchase-prices/{id}/reject` → purchase_price_handler::reject_price）。
+ */
+export function rejectPurchasePrice(
+  id: number,
+  data: RejectPurchasePriceRequest
+): Promise<ApiResponse<null>> {
+  return request.post(`/purchase/purchase-prices/${id}/reject`, data);
 }
 
 export function deletePurchasePrice(id: number): Promise<ApiResponse<void>> {

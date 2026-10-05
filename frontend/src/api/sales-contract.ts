@@ -11,7 +11,10 @@ import type { ApiResponse } from '@/types/api';
  *   属「前端类型 ≠ 后端出参」的第二套假契约。
  * - rust_decimal::Decimal 序列化为**字符串**（如 "12345.67"），total_amount/stamp_tax_amount
  *   声明为 string | null，展示/回填处 Number() 归一。
- * - status 词表出自后端 models/status/bpm_crm_contract.rs contract 模块：draft/active/cancelled。
+ * - status 词表出自后端 models/status/bpm_crm_contract.rs:35-50 contract 模块：
+ *   draft/active/cancelled/rejected（approve 写 active、reject 写 rejected，两动作两列）。
+ * - 审批理由两列（approval_reason/rejected_reason，models/sales_contract.rs:29-31，m0079 加列）
+ *   本接口刻意不声明：当前详情/列表均无展示位，补键即恒空假列（与价目域同一口径）。
  * - 明细行不在本对象上（后端 get_list/get_by_id 不联查 items），编辑回显需调
  *   getSalesContractItems（GET /sales/sales-contracts/:id/items，后端既有端点）。
  */
@@ -32,7 +35,7 @@ export interface SalesContract {
   delivery_location: string | null;
   /** 真实列 remark（m0016 迁移补列，可空）；后端出参键为单数 remark，非 remarks */
   remark: string | null;
-  status: 'draft' | 'active' | 'cancelled';
+  status: 'draft' | 'active' | 'cancelled' | 'rejected';
   created_by: number;
   /** list_contracts handler 富化键（users.real_name 批量查询），get_contract 详情不带 */
   created_by_name?: string | null;
@@ -195,8 +198,40 @@ export function deleteSalesContract(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/sales/sales-contracts/${id}`);
 }
 
-export function approveSalesContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/sales/sales-contracts/${id}/approve`);
+// 审批「通过」请求体：对齐后端 sales_contract_handler::ApproveSalesContractRequest
+// （handlers/sales_contract_handler.rs:205-208）。approval_reason 后端为 Option<String> 只为让
+// "缺键/不带 body" 落到统一 AppError 校验信封（而非 axum 解码层裸 400），必填语义在
+// approve_contract:354-365 收口：缺失/空串/纯空白一律 400，非空值真实落
+// sales_contracts.approval_reason 列（services/sales_contract_service.rs::approve）⇒ 前端必带且必采。
+export interface ApproveSalesContractRequest {
+  approval_reason: string;
+}
+
+// 审批「拒绝」请求体：对齐后端 sales_contract_handler::RejectSalesContractRequest
+// （handlers/sales_contract_handler.rs:211-214，reason: String 非 Option 且抽取器为强类型
+// `Json<T>` ⇒ 必带体）；trim 后空串 400，非空值真实落 sales_contracts.rejected_reason 列。
+export interface RejectSalesContractRequest {
+  reason: string;
+}
+
+// approve/reject 两个端点成功出参均为 ApiResponse<String>（后端回 "合同 {id} 审核成功" 这类
+// 含记录 ID 的拼接文案）。该 data 不外显：文案一律走前端 i18n，ID 不进用户可见文案
+// （后端 utils/error.rs 的同一条脱敏边界）。故调用方只判成功与否，不使用 data。
+
+/** 审批通过销售合同（draft → active，状态门 services/sales_contract_service.rs::approve） */
+export function approveSalesContract(
+  id: number,
+  data: ApproveSalesContractRequest
+): Promise<ApiResponse<string>> {
+  return request.post(`/sales/sales-contracts/${id}/approve`, data);
+}
+
+/** 拒绝销售合同（draft → rejected 终态，后端 routes/sales.rs:158-161 挂载） */
+export function rejectSalesContract(
+  id: number,
+  data: RejectSalesContractRequest
+): Promise<ApiResponse<string>> {
+  return request.post(`/sales/sales-contracts/${id}/reject`, data);
 }
 
 // 执行销售合同请求体：对齐后端 sales_contract_handler::ExecuteSalesContractRequestDto。

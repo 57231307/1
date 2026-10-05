@@ -1497,6 +1497,7 @@ export default {
     submitSuccess: 'Submitted successfully',
     submitFailed: 'Submission failed',
     rejectSuccess: 'Rejected successfully',
+    rejectFailed: 'Rejection failed',
     purchaseOrderSubmitted: 'Purchase order {orderNo} submitted',
     purchaseOrderRejected: 'Purchase order {orderNo} rejected',
     auditSuccess: 'Audit successful',
@@ -1540,6 +1541,7 @@ export default {
     statusUpdateSuccess: 'Status updated successfully',
     signSuccess: 'Signed, receivable confirmed',
     disableSuccess: 'Disabled successfully',
+    disableFailed: 'Disable failed',
     loadWorkCenterFailed: 'Failed to load work center list',
     noReceiptDetails: 'No details for this receipt',
     executeSuccess: 'Execution successful',
@@ -5833,7 +5835,16 @@ export default {
     cancelReasonTip: 'Please enter a cancellation reason (required)',
     cancelReasonPlaceholder: 'Enter the reason for cancelling this document',
     cancelReasonRequired: 'Cancellation reason is required',
-    approveTitle: 'Approve price',
+    // Approval reasons (shared by the approve / reject actions of prices and contracts)
+    approvalReasonTitle: 'Approval reason',
+    approvalReasonTip: 'Please enter the approval reason (required)',
+    approvalReasonOptionalTip: 'Please enter the approval reason (optional)',
+    approvalReasonPlaceholder: 'Enter the reason for approving',
+    approvalReasonRequired: 'Approval reason is required',
+    rejectReasonTitle: 'Rejection reason',
+    rejectReasonTip: 'Please enter the rejection reason (required)',
+    rejectReasonPlaceholder: 'Enter the reason for rejecting',
+    rejectReasonRequired: 'Rejection reason is required',
     executeTypeTitle: 'Execution type',
     executeTypeTip: 'Please select the execution type',
     executeTypePartial: 'Partial execution',
@@ -9396,8 +9407,7 @@ export default {
       ariaLabelPagination: 'Purchase Price List Pagination',
     },
     proc: {
-      approveConfirm:
-        'Approve this pending purchase price? It becomes effective and is recorded once approved.',
+      disableConfirm: 'Disable this purchase price?',
     },
   },
   purchaseReturn: {

@@ -12,7 +12,8 @@
  *
  * 命名规范：
  *   - 资源类型：连字符复数（如 users / sales-prices / sales-returns）
- *   - 动作：read / create / update / delete / approve / cancel / export / print
+ *   - 动作：read / create / update / delete / approve / reject / cancel / export / print
+ *     （取值与后端 middleware/permission.rs:227 PATH_ACTION_KEYWORDS 同源）
  *   - 常量名：大写下划线（如 USER_UPDATE 对应 'users:update'）
  */
 
@@ -90,7 +91,11 @@ export const PERMISSIONS = {
   SALES_PRICE_CREATE: 'sales-prices:create',
   SALES_PRICE_UPDATE: 'sales-prices:update',
   SALES_PRICE_DELETE: 'sales-prices:delete',
+  // 审批双动作：approve/reject 是两条独立端点（routes/sales.rs:196-203），权限键由 URL 段 +
+  // 末段动作推导（middleware/permission.rs:227 PATH_ACTION_KEYWORDS 含 approve/reject），
+  // 故拒绝入口必须用 reject 键，禁止拿 approve 键兼职放行。
   SALES_PRICE_APPROVE: 'sales-prices:approve',
+  SALES_PRICE_REJECT: 'sales-prices:reject',
 
   // 销售退货（后端资源：sales-returns）
   SALES_RETURN_READ: 'sales-returns:read',
@@ -104,18 +109,27 @@ export const PERMISSIONS = {
   SALES_CONTRACT_CREATE: 'sales-contracts:create',
   SALES_CONTRACT_UPDATE: 'sales-contracts:update',
   SALES_CONTRACT_DELETE: 'sales-contracts:delete',
+  // 审批双动作端点：routes/sales.rs:154-161（approve / reject 各一条），两键不互替
+  SALES_CONTRACT_APPROVE: 'sales-contracts:approve',
+  SALES_CONTRACT_REJECT: 'sales-contracts:reject',
 
   // 采购合同（后端资源：purchase-contracts）
   PURCHASE_CONTRACT_READ: 'purchase-contracts:read',
   PURCHASE_CONTRACT_CREATE: 'purchase-contracts:create',
   PURCHASE_CONTRACT_UPDATE: 'purchase-contracts:update',
   PURCHASE_CONTRACT_DELETE: 'purchase-contracts:delete',
+  // 审批双动作端点：routes/purchase.rs:252-259（approve / reject 各一条），两键不互替
+  PURCHASE_CONTRACT_APPROVE: 'purchase-contracts:approve',
+  PURCHASE_CONTRACT_REJECT: 'purchase-contracts:reject',
 
   // 采购价格（后端资源：purchase-prices）
   PURCHASE_PRICE_READ: 'purchase-prices:read',
   PURCHASE_PRICE_CREATE: 'purchase-prices:create',
   PURCHASE_PRICE_UPDATE: 'purchase-prices:update',
   PURCHASE_PRICE_DELETE: 'purchase-prices:delete',
+  // 审批双动作端点：routes/purchase.rs:298-305（approve / reject 各一条），两键不互替
+  PURCHASE_PRICE_APPROVE: 'purchase-prices:approve',
+  PURCHASE_PRICE_REJECT: 'purchase-prices:reject',
 
   // 采购退货（后端资源：purchase-returns）
   PURCHASE_RETURN_READ: 'purchase-returns:read',

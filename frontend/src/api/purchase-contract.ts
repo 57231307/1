@@ -2,7 +2,11 @@ import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
 // 列表/详情出参 = 后端 purchase_contract::Model（services/purchase_contract_service.rs get_list/get_by_id）。
-// 键为实体 snake_case；status 词表 draft/active/cancelled（models/status/bpm_crm_contract.rs:34 contract）。
+// 键为实体 snake_case；status 词表 draft/active/cancelled/rejected
+// （models/status/bpm_crm_contract.rs:35-50 contract，两侧合同共用同一词表；
+// approve 写 active、reject 写 rejected，两动作两列）。
+// 审批理由两列（approval_reason/rejected_reason，models/purchase_contract.rs:29-31，m0079 加列）
+// 本接口刻意不声明：当前详情/列表均无展示位，补键即恒空假列（与销售合同域同一口径）。
 // supplier_name/contract_name/total_amount/signed_date/effective_date/expiry_date/payment_terms 均为真实列。
 // 注：contract 表无 created_by 姓名列、无 currency/delivery_terms/明细，历史前端按这些自创键读取 ⇒ 恒空。
 export interface PurchaseContract {
@@ -146,8 +150,40 @@ export function deletePurchaseContract(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/purchase/purchase-contracts/${id}`);
 }
 
-export function approvePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/purchase/purchase-contracts/${id}/approve`);
+// 审批「通过」请求体：对齐后端 purchase_contract_handler::ApproveContractRequest
+// （handlers/purchase_contract_handler.rs:144-146）。approval_reason 后端为 Option<String> 只为让
+// "缺键/不带 body" 落到统一 AppError 校验信封（而非 axum 解码层裸 400），必填语义在 approve_contract
+// 收口：缺失/空串/纯空白一律 400，非空值真实落 purchase_contracts.approval_reason 列
+// （services/purchase_contract_service.rs::approve）⇒ 前端必带且必采。
+export interface ApprovePurchaseContractRequest {
+  approval_reason: string;
+}
+
+// 审批「拒绝」请求体：对齐后端 purchase_contract_handler::RejectContractRequest
+// （handlers/purchase_contract_handler.rs:150-152，reason: String 非 Option 且抽取器为强类型
+// `Json<T>` ⇒ 必带体）；trim 后空串 400，非空值真实落 purchase_contracts.rejected_reason 列。
+export interface RejectPurchaseContractRequest {
+  reason: string;
+}
+
+// approve/reject 两个端点成功出参均为 ApiResponse<String>（后端回含记录 ID 的拼接文案）：
+// 该 data 不外显，文案一律走前端 i18n，ID 不进用户可见文案（与后端 utils/error.rs 同一脱敏边界）。
+// 状态门：仅 draft 可通过/拒绝（purchase_contract_service.rs::approve/::reject）。
+
+/** 审批通过采购合同（draft → active） */
+export function approvePurchaseContract(
+  id: number,
+  data: ApprovePurchaseContractRequest
+): Promise<ApiResponse<string>> {
+  return request.post(`/purchase/purchase-contracts/${id}/approve`, data);
+}
+
+/** 拒绝采购合同（draft → rejected 终态，后端 routes/purchase.rs:256-259 挂载） */
+export function rejectPurchaseContract(
+  id: number,
+  data: RejectPurchaseContractRequest
+): Promise<ApiResponse<string>> {
+  return request.post(`/purchase/purchase-contracts/${id}/reject`, data);
 }
 
 // 执行采购合同请求体：对齐后端 purchase_contract_handler::ExecuteContractRequestDto。
