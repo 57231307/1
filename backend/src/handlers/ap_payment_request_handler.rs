@@ -13,8 +13,8 @@ use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use chrono::NaiveDate;
 use sea_orm::EntityTrait;
@@ -395,13 +395,30 @@ pub async fn reject_request(
     auth: AuthContext,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    // 拒绝理由服务端强制（照 handlers/quotation_handler.rs 的 reject 样板）：
+    // 前端 inputValidator 只拦误操作，拦不住直连 API 的空串绕过；理由为空即
+    // 审计断链，必须在入口拒绝。`ap_payment_request.rejected_reason` 列型为
+    // TEXT（migration/src/domain/business/m0012_add_ap_ar_finance_analysis.rs:84），
+    // 无字符数上限，故不引入自造长度校验、不截断。
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        // 出参只给人看的定性说明；记录 ID 等内部定位信息只进日志
+        warn!(
+            "用户 {} 拒绝付款申请被驳回：拒绝理由为空（trim 后），ID: {}",
+            auth.username, id
+        );
+        return Err(AppError::validation_displayable(
+            "拒绝理由不能为空，请说明拒绝原因以便留痕".to_string(),
+        ));
+    }
+
     info!(
         "用户 {} 拒绝付款申请 ID: {}, 原因：{}",
-        auth.username, id, req.reason
+        auth.username, id, reason
     );
 
     let service = ApPaymentRequestService::new(state.db.clone());
-    let request = service.reject(id, req.reason.clone(), auth.user_id).await?;
+    let request = service.reject(id, reason.clone(), auth.user_id).await?;
 
     // 发送审批拒绝通知
     if state.event_notification_service.is_none() {
@@ -416,7 +433,7 @@ pub async fn reject_request(
                 false,
                 auth.user_id,
                 &auth.username,
-                Some(&req.reason),
+                Some(&reason),
             )
             .await
         {
@@ -439,7 +456,7 @@ pub async fn reject_request(
 async fn fetch_approver_user_ids(db: &sea_orm::DatabaseConnection) -> Vec<i32> {
     use crate::models::{role, user};
     use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, sea_query::Cond};
+    use sea_orm::{sea_query::Cond, ColumnTrait, EntityTrait, QueryFilter};
 
     // 先查 admin/manager 角色 id
     let role_ids: Vec<i32> = role::Entity::find()

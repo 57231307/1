@@ -15,8 +15,10 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     // 批次 357 v13 复审 baseline 清零：移除 unused import ActiveModelTrait
+    ColumnTrait,
     DatabaseConnection,
     EntityTrait,
+    QueryFilter,
     QuerySelect,
     Set,
     TransactionTrait,
@@ -24,10 +26,12 @@ use sea_orm::{
 use std::sync::Arc;
 
 use crate::container::AppState;
+use crate::models::bpm_task;
 use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::sales_quotation::{
     self, ActiveModel as QuotationActive, Entity as QuotationEntity,
 };
+use crate::models::status::bpm_task as task_status;
 use crate::models::status::quotation as quotation_status;
 use crate::models::status::quotation_ext as quotation_ext_status;
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
@@ -203,10 +207,21 @@ impl QuotationApprovalService {
             variables: None,
         };
 
-        // 1. 启动 BPM 流程（事务外，容错：找不到模板时 instance_id=None）
+        // 1. 启动 BPM 流程（事务外，容错：启动失败时 instance_id=None，业务提交仍生效）
+        // 失败必须点名：静默降级为 None 会让后续「业务侧审批→回写 BPM 任务」整链
+        // 无实例可查而空转，运维无从发现报价单已脱离 BPM 审批轨道。
         let bpm_instance_id: Option<i32> = match bpm_service.start_process(req).await {
             Ok(resp) => Some(resp.instance_id),
-            Err(_) => None,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    business_type = "quotation",
+                    business_id = quotation.id,
+                    "报价提交启动 BPM 流程失败：该报价单将没有 BPM 实例与待办任务，\
+                     后续业务侧审批只落业务表（BPM 侧留痕缺失，需人工对账）"
+                );
+                None
+            }
         };
 
         // 2. 事务包裹状态更新（重新查询并加锁，防止 quotation 已过期）
@@ -276,51 +291,101 @@ impl QuotationApprovalService {
         active
     }
 
-    /// 提交事务后完成 BPM 审批任务（容错，失败不阻断主流程）
+    /// 提交事务后完成 BPM 审批任务（容错：失败只记日志，不回滚业务侧已提交的审批结果）
+    ///
+    /// 定位口径：先按 business_type+business_id 定位流程实例，再按
+    /// `instance_id + 写入方同源常量 bpm_task::PENDING` 定位**本单据**的待办任务，
+    /// 只回写这些任务。旧形态「按办理人查用户待办分页」有两个结构性缺陷：
+    /// 过滤值用大写 `"PENDING"` 字面量，与写入方小写词表（instance.rs/task.rs 写
+    /// `bpm_task::PENDING="pending"`，DB CHECK 钉小写集）永不相等，回写循环恒空转；
+    /// 且办理人过滤+分页上限 10 会在待办多于 10 条时漏查本单据任务，故一并弃用。
     async fn handle_bpm_quotation_approval_after_commit(
         &self,
         quotation_id: i64,
         approver_id: i32,
     ) {
         let bpm_service = BpmService::new(self.db.clone());
-        if let Ok(Some(instance)) = bpm_service
+        let instance = match bpm_service
             .get_process_by_business("quotation", quotation_id as i32)
             .await
         {
-            if let Ok(tasks) = bpm_service
-                .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
-                    user_id: Some(approver_id),
-                    status: Some("PENDING".to_string()),
-                    page: Some(1),
-                    page_size: Some(10),
-                })
+            Ok(Some(instance)) => instance,
+            Ok(None) => {
+                tracing::warn!(
+                    business_type = "quotation",
+                    business_id = quotation_id,
+                    "报价审批 BPM 回写：未找到该单据的流程实例，待办任务无法闭环，需人工对账"
+                );
+                return;
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    business_type = "quotation",
+                    business_id = quotation_id,
+                    "报价审批 BPM 回写：查询流程实例失败，待办任务未闭环"
+                );
+                return;
+            }
+        };
+        let tasks = match bpm_task::Entity::find()
+            .filter(bpm_task::Column::InstanceId.eq(instance.id))
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
+            .all(&*self.db)
+            .await
+        {
+            Ok(tasks) => tasks,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    business_type = "quotation",
+                    business_id = quotation_id,
+                    instance_id = instance.id,
+                    "报价审批 BPM 回写：查询待办任务失败，任务未闭环"
+                );
+                return;
+            }
+        };
+        if tasks.is_empty() {
+            tracing::warn!(
+                business_type = "quotation",
+                business_id = quotation_id,
+                instance_id = instance.id,
+                expected_task_status = task_status::PENDING,
+                "报价审批 BPM 回写：该实例下无状态为待处理的 bpm_task，任务未闭环，需人工对账"
+            );
+            return;
+        }
+        for task in tasks {
+            // approve_task 的处理人取已认证操作人（user_id 参数，见 bpm_ops/task.rs），
+            // req.handler_id/handler_name 在当前签名下不被消费，仅按 DTO 形状填充。
+            if let Err(e) = bpm_service
+                .approve_task(
+                    crate::models::dto::bpm_dto::ApproveTaskRequest {
+                        task_id: task.id,
+                        handler_id: approver_id,
+                        handler_name: String::new(),
+                        action: APPROVE_ACTION.to_string(),
+                        approval_opinion: None,
+                        attachment_urls: None,
+                    },
+                    Some(approver_id),
+                )
                 .await
             {
-                for task in tasks.items {
-                    if task.instance_id == instance.id {
-                        if let Err(e) = bpm_service
-                            .approve_task(
-                                crate::models::dto::bpm_dto::ApproveTaskRequest {
-                                    task_id: task.id,
-                                    handler_id: approver_id,
-                                    handler_name: format!("user_{}", approver_id),
-                                    action: APPROVE_ACTION.to_string(),
-                                    approval_opinion: None,
-                                    attachment_urls: None,
-                                },
-                                Some(approver_id),
-                            )
-                            .await
-                        {
-                            tracing::warn!(
-                                error = %e,
-                                task_id = task.id,
-                                quotation_id,
-                                "BPM 报价单审批通过任务失败（不阻断主流程）"
-                            );
-                        }
-                    }
-                }
+                tracing::warn!(
+                    error = %e,
+                    task_id = task.id,
+                    business_type = "quotation",
+                    business_id = quotation_id,
+                    "BPM 报价单审批通过任务失败（不阻断已提交的业务状态）"
+                );
+            } else {
+                tracing::info!(
+                    task_id = task.id,
+                    business_id = quotation_id,
+                    "报价审批通过 BPM 回写完成"
+                );
             }
         }
     }
@@ -349,6 +414,14 @@ impl QuotationApprovalService {
         if updated.approval_instance_id.is_some() {
             self.handle_bpm_quotation_approval_after_commit(quotation_id, approver_id)
                 .await;
+        } else {
+            // 状态已是 pending_approval 却无实例：提交时 BPM 启动失败或旧数据遗留，
+            // 必须点名——这意味着 BPM 侧永无任务可闭环（静默跳过即二次空转）。
+            tracing::warn!(
+                business_type = "quotation",
+                business_id = quotation_id,
+                "报价审批通过 BPM 回写跳过：单据处于待审批状态但未关联 BPM 实例，BPM 侧无任务可闭环，需人工对账"
+            );
         }
         Ok(updated)
     }
@@ -400,7 +473,13 @@ impl QuotationApprovalService {
         Ok(updated)
     }
 
-    /// 事务外完成 BPM 拒绝任务（容错，失败只 warn）
+    /// 事务外完成 BPM 拒绝任务（容错：失败只记日志，不回改业务侧已提交的拒绝结果）
+    ///
+    /// 定位口径与 `handle_bpm_quotation_approval_after_commit` 完全一致：
+    /// business_type+business_id 定位实例，`instance_id + bpm_task::PENDING`（写入方
+    /// 同源常量）定位本单据待办任务；拒绝理由只写 `bpm_task.approval_opinion`
+    /// 这一 BPM 载体，不在业务表另建第二份理由列（业务表 `rejection_reason` 是
+    /// 本域既有专列，维持原写入点不动）。
     async fn complete_rejection_bpm(
         &self,
         updated: &sales_quotation::Model,
@@ -408,36 +487,75 @@ impl QuotationApprovalService {
         reason: &str,
     ) {
         if updated.approval_instance_id.is_none() {
+            // 小额自批路径从未启动 BPM 流程，无任务可回写，属正常分支
+            tracing::debug!(
+                business_type = "quotation",
+                business_id = updated.id,
+                "报价拒绝 BPM 回写跳过：该单据未关联 BPM 实例（小额自批路径）"
+            );
             return;
         }
         let bpm_service = BpmService::new(self.db.clone());
-        let Ok(Some(instance)) = bpm_service
+        let instance = match bpm_service
             .get_process_by_business("quotation", updated.id as i32)
             .await
-        else {
-            return;
-        };
-        let Ok(tasks) = bpm_service
-            .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
-                user_id: Some(approver_id),
-                status: Some("PENDING".to_string()),
-                page: Some(1),
-                page_size: Some(10),
-            })
-            .await
-        else {
-            return;
-        };
-        for task in tasks.items {
-            if task.instance_id != instance.id {
-                continue;
+        {
+            Ok(Some(instance)) => instance,
+            Ok(None) => {
+                tracing::warn!(
+                    business_type = "quotation",
+                    business_id = updated.id,
+                    approval_instance_id = ?updated.approval_instance_id,
+                    "报价拒绝 BPM 回写：业务单记录了实例 ID 但按单据查不到流程实例，拒绝理由未进 BPM，需人工对账"
+                );
+                return;
             }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    business_type = "quotation",
+                    business_id = updated.id,
+                    "报价拒绝 BPM 回写：查询流程实例失败，拒绝理由未进 BPM"
+                );
+                return;
+            }
+        };
+        let tasks = match bpm_task::Entity::find()
+            .filter(bpm_task::Column::InstanceId.eq(instance.id))
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
+            .all(&*self.db)
+            .await
+        {
+            Ok(tasks) => tasks,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    business_type = "quotation",
+                    business_id = updated.id,
+                    instance_id = instance.id,
+                    "报价拒绝 BPM 回写：查询待办任务失败，拒绝理由未进 BPM"
+                );
+                return;
+            }
+        };
+        if tasks.is_empty() {
+            tracing::warn!(
+                business_type = "quotation",
+                business_id = updated.id,
+                instance_id = instance.id,
+                expected_task_status = task_status::PENDING,
+                "报价拒绝 BPM 回写：该实例下无状态为待处理的 bpm_task，拒绝理由未进 BPM，需人工对账"
+            );
+            return;
+        }
+        for task in tasks {
+            // approve_task 的处理人取已认证操作人（user_id 参数），req.handler_* 不被消费
             if let Err(e) = bpm_service
                 .approve_task(
                     crate::models::dto::bpm_dto::ApproveTaskRequest {
                         task_id: task.id,
                         handler_id: approver_id,
-                        handler_name: format!("user_{}", approver_id),
+                        handler_name: String::new(),
                         action: REJECT_ACTION.to_string(),
                         approval_opinion: Some(reason.to_string()),
                         attachment_urls: None,
@@ -447,9 +565,17 @@ impl QuotationApprovalService {
                 .await
             {
                 tracing::warn!(
-                    error = %e, task_id = task.id,
-                    quotation_id = updated.id,
-                    "BPM 报价单审批拒绝任务失败（不阻断主流程）"
+                    error = %e,
+                    task_id = task.id,
+                    business_type = "quotation",
+                    business_id = updated.id,
+                    "BPM 报价单审批拒绝任务失败（不阻断已提交的业务状态）"
+                );
+            } else {
+                tracing::info!(
+                    task_id = task.id,
+                    business_id = updated.id,
+                    "报价拒绝 BPM 回写完成：任务已拒绝、理由已落 approval_opinion"
                 );
             }
         }
