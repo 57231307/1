@@ -3034,17 +3034,61 @@ export interface EndpointHealthOptions {
 }
 
 /**
+ * 404 响应体的 D-1「Q1 机械二分」判据（纯函数，便于离线喂假体自证检测力）。
+ *
+ * 后端两种 404 在信封层可二分（utils/error.rs NotFound → 机器码 "NOT_FOUND" → HTTP 404；
+ * 未注册路由的 404 由 axum 路由层给出、无 JSON 信封，全仓无 not_found_handler 兜底）：
+ * - 响应体能 JSON.parse 且 `code === "NOT_FOUND"` ⇒ **数据面**：路由在册、handler 判查无行，
+ *   缺的是前置（seed 回读 / 用例自建），不是端点。
+ * - 其余（解析失败 / 非信封体 / 信封但 code 非 NOT_FOUND）⇒ **注册面**：路由不存在或已漂移。
+ *
+ * 判据只取 HTTP 码与机器 `code` 两个机械量，**绝不把用户可见 message 文案作为断言对象**
+ * （文案永久脱敏，本仓红线）。
+ */
+export function attribute404Body(bodyText: string): {
+  surface: 'data' | 'registry';
+  code: string | null;
+} {
+  let json: unknown;
+  try {
+    json = JSON.parse(bodyText);
+  } catch {
+    return { surface: 'registry', code: null };
+  }
+  const rawCode =
+    json !== null && typeof json === 'object' ? (json as { code?: unknown }).code : null;
+  const code = typeof rawCode === 'string' ? rawCode : null;
+  if (code === 'NOT_FOUND') {
+    return { surface: 'data', code };
+  }
+  return { surface: 'registry', code };
+}
+
+/**
  * 验证「应当注册存在」的端点可达且不崩溃（严格模式，默认）。
  *
  * 判红口径（收紧假绿）：
  * - 2xx            → 健康。
  * - 5xx            → 失败（服务器内部错误）。
- * - 404            → 失败（端点未注册 / 路由漂移：这正是过去被吞掉的回归）。
+ * - 404            → 失败，并按下方三态判据**二分归因**（注册面 / 数据面，见 attribute404Body）。
  * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝）。
  * - 其它 4xx       → 失败（请求契约破坏，如非法参数命中该端点）。
  *
- * 本仓不存在「允许缺失、可用 404/403 装作健康」的端点类别：未注册端点必须补注册
- * 或登记进 scripts/check-api-paths.mjs 显式缺口清单，禁止以任何宽松探测把 404/403
+ * 404 三态决策树（D-1 已裁定，机械执行、不留主观裁量）：
+ *   Q1 响应体 JSON 且 code=="NOT_FOUND"？ 否→【注册面】进 Q2；是→【数据面】进 Q3。
+ *   Q2 注册面处置：(path, METHOD) 在 route-snapshot.txt 在册仅方法不符 → 探针写错，改指真实
+ *      GET 契约或移出并注明由哪个用例覆盖；不在册且 src/api/** 有同语义调用点 → 后端缺端点，
+ *      补注册并再生成快照；不在册且无调用点 → 探针臆造，移出清单。
+ *   Q3 数据面处置：集合/统计端点 id 来源可疑 → 改用例自建或 seed 回读值，禁止可能 undefined
+ *      的列表来源插值参与 strict 探针；单资源/1:1 → 多 spec 依赖进 global seed（写后回读）、
+ *      单 spec 依赖用例内前置，两者都必须回读断言、禁吞码。
+ *   业务上本应 fail-closed 拒绝（缺法定配置）的 404/403 → 语义面，不是缺口，改断负例。
+ *
+ * 本仓不存在「允许缺失、用 404/403 装作健康」的端点类别。此前注释声称未注册端点可
+ * 「登记进 scripts/check-api-paths.mjs 显式缺口清单」——该说法对 e2e 探针**不成立**（不实承诺，
+ * 2026-10-06 依源码更正）：KNOWN_GAPS 只覆盖 A 类（src/api 调用点），E 类 e2e 探针注册表
+ * 在 check-api-paths.mjs 中明文「本检查不设豁免表」。故未注册端点的处置只有：补注册 /
+ * 探针改指 / 移出清单并注明覆盖去向，**禁止登记成豁免**；也禁止以任何宽松探测把 404/403
  * 伪装成健康（系统性假绿源，此类可选探测 helper 已删除）。
  */
 export async function verifyEndpointHealthy(
@@ -3067,7 +3111,29 @@ export async function verifyEndpointHealthy(
     throw new Error(`GET ${path} 返回 ${status}（服务器内部错误）`);
   }
   if (status === 404) {
-    throw new Error(`GET ${path} 返回 404：端点未注册或路由已漂移（严格健康检查判红，不再吞 404）`);
+    // D-1 Q1 二分归因：复读 404 响应体（GET 幂等，且仅失败路径才多这一次请求）。
+    // 旧写法一律报"端点未注册或路由已漂移"，正是 #4675 E3 把"该客户无信用评级记录"
+    // （数据面 NOT_FOUND 信封）误判成注册面缺陷的直接原因。
+    let bodyText: string;
+    try {
+      const res404 = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
+      bodyText = await res404.text();
+    } catch (e) {
+      throw new Error(
+        `GET ${path} 返回 404 且响应体复读失败（${(e as Error).message}）：无法执行 Q1 二分，需人工对照 backend.log 定性注册面/数据面，禁默认归因`
+      );
+    }
+    const attr = attribute404Body(bodyText);
+    const diagnosis =
+      attr.surface === 'data'
+        ? 'NOT_FOUND 信封=数据面缺前置（seed 回读或用例自建，禁吞码）'
+        : attr.code === null
+          ? '无 JSON 信封=注册面（路由不存在/已漂移：补注册或探针改指/移出，无豁免通道）'
+          : `JSON 信封 code=${attr.code}（非 NOT_FOUND）=按 Q1 判注册面，需人工复核信封来源`;
+    console.log(`[diag][http404] GET ${path} 归因=${attr.surface} — ${diagnosis}`);
+    throw new Error(
+      `GET ${path} 返回 404：${diagnosis}（严格健康检查判红，不再吞 404；归因判据只取 HTTP 码与机器 code，不断 message 文案）`
+    );
   }
   if (status === 403) {
     if (opts.allowForbidden === true) {

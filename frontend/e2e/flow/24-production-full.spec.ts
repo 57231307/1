@@ -245,12 +245,20 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       'GET',
       '/boms?page=1&page_size=1'
     );
-    if (bomList.items?.[0]?.id) {
-      await apiCallRaw(page, 'GET', `/boms/${bomList.items?.[0].id}`);
-      await verifyEndpointHealthy(page, `/boms/${bomList.items?.[0].id}/tree`);
-      await safePostAction(page, `/boms/${bomList.items?.[0].id}/requirements`, { quantity: 100 });
-      await safePostAction(page, `/boms/${bomList.items?.[0].id}/copy`);
+    // 显式前置（D-1 Q3 数据面判据）：seed 来源 id 参与 strict 探针时，空清单不许整段
+    // if 静默跳过（零覆盖假绿），必须 fail-visible 判红点名数据面缺前置。
+    // BOM 行由 beforeEach ensureTestEntities（helpers.ts 第 13 步，createBomUI 造数）保证；
+    // 走到空分支即 seed 真缺陷，归因数据面而非注册面。
+    const bomId = bomList.items?.[0]?.id;
+    if (!bomId) {
+      throw new Error(
+        `GET /boms?page=1&page_size=1 返回 items=${JSON.stringify(bomList.items)}——无一条 BOM 行：数据面缺前置（ensureTestEntities 未真实落 BOM），/boms/{id}/tree 等 strict 探针拒绝空转，禁静默跳过`
+      );
     }
+    await apiCallRaw(page, 'GET', `/boms/${bomId}`);
+    await verifyEndpointHealthy(page, `/boms/${bomId}/tree`);
+    await safePostAction(page, `/boms/${bomId}/requirements`, { quantity: 100 });
+    await safePostAction(page, `/boms/${bomId}/copy`);
     // 打样
     await verifyEndpointHealthy(page, '/production/lab-dip/requests?page=1&page_size=5');
     const ldList = await apiCallRaw<{ items: Array<{ id: number }> }>(
