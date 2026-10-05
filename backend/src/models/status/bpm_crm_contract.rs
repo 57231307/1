@@ -2,7 +2,7 @@
 //! BPM/CRM/合同状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的 BPM/CRM/合同/预算/物流状态常量子模块组。
-//! 包含：approval/budget/contract/logistics_waybill/bpm_instance/bpm_task/crm_lead/crm_opportunity/contract_status
+//! 包含：approval/budget/contract/logistics_waybill/bpm_instance/bpm_task/crm_lead/crm_opportunity
 
 // 通用审批状态（批次 158 v11 真实接入：color_price / budget_adjustment / ar_invoice 业务引用）
 // 注：DRAFT 和 CANCELLED 在当前业务中无使用场景已删除；如未来审批流程扩展需要可重新添加
@@ -191,14 +191,4 @@ pub mod crm_opportunity {
 
     /// 全部合法商机状态，DB CHECK（chk_crm_opportunity_status）取值来源
     pub const ALL_STATUSES: &[&str] = &[OPEN, CLOSED_WON, CLOSED_LOST];
-}
-
-/// 合同状态（sales_contract.status / purchase_contract.status，小写值）
-/// 批次 236 v13 真实接入：sales_contract_service.rs、purchase_contract_service.rs 等
-pub mod contract_status {
-    /// 草稿：合同初始状态
-    pub const DRAFT: &str = "draft";
-
-    /// 已取消：合同已取消
-    pub const CANCELLED: &str = "cancelled";
 }

@@ -404,10 +404,10 @@ pub async fn delete_contract(
         ));
     }
 
-    // 软删除
+    // 软删除（写入值与权威词表 contract 同源，禁止裸字面量）
     use sea_orm::ActiveModelTrait;
     let mut active_model: crate::models::purchase_contract::ActiveModel = contract.into();
-    active_model.status = sea_orm::Set("cancelled".to_string());
+    active_model.status = sea_orm::Set(crate::models::status::contract::CANCELLED.to_string());
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
     active_model.update(&*state.db).await?;

@@ -201,7 +201,7 @@ async fn seed_quotation(
     m.id
 }
 
-/// 报价单行直读（出参 DTO 未含 `approval_reason`，落库事实以真库回读为唯一判据）
+/// 报价单行直读（真库回读，用于与出参逐字比对）
 async fn read_quotation(db: &Arc<DatabaseConnection>, id: i64) -> sales_quotation::Model {
     sales_quotation::Entity::find_by_id(id)
         .one(db.as_ref())
@@ -680,8 +680,7 @@ async fn approve_persists_approval_reason_verbatim_three_domains() {
         axum::http::StatusCode::OK,
         "quotation pending_approval→approved 权威路径必须 200，实得 {v}"
     );
-    // 出参端点同批钉：详情仍走 QuotationResponseDto（不含 approval_reason，见未闭环项），
-    // 故这里只锁状态回读，理由列落库事实由下方真库直读取证。
+    // 出参端点同批钉：详情走 QuotationResponseDto，批准理由必须同时经端点读回。
     let (status, detail) = get_json(&app, &format!("/quotations/{quotation_id}")).await;
     assert_eq!(
         status,
@@ -703,6 +702,13 @@ async fn approve_persists_approval_reason_verbatim_three_domains() {
         row.approval_reason.as_deref(),
         Some(raw_reason.trim()),
         "quotation approval_reason 必须逐字落库回读（不再只进日志）"
+    );
+    assert_eq!(
+        detail["data"]["approval_reason"]
+            .as_str()
+            .map(str::to_string),
+        row.approval_reason.clone(),
+        "报价通过理由必须经详情端点读回，且与落库值逐字一致"
     );
     assert_eq!(
         row.rejection_reason, None,
