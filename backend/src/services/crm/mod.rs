@@ -86,6 +86,27 @@ pub struct CustomerRelationSummary {
     pub follow_up_count: i64,
 }
 
+/// 客户 RFM 评分明细 —— `GET /crm/customers/:id/rfm` 的唯一出参形状（契约锁见
+/// `backend/tests/contract_wave11_rfm_score_shape_test.rs`）。
+///
+/// 口径（服务层唯一来源，前端不得反推）：R/F/M 三项各 1-5 分，阈值规则见
+/// `cust.rs::compute_rfm_score`；`score` = 三项均值（合成分语义与三个分项同源，
+/// 分项不得在聚合时被丢弃，否则前端三列无值可渲染）。
+/// 四项同为 f64，serde 序列化为 JSON number（非 Decimal，故线上不是字符串）。
+/// 本结构体无档位/标签字段：客户分级词表的写入方是 `cust.rs::get_rfm_distribution`
+/// （VIP/重要/一般/低价值四桶），逐客户档位归属仍待词表裁定，不得在此预留死键。
+#[derive(Debug, Clone, Serialize)]
+pub struct RfmScoreDetail {
+    /// R（Recency）分项：最近一次订单距今天数分档
+    pub recency: f64,
+    /// F（Frequency）分项：历史订单数分档
+    pub frequency: f64,
+    /// M（Monetary）分项：累计消费金额分档
+    pub monetary: f64,
+    /// 合成分 = (recency + frequency + monetary) / 3
+    pub score: f64,
+}
+
 // =====================================================
 // 统一对外导出
 // =====================================================

@@ -17,8 +17,8 @@ use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
-    Json,
     extract::{Multipart, Path, Query, State},
+    Json,
 };
 use chrono::Datelike;
 use serde::Deserialize;
@@ -1249,14 +1249,16 @@ pub async fn create_follow_up(
 }
 
 /// GET /api/v1/erp/crm/customers/:id/rfm - 获取单个客户 RFM 评分
+/// 出参 = `services::crm::RfmScoreDetail`（R/F/M 三个分项 + 合成分 score），
+/// 形状由 `backend/tests/contract_wave11_rfm_score_shape_test.rs` 钉住。
 pub async fn get_rfm_score(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let score = service.compute_rfm_score(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(score)?)))
+    let detail = service.compute_rfm_score(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(detail)?)))
 }
 
 /// GET /api/v1/erp/crm/rfm/distribution - 客户群体 RFM 分布
@@ -1968,14 +1970,12 @@ mod export_row_shape_guard_tests {
             "extra".to_string(),
         ]]);
         let pii_fields: &[&str] = &["col_a"];
-        assert!(
-            apply_default_export_actions(
-                &mut t2,
-                &COLUMNS,
-                &[(pii_fields, ExportColumnAction::MaskPhone)]
-            )
-            .is_err()
-        );
+        assert!(apply_default_export_actions(
+            &mut t2,
+            &COLUMNS,
+            &[(pii_fields, ExportColumnAction::MaskPhone)]
+        )
+        .is_err());
     }
 
     #[test]

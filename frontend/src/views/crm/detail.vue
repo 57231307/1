@@ -192,9 +192,8 @@
                 ><div class="card-header">{{ t('crmDetail.rfmScore') }}</div></template
               >
               <div v-if="rfmScore" class="rfm-display">
-                <div class="rfm-level">
-                  <span class="level-badge">{{ rfmScore.level }}</span>
-                  <span class="level-label">{{ rfmScore.label }}</span>
+                <div class="rfm-total">
+                  <span class="total-badge">{{ fmtRfmScore(rfmScore.score) }}</span>
                 </div>
                 <div class="rfm-scores">
                   <div class="rfm-item">
@@ -327,6 +326,7 @@ import { formatCurrency } from '@/utils';
 import {
   getCustomer360,
   getCustomerContactList,
+  getCustomerRfmScore,
   deleteCustomerContact,
   createCustomerContact,
   updateCustomerContact,
@@ -351,6 +351,8 @@ const customer = ref<CustomerEntity | null>(null);
 const summary = ref<Customer360Summary | null>(null);
 const tags = ref<CustomerTag[]>([]);
 const shippingAddresses = ref<ShippingAddress[]>([]);
+// RFM 评分来源 = 独立端点 /crm/customers/:id/rfm（客户 360 的 summary 不含 RFM，
+// 后端 CustomerRelationSummary 无该键）；null 只代表"尚未取到"（加载/请求失败）。
 const rfmScore = ref<RfmScore | null>(null);
 const customerId = Number(route.params.id);
 const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null);
@@ -412,7 +414,6 @@ const fetchCustomer360 = async () => {
     summary.value = d.summary;
     tags.value = d.tags;
     shippingAddresses.value = d.shipping_addresses;
-    rfmScore.value = d.summary?.rfm_score ?? null;
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('crmDetail.message.loadFailed'));
@@ -434,6 +435,22 @@ const fetchContacts = async () => {
     contactsLoading.value = false;
   }
 };
+
+// RFM 卡取数走独立端点（后端 RFM 唯一出口 = handlers/crm_handler.rs::get_rfm_score；
+// 客户 360 的 summary 结构体不提供 RFM，360 刷新不应重复请求评分）
+const fetchRfmScore = async () => {
+  try {
+    const res = await getCustomerRfmScore(customerId);
+    rfmScore.value = res.data;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.message.loadFailed'));
+  }
+};
+
+// 合成分（后端 (R+F+M)/3 的 f64 均值，线上是 JSON number）保留一位小数展示：
+// 先 Number() 归一再取小数位，与 utils.formatCurrency 同范式——禁对可能为字符串的值直接 .toFixed
+const fmtRfmScore = (score: number): string => Number(score).toFixed(1);
 
 const handleBack = () => {
   router.back();
@@ -539,6 +556,7 @@ onMounted(() => {
   }
   fetchCustomer360();
   fetchContacts();
+  fetchRfmScore();
   logger.info(t('crmDetail.message.pageLoaded'), { customerId });
 });
 </script>
@@ -584,11 +602,11 @@ onMounted(() => {
 .rfm-display {
   padding: 12px 0;
 }
-.rfm-level {
+.rfm-total {
   text-align: center;
   margin-bottom: 20px;
 }
-.level-badge {
+.total-badge {
   display: inline-block;
   width: 60px;
   height: 60px;
@@ -598,12 +616,6 @@ onMounted(() => {
   color: #fff;
   font-size: 28px;
   font-weight: 700;
-}
-.level-label {
-  display: block;
-  margin-top: 8px;
-  font-size: 14px;
-  color: #606266;
 }
 .rfm-scores {
   display: flex;

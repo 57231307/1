@@ -1,5 +1,5 @@
 {
-  "total": 143,
+  "total": 140,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -108,16 +108,13 @@
       ]
     },
     "frontend/src/api/crm-enhanced.ts": {
-      "count": 8,
+      "count": 5,
       "keys": [
         "AssignmentRecord.assign_type",
         "AssignmentRecord.assigned_from",
         "AssignmentRecord.assigned_from_name",
         "AssignmentRecord.assigned_to_name",
-        "Customer360Summary.rfm_score",
-        "CustomerWithTags.last_follow_up",
-        "RfmScore.monetary",
-        "RfmScore.recency"
+        "CustomerWithTags.last_follow_up"
       ]
     },
     "frontend/src/api/crm.ts": {

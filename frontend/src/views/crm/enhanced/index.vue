@@ -204,17 +204,11 @@
             }}</el-descriptions-item>
           </el-descriptions>
 
-          <!-- RFM 评分结果 -->
+          <!-- RFM 评分结果（后端 RfmScoreDetail：三个分项各 1-5，恒有值 ⇒ 不做占位掩盖） -->
           <el-descriptions v-if="rfmRow" :column="3" border style="margin-bottom: 16px">
-            <el-descriptions-item label="最近消费(R)">{{
-              rfmRow.recency ?? '-'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="消费频率(F)">{{
-              rfmRow.frequency ?? '-'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="消费金额(M)">{{
-              rfmRow.monetary ?? '-'
-            }}</el-descriptions-item>
+            <el-descriptions-item label="最近消费(R)">{{ rfmRow.recency }}</el-descriptions-item>
+            <el-descriptions-item label="消费频率(F)">{{ rfmRow.frequency }}</el-descriptions-item>
+            <el-descriptions-item label="消费金额(M)">{{ rfmRow.monetary }}</el-descriptions-item>
           </el-descriptions>
 
           <!-- 分配历史 -->

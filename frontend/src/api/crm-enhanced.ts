@@ -108,12 +108,17 @@ export interface SalesUser {
   phone: string | null;
 }
 
+/**
+ * GET /crm/customers/{id}/rfm 出参 = backend services/crm/mod.rs::RfmScoreDetail
+ * （serde 无 rename_all，键即字段名）。R/F/M 三个分项与合成分 score 均为后端 f64
+ * ⇒ 线上是 JSON number（不是 Decimal 那种 JSON 字符串），可直接参与数值渲染，
+ * 不需要也不允许在前端反推分项或自造档位词表。
+ */
 export interface RfmScore {
   recency: number;
   frequency: number;
   monetary: number;
-  level: 'A' | 'B' | 'C' | 'D' | 'E';
-  label: string;
+  score: number;
 }
 
 export interface FollowUpRecord {
@@ -177,8 +182,8 @@ export interface CustomerEntity {
 /**
  * 360 视图 summary 载荷 = backend services/crm/mod.rs::CustomerRelationSummary
  * 的真实序列化键（total_order_amount 为 Option<Decimal> → 线上 JSON 字符串或 null）。
- * 注意：后端该结构体并无 rfm_score 键 —— 下方 rfm_score 声明是已登记的契约谎言
- * （RFM 卡因此恒渲染空态），修复口径待产品裁定后另行收口，不在本批顺手改。
+ * 该结构体只有以下 7 个键：RFM 评分不在 360 出参内，其唯一出口是独立端点
+ * `/crm/customers/{id}/rfm`（见 getCustomerRfmScore），消费方须直接调用它取分。
  */
 export interface Customer360Summary {
   customer_id: number;
@@ -188,7 +193,6 @@ export interface Customer360Summary {
   total_order_amount: string | null;
   last_interaction_at: string | null;
   follow_up_count: number;
-  rfm_score: RfmScore;
   [key: string]: unknown;
 }
 
@@ -480,6 +484,10 @@ export const createOpportunityFollowUp = (opportunityId: number, data: Opportuni
 
 // RFM 模型
 // D14 Batch 5b：原 crmEnhancedApi.getRfmScore 转为风格 B 函数
+/**
+ * RFM 评分唯一出口（后端 handlers/crm_handler.rs::get_rfm_score）。
+ * 客户 360 的 summary 不含 RFM，详情页的 RFM 卡必须走本端点取分。
+ */
 export const getCustomerRfmScore = (customerId: number) =>
   request.get<ApiResponse<RfmScore>>(`/crm/customers/${customerId}/rfm`);
 

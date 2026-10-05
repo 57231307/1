@@ -20,7 +20,7 @@ use crate::models::{
     sales_order::{Column as SalesOrderColumn, Entity as SalesOrderEntity},
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
+use crate::utils::data_scope::{apply_department_scope, check_resource_owner, DataScopeContext};
 use crate::utils::error::AppError;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, PaginatorTrait,
@@ -373,8 +373,12 @@ impl CrmService {
     }
 
     /// 计算 RFM 评分（R: 最近一次消费, F: 消费频率, M: 消费金额）
-    /// 评分范围 1-5，3 个维度综合 = 平均分
-    pub async fn compute_rfm_score(&self, customer_id: i32) -> Result<f64, AppError> {
+    /// 出参 = 三个分项（各 1-5）+ 合成分 score（三项均值）；
+    /// 阈值规则与 `compute_rfm_score_for_customer`（群体分布路径）逐字相同。
+    pub async fn compute_rfm_score(
+        &self,
+        customer_id: i32,
+    ) -> Result<super::RfmScoreDetail, AppError> {
         // P2 3-23 修复：合并原 3 次独立查询（recent_order / count / all）为 1 次查询，内存计算 R/F/M
         let orders = SalesOrderEntity::find()
             .filter(SalesOrderColumn::CustomerId.eq(customer_id))
@@ -422,7 +426,12 @@ impl CrmService {
             _ => 1.0,
         };
 
-        Ok((r_score + f_score + m_score) / 3.0)
+        Ok(super::RfmScoreDetail {
+            recency: r_score,
+            frequency: f_score,
+            monetary: m_score,
+            score: (r_score + f_score + m_score) / 3.0,
+        })
     }
 
     /// 获取 RFM 评分分布（查询所有客户的订单聚合（按 customer_id 分组：订单数 + 最近订单时间 + 总金额））
