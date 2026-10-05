@@ -51,6 +51,15 @@
             ({{ quotation.approved_at }})
           </span>
         </el-descriptions-item>
+        <!-- 审批结论回显：approval_reason 为后端出参原文（空值即显示为空，不补默认文案）；
+             行出现条件与上方"审批人/审批时间"一致（approved_at 已写入） -->
+        <el-descriptions-item
+          v-if="quotation.approved_at"
+          :label="t('actionForm.approvalReasonTitle')"
+          :span="2"
+        >
+          {{ quotation.approval_reason }}
+        </el-descriptions-item>
         <el-descriptions-item
           v-if="quotation.rejection_reason"
           :label="t('quotations.approval.labelRejectionReason')"

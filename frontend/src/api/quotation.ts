@@ -107,10 +107,13 @@ export interface QuotationResponseDto {
   tax_amount: number;
   total_amount: number;
   approved_by?: number;
-  /** 后端 QuotationResponseDto 仅 approved_by id，需后端 JOIN users 补 approved_by_name */
-  approved_by_name: string | null;
   approved_at?: string;
-  rejection_reason?: string;
+  /** 后端 QuotationResponseDto.approved_by_name（Option<String>，service.attach_names 按 approved_by 富化 users.real_name；非实体列） */
+  approved_by_name?: string | null;
+  /** 后端 QuotationResponseDto.approval_reason（Option<String>，落 sales_quotations.approval_reason 列） */
+  approval_reason?: string | null;
+  /** 后端 QuotationResponseDto.rejection_reason（Option<String>，落 sales_quotations.rejection_reason 列） */
+  rejection_reason?: string | null;
   converted_sales_order_id?: number;
   converted_at?: string;
   notes?: string;
