@@ -1,6 +1,7 @@
 use bingxi_backend::models::sales_order::Model as SalesOrderEntityModel;
 use bingxi_backend::models::status::master_data;
-use bingxi_backend::models::status::sales::sales_order;
+// 真库播种用实体模块（原 `status::sales::sales_order` 死导入已移除，让位给实体模块名）
+use bingxi_backend::models::{customer, customer_credit, sales_order};
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::search::{ElasticClient, SearchClient};
 use bingxi_backend::services::test_common::setup_test_db;
@@ -11,6 +12,7 @@ use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -104,6 +106,115 @@ fn complete_order_status_gate(status: &str) -> Result<(), AppError> {
         )));
     }
     Ok(())
+}
+
+// =========================================================
+// 真库播种夹具（提交门族用例专用：字段集取仓内活库已验证的最小可插集）
+// =========================================================
+
+/// 播种一个客户行（customers 由夹具清空、迁移不播种，必须自插；
+/// customer_type 走 CHECK 值域缺省 other，owner_id=0 表示公海归属）
+async fn seed_customer(db: &DatabaseConnection, code: &str, status: &str) -> i32 {
+    let now = Utc::now();
+    customer::ActiveModel {
+        customer_code: Set(code.to_string()),
+        customer_name: Set(format!("SO提交门夹具客户 {code}")),
+        credit_limit: Set(Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set(status.to_string()),
+        customer_type: Set("other".to_string()),
+        owner_id: Set(0),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("播种客户 {code} 失败: {e}"))
+    .id
+}
+
+/// 播种一张销售订单（sales_orders 对 customers 有外键，父行必须先插；
+/// created_by 留 NULL 避开 users 外键——提交被拒路径不触达审计写）
+async fn seed_order(
+    db: &DatabaseConnection,
+    customer_id: i32,
+    status: &str,
+    total_amount: Decimal,
+    order_no: &str,
+) -> i32 {
+    let now = Utc::now();
+    sales_order::ActiveModel {
+        order_no: Set(order_no.to_string()),
+        customer_id: Set(customer_id),
+        order_date: Set(now),
+        required_date: Set(Some(now)),
+        status: Set(status.to_string()),
+        subtotal: Set(total_amount),
+        tax_amount: Set(Decimal::ZERO),
+        discount_amount: Set(Decimal::ZERO),
+        shipping_cost: Set(Decimal::ZERO),
+        total_amount: Set(total_amount),
+        paid_amount: Set(Decimal::ZERO),
+        balance_amount: Set(total_amount),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("播种订单 {order_no} 失败: {e}"))
+    .id
+}
+
+/// 播种一条"可用额度已耗尽"的信用行：check_credit_available_txn 判 false 的确定形态
+/// （status=active 先排除"信用档案停用"分支，available_credit < 订单额命中额度比较）
+async fn seed_exhausted_credit(db: &DatabaseConnection, customer_id: i32) {
+    let now = Utc::now();
+    customer_credit::ActiveModel {
+        customer_id: Set(customer_id),
+        credit_limit: Set(Decimal::from(1000)),
+        used_credit: Set(Decimal::from(1000)),
+        available_credit: Set(Decimal::ZERO),
+        status: Set(master_data::ACTIVE.to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("播种信用行失败（客户 {customer_id}）: {e}"));
+}
+
+/// 拒绝必须落在「可外显业务族」：BusinessErrorDisplayable（出参 code=BUSINESS_ERROR、
+/// HTTP 400，message 携带定性原因）。只判族与边界属性、不锁文案措辞；若回退成脱敏
+/// BusinessError（通道回归）或别族，按变体点名判红。返回 message 供边界断言。
+fn assert_business_displayable(err: AppError, scene: &str) -> String {
+    match err {
+        AppError::BusinessErrorDisplayable(msg) => msg,
+        other => {
+            panic!("场景「{scene}」的拒绝必须是 business_displayable 通道，实得变体: {other:?}")
+        }
+    }
+}
+
+/// 安全边界断言：可外显拒绝文案必须定性、不含任何 ASCII 数字（额度数字/记录 ID
+/// 一律不得进 message，utils/error.rs 口径）。同样不锁文案措辞。
+fn assert_message_has_no_digits(msg: &str, scene: &str) {
+    assert!(
+        !msg.chars().any(|c| c.is_ascii_digit()),
+        "场景「{scene}」的拒绝文案必须定性、不得携带数字或记录 ID，实得: {msg}"
+    );
+}
+
+/// 回读订单行（被拒绝的提交不得留下任何状态痕迹）
+async fn reload_order_status(db: &DatabaseConnection, order_id: i32) -> String {
+    sales_order::Entity::find_by_id(order_id)
+        .one(db)
+        .await
+        .unwrap_or_else(|e| panic!("回读订单 {order_id} 失败: {e}"))
+        .unwrap_or_else(|| panic!("被断言的订单 {order_id} 应存在"))
+        .status
 }
 
 /// test_xsddztclzzqx
@@ -203,63 +314,97 @@ fn test_tjdd_jcgztyxtj() {
     }
 }
 
-/// test_tjdd_fcgztcwxxgs（验证 submit_order 的错误消息包含状态值与中文说明"无法提交"，；格式为 "订单状态为 {}，无法提交"。）
-#[test]
-fn test_tjdd_fcgztcwxxgs() {
-    let result = submit_order_status_gate(so_status::APPROVED);
-    match result.unwrap_err() {
-        AppError::BusinessError(msg) => {
-            assert!(msg.contains(so_status::APPROVED), "错误消息应包含状态值");
-            assert!(msg.contains("无法提交"), "错误消息应包含中文说明");
-            assert_eq!(msg, format!("订单状态为 {}，无法提交", so_status::APPROVED));
-        }
-        other => panic!("提交订单应返回 BusinessError，实际：{:?}", other),
-    }
+/// test_tjdd_fcgztcwxxgs
+/// 验证 submit_order 状态门走**生产链路**：真库播种「已审批」订单后调用
+/// SalesService::submit_order，生产 validate_order_status 必须拒绝（仅草稿可提交）。
+/// 判据=拒绝落在 business_displayable 族 + 回显订单自身状态值（数据非措辞）+
+/// 订单状态零推进；不再测试影子构造的 AppError（零生产覆盖=假绿）。
+#[tokio::test]
+async fn test_tjdd_fcgztcwxxgs() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-ZT-1", master_data::ACTIVE).await;
+    let oid = seed_order(&db, cid, so_status::APPROVED, decs!("1000"), "SO-WF-ZT-T1").await;
+
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+    let err = service
+        .submit_order(oid, 1)
+        .await
+        .expect_err("非草稿订单提交必须被生产状态门拒绝");
+    let msg = assert_business_displayable(err, "非草稿状态提交");
+    assert!(
+        msg.contains(so_status::APPROVED),
+        "状态门拒绝必须回显订单当前状态值，实得: {msg}"
+    );
+
+    assert_eq!(
+        reload_order_status(&read_db, oid).await,
+        so_status::APPROVED,
+        "状态门拒绝后订单状态不得被改动"
+    );
 }
 
 /// test_tjdd_khztfhyjj
-/// 验证 submit_order 中客户状态校验逻辑：customer.status != master_data::ACTIVE 时应构造拒绝错误，；错误消息格式为 "客户状态为 {}，不允许提交订单"。
-#[test]
-fn test_tjdd_khztfhyjj() {
-    // 复现 submit_order 中的客户状态校验
-    let customer_status = master_data::INACTIVE;
-    let should_reject = customer_status != master_data::ACTIVE;
-    assert!(should_reject);
+/// 验证 submit_order 客户状态门走**生产链路**：真库播种「停用客户 + 草稿订单 +
+/// 无信用档案行」（信用门对无档案放行，拒绝只可能来自客户状态门），生产
+/// validate_customer_active 必须拒绝。判据=族 + 回显客户状态值 + 文案定性无数字 +
+/// 订单零推进；不再测试影子构造的 AppError（零生产覆盖=假绿）。
+#[tokio::test]
+async fn test_tjdd_khztfhyjj() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-KH-1", master_data::INACTIVE).await;
+    let oid = seed_order(&db, cid, so_status::DRAFT, decs!("5000"), "SO-WF-KH-T1").await;
 
-    let err = AppError::business(format!("客户状态为 {}，不允许提交订单", customer_status));
-    match err {
-        AppError::BusinessError(msg) => {
-            assert!(msg.contains(master_data::INACTIVE));
-            assert!(msg.contains("不允许提交订单"));
-        }
-        other => panic!("客户状态校验应返回 BusinessError，实际：{:?}", other),
-    }
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+    let err = service
+        .submit_order(oid, 1)
+        .await
+        .expect_err("停用客户的草稿订单提交必须被生产客户状态门拒绝");
+    let msg = assert_business_displayable(err, "客户停用");
+    assert!(
+        msg.contains(master_data::INACTIVE),
+        "客户状态门拒绝必须回显客户当前状态值，实得: {msg}"
+    );
+    assert_message_has_no_digits(&msg, "客户停用");
 
-    // 客户状态为 ACTIVE 时应放行
-    let customer_active = master_data::ACTIVE;
-    assert_eq!(customer_active, master_data::ACTIVE);
+    assert_eq!(
+        reload_order_status(&read_db, oid).await,
+        so_status::DRAFT,
+        "被拒绝的提交不得推进订单状态"
+    );
 }
 
-/// test_tjdd_xyedbzjj（验证 submit_order 中信用额度校验逻辑：credit_available == false 时应返回 BusinessError，消息为"信用额度不足，无法提交订单"。）
-#[test]
-fn test_tjdd_xyedbzjj() {
-    // 复现 submit_order 中信用校验失败分支
-    let credit_available = false;
-    if !credit_available {
-        let err = AppError::business("信用额度不足，无法提交订单".to_string());
-        match err {
-            AppError::BusinessError(msg) => {
-                assert_eq!(msg, "信用额度不足，无法提交订单");
-            }
-            other => panic!("信用不足应返回 BusinessError，实际：{:?}", other),
-        }
-    } else {
-        panic!("信用不足场景应进入拒绝分支");
-    }
+/// test_tjdd_xyedbzjj
+/// 验证 submit_order 信用额度门走**生产链路**：真库播种「草稿订单 + 信用行
+/// available 耗尽（status=active，排除停用分支）」，生产 validate_customer_credit
+/// 经 check_credit_available_txn 必须拒绝。判据=拒绝落在 business_displayable 族
+/// （本轮裁定：信用拒绝原因可外显、文案定性不带额度数字与记录 ID）+ 订单零推进；
+/// 不再测试影子构造的 AppError（零生产覆盖=假绿）。
+#[tokio::test]
+async fn test_tjdd_xyedbzjj() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-XY-1", master_data::ACTIVE).await;
+    let oid = seed_order(&db, cid, so_status::DRAFT, decs!("5000"), "SO-WF-XY-T1").await;
+    seed_exhausted_credit(&db, cid).await;
 
-    // 信用充足场景不应触发该错误
-    let credit_ok = true;
-    assert!(credit_ok);
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+    let err = service
+        .submit_order(oid, 1)
+        .await
+        .expect_err("信用额度不足时生产 submit_order 必须拒绝");
+    let msg = assert_business_displayable(err, "信用额度不足");
+    assert_message_has_no_digits(&msg, "信用额度不足");
+
+    assert_eq!(
+        reload_order_status(&read_db, oid).await,
+        so_status::DRAFT,
+        "被信用门拒绝的订单状态不得推进"
+    );
 }
 
 /// test_shdd_jdshztyx（验证 approve_order 的状态校验门仅对 PENDING 放行。）

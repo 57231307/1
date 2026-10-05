@@ -39,13 +39,13 @@
 mod test_common;
 
 use axum::{
-    Router,
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
-    middleware::{Next, from_fn_with_state},
+    middleware::{from_fn_with_state, Next},
     response::Response,
     routing::post,
+    Router,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::dye_batch_handler;
@@ -55,7 +55,7 @@ use bingxi_backend::services::dye_batch_cost_bridge_service::DyeBatchCostBridgeS
 use rust_decimal::Decimal;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;
@@ -414,15 +414,32 @@ fn source_scan_complete_handler_requires_body_validates_before_state_gate() {
         block.contains("Json(req): Json<CompleteDyeBatchRequest>"),
         "complete 必须必传 CompleteDyeBatchRequest（旧零请求体形态禁止回潮）:\n{block}"
     );
-    let validate_pos = block
+    // 状态门锚点认「权威流转函数 + 写入方权威常量符号 batch_status::STORED」，不认 "stored"
+    // 字面量：字面量已被族E契约锁（缸号状态词表唯一来源=写入方常量模块）禁止出现在 handler，
+    // 锚点若绑死字面量即与被禁掉的旧形态互相矛盾、恒找不到（两条锁不得互相打架）。
+    // 比对用去空白形态：rustfmt 会把该调用断成多行并留尾逗号，单行 contains 恒漏检
+    // （同本文件 m0062 锁的空白剔除先例）。判据作用域收窄在 extract_block 取到的
+    // complete 函数体内——全文件 contains 会误伤 DTO/注释里合法的 "stored" 出现。
+    let flat: String = block.chars().filter(|c| !c.is_whitespace()).collect();
+    let validate_pos = flat
         .find("req.validate()")
         .expect("complete 必须调用 req.validate()");
-    let gate_pos = block
-        .find("is_valid_status_transition(&current_status, \"stored\")")
-        .expect("完工仍必须走状态机权威流转函数");
+    let gate_pos = flat
+        .find("is_valid_status_transition(&current_status,batch_status::STORED")
+        .unwrap_or_else(|| {
+            panic!(
+            "完工仍必须走状态机权威流转函数，且流转目标引写入方权威常量 batch_status::STORED；\n\
+             锚点缺失即为回归字面量形态或旁路改状态，块原文:\n{block}"
+        )
+        });
     assert!(
         validate_pos < gate_pos,
         "输入校验必须先于状态门：非法产出绝不得推进状态"
+    );
+    // 反向钉：状态门出现字面量形态（含"常量+字面量并存"的半迁移形态）必须判红。
+    assert!(
+        !flat.contains("is_valid_status_transition(&current_status,\"stored\""),
+        "状态字面量禁止回流完工状态门（词表唯一来源=写入方权威常量）:\n{block}"
     );
     for col in ["actual_output_kg", "actual_output_m", "greige_input_kg"] {
         assert!(

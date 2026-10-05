@@ -26,6 +26,10 @@
 //!   本身播种（roles/role_permissions/departments/account_subjects/dye_batch_state_rule/
 //!   crm_recycle_rules/供应商目录等），清掉等于把全部依赖种子主数据的用例一起打死。
 //!   需要"干净参照行"的用例请自建专属行并按 ID 断言。
+//! - 迁移台账 `seaql_migrations`（及一切 `seaql_*`/`seaorm_*` 记账表）**永不清空**：
+//!   台账被抹掉会让 `Migrator::up` 判定"从未迁移"并重放 `m0001`，"迁移已应用/初始化链"
+//!   类断言全部在空台账上假跑。夹具自带双向防线：清表前守卫（交集必须为空）与
+//!   清表后反向自检（台账记账行数必须 > 0），任一失守直接点名 panic。
 
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, QueryResult, Statement};
 
@@ -58,12 +62,43 @@ const SEALED_REFERENCE_TABLES: &[&str] = &[
     "user_role",
 ];
 
-/// 迁移记账表前缀（同样不参与清空，清掉会让后续 migrate 判定错乱）
+/// 迁移记账表前缀（同样不参与清空，清掉会让后续 migrate 判定错乱）。
+/// `seaql_` 是 sea-orm 2.x 真实台账 `seaql_migrations` 的名字前缀（CI 判责取证：
+/// 旧集合只有 `_seaorm_`/`seaorm_`，与真实台账名不匹配，夹具曾逐用例把迁移历史
+/// 一起 TRUNCATE，后续 `Migrator::up` 判定"从未迁移"并重放 `m0001`）；
+/// `_seaorm_`/`seaorm_` 在当前 sea-orm 版本无实体表命中，保留仅作台账被
+/// 覆写改名时的防线。
 #[allow(
     dead_code,
-    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;` 把夹具编进 bin，链上无 bin 调用路径）；消费者为同文件 business_tables，是排除 _seaorm_ 记账表的判据"
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;` 把夹具编进 bin，链上无 bin 调用路径）；消费者为同文件 is_migration_ledger，是排除 seaql_/seaorm 记账表名的前缀判据"
 )]
-const MIGRATION_BOOKKEEPING_PREFIXES: &[&str] = &["_seaorm_", "seaorm_"];
+const MIGRATION_BOOKKEEPING_PREFIXES: &[&str] = &["_seaorm_", "seaorm_", "seaql_"];
+
+/// sea-orm 迁移台账表的**精确表名**——绝不允许进入 TRUNCATE 清单，且清表后必须仍可
+/// 读出非空记账行（见 `reset_business_tables` 的清表前守卫与清表后反向自检）。
+/// 表名依据：sea-orm 2.x 未覆写 `MigratorTrait::migration_table_name` 时台账固定为
+/// `seaql_migrations`；全仓 grep `migration_table_name` 零命中（无覆写、无第二套台账/
+/// 影子台账），本仓自身也按该名直读——`src/bootstrap/service_bootstrap.rs:278`
+/// `SELECT COUNT(*) as cnt FROM seaql_migrations`。
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 is_migration_ledger 与 reset_business_tables 的台账守卫/自检"
+)]
+const MIGRATION_LEDGER_TABLES: &[&str] = &["seaql_migrations"];
+
+/// 台账判定的唯一口径：精确表名或记账前缀任一命中即视为迁移台账。
+/// 清表排除集、清表前守卫、清表后反向自检三处共用本判据（同源防漂移）——排除集
+/// 若漏认一张台账表，"迁移已应用/初始化链"类真库断言就会在空台账上静默空转。
+#[allow(
+    dead_code,
+    reason = "仅 server bin 镜像目标报出（src/main.rs:12 `mod services;`）；消费者为同文件 business_tables 与 reset_business_tables"
+)]
+fn is_migration_ledger(name: &str) -> bool {
+    MIGRATION_LEDGER_TABLES.contains(&name)
+        || MIGRATION_BOOKKEEPING_PREFIXES
+            .iter()
+            .any(|p| name.starts_with(p))
+}
 
 #[allow(
     dead_code,
@@ -157,9 +192,7 @@ async fn business_tables(db: &DatabaseConnection) -> Vec<String> {
         .filter(|name| {
             is_safe_ident(name)
                 && !SEALED_REFERENCE_TABLES.contains(&name.as_str())
-                && !MIGRATION_BOOKKEEPING_PREFIXES
-                    .iter()
-                    .any(|p| name.starts_with(p))
+                && !is_migration_ledger(name)
         })
         .collect()
 }
@@ -176,6 +209,14 @@ async fn reset_business_tables(db: &DatabaseConnection) {
     if tables.is_empty() {
         panic!("测试夹具：public schema 下没有可清空的业务表 —— 迁移未生效，拒绝以空库跑测试");
     }
+    // 清表前守卫：待清集合与台账集合的交集必须为空（判据与排除集同源 is_migration_ledger）。
+    // 未来若有新增/改名台账绕过排除集，这里必须点名炸，绝不允许台账被静默清掉。
+    if let Some(hit) = tables.iter().find(|t| is_migration_ledger(t)) {
+        panic!(
+            "测试夹具守卫：TRUNCATE 清单混入迁移台账表 {hit}——清台账会让后续 Migrator::up \
+             重放 m0001，全部“迁移已应用”类断言在空台账上假跑；排除判据见 is_migration_ledger"
+        );
+    }
     for chunk in tables.chunks(80) {
         let list = chunk
             .iter()
@@ -186,6 +227,29 @@ async fn reset_business_tables(db: &DatabaseConnection) {
         db.execute_raw(Statement::from_string(DbBackend::Postgres, sql))
             .await
             .expect("测试夹具：清空业务表失败（TRUNCATE）");
+    }
+    // 清表后反向自检：台账表必须仍可读出非空记账行。台账被任何路径抹掉时在此点名
+    // fail（绝不静默）——否则"初始化链/幂等重放"类断言会在空台账上假跑，红也红得没有指向。
+    for ledger in MIGRATION_LEDGER_TABLES {
+        let stmt = Statement::from_string(
+            DbBackend::Postgres,
+            format!("SELECT COUNT(*) AS cnt FROM \"{ledger}\""),
+        );
+        let row = db.query_one_raw(stmt).await.unwrap_or_else(|e| {
+            panic!(
+                "测试夹具反向自检：迁移台账 {ledger} 不可读（{e}）——该库不是经迁移记账建起来的，\
+                     清空业务表后任何“已迁移”前提都不可信"
+            )
+        });
+        let count = row
+            .and_then(|r| r.try_get_by_index::<i64>(0).ok())
+            .unwrap_or_else(|| panic!("测试夹具反向自检：迁移台账 {ledger} 记账行数解码失败"));
+        if count == 0 {
+            panic!(
+                "测试夹具反向自检：清空业务表后迁移台账 {ledger} 记账行数为 0——台账已被抹掉，\
+                 后续 Migrator::up 会重放 m0001，初始化/幂等类断言全部空转"
+            );
+        }
     }
 }
 
