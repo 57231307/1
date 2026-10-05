@@ -252,7 +252,11 @@ impl InitService {
     }
 
     /// 汇总全部域的角色权限定义分组（管理/高管/销售/采购/库存/生产/质量/财务/CRM物流HR/其他）。
-    fn all_role_permission_definition_groups() -> RoleResourceGroups {
+    ///
+    /// 可见性 `pub` 的必要性：approve/reject 成对性锁（tests/contract_wave11_approve_reject_pairing_test.rs）
+    /// 要判的就是**这一份**定义表；放开入口让测试直接驱动生产同一份数据，
+    /// 不在 tests/ 侧另抄一份矩阵副本造成第二套判定（同 `find_unregistered_matrix_resources` 的口径）。
+    pub fn all_role_permission_definition_groups() -> RoleResourceGroups {
         vec![
             Self::management_role_resources(),
             Self::executive_role_resources(),
@@ -571,10 +575,15 @@ impl InitService {
                     ("orders", "reject"),
                     ("fabric-orders", "read"),
                     ("fabric-orders", "approve"),
+                    // 拒绝键与审批键成对授予同一批角色：/reject 端点与 /approve 端点
+                    // 一一对应，缺一侧即前端按钮可达而 RBAC 恒 403（或反向授权悬空）；
+                    // 成对性由 tests/contract_wave11_approve_reject_pairing_test.rs 双向钉。
                     ("sales-contracts", "read"),
                     ("sales-contracts", "approve"),
+                    ("sales-contracts", "reject"),
                     ("sales-prices", "read"),
                     ("sales-prices", "approve"),
+                    ("sales-prices", "reject"),
                     ("sales-returns", "read"),
                     ("sales-returns", "approve"),
                     ("sales-returns", "reject"),
@@ -632,10 +641,14 @@ impl InitService {
                     ("purchase-returns", "read"),
                     ("purchase-returns", "approve"),
                     ("purchase-returns", "reject"),
+                    // 拒绝键与审批键成对授予同一批角色（同 sales 域口径，
+                    // 成对性锁见 tests/contract_wave11_approve_reject_pairing_test.rs）
                     ("purchase-contracts", "read"),
                     ("purchase-contracts", "approve"),
+                    ("purchase-contracts", "reject"),
                     ("purchase-prices", "read"),
                     ("purchase-prices", "approve"),
+                    ("purchase-prices", "reject"),
                     ("sku-mappings", "read"),
                     ("sku-mappings", "update"),
                     ("sku-mappings", "delete"),
