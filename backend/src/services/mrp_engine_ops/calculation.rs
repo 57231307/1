@@ -8,7 +8,6 @@
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set, TransactionTrait};
-use std::collections::HashMap;
 
 use crate::models::mrp_result::{
     ActiveModel as MrpResultActiveModel, Column as MrpResultColumn, Entity as MrpResultEntity,
@@ -22,7 +21,7 @@ use crate::utils::number_generator::DocumentNumberGenerator;
 
 use super::types::{
     MaterialRequirement, MrpCalculationQuery, MrpCalculationRequest, MrpCalculationSummary,
-    MrpExplodeQuery, RequirementCalcParams, StockInfo,
+    MrpExplodeQuery, RequirementCalcParams,
 };
 use crate::services::mrp_engine_service::MrpEngineService;
 
@@ -117,16 +116,15 @@ impl MrpEngineService {
                         prefix = MRP_LINE_NO_PREFIX,
                         "MRP计算行号取号失败（mrp_engine_ops/calculation.run_mrp_calculation）"
                     );
-                    return Err(AppError::business_displayable(
-                        "MRP计算单号生成失败，请稍后重试",
-                    ));
+                    let err = AppError::business_displayable("MRP计算单号生成失败，请稍后重试");
+                    return Err(err);
                 }
             };
             match self
                 .run_mrp_calculation_for_line(&sp, query.clone(), &line_no)
                 .await
             {
-                Ok(results) => {
+                Ok((results, _)) => {
                     sp.commit()
                         .await
                         .map_err(|e| AppError::database(format!("释放MRP取号保存点失败: {e}")))?;
@@ -163,12 +161,16 @@ impl MrpEngineService {
     /// 由 batch_calculate 统一编号为 `{批次号}-{行序}`，使同一批次内主行/子行互不相同、
     /// 不同批次间因批次号不同而互不相同（`mrp_results.calculation_no` 带 UNIQUE 约束），
     /// 同时让整批行都能以批次号作前缀被检索出来。
+    ///
+    /// 返回 `(落库行, 需求行)`：需求行 = 父行（bom_level 0）+ `explode_bom` 展开出的
+    /// 全部子行（bom_level ≥ 1），与落库行同源。调用方：`run_mrp_calculation`（只取落库行）、
+    /// `build_batch_rows`（两份都要——汇总 `requirements` 必须含子行，禁止另行重算第二套公式）。
     pub(crate) async fn run_mrp_calculation_for_line(
         &self,
         txn: &DatabaseTransaction,
         query: MrpCalculationQuery,
         line_no: &str,
-    ) -> Result<Vec<MrpResultModel>, AppError> {
+    ) -> Result<(Vec<MrpResultModel>, Vec<MaterialRequirement>), AppError> {
         let mut results = Vec::new();
 
         // 计算主物料需求
@@ -184,6 +186,7 @@ impl MrpEngineService {
                 bom_level: 0,
             })
             .await?;
+        let mut requirements = vec![main_req.clone()];
 
         // 构建并保存主物料结果（与取号同事务）
         let main_active_model = Self::build_main_result_active_model(line_no, &main_req);
@@ -203,14 +206,15 @@ impl MrpEngineService {
             })
             .await?;
 
-        // 遍历构建并保存子物料结果
+        // 遍历构建并保存子物料结果；子需求行随落库行一并返回（同一份数据，不再二次计算）
         for (idx, req) in sub_requirements.iter().enumerate() {
             let sub_active_model = Self::build_sub_result_active_model(line_no, idx, req);
             let sub_result = sub_active_model.insert(txn).await?;
             results.push(sub_result);
+            requirements.push(req.clone());
         }
 
-        Ok(results)
+        Ok((results, requirements))
     }
 
     /// 构建主物料 MRP 结果 ActiveModel
@@ -283,12 +287,6 @@ impl MrpEngineService {
         // （DDL 见文件头前缀常量注释）的写法废除，禁止退化回时间戳。
         let txn = (*self.db).begin().await?;
 
-        // v16 批次 43 修复：循环外批量预加载所有顶层 product_id 的库存信息，
-        // 避免循环内重复调用 calculate_requirement 查询同一产品库存（N+1 查询）。
-        // 纯只读、与号段无关，取号重试各轮共用，不随重试重复查询。
-        let top_product_ids: Vec<i32> = request.items.iter().map(|i| i.product_id).collect();
-        let top_stock_map = self.get_stock_info_batch(&top_product_ids).await?;
-
         for attempt in 1..=MRP_NO_CONFLICT_MAX_RETRY {
             // SeaORM 对已开启事务的 begin() 发 SAVEPOINT（口径同
             // utils/number_generator.rs::insert_with_no_retry）
@@ -320,15 +318,11 @@ impl MrpEngineService {
                         prefix = MRP_BATCH_NO_PREFIX,
                         "MRP计算批次号取号失败（mrp_engine_ops/calculation.batch_calculate）"
                     );
-                    return Err(AppError::business_displayable(
-                        "MRP计算批次号生成失败，请稍后重试",
-                    ));
+                    let err = AppError::business_displayable("MRP计算批次号生成失败，请稍后重试");
+                    return Err(err);
                 }
             };
-            match self
-                .build_batch_rows(&sp, &request, &top_stock_map, &calculation_no)
-                .await
-            {
+            match self.build_batch_rows(&sp, &request, &calculation_no).await {
                 Ok(summary) => {
                     sp.commit()
                         .await
@@ -363,18 +357,23 @@ impl MrpEngineService {
     /// 在调用方（保存点）事务内完成一整批行号派生 + 计算 + INSERT + 汇总，
     /// 供 `batch_calculate` 的取号冲突重试整批重放；失败时整批随保存点回滚，
     /// 不残留半批数据。
+    ///
+    /// 行计算/汇总需求全部复用 `run_mrp_calculation_for_line`（其内部经 `explode_bom`
+    /// 完成多级展开与损耗用量口径），本方法不得再写第二套展开或需求公式：
+    /// 入参 `request.items` 逐行派生 `{批次号}-{行序}` 前缀，产出的落库行与需求行
+    /// （父行 + BOM 子行）同源收集；汇总写入 `MrpCalculationSummary`，由
+    /// `handlers/mrp_handler.rs::calculate_mrp` 序列化出参、落库行存 `mrp_results` 表。
     async fn build_batch_rows(
         &self,
         txn: &DatabaseTransaction,
         request: &MrpCalculationRequest,
-        top_stock_map: &HashMap<i32, StockInfo>,
         calculation_no: &str,
     ) -> Result<MrpCalculationSummary, AppError> {
         let mut all_results = Vec::new();
         let mut all_requirements = Vec::new();
 
         for (line_idx, item) in request.items.iter().enumerate() {
-            let results = self
+            let (rows, requirements) = self
                 .run_mrp_calculation_for_line(
                     txn,
                     MrpCalculationQuery {
@@ -390,34 +389,8 @@ impl MrpEngineService {
                 )
                 .await?;
 
-            all_results.extend(results);
-
-            // v16 批次 43 修复：顶层物料需求直接使用预加载的库存信息，避免重复查询
-            let stock_info = top_stock_map
-                .get(&item.product_id)
-                .cloned()
-                .unwrap_or(StockInfo {
-                    on_hand: Decimal::ZERO,
-                    in_transit: Decimal::ZERO,
-                    safety_stock: Decimal::ZERO,
-                    available: Decimal::ZERO,
-                    lead_time_days: 7,
-                });
-            let requirement = self.calculate_requirement_with_stock(
-                RequirementCalcParams {
-                    product_id: item.product_id,
-                    required_quantity: item.required_quantity,
-                    required_date: item.required_date,
-                    source_type: request.source_type.clone(),
-                    source_id: request.source_id,
-                    consider_safety_stock: request.consider_safety_stock,
-                    consider_in_transit: request.consider_in_transit,
-                    bom_level: 0,
-                },
-                &stock_info,
-            );
-
-            all_requirements.push(requirement);
+            all_results.extend(rows);
+            all_requirements.extend(requirements);
         }
 
         let items_with_shortage = all_requirements
