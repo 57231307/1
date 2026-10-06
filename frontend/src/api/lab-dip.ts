@@ -52,7 +52,6 @@ export interface CreateLabDipRequestPayload {
   required_date: string;
   expected_days?: number;
   remarks?: string;
-  created_by?: number;
 }
 
 /** 客户确认 OK 样（对齐后端 ApproveOkSampleRequest，lab_dip_handler.rs:162）：sample_id 必填，comment 可选 */
