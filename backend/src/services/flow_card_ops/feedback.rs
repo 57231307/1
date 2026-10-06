@@ -114,11 +114,14 @@ impl QualityFeedbackService {
         Ok(result)
     }
 
-    /// 处理反馈单（pending → processing → resolved）
+    /// 处理反馈单（pending → processing → resolved）；
+    /// 调用「处理反馈单」端点的人即处理人，处理人/处理时间一律取服务端会话身份，
+    /// 请求体不承载身份（handled_by/handled_at 为可空列，写入形态 Set(Some(..))）
     pub async fn handle(
         &self,
         id: i32,
         req: HandleFeedbackRequest,
+        user_id: i32,
     ) -> Result<FeedbackModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status == feedback_status::CLOSED {
@@ -131,10 +134,9 @@ impl QualityFeedbackService {
         if let Some(v) = req.handling_opinion {
             active.handling_opinion = Set(Some(v));
         }
-        if let Some(v) = req.handled_by {
-            active.handled_by = Set(Some(v));
-            active.handled_at = Set(Some(now));
-        }
+        // 处理人取会话身份；handled_at 记最后一次处理时间
+        active.handled_by = Set(Some(user_id));
+        active.handled_at = Set(Some(now));
 
         // 状态流转：pending → processing（有处理意见但无结果）→ resolved（有处理结果）
         let new_status = if req.handling_result.is_some() {

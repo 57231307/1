@@ -133,10 +133,9 @@ pub struct CreateFeedbackRequest {
     pub remarks: Option<String>,
 }
 
-/// 处理反馈单请求
+/// 处理反馈单请求（处理人身份由服务端会话决定，请求体不承载 handled_by）
 #[derive(Debug, Clone, Deserialize)]
 pub struct HandleFeedbackRequest {
     pub handling_opinion: Option<String>,
     pub handling_result: Option<String>,
-    pub handled_by: Option<i32>,
 }

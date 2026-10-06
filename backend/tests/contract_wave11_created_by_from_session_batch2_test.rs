@@ -9,7 +9,9 @@
 //! - `POST /outsourcing-orders`、`/outsourcing-vouchers`；
 //! - `POST /lab-dip/requests`、`/lab-dip/samples`、`/lab-dip/resamples`；
 //! - `POST /process-routes`、`/flow-cards`、`/flow-cards/steps/start`、
-//!   `/flow-cards/steps/{id}/rework`、`/flow-cards/feedbacks`。
+//!   `/flow-cards/steps/{id}/rework`、`/flow-cards/feedbacks`；
+//!   动作端点 `POST /flow-cards/feedbacks/{id}/handle` 的处理人列 `handled_by`
+//!   同族收会话（看板 #328 同族：处理人=调用处理端点的人，请求体不再承载该字段）。
 //! 月末分摊 `POST /energy-allocations/monthly` 的落库分支依赖跨域工时数据，
 //! 行为面由同族建单锁覆盖，本文件对其入参 DTO 出形态锁。
 //!
@@ -26,6 +28,8 @@
 //! - 若 handler 退回从 body 取 `req.created_by` → 直读断言 `== Some(SESSION_A)` 红；
 //! - 若 service 退回 `created_by: Set(req.created_by)` 或 `unwrap_or` 兜底 → 断言红；
 //! - 若 DTO 重新加回 `created_by` 字段 → 形态锁当场红；
+//! - 若 handle 端点退回 `req.handled_by` 取处理人 → 处理人直读断言红（伪造 B 落库）；
+//! - 若 `HandleFeedbackRequest` 重新加回 `handled_by` 字段 → handled_by 形态锁当场红；
 //! - 若形态锁解析不到任何目标结构体 → 地板断言当场红（防空集合假绿）。
 
 mod test_common;
@@ -684,6 +688,127 @@ async fn flow_card_family_created_by_comes_from_session_not_body() {
 }
 
 // =========================================================
+// 域 6 追加：处理反馈单动作端点 —— handled_by 收会话（看板 #328 同族）
+// =========================================================
+
+/// `POST /flow-cards/feedbacks/{id}/handle` 的 A/B 双注入活体锁：
+/// 会话注入用户 A，请求体伪造 `handled_by = FORGED_B`，断言落库
+/// `handled_by == Some(SESSION_A)` 且伪造值绝不入库；同时锁定
+/// 「JSON 头 + 空体」经 OptionalJson 归一后仍可处理（缺体=未采集，不是 400）。
+#[tokio::test]
+async fn flow_card_feedback_handled_by_comes_from_session_not_body() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let tag = uniq_tag("CB2HB");
+    let po_id = seed_production_order(&read_db, &tag).await;
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
+    let app = layered_app(
+        state,
+        vec![
+            ("/flow-cards", post(flow_card_handler::create_flow_card)),
+            (
+                "/flow-cards/feedbacks",
+                post(flow_card_handler::create_feedback),
+            ),
+            (
+                "/flow-cards/feedbacks/{id}/handle",
+                post(flow_card_handler::handle_feedback),
+            ),
+        ],
+    );
+
+    let mut card = serde_json::Map::new();
+    card.insert("production_order_id".to_string(), json!(po_id));
+    let (status, v) = call_post(&app, "/flow-cards", &with_forged_identity(card)).await;
+    let card_id = created_id(status, &v, "流转卡建单（处理锁前置）");
+
+    let mut fb = serde_json::Map::new();
+    fb.insert("flow_card_id".to_string(), json!(card_id));
+    fb.insert("feedback_type".to_string(), json!("abnormal"));
+    fb.insert("description".to_string(), json!("批2锁测待处理色差"));
+    let (status, v) = call_post(&app, "/flow-cards/feedbacks", &with_forged_identity(fb)).await;
+    let fb_id = created_id(status, &v, "质量反馈单建单（处理锁前置）");
+
+    // A/B 双注入：请求体塞伪造 handled_by（真实前端零上送该键，纯检测力注入）
+    let mut handle_body = serde_json::Map::new();
+    handle_body.insert("handling_opinion".to_string(), json!("返修处理"));
+    handle_body.insert("handling_result".to_string(), json!("色差返修合格"));
+    handle_body.insert("handled_by".to_string(), Value::from(FORGED_B));
+    let body = serde_json::to_string(&Value::Object(handle_body)).expect("夹具自证：合法 JSON");
+    let (status, v) = call_post(
+        &app,
+        &format!("/flow-cards/feedbacks/{fb_id}/handle"),
+        &body,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "处理反馈单必须成功（handled_by 不再是入参），实际: {status} {v}"
+    );
+    assert_eq!(
+        v["code"], 200,
+        "处理反馈单成功信封 code 必须为 200, 实际: {v}"
+    );
+
+    let row = read_row!(
+        process_quality_feedback,
+        fb_id,
+        &read_db,
+        "质量反馈单（处理）"
+    );
+    assert_eq!(
+        row.handled_by,
+        Some(SESSION_A),
+        "直读实体：处理人必须等于会话用户 A，实际 {:?}",
+        row.handled_by
+    );
+    assert_ne!(
+        row.handled_by,
+        Some(FORGED_B),
+        "直读实体：body 伪造的 B 绝不许落进处理人列"
+    );
+    assert!(
+        row.handled_at.is_some(),
+        "直读实体：每次 handle 必须写处理时间（最后一次处理时间）"
+    );
+    assert_eq!(
+        row.handling_result.as_deref(),
+        Some("色差返修合格"),
+        "业务列（处理结果）不受牵连"
+    );
+
+    // 缺体形态锁：JSON 头 + 空体经 OptionalJson 归一为「未采集」，动作仍成功；
+    // 无 handling_result 时状态机按既有语义置 processing（状态机不动）
+    let (status, v) = call_post(&app, &format!("/flow-cards/feedbacks/{fb_id}/handle"), "").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "缺体处理必须经 OptionalJson 放行（不得 400），实际: {status} {v}"
+    );
+    let row = read_row!(
+        process_quality_feedback,
+        fb_id,
+        &read_db,
+        "质量反馈单（缺体处理）"
+    );
+    assert_eq!(
+        row.handled_by,
+        Some(SESSION_A),
+        "缺体处理同样落会话身份，实际 {:?}",
+        row.handled_by
+    );
+    assert_eq!(
+        row.status, "processing",
+        "状态机语义不变：无处理结果置 processing，实际 {}",
+        row.status
+    );
+}
+
+// =========================================================
 // 形态锁：这批请求 DTO 不再承载 created_by 入参字段
 // =========================================================
 
@@ -780,5 +905,22 @@ fn batch2_request_dtos_have_no_created_by_field() {
         parsed,
         targets.len(),
         "二十个建单 DTO 必须全部被解析到（检测力地板），实际 {parsed}"
+    );
+}
+
+/// 形态锁：处理动作端点入参 DTO 不再承载 handled_by 身份字段。
+/// 检测力——若 `HandleFeedbackRequest` 重新加回 `handled_by`，此处当场红。
+#[test]
+fn handle_feedback_request_dto_has_no_handled_by_field() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let path = std::path::Path::new(manifest_dir).join("src/models/dto/flow_card_dto.rs");
+    let src = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("形态锁取不到源码 {}（检测力地板）: {e}", path.display()));
+    let body = struct_body(&src, "HandleFeedbackRequest").unwrap_or_else(|| {
+        panic!("形态锁取不到结构体 HandleFeedbackRequest（检测力地板，禁止空集合=绿）")
+    });
+    assert!(
+        !body.contains("handled_by"),
+        "请求 DTO HandleFeedbackRequest 不应再承载 handled_by 入参字段，实际体: {body}"
     );
 }

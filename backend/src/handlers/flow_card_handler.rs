@@ -421,10 +421,20 @@ pub async fn get_feedback(
 /// POST /api/v1/erp/flow-cards/feedbacks/:id/handle - 处理反馈单
 pub async fn handle_feedback(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<HandleFeedbackRequest>,
+    // 处理意见/处理结果全部选填：缺体经 OptionalJson 归一为「未采集」
+    // （逐字段 None，等价体 {}），状态机流转仍由服务层真实执行
+    OptionalJson(req): OptionalJson<HandleFeedbackRequest>,
 ) -> Result<Json<ApiResponse<process_quality_feedback::Model>>, AppError> {
-    let model = feedback_service(&state).handle(id, req).await?;
+    let req = req.unwrap_or(HandleFeedbackRequest {
+        handling_opinion: None,
+        handling_result: None,
+    });
+    // 处理人取服务端会话（调用处理端点的人即处理人），请求体不承载身份
+    let model = feedback_service(&state)
+        .handle(id, req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
