@@ -29,7 +29,7 @@ pub struct CreateArPaymentParams {
 }
 
 /// 手动核销明细创建上下文：封装 reconciliation/invoice/payment 等参数（批次 488 D08-1 拆分：引入参数对象消除 too_many_arguments 警告）
-pub(super) struct ReconciliationItemContext<'a> {
+pub(crate) struct ReconciliationItemContext<'a> {
     pub reconciliation: &'a ar_reconciliation::Model,
     pub invoice: &'a ar_invoice::Model,
     pub payment: &'a ar_collection::Model,
