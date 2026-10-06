@@ -455,13 +455,22 @@ async fn w7s_outsourcing_receipt_voucher_duplicate_and_missing_prereq_400_displa
     let (app, db) = build_app().await;
     let (_sup, order_id, _order_no) = seed_supplier_and_order(&app).await;
 
-    // 前置父行自种子：成品布一行（products 既有表，只种行不建 DDL）
+    // 前置父行自种子：成品布一行（products 既有表，只种行不建 DDL）。
+    // 必须补齐 model 非 Option 的三列 unit/status/product_type：收回单 create 路径
+    // `validate_create_request`（services/outsourcing_ops/receipt.rs:193）以
+    // `product::Entity::find_by_id(..).one(db)` 整行解码 product::Model，任一非 Option 列
+    // 在库里为 NULL 即抛 DbErr::Type("Missing value for column 'unit'") → DATABASE_ERROR，
+    // 首次建单应 200 的断言随即红。DDL 里这三列可空（m0001:227 unit / v15:3806 product_type /
+    // v15:3824 status，均无 NOT NULL/DEFAULT），但整行解码需求 ≠ DDL NOT NULL：取值按写入侧
+    // 词表对齐（status=master_data::ACTIVE 字面 'active'，product_type 取模型注释词表成品布，
+    // unit 取面料域真实单位米），与 production_order_workflow_test.rs 同族夹具修法一致。
     let prod_code = uniq_code("PROD");
     let row = db
         .query_one_raw(Statement::from_string(
             DbBackend::Postgres,
             format!(
-                "INSERT INTO products (code, name) VALUES ('{prod_code}', 'W7S成品布探针') RETURNING id"
+                "INSERT INTO products (code, name, unit, status, product_type) \
+                 VALUES ('{prod_code}', 'W7S成品布探针', '米', 'active', '成品布') RETURNING id"
             ),
         ))
         .await

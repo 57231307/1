@@ -102,10 +102,24 @@ fn crm_leads_derives_to_registered_canonical_code() {
 
     // 消歧生效的两个前提：crm 被识别为模块前缀；("crm","leads") 不是双层前缀组合
     //（否则资源名取自 seg5，本分支永不参与）。
-    let module_prefixes = fn_body(&path_utils, "pub fn is_module_prefix");
+    // 前缀表真源读法（CI #4677 判责修正）：`pub fn is_module_prefix` 只是**分发器**
+    //（path_utils.rs:12-14，体内只有两个分发调用、零前缀字面量），前缀字面量在其
+    // 分发目标 `fn is_system_module_prefix` / `fn is_business_module_prefix` 两张表内
+    //（"crm" 现落 business 表 path_utils.rs:75）。只读分发器函数体必然永缺字面量，
+    // 故本锁沿分发链读：先钉分发关系未漂移，再在两张分发表的并集内查 "crm"。
+    // 检测力保持：任一分发表删掉 "crm" ⇒ 并集不含 ⇒ 判红；分发关系改名/换目标 ⇒
+    // 分发前提判红——两条断言各自指向可定位的漂移，不出现空跑。
+    let dispatch = fn_body(&path_utils, "pub fn is_module_prefix");
     assert!(
-        module_prefixes.contains("\"crm\""),
-        "crm 必须在模块前缀表内，否则 seg4 原样作键、消歧分支永不命中"
+        dispatch.contains("is_system_module_prefix")
+            && dispatch.contains("is_business_module_prefix"),
+        "is_module_prefix 的分发目标改变——前缀表真源已移位，本锁读法必须同步改，禁止让它空跑"
+    );
+    let prefix_table_union = fn_body(&path_utils, "fn is_system_module_prefix")
+        + &fn_body(&path_utils, "fn is_business_module_prefix");
+    assert!(
+        prefix_table_union.contains("\"crm\""),
+        "crm 必须在模块前缀表内（is_module_prefix 两张分发表之一），否则 seg4 原样作键、消歧分支永不命中"
     );
     let nested = fn_body(&path_utils, "pub fn is_nested_module_prefix");
     assert!(

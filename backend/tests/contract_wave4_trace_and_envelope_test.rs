@@ -216,7 +216,9 @@ async fn panic_in_handler_returns_full_app_error_envelope() {
 /// panic 路径上 X-Trace-Id 响应头与响应体 trace_id 同源，且等于请求 traceparent 的 trace
 #[tokio::test]
 async fn panic_response_trace_header_and_body_are_same_source() {
-    let app = router_with_layers();
+    // 夹具必须把**本用例请求的 path** 挂进洋葱；挂错/漏挂会让请求落进 axum 的
+    // 404（空 body），测的就不是 panic 捕获信封而是"路由没注册"（#4677 p5 红根因）。
+    let app = panic_capturing_router("/contract-wave4/panic-2", get(always_panic));
 
     let resp = app
         .oneshot(request_with_trace("/contract-wave4/panic-2"))
@@ -240,7 +242,9 @@ async fn panic_response_trace_header_and_body_are_same_source() {
 /// 正常路径不受 panic 层影响（状态码/响应体原样透传，trace 头仍在）
 #[tokio::test]
 async fn panic_layer_does_not_alter_normal_path() {
-    let app = router_with_layers();
+    // 正常路径用例必须挂 ok_handler 到自己请求的 path；沿用只挂 panic-1 的
+    // router_with_layers() 会让请求 404（#4677 p2 红根因：left 404 / right 200）。
+    let app = panic_capturing_router("/contract-wave4/ok", get(ok_handler));
 
     let resp = app
         .oneshot(request_with_trace("/contract-wave4/ok"))

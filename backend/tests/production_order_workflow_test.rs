@@ -231,14 +231,22 @@ async fn test_productionorderservice_approve_order_kdbfherr() {
 /// 走 `setup_test_db()`（已迁移 PG + TRUNCATE + RESTART IDENTITY）使显式 id=1 与
 /// `sample_create_request()` 的引用恒对齐；ignored lane `--test-threads=1` 串行，
 /// 无同库竞态。
+/// products 种子列形态按 **实体整 Model 解码需求** 而非仅 DDL NOT NULL：
+/// create 引用校验 `validate_product_exists` 走 `ProductEntity::find_by_id(...).one()`
+/// 全行解码（production_order_ops/crud.rs:49），product::Model 声明
+/// unit/status/product_type 为非 Option String（models/product.rs:26/35/45），
+/// 三列的生效 DDL 却是可空无默认的后补列（system/mod.rs:325/328、v15/mod.rs:3824/3828）；
+/// 写入侧三者恒非空（handlers/product_handler.rs:383-390 默认 "个"/master_data::ACTIVE
+/// ("active")/"成品"，services/product_ops/crud.rs:210 Set(unit)），故种子必须补齐，
+/// 否则解码报 `Missing value for column 'unit'`。取面料域真实词值：米 / active / 成品布。
 #[tokio::test]
 #[ignore = "需要 PostgreSQL 测试数据库 + 前置产品/工作中心数据"]
 async fn test_scddqlc_cjdwc() {
     let db = setup_test_db().await;
     for (sql, what) in [
         (
-            "INSERT INTO products (id, code, name) VALUES \
-             (1, 'PT-WF-P1', '生产全流程测试面料')",
+            "INSERT INTO products (id, code, name, unit, status, product_type) VALUES \
+             (1, 'PT-WF-P1', '生产全流程测试面料', '米', 'active', '成品布')",
             "products 父行",
         ),
         (

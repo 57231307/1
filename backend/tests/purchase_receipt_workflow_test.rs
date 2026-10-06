@@ -201,12 +201,32 @@ async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
 ///   `fk_purchase_receipt_warehouse`），warehouses 空表 ⇒ 23503 ⇒ 本轮 CI 红原文
 ///   `DatabaseError("数据库查询错误")`；
 /// - purchase_receipt_item.product_id FK（m0009:135），products 须有父行；
-/// - 明细 order_item_id=Some(1) 走 `link_receipt_items_to_order_items` fail-closed：
-///   该 id 必须是 order 1 的 purchase_order_items 行、且 product_id 与入库明细一致、
-///   入库量 ≤ 订单量×(1+容差)（crud.rs:160-253），故种 PO 主表(1)+明细(1) 各一行，
+/// - 明细 order_item_id=Some(1) 走 `link_receipt_items_to_order_items` fail-closed
+///   （本批 8b15f468 新增守卫，purchase_receipt_ops/crud.rs:268-277）：
+///   该 id 必须是 order 1 的 **`purchase_order_item`（单数表）** 行、且 product_id
+///   与入库明细一致、入库量 ≤ 订单量×(1+容差)。⚠ 表名唯一事实来源是实体：
+///   models/purchase_order_item.rs:12 `#[sea_orm(table_name = "purchase_order_item")]`，
+///   DDL 在 migration/src/domain/v15/mod.rs:3460；m0001_initial_schema.rs 的复数
+///   `purchase_order_items` 是 SeaORM 实体永不读取的遗留表——上一版种子写错进复数表，
+///   守卫在单数表查无明细，判「采购订单 1 没有明细行」属**正确触发**（CI #4677 原文），
+///   修复只改种子侧，不放松守卫。
 ///   订单量 200 ≥ 入库 100；supplier_id=1 由迁移种子参照表 m0015 恒在（不清空）。
-/// 列形态按 m0001_initial_schema.rs:451-487（NOT NULL：order_no/supplier_id/order_date；
-/// 明细 order_id/product_id/quantity/unit_price/subtotal）。
+/// 列形态按实体整 Model 解码需求：
+/// - `purchase_order_item`（v15:3460）NOT NULL 无默认的金额/数量列全部补写
+///   （line_no/quantity_alt/unit_price_foreign/discount_percent/tax_percent/
+///   tax_amount/discount_amount/total_amount/received_quantity_alt/created_at/
+///   updated_at，models/purchase_order_item.rs:12-106）；quantity_tolerance_pct 留
+///   NULL=未行级指定，按品类默认解析（米→5%，crud.rs:287-300）。
+/// - purchase_orders 头行：confirm 链的 write_back_actual_delivery_date /
+///   save_order_status_update 全行解码 purchase_order::Model
+///   （purchase_receipt_private.rs:180/146），其 warehouse_id/department_id/
+///   purchaser_id/currency/exchange_rate/total_*/order_status/created_by 为非
+///   Option（models/purchase_order.rs:41-99），生效 DDL 却是可空后补列
+///   （system/mod.rs:337-350），种子必须按服务层写入形态补全；order_status 用
+///   状态词表 token（APPROVED，收货对已审批单进行）。
+/// - products 行：link 守卫按 product_id 全行解码 product::Model 取 unit 做品类
+///   容差判定（crud.rs:290-300），unit/status/product_type 非 Option
+///   （models/product.rs:26/35/45），写入侧恒非空（handlers/product_handler.rs:383-390）。
 /// 走 `setup_test_db()`（TRUNCATE + RESTART IDENTITY）使显式 id=1 对齐引用；
 /// ignored lane `--test-threads=1` 串行无竞态。
 ///
@@ -228,18 +248,28 @@ async fn test_cgshqlc_cjdqr() {
             "warehouses 父行",
         ),
         (
-            "INSERT INTO products (id, code, name) VALUES (1, 'PT-WF-R1', '收货全流程测试面料')",
+            "INSERT INTO products (id, code, name, unit, status, product_type) VALUES \
+             (1, 'PT-WF-R1', '收货全流程测试面料', '米', 'active', '成品布')",
             "products 父行",
         ),
         (
-            "INSERT INTO purchase_orders (id, order_no, supplier_id, order_date, status) \
-             VALUES (1, 'WF-PO-0001', 1, '2026-01-01', 'confirmed')",
+            "INSERT INTO purchase_orders (id, order_no, supplier_id, order_date, \
+             warehouse_id, department_id, purchaser_id, currency, exchange_rate, \
+             total_amount, total_amount_foreign, total_quantity, total_quantity_alt, \
+             order_status, created_by) \
+             VALUES (1, 'WF-PO-0001', 1, '2026-01-01', 1, 1, 1, 'CNY', 1.000000, \
+             2000.00, 2000.00, 200.0000, 0.0000, 'APPROVED', 1)",
             "purchase_orders 父行",
         ),
         (
-            "INSERT INTO purchase_order_items (id, order_id, product_id, quantity, unit_price, \
-             subtotal, received_quantity) VALUES (1, 1, 1, 200.0000, 10.00, 2000.00, 0.0000)",
-            "purchase_order_items 父行",
+            "INSERT INTO purchase_order_item (id, order_id, line_no, product_id, \
+             quantity, quantity_alt, unit_price, unit_price_foreign, discount_percent, \
+             tax_percent, subtotal, tax_amount, discount_amount, total_amount, \
+             received_quantity, received_quantity_alt, created_at, updated_at) \
+             VALUES (1, 1, 1, 1, 200.0000, 0.0000, 10.000000, 0.000000, 0.0000, \
+             0.0000, 2000.00, 0.00, 0.00, 2000.00, 0.0000, 0.0000, \
+             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+            "purchase_order_item 父行（单数表=实体真表）",
         ),
     ] {
         db.execute_raw(Statement::from_sql_and_values(

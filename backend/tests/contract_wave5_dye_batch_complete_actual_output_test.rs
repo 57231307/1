@@ -39,23 +39,24 @@
 mod test_common;
 
 use axum::{
+    Router,
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
-    middleware::{from_fn_with_state, Next},
+    middleware::{Next, from_fn, from_fn_with_state},
     response::Response,
     routing::post,
-    Router,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::dye_batch_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::middleware::trace_context::{catch_panic_middleware, trace_context_middleware};
 use bingxi_backend::models::dye_batch;
 use bingxi_backend::services::dye_batch_cost_bridge_service::DyeBatchCostBridgeServiceInternal;
 use rust_decimal::Decimal;
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;
@@ -140,6 +141,14 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
         )
         .with_state(state)
         .layer(from_fn_with_state(make_auth(100), inject_auth))
+        // 与生产洋葱同构（CI #4677 判责：夹具缺收口层，测试面漏出 axum 原生 415/422）：
+        // catch_panic_middleware 内含 normalize_extractor_rejection，把提取器拒绝
+        // （400/415/422 纯文本）归一为统一 400 + VALIDATION_ERROR 信封。
+        // 层序照抄 bootstrap::middleware_bootstrap::apply_trace_and_panic_capture
+        // （后注册=更外层）：catch_panic 先注册为内层、trace 后注册为外层，
+        // 信封 trace_id 与 X-Trace-Id 严格同源；不附加其余无关层。
+        .layer(from_fn(catch_panic_middleware))
+        .layer(from_fn(trace_context_middleware))
 }
 
 /// 返回 (status, json_body)；axum Json 拒绝体是纯文本，解析失败时按 Null 处理

@@ -125,6 +125,16 @@ async fn seed_fk_prerequisites(db: &sea_orm::DatabaseConnection) {
 /// 在真实 sales_orders 上种一张单 + 一条同额明细，RETURNING 真实主键 id。
 /// order_date 为 TIMESTAMPTZ：常量日期以 ::timestamptz 文本参数落库；
 /// 明细列（quantity/unit_price/subtotal）NOT NULL，按单据金额给足。
+/// 表头金额列必须写全：sales_order::Model 声明 subtotal/tax_amount/discount_amount/
+/// shipping_cost/total_amount/paid_amount/balance_amount 为非 Option Decimal
+/// （models/sales_order.rs:21-27），而生效 DDL 里 subtotal/tax_amount/shipping_cost/
+/// balance_amount 是后补的可空无默认列（migration/src/domain/system/mod.rs:417-424
+/// `ADD COLUMN IF NOT EXISTS ... DECIMAL(18,4)`），手写种子若缺这几列，行会以 NULL
+/// 落库，任何整 Model 解码（reject/cancel 的 `find_by_id().lock_exclusive()`，
+/// services/so/contract.rs:28、order_workflow.rs:39）即报
+/// `Missing value for column 'subtotal'`。列值口径复刻服务层真值形态：
+/// subtotal=明细合计、total=subtotal+税(0)+运费(0)、balance=total、paid=0
+/// （services/so/order_crud.rs:277 建单置 ZERO → :460-465 update_order_totals 回写）。
 async fn seed_order(
     db: &sea_orm::DatabaseConnection,
     order_no: &str,
@@ -135,8 +145,10 @@ async fn seed_order(
     let row = db
         .query_one_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            r#"INSERT INTO sales_orders (order_no, customer_id, order_date, total_amount, status)
-               VALUES ($1, 10, $2::timestamptz, $3, $4) RETURNING id"#,
+            r#"INSERT INTO sales_orders (order_no, customer_id, order_date, subtotal,
+                                         tax_amount, discount_amount, shipping_cost,
+                                         total_amount, paid_amount, balance_amount, status)
+               VALUES ($1, 10, $2::timestamptz, $3, 0, 0, 0, $3, 0, $3, $4) RETURNING id"#,
             vec![
                 order_no.to_string().into(),
                 day.to_string().into(),

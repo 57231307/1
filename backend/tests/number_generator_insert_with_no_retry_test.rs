@@ -188,48 +188,95 @@ async fn insert_with_no_retry_repeated_in_one_txn_yields_consecutive_nos() {
 #[ignore = "需已迁移 PG（advisory lock + SAVEPOINT + 23505 + pg_stat_activity），由专用 job（--run-ignored only）执行"]
 async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
     let pfx = "NGT3";
-    let db_admin = live_db().await;
-    cleanup_customer(&db_admin, pfx).await;
+    // 夹具前置 1（连接足迹）：admin 观测 / B 旁路 / A 取号重试三角色共用**同一个池**
+    // （三次 begin() 仍是三个独立后端，"未提交冲突行"的并发语义不变）。
+    // 原先每个角色各建一个 `Database::connect` 池：同 job 并行跑十几个真库 binary 时
+    // 极易把 PG `max_connections` 顶穿，A 的 begin() 在 spawn 里 panic 后主流程只会
+    // 撞上观测超时，真实原因被完全掩盖（CI #4677 同 job 的 sea-orm Disconnected 簇同向印证）。
+    let db = live_db().await;
+    cleanup_customer(&db, pfx).await;
+
+    // 夹具前置 2（确定性次序）：整段演练期间以事务级 ROW EXCLUSIVE 锁住 customers。
+    // 根因：同 job 的兄弟真库用例各自在 setup_test_db() 里对**全部业务表**执行
+    // `TRUNCATE ... RESTART IDENTITY CASCADE`（src/services/test_common.rs:205-231，
+    // 取 ACCESS EXCLUSIVE）。它与未提交的旁路行构成三方僵死——TRUNCATE 排队等 B 的
+    // 行锁，A 的 INSERT 又排在 TRUNCATE 之后（PG 锁队列按到达序），于是 A 永远停在
+    // wait_event_type='Lock'/wait_event='relation'，本用例的 transactionid 判据永不
+    // 成立（CI #4677 即在 :293 超时 panic）。ROW EXCLUSIVE 与兄弟用例的正常 INSERT
+    // （RowExclusive）互不冲突，只把表级清理挡在演练窗口之外，不改变 A/B 之间的
+    // 唯一索引冲突语义 ⇒ 只消时序噪声，不可能掩盖 insert_with_no_retry 的缺陷。
+    let guard = db.begin().await.expect("锁守卫开启事务失败");
+    let lock_fut = guard.execute_raw(Statement::from_string(
+        sea_orm::DatabaseBackend::Postgres,
+        "LOCK TABLE \"customers\" IN ROW EXCLUSIVE MODE".to_string(),
+    ));
+    tokio::time::timeout(Duration::from_secs(30), lock_fut)
+        .await
+        .expect("30s 内拿不到 customers 的 ROW EXCLUSIVE 锁：并发夹具仍在本窗口内做表级清理，需人工排查 job 并行度（不允许跳过本用例）")
+        .expect("LOCK TABLE 守卫语句执行失败");
 
     let dup = code(pfx, 1); // 干净号段下第一轮候选必为 001（allocate_no 基数语义）
 
     // 连接 B：旁路插入候选号，保持未提交
-    let db_b = live_db().await;
-    let txn_b: DatabaseTransaction = db_b.begin().await.expect("B 开启事务失败");
+    let txn_b: DatabaseTransaction = db.begin().await.expect("B 开启事务失败");
     make_customer(dup.clone())
         .insert(&txn_b)
         .await
         .expect("B 旁路插入候选号失败");
 
     // 连接 A：调用方事务内 insert_with_no_retry（后台运行，等待被唯一索引挂起）
-    let conn_a = Arc::new(live_db().await);
-    let handle = {
-        let conn_a = Arc::clone(&conn_a);
-        let pfx_owned = pfx.to_string();
-        tokio::spawn(async move {
-            let txn_a = conn_a.begin().await.expect("A 开启事务失败");
-            let result = DocumentNumberGenerator::insert_with_no_retry(
-                &txn_a,
-                &pfx_owned,
-                customer::Entity,
-                customer::Column::CustomerCode,
-                make_customer,
-            )
-            .await;
-            match result {
-                Ok(model) => {
-                    txn_a.commit().await.expect("重试成功后外层事务应可提交");
-                    Ok::<String, String>(model.customer_code)
-                }
-                Err(e) => {
-                    txn_a.rollback().await.ok();
-                    Err(format!("{e:?}"))
-                }
+    let conn_a = db.clone();
+    let (pid_tx, pid_rx) = tokio::sync::oneshot::channel::<i32>();
+    let handle = tokio::spawn(async move {
+        let txn_a = conn_a.begin().await.expect("A 开启事务失败");
+        // 夹具前置 3（观测对象钉死到 A 自己）：把 A 的 backend pid 报回观测方。
+        // 原实现按 `query LIKE 'INSERT INTO "customers"%'` 跨会话计数，任何兄弟用例
+        // 的 blocked INSERT 都能替 A "满足"判据——那是本末倒置的假绿口子。
+        let pid_row = txn_a
+            .query_one_raw(Statement::from_string(
+                sea_orm::DatabaseBackend::Postgres,
+                "SELECT pg_backend_pid()".to_string(),
+            ))
+            .await
+            .expect("A 读取自身 backend pid 失败")
+            .expect("A 的 pg_backend_pid 必然返回一行");
+        let backend_pid: i32 = pid_row
+            .try_get_by_index(0)
+            .expect("pg_backend_pid 应为 i32");
+        let _ = pid_tx.send(backend_pid);
+        let result = DocumentNumberGenerator::insert_with_no_retry(
+            &txn_a,
+            pfx,
+            customer::Entity,
+            customer::Column::CustomerCode,
+            make_customer,
+        )
+        .await;
+        match result {
+            Ok(model) => {
+                txn_a.commit().await.expect("重试成功后外层事务应可提交");
+                Ok::<String, String>(model.customer_code)
             }
-        })
+            Err(e) => {
+                txn_a.rollback().await.ok();
+                Err(format!("{e:?}"))
+            }
+        }
+    });
+
+    let a_pid = match tokio::time::timeout(Duration::from_secs(20), pid_rx).await {
+        Ok(Ok(pid)) => pid,
+        Ok(Err(_)) => panic!(
+            "A 任务在报回 backend pid 之前已结束（取号前的 begin/pg_backend_pid 未通过）：\
+             真实原因见同一次 stderr 里的 tokio panic 回溯；前置失效，不允许跳过本用例"
+        ),
+        Err(_) => panic!(
+            "A 任务 20s 内未报回 backend pid（开启事务或读 pid 未完成 ⇒ 连接池/PG 侧被压满）：\
+             前置失效，需人工排查并发时序，不允许跳过本用例"
+        ),
     };
 
-    wait_until_a_insert_blocked(&db_admin, Duration::from_secs(20)).await;
+    wait_until_a_insert_blocked(&db, a_pid, Duration::from_secs(20)).await;
 
     // B 提交：A 的第一次 INSERT 由此确定性收到 23505（旁路写入此刻才对外可见）
     txn_b.commit().await.expect("B 提交失败");
@@ -250,7 +297,7 @@ async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
         assert!(
             customer::Entity::find()
                 .filter(customer::Column::CustomerCode.eq(c.as_str()))
-                .one(&db_admin)
+                .one(&db)
                 .await
                 .expect("查库失败")
                 .is_some(),
@@ -258,41 +305,58 @@ async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
         );
     }
 
-    cleanup_customer(&db_admin, pfx).await;
+    cleanup_customer(&db, pfx).await;
+    // 释放表级守卫锁：守卫事务内没有任何写入，回滚即等值于纯解锁
+    guard.rollback().await.expect("释放锁守卫事务失败");
 }
 
-/// 轮询观测：连接 A 的 INSERT 正被唯一索引的未提交冲突行挂起
-/// （wait_event_type='Transaction' AND wait_event='transactionid'）。
-/// 这是"B 提交前 A 的第一次取号+插入已就位"的确定性证据；超时即 panic，
-/// 暴露前置条件失效（防止测试在没真正演练 23505 路径的情况下假绿）。
-async fn wait_until_a_insert_blocked(db: &DatabaseConnection, timeout: Duration) {
+/// 轮询观测：**A 自己的后端**（按 backend pid 精确锁定）正被唯一索引的未提交冲突行
+/// 挂起（`wait_event_type='Transaction' AND wait_event='transactionid'`）。
+/// 这是"B 提交前 A 的第一次取号+插入已就位"的确定性证据；超时即 panic，并把该后端
+/// 当时的 state / 实际等待事件 / 正在执行的语句原文一起打出，暴露前置失效的真实方向
+/// （连接断了？被表级锁挡住？根本没走到 INSERT？），防止退化成"跳过断言"的假绿。
+async fn wait_until_a_insert_blocked(db: &DatabaseConnection, backend_pid: i32, timeout: Duration) {
     let started = std::time::Instant::now();
     loop {
         let stmt = Statement::from_sql_and_values(
             sea_orm::DatabaseBackend::Postgres,
-            "SELECT count(*) FROM pg_stat_activity \
-             WHERE wait_event_type = 'Transaction' AND wait_event = 'transactionid' \
-             AND query LIKE $1",
-            vec![sea_orm::Value::String(Some(
-                "INSERT INTO \"customers\"%".to_string(),
-            ))],
+            "SELECT wait_event_type::text, wait_event::text, state::text, query \
+             FROM pg_stat_activity WHERE pid = $1",
+            vec![sea_orm::Value::Int(Some(backend_pid))],
         );
         // SeaORM 2.0.2：原始 Statement 走 ConnectionTrait::query_one_raw
         // （query_one 只收 &impl StatementBuilder，Statement 本身不实现该 trait）
-        let row: sea_orm::QueryResult = db
+        let row = db
             .query_one_raw(stmt)
             .await
-            .expect("pg_stat_activity 观测查询失败")
-            .expect("count 查询必然返回一行");
-        // count(*) 在 PG 返回 BIGINT（系统视图列，非 m0044 收窄后的业务表列），取 i64
-        let blocked: i64 = row.try_get_by_index(0).expect("count 应为 i64");
-        if blocked >= 1 {
-            return;
-        }
-        if started.elapsed() > timeout {
+            .expect("pg_stat_activity 观测查询失败");
+        if let Some(row) = row {
+            let wait_type: Option<String> = row
+                .try_get_by_index(0)
+                .expect("wait_event_type 应为可空文本");
+            let wait_event: Option<String> =
+                row.try_get_by_index(1).expect("wait_event 应为可空文本");
+            let state: Option<String> = row.try_get_by_index(2).expect("state 应为可空文本");
+            let query: String = row
+                .try_get_by_index(3)
+                .unwrap_or_else(|_| "<不可读>".to_string());
+            if wait_type.as_deref() == Some("Transaction")
+                && wait_event.as_deref() == Some("transactionid")
+            {
+                return;
+            }
+            if started.elapsed() > timeout {
+                panic!(
+                    "超时未观测到 A 后端(pid={backend_pid}) 因旁路重复号被唯一索引挂起：\
+                     state={state:?} wait_event_type={wait_type:?} wait_event={wait_event:?} \
+                     当前语句={query}（insert_with_no_retry 未按预期在探测后插入候选号，\
+                     前置失效，需人工排查并发时序，不允许跳过本用例）"
+                );
+            }
+        } else if started.elapsed() > timeout {
             panic!(
-                "超时未观测到被旁路重复号挂起的 INSERT：insert_with_no_retry 未按预期\
-                 在探测后插入候选号（前置失效，需人工排查并发时序，不允许跳过本用例）"
+                "超时：A 后端(pid={backend_pid}) 已不在 pg_stat_activity（连接被断开或事务已结束），\
+                 前置失效，需人工排查并发时序，不允许跳过本用例"
             );
         }
         tokio::time::sleep(Duration::from_millis(50)).await;

@@ -15,6 +15,9 @@
 //! 夹具形态照 `contract_wave11_price_reject_test.rs`：真库 `setup_test_db`
 //! （已迁移 PG、nextest 串行 db-integration 组）；suppliers 属封存参照表自增回读，
 //! products/users 等业务表逐例 TRUNCATE 后可显式固定 id。
+//! AppState 组装口径：`default()` 只覆盖 `db` 不够——`default()` 的子服务绑的是
+//! `DatabaseConnection::default()`（`Disconnected`），凡成功路径会走 `state.*_service`
+//! 的端点都必须把该子服务按生产口径重建到真库上（见 `order_approval_app` 内注释）。
 //! 路由仅在测试 Router 内注册（src routes 为枢纽文件，注册由主智能体落地），
 //! 路径形态与真实路由逐字符一致（`/purchase/orders/{id}/…`、`/sales/orders/{id}/…`、
 //! `/purchase/returns/{id}/…`）。列值断言一律走实体直读 DB（权威回读）。
@@ -32,10 +35,11 @@ use bingxi_backend::models::{
     customer, product, purchase_order, purchase_return, purchase_return_item, sales_order,
     supplier, user, warehouse,
 };
+use bingxi_backend::services::event_notification_service::EventNotificationService;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use test_common::setup_test_db;
 
@@ -277,10 +281,21 @@ async fn seed_return_item(db: &Arc<DatabaseConnection>, return_id: i32, tag: &st
 async fn order_approval_app() -> (Arc<DatabaseConnection>, axum::Router) {
     let db = Arc::new(setup_test_db().await);
     seed_operator(&db).await;
-    let state = AppState {
+    let mut state = AppState {
         db: db.clone(),
         ..Default::default()
     };
+    // `AppState::default()` 的全部子服务绑在 `DatabaseConnection::default()`
+    // （= sea-orm 的 `Disconnected` 变体，`src/container/mod.rs:334`）上，只覆盖 `db`
+    // 字段不会把它们搬到真库。本锁三个成功路径在落库之后必走站内通知：
+    // PO reject（`src/handlers/purchase_order_handler.rs:380`）、
+    // 退货 reject（`src/handlers/purchase_return_handler.rs:184`）、
+    // SO approve（`src/handlers/sales_order_handler.rs:433`），
+    // 通知服务对 `Disconnected` 连接取 backend 直接 panic
+    // （sea-orm-2.0.2 `src/database/db_connection.rs:727`）。生产装配无条件构造该服务
+    // 并与 `state.db` 同池（`src/container/mod.rs:217`/`:343`），故此处按生产口径把它
+    // 重建到真库上——禁止用 `None` 绕过真实链路（那会把已装配的通知通道变成不可达分支）。
+    state.event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
     async fn inject_auth(
         auth: axum::extract::State<bingxi_backend::middleware::auth_context::AuthContext>,
         mut request: axum::http::Request<axum::body::Body>,
