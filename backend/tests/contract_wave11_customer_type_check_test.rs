@@ -54,13 +54,13 @@
 mod test_common;
 
 use axum::{
+    Router,
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
-    middleware::{from_fn_with_state, Next},
+    middleware::{Next, from_fn_with_state},
     response::Response,
     routing::{post, put},
-    Router,
 };
 use bingxi_backend::constants::customer_type::{ALLOWED, OTHER, RETAIL};
 use bingxi_backend::container::AppState;
@@ -68,7 +68,7 @@ use bingxi_backend::handlers::customer_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::services::data_permission_service::DataPermissionService;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, RuntimeErr, Statement};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use test_common::setup_test_db;

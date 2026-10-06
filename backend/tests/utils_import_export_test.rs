@@ -76,12 +76,6 @@ fn test_field_validator_decimal() {
 }
 
 #[test]
-fn test_field_validator_date() {
-    assert!(FieldValidator::date("2024-01-15", "日期").is_ok());
-    assert!(FieldValidator::date("2024/01/15", "日期").is_err());
-}
-
-#[test]
 fn test_field_validator_boolean() {
     // P9-1: 改用 expect 替代 unwrap，并明确中文失败原因
     assert!(FieldValidator::boolean("true", "启用").expect("P9-1: 布尔校验"));

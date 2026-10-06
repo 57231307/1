@@ -100,7 +100,7 @@ async fn seed_customer(db: &DatabaseConnection) {
         vec![
             CUSTOMER_ID.into(),
             format!("CC-{CUSTOMER_ID}").into(),
-            Decimal::new(200_00_00, 2).into(),
+            Decimal::new(2_000_000, 2).into(),
             USER_OWNER.into(),
             USER_OWNER.into(),
             channel.into(),
@@ -236,14 +236,14 @@ async fn customer_credit_ratings_single_row_and_fk_are_db_enforced() {
     // ---------- 1. 正向：生产写入口 upsert 单行语义（第二次 set 不产生新行） ----------
     let first = svc
         .set_credit_rating(
-            rating_req(CUSTOMER_ID, Some(Decimal::new(500_00_00, 2))),
+            rating_req(CUSTOMER_ID, Some(Decimal::new(5_000_000, 2))),
             USER_OWNER,
         )
         .await
         .expect("首次设置信用评级应成功（合法数据必须能落）");
     let second = svc
         .set_credit_rating(
-            rating_req(CUSTOMER_ID, Some(Decimal::new(800_00_00, 2))),
+            rating_req(CUSTOMER_ID, Some(Decimal::new(8_000_000, 2))),
             USER_OWNER,
         )
         .await
@@ -252,7 +252,7 @@ async fn customer_credit_ratings_single_row_and_fk_are_db_enforced() {
         first.id, second.id,
         "同一客户第二次 set 必须更新原行而不是插新行（单行契约的行为锁）"
     );
-    assert_eq!(second.credit_limit, Decimal::new(800_00_00, 2));
+    assert_eq!(second.credit_limit, Decimal::new(8_000_000, 2));
     assert_eq!(
         row_count_for(&db, CUSTOMER_ID).await,
         1,

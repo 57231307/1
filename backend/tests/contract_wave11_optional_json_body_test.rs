@@ -130,28 +130,28 @@ async fn read_requisition(db: &DatabaseConnection, id: i32) -> chemical_requisit
 /// 请求形态枚举：双向锁的四类输入在同一端点上逐一对打
 enum ReqShape<'a> {
     /// 带 Content-Type: application/json 但**完全无体**（e2e apiCallExpectFail 形态）
-    JsonCtEmptyBody,
+    JsonCtEmpty,
     /// 无 Content-Type 且无体（axios 无体调用形态）
-    NoCtEmptyBody,
+    NoCtEmpty,
     /// Content-Type: application/json + 体为 JSON 文本
-    JsonBody(&'a str),
+    Json(&'a str),
     /// 非 JSON content-type 且体非空（如 text/plain）
-    NonJsonCtWithBody(&'a str, &'a str),
+    NonJsonCt(&'a str, &'a str),
 }
 
 async fn call(app: &Router, path: &str, shape: ReqShape<'_>) -> (StatusCode, Value) {
     let builder = Request::builder().method(Method::POST).uri(path);
     let req = match shape {
-        ReqShape::JsonCtEmptyBody => builder
+        ReqShape::JsonCtEmpty => builder
             .header("content-type", "application/json")
             .body(Body::empty())
             .unwrap(),
-        ReqShape::NoCtEmptyBody => builder.body(Body::empty()).unwrap(),
-        ReqShape::JsonBody(text) => builder
+        ReqShape::NoCtEmpty => builder.body(Body::empty()).unwrap(),
+        ReqShape::Json(text) => builder
             .header("content-type", "application/json")
             .body(Body::from(text.to_string()))
             .unwrap(),
-        ReqShape::NonJsonCtWithBody(ct, text) => builder
+        ReqShape::NonJsonCt(ct, text) => builder
             .header("content-type", HeaderValue::from_str(ct).unwrap())
             .body(Body::from(text.to_string()))
             .unwrap(),
@@ -179,7 +179,7 @@ async fn absent_body_with_json_content_type_reaches_business_gate_not_decoding_4
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::JsonCtEmptyBody,
+        ReqShape::JsonCtEmpty,
     )
     .await;
     assert_eq!(
@@ -196,7 +196,7 @@ async fn absent_body_without_content_type_reaches_business_gate() {
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::NoCtEmptyBody,
+        ReqShape::NoCtEmpty,
     )
     .await;
     assert_eq!(
@@ -213,7 +213,7 @@ async fn empty_object_body_reaches_business_gate() {
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::JsonBody("{}"),
+        ReqShape::Json("{}"),
     )
     .await;
     assert_eq!(
@@ -232,7 +232,7 @@ async fn valid_reason_body_still_parsed_and_reaches_business_gate() {
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::JsonBody(r#"{"approval_reason":"OK，同意采购"}"#),
+        ReqShape::Json(r#"{"approval_reason":"OK，同意采购"}"#),
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "实际: {status} {v}");
@@ -263,7 +263,7 @@ async fn absent_body_on_requisition_approve_hits_real_state_machine_business_err
     let (status, v) = call(
         &app,
         &format!("/chemical-requisitions/{id}/approve"),
-        ReqShape::JsonCtEmptyBody,
+        ReqShape::JsonCtEmpty,
     )
     .await;
     assert_eq!(
@@ -284,7 +284,7 @@ async fn absent_body_on_requisition_approve_hits_real_state_machine_business_err
     let (status2, v2) = call(
         &app,
         &format!("/chemical-requisitions/{id}/approve"),
-        ReqShape::NoCtEmptyBody,
+        ReqShape::NoCtEmpty,
     )
     .await;
     assert_eq!(status2, StatusCode::BAD_REQUEST, "实际: {status2} {v2}");
@@ -301,7 +301,7 @@ async fn malformed_json_body_still_rejected_400_validation_error() {
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::JsonBody("{"),
+        ReqShape::Json("{"),
     )
     .await;
     assert_eq!(
@@ -319,7 +319,7 @@ async fn wrong_field_type_body_still_rejected_400_validation_error() {
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::JsonBody(r#"{"approval_reason":123}"#),
+        ReqShape::Json(r#"{"approval_reason":123}"#),
     )
     .await;
     assert_eq!(
@@ -336,7 +336,7 @@ async fn non_json_content_type_with_body_rejected_400_validation_error() {
     let (status, v) = call(
         &app,
         &format!("/purchase/orders/{ABSENT_PO_ID}/approve"),
-        ReqShape::NonJsonCtWithBody("text/plain", "hello"),
+        ReqShape::NonJsonCt("text/plain", "hello"),
     )
     .await;
     assert_eq!(
@@ -578,7 +578,7 @@ fn iter_action_endpoints(src: &str) -> Vec<(String, usize, String)> {
             from = start;
             continue;
         };
-        let Some(sig) = balanced_inner(&src, paren_idx) else {
+        let Some(sig) = balanced_inner(src, paren_idx) else {
             from = paren_idx + 1;
             continue;
         };

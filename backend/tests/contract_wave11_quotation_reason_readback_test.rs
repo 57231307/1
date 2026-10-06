@@ -28,7 +28,7 @@ use bingxi_backend::models::{customer, sales_quotation, user};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;

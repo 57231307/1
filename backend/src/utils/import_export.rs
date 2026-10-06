@@ -230,12 +230,6 @@ impl FieldValidator {
             .map_err(|_| format!("{} 必须是有效的数字", field_name))
     }
 
-    /// 验证日期（YYYY-MM-DD 格式）
-    pub fn date(value: &str, field_name: &str) -> Result<chrono::NaiveDate, String> {
-        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
-            .map_err(|_| format!("{} 必须是有效的日期格式（YYYY-MM-DD）", field_name))
-    }
-
     /// 验证布尔值
     pub fn boolean(value: &str, field_name: &str) -> Result<bool, String> {
         match value.trim().to_lowercase().as_str() {

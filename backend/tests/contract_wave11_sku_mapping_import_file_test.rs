@@ -300,8 +300,10 @@ async fn seed_products(db: &DatabaseConnection) {
 async fn app_with_db() -> (Arc<DatabaseConnection>, Router) {
     let db = Arc::new(setup_test_db().await);
     seed_products(&db).await;
-    let mut state = AppState::default();
-    state.db = db.clone();
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
     let app = Router::new()
         .route(
             "/sku-mappings/import",
