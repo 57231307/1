@@ -10,7 +10,6 @@ import {
   genDyeLotNo,
   seedColorCardArchive,
   failureCode,
-  verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
   deferCleanup,
   flushDeferredCleanups,
@@ -168,10 +167,63 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     await expect(page.getByRole('tab', { name: '批次管理', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '分类管理', exact: true })).toBeVisible();
 
-    await verifyEndpointHealthy(page, '/chemicals?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/chemical-lots?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/chemical-requisitions?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/chemical-categories/tree');
+    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，信封形状漂移（PaginatedResponse
+    // 键缺、tree 由裸数组改对象包裹）全抓不到。apiCallRaw 非 2xx 即抛（404/403/5xx 判红不变），
+    // 在其上回读真实信封显式断形。后端真值：list_chemicals/list_chemical_lots/list_requisitions
+    // 均返回 PaginatedResponse{items,total,page,page_size}（chemical_handler.rs:124-127 /
+    // :270-273 / :386-389，utils/response.rs:34），get_chemical_category_tree 返回裸数组
+    // Vec<chemical_category::Model>（chemical_handler.rs:257-260）。落库键值真值属
+    // 62-02/03/04/05（自建数据逐字段回读），此处不重复造数。
+    const chemicals = await apiCallRaw<{ items?: unknown; total?: unknown }>(
+      page,
+      'GET',
+      '/chemicals?page=1&page_size=5'
+    );
+    const chemItems = requireItems(chemicals, 'GET /chemicals?page=1&page_size=5');
+    expect(
+      typeof chemicals.total,
+      `/chemicals total 必须为 number，实际 ${JSON.stringify(chemicals)}`
+    ).toBe('number');
+    expect(
+      chemItems.length,
+      `/chemicals 应遵守 page_size=5 上限，实际 ${chemItems.length}`
+    ).toBeLessThanOrEqual(5);
+
+    const lots = await apiCallRaw<{ items?: unknown; total?: unknown }>(
+      page,
+      'GET',
+      '/chemical-lots?page=1&page_size=5'
+    );
+    const lotItems = requireItems(lots, 'GET /chemical-lots?page=1&page_size=5');
+    expect(
+      typeof lots.total,
+      `/chemical-lots total 必须为 number，实际 ${JSON.stringify(lots)}`
+    ).toBe('number');
+    expect(
+      lotItems.length,
+      `/chemical-lots 应遵守 page_size=5 上限，实际 ${lotItems.length}`
+    ).toBeLessThanOrEqual(5);
+
+    const reqs = await apiCallRaw<{ items?: unknown; total?: unknown }>(
+      page,
+      'GET',
+      '/chemical-requisitions?page=1&page_size=5'
+    );
+    const reqItems = requireItems(reqs, 'GET /chemical-requisitions?page=1&page_size=5');
+    expect(
+      typeof reqs.total,
+      `/chemical-requisitions total 必须为 number，实际 ${JSON.stringify(reqs)}`
+    ).toBe('number');
+    expect(
+      reqItems.length,
+      `/chemical-requisitions 应遵守 page_size=5 上限，实际 ${reqItems.length}`
+    ).toBeLessThanOrEqual(5);
+
+    const tree = await apiCallRaw<unknown>(page, 'GET', '/chemical-categories/tree');
+    expect(
+      Array.isArray(tree),
+      `/chemical-categories/tree 应为裸数组信封（handler Vec<Model>），实际 ${JSON.stringify(tree)}`
+    ).toBe(true);
   });
 
   test('62-02 台账主数据：API 建账 → by-code 落库真值 → UI 列表回读 → UI 改名 → 详情回读', async ({

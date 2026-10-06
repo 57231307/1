@@ -6,7 +6,6 @@ import {
   apiCallExpectFail,
   genCode,
   failureCode,
-  verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
   APP_ERROR_CODES,
   BASE_URL,
@@ -32,8 +31,9 @@ import { fillFieldByLabel, formItemByExactLabel, pickSelectIn } from './ui-helpe
  * 真实响应模型完成（本 spec 如此处理），不给未注册端点写 strict 断言。
  *
  * 假绿防线：
- * - 已注册端点全部走 verifyEndpointHealthy（404/403 判红）；吞 404/403 的宽松「可选端点」
- *   健康探测类别不存在，此类 helper 已删除，不得复活；
+ * - 冒烟健康位（60-01）改为 apiCallRaw 直读信封显式断形（非 2xx 即抛，404/403/5xx 判红语义
+ *   不弱于严格健康探测；吞 404/403 的宽松「可选端点」探测类别不存在，不得复活）；
+ *   落库真值由 60-02/05/07/09 自建数据逐字段回读承担；
  * - docx 打印走 verifyDownloadEndpointHealthy（JSON helper 会对 200 的二进制做 JSON.parse 假红）；
  * - 每个创建/撤销动作之后都按 id / permit_no / monitoring_point 从 GET 端点回读
  *   真实落库字段值（类型、许可量、状态、超标判定、自动过期回写），toast 只作过程信号。
@@ -98,10 +98,60 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
     await expect(page.getByRole('tab', { name: '排污许可证', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '污染物监测', exact: true })).toBeVisible();
 
-    await verifyEndpointHealthy(page, '/pollution-permits?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/pollution-permits/expiry-warnings');
-    await verifyEndpointHealthy(page, '/pollution-monitoring/records?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/pollution-monitoring/exceedance-alerts');
+    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，信封形状（{items,total} 键、
+    // page_size 上限、扫描族裸数组）漂移全抓不到。apiCallRaw 非 2xx 即抛（404/403/5xx
+    // 判红语义不变），在此基础上回读真实信封显式断形；具体落库键值真值属 60-02/05/07
+    // （那些用例自建数据逐字段钉值），此处不重复造数。
+    const permits = await apiCallRaw<{ items?: unknown; total?: unknown }>(
+      page,
+      'GET',
+      '/pollution-permits?page=1&page_size=5'
+    );
+    const permitItems = requireItems(permits, 'GET /pollution-permits?page=1&page_size=5');
+    expect(
+      typeof permits.total,
+      `/pollution-permits total 必须为 number（handler {items,total} 信封），实际 ${JSON.stringify(
+        permits
+      )}`
+    ).toBe('number');
+    expect(
+      permitItems.length,
+      `/pollution-permits 应遵守 page_size=5 上限，实际 ${permitItems.length}`
+    ).toBeLessThanOrEqual(5);
+
+    const warnings = await apiCallRaw<unknown>(page, 'GET', '/pollution-permits/expiry-warnings');
+    expect(
+      Array.isArray(warnings),
+      `expiry-warnings 应为裸数组信封（handler to_value(Vec)），实际 ${JSON.stringify(warnings)}`
+    ).toBe(true);
+
+    const records = await apiCallRaw<{ items?: unknown; total?: unknown }>(
+      page,
+      'GET',
+      '/pollution-monitoring/records?page=1&page_size=5'
+    );
+    const recordItems = requireItems(
+      records,
+      'GET /pollution-monitoring/records?page=1&page_size=5'
+    );
+    expect(
+      typeof records.total,
+      `/pollution-monitoring/records total 必须为 number，实际 ${JSON.stringify(records)}`
+    ).toBe('number');
+    expect(
+      recordItems.length,
+      `/pollution-monitoring/records 应遵守 page_size=5 上限，实际 ${recordItems.length}`
+    ).toBeLessThanOrEqual(5);
+
+    const alerts = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      '/pollution-monitoring/exceedance-alerts'
+    );
+    expect(
+      Array.isArray(alerts),
+      `exceedance-alerts 应为裸数组信封（handler to_value(Vec)），实际 ${JSON.stringify(alerts)}`
+    ).toBe(true);
   });
 
   test('60-02 UI 新建许可证（类型=固废/许可量 5000 t/a）→ 列表回读 → API 全字段落库真值', async ({

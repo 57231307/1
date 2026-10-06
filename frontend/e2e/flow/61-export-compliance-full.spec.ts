@@ -8,7 +8,6 @@ import {
   getCtx,
   genCode,
   failureCode,
-  verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
   APP_ERROR_CODES,
   BASE_URL,
@@ -85,16 +84,60 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     await expect(page.getByRole('tab', { name: '贸易术语', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '环保税', exact: true })).toBeVisible();
 
-    await verifyEndpointHealthy(page, '/export-refunds/refund-declarations');
-    await verifyEndpointHealthy(
+    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，信封形状漂移全抓不到——
+    // refund-declarations/discharge-records/tax-declarations 的 handler 出参是显式 Vec
+    // 裸数组（export_refund_handler.rs:105-114 / environmental_tax_handler.rs:53-78，
+    // 后者是 check-api-envelope 静态比对依据），usage-report 出参是 {year,month,items}
+    // 三键对象（incoterms_service.rs:41-45）。apiCallRaw 非 2xx 即抛，404/403 判红不变；
+    // 在此之上回读真实信封显式断形。金额链等落库真值属 61-05/08/09（自建数据钉值）。
+    const declarations = await apiCallRaw<unknown>(
       page,
+      'GET',
+      '/export-refunds/refund-declarations'
+    );
+    expect(
+      Array.isArray(declarations),
+      `refund-declarations 应为裸数组信封（Vec<RefundModel>），实际 ${JSON.stringify(declarations)}`
+    ).toBe(true);
+
+    const discharge = await apiCallRaw<Array<Record<string, unknown>>>(
+      page,
+      'GET',
       '/environmental-tax/discharge-records?period_year=2098&period_month=7'
     );
-    await verifyEndpointHealthy(
+    expect(
+      Array.isArray(discharge),
+      `discharge-records 应为裸数组信封（Vec<pollutant_discharge_record::Model>），实际 ${JSON.stringify(
+        discharge
+      )}`
+    ).toBe(true);
+    // 期间精确等值过滤（service list_by_period）：任何不属于 2098-07 的行混入即筛选契约破坏。
+    expect(
+      discharge.filter(it => it.period_year !== 2098 || it.period_month !== 7).length,
+      `discharge-records 不得混入非 2098-07 期间行：${JSON.stringify(discharge)}`
+    ).toBe(0);
+
+    const taxDecl = await apiCallRaw<unknown>(
       page,
+      'GET',
       '/environmental-tax/tax-declarations?period_year=2098&period_month=7'
     );
-    await verifyEndpointHealthy(page, '/incoterms/usage-report?year=2020&month=1');
+    expect(
+      Array.isArray(taxDecl),
+      `tax-declarations 应为裸数组信封（Vec<EnvironmentalTaxResult>），实际 ${JSON.stringify(taxDecl)}`
+    ).toBe(true);
+
+    const usage = await apiCallRaw<{ year?: unknown; month?: unknown; items?: unknown }>(
+      page,
+      'GET',
+      '/incoterms/usage-report?year=2020&month=1'
+    );
+    expect(usage?.year, `usage-report 应回显 year=2020，实际 ${JSON.stringify(usage)}`).toBe(2020);
+    expect(usage?.month, `usage-report 应回显 month=1，实际 ${JSON.stringify(usage)}`).toBe(1);
+    expect(
+      Array.isArray(usage?.items),
+      `usage-report items 必须为数组（缺键即判红，禁 ?? []），实际 ${JSON.stringify(usage)}`
+    ).toBe(true);
   });
 
   test('61-02 UI 新建报关单 → POST 真实响应回读落库值；单证核验语义回读', async ({ page }) => {

@@ -9,7 +9,6 @@ import {
   failureCode,
   deferCleanup,
   flushDeferredCleanups,
-  verifyEndpointHealthy,
   APP_ERROR_CODES,
   BASE_URL,
   type ApiFailureResult,
@@ -62,7 +61,8 @@ import {
  * ③ partial_returned 态同样无端点入口（无 return 动作路由）→ 不测。
  * 以上作为"端点缺失/仅单测覆盖"上报主编排。
  *
- * 假绿防线：全部已注册端点严格 verifyEndpointHealthy；写后 GET 回读落库真值、被拒写回读断
+ * 假绿防线：健康位一律改直读信封显式断形（apiCallRaw 非 2xx 即抛，404/403/5xx 判红不弱于
+ * 严格健康探测；分页族 readPaged 四键全断、tree 裸数组 requirePlainArray）；写后 GET 回读落库真值、被拒写回读断
  * 无痕/原值未变；rust_decimal 字符串出参一律 Number() 归一；禁 `?? []`/双形状探测/兜底默认值；
  * 数据自建自流转（genCode 唯一码），软删记录用 tryCleanup 幂等兜底清理。
  */
@@ -207,8 +207,23 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
   test('70-01 分类树：建根+子→tree 真值→停用出树→删除守卫→软删 404→软删后编码复用；负例', async ({
     page,
   }) => {
-    await verifyEndpointHealthy(page, '/chemical-categories?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/chemical-categories/tree');
+    // #267-B 收紧：原判据 verifyEndpointHealthy 只判 2xx，PaginatedResponse 四键与 tree
+    // 裸数组契约漂移抓不到。readPaged/requirePlainArray 走 apiCallRaw（非 2xx 即抛，
+    // 404/403 判红不变）+ 信封显式断形；本用例后续（tree 含根/子、停用出树、软删 404）
+    // 的真值断言不在此重复。
+    const catProbe = await readPaged(
+      page,
+      '/chemical-categories?page=1&page_size=5',
+      'GET /chemical-categories?page=1&page_size=5'
+    );
+    expect(
+      catProbe.length,
+      `/chemical-categories 应遵守 page_size=5 上限，实际 ${catProbe.length}`
+    ).toBeLessThanOrEqual(5);
+    requirePlainArray(
+      await apiCallRaw<unknown>(page, 'GET', '/chemical-categories/tree'),
+      'GET /chemical-categories/tree'
+    );
 
     // 根分类（category_type 复用 chemical_type 词表：validate_chemical_type，category.rs:35）
     const rootCode = genCode('E2E70CRT');
@@ -340,7 +355,16 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     // "软删后同码可复用"（70-01 childCode、70-02 chemical_code 同源钉桩）。
     // 本用例主体记录**全程保持未删**，只锁"未删重复必拒"这半边语义，与 70-01
     // 的"软删可复用"互不掺杂，不再出现改前 70-01 先删根、后断根码重复的自序矛盾。
-    await verifyEndpointHealthy(page, '/chemical-categories?page=1&page_size=5');
+    // #267-B 收紧：原 verifyEndpointHealthy 只判 2xx → readPaged 直读四键信封 + page_size 上限。
+    const dupProbe = await readPaged(
+      page,
+      '/chemical-categories?page=1&page_size=5',
+      'GET /chemical-categories?page=1&page_size=5（70-01b）'
+    );
+    expect(
+      dupProbe.length,
+      `/chemical-categories 应遵守 page_size=5 上限，实际 ${dupProbe.length}`
+    ).toBeLessThanOrEqual(5);
 
     const dupCode = genCode('E2E70CRD');
     const originName = `70判重主体${dupCode}`;
@@ -558,12 +582,27 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     expect(newId > 0 && newId !== id, `软删后同编码应可重建：${JSON.stringify(revived)}`).toBe(
       true
     );
-    // 重建行 newId 在末尾还要按 code 走 verifyEndpointHealthy（by-code 命中未删的 newId）——
-    // 当场软删会让该健康探针 404，故登记到本用例断言之后再清理
+    // 重建行 newId 在末尾还要按 code 走 by-code 回读断形——
+    // 当场软删会让该读路径 404，故登记到本用例断言之后再清理
     deferCleanup(CLEANUP, 'DELETE', `/chemicals/${newId}`, '[70] chemical 重建');
 
-    // UI 页面与端点严格健康（不重复 62 的 UI 编辑链路）
-    await verifyEndpointHealthy(page, `/chemicals/by-code/${encodeURIComponent(code)}`);
+    // UI 页面可达 + by-code 读路径真值回读（不重复 62 的 UI 编辑链路）。
+    // #267-B 收紧：原 verifyEndpointHealthy 只判 2xx——软删重建后 by-code 若错误命中
+    // 已软删旧行、或编码键漂移，健康探针全察觉不到；改为钉 by-code 返回体逐键：
+    // chemical_code 逐字等于复用编码，且 id 必须是重建新行 newId（软删旧行不可见）。
+    const byCodeAfterRebuild = await apiCallRaw<Row>(
+      page,
+      'GET',
+      `/chemicals/by-code/${encodeURIComponent(code)}`
+    );
+    expect(
+      byCodeAfterRebuild.chemical_code,
+      `by-code 回读编码应逐字等于 ${code}，实际 ${JSON.stringify(byCodeAfterRebuild)}`
+    ).toBe(code);
+    expect(
+      Number(byCodeAfterRebuild.id),
+      `by-code 应命中软删后重建的新行 id=${newId}（已软删旧 id=${id} 不可见）`
+    ).toBe(newId);
     await page.goto(`${BASE_URL}/chemicals`);
     await expect(page.getByRole('tab', { name: '染化料', exact: true })).toBeVisible();
   });

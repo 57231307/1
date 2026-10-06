@@ -7,7 +7,6 @@ import {
   apiCallExpectFail,
   genCode,
   failureCode,
-  verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
   APP_ERROR_CODES,
   BASE_URL,
@@ -65,7 +64,8 @@ import { findTableRow } from './ui-helpers';
  *    行内容断言即该修复的活体回归锁，禁止反过来删断言换绿。
  *
  * 假绿防线：
- * - 已注册 GET 端点全部严格 verifyEndpointHealthy（404/403 判红）；本域端点均已注册，无 optional 场景；
+ * - 冒烟健康位（69-01）改为 readList 直读 {list,total} 信封并钉 page_size 上限（apiCallRaw
+ *   非 2xx 即抛，404/403 判红语义不弱于严格健康探测；本域端点均已注册，无 optional 场景）；
  * - 每次写操作后按唯一标记从 GET 列表回读逐字段断言落库真值；被拒的写回读断"无痕"；
  * - rust_decimal 出参是字符串（rust_decimal serde 默认），一律 Number() 归一后比较；
  * - 信封显式钉桩：list 键必须为数组、裸数组端点必须 Array.isArray，禁 `?? []` 兜底；
@@ -163,9 +163,38 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
     await expect(page.getByRole('tab', { name: '危害因素监测', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '劳保用品发放', exact: true })).toBeVisible();
 
-    await verifyEndpointHealthy(page, '/occupational-health/hazard-monitorings?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/occupational-health/health-exams?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/occupational-health/ppe-distributions?page=1&page_size=5');
+    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，{list,total} 信封（本域非
+    // items 形状，occupational_health_handler.rs:30-38/:56-63/:92-99 json!({list,total})）
+    // 与 page_size 上限（service :270/:360/:466 clamp(1,200)+limit）漂移全抓不到。
+    // readList 走 apiCallRaw：非 2xx 即抛（404/403/5xx 判红不变）+ list/total 显式断形。
+    // 键值真值属 69-02~04（自建数据逐字段回读），此处不重复造数。
+    const hazards = await readList(
+      page,
+      '/occupational-health/hazard-monitorings?page=1&page_size=5',
+      'GET /occupational-health/hazard-monitorings'
+    );
+    expect(
+      hazards.length,
+      `hazard-monitorings 应遵守 page_size=5 上限，实际 ${hazards.length}`
+    ).toBeLessThanOrEqual(5);
+    const exams = await readList(
+      page,
+      '/occupational-health/health-exams?page=1&page_size=5',
+      'GET /occupational-health/health-exams'
+    );
+    expect(
+      exams.length,
+      `health-exams 应遵守 page_size=5 上限，实际 ${exams.length}`
+    ).toBeLessThanOrEqual(5);
+    const ppe = await readList(
+      page,
+      '/occupational-health/ppe-distributions?page=1&page_size=5',
+      'GET /occupational-health/ppe-distributions'
+    );
+    expect(
+      ppe.length,
+      `ppe-distributions 应遵守 page_size=5 上限，实际 ${ppe.length}`
+    ).toBeLessThanOrEqual(5);
   });
 
   test('69-02 危害因素监测：超标判定真值/边界=限值不超标/only_exceeding 过滤/UI 回读/打印', async ({
