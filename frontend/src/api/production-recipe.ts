@@ -84,6 +84,34 @@ export interface CalculateAmountsPayload {
 }
 
 /**
+ * 更新大货处方请求体（对齐后端 UpdateProductionRecipeRequest，
+ * services/production_recipe_service.rs:67-86；仅 draft 态可更新，由 service 的状态门拒绝）。
+ * 与新建载荷分开声明：更新端点的后端结构里**没有** issued_by/created_by 两列，
+ * 复用新建类型会让调用方以为能改开单人/制单人而后端静默丢弃。
+ */
+export interface UpdateProductionRecipePayload {
+  work_order_id?: number;
+  dye_batch_id?: number;
+  source_recipe_id?: number;
+  lab_dip_resample_id?: number;
+  customer_id?: number;
+  color_no?: string;
+  fabric_name?: string;
+  fabric_spec?: string;
+  fabric_width?: number;
+  gram_weight?: number;
+  fabric_weight?: number;
+  equipment_no?: string;
+  liquor_ratio?: string;
+  bath_volume?: number;
+  adjustment_factor?: number;
+  recipe_detail?: RecipeMaterialItem[];
+  total_dye_cost?: number;
+  total_auxiliary_cost?: number;
+  remarks?: string;
+}
+
+/**
  * 大货处方列表查询参数——严格对齐后端 production_recipe_handler.rs::ProductionRecipeListQuery。
  * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
  * color_no 为色号（空即白坯）。
@@ -116,7 +144,7 @@ export function createProductionRecipe(
 
 export function updateProductionRecipe(
   id: number,
-  data: Partial<CreateProductionRecipePayload>
+  data: UpdateProductionRecipePayload
 ): Promise<ApiResponse<ProductionRecipe>> {
   return request.put(`/production/production-recipes/${id}`, data);
 }
