@@ -366,8 +366,6 @@ interface OpportunityRow extends Opportunity {
   owner_name?: string;
   last_follow_up_date?: string;
   priority?: string;
-  // 批次 95 P3-19 修复：补充列表/详情展示所需字段（后端返回，类型定义缺失）
-  win_probability?: number;
 }
 
 // 键名与后端 OpportunityQuery（crm_dto.rs:108）对齐：后端不读 keyword/owner_id/priority

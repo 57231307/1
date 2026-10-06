@@ -57,7 +57,10 @@ export interface Opportunity {
   // 后端 CreateOpportunityRequest / crm_opportunity 契约字段
   opportunity_name?: string;
   opportunity_type?: string;
-  win_probability?: number;
+  /** 赢率：模型列 Option<Decimal>（backend/src/models/crm_opportunity.rs:40），列表/详情以
+   * crm_opportunity::Model 整行序列化出参（backend/src/services/crm/opp.rs:184-193），
+   * rust_decimal 序列化为 JSON 字符串、库中无值为 null——非 number。 */
+  win_probability?: string | null;
   owner_id?: number;
   product_desc?: string;
   remarks?: string;
@@ -329,17 +332,20 @@ export function exportOpportunities(params?: OpportunityQueryParams): Promise<Bl
 
 // ============== V15 P1/P2 商机分析与线索增强（Batch 补齐 API 封装）==============
 
-/** 销售漏斗报告（对应后端 services/crm/opp.rs::SalesFunnelReport） */
+/** 销售漏斗报告（对应后端 services/crm/opp.rs::SalesFunnelReport）
+ * 金额四列后端为 rust_decimal::Decimal（opp.rs:1377/1380/1382/1383），handler 经
+ * serde_json::to_value 整结构直出（handlers/crm_handler.rs:1631-1641）→ JSON 字符串；
+ * 计数列 i64、转化率列 f64 → JSON number，格式化须经 Number 归一。 */
 export interface SalesFunnelReport {
   lead_count: number;
   opportunity_count: number;
-  opportunity_amount: number;
+  opportunity_amount: string;
   quotation_count: number;
   won_count: number;
-  won_amount: number;
+  won_amount: string;
   order_count: number;
-  order_amount: number;
-  collected_amount: number;
+  order_amount: string;
+  collected_amount: string;
   lead_to_opp_rate: number;
   opp_to_quotation_rate: number;
   opp_to_order_rate: number;
@@ -348,19 +354,21 @@ export interface SalesFunnelReport {
 
 /** 加权预测项（对应后端 WeightedForecastItem）
  * 金额列为 crm_opportunity 真实可空语义（无值 = null，后端不再伪造 0）；
- * Decimal 序列化为 JSON 字符串，格式化须经 Number 归一 */
+ * 赢率列同为 rust_decimal::Decimal（opp.rs:1346 非 Option）——两者经 Decimal serde
+ * 序列化为 JSON 字符串，格式化须经 Number 归一 */
 export interface WeightedForecastItem {
   opportunity_id: number;
   opportunity_no: string;
   opportunity_name: string;
   stage: string;
   estimated_amount: string | null;
-  win_probability: number;
+  win_probability: string;
   weighted_amount: string | null;
   expected_close_date?: string;
 }
 
-/** 加权预测结果（对应后端 WeightedForecastResult；合计为 Decimal → JSON 字符串） */
+/** 加权预测结果（对应后端 WeightedForecastResult；合计为 Decimal → JSON 字符串，
+ * total_opportunities 为 i64 → number，opp.rs:1329-1331） */
 export interface WeightedForecastResult {
   total_opportunities: number;
   total_estimated_amount: string;
@@ -368,13 +376,15 @@ export interface WeightedForecastResult {
   details: WeightedForecastItem[];
 }
 
-/** 预测准确性结果（对应后端 ForecastAccuracyResult） */
+/** 预测准确性结果（对应后端 ForecastAccuracyResult）
+ * forecast_amount/actual_amount 为 rust_decimal::Decimal（opp.rs:1319/1321）→ JSON 字符串；
+ * accuracy_rate 为 f64（opp.rs:1323）→ number；计数列 i64、year/month 列 i32/u32 → number */
 export interface ForecastAccuracyResult {
   year: number;
   month: number;
-  forecast_amount: number;
+  forecast_amount: string;
   forecast_count: number;
-  actual_amount: number;
+  actual_amount: string;
   won_count: number;
   accuracy_rate: number;
 }

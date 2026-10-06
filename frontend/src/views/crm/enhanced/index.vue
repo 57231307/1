@@ -453,8 +453,10 @@ const fmtAmount = (value: string | number | null | undefined): string =>
     ? '-'
     : Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 
-const fmtRate = (value: number | null | undefined): string =>
-  value == null ? '-' : `${Number(value).toFixed(1)}%`;
+// 比率既有 f64 出参（number），也有 Decimal 出参（如加权预测明细 win_probability，
+// 后端 opp.rs:1346 → JSON 字符串），统一经 Number 归一后格式化
+const fmtRate = (value: string | number | null | undefined): string =>
+  value == null || value === '' ? '-' : `${Number(value).toFixed(1)}%`;
 
 // ============== 页签一：销售漏斗 ==============
 
@@ -465,7 +467,8 @@ const funnelReport = ref<SalesFunnelReport | null>(null);
 interface FunnelRow {
   stage: string;
   count: number | null;
-  amount: number | null;
+  // 漏斗金额列为后端 Decimal → JSON 字符串，经 fmtAmount 归一展示
+  amount: string | number | null;
   rate: number | null;
 }
 
