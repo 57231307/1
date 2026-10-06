@@ -1,6 +1,6 @@
-//! 后端安全「建单人只认服务端会话」行为级活体证明 —— 第 5 批（库存盘点 / 存货跌价准备）
+//! 后端安全「建单人只认服务端会话」行为级活体证明 —— 库存盘点 / 存货跌价准备两域
 //!
-//! 复核结论（先取证后动手，源码零改动）：本组两个被点名的落库点，其身份值
+//! 落库事实基线：两域建单落库点的身份值
 //! **已经**只能来自服务端会话，请求体根本没有承载身份的字段：
 //! - 盘点：`handlers/inventory_count_handler.rs` 的 `create_count` 组装 `CreateCountRequest`
 //!   时写 `created_by: Some(auth.user_id)`，服务层 `inventory_count_service.rs` 的
@@ -16,7 +16,7 @@
 //!   而非 `Set(Some(user_id))`；`inventory_counts.created_by` 则是可空列
 //!   （`backend/migration/src/domain/system/m0001_initial_schema.rs` 的 `inventory_counts` 建表段）⇒ `Option<i32>`。
 //!
-//! 因此本批**不改业务源码**，改为把上述事实钉成回归锁（一旦有人把身份退回请求体
+//! 上述事实以回归锁钉死（一旦有人把身份退回请求体
 //! 或在 handler 里换成 body 取值，当场判红）：
 //! ① 会话注入用户 A（`from_fn_with_state(make_auth(A), inject_auth)`）；
 //! ② 请求体故意携带伪造用户 B 的 `created_by`/`operator_id`/`user_id`；
@@ -145,7 +145,7 @@ fn created_id(status: StatusCode, v: &Value, what: &str) -> i32 {
         .unwrap_or_else(|| panic!("{what} 出参必须携带新行 id, 实际: {v}")) as i32
 }
 
-/// 断言可空建单人列（inventory_counts.created_by，m0001:577 可空）归会话用户 A、绝归伪造 B
+/// 断言可空建单人列（inventory_counts.created_by，DDL 见 m0001_initial_schema 的 inventory_counts 建表段，可空）归会话用户 A、绝归伪造 B
 fn assert_created_by_is_session(row_created_by: Option<i32>, what: &str) {
     assert_eq!(
         row_created_by,

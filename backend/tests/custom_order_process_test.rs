@@ -56,12 +56,13 @@ fn test_node_type_to_status_mapping() {
 }
 
 // =========================================================
-// #323c 站点活体锁（真 PostgreSQL + tower oneshot 真实 handler）：
+// 节点操作人身份只认服务端会话的站点活体锁（真 PostgreSQL + tower oneshot 真实 handler）：
 // PUT /custom-orders/{oid}/nodes/{nid} 的操作人身份只准取会话
 // （AuthContext.user_id）。请求体即便多带伪造的另一个用户 B，
 // process_nodes.operator_id 也必须是 A ——审计归属不可被客户端伪造。
 // 夹具形态照抄 contract_wave11_optional_json_body + wave5 状态合一锁
-// （users/customers/products/custom_orders 全链路 FK 自种，见 m0044:102/147/156）。
+// （users/customers/products/custom_orders 全链路 FK 自种，
+// 见 m0044_integrate_unreferenced_migrations.rs 的 custom_orders / process_nodes 建表段）。
 // =========================================================
 
 mod test_common;
@@ -117,7 +118,7 @@ async fn seed_user(db: &sea_orm::DatabaseConnection, tag: &str) -> i32 {
 async fn seed_node_chain(db: &sea_orm::DatabaseConnection) -> (i64, i32, i32) {
     let now = Utc::now();
     let user_a = seed_user(db, "a").await;
-    // B 必须真实存在：operator_id → users(id) 有 FK（m0044:156），
+    // B 必须真实存在：operator_id → users(id) 有 FK（见 m0044 迁移的 process_nodes 建表段），
     // 若 B 无行，修复被回退时锁会先炸成 500 FK 违反而不是断言红，失去指向性。
     let user_b = seed_user(db, "b").await;
 

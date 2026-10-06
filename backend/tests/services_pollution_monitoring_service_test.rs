@@ -2,7 +2,7 @@ use bingxi_backend::services::pollution_monitoring_service::*;
 use rust_decimal::Decimal;
 
 // =========================================================
-// #323c 站点活体锁（真 PostgreSQL + tower oneshot 真实 handler）：
+// 登记人身份只认服务端会话的站点活体锁（真 PostgreSQL + tower oneshot 真实 handler）：
 // POST /pollution-monitoring/records 的登记人身份只准取会话
 // （AuthContext.user_id）。请求体即便多带伪造的另一个用户 B，
 // pollutant_monitoring_records.operator_id 也必须是 A。
