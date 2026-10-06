@@ -23,6 +23,7 @@ use crate::services::flow_card_service::{
     UpdateProcessRouteRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 // ============================================================================
@@ -338,8 +339,18 @@ pub async fn start_step(
 pub async fn complete_step(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(req): Json<CompleteStepRequest>,
+    // 结束工序的产量/描述字段全部选填：缺体经 OptionalJson 归一为「未采集」
+    // （逐字段 None，等价体 {}），状态门与合格量≤实际量校验仍由服务层真实执行
+    OptionalJson(req): OptionalJson<CompleteStepRequest>,
 ) -> Result<Json<ApiResponse<process_step_record::Model>>, AppError> {
+    let req = req.unwrap_or(CompleteStepRequest {
+        actual_quantity: None,
+        qualified_quantity: None,
+        abnormal_description: None,
+        handling_opinion: None,
+        remarks: None,
+        pieces: None,
+    });
     let model = step_service(&state).complete_step(id, req).await?;
     Ok(Json(ApiResponse::success(model)))
 }

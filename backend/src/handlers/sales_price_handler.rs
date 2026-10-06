@@ -5,16 +5,17 @@ use crate::models::status::price_approval;
 use crate::services::sales_price_service::{
     CreateSalesPriceInput, SalesPriceService, SalesPriceView, UpdateSalesPriceInput,
 };
-use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -147,13 +148,13 @@ pub async fn approve_price(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-    payload: Option<Json<ApprovePriceRequest>>,
+    payload: OptionalJson<ApprovePriceRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 入参保持 `Option<Json<T>>` 形态（本仓先例：advanced/forecast.rs:94、
-    // advanced/rec.rs:23、print_handler.rs:1520/1559）：改强类型 `Json<T>` 会让
-    // 现存不带 body 的调用方在 axum 解码层收到无信封裸 400，属破坏性变更；
-    // 缺 body/缺键改由下方"通过理由必填"校验分支给出统一 AppError 信封。
-    let req = payload.map(|Json(req)| req);
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400；缺体在此归一为 None，由下方"通过理由必填"校验分支给出
+    // 统一 AppError 信封（字段必填语义不变，不属于放松必填）。
+    let req = payload.0;
 
     // 端点单一职责：本端点只处理批准，approved=false 不做任何写入，拒绝指向真实
     // 存在的独立拒绝端点（reject_price）。

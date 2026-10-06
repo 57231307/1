@@ -34,6 +34,7 @@ use crate::services::bulk_color_approval_service::{
     ListBulkColorApprovalQuery,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 // ==================== DTO 定义 ====================
@@ -344,9 +345,12 @@ pub async fn customer_approve(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(dto): Json<CustomerApproveDto>,
+    // 反馈/色差值选填：缺体经 OptionalJson 归一为「未采集」（等价体 {}），
+    // 状态门仍由服务层 customer_approve 真实执行
+    OptionalJson(dto): OptionalJson<CustomerApproveDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
     let service = BulkColorApprovalService::from_state(&state);
+    let dto = dto.unwrap_or_default();
     let record = service
         .customer_approve(id, auth.user_id, dto.feedback, dto.delta_e_value)
         .await

@@ -35,6 +35,7 @@ use crate::models::bad_debt_provision;
 use crate::models::bad_debt_writeoff;
 use crate::services::bad_debt_service::{BadDebtError, BadDebtService};
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 // ==================== 响应 DTO ====================
@@ -320,11 +321,16 @@ pub async fn finance_approve(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<ApproveWriteoffRequest>,
+    OptionalJson(req): OptionalJson<ApproveWriteoffRequest>,
 ) -> Result<Json<ApiResponse<WriteoffInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
+    // 缺体归一为「审批意见未采集」（等价于体 {}），comment 仍由服务层按 Option 语义处理
     let record = service
-        .finance_approve(id, auth.user_id, req)
+        .finance_approve(
+            id,
+            auth.user_id,
+            req.unwrap_or(ApproveWriteoffRequest { comment: None }),
+        )
         .await
         .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
@@ -335,11 +341,15 @@ pub async fn general_manager_approve(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<ApproveWriteoffRequest>,
+    OptionalJson(req): OptionalJson<ApproveWriteoffRequest>,
 ) -> Result<Json<ApiResponse<WriteoffInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
     let record = service
-        .general_manager_approve(id, auth.user_id, req)
+        .general_manager_approve(
+            id,
+            auth.user_id,
+            req.unwrap_or(ApproveWriteoffRequest { comment: None }),
+        )
         .await
         .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))

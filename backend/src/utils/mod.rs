@@ -70,3 +70,5 @@ pub mod migration_jump_detector;
 pub mod state_machine_trait;
 // A.6.1: 统一任务调度框架 trait + 注册中心（5 scheduler 统一管理）
 pub mod scheduler_framework;
+// 选填 JSON 请求体提取器：把「缺体=未采集」的裁决权收回本仓（语义表见模块文档）
+pub mod optional_json;

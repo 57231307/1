@@ -5,16 +5,17 @@ use crate::services::sales_contract_service::{
     CreateContractItemRequest, CreateSalesContractRequest, ExecuteSalesContractRequest,
     SalesContractService,
 };
-use crate::utils::error::AppError;
 use crate::utils::ApiResponse;
+use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -345,14 +346,13 @@ pub async fn approve_contract(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    payload: Option<Json<ApproveSalesContractRequest>>,
+    payload: OptionalJson<ApproveSalesContractRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
-    // 现存不带 body 的调用方（前端 api/sales-contract.ts 批准不发体）若改强类型
-    // `Json<T>` 会在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键由下方必填
-    // 分支给出统一 AppError 信封。
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400；缺体在此归一为 None，由下方必填分支给出统一 AppError 信封。
     let approval_reason = payload
-        .map(|Json(req)| req)
+        .0
         .and_then(|r| r.approval_reason)
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())

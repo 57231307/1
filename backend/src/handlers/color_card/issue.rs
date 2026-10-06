@@ -23,6 +23,7 @@ use crate::services::color_card_issue_service::{
 };
 use crate::services::role_permission_service::RolePermissionService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
@@ -236,10 +237,12 @@ pub async fn return_issue(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
-    Json(dto): Json<ReturnColorCardDto>,
+    // 归还日期/备注选填：缺体经 OptionalJson 归一为「未采集」（等价体 {}）
+    OptionalJson(dto): OptionalJson<ReturnColorCardDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
     // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
     require_issue_permission(&state, &auth, "return").await?;
+    let dto = dto.unwrap_or_default();
 
     let user_id = auth.user_id as i64;
     let service = ColorCardIssueService::from_state(&state);
@@ -314,10 +317,12 @@ pub async fn mark_issue_damaged(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
-    Json(dto): Json<MarkDamagedDto>,
+    // 赔偿额/备注选填：缺体经 OptionalJson 归一为「未采集」
+    OptionalJson(dto): OptionalJson<MarkDamagedDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
     // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
     require_issue_permission(&state, &auth, "damaged").await?;
+    let dto = dto.unwrap_or_default();
 
     let service = ColorCardIssueService::from_state(&state);
 
@@ -352,10 +357,12 @@ pub async fn cancel_issue(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
-    Json(dto): Json<CancelIssueDto>,
+    // 取消备注选填：缺体经 OptionalJson 归一为「未采集」
+    OptionalJson(dto): OptionalJson<CancelIssueDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
     // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库经理）
     require_issue_permission(&state, &auth, "cancel").await?;
+    let dto = dto.unwrap_or_default();
 
     let service = ColorCardIssueService::from_state(&state);
 

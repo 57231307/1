@@ -7,6 +7,7 @@ use crate::services::budget_management_service::{BudgetControlResponse, BudgetMa
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
     Json,
@@ -382,13 +383,14 @@ pub async fn approve_plan(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<BudgetApproveRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为 None，交由服务层状态门判定
+    OptionalJson(req): OptionalJson<BudgetApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批预算方案：{}", auth.username, id);
 
     let service = BudgetManagementService::new(state.db.clone());
     service
-        .approve_plan(id, auth.user_id, req.approval_comment)
+        .approve_plan(id, auth.user_id, req.and_then(|r| r.approval_comment))
         .await?;
 
     info!("预算方案审批通过：{}", id);
@@ -654,16 +656,21 @@ pub async fn approve_budget(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<ApproveBudgetDto>,
+    // 审批意见选填：缺体经 OptionalJson 归一为 None；有体时字段校验照常执行
+    OptionalJson(req): OptionalJson<ApproveBudgetDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 审批预算: ID={}", auth.username, id);
 
     // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate().map_err(AppError::from)?;
+    if let Some(r) = req.as_ref() {
+        r.validate().map_err(AppError::from)?;
+    }
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    service.approve_plan(id, auth.user_id, req.opinion).await?;
+    service
+        .approve_plan(id, auth.user_id, req.and_then(|r| r.opinion))
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"id": id}),

@@ -14,10 +14,11 @@ use crate::services::po::{
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, RelationTrait};
 use serde::{Deserialize, Serialize};
@@ -320,17 +321,18 @@ pub async fn approve_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    payload: Option<Json<ApprovePurchaseOrderRequest>>,
+    payload: OptionalJson<ApprovePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
-    // 现存不带 body 的调用方（前端 api/purchase.ts 批准不发体）若改强类型 `Json<T>`
-    // 会在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键在选填档直接按未采集放行。
-    // 选填口径：空/纯空白一律归一为 None ⇒ 列保持 NULL，不得伪造成必填、也不得落空串。
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 的 OptionalFromRequest for Json 只在完全不带
+    // Content-Type 时才放行，"带 JSON 头 + 空体"仍被解码层判 400（红名单 44b-4 实证）。
+    // 缺体/纯空白在此归一为 None ⇒ 列保持 NULL，不得伪造成必填、也不得落空串；
+    // 有体但非法仍走 400 VALIDATION_ERROR。
     let approval_reason = payload
-        .map(|Json(req)| req)
+        .0
         .and_then(|r| r.approval_reason)
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
@@ -627,7 +629,7 @@ pub struct CancelOrderRequest {
 // ========== 数据导出接口 ==========
 
 // V15 P0-S15 修复（Batch 475b）：导出注入水印（操作员/导出时间/导出条数）
-use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

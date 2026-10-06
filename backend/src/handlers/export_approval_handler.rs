@@ -32,6 +32,7 @@ use crate::services::export_approval_service::{
     ApproveRequest, CreateApprovalRequest, ExportApprovalService, ListApprovalQuery,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 /// POST /api/v1/erp/export-approvals
@@ -129,9 +130,11 @@ pub async fn approve_request(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i64>,
-    Json(body): Json<ApproveRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为「未采集」（等价体 comments:null）
+    OptionalJson(body): OptionalJson<ApproveRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = ExportApprovalService::new(state.db);
+    let body = body.unwrap_or(ApproveRequest { comments: None });
     let model = svc
         .approve(id, auth.user_id, auth.username.clone(), None, body)
         .await?;

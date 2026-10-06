@@ -1,8 +1,8 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -14,6 +14,7 @@ use crate::services::so::{CreateSalesOrderRequest, UpdateSalesOrderRequest};
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 /// 查询参数
@@ -404,16 +405,16 @@ pub async fn approve_order(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    payload: Option<Json<ApproveSalesOrderRequest>>,
+    payload: OptionalJson<ApproveSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
-    // 现存不带 body 的调用方（前端 api/sales.ts 批准不发体）若改强类型 `Json<T>`
-    // 会在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键在选填档直接按未采集放行。
-    // 选填口径：空/纯空白一律归一为 None ⇒ 列保持 NULL，不得伪造成必填、也不得落空串。
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400。缺体/纯空白在此归一为 None ⇒ 列保持 NULL，不得伪造成必填、
+    // 也不得落空串；有体但非法仍走 400 VALIDATION_ERROR。
     let approval_reason = payload
-        .map(|Json(req)| req)
+        .0
         .and_then(|r| r.approval_reason)
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
@@ -578,7 +579,7 @@ pub async fn get_order_history(
 
 // ========== 数据导出接口 ==========
 
-use crate::utils::xlsx_export::{build_xlsx_response, XlsxTable};
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};

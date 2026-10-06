@@ -12,6 +12,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::product::Entity as ProductEntity;
 use crate::services::ai::AiAnalysisService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 // ============================================================================
@@ -91,12 +92,13 @@ pub async fn sales_forecast(
 pub async fn inventory_optimization(
     State(state): State<AppState>,
     _auth: AuthContext,
-    payload: Option<Json<InventoryOptimizationRequest>>,
+    payload: OptionalJson<InventoryOptimizationRequest>,
 ) -> Result<Json<ApiResponse<InventoryOptimizationResponse>>, AppError> {
     let db = state.db.clone();
     let service = AiAnalysisService::new(state.db);
 
     let product_id = payload
+        .0
         .as_ref()
         .and_then(|p| p.product_id.map(|pid| pid as i32));
 

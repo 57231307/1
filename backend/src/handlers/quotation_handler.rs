@@ -26,11 +26,12 @@ use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use tracing::warn;
 
@@ -245,14 +246,13 @@ pub async fn approve_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    payload: Option<Json<ApproveQuotationRequest>>,
+    payload: OptionalJson<ApproveQuotationRequest>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
-    // 入参形态用 `Option<Json<T>>`（本仓先例：sales_price_handler.rs approve_price）：
-    // 改强类型 `Json<T>` 会让现存不带 body 的调用方（前端 api/quotation.ts 批准不发体）
-    // 在 axum 解码层收到无信封 400，属破坏性变更；缺体/缺键改由下方必填分支给出
-    // 统一 AppError 信封。
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400；缺体在此归一为 None，由下方必填分支给出统一 AppError 信封。
     let approval_reason = payload
-        .map(|Json(req)| req)
+        .0
         .and_then(|r| r.approval_reason)
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())

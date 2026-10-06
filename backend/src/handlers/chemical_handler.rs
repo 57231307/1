@@ -22,6 +22,7 @@ use crate::services::chemical_service::{
     UpdateChemicalLotRequest, UpdateChemicalMasterRequest, UpdateChemicalRequisitionRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 // ============================================================================
@@ -459,25 +460,28 @@ pub async fn delete_requisition(
 }
 
 /// POST /api/v1/erp/chemical-requisitions/:id/approve - 审批领用单
+// 操作人字段选填：缺体（无 content-type 或 JSON 头 + 空体）是合法输入，
+// 必须放行到服务层状态门（见 utils::optional_json 语义表），不得在解码层被吞成 400。
 pub async fn approve_requisition(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(req): Json<OperatorRequest>,
+    OptionalJson(req): OptionalJson<OperatorRequest>,
 ) -> Result<Json<ApiResponse<chemical_requisition::Model>>, AppError> {
     let model = requisition_service(&state)
-        .approve(id, req.operator_id)
+        .approve(id, req.and_then(|r| r.operator_id))
         .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
 /// POST /api/v1/erp/chemical-requisitions/:id/issue - 发料
+// 同上：理由/操作人选填，缺体归一为 None 后交由服务层业务门判定。
 pub async fn issue_requisition(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(req): Json<OperatorRequest>,
+    OptionalJson(req): OptionalJson<OperatorRequest>,
 ) -> Result<Json<ApiResponse<chemical_requisition::Model>>, AppError> {
     let model = requisition_service(&state)
-        .issue(id, req.operator_id)
+        .issue(id, req.and_then(|r| r.operator_id))
         .await?;
     Ok(Json(ApiResponse::success(model)))
 }
