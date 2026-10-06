@@ -60,9 +60,8 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     ).toBeTruthy();
 
     await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
-    // ApproveRecipeRequest { approved_by: i32 } 必填（自审修复：原调用缺 body 恒 400
-    // 被 catch 掩盖，旧占位状态机下停留草稿恰好通过宽松断言；状态机真实化后必须真审批）
-    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
+    // 审批人取服务端会话身份（approve_recipe 无请求体）；本用例必须真审批而非停留草稿
+    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
 
     const recipe = await apiCallRaw<{ status: string }>(
       page,
@@ -240,9 +239,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.productionRecipeId;
     expect(id, '3-6 未建出大货处方（ctx.productionRecipeId 缺失），本用例前置失败').toBeTruthy();
-    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
-      approved_by: 1,
-    });
+    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
     const recipe = await apiCallRaw<{ status: string }>(
       page,
       'GET',

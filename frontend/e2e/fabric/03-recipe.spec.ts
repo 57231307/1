@@ -14,8 +14,8 @@ import { fillFieldByLabel } from '../flow/ui-helpers';
  * - 后端 dye_recipe.status 曾为中文词表（quality_dyeing.rs::dye_recipe），前端按钮/标签用
  *   英文 → 真实数据行永不渲染审批按钮。现统一为小写英文闭合词表，历史中文值由迁移回填，
  *   中文仅在 i18n 展示层（status='draft' 经 i18n 显示为「草稿」）。
- * - approveDyeRecipe 曾不发 body，后端 approve_recipe 要求 {approved_by:i32} → 点击必 400。
- *   现前端从登录用户 userStore.userInfo.id 取真实 ID 传入（applyAuthMocks 下 /auth/me 返回 id=1）。
+ * - approveDyeRecipe 曾不发 body、后端曾要求 {approved_by:i32} → 点击必 400；现后端审批人改取
+ *   服务端会话（AuthContext.user_id），该端点无请求体，前端不再传身份。
  * 故本用例恢复端到端：硬断言状态标签 + 点击审批 + 断真实「审批成功」toast。
  */
 const CLEANUP: Array<{ path: string; label: string }> = [];
@@ -75,7 +75,7 @@ test.describe('03 染色配方', () => {
   test('03-03 草稿配方可审批（端到端点击 + 断真实 toast）', async ({ page }) => {
     // 假绿清零：原 `if (await approveBtn.isVisible())` 无草稿数据时零断言通过。
     // 词表收口 + approve body 补齐后：造 draft 配方 → 硬断言状态标签为「草稿」、审批按钮渲染
-    // → 真实点击审批 + 确认 → 断成功 toast（点击必成，不再因缺 approved_by 而 400）。
+    // → 真实点击审批 + 确认 → 断成功 toast（审批人由后端按会话派生，无需请求体）。
     const { recipeNo } = await seedDraftRecipe(page);
     await page.goto('/fabric');
     await page.getByRole('tab', { name: /配方/ }).click();
@@ -93,9 +93,9 @@ test.describe('03 染色配方', () => {
     // 限定到 .el-message-box 作用域点确认，避免误命中页面其它同名按钮。
     const msgBox = page.locator('.el-message-box');
     await msgBox.getByRole('button', { name: '确定' }).click();
-    // 注：确认后 approveDyeRecipe(id,{approved_by:userStore.userInfo.id})。后端 validate_can_approve
-    // 允许 draft/pending_approval 审批、approve_recipe 收 approved_by:i32。若此断言仍红，
-    // 属真实登录用户身份/权限或后端 approve 落库侧缺陷（非选择器问题），不改断言方向掩盖，交回复核。
+    // 注：确认后 approveDyeRecipe(id) — 后端 validate_can_approve 允许 draft/pending_approval 审批，
+    // 审批人取会话身份。若此断言仍红，属登录用户权限或后端 approve 落库侧缺陷（非选择器问题），
+    // 不改断言方向掩盖，交回复核。
     await expect(page.getByText(/审批成功/)).toBeVisible({ timeout: 30000 });
   });
 

@@ -236,14 +236,13 @@ test.describe('03 AI 模型版本与评估指标', () => {
     expect(verResp.data!.approval_status).toBe('pending');
 
     // 获取当前用户 ID
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
+    // 审批通过（请求体只带审批结论；审批人由后端按会话 AuthContext.user_id 派生）
 
-    // 审批通过
     const approved = await apiCall<{ id: number; approval_status: string }>(
       page,
       'POST',
       `/ai-models/versions/${versionId}/approve`,
-      { approved_by: me.id, approval_status: 'approved' }
+      { approval_status: 'approved' }
     );
     expect(approved.data!.approval_status).toBe('approved');
 
@@ -271,11 +270,8 @@ test.describe('03 AI 模型版本与评估指标', () => {
       label: 'ai_model_version',
     });
 
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
-
     // approval_status='invalid_status' 非法
     const fail = await apiCallExpectFail(page, 'POST', `/ai-models/versions/${versionId}/approve`, {
-      approved_by: me.id,
       approval_status: 'invalid_status',
     });
     expect(fail.status).toBe(400);

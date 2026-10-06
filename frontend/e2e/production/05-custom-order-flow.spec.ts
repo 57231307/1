@@ -63,14 +63,12 @@ test.describe('05 定制订单 7 阶段流转', () => {
 
   test('05-02 draft → lab_dip 推进成功并回读精确状态', async ({ page }) => {
     const order = await createCustomOrder(page);
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
-
-    // advance: draft → lab_dip（无门控要求）
+    // advance: draft → lab_dip（无门控要求）。操作人由后端按会话派生，请求体只带备注。
     const advanced = await apiCallRaw<CustomOrderResponse>(
       page,
       'POST',
       `/custom-orders/${order.id}/advance`,
-      { operator_id: me.id, notes: 'E2E 测试推进到打样' }
+      { notes: 'E2E 测试推进到打样' }
     );
     expect(advanced.status, `推进后 status 应为 lab_dip，实际: ${advanced.status}`).toBe('lab_dip');
 
@@ -85,18 +83,12 @@ test.describe('05 定制订单 7 阶段流转', () => {
 
   test('05-03 lab_dip → quotation 门控拒绝（缺 lab_dip_request_id）', async ({ page }) => {
     const order = await createCustomOrder(page);
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
-
     // 先推到 lab_dip
-    await apiCall(page, 'POST', `/custom-orders/${order.id}/advance`, {
-      operator_id: me.id,
-    });
+    await apiCall(page, 'POST', `/custom-orders/${order.id}/advance`);
 
     // 再尝试推进 lab_dip → quotation：门控要求 lab_dip_request_id 且 approved_sample_id 非空
     // 新建订单无关联打样通知单，应被拒绝
-    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`, {
-      operator_id: me.id,
-    });
+    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`);
     expect(
       fail.status,
       `lab_dip→quotation 缺前置应返回 400+，实际 ${fail.status}: ${fail.message}`
@@ -111,12 +103,8 @@ test.describe('05 定制订单 7 阶段流转', () => {
 
   test('05-04 推进到 lab_dip 后再次 advance 触发 quotation 门控，不跳级', async ({ page }) => {
     const order = await createCustomOrder(page);
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
-
     // draft → lab_dip
-    await apiCall(page, 'POST', `/custom-orders/${order.id}/advance`, {
-      operator_id: me.id,
-    });
+    await apiCall(page, 'POST', `/custom-orders/${order.id}/advance`);
     const afterFirst = await apiCallRaw<CustomOrderResponse>(
       page,
       'GET',
@@ -125,9 +113,7 @@ test.describe('05 定制订单 7 阶段流转', () => {
     expect(afterFirst.status).toBe('lab_dip');
 
     // lab_dip 再推进 → 应触发 quotation 门控失败，绝不会直接跳到 dyeing 或更远状态
-    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`, {
-      operator_id: me.id,
-    });
+    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`);
     expect(fail.status).toBeGreaterThanOrEqual(400);
     expect(fail.status).toBeLessThan(500);
 
@@ -156,10 +142,7 @@ test.describe('05 定制订单 7 阶段流转', () => {
     if (cancelIdx >= 0) CLEANUP.splice(cancelIdx, 1);
 
     // 从 cancelled 推进 → 应被拒绝（终态）
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
-    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`, {
-      operator_id: me.id,
-    });
+    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`);
     expect(
       fail.status,
       `终态 cancelled 推进应返回 400+，实际 ${fail.status}`
@@ -167,15 +150,29 @@ test.describe('05 定制订单 7 阶段流转', () => {
     expect(fail.status, '终态拒绝应为 4xx 非 5xx').toBeLessThan(500);
   });
 
-  test('05-06 缺少 operator_id 的非法请求被拒绝', async ({ page }) => {
-    const order = await createCustomOrder(page);
-
-    // 后端 AdvanceRequest.operator_id 是必填 i32，缺失应 serde 拒绝 422
-    const fail = await apiCallExpectFail(page, 'POST', `/custom-orders/${order.id}/advance`, {
-      notes: 'missing operator_id',
-    });
-    expect(fail.status, `缺 operator_id 应返回 400+，实际 ${fail.status}`).toBeGreaterThanOrEqual(
-      400
+  test('05-06 操作人身份不由请求体决定：缺身份键可推进、伪造身份不改归属', async ({ page }) => {
+    // 后端 AdvanceRequest 只有 notes，操作人唯一来源是服务端会话（AuthContext.user_id）。
+    // 旧命题「缺 operator_id 必 4xx」随该字段从契约中消失而失效，此处按新契约双向钉：
+    // 缺键合法可推进；带伪造键同样推进成功且流转结果与缺键一致（该键不被采纳）。
+    const plainOrder = await createCustomOrder(page);
+    const plain = await apiCallRaw<CustomOrderResponse>(
+      page,
+      'POST',
+      `/custom-orders/${plainOrder.id}/advance`,
+      { notes: '不带身份键' }
     );
+    expect(plain.status, `缺身份键的推进应成功，实际 ${plain.status}`).toBe('lab_dip');
+
+    const forgedOrder = await createCustomOrder(page);
+    const forged = await apiCallRaw<CustomOrderResponse>(
+      page,
+      'POST',
+      `/custom-orders/${forgedOrder.id}/advance`,
+      { operator_id: 999999, notes: '伪造身份键' }
+    );
+    expect(
+      forged.status,
+      `伪造 operator_id 不得改变流转结果（应同样推进到 lab_dip），实际 ${forged.status}`
+    ).toBe('lab_dip');
   });
 });

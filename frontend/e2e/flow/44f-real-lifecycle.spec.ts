@@ -499,10 +499,6 @@ test.describe.serial('44f 真实实体全流转链', () => {
     });
     const id = r?.data?.id;
     expect(id, '处方创建失败').toBeTruthy();
-    // 审核要传 approved_by（后端从请求体取审批人身份，非登录态），故先取当前用户 ID
-    const me = await apiCallRaw<{ id?: number; user_id?: number }>(page, 'GET', '/users/me');
-    const myId = me?.id ?? me?.user_id;
-    expect(myId, '当前登录用户 ID 取不到').toBeTruthy();
 
     // 详情接口的状态列就是 production_recipe.status（models/production_recipe.rs:93）
     const rd = async () => {
@@ -516,9 +512,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
 
     expect(await rd(), '新建处方应为 draft').toContain('draft');
 
-    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
-      approved_by: myId,
-    });
+    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
     expect(await rd(), '审核后应为 approved').toContain('approved');
 
     // 非 draft 不可更新（production_recipe_service.rs::validate_can_update → business）：
@@ -541,8 +535,7 @@ test.describe.serial('44f 真实实体全流转链', () => {
     const reApprove = await apiCallExpectFail(
       page,
       'POST',
-      `/production/production-recipes/${id}/approve`,
-      { approved_by: myId }
+      `/production/production-recipes/${id}/approve`
     );
     expectStateGateRejection(
       reApprove,
@@ -625,8 +618,8 @@ test.describe.serial('44f 真实实体全流转链', () => {
     expect(id, '配方创建失败').toBeTruthy();
     CLEANUP.push({ path: `/production/dye-recipes/${id}`, label: '[44f-9] 配方' });
 
-    // ApproveRecipeRequest { approved_by: i32 } 必填
-    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
+    // 审批人取服务端会话身份（approve_recipe 无请求体）
+    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
     const st1 = JSON.stringify(
       await apiCall(page, 'GET', `/production/dye-recipes/${id}`)
     ).toLowerCase();

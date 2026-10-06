@@ -405,19 +405,13 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     // frontend/scripts/route-snapshot.txt 的 production_recipe_handler::approve 条目，
     // id 段在该文件里渲染为 `*`）；未注册路径只会拿到路由层裸 404（响应体为空、不到
     // 服务层），断言便验不到状态机前提。
-    // 该端点必填载荷 ApproveRecipeRequest.approved_by: i32（结构体定义在
-    // backend/src/handlers/dye_recipe_handler.rs，由 production_recipe_handler::approve
-    // 复用；服务先按 id 判存在性，见 production_recipe_ops/recipe_state.rs::approve），
-    // 故这里带 approved_by 并同断机器码，
+    // 该端点无请求体：审批人身份取服务端会话（AuthContext.user_id），
+    // 存在性判定在服务层（production_recipe_ops/recipe_state.rs::approve）。
     // 用例命题是「不存在处方审批 → 404 NOT_FOUND」。
-    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
     const r = await apiCallExpectFail(
       page,
       'POST',
-      '/production/production-recipes/99999999/approve',
-      {
-        approved_by: me.id,
-      }
+      '/production/production-recipes/99999999/approve'
     );
     expect(r.status, `不存在处方审批应 404 not found，实际=${r.status}`).toBe(404);
     expect(failureCode(r), `不存在处方审批的错误码应是 NOT_FOUND，实际=${failureCode(r)}`).toBe(
