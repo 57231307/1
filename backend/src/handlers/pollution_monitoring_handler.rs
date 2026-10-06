@@ -26,11 +26,12 @@ pub struct UpdateWasteStatusRequest {
 /// 创建污染物监测记录（自动判定是否超标）
 pub async fn create_monitoring_record(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateMonitoringRecordRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 登记人身份取会话（AuthContext.user_id），请求体不承载操作人，落库无兜底。
     let service = PollutionMonitoringService::new(state.db.clone());
-    let model = service.create_monitoring_record(req).await?;
+    let model = service.create_monitoring_record(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

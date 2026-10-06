@@ -27,6 +27,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 /// 创建污染物监测记录请求
+///
+/// 登记人身份**不由请求体承载**：由 handler 按会话（`AuthContext.user_id`）派生后
+/// 传入 service，落 `pollutant_monitoring_records.operator_id` 留痕。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateMonitoringRecordRequest {
     /// 监测类型：wastewater(废水) / exhaust(废气) / noise(噪声) / solid_waste(固废)
@@ -40,7 +43,6 @@ pub struct CreateMonitoringRecordRequest {
     pub monitoring_time: chrono::DateTime<chrono::FixedOffset>,
     pub monitoring_method: Option<String>,
     pub equipment_id: Option<i32>,
-    pub operator_id: Option<i32>,
     pub remarks: Option<String>,
 }
 
@@ -122,6 +124,7 @@ impl PollutionMonitoringService {
     pub async fn create_monitoring_record(
         &self,
         req: CreateMonitoringRecordRequest,
+        operator_id: i32,
     ) -> Result<MonitoringModel, AppError> {
         Self::validate_monitoring_type(&req.monitoring_type)?;
         if req.limit_value <= Decimal::ZERO {
@@ -145,7 +148,8 @@ impl PollutionMonitoringService {
             monitoring_time: Set(req.monitoring_time),
             monitoring_method: Set(req.monitoring_method),
             equipment_id: Set(req.equipment_id),
-            operator_id: Set(req.operator_id),
+            // 操作人只取会话身份（handler 传入），落库值无兜底
+            operator_id: Set(Some(operator_id)),
             remarks: Set(req.remarks),
             created_at: Set(now),
             updated_at: Set(now),

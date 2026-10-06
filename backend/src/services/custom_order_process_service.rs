@@ -74,11 +74,12 @@ impl CustomOrderProcessService {
         Ok(result)
     }
 
-    /// 更新工艺节点
+    /// 更新工艺节点（操作人身份由 handler 层按会话传入，与 `advance_node` 同一范式）
     pub async fn update_node(
         &self,
         node_id: i64,
         dto: UpdateProcessNodeDto,
+        operator_id: i32,
     ) -> Result<process_node::Model, ProcessError> {
         let existing = NodeEntity::find_by_id(node_id)
             .one(&*self.db)
@@ -89,9 +90,8 @@ impl CustomOrderProcessService {
         if let Some(v) = dto.status {
             active.status = Set(v);
         }
-        if let Some(v) = dto.operator_id {
-            active.operator_id = Set(Some(v));
-        }
+        // 本次动作的操作人只取会话身份，落库值无兜底（调用方必须给出真实 user_id）
+        active.operator_id = Set(Some(operator_id));
         if let Some(v) = dto.actual_start_date {
             active.actual_start_date = Set(Some(v));
         }

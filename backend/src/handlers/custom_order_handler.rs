@@ -466,13 +466,17 @@ pub async fn add_process_node(
 
 /// PUT /api/v1/erp/custom-orders/:id/nodes/:nid - 更新节点
 pub async fn update_process_node(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path((_oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<UpdateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
+    // 节点更新的动作人取会话身份，写 process_nodes.operator_id 留痕（同 advance_node 范式）。
     let service = CustomOrderProcessService::from_state(&state);
-    let node = service.update_node(nid, dto).await.map_err(process_err)?;
+    let node = service
+        .update_node(nid, dto, auth.user_id)
+        .await
+        .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
