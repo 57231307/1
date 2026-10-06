@@ -36,6 +36,21 @@ pub struct PurchaseReceiptDto {
     pub confirmed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub confirmed_by: Option<i32>,
 
+    /// 最近一次让步接收理由（真实列，前端详情回显「既有理由」）
+    pub concession_reason: Option<String>,
+    /// 最近一次让步接收操作人（会话派生）
+    pub concession_by: Option<i32>,
+    /// 最近一次让步接收时间
+    pub concession_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 最近一次复检改判理由（真实列）
+    pub rejudge_reason: Option<String>,
+    /// 最近一次复检改判操作人（会话派生）
+    pub rejudge_by: Option<i32>,
+    /// 最近一次复检改判时间
+    pub rejudge_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 复检改判累计次数
+    pub rejudge_count: i32,
+
     /// 供应商名称：supplier_id -> suppliers.supplier_name（LEFT JOIN）
     pub supplier_name: Option<String>,
     /// 仓库名称：warehouse_id -> warehouses.name（LEFT JOIN）
@@ -120,6 +135,29 @@ pub struct UpdatePurchaseReceiptRequest {
     /// DB 可空列 attachment_urls（m0009 DDL，TEXT 序列化列表）——显式 null 清空
     #[serde(default, deserialize_with = "double_option")]
     pub attachment_urls: Option<Option<Vec<String>>>,
+}
+
+/// 让步接收请求（POST /purchase/receipts/{id}/concession）
+///
+/// 载荷仅业务值：`reason` 必填（空/纯空白由 service 拒 `VALIDATION_ERROR`）。
+/// **不含任何身份键**——让步操作人一律取会话 `AuthContext.user_id`（本仓裁定：
+/// 身份只认服务端会话，请求体携带的同名键在此类型层即不存在）。
+#[derive(Debug, Deserialize)]
+pub struct ConcedeReceiptRequest {
+    pub reason: Option<String>,
+}
+
+/// 复检改判请求（POST /purchase/receipts/{id}/rejudge）
+///
+/// `inspection_result` 取值对齐既有质检结论权威词表
+/// `models/status/purchase_inventory.rs::purchase_inspection_result`（pass/fail/partial），
+/// 改判目标状态经其 `to_receipt_inspection_status` 同源映射（pass→PASSED，
+/// fail/partial→REJECTED），不手写第二套取值清单。`reason` 必填语义同让步；
+/// 同样不含身份键。
+#[derive(Debug, Deserialize)]
+pub struct RejudgeReceiptRequest {
+    pub inspection_result: Option<String>,
+    pub reason: Option<String>,
 }
 
 /// 创建入库明细请求

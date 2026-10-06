@@ -34,9 +34,49 @@
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.status')">{{
           getStatusLabelFmt(data.receipt_status)
         }}</el-descriptions-item>
+        <el-descriptions-item :label="t('purchaseReceipt.detail.label.inspectionStatus')">
+          <el-tag :type="getInspectionStatusTagFmt(data.inspection_status)">
+            {{ getInspectionStatusLabelFmt(data.inspection_status) }}
+          </el-tag>
+        </el-descriptions-item>
         <el-descriptions-item :label="t('purchaseReceipt.detail.label.createdBy')">{{
           data.created_by_name
         }}</el-descriptions-item>
+        <!--
+          让步接收/复检改判回显（后端 purchase_receipt 专用真实列，可空列未发生时不渲染，
+          不渲染 '-' 假值）；逐次改判历史另可经既有审计日志页回读（audit_log 前后快照）。
+        -->
+        <el-descriptions-item
+          v-if="data.concession_reason"
+          :label="t('purchaseReceipt.detail.label.concessionReason')"
+          :span="2"
+        >
+          <span data-testid="receipt-concession-reason">{{ data.concession_reason }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item
+          v-if="data.concession_at"
+          :label="t('purchaseReceipt.detail.label.concessionAt')"
+        >
+          {{ data.concession_at }}
+        </el-descriptions-item>
+        <el-descriptions-item
+          v-if="data.rejudge_reason"
+          :label="t('purchaseReceipt.detail.label.rejudgeReason')"
+        >
+          {{ data.rejudge_reason }}
+        </el-descriptions-item>
+        <el-descriptions-item
+          v-if="data.rejudge_at"
+          :label="t('purchaseReceipt.detail.label.rejudgeAt')"
+        >
+          {{ data.rejudge_at }}
+        </el-descriptions-item>
+        <el-descriptions-item
+          v-if="data.rejudge_count > 0"
+          :label="t('purchaseReceipt.detail.label.rejudgeCount')"
+        >
+          {{ data.rejudge_count }}
+        </el-descriptions-item>
       </el-descriptions>
       <div class="detail-items">
         <h4>{{ t('purchaseReceipt.detail.itemsTitle') }}</h4>
@@ -126,7 +166,11 @@
 import { useI18n } from 'vue-i18n';
 import { formatCurrency } from '@/utils';
 import type { PurchaseReceiptEntity, ReceiptItem } from '@/api/purchase-receipt';
-import { getReceiptStatusLabel } from '../composables/prcFmts';
+import {
+  getReceiptStatusLabel,
+  getReceiptInspectionStatusLabel,
+  getReceiptInspectionStatusTagType,
+} from '../composables/prcFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -148,6 +192,8 @@ const emit = defineEmits<{
 
 // 透传格式化函数
 const getStatusLabelFmt = getReceiptStatusLabel;
+const getInspectionStatusLabelFmt = getReceiptInspectionStatusLabel;
+const getInspectionStatusTagFmt = getReceiptInspectionStatusTagType;
 </script>
 
 <style scoped>

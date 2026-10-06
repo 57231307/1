@@ -17,10 +17,27 @@ export interface PurchaseReceiptEntity {
    * status，导致状态列与行内按钮门控读到的恒为 undefined（列恒空、按钮恒不可达）。
    */
   receipt_status: string;
-  /** 质检状态：后端 purchase_receipt.inspection_status（大写 PENDING/PASSED/REJECTED），同样随 Model 返回 */
+  /**
+   * 质检状态：后端 purchase_receipt.inspection_status
+   * （大写 PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED，词表与 DB CHECK 逐项相等），
+   * 同样随 PurchaseReceiptDto 返回
+   */
   inspection_status: string;
   /**
-   * 入库数量合计/辅助数量合计：后端 services/purchase_receipt_dto.rs:27-28 PurchaseReceiptDto
+   * 让步接收/复检改判留痕（后端 purchase_receipt 专用真实列，models/purchase_receipt.rs）：
+   * concession_reason/by/at 与 rejudge_reason/by/at 为 DB 可空列（未发生时 NULL）；
+   * rejudge_count 为 NOT NULL DEFAULT 0 列（未改判为 0），不得在前端标 `?`。
+   * 键名逐字符对齐后端 PurchaseReceiptDto（snake_case），写成 camelCase 会令列恒空。
+   */
+  concession_reason?: string;
+  concession_by?: number;
+  concession_at?: string;
+  rejudge_reason?: string;
+  rejudge_by?: number;
+  rejudge_at?: string;
+  rejudge_count: number;
+  /**
+   * 入库数量合计/辅助数量合计：后端 services/purchase_receipt_dto 的 PurchaseReceiptDto
    * total_quantity/total_quantity_alt 为 rust_decimal —— serde 默认输出**十进制字符串**
    * （见 Cargo.toml rust_decimal features=["serde"]），前端类型必须 string，写成 number
    * 会在 .toFixed 等 number 方法处运行期崩。
@@ -76,7 +93,7 @@ export interface ReceiptItem {
 }
 
 // P2-9c 修复（批次 82 v1 复审）：PurchaseReceiptQueryParams 已在 purchase.ts 定义，此处复用避免重复导出
-// （键集逐字段对齐后端 purchase_receipt_handler.rs:376-382 ReceiptQueryParams：
+// （键集逐字段对齐后端 purchase_receipt_handler 的 ReceiptQueryParams 结构：
 //  仅 page/page_size/status/supplier_id/order_id；keyword/warehouse_id/日期区间后端不接收，
 //  已随该类型一并摘除，勿再补回——后端缺口派单见看板 #205 修复报告）
 import type { PurchaseReceiptQueryParams } from './purchase';
@@ -84,13 +101,15 @@ export type { PurchaseReceiptQueryParams };
 
 /**
  * 创建入库明细请求 —— 与后端 DTO 逐字段对齐
- * backend/src/services/purchase_receipt_dto.rs:54 CreateReceiptItemRequest
+ * backend/src/services/purchase_receipt_dto 的 CreateReceiptItemRequest
  * 键名 snake_case；非 Option 必填：line_no/material_id/material_code/material_name/
  *   quantity/quantity_alt/unit_master；batch_no 后端 DTO 为 Option 但
- *   create_receipt→validate_receipt_item_dimensions(crud.rs:112) 建单期强校验非空，
- *   故此处收紧为必填 string（不给 undefined 兜底掩盖缺键）。
- * color_code/lot_no/piece_no/grade 为染色布追溯维度（validate_fabric_trace 口径），
- *   后端建单期「染色布必填」分支尚未落地（crud.rs:107-111 TODO），故按可选传递。
+ *   create_receipt→validate_receipt_item_dimensions（purchase_receipt_ops/crud.rs）
+ *   建单期强校验非空，故此处收紧为必填 string（不给 undefined 兜底掩盖缺键）。
+ * color_code/lot_no/piece_no/grade 为染色布追溯维度，「染色布必填」判定建单期已落地：
+ *   validate_receipt_item_dimensions 委托 inv::fabric_class::validate_fabric_trace
+ *   （色号非空的染色布缺缸号即整单拒绝；色号为空的白坯布免缸号放行），
+ *   故两键在类型层保持可选、按布种如实传递。
  */
 export interface CreateReceiptItemRequest {
   order_item_id?: number;
@@ -152,7 +171,7 @@ export interface UpdateReceiptItemRequest {
 
 /**
  * 创建采购入库单请求 —— 与后端 DTO 逐字段对齐
- * backend/src/services/purchase_receipt_dto.rs:11 CreatePurchaseReceiptRequest
+ * backend/src/services/purchase_receipt_dto 的 CreatePurchaseReceiptRequest
  * 非 Option 必填：supplier_id/receipt_date/warehouse_id/items；
  * order_id 为 Option：按单收货传采购订单 id，后端据此把入库明细挂到订单行累加收货进度。
  * 注：PurchaseReceiptEntity 是响应/编辑回显模型（含 id/单号/状态等生成列，明细键名为 product_id），
@@ -218,6 +237,41 @@ export function deletePurchaseReceipt(id: number) {
 // 后端真实端点：POST /purchase/receipts/{id}/confirm（purchase_receipt_handler::confirm_receipt）
 export function approvePurchaseReceipt(id: number) {
   return request.post<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/confirm`);
+}
+
+/**
+ * 让步接收请求 —— 与后端 ConcedeReceiptRequest 逐字段对齐。
+ * 仅 reason 一个业务键（必填非空，后端空/纯空白拒 VALIDATION_ERROR）；
+ * 不含任何身份键——操作人由后端取会话（AuthContext.user_id），前端不得上送。
+ */
+export interface ConcedeReceiptRequest {
+  reason: string;
+}
+
+/**
+ * 复检改判请求 —— 与后端 RejudgeReceiptRequest 逐字段对齐。
+ * inspection_result 取值对齐权威质检结论词表（backend models/status/purchase_inventory.rs
+ * 的 purchase_inspection_result：pass/fail/partial），后端经同源映射得改判目标状态
+ * （pass→PASSED，fail/partial→REJECTED）；reason 必填同上；不含身份键。
+ */
+export interface RejudgeReceiptRequest {
+  inspection_result: string;
+  reason: string;
+}
+
+// 后端真实端点：POST /purchase/receipts/{id}/concession（让步接收）
+export function concedePurchaseReceipt(id: number, data: ConcedeReceiptRequest) {
+  return request.post<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/concession`, {
+    reason: data.reason,
+  });
+}
+
+// 后端真实端点：POST /purchase/receipts/{id}/rejudge（复检改判）
+export function rejudgePurchaseReceipt(id: number, data: RejudgeReceiptRequest) {
+  return request.post<ApiResponse<PurchaseReceiptEntity>>(`/purchase/receipts/${id}/rejudge`, {
+    inspection_result: data.inspection_result,
+    reason: data.reason,
+  });
 }
 
 /**

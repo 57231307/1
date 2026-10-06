@@ -171,11 +171,14 @@ pub mod inventory_piece {
 /// 采购收货检验状态（purchase_receipt.inspection_status，大写值）
 /// 批次 236 v13 真实接入：purchase_receipt_service.rs
 ///
-/// 本列有两套结论来源、各自一条显式映射，均不得直接复制结论原值：
+/// 本列有三套写入方，前两套均不得直接复制结论原值：
 /// - 通用质检记录域 `quality_inspection_records.inspection_result`（中文：待检/合格/不合格）
 ///   经 `from_inspection_result` 映射；
 /// - 采购质检域 `purchase_inspection.inspection_result`（英文小写码：pass/fail/partial）
-///   经本文件 `purchase_inspection_result::to_receipt_inspection_status` 映射。
+///   经本文件 `purchase_inspection_result::to_receipt_inspection_status` 映射；
+/// - 让步接收/复检改判端点（`purchase_receipt_ops::state.rs` 的 `concede_receipt`/
+///   `rejudge_receipt`）只写本模块常量（CONCESSION_ACCEPTED 与改判目标 PASSED/REJECTED），
+///   改判目标取值仍经 `to_receipt_inspection_status` 对齐质检结论词表，不手写第二套。
 /// 直接复制任何结论原值都会让本列出现没有读取方认识的取值。
 pub mod purchase_receipt_inspection {
     use crate::models::status::quality_inspection_result;
@@ -186,20 +189,30 @@ pub mod purchase_receipt_inspection {
     /// 质检合格：允许后续入库/结算流转
     pub const PASSED: &str = "PASSED";
 
-    /// 质检不合格：不得入库/结算，唯一下游处置出口是按不合格质检生成采购退货。
-    /// 复检改判：本列**没有独立通道/端点/审批**——事实上的改判是对同一收货单再建
-    /// 一张质检单并 complete（回写段无条件 Set 覆写本列，services/
-    /// purchase_inspection_service.rs 完成链路），pass 可把本列由 REJECTED 翻回
-    /// PASSED；无历史留痕，本列只存最终 token，历次结论仅存在于
+    /// 质检不合格：不得入库/结算。下游处置出口有二：按不合格质检生成采购退货，
+    /// 或经让步接收通道转 CONCESSION_ACCEPTED（特采降级接收，理由必填、留痕可回读）。
+    /// 复检改判：让步态改判为 PASSED/REJECTED 走显式端点
+    /// （services/purchase_receipt_ops/state.rs 的 `rejudge_receipt`，改判前后状态、
+    /// 操作人、时间、理由写入本表 rejudge_* 列并同步落审计日志）；对同一收货单再建
+    /// 质检单并 complete 仍是既有回写覆写链（无条件 Set 覆写本列，
+    /// services/purchase_inspection_service.rs 完成链路），历次质检结论存在于
     /// purchase_inspection 各行自身的 inspection_result（契约测试
-    /// tests/contract_wave6_inspection_rejudge_override_test.rs 钉死此现状）。
-    /// 让步接收（不合格特采/降级接收）：本列**没有对应 token、未实现**——词表恒为
-    /// PENDING/PASSED/REJECTED 三态；质检分级域的降级销售（quality_grade=B，见
-    /// services/quality_inspection_service.rs）不改写本列。
+    /// tests/contract_wave6_inspection_rejudge_override_test.rs 钉死该覆写现状，
+    /// tests/contract_wave11_concession_receiving_flow_test.rs 钉死让步/改判通道）。
     pub const REJECTED: &str = "REJECTED";
 
-    /// 本列全部合法取值
-    pub const ALL: &[&str] = &[PENDING, PASSED, REJECTED];
+    /// 让步接收（不合格特采/降级接收）：写入口为让步接收端点
+    /// （services/purchase_receipt_ops/state.rs 的 `concede_receipt`），合法前驱
+    /// PENDING（收货时即选让步）/REJECTED（质检判不合格后特采）；理由必填落
+    /// purchase_receipt.concession_reason，操作人/时间落 concession_by/concession_at
+    /// （操作人取会话身份，请求体不承载）。本态**不放行**入库/结算门控
+    /// （`ensure_receipt_inspection_allows_flow` 仅 PASSED 放行）——让步≠合格入库，
+    /// 离开本态只允许经复检改判 → PASSED / REJECTED。
+    pub const CONCESSION_ACCEPTED: &str = "CONCESSION_ACCEPTED";
+
+    /// 本列全部合法取值（与 DB CHECK `chk_purchase_receipt_inspection_status` 集合
+    /// 相等，契约锁见 tests/contract_wave11_concession_receiving_flow_test.rs）
+    pub const ALL: &[&str] = &[PENDING, PASSED, REJECTED, CONCESSION_ACCEPTED];
 
     /// 质检结论 → 入库单检验状态；词表外结论返回 `None`，由调用方报错而不是默认成某个值。
     /// 用显式比较而非 match 常量模式，与本仓其余取值域校验写法保持一致（避免引用比较歧义）。

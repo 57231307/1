@@ -47,8 +47,11 @@ pub struct Model {
     pub inspector_id: Option<i32>,
 
     /// 质检状态（词表唯一来源 models/status/purchase_inventory.rs 的 purchase_receipt_inspection，
-    /// 大写三态）：PENDING=待检验，PASSED=质检合格（允许后续入库/结算流转），
-    /// REJECTED=质检不合格（走让步接收或退货流程）。本列没有 INSPECTING/FAILED 取值。
+    /// 大写四态）：PENDING=待检验，PASSED=质检合格（允许后续入库/结算流转），
+    /// REJECTED=质检不合格（走让步接收或退货流程），
+    /// CONCESSION_ACCEPTED=让步接收（特采降级接收，不放行入库/结算，须复检改判）。
+    /// 取值集与 DB CHECK `chk_purchase_receipt_inspection_status` 逐项相等。
+    /// 本列没有 INSPECTING/FAILED 取值。
     #[sea_orm(column_type = "String(N(20))", default = "'PENDING'")]
     pub inspection_status: String,
 
@@ -91,6 +94,27 @@ pub struct Model {
 
     /// 确认人 ID
     pub confirmed_by: Option<i32>,
+
+    /// 最近一次让步接收理由（专用真实列，禁挪用 notes）；写入方 concede_receipt
+    pub concession_reason: Option<String>,
+
+    /// 最近一次让步接收操作人（服务端会话派生，请求体不承载身份）；写入方 concede_receipt
+    pub concession_by: Option<i32>,
+
+    /// 最近一次让步接收时间；写入方 concede_receipt
+    pub concession_at: Option<DateTime<Utc>>,
+
+    /// 最近一次复检改判理由（专用真实列）；写入方 rejudge_receipt
+    pub rejudge_reason: Option<String>,
+
+    /// 最近一次复检改判操作人（服务端会话派生）；写入方 rejudge_receipt
+    pub rejudge_by: Option<i32>,
+
+    /// 最近一次复检改判时间；写入方 rejudge_receipt
+    pub rejudge_at: Option<DateTime<Utc>>,
+
+    /// 复检改判累计次数；写入方 rejudge_receipt 累加（INTEGER NOT NULL DEFAULT 0）
+    pub rejudge_count: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

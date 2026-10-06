@@ -7,8 +7,8 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::{purchase_order, purchase_receipt, warehouse};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::purchase_receipt_dto::{
-    CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
-    UpdateReceiptItemRequest,
+    ConcedeReceiptRequest, CreatePurchaseReceiptRequest, CreateReceiptItemRequest,
+    RejudgeReceiptRequest, UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use crate::utils::admin_checker;
@@ -254,6 +254,50 @@ pub async fn confirm_receipt(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,
         "采购入库单已确认",
+    )))
+}
+
+/// POST /api/v1/erp/purchase/receipts/{id}/concession - 让步接收（特采降级接收）
+///
+/// 用户终裁通道：收货时可选「让步接收」，理由必填（空/纯空白 ⇒ VALIDATION_ERROR，
+/// 由 service `require_trimmed_reason` 判定）；合法前驱 PENDING/REJECTED，非法前驱
+/// ⇒ BUSINESS_ERROR。操作人取 `AuthContext.user_id`（会话派生），**请求体不承载身份**；
+/// 理由/操作人/时间落 purchase_receipt 专用真实列，audit_log 同步写前后快照。
+#[axum::debug_handler]
+pub async fn concede_receipt(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<ConcedeReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(state.db.clone());
+    let receipt = service.concede_receipt(id, req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "让步接收已登记，入库/结算仍须复检改判为合格",
+    )))
+}
+
+/// POST /api/v1/erp/purchase/receipts/{id}/rejudge - 复检改判
+///
+/// 对处于让步态的**同一张收货单**显式改判为 PASSED/REJECTED（结论取值对齐质检结论
+/// 权威词表 pass/fail/partial，经同源映射；词表外 ⇒ VALIDATION_ERROR，前驱非法 ⇒
+/// BUSINESS_ERROR）；理由必填同让步接收；改判理由/操作人/时间与累计次数落专用真实列，
+/// 改判前后状态与操作人经 audit_log 前后快照可回读。操作人取会话，请求体不承载身份。
+#[axum::debug_handler]
+pub async fn rejudge_receipt(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<RejudgeReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(state.db.clone());
+    let receipt = service.rejudge_receipt(id, req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "复检改判完成",
     )))
 }
 

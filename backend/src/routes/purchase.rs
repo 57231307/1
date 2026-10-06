@@ -107,6 +107,16 @@ fn purchase_receipt_routes() -> Router<AppState> {
             "/receipts/{id}/confirm",
             post(purchase_receipt_handler::confirm_receipt),
         )
+        // 让步接收/复检改判通道：POST ⇒ 权限键按方法推导为 purchase-receipts:create
+        // （末段不在 PATH_ACTION_KEYWORDS，不新增权限键；三通道播种面不变）
+        .route(
+            "/receipts/{id}/concession",
+            post(purchase_receipt_handler::concede_receipt),
+        )
+        .route(
+            "/receipts/{id}/rejudge",
+            post(purchase_receipt_handler::rejudge_receipt),
+        )
         // v11 批次 154c：手动重算入库单总金额（运维兜底入口）
         .route(
             "/receipts/{id}/recalculate",

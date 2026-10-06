@@ -104,7 +104,7 @@
       :label="t('purchaseReceipt.table.column.createdAt')"
       width="150"
     />
-    <el-table-column :label="t('purchaseReceipt.table.column.action')" width="250" align="center">
+    <el-table-column :label="t('purchaseReceipt.table.column.action')" width="320" align="center">
       <template #default="scope">
         <el-button
           size="small"
@@ -129,6 +129,36 @@
           @click="emit('approve', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Check /></el-icon> {{ t('purchaseReceipt.table.button.approve') }}
+        </el-button>
+        <!--
+          让步接收通道入口：仅未确认入库（receipt_status=DRAFT）且检验状态为
+          待检/不合格（与后端合法前驱逐字一致）可点；让步后可点「复检改判」。
+          按钮可见性只由词表常量比较决定（未知 token 会在标签渲染处抛错，不静默）。
+        -->
+        <el-button
+          v-if="
+            scope.row.receipt_status === RECEIPT_STATUS.DRAFT &&
+            (scope.row.inspection_status === RECEIPT_INSPECTION.PENDING ||
+              scope.row.inspection_status === RECEIPT_INSPECTION.REJECTED)
+          "
+          size="small"
+          type="warning"
+          data-testid="receipt-concession-btn"
+          @click="emit('concede', scope.row as PurchaseReceiptEntity)"
+        >
+          {{ t('purchaseReceipt.table.button.concession') }}
+        </el-button>
+        <el-button
+          v-if="
+            scope.row.receipt_status === RECEIPT_STATUS.DRAFT &&
+            scope.row.inspection_status === RECEIPT_INSPECTION.CONCESSION_ACCEPTED
+          "
+          size="small"
+          type="info"
+          data-testid="receipt-rejudge-btn"
+          @click="emit('rejudge', scope.row as PurchaseReceiptEntity)"
+        >
+          {{ t('purchaseReceipt.table.button.rejudge') }}
         </el-button>
         <el-button
           v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
@@ -161,7 +191,10 @@
 import { View, Edit, Delete, Check } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import type { PurchaseReceiptEntity } from '@/api/purchase-receipt';
-import { PURCHASE_RECEIPT_STATUS as RECEIPT_STATUS } from '@/utils/purchase-receipt-status';
+import {
+  PURCHASE_RECEIPT_STATUS as RECEIPT_STATUS,
+  PURCHASE_RECEIPT_INSPECTION_STATUS as RECEIPT_INSPECTION,
+} from '@/utils/purchase-receipt-status';
 import {
   getReceiptStatusLabel,
   getReceiptStatusTagType,
@@ -191,6 +224,8 @@ const emit = defineEmits<{
   view: [row: PurchaseReceiptEntity];
   edit: [row: PurchaseReceiptEntity];
   approve: [row: PurchaseReceiptEntity];
+  concede: [row: PurchaseReceiptEntity];
+  rejudge: [row: PurchaseReceiptEntity];
   delete: [row: PurchaseReceiptEntity];
   'update:page': [v: number];
   'update:page-size': [v: number];

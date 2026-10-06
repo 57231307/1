@@ -50,11 +50,16 @@ interface PurchaseOrderLite {
  * PurchaseReceiptDto（services/purchase_receipt_dto.rs:16）中本用例用到的字段。
  * total_quantity/total_quantity_alt 是 DECIMAL，经 JSON 序列化为字符串（如 "5.0000"），
  * 断言前 Number() 归一。
+ * inspection_status/concession_reason 为让步接收通道内容级回读键：让步建单经
+ * 「先建单（PENDING）→ 应用让步端点（CONCESSION_ACCEPTED）」两段真实写链，
+ * 理由落后端专用真实列 concession_reason（禁挪用 notes），随 DTO 出参可回读。
  */
 interface PurchaseReceiptLite {
   id: number;
   order_id: number | null;
   receipt_status: string;
+  inspection_status: string;
+  concession_reason?: string;
   total_quantity: number | string;
   total_quantity_alt: number | string;
 }
@@ -248,5 +253,79 @@ test.describe('03 采购收货', () => {
       after.status,
       `收货登记只建 DRAFT 入库单，采购订单应仍为 APPROVED（实际 ${after.status}）`
     ).toBe('APPROVED');
+  });
+
+  // 用户终裁通道内容级锁：收货对话框勾选「让步接收」⇒ 理由动态必填 ⇒ 提交后
+  // 状态与理由经列表接口真实回读（CONCESSION_ACCEPTED + concession_reason 专用列原文）。
+  // 断言只依赖后端出参键与状态 token（不依赖新 i18n 文案渲染），属数据内容证明而非 toast。
+  test('03-05 收货勾选让步接收：理由动态必填且提交后状态与理由入库可回读', async ({ page }) => {
+    const { id, order_no: orderNo } = await seedApprovedPO(page);
+    const row = await locateRowByOrderNo(page, orderNo);
+    await row.getByRole('button', { name: '收货', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '采购收货' });
+    await expect(dialog).toBeVisible();
+    await pickSelectIn(dialog, page, '仓库');
+    await dialog.getByRole('spinbutton').first().fill('5');
+    await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill('10');
+    const batchNo = `E2E-${genCode('CONC')}`;
+    await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
+
+    // 勾选让步接收 → 理由输入框动态出现
+    const concessionSwitch = dialog.getByTestId('receive-concession-switch');
+    await expect(concessionSwitch, '收货对话框必须提供让步接收选项').toBeVisible();
+    await concessionSwitch.click();
+    const reasonInput = dialog.getByTestId('receive-concession-reason');
+    await expect(reasonInput, '选中让步后理由输入框必须动态显示').toBeVisible();
+
+    // 未填理由不得提交：提交一次后对话框不关闭、且不产生任何入库单（前端拦在建单之前）
+    await dialog.getByRole('button', { name: '确定收货', exact: true }).click();
+    await expect(dialog, '理由未填时对话框不得关闭（提交被拦下）').toBeVisible();
+    const beforeReason = pickListArray<PurchaseReceiptLite>(
+      await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/purchase/receipts?order_id=${id}&page=1&page_size=10`
+      ),
+      'items',
+      '未填理由时的入库单列表'
+    );
+    expect(
+      beforeReason.filter(r => r.order_id === id),
+      '让步理由未填不得建单（拦截发生在任何网络写入之前）'
+    ).toHaveLength(0);
+
+    // 填理由提交：两段真实写链（建单 PENDING → 应用让步端点）后回读状态与理由
+    const reasonMarker = `让步理由-${genCode('CR')}`;
+    await reasonInput.fill(reasonMarker);
+    await dialog.getByRole('button', { name: '确定收货', exact: true }).click();
+    await expect(dialog, '填理由后提交应完成并关闭对话框').toBeHidden({ timeout: 30000 });
+
+    const readback = pickListArray<PurchaseReceiptLite>(
+      await apiCallRaw<unknown>(
+        page,
+        'GET',
+        `/purchase/receipts?order_id=${id}&page=1&page_size=10`
+      ),
+      'items',
+      '让步收货后按单查询的入库单列表'
+    );
+    const conceded = readback.find(
+      r => r.order_id === id && r.inspection_status === 'CONCESSION_ACCEPTED'
+    );
+    expect(
+      conceded,
+      `提交让步后必须存在 inspection_status=CONCESSION_ACCEPTED 的入库单，实际=${JSON.stringify(readback)}`
+    ).toBeTruthy();
+    expect(conceded!.concession_reason, '让步理由必须落专用真实列并可逐字符回读').toBe(
+      reasonMarker
+    );
+    expect(
+      conceded!.receipt_status,
+      '让步不等同合格入库：单据仍为 DRAFT，入库门控维持仅 PASSED 放行'
+    ).toBe('DRAFT');
+    expect(
+      conceded!.total_quantity,
+      `让步单数量应等于本次收货 5（实际 ${conceded!.total_quantity}）`
+    ).not.toBe('0');
   });
 });

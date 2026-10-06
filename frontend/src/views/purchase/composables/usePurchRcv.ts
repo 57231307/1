@@ -8,8 +8,10 @@ import { msg } from '@/utils/message';
 import { logger } from '@/utils/logger';
 import {
   createPurchaseReceipt,
+  concedePurchaseReceipt,
   type CreatePurchaseReceiptRequest,
   type CreateReceiptItemRequest,
+  type PurchaseReceiptEntity,
 } from '@/api/purchase-receipt';
 import { getPurchaseOrderById, type PurchaseOrder, type PurchaseOrderItem } from '@/api/purchase';
 import type { Product } from '@/api/product';
@@ -49,6 +51,14 @@ export interface ReceiveFormData {
   receive_date: string;
   warehouse_id: number | undefined;
   items: ReceiveItem[];
+  /**
+   * 收货时可选「让步接收」（用户终裁通道）：勾选后建单即转 CONCESSION_ACCEPTED。
+   * 后端无独立 concession 键，走「先建单（PENDING）→ 调让步端点」两段真实写链，
+   * 每段失败均外显，绝不静默把「让步」当普通收货成功上报。
+   */
+  concession_enabled: boolean;
+  /** 让步理由：勾选让步时动态必填（空/纯空白即前端拦下，后端亦拒 VALIDATION_ERROR） */
+  concession_reason: string;
 }
 
 /**
@@ -67,6 +77,8 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
     receive_date: new Date().toISOString().split('T')[0],
     warehouse_id: undefined,
     items: [],
+    concession_enabled: false,
+    concession_reason: '',
   });
 
   /**
@@ -155,6 +167,9 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       receive_date: new Date().toISOString().split('T')[0],
       warehouse_id: undefined,
       items: receiveItems,
+      // 每次打开重置让步选择，杜绝上一单的让步态/理由残留串单
+      concession_enabled: false,
+      concession_reason: '',
     };
     receiveDialogVisible.value = true;
   };
@@ -241,10 +256,38 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       );
       return;
     }
+    // 让步接收理由动态必填：勾选让步而理由为空/纯空白 ⇒ 提交前即拦下（未填不得提交），
+    // 拦截发生在任何网络写入之前，不产生「建了单却没让步」的半态。
+    const concessionReason = receiveForm.value.concession_reason.trim();
+    if (receiveForm.value.concession_enabled && !concessionReason) {
+      msg.warning('concessionReasonRequired');
+      logger.warn('[收货] 勾选让步接收但未填理由，拒绝提交');
+      return;
+    }
     try {
-      await createPurchaseReceipt(buildReceiptPayload(validItems));
-      msg.success('receiveSuccess');
+      const created = await createPurchaseReceipt(buildReceiptPayload(validItems));
       receiveDialogVisible.value = false;
+      if (receiveForm.value.concession_enabled) {
+        // 两段真实写链第二段：对新建立的收货单调让步端点（先建单 PENDING → 转让步）。
+        // 本段失败不伪装成整体成功：单据确已创建（可回列表核对），仅让步未生效，
+        // 如实点名并刷新列表（可在入库页行内「让步接收」重试），禁止静默吞错。
+        const createdId = (created.data as unknown as PurchaseReceiptEntity | undefined)?.id;
+        if (createdId == null) {
+          logger.error('[收货] 建单响应缺少 id，无法对其应用让步接收', created);
+          msg.error('concessionApplyFailed');
+          onSuccess();
+          return;
+        }
+        try {
+          await concedePurchaseReceipt(createdId, { reason: concessionReason });
+          msg.success('receiveConcessionSuccess');
+        } catch (error: unknown) {
+          logger.error(`[收货] 入库单 ${createdId} 建单成功但让步接收应用失败`, error);
+          msg.error('concessionApplyFailed');
+        }
+      } else {
+        msg.success('receiveSuccess');
+      }
       onSuccess();
     } catch (error: unknown) {
       ElMessage.error(

@@ -63,8 +63,10 @@ impl PurchaseReceiptService {
     /// （`ap_invoice_ops::receipt::find_receipt_and_check_exists`）复用本函数，不得另写第二套比较。
     ///
     /// 裁定：每一张收货单都必须先有质检结论回写才允许入库/结算，依据（实地取证）：
-    /// - 词表 `purchase_receipt_inspection` 全集只有三态（models/status/purchase_inventory.rs），
-    ///   且 PASSED 的定义语义就是「质检合格：允许后续入库/结算流转」，PENDING 是「待检验」；
+    /// - 词表 `purchase_receipt_inspection` 全集为四态（models/status/purchase_inventory.rs，
+    ///   含让步接收 CONCESSION_ACCEPTED），且 PASSED 的定义语义就是「质检合格：允许后续
+    ///   入库/结算流转」，PENDING 是「待检验」，CONCESSION_ACCEPTED 是「特采降级接收、
+    ///   须复检改判」——让步≠合格入库，本门控对其维持拒绝；
     /// - 生产 DDL（migration m0009）该列 `VARCHAR(20) NOT NULL DEFAULT 'PENDING'`，建单固定
     ///   置 PENDING（`build_receipt_active_model`）——不存在"免检收货"的第四态/NULL 形态，
     ///   全仓也不存在按品类/配置豁免质检的开关（检索 免检/需质检/inspection_required/
@@ -98,11 +100,20 @@ impl PurchaseReceiptService {
                 "收货单质检尚未完成，只有质检合格的收货单才能{action}，请先完成质检并录入结论"
             )));
         }
+        if inspection == status::purchase_receipt_inspection::CONCESSION_ACCEPTED {
+            // 让步≠合格入库：维持"仅 PASSED 放行"的既有门控裁定，明确点名让步态
+            // 的正确出路（复检改判），绝不静默按合格放行
+            return Err(AppError::business_displayable(format!(
+                "让步接收的收货单需先复检改判为质检合格才能{action}"
+            )));
+        }
         // 词表外取值只能来自坏数据/历史遗留：按数据完整性问题整单拒绝（脱敏族，
-        // 与既有状态门控 `lock_and_validate_receipt_txn` 的 business 口径一致），不猜测归类
+        // 与既有状态门控 `lock_and_validate_receipt_txn` 的 business 口径一致），不猜测归类；
+        // 允许值清单直接取权威词表 ALL，避免手写清单与词表演进漂移
         Err(AppError::business(format!(
-            "入库单 {} 的检验状态「{inspection}」不在词表内（PENDING/PASSED/REJECTED），无法判定入库资格，需人工核查数据",
-            receipt.receipt_no
+            "入库单 {} 的检验状态「{inspection}」不在词表内（{}），无法判定入库资格，需人工核查数据",
+            receipt.receipt_no,
+            status::purchase_receipt_inspection::ALL.join("/")
         )))
     }
 
@@ -258,12 +269,19 @@ mod inspection_gate_tests {
             updated_at: now,
             confirmed_at: None,
             confirmed_by: None,
+            concession_reason: None,
+            concession_by: None,
+            concession_at: None,
+            rejudge_reason: None,
+            rejudge_by: None,
+            rejudge_at: None,
+            rejudge_count: 0,
         }
     }
 
     #[test]
     fn only_passed_allows_flow() {
-        // 词表全集逐字符判定：ALL 中仅 PASSED 放行（PENDING/REJECTED 均拒）
+        // 词表全集逐字符判定：ALL 中仅 PASSED 放行（PENDING/REJECTED/CONCESSION_ACCEPTED 均拒）
         for token in purchase_receipt_inspection::ALL {
             let receipt = receipt_with_inspection(token);
             let result =
@@ -315,7 +333,7 @@ mod inspection_gate_tests {
     fn outside_vocabulary_fails_closed_masked() {
         // 列 NOT NULL、NULL 在类型层不可达；词表外坏值（如历史中文 token）fail-closed：
         // 按数据完整性问题脱敏拒绝（business），绝不静默放行、也不外显坏数据原文
-        for bad in ["待检", "passed", "INSPECTING", ""] {
+        for bad in ["待检", "passed", "INSPECTING", "concession", ""] {
             let receipt = receipt_with_inspection(bad);
             let err =
                 PurchaseReceiptService::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")

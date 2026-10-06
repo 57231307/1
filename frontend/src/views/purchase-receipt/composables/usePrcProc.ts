@@ -9,15 +9,26 @@
  */
 import { reactive, ref } from 'vue';
 import { logger } from '@/utils/logger';
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
-import { PURCHASE_RECEIPT_STATUS } from '@/utils/purchase-receipt-status';
+import { i18n } from '@/i18n';
+import {
+  PURCHASE_RECEIPT_STATUS,
+  PURCHASE_RECEIPT_INSPECTION_STATUS,
+} from '@/utils/purchase-receipt-status';
 import {
   createReceiptItem,
   updateReceiptItem,
   deleteReceiptItem,
   generatePurchaseReceiptNo,
+  concedePurchaseReceipt,
+  rejudgePurchaseReceipt,
 } from '@/api/purchase-receipt';
+import { getReceiptInspectionStatusLabel } from './prcFmts';
+
+/** 纯 .ts 文案解析走 i18n.global.t（本仓约定：.vue 用 useI18n，.ts 用全局实例） */
+const t = i18n.global.t;
 import {
   getPurchaseReceipt,
   getReceiptItems,
@@ -413,6 +424,129 @@ export function usePrcProc(cb: PrcCallbacks) {
     }
   };
 
+  /**
+   * 让步接收（行内入口）：对**待检/质检不合格**的收货单显式办理特采降级接收。
+   * 合法前驱由后端状态机把关（PENDING/REJECTED → CONCESSION_ACCEPTED，非法前驱 400）；
+   * 理由动态必填——prompt 空/纯空白即前端拦下（inputValidator），不提交半态。
+   * 操作人不进请求体（后端取会话身份），前端无需要求。让步后仍不可入库，需复检改判。
+   */
+  const handleConcede = async (row: PurchaseReceiptEntity) => {
+    if (row.id == null) {
+      logger.error('[让步接收] 行缺少 id，拒绝打开理由输入');
+      msg.error('operationFailed');
+      return;
+    }
+    // 前端预门控：仅待检/不合格可让步（与后端合法前驱逐字一致），非法前驱不发起无谓请求。
+    if (
+      row.inspection_status !== PURCHASE_RECEIPT_INSPECTION_STATUS.PENDING &&
+      row.inspection_status !== PURCHASE_RECEIPT_INSPECTION_STATUS.REJECTED
+    ) {
+      msg.warning('concessionIllegalPredecessor');
+      return;
+    }
+    let reason: string;
+    try {
+      const res = await ElMessageBox.prompt(
+        `${t('purchaseReceipt.concession.promptPrefix')}${getReceiptInspectionStatusLabel(
+          row.inspection_status
+        )}`,
+        t('purchaseReceipt.concession.promptTitle'),
+        {
+          inputType: 'textarea',
+          inputPlaceholder: t('purchaseReceipt.concession.reasonPlaceholder'),
+          inputValidator: (v: string) =>
+            (v ?? '').trim().length > 0 || t('purchaseReceipt.concession.reasonRequired'),
+        }
+      );
+      reason = (res.value ?? '').trim();
+    } catch (error: unknown) {
+      // 取消/关闭是用户主动放弃，不是错误
+      if (isDialogDismissal(error)) return;
+      logger.error('[让步接收] 理由输入异常', error);
+      msg.error('operationFailed');
+      return;
+    }
+    try {
+      await concedePurchaseReceipt(row.id, { reason });
+      msg.success('concessionSuccess');
+      await cb.loadData();
+    } catch (error: unknown) {
+      // 非 2xx 由响应拦截器外显后端 message（状态门/字段校验文案），此处仅记日志
+      logger.error(`[让步接收] 入库单 ${row.receipt_no} 让步失败`, error);
+    }
+  };
+
+  /**
+   * 复检改判（行内入口）：把让步态的**同一张收货单**显式改判为合格/不合格。
+   * 结论取值经对话框选择（合格→pass / 不合格→fail），与后端质检结论权威词表同源；
+   * 理由动态必填同上；改判前后状态与操作人由后端落专用列 + 审计快照，可回读。
+   */
+  const handleRejudge = async (row: PurchaseReceiptEntity) => {
+    if (row.id == null) {
+      logger.error('[复检改判] 行缺少 id，拒绝打开改判输入');
+      msg.error('operationFailed');
+      return;
+    }
+    // 前端预门控：仅让步态可改判（后端 CONCESSION_ACCEPTED → PASSED/REJECTED）
+    if (row.inspection_status !== PURCHASE_RECEIPT_INSPECTION_STATUS.CONCESSION_ACCEPTED) {
+      msg.warning('rejudgeIllegalPredecessor');
+      return;
+    }
+    let payload: { inspection_result: string; reason: string };
+    try {
+      const selected = await ElMessageBox.confirm(
+        `${t('purchaseReceipt.rejudge.promptPrefix')}${row.concession_reason ?? ''}`,
+        t('purchaseReceipt.rejudge.title'),
+        {
+          confirmButtonText: t('purchaseReceipt.rejudge.toPassed'),
+          cancelButtonText: t('purchaseReceipt.rejudge.toRejected'),
+          distinguishCancelAndClose: true,
+          type: 'warning',
+        }
+      );
+      // 走到这里说明点了「改判为合格」
+      payload = { inspection_result: 'pass', reason: '' };
+      void selected;
+    } catch (error: unknown) {
+      // 点「改判为不合格」→ reject 'cancel'；关闭/取消 → reject 'close'/其他
+      if (error !== 'cancel') {
+        if (isDialogDismissal(error)) return;
+        logger.error('[复检改判] 结论选择异常', error);
+        msg.error('operationFailed');
+        return;
+      }
+      payload = { inspection_result: 'fail', reason: '' };
+    }
+    // 理由动态必填（改判两向均要求，落 rejudge_reason 专用列）
+    let reason: string;
+    try {
+      const res = await ElMessageBox.prompt(
+        t('purchaseReceipt.rejudge.reasonPrefix'),
+        t('purchaseReceipt.rejudge.title'),
+        {
+          inputType: 'textarea',
+          inputPlaceholder: t('purchaseReceipt.rejudge.reasonPlaceholder'),
+          inputValidator: (v: string) =>
+            (v ?? '').trim().length > 0 || t('purchaseReceipt.rejudge.reasonRequired'),
+        }
+      );
+      reason = (res.value ?? '').trim();
+    } catch (error: unknown) {
+      if (isDialogDismissal(error)) return;
+      logger.error('[复检改判] 理由输入异常', error);
+      msg.error('operationFailed');
+      return;
+    }
+    payload.reason = reason;
+    try {
+      await rejudgePurchaseReceipt(row.id, payload);
+      msg.success('rejudgeSuccess');
+      await cb.loadData();
+    } catch (error: unknown) {
+      logger.error(`[复检改判] 入库单 ${row.receipt_no} 改判失败`, error);
+    }
+  };
+
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
     handleSearch,
@@ -426,5 +560,7 @@ export function usePrcProc(cb: PrcCallbacks) {
     handleSubmit,
     handleDelete,
     handleApprove,
+    handleConcede,
+    handleRejudge,
   });
 }

@@ -131,6 +131,29 @@
           </el-table-column>
         </el-table>
       </el-form-item>
+      <!--
+        让步接收通道（用户终裁：收货时可选「让步接收」、理由必填）：
+        勾选后提交走「建收货单（待检）→ 应用让步端点」两段真实写链（usePurchRcv.submitReceive），
+        理由未填不得提交；让步单不自动放行入库，仍需复检改判为合格。
+      -->
+      <el-form-item :label="t('purchase.receiveDlg.concession.label')">
+        <el-switch v-model="localForm.concession_enabled" data-testid="receive-concession-switch" />
+      </el-form-item>
+      <el-form-item
+        v-if="localForm.concession_enabled"
+        :label="t('purchase.receiveDlg.concession.reasonLabel')"
+        required
+      >
+        <el-input
+          v-model="localForm.concession_reason"
+          type="textarea"
+          :rows="2"
+          maxlength="500"
+          show-word-limit
+          data-testid="receive-concession-reason"
+          :placeholder="t('purchase.receiveDlg.concession.reasonPlaceholder')"
+        />
+      </el-form-item>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
