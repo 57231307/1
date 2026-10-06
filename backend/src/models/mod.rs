@@ -246,6 +246,9 @@ pub mod opportunity_follow_up;
 pub mod crm_tag;
 // 客户-标签多对多关联表（customer_tag）：承载客户 360 顶层 tags 与 /customers/{id}/tags 端点
 pub mod customer_tag;
+// PII 按需揭示留痕表（pii_reveal_audit）：POST /crm/customers/{id}/pii/reveal
+// 每次成功揭示插一行；只记指向/字段集合/操作人/用途/时间，不存原文
+pub mod pii_reveal_audit;
 // V15 P2 18.1-D4: 线索来源 ROI 跟踪
 pub mod lead_source_roi;
 // V15 P2 18.1-D5: 线索分配规则

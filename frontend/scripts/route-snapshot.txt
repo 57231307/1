@@ -1,4 +1,4 @@
-# layers=8 endpoints=1768
+# layers=8 endpoints=1774
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -1163,6 +1163,7 @@ POST	/api/v1/erp/crm/customers/*/audit-logs	crate::handlers::crm_handler::create
 POST	/api/v1/erp/crm/customers/*/clv/calculate	crate::handlers::crm_handler::calculate_customer_clv	crm
 POST	/api/v1/erp/crm/customers/*/contacts	crm_customer_handler::create_contact	crm
 POST	/api/v1/erp/crm/customers/*/follow-ups	crate::handlers::crm_handler::create_follow_up	crm
+POST	/api/v1/erp/crm/customers/*/pii/reveal	crm_customer_handler::reveal_customer_pii	crm
 POST	/api/v1/erp/crm/customers/*/tags	crm_customer_handler::add_tags	crm
 POST	/api/v1/erp/crm/customers/*/tags/*	crm_customer_handler::attach_customer_tag	crm
 POST	/api/v1/erp/crm/customers/enhanced	crm_customer_handler::create_customer	crm
@@ -1231,6 +1232,7 @@ POST	/api/v1/erp/export-approvals	export_approval_handler::create_approval_reque
 POST	/api/v1/erp/export-approvals/*/approve	export_approval_handler::approve_request	system
 POST	/api/v1/erp/export-approvals/*/cancel	export_approval_handler::cancel_request	system
 POST	/api/v1/erp/export-approvals/*/reject	export_approval_handler::reject_request	system
+POST	/api/v1/erp/export-inspections	export_inspection_handler::create_inspection	export_inspection_routes
 POST	/api/v1/erp/export-refunds/customs-declarations	export_refund_handler::create_customs_declaration	export_refund
 POST	/api/v1/erp/export-refunds/refund-calculation	export_refund_handler::calculate_refund	export_refund
 POST	/api/v1/erp/export-refunds/refund-declarations	export_refund_handler::generate_refund_declaration	export_refund
@@ -1448,6 +1450,7 @@ POST	/api/v1/erp/production/production-recipes/additions/*/close	production_reci
 POST	/api/v1/erp/production/production-recipes/calculate	production_recipe_handler::calculate	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/handle	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process	quality_inspection_handler::process_defect	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/process-result	quality_inspection_handler::process_defect_result	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/financial	quality_inspection_handler::approve_scrap_financial	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/gm	quality_inspection_handler::approve_scrap_gm	production
 POST	/api/v1/erp/production/quality-inspection/records	quality_inspection_handler::create_record	production
@@ -1487,9 +1490,11 @@ POST	/api/v1/erp/purchase/purchase-prices/*/approve	purchase_price_handler::appr
 POST	/api/v1/erp/purchase/purchase-prices/*/reject	purchase_price_handler::reject_price	purchase
 POST	/api/v1/erp/purchase/purchase-prices/import	purchase_price_handler::import_prices	purchase
 POST	/api/v1/erp/purchase/receipts	purchase_receipt_handler::create_receipt	purchase
+POST	/api/v1/erp/purchase/receipts/*/concession	purchase_receipt_handler::concede_receipt	purchase
 POST	/api/v1/erp/purchase/receipts/*/confirm	purchase_receipt_handler::confirm_receipt	purchase
 POST	/api/v1/erp/purchase/receipts/*/items	purchase_receipt_handler::create_receipt_item	purchase
 POST	/api/v1/erp/purchase/receipts/*/recalculate	purchase_receipt_handler::recalculate_receipt_total	purchase
+POST	/api/v1/erp/purchase/receipts/*/rejudge	purchase_receipt_handler::rejudge_receipt	purchase
 POST	/api/v1/erp/purchase/returns	purchase_return_handler::create_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/approve	purchase_return_handler::approve_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::create_purchase_return_item	purchase
@@ -1664,6 +1669,7 @@ PUT	/api/v1/erp/dashboard/layout	dashboard_handler::save_dashboard_layout	system
 PUT	/api/v1/erp/data-import/templates/*	import_export_handler::update_import_template	mod
 PUT	/api/v1/erp/departments/*	department_handler::update	iam
 PUT	/api/v1/erp/email-templates/*	email_handler::update	analytics
+PUT	/api/v1/erp/export-inspections/*/result	export_inspection_handler::update_result	export_inspection_routes
 PUT	/api/v1/erp/field-permissions/*	field_permission_handler::update_field_permission	iam
 PUT	/api/v1/erp/finance/accounting-periods/*	missing_handlers::update_accounting_period	finance
 PUT	/api/v1/erp/finance/invoices/*	finance_invoice_handler::update_finance_invoice	finance

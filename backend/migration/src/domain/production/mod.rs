@@ -97,6 +97,11 @@ mod m0076_add_inventory_piece_measured_checks;
 // 更早建表，故直接注册本域 up 链尾即可，全部目标表届时应存在。
 // 链序约束：加列必须先于 price_vocab_check 的后继 CHECK 迁移（补列先于 CHECK 的既定链序）。
 mod m0079_add_approval_reason_columns;
+// m0083 出口商检权限键 export-inspections:{read,create,update,print} 存量库补授
+// （资源段自始未注册，除 admin 外全员 403，详见该文件头判责链）。目标表 role_permissions
+// 由 system 域 m0005 建表、roles 由 m0001 建表，均早于本域执行；本迁移不触碰 export_inspection
+// 业务表，故直接注册本域 up 链尾 / down 链首，无需后置到 v15（口径同 m0069）。
+mod m0083_grant_export_inspections_perms;
 
 pub struct Migration;
 
@@ -563,11 +568,20 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0079_add_approval_reason_columns::Migration
             .up(manager)
             .await?;
+        // m0083 出口商检权限键存量库补授（本域最后应用，故 down 最先回滚；
+        // role_permissions/roles 由 system 域更早建表，直接注册本域，口径同 m0069）
+        m0083_grant_export_inspections_perms::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // m0083 最后应用故最先回滚（只回收本迁移按角色码授予的 export-inspections 键）
+        m0083_grant_export_inspections_perms::Migration
+            .down(manager)
+            .await?;
         // m0079 最后应用故最先回滚（对称 DROP 本迁移新增的 14 列，不触碰既有列）
         m0079_add_approval_reason_columns::Migration
             .down(manager)

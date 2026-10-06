@@ -1,14 +1,14 @@
 //! 数据库迁移模块
 //!
-//! 按业务域聚合，每个域 1 个迁移文件，共 12 个：
+//! 按业务域聚合，每个域 1 个迁移文件，共 13 个：
 //! system → business → sales_crm → production → finance → v15 → rls_dept
 //!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check → price_vocab_check
-//!   → price_fk
+//!   → price_fk → export_inspection_vocab_check
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
 //!         m_rls_dept_user_sync / m_crm_lead_claim_record / m_crm_vocab_check
-//!         / m_price_vocab_check / m_price_fk
+//!         / m_price_vocab_check / m_price_fk / m_export_inspection_vocab_check
 //!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
@@ -54,6 +54,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::price_vocab_check::Migration),
             Box::new(domain::price_vocab_extend::Migration),
             Box::new(domain::price_fk::Migration),
+            Box::new(domain::export_inspection_vocab_check::Migration),
         ]
     }
 }

@@ -14,6 +14,8 @@
 //!   建表与 v15 的默认值收敛/'ACTIVE' 回填）
 //! - price_fk: 价格两表引用列外键（依赖 system 的 products/customers/suppliers 建表；有孤儿行
 //!   时守卫 RAISE EXCEPTION 中止，不在迁移内洗数据）
+//! - export_inspection_vocab_check: 出口商检结论词表 DB CHECK 约束（export_inspection.result，
+//!   依赖 v15 建表，排链尾满足"建表先于 CHECK"原则，全新库与存量库均不违反 CHECK）
 
 pub mod system;
 pub mod business;
@@ -28,3 +30,4 @@ pub mod crm_vocab_check;
 pub mod price_vocab_check;
 pub mod price_vocab_extend;
 pub mod price_fk;
+pub mod export_inspection_vocab_check;

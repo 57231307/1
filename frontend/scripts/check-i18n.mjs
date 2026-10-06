@@ -173,9 +173,10 @@ const isDynamic = k => k.includes('$') || k.endsWith('.');
  * - `utils/message.ts` 自身还有内部直调（`loadFail: e => error('loadFailed', …)`）与默认参数
  *   （`function success(key = 'operationSuccess')`）两种形态，只在该文件内按活引用算，
  *   免得把别处 `error('DB error')` 这类非文案实参误当引用。
- * 为什么不顺手把它并进第 1 项（缺键校验）：按此口径抓会立刻暴露 20 个 zh/en **双侧都缺**的
+ * 为什么不顺手把它并进第 1 项（缺键校验）：按此口径抓会立刻暴露 zh/en **双侧都缺**的
  * `message.*` 键（`msg.error('issueFailed')` 等，界面当前就把原始 key 弹给用户），那是另一族缺陷、
- * 涉及他人在途文件与文案取舍，本次不改变第 1 项既有判据，已单列成交主编排项。
+ * 涉及他人在途文件与文案取舍。**该族存量文案已补齐，提示族缺键现已并入第 1 项同级判定**
+ * （见下方"提示族"循环），并保留"扫描结果为空集即判红"的检测力地板。
  */
 function collectMessageRefs(rel, src) {
   const insideHelper = /(^|[/\\])src[/\\]utils[/\\]message\.ts$/.test(rel);
@@ -352,6 +353,27 @@ function powerFloor({ leafCount, refCount, tokenCount }) {
   return msgs;
 }
 
+/**
+ * 提示族缺键判定：`msg.success('x')` 这类调用经 `utils/message.ts` 补 `message.` 前缀后查键，
+ * 不走 REF_PATTERNS；缺键时 ElMessage 会把原始 key（`message.x`）直接弹给用户。
+ * 空集合本身判红——扫描一旦失效，"查不出问题"不等于"没有问题"。
+ */
+function messageKeyGaps(refSet, localesMap) {
+  const out = [];
+  if (refSet.size === 0)
+    out.push('提示族扫描结果为空集（msg.*("token") 一处都没抓到）——判定器失效，不得静默通过');
+  for (const key of [...refSet].sort())
+    for (const [name, { values, groups }] of localesMap) {
+      if (values.has(key)) continue;
+      out.push(
+        groups.has(key)
+          ? `${name}: 提示族 ${key} 指向分组而非文案，toast 会显示原始 key`
+          : `${name}: 提示族缺键 ${key}，toast 会显示原始 key`
+      );
+    }
+  return out;
+}
+
 /* ---------- 两条锁的双向自证（内联夹具，不读仓库状态） ---------- */
 
 function runSelfTest() {
@@ -364,6 +386,14 @@ function runSelfTest() {
     props: entries.length,
   });
   const orphanOf = (locale, ctx) => findOrphans(locale, ctx).sort();
+  const gapOf = (refs, zh, en) =>
+    messageKeyGaps(
+      refs,
+      new Map([
+        ['zh-CN', zh],
+        ['en-US', en],
+      ])
+    ).sort();
   const asymOf = (zh, en) =>
     findAsymmetry('zh-CN', zh, 'en-US', en)
       .map(d => `${d.kind}|${d.key}|${d.onlyIn}`)
@@ -513,6 +543,36 @@ function runSelfTest() {
       want: ['message.loadFailed', 'message.operationSuccess'],
     },
     {
+      name: '提示族缺键·正例 双侧都缺的 message.* 必逐侧点名',
+      got: gapOf(new Set(['message.ghostKey']), mk([]), mk([])),
+      want: [
+        'en-US: 提示族缺键 message.ghostKey，toast 会显示原始 key',
+        'zh-CN: 提示族缺键 message.ghostKey，toast 会显示原始 key',
+      ],
+    },
+    {
+      name: '提示族缺键·反例 文案齐全不得判红',
+      got: gapOf(
+        new Set(['message.okKey']),
+        mk([['message.okKey', '成功了']]),
+        mk([['message.okKey', 'Done']])
+      ),
+      want: [],
+    },
+    {
+      name: '提示族缺键·反例 键存在但指向分组要报"分组而非文案"',
+      got: gapOf(new Set(['message.grp']), mk([]), mk([], ['message.grp'])),
+      want: [
+        'en-US: 提示族 message.grp 指向分组而非文案，toast 会显示原始 key',
+        'zh-CN: 提示族缺键 message.grp，toast 会显示原始 key',
+      ],
+    },
+    {
+      name: '提示族缺键·地板 扫描结果为空集必须判红而不是"零问题"',
+      got: gapOf(new Set(), mk([['message.a', 'x']]), mk([['message.a', 'x']])),
+      want: ['提示族扫描结果为空集（msg.*("token") 一处都没抓到）——判定器失效，不得静默通过'],
+    },
+    {
       name: '地板·正例 引用集为空必须判红而不是"零问题"',
       got: powerFloor({ leafCount: 100, refCount: 0, tokenCount: 50 }),
       want: ['引用集为空（REF_PATTERNS 或 src 扫描失效），孤儿锁无检测力'],
@@ -582,6 +642,9 @@ for (const [key, where] of firstRef) {
     );
   }
 }
+/* 提示族（`msg.error('x')` → `message.x`）同判：它经 utils/message.ts 拼前缀后查键，
+   不走 REF_PATTERNS，缺键时 ElMessage 直接把原始 key 弹给用户 */
+violations.push(...messageKeyGaps(msgRefs, locales));
 for (const name of NAMES) {
   for (const d of locales.get(name).dups) {
     violations.push(`${name}.ts: 重复 key ${d.path}，第 ${d.first} 行被第 ${d.line} 行覆盖`);

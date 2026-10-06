@@ -34,6 +34,21 @@ mod m0081_grant_contract_price_reject;
 // customer_credit_ratings 补 customer_id 全表唯一 + customers 外键（本表由本域 m0012
 // 建、参照表 customers 由 system 域 m0001 建，均早于链尾；守卫与语义论证见文件头）
 mod m0082_add_customer_credit_uniqueness_and_fk;
+// 让步接收/复检改判通道：purchase_receipt 真实列 + 检验状态 DB CHECK（本表由本域
+// m0009 建、值域归一由 production 域 m0057 完成，均早于链尾；守卫见文件头。
+// 编号让位于同域先登记的 m0083 分层列，取 m0084）
+mod m0084_concession_receiving_channel;
+// 大客户分层列：customers 加 tier（可空+四值 CHECK）+ 按 customer_credit_ratings
+// 评级单档映射回填（customers 由 system 域 m0001 建、回填参照表由本域 m0012 建、
+// 其单行唯一由本域 m0082 钉死，全部早于链尾；词表与回填依据见文件头）
+mod m0083_add_customer_tier_column;
+// PII 按需揭示留痕表：自包含新表（不引用其它表、不给业务表加列、不回填），
+// 注册在本域 up 链尾；列语义与「无外键/不存原文」判据见文件头。
+mod m0085_add_pii_reveal_audit;
+// customers:reveal 存量库补授（roles/role_permissions 属 system 域、早于本域，
+// 注册在本域 up 链最末/down 链首，同 m0069/m0072/m0081 授权补种范式；
+// 受授集合与三通道口径见文件头）
+mod m0086_grant_customers_pii_reveal;
 
 pub struct Migration;
 
@@ -245,9 +260,27 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0081_grant_contract_price_reject::Migration
             .up(manager)
             .await?;
-        // customer_credit_ratings 单行唯一 + 客户外键，注册在本域 up 链最末：建表在
-        // 本域 m0012、参照表 customers 在 system 域 m0001，均先于此处（见 m0082 文件头）
+        // customer_credit_ratings 单行唯一 + 客户外键（建表在本域 m0012、参照表在
+        // system 域 m0001，均先于此处的链尾约束）
         m0082_add_customer_credit_uniqueness_and_fk::Migration
+            .up(manager)
+            .await?;
+        // customers.tier 分层列 + 评级单档映射回填 + 四值 CHECK，注册在本域 up 链最末：
+        // 依赖的 m0082 单行唯一必须先建立（回填按 customer_id 关联单行评级，多行会致
+        // 同一客户取档不确定），见 m0083 文件头。
+        m0083_add_customer_tier_column::Migration
+            .up(manager)
+            .await?;
+        // 让步接收/复检改判通道：注册在本域 up 链最末（purchase_receipt 建表在本域
+        // m0009、检验状态归一在 production 域 m0057，均先于此处；与分层列迁移无依赖）
+        m0084_concession_receiving_channel::Migration
+            .up(manager)
+            .await?;
+        // PII 按需揭示留痕表：自包含新表，无上游依赖，注册在本域 up 链最末
+        m0085_add_pii_reveal_audit::Migration.up(manager).await?;
+        // customers:reveal 存量库补授：roles/role_permissions 由 system 域先建，
+        // 注册在本域 up 链最末（其后无其它迁移消费该键；见 m0086 文件头三通道口径）
+        m0086_grant_customers_pii_reveal::Migration
             .up(manager)
             .await?;
         Ok(())
@@ -255,8 +288,23 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // customer_credit_ratings 约束：最后应用者最先回滚（只移除本迁移施加的
-        // 唯一索引与 FK，不触碰数据行）
+        // customers:reveal 补授：最后应用者最先回滚（只回收本迁移按角色码授予的
+        // reveal 键，人工另授的 customers 键不动）
+        m0086_grant_customers_pii_reveal::Migration
+            .down(manager)
+            .await?;
+        // PII 揭示留痕表：撤表（索引与约束随表消失；审计数据仅在刻意回滚整域时
+        // 一并回收，与建表的对称语义，见 m0085 文件头）
+        m0085_add_pii_reveal_audit::Migration.down(manager).await?;
+        // 让步接收通道：只移除本迁移施加的 CHECK 与新增列，不触碰数据行
+        m0084_concession_receiving_channel::Migration
+            .down(manager)
+            .await?;
+        // customers.tier 分层列：先撤 CHECK 再删列，源评级数据未动
+        m0083_add_customer_tier_column::Migration
+            .down(manager)
+            .await?;
+        // customer_credit_ratings 约束：只移除本迁移施加的唯一索引与 FK，不触碰数据行
         m0082_add_customer_credit_uniqueness_and_fk::Migration
             .down(manager)
             .await?;

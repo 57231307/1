@@ -1,5 +1,5 @@
 {
-  "total": 126,
+  "total": 124,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -223,13 +223,6 @@
         "PurchaseOrderQueryParams.order_date_from",
         "PurchaseOrderQueryParams.order_date_to",
         "PurchaseReceiptItem.expected_quantity"
-      ]
-    },
-    "frontend/src/api/quality.ts": {
-      "count": 2,
-      "keys": [
-        "Defect.processed",
-        "Defect.processed_by"
       ]
     },
     "frontend/src/api/report-enhanced.ts": {

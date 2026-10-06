@@ -436,6 +436,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: node frontend/scripts/check-contract.mjs
 
+      # 判定器自证（--self-test）：对称锁/孤儿锁/基线棘轮/提示族缺键的双向样例与检测力地板
+      # （引用集为空、locale 解析为空、msgRefs 空集都必须判红而不是"零问题"）。
+      # 必须排在 i18n 主门禁之前——判定器退化空转时，主门禁的"问题 0"只是假绿。
+      - name: i18n 判定器自证（对称锁/孤儿棘轮/提示族缺键/检测力地板）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-i18n.mjs --self-test
+
       - name: 运行 i18n key 完整性检查（严格阻塞）
         if: ${{ !cancelled() }}
         working-directory: frontend
