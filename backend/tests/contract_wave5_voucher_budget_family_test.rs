@@ -310,12 +310,16 @@ async fn disabled_subject_reference_is_sanitized_business_error() {
         "出参常量取自 utils/messages.rs 的 BUSINESS_PUBLIC，若该常量变动需同步 e2e 断言"
     );
     let logged = err.to_string();
-    // 本用例走 **subject_id 提交分支**：状态门在 id 分支的日志侧留痕口径是
-    // 「科目已停用：ID={主键}」（与「科目不存在：ID=」同族），真实科目编码只在
-    // code 提交分支进 Display；出参侧仍由下方负锁保证 code 不外泄。
+    // 本用例走 **subject_id 提交分支**：状态门在 id 分支的 Display 同时留主键与真实科目编码
+    // （`voucher_ops/crud.rs` 的「科目已停用：ID={}, code={}」），两者都必须有看守，
+    // 否则编码段被删空也测不出来；出参侧仍由下方负锁保证 code 不外泄。
     assert!(
         logged.contains(&format!("科目已停用：ID={disabled_id}")),
         "日志侧 Display 必须留可关联的主键留痕（id 分支口径），实际={logged}"
+    );
+    assert!(
+        logged.contains(&format!("code={disabled_code}")),
+        "日志侧 Display 必须同时留真实科目编码留痕（id 分支口径），实际={logged}"
     );
     let public = err.to_response().message;
     assert!(
