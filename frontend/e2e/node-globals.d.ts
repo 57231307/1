@@ -54,3 +54,23 @@ interface NodeExecSyncResult {
 declare module 'child_process' {
   export function execSync(command: string, options?: NodeExecSyncOptions): NodeExecSyncResult;
 }
+
+/**
+ * fs 最小面声明（与上面 child_process 同一既定流程：e2e 用 Node API 必须在此显式补声明，
+ * 而不是让 `import 'fs'` 长期挂 TS2307 使该文件整段脱离类型检查）。
+ * 成员-调用点逐一对应，未用到的 API 一律不声明：
+ * - flow/32-import-export.spec.ts、purchase/sku-mapping.spec.ts：writeFileSync 生成导入用临时 csv；
+ * - global-setup.ts、traversal/44-role-matrix.spec.ts：mkdirSync(recursive) + writeFileSync 落凭证/access-map；
+ * - flow/helpers.ts、traversal/permission-model.ts、setup-wizard/00-setup-wizard.spec.ts：
+ *   existsSync 判在册 + readFileSync(path, 'utf-8') 读回；
+ * - flow/32-import-export.spec.ts：statSync(...).size 断下载文件非空。
+ * 失败路径：这些 API 抛的是 Node 的 Error，调用点按 try/catch 或前置 existsSync 处理，本声明不改变运行期行为。
+ */
+declare module 'fs' {
+  export function existsSync(path: string): boolean;
+  export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
+  export function readFileSync(path: string, options: string | { encoding: string }): string;
+  export function readFileSync(path: string): Uint8Array;
+  export function statSync(path: string): { size: number };
+  export function writeFileSync(path: string, data: string, options?: string): void;
+}

@@ -199,10 +199,6 @@ export const updateFabricCategory = (id: number, data: UpdateFabricCategoryPaylo
 export const deleteFabricCategory = (id: number) =>
   request.delete<ApiResponse<null>>(`/product-categories/${id}`);
 
-// D14 Batch 5b：原 fabricApi.batchImport 转为风格 B 函数
-export const batchImportFabrics = (data: Fabric[]) =>
-  request.post<ApiResponse<{ success: number; failed: number }>>('/products/import', data);
-
 // D14 Batch 5b：原 fabricApi.export 转为风格 B 函数
 export const exportFabrics = (params?: ExportFabricsParams) =>
   request.get<Blob>('/products/export', { params, responseType: 'blob' });

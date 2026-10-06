@@ -98,9 +98,17 @@ export interface ResolveSkuMappingResult {
   lead_time: number | null;
 }
 
+/**
+ * 对齐后端 utils/import_export.rs::ImportError（serialize 无 rename，逐键为
+ * row/column/message/value；后端 services/sku_mapping_service.rs::ImportMappingResult
+ * 的 errors 元素即该类型）。对话框当前只渲染 row/message，但键形状按后端真实输出全量声明，
+ * 不允许声明成缺键或可选的宽松形态。
+ */
 export interface SkuMappingImportError {
   row: number;
+  column: string;
   message: string;
+  value: string;
 }
 
 /** 对齐后端 ImportMappingResult{total_count,success_count,error_count,errors}。 */
