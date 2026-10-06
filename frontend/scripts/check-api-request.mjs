@@ -47,7 +47,7 @@
  *           两侧同为 multipart ⇒ 记 multipart-ok（键集仍不可比，属残余盲区）；
  *           任一侧形态判不出仍走盲区，禁止猜。`--self-test` 夹具对上述两方向各做正/负自证。
  *
- * 看板 #40 再补的两类（同一红线：判不出=必须显式，绝不能「该报的没报」）：
+ * 本判定 再补的两类（同一红线：判不出=必须显式，绝不能「该报的没报」）：
  *   (e) 箭头函数签名的残余静默丢弃：parseFrontendApiFunctions 的判重键（函数名, path）是
  *       **跨文件全局**的——同名同端点的跨文件副本（如 inventory.ts 与 inventory-transfer.ts
  *       各有一个 approveInventoryTransfer）只会有一个进检查面，另一个无声消失。副本可以
@@ -108,7 +108,7 @@ function extractorType(sig, wrapper) {
   // Json<Vec<T>> / Query<Vec<T>>：批量端点的真实形状是元素类型。必须先于泛型壳正则试——
   // 否则外层 `([A-Za-z_][\w:]*)` 会把 `Vec` 本身当类型名截走，rustFieldsOf 查不到名为
   // Vec 的 struct -> 整条落「后端字段不可静态解析」盲区，前端 `T[]` 载荷与后端元素字段集
-  // 的漂移因此从未被比对（看板 #40 盲区 2-数组形态）。
+  // 的漂移因此从未被比对（本判定 盲区 2-数组形态）。
   const reVec = new RegExp(
     '\\b' +
       wrapper +
@@ -233,7 +233,7 @@ function rustFieldsOf(typeName, structIndex) {
 // ---------- TS 侧：具名类型/内联对象/Partial/交叉类型 -> 键集 ----------
 
 // 剥 `//…` 行注释与 `/*…*/` 块注释（字符串字面量内的不误伤）。
-// 看板 #40 盲区 2：本仓大量形参注解后拖着一行 `// 后端 xxx_handler::yyy` 说明注释，
+// 本判定 盲区 2：本仓大量形参注解后拖着一行 `// 后端 xxx_handler::yyy` 说明注释，
 // 类型文本被注释污染后走「未处理的类型写法」盲区（fund.ts:50、purchase-price.ts:73 实锤）；
 // 更危险的是注释里含 `,`/`)` 会把参数表切歪，连累同一签名里其它可解析形参。
 function stripTsComments(s) {
@@ -275,7 +275,7 @@ function stripTsComments(s) {
 }
 
 // 顶层 `|` 切分（TS/JS 文本）。用于联合类型逐员展开。
-// 看板 #251：三个 TS 侧切分器统一走 envelope 的 splitTsTopLevel ——
+// 本切分器：三个 TS 侧切分器统一走 envelope 的 splitTsTopLevel ——
 // `=>` 的 `>` 不是闭合符、深度不许打负、字符串/注释整段跳过（旧实现各自手写字面量判定，
 // 三处口径互不相同，任一处切歪都会把可解析的类型推成盲区或把两个联合成员并成一个）。
 function splitTopLevelBar(s) {
@@ -303,7 +303,7 @@ function splitTopLevelAmp(s) {
 //       A | B（联合，逐员合并、必填=各员交集）、T[]/Array<T>（剥壳取元素）、
 //       Omit<T,K>/Pick<T,K>（展开基础类型后删/留键）、内联对象。
 // 原则：解析不了必须带原因返回 blind，绝不返回「部分解析的结果」冒充完整。
-// localIndex（看板 #40）：全局 tsIndex 把跨文件同名不同体的类型标为 ambiguous 后整条拒解；
+// localIndex（本判定）：全局 tsIndex 把跨文件同名不同体的类型标为 ambiguous 后整条拒解；
 // 调用方所在文件自身的定义会遮蔽 import 的同名类型，故本文件定义优先。
 function resolveTsTypeExpr(raw, tsIndex, seen = new Set(), localIndex = null) {
   const t = stripTsComments(String(raw || ''))
@@ -499,10 +499,10 @@ function extractAxiosConfigValue(objText, wanted) {
 // 剥默认值；`?` 可选标记保留为 optional。取不到类型时返回 null（调用方入盲区）。
 function paramTypeOf(sig, name) {
   // 先剥注释再拆参数表：形参注解后的 `// ...` 说明注释含 `,`/`(` 会把参数切歪，
-  // 连累同签名内本可解析的形参（看板 #40 盲区 2）。
+  // 连累同签名内本可解析的形参（本判定 盲区 2）。
   const s = stripTsComments(String(sig || '')).replace(/\s+/g, ' ');
   if (!s.trim()) return null;
-  // 看板 #251：这里原先复用 Rust 切分器。TS 参数表与 Rust 实参表的词法不同
+  // 本切分器：这里原先复用 Rust 切分器。TS 参数表与 Rust 实参表的词法不同
   // （TS 的 `'x'` 是字符串、Rust 的 `'x` 可能是生命周期；TS 的 `=>` 不是闭合符），
   // 复用必然切歪：本仓 8 处带箭头函数类型的参数表从此再也切不出后面的形参。
   for (const p of splitTopLevelCommas(s)) {
@@ -556,7 +556,7 @@ function feKeysOf(fn, payloadExpr, tsIndex, localIndex = null) {
       });
     }
     // `{}` 空对象载荷：不是「解析不出」，而是「确实不发任何键」——按 none 走
-    // 「后端有必填却前端空体」判据（看板 #40：旧实现记盲区，5 处从未被检查）。
+    // 「后端有必填却前端空体」判据（本判定：旧实现记盲区，5 处从未被检查）。
     return keys.length ? { kind: 'keys', keys } : { kind: 'none' };
   }
   if (/^[A-Za-z_]\w*$/.test(e)) {
@@ -608,7 +608,7 @@ function compareKeys(feKeys, beFields) {
   };
 }
 
-// ---------- multipart 双向形态判定（任务板 #249） ----------
+// ---------- multipart 双向形态判定（本判定） ----------
 
 // 后端 multipart 证据源（本仓实测全部形态，命中任一即认定端点只收 multipart/form-data）：
 //  (1) 参数签名提取器 `multipart: Multipart`/`MultipartForm`/`multipart::Form`
@@ -797,7 +797,7 @@ function supplementMissedCallSites(feFunctions, sources = null) {
       const paren = src.indexOf('(', m.index);
       const argCap = paren >= 0 ? captureBalancedJs(src, paren, '(', ')') : null;
       if (!argCap) continue;
-      // 看板 #251：TS 实参表用 TS 切分器（旧代码复用 Rust 切分器，`=>` 与 `'` 语义都不同）
+      // 本切分器：TS 实参表用 TS 切分器（旧代码复用 Rust 切分器，`=>` 与 `'` 语义都不同）
       const argTexts = splitTsTopLevelArgs(argCap[1]).map(a => a.trim());
       const url = resolveFrontendUrl((argTexts[0] || '').trim(), consts);
       if (!url) continue; // URL 不可静态还原：路由存在性由 check-api-paths 专门判负
@@ -974,7 +974,7 @@ function main() {
       });
       continue;
     }
-    // ---- multipart 双向形态判定（任务板 #249 闭盲区） ----
+    // ---- multipart 双向形态判定（本判定 闭盲区） ----
     // 旧实现只在「后端无 Json/Query 提取器」分支把 multipart 端点整条记盲区，
     // 前端实发形态从不比对 ⇒ 「后端收 multipart、前端发 JSON」与「前端发 FormData、
     // 后端只收 Json<T>」两个方向的契约错都以盲区形态假绿（实测两方向各 1 条真错）。
@@ -1283,7 +1283,7 @@ function main() {
   void BASE_URL;
 }
 
-// ---------- --self-test：multipart 双向判据自证夹具（任务板 #249） ----------
+// ---------- --self-test：multipart 双向判据自证夹具（本判定） ----------
 // 四条判据：
 //  ① 后端 multipart + 前端 JSON（具名实参/内联对象两种写法）必须被抓；
 //  ② 后端 multipart + 前端 FormData（签名提取器形态 与 函数体 FromRequest 形态）必须不被抓；

@@ -296,7 +296,7 @@ function captureBalancedRust(src, idx, open, close) {
 }
 
 /// 通用（TS/JS 文本用）：`'` `"` `\\`` 字符串与 `//` `/*` 注释跳过。
-/// 旧实现把反引号当字符串起点、把 Rust 生命周期当字符串起点 —— 后者是 #251 的根因，
+/// 旧实现把反引号当字符串起点、把 Rust 生命周期当字符串起点 —— 后者是 的根因，
 /// 前者是 JS 模板串，两者语义不同，必须按语言分开。
 function jsLexemeEnd(s, i) {
   const c = s[i];
@@ -343,13 +343,13 @@ function jsLexemeEnd(s, i) {
   return -1;
 }
 
-// TS/JS 文本专用配平（Rust 侧一律用 captureBalanced = captureBalancedRust，看板 #251）。
+// TS/JS 文本专用配平（Rust 侧一律用 captureBalanced = captureBalancedRust，本切分器）。
 function captureBalancedJs(src, idx, open, close) {
   return balancedScanWith(src, idx, open, close, jsLexemeEnd);
 }
 
 // 默认配平器面向 Rust 源码/类型文本（本文件绝大多数调用点在扫 backend）。
-// 看板 #251：旧实现把 `'` 当字符串开引号、完全不认注释，生命周期与 `//` 注释会把配平切歪。
+// 本切分器：旧实现把 `'` 当字符串开引号、完全不认注释，生命周期与 `//` 注释会把配平切歪。
 function captureBalanced(src, idx, open, close) {
   return balancedScanWith(src, idx, open, close, rustLexemeEnd);
 }
@@ -497,7 +497,7 @@ function parseJsonMacroKeys(objText, body, ctx, depth) {
   return keys;
 }
 
-// json! / vec! 等宏实参的顶层条目切分：与 Rust 切分器同源（看板 #251）。
+// json! / vec! 等宏实参的顶层条目切分：与 Rust 切分器同源（本切分器）。
 // 旧实现自带一套扫描：不认注释（`json!({ // don't use\n "a":1})` 里注释中的 `"` 会把后半段
 // 当成字符串），`'` 一律当字符串开引号，反引号也不是 Rust 语法。
 function splitJsonMacroEntries(objText) {
@@ -505,7 +505,7 @@ function splitJsonMacroEntries(objText) {
 }
 
 /// 去 Rust 注释（`//` 到行尾、`/* */` 可嵌套），字符串/字符字面量/生命周期原样保留。
-/// 必须存在的原因（看板 #251 的连带坑）：表达式文本进 normExpr 前会先把换行压成空格，
+/// 必须存在的原因（本切分器 的连带坑）：表达式文本进 normExpr 前会先把换行压成空格，
 /// 届时 `//` 注释就变成"一直到结尾"的注释，任何认注释的扫描器都会把后半段连同配平括号
 /// 一起吞掉 —— 结果是 `to_value(PaginatedResponse::new(.., // 说明\n ..))` 判不出，
 /// 已能归类的端点反而退回「未分类」。所以剥注释必须在压缩空白之前，且只剥注释。
@@ -639,7 +639,7 @@ function findBinding(body, name) {
 
 // Rust 版「读到语句结束」：走 Rust 词法扫描，且 <> 不参与深度（比较运算符 / 生命周期
 // 里的 `>` 会把深度打负，导致 `;` 永远等不到，语句文本一路吃到函数体结尾）。
-// 看板 #251：findBinding 拿到的"绑定表达式"曾被注释和生命周期切歪，回溯返回类型时
+// 本切分器：findBinding 拿到的"绑定表达式"曾被注释和生命周期切歪，回溯返回类型时
 // 读出的是整段函数体 —— 于是「载荷形状判不出」被误报成形状不符。
 function readUntilStatementEndRust(body, start) {
   let depth = 0;
@@ -883,7 +883,7 @@ function stripWrappers(t) {
 }
 
 function splitTopLevel(s) {
-  // 看板 #251：这里过去只跟踪 <>，`Result<(Vec<X>, u64), E>` 会在元组内部被切开，
+  // 本切分器：这里过去只跟踪 <>，`Result<(Vec<X>, u64), E>` 会在元组内部被切开，
   // 而且同样不认注释/生命周期。统一走 Rust 切分器，两处口径不可能再漂移。
   return splitRustTopLevelArgs(s);
 }
@@ -1652,7 +1652,7 @@ function collectArgs(src, re) {
   return out;
 }
 
-// Rust 顶层逗号切分（看板 #251 的正解，替代旧的"猜深度"扫描）。三条与旧实现不同的硬规则：
+// Rust 顶层逗号切分（本切分器 的正解，替代旧的"猜深度"扫描）。三条与旧实现不同的硬规则：
 //  ① 注释/字符串/原始串/字节串/字符字面量/生命周期整段跳过 —— 里面的 `,` `<` `>` `(` `)`
 //     一律不参与判定（旧实现把 `'` 当字符串开引号，一个生命周期就吞掉后半段）；
 //  ② 尖括号按语言环境识别，不再"见 < 就加、见 > 就减"：只有紧跟在标识符/`)`/`::` 之后
@@ -1738,7 +1738,7 @@ function splitTopLevelRust(s) {
   return splitRustTopLevelArgs(s);
 }
 
-// TS/JS 顶层切分（看板 #251 同族修正）：与 Rust 版的差异必须显式存在——
+// TS/JS 顶层切分（本切分器 同族修正）：与 Rust 版的差异必须显式存在——
 //  ① `'` 在 TS 里是字符串引号（Rust 里多半是生命周期），不能按生命周期规则只吃一个词；
 //  ② `=>`（箭头函数类型/箭头函数实参）里的 `>` 绝不能当闭合符：旧实现把它计入深度，
 //     `() => void` 之后深度变成 -1，同一参数表/实参表里其后的顶层逗号再也切不出来 ——
