@@ -1,12 +1,11 @@
-//! 任务 #320（CI #4677 F2 族根因修复）：选填 JSON 请求体提取器 `OptionalJson<T>` 契约锁
+//! 选填 JSON 请求体提取器 `OptionalJson<T>` 契约锁
 //!
 //! 锁定的契约：
 //! - `backend/src/utils/optional_json.rs` 语义表（四条形态全部在本文件钉死）：
 //!   ① 无 `Content-Type` + 空体 ⇒ 未采集，**必须进业务门**（存在性/状态机门真实执行，
 //!      不得停在解码层 400）；
 //!   ② `Content-Type: application/json` + **空体（含纯空白）** ⇒ 同上进业务门——
-//!      这正是 `Option<Json<T>>` 假可选形态被 CI #4677 证伪的那条（红名单 10-04/44b-4），
-//!      本锁防回潮；
+//!      这正是 `Option<Json<T>>` 假可选形态失效的那条（带 JSON 头却无体），本锁防回潮；
 //!   ③ 合法 JSON 体 ⇒ `Some(T)` 正常进业务门（证明"可选"没有吞掉有体请求）；
 //!   ④ 畸形 JSON / 字段类型错 / 非 JSON content-type 且体非空 ⇒ **仍必须 400
 //!      `code=VALIDATION_ERROR`**（防"顺手把门拆掉"的负向锁：缺这组，①②就是假绿）。
@@ -167,8 +166,8 @@ async fn call(app: &Router, path: &str, shape: ReqShape<'_>) -> (StatusCode, Val
 
 #[tokio::test]
 async fn absent_body_with_json_content_type_reaches_business_gate_not_decoding_400() {
-    // CI #4677 红名单 44b-4 的直接回归锁：带 JSON 头 + 空体曾被 Option<Json<T>>
-    // 假可选形态在解码层判 400 VALIDATION_ERROR，现必须进服务层存在性门 → 404
+    // 「带 JSON 头 + 空体」曾被 Option<Json<T>> 假可选形态在解码层判 400
+    // VALIDATION_ERROR，现必须进服务层存在性门 → 404
     let app = fresh_app().await;
     let (status, v) = call(
         &app,
@@ -578,6 +577,6 @@ fn source_scan_optional_json_absent_from_handlers_means_ratchet_holds() {
         .count();
     assert!(
         users >= 15,
-        "OptionalJson 解构使用点不应少于既有换装站点数（当前统计 {users}，红名单换装 19 处）"
+        "OptionalJson 解构使用点不应少于既有换装站点数（当前统计 {users}）"
     );
 }

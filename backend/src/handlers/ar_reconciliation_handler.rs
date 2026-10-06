@@ -457,7 +457,7 @@ pub async fn confirm_reconciliation(
     // 确认动作为纯状态门操作：缺体（无 content-type 或 JSON 头 + 空体）是合法输入，
     // 经 OptionalJson 归一为 None 后交由服务层 customer_confirm 状态门判定；
     // 「强制发体」的 ConfirmRequest 空结构体旧设计在 e2e 负例（带 JSON 头 + 空体）
-    // 下被解码层误判 400（红名单同族），已按任务 #320 裁定移除该形态。
+    // 下被解码层误判 400，故不保留强制空结构体形态。
     OptionalJson(_): OptionalJson<ConfirmRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);

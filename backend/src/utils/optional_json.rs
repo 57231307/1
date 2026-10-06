@@ -1,4 +1,4 @@
-//! 可选 JSON 请求体提取器（任务 #320，CI #4677 F2 族根因修复）。
+//! 可选 JSON 请求体提取器：理由选填的动作端点必须能把「未按 JSON 提交」当合法输入。
 //!
 //! 背景（为什么必须自研、不能用 `Option<Json<T>>`）：axum 0.8.9 的
 //! `OptionalFromRequest for Json<T>`（`axum-0.8.9/src/json.rs:116-136`）只在
@@ -7,9 +7,9 @@
 //! parsing a value)`，由 `middleware::trace_context::normalize_extractor_rejection`
 //! 收口成 400 + `code=VALIDATION_ERROR`。e2e 负例 helper（`frontend/e2e/flow/
 //! helpers.ts` `apiCallExpectFail`）恰好是"带 JSON 头、不带体"形态，因此
-//! `Option<Json<T>>` 对它是**假的可选**（红名单 10-04 / 44b-4 实证）。
+//! `Option<Json<T>>` 对它是**假的可选**，业务门永不可达。
 //!
-//! 本提取器把"选填"的裁决权收回本仓自己实现，语义表（任务 #320 裁定）：
+//! 本提取器把"选填"的裁决权收回本仓自己实现，语义表：
 //! - 无 `Content-Type` 头 ⇒ `Ok(None)`（整体未按 JSON 提交，视为未采集）；
 //! - `Content-Type` 为 JSON 族（`application/json` 或 `+json` 后缀，判定口径
 //!   对齐 axum `json_content_type`，`axum-0.8.9/src/json.rs:138-154`）且体为空

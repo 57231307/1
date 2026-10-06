@@ -102,7 +102,7 @@ fn crm_leads_derives_to_registered_canonical_code() {
 
     // 消歧生效的两个前提：crm 被识别为模块前缀；("crm","leads") 不是双层前缀组合
     //（否则资源名取自 seg5，本分支永不参与）。
-    // 前缀表真源读法（CI #4677 判责修正）：`pub fn is_module_prefix` 只是**分发器**
+    // 前缀表真源读法：`pub fn is_module_prefix` 只是**分发器**
     //（path_utils.rs:12-14，体内只有两个分发调用、零前缀字面量），前缀字面量在其
     // 分发目标 `fn is_system_module_prefix` / `fn is_business_module_prefix` 两张表内
     //（"crm" 现落 business 表 path_utils.rs:75）。只读分发器函数体必然永缺字面量，

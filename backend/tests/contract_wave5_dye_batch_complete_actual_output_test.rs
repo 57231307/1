@@ -141,7 +141,7 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
         )
         .with_state(state)
         .layer(from_fn_with_state(make_auth(100), inject_auth))
-        // 与生产洋葱同构（CI #4677 判责：夹具缺收口层，测试面漏出 axum 原生 415/422）：
+        // 与生产洋葱同构（缺此层时测试面会漏出 axum 原生 415/422，看到的码不是生产码）：
         // catch_panic_middleware 内含 normalize_extractor_rejection，把提取器拒绝
         // （400/415/422 纯文本）归一为统一 400 + VALIDATION_ERROR 信封。
         // 层序照抄 bootstrap::middleware_bootstrap::apply_trace_and_panic_capture

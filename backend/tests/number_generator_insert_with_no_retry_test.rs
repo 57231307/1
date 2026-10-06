@@ -192,7 +192,7 @@ async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
     // （三次 begin() 仍是三个独立后端，"未提交冲突行"的并发语义不变）。
     // 原先每个角色各建一个 `Database::connect` 池：同 job 并行跑十几个真库 binary 时
     // 极易把 PG `max_connections` 顶穿，A 的 begin() 在 spawn 里 panic 后主流程只会
-    // 撞上观测超时，真实原因被完全掩盖（CI #4677 同 job 的 sea-orm Disconnected 簇同向印证）。
+    // 撞上观测超时，真实原因被完全掩盖。
     let db = live_db().await;
     cleanup_customer(&db, pfx).await;
 
@@ -202,7 +202,7 @@ async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
     // 取 ACCESS EXCLUSIVE）。它与未提交的旁路行构成三方僵死——TRUNCATE 排队等 B 的
     // 行锁，A 的 INSERT 又排在 TRUNCATE 之后（PG 锁队列按到达序），于是 A 永远停在
     // wait_event_type='Lock'/wait_event='relation'，本用例的 transactionid 判据永不
-    // 成立（CI #4677 即在 :293 超时 panic）。ROW EXCLUSIVE 与兄弟用例的正常 INSERT
+    // 成立（本用例此前即在超时处 panic）。ROW EXCLUSIVE 与兄弟用例的正常 INSERT
     // （RowExclusive）互不冲突，只把表级清理挡在演练窗口之外，不改变 A/B 之间的
     // 唯一索引冲突语义 ⇒ 只消时序噪声，不可能掩盖 insert_with_no_retry 的缺陷。
     let guard = db.begin().await.expect("锁守卫开启事务失败");

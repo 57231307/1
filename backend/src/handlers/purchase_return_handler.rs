@@ -132,7 +132,7 @@ pub async fn approve_purchase_return(
 
     // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
     // 是假可选——axum 0.8.9 的 OptionalFromRequest for Json 只在完全不带
-    // Content-Type 时才放行，"带 JSON 头 + 空体"仍被解码层判 400（红名单实证）。
+    // Content-Type 时才放行，"带 JSON 头 + 空体"仍被解码层判 400。
     // 缺体/纯空白在此归一为 None ⇒ 列保持 NULL；有体但非法仍走 400 VALIDATION_ERROR。
     let approval_reason = payload
         .0
