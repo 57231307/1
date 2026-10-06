@@ -57,7 +57,7 @@ use bingxi_backend::services::sales_analysis_service::{
 };
 use bingxi_backend::utils::cache::AppCache;
 use bingxi_backend::utils::query_params::normalize_empty_query_params;
-use chrono::{Datelike, Months, NaiveDate, SubMonths, Utc};
+use chrono::{Datelike, Months, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, PaginatorTrait,

@@ -7,7 +7,7 @@ use crate::services::bi_analysis_service::{BiAnalysisService, TimeSeriesPoint};
 use crate::utils::cache::AppCache;
 use crate::utils::data_scope::DataScopeContext;
 use crate::utils::error::AppError;
-use chrono::{Datelike, NaiveDate, SubMonths};
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
