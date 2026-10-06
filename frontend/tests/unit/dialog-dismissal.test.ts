@@ -16,8 +16,11 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const loggerError = vi.fn();
-const operationFail = vi.fn();
+// vi.mock 工厂会被提升到文件顶部，工厂内引用的桩必须是 hoisted 绑定，否则取到未初始化的常量。
+const { loggerError, operationFail } = vi.hoisted(() => ({
+  loggerError: vi.fn(),
+  operationFail: vi.fn(),
+}));
 
 vi.mock('@/utils/logger', () => ({
   logger: { error: loggerError, debug: vi.fn(), info: vi.fn(), warn: vi.fn() },
