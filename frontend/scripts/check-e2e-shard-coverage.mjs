@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// E2E 分片覆盖自检（任务 #306）
+// E2E 分片覆盖自检：由 CI job `ci-build-fe` 的「E2E 分片覆盖自检」步骤执行
+// （.github/workflows/ci-cd.yml），入参仅可选 --workflow/--min-shard-list 覆盖默认路径。
 //
 // 目标：把"分片矩阵分配集合的并集 == playwright --list 全集"做成 CI 内可执行的硬门禁。
 // 背景缺陷：ci-cd.yml 的 ci-e2e 分片按"目录分组 + --shard hash 分片"手工登记，

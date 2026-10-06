@@ -201,15 +201,14 @@ async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
 ///   `fk_purchase_receipt_warehouse`），warehouses 空表 ⇒ 23503 ⇒ 本轮 CI 红原文
 ///   `DatabaseError("数据库查询错误")`；
 /// - purchase_receipt_item.product_id FK（m0009:135），products 须有父行；
-/// - 明细 order_item_id=Some(1) 走 `link_receipt_items_to_order_items` fail-closed
-///   （本批 8b15f468 新增守卫，purchase_receipt_ops/crud.rs:268-277）：
-///   该 id 必须是 order 1 的 **`purchase_order_item`（单数表）** 行、且 product_id
-///   与入库明细一致、入库量 ≤ 订单量×(1+容差)。⚠ 表名唯一事实来源是实体：
-///   models/purchase_order_item.rs:12 `#[sea_orm(table_name = "purchase_order_item")]`，
-///   DDL 在 migration/src/domain/v15/mod.rs:3460；m0001_initial_schema.rs 的复数
-///   `purchase_order_items` 是 SeaORM 实体永不读取的遗留表——上一版种子写错进复数表，
-///   守卫在单数表查无明细，判「采购订单 1 没有明细行」属**正确触发**（CI #4677 原文），
-///   修复只改种子侧，不放松守卫。
+/// - 明细 order_item_id=Some(1) 走 `link_receipt_items_to_order_items` fail-closed 守卫
+///   （purchase_receipt_ops/crud.rs）：该 id 必须是 order 1 的 **`purchase_order_item`
+///   （单数表）** 行、且 product_id 与入库明细一致、入库量 ≤ 订单量×(1+容差)。
+///   ⚠ 表名唯一事实来源是实体 models/purchase_order_item.rs 上的
+///   `#[sea_orm(table_name = "purchase_order_item")]`（DDL 见 migration v15 同名建表项）；
+///   m0001_initial_schema.rs 里的复数 `purchase_order_items` 是 SeaORM 实体永不读取的
+///   遗留表——种子写进复数表时守卫在单数表查无明细并报「采购订单 1 没有明细行」，
+///   该拒绝属**正确触发**，处置只改种子侧、不放松守卫。
 ///   订单量 200 ≥ 入库 100；supplier_id=1 由迁移种子参照表 m0015 恒在（不清空）。
 /// 列形态按实体整 Model 解码需求：
 /// - `purchase_order_item`（v15:3460）NOT NULL 无默认的金额/数量列全部补写

@@ -804,8 +804,9 @@ fn missing_rows_for(
 // 4. 回归方向锁：旧 JSON 请求体必须被拒（端点已是 multipart 专属契约）。
 //    axum 0.8.1 的 Multipart 提取器对非 multipart Content-Type 报 InvalidBoundary=400
 //    （registry 源码 axum-0.8.1/src/extract/multipart.rs `define_rejection! { #[status =
-//    BAD_REQUEST] ... }`；不是 415——415 是旧实现里 Json 提取器拒表单的方向，方向反过来
-//    状态码也反过来，这里按实测语义钉）。提取层拒绝先于 handler/AppError，出参为 axum
+//    BAD_REQUEST] ... }`；不是 415——415 对应「Json 提取器拒非 JSON 体」的方向，本锁
+//    方向相反（Multipart 提取器拒非 multipart 体），状态码随之相反，按提取器实际语义钉
+//    400）。提取层拒绝先于 handler/AppError，出参为 axum
 //    内建文本、无 JSON code 可断，故本锁只断状态码 + 零落库，防止端点被改回 JSON 契约
 //    后本测试静默失效（若改回 JSON：该请求会变成 200/415，两种形态都在这里红）。
 // ---------------------------------------------------------------------------

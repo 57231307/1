@@ -1704,12 +1704,12 @@ async fn live_receipt_update_null_clears_nullable_and_absent_keeps() {
     // FK 前置：purchase_receipt.warehouse_id → warehouses（业务表，TRUNCATE 后需自种）；
     // supplier_id=1 由迁移 m0015 播种（sealed 参照表，不清空）
     seed_warehouses_and_products(&db).await;
-    // 操作人前置（CI #4677 判责补种）：生产 update_receipt 在 owner 检查前先调
-    // is_admin_user(user_id)（purchase_receipt_ops/auth.rs:21-24，查不到用户即
-    // NotFound("用户不存在")），随后 update_with_audit 的 fetch_username 同样按
-    // user_id 回查 users。users 不在夹具 SEALED_REFERENCE_TABLES（迁移不播种，
-    // test_common.rs:38 口径），夹具 TRUNCATE 后为空，用例必须自插——与
-    // contract_wave5_receipt_return_three_state_test.rs:130-143 同一配齐口径。
+    // 操作人前置：生产 update_receipt 在 owner 检查前先调 is_admin_user(user_id)
+    // （purchase_receipt_ops/auth.rs，查不到用户即 NotFound("用户不存在")），随后
+    // update_with_audit 的 fetch_username 同样按 user_id 回查 users。users 不在夹具的
+    // SEALED_REFERENCE_TABLES（迁移不播种，test_common.rs 口径），夹具 TRUNCATE 后为空，
+    // 用例必须自插操作人——配齐口径同
+    // contract_wave5_receipt_return_three_state_test.rs::seeded_db。
     exec_pg(
         &db,
         r#"INSERT INTO users (id,username,password_hash,is_active,is_totp_enabled,department_id,created_at,updated_at) VALUES

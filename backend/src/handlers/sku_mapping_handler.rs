@@ -255,9 +255,10 @@ pub async fn delete_mapping(
 ///
 /// 前端 SkuMappingImportDialog 用 FormData append `file` 并显式声明
 /// `Content-Type: multipart/form-data`（frontend/src/api/sku-mapping.ts 的
-/// importSkuMappings）；旧签名 `Json<ImportMappingsRequest>` 会在提取器层就把该请求拒掉，
-/// 此功能此前实际不可用。现与 product_handler::import_products 同一范式：`Multipart`
-/// 必须保持最后一个提取器；服务端解析 CSV/xlsx 为「表头→值」行，经权威映射表构造类型行，
+/// importSkuMappings），因此入参必须取 `Multipart`：声明 `Json<T>` 提取器会在提取器层
+/// 就把该请求拒掉，导入功能不可达。范式与 product_handler::import_products 一致：
+/// `Multipart` 必须保持最后一个提取器；
+/// 服务端解析 CSV/xlsx 为「表头→值」行，经权威映射表构造类型行，
 /// 逐行引用校验与 UPSERT 落库仍原样复用 `SkuMappingService::import_batch`，不建并行路径。
 ///
 /// fail-visible（一律 400 类拒绝并点名行列，禁止静默成「0 条成功」）：

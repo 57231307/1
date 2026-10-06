@@ -217,7 +217,7 @@ async fn panic_in_handler_returns_full_app_error_envelope() {
 #[tokio::test]
 async fn panic_response_trace_header_and_body_are_same_source() {
     // 夹具必须把**本用例请求的 path** 挂进洋葱；挂错/漏挂会让请求落进 axum 的
-    // 404（空 body），测的就不是 panic 捕获信封而是"路由没注册"（#4677 p5 红根因）。
+    // 404（空 body），测的就不是 panic 捕获信封而是"路由没注册"。
     let app = panic_capturing_router("/contract-wave4/panic-2", get(always_panic));
 
     let resp = app
@@ -242,8 +242,8 @@ async fn panic_response_trace_header_and_body_are_same_source() {
 /// 正常路径不受 panic 层影响（状态码/响应体原样透传，trace 头仍在）
 #[tokio::test]
 async fn panic_layer_does_not_alter_normal_path() {
-    // 正常路径用例必须挂 ok_handler 到自己请求的 path；沿用只挂 panic-1 的
-    // router_with_layers() 会让请求 404（#4677 p2 红根因：left 404 / right 200）。
+    // 正常路径用例必须挂 ok_handler 到自己请求的 path；沿用只挂 /contract-wave4/panic-1
+    // 的 router_with_layers() 会让本请求落进 404，"透传 200"这条命题就验不到了。
     let app = panic_capturing_router("/contract-wave4/ok", get(ok_handler));
 
     let resp = app

@@ -31,7 +31,7 @@
 //! 从此不再阻止该客户出现第二行——旁路写入或先查后插竞态插入的 active 新行
 //! 可与停用旧行合法并存，全部 `.one()` 读路径随即破功。部分唯一属「平时不报错、
 //! 兜底已失效」，唯全表 UNIQUE 在任何写入通道下都钉死单行。故落全表 UNIQUE。
-//! 列型对齐（本仓有 customer_id INTEGER/BIGINT 漂移前科，逐型实测）：
+//! 列型对齐（FK 两列的宽度必须逐型核对，INTEGER/BIGINT 不一致时外键建不起来）：
 //! `customer_credit_ratings.customer_id` INTEGER NOT NULL（m0012:617），
 //! `customers.id` SERIAL/INTEGER（system m0001:325）；全仓 grep
 //! `ALTER COLUMN "customer_id" TYPE` 仅命中 custom_orders 加宽，未触及本表；

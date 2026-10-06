@@ -3084,12 +3084,11 @@ export function attribute404Body(bodyText: string): {
  *      单 spec 依赖用例内前置，两者都必须回读断言、禁吞码。
  *   业务上本应 fail-closed 拒绝（缺法定配置）的 404/403 → 语义面，不是缺口，改断负例。
  *
- * 本仓不存在「允许缺失、用 404/403 装作健康」的端点类别。此前注释声称未注册端点可
- * 「登记进 scripts/check-api-paths.mjs 显式缺口清单」——该说法对 e2e 探针**不成立**（不实承诺，
- * 2026-10-06 依源码更正）：KNOWN_GAPS 只覆盖 A 类（src/api 调用点），E 类 e2e 探针注册表
- * 在 check-api-paths.mjs 中明文「本检查不设豁免表」。故未注册端点的处置只有：补注册 /
+ * 本仓不存在「允许缺失、用 404/403 装作健康」的端点类别，也没有把未注册端点登记成豁免的
+ * 通道：scripts/check-api-paths.mjs 的 KNOWN_GAPS 只覆盖 A 类（src/api 调用点），E 类 e2e
+ * 探针注册表在该文件中明文「本检查不设豁免表」。故未注册端点的处置只有：补注册 /
  * 探针改指 / 移出清单并注明覆盖去向，**禁止登记成豁免**；也禁止以任何宽松探测把 404/403
- * 伪装成健康（系统性假绿源，此类可选探测 helper 已删除）。
+ * 伪装成健康（系统性假绿源，本模块不提供可选探测 helper）。
  */
 export async function verifyEndpointHealthy(
   page: Page,
@@ -3112,8 +3111,8 @@ export async function verifyEndpointHealthy(
   }
   if (status === 404) {
     // D-1 Q1 二分归因：复读 404 响应体（GET 幂等，且仅失败路径才多这一次请求）。
-    // 旧写法一律报"端点未注册或路由已漂移"，正是 #4675 E3 把"该客户无信用评级记录"
-    // （数据面 NOT_FOUND 信封）误判成注册面缺陷的直接原因。
+    // 只凭状态码一律判"端点未注册或路由已漂移"，会把数据面的 NOT_FOUND 信封（如"该客户
+    // 无信用评级记录"，缺的是前置不是端点）误判成注册面缺陷，故必须看信封里的机器 code。
     let bodyText: string;
     try {
       const res404 = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);

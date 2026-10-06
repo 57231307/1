@@ -238,13 +238,14 @@ test.describe('异常处理与边界条件', () => {
     //   check_inventory → decide_item_stock（四维口径）。故建单应返回 id 成功，发货因可用量
     //   不足被业务码拒绝——本用例两端断言均如实反映该语义，非为过而过的放宽。
     //
-    // 前置补全（判责 #4677 F8，取修法①：用例自给自足，不吃全局 seed）：本用例命题是
+    // 前置配齐（用例自给自足，不吃全局 seed）：本用例命题是
     // A5"建单不锁库存、可用量只在发货门控"，与提交期信用额度门无关。submit 的
-    // validate_customer_credit（backend/src/services/so/order_workflow.rs:151-180）对
-    // 共享种子客户判"信用额度不足"是正确行为（本批 84be9d68 外显）——该客户在全局 seed
-    // 登记的额度 10 万（e2e/global-setup.ts:2865-2869）远小于本例刻意放大的订单额
-    // 999999×100=99,999,900。错在"额度足够"这一前置未在本例保证。因此：自建专属客户 +
-    // 登记足额信用；不缩小订单金额、不把断言改判为"额度不足负例"（两者都会背离用例语义）。
+    // validate_customer_credit（backend/src/services/so/order_workflow.rs）对
+    // 共享种子客户判"信用额度不足"是正确行为——该客户在全局 seed 登记的额度 10 万
+    // （e2e/global-setup.ts::ensureGlobalBusinessSeed 的客户评级段）远小于本例刻意放大的
+    // 订单额 999999×100=99,999,900，因此"额度足够"这一前置必须在用例内自己保证：
+    // 自建专属客户 + 登记足额信用；不缩小订单金额、不把断言改判为"额度不足负例"
+    // （两者都会背离用例语义）。
     const custCode = genCode('E2E18C');
     const dedicated = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
       customer_name: `18-建单门控专属客户_${custCode}`,

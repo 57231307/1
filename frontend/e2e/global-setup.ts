@@ -428,10 +428,12 @@ const SEED_ROLES = [
   // （out/rs32:55865 getRoleCredential 诊断），用例 setup 缺陷判红（#4669 :149）。
   'inventory_manager',
   // manager —— fullflow/15-report-export.spec.ts 15-05 的申请侧账号（loginAsRole('manager')）。
-  // 后端 init 矩阵确有同名角色与 ("export-approvals","create")（init_service_ops/permission.rs:431,452），
-  // 但 CI 实测本库 init 只种 3 角色（见上方 #4669 取证），业务角色不保证存在；缺该码时
-  // role-credentials.json 无 manager 键 ⇒ getRoleCredential 返 null、helpers.ts:1884-1894
-  // loginAsRole 直接抛，15-05 在 setup 阶段判红。与 inventory_manager 同法由 ensureRoleUsers
+  // 后端 init 矩阵确有同名角色与 ("export-approvals","create")
+  // （init_service_ops/permission.rs::management_role_resources），
+  // 但本库 init 实际只种 3 角色（取证见上方 inventory_manager 条目的说明），业务角色
+  // 不保证存在；缺该码时 role-credentials.json 无 manager 键 ⇒ getRoleCredential 返
+  // null、helpers.ts 的 loginAsRole 直接抛，15-05 在 setup 阶段判红。与
+  // inventory_manager 同法由 ensureRoleUsers
   // 补建（系统角色分支 409 时改为回读校验，见下方 SEED_ROLE_EXTRA_PERMISSIONS 说明）。
   // 15-05 的靶心正是"manager 申请 + admin 审批"双人分离，禁止改用 admin 绕过。
   'manager',
@@ -513,12 +515,14 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   ],
   // manager —— fullflow/15-report-export.spec.ts 15-05「finance_report 导出审批链」的申请侧。
   // 该用例里 manager 只打一个端点：POST /export-approvals（创建导出审批申请），随后切回分片
-  // admin 审批。权限键与后端 init 同名角色矩阵逐字符同口径（init_service_ops/permission.rs:452
-  // ("export-approvals","create")；注册表权威名 init_service.rs:179；运行时键由 URL 段直接取得，
-  // path_utils.rs:294 已把 export-approvals 登记为顶层资源段）。
+  // admin 审批。权限键与后端 init 同名角色矩阵逐字符同口径（init_service_ops/permission.rs
+  // ::management_role_resources 的 ("export-approvals","create")；注册表权威名
+  // init_service.rs::PERMISSION_RESOURCES；运行时键由 URL 段直接取得，
+  // path_utils.rs::is_misc_direct_resource 已把 export-approvals 登记为顶层资源段）。
   // 刻意**不**补 permission.rs 里 manager 的其余只读码：15-05 不经受那些端点，多授会稀释
   // "缺码即 RBAC 拦"的判据；也不授 export-approvals:approve——审批属 admin，授了会破坏
-  // 双人分离前提（后端 SoD 同样拒绝同角色 create+approve 共存，role_permission_service.rs:394-405）。
+  // 双人分离前提（后端 SoD 同样拒绝同角色 create+approve 共存，role_permission_service.rs
+  // ::validate_sod_create_approve）。
   manager: ['export-approvals:create'],
   // 仓管/仓库经理：按四维选匹（发货/调拨）+ 打印成品布入库标签的岗位，
   // 与 permission.rs 的 warehouse_keeper 及迁移 m0069 同口径。
@@ -1012,7 +1016,7 @@ export async function ensureRoleUsers(): Promise<void> {
   // 的密码做一次真实登录收口：成功→凭证可信；失败→立即判红并带后端原始响应。
   // manager 加入理由：fullflow/15-report-export.spec.ts 15-05 直接 loginAsRole('manager')，
   // 属"spec 直接消费"面。若该账号在库中已存在而密码与本次写出的凭证不符（400/409 分支不重置
-  // 密码），不在此收口就只会表现为几分钟后的 401（#4669 E 族形态），排查成本高。
+  // 密码），不在此收口就只会表现为几分钟后的 401（形态同上：账号在、凭证里密码不符），排查成本高。
   const SPEC_CONSUMED_ROLES = ['salesperson', 'customer_service', 'inventory_manager', 'manager'];
   for (const code of SPEC_CONSUMED_ROLES) {
     const cred = credentials[code];

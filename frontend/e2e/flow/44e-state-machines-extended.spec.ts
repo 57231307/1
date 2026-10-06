@@ -401,13 +401,15 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   test('44e-9 大货处方：closed 后非法转换（production_recipe_service.rs:203-220）', async ({
     page,
   }) => {
-    // 旧写法 /production/recipes/{id}/approve 是没注册的路径（真实路径见
-    // frontend/scripts/route-snapshot.txt:1443 = /production/production-recipes/{id}/approve），
-    // 拿到的是路由层裸 404（响应体为空），从未到达服务层——该断言当时是假绿。
-    // 现改真实路径并带该端点真实必填载荷（ApproveRecipeRequest.approved_by: i32，
-    // 见 backend/src/services/production_recipe_service.rs:103-105；服务先 get_by_id
-    // 判存在性，见 production_recipe_ops/recipe_state.rs:21-23），并补断机器码，
-    // 使这条用例真正验「不存在处方审批 → 404 NOT_FOUND」。
+    // 路径必须用真实挂载点 /production/production-recipes/{id}/approve（在册，见
+    // frontend/scripts/route-snapshot.txt 的 production_recipe_handler::approve 条目，
+    // id 段在该文件里渲染为 `*`）；未注册路径只会拿到路由层裸 404（响应体为空、不到
+    // 服务层），断言便验不到状态机前提。
+    // 该端点必填载荷 ApproveRecipeRequest.approved_by: i32（结构体定义在
+    // backend/src/handlers/dye_recipe_handler.rs，由 production_recipe_handler::approve
+    // 复用；服务先按 id 判存在性，见 production_recipe_ops/recipe_state.rs::approve），
+    // 故这里带 approved_by 并同断机器码，
+    // 用例命题是「不存在处方审批 → 404 NOT_FOUND」。
     const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
     const r = await apiCallExpectFail(
       page,

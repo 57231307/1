@@ -189,20 +189,19 @@ async fn insert_with_no_retry_repeated_in_one_txn_yields_consecutive_nos() {
 async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
     let pfx = "NGT3";
     // 夹具前置 1（连接足迹）：admin 观测 / B 旁路 / A 取号重试三角色共用**同一个池**
-    // （三次 begin() 仍是三个独立后端，"未提交冲突行"的并发语义不变）。
-    // 原先每个角色各建一个 `Database::connect` 池：同 job 并行跑十几个真库 binary 时
-    // 极易把 PG `max_connections` 顶穿，A 的 begin() 在 spawn 里 panic 后主流程只会
-    // 撞上观测超时，真实原因被完全掩盖。
+    // （三次 begin() 仍是三个独立后端，"未提交冲突行"的并发语义不变）。三角色若各建
+    // 一池，同 job 并行跑多个真库 binary 时连接数叠加，易把 PG `max_connections`
+    // 顶穿；A 的 begin() 在 spawn 里 panic 后主流程只会撞上观测超时，真实原因被掩盖。
     let db = live_db().await;
     cleanup_customer(&db, pfx).await;
 
     // 夹具前置 2（确定性次序）：整段演练期间以事务级 ROW EXCLUSIVE 锁住 customers。
-    // 根因：同 job 的兄弟真库用例各自在 setup_test_db() 里对**全部业务表**执行
-    // `TRUNCATE ... RESTART IDENTITY CASCADE`（src/services/test_common.rs:205-231，
-    // 取 ACCESS EXCLUSIVE）。它与未提交的旁路行构成三方僵死——TRUNCATE 排队等 B 的
+    // 缘由：同 job 的兄弟真库用例各自在 setup_test_db() 里对**全部业务表**执行
+    // `TRUNCATE ... RESTART IDENTITY CASCADE`（src/services/test_common.rs，取
+    // ACCESS EXCLUSIVE）。它与未提交的旁路行构成三方僵死——TRUNCATE 排队等 B 的
     // 行锁，A 的 INSERT 又排在 TRUNCATE 之后（PG 锁队列按到达序），于是 A 永远停在
     // wait_event_type='Lock'/wait_event='relation'，本用例的 transactionid 判据永不
-    // 成立（本用例此前即在超时处 panic）。ROW EXCLUSIVE 与兄弟用例的正常 INSERT
+    // 成立、只在观测超时处 panic。ROW EXCLUSIVE 与兄弟用例的正常 INSERT
     // （RowExclusive）互不冲突，只把表级清理挡在演练窗口之外，不改变 A/B 之间的
     // 唯一索引冲突语义 ⇒ 只消时序噪声，不可能掩盖 insert_with_no_retry 的缺陷。
     let guard = db.begin().await.expect("锁守卫开启事务失败");
@@ -230,8 +229,8 @@ async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
     let handle = tokio::spawn(async move {
         let txn_a = conn_a.begin().await.expect("A 开启事务失败");
         // 夹具前置 3（观测对象钉死到 A 自己）：把 A 的 backend pid 报回观测方。
-        // 原实现按 `query LIKE 'INSERT INTO "customers"%'` 跨会话计数，任何兄弟用例
-        // 的 blocked INSERT 都能替 A "满足"判据——那是本末倒置的假绿口子。
+        // 观测若按 `query LIKE 'INSERT INTO "customers"%'` 跨会话计数，任何兄弟用例
+        // 的 blocked INSERT 都能替 A "满足"判据——观测对象错位，是假绿口子。
         let pid_row = txn_a
             .query_one_raw(Statement::from_string(
                 sea_orm::DatabaseBackend::Postgres,

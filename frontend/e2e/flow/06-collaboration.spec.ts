@@ -143,13 +143,13 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   });
 
   test('6-6 验证非法 API 调用被拒绝', async ({ page }) => {
-    // 契约（与 P1-5 语义① 同源，09-permissions.spec.ts:115-155，其中 :128-138 已正向钉桩）：
+    // 契约（与 P1-5 语义① 同源，09-permissions.spec.ts 的 P1-5 用例已就该语义正向钉桩）：
     // permission_middleware 以 Router::layer 挂在 erp 路由外层
-    // （backend/src/bootstrap/middleware_bootstrap.rs:243-259，链序 auth→omni_audit→csrf→permission→
+    // （backend/src/bootstrap/middleware_bootstrap.rs，链序 auth→omni_audit→csrf→permission→
     // request_logging→handler），先于 axum 的路由匹配与 not_found fallback；
-    // seg3=nonexistent-resource 不在资源白名单（middleware/permission.rs:59-70 validate_route_whitelist、
-    // :212-223 extract_segment3；utils/path_utils.rs:92-99 is_known_resource_segment）
-    // → forbidden_response = 403 + code=FORBIDDEN（utils/response.rs:144-146）。
+    // seg3=nonexistent-resource 不在资源白名单（middleware/permission.rs 的
+    // validate_route_whitelist 与 extract_segment3；utils/path_utils.rs 的
+    // is_known_resource_segment）→ forbidden_response = 403 + code=FORBIDDEN（utils/response.rs）。
     // 本前缀下"未注册路径只能返回 404"结构上不可达；真 404 覆盖由 P1-5 语义②（/users/99999999）提供。
     // 本仓红线：403 必须同时判机器码（防 CSRF 拒绝混判假绿）；权限文案永久脱敏，不断 message。
     const result = await apiCallExpectFail(page, 'GET', '/nonexistent-resource');
