@@ -31,7 +31,11 @@ pub struct SalesStatisticQuery {
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TrendQuery {
-    pub period: String,
+    /// 周期筛选值。缺省（键不存在）＝**不按 period 过滤，返回全周期数据**，
+    /// 与同域 `SalesStatisticQuery.period` / `RankingQuery.period` 的缺省语义一致；
+    /// 空串形态由最外层 `normalize_empty_query_params` 中间件先剔除，同样收敛为「不过滤」，
+    /// 因此任何情况下都不会退化成 `WHERE period = ''` 的恒 0 行过滤。
+    pub period: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -69,18 +73,32 @@ pub async fn list_statistics(
     Ok(Json(ApiResponse::success(statistics)))
 }
 
+/// 销售趋势查询 —— `GET /api/v1/erp/crm/sales-analysis/trends`（别名 `/trend` 挂同一 handler）
+///
+/// 做什么：按行返回销售统计分析明细（无聚合、无派生列），可选按周期等值过滤。
+/// 谁调：前端销售分析页趋势卡片（`api/sales-analysis.ts::getSalesTrendData`）。
+/// 入参：`period` 为 `Option<String>`。**提供时**按 `sales_statistics.period` 等值过滤；
+/// **缺省时（键不存在，或空串被 `normalize_empty_query_params` 剔除）不按 period 过滤，
+/// 返回全周期数据**。缺省是显式契约语义（与同域 statistics / rankings 的 period 一致），
+/// 不是错误、也不得退化成 `WHERE period = ''` 那种恒 0 行的假过滤，因此这里不做任何
+/// `unwrap_or_default()` 之类的兜底。
+/// 传给谁：`SalesAnalysisService::get_trends(Option<&str>)`，由它决定是否拼 period 过滤条件。
+/// 返回什么：`ApiResponse<Vec<sales_analysis::Model>>`，`data` 为数组，出参键即模型字段名
+/// （snake_case：`statistic_type` / `period` / `total_amount` …）。
+/// 存在哪：读 PostgreSQL 表 `sales_statistics`（`backend/src/models/sales_analysis.rs` 映射），
+/// 本端点只读不写。
 pub async fn get_trends(
     Query(params): Query<TrendQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
     info!(
-        "用户 {} 正在查询销售趋势，周期：{}",
+        "用户 {} 正在查询销售趋势，周期：{:?}",
         auth.user_id, params.period
     );
 
     let service = SalesAnalysisService::new(state.db.clone());
-    let trends = service.get_trends(&params.period).await?;
+    let trends = service.get_trends(params.period.as_deref()).await?;
     info!("销售趋势查询成功，共 {} 条记录", trends.len());
 
     Ok(Json(ApiResponse::success(trends)))

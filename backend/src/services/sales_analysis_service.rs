@@ -48,11 +48,23 @@ impl SalesAnalysisService {
         Ok((statistics, total))
     }
 
-    pub async fn get_trends(&self, period: &str) -> Result<Vec<sales_analysis::Model>, AppError> {
-        info!("查询销售趋势，周期：{}", period);
+    /// 趋势查询（读 `sales_statistics`，只读不写）。
+    /// `period` 为 `None` 时**不加 period 过滤条件**，即返回全周期数据；为 `Some` 时按
+    /// `sales_statistics.period` 等值过滤。缺省不过滤与 `get_statistics_list` / `get_rankings`
+    /// 同构，是本端点的显式契约语义（不是兜底默认值）。
+    pub async fn get_trends(
+        &self,
+        period: Option<&str>,
+    ) -> Result<Vec<sales_analysis::Model>, AppError> {
+        info!("查询销售趋势，周期：{:?}", period);
 
-        let trends = sales_analysis::Entity::find()
-            .filter(sales_analysis::Column::Period.eq(period))
+        let mut query = sales_analysis::Entity::find();
+
+        if let Some(p) = period {
+            query = query.filter(sales_analysis::Column::Period.eq(p));
+        }
+
+        let trends = query
             .order_by(sales_analysis::Column::Id, Order::Desc)
             .all(&*self.db)
             .await?;
