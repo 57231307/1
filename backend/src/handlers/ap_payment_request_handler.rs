@@ -17,7 +17,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::{info, warn};
@@ -187,6 +187,15 @@ pub async fn get_request(
             }
         }
     }
+
+    // 明细行随详情一并回读：创建契约可送 items，行落在 ap_payment_request_item；
+    // 出参不带该键时调用方无法核实行是否写入。行级数据权限已在上面对主单生效。
+    let items = crate::models::ap_payment_request_item::Entity::find()
+        .filter(crate::models::ap_payment_request_item::Column::RequestId.eq(id))
+        .all(&*state.db)
+        .await?;
+    request_json["items"] =
+        serde_json::to_value(items).map_err(|e| AppError::internal(e.to_string()))?;
 
     Ok(Json(ApiResponse::success(request_json)))
 }
