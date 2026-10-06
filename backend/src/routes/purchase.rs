@@ -8,8 +8,8 @@
 
 use crate::container::AppState;
 use axum::{
-    routing::{delete, get, post, put},
     Router,
+    routing::{delete, get, post, put},
 };
 
 use crate::handlers::{
@@ -134,6 +134,14 @@ fn purchase_inspection_routes() -> Router<AppState> {
         .route(
             "/inspections",
             post(purchase_inspection_handler::create_inspection),
+        )
+        // 静态路径 /inspections/stats 先于 /inspections/{id} 注册（与
+        // /purchase-contracts/export、/suppliers/export 同款顺序判据）：
+        // 权限段派生对 GET 得到 inspections:read，与列表端点完全同键，
+        // 不发明新权限键。
+        .route(
+            "/inspections/stats",
+            get(purchase_inspection_handler::get_inspection_stats),
         )
         .route(
             "/inspections/{id}",

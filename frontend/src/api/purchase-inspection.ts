@@ -176,6 +176,28 @@ export const getPurchaseInspectionList = (params?: PurchaseInspectionQueryParams
     { params }
   );
 
+/**
+ * 统计卡聚合出参 = 后端 PurchaseInspectionStats
+ * （models/purchase_inspection.rs:72-83，Serialize 无 rename_all，snake 原键）。
+ * 四键均为 u64 整数计数、可空性为必填（NOT 可空——序列化侧无数值缺省，缺键即契约漂移）。
+ * 分桶与列表同一套筛选参数、同一条件构造点（services/purchase_inspection_service.rs
+ * ::base_filtered_query）；partial 归入 failed（同 service:411-430 文书，词表常量同源）。
+ * 恒等式 pending+passed+failed===total 当前写入规则下成立但无 DB 约束兜底：
+ * 词表外异常行只进 total，四卡之和可能小于总数，属如实呈现而非前端兜底对象。
+ */
+export interface PurchaseInspectionStats {
+  total: number;
+  pending: number;
+  passed: number;
+  failed: number;
+}
+
+// 统计卡聚合：入参与列表完全同一 PurchaseInspectionQueryParams（后端同一 InspectionQueryParams，
+// handlers/purchase_inspection_handler.rs:147-160；page/page_size 在该端点被忽略、不参与条件构造，
+// 直发同参数对象以保证"卡片与表格同参数"在前端侧不留第二份参数装配逻辑）。
+export const getPurchaseInspectionStats = (params?: PurchaseInspectionQueryParams) =>
+  request.get<ApiResponse<PurchaseInspectionStats>>('/purchase/inspections/stats', { params });
+
 // 创建检验单：请求体严格为 CreatePurchaseInspectionPayload（对齐后端 CreatePurchaseInspectionRequest）。
 export const createPurchaseInspection = (data: CreatePurchaseInspectionPayload) =>
   request.post<ApiResponse<PurchaseInspection>>('/purchase/inspections', data);

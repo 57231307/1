@@ -15,7 +15,8 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, FromQueryResult,
-    JoinType, Order, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select,
+    Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -302,25 +303,28 @@ impl PurchaseInspectionService {
         Ok(score)
     }
 
-    /// 获取质检单列表
-    pub async fn list_inspections(
+    /// 列表与统计共用的基础查询构造：同一套 LEFT JOIN + 同一套筛选条件。
+    ///
+    /// 这是"统计分母与列表同源"的**唯一条件构造点**——列表分页 total 与统计卡
+    /// 四值都由本函数产出的查询派生，任何筛选口径的修改只需改这一处，杜绝
+    /// "列表一套条件、统计另一套条件"的口径分叉（页内计数漂移缺陷的根因即
+    /// 分子/分母不同源）。行级权限口径与列表现状一致：本域列表路径不经过
+    /// data_scope/归属过滤（handler→service 仅按查询参数过滤），统计沿用同一
+    /// 口径，不另行发明行级过滤。
+    ///
+    /// JOIN 均为主表到 to-one 关联的 LEFT JOIN，不复制行，COUNT 与分页 total
+    /// 语义等价；keyword 需要 `purchase_receipt.receipt_no` 参与匹配，故 JOIN
+    /// 保留在共用构造内。
+    fn base_filtered_query(
         &self,
-        page: u64,
-        page_size: u64,
-        status: Option<String>,
+        status: Option<&str>,
         supplier_id: Option<i32>,
-        keyword: Option<String>,
-        result: Option<String>,
-        date_from: Option<String>,
-        date_to: Option<String>,
-    ) -> Result<(Vec<PurchaseInspectionView>, u64), AppError> {
-        use sea_orm::PaginatorTrait;
-
-        // 单次查询：实体 + 入库单号 / 供应商名 / 质检员名（均为 LEFT JOIN 名列，无 N+1）。
+        keyword: Option<&str>,
+        result: Option<&str>,
+        date_from: Option<&str>,
+        date_to: Option<&str>,
+    ) -> Select<purchase_inspection::Entity> {
         let mut query = purchase_inspection::Entity::find()
-            .column_as(purchase_receipt::Column::ReceiptNo, "receipt_no")
-            .column_as(supplier::Column::SupplierName, "supplier_name")
-            .column_as(user::Column::RealName, "inspector_name")
             .join(
                 JoinType::LeftJoin,
                 purchase_inspection::Relation::Receipt.def(),
@@ -335,7 +339,7 @@ impl PurchaseInspectionService {
             );
 
         if let Some(status) = status {
-            query = query.filter(purchase_inspection::Column::InspectionStatus.eq(&status));
+            query = query.filter(purchase_inspection::Column::InspectionStatus.eq(status));
         }
         if let Some(supplier_id) = supplier_id {
             query = query.filter(purchase_inspection::Column::SupplierId.eq(supplier_id));
@@ -345,7 +349,7 @@ impl PurchaseInspectionService {
             query = query.filter(purchase_inspection::Column::InspectionResult.eq(result));
         }
         // 关键字：匹配质检单号或入库单号（两列均真正参与过滤）
-        if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
+        if let Some(kw) = keyword.filter(|s| !s.is_empty()) {
             let pattern = safe_like_pattern(kw);
             query = query.filter(
                 purchase_inspection::Column::InspectionNo
@@ -354,12 +358,42 @@ impl PurchaseInspectionService {
             );
         }
         // 质检日期范围
-        if let Some(d) = date_from.as_deref().and_then(parse_date_bound) {
+        if let Some(d) = date_from.and_then(parse_date_bound) {
             query = query.filter(purchase_inspection::Column::InspectionDate.gte(d));
         }
-        if let Some(d) = date_to.as_deref().and_then(parse_date_bound) {
+        if let Some(d) = date_to.and_then(parse_date_bound) {
             query = query.filter(purchase_inspection::Column::InspectionDate.lte(d));
         }
+
+        query
+    }
+
+    /// 获取质检单列表
+    pub async fn list_inspections(
+        &self,
+        page: u64,
+        page_size: u64,
+        status: Option<String>,
+        supplier_id: Option<i32>,
+        keyword: Option<String>,
+        result: Option<String>,
+        date_from: Option<String>,
+        date_to: Option<String>,
+    ) -> Result<(Vec<PurchaseInspectionView>, u64), AppError> {
+        // 单次查询：实体 + 入库单号 / 供应商名 / 质检员名（均为 LEFT JOIN 名列，无 N+1）。
+        // 筛选条件构造与统计端点共用 base_filtered_query（分母同源的唯一条件点）。
+        let query = self
+            .base_filtered_query(
+                status.as_deref(),
+                supplier_id,
+                keyword.as_deref(),
+                result.as_deref(),
+                date_from.as_deref(),
+                date_to.as_deref(),
+            )
+            .column_as(purchase_receipt::Column::ReceiptNo, "receipt_no")
+            .column_as(supplier::Column::SupplierName, "supplier_name")
+            .column_as(user::Column::RealName, "inspector_name");
 
         // 批次 258 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
         let paginator = query
@@ -370,6 +404,102 @@ impl PurchaseInspectionService {
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
+    }
+
+    /// 统计卡聚合（GET /purchase/inspections/stats）：与列表同筛选条件、同分母来源。
+    ///
+    /// 分桶口径（全部取权威词表常量，与写入侧逐字符同源，禁止内联字符串）：
+    /// - `total`：同筛选条件下的全量行数；
+    /// - `pending`：inspection_status = purchase_inspection::PENDING；
+    /// - `passed`：inspection_result = purchase_inspection_result::PASS；
+    /// - `failed`：inspection_result IN (FAIL, PARTIAL)——partial 归不合格侧的
+    ///   依据是既有裁定 `purchase_inspection_result::to_receipt_inspection_status`
+    ///   （fail/partial 一并回写入库单 REJECTED），统计与本列写入/校验共用同一常量。
+    ///
+    /// 恒等式 `pending + passed + failed == total` 在**当前代码写入规则**下成立：
+    /// 建单（create_inspection）恒写 status=PENDING、result=NULL；完成（
+    /// complete_inspection）状态机守卫要求源状态为 PENDING，且结论经 ALL 白名单
+    /// 强校验（Some ⟺ is_valid）后恒写 status=COMPLETED、result∈{pass,fail,partial}；
+    /// 本表无其他写方（全仓 grep `purchase_inspection::ActiveModel` 仅命中本服务）。
+    /// 但该恒等式**没有数据库层约束**兜底：若历史上存在 result 为 NULL 的
+    /// completed 行、或词表外 status 行（异常形态），它们只会出现在 `total`，
+    /// **不**被塞进任何分桶（不用兜底掩盖），前端四卡之和可能小于总数，
+    /// 差值即异常行数——这是如实呈现，不是缺陷。
+    pub async fn inspection_stats(
+        &self,
+        status: Option<String>,
+        supplier_id: Option<i32>,
+        keyword: Option<String>,
+        result: Option<String>,
+        date_from: Option<String>,
+        date_to: Option<String>,
+    ) -> Result<purchase_inspection::PurchaseInspectionStats, AppError> {
+        let args = (status, supplier_id, keyword, result, date_from, date_to);
+
+        let total = self
+            .base_filtered_query(
+                args.0.as_deref(),
+                args.1,
+                args.2.as_deref(),
+                args.3.as_deref(),
+                args.4.as_deref(),
+                args.5.as_deref(),
+            )
+            .count(&*self.db)
+            .await?;
+
+        let pending = self
+            .base_filtered_query(
+                args.0.as_deref(),
+                args.1,
+                args.2.as_deref(),
+                args.3.as_deref(),
+                args.4.as_deref(),
+                args.5.as_deref(),
+            )
+            .filter(purchase_inspection::Column::InspectionStatus.eq(pis_status::PENDING))
+            .count(&*self.db)
+            .await?;
+
+        let passed = self
+            .base_filtered_query(
+                args.0.as_deref(),
+                args.1,
+                args.2.as_deref(),
+                args.3.as_deref(),
+                args.4.as_deref(),
+                args.5.as_deref(),
+            )
+            .filter(
+                purchase_inspection::Column::InspectionResult.eq(purchase_inspection_result::PASS),
+            )
+            .count(&*self.db)
+            .await?;
+
+        // partial 归不合格侧（fail/partial 同属 REJECTED 回写映射），NULL result
+        // 行在 SQL 三值逻辑下不命中 IN 列表，天然不入本桶。
+        let failed = self
+            .base_filtered_query(
+                args.0.as_deref(),
+                args.1,
+                args.2.as_deref(),
+                args.3.as_deref(),
+                args.4.as_deref(),
+                args.5.as_deref(),
+            )
+            .filter(purchase_inspection::Column::InspectionResult.is_in(vec![
+                purchase_inspection_result::FAIL,
+                purchase_inspection_result::PARTIAL,
+            ]))
+            .count(&*self.db)
+            .await?;
+
+        Ok(purchase_inspection::PurchaseInspectionStats {
+            total,
+            pending,
+            passed,
+            failed,
+        })
     }
 
     /// 获取质检单详情
