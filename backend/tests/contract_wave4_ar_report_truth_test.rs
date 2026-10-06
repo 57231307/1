@@ -341,7 +341,10 @@ const MONTHLY_ROW_KEYS: &[&str] = &[
 /// 截取 `start_marker` 到 `end_marker` 之间的源码段（函数体形状锁用）
 fn report_fn_body<'s>(src: &'s str, start_marker: &str, end_marker: &str) -> &'s str {
     let start = src.find(start_marker).unwrap_or_else(|| {
-        panic!("report.rs 未找到 `{start_marker}`——AR 日报/月报函数已漂移，形状锁需要随之重写")
+        panic!(
+            "report.rs 未找到 `{start_marker}`——AR 报表函数已漂移，\
+             形状锁需要随函数结构同步修订"
+        )
     });
     let rest = &src[start..];
     let end = rest
@@ -394,6 +397,153 @@ fn ar_daily_and_monthly_payload_is_bare_array_with_pinned_row_keys() {
 }
 
 // ---------------------------------------------------------------------------
+// 5b) statistics/aging 出参形状锁：载荷必须是单聚合对象（信封 single↔single），
+//     键逐字符钉死在 build_statistics_response / build_aging_response 的 json! 字面，
+//     且金额键必须是 Decimal.to_string() 字符串形态
+//     （与前端 `frontend/src/api/ar.ts` 的 `ApiResponse<ARStatisticsReport>` /
+//      `ApiResponse<ARAgingReport>` 声明同源；任何一方改形状必须先改这里。
+//      同形状下信封门禁 check-api-envelope.mjs 判不出键名失配，本锁是该族唯一防线）
+// ---------------------------------------------------------------------------
+
+/// 统计报表聚合对象键（report.rs `build_statistics_response` 内 `json!` 逐字面值）
+const STATISTICS_OBJECT_KEYS: &[&str] = &[
+    "\"total_invoices\":",
+    "\"total_amount\":",
+    "\"paid_amount\":",
+    "\"unpaid_amount\":",
+    "\"overdue_count\":",
+    "\"overdue_amount\":",
+    "\"collection_rate\":",
+];
+
+/// 统计出参里必须为 Decimal.to_string() 字符串形态的金额键（计数/率值不在此列）
+const STATISTICS_DECIMAL_KEYS: &[&str] = &[
+    "total_amount",
+    "paid_amount",
+    "unpaid_amount",
+    "overdue_amount",
+];
+
+/// 账龄报表聚合对象键（report.rs `build_aging_response` 内 `json!` 逐字面值）
+const AGING_OBJECT_KEYS: &[&str] = &[
+    "\"not_due\":",
+    "\"bucket_0_30\":",
+    "\"bucket_31_60\":",
+    "\"bucket_61_90\":",
+    "\"bucket_90_plus\":",
+    "\"total_overdue\":",
+    "\"invoice_count\":",
+];
+
+/// 账龄出参里必须为 Decimal.to_string() 字符串形态的金额键
+const AGING_DECIMAL_KEYS: &[&str] = &[
+    "not_due",
+    "bucket_0_30",
+    "bucket_31_60",
+    "bucket_61_90",
+    "bucket_90_plus",
+    "total_overdue",
+];
+
+/// 锁定的聚合对象函数段：start_marker 为构造 json! 的函数，end_marker 为其后首个函数签名
+fn pinned_aggregate_body<'s>(
+    src: &'s str,
+    start_marker: &str,
+    end_marker: &str,
+    keys: &[&str],
+    decimal_keys: &[&str],
+    name: &str,
+) {
+    let body = report_fn_body(src, start_marker, end_marker);
+    assert!(
+        body.contains("json!({"),
+        "`{name}` 载荷必须以 `json!({{…}})` 单对象构造——前端信封 ApiResponse<对象> 同源；\
+         改成数组或 {{rows,total}} 包装属契约变更，必须前后端+本锁同步改。"
+    );
+    assert!(
+        !body.contains("Vec<serde_json::Value>") && !body.contains("json!(result)"),
+        "`{name}` 出现数组行集构造痕迹——与单聚合对象定稿形状冲突（行集端点是 \
+         daily/monthly，勿在此夹带）。"
+    );
+    for key in keys {
+        assert!(
+            body.contains(key),
+            "`{name}` 聚合对象缺少钉死键 {key}——键漂移会击穿前端取键，且同形状下\
+             信封门禁判不出该族失配（single↔single 盲区）。"
+        );
+    }
+    for key in decimal_keys {
+        assert!(
+            body.contains(&format!("\"{key}\": {key}.to_string(),")),
+            "`{name}` 金额键 {key} 必须由 `Decimal::to_string()` 产出（本仓裁定 \
+             rust_decimal 出参为字符串）；改 number 出参属契约变更，须连同前端类型与\
+             消费点一起改并重排本锁。"
+        );
+    }
+}
+
+#[test]
+fn ar_statistics_and_aging_payload_is_single_object_with_pinned_keys() {
+    pinned_aggregate_body(
+        AR_REPORT_SRC,
+        "fn build_statistics_response",
+        "pub async fn get_daily_report",
+        STATISTICS_OBJECT_KEYS,
+        STATISTICS_DECIMAL_KEYS,
+        "statistics",
+    );
+    pinned_aggregate_body(
+        AR_REPORT_SRC,
+        "fn build_aging_response",
+        "pub async fn get_aging_by_salesperson",
+        AGING_OBJECT_KEYS,
+        AGING_DECIMAL_KEYS,
+        "aging",
+    );
+}
+
+/// handler 透传锁：每个报表端点必须把 service 构造原样放进 ApiResponse 载荷，
+/// 不得在 handler 层再手搓 json! 载荷（那会让上面的 service 形状锁失去对出参的覆盖）。
+#[test]
+fn ar_report_handler_wraps_service_value_without_rebuilding_payload() {
+    let handler_src = include_str!("../src/handlers/ar_report_handler.rs");
+    assert!(
+        !handler_src.contains("json!("),
+        "ar_report_handler.rs 出现 `json!(` 手搓载荷——报表端点应直接 \
+         `ApiResponse::success(service 返回值)`，handler 层重建对象会击穿 \
+         report.rs 侧的形状锁。"
+    );
+    let clean: String = handler_src
+        .lines()
+        .filter(|l| !l.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let segments: Vec<&str> = clean.split("pub async fn ").skip(1).collect();
+    assert_eq!(
+        segments.len(),
+        5,
+        "ar_report_handler.rs 端点数与形状锁覆盖数不一致（statistics/daily/monthly/\
+         aging/aging-by-salesperson 共 5 个），新增端点须同步纳入本锁。"
+    );
+    for seg in segments {
+        let name = seg
+            .split('(')
+            .next()
+            .unwrap_or_else(|| panic!("无法解析端点函数名：{seg}"));
+        assert!(
+            seg.contains(&format!(".{name}(")) && seg.contains("let report ="),
+            "端点 `{name}` 未直接把同名 service 方法结果绑定到 report——载荷来源\
+             与 report.rs 形状锁失去同源。"
+        );
+        assert!(
+            seg.contains("Ok(Json(ApiResponse::success(report)))"),
+            "端点 `{name}` 未把 report 原样放入 ApiResponse::success——中间加工会\
+             击穿形状锁。"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 6) 真库回退（#[ignore]，需 TEST_DATABASE_URL）
 // ---------------------------------------------------------------------------
 
@@ -420,6 +570,72 @@ async fn ar_report_against_real_db() {
         .await
         .expect("复数表名 ar_invoices 在全新/已迁移库上首查应成功，不得 42P01");
     assert!(report.get("total_invoices").is_some());
+    // 1a'. statistics 聚合对象逐键钉死 + 金额键为 Decimal 字符串（与前端信封声明同源）
+    for key in [
+        "total_invoices",
+        "total_amount",
+        "paid_amount",
+        "unpaid_amount",
+        "overdue_count",
+        "overdue_amount",
+        "collection_rate",
+    ] {
+        assert!(
+            report.get(key).is_some(),
+            "statistics 聚合对象缺少钉死键 {key}：实际 = {report}"
+        );
+    }
+    for key in [
+        "total_amount",
+        "paid_amount",
+        "unpaid_amount",
+        "overdue_amount",
+    ] {
+        assert!(
+            report[key].is_string(),
+            "statistics 金额键 {key} 必须是 JSON 字符串（Decimal.to_string），\
+             实际 = {}",
+            report[key]
+        );
+    }
+    // 1a''. aging 聚合对象同锁
+    let aging = svc
+        .get_aging_report(None, None, None)
+        .await
+        .expect("get_aging_report 在已迁移库上应返回 Ok");
+    for key in [
+        "not_due",
+        "bucket_0_30",
+        "bucket_31_60",
+        "bucket_61_90",
+        "bucket_90_plus",
+        "total_overdue",
+        "invoice_count",
+    ] {
+        assert!(
+            aging.get(key).is_some(),
+            "aging 聚合对象缺少钉死键 {key}：实际 = {aging}"
+        );
+    }
+    for key in [
+        "not_due",
+        "bucket_0_30",
+        "bucket_31_60",
+        "bucket_61_90",
+        "bucket_90_plus",
+        "total_overdue",
+    ] {
+        assert!(
+            aging[key].is_string(),
+            "aging 金额键 {key} 必须是 JSON 字符串（Decimal.to_string），实际 = {}",
+            aging[key]
+        );
+    }
+    assert!(
+        aging["invoice_count"].is_number(),
+        "aging 计数键 invoice_count 应为 JSON number，实际 = {}",
+        aging["invoice_count"]
+    );
 
     // 1b. daily/monthly 出参必须是数组行集，且每行含全部钉死键（与前端信封声明同源）
     let daily = svc

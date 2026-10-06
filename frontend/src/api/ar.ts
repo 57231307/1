@@ -350,17 +350,27 @@ export function getUnverifiedARPayments(): Promise<ApiResponse<ARPayment[]>> {
   return request.get('/ar/verifications/unverified/payments');
 }
 
-// P2-15 修复（批次 86 v2 复审）：4 处报表 ApiResponse<any> → 显式接口
-
-/** AR 统计报表汇总行 */
+/**
+ * AR 统计报表聚合行（单聚合对象载荷，非行集）。
+ * 出参形状以定稿 DTO 为唯一事实：键与 `backend/src/services/ar_ops/report.rs:141-149`
+ * `build_statistics_response` 的 `json!` 字面逐字一致；handler `get_statistics_report`
+ * （backend/src/handlers/ar_report_handler.rs:60）将 service 构造原样放入 ApiResponse 载荷，
+ * 无二次加工。金额键（total_amount/paid_amount/unpaid_amount/overdue_amount）为后端
+ * `Decimal.to_string()` 出的字符串（rust_decimal 仅启用 serde feature，非 float 序列化，
+ * 本仓裁定出参为字符串），计数键 total_invoices/overdue_count 为 JSON number，
+ * collection_rate 为 f64 回款率。
+ * `[key: string]: unknown` 索引签名仅供报表 tab 通用表格从载荷推导列（列 = Object.keys），
+ * 不代表后端另有出参键；真实键由后端契约形状锁逐键钉死，前端侧由
+ * `tests/unit/ar-report-keys.test.ts` 三向对锁（后端源码 ↔ 本声明 ↔ 钉死清单）。
+ */
 export interface ARStatisticsReport {
-  total_invoice_amount: number;
-  total_received_amount: number;
-  total_unreceived_amount: number;
-  total_verified_amount: number;
-  total_unverified_amount: number;
-  invoice_count: number;
+  total_invoices: number;
+  total_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
   overdue_count: number;
+  overdue_amount: string;
+  collection_rate: number;
   [key: string]: unknown;
 }
 
@@ -391,16 +401,25 @@ export interface ARMonthlyReport {
   [key: string]: unknown;
 }
 
-/** AR 账龄报表行 */
+/**
+ * AR 账龄报表聚合行（单聚合对象载荷，全体/筛选口径下的一组合计，非按客户行集）。
+ * 出参形状以定稿 DTO 为唯一事实：键与 `backend/src/services/ar_ops/report.rs:498-506`
+ * `build_aging_response` 的 `json!` 字面逐字一致；handler `get_aging_report`
+ * （backend/src/handlers/ar_report_handler.rs:168）将 service 构造原样放入 ApiResponse 载荷。
+ * 分桶由后端 SQL CASE WHEN 按 due_date 计算（未到期 not_due + 逾期 0-30/31-60/61-90/90+），
+ * total_overdue 为四桶逾期合计；全部金额键为 `Decimal.to_string()` 字符串（本仓裁定），
+ * invoice_count 为 JSON number。按业务员维度的行集走独立端点
+ * `/ar/reports/aging/by-salesperson`，与本类型无关。
+ * 索引签名同 ARStatisticsReport 的说明。
+ */
 export interface ARAgingReport {
-  customer_id: number;
-  customer_name: string;
-  age_0_30: number;
-  age_31_60: number;
-  age_61_90: number;
-  age_91_180: number;
-  age_180_plus: number;
-  total_amount: number;
+  not_due: string;
+  bucket_0_30: string;
+  bucket_31_60: string;
+  bucket_61_90: string;
+  bucket_90_plus: string;
+  total_overdue: string;
+  invoice_count: number;
   [key: string]: unknown;
 }
 
