@@ -1,5 +1,9 @@
 import { request } from './request';
 import type { ApiResponse, PaginatedResponse } from '@/types/api';
+import type {
+  QualityHandlingMethodValue,
+  QualityHandlingStatusValue,
+} from '@/constants/quality-unqualified-handling';
 
 export interface QualityStandard {
   id: number;
@@ -130,19 +134,6 @@ export interface UpdateQualityRecordPayload {
   grade?: string | null;
   color_no?: string | null;
   dye_lot_no?: string | null;
-}
-
-export interface Defect {
-  id: number;
-  record_id: number;
-  defect_type: string;
-  defect_description: string;
-  severity: 'minor' | 'major' | 'critical';
-  quantity: number;
-  processed: boolean;
-  processed_by: string;
-  processed_at: string;
-  remark: string;
 }
 
 /**
@@ -282,26 +273,35 @@ export function updateQualityRecord(
 
 /**
  * 缺陷列表查询参数——严格对齐后端 quality_inspection_handler.rs::DefectQuery。
- * 全部 Option 字段 → 可选；无 rename_all → 保持 snake_case。
+ * status 会被服务层直接拿去对 unqualified_products.handling_status 做等值筛选，
+ * 取值只能是写入方常量集合（pending / approved / rejected）之一，逐字符相同。
+ * record_id（D2 已下推生效）：后端 list_defects 把它透传为服务层 inspection_id，
+ * 对实体列 unqualified_products.inspection_id（派生本行的质检记录 id，
+ * quality_inspection_records.id）做等值筛选（handler :412、service get_defects_list）；
+ * 它是筛选键而不是台账行动作参数——台账行动作的路径 id 一律用行自身 id（见 processDefectRow）。
  */
 export interface DefectListParams {
   record_id?: number;
-  status?: string;
+  status?: QualityHandlingStatusValue;
   page?: number;
   page_size?: number;
 }
 
-export function getDefectList(params?: DefectListParams): Promise<ApiResponse<Defect[]>> {
+export function getDefectList(
+  params?: DefectListParams
+): Promise<ApiResponse<UnqualifiedProductRecord[]>> {
   return request.get('/production/quality-inspection/defects', { params });
 }
 
 /**
- * 不合格品处理方式取值：与后端 services/quality_inspection_service.rs:45-47 常量逐字一致
- * （downgrade_sale 降级销售 / rework 返工 / scrap 报废）。
+ * 不合格品处理方式取值：与后端 services/quality_inspection_service.rs 的
+ * HANDLING_DOWNGRADE_SALE / HANDLING_REWORK / HANDLING_SCRAP 三个常量逐字一致
+ * （downgrade_sale 降级销售 / rework 返工 / scrap 报废），词表单一真相源见
+ * constants/quality-unqualified-handling.ts。
  * 后端会按质检记录等级校验合法组合（A 级拒绝处理，B 级必须降级销售，C 级必须返工或报废，
- * 见 validate_handling_method_by_grade，quality_inspection_service.rs:73-），非法组合返回业务错误。
+ * 见 validate_handling_method_by_grade），非法组合返回业务错误。
  */
-export type DefectHandlingMethod = 'downgrade_sale' | 'rework' | 'scrap';
+export type DefectHandlingMethod = QualityHandlingMethodValue;
 
 /**
  * 处理缺陷请求体：对齐后端 ProcessUnqualifiedRequest
@@ -319,12 +319,21 @@ export interface ProcessDefectPayload {
 }
 
 /**
- * 处理缺陷出参：后端 handlers/quality_inspection_handler.rs::process_defect 返回
- * models/unqualified_product.rs::Model；Decimal 序列化为字符串，渲染前先 Number() 归一。
+ * 不合格品（缺陷台账）出参：models/unqualified_product.rs::Model 的整行序列化，
+ * 处理端点 process_defect 与列表端点 list_defects 共用同一声明（两处都是
+ * serde 直接序列化实体 Vec/单行，服务层不组 DTO、不补键）。
+ * - NOT NULL 列（unqualified_no / product_id / unqualified_qty / unqualified_reason /
+ *   handling_method / handling_status / created_at / updated_at）不得标 `?`；
+ * - 后端 Decimal 一律序列化为字符串（含 scrap_loss_amount），渲染前按字符串直读或先转数字，
+ *   不得假定是 number；时间列为 RFC3339 字符串；
+ * - handling_method / handling_status / grade 三列在库里是无 CHECK 的 VARCHAR，故类型如实
+ *   取 string，写入方实际只会产生 constants/quality-unqualified-handling.ts 登记的词表值，
+ *   界面按该词表翻文案、词表外值原样直出不猜。
  */
 export interface UnqualifiedProductRecord {
   id: number;
   unqualified_no: string;
+  /** 派生本行的质检记录 id（quality_inspection_records.id），非验布记录 id */
   inspection_id: number | null;
   product_id: number;
   batch_no: string | null;
@@ -349,11 +358,53 @@ export interface UnqualifiedProductRecord {
   scrap_loss_amount: string | null;
 }
 
+/**
+ * 处理不合格品（从质检记录**开单**，建立不合格品处理单）。
+ * ⚠ 路径参数 id 是**质检记录 id**（quality_inspection_records.id）：后端 process_unqualified
+ * 拿它 find_by_id 质检记录，再 INSERT 一条 unqualified_products；它不是台账行 id。
+ * 同记录幂等守卫（D1② 配套，service process_unqualified :479-493）：该质检记录存在
+ * 非终态（handling_status 既非 approved 也非 rejected）的既有行时，再次开单被
+ * BUSINESS_ERROR 拒绝——同一记录不会因重复调用累积同号多行。
+ * 台账行原地更新处置结果走 processDefectRow，两者 {id} 语义不同，不可互换。
+ */
 export function processDefect(
   id: number,
   data: ProcessDefectPayload
 ): Promise<ApiResponse<UnqualifiedProductRecord>> {
   return request.post(`/production/quality-inspection/defects/${id}/process`, data);
+}
+
+/**
+ * 台账行「处置结果原地更新」请求体：逐键对齐后端 ProcessResultRequest
+ * （services/quality_inspection_service.rs:197-206），键集恰为
+ * handling_method（必填）+ reason（可选）两键。
+ * 身份字段（user_id/handling_by/updated_by/operator_id）在后端 DTO 类型层不存在，
+ * 上送只会被 serde 忽略且属伪造身份面，禁止入载荷；操作人由服务端会话派生。
+ * reason 为 Option<String>：不填时必须省略该键（提交空白串会被后端
+ * VALIDATION 拒绝）；本轮后端仅校验+显式日志、不落库（表无专用理由列，迁移待裁）。
+ */
+export interface ProcessDefectResultPayload {
+  handling_method: DefectHandlingMethod;
+  reason?: string;
+}
+
+/**
+ * 不合格品台账行处置结果**原地更新**（D1②）：不新开行，本行 handling_status
+ * 由 pending 推进为 approved 并写 handling_by/handling_at 留痕。
+ * 路径参数 id 是**台账行自身 id**（unqualified_products.id，与报废两级审批同一
+ * id 语义），不是质检记录 id（后端 routes/production.rs:549-552、handler
+ * process_defect_result :447-466）。
+ * 状态门与错误族（由后端保证，界面门控须与之一致以免必然 4xx 的假动作）：
+ * - 仅 handling_status === pending 可行，其余前驱 ⇒ 4xx BUSINESS_ERROR；
+ * - 行处于报废审批流（pending_fin/pending_gm）⇒ 4xx BUSINESS_ERROR；
+ * - handling_method === scrap ⇒ 4xx BUSINESS_ERROR（报废终态只能经两级审批达成）；
+ * - 词表外 handling_method ⇒ 4xx VALIDATION_ERROR。
+ */
+export function processDefectRow(
+  id: number,
+  data: ProcessDefectResultPayload
+): Promise<ApiResponse<UnqualifiedProductRecord>> {
+  return request.post(`/production/quality-inspection/defects/${id}/process-result`, data);
 }
 
 export function archiveQualityStandard(id: number): Promise<ApiResponse<void>> {

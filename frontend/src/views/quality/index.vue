@@ -318,11 +318,9 @@ import {
   createQualityRecord,
   // 批次 94 P2-12 修复：补全 updateQualityRecord 用于实现更新功能
   updateQualityRecord,
-  getDefectList,
   getQualityStandardVersions,
   type QualityStandard,
   type QualityRecord,
-  type Defect,
 } from '@/api/quality';
 import { useQualityLookups } from './composables/useQualityLookups';
 import {
@@ -348,10 +346,8 @@ const { t } = useI18n({ useScope: 'global' });
 const activeTab = ref('standard');
 const standards = ref<QualityStandard[]>([]);
 const records = ref<QualityRecord[]>([]);
-const defects = ref<Defect[]>([]);
 const standardLoading = ref(false);
 const recordLoading = ref(false);
-const defectLoading = ref(false);
 
 const fetchStandards = async () => {
   standardLoading.value = true;
@@ -376,17 +372,7 @@ const fetchRecords = async () => {
   }
 };
 
-const fetchDefects = async () => {
-  defectLoading.value = true;
-  try {
-    // v11 批次 173 P2-1 修复：const res: any 改为直接使用 API 返回类型
-    const res = await getDefectList();
-    // 安全检查：防止后端返回 data 为 null 时崩溃
-    defects.value = res.data || [];
-  } finally {
-    defectLoading.value = false;
-  }
-};
+// 缺陷台账（不合格品列表）的取数与渲染归 DefectTab 自己，父页不持有该列表状态
 
 // 取值集合＝后端实际写入值（quality_standard_service.rs：draft:128 / approved:314 /
 // rejected:351 / archived:384 / active:417，active 走 master_data::ACTIVE，general.rs:52）。
@@ -741,7 +727,6 @@ const hasLoaded = createLazyLoader();
 onMounted(() => {
   fetchStandards();
   loadIfNot('records', fetchRecords, hasLoaded);
-  loadIfNot('defects', fetchDefects, hasLoaded);
   void loadLookups();
 });
 

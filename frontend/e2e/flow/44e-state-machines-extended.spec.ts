@@ -238,33 +238,35 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     await ensureTestEntities(page);
     const ctx = getCtx();
 
-    // 前置①：C 级质检记录（rate=0 → determine_quality_grade 自动判 C，service :61-69；
+    // 前置①②③：C 级质检记录（rate=0 → determine_quality_grade 自动判 C，service :61-69；
     // C 级允许 scrap/rework，validate_handling_method_by_grade :95-104）。
-    const rec = await apiCall<{ id?: number }>(
-      page,
-      'POST',
-      '/production/quality-inspection/records',
-      {
-        inspection_no: genCode('E2E44E7'),
-        inspection_type: 'finished',
-        product_id: ctx.productIds[0],
-        inspection_date: new Date().toISOString().slice(0, 10),
-        total_qty: '100',
-        inspected_qty: '100',
-        qualified_qty: '0',
-        unqualified_qty: '100',
-        qualification_rate: '0',
-        inspection_result: '不合格',
-      }
-    );
-    const recordId = rec?.data?.id;
-    expect(
-      recordId,
-      `质检记录建单响应未返回 id（后端建单响应回 id 是契约，缺失判红）：${JSON.stringify(rec).slice(0, 200)}`
-    ).toBeTruthy();
-
+    // D1② 后 /process 带同记录幂等守卫（同一质检记录存在非终态台账行 ⇒ BUSINESS 拒开单，
+    // service process_unqualified :479-493），故**每次开单各建一条独立质检记录**——
+    // 旧写法在同一记录上连开 scrap+rework 两单依赖的是已废弃的"可重复开单"语义。
     const defectBase = (id: number) => `/production/quality-inspection/defects/${id}`;
     const processDefect = async (handlingMethod: string) => {
+      const rec = await apiCall<{ id?: number }>(
+        page,
+        'POST',
+        '/production/quality-inspection/records',
+        {
+          inspection_no: genCode('E2E44E7'),
+          inspection_type: 'finished',
+          product_id: ctx.productIds[0],
+          inspection_date: new Date().toISOString().slice(0, 10),
+          total_qty: '100',
+          inspected_qty: '100',
+          qualified_qty: '0',
+          unqualified_qty: '100',
+          qualification_rate: '0',
+          inspection_result: '不合格',
+        }
+      );
+      const recordId = rec?.data?.id;
+      expect(
+        recordId,
+        `质检记录建单响应未返回 id（后端建单响应回 id 是契约，缺失判红）：${JSON.stringify(rec).slice(0, 200)}`
+      ).toBeTruthy();
       const d = await apiCall<ScrapDefectRow>(page, 'POST', `${defectBase(recordId!)}/process`, {
         unqualified_qty: '100',
         unqualified_reason: 'E2E44e-7 报废审批前置',
@@ -277,7 +279,7 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       ).toBeTruthy();
       return { id: id as number, created: d.data as ScrapDefectRow };
     };
-    // 前置②：报废缺陷（初始态 pending_fin，service :471-475）；前置③：对照 rework 缺陷
+    // 报废缺陷（初始态 pending_fin，service :471-475）；对照 rework 缺陷
     //（not_required，供「非报废拒入审批链」负例）。
     const scrap = await processDefect('scrap');
     const rework = await processDefect('rework');

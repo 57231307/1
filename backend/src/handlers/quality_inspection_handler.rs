@@ -5,7 +5,7 @@ use crate::models::quality_inspection_record;
 use crate::models::unqualified_product;
 use crate::models::user;
 use crate::services::quality_inspection_service::{
-    CreateInspectionRecordRequest, CreateQualityInspectionStandardRequest,
+    CreateInspectionRecordRequest, CreateQualityInspectionStandardRequest, ProcessResultRequest,
     ProcessUnqualifiedRequest, QualityInspectionService,
 };
 use crate::utils::ApiResponse;
@@ -114,7 +114,9 @@ pub struct RecordQuery {
     pub page_size: Option<i64>,
 }
 
-#[allow(dead_code, reason = "反序列化输入字段")]
+/// 缺陷台账查询参数。`record_id` 已下推为真实列 `unqualified_products.inspection_id`
+/// 的等值筛选（派生本行的质检记录 id，非验布记录 id），字段名保留以不破既有前端契约；
+/// 每个字段都真正参与筛选或分页，不再需要 dead_code 豁免
 #[derive(Debug, Deserialize)]
 pub struct DefectQuery {
     pub record_id: Option<i32>,
@@ -134,6 +136,8 @@ pub async fn list_standards(
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: params.inspection_type,
         status: params.status,
+        // 标准列表不消费 inspection_id（该字段仅 defects 台账筛选下推用，见服务层字段文档）
+        inspection_id: None,
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
@@ -404,6 +408,8 @@ pub async fn list_defects(
     let query_params = crate::services::quality_inspection_service::QualityInspectionQueryParams {
         inspection_type: None,
         status: params.status,
+        // D2：record_id 透传为 inspection_id 真实筛选（锚定列见服务层字段文档）
+        inspection_id: params.record_id,
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
@@ -428,6 +434,35 @@ pub async fn process_defect(
     info!("质量缺陷处理成功，ID：{}", result.id);
 
     Ok(Json(ApiResponse::success(result)))
+}
+
+/// POST /api/v1/erp/production/quality-inspection/defects/{id}/process-result
+/// —— 台账行处置结果**原地更新**（D1②）。
+///
+/// `{id}` = `unqualified_products.id`（台账行主键，与报废两级审批端点同一 id 语义），
+/// 不是质检记录 id——从质检记录开单是 `/defects/{id}/process` 与 `/handle` 的语义，
+/// 两种语义不共用路径与 handler。请求体只承载处置结果字段（`handling_method` 必填、
+/// `reason` 可选），操作人一律取会话 `auth.user_id`；门控与留痕细则见服务层
+/// `process_unqualified_result` 文档。
+#[axum::debug_handler]
+pub async fn process_defect_result(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(req): Json<ProcessResultRequest>,
+) -> Result<Json<ApiResponse<unqualified_product::Model>>, AppError> {
+    info!(
+        "用户 {} 正在原地更新不合格品台账行 {} 的处置结果",
+        auth.user_id, id
+    );
+
+    let service = QualityInspectionService::new(state.db.clone());
+    let updated = service
+        .process_unqualified_result(id, req, auth.user_id)
+        .await?;
+    info!("不合格品台账行处置结果更新成功，行ID：{}", updated.id);
+
+    Ok(Json(ApiResponse::success(updated)))
 }
 
 /// 报废一级（财务）审批请求。

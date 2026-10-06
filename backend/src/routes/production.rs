@@ -534,9 +534,21 @@ pub fn quality_inspection() -> Router<AppState> {
             "/quality-inspection/defects/{id}/process",
             post(quality_inspection_handler::process_defect),
         )
+        // `/handle` 与 `/process` 完全同一语义、同一 handler：均为**从质检记录开单**
+        // （`{id}` = quality_inspection_records 记录 id，服务层 process_unqualified 依据
+        // 该记录 INSERT 一条 unqualified_products，并带同记录非终态行幂等守卫）。
+        // 保留仅为兼容既有调用方；它**不是**"更新台账行"。台账行原地更新处置结果
+        // （`{id}` = unqualified_products.id）走下方独立端点 /process-result，
+        // 两种语义不共用同一路径/handler（D1 裁定：禁止同路径承载双语义）
         .route(
             "/quality-inspection/defects/{id}/handle",
             post(quality_inspection_handler::process_defect),
+        )
+        // D1②：台账行处置结果原地更新（不新开行）。`{id}` = unqualified_products.id，
+        // 与下方报废两级审批同一 id 语义；权限键由 URL 段推导，与前缀段同源
+        .route(
+            "/quality-inspection/defects/{id}/process-result",
+            post(quality_inspection_handler::process_defect_result),
         )
         // P1 batch-18 缺陷 5.3 报废两级审批（财务一级 → 总经理二级）：
         // {id} = unqualified_products.id（与 defects 列表同一实体）；权限键沿用 URL 段推导
