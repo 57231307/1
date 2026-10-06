@@ -4110,12 +4110,23 @@ jobs:
           EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'}
 
           HARD_PATTERNS = [
-              # R1 任务号：`任务 #N`；裸 `#\d+` 看板/issue 引用（负向后顾避开 path/#1、标识符）
+              # R1 任务号：`任务 #N`；裸 `#\d+` 看板/issue 引用（负向后顾避开 path/#1、标识符）。
+              # 位数上界 5：CSS 十六进制色值常写成 6 位纯数字（`#123456`），不设上界会把
+              # "主色 #123456" 这类合法注释判红；CI run 号另有 R3 腿覆盖。
               ('R1.任务号', re.compile(r'任务\s*#?\d+')),
-              ('R1.看板引用', re.compile(r'(?<![\w/])#\d+\b')),
+              ('R1.看板引用', re.compile(r'(?<![\w/])#\d{1,5}\b')),
+              # 带字母后缀的看板号（`#323c` 这类子条目写法）：`#\d+\b` 因数字与字母间无词
+              # 边界而整条腿空转。只收"2-4 位数字 + 恰好 1 个字母"，避开 `#1a73e8` 色值。
+              ('R1.看板后缀', re.compile(r'(?<![\w/])#\d{2,4}[a-z](?![\w])')),
               # R2 批次/v 编号（IR 逐字：批次号、v14/批次xxx；P\d-S\d+ 为裁定严口径键）
               ('R2.批次号', re.compile(r'批次\s*\d+')),
-              ('R2.v编号', re.compile(r'v1\d')),
+              # "第 N 批"是同禁令的另一写法（变更日志式注释），语序与上条相反故须独立成腿；
+              # 独立规则 ID 是刻意的：共用 ID 会让探针无法分辨"哪条腿死了"。
+              ('R2.批次序', re.compile(r'第\s*\d+\s*批')),
+              # 只猎"版本史/排障史"式裸用。本仓迁移域目录实名 migration/src/domain/v15/，
+              # 注释按路径指它是 IR 要求的"指向仓内证据"，故路径相邻形态一律放行——
+              # 否则准确引用反被判红，规则会逼注释退化成"不敢写路径"。
+              ('R2.v编号', re.compile(r'(?<![\w/\\.\-])v1\d(?![\w/\\.\-])')),
               ('R2.P-S段', re.compile(r'P\d-S\d+')),
               # R3 run 号：`run \d{4}`（含 `run #4675` / `run 34067844812` 形态）
               ('R3.run号', re.compile(r'run\s*#?\d{4}')),
@@ -4135,7 +4146,9 @@ jobs:
           # 子形态级 0 命中只列示观察，类级 0 命中才触发计数自证失败）
           CATEGORY_OF = {
               'R1.任务号': 'R1任务号', 'R1.看板引用': 'R1任务号',
-              'R2.批次号': 'R2批次v编号', 'R2.v编号': 'R2批次v编号', 'R2.P-S段': 'R2批次v编号',
+              'R1.看板后缀': 'R1任务号',
+              'R2.批次号': 'R2批次v编号', 'R2.批次序': 'R2批次v编号',
+              'R2.v编号': 'R2批次v编号', 'R2.P-S段': 'R2批次v编号',
               'R3.run号': 'R3run号',
               'R4.盘符路径': 'R4仓外路径', 'R4.gitbash路径': 'R4仓外路径',
               'R4.md章节引用': 'R4仓外路径',
@@ -4234,7 +4247,9 @@ jobs:
           PROBES = [
               ('R1.任务号', 'probe_r1a.rs', '// 任务 #330 接入注释形态门禁\n'),
               ('R1.看板引用', 'probe_r1b.rs', '/// 修复见 #941\nfn f() {}\n'),
+              ('R1.看板后缀', 'probe_r1c.rs', '// #323c 站点活体锁（真 PostgreSQL + tower oneshot）\n'),
               ('R2.批次号', 'probe_r2a.rs', '// 批次 213 交付\n'),
+              ('R2.批次序', 'probe_r2d.rs', '//! 行为级活体证明 —— 第 5 批（库存盘点 / 跌价准备）\n'),
               ('R2.v编号', 'probe_r2b.ts', '// v14 排障史\n'),
               ('R2.P-S段', 'probe_r2c.rs', '//! P0-S01 波次说明\n'),
               ('R3.run号', 'probe_r3.rs', '// 实证：CI run #4675\nfn g() {}\n'),
@@ -4247,6 +4262,22 @@ jobs:
           ]
 
 
+          # 反向探针：这些是 IR 要求保留的**合法**引用形态，规则若判红即为过宽
+          # （准确指证据反成违规，会逼注释退化成"不敢写路径/不敢写色值"，与假绿同害）。
+          NEG_PROBES = [
+              ('R2.v编号', 'neg_r2a.rs',
+               '//! 建表 DDL 见 backend/migration/src/domain/v15/mod.rs 的 certificate_of_origin 语句\n'),
+              ('R2.v编号', 'neg_r2b.rs',
+               '// 注册位置：migration/src/domain/v15/ 域链尾，建表先于 CHECK\n'),
+              ('R1.看板引用', 'neg_r1a.ts',
+               "// 前端跳转 /crm/customers#2 定位第二张卡片\n"),
+              ('R1.看板引用', 'neg_r1b.vue',
+               '<!-- 主色 #123456、描边 #fff -->\n<template><div/></template>\n'),
+              ('R1.看板后缀', 'neg_r1c.vue',
+               '<!-- 主色 #1a73e8 用于按钮 hover -->\n<template><div/></template>\n'),
+          ]
+
+
           def probe_selftest():
               failures = []
               for rid, fname, content in PROBES:
@@ -4255,6 +4286,14 @@ jobs:
                       failures.append(
                           f'探针未命中：{rid} 样例 <{fname}> 内容 {content!r} '
                           '—— 探测器死器，门禁将成为空操作假绿')
+              # 只测"必须命中"是单向自证：规则宽到无差别开火也照样通过。反向探针
+              # 补上第二条腿，任一合法样例被误判即 exit 1。
+              for rid, fname, content in NEG_PROBES:
+                  got = [h for h in scan_text(fname, content) if h[0] == rid]
+                  if got:
+                      failures.append(
+                          f'反向探针被误判：{rid} 对合法样例 <{fname}> 内容 {content!r} '
+                          f'报了硬红（共 {len(got)} 处）—— 规则过宽，准确引用仓内证据反成违规')
               return failures
 
           # ---------------------------------------------------------- git 清单 / diff
@@ -4494,6 +4533,12 @@ jobs:
                   if retired:
                       out(f'     提示：{len(retired)} 个基线指纹已不存在，'
                           '应删行使棘轮真实缩短（只准降）')
+                      # 只报数量等于不给可执行信息：删哪几行必须点名，否则"应删行"
+                      # 永远停在口头提示，基线只会虚高不降。
+                      for fp in retired[:SAMPLE_N]:
+                          out(f'     待退役指纹（基线内可整行删除）：{fp}')
+                      if len(retired) > SAMPLE_N:
+                          out(f'     …其余 {len(retired) - SAMPLE_N} 条同批删除')
 
               # ③ 硬红档 diff-only（仅 ci 模式）；fail-closed
               if MODE == 'ci':
