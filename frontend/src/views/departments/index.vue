@@ -136,6 +136,7 @@ import {
   deleteDepartment,
   getDepartmentTree,
   type Department,
+  type DepartmentTreeNode,
   type DepartmentCreateRequest,
   type DepartmentUpdateRequest,
 } from '@/api/department';
@@ -149,7 +150,8 @@ const dialogMode = ref<'create' | 'edit'>('create');
 const formRef = ref<FormInstance>();
 // v11 批次 170 P2-1 修复：any[] 改为 Department[]
 const departmentList = ref<Department[]>([]);
-const deptTreeData = ref<Department[]>([]);
+// 树出参载体是 DepartmentTreeNode（六键），仅作上级部门 tree-select 数据源（label=name/value=id）
+const deptTreeData = ref<DepartmentTreeNode[]>([]);
 
 // v11 批次 170 P2-1 修复：reactive<any> 改为具体类型
 interface DeptFormData {

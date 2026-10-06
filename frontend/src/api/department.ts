@@ -16,7 +16,28 @@ export interface Department {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  children?: Department[];
+}
+
+/**
+ * 部门树节点：出参载体 = 后端 services/department_service.rs 的 DepartmentTreeNode
+ * （Serialize 结构体，无 rename，六键 id/name/description/parent_id/manager_name/children）。
+ * 与 department::Model（列表/详情载体）是两个不同类型：树节点不携带
+ * code/manager_id/sort_order/is_active/created_at/updated_at，按 Model 形状消费树出参会在假字段上取值。
+ */
+export interface DepartmentTreeNode {
+  id: number;
+  name: string;
+  /** DB 可空列 description：后端出参键恒存在，真实空值为 null */
+  description: string | null;
+  /** DB 可空列 parent_id（自引用外键）：键恒存在，顶级部门为 null */
+  parent_id: number | null;
+  /**
+   * 负责人姓名：非数据库列（Model 上 #[sea_orm(ignore)] 瞬态字段），
+   * 由 service 按 manager_id 批量查 users.username 回填；未指派或回填失败为 null，禁止提交
+   */
+  manager_name: string | null;
+  /** 后端序列化为 Vec 且无 skip_serializing_if：键恒存在，叶子节点为空数组 */
+  children: DepartmentTreeNode[];
 }
 
 export interface DepartmentCreateRequest {
@@ -81,6 +102,8 @@ export function deleteDepartment(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/departments/${id}`);
 }
 
-export function getDepartmentTree(): Promise<ApiResponse<Department[]>> {
+// 后端 department_handler::get_department_tree 出参 = ApiResponse<Vec<DepartmentTreeNode>>，
+// data 为裸数组；节点键集合见 DepartmentTreeNode 声明处注释（与列表载体 department::Model 不同型）。
+export function getDepartmentTree(): Promise<ApiResponse<DepartmentTreeNode[]>> {
   return request.get('/departments/tree');
 }
