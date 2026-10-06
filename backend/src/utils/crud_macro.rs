@@ -189,7 +189,16 @@ macro_rules! define_crud_handlers {
     };
 }
 
-/// 返回元组与 Option 的 CRUD Handler 生成宏（与 define_crud_handlers! 仅接口形态不同：list 返回 (Vec<T>,u64) 元组，get_by_id 返回 Option<T>，create 接收 user_id；适用于报表订阅/邮件模板等）
+/// 返回 Option 详情与 user_id 建单形态的 CRUD Handler 生成宏（与 define_crud_handlers! 仅接口形态不同：
+/// list 的 Service 方法返回统一分页信封 `PaginatedResponse<T>`，get_by_id 返回 `Option<T>`（None 归 404），
+/// create 接收 user_id；适用于报表订阅/邮件模板/公告等）
+///
+/// 出参类型形参与 define_crud_handlers! 同源同义：`$list_resp_ty` = service.list 的真实返回类型
+/// （必须是 `utils::response::PaginatedResponse<行类型>`，分页默认值与 clamp 只允许留在 service，
+/// 宏内不得复制该逻辑以免出现第二套口径；信封顶层键恒为 items/total/page/page_size），
+/// `$item_resp_ty` = get/create/update 的真实单对象类型（各域 service 一律返回实体 `Model`）。
+/// 出参在类型层保持具体，`check-api-envelope` 判定器可静态比对形状；
+/// 禁止以 `serde_json::Value` 作为这两个形参的实参塌形。
 #[macro_export]
 macro_rules! define_tuple_crud_handlers {
     (
@@ -198,6 +207,8 @@ macro_rules! define_tuple_crud_handlers {
         $update_req:ty,
         $query_params:ty,
         $id_ty:ty,
+        $list_resp_ty:ty,
+        $item_resp_ty:ty,
         $not_found_msg:expr
     ) => {
         #[allow(dead_code, reason = "宏生成的 handler 可能未被所有调用方使用")]
@@ -207,16 +218,13 @@ macro_rules! define_tuple_crud_handlers {
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Query(params): axum::extract::Query<$query_params>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$list_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             let service = <$service_ty>::new(state.db.clone());
-            let (items, total) = service.list(params).await?;
+            let result = service.list(params).await?;
             Ok(axum::Json($crate::utils::response::ApiResponse::success(
-                serde_json::json!({
-                    "items": items,
-                    "total": total,
-                }),
+                result,
             )))
         }
 
@@ -226,7 +234,7 @@ macro_rules! define_tuple_crud_handlers {
             _auth: $crate::middleware::auth_context::AuthContext,
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$item_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             let service = <$service_ty>::new(state.db.clone());
@@ -235,7 +243,7 @@ macro_rules! define_tuple_crud_handlers {
                 .await?
                 .ok_or_else(|| $crate::utils::error::AppError::not_found($not_found_msg))?;
             Ok(axum::Json($crate::utils::response::ApiResponse::success(
-                serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
+                item,
             )))
         }
 
@@ -245,7 +253,7 @@ macro_rules! define_tuple_crud_handlers {
             auth: $crate::middleware::auth_context::AuthContext,
             axum::Json(req): axum::Json<$create_req>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$item_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
@@ -255,7 +263,7 @@ macro_rules! define_tuple_crud_handlers {
             let item = service.create(auth.user_id, req).await?;
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
-                    serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
+                    item,
                     $crate::utils::messages::biz_msg::CREATE_OK,
                 ),
             ))
@@ -268,7 +276,7 @@ macro_rules! define_tuple_crud_handlers {
             axum::extract::Path(id): axum::extract::Path<$id_ty>,
             axum::Json(req): axum::Json<$update_req>,
         ) -> Result<
-            axum::Json<$crate::utils::response::ApiResponse<serde_json::Value>>,
+            axum::Json<$crate::utils::response::ApiResponse<$item_resp_ty>>,
             $crate::utils::error::AppError,
         > {
             if let Err(e) = validator::Validate::validate(&req) {
@@ -278,7 +286,7 @@ macro_rules! define_tuple_crud_handlers {
             let item = service.update(id, req).await?;
             Ok(axum::Json(
                 $crate::utils::response::ApiResponse::success_with_message(
-                    serde_json::to_value(item).map_err($crate::utils::error::AppError::from)?,
+                    item,
                     $crate::utils::messages::biz_msg::UPDATE_OK,
                 ),
             ))
@@ -296,7 +304,10 @@ macro_rules! define_tuple_crud_handlers {
             let service = <$service_ty>::new(state.db.clone());
             service.delete(id).await?;
             Ok(axum::Json(
-                $crate::utils::response::ApiResponse::success_with_message((), $crate::utils::messages::biz_msg::DELETE_OK),
+                $crate::utils::response::ApiResponse::success_with_message(
+                    (),
+                    $crate::utils::messages::biz_msg::DELETE_OK,
+                ),
             ))
         }
     };

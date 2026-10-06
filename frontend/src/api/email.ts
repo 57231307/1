@@ -57,8 +57,11 @@ export const sendEmail = (data: SendEmailRequest) =>
   request.post<ApiResponse<{ message_id: string; status: string; sent_at: string }>>('/send', data);
 
 // D14 Batch 5b：原 emailApi.getTemplates 转为风格 B 函数（后端路由 /api/v1/erp/email-templates）
+// 后端宏出参为统一分页信封 PaginatedResponse：items/total/page/page_size 四键恒在
 export const getEmailTemplateList = (params?: { page?: number; page_size?: number }) =>
-  request.get<ApiResponse<{ items: EmailTemplate[]; total: number }>>('/email-templates', {
+  request.get<
+    ApiResponse<{ items: EmailTemplate[]; total: number; page: number; page_size: number }>
+  >('/email-templates', {
     params,
   });
 

@@ -68,13 +68,15 @@ export interface ReportSubscription {
 
 /**
  * GET /reports/enhanced/subscriptions 真实响应载荷（唯一真相：backend
- * handlers/report_enhanced_handler.rs subscriptions::list，第 75-76 行
- * `json!({"items": items, "total": total})`）。后端**只返回 items + total**，
- * 无 page/page_size，承载列表的键只有 items。
+ * handlers/report_enhanced_handler.rs subscriptions::list，由
+ * define_tuple_crud_handlers! 宏出参类型化贯穿，载荷为统一分页信封
+ * utils/response.rs PaginatedResponse：items/total/page/page_size 四键恒在）。
  */
 export interface SubscriptionPage {
   items: ReportSubscription[];
   total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface CreateTemplateRequest {
