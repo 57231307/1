@@ -29,7 +29,7 @@ pub fn build_payload_from_notification(n: &notification::Model) -> NotificationP
         id: n.id as i64,
         title: n.title.clone(),
         content: n.content.clone(),
-        category: format!("{:?}", n.notification_type).to_lowercase(),
+        category: n.notification_type.as_str().to_string(),
         priority: priority_value,
         created_at: n.created_at.to_rfc3339(),
     }
@@ -253,7 +253,7 @@ impl NotificationService {
             "business_type": notification.business_type,
             "business_id": notification.business_id,
             "action_url": notification.action_url,
-            "priority": format!("{:?}", notification.priority),
+            "priority": notification.priority.as_str(),
             "created_at": notification.created_at.to_rfc3339(),
         });
         let payload_str = payload.to_string();
