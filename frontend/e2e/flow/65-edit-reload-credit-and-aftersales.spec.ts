@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, ensureTestEntities, genCode, verifyEndpointHealthy } from './helpers';
+import { loginViaUI, apiCall, ensureTestEntities, genCode } from './helpers';
 
 /**
  * 65 定制订单售后工单「编辑-重开回读」闭环（用户点名缺陷族：创建时填写了完整内容，
@@ -23,15 +23,14 @@ import { loginViaUI, apiCall, ensureTestEntities, genCode, verifyEndpointHealthy
  * 状态机（service:406-418）：opened→accepted/rejected/closed（小写 token）。
  *
  * 售后记录无附件/备注类可断言字段之外的落库真值读回通道：本域唯一读回端点是
- * AfterSalesInfo（models/custom_order_response_dto.rs:100-111，仅 9 键）。
+ * AfterSalesInfo（models/custom_order_response_dto.rs:105-126，13 键，含 JOIN 富化 customer_name）。
  *
- * 诚实标注——以下断言按当前源码**必红**（读回缺键类缺陷，不许放宽，交回编排方定责源码）：
- *   ① row.customer_id：after_sales 表有 customer_id 列且 create 落库
- *      （services/custom_order_aftersales_service.rs:126 `customer_id: Set(dto.customer_id)`），
- *      但响应 DTO AfterSalesInfo 无该键（models/custom_order_response_dto.rs:100-111）、
- *      map_after_sales 不透传（handlers/custom_order_handler.rs:332-346）→ 读回恒缺键。
- *   ② row.reason_category / ③ row.reason_detail：同理，create 落库
- *      （aftersales_service.rs:134-135 Set），DTO/映射均无键 → 读回恒缺键。
+ * 读回判据（2026-10 对源码重核，处置 a——此前本节声称 customer_id/reason_* "DTO 无键→读回恒缺键
+ * 必红"，该前提已过时）：当前源码 AfterSalesInfo（backend/src/models/custom_order_response_dto.rs:105-126）
+ * **含** customer_id / reason_category / reason_detail 全部三键；列表与详情内嵌均经
+ * into_model::<AfterSalesInfo> 的 LEFT JOIN 富化单次查询产出（handlers/custom_order_handler.rs:259、
+ * 289-291、726，map_after_sales 已不存在）。因此下方对三键的断言是**真实回读判据**（缺键/被吞即红），
+ * 不再是已知红；若 CI 仍在这三处判红，即为读侧富化链回归的源码缺陷，保持红交后端，禁止放宽。
  *   （注：售后域**不存在**附件字段——after_sales::Model（models/after_sales.rs:9-37）无
  *   attachment* 列，链路各层 grep attachment 仅命中 process log（handler:547/781），
  *   故本 spec 不含附件断言；此前「售后附件」调查描述在本域无载体，属用例编写错误，已剔除。）
@@ -48,7 +47,8 @@ type AfterSalesRow = {
   quality_issue_id?: number | null;
   opened_at?: string;
   closed_at?: string | null;
-  // ①②③ 缺键探针：当前源码 DTO 无以下键，类型层如实声明为 never 可选，运行时 undefined
+  // customer_id/reason_category/reason_detail：DTO 现含三键（见文件头重核说明），
+  // 按真实回读判据断言，读回缺键/值不符即红
   customer_id?: unknown;
   reason_category?: unknown;
   reason_detail?: unknown;
@@ -162,7 +162,6 @@ test.describe.serial('65 售后工单编辑-重开回读闭环', () => {
     const listEp = `/custom-orders/${orderId}/after-sales?page=1&page_size=50`;
 
     // ========== 步骤 2：重新打开（列表端点回读），断言字段真回显为刚提交的值 ==========
-    await verifyEndpointHealthy(page, listEp);
     const reopened = await apiCall<PagedAfterSales>(page, 'GET', listEp);
     expect(Number(reopened.data?.total), '分页信封 total 应为数字且 >=1').toBeGreaterThanOrEqual(1);
     const row1 = findRow(requireItems(reopened.data, listEp), afterSalesId, listEp);
@@ -176,18 +175,18 @@ test.describe.serial('65 售后工单编辑-重开回读闭环', () => {
       `重开回显：退款金额应回显 1234.56（rust_decimal 出参字符串，Number 归一），实际 ${JSON.stringify(row1.refund_amount)}`
     ).toBe(1234.56);
 
-    // —— 红断言（读回缺键类缺陷，按当前源码必红，保留并点名，不放宽）——
+    // —— 真实回读判据（DTO 现含三键；缺键/值不符即红，读侧富化链回归交后端，勿放宽）——
     expect(
       row1.customer_id,
-      `重开回显：customer_id 已提交且 service 落库（aftersales_service.rs:126），但 AfterSalesInfo DTO 无该键（custom_order_response_dto.rs:100-111）→ 读回缺键。实际值：${JSON.stringify(row1.customer_id)}`
+      `重开回显：customer_id 已提交且 service 落库（aftersales_service.rs:126 Set），读侧经 into_model::<AfterSalesInfo> 富化应回显。实际值：${JSON.stringify(row1.customer_id)}`
     ).toBe(customerId);
     expect(
       row1.reason_category,
-      `重开回显：reason_category 已提交且落库（aftersales_service.rs:134），但 DTO 无该键 → 读回缺键。实际值：${JSON.stringify(row1.reason_category)}`
+      `重开回显：reason_category 已提交且落库（aftersales_service.rs:134），DTO/富化均含该键，读回应回显。实际值：${JSON.stringify(row1.reason_category)}`
     ).toBe(reasonCategory);
     expect(
       row1.reason_detail,
-      `重开回显：reason_detail 已提交且落库（aftersales_service.rs:135），但 DTO 无该键 → 读回缺键。实际值：${JSON.stringify(row1.reason_detail)}`
+      `重开回显：reason_detail 已提交且落库（aftersales_service.rs:135），DTO/富化均含该键，读回应回显。实际值：${JSON.stringify(row1.reason_detail)}`
     ).toBe(reasonDetail);
 
     // ========== 步骤 3：修改若干字段（PUT 仅提交 status/resolution/refund_amount，
@@ -231,18 +230,18 @@ test.describe.serial('65 售后工单编辑-重开回读闭环', () => {
     ).toBe(description);
     expect(row2.quality_issue_id, '再重开：quality_issue_id 创建未填 → 应仍为 null').toBeNull();
 
-    // 再重开的 reason_*/customer_id 回显：与步骤 2 同因（DTO 缺键），保留必红断言
+    // 再重开的 reason_*/customer_id 回显：与步骤 2 同判据（富化回读，缺键即红）
     expect(
       row2.customer_id,
-      `再重开：customer_id 应仍等于原提交值（当前 DTO 无该键，必红，同因见步骤 2）实际 ${JSON.stringify(row2.customer_id)}`
+      `再重开：customer_id 应仍等于原提交值（未提交列被洗即缺陷）实际 ${JSON.stringify(row2.customer_id)}`
     ).toBe(customerId);
     expect(
       row2.reason_category,
-      `再重开：reason_category 应仍等于原提交值（当前 DTO 无该键，必红）实际 ${JSON.stringify(row2.reason_category)}`
+      `再重开：reason_category 应仍等于原提交值（PUT 未含该列，被洗 NULL 即整行重存洗列缺陷）实际 ${JSON.stringify(row2.reason_category)}`
     ).toBe(reasonCategory);
     expect(
       row2.reason_detail,
-      `再重开：reason_detail 应仍等于原提交值（当前 DTO 无该键，必红）实际 ${JSON.stringify(row2.reason_detail)}`
+      `再重开：reason_detail 应仍等于原提交值（被洗 NULL 即洗列缺陷）实际 ${JSON.stringify(row2.reason_detail)}`
     ).toBe(reasonDetail);
 
     // ========== 步骤 5：第二个读回端点交叉校验落库真值（不能只看一个列表端点）==========
@@ -265,15 +264,15 @@ test.describe.serial('65 售后工单编辑-重开回读闭环', () => {
     expect(detailRow.description, '详情交叉校验：description 保留原值').toBe(description);
     expect(
       detailRow.reason_category,
-      `详情交叉校验：reason_category 应等于原提交值（DTO 缺键，必红）实际 ${JSON.stringify(detailRow.reason_category)}`
+      `详情交叉校验：reason_category 应等于原提交值（与列表同源富化）实际 ${JSON.stringify(detailRow.reason_category)}`
     ).toBe(reasonCategory);
     expect(
       detailRow.reason_detail,
-      `详情交叉校验：reason_detail 应等于原提交值（DTO 缺键，必红）实际 ${JSON.stringify(detailRow.reason_detail)}`
+      `详情交叉校验：reason_detail 应等于原提交值（与列表同源富化）实际 ${JSON.stringify(detailRow.reason_detail)}`
     ).toBe(reasonDetail);
     expect(
       detailRow.customer_id,
-      `详情交叉校验：customer_id 应等于原提交值（DTO 缺键，必红）实际 ${JSON.stringify(detailRow.customer_id)}`
+      `详情交叉校验：customer_id 应等于原提交值（与列表同源富化）实际 ${JSON.stringify(detailRow.customer_id)}`
     ).toBe(customerId);
   });
 });

@@ -10,7 +10,6 @@ import {
   getCtx,
   genCode,
   tryCleanup,
-  verifyEndpointHealthy,
   failureCode,
   APP_ERROR_CODES,
 } from './helpers';
@@ -55,7 +54,10 @@ import {
  *   supplier_short_name: Option + length(2..100)、credit_code: Option + length(equal=18)
  *   （services/supplier_service.rs:1064/1067——validator 对 Option 解包：缺省=None 跳过，Some(非法值) 拒绝）
  *
- * 假绿防线：所有读回端点先 verifyEndpointHealthy strict 探针（禁吞 404/403）；信封显式钉桩
+ * 假绿防线：读回一律直接 apiCallRaw（helpers.ts:1374-1502：非 2xx 或信封 code≠200 即抛错判红，
+ * 404/403 无从可吞），随后逐键内容断言——健康探针式"2xx 即绿"不回读内容，结构上抓不到
+ * 键名错/字段被 service 吞掉的假绿，故本文件不使用 verifyEndpointHealthy（其用途限于健康扫描族）；
+ * 信封显式钉桩
  * （数组端点断 Array.isArray、分页端点断 items 数组），禁 `?? []` 与双形状探测；
  * 全部自建自流转数据（客户/产品/定制订单/合同/部门/供应商逐例自造），不依赖其它用例残留。
  */
@@ -182,7 +184,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     ).toBeGreaterThan(0);
 
     const detailEp = `/crm/customer-credits/${customerId}`;
-    await verifyEndpointHealthy(page, detailEp);
 
     // 占用 1200.50：载荷只有 amount 一个键
     await submitMustNotBeRejected(
@@ -280,7 +281,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     );
 
     const listEp1 = `/custom-orders/${orderId1}/after-sales?page=1&page_size=50`;
-    await verifyEndpointHealthy(page, listEp1);
     const listed = await apiCallRaw(page, 'GET', listEp1);
     const { items, total } = requireItemsEnvelope(listed, listEp1);
     expect(total, '订单1 的售后列表 total 应=2（两条工单均归属 path 指定的订单1）').toBe(2);
@@ -291,7 +291,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
 
     // 归属隔离回读：伪造 body 未改变归属——订单2 仍 0 条
     const listEp2 = `/custom-orders/${orderId2}/after-sales?page=1&page_size=50`;
-    await verifyEndpointHealthy(page, listEp2);
     const listed2 = await apiCallRaw(page, 'GET', listEp2);
     const env2 = requireItemsEnvelope(listed2, listEp2);
     expect(
@@ -358,7 +357,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     expect(contractId, `[66-03] 合同创建应回 id：${JSON.stringify(created)}`).toBeGreaterThan(0);
 
     const detailEp = `/sales/sales-contracts/${contractId}`;
-    await verifyEndpointHealthy(page, detailEp);
     const detail = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(detail.contract_no, '表头回读：contract_no').toBe(contractNo);
     expect(
@@ -376,7 +374,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     );
 
     const itemsEp = `/sales/sales-contracts/${contractId}/items`;
-    await verifyEndpointHealthy(page, itemsEp);
     const itemsRes = await apiCallRaw(page, 'GET', itemsEp);
     const itemRows = requireArray(itemsRes, itemsEp);
     expect(itemRows.length, '明细回读应恰有 1 行').toBe(1);
@@ -447,7 +444,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     const pcId = Number(pc.data?.id);
     expect(pcId, `[66-04] 采购合同应回 id：${JSON.stringify(pc)}`).toBeGreaterThan(0);
     const pcEp = `/purchase/purchase-contracts/${pcId}`;
-    await verifyEndpointHealthy(page, pcEp);
     const pcRow = await apiCallRaw<Row>(page, 'GET', pcEp);
     expect(pcRow.contract_no, '采购合同回读：contract_no').toBe(pcNo);
     expect(Number(pcRow.supplier_id), '采购合同回读：supplier_id').toBe(supplierId);
@@ -491,7 +487,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     expect(poId, `[66-04] 采购订单应回 id：${JSON.stringify(po)}`).toBeGreaterThan(0);
 
     const poItemsEp = `/purchase/orders/${poId}/items`;
-    await verifyEndpointHealthy(page, poItemsEp);
     const poItems = requireArray(await apiCallRaw(page, 'GET', poItemsEp), poItemsEp);
     expect(poItems.length, '采购明细回读应恰有 1 行').toBe(1);
     const row0 = poItems[0];
@@ -529,7 +524,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     expect(deptId, `[66-05] 部门创建应回 id：${JSON.stringify(created)}`).toBeGreaterThan(0);
 
     const detailEp = `/departments/${deptId}`;
-    await verifyEndpointHealthy(page, detailEp);
     let dept = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(
       dept.code,
@@ -579,7 +573,6 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     expect(id, `[66-06] 供应商创建应回 id：${JSON.stringify(created)}`).toBeGreaterThan(0);
 
     const detailEp = `/purchase/suppliers/${id}`;
-    await verifyEndpointHealthy(page, detailEp);
     const row = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(
       row.supplier_short_name,

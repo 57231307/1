@@ -1,13 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import type { Locator, Page, Response } from '@playwright/test';
-import {
-  loginViaUI,
-  apiCall,
-  apiCallRaw,
-  genCode,
-  tryCleanup,
-  verifyEndpointHealthy,
-} from './helpers';
+import { loginViaUI, apiCall, apiCallRaw, genCode, tryCleanup } from './helpers';
 import {
   safeGoto,
   findTableRow,
@@ -136,8 +129,8 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
 
     expect(
       cap.status,
-      `[68-01] 可选字段留空的提交必须被接受（族级锚点：非 4xx；空串直发会撞 Some("")+length 校验报参数错误），实际 status=${cap.status} body=${cap.bodyRaw}`
-    ).toBeLessThan(400);
+      `[68-01] 可选字段留空的提交必须被后端接受（族级锚点：HTTP 恰 200——handler Ok(Json(ApiResponse)) 无状态改写；空串直发会撞 Some("")+length 校验报 400 参数错误），实际 status=${cap.status} body=${cap.bodyRaw}`
+    ).toBe(200);
     expect(
       Object.prototype.hasOwnProperty.call(cap.body, 'supplier_short_name'),
       `[68-01] 请求体必须省略 supplier_short_name 键（空串直发=复发），实际=${cap.bodyRaw}`
@@ -155,7 +148,6 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     // 创建路径的省略语义 = 落库默认空串（supplier_service.rs:101/106 unwrap_or_default），
     // 如实钉住该契约（区别于 68-02 编辑语义的"保持原值"）
     const detailEp = `/purchase/suppliers/${id}`;
-    await verifyEndpointHealthy(page, detailEp);
     const row = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(row.supplier_name, '回读：名称=UI 提交值').toBe(supplierName);
     expect(row.supplier_short_name, '回读：创建时省略简称 → 落库默认空串（非 NULL、非报错）').toBe(
@@ -253,12 +245,11 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     ).toBe(false);
     expect(
       cap.status,
-      `[68-02] 留空可选字段的编辑提交不得报参数错误（应 <400），实际 status=${cap.status} body=${cap.bodyRaw}`
-    ).toBeLessThan(400);
+      `[68-02] 留空可选字段的编辑提交不得报参数错误（HTTP 恰 200——update_supplier handler Ok(Json(ApiResponse)) 无状态改写；3xx/4xx 皆属回归），实际 status=${cap.status} body=${cap.bodyRaw}`
+    ).toBe(200);
 
     // 回读双向断言：被省略的列保持原值（不被 "" 覆盖、不被洗 NULL）；未触碰的列同样原样
     const detailEp = `/purchase/suppliers/${supplierId}`;
-    await verifyEndpointHealthy(page, detailEp);
     const fresh = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(
       fresh.supplier_short_name,
@@ -355,8 +346,8 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     ).toBeNull();
     expect(
       cap.status,
-      `[68-03] 清空可选日期的提交不得报参数错误，实际 status=${cap.status} body=${cap.bodyRaw}`
-    ).toBeLessThan(400);
+      `[68-03] 清空可选日期的提交不得报参数错误（HTTP 恰 200——update_contract handler Ok(Json(ApiResponse)) 无状态改写；3xx/4xx 皆属回归），实际 status=${cap.status} body=${cap.bodyRaw}`
+    ).toBe(200);
 
     // 明细整表重插的随行回传钉桩：表单不可见但已回源的真实列必须原样在请求体里
     expect(
@@ -379,7 +370,6 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     // 送 null 而回读仍是旧值，说明 service 把 null 当"未提交"塌层了）；未触碰而经回显原样回传的
     // remark 保持原值；明细四个可选真实列不被整表重插洗掉
     const detailEp = `/sales/sales-contracts/${contractId}`;
-    await verifyEndpointHealthy(page, detailEp);
     const header = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(
       header.delivery_date,
@@ -392,7 +382,6 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     expect(header.signed_date, '回读：未触碰的 signed_date 原样').toBe('2026-09-01');
 
     const itemsEp = `/sales/sales-contracts/${contractId}/items`;
-    await verifyEndpointHealthy(page, itemsEp);
     const itemsRes = await apiCallRaw(page, 'GET', itemsEp);
     expect(
       Array.isArray(itemsRes),

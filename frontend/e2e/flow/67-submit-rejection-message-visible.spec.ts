@@ -10,7 +10,6 @@ import {
   getCtx,
   genCode,
   tryCleanup,
-  verifyEndpointHealthy,
   failureCode,
   APP_ERROR_CODES,
   type ApiFailureResult,
@@ -43,35 +42,46 @@ import {
  *   → ValidationErrorDisplayable，出参 code=VALIDATION_ERROR + 真实文案 ⇒ 【应判绿】
  *   （修复前该链路整体 to_string 后进脱敏常量，用户只看到"请求参数验证失败"）。
  * 67-02 采购明细允差 150（创建路径）：POST /purchase/orders，行级 [0,100] 校验
- *   "交货允差百分比(quantity_tolerance_pct)必须在0~100之间"（services/po/mod.rs:196-204）；
- *   handler `req.validate()?`（purchase_order_handler.rs:180）→ 同上 ⇒ 【应判绿】。
+ *   "交货允差百分比(quantity_tolerance_pct)必须在0~100之间"（services/po/mod.rs:210-217，
+ *   nested 接线 :88/:135）；handler `req.validate()?`（purchase_order_handler.rs:217）→ 同上 ⇒ 【应判绿】。
  * 67-03 采购明细允差 150（更新路径）：PUT /purchase/orders/{id}/items/{item_id} 走
  *   UpdateOrderItemRequest::validate_write → business_displayable 如实外显
- *   （services/po/mod.rs:172-191；handler:419-422）⇒ 【预计判绿】。
+ *   （services/po/mod.rs:186-199；handler:486）⇒ 【预计判绿】。
  * 67-04 库存直建·染色布缺缸号：POST /inventory/stock，判定权威
- *   services/inv/fabric_class.rs:54-58 "染色布必须提供缸号（color_no=… 但 dye_lot_no 为空）"，
+ *   services/inv/fabric_class.rs:62-66 "染色布必须提供缸号（color_no=… 但 dye_lot_no 为空）"，
  *   经 handlers/inventory_stock_handler_fabric.rs:146-156 admit_stock_fabric_trace 转
  *   business_displayable ⇒ 【预计判绿】。
  * 67-05 库存直建(fabric)·白坯缺批次：POST /inventory/stock/fabric，batch_no:'' 先撞
  *   DTO length(min=1)（inventory_stock_handler_dto.rs:17-18）。修复前该处手工
  *   `map_err(|e| AppError::validation(e.to_string()))` 把原因压成脱敏常量，永远到不了
- *   fabric_class 的可见文案（"明细缺少批号…批次不得为空"，fabric_class.rs:50-52）；
+ *   fabric_class 的可见文案（"明细缺少批号…批次不得为空"，fabric_class.rs:54-57）；
  *   现改走 `map_err(AppError::from)` 的可读外显链路 ⇒ 【应判绿，断的是 DTO 层文案】。
  * 67-06 供应商资质日期倒挂：POST /purchase/suppliers/{id}/qualifications，
  *   check_qualification_dates → business_displayable("资质「有效期至」不能早于发证日期")
- *   （services/supplier_service.rs:893-903）⇒ 【预计判绿】。
+ *   （services/supplier_service.rs:926-934）⇒ 【预计判绿】。
  *
  * 假绿防线：拒绝后一律回读——断言"半行未落库/原值未被改动"（被拒的写必须无痕）；
- * 读回端点 strict verifyEndpointHealthy；数值断言 Number() 归一；自建自流转数据。
+ * 读回一律直接 apiCallRaw（helpers.ts:1374-1502：非 2xx 或信封 code≠200 即抛错判红，404/403 无从可吞）
+ * 并逐键内容断言，不用"2xx 即绿不回读内容"的健康探针；数值断言 Number() 归一；自建自流转数据。
  */
 
 /** 两个脱敏常量原文（backend/src/utils/messages.rs:41/43），断言 message 必须≠它们 */
 const SANITIZED_BUSINESS = '业务处理失败';
 const SANITIZED_VALIDATION = '请求参数验证失败';
 
+/**
+ * 负例双断锚点（HTTP 状态 + 信封机器 code 逐例钉死，禁二选一集合判据）：
+ * expectedCode 取该构造点在外显白名单链路中的唯一机器码——
+ * validation_displayable→VALIDATION_ERROR（error.rs:692-696/795），
+ * business_displayable→BUSINESS_ERROR（error.rs:796-797）。
+ * 本 spec 的族级判据在此基础上额外锁"文案可见性"：displayable 变体是源码
+ * 显式声明的外显白名单（error.rs:813-820 public_message 仅此两变体回真实文案），
+ * message 断的是该白名单契约本身，且必须 ≠ 两个脱敏常量。
+ */
 function expectVisibleBusinessRejection(
   r: ApiFailureResult,
   phrase: string,
+  expectedCode: typeof APP_ERROR_CODES.BUSINESS_ERROR | typeof APP_ERROR_CODES.VALIDATION_ERROR,
   context: string
 ): void {
   const detail = `${context}：实际 status=${r.status} code=${failureCode(r) ?? JSON.stringify(r.code)} message=${JSON.stringify(r.message)}`;
@@ -79,11 +89,10 @@ function expectVisibleBusinessRejection(
     400
   );
   expect(
-    [APP_ERROR_CODES.BUSINESS_ERROR, APP_ERROR_CODES.VALIDATION_ERROR],
-    `${detail}（code 必须是 BUSINESS_ERROR 或 VALIDATION_ERROR——二者是"显式声明才外显"的
-两条白名单构造点 business_displayable / validation_displayable；出现别的 code 说明拒绝既没走
-业务外显也没走校验外显，正是"提交报参数错误但用户看不到原因"的族级回归）`
-  ).toContain(failureCode(r));
+    failureCode(r),
+    `${detail}（机器码必须恰为 ${expectedCode}——该构造点在外显白名单链路中的唯一取值；
+出现另一外显码或别的 code 说明拒绝既没走预期的外显链路，正是"提交报参数错误但用户看不到原因"的族级回归）`
+  ).toBe(expectedCode);
   expect(
     typeof r.message === 'string' && r.message.trim().length > 0,
     `${detail}（message 必须非空）`
@@ -186,13 +195,14 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
     expectVisibleBusinessRejection(
       r,
       '金额',
-      '67-01 调整额度 amount=0 应外显具体原因（validate_amount_range 真实文案含"金额必须为正"，' +
-        '当前 customer_credit_handler.rs:225 `req.validate()?` 走 error.rs:413 脱敏链路——判红即该处源码缺陷，勿放宽）'
+      APP_ERROR_CODES.VALIDATION_ERROR,
+      '67-01 调整额度 amount=0 应外显具体原因（utils/validator.rs:15 "金额必须为正且不超过10亿"；' +
+        'customer_credit_handler.rs:225 `req.validate()?` 经 error.rs:692-696 From<ValidationErrors> → ' +
+        'validation_displayable → 400 + VALIDATION_ERROR + 真实文案；回退成脱敏常量或改码即该处源码缺陷，勿放宽）'
     );
 
     // 被拒的写必须无痕：额度未被半写
     const detailEp = `/crm/customer-credits/${customerId}`;
-    await verifyEndpointHealthy(page, detailEp);
     const credit = await apiCallRaw<Row>(page, 'GET', detailEp);
     expect(
       Number(credit.credit_limit),
@@ -227,8 +237,11 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
     expectVisibleBusinessRejection(
       r,
       '0~100',
-      '67-02 PO 创建行允差 150 应外显"交货允差百分比(quantity_tolerance_pct)必须在0~100之间"（po/mod.rs:196-204），' +
-        '当前 purchase_order_handler.rs:180 `req.validate()?` 走脱敏 validation 信封——判红即该处源码缺陷，勿放宽'
+      APP_ERROR_CODES.VALIDATION_ERROR,
+      '67-02 PO 创建行允差 150 应外显"交货允差百分比(quantity_tolerance_pct)必须在0~100之间"' +
+        '（services/po/mod.rs:210-217 custom 校验 + :88/:135 nested 接线；purchase_order_handler.rs:217 ' +
+        '`req.validate()?` 经 From<ValidationErrors>→validation_displayable ⇒ 400+VALIDATION_ERROR），' +
+        '走脱敏 validation 信封即源码缺陷，勿放宽'
     );
     // 拒绝发生在校验层（service 之前），不应有任何半写：允许列表回读仅断 total 不增长不做（并发分片下共享列表），
     // 改为仅断本请求未返回 id 这一事实已由 status=400 覆盖。
@@ -263,7 +276,6 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
     expect(poId, `[67-03] PO 创建应回 id：${JSON.stringify(po)}`).toBeGreaterThan(0);
 
     const itemsEp = `/purchase/orders/${poId}/items`;
-    await verifyEndpointHealthy(page, itemsEp);
     const items = requireArray(await apiCallRaw(page, 'GET', itemsEp), itemsEp);
     expect(items.length, '前置：PO 应有 1 条明细').toBe(1);
     const itemId = Number(items[0].id);
@@ -275,7 +287,9 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
     expectVisibleBusinessRejection(
       r,
       '交货允差百分比',
-      '67-03 明细更新允差 150：validate_write→business_displayable（po/mod.rs:172-191）应外显完整原因'
+      APP_ERROR_CODES.BUSINESS_ERROR,
+      '67-03 明细更新允差 150：validate_write→business_displayable（services/po/mod.rs:186-199，' +
+        'handler:486 调用）应外显完整原因 ⇒ 400+BUSINESS_ERROR'
     );
     const msg03 = String(r.message ?? '');
     expect(msg03, '拒绝原因同时应包含范围词 0~100（与创建路径同一校验函数文案）').toContain(
@@ -319,7 +333,10 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
     expectVisibleBusinessRejection(
       r,
       '缸号',
-      `67-04 染色布缺缸号：admit_stock_fabric_trace 已转 business_displayable（inventory_stock_handler_fabric.rs:146-156），原因应回显提交的色号 color_no=${colorNo}`
+      APP_ERROR_CODES.BUSINESS_ERROR,
+      `67-04 染色布缺缸号：fabric_class.rs:62-66 validation_displayable 文案经 admit_stock_fabric_trace ` +
+        `转 business_displayable（inventory_stock_handler_fabric.rs:146-156；create_stock 于 ` +
+        `inventory_stock_handler.rs:163 调用）⇒ 400+BUSINESS_ERROR，原因应回显提交的色号 color_no=${colorNo}`
     );
     const msg04 = String(r.message ?? '');
     expect(msg04, '拒绝文案应回显用户提交的色号（fabric_class.rs:55-58 的 echo 契约）').toContain(
@@ -328,7 +345,6 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
 
     // 拒绝无痕：按四维筛选回读，该批次不得存在库存行
     const listEp = `/inventory/stock?product_id=${productId}&batch_no=${encodeURIComponent(batchNo)}&page=1&page_size=10`;
-    await verifyEndpointHealthy(page, listEp);
     const listed = requireItemsEnvelope(await apiCallRaw(page, 'GET', listEp), listEp);
     expect(
       listed.total,
@@ -396,7 +412,14 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
       grade: '一等品',
       quantity_meters: '50.00',
     });
-    expectVisibleBusinessRejection(r, '批次', '67-05 白坯直建缺批次应外显四维准入原因');
+    expectVisibleBusinessRejection(
+      r,
+      '批次',
+      APP_ERROR_CODES.VALIDATION_ERROR,
+      '67-05 白坯直建缺批次应外显 DTO 规则文案（inventory_stock_handler_dto.rs:17 "批次号长度必须在' +
+        '1-50个字符之间"；create_stock_fabric 走 payload.validate().map_err(AppError::from) → ' +
+        'validation_displayable ⇒ 400+VALIDATION_ERROR）'
+    );
 
     // 正例（同一 DTO 规则的另一侧）：批次补齐后白坯必须 200——白坯只免缸号/匹号、
     // 批次任何布种都必填（fabric_class.rs:36-72 + DTO :17-18），且 handler 侧把白坯主动
@@ -447,12 +470,13 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
     expectVisibleBusinessRejection(
       r,
       '不能早于发证日期',
-      '67-06 资质有效期早于发证日应外显（supplier_service.rs:893-903 business_displayable 真实文案）'
+      APP_ERROR_CODES.BUSINESS_ERROR,
+      '67-06 资质有效期早于发证日应外显（services/supplier_service.rs:926-934 check_qualification_dates' +
+        ' → business_displayable 真实文案）⇒ 400+BUSINESS_ERROR'
     );
 
     // 拒绝无痕：该资质不得出现在列表中
     const listEp = `/purchase/suppliers/${supplierId}/qualifications`;
-    await verifyEndpointHealthy(page, listEp);
     const quals = requireArray(await apiCallRaw(page, 'GET', listEp), listEp);
     expect(
       quals.some(q => q.qualification_name === qualName),

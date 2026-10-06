@@ -8,7 +8,6 @@ import {
   getCtx,
   genCode,
   failureCode,
-  verifyEndpointHealthy,
   expectBusinessRejection,
   APP_ERROR_CODES,
   type ApiFailureResult,
@@ -192,7 +191,6 @@ test.describe.serial('70 退税申报基数收紧 + Incoterms 主运费口径全
 
     // 写后 GET 回读（裸数组信封显式断言 + 按唯一 id 定位，禁 ?? [] 兜底）
     const listEp = '/export-refunds/refund-declarations?period_year=2097&period_month=5';
-    await verifyEndpointHealthy(page, listEp);
     const list = requireBareArray(await apiCallRaw(page, 'GET', listEp), listEp);
     const row = list.find(it => Number(it.id) === declId);
     expect(row, `GET 期间过滤应命中申报表 id=${declId}，实际 ${JSON.stringify(list)}`).toBeTruthy();
