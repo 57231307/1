@@ -23,7 +23,7 @@
 
 use bingxi_backend::models::bom::{ActiveModel as BomActiveModel, Entity as BomEntity};
 use bingxi_backend::models::bom_item::{
-    ActiveModel as BomItemActiveModel, Column as BomItemColumn, Entity as BomItemEntity,
+    ActiveModel as BomItemActiveModel, Entity as BomItemEntity,
 };
 use bingxi_backend::models::mrp_result::{Column as MrpResultColumn, Entity as MrpResultEntity};
 use bingxi_backend::models::status::common;
@@ -131,7 +131,7 @@ async fn seed_default_bom(
             material_id: Set(*material_id),
             quantity: Set(dec(quantity)),
             unit: Set(Some("千克".to_string())),
-            scrap_rate: Set(scrap_rate.map(|s| dec(s))),
+            scrap_rate: Set(scrap_rate.map(dec)),
             sort_order: Set(Some(0)),
             is_deleted: Set(false),
             created_at: Set(now),

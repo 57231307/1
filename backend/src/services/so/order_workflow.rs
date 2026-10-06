@@ -12,8 +12,8 @@
 //! ## API 兼容
 //! 通过 `crate::services::so::order::SalesService` 路径访问。
 
-use super::order::SalesService;
 use super::SalesOrderDetail;
+use super::order::SalesService;
 use crate::models::sales_order;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::status::sales_order as so_status;

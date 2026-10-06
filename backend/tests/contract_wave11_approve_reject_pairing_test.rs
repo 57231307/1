@@ -28,7 +28,7 @@ use bingxi_backend::models::status::price_approval;
 use bingxi_backend::models::{product, role, role_permission, sales_price, user};
 use bingxi_backend::services::init_service::{InitService, PERMISSION_RESOURCES};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 // ---------------------------------------------------------------------------

@@ -17,8 +17,8 @@ use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
-    extract::{Multipart, Path, Query, State},
     Json,
+    extract::{Multipart, Path, Query, State},
 };
 use chrono::Datelike;
 use serde::Deserialize;
@@ -1970,12 +1970,14 @@ mod export_row_shape_guard_tests {
             "extra".to_string(),
         ]]);
         let pii_fields: &[&str] = &["col_a"];
-        assert!(apply_default_export_actions(
-            &mut t2,
-            &COLUMNS,
-            &[(pii_fields, ExportColumnAction::MaskPhone)]
-        )
-        .is_err());
+        assert!(
+            apply_default_export_actions(
+                &mut t2,
+                &COLUMNS,
+                &[(pii_fields, ExportColumnAction::MaskPhone)]
+            )
+            .is_err()
+        );
     }
 
     #[test]

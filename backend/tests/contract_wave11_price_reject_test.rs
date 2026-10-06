@@ -26,7 +26,7 @@ use bingxi_backend::models::status::price_approval;
 use bingxi_backend::models::{product, purchase_price, sales_price, supplier, user};
 use chrono::{DateTime, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use test_common::setup_test_db;
 
