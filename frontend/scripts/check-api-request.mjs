@@ -1443,7 +1443,19 @@ function runSelfTest() {
 const invokedDirectly =
   !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
-  if (process.argv.includes('--self-test')) runSelfTest();
+  // 参数白名单 fail-fast：未知/拼错参数一律非零退出，禁止静默退回默认全量跑 ——
+  // `--self-test` 打错一个字母会被当成无参数全量门禁照常绿，自证断言零执行（假绿通道）。
+  // --json 为机器可读输出模式（--self-test 的仓库回归子进程同样使用），保持原有语义。
+  const ALLOWED_ARGV = new Set(['--self-test', '--json']);
+  const args = process.argv.slice(2);
+  const unknown = args.filter(a => !ALLOWED_ARGV.has(a));
+  if (unknown.length) {
+    console.error(
+      `FAIL: 未知参数 ${unknown.join(' ')} —— 本脚本只接受无参数(全量门禁)、--json 或 --self-test；已拒绝执行。`
+    );
+    process.exit(2);
+  }
+  if (args.includes('--self-test')) runSelfTest();
   else main();
 }
 

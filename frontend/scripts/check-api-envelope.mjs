@@ -44,6 +44,23 @@
  *
  * 追溯：`ENVELOPE_DEBUG=<前端 api 函数名>` 打印逐步还原过程；`ENVELOPE_INDEX=Type#fn,..` 探索引。
  *
+ * 命令行参数为白名单制：只接受无参数（全量门禁）或 `--self-test`，未知/拼错的参数直接非零退出。
+ * 此前未知参数被静默当成默认全量跑 —— `--self-test` 打错一个字母就等于门禁照常绿、自证零执行。
+ *
+ * `--self-test` 是自证检测力的夹具，防止判定器自己空转假绿，四类断言：
+ *   ① Rust 切分守恒：对生命周期 `&'a str`、`<>` 内含逗号的泛型、`json!(…)`/`vec![…]` 宏实参、
+ *      `Box<dyn Fn(A) -> B, C>` 等形态逐条断言「切分结果与预期逐片段相等，且 parts.join(',')
+ *      能逐字符还原输入」；并注入一个错误期望，验证夹具本身会判红（防夹具恒真）。
+ *   ② 比对判据：注入「前端 {items} ↔ 后端裸数组」等违例，compare() 必须抓到（mismatch/unclassified）；
+ *      合规样例（两侧同形/盲区）必须不误伤（ok/skip）。
+ *   ③ 豁免防过期锁：EXEMPTIONS 每一条目都必须仍命中当前实跑的未分类桶；
+ *      条目已不再命中（端点被修成强类型或已消失）却滞留清单，将来同端点再退化时会被静默放行，
+ *      故直接判红并点名 —— 与请求体侧门禁的同名锁同构。先用合成过期条目验证锁本身会抓。
+ *   ④ 检测力地板：全量实跑后断言「可比对条目数」「前端 api 函数总数」不低于下限。
+ *      TS 解析器若退化成「解析不到→不列入清单」，失配会恒 0 而门禁照常绿；地板让这种空转立刻变红。
+ *      取值依据：2026-10 现值实测为可比对 639 / 前端函数 1221（见全量运行输出首两行），
+ *      地板取 600 / 1100，留正常增删的余量，但塌方到个位数必然判红。
+ *
  * 已知盲区（不判负、逐条计数）：前端把 data 声明为具名 TS interface（269 条）时本门禁不展开其定义，
  * 因此「0 失配」只覆盖内联声明可比对的 101 条，不代表全部消费点已核对。
  */
@@ -2134,42 +2151,12 @@ function readdirSyncLocal(dir) {
 // ---------- 显式豁免清单（每条必须写原因；命中即降级为提示而非失败）----------
 // 用途：后端确为动态 JSON / 有意裸数组等「静态不可判定但经人工确认无缺陷」的端点。
 // 禁止整片前缀/方法批量塞入以掩盖真实漂移。
+// 防过期锁（--self-test ③）：每条都必须仍命中当前实跑的未分类桶；端点被改成强类型或消失后
+// 条目即过期，滞留清单会让同一端点将来再退化时被静默放行，故过期即判红并点名删除。
 const EXEMPTIONS = new Map([
   [
     `${BASE_URL}/crm/five-dimension/stats GET`,
     'five_dimension_handler.rs:78-79 Ok(ApiResponse::success(json!({"items": stats.0, …})))：顶层 items 由 json! 手拼，前端 {items} 与之相符',
-  ],
-  // 以下各条为「后端 data 是手工 json! / 未被 struct 索引覆盖的 struct」，门禁无法静态判形。
-  // 每条都已逐次阅读 handler 函数体核实前端读的键确实存在（证据见各条 file:line）；
-  // 属"已人工核对"而非"已静态验证"。根治办法是把这 8 个 handler 的返回改成强类型响应
-  // （PaginatedResponse<T> / 专用 Response struct），已登记为解冻后的后端批次，届时删除本条目。
-  [
-    `${BASE_URL}/ai/process-optimizations/batch POST`,
-    'ai_extend_handler.rs:414/427/436 results 数组由 json! 逐条 push，顶层 {total,succeeded,failed,results}；前端 {results} 与之相符',
-  ],
-  [
-    `${BASE_URL}/ai/quality-predictions/batch POST`,
-    'ai_extend_handler.rs:492-496 显式 json!({"total","succeeded",…,"results"})；前端 {results} 与之相符',
-  ],
-  [
-    `${BASE_URL}/color-prices/batch-adjust POST`,
-    'color_price_handler.rs:222-225 json!({"auto_approved",…,"total"})；前端 {auto_approved} 与之相符',
-  ],
-  [
-    `${BASE_URL}/color-prices/tiers/* GET`,
-    'color_price_handler.rs:344-345 json!({"items","total"})；前端 {items} 与之相符',
-  ],
-  [
-    `${BASE_URL}/color-prices/seasonal-rules GET`,
-    'color_price_handler.rs:481-483 json!({"items","total"})；前端 {items} 与之相符',
-  ],
-  [
-    `${BASE_URL}/export-approvals GET`,
-    'export_approval_handler.rs:69-71 json!({"items": vo.items,"total": vo.total})；前端 {items} 与之相符',
-  ],
-  [
-    `${BASE_URL}/export-approvals/pending-for-me GET`,
-    'export_approval_handler.rs:92-94 json!({"items","total"})；前端 {items} 与之相符',
   ],
   [
     `${BASE_URL}/bpm/definitions GET`,
@@ -2180,18 +2167,18 @@ const EXEMPTIONS = new Map([
     'bpm_definition_handler.rs:190-197 复用同一 page_to_frontend_json（{list,...}）；同上，前端已钉 list',
   ],
   [
-    `${BASE_URL}/ai/process-optimizations GET`,
-    'ai_extend_handler.rs:146-151 手拼 json!({"items","total","page","page_size"})；items 来自 service 的 vo.items（Vec），门禁无法静态证明其元素类型，但顶层承载键已读码确认为 items，前端 PaginatedResponse<T> 与之后端真相一致',
-  ],
-  [
-    `${BASE_URL}/ai/quality-predictions GET`,
-    'ai_extend_handler.rs:237-242 同一形状的 json!({"items","total","page","page_size"})；同上，前端已钉 items',
-  ],
-  [
     `${BASE_URL}/products/import POST`,
     '返回 utils/import_export.rs:37 ImportResult{total_count,success_count,error_count,errors}：errors 是详情对象内嵌数组而非列表信封，前端按 {errors} 读正确；struct 未被索引故判未分类',
   ],
 ]);
+
+// 防过期锁的纯判据：豁免条目必须仍命中当前实跑的未分类桶；不再命中的就是过期条目，须删除。
+// 判定本身由 --self-test 执行并判红；抽成纯函数是为了让夹具先用合成数据证明"锁本身会抓"，
+// 再对真实 EXEMPTIONS 上锁，两步共用同一实现不漂移。
+function findExpiredExemptions(exemptionKeys, activeUnclassifiedKeys) {
+  const active = new Set(activeUnclassifiedKeys);
+  return [...exemptionKeys].filter(k => !active.has(k));
+}
 
 // ---------- 比对逻辑 ----------
 function describeShape(fe) {
@@ -2263,7 +2250,9 @@ function compare(fe, be) {
 }
 
 // ---------- 主流程 ----------
-function main() {
+// 全量扫描：建索引 → 解析路由与前端 api 函数 → 逐条比对 → 分桶。
+// 门禁输出(main)与自证(--self-test)共用这一份实现，两处各写口径必然漂移。
+function runScan() {
   const structIndex = buildStructIndex();
   const fnIndex = buildGlobalFnIndex();
   const handlerMods = buildHandlerModules(loadHandlerMacroTemplates());
@@ -2373,6 +2362,11 @@ function main() {
     'route-not-found': [],
   };
   for (const r of results) buckets[r.status].push(r);
+  return { buckets, results, feFunctions };
+}
+
+function main() {
+  const { buckets, results, feFunctions } = runScan();
 
   // 分类分布（后端载荷形态）
   const beDist = {};
@@ -2481,11 +2475,176 @@ function main() {
   );
 }
 
+// ---------- --self-test：判定器自证（切分守恒 / 比对判据 / 防过期锁 / 检测力地板） ----------
+// 详见文件头「--self-test」一节。夹具对每类看守都做「注入违例必抓 + 合规样例不误伤」双向验证，
+// 全部走生产实现本体（splitRustTopLevelArgs/compare/findExpiredExemptions/runScan），
+// 不许在夹具里另写一份判定口径——否则夹具绿与门禁真绿是两回事。
+
+// Rust 切分夹具用例：want 为「预期顶层片段」（不 trim，与切分器输出口径一致）。
+// 覆盖形态：生命周期、`<>` 内含逗号的泛型、`->` 后再带逗号的 trait 对象、json!/vec! 宏实参、
+// 字符串内逗号、行注释内逗号 —— 即历史上把签名切歪并造成宏整批丢失的全部错源。
+const SELFTEST_SPLIT_CASES = [
+  {
+    why: "生命周期 &'a str / &'static str",
+    in: `a: &'a str, b: &'static str, c: u32`,
+    want: [`a: &'a str`, ` b: &'static str`, ` c: u32`],
+  },
+  {
+    why: '泛型尖括号内含逗号(HashMap<String, Vec<u8>>)',
+    in: `map: HashMap<String, Vec<u8>>, n: u32`,
+    want: [`map: HashMap<String, Vec<u8>>`, ` n: u32`],
+  },
+  {
+    why: 'Box<dyn Fn(A) -> B, C>（-> 的 > 不得当闭合符，组内逗号不得当分隔符）',
+    in: `cb: Box<dyn Fn(A) -> B, C>, x: i32`,
+    want: [`cb: Box<dyn Fn(A) -> B, C>`, ` x: i32`],
+  },
+  {
+    why: 'json!({...}) 宏实参原子消费（组内逗号不参与切分）',
+    in: `json!({"items": rows, "total": t}), q: Page`,
+    want: [`json!({"items": rows, "total": t})`, ` q: Page`],
+  },
+  {
+    why: 'vec![...] 宏实参原子消费',
+    in: `ids: vec![1, 2, 3], limit: u32`,
+    want: [`ids: vec![1, 2, 3]`, ` limit: u32`],
+  },
+  {
+    why: '字符串字面量内逗号不切',
+    in: `path: "/a,b", q: u32`,
+    want: [`path: "/a,b"`, ` q: u32`],
+  },
+  {
+    why: '行注释内逗号不切',
+    in: `a: u32, // 尾注释, 不切\nb: u8`,
+    want: [`a: u32`, ` // 尾注释, 不切\nb: u8`],
+  },
+];
+
+// 单条切分夹具的判据：①顶层片段与预期逐一相等；②守恒 —— parts.join(',') 必须能
+// 逐字符还原输入（切分只允许"在顶层逗号处断开"，丢字符、错位、多切都属于破坏守恒）。
+function splitCaseVerdict(c) {
+  const parts = splitRustTopLevelArgs(c.in);
+  const conserved = parts.join(',') === c.in;
+  return conserved && JSON.stringify(parts) === JSON.stringify(c.want);
+}
+
+function runSelfTest() {
+  const results = [];
+  const check = (name, pass, detail) => {
+    results.push(pass);
+    console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  [' + detail + ']' : ''}`);
+  };
+
+  // ① 切分守恒夹具（合规形态必须切对）
+  for (const c of SELFTEST_SPLIT_CASES) check(`① 切分守恒 ${c.why}`, splitCaseVerdict(c));
+  // ①注入违例：错误期望必须被同一判据抓到（证明夹具不是恒真摆设）
+  check(
+    '①注入违例 错误期望片段必须判红',
+    splitCaseVerdict({
+      why: 'injected',
+      in: `a: u32, b: u8`,
+      want: [`a: u32, b:`, ` u8`],
+    }) === false
+  );
+
+  // ② compare() 违例必抓（对应本门禁的两个核心缺陷类与两个从严口径）
+  check(
+    '②注入违例 前端{items}↔后端裸数组 -> mismatch',
+    compare({ kind: 'wrapper', carrier: 'items' }, { kind: 'array' }).status === 'mismatch'
+  );
+  check(
+    '②注入违例 前端裸数组↔后端{items}信封 -> mismatch',
+    compare({ kind: 'array' }, { kind: 'wrapper', carrier: 'items' }).status === 'mismatch'
+  );
+  check(
+    '②注入违例 前端列表声明↔后端未分类 -> unclassified',
+    compare({ kind: 'wrapper', carrier: 'items' }, { kind: 'unknown' }).status === 'unclassified'
+  );
+  check(
+    '②注入违例 前端列表声明↔后端动态JSON(opaque) -> unclassified',
+    compare({ kind: 'wrapper', carrier: 'items' }, { kind: 'opaque' }).status === 'unclassified'
+  );
+  check(
+    '②注入违例 万能前端类型(ambiguous) -> unclassified(比对无意义须逼出显式承载键)',
+    compare(
+      { kind: 'wrapper', carrier: 'data', ambiguous: ['data', 'items'] },
+      { kind: 'wrapper', carrier: 'data' }
+    ).status === 'unclassified'
+  );
+  // ②合规样例不误伤
+  check(
+    '②合规 两侧同形(array/wrapper/single) -> ok',
+    compare({ kind: 'array' }, { kind: 'array' }).status === 'ok' &&
+      compare({ kind: 'wrapper', carrier: 'items' }, { kind: 'wrapper', carrier: 'items' })
+        .status === 'ok' &&
+      compare({ kind: 'single' }, { kind: 'single' }).status === 'ok'
+  );
+  check(
+    '②合规 前端具名类型/动态声明(盲区) -> skip 不判负',
+    compare({ kind: 'named' }, { kind: 'array' }).status === 'skip' &&
+      compare({ kind: 'opaque' }, { kind: 'array' }).status === 'skip'
+  );
+
+  // ③ 防过期锁：先用合成数据验证锁本身会抓，再对真实 EXEMPTIONS 上锁
+  check(
+    '③注入违例 合成过期豁免条目必须被锁点名',
+    JSON.stringify(findExpiredExemptions(['k1', 'k2'], ['k1'])) === JSON.stringify(['k2'])
+  );
+  check('③合规 仍命中的豁免条目不误伤', findExpiredExemptions(['k1'], ['k1', 'k9']).length === 0);
+
+  // ③/④ 真实全量扫描（与门禁同一实现 runScan）
+  const { buckets, feFunctions } = runScan();
+  const unclassifiedKeys = buckets.unclassified.map(r => r.key);
+  const expiredReal = findExpiredExemptions(EXEMPTIONS.keys(), unclassifiedKeys);
+  check(
+    '③锁 真实数据 EXEMPTIONS 每条必须仍命中当前未分类桶',
+    expiredReal.length === 0,
+    expiredReal.length
+      ? `过期豁免(实跑未分类桶已不含该端点，须从 EXEMPTIONS 删除): ${expiredReal.join(' | ')}`
+      : `清单 ${EXEMPTIONS.size} 项均仍命中`
+  );
+  const comparable = buckets.ok.length + buckets.mismatch.length + buckets.unclassified.length;
+  // 地板取值依据见文件头：现值实测 可比对 639 / 前端函数 1221，取略低且有量级余量的下限。
+  check(
+    '④地板 可比对条目(ok+mismatch+unclassified) >= 600',
+    comparable >= 600,
+    `comparable=${comparable} ok=${buckets.ok.length} mismatch=${buckets.mismatch.length} unclassified=${buckets.unclassified.length}`
+  );
+  check(
+    '④地板 前端 api 函数总数 >= 1100',
+    feFunctions.length >= 1100,
+    `feFunctions=${feFunctions.length}`
+  );
+
+  const failed = results.filter(x => !x).length;
+  console.log(
+    failed
+      ? `\nSELF-TEST FAIL: ${failed}/${results.length} 条未过`
+      : `\nSELF-TEST OK: ${results.length}/${results.length} 条通过`
+  );
+  process.exit(failed ? 1 : 0);
+}
+
 // 只有被直接执行时才跑：请求体侧门禁 check-api-request.mjs 会 import 本文件的解析器，
 // 两套各自实现必然漂移（本仓库反复栽过的根因之一）。
 const invokedDirectly =
   !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (invokedDirectly) main();
+if (invokedDirectly) {
+  // 参数白名单 fail-fast：未知/拼错参数一律非零退出，禁止静默退回默认全量跑（那会把
+  // --self-test 的拼错变成"看起来绿但自证没跑"，把全量门禁的拼错变成跑错对象）。
+  const ALLOWED_ARGV = new Set(['--self-test']);
+  const args = process.argv.slice(2);
+  const unknown = args.filter(a => !ALLOWED_ARGV.has(a));
+  if (unknown.length) {
+    console.error(
+      `FAIL: 未知参数 ${unknown.join(' ')} —— 本脚本只接受无参数(全量门禁)或 --self-test；已拒绝执行。`
+    );
+    process.exit(2);
+  }
+  if (args.includes('--self-test')) runSelfTest();
+  else main();
+}
 
 export {
   BACKEND,

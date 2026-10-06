@@ -440,6 +440,14 @@ jobs:
         working-directory: frontend
         run: node scripts/check-api-paths.mjs
 
+      # 判定器自证（--self-test）：Rust 切分守恒夹具、比对判据注入违例必抓/合规样例不误伤、
+      # 豁免防过期锁、可比对数检测力地板。必须排在各自主门禁之前 —— 判定器若退化空转，
+      # 主门禁的"失配 0"只是零违规的假绿，自证步骤会先红并点名坏在哪条断言。
+      - name: 响应信封判定器自证（切分守恒/地板/豁免防过期锁）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-api-envelope.mjs --self-test
+
       - name: 响应信封形状对齐（前端读取键 ↔ handler 出参）
         if: ${{ !cancelled() }}
         working-directory: frontend
@@ -468,6 +476,13 @@ jobs:
 
       # 存量 147 条漂移已登记 scripts/api-request-baseline.json（过渡机制：只列示不判负，
       # 只准缩短）；不在基线内的新失配仍立即红。清零后删除基线文件恢复全量阻断。
+      # 自证步骤（multipart 双向判据正/负夹具 + 真实仓库回归地板 + PENDING_TRUE_ERRORS
+      # 防过期锁）先于主门禁执行，理由与信封侧同一：判定器空转时主门禁恒绿不可信。
+      - name: 请求契约判定器自证（multipart 双向判据/地板/防过期锁）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-api-request.mjs --self-test
+
       - name: 请求体与查询参数对齐（前端实参 ↔ 后端 Json/Query 字段集）
         if: ${{ !cancelled() }}
         working-directory: frontend
