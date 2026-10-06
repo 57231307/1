@@ -49,7 +49,7 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::ar_collection;
 use bingxi_backend::services::ar_service::ArService;
 use bingxi_backend::utils::error::AppError;
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::Value;
@@ -662,5 +662,372 @@ async fn update_payment_overwrite_new_values_readback_matches() {
         row.bank_account.as_deref(),
         Some("6222000011112222"),
         "本次未发键的 bank_account 必须保持原值"
+    );
+}
+
+// =========================================================
+// 6) AR 收款金额/收款日期真实编辑锁（真 PG + 真实 handler）：
+//    NOT NULL 列三态（键缺席=保持、有值=覆盖、显式 null=业务拒绝不落默认值）、
+//    "新金额 < 已核销分配金额" 一致性门（拒绝即事务回滚，库内无部分写入）、
+//    关账期间日期变更拒绝（复用 check_payment_period_locked 同源判据）、
+//    出参 amount/payment_date 经 GET 以 Decimal→字符串形态读回。
+//    夹具说明：收款单维度的分配账本 = ar_reconciliation_items
+//    （item_type=RECEIPT、document_id=收款单ID、金额按记账方向存负），
+//    与 check_payment_available_balance / load_auto_verify_data 同源；
+//    pending 收款单业务上尚不可被核销（核销门控要求 confirmed），故该账本行
+//    以夹具直插构造历史分配形态，锁的是服务层一致性门本身。
+// =========================================================
+
+/// 播一条 pending 收款单：COL-EDIT-0001，2026-04-10，金额 100.00
+async fn seed_pending_collection_for_amount_edit(db: &sea_orm::DatabaseConnection) {
+    ar_collection::ActiveModel {
+        collection_no: Set("COL-EDIT-0001".to_string()),
+        collection_date: Set(NaiveDate::from_ymd_opt(2026, 4, 10).unwrap()),
+        customer_id: Set(1),
+        collection_amount: Set(Decimal::from_str("100.00").unwrap()),
+        status: Set(bingxi_backend::models::status::ar::COLLECTION_PENDING.to_string()),
+        created_by: Set(100),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+/// 为该收款单（id=1）插一张核销单 + RECEIPT 明细，已分配金额 60.00。
+/// 主单 reconciliation_status 必须为词表常量 closed：收款单级"已核销分配额"读数
+/// （collection.rs::active_receipt_ledger_items）只计 closed 核销单挂的
+/// AR_COLLECTION 明细，与本夹具的分配形态同真实核销创建路径逐字段一致。
+async fn seed_receipt_verified_allocation_60(db: &sea_orm::DatabaseConnection) {
+    let today = Utc::now().date_naive();
+    bingxi_backend::models::ar_reconciliation::ActiveModel {
+        reconciliation_no: Set("VER-EDIT-0001".to_string()),
+        reconciliation_date: Set(today),
+        period_start: Set(today),
+        period_end: Set(today),
+        customer_id: Set(1),
+        opening_balance: Set(Decimal::ZERO),
+        total_invoices: Set(Decimal::from_str("60.00").unwrap()),
+        total_collections: Set(Decimal::from_str("60.00").unwrap()),
+        closing_balance: Set(Decimal::ZERO),
+        reconciliation_status: Set(Some(
+            bingxi_backend::models::status::ar::RECONCILIATION_CLOSED.to_string(),
+        )),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    bingxi_backend::models::ar_reconciliation_item::ActiveModel {
+        reconciliation_id: Set(1),
+        item_type: Set("RECEIPT".to_string()),
+        document_type: Set(Some("AR_COLLECTION".to_string())),
+        document_id: Set(Some(1)),
+        document_no: Set(Some("COL-EDIT-0001".to_string())),
+        document_date: Set(Some(NaiveDate::from_ymd_opt(2026, 4, 10).unwrap())),
+        // RECEIPT 明细金额按记账方向存负（manual.rs::create_reconciliation_items 形态）
+        amount: Set(-Decimal::from_str("60.00").unwrap()),
+        matched_amount: Set(Some(Decimal::from_str("60.00").unwrap())),
+        match_status: Set(bingxi_backend::models::status::ar::MATCH_MATCHED.to_string()),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+/// 播 2026-05 会计期间且已关账（CLOSED 词表常量与写入方逐字符相同）
+async fn seed_closed_period_2026_05(db: &sea_orm::DatabaseConnection) {
+    let start = NaiveDate::from_ymd_opt(2026, 5, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 5, 31)
+        .unwrap()
+        .and_hms_opt(23, 59, 59)
+        .unwrap();
+    bingxi_backend::models::accounting_period::ActiveModel {
+        year: Set(2026),
+        period: Set(5),
+        period_name: Set("2026-05".to_string()),
+        start_date: Set(Utc.from_utc_datetime(&start)),
+        end_date: Set(Utc.from_utc_datetime(&end)),
+        status: Set(bingxi_backend::models::status::accounting_period::CLOSED.to_string()),
+        created_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+/// 金额上调：响应体与 GET 回读一致、amount 以字符串形态出参、
+/// 收款单已核销分配明细未被破坏
+#[tokio::test]
+async fn update_payment_amount_increase_readback_and_verified_allocation_intact() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_for_amount_edit(&db).await;
+    seed_receipt_verified_allocation_60(&db).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(&app, r#"{"amount":"150.00"}"#).await;
+    assert_eq!(status, StatusCode::OK, "金额上调失败: {v}");
+    assert!(v["data"]["amount"].is_string(), "Decimal 出参必须是字符串");
+    assert_eq!(v["data"]["amount"], "150.00");
+
+    let (status, g) = get_payment_body(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        g["data"]["amount"], "150.00",
+        "改后 GET 回读必须得到新金额（有写必须有读）"
+    );
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.collection_amount, Decimal::from_str("150.00").unwrap());
+
+    // 已核销分配明细原样保留（上调不动分配账本，发票侧自洽关系不被破坏）
+    let item = bingxi_backend::models::ar_reconciliation_item::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(item.amount, -Decimal::from_str("60.00").unwrap());
+    assert_eq!(item.document_id, Some(1));
+    assert_eq!(
+        item.match_status,
+        bingxi_backend::models::status::ar::MATCH_MATCHED
+    );
+}
+
+/// 新金额小于已核销分配金额 → 业务拒绝（文案不含记录 ID/内部结构），
+/// 且同载荷携带的 remark 修改一并回滚，库内原值零写入
+#[tokio::test]
+async fn update_payment_amount_below_verified_total_rejected_and_no_partial_write() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_for_amount_edit(&db).await;
+    seed_receipt_verified_allocation_60(&db).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(&app, r#"{"amount":"30.00","remark":"不应部分写入"}"#).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "低于已分配额的下调必须被拒: {v}"
+    );
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(
+        v["message"],
+        "新收款金额小于该收款单已核销分配金额，不可下调"
+    );
+    assert!(
+        !v["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("COL-EDIT")
+            && !v["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("收款单 1"),
+        "拒绝文案不得外泄记录标识: {}",
+        v["message"]
+    );
+
+    // 事务回滚证明：金额与同载荷 remark 均未落库
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.collection_amount, Decimal::from_str("100.00").unwrap());
+    assert!(row.remark.is_none(), "被拒请求的其余字段不得部分写入");
+}
+
+/// 收款日期改为已关账期间 → 复用关账判据拒绝，库内日期保持原值
+#[tokio::test]
+async fn update_payment_date_into_closed_period_rejected() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_for_amount_edit(&db).await;
+    seed_closed_period_2026_05(&db).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(&app, r#"{"payment_date":"2026-05-15"}"#).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "关账期间日期变更必须被拒: {v}"
+    );
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert!(
+        v["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("该期间的数据已被锁定"),
+        "拒绝文案必须来自 check_date_locked_txn 同源判据: {}",
+        v["message"]
+    );
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.collection_date,
+        NaiveDate::from_ymd_opt(2026, 4, 10).unwrap()
+    );
+}
+
+/// NOT NULL 列显式 null → 业务拒绝而不是静默落默认值（amount 与 payment_date 双向锁）
+#[tokio::test]
+async fn update_payment_not_null_columns_explicit_null_rejected() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_for_amount_edit(&db).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(&app, r#"{"amount":null}"#).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "amount 显式 null 必须被拒: {v}"
+    );
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["message"], "收款金额不能清空：该字段为必填项");
+
+    let (status, v) = put_payment_body(&app, r#"{"payment_date":null}"#).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "payment_date 显式 null 必须被拒: {v}"
+    );
+    assert_eq!(v["code"], "BUSINESS_ERROR");
+    assert_eq!(v["message"], "收款日期不能清空：该字段为必填项");
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.collection_amount, Decimal::from_str("100.00").unwrap());
+    assert_eq!(
+        row.collection_date,
+        NaiveDate::from_ymd_opt(2026, 4, 10).unwrap()
+    );
+}
+
+/// 键缺席保持：只发改收款方式时，金额与收款日期经响应体、GET、DB 三处均为原值
+#[tokio::test]
+async fn update_payment_amount_and_date_absent_keep_original_values() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_for_amount_edit(&db).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(&app, r#"{"payment_method":"cash"}"#).await;
+    assert_eq!(status, StatusCode::OK, "缺席键更新失败: {v}");
+    assert_eq!(
+        v["data"]["amount"], "100.00",
+        "amount 键缺席必须保持原值（响应体）"
+    );
+    assert_eq!(
+        v["data"]["payment_date"], "2026-04-10",
+        "payment_date 键缺席必须保持原值（响应体）"
+    );
+
+    let (status, g) = get_payment_body(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(g["data"]["amount"], "100.00");
+    assert_eq!(g["data"]["payment_date"], "2026-04-10");
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.collection_amount, Decimal::from_str("100.00").unwrap());
+    assert_eq!(
+        row.collection_date,
+        NaiveDate::from_ymd_opt(2026, 4, 10).unwrap()
+    );
+    assert_eq!(row.collection_method.as_deref(), Some("cash"));
+}
+
+/// DTO 三态形状锁（纯 serde，无 DB）：amount/payment_date 的
+/// 缺席=None（保持）、显式 null=Some(None)（由 service 业务拒绝）、有值=Some(Some(v))；
+/// 序列化回 JSON 时缺席省略键、显式 null 落 null 键（handler 以 to_value 传递 service）。
+#[test]
+fn ar_update_dto_amount_and_date_distinguish_absent_null_and_value() {
+    let dto: ar_payment_handler::UpdateArPaymentRequest =
+        serde_json::from_value(serde_json::json!({
+            "amount": "150.00",
+            "payment_date": "2026-06-01",
+            "remark": null,
+        }))
+        .expect("AR update DTO amount/payment_date 三态反序列化失败");
+    assert!(matches!(
+        &dto.amount,
+        Some(Some(v)) if *v == Decimal::from_str("150.00").unwrap()
+    ));
+    assert!(matches!(
+        &dto.payment_date,
+        Some(Some(d)) if *d == NaiveDate::from_ymd_opt(2026, 6, 1).unwrap()
+    ));
+    assert!(matches!(dto.remark, Some(None)));
+
+    let wire = serde_json::to_value(&dto).expect("AR update DTO amount/payment_date 序列化失败");
+    assert!(
+        wire["amount"].is_string(),
+        "Decimal 上送 service 载荷必须保持字符串形态"
+    );
+    assert_eq!(wire["amount"], "150.00");
+    assert_eq!(wire["payment_date"], "2026-06-01");
+    assert!(wire.get("payment_method").is_none(), "缺席键序列化必须省略");
+
+    let absent: ar_payment_handler::UpdateArPaymentRequest =
+        serde_json::from_value(serde_json::json!({"remark": "x"})).unwrap();
+    assert!(
+        absent.amount.is_none(),
+        "amount 键缺席必须是 None（保持原值）"
+    );
+    assert!(
+        absent.payment_date.is_none(),
+        "payment_date 键缺席必须是 None（保持原值）"
+    );
+
+    let nulled: ar_payment_handler::UpdateArPaymentRequest =
+        serde_json::from_value(serde_json::json!({"amount": null, "payment_date": null})).unwrap();
+    assert!(matches!(nulled.amount, Some(None)));
+    assert!(matches!(nulled.payment_date, Some(None)));
+    assert!(
+        nulled.validate().is_ok(),
+        "NOT NULL 列的显式 null 不被 DTO 校验阻挡，由 service 入口业务拒绝"
     );
 }

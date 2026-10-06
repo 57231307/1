@@ -4,14 +4,19 @@
 //! - `manual_verify`（公开 API）指定一张发票 + 一张收款单 + 金额，创建核销记录
 //! - `cancel_verification`（公开 API）状态门 COMPLETED → CANCELLED，恢复发票金额与状态
 //!
-//! 手动核销内部辅助（7 个，私有）：
+//! 手动核销内部辅助（7 个）：
 //! - `validate_verify_amount`        核销金额前置校验（金额>0 + 精度≤2 位小数）
 //! - `lock_and_validate_invoice`     锁定发票并校验（未取消 + 未收金额充足）
 //! - `lock_and_validate_payment`     锁定收款单并校验（已确认 + 客户一致）
 //! - `check_payment_available_balance` 校验收款单可用余额
-//! - `create_reconciliation_record`  创建核销单主记录（VER 单号）
-//! - `create_reconciliation_items`   创建核销明细（INVOICE + RECEIPT）
+//! - `create_reconciliation_record`  创建核销单主记录（VER 单号）——收款创建直连
+//!   发票路径（ar_ops/collection.rs::link_invoices_to_payment）共用的核销单写入口
+//! - `create_reconciliation_items`   创建核销明细（INVOICE + RECEIPT）——同上，
+//!   收款单级分配账本的唯一写入口，禁止其他路径另插第二形状
 //! - `update_invoice_after_verify`   核销后更新发票状态 + 审计
+//! - 取消核销辅助（`lock_reconciliation_for_cancel` / `load_cancel_invoice_items` /
+//!   `lock_invoices_for_cancel` / `rollback_invoices` / `mark_reconciliation_cancelled`）
+//!   同时被收款单取消（ar_ops/collection.rs::cancel_collection）的账本回收链复用
 //!
 //! 业务规则：
 //! - 手动核销：单张发票 + 单张收款单，金额校验 round_dp(2)
@@ -233,15 +238,10 @@ impl ArService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        // 查询该收款单已核销金额
-        let existing_verified: Decimal = ar_reconciliation_item::Entity::find()
-            .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
-            .filter(ar_reconciliation_item::Column::DocumentId.eq(payment_id))
-            .all(txn)
-            .await?
-            .into_iter()
-            .map(|i| i.amount.abs())
-            .sum();
+        // 查询该收款单已核销金额：收款单维度分配账本的唯一求和实现
+        // （ar_ops/collection.rs::payment_verified_total），修改收款金额的下限拒绝门
+        // 与本门控同源引用同一函数，本模块不再内联维护第二套求和。
+        let existing_verified = Self::payment_verified_total(txn, payment_id).await?;
         let available = payment.collection_amount - existing_verified;
         if amount > available {
             // 批次 389 P2-2：余额不足拒绝核销记录 warn 日志
@@ -263,8 +263,9 @@ impl ArService {
         Ok(())
     }
 
-    /// 创建核销单主记录（生成 VER 单号 + 初始化金额）
-    async fn create_reconciliation_record(
+    /// 创建核销单主记录（生成 VER 单号 + 初始化金额）。
+    /// 核销单主记录的 crate 内唯一写入口：手动核销与收款创建直连发票路径共用。
+    pub(crate) async fn create_reconciliation_record(
         &self,
         invoice: &ar_invoice::Model,
         amount: Decimal,
@@ -307,8 +308,10 @@ impl ArService {
         Ok(reconciliation)
     }
 
-    /// 创建核销明细：INVOICE 明细 + RECEIPT 明细
-    async fn create_reconciliation_items(
+    /// 创建核销明细：INVOICE 明细 + RECEIPT 明细。
+    /// 收款单级分配账本（AR_COLLECTION 口径）的 crate 内唯一写入口：手动核销与
+    /// 收款创建直连发票路径共用，读取判据见 ar_ops/collection.rs::active_receipt_ledger_items。
+    pub(crate) async fn create_reconciliation_items(
         &self,
         ctx: ReconciliationItemContext<'_>,
         txn: &sea_orm::DatabaseTransaction,
@@ -407,8 +410,8 @@ impl ArService {
         Ok(reconciliation_to_json(updated))
     }
 
-    /// 锁定核销单(行级锁)
-    async fn lock_reconciliation_for_cancel(
+    /// 锁定核销单(行级锁)。收款单取消的账本回收链（ar_ops/collection.rs::cancel_collection）复用本函数
+    pub(crate) async fn lock_reconciliation_for_cancel(
         txn: &sea_orm::DatabaseTransaction,
         verification_id: i32,
     ) -> Result<ar_reconciliation::Model, AppError> {
@@ -444,8 +447,8 @@ impl ArService {
         Ok(())
     }
 
-    /// 加载核销单的 INVOICE 明细
-    async fn load_cancel_invoice_items(
+    /// 加载核销单的 INVOICE 明细。收款单取消的账本回收链复用本函数
+    pub(crate) async fn load_cancel_invoice_items(
         txn: &sea_orm::DatabaseTransaction,
         verification_id: i32,
     ) -> Result<Vec<ar_reconciliation_item::Model>, AppError> {
@@ -457,8 +460,8 @@ impl ArService {
             .map_err(AppError::from)
     }
 
-    /// 批量锁定发票并构建 id→model 映射
-    async fn lock_invoices_for_cancel(
+    /// 批量锁定发票并构建 id→model 映射。收款单取消的账本回收链复用本函数
+    pub(crate) async fn lock_invoices_for_cancel(
         txn: &sea_orm::DatabaseTransaction,
         inv_ids: Vec<i32>,
     ) -> Result<std::collections::HashMap<i32, ar_invoice::Model>, AppError> {
@@ -473,8 +476,9 @@ impl ArService {
         Ok(invoices.into_iter().map(|inv| (inv.id, inv)).collect())
     }
 
-    /// 回滚发票 received_amount/unpaid_amount/status 并写审计
-    async fn rollback_invoices(
+    /// 回滚发票 received_amount/unpaid_amount/status 并写审计。
+    /// 收款单取消的账本回收链复用本函数，回滚口径（按本核销单 INVOICE 明细逐条冲减）一致。
+    pub(crate) async fn rollback_invoices(
         txn: &sea_orm::DatabaseTransaction,
         items: &[ar_reconciliation_item::Model],
         inv_map: &mut std::collections::HashMap<i32, ar_invoice::Model>,
@@ -520,8 +524,11 @@ impl ArService {
         }
     }
 
-    /// 更新核销单状态为 CANCELLED 并写审计
-    async fn mark_reconciliation_cancelled(
+    /// 更新核销单状态为 CANCELLED 并写审计。明细不删行（留痕），
+    /// 有效性由主单状态单源表达——收款单级已核销读数只计 closed（见
+    /// ar_ops/collection.rs::active_receipt_ledger_items），置取消即完成账本回收。
+    /// 收款单取消的账本回收链复用本函数
+    pub(crate) async fn mark_reconciliation_cancelled(
         txn: &sea_orm::DatabaseTransaction,
         reconciliation: ar_reconciliation::Model,
         now: chrono::DateTime<chrono::Utc>,

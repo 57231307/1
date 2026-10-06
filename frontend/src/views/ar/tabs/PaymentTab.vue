@@ -71,7 +71,13 @@
           <el-input-number v-model="form.customer_id" :min="1" />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.paymentDate')" prop="payment_date">
-          <el-date-picker v-model="form.payment_date" type="date" value-format="YYYY-MM-DD" />
+          <!-- 收款日期落 NOT NULL 列：必填、不可清空（clearable 会制造"可置空"错觉） -->
+          <el-date-picker
+            v-model="form.payment_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            :clearable="false"
+          />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.method')" prop="payment_method">
           <el-select v-model="form.payment_method">
@@ -82,7 +88,9 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('arModule.payment.amount')" prop="amount">
-          <el-input-number v-model="form.amount" :min="0.01" :precision="2" />
+          <!-- 收款金额落 NOT NULL 列：必填控件（min 0.01 + precision 2），不提供可清空形态；
+               编辑提交后由后端执行同源金额校验与"新金额≥已核销分配"一致性门 -->
+          <el-input-number v-model="form.amount" :min="0.01" :precision="2" :controls="false" />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.notes')">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -148,8 +156,14 @@ const detailRow = ref<ARPayment | null>(null);
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
 
-const formatMoney = (amount: number | string | undefined) => {
-  const n = Number(amount ?? 0);
+const formatMoney = (amount: string | number | null | undefined): string => {
+  // 后端出参金额为 rust_decimal 字符串（collection_to_json → to_string()）；
+  // 按本仓 Decimal→字符串口径先判形态再换算，形态异常显示占位并记日志，不兜底成 0 掩盖缺键
+  const n = typeof amount === 'number' ? amount : typeof amount === 'string' ? Number(amount) : NaN;
+  if (!Number.isFinite(n)) {
+    logger.error('AR payment amount is not a decimal string/number', { amount });
+    return '—';
+  }
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 };
 
@@ -194,7 +208,17 @@ const rules: FormRules = {
   payment_date: [
     { required: true, message: t('arModule.payment.dateRequired'), trigger: 'change' },
   ],
-  amount: [{ required: true, message: t('arModule.payment.amountRequired'), trigger: 'blur' }],
+  // 金额是 NOT NULL 列：必填 + 必须为大于零的数字，UI 不提供"清空"合法路径（三态里
+  // 显式 null 会被后端业务拒绝，前端不制造该分支）
+  amount: [
+    {
+      required: true,
+      type: 'number',
+      min: 0.01,
+      message: t('arModule.payment.amountRequired'),
+      trigger: 'blur',
+    },
+  ],
 };
 
 const openCreateDialog = () => {
@@ -212,8 +236,9 @@ const openEditDialog = (row: ARPayment) => {
   form.customer_id = row.customer_id;
   form.payment_date = row.payment_date;
   form.payment_method = row.payment_method;
-  // 后端响应金额为 string（rust_decimal），回填数值供 el-input-number 编辑
-  form.amount = Number(row.amount ?? 0);
+  // 后端响应金额为 string（rust_decimal），回填数值供 el-input-number 编辑；
+  // 形态异常（缺键/非数字）时为 NaN，必填规则（type number）当场拒绝，不兜底 0
+  form.amount = Number(row.amount);
   form.remark = row.remark || '';
   dialogVisible.value = true;
 };
@@ -224,12 +249,14 @@ const handleSubmit = async () => {
   submitting.value = true;
   try {
     if (editId.value) {
+      // 后端 UpdateArPaymentRequest 为三态部分更新：只上送对话框真实承载的键；
+      // amount/payment_date 为 NOT NULL 列必填上送（后端执行同源校验与核销一致性门），
+      // remark 为空串时显式 null 清空（DB 可空列），未承载的 bank_account 不发键=保持原值
       await updateARPayment(editId.value, {
         amount: form.amount,
         payment_method: form.payment_method,
         payment_date: form.payment_date,
-        bank_account: form.bank_account,
-        remark: form.remark,
+        remark: form.remark === '' ? null : form.remark,
       });
     } else {
       await createARPayment({

@@ -186,24 +186,11 @@ impl ArService {
             .all(&*self.db)
             .await?;
 
-        // 批量查询已有核销记录，过滤已完全核销的收款
+        // 批量汇总各收款单已核销分配额（收款单维度"已核销分配额"的唯一读数
+        // ar_ops/collection.rs::receipt_verify_totals，与手工核销可用余额门、修改收款
+        // 金额下限门、自动核销汇总同源），据此过滤已完全核销的收款
         let payment_ids: Vec<i32> = payments.iter().map(|p| p.id).collect();
-        let verified_items = if payment_ids.is_empty() {
-            Vec::new()
-        } else {
-            ar_reconciliation_item::Entity::find()
-                .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
-                .filter(ar_reconciliation_item::Column::DocumentId.is_in(payment_ids))
-                .all(&*self.db)
-                .await?
-        };
-        let mut verified_map: std::collections::HashMap<i32, Decimal> =
-            std::collections::HashMap::new();
-        for item in &verified_items {
-            if let Some(doc_id) = item.document_id {
-                *verified_map.entry(doc_id).or_insert(Decimal::ZERO) += item.amount.abs();
-            }
-        }
+        let verified_map = Self::receipt_verify_totals(&*self.db, &payment_ids).await?;
 
         let result: Vec<serde_json::Value> = payments
             .into_iter()

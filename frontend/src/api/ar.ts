@@ -68,13 +68,27 @@ export interface CreateArPaymentRequest {
   invoice_ids?: number[];
 }
 
-/** 更新收款入参：对齐后端 `UpdateArPaymentRequest`（全字段可选，无 customer_id，金额键 amount）。 */
+/**
+ * 更新收款入参：对齐后端 `UpdateArPaymentRequest`
+ * （backend/src/handlers/ar_payment_handler.rs，双层 Option 三态：键缺席=保持原值、
+ * 显式 null=清空[仅可空列]、有值=覆盖；无 customer_id，身份/审计字段不经请求体）。
+ * amount/payment_date 对应 NOT NULL 列（collection_amount/collection_date），
+ * 后端更新链路已真实支持修改：金额执行与创建同源的 >0/精度≤2 位校验与
+ * "新金额≥已核销分配金额"一致性门（ar_ops/collection.rs::update_payment），
+ * 日期执行所属期间关账检查；二者显式 null 被业务拒绝，故此处声明为可选但不可传 null。
+ * amount 入站为 JSON number（rust_decimal serde 接受），与出参 string 形态解耦。
+ */
 export interface UpdateArPaymentRequest {
+  /** 收款金额：NOT NULL 列，编辑对话框必送；不允许 null（后端业务拒绝） */
   amount?: number;
-  payment_method?: string;
+  /** 收款日期（YYYY-MM-DD）：NOT NULL 列，编辑对话框必送；不允许 null */
   payment_date?: string;
+  /** 收款方式（可空列，后端另支持显式 null 清空） */
+  payment_method?: string;
+  /** 银行账号（可空列） */
   bank_account?: string;
-  remark?: string;
+  /** 备注（可空列；显式 null=清空为 NULL） */
+  remark?: string | null;
 }
 
 export interface ARVerification {

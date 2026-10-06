@@ -61,15 +61,38 @@ where
 
 /// 更新收款请求
 /// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
-/// 键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
-/// 仅开放 ar_collections 的可空业务列（m0012/m0083 DDL）：collection_method/
-/// bank_account/check_no/remark；金额与收款日期指向 NOT NULL 列且更新链路
-/// 按服务口径不支持（改金额需同步调整关联发票），单号/客户/状态等身份与审计
-/// 字段不经请求体承载，操作人取 AuthContext.user_id。
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// 开放 ar_collections 的业务列（m0012/m0083 DDL）：collection_method/
+/// bank_account/check_no/remark 四个可空列 + collection_amount/collection_date
+/// 两个 NOT NULL 列；NOT NULL 列的显式 `null` 是调用方错误，由 service 入口
+/// 业务拒绝，不落默认值（先例：production_order_handler.rs::UpdateProductionOrderPayload
+/// 的 planned_quantity、inventory_adjustment_service.rs 的 NOT NULL 列门控）。
+/// amount 承载 collection_amount，更新时执行与创建同源的金额校验（>0、精度≤2 位小数）
+/// 及"新金额不得小于已核销分配金额"一致性门（ar_ops/collection.rs::update_payment）；
+/// payment_date 承载 collection_date，覆盖前执行所属期间关账检查（同创建路径判据）。
+/// 单号/客户/状态等身份与审计字段不经请求体承载，操作人取 AuthContext.user_id。
 /// 校验注解仅在实际携带值（Some(Some(v))）时生效，`Some(None)` 清空路径逐层跳过。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateArPaymentRequest {
+    /// 收款金额：DB NOT NULL 列 ar_collections.collection_amount（models/ar_collection.rs:23）；
+    /// 键缺席=保持原值、有值=覆盖、显式 `null`=业务拒绝。
+    /// 入站形态为 JSON number 或数字字符串（rust_decimal serde），值域/精度校验由 service
+    /// 与创建路径同源执行（validate_payment_amount），此处不叠第二套 DTO 校验。
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub amount: Option<Option<rust_decimal::Decimal>>,
+    /// 收款日期：DB NOT NULL 列 ar_collections.collection_date（models/ar_collection.rs:16）；
+    /// 键缺席=保持原值、有值=覆盖（service 侧执行所属期间关账检查）、显式 `null`=业务拒绝。
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub payment_date: Option<Option<chrono::NaiveDate>>,
     /// 收款方式：DB 可空列 ar_collections.collection_method VARCHAR(50)
     #[serde(
         default,

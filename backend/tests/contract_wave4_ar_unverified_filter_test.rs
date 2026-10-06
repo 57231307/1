@@ -125,12 +125,18 @@ async fn seed_fk_prerequisites(db: &DatabaseConnection) {
     .await;
     exec_pg(
         db,
-        r#"INSERT INTO ar_reconciliations
+        &format!(
+            r#"INSERT INTO ar_reconciliations
                (id, reconciliation_no, reconciliation_date, period_start, period_end,
-                customer_id, opening_balance, total_invoices, total_collections, closing_balance)
+                customer_id, opening_balance, total_invoices, total_collections,
+                closing_balance, reconciliation_status)
            VALUES
                (1, 'W4AR-RECON-1', '2026-01-01', '2026-01-01', '2026-01-31',
-                1, 0, 0, 0, 0)"#,
+                1, 0, 0, 0, 0, '{}')"#,
+            // 主单状态取核销状态词表写入值（models/status/finance.rs ar 模块）：
+            // 可核销收款列表的已核销汇总只计 closed 核销单挂的账本明细
+            bingxi_backend::models::status::ar::RECONCILIATION_CLOSED
+        ),
     )
     .await;
 }
@@ -211,11 +217,13 @@ async fn seed_collections(db: &DatabaseConnection) -> (i32, i32, i32) {
     let p3 = seed_collection(db, "COL-0003", 2, "300.00", COLLECTION_CONFIRMED, 2).await;
     seed_collection(db, "COL-0004", 1, "400.00", "pending", 3).await; // 状态门排除
 
-    // p2 整笔核销（|amount| = 200 == collection_amount → verified < amount 不成立，应被剔除）
+    // p2 整笔核销（|amount| = 200 == collection_amount → verified < amount 不成立，应被剔除）。
+    // 明细形态与核销账本真实写入口一致：document_type = AR_COLLECTION，
+    // 主单 closed（见 seed_fk_prerequisites）——已核销汇总读数只计该口径。
     ar_reconciliation_item::ActiveModel {
         reconciliation_id: Set(1),
         item_type: Set("RECEIPT".to_string()),
-        document_type: Set(Some("RECEIPT".to_string())),
+        document_type: Set(Some("AR_COLLECTION".to_string())),
         document_id: Set(Some(p2)),
         amount: Set(Decimal::from_str("-200.00").unwrap()),
         match_status: Set("MATCHED".to_string()),
