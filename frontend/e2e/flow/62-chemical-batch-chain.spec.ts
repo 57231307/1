@@ -167,7 +167,7 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     await expect(page.getByRole('tab', { name: '批次管理', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '分类管理', exact: true })).toBeVisible();
 
-    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，信封形状漂移（PaginatedResponse
+    // 判据：除 2xx 外还显式断信封形状（PaginatedResponse
     // 键缺、tree 由裸数组改对象包裹）全抓不到。apiCallRaw 非 2xx 即抛（404/403/5xx 判红不变），
     // 在其上回读真实信封显式断形。后端真值：list_chemicals/list_chemical_lots/list_requisitions
     // 均返回 PaginatedResponse{items,total,page,page_size}（chemical_handler.rs:124-127 /

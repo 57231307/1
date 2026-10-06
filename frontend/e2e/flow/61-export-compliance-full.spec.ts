@@ -84,7 +84,7 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     await expect(page.getByRole('tab', { name: '贸易术语', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '环保税', exact: true })).toBeVisible();
 
-    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，信封形状漂移全抓不到——
+    // 判据：除 2xx 外还显式断信封形状（只看 2xx 的健康探针抓不到形状漂移）——
     // refund-declarations/discharge-records/tax-declarations 的 handler 出参是显式 Vec
     // 裸数组（export_refund_handler.rs:105-114 / environmental_tax_handler.rs:53-78，
     // 后者是 check-api-envelope 静态比对依据），usage-report 出参是 {year,month,items}

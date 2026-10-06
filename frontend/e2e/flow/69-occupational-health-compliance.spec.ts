@@ -163,7 +163,7 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
     await expect(page.getByRole('tab', { name: '危害因素监测', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '劳保用品发放', exact: true })).toBeVisible();
 
-    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，{list,total} 信封（本域非
+    // 判据：除 2xx 外还显式断 {list,total} 信封（本域非
     // items 形状，occupational_health_handler.rs:30-38/:56-63/:92-99 json!({list,total})）
     // 与 page_size 上限（service :270/:360/:466 clamp(1,200)+limit）漂移全抓不到。
     // readList 走 apiCallRaw：非 2xx 即抛（404/403/5xx 判红不变）+ list/total 显式断形。

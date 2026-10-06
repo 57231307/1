@@ -98,7 +98,7 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
     await expect(page.getByRole('tab', { name: '排污许可证', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: '污染物监测', exact: true })).toBeVisible();
 
-    // #267-B 收紧：原判据只走 verifyEndpointHealthy 看 2xx，信封形状（{items,total} 键、
+    // 判据：除 2xx 外还回读并显式断信封形状（{items,total} 键、
     // page_size 上限、扫描族裸数组）漂移全抓不到。apiCallRaw 非 2xx 即抛（404/403/5xx
     // 判红语义不变），在此基础上回读真实信封显式断形；具体落库键值真值属 60-02/05/07
     // （那些用例自建数据逐字段钉值），此处不重复造数。

@@ -207,7 +207,7 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
   test('70-01 分类树：建根+子→tree 真值→停用出树→删除守卫→软删 404→软删后编码复用；负例', async ({
     page,
   }) => {
-    // #267-B 收紧：原判据 verifyEndpointHealthy 只判 2xx，PaginatedResponse 四键与 tree
+    // 判据：除 2xx 外还显式断 PaginatedResponse 四键与 tree
     // 裸数组契约漂移抓不到。readPaged/requirePlainArray 走 apiCallRaw（非 2xx 即抛，
     // 404/403 判红不变）+ 信封显式断形；本用例后续（tree 含根/子、停用出树、软删 404）
     // 的真值断言不在此重复。
@@ -355,7 +355,7 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     // "软删后同码可复用"（70-01 childCode、70-02 chemical_code 同源钉桩）。
     // 本用例主体记录**全程保持未删**，只锁"未删重复必拒"这半边语义，与 70-01
     // 的"软删可复用"互不掺杂，不再出现改前 70-01 先删根、后断根码重复的自序矛盾。
-    // #267-B 收紧：原 verifyEndpointHealthy 只判 2xx → readPaged 直读四键信封 + page_size 上限。
+    // 判据：readPaged 直读四键信封 + page_size 上限，不只判 2xx。
     const dupProbe = await readPaged(
       page,
       '/chemical-categories?page=1&page_size=5',
@@ -587,7 +587,7 @@ test.describe.serial('70 染化料契约缺口：分类/状态机/检验闭包/�
     deferCleanup(CLEANUP, 'DELETE', `/chemicals/${newId}`, '[70] chemical 重建');
 
     // UI 页面可达 + by-code 读路径真值回读（不重复 62 的 UI 编辑链路）。
-    // #267-B 收紧：原 verifyEndpointHealthy 只判 2xx——软删重建后 by-code 若错误命中
+    // 判据：不只判 2xx——软删重建后 by-code 若错误命中
     // 已软删旧行、或编码键漂移，健康探针全察觉不到；改为钉 by-code 返回体逐键：
     // chemical_code 逐字等于复用编码，且 id 必须是重建新行 newId（软删旧行不可见）。
     const byCodeAfterRebuild = await apiCallRaw<Row>(
