@@ -364,23 +364,30 @@ export interface ARStatisticsReport {
   [key: string]: unknown;
 }
 
-/** AR 日报表行 */
+/**
+ * AR 日报表行：出参形状以后端定稿 DTO 为唯一事实
+ * （backend/src/services/ar_ops/report.rs:181-187，按 invoice_date GROUP BY 的聚合行）。
+ * 金额为后端 Decimal.to_string() 的字符串，非 number。
+ */
 export interface ARDailyReport {
   date: string;
-  invoice_amount: number;
-  received_amount: number;
-  verified_amount: number;
   invoice_count: number;
+  invoice_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
   [key: string]: unknown;
 }
 
-/** AR 月报表行 */
+/**
+ * AR 月报表行：同后端 report.rs:271-277（按 to_char 'YYYY-MM' GROUP BY 的聚合行），
+ * 金额同为字符串。
+ */
 export interface ARMonthlyReport {
   month: string;
-  invoice_amount: number;
-  received_amount: number;
-  verified_amount: number;
   invoice_count: number;
+  invoice_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
   [key: string]: unknown;
 }
 
@@ -417,17 +424,18 @@ export function getARStatisticsReport(
 }
 
 // 后端 ar_report_handler::ArReportQuery 读取 start_date/end_date/customer_id/baseline_date/
-// salesperson_id，此前前端误传 date / year+month（均被 serde 静默丢弃）。
-// 日报：以所选日期为单日区间 [date, date] 传给 start_date/end_date。
-export function getARDailyReport(date: string): Promise<ApiResponse<ARDailyReport>> {
+// salesperson_id。日报：以所选日期为单日区间 [date, date] 传给 start_date/end_date。
+// 载荷为裸数组行集（backend/src/services/ar_ops/report.rs:191 Ok(json!(Vec))）。
+export function getARDailyReport(date: string): Promise<ApiResponse<ARDailyReport[]>> {
   return request.get('/ar/reports/daily', { params: { start_date: date, end_date: date } });
 }
 
-// 月报：将 (year, month) 换算为该月起止日期，按 start_date/end_date 传参（不再发明 year/month）。
+// 月报：将 (year, month) 换算为该月起止日期，按 start_date/end_date 传参（不发明 year/month 参数）。
+// 载荷为裸数组行集（backend/src/services/ar_ops/report.rs:281 Ok(json!(Vec))）。
 export function getARMonthlyReport(
   year: number,
   month: number
-): Promise<ApiResponse<ARMonthlyReport>> {
+): Promise<ApiResponse<ARMonthlyReport[]>> {
   const pad = (n: number) => String(n).padStart(2, '0');
   const startDate = `${year}-${pad(month)}-01`;
   const lastDay = new Date(year, month, 0).getDate();

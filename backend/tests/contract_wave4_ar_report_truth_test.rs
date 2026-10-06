@@ -315,7 +315,86 @@ fn internal_flatten_is_a_distinct_code_from_real_errors() {
 }
 
 // ---------------------------------------------------------------------------
-// 5) 真库回退（#[ignore]，需 TEST_DATABASE_URL）
+// 5) daily/monthly 出参形状锁：载荷必须是裸数组行集，行键逐字符钉死
+//    （与前端 `frontend/src/api/ar.ts` 的 `ApiResponse<ARDailyReport[]>` /
+//     `ApiResponse<ARMonthlyReport[]>` 信封声明同源；任何一方改形状必须先改这里）
+// ---------------------------------------------------------------------------
+
+/// 日报行键（report.rs `get_daily_report` 内 `json!` 逐字面值）
+const DAILY_ROW_KEYS: &[&str] = &[
+    "\"date\":",
+    "\"invoice_count\":",
+    "\"invoice_amount\":",
+    "\"paid_amount\":",
+    "\"unpaid_amount\":",
+];
+
+/// 月报行键（report.rs `get_monthly_report` 内 `json!` 逐字面值）
+const MONTHLY_ROW_KEYS: &[&str] = &[
+    "\"month\":",
+    "\"invoice_count\":",
+    "\"invoice_amount\":",
+    "\"paid_amount\":",
+    "\"unpaid_amount\":",
+];
+
+/// 截取 `start_marker` 到 `end_marker` 之间的源码段（函数体形状锁用）
+fn report_fn_body<'s>(src: &'s str, start_marker: &str, end_marker: &str) -> &'s str {
+    let start = src.find(start_marker).unwrap_or_else(|| {
+        panic!("report.rs 未找到 `{start_marker}`——AR 日报/月报函数已漂移，形状锁需要随之重写")
+    });
+    let rest = &src[start..];
+    let end = rest
+        .find(end_marker)
+        .unwrap_or_else(|| panic!("report.rs 未找到 `{end_marker}` 终止标记"));
+    &rest[..end]
+}
+
+#[test]
+fn ar_daily_and_monthly_payload_is_bare_array_with_pinned_row_keys() {
+    let cases = [
+        (
+            "get_daily_report",
+            report_fn_body(
+                AR_REPORT_SRC,
+                "pub async fn get_daily_report",
+                "pub fn build_daily_sql_and_params",
+            ),
+            DAILY_ROW_KEYS,
+        ),
+        (
+            "get_monthly_report",
+            report_fn_body(
+                AR_REPORT_SRC,
+                "pub async fn get_monthly_report",
+                "pub fn build_monthly_sql_and_params",
+            ),
+            MONTHLY_ROW_KEYS,
+        ),
+    ];
+    for (name, body, keys) in cases {
+        assert!(
+            body.contains("Vec<serde_json::Value>") && body.contains("Ok(json!(result))"),
+            "ar_ops/report.rs 的 `{name}` 必须以 `Vec<serde_json::Value>` 收集后 \
+             `Ok(json!(result))` 出参——载荷是裸数组行集（前端信封 ApiResponse<Row[]> 同源）；\
+             改成 {{rows,total}} 等对象包装属契约变更，必须前后端+本锁同步改。"
+        );
+        assert!(
+            !body.contains("\"rows\"") && !body.contains("\"total\""),
+            "`{name}` 出参里出现 rows/total 包装键——与裸数组定稿形状冲突（若确需聚合口径，\
+            走独立端点 /ar/reports/statistics，勿在行集端点夹带）。"
+        );
+        for key in keys {
+            assert!(
+                body.contains(key),
+                "`{name}` 行 json! 缺少钉死键 {key}——行形状漂移会击穿前端列渲染与信封判定。"
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 6) 真库回退（#[ignore]，需 TEST_DATABASE_URL）
 // ---------------------------------------------------------------------------
 
 /// 需要真实 Postgres（`TEST_DATABASE_URL`）：
@@ -341,6 +420,50 @@ async fn ar_report_against_real_db() {
         .await
         .expect("复数表名 ar_invoices 在全新/已迁移库上首查应成功，不得 42P01");
     assert!(report.get("total_invoices").is_some());
+
+    // 1b. daily/monthly 出参必须是数组行集，且每行含全部钉死键（与前端信封声明同源）
+    let daily = svc
+        .get_daily_report(None, None, None)
+        .await
+        .expect("get_daily_report 在已迁移库上应返回 Ok");
+    let daily_rows = daily
+        .as_array()
+        .unwrap_or_else(|| panic!("get_daily_report 载荷必须是 JSON 数组，实际 = {daily}"));
+    if let Some(first) = daily_rows.first() {
+        for key in [
+            "date",
+            "invoice_count",
+            "invoice_amount",
+            "paid_amount",
+            "unpaid_amount",
+        ] {
+            assert!(
+                first.get(key).is_some(),
+                "日报首行缺少钉死键 {key}：实际行 = {first}"
+            );
+        }
+    }
+    let monthly = svc
+        .get_monthly_report(None, None, None)
+        .await
+        .expect("get_monthly_report 在已迁移库上应返回 Ok");
+    let monthly_rows = monthly
+        .as_array()
+        .unwrap_or_else(|| panic!("get_monthly_report 载荷必须是 JSON 数组，实际 = {monthly}"));
+    if let Some(first) = monthly_rows.first() {
+        for key in [
+            "month",
+            "invoice_count",
+            "invoice_amount",
+            "paid_amount",
+            "unpaid_amount",
+        ] {
+            assert!(
+                first.get(key).is_some(),
+                "月报首行缺少钉死键 {key}：实际行 = {first}"
+            );
+        }
+    }
 
     // 2. 不存在的表 → 真实解码/查询错误必须上抛为 DATABASE_ERROR，而非静默归零
     let probe = db
