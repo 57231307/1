@@ -36,8 +36,10 @@ pub mod finance;
 pub mod bpm_crm_contract;
 pub mod quality_dyeing;
 pub mod wage_energy_chemical_business;
+pub mod export_inspection;
 
 pub use bpm_crm_contract::*;
+pub use export_inspection::*;
 pub use finance::*;
 pub use general::*;
 pub use production::*;

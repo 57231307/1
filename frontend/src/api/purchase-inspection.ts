@@ -1,8 +1,10 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
-// 列表/详情出参 = 后端 purchase_inspection::Model（services/purchase_inspection_service.rs:202/229）。
-// 键为实体 snake_case；inspection_status 词表仅 pending/completed（models/status/purchase_inventory.rs:114）。
+// 列表/详情出参 = 后端 purchase_inspection::Model（services/purchase_inspection_service 的
+// list_inspections / get_inspection 直接序列化实体）。
+// 键为实体 snake_case；inspection_status 词表仅 pending/completed
+// （models/status/purchase_inventory 的 purchase_inspection 子模块）。
 // receipt_no/supplier_name/inspector_name 实体不提供，需后端 JOIN，列已保留（见注释）。
 export interface PurchaseInspection {
   id?: number;
@@ -40,10 +42,11 @@ export interface PurchaseInspection {
 
 /**
  * 明细出参 = 后端 purchase_inspection_item::Model 原键
- * （services/purchase_inspection_service.rs:323 list_inspection_items 直接序列化实体，
+ * （services/purchase_inspection_service 的 list_inspection_items 直接序列化实体，
  * 无 JOIN、无别名：产品名/预期数量这类列在明细表里根本不存在）。
  * qualified/unqualified 为 DECIMAL，经 JSON 序列化为字符串（如 "50.0000"），故取并集。
- * 端点信封为 { items, total, inspection_id }（handlers/purchase_inspection_handler.rs:185-189）。
+ * 端点信封为 { items, total, inspection_id }（handlers/purchase_inspection_handler 的
+ * list_inspection_items）。
  */
 export interface PurchaseInspectionItemRecord {
   id: number;
@@ -118,7 +121,7 @@ export interface PurchaseInspectionQueryParams {
 
 /**
  * 创建质检单请求（严格对齐 backend CreatePurchaseInspectionRequest，
- * services/purchase_inspection_service.rs:355）。
+ * services/purchase_inspection_service 内定义）。
  * 注意：后端 supplier_id 是 Option<i32>，但 service 代码在 None 时报错，实际为必填。
  * 不含 items：明细通过 POST /inspections/{id}/items 单独提交。
  * remark 字段：后端键名是 notes（非 remark），历史前端用 remark 字段会被 Axum 丢弃。
@@ -138,7 +141,7 @@ export interface CreatePurchaseInspectionPayload {
 
 /**
  * 更新质检单请求（严格对齐 backend UpdatePurchaseInspectionRequest，
- * services/purchase_inspection_service.rs:383）。
+ * services/purchase_inspection_service 内定义）。
  * 仅 sample_size/defect_description/notes 三字段可更新。
  */
 export interface UpdatePurchaseInspectionPayload {
@@ -149,7 +152,7 @@ export interface UpdatePurchaseInspectionPayload {
 
 /**
  * 创建质检明细请求（严格对齐 backend CreateInspectionItemDto，
- * handlers/purchase_inspection_handler.rs:134）。
+ * handlers/purchase_inspection_handler 内定义）。
  */
 export interface CreateInspectionItemPayload {
   product_id: number;
@@ -161,7 +164,7 @@ export interface CreateInspectionItemPayload {
 
 /**
  * 更新质检明细请求（严格对齐 backend UpdateInspectionItemDto，
- * handlers/purchase_inspection_handler.rs:153）。
+ * handlers/purchase_inspection_handler 内定义）。
  */
 export interface UpdateInspectionItemPayload {
   qualified_quantity?: number;
@@ -177,11 +180,12 @@ export const getPurchaseInspectionList = (params?: PurchaseInspectionQueryParams
   );
 
 /**
- * 统计卡聚合出参 = 后端 PurchaseInspectionStats
- * （models/purchase_inspection.rs:72-83，Serialize 无 rename_all，snake 原键）。
+ * 统计卡聚合出参 = 后端 PurchaseInspectionStats（models/purchase_inspection 内定义，
+ * Serialize 无 rename_all，snake 原键）。
  * 四键均为 u64 整数计数、可空性为必填（NOT 可空——序列化侧无数值缺省，缺键即契约漂移）。
- * 分桶与列表同一套筛选参数、同一条件构造点（services/purchase_inspection_service.rs
- * ::base_filtered_query）；partial 归入 failed（同 service:411-430 文书，词表常量同源）。
+ * 分桶与列表同一套筛选参数、同一条件构造点（services/purchase_inspection_service
+ * ::base_filtered_query）；partial 归入 failed（同 service 侧 inspection_stats 分桶文书，
+ * 词表常量同源）。
  * 恒等式 pending+passed+failed===total 当前写入规则下成立但无 DB 约束兜底：
  * 词表外异常行只进 total，四卡之和可能小于总数，属如实呈现而非前端兜底对象。
  */
@@ -193,7 +197,8 @@ export interface PurchaseInspectionStats {
 }
 
 // 统计卡聚合：入参与列表完全同一 PurchaseInspectionQueryParams（后端同一 InspectionQueryParams，
-// handlers/purchase_inspection_handler.rs:147-160；page/page_size 在该端点被忽略、不参与条件构造，
+// handlers/purchase_inspection_handler::get_inspection_stats 只取筛选条件、page/page_size
+// 在该端点被忽略、不参与条件构造，
 // 直发同参数对象以保证"卡片与表格同参数"在前端侧不留第二份参数装配逻辑）。
 export const getPurchaseInspectionStats = (params?: PurchaseInspectionQueryParams) =>
   request.get<ApiResponse<PurchaseInspectionStats>>('/purchase/inspections/stats', { params });

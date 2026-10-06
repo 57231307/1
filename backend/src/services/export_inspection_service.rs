@@ -1,17 +1,16 @@
 //! 出口商检服务
 //! V15 P2 B08-12：出口商检记录 CRUD + 到期预警
 use crate::models::export_inspection::{ActiveModel, Column, Entity as Ei, Model};
+use crate::models::status::export_inspection_result;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use sea_orm::*;
 use std::sync::Arc;
 
-#[allow(dead_code, reason = "预留")]
 pub struct ExportInspectionService {
     db: Arc<DatabaseConnection>,
 }
 
-#[allow(dead_code, reason = "预留")]
 impl ExportInspectionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -68,6 +67,12 @@ impl ExportInspectionService {
             .ok_or_else(|| AppError::not_found(format!("出口商检记录 {} 不存在", id)))
     }
 
+    /// 建单：新建一张出口商检记录，结论固定落待检态。
+    ///
+    /// 判据：建单动作不携带结论，result 恒为词表 `export_inspection_result::PENDING`
+    /// （唯一写入方在此，杜绝业务码硬编码漂移）；created_by 由调用方（handler）从会话注入，
+    /// 请求体不得决定建单人（审计归属不可伪造）。
+    /// 调用方：handlers/export_inspection_handler.rs::create_inspection（POST /export-inspections）。
     pub async fn create(&self, data: CreateInspectionReq) -> Result<Model, AppError> {
         let active = ActiveModel {
             inspection_no: Set(data.inspection_no),
@@ -78,7 +83,7 @@ impl ExportInspectionService {
             inspection_type: Set(data.inspection_type),
             inspection_agency: Set(data.inspection_agency),
             inspection_date: Set(data.inspection_date),
-            result: Set("pending".to_string()),
+            result: Set(export_inspection_result::PENDING.to_string()),
             report_url: Set(None),
             certificate_no: Set(None),
             certificate_expiry: Set(None),
@@ -90,6 +95,14 @@ impl ExportInspectionService {
         Ok(model)
     }
 
+    /// 登记商检结论：写入 result 与证书信息（report_url/certificate_no/certificate_expiry）。
+    ///
+    /// 判据：result 必须逐字符命中词表 `export_inspection_result::ALL`（pending/pass/fail），
+    /// 词表外（含大小写/中英变体、空串）一律 400 VALIDATION_ERROR fail-visible 拒绝，
+    /// 不夹紧、不兜底、不落库。结论列只能经本动作改写，建单后无其它写入口。
+    /// 改判策略取最保守可回退口径：允许在词表值之间重复登记（改判），每次改判记录操作人与
+    /// 前后值到日志（不留痕即静默，违反可观测红线）。
+    /// 调用方：handlers/export_inspection_handler.rs::update_result（PUT /export-inspections/{id}/result）。
     pub async fn update_result(
         &self,
         id: i32,
@@ -98,16 +111,35 @@ impl ExportInspectionService {
         certificate_no: Option<String>,
         certificate_expiry: Option<chrono::NaiveDate>,
     ) -> Result<Model, AppError> {
+        if !export_inspection_result::is_valid(&result) {
+            let allowed = export_inspection_result::ALL.join(", ");
+            return Err(AppError::validation_displayable(format!(
+                "商检结论 result 取值非法，允许值：{allowed}"
+            )));
+        }
         let model = self.get_by_id(id).await?;
+        let previous = model.result.clone();
         let mut active: ActiveModel = model.into();
-        active.result = Set(result);
+        active.result = Set(result.clone());
         active.report_url = Set(report_url);
         active.certificate_no = Set(certificate_no);
         active.certificate_expiry = Set(certificate_expiry);
         let model = active.update(&*self.db).await?;
+        // 结果改判留痕：记录前后值，供审计回溯（本域暂无历史表，改判轨迹以结构化日志承载）。
+        tracing::info!(
+            inspection_id = model.id,
+            previous_result = %previous,
+            new_result = %result,
+            "出口商检结论已登记/改判"
+        );
         Ok(model)
     }
 
+    /// 删除出口商检记录。
+    ///
+    /// 现状：删除动作尚无路由挂载点，方法体保留待删除入口交付；在此之前不得因无挂载点
+    /// 而删除方法本体。调用方：暂无（入口交付后由 handler 的删除端点调用）。
+    #[allow(dead_code, reason = "删除动作尚未挂载路由端点，方法体保留待入口交付")]
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = self.get_by_id(id).await?;
         model.delete(&*self.db).await?;
@@ -115,7 +147,6 @@ impl ExportInspectionService {
     }
 }
 
-#[allow(dead_code, reason = "预留")]
 pub struct ListParams {
     pub sales_order_id: Option<i32>,
     pub inspection_no: Option<String>,
@@ -124,7 +155,6 @@ pub struct ListParams {
     pub page_size: Option<u64>,
 }
 
-#[allow(dead_code, reason = "预留")]
 pub struct CreateInspectionReq {
     pub inspection_no: String,
     pub sales_order_id: i32,
