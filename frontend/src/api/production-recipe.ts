@@ -125,11 +125,11 @@ export function deleteProductionRecipe(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/production/production-recipes/${id}`);
 }
 
-export function approveProductionRecipe(
-  id: number,
-  data: { approved_by: number }
-): Promise<ApiResponse<ProductionRecipe>> {
-  return request.post(`/production/production-recipes/${id}/approve`, data);
+// 审批端点无请求体：审批人身份唯一来源是服务端会话（AuthContext.user_id），
+// 后端 handlers/production_recipe_handler.rs::approve 不绑定 body 提取器，
+// 前端不得再声明/发送 approved_by。
+export function approveProductionRecipe(id: number): Promise<ApiResponse<ProductionRecipe>> {
+  return request.post(`/production/production-recipes/${id}/approve`);
 }
 
 export function closeProductionRecipe(id: number): Promise<ApiResponse<ProductionRecipe>> {
@@ -171,11 +171,10 @@ export function createRecipeAddition(
   return request.post(`/production/production-recipes/${id}/additions`, data);
 }
 
-export function approveRecipeAddition(
-  additionId: number,
-  data: { approved_by: number }
-): Promise<ApiResponse<unknown>> {
-  return request.post(`/production/production-recipes/additions/${additionId}/approve`, data);
+// 同上：加料审批人身份取会话，后端 handlers/production_recipe_handler.rs::approve_addition
+// 不绑定 body 提取器，前端不再传 approved_by。
+export function approveRecipeAddition(additionId: number): Promise<ApiResponse<unknown>> {
+  return request.post(`/production/production-recipes/additions/${additionId}/approve`);
 }
 
 export function closeRecipeAddition(additionId: number): Promise<ApiResponse<unknown>> {

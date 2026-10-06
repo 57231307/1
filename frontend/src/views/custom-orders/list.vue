@@ -171,15 +171,12 @@ import {
   customOrderStatusLabelKey,
   customOrderStatusTagType,
 } from '@/utils/custom-order-status';
-// 批次 94 P2-12 修复：导入 useUserStore 用于获取真实操作人 ID（原硬编码为 1）
-import { useUserStore } from '@/store/user';
 import logger from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 // 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
-const userStore = useUserStore();
 const filters = ref({ status: '', keyword: '' });
 
 // 批次 274：接入 useTableApi，消除手写 orders/loading/pagination.total + loadData 重复
@@ -267,14 +264,8 @@ async function handleAdvance(row: CustomOrderListItem) {
       t('customOrders.list.messageAdvanceTitle'),
       { type: 'warning' }
     );
-    // 批次 94 P2-12 修复：原硬编码 operator_id: 1，改为从 userStore 获取真实当前用户 ID
-    const operatorId = userStore.userInfo?.id;
-    if (!operatorId) {
-      ElMessage.error(t('customOrders.list.messageNoUserInfo'));
-      return;
-    }
+    // 操作人身份由后端按会话（AuthContext.user_id）派生，前端不采集、不传 operator_id。
     await advanceCustomOrder(row.id, {
-      operator_id: operatorId,
       notes: t('customOrders.list.messageAdvanceNotes'),
     });
     ElMessage.success(t('customOrders.list.messageAdvanceSuccess'));

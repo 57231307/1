@@ -90,14 +90,12 @@
 import { computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
-import { useUserStore } from '@/store/user';
 import { advanceProcessNode, NODE_STATUS_COLORS } from '@/api/custom-order';
 // FE-P2-2 修复（批次 388 v13 复审）：复用 API 导出的 CustomOrderProcessNode 类型，
 // 删除本地弱化的 ProcessNode 接口（status 含 | string 弱化、日期字段过宽联合、[key: string]: unknown 索引签名）
 import type { CustomOrderProcessNode } from '@/api/custom-order';
 
 const { t } = useI18n({ useScope: 'global' });
-const userStore = useUserStore();
 
 /**
  * 工艺流程节点类型
@@ -154,12 +152,7 @@ function getDescription(node: ProcessNode) {
 }
 
 async function handleAction(node: ProcessNode, action: string) {
-  // 操作人取当前登录用户，不得硬编码（与 custom-orders/list.vue 同源）
-  const operatorId = userStore.userInfo?.id;
-  if (!operatorId) {
-    ElMessage.warning(t('common.processFlow.operatorMissing'));
-    return;
-  }
+  // 动作人由后端按会话（AuthContext.user_id）派生，前端不采集 operator_id
   try {
     if (action === 'block') {
       const { value: reason } = await ElMessageBox.prompt(
@@ -172,14 +165,10 @@ async function handleAction(node: ProcessNode, action: string) {
       );
       await advanceProcessNode(props.orderId || 0, node.id, {
         action,
-        operator_id: operatorId,
         notes: reason,
       });
     } else {
-      await advanceProcessNode(props.orderId || 0, node.id, {
-        action,
-        operator_id: operatorId,
-      });
+      await advanceProcessNode(props.orderId || 0, node.id, { action });
     }
     ElMessage.success(t('common.processFlow.operationSuccess'));
     emit('refresh');

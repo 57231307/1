@@ -222,7 +222,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
-import { useUserStore } from '@/store/user';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import {
@@ -318,13 +317,9 @@ const runAction = async (_row: ProductionRecipe, label: string, fn: () => Promis
 };
 
 const handleApprove = (row: ProductionRecipe) => {
-  const userStore = useUserStore();
-  const approvedBy = userStore.userInfo?.id;
-  if (!approvedBy) {
-    ElMessage.warning('当前登录用户信息缺失，无法登记审批人');
-    return Promise.resolve();
-  }
-  return runAction(row, '审批', () => approveProductionRecipe(row.id, { approved_by: approvedBy }));
+  // 审批人身份由后端按会话（AuthContext.user_id）派生，请求体不承载；
+  // 前端不得再取登录 ID 组装载荷或对缺失身份做前置锁死。
+  return runAction(row, '审批', () => approveProductionRecipe(row.id));
 };
 const handleClose = (row: ProductionRecipe) =>
   runAction(row, '关闭', () => closeProductionRecipe(row.id));
@@ -453,14 +448,9 @@ const handleSaveAddition = async () => {
 };
 
 const handleApproveAddition = async (row: Record<string, unknown>) => {
-  const userStore = useUserStore();
-  const approvedBy = userStore.userInfo?.id;
-  if (!approvedBy) {
-    ElMessage.warning('当前登录用户信息缺失，无法登记审批人');
-    return;
-  }
+  // 审批人身份由后端按会话（AuthContext.user_id）派生，请求体不承载。
   try {
-    await approveRecipeAddition(row.id as number, { approved_by: approvedBy });
+    await approveRecipeAddition(row.id as number);
     ElMessage.success('加料处方已审批');
     await loadAdditions();
   } catch (e) {

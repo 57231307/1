@@ -186,7 +186,6 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
-import { useUserStore } from '@/store/user';
 import {
   reportQualityIssue,
   resolveQualityIssue,
@@ -195,7 +194,6 @@ import {
 } from '@/api/custom-order';
 
 const { t } = useI18n({ useScope: 'global' });
-const userStore = useUserStore();
 
 // v11 批次 181 P2-1 修复：使用 API 导出的 QualityIssue 类型，替代本地定义
 
@@ -316,17 +314,11 @@ async function handleResolveSubmit() {
     return;
   }
   if (!currentIssue.value) return;
-  // 操作人取当前登录用户，不得硬编码（与 custom-orders/list.vue 同源）
-  const operatorId = userStore.userInfo?.id;
-  if (!operatorId) {
-    ElMessage.warning(t('common.qualityCheck.operatorMissing'));
-    return;
-  }
+  // 处理人由后端按会话（AuthContext.user_id）派生并写进审计日志，前端不采集 operator_id
   submitting.value = true;
   try {
     await resolveQualityIssue(currentIssue.value.id, {
       resolution: resolveForm.value.resolution,
-      operator_id: operatorId,
     });
     ElMessage.success(t('common.qualityCheck.resolveSuccess'));
     resolveVisible.value = false;

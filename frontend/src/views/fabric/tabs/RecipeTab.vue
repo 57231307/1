@@ -91,11 +91,9 @@ import {
   type DyeRecipe,
   type DyeRecipeStatus,
 } from '@/api/dye-recipe';
-import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
-const userStore = useUserStore();
 
 const emit = defineEmits<{ openDialog: [row: DyeRecipe | null] }>();
 
@@ -163,14 +161,9 @@ const handleApprove = async (row: DyeRecipe) => {
       t('fabric.common.confirmTitle'),
       { type: 'info' }
     );
-    // approved_by 取自登录用户真实 ID（参考本仓库其它审批入口，如 custom-orders/bpm）；
-    // 取不到身份必须显式报错，不得用查询串/硬编码/默认值伪造。
-    const approverId = userStore.userInfo?.id;
-    if (!approverId) {
-      ElMessage.error(t('fabric.recipeTab.messageNoUserInfo'));
-      return;
-    }
-    await approveDyeRecipe(row.id, { approved_by: approverId });
+    // 审批人身份由后端按会话（AuthContext.user_id）派生，请求体不承载；
+    // 前端不得再取登录 ID 组装载荷或对缺失身份做前置锁死。
+    await approveDyeRecipe(row.id);
     ElMessage.success(t('fabric.recipeTab.messageApproveSuccess'));
     fetchRecipes();
   } catch (error) {

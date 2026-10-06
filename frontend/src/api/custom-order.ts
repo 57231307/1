@@ -100,10 +100,9 @@ export interface CustomOrderUpdateDto {
 }
 
 /** 推进订单状态请求（对齐后端 AdvanceRequest）
- * v11 批次 160 P2-6 修复：后端 handler 实际使用 AdvanceRequest（不含 target_status），
- * service.advance 自动判断下一状态；AdvanceStatusDto 死代码已从后端删除 */
+ * 后端 handler 用 AdvanceRequest（不含 target_status），service.advance 自动判断下一状态。
+ * 操作人身份由后端按会话（AuthContext.user_id）派生，请求体不承载 operator_id。 */
 export interface CustomOrderAdvanceDto {
-  operator_id: number;
   notes?: string;
 }
 
@@ -125,18 +124,16 @@ export interface ProcessNodeUpdateDto {
   notes?: string;
 }
 
-/** 推进工艺节点请求（对齐后端 AdvanceNodeDto） */
+/** 推进工艺节点请求（对齐后端 AdvanceNodeDto）；动作人取服务端会话，请求体不带 operator_id */
 export interface ProcessNodeAdvanceDto {
   action: string;
-  operator_id: number;
   notes?: string;
   attachments?: string[];
 }
 
-/** 添加节点日志请求（对齐后端 AddProcessLogDto） */
+/** 添加节点日志请求（对齐后端 AddProcessLogDto）；记日志的人取服务端会话 */
 export interface NodeLogCreateDto {
   action: string;
-  operator_id: number;
   before_status?: string;
   after_status?: string;
   log_content?: string;
@@ -403,10 +400,7 @@ export function getQualityIssueList(orderId: number, params?: QualityIssueQueryP
 }
 
 // 解决异常
-export function resolveQualityIssue(
-  issueId: number,
-  data: { resolution: string; operator_id: number }
-) {
+export function resolveQualityIssue(issueId: number, data: { resolution: string }) {
   return request.put(`/custom-orders/issues/${issueId}/resolve`, data);
 }
 

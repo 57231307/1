@@ -121,16 +121,11 @@ export function deleteDyeRecipe(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/production/dye-recipes/${id}`);
 }
 
-/// 审批请求体：后端 approve_recipe 要求 approved_by（真实登录用户 ID，禁止伪造/默认值）
-export interface ApproveDyeRecipeRequest {
-  approved_by: number;
-}
-
-export function approveDyeRecipe(
-  id: number,
-  data: ApproveDyeRecipeRequest
-): Promise<ApiResponse<void>> {
-  return request.post(`/production/dye-recipes/${id}/approve`, data);
+// 审批端点无请求体：审批人身份唯一来源是服务端会话（AuthContext.user_id），
+// 后端 handlers/dye_recipe_handler.rs::approve_recipe 不绑定 body 提取器，
+// 前端不得再声明/发送 approved_by（否则触发 check-api-request 载荷失配）。
+export function approveDyeRecipe(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/production/dye-recipes/${id}/approve`);
 }
 
 export function submitDyeRecipe(id: number): Promise<ApiResponse<void>> {

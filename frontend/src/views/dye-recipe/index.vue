@@ -349,11 +349,9 @@ import {
 import { DYE_RECIPE_STATUS } from '@/api/dye-recipe';
 import type { DyeRecipe, DyeRecipeStatus, DyeRecipeUpdatePayload } from '@/api/dye-recipe';
 import { logger } from '@/utils/logger';
-import { useUserStore } from '@/store/user';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
-const userStore = useUserStore();
 
 // 查询参数（仅保留后端 DyeRecipeListQuery 真实读取的筛选：配方编号、色号 color_code、状态；分页由 useTableApi 管理）
 const queryParams = reactive({
@@ -497,13 +495,9 @@ const handleApprove = async (row: DyeRecipe) => {
       t('dyeRecipe.index.titlePrompt'),
       { type: 'warning' }
     );
-    // approved_by 取自登录用户真实 ID，取不到身份必须显式报错、不得伪造
-    const approverId = userStore.userInfo?.id;
-    if (!approverId) {
-      ElMessage.error(t('dyeRecipe.index.messageApproveFailed'));
-      return;
-    }
-    await approveDyeRecipe(row.id, { approved_by: approverId });
+    // 审批人身份由后端按会话（AuthContext.user_id）派生，请求体不承载；
+    // 前端不得再取登录 ID 组装载荷或对缺失身份做前置锁死。
+    await approveDyeRecipe(row.id);
     ElMessage.success(t('dyeRecipe.index.messageApproveSuccess'));
     refresh();
   } catch (error) {
