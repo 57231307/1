@@ -42,37 +42,6 @@
         </el-table-column>
         <el-table-column prop="owner_name" :label="t('crmRfm.table.owner')" width="100" />
         <el-table-column
-          prop="rfm_score.level"
-          :label="t('crmRfm.table.level')"
-          width="80"
-          align="center"
-        >
-          <template #default="{ row }">
-            <el-tag :type="getRfmLevelTag(row.rfm_score?.level)" size="small">
-              {{ row.rfm_score?.level || '-' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="rfm_score.label" :label="t('crmRfm.table.label')" width="100" />
-        <el-table-column
-          prop="rfm_score.recency"
-          :label="t('crmRfm.table.recency')"
-          width="80"
-          align="center"
-        />
-        <el-table-column
-          prop="rfm_score.frequency"
-          :label="t('crmRfm.table.frequency')"
-          width="80"
-          align="center"
-        />
-        <el-table-column
-          prop="rfm_score.monetary"
-          :label="t('crmRfm.table.monetary')"
-          width="80"
-          align="center"
-        />
-        <el-table-column
           prop="total_amount"
           :label="t('crmRfm.table.totalAmount')"
           width="120"
@@ -121,18 +90,9 @@ const hasLoaded = createLazyLoader();
 const router = useRouter();
 const rfmLoading = ref(false);
 const rfmCustomers = ref<CustomerWithTags[]>([]);
+// 档位词表唯一写入方 = backend services/crm/cust.rs::get_rfm_distribution（VIP/重要/一般/低价值四桶），
+// 分布卡片直渲其出参键为单源；前端不得另建第二套档位词表（列表端点 items = crm_lead::Model，不含逐客户档位键）。
 const rfmDistribution = ref<Record<string, number>>({});
-
-const getRfmLevelTag = (level: string) => {
-  const tagMap: Record<string, string> = {
-    A: 'success',
-    B: 'primary',
-    C: 'warning',
-    D: 'info',
-    E: 'danger',
-  };
-  return tagMap[level] || '';
-};
 
 const fetchRfmCustomers = async () => {
   rfmLoading.value = true;
