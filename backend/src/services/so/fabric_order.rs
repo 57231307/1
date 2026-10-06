@@ -385,9 +385,13 @@ impl SalesService {
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            // 追溯三列的生效 DDL 为 NOT NULL DEFAULT ''（migration system/mod.rs:432/434/436）：
+            // DEFAULT 只在 INSERT 省略该列时生效，显式下传 NULL 会直接撞 23502。面料建单不采集
+            // 这三项，按兄弟列与正常建单路径（services/so/order_crud.rs:293-297 的
+            // `unwrap_or_default()`）同惯例落空串。
+            grade: Set(Some(String::new())),
+            packaging_requirement: Set(Some(String::new())),
+            quality_standard: Set(Some(String::new())),
             created_by: Set(Some(user_id)),
             department_id: Set(None),
             approved_by: Set(None),

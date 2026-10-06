@@ -14,7 +14,7 @@ use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{apply_department_scope, check_resource_owner, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
@@ -606,9 +606,14 @@ impl CrmService {
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            // grade/packaging_requirement/quality_standard 生效 DDL 为 NOT NULL DEFAULT ''
+            //（migration system/mod.rs:432-437），与上一行 batch_no/color_no/dye_lot_no 同族。
+            // 显式 Set(None) 会向 INSERT 下传 NULL，触发 23502 NOT NULL 违例（商机转草稿
+            // 合法路径整链 500/DATABASE_ERROR）。按同列惯例落空串默认值，与正常建单路径
+            // services/so/order_crud.rs:293-297 `unwrap_or_default()` 一致。
+            grade: Set(Some(String::new())),
+            packaging_requirement: Set(Some(String::new())),
+            quality_standard: Set(Some(String::new())),
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,

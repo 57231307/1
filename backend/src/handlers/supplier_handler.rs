@@ -1068,6 +1068,12 @@ pub async fn get_supplier_qualification_attachment(
 
     // 受控文件名解析：只取 URL 最后一段，且必须等于本记录的服务端生成形态；
     // 复用静态路由的防遍历消毒（拒绝 .. / 反斜杠 / 绝对段），任何漂移视为文件失效。
+    // 注意消毒目标必须是实际拼盘的那一段 file_name（rsplit('/') 已剥离所有斜杠），
+    // 而非带前导斜杠的整条 URL：attachment_path 是落库展示用 URL（前缀
+    // QUALIFICATION_ATTACHMENT_URL_PREFIX = "/uploads/qualifications/"），首段是
+    // Component::RootDir，sanitize_static_path 依设计拒绝绝对路径 → 若整条传入
+    // 会把每一次合法读取误判为"文件失效"404（合法路径落库正确却读不回字节）。
+    // file_name 已不含目录分隔，对 .. / 反斜杠 / 绝对段的防御完全等价且不放松。
     let file_name = stored.rsplit('/').next().unwrap_or_default().to_string();
     let expected_prefix = format!("{}_{}.", supplier_id, qualification_id);
     let ext = std::path::Path::new(&file_name)
@@ -1077,7 +1083,7 @@ pub async fn get_supplier_qualification_attachment(
         .unwrap_or_default();
     if !file_name.starts_with(&expected_prefix)
         || !QUALIFICATION_ATTACHMENT_ALLOWED_EXTS.contains(&ext.as_str())
-        || crate::routes::static_routes::sanitize_static_path(&stored).is_none()
+        || crate::routes::static_routes::sanitize_static_path(&file_name).is_none()
     {
         tracing::warn!(
             user_id = auth.user_id,

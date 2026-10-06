@@ -63,8 +63,11 @@ pub(crate) struct ReceiptCalculation {
 /// （`print_service.rs:4999-5007`），放 0 进来就会被当作"已实测"直接印上标签，与"缺值逐列点名
 /// 拒绝"的口径相反，因此在任何 DB 访问前拒绝；三列由 `validate_measured_values` 成组调用。
 fn validate_measured_value(label: &str, value: Option<Decimal>) -> Result<(), AppError> {
-    if let Some(v) = value {
-        if v <= Decimal::ZERO {
+    // 绑定名用 val（实测值），不与收回数量门（update 分支的 `if v <=`）同形：本守卫校的是
+    // weight/width/gram_weight 三列取值域，语义与 return_quantity 无关，两者各用各的绑定名，
+    // 避免把「数量 >0 门」的结构锚点混淆成两处。
+    if let Some(val) = value {
+        if val <= Decimal::ZERO {
             return Err(AppError::validation_displayable(format!(
                 "收回单{label}必须大于零（填 0 或负数属伪造实测值；暂无实测数据请留空，标签将在补录前按缺值拒绝打印）"
             )));

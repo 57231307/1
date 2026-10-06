@@ -25,8 +25,12 @@
 //! 表上虽有 `last_assessment_date`/`next_assessment_date` 列，但写入方从不按期间
 //! 或版本追加行（`set_credit_rating` 的 INSERT 分支仅在「该客户无行」时到达，
 //! 且这两个日期列在写入路径中从未赋值），不构成评级历史多条语义；若退化成
-//! `WHERE status = 'active'` 的部分唯一索引，客户停用后再设新评级即可落进第二条
-//! 行，而所有 `.one()` 读路径的既定契约会在第一个停用客户处破功。故落全表 UNIQUE。
+//! `WHERE status = 'active'` 的部分唯一索引，真实破功机制是：停用只把原行
+//! status 置 inactive 且保留原行，生产 set 路径经 `.one()` 命中原行做更新，
+//! 并不会经索引违例插出第二行；但原行停用后即退出部分索引的覆盖范围，数据库
+//! 从此不再阻止该客户出现第二行——旁路写入或先查后插竞态插入的 active 新行
+//! 可与停用旧行合法并存，全部 `.one()` 读路径随即破功。部分唯一属「平时不报错、
+//! 兜底已失效」，唯全表 UNIQUE 在任何写入通道下都钉死单行。故落全表 UNIQUE。
 //! 列型对齐（本仓有 customer_id INTEGER/BIGINT 漂移前科，逐型实测）：
 //! `customer_credit_ratings.customer_id` INTEGER NOT NULL（m0012:617），
 //! `customers.id` SERIAL/INTEGER（system m0001:325）；全仓 grep

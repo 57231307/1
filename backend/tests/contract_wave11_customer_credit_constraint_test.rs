@@ -135,8 +135,23 @@ async fn row_count_for(db: &DatabaseConnection, customer_id: i32) -> i64 {
         .unwrap_or_else(|e| panic!("行数解码失败: {e}"))
 }
 
-/// 越界 INSERT 的期望错误**类别**（SqlErr 变体，不是文案子串）
-fn assert_sql_err_kind(err: sea_orm::DbErr, want: &str, case: &str) {
+/// 驱动上报的约束名（PG 专用）：把违例归因到**本**唯一索引/FK 本身，
+/// 判据模式与 contract_wave11_customer_type_check_test.rs 的 `constraint_of` 一致。
+fn constraint_of(err: &sea_orm::DbErr) -> Option<String> {
+    match err {
+        sea_orm::DbErr::Exec(sea_orm::RuntimeErr::SqlxError(e))
+        | sea_orm::DbErr::Query(sea_orm::RuntimeErr::SqlxError(e)) => e
+            .as_database_error()
+            .and_then(|de| sqlx::error::DatabaseError::constraint(de).map(|s| s.to_string())),
+        other => panic!("期望的是执行期数据库错误，实际是非驱动错误: {other}"),
+    }
+}
+
+/// 越界 INSERT 的期望错误**类别**（SqlErr 变体，不是文案子串）**+ 约束名**：
+/// 只断类别会把表上任何别的一条唯一/FK 约束在挡红误当本锁生效（假绿来源），
+/// 故约束名逐字核到本迁移施加的对象；不断用户可见文案（脱敏红线）。
+fn assert_sql_err_kind(err: sea_orm::DbErr, want: &str, want_constraint: &str, case: &str) {
+    let constraint = constraint_of(&err);
     match err.sql_err() {
         Some(sea_orm::SqlErr::UniqueConstraintViolation(_)) if want == "unique" => {}
         Some(sea_orm::SqlErr::ForeignKeyConstraintViolation(_)) if want == "fk" => {}
@@ -144,6 +159,12 @@ fn assert_sql_err_kind(err: sea_orm::DbErr, want: &str, case: &str) {
             panic!("{case}：期望数据库错误类别 {want}，实际 sql_err()={other:?}\n错误原文: {err}")
         }
     }
+    assert_eq!(
+        constraint.as_deref(),
+        Some(want_constraint),
+        "{case}：{want} 违例必须归因到约束 {want_constraint}（只断类别会把别的约束挡红误当本锁生效），\
+         实际约束名={constraint:?}\n错误原文: {err}"
+    );
 }
 
 #[tokio::test]
@@ -173,6 +194,19 @@ async fn customer_credit_ratings_single_row_and_fk_are_db_enforced() {
     assert!(
         indexdef.contains("UNIQUE") && indexdef.contains("(customer_id)"),
         "唯一索引形态应为 customer_id 单列全表 UNIQUE，实测 indexdef={indexdef}"
+    );
+    // 负向形态锁（语义来源 = m0082 文件头论证）：`CREATE UNIQUE INDEX ... WHERE
+    // status = 'active'` 这类**部分唯一索引**的 indexdef 同样含 UNIQUE 与
+    // (customer_id) 两个子串，上面那条形态锁拦不住这种退化。防的漂移：索引一旦
+    // 变成部分唯一，客户停用（原行保留、仅 status 转 inactive）即退出索引覆盖，
+    // 旁路写入或先查后插竞态为同客户再落一行不再被数据库阻止，"停用旧行+新行"
+    // 并存会击穿全部按 customer_id `.one()` 取单行的读路径。pg_indexes 渲染部分
+    // 索引必附 ` WHERE ...` 子句，故"全表唯一"的判据 = indexdef 不含 WHERE。
+    assert!(
+        !indexdef.contains("WHERE"),
+        "uq_customer_credit_ratings_customer 必须是全表唯一索引、不得为带 WHERE 子句的部分唯一\
+         （部分唯一会让停用客户再被旁路/竞态落第二行，击穿全部 .one() 读路径，见 m0082 文件头），\
+         实测 indexdef={indexdef}"
     );
 
     let fk = db
@@ -238,7 +272,12 @@ async fn customer_credit_ratings_single_row_and_fk_are_db_enforced() {
         ))
         .await
         .expect_err("同客户第二行必须被唯一索引拒绝（若成功=约束缺失）");
-    assert_sql_err_kind(err, "unique", "负向A 同客户第二行");
+    assert_sql_err_kind(
+        err,
+        "unique",
+        "uq_customer_credit_ratings_customer",
+        "负向A 同客户第二行",
+    );
 
     // ---------- 3. 负向 B：直插孤儿引用 ⇒ FK 拒（错误类别锁） ----------
     let err = db
@@ -253,7 +292,12 @@ async fn customer_credit_ratings_single_row_and_fk_are_db_enforced() {
         ))
         .await
         .expect_err("指向不存在客户的评级行必须被 FK 拒绝（若成功=FK 缺失）");
-    assert_sql_err_kind(err, "fk", "负向B 孤儿引用");
+    assert_sql_err_kind(
+        err,
+        "fk",
+        "fk_customer_credit_ratings_customer",
+        "负向B 孤儿引用",
+    );
 
     // ---------- 4. 服务层负向：无效 customer_id 落业务错误族而不是裸 500 ----------
     let app_err = svc

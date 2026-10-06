@@ -191,7 +191,9 @@ impl VoucherService {
         // 「已停用」会被压成同一个分支，族归类就无从谈起了。
         let mut status_by_code: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
-        let mut status_by_id: std::collections::HashMap<i32, String> =
+        // value = (科目编码, 状态)：id 提交分支也要能在日志/Display 侧留痕真实科目编码，
+        // 只有主键的话排障时无法定位到具体科目。
+        let mut status_by_id: std::collections::HashMap<i32, (String, String)> =
             std::collections::HashMap::new();
 
         if !subject_codes.is_empty() {
@@ -204,7 +206,7 @@ impl VoucherService {
                 .await?;
             for s in found {
                 status_by_code.insert(s.code.clone(), s.status.clone());
-                status_by_id.insert(s.id, s.status);
+                status_by_id.insert(s.id, (s.code.clone(), s.status));
             }
         }
 
@@ -217,7 +219,7 @@ impl VoucherService {
                 .all(txn)
                 .await?;
             for s in found {
-                status_by_id.insert(s.id, s.status.clone());
+                status_by_id.insert(s.id, (s.code.clone(), s.status.clone()));
                 status_by_code.insert(s.code, s.status);
             }
         }
@@ -241,9 +243,15 @@ impl VoucherService {
                     warn!("凭证分录引用的科目不存在：id={}", sid);
                     return Err(AppError::not_found(format!("科目不存在：ID={}", sid)));
                 }
-                Some(status) if status != master_data::ACTIVE => {
-                    warn!("凭证分录引用的科目已停用：id={}, status={}", sid, status);
-                    return Err(AppError::business(format!("科目已停用：ID={}", sid)));
+                Some((code, status)) if status != master_data::ACTIVE => {
+                    warn!(
+                        "凭证分录引用的科目已停用：id={}, code={}, status={}",
+                        sid, code, status
+                    );
+                    return Err(AppError::business(format!(
+                        "科目已停用：ID={}, code={}",
+                        sid, code
+                    )));
                 }
                 Some(_) => {}
             }
