@@ -89,7 +89,7 @@ impl ProductionRecipeService {
             approved_by: Set(None),
             approved_at: Set(None),
             // 开单人取服务端会话（handler 传入的 AuthContext.user_id），请求体不承载身份；
-            // issued_by 列为可空 INTEGER（v15 域建表迁移），写 Some(user_id)
+            // issued_by 列为可空 INTEGER（migration/src/domain/v15/ 域建表迁移），写 Some(user_id)
             issued_by: Set(Some(user_id)),
             printed_count: Set(Some(0)),
             remarks: Set(req.remarks),

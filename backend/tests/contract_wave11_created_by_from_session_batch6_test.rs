@@ -4,11 +4,12 @@
 //! （服务端会话）；请求体不承载该身份字段，body 里伪造的 `created_by`/`user_id`/`operator_id`
 //! 被 serde 忽略，绝不落库。
 //! - `POST /fixed-assets/depreciation-policy-changes`（`depreciation_policy_changes.created_by`，
-//!   DDL `INTEGER NOT NULL`：backend/migration/src/domain/v15/mod.rs:2708）；
+//!   DDL `INTEGER NOT NULL`：`backend/migration/src/domain/v15/mod.rs` 的
+//!   `depreciation_policy_changes` 建表段）；
 //! - `POST /export-inspections`（`export_inspection.created_by`，DDL `INTEGER NOT NULL`：
-//!   backend/migration/src/domain/v15/mod.rs:2894）；
+//!   `backend/migration/src/domain/v15/mod.rs` 的 `export_inspection` 建表段）；
 //! - `POST /customers`（`customers.created_by` 可空且有 users 外键，见 `seed_users` 注释；
-//!   模型 `backend/src/models/customer.rs:78` 为 `Option<i32>`）。
+//!   模型 `backend/src/models/customer.rs` 的 `created_by` 字段为 `Option<i32>`）。
 //!
 //! 证明形态（夹具范式同 contract_wave11_created_by_from_session_batch1）：
 //! ① 会话注入用户 A（`from_fn_with_state(make_auth(A), inject_auth)`）；

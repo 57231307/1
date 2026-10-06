@@ -20,11 +20,13 @@
 //! 列 NOT NULL（建表 v15/mod.rs 原文），CHECK 直接写 "result" IN (...) 不留 NULL 放行；
 //! result 无历史词表外默认值（建表无 DEFAULT），故不需回填/默认值收敛。
 //!
-//! 幂等：先 DROP CONSTRAINT IF EXISTS 再 ADD，可安全重跑。注册在迁移链尾、晚于 v15 域
-//! （本表建表在 v15），全部建表类迁移先行完成后才施加 CHECK，全新库与存量库均不违反 CHECK。
+//! 幂等：先 DROP CONSTRAINT IF EXISTS 再 ADD，可安全重跑。注册在迁移链尾、晚于
+//! `migration/src/domain/v15/` 域（本表建表在该域），全部建表类迁移先行完成后才施加 CHECK，
+//! 全新库与存量库均不违反 CHECK。
 //!
-//! 域与注册位置：export_inspection 由 v15 域建表；lib.rs 域序 …→v15→rls_dept→…→本域，
-//! 本域晚于 v15 执行，目标表届时必然存在（口径同 price_vocab_check 后置建表域）。
+//! 域与注册位置：export_inspection 由 `migration/src/domain/v15/` 域建表；lib.rs 域序
+//! …→`domain/v15/`→rls_dept→…→本域，本域晚于该域执行，目标表届时必然存在
+//! （口径同 price_vocab_check 后置建表域）。
 
 use sea_orm_migration::prelude::*;
 

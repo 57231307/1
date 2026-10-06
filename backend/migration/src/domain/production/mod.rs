@@ -100,7 +100,7 @@ mod m0079_add_approval_reason_columns;
 // m0083 出口商检权限键 export-inspections:{read,create,update,print} 存量库补授
 // （资源段自始未注册，除 admin 外全员 403，详见该文件头判责链）。目标表 role_permissions
 // 由 system 域 m0005 建表、roles 由 m0001 建表，均早于本域执行；本迁移不触碰 export_inspection
-// 业务表，故直接注册本域 up 链尾 / down 链首，无需后置到 v15（口径同 m0069）。
+// 业务表，故直接注册本域 up 链尾 / down 链首，无需后置到 `migration/src/domain/v15/`（口径同 m0069）。
 mod m0083_grant_export_inspections_perms;
 
 pub struct Migration;

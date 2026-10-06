@@ -240,7 +240,8 @@ fn batch3a_identity_sources_are_the_session() {
 
 /// 断言可空归属列取会话用户 A、绝不取伪造用户 B
 /// （`production_recipe.issued_by` / `production_recipe_addition.issued_by`
-/// 建表 DDL 为可空 INTEGER，migration/src/domain/v15/mod.rs:3429、:3451）。
+/// 建表 DDL 为可空 INTEGER，见 `migration/src/domain/v15/mod.rs` 中
+/// `production_recipe` 与 `production_recipe_addition` 两表的 `issued_by` 列）。
 fn assert_identity_column_is_session(column: Option<i32>, what: &str) {
     assert_eq!(
         column,

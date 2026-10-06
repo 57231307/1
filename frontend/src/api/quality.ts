@@ -392,8 +392,9 @@ export interface ProcessDefectResultPayload {
  * 不合格品台账行处置结果**原地更新**（D1②）：不新开行，本行 handling_status
  * 由 pending 推进为 approved 并写 handling_by/handling_at 留痕。
  * 路径参数 id 是**台账行自身 id**（unqualified_products.id，与报废两级审批同一
- * id 语义），不是质检记录 id（后端 routes/production.rs:549-552、handler
- * process_defect_result :447-466）。
+ * id 语义），不是质检记录 id（后端 routes/production.rs 挂载的
+ * `/quality-inspection/defects/{id}/process-result` 与 handler
+ * `quality_inspection_handler::process_defect_result` 实现）。
  * 状态门与错误族（由后端保证，界面门控须与之一致以免必然 4xx 的假动作）：
  * - 仅 handling_status === pending 可行，其余前驱 ⇒ 4xx BUSINESS_ERROR；
  * - 行处于报废审批流（pending_fin/pending_gm）⇒ 4xx BUSINESS_ERROR；

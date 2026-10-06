@@ -387,7 +387,7 @@ fn migration_is_registered_in_production_chain() {
     );
 }
 
-/// 通道②：CHECK 迁移注册在 v15 之后的专用后置域（目标表建于 v15，不能排在它之前）。
+/// 通道②：CHECK 迁移注册在 `migration/src/domain/v15/` 之后的专用后置域（目标表建于该域，不能排在它之前）。
 #[test]
 fn check_migration_registered_after_v15_domain() {
     let lib = code_only(&include_str!("../migration/src/lib.rs").replace('\r', ""));

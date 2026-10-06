@@ -2,19 +2,19 @@
 //!
 //! 复核结论（先取证后动手，源码零改动）：本组两个被点名的落库点，其身份值
 //! **已经**只能来自服务端会话，请求体根本没有承载身份的字段：
-//! - 盘点：`handlers/inventory_count_handler.rs:247` 组装 `CreateCountRequest`
-//!   时写 `created_by: Some(auth.user_id)`，服务层 `inventory_count_service.rs:188`
+//! - 盘点：`handlers/inventory_count_handler.rs` 的 `create_count` 组装 `CreateCountRequest`
+//!   时写 `created_by: Some(auth.user_id)`，服务层 `inventory_count_service.rs` 的
 //!   `created_by: Set(req.created_by)` 只是转发该内部结构体的字段；建单入参
-//!   `CreateCountPayload`（`handlers/inventory_count_handler.rs:37`）无身份字段，
+//!   `CreateCountPayload`（`handlers/inventory_count_handler.rs` 内定义）无身份字段，
 //!   请求体里伪造的 `created_by` 会被 serde 直接丢弃。
-//! - 跌价：`handlers/inventory_write_down_handler.rs:140` 写 `created_by: auth.user_id`，
-//!   `CreateWriteDownPayload`（`handlers/inventory_write_down_handler.rs:35`）无身份字段，
-//!   服务层 `inventory_write_down_service.rs:87` 同样是转发。
+//! - 跌价：`handlers/inventory_write_down_handler.rs` 的 `create_write_down` 写 `created_by: auth.user_id`，
+//!   `CreateWriteDownPayload`（同文件定义）无身份字段，
+//!   服务层 `inventory_write_down_service.rs` 同样是转发。
 //!   注：`inventory_write_down.created_by` 在 DDL 里是 `INTEGER NOT NULL`
-//!   （`backend/migration/src/domain/v15/mod.rs:2976`）⇒ 模型为 `i32`
-//!   （`backend/src/models/inventory_write_down.rs:26`），落库形态必须是 `Set(user_id)`
+//!   （`backend/migration/src/domain/v15/mod.rs` 的 `inventory_write_down` 建表段）⇒ 模型为 `i32`
+//!   （`backend/src/models/inventory_write_down.rs` 的 `created_by` 字段），落库形态必须是 `Set(user_id)`
 //!   而非 `Set(Some(user_id))`；`inventory_counts.created_by` 则是可空列
-//!   （`backend/migration/src/domain/system/m0001_initial_schema.rs:577`）⇒ `Option<i32>`。
+//!   （`backend/migration/src/domain/system/m0001_initial_schema.rs` 的 `inventory_counts` 建表段）⇒ `Option<i32>`。
 //!
 //! 因此本批**不改业务源码**，改为把上述事实钉成回归锁（一旦有人把身份退回请求体
 //! 或在 handler 里换成 body 取值，当场判红）：
@@ -62,9 +62,11 @@ const SESSION_A: i32 = 9511;
 /// 伪造用户 B：只出现在请求体里，永远不允许落进任何 created_by 列
 const FORGED_B: i32 = 9472;
 
-/// FK 前置链固定行号（inventory_stocks.warehouse_id→warehouses、
-/// inventory_stocks.product_id→products，见 m0001_initial_schema.rs:630-631；
-/// inventory_count_items.stock_id→inventory_stocks，见 m0044:1135）
+/// FK 前置链固定行（inventory_stocks.warehouse_id→warehouses、
+/// inventory_stocks.product_id→products，见 `m0001_initial_schema.rs` 的
+/// fk_inventory_warehouse / fk_inventory_product 外键段；
+/// inventory_count_items.stock_id→inventory_stocks，见 m0044 的
+/// fk_inventory_count_items_stock 外键段）
 const WH_ID: i32 = 7742;
 const PRODUCT_ID: i32 = 7742;
 const STOCK_ID: i32 = 7742;
@@ -157,7 +159,8 @@ fn assert_created_by_is_session(row_created_by: Option<i32>, what: &str) {
     );
 }
 
-/// 断言 NOT NULL 建单人列（inventory_write_down.created_by，v15/mod.rs:2976 NOT NULL）
+/// 断言 NOT NULL 建单人列（inventory_write_down.created_by，`migration/src/domain/v15/mod.rs`
+/// 的 `inventory_write_down` 建表段为 NOT NULL）
 fn assert_created_by_column_is_session(row_created_by: i32, what: &str) {
     assert_eq!(
         row_created_by, SESSION_A,
@@ -180,7 +183,7 @@ macro_rules! read_row {
 }
 
 /// 盘点建单的 FK 前置链：products → warehouses → inventory_stocks
-/// （`create_count` 要求仓库下有库存快照，否则按业务门控拒绝，`inventory_count_service.rs:125`）
+/// （`create_count` 要求仓库下有库存快照，否则按业务门控拒绝，见 `inventory_count_service.rs` 的 `create_count`）
 async fn seed_count_prereq(db: &sea_orm::DatabaseConnection) {
     product::ActiveModel {
         id: Set(PRODUCT_ID),
@@ -277,7 +280,7 @@ async fn inventory_count_created_by_comes_from_session_not_body() {
     assert_eq!(
         row.status,
         count_status::PENDING,
-        "盘点单初始状态必须由服务层写 pending（inventory_count_service.rs:183）"
+        "盘点单初始状态必须由服务层写 pending（inventory_count_service.rs 的 create_count 写入）"
     );
     assert_eq!(row.total_items, 1, "盘点明细数必须按快照行数真实落库");
     assert_eq!(row.warehouse_id, WH_ID, "业务列 warehouse_id 不受牵连");
@@ -323,7 +326,7 @@ async fn inventory_write_down_created_by_comes_from_session_not_body() {
     let row = read_row!(inventory_write_down, id, &read_db, "跌价准备记录");
     assert_created_by_column_is_session(row.created_by, "跌价准备记录");
     // 业务列不受身份改造牵连（跌价准备无状态常量载体，取值即服务写入字面量
-    // inventory_write_down_service.rs:86 `status: Set("draft".to_string())`）
+    // inventory_write_down_service.rs 的建单写入 `status: Set("draft".to_string())`）
     assert_eq!(row.status, "draft", "跌价准备初始状态必须由服务层写 draft");
     assert_eq!(
         row.write_down_amount,

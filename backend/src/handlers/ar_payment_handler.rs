@@ -75,7 +75,7 @@ where
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateArPaymentRequest {
-    /// 收款金额：DB NOT NULL 列 ar_collections.collection_amount（models/ar_collection.rs:23）；
+    /// 收款金额：DB NOT NULL 列 ar_collections.collection_amount（模型字段见 `models/ar_collection.rs`）；
     /// 键缺席=保持原值、有值=覆盖、显式 `null`=业务拒绝。
     /// 入站形态为 JSON number 或数字字符串（rust_decimal serde），值域/精度校验由 service
     /// 与创建路径同源执行（validate_payment_amount），此处不叠第二套 DTO 校验。
@@ -85,7 +85,7 @@ pub struct UpdateArPaymentRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub amount: Option<Option<rust_decimal::Decimal>>,
-    /// 收款日期：DB NOT NULL 列 ar_collections.collection_date（models/ar_collection.rs:16）；
+    /// 收款日期：DB NOT NULL 列 ar_collections.collection_date（`models/ar_collection.rs` 的 `collection_date` 字段）；
     /// 键缺席=保持原值、有值=覆盖（service 侧执行所属期间关账检查）、显式 `null`=业务拒绝。
     #[serde(
         default,

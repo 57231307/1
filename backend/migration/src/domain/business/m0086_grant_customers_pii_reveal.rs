@@ -24,7 +24,7 @@
 //! 是否收紧 wildcard 面属独立的授权面决策，不在本迁移动。
 //!
 //! 幂等实现细节：用 `WHERE NOT EXISTS` 判定而不是 `ON CONFLICT (role_id,
-//! resource_type, action)`——后者依赖 v15 域内才创建的唯一索引，为一条授予提前
+//! resource_type, action)`——后者依赖 `migration/src/domain/v15/` 域内才创建的唯一索引，为一条授予提前
 //! 动全局约束属不必要的连带风险（与 m0069 同一决策，迁移串行执行，NOT EXISTS
 //! 足以保证重跑等价）。
 //!

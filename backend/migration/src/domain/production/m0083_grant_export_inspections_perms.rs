@@ -23,12 +23,13 @@
 //! 不存在的角色码自然跳过（见非致命 NOTICE）。
 //!
 //! 幂等实现细节：用 `WHERE NOT EXISTS` 判定而不是 `ON CONFLICT (role_id, resource_type,
-//! action)`。后者依赖 v15 域内才创建的唯一索引，为本迁移去提前动全局约束、并可能因存量
+//! action)`。后者依赖 `migration/src/domain/v15/` 域内才创建的唯一索引，为本迁移去提前动全局约束、并可能因存量
 //! 重复行让迁移链中断，属不必要的连带风险；迁移串行执行，NOT EXISTS 足以保证重跑等价。
 //!
 //! 域内注册位置：`role_permissions`（system 域 m0005）与 `roles`（m0001）在本域执行前均已
-//! 存在，且本迁移不触碰 export_inspection 业务表（建单/登记写入口在 v15 建表之后由应用层
-//! 负责，迁移只做授权），故直接注册在 production 域 up 链尾 / down 链首，无需后置到 v15。
+//! 存在，且本迁移不触碰 export_inspection 业务表（建单/登记写入口在 `migration/src/domain/v15/`
+//! 建表之后由应用层负责，迁移只做授权），故直接注册在 production 域 up 链尾 / down 链首，
+//! 无需后置到 `migration/src/domain/v15/`。
 //!
 //! 可逆：down 精确删除本迁移授予的 (role.code × export-inspections × read/create/update/print)
 //! 行，不触碰任何人工授予的其它角色/动作，不留空实现。

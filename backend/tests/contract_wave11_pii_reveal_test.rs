@@ -8,7 +8,7 @@
 //! ② 合法揭示 ⇒ 200 且返回所请求字段的**原文**，审计恰好落一行，
 //!   审计行内**不含任何原文**（整行序列化后逐值断言不含电话/邮箱字面量）；
 //!   请求体伪造 `operator_id/user_id/revealed_by` 被 serde 忽略，
-//!   操作人恒等于会话 `AuthContext.user_id`（#323/#328 同族判据）；
+//!   操作人恒等于会话 `AuthContext.user_id`（与建单人取会话同源判据）；
 //! ③ 默认路径掩码回归锁：标准客户详情/列表出口（收口前形态）仍为
 //!   `field_mask` 权威掩码形态——本批不得让任何常规出口因新键而放松；
 //! ④ 审计表列形状锁：`pii_reveal_audit` 的列名集合与关键列类型逐字钉死
@@ -1021,7 +1021,7 @@ fn reveal_whitelist_is_single_source_and_free_of_ghost_tokens() {
         !svc.contains("\"id_card\""),
         "id_card 在客户域无载体列，禁止登记成恒空揭示面"
     );
-    // handler 侧不得再写私有 mask/私有清单（掩码单源纪律同 #327）
+    // handler 侧不得再写私有 mask/私有清单（掩码单源纪律：掩码实现与私有清单只允许一处出处）
     let handler =
         code_only(&include_str!("../src/handlers/crm_customer_handler.rs").replace('\r', ""));
     let start = handler
