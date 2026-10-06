@@ -39,7 +39,7 @@ use bingxi_backend::models::notification::{
 };
 use bingxi_backend::services::notification_service::build_payload_from_notification;
 use chrono::Utc;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, EnumIter, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Iterable, Statement};
 use std::collections::BTreeSet;
 use test_common::setup_test_db;
 
@@ -143,9 +143,12 @@ async fn column_default(db: &DatabaseConnection, table: &str, column: &str) -> O
          WHERE table_name = '{table}' AND column_name = '{column}'"
     );
     let row = db
-        .query_one(pg_stmt(&sql))
+        .query_one_raw(pg_stmt(&sql))
         .await
-        .unwrap_or_else(|e| panic!("读取 {table}.{column} 默认值失败: {e}\nSQL: {sql}"));
+        .unwrap_or_else(|e| panic!("读取 {table}.{column} 默认值失败: {e}\nSQL: {sql}"))
+        .unwrap_or_else(|| {
+            panic!("{table}.{column} 在 information_schema.columns 中无行\nSQL: {sql}")
+        });
     let raw: Option<String> = row
         .try_get::<Option<String>>("", "column_default")
         .unwrap_or_else(|e| panic!("列 column_default 解码为文本失败: {e}\nSQL: {sql}"));
@@ -176,12 +179,12 @@ async fn check_constraints_on(db: &DatabaseConnection, table: &str, column: &str
            AND pg_get_constraintdef(c.oid) ILIKE '%{column}%'"
     );
     let rows = db
-        .query_all(pg_stmt(&sql))
+        .query_all_raw(pg_stmt(&sql))
         .await
         .unwrap_or_else(|e| panic!("查询 {table}.{column} CHECK 失败: {e}"));
     rows.iter()
         .map(|r| {
-            r.try_get::<String, _>("", "pg_get_constraintdef")
+            r.try_get::<String>("", "pg_get_constraintdef")
                 .unwrap_or_else(|e| panic!("读取 CHECK 定义失败: {e}"))
         })
         .collect()
