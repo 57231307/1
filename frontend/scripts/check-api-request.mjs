@@ -878,7 +878,7 @@ function main() {
     blind: [],
     uncovered: [], // (d) 叶子类型：顶层名比对了，内层键集没比对——显式入清单
     noHandler: [],
-    multipartOk: [], // 后端 multipart + 前端 FormData：形态一致（键集仍不可比，见 #249 残余盲区）
+    multipartOk: [], // 后端 multipart + 前端 FormData：形态一致（键集仍不可比，见残余盲区）
   };
   let noCall = 0; // 前端调用不可静态定位（URL 解析失败归 check-api-paths 判负）
   let noPayload = 0; // GET 不带任何 config/params：确无载荷可比（汇总计数，不逐条刷噪声）
