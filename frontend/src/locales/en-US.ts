@@ -170,7 +170,6 @@ export default {
       reportFailed: 'Issue report failed',
       pleaseInputResolution: 'Please enter resolution',
       resolveSuccess: 'Issue resolved successfully',
-      operatorMissing: 'Current user info is missing, cannot record the operator',
       resolveFailed: 'Issue resolve failed',
     },
     afterSales: {
@@ -296,7 +295,6 @@ export default {
       blockReasonPrompt: 'Please enter block reason',
       blockNodeTitle: 'Block Node',
       blockReasonRequired: 'Please enter block reason',
-      operatorMissing: 'Current user info is missing, cannot record the operator',
       operationSuccess: 'Operation successful',
       operationFailed: 'Operation failed',
     },
@@ -3569,27 +3567,6 @@ export default {
       messageReasonRequired: 'Please enter the cancellation reason',
       messageCancelSuccess: 'Cancelled successfully',
       messageCancelFailed: 'Failed to cancel',
-      notFound: 'Order not found or has been deleted',
-      addNode: 'Add Node',
-      selectNode: 'Select node',
-      updateNodeStatus: 'Update Node Status',
-      addNodeLog: 'Add Node Log',
-      nodeType: 'Node Type',
-      nodeName: 'Node Name',
-      nodeSequence: 'Sequence',
-      plannedStart: 'Planned Start',
-      plannedEnd: 'Planned End',
-      nodeStatus: 'Node Status',
-      nodeNotes: 'Notes',
-      logAction: 'Action',
-      logContent: 'Log Content',
-      nodeRequired: 'Please enter node type and name',
-      nodeCreated: 'Node created',
-      nodeUpdated: 'Node status updated',
-      logCreated: 'Log added',
-      logActionRequired: 'Please enter the action',
-      operatorMissing: 'Cannot get current user info, cannot record operator',
-      nodeFailed: 'Operation failed',
     },
     create: {
       title: 'New Custom Order',
@@ -3696,7 +3673,6 @@ export default {
       nodeFailed: 'Operation failed',
       nodeUpdated: 'Node status updated',
       logActionRequired: 'Please enter the action',
-      operatorMissing: 'Current user info is missing, cannot record the operator',
       logCreated: 'Log added',
     },
     tracking: {
@@ -4180,7 +4156,6 @@ export default {
       converted: 'Converted',
       lost: 'Lost',
       pool: 'Pool',
-      score: 'Score',
     },
     priority: {
       low: 'Low',
@@ -6623,11 +6598,6 @@ export default {
       customerCode: 'Customer Code',
       customerName: 'Customer Name',
       owner: 'Owner',
-      level: 'Level',
-      label: 'Grade',
-      recency: 'R',
-      frequency: 'F',
-      monetary: 'M',
       totalAmount: 'Total Amount',
       totalOrders: 'Orders',
       operation: 'Operation',
@@ -9101,6 +9071,7 @@ export default {
       active: 'Active',
       completed: 'Completed',
       cancelled: 'Cancelled',
+      rejected: 'Rejected',
     },
   },
   purchaseInspection: {
@@ -9267,6 +9238,7 @@ export default {
     statusLabels: {
       inactive: 'Inactive',
       approved: 'Approved',
+      rejected: 'Rejected',
       pending: 'Pending',
     },
     index: {
@@ -10536,6 +10508,7 @@ export default {
       statusActive: 'Active',
       statusCompleted: 'Completed',
       statusCancelled: 'Cancelled',
+      statusRejected: 'Rejected',
       buttonView: 'View',
       buttonEdit: 'Edit',
       buttonSubmit: 'Submit',
@@ -10563,6 +10536,7 @@ export default {
     statusLabels: {
       pending: 'Pending',
       approved: 'Approved',
+      rejected: 'Rejected',
     },
     index: {
       pageTitle: 'Sales Price Management',
@@ -11368,8 +11342,6 @@ export default {
       messageCreateFailed: 'Failed to create',
       messageUpdateSuccess: 'Updated successfully',
       messageUpdateFailed: 'Failed to update',
-      messageJsonInvalid:
-        'Invalid JSON format — check custom condition / allowed fields / hidden fields input',
     },
   },
   inventoryBatch: {

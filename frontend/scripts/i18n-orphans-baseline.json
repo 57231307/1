@@ -1,0 +1,938 @@
+{
+  "note": "i18n 存量孤儿键棘轮基线：locale 里有文案、src/e2e 里无任何引用（且不受动态拼接与完整 token 救回）。只准降不准升；新增孤儿要么删文案，要么确认它确实被动态拼接消费。重生成：node scripts/check-i18n.mjs --write-baseline",
+  "total": 637,
+  "modules": {
+    "accountSubject": {
+      "count": 16,
+      "keys": [
+        "accountSubject.category.asset",
+        "accountSubject.category.cost",
+        "accountSubject.category.equity",
+        "accountSubject.category.liability",
+        "accountSubject.category.profitLoss",
+        "accountSubject.dialog.description",
+        "accountSubject.exportFile.balanceType",
+        "accountSubject.exportFile.category",
+        "accountSubject.exportFile.code",
+        "accountSubject.exportFile.level",
+        "accountSubject.exportFile.name",
+        "accountSubject.exportFile.status",
+        "accountSubject.filter.category",
+        "accountSubject.filter.categoryPlaceholder",
+        "accountSubject.table.category",
+        "accountSubject.validation.categoryRequired"
+      ]
+    },
+    "accountingPeriod": {
+      "count": 13,
+      "keys": [
+        "accountingPeriod.dialog.datePlaceholder",
+        "accountingPeriod.filter.status",
+        "accountingPeriod.filter.statusPlaceholder",
+        "accountingPeriod.message.activateConfirm",
+        "accountingPeriod.message.activateConfirmTitle",
+        "accountingPeriod.message.activateFailed",
+        "accountingPeriod.message.activatedSuccess",
+        "accountingPeriod.message.reopenConfirm",
+        "accountingPeriod.status.active",
+        "accountingPeriod.status.pending",
+        "accountingPeriod.table.enable",
+        "accountingPeriod.validation.endDateRequired",
+        "accountingPeriod.validation.startDateRequired"
+      ]
+    },
+    "advancedModule": {
+      "count": 3,
+      "keys": [
+        "advancedModule.recipe.ariaPeriodBreakdown",
+        "advancedModule.recipe.ariaTopIssues",
+        "advancedModule.recipe.fabricSynthetic"
+      ]
+    },
+    "aiExtend": {
+      "count": 1,
+      "keys": ["aiExtend.process.createFailed"]
+    },
+    "apModule": {
+      "count": 12,
+      "keys": [
+        "apModule.invoice.cancelConfirm",
+        "apModule.invoice.cancelTitle",
+        "apModule.invoice.invoiceNoInputPlaceholder",
+        "apModule.invoice.invoiceNoPlaceholder",
+        "apModule.invoice.invoiceNoRequired",
+        "apModule.invoice.supplierNamePlaceholder",
+        "apModule.payment.methodRequired",
+        "apModule.payment.supplierPlaceholder",
+        "apModule.verification.invoiceAmount",
+        "apModule.verification.paymentAmount",
+        "apModule.verification.pleaseFillComplete",
+        "apModule.verification.verifiedAmount"
+      ]
+    },
+    "apiGateway": {
+      "count": 3,
+      "keys": [
+        "apiGateway.logTab.dateRangeSeparator",
+        "apiGateway.logTab.endDatePlaceholder",
+        "apiGateway.logTab.startDatePlaceholder"
+      ]
+    },
+    "arModule": {
+      "count": 13,
+      "keys": [
+        "arModule.invoice.cancelConfirm",
+        "arModule.invoice.cancelTitle",
+        "arModule.invoice.customerNamePlaceholder",
+        "arModule.invoice.detailRemark",
+        "arModule.invoice.detailUnverified",
+        "arModule.invoice.detailVerified",
+        "arModule.invoice.invoiceNoInputPlaceholder",
+        "arModule.invoice.invoiceNoRequired",
+        "arModule.invoice.statusPending",
+        "arModule.invoice.statusVerified",
+        "arModule.invoice.unverifiedAmount",
+        "arModule.invoice.verifiedAmount",
+        "arModule.reconciliation.confirmedBy"
+      ]
+    },
+    "arReconciliationModule": {
+      "count": 12,
+      "keys": [
+        "arReconciliationModule.disputeType",
+        "arReconciliationModule.dyeLotNo",
+        "arReconciliationModule.index.adjustmentAmount",
+        "arReconciliationModule.index.confirmedAt",
+        "arReconciliationModule.index.createdBy",
+        "arReconciliationModule.index.customerCode",
+        "arReconciliationModule.index.customerNamePlaceholder",
+        "arReconciliationModule.index.paidAmount",
+        "arReconciliationModule.typeAdjustment",
+        "arReconciliationModule.typeInvoice",
+        "arReconciliationModule.typePayment",
+        "arReconciliationModule.unmatchedAmount"
+      ]
+    },
+    "bpm": {
+      "count": 39,
+      "keys": [
+        "bpm.approval.chainDialog.durationText",
+        "bpm.approval.completedTable.applicant",
+        "bpm.approval.completedTable.approved",
+        "bpm.approval.completedTable.businessKey",
+        "bpm.approval.completedTable.processName",
+        "bpm.approval.completedTable.rejected",
+        "bpm.approval.pendingTable.applicant",
+        "bpm.approval.pendingTable.businessKey",
+        "bpm.approval.pendingTable.processName",
+        "bpm.definitions.filter.processName",
+        "bpm.definitions.filter.processNamePlaceholder",
+        "bpm.detail.currentActivity",
+        "bpm.initiatedTable.ariaLabel",
+        "bpm.initiatedTable.businessKey",
+        "bpm.initiatedTable.currentNode",
+        "bpm.initiatedTable.operation",
+        "bpm.initiatedTable.processName",
+        "bpm.initiatedTable.startTime",
+        "bpm.initiatedTable.status",
+        "bpm.message.fetchInitiatedFailed",
+        "bpm.message.fetchMonitorPendingFailed",
+        "bpm.monitorTable.endTime",
+        "bpm.monitorTable.processName",
+        "bpm.pendingTable.processName",
+        "bpm.tab.initiated",
+        "bpm.templates.card.usageCount",
+        "bpm.templates.category.common",
+        "bpm.templates.category.finance",
+        "bpm.templates.category.hr",
+        "bpm.templates.category.production",
+        "bpm.templates.category.purchase",
+        "bpm.templates.category.sales",
+        "bpm.templates.detailDialog.templateCategory",
+        "bpm.templates.detailDialog.usageCount",
+        "bpm.templates.filter.ariaLabel",
+        "bpm.templates.filter.category",
+        "bpm.templates.filter.categoryPlaceholder",
+        "bpm.templates.filter.query",
+        "bpm.templates.filter.reset"
+      ]
+    },
+    "budget": {
+      "count": 46,
+      "keys": [
+        "budget.confirmAudit",
+        "budget.createBudget",
+        "budget.dialog.ariaLabel",
+        "budget.dialog.budgetNo",
+        "budget.dialog.cancel",
+        "budget.dialog.confirm",
+        "budget.dialog.createTitle",
+        "budget.dialog.departmentId",
+        "budget.dialog.editTitle",
+        "budget.dialog.formAriaLabel",
+        "budget.dialog.name",
+        "budget.dialog.period",
+        "budget.dialog.periodPlaceholder",
+        "budget.dialog.remark",
+        "budget.dialog.totalAmount",
+        "budget.filter.budgetNo",
+        "budget.filter.budgetNoPlaceholder",
+        "budget.filter.name",
+        "budget.filter.namePlaceholder",
+        "budget.item.table.detail",
+        "budget.message.deleteConfirm",
+        "budget.message.loadFailed",
+        "budget.plan.table.remark",
+        "budget.status.approved",
+        "budget.status.draft",
+        "budget.status.pending",
+        "budget.status.rejected",
+        "budget.table.adjust",
+        "budget.table.approve",
+        "budget.table.ariaLabel",
+        "budget.table.budgetNo",
+        "budget.table.delete",
+        "budget.table.department",
+        "budget.table.edit",
+        "budget.table.name",
+        "budget.table.operation",
+        "budget.table.period",
+        "budget.table.reject",
+        "budget.table.remark",
+        "budget.table.status",
+        "budget.table.totalAmount",
+        "budget.title",
+        "budget.validation.budgetNoRequired",
+        "budget.validation.nameRequired",
+        "budget.validation.periodRequired",
+        "budget.validation.totalAmountRequired"
+      ]
+    },
+    "capacityModule": {
+      "count": 7,
+      "keys": [
+        "capacityModule.workCenterStatus.HIGH",
+        "capacityModule.workCenterStatus.IDLE",
+        "capacityModule.workCenterStatus.NORMAL",
+        "capacityModule.workCenterStatus.OVERLOADED",
+        "capacityModule.workCenterStatus.busy",
+        "capacityModule.workCenterStatus.normal",
+        "capacityModule.workCenterStatus.overload"
+      ]
+    },
+    "colorCards": {
+      "count": 2,
+      "keys": ["colorCards.message.createFailed", "colorCards.message.createSuccess"]
+    },
+    "common": {
+      "count": 15,
+      "keys": [
+        "common.add",
+        "common.back",
+        "common.code",
+        "common.create",
+        "common.creator",
+        "common.import",
+        "common.loading",
+        "common.more",
+        "common.name",
+        "common.none",
+        "common.page",
+        "common.pleaseInput",
+        "common.pleaseSelect",
+        "common.submit",
+        "common.updateTime"
+      ]
+    },
+    "crmAssignment": {
+      "count": 7,
+      "keys": [
+        "crmAssignment.ruleTable.assignees",
+        "crmAssignment.ruleTable.priority",
+        "crmAssignment.ruleTable.strategy",
+        "crmAssignment.strategy.average",
+        "crmAssignment.strategy.industry",
+        "crmAssignment.strategy.region",
+        "crmAssignment.strategy.scale"
+      ]
+    },
+    "crmLeads": {
+      "count": 10,
+      "keys": [
+        "crmLeads.filter.owner",
+        "crmLeads.filter.ownerPlaceholder",
+        "crmLeads.filter.priority",
+        "crmLeads.filter.priorityPlaceholder",
+        "crmLeads.leadForm.owner",
+        "crmLeads.leadForm.ownerPlaceholder",
+        "crmLeads.leadForm.remarks",
+        "crmLeads.leadForm.remarksPlaceholder",
+        "crmLeads.leadForm.validation.ownerRequired",
+        "crmLeads.message.loadUsersFailed"
+      ]
+    },
+    "crmOpportunities": {
+      "count": 19,
+      "keys": [
+        "crmOpportunities.filter.keyword",
+        "crmOpportunities.filter.keywordPlaceholder",
+        "crmOpportunities.filter.owner",
+        "crmOpportunities.filter.ownerPlaceholder",
+        "crmOpportunities.filter.priority",
+        "crmOpportunities.filter.priorityPlaceholder",
+        "crmOpportunities.message.loadUsersFailed",
+        "crmOpportunities.priority.high",
+        "crmOpportunities.priority.low",
+        "crmOpportunities.priority.medium",
+        "crmOpportunities.priority.urgent",
+        "crmOpportunities.stage.analytics",
+        "crmOpportunities.stage.initial",
+        "crmOpportunities.stage.lost",
+        "crmOpportunities.stage.negotiation",
+        "crmOpportunities.stage.proposal",
+        "crmOpportunities.stage.requirement",
+        "crmOpportunities.stage.toOrder",
+        "crmOpportunities.stage.won"
+      ]
+    },
+    "crmOpportunityForm": {
+      "count": 7,
+      "keys": [
+        "crmOpportunityForm.owner",
+        "crmOpportunityForm.ownerPlaceholder",
+        "crmOpportunityForm.remarks",
+        "crmOpportunityForm.remarksPlaceholder",
+        "crmOpportunityForm.stageOption.initial",
+        "crmOpportunityForm.stageOption.requirement",
+        "crmOpportunityForm.validation.ownerRequired"
+      ]
+    },
+    "crmRuleDialog": {
+      "count": 15,
+      "keys": [
+        "crmRuleDialog.form.assignees",
+        "crmRuleDialog.form.assigneesPlaceholder",
+        "crmRuleDialog.form.enabledNo",
+        "crmRuleDialog.form.enabledYes",
+        "crmRuleDialog.form.priority",
+        "crmRuleDialog.form.remark",
+        "crmRuleDialog.form.strategy",
+        "crmRuleDialog.form.strategyPlaceholder",
+        "crmRuleDialog.message.validationFailed",
+        "crmRuleDialog.strategy.average",
+        "crmRuleDialog.strategy.industry",
+        "crmRuleDialog.strategy.region",
+        "crmRuleDialog.strategy.scale",
+        "crmRuleDialog.validation.assigneesRequired",
+        "crmRuleDialog.validation.strategyRequired"
+      ]
+    },
+    "currency": {
+      "count": 2,
+      "keys": ["currency.rateDialog.source", "currency.rateDialog.sourcePlaceholder"]
+    },
+    "customOrders": {
+      "count": 2,
+      "keys": ["customOrders.list.buttonCancelDialog", "customOrders.list.messageNoUserInfo"]
+    },
+    "dashboard": {
+      "count": 10,
+      "keys": [
+        "dashboard.lowStock",
+        "dashboard.pendingTasks",
+        "dashboard.quickActions",
+        "dashboard.recentActivity",
+        "dashboard.salesTrend",
+        "dashboard.title",
+        "dashboard.todayOrders",
+        "dashboard.todayRevenue",
+        "dashboard.topProducts",
+        "dashboard.welcome"
+      ]
+    },
+    "dyeBatch": {
+      "count": 14,
+      "keys": [
+        "dyeBatch.index.filterDyeDate",
+        "dyeBatch.index.filterKeyword",
+        "dyeBatch.index.filterProduct",
+        "dyeBatch.index.messageConfirmComplete",
+        "dyeBatch.index.messageOperationFailed",
+        "dyeBatch.index.messageOperationSuccess",
+        "dyeBatch.index.optionActive",
+        "dyeBatch.index.optionCompleted",
+        "dyeBatch.index.placeholderColorCode",
+        "dyeBatch.index.placeholderEndDate",
+        "dyeBatch.index.placeholderKeyword",
+        "dyeBatch.index.placeholderProduct",
+        "dyeBatch.index.placeholderStartDate",
+        "dyeBatch.index.ruleColorNoRequired"
+      ]
+    },
+    "dyeRecipe": {
+      "count": 3,
+      "keys": [
+        "dyeRecipe.index.buttonDelete",
+        "dyeRecipe.index.filterKeyword",
+        "dyeRecipe.index.placeholderKeyword"
+      ]
+    },
+    "error": {
+      "count": 15,
+      "keys": [
+        "error.400",
+        "error.401",
+        "error.403",
+        "error.404",
+        "error.429",
+        "error.500",
+        "error.502",
+        "error.503",
+        "error.forbidden.code",
+        "error.networkError",
+        "error.page.backHome",
+        "error.page.forbiddenMessage",
+        "error.page.notFoundDesc",
+        "error.timeout",
+        "error.unknown"
+      ]
+    },
+    "fabric": {
+      "count": 9,
+      "keys": [
+        "fabric.dyeTab.confirmCompleteContent",
+        "fabric.greigeTab.columnQuantity",
+        "fabric.greigeTab.columnSupplier",
+        "fabric.greigeTab.statusActive",
+        "fabric.greigeTab.statusInactive",
+        "fabric.index.messageQuantityMustBePositive",
+        "fabric.index.promptStockIn",
+        "fabric.index.promptStockOut",
+        "fabric.recipeTab.messageNoUserInfo"
+      ]
+    },
+    "finance": {
+      "count": 21,
+      "keys": [
+        "finance.ap.list",
+        "finance.ap.title",
+        "finance.ar.list",
+        "finance.ar.title",
+        "finance.payment.title",
+        "finance.report.title",
+        "finance.subjectTab.labelCategory",
+        "finance.subjectTab.optionAsset",
+        "finance.subjectTab.optionCost",
+        "finance.subjectTab.optionEquity",
+        "finance.subjectTab.optionLiability",
+        "finance.subjectTab.optionProfitLoss",
+        "finance.subjectTab.placeholderCategory",
+        "finance.subjectTab.ruleCategoryRequired",
+        "finance.title",
+        "finance.voucherForm.optionFK",
+        "finance.voucherForm.optionJZ",
+        "finance.voucherForm.optionSK",
+        "finance.voucherForm.optionZZ",
+        "finance.voucherTable.columnCreditAmount",
+        "finance.voucherTable.columnDebitAmount"
+      ]
+    },
+    "financeReport": {
+      "count": 6,
+      "keys": [
+        "financeReport.reportListTab.colCode",
+        "financeReport.reportListTab.colInflow",
+        "financeReport.reportListTab.colNetFlow",
+        "financeReport.reportListTab.colOutflow",
+        "financeReport.reportListTab.labelTotalPrefix",
+        "financeReport.reportListTab.tableAriaLabel"
+      ]
+    },
+    "financialAnalysis": {
+      "count": 3,
+      "keys": [
+        "financialAnalysis.analysisListTab.statusDraft",
+        "financialAnalysis.analysisListTab.statusExecuted",
+        "financialAnalysis.analysisListTab.statusFailed"
+      ]
+    },
+    "fiveDimension": {
+      "count": 3,
+      "keys": [
+        "fiveDimension.index.colAmount",
+        "fiveDimension.index.colRecordNo",
+        "fiveDimension.index.placeholderDyeLotNo"
+      ]
+    },
+    "fixedAssets": {
+      "count": 5,
+      "keys": [
+        "fixedAssets.dialog.custodian",
+        "fixedAssets.dialog.salvageValue",
+        "fixedAssets.filter.assetCode",
+        "fixedAssets.filter.assetCodePlaceholder",
+        "fixedAssets.validation.assetCodeRequired"
+      ]
+    },
+    "greigeFabrics": {
+      "count": 2,
+      "keys": ["greigeFabrics.index.optionActive", "greigeFabrics.index.optionInactive"]
+    },
+    "inventory": {
+      "count": 61,
+      "keys": [
+        "inventory.count.list",
+        "inventory.count.title",
+        "inventory.inbound.list",
+        "inventory.inbound.title",
+        "inventory.message.approveConfirm",
+        "inventory.message.approveFailed",
+        "inventory.message.approveSuccess",
+        "inventory.message.approveTitle",
+        "inventory.message.fetchTransferFailed",
+        "inventory.message.transferCreateFailed",
+        "inventory.message.transferCreated",
+        "inventory.message.transferItemProductRequired",
+        "inventory.message.warehouseRequired",
+        "inventory.outbound.list",
+        "inventory.outbound.title",
+        "inventory.page.tabTransfer",
+        "inventory.statCards.lowStock",
+        "inventory.statCards.totalQuantity",
+        "inventory.statCards.warehouseCount",
+        "inventory.stock.alert",
+        "inventory.stock.availableQty",
+        "inventory.stock.batch",
+        "inventory.stock.list",
+        "inventory.stock.lockedQty",
+        "inventory.stock.product",
+        "inventory.stock.quantity",
+        "inventory.stock.title",
+        "inventory.stock.unit",
+        "inventory.stock.value",
+        "inventory.stock.warehouse",
+        "inventory.stockDetail.currentQty",
+        "inventory.stockTab.deleteStockConfirm",
+        "inventory.stockTab.productWarehouseRequired",
+        "inventory.title",
+        "inventory.transfer.list",
+        "inventory.transfer.title",
+        "inventory.transferDetail.close",
+        "inventory.transferDetail.createdAt",
+        "inventory.transferDetail.creator",
+        "inventory.transferDetail.fromWarehouse",
+        "inventory.transferDetail.status",
+        "inventory.transferDetail.title",
+        "inventory.transferDetail.toWarehouse",
+        "inventory.transferDetail.totalQty",
+        "inventory.transferDetail.transferNo",
+        "inventory.transferTab.approve",
+        "inventory.transferTab.colCreatedAt",
+        "inventory.transferTab.colCreator",
+        "inventory.transferTab.colFromWarehouse",
+        "inventory.transferTab.colOperation",
+        "inventory.transferTab.colQuantity",
+        "inventory.transferTab.colStatus",
+        "inventory.transferTab.colToWarehouse",
+        "inventory.transferTab.colTransferNo",
+        "inventory.transferTab.detail",
+        "inventory.transferTab.listAria",
+        "inventory.transferTab.newTransfer",
+        "inventory.transferTab.statusApproved",
+        "inventory.transferTab.statusCancelled",
+        "inventory.transferTab.statusExecuted",
+        "inventory.transferTab.statusPending"
+      ]
+    },
+    "inventoryAdjustment": {
+      "count": 2,
+      "keys": [
+        "inventoryAdjustment.listTab.colAmount",
+        "inventoryAdjustment.listTab.statLabelTotalAmount"
+      ]
+    },
+    "inventoryBatch": {
+      "count": 3,
+      "keys": [
+        "inventoryBatch.batchFormDialog.ruleProductNameRequired",
+        "inventoryBatch.batchListTab.statusNormal",
+        "inventoryBatch.batchListTab.statusQualified"
+      ]
+    },
+    "inventoryCount": {
+      "count": 8,
+      "keys": [
+        "inventoryCount.detailDialogTab.statusLabel.completed",
+        "inventoryCount.detailDialogTab.statusLabel.in_progress",
+        "inventoryCount.detailDialogTab.statusLabel.in_review",
+        "inventoryCount.detailDialogTab.statusLabel.pending",
+        "inventoryCount.listTab.statLabelInProgress",
+        "inventoryCount.listTab.statusCompleted",
+        "inventoryCount.listTab.statusInProgress",
+        "inventoryCount.listTab.statusLabel.in_progress"
+      ]
+    },
+    "inventoryTransfer": {
+      "count": 1,
+      "keys": ["inventoryTransfer.transferForm.stockRow"]
+    },
+    "layout": {
+      "count": 2,
+      "keys": ["layout.main.closeSidebar", "layout.main.themeMenuAriaLabel"]
+    },
+    "login": {
+      "count": 9,
+      "keys": [
+        "login.captcha",
+        "login.failed",
+        "login.forgot",
+        "login.locked",
+        "login.networkError",
+        "login.refreshLockStatusFailed",
+        "login.remember",
+        "login.signingIn",
+        "login.title"
+      ]
+    },
+    "logistics": {
+      "count": 1,
+      "keys": ["logistics.confirm.deliver"]
+    },
+    "message": {
+      "count": 10,
+      "keys": [
+        "message.auditConfirmTitle",
+        "message.checkComplete",
+        "message.deleteConfirm",
+        "message.exportBlockedResource",
+        "message.installFailed",
+        "message.markFailed",
+        "message.markedAsResolved",
+        "message.notificationSent",
+        "message.rejected",
+        "message.sendNotificationFailed"
+      ]
+    },
+    "mrp": {
+      "count": 15,
+      "keys": [
+        "mrp.history.completedAt",
+        "mrp.history.materialCode",
+        "mrp.history.materialName",
+        "mrp.history.materialsDivider",
+        "mrp.history.netRequirement",
+        "mrp.history.specification",
+        "mrp.history.statusCalculating",
+        "mrp.history.statusCompleted",
+        "mrp.history.statusFailed",
+        "mrp.history.statusPending",
+        "mrp.history.suggestedDate",
+        "mrp.history.suggestedOrderQuantity",
+        "mrp.history.supplyDetailTitle",
+        "mrp.history.unit",
+        "mrp.history.viewSupplyDetail"
+      ]
+    },
+    "omniAudit": {
+      "count": 9,
+      "keys": [
+        "omniAudit.index.labelIpAddress",
+        "omniAudit.index.labelUserName",
+        "omniAudit.index.optionAll",
+        "omniAudit.index.optionFailed",
+        "omniAudit.index.optionSuccess",
+        "omniAudit.index.placeholderAction",
+        "omniAudit.index.placeholderResource",
+        "omniAudit.index.placeholderStatus",
+        "omniAudit.index.titleErrorMsg"
+      ]
+    },
+    "product": {
+      "count": 1,
+      "keys": ["product.categoryDialogTab.buttonDelete"]
+    },
+    "production": {
+      "count": 11,
+      "keys": [
+        "production.detail.statusCancelled",
+        "production.detail.statusCompleted",
+        "production.detail.statusDraft",
+        "production.detail.statusInProgress",
+        "production.detail.statusPlanned",
+        "production.filter.statusCancelled",
+        "production.filter.statusCompleted",
+        "production.filter.statusDraft",
+        "production.filter.statusInProgress",
+        "production.filter.statusPlanned",
+        "production.form.placeholderOrderNo"
+      ]
+    },
+    "purchase": {
+      "count": 10,
+      "keys": [
+        "purchase.createDlg.colTolerance",
+        "purchase.createDlg.tolerancePlaceholder",
+        "purchase.order.list",
+        "purchase.order.title",
+        "purchase.receipt.list",
+        "purchase.receipt.title",
+        "purchase.supplier.list",
+        "purchase.supplier.title",
+        "purchase.title",
+        "purchase.viewDlg.noRemark"
+      ]
+    },
+    "purchaseContract": {
+      "count": 4,
+      "keys": [
+        "purchaseContract.filter.statusCompleted",
+        "purchaseContract.filter.statusPending",
+        "purchaseContract.status.completed",
+        "purchaseContract.status.pending"
+      ]
+    },
+    "purchaseInspection": {
+      "count": 2,
+      "keys": [
+        "purchaseInspection.filter.status.draft",
+        "purchaseInspection.filter.status.rejected"
+      ]
+    },
+    "purchasePrice": {
+      "count": 4,
+      "keys": [
+        "purchasePrice.filter.label.keyword",
+        "purchasePrice.filter.placeholder.keyword",
+        "purchasePrice.filter.status.active",
+        "purchasePrice.filter.status.inactive"
+      ]
+    },
+    "purchaseReturn": {
+      "count": 6,
+      "keys": [
+        "purchaseReturn.approval.aria.form",
+        "purchaseReturn.approval.label.opinion",
+        "purchaseReturn.approval.placeholder.opinion",
+        "purchaseReturn.detail.label.reasonType",
+        "purchaseReturn.filter.status.completed",
+        "purchaseReturn.filter.status.pending"
+      ]
+    },
+    "quality": {
+      "count": 2,
+      "keys": ["quality.defectTab.messageProcessPrompt", "quality.recordTab.tableAriaLabel"]
+    },
+    "quotations": {
+      "count": 10,
+      "keys": [
+        "quotations.approval.approveConfirmText",
+        "quotations.approval.approveConfirmTitle",
+        "quotations.approval.rejectPromptText",
+        "quotations.approval.rejectReasonRequired",
+        "quotations.approval.rejectTitle",
+        "quotations.detail.approveConfirmText",
+        "quotations.detail.approveConfirmTitle",
+        "quotations.detail.rejectPromptText",
+        "quotations.detail.rejectReasonRequired",
+        "quotations.detail.rejectTitle"
+      ]
+    },
+    "reportTemplates": {
+      "count": 11,
+      "keys": [
+        "reportTemplates.dialog.content",
+        "reportTemplates.dialog.contentPlaceholder",
+        "reportTemplates.dialog.format",
+        "reportTemplates.dialog.formatPlaceholder",
+        "reportTemplates.table.createdBy",
+        "reportTemplates.table.format",
+        "reportTemplates.table.isSystem",
+        "reportTemplates.validation.contentRequired",
+        "reportTemplates.validation.formatRequired",
+        "reportTemplates.yesNo.no",
+        "reportTemplates.yesNo.yes"
+      ]
+    },
+    "sales": {
+      "count": 31,
+      "keys": [
+        "sales.customer.code",
+        "sales.customer.contact",
+        "sales.customer.creditLimit",
+        "sales.customer.level",
+        "sales.customer.list",
+        "sales.customer.name",
+        "sales.customer.phone",
+        "sales.customer.title",
+        "sales.order.create",
+        "sales.order.customer",
+        "sales.order.deliveryDate",
+        "sales.order.detail",
+        "sales.order.edit",
+        "sales.order.list",
+        "sales.order.number",
+        "sales.order.orderDate",
+        "sales.order.product",
+        "sales.order.quantity",
+        "sales.order.status.completed",
+        "sales.order.status.confirmed",
+        "sales.order.status.draft",
+        "sales.order.status.shipped",
+        "sales.order.title",
+        "sales.order.totalAmount",
+        "sales.order.unitPrice",
+        "sales.quotation.create",
+        "sales.quotation.list",
+        "sales.quotation.title",
+        "sales.return.list",
+        "sales.return.title",
+        "sales.title"
+      ]
+    },
+    "salesContract": {
+      "count": 7,
+      "keys": [
+        "salesContract.filter.optionActive",
+        "salesContract.filter.optionCancelled",
+        "salesContract.filter.optionCompleted",
+        "salesContract.filter.optionDraft",
+        "salesContract.filter.optionPending",
+        "salesContract.table.statusCompleted",
+        "salesContract.table.statusPending"
+      ]
+    },
+    "salesPrice": {
+      "count": 9,
+      "keys": [
+        "salesPrice.history.statusPending",
+        "salesPrice.table.priceTypeAgreed",
+        "salesPrice.table.priceTypePromotion",
+        "salesPrice.table.priceTypeStandard",
+        "salesPrice.table.statusPending",
+        "salesPrice.view.priceTypeAgreed",
+        "salesPrice.view.priceTypePromotion",
+        "salesPrice.view.priceTypeStandard",
+        "salesPrice.view.statusPending"
+      ]
+    },
+    "salesReturns": {
+      "count": 10,
+      "keys": [
+        "salesReturns.detailDialog.statusPending",
+        "salesReturns.detailDialog.taxPercentPlaceholder",
+        "salesReturns.editDialog.labelReason",
+        "salesReturns.editDialog.optionOther",
+        "salesReturns.editDialog.optionPackaging",
+        "salesReturns.editDialog.optionQuality",
+        "salesReturns.editDialog.optionQuantity",
+        "salesReturns.editDialog.optionSpecification",
+        "salesReturns.editDialog.placeholderReason",
+        "salesReturns.table.statusPending"
+      ]
+    },
+    "security": {
+      "count": 5,
+      "keys": [
+        "security.lockTable.button.confirmUnlock",
+        "security.logTable.filter.dateRange",
+        "security.logTable.placeholder.endDate",
+        "security.logTable.placeholder.rangeSeparator",
+        "security.logTable.placeholder.startDate"
+      ]
+    },
+    "settings": {
+      "count": 16,
+      "keys": [
+        "settings.permission.title",
+        "settings.role.list",
+        "settings.role.title",
+        "settings.system.basic",
+        "settings.system.notification",
+        "settings.system.security",
+        "settings.system.title",
+        "settings.title",
+        "settings.user.email",
+        "settings.user.lastLogin",
+        "settings.user.list",
+        "settings.user.phone",
+        "settings.user.realName",
+        "settings.user.role",
+        "settings.user.title",
+        "settings.user.username"
+      ]
+    },
+    "setupPage": {
+      "count": 1,
+      "keys": ["setupPage.complete.createAdmin"]
+    },
+    "skuMapping": {
+      "count": 4,
+      "keys": [
+        "skuMapping.fields.supplierProductId",
+        "skuMapping.placeholders.supplierColorNo",
+        "skuMapping.placeholders.supplierProductCode",
+        "skuMapping.placeholders.supplierProductId"
+      ]
+    },
+    "supplier": {
+      "count": 1,
+      "keys": ["supplier.enhanced.qualification.attachmentPath"]
+    },
+    "supplierEvaluation": {
+      "count": 7,
+      "keys": [
+        "supplierEvaluation.index.column.createdAt",
+        "supplierEvaluation.index.detail.label.rating",
+        "supplierEvaluation.index.detail.label.status",
+        "supplierEvaluation.index.detail.label.totalScore",
+        "supplierEvaluation.index.indicators.placeholder.category",
+        "supplierEvaluation.index.indicators.placeholder.code",
+        "supplierEvaluation.index.indicators.placeholder.name"
+      ]
+    },
+    "system": {
+      "count": 5,
+      "keys": [
+        "system.role.form.label.status",
+        "system.role.status.disabled",
+        "system.role.status.enabled",
+        "system.user.dialog.realName",
+        "system.user.validation.realNameRequired"
+      ]
+    },
+    "voucher": {
+      "count": 15,
+      "keys": [
+        "voucher.voucherListDetail.labelCreatedBy",
+        "voucher.voucherListDetail.statusApproved",
+        "voucher.voucherListDetail.typeCustomized",
+        "voucher.voucherListDetail.typeGeneral",
+        "voucher.voucherListFilter.optionApproved",
+        "voucher.voucherListForm.labelSummary",
+        "voucher.voucherListForm.placeholderSummary",
+        "voucher.voucherListTable.columnApprovedBy",
+        "voucher.voucherListTable.columnCreatedBy",
+        "voucher.voucherListTable.columnCredit",
+        "voucher.voucherListTable.columnDebit",
+        "voucher.voucherListTable.columnPostedBy",
+        "voucher.voucherListTable.statusApproved",
+        "voucher.voucherListTable.typeCustomized",
+        "voucher.voucherListTable.typeGeneral"
+      ]
+    },
+    "warehouse": {
+      "count": 9,
+      "keys": [
+        "warehouse.index.buttonConfirm",
+        "warehouse.index.labelAddress",
+        "warehouse.index.labelCode",
+        "warehouse.index.labelContact",
+        "warehouse.index.labelDefault",
+        "warehouse.index.labelName",
+        "warehouse.index.labelPhone",
+        "warehouse.index.labelStatus",
+        "warehouse.index.labelType"
+      ]
+    }
+  }
+}
