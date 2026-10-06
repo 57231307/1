@@ -38,8 +38,10 @@ const MATRIX_SRC: &str = include_str!("../src/services/init_service_ops/permissi
 /// 域函数名尾缀：全部域函数以此结尾（定义与调用两侧对齐用它拼接完整函数名）
 const DOMAIN_FN_NAME_TAIL: &str = "_role_resources";
 
-/// 域函数签名后缀：定义表按域分组，每个域函数返回一段角色权限定义切片
-const DOMAIN_FN_SUFFIX: &str = concat!(DOMAIN_FN_NAME_TAIL, "() -> RoleResourceSlice");
+/// 域函数签名后缀：定义表按域分组，每个域函数返回一段角色权限定义切片。
+/// 字面量须与 `DOMAIN_FN_NAME_TAIL` 的尾缀逐字一致（`concat!` 只接受字面量，
+/// 不能由 const 拼出，故此处写全串；两处不一致时本文件的解析必然取空集而判红）。
+const DOMAIN_FN_SUFFIX: &str = "_role_resources() -> RoleResourceSlice";
 
 /// 聚合入口签名：全部域函数经它汇总为矩阵定义表（闸门与落库链的同一入口）
 const GROUPS_FN_SIG: &str = "pub fn all_role_permission_definition_groups";
@@ -122,7 +124,7 @@ fn read_quoted(b: &[u8], i: usize) -> Result<(String, usize), String> {
     loop {
         match b.get(j) {
             Some(b'"') => return Ok((tok, j + 1)),
-            Some(&c) if c == b'\\' => {
+            Some(&b'\\') => {
                 return Err(format!(
                     "第 {j} 字节出现转义——矩阵码字面量不应含转义，解析口径失效须点名"
                 ));
