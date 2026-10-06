@@ -36,6 +36,17 @@ export interface ContactInput {
 /** 联系人更新请求（批次 90b P2-12） */
 export type ContactUpdate = Partial<ContactInput>;
 
+/**
+ * 增强客户列表/详情行类型（GET /crm/customers/enhanced）。
+ * 后端该端点直接整行序列化 crm_lead 模型（services/crm/lead.rs::list_leads），
+ * 且出口只做掩码/删键不做补键，故出参键集恒 ⊆ crm_lead 字段名集：
+ * 成交总额/订单数/最后跟进日/内嵌联系人这类聚合键后端无任何出口提供，
+ * 不得声明（联系人唯一真实来源是 /crm/customers/{id}/contacts 独立端点）。
+ * customer_code/customer_name/contact_person/phone/customer_type/status 为视图列
+ * 当前仍在绑定的历史漂移键（取不到值，待与视图重绑同批收口），其余键与
+ * crm_lead 字段一一对应；tags 声明为对象数组与后端字符串数组的形状差异由
+ * 消费侧（CustomerListTab 的行类型）收敛。
+ */
 export interface CustomerWithTags {
   id: number;
   customer_code: string;
@@ -48,10 +59,6 @@ export interface CustomerWithTags {
   owner_id: number;
   owner_name: string;
   tags: CustomerTag[];
-  contacts: Contact[];
-  last_follow_up: string;
-  total_orders: number;
-  total_amount: number;
   created_at: string;
   updated_at: string;
 }

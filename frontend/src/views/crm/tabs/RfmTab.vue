@@ -41,22 +41,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="owner_name" :label="t('crmRfm.table.owner')" width="100" />
-        <el-table-column
-          prop="total_amount"
-          :label="t('crmRfm.table.totalAmount')"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="total_orders"
-          :label="t('crmRfm.table.totalOrders')"
-          width="80"
-          align="center"
-        />
         <el-table-column :label="t('crmRfm.table.operation')" width="100" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="viewDetail(row.id)">{{
@@ -74,7 +58,6 @@ import { ref, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCustomerList,

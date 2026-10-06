@@ -147,21 +147,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="owner_name" :label="$t('crmCustomer.table.owner')" width="100" />
-        <el-table-column
-          prop="total_amount"
-          :label="$t('crmCustomer.table.totalAmount')"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="last_follow_up"
-          :label="$t('crmCustomer.table.lastFollowUp')"
-          width="120"
-        />
         <el-table-column prop="status" :label="$t('crmCustomer.table.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
@@ -369,7 +354,6 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue';
-import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCrmTagList,
@@ -685,7 +669,6 @@ const handlePrint = () => {
       <td>${escapeHtml(item.phone)}</td>
       <td>${escapeHtml(getCustomerTypeLabel(item.customer_type))}</td>
       <td>${escapeHtml(item.owner_name || '-')}</td>
-      <td style="text-align:right">${item.total_amount ? '¥' + item.total_amount.toLocaleString() : '-'}</td>
       <td>${escapeHtml(item.status === 'active' ? t('crmCustomer.status.active') : t('crmCustomer.status.inactive'))}</td>
     </tr>
   `
@@ -706,7 +689,7 @@ const handlePrint = () => {
     <h1>${t('crmCustomer.printDialog.title')}</h1>
     <div class="meta">${t('crmCustomer.printDialog.date')}: ${now} | ${t('crmCustomer.printDialog.total', { count: customers.value.length })}</div>
     <table>
-      <thead><tr><th>${t('crmCustomer.table.customerCode')}</th><th>${t('crmCustomer.table.customerName')}</th><th>${t('crmCustomer.table.contactPerson')}</th><th>${t('crmCustomer.table.phone')}</th><th>${t('crmCustomer.table.type')}</th><th>${t('crmCustomer.table.owner')}</th><th>${t('crmCustomer.table.totalAmount')}</th><th>${t('crmCustomer.table.status')}</th></tr></thead>
+      <thead><tr><th>${t('crmCustomer.table.customerCode')}</th><th>${t('crmCustomer.table.customerName')}</th><th>${t('crmCustomer.table.contactPerson')}</th><th>${t('crmCustomer.table.phone')}</th><th>${t('crmCustomer.table.type')}</th><th>${t('crmCustomer.table.owner')}</th><th>${t('crmCustomer.table.status')}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     </body></html>
