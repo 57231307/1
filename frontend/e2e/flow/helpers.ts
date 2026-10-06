@@ -13,7 +13,6 @@ import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
 import {
   createColorCardUI,
-  createDyeBatchUI,
   createDyeRecipeUI,
   createBomUI,
   createCustomOrderUI,
@@ -691,7 +690,16 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
 
-  // ---- 11. 染色批次（UI 创建）----
+  // ---- 11. 染色批次（API 种子，判责 #4677 31d-A）----
+  // 旧实现先走 createDyeBatchUI（UI 表单），但染色批次表单契约（dye-batch/index.vue:415-439）
+  // 必填 greige_fabric_id（选项源=坯布列表，本 ensure 步骤序内无坯布保障 ⇒ 空下拉必失败）
+  // 且色号非空即要求缸号；UI 校验必红后落入 120s race + API 兜底，而兜底色号又不在
+  // 色卡档案（dye_batch_handler.rs:204-254 resolve_dye_color_identity 反查
+  // color_card_items.color_code 恰一条）⇒ 确定性 400（CI #4669 31e 同判）。
+  // 种子选 API 而非补全 UI 字段的理由：①UI 成功需先把"坯布非空 + 色号入档"两个跨实体
+  // 前置塞进通用种子序列，退化风险大；②染色批次 UI 创建不是 31d 通知链的被测对象，
+  // 共用种子重复 UI 路径即"第二套实现"反模式；③API 秒级确定性，把预算还给用例本体。
+  // createDyeBatchUI 保留并已与表单真实必填对齐（ui-helpers.ts 步骤 11 注释），供专项 UI 用例复用。
   try {
     ctx.dyeBatchId = await readFirstEntityId(
       page,
@@ -704,29 +712,26 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
   }
   if (!ctx.dyeBatchId) {
-    const id = await uiCreateWithRetry(page, createDyeBatchUI);
-    ctx.dyeBatchId = id;
-    if (!id) {
-      console.error(
-        '[ensureTestEntities] 染色批次 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+    // 真实前置：为该批次建专属色卡档案色号（seedColorCardArchive 抛错即前置失败，不兜底）
+    const archive = await seedColorCardArchive(page, { context: 'ensureTestEntities/dye-batch' });
+    if (!ctx.dyeLotNo) ctx.dyeLotNo = genDyeLotNo();
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
+      // batch_no 不手工传入：dye_batch_handler.rs:320-345 对缺省缸号走
+      // DocumentNumberGenerator::insert_with_no_retry（事务内取号 + 23505 重试），
+      // 手写时间戳号跨分片同秒撞 UNIQUE 概率非零（后端注释原话），不重蹈覆辙。
+      color_no: archive.colorCode,
+      dye_lot_no: ctx.dyeLotNo,
+      planned_quantity: 100,
+      dye_date: new Date().toISOString().slice(0, 10),
+    });
+    ctx.dyeBatchId = result.data?.id;
+    if (!ctx.dyeBatchId) {
+      // 种子失败不再 console.error 静默放行：31d 判责指出"种子退化时链路用例集体失去检验"
+      // 本身就是覆盖假绿——显式抛错让退化在 beforeAll 处即红。
+      throw new Error(
+        `[ensureTestEntities] 染色批次 API 种子失败（色号已入档 ${archive.colorCode}，` +
+          `仍被拒绝即端点契约漂移，属真实缺陷）: ${JSON.stringify(result)}`
       );
-      // API 兜底：UI 产品下拉交互脆弱（filterable select 偶发选项不渲染导致 120s 超时），
-      // 兜底仅填必填字段创建批次记录，避免 dyeBatchId 缺失阻塞后续流程
-      // status 后端用中文枚举（from_chinese_str），不传时后端默认"待生产"
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
-          batch_no: `E2E-DB${Date.now().toString().slice(-6)}`,
-          color_no: ctx.colorNos[0] || 'TEST-COLOR',
-          dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
-          planned_quantity: 100,
-        });
-        ctx.dyeBatchId = result.data?.id;
-        if (!ctx.dyeBatchId) {
-          console.error('[ensureTestEntities] 染色批次 API 兜底未返回 id:', JSON.stringify(result));
-        }
-      } catch (e) {
-        console.error('[ensureTestEntities] 染色批次 API 兜底创建失败:', (e as Error).message);
-      }
     }
   }
 

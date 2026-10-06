@@ -67,7 +67,6 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     // UI 删除
     const deleted = await uiDeleteRow(page, '/product', { column: 'name', value: productName });
     console.log(`[P0-删除-产品] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
     expect(deleted, `[P0-删除-产品] 自建且无引用的产品 ${productName} UI 删除应成功`).toBe(true);
   });
 
@@ -99,9 +98,17 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     // 客户删除为「软删除」：delete_customer 仅把 status 置为 inactive（customer_ops/crud.rs:178），
     // 且 list_customers 默认不过滤 inactive（query.rs:77，仅当显式传入 status 才过滤）——
     // 故删除后该行仍留在列表（状态变「禁用」），"行消失"模型对本实体不适用。
-    // 仍用 uiDeleteRow 走真实 UI 点击（行内「删除」→确认弹窗）触发删除；其对软删除
-    // 返回 false 属预期，删除效果改由后端权威契约断言（见下）。
-    await uiDeleteRow(page, '/customer', { column: 'name', value: customerName });
+    // 仍用 uiDeleteRow 走真实 UI 点击（行内「删除」→确认弹窗）触发删除；uiDeleteRow 现对
+    // 一切真实失败（找不到行/按钮未渲染/点击异常）**显式抛错**，软删除的"行仍在"预期通过
+    // expectRowGone:false 声明，删除效果改由后端权威契约断言（见下）。
+    await uiDeleteRow(
+      page,
+      '/customer',
+      { column: 'name', value: customerName },
+      {
+        expectRowGone: false,
+      }
+    );
     const detail = await apiCallRaw<{ status?: string }>(
       page,
       'GET',
@@ -142,7 +149,6 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
 
     const deleted = await uiDeleteRow(page, '/supplier', { column: 'name', value: supplierName });
     console.log(`[P0-删除-供应商] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
     expect(deleted, `[P0-删除-供应商] 自建且无引用的供应商 ${supplierName} UI 删除应成功`).toBe(
       true
     );
@@ -175,7 +181,6 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
 
     const deleted = await uiDeleteRow(page, '/warehouse', { column: 'name', value: warehouseName });
     console.log(`[P0-删除-仓库] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
     expect(deleted, `[P0-删除-仓库] 自建且无引用的仓库 ${warehouseName} UI 删除应成功`).toBe(true);
   });
 
@@ -425,13 +430,19 @@ async function createThenUiDelete(
     );
   }
 
-  // UI 删除
+  // UI 删除（本验证器删除的对象一律是**本用例刚自建的唯一行**，不存在"被引用拒绝"的合法分支：
+  // 旧写法 `expect(typeof deleted).toBe('boolean')` 对 true/false 恒真，而 uiDeleteRow 旧版又
+  // 把"找不到行/行内无删除按钮/点击异常"全部静默成 false——销售合同/采购合同等 V2Table+
+  // fixed-right 页面按钮恒不可达（68-03 同根因），整条"UI 删除验证"从未真正点中按钮（判责
+  // #4677 连带假绿）。现 uiDeleteRow 对所有真实失败显式抛错，本行收紧为结果硬断言；
+  // 引用约束类拒绝若真实存在，会先在 uiDeleteRow 的行消失校验处判红并带出后端原因。）
   const deleted = await uiDeleteRow(page, listRoute, { column: 'name', value: rowName });
-  console.log(
-    `[P0-删除-${label}] UI 删除结果: ${deleted ? '✅成功' : '❌失败（可能被业务约束拒绝）'}`
-  );
-  // 记录结果：删除可能被引用约束拒绝（如产品被 BOM 引用），不断言硬失败
-  expect(typeof deleted).toBe('boolean');
+  console.log(`[P0-删除-${label}] UI 删除结果: ✅（失败路径已由 uiDeleteRow 抛错判红）`);
+  expect(
+    deleted,
+    `[P0-删除-${label}] 自建行 ${rowName} 的 UI 删除必须真实完成（点中行内删除→确认→行消失），` +
+      `uiDeleteRow 现在只可能返回 true 或抛错，实际返回=${deleted}`
+  ).toBe(true);
 }
 
 /**

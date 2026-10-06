@@ -11,6 +11,7 @@ import {
 import {
   safeGoto,
   findTableRow,
+  findRowAction,
   waitForDialog,
   submitDialog,
   formItemByExactLabel,
@@ -316,7 +317,14 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     await safeGoto(page, '/sales-contract');
     const row = await findTableRow(page, contractNo, 1, contractNo);
     expect(row, `[68-03] 列表应定位到自建合同 ${contractNo}`).toBeTruthy();
-    await row!.getByRole('button', { name: '编辑' }).first().click();
+    // 操作列 fixed:'right'（SalesContractTable.vue:176-183）被 el-table-v2 拆层渲染：
+    // 「编辑」按钮在 .el-table-v2__right 覆盖层行内，主表行作用域永远 0 命中——
+    // 判责 #4677 68-03 的 click 30s 超时根因。改用 findRowAction 做
+    // "主表序号（含合同号=该行真实存在）↔ 覆盖层同序号行（按钮所在）"对齐定位。
+    const editBtn = await findRowAction(page, contractNo, r =>
+      r.getByRole('button', { name: '编辑' })
+    );
+    await editBtn.click();
     const dlg = await waitForDialog(page);
 
     const dateInput = inputOf(dlg, '交货日期');

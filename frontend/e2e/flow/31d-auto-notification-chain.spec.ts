@@ -103,14 +103,37 @@ async function createActiveCustomer(
 }
 
 test.describe.serial('P0 自动通知全链路：业务动作→通知产生验证', () => {
+  // 判责 #4677 31d-A（180s 全被 ensureTestEntities UI 种子吃光、通知链本体一步未跑，
+  // out_13/backend.log 零"活跃客户"痕迹）：重型种子收口到 describe 级 beforeAll 一次执行，
+  // 拥有独立的 hook 超时预算（config 级），不再挤占每个用例 180s 的"触发→等待→断言"预算。
+  // 种子真实失败会在 beforeAll 处显式抛错判红（helpers 步骤 11 已取消静默放行），
+  // 用例体内再按消费字段做前置断言兜底——覆盖性与断言强度均不降。
+  test.beforeAll(async ({ browser }) => {
+    // 新 context 自动注入 globalSetup 的 storageState（playwright.config.ts:66）；
+    // loginViaUI 先探测会话，失效才走 UI 登录。EntityContext 是模块级单例，
+    // .serial 下本文件所有用例同 worker，种子结果直接复用。
+    const seedContext = await browser.newContext();
+    const seedPage = await seedContext.newPage();
+    try {
+      await loginViaUI(seedPage);
+      await ensureTestEntities(seedPage);
+    } finally {
+      await seedContext.close();
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
 
   test('A. 订单提交→创建人收到提交通知', async ({ page }) => {
     test.setTimeout(180_000);
-    await ensureTestEntities(page);
     const ctx = getCtx();
+    // beforeAll 种子前置断言：缺产品即种子退化，判红而不是在缺前置上空跑通知断言
+    expect(
+      ctx.productIds[0],
+      '[31d-A] beforeAll 种子未产出产品 id（ctx.productIds 为空），订单行造数前置不成立'
+    ).toBeTruthy();
     // 先记录已有通知数（基线）
     const before = await listNotifications(page);
     console.warn(`[31d-A] 提交前未读通知 ${before.length} 条`);
@@ -170,8 +193,11 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('B. 订单审批→创建人收到审批通知', async ({ page }) => {
     test.setTimeout(180_000);
-    await ensureTestEntities(page);
     const ctx = getCtx();
+    expect(
+      ctx.productIds[0],
+      '[31d-B] beforeAll 种子未产出产品 id（ctx.productIds 为空），订单行造数前置不成立'
+    ).toBeTruthy();
     // 创建+提交订单，再审批
     const customerId = await createActiveCustomer(page, 'B');
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
@@ -220,9 +246,12 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('C. 订单发货→创建人收到发货通知', async ({ page }) => {
     test.setTimeout(180_000);
-    await ensureTestEntities(page);
     const ctx = getCtx();
-    // 产品取 ensureTestEntities 真实保障的实体；客户自建独立 active（原实现复用
+    expect(
+      ctx.productIds[0],
+      '[31d-C] beforeAll 种子未产出产品 id（ctx.productIds 为空），订单行造数前置不成立'
+    ).toBeTruthy();
+    // 产品取 beforeAll ensureTestEntities 真实保障的实体；客户自建独立 active（原实现复用
     // ctx.customerId/硬编码 id，易被软删除污染或不随空库漂移，致提交守卫拦截）
     const customerId = await createActiveCustomer(page, 'C');
     const r = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
@@ -347,8 +376,11 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
   test('F. 付款申请提交→admin/manager审批人收到通知', async ({ page }) => {
     test.setTimeout(180_000);
-    await ensureTestEntities(page);
     const ctx = getCtx();
+    expect(
+      ctx.supplierId,
+      '[31d-F] beforeAll 种子未产出供应商 id（ctx.supplierId 缺失），应付单前置不成立'
+    ).toBeTruthy();
     // 原实现 supplier_id 硬编码为 1，CI 空库中依赖种子恰好存在该供应商
     // 付款申请必须挂在真实应付单上：后端 CreateApPaymentRequest.items 为必填，
     // 且校验应付单非 DRAFT/CANCELLED、apply_amount 不超过未付金额。
