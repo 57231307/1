@@ -115,10 +115,10 @@ export interface ProcessNodeCreateDto {
   planned_end_date?: string;
 }
 
-/** 更新工艺节点请求（对齐后端 UpdateProcessNodeDto） */
+/** 更新工艺节点请求（对齐后端 UpdateProcessNodeDto）；
+ * 操作人由服务端按会话（AuthContext.user_id）派生并落库留痕，请求体不承载 operator_id */
 export interface ProcessNodeUpdateDto {
   status?: string;
-  operator_id?: number;
   actual_start_date?: string;
   actual_end_date?: string;
   notes?: string;
