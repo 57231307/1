@@ -40,10 +40,12 @@
           clearable
           @change="handleSearch"
         >
-          <!-- 采购侧写入方状态全集 = price_approval 三值 pending/approved/inactive
-               （词表权威 backend/src/models/status/sales.rs:173-185；写入方
-               purchase_price_service.rs:148/:184/:245-252；DB CHECK chk_purchase_price_status 同集，
-               migration/src/domain/price_vocab_check/mod.rs:102）⇒ 下拉与值域恰等，无死选项 -->
+          <!-- 状态词表权威 = backend/src/models/status/sales 的 price_approval 模块；写入方
+               purchase_price_service：create_price 写 PENDING、approve_price 写 APPROVED、
+               reject_price 写 REJECTED、update_price 按 ALL 白名单透传（含 INACTIVE）；
+               DB CHECK chk_purchase_price_status 同集（migration/src/domain/price_vocab_check
+               施加，后继 m0080 扩 REJECTED）⇒ 本下拉仅提供
+               PENDING/APPROVED/INACTIVE 三值选项 -->
           <el-option :label="t('purchasePrice.statusLabels.pending')" value="pending" />
           <el-option :label="t('purchasePrice.statusLabels.approved')" value="approved" />
           <el-option :label="t('purchasePrice.statusLabels.inactive')" value="inactive" />

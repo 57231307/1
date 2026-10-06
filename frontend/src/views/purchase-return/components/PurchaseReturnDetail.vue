@@ -115,7 +115,7 @@ import { getStatusType, getStatusText } from '../composables/prRtnFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 无值时的规范空态占位（与仓库既有明细空态同口径，见 PurchaseViewDialog.vue:100）
+// 无值时的规范空态占位（与采购详情对话框 PurchaseViewDialog 明细空态同口径：无值显示 '-'）
 const EMPTY_TEXT = '-';
 
 const props = defineProps<{

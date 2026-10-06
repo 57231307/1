@@ -31,8 +31,8 @@ export interface PurchaseOrder {
   notes: string | null;
   /**
    * 审批理由两键（后端 PurchaseOrderDto 补键中，与报价单域同范式）：DB 真实列
-   * purchase_orders.approval_reason / purchase_orders.rejected_reason 均 Option<String>
-   * （models/purchase_order.rs:108,111），出参键恒存在、无值即 null。
+   * purchase_orders.approval_reason / purchase_orders.rejected_reason 在
+   * models/purchase_order 中均 Option<String>，出参键恒存在、无值即 null。
    * 前端如实声明 string | null（不给「缺键」留 undefined 空间），回显只读原文，
    * 禁止 `?? ''` 之类兜底把「字段缺失」与「无值」混成一谈。
    */

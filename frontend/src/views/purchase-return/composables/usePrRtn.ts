@@ -324,7 +324,8 @@ export function usePrRtn() {
    * 与 quotation copy 同构：加载源单数据 → 以新建态预填 → 保存走 POST 建新单
    *
    * 明细口径（契约以出参为准）：GET /purchase/inspections/{id}/items 直接序列化
-   * `purchase_inspection_item::Model`（backend/src/services/purchase_inspection_service.rs:323），
+   * `purchase_inspection_item::Model`（backend/src/services/purchase_inspection_service
+   * 的 list_inspection_items 直接序列化实体），
    * 业务列只有 product_id / item_name / qualified_quantity / unqualified_quantity / remark，
    * 没有 failed_quantity / passed_quantity / product_name / defect_reason 这些键
    * （历史前端按它们取值，恒 undefined → `undefined > 0` 恒 false → 明细永远预填不出行，

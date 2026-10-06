@@ -75,7 +75,7 @@ export function usePi() {
 
   // 统计卡消费契约（服务端聚合，四值不在前端重算）：
   // 1) 数据源：GET /purchase/inspections/stats，出参四键 total/pending/passed/failed
-  //    与后端 DTO PurchaseInspectionStats（models/purchase_inspection.rs:72-83）逐键对齐，
+  //    与后端 DTO PurchaseInspectionStats（models/purchase_inspection 内定义）逐键对齐，
   //    均为整数计数（u64）；partial 归入 failed 的分桶裁定在服务端与写入词表同源。
   // 2) 同参数同刷新：触发点为 watch(tableData)——useTableApi 每次列表取数成功都会把
   //    响应行集以**新数组**写回 data.value（含初始加载、翻页自动重载、handleQuery/
@@ -90,7 +90,8 @@ export function usePi() {
   //    不做 ?? 0 兜底）→ stats 置 null（卡片渲染「—」明确留空）+ msg.error('loadFailed')
   //    即时提示 + logger 细节；列表自身取数失败时 tableData 不更新 → stats 与表格行同步
   //    保持旧数据，两侧陈旧一致，不会出现卡片新表格旧的单边刷新。
-  // 5) 已知恒等式事实（非缺陷，服务端文书 purchase_inspection_service.rs:426-429）：
+  // 5) 已知恒等式事实（非缺陷，分桶口径见服务端 purchase_inspection_service 的
+  //    inspection_stats 文书，partial 归入 failed）：
   //    pending+passed+failed===total 在当前写入规则下成立但无 DB 约束兜底，
   //    词表外异常行只进 total——四卡之和偶小于总数时差值即异常行数，如实呈现不掩盖。
   let statsSeq = 0;

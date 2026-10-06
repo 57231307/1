@@ -176,7 +176,7 @@ async function saveItem(item: PurchaseOrderItem) {
         <el-descriptions-item :label="t('purchase.viewDlg.remark')" :span="2">{{
           data.notes
         }}</el-descriptions-item>
-        <!-- 审批结论回显：与报价单域同范式（quotations/approval.vue:56-69）——后端出参
+        <!-- 审批结论回显：与报价单域同范式（见 quotations/approval.vue 的审批结论回显）——后端出参
              （PurchaseOrderDto 的 approval_reason/rejected_reason，Option<String> 键恒存在）
              有值才出行；无值（null）整行不出、不补「无/暂无/未提供」占位文案（那属编造），
              更不做 ?? '' 兜底（会把缺键与无值混成一谈）；标签复用既有双语键 -->

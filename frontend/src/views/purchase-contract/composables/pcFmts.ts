@@ -5,7 +5,7 @@
  * 状态词表以写入方为准：建单写 contract::DRAFT，审批通过 draft→ACTIVE
  * （purchase_contract_service.rs::approve），审批拒绝 draft→REJECTED（::reject，与取消 cancelled
  * 语义不同：cancelled 是作废、rejected 是审批不通过），取消 draft|active→CANCELLED（::cancel）。
- * 词表权威 models/status/bpm_crm_contract.rs:35-50 的 contract = draft/active/cancelled/rejected
+ * 词表权威 = models/status/bpm_crm_contract 的 contract 模块（contract::ALL 四值）
  * ——历史前端映射里的 pending/completed 后端永不产生，门控按钮恒不可达。
  * 本模块以四态原值为比较对象，未知 token 抛错并记日志，文案走 i18n 键（purchaseContract.status.*）。
  */

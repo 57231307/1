@@ -28,7 +28,7 @@ export type ReceiveItem = PurchaseOrderItem & {
   /**
    * 实收辅助数量（提交时映射到契约键 quantity_alt）：
    * 后端 CreateReceiptItemRequest.quantity_alt 为**非 Option 必填**十进制
-   * （backend/src/services/purchase_receipt_dto.rs:168），缺键即 serde 反序列化拒绝；
+   * （backend/src/services/purchase_receipt_dto 内定义），缺键即 serde 反序列化拒绝；
    * 该列为 NOT NULL 且累加进 received_quantity_alt/total_quantity_alt，
    * 未录入不得塌成 0 伪造成「实收为 0」的假量（0 只允许是用户显式输入的实测值）。
    * 命名与主量 receive_quantity 对齐：订单行自带的 quantity_alt 是**订购**辅量
@@ -92,10 +92,10 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
   /**
    * 打开收货对话框
    *
-   * 明细必须回源：列表出参 = `PurchaseOrderDto`（backend/src/services/po/order.rs:19），该 DTO 不含
-   * items 键（明细只在 `get_order` 详情里由 handler 单查 purchase_order_item 并 LEFT JOIN products
-   * 补 product_name/product_code 后挂到 order_json["items"]，
-   * backend/src/handlers/purchase_order_handler.rs:100-127）。此前直接用列表行 row.items，
+   * 明细必须回源：列表出参 = `PurchaseOrderDto`（backend/src/services/po/order 内定义），
+   * 该 DTO 不含 items 键（明细只在 `get_order` 详情里由 handler 单查 purchase_order_item
+   * 并 LEFT JOIN products 补 product_name/product_code 后挂到 order_json["items"]，
+   * 见 backend/src/handlers/purchase_order_handler）。若直接用列表行 row.items，
    * 该键恒不存在 → 对话框明细表恒 0 行 → 「本次收货」输入框根本不渲染，收货无法录入。
    */
   const handleReceive = async (row: PurchaseOrder) => {
@@ -168,8 +168,9 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
    *   - quantity_alt = 收货人实录入参的辅助数量（submitReceive 已按创建契约必填键拦截未录入行，
    *     非空断言仅为类型收窄，禁止 ?? 0 把未采集伪装成实收 0）。
    * 维度采集面只补批次+辅量，不造色号/缸号输入：后端建单期维度校验无条件强制的只有
-   * material_id 与 batch_no（backend/src/services/purchase_receipt_ops/crud.rs:112-137
-   * validate_receipt_item_dimensions），色号/缸号委托 validate_fabric_trace（同文件 :140-147）
+   * material_id 与 batch_no（backend/src/services/purchase_receipt_ops/crud 的
+   * validate_receipt_item_dimensions），色号/缸号由同文件委托的
+   * inv::fabric_class::validate_fabric_trace
    * 按布种判定——色号为空即白坯、免缸号，是契约内的合法录入口径；染色布四维全量录入的
    * 采集面在正规入库页（/purchase-receipt），本快录对话框不重复造半套维度输入诱导假维度。
    * 物料主数据缺失时抛错，交由 submitReceive 拦截并暴露，禁止拼 P{id}/'米' 伪值提交。
@@ -188,7 +189,8 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
         material_name: product.product_name,
         batch_no: item.batch_no.trim(),
         quantity: item.receive_quantity,
-        // 创建契约必填非 Option 键（backend/src/services/purchase_receipt_dto.rs:168）；
+        // 创建契约必填非 Option 键（backend/src/services/purchase_receipt_dto 的
+        // CreateReceiptItemRequest）；
         // 未录入行已由 submitReceive 拦下，此处非空断言是类型收窄而非兜底
         quantity_alt: item.receive_quantity_alt!,
         unit_master: product.unit,
@@ -226,7 +228,7 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       return;
     }
     // 辅量必填拦截（与正规入库页 usePrcProc 同口径）：创建契约 quantity_alt 为非 Option 必填键
-    // （backend/src/services/purchase_receipt_dto.rs:168），本对话框未采集「省键」三态的能力，
+    // （backend/src/services/purchase_receipt_dto 的 CreateReceiptItemRequest），本对话框未采集「省键」三态的能力，
     // 未录入必须本地显式拦下提示，而不是让后端缺键 422 打哑谜；
     // 「实收为 0」的合法口径是用户显式输入 0，不是留空塌成默认值。
     const missingAltIndex = validItems.findIndex(

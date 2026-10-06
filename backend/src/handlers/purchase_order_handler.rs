@@ -602,7 +602,8 @@ pub struct OrderQueryParams {
 }
 
 /// 拒绝订单请求：长度上限与列型对齐——purchase_orders.rejected_reason 为
-/// VARCHAR(255)（migration system/mod.rs:344），超 255 在库侧必报错，应用侧先行 400
+/// VARCHAR(255)（权威 DDL 在 backend/migration 的 system 域 ALTER TABLE "purchase_orders"），
+/// 超 255 在库侧必报错，应用侧先行 400
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct RejectOrderRequest {

@@ -90,7 +90,7 @@
               />
               <!--
                 辅量（quantity_alt）：面料行业按米点/公斤双计量收货的实测辅量。
-                DB 可空列（models/purchase_receipt_item.rs:30 Option<Decimal>）——留空=未采集
+                DB 可空列（models/purchase_receipt_item 的 quantity_alt: Option<Decimal>）——留空=未采集
                 （undefined，不得 ?? 0 伪装成实测量）；更新契约行留空按三态处理（usePrcProc）。
               -->
               <el-input-number

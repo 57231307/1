@@ -426,8 +426,8 @@ pub async fn recalculate_receipt_total(
 // 请求 DTO
 // =====================================================
 
-/// 日期查询参数按 `%Y-%m-%d` 严格解析（本仓同款惯例：
-/// `budget_management_handler.rs:408-409`、`tracking_handler.rs:235-247`）。
+/// 日期查询参数按 `%Y-%m-%d` 严格解析（本仓同款惯例见
+/// budget_management_handler 与 tracking_handler 的日期入参解析）。
 /// 为什么不把 DTO 字段直接写成 `Option<NaiveDate>`：`axum::Query` 的类型化反序列化
 /// 失败走 QueryRejection，出参是纯文本 400、不经过 `AppError` 信封（本仓未覆盖
 /// Rejection 响应，见 `handlers_query_param_coercion_test.rs` 对拒绝体的文本断言），

@@ -271,8 +271,8 @@ export function usePrcProc(cb: PrcCallbacks) {
     }
 
     // 辅量（quantity_alt）录入拦截：创建契约中该键为**非 Option 必填**
-    // （backend/src/services/purchase_receipt_dto.rs:168 `pub quantity_alt: Decimal`，
-    // 缺键=反序列化直接拒绝），故新建单行与编辑态追加分录行必须由操作人实测录入——
+    // （backend/src/services/purchase_receipt_dto 的 CreateReceiptItemRequest：
+    // `pub quantity_alt: Decimal` 非 Option，缺键=反序列化直接拒绝），故新建单行与编辑态追加分录行必须由操作人实测录入——
     // 未采集不得塌成 0（0 会被累加进 received_quantity_alt/total_quantity_alt 成为假量，
     // 正是本批要消灭的辅量断链镜像）。三态中的「留空省略键」仅更新契约可表达，见 mapItemUpdate。
     const isCreateRow = (it: ReceiptItem) => !cb.form.id || it.id == null;
