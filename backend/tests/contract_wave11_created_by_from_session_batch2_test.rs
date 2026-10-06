@@ -11,7 +11,7 @@
 //! - `POST /process-routes`、`/flow-cards`、`/flow-cards/steps/start`、
 //!   `/flow-cards/steps/{id}/rework`、`/flow-cards/feedbacks`；
 //!   动作端点 `POST /flow-cards/feedbacks/{id}/handle` 的处理人列 `handled_by`
-//!   同族收会话（看板 #328 同族：处理人=调用处理端点的人，请求体不再承载该字段）。
+//!   同族收会话（处理人=调用处理端点的人，与建单人取会话同族，请求体不再承载该字段）。
 //! 月末分摊 `POST /energy-allocations/monthly` 的落库分支依赖跨域工时数据，
 //! 行为面由同族建单锁覆盖，本文件对其入参 DTO 出形态锁。
 //!
@@ -688,7 +688,7 @@ async fn flow_card_family_created_by_comes_from_session_not_body() {
 }
 
 // =========================================================
-// 域 6 追加：处理反馈单动作端点 —— handled_by 收会话（看板 #328 同族）
+// 域 6 追加：处理反馈单动作端点 —— handled_by 收会话
 // =========================================================
 
 /// `POST /flow-cards/feedbacks/{id}/handle` 的 A/B 双注入活体锁：
