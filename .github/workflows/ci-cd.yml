@@ -338,6 +338,15 @@ jobs:
             echo "::error::格式修正已提交但推送失败（contents: write 权限或分支保护问题），修正未持久化，判失败"
             exit 1
           fi
+          # 内容级终检（真实门禁，非退出码复核）：脚本自枚举全部 .rs、去 CR 后逐批
+          # rustfmt --check，以"真实 diff 计数 + 注入探针自检"双判据收口——探针不被
+          # 报出为未格式化、或实际校验文件数为 0，都会让脚本自身非零退出，杜绝
+          # "0 diff 其实是空操作"的假绿形态。与上方 cargo fmt 判定是叠加而非替换：
+          # 任一不过本 job 即红；逐文件点名在脚本 stdout（随 job 日志落盘）。
+          bash "$GITHUB_WORKSPACE/backend/scripts/check-rustfmt-content.sh" || {
+            echo "::error::内容级 rustfmt 终检未过（脚本输出含逐文件点名与检测力自检结果）"
+            exit 1
+          }
           exit 0
 
       - name: 上传报告
