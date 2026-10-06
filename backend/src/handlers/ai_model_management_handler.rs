@@ -39,11 +39,12 @@ pub struct LimitQuery {
 /// 创建模型版本
 pub async fn create_model_version(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateModelVersionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // changed_by（登记人）取会话身份，请求体不承载该列。
     let service = AiModelManagementService::new(state.db.clone());
-    let model = service.create_model_version(req).await?;
+    let model = service.create_model_version(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -72,24 +73,30 @@ pub async fn get_active_model_version(
 /// 审批模型版本
 pub async fn approve_model_version(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(version_id): Path<i32>,
     Json(req): Json<ApproveModelVersionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // approved_by（审批人）唯一来源是会话身份，请求体不承载审批身份。
     let service = AiModelManagementService::new(state.db.clone());
-    let model = service.approve_model_version(version_id, req).await?;
+    let model = service
+        .approve_model_version(version_id, req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
 /// 修改模型状态
 pub async fn change_model_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(version_id): Path<i32>,
     Json(req): Json<ChangeModelStatusRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // changed_by（变更人）取会话身份，请求体不承载该列。
     let service = AiModelManagementService::new(state.db.clone());
-    let model = service.change_model_status(version_id, req).await?;
+    let model = service
+        .change_model_status(version_id, req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

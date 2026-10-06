@@ -25,8 +25,8 @@ use crate::utils::error::AppError;
 // re-export DTOs 与 ops 子模块，保持外部 `use crate::services::lab_dip_service::{...}` 路径不变
 pub use crate::services::lab_dip_ops::{
     CreateLabDipRequestRequest, CreateLabDipSampleRequest, CreateResampleRequest,
-    IssueTechCardRequest, LabDipRequestQuery, RecordMatchingResultRequest,
-    RecordResampleResultRequest, UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
+    LabDipRequestQuery, RecordMatchingResultRequest, RecordResampleResultRequest,
+    UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
 };
 
 /// 色差等级阈值（真实业务：4-5 级为 OK，<4 级为重打）

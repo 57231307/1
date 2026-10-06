@@ -15,7 +15,7 @@ use crate::models::production_recipe_addition::{
 use crate::models::status::production_recipe as recipe_status;
 use crate::models::status::production_recipe_addition as addition_status;
 use crate::services::production_recipe_service::{
-    ApproveRecipeRequest, CreateProductionRecipeAdditionRequest, ProductionRecipeAdditionQuery,
+    CreateProductionRecipeAdditionRequest, ProductionRecipeAdditionQuery,
     ProductionRecipeAdditionService,
 };
 // V15 P0-S01：行级数据权限工具
@@ -141,11 +141,8 @@ impl ProductionRecipeAdditionService {
     }
 
     /// 审核加料处方（draft → approved）
-    pub async fn approve(
-        &self,
-        id: i32,
-        req: ApproveRecipeRequest,
-    ) -> Result<AdditionModel, AppError> {
+    /// approved_by 是审批人审计列，由 handler 从服务端会话（AuthContext.user_id）传入。
+    pub async fn approve(&self, id: i32, approved_by: i32) -> Result<AdditionModel, AppError> {
         let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, addition_status::APPROVED)?;
 
@@ -159,7 +156,7 @@ impl ProductionRecipeAdditionService {
 
         let mut active: AdditionActiveModel = model.into();
         active.status = Set(addition_status::APPROVED.to_string());
-        active.approved_by = Set(Some(req.approved_by));
+        active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;

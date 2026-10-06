@@ -196,8 +196,6 @@ pub struct RecordMatchingResultRequest {
     /// 色差等级（4-5 级为 OK，<4 级为重打）
     pub color_difference_grade: i32,
     pub color_difference_value: Option<Decimal>,
-    /// 审核人
-    pub approved_by: Option<i32>,
     pub approval_comment: Option<String>,
 }
 
@@ -228,13 +226,8 @@ pub struct CreateResampleRequest {
 pub struct RecordResampleResultRequest {
     pub color_difference_grade: i32,
     pub color_difference_value: Option<Decimal>,
-    pub reviewed_by: Option<i32>,
     pub review_comment: Option<String>,
 }
 
-/// 染色技术卡开具请求
-#[derive(Debug, Clone, Deserialize)]
-pub struct IssueTechCardRequest {
-    /// 开卡人（研发组长）
-    pub issued_by: i32,
-}
+// 对色审核人 / 复样复核人 / 技术卡开卡人都是「本次动作的操作人」审计列，
+// 唯一来源是服务端会话 AuthContext.user_id，因此请求体不承载这三类身份字段。

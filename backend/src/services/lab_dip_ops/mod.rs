@@ -18,6 +18,6 @@ pub mod types;
 // re-export DTOs，facade 通过 `pub use` 二次 re-export 保持外部引用路径不变
 pub use types::{
     CreateLabDipRequestRequest, CreateLabDipSampleRequest, CreateResampleRequest,
-    IssueTechCardRequest, LabDipRequestQuery, RecordMatchingResultRequest,
-    RecordResampleResultRequest, UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
+    LabDipRequestQuery, RecordMatchingResultRequest, RecordResampleResultRequest,
+    UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
 };

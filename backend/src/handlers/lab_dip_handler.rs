@@ -15,9 +15,8 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::{lab_dip_request, lab_dip_resample, lab_dip_sample};
 use crate::services::lab_dip_service::{
     CreateLabDipRequestRequest, CreateLabDipSampleRequest, CreateResampleRequest,
-    IssueTechCardRequest, LabDipRequestService, LabDipResampleService, LabDipSampleService,
-    RecordMatchingResultRequest, RecordResampleResultRequest, UpdateLabDipRequestRequest,
-    UpdateLabDipSampleRequest,
+    LabDipRequestService, LabDipResampleService, LabDipSampleService, RecordMatchingResultRequest,
+    RecordResampleResultRequest, UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -304,12 +303,13 @@ pub async fn delete_sample(
 /// POST /api/v1/erp/lab-dip/samples/:id/matching - 记录对色结果；真实业务：色差 4-5 级为 matched（OK），<4 级为 not_matched（重打）
 pub async fn record_matching_result(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<RecordMatchingResultRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
+    // 对色审核人取会话身份（AuthContext.user_id），请求体不承载审批身份。
     let updated = sample_service(&state)
-        .record_matching_result(id, req)
+        .record_matching_result(id, req, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
@@ -355,11 +355,14 @@ pub async fn create_resample(
 /// POST /api/v1/erp/lab-dip/resamples/:id/result - 记录复样结果；真实业务：色差 4-5 级方可投产（passed），<4 级为 failed
 pub async fn record_resample_result(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<RecordResampleResultRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let updated = resample_service(&state).record_result(id, req).await?;
+    // 复样复核人取会话身份，请求体不承载复核身份。
+    let updated = resample_service(&state)
+        .record_result(id, req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "复样结果记录成功",
@@ -369,11 +372,14 @@ pub async fn record_resample_result(
 /// POST /api/v1/erp/lab-dip/resamples/:id/tech-card - 开具染色技术卡；真实业务：复样通过后由研发组长开染色技术卡，附配方表+核可样+复色样
 pub async fn issue_tech_card(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<IssueTechCardRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let updated = resample_service(&state).issue_tech_card(id, req).await?;
+    // 开卡人（研发组长）取会话身份；端点无必填报文字段 ⇒ 不绑定 body 提取器，
+    // 复样通过门与重复开卡门都在 service 层。
+    let updated = resample_service(&state)
+        .issue_tech_card(id, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "染色技术卡开具成功",

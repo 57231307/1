@@ -21,6 +21,7 @@ use crate::services::dye_recipe_service::{
     CreateDyeRecipeRequest, DyeRecipeQuery, DyeRecipeService, UpdateDyeRecipeRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
@@ -40,19 +41,11 @@ pub struct DyeRecipeListQuery {
     pub download_token: Option<String>,
 }
 
-/// 审核请求体
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
-pub struct ApproveRecipeRequest {
-    pub approved_by: i32,
-}
-
-/// 创建新版本请求体
+/// 创建新版本请求体（仅 remarks 选填；建版人身份取 AuthContext.user_id，不由请求体提供）
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateVersionRequest {
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 从 AppState 构造 DyeRecipeService（每个请求构造轻量实例，无状态）
@@ -126,27 +119,32 @@ pub async fn delete_dye_recipe(
     Ok(Json(ApiResponse::success_with_message((), "配方删除成功")))
 }
 
+/// POST /api/v1/erp/production/dye-recipes/:id/approve - 审核配方
+// 审批人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载审批身份。
+// 端点无必填报文字段，故不绑定 body 提取器：缺体是合法输入，状态门在 service 层。
 pub async fn approve_recipe(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
-    Json(req): Json<ApproveRecipeRequest>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let updated = service(&state).approve(id, req.approved_by).await?;
+    let updated = service(&state).approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方审核成功",
     )))
 }
 
+/// POST /api/v1/erp/production/dye-recipes/:id/new-version - 基于已审核配方创建新版本
+// 新版本行的建版人同样取会话；备注 remarks 选填 ⇒ 体本身选填（OptionalJson 语义表），
+// 缺体合法放行到服务层状态门，不得在解码层被吞成 400。
 pub async fn create_new_version(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
-    Json(req): Json<CreateVersionRequest>,
+    auth: AuthContext,
+    OptionalJson(req): OptionalJson<CreateVersionRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
     let created = service(&state)
-        .create_new_version(id, req.remarks, req.created_by)
+        .create_new_version(id, req.and_then(|r| r.remarks), auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
         created,

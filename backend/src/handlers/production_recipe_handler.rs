@@ -18,9 +18,9 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::production_recipe::{self, RecipeMaterialItem};
 use crate::models::production_recipe_addition;
 use crate::services::production_recipe_service::{
-    ApproveRecipeRequest, CalculateAmountsRequest, CreateProductionRecipeAdditionRequest,
-    CreateProductionRecipeRequest, ProductionRecipeAdditionService, ProductionRecipeQuery,
-    ProductionRecipeService, UpdateProductionRecipeRequest,
+    CalculateAmountsRequest, CreateProductionRecipeAdditionRequest, CreateProductionRecipeRequest,
+    ProductionRecipeAdditionService, ProductionRecipeQuery, ProductionRecipeService,
+    UpdateProductionRecipeRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -153,13 +153,14 @@ pub async fn delete(
 }
 
 /// POST /api/v1/erp/production-recipes/:id/approve - 审核大货处方（draft → approved）；真实业务：审核后自动建立生产领用单据
+// 审批人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载审批身份。
+// 端点无必填报文字段 ⇒ 不绑定 body 提取器：缺体合法，状态门在 service 层。
 pub async fn approve(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<ApproveRecipeRequest>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let updated = recipe_service(&state).approve(id, req).await?;
+    let updated = recipe_service(&state).approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "大货处方单审核成功",
@@ -267,13 +268,13 @@ pub async fn get_addition(
 }
 
 /// POST /api/v1/erp/production-recipes/additions/:id/approve - 审核加料处方（draft → approved）
+// 同上：加料审批人身份取会话，不接请求体身份，端点无必填报文字段 ⇒ 无 body 提取器。
 pub async fn approve_addition(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<ApproveRecipeRequest>,
 ) -> Result<Json<ApiResponse<production_recipe_addition::Model>>, AppError> {
-    let updated = addition_service(&state).approve(id, req).await?;
+    let updated = addition_service(&state).approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "加料处方单审核成功",

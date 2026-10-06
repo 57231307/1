@@ -232,6 +232,7 @@ impl LabDipSampleService {
         &self,
         id: i32,
         req: RecordMatchingResultRequest,
+        approved_by: i32,
     ) -> Result<SampleModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.matching_result != sample_status::PENDING {
@@ -259,7 +260,7 @@ impl LabDipSampleService {
         active.color_difference_grade = Set(Some(req.color_difference_grade));
         active.color_difference_value = Set(req.color_difference_value);
         active.matching_result = Set(result.to_string());
-        active.approved_by = Set(req.approved_by);
+        active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
         active.approval_comment = Set(req.approval_comment);
         active.updated_at = Set(now);

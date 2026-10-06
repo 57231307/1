@@ -111,6 +111,7 @@ impl CustomOrderProcessService {
         &self,
         node_id: i64,
         dto: AdvanceNodeDto,
+        operator_id: i32,
     ) -> Result<process_node::Model, ProcessError> {
         let existing = NodeEntity::find_by_id(node_id)
             .one(&*self.db)
@@ -134,7 +135,7 @@ impl CustomOrderProcessService {
 
         let mut active: NodeActive = existing.clone().into();
         active.status = Set(new_status.to_string());
-        active.operator_id = Set(Some(dto.operator_id));
+        active.operator_id = Set(Some(operator_id));
         active.updated_at = Set(Utc::now());
 
         let now = Utc::now();
@@ -161,7 +162,7 @@ impl CustomOrderProcessService {
             id: Default::default(),
             process_node_id: Set(node_id),
             action: Set(dto.action),
-            operator_id: Set(Some(dto.operator_id)),
+            operator_id: Set(Some(operator_id)),
             before_status: Set(Some(existing.status)),
             after_status: Set(Some(new_status.to_string())),
             log_time: Set(Utc::now()),
@@ -178,12 +179,13 @@ impl CustomOrderProcessService {
         &self,
         node_id: i64,
         dto: AddProcessLogDto,
+        operator_id: i32,
     ) -> Result<process_log::Model, ProcessError> {
         let active = LogActive {
             id: Default::default(),
             process_node_id: Set(node_id),
             action: Set(dto.action),
-            operator_id: Set(Some(dto.operator_id)),
+            operator_id: Set(Some(operator_id)),
             before_status: Set(dto.before_status),
             after_status: Set(dto.after_status),
             log_time: Set(Utc::now()),

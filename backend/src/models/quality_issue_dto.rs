@@ -45,7 +45,6 @@ pub struct ReportQualityIssueDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResolveQualityIssueDto {
     pub resolution: String,
-    pub operator_id: i64,
 }
 
 /// 质量异常详情

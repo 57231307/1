@@ -434,11 +434,13 @@ impl DyeRecipeService {
     }
 
     /// 创建新版本（仅已审核配方可建新版本）
+    /// created_by 为建版人，由 handler 从服务端会话取（AuthContext.user_id），
+    /// 不接受请求体身份，故签名是必填 i32 而非 Option。
     pub async fn create_new_version(
         &self,
         id: i32,
         remarks: Option<String>,
-        created_by: Option<i32>,
+        created_by: i32,
     ) -> Result<DyeRecipeModel, AppError> {
         let model = self.get_by_id(id).await?;
         Self::validate_can_create_version(model.status.as_deref())?;
@@ -469,7 +471,7 @@ impl DyeRecipeService {
             approved_by: Set(None),
             approved_at: Set(None),
             remarks: Set(remarks),
-            created_by: Set(created_by),
+            created_by: Set(Some(created_by)),
             created_at: Set(crate::utils::date_utils::utc_now_fixed()),
             updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
         };

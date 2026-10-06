@@ -42,7 +42,6 @@ pub struct UpdateProcessNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AdvanceNodeDto {
     pub action: String,
-    pub operator_id: i32,
     pub notes: Option<String>,
     pub attachments: Option<Vec<String>>,
 }
@@ -51,7 +50,6 @@ pub struct AdvanceNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AddProcessLogDto {
     pub action: String,
-    pub operator_id: i32,
     pub before_status: Option<String>,
     pub after_status: Option<String>,
     pub log_content: Option<String>,

@@ -186,6 +186,7 @@ impl CustomOrderQualityService {
         &self,
         id: i64,
         dto: ResolveQualityIssueDto,
+        operator_id: i32,
     ) -> Result<quality_issue::Model, AppError> {
         // P2-6 修复（批次 84 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
@@ -214,7 +215,7 @@ impl CustomOrderQualityService {
             &txn,
             "quality_issue",
             active,
-            Some(dto.operator_id as i32),
+            Some(operator_id),
         )
         .await?;
         txn.commit().await?;

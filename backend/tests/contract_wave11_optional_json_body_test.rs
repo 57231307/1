@@ -252,13 +252,15 @@ async fn absent_body_on_requisition_approve_hits_real_state_machine_business_err
         db: std::sync::Arc::new(db),
         ..Default::default()
     };
-    // 路由按占位符注册（同真实 routes 形态），调用 URI 用具体 id
+    // 路由按占位符注册（同真实 routes 形态），调用 URI 用具体 id；
+    // approve 的审批人身份取 AuthContext.user_id，故此处必须注入会话（与 fresh_app 同口径）
     let app = Router::new()
         .route(
             "/chemical-requisitions/{id}/approve",
             post(chemical_handler::approve_requisition),
         )
-        .with_state(state);
+        .with_state(state)
+        .layer(from_fn_with_state(make_auth(), inject_auth));
     // 带 JSON 头 + 空体：必须命中 requisition.rs 的「仅 draft 可审批」状态门
     let (status, v) = call(
         &app,

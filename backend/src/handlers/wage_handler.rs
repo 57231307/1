@@ -261,22 +261,25 @@ pub async fn calculate_wage(
 }
 
 /// POST /api/v1/erp/wage-records/:id/confirm - 确认工资（draft → confirmed）
+// 确认人身份只认服务端会话；端点无必填报文字段，故不绑定 body 提取器
+// （状态门在服务层 confirm 内，缺体是合法输入）。
 pub async fn confirm_wage_record(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<OperatorRequest>,
 ) -> Result<Json<ApiResponse<wage_record::Model>>, AppError> {
-    let model = record_service(&state).confirm(id, req.operator_id).await?;
+    let model = record_service(&state).confirm(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
 /// POST /api/v1/erp/wage-records/:id/pay - 发放工资（confirmed → paid）
+// 同上：发放人身份取会话，不接受请求体 operator_id。
 pub async fn pay_wage_record(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<OperatorRequest>,
 ) -> Result<Json<ApiResponse<wage_record::Model>>, AppError> {
-    let model = record_service(&state).pay(id, req.operator_id).await?;
+    let model = record_service(&state).pay(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -287,12 +290,6 @@ pub async fn cancel_wage_record(
 ) -> Result<Json<ApiResponse<wage_record::Model>>, AppError> {
     let model = record_service(&state).cancel(id).await?;
     Ok(Json(ApiResponse::success(model)))
-}
-
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
-pub struct OperatorRequest {
-    pub operator_id: i32,
 }
 
 // ============================================================================

@@ -33,6 +33,7 @@ use crate::services::custom_order_process_service::CustomOrderProcessService;
 use crate::services::custom_order_quality_service::CustomOrderQualityService;
 use crate::services::custom_order_state_service::CustomOrderStateService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 // ----------------------------------------------------------------------
@@ -50,11 +51,11 @@ pub struct ListCustomOrdersQuery {
     pub keyword: Option<String>,
 }
 
-/// 推进请求体
+/// 推进请求体（推进备注选填）
+/// 操作人身份唯一来源是服务端会话 AuthContext.user_id，请求体不承载 operator_id。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdvanceRequest {
-    pub operator_id: i32,
     pub notes: Option<String>,
 }
 
@@ -404,14 +405,16 @@ pub async fn cancel_custom_order(
 
 /// POST /api/v1/erp/custom-orders/:id/advance - 推进到下一阶段
 pub async fn advance_custom_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<AdvanceRequest>,
+    OptionalJson(req): OptionalJson<AdvanceRequest>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
+    // 备注选填 ⇒ 体本身选填（OptionalJson 语义表：缺体/JSON 头空体都是合法输入），
+    // 状态门与门校验在 service 事务内执行。
     let service = CustomOrderStateService::from_state(&state);
     let updated = service
-        .advance(id, req.operator_id, req.notes)
+        .advance(id, auth.user_id, req.and_then(|r| r.notes))
         .await
         .map_err(state_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
@@ -487,13 +490,17 @@ pub async fn update_process_node(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes/:nid/advance - 推进节点
 pub async fn advance_process_node(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path((_oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AdvanceNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
+    // 节点推进的动作人取会话身份，同时写 process_log.operator_id 留痕。
     let service = CustomOrderProcessService::from_state(&state);
-    let node = service.advance_node(nid, dto).await.map_err(process_err)?;
+    let node = service
+        .advance_node(nid, dto, auth.user_id)
+        .await
+        .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
@@ -643,14 +650,15 @@ pub async fn list_quality_issues(
 
 /// PUT /api/v1/erp/custom-orders/issues/:id/resolve - 解决异常
 pub async fn resolve_quality_issue(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ResolveQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
     let service = CustomOrderQualityService::from_state(&state);
     // 批次 94 P2-15 修复：resolve_issue 返回类型改为 AppError，无需 map_err(quality_err) 转换
-    let issue = service.resolve_issue(id, dto).await?;
+    // 处理人取会话身份（写进 audit_log 的操作人），请求体不承载 operator_id。
+    let issue = service.resolve_issue(id, dto, auth.user_id).await?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,
@@ -750,13 +758,17 @@ pub async fn update_after_sales(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes/:nid/logs - 添加日志
 pub async fn add_node_log(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path((_oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AddProcessLogDto>,
 ) -> Result<Json<ApiResponse<ProcessLogInfo>>, AppError> {
+    // 日志的 operator_id 是「谁记的这条日志」，取会话身份。
     let service = CustomOrderProcessService::from_state(&state);
-    let log = service.add_log(nid, dto).await.map_err(process_err)?;
+    let log = service
+        .add_log(nid, dto, auth.user_id)
+        .await
+        .map_err(process_err)?;
     let attachments: Vec<String> = log
         .attachments
         .as_array()

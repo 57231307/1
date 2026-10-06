@@ -98,12 +98,6 @@ pub struct ProductionRecipeQuery {
     pub page_size: Option<u64>,
 }
 
-/// 审核请求
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApproveRecipeRequest {
-    pub approved_by: i32,
-}
-
 /// 用量计算请求（按浓度+布重+浴比计算各物料用量）
 #[derive(Debug, Clone, Deserialize)]
 pub struct CalculateAmountsRequest {

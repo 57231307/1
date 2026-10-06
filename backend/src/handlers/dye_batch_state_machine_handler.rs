@@ -14,6 +14,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::{
     dye_batch_lifecycle_log, dye_batch_operation, dye_batch_rework, dye_batch_state_rule,
 };
@@ -112,13 +113,6 @@ pub struct OperationListQuery {
     pub operation_type: Option<String>,
     pub target_batch_id: Option<i32>,
     pub keyword: Option<String>,
-}
-
-/// 审批回修单请求
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
-pub struct ApproveReworkRequest {
-    pub approved_by: i32,
 }
 
 // ============================================================================
@@ -315,12 +309,14 @@ pub async fn get_rework(
 }
 
 /// POST /api/v1/erp/dye-batch-reworks/:id/approve - 审批回修单（draft → approved）
+// 审批人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载审批身份。
+// 端点无必填报文字段 ⇒ 不绑定 body 提取器：缺体合法，状态门在 service 层。
 pub async fn approve_rework(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<ApproveReworkRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_rework::Model>>, AppError> {
-    let model = rework_service(&state).approve(id, req.approved_by).await?;
+    let model = rework_service(&state).approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

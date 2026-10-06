@@ -41,9 +41,7 @@ use crate::services::lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
-use crate::services::lab_dip_ops::types::{
-    CreateResampleRequest, IssueTechCardRequest, RecordResampleResultRequest,
-};
+use crate::services::lab_dip_ops::types::{CreateResampleRequest, RecordResampleResultRequest};
 use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipResampleService};
 
 impl LabDipResampleService {
@@ -196,6 +194,7 @@ impl LabDipResampleService {
         &self,
         id: i32,
         req: RecordResampleResultRequest,
+        reviewed_by: i32,
     ) -> Result<ResampleModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.result != resample_status::PENDING {
@@ -222,7 +221,7 @@ impl LabDipResampleService {
         active.color_difference_grade = Set(Some(req.color_difference_grade));
         active.color_difference_value = Set(req.color_difference_value);
         active.result = Set(result.to_string());
-        active.reviewed_by = Set(req.reviewed_by);
+        active.reviewed_by = Set(Some(reviewed_by));
         active.reviewed_at = Set(Some(now));
         active.review_comment = Set(req.review_comment);
         active.updated_at = Set(now);
@@ -312,7 +311,7 @@ impl LabDipResampleService {
     pub async fn issue_tech_card(
         &self,
         id: i32,
-        req: IssueTechCardRequest,
+        issued_by: i32,
     ) -> Result<ResampleModel, AppError> {
         let model = self.get_by_id(id).await?;
 
@@ -337,7 +336,7 @@ impl LabDipResampleService {
 
         let mut active: ResampleActiveModel = model.into();
         active.tech_card_no = Set(Some(tech_card_no));
-        active.tech_card_issued_by = Set(Some(req.issued_by));
+        active.tech_card_issued_by = Set(Some(issued_by));
         active.tech_card_issued_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;

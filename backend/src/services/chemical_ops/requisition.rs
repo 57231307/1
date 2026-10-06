@@ -198,11 +198,9 @@ impl ChemicalRequisitionService {
     }
 
     /// 审批领用单（draft → approved）
-    pub async fn approve(
-        &self,
-        id: i32,
-        approved_by: Option<i32>,
-    ) -> Result<RequisitionModel, AppError> {
+    // approved_by 由 handler 从服务端会话取（AuthContext.user_id），不接受请求体身份：
+    // 审批归属可伪造/可缺省落 NULL 的通道已关闭，签名收为必填 i32。
+    pub async fn approve(&self, id: i32, approved_by: i32) -> Result<RequisitionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != chemical_requisition_status::DRAFT {
             return Err(AppError::business(format!(
@@ -212,18 +210,15 @@ impl ChemicalRequisitionService {
         }
         let mut active: RequisitionActiveModel = model.into();
         active.status = Set(chemical_requisition_status::APPROVED.to_string());
-        active.approved_by = Set(approved_by);
+        active.approved_by = Set(Some(approved_by));
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
 
     /// 发料（approved → issued）
-    pub async fn issue(
-        &self,
-        id: i32,
-        issued_by: Option<i32>,
-    ) -> Result<RequisitionModel, AppError> {
+    // 同上：发料人身份取会话，签名收为必填 i32。
+    pub async fn issue(&self, id: i32, issued_by: i32) -> Result<RequisitionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != chemical_requisition_status::APPROVED {
             return Err(AppError::business(format!(
@@ -233,7 +228,7 @@ impl ChemicalRequisitionService {
         }
         let mut active: RequisitionActiveModel = model.into();
         active.status = Set(chemical_requisition_status::ISSUED.to_string());
-        active.issued_by = Set(issued_by);
+        active.issued_by = Set(Some(issued_by));
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
         Ok(updated)
