@@ -446,8 +446,8 @@ const AGING_DECIMAL_KEYS: &[&str] = &[
 ];
 
 /// 锁定的聚合对象函数段：start_marker 为构造 json! 的函数，end_marker 为其后首个函数签名
-fn pinned_aggregate_body<'s>(
-    src: &'s str,
+fn pinned_aggregate_body(
+    src: &str,
     start_marker: &str,
     end_marker: &str,
     keys: &[&str],
