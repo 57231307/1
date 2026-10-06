@@ -1339,10 +1339,10 @@ function main() {
 //     且函数体只在错误文案里出现「multipart」裸词时不得被抓（防词面误报）；
 //  ④ 真实仓库回归：既有 ok/stock 计数不得因收紧而变化，新增失配必须逐条落在已派修的
 //     真错清单（PENDING_TRUE_ERRORS）内——清单之外的新增一律判 FAIL，防误报混入。
-const PENDING_TRUE_ERRORS = [
-  'batchImportFabrics /api/v1/erp/products/import POST',
-  'importSkuMappings /api/v1/erp/purchase/sku-mappings/import POST',
-];
+// PENDING_TRUE_ERRORS 为"已派修但当前实测仍判红"的真错豁免表，必须与实跑失配逐条同生命周期：
+// 派修完成后对应条目立即从清单删除，否则下方防过期锁判 FAIL 并点名该条，防止过期豁免沉积成盲区。
+// 当前实跑 mismatches 为空，本清单同步为空。
+const PENDING_TRUE_ERRORS = [];
 function runSelfTest() {
   const results = [];
   const check = (name, pass, detail) => {
@@ -1451,17 +1451,34 @@ function runSelfTest() {
   });
   let ok4 = false;
   let detail4 = '子进程无输出';
+  let okExpiryLock = false;
+  let detailExpiryLock = '子进程无输出';
   try {
     const j = JSON.parse(rp.stdout);
+    const freshMismatchKeys = new Set(j.mismatches.map(m => `${m.fn} ${m.endpoint}`));
     const unknownFresh = j.mismatches
       .map(m => `${m.fn} ${m.endpoint}`)
       .filter(s => !PENDING_TRUE_ERRORS.includes(s));
     ok4 = j.ok >= 500 && j.stockMismatch >= 0 && j.multipartOk >= 5 && unknownFresh.length === 0;
     detail4 = `ok=${j.ok} multipartOk=${j.multipartOk} stock=${j.stockMismatch} fresh=${j.mismatches.length} 判据外新增=${unknownFresh.join('|') || '-'}`;
+    // 防过期锁：豁免表只允许豁免"当前实跑确实仍判红"的端点。
+    // 逐项核对 PENDING_TRUE_ERRORS 是否仍出现在真实 mismatches 里；
+    // 已修好却残留在表内的条目会让同一端点将来再退化时被静默放过，故直接判 FAIL 并点名。
+    const expiredExemptions = PENDING_TRUE_ERRORS.filter(s => !freshMismatchKeys.has(s));
+    okExpiryLock = expiredExemptions.length === 0;
+    detailExpiryLock = expiredExemptions.length
+      ? `过期豁免（实跑 mismatches 已不含该条，须从 PENDING_TRUE_ERRORS 删除）: ${expiredExemptions.join(' | ')}`
+      : `清单 ${PENDING_TRUE_ERRORS.length} 项均仍命中当前实跑失配`;
   } catch (e) {
     detail4 = 'JSON 解析失败: ' + e.message;
+    detailExpiryLock = detail4;
   }
   check('④ 真实仓库：存量不劣化且新增失配全部在已派修真错清单内', ok4, detail4);
+  check(
+    '④锁 防过期豁免：PENDING_TRUE_ERRORS 每项必须仍出现在当前实跑 mismatches 中',
+    okExpiryLock,
+    detailExpiryLock
+  );
   const failed = results.filter(x => !x).length;
   console.log(
     failed
