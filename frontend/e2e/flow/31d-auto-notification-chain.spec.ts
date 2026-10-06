@@ -103,11 +103,10 @@ async function createActiveCustomer(
 }
 
 test.describe.serial('P0 自动通知全链路：业务动作→通知产生验证', () => {
-  // 判责 #4677 31d-A（180s 全被 ensureTestEntities UI 种子吃光、通知链本体一步未跑，
-  // out_13/backend.log 零"活跃客户"痕迹）：重型种子收口到 describe 级 beforeAll 一次执行，
-  // 拥有独立的 hook 超时预算（config 级），不再挤占每个用例 180s 的"触发→等待→断言"预算。
-  // 种子真实失败会在 beforeAll 处显式抛错判红（helpers 步骤 11 已取消静默放行），
-  // 用例体内再按消费字段做前置断言兜底——覆盖性与断言强度均不降。
+  // 重型种子 ensureTestEntities 收口到 describe 级 beforeAll 一次执行，不在每个用例
+  // 体内重复跑，避免挤占各用例"触发→等待→断言"的超时预算；
+  // 种子真实失败会在 beforeAll 处显式抛错判红（helpers 步骤 11 染色批次 API 种子
+  // 拿不到 id 即抛），用例体内再按消费字段做前置断言兜底——覆盖性与断言强度均不降。
   test.beforeAll(async ({ browser }) => {
     // 新 context 自动注入 globalSetup 的 storageState（playwright.config.ts:66）；
     // loginViaUI 先探测会话，失效才走 UI 登录。EntityContext 是模块级单例，

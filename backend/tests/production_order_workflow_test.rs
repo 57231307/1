@@ -235,7 +235,7 @@ async fn test_productionorderservice_approve_order_kdbfherr() {
 /// create 引用校验 `validate_product_exists` 走 `ProductEntity::find_by_id(...).one()`
 /// 全行解码（production_order_ops/crud.rs:49），product::Model 声明
 /// unit/status/product_type 为非 Option String（models/product.rs:26/35/45），
-/// 三列的生效 DDL 却是可空无默认的后补列（system/mod.rs:325/328、v15/mod.rs:3824/3828）；
+/// 三列的生效 DDL 却是可空无默认的后补列（system/mod.rs:325/328 及该表后续补充列的迁移建列项）；
 /// 写入侧三者恒非空（handlers/product_handler.rs:383-390 默认 "个"/master_data::ACTIVE
 /// ("active")/"成品"，services/product_ops/crud.rs:210 Set(unit)），故种子必须补齐，
 /// 否则解码报 `Missing value for column 'unit'`。取面料域真实词值：米 / active / 成品布。

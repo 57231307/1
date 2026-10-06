@@ -269,11 +269,10 @@ test.describe('后端连接状态与 Token 管理', () => {
   });
 
   test('401 拦截器：清除 cookie 后访问跳转登录页', async ({ browser }) => {
-    // 登录必须复用 loginInIsolatedContext（:17-53）——此前这里是**第二套内联复制的登录实现**，
-    // 漏了「勾选用户协议」步骤，Login.vue 阻断式 validator 让登录 XHR 根本不发，
-    // URL 永远停在 /login，收严后的 waitForURL(:297) 恒 20s 超时（判责 #4677，图证
-    // test-failed-2.png：表单红字校验错误 + 未勾协议）。helper 已含：勾选协议 →
-    // 提交 → 离开 /login（40s）→ access_token 活体断言，登录成功信号真实且唯一。
+    // 登录必须走 loginInIsolatedContext（:17-53）：空 storageState 新建独立 context，
+    // helper 已含「勾选用户协议 → 提交 → 离开 /login（40s）→ access_token 活体断言」——
+    // 用户协议是 Login.vue 阻断式校验的必填项，未勾选时登录 XHR 根本不发、
+    // URL 永远停在 /login，登录成功信号真实且唯一。
     const { ctx, page } = await loginInIsolatedContext(browser);
 
     try {

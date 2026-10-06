@@ -430,12 +430,10 @@ async function createThenUiDelete(
     );
   }
 
-  // UI 删除（本验证器删除的对象一律是**本用例刚自建的唯一行**，不存在"被引用拒绝"的合法分支：
-  // 旧写法 `expect(typeof deleted).toBe('boolean')` 对 true/false 恒真，而 uiDeleteRow 旧版又
-  // 把"找不到行/行内无删除按钮/点击异常"全部静默成 false——销售合同/采购合同等 V2Table+
-  // fixed-right 页面按钮恒不可达（68-03 同根因），整条"UI 删除验证"从未真正点中按钮（判责
-  // #4677 连带假绿）。现 uiDeleteRow 对所有真实失败显式抛错，本行收紧为结果硬断言；
-  // 引用约束类拒绝若真实存在，会先在 uiDeleteRow 的行消失校验处判红并带出后端原因。）
+  // UI 删除（本验证器删除的对象一律是**本用例刚自建的唯一行**，不存在"被引用拒绝"的合法分支）：
+  // uiDeleteRow 对找不到行 / 行内无删除按钮 / 点击异常 / 删除后行未消失等一切真实失败显式抛错
+  // （V2Table+fixed-right 等固定列层按钮可达性也走同一判据），故本行按删除结果做硬断言；
+  // 引用约束类拒绝若真实存在，会先在行消失校验处判红并带出后端原因。
   const deleted = await uiDeleteRow(page, listRoute, { column: 'name', value: rowName });
   console.log(`[P0-删除-${label}] UI 删除结果: ✅（失败路径已由 uiDeleteRow 抛错判红）`);
   expect(

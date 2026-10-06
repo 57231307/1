@@ -690,12 +690,12 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
 
-  // ---- 11. 染色批次（API 种子，判责 #4677 31d-A）----
+  // ---- 11. 染色批次（API 种子，31d 通知链前置）----
   // 旧实现先走 createDyeBatchUI（UI 表单），但染色批次表单契约（dye-batch/index.vue:415-439）
   // 必填 greige_fabric_id（选项源=坯布列表，本 ensure 步骤序内无坯布保障 ⇒ 空下拉必失败）
   // 且色号非空即要求缸号；UI 校验必红后落入 120s race + API 兜底，而兜底色号又不在
   // 色卡档案（dye_batch_handler.rs:204-254 resolve_dye_color_identity 反查
-  // color_card_items.color_code 恰一条）⇒ 确定性 400（CI #4669 31e 同判）。
+  // color_card_items.color_code 恰一条）⇒ 确定性 400。
   // 种子选 API 而非补全 UI 字段的理由：①UI 成功需先把"坯布非空 + 色号入档"两个跨实体
   // 前置塞进通用种子序列，退化风险大；②染色批次 UI 创建不是 31d 通知链的被测对象，
   // 共用种子重复 UI 路径即"第二套实现"反模式；③API 秒级确定性，把预算还给用例本体。

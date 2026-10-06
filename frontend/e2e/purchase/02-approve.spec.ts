@@ -217,7 +217,7 @@ test.describe('02 采购订单审批', () => {
     expect(after.rejected_reason, '驳回理由应逐字落 rejected_reason 专列').toBe(
       'E2E 测试驳回：数量超预算'
     );
-    // 双列锁（#942 止毁口径在采购订单域的等价列——本表无 reason_detail 列，该列属
+    // 双列锁（止毁口径在采购订单域的等价列——本表无 reason_detail 列，该列属
     // purchase_return/after_sales 域）：reject 不得挪用/污染 notes，须逐字保持建单基线
     expect(after.notes, 'reject 不得污染 notes（应逐字保持建单基线）').toBe(before.notes);
   });

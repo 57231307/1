@@ -460,8 +460,8 @@ async fn w7s_outsourcing_receipt_voucher_duplicate_and_missing_prereq_400_displa
     // `validate_create_request`（services/outsourcing_ops/receipt.rs:193）以
     // `product::Entity::find_by_id(..).one(db)` 整行解码 product::Model，任一非 Option 列
     // 在库里为 NULL 即抛 DbErr::Type("Missing value for column 'unit'") → DATABASE_ERROR，
-    // 首次建单应 200 的断言随即红。DDL 里这三列可空（m0001:227 unit / v15:3806 product_type /
-    // v15:3824 status，均无 NOT NULL/DEFAULT），但整行解码需求 ≠ DDL NOT NULL：取值按写入侧
+    // 首次建单应 200 的断言随即红。DDL 里这三列可空（unit 见 m0001:227，product_type、status
+    // 为后续迁移后补列，均无 NOT NULL/DEFAULT），但整行解码需求 ≠ DDL NOT NULL：取值按写入侧
     // 词表对齐（status=master_data::ACTIVE 字面 'active'，product_type 取模型注释词表成品布，
     // unit 取面料域真实单位米），与 production_order_workflow_test.rs 同族夹具修法一致。
     let prod_code = uniq_code("PROD");

@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 // POST /pollution-monitoring/records 的登记人身份只准取会话
 // （AuthContext.user_id）。请求体即便多带伪造的另一个用户 B，
 // pollutant_monitoring_records.operator_id 也必须是 A。
-// 该表 operator_id 列无 FK（v15/mod.rs:1337 INTEGER 裸列），
+// 该表 operator_id 列无 FK、是裸 INTEGER 列（权威 DDL 见该表迁移建列项），
 // 故锁用合成会话 id 即可，无需种 users 行。
 // =========================================================
 

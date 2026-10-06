@@ -205,13 +205,13 @@ async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
 ///   （purchase_receipt_ops/crud.rs）：该 id 必须是 order 1 的 **`purchase_order_item`
 ///   （单数表）** 行、且 product_id 与入库明细一致、入库量 ≤ 订单量×(1+容差)。
 ///   ⚠ 表名唯一事实来源是实体 models/purchase_order_item.rs 上的
-///   `#[sea_orm(table_name = "purchase_order_item")]`（DDL 见 migration v15 同名建表项）；
+///   `#[sea_orm(table_name = "purchase_order_item")]`（DDL 见该表同名迁移建表项）；
 ///   m0001_initial_schema.rs 里的复数 `purchase_order_items` 是 SeaORM 实体永不读取的
 ///   遗留表——种子写进复数表时守卫在单数表查无明细并报「采购订单 1 没有明细行」，
 ///   该拒绝属**正确触发**，处置只改种子侧、不放松守卫。
 ///   订单量 200 ≥ 入库 100；supplier_id=1 由迁移种子参照表 m0015 恒在（不清空）。
 /// 列形态按实体整 Model 解码需求：
-/// - `purchase_order_item`（v15:3460）NOT NULL 无默认的金额/数量列全部补写
+/// - `purchase_order_item`（该表迁移建表项）NOT NULL 无默认的金额/数量列全部补写
 ///   （line_no/quantity_alt/unit_price_foreign/discount_percent/tax_percent/
 ///   tax_amount/discount_amount/total_amount/received_quantity_alt/created_at/
 ///   updated_at，models/purchase_order_item.rs:12-106）；quantity_tolerance_pct 留
