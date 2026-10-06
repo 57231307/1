@@ -3897,6 +3897,10 @@ jobs:
   # 3. 无意义注释模式（asdf/test/占位符）
   # 覆盖率阈值（按现状校准 2026-09-10）：Rust 82% / TS 35%；
   # TS 低于 30% → fail，低于 60% → warning（随补齐逐步提高阈值）
+  # 4. 注释形态门禁：
+  #    硬红档 diff-only（任务号/批次·v 编号/run 号/仓外报告路径引用，新增即拦、
+  #    无存量豁免）+ 棘轮档（行号引用，基线 backend/.comment-format-baseline.txt
+  #    只准降不准升）。探针自检/计数自证/diff fail-closed 全部内置，见步骤注释。
   # ==========================================================================
   comment-convention-check:
     name: 📝 注释规范性检查
@@ -3906,6 +3910,10 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+        with:
+          # 注释形态门禁需要历史：PR 求 merge-base、push 做 event.before..HEAD
+          # diff；仅查覆盖率不查形态的旧步骤无此需求，改动只影响本 job 检出耗时。
+          fetch-depth: 0
 
       - name: 注释覆盖率扫描
         run: |
@@ -3973,12 +3981,538 @@ jobs:
               print(f'::warning::注释覆盖率低于 60%（rust={rust_rate}% ts={ts_rate}%），需持续补齐')
           PYEOF
 
+      # ------------------------------------------------------------------
+      # 注释形态门禁（口径依据注释 IR，两档规则键设计不自造）：
+      # 两档规则（键设计严格照裁定，不自造）：
+      #   硬红档 diff-only —— 新增/修改行注释命中即拦、不给存量豁免：
+      #     ①任务号 ②批次/v 编号 ③run 号 ④仓外报告路径引用
+      #     依据 .monkeycode/MEMORY.md 注释 IR「禁止写变更日志式内容（批次号、
+      #     "修复xxx"过程、v14/批次xxx/exit 143 排障史等）；变更说明放 commit
+      #     message，注释永远只描述当前代码的用途」。
+      #   棘轮档 —— 行号引用（xxx.rs:123 / file.ts:45）不禁、基线只准降不准升；
+      #     键=去掉行号后的文本指纹（教训：api-request-baseline 的 _comment——带
+      #     行号会让漂移把老问题误报成新失配）。基线：
+      #     backend/.comment-format-baseline.txt。
+      # 三条防空操作假绿的硬要求全部内置：①探针自检（每类禁止形态内置注样例走
+      # 同一调用形态，任一未命中 exit 1；模板 contract_wave11_rbac_key_derivation
+      # _test.rs "解析结果为空即 fail"）②计数自证（打印扫描文件数/命中行数/各
+      # 规则命中数，文件数<500 或某类恒 0 命中 => 非零退出）③diff fail-closed
+      # （拿不到 base 或 diff 空集 => 判本步失败，禁止"取不到就当没有新增"）。
+      # ------------------------------------------------------------------
+      - name: 注释形态门禁（#330 硬红档 diff-only + 棘轮档行号基线）
+        env:
+          GATE_MODE: ci
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_BASE_REF: ${{ github.base_ref }}
+          GATE_BEFORE: ${{ github.event.before }}
+          GATE_REF: ${{ github.ref }}
+        run: |
+          if [ "$GATE_EVENT" = "pull_request" ] && [ -n "$GATE_BASE_REF" ]; then
+            # fetch-depth:0 通常已带全分支；显式再取 base 分支 ref，保证 merge-base 可算
+            git fetch --no-tags --prune origin \
+              "+refs/heads/$GATE_BASE_REF:refs/remotes/origin/$GATE_BASE_REF"
+          elif [ "$GATE_EVENT" = "push" ]; then
+            # tag push 求"上一 tag"作 base 用；取不到 tag 时脚本按 fail-closed 判失败
+            git fetch --tags --force origin '+refs/tags/*:refs/tags/*' || true
+          fi
+          python3 << 'PYEOF'
+          r"""
+          #330 注释形态门禁（硬红档 diff-only + 棘轮档行号引用基线）
+
+          口径权威 = 决策建议书 2026-10-06 第四轮 §1 裁定（决策专家裁定＝自动采纳）。
+          规则原文 = .monkeycode/MEMORY.md 注释 IR（"代码注释规范"条目）：
+            「代码注释规范（IR，2026-09-17）：注释只写"这段代码是干嘛用的"
+            （功能/业务规则描述），禁止写变更日志式内容（批次号、"修复xxx"过程、
+            v14/批次xxx/exit 143 排障史等）；变更说明放 commit message，
+            注释永远只描述当前代码的用途」
+
+          规则 <-> IR 条款对照（不自造规则，逐条对应裁定 §1 的两档清单）：
+            R1 任务号（`任务 #N` / `#\d+` 式看板引用）
+               <- IR「禁止写变更日志式内容…'修复xxx'过程」：任务/看板号是变更
+                  过程标识，不是"这段代码是干嘛用的"。（裁定 §1 硬红档①）
+            R2 批次/v 编号（`批次 \d+` / `v1\d` / `P\d-S\d+`）
+               <- IR 原文逐字点名「批次号、v14/批次xxx」。（裁定 §1 硬红档②）
+            R3 run 号（`run \d{4}`）
+               <- IR「…exit 143 排障史等」：CI run 号属排障历史记录。
+                  （裁定 §1 硬红档③；裁定同时列出 `#\d{4}` 指 CI run 的形态——
+                  该形态已被 R1 的 `#\d+` 通道覆盖命中，两档同为硬红、判责等价，
+                  故不重复立正则，避免双重计数失真。）
+            R4 仓外报告路径引用（`C:/Users/…`、`/c/Users/…`、`*.md §N`）
+               <- IR「注释永远只描述当前代码的用途」+「变更说明放 commit message」：
+                  指向仓外工作区报告的引用不是代码用途描述，且仓外路径换机器即失效。
+                  （裁定 §1 硬红档④）
+            R5 行号引用（`xxx.rs:123` / `file.ts:45`）——棘轮档，本身不禁：
+               <- 裁定 §1「行号引用不禁，因 file:line 是本仓契约取证 convention」；
+                  基线键=去掉行号后的文本指纹（`<承载文件>::<被引文件>`），教训来自
+                  frontend/scripts/api-request-baseline.json 的 _comment：带行号会让
+                  行号漂移把老问题误报成新失配。基线只准降不准升，超基线判红。
+
+          执行语义（裁定 §1 步骤 0+1，三条硬性要求）：
+            ① 探针自检：每类禁止形态内置注样例，构造伪文件走与生产完全相同的
+               调用形态（iter_comment_lines -> scan_text），任一未命中即 exit 1。
+               模板：backend/tests/contract_wave11_rbac_key_derivation_test.rs
+               （"消歧分支解析结果为空——本锁空跑"即 fail 的同型纪律）。
+            ② 计数自证：打印扫描文件数/命中行数/各规则命中数；扫描文件数<500 或
+               任一"类"全量 0 命中 => 判本步失败（类级恒 0=探测器或扫描面失效；
+               存量清零后该自证通道应随规则基线通道一并正式关闭——裁定步骤 3）。
+            ③ diff-only fail-closed：拿不到 base 或 git diff 为空集 => 判本步失败，
+               禁止"取不到 diff 就当作没有新增"的静默通过。
+            - R1..R4 仅对 base..HEAD 新增/修改行中的注释判定；存量只列示（步骤 1）。
+            - R5 全量扫描并与 backend/.comment-format-baseline.txt 对账。
+          """
+          import os
+          import re
+          import subprocess
+          import sys
+
+          MODE = os.environ.get('GATE_MODE', 'ci')  # ci | local-scan | gen-baseline
+          REPO = os.environ.get('GATE_REPO', '.')
+          BASELINE_PATH = os.environ.get('GATE_BASELINE', 'backend/.comment-format-baseline.txt')
+          REPORT_PATH = os.environ.get('GATE_REPORT', '/tmp/comment-format-report.md')
+          SAMPLE_N = int(os.environ.get('GATE_SAMPLE_N', '20'))
+
+          # 扫描面：backend/ frontend/ 两棵代码树内的源码文件（IR 口径=代码注释）。
+          # .md/.monkeycode/ 等文档不在本规则面内——同时规避裁定采纳记录里
+          # "门禁反向判定 MEMORY.md 自身引用行号写法需用户确认"的风险（默认不碰）。
+          SCAN_PREFIXES = ('backend/', 'frontend/')
+          EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'}
+
+          HARD_PATTERNS = [
+              # R1 任务号：`任务 #N`；裸 `#\d+` 看板/issue 引用（负向后顾避开 path/#1、标识符）
+              ('R1.任务号', re.compile(r'任务\s*#?\d+')),
+              ('R1.看板引用', re.compile(r'(?<![\w/])#\d+\b')),
+              # R2 批次/v 编号（IR 逐字：批次号、v14/批次xxx；P\d-S\d+ 为裁定严口径键）
+              ('R2.批次号', re.compile(r'批次\s*\d+')),
+              ('R2.v编号', re.compile(r'v1\d')),
+              ('R2.P-S段', re.compile(r'P\d-S\d+')),
+              # R3 run 号：`run \d{4}`（含 `run #4675` / `run 34067844812` 形态）
+              ('R3.run号', re.compile(r'run\s*#?\d{4}')),
+              # R4 仓外报告路径：盘符绝对路径 / git-bash 风格 /x/Users / 仓外 *.md §N 章节引用
+              ('R4.盘符路径', re.compile(r'[A-Za-z]:[/\\]Users[/\\]')),
+              ('R4.gitbash路径', re.compile(r'(?<![\w])/[A-Za-z]/Users/')),
+              ('R4.md章节引用', re.compile(r'[\w.\-/]*\.md\s*§\s*\d+')),
+          ]
+          RATCHET_PATTERNS = [
+              # R5 行号引用：xxx.rs:123 / file.ts:45（含 :129-151 区间形态）
+              ('R5.行号引用', re.compile(
+                  r'[\w./\-]+\.(?:rs|ts|tsx|js|jsx|mjs|cjs|vue|py|java|sql):\d+(?:[ \t]*-[ \t]*\d+)?')),
+          ]
+          HARD_IDS = {rid for rid, _ in HARD_PATTERNS}
+          # 档位归属（裁定 §1 的"4 类禁止形态"按类计，类内多形态共用通道：
+          # ④仓外路径含 盘符/git-bash/md§ 三种写法，任一形态有命中即类未死；
+          # 子形态级 0 命中只列示观察，类级 0 命中才触发计数自证失败）
+          CATEGORY_OF = {
+              'R1.任务号': 'R1任务号', 'R1.看板引用': 'R1任务号',
+              'R2.批次号': 'R2批次v编号', 'R2.v编号': 'R2批次v编号', 'R2.P-S段': 'R2批次v编号',
+              'R3.run号': 'R3run号',
+              'R4.盘符路径': 'R4仓外路径', 'R4.gitbash路径': 'R4仓外路径',
+              'R4.md章节引用': 'R4仓外路径',
+              'R5.行号引用': 'R5行号引用(棘轮)',
+          }
+
+          # ------------------------------------------------------------- 注释文本抽取
+          # 覆盖形态（启发式，注释与探针均按同一入口）：
+          #   - `//` 行注释与行尾注释（朴素字符串态跳过字面量内 //；
+          #     Rust 不把单引号当定界符——生命周期 &'a str 与字符字面量会破坏朴素扫描）
+          #   - `/* ... */` 块注释（含跨行态）
+          #   - Rust 行首 `--`（SeaSQL/嵌入式 SQL 字符串注释，migration 大量存在）
+          #   - .vue 的 `<!-- ... -->`（含跨行态）
+          # 极端形态（多行模板串内含 //）不在启发式覆盖内；由探针自检+计数自证保证
+          # 探测器非死器。diff-only 面向新增行，宁可误拦不可假绿。
+          def iter_comment_lines(relpath, text):
+              ext = os.path.splitext(relpath)[1]
+              track_single = (ext != '.rs')
+              in_block = None  # (open_tok, close_tok)
+              for i, line in enumerate(text.splitlines(), start=1):
+                  start_pos = 0
+                  if in_block:
+                      close = line.find(in_block[1])
+                      if close < 0:
+                          yield (i, line)
+                          continue
+                      yield (i, line[:close])
+                      start_pos = close + len(in_block[1])
+                      in_block = None
+                  pos = start_pos
+                  n = len(line)
+                  in_str = None
+                  found = None
+                  kind = None
+                  while pos < n:
+                      ch = line[pos]
+                      if in_str:
+                          if ch == '\\':
+                              pos += 2
+                              continue
+                          if ch == in_str:
+                              in_str = None
+                          pos += 1
+                          continue
+                      if ch == '"' or ch == '`' or (ch == "'" and track_single):
+                          in_str = ch
+                          pos += 1
+                          continue
+                      if line[pos:pos + 2] == '//':
+                          found, kind = pos, 'line'
+                          break
+                      if line[pos:pos + 2] == '/*':
+                          found, kind = pos, 'block'
+                          break
+                      if ext == '.vue' and line[pos:pos + 4] == '<!--':
+                          found, kind = pos, 'html'
+                          break
+                      pos += 1
+                  if found is None:
+                      if ext == '.rs':
+                          s = line.lstrip()
+                          if s.startswith('--') and not s.startswith('-->'):
+                              yield (i, line)
+                      continue
+                  if kind == 'line':
+                      yield (i, line[found:])
+                  elif kind == 'block':
+                      end = line.find('*/', found + 2)
+                      if end < 0:
+                          in_block = ('/*', '*/')
+                          yield (i, line[found:])
+                      else:
+                          yield (i, line[found:end + 2])
+                  else:
+                      end = line.find('-->', found + 4)
+                      if end < 0:
+                          in_block = ('<!--', '-->')
+                          yield (i, line[found:])
+                      else:
+                          yield (i, line[found:end + 3])
+
+
+          def scan_text(relpath, text):
+              """生产与探针共用的唯一调用形态：返回 [(规则ID, 行号, 注释文本, 命中token)]。"""
+              hits = []
+              for lineno, ctext in iter_comment_lines(relpath, text):
+                  for rid, rx in HARD_PATTERNS + RATCHET_PATTERNS:
+                      m = rx.search(ctext)
+                      if m:
+                          hits.append((rid, lineno, ctext.strip(), m.group(0)))
+              return hits
+
+          # ------------------------------------------------------------------ 探针自检
+          # 每条 = (规则ID, 伪文件名, 伪源码)。伪样例只存在于本步骤的内存字符串，
+          # 绝不写入仓库（写进去即自己生产禁止形态）。
+          PROBES = [
+              ('R1.任务号', 'probe_r1a.rs', '// 任务 #330 接入注释形态门禁\n'),
+              ('R1.看板引用', 'probe_r1b.rs', '/// 修复见 #941\nfn f() {}\n'),
+              ('R2.批次号', 'probe_r2a.rs', '// 批次 213 交付\n'),
+              ('R2.v编号', 'probe_r2b.ts', '// v14 排障史\n'),
+              ('R2.P-S段', 'probe_r2c.rs', '//! P0-S01 波次说明\n'),
+              ('R3.run号', 'probe_r3.rs', '// 实证：CI run #4675\nfn g() {}\n'),
+              ('R4.盘符路径', 'probe_r4a.ts', '// 报告 C:/Users/x/decision.md 结论\n'),
+              ('R4.gitbash路径', 'probe_r4b.js', '// 见 /c/Users/x/decision.md\n'),
+              ('R4.md章节引用', 'probe_r4c.rs', '/* 依据 decision-round4.md §1 裁定 */\n'),
+              ('R5.行号引用', 'probe_r5a.ts', '// 见 api_gateway_handler.rs:129-151\n'),
+              ('R5.行号引用', 'probe_r5b.vue',
+               '<!-- 详见 store/fabric.ts:31 -->\n<template><div/></template>\n'),
+          ]
+
+
+          def probe_selftest():
+              failures = []
+              for rid, fname, content in PROBES:
+                  got = [h for h in scan_text(fname, content) if h[0] == rid]
+                  if not got:
+                      failures.append(
+                          f'探针未命中：{rid} 样例 <{fname}> 内容 {content!r} '
+                          '—— 探测器死器，门禁将成为空操作假绿')
+              return failures
+
+          # ---------------------------------------------------------- git 清单 / diff
+          def git(*args):
+              return subprocess.run(['git', '-C', REPO] + list(args),
+                                    capture_output=True, text=True,
+                                    encoding='utf-8', errors='replace')
+
+
+          def list_tracked_files():
+              listing = git('ls-files').stdout
+              files = []
+              for f in listing.splitlines():
+                  f = f.replace('\\', '/')
+                  if f.startswith(SCAN_PREFIXES) and os.path.splitext(f)[1] in EXTS:
+                      files.append(f)
+              return files
+
+
+          def resolve_base():
+              """返回 (base_rev|None, 说明)。None => 调用方按 fail-closed 判失败。"""
+              event = os.environ.get('GATE_EVENT', '')
+              if event == 'pull_request':
+                  base_ref = os.environ.get('GATE_BASE_REF', '')
+                  if not base_ref:
+                      return None, 'pull_request 事件但 github.base_ref 为空'
+                  mb = git('merge-base', f'origin/{base_ref}', 'HEAD')
+                  if mb.returncode != 0 or not mb.stdout.strip():
+                      return None, (f'merge-base origin/{base_ref}..HEAD 不可得'
+                                    '（base 未 fetch/历史缺失）')
+                  return mb.stdout.strip(), f'PR merge-base(origin/{base_ref})'
+              if event == 'push':
+                  before = (os.environ.get('GATE_BEFORE') or '').strip()
+                  zeros = '0' * 40
+                  if before and before != zeros:
+                      ok = git('cat-file', '-e', before + '^{commit}')
+                      if ok.returncode == 0:
+                          return before, 'push event.before'
+                      return None, (f'event.before={before[:12]}… 对象在本克隆不可达'
+                                    '（force-push/gc）')
+                  ref = os.environ.get('GATE_REF', '')
+                  if ref.startswith('refs/tags/'):
+                      prev = git('describe', '--tags', '--abbrev=0', 'HEAD^')
+                      if prev.returncode == 0 and prev.stdout.strip():
+                          rv = git('rev-parse', prev.stdout.strip() + '^{commit}')
+                          if rv.returncode == 0:
+                              return (rv.stdout.strip(),
+                                      f'tag push，base=上一 tag {prev.stdout.strip()}'
+                                      '（本 tag 净增量）')
+                      return None, 'tag push 且不存在上一 tag，无真实 base'
+                  return None, 'push 新建分支（event.before 全零/缺失），无历史 base'
+              if event == 'workflow_dispatch':
+                  return None, ('workflow_dispatch 无事件 base——fail-closed：调试触发的'
+                                '"无新增行"不能作为通过论据，形态判定请走 PR')
+              return None, f'未知事件 {event!r}'
+
+
+          def parse_added_lines(base):
+              """git diff -U0 base..HEAD => ({file: set(新增行号)}, err|None)。"""
+              d = git('diff', '--no-color', '-U0', base, 'HEAD')
+              if d.returncode != 0:
+                  return None, (f'git diff {base[:12]}..HEAD 执行失败 '
+                                f'rc={d.returncode}: {d.stderr[:300]}')
+              if not d.stdout.strip():
+                  return None, (f'git diff {base[:12]}..HEAD 为空集——base 推导异常或本 run '
+                                '无内容变化，按 fail-closed 判失败（禁止"无 diff 视作无新增"）')
+              added = {}
+              cur = None
+              new_ln = 0
+              hunk_rx = re.compile(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@')
+              for ln in d.stdout.splitlines():
+                  if ln.startswith('+++ b/'):
+                      p = ln[6:].strip().replace('\\', '/')
+                      if p == '/dev/null':
+                          cur = None
+                          continue
+                      cur = (p.startswith(SCAN_PREFIXES)
+                             and os.path.splitext(p)[1] in EXTS) and p or None
+                      if cur:
+                          added.setdefault(cur, set())
+                      continue
+                  if ln.startswith('@@'):
+                      m = hunk_rx.match(ln)
+                      if m:
+                          new_ln = int(m.group(1))
+                      continue
+                  if cur is None:
+                      continue
+                  if ln.startswith('+'):
+                      added[cur].add(new_ln)
+                      new_ln += 1
+                  elif ln.startswith('-'):
+                      continue
+                  else:
+                      new_ln += 1
+              return added, None
+
+          # -------------------------------------------------------------------- 主流程
+          _lines = []
+
+
+          def out(s):
+              _lines.append(s)
+              print(s)
+
+
+          def read_file(rel):
+              p = os.path.join(REPO, rel)
+              try:
+                  with open(p, encoding='utf-8', errors='replace') as fh:
+                      return fh.read()
+              except OSError:
+                  return ''
+
+
+          def flush(status):
+              print(f'\n[comment-format-gate] 结论：{status}')
+              try:
+                  d = os.path.dirname(REPORT_PATH)
+                  if d:
+                      os.makedirs(d, exist_ok=True)
+                  with open(REPORT_PATH, 'w', encoding='utf-8') as fh:
+                      fh.write('\n'.join(_lines) + f'\n结论：{status}\n')
+              except OSError as e:
+                  print(f'::warning::报告写入失败 {REPORT_PATH}: {e}')
+
+
+          def main():
+              failures = []
+
+              # ① 探针自检（一切模式都先跑；死器即 fail，不再往下装样子）
+              pf = probe_selftest()
+              if pf:
+                  for m in pf:
+                      out('::error::PROBE ' + m)
+                  flush('FAIL(探针自检)')
+                  sys.exit(1)
+              out(f'① 探针自检：{len(PROBES)} 条禁止形态样例全部命中（探测器非死器）')
+
+              # ② 全量扫描：计数自证 + R5 棘轮对账
+              files = list_tracked_files()
+              out(f'② 扫描文件数={len(files)}（git ls-files ∩ 前缀 {SCAN_PREFIXES} '
+                  f'∩ 扩展名 {sorted(EXTS)}）')
+              if len(files) < 500:
+                  m = (f'扫描文件数 {len(files)} < 500——检出面异常（checkout/路径过滤失校），'
+                       '按空操作假绿风险判失败')
+                  out('::error::' + m)
+                  failures.append(m)
+
+              hard_all = {}     # rid -> [(file, line, ctext, tok)]
+              ratchet_fp = {}   # 指纹 -> [file:line 样本...]
+              ratchet_occ = 0
+              seen_lines = set()
+              for f in files:
+                  text = read_file(f)
+                  if not text:
+                      continue
+                  for rid, ln, ctext, tok in scan_text(f, text):
+                      if rid in HARD_IDS:
+                          hard_all.setdefault(rid, []).append((f, ln, ctext, tok))
+                      else:
+                          ref = tok.split(':')[0]
+                          fp = f'{f}::{ref}'
+                          ratchet_fp.setdefault(fp, []).append(f'{f}:{ln}')
+                          ratchet_occ += 1
+                      seen_lines.add((f, ln))
+              total_hard = sum(len(v) for v in hard_all.values())
+              out(f'   命中行数（全量，列示口径）={len(seen_lines)}；'
+                  f'硬红档规则命中(重复计)={total_hard}；'
+                  f'行号引用出现={ratchet_occ} 次 / 指纹 {len(ratchet_fp)} 个')
+              for rid, _ in HARD_PATTERNS:
+                  out(f'   {rid}: {len(hard_all.get(rid, []))}')
+              out(f'   R5.行号引用(棘轮): {ratchet_occ}')
+              # 计数自证的失效判据按"类"执行（裁定 4 类禁止形态；类内任一形态有
+              # 命中即探测器活；子形态 0 命中仅列示观察）
+              cat_counts = {}
+              for rid, _ in HARD_PATTERNS + RATCHET_PATTERNS:
+                  cnt = ratchet_occ if rid == 'R5.行号引用' else len(hard_all.get(rid, []))
+                  cat_counts[CATEGORY_OF[rid]] = cat_counts.get(CATEGORY_OF[rid], 0) + cnt
+              for cat, cnt in sorted(cat_counts.items()):
+                  out(f'   类计 {cat}: {cnt}')
+                  if cnt == 0:
+                      m = (f'禁止形态类 {cat} 全量 0 命中——类级恒 0 是探测器/扫描面失效信号，'
+                           '须人工复核（存量清零后应连同基线通道一并正式关闭该规则，'
+                           '而非放任假绿）')
+                      out('::error::' + m)
+                      failures.append(m)
+
+              out(f'   硬红档抽样（每规则前 {SAMPLE_N} 条；存量仅列示，不拦截——'
+                  '拦截走 diff-only）：')
+              for rid, _ in HARD_PATTERNS:
+                  for f, ln, ctext, tok in hard_all.get(rid, [])[:SAMPLE_N]:
+                      out(f'     [{rid}] {f}:{ln}  <{tok}>  {ctext[:120]}')
+
+              if MODE == 'gen-baseline':
+                  # 本地生成器专用：把当前实测指纹写成初版基线（裁定步骤0"基线=
+                  # 当前实测计数"）。CI 恒为 GATE_MODE=ci，本分支不参与门禁判定。
+                  hdr = [
+                      '# #330 棘轮档基线：注释中的行号引用（xxx.rs:123 / file.ts:45 式）',
+                      '# ——本档"不禁但只准降"。',
+                      '# 键 = 去掉行号后的文本指纹：<承载文件>::<被引文件路径>（不带行号：',
+                      '# 行号漂移会把老问题误报成新失配——教训见 api-request-baseline 的 _comment）。',
+                      '# 门禁语义：扫描得到的指纹不在本文件内 => 判红（新增行号引用须显式登记并承担复审）；',
+                      '# 基线条目在代码中消失 => 门禁提示"应删行使棘轮真实缩短"。',
+                      '# 禁止为让 CI 变绿向本文件添加新豁免条目——那是掩盖不是修复。',
+                  ]
+                  target = os.path.join(REPO, BASELINE_PATH)
+                  with open(target, 'w', encoding='utf-8', newline='\n') as fh:
+                      fh.write('\n'.join(hdr) + '\n')
+                      for fp in sorted(ratchet_fp):
+                          fh.write(fp + '\n')
+                  out(f'gen-baseline：已写入 {target}，指纹 {len(ratchet_fp)} 条'
+                      f'（出现 {ratchet_occ} 次）')
+                  flush('gen-baseline 完成（非门禁判定）')
+                  sys.exit(0)
+
+              baseline_file = os.path.join(REPO, BASELINE_PATH)
+              if not os.path.isfile(baseline_file):
+                  m = (f'棘轮基线缺失：{BASELINE_PATH} 不存在——超基线判定无法执行，'
+                       '禁止静默通过')
+                  out('::error::' + m)
+                  failures.append(m)
+              else:
+                  with open(baseline_file, encoding='utf-8', errors='replace') as fh:
+                      baseline = {l.strip() for l in fh if l.strip() and not l.startswith('#')}
+                  new_fp = sorted(set(ratchet_fp) - baseline)
+                  retired = sorted(baseline - set(ratchet_fp))
+                  out(f'   棘轮对账：基线={len(baseline)} 条，当前指纹={len(ratchet_fp)} 个，'
+                      f'新增={len(new_fp)}，已消失待退役={len(retired)}')
+                  if new_fp:
+                      m = (f'棘轮超基线：{len(new_fp)} 个新行号引用指纹'
+                           '（基线只准降不准升，新增即红）')
+                      out('::error::' + m)
+                      failures.append(m)
+                      for fp in new_fp[:SAMPLE_N]:
+                          out(f'     新增指纹 {fp} 首次出现于 {ratchet_fp[fp][0]}')
+                  if retired:
+                      out(f'     提示：{len(retired)} 个基线指纹已不存在，'
+                          '应删行使棘轮真实缩短（只准降）')
+
+              # ③ 硬红档 diff-only（仅 ci 模式）；fail-closed
+              if MODE == 'ci':
+                  base, why = resolve_base()
+                  out(f'③ diff base 解析：{why}')
+                  if base is None:
+                      m = ('fail-closed：无法取得 diff base => 判本步失败'
+                           f'（禁止"拿不到就当作没有新增"）；原因：{why}')
+                      out('::error::' + m)
+                      failures.append(m)
+                  else:
+                      added, err = parse_added_lines(base)
+                      if err:
+                          out('::error::fail-closed：' + err)
+                          failures.append(err)
+                      else:
+                          nfiles = len(added)
+                          nlines = sum(len(v) for v in added.values())
+                          out(f'   diff 覆盖扫描面代码文件={nfiles} 个，新增行数={nlines}')
+                          diff_hits = []
+                          for f, lns in sorted(added.items()):
+                              text = read_file(f)
+                              for rid, ln, ctext, tok in scan_text(f, text):
+                                  if ln in lns and rid in HARD_IDS:
+                                      diff_hits.append((rid, f, ln, tok, ctext))
+                          if diff_hits:
+                              m = (f'硬红档命中：新增/修改行注释中检出 {len(diff_hits)} 处'
+                                   '禁止形态（diff-only，不给存量豁免）')
+                              out('::error::' + m)
+                              failures.append(m)
+                              for rid, f, ln, tok, ctext in diff_hits:
+                                  out(f'     [{rid}] {f}:{ln}  <{tok}>  {ctext[:160]}')
+                          else:
+                              out('   硬红档 diff-only：新增行 0 命中')
+
+              flush('FAIL（失败项 %d）' % len(failures) if failures else 'PASS')
+              if failures:
+                  sys.exit(1)
+
+
+          main()
+          PYEOF
+
       - name: 上传注释报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: comment-report-${{ github.run_id }}
-          path: /tmp/comment-report.md
+          path: |
+            /tmp/comment-report.md
+            /tmp/comment-format-report.md
           retention-days: 30
           if-no-files-found: ignore
 
