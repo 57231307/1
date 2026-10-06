@@ -433,6 +433,15 @@ test.describe('13 预算+资金全流程契约链', () => {
     const planId = requireId(plan, '方案');
     const planNo = String(plan.plan_no);
     await apiCall(page, 'POST', `/budgets/plans/${planId}/approve`, { approval_comment: 'E2E' });
+    // 预警扫描口径（budget_management_service.rs:1409-1429）：issued=「下达」类执行明细求和，
+    // issued 为 0 的方案直接 continue 不进预警。执行率=已执行/已下达，故必须先建一条
+    // execution_type="下达"（与后端比较值逐字符相同）的 10000 明细建立额度，再建「使用」9000。
+    await apiCall(page, 'POST', `/budgets/plans/${planId}/executions`, {
+      execution_type: '下达',
+      amount: 10000,
+      expense_type: '预算下达',
+      expense_date: '2032-07-01',
+    });
     await apiCall(page, 'POST', `/budgets/plans/${planId}/executions`, {
       execution_type: '使用',
       amount: 9000,
@@ -445,7 +454,7 @@ test.describe('13 预算+资金全流程契约链', () => {
       'GET',
       '/budgets/execution-warnings?budget_year=2032'
     );
-    // 该端点直出 {code:200,data:[...]}（handler:1031-1045），apiCallRaw 已剥出 data ⇒ 应为主题数组
+    // 该端点直出 {code:200,data:[...]}（handler:1051-1066），apiCallRaw 已剥出 data ⇒ 应为主题数组
     if (!Array.isArray(resp)) {
       throw new Error(
         `execution-warnings data 应为数组（BudgetWarning[]），实际=${JSON.stringify(resp).slice(0, 200)}`
@@ -455,6 +464,7 @@ test.describe('13 预算+资金全流程契约链', () => {
     const hit = rows.find(r => String(r.plan_no) === planNo);
     if (!hit) throw new Error(`90% 执行率方案 ${planNo} 未进入预警列表（≥80% 应 yellow）`);
     expectKeyValue(hit, 'plan_id', planId, '预警行');
+    expectDecimal(hit, 'issued_amount', 10000, '预警行 issued=「下达」明细和');
     expectDecimal(hit, 'executed_amount', 9000, '预警行');
     expectDecimal(hit, 'available_amount', 1000, '预警行 available=issued-executed');
     expectKeyValue(hit, 'warning_level', 'yellow', '预警级别（BudgetWarning.warning_level，:173）');

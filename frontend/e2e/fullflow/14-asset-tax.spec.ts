@@ -235,6 +235,9 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
 
     const fDel = await apiCallExpectFail(page, 'DELETE', `/fixed-assets/${id}`);
     expect(fDel.status, 'active 删除应 400').toBe(400);
+    expect(failureCode(fDel), 'active 删除机器码（business_displayable，service:791）').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     expect(
       !DESENSITIZED_CONSTANTS.includes(String(fDel.message)),
       `删除门应外显「只能删除未使用或已处置…」类原因（service:788-792），实际=${JSON.stringify(fDel.message)}`
@@ -333,8 +336,11 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
     page,
   }) => {
     const custId = await seedCustomer(page, '计提');
-    // due_date 100 天前 → within_1y，费率 5%（bad_debt_service.rs:99）
-    const invId = await seedApprovedAr(page, custId, 5000, '2025-06-01');
+    // due_date 取「当前 UTC 日期 − 100 天」动态值：账龄桶 from_overdue_days(≤365)→within_1y、
+    // 费率 5%（bad_debt_service.rs:96-116）。写死历史日期会随 CI 运行日推移滑出桶界（>365 天
+    // 落入 1_to_2y，费率 20%），本用例将结构性必红，故前置必须自建于运行时刻的相对日期。
+    const due100 = new Date(Date.now() - 100 * 86400000).toISOString().slice(0, 10);
+    const invId = await seedApprovedAr(page, custId, 5000, due100);
     const now = new Date();
     const y = now.getUTCFullYear();
     const m = now.getUTCMonth() + 1;
@@ -477,6 +483,9 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
       assigned_to: userId,
     });
     expect(fType.status, '非法 task_type 应 400').toBe(400);
+    expect(failureCode(fType), '非法 task_type 机器码（validation_displayable）').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
     expect(
       !DESENSITIZED_CONSTANTS.includes(String(fType.message)),
       `task_type 门应外显合法值清单原因（collection_task_service.rs:409-413），实际=${JSON.stringify(fType.message)}`

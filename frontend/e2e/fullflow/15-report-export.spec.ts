@@ -33,6 +33,7 @@ import {
   failureCode,
   genCode,
   tryCleanup,
+  APP_ERROR_CODES,
 } from '../flow/helpers';
 import type { Page } from '@playwright/test';
 
@@ -376,13 +377,15 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     );
     expect(fFake.status, '假令牌应 403').toBe(403);
     expect(failureCode(fFake), '403 机器码').toBe('FORBIDDEN');
-    // 无令牌 → 403（对 profit 导出同样 fail-closed，handler:389/464 enforce）
+    // 无令牌 → 403（enforce_export_download fail-closed：token 空即 permission_denied，
+    // export_approval_service.rs:379-383 ⇒ 403+FORBIDDEN；对 profit 导出同样 enforce）
     const fNo = await apiCallExpectFail(
       page,
       'GET',
       `/finance/reports/income-statement/export?start_date=${today()}&end_date=${today()}`
     );
     expect(fNo.status, '无令牌利润表导出应 403').toBe(403);
+    expect(failureCode(fNo), '无令牌导出机器码').toBe(APP_ERROR_CODES.FORBIDDEN);
   });
 
   test('15-06 无令牌门导出：AP/AR 发票与固定资产/预算导出均返回真实 xlsx 字节', async ({

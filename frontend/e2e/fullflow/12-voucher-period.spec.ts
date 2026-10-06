@@ -325,6 +325,7 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
 
     const failDel = await apiCallExpectFail(page, 'DELETE', `/vouchers/${id}`);
     expect(failDel.status, 'posted 删应 400').toBe(400);
+    expect(failureCode(failDel), 'posted 删除机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     expect(
       !DESENSITIZED_CONSTANTS.includes(String(failDel.message)),
       `删除门文案应外显（crud.rs:530-533 business_displayable），实际=${JSON.stringify(failDel.message)}`
@@ -590,6 +591,7 @@ test.describe('12 凭证/科目/期间全流程契约链', () => {
 
     const fPost = await apiCallExpectFail(page, 'POST', `/vouchers/${vid}/post`);
     expect(fPost.status, '已关账期间过账应 400').toBe(400);
+    expect(failureCode(fPost), '期间锁过账机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     expect(
       !DESENSITIZED_CONSTANTS.includes(String(fPost.message)),
       `期间锁文案应外显（business_displayable），实际=${JSON.stringify(fPost.message)}`
