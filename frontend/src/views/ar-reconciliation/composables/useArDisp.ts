@@ -15,6 +15,7 @@ import {
   type DisputeRecord,
 } from '@/api/ar-reconciliation-enhanced';
 import { logger } from '@/utils/logger';
+import { isDialogDismissal } from '@/utils/monitor';
 
 const t = i18n.global.t.bind(i18n.global);
 
@@ -96,7 +97,7 @@ export function useArDisp(loadData: () => Promise<void>) {
       // 解决后刷新当前对账单的争议列表：row.id 即 reconciliation_id
       await openDisputeDialog({ id: row.id } as AutoReconciliationResult);
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error(t('arReconciliationModule.resolveDisputeFailed'));
       }
     }

@@ -253,6 +253,7 @@ import type { Customer } from '@/api/customer';
 import { getCustomerList } from '@/api/customer';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
+import { isDialogDismissal } from '@/utils/monitor';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -457,7 +458,7 @@ const approveInvoice = async (row: ARInvoice) => {
     ElMessage.success(t('arModule.invoice.approveSuccess'));
     fetchInvoices();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('common.failed'));
     }

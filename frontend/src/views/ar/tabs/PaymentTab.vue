@@ -126,6 +126,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
+import { isDialogDismissal } from '@/utils/monitor';
 import {
   getARPaymentList,
   getARPayment,
@@ -262,7 +263,7 @@ const confirmPayment = async (row: ARPayment) => {
     ElMessage.success(t('common.success'));
     fetchPayments();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }

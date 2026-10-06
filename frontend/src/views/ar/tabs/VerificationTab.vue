@@ -284,7 +284,7 @@ const cancelVerification = async (row: ARVerification) => {
     ElMessage.success(t('common.success'));
     fetchVerifications();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
