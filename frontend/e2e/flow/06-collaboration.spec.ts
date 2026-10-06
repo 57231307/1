@@ -14,6 +14,8 @@ import {
   verifyAuditLog,
   verifyPermissionDenied,
   CSRF_ERROR_CODES,
+  failureCode,
+  APP_ERROR_CODES,
 } from './helpers';
 
 test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', () => {
@@ -141,12 +143,26 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
   });
 
   test('6-6 验证非法 API 调用被拒绝', async ({ page }) => {
-    // 契约（收紧 `>=400` 来者不拒）：/nonexistent-resource 未在任何 nest 注册
-    // （backend/src/routes/mod.rs 全量路由表），axum 匹配不到 handler 只能返回 404。
-    // 判红场景：出现 400/403（该路径被误注册进了鉴权/校验链）或 5xx（路由层 panic）；
-    // 不判机器码——未匹配路由出参由框架给出，无 AppError 信封可归因。
+    // 契约（与 P1-5 语义① 同源，09-permissions.spec.ts:115-155，其中 :128-138 已正向钉桩）：
+    // permission_middleware 以 Router::layer 挂在 erp 路由外层
+    // （backend/src/bootstrap/middleware_bootstrap.rs:243-259，链序 auth→omni_audit→csrf→permission→
+    // request_logging→handler），先于 axum 的路由匹配与 not_found fallback；
+    // seg3=nonexistent-resource 不在资源白名单（middleware/permission.rs:59-70 validate_route_whitelist、
+    // :212-223 extract_segment3；utils/path_utils.rs:92-99 is_known_resource_segment）
+    // → forbidden_response = 403 + code=FORBIDDEN（utils/response.rs:144-146）。
+    // 本前缀下"未注册路径只能返回 404"结构上不可达；真 404 覆盖由 P1-5 语义②（/users/99999999）提供。
+    // 本仓红线：403 必须同时判机器码（防 CSRF 拒绝混判假绿）；权限文案永久脱敏，不断 message。
     const result = await apiCallExpectFail(page, 'GET', '/nonexistent-resource');
-    expect(result.status, `未注册路由应恰为 404，实际 ${JSON.stringify(result)}`).toBe(404);
+    expect(
+      result.status,
+      `非白名单段应在权限中间件 fail-closed 为 403（先于路由匹配，P1-5 语义①），实际 ${result.status}`
+    ).toBe(403);
+    expect(
+      failureCode(result),
+      `403 必须归因到权限机器码 ${APP_ERROR_CODES.FORBIDDEN}（而非 CSRF_* 或其它码），实际：${JSON.stringify(
+        result
+      ).slice(0, 200)}`
+    ).toBe(APP_ERROR_CODES.FORBIDDEN);
   });
 
   test('6-7 验证审计日志记录所有操作', async ({ page }) => {

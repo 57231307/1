@@ -327,12 +327,17 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
   });
 
   test('60-06 监测负例：限值≤0、非法类型（含 UI 选项 exhaust_gas/soil）', async ({ page }) => {
+    // limit_value 是后端 DTO 必填非 Option 字段（pollution_monitoring_service.rs:31-45 的 :39
+    // `pub limit_value: Decimal`），缺失时 serde 解码即失败、走归一后的 400 VALIDATION_ERROR，
+    // 断言根本到不了服务层词表门。取 65：仅满足">0"使其能通过解码与限值门，
+    // 取值本身不参与被测的 monitoring_type 词表校验（validate_monitoring_type 在 :126 先执行）。
     const base = {
       monitoring_type: 'wastewater',
       monitoring_point: genCode('E2E-MN'),
       pollutant_name: 'COD',
       measured_value: '10',
       unit: 'mg/L',
+      limit_value: '65',
       monitoring_time: new Date().toISOString(),
     };
     const zeroLimit = await apiCallExpectFail(page, 'POST', '/pollution-monitoring/records', {

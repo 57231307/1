@@ -259,7 +259,9 @@ async fn unbalanced_voucher_is_sanitized_validation_error() {
 // 缺口 1：科目已停用（状态门）与科目查无（存在性）必须分属两族
 // =========================================================
 
-/// 分录引用**已停用**科目：400 + BUSINESS_ERROR + 脱敏常量（真实 code 只进日志）。
+/// 分录引用**已停用**科目：400 + BUSINESS_ERROR + 脱敏常量
+///（日志侧留痕按提交分支口径：id 分支 = 主键 ID、code 分支 = 真实科目编码，
+/// 见 `voucher_ops/crud.rs` 停用门两个分支的构造文案）。
 #[tokio::test]
 async fn disabled_subject_reference_is_sanitized_business_error() {
     let db = live_pg_db().await;
@@ -308,9 +310,12 @@ async fn disabled_subject_reference_is_sanitized_business_error() {
         "出参常量取自 utils/messages.rs 的 BUSINESS_PUBLIC，若该常量变动需同步 e2e 断言"
     );
     let logged = err.to_string();
+    // 本用例走 **subject_id 提交分支**：状态门在 id 分支的日志侧留痕口径是
+    // 「科目已停用：ID={主键}」（与「科目不存在：ID=」同族），真实科目编码只在
+    // code 提交分支进 Display；出参侧仍由下方负锁保证 code 不外泄。
     assert!(
-        logged.contains(disabled_code.as_str()),
-        "真实科目编码必须留在日志侧 Display 里可查，实际={logged}"
+        logged.contains(&format!("科目已停用：ID={disabled_id}")),
+        "日志侧 Display 必须留可关联的主键留痕（id 分支口径），实际={logged}"
     );
     let public = err.to_response().message;
     assert!(

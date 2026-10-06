@@ -36,13 +36,14 @@ use axum::{
     body::Body,
     extract::State,
     http::{Method, Request, StatusCode},
-    middleware::{Next, from_fn_with_state},
+    middleware::{Next, from_fn, from_fn_with_state},
     response::Response,
     routing::post,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::production_order_handler::{self, CreateProductionOrderPayload};
 use bingxi_backend::middleware::auth_context::AuthContext;
+use bingxi_backend::middleware::trace_context::catch_panic_middleware;
 use bingxi_backend::models::{product, production_order};
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -228,7 +229,14 @@ async fn forged_order_no_never_reaches_insert_zero_rows_written() {
 #[tokio::test]
 async fn missing_planned_quantity_rejected_at_dto_layer() {
     let (app, db, product_id) = seeded_app().await;
-    let (status, _v) = call(
+    // 生产链路把 axum 提取器拒绝（原生 415/422 纯文本）收口成 400 + VALIDATION_ERROR 的
+    // 地点是 `middleware/trace_context.rs:259` `normalize_extractor_rejection`，它挂在
+    // `catch_panic_middleware` 的响应回廊里（trace_context.rs:339-342）。测试 Router 不挂
+    // 这一层就会锁到与生产不同的形态（裸 422）——按仓内既有范式
+    // （`contract_wave8_extractor_rejection_envelope_test.rs:114`）把该层真实挂上，
+    // 走同源链路，断"状态码 + 机器码 + 零写入"三件，不放宽成"任意 4xx"。
+    let app = app.layer(from_fn(catch_panic_middleware));
+    let (status, v) = call(
         &app,
         Method::POST,
         "/production-orders/orders",
@@ -238,7 +246,11 @@ async fn missing_planned_quantity_rejected_at_dto_layer() {
     assert_eq!(
         status,
         StatusCode::BAD_REQUEST,
-        "NOT NULL 列缺键必须 400(required 语义),不得回落默认值"
+        "NOT NULL 列缺键必须 400(required 语义),不得回落默认值，实得: {v}"
+    );
+    assert_eq!(
+        v["code"], "VALIDATION_ERROR",
+        "字段级缺失属解码/校验族机器码，不得是 BUSINESS/DATABASE 族: {v}"
     );
     let rows = production_order::Entity::find().all(&db).await.unwrap();
     assert!(rows.is_empty(), "缺键被拒后不得有任何写入");

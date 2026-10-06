@@ -418,17 +418,40 @@ mod live_pg {
             "人工传入编码必须原样落库（fixed_asset/quality_standard 同型分支）"
         );
 
-        // 2) 重复人工码：显式报错，不得被自动取号吞掉
+        // 2) 重复人工码：显式业务拒绝 + 零副作用。
+        //    分类口径（warehouse_service.rs:106-153「同事务预校验 + 23505 归类」范式）：
+        //    人工码已存在属**用户可自行修正的业务冲突** ⇒ BUSINESS_ERROR；
+        //    真撞 warehouse_code UNIQUE 的并发兜底分支同样归口业务拒绝，
+        //    只有非唯一类 DbErr 才原样上抛。旧前提"23505 必须以 DatabaseError 上抛"
+        //    在预校验落地后已不可达（预校验先拦，根本走不到 23505），
+        //    且 500 族分类与"业务拒绝→BUSINESS_ERROR"的裁定相违。
+        //    断契约层（机器码 + HTTP 码）+ 真实行数，不锁 Rust 变体、不锁文案。
         let err = svc
             .create(make_req(Some(manual_code.clone())), 1)
             .await
-            .expect_err("重复人工码必须显式失败（UNIQUE 兜底），禁止静默改名");
-        assert!(
-            matches!(
-                err,
-                bingxi_backend::utils::error::AppError::DatabaseError(_)
-            ),
-            "23505 应映射为真实分类上抛，实际: {err:?}"
+            .expect_err("重复人工码必须显式失败，禁止静默改名/重新取号");
+        assert_eq!(
+            err.error_code(),
+            "BUSINESS_ERROR",
+            "重复人工码必须归业务拒绝族机器码，不得降级成 DATABASE/INTERNAL 500 族"
+        );
+        assert_eq!(
+            <bingxi_backend::utils::error::AppError as axum::response::IntoResponse>::into_response(
+                err
+            )
+            .status(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "重复人工码的 HTTP 码必须是 400"
+        );
+        // 被拒不得产生任何新行：该编码在库里有且仅有一行，且编码原样未被改写
+        let dup_rows = warehouse::Entity::find()
+            .filter(warehouse::Column::WarehouseCode.eq(&manual_code))
+            .count(&db)
+            .await
+            .expect("回读重复编码行数应成功");
+        assert_eq!(
+            dup_rows, 1,
+            "重复人工码被拒后不得静默落第二行/改名落库（有且仅有原码一行）"
         );
 
         // 3) 缺省：生成器自动取号，格式 {WH}{YYYYMMDD}{3位流水}

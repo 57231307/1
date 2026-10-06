@@ -27,6 +27,7 @@ use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
 
+use axum::{http::StatusCode, response::IntoResponse};
 use bingxi_backend::models::{
     inventory_stock, product, purchase_order, purchase_order_item, purchase_return,
     purchase_return_item,
@@ -37,7 +38,7 @@ use bingxi_backend::services::purchase_return_service::{
 };
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, TimeZone, Utc};
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
@@ -394,7 +395,11 @@ async fn seed_full_po_context(
     (sup.id, wh.id, p.id, po.id, poi.id, stock.id)
 }
 
-/// 建退货单（带四维明细）→ submit → approve，返回 service 与退货单 id 供断言复用
+/// 建退货单（带四维明细）→ submit，返回 service 与退货单 id 供断言复用。
+/// approve **不在本夹具内**：全链用例（四维唯一命中）必须在拿到返回值后显式 approve，
+/// 歧义用例（同四维多行）必须以 approve 为被断言的失败点——两者对 approve 的期望相反，
+/// 写死在夹具里必有一侧假绿。扣库存与 PO received_quantity 回写只发生在
+/// `purchase_return_service.rs:301-355` 的 approve 事务内。
 async fn run_return_approve(
     db: std::sync::Arc<sea_orm::DatabaseConnection>,
     supplier_id: i32,
@@ -456,12 +461,42 @@ async fn purchase_return_approve_deducts_stock_and_writes_back_po() {
         seed_full_po_context(&db, dec("200"), dec("100"), dec("100")).await;
     let (svc, ret_id) = run_return_approve(db.clone(), sup, wh, po, p, "30.00")
         .await
-        .expect("部分退货审批链应成功");
-    // 状态门反向锁：approve 之后再 submit 必须被"状态不允许提交"业务错拒绝（非 500）
+        .expect("部分退货建单+提交链应成功");
+    use bingxi_backend::models::status::purchase_return as pr_status;
+    // 全链的后半段：四维唯一命中 ⇒ approve 必须成功（扣库存与 PO 回写都在此事务内）
+    svc.approve_return(ret_id, 100, None)
+        .await
+        .expect("四维唯一命中的审批链应成功");
+    // 状态门反向锁：approve 之后再 submit 必须被状态门拒绝。
+    // 断契约层（HTTP 状态码 + 机器码），不锁 Rust 变体、不锁文案：
+    // BusinessError 与 BusinessErrorDisplayable 在 error.rs:361-362/796-797
+    // 同为 (400, "BUSINESS_ERROR")，变体只区分"文案是否已由构造点声明可外显"，
+    // 属内部通道；文案原文按本仓永久脱敏裁定不得作为断言对象。
     let resubmit = svc.submit_return(ret_id, 100).await;
-    assert!(
-        matches!(resubmit, Err(AppError::BusinessError(_))),
-        "已审批单重复提交应报 BusinessError，实际: {resubmit:?}"
+    let err = match resubmit {
+        Err(e) => e,
+        Ok(_) => panic!("已审批单重复提交必须被状态门拒绝，实得 Ok（状态门形同虚设）"),
+    };
+    assert_eq!(
+        err.error_code(),
+        "BUSINESS_ERROR",
+        "状态门拒绝必须落业务族机器码（非 500 族、非 VALIDATION_ERROR）"
+    );
+    assert_eq!(
+        IntoResponse::into_response(err).status(),
+        StatusCode::BAD_REQUEST,
+        "状态门拒绝的 HTTP 码必须是 400"
+    );
+    // 被拒的重复提交不得有任何副作用：单据仍停在 APPROVED（未被改写回 DRAFT/SUBMITTED）
+    let after_resubmit = purchase_return::Entity::find_by_id(ret_id)
+        .one(&*db)
+        .await
+        .unwrap()
+        .expect("退货单应存在");
+    assert_eq!(
+        after_resubmit.return_status.as_deref(),
+        Some(pr_status::APPROVED),
+        "重复提交被拒后状态必须仍为 APPROVED（拒绝不得改写状态）"
     );
 
     let stock = inventory_stock::Entity::find_by_id(stock_id)
@@ -497,9 +532,12 @@ async fn purchase_return_approve_deducts_stock_and_writes_back_po() {
     );
 
     // —— 继续退完剩余 70 → received 归零 → 回退 APPROVED ——
-    let (_svc2, _ret2) = run_return_approve(db.clone(), sup, wh, po, p, "70.00")
+    let (svc2, ret2) = run_return_approve(db.clone(), sup, wh, po, p, "70.00")
         .await
-        .expect("第二次退货审批链应成功");
+        .expect("第二次退货建单+提交链应成功");
+    svc2.approve_return(ret2, 100, None)
+        .await
+        .expect("第二次退货（剩余 70）审批链应成功");
     let item2 = purchase_order_item::Entity::find_by_id(poi)
         .one(&*db)
         .await
@@ -551,13 +589,44 @@ async fn purchase_return_approve_ambiguous_four_dim_stock_rejected() {
         .approve_return(ret_id, 100, None)
         .await
         .expect_err("同四维多行必须显式报错（不兜底、不任选）");
-    assert!(matches!(err, AppError::BusinessError(_)), "实际: {err:?}");
-    let disp = err.to_string();
-    assert!(
-        disp.contains("命中多条库存行"),
-        "应指向歧义分支，实际: {disp}"
+    // 契约层断言：机器码 + HTTP 码。不锁 Rust 变体（BusinessError 与
+    // BusinessErrorDisplayable 在 error.rs:796-797/361-362 同为 400 + BUSINESS_ERROR，
+    // 变体只表示"文案是否由构造点声明可外显"，属内部通道），
+    // 也不锁文案原文（本仓裁定：拒绝原因文案永久脱敏，不得作为断言对象）。
+    assert_eq!(
+        err.error_code(),
+        "BUSINESS_ERROR",
+        "四维歧义必须归业务拒绝族机器码，不得降级成 DATABASE/INTERNAL 500 族"
     );
-    assert!(disp.contains("无法唯一定位"), "实际: {disp}");
+    assert_eq!(
+        IntoResponse::into_response(err).status(),
+        StatusCode::BAD_REQUEST,
+        "四维歧义拒绝的 HTTP 码必须是 400"
+    );
+    // 本例真正要锁的东西——被拒审批零副作用：兜底"任选一行"或"先扣后拒"都会在这里红。
+    let rows = inventory_stock::Entity::find()
+        .filter(inventory_stock::Column::ProductId.eq(p))
+        .all(&*db)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2, "前置：同四维仅等级不同的两行库存应都在库");
+    for row in &rows {
+        assert_eq!(
+            row.quantity_meters,
+            dec("100"),
+            "审批被歧义拒绝后任何一行库存都不得被扣减"
+        );
+    }
+    let ret_row = purchase_return::Entity::find_by_id(ret_id)
+        .one(&*db)
+        .await
+        .unwrap()
+        .expect("退货单应存在");
+    assert_eq!(
+        ret_row.return_status.as_deref(),
+        Some(bingxi_backend::models::status::purchase_return::SUBMITTED),
+        "审批被歧义拒绝后单据不得进入 APPROVED（仍应停在 SUBMITTED）"
+    );
 }
 
 /// 非法维度组合的建单入参（染色布缺缸号）在退货侧经 fabric_class/require_outbound_dimensions

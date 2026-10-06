@@ -392,6 +392,8 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     // fund_management()，经 sub_routes() nest 至 /api/v1/erp），旧写法 /fund/transfers
     // 是测试侧路径错——命中的是白名单外路径，被鉴权层 403「未知的资源路径」拦截，
     // 根本没到达服务层，404 断言验的不是状态机前提。仅改路径，断言强度不变。
+    // 该端点（fund_management_handler.rs:332-336）不带请求体提取器，缺体是合法输入，
+    // 故此处不发 body 也能抵达服务层存在性门——这条绿是真的。
     const r = await apiCallExpectFail(page, 'POST', '/fund-management/transfers/99999999/approve');
     expect(r.status, `不存在转账审批应 404 not found，实际=${r.status}`).toBe(404);
   });
@@ -399,8 +401,26 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   test('44e-9 大货处方：closed 后非法转换（production_recipe_service.rs:203-220）', async ({
     page,
   }) => {
-    const r = await apiCallExpectFail(page, 'POST', '/production/recipes/99999999/approve');
+    // 旧写法 /production/recipes/{id}/approve 是没注册的路径（真实路径见
+    // frontend/scripts/route-snapshot.txt:1443 = /production/production-recipes/{id}/approve），
+    // 拿到的是路由层裸 404（响应体为空），从未到达服务层——该断言当时是假绿。
+    // 现改真实路径并带该端点真实必填载荷（ApproveRecipeRequest.approved_by: i32，
+    // 见 backend/src/services/production_recipe_service.rs:103-105；服务先 get_by_id
+    // 判存在性，见 production_recipe_ops/recipe_state.rs:21-23），并补断机器码，
+    // 使这条用例真正验「不存在处方审批 → 404 NOT_FOUND」。
+    const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
+    const r = await apiCallExpectFail(
+      page,
+      'POST',
+      '/production/production-recipes/99999999/approve',
+      {
+        approved_by: me.id,
+      }
+    );
     expect(r.status, `不存在处方审批应 404 not found，实际=${r.status}`).toBe(404);
+    expect(failureCode(r), `不存在处方审批的错误码应是 NOT_FOUND，实际=${failureCode(r)}`).toBe(
+      APP_ERROR_CODES.NOT_FOUND
+    );
   });
 
   test('44e-10 销售订单删除后残留检查（order_crud.rs:684-714 事务删：预留+明细+主表）', async ({

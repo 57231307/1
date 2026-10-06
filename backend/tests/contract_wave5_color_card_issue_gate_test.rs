@@ -264,7 +264,9 @@ fn card_not_issuable_is_displayable_public_rule() {
     );
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
     assert_eq!(err.to_response().message, "只有草稿态色卡可以发放");
-    assert_eq!(err.to_string(), "只有草稿态色卡可以发放");
+    // Display（日志侧形态）带 BUSINESS 族前缀，与 HTTP 出参的裸文案有意不同；
+    // 这里按 err_msg::BUSINESS_PREFIX 现值逐字符锁死，前缀漂移必须显式撞上本断言。
+    assert_eq!(err.to_string(), "业务错误：只有草稿态色卡可以发放");
 }
 
 #[test]

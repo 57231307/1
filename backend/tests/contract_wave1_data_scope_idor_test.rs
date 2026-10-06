@@ -444,7 +444,13 @@ async fn live_transfer_update_delete_scope_matrix() {
     .unwrap();
 
     let uri = format!("/inventory/transfers/{}", trf.id);
-    let patch = json!({ "status": null, "notes": "data-scope 套件", "items": null });
+    // 本例锁的是 data-scope（owner 可写 / 非 owner 403），请求形态本身必须合法：
+    // status 在读模型里是非空列（models/inventory_transfer.rs:16 `pub status: String`），
+    // 显式 null 清空会被写门拒绝（services/inv/inventory_move.rs:676-680），
+    // 而编辑口只允许"同值幂等"覆盖（inventory_move.rs:304-319）⇒ 这里带当前值 pending。
+    let patch = json!({ "status": "pending", "notes": "data-scope 套件", "items": null });
+    // 三态语义的负分支（清空非空列）单独钉住，见下方 owner 段。
+    let null_clear_patch = json!({ "status": null, "notes": "data-scope 套件" });
 
     // 非 owner（salesperson/purchaser 同语义 self）→ 403
     let app = {
@@ -488,8 +494,35 @@ async fn live_transfer_update_delete_scope_matrix() {
                 inject_auth,
             ))
     };
+    // owner 先走"清空非空列"的负分支：必须是业务拒绝 400 + BUSINESS_ERROR，
+    // 且拒绝零副作用（状态原值不动）。放行成 NULL 落库会让该行此后每次读取都变
+    // sea-orm 类型错 500（模型列是 String 非 Option）——本断言正是拦住那条路。
+    let (status, v) = call(&app_owner, Method::PUT, &uri, Some(null_clear_patch)).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "owner 清空非空列 status 必须被拒，实得 {status}: {v}"
+    );
+    assert_eq!(
+        v["code"], "BUSINESS_ERROR",
+        "清空非空列属业务拒绝族机器码，不得是 500 族（不断文案，见脱敏裁定）: {v}"
+    );
+    use sea_orm::EntityTrait;
+    let after_reject = inventory_transfer::Entity::find_by_id(trf.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("被拒的清空请求不得删改主行");
+    assert_eq!(
+        after_reject.status, "pending",
+        "清空被拒后 status 必须保持原值 pending"
+    );
+
     let (status, v) = call(&app_owner, Method::PUT, &uri, Some(patch)).await;
-    assert!(status.is_success(), "owner 更新应 2xx，实际 {status}: {v}");
+    assert!(
+        status.is_success(),
+        "owner 合法更新应 2xx，实际 {status}: {v}"
+    );
     let (status, v) = call(&app_owner, Method::DELETE, &uri, None).await;
     assert!(status.is_success(), "owner 删除应 2xx，实际 {status}: {v}");
 }

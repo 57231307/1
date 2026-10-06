@@ -326,12 +326,15 @@ async fn http_delete_referenced_warehouse_400_business_error() {
     assert_no_internal_leak(msg, WH_REFERENCED_ID);
 }
 
-/// DELETE 无引用 → 200，data 为 biz_msg::DELETE_OK 常量原文
+/// DELETE 无引用 → 200，message 为 biz_msg::DELETE_OK 常量原文
+///（权威信封 `ApiResponse` 把人类文案置于 `message`、载荷置于 `data`；payload-less
+/// 删除 `data=Some(())` 序列化为 `null`，成功文案落在 `message`，与同文件被引用负例
+/// `http_delete_referenced_warehouse_400_business_error` 断 `message` 同源）
 #[tokio::test]
 async fn http_delete_unreferenced_warehouse_200() {
     let app = seeded_router(100).await;
     let (status, v) = request_json(&app, del(&format!("/warehouses/{WH_CLEAN_ID}"))).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(v["code"], 200);
-    assert_eq!(v["data"], biz_msg::DELETE_OK);
+    assert_eq!(v["message"], biz_msg::DELETE_OK);
 }
