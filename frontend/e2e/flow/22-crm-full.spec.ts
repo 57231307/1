@@ -431,30 +431,173 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/crm/five-dimension/list');
     await verifyEndpointHealthy(page, '/crm/five-dimension/summary');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/statistics');
-    // trends 与其别名 trend 共用同一 handler get_trends（routes/crm.rs:175-176 与 :194-197 两处
-    // 均指向 sales_analysis_handler::get_trends）；TrendQuery { period: String } 必填无 Option
-    // （sales_analysis_handler.rs:33-35），缺 period 即 axum Query rejection 400；
-    // service get_trends（sales_analysis_service.rs:51-61）按 sales_analysis.period 等值过滤、
-    // 空命中仍 200。两条路径共用下面这一个显式带 period 参数的 helper（period 无默认值，
-    // 漏传编译期即报错），防止只修其一、别名另一条再撞 400。
-    // period 词形沿用本仓对同一 period 列的既有口径"YYYY-Qn"（targets 端点按 period 定位
-    // sales_analysis 行、前端占位文案 zh-CN.ts:7585「例如：2024-Q1」），
-    // 按查询执行时刻的当前年季度动态生成，不写死快照值。
-    // ⚠️ 必填性口径不对称（登记交契约拍板，本用例不越权改后端）：同域 statistics 的 period 为
-    //    Option<String>（handler:26）、rankings 为 Option（handler:40）、stats/product-ranking/
-    //    customer-ranking/targets 无必填查询参（get_stats:142-150 无 Query；
-    //    sales_analysis_dto.rs:33-52 全 Option；TargetQuery:46-49 全 Option）——
-    //    这些不带 period 的探针与各自契约一致，维持原样。
-    const nowForTrends = new Date();
-    const trendsPeriod = `${nowForTrends.getFullYear()}-Q${Math.floor(nowForTrends.getMonth() / 3) + 1}`;
-    const verifySalesTrendHealthy = (trendPath: string, period: string) =>
-      verifyEndpointHealthy(page, `${trendPath}?period=${period}`);
-    await verifySalesTrendHealthy('/crm/sales-analysis/trends', trendsPeriod);
+    // ===== 销售趋势内容级锁（替换原"健康探针+过期前提注释"段）=====
+    // 端点 GET /crm/sales-analysis/trends 与别名 /trend 挂同一 handler（routes/crm.rs 两处挂载均
+    // 指向 sales_analysis_handler::get_trends）。语义为**按粒度分桶的时间序列**：聚合现算自
+    // sales_orders（复用 BiAnalysisService::sales_by_time）——sales_statistics 对实际销售零写入方
+    // （仅 target 行），读它恒空；此前注释所述"TrendQuery{period:String} 必填、缺省即 400"
+    // 与现实相反：现 TrendQuery 四键 granularity/start_date/end_date/period 全部 Option，
+    // 缺 granularity=月粒度、缺日期=按粒度回看 12 桶；仅 end_date<start_date、日期不成对
+    // 或形态非法才 400 + VALIDATION_ERROR（非法 granularity 回落月桶并留痕，不 400）。
+    // 出参行 SalesTrendPoint{period, amount, order_count, quantity, profit}：金额/数量/利润为
+    // Decimal=字符串口径（typeof "string"，财务口径禁 JSON number）；total_amount→amount 的改名
+    // 只在后端 service 唯一映射点发生；旧前端声明的 growth_rate 无产出方，已不存在、不得再断。
+    // 窗口用专属年 2095（全仓 e2e grep 无占用：71 号 2096、70 号 2097、61 号 2098/2099），
+    // 参数键天然唯一；金额 3×500.25=1500.75 为有限两位小数（Decimal→f64→两位字符串往返无损，
+    // 桶值可与明细精确字符串比对）。
+    // 缓存纪律：链路复用 BI 5min TTL 缓存（键=scope+窗口+粒度），种单后首查与删单后无痕复查
+    // 必须使用互不相同的窗口键，否则命中陈旧缓存造成假绿/假红。
+    // 三段式：种客户+种有效销售单 → 内容级断言（桶序列真的回读到且金额==明细）→ 删单断无痕，
+    // finally 兜底清理；任何一步失败都不静默。
+    const trendCtx = getCtx();
+    const trendProductId = trendCtx.productIds[0];
+    if (!trendProductId) throw new Error('前置缺失：ctx.productIds[0] 未就绪');
+    const trendMonth = '2095-05';
+    const trendWindow = `start_date=${trendMonth}-01&end_date=${trendMonth}-31&granularity=month`;
+    const trendCustomerCode = genCode('E2E22T');
+    const trendCustomer = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_code: trendCustomerCode,
+      customer_name: `22号趋势聚合客户_${trendCustomerCode}`,
+      contact_phone: '13800022001',
+    });
+    const trendCustomerId = Number(trendCustomer.data?.id);
+    expect(
+      trendCustomerId,
+      `[22] 趋势客户创建应回 id：${JSON.stringify(trendCustomer)}`
+    ).toBeGreaterThan(0);
+    let trendOrderId = 0;
+    try {
+      // 有效销售单：10 日正午 UTC（|会话偏移|≤12 时日/月桶不落邻日邻月）；
+      // 状态 pending 属聚合排除门（cancelled/draft）之外的如实计入值
+      const trendOrder = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+        customer_id: trendCustomerId,
+        order_date: `${trendMonth}-10T12:00:00Z`,
+        status: 'pending',
+        items: [{ product_id: trendProductId, quantity: '3', unit_price: '500.25' }],
+      });
+      trendOrderId = Number(trendOrder.data?.id);
+      expect(
+        trendOrderId,
+        `[22] 趋势种子订单创建应回 id：${JSON.stringify(trendOrder)}`
+      ).toBeGreaterThan(0);
+
+      // ① 正向内容级：桶数组真的回读到，金额/数量字符串与订单数逐一对应种单单据
+      const trendEnv = await apiCall<unknown>(
+        page,
+        'GET',
+        `/crm/sales-analysis/trends?${trendWindow}`
+      );
+      expect(
+        trendEnv.code,
+        `趋势成功信封 code=200（ApiResponse 契约），实际 ${JSON.stringify(trendEnv)}`
+      ).toBe(200);
+      expect(Array.isArray(trendEnv.data), '趋势 data 必须恒为数组').toBe(true);
+      const buckets = trendEnv.data as Array<Record<string, unknown>>;
+      expect(
+        buckets.length,
+        `专属窗口 ${trendMonth} 应恰 1 个桶且只含本用例种单，实际 ${JSON.stringify(buckets)}`
+      ).toBe(1);
+      const may = buckets[0];
+      expect(may.period, `桶键应为种单月 ${trendMonth}`).toBe(trendMonth);
+      expect(typeof may.amount, 'amount 必须是字符串（Decimal=字符串口径，禁 JSON number）').toBe(
+        'string'
+      );
+      expect(may.amount, '桶金额必须字符串等值于订单金额 1500.75').toBe('1500.75');
+      expect(may.order_count, '桶订单数必须回读到真实 1 单').toBe(1);
+      expect(may.quantity, '桶数量必须=明细行数量合计（两位字符串口径）').toBe('3.00');
+      expect(typeof may.profit, 'profit 必须是字符串口径').toBe('string');
+      // 自创假列回归防线：出参不得再出现无产出方的 growth_rate
+      expect('growth_rate' in may, '出参不应含已删除的假列 growth_rate').toBe(false);
+
+      // ② 别名 /trend 与 /trends 同参桶逐字节一致（同一 handler 双路径语义锁）
+      const aliasEnv = await apiCall<unknown>(
+        page,
+        'GET',
+        `/crm/sales-analysis/trend?${trendWindow}`
+      );
+      expect(
+        JSON.stringify(aliasEnv.data),
+        '别名 /trend 的桶必须与 /trends 完全一致（同一 handler，禁止只修一条路径）'
+      ).toBe(JSON.stringify(trendEnv.data));
+
+      // ③ period=桶键等值过滤：命中键剩该桶；不命中键返回 200+空数组（空态不是错误）
+      const hitEnv = await apiCall<unknown>(
+        page,
+        'GET',
+        `/crm/sales-analysis/trends?${trendWindow}&period=${trendMonth}`
+      );
+      expect(
+        (hitEnv.data as unknown[]).length,
+        `period=${trendMonth} 必须只剩该桶 1 个，实际 ${JSON.stringify(hitEnv.data)}`
+      ).toBe(1);
+      const missEnv = await apiCall<unknown>(
+        page,
+        'GET',
+        `/crm/sales-analysis/trends?${trendWindow}&period=2095-06`
+      );
+      expect(
+        Array.isArray(missEnv.data) && (missEnv.data as unknown[]).length === 0,
+        `period 不命中必须 200+空数组，实际 ${JSON.stringify(missEnv)}`
+      ).toBe(true);
+
+      // ④ 非法 granularity ⇒ 回落月桶并留痕：200 且与 month 粒度结果逐字节一致（不 400 不 500）
+      const fbEnv = await apiCall<unknown>(
+        page,
+        'GET',
+        `/crm/sales-analysis/trends?start_date=${trendMonth}-01&end_date=${trendMonth}-31&granularity=fortnight`
+      );
+      expect(fbEnv.code, `非法粒度必须回落为 200 成功，实际 ${JSON.stringify(fbEnv)}`).toBe(200);
+      expect(
+        JSON.stringify(fbEnv.data),
+        '非法 granularity 的回落结果必须与 month 粒度逐字节一致（词表外值不另造口径）'
+      ).toBe(JSON.stringify(trendEnv.data));
+
+      // ⑤ 区间倒置 ⇒ 400 + VALIDATION_ERROR（不静默吞、不裸 500），外显原因描述用户提交字段
+      const reversed = await apiCallExpectFail(
+        page,
+        'GET',
+        `/crm/sales-analysis/trends?start_date=${trendMonth}-31&end_date=${trendMonth}-01&granularity=month`
+      );
+      expect(reversed.status, `区间倒置应 400，实际 ${JSON.stringify(reversed)}`).toBe(400);
+      expect(failureCode(reversed), '区间倒置机器码=VALIDATION_ERROR').toBe(
+        APP_ERROR_CODES.VALIDATION_ERROR
+      );
+      expect(String(reversed.message), '拒绝原因必须外显可读').toContain(
+        '结束日期不能早于开始日期'
+      );
+    } finally {
+      if (trendOrderId > 0) {
+        await tryCleanup(
+          page,
+          'DELETE',
+          `/sales/orders/${trendOrderId}`,
+          '[22] 兜底删除趋势种子订单'
+        );
+      }
+      await tryCleanup(
+        page,
+        'DELETE',
+        `/crm/customers/${trendCustomerId}`,
+        '[22] 兜底删除趋势种子客户'
+      );
+    }
+
+    // 删后无痕：换新窗口键（end 提前一天仍覆盖种单日，规避 5min TTL 同键陈旧缓存）复查，
+    // 桶必须随单据消失归 0——若仍留桶即趋势并非现算 sales_orders 而是回读某张恒存壳表
+    const goneEnv = await apiCall<unknown>(
+      page,
+      'GET',
+      `/crm/sales-analysis/trends?start_date=${trendMonth}-01&end_date=${trendMonth}-30&granularity=month`
+    );
+    expect(goneEnv.code, '删后复查信封应成功').toBe(200);
+    expect(
+      (goneEnv.data as unknown[]).length,
+      `删后窗口不应残留桶，实际 ${JSON.stringify(goneEnv.data)}`
+    ).toBe(0);
     await verifyEndpointHealthy(page, '/crm/sales-analysis/rankings');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/stats');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/product-ranking');
     await verifyEndpointHealthy(page, '/crm/sales-analysis/customer-ranking');
-    await verifySalesTrendHealthy('/crm/sales-analysis/trend', trendsPeriod);
     await verifyEndpointHealthy(page, '/crm/sales-analysis/targets');
     await verifyEndpointHealthy(page, '/crm/tags');
   });

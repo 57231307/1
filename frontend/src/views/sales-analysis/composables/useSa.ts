@@ -11,6 +11,7 @@ import {
   getSalesTrendData as fetchSalesTrendData,
   type ProductRanking,
   type CustomerRanking,
+  type SalesTrendGranularity,
   type SalesTarget,
   type SalesTrendResult,
 } from '@/api/sales-analysis';
@@ -30,8 +31,8 @@ export const useSa = () => {
     customerTrend: 0,
   });
 
-  // 趋势周期
-  const trendPeriod = ref('month');
+  // 趋势分桶粒度（后端按粒度对 sales_orders 现算分桶；键名与查询词表同为 granularity）
+  const trendGranularity = ref<SalesTrendGranularity>('month');
 
   // 排名类型
   const productRankType = ref('amount');
@@ -99,24 +100,25 @@ export const useSa = () => {
     }
   };
 
-  // 获取销售趋势数据（批次 95 P3-20 修复：按当前趋势周期拉取）
+  // 获取销售趋势数据：下发分桶粒度；出参契约保证 data 恒为数组，直读、不再 `|| []` 兜底
+  // （兜底会把"后端缺 data 键"的契约破坏伪装成正常空态，属禁用形态）
   const getTrendData = async () => {
     try {
-      const res = await fetchSalesTrendData({ period: trendPeriod.value });
-      trendData.value = res.data || [];
+      const res = await fetchSalesTrendData({ granularity: trendGranularity.value });
+      trendData.value = res.data;
     } catch (error) {
       logger.error('获取销售趋势数据失败:', error);
     }
   };
 
-  // 趋势周期变化时重新拉取趋势数据（批次 95 P3-20 修复）
-  watch(trendPeriod, () => {
+  // 趋势粒度变化时重新拉取趋势数据
+  watch(trendGranularity, () => {
     getTrendData();
   });
 
   return reactive({
     stats,
-    trendPeriod,
+    trendGranularity,
     productRankType,
     customerRankType,
     productRanking,

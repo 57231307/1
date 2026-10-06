@@ -85,14 +85,42 @@ export interface SalesExportQueryParams {
   format?: string;
 }
 
-// P2-16 修复（批次 86 v2 复审）：销售趋势 ApiResponse<any> → SalesTrendResult
+/**
+ * 销售趋势出参行 —— 对齐后端 services/sales_analysis_service.rs::SalesTrendPoint
+ * （按粒度分桶的时间序列；后端现算 sales_orders，聚合本体复用 BiAnalysisService::sales_by_time）。
+ * amount/quantity/profit 为 rust_decimal 口径的两位小数字符串（如 "3001.25"、"5.00"），
+ * 算术/比较/图表喂值前必须 Number() 归一，禁止当 number 直接运算；
+ * 后端无 growth_rate 产出方，前端声明中不存在该键（自创假列即恒空缺陷形态）。
+ */
 export interface SalesTrendResult {
+  /** 桶键：day `YYYY-MM-DD` / week `IYYY-IW` / month `YYYY-MM` / quarter 与后端分桶实现点当前形态一致 / year `YYYY` */
   period: string;
-  amount: number;
+  /** 该桶销售额（字符串，Decimal=字符串口径） */
+  amount: string;
+  /** 该桶订单数 */
   order_count: number;
-  profit: number;
-  growth_rate: number;
-  [key: string]: unknown;
+  /** 该桶销售数量（字符串） */
+  quantity: string;
+  /** 该桶利润＝销售额−成本（字符串） */
+  profit: string;
+}
+
+/**
+ * 趋势分桶粒度词表 —— 与后端 bi_analysis_ops/sales.rs::build_period_expr 的 match 分支同词表
+ * （比照 api/bi.ts 的 granularity 联合字面量），非法值后端回落 month 并留痕，前端不应下发词表外值。
+ */
+export type SalesTrendGranularity = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+/**
+ * 趋势查询参数 —— 对齐后端 handler TrendQuery 四键。
+ * period 语义为「桶键等值过滤」（如月粒度传 "2026-08"），缺省不过滤；
+ * start_date/end_date 必须成对（YYYY-MM-DD），都缺省时后端按粒度回看 12 桶。
+ */
+export interface SalesTrendQueryParams {
+  granularity?: SalesTrendGranularity;
+  start_date?: string;
+  end_date?: string;
+  period?: string;
 }
 
 // 后端 sales_analysis_handler::get_stats 无 Query<T> 提取器（概览统计固定全量），
@@ -116,9 +144,11 @@ export const getSalesTargetList = () =>
 export const updateSalesTarget = (period: string, data: UpdateSalesTargetPayload) =>
   request.put<ApiResponse<SalesTarget>>(`/crm/sales-analysis/targets/${period}`, data);
 
-// D14 Batch 5b：原 salesAnalysisApi.getTrendData 转为风格 B 函数
-export const getSalesTrendData = (params?: { period?: string }) =>
-  request.get<ApiResponse<SalesTrendResult[]>>('/crm/sales-analysis/trend', { params });
+// 趋势查询：后端为按粒度分桶的时间序列端点（现算 sales_orders）。
+// 路径收敛到复数 /trends（与同域 statistics/rankings/targets 命名一致；别名 /trend 仍挂同一 handler，
+// 前端不再调用单数路径，别名仅由后端契约锁与 e2e 双路径一致性断言看守）。
+export const getSalesTrendData = (params?: SalesTrendQueryParams) =>
+  request.get<ApiResponse<SalesTrendResult[]>>('/crm/sales-analysis/trends', { params });
 
 // D14 Batch 5b：原 salesAnalysisApi.exportReport 转为风格 B 函数
 export const exportSalesAnalysisReport = (params?: SalesExportQueryParams) =>
