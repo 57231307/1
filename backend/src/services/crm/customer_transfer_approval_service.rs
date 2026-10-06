@@ -6,7 +6,7 @@
 //! 1. 销售员发起转移申请 → 创建审批单（pending）
 //! 2. 销售经理审批：
 //!    - 普通客户：经理通过即完成审批，触发实际转移
-//!    - 大客户（信用额度 > 阈值）：经理通过后进入总监审批层
+//!    - 大客户（判据见 `check_large_customer`）：经理通过后进入总监审批层
 //! 3. 总监审批（仅大客户）：
 //!    - 通过 → 触发实际转移
 //!    - 拒绝 → 审批失败
@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
 
+use crate::constants::customer_tier;
 use crate::models::status::crm_lead as lead_status;
 use crate::models::{
     crm_lead::{self, Entity as CrmLeadEntity},
@@ -30,9 +31,6 @@ use crate::models::{
 };
 use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest, TransferLeadResult};
 use crate::utils::error::AppError;
-
-/// 大客户信用额度阈值（默认 50 万，超过则转移需总监二次审批）
-const DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD: i64 = 500_000;
 
 /// 创建转移审批请求
 #[derive(Debug, Clone, Deserialize)]
@@ -140,7 +138,7 @@ impl CustomerTransferApprovalService {
     }
 
     /// 创建转移审批申请
-    /// 业务规则：1. 线索必须存在且未转化为客户；2. 新归属人必须不等于当前归属人；3. 大客户（关联 customer 信用额度 > 阈值）需总监二次审批；4. 同一线索不能存在 pending 状态的审批单
+    /// 业务规则：1. 线索必须存在且未转化为客户；2. 新归属人必须不等于当前归属人；3. 大客户（判据唯一：线索关联客户的分层列落在高档集合，见 `check_large_customer`）需总监二次审批；4. 同一线索不能存在 pending 状态的审批单
     pub async fn create_approval(
         &self,
         req: CreateTransferApprovalRequest,
@@ -517,25 +515,25 @@ impl CustomerTransferApprovalService {
         Ok(approval.into())
     }
 
-    /// 检查是否大客户转移
-    /// 判断依据（唯一判据）：线索已转化为客户，且 customer.credit_limit > 阈值。
-    /// 不看 customer_type——该列是渠道词表（`constants::customer_type::ALLOWED`），
-    /// 分层词 `vip` 不属其值域且被各写入口校验拒死（列上永不可能出现 vip），
-    /// 把它当判据等于把业务规则建在自己的漏洞上；大客户是信用概念，只用信用额度表达。
+    /// 检查是否大客户转移。**唯一判据**：线索关联客户（`converted_customer_id`）的
+    /// 分层列 `customers.tier` 落在高档集合 `constants::customer_tier::MAJOR`。
+    /// 分层列是"大客户"的业务权威载体（用户终裁），以下形态一律判非大客户：
+    /// - 线索未挂客户（正常生命周期未转化线索 `converted_customer_id` 恒 NULL）；
+    /// - 客户分层为 NULL（未定档≠低档，无既有评级依据不许猜）或落在高档集合外
+    ///   （SILVER/NORMAL 属阶梯低两档，判不进大客户）。
+    /// **禁止**再以线索预估金额、信用额度等其它维度代理判"大客户"——那是第二套口径；
+    /// 高档集合只允许定义在 `constants::customer_tier::MAJOR` 一处。
     async fn check_large_customer(&self, lead: &crm_lead::Model) -> Result<bool, AppError> {
-        if let Some(customer_id) = lead.converted_customer_id {
-            let customer = CustomerEntity::find_by_id(customer_id)
-                .one(&*self.db)
-                .await?;
-            if let Some(c) = customer {
-                let threshold =
-                    rust_decimal::Decimal::from(DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD);
-                if c.credit_limit > threshold {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
+        let Some(customer_id) = lead.converted_customer_id else {
+            return Ok(false);
+        };
+        let customer = CustomerEntity::find_by_id(customer_id)
+            .one(&*self.db)
+            .await?;
+        Ok(customer
+            .as_ref()
+            .and_then(|c| c.tier.as_deref())
+            .is_some_and(customer_tier::is_major))
     }
 
     /// 获取待审批的审批单（指定层级）

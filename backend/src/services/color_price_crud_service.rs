@@ -13,6 +13,7 @@ use sea_orm::{
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::constants::customer_tier;
 use crate::models::color_price_dto::{
     CreateColorPriceDto, ListColorPricesQuery, UpdateColorPriceDto,
 };
@@ -250,10 +251,11 @@ impl ColorPriceCrudService {
     fn validate_customer_level(l: Option<&str>) -> Result<(), CrudError> {
         match l {
             None => Ok(()),
-            Some(v) if v == "VIP" || v == "NORMAL" || v == "GOLD" || v == "SILVER" => Ok(()),
+            Some(v) if customer_tier::ALLOWED.contains(&v) => Ok(()),
             Some(v) => Err(CrudError::Validation(format!(
-                "无效的客户等级: {}（允许: VIP / NORMAL / GOLD / SILVER）",
-                v
+                "无效的客户等级: {}（允许: {}）",
+                v,
+                customer_tier::ALLOWED.join(" / ")
             ))),
         }
     }

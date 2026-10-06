@@ -736,6 +736,9 @@ impl CrmService {
             pool_recycle_reason: Set(None),
             // m_rls_dept_domain：department_id 由 trg_customers_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
+            // 客户分层（tier）：线索转化不产生档位依据，保持未定档（NotSet=列省略，
+            // 落库 NULL；NULL≠NORMAL，语义见 constants/customer_tier.rs）
+            tier: sea_orm::ActiveValue::NotSet,
         }
     }
 

@@ -11,6 +11,10 @@ pub mod environmental_tax;
 /// 与各写入口校验的单一来源）
 pub mod customer_type;
 
+/// customers.tier 唯一词表（列语义=分层；四值 + NULL=未定档、`MAJOR` 高档集合
+/// 是大客户二级审批唯一判据的单一来源）
+pub mod customer_tier;
+
 /// 默认币种码（ISO 4217）
 ///
 /// 用于 currency 字段的默认值。当前业务主要面向国内市场，默认人民币。

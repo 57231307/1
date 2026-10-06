@@ -21,10 +21,14 @@
 //!    `"POTENTIAL"` / `vip` / `normal` 一律**不属** ALLOWED（分层词不入渠道列，
 //!    `potential` 已被 CLV 分层 segment 占用：services/crm/cust.rs:670-680
 //!    segment=champion/loyal/potential/at_risk/lost；models/customer_lifetime_value.rs:40）。
-//! ⑥ 判据锁：`customer_type` 不得再作任何业务判据——大客户转移审批只认 credit_limit
-//!    阈值（原 `customer_type == "vip"` 分支受校验链永不可达，属把规则建在自己的漏洞上）。
+//! ⑥ 判据锁：大客户转移审批的**唯一判据**是分层列 `customers.tier` 逐字符落在高档集合
+//!    `constants::customer_tier::MAJOR`（经 `customer_tier::is_major` 判定，NULL=未定档
+//!    判非大客户）。渠道列 `customer_type`（含旧 `== "vip"` 分支）与信用额度/预估金额
+//!    等一切金额维度都不得参与判定；`MAJOR` 集合定义、`is_major` 谓词与分层词表的成员
+//!    枚举在全 `src` 下只允许出现在 `constants/customer_tier.rs` 一处，第二处定义或
+//!    内联白名单即红。
 //!
-//! 运行前提：①② 仅依赖"validator/校验先于触库"，无 DB；③④⑤ 纯静态/纯函数，无 DB。
+//! 运行前提：①② 仅依赖"validator/校验先于触库"，无 DB；③④⑤⑥ 纯静态/纯函数，无 DB。
 
 use axum::{
     Router,
@@ -35,6 +39,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{post, put},
 };
+use bingxi_backend::constants::customer_tier;
 use bingxi_backend::constants::customer_type;
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::crm_customer_handler;
@@ -476,38 +481,142 @@ fn lead_conversion_default_is_other_and_tier_tokens_never_enter_channel_column()
 }
 
 // =========================================================
-// ⑥ 判据锁：customer_type 不作业务判据——大客户转移审批只认 credit_limit 阈值
+// ⑥ 判据锁：大客户转移审批唯一判据 = customers.tier ∈ MAJOR（分层列，非金额、非渠道）
 // =========================================================
 
+/// 递归收集目录下的全部 `.rs` 文件（供唯一性形状扫描，只读不改）。
+fn collect_rs_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("读取目录 {dir:?} 失败: {e}"))
+    {
+        let path = entry
+            .unwrap_or_else(|e| panic!("目录项读取失败（{dir:?}）: {e}"))
+            .path();
+        if path.is_dir() {
+            collect_rs_files(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// 返回 `src` 下源码包含 `marker` 的全部文件路径（统一 `/` 分隔并按路径排序，
+/// 使断言失败消息跨平台可读、命中集可复现）。
+fn src_files_containing(marker: &str) -> Vec<String> {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    let mut rs = Vec::new();
+    collect_rs_files(&root, &mut rs);
+    for path in rs {
+        let text =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
+        if text.contains(marker) {
+            files.push(path.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    files.sort();
+    files
+}
+
 #[test]
-fn transfer_approval_large_customer_trigger_is_credit_limit_only() {
+fn transfer_approval_large_customer_trigger_is_tier_major_only() {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src/services/crm/customer_transfer_approval_service.rs");
     let src = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
 
-    // 正判据仍在：credit_limit > DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD ⇒ 走二级审批
+    // 正判据形状：唯一入口 = 分层列读取 + 高档集合谓词 + 线索客户外键载体，三者缺一即判据被换掉
     assert!(
-        src.contains("rust_decimal::Decimal::from(DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD)"),
-        "大客户判据必须保留 credit_limit 阈值比较（唯一判据）"
+        src.contains("customer_tier::is_major"),
+        "二级审批判据必须唯一经 constants::customer_tier::is_major（高档集合唯一真源）"
     );
     assert!(
-        src.contains("if c.credit_limit > threshold {"),
-        "check_large_customer 必须以 credit_limit 阈值比较作为触发条件"
+        src.contains("c.tier.as_deref()"),
+        "check_large_customer 必须读 customers.tier 分层列（NULL=未定档由 Option 通道归为非大客户）"
+    );
+    assert!(
+        src.contains("converted_customer_id"),
+        "判据载体必须是线索关联客户 converted_customer_id（未挂客户的线索判非大客户）"
     );
 
-    // 被清除的伪判据：customer_type == "vip" 受写入口校验永不可达（列上不可能有 vip），
-    // 留着它等于把业务规则建在自己的漏洞上；不许以别名或注释掉的死代码形式回潮。
-    // （说明性文字里提到 vip/customer_type 是允许的，本锁钉的是**比较表达式**与**带引号的字面量**。）
+    // 负形状锁：金额判据的任何形态不得残留在审批服务——旧信用额度阈值口径已被终裁废除
+    for banned in [
+        "500_000",
+        "credit_limit",
+        "DEFAULT_LARGE_CUSTOMER_CREDIT_THRESHOLD",
+        "estimated_amount",
+        "threshold",
+        "Decimal",
+    ] {
+        assert!(
+            !src.contains(banned),
+            "审批服务源码残留金额判据痕迹 {banned:?}——判据只许读 customers.tier ∈ MAJOR，\
+             以信用额度/预估金额代理判大客户属第二套口径，已被终裁废除"
+        );
+    }
+
+    // 被清除的伪判据：customer_type == "vip" 受渠道列校验永不可达（列上不可能有 vip），
+    // 留着它等于把业务规则建在自己的漏洞上；不许以别名或死代码形式回潮。
     assert!(
         !src.contains(".customer_type"),
         "审批服务不得再读取 customers.customer_type 作判据（vip 分支须删干净，不留别名/死代码）"
     );
     assert!(
         !src.contains("customer_type =="),
-        "审批服务不许回潮 customer_type 比较表达式"
+        "审批服务不许回潮 customer_type 比较表达式（分层词不属渠道列，渠道列也不属分层判据）"
     );
     assert!(
         !src.contains("\"vip\""),
-        "审批服务内不许再出现 \"vip\" 字符串字面量（分层词不属渠道列，判据只认信用额度）"
+        "审批服务内不许再出现 \"vip\" 字符串字面量（判据只认分层列高档集合成员）"
     );
+    // 高档集合不许在判据文件内联抄成员——只许引用唯一模块
+    assert!(
+        !src.contains("\"VIP\"") && !src.contains("\"GOLD\""),
+        "审批服务不许内联高档 token 字面量（\"VIP\"/\"GOLD\"）——成员清单只允许定义在 \
+         constants/customer_tier.rs 一处，判据处内联即第二套口径回潮"
+    );
+
+    // 唯一模块锁：MAJOR 定义、is_major 谓词、高档/分层成员枚举在全 src 下各只命中唯一模块文件
+    let tier_module = format!(
+        "{}/src/constants/customer_tier.rs",
+        env!("CARGO_MANIFEST_DIR")
+    )
+    .replace('\\', "/");
+    for marker in [
+        "const MAJOR:",
+        "fn is_major(",
+        "&[VIP, GOLD]",
+        "&[VIP, GOLD, SILVER, NORMAL]",
+    ] {
+        let hits = src_files_containing(marker);
+        assert_eq!(
+            hits,
+            vec![tier_module.clone()],
+            "标记 {marker:?} 只允许出现在 constants/customer_tier.rs（分层词表与高档集合的\
+             唯一真源）；实际命中：{hits:?}——第二处定义/内联白名单即判据口径分裂"
+        );
+    }
+    // 带引号成员对（内联白名单的典型回潮形态）：唯一模块之外全 src 零命中
+    let quoted_hits = src_files_containing("\"VIP\", \"GOLD\"");
+    assert!(
+        quoted_hits.iter().all(|h| *h == tier_module),
+        "全 src 中出现带引号高档成员对 \"VIP\", \"GOLD\" 的文件只许是 constants/customer_tier.rs；\
+         实际命中：{quoted_hits:?}"
+    );
+
+    // 语义分离锁：分层词表与渠道词表互斥——判据只读 tier，两维混装即口径污染
+    for tier_token in customer_tier::ALLOWED {
+        assert!(
+            !customer_type::ALLOWED.contains(tier_token),
+            "分层 token '{tier_token}' 混进了渠道词表 customer_type::ALLOWED（两列语义必须严格分离）"
+        );
+    }
+    for channel_token in customer_type::ALLOWED {
+        assert!(
+            !customer_tier::ALLOWED.contains(channel_token),
+            "渠道 token '{channel_token}' 混进了分层词表 customer_tier::ALLOWED（混维即回潮）"
+        );
+        assert!(
+            !customer_tier::MAJOR.contains(channel_token),
+            "渠道 token '{channel_token}' 混进了高档集合 MAJOR（判据集合被渠道词污染）"
+        );
+    }
 }

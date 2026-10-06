@@ -63,8 +63,13 @@ pub struct Model {
 
     /// 客户渠道类型（本列语义=渠道）：取值只允许 `constants::customer_type::ALLOWED`
     /// = retail / wholesale / distributor / manufacturer / other，缺省 other；
-    /// 分层词 vip / normal 不属本列值域（本仓暂无客户分层列承接）
+    /// 分层词 vip / normal 不属本列值域（分层载体是 `tier` 列）
     pub customer_type: String,
+
+    /// 客户分层（本列语义=tier）：取值只允许 `constants::customer_tier::ALLOWED`
+    /// = VIP / GOLD / SILVER / NORMAL（DB CHECK `chk_customers_tier`），NULL=未定档
+    /// （无既有评级依据，区别于最低实档 NORMAL）；大客户二级审批唯一判据读本列
+    pub tier: Option<String>,
 
     /// 备注
     pub notes: Option<String>,

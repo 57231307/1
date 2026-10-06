@@ -208,6 +208,9 @@ impl ImportExportService {
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_customers_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
+            // 客户分层列：导入通道不产生档位依据，保持未定档（NULL≠NORMAL），
+            // 由评级审批或人工改档写入，语义见 constants/customer_tier.rs
+            tier: sea_orm::ActiveValue::NotSet,
             created_at: Set(now),
             updated_at: Set(now),
             customer_industry: Set(None),
