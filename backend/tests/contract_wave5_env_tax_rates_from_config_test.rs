@@ -67,7 +67,6 @@ fn discharge_req(pollutant_name: &str, discharge_amount: Decimal) -> CreateDisch
         period_month: 9,
         monitoring_point: None,
         remarks: None,
-        created_by: Some(1),
     }
 }
 
@@ -82,7 +81,7 @@ async fn unregistered_pollutant_rejected_4xx_no_default_equivalent() {
     let svc = EnvironmentalTaxService::new(Arc::new(db.clone()), Some(dec("2.4")));
 
     let err = svc
-        .create_discharge_record(discharge_req("总磷", dec("1")))
+        .create_discharge_record(discharge_req("总磷", dec("1")), 1)
         .await
         .expect_err("未登记污染物必须被显式拒绝（即便排放量恰好为 1，也不得按 1kg 兜底计税）");
     assert!(
@@ -178,7 +177,7 @@ async fn missing_tax_rate_fails_explicitly_before_any_write() {
     let svc = EnvironmentalTaxService::new(Arc::new(db.clone()), None);
 
     let err = svc
-        .create_discharge_record(discharge_req("COD", dec("100")))
+        .create_discharge_record(discharge_req("COD", dec("100")), 1)
         .await
         .expect_err("适用税额未配置时计税必须显式失败");
     assert!(
@@ -240,7 +239,7 @@ async fn create_discharge_record_with_injected_rate_persists_configured_amount()
     let svc = EnvironmentalTaxService::new(Arc::new(db.clone()), Some(dec("1.2")));
 
     let model = svc
-        .create_discharge_record(discharge_req("氨氮", dec("10")))
+        .create_discharge_record(discharge_req("氨氮", dec("10")), 1)
         .await
         .expect("已登记污染物 + 已注入税额，全链路应成功");
     // 当量数 = 10 / 0.5 = 20；税额 = 20 × 1.2（注入的法定下限值）= 24

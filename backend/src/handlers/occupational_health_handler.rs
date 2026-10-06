@@ -17,11 +17,11 @@ use axum::{
 pub async fn create_hazard_monitoring(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(mut req): Json<CreateHazardMonitoringRequest>,
+    Json(req): Json<CreateHazardMonitoringRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = OccupationalHealthService::new(state.db.clone());
-    let model = service.create_hazard_monitoring(req).await?;
+    let model = service.create_hazard_monitoring(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -41,11 +41,11 @@ pub async fn list_hazard_monitorings(
 pub async fn create_health_exam(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(mut req): Json<CreateHealthExamRequest>,
+    Json(req): Json<CreateHealthExamRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = OccupationalHealthService::new(state.db.clone());
-    let model = service.create_health_exam(req).await?;
+    let model = service.create_health_exam(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -75,11 +75,11 @@ pub async fn scan_exam_expiry_warnings(
 pub async fn create_ppe_distribution(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(mut req): Json<CreatePpeDistributionRequest>,
+    Json(req): Json<CreatePpeDistributionRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = OccupationalHealthService::new(state.db.clone());
-    let model = service.create_ppe_distribution(req).await?;
+    let model = service.create_ppe_distribution(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

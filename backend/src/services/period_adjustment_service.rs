@@ -63,7 +63,6 @@ pub struct CreatePeriodAdjustmentRequest {
     pub source_bill_id: Option<i32>,
     pub source_bill_no: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 期末调整查询参数
@@ -103,6 +102,7 @@ impl PeriodAdjustmentService {
     pub async fn create(
         &self,
         req: CreatePeriodAdjustmentRequest,
+        user_id: i32,
     ) -> Result<AdjustmentModel, AppError> {
         Self::validate_adjustment_type(&req.adjustment_type)?;
         if req.period.trim().is_empty() {
@@ -143,7 +143,8 @@ impl PeriodAdjustmentService {
             reversed_at: Set(None),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

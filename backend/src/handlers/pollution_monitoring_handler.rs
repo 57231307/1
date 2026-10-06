@@ -52,11 +52,14 @@ pub async fn list_monitoring_records(
 /// 创建固废处置联单
 pub async fn create_solid_waste_disposal(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateSolidWasteDisposalRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = PollutionMonitoringService::new(state.db.clone());
-    let model = service.create_solid_waste_disposal(req).await?;
+    let model = service
+        .create_solid_waste_disposal(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

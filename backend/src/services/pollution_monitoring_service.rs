@@ -47,6 +47,9 @@ pub struct CreateMonitoringRecordRequest {
 }
 
 /// 创建固废处置联单请求
+///
+/// 建单人身份**不由请求体承载**：由 handler 按会话（`AuthContext.user_id`）派生后
+/// 传入 service 落库。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateSolidWasteDisposalRequest {
     pub manifest_no: String,
@@ -65,7 +68,6 @@ pub struct CreateSolidWasteDisposalRequest {
     pub transport_license_no: Option<String>,
     pub disposal_license_no: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 监测记录查询参数
@@ -213,6 +215,7 @@ impl PollutionMonitoringService {
     pub async fn create_solid_waste_disposal(
         &self,
         req: CreateSolidWasteDisposalRequest,
+        user_id: i32,
     ) -> Result<WasteModel, AppError> {
         Self::validate_waste_type(&req.waste_type)?;
         Self::validate_waste_category(&req.waste_category)?;
@@ -256,7 +259,8 @@ impl PollutionMonitoringService {
             disposal_license_no: Set(req.disposal_license_no),
             status: Set("pending".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

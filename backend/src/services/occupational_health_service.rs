@@ -44,7 +44,6 @@ pub struct CreateHazardMonitoringRequest {
     pub monitoring_method: Option<String>,
     pub report_url: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 创建职业健康体检档案请求
@@ -64,7 +63,6 @@ pub struct CreateHealthExamRequest {
     pub contraindications: Option<String>,
     pub report_url: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 创建 PPE 发放记录请求
@@ -81,7 +79,6 @@ pub struct CreatePpeDistributionRequest {
     pub expiry_date: Option<NaiveDate>,
     pub hazard_type: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 危害因素检测记录查询参数
@@ -195,6 +192,7 @@ impl OccupationalHealthService {
     pub async fn create_hazard_monitoring(
         &self,
         req: CreateHazardMonitoringRequest,
+        user_id: i32,
     ) -> Result<HazardModel, AppError> {
         Self::validate_hazard_type(&req.hazard_type)?;
         if req.limit_value <= Decimal::ZERO {
@@ -220,7 +218,8 @@ impl OccupationalHealthService {
             monitoring_method: Set(req.monitoring_method),
             report_url: Set(req.report_url),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -284,6 +283,7 @@ impl OccupationalHealthService {
     pub async fn create_health_exam(
         &self,
         req: CreateHealthExamRequest,
+        user_id: i32,
     ) -> Result<ExamModel, AppError> {
         Self::validate_exam_type(&req.exam_type)?;
         Self::validate_exam_result(&req.exam_result)?;
@@ -314,7 +314,8 @@ impl OccupationalHealthService {
             contraindications: Set(req.contraindications),
             report_url: Set(req.report_url),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -404,6 +405,7 @@ impl OccupationalHealthService {
     pub async fn create_ppe_distribution(
         &self,
         req: CreatePpeDistributionRequest,
+        user_id: i32,
     ) -> Result<PpeModel, AppError> {
         Self::validate_ppe_type(&req.ppe_type)?;
         if req.quantity <= 0 {
@@ -429,7 +431,8 @@ impl OccupationalHealthService {
             hazard_type: Set(req.hazard_type),
             status: Set("distributed".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

@@ -37,11 +37,11 @@ pub struct PeriodQuery {
 pub async fn create_discharge_record(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(mut req): Json<CreateDischargeRecordRequest>,
+    Json(req): Json<CreateDischargeRecordRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = env_tax_service(&state);
-    let model = service.create_discharge_record(req).await?;
+    let model = service.create_discharge_record(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

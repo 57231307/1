@@ -38,7 +38,6 @@ pub struct CreateCustomsDeclarationRequest {
     pub exchange_rate: Decimal,
     pub customs_code: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 创建外汇核销单请求
@@ -110,6 +109,7 @@ impl ExportRefundService {
     pub async fn create_customs_declaration(
         &self,
         req: CreateCustomsDeclarationRequest,
+        user_id: i32,
     ) -> Result<CustomsModel, AppError> {
         if req.total_amount < Decimal::ZERO {
             return Err(AppError::bad_request("报关金额不能为负"));
@@ -145,7 +145,8 @@ impl ExportRefundService {
             customs_code: Set(req.customs_code),
             status: Set("pending".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

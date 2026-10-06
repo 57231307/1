@@ -89,11 +89,11 @@ impl From<Model> for PeriodAdjustmentInfo {
 pub async fn create_adjustment(
     auth: AuthContext,
     State(state): State<AppState>,
-    mut req: Json<CreatePeriodAdjustmentRequest>,
+    req: Json<CreatePeriodAdjustmentRequest>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = PeriodAdjustmentService::new(state.db.clone());
-    let model = service.create(req.0).await?;
+    let model = service.create(req.0, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model.into())))
 }
 

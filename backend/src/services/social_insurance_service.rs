@@ -32,7 +32,6 @@ pub struct CreateSocialInsuranceRequest {
     pub base_amount: Decimal,
     pub payment_date: Option<NaiveDate>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 社保缴纳记录查询参数
@@ -145,6 +144,7 @@ impl SocialInsuranceService {
     pub async fn create(
         &self,
         req: CreateSocialInsuranceRequest,
+        user_id: i32,
     ) -> Result<InsuranceModel, AppError> {
         Self::validate_period(req.period_year, req.period_month)?;
         if req.base_amount <= Decimal::ZERO {
@@ -204,7 +204,8 @@ impl SocialInsuranceService {
             }),
             payment_date: Set(req.payment_date),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

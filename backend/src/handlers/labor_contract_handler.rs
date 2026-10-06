@@ -27,11 +27,11 @@ pub struct TerminateLaborContractRequest {
 pub async fn create(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(mut req): Json<CreateLaborContractRequest>,
+    Json(req): Json<CreateLaborContractRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = LaborContractService::new(state.db.clone());
-    let model = service.create(req).await?;
+    let model = service.create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

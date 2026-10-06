@@ -33,7 +33,6 @@ pub struct CreateDischargeRecordRequest {
     pub period_month: i32,
     pub monitoring_point: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 环保税计算结果
@@ -72,6 +71,7 @@ impl EnvironmentalTaxService {
     pub async fn create_discharge_record(
         &self,
         req: CreateDischargeRecordRequest,
+        user_id: i32,
     ) -> Result<DischargeModel, AppError> {
         Self::validate_discharge_type(&req.discharge_type)?;
         if req.discharge_amount < Decimal::ZERO {
@@ -101,7 +101,8 @@ impl EnvironmentalTaxService {
             period_month: Set(req.period_month),
             monitoring_point: Set(req.monitoring_point),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
