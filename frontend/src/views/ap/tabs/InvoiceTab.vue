@@ -242,6 +242,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -286,7 +287,7 @@ const handleAutoGenerate = async () => {
     ElMessage.success(t('apModule.invoice.autoGenerateSuccess'));
     fetchInvoices();
   } catch (e) {
-    if (e === 'cancel') return;
+    if (isDialogDismissal(e)) return;
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));
   } finally {
@@ -481,7 +482,7 @@ const approveInvoice = async (row: APInvoice) => {
     ElMessage.success(t('apModule.invoice.approveSuccess'));
     fetchInvoices();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }

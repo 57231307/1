@@ -432,7 +432,7 @@ const handleCopy = async (row: Bom) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('bomModule.message.copyFailed')
@@ -452,7 +452,7 @@ const handleSetDefault = async (row: Bom) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('bomModule.message.setDefaultFailed')
@@ -544,7 +544,7 @@ const handleDelete = async (row: Bom) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('bomModule.message.deleteFailed')

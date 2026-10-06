@@ -5,6 +5,7 @@
  * 行为完全保持一致（仅结构重构）
  * 批次 281：接入 useTableApi，移除手写 endpoints/endpointTotal/endpointLoading/endpointQuery + fetchEndpoints
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -161,7 +162,7 @@ export function useApiEp() {
       msg.success('deleteSuccess');
       await fetchEndpoints();
     } catch (error: unknown) {
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
         );

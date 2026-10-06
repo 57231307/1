@@ -159,6 +159,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -271,7 +272,7 @@ async function handleAdvance(row: CustomOrderListItem) {
     ElMessage.success(t('customOrders.list.messageAdvanceSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const msg = e instanceof Error ? e.message : String(e);
       ElMessage.error(msg || t('customOrders.list.messageAdvanceFailed'));
     }
@@ -294,7 +295,7 @@ async function handleCancel(row: CustomOrderListItem) {
     ElMessage.success(t('customOrders.list.messageCancelSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const msg = e instanceof Error ? e.message : String(e);
       ElMessage.error(msg || t('customOrders.list.messageCancelFailed'));
     }

@@ -204,6 +204,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -400,7 +401,7 @@ const deleteSubject = async (row: AccountSubject) => {
     ElMessage.success(t('finance.subjectTab.messageDeleteSuccess'));
     fetchSubjects();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('finance.subjectTab.messageDeleteFailed'));
     }

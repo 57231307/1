@@ -7,6 +7,7 @@
  * 故本文件不再提供指向不存在端点的调用封装（restore 属真不可逆动作，
  * 将来 HTTP 化须独立设计审计+二次确认后再补）。
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { cancelUpdateTask, rollbackUpdate, type UpdateTask } from '@/api/system-update';
@@ -29,7 +30,7 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await refresh.fetchTasks();
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) || msg.translate('cancelFailed')
         );
@@ -47,7 +48,7 @@ export function useSysUpdProc(refresh: RefreshCallbacks) {
       await refresh.fetchTasks();
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) ||
             msg.translate('rollbackFailed')

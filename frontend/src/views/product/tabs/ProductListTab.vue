@@ -508,7 +508,7 @@ const handleDelete = async (row: Product) => {
     ElMessage.success(t('product.productListTab.messageDeleteSuccess'));
     fetchData();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('product.productListTab.messageDeleteFailed'));
     }
   }
@@ -611,7 +611,7 @@ const handleDeleteColor = async (row: ProductColor) => {
     const res = await getProductColorList(colorProduct.value.id);
     colorRows.value = (res.data as unknown as ProductColor[]) || [];
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e as { message?: string }).message || t('common.failed'));
     }
   }
@@ -708,7 +708,7 @@ const handleBatchDelete = async () => {
     selectedIds.value = [];
     fetchData();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('product.productListTab.messageDeleteFailed'));
     }
   }

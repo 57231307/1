@@ -6,6 +6,7 @@
  *
  * 设计说明：通过 callbacks 接收 useBpmDf 的状态引用（Reactive 包装层）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
@@ -160,7 +161,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       msg.success('deleteSuccess');
       await cb.fetchDefinitions();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : msg.translate('deleteFailed');
         logger.error(errMsg);
         ElMessage.error(errMsg);
@@ -228,7 +229,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       await cb.fetchVersions(cb.currentDefinition.id);
       await cb.fetchDefinitions();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg =
           error instanceof Error ? error.message : msg.translate('createVersionFailed');
         logger.error(errMsg);

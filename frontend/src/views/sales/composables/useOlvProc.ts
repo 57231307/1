@@ -70,7 +70,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       msg.success('cancelSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as { message?: string };
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -191,7 +191,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       msg.success('submitSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as { message?: string };
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -222,7 +222,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       msg.success('deleteSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as { message?: string };
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }

@@ -343,7 +343,7 @@ const handleShip = async (row: InventoryTransferEntity) => {
     ElMessage.success(t('inventoryTransfer.transferList.message.shipSuccess'));
     await fetchTransfers();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error as Error).message || t('inventoryTransfer.transferList.message.failure')
       );

@@ -278,6 +278,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -415,7 +416,7 @@ const handleContact = async (row: LeadRow) => {
     ElMessage.success(t('crmLeads.message.contactSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmLeads.message.contactFailed'), (error as Error).message);
       ElMessage.error(t('crmLeads.message.contactFailed'));
     }
@@ -436,7 +437,7 @@ const handleConvert = async (row: LeadRow) => {
     ElMessage.success(t('crmLeads.message.convertSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmLeads.message.convertFailed'), (error as Error).message);
       ElMessage.error(t('crmLeads.message.convertFailed'));
     }
@@ -457,7 +458,7 @@ const handleLost = async (row: LeadRow) => {
     ElMessage.success(t('crmLeads.message.lostSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmLeads.message.lostFailed'), (error as Error).message);
       ElMessage.error(t('crmLeads.message.lostFailed'));
     }

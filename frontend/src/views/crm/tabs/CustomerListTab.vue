@@ -362,6 +362,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
@@ -600,7 +601,7 @@ const handleDelete = async (row: CustomerListRow) => {
     ElMessage.success(t('crmCustomer.message.deleteSuccess'));
     fetchCustomerList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('crmCustomer.message.deleteFailed'));
     }

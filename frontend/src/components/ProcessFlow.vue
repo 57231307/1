@@ -87,6 +87,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
@@ -174,7 +175,7 @@ async function handleAction(node: ProcessNode, action: string) {
     emit('refresh');
   } catch (e: unknown) {
     // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const errMsg = e instanceof Error ? e.message : String(e);
       ElMessage.error(errMsg || t('common.processFlow.operationFailed'));
     }

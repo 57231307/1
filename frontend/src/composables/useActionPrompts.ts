@@ -9,21 +9,10 @@
  */
 import { ElMessageBox } from 'element-plus';
 import { i18n } from '@/i18n';
-import { isDialogDismissal } from '@/utils/monitor';
-import { logger } from '@/utils/logger';
-import { msg } from '@/utils/message';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 
 /** 取已翻译文案（i18n 全局实例，无需在采集器内注入 useI18n）。 */
 const tt = (key: string): string => String(i18n.global.t(key));
-
-/** 非取消形态异常的统一收口：确证取消/关闭才可返回 null（中断语义）；
- *  其余异常不是「用户取消」——按仓内既有失败通道留痕（logger）并外显（msg），再原样上抛，
- *  与 promptApprovalReason/promptRejectReason 的「非取消 reject 原样上抛、不静默降级」同一契约。 */
-function rethrowNonDismissal(context: string, error: unknown): never {
-  logger.error(`[useActionPrompts] ${context} 采集异常（非用户取消）:`, error);
-  msg.operationFail();
-  throw error;
-}
 
 /** 采集器：取消原因（发票/核销/合同的 cancel 端点必填）。
  *  取消/关闭返回 null（流程中止，不是错误）；非取消形态的异常上报后原样上抛，不冒充取消。 */

@@ -4,6 +4,7 @@
  * 封装凭证查看、提交、审核、过账、导出、打印等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
@@ -30,7 +31,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.success('submitSuccess');
       await fetchVouchers();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as Error;
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -45,7 +46,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.success('auditSuccess');
       await fetchVouchers();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as Error;
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -62,7 +63,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.success('postSuccess');
       await fetchVouchers();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as Error;
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }

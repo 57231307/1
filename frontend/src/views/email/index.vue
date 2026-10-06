@@ -332,6 +332,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus';
@@ -510,7 +511,7 @@ const handleDeleteTemplate = async (row: EmailTemplate) => {
     ElMessage.success(t('email.index.messageDeleteSuccess'));
     fetchTemplates();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.error(t('email.index.messageDeleteFailed'), error);
     }
   }

@@ -374,6 +374,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -597,7 +598,7 @@ const openDetail = async (row: FixedAsset) => {
       detailVisible.value = true;
     }
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '获取详情失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '获取详情失败');
   }
 };
 
@@ -682,7 +683,7 @@ const handleDelete = async (row: FixedAsset) => {
     ElMessage.success(t('fixedAssets.message.deleteSuccess'));
     fetchAssets();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fixedAssets.message.deleteFailed'));
     }
@@ -706,7 +707,7 @@ const handleDepreciate = async (row: FixedAsset) => {
     ElMessage.success(t('fixedAssets.message.depreciateSuccess'));
     fetchAssets();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fixedAssets.message.depreciateFailed'));
     }
@@ -798,7 +799,7 @@ const handleDepreciateAll = async () => {
     ElMessage.success(t('fixedAssets.message.batchDepreciateSuccess', { count: assetIds.length }));
     fetchAssets();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fixedAssets.message.batchDepreciateFailed'));
     }

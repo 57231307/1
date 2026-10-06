@@ -186,6 +186,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -336,7 +337,7 @@ const setBase = async (row: Currency) => {
     ElMessage.success(t('currency.message.setBaseSuccess'));
     fetchCurrencies();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('currency.message.setBaseFailed'));
     }

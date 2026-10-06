@@ -337,7 +337,7 @@ const handleDelete = async (row: ReportSubscription) => {
     ElMessage.success('订阅已删除');
     await loadSubscriptions();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '删除失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '删除失败');
   }
 };
 

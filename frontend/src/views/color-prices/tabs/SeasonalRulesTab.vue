@@ -298,7 +298,7 @@ const handleDelete = async (row: SeasonalPriceRule) => {
     ElMessage.success(t('colorPrices.message.deleteSuccess'));
     await loadRules();
   } catch (e: unknown) {
-    if (e === 'cancel') return;
+    if (isDialogDismissal(e)) return;
     ElMessage.error(e instanceof Error ? e.message : String(e));
   }
 };

@@ -468,7 +468,7 @@ const handleWin = async (row: OpportunityRow) => {
     ElMessage.success(t('crmOpportunities.message.winSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmOpportunities.message.winFailed'), (error as Error).message);
       ElMessage.error(t('crmOpportunities.message.winFailed'));
     }
@@ -552,7 +552,7 @@ const handleLost = async (row: OpportunityRow) => {
     ElMessage.success(t('crmOpportunities.message.lostSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmOpportunities.message.lostFailed'), (error as Error).message);
       ElMessage.error(t('crmOpportunities.message.lostFailed'));
     }

@@ -255,6 +255,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -438,7 +439,7 @@ const handlePublish = async (row: OaAnnouncement) => {
     ElMessage.success(`公告已发布${count > 0 ? `，已通知 ${count} 位用户` : ''}`);
     fetchList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '发布失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '发布失败');
   }
 };
 
@@ -449,7 +450,7 @@ const handleArchive = async (row: OaAnnouncement) => {
     ElMessage.success('公告已归档');
     fetchList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '归档失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '归档失败');
   }
 };
 
@@ -462,7 +463,7 @@ const handleDelete = async (row: OaAnnouncement) => {
     ElMessage.success('删除成功');
     fetchList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '删除失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '删除失败');
   }
 };
 

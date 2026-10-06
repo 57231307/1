@@ -334,6 +334,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -588,7 +589,7 @@ const handleDelete = async (row: CostCollection) => {
     ElMessage.success(t('message.deleteSuccess'));
     fetchCollections();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('cost.collectionList.message.deleteFailed'));
     }
@@ -610,7 +611,7 @@ const auditCollection = async (row: CostCollection, approved: boolean) => {
     ElMessage.success(t('cost.collectionList.message.auditSuccess', { action: text }));
     fetchCollections();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('cost.collectionList.message.operationFailed'));
     }

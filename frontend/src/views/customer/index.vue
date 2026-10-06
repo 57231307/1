@@ -263,6 +263,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -416,7 +417,7 @@ const handleDelete = async (row: Customer) => {
     ElMessage.success(t('customer.index.message.deleteSuccess'));
     fetchData();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('customer.index.message.deleteFailed'));
     }

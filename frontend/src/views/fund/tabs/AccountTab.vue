@@ -329,6 +329,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -562,7 +563,7 @@ const handleDelete = async (row: FundAccount) => {
     ElMessage.success(t('fund.accountTab.messageDeleteSuccess'));
     fetchAccounts();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fund.accountTab.messageDeleteFailed'));
     }

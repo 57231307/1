@@ -65,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import SupplierList from './SupplierList.vue';
 import SupplierDialog from './SupplierDialog.vue';
 // 表单模型与空白态的单一定义（与 SupplierDialog 共用，禁止父子两处各写一份默认值）
@@ -210,7 +211,7 @@ const handleDelete = async (row: Supplier) => {
     ElMessage.success(t('supplier.index.message.deleteSuccess'));
     fetchData();
   } catch (error: unknown) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('supplier.index.message.deleteFailed')

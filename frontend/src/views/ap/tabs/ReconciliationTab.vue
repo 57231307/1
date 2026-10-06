@@ -294,7 +294,7 @@ const confirmReconciliation = async (row: APReconciliation) => {
     ElMessage.success(t('apModule.reconciliation.confirmSuccess'));
     fetchReconciliations();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
@@ -315,7 +315,7 @@ const disputeReconciliation = async (row: APReconciliation) => {
     ElMessage.success(t('apModule.reconciliation.disputeSubmitted'));
     fetchReconciliations();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }

@@ -456,7 +456,7 @@ const handleDeleteItem = async (row: ServerItem) => {
     ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
     await fetchServerItems();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
     }
   }

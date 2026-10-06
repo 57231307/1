@@ -258,7 +258,7 @@ const handleDeleteItem = async (row: CountDetailItem) => {
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     await fetchDetail();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }

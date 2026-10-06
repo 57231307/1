@@ -62,8 +62,8 @@ export function isDialogDismissal(reason: unknown): boolean {
 }
 
 /**
- * 确认框/输入框（ElMessageBox）非取消形态异常的统一收口（全站单源，与 useActionPrompts
- * 内私有实现的语义逐字一致，此处导出供各 .vue/.ts 站点复用，禁止再在站点内各写一份）。
+ * 确认框/输入框（ElMessageBox）非取消形态异常的统一收口（全站单源，各 .vue/.ts 站点统一从
+ * 本模块导入，禁止在采集器或页面内再各写一份语义相同的私有实现，防止判据漂移）。
  *
  * 只有 isDialogDismissal 认定的 'cancel'/'close' 才是「用户主动放弃」，可由调用方静默中断；
  * 其余 rejection（对话框配置错、渲染期抛错、非字符串 rejection、业务请求失败）不是取消，

@@ -129,6 +129,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, onMounted, defineEmits, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -234,7 +235,7 @@ const handlePublish = async (row: QualityStandard) => {
     ElMessage.success(t('quality.standardTab.messagePublishSuccess'));
     fetchStandards();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('quality.standardTab.messageOperationFailed'));
     }

@@ -7,6 +7,7 @@
  * 设计说明：通过 callbacks 接收 useDi 的状态引用（Reactive 包装层）；
  * 由于 useDi 返回 reactive({...})，父组件传入 di.fetchTemplates 等会自动解包为值
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -210,7 +211,7 @@ export function useDiProc(cb: DiCallbacks) {
       msg.success('deleteSuccess');
       await cb.fetchTemplates();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : '删除失败';
         logger.error(errMsg);
         ElMessage.error(errMsg);
@@ -294,7 +295,7 @@ export function useDiProc(cb: DiCallbacks) {
       msg.success('taskCancelled');
       await cb.fetchTasks();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : '取消失败';
         logger.error(errMsg);
         ElMessage.error(errMsg);

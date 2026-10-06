@@ -230,6 +230,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -423,7 +424,7 @@ const handleDelete = async (row: ReportTemplate) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel')
+    if (!isDialogDismissal(error))
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('reportTemplates.message.deleteFailed')

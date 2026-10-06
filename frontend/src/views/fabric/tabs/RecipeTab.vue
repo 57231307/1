@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, onMounted, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -167,7 +168,7 @@ const handleApprove = async (row: DyeRecipe) => {
     ElMessage.success(t('fabric.recipeTab.messageApproveSuccess'));
     fetchRecipes();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('fabric.recipeTab.messageApproveFailed'));
     }
@@ -185,7 +186,7 @@ const handleNewVersion = async (row: DyeRecipe) => {
     ElMessage.success(t('fabric.recipeTab.messageNewVersionSuccess'));
     fetchRecipes();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('fabric.common.failed'));
     }

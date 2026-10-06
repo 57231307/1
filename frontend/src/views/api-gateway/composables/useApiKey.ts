@@ -6,6 +6,7 @@
  * wave4 契约收口：编辑对话框回显 description / expires_at 真值，
  * 清空即送显式 null（后端落 NULL / 永不过期），局部更新保持"键缺席=不动"。
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -201,7 +202,7 @@ export function useApiKey() {
       msg.success('deleteSuccess');
       await fetchKeys();
     } catch (error: unknown) {
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
         );
@@ -217,7 +218,7 @@ export function useApiKey() {
       msg.success('regenerateSuccess');
       await fetchKeys();
     } catch (error: unknown) {
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) ||
             msg.translate('regenerateFailed')
@@ -250,7 +251,7 @@ export function useApiKey() {
       msg.success('operationSuccess');
       await fetchKeys();
     } catch (error: unknown) {
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) ||
             msg.translate('operationFailed')

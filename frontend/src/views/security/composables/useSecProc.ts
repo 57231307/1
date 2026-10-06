@@ -2,6 +2,7 @@
 // 拆分自 security/index.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：登录安全（解锁账户 + 导出日志 + 查询）
 // 批次 282：移除 handleSizeChange/handleCurrentChange（useTableApi watch 自动处理分页）
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import { msg } from '@/utils/message';
@@ -66,7 +67,7 @@ export const useSecProc = () => {
       sec.getSecurityAlerts();
       sec.getStats();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error(t('security.message.resolveFailed'), error);
         msg.error('resolveFailed');
       }

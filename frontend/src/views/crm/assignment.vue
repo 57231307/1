@@ -245,6 +245,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -409,7 +410,7 @@ const handleDeleteRule = async (row: { id: number; name: string }) => {
     ElMessage.success(t('crmAssignment.message.deleteSuccess'));
     fetchRules();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('crmAssignment.message.deleteFailed'));
     }

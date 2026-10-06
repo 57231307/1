@@ -207,6 +207,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -343,7 +344,7 @@ const handleDeleteTemplate = async (row: ProcessTemplate) => {
     ElMessage.success(t('bpm.templates.message.deleteSuccess'));
     fetchData();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
   }
 };
 </script>

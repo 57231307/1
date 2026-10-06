@@ -6,6 +6,7 @@
  *
  * 设计说明：通过 callbacks 接收 usePi 的状态引用（Reactive 包装层）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
@@ -251,7 +252,7 @@ export function usePiProc(cb: PiCallbacks) {
       msg.success('operationSuccess');
       await cb.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('操作失败:', error);
       }
     }

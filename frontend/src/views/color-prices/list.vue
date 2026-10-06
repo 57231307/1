@@ -231,6 +231,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
@@ -343,7 +344,7 @@ const handleDelete = async (row: ColorPriceListItem) => {
     ElMessage.success(t('colorPrices.message.deleteSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e === 'cancel') return;
+    if (isDialogDismissal(e)) return;
     // v11 批次 180 P2-1 修复：catch (e: any) 改为 catch (e: unknown) + 类型守卫
     const errMsg = e instanceof Error ? e.message : String(e);
     ElMessage.error(

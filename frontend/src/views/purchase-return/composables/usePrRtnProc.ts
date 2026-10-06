@@ -2,6 +2,7 @@
  * usePrRtnProc.ts - 采购退货业务流程 composable
  * 提供采购退货提交流程（提交审批/审批/拒绝/删除）操作
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -35,7 +36,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
       msg.success('submitSuccess');
       await deps.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('提交失败:', error);
       }
     }
@@ -95,7 +96,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
       msg.success('deleteSuccess');
       await deps.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('删除失败:', error);
       }
     }

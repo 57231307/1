@@ -291,7 +291,7 @@ const handleDeleteItem = async (row: SalesReturnItem) => {
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
     await refreshServerItems();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
     }
   }

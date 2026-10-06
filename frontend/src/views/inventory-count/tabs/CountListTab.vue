@@ -219,6 +219,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { reactive, watch, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -319,7 +320,7 @@ const handleSubmit = async (row: InventoryCountEntity) => {
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }
@@ -336,7 +337,7 @@ const handleApprove = async (row: InventoryCountEntity) => {
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }
@@ -353,7 +354,7 @@ const handleReject = async (row: InventoryCountEntity) => {
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }
@@ -370,7 +371,7 @@ const handleDelete = async (row: InventoryCountEntity) => {
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     fetchCounts();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }

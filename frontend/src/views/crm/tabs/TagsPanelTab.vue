@@ -106,6 +106,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -234,7 +235,7 @@ const removeGlobalTag = async (tag: CustomerTag) => {
     ElMessage.success(t('crmTagsPanel.message.removeSuccess'));
     fetchTags();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('crmTagsPanel.message.removeFailed'));
     }

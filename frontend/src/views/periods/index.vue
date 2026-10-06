@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -226,7 +227,7 @@ const handleToggle = async (row: AccountingPeriodDetail, mode: 'close' | 'reopen
     ElMessage.success(`操作成功：${label}`);
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error(`操作失败：${label}`);
   }
 };
@@ -246,7 +247,7 @@ const handleInit = async () => {
     ElMessage.success('初始化成功');
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error('初始化失败');
   }
 };
@@ -273,7 +274,7 @@ const handleYearEnd = async () => {
     );
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error('年度结账失败');
   }
 };

@@ -229,6 +229,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -356,7 +357,7 @@ const handleEvaluate = async (row: CustomerCredit) => {
     ElMessage.success(t('customerCredit.index.message.evaluateSuccess'));
     fetchCredits();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('customerCredit.index.message.evaluateFailed'));
     }
@@ -410,7 +411,7 @@ const handleDelete = async (row: CustomerCredit) => {
     ElMessage.success(t('customerCredit.index.message.deleteSuccess'));
     fetchCredits();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('customerCredit.index.message.deleteFailed'));
     }
@@ -435,7 +436,7 @@ const handleDeactivate = async (row: CustomerCredit) => {
     ElMessage.success(t('customerCredit.index.message.deactivateSuccess'));
     fetchCredits();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('customerCredit.index.message.deactivateFailed'));
     }

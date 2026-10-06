@@ -2,6 +2,7 @@
  * useScProc.ts - 销售合同流程操作 composable
  * 封装销售合同提交审批/审批（通过/拒绝）/执行/删除/打印/导出/查看等流程性方法
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
@@ -124,7 +125,7 @@ export function useScProc(refresh: RefreshCallbacks) {
       msg.success('deleteSuccess');
       await refresh.getList();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('deleteFailed'));
       }

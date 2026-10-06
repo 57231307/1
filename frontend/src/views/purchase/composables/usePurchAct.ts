@@ -136,7 +136,7 @@ export function usePurchAct(
       msg.success('purchaseOrderSubmitted', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('operationFailed'));
       }
@@ -188,7 +188,7 @@ export function usePurchAct(
       msg.success('purchaseOrderDeleted', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('operationFailed'));
       }

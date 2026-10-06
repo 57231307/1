@@ -300,6 +300,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { computed, ref, reactive, onMounted, provide } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -561,7 +562,7 @@ const rejectStandard = async () => {
     fetchStandards();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    if (e !== 'cancel')
+    if (!isDialogDismissal(e))
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('quality.message.operationFailed')
       );

@@ -406,6 +406,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { computed, ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -742,7 +743,7 @@ const handleApprove = async (row: BPMTask) => {
     ElMessage.success(t('bpm.message.approveSuccess'));
     fetchPendingTasks();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
   }
 };
 
@@ -778,7 +779,7 @@ const handleDetail = async (row: BPMTask) => {
       confirmButtonText: t('bpm.message.close'),
     });
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
     const err = e as Error;
     ElMessage.error(err.message || t('bpm.message.fetchDetailFailed'));
   }
@@ -847,7 +848,7 @@ const handleUrge = async (row: BPMTask) => {
     await urgeBpmTask(row.id, t('bpm.message.urgeMessage'));
     ElMessage.success(t('bpm.message.urgeSuccess'));
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
   }
 };
 
@@ -883,7 +884,7 @@ const handleTrace = async (row: BPMTask | BPMInstance) => {
       confirmButtonText: t('bpm.message.close'),
     });
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
     const err = e as Error;
     ElMessage.error(err.message || t('bpm.message.fetchApprovalChainFailed'));
   }
@@ -912,7 +913,7 @@ const handleCancel = async (row: BPMInstance) => {
     // 撤回按钮位于监控 tab 的流程实例表内，刷新该列表即可
     fetchProcessInstances();
   } catch (e: unknown) {
-    if (e === 'cancel' || e === 'close') return;
+    if (isDialogDismissal(e)) return;
     const err = e as Error;
     ElMessage.error(err.message || t('bpm.message.cancelFailed'));
     logger.error(t('bpm.message.withdrawFailed'), err.message);
@@ -934,7 +935,7 @@ const handleViewProcess = async (row: BPMInstance) => {
       confirmButtonText: t('bpm.message.close'),
     });
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
     const err = e as Error;
     ElMessage.error(err.message || t('bpm.message.fetchProcessDetailFailed'));
   }
@@ -965,7 +966,7 @@ const handleProcessImage = async (row: BPMInstance) => {
       }
     );
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
     const err = e as Error;
     ElMessage.error(err.message || t('bpm.message.fetchProcessImageFailed'));
   }

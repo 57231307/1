@@ -590,7 +590,7 @@ const handleDeleteItem = async (row: ServerItem) => {
     ElMessage.success(t('inventoryTransfer.transferList.message.success'));
     await fetchServerItems();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
     }
   }

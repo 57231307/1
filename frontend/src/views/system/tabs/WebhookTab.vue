@@ -113,6 +113,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { reactive, ref, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -251,7 +252,7 @@ const deleteWebhook = async (row: WebhookRow) => {
     ElMessage.success(t('system.webhook.message.deleteSuccess'));
     fetchWebhooks();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('system.webhook.message.deleteFailed'));
     }

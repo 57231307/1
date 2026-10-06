@@ -391,7 +391,7 @@ const handleAutoVerify = async () => {
     ElMessage.success(t('apModule.verification.autoVerifySuccess'));
     fetchVerifications();
   } catch (e) {
-    if (e === 'cancel') return;
+    if (isDialogDismissal(e)) return;
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));
   } finally {

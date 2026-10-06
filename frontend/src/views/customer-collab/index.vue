@@ -167,6 +167,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -366,7 +367,7 @@ async function onSharesByCustomer() {
     shares.value = unwrapList(res);
     ElMessage.success(`客户 ${value} 的共享已加载`);
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '查询失败');
   }
 }
 
@@ -380,7 +381,7 @@ async function onSharesByUser() {
     shares.value = unwrapList(res);
     ElMessage.success(`用户 ${value} 的共享已加载`);
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '查询失败');
   }
 }
 
@@ -401,7 +402,7 @@ async function onCheckSharePermission() {
     const res = await checkSharePermission(params);
     ElMessageBox.alert(JSON.stringify(res.data ?? res, null, 2), '权限检查结果');
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '检查失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '检查失败');
   }
 }
 

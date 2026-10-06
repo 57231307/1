@@ -649,7 +649,7 @@ async function removeDefect(row: Record<string, unknown>) {
     ElMessage.success('疵点已删除');
     if (detailRow.value?.id) await openDetail({ id: detailRow.value.id } as FabricInspection);
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '删除失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '删除失败');
   }
 }
 

@@ -172,6 +172,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -349,7 +350,7 @@ const closePeriod = async (row: AccountingPeriodDetail) => {
     ElMessage.success(t('accountingPeriod.message.closedSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       logger.error('月末结账操作失败', { periodId: row.id, error: err.message });
       ElMessage.error(err.message || t('accountingPeriod.message.closeFailed'));
@@ -376,7 +377,7 @@ const reopenPeriod = async (row: AccountingPeriodDetail) => {
     ElMessage.success(t('accountingPeriod.message.reopenedSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel' && e !== 'close') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('accountingPeriod.message.operationFailed'));
     }
@@ -394,7 +395,7 @@ const deletePeriod = async (row: AccountingPeriodDetail) => {
     ElMessage.success(t('accountingPeriod.message.deleteSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('accountingPeriod.message.deleteFailed'));
     }
@@ -415,7 +416,7 @@ const handleInitYear = async () => {
     ElMessage.success(t('accountingPeriod.message.initSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       logger.error(t('accountingPeriod.message.initFailed'), err);
       ElMessage.error(err.message || t('accountingPeriod.message.initFailed'));

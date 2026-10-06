@@ -317,6 +317,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, watch, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -694,7 +695,7 @@ const submitRequest = async (row: APPaymentRequest) => {
     ElMessage.success(t('common.success'));
     fetchRequests();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
@@ -710,7 +711,7 @@ const approveRequest = async (row: APPaymentRequest) => {
     ElMessage.success(t('common.success'));
     fetchRequests();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
@@ -732,7 +733,7 @@ const rejectRequest = async (row: APPaymentRequest) => {
     ElMessage.success(t('common.success'));
     fetchRequests();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
@@ -748,7 +749,7 @@ const removeRequest = async (row: APPaymentRequest) => {
     ElMessage.success(t('common.success'));
     fetchRequests();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
