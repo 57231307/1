@@ -530,13 +530,6 @@ backend/tests/contract_wave8_extractor_rejection_envelope_test.rs::contract_wave
 backend/tests/contract_wave8_extractor_rejection_envelope_test.rs::error.rs
 backend/tests/contract_wave8_extractor_rejection_envelope_test.rs::trace_context.rs
 backend/tests/contract_wave8_extractor_rejection_envelope_test.rs::utils/error.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::backend/src/constants/customer_type.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::contract_wave8_crm_read_gate_bypass_test.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::customer_transfer_approval_service.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::handlers/customer_transfer_approval_handler.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::migration/src/domain/business/m0078_finalize_customer_type_domain.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::models/customer.rs
-backend/tests/contract_wave8_large_customer_credit_predicate_test.rs::services/crm/lead.rs
 backend/tests/contract_wave8_max_http_body_bytes_single_source_test.rs::constants.rs
 backend/tests/contract_wave8_max_http_body_bytes_single_source_test.rs::contract_wave2_po_item_update_fields_test.rs
 backend/tests/contract_wave8_max_http_body_bytes_single_source_test.rs::lib.rs
@@ -1560,8 +1553,6 @@ frontend/e2e/purchase/sku-mapping.spec.ts::backend/src/handlers/sku_mapping_hand
 frontend/e2e/purchase/sku-mapping.spec.ts::permission.rs
 frontend/e2e/quality/01-standard.spec.ts::StandardTab.vue
 frontend/e2e/quality/01-standard.spec.ts::quality_standard_service.rs
-frontend/e2e/quality/02-inspection.spec.ts::DefectTab.vue
-frontend/e2e/quality/02-inspection.spec.ts::quality/tabs/DefectTab.vue
 frontend/e2e/quality/04-return-linkage.spec.ts::api/purchase-return.ts
 frontend/e2e/quality/04-return-linkage.spec.ts::handlers/purchase_return_handler.rs
 frontend/e2e/quality/04-return-linkage.spec.ts::utils/response.rs
@@ -1773,7 +1764,6 @@ frontend/src/api/quality.ts::migration/src/domain/system/m0005_add_basic_data_an
 frontend/src/api/quality.ts::models/quality_standard.rs
 frontend/src/api/quality.ts::models/status/general.rs
 frontend/src/api/quality.ts::models/status/quality_dyeing.rs
-frontend/src/api/quality.ts::quality_inspection_service.rs
 frontend/src/api/quality.ts::quality_standard_handler.rs
 frontend/src/api/quality.ts::quality_standard_service.rs
 frontend/src/api/quality.ts::services/quality_inspection_service.rs
@@ -1880,7 +1870,6 @@ frontend/src/views/quality/index.vue::general.rs
 frontend/src/views/quality/index.vue::models/quality_standard.rs
 frontend/src/views/quality/index.vue::quality_standard_handler.rs
 frontend/src/views/quality/index.vue::quality_standard_service.rs
-frontend/src/views/quality/tabs/DefectTab.vue::UserTab.vue
 frontend/src/views/quality/tabs/DefectTab.vue::services/quality_inspection_service.rs
 frontend/src/views/quality/tabs/StandardTab.vue::general.rs
 frontend/src/views/quality/tabs/StandardTab.vue::quality_standard_handler.rs
