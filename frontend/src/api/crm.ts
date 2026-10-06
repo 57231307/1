@@ -75,7 +75,6 @@ export interface Opportunity {
    * 后端 Decimal 序列化为 JSON 字符串；null = 库中无值；
    * 字段级数据权限（仅非本人行）下该键会被**整键移除**，消费方须用 `'estimated_amount' in row` 区分"不外显"与"无值"。 */
   estimated_amount?: string | number | null;
-  probability: number;
   expected_close_date: string;
   description: string;
   created_by: number;
@@ -286,20 +285,6 @@ export function updateOpportunity(
 
 export function deleteOpportunity(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/crm/opportunities/${id}`);
-}
-
-export interface CustomerSummary {
-  customer_id: number;
-  customer_name: string;
-  total_orders: number;
-  total_amount: number;
-  last_order_date?: string;
-  credit_limit?: number;
-  credit_used?: number;
-}
-
-export function getCustomerSummary(customerId: number): Promise<ApiResponse<CustomerSummary>> {
-  return request.get(`/crm/customers/${customerId}/summary`);
 }
 
 // 批次 94 P2-12 修复：补全 CRM 线索导出接口（原缺失，导致 leads/index.vue 导出占位假成功）

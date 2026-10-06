@@ -107,7 +107,12 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('crmOpportunityForm.winProbability')" prop="win_probability">
-            <el-slider v-model="formData.win_probability" :min="0" :max="100" />
+            <el-slider
+              v-model="formData.win_probability"
+              :min="0"
+              :max="100"
+              @change="winProbabilityTouched = true"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -190,10 +195,17 @@ const formData = reactive({
   opportunity_stage: '',
   // 出参真实契约：Decimal = JSON 字符串、可空；el-input-number 需数值，回填时归一
   estimated_amount: 0 as number | undefined,
-  win_probability: 50,
+  // 赢率后端权威（services/crm/opp.rs::default_win_probability_by_stage）：未上送时创建按
+  // 阶段默认填充、阶段流转按新阶段默认刷新；undefined = 未设置（新建无既有值/库中无值）。
+  // 前端绝不上送占位值——显式上送会覆盖后端按阶段算出的赢率。
+  win_probability: undefined as number | undefined,
   expected_close_date: '',
   product_desc: '',
 });
+
+// 赢率是否由用户显式拨动过滑块（change 事件）：仅此为真时才参与提交判定，
+// 未拨动一律省略该键，把赢率决定权留给后端阶段口径
+const winProbabilityTouched = ref(false);
 
 // 2026-10-02 裁定（金额"仅非本人行"不外显）在编辑表单的落地判据：
 // - 行数据缺 estimated_amount 键 = 本入口不外显金额 → 中性占位、不可编辑；
@@ -210,6 +222,10 @@ const normalizeAmount = (raw: unknown): number | undefined => {
   const n = Number(raw);
   return Number.isFinite(n) ? n : undefined;
 };
+
+// 赢率列同为 Decimal 出参（JSON 字符串/null），el-slider 需数值：与 normalizeAmount 同形归一，
+// null/缺失/伪形按"未设置"对待——不回填出假数值，也不在未拨动时下发
+const normalizePercent = normalizeAmount;
 
 const formRules: FormRules = {
   opportunity_name: [
@@ -245,6 +261,8 @@ watch(
       originalEstimatedAmount.value = undefined;
       if (props.rowData) {
         Object.assign(formData, props.rowData);
+        // win_probability 行原文是 Decimal 出参（JSON 字符串）或 null，控件需数值：如实归一回填
+        formData.win_probability = normalizePercent(props.rowData.win_probability);
         // 金额键存在与否 = 字段级权限是否外显（后端对非本人行整键移除 estimated_amount）；
         // 先记录可见性与归一后的原值，提交时按"未改动即不下发"处理
         const hasAmount = 'estimated_amount' in props.rowData;
@@ -268,7 +286,8 @@ const resetForm = () => {
   formData.opportunity_type = '';
   formData.opportunity_stage = '';
   formData.estimated_amount = 0;
-  formData.win_probability = 50;
+  formData.win_probability = undefined;
+  winProbabilityTouched.value = false;
   formData.expected_close_date = '';
   formData.product_desc = '';
 };
@@ -287,10 +306,16 @@ const handleSubmit = async () => {
       customer_id: Number(formData.customer_id),
       opportunity_type: formData.opportunity_type || undefined,
       opportunity_stage: formData.opportunity_stage || undefined,
-      win_probability: formData.win_probability,
       expected_close_date: formData.expected_close_date || undefined,
       product_desc: formData.product_desc || undefined,
     };
+    // 赢率只在用户显式拨动滑块后如实上送当前值；未拨动一律省略该键——
+    // 创建时后端按阶段默认填充，编辑改阶段时后端按新阶段默认刷新，
+    // 占位值/回填旧值下发都会把这两条后端口径盖掉
+    const winProbabilityToSend =
+      winProbabilityTouched.value && typeof formData.win_probability === 'number'
+        ? formData.win_probability
+        : undefined;
     if (formData.id) {
       const payload: OpportunityUpdateInput = { ...fields };
       // 2026-10-02 裁定（金额"仅非本人行"不外显）编辑侧落地：
@@ -304,6 +329,9 @@ const handleSubmit = async () => {
       ) {
         payload.estimated_amount = formData.estimated_amount;
       }
+      if (winProbabilityToSend !== undefined) {
+        payload.win_probability = winProbabilityToSend;
+      }
       await updateOpportunity(formData.id, payload);
     } else {
       // 新建无既有金额可覆盖：按表单现值下发（清空即不下发，落库为无值）
@@ -314,6 +342,7 @@ const handleSubmit = async () => {
           Number.isFinite(formData.estimated_amount)
             ? formData.estimated_amount
             : undefined,
+        win_probability: winProbabilityToSend,
       };
       await createOpportunity(payload);
     }

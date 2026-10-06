@@ -134,7 +134,7 @@
           width="100"
           align="center"
         >
-          <template #default="{ row }"> {{ row.win_probability }}% </template>
+          <template #default="{ row }"> {{ displayWinProbability(row) }} </template>
         </el-table-column>
         <el-table-column
           prop="opportunity_stage"
@@ -285,9 +285,9 @@
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.estimatedAmount')">{{
           displayEstimatedAmount(viewData)
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('crmOpportunities.viewDialog.winProbability')"
-          >{{ viewData.win_probability ?? viewData.probability ?? 0 }}%</el-descriptions-item
-        >
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.winProbability')">{{
+          displayWinProbability(viewData)
+        }}</el-descriptions-item>
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.stage')">
           <el-tag :type="getStageType(viewData.opportunity_stage || '')">{{
             getStageLabel(viewData.opportunity_stage || '')
@@ -609,6 +609,16 @@ const displayEstimatedAmount = (row: OpportunityRow): string => {
   const value = row.estimated_amount;
   if (value === null || value === undefined) return '-';
   return formatCurrency(value);
+};
+
+// 赢率列展示：后端 crm_opportunity.win_probability 为 Option<Decimal> 整行直出，
+// 线上形态是 JSON 字符串或 null；null/键缺失/伪形一律按"无值"占位 '-'，
+// 禁止 ?? 兜底把无值显示成 0%（赢率缺省时后端按阶段计算，刷新后即为真实值）。
+const displayWinProbability = (row: OpportunityRow): string => {
+  const value = row.win_probability;
+  if (value === null || value === undefined || value === '') return '-';
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n}%` : '-';
 };
 
 onMounted(() => {
