@@ -157,6 +157,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   getSeasonalRuleList,
   createSeasonalRule,
@@ -288,8 +289,9 @@ const handleDelete = async (row: SeasonalPriceRule) => {
       t('colorPrices.common.confirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('colorPrices.SeasonalRulesTab.handleDelete', error);
   }
   try {
     await deleteSeasonalRule(row.id);

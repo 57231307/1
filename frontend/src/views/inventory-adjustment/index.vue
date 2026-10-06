@@ -54,6 +54,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -96,8 +97,9 @@ const handleDeleteAdjustment = async (row: InventoryAdjustmentEntity) => {
       t('inventoryAdjustment.listTab.titleDeleteConfirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryAdjustment.handleDeleteAdjustment', error);
   }
   try {
     await deleteInventoryAdjustment(row.id as number);

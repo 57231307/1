@@ -18,6 +18,7 @@
  * ```
  */
 import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 /** 错误上报载荷 */
 interface ErrorReport {
@@ -58,6 +59,24 @@ const REPORT_ENDPOINT = '/api/v1/erp/tracking/frontend-error';
  */
 export function isDialogDismissal(reason: unknown): boolean {
   return reason === 'cancel' || reason === 'close';
+}
+
+/**
+ * 确认框/输入框（ElMessageBox）非取消形态异常的统一收口（全站单源，与 useActionPrompts
+ * 内私有实现的语义逐字一致，此处导出供各 .vue/.ts 站点复用，禁止再在站点内各写一份）。
+ *
+ * 只有 isDialogDismissal 认定的 'cancel'/'close' 才是「用户主动放弃」，可由调用方静默中断；
+ * 其余 rejection（对话框配置错、渲染期抛错、非字符串 rejection、业务请求失败）不是取消，
+ * 必须留痕（logger.error）+ 外显（msg.operationFail）后再原样上抛，交 window unhandledrejection
+ * 上报监控，绝不能被冒充成「用户跳过了操作」而静默吞掉（外在表现为按钮点击无任何反应）。
+ *
+ * @param context 站点/采集器标识，用于日志归属（如 'bom.submitApprove'）
+ * @param error   捕获到的非取消 rejection
+ */
+export function rethrowNonDismissal(context: string, error: unknown): never {
+  logger.error(`[monitor] ${context} 对话框异常（非用户取消）:`, error);
+  msg.operationFail();
+  throw error;
 }
 
 /** 生成错误指纹（type + message + source 哈希） */

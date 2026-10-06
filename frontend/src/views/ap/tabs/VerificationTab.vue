@@ -199,6 +199,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus } from '@element-plus/icons-vue';
 import { promptCancelReason } from '@/composables/useActionPrompts';
 import { getSupplierList, type Supplier } from '@/api/supplier';
@@ -368,8 +369,9 @@ const handleAutoVerify = async () => {
       t('apModule.verification.autoVerify'),
       { type: 'info' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('ap.VerificationTab.handleAutoVerify', error);
   }
   autoVerifying.value = true;
   try {

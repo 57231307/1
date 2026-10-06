@@ -502,6 +502,7 @@
 import { computed, ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance, FormRules, UploadFile } from 'element-plus';
 import {
   createSupplierContact,
@@ -775,8 +776,9 @@ const handleDeleteContact = async (row: SupplierContact) => {
         type: 'warning',
       }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('supplierEnhanced.handleDeleteContact', error);
   }
   try {
     await deleteSupplierContact(id, row.id);
@@ -861,8 +863,9 @@ const handleDeleteQualification = async (row: SupplierQualification) => {
       t('common.confirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('supplierEnhanced.handleDeleteQualification', error);
   }
   try {
     await deleteSupplierQualification(id, row.id);

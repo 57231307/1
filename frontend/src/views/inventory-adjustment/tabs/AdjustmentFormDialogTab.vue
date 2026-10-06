@@ -257,6 +257,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance } from 'element-plus';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import {
@@ -446,8 +447,9 @@ const handleDeleteItem = async (row: ServerItem) => {
       t('inventoryAdjustment.listTab.titleDeleteConfirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryAdjustment.handleDeleteItem', error);
   }
   try {
     await deleteAdjustmentItem(row.id);

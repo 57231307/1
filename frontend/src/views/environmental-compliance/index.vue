@@ -160,6 +160,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   getPollutionPermitList,
   createPollutionPermit,
@@ -248,8 +249,9 @@ const handleSavePermit = async () => {
 const handleRevoke = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认撤销许可证 ${row.permit_no}？`, '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('environmentalCompliance.handleRevoke', error);
   }
   try {
     await revokePollutionPermit(row.id as number);

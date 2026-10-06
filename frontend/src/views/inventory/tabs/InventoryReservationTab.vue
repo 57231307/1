@@ -108,6 +108,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getReservationList,
@@ -219,8 +220,9 @@ const cancelReservationRow = async (row: Record<string, unknown>) => {
     await ElMessageBox.confirm(t('inventory.reservation.cancelConfirm'), t('common.cancel'), {
       type: 'warning',
     });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventory.cancelReservationRow', error);
   }
   await runAction(
     () => cancelReservation(Number(row.id)),

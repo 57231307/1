@@ -234,6 +234,7 @@
 import { reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
 import { executeInventoryTransfer } from '@/api/inventory';
 import {
@@ -333,8 +334,9 @@ const handleShip = async (row: InventoryTransferEntity) => {
       t('inventoryTransfer.transferList.message.shipTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryTransfer.handleShip', error);
   }
   try {
     await executeInventoryTransfer(row.id as number);

@@ -5,6 +5,7 @@
  * 设计说明：通过 callbacks 接收 useMs 的状态引用（Reactive 包装层）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
 import {
@@ -89,10 +90,13 @@ export function useMsProc(cb: MsCallbacks) {
         i18n.global.t('materialShortage.common.tips'),
         { type: 'warning' }
       );
-    } catch {
-      // 用户取消，不发请求
-      await cb.fetchShortages();
-      return;
+    } catch (error: unknown) {
+      // 仅真取消/关闭才静默中断（保留原有刷新）；非取消形态不是用户放弃，不得冒充
+      if (isDialogDismissal(error)) {
+        await cb.fetchShortages();
+        return;
+      }
+      rethrowNonDismissal('materialShortage.changeStatus', error);
     }
 
     try {

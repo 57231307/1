@@ -205,6 +205,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   getQuotation,
@@ -338,8 +339,9 @@ async function handleConvert() {
       t('quotations.detail.convertConfirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.detail.handleConvert', error);
   }
   const res = await convertQuotation(quotation.value.id);
   const order: ConvertResponse | undefined = res.data;
@@ -360,8 +362,9 @@ async function handleCancel() {
       t('quotations.detail.cancelConfirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.detail.handleCancel', error);
   }
   await cancelQuotation(quotation.value.id);
   ElMessage.success(t('quotations.detail.cancelSuccess'));

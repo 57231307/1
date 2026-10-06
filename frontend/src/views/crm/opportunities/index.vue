@@ -331,6 +331,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
 import {
   updateOpportunity,
@@ -482,8 +483,9 @@ const handleConvertToOrder = async (row: OpportunityRow) => {
       t('crmOpportunities.table.toOrder'),
       { type: 'info' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('crmOpportunities.handleConvertToOrder', error);
   }
   try {
     const res = await convertOpportunityToOrder(row.id);

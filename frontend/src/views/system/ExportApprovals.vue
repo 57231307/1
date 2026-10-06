@@ -196,6 +196,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   listApprovals,
   listPendingForMe,
@@ -355,8 +356,10 @@ const handleApprove = async (row: ExportApprovalRequest) => {
     await approveRequest(row.id);
     ElMessage.success(t('exportApprovals.approved'));
     loadList();
-  } catch {
-    // user cancelled or error
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return; // 仅用户取消/关闭才静默中断
+    // 走到这里说明 confirm 之后的业务请求或渲染抛错，不是「用户取消」，必须外显并上报
+    rethrowNonDismissal('exportApprovals.handleApprove', error);
   }
 };
 
@@ -370,8 +373,9 @@ const handleReject = async (row: ExportApprovalRequest) => {
     await rejectRequest(row.id, value);
     ElMessage.success(t('exportApprovals.rejected'));
     loadList();
-  } catch {
-    // user cancelled or error
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('exportApprovals.handleReject', error);
   }
 };
 
@@ -383,8 +387,9 @@ const handleCancel = async (row: ExportApprovalRequest) => {
     await cancelRequest(row.id);
     ElMessage.success(t('exportApprovals.cancelled'));
     loadList();
-  } catch {
-    // user cancelled or error
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('exportApprovals.handleCancel', error);
   }
 };
 

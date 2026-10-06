@@ -238,6 +238,7 @@ import { ref, reactive, computed } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus, Download } from '@element-plus/icons-vue';
 import { exportFromBackend } from '@/utils/export';
 import {
@@ -468,8 +469,9 @@ const handleSubmitApproval = async (row: Bom) => {
       t('bomModule.approve.confirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('bom.handleSubmitApproval', error);
   }
   try {
     await submitBom(row.id);

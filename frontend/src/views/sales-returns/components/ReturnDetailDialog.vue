@@ -136,6 +136,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { formatAmount } from '../composables/srFmts';
 import {
   salesReturnStatusLabelKey,
@@ -281,8 +282,9 @@ const handleDeleteItem = async (row: SalesReturnItem) => {
       t('salesReturns.detailDialog.deleteItemTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('salesReturns.handleDeleteItem', error);
   }
   try {
     await deleteSalesReturnItem(props.currentReturn.id, row.id);

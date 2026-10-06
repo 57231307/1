@@ -411,6 +411,7 @@ import {
 } from '@/constants/fabric-scoring';
 import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance, FormRules } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import { PERMISSIONS } from '@/constants/permissions';
@@ -639,8 +640,9 @@ async function viewDefect(row: Record<string, unknown>) {
 async function removeDefect(row: Record<string, unknown>) {
   try {
     await ElMessageBox.confirm(`确认删除疵点 #${row.id}？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('fabricInspections.removeDefect', error);
   }
   try {
     await deleteFabricDefect(row.id as number);
@@ -993,8 +995,9 @@ async function onGradeSubmit() {
 async function onClose(row: FabricInspection) {
   try {
     await ElMessageBox.confirm('确认关闭该验布单？', '关闭确认');
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('fabricInspections.onClose', error);
   }
   try {
     await closeFabricInspection(row.id);
@@ -1010,8 +1013,9 @@ async function onClose(row: FabricInspection) {
 async function onDelete(row: FabricInspection) {
   try {
     await ElMessageBox.confirm('确认删除该验布单？', '删除确认');
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('fabricInspections.onDelete', error);
   }
   try {
     await deleteFabricInspection(row.id);

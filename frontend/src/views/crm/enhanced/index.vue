@@ -403,6 +403,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   detectDuplicateLeads,
   getLeadFunnelReport,
@@ -796,8 +797,9 @@ const handleDeleteAddress = async (row: CustomerAddress) => {
   if (!customerId) return;
   try {
     await ElMessageBox.confirm(`确认删除地址 #${row.id}？`, '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('crmEnhanced.handleDeleteAddress', error);
   }
   try {
     await deleteCustomerAddress(customerId, row.id);

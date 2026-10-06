@@ -227,6 +227,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus, Back, Search, Refresh } from '@element-plus/icons-vue';
 import { getUserList, type User } from '@/api/user';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -326,8 +327,9 @@ const handleClaimSelected = async () => {
     await ElMessageBox.confirm(`确认认领选中的 ${ids.length} 个客户？`, t('crmPool.batchClaim'), {
       type: 'info',
     });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('crmPool.batchClaim', error);
   }
   claiming.value = true;
   try {

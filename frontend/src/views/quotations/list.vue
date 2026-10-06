@@ -216,6 +216,7 @@ import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus } from '@element-plus/icons-vue';
 import { useTableApi } from '@/composables/useTableApi';
 import {
@@ -342,8 +343,9 @@ async function handleCancel(row: QuotationResponseDto) {
         type: 'warning',
       }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.list.handleCancel', error);
   }
   await cancelQuotation(row.id);
   ElMessage.success(t('quotations.list.cancelSuccess'));
@@ -357,8 +359,9 @@ async function handleConvert(row: QuotationResponseDto) {
       t('quotations.list.convertConfirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.list.handleConvert', error);
   }
   const res = await convertQuotation(row.id);
   const order = res.data;

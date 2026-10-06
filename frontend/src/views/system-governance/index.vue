@@ -301,6 +301,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { ApiResponse } from '@/types/api';
 import { useUserStore } from '@/store/user';
 import type { CreatePermissionDelegationPayload, RoleChangeType } from '@/api/system-governance';
@@ -392,8 +393,9 @@ async function onExpireOverdue() {
 async function onRevoke(row: Record<string, unknown>) {
   try {
     await ElMessageBox.confirm('确认撤销该委托？', '确认', { type: 'warning' });
-  } catch {
-    return; // 用户取消不是失败，静默返回（rejection 已捕获）
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('systemGovernance.onRevoke', error);
   }
   try {
     await revokeDelegation(row.id as number);
@@ -433,8 +435,9 @@ async function onLoadActiveDelegations() {
       inputErrorMessage: '请输入数字ID',
     });
     delegateeId = Number(value);
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('systemGovernance.onLoadActiveDelegations', error);
   }
   loading.value = true;
   try {
@@ -653,8 +656,9 @@ async function onDeviceHeartbeat(row: Record<string, unknown>) {
 async function onDisconnectDevice(row: Record<string, unknown>) {
   try {
     await ElMessageBox.confirm(`确认断开设备 #${row.id}？`, '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('systemGovernance.onDisconnectDevice', error);
   }
   try {
     await disconnectDevice(String(row.id));
@@ -670,8 +674,9 @@ async function onDisconnectDevice(row: Record<string, unknown>) {
 async function onCleanupTimeoutDevices() {
   try {
     await ElMessageBox.confirm('确认清理所有超时设备连接？', '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('systemGovernance.onCleanupTimeoutDevices', error);
   }
   try {
     await cleanupTimeoutDevices();
@@ -829,8 +834,9 @@ const onRoleChangeAction = async (
         inputErrorMessage: '驳回原因不能为空',
       });
       reason = value;
-    } catch {
-      return;
+    } catch (error: unknown) {
+      if (isDialogDismissal(error)) return;
+      rethrowNonDismissal('systemGovernance.collectRejectReason', error);
     }
   }
   try {

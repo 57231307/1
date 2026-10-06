@@ -104,6 +104,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   getQuotation,
@@ -197,8 +198,9 @@ async function handleConvert() {
       t('quotations.approval.convertTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.approval.handleConvert', error);
   }
   submitting.value = true;
   try {

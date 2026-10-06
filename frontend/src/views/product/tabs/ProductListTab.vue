@@ -341,6 +341,7 @@ import { logger } from '@/utils/logger';
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   Plus,
   Upload,
@@ -599,8 +600,9 @@ const handleDeleteColor = async (row: ProductColor) => {
       t('product.productListTab.colorDeleteTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('product.handleDeleteColor', error);
   }
   try {
     await deleteProductColor(colorProduct.value.id, row.id);

@@ -204,6 +204,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { useI18n } from 'vue-i18n';
 import {
   cancelMrpCalculation,
@@ -352,8 +353,9 @@ const handleCancel = async (row: MrpResultResponse) => {
       t('common.confirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('mrp.history.handleCancel', error);
   }
   try {
     await cancelMrpCalculation(row.id);

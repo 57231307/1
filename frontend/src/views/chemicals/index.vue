@@ -163,6 +163,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   createChemical,
   deleteChemical,
@@ -330,8 +331,9 @@ const onEditLot = (row: Record<string, unknown>) => {
 const onDeleteLot = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认删除批次 ${row.lot_no}？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('chemicals.onDeleteLot', error);
   }
   try {
     await deleteChemicalLot(Number(row.id));
@@ -394,8 +396,9 @@ const onEditCategory = (row: Record<string, unknown>) => {
 const onDeleteCategory = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认删除分类「${row.name}」？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('chemicals.onDeleteCategory', error);
   }
   try {
     await deleteChemicalCategory(Number(row.id));
