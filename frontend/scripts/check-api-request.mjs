@@ -35,6 +35,17 @@
  *   (d) 叶子类型字段（`serde_json::Value`/`any`/`Record<string, unknown>`/`HashMap<String,_>`）：
  *       顶层键名仍参与比对，但内层键集**不可比**这一事实必须进「未覆盖清单」逐条输出，
  *       不再当作无声通过；索引签名与不可解析的 axios config 同样显式入盲区。
+ *   (multipart 双向形态判定 · 任务板 #249) 旧实现只按后端**签名**认 multipart，且命中即整条
+ *       记盲区、从不比对前端实发形态 ⇒ 「后端收 multipart、前端发 JSON」与「前端发 FormData、
+ *       后端只收 Json<T>」两个方向的契约错都落盲区（实测各 1 条真错藏身）。现判定为双向：
+ *         · 后端证据不再只看签名——签名提取器 `: Multipart`/函数体 `<Multipart as
+ *           FromRequest<_>>::from_request`/`.next_field()`/`.get_file()`/`*_from_multipart()`
+ *           任一命中即认定（detectBackendMultipart；错误文案里的裸"multipart"字样不算证据）；
+ *         · 前端证据——调用点实参内联 `new FormData()`、函数体窗口内 `x = new FormData` 赋值、
+ *           形参类型含 FormData，三者任一认定；内联对象/JSON.stringify/非 FormData 具名实参判 json；
+ *         · 后端 multipart + 前端 JSON/空体 ⇒ 失配；前端 FormData + 后端 `Json<T>` ⇒ 失配；
+ *           两侧同为 multipart ⇒ 记 multipart-ok（键集仍不可比，属残余盲区）；
+ *           任一侧形态判不出仍走盲区，禁止猜。`--self-test` 夹具对上述两方向各做正/负自证。
  *
  * 看板 #40 再补的两类（同一红线：判不出=必须显式，绝不能「该报的没报」）：
  *   (e) 箭头函数签名的残余静默丢弃：parseFrontendApiFunctions 的判重键（函数名, path）是
@@ -54,6 +65,7 @@
  * 解析器复用：全部从 check-api-envelope.mjs 导入（同一套 nest 前缀还原、宏展开、pub use 转出、
  * TS 具名类型展开），两处各写一份必然漂移——这是本仓库反复栽过的根因之一。
  */
+import { spawnSync } from 'child_process';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -114,6 +126,30 @@ function extractorType(sig, wrapper) {
   const re2 = new RegExp('\\b' + wrapper + '\\s*<\\s*([A-Z][\\w:]*)\\s*>', 'g');
   const m2 = re2.exec(sig);
   return m2 ? m2[1] : null;
+}
+
+/// 请求体提取器的类型实参。本仓有两种：axum 的 `Json<T>`（体必填）与
+/// `utils::optional_json::OptionalJson<T>`（缺体归 None、有体照常字段校验）。
+/// 两者比对语义相同——载荷键集都必须等于 T，故都要认；漏认 OptionalJson 会把
+/// "前端发了后端不读的键"误判成"后端无体提取器、载荷被整体忽略"。
+/// `\b` 使 `Json` 不会命中 `OptionalJson` 的词内子串，两个 wrapper 各自独立匹配。
+function jsonBodyType(sig) {
+  return (
+    extractorType(sig || '', 'Json') ||
+    extractorType(sig || '', 'OptionalJson') ||
+    untypedJsonBodyType(sig)
+  );
+}
+
+/// 不限形请求体：`Json<serde_json::Value>` / `OptionalJson<serde_json::Value>` 这类
+/// "后端收 JSON 但不声明字段集"的形态。泛型壳正则只认大写开头的类型名，小写路径
+/// `serde_json::Value` 会被漏掉，进而被误判成"后端无体提取器、前端载荷被整体忽略"
+/// 的失配（print_handler.rs:1521/:1561 实证）。这里显式识别它，交由下游按
+/// "字段不可静态解析"归盲区并留原因，不判负也不判通过。
+function untypedJsonBodyType(sig) {
+  return /(?:\bJson|\bOptionalJson)\s*<\s*(?:std::)?(?:serde_json::)?Value\s*>/.test(sig || '')
+    ? 'serde_json::Value'
+    : null;
 }
 
 function serdeRenameAll(attrs) {
@@ -620,6 +656,122 @@ function compareKeys(feKeys, beFields) {
   };
 }
 
+// ---------- multipart 双向形态判定（任务板 #249） ----------
+
+// 后端 multipart 证据源（本仓实测全部形态，命中任一即认定端点只收 multipart/form-data）：
+//  (1) 参数签名提取器 `multipart: Multipart`/`MultipartForm`/`multipart::Form`
+//      （crm_handler.rs:558、import_export_handler.rs:705、product_handler.rs:694、
+//       system_update_handler.rs:187、user_handler.rs:224）；
+//  (2) 签名收 `Request` + 函数体 `<Multipart as FromRequest<_>>::from_request(...)`
+//      （supplier_handler.rs:804/:814，手构造是为把拒绝收进 AppError 信封并覆写 body limit）；
+//  (3) 函数体字段/文件读取 `.next_field()`/`.get_file()`（(1)(2) 的后果证据，兜底识别）；
+//  (4) 经辅助函数间接取 multipart：`extract_*_from_multipart(...)`（system_update_handler.rs:192→:212）。
+// 红线：只匹配类型位/调用位，不匹配裸词——supplier_handler.rs:822/826 的中文拒绝文案含
+// "multipart" 字样，按词面判会把纯 Json 端点误判成 multipart。
+function detectBackendMultipart(sig, body) {
+  const s = String(sig || '');
+  const b = String(body || '');
+  if (
+    /(?:^|[,(]\s*)(?:mut\s+)?[a-z_]\w*\s*:\s*(?:axum::extract::)?Multipart\b/.test(s) ||
+    /\bMultipartForm\b/.test(s) ||
+    /\bmultipart::(?:Form|Multipart)\b/.test(s)
+  )
+    return '参数签名 Multipart 提取器';
+  if (/<\s*Multipart\s+as\s+FromRequest\s*<[^>]*>\s*>::from_request/.test(b))
+    return '函数体 FromRequest 构造';
+  if (/\.next_field\s*\(/.test(b) || /\.get_file\s*\(/.test(b))
+    return '函数体 next_field/get_file 字段读取';
+  if (/\b[a-z_]\w*from_multipart\s*\(/.test(b)) return '函数体 multipart 辅助函数调用';
+  return '';
+}
+
+// 调用点所在 api 文件源码缓存（fePayloadForm 需要函数体窗口判定 `x = new FormData` 赋值）。
+const FE_SRC_CACHE = new Map();
+function readApiFileSrc(file) {
+  if (!FE_SRC_CACHE.has(file)) {
+    let txt = null;
+    try {
+      txt = readFileSync(join(FRONTEND, ...String(file).split('/').filter(Boolean)), 'utf-8');
+    } catch {
+      txt = null; // 读不到即返回 null，调用方判 unknown——不猜
+    }
+    FE_SRC_CACHE.set(file, txt);
+  }
+  return FE_SRC_CACHE.get(file);
+}
+
+// 前端实发载荷形态：multipart（FormData 实发）/ json（对象字面量、JSON.stringify、
+// 非 FormData 的具名实参）/ none（根本没发）/ unknown（静态判不出，调用方必须落盲区）。
+// 证据形态与本仓实测对齐：调用点内联 new FormData()；函数体窗口内 `const x = new FormData()`
+// （crm.ts:315、data-import.ts:101、product.ts:275、sku-mapping.ts:146、supplier.ts:320、
+//  user-profile.ts:58 全部是这一形态）；形参类型直接标注 FormData。
+// 注意：判 json 不依赖 config 的 Content-Type 覆写——手标 multipart 头而载荷是对象，
+// 浏览器实际发出的仍是 JSON 文本（无 boundary），后端 multipart 解析照样失败，
+// 按载荷本体形态判失配才是对的，头覆写只能当旁证、不能当免检。
+function fePayloadForm(fn, payloadExpr, readSrc = readApiFileSrc) {
+  const p = stripTsComments(String(payloadExpr || ''))
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!p || /^(undefined|null|void)$/.test(p)) return { form: 'none', why: '未携带请求体' };
+  if (/new\s+FormData\s*\(/.test(p))
+    return { form: 'multipart', why: '调用点实参内联 new FormData()' };
+  if (/^JSON\.stringify\b/.test(p)) return { form: 'json', why: 'JSON.stringify 显式序列化' };
+  if (p.startsWith('{')) return { form: 'json', why: '内联对象字面量' };
+  const id = /^[A-Za-z_]\w*$/.exec(p);
+  if (!id) return { form: 'unknown', why: '载荷表达式静态不可定位' };
+  // 形参优先：若该标识符是带类型注解的形参，作用域铁定属于本函数，先按类型判，
+  // 避免同文件他处同名局部变量把形态带偏。
+  const pt = paramTypeOf(fn.sig || '', id[0]);
+  if (pt && pt.typeText) {
+    if (/\bFormData\b/.test(pt.typeText))
+      return { form: 'multipart', why: `形参 ${id[0]}: ${pt.typeText.slice(0, 40)}` };
+    if (!leafTypeText(pt.typeText) && !/^(any|unknown)$/.test(pt.typeText.trim()))
+      return { form: 'json', why: `形参 ${id[0]}: ${pt.typeText.slice(0, 40)}（非 FormData）` };
+  }
+  // 非形参标识符：在其所属导出函数的体窗口内找 `const x = new FormData` 赋值。
+  // 窗口按「函数名声明 → 配平闭括号」定位，不按行号猜——feFunctions 的 fn.line 在三条
+  // 解析趟里分别是声明行/调用行（实测 crm.ts:314 与 supplier.ts:322 分属不同趟），
+  // 以行为窗会漏掉声明趟函数体内的赋值，把 FormData 实发误判成 unknown。
+  const src = readSrc(fn.file);
+  if (typeof src === 'string' && fn.name) {
+    const decl = new RegExp(
+      'export\\s+(?:async\\s+)?(?:function|const|let)\\s+' + fn.name + '\\b'
+    ).exec(src);
+    if (decl) {
+      const brace = src.indexOf('{', decl.index);
+      const cap = brace >= 0 ? captureBalanced(src, brace, '{', '}') : null;
+      // captureBalanced 返回 [闭括号下标, 括号内文本]，函数体窗口 = 声明起点 → 闭括号
+      const win = cap ? src.slice(decl.index, brace + cap[0] + 1) : '';
+      if (
+        new RegExp('(?:const|let|var)\\s+' + id[0] + '\\s*(?::[^=]*)?=\\s*new\\s+FormData\\b').test(
+          win
+        )
+      )
+        return { form: 'multipart', why: `函数体内 ${id[0]} = new FormData()` };
+    }
+  }
+  return { form: 'unknown', why: `载荷标识符 ${id[0]} 形态静态判不出` };
+}
+
+// 双向判定（main 与 --self-test 共用同一实现，禁止两处各写一份口径——本仓库反复栽过的根因）：
+//  - 后端 multipart + 前端 FormData            -> multipart-ok（键集仍不可比，另列盲区账）
+//  - 后端 multipart + 前端 JSON/空体           -> mismatch-backend-expects-multipart（真错）
+//  - 前端 FormData + 后端 Json<T>（非 multipart）-> mismatch-frontend-sends-multipart（真错，必 415）
+//  - 其余                                       -> n/a（沿用既有 Json/Query/盲区路径）
+function multipartContractVerdict(sym, fn, payloadExpr, readSrc = readApiFileSrc) {
+  const beMp = detectBackendMultipart(sym.sig, sym.body);
+  const fm = fePayloadForm(fn, payloadExpr, readSrc);
+  if (beMp && fm.form === 'multipart')
+    return { verdict: 'multipart-ok', evidence: `后端证据：${beMp}；前端证据：${fm.why}` };
+  if (beMp && (fm.form === 'json' || fm.form === 'none'))
+    return { verdict: 'mismatch-backend-expects-multipart', beMp, fm };
+  if (!beMp && fm.form === 'multipart') {
+    const jt = jsonBodyType(sym.sig || '');
+    if (jt) return { verdict: 'mismatch-frontend-sends-multipart', beType: jt, fm };
+  }
+  return { verdict: 'n/a', beMp, form: fm.form };
+}
+
 // ---------- 看板 #40 盲区补录 ----------
 
 // 本文件局部类型索引：全局 buildTsTypeIndex 把「跨文件同名且体不同」的类型标 ambiguous,
@@ -773,6 +925,7 @@ function main() {
     blind: [],
     uncovered: [], // (d) 叶子类型：顶层名比对了，内层键集没比对——显式入清单
     noHandler: [],
+    multipartOk: [], // 后端 multipart + 前端 FormData：形态一致（键集仍不可比，见 #249 残余盲区）
   };
   let noCall = 0; // 前端调用不可静态定位（URL 解析失败归 check-api-paths 判负）
   let noPayload = 0; // GET 不带任何 config/params：确无载荷可比（汇总计数，不逐条刷噪声）
@@ -868,8 +1021,46 @@ function main() {
       });
       continue;
     }
+    // ---- multipart 双向形态判定（任务板 #249 闭盲区） ----
+    // 旧实现只在「后端无 Json/Query 提取器」分支把 multipart 端点整条记盲区，
+    // 前端实发形态从不比对 ⇒ 「后端收 multipart、前端发 JSON」与「前端发 FormData、
+    // 后端只收 Json<T>」两个方向的契约错都以盲区形态假绿（实测两方向各 1 条真错）。
+    // 判据实现与 --self-test 共用 multipartContractVerdict，两处口径不可能漂移。
+    if (isBody) {
+      const mpv = multipartContractVerdict(sym, fn, dvMark || fn.call.args[1] || '');
+      if (mpv.verdict === 'multipart-ok') {
+        buckets.multipartOk.push({ fn, key, handler: h.handler, evidence: mpv.evidence });
+        continue;
+      }
+      if (mpv.verdict === 'mismatch-backend-expects-multipart') {
+        buckets.mismatch.push({
+          fn,
+          key,
+          handler: h.handler,
+          kind: 'body',
+          beType: '(Multipart)',
+          reason:
+            `后端按 multipart/form-data 接收（证据：${mpv.beMp}），前端实发` +
+            (mpv.fm.form === 'none' ? '未携带任何请求体' : `非 FormData 载荷（${mpv.fm.why}）`) +
+            '——Content-Type 不符，运行期必 415/400',
+        });
+        continue;
+      }
+      if (mpv.verdict === 'mismatch-frontend-sends-multipart') {
+        buckets.mismatch.push({
+          fn,
+          key,
+          handler: h.handler,
+          kind: 'body',
+          beType: mpv.beType,
+          reason: `前端以 FormData 发送 multipart/form-data（${mpv.fm.why}），后端 ${mpv.beType} 走 axum Json 提取器（仅接受 application/json），运行期必 415`,
+        });
+        continue;
+      }
+      // n/a：两侧任一形态静态判不出等，继续走下方既有键集比对/盲区路径（行为不劣化）。
+    }
     const wrapper = isBody ? 'Json' : 'Query';
-    const typeText = extractorType(sym.sig || '', wrapper);
+    const typeText = isBody ? jsonBodyType(sym.sig) : extractorType(sym.sig || '', wrapper);
     if (!typeText) {
       // 后端这个 handler 没有 Json<T>/Query<T> 提取器。此时前端发什么都会被忽略——
       // 但只有"确实发了业务载荷"才算缺陷，否则是噪声：
@@ -1029,6 +1220,14 @@ function main() {
         {
           total: feFunctions.length,
           ok: buckets.ok.length,
+          multipartOk: buckets.multipartOk.length,
+          multipartOkDetails: buckets.multipartOk.map(r => ({
+            file: r.fn.file,
+            line: r.fn.line,
+            fn: r.fn.name,
+            endpoint: r.key,
+            evidence: r.evidence,
+          })),
           blind: buckets.blind.length,
           uncoveredLeafFields: buckets.uncovered.length,
           stockMismatch: buckets.stock.length,
@@ -1047,6 +1246,7 @@ function main() {
     `前端 api 函数总数: ${feFunctions.length}（其中补录被全局去重吞掉的调用点 ${supplemented} 条）`
   );
   console.log(`  一致(ok)          : ${buckets.ok.length}`);
+  console.log(`  multipart形态一致 : ${buckets.multipartOk.length}`);
   console.log(`  新增失配(mismatch): ${fresh.length}`);
   console.log(`  存量失配(基线待清零): ${buckets.stock.length}`);
   console.log(`  盲区(不可判定)    : ${buckets.blind.length}`);
@@ -1131,18 +1331,164 @@ function main() {
   void splitTopLevelRust;
 }
 
+// ---------- --self-test：multipart 双向判据自证夹具（任务板 #249） ----------
+// 四条判据：
+//  ① 后端 multipart + 前端 JSON（具名实参/内联对象两种写法）必须被抓；
+//  ② 后端 multipart + 前端 FormData（签名提取器形态 与 函数体 FromRequest 形态）必须不被抓；
+//  ③ 前端 FormData + 后端只收 Json<T> 必须被抓；后端既无 Multipart 又无 Json（如仅 State）
+//     且函数体只在错误文案里出现「multipart」裸词时不得被抓（防词面误报）；
+//  ④ 真实仓库回归：既有 ok/stock 计数不得因收紧而变化，新增失配必须逐条落在已派修的
+//     真错清单（PENDING_TRUE_ERRORS）内——清单之外的新增一律判 FAIL，防误报混入。
+const PENDING_TRUE_ERRORS = [
+  'batchImportFabrics /api/v1/erp/products/import POST',
+  'importSkuMappings /api/v1/erp/purchase/sku-mappings/import POST',
+];
+function runSelfTest() {
+  const results = [];
+  const check = (name, pass, detail) => {
+    results.push(pass);
+    console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  [' + detail + ']' : ''}`);
+  };
+  const FIX = '/src/api/__self_test__.ts';
+  const readSrc = () =>
+    [
+      'export function uploadForm(file: File) {', // 1
+      '  const formData = new FormData();', // 2
+      "  formData.append('file', file);", // 3
+      "  return request.post('/x/import', formData);", // 4
+      '}',
+      'export function batchJson(data: Item[]) {', // 6
+      "  return request.post('/x/import', data);", // 7
+      '}',
+      'export function postInline() {', // 8
+      "  return request.post('/x/import', { a: 1 });", // 9
+      '}',
+    ].join('\n');
+  // sig 采用 sigForSymbol 同款形态：不带外层括号的参数表文本（实测 fabric.ts 条目即如此）
+  const fnForm = { name: 'uploadForm', file: FIX, line: 4, sig: 'file: File' };
+  const fnJson = { name: 'batchJson', file: FIX, line: 7, sig: 'data: Item[]' };
+  const fnInline = { name: 'postInline', file: FIX, line: 9, sig: '' };
+  const symMpSig = {
+    sig: 'pub async fn import_x(State(state): State<AppState>, auth: AuthContext, mut multipart: Multipart) -> Result<Json<ApiResponse<X>>, AppError>',
+    body: 'let field = multipart.next_field().await;',
+  };
+  const symMpBody = {
+    sig: 'pub async fn upload_att(Path(p): Path<(i32, i32)>, State(s): State<AppState>, auth: AuthContext, request: Request) -> Result<Json<ApiResponse<X>>, AppError>',
+    body: 'let mut m = <Multipart as FromRequest<_>>::from_request(request, &()).await;',
+  };
+  const symJson = {
+    sig: 'pub async fn import_mappings(State(s): State<AppState>, auth: AuthContext, Json(req): Json<ImportMappingsRequest>) -> Result<Json<ApiResponse<V>>, AppError>',
+    body: 'info!("共 {} 条", req.rows.len());',
+  };
+  const symWordOnly = {
+    // 反例：函数体只在中文拒绝文案里出现 "multipart" 裸词，既无提取器也无字段读取，
+    // 且没有 Json 提取器——任何方向都不许判。
+    sig: 'pub async fn ping(State(s): State<AppState>, auth: AuthContext) -> Json<ApiResponse<V>>',
+    body: 'return Err(AppError::bad_request("上传请求必须是合法的 multipart/form-data（需包含 boundary）"));',
+  };
+  const v = (sym, fn, expr) => multipartContractVerdict(sym, fn, expr, readSrc).verdict;
+  check(
+    '① 后端multipart(签名形态)+前端JSON具名实参 -> 必抓',
+    v(symMpSig, fnJson, 'data') === 'mismatch-backend-expects-multipart'
+  );
+  check(
+    '① 后端multipart(签名形态)+前端内联对象 -> 必抓',
+    v(symMpSig, fnInline, '{ a: 1 }') === 'mismatch-backend-expects-multipart'
+  );
+  check(
+    '① 后端multipart(函数体FromRequest形态)+前端JSON -> 必抓',
+    v(symMpBody, fnJson, 'data') === 'mismatch-backend-expects-multipart'
+  );
+  check(
+    '② 后端multipart(签名形态)+前端FormData -> 不抓',
+    v(symMpSig, fnForm, 'formData') === 'multipart-ok'
+  );
+  check(
+    '② 后端multipart(函数体FromRequest形态)+前端FormData -> 不抓',
+    v(symMpBody, fnForm, 'formData') === 'multipart-ok'
+  );
+  check(
+    '③ 前端FormData+后端Json<T> -> 必抓',
+    v(symJson, fnForm, 'formData') === 'mismatch-frontend-sends-multipart'
+  );
+  check(
+    '③负 仅错误文案含"multipart"裸词且无Json提取器 -> 不许判',
+    v(symWordOnly, fnForm, 'formData') === 'n/a' &&
+      detectBackendMultipart(symWordOnly.sig, symWordOnly.body) === ''
+  );
+  check('③负 同反例+前端JSON载荷 -> 不许判', v(symWordOnly, fnJson, 'data') === 'n/a');
+  // ⑤ 请求体提取器识别覆盖面：本仓"理由选填的动作端点"统一走 OptionalJson<T>
+  //    （utils/optional_json.rs）。判定器只认 Json<T> 时，这 29 处会被误报成
+  //    "后端无体提取器、前端载荷被整体忽略"的失配（#4677 后实测 26 条假红）。
+  check(
+    '⑤ OptionalJson<T> 具名载荷 -> 认作体提取器并解出 T',
+    jsonBodyType(
+      'pub async fn a(State(s): State<AppState>, auth: AuthContext, payload: OptionalJson<InventoryOptimizationRequest>) -> X'
+    ) === 'InventoryOptimizationRequest'
+  );
+  check(
+    '⑤ OptionalJson 元组解构形态 -> 认作体提取器并解出 T',
+    jsonBodyType(
+      'pub async fn b(Path(id): Path<i32>, OptionalJson(req): OptionalJson<CancelInstanceRequest>) -> X'
+    ) === 'CancelInstanceRequest'
+  );
+  check(
+    '⑤ OptionalJson<serde_json::Value> 不限形体 -> 认出提取器（不得退化成"无体提取器"判负）',
+    jsonBodyType(
+      'pub async fn c(Path(id): Path<i32>, body: OptionalJson<serde_json::Value>) -> X'
+    ) === 'serde_json::Value'
+  );
+  check(
+    '⑤负 只收 State/Path 且返回类型含 Json<ApiResponse<V>> -> 必须仍为 null',
+    jsonBodyType(
+      'pub async fn d(State(s): State<AppState>, auth: AuthContext) -> Result<axum::Json<ApiResponse<V>>, AppError>'
+    ) === null
+  );
+  // ④ 真实仓库回归（子进程跑 --json，判据与门禁本体同源）
+  const rp = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--json'], {
+    encoding: 'utf-8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  let ok4 = false;
+  let detail4 = '子进程无输出';
+  try {
+    const j = JSON.parse(rp.stdout);
+    const unknownFresh = j.mismatches
+      .map(m => `${m.fn} ${m.endpoint}`)
+      .filter(s => !PENDING_TRUE_ERRORS.includes(s));
+    ok4 = j.ok >= 500 && j.stockMismatch >= 0 && j.multipartOk >= 5 && unknownFresh.length === 0;
+    detail4 = `ok=${j.ok} multipartOk=${j.multipartOk} stock=${j.stockMismatch} fresh=${j.mismatches.length} 判据外新增=${unknownFresh.join('|') || '-'}`;
+  } catch (e) {
+    detail4 = 'JSON 解析失败: ' + e.message;
+  }
+  check('④ 真实仓库：存量不劣化且新增失配全部在已派修真错清单内', ok4, detail4);
+  const failed = results.filter(x => !x).length;
+  console.log(
+    failed
+      ? `\nSELF-TEST FAIL: ${failed}/${results.length} 条未过`
+      : `\nSELF-TEST OK: ${results.length}/${results.length} 条通过`
+  );
+  process.exit(failed ? 1 : 0);
+}
+
 const invokedDirectly =
   !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (invokedDirectly) main();
+if (invokedDirectly) {
+  if (process.argv.includes('--self-test')) runSelfTest();
+  else main();
+}
 
 export {
   CFG_BLIND,
   buildLocalTypeIndex,
   compareKeys,
+  detectBackendMultipart,
   extractorType,
   extractAxiosConfigValue,
   feKeysOf,
+  fePayloadForm,
   leafTypeText,
+  multipartContractVerdict,
   paramTypeOf,
   resolveTsTypeExpr,
   rustFieldsOf,
