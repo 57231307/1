@@ -87,10 +87,11 @@ pub async fn get_dye_recipe(
 
 pub async fn create_dye_recipe(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let created = service(&state).create(req).await?;
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let created = service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "配方创建成功",

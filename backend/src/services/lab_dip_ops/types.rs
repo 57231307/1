@@ -49,7 +49,6 @@ pub struct CreateLabDipRequestRequest {
     pub required_date: chrono::NaiveDate,
     pub expected_days: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新打样通知单请求（仅 pending/sampling 状态可更新）
@@ -145,7 +144,6 @@ pub struct CreateLabDipSampleRequest {
     pub color_difference_grade: Option<i32>,
     pub color_difference_value: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新打样小样请求（仅 pending 对色状态可更新）
@@ -218,7 +216,6 @@ pub struct CreateResampleRequest {
     pub adjusted_time_minutes: Option<i32>,
     pub adjusted_liquor_ratio: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 记录复样结果请求

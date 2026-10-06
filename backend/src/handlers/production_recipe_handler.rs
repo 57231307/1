@@ -93,10 +93,11 @@ pub async fn list(
 /// POST /api/v1/erp/production-recipes - 创建大货处方；真实业务：扫描流转卡条码 → 依据备布数量 → 加载小样处方/历史大货处方 → 开具大货处方单
 pub async fn create(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateProductionRecipeRequest>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let created = recipe_service(&state).create(req).await?;
+    // 建单人 created_by 与开单人 issued_by 均取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let created = recipe_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "大货处方单创建成功",
@@ -240,13 +241,14 @@ pub async fn list_additions(
 /// 扫描流转卡 → 加载已审核大货处方 → 登记加料物料 → 生成加料处方单 关键约束：关联的大货处方必须为 approved 状态
 pub async fn create_addition(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(mut req): Json<CreateProductionRecipeAdditionRequest>,
 ) -> Result<Json<ApiResponse<production_recipe_addition::Model>>, AppError> {
     // 路径参数 id 即大货处方 ID，覆盖请求体中的 production_recipe_id 以保证一致性
     req.production_recipe_id = id;
-    let created = addition_service(&state).create(req).await?;
+    // 建单人 created_by 与开单人 issued_by 均取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let created = addition_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "加料处方单创建成功",

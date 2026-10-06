@@ -53,9 +53,7 @@ pub struct CreateConsumptionRequest {
     pub route_code: Option<String>,
     pub equipment_id: Option<i32>,
     pub equipment_name: Option<String>,
-    pub operator_id: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新能耗记录请求（仅 draft 状态可更新）
@@ -124,10 +122,11 @@ impl EnergyConsumptionService {
         Self { db }
     }
 
-    /// 创建能耗记录（校验引用 + 计算消耗量 + 写入 + 同步计量设备读数）
+    /// 创建能耗记录（校验引用 + 计算消耗量 + 写入 + 同步计量设备读数）；登记人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateConsumptionRequest,
+        user_id: i32,
     ) -> Result<ConsumptionModel, AppError> {
         self.validate_create_request(&req).await?;
         let calc = Self::compute_consumption_metrics(&req)?;
@@ -157,8 +156,14 @@ impl EnergyConsumptionService {
             AppError::business_displayable("能耗记录编号生成失败，请稍后重试")
         })?;
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active =
-            Self::build_consumption_active_model(&req, &calc, recording_method, record_no, now);
+        let active = Self::build_consumption_active_model(
+            &req,
+            user_id,
+            &calc,
+            recording_method,
+            record_no,
+            now,
+        );
         let result = active
             .insert(&txn)
             .await
@@ -252,6 +257,7 @@ impl EnergyConsumptionService {
     /// 构建能耗记录 ActiveModel（DRAFT 状态，单位默认"度"）
     fn build_consumption_active_model(
         req: &CreateConsumptionRequest,
+        user_id: i32,
         calc: &ConsumptionMetrics,
         recording_method: String,
         record_no: String,
@@ -278,12 +284,14 @@ impl EnergyConsumptionService {
             route_code: Set(req.route_code.clone()),
             equipment_id: Set(req.equipment_id),
             equipment_name: Set(req.equipment_name.clone()),
-            operator_id: Set(req.operator_id),
+            // 能耗登记操作人取服务端会话身份（列可空，见 migration/src/domain/v15/mod.rs 的
+            // energy_consumption_record."operator_id" INTEGER），请求体不承载该字段
+            operator_id: Set(Some(user_id)),
             recorded_at: Set(now),
             status: Set(energy_record_status::DRAFT.to_string()),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }

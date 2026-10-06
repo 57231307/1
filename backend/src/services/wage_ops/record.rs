@@ -45,8 +45,12 @@ impl WageRecordService {
         })
     }
 
-    /// 创建工资记录（仅创建空记录，需调用 calculate 触发计算）
-    pub async fn create(&self, req: CreateWageRecordRequest) -> Result<RecordModel, AppError> {
+    /// 创建工资记录（仅创建空记录，需调用 calculate 触发计算）；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateWageRecordRequest,
+        user_id: i32,
+    ) -> Result<RecordModel, AppError> {
         // 业务校验：周期结束必须 ≥ 周期开始
         if req.period_end < req.period_start {
             return Err(AppError::business("周期结束日期必须 ≥ 周期开始日期"));
@@ -73,7 +77,7 @@ impl WageRecordService {
             paid_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

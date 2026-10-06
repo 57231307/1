@@ -27,6 +27,7 @@ impl ProductionRecipeAdditionService {
     pub async fn create(
         &self,
         req: CreateProductionRecipeAdditionRequest,
+        user_id: i32,
     ) -> Result<AdditionModel, AppError> {
         // 校验大货处方存在且为 approved 状态
         let recipe = RecipeEntity::find_by_id(req.production_recipe_id)
@@ -59,10 +60,13 @@ impl ProductionRecipeAdditionService {
             status: Set(addition_status::DRAFT.to_string()),
             approved_by: Set(None),
             approved_at: Set(None),
-            issued_by: Set(req.issued_by),
+            // 开单人取服务端会话（handler 传入的 AuthContext.user_id），请求体不承载身份；
+            // issued_by 列为可空 INTEGER（v15 域建表迁移），写 Some(user_id)
+            issued_by: Set(Some(user_id)),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

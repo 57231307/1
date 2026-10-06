@@ -41,7 +41,6 @@ pub struct CreateMeterRequest {
     pub previous_reading: Option<Decimal>,
     pub unit_price: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新计量设备请求
@@ -81,7 +80,12 @@ impl EnergyMeterService {
     }
 
     /// 创建计量设备
-    pub async fn create(&self, req: CreateMeterRequest) -> Result<MeterModel, AppError> {
+    /// 创建计量设备；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateMeterRequest,
+        user_id: i32,
+    ) -> Result<MeterModel, AppError> {
         // 校验能源类型
         validate_meter_type(&req.meter_type)?;
 
@@ -133,7 +137,7 @@ impl EnergyMeterService {
             status: Set(energy_meter_status::ACTIVE.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

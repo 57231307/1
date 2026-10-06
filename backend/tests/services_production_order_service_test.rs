@@ -576,7 +576,6 @@ fn test_qqjg_cjddqqkgz() {
         priority: Some(5),
         work_center_id: Some(1),
         remarks: Some("测试订单".to_string()),
-        created_by: 1,
     };
     assert_eq!(req.product_id, 1);
     assert_eq!(req.planned_quantity, decs!("100"));

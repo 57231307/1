@@ -50,7 +50,6 @@ pub struct CreateGreigeFabricRequest {
     pub quality_grade: Option<String>,
     pub purchase_date: Option<chrono::NaiveDate>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
     pub product_id: Option<i32>,
     pub composition: Option<String>,
     pub yarn_count: Option<String>,
@@ -218,7 +217,7 @@ pub async fn get_greige_fabric(
 
 pub async fn create_greige_fabric(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateGreigeFabricRequest>,
 ) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
     // fabric_type 为领域必填属性（DB NOT NULL），缺失时返回清晰校验错误而非裸 500
@@ -272,7 +271,8 @@ pub async fn create_greige_fabric(
         quality_grade: Set(req.quality_grade),
         purchase_date: Set(req.purchase_date),
         remarks: Set(req.remarks),
-        created_by: Set(req.created_by),
+        // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份
+        created_by: Set(Some(auth.user_id)),
         purchase_order_id: Set(req.purchase_order_id),
         purchase_receipt_id: Set(req.purchase_receipt_id),
         safety_stock: Set(req.safety_stock.and_then(Decimal::from_f64_retain)),

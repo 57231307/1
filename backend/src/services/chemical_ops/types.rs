@@ -51,7 +51,6 @@ pub struct CreateChemicalMasterRequest {
     pub active_ingredient: Option<String>,
     pub concentration: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新染化料主数据请求
@@ -125,7 +124,6 @@ pub struct CreateChemicalCategoryRequest {
     pub category_type: String,
     pub description: Option<String>,
     pub sort_order: Option<i32>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新染化料分类请求
@@ -169,7 +167,6 @@ pub struct CreateChemicalLotRequest {
     pub storage_zone: Option<String>,
     pub inspection_report_url: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新染化料批次请求
@@ -216,7 +213,6 @@ pub struct CreateChemicalRequisitionRequest {
     pub production_order_id: Option<i32>,
     pub total_amount: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新染化料领用单请求（仅 draft 状态可更新）

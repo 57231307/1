@@ -198,9 +198,10 @@ impl OutsourcingOrderService {
         Ok(())
     }
 
-    /// 构建委外订单 ActiveModel（含标准损耗率与单位默认值计算）
+    /// 构建委外订单 ActiveModel（含标准损耗率与单位默认值计算）；建单人取服务端会话身份
     fn build_order_active_model(
         req: CreateOutsourcingOrderRequest,
+        user_id: i32,
         now: chrono::DateTime<chrono::FixedOffset>,
     ) -> OrderActiveModel {
         let standard_loss_rate = req
@@ -249,19 +250,23 @@ impl OutsourcingOrderService {
             voucher_no_receipt: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }
     }
 
-    /// 创建委外订单（draft 状态）
-    pub async fn create(&self, req: CreateOutsourcingOrderRequest) -> Result<OrderModel, AppError> {
+    /// 创建委外订单（draft 状态）；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateOutsourcingOrderRequest,
+        user_id: i32,
+    ) -> Result<OrderModel, AppError> {
         self.validate_create_request(&req).await?;
         let now = crate::utils::date_utils::utc_now_fixed();
         // 业务上下文（订单号）留日志侧供按单排查；active 构造会移动 req，先取值
         let order_no_for_log = req.order_no.clone();
-        let active = Self::build_order_active_model(req, now);
+        let active = Self::build_order_active_model(req, user_id, now);
         // DbErr 非唯一类一律经 `?`/AppError::from（From<DbErr>）统一分类归
         // DATABASE_ERROR、真实原因只进 tracing::error，出参脱敏「数据库错误」；
         // 唯一类(23505)按竞态兜底降级为与预校验同口径的业务拒绝（见下）。

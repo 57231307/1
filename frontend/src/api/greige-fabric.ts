@@ -138,6 +138,7 @@ export interface GreigeFabricListParams {
  * 创建坯布载荷：逐字段对齐 handlers/greige_fabric_handler.rs::CreateGreigeFabricRequest。
  * 后端字段全为 Option，但 handler 要求 fabric_type 非空（DB NOT NULL，缺失返回 422）；
  * fabric_no 留空由后端自动生成。禁止夹带 id/created_at 等实体回显键。
+ * 建单人 created_by 不是该后端请求结构体的入参（handler 按服务端会话派生），前端不得上送。
  * 纺织四维口径（services/inv/fabric_class.rs::validate_fabric_trace）：
  * color_no 白坯可空但禁止提交空串——空值整键省略；染色布必须带 dye_lot_no。
  */
@@ -159,7 +160,6 @@ export interface CreateGreigeFabricPayload {
   /** YYYY-MM-DD */
   purchase_date?: string;
   remarks?: string;
-  created_by?: number;
   product_id?: number;
   composition?: string;
   yarn_count?: string;

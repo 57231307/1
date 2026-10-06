@@ -1,10 +1,13 @@
 /**
- * 六业务域（化学品/工资/委外/lab 打样/流转卡；能源域前端当前无写入面）写入端点
- * 请求侧身份键锁：操作人一律由服务端按会话派生，提交载荷不得承载 created_by 等身份键。
- * 功能：对六域已声明的提交载荷接口、视图提交字面量与表单模型初始值三层做静态扫描，
- * 钉死其均不出现 created_by / createdBy / created_by_name——防止界面重新采集身份、
- * 或类型漂移后再次上送一个服务端只会忽略的假字段；并锁定「扫描到的写端点数量 ≥ 地板值」，
- * 扫描面塌缩到取不到即判红，防止判据静默失去覆盖。
+ * 六业务域（化学品/工资/委外/lab 打样/流转卡；能源域前端当前无写入面）+ 大货处方域
+ * （批 3c 就地扩写纳入：api/production-recipe.ts 与 views/production-recipes/index.vue）
+ * 写入端点请求侧身份键锁：操作人一律由服务端按会话派生，提交载荷不得承载 created_by /
+ * issued_by 等身份键。
+ * 功能：对各域已声明的提交载荷接口、视图提交字面量与表单模型初始值三层做静态扫描，
+ * 钉死其均不出现 created_by / createdBy / created_by_name / issued_by / issuedBy——防止界面
+ * 重新采集身份、或类型漂移后再次上送一个服务端只会忽略的假字段；并锁定「扫描到的写端点数量 ≥
+ * 地板值」与大货处方两个建单端点必须逐条被扫到，扫描面塌缩到取不到即判红，
+ * 防止判据静默失去覆盖。
  * 调用方：vitest（tests/unit，CI vitest job）。
  * 入参：仅 fs 读取 frontend/src 内源码文本，不发网络请求、不执行后端代码。
  * 传给谁：纯断言，无下游；存什么/存哪里：不落盘、不存储。
@@ -30,16 +33,24 @@ function frontendSrc(rel: string): string {
   return readRepoSource(path.join(FRONTEND_ROOT, 'src', rel));
 }
 
-/** 请求侧禁止出现的身份键（操作人由后端会话注入，前端上送即假语义） */
-const IDENTITY_KEYS: readonly string[] = ['created_by', 'createdBy', 'created_by_name'];
+/** 请求侧禁止出现的身份键（操作人由后端会话注入，前端上送即假语义）
+ * issued_by/issuedBy 是「开单人」族：与 created_by 同源，只能取服务端会话 AuthContext.user_id。 */
+const IDENTITY_KEYS: readonly string[] = [
+  'created_by',
+  'createdBy',
+  'created_by_name',
+  'issued_by',
+  'issuedBy',
+];
 
-/** 六域 API 源文件（能源域无前端 API 文件，写入面为零，不列入） */
+/** 各域 API 源文件（能源域无前端 API 文件，写入面为零，不列入） */
 const DOMAIN_API_FILES: readonly string[] = [
   'api/chemical.ts',
   'api/wage.ts',
   'api/outsourcing.ts',
   'api/lab-dip.ts',
   'api/flow-card.ts',
+  'api/production-recipe.ts',
 ];
 
 /**
@@ -134,6 +145,9 @@ const PAYLOAD_INTERFACES: Array<{ file: string; iface: string }> = [
   { file: 'api/flow-card.ts', iface: 'CreateFlowCardPayload' },
   { file: 'api/flow-card.ts', iface: 'ScheduleFlowCardPayload' },
   { file: 'api/flow-card.ts', iface: 'CompletePreparingPayload' },
+  { file: 'api/production-recipe.ts', iface: 'CreateProductionRecipePayload' },
+  { file: 'api/production-recipe.ts', iface: 'UpdateProductionRecipePayload' },
+  { file: 'api/production-recipe.ts', iface: 'CalculateAmountsPayload' },
 ];
 
 /** 视图提交点：文件 ↔ 被调创建函数 ↔ 提交形态 */
@@ -152,11 +166,14 @@ const FORM_VAR_SITES: Array<{ file: string; form: string }> = [
   { file: 'views/chemicals/index.vue', form: 'lotForm' },
   { file: 'views/chemicals/index.vue', form: 'categoryForm' },
   { file: 'views/wage/index.vue', form: 'rateForm' },
+  { file: 'views/production-recipes/index.vue', form: 'form' },
 ];
 
-/** 写端点数量地板：六域 API 文件内 request.post/request.put 调用总数与单域最小值 */
+/** 写端点数量地板：各域 API 文件内 request.post/request.put 调用总数与单域最小值 */
 const WRITE_ENDPOINT_TOTAL_MIN = 40;
 const WRITE_ENDPOINT_PER_FILE_MIN = 3;
+/** 大货处方域（批 3c 纳入扫描面）的写端点地板：实际 9 条，留 1 条余量仍足以在漏扫时判红 */
+const PRODUCTION_RECIPE_WRITE_MIN = 8;
 
 describe('六域写入端点请求侧身份键锁', () => {
   it('载荷接口声明键均不含 created_by/createdBy/created_by_name', () => {
@@ -201,7 +218,7 @@ describe('六域写入端点请求侧身份键锁', () => {
     }
   });
 
-  it('检测力地板：六域写端点扫描数量 ≥ 阈值，扫描面塌缩即判红', () => {
+  it('检测力地板：各域写端点扫描数量 ≥ 阈值，扫描面塌缩即判红', () => {
     let total = 0;
     for (const file of DOMAIN_API_FILES) {
       const src = frontendSrc(file);
@@ -212,6 +229,35 @@ describe('六域写入端点请求侧身份键锁', () => {
       total += n;
     }
     expect(total).toBeGreaterThanOrEqual(WRITE_ENDPOINT_TOTAL_MIN);
+  });
+
+  it('检测力地板：大货处方两个建单端点必须真的在扫描面内', () => {
+    const src = frontendSrc('api/production-recipe.ts');
+    const n = [...src.matchAll(/request\.(?:post|put)/g)].length;
+    expect(n, 'api/production-recipe.ts 写端点扫描数低于地板，扫描面已塌缩').toBeGreaterThanOrEqual(
+      PRODUCTION_RECIPE_WRITE_MIN
+    );
+    // 两个被测建单端点逐条点名：少一条即说明扫描面被改写、身份锁失去对象
+    expect(
+      src,
+      "未扫到大货处方建单端点 request.post('/production/production-recipes', data)"
+    ).toContain("request.post('/production/production-recipes', data)");
+    expect(
+      src,
+      '未扫到加料处方建单端点 request.post(`/production/production-recipes/${id}/additions`, data)'
+    ).toContain('request.post(`/production/production-recipes/${id}/additions`, data)');
+
+    // 加料建单的入参类型写在函数签名里（内联字面量类型），不进 *Payload 接口扫描面，单独钉
+    const additionBlock = src.slice(
+      src.indexOf('export function createRecipeAddition'),
+      src.indexOf('export function approveRecipeAddition')
+    );
+    expect(additionBlock.length, '解析不到 createRecipeAddition 的签名块').toBeGreaterThan(0);
+    for (const key of IDENTITY_KEYS) {
+      expect(additionBlock, `createRecipeAddition 的内联载荷声明了身份键 ${key}`).not.toContain(
+        key
+      );
+    }
   });
 
   it('检测力自证：注入身份键的夹具必须被上述判据抓到，而非静默通过', () => {
@@ -237,6 +283,16 @@ describe('六域写入端点请求侧身份键锁', () => {
     const formFixture = "const demoForm = reactive({\n  lot_no: '',\n  created_by: 7,\n});";
     const formKeys = literalKeys(reactiveFormBodies(formFixture, 'demoForm')[0]);
     expect(formKeys.filter(k => IDENTITY_KEYS.includes(k))).toEqual(['created_by']);
+
+    // 夹具 4（大货处方域）：往建单载荷接口塞 issued_by，接口判据必须点名
+    const recipeFixture = frontendSrc('api/production-recipe.ts').replace(
+      'export interface CreateProductionRecipePayload {\n  work_order_id?: number;',
+      'export interface CreateProductionRecipePayload {\n  work_order_id?: number;\n  issued_by?: number;'
+    );
+    expect(recipeFixture).not.toBe(frontendSrc('api/production-recipe.ts')); // 夹具替换本身生效
+    expect(interfaceIdentityViolations(recipeFixture, 'CreateProductionRecipePayload')).toEqual([
+      'issued_by',
+    ]);
 
     // 反向对照：干净夹具零命中，证明上述点名非正则误报
     expect(

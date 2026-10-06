@@ -25,8 +25,12 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
 impl FlowCardService {
-    /// 创建流转卡
-    pub async fn create(&self, req: CreateFlowCardRequest) -> Result<CardModel, AppError> {
+    /// 创建流转卡；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateFlowCardRequest,
+        user_id: i32,
+    ) -> Result<CardModel, AppError> {
         // 业务校验：计划配布数量必须为正
         if let Some(weight) = req.planned_fabric_weight {
             if weight <= Decimal::ZERO {
@@ -99,7 +103,7 @@ impl FlowCardService {
             priority: Set(req.priority.unwrap_or(0)),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

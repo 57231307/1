@@ -42,7 +42,6 @@ pub struct CreateRuleRequest {
     pub standard_consumption_per_unit: Option<Decimal>,
     pub standard_unit: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新分摊规则请求（仅 draft 状态可更新）
@@ -83,7 +82,12 @@ impl EnergyAllocationRuleService {
     }
 
     /// 创建分摊规则
-    pub async fn create(&self, req: CreateRuleRequest) -> Result<RuleModel, AppError> {
+    /// 创建分摊规则；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateRuleRequest,
+        user_id: i32,
+    ) -> Result<RuleModel, AppError> {
         validate_meter_type(&req.meter_type)?;
         validate_allocation_basis(&req.allocation_basis)?;
 
@@ -148,7 +152,7 @@ impl EnergyAllocationRuleService {
             status: Set(energy_rule_status::DRAFT.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

@@ -92,10 +92,11 @@ pub async fn get_request(
 /// POST /api/v1/erp/lab-dip/requests - 创建打样通知单
 pub async fn create_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateLabDipRequestRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let created = request_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let created = request_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "打样通知单创建成功",
@@ -263,10 +264,11 @@ pub async fn get_sample(
 /// POST /api/v1/erp/lab-dip/samples - 创建打样小样（ABCD 多版样）
 pub async fn create_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateLabDipSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let created = sample_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let created = sample_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "打样小样创建成功",
@@ -342,10 +344,11 @@ pub async fn get_resample(
 /// POST /api/v1/erp/lab-dip/resamples - 创建复样记录；真实业务：OK 样确认后，大货生产前必须复样（用车间半制品布+生产染化料模拟大生产）
 pub async fn create_resample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateResampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let created = resample_service(&state).create(req).await?;
+    // 登记人取服务端会话，请求体不承载身份
+    let created = resample_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "复样记录创建成功",

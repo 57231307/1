@@ -163,11 +163,15 @@ pub async fn get_latest_status(
 }
 
 /// POST /api/v1/erp/dye-batch-lifecycle-logs - 记录状态流转
+// 操作人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载该字段。
 pub async fn record_transition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateTransitionRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_lifecycle_log::Model>>, AppError> {
-    let model = lifecycle_log_service(&state).record_transition(req).await?;
+    let model = lifecycle_log_service(&state)
+        .record_transition(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -411,11 +415,13 @@ pub async fn list_operations_by_batch(
 }
 
 /// POST /api/v1/erp/dye-batch-operations - 创建操作记录
+// 操作人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载该字段。
 pub async fn create_operation(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOperationRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_operation::Model>>, AppError> {
-    let model = operation_service(&state).create(req).await?;
+    let model = operation_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

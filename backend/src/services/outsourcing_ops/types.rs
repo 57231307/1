@@ -57,7 +57,6 @@ pub struct CreateOutsourcingOrderRequest {
     pub tax_amount: Decimal,
     pub standard_loss_rate: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新委外订单请求（仅 draft 状态可更新）
@@ -317,7 +316,6 @@ pub struct CreateOutsourcingVoucherRequest {
     pub tax_amount: Option<Decimal>,
     pub voucher_date: chrono::NaiveDate,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 委外凭证查询参数

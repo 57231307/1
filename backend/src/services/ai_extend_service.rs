@@ -830,11 +830,12 @@ impl AiExtendService {
             required_date,
             expected_days: Some(3),
             remarks: Some(remarks),
-            created_by: Some(operator_id as i32),
         };
 
         let svc = LabDipRequestService::new(self.db.clone());
-        let lab_dip = svc.create(create_req).await?;
+        // 建单人沿用本请求的会话操作者（push_to_lab_dip 的 operator_id 即 auth.user_id），
+        // 请求体不承载身份
+        let lab_dip = svc.create(create_req, operator_id as i32).await?;
 
         // 回写 lab_dip_request_id 到 ai_process_optimizations（暂存于 reason 字段末尾便于回溯）
         let mut active: ProcessActiveModel = model.into();

@@ -34,7 +34,12 @@ use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipSampleService}
 
 impl LabDipSampleService {
     /// 创建打样小样
-    pub async fn create(&self, req: CreateLabDipSampleRequest) -> Result<SampleModel, AppError> {
+    /// 创建打样小样；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateLabDipSampleRequest,
+        user_id: i32,
+    ) -> Result<SampleModel, AppError> {
         // 校验通知单存在且处于 sampling 状态
         let request = self.validate_and_get_request(req.request_id).await?;
 
@@ -48,7 +53,7 @@ impl LabDipSampleService {
             .await?;
 
         // 构建小样 ActiveModel 并入库
-        let active = Self::build_sample_active_model(&req, version_label, version_seq);
+        let active = Self::build_sample_active_model(&req, user_id, version_label, version_seq);
         let result = active
             .insert(&*self.db)
             .await
@@ -118,6 +123,7 @@ impl LabDipSampleService {
     /// 构建小样 ActiveModel（含全部字段）
     fn build_sample_active_model(
         req: &CreateLabDipSampleRequest,
+        user_id: i32,
         version_label: String,
         version_seq: i32,
     ) -> SampleActiveModel {
@@ -149,7 +155,7 @@ impl LabDipSampleService {
             resample_recipe_id: Set(None),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }

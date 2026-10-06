@@ -268,7 +268,6 @@ fn test_cjqqmrz_is_defaultmrfalse() {
         version: Some(1),
         is_default: None,
         remarks: None,
-        created_by: 1,
         items: vec![],
     };
     // 复现 create 中的默认值取值
@@ -329,7 +328,6 @@ async fn test_cjbom_xyzssjk() {
         version: Some(1),
         is_default: Some(false),
         remarks: None,
-        created_by: 1,
         items: vec![CreateBomItemRequest {
             material_id: 101,
             quantity: decs!("2"),
@@ -340,7 +338,7 @@ async fn test_cjbom_xyzssjk() {
         }],
     };
     let detail = service
-        .create(req)
+        .create(req, 1)
         .await
         .expect("真库（已迁移）上 create 必须成功；此处失败说明 BOM 写链真实断裂");
     assert!(

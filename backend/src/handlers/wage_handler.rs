@@ -98,9 +98,11 @@ pub async fn list_wage_rates(
 /// POST /api/v1/erp/wage-rates - 创建工价
 pub async fn create_wage_rate(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateWageRateRequest>,
 ) -> Result<Json<ApiResponse<process_wage_rate::Model>>, AppError> {
-    let model = rate_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = rate_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -207,9 +209,11 @@ pub async fn list_wage_records(
 /// POST /api/v1/erp/wage-records - 创建工资记录（仅创建空记录，需调用 calculate 触发计算）
 pub async fn create_wage_record(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateWageRecordRequest>,
 ) -> Result<Json<ApiResponse<wage_record::Model>>, AppError> {
-    let model = record_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = record_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

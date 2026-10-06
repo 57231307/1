@@ -392,7 +392,6 @@ import {
   type FixedAssetUpdateRequest,
   type DisposalRequest,
 } from '@/api/asset';
-import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
 
@@ -776,12 +775,6 @@ const handleDepreciateAll = async () => {
         inputErrorMessage: t('fixedAssets.message.invalidPeriod'),
       }
     );
-    const userStore = useUserStore();
-    const userId = userStore.userInfo?.id;
-    if (!userId) {
-      ElMessage.error(t('fixedAssets.message.userNotFound'));
-      return;
-    }
     const assetIds = assetList.value
       .filter(a => a.status === 'in_use' || a.status === 'active')
       .map(a => a.id);
@@ -804,7 +797,6 @@ const handleDepreciateAll = async () => {
     await batchDepreciateAssets({
       asset_ids: assetIds,
       calculation_date: inputPeriod,
-      user_id: userId,
     });
     ElMessage.success(t('fixedAssets.message.batchDepreciateSuccess', { count: assetIds.length }));
     fetchAssets();

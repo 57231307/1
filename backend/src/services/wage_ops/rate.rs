@@ -46,8 +46,12 @@ impl WageRateService {
         })
     }
 
-    /// 创建工价
-    pub async fn create(&self, req: CreateWageRateRequest) -> Result<RateModel, AppError> {
+    /// 创建工价；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateWageRateRequest,
+        user_id: i32,
+    ) -> Result<RateModel, AppError> {
         let route = RouteEntity::find_by_id(req.process_route_id)
             .one(&*self.db)
             .await?
@@ -78,6 +82,7 @@ impl WageRateService {
         let active = Self::build_rate_active_model(
             rate_no,
             &req,
+            user_id,
             &route_code,
             &route_name,
             &wage_type_value,
@@ -180,6 +185,7 @@ impl WageRateService {
     fn build_rate_active_model(
         rate_no: String,
         req: &CreateWageRateRequest,
+        user_id: i32,
         route_code: &str,
         route_name: &str,
         wage_type_value: &str,
@@ -208,7 +214,7 @@ impl WageRateService {
             status: Set(wage_rate_status::DRAFT.to_string()),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }

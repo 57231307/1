@@ -10,6 +10,9 @@ use serde::Deserialize;
 // ============================================================================
 
 /// 记录状态流转请求
+///
+/// 操作人身份**不由请求体承载**：由 handler 按服务端会话（`AuthContext.user_id`）
+/// 派生后传入 service 落库，请求体多传该键也会被 serde 忽略。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateTransitionRequest {
     pub batch_id: i32,
@@ -18,7 +21,6 @@ pub struct CreateTransitionRequest {
     pub to_status: String,
     pub transition_code: String,
     pub transition_name: String,
-    pub operator_id: Option<i32>,
     pub operator_name: Option<String>,
     pub equipment_id: Option<i32>,
     pub equipment_name: Option<String>,
@@ -126,6 +128,9 @@ pub struct ReworkQuery {
 // ============================================================================
 
 /// 创建操作记录请求
+///
+/// 操作人身份**不由请求体承载**：由 handler 按服务端会话（`AuthContext.user_id`）
+/// 派生后传入 service 落库，请求体多传该键会被 serde 忽略。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateOperationRequest {
     pub operation_type: String,
@@ -135,7 +140,6 @@ pub struct CreateOperationRequest {
     pub source_batch_ids: Option<serde_json::Value>,
     pub source_batch_nos: Option<serde_json::Value>,
     pub operation_data: Option<serde_json::Value>,
-    pub operator_id: Option<i32>,
     pub operator_name: Option<String>,
     pub remarks: Option<String>,
 }

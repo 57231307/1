@@ -170,7 +170,6 @@ pub struct CreateInspectionRequest {
     pub scoring_system: Option<String>,
     pub fabric_width_inches: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新验布记录请求（仅 pending 状态可更新）
@@ -232,7 +231,11 @@ impl FabricInspectionService {
     }
 
     /// 创建验布记录
-    pub async fn create(&self, req: CreateInspectionRequest) -> Result<InspectionModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreateInspectionRequest,
+        user_id: i32,
+    ) -> Result<InspectionModel, AppError> {
         // 业务校验：评分制式合法
         let scoring_system = req
             .scoring_system
@@ -298,7 +301,8 @@ impl FabricInspectionService {
             status: Set(inspection_status::PENDING.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

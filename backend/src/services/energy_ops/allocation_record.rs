@@ -68,7 +68,6 @@ pub struct CreateAllocationRecordRequest {
     pub allocated_cost: Option<Decimal>,
     pub output_quantity: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新分摊记录请求（仅 draft 状态可更新）
@@ -107,7 +106,6 @@ pub struct MonthlyAllocationRequest {
     pub period_end: chrono::DateTime<chrono::FixedOffset>,
     pub workshop: Option<String>,
     pub meter_type: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 工时分组键（用于 monthly_allocation_by_duration 内部分组，避免复杂元组类型）
@@ -131,10 +129,11 @@ impl EnergyAllocationRecordService {
         Self { db }
     }
 
-    /// 创建分摊记录
+    /// 创建分摊记录；登记人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateAllocationRecordRequest,
+        user_id: i32,
     ) -> Result<AllocationRecordModel, AppError> {
         validate_meter_type(&req.meter_type)?;
         validate_allocation_basis(&req.allocation_basis)?;
@@ -206,7 +205,7 @@ impl EnergyAllocationRecordService {
             confirmed_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -560,6 +559,7 @@ impl EnergyAllocationRecordService {
     pub async fn monthly_allocation_by_duration(
         &self,
         req: MonthlyAllocationRequest,
+        user_id: i32,
         consumption_service: &EnergyConsumptionService,
         rule_service: &EnergyAllocationRuleService,
     ) -> Result<Vec<AllocationRecordModel>, AppError> {
@@ -635,6 +635,7 @@ impl EnergyAllocationRecordService {
                 })?;
                 let active = Self::build_allocation_record(
                     &req,
+                    user_id,
                     &workshop,
                     &meter_type,
                     total_consumption,
@@ -719,6 +720,7 @@ impl EnergyAllocationRecordService {
     #[allow(clippy::too_many_arguments)]
     fn build_allocation_record(
         req: &MonthlyAllocationRequest,
+        user_id: i32,
         workshop: &str,
         meter_type: &str,
         total_consumption: Decimal,
@@ -765,7 +767,7 @@ impl EnergyAllocationRecordService {
             confirmed_at: Set(None),
             remarks: Set(Some("月末按工时自动分摊".to_string())),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }

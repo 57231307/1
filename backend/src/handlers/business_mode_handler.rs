@@ -13,6 +13,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::{
     business_mode_config, business_mode_flow_step, business_mode_order_link, business_mode_rule,
 };
@@ -128,9 +129,11 @@ pub async fn list_business_modes(
 /// POST /api/v1/erp/business-modes - 创建业务模式配置
 pub async fn create_business_mode(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateBusinessModeConfigRequest>,
 ) -> Result<Json<ApiResponse<business_mode_config::Model>>, AppError> {
-    let model = config_service(&state).create(req).await?;
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let model = config_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

@@ -40,9 +40,8 @@ use axum::{
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::{
-    environmental_tax_handler, export_refund_handler, labor_contract_handler,
-    occupational_health_handler, period_adjustment_handler, pollution_monitoring_handler,
-    social_insurance_handler,
+    export_refund_handler, labor_contract_handler, occupational_health_handler,
+    period_adjustment_handler, pollution_monitoring_handler, social_insurance_handler,
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{
@@ -164,7 +163,7 @@ macro_rules! read_row {
         $mod::Entity::find_by_id($id)
             .one($db)
             .await
-            .unwrap_or_else(|e| panic!(concat!($what, " 直读失败: {e}")))
+            .unwrap_or_else(|e| panic!(concat!($what, " 直读失败: {}"), e))
             .unwrap_or_else(|| panic!(concat!($what, " 必须存在")))
     };
 }

@@ -42,10 +42,11 @@ use crate::services::chemical_service::{ChemicalRequisitionService, validate_req
 pub const CHEMICAL_REQUISITION_NO_PREFIX: &str = "CR";
 
 impl ChemicalRequisitionService {
-    /// 创建染化料领用单
+    /// 创建染化料领用单；建单人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateChemicalRequisitionRequest,
+        user_id: i32,
     ) -> Result<RequisitionModel, AppError> {
         validate_requisition_type(&req.requisition_type)?;
 
@@ -123,7 +124,7 @@ impl ChemicalRequisitionService {
             total_amount: Set(total_amount),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             approved_by: Set(None),
             issued_by: Set(None),
             created_at: Set(now),

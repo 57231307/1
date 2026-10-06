@@ -139,9 +139,11 @@ pub async fn list_outsourcing_orders(
 /// POST /api/v1/erp/outsourcing-orders - 创建委外订单
 pub async fn create_outsourcing_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOutsourcingOrderRequest>,
 ) -> Result<Json<ApiResponse<outsourcing_order::Model>>, AppError> {
-    let model = order_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = order_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -377,9 +379,11 @@ pub async fn list_outsourcing_vouchers(
 /// POST /api/v1/erp/outsourcing-vouchers - 创建委外凭证
 pub async fn create_outsourcing_voucher(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOutsourcingVoucherRequest>,
 ) -> Result<Json<ApiResponse<outsourcing_voucher::Model>>, AppError> {
-    let model = voucher_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = voucher_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

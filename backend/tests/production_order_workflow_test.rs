@@ -35,7 +35,6 @@ fn sample_create_request() -> CreateProductionOrderRequest {
         priority: Some(1),
         work_center_id: Some(1),
         remarks: None,
-        created_by: 1,
     }
 }
 
@@ -111,7 +110,7 @@ async fn test_productionorderservice_create_kdbfherr() {
     let svc = ProductionOrderService::new(Arc::new(db));
     let req = sample_create_request();
     let err = svc
-        .create(req)
+        .create(req, 1)
         .await
         .expect_err("已建库空表上引用不存在产品的 create 必须返回 Err 而非 panic");
     assert_eq!(
@@ -267,7 +266,7 @@ async fn test_scddqlc_cjdwc() {
 
     // 1. 创建（DRAFT）
     let req = sample_create_request();
-    let order = svc.create(req).await.expect("创建失败");
+    let order = svc.create(req, 1).await.expect("创建失败");
     assert_eq!(order.status, common::STATUS_DRAFT);
 
     // 2. 提交审批（DRAFT → PENDING_APPROVAL）

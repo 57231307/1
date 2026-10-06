@@ -148,11 +148,11 @@ pub async fn create_bom(
         version: payload.version,
         is_default: payload.is_default,
         remarks: payload.remarks,
-        created_by: auth.user_id,
         items,
     };
 
-    let detail = service.create(req).await?;
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let detail = service.create(req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(BomDetailResponse {
         bom: BomResponse {

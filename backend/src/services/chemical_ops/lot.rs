@@ -36,8 +36,12 @@ use crate::services::chemical_ops::types::{
 use crate::services::chemical_service::{ChemicalLotService, compute_total_cost};
 
 impl ChemicalLotService {
-    /// 创建染化料批次
-    pub async fn create(&self, req: CreateChemicalLotRequest) -> Result<LotModel, AppError> {
+    /// 创建染化料批次；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateChemicalLotRequest,
+        user_id: i32,
+    ) -> Result<LotModel, AppError> {
         // 校验染化料主数据存在
         if MasterEntity::find_by_id(req.chemical_id)
             .filter(chemical_master::Column::IsDeleted.eq(false))
@@ -106,7 +110,7 @@ impl ChemicalLotService {
             status: Set(chemical_lot_status::ACTIVE.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

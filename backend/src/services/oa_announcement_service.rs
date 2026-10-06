@@ -354,11 +354,12 @@ impl OaAnnouncementService {
         Ok(updated)
     }
 
-    /// 查询公告列表（按发布日期倒序 + 创建时间倒序）
+    /// 查询公告列表（按发布日期倒序 + 创建时间倒序）；返回统一分页信封
+    /// `PaginatedResponse`（page/page_size 为经默认值与 clamp 后的实际生效值，与查询行为同源）
     pub async fn list(
         &self,
         query: OaAnnouncementQuery,
-    ) -> Result<(Vec<OaAnnouncementModel>, u64), AppError> {
+    ) -> Result<crate::utils::response::PaginatedResponse<OaAnnouncementModel>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -387,12 +388,19 @@ impl OaAnnouncementService {
             .order_by_desc(crate::models::oa_announcement::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let effective_page = page.clamp(1, 1000);
+        let (items, total) = paginate_with_total(paginator, effective_page).await?;
 
-        Ok((items, total))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            items,
+            total,
+            effective_page,
+            page_size,
+        ))
     }
 
-    /// 缺陷 7.2 修复：按用户上下文过滤可见公告列表
+    /// 缺陷 7.2 修复：按用户上下文过滤可见公告列表；返回统一分页信封 `PaginatedResponse`
+    /// （page/page_size 为经默认值与 clamp 后的实际生效值，与切片行为同源）
     /// 过滤规则：ALL：所有用户可见；DEPT：仅当用户 department_id 在 visible_scope_config.department_ids 中时可见；ROLE：仅当用户 role_id 在 visible_scope_config.role_ids 中时可见；CUSTOM：仅当用户 user_id 在 visible_scope_config.user_ids 中时可见
     pub async fn list_for_user(
         &self,
@@ -400,7 +408,7 @@ impl OaAnnouncementService {
         user_id: i32,
         department_id: Option<i32>,
         role_id: Option<i32>,
-    ) -> Result<(Vec<OaAnnouncementModel>, u64), AppError> {
+    ) -> Result<crate::utils::response::PaginatedResponse<OaAnnouncementModel>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -448,7 +456,9 @@ impl OaAnnouncementService {
             visible_items[start..end].to_vec()
         };
 
-        Ok((items, total))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            items, total, page, page_size,
+        ))
     }
 
     /// 缺陷 7.2 修复：判断公告对当前用户是否可见

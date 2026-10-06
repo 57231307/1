@@ -32,6 +32,7 @@ impl ProductionRecipeService {
     pub async fn create(
         &self,
         req: CreateProductionRecipeRequest,
+        user_id: i32,
     ) -> Result<RecipeModel, AppError> {
         // 业务校验：备布重量必须 > 0
         if req.fabric_weight <= Decimal::ZERO {
@@ -87,11 +88,14 @@ impl ProductionRecipeService {
             status: Set(recipe_status::DRAFT.to_string()),
             approved_by: Set(None),
             approved_at: Set(None),
-            issued_by: Set(req.issued_by),
+            // 开单人取服务端会话（handler 传入的 AuthContext.user_id），请求体不承载身份；
+            // issued_by 列为可空 INTEGER（v15 域建表迁移），写 Some(user_id)
+            issued_by: Set(Some(user_id)),
             printed_count: Set(Some(0)),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

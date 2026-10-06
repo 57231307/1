@@ -46,7 +46,12 @@ use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipResampleServic
 
 impl LabDipResampleService {
     /// 创建复样记录：OK 样确认后大货生产前必须复样
-    pub async fn create(&self, req: CreateResampleRequest) -> Result<ResampleModel, AppError> {
+    /// 创建复样记录；登记人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateResampleRequest,
+        user_id: i32,
+    ) -> Result<ResampleModel, AppError> {
         Self::validate_resample_request(&self.db, req.request_id).await?;
         let source_sample =
             Self::validate_resample_source_sample(&self.db, req.request_id, req.source_sample_id)
@@ -75,7 +80,7 @@ impl LabDipResampleService {
             AppError::business_displayable("复样单号生成失败，请稍后重试")
         })?;
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active = Self::build_resample_active_model(req, resample_no, now);
+        let active = Self::build_resample_active_model(req, user_id, resample_no, now);
         let result = active
             .insert(&txn)
             .await
@@ -140,6 +145,7 @@ impl LabDipResampleService {
     /// 构建复样 ActiveModel（含全部字段）
     fn build_resample_active_model(
         req: CreateResampleRequest,
+        user_id: i32,
         resample_no: String,
         now: chrono::DateTime<chrono::FixedOffset>,
     ) -> ResampleActiveModel {
@@ -169,7 +175,7 @@ impl LabDipResampleService {
             tech_card_issued_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }

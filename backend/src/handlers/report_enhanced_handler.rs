@@ -347,12 +347,17 @@ pub mod subscriptions {
     use super::*;
     use crate::define_tuple_crud_handlers;
 
+    // define_tuple_crud_handlers! 出参实参 = service 的真实返回类型：
+    // list -> PaginatedResponse<report_subscription::Model>（services/report_subscription_service.rs list），
+    // get/create/update -> report_subscription::Model
     define_tuple_crud_handlers!(
         ReportSubscriptionService,
         CreateSubscriptionRequest,
         UpdateSubscriptionRequest,
         SubscriptionQuery,
         i32,
+        crate::utils::response::PaginatedResponse<crate::models::report_subscription::Model>,
+        crate::models::report_subscription::Model,
         "订阅不存在"
     );
 }

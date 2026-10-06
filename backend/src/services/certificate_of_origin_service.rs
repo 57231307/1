@@ -3,6 +3,7 @@
 use crate::models::certificate_of_origin::{ActiveModel, Column, Entity as Co, Model};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::*;
 use std::sync::Arc;
@@ -65,7 +66,20 @@ impl CertificateOfOriginService {
             .ok_or_else(|| AppError::not_found(format!("产地证 {} 不存在", id)))
     }
 
-    pub async fn create(&self, data: CreateCertificateReq) -> Result<Model, AppError> {
+    /// 新建产地证。
+    ///
+    /// 入参：`user_id` 为建单人，取值只能来自服务端会话（`AuthContext.user_id`），
+    ///       请求体不承载该身份——调用方 handler 必须把会话用户传进来。
+    /// 存什么·存哪里：落 `certificate_of_origin.created_by`（NOT NULL 列，直接 `Set(user_id)`），
+    ///       并显式写 `created_at`/`updated_at`（两列 NOT NULL 且建表 DDL 无 DEFAULT，
+    ///       见 `backend/migration/src/domain/v15/mod.rs` 的 certificate_of_origin 建表语句，
+    ///       留空即 INSERT 撞非空约束）。
+    pub async fn create(
+        &self,
+        data: CreateCertificateReq,
+        user_id: i32,
+    ) -> Result<Model, AppError> {
+        let now = Utc::now();
         let active = ActiveModel {
             certificate_no: Set(data.certificate_no),
             inspection_id: Set(data.inspection_id),
@@ -81,7 +95,10 @@ impl CertificateOfOriginService {
             expiry_date: Set(data.expiry_date),
             status: Set("active".to_string()),
             remarks: Set(data.remarks),
-            created_by: Set(data.created_by),
+            // 建单人取服务端会话（handler 传入的 user_id），请求体不承载身份
+            created_by: Set(user_id),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..Default::default()
         };
         let model = active.insert(&*self.db).await?;
@@ -105,6 +122,8 @@ pub struct ListParams {
     pub page_size: Option<u64>,
 }
 
+/// 建单入参。身份列 `created_by` **不由请求体承载**：由 handler 按服务端会话
+/// （`AuthContext.user_id`）派生后传入 `create` 落库。
 #[allow(dead_code, reason = "预留")]
 pub struct CreateCertificateReq {
     pub certificate_no: String,
@@ -119,5 +138,4 @@ pub struct CreateCertificateReq {
     pub issue_date: chrono::NaiveDate,
     pub expiry_date: Option<chrono::NaiveDate>,
     pub remarks: Option<String>,
-    pub created_by: i32,
 }

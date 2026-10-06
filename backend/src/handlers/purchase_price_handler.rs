@@ -223,7 +223,7 @@ pub async fn reject_price(
     auth: AuthContext,
     Json(req): Json<RejectPriceRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 拒绝理由必填样板照 quotation_handler.rs:253-257：trim 非空，空串/纯空白
+    // 拒绝理由必填与报价单域 reject 通道同范式（quotation_handler）：trim 非空，空串/纯空白
     // 400 VALIDATION_ERROR；落库为 trim 后的值；可外显文案不含记录 ID。
     let reason = req.reason.trim().to_string();
     if reason.is_empty() {

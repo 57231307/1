@@ -62,7 +62,6 @@ pub struct CreateDyeRecipeRequest {
     pub version: Option<i32>,
     pub parent_recipe_id: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新染色配方请求
@@ -206,7 +205,11 @@ impl DyeRecipeService {
     }
 
     /// 创建染色配方
-    pub async fn create(&self, req: CreateDyeRecipeRequest) -> Result<DyeRecipeModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreateDyeRecipeRequest,
+        user_id: i32,
+    ) -> Result<DyeRecipeModel, AppError> {
         // 取号与 INSERT 同事务：调用方显式提供非空编号时尊重手工值（既有契约）；
         // 否则经通用生成器在事务内
         // 取 {DR}{YYYYMMDD}{3位流水}。
@@ -274,7 +277,8 @@ impl DyeRecipeService {
             approved_by: Set(None),
             approved_at: Set(None),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(crate::utils::date_utils::utc_now_fixed()),
             updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
         };

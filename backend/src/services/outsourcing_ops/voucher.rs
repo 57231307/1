@@ -28,10 +28,11 @@ use crate::services::outsourcing_ops::types::{
 use crate::services::outsourcing_service::{OutsourcingVoucherService, validate_voucher_type};
 
 impl OutsourcingVoucherService {
-    /// 创建委外凭证
+    /// 创建委外凭证；建单人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateOutsourcingVoucherRequest,
+        user_id: i32,
     ) -> Result<VoucherModel, AppError> {
         validate_voucher_type(&req.voucher_type)?;
 
@@ -91,7 +92,7 @@ impl OutsourcingVoucherService {
             is_posted: Set(false),
             posted_at: Set(None),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

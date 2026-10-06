@@ -148,9 +148,11 @@ pub async fn list_energy_meters(
 /// POST /api/v1/erp/energy-meters - 创建计量设备
 pub async fn create_energy_meter(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateMeterRequest>,
 ) -> Result<Json<ApiResponse<energy_meter::Model>>, AppError> {
-    let model = meter_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = meter_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -225,9 +227,13 @@ pub async fn list_energy_consumptions(
 /// POST /api/v1/erp/energy-consumptions - 创建能耗记录
 pub async fn create_energy_consumption(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateConsumptionRequest>,
 ) -> Result<Json<ApiResponse<energy_consumption_record::Model>>, AppError> {
-    let model = consumption_service(&state).create(req).await?;
+    // 登记人取服务端会话，请求体不承载身份
+    let model = consumption_service(&state)
+        .create(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -315,9 +321,11 @@ pub async fn list_energy_rules(
 /// POST /api/v1/erp/energy-rules - 创建分摊规则
 pub async fn create_energy_rule(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateRuleRequest>,
 ) -> Result<Json<ApiResponse<energy_allocation_rule::Model>>, AppError> {
-    let model = rule_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = rule_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -420,9 +428,13 @@ pub async fn list_energy_allocations(
 /// POST /api/v1/erp/energy-allocations - 创建分摊记录
 pub async fn create_energy_allocation(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateAllocationRecordRequest>,
 ) -> Result<Json<ApiResponse<energy_allocation_record::Model>>, AppError> {
-    let model = allocation_record_service(&state).create(req).await?;
+    // 登记人取服务端会话，请求体不承载身份
+    let model = allocation_record_service(&state)
+        .create(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -484,13 +496,15 @@ pub async fn cancel_energy_allocation(
 /// POST /api/v1/erp/energy-allocations/monthly - 月末按工时自动分摊
 pub async fn monthly_allocation(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<MonthlyAllocationRequest>,
 ) -> Result<Json<ApiResponse<Vec<energy_allocation_record::Model>>>, AppError> {
     let consumption_svc = consumption_service(&state);
     let rule_svc = rule_service(&state);
     let allocation_svc = allocation_record_service(&state);
+    // 月末分摊生成的记录登记人取服务端会话，请求体不承载身份
     let results = allocation_svc
-        .monthly_allocation_by_duration(req, &consumption_svc, &rule_svc)
+        .monthly_allocation_by_duration(req, auth.user_id, &consumption_svc, &rule_svc)
         .await?;
     Ok(Json(ApiResponse::success(results)))
 }

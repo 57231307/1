@@ -75,8 +75,10 @@ export interface ProductionRecipe {
 }
 
 /**
- * 创建大货处方（对齐后端 CreateProductionRecipeRequest，production_recipe_service.rs:39）。
+ * 创建大货处方（对齐后端 CreateProductionRecipeRequest，production_recipe_service.rs:39-）。
  * fabric_weight 备布重量 kg（必填，用量计算依据）、liquor_ratio 浴比如 1:8（必填）；其余可选。
+ * 建单人 created_by 与开单人 issued_by 都不是该后端请求结构体的入参
+ * （service 按 handler 传入的会话用户 AuthContext.user_id 落库），前端不得上送这两个身份键。
  */
 export interface CreateProductionRecipePayload {
   work_order_id?: number;
@@ -98,8 +100,6 @@ export interface CreateProductionRecipePayload {
   total_dye_cost?: number;
   total_auxiliary_cost?: number;
   remarks?: string;
-  issued_by?: number;
-  created_by?: number;
 }
 
 /**
@@ -116,7 +116,8 @@ export interface CalculateAmountsPayload {
 /**
  * 更新大货处方请求体（对齐后端 UpdateProductionRecipeRequest，
  * services/production_recipe_service.rs:67-86；仅 draft 态可更新，由 service 的状态门拒绝）。
- * 与新建载荷分开声明：更新端点的后端结构里**没有** issued_by/created_by 两列，
+ * 与新建载荷分开声明：后端 UpdateProductionRecipeRequest 全字段可选（仅 draft 态可改），
+ * 且新建/更新两个后端结构体里都**没有** issued_by/created_by 两列（身份只来自服务端会话），
  * 复用新建类型会让调用方以为能改开单人/制单人而后端静默丢弃。
  */
 export interface UpdateProductionRecipePayload {

@@ -257,11 +257,12 @@ impl ReportSubscriptionService {
         Ok(updated)
     }
 
-    /// 查询订阅列表
+    /// 查询订阅列表；返回统一分页信封 `PaginatedResponse`（page/page_size 为经默认值与
+    /// clamp 后的实际生效值，与查询行为同源）
     pub async fn list(
         &self,
         query: SubscriptionQuery,
-    ) -> Result<(Vec<ReportSubscriptionModel>, u64), AppError> {
+    ) -> Result<crate::utils::response::PaginatedResponse<ReportSubscriptionModel>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
@@ -289,9 +290,15 @@ impl ReportSubscriptionService {
             .order_by_desc(crate::models::report_subscription::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let effective_page = page.clamp(1, 1000);
+        let (items, total) = paginate_with_total(paginator, effective_page).await?;
 
-        Ok((items, total))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            items,
+            total,
+            effective_page,
+            page_size,
+        ))
     }
 
     /// 手动触发订阅执行

@@ -242,10 +242,10 @@ pub async fn create_production_order(
         priority: payload.priority,
         work_center_id: payload.work_center_id,
         remarks: payload.remarks,
-        created_by: auth.user_id,
     };
 
-    let model = service.create(req).await?;
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let model = service.create(req, auth.user_id).await?;
 
     let response = response_from_model(model);
 

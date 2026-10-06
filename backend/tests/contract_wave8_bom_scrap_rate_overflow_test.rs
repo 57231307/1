@@ -144,7 +144,6 @@ async fn test_create_bom_ci_payload_stores_correct_ratio() {
         version: Some(1),
         is_default: Some(false),
         remarks: Some("contract_wave8 overflow pin".to_string()),
-        created_by: 1,
         items: vec![
             CreateBomItemRequest {
                 material_id: 88881,
@@ -164,7 +163,7 @@ async fn test_create_bom_ci_payload_stores_correct_ratio() {
     };
 
     let detail = service
-        .create(req)
+        .create(req, 1)
         .await
         .expect("CI payload 修复后应创建成功，不再 500");
 
@@ -217,7 +216,6 @@ async fn test_raw_percent_exceeds_decimal_5_4_and_db_rejects() {
         version: Some(1),
         is_default: Some(false),
         remarks: None,
-        created_by: 1,
         items: vec![CreateBomItemRequest {
             material_id: 88883,
             quantity: dec("1"),
@@ -227,7 +225,7 @@ async fn test_raw_percent_exceeds_decimal_5_4_and_db_rejects() {
         }],
     };
 
-    let result = service.create(req).await;
+    let result = service.create(req, 1).await;
     // PG 对 DECIMAL(5,4) 写入 10.0 必报 overflow；SeaORM 返回 Err
     assert!(
         result.is_err(),
@@ -327,20 +325,22 @@ async fn test_bom_tree_node_via_real_db_serializes_two_decimal_percent() {
         .expect("10% 应在合法域内")
         .expect("Some 入参不应得 None");
     let detail = service
-        .create(CreateBomRequest {
-            product_id: 99993, // 无 FK 约束，测试隔离用大数（与本文件 9999x/8888x 带一致）
-            version: Some(1),
-            is_default: Some(false),
-            remarks: Some("contract_wave8 percent shape pin".to_string()),
-            created_by: 1,
-            items: vec![CreateBomItemRequest {
-                material_id: 88884,
-                quantity: dec("3.0"),
-                unit: Some("米".to_string()),
-                scrap_rate: Some(stored),
-                sort_order: None,
-            }],
-        })
+        .create(
+            CreateBomRequest {
+                product_id: 99993, // 无 FK 约束，测试隔离用大数（与本文件 9999x/8888x 带一致）
+                version: Some(1),
+                is_default: Some(false),
+                remarks: Some("contract_wave8 percent shape pin".to_string()),
+                items: vec![CreateBomItemRequest {
+                    material_id: 88884,
+                    quantity: dec("3.0"),
+                    unit: Some("米".to_string()),
+                    scrap_rate: Some(stored),
+                    sort_order: None,
+                }],
+            },
+            1,
+        )
         .await
         .expect("合法 10% 经写边界换算后应创建成功");
 

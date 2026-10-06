@@ -29,12 +29,17 @@ use crate::utils::response::ApiResponse;
 mod generated {
     use super::*;
 
+    // define_tuple_crud_handlers! 出参实参 = service 的真实返回类型：
+    // list -> PaginatedResponse<oa_announcement::Model>（services/oa_announcement_service.rs list），
+    // get/create/update -> oa_announcement::Model
     define_tuple_crud_handlers!(
         OaAnnouncementService,
         CreateOaAnnouncementRequest,
         UpdateOaAnnouncementRequest,
         OaAnnouncementQuery,
         i32,
+        crate::utils::response::PaginatedResponse<crate::models::oa_announcement::Model>,
+        crate::models::oa_announcement::Model,
         "公告不存在"
     );
 }
@@ -43,20 +48,25 @@ mod generated {
 pub use generated::{create, delete, get, update};
 
 /// GET /api/v1/erp/oa-announcements - 列表（缺陷 7.2 修复：按 visibility_scope
-/// 过滤）；调用 service.list_for_user 按 ALL/DEPT/ROLE/CUSTOM 范围过滤可见公告。
+/// 过滤）；调用 service.list_for_user 按 ALL/DEPT/ROLE/CUSTOM 范围过滤可见公告；
+/// 出参载荷为统一分页信封 PaginatedResponse（顶层键 items/total/page/page_size）。
 pub async fn list(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<OaAnnouncementQuery>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<
+    Json<
+        ApiResponse<
+            crate::utils::response::PaginatedResponse<crate::models::oa_announcement::Model>,
+        >,
+    >,
+    AppError,
+> {
     let service = OaAnnouncementService::new(state.db.clone());
-    let (items, total) = service
+    let result = service
         .list_for_user(params, auth.user_id, auth.department_id, auth.role_id)
         .await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "items": items,
-        "total": total,
-    }))))
+    Ok(Json(ApiResponse::success(result)))
 }
 
 /// POST /api/v1/erp/oa-announcements/:id/publish - 发布公告

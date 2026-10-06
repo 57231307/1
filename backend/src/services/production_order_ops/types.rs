@@ -63,8 +63,6 @@ pub struct CreateProductionOrderRequest {
     pub work_center_id: Option<i32>,
     /// 备注
     pub remarks: Option<String>,
-    /// 创建人 ID
-    pub created_by: i32,
 }
 
 /// 更新生产订单请求

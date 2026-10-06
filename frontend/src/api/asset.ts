@@ -124,11 +124,8 @@ export function disposeAsset(id: number, data: DisposalRequest): Promise<ApiResp
   return request.post(`/fixed-assets/${id}/dispose`, data);
 }
 
-export const batchDepreciateAssets = (data: {
-  asset_ids: number[];
-  calculation_date: string;
-  user_id: number;
-}) => request.post('/fixed-assets/batch-depreciate', data);
+export const batchDepreciateAssets = (data: { asset_ids: number[]; calculation_date: string }) =>
+  request.post('/fixed-assets/batch-depreciate', data);
 
 // ===== 预算审批：统一出口（签名一致的重复实现收敛自 budget.ts）=====
 export {

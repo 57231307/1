@@ -34,7 +34,9 @@ use crate::utils::error::AppError;
 // 大货处方 Service struct 定义（impl 块在 production_recipe_ops/recipe_crud、recipe_state 子模块）
 // ============================================================================
 
-/// 创建大货处方请求（真实业务必填字段（依据 §11.2 大货处方）：fabric_weight: 备布重量（用量计算依据）；liquor_ratio: 浴比（如 1:8）；recipe_detail: 处方明细（染料+助剂））
+/// 创建大货处方请求（真实业务必填字段（依据 §11.2 大货处方）：fabric_weight: 备布重量（用量计算依据）；liquor_ratio: 浴比（如 1:8）；recipe_detail: 处方明细（染料+助剂））。
+/// 开单人 issued_by 与建单人 created_by 均不是入参：身份唯一来源是服务端会话
+/// （`AuthContext.user_id`，由 handler 传入 service），请求体不承载身份。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateProductionRecipeRequest {
     pub work_order_id: Option<i32>,
@@ -58,8 +60,6 @@ pub struct CreateProductionRecipeRequest {
     pub total_dye_cost: Option<Decimal>,
     pub total_auxiliary_cost: Option<Decimal>,
     pub remarks: Option<String>,
-    pub issued_by: Option<i32>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新大货处方请求（仅 draft 状态可更新）
@@ -247,7 +247,9 @@ impl ProductionRecipeService {
 // 加料处方 Service struct 定义（impl 块在 production_recipe_ops/addition 子模块）
 // ============================================================================
 
-/// 创建加料处方请求
+/// 创建加料处方请求。
+/// 开单人 issued_by 与建单人 created_by 均不是入参：身份唯一来源是服务端会话
+/// （`AuthContext.user_id`，由 handler 传入 service），请求体不承载身份。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateProductionRecipeAdditionRequest {
     /// 关联大货处方（必填）
@@ -260,8 +262,6 @@ pub struct CreateProductionRecipeAdditionRequest {
         Option<Vec<crate::models::production_recipe_addition::AdditionMaterialItem>>,
     pub total_cost: Option<Decimal>,
     pub remarks: Option<String>,
-    pub issued_by: Option<i32>,
-    pub created_by: Option<i32>,
 }
 
 /// 加料处方查询参数

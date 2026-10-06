@@ -155,6 +155,7 @@ impl ChemicalMasterService {
         active: &mut MasterActiveModel,
         req: &CreateChemicalMasterRequest,
         v: &ChemicalCreateValues,
+        user_id: i32,
     ) {
         active.msds_url = Set(req.msds_url.clone());
         active.msds_version = Set(req.msds_version.clone());
@@ -177,17 +178,21 @@ impl ChemicalMasterService {
         active.status = Set(chemical_status::ACTIVE.to_string());
         active.remarks = Set(req.remarks.clone());
         active.is_deleted = Set(false);
-        active.created_by = Set(req.created_by);
+        active.created_by = Set(Some(user_id));
         active.created_at = Set(v.now);
         active.updated_at = Set(v.now);
     }
 
-    /// 创建染化料主数据
-    pub async fn create(&self, req: CreateChemicalMasterRequest) -> Result<MasterModel, AppError> {
+    /// 创建染化料主数据；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateChemicalMasterRequest,
+        user_id: i32,
+    ) -> Result<MasterModel, AppError> {
         let values = Self::validate_chemical_create_input(&req)?;
         Self::check_chemical_code_uniqueness(&self.db, &req.chemical_code).await?;
         let mut active = Self::init_chemical_master_active(&req, &values);
-        Self::fill_chemical_master_extended(&mut active, &req, &values);
+        Self::fill_chemical_master_extended(&mut active, &req, &values, user_id);
         let result = active
             .insert(&*self.db)
             .await

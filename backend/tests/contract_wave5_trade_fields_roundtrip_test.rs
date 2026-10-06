@@ -229,7 +229,6 @@ fn make_create_req(supplier_id: i32, order_no: &str) -> CreateOutsourcingOrderRe
         tax_amount: d(8),
         standard_loss_rate: Some(Decimal::new(10, 2)),
         remarks: Some("波5契约测".to_string()),
-        created_by: Some(9101),
     }
 }
 
@@ -243,8 +242,9 @@ async fn outsourcing_fees_create_update_and_fee_voucher() {
     let order_no = format!("W5O{tag}");
 
     // —— 建单带三费：真实落库 + 回读等值；total_cost 成本链含三费 ——
+    // 建单人取会话形参（原 DTO 身份字段已移除，会话值沿用 9101 保持行等值断言不变）
     let created = service
-        .create(make_create_req(supplier_id, &order_no))
+        .create(make_create_req(supplier_id, &order_no), 9101)
         .await
         .expect("带三费的委外建单失败");
     assert_eq!(created.processing_fee, d(100), "建单加工费必须原样落库回读");
@@ -315,7 +315,7 @@ async fn outsourcing_fees_create_update_and_fee_voucher() {
     let neg_create = {
         let mut r = make_create_req(supplier_id, &format!("W5N{tag}"));
         r.processing_fee = Decimal::from(-5);
-        service.create(r).await
+        service.create(r, 9101).await
     };
     assert!(
         matches!(&neg_create, Err(AppError::BusinessError(m)) if m.contains("加工费不能为负")),

@@ -37,7 +37,6 @@ pub struct CreateBomRequest {
     pub version: Option<i32>,
     pub is_default: Option<bool>,
     pub remarks: Option<String>,
-    pub created_by: i32,
     pub items: Vec<CreateBomItemRequest>,
 }
 

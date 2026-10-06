@@ -44,7 +44,12 @@ use crate::services::lab_dip_service::LabDipRequestService;
 
 impl LabDipRequestService {
     /// 创建打样通知单
-    pub async fn create(&self, req: CreateLabDipRequestRequest) -> Result<RequestModel, AppError> {
+    /// 创建打样通知单；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateLabDipRequestRequest,
+        user_id: i32,
+    ) -> Result<RequestModel, AppError> {
         // 业务校验：打样版数至少 1 版
         let sample_versions = req.sample_versions.unwrap_or(4);
         if sample_versions < 1 {
@@ -115,7 +120,7 @@ impl LabDipRequestService {
             production_recipe_id: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

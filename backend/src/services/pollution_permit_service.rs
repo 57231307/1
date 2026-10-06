@@ -34,7 +34,6 @@ pub struct CreatePollutionPermitRequest {
     pub capacity_unit: Option<String>,
     pub permitted_pollutants: Option<serde_json::Value>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 排污许可证查询参数
@@ -87,7 +86,11 @@ impl PollutionPermitService {
     }
 
     /// 创建排污许可证（业务校验：许可证编号唯一；到期日期 > 发证日期；许可证类型合法（wastewater/exhaust/solid_waste））
-    pub async fn create(&self, req: CreatePollutionPermitRequest) -> Result<PermitModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreatePollutionPermitRequest,
+        user_id: i32,
+    ) -> Result<PermitModel, AppError> {
         Self::validate_permit_type(&req.permit_type)?;
         if req.expiry_date <= req.issue_date {
             return Err(AppError::bad_request("到期日期必须晚于发证日期"));
@@ -119,7 +122,8 @@ impl PollutionPermitService {
             permitted_pollutants: Set(req.permitted_pollutants),
             status: Set("active".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

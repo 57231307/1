@@ -174,10 +174,11 @@ impl ProductionOrderService {
     pub async fn create(
         &self,
         req: CreateProductionOrderRequest,
+        user_id: i32,
     ) -> Result<ProductionOrderModel, AppError> {
         self.validate_create_references(&req).await?;
         let order_no = self.generate_unique_order_no().await?;
-        let active_model = Self::build_create_active_model(order_no, &req);
+        let active_model = Self::build_create_active_model(order_no, &req, user_id);
         let model = self.insert_production_order(active_model).await?;
         self.trigger_mrp_for_order(&model, req.planned_end_date)
             .await;
@@ -224,6 +225,7 @@ impl ProductionOrderService {
     fn build_create_active_model(
         order_no: String,
         req: &CreateProductionOrderRequest,
+        user_id: i32,
     ) -> ActiveModel {
         let mut active_model = ActiveModel {
             order_no: Set(order_no),
@@ -239,7 +241,8 @@ impl ProductionOrderService {
             order_type: Set("normal".to_string()),
             work_center_id: Set(req.work_center_id),
             remarks: Set(req.remarks.clone()),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(user_id),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()

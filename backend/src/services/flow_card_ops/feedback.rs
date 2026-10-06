@@ -23,8 +23,12 @@ use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
 impl QualityFeedbackService {
-    /// 创建质量反馈单
-    pub async fn create(&self, req: CreateFeedbackRequest) -> Result<FeedbackModel, AppError> {
+    /// 创建质量反馈单；建单人取服务端会话身份，请求体不承载身份（发现人 found_by 属业务归属，仍由请求体录入）
+    pub async fn create(
+        &self,
+        req: CreateFeedbackRequest,
+        user_id: i32,
+    ) -> Result<FeedbackModel, AppError> {
         // 业务校验：反馈类型合法
         let valid_types = ["abnormal", "rework", "defect", "other"];
         if !valid_types.contains(&req.feedback_type.as_str()) {
@@ -97,7 +101,7 @@ impl QualityFeedbackService {
             status: Set(feedback_status::PENDING.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

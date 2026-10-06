@@ -149,9 +149,11 @@ pub async fn list_chemicals(
 /// POST /api/v1/erp/chemicals - 创建染化料主数据
 pub async fn create_chemical(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateChemicalMasterRequest>,
 ) -> Result<Json<ApiResponse<chemical_master::Model>>, AppError> {
-    let model = master_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = master_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -293,9 +295,11 @@ pub async fn list_chemical_lots(
 /// POST /api/v1/erp/chemical-lots - 创建染化料批次
 pub async fn create_chemical_lot(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateChemicalLotRequest>,
 ) -> Result<Json<ApiResponse<chemical_lot::Model>>, AppError> {
-    let model = lot_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = lot_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -409,9 +413,13 @@ pub async fn list_requisitions(
 /// POST /api/v1/erp/chemical-requisitions - 创建染化料领用单
 pub async fn create_requisition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateChemicalRequisitionRequest>,
 ) -> Result<Json<ApiResponse<chemical_requisition::Model>>, AppError> {
-    let model = requisition_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = requisition_service(&state)
+        .create(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
