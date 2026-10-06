@@ -134,17 +134,6 @@ impl ExportInspectionService {
         );
         Ok(model)
     }
-
-    /// 删除出口商检记录。
-    ///
-    /// 现状：删除动作尚无路由挂载点，方法体保留待删除入口交付；在此之前不得因无挂载点
-    /// 而删除方法本体。调用方：暂无（入口交付后由 handler 的删除端点调用）。
-    #[allow(dead_code, reason = "删除动作尚未挂载路由端点，方法体保留待入口交付")]
-    pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
-        model.delete(&*self.db).await?;
-        Ok(())
-    }
 }
 
 pub struct ListParams {
