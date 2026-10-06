@@ -29,6 +29,15 @@ export interface PurchaseOrder {
   shipping_terms: string | null;
   /** 后端 PurchaseOrderDto.notes（备注） */
   notes: string | null;
+  /**
+   * 审批理由两键（后端 PurchaseOrderDto 补键中，与报价单域同范式）：DB 真实列
+   * purchase_orders.approval_reason / purchase_orders.rejected_reason 均 Option<String>
+   * （models/purchase_order.rs:108,111），出参键恒存在、无值即 null。
+   * 前端如实声明 string | null（不给「缺键」留 undefined 空间），回显只读原文，
+   * 禁止 `?? ''` 之类兜底把「字段缺失」与「无值」混成一谈。
+   */
+  approval_reason: string | null;
+  rejected_reason: string | null;
   /** 后端 purchase_orders.attachment_urls 真实列（TEXT[]）：详情/列表原样回显，未上传附件时为 null */
   attachment_urls: string[] | null;
   created_by: number;

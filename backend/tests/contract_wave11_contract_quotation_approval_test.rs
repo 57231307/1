@@ -39,7 +39,7 @@ use bingxi_backend::models::{
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;
@@ -385,7 +385,7 @@ async fn approve_missing_or_blank_reason_is_400_validation_three_domains() {
     ];
     for (domain, approve_uri, expect_status) in &cases {
         // 形态①：完全不带 body——Option<Json<T>> 必须给出统一 AppError 信封
-        let (status, v) = post_empty_body(&app, &approve_uri).await;
+        let (status, v) = post_empty_body(&app, approve_uri).await;
         assert_eq!(
             status,
             axum::http::StatusCode::BAD_REQUEST,
@@ -403,7 +403,7 @@ async fn approve_missing_or_blank_reason_is_400_validation_three_domains() {
             json!({ "approval_reason": "   " }),
             json!({ "approval_reason": null }),
         ] {
-            let (status, v) = post_json(&app, &approve_uri, body).await;
+            let (status, v) = post_json(&app, approve_uri, body).await;
             assert_eq!(
                 status,
                 axum::http::StatusCode::BAD_REQUEST,
@@ -490,7 +490,7 @@ async fn reject_blank_reason_is_400_validation_three_domains() {
         ] {
             // 先固化用例文本：body 随后被 post_json 取走，消息里不能再内联引用它
             let label = body.to_string();
-            let (status, v) = post_json(&app, &reject_uri, body).await;
+            let (status, v) = post_json(&app, reject_uri, body).await;
             assert_eq!(
                 status,
                 axum::http::StatusCode::BAD_REQUEST,

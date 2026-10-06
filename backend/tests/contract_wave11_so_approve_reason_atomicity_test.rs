@@ -32,11 +32,12 @@ use bingxi_backend::models::status::master_data;
 use bingxi_backend::models::status::sales_order as so_status;
 use bingxi_backend::models::{audit_log, customer, sales_order, user};
 use bingxi_backend::search::{ElasticClient, SearchClient};
+use bingxi_backend::services::event_notification_service::EventNotificationService;
 use bingxi_backend::services::so::order::SalesService;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use test_common::setup_test_db;
 
@@ -151,10 +152,19 @@ fn before_snapshot_of(log: &audit_log::Model) -> Value {
 async fn approval_app() -> (Arc<DatabaseConnection>, axum::Router) {
     let db = Arc::new(setup_test_db().await);
     seed_operator(&db).await;
-    let state = AppState {
+    let mut state = AppState {
         db: db.clone(),
         ..Default::default()
     };
+    // `AppState::default()` 的全部子服务绑在 `DatabaseConnection::default()`
+    // （= sea-orm 的 `Disconnected` 变体，`src/container/mod.rs:334`）上，只覆盖 `db`
+    // 字段不会把它们搬到真库。本锁的用例 1/2 经真实 handler 成功批准 SO，落库后必走
+    // 站内通知（`src/handlers/sales_order_handler.rs:433` → `notify_order_approved`
+    // `:437`），通知服务对 `Disconnected` 连接取 backend 直接 panic
+    // （sea-orm-2.0.2 `src/database/db_connection.rs:727`）。生产装配无条件构造该服务
+    // 并与 `state.db` 同池（`src/container/mod.rs:343`），故此处按生产口径把它重建到
+    // 真库上——禁止用 `None` 绕过真实链路（那会把已装配的通知通道变成不可达分支）。
+    state.event_notification_service = Some(Arc::new(EventNotificationService::new(db.clone())));
     async fn inject_auth(
         auth: axum::extract::State<bingxi_backend::middleware::auth_context::AuthContext>,
         mut request: axum::http::Request<axum::body::Body>,

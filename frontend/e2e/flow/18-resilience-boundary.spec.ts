@@ -237,8 +237,44 @@ test.describe('异常处理与边界条件', () => {
     //   reservation 行，历史 lock_inventory 死代码链已删除；唯一可用量门控是发货期
     //   check_inventory → decide_item_stock（四维口径）。故建单应返回 id 成功，发货因可用量
     //   不足被业务码拒绝——本用例两端断言均如实反映该语义，非为过而过的放宽。
+    //
+    // 前置补全（判责 #4677 F8，取修法①：用例自给自足，不吃全局 seed）：本用例命题是
+    // A5"建单不锁库存、可用量只在发货门控"，与提交期信用额度门无关。submit 的
+    // validate_customer_credit（backend/src/services/so/order_workflow.rs:151-180）对
+    // 共享种子客户判"信用额度不足"是正确行为（本批 84be9d68 外显）——该客户在全局 seed
+    // 登记的额度 10 万（e2e/global-setup.ts:2865-2869）远小于本例刻意放大的订单额
+    // 999999×100=99,999,900。错在"额度足够"这一前置未在本例保证。因此：自建专属客户 +
+    // 登记足额信用；不缩小订单金额、不把断言改判为"额度不足负例"（两者都会背离用例语义）。
+    const custCode = genCode('E2E18C');
+    const dedicated = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_name: `18-建单门控专属客户_${custCode}`,
+      contact_phone: '13800018000',
+    });
+    const dedicatedCustomerId = dedicated.data?.id;
+    expect(
+      dedicatedCustomerId,
+      `前置缺失：专属客户创建未返回 id（${JSON.stringify(dedicated)}）`
+    ).toBeTruthy();
+    // 登记信用：credit_limit 2 亿（≤10 亿上限，utils/validator.rs::validate_credit_limit_range），
+    // 新建行 status=active、available=limit（customer_credit_limit.rs set_credit_rating 语义）
+    await apiCall(page, 'POST', '/crm/customer-credits', {
+      customer_id: dedicatedCustomerId,
+      credit_level: 'A',
+      credit_limit: '200000000',
+      credit_days: 30,
+    });
+    // 前置自检（不靠隐式默认）：接口回读可用额度确已覆盖订单额，不足即抛真实响应原文
+    const credit = await apiCallRaw<{ available_credit: string | number }>(
+      page,
+      'GET',
+      `/crm/customer-credits/${dedicatedCustomerId}`
+    );
+    expect(
+      Number(credit.available_credit),
+      `专属客户可用额度应覆盖订单额 999999×100=99999900，实际 ${JSON.stringify(credit)}`
+    ).toBeGreaterThanOrEqual(99999900);
     const created = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId,
+      customer_id: dedicatedCustomerId,
       order_date: new Date().toISOString(),
       items: [
         {
@@ -300,6 +336,16 @@ test.describe('异常处理与边界条件', () => {
     });
     expect(untouched, '被拒发货不得吞掉匹记录').toBeTruthy();
     expect(String(untouched!.status), '可用量不足被拒后匹应仍 AVAILABLE').toBe('AVAILABLE');
+    // 尽力清理：信用行（DELETE /crm/customer-credits/{customer_id} 走 deactivate 软停用，
+    // customer_credit_handler.rs:331-345）与专属客户（customers 软删）；本例销售订单已流转
+    // 不可删（与 purchase/02-approve afterEach 同口径：已流转删除告警属预期，非静默）。
+    await tryCleanup(
+      page,
+      'DELETE',
+      `/crm/customer-credits/${dedicatedCustomerId}`,
+      '18-A5 专属客户信用行'
+    );
+    await tryCleanup(page, 'DELETE', `/crm/customers/${dedicatedCustomerId}`, '18-A5 专属客户');
   });
 
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {

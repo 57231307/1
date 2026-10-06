@@ -21,6 +21,13 @@ export interface SalesOrder {
   shipping_address?: string;
   /** 后端 sales_orders.notes（备注） */
   notes?: string;
+  /** 后端 SalesOrderDetail.approval_reason（Option<String>，真实列 sales_orders.approval_reason，
+   *  models/sales_order.rs:49）⇒ 出参键恒存在、无值即 null（列表与详情共用 SalesOrderDetail，
+   *  order_query.rs:195）；回显只读原文，禁止 `?? ''` 把缺键与无值混判 */
+  approval_reason: string | null;
+  /** 后端 SalesOrderDetail.rejected_reason（Option<String>，真实列 sales_orders.rejected_reason，
+   *  models/sales_order.rs:51）⇒ 出参键恒存在、无值即 null；回显判据同 approval_reason */
+  rejected_reason: string | null;
   /** 后端 SalesOrderDetail 未返回创建人名称（仅 created_by id），需后端 JOIN users 补 creator_name */
   creator_name: string | null;
   created_at?: string;

@@ -10,11 +10,23 @@
 import { ElMessageBox } from 'element-plus';
 import { i18n } from '@/i18n';
 import { isDialogDismissal } from '@/utils/monitor';
+import { logger } from '@/utils/logger';
+import { msg } from '@/utils/message';
 
 /** 取已翻译文案（i18n 全局实例，无需在采集器内注入 useI18n）。 */
 const tt = (key: string): string => String(i18n.global.t(key));
 
-/** 采集器：取消原因（发票/核销/合同的 cancel 端点必填）。 */
+/** 非取消形态异常的统一收口：确证取消/关闭才可返回 null（中断语义）；
+ *  其余异常不是「用户取消」——按仓内既有失败通道留痕（logger）并外显（msg），再原样上抛，
+ *  与 promptApprovalReason/promptRejectReason 的「非取消 reject 原样上抛、不静默降级」同一契约。 */
+function rethrowNonDismissal(context: string, error: unknown): never {
+  logger.error(`[useActionPrompts] ${context} 采集异常（非用户取消）:`, error);
+  msg.operationFail();
+  throw error;
+}
+
+/** 采集器：取消原因（发票/核销/合同的 cancel 端点必填）。
+ *  取消/关闭返回 null（流程中止，不是错误）；非取消形态的异常上报后原样上抛，不冒充取消。 */
 export async function promptCancelReason(): Promise<string | null> {
   try {
     const { value } = await ElMessageBox.prompt(
@@ -30,8 +42,9 @@ export async function promptCancelReason(): Promise<string | null> {
       }
     );
     return value.trim();
-  } catch {
-    return null;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return null;
+    rethrowNonDismissal('promptCancelReason', error);
   }
 }
 
@@ -105,6 +118,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * 采集器：合同执行（execution_type 二选一 + 执行金额必填>0 + 可选执行日期 + 可选备注）。
  * 要求恰好传入两个执行方式选项：confirm 按钮选第一个，cancel 按钮选第二个，关闭=中断。
+ * 取消/关闭返回 null（流程中止，不是错误）；非取消形态的异常上报后原样上抛，不冒充取消。
  */
 export async function promptContractExecute(
   typeOptions: [ExecutionTypeOption, ExecutionTypeOption],
@@ -120,9 +134,12 @@ export async function promptContractExecute(
       distinguishCancelAndClose: true,
     });
     execution_type = typeOptions[0].value;
-  } catch (action) {
+  } catch (action: unknown) {
+    // distinguishCancelAndClose=true：'cancel' 是选第二执行方式的正常动作（不是取消）；
+    // 仅 'close'（X/Esc）属取消语义 → null；其余形态不是用户放弃，不得吞成中断。
     if (action === 'cancel') execution_type = typeOptions[1].value;
-    else return null;
+    else if (isDialogDismissal(action)) return null;
+    else rethrowNonDismissal('promptContractExecute 执行方式', action);
   }
 
   // 2) 执行金额（必填，数值 >0）
@@ -145,8 +162,9 @@ export async function promptContractExecute(
       }
     );
     execution_amount = Number(value);
-  } catch {
-    return null;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return null;
+    rethrowNonDismissal('promptContractExecute 执行金额', error);
   }
 
   // 3) 执行日期（仅采购，必填 YYYY-MM-DD）
@@ -168,8 +186,9 @@ export async function promptContractExecute(
         }
       );
       execution_date = value.trim();
-    } catch {
-      return null;
+    } catch (error: unknown) {
+      if (isDialogDismissal(error)) return null;
+      rethrowNonDismissal('promptContractExecute 执行日期', error);
     }
   }
 
@@ -188,8 +207,11 @@ export async function promptContractExecute(
     );
     const trimmed = value?.trim();
     if (trimmed) remark = trimmed;
-  } catch {
-    // 跳过备注：不影响执行提交。
+  } catch (error: unknown) {
+    // 备注可选：取消/关闭=用户明示跳过（不影响执行提交）；非取消形态异常不得冒充"跳过"。
+    if (!isDialogDismissal(error)) {
+      rethrowNonDismissal('promptContractExecute 备注', error);
+    }
   }
 
   return { execution_type, execution_amount, execution_date, remark };

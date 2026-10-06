@@ -176,6 +176,24 @@ async function saveItem(item: PurchaseOrderItem) {
         <el-descriptions-item :label="t('purchase.viewDlg.remark')" :span="2">{{
           data.notes
         }}</el-descriptions-item>
+        <!-- 审批结论回显：与报价单域同范式（quotations/approval.vue:56-69）——后端出参
+             （PurchaseOrderDto 的 approval_reason/rejected_reason，Option<String> 键恒存在）
+             有值才出行；无值（null）整行不出、不补「无/暂无/未提供」占位文案（那属编造），
+             更不做 ?? '' 兜底（会把缺键与无值混成一谈）；标签复用既有双语键 -->
+        <el-descriptions-item
+          v-if="data.approval_reason"
+          :label="t('actionForm.approvalReasonTitle')"
+          :span="2"
+        >
+          {{ data.approval_reason }}
+        </el-descriptions-item>
+        <el-descriptions-item
+          v-if="data.rejected_reason"
+          :label="t('actionForm.rejectReasonTitle')"
+          :span="2"
+        >
+          {{ data.rejected_reason }}
+        </el-descriptions-item>
         <!-- 附件回显（缺陷①修复后 PurchaseOrderDto.attachment_urls 真实出参，
              键名与 purchase_orders.attachment_urls 列同源；无附件显示 '-'，
              禁止静默吞键。locales 冻结期标签用中文字面量（同 outsourcing 页先例） -->

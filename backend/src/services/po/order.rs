@@ -47,6 +47,21 @@ pub struct PurchaseOrderDto {
     /// 参照 crud.rs:657 column_as+LeftJoin 链路），禁止二次查询拼 N+1。
     /// 写入侧同源：crud.rs:268（创建）/ :591-592（更新）。
     pub attachment_urls: Option<Vec<String>>,
+    /// 审批通过理由：purchase_orders.approval_reason 真实列（m0079 加列，TEXT 可空，
+    /// models/purchase_order.rs:111）。写入方 `services/po/contract.rs` approve 路径；
+    /// 选填口径：空/纯空白归一为 None ⇒ 列保持 NULL=未采集。键名与列名逐字同源
+    /// snake_case，无 skip_serializing_if：键恒存在，未采集出参为 null（前端据此
+    /// 区分「未审批」与「字段缺失」）。
+    pub approval_reason: Option<String>,
+    /// 审批拒绝理由：purchase_orders.rejected_reason 真实列（system/mod.rs:344 加列，
+    /// VARCHAR(255) 可空，models/purchase_order.rs:108）。写入方 `services/po/contract.rs`
+    /// reject 路径（服务端 trim 非空必填）。两动作两列：approve 不写本列、reject 不写
+    /// approval_reason/cancel_reason。
+    pub rejected_reason: Option<String>,
+    /// 取消动作理由：purchase_orders.cancel_reason 真实列（m0079 加列，TEXT 可空，
+    /// models/purchase_order.rs:114）。写入方 `services/po/contract.rs` cancel 路径；
+    /// cancel 不得挪用 rejected_reason（该列回归只承载 reject 拒绝结论）。
+    pub cancel_reason: Option<String>,
     pub created_by: i32,
     /// 创建人姓名：created_by -> users.real_name（LEFT JOIN，可空）
     pub creator_name: Option<String>,

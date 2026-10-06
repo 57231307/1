@@ -323,6 +323,10 @@ impl SalesService {
             contact_phone: order.contact_phone,
             approved_by: order.approved_by,
             approved_at: order.approved_at,
+            // 两理由列与实体列逐字同名直映（详情手工构造点与列表 into_model 同一形状，
+            // 键集不分叉；NULL=未采集，不伪造空串）
+            approval_reason: order.approval_reason,
+            rejected_reason: order.rejected_reason,
             created_at: order.created_at,
             updated_at: order.updated_at,
             items: item_details,
