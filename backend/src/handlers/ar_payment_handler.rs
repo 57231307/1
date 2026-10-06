@@ -42,15 +42,66 @@ pub struct CreateArPaymentRequest {
     pub invoice_ids: Option<Vec<i32>>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 序列化侧配合 `skip_serializing_if = "Option::is_none"`：外层 `None` 整键省略、
+/// `Some(None)` 落为 JSON null 键，保证 DTO→service 的 JSON 载荷保真三态。
+/// 与各 handler 内同型私有适配器一致（先例：purchase_contract_handler.rs）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新收款请求
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+/// 仅开放 ar_collections 的可空业务列（m0012/m0083 DDL）：collection_method/
+/// bank_account/check_no/remark；金额与收款日期指向 NOT NULL 列且更新链路
+/// 按服务口径不支持（改金额需同步调整关联发票），单号/客户/状态等身份与审计
+/// 字段不经请求体承载，操作人取 AuthContext.user_id。
+/// 校验注解仅在实际携带值（Some(Some(v))）时生效，`Some(None)` 清空路径逐层跳过。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateArPaymentRequest {
-    pub amount: Option<rust_decimal::Decimal>,
-    pub payment_method: Option<String>,
-    pub payment_date: Option<chrono::NaiveDate>,
-    pub bank_account: Option<String>,
-    pub remark: Option<String>,
+    /// 收款方式：DB 可空列 ar_collections.collection_method VARCHAR(50)
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[validate(length(max = 50, message = "收款方式长度不能超过50字符"))]
+    pub payment_method: Option<Option<String>>,
+    /// 银行账号：DB 可空列 ar_collections.bank_account VARCHAR(50)
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[validate(length(max = 50, message = "银行账号长度不能超过50字符"))]
+    pub bank_account: Option<Option<String>>,
+    /// 支票号：DB 可空列 ar_collections.check_no VARCHAR(50)
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[validate(length(max = 50, message = "支票号长度不能超过50字符"))]
+    pub check_no: Option<Option<String>>,
+    /// 备注：DB 可空列 ar_collections.remark TEXT（m0083 补列，与支票号分列）
+    #[serde(
+        default,
+        deserialize_with = "double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[validate(length(max = 500, message = "备注长度不能超过500字符"))]
+    pub remark: Option<Option<String>>,
 }
 
 /// 获取收款列表
@@ -138,6 +189,9 @@ pub async fn update_payment(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateArPaymentRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 三态在反序列化即成形（缺席=None/显式 null=Some(None)/有值=Some(Some(v))）；
+    // 校验仅作用于实际携带值的字段，清空路径不被长度校验阻挡。
+    payload.validate()?;
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_payment + data_scope_ctx）

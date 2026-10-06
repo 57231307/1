@@ -233,6 +233,7 @@ impl ArService {
             collection_amount: Set(ctx.amount),
             collection_method: Set(Some(ctx.payment_method)),
             bank_account: Set(ctx.bank_account),
+            remark: Set(ctx.remark),
             status: Set(crate::models::status::ar::COLLECTION_PENDING.to_string()),
             created_by: Set(ctx.user_id),
             created_at: Set(ctx.now),
@@ -258,6 +259,7 @@ impl ArService {
             amount: params.amount,
             payment_method: params.payment_method.clone(),
             bank_account: params.bank_account.clone(),
+            remark: params.remark.clone(),
             user_id,
             now,
         };
@@ -403,7 +405,7 @@ impl ArService {
     }
 
     /// 更新收款
-    /// 仅 pending 状态可修改；金额变更需同步调整关联发票（简化：仅允许修改备注/银行账号/收款方式）
+    /// 仅 pending 状态可修改；金额变更需同步调整关联发票（简化：仅允许修改备注/银行账号/收款方式/支票号）
     pub async fn update_payment(
         &self,
         payment_id: i32,
@@ -432,16 +434,68 @@ impl ArService {
 
         let mut active: ar_collection::ActiveModel = collection.into();
 
-        if let Some(method) = payload.get("payment_method").and_then(|v| v.as_str()) {
-            active.collection_method = Set(Some(method.to_string()));
+        // 可空业务列统一三态（键缺席=保持原值、显式 null=清空为 NULL、字符串值=覆盖）：
+        // 收款方式落 collection_method 列、银行账号落 bank_account 列、备注落 remark 列、
+        // 支票号只接受 check_no 入参，各列互不覆盖。
+        if let Some(v) = payload.get("payment_method") {
+            if v.is_null() {
+                active.collection_method = Set(None);
+            } else if let Some(s) = v.as_str() {
+                active.collection_method = Set(Some(s.to_string()));
+            } else {
+                warn!(
+                    target: "business_audit",
+                    event = "AR_PAYMENT_UPDATE_FIELD_TYPE_MISMATCH",
+                    payment_id = payment_id,
+                    field = "payment_method",
+                    "AR 收款更新 payment_method 类型非字符串/null，保持原值不覆盖"
+                );
+            }
         }
-        if let Some(bank) = payload.get("bank_account").and_then(|v| v.as_str()) {
-            active.bank_account = Set(Some(bank.to_string()));
+        if let Some(v) = payload.get("bank_account") {
+            if v.is_null() {
+                active.bank_account = Set(None);
+            } else if let Some(s) = v.as_str() {
+                active.bank_account = Set(Some(s.to_string()));
+            } else {
+                warn!(
+                    target: "business_audit",
+                    event = "AR_PAYMENT_UPDATE_FIELD_TYPE_MISMATCH",
+                    payment_id = payment_id,
+                    field = "bank_account",
+                    "AR 收款更新 bank_account 类型非字符串/null，保持原值不覆盖"
+                );
+            }
         }
-        // 收款单无 remark 字段，备注通过 check_no 字段承载（避免 schema 变更）
-        // 若未来添加 remark 列，此处需切换
-        if let Some(remark) = payload.get("remark").and_then(|v| v.as_str()) {
-            active.check_no = Set(Some(remark.to_string()));
+        if let Some(v) = payload.get("remark") {
+            if v.is_null() {
+                active.remark = Set(None);
+            } else if let Some(s) = v.as_str() {
+                active.remark = Set(Some(s.to_string()));
+            } else {
+                warn!(
+                    target: "business_audit",
+                    event = "AR_PAYMENT_UPDATE_FIELD_TYPE_MISMATCH",
+                    payment_id = payment_id,
+                    field = "remark",
+                    "AR 收款更新 remark 类型非字符串/null，保持原值不覆盖"
+                );
+            }
+        }
+        if let Some(v) = payload.get("check_no") {
+            if v.is_null() {
+                active.check_no = Set(None);
+            } else if let Some(s) = v.as_str() {
+                active.check_no = Set(Some(s.to_string()));
+            } else {
+                warn!(
+                    target: "business_audit",
+                    event = "AR_PAYMENT_UPDATE_FIELD_TYPE_MISMATCH",
+                    payment_id = payment_id,
+                    field = "check_no",
+                    "AR 收款更新 check_no 类型非字符串/null，保持原值不覆盖"
+                );
+            }
         }
         active.updated_at = Set(Utc::now());
 

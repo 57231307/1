@@ -22,7 +22,7 @@ pub struct CreateArPaymentParams {
     pub payment_date: NaiveDate,
     /// 银行账号
     pub bank_account: Option<String>,
-    /// 备注（ar_collections 表暂无 remark 列，schema 扩展后接入）
+    /// 备注（落 ar_collections.remark 列，与 check_no 支票号分列）
     pub remark: Option<String>,
     /// 关联发票 ID 列表
     pub invoice_ids: Option<Vec<i32>>,
@@ -60,6 +60,7 @@ pub(super) struct CollectionBuildContext {
     pub amount: Decimal,
     pub payment_method: String,
     pub bank_account: Option<String>,
+    pub remark: Option<String>,
     pub user_id: i32,
     pub now: chrono::DateTime<chrono::Utc>,
 }

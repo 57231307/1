@@ -11,6 +11,11 @@
 //!   且 message 脱敏为固定常量；InternalError→500/INTERNAL_ERROR；NotFound→404；
 //!   PermissionDenied→403/FORBIDDEN；business_displayable→400 且真实文案外显）
 //! - `backend/src/services/ar_ops/collection.rs:84-106`（get_payment 的 404/403 语义源）
+//! - `backend/src/services/ar_ops/collection.rs:409-486`（update_payment 备注/支票号分列：
+//!   remark 三态落 ar_collections.remark 列、check_no 只接受支票号入参，互不覆盖；
+//!   三态=键缺席保持、显式 null 清空、字符串值覆盖）
+//! - `backend/src/services/ar_ops/json_helpers.rs:11-34`（collection_to_json 出参键
+//!   与 models/ar_collection.rs 字段对齐：含 remark 与 check_no，写了必须读得回）
 //!
 //! 对任务书"message 不含『业务处理失败』强转"的落实口径：强转缺陷指旧代码把 4xx 重包成
 //! InternalError(500/"服务器内部错误")；因此断言 **code 非 INTERNAL_ERROR 且 message 非
@@ -24,6 +29,8 @@
 //! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）走真实 handler：
 //!   404 / 403 / 200
 //! - POST 校验 400（validator 先于 DB，AppState::default 即够）
+//! - PUT remark 分列锁 + GET 回读（真 PG 真实 handler）；三态回环（真实 service，
+//!   绕开 update DTO 单层 Option 把"键缺席"物化成 null 的 handler 层塌陷）
 
 mod test_common;
 
@@ -34,19 +41,21 @@ use axum::{
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::ar_payment_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::ar_collection;
+use bingxi_backend::services::ar_service::ArService;
 use bingxi_backend::utils::error::AppError;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use serde_json::Value;
 use std::str::FromStr;
 use tower::ServiceExt;
+use validator::Validate;
 
 fn make_auth(user_id: i32) -> AuthContext {
     AuthContext {
@@ -72,6 +81,7 @@ async fn inject_auth(
 fn build_app(state: AppState, auth: AuthContext) -> Router {
     Router::new()
         .route("/ar/payments/{id}", get(ar_payment_handler::get_payment))
+        .route("/ar/payments/{id}", put(ar_payment_handler::update_payment))
         .route("/ar/payments", post(ar_payment_handler::create_payment))
         .with_state(state)
         .layer(from_fn_with_state(auth, inject_auth))
@@ -113,6 +123,26 @@ async fn seeded_app(viewer_user_id: i32) -> Router {
         ..Default::default()
     };
     build_app(state, make_auth(viewer_user_id))
+}
+
+/// 播一条 pending 状态、已带真实支票号的收款单（状态值与写入方常量逐字符相同，
+/// 见 models/status/finance.rs COLLECTION_PENDING）
+async fn seed_pending_collection(db: &sea_orm::DatabaseConnection, created_by: i32) {
+    ar_collection::ActiveModel {
+        collection_no: Set("COL-TEST-0008".to_string()),
+        collection_date: Set(NaiveDate::from_ymd_opt(2026, 2, 20).unwrap()),
+        customer_id: Set(1),
+        collection_amount: Set(Decimal::from_str("66.60").unwrap()),
+        check_no: Set(Some("CHQ-2026-001".to_string())),
+        status: Set(bingxi_backend::models::status::ar::COLLECTION_PENDING.to_string()),
+        created_by: Set(created_by),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
 }
 
 // =========================================================
@@ -295,4 +325,342 @@ async fn create_payment_precision_amount_rejected_400() {
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(v["code"], "VALIDATION_ERROR");
+}
+
+// =========================================================
+// 4) AR 收款备注/支票号分列锁（真 PG）：传 remark 后 GET 能回读该键，且 check_no 未被覆盖
+// =========================================================
+
+#[tokio::test]
+async fn update_payment_remark_lands_remark_column_and_keeps_check_no() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection(&db, 100).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = request_json(
+        &app,
+        Request::builder()
+            .method("PUT")
+            .uri("/ar/payments/1")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"remark":"收款备注-契约锁"}"#))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["code"], 200);
+    assert_eq!(v["data"]["remark"], "收款备注-契约锁");
+    assert_eq!(
+        v["data"]["check_no"], "CHQ-2026-001",
+        "remark 写入后 check_no 绝不可被备注覆盖"
+    );
+
+    let (status, g) = request_json(
+        &app,
+        Request::builder()
+            .uri("/ar/payments/1")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        g["data"]["remark"], "收款备注-契约锁",
+        "GET 出参必须含 remark 键且与提交值一致"
+    );
+
+    // 真库行回读：备注落 remark 列，check_no 保持原支票号原文
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.remark.as_deref(), Some("收款备注-契约锁"));
+    assert_eq!(row.check_no.as_deref(), Some("CHQ-2026-001"));
+}
+
+/// 三态回环（真实 service 层）：有值=覆盖、键缺席=保持原值、显式 null=清空为 NULL。
+/// 经 HTTP 走 update_payment 时 handler DTO 是单层 Option，会把"键缺席"重新序列化成
+/// 显式 null（保持分支在 HTTP 层不可证真），故该语义在 service 层锁死；DTO 收口为
+/// 双层 Option + double_option 适配器属 handler 侧待办。
+#[tokio::test]
+async fn update_payment_remark_three_state_keep_and_clear() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection(&db, 100).await;
+    let svc = ArService::new(std::sync::Arc::new(db.clone()));
+
+    let r = svc
+        .update_payment(1, serde_json::json!({"remark": "三态-覆盖"}), 100)
+        .await
+        .unwrap();
+    assert_eq!(r["remark"], "三态-覆盖", "有值=覆盖写入 remark 列");
+
+    let r = svc
+        .update_payment(1, serde_json::json!({"payment_method": "cash"}), 100)
+        .await
+        .unwrap();
+    assert_eq!(r["remark"], "三态-覆盖", "remark 键缺席=保持原值");
+    assert_eq!(r["payment_method"], "cash");
+
+    let r = svc
+        .update_payment(1, serde_json::json!({"remark": null}), 100)
+        .await
+        .unwrap();
+    assert!(r["remark"].is_null(), "显式传 null=清空为 NULL");
+    assert_eq!(
+        r["check_no"], "CHQ-2026-001",
+        "清空 remark 不得牵连 check_no"
+    );
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.remark, None);
+    assert_eq!(row.check_no.as_deref(), Some("CHQ-2026-001"));
+}
+
+// =========================================================
+// 5) update DTO 三态收口后的端到端锁（DTO 已收口为双层 Option + double_option 适配器）：
+//    键缺席=保持、显式 null=清空、有值=覆盖，经真实 handler + 真 PG 全链路证真。
+//    此前"三态回环"只能在 service 层锁（单层 Option DTO 会把缺席物化成 null），
+//    本节在 HTTP 层补齐缺席保持的可证真性。
+// =========================================================
+
+/// 播一条 pending 状态、四个可空业务列均带真实值的收款单
+async fn seed_pending_collection_full_nullable(db: &sea_orm::DatabaseConnection, created_by: i32) {
+    ar_collection::ActiveModel {
+        collection_no: Set("COL-TEST-0009".to_string()),
+        collection_date: Set(NaiveDate::from_ymd_opt(2026, 3, 5).unwrap()),
+        customer_id: Set(1),
+        collection_amount: Set(Decimal::from_str("77.70").unwrap()),
+        collection_method: Set(Some("bank_transfer".to_string())),
+        bank_account: Set(Some("6222000011112222".to_string())),
+        check_no: Set(Some("CHQ-FULL-001".to_string())),
+        remark: Set(Some("原始备注".to_string())),
+        status: Set(bingxi_backend::models::status::ar::COLLECTION_PENDING.to_string()),
+        created_by: Set(created_by),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+async fn put_payment_body(app: &Router, body: &str) -> (StatusCode, Value) {
+    request_json(
+        app,
+        Request::builder()
+            .method("PUT")
+            .uri("/ar/payments/1")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+    )
+    .await
+}
+
+async fn get_payment_body(app: &Router) -> (StatusCode, Value) {
+    request_json(
+        app,
+        Request::builder()
+            .uri("/ar/payments/1")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+}
+
+/// DTO 三态形状锁（纯 serde，无 DB）：缺席=None、显式 null=Some(None)、有值=Some(Some(v))；
+/// 序列化回 JSON 时缺席省略键、显式 null 落 null 键（handler 以 to_value 传递 service）；
+/// 清空路径 Some(None) 不被长度校验阻挡，校验只在实际覆盖时生效。
+#[test]
+fn ar_update_dto_distinguishes_absent_null_and_value() {
+    let dto: ar_payment_handler::UpdateArPaymentRequest =
+        serde_json::from_value(serde_json::json!({
+            "remark": null,
+            "check_no": null,
+            "payment_method": "cash",
+        }))
+        .expect("AR update DTO 三态反序列化失败");
+    assert!(
+        matches!(dto.remark, Some(None)),
+        "显式 null 的 remark 必须反序列化为 Some(None)（清空），不得与缺席塌同"
+    );
+    assert!(matches!(dto.check_no, Some(None)));
+    assert!(matches!(&dto.payment_method, Some(Some(v)) if v == "cash"));
+    assert!(dto.bank_account.is_none(), "缺席键必须是 None（保持原值）");
+
+    let wire = serde_json::to_value(&dto).expect("AR update DTO 三态序列化失败");
+    assert!(
+        wire.get("bank_account").is_none(),
+        "缺席键序列化必须省略，不得物化成 null 把保持塌成清空"
+    );
+    assert!(
+        wire.get("remark").map(|v| v.is_null()).unwrap_or(false),
+        "显式 null 序列化必须落 null 键"
+    );
+    assert_eq!(wire["payment_method"], "cash");
+
+    assert!(
+        dto.validate().is_ok(),
+        "清空路径 Some(None) 不得被必填/长度校验阻挡"
+    );
+
+    let over_len: ar_payment_handler::UpdateArPaymentRequest =
+        serde_json::from_value(serde_json::json!({ "remark": "r".repeat(501) })).unwrap();
+    assert!(
+        over_len.validate().is_err(),
+        "实际覆盖（Some(Some(v))）时长度校验必须生效"
+    );
+}
+
+/// ① 只携带部分键的有值更新：未发键的可空列经 HTTP 全链路必须保持原值
+#[tokio::test]
+async fn update_payment_partial_keys_keep_absent_nullable_values() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_full_nullable(&db, 100).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(&app, r#"{"payment_method":"cash"}"#).await;
+    assert_eq!(status, StatusCode::OK, "部分键更新失败: {v}");
+    assert_eq!(v["data"]["payment_method"], "cash");
+
+    let (status, g) = get_payment_body(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        g["data"]["remark"], "原始备注",
+        "remark 键缺席经真实 handler 必须保持原值（双层 Option DTO 收口前此处会把缺席物化成 null）"
+    );
+    assert_eq!(
+        g["data"]["check_no"], "CHQ-FULL-001",
+        "check_no 键缺席必须保持原值"
+    );
+    assert_eq!(
+        g["data"]["bank_account"], "6222000011112222",
+        "bank_account 键缺席必须保持原值"
+    );
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.remark.as_deref(), Some("原始备注"));
+    assert_eq!(row.check_no.as_deref(), Some("CHQ-FULL-001"));
+    assert_eq!(row.collection_method.as_deref(), Some("cash"));
+}
+
+/// ② 显式 null 清空：发 null 的可空列 GET 回读与 DB 回读均为 null，缺席键不受牵连
+#[tokio::test]
+async fn update_payment_explicit_null_clears_nullable_columns_via_http() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_full_nullable(&db, 100).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(
+        &app,
+        r#"{"remark":null,"check_no":null,"bank_account":null}"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "显式 null 三态更新失败: {v}");
+    assert!(v["data"]["remark"].is_null(), "响应体 remark 必须为 null");
+
+    let (status, g) = get_payment_body(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        g["data"]["remark"].is_null(),
+        "发 null 后 GET 回读 remark 必须为 null"
+    );
+    assert!(
+        g["data"]["check_no"].is_null(),
+        "发 null 后 GET 回读 check_no 必须为 null"
+    );
+    assert!(
+        g["data"]["bank_account"].is_null(),
+        "发 null 后 GET 回读 bank_account 必须为 null"
+    );
+    assert_eq!(
+        g["data"]["payment_method"], "bank_transfer",
+        "缺席的 payment_method 不得被牵连清空"
+    );
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        row.remark.is_none(),
+        "发 null 后 remark 列 DB 回读必须为 NULL"
+    );
+    assert!(
+        row.check_no.is_none(),
+        "发 null 后 check_no 列 DB 回读必须为 NULL"
+    );
+    assert!(
+        row.bank_account.is_none(),
+        "发 null 后 bank_account 列 DB 回读必须为 NULL"
+    );
+    assert_eq!(row.collection_method.as_deref(), Some("bank_transfer"));
+}
+
+/// ③ 覆盖为新值：PUT 提交值与响应体、GET 回读、DB 行回读四处一致
+#[tokio::test]
+async fn update_payment_overwrite_new_values_readback_matches() {
+    let db = test_common::setup_test_db().await;
+    seed_pending_collection_full_nullable(&db, 100).await;
+    let state = AppState {
+        db: std::sync::Arc::new(db.clone()),
+        ..Default::default()
+    };
+    let app = build_app(state, make_auth(100));
+
+    let (status, v) = put_payment_body(
+        &app,
+        r#"{"remark":"新备注-三态锁","check_no":"CHQ-NEW-002"}"#,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "覆盖更新失败: {v}");
+    assert_eq!(v["data"]["remark"], "新备注-三态锁");
+    assert_eq!(v["data"]["check_no"], "CHQ-NEW-002");
+
+    let (status, g) = get_payment_body(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        g["data"]["remark"], "新备注-三态锁",
+        "覆盖后 GET 回读必须与提交值一致"
+    );
+    assert_eq!(
+        g["data"]["check_no"], "CHQ-NEW-002",
+        "覆盖后 GET 回读 check_no 必须与提交值一致"
+    );
+
+    let row = ar_collection::Entity::find_by_id(1)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.remark.as_deref(), Some("新备注-三态锁"));
+    assert_eq!(row.check_no.as_deref(), Some("CHQ-NEW-002"));
+    assert_eq!(
+        row.bank_account.as_deref(),
+        Some("6222000011112222"),
+        "本次未发键的 bank_account 必须保持原值"
+    );
 }
