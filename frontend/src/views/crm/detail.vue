@@ -61,12 +61,32 @@
                 <el-descriptions-item :label="t('crmDetail.field.contactPerson')">{{
                   customer.contact_person
                 }}</el-descriptions-item>
-                <el-descriptions-item :label="t('crmDetail.field.phone')">{{
-                  customer.contact_phone || '-'
-                }}</el-descriptions-item>
-                <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">{{
-                  customer.contact_email || '-'
-                }}</el-descriptions-item>
+                <el-descriptions-item :label="t('crmDetail.field.phone')">
+                  <span>{{ phoneDisplay }}</span>
+                  <el-button
+                    v-if="!revealedPhone.shown"
+                    v-permission="PERMISSIONS.CUSTOMER_PII_REVEAL"
+                    link
+                    type="primary"
+                    class="pii-reveal-btn"
+                    @click="handleRevealPii('phone')"
+                  >
+                    {{ t('crmDetail.reveal.phone') }}
+                  </el-button>
+                </el-descriptions-item>
+                <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">
+                  <span>{{ emailDisplay }}</span>
+                  <el-button
+                    v-if="!revealedEmail.shown"
+                    v-permission="PERMISSIONS.CUSTOMER_PII_REVEAL"
+                    link
+                    type="primary"
+                    class="pii-reveal-btn"
+                    @click="handleRevealPii('email')"
+                  >
+                    {{ t('crmDetail.reveal.email') }}
+                  </el-button>
+                </el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.address')" :span="2">{{
                   customer.address || '-'
                 }}</el-descriptions-item>
@@ -317,7 +337,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, onMounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -331,6 +351,7 @@ import {
   deleteCustomerContact,
   createCustomerContact,
   updateCustomerContact,
+  revealCustomerPii,
   type Contact,
   type CustomerEntity,
   type Customer360Summary,
@@ -338,6 +359,7 @@ import {
   type ShippingAddress,
   type RfmScore,
 } from '@/api/crm-enhanced';
+import { PERMISSIONS } from '@/constants/permissions';
 import { logger } from '@/utils/logger';
 import FollowUpTab from './tabs/FollowUpTab.vue';
 import TagsPanelTab from './tabs/TagsPanelTab.vue';
@@ -452,6 +474,80 @@ const fetchRfmScore = async () => {
 // 合成分（后端 (R+F+M)/3 的 f64 均值，线上是 JSON number）保留一位小数展示：
 // 先 Number() 归一再取小数位，与 utils.formatCurrency 同范式——禁对可能为字符串的值直接 .toFixed
 const fmtRfmScore = (score: number): string => Number(score).toFixed(1);
+
+// PII 按需揭示（POST /crm/customers/{id}/pii/reveal，运行时键 customers:reveal）：
+// 默认展示形态恒为后端掩码；原文仅在用户显式点击按钮、填写本次查看用途并
+// 揭示成功后就地出现。shown 与 value 分离：库内该列为空时揭示结果如实为
+// null（shown=true 显示占位符），不回弹成掩码，避免按钮反复可点。
+// 每次成功揭示服务端强制留痕（pii_reveal_audit，不存原文）；expires_at
+// 短 TTL 到期后自动回到掩码形态，页面不驻留原文。
+interface RevealedFieldState {
+  shown: boolean;
+  value: string | null;
+}
+const revealedPhone = ref<RevealedFieldState>({ shown: false, value: null });
+const revealedEmail = ref<RevealedFieldState>({ shown: false, value: null });
+const revealTimers: Partial<Record<'phone' | 'email', number>> = {};
+
+const phoneDisplay = computed(() =>
+  revealedPhone.value.shown
+    ? (revealedPhone.value.value ?? '-')
+    : (customer.value?.contact_phone ?? '-')
+);
+const emailDisplay = computed(() =>
+  revealedEmail.value.shown
+    ? (revealedEmail.value.value ?? '-')
+    : (customer.value?.contact_email ?? '-')
+);
+
+const handleRevealPii = async (field: 'phone' | 'email') => {
+  let reason = '';
+  try {
+    const promptRes = await ElMessageBox.prompt(
+      t('crmDetail.reveal.reasonInput'),
+      t('crmDetail.reveal.reasonTitle'),
+      {
+        inputValidator: (value: string) =>
+          (typeof value === 'string' && value.trim().length > 0) ||
+          t('crmDetail.reveal.reasonRequired'),
+      }
+    );
+    reason = (promptRes.value ?? '').trim();
+  } catch (error) {
+    // 弹窗取消不是错误（仓内统一判据）；非取消异常显式记日志，不静默
+    if (!isDialogDismissal(error)) {
+      logger.error('PII 揭示用途输入异常', error);
+    }
+    return;
+  }
+  try {
+    const res = await revealCustomerPii(customerId, { fields: [field], reason });
+    if (!res.data) {
+      ElMessage.error(t('crmDetail.reveal.failed'));
+      return;
+    }
+    const state = { shown: true, value: res.data.fields[field] ?? null };
+    if (field === 'phone') revealedPhone.value = state;
+    else revealedEmail.value = state;
+    const ttlMs = Math.max(0, new Date(res.data.expires_at).getTime() - Date.now());
+    window.clearTimeout(revealTimers[field]);
+    revealTimers[field] = window.setTimeout(() => {
+      const back = { shown: false, value: null };
+      if (field === 'phone') revealedPhone.value = back;
+      else revealedEmail.value = back;
+    }, ttlMs);
+    ElMessage.success(t('crmDetail.reveal.traced'));
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.reveal.failed'));
+  }
+};
+
+onUnmounted(() => {
+  for (const id of Object.values(revealTimers)) {
+    if (id !== undefined) window.clearTimeout(id);
+  }
+});
 
 const handleBack = () => {
   router.back();
@@ -665,6 +761,9 @@ onMounted(() => {
   font-size: 13px;
   color: #606266;
   margin-bottom: 4px;
+}
+.pii-reveal-btn {
+  margin-left: 8px;
 }
 .addr-detail {
   font-size: 13px;

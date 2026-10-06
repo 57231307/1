@@ -247,6 +247,13 @@ pub fn crm_customers() -> Router<AppState> {
             "/customers/{id}/contacts/{contact_id}",
             put(crm_customer_handler::update_contact).delete(crm_customer_handler::delete_contact),
         )
+        // PII 按需揭示：POST /crm/customers/{id}/pii/reveal（字段白名单入参，
+        // 响应只含所请求字段原文；权限键由 URL 推导为 customers:reveal，
+        // 判定链与留痕语义见 crm_customer_handler::reveal_customer_pii）
+        .route(
+            "/customers/{id}/pii/reveal",
+            post(crm_customer_handler::reveal_customer_pii),
+        )
 }
 
 /// CRM 标签路由；本函数被 `crm::routes()` merge 后再 `.nest("/api/v1/erp/crm", ...)`，

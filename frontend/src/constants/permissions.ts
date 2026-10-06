@@ -66,6 +66,9 @@ export const PERMISSIONS = {
   CUSTOMER_CREATE: 'customers:create',
   CUSTOMER_UPDATE: 'customers:update',
   CUSTOMER_DELETE: 'customers:delete',
+  // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键；
+  // 每次成功揭示服务端强制留痕 pii_reveal_audit）
+  CUSTOMER_PII_REVEAL: 'customers:reveal',
 
   // 供应商管理（后端资源：suppliers）
   SUPPLIER_READ: 'suppliers:read',

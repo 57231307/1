@@ -498,6 +498,37 @@ export const createOpportunityFollowUp = (opportunityId: number, data: Opportuni
 export const getCustomerRfmScore = (customerId: number) =>
   request.get<ApiResponse<RfmScore>>(`/crm/customers/${customerId}/rfm`);
 
+/**
+ * POST /crm/customers/{id}/pii/reveal 请求体（PII 按需揭示）。
+ * fields token 值域 = 后端 services/crm/pii_reveal.rs::PII_REVEAL_WHITELIST
+ * 唯一出处（phone/email/address；客户域无 id_card 载体列，token 未登记即整笔 400）。
+ * reason 必填（trim 后非空的查看用途，随留痕落库 pii_reveal_audit，不存原文）。
+ */
+export interface CustomerPiiRevealPayload {
+  fields: ('phone' | 'email' | 'address')[];
+  reason: string;
+}
+
+/**
+ * 揭示端点出参 data 载荷（后端 crm_customer_handler::reveal_customer_pii）。
+ * fields 键集合严格等于请求 token 集合（多给键即后端契约判红）；值 null 表示
+ * 库内该列为空。expires_at 为原文载荷的短 TTL 到期时间（RFC3339），
+ * 到期后页面不得缓存/驻留原文，需重新发起揭示。
+ */
+export interface CustomerPiiRevealData {
+  record_type: string;
+  record_id: number;
+  fields: Partial<Record<'phone' | 'email' | 'address', string | null>>;
+  expires_at: string;
+}
+
+/** 按需揭示客户 PII 原文；每次成功调用服务端强制留痕（运行时键 customers:reveal）。 */
+export const revealCustomerPii = (customerId: number, payload: CustomerPiiRevealPayload) =>
+  request.post<ApiResponse<CustomerPiiRevealData>>(
+    `/crm/customers/${customerId}/pii/reveal`,
+    payload
+  );
+
 // D14 Batch 5b：原 crmEnhancedApi.getRfmDistribution 转为风格 B 函数
 export const getCustomerRfmDistribution = () =>
   request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution');

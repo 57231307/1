@@ -636,3 +636,99 @@ pub async fn detach_customer_tag(
         "标签解除成功",
     )))
 }
+
+/// PII 按需揭示请求 DTO：字段 token 白名单 + 用途。
+/// **不承载任何身份字段**（操作人恒取服务端会话 `AuthContext.user_id`，
+/// body 里伪造 `operator_id/user_id` 一律被 serde 忽略）；批量导出不在本面
+///（单记录路径 + 记录 ID 在 URL，天然无批量形态）。
+#[derive(Debug, Deserialize)]
+pub struct RevealCustomerPiiDto {
+    /// 要查看原文的字段 token 集合（值域见
+    /// `services/crm/pii_reveal.rs::PII_REVEAL_WHITELIST`）
+    pub fields: Vec<String>,
+    /// 本次查看用途（必填，trim 后非空）
+    pub reason: String,
+}
+
+/// `PII_REVEAL_REASON_MAX_CHARS`：用途文本上限。
+/// 取 500：一句话说清用途足够；上限防的是把留痕表当自由笔记区的写入放大。
+const PII_REVEAL_REASON_MAX_CHARS: usize = 500;
+
+/// `PII_REVEAL_TTL_SECONDS`：揭示响应中原文载荷的被认为有效的秒数。
+/// 取 60：够前端就地展示一次；再长会把"按需揭示"变成事实上的持久明文读取面，
+/// 前端在到期后应重新发起揭示而不是缓存原文。
+const PII_REVEAL_TTL_SECONDS: i64 = 60;
+
+/// POST /api/v1/erp/crm/customers/:id/pii/reveal - 按需揭示客户 PII 原文
+///
+/// 放行判据（三者**同时**成立，任一不成立即整笔拒绝且不落成功痕）：
+/// 1. RBAC 键 `customers:reveal`（权限中间件按 URL 段推导：模块前缀 crm 取
+///    seg4=customers，动作段 `reveal` 命中 `PATH_ACTION_KEYWORDS`）——缺键在
+///    中间件层即 403 + FORBIDDEN，本 handler 根本不执行；
+/// 2. 行级 `data_scope` 命中：走 `CustomerService::get_customer(id, Some(&ctx))`
+///    既有唯一判定源（归属列 owner_id + `check_resource_owner`，与标准详情/
+///    360 出口逐字同源），非本人/非管辖行 ⇒ 403 + FORBIDDEN；
+/// 3. 入参合法：字段 token 全部在白名单内、用途 trim 后非空（否则 400 +
+///    VALIDATION_ERROR，文案只说该做什么、不含记录 ID）。
+/// 成功后：先写 `pii_reveal_audit` 留痕（写痕失败 ⇒ 不返回原文，错误上抛），
+/// 响应只含所请求字段的原文（键集合恒等于请求白名单）+ 短 TTL 到期时间；
+/// 默认列表/详情/导出路径的掩码行为不受本端点影响（掩码仍由
+/// `apply_customer_field_permission`/`field_mask` 单源负责）。
+/// 拒绝路径的出参恒为固定脱敏信封（`AppError::permission_denied`），真实原因
+/// 只进服务端日志。
+pub async fn reveal_customer_pii(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<RevealCustomerPiiDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(AppError::validation_displayable("请填写本次查看的用途"));
+    }
+    if reason.chars().count() > PII_REVEAL_REASON_MAX_CHARS {
+        return Err(AppError::validation_displayable(format!(
+            "用途不能超过{}字，请简要说明查看原因",
+            PII_REVEAL_REASON_MAX_CHARS
+        )));
+    }
+    let fields = crate::services::crm::pii_reveal::resolve_fields(&req.fields)?;
+
+    // 行级数据权限门（与标准详情/360 同一判定源，非新增机制）：不可见行 ⇒
+    // permission_denied 403 + FORBIDDEN，先于任何原文读取与写痕。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+    let customer_row = customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
+
+    // 投影原文（键=请求 token 集合；列缺值如实 null）
+    let projected = crate::services::crm::pii_reveal::project_raw_fields(&customer_row, &fields);
+
+    // 留痕先行：写痕失败不得外发原文（揭示的强制代价，禁止静默放行）
+    crate::services::crm::pii_reveal::record_reveal(
+        &state.db,
+        crate::services::crm::pii_reveal::RECORD_TYPE_CUSTOMER,
+        id,
+        &fields,
+        auth.user_id,
+        &reason,
+    )
+    .await?;
+
+    tracing::info!(
+        user_id = auth.user_id,
+        record_type = crate::services::crm::pii_reveal::RECORD_TYPE_CUSTOMER,
+        record_id = id,
+        revealed_fields = ?fields.iter().map(|(token, _)| *token).collect::<Vec<_>>(),
+        "PII 按需揭示成功：留痕已落 pii_reveal_audit（日志与留痕均不含原文）"
+    );
+
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(PII_REVEAL_TTL_SECONDS);
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "record_type": crate::services::crm::pii_reveal::RECORD_TYPE_CUSTOMER,
+        "record_id": id,
+        "fields": projected,
+        "expires_at": expires_at.to_rfc3339(),
+    }))))
+}

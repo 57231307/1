@@ -223,9 +223,11 @@ pub fn extract_segment3(path: &str) -> Option<&str> {
 }
 
 /// V15 P0-S20：路径动作关键字集合（出现在 URL 末段时优先作为 action）
+/// `reveal` = PII 按需揭示端点（POST /crm/customers/{id}/pii/reveal）的动作段，
+/// 与 `print` 同族：末段是动作而非资源 ID，提取资源 ID 时该关键字段一并跳过。
 const PATH_ACTION_KEYWORDS: &[&str] = &[
     "print", "export", "import", "audit", "approve", "reject", "cancel", "close", "confirm",
-    "submit", "release",
+    "submit", "release", "reveal",
 ];
 
 /// V15 P0-S20：从路径末段提取动作关键字，非关键字返回 None

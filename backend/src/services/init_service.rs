@@ -150,6 +150,9 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "logistics",
     "ship-orders",
     "incoterms",
+    // 出口商检单：运行时权限键 `export-inspections:{read,create,update,print}` 由 URL 段
+    // 推导（seg3=export-inspections 为直接资源），必须在此登记否则矩阵授权行运行期永不命中。
+    "export-inspections",
     // ===== 人力资源域 =====
     "employees",
     // ===== 安全环保域 =====

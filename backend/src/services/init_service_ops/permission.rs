@@ -612,12 +612,18 @@ impl InitService {
                     ("quotations", "create"),
                     ("customers", "read"),
                     ("customers", "create"),
+                    // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键，
+                    // 与 m0086 存量补授/e2e SEED 三通道同口径；每次揭示强制留痕）
+                    ("customers", "reveal"),
                     ("sales-returns", "read"),
                     ("sales-returns", "create"),
                     ("color-cards", "read"),
                     ("sales-prices", "read"),
                     // 发货对话框第四维匹号候选来自 GET /inventory/pieces（只读，不授打印）
                     ("pieces", "read"),
+                    // 出口商检：销售代表可读自己出口订单对应的商检单与结论（只读，
+                    // 建单/登记结果属报关岗，不越界授予）。
+                    ("export-inspections", "read"),
                 ],
             ),
         ]
@@ -1079,6 +1085,9 @@ impl InitService {
                     ("crm-customers", "create"),
                     ("customers", "read"),
                     ("customers", "create"),
+                    // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键，
+                    // 与 sales_rep/m0086/e2e SEED 三通道同口径；每次揭示强制留痕）
+                    ("customers", "reveal"),
                 ],
             ),
             // 客户服务：线索域四动作（read/create/update/delete），与
@@ -1113,6 +1122,9 @@ impl InitService {
                     ("orders", "read"),
                     ("inventory", "read"),
                     ("incoterms", "read"),
+                    // 出口商检：物流协同跟踪出货需读商检单并打印报关随附单据（不建单、不改判结论）。
+                    ("export-inspections", "read"),
+                    ("export-inspections", "print"),
                     ("reports", "read"),
                 ],
             ),
@@ -1126,6 +1138,13 @@ impl InitService {
                     ("incoterms", "create"),
                     ("orders", "read"),
                     ("ship-orders", "read"),
+                    // 出口商检：报关专员负责本域全生命周期——建单(POST)、登记/改判结论
+                    // (PUT /{id}/result)、看单与打印商检/报关单据(GET 列表/详情/print)。
+                    // 与同族 incoterms 授权面同口径；存量库由迁移 m0083、e2e 由 SEED 同补。
+                    ("export-inspections", "read"),
+                    ("export-inspections", "create"),
+                    ("export-inspections", "update"),
+                    ("export-inspections", "print"),
                 ],
             ),
             (

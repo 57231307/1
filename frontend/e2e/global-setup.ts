@@ -483,9 +483,16 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
     'crm-leads:create',
     'crm-leads:update',
     'crm-leads:delete',
+    // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 运行时键 customers:reveal，
+    // 与后端 init 矩阵 sales_rep/crm_rep 及 m0086 存量补授三通道同口径；
+    // salesperson 为 sales_rep 的 CI/部署别名码，同 pieces:read 在册别名）
+    'customers:reveal',
     // 发货对话框第四维匹号候选来自 GET /inventory/pieces（与后端 permission.rs 的
     // sales_rep ("pieces","read") 同口径；只读，不授打印）
     'pieces:read',
+    // 出口商检只读（与后端 permission.rs 的 sales_rep ("export-inspections","read")
+    // 同口径；建单/登记结果属 customs_specialist，CI 不建该角色码故本 SEED 面不含）
+    'export-inspections:read',
   ],
   // sales_manager 对齐 permission.rs：orders 只读+审批链（此处仅补读，其余 approve/reject
   // 由后端角色 init 授予，本 spec 只依赖 GET 列表/详情）。不授 purchase 侧任何码。
@@ -1011,8 +1018,8 @@ export async function ensureRoleUsers(): Promise<void> {
   }
 
   // 4.5 终验登录：spec 直接消费的角色账号必须"真能登进去"。
-  // 400/409"已存在"分支不重置密码，历史轮次密码漂移只会表现为下游 401（#4669 中
-  // e2e_salesperson 即"账号在、helper 用错密码"形态，排查成本高）。这里用凭证文件里
+  // 400/409"已存在"分支不重置密码，历史轮次密码漂移只会表现为下游 401（曾出现
+  // e2e_salesperson"账号在、helper 用错密码"形态，排查成本高）。这里用凭证文件里
   // 的密码做一次真实登录收口：成功→凭证可信；失败→立即判红并带后端原始响应。
   // manager 加入理由：fullflow/15-report-export.spec.ts 15-05 直接 loginAsRole('manager')，
   // 属"spec 直接消费"面。若该账号在库中已存在而密码与本次写出的凭证不符（400/409 分支不重置

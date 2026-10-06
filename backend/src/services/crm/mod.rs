@@ -20,6 +20,9 @@ use serde::Serialize;
 
 pub mod assign;
 pub mod cust;
+// PII 按需揭示域服务：字段白名单、原文投影与成功留痕的唯一实现
+//（消费方 handlers/crm_customer_handler.rs::reveal_customer_pii）
+pub mod pii_reveal;
 // V15 P0-S08 修复：客户转移审批服务
 pub mod customer_transfer_approval_service;
 // V15 P1 batch-15 18.4-D2/D3：客户团队协作与数据共享服务

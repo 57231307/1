@@ -245,4 +245,74 @@ test.describe('越权 IDOR/data-scope — 销售订单与客户（self 角色）
       await intruder.close();
     }
   });
+
+  // PII 按需揭示（POST /crm/customers/{id}/pii/reveal，运行时键 customers:reveal）内容级用例：
+  // 正向=admin 本人管辖行揭示 200 且**只回所请求字段**、值与落库原文逐字相等
+  //（揭示成功服务端强制留痕 pii_reveal_audit——该表面无业务读取端点，按验收口径
+  // 以 200/403 + 机器码 + 载荷形状为内容级判据，不假造回读端点）；
+  // 负向=salesperson 经 SEED_ROLE_EXTRA_PERMISSIONS 真实持有 'customers:reveal'
+  //（RBAC 已过门）仍被行级 data_scope 门拒绝他人管辖行——三条件缺一即 403。
+  // 拒绝类断言只断 HTTP 状态 + 机器码（expectDenied 内部钉 FORBIDDEN），不断中文文案。
+  test('PII 按需揭示：admin 揭示 200 且字段集合=请求白名单、值回读原文；持键 self 角色越管辖行 403 FORBIDDEN', async ({
+    page,
+    browser,
+  }) => {
+    const rawPhone = `139${Date.now().toString().slice(-8)}`;
+    const rawEmail = `e2e-pii-${genCode('PRV')}@example.com`;
+    const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_name: `E2E PII揭示契约客户 ${genCode('PIIR')}`,
+      contact_phone: rawPhone,
+      contact_email: rawEmail,
+    });
+    const customerId = cust.data?.id;
+    expect(customerId, `seed 客户失败：${JSON.stringify(cust)}`).toBeTruthy();
+
+    const intruder = await openRoleSession(browser, 'salesperson');
+    try {
+      // 正向：admin（all 范围）只申请 phone——fields 键集合必须恰为 {phone}，
+      // 值与落库原文逐字相等（掩码形态出现即判红）
+      const revealed = await apiCallRaw<{
+        record_type: string;
+        record_id: number;
+        fields: Record<string, string | null>;
+        expires_at: string;
+      }>(page, 'POST', `/crm/customers/${customerId}/pii/reveal`, {
+        fields: ['phone'],
+        reason: 'E2E 内容级校验：按需查看完整号码',
+      });
+      expect(revealed.record_type, '留痕记录类型应为 customer').toBe('customer');
+      expect(revealed.record_id, '回读的记录 ID 应为种子客户').toBe(customerId);
+      expect(Object.keys(revealed.fields).sort(), '揭示字段集合必须严格等于请求白名单').toEqual([
+        'phone',
+      ]);
+      expect(revealed.fields.phone, '揭示值必须为落库原文而非掩码').toBe(rawPhone);
+      expect(
+        new Date(revealed.expires_at).getTime() - Date.now(),
+        'expires_at 应为短 TTL 的未来时刻'
+      ).toBeGreaterThan(0);
+
+      // 负向：salesperson 持有 customers:reveal（SEED ③ 通道，RBAC 已过门），
+      // 但对 admin 管辖行行级 data_scope 不命中 ⇒ 403 + FORBIDDEN（只断状态与机器码）
+      const denied = await apiCallExpectFail(
+        intruder.page,
+        'POST',
+        `/crm/customers/${customerId}/pii/reveal`,
+        { fields: ['phone'], reason: '越管辖行探测' }
+      );
+      expectDenied(denied, 'salesperson(self) 对他人管辖客户揭示 PII 应 403');
+
+      // 同角色的列表读取被 RBAC 拦（customers:read 未授）——反证上面 403 的层归因：
+      // 同会话对**同一资源**的 reveal 已过 RBAC（有键）、list 未过（无键），
+      // 两次 403 都只以状态+机器码归因，不比对文案
+      const listDenied = await apiCallExpectFail(
+        intruder.page,
+        'GET',
+        '/crm/customers?page=1&page_size=5'
+      );
+      expectDenied(listDenied, 'salesperson 无 customers:read，列表应 403（RBAC 层）');
+    } finally {
+      await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, 'customer');
+      await intruder.close();
+    }
+  });
 });
