@@ -121,97 +121,166 @@ function shapeOfArrayKeys({ vecKey, hasTotal, hasId, label, allKeys }) {
   };
 }
 
-// ---------- 后端：handler 函数返回类型索引 ----------
-// 从 handler 源码里按 `fn NAME(...)` 提取其返回类型文本（`->` 与函数体 `{` 之间）。
-function extractReturnTypes(src) {
-  const out = {};
-  const re = /\bfn\s+([A-Za-z_]\w*)\s*[(<]/g;
-  let m;
-  while ((m = re.exec(src))) {
-    const name = m[1];
-    // 先跳到参数列表的匹配右括号
-    let i = m.index + m[0].length - 1; // 指向 '(' 或 '<'
-    if (src[i] !== '(') continue; // 带泛型的 fn 少见，这里只处理普通签名
-    let depth = 0;
-    let inStr = null;
-    for (; i < src.length; i++) {
-      const c = src[i];
-      if (inStr) {
-        if (c === '\\') i++;
-        else if (c === inStr) inStr = null;
-        continue;
-      }
-      if (c === '"' || c === "'") inStr = c;
-      else if (c === '(') depth++;
-      else if (c === ')') {
-        depth--;
-        if (depth === 0) break;
-      }
-    }
-    // i 指向参数右括号；找紧随其后的 `->`
-    const after = src.slice(i + 1);
-    const arrow = after.match(/^\s*(?:async\s+)?->/);
-    if (!arrow) continue;
-    let j = i + 1 + arrow[0].length; // 指向 `->` 之后
-    // 读到第一个「非嵌套」的 `{`（函数体起点）或 `;`（trait 声明式 fn），angle/paren/bracket 计数
-    let ret = '';
-    let ang = 0,
-      par = 0,
-      bkt = 0;
-    inStr = null;
-    for (; j < src.length; j++) {
-      const c = src[j];
-      if (inStr) {
-        ret += c;
-        if (c === '\\') {
-          ret += src[++j];
-        } else if (c === inStr) inStr = null;
-        continue;
-      }
-      if (c === '"' || c === "'") {
-        inStr = c;
-        ret += c;
-        continue;
-      }
-      if (c === '<') ang++;
-      else if (c === '>') ang--;
-      else if (c === '(') par++;
-      else if (c === ')') par--;
-      else if (c === '[') bkt++;
-      else if (c === ']') bkt--;
-      else if (c === '{' && ang <= 0 && par <= 0 && bkt <= 0) break;
-      else if (c === ';' && ang <= 0 && par <= 0 && bkt <= 0) break;
-      ret += c;
-    }
-    ret = ret.trim();
-    if (ret) out[name] = ret;
+// ---------- Rust 词法扫描（Rust 词法切分不再"猜深度"） ----------
+// 旧实现的 Rust 侧切分/配平一律按字符猜深度，三条系统性错源（本轮逐条实测，样本见
+// 下列 ①②③ 逐条）：
+//   ① `'` 一律当字符串开引号 —— 生命周期 `&'a str` / `&'static str` / `<'_>` 会把后面
+//      最近的真引号之间整段当字符串，参数右括号 `)` 被吞 ⇒ `captureBalanced` 返回 null，
+//      签名/返回类型整条丢，落到「后端无体提取器」「未定位到 handler 签名」的假红；
+//   ② 完全不认注释 —— `//` 里的逗号被当顶层分隔、里的 `>` 把深度打成负数，
+//      宏实参数组数量与 `macro_rules` 元变量数量不符 ⇒ 宏展开整体丢失；
+//      注释里的一个 `"` 还能把后半段全部"吃掉"（块注释跨行，`inStr` 永不复位）；
+//   ③ `->` / `=>` / 比较运算符的 `>` 全被当成尖括号闭合 —— 深度错乱后顶层逗号切不出来。
+// 全仓只留这一份 Rust 词法扫描，Rust 侧所有切分/配平都必须走它（两处各写一份必然漂移）。
+const RUST_XID = /[A-Za-z0-9_]/;
+
+/// 从 i 起若是一个「不可分割词法单元」的起点（行注释 / 块注释(可嵌套) / 字符串 /
+/// 原始字符串 r#""# / 字节串 / 字符字面量 / 生命周期），返回其结束下标（不含）；否则 -1。
+/// 生命周期与字符字面量的区分按 Rust 词法规则：`'` 后恰好一个字符（或一个转义序列）再接
+/// `'` 才是字符字面量，否则是生命周期（`'a` / `'static` / `'_`）。
+function rustLexemeEnd(s, i) {
+  const c = s[i];
+  const prevIsXid = i > 0 && RUST_XID.test(s[i - 1]);
+  if (c === '/' && s[i + 1] === '/') {
+    let j = i;
+    while (j < s.length && s[j] !== '\n') j++;
+    return j;
   }
-  return out;
+  if (c === '/' && s[i + 1] === '*') {
+    let j = i + 2;
+    let level = 1;
+    while (j < s.length && level > 0) {
+      if (s[j] === '/' && s[j + 1] === '*') {
+        level++;
+        j += 2;
+      } else if (s[j] === '*' && s[j + 1] === '/') {
+        level--;
+        j += 2;
+      } else j++;
+    }
+    return j;
+  }
+  // 原始字符串（可带 b 前缀）：r"…" / r#"…"# / br#"…"#
+  if (!prevIsXid && (c === 'r' || c === 'b')) {
+    const raw = /^(?:b)?r(#+)?"/.exec(s.slice(i));
+    if (raw) {
+      const hashes = raw[1] || '';
+      const start = i + raw[0].length;
+      const end = s.indexOf('"' + hashes, start);
+      return end < 0 ? s.length : end + 1 + hashes.length;
+    }
+    // 字节串 b"…"
+    if (c === 'b' && s[i + 1] === '"') {
+      let j = i + 2;
+      while (j < s.length) {
+        if (s[j] === '\\') {
+          j += 2;
+          continue;
+        }
+        if (s[j] === '"') return j + 1;
+        j++;
+      }
+      return j;
+    }
+  }
+  if (c === '"') {
+    let j = i + 1;
+    while (j < s.length) {
+      if (s[j] === '\\') {
+        j += 2;
+        continue;
+      }
+      if (s[j] === '"') return j + 1;
+      j++;
+    }
+    // 未闭合字符串（被截断的片段）：吃到结尾，宁可多吞也不许把串内逗号当分隔
+    return j;
+  }
+  if (c === "'") {
+    if (s[i + 1] === '\\') {
+      let j = i + 2;
+      if (s[j] === 'u') {
+        const close = s.indexOf('}', j);
+        if (close < 0) return s.length;
+        j = close + 1;
+      } else j += 1;
+      if (s[j] === "'") return j + 1;
+      return i + 1; // 不是合法字符字面量 -> 只吃引号本身，按普通字符继续扫
+    }
+    if (s[i + 2] === "'") return i + 3; // 'x'
+    let j = i + 1;
+    while (j < s.length && RUST_XID.test(s[j])) j++;
+    return j > i + 1 ? j : i + 1; // 生命周期 'a / 'static / '_；孤立引号只吃自己
+  }
+  return -1;
 }
 
-// ---------- 动态 JSON（Value / JsonValue）载荷还原 ----------
-// 详见文件头「动态载荷还原」：to_value(具体类型) / json! 顶层键 / 变量与元组回溯 / service 递归。
-// 解析不出来就保持「未分类 → 判负」，禁止把「读不懂」当成「没问题」。
-
-// 通用：从 idx 处的 open 括号起配平，返回 [闭括号下标, 内部文本]（跳过字符串字面量）
-function captureBalanced(src, idx, open, close) {
-  if (src[idx] !== open) return null;
+/// 宏调用 / 泛型实参表这类「定界组」的结束下标（含闭合符）；未配平返回 -1。
+/// 组内走同一套词法扫描：字符串/注释/生命周期里的定界符不参与计数。
+function macroGroupEnd(s, k, open) {
+  const close = open === '(' ? ')' : open === '[' ? ']' : '}';
   let depth = 0;
-  let inStr = null;
-  for (let i = idx; i < src.length; i++) {
-    const c = src[i];
-    if (inStr) {
-      if (c === '\\') {
-        i++;
+  let i = k;
+  while (i < s.length) {
+    const e = rustLexemeEnd(s, i);
+    if (e > i) {
+      i = e;
+      continue;
+    }
+    const c = s[i];
+    if (c === open) depth++;
+    else if (c === close) {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+    i++;
+  }
+  return -1;
+}
+
+/// 从 i 处的 `<` 起，找它作为泛型实参表闭合 `>` 的结束下标（含 `>`）；配不出来返回 -1。
+/// 只有「配得平」的 `<…>` 才被当作一组原子消费 —— 比较运算符 / `->` / `=>` 里的 `<`、`>`
+/// 不再污染深度（旧实现把 `->` 的 `>` 计入，深度被打成负数后同签名内其后的顶层逗号
+/// 永远切不出来，实测把 3 个形参读成 1 个、把 `Json<T>` 判成「后端无体提取器」）。
+/// 嵌套 `<`（`HashMap<String, Vec<i32>>`）按同层计数；生命周期 `'_` / `'a` 由词法扫描跳过。
+function angleGroupEnd(s, i) {
+  let angle = 0;
+  let j = i;
+  while (j < s.length) {
+    const e = rustLexemeEnd(s, j);
+    if (e > j) {
+      j = e;
+      continue;
+    }
+    const c = s[j];
+    if (c === '<') angle++;
+    else if (c === '>') {
+      // `->` / `=>` 里的 `>` 不是泛型表闭合符（trait 返回值 `Box<dyn Fn(A) -> B, C>` 是真实写法）
+      const p = j > 0 ? s[j - 1] : '';
+      if (p === '-' || p === '=') {
+        j++;
         continue;
       }
-      if (c === inStr) inStr = null;
+      angle--;
+      if (angle === 0) return j + 1;
+    }
+    j++;
+  }
+  return -1;
+}
+
+/// 通用配平：skip(i) 返回词法单元结束下标（不是单元起点时返回 <= i 的值）。
+/// 返回 [闭合下标, 内部文本]；起点不是 open 或未配平 -> null（调用方必须按判不出处理）。
+function balancedScanWith(src, idx, open, close, skip) {
+  if (src[idx] !== open) return null;
+  let depth = 0;
+  for (let i = idx; i < src.length; i++) {
+    const e = skip(src, i);
+    if (e > i) {
+      i = e - 1;
       continue;
     }
-    if (c === '"' || c === "'" || c === '`') {
-      inStr = c;
-      continue;
-    }
+    const c = src[i];
     if (c === open) depth++;
     else if (c === close) {
       depth--;
@@ -220,6 +289,125 @@ function captureBalanced(src, idx, open, close) {
   }
   return null;
 }
+
+/// Rust 源码/类型文本用这一份：注释、字符串、原始串、字节串、字符字面量、生命周期全部跳过。
+function captureBalancedRust(src, idx, open, close) {
+  return balancedScanWith(src, idx, open, close, rustLexemeEnd);
+}
+
+/// 通用（TS/JS 文本用）：`'` `"` `\\`` 字符串与 `//` `/*` 注释跳过。
+/// 旧实现把反引号当字符串起点、把 Rust 生命周期当字符串起点 —— 后者是 #251 的根因，
+/// 前者是 JS 模板串，两者语义不同，必须按语言分开。
+function jsLexemeEnd(s, i) {
+  const c = s[i];
+  if (c === '/' && s[i + 1] === '/') {
+    let j = i;
+    while (j < s.length && s[j] !== '\n') j++;
+    return j;
+  }
+  if (c === '/' && s[i + 1] === '*') {
+    let j = i + 2;
+    while (j < s.length && !(s[j] === '*' && s[j + 1] === '/')) j++;
+    return Math.min(j + 2, s.length);
+  }
+  if (c === '"' || c === "'" || c === '`') {
+    let j = i + 1;
+    while (j < s.length) {
+      if (s[j] === '\\') {
+        j += 2;
+        continue;
+      }
+      if (s[j] === c) return j + 1;
+      if (c === '`' && s[j] === '$' && s[j + 1] === '{') {
+        // 模板串插值：整段插值按配平吃掉，内部的引号/括号都不影响外层判定
+        let d = 1;
+        j += 2;
+        while (j < s.length && d > 0) {
+          if (s[j] === '{') d++;
+          else if (s[j] === '}') d--;
+          else if (s[j] === '"' || s[j] === "'" || s[j] === '`') {
+            const q = s[j];
+            j++;
+            while (j < s.length && s[j] !== q) {
+              if (s[j] === '\\') j++;
+              j++;
+            }
+          }
+          if (d > 0) j++;
+        }
+      }
+      j++;
+    }
+    return j;
+  }
+  return -1;
+}
+
+// TS/JS 文本专用配平（Rust 侧一律用 captureBalanced = captureBalancedRust，看板 #251）。
+function captureBalancedJs(src, idx, open, close) {
+  return balancedScanWith(src, idx, open, close, jsLexemeEnd);
+}
+
+// 默认配平器面向 Rust 源码/类型文本（本文件绝大多数调用点在扫 backend）。
+// 看板 #251：旧实现把 `'` 当字符串开引号、完全不认注释，生命周期与 `//` 注释会把配平切歪。
+function captureBalanced(src, idx, open, close) {
+  return balancedScanWith(src, idx, open, close, rustLexemeEnd);
+}
+
+// Rust 侧专用：在「圆/方括号尚未配平」的区间里找到第一个顶层 `{` 或 `;` 的下标。
+// 尖括号一律不参与计数（Rust 里 `<` 既可能是泛型也可能是比较/移位，靠猜必然错），
+// 只按 () 与 [] 配平；本仓 handler 签名实测零例外（区间内无 lambda/数组下标）。
+// 返回 -1 表示没找到（调用方按判不出处理，不许继续猜）。
+function scanToFirstTopLevel(src, j, pred) {
+  let par = 0;
+  let bkt = 0;
+  while (j < src.length) {
+    const e = rustLexemeEnd(src, j);
+    if (e > j) {
+      j = e;
+      continue;
+    }
+    const c = src[j];
+    if (c === '(') par++;
+    else if (c === ')') par--;
+    else if (c === '[') bkt++;
+    else if (c === ']') bkt--;
+    else if (par <= 0 && bkt <= 0 && pred(c)) return j;
+    j++;
+  }
+  return -1;
+}
+
+// ---------- 后端：handler 函数返回类型索引 ----------
+// 从 handler 源码里按 `fn NAME(...)` 提取其返回类型文本（`->` 与函数体 `{` 之间）。
+function extractReturnTypes(src) {
+  const out = {};
+  const re = /\bfn\s+([A-Za-z_]\w*)\s*[(<]/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const name = m[1];
+    // 先跳到参数列表的匹配右括号（走 Rust 词法扫描：生命周期/注释/原始串不得吞掉右括号）
+    const i = m.index + m[0].length - 1; // 指向 '(' 或 '<'
+    if (src[i] !== '(') continue; // 带泛型的 fn 少见，这里只处理普通签名
+    const cp = captureBalancedRust(src, i, '(', ')');
+    if (!cp) continue;
+    // i 指向参数右括号；找紧随其后的 `->`
+    const after = src.slice(cp[0] + 1);
+    const arrow = after.match(/^\s*(?:async\s+)?->/);
+    if (!arrow) continue;
+    const j = cp[0] + 1 + arrow[0].length; // 指向 `->` 之后
+    // 读到第一个「非嵌套」的 `{`（函数体起点）或 `;`（trait 声明式 fn）
+    const stop = scanToFirstTopLevel(src, j, c => c === '{' || c === ';');
+    if (stop < 0) continue;
+    const ret = src.slice(j, stop).trim();
+    if (ret) out[name] = ret;
+  }
+  return out;
+}
+
+// ---------- 动态 JSON（Value / JsonValue）载荷还原 ----------
+// 详见文件头「动态载荷还原」：to_value(具体类型) / json! 顶层键 / 变量与元组回溯 / service 递归。
+// 解析不出来就保持「未分类 → 判负」，禁止把「读不懂」当成「没问题」。
 
 // 按 fn 名提取「函数体文本」（配平大括号），供动态载荷回溯使用
 function extractFnBodies(src) {
@@ -230,24 +418,12 @@ function extractFnBodies(src) {
     const name = m[1];
     let i = m.index + m[0].length - 1;
     if (src[i] !== '(') continue;
-    const cp = captureBalanced(src, i, '(', ')');
+    const cp = captureBalancedRust(src, i, '(', ')');
     if (!cp) continue;
     // 签名里可能带 `-> Foo { ... }`：函数体起点 = 参数右括号之后的第一个「顶层」'{'
-    let j = cp[0] + 1;
-    let ang = 0;
-    let bkt = 0;
-    while (j < src.length) {
-      const c = src[j];
-      if (c === '<') ang++;
-      else if (c === '>') ang--;
-      else if (c === '[') bkt++;
-      else if (c === ']') bkt--;
-      else if (c === '{' && ang <= 0 && bkt <= 0) break;
-      else if (c === ';' && ang <= 0 && bkt <= 0) break; // trait 声明，无函数体
-      j++;
-    }
-    if (src[j] !== '{') continue;
-    const body = captureBalanced(src, j, '{', '}');
+    const start = scanToFirstTopLevel(src, cp[0] + 1, c => c === '{' || c === ';');
+    if (start < 0 || src[start] !== '{') continue; // ';' = trait 声明，无函数体
+    const body = captureBalancedRust(src, start, '{', '}');
     if (body) out[name] = body[1];
   }
   return out;
@@ -321,41 +497,40 @@ function parseJsonMacroKeys(objText, body, ctx, depth) {
   return keys;
 }
 
+// json! / vec! 等宏实参的顶层条目切分：与 Rust 切分器同源（看板 #251）。
+// 旧实现自带一套扫描：不认注释（`json!({ // don't use\n "a":1})` 里注释中的 `"` 会把后半段
+// 当成字符串），`'` 一律当字符串开引号，反引号也不是 Rust 语法。
 function splitJsonMacroEntries(objText) {
-  const out = [];
-  let depth = 0;
-  let cur = '';
-  let inStr = null;
-  for (let i = 0; i < objText.length; i++) {
-    const c = objText[i];
-    if (inStr) {
-      cur += c;
-      if (c === '\\') {
-        cur += objText[++i];
-      } else if (c === inStr) inStr = null;
+  return splitRustTopLevelArgs(objText);
+}
+
+/// 去 Rust 注释（`//` 到行尾、`/* */` 可嵌套），字符串/字符字面量/生命周期原样保留。
+/// 必须存在的原因（看板 #251 的连带坑）：表达式文本进 normExpr 前会先把换行压成空格，
+/// 届时 `//` 注释就变成"一直到结尾"的注释，任何认注释的扫描器都会把后半段连同配平括号
+/// 一起吞掉 —— 结果是 `to_value(PaginatedResponse::new(.., // 说明\n ..))` 判不出，
+/// 已能归类的端点反而退回「未分类」。所以剥注释必须在压缩空白之前，且只剥注释。
+function stripRustComments(s) {
+  const src = String(s == null ? '' : s);
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const e = rustLexemeEnd(src, i);
+    if (e > i) {
+      const isComment = src[i] === '/' && (src[i + 1] === '/' || src[i + 1] === '*');
+      out += isComment ? ' ' : src.slice(i, e);
+      i = e;
       continue;
     }
-    if (c === '"' || c === "'" || c === '`') {
-      inStr = c;
-      cur += c;
-      continue;
-    }
-    if (c === '{' || c === '[' || c === '(') depth++;
-    else if (c === '}' || c === ']' || c === ')') depth--;
-    if (c === ',' && depth === 0) {
-      out.push(cur);
-      cur = '';
-      continue;
-    }
-    cur += c;
+    out += src[i];
+    i++;
   }
-  if (cur.trim()) out.push(cur);
   return out;
 }
 
-// 表达式文本归一：压缩空白 + 去掉点号两侧空白（Rust 链式调用常跨行书写，`service\n .list()` 必须先归一）
+// 表达式文本归一：先剥注释（见 stripRustComments），再压缩空白 + 去掉点号两侧空白
+// （Rust 链式调用常跨行书写，`service\n .list()` 必须先归一）
 function normExpr(s) {
-  return (s || '')
+  return stripRustComments(s || '')
     .replace(/^#\s*/, '')
     .replace(/\s+/g, ' ')
     .replace(/\s*\.\s*/g, '.')
@@ -444,7 +619,7 @@ function findBinding(body, name) {
     const idx = names.indexOf(name);
     if (idx >= 0) {
       const start = tm.index + tm[0].length;
-      const expr = readUntilStatementEnd(body, start);
+      const expr = readUntilStatementEndRust(body, start);
       if (expr) tupleHit = { expr, tupleIdx: idx };
     }
   }
@@ -456,10 +631,35 @@ function findBinding(body, name) {
   let hit = null;
   while ((nm = nre.exec(body))) {
     const start = nm.index + nm[0].length;
-    const expr = readUntilStatementEnd(body, start);
+    const expr = readUntilStatementEndRust(body, start);
     if (expr) hit = { expr, annotation: nm[1] ? nm[1].trim() : null };
   }
   return hit || tupleHit;
+}
+
+// Rust 版「读到语句结束」：走 Rust 词法扫描，且 <> 不参与深度（比较运算符 / 生命周期
+// 里的 `>` 会把深度打负，导致 `;` 永远等不到，语句文本一路吃到函数体结尾）。
+// 看板 #251：findBinding 拿到的"绑定表达式"曾被注释和生命周期切歪，回溯返回类型时
+// 读出的是整段函数体 —— 于是「载荷形状判不出」被误报成形状不符。
+function readUntilStatementEndRust(body, start) {
+  let depth = 0;
+  let expr = '';
+  let i = start;
+  while (i < body.length) {
+    const e = rustLexemeEnd(body, i);
+    if (e > i) {
+      expr += body.slice(i, e);
+      i = e;
+      continue;
+    }
+    const c = body[i];
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
+    else if (c === ';' && depth === 0) break;
+    expr += c;
+    i++;
+  }
+  return expr.trim() || null;
 }
 
 function readUntilStatementEnd(body, start) {
@@ -683,22 +883,9 @@ function stripWrappers(t) {
 }
 
 function splitTopLevel(s) {
-  const out = [];
-  let depth = 0;
-  let cur = '';
-  for (const c of s) {
-    // 圆/方/花括号同样构成嵌套：`Result<(Vec<X>, u64), E>` 若只跟踪 <> 会在元组内部误切
-    if (c === '<' || c === '(' || c === '[' || c === '{') depth++;
-    else if (c === '>' || c === ')' || c === ']' || c === '}') depth--;
-    if (c === ',' && depth === 0) {
-      out.push(cur);
-      cur = '';
-      continue;
-    }
-    cur += c;
-  }
-  if (cur.trim()) out.push(cur);
-  return out;
+  // 看板 #251：这里过去只跟踪 <>，`Result<(Vec<X>, u64), E>` 会在元组内部被切开，
+  // 而且同样不认注释/生命周期。统一走 Rust 切分器，两处口径不可能再漂移。
+  return splitRustTopLevelArgs(s);
 }
 
 // 去掉 // 行注释与 /* */ 块注释（字符串/模板字面量内的不算）。
@@ -1465,36 +1652,141 @@ function collectArgs(src, re) {
   return out;
 }
 
-function splitTopLevelRust(s) {
+// Rust 顶层逗号切分（看板 #251 的正解，替代旧的"猜深度"扫描）。三条与旧实现不同的硬规则：
+//  ① 注释/字符串/原始串/字节串/字符字面量/生命周期整段跳过 —— 里面的 `,` `<` `>` `(` `)`
+//     一律不参与判定（旧实现把 `'` 当字符串开引号，一个生命周期就吞掉后半段）；
+//  ② 尖括号按语言环境识别，不再"见 < 就加、见 > 就减"：只有紧跟在标识符/`)`/`::` 之后
+//     且后面不是 `=` 的 `<` 才算泛型实参表开始；`>` 只在尖括号深度 > 0、且前一个字符不是
+//     `-`/`=`（即 `->`、`=>`）时才闭合 —— 旧实现把 `->` 的 `>` 计入，深度被打成负数后，
+//     同一签名里其后的顶层逗号永远切不出来（假"单实参"+ 漏判）；
+//  ③ 宏调用（`name!` / `path::name!` 后跟 `()`/`[]`/`{}`）整组原子消费，绝不递归进去找逗号
+//     —— 宏实参里的 `<`、`>`、注释、`json!` 里的嵌套逗号都不影响外层切点。
+// 与旧版必须保持一致的两点（改了就漂移，别动）：片段不 trim、末尾空片段丢弃
+// （expandMacroArm 按实参数与元变量个数严格配对，多一个空实参会让整条宏解析失效）。
+function splitRustTopLevelArgs(s) {
+  const src = s == null ? '' : String(s);
   const out = [];
-  let depth = 0;
-  let inStr = null;
   let cur = '';
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (inStr) {
-      cur += c;
-      if (c === '\\') {
-        cur += s[++i];
-      } else if (c === inStr) inStr = null;
+  let paren = 0;
+  let bracket = 0;
+  let brace = 0;
+  let i = 0;
+  const top = () => paren === 0 && bracket === 0 && brace === 0;
+  while (i < src.length) {
+    const e = rustLexemeEnd(src, i);
+    if (e > i) {
+      cur += src.slice(i, e);
+      i = e;
       continue;
     }
-    if (c === '"' || c === "'" || c === '`') {
-      inStr = c;
+    // ③ 宏调用：整组原子消费（未配平则退回普通字符扫描，由 --self-test 的守恒断言暴露）
+    if (/[A-Za-z_]/.test(src[i]) && !(i > 0 && RUST_XID.test(src[i - 1]))) {
+      const mm = /^[A-Za-z_]\w*!\s*([({\[])/.exec(src.slice(i));
+      if (mm) {
+        const open = i + mm[0].length - 1;
+        const end = macroGroupEnd(src, open, src[open]);
+        if (end > 0) {
+          cur += src.slice(i, end);
+          i = end;
+          continue;
+        }
+      }
+    }
+    const c = src[i];
+    // 泛型实参表：整组原子消费（组内的 `,` 属于类型参数，不是实参分隔符）。
+    // 判定不靠"猜深度"：只有「前一个非空白字符是标识符/`)`/`::`」且「同层能配平出 `>`」
+    // 的 `<` 才是泛型表；比较运算符/移位里的 `<` 配不出平衡的 `>`，按普通字符处理。
+    if (c === '<' && src[i + 1] !== '=') {
+      let k = i - 1;
+      while (k >= 0 && /\s/.test(src[k])) k--;
+      const prev = k >= 0 ? src[k] : '';
+      const candidate = /[A-Za-z0-9_)]/.test(prev) || (prev === ':' && src[k - 1] === ':');
+      if (candidate) {
+        const end = angleGroupEnd(src, i);
+        if (end > 0) {
+          cur += src.slice(i, end);
+          i = end;
+          continue;
+        }
+      }
       cur += c;
+      i++;
       continue;
     }
-    if (c === '<' || c === '(' || c === '[' || c === '{') depth++;
-    else if (c === '>' || c === ')' || c === ']' || c === '}') depth--;
-    if (c === ',' && depth === 0) {
+    if (c === '(') paren++;
+    else if (c === ')') paren = Math.max(0, paren - 1);
+    else if (c === '[') bracket++;
+    else if (c === ']') bracket = Math.max(0, bracket - 1);
+    else if (c === '{') brace++;
+    else if (c === '}') brace = Math.max(0, brace - 1);
+    if (c === ',' && top()) {
       out.push(cur);
       cur = '';
+      i++;
       continue;
     }
     cur += c;
+    i++;
   }
   if (cur.trim()) out.push(cur);
   return out;
+}
+
+// 兼容旧调用名（本文件与 check-api-request 都按此名 import）：语义 = Rust 切分。
+// TS/JS 文本的切分不走这里，见 check-api-request.mjs 的 splitTopLevelCommas/Bar/Amp。
+function splitTopLevelRust(s) {
+  return splitRustTopLevelArgs(s);
+}
+
+// TS/JS 顶层切分（看板 #251 同族修正）：与 Rust 版的差异必须显式存在——
+//  ① `'` 在 TS 里是字符串引号（Rust 里多半是生命周期），不能按生命周期规则只吃一个词；
+//  ② `=>`（箭头函数类型/箭头函数实参）里的 `>` 绝不能当闭合符：旧实现把它计入深度，
+//     `() => void` 之后深度变成 -1，同一参数表/实参表里其后的顶层逗号再也切不出来 ——
+//     实测 fund.ts:50 一类「形参注解带回调」的载荷恒判不出，且 `request.post(url,
+//     items.map(i => i.id), { params })` 的第 3 个实参会被并进第 2 个（取错载荷位）；
+//  ③ 深度一律夹在 0 以上（打负 = 后面的逗号全切不出来，属静默漏判）。
+// 片段不 trim；尾部空片段丢弃（与 splitRustTopLevelArgs/splitTopLevelCommas 口径一致）。
+function splitTsTopLevel(s, sep, opts = {}) {
+  const src = s == null ? '' : String(s);
+  const out = [];
+  let cur = '';
+  let depth = 0;
+  let i = 0;
+  while (i < src.length) {
+    const e = jsLexemeEnd(src, i);
+    if (e > i) {
+      cur += src.slice(i, e);
+      i = e;
+      continue;
+    }
+    const c = src[i];
+    if (c === '<' || c === '(' || c === '[' || c === '{') depth++;
+    else if (c === '>' || c === ')' || c === ']' || c === '}') {
+      if (c === '>' && src[i - 1] === '=') {
+        cur += c;
+        i++;
+        continue;
+      }
+      depth = Math.max(0, depth - 1);
+    }
+    // 联合类型里 `||` 不是分隔符（仅当调用方要求时保护，保持旧口径）
+    const dupGuard = opts.guardDouble && (src[i + 1] === sep || src[i - 1] === sep);
+    if (c === sep && depth === 0 && !dupGuard) {
+      out.push(cur);
+      cur = '';
+      i++;
+      continue;
+    }
+    cur += c;
+    i++;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+// TS 实参表/参数表（逗号切分）。
+function splitTsTopLevelArgs(s) {
+  return splitTsTopLevel(s, ',');
 }
 
 // ---------- 前端具名类型索引（把 `ApiResponse<Foo>` 里的 Foo 展开成可比对的形状）----------
@@ -1518,7 +1810,7 @@ function buildTsTypeIndex() {
       // 此前此处 `if (m[2]) continue` 把所有带类型参数的 interface 直接跳过，
       // 使 ApiResponse 之外的具名泛型包装（PagedResponse<T> 等）整批落在盲区里没人核对。
       const open = src.indexOf('{', m.index + m[0].length - 1);
-      const cap = captureBalanced(src, open, '{', '}');
+      const cap = captureBalancedJs(src, open, '{', '}');
       if (!cap) continue;
       addTsEntry(index, m[1], {
         kind: 'object',
@@ -1665,13 +1957,13 @@ function parseFrontendApiFunctions(tsIndex) {
     let gm;
     while ((gm = genRe.exec(src))) {
       const lt = src.indexOf('<', gm.index + 'request.'.length);
-      const typeCap = lt >= 0 ? captureBalanced(src, lt, '<', '>') : null;
+      const typeCap = lt >= 0 ? captureBalancedJs(src, lt, '<', '>') : null;
       if (!typeCap) continue;
       const retType = typeCap[1].trim();
       const paren = src.indexOf('(', typeCap[0]);
-      const argCap = paren >= 0 ? captureBalanced(src, paren, '(', ')') : null;
+      const argCap = paren >= 0 ? captureBalancedJs(src, paren, '(', ')') : null;
       if (!argCap) continue;
-      const argTexts = splitTopLevelRust(argCap[1]).map(a => a.trim());
+      const argTexts = splitTsTopLevelArgs(argCap[1]).map(a => a.trim());
       const url = resolveFrontendUrl(argTexts[0] || '', consts);
       if (!url) continue;
       let path = url;
@@ -1708,9 +2000,9 @@ function parseFrontendApiFunctions(tsIndex) {
     let pm;
     while ((pm = plainRe.exec(src))) {
       const paren = pm.index + pm[0].length - 1;
-      const argCap = captureBalanced(src, paren, '(', ')');
+      const argCap = captureBalancedJs(src, paren, '(', ')');
       if (!argCap) continue;
-      const argTexts = splitTopLevelRust(argCap[1]).map(a => a.trim());
+      const argTexts = splitTsTopLevelArgs(argCap[1]).map(a => a.trim());
       const url = resolveFrontendUrl(argTexts[0] || '', consts);
       if (!url) continue; // URL 不可静态还原：路由存在性由 check-api-paths 专门判负
       let path = url;
@@ -1767,9 +2059,9 @@ function extractFirstCall(body, consts) {
   // 用配平括号取「全部实参」而非只取第一个：请求体侧门禁要看第二个实参（payload / { params }）。
   // 原手写扫描在第一个顶层逗号处即停，拿不到 payload，也无法处理实参里带逗号的嵌套调用。
   const open = body.indexOf('(', m.index);
-  const cap = open >= 0 ? captureBalanced(body, open, '(', ')') : null;
+  const cap = open >= 0 ? captureBalancedJs(body, open, '(', ')') : null;
   if (!cap) return null;
-  const argTexts = splitTopLevelRust(cap[1]).map(a => a.trim());
+  const argTexts = splitTsTopLevelArgs(cap[1]).map(a => a.trim());
   const arg = argTexts[0] || '';
   const url = resolveFrontendUrl(arg.trim(), consts);
   if (!url) return null;
@@ -2202,14 +2494,22 @@ export {
   buildStructIndex,
   buildTsTypeIndex,
   captureBalanced,
+  captureBalancedJs,
+  captureBalancedRust,
   extractReturnTypes,
   loadHandlerMacroTemplates,
   parseFrontendApiFunctions,
   readFileSync,
   readUntilStatementEnd,
+  readUntilStatementEndRust,
   resolveHandlerSymbol,
   resolveHandlerSymbolPath,
+  rustLexemeEnd,
   sigForSymbol,
   splitObjFields,
+  splitRustTopLevelArgs,
   splitTopLevelRust,
+  splitTsTopLevel,
+  splitTsTopLevelArgs,
+  stripRustComments,
 };

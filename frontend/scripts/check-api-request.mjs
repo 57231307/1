@@ -35,7 +35,7 @@
  *   (d) 叶子类型字段（`serde_json::Value`/`any`/`Record<string, unknown>`/`HashMap<String,_>`）：
  *       顶层键名仍参与比对，但内层键集**不可比**这一事实必须进「未覆盖清单」逐条输出，
  *       不再当作无声通过；索引签名与不可解析的 axios config 同样显式入盲区。
- *   (multipart 双向形态判定 · 任务板 #249) 旧实现只按后端**签名**认 multipart，且命中即整条
+ *   (multipart 双向形态判定) 旧实现只按后端**签名**认 multipart，且命中即整条
  *       记盲区、从不比对前端实发形态 ⇒ 「后端收 multipart、前端发 JSON」与「前端发 FormData、
  *       后端只收 Json<T>」两个方向的契约错都落盲区（实测各 1 条真错藏身）。现判定为双向：
  *         · 后端证据不再只看签名——签名提取器 `: Multipart`/函数体 `<Multipart as
@@ -82,13 +82,19 @@ import {
   buildStructIndex,
   buildTsTypeIndex,
   captureBalanced,
+  captureBalancedJs,
+  captureBalancedRust,
   loadHandlerMacroTemplates,
   parseFrontendApiFunctions,
   readUntilStatementEnd,
   resolveHandlerSymbolPath,
+  rustLexemeEnd,
   sigForSymbol,
   splitObjFields,
+  splitRustTopLevelArgs,
   splitTopLevelRust,
+  splitTsTopLevel,
+  splitTsTopLevelArgs,
 } from './check-api-envelope.mjs';
 
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
@@ -268,85 +274,28 @@ function stripTsComments(s) {
   return out.join('');
 }
 
-// 顶层 `|` 切分（<> {} [] () 与字符串内不切）。用于联合类型逐员展开。
+// 顶层 `|` 切分（TS/JS 文本）。用于联合类型逐员展开。
+// 看板 #251：三个 TS 侧切分器统一走 envelope 的 splitTsTopLevel ——
+// `=>` 的 `>` 不是闭合符、深度不许打负、字符串/注释整段跳过（旧实现各自手写字面量判定，
+// 三处口径互不相同，任一处切歪都会把可解析的类型推成盲区或把两个联合成员并成一个）。
 function splitTopLevelBar(s) {
-  const out = [];
-  let depth = 0;
-  let cur = '';
-  let q = null;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (q) {
-      cur += c;
-      if (c === q) q = null;
-      continue;
-    }
-    if (c === "'" || c === '"' || c === '`') {
-      q = c;
-      cur += c;
-      continue;
-    }
-    if (c === '<' || c === '{' || c === '[' || c === '(') depth++;
-    else if (c === '>' || c === '}' || c === ']' || c === ')') depth--;
-    if (c === '|' && depth === 0 && s[i + 1] !== '|' && s[i - 1] !== '|') {
-      out.push(cur);
-      cur = '';
-      continue;
-    }
-    cur += c;
-  }
-  if (cur.trim()) out.push(cur);
-  return out.map(x => x.trim()).filter(Boolean);
+  return splitTsTopLevel(s, '|', { guardDouble: true })
+    .map(x => x.trim())
+    .filter(Boolean);
 }
 
-// 顶层 `,` 切分（<> {} [] () 与字符串内不切）。Omit/Pick 的「基础类型, 键列表」拆分用。
+// 顶层 `,` 切分（TS/JS 文本）。Omit/Pick 的「基础类型, 键列表」拆分与参数表拆分都走它。
 function splitTopLevelCommas(s) {
-  const out = [];
-  let depth = 0;
-  let cur = '';
-  let q = null;
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (q) {
-      cur += c;
-      if (c === q) q = null;
-      continue;
-    }
-    if (c === "'" || c === '"' || c === '`') {
-      q = c;
-      cur += c;
-      continue;
-    }
-    if (c === '<' || c === '{' || c === '[' || c === '(') depth++;
-    else if (c === '>' || c === '}' || c === ']' || c === ')') depth--;
-    if (c === ',' && depth === 0) {
-      out.push(cur.trim());
-      cur = '';
-      continue;
-    }
-    cur += c;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out.filter(Boolean);
+  return splitTsTopLevel(s, ',')
+    .map(x => x.trim())
+    .filter(Boolean);
 }
 
-// 顶层 `&` 切分（<> {} [] () 内不切）。返回成员列表；无 & 时即 [t]。
+// 顶层 `&` 切分（TS/JS 文本）。返回成员列表；无 & 时即 [t]。
 function splitTopLevelAmp(s) {
-  const out = [];
-  let depth = 0;
-  let cur = '';
-  for (const c of s) {
-    if (c === '<' || c === '{' || c === '[' || c === '(') depth++;
-    else if (c === '>' || c === '}' || c === ']' || c === ')') depth--;
-    if (c === '&' && depth === 0) {
-      out.push(cur);
-      cur = '';
-      continue;
-    }
-    cur += c;
-  }
-  if (cur.trim()) out.push(cur);
-  return out.map(x => x.trim()).filter(Boolean);
+  return splitTsTopLevel(s, '&', { guardDouble: true })
+    .map(x => x.trim())
+    .filter(Boolean);
 }
 
 // 任意 TS 类型文本 -> {fields} 或 {blind: 原因}。
@@ -553,17 +502,20 @@ function paramTypeOf(sig, name) {
   // 连累同签名内本可解析的形参（看板 #40 盲区 2）。
   const s = stripTsComments(String(sig || '')).replace(/\s+/g, ' ');
   if (!s.trim()) return null;
-  for (const p of splitTopLevelRust(s)) {
+  // 看板 #251：这里原先复用 Rust 切分器。TS 参数表与 Rust 实参表的词法不同
+  // （TS 的 `'x'` 是字符串、Rust 的 `'x` 可能是生命周期；TS 的 `=>` 不是闭合符），
+  // 复用必然切歪：本仓 8 处带箭头函数类型的参数表从此再也切不出后面的形参。
+  for (const p of splitTopLevelCommas(s)) {
     const t = p.trim();
     const m = new RegExp('^' + name + '\\s*(\\??)\\s*:\\s*([\\s\\S]*)$').exec(t);
     if (!m) continue;
     let v = m[2].trim();
-    // 剥顶层默认值 `= xxx`（不在 <>{}[]() 内）
+    // 剥顶层默认值 `= xxx`（不在 <>{}[]() 内；`=>` 不是默认值起点）
     let depth = 0;
     for (let i = 0; i < v.length; i++) {
       const c = v[i];
       if (c === '<' || c === '(' || c === '[' || c === '{') depth++;
-      else if (c === '>' || c === ')' || c === ']' || c === '}') depth--;
+      else if (c === '>' || c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
       else if (c === '=' && depth === 0 && v[i + 1] !== '=' && v[i - 1] !== '=') {
         v = v.slice(0, i).trim();
         break;
@@ -739,7 +691,7 @@ function fePayloadForm(fn, payloadExpr, readSrc = readApiFileSrc) {
     ).exec(src);
     if (decl) {
       const brace = src.indexOf('{', decl.index);
-      const cap = brace >= 0 ? captureBalanced(src, brace, '{', '}') : null;
+      const cap = brace >= 0 ? captureBalancedJs(src, brace, '{', '}') : null;
       // captureBalanced 返回 [闭括号下标, 括号内文本]，函数体窗口 = 声明起点 → 闭括号
       const win = cap ? src.slice(decl.index, brace + cap[0] + 1) : '';
       if (
@@ -772,7 +724,7 @@ function multipartContractVerdict(sym, fn, payloadExpr, readSrc = readApiFileSrc
   return { verdict: 'n/a', beMp, form: fm.form };
 }
 
-// ---------- 看板 #40 盲区补录 ----------
+// ---------- multipart / 箭头函数 / 交叉类型形态补录 ----------
 
 // 本文件局部类型索引：全局 buildTsTypeIndex 把「跨文件同名且体不同」的类型标 ambiguous,
 // 之后整条拒解（user.ts 与 user-profile.ts 各自定义 ChangePasswordRequest 即此形态,
@@ -784,7 +736,7 @@ function buildLocalTypeIndex(src, rel) {
     /\b(?:export\s+)?interface\s+([A-Z]\w*)\s*(<[^{>]*>)?\s*(?:extends\s+([A-Za-z_][\w<>,.\s'"]*?))?\s*\{/g
   )) {
     const open = src.indexOf('{', m.index + m[0].length - 1);
-    const cap = open >= 0 ? captureBalanced(src, open, '{', '}') : null;
+    const cap = open >= 0 ? captureBalancedJs(src, open, '{', '}') : null;
     if (!cap) continue;
     if (!index.has(m[1]))
       index.set(m[1], {
@@ -806,7 +758,7 @@ function buildLocalTypeIndex(src, rel) {
 
 // 被全局去重吞掉的调用点补录：parseFrontendApiFunctions 的判重键是（函数名, path）且跨文件
 // 共享——inventory.ts / inventory-transfer.ts 各有一个 approveInventoryTransfer 打同一端点时,
-// 后扫到的那个被静默丢弃（看板 #40 实测 3 处：approveInventoryTransfer、purchase.ts 的
+// 后扫到的那个被静默丢弃（实测 3 处：approveInventoryTransfer、purchase.ts 的
 // getPurchaseReceiptList/createPurchaseReceipt 与 purchase-receipt.ts 同名同路径副本）。
 // 副本之间可以各自漂移（一边修了一边没修），漏掉任何一个就是「该报的没报」。
 // 判据用（文件, path, method）：同文件同端点视为已覆盖；跨文件同名同端点必须各自进检查面。
@@ -843,9 +795,10 @@ function supplementMissedCallSites(feFunctions, sources = null) {
     let m;
     while ((m = re.exec(src))) {
       const paren = src.indexOf('(', m.index);
-      const argCap = paren >= 0 ? captureBalanced(src, paren, '(', ')') : null;
+      const argCap = paren >= 0 ? captureBalancedJs(src, paren, '(', ')') : null;
       if (!argCap) continue;
-      const argTexts = splitTopLevelRust(argCap[1]).map(a => a.trim());
+      // 看板 #251：TS 实参表用 TS 切分器（旧代码复用 Rust 切分器，`=>` 与 `'` 语义都不同）
+      const argTexts = splitTsTopLevelArgs(argCap[1]).map(a => a.trim());
       const url = resolveFrontendUrl((argTexts[0] || '').trim(), consts);
       if (!url) continue; // URL 不可静态还原：路由存在性由 check-api-paths 专门判负
       let path = url;
@@ -1328,7 +1281,6 @@ function main() {
     `\nOK: 可比对项全部一致或已登记存量基线（盲区 ${buckets.blind.length} 条、叶子未覆盖 ${buckets.uncovered.length} 条已逐条计数，未谎称全覆盖）。`
   );
   void BASE_URL;
-  void splitTopLevelRust;
 }
 
 // ---------- --self-test：multipart 双向判据自证夹具（任务板 #249） ----------
@@ -1419,7 +1371,7 @@ function runSelfTest() {
   check('③负 同反例+前端JSON载荷 -> 不许判', v(symWordOnly, fnJson, 'data') === 'n/a');
   // ⑤ 请求体提取器识别覆盖面：本仓"理由选填的动作端点"统一走 OptionalJson<T>
   //    （utils/optional_json.rs）。判定器只认 Json<T> 时，这 29 处会被误报成
-  //    "后端无体提取器、前端载荷被整体忽略"的失配（#4677 后实测 26 条假红）。
+  //    "后端无体提取器、前端载荷被整体忽略"的失配（曾实测 26 条假红）。
   check(
     '⑤ OptionalJson<T> 具名载荷 -> 认作体提取器并解出 T',
     jsonBodyType(
