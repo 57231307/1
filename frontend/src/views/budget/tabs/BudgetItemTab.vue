@@ -303,6 +303,7 @@ import {
 } from '@/api/budget';
 import { PERMISSIONS } from '@/constants/permissions';
 import { isDialogDismissal } from '@/utils/monitor';
+import { sumDecimalAmounts } from '@/utils/money';
 import { exportFromBackend } from '@/utils/export';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -449,9 +450,8 @@ const rules: FormRules = {
   ],
 };
 
-const periodTotal = computed(() =>
-  form.periods.reduce((sum, row) => sum + Number(row.planned_amount || 0), 0)
-);
+// 期间金额合计：走统一的后端十进制字符串安全求和（避免 number/string 混入时 `+` 触发字符串拼接）
+const periodTotal = computed(() => sumDecimalAmounts(form.periods.map(row => row.planned_amount)));
 const periodMismatch = computed(
   () =>
     form.periods.length > 0 &&
@@ -499,7 +499,9 @@ const buildPeriodInputs = (): BudgetItemPeriodInput[] | undefined => {
   if (!form.periods.length) return undefined;
   return form.periods.map(row => ({
     period: composePeriod(row),
-    planned_amount: Number(row.planned_amount || 0),
+    // 后端 BudgetItemPeriodInput.planned_amount 为 rust_decimal（serde-floats 未启用，
+    // JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
+    planned_amount: Number(row.planned_amount || 0).toFixed(2),
   }));
 };
 
@@ -514,7 +516,7 @@ const handleSubmit = async () => {
       await updateBudgetItem(form.id, {
         item_name: form.item_name,
         item_type: form.item_type || undefined,
-        planned_amount: Number(form.planned_amount),
+        planned_amount: Number(form.planned_amount).toFixed(2),
         periods,
         remark: form.remark || undefined,
       });
@@ -526,7 +528,7 @@ const handleSubmit = async () => {
         item_type: form.item_type || undefined,
         plan_id: form.plan_id,
         budget_year: anchorYear.value,
-        planned_amount: Number(form.planned_amount),
+        planned_amount: Number(form.planned_amount).toFixed(2),
         periods,
         remark: form.remark || undefined,
       });
@@ -576,7 +578,9 @@ const handleAdjust = async () => {
   try {
     await adjustBudget({
       item_id: adjustForm.item_id,
-      adjust_amount: adjustForm.adjust_amount,
+      // 后端 AdjustBudgetRequest.adjust_amount 为 rust_decimal（serde-floats 未启用，JSON 浮点
+      // 字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
+      adjust_amount: adjustForm.adjust_amount.toFixed(2),
       reason: adjustForm.reason || undefined,
     });
     ElMessage.success(t('budget.item.message.updated'));

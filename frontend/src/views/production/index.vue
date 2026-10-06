@@ -78,6 +78,7 @@ import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import {
   createProductionOrder,
   updateProductionOrder,
+  type CreateProductionOrderPayload,
   type ProductionOrder,
   type UpdateProductionOrderPayload,
 } from '@/api/production';
@@ -144,7 +145,7 @@ const onSubmitForm = async () => {
       // 空串 '' 序列化后会成为 Some("")，后端 resolve_order_no 会把 "" 当作手输单号
       // 直插（绕过统一取号器）；undefined 经 JSON 序列化剔除 → 后端走
       // utils/number_generator.rs 取号（PO{YYYYMMDD}{3位流水}）。
-      const payload = { ...prd.orderForm, order_no: undefined } as Partial<ProductionOrder>;
+      const payload = { ...prd.orderForm, order_no: undefined } as CreateProductionOrderPayload;
       await createProductionOrder(payload);
       ElMessage.success(t('production.index.messageCreateSuccess'));
     } else {

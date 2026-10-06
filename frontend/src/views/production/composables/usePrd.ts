@@ -13,7 +13,8 @@ import { useTableApi } from '@/composables/useTableApi';
 import type { ProductionOrder } from '@/api/production';
 
 /**
- * 订单表单字段类型（所有字段可选，兼容 Partial<ProductionOrder>）
+ * 订单表单字段类型（所有字段可选，兼容 CreateProductionOrderPayload 提交形状；
+ * 出参 ProductionOrder 的 planned_quantity 是 Decimal 序列化字符串，表单值按 number 提交）
  */
 export interface PrdOrderForm {
   id?: number | undefined;

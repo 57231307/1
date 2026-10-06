@@ -79,7 +79,7 @@
         </el-table-column>
         <el-table-column :label="$t('apModule.invoice.unpaidAmount')" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unpaid_amount > 0 }">
+            <span :class="{ 'text-red': Number(row.unpaid_amount) > 0 }">
               {{ formatMoney(row.unpaid_amount) }}
             </span>
           </template>
@@ -426,8 +426,10 @@ const submitInvoice = async () => {
       supplier_id: invoiceForm.supplier_id,
       invoice_date: invoiceForm.invoice_date,
       due_date: invoiceForm.due_date || undefined,
-      amount: invoiceForm.invoice_amount,
-      tax_amount: invoiceForm.tax_amount,
+      // 后端 CreateApInvoiceRequest.amount/tax_amount 为 Option<rust_decimal>（serde-floats
+      // 未启用，JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
+      amount: invoiceForm.invoice_amount.toFixed(2),
+      tax_amount: invoiceForm.tax_amount.toFixed(2),
       notes: invoiceForm.remark || undefined,
     });
     ElMessage.success(t('common.success'));

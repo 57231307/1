@@ -469,7 +469,9 @@ const submitCreate = async () => {
         item_type: formData.item_type || undefined,
         plan_id: formData.plan_id,
         budget_year: formData.budget_year,
-        planned_amount: formData.planned_amount,
+        // 后端 CreateBudgetDto.planned_amount 为 rust_decimal（serde-floats 未启用，
+        // JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
+        planned_amount: formData.planned_amount.toFixed(2),
         remark: formData.remark || undefined,
       });
       ElMessage.success('预算创建成功');

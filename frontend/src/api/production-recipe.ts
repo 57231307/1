@@ -7,15 +7,45 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api';
  */
 export type ProductionRecipeStatus = 'draft' | 'approved' | 'closed' | 'cancelled';
 
+/**
+ * 大货处方物料明细项（出参形状）= 后端 models/production_recipe.rs::RecipeMaterialItem
+ * （handler list/get/calculate 均直出该 Serialize 结构）。concentration/amount 后端为
+ * Rust Decimal（Option<Decimal> / Decimal），序列化为 JSON 字符串，渲染处需显式转换；
+ * 提交方向（建单/更新 recipe_detail、试算 items）另用 RecipeMaterialItemInput，勿共用。
+ */
 export interface RecipeMaterialItem {
   material_code: string;
   material_name: string;
-  concentration: number | null;
+  /** 后端 Option<Decimal> ⇒ 出参 string | null */
+  concentration: string | null;
   unit: string;
-  amount: number | string;
+  /** 后端 Decimal ⇒ 出参 string */
+  amount: string;
   category: string;
 }
 
+/**
+ * 大货处方物料明细项（提交入参形状）：后端 RecipeMaterialItem 的 concentration 为
+ * Option<Decimal>、amount 为 Decimal——rust_decimal 反序列化同时接受 JSON number 与
+ * 字符串（rust_decimal-1.42.1/src/serde.rs visit_f64），表单数值直接按 number 提交合法。
+ * amount 后端无 serde(default)，键必须存在（缺键后端请求边界显式 422）。
+ */
+export interface RecipeMaterialItemInput {
+  material_code: string;
+  material_name: string;
+  concentration?: number | null;
+  unit: string;
+  amount: number;
+  category: string;
+}
+
+/**
+ * 大货处方出参 = 后端 models/production_recipe.rs::Model 直接序列化
+ * （handlers/production_recipe_handler.rs 各端点返回类型直书 production_recipe::Model）。
+ * fabric_width/gram_weight/fabric_weight/bath_volume/adjustment_factor/total_dye_cost/
+ * total_auxiliary_cost 均为 Rust Decimal（多数 Option），序列化为 JSON 字符串
+ * （liquor_ratio 后端本体是 String "1:N"），渲染/计算前需显式 Number() 转换。
+ */
 export interface ProductionRecipe {
   id: number;
   recipe_no: string;
@@ -27,16 +57,16 @@ export interface ProductionRecipe {
   color_no: string | null;
   fabric_name: string | null;
   fabric_spec: string | null;
-  fabric_width: string | number | null;
-  gram_weight: string | number | null;
-  fabric_weight: string | number;
+  fabric_width: string | null;
+  gram_weight: string | null;
+  fabric_weight: string;
   equipment_no: string | null;
   liquor_ratio: string;
-  bath_volume: string | number | null;
-  adjustment_factor: string | number | null;
+  bath_volume: string | null;
+  adjustment_factor: string | null;
   recipe_detail: RecipeMaterialItem[] | null;
-  total_dye_cost: string | number | null;
-  total_auxiliary_cost: string | number | null;
+  total_dye_cost: string | null;
+  total_auxiliary_cost: string | null;
   status: ProductionRecipeStatus;
   approved_by: number | null;
   remarks: string | null;
@@ -64,7 +94,7 @@ export interface CreateProductionRecipePayload {
   liquor_ratio: string;
   bath_volume?: number;
   adjustment_factor?: number;
-  recipe_detail?: RecipeMaterialItem[];
+  recipe_detail?: RecipeMaterialItemInput[];
   total_dye_cost?: number;
   total_auxiliary_cost?: number;
   remarks?: string;
@@ -80,7 +110,7 @@ export interface CalculateAmountsPayload {
   fabric_weight: number;
   liquor_ratio: string;
   adjustment_factor?: number;
-  items: RecipeMaterialItem[];
+  items: RecipeMaterialItemInput[];
 }
 
 /**
@@ -105,7 +135,7 @@ export interface UpdateProductionRecipePayload {
   liquor_ratio?: string;
   bath_volume?: number;
   adjustment_factor?: number;
-  recipe_detail?: RecipeMaterialItem[];
+  recipe_detail?: RecipeMaterialItemInput[];
   total_dye_cost?: number;
   total_auxiliary_cost?: number;
   remarks?: string;

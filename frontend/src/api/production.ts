@@ -3,6 +3,8 @@ import type { ApiResponse } from '@/types/api';
 
 // 生产订单出参：键 = handlers/production_order_handler.rs 的 ProductionOrderResponse 字段名
 // （snake_case，Option ⇒ | null，NOT NULL ⇒ 必选）。名称类列后端未透出，见下注释。
+// planned_quantity/actual_quantity 后端为 Rust Decimal（handler ProductionOrderResponse:138-139），
+// 序列化为 JSON 字符串，渲染处需显式 Number() 转换；提交方向走独立载荷类型（number 入参合法）。
 export interface ProductionOrder {
   id: number;
   order_no: string;
@@ -11,8 +13,8 @@ export interface ProductionOrder {
   // 名称列：ProductionOrderResponse（handlers/production_order_handler.rs:93）只有 product_id、
   // 无 product_name，需后端按 §5 范式 LEFT JOIN product.product_name 输出为 product_name。
   product_name: string | null;
-  planned_quantity: number;
-  actual_quantity?: number;
+  planned_quantity: string;
+  actual_quantity?: string | null;
   planned_start_date: string | null;
   planned_end_date: string | null;
   // 实际起止日期：production_order 表有列（models/production_order.rs），但 ProductionOrderResponse
@@ -78,9 +80,29 @@ export function getProductionOrder(id: number): Promise<ApiResponse<ProductionOr
   return request.get(`/production/production-orders/orders/${id}`);
 }
 
+/**
+ * 创建生产订单载荷 —— 与后端 CreateProductionOrderPayload（handlers/production_order_handler.rs:40，
+ * 字段集 sales_order_id/product_id/planned_quantity/planned_start_date/planned_end_date/priority/
+ * work_center_id/remarks）对齐，独立于出参类型 ProductionOrder 声明：出参 planned_quantity 是
+ * Decimal 序列化字符串、入参是 Decimal（rust_decimal 反序列化同时接受 JSON number，见
+ * rust_decimal-1.42.1/src/serde.rs visit_f64），两形状不可共用一个类型。
+ * 单号 order_no 由服务端取号，该端点不接收，禁止声明/提交；id/status 不在后端入参结构内，同理不带。
+ * 键全可选 = 保持既有提交行为：表单缺值时键被 JSON 剔除，由后端 serde 必填校验在请求边界显式 422。
+ */
+export interface CreateProductionOrderPayload {
+  sales_order_id?: number | null;
+  product_id?: number;
+  planned_quantity?: number;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
+  priority?: number;
+  work_center_id?: number | null;
+  remarks?: string | null;
+}
+
 // 创建生产订单
 export function createProductionOrder(
-  data: Partial<ProductionOrder>
+  data: CreateProductionOrderPayload
 ): Promise<ApiResponse<ProductionOrder>> {
   return request.post('/production/production-orders/orders', data);
 }

@@ -414,22 +414,25 @@ export interface CreateStockRequest {
   layer_no?: string;
 }
 
-/** 库存基础响应（对应后端 inventory_stock_handler_dto.rs::StockResponse） */
+/** 库存基础响应（对应后端 inventory_stock_handler_dto.rs::StockResponse）。
+ *  数量/阈值列后端为 Rust Decimal，序列化为 JSON 字符串，渲染处需显式 Number() 转换。 */
 export interface StockResponse {
   id: number;
   warehouse_id: number;
   product_id: number;
-  quantity_on_hand: number;
-  quantity_available: number;
-  quantity_reserved: number;
-  reorder_point: number;
-  max_stock_point: number;
+  quantity_on_hand: string;
+  quantity_available: string;
+  quantity_reserved: string;
+  reorder_point: string;
+  max_stock_point: string;
   bin_location?: string;
   created_at: string;
   updated_at: string;
 }
 
-/** 面料库存响应（对应后端 inventory_stock_handler_dto.rs::StockFabricResponse） */
+/** 面料库存响应（对应后端 inventory_stock_handler_dto.rs::StockFabricResponse）。
+ *  数量列后端为 Rust Decimal、gram_weight/width 为 Option<Decimal>，序列化分别为
+ *  JSON 字符串与 string|null，渲染处需显式 Number() 转换。 */
 export interface StockFabricResponse {
   id: number;
   warehouse_id: number;
@@ -438,19 +441,20 @@ export interface StockFabricResponse {
   color_no: string;
   dye_lot_no?: string;
   grade: string;
-  quantity_on_hand: number;
-  quantity_available: number;
-  quantity_reserved: number;
-  quantity_meters: number;
-  quantity_kg: number;
-  gram_weight?: number;
-  width?: number;
+  quantity_on_hand: string;
+  quantity_available: string;
+  quantity_reserved: string;
+  quantity_meters: string;
+  quantity_kg: string;
+  gram_weight?: string | null;
+  width?: string | null;
   bin_location?: string;
   created_at: string;
   updated_at: string;
 }
 
-/** 库存事务响应（对应后端 inventory_stock_handler_dto.rs::TransactionResponse） */
+/** 库存事务响应（对应后端 inventory_stock_handler_dto.rs::TransactionResponse）。
+ *  六个数量列后端均为 Rust Decimal，序列化为 JSON 字符串，渲染处需显式 Number() 转换。 */
 export interface TransactionResponse {
   id: number;
   transaction_type: string;
@@ -458,12 +462,12 @@ export interface TransactionResponse {
   warehouse_id: number;
   batch_no: string;
   color_no: string;
-  quantity_meters: number;
-  quantity_kg: number;
-  quantity_before_meters: number;
-  quantity_before_kg: number;
-  quantity_after_meters: number;
-  quantity_after_kg: number;
+  quantity_meters: string;
+  quantity_kg: string;
+  quantity_before_meters: string;
+  quantity_before_kg: string;
+  quantity_after_meters: string;
+  quantity_after_kg: string;
   source_bill_type?: string;
   source_bill_no?: string;
   remarks?: string;

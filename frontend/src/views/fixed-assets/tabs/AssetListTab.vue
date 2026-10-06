@@ -413,7 +413,9 @@ const disposalDialogVisible = ref(false);
 const disposalSubmitting = ref(false);
 const disposalFormRef = ref<FormInstance>();
 const disposalTargetId = ref<number | undefined>(undefined);
-const disposalForm = reactive<DisposalRequest>({
+// 视图态金额保持 number（el-input-number 绑定），线格式在提交处按后端
+// rust_decimal 口径转两位小数十进制字符串（DisposalRequest.disposal_value）。
+const disposalForm = reactive({
   disposal_type: 'SALE',
   disposal_value: 0,
   disposal_date: new Date().toISOString().split('T')[0],
@@ -649,7 +651,9 @@ const handleSubmit = async () => {
           asset_name: form.asset_name,
           asset_category: form.asset_category || undefined,
           location: form.location || undefined,
-          original_value: form.original_value,
+          // 后端 CreateAssetRequestDto.original_value 为 rust_decimal（serde-floats 未启用，
+          // JSON 浮点字面量反序列化即拒）：视图态 number 经必填校验后转两位小数十进制字符串下发
+          original_value: form.original_value.toFixed(2),
           useful_life: Math.round(form.useful_life_months / 12),
           depreciation_method: form.depreciation_method,
           purchase_date: form.purchase_date,
@@ -734,7 +738,13 @@ const submitDisposal = async () => {
     if (!valid) return;
     disposalSubmitting.value = true;
     try {
-      await disposeAsset(assetId, { ...disposalForm });
+      // 后端 DisposalRequestDto.disposal_value 为 rust_decimal（serde-floats 未启用，
+      // JSON 浮点字面量反序列化即拒）：视图态 number 在提交边界转两位小数十进制字符串下发
+      const payload: DisposalRequest = {
+        ...disposalForm,
+        disposal_value: disposalForm.disposal_value.toFixed(2),
+      };
+      await disposeAsset(assetId, payload);
       ElMessage.success(t('fixedAssets.message.disposeSuccess'));
       disposalDialogVisible.value = false;
       fetchAssets();

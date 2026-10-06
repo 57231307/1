@@ -301,7 +301,9 @@ const loadUnverifiedForSupplier = async (supplierId: number) => {
     ]);
     // 两端均返回裸数组（handlers/ap_verification_handler.rs:208/236 serde_json::to_value(Vec<...>)），
     // 无需多形状探测。
-    unverifiedInvoices.value = invRes.data.filter(i => i.unpaid_amount > 0);
+    // unpaid_amount 为 rust_decimal 出参十进制字符串，显式 Number 归一后再比较
+    // （字符串与数字的 `>` 关系运算是隐式 coercion，契约要求逐点显式化）
+    unverifiedInvoices.value = invRes.data.filter(i => Number(i.unpaid_amount) > 0);
     unverifiedPayments.value = payRes.data;
   } catch (e) {
     unverifiedInvoices.value = [];
@@ -345,7 +347,9 @@ const submitVerification = async () => {
         {
           invoice_id: verificationForm.invoice_id as number,
           payment_id: verificationForm.payment_id as number,
-          verify_amount: verificationForm.amount,
+          // 后端 ApVerificationItemDto.verify_amount 为 rust_decimal（serde-floats 未启用，
+          // JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
+          verify_amount: verificationForm.amount.toFixed(2),
         },
       ],
     });

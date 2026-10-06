@@ -497,7 +497,7 @@ const handleCalculate = async () => {
       fabric_weight: calcForm.fabric_weight,
       liquor_ratio: calcForm.liquor_ratio,
       adjustment_factor: calcForm.adjustment_factor || undefined,
-      items: items as import('@/api/production-recipe').RecipeMaterialItem[],
+      items: items as import('@/api/production-recipe').RecipeMaterialItemInput[],
     });
     const d = res.data as unknown;
     calcResult.value = Array.isArray(d)

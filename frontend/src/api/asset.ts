@@ -1,6 +1,12 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+// GET /fixed-assets 直接序列化 SeaORM 实体 models/fixed_asset.rs::Model
+// （handlers/fixed_asset_handler.rs::list_assets 返回 Vec<fixed_asset::Model>，无 DTO 改名）。
+// ⚠️ 本接口的 asset_code/purchase_amount/useful_life_months/department_id/department_name/
+// category/location/custodian 等键在后端实体中不存在（真实键为 asset_no/original_value/
+// useful_life/use_department_id/use_location/asset_category 等），键名错位属独立契约漂移，
+// 交付报告已立案交主编排处理；本批只按实体真实列修值类型形态。
 export interface FixedAsset {
   id: number;
   asset_code: string;
@@ -10,11 +16,14 @@ export interface FixedAsset {
   department_name?: string;
   purchase_date: string;
   purchase_amount: number;
-  salvage_value: number;
+  /** 残值：后端 models/fixed_asset.rs:23 salvage_value 为 Option<rust_decimal>，出参十进制字符串或 null */
+  salvage_value: string | null;
   useful_life_months: number;
   depreciation_method: string;
-  accumulated_depreciation: number;
-  net_value: number;
+  /** 累计折旧：后端 models/fixed_asset.rs:29 accumulated_depreciation 为 rust_decimal NOT NULL，出参十进制字符串 */
+  accumulated_depreciation: string;
+  /** 净值：后端 models/fixed_asset.rs:30 net_value 为 Option<rust_decimal>，出参十进制字符串或 null */
+  net_value: string | null;
   status: string;
   location?: string;
   custodian?: string;
@@ -31,7 +40,14 @@ export interface FixedAssetCreateRequest {
   asset_category?: string;
   specification?: string;
   location?: string;
-  original_value: number;
+  /**
+   * 后端 CreateAssetRequestDto.original_value 为 Option<rust_decimal>
+   * （handlers/fixed_asset_handler.rs:60）；rust_decimal 未启 serde-floats
+   * （backend/Cargo.toml:60），JSON 浮点字面量在反序列化层即被拒绝，
+   * 金额以两位小数十进制字符串下发。
+   */
+  original_value: string;
+  /** 后端 useful_life 为 Option<i32>（handlers/fixed_asset_handler.rs:61，单位为年），JSON number */
   useful_life: number;
   depreciation_method: string;
   purchase_date: string;
@@ -92,7 +108,12 @@ export function depreciateAsset(id: number, period: string): Promise<ApiResponse
 // v3 复审 P1-2：新增资产处置能力，支持出售/报废/转移
 export interface DisposalRequest {
   disposal_type: string;
-  disposal_value: number;
+  /**
+   * 后端 DisposalRequestDto.disposal_value 为 rust_decimal 非 Option
+   * （handlers/fixed_asset_handler.rs:81）；serde-floats 未启用（backend/Cargo.toml:60），
+   * 浮点字面量反序列化即拒，处置金额以两位小数十进制字符串下发。
+   */
+  disposal_value: string;
   disposal_date: string;
   reason: string;
   buyer_info?: string;

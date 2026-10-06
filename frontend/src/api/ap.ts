@@ -13,13 +13,17 @@ export interface APInvoice {
   invoice_type: string;
   invoice_date: string;
   due_date: string;
-  /** 发票金额（实体列 amount） */
-  amount: number;
-  /** 已付金额 */
-  paid_amount: number;
-  /** 未付金额 */
-  unpaid_amount: number;
-  tax_amount: number;
+  /**
+   * 发票金额：后端 models/ap_invoice.rs:58 列 amount 为 rust_decimal，serde（未启 serde-floats）
+   * 序列化为十进制字符串；number 声明会在 .toFixed/算术处运行期崩或算错。
+   */
+  amount: string;
+  /** 已付金额：后端 models/ap_invoice.rs:62 Decimal，出参十进制字符串 */
+  paid_amount: string;
+  /** 未付金额：后端 models/ap_invoice.rs:66 Decimal，出参十进制字符串；消费方需 Number 显式归一再比较/格式化 */
+  unpaid_amount: string;
+  /** 税额：后端 models/ap_invoice.rs:85 Decimal，出参十进制字符串 */
+  tax_amount: string;
   currency: string;
   /** 词表来源 models/ap_invoice.rs:68 与 ap_invoice_ops/crud.rs 的 common::STATUS_* */
   invoice_status: APInvoiceStatus;
@@ -114,7 +118,8 @@ export interface APVerification {
   supplier_id: number;
   verification_type?: string;
   verification_date: string;
-  total_amount: number;
+  /** 核销总额：后端 models/ap_verification.rs:38 total_amount 为 rust_decimal，出参十进制字符串 */
+  total_amount: string;
   verification_status: APVerificationStatus;
   notes?: string;
   created_at: string;
@@ -181,15 +186,22 @@ export interface CreateAPInvoiceRequest {
   /** NaiveDate: YYYY-MM-DD */
   due_date?: string;
   payment_terms?: number;
-  amount?: number;
+  /**
+   * 后端 CreateApInvoiceRequest.amount 为 Option<rust_decimal>
+   * （services/ap_invoice_ops/types.rs:46）；rust_decimal 未启 serde-floats
+   * （backend/Cargo.toml:60），JSON 浮点字面量在反序列化层即被拒绝，
+   * 请求侧与响应侧统一以十进制字符串承载（先例见本文件 exchange_rate）。
+   */
+  amount?: string;
   currency?: string;
   /**
    * 后端 CreateApInvoiceRequest.exchange_rate 为 Option<rust_decimal>
-   * （services/ap_invoice_ops/types.rs），本仓请求侧小数键口径=十进制字符串下发
+   * （services/ap_invoice_ops/types.rs:54），本仓请求侧小数键口径=十进制字符串下发
    * （先例见 apply_amount 注释，后端 Deserialize 同时接受字符串）。
    */
   exchange_rate?: string;
-  tax_amount?: number;
+  /** 后端 CreateApInvoiceRequest.tax_amount 为 Option<rust_decimal>（services/ap_invoice_ops/types.rs:60），十进制字符串下发 */
+  tax_amount?: string;
   notes?: string;
   attachment_urls?: string[];
 }
@@ -447,7 +459,8 @@ export function autoVerifyAP(data: { supplier_id: number }): Promise<ApiResponse
 export interface ApVerificationItemInput {
   invoice_id: number;
   payment_id: number;
-  verify_amount: number;
+  /** 后端 ApVerificationItemDto.verify_amount 为 rust_decimal（services/ap_verification_service.rs:741），十进制字符串下发 */
+  verify_amount: string;
   notes?: string;
 }
 
@@ -532,19 +545,25 @@ export function autoReconcileAllAP(data: {
   return request.post('/ap/reconciliations/auto', data);
 }
 
-// 供应商应付汇总（后端返回按供应商分组的数组，元素对齐 SupplierApSummary）
+// 供应商应付汇总（后端返回按供应商分组的数组，元素对齐 SupplierApSummary：
+// services/ap_reconciliation_ops/types.rs:34 —— 计数列 i64 出参 JSON number，
+// 金额列 rust_decimal 出参十进制字符串）
 export interface APSupplierSummary {
   supplier_id: number;
   supplier_code: string;
   supplier_name: string;
   total_invoice_count: number;
-  total_invoice_amount: number;
-  total_paid_amount: number;
-  total_unpaid_amount: number;
+  /** 后端 SupplierApSummary.total_invoice_amount 为 Decimal（types.rs:48），十进制字符串 */
+  total_invoice_amount: string;
+  /** 后端 total_paid_amount 为 Decimal（types.rs:51），十进制字符串 */
+  total_paid_amount: string;
+  /** 后端 total_unpaid_amount 为 Decimal（types.rs:54），十进制字符串 */
+  total_unpaid_amount: string;
   paid_invoice_count: number;
   partial_paid_invoice_count: number;
   overdue_invoice_count: number;
-  overdue_amount: number;
+  /** 后端 overdue_amount 为 Decimal（types.rs:66），十进制字符串 */
+  overdue_amount: string;
 }
 
 export function getAPSupplierSummary(
@@ -553,7 +572,8 @@ export function getAPSupplierSummary(
   return request.get(`/ap/reconciliations/summary`, { params: { supplier_id: supplierId } });
 }
 
-// 发票关联数据（后端返回关联记录数组，元素对齐 InvoiceRelationInfo）
+// 发票关联数据（后端返回关联记录数组，元素对齐 InvoiceRelationInfo：
+// services/ap_reconciliation_ops/types.rs:90，amount 列为 Decimal 出参十进制字符串）
 export interface APInvoiceRelation {
   invoice_id: number;
   invoice_no: string;
@@ -561,7 +581,8 @@ export interface APInvoiceRelation {
   source_id: number;
   source_no: string | null;
   supplier_id: number;
-  amount: number;
+  /** 后端 InvoiceRelationInfo.amount 为 Decimal（types.rs:97），十进制字符串 */
+  amount: string;
   status: string;
 }
 
