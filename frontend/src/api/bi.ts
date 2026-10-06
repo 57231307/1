@@ -1,8 +1,6 @@
 // P3-4 BI 多维分析 API 客户端（16 端点）
 // 8 维度聚合 + 4 钻取 + 4 切片/上卷
 // 创建时间: 2026-06-17
-//
-// 批次 86 v2 复审 P2-14 修复：5 处 BiResponseData<any> → 显式接口 / unknown
 
 import { request } from './request';
 
@@ -10,15 +8,45 @@ import { request } from './request';
 // 公共类型
 // =====================================================
 
-/** 钻取：订单明细行（钻取端点返回） */
-export interface DrilldownOrderItem {
+/**
+ * 钻取：客户 → 订单的订单行。
+ * 键集与类型对齐后端 backend/src/services/bi_analysis_ops/drilldown.rs 的 json! 构造点：
+ * order_id 为整数、amount 经 dec_to_f64 出 JSON number（非 rust_decimal 字符串）、
+ * date 为 YYYY-MM-DD 字符串（无值时为空串）。
+ */
+export interface DrilldownCustomerOrderItem {
   order_id: number;
-  order_no: string;
-  order_date: string;
-  total_amount: number;
+  amount: number;
+  date: string;
+}
+
+/**
+ * 钻取：产品 → 订单的订单行。
+ * 键集与类型对齐后端 backend/src/services/bi_analysis_ops/drilldown.rs 的 json! 构造点：
+ * quantity 与 amount 均经 dec_to_f64 出 JSON number；此端点不输出日期键。
+ */
+export interface DrilldownProductOrderItem {
+  order_id: number;
   quantity: number;
-  status: string;
-  [key: string]: unknown;
+  amount: number;
+}
+
+/**
+ * 钻取：客户 → 订单的内层载荷。
+ * 后端出参是对象（含 customer_id 与 orders 数组），不是裸数组，消费方必须读 .orders。
+ */
+export interface CustomerOrderDrilldown {
+  customer_id: number;
+  orders: DrilldownCustomerOrderItem[];
+}
+
+/**
+ * 钻取：产品 → 订单的内层载荷。
+ * 后端出参是对象（含 product_id 与 orders 数组），不是裸数组，消费方必须读 .orders。
+ */
+export interface ProductOrderDrilldown {
+  product_id: number;
+  orders: DrilldownProductOrderItem[];
 }
 
 /** 切片/切块结果（通用聚合返回，由后端按维度动态返回） */
@@ -208,16 +236,16 @@ export function getDrilldownMonthToDay(year: number, month: number) {
   });
 }
 
-/** 钻取：客户 → 订单 */
+/** 钻取：客户 → 订单（内层载荷为对象，消费方读 .orders） */
 export function getDrilldownCustomerToOrder(customerId: number) {
-  return request.get<BiEnvelope<DrilldownOrderItem[]>>(
+  return request.get<BiEnvelope<CustomerOrderDrilldown>>(
     `/bi/sales/drilldown/customer-to-order/${customerId}`
   );
 }
 
-/** 钻取：产品 → 订单 */
+/** 钻取：产品 → 订单（内层载荷为对象，消费方读 .orders） */
 export function getDrilldownProductToOrder(productId: number) {
-  return request.get<BiEnvelope<DrilldownOrderItem[]>>(
+  return request.get<BiEnvelope<ProductOrderDrilldown>>(
     `/bi/sales/drilldown/product-to-order/${productId}`
   );
 }
