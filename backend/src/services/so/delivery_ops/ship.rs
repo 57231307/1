@@ -727,7 +727,7 @@ impl SalesService {
             voucher_date: chrono::Utc::now().date_naive(),
             source_type: Some("SALES_DELIVERY".to_string()),
             source_module: Some("sales".to_string()),
-            source_bill_id: Some(delivery.id),
+            source_bill_id: Some(i64::from(delivery.id)),
             source_bill_no: Some(delivery.delivery_no.clone()),
             batch_no: None,
             color_no: None,

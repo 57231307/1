@@ -437,7 +437,7 @@ impl ApPaymentService {
             voucher_date: payment.payment_date,
             source_type: Some("AP_PAYMENT".to_string()),
             source_module: Some("ap".to_string()),
-            source_bill_id: Some(payment.id),
+            source_bill_id: Some(i64::from(payment.id)),
             source_bill_no: Some(payment_no.clone()),
             batch_no: None,
             color_no: None,

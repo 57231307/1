@@ -348,7 +348,7 @@ impl EnergyAllocationRecordService {
             voucher_date,
             source_type: Some("energy".to_string()),
             source_module: Some("energy_allocation_record".to_string()),
-            source_bill_id: Some(model.id),
+            source_bill_id: Some(i64::from(model.id)),
             source_bill_no: Some(model.allocation_no.clone()),
             batch_no: None,
             color_no: None,

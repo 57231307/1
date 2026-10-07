@@ -803,7 +803,7 @@ impl ArService {
             voucher_date: updated.collection_date,
             source_type: Some("AR_COLLECTION".to_string()),
             source_module: Some("ar".to_string()),
-            source_bill_id: Some(updated.id),
+            source_bill_id: Some(i64::from(updated.id)),
             source_bill_no: Some(updated.collection_no.clone()),
             batch_no: None,
             color_no: None,

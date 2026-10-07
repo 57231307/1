@@ -46,7 +46,8 @@ pub struct CreateVoucherRequestDto {
     pub voucher_date: String,
     pub source_type: Option<String>,
     pub source_module: Option<String>,
-    pub source_bill_id: Option<i32>,
+    /// 来源单据 ID：与 vouchers.source_bill_id(BIGINT) 同宽度，前端上送数值 ID
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,

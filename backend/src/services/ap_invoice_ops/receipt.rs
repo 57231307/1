@@ -328,7 +328,7 @@ impl ApInvoiceService {
             voucher_date: ctx.invoice_date,
             source_type: Some(AP_SOURCE_TYPE_PURCHASE_RECEIPT.to_string()),
             source_module: Some("purchase".to_string()),
-            source_bill_id: Some(ctx.invoice_id),
+            source_bill_id: Some(i64::from(ctx.invoice_id)),
             source_bill_no: Some(ctx.invoice_no.clone()),
             batch_no: None,
             color_no: None,

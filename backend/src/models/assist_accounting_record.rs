@@ -21,8 +21,8 @@ pub struct Model {
     /// 业务单号
     pub business_no: String,
 
-    /// 业务单 ID
-    pub business_id: i32,
+    /// 业务单 ID：凭证过账时取自 vouchers.source_bill_id，同源同值同宽度（BIGINT）
+    pub business_id: i64,
 
     /// 会计科目 ID
     pub account_subject_id: i32,

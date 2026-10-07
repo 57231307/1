@@ -282,20 +282,9 @@ impl PeriodAdjustmentService {
         let voucher_service =
             crate::services::voucher_service::VoucherService::new(self.db.clone());
         let voucher_date = chrono::Utc::now().date_naive();
-        // 期末调整记录主键为 BIGINT，而 vouchers.source_bill_id 为 INTEGER（DDL 类型不一致，待 DDL 对齐）。
-        // 不截断塞入 INTEGER：做无损窄化检查，超出范围则显式记录并降级为仅靠 source_bill_no 字符串关联，
-        // 数值关联缺失不静默吞掉。
-        let source_bill_id = match i32::try_from(model.id) {
-            Ok(v) => Some(v),
-            Err(_) => {
-                tracing::error!(
-                    adjustment_id = model.id,
-                    adjustment_no = %model.adjustment_no,
-                    "期末调整 ID 超出凭证 source_bill_id(INTEGER) 可表示范围，凭证数值关联降级为仅保留单号（FK 类型不一致待 DDL 对齐）"
-                );
-                None
-            }
-        };
+        // 期末调整记录主键为 BIGINT，凭证来源单据列同为 BIGINT：数值关联直接下传，
+        // 不再做窄化检查，也不存在"溢出即丢数值关联"的降级分支。
+        let source_bill_id = Some(model.id);
         let req = CreateVoucherRequest {
             voucher_type: "transfer".to_string(),
             voucher_date,

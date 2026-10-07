@@ -30,7 +30,8 @@ pub struct AssistRecordResponse {
     pub id: i32,
     pub business_type: String,
     pub business_no: String,
-    pub business_id: i32,
+    /// 业务单据 ID：随 assist_accounting_record.business_id 宽度为 64 位
+    pub business_id: i64,
     pub account_subject_id: i32,
     pub debit_amount: Decimal,
     pub credit_amount: Decimal,

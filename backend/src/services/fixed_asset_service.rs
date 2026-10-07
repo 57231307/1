@@ -646,7 +646,7 @@ impl FixedAssetService {
             voucher_date: Set(disposal.disposal_date),
             source_type: Set(Some("fixed_asset_disposal".to_string())),
             source_module: Set(Some("fixed_asset".to_string())),
-            source_bill_id: Set(Some(disposal.id)),
+            source_bill_id: Set(Some(i64::from(disposal.id))),
             source_bill_no: Set(Some(disposal.disposal_no.clone())),
             status: Set("DRAFT".to_string()),
             attachment_count: Set(0),
