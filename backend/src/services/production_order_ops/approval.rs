@@ -70,7 +70,7 @@ impl ProductionOrderService {
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "production_order_approval".to_string(),
             business_type: "production_order".to_string(),
-            business_id: id,
+            business_id: i64::from(id),
             title: format!("生产订单审批 - {}", updated.order_no),
             initiator_id: user_id,
             initiator_name: user_name.to_string(),
@@ -183,7 +183,7 @@ impl ProductionOrderService {
             REJECT_ACTION.to_string()
         };
         let instance = match bpm_service
-            .get_process_by_business("production_order", id)
+            .get_process_by_business("production_order", i64::from(id))
             .await
         {
             Ok(Some(instance)) => instance,

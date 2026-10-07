@@ -193,7 +193,7 @@ impl QuotationApprovalService {
         let req = StartProcessRequest {
             process_key: "quotation_approval".to_string(),
             business_type: "quotation".to_string(),
-            business_id: quotation.id as i32,
+            business_id: quotation.id,
             title: format!("报价单审批 - {}", quotation.quotation_no),
             initiator_id: user_id,
             initiator_name: format!("user_{}", user_id),
@@ -312,7 +312,7 @@ impl QuotationApprovalService {
     ) {
         let bpm_service = BpmService::new(self.db.clone());
         let instance = match bpm_service
-            .get_process_by_business("quotation", quotation_id as i32)
+            .get_process_by_business("quotation", quotation_id)
             .await
         {
             Ok(Some(instance)) => instance,
@@ -512,7 +512,7 @@ impl QuotationApprovalService {
         }
         let bpm_service = BpmService::new(self.db.clone());
         let instance = match bpm_service
-            .get_process_by_business("quotation", updated.id as i32)
+            .get_process_by_business("quotation", updated.id)
             .await
         {
             Ok(Some(instance)) => instance,

@@ -60,7 +60,7 @@ pub struct CreatePeriodAdjustmentRequest {
     pub credit_subject_name: String,
     pub amount: Decimal,
     pub source_type: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub remarks: Option<String>,
 }

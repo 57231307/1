@@ -121,7 +121,7 @@ impl PurchaseOrderService {
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "purchase_order_approval".to_string(),
             business_type: "purchase_order".to_string(),
-            business_id: order_id,
+            business_id: i64::from(order_id),
             title: format!("采购订单审批 - {}", order_no),
             initiator_id: user_id,
             initiator_name: String::new(),

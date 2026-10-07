@@ -38,8 +38,8 @@ pub struct Model {
     pub source_bill_type: Option<String>,
     /// 来源单据号
     pub source_bill_no: Option<String>,
-    /// 来源单据 ID
-    pub source_bill_id: Option<i32>,
+    /// 来源单据 ID（多态松散引用，容纳 BIGSERIAL 主键的被引用单据）
+    pub source_bill_id: Option<i64>,
 
     /// 变化前数量（米）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]

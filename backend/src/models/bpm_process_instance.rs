@@ -18,7 +18,7 @@ pub struct Model {
 
     pub business_type: String,
 
-    pub business_id: i32,
+    pub business_id: Option<i64>,
 
     // DB 列 applicant_id INTEGER NOT NULL（m0001 初始 schema），
     // model 此前缺失该字段导致 INSERT 不含它 → null violation 500

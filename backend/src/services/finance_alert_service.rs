@@ -298,7 +298,7 @@ impl FinanceAlertService {
             content: model.content.clone(),
             priority: alert_level_to_priority(&model.alert_level),
             business_type: Some("finance_alert".to_string()),
-            business_id: Some(model.id as i32),
+            business_id: Some(model.id),
             action_url: Some(format!("/finance/alerts/{}", model.id)),
             sender_id: None,
             sender_name: Some("系统财务预警".to_string()),

@@ -964,7 +964,8 @@ impl SalesReturnService {
             quantity_kg: item.quantity_alt,
             source_bill_type: Some("SALES_RETURN".to_string()),
             source_bill_no: Some(return_order.return_no.clone()),
-            source_bill_id: Some(return_order.id),
+            // 来源主键 sales_return.id 为 i32，流水 source_bill_id 已拓宽为 i64，无损加宽
+            source_bill_id: Some(i64::from(return_order.id)),
             quantity_before_meters: None,
             quantity_before_kg: None,
             quantity_after_meters: None,
@@ -1043,7 +1044,8 @@ impl SalesReturnService {
             customer_id: Some(return_order.customer_id),
             customer_name: None,
             source_type: Some("SALES_RETURN".to_string()),
-            source_bill_id: Some(return_order.id),
+            // 来源主键 sales_return.id 为 i32，红字应收 source_bill_id 已拓宽为 i64，无损加宽
+            source_bill_id: Some(i64::from(return_order.id)),
             source_bill_no: Some(return_order.return_no.clone()),
             invoice_amount: Some(-return_order.total_amount), // 红字应收单
             batch_no: None,

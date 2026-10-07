@@ -327,7 +327,7 @@ pub async fn submit_request(
                 ),
                 priority: NotificationPriority::High,
                 business_type: Some("FINANCE".to_string()),
-                business_id: Some(request.id),
+                business_id: Some(i64::from(request.id)),
                 action_url: Some(format!("/finance/payment-request/{}", request.id)),
             };
             if let Err(e) = event_service.notify_multiple_users(payload).await {

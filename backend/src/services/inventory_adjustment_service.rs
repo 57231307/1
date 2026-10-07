@@ -402,7 +402,7 @@ impl InventoryAdjustmentService {
             quantity_kg: Decimal::ZERO,
             source_bill_type: Some("inventory_adjustment".to_string()),
             source_bill_no: Some(adjustment_no.to_string()),
-            source_bill_id: Some(adjustment_id),
+            source_bill_id: Some(i64::from(adjustment_id)),
             batch_no: stock_model.batch_no.clone(),
             color_no: stock_model.color_no.clone(),
             created_by: Some(approved_by),

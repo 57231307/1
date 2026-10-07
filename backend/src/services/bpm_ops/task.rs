@@ -234,10 +234,9 @@ impl BpmService {
         )
         .await?;
 
-        if let (Some(b_type), Some(b_id)) = (
-            Some(instance.business_type.clone()),
-            Some(instance.business_id),
-        ) {
+        if let (Some(b_type), Some(b_id)) =
+            (Some(instance.business_type.clone()), instance.business_id)
+        {
             // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
             // P2 5-18 修复：携带 approver_id（拒绝操作的实际审批人）
             *pending_event = Some(
@@ -386,10 +385,9 @@ impl BpmService {
         )
         .await?;
 
-        if let (Some(b_type), Some(b_id)) = (
-            Some(instance.business_type.clone()),
-            Some(instance.business_id),
-        ) {
+        if let (Some(b_type), Some(b_id)) =
+            (Some(instance.business_type.clone()), instance.business_id)
+        {
             // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
             // P2 5-18 修复：携带 approver_id（最后节点审批通过的实际审批人）
             *pending_event = Some(
@@ -497,7 +495,7 @@ impl BpmService {
                         ),
                         priority: crate::models::notification::NotificationPriority::High,
                         business_type: Some("BPM".to_string()),
-                        business_id: Some(task.instance_id),
+                        business_id: Some(i64::from(task.instance_id)),
                         action_url: Some(format!("/bpm/tasks/{}", task_id)),
                         sender_id: None,
                         sender_name: Some("系统".to_string()),

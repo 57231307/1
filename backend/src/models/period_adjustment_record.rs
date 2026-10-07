@@ -44,8 +44,8 @@ pub struct Model {
 
     /// 来源类型（如 purchase_receipt / prepaid_expense / accrued_expense）
     pub source_type: Option<String>,
-    /// 来源单据 ID
-    pub source_bill_id: Option<i32>,
+    /// 来源单据 ID（多态松散引用，容纳 BIGSERIAL 主键的被引用单据）
+    pub source_bill_id: Option<i64>,
     /// 来源单据编号（冗余）
     pub source_bill_no: Option<String>,
 

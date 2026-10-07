@@ -49,7 +49,7 @@ pub struct CreateArInvoiceRequestDto {
     pub customer_id: Option<i32>,
     pub customer_name: Option<String>,
     pub source_type: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub invoice_amount: Option<Decimal>,
     pub batch_no: Option<String>,

@@ -592,7 +592,7 @@ impl PurchaseReturnService {
                 quantity_kg: -item.quantity_alt,
                 source_bill_type: Some("purchase_return".to_string()),
                 source_bill_no: Some(ctx.return_no.to_string()),
-                source_bill_id: Some(ctx.return_id),
+                source_bill_id: Some(i64::from(ctx.return_id)),
                 quantity_before_meters: Some(stock.quantity_meters),
                 quantity_before_kg: Some(stock.quantity_kg),
                 quantity_after_meters: Some(new_quantity_meters),

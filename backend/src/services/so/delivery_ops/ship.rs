@@ -463,7 +463,8 @@ impl SalesService {
             quantity_kg,
             source_bill_type: Some("sales_order".to_string()),
             source_bill_no: Some(ctx.order.order_no.clone()),
-            source_bill_id: Some(request.order_id),
+            // 来源主键 sales_order.id 为 i32，流水 source_bill_id 已拓宽为 i64，无损加宽
+            source_bill_id: Some(i64::from(request.order_id)),
             quantity_before_meters: Some(reduction.quantity_before),
             quantity_before_kg: None,
             quantity_after_meters: Some(reduction.quantity_after),

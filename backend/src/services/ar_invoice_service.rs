@@ -36,7 +36,7 @@ pub struct CreateArInvoiceRequest {
     pub customer_id: Option<i32>,
     pub customer_name: Option<String>,
     pub source_type: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub invoice_amount: Option<Decimal>,
     pub batch_no: Option<String>,
@@ -171,7 +171,9 @@ impl ArInvoiceService {
         let customer_id = req
             .customer_id
             .ok_or_else(|| AppError::validation_displayable("客户ID不能为空"))?;
-        let source_bill_id = req.source_bill_id.unwrap_or(0);
+        let source_bill_id = req
+            .source_bill_id
+            .ok_or_else(|| AppError::validation_displayable("来源单据ID不能为空"))?;
 
         let invoice_amount = req
             .invoice_amount

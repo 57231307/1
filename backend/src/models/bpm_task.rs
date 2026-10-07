@@ -30,6 +30,11 @@ pub struct Model {
 
     pub priority: Option<String>,
 
+    /// 业务类型（按类型判别被引用表，多态松散引用）
+    pub business_type: Option<String>,
+    /// 业务单据 ID（与 bpm_process_instance.business_id 同源同值）
+    pub business_id: Option<i64>,
+
     // ===== 以下四列生效 DDL 为 JSONB（migration system/mod.rs:96-100）=====
     // 无 column_type 属性时 SeaORM 按 Vec<T> 推断为 PG 数组类型，读 JSONB 列即
     // ColumnDecode、写整链带病；范本见 models/lab_dip_sample.rs formula_detail。

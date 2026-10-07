@@ -431,7 +431,7 @@ impl PurchaseReceiptService {
                 quantity_kg: item.quantity_alt.unwrap_or(Decimal::ZERO),
                 source_bill_type: Some("PURCHASE_RECEIPT".to_string()),
                 source_bill_no: Some(receipt.receipt_no.clone()),
-                source_bill_id: Some(receipt.id),
+                source_bill_id: Some(i64::from(receipt.id)),
                 quantity_before_meters: Some(stock_model.quantity_meters),
                 quantity_before_kg: Some(stock_model.quantity_kg),
                 quantity_after_meters: Some(stock_model.quantity_meters + item.quantity),

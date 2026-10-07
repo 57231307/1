@@ -236,7 +236,8 @@ impl SalesService {
             .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
                 process_key: "sales_order_approval".to_string(),
                 business_type: "sales_order".to_string(),
-                business_id: order_id,
+                // 来源主键 sales_order.id 为 i32，bpm business_id 已拓宽为 i64，无损加宽
+                business_id: i64::from(order_id),
                 title: format!("销售订单审批 - {}", order_no),
                 initiator_id: user_id,
                 initiator_name: String::new(),

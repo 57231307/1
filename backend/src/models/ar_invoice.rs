@@ -24,7 +24,7 @@ pub struct Model {
     // 来源单据
     pub source_type: Option<String>,
     pub source_module: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
 
     // 面料行业字段

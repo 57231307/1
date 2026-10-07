@@ -44,7 +44,7 @@ pub struct CreateNotificationRequest {
     pub content: String,
     pub priority: NotificationPriority,
     pub business_type: Option<String>,
-    pub business_id: Option<i32>,
+    pub business_id: Option<i64>,
     pub action_url: Option<String>,
     pub sender_id: Option<i32>,
     pub sender_name: Option<String>,

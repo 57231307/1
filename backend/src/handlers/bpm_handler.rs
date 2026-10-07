@@ -68,7 +68,7 @@ pub async fn query_tasks(
 #[derive(Debug, Deserialize)]
 pub struct BusinessRelationQuery {
     pub business_type: String,
-    pub business_id: i32,
+    pub business_id: i64,
 }
 
 /// Get BPM business relation
