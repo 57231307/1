@@ -28,7 +28,7 @@ use crate::utils::response::ApiResponse;
 #[allow(dead_code, reason = "序列化输出字段")]
 #[derive(Debug, Serialize, Clone)]
 pub struct PeriodAdjustmentInfo {
-    pub id: i32,
+    pub id: i64,
     pub adjustment_no: String,
     pub adjustment_type: String,
     pub period: String,
@@ -101,7 +101,7 @@ pub async fn create_adjustment(
 pub async fn confirm_adjustment(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
     let service = PeriodAdjustmentService::new(state.db.clone());
     let model = service.confirm(id, auth.user_id).await?;
@@ -112,7 +112,7 @@ pub async fn confirm_adjustment(
 pub async fn reverse_adjustment(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
     let service = PeriodAdjustmentService::new(state.db.clone());
     let model = service.reverse(id, auth.user_id).await?;
@@ -123,7 +123,7 @@ pub async fn reverse_adjustment(
 pub async fn cancel_adjustment(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
     let service = PeriodAdjustmentService::new(state.db.clone());
     let model = service.cancel(id).await?;
@@ -134,7 +134,7 @@ pub async fn cancel_adjustment(
 pub async fn get_adjustment(
     _auth: AuthContext,
     State(state): State<AppState>,
-    Path(id): Path<i32>,
+    Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
     let service = PeriodAdjustmentService::new(state.db.clone());
     let model = service.get_by_id(id).await?;

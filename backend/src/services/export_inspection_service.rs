@@ -74,6 +74,10 @@ impl ExportInspectionService {
     /// 请求体不得决定建单人（审计归属不可伪造）。
     /// 调用方：handlers/export_inspection_handler.rs::create_inspection（POST /export-inspections）。
     pub async fn create(&self, data: CreateInspectionReq) -> Result<Model, AppError> {
+        // 审计时间戳由服务端生成（请求体不承载，与同表 create 的 created_by 取会话同源）；
+        // created_at/updated_at DDL 为 TIMESTAMPTZ NOT NULL 且无默认值，缺回填会落 NULL 触发
+        // 23502，被 utils::error 归一为 DatabaseError("必填数据缺失") 显式抛 500。
+        let now = chrono::Utc::now();
         let active = ActiveModel {
             inspection_no: Set(data.inspection_no),
             sales_order_id: Set(data.sales_order_id),
@@ -89,6 +93,8 @@ impl ExportInspectionService {
             certificate_expiry: Set(None),
             remarks: Set(data.remarks),
             created_by: Set(data.created_by),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..Default::default()
         };
         let model = active.insert(&*self.db).await?;

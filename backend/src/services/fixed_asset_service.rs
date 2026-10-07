@@ -1041,8 +1041,10 @@ impl FixedAssetService {
         )
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "资产盘点计划单号生成/插入失败");
-            AppError::business_displayable("资产盘点计划单号生成失败，请稍后重试")
+            // 取号/插入失败的真实原因已由生成器按语义归类并留原文日志。
+            // 此处只补带上下文的错误日志后原样上抛，绝不降级为“生成失败/请稍后重试”伪装可重试的业务文案。
+            tracing::error!(error = %e, "资产盘点计划创建失败（取号/插入原始错误上抛）");
+            e
         })?;
 
         // 按筛选条件拉取资产并生成盘点明细
@@ -1097,7 +1099,7 @@ impl FixedAssetService {
     /// 录入盘点结果（单条）：count_result = consistent（一致）/ surplus（盘盈）/ shortage（盘亏）/ damaged（毁损）
     pub async fn record_count_item(
         &self,
-        count_id: i32,
+        count_id: i64,
         asset_id: i32,
         actual_original_value: Option<Decimal>,
         actual_net_value: Option<Decimal>,
@@ -1204,7 +1206,7 @@ impl FixedAssetService {
     /// 完成盘点并生成盘盈盘亏处理：统计盘盈/盘亏数量，将盘点单置为 COMPLETED；盘亏资产标记为 INACTIVE（待处置），盘盈资产需手工建档
     pub async fn complete_count_plan(
         &self,
-        count_id: i32,
+        count_id: i64,
         user_id: i32,
     ) -> Result<CountCompletionSummary, AppError> {
         info!("用户 {} 正在完成资产盘点计划：{}", user_id, count_id);
@@ -1304,7 +1306,7 @@ impl FixedAssetService {
     /// 查询盘点明细
     pub async fn list_count_items(
         &self,
-        count_id: i32,
+        count_id: i64,
     ) -> Result<Vec<fixed_asset_count_item::Model>, AppError> {
         let items = fixed_asset_count_item::Entity::find()
             .filter(fixed_asset_count_item::Column::CountId.eq(count_id))
@@ -1413,6 +1415,7 @@ impl FixedAssetService {
             req.user_id, req.asset_id
         );
 
+        let now = chrono::Utc::now();
         let active = depreciation_policy_change::ActiveModel {
             asset_id: Set(req.asset_id),
             change_date: Set(req.change_date),
@@ -1425,6 +1428,8 @@ impl FixedAssetService {
             reason: Set(req.reason),
             status: Set("pending".to_string()),
             created_by: Set(req.user_id),
+            created_at: Set(now),
+            updated_at: Set(now),
             ..Default::default()
         };
 
@@ -1518,7 +1523,7 @@ pub struct CreateCountPlanRequest {
 /// 盘点完成摘要
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CountCompletionSummary {
-    pub count_id: i32,
+    pub count_id: i64,
     pub total_items: i32,
     pub surplus_count: i32,
     pub shortage_count: i32,

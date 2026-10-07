@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 #[sea_orm(table_name = "period_adjustment_record")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: i64,
 
     /// 调整单号：PA-YYYYMMDDHHMMSS-NNN
     pub adjustment_no: String,

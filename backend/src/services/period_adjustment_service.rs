@@ -157,15 +157,18 @@ impl PeriodAdjustmentService {
         )
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, period = %req.period, "期末调整单号生成/插入失败");
-            AppError::business_displayable("期末调整单号生成失败，请稍后重试")
+            // 取号/插入失败的真实原因（DbErr 类型/约束/FK 等）已由生成器按语义归类
+            // （非唯一约束原样转 DatabaseError 并留原文日志）。此处仅补一条带上下文的错误日志，
+            // 再把原始错误不变上抛，绝不降级为“生成失败/请稍后重试”这类伪装可重试的业务文案。
+            tracing::error!(error = %e, period = %req.period, "期末调整单创建失败（取号/插入原始错误上抛）");
+            e
         })?;
         txn.commit().await?;
         Ok(result)
     }
 
     /// 确认期末调整（draft → confirmed），生成调整凭证并回写 voucher_id
-    pub async fn confirm(&self, id: i32, user_id: i32) -> Result<AdjustmentModel, AppError> {
+    pub async fn confirm(&self, id: i64, user_id: i32) -> Result<AdjustmentModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != period_adjustment_status::DRAFT {
             return Err(AppError::business(format!(
@@ -190,7 +193,7 @@ impl PeriodAdjustmentService {
 
     /// 红字冲销（confirmed → reversed），生成红字冲销凭证（借贷对调）并回写 reverse_voucher_id
     /// 典型场景：暂估类调整下月初红字冲销
-    pub async fn reverse(&self, id: i32, user_id: i32) -> Result<AdjustmentModel, AppError> {
+    pub async fn reverse(&self, id: i64, user_id: i32) -> Result<AdjustmentModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != period_adjustment_status::CONFIRMED {
             return Err(AppError::business(format!(
@@ -214,7 +217,7 @@ impl PeriodAdjustmentService {
     }
 
     /// 取消期末调整（draft → cancelled）
-    pub async fn cancel(&self, id: i32) -> Result<AdjustmentModel, AppError> {
+    pub async fn cancel(&self, id: i64) -> Result<AdjustmentModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != period_adjustment_status::DRAFT {
             return Err(AppError::business(format!(
@@ -279,12 +282,26 @@ impl PeriodAdjustmentService {
         let voucher_service =
             crate::services::voucher_service::VoucherService::new(self.db.clone());
         let voucher_date = chrono::Utc::now().date_naive();
+        // 期末调整记录主键为 BIGINT，而 vouchers.source_bill_id 为 INTEGER（DDL 类型不一致，待 DDL 对齐）。
+        // 不截断塞入 INTEGER：做无损窄化检查，超出范围则显式记录并降级为仅靠 source_bill_no 字符串关联，
+        // 数值关联缺失不静默吞掉。
+        let source_bill_id = match i32::try_from(model.id) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                tracing::error!(
+                    adjustment_id = model.id,
+                    adjustment_no = %model.adjustment_no,
+                    "期末调整 ID 超出凭证 source_bill_id(INTEGER) 可表示范围，凭证数值关联降级为仅保留单号（FK 类型不一致待 DDL 对齐）"
+                );
+                None
+            }
+        };
         let req = CreateVoucherRequest {
             voucher_type: "transfer".to_string(),
             voucher_date,
             source_type: Some("period_adjustment".to_string()),
             source_module: Some(source_module.to_string()),
-            source_bill_id: Some(model.id),
+            source_bill_id,
             source_bill_no: Some(model.adjustment_no.clone()),
             batch_no: None,
             color_no: None,
@@ -392,7 +409,7 @@ impl PeriodAdjustmentService {
     }
 
     /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<AdjustmentModel, AppError> {
+    pub async fn get_by_id(&self, id: i64) -> Result<AdjustmentModel, AppError> {
         AdjustmentEntity::find_by_id(id)
             .filter(period_adjustment_record::Column::IsDeleted.eq(false))
             .one(&*self.db)

@@ -678,7 +678,7 @@ pub async fn create_count_plan(
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct RecordCountItemRequestDto {
-    pub count_id: i32,
+    pub count_id: i64,
     pub asset_id: i32,
     pub actual_original_value: Option<rust_decimal::Decimal>,
     pub actual_net_value: Option<rust_decimal::Decimal>,
@@ -717,7 +717,7 @@ pub async fn record_count_item(
 pub async fn complete_count_plan(
     State(state): State<AppState>,
     auth: AuthContext,
-    Path(plan_id): Path<i32>,
+    Path(plan_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
     let result = service.complete_count_plan(plan_id, auth.user_id).await?;
@@ -756,7 +756,7 @@ pub async fn list_count_plans(
 /// GET /api/v1/erp/fixed-assets/count-plans/:id/items - 查询盘点明细
 pub async fn list_count_items(
     State(state): State<AppState>,
-    Path(plan_id): Path<i32>,
+    Path(plan_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
     let result = service.list_count_items(plan_id).await?;
