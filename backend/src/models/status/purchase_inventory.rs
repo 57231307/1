@@ -261,18 +261,23 @@ pub mod purchase_inspection_result {
         ALL.contains(&result)
     }
 
-    /// 采购质检结论 → 入库单检验状态（purchase_receipt_inspection 大写三态）。
+    /// 采购质检结论 → 入库单检验状态（purchase_receipt_inspection 大写四态）。
     /// 词表外结论返回 `None`，由调用方报错而不是默认成某个值；取值域与 `ALL`
     /// 完全同源（Some ⟺ is_valid），杜绝"校验一套、映射另一套"的漂移。
+    /// 注意：本映射只产出 PASSED/REJECTED 两态，绝不产出 CONCESSION_ACCEPTED——
+    /// 让步接收只能经显式端点 `concede_receipt` 写入，不得从质检结论 token 混入。
     ///
-    /// partial 的映射裁定依据（入库词表只有 PENDING/PASSED/REJECTED 三态）：
+    /// partial 的映射裁定依据（入库词表为 PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED 四态，
+    /// 但本映射的目标态只取其中两个）：
     /// - pass → PASSED：语义即「质检合格：允许后续入库/结算流转」；
-    /// - fail → REJECTED：语义即「质检不合格：唯一下游处置出口是采购退货」；
+    /// - fail → REJECTED：语义即「质检不合格：不得入库/结算」，下游处置出口为退货或让步接收
+    ///   （后者经 `concede_receipt` 显式端点，不由本映射产出）；
     /// - partial → REJECTED：部分合格≠整批合格，不能按 PASSED 放行（那会打开
     ///   「合格方可入库/结算」的门，属兜底放行）；PENDING 语义是「待检验」，
-    ///   与"已完成检验"不符；不合格部分要走的下游路径与 fail 完全相同——
-    ///   REJECTED 的定义文案（唯一下游处置出口是采购退货），且前端「生成退货」门控
-    ///   对 fail/partial 同示（views/purchase-inspection/components/
+    ///   与"已完成检验"不符；CONCESSION_ACCEPTED 语义是「特采降级接收、须复检改判」，
+    ///   完成质检的 fail/partial 结论不得直接落让步态（特采必须走带理由的显式端点留痕）。
+    ///   不合格部分要走的下游路径与 fail 完全相同——REJECTED 的定义文案（退货或让步接收），
+    ///   且前端「生成退货」门控对 fail/partial 同示（views/purchase-inspection/components/
     ///   PurchaseInspectionTable.vue 的 RETURN_ELIGIBLE_RESULTS）。
     ///   精确结论（partial）无损保留在 purchase_inspection.inspection_result 本列。
     pub fn to_receipt_inspection_status(result: &str) -> Option<&'static str> {

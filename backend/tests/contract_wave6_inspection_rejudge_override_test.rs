@@ -2,15 +2,19 @@
 //!
 //! 钉死的现状事实（与 `models/status/purchase_inventory.rs::purchase_receipt_inspection`
 //! REJECTED 注释同源；注释撒谎在本仓是明令禁止的，本锁是其代码级实证）：
-//! `purchase_receipt.inspection_status` 的「复检改判」能力**事实上存在，但不是独立通道**——
-//! 它只是 `complete_inspection` 回写段（services/purchase_inspection_service.rs:253-273）
-//! 对目标列的**无条件 Set 覆写(:265)**：对同一收货单再建一张质检单（建单仅校收货单存在性
-//! :91-96，无"同 receipt 唯一/已有质检结论则拒"的前置；表约束层 receipt_id 也仅普通索引
-//! 无 UNIQUE，migration m0009:145-172）并 complete(pass)，即可把已 REJECTED 的列翻成
-//! PASSED。**无专门端点、无审批、无历史留痕**（本列只存最终 token，历次结论只存在于
-//! purchase_inspection 各行自身的 inspection_result）。
-//! 「让步接收（不合格特采/降级接收）」在本列**没有 token**——词表恒为
-//! PENDING/PASSED/REJECTED 三态（本文件 S4 锁防第四态悄悄加入）。
+//! 收货单检验状态词表为大写四态（PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED），
+//! 「复检改判」能力有**两条并存的通道**：
+//! - 显式端点通道：services/purchase_receipt_ops/state.rs 的 `concede_receipt`（PENDING/REJECTED→
+//!   CONCESSION_ACCEPTED，理由必填留痕）与 `rejudge_receipt`（CONCESSION_ACCEPTED→PASSED/REJECTED），
+//!   有专门端点、有审批留痕——让步接收在本列**是一等状态 CONCESSION_ACCEPTED**（非未实现）；
+//! - 隐式 complete 覆写通道（本文件钉死其现状）：`complete_inspection` 回写段
+//!   （services/purchase_inspection_service.rs:253-273）对目标列的**无条件 Set 覆写(:265)**——
+//!   对同一收货单再建一张质检单（建单仅校收货单存在性 :91-96，无"同 receipt 唯一/已有质检结论
+//!   则拒"的前置；表约束层 receipt_id 也仅普通索引无 UNIQUE，migration m0009:145-172）并
+//!   complete(pass)，即可把已 REJECTED 的列翻成 PASSED。**该隐式通道无专门端点、无审批、
+//!   无历史留痕**（本列只存最终 token，历次结论只存在于 purchase_inspection 各行自身的
+//!   inspection_result），仍是现状风险；本文件的 T/S/C 锁即钉死这条隐式覆写链未被收窄。
+//! S4 词表边界锁把本列取值域钉成**闭合四态集合**：任何第五态悄悄加入（或 CONCESSION_ACCEPTED 被删）先炸。
 //!
 //! 门控侧（判定唯一实现 PurchaseReceiptService::ensure_receipt_inspection_allows_flow，
 //! services/purchase_receipt_service.rs:83-107）：只放行 PASSED；接线点为确认入库
@@ -814,17 +818,19 @@ fn s3_writeback_overwrites_inspection_status_unconditionally() {
     );
 }
 
-/// S4：词表边界锁——本列合法 token 恒为三态；「让步接收（特采/降级接收）」没有
-/// token（未实现）。第四态一旦出现（无论叫 CONCESSION 还是别的），本锁先炸。
+/// S4：词表边界锁——本列合法 token 恒为**闭合四态集合** PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED。
+/// CONCESSION_ACCEPTED 是经显式 `concede_receipt` 端点写入的一等让步态（非未实现）；
+/// 任何第五态悄悄加入、或 CONCESSION_ACCEPTED 被删，本锁先炸。
 #[test]
-fn s4_receipt_inspection_vocabulary_has_no_concession_token() {
+fn s4_receipt_inspection_vocabulary_is_closed_four_state_set() {
     assert_eq!(
         purchase_receipt_inspection::ALL,
-        &["PENDING", "PASSED", "REJECTED"],
-        "purchase_receipt.inspection_status 词表恒三态；让步接收无 token（未实现），\
-         复检改判复用 PASSED/REJECTED 覆写而非独立状态"
+        &["PENDING", "PASSED", "REJECTED", "CONCESSION_ACCEPTED"],
+        "purchase_receipt.inspection_status 词表恒四态；让步接收为一等状态 CONCESSION_ACCEPTED\
+         （仅经 concede_receipt 写入），本隐式 complete 覆写链只复用 PASSED/REJECTED 两态"
     );
-    // 映射取值域同样只有两个目标态，不存在第四种落点
+    // 本映射（to_receipt_inspection_status）取值域只有 PASSED/REJECTED 两个落点，
+    // CONCESSION_ACCEPTED 绝不从质检结论 token 混入——特采只走带理由的显式端点
     assert_eq!(
         purchase_inspection_result::to_receipt_inspection_status(purchase_inspection_result::PASS),
         Some(purchase_receipt_inspection::PASSED)
@@ -839,13 +845,22 @@ fn s4_receipt_inspection_vocabulary_has_no_concession_token() {
         ),
         Some(purchase_receipt_inspection::REJECTED)
     );
-    // 非法值（含大小写变体/中文跨域/空串）在映射与白名单两处都进不去——
-    // "特采"之类的私改判绝不能从结论 token 混进来
-    for outside in ["PASS", "concession", "特采", "让步接收", "让步", ""] {
+    // 非法值（含大小写变体/中文跨域/空串/让步类私改判 token）在映射与白名单两处都进不去——
+    // CONCESSION_ACCEPTED 绝不能从结论 token 混进来（它只由 concede_receipt 端点写入）
+    for outside in [
+        "PASS",
+        "concession",
+        "CONCESSION_ACCEPTED",
+        "特采",
+        "让步接收",
+        "让步",
+        "",
+    ] {
         assert_eq!(
             purchase_inspection_result::to_receipt_inspection_status(outside),
             None,
-            "词表外 {outside:?} 必须 None（改判只能走 pass/fail/partial 三 token 的覆写）"
+            "词表外 {outside:?} 必须 None（隐式改判只能走 pass/fail/partial 三 token 的覆写，\
+             让步态不经本映射产生）"
         );
         assert!(!purchase_inspection_result::is_valid(outside));
     }

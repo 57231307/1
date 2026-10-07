@@ -1,9 +1,10 @@
 //! 采购收货「合格方可入库/结算」门控契约锁（wave6）
 //!
-//! 前置事实（commit 2fc3a7c1 已备好数据链）：采购质检完成已在同一事务回写
+//! 前置事实（数据链已备好）：采购质检完成已在同一事务回写
 //! `purchase_receipt.inspection_status`（权威词表 models/status/purchase_inventory.rs
-//! `purchase_receipt_inspection`：PENDING/PASSED/REJECTED，映射 pass→PASSED、
-//! fail/partial→REJECTED，由 contract_wave5_inspection_result_authority_test 钉住）。
+//! `purchase_receipt_inspection` 大写四态 PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED；
+//! 质检回写映射只产出 pass→PASSED、fail/partial→REJECTED，由
+//! contract_wave5_inspection_result_authority_test 钉住；CONCESSION_ACCEPTED 只由让步端点写入）。
 //! 本锁在其上落地用户裁定的门控：**质检合格方可确认入库/结算**。
 //!
 //! 门控落点（判定唯一实现 = PurchaseReceiptService::ensure_receipt_inspection_allows_flow，
@@ -15,10 +16,11 @@
 //!   同一口径（词表语义 PASSED=允许后续入库/**结算**流转；auto_generate HTTP 端点可绕过
 //!   confirm 直连，必须同门），复用同一函数、门控先于重复生成检查与任何应付写入。
 //!
-//! PENDING/NULL 裁定（证据全文见门控函数文档注释）：每一张收货单都必须先有质检结论回写。
+//! PENDING/NULL 裁定（证据全文见门控函数文档注释）：入库/结算只放行 PASSED。
 //! - 生产 DDL（m0009）该列 `VARCHAR(20) NOT NULL DEFAULT 'PENDING'`，建单固定置 PENDING
-//!   （build_receipt_active_model）——不存在"免检收货"第四态，NULL 在类型层（String 非
-//!   Option<String>）不可达；
+//!   （build_receipt_active_model）——NULL 在类型层（String 非 Option<String>）不可达；
+//!   CONCESSION_ACCEPTED 是特采降级接收的一等第四态，但门控同样**不放行**它（须复检改判为
+//!   PASSED），故"合格方可入库/结算"的裁定不因第四态存在而松动——不存在"免检自动放行"旁路；
 //! - 全仓无按品类/配置豁免质检的开关（免检/需质检/inspection_required/need_inspection
 //!   检索零命中；化料 chemical_lot、验布 fabric_inspection 是另表另列，不影响本列语义）；
 //! - 词表 PASSED 定义即「质检合格：允许后续入库/结算流转」。放行 PENDING（新建单的恒初值）
@@ -29,8 +31,9 @@
 //!
 //! 覆盖策略（路线一， 判责；无 mock、真实 service 调用，全部跑真 PostgreSQL）
 //! - 表结构唯一来源 = backend/migration（不再自建 DDL）。结算入口
-//!   （auto_generate_from_receipt）对 REJECTED/PENDING/词表外/PASSED 四向判定与错误信封
-//!   （400+BUSINESS_ERROR+真实文案）；PASSED 正向不再用"sqlite 缺表旁证"——真库
+//!   （auto_generate_from_receipt）对 REJECTED/PENDING/CONCESSION_ACCEPTED/PASSED 四向判定与错误信封
+//!   （词表外坏值的 fail-closed 脱敏分支因 DB 四态 CHECK 不可落库、改由 service 内纯函数单测覆盖）；
+//!   PASSED 正向不再用"sqlite 缺表旁证"——真库
 //!   ap_invoice 表存在，门控放行的证明升级为**应付单真实生成并回读**（更强断言，
 //!   sqlite 可验性假设已随路线一废弃）；
 //! - 正向推进：真实调用 confirm_receipt 事务内的两个写入口
@@ -209,23 +212,28 @@ async fn ap_entry_applies_same_inspection_gate() {
         body.message
     );
 
-    // ③ 词表外坏值（m0057 归一前的历史中文 token 形态）→ fail-closed 脱敏拒绝，不回显原值
-    let bad = seed_receipt(&db, "待检").await;
+    // ③ CONCESSION_ACCEPTED（一等让步态，DB CHECK 放行落库）→ 门控拒绝、要求复检改判。
+    //    词表外坏值的 fail-closed 脱敏分支改由 service 内单元测试
+    //    （purchase_receipt_service.rs::inspection_gate_tests::outside_vocabulary_fails_closed_masked，
+    //    含 `待检`）在纯函数 + 内存 Model 缝覆盖：四态 CHECK 已在库层拒绝词表外，真库无法再播种
+    //    词表外值，故此处不重试不可落库的坏值，而是钉住第四态被门控正确拒绝（让步≠合格入库）。
+    let conceded = seed_receipt(&db, purchase_receipt_inspection::CONCESSION_ACCEPTED).await;
     let err = svc
-        .auto_generate_from_receipt(bad.id, 1)
+        .auto_generate_from_receipt(conceded.id, 1)
         .await
-        .expect_err("词表外检验状态必须 fail-closed 拒绝");
+        .expect_err("让步接收的收货单不得被结算门控放行");
     assert!(
-        matches!(&err, AppError::BusinessError(_)),
-        "词表外必须走脱敏 business（数据完整性问题），实际: {err:?}"
+        matches!(&err, AppError::BusinessErrorDisplayable(_)),
+        "让步态拒绝必须走可外显 business_displayable（公开规则、须复检改判），实际: {err:?}"
     );
     let body = err.to_response();
     assert_eq!(body.code, "BUSINESS_ERROR");
-    assert!(
-        !body.message.contains("待检"),
-        "脱敏出参不得回显坏数据原值，实际: {}",
-        body.message
+    assert_eq!(
+        body.message, "让步接收的收货单需先复检改判为质检合格才能生成应付结算",
+        "结算入口对 CONCESSION_ACCEPTED 的拒绝文案必须与门控裁定句式逐字符一致（动作=生成应付结算）"
     );
+    let resp: Response = err.into_response();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     // ④ PASSED → 门控必须放行：真库 ap_invoice 表存在，放行的证明从 sqlite 时代的
     //    "缺表 DATABASE_ERROR 旁证"升级为**应付单真实生成并回读**（合格数据不被门控
@@ -240,7 +248,7 @@ async fn ap_entry_applies_same_inspection_gate() {
     assert_eq!(invoice.amount, Decimal::ZERO, "应付金额取收货单总额");
 
     // 无痕：四条路径都没有推进任何收货单状态（被拒/放行后未落终态）
-    for id in [rejected.id, pending.id, bad.id, passed.id] {
+    for id in [rejected.id, pending.id, conceded.id, passed.id] {
         let row = purchase_receipt::Entity::find_by_id(id)
             .one(&db)
             .await
@@ -684,13 +692,19 @@ fn source_scan_gate_compares_vocabularies_only_and_has_no_config_bypass() {
         "status::purchase_receipt_inspection::PASSED",
         "status::purchase_receipt_inspection::REJECTED",
         "status::purchase_receipt_inspection::PENDING",
+        "status::purchase_receipt_inspection::CONCESSION_ACCEPTED",
     ] {
         assert!(
             block.contains(token_const),
             "门控必须逐字符引用权威词表常量 {token_const}，不得手写第二套 token:\n{block}"
         );
     }
-    for literal in ["\"PASSED\"", "\"REJECTED\"", "\"PENDING\""] {
+    for literal in [
+        "\"PASSED\"",
+        "\"REJECTED\"",
+        "\"PENDING\"",
+        "\"CONCESSION_ACCEPTED\"",
+    ] {
         assert!(
             !block.contains(literal),
             "门控代码（非注释区之外）不得出现词表字符串字面量 {literal}"
@@ -752,14 +766,15 @@ fn source_scan_ap_entry_reuses_gate_before_any_ap_access() {
     );
 }
 
-/// 锁④：词表常量与裁定逐字符同源（本列合法取值全集只有三态；NULL 在类型层不可达）
+/// 锁④：词表常量与裁定逐字符同源（本列合法取值全集为闭合四态；NULL 在类型层不可达）
 #[test]
 fn receipt_inspection_vocabulary_and_null_unreachability_are_locked() {
     assert_eq!(
         purchase_receipt_inspection::ALL,
-        &["PENDING", "PASSED", "REJECTED"],
-        "入库单检验状态词表（写入方 models/status/purchase_inventory.rs）大写三态，\
-         不存在第四态/免检 token——每单必经质检裁定的词表级证据"
+        &["PENDING", "PASSED", "REJECTED", "CONCESSION_ACCEPTED"],
+        "入库单检验状态词表（写入方 models/status/purchase_inventory.rs）大写四态，\
+         CONCESSION_ACCEPTED 为一等让步态（仅 concede_receipt 写入、门控不放行），\
+         集合外不存在免检/自动放行 token——每单必经质检合格或复检改判才入库的词表级证据"
     );
     assert_eq!(purchase_receipt_inspection::PASSED, "PASSED");
     // 生产 DDL（migration m0009）该列 NOT NULL DEFAULT 'PENDING'：NULL 形态不可达的实证锁

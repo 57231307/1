@@ -18,13 +18,16 @@
 //!   送 pass/fail 并回读落库原值；`frontend/e2e/purchase/11-return-from-inspection.spec.ts`
 //!   送 fail。三处 token 与本域词表逐字符一致。
 //!
-//! 回写映射（入库词表 purchase_receipt_inspection 只有大写三态）：
+//! 回写映射（入库词表 purchase_receipt_inspection 为大写四态；本映射只产出其中 PASSED/REJECTED 两态）：
 //! - pass → PASSED（「质检合格：允许后续入库/结算流转」）；
-//! - fail → REJECTED（「质检不合格：不得入库/结算，唯一下游处置出口是采购退货」）；
+//! - fail → REJECTED（「质检不合格：不得入库/结算，下游处置出口为采购退货或让步接收」）；
 //! - partial → REJECTED：部分合格≠整批合格，按 PASSED 放行即兜底开门；PENDING 语义为
-//!   「待检验」与已完成检验不符；partial 的前端下游门控与 fail 完全同路径
-//!   （「生成退货」仅 result∈{fail,partial} 显示，PurchaseInspectionTable.vue），
-//!   落入 REJECTED 后本域唯一处置通道是采购退货（无让步接收改判端点）；精确结论 partial 无损保留在本列。
+//!   「待检验」与已完成检验不符；CONCESSION_ACCEPTED 语义为「特采降级接收、须复检改判」，
+//!   完成质检的 fail/partial 结论绝不直接落让步态（特采必须走带理由的显式端点留痕）；
+//!   partial 的前端下游门控与 fail 完全同路径
+//!   （「生成退货」仅 result∈{fail,partial} 显示，PurchaseInspectionTable.vue）；
+//!   精确结论 partial 无损保留在本列。让步接收/复检改判属另一显式通道
+//!   （services/purchase_receipt_ops/state.rs 的 concede_receipt/rejudge_receipt），不由本映射产出。
 //!   依据原文见 `purchase_inspection_result::to_receipt_inspection_status` 文档注释。
 //!
 //! 其余根因锁：
@@ -389,8 +392,9 @@ async fn live_complete_accepts_domain_tokens_and_writes_back_receipt_status() {
     let svc = PurchaseInspectionService::new(Arc::new(db.clone()));
 
     // (结论本域 token, 期望入库单检验状态) —— 两侧均取权威常量，逐字符同源。
-    // partial→REJECTED 的判定依据（入库词表仅三态、partial 与 fail 同走退货/让步通道、
-    // PASSED 放行属兜底开门）见 purchase_inspection_result::to_receipt_inspection_status 注释。
+    // partial→REJECTED 的判定依据（入库词表四态但本映射只产出 PASSED/REJECTED、
+    // partial 与 fail 同走退货/让步通道、PASSED 放行属兜底开门）见
+    // purchase_inspection_result::to_receipt_inspection_status 注释。
     let cases = [
         (
             purchase_inspection_result::PASS,
@@ -567,11 +571,12 @@ fn purchase_inspection_result_vocabularies_are_character_identical() {
         );
     }
 
-    // 入库单检验状态词表（另一列，大写三态）不变
+    // 入库单检验状态词表（另一列，大写四态）不变；让步接收为一等状态，
+    // 但本列的完成质检回写映射只产出 PASSED/REJECTED，绝不产出 CONCESSION_ACCEPTED
     assert_eq!(
         purchase_receipt_inspection::ALL,
-        &["PENDING", "PASSED", "REJECTED"],
-        "入库单检验状态词表（写入方 models/status/purchase_inventory.rs）大写 token"
+        &["PENDING", "PASSED", "REJECTED", "CONCESSION_ACCEPTED"],
+        "入库单检验状态词表（写入方 models/status/purchase_inventory.rs）大写四态 token"
     );
 
     // 跨域分离锁：通用质检记录域中文词表原样保留（禁止被本域"顺手英文化"），
