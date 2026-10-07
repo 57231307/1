@@ -107,8 +107,10 @@ fn purchase_receipt_routes() -> Router<AppState> {
             "/receipts/{id}/confirm",
             post(purchase_receipt_handler::confirm_receipt),
         )
-        // 让步接收/复检改判通道：末段 concession 不在 PATH_ACTION_KEYWORDS，
-        // 故权限键按 POST 方法推导为 purchase-receipts:create，不新增权限键。
+        // 让步接收/复检改判通道：末段 concession、rejudge 已登记进
+        // PATH_ACTION_KEYWORDS，故派生为独立权限键 purchase-receipts:concession
+        // 与 purchase-receipts:rejudge（岗位集合与授法见迁移
+        // business/m0090_grant_purchase_receipt_concession_rejudge.rs 文件头）。
         .route(
             "/receipts/{id}/concession",
             post(purchase_receipt_handler::concede_receipt),

@@ -644,6 +644,10 @@ impl InitService {
                     ("purchase-orders", "reject"),
                     ("purchase-receipts", "read"),
                     ("purchase-receipts", "approve"),
+                    // 让步接收＝对不合格品的放行决定，由采购经理与质量经理共签；
+                    // 不授建单收货的采购员与仓管（职责分离，键语义见迁移
+                    // business/m0090_grant_purchase_receipt_concession_rejudge.rs）
+                    ("purchase-receipts", "concession"),
                     ("purchase-returns", "read"),
                     ("purchase-returns", "approve"),
                     ("purchase-returns", "reject"),
@@ -943,6 +947,10 @@ impl InitService {
                     ("quality-standards", "*"),
                     ("fabric-inspections", "*"),
                     ("fabric-defects", "*"),
+                    // 质量经理既可放行让步，也可推翻既有质检结论（两枚键同授本岗，
+                    // 但都不授采购员——避免"自判自放"）
+                    ("purchase-receipts", "concession"),
+                    ("purchase-receipts", "rejudge"),
                     ("dye-batches", "read"),
                     ("production-orders", "read"),
                     ("reports", "read"),
@@ -955,6 +963,8 @@ impl InitService {
                     ("quality-inspections", "*"),
                     ("quality-issues", "read"),
                     ("quality-issues", "create"),
+                    // 复检改判由质检执行：不授任何采购岗，避免采购自判自改
+                    ("purchase-receipts", "rejudge"),
                     ("dye-batches", "read"),
                     ("fabric-inspections", "read"),
                     ("fabric-inspections", "create"),

@@ -225,9 +225,24 @@ pub fn extract_segment3(path: &str) -> Option<&str> {
 /// 路径动作关键字集合（出现在 URL 末段时优先作为 action）
 /// `reveal` = PII 按需揭示端点（POST /crm/customers/{id}/pii/reveal）的动作段，
 /// 与 `print` 同族：末段是动作而非资源 ID，提取资源 ID 时该关键字段一并跳过。
+/// `concession`/`rejudge` = 采购收货的让步接收与复检改判（POST
+/// /purchase/receipts/{id}/concession|rejudge）：二者是独立于"建单/审批"的处置权，
+/// 末段是动作而非收货单 ID，故须登记为本表关键字以派生独立键。
 const PATH_ACTION_KEYWORDS: &[&str] = &[
-    "print", "export", "import", "audit", "approve", "reject", "cancel", "close", "confirm",
-    "submit", "release", "reveal",
+    "print",
+    "export",
+    "import",
+    "audit",
+    "approve",
+    "reject",
+    "cancel",
+    "close",
+    "confirm",
+    "submit",
+    "release",
+    "reveal",
+    "concession",
+    "rejudge",
 ];
 
 /// 从路径末段提取动作关键字，非关键字返回 None

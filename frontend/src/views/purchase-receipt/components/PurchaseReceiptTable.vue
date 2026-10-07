@@ -131,9 +131,8 @@
           <el-icon><Check /></el-icon> {{ t('purchaseReceipt.table.button.approve') }}
         </el-button>
         <!--
-          让步接收通道入口：仅未确认入库（receipt_status=DRAFT）且检验状态为
-          待检/不合格（与后端合法前驱逐字一致）可点；让步后可点「复检改判」。
-          按钮可见性只由词表常量比较决定（未知 token 会在标签渲染处抛错，不静默）。
+          让步接收/复检改判通道入口：状态由词表常量 v-if 门控，
+          操作权限由 v-permission 独立门控，两者缺一不可。
         -->
         <el-button
           v-if="
@@ -141,6 +140,7 @@
             (scope.row.inspection_status === RECEIPT_INSPECTION.PENDING ||
               scope.row.inspection_status === RECEIPT_INSPECTION.REJECTED)
           "
+          v-permission="'purchase-receipts:concession'"
           size="small"
           type="warning"
           data-testid="receipt-concession-btn"
@@ -153,6 +153,7 @@
             scope.row.receipt_status === RECEIPT_STATUS.DRAFT &&
             scope.row.inspection_status === RECEIPT_INSPECTION.CONCESSION_ACCEPTED
           "
+          v-permission="'purchase-receipts:rejudge'"
           size="small"
           type="info"
           data-testid="receipt-rejudge-btn"

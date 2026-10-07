@@ -51,6 +51,9 @@ mod m0085_add_pii_reveal_audit;
 mod m0086_grant_customers_pii_reveal;
 // 疵点处置理由载体列：理由此前只校验不落库，补一列承接；列语义见文件头。
 mod m0087_add_unqualified_handling_reason;
+// 采购收货让步接收/复检改判两枚显式权限键的存量库补授：role_permissions 由 system 域
+// 先建，注册紧随 m0087，岗位集合与 init 矩阵、e2e 三通道同口径（见文件头）。
+mod m0090_grant_purchase_receipt_concession_rejudge;
 
 pub struct Migration;
 
@@ -285,8 +288,12 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0086_grant_customers_pii_reveal::Migration
             .up(manager)
             .await?;
-        // 疵点处置理由列：自包含加列，无上游依赖，注册在本域 up 链最末
+        // 疵点处置理由列：自包含加列，无上游依赖
         m0087_add_unqualified_handling_reason::Migration
+            .up(manager)
+            .await?;
+        // 让步接收/复检改判两枚键补授：紧随其后注册在本域 up 链最末
+        m0090_grant_purchase_receipt_concession_rejudge::Migration
             .up(manager)
             .await?;
         Ok(())
@@ -294,7 +301,11 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 疵点处置理由列：最后应用者最先回滚（只撤本迁移施加的列）
+        // 让步/改判补授：最后应用者最先回滚（只按角色码回收本迁移授予的两枚键）
+        m0090_grant_purchase_receipt_concession_rejudge::Migration
+            .down(manager)
+            .await?;
+        // 疵点处置理由列：撤本迁移施加的列
         m0087_add_unqualified_handling_reason::Migration
             .down(manager)
             .await?;

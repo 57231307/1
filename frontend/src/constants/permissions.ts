@@ -116,6 +116,12 @@ export const PERMISSIONS = {
   SALES_CONTRACT_APPROVE: 'sales-contracts:approve',
   SALES_CONTRACT_REJECT: 'sales-contracts:reject',
 
+  // 采购收货（后端资源：purchase-receipts）的两个处置动作键：由 URL 末段派生
+  // （POST /purchase/receipts/{id}/concession|rejudge），与建单/审批权互不覆盖；
+  // 受授岗位集合见迁移 business/m0090_grant_purchase_receipt_concession_rejudge.rs
+  PURCHASE_RECEIPT_CONCESSION: 'purchase-receipts:concession',
+  PURCHASE_RECEIPT_REJUDGE: 'purchase-receipts:rejudge',
+
   // 采购合同（后端资源：purchase-contracts）
   PURCHASE_CONTRACT_READ: 'purchase-contracts:read',
   PURCHASE_CONTRACT_CREATE: 'purchase-contracts:create',
@@ -182,7 +188,7 @@ export const PERMISSIONS = {
   INVENTORY_CREATE: 'inventory:create',
   INVENTORY_UPDATE: 'inventory:update',
   INVENTORY_DELETE: 'inventory:delete',
-  // Batch 468 P0-S28：库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
+  // 库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
   INVENTORY_TRANSFER: 'inventory:transfer',
   // 成品布入库标签打印（GET /inventory/pieces/{id}/print）。权限键非自造
   // resource_type 由 URL 段推导——middleware/permission.rs::extract_resource_info 对
