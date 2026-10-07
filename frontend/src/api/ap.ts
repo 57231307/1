@@ -132,18 +132,20 @@ export interface APReconciliation {
   supplier_id: number;
   supplier_name: string;
   reconciliation_date: string;
-  total_invoice_amount: number;
+  /** 后端对账金额列 rust_decimal（models/ap_reconciliation.rs:41 与 ap_reconciliation_ops/types.rs 侧同名键均 Decimal），出参十进制字符串 */
+  total_invoice_amount: string;
   /**
    * 后端 ap_reconciliation 实体金额列 rust_decimal（models/ap_reconciliation.rs:45），
-   * serde 序列化为**十进制字符串**；声明 number 属类型谎言（`.toFixed` 运行期崩；Rust 契约锁
-   * backend/tests/contract_wave6_shipment_bi_ap_fixes_test.rs 整文件字符串匹配（含注释）
-   * 全局禁 payment/request/exchange 三类金额键名的 number 声明，本键名以其子串
-   * total_payment_amount: number 同形命中）。
+   * serde 序列化为**十进制字符串**；声明 number 属类型谎言（`.toFixed` 运行期崩）。
+   * 另：Rust 契约锁 backend/tests/contract_wave6_shipment_bi_ap_fixes_test.rs 对本文件做整文件
+   * 字符串匹配（含注释），payment / request / exchange 三类金额键名一旦呈 number 形态即被判负，
+   * 故注释文本亦不得写出该类键名紧跟「冒号空格 number」的字面序列。
    * ⚠️ 注：本接口键名与后端真实出参键（total_invoice/total_payment/closing_balance）
    * 整体错位是尚未修复的既有契约漂移，用本接口渲染列前先对照后端实体字段。
    */
   total_payment_amount: string;
-  difference_amount: number;
+  /** 后端期末余额 closing_balance 为 Decimal（models/ap_reconciliation.rs:49，= 期初+发票-付款之差额），出参十进制字符串 */
+  difference_amount: string;
   status: string;
   confirmed_by?: string;
   confirmed_at?: string;

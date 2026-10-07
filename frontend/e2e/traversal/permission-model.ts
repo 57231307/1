@@ -88,8 +88,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   // 以下 5 项门控值按 router 真值钉住：若沿用 purchase:read 族旧值，会把持
   // purchases:read 的角色整片误判 denied。router 若改动这些门控，防漂移门禁会判红并要求人工复核。
   purchase: 'purchases:read',
-  quality: 'inventory:read',
-  production: 'inventory:read',
+  quality: ['quality-standards:read', 'quality-inspections:read'],
+  production: ['production-orders:read'],
   bpm: 'audit-logs:read',
   crm: 'customers:read',
   // /workflow 是纯别名（router/index.ts:1422-1423 `redirect: '/bpm'`），门控事实来源是
