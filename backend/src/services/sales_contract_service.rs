@@ -290,7 +290,7 @@ impl SalesContractService {
         //   Some(None)    = 显式 null → Set(None) → 该列写入 NULL
         //   Some(Some(v)) = 有值 → Set(v)/Set(Some(v)) → 覆盖
         // 三者不可塌成两层：塌成单层 Option<T> 后"清空"与"保持"共用同一表示，
-        // 可空列将永远无法置 NULL，用户删掉交货日期/备注保存即被静默丢弃——本轮要消灭的形态。
+        // 可空列将永远无法置 NULL，用户删掉交货日期/备注保存即被静默丢弃。
         // contract_name/customer_id 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
         if let Some(v) = req.contract_name.flatten() {
             active.contract_name = Set(v);
@@ -553,7 +553,7 @@ impl SalesContractService {
     /// 拒绝合同（拒绝动作）：draft → rejected 终态流转，拒绝理由落 `rejected_reason` 列
     ///
     /// 状态门只允许 draft 起拒：active（权利义务已生效）与 cancelled（已作废）一律拦，
-    /// rejected 本身为终态——本批不出 rejected→draft 出边（重开须重新发起新合同）。
+    /// rejected 本身为终态——不出 rejected→draft 出边（重开须重新发起新合同）。
     /// 门控值与写入值同源自 `models::status::contract`，禁止字面量；形态与本文件
     /// approve/cancel 一致（begin txn + lock_exclusive + update_with_audit + commit）。
     pub async fn reject(

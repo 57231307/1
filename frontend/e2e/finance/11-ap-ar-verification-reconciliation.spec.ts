@@ -1,6 +1,6 @@
 // 财务管理 E2E 套件 — 11 AP/AR 核销闭环 + AP 对账状态机 + AP 付款申请提交门控
 //
-// 覆盖审计确证的财务域零覆盖缺口，全部为「写后必 GET 回读真实金额/状态」的端到端真值断言：
+// 财务域 AP/AR 核销闭环、对账与门控端到端套件，全部为「写后必 GET 回读真实金额/状态」的真值断言：
 //   1. AP 手工核销闭环（routes/finance.rs:749-777 /ap/verifications/*）：
 //      建发票×2 + 方案B付款链 → POST /ap/verifications/manual → 回读目标发票 paid 增/unpaid 减
 //      → POST /ap/verifications/{id}/cancel → 回读金额回退，且不影响非本次明细的发票。
@@ -17,17 +17,17 @@
 //      → confirm 分支（PENDING→CONFIRMED）与 dispute 分支（PENDING→DISPUTED，原因回显），
 //      各含门控负例（已确认再确认被拒 / DISPUTED 确认被拒），断真实 400+机器码且状态不漂移。
 //      前置：generate 对账口径排除 DRAFT/CANCELLED（ap_reconciliation_ops/crud.rs:41-44），
-// 发票建单默认 DRAFT（ap_invoice_ops/crud.rs:75），须先 approve 到 AUDITED（判责，
-// 推翻 §D「核销回写事务真缺陷」——缺的是用例审核步骤，后端口径不动）。
+// 发票建单默认 DRAFT（ap_invoice_ops/crud.rs:75），须先 approve 到 AUDITED 才计入对账——
+// 缺审核步属用例前置问题，后端口径不动。
 //      状态词表：backend/src/models/status/finance.rs:104-112（PENDING/CONFIRMED/DISPUTED 大写）。
 //   4. AP 付款申请 submit 门控负例（ap_payment_request_service.rs:336-338）：
 //      无 items 建单成功（DRAFT）→ submit 被拒 400 BUSINESS_ERROR → 回读仍 DRAFT（无副作用）
 //      → 对照：带真实 items 的申请 submit 成功 → APPROVING。
 //      诚实标注①：门控文案「付款申请没有明细，不可提交」由 AppError::business 构造，
 //      HTTP 出参 message 统一脱敏为「业务处理失败」（utils/error.rs:490-504 白名单式外显），
-//      断该原文必红且断的是脱敏契约而非门控行为，故改断真实可得的事实：
+//      断该原文必红且断的是脱敏契约而非门控行为，故断真实可得的事实：
 //      400 + BUSINESS_ERROR 机器码 + 状态回读未迁移。若需外显该文案，须后端将该构造点
-//      迁为 business_displayable——交编排方判责，e2e 不掩盖。
+//      迁为 business_displayable——e2e 侧不掩盖该差异。
 //      诚实标注②：UpdateApPaymentRequest（ap_payment_request_service.rs:698-729）不含 items，
 //      路由也无申请明细子资源——已建 DRAFT 单没有任何合法端点可为其「补明细」，
 //      故「补真实 items→再 submit 成功」以同供应商同金额、唯一变量为 items 的第二张单对照证明。
@@ -504,11 +504,11 @@ test.describe('11 AP/AR 核销闭环 + AP 对账 + 付款申请提交门控', ()
     const supplierId = await seedSupplier(page, 'R1');
     const d = today();
     // 专属新供应商 + 当日唯一发票 → 期初 0、本期应付 800、本期付款 0 全部可控。
-    // 对账纳入口径（判责推翻 §D 的「核销回写事务真缺陷」）
+    // 对账纳入口径：
     // generate 排除 DRAFT/CANCELLED（backend/src/services/ap_reconciliation_ops/crud.rs:41-44）是既定口径，
     // 而建单默认即 DRAFT（ap_invoice_ops/crud.rs:75 invoice_status=STATUS_DRAFT），
     // 必须走真实审核步 approve（DRAFT→AUDITED，ap_invoice_ops/crud.rs:204）发票才进对账集合。
-    // 旧注释「无需审批」为误判，缺的是用例前置步骤，不是后端缺陷；不得反向把 DRAFT 放进 generate。
+    // 缺审核是用例前置步骤问题，不是后端缺陷；不得反向把 DRAFT 放进 generate。
     await seedApprovedApInvoice(page, supplierId, 800);
 
     const rec = await apiCallRaw<Record<string, unknown>>(

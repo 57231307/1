@@ -1,26 +1,27 @@
-//! 任务 wave5：色卡"发放"门控契约锁（闸门 1 不再比一个永不出现的状态值）
+//! 色卡"发放"门控契约锁（闸门 1 只比词表内可发放集合）
 //! + custom_order_process_service 流程节点状态必须引用权威常量的源码扫描锁
 //!
-//! 坐实的断裂（修复前恒 400，发放链路对所有真实色卡恒失败，与 98f3bb0b 色号创建门同根因）：
+//! 本锁防回潮的断裂（闸门 1 若比一个永不出现的状态值，发放链路对所有真实色卡恒 400，
+//! 与色号创建门失败同根因）：
 //! - `color_card_issue_service.rs` 闸门 1 比较裸字面量 `"active"`；
 //! - 但色卡权威词表 `color_card::ALL`（models/status/wage_energy_chemical_business.rs:157）
-//!   不含 active，DB CHECK `chk_color_card_status`（backend/migration/src/domain/v15/mod.rs:4493-4498）已把
+//!   不含 active，DB CHECK `chk_color_card_status`（backend/migration/src/domain/v15/mod.rs:4495-4500）已把
 //!   历史 active 回填为 draft，且没有任何端点能把色卡写成 active；
-//! - 发放流转权威 `validate_color_card_status_transition`（color_card_crud_service.rs:335）
+//! - 发放流转权威 `validate_color_card_status_transition`（color_card_crud_service.rs:326）
 //!   仅允许 `DRAFT → ISSUED` ⇒ 发放门放行集合 = `{draft}`；
 //! - 前端发放页 `views/color-cards/issues.vue` 也只取 `status:'draft'` 的卡去发放。
 //!
-//! 修复方向：
-//! - 门控改比 `ISSUABLE_CARD_STATUSES`（每个 token 引自 card_status 词表，禁裸字面量）；
+//! 锁定形态：
+//! - 门控比 `ISSUABLE_CARD_STATUSES`（每个 token 引自 card_status 词表，禁裸字面量）；
 //! - 拒绝文案分层：闸门 1 是纯公开规则 → `business_displayable`（400 / BUSINESS_ERROR +
 //!   外显"只有草稿态色卡可以发放"）；含库存数字/超期条数/客户状态 token 的其余闸门
 //!   维持脱敏 `business`。
 //!
-//! 覆盖策略（路线一， 判责；表结构唯一来源 = backend/migration，不自建 DDL）
+//! 覆盖策略（表结构唯一来源 = backend/migration，不自建 DDL；无 mock）：
 //! - 全部数据用例走 `test_common::setup_test_db()`（已迁移 PG + 清空业务表）：
 //!   反向 issued/archived 卡 → CardNotIssuable + 400 契约 + 零落库；
-//!   legacy `active` 死值按裁定 R2 做**双层锁**（真 PG 的 `chk_color_card_status`
-//!   不含 active（backend/migration/src/domain/v15/mod.rs:4493-4498），"库里存在
+//!   legacy `active` 死值做**双层锁**（真 PG 的 `chk_color_card_status`
+//!   不含 active（backend/migration/src/domain/v15/mod.rs:4495-4500），"库里存在
 //!   active 脏行"这一前置在真库不可能成立——改为活库层断"写死值被 DB 拒且零漂移"，
 //!   应用层继续由词表/源码扫描锁固化"代码不得把 active 当可发放态"，两层都在本文件）。
 //! - issue_err 分层纯函数断言（无 DB）；两路源码扫描锁（色卡死值 / 工艺节点裸字面量形态）。
@@ -156,8 +157,8 @@ async fn assert_issue_gate_rejects(db: &sea_orm::DatabaseConnection, card_id: i6
 #[tokio::test]
 async fn issue_rejected_on_issued_card() {
     let db = fresh_db().await;
-    // 词表真实值 issued（已发放态）——修复前它也会被拒（死值门对一切恒失败），
-    // 修复后它不在放行集合 {draft}，仍必须被拒且给出外显公开文案。
+    // 词表真实值 issued（已发放态）：不在放行集合 {draft}，必须被拒且给出外显公开文案
+    // （死值门形态会对一切恒失败，那条路径由 legacy active 双层锁单独钉死）。
     let card_id = seed_card(&db, card_status::ISSUED).await;
     assert_issue_gate_rejects(&db, card_id, "issued(已发放)").await;
 }
@@ -172,7 +173,7 @@ async fn issue_rejected_on_archived_card() {
 #[tokio::test]
 async fn issue_rejected_on_legacy_active_dead_value() {
     // 'active' 不在 card_status::ALL / DB CHECK 内（迁移已回填为 draft）。
-    // 裁定 R2（判责）：真 PG 下"库里存在 active 脏行"这一前置**不可能成立**
+    // 真 PG 下"库里存在 active 脏行"这一前置**不可能成立**
     // （chk_color_card_status 23514 直接拒写），故本用例做双层锁，缺一层即回归：
     //
     // ── 活库层：把 legacy 死值写进色卡状态列，必须被数据库拒绝且整笔零落库/零漂移 ──

@@ -1,18 +1,17 @@
-//! 公海规则统一（用户 2026-10-02 拍板 ①）：单条领取纳入三项校验，
-//! 且保护期/每日计数判据从 `updated_at` 改为领取事件列
-//! `last_claimed_at`/`last_claimed_by`（唯一写点 build_claimed_active，
-//! 补列迁移 m_crm_lead_claim_record）。
+//! 公海规则统一：单条领取与批量领取同样走三项校验（validate_claim_rules），
+//! 保护期/每日计数判据 = 领取事件列 `last_claimed_at`/`last_claimed_by`
+//! （唯一写点 build_claimed_active，补列迁移 m_crm_lead_claim_record）。
 //!
-//! 根因（修复前实证）：
-//! 1. 单条路径 `/crm/pool/claim`（claim_lead_ownership）**完全不走**
-//!    `validate_claim_rules`/保护期——两条领取路径校验口径分叉；
-//! 2. 保护期旧判据取行 `updated_at`，而**回收只改 lead_status 也会刷新
-//!    updated_at**（recycle_to_pool → update_lead），"回收 → 立即领取"合法链
-//!    被默认 7 天保护期直接判负（e2e 27-06 依赖该顺序）；
-//! 3. 每日领取上限旧判据 `owner_id + updated_at ≥ 今日`，把"今天被动过的
-//!    存量线索"计入领取量，计数虚高误拒。
+//! 判据为何不能是 `updated_at`（本文件所锁的三个口径来源）：
+//! 1. 单条路径 `/crm/pool/claim`（claim_lead_ownership）与批量路径必须同走
+//!    `validate_claim_rules`/保护期，两条领取路径校验口径一致；
+//! 2. 回收只改 lead_status 也会刷新 updated_at（recycle_to_pool → update_lead），
+//!    若以 updated_at 判保护期，"回收 → 立即领取"合法链会被默认 7 天保护期
+//!    直接判负（e2e 27-06 依赖该顺序）；
+//! 3. 每日领取上限若按 `owner_id + updated_at ≥ 今日` 计数，会把"今天被动过的
+//!    存量线索"计入领取量，导致计数虚高误拒。
 //!
-//! 本文件锁（真 PostgreSQL 真跑服务层，无 HTTP 伪装；路线一， 判责）
+//! 本文件锁（真 PostgreSQL 真跑服务层，无 HTTP 伪装）：
 //! A. 保护期判据 = last_claimed_at：A 领取 → 回收（updated_at 变"刚刚"）→
 //!    B 立即领取被拒（单条显式报错 / 批量 claimed=0，两路径同判据）；
 //! B. 原领取人本人重领豁免（last_claimed_by 判定，保护期本义防他人抢单）；
@@ -52,7 +51,7 @@ async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
 }
 
 /// 种子：
-/// - users：两个销售父行（裁定 R1；AuditLogService::update_with_audit 回读
+/// - users：两个销售父行（AuditLogService::update_with_audit 回读
 ///   users 取操作人，真表真 FK 语义下必须存在）；
 /// - crm_lead：id 1..=6 的公海行（存量形态：last_claimed_at/last_claimed_by
 ///   NULL、updated_at 早于今日），A/B/C/D/E/F 各用例的领取对象。
@@ -108,7 +107,7 @@ async fn seed_pool_lead(
 
 /// 模拟"回收"：只改 lead_status='pool' 并刷新 updated_at（与
 /// recycle_to_pool→update_lead 的落库形态一致——**updated_at 必被刷新**，
-/// 这正是旧判据误伤"回收→领取"链的原因）
+/// 这正是保护期判据不能用 updated_at 的原因）
 async fn recycle(db: &sea_orm::DatabaseConnection, id: i32) {
     let lead = crm_lead::Entity::find_by_id(id)
         .one(db)
@@ -246,7 +245,7 @@ async fn daily_claim_limit_counts_claim_events_not_updated_rows() {
     let now = Utc::now().to_rfc3339();
 
     // B 名下 10 条线索今天都被 updated_at 刷过（跟进/回收等），但**无领取事件**
-    // ——旧判据会把它们全计入当日领取量直接撞 claim_limit=5 误拒（回归锁）
+    // ——若按 updated_at 计数会把它们全计入当日领取量，直接撞 claim_limit=5 误拒（回归锁）
     for id in 20..30 {
         seed_pool_lead(&db, id, USER_B, &now, None, None).await;
         recycle_keep_owner(&db, id).await;

@@ -1,18 +1,19 @@
-//! 库存服务单元测试（批次 393 补测）
+//! 库存服务单元测试
 //!
 //! 覆盖目标：
 //! - calculate_quantity_kg 双计量单位换算 4 个分支（齐全/缺失/转换失败/None 回退）
 //! - 库存硬编码状态字符串常量值正确性
 //! - InventoryStockService 实例化
 //!
-//! 通道（路线一， 判责）
+//! 通道：
 //! - 需要可连接真库的用例经 `test_common::setup_test_db()` 连已迁移 PostgreSQL，
-//!   表结构唯一来源 = `backend/migration`；原写法 `TEST_DATABASE_URL` 缺失时
-//!   **静默回退 sqlite::memory:**，正是本批假绿的根（缺变量也"通过"），夹具现在
-//!   缺变量/指 sqlite 一律 panic，不存在回退分支。
+//!   表结构唯一来源 = `backend/migration`；缺 `TEST_DATABASE_URL` 或指向 sqlite
+//!   时夹具直接 panic，不存在静默回退 sqlite::memory: 的分支（"缺变量也算通过"
+//!   属假绿）。
 //! - 「无 schema 必须报数据库错误」一族走负前提交集
 //!   `test_common::connect_empty_schema_db()`（`TEST_EMPTY_DATABASE_URL` →
-//!   已建库但未跑迁移的 PostgreSQL），断言原文不动；同一文件两种连接并存属裁定 R3。
+//!   已建库但未跑迁移的 PostgreSQL），断言原文不动；同一文件两种连接并存，
+//!   正/负前提各绑各自夹具。
 mod test_common;
 
 use bingxi_backend::database::*;

@@ -1,7 +1,7 @@
-//! P0-T02 生产订单全流程集成测试（V15 Batch 487）
+//! 生产订单全流程集成测试
 //!
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径（各条按被测函数体在**真库化夹具**
-//! 下的真实契约逐条校准，见各用例文档注释； 判责 §⑤ W4 / 裁决 R-9）
+//! 下的真实契约逐条校准，见各用例文档注释）
 //! 纯状态机校验函数 validate_status_transition 为私有方法，通过 DB 异常路径间接验证状态门逻辑。
 //! 完整业务流程测试（create → submit → approve → complete）需要真实 PostgreSQL，标记 #[ignore]。
 
@@ -14,7 +14,6 @@ use bingxi_backend::services::production_order_service::{
     CreateProductionOrderRequest, ProductionOrderQuery, ProductionOrderService,
 };
 use rust_decimal::Decimal;
-// 批次 490 D10-3b 修复：使用 super:: 限定本地 mod common，避免被 status::common 遮蔽
 use bingxi_backend::models::status::common::STATUS_COMPLETED;
 use bingxi_backend::models::status::common::STATUS_DRAFT;
 use chrono::NaiveDate;
@@ -23,7 +22,7 @@ use test_common::setup_test_db;
 
 /// 构造最小 CreateProductionOrderRequest（仅必填字段）
 ///
-/// 无 order_no 字段（缺陷3：单据号禁手输，一律服务端取号）；
+/// 无 order_no 字段（单据号禁手输，一律服务端取号）；
 /// planned_quantity 为必填 Decimal（NOT NULL 列，无 Option/默认值兜底）。
 fn sample_create_request() -> CreateProductionOrderRequest {
     CreateProductionOrderRequest {
@@ -40,8 +39,6 @@ fn sample_create_request() -> CreateProductionOrderRequest {
 
 // ===== 状态常量值正确性 =====
 
-/// test_scddztcl_zzqx
-///
 /// 验证生产订单相关的状态常量值符合预期（大写风格）。
 #[test]
 fn test_scddztcl_zzqx() {
@@ -55,8 +52,6 @@ fn test_scddztcl_zzqx() {
     assert_eq!(production::PRODUCTION_REJECTED, "REJECTED");
 }
 
-/// test_scddztcl_dxfgyzx
-///
 /// 验证所有生产订单状态常量均为大写 + 下划线风格。
 #[test]
 fn test_scddztcl_dxfgyzx() {
@@ -81,8 +76,6 @@ fn test_scddztcl_dxfgyzx() {
 
 // ===== Service 实例化与 DB 异常路径 =====
 
-/// test_productionorderservice_slhbcfdb
-///
 /// 验证 new(db) 仅存储 Arc<DatabaseConnection>，不执行任何 DB 查询。
 #[tokio::test]
 async fn test_productionorderservice_slhbcfdb() {
@@ -92,18 +85,15 @@ async fn test_productionorderservice_slhbcfdb() {
     let _ = svc;
 }
 
-/// test_productionorderservice_create_kdbfherr —— 真库化夹具前提校准（判责
-/// §⑤ W4；手法照抄 ap_payment_workflow_test 的 R-9 拆分范本）：
 /// 钉"已建库空表上 create（引用不存在的产品/工作中心）返回 **VALIDATION_ERROR**
 /// 机器码而非 panic"。
 ///
-/// 真实契约依据（读函数体，非读注释）：`production_order_ops/crud.rs:174-185` create
-/// 第一步 `validate_create_references`（:188-213）→ `validate_product_exists`（:48-56）
-/// 在空 `products` 表（`products` **不在** `test_common.rs:35-55` 种子白名单、会被
+/// 契约依据（读函数体，非读注释）：`production_order_ops/crud.rs:174-186` create
+/// 第一步 `validate_create_references`（:189-214）→ `validate_product_exists`（:48-58）
+/// 在空 `products` 表（`products` **不在** `test_common.rs:40-60` 种子白名单、会被
 /// TRUNCATE）上查不到 product_id=1 ⇒ `AppError::validation`。
-/// ⇒ `is_err()` 方向成立，原注释"product 表不存在"的**前提**过期（表存在、只是空），
-/// 断言由裸 `is_err()` 收紧为钉机器码——夹具若退化成 schema 缺失（DATABASE_ERROR）
-/// 或门控丢失（竟然 Ok）都必须显形，这不是掩盖源码缺陷：引用校验正是该调用的生产契约。
+/// 断言钉机器码而非裸 `is_err()`：夹具若退化成 schema 缺失（DATABASE_ERROR）
+/// 或门控丢失（竟然 Ok）都必须显形——引用校验正是该调用的生产契约。
 #[tokio::test]
 async fn test_productionorderservice_create_kdbfherr() {
     let db = setup_test_db().await;

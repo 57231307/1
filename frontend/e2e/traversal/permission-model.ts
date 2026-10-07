@@ -1,5 +1,5 @@
 /**
- * P5.14 全角色权限矩阵——权限预期模型（派生侧权威轨道 + 防漂移 + 基线统一 schema）
+ * 全角色权限矩阵——权限预期模型（派生侧权威轨道 + 防漂移 + 基线统一 schema）
  *
  * 派生（期望集）= 两个真实来源的静态合取，绝不在测试内手写期望表当派生：
  *   1. 角色真实权限码：GET /auth/me → UserInfo.permissions（后端由 role_permission 表构建，
@@ -10,9 +10,9 @@
  *      纯别名路由（redirect 指向目标且自身无组件/子树）继承**目标路由**的门控：
  *      vue-router 在守卫执行前完成 redirect 解析，守卫读到的一直是 to=目标路由 的 meta；
  *      实测面 goto /workflow 落点即 /bpm 的门控判定。不跟随 redirect 链会把别名恒派生为
- * "登录即可达"，与实测分叉（CI 角色矩阵 31 条 /workflow 伪影红的根因）。
+ * "登录即可达"，与守卫实际行为分叉。
  *      链上的 redirect 目标缺失/成环/非字面量一律抛错判红交人工，禁止静默降级。
- *   匹配语义逐一对齐 router/index.ts:1474-1560 的 splitPermissionCode / actionEquivalent /
+ *   匹配语义逐一对齐 router/index.ts:1514-1602 的 splitPermissionCode / actionEquivalent /
  *   hasRoutePermission（通配 *:*、resource:*、read↔view、update↔edit）。
  *
  * 防漂移轨（assertRoutePermissionsInSync）：ROUTE_PERMISSIONS 是人工审阅过的"路由门控预期"
@@ -69,7 +69,7 @@ const CANDIDATE_DIR = 'e2e/.auth/access-map';
  * 路由门控"人工审阅快照"：key = 模块 id（对应 TRAVERSAL_MODULES），
  * value = 该路由 router meta.permission 的评审期望值（null = 登录即可达）。
  * 本表不参与派生；assertRoutePermissionsInSync 每轮核它与 router 现值的一致性。
- * 值来源：CI 判责后按 src/router/index.ts 现值人工逐条核对录入（2026-10-02）。
+ * 值来源：按 src/router/index.ts 现值人工逐条核对录入。
  */
 export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   dashboard: 'dashboard:read',
@@ -85,15 +85,14 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   product: 'products:read',
   inventory: 'inventory:read',
   sales: 'sales:read',
-  // 以下 5 项旧表值（purchase:read/quality:read/production:read/bpm:read/crm:read）与
-  // router 实际门控不符，属陈旧期望；照旧值派生会把持 purchases:read 的角色整片误判 denied。
-  // 现按 router 真值钉住：router 若改动这些门控，防漂移门禁会判红并要求人工复核。
+  // 以下 5 项门控值按 router 真值钉住：若沿用 purchase:read 族旧值，会把持
+  // purchases:read 的角色整片误判 denied。router 若改动这些门控，防漂移门禁会判红并要求人工复核。
   purchase: 'purchases:read',
   quality: 'inventory:read',
   production: 'inventory:read',
   bpm: 'audit-logs:read',
   crm: 'customers:read',
-  // /workflow 是纯别名（router/index.ts:1382-1383 `redirect: '/bpm'`），门控事实来源是
+  // /workflow 是纯别名（router/index.ts:1422-1423 `redirect: '/bpm'`），门控事实来源是
   // 目标路由 /bpm 的 meta——登记本条不是为了参与派生（派生走 redirect 链继承，见
   // parseRouterPermissions），而是把"workflow→bpm 的对应关系"钉进人工评审锚：
   // /bpm 或 /workflow 任一侧被改动（如 redirect 换目标、bpm 换权限码）都会触发防漂移判红。
@@ -104,7 +103,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
 
 /**
  * 拉取当前登录角色自己的权限码（GET /auth/me → data.permissions）。
- * 这正是路由守卫（router/index.ts:1606-1614）消费的同一份后端权威数据；
+ * 这正是路由守卫（router/index.ts:1644-1649）消费的同一份后端权威数据；
  * 以角色自身会话读取，不冒充 admin、不为低权角色伪造 /roles 访问能力。
  */
 export async function fetchSelfPermissions(page: Page): Promise<string[]> {
@@ -281,7 +280,7 @@ export async function loadRouterPermissions(): Promise<Record<string, RoutePermV
   return parseRouterPermissions(fs.readFileSync(routerPath, 'utf-8'));
 }
 
-/** 拆分权限码 `"{resource}:{action}"`（与 router/index.ts:1474-1480 同源实现） */
+/** 拆分权限码 `"{resource}:{action}"`（与 router/index.ts:1514-1519 同源实现） */
 function splitPermissionCode(code: string): { resource: string; action: string } {
   const sepIdx = code.indexOf(':');
   return sepIdx > 0
@@ -289,7 +288,7 @@ function splitPermissionCode(code: string): { resource: string; action: string }
     : { resource: code, action: '' };
 }
 
-/** 动作等价（与 router/index.ts:1482-1495 同源）：*:* 之外 read↔view、update↔edit */
+/** 动作等价（与 router/index.ts:1522-1536 同源）：*:* 之外 read↔view、update↔edit */
 function actionEquivalent(userAction: string, requiredAction: string): boolean {
   if (userAction === '*' || userAction === requiredAction) return true;
   if (
@@ -306,7 +305,7 @@ function actionEquivalent(userAction: string, requiredAction: string): boolean {
 }
 
 /**
- * 权限码匹配——逐分支镜像 router/index.ts:1545-1560 hasRoutePermission：
+ * 权限码匹配——逐分支镜像 router/index.ts:1585-1602 hasRoutePermission：
  * null/'' = 无 meta.permission，登录即可达；空数组 [] 在守卫里为真值且 some 恒 false（拒绝），
  * 镜像必须保留该边界语义，不得"顺手宽容"。
  */

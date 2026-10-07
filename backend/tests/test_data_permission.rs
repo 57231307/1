@@ -145,13 +145,12 @@ fn test_data_scope_as_str() {
     assert_eq!(DataScope::Self_.as_str(), "self");
 }
 
-// ===== 同源重建（判责 §⑤ W4·D）=====
+// ===== 数据范围归属门纯函数行为锁 =====
 // 本节把 data_permission 侧断言与 `src/utils/data_scope.rs` 真实实现**同源**钉死，
-// 作为"公海领取/超管跨 owner 写"两条拍板口径的纯函数行为锁。背景（判责 §2.3 A4）：
-// handler 级活体锁（contract_wave6_crm_pool_owner_test 5 条）被 AppState::default()
-// 的 Disconnected 哨兵 panic 遮蔽、本轮一条没跑到；在夹具修复前该两条口径"不可证"。
-// 纯函数锁不依赖任何连接/AppState，立即可跑且确定性——**这是补位前提，不是替代**：
-// 活体锁盲区仍单列记账（交付报告 H 节），不得据本节宣称两条口径已端到端验证。
+// 覆盖"公海领取/超管跨 owner 写"两条口径在纯函数层的行为。纯函数锁不依赖任何
+// 连接/AppState，可确定性执行；handler 级端到端锁由
+// `contract_wave6_crm_pool_owner_test.rs` 承担——本节不构成两条口径的端到端验证，
+// 不得据本节宣称已端到端。
 
 /// 读门 `check_resource_owner` 三档 + 边界，逐分支对照实现（data_scope.rs:155-177）：
 /// - `All` 恒真（可见性语义，与写门分家，:161）；
@@ -206,8 +205,8 @@ fn check_resource_owner_read_gate_matches_impl() {
 /// 词表同源锁：`data_permissions.scope_type` 的**存储词表**（服务侧大写常量，
 /// `services/data_permission_service.rs:19-31`）必须能被
 /// `DataScope::parse_scope`（`utils/data_scope.rs:29-35`，大小写不敏感、未知值
-/// fail-closed 回退 Self_）正确解析；`CUSTOM` 现实现回退 Self_，本条**如实钉现状**
-/// ——若未来裁定 CUSTOM 走独立档位，让本条显形红触发口径讨论，不预先放宽。
+/// fail-closed 回退 Self_）正确解析；`CUSTOM` 现实现回退 Self_，本条**如实钉现状**，
+/// 不预先放宽；若该档位将来要改为独立语义，本条变红即为口径变更的显式触发点。
 #[test]
 fn scope_type_vocabulary_shared_by_service_and_data_scope() {
     use bingxi_backend::services::data_permission_service::data_scope;

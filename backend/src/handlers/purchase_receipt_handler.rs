@@ -33,7 +33,7 @@ pub async fn list_receipts(
     let service = PurchaseReceiptService::new(state.db.clone());
     let (receipts, total) = service
         .list_receipts(
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
+            params.page.unwrap_or(1).clamp(1, 1000), // 分页参数 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
@@ -45,7 +45,7 @@ pub async fn list_receipts(
         )
         .await?;
 
-    // 批次 406 修复：序列化失败应传播错误而非返回 Null，避免 API 返回空数据掩盖问题
+    // 序列化失败传播 AppError 而非返回 Null，避免 API 以空数据掩盖问题
     let mut items_json: Vec<serde_json::Value> = receipts
         .into_iter()
         .map(|r| serde_json::to_value(r).map_err(AppError::from))
@@ -53,9 +53,8 @@ pub async fn list_receipts(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        // 非静默：原 `if let Ok(Some(_))` 把权限查询 Err 与 Ok(None) 静默合并，按
-        // 本仓既有做法（crm_handler::resolve_role_data_permission）对 Err 记 warn 后
-        // 同走 fail-closed 默认处理，出参语义与原实现逐字一致。
+        // 权限查询 Err 不静默：记 warn 后按 None（fail-closed 默认处理）继续，
+        // 做法同本仓既有 crm_handler::resolve_role_data_permission。
         let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt")
@@ -80,7 +79,7 @@ pub async fn list_receipts(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // D-4 收口（波次）：admin 判定走本仓唯一权威源
+            // admin 判定走本仓唯一权威源
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
             // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
@@ -98,7 +97,7 @@ pub async fn list_receipts(
     let result = serde_json::to_value(PaginatedResponse::new(
         items_json,
         total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        params.page.unwrap_or(1).clamp(1, 1000), // 分页参数 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
     ))?;
 
@@ -142,7 +141,7 @@ pub async fn get_receipt(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与列表同一单源判定（见 list_receipts 内 D-4 收口注释），每请求至多一次
+            // 与列表同一单源判定（见 list_receipts 内 admin 判定注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = receipt_json.as_object_mut() {
                 obj.remove("total_amount");
@@ -194,7 +193,7 @@ pub async fn create_receipt(
                     String::new()
                 };
 
-                // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+                // 通知发送失败记 warn 日志，不静默吞错
                 if let Err(e) = event_service
                     .notify_purchase_arrived(user_id, &order.order_no, order_id, &warehouse_name)
                     .await
@@ -357,7 +356,7 @@ pub async fn list_receipt_items(
                 );
             }
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与单头同一单源判定（见 list_receipts 内 D-4 收口注释），每请求至多一次
+            // 与单头同一单源判定（见 list_receipts 内 admin 判定注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(list) = items_json.as_array_mut() {
                 for item in list {
@@ -433,7 +432,7 @@ pub async fn delete_receipt_item(
 /// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`PR{yyyyMMdd}{3 位流水}`
 /// 例如 `PR20260514001`。前缀/位数与落库权威
 /// `PurchaseReceiptService::generate_receipt_no`（impl_generate_no! "PR"，默认 3 位）逐字一致，
-/// 修复展示码≠落库码双轨缺陷（原展示 "RK"/4 位）。
+/// 保证展示码与落库码同源。
 /// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
 pub async fn generate_no(
     State(state): State<AppState>,
@@ -451,7 +450,7 @@ pub async fn generate_no(
 }
 
 /// POST /api/v1/erp/purchase/receipts/:id/recalculate - 手动重算入库单总金额（运维兜底入口）
-/// v11 批次 154c P2-A：接入 calculate_receipt_total，用于数据修复场景
+/// 调用 `PurchaseReceiptService::calculate_receipt_total`，用于数据修复场景
 pub async fn recalculate_receipt_total(
     auth: AuthContext,
     Path(id): Path<i32>,
@@ -475,7 +474,7 @@ pub async fn recalculate_receipt_total(
 /// 为什么不把 DTO 字段直接写成 `Option<NaiveDate>`：`axum::Query` 的类型化反序列化
 /// 失败走 QueryRejection，出参是纯文本 400、不经过 `AppError` 信封（本仓未覆盖
 /// Rejection 响应，见 `handlers_query_param_coercion_test.rs` 对拒绝体的文本断言），
-/// 会违背「字段取值错误 = VALIDATION_ERROR 信封」裁定
+/// 会违背「字段取值错误 = VALIDATION_ERROR 信封」口径
 /// （先例：`contract_wave4_api_key_echo_and_expiry_test.rs` 非法日期断言
 /// `code=VALIDATION_ERROR` + 真实文案外显）。
 fn parse_receipt_date_param(raw: Option<&str>, field: &str) -> Result<Option<NaiveDate>, AppError> {

@@ -1,29 +1,29 @@
-//! CRM 读侧旁路与归属列收口契约锁（四条缺陷面 D-1~D-4）
+//! CRM 读侧旁路与归属列收口契约锁（四个契约面 D-1~D-4）
 //!
-//! 四条缺陷与对应锁（详见各用例文档）：
-//! - **D-1** `get_customer_360` 内嵌"商机简报"不走 `apply_opportunity_field_permission`
-//!   → 列表隐藏的 `estimated_amount`/`actual_amount` 换出口整份可读（读侧旁路）。
+//! 四个契约面与对应锁（D-x 标签与各用例失败信息中的棘轮标签一一对应，详见各用例文档）：
+//! - **D-1** `get_customer_360` 内嵌"商机简报"与列表端点必须共用 `apply_opportunity_field_permission`
+//!   同一道门——否则列表隐藏的 `estimated_amount`/`actual_amount` 会换出口整份可读（读侧旁路）。
 //!   锁：同一账号同一数据，列表与 360 逐行金额可见性必须相等，且双向都有方向断言
-//!   （他人行两处都隐藏 / 本人行两处都原值——360 若因简报缺 `owner_id` 而被
+//!   （他人行两处都隐藏 / 本人行两处都原值——360 若丢了简报 `owner_id` 而被
 //!   fail-closed 全剔，本人行方向同样打红，逼简报投影与列表 owner 判据同源）。
-//! - **D-2** `services/crm/cust.rs` 行级归属用可空审计列 `created_by` 而非权威列
-//!   `owner_id`（RLS 归属列口径见 `handlers/crm_write_guard.rs` 文件头与
-//!   `migration/src/domain/rls_dept/mod.rs:74`）→ 转派后现任 owner 被拒（功能坏）、
-//!   原创建者越权（写通道）。dept 参数若恒传 `None` 则 Dept 范围一律误拒。
+//! - **D-2** `services/crm/cust.rs` 行级归属判据 = 权威列 `owner_id`（+ `department_id`），
+//!   非可空审计列 `created_by`（RLS 归属列口径见 `handlers/crm_write_guard.rs` 文件头与
+//!   `migration/src/domain/rls_dept/mod.rs:74`）。若误按 `created_by` 判：转派后现任 owner
+//!   被误拒、原创建者得到越权读写通道；dept 参数若恒传 `None` 则 Dept 范围一律误拒。
 //!   锁：owner≠created_by 交叉行（owner=50/created_by=80）上，self 现任 owner 读 360
 //!   与跟进 → 200；self 原创建者 → 403；dept 用户（department_id ∈ 可见集合）→ 200
 //!   （钉 dept 参传真实列后 Dept 分支恢复语义）；公海行 owner_id=0 对 self 原创建者
 //!   fail-closed 403（按 created_by 判定则会放行）。
-//! - **D-3** `convert_opportunity_to_order` 内 `get_opportunity(id, None)` 跳过行级
-//!   读门、且无写门 → 跨主把他人商机转成销售订单（派生落库带对方金额）。
+//! - **D-3** `convert_opportunity_to_order` 是派生落库的跨主写入口：入口必须走行级读门 +
+//!   跨主写门（与 update/delete 同形）——否则他人商机会被跨主转成销售订单（派生落库带对方金额）。
 //!   锁：All 范围无 `crm/cross_owner_write` 键转他人商机 → 403+FORBIDDEN+固定脱敏
 //!   常量 + **零写入**（订单不生成、商机状态不变）；本人行 → 200（功能不伤）；
 //!   显式授键后 → 200（跨主放行只走既有键通道）。
-//! - **D-4** admin 例外双源：`if rid == 1`（角色主键字面量）vs 权威源
-//!   `admin_checker::is_admin_role`（roles.code='admin'）。字面量在播种漂移时
-//!   静默失效/静默扩权两头坏。锁：源码棘轮——apply 门体内必须调
-//!   `admin_checker::is_admin_role(&state.db, rid)` 且 `rid == 1` / `role_id != 1`
-//!   字面量在本文件清零；功能面把"code='admin' 即 admin（与 id 无关）""all 范围但
+//! - **D-4** admin 例外唯一权威源 = `admin_checker::is_admin_role`（roles.code='admin'）。
+//!   `if rid == 1` 这类角色主键字面量在播种漂移时会静默失效/静默扩权两头坏。
+//!   锁：源码棘轮——apply 门体内必须调 `admin_checker::is_admin_role(&state.db, rid)`，
+//!   且 `rid == 1` / `role_id != 1` 字面量在被棘轮扫描的 crm_handler.rs 内清零；
+//!   功能面把"code='admin' 即 admin（与 id 无关）""all 范围但
 //!   code≠'admin' 的角色不享受豁免"两条契约钉住。
 //!
 //! 断言口径：失败只断 HTTP status + 信封 code（权限族=403/FORBIDDEN，
@@ -201,7 +201,7 @@ async fn insert_opp(
 /// - crm_opportunity 6 行（全部挂客户 1）：1/2 owner=A；3/4 owner=B；
 ///   5 owner=A creator=B；6 owner=B creator=A（交叉形态，D-1 owner 判据同源靶子）
 ///
-/// 客户 360 的商机子集**不做行级 scope 过滤**（本轮未扩该契约，见文件头），
+/// 客户 360 的商机子集**不做行级 scope 过滤**（契约范围只钉字段级金额门，见文件头），
 /// dept/self 用户都能取到全 6 行——正因如此字段级金额门是否生效才有对比面。
 async fn seeded_db() -> Arc<DatabaseConnection> {
     let db = test_common::setup_test_db().await;
@@ -476,7 +476,7 @@ async fn customer_360_opp_subset_matches_list_amount_gate() {
 #[tokio::test]
 async fn customer_gate_keys_owner_id_not_created_by() {
     // 现任 owner（50，self）：客户 1（owner=50，created_by=80）必须读得到——
-    // 修复前按 created_by=80 判归属，self 范围的现任 owner 被 403（功能坏）。
+    // 若按 created_by=80 判归属，self 范围的现任 owner 会被 403（功能坏）；判据必须取 owner_id。
     let db = seeded_db().await;
     let app = build_app(&db, make_auth(USER_A, Some(ROLE_SEED_NONADMIN), "self"));
     let (status, v) = customer_360(&app, 1).await;
@@ -486,7 +486,7 @@ async fn customer_gate_keys_owner_id_not_created_by() {
         "转派后现任 owner（self 范围）必须能读 360（归属判据=owner_id）: {v}"
     );
 
-    // 原创建者（80，self，已非 owner）：修复前按 created_by=80 放行 → 越权读通道。
+    // 原创建者（80，self，已非 owner）：按 created_by=80 放行会留下越权读通道，必须 403。
     let app = build_app(
         &db,
         make_auth(USER_EX_CREATOR, Some(ROLE_SEED_NONADMIN), "self"),
@@ -538,9 +538,9 @@ async fn customer_gate_keys_owner_id_not_created_by() {
 #[tokio::test]
 async fn pool_customer_owner_zero_denies_creator_read() {
     // 公海行（customers id=2：owner_id=0、created_by=50）：fail-closed 语义——
-    // 修复前按 created_by 判归属，原创建者（self）可对公海行直读 360（越权通道）；
-    // 修复后 owner_id=0 ≠ 任何本人 → Self 拒；Dept 用户因触发器对公海行置
+    // 归属判据取 owner_id：owner_id=0 ≠ 任何本人 → Self 拒；Dept 用户因触发器对公海行置
     // department_id=NULL → None → 同样拒（公海行的进入/领取走 pool 自己的门）。
+    // 若按 created_by 判归属，原创建者（self）就能对公海行直读 360（越权通道），此处判红。
     let db = seeded_db().await;
     let app = build_app(&db, make_auth(USER_A, Some(ROLE_SEED_NONADMIN), "self"));
     let (status, v) = customer_360(&app, 2).await;
@@ -562,7 +562,7 @@ async fn pool_customer_owner_zero_denies_creator_read() {
         "公海行 department_id=NULL，dept 用户同样拒（读门 None 分支语义，不放松）"
     );
 
-    // All 范围（迁移种子 admin role 1）：读门 All 恒真维持不变（方案 A 读侧不收紧）
+    // All 范围（迁移种子 admin role 1）：读门 All 恒真（读侧不收紧，跨主写另有写门）
     let app = build_app(&db, make_auth(USER_ADMIN_SEED, Some(1), "all"));
     let (status, _v) = customer_360(&app, 2).await;
     assert_eq!(
@@ -594,8 +594,8 @@ async fn cross_owner_conversion_denied_key_owner_and_grant_channels() {
     .await;
 
     // 1) All 范围、无代表键：读得到他人商机（读门 All 恒真），**转单必须 403**——
-    //    修复前 handler 直通 service（内部 get_opportunity(id,None) 跳过行级判定）
-    //    ⇒ 旧代码此处 200 + 订单落库，本断言即缺陷抓取点。
+    //    若 handler 直通 service（内部 get_opportunity(id,None) 跳过行级判定）且不设写门，
+    //    这里会 200 + 订单落库；本断言即跨主派生写通道的钉死点。
     let mgr_app = build_app(&db, make_auth(USER_EX_CREATOR, Some(ROLE_PROXY_ALL), "all"));
     let (status, v) = send(
         &mgr_app,
@@ -687,16 +687,16 @@ async fn admin_exception_follows_role_code_not_literal_one() {
     let db = seeded_db().await;
     // 对照角色 902（code≠'admin'、all 范围）先删后插保持幂等。
     //
-    // ⚠️ 本用例**不再**自造第二条 code='admin' 的角色：`roles.code` 在库上是 UNIQUE
+    // ⚠️ 本用例**不**自造第二条 code='admin' 的角色：`roles.code` 在库上是 UNIQUE
     // （`migration/src/domain/system/m0001_initial_schema.rs:24-28`），而迁移种子已
     // 用掉唯一的那个 'admin'（id=1，同文件 :609-612），再插一条必报 23505 并被
     // `exec` 助手 panic——即"admin 落在 id≠1"这一场景在 public.roles 上结构上
     // 构造不出来（要凑就得临时改挪种子行，那会级联污染全部依赖种子的用例）。
-    // ⇒ 判别"admin 到底看 code 还是看主键"的活体证明改在
+    // ⇒ 判别"admin 到底看 code 还是看主键"的活体证明在
     // `contract_wave8_admin_role_id_drift_test.rs` 的**私有 schema roles 副本表**上做
-    // （两条漂移场景都能原样构造且不触碰 public）。本文件这一段仍守住"admin 享受
-    // 他人行金额原值 + 非 admin 的 all 范围角色不享受豁免"这层契约，只是 admin 取
-    // 种子 id=1，不再声称区分了主键。
+    // （两条漂移场景都能原样构造且不触碰 public）。本文件这一段守住"admin 享受
+    // 他人行金额原值 + 非 admin 的 all 范围角色不享受豁免"这层契约，admin 取
+    // 种子 id=1，本段不区分主键。
     exec(&db, "DELETE FROM roles WHERE id = 902").await;
     exec(
         &db,
@@ -735,7 +735,7 @@ async fn admin_exception_follows_role_code_not_literal_one() {
 }
 
 // ---------------------------------------------------------------------------
-// 源码棘轮（shrink-only，四条缺陷的"改坏必红"负例锁）
+// 源码棘轮（shrink-only，四个契约面的"改坏必红"负例锁）
 // ---------------------------------------------------------------------------
 
 /// 剔全部空白并消掉闭合定界符前的尾逗号（防 rustfmt 换行/尾逗号改变被锁调用形状）

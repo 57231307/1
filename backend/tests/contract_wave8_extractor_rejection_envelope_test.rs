@@ -1,4 +1,4 @@
-//! 契约波次 8（任务板）：提取器拒绝收口层的**活体锁**
+//! 提取器拒绝收口层的**活体锁**
 //!
 //! 被锁实现（源码侧已闭，本文件只证明"它真生效 + 不会被无声打开"）：
 //! - 收口点：`backend/src/middleware/trace_context.rs:259-309` `normalize_extractor_rejection`
@@ -6,15 +6,15 @@
 //!   窄判据 = 状态 ∈ {400,415,422} **且** content-type 以 `text/plain` 开头才改写信封；
 //!   serde 原文逐条 `tracing::warn`（事件名 `extractor.rejection_normalized`，含
 //!   `original_status`/`raw_rejection`）只进日志不外显；JSON 信封原样放行。
-//! - 构造入口：`backend/src/utils/error.rs:802-815` `AppError::request_decoding_failed()`
-//!   ⇒ 400 + `code=VALIDATION_ERROR` + 恒定公开文案 `REQUEST_DECODING_PUBLIC`（error.rs:799-800）。
+//! - 构造入口：`backend/src/utils/error.rs:863-865` `AppError::request_decoding_failed()`
+//!   ⇒ 400 + `code=VALIDATION_ERROR` + 恒定公开文案 `REQUEST_DECODING_PUBLIC`（error.rs:850-851）。
 //!
 //! 与既有测试的分工：`contract_wave7_extractor_rejection_envelope_test.rs` 锁了
 //! "拒绝会被归一"的正向通道与鉴权面 message 常量；本文件补它没有、或被拆环后必然失守的四条：
 //! ① 三形输入（畸形 JSON / 缺必填字段 / 缺 Content-Type）逐形钉"外显恒等于公开常量 +
 //!   绝不含 serde 路径/字段名/结构体名"的双向钉；
 //! ② 反向不误伤：业务 400（BUSINESS_ERROR）、403、401、404（AppError 信封与未注册路由
-//!   两通道）逐字段不变——权限类拒绝按本仓裁定**只断 status + code + 信封键集合**，
+//!   两通道）逐字段不变——权限类拒绝按本仓脱敏契约**只断 status + code + 信封键集合**，
 //!   不断任何原因文案；
 //! ③ 5xx 不被吞：AppError 内部错与 handler panic 仍分别回 500 + INTERNAL_ERROR，
 //!   不经 normalize（收口层若被扩到 5xx 立即红）；
@@ -30,8 +30,10 @@
 //!   也防"判据外溢后每条业务 400 都刷归一日志"两个反向漂移。
 //!
 //! 夹具口径：纯 axum Router + tower `oneshot` + `catch_panic_middleware` 真实挂载
-//! （同 wave7 / wave4 `contract_wave4_trace_and_envelope_test.rs` 范式），收口层不触库，
-//! 无需 `setup_test_db()`；日志捕获沿用 wave4 的 `tracing_subscriber::fmt` 内存 writer
+//! （同 contract_wave7_extractor_rejection_envelope_test.rs /
+//! contract_wave4_trace_and_envelope_test.rs 范式），收口层不触库，
+//! 无需 `setup_test_db()`；日志捕获沿用 contract_wave4_trace_and_envelope_test.rs 的
+//! `tracing_subscriber::fmt` 内存 writer
 //! 线程局部夹具（`capture_logs`，仓内既有范式）。无 `#[ignore]`、无 skip、无 mock。
 
 use std::io::Write;
@@ -292,7 +294,7 @@ async fn business_400_json_envelope_untouched() {
     );
 }
 
-/// 权限 403：按本仓裁定只断 status + code（FORBIDDEN）+ 四键形状，不断任何原因文案。
+/// 权限 403：按本仓脱敏契约只断 status + code（FORBIDDEN）+ 四键形状，不断任何原因文案。
 /// 收口判据若外溢到 application/json 或非 text/plain 通道，状态/形状先红。
 #[tokio::test]
 async fn forbidden_403_status_and_code_only() {
@@ -530,7 +532,7 @@ fn app_error_variant_status_never_produces_415_or_422() {
 //       original_status；未命中（JSON 信封族）必不记
 // ============================================================================
 
-/// 内存 writer + 线程局部 default subscriber（沿用 wave4
+/// 内存 writer + 线程局部 default subscriber（沿用
 /// contract_wave4_trace_and_envelope_test.rs:42-83 既有夹具范式）
 #[derive(Clone)]
 struct SharedBuf(Arc<Mutex<Vec<u8>>>);

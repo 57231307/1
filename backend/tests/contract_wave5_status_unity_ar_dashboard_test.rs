@@ -1,26 +1,26 @@
-//! 契约波次 5 · AR 报表 & 仪表盘库存状态口径统一契约锁（决策定案 + 词表核查 A1）
+//! AR 报表 & 仪表盘库存状态口径统一契约锁
 //!
-//! 锁定的两条根因：
+//! 锁定的两条口径：
 //! 1. **AR 报表口径分裂**：`services/ar_ops/report.rs` 的 8 处过滤门只写
 //!    `status <> CANCELLED`，而 AR 发票创建写入的就是 `common::STATUS_DRAFT`
 //!    （services/ar/inv.rs:222）⇒ 草稿应收被计入 total/unpaid/逾期额/回款率分母，
 //!    与 BI（`bi_analysis_ops/*` 用 `NOT IN (CANCELLED, DRAFT)`）和仪表盘口径自相矛盾。
 //!    同族裸 `"CANCELLED"` 字面量：`ar/vfy_ops/aging.rs`（SeaORM 账龄）、
 //!    `fund_management_service.rs` 现金流预测应收侧。
-//!    修复形态：8 处一律 `status NOT IN ($k, $k+1)`，值绑定
+//!    锁定口径：8 处一律 `status NOT IN ($k, $k+1)`，值绑定
 //!    `crate::models::status::common::{STATUS_CANCELLED, STATUS_DRAFT}`；
-//!    SeaORM 侧改 `is_not_in([CANCELLED, DRAFT])`。
+//!    SeaORM 侧用 `is_not_in([CANCELLED, DRAFT])`。
 //! 2. **仪表盘 4 个库存聚合恒 0**：`dashboard_service.rs` 裸 SQL
 //!    `WHERE s.stock_status = 'active'` 过滤**中文词表列**
 //!    （`inventory_stock_status` 权威取值 正常/报废/已删除），PG 比较区分大小写且
-//!    中英不同 ⇒ 在库价值/品类价值/库龄/周转率分母恒空。修复形态：4 处改绑定
+//!    中英不同 ⇒ 在库价值/品类价值/库龄/周转率分母恒空。锁定口径：4 处绑定
 //!    `inventory_stock_status::NORMAL` 常量（周转率处基址避让 $1/$2 用 $3）。
 //!
-//! 覆盖策略（路线一真库化， 判责；表结构唯一来源 = backend/migration）
+//! 覆盖策略（表结构唯一来源 = backend/migration，行为锁在真 PG 直跑）
 //! - 真 PG 行为锁：调用**生产同源 builder** 得到 (sql, params) 后在真实 ar_invoices /
 //!   inventory_stocks 表上执行——统计/日报表逐值断言只含 APPROVED（含全过滤参数形态，
-//!   锁 $N 基址位移不撞号）；修复前旧谓词（只排 CANCELLED）作缺陷实证对照（草稿被误计入）。
-//!   金额列按真表 DECIMAL 以 Decimal 解码逐值断言（sqlite TEXT 亲和失真通道已废除）。
+//!   锁 $N 基址位移不撞号）；旧谓词（只排 CANCELLED）作缺陷实证对照（草稿会被误计入）。
+//!   金额列按真表 DECIMAL 以 Decimal 解码逐值断言（不按 f64/TEXT 亲和解码）。
 //! - 仪表盘库存门真库行为锁：绑定中文常量命中「正常」行；旧英文小写字面量
 //!   谓词恒零命中作缺陷实证对照。
 //! - $N 占位一致性锁：月报表/账龄报表（to_char、CURRENT_DATE 减法为 PG 语义，
@@ -31,8 +31,8 @@
 //!   同族收口点（vfy aging / fund）锁常量引用形态不回退。
 //! - 中文词表保护：dashboard 库存门必须引用 `inventory_stock_status::NORMAL`，
 //!   词表值必须保持中文，不得被「顺手英文化」。
-//! - 四类报表真库锁（原 #[ignore]，路线一转正真跑）：在真实 PG 种
-//!   DRAFT/APPROVED/CANCELLED 三张发票（父行 customers 按裁定 R1 自插），
+//! - 四类报表真库锁（真 PG 直跑，不带 `#[ignore]`）：在真实 PG 种
+//!   DRAFT/APPROVED/CANCELLED 三张发票（父行 customers 自插），
 //!   逐值断言全部只含 APPROVED。
 
 mod test_common;
@@ -64,7 +64,7 @@ async fn live_db() -> sea_orm::DatabaseConnection {
 }
 
 /// ar_invoices.customer_id 有真外键 fk_ar_invoices_customer→customers（m0012:238），
-/// customers 属被清空且不播种的业务表 ⇒ 按裁定 R1 自插合法父行。
+/// customers 属被清空且不播种的业务表 ⇒ 自插合法父行。
 /// 显式 ID=77：与本文件既有 builder 过滤参数 Some(77) 对齐（TRUNCATE RESTART IDENTITY
 /// 后真表为空，显式 ID 不与任何种子冲突）。
 async fn seed_customer_77(db: &sea_orm::DatabaseConnection) {
@@ -138,8 +138,7 @@ fn col_i64(row: &QueryResult, idx: usize) -> i64 {
 }
 
 /// 真表金额列为 DECIMAL：聚合结果按 Decimal 解码逐值断言
-/// （原 f64 解码是 sqlite REAL 同构表时代的形态，真库下必 ColumnDecode—— 判责原文
-/// 「第 0 列应可解码为 f64: mismatched types DECIMAL」即此族）
+/// （DECIMAL 列按 f64 解码必然 ColumnDecode："mismatched types DECIMAL"）
 fn col_decimal(row: &QueryResult, idx: usize) -> Decimal {
     row.try_get_by_index::<Option<Decimal>>(idx)
         .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 Decimal: {e}"))
@@ -317,7 +316,7 @@ async fn ar_statistics_full_filter_placeholders_and_values_are_approved_only() {
     );
 }
 
-/// 缺陷实证对照：修复前口径（只排 CANCELLED）在同一数据上把草稿计入统计
+/// 缺陷实证对照：旧谓词（只排 CANCELLED）在同一数据上把草稿计入统计
 /// （total_invoices=2、total=3222.50）——锁「旧门必错」的因果，防有人回退判定。
 #[tokio::test]
 async fn ar_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
@@ -389,7 +388,7 @@ async fn ar_daily_via_production_builder_buckets_only_approved() {
     assert_eq!(col_decimal(&rows[0], 2), dec!(1000.00));
 }
 
-/// 月报表：`to_char` 为 PG 语义（真库行为锁见本文件末尾转正用例）→
+/// 月报表：`to_char` 为 PG 语义（真库行为锁见本文件末尾真库用例）→
 /// 此处锁生产 builder 的占位基址与常量绑定槽位。
 #[tokio::test]
 async fn ar_monthly_builder_binds_status_constants_with_shifted_placeholders() {
@@ -415,7 +414,7 @@ async fn ar_monthly_builder_binds_status_constants_with_shifted_placeholders() {
     );
 }
 
-/// 账龄报表：`CURRENT_DATE - due_date` 为 PG 日期算术（真库行为锁见文件末尾转正用例）
+/// 账龄报表：`CURRENT_DATE - due_date` 为 PG 日期算术（真库行为锁见文件末尾真库用例）
 /// → 对生产 builder 四个分支逐一锁：$1=today、$2/$3=排除门常量、$4/$5=客户/业务员，
 /// 参数序列与占位一一对应。
 #[tokio::test]
@@ -457,7 +456,7 @@ async fn ar_aging_builder_all_branches_bind_constants_with_shifted_placeholders(
 // ===========================================================================
 
 /// 真表 inventory_stocks 的 product_id/warehouse_id 有真外键（fk_inventory_product/
-/// fk_inventory_warehouse，m0001:630-631）⇒ 按裁定 R1 自插合法父行（products/warehouses
+/// fk_inventory_warehouse，m0001:630-631）⇒ 自插合法父行（products/warehouses
 /// 属被清空的业务表），库存行本身按真表列直插（quantity_meters DECIMAL、
 /// stock_status VARCHAR 存中文权威词表值）。
 async fn setup_inventory_stocks(db: &sea_orm::DatabaseConnection) {
@@ -514,7 +513,7 @@ async fn setup_inventory_stocks(db: &sea_orm::DatabaseConnection) {
     }
 }
 
-/// 行为锁：修复后形态 `WHERE s.stock_status = $1` 绑定中文常量 → 聚合只含「正常」行。
+/// 行为锁：现行形态 `WHERE s.stock_status = $1` 绑定中文常量 → 聚合只含「正常」行。
 #[tokio::test]
 async fn dashboard_inventory_gate_bound_chinese_constant_hits_normal_rows() {
     let db = live_db().await;
@@ -536,7 +535,7 @@ async fn dashboard_inventory_gate_bound_chinese_constant_hits_normal_rows() {
     );
 }
 
-/// 缺陷实证对照：修复前英文小写裸字面量谓词对中文落库值恒零命中 → 聚合恒空。
+/// 缺陷实证对照：英文小写裸字面量谓词对中文落库值恒零命中 → 聚合恒空。
 #[tokio::test]
 async fn dashboard_legacy_english_literal_gate_returns_zero_defect_proof() {
     let db = live_db().await;
@@ -681,7 +680,7 @@ fn source_scan_dashboard_inventory_gate_protects_chinese_vocabulary() {
 }
 
 // ===========================================================================
-// 4) 真库（PG）行为锁：四类报表同库三态发票逐值断言（路线一转正真跑，原 #[ignore]）
+// 4) 真库（PG）行为锁：四类报表同库三态发票逐值断言（真 PG 直跑，不带 `#[ignore]`）
 // ===========================================================================
 
 fn dec_of(v: &serde_json::Value, key: &str) -> Decimal {
@@ -692,7 +691,7 @@ fn dec_of(v: &serde_json::Value, key: &str) -> Decimal {
 }
 
 /// 真库（公共夹具 setup_test_db：已迁移 PostgreSQL + 清空业务表）：
-/// 自插 customers 父行（裁定 R1，原「查既有客户」依赖已被 TRUNCATE 废除）后种
+/// 自插 customers 父行（业务表每次清空，不能依赖环境既有客户）后种
 /// DRAFT/APPROVED/CANCELLED 三张 AR 发票 → 统计/日/月/账龄四类结果金额与条数
 /// **都只含 APPROVED**（逐值断言）。
 ///
@@ -703,7 +702,7 @@ async fn ar_four_reports_on_real_db_count_only_approved() {
     let db = Arc::new(test_common::setup_test_db().await);
     let svc = ArService::new(db.clone());
 
-    // 裁定 R1：ar_invoices.customer_id → customers 真外键，父行自插（ID=77）
+    // ar_invoices.customer_id → customers 真外键，父行自插（ID=77）
     seed_customer_77(&db).await;
     let customer_id = 77;
     // 哨兵业务员 id（salesperson_id 列为无 FK 的裸 INTEGER，见 m0012 + business/mod.rs:51）：

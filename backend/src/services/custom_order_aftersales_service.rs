@@ -3,7 +3,6 @@
 //! 5 种售后类型：客诉 / 维修 / 换货 / 退货 / 退款（权威白名单见 `create` 校验）
 //! 状态机（权威词表 `models/status/sales.rs::custom_order_ext::AFTERSALES_ALL`）：
 //! opened → accepted → processing → resolved → evaluated → closed；rejected/closed 为终态
-//! 创建时间: 2026-06-17
 
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -27,11 +26,11 @@ use crate::utils::pagination::paginate_with_total;
 /// 售后工单状态权威词表 = `models/status/sales.rs::custom_order_ext::AFTERSALES_ALL`
 /// （本服务是唯一写入方，状态机节点集与词表逐 token 相等，见 `AFTERSALES_TRANSITIONS`）。
 ///
-/// DB 侧 CHECK `chk_aftersales_status`（`migration/src/domain/production/
-/// m0044_integrate_unreferenced_migrations.rs:251`）目前缺 `accepted`/`evaluated`
-/// 两态 ⇒ 写这两态撞 CHECK 被裸映射成 500（CI 用例 65-01 的
-/// `PUT /custom-orders/after-sales/{id}`）。补齐 CHECK 属迁移改动，
-/// 已随本轮报告列出取值集合与 up/down 写法交数据库专家，此处不自写迁移。
+/// DB 侧 CHECK `chk_aftersales_status` 取值集与词表逐字符对齐：建表迁移
+/// （`migration/src/domain/production/m0044_integrate_unreferenced_migrations.rs`）
+/// 的 5 态已由 `production/m0067_aftersales_status_add_accepted_evaluated.rs` 重建为
+/// `AFTERSALES_ALL` 全 7 值；`accepted`/`evaluated` 两态的写入口即
+/// `PUT /custom-orders/after-sales/{id}`（受理/评价链）。
 const AFTERSALES_TRANSITIONS: &[(&str, &[&str])] = &[
     (
         ext::AFTERSALES_OPENED,
@@ -511,7 +510,7 @@ pub struct Top5ReasonItem {
     pub count: i64,
 }
 
-/// 状态转换校验：直接由 `AFTERSALES_TRANSITIONS` 表驱动（与词表同源，不再另建 HashMap 字面量）。
+/// 状态转换校验：直接由 `AFTERSALES_TRANSITIONS` 表驱动（与词表同源，不另建 HashMap 字面量）。
 /// 未知来源态（含 DB 里遗留的历史值）一律判非法，交由调用方给出可执行拒绝。
 fn is_valid_transition(from: &str, to: &str) -> bool {
     AFTERSALES_TRANSITIONS

@@ -130,13 +130,12 @@ fn test_data_scope_filter_semantics() {
     assert!(si.customer_id.is_none());
 }
 
-// ===== 写门行为锁（判责 §⑤ W4·D：与 utils/data_scope.rs 真实实现同源重建）=====
-// "超管跨 owner 写"（用户 2026-10-02 裁定方案 A，data_scope.rs:179-214）与
-// "公海领取/回收"的写侧边界，此前只有源码文本棘轮（contract_wave7_crm_read_vs_write_gate
-// :416 按函数体字符串比对）与 handler 级活体锁；后者 5 条被 AppState::default() 的
-// Disconnected 哨兵 panic 遮蔽（判责 §2.3 A4，sea-orm 对哨兵 panic 而非 Err）从未跑到。
-// 本组用例直接调用纯函数门，不依赖任何连接，把两条口径的**行为面**先钉死；
-// 活体端到端仍待夹具修复复验，不据此宣称已验证（盲区清单见交付报告 H 节）。
+// ===== 写门行为锁（与 utils/data_scope.rs 真实实现同源）=====
+// "超管跨 owner 写"（data_scope.rs:179-214）与"公海领取/回收"的写侧边界：
+// contract_wave7_crm_read_vs_write_gate:416 只做函数体字符串比对，handler 级活体锁
+// 在 AppState::default() 的 Disconnected 哨兵下 sea-orm 直接 panic 而非 Err，
+// 两者都覆盖不到行为面。本组用例直接调用纯函数门，不依赖任何连接，把两条口径的
+// **行为面**钉死；活体端到端复验依赖真库夹具环境，不据此宣称已验证。
 
 fn ctx(
     scope: bingxi_backend::utils::data_scope::DataScope,
@@ -245,7 +244,7 @@ fn write_gate_self_scope_never_crosses_owner() {
 
 /// 读写门分家不对称锁：同一输入在 `check_resource_owner`（读门）与
 /// `check_resource_write_owner`（写门）结果**必须不同**的两组边界——
-/// 防止未来有人把读门当写门用（判责 A2/A4 两族共病灶）。
+/// 防止把读门当写门用（读侧可见 ≠ 写侧可变更，两门判据不同源）。
 #[test]
 fn read_gate_and_write_gate_diverge_on_all_no_behalf_and_self_pool() {
     use bingxi_backend::utils::data_scope::{

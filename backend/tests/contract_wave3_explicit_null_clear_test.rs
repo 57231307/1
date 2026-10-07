@@ -1,14 +1,14 @@
-//! 第 1 波（库存/仓储/收货/退货域）：更新端点可空列三态清空语义收口
+//! 库存/仓储/收货/退货域：更新端点可空列三态清空语义收口
 //! （对齐 RFC 7386 JSON Merge Patch，先例 `contract_wave2_explicit_null_clear_test.rs`）
 //!
-//! 锁定的真实行为（对应本轮修复）：
+//! 锁定的真实行为：
 //! 1. 三态语义：键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
 //!    - DTO 层：`Option<Option<T>>` + `double_option` 适配器区分缺席与显式 null；
 //!    - service 层：Some(None) → `Set(None)` 真实落 NULL；None 不 Set（列不进 UPDATE）；
 //!    - NOT NULL 列不开 null 清空：显式 null 在任何 DB 访问前被
 //!      `AppError::business_displayable` 拒绝（400 + 外显文案，不脱敏、无副作用）。
-//! 2. 覆盖端点与可空列（DDL 证据见各 `backend/src/models/*.rs` 与 migration 行号，
-//!    详见 PR 描述普查表）：
+//! 2. 覆盖端点与可空列（DDL 证据见各 `backend/src/models/*.rs` 与
+//!    `backend/migration/src/domain/**` 的列定义）：
 //!    - PUT /inventory/adjustments/{id}（reason_description/notes 可空）
 //!    - PUT /inventory/batches/{id}（dye_lot_no/gram_weight/width/expiry_date 可空）
 //!    - PUT /inventory/stock/{id}（bin_location 可空）
@@ -26,18 +26,19 @@
 //!    - PUT /purchase/returns/{id}（reason_type/reason_detail/notes 全部可空）
 //!    - PUT /purchase/returns/{id}/items/{item_id}（notes 可空）
 //!
-//! 覆盖策略（路线一：统一真库 PostgreSQL，对齐 wave2 / po_item_update_fields 先例，无 mock）：
+//! 覆盖策略（统一真库 PostgreSQL，对齐 `contract_wave2_explicit_null_clear_test.rs` /
+//! `contract_wave2_po_item_update_fields_test.rs` 先例，无 mock）：
 //! - 纯 serde：DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))）；
 //! - 已迁移真库（`test_common::setup_test_db()`，业务表 TRUNCATE 后为空）：
 //!   NOT NULL 显式 null 的 service 级拒绝（拒绝在任何 DB 访问前返回，空表也得到业务错误）、
 //!   handler 400 信封与文案外显、**真实表 + 真实 service/handler 的三态回环**
 //!   （库存 update_batch_fields、仓储 update_location、退货 update_return、
 //!   调拨明细 update_item——FK 前置由用例自种子 warehouses/products 提供，
-//! 不再自建 sqlite 同构 DDL——同构 DDL 与真表列型漂移正是 CI 约 130 例
-//!   ColumnDecode 红的根因）；
+//!   不再自建 sqlite 同构 DDL——同构 DDL 与真表列型漂移会引发
+//!   ColumnDecode 解码失败）；
 //! - 收货 update_receipt 全链（服务链对 purchase_receipt 加 `lock_exclusive()`）
-//!   与其余回环同通道执行：真库即生产方言，行锁/审计链全部真实触发，
-//!   不再需要 `#[ignore]` 活库分桶。
+//!   与其余回环同通道执行：真库即生产方言，行锁/审计链全部真实触发
+//!   （本文件无 `#[ignore]` 用例，全部直接跑真库）。
 
 mod test_common;
 use test_common::setup_test_db;
@@ -1403,10 +1404,11 @@ async fn seed_transfer_with_item(
         color_no: Set("C001".to_string()),
         dye_lot_no: Set(Some("DL001".to_string())),
         batch_no: Set("B7".to_string()),
-        // 染色布行必须四维齐全（2026-10-02 裁定：出库第四维=匹号）：
+        // 染色布行必须四维齐全（出库第四维=匹号）：
         // 缺匹号的行在建 service 更新（追溯列进判定）时被正当拒绝
-        // （p1 实证 "染色布必须提供匹号（color_no=C001 但 piece_no 为空）"），
-        // 三态回环根本跑不到。正解是补齐夹具第四维，不是放宽源码门控或删步骤。
+        // （报错文案 "染色布必须提供匹号（color_no=C001 但 piece_no 为空）"，
+        // 校验见 `backend/src/services/inv/fabric_class.rs`），
+        // 三态回环根本跑不到。夹具必须补齐第四维，不可放宽源码门控或删步骤。
         piece_no: Set(Some("P001".to_string())),
         ..Default::default()
     }
@@ -1418,9 +1420,9 @@ async fn seed_transfer_with_item(
 
 /// 调拨明细 update 三态回环：可空列（notes/unit_cost/dye_lot_no）缺席保持 / null 清空 /
 /// 有值覆盖全部经真实 service + 真库回读；染色布行的缸号清空受四维追溯不变量拒绝
-/// 且不产生部分写（DTO 声明的 unit_cost/追溯列在旧实现里被整体丢弃，属"假保存"缺陷）。
-/// 种子染色布行自带匹号 P001（第四维，2026-10-02 裁定）：否则任何追溯列更新都会被
-/// "染色布必须提供匹号"正当拒绝、三态回环不可达（p1 判责：夹具缺维非语义错）。
+/// 且不产生部分写（DTO 声明的 unit_cost/追溯列必须真实落库，整体丢弃即"假保存"）。
+/// 种子染色布行自带匹号 P001（第四维）：否则任何追溯列更新都会被
+/// "染色布必须提供匹号"正当拒绝、三态回环不可达（缺的是夹具维度，非三态语义）。
 #[tokio::test]
 async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
     let db = setup_test_db().await;
@@ -1539,15 +1541,15 @@ async fn transfer_item_update_tri_state_roundtrip_on_postgres() {
     assert!(row.notes.is_none(), "同请求的 notes 不得部分落库");
 }
 
-/// 白坯调拨明细（色号空串）更新的真库回读锁（复审 阻断项 B-1 的回归锁）。
+/// 白坯调拨明细（色号空串）更新的真库回读锁。
 ///
-/// 缸号列 DDL 是 `NOT NULL DEFAULT ''`（migration/src/domain/system/mod.rs:292，同迁移
-/// 已把历史 NULL 回填 ''），所以 DB 里"无缸号"的合法表示是空串。原 update 实现
-/// `active.dye_lot_no = Set(dims.dye_lot_no)` 在白坯归一为 None 时生成
-/// `SET dye_lot_no = NULL` → PG 23502 → 被拍平成脱敏 DATABASE_ERROR 500，
-/// 即"白坯明细只改个批次也必 500"（本文件 C3 只播染色布行，抓不到这条路径）。
+/// 缸号列 DDL 是 `NOT NULL DEFAULT ''`（backend/migration/src/domain/system/mod.rs，
+/// 同迁移已把历史 NULL 回填 ''），所以 DB 里"无缸号"的合法表示是空串：
+/// update 必须在白坯未提供缸号时显式落 ''——`SET dye_lot_no = NULL` 会触发
+/// PG 23502 并被拍平成脱敏 DATABASE_ERROR 500（"白坯明细只改个批次也必 500"）；
 /// 建单路径用 NotSet 让 DEFAULT '' 生效，update 路径不能照抄——NotSet 会让
-/// "染色改回白坯"残留旧缸号（步骤 3 钉死），故正确写法是显式落 ''。
+/// "染色改回白坯"残留旧缸号（步骤 3 钉死）。本文件 C3 只播染色布行，
+/// 抓不到白坯这条路径，故单独立本回归锁。
 #[tokio::test]
 async fn transfer_item_update_greige_dye_lot_lands_empty_string_on_postgres() {
     let db = setup_test_db().await;
@@ -1682,7 +1684,7 @@ async fn transfer_item_update_greige_dye_lot_lands_empty_string_on_postgres() {
 
 // =========================================================
 // D) 收货链路三态全链（update_receipt 服务链 lock_exclusive + update_with_audit，
-//    路线一真库通道上与其余回环同桶执行，生产方言真实触发）
+//    真库通道上与其余回环同桶执行，生产方言真实触发）
 // =========================================================
 
 /// 真库硬前提自检：夹具契约要求 TEST_DATABASE_URL → 已迁移 PostgreSQL，

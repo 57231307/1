@@ -1,7 +1,7 @@
-//! 第 2 波（生产/质量/染整/委外/化学域）契约测
+//! 生产/质量/染整/委外/化学域契约测
 //! 更新端点可空列三态语义（RFC 7386 JSON Merge Patch）
 //!
-//! 锁定行为（对应本波修复，形态对齐 contract_wave2_explicit_null_clear_test.rs）：
+//! 锁定行为（形态对齐 contract_wave2_explicit_null_clear_test.rs）：
 //! 1. 三态：键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
 //!    DTO 层 `Option<Option<T>>` + `double_option` 适配器；service/handler 层
 //!    Some(None) → Set(None) 真实落 NULL，None 不 Set。
@@ -14,7 +14,7 @@
 //!    - PUT /lab-dip/requests/{id} / /lab-dip/samples/{id}
 //!    - PUT /dye-recipes/{id}（含复样回写内部构造点 resample.rs 的键缺席=保持语义）
 //!    - PUT /quality-inspection/records/{id}（UpdateInspectionRecordRequest）
-//! 3. 路线一（判责）：表结构唯一来源 = backend/migration。本文件不再自建 DDL
+//! 3. 表结构唯一来源 = backend/migration，本文件不自建 DDL：
 //!    真实写入路径全部打 `test_common::setup_test_db()`（已迁移 PostgreSQL + 清空业务表）；
 //!    "显式 null 拒绝必须先于任何 DB 访问"的负例改用 `connect_empty_schema_db()`
 //!    （已建库但未跑迁移的空 schema PG——若代码真的碰了 DB 会立刻报 DATABASE_ERROR，

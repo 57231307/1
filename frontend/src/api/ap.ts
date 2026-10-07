@@ -2,8 +2,8 @@ import { request } from './request';
 import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 // 后端 GET /ap/invoices 直接序列化 SeaORM 实体 models/ap_invoice.rs（无 JOIN、无 DTO 改名），
-// 因此行的键名与实体字段逐字一致；此前声明的 supplier_name/invoice_amount/verified_amount/
-// unverified_amount/status/payment_status 在响应里并不存在（列表这几列恒空）。
+// 因此行的键名与实体字段逐字一致；响应里没有 supplier_name/invoice_amount/verified_amount/
+// unverified_amount/status/payment_status 这些键，前端若声明它们，对应列恒空。
 export type APInvoiceStatus = 'DRAFT' | 'AUDITED' | 'PARTIAL_PAID' | 'PAID' | 'CANCELLED';
 
 export interface APInvoice {
@@ -33,7 +33,7 @@ export interface APInvoice {
 
 // 行由 GET /ap/payments 直接序列化 SeaORM 实体 models/ap_payment.rs（无 JOIN、无 DTO 改名）：
 // 状态列是 payment_status，词表 REGISTERED/CONFIRMED（models/status/general.rs:37/40）。
-// 原先声明的 supplier_name 与 status 在响应里不存在 ⇒ 供应商列恒空、确认按钮门控恒真。
+// 响应中不存在 supplier_name 与 status 键：前端若声明它们，供应商列恒空、确认按钮门控恒真。
 export type APPaymentStatus = 'REGISTERED' | 'CONFIRMED';
 
 // 付款单由「已审批的付款申请」派生创建（create 逻辑见 ap_payment_service.rs:57-120）：
@@ -48,7 +48,7 @@ export interface APPayment {
   payment_date: string;
   /**
    * 后端 models/ap_payment.rs:41 payment_amount 为 rust_decimal（serde 序列化为**十进制字符串**），
-   * 声明成 number 会在 `.toFixed` 处运行期崩（先例 commit 83b8028b/42f67500）。
+   * 声明成 number 会在 `.toFixed` 处运行期崩。
    */
   payment_amount: string;
   payment_method: string;
@@ -81,8 +81,9 @@ export interface CreateApPaymentInput {
 
 // 行由 GET /ap/payment-requests 直接序列化 SeaORM 实体 models/ap_payment_request.rs 返回
 // （无 JOIN、无 DTO 改名）：审批状态列名是 approval_status，词表见 models/status/finance.rs:53-58
-// （DRAFT/APPROVING/APPROVED/REJECTED）。此前声明的 supplier_name / approved_amount / status /
-// remark 在响应中不存在 —— 状态列恒空、五处 v-if 恒假，编辑/提交/审批/驳回/删除按钮结构性不可达。
+// （DRAFT/APPROVING/APPROVED/REJECTED）。响应中不存在 supplier_name / approved_amount /
+// status / remark 这些键：前端若声明它们，状态列恒空、依赖它的 v-if 恒假，
+// 编辑/提交/审批/驳回/删除按钮结构性不可达。
 export type APPaymentRequestStatus = 'DRAFT' | 'APPROVING' | 'APPROVED' | 'REJECTED';
 
 export interface APPaymentRequest {
@@ -134,12 +135,12 @@ export interface APReconciliation {
   total_invoice_amount: number;
   /**
    * 后端 ap_reconciliation 实体金额列 rust_decimal（models/ap_reconciliation.rs:45），
-   * serde 序列化为**十进制字符串**；声明 number 属类型谎言（.toFixed 运行期崩族，
-   * 先例 commit 83b8028b/42f67500；Rust 契约锁 contract_wave6:574 对 payment/request/
-   * exchange 三类金额键名全局禁 number 声明且扫描含注释，本键名以其子串
-   * total_payment_amount 同形命中）。
+   * serde 序列化为**十进制字符串**；声明 number 属类型谎言（`.toFixed` 运行期崩；Rust 契约锁
+   * backend/tests/contract_wave6_shipment_bi_ap_fixes_test.rs 整文件字符串匹配（含注释）
+   * 全局禁 payment/request/exchange 三类金额键名的 number 声明，本键名以其子串
+   * total_payment_amount: number 同形命中）。
    * ⚠️ 注：本接口键名与后端真实出参键（total_invoice/total_payment/closing_balance）
-   * 整体错位属独立契约漂移，已列入交付报告交主编排立案，本次只按判责修值类型。
+   * 整体错位是尚未修复的既有契约漂移，用本接口渲染列前先对照后端实体字段。
    */
   total_payment_amount: string;
   difference_amount: number;
@@ -309,10 +310,6 @@ export async function printAPPaymentDocx(id: number): Promise<Blob> {
 }
 
 /**
- * 付款申请列表：后端 `ap_payment_request_handler::list_requests` 返回
- * `PaginatedResponse`（data = {items,total,page,page_size}）。
- */
-/**
  * 付款申请列表查询参数：对齐后端 `ap_payment_request_handler::ApPaymentRequestQueryParams`
  * （backend/src/handlers/ap_payment_request_handler.rs:28，list_requests 的 Query 提取器 :40）。
  */
@@ -385,6 +382,7 @@ export interface UpdateApPaymentRequestInput {
   attachment_urls?: string[];
 }
 
+/** GET /ap/payment-requests：后端 list_requests 返回 PaginatedResponse（data = {items,total,page,page_size}） */
 export function getAPPaymentRequestList(
   params?: ApPaymentRequestQueryParams
 ): Promise<ApiResponse<PaginatedResponse<APPaymentRequest>>> {
@@ -589,9 +587,9 @@ export interface APInvoiceRelation {
 // 统计报表数据
 // 金额键为后端 rust_decimal（ap_report_service.rs::ApStatisticsReport 金额字段全部
 // Decimal(:814/:817/:820/:835）），serde 序列化为十进制字符串；声明 number 属类型谎言
-// （判责 A3 同族未钉清单 557-560，.toFixed 运行期崩族，先例 83b8028b/42f67500）。
-// ⚠️ 本接口键名与后端现行为 ApStatisticsReport 出参键（total_invoice_amount/total_paid_amount/
-// total_unpaid_amount）整体错位属独立契约漂移，交主编排立案，本次只修值类型。
+// （`.toFixed` 运行期崩）。
+// ⚠️ 本接口键名与后端现行 ApStatisticsReport 出参键（total_invoice_amount/total_paid_amount/
+// total_unpaid_amount）整体错位是尚未修复的既有契约漂移，用本接口渲染列前先对照后端出参键。
 export interface APStatisticsData {
   total_invoices: number;
   total_amount: string;
@@ -657,7 +655,7 @@ export function getAPStatisticsReport(
 }
 
 // 后端 ap_report_handler::ApDailyQueryParams 读取 report_date（必填，NaiveDate）与可选 supplier_id，
-// 而非前端此前误传的 date（会被 serde 静默丢弃）。
+// `date` 键会被 serde 静默丢弃——参数必须以 report_date 名下发。
 export function getAPDailyReport(date: string): Promise<ApiResponse<APDailyReportData>> {
   return request.get('/ap/reports/daily', { params: { report_date: date } });
 }

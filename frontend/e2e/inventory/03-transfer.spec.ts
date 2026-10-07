@@ -1,8 +1,8 @@
 // 库存管理 E2E 套件 — 03 库存调拨（创建 → 审批）
 // 覆盖范围：正规页 /inventory-transfer 的调拨单创建（调出→调入仓库、明细行经真实库存行选四维）、审批
-// 说明：库存页 /inventory 的「库存调拨」Tab 及老 TransferDialog 已随源码物理删除，
+// 说明：库存页 /inventory 上不存在「库存调拨」Tab（也无 TransferDialog 组件），
 // 调拨入口统一为 /inventory 页头「库存调拨」按钮（router.push InventoryTransfer）。
-// 本套件因此改测正规页 views/inventory-transfer 的真实交互路径。
+// 本套件测正规页 views/inventory-transfer 的真实交互路径。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -31,14 +31,14 @@ interface TransferSeed {
 // 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory），
 // 且正规页 TransferFormDialogTab 的出库四维经「调出仓+产品的真实库存行」下拉
 // （GET /inventory/stock）选定——若该产品在调出仓无库存行，则明细的下拉为空、无法建单。
-// a82561a 补匹号选择器后的新契约（判责 J-2）
+// 匹号（第四维）选择器契约：
 // - 染色布（色号非空）第四维匹号必选（TransferFormDialogTab.vue:110-126/614-622，
 //   与后端 services/inv/fabric_class.rs 唯一判定同口径；不许为过用例放松）；
 // - 可命中的真实染色匹只由写入方链产出：piece_domain_service.rs:518-556 委外染色回仓确认
 //   生成的匹恒 batch_no == dye_lot_no == 缸号，且染色匹只允许成品仓/未设类型仓
 //   （validate_warehouse_for_piece_type）——故 seed 必须用 helpers.seedDyedOutboundBundle
 //   （库存行 batch=缸号 + 真实链 N 匹），调出仓必须经 pickDyeableWarehouse 选定；
-//   旧 seedFourDimStockIn 以独立 batch 值灌行，按该 tuple 造不出匹，UI 第四步必死锁。
+//   seedFourDimStockIn 只灌库存行、不产匹——按该 tuple 造不出匹，UI 第四步（匹号下拉）必死锁。
 async function seedTransferSource(page: Page): Promise<TransferSeed> {
   await ensureTestEntities(page);
   const wh = await apiCallRaw<{ items: { id: number; warehouse_name: string }[] }>(
@@ -90,11 +90,11 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
   });
 
   test('库存调拨页列表加载', async ({ page }) => {
-    // 老「库存调拨 Tab 数据加载」经 /inventory 的 Tab，Tab 已删除——改为直达正规页并断言列表真实渲染。
+    // 列表加载场景：直达正规页并断言列表真实渲染（/inventory 上的调拨 Tab 已不存在）。
     await page.goto('/inventory-transfer');
     await expect(page.getByRole('heading', { name: '库存调拨' })).toBeVisible({ timeout: 30000 });
     // TransferListTab 的 el-table aria-label=库存调拨列表（transferList.table.ariaLabel，zh-CN.ts:2260）。
-    // 根因A（strict mode violation）：同页 el-pagination 的 aria-label=库存调拨列表分页
+    // strict mode violation 风险：同页 el-pagination 的 aria-label=库存调拨列表分页
     // （transferList.table.paginationAriaLabel，zh-CN.ts:2270）含「库存调拨列表」子串，
     // getByLabel 默认子串匹配同时命中表格与分页两个 aria-label 宿主 → 报命中 2 元素。
     // 正解：以 exact 精确锚定表格的可访问名，保留「列表真实渲染」这一断言意图（不删、不放宽）。
@@ -144,7 +144,7 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
     await pickSelect(page, dialog.locator('.el-select').nth(3), seed.seedColorNo, {
       timeout: 30_000,
     });
-    // 第四维匹号（5a82561a 新契约）：库存行选定后 item.color_no 非空 → 匹号下拉渲染为
+    // 第四维匹号：库存行选定后 item.color_no 非空 → 匹号下拉渲染为
     // nth(4)，选项只能来自 GET /inventory/pieces 的真实 AVAILABLE 匹；不选定则前端
     // pieceNoRequired 拦截、永不发请求。按本批 seed 产出的匹号精确锚定第一匹。
     expect(seed.seedPieceNos.length, '前置：seed 匹号候选非空').toBeGreaterThan(0);
@@ -154,7 +154,7 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
 
     // 数量：明细行第一个 el-input-number 的内层 <input>，placeholder 直传原生 input
     // （EP input-number → el-input → input[placeholder]，本地 node_modules 源码核实）。
-    // CI 判红根因：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
+    // 注意：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
     // （role 由 EP onMounted setAttribute、名称回落 placeholder 的链条在真实浏览器不可靠），
     // 正解为按 DOM 属性直查并以 :visible 过滤到可见项——找不到即自然超时抛真实红，
     // 绝不改成「填不进就跳过」。
@@ -199,7 +199,7 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
 
   test('审批待审批调拨单', async ({ page }) => {
     // 真实造数：先补前置实体（≥2 仓库 + 产品），再用 API 落一张"待审批"调拨单。
-    // 原实现用 `if (await approveBtn.isVisible())` 把整段交互包进可见性分支：
+    // 不用 `if (await approveBtn.isVisible())` 把整段交互包进可见性分支：
     // 空库时列表无 pending 单 → 审批按钮不渲染 → 一条断言都不执行却记为通过（假绿）。
     await ensureTestEntities(page);
     const ctx = getCtx();
@@ -208,17 +208,18 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
     );
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
 
-    // 根因C：调拨出库前置校验 inv/stock.rs::check_from_warehouse_inventory →
+    // 调拨出库前置校验 inv/stock.rs::check_from_warehouse_inventory →
     // match_single_item_against_stocks 要求「调出仓对该产品有维度匹配的足量库存行」，
-    // 否则返回 BUSINESS_ERROR（无匹配库存，4xx）。原实现直接 POST /inventory/transfers 而未造源库存
-    // → 建单被正确拒绝、拿不到 data.id → 本用例红（后端行为正确，测试缺前置 seed）。
+    // 否则返回 BUSINESS_ERROR（无匹配库存，4xx）。故本用例建单前必须先真实 seed 源库存——
+    // 直接 POST /inventory/transfers 而无源库存，建单会被正确拒绝、拿不到 data.id
+    // （后端行为正确，缺的是测试前置）。
     //
-    // 第四维（匹号）门控扩散（b61b8d44 / services/inv/fabric_class.rs:81-95 normalize_outbound_piece_no，
+    // 第四维（匹号）门控（services/inv/fabric_class.rs:81-95 normalize_outbound_piece_no，
     // 经 services/inv/inventory_move.rs:308 require_outbound_dimensions 在**建单明细**即生效）：
     // 调拨明细=出库方向，色号非空=染色布 ⇒ piece_no 必填，缺失即正当 400
     // 「染色布必须提供匹号」。本用例只验证「pending→审批→approved」状态流（不 ship），
     // 但建单四维必须如实齐全——按本仓既有 seed 范式（见文件头 seedTransferSource 同款说明：
-    // 可命中的真实染色匹只由写入方链产出、batch_no=缸号）改用 seedDyedOutboundBundle
+    // 可命中的真实染色匹只由写入方链产出、batch_no=缸号），用 seedDyedOutboundBundle
     // 灌 库存行(batch=缸) + 真实链 AVAILABLE 染色匹，明细四维 + 匹号全部取 seed 回读真值，
     // 不塞假默认（piece_no 来自 GET /inventory/pieces 回读的 bundle.pieces[0]）。
     const tag = Date.now().toString().slice(-6);
@@ -276,7 +277,7 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
     await fillFieldByLabel(filter, page, '调拨单号', String(transferNo));
     await filter.getByRole('button', { name: '查询', exact: true }).click();
 
-    // 硬断言（Tier A）：过滤后该待审批单必然渲染"审批"按钮（transferList.button.approve），缺失即缺陷
+    // 硬断言：过滤后该待审批单必然渲染"审批"按钮（transferList.button.approve），缺失即缺陷
     const approveBtn = page.getByRole('button', { name: '审批', exact: true }).first();
     await expect(approveBtn, '待审批调拨单应渲染"审批"按钮').toBeVisible({ timeout: 30000 });
     await approveBtn.click();
@@ -300,11 +301,11 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
   test('白坯调拨建单成功（color_no 空、免缸号，验证 is_dyed=false 宽松放行路径）', async ({
     page,
   }) => {
-    // 根因覆盖：match_single_item_against_stocks 的白坯分支（is_dyed=false）——
+    // 本用例覆盖 match_single_item_against_stocks 的白坯分支（is_dyed=false）——
     // 当 color_no 为空时仅按 款号+批次 匹配库存、不强制缸号，调拨建单应成功放行。
-    // 上一波因 /stock/fabric 对 color_no 强制 min=1 而丢失此分支 e2e 覆盖，
-    // 本用例经 POST /inventory/stock（通用 handler，不调 payload.validate()）播种白坯库存行
-    // （color_no=''、无缸号），再以同维度建调拨单，走 API 回读确认落库。
+    // 白坯播种走 POST /inventory/stock（通用 handler，不调 payload.validate()）；
+    // /stock/fabric 对 color_no 强制 min=1，灌不进空色号行。
+    // 本用例以 color_no=''、无缸号播种白坯库存行，再以同维度建调拨单，走 API 回读确认落库。
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.warehouseIds.length, '前置：需至少两个仓库').toBeGreaterThanOrEqual(2);

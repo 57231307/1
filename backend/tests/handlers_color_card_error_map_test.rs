@@ -25,7 +25,7 @@ fn test_crud_err_audit_log_maps_to_database_not_validation() {
         err
     );
     // DatabaseError 的出参恒为脱敏常量 err_msg::DB_ERROR_PUBLIC（utils/messages.rs:40，
-    // 取值「数据库错误」；「数据库操作失败」是 DB_OP_FAIL:86，只作 From<DbErr> 兜底分类的
+    // 取值「数据库错误」；「数据库操作失败」是 DB_OP_FAIL（messages.rs:90），只作 From<DbErr> 兜底分类的
     // **内部**文案，不是出参），断错值会让本用例恒红。
     assert_eq!(
         err.to_response().message,
@@ -34,7 +34,6 @@ fn test_crud_err_audit_log_maps_to_database_not_validation() {
     );
 }
 
-/// test_crud_err_not_foundys
 /// NotFound → NOT_FOUND / HTTP 404，出参为脱敏常量 err_msg::NOT_FOUND_PUBLIC（messages.rs:42）
 #[test]
 fn test_crud_err_not_foundys() {
@@ -49,7 +48,6 @@ fn test_crud_err_not_foundys() {
     assert_eq!(err.to_response().message, "资源未找到");
 }
 
-/// test_crud_err_invalid_stateys
 /// InvalidState 是**状态门**（非提交字段校验）⇒ 归 BUSINESS_ERROR 族；
 /// 用脱敏 `business` 构造 ⇒ 出参恒为 err_msg::BUSINESS_PUBLIC（messages.rs:43），
 /// 真实判定依据只进日志（error.rs:34「不确定的一律用 business」）。
@@ -67,9 +65,8 @@ fn test_crud_err_invalid_stateys() {
     assert_eq!(err.to_response().message, "业务处理失败");
 }
 
-/// test_crud_err_validationys
 /// `CrudError::Validation` 通道承载提交字段取值/格式/必填，映射点为
-/// `validation_displayable`（handlers/color_card/error_map.rs:18）——族仍是 VALIDATION_ERROR，
+/// `validation_displayable`（handlers/color_card/error_map.rs）——族仍是 VALIDATION_ERROR，
 /// 出参 message 外显真实原因（与同域 ItemError::Validation 的口径一致）。
 #[test]
 fn test_crud_err_validationys() {
@@ -92,7 +89,6 @@ fn test_crud_err_validationys() {
     );
 }
 
-/// test_crud_err_databaseys
 /// Database → DATABASE_ERROR（脱敏出参「数据库错误」），Display 侧保留原始错误供日志
 #[test]
 fn test_crud_err_databaseys() {
@@ -108,7 +104,6 @@ fn test_crud_err_databaseys() {
     assert_eq!(err.to_response().message, "数据库错误");
 }
 
-/// test_item_errsybtys
 /// 逐变体钉「族 + 出参文案」：NotFound 类 → NOT_FOUND（脱敏）；
 /// 色号维护状态门（ItemError::InvalidState）→ BUSINESS_ERROR 且**外显**公开业务规则
 /// 「只有草稿态色卡可以维护色号」（纯规则、不含内部状态 token/记录 ID，满足

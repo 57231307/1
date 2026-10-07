@@ -1,7 +1,7 @@
 //! 验布打卷 Service
 //!
 //! 业务口径依据 .monkeycode/docs/research/fabric-industry-research.md
-//! §12.4 验布打卷与成品入库
+//! （验布打卷与成品入库）
 //! 真实业务流程：
 //!   验布机对接码表/电子称 → 疵点采集 → 生成验布报告
 //!   → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库

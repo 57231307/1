@@ -17,8 +17,8 @@
 //! 按 `utils/error.rs` 模块文档保持脱敏 `business` 形态。
 //!
 //! 覆盖策略（无 mock、真实 service/handler 路径；表结构唯一来源 = backend/migration，
-//! 不再自建 sqlite 同构表——自建 DDL 如与模型 Decimal(14,4) 方言矛盾，
-//! 会引发本文件约 10 例连坐红的 ColumnDecode 失败）：
+//! 不自建 sqlite 同构表——自建 DDL 与模型 Decimal(14,4) 方言矛盾会引发成片
+//! ColumnDecode 失败）：
 //! - 两条拒绝路径均发生在 `issue_order` 取号生成凭证之前（拒绝即事务回滚、零副作用），
 //!   真 PG（test_common::setup_test_db，
 //!   连接已迁移库并清空业务表）上 handler→service→domain 全链真实跑通；
@@ -29,7 +29,7 @@
 //!   不指望环境已有数据；
 //! - 正向对照（合规明细发料成功）必经 `generate_no_with_txn`
 //!   （`utils/number_generator.rs::lock_prefix` 为 `pg_advisory_xact_lock`，
-//!   PG 专有能力，只能在活库真跑——先例 contract_wave1/wave5 同口径）：
+//!   PG 专有能力，只能在活库真跑——与既有 contract_wave1_* 活库用例同口径）：
 //!   `#[ignore]` 活库（TEST_DATABASE_URL→已迁移 PG，CI `ci-test-rust-ignored`
 //!   以 --include-ignored 执行；夹具缺 TEST_DATABASE_URL 或指向 sqlite 直接 panic，
 //!   不存在静默回退）。
@@ -467,8 +467,8 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
          夹具缺该变量或指向 sqlite 时 setup_test_db 已直接 panic（非跳过）"
     );
 
-    // FK 前置自种子（R1）：products/warehouses 会被清空且不播种，本用例自造父行，
-    // 不指望环境已有数据（旧实现直接 find().one() 取环境首行，活库清空后必 panic）。
+    // FK 前置自种子：products/warehouses 会被清空且不播种，本用例自造父行，
+    // 不指望环境已有数据（直接取环境首行在活库清空后必然取空）。
     let (product_id, warehouse_id) = seed_piece_parents(&db).await;
 
     let tag = unique_tag();

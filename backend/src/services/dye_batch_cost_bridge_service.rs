@@ -1,6 +1,6 @@
-// v14 批次 422 T-P1-7：染色完成→成本归集桥接服务
+// 染色完成→成本归集桥接服务
 //
-// 依据：.monkeycode/docs/research/fabric-industry-research.md §5.6 月末成本单价计算
+// 业务口径依据：.monkeycode/docs/research/fabric-industry-research.md（月末成本单价计算）
 // 业务规则：染色完成后自动创建成本归集草稿记录（status=draft），
 // 关联 batch_no/color_no，后续由财务人员补充直接材料/直接人工/制造费用/外协加工费/染费明细并审核。
 //
@@ -128,11 +128,15 @@ impl DyeBatchCostBridgeServiceInternal {
     }
 
     /// 处理染色完成事件，创建成本归集草稿记录
-    /// 创建一个 draft 状态的 cost_collection 记录，所有成本字段初始化为 0，；关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。；依据：.monkeycode/docs/research/fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号；V15 P0-F01：补全 dye_lot_no 关联；原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、；成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
+    /// 创建 draft 状态的 cost_collection 记录：所有成本字段初始化为 0，关联
+    /// batch_no/color_no/cost_object_no/dye_lot_no（dye_lot_no 由 batch_id 查
+    /// dye_batch 表取得），后续由财务人员补充成本明细并审核。业务口径依据
+    /// `.monkeycode/docs/research/fabric-industry-research.md`——染色完成后需
+    /// 归集染料/助剂/能耗成本到对应缸号。
     ///
-    /// 产量分母回填——dye_lot_no 与 actual_output_kg/actual_output_m 取自同一
-    /// dye_batch 行（完工端点强制必填后必有真值）。原实现把 output_quantity_kg/_meters
-    /// 恒写 None，导致 draft 无分母、单位成本/能耗分摊算不出。单位成本本身仍由
+    /// 产量分母——dye_lot_no 与 actual_output_kg/actual_output_m 取自同一
+    /// dye_batch 行（完工端点强制必填后必有真值），draft 因此自带分母，
+    /// 单位成本/能耗分摊才可计算。单位成本本身由
     /// CostCollectionService 既有算法（total_cost / 产量，cost_collection_service.rs:88-103）
     /// 推导，不在本层另造算法；draft 阶段成本为 0 时其产出 0 也属该算法既有语义，
     /// 财务补充明细后 update 路径（cost_collection_service.rs:276-288）自动按分母重算。
@@ -147,7 +151,7 @@ impl DyeBatchCostBridgeServiceInternal {
     ) -> Result<(), AppError> {
         let cost_service = CostCollectionService::new(self.db.clone());
 
-        // V15 P0-F01 + 一次查询同取 dye_lot_no 与完工登记的实际产出（分母）
+        // 一次查询同取 dye_lot_no 与完工登记的实际产出（分母）
         // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
         // 历史数据回填为 'DEFAULT'，新数据由创建接口传入实际染色批号
         let (dye_lot_no, output_kg, output_m) = match dye_batch::Entity::find_by_id(batch_id)
@@ -227,7 +231,7 @@ impl DyeBatchCostBridgeServiceInternal {
             cost_object_no: Some(batch_no.to_string()),
             batch_no: Some(batch_no.to_string()),
             color_no: color_no.map(|s| s.to_string()),
-            // V15 P0-F01：dye_lot_no 已通过 dye_batch 表查询获取（原写死 None）
+            // 染色批号由调用方查 dye_batch 行取得后传入（见 handle_dye_batch_completed）
             dye_lot_no,
             workshop: Some("染色车间".to_string()),
             direct_material: Decimal::ZERO,
@@ -235,7 +239,7 @@ impl DyeBatchCostBridgeServiceInternal {
             manufacturing_overhead: Decimal::ZERO,
             processing_fee: Decimal::ZERO,
             dyeing_fee: Decimal::ZERO,
-            // 完工登记的实际产出回填分母（原恒写 None）
+            // 完工登记的实际产出作为产量分母
             output_quantity_meters: output_m,
             output_quantity_kg: output_kg,
         }

@@ -1,9 +1,9 @@
 use crate::models::fixed_asset;
-// V15 P1 17.8-D4：资产盘点模型
+// 资产盘点模型
 use crate::models::{fixed_asset_count, fixed_asset_count_item};
 // 级联删除关联记录所需（处置/折旧明细）
 use crate::models::{fixed_asset_depreciation_record, fixed_asset_disposal};
-// V15 P1 17.8-D5/D6：资产减值测试 + 折旧政策变更
+// 资产减值测试 + 折旧政策变更
 use crate::models::{asset_impairment_test, depreciation_policy_change};
 // 资产状态统一引用 master_data 常量（如 ACTIVE/INACTIVE），不用裸字面量比较/写入
 use crate::models::status::master_data;
@@ -30,7 +30,7 @@ mod no_prefix {
     pub const ASSET_NO: &str = "FA-";
     /// 处置单号（fixed_asset_disposals.disposal_no UNIQUE：同文件 :551）
     pub const DISPOSAL_NO: &str = "D";
-    /// 盘点计划号（fixed_asset_counts.count_no UNIQUE：v15/mod.rs:1562 uk_fac_count_no）
+    /// 盘点计划号（fixed_asset_counts.count_no UNIQUE：migration/src/domain/v15/mod.rs uk_fac_count_no）
     pub const COUNT_NO: &str = "FAC";
 }
 
@@ -44,7 +44,7 @@ pub struct AssetQueryParams {
     pub page_size: i64,
 }
 
-/// V15 P1 17.8-D6：折旧政策变更请求参数
+/// 折旧政策变更请求参数
 #[derive(Debug, Clone)]
 pub struct DepreciationPolicyChangeRequest {
     pub asset_id: i32,
@@ -113,9 +113,10 @@ impl FixedAssetService {
         req: CreateAssetRequest,
         user_id: i32,
     ) -> Result<fixed_asset::Model, AppError> {
-        // 自动生成资产编号：用户显式传入则原样使用；缺省时在写入事务内走生成器
-        // （原「秒级时间戳+4位随机」同秒并发重号，且 fixed_assets.asset_no 无 UNIQUE
-        // 兜底——DDL 证据 migration/src/domain/business/m0012_add_ap_ar_finance_analysis.rs:518）
+        // 自动生成资产编号：用户显式传入则原样使用；缺省时在写入事务内经编号生成器
+        // 取号——fixed_assets.asset_no 无 DB UNIQUE（DDL 证据
+        // migration/src/domain/business/m0012_add_ap_ar_finance_analysis.rs:518），
+        // 取号与 INSERT 同事务靠 pg_advisory_xact_lock 串行化，防并发重号
         let manual_asset_no = req.asset_no.clone();
         let txn = (*self.db).begin().await?;
         let asset_no = match manual_asset_no {
@@ -198,7 +199,7 @@ impl FixedAssetService {
         }
 
         // 分页统一走 paginate_with_total（count 与取页共用一套口径）
-        // 补 page_size.clamp(1, 100) 防 DoS（原实现仅 clamp page，page_size 无上限保护）
+        // page_size.clamp(1, 100) 防超大页宽 DoS，page 另设 clamp(1, 1000) 上限
         let paginator = query
             .order_by(fixed_asset::Column::Id, Order::Desc)
             .paginate(&*self.db, params.page_size.clamp(1, 100) as u64);
@@ -240,14 +241,14 @@ impl FixedAssetService {
                 }
             }
             Some("units_of_production") => {
-                // V15 P1 17.8-D1：工作量法
+                // 工作量法
                 // 月折旧额基于实际工作量计算，由前端按月录入到 asset.monthly_depreciation
                 // 字段（视为本月实际工作量对应的折旧额）
                 // 若未设置则按 0 处理（待月末录入工作量后重算）
                 asset.monthly_depreciation.unwrap_or(Decimal::ZERO)
             }
             Some("sum_of_years_digits") => {
-                // V15 P1 17.8-D1：年数总和法
+                // 年数总和法
                 // 年折旧率 = 剩余使用年数 / 年数总和
                 // 月折旧额 = (原值 - 残值) × 年折旧率 / 12
                 if useful_life_years <= 0 {
@@ -286,7 +287,7 @@ impl FixedAssetService {
                 }
             }
             Some("double_declining_balance") => {
-                // V15 P1 17.8-D1：双倍余额递减法
+                // 双倍余额递减法
                 // 年折旧率 = 2 / 使用年限
                 // 月折旧额 = 净值 × 年折旧率 / 12
                 // 最后两年改为直线法（此处简化为：净值接近残值时返回 0）
@@ -590,7 +591,7 @@ impl FixedAssetService {
             AppError::business_displayable("资产处置单号生成失败，请稍后重试")
         })?;
 
-        // V15 P1 17.8-D3：生成处置损益凭证
+        // 生成处置损益凭证
         Self::generate_disposal_voucher_txn(
             &txn,
             &inserted_disposal,
@@ -620,7 +621,7 @@ impl FixedAssetService {
         Ok(())
     }
 
-    /// V15 P1 17.8-D3：生成固定资产处置损益凭证
+    /// 生成固定资产处置损益凭证
     /// 凭证分录（以"固定资产清理"为中间科目）：1. 结转固定资产原值：借：固定资产清理 1606 = 资产净值；借：累计折旧 1602 = 已计提累计折旧；贷：固定资产 1601 = 原值；2. 收到处置款项：借：银行存款 1002 = 处置收入；贷：固定资产清理 1606 = 处置收入；3. 结转处置损益：若收益（gain > 0）：借 固定资产清理 1606 / 贷 营业外收入 6301；若损失（gain < 0）：借 营业外支出 6711 / 贷 固定资产清理 1606
     async fn generate_disposal_voucher_txn(
         txn: &sea_orm::DatabaseTransaction,
@@ -933,7 +934,7 @@ impl FixedAssetService {
         Ok(current_depreciation.max(rust_decimal::Decimal::ZERO))
     }
 
-    /// V15 P1 17.8-D2：月末自动计提折旧
+    /// 月末自动计提折旧
     /// 供 cron/scheduler 月末调用，遍历所有 active 状态资产按指定期间计提折旧。；单资产失败不中断整体流程，记录到 failures 列表返回，保证批处理韧性。；幂等性由 `uk_fa_depreciation_records_asset_period` 唯一约束保证（重复计提会被跳过）。
     pub async fn auto_monthly_depreciation(
         &self,
@@ -1003,7 +1004,7 @@ impl FixedAssetService {
         Ok(summary)
     }
 
-    /// V15 P1 17.8-D4：创建资产盘点计划（按资产类别/存放地点筛选资产生成盘点计划，状态 DRAFT→COUNTING→COMPLETED。）
+    /// 创建资产盘点计划（按资产类别/存放地点筛选资产生成盘点计划，状态 DRAFT→COUNTING→COMPLETED）
     pub async fn create_count_plan(
         &self,
         req: CreateCountPlanRequest,
@@ -1093,7 +1094,7 @@ impl FixedAssetService {
         Ok(plan_final)
     }
 
-    /// V15 P1 17.8-D4：录入盘点结果（单条）（count_result: "consistent"=一致, "surplus"=盘盈, "shortage"=盘亏, "damaged"=毁损）
+    /// 录入盘点结果（单条）：count_result = consistent（一致）/ surplus（盘盈）/ shortage（盘亏）/ damaged（毁损）
     pub async fn record_count_item(
         &self,
         count_id: i32,
@@ -1200,7 +1201,7 @@ impl FixedAssetService {
         Ok(updated)
     }
 
-    /// V15 P1 17.8-D4：完成盘点并生成盘盈盘亏处理（统计盘盈/盘亏数量，将盘点单置为 COMPLETED。；盘亏资产标记为 INACTIVE（待处置），盘盈资产需手工建档。）
+    /// 完成盘点并生成盘盈盘亏处理：统计盘盈/盘亏数量，将盘点单置为 COMPLETED；盘亏资产标记为 INACTIVE（待处置），盘盈资产需手工建档
     pub async fn complete_count_plan(
         &self,
         count_id: i32,
@@ -1287,7 +1288,7 @@ impl FixedAssetService {
         Ok(summary)
     }
 
-    /// V15 P1 17.8-D4：查询盘点计划列表
+    /// 查询盘点计划列表
     pub async fn list_count_plans(
         &self,
         page: i64,
@@ -1300,7 +1301,7 @@ impl FixedAssetService {
         Ok((plans, total))
     }
 
-    /// V15 P1 17.8-D4：查询盘点明细
+    /// 查询盘点明细
     pub async fn list_count_items(
         &self,
         count_id: i32,
@@ -1313,7 +1314,7 @@ impl FixedAssetService {
         Ok(items)
     }
 
-    /// V15 P1 17.8-D5：创建资产减值测试
+    /// 创建资产减值测试
     pub async fn create_impairment_test(
         &self,
         asset_id: i32,
@@ -1354,7 +1355,7 @@ impl FixedAssetService {
         Ok(test)
     }
 
-    /// V15 P1 17.8-D5：获取资产减值测试列表
+    /// 获取资产减值测试列表
     pub async fn get_impairment_tests(
         &self,
         asset_id: i32,
@@ -1367,7 +1368,7 @@ impl FixedAssetService {
         Ok(tests)
     }
 
-    /// V15 P1 17.8-D5：审批资产减值测试
+    /// 审批资产减值测试
     pub async fn approve_impairment_test(
         &self,
         test_id: i32,
@@ -1395,7 +1396,7 @@ impl FixedAssetService {
         Ok(updated)
     }
 
-    /// V15 P1 17.8-D6：创建折旧政策变更
+    /// 创建折旧政策变更
     pub async fn create_depreciation_policy_change(
         &self,
         req: DepreciationPolicyChangeRequest,
@@ -1432,7 +1433,7 @@ impl FixedAssetService {
         Ok(change)
     }
 
-    /// V15 P1 17.8-D6：获取折旧政策变更列表
+    /// 获取折旧政策变更列表
     pub async fn get_depreciation_policy_changes(
         &self,
         asset_id: i32,
@@ -1445,7 +1446,7 @@ impl FixedAssetService {
         Ok(changes)
     }
 
-    /// V15 P1 17.8-D6：审批折旧政策变更
+    /// 审批折旧政策变更
     pub async fn approve_depreciation_policy_change(
         &self,
         change_id: i32,
@@ -1486,7 +1487,7 @@ pub struct DepreciationResult {
     pub depreciation_method: String,
 }
 
-/// V15 P1 17.8-D2：自动计提折旧摘要
+/// 自动计提折旧摘要
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct AutoDepreciationSummary {
     pub period: String,
@@ -1504,7 +1505,7 @@ pub struct AutoDepreciationFailure {
     pub error: String,
 }
 
-/// V15 P1 17.8-D4：创建盘点计划请求
+/// 创建盘点计划请求
 #[derive(Debug, Clone)]
 pub struct CreateCountPlanRequest {
     pub plan_name: String,
@@ -1514,7 +1515,7 @@ pub struct CreateCountPlanRequest {
     pub notes: Option<String>,
 }
 
-/// V15 P1 17.8-D4：盘点完成摘要
+/// 盘点完成摘要
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CountCompletionSummary {
     pub count_id: i32,

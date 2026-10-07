@@ -862,7 +862,7 @@ pub async fn export_budget_items(
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
-/// V15 P1 17.7-D5：创建预算版本请求 DTO
+/// 创建预算版本请求 DTO
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBudgetVersionDto {

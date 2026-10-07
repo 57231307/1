@@ -36,7 +36,7 @@
 //! bpm_task.assignee_ids/assignee_names/candidate_role_ids/candidate_user_ids、
 //! bpm_process_instance.current_handler_ids/current_handler_names（system/mod.rs:75-96
 //! 生效 DDL 为 JSONB）、aging_alert_rules.notify_roles
-//! （backend/migration/src/domain/v15/mod.rs:2231 CREATE 为 JSONB）。
+//! （backend/migration/src/domain/v15/mod.rs CREATE 为 JSONB）。
 //! 仓规口径「模型类型必须跟随 DDL，不得反向改迁移迁就模型」：JSONB 是
 //! 这些列的**生效且成文**的 DDL 意图，正解是模型补 `#[sea_orm(column_type =
 //! "JsonBinary")]` + 元素 `FromJsonQueryResult`（仓库既有可运行范本 =

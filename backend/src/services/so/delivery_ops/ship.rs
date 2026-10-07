@@ -1,6 +1,6 @@
 //! 销售发货-发货主流程子模块（delivery_ops/ship）
 //!
-//! 批次 488 D10-3 拆分：从原 `so/delivery.rs` L126-694 迁移。
+//! 职责：销售发货主流程及其下游（库存扣减、发货量回写、AR、收入凭证、事件发布）。
 //! 包含 ship_order 及其 15 个辅助方法：
 //! - ship_order（公开 API）
 //! - validate_ship_preconditions / load_ship_order_context / create_shipment_delivery
@@ -69,11 +69,11 @@ impl SalesService {
         &self,
         request: &ShipOrderRequest,
     ) -> Result<(), AppError> {
-        // v14 批次 421 T-P1-5：缸号同订单校验
+        // 缸号同订单校验
         // 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
         // 必须在开启事务前校验，避免无效请求占用数据库事务资源
         super::super::delivery::validate_dye_lot_consistency(&request.items)?;
-        // V15 P0-F19：发货前校验大货批色门禁
+        // 发货前校验大货批色门禁
         // 业务规则：销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态
         // 否则阻止发货（delivery_blocking=true 阻断）
         crate::services::bulk_color_approval_service::validate_bulk_color_approval(
@@ -98,12 +98,12 @@ impl SalesService {
 
     /// 发货明细的产品必须出现在该销售订单的明细行中（款号维度一致性门控）。
     ///
-    /// 原实现不校验：订单外的产品会一路走到
-    /// - `lookup_line_price` → 取不到订单行，按 `(0, 0)` 兜底 ⇒ 发货单金额恒 0、
-    /// 收入凭证被 `create_revenue_voucher_for_delivery` 判「含税金额为 0」跳过（CI 制品日志原话）；
-    /// - `update_order_item_shipped_qty` → `WHERE order_id AND product_id` 匹配 0 行，
-    ///   一行发货量都没写进去 ⇒ `check_order_fully_shipped` 恒假，订单永远停在 `partial_shipped`。
-    /// 两处静默兜底叠加的结果是「发货成功、账实两头空」，属必须 fail-closed 的前置缺失，
+    /// 若订单外产品混入，会一路走到：
+    /// - `lookup_line_price` 取不到订单行、按 `(0, 0)` 兜底 ⇒ 发货单金额恒 0、
+    /// 收入凭证被 `create_revenue_voucher_for_delivery` 判「含税金额为 0」跳过；
+    /// - `update_order_item_shipped_qty` 的 `WHERE order_id AND product_id` 匹配 0 行，
+    ///   发货量一行都没回写 ⇒ `check_order_fully_shipped` 恒假，订单停在 `partial_shipped`。
+    /// 两处静默兜底叠加即「发货成功、账实两头空」，属必须 fail-closed 的前置缺失，
     /// 故在扣库存/写流水之前整单拒绝。拒绝原因是公开业务规则（用户改一下发货明细即可自行处理）
     /// ⇒ 可外显；但产品 ID 属内部标识，只进日志不出参。
     fn ensure_ship_items_belong_to_order(
@@ -147,7 +147,7 @@ impl SalesService {
             return Err(AppError::business("只有已审批的订单才能发货"));
         }
         // 查询订单明细
-        // F-P0-6 修复（批次 382 v13 复审）：保留查询结果用于计算发货金额
+        // 保留查询结果用于款号一致性门控与发货金额计算
         let order_items = sales_order_item::Entity::find()
             .filter(sales_order_item::Column::OrderId.eq(request.order_id))
             .all(txn)
@@ -155,8 +155,8 @@ impl SalesService {
         // 发货明细必须属于该订单的明细行（款号维度）：越界产品一律整单拒绝，
         // 不再让它流到下游被静默按 0 单价/0 发货量处理（见 ensure_ 方法注释）
         Self::ensure_ship_items_belong_to_order(request.order_id, &order_items, &request.items)?;
-        // v14 批次 418 修复 G-P0-1：批量查询产品获取 gram_weight/width，
-        // 用于库存流水的 quantity_kg 双单位换算（替代原 Decimal::ZERO 硬编码）
+        // 批量查询产品获取 gram_weight/width，
+        // 用于库存流水的 quantity_kg 双单位换算
         let product_ids: Vec<i32> = order_items.iter().map(|oi| oi.product_id).collect();
         let products = if product_ids.is_empty() {
             Vec::new()
@@ -174,7 +174,7 @@ impl SalesService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("仓库不存在"))?;
-        // P1 3-7/5-1 修复（批次 62）：保存发货明细快照用于事件发布
+        // 保存发货明细快照用于事件发布
         let shipped_items_snapshot: Vec<(i32, rust_decimal::Decimal)> = request
             .items
             .iter()
@@ -200,8 +200,7 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<sales_delivery::Model, AppError> {
-        // P1 3-8 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
-        // 原实现基于时间戳，同秒并发会产生重复单号
+        // 单据号由 DocumentNumberGenerator 生成，保证并发唯一（同秒并发不重复）
         let delivery = sales_delivery::ActiveModel {
             id: Default::default(),
             delivery_no: Set(
@@ -230,7 +229,7 @@ impl SalesService {
 
     /// 循环处理发货明细：四维扣减库存 + 生成库存流水 + 累加金额 + 批量 INSERT
     ///
-    /// 出库四维规则（用户 2026-10-02 纠正口径：染色布强制 缸号/色号/批次/匹号，
+    /// 出库四维规则（染色布强制 缸号/色号/批次/匹号，
     /// 款号由 product_id 承载；白坯免缸号免匹号）：一笔发货明细可能拆成多笔实际扣减
     /// （指定缸不足时显式跨缸回退），每一笔实际扣减单独生成一行出库明细与一条库存流水，
     /// 如实记录实际扣到的缸号/批次与该行前后数量；染色布指定匹在同一事务内 CAS 消耗。
@@ -322,10 +321,10 @@ impl SalesService {
     /// 「行数量×(1+容差)」上界之和；落在 `数量×(1±容差)` 区间内一律放行（不拒发），
     /// 仅越界时返回含上下界的业务错误。
     ///
-    /// 口径修正（CI G 族）：同一面料常因跨缸/分色号被拆成多条订单明细行，
-    /// 原实现用 `order_items.iter().find(product_id)` 只取**第一条**行做上下界，
-    /// 其余同产品行既不计入允许上界（正确性相反方向：把可发总量算少），
-    /// 也不计入已发量 ⇒ 与按行回写的发货量无法对账。现按产品聚合全部行。
+    /// 同一面料常因跨缸/分色号被拆成多条订单明细行，故上下界与已发量按产品聚合**全部**订单行：
+    /// 若只取**第一条**匹配 product_id 的订单行做上下界（`order_items.iter().find(product_id)`），
+    /// 其余同产品行既不计入允许上界（把可发总量算少），
+    /// 也不计入已发量 ⇒ 与按行回写的发货量无法对账。
     ///
     /// 容差解析优先级：行显式值 > 品类默认（按产品计量单位：面料/按量→5%、计件→0%）> 全局默认（5%）。
     fn validate_shipment_within_tolerance(
@@ -380,7 +379,7 @@ impl SalesService {
         Ok(())
     }
 
-    /// 取订单行的单价与税率（行缺失按 0 处理，与原逻辑一致）
+    /// 取订单行的单价与税率（行缺失按 0 处理）
     fn lookup_line_price(
         order_item_map: &std::collections::HashMap<i32, &sales_order_item::Model>,
         item: &ShipOrderItemRequest,
@@ -486,9 +485,9 @@ impl SalesService {
         unit: Option<&str>,
     ) -> Result<(), AppError> {
         // 同一产品的多条订单行（跨缸/分色号拆行）必须逐行分配，不能整笔加到每一行：
-        // 原实现 `update_many().filter(order_id).filter(product_id)` 会把本次发货量
-        // 同时累加到该产品**每一条**订单行（发 500 米 ⇒ 两行各 +500），
-        // 行进度与 `check_order_fully_shipped` 的「所有行 shipped >= quantity」双双失真
+        // 若用 `update_many().filter(order_id).filter(product_id)` 把本次发货量同时累加到
+        // 该产品**每一条**订单行（发 500 米 ⇒ 两行各 +500），行进度与
+        // `check_order_fully_shipped` 的「所有行 shipped >= quantity」双双失真
         // （要么提前判成全额发货，要么与出库明细对不上账）。
         //
         // 分配口径：按订单行 ID 升序（建单次序，确定性可重放）逐行补到本行允许上界
@@ -562,7 +561,7 @@ impl SalesService {
             .filter(sales_order_item::Column::OrderId.eq(request.order_id))
             .all(txn)
             .await?;
-        // D12 重构：全额发货判断提取到 check_order_fully_shipped（消除 for + if 分支）
+        // 全额发货判断提取到 check_order_fully_shipped
         let is_fully_shipped = Self::check_order_fully_shipped(&order_items_total);
         let new_status = if is_fully_shipped {
             so_status::SHIPPED
@@ -578,9 +577,9 @@ impl SalesService {
             order_items_total.len(),
             is_fully_shipped
         );
-        // P1 3-7/5-1 修复（批次 62）：保存发货上下文用于 AR 生成和事件发布
+        // 保存发货上下文用于 AR 生成和事件发布
         // order 在下方 .into() 被消费，提前保存所需字段
-        // F-P0-6 修复（批次 382 v13 复审）：移除 ship_order_no，收入凭证改用 delivery_no
+        // 收入凭证源单号使用 delivery_no
         let ship_customer_id = ctx.order.customer_id;
         let ship_order_total = ctx.order.total_amount;
         let ship_order_id = request.order_id;
@@ -600,12 +599,11 @@ impl SalesService {
             txn,
             "auto_audit",
             order_update,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计记录真实操作人 user_id
             Some(user_id),
         )
         .await?;
-        // P1 3-7/5-1 修复（批次 62）：销售→AR 业务流补全
-        // 修复：全额发货时在 commit 前调用 create_receivable 生成 AR（与订单状态更新共用事务）
+        // 销售→AR 业务流：全额发货时在 commit 前调用 create_receivable 生成 AR（与订单状态更新共用事务）
         if is_fully_shipped {
             // 查询客户账期（payment_terms <= 0 时 create_receivable 内部回退 30 天）
             let customer = crate::models::customer::Entity::find_by_id(ship_customer_id)
@@ -640,8 +638,8 @@ impl SalesService {
         items_result: ShipmentItemsResult,
         user_id: i32,
     ) {
-        // D12 重构：收入凭证生成提取到 create_revenue_voucher_for_delivery（消除 if + if let Err 分支）
-        // F-P0-3+F-P0-6 修复（批次 381+382 v13 复审）：每次发货都生成收入确认凭证
+        // 收入凭证生成提取到 create_revenue_voucher_for_delivery
+        // 每次发货都生成收入确认凭证
         // 借：应收账款（含税总额，挂客户辅助核算）
         // 贷：主营业务收入（不含税）/ 应交税费-销项税额
         // 失败时仅 warn 不阻断主流程（与采购入库容错模式一致）
@@ -653,7 +651,7 @@ impl SalesService {
             user_id,
         )
         .await;
-        // 批次 356 v13 复审 B-P0-2 修复：commit 后统一发布库存流水事件
+        // commit 后统一发布库存流水事件
         // 触发 inventory_finance_bridge_service 自动生成销售出库凭证
         for ev in items_result.pending_inventory_events {
             crate::services::event_bus::EVENT_BUS.publish(ev);

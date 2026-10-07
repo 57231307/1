@@ -11,7 +11,7 @@ use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
-/// 构建测试用 BOM 树节点夹具（封装 `BomTreeNode` 的构造，便于在各测试中复用，；默认 unit 为 "个"；product_name 固定为 None，；名称由 get_bom_tree 侧的 products 批量查询解析，不在此夹具内赋值。）
+/// 构建测试用 BOM 树节点夹具（封装 `BomTreeNode` 的构造，便于在各测试中复用，默认 unit 为 "个"；product_name 固定为 None，名称由 get_bom_tree 侧的 products 批量查询解析，不在此夹具内赋值。）
 fn make_bom_tree_node(
     product_id: i32,
     quantity: Decimal,
@@ -30,21 +30,21 @@ fn make_bom_tree_node(
 }
 
 /// test_bomztcl_activezzq
-/// 验证 BomStatus::Active 的字符串值与 common::STATUS_ACTIVE 一致（均为 "ACTIVE"），；确保 create/approve(true) 等方法写入数据库的状态值统一。
+/// 验证 BomStatus::Active 的字符串值与 common::STATUS_ACTIVE 一致（均为 "ACTIVE"），确保 create/approve(true) 等方法写入数据库的状态值统一。
 #[test]
 fn test_bomztcl_activezzq() {
     assert_eq!(BomStatus::Active.to_string(), "ACTIVE");
     assert_eq!(BomStatus::Active.to_string(), common::STATUS_ACTIVE);
 }
 
-/// test_bomztcl_inactivezzq（验证 BomStatus::Inactive 的字符串值为 "INACTIVE"，；用于 delete（软删除）和 approve(false) 流程。）
+/// test_bomztcl_inactivezzq（验证 BomStatus::Inactive 的字符串值为 "INACTIVE"，用于 delete（软删除）和 approve(false) 流程。）
 #[test]
 fn test_bomztcl_inactivezzq() {
     assert_eq!(BomStatus::Inactive.to_string(), "INACTIVE");
 }
 
 /// test_bomztcl_pendingzzq
-/// 验证 BomStatus::Pending 的字符串值与 common::STATUS_PENDING 一致（均为 "PENDING"），；用于 submit 流程将状态由草稿/失效流转为审核中。
+/// 验证 BomStatus::Pending 的字符串值与 common::STATUS_PENDING 一致（均为 "PENDING"），用于 submit 流程将状态由草稿/失效流转为审核中。
 #[test]
 fn test_bomztcl_pendingzzq() {
     assert_eq!(BomStatus::Pending.to_string(), "PENDING");
@@ -139,7 +139,7 @@ async fn test_bomxqsljs_shlwlbfd() {
     assert_eq!(requirements[0].required_quantity, decs!("50"));
 }
 
-/// test_bomxqsljs_jdgyhswxs（验证 collect_requirements 中 round_dp(4) 将中间结果归一化到 4 位小数，；防止 BOM 多层级递归数量计算时精度漂移。）
+/// test_bomxqsljs_jdgyhswxs（验证 collect_requirements 中 round_dp(4) 将中间结果归一化到 4 位小数，防止 BOM 多层级递归数量计算时精度漂移。）
 #[tokio::test]
 async fn test_bomxqsljs_jdgyhswxs() {
     let db = setup_test_db().await;
@@ -156,7 +156,7 @@ async fn test_bomxqsljs_jdgyhswxs() {
     assert_eq!(requirements[0].required_quantity, decs!("1.2346"));
 }
 
-/// test_bomxqsljs_dgdcj（验证 collect_requirements 递归处理多层级 BOM 树：根 → 子节点1（叶子，含损耗） + 子节点2（叶子，无损耗），；需求量按层级逐级相乘并应用损耗率。）
+/// test_bomxqsljs_dgdcj（验证 collect_requirements 递归处理多层级 BOM 树：根 → 子节点1（叶子，含损耗） + 子节点2（叶子，无损耗），需求量按层级逐级相乘并应用损耗率。）
 #[tokio::test]
 async fn test_bomxqsljs_dgdcj() {
     let db = setup_test_db().await;
@@ -204,7 +204,7 @@ fn test_bomshlcsgs() {
 }
 
 /// test_bomsgjdslwy
-/// 验证 get_bom_tree 构造的根节点 quantity 为 Decimal::ONE，；确保 calculate_bom_requirements 传入的 quantity 直接作为根级实际需求量。
+/// 验证 get_bom_tree 构造的根节点 quantity 为 Decimal::ONE，确保 calculate_bom_requirements 传入的 quantity 直接作为根级实际需求量。
 #[test]
 fn test_bomsgjdslwy() {
     // 复现 get_bom_tree 中根节点的 quantity 设置
@@ -216,7 +216,7 @@ fn test_bomsgjdslwy() {
     assert_eq!(required, decs!("100"));
 }
 
-/// test_bomxqsj_dyzjd（验证 collect_requirements 对单叶子节点树（无子节点）直接产出一条需求记录，；需求量 = 父级需求量 * 节点数量，product_name 原样透传节点上已解析的名称。）
+/// test_bomxqsj_dyzjd（验证 collect_requirements 对单叶子节点树（无子节点）直接产出一条需求记录，需求量 = 父级需求量 * 节点数量，product_name 原样透传节点上已解析的名称。）
 #[tokio::test]
 async fn test_bomxqsj_dyzjd() {
     let db = setup_test_db().await;
@@ -260,7 +260,7 @@ fn test_bbhjs_dzlj() {
     assert_eq!(next, 6);
 }
 
-/// test_cjqqmrz_is_defaultmrfalse（验证 create 方法中 is_default.unwrap_or(false) 的默认值逻辑，；未显式指定默认版本时应为 false。）
+/// test_cjqqmrz_is_defaultmrfalse（验证 create 方法中 is_default.unwrap_or(false) 的默认值逻辑，未显式指定默认版本时应为 false。）
 #[test]
 fn test_cjqqmrz_is_defaultmrfalse() {
     let req = CreateBomRequest {
@@ -283,8 +283,8 @@ fn test_cwxx_bombcz() {
 }
 
 /// test_cwxx_bomycyshzzt（验证 submit 方法中状态为 Pending 时拒绝重复提交的错误消息。）
-/// 断言跟随源码变更：该拒绝是「已处于某态不可重复动作」的状态门，
-/// 源码由 `AppError::validation` 改为 `AppError::business_displayable`，族 = BUSINESS_ERROR。
+/// 该拒绝是「已处于某态不可重复动作」的状态门（bom_ops/state.rs），源码用
+/// `AppError::business_displayable`，族 = BUSINESS_ERROR，断言与源码变体一致。
 #[test]
 fn test_cwxx_bomycyshzzt() {
     let err = AppError::business_displayable("BOM已处于审核中状态");
@@ -294,8 +294,8 @@ fn test_cwxx_bomycyshzzt() {
 }
 
 /// test_cwxx_jshzztksp（验证 approve 方法中状态非 Pending 时拒绝审批的错误消息。）
-/// 断言跟随源码变更：前置状态未满足的状态门归业务族，
-/// 源码为 `AppError::business_displayable`，出参 code=BUSINESS_ERROR 且文案外显。
+/// 前置状态未满足的状态门归业务族（BomService 状态门），源码为
+/// `AppError::business_displayable`，出参 code=BUSINESS_ERROR 且文案外显。
 #[test]
 fn test_cwxx_jshzztksp() {
     let err = AppError::business_displayable("仅审核中状态的BOM可以审批");
@@ -312,11 +312,10 @@ async fn test_fwslcj() {
 }
 
 /// test_cjbom_xyzssjk（真库正向口径：BOM create 全链路落库并回读落库值。）
-/// 历史前提更正（CI 族H）：本例曾用于「库未迁移/无 schema」时期的负探测
-/// （`assert!(result.is_err())`，注释自述"无 schema 时返回数据库错误"）；ignored 专用
-/// job 现跑**真库真迁移**（该 job「迁移本 job PostgreSQL service」步骤 success），
-/// 负前提不再成立——CI 里 create 成功正是正确行为，旧负断言反而是过期前提的假红。
-/// 现由真库夹具取代：断言创建成功 + **回读落库值**，正向证明写链可用。
+/// 夹具 = `setup_test_db()`：已迁移真库（ignored 专用 job 的 PostgreSQL service 会
+/// 先跑迁移），create 成功是正确行为，负前提（无 schema 报数据库错误）不成立，
+/// 该族防线由 `connect_empty_schema_db()` 用例承担。
+/// 本例断言创建成功 + **回读落库值**，正向证明写链可用。
 #[tokio::test]
 #[ignore]
 async fn test_cjbom_xyzssjk() {
@@ -379,7 +378,7 @@ async fn test_cjbom_xyzssjk() {
     );
 }
 
-/// test_hqboms_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
+/// test_hqboms_xyzssjk（需要 boms/bom_items 表 schema，标注 #[ignore] 仅在本地手动运行。验证调用路径不 panic。）
 #[tokio::test]
 #[ignore]
 async fn test_hqboms_xyzssjk() {
@@ -387,12 +386,12 @@ async fn test_hqboms_xyzssjk() {
     let service = BomService::new(Arc::new(db));
 
     let result = service.get_bom_tree(1, Some(3)).await;
-    // L-19 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无记录时返回 NotFound；无 schema 时返回数据库错误
+    // 无记录时返回 NotFound；无 schema 时返回数据库错误——必须显式断言 Err，
+    // 只丢弃 result 会让 panic 前的 Err 静默通过
     assert!(result.is_err(), "无 schema/无记录时应返回错误");
 }
 
-/// test_tjsh_xyzssjk（需要 boms 表 schema，标注 #[ignore] 仅在本地手动运行。；验证调用路径不 panic。）
+/// test_tjsh_xyzssjk（需要 boms 表 schema，标注 #[ignore] 仅在本地手动运行。验证调用路径不 panic。）
 #[tokio::test]
 #[ignore]
 async fn test_tjsh_xyzssjk() {
@@ -400,7 +399,7 @@ async fn test_tjsh_xyzssjk() {
     let service = BomService::new(Arc::new(db));
 
     let result = service.submit(1, 1).await;
-    // L-19 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无记录时返回 NotFound；无 schema 时返回数据库错误
+    // 无记录时返回 NotFound；无 schema 时返回数据库错误——必须显式断言 Err，
+    // 只丢弃 result 会让 panic 前的 Err 静默通过
     assert!(result.is_err(), "无 schema/无记录时应返回错误");
 }

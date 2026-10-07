@@ -204,7 +204,7 @@ impl Default for SlowQuerySettings {
 }
 
 /// CORS 跨域配置（`#[serde(default)]`，段或字段缺失均走 [`CorsConfig::default()`]）。
-/// 保证部署容错性（参见 #27048461019 修复）。
+/// 保证部署容错性：配置缺项不会阻断启动。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CorsConfig {
@@ -320,7 +320,7 @@ impl Default for MirrorOrder {
 /// 宁少勿滥：仅收录公开、https、社区长期在用的 ghproxy 系加速域。
 /// 注意：`ghproxy.net` 故意**不**纳入内置默认——既有集成测试
 /// `tests/services_system_update_integrity_test.rs::validate_download_url_rejects_insecure_and_disallowed_hosts`
-/// 以其作为"未配置镜像 host 必须被下载白名单拒绝"的负向探针（该文件不在本次改动范围）；
+/// 以其作为"未配置镜像 host 必须被下载白名单拒绝"的负向探针；
 /// 若需纳入须与该测试一并评审更新。可用 `UPDATE__MIRRORS` 显式叠加、`use_default_mirrors=false` 关闭。
 pub(crate) const DEFAULT_RELEASE_MIRRORS: &[&str] =
     &["https://gh-proxy.com", "https://mirror.ghproxy.com"];
@@ -827,10 +827,9 @@ impl AppSettings {
         }
 
         // 熵比校验：唯一字符数 / 总长度
-        // 阈值 0.15（部署修复）：原阈值 0.3 过高，导致 `openssl rand -hex 32` 生成的
-        // 64 字符 hex 密钥（仅 16 种字符 0-9,a-f，熵比 = 16/64 = 0.25）被误拒。
-        // 0.15 阈值仍能拦截全同字符密钥（1/32 = 0.03）和极度重复模式，
-        // 同时放行 hex/base64 等标准编码的合法强密钥。
+        // 阈值 0.15 兼顾放行与拦截：hex/base64 等标准编码强密钥可通过（如
+        // `openssl rand -hex 32`：64 字符仅 16 种字符，熵比 = 16/64 = 0.25）；
+        // 全同字符密钥（1/32 ≈ 0.03）和极度重复模式仍被拒绝。
         let unique_chars: std::collections::HashSet<char> = secret.chars().collect();
         let entropy_ratio = unique_chars.len() as f64 / secret.len() as f64;
         entropy_ratio > 0.15

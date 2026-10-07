@@ -1,27 +1,27 @@
-//! 任务 wave5：色号维护门控契约锁（建卡→加色号链路首次真跑通）
+//! 色号维护门控契约锁（建卡→加色号链路真实跑通）
 //!
-//! 坐实的断裂（修复前恒 400，API 上根本走不通）：
+//! 本锁禁绝的形态（门控若比一个写不出来的状态值，API 恒 400）：
 //! - `color_card_item_service.rs` create / validate_color_card_for_import 门控比 `master_data::ACTIVE`
 //!   （`'active'`）；
 //! - 但色卡创建写入的是 `card_status::DRAFT`（`'draft'`，`color_card_crud_service.rs` create），
 //!   `'active'` 已被色卡权威词表 `color_card::ALL` 与 DB CHECK `chk_color_card_status`
 //!   排除为不可写值（legacy active 由迁移回填为 draft），且没有任何把色卡写成 active 的端点；
-//! - ⇒ 门控比的是一个业务上再也写不出来的死值，任何 API 建的色卡加色号 / 批量导入恒 400。
+//! - ⇒ 比 `'active'` 即比一个业务上写不出来的死值，任何 API 建的色卡加色号 / 批量导入恒 400。
 //!
-//! 修复方向（业务语义裁定：允许在草稿态色卡上维护色号）：
-//! - 门控改为比较色卡词表里真实存在且可达的"可编辑态"集合 `EDITABLE_CARD_STATUSES = {draft}`
+//! 锁定形态（业务语义：允许在草稿态色卡上维护色号）：
+//! - 门控比较色卡词表里真实存在且可达的"可编辑态"集合 `EDITABLE_CARD_STATUSES = {draft}`
 //!   （与色卡主体 update 门控、前端 `views/color-cards/list.vue` 编辑入口 `status === 'draft'` 同源）；
 //! - 拒绝文案按保密分层：'只有草稿态色卡可以维护色号' 是纯公开业务规则（不含内部状态 token /
 //!   记录 ID）→ `AppError::business_displayable`（HTTP 400 / code=BUSINESS_ERROR + 真实文案外显）。
 //!
-//! 覆盖策略（路线一， 判责：表结构唯一来源 = backend/migration）
-//! - 正向：真实 draft 卡 → POST items 成功、色号回读等值（建卡→加色号链首次跑通）；批量导入同链成功；
+//! 覆盖策略（表结构唯一来源 = backend/migration）：
+//! - 正向：真实 draft 卡 → POST items 成功、色号回读等值（建卡→加色号链跑通）；批量导入同链成功；
 //! - 反向：终态（archived）/ 已发放（issued）→ 400 + code=BUSINESS_ERROR
 //!   + 外显文案；被拒时零色号落库；
-//! - legacy 死值 active 双层锁（裁定 R2）：活库层断言"把色卡状态写成 active 必须被
+//! - legacy 死值 active 双层锁：活库层断言"把色卡状态写成 active 必须被
 //!   DB CHECK chk_color_card_status 拒绝且零漂移"；应用层由源码扫描锁继续断言
-//!   "代码不得把 active 当可编辑态"（真 PG 下该状态根本播种不出来，旧"插 active 再撞门"
-//!   形态不复存在）；
+//!   "代码不得把 active 当可编辑态"（真 PG 下该状态根本播种不出来，"插 active 再撞门"
+//!   的前置无法构造）；
 //! - 源码扫描（include_str!）：门控比较的每个 token 必须来自色卡词表且在 `color_card::ALL` 内，
 //!   服务不得再引用 `master_data::ACTIVE` 或裸 "active"。
 
@@ -53,9 +53,9 @@ use test_common::setup_test_db;
 use tower::ServiceExt;
 
 // =========================================================
-// 夹具：真 PostgreSQL（表结构唯一来源 = backend/migration，路线一 判责）
+// 夹具：真 PostgreSQL（表结构唯一来源 = backend/migration）
 // 列与 models/color_card.rs、models/color_card_item.rs 一一对应由迁移保证，
-// 本文件不再自建 CREATE TABLE（sqlite 方言把 DECIMAL 写成 TEXT 是 解码红根因）。
+// 本文件不自建 CREATE TABLE（sqlite 方言把 DECIMAL 写成 TEXT 会引发列解码失败）。
 // =========================================================
 
 async fn fresh_db() -> sea_orm::DatabaseConnection {
@@ -91,7 +91,7 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
     Router::new()
         .route("/color-cards", post(create_color_card))
         // axum 0.8 起路径参数语法为 {id}；写 :id 会在 build 时 panic
-        // "Path segments must not start with ':'"（CI 5 例连坐）
+        // "Path segments must not start with ':'"
         .route(
             "/color-cards/{id}/items",
             get(list_color_items).post(create_color_item),

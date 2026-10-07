@@ -1,4 +1,4 @@
-//! 决策定案 契约锁：ClamAV 扫描依赖故障不再谎报 500，改 503 SERVICE_UNAVAILABLE
+//! ClamAV 扫描依赖故障契约锁：故障返回 503 SERVICE_UNAVAILABLE，不得谎报 500 DATABASE_ERROR
 //!
 //! 锁定的语义三分（对 `crm_handler.rs::scan_leads_for_viruses` 与
 //! `supplier_handler.rs::scan_qualification_attachment_for_viruses`）：
@@ -6,10 +6,10 @@
 //!   公网脱敏文案「服务暂时不可用，请稍后重试」；且 fail-closed：拒绝发生在落盘/导入
 //!   之前，磁盘与 DB 均无痕迹；
 //! ②命中病毒 → 4xx（BUSINESS_ERROR + 用户可见拒绝文案，business_displayable 形态）；
-//! ③扫描通过 → 200 正常落盘（证明 503 改造没有把可用路径也拦死）。
+//! ③扫描通过 → 200 正常落盘（证明 503 故障门没有把可用路径也拦死）。
 //!
 //! 覆盖策略（对齐 `contract_wave2_supplier_qualification_attachment_test.rs` 先例；
-//! 表结构唯一来源 = backend/migration，路线一 判责，裁定 R3 双连接）
+//! 表结构唯一来源 = backend/migration；双连接夹具）
 //! - supplier 侧：`setup_test_db()` 真 PG（已迁移+清业务表）+ 真实 handler 端到端
 //!   （tower oneshot + AuthContext 注入），断 HTTP 状态 + 信封 code/message
 //!   + DB 回读 attachment_path + 磁盘文件存在性。供应商父行不自建：
@@ -127,7 +127,7 @@ fn build_supplier_app(db: &DatabaseConnection) -> Router {
         .layer(from_fn_with_state(make_auth(100), inject_auth))
 }
 
-/// crm 线索导入端点挂在**空 schema 库**（裁定 R3 双连接，`connect_empty_schema_db`）：
+/// crm 线索导入端点挂在**空 schema 库**（双连接夹具，`connect_empty_schema_db`）：
 /// 库里没有任何 crm 业务表——扫描失败若被吞、流程若走到 import_leads，会得到
 /// DATABASE_ERROR/500 而不是 503，断言因此能自证「拒绝先于导入」。
 fn build_crm_app(db: &DatabaseConnection) -> Router {
@@ -276,7 +276,7 @@ fn spawn_fake_scan_server(status_line: &'static str, body: &'static str) -> u16 
 /// 读写环境变量的都是主线程（假扫描器线程不触碰 env），unsafe set_var 的前提成立。
 #[tokio::test]
 async fn scan_dependency_failures_return_503_never_500_and_never_touch_disk() {
-    // 裁定 R3 双连接：supplier 侧要建资质种子 → 真 PG 已迁移库（setup_test_db）；
+    // 双连接：supplier 侧要建资质种子 → 真 PG 已迁移库（setup_test_db）；
     // crm 侧要"库里没有业务表"这一负前提 → 已建库未跑迁移的空 schema 库。
     let db = test_common::setup_test_db().await;
     let sid = seed_qualifications(&db).await;

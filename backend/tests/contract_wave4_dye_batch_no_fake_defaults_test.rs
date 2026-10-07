@@ -1,29 +1,29 @@
-//! （续）：染色缸号（dye_batch）新建链路"造假默认值/幽灵字段"拆除契约锁
+//! 染色缸号（dye_batch）新建链路"造假默认值/幽灵字段"拆除契约锁
 //!
-//! 锁定的契约（修复后形态，file:line 以修复后工作树为准）：
+//! 锁定的契约（file:line 以现行工作树为准）：
 //! - `backend/src/handlers/dye_batch_handler.rs::resolve_dye_color_identity`
 //!   白坯/染色身份归一唯一入口，口径与 `services/inv/fabric_class.rs:25-65`（全仓唯一
 //!   白坯/染色判定）同型：色号空=白坯 ⇒ color_code/color_name/dye_lot_no 按"NOT NULL 列
 //!   空串表达白坯"的真实空值口径落库（`handlers/inventory_stock_handler_dto.rs:19` 同源）；
 //!   色号非空=染色布 ⇒ dye_lot_no 必填、color_code/color_name 由色卡档案
 //!   （color_card_items，查询形态同 `services/color_card_scan_service.rs:71-82`）反查派生。
-//! - 三处造假默认值全部移除：色号缺失不再写 "TEST"/"测试色号"、染色批号不再写 "DEFAULT"。
-//! - `frontend/src/views/fabric/tabs/DyeFormDialogTab.vue`：幽灵字段 actual_quantity
-//!   （dye_batch 域全仓无此列）移除；新建表单真实采集 dye_lot_no；提交显式构造
+//! - 禁绝三处造假默认值：色号缺失不得写 "TEST"/"测试色号"、染色批号不得写 "DEFAULT"。
+//! - `frontend/src/views/fabric/tabs/DyeFormDialogTab.vue`：不得出现幽灵字段 actual_quantity
+//!   （dye_batch 域全仓无此列）；新建表单真实采集 dye_lot_no；提交显式构造
 //!   Create/UpdateDyeBatchPayload（start_date→dye_date、空值整键省略、status 仅改动才送）。
 //!
-//! 修复前必然红的机理：
-//! - 白坯用例：旧 build_active 把 color_code/color_name 回退成测试假值/写死假色名、
+//! 违例形态回潮时必然红的机理（回归锁判据）：
+//! - 白坯用例：若 color_code/color_name 回退成测试假值/写死假色名、
 //!   dye_lot_no 回退成占位串，断言"落库=真实空值口径"直接失配；
-//! - 未知色号用例：旧实现不查档、静默落库并返回 200，断言 400+零落库必红；
-//! - 染色布缺缸号用例：旧实现静默把 dye_lot_no 写成占位串返回 200，断言 400+零落库必红；
-//! - 源码扫描：旧源码含三处假值字面量与类型断言/幽灵字段，任何一条都会命中。
+//! - 未知色号用例：若不查档、静默落库并返回 200，断言 400+零落库必红；
+//! - 染色布缺缸号用例：若把 dye_lot_no 写成占位串返回 200，断言 400+零落库必红；
+//! - 源码扫描：出现假值字面量与类型断言/幽灵字段，任何一条都会命中。
 //!
-//! 覆盖策略（路线一， 判责；无 mock）：表结构唯一来源 = backend/migration ——
+//! 覆盖策略（无 mock）：表结构唯一来源 = backend/migration ——
 //! `test_common::setup_test_db()`（已迁移 PostgreSQL，TRUNCATE 业务表 + RESTART IDENTITY，
 //! 显式种子 id 稳定）+ 真实 handler 端到端（tower oneshot，同 contract_wave2 先例）。
 //! 新建一律显式传 batch_no，避开自动生成路径的 pg advisory lock 并发取号噪声。
-//! 色卡档案（color_card_items）FK 指向 color_cards，按裁定 R1 自种子父卡行；
+//! 色卡档案（color_card_items）FK 指向 color_cards，用例自种子父卡行；
 //! 同色号歧义组用两张不同卡（真表 UNIQUE (color_card_id, color_code) 不允许同卡重复）。
 
 use axum::{
@@ -93,8 +93,9 @@ async fn fresh_db() -> sea_orm::DatabaseConnection {
     test_common::setup_test_db().await
 }
 
-/// 色卡父行（color_card_items.color_card_id 的 FK 前置，裁定 R1）；
-/// status 写词表真实值 draft（chk_color_card_status 只认词表全集，v15:4493-4498）。
+/// 色卡父行（color_card_items.color_card_id 的 FK 前置，需自种子）；
+/// status 写词表真实值 draft（chk_color_card_status 只认词表全集，
+/// backend/migration/src/domain/v15/mod.rs）。
 async fn seed_color_card(db: &sea_orm::DatabaseConnection, card_id: i64, card_no: &str) {
     let now = chrono::Utc::now();
     color_card::ActiveModel {

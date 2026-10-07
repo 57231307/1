@@ -7,7 +7,7 @@
 //! （opened/processing/resolved/closed/rejected），缺 `accepted`/`evaluated`。
 //! `PUT /custom-orders/after-sales/{id}` 走 opened→accepted（受理链）或 resolved→evaluated（评价链）时
 //! 写 status 必违反该约束，PG 回 SQLSTATE 23514（violates check constraint），
-//! 对上游冒 DATABASE_ERROR(500)；`tests/contract_wave3_after_sales_customer_name_test.rs:325-330`
+//! 对上游冒 DATABASE_ERROR(500)；`tests/contract_wave3_after_sales_customer_name_test.rs`
 //! 有同结论归因注记（疑迁移/表结构缺口），禁止反向改断言或改服务迁就约束。
 //!
 //! 本迁移重建该 CHECK，取值集合与 `AFTERSALES_ALL` 逐字符对齐（全小写、无派生别名），

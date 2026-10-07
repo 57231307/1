@@ -26,20 +26,18 @@ pub struct SalesOrderQuery {
     pub status: Option<String>,
     pub customer_id: Option<i32>,
     pub order_no: Option<String>,
-    /// 客户名称模糊查询：列表页一直有这个输入框，此前后端无此字段被直接丢弃
+    /// 客户名称模糊查询（对应列表页的筛选输入框）
     pub customer_name: Option<String>,
-    /// 订单日期范围（含）：页面的日期区间控件发送 start_date/end_date，
-    /// 此前后端无此二字段 ⇒ 筛选静默失效（空筛选恒 0 行同类缺陷）
+    /// 订单日期范围（含端点）：页面日期区间控件发送 start_date/end_date
     pub start_date: Option<chrono::NaiveDate>,
     pub end_date: Option<chrono::NaiveDate>,
 }
 
-/// P1-2d 修复（批次 81 v1 复审）：创建发货请求 DTO
-/// 替代 create_delivery 中的 Json<serde_json::Value>，提供强类型校验
+/// 创建发货请求 DTO：为 create_delivery 提供强类型入参与校验
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateDeliveryDto {
-    /// 仓库 ID：可选，缺失时默认 0（保持原向后兼容逻辑）
+    /// 仓库 ID：缺失时 create_delivery 返回 VALIDATION_ERROR（不默认 0）
     pub warehouse_id: Option<i32>,
 }
 
@@ -52,11 +50,11 @@ pub async fn list_orders(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    // V15 P0-S01：提取行级数据权限上下文
+    // 提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
 
     let page_req = PageRequest {
-        page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        page: query.page.unwrap_or(1).clamp(1, 1000), // 分页参数 clamp 防 DoS
         page_size: query.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -80,9 +78,8 @@ pub async fn list_orders(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        // 非静默：原 `if let Ok(Some(_))` 把权限查询 Err 与 Ok(None) 静默合并，按
-        // 本仓既有做法（crm_handler::resolve_role_data_permission）对 Err 记 warn 后
-        // 同走 fail-closed 默认处理，出参语义与原实现逐字一致。
+        // 权限查询 Err 不静默：记 warn 后按 None（fail-closed 默认处理）继续，
+        // 做法同本仓既有 crm_handler::resolve_role_data_permission。
         let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "sales_order")
@@ -111,11 +108,11 @@ pub async fn list_orders(
                     &permission.allowed_fields,
                     &permission.hidden_fields,
                 );
-                // P1-08-5：非管理员对销售订单列表手机号/邮箱脱敏。
-                // D-4 收口（波次）：PII 放行判据与下方金额/成本列隐藏同走
+                // 非管理员对销售订单列表手机号/邮箱脱敏。
+                // PII 放行判据与下方金额/成本列隐藏同走
                 // 本仓唯一权威源 `admin_checker::is_admin_role`（roles.code='admin'，
-                // 查询失败 fail-closed=false），禁止角色主键字面量判定——此前同一请求
-                // 里金额列走权威源、手机号走字面量，播种漂移时一半字段口径分裂。
+                // 查询失败 fail-closed=false），禁止角色主键字面量判定（播种漂移时
+                // 各字段口径分裂、静默剔权/静默扩权）。
                 // 判定在循环外、每请求至多一次（admin_checker 内部带 5 分钟缓存，
                 // 同 crm_handler 既有范式）。
                 let is_admin = admin_checker::is_admin_role(&state.db, role_id).await;
@@ -127,7 +124,7 @@ pub async fn list_orders(
                 }
             }
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // D-4 收口（波次）：admin 判定走本仓唯一权威源
+            // admin 判定走本仓唯一权威源
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
             // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
@@ -147,9 +144,9 @@ pub async fn list_orders(
                         obj.remove("paid_amount");
                         obj.remove("balance_amount");
 
-                        // P1-08-5：手机号脱敏（移除金额字段后仍需脱敏联系电话）。
+                        // 手机号脱敏（移除金额字段后仍需脱敏联系电话）。
                         // sales_orders 出参由 sales_order::Model 序列化生成，
-                        // contact_phone 是真实列（models/sales_order.rs:30），
+                        // contact_phone 是真实列（models/sales_order.rs:32），
                         // 该模型无 email 列，出参不存在 email 类键。
                         if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
                             if !phone.is_empty() {
@@ -188,7 +185,7 @@ pub async fn get_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let order = sales_service
         .get_order_detail(id, Some(&data_scope_ctx))
@@ -217,7 +214,7 @@ pub async fn get_order(
             }
         };
         if let Some(permission) = permission {
-            // D-4 收口（波次）：PII 放行判据与下方默认字段隐藏同走唯一权威源
+            // PII 放行判据与下方默认字段隐藏同走唯一权威源
             // `admin_checker::is_admin_role`，判定每请求一次、置于逐字段处理之外
             // （与 list_orders 同款，禁止角色主键字面量判定）。
             let is_admin = admin_checker::is_admin_role(&state.db, role_id).await;
@@ -226,11 +223,11 @@ pub async fn get_order(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-            // P1-08-5：非管理员对销售订单详情手机号/邮箱脱敏
+            // 非管理员对销售订单详情手机号/邮箱脱敏
             order_json =
                 crate::utils::field_mask::mask_contact_fields_for_role(order_json, is_admin);
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与列表同一单源判定（见 list_orders 内 D-4 收口注释），每请求至多一次
+            // 与列表同一单源判定（见 list_orders 内 admin 判定注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {
                 obj.remove("subtotal");
@@ -241,8 +238,8 @@ pub async fn get_order(
                 obj.remove("paid_amount");
                 obj.remove("balance_amount");
 
-                // P1-08-5：手机号脱敏（sales_order::Model 无 email 列，
-                // contact_phone 是真实列，models/sales_order.rs:30）
+                // 手机号脱敏（sales_order::Model 无 email 列，
+                // contact_phone 是真实列，models/sales_order.rs:32）
                 if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
                     if !phone.is_empty() {
                         obj.insert(
@@ -324,12 +321,12 @@ pub async fn update_order(
         }
     }
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
+    // IDOR 防护：更新前先校验资源归属（get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
         .get_order_detail(id, Some(&data_scope_ctx))
         .await?;
-    // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
+    // 传入真实操作人 user_id 用于审计日志
     let order = sales_service
         .update_order(id, auth.user_id, request)
         .await?;
@@ -349,12 +346,12 @@ pub async fn delete_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_order_detail + data_scope_ctx）
+    // IDOR 防护：删除前先校验资源归属（get_order_detail + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
         .get_order_detail(id, Some(&data_scope_ctx))
         .await?;
-    // 批次 94 P2-10：传入真实操作人 user_id 用于审计日志
+    // 传入真实操作人 user_id 用于审计日志
     sales_service.delete_order(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
@@ -379,7 +376,7 @@ pub async fn submit_order(
     }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            // 通知发送失败记 warn 日志，不静默吞错
             if let Err(e) = event_service
                 .notify_order_submitted(created_by, &order.order_no, order.id)
                 .await
@@ -432,7 +429,7 @@ pub async fn approve_order(
     }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            // 通知发送失败记 warn 日志，不静默吞错
             if let Err(e) = event_service
                 .notify_order_approved(
                     created_by,
@@ -488,7 +485,7 @@ pub async fn ship_order(
     }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            // 通知发送失败记 warn 日志，不静默吞错
             if let Err(e) = event_service
                 .notify_order_shipped(created_by, &order.order_no, order.id)
                 .await
@@ -514,7 +511,7 @@ pub async fn complete_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // P1-11 修复（2026-06-25 综合审计）：传入真实操作人 ID 用于审计日志
+    // 传入真实操作人 ID 用于审计日志
     let order = sales_service.complete_order(id, auth.user_id).await?;
 
     // 订单完成后发送通知给申请人
@@ -523,7 +520,7 @@ pub async fn complete_order(
     }
     if let Some(event_service) = &state.event_notification_service {
         if let Some(created_by) = order.created_by {
-            // 批次 94 P2-11：原 let _ = 静默吞错，通知发送失败时无任何日志，改为 warn 日志记录
+            // 通知发送失败记 warn 日志，不静默吞错
             if let Err(e) = event_service
                 .notify_order_completed(created_by, &order.order_no, order.id)
                 .await
@@ -560,7 +557,7 @@ pub async fn get_order_history(
         crate::services::order_change_history_service::OrderChangeHistoryService::new(
             state.db.clone(),
         );
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 分页参数 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (histories, total) = history_service
@@ -580,7 +577,7 @@ pub async fn get_order_history(
 // ========== 数据导出接口 ==========
 
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
-// V15 P0-S11：导出审计日志写入所需依赖
+// 导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
@@ -592,16 +589,16 @@ pub async fn export_orders(
     auth: AuthContext,
     Query(query): Query<SalesOrderQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    // 全局导出并发控制（RAII 守卫，函数退出自动递减）
     let _guard = ExportConcurrencyGuard::acquire()?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+    // 提前 clone 查询条件用于审计日志（避免 service 调用 move 后借用失效）
     let audit_status = query.status.clone();
     let audit_order_no = query.order_no.clone();
 
-    // T3: 直接获取结构化数据，去除 CSV 中转
+    // 直接获取结构化数据生成表格
     let (headers, rows) = sales_service
         .export_orders_to_xlsx(crate::services::so::order_query::SalesOrderFilter {
             status: query.status,
@@ -615,7 +612,7 @@ pub async fn export_orders(
 
     let row_count = rows.len();
 
-    // V15 P1-9-3：销售订单导出条数上限（计划 13.9.1 要求单次 ≤ 10000 条）
+    // 销售订单导出条数上限：单次 ≤ 10000 条
     const MAX_SALES_ORDER_EXPORT_ROWS: usize = 10_000;
     if row_count > MAX_SALES_ORDER_EXPORT_ROWS {
         return Err(AppError::bad_request(format!(
@@ -635,7 +632,7 @@ pub async fn export_orders(
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    // 导出审计日志写入（best-effort，异步不阻塞响应）
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -688,8 +685,6 @@ pub async fn generate_order_no(
 /// 拒绝销售订单请求：长度下限与 purchase_order_handler.rs::RejectOrderRequest 同族，
 /// 上限不设——sales_orders.rejected_reason 为 TEXT（migration m0079），无列宽截断风险；
 /// PO 侧 255 上限是 VARCHAR(255) 列型对齐，两域列型不同不强行取同值。
-/// 此前本 handler 无 Json 提取器，前端传来的拒绝原因被 Axum 丢弃、
-/// 审计里恒为写死的「订单被拒绝」。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct RejectSalesOrderRequest {
@@ -713,7 +708,7 @@ pub async fn reject_order(
     Path(id): Path<i32>,
     Json(req): Json<RejectSalesOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // 死注解收口：校验真实执行；validator 的 min=1 拦不住纯空白，trim 非空门在后，
+    // 校验真实执行：validator 的 min=1 拦不住纯空白，trim 非空门在后，
     // 落库为 trim 后的值（口径同 quotation_handler.rs / sales_price_handler.rs reject 先例）。
     req.validate()?;
     let reason = req.reason.trim().to_string();
@@ -728,7 +723,7 @@ pub async fn reject_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // service 直接返回 AppError（状态机拒绝 business / 404 not_found 等 4xx），
-    // 透传保留其 status/code/文案；此前 map_err(internal) 会把业务拒绝压成 500。
+    // 透传保留其 status/code/文案，不把业务拒绝压成 500。
     sales_service
         .reject_order(id, reason, _auth.user_id)
         .await?;
@@ -783,12 +778,12 @@ pub async fn create_delivery(
     Path(id): Path<i32>,
     Json(payload): Json<CreateDeliveryDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P1-2d 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 强类型 DTO + validator 入参校验
     payload.validate().map_err(AppError::from)?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    // 批次 407 修复：warehouse_id 缺失时不可默认为 0，否则发货可能落到非法仓库
+    // warehouse_id 缺失即拒绝，不允许默认为 0 落到非法仓库
     let warehouse_id = payload
         .warehouse_id
         .ok_or_else(|| AppError::validation_displayable("发货必须指定仓库 ID"))?;
@@ -802,7 +797,7 @@ pub async fn create_delivery(
     Ok(Json(ApiResponse::success(delivery_json)))
 }
 
-/// 取消发货单 批次 216 P2-1 修复（v12 复审）：实现销售发货取消功能 POST /api/v1/erp/sales/orders/:id/deliveries/:delivery_id/cancel
+/// 取消发货单 POST /api/v1/erp/sales/orders/:id/deliveries/:delivery_id/cancel
 pub async fn cancel_delivery(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -825,7 +820,7 @@ pub async fn cancel_delivery(
     )))
 }
 
-/// 取消发货单请求 DTO（批次 216 P2-1）
+/// 取消发货单请求 DTO
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CancelDeliveryRequest {
@@ -838,10 +833,10 @@ pub struct CancelDeliveryRequest {
 /// 获取订单统计
 /// GET /api/v1/erp/sales/orders/statistics
 ///
-/// `Query<serde_json::Value>` 透传给 service 时，service 用 `as_i64()` 读 `customer_id`，而
-/// urlencoded 下该值恒为 `Value::String` ⇒ `customer_id` 筛选静默失效（统计恒为全量）。
-/// 改 typed DTO 定型解析（非法值 400），再把 `customer_id` 以 `Value::Number` 重建，令既有
-/// service 查询契约真正生效；`start_date`/`end_date` 按原键名以字符串透传，保持 service 兼容。
+/// 本 handler 用 typed DTO 定型解析查询参数（非法值 400），再把 `customer_id` 以
+/// `Value::Number` 重建后交给 service——service 用 `as_i64()` 读该键，而 urlencoded
+/// 下值恒为 `Value::String`，透传原始 `Value` 会使 `customer_id` 筛选静默失效；
+/// `start_date`/`end_date` 按原键名以字符串透传，保持 service 兼容。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct OrderStatisticsQuery {

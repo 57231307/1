@@ -48,9 +48,9 @@ pub async fn list_requests(
     );
 
     let service = ApPaymentRequestService::new(state.db.clone());
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
-    // V15 P0-S01：提取行级数据权限上下文
+    // 提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let (requests, total) = service
         .get_list(
@@ -72,7 +72,7 @@ pub async fn list_requests(
         auth.username, total
     );
 
-    // 批次 406 修复：序列化失败应传播错误而非返回 Null
+    // 序列化失败传播 AppError，不返回 Null
     let mut items_json: Vec<serde_json::Value> = requests
         .into_iter()
         .map(|r| serde_json::to_value(r).map_err(AppError::from))
@@ -80,9 +80,8 @@ pub async fn list_requests(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        // 非静默：原 `if let Ok(Some(_))` 把权限查询 Err 与 Ok(None) 静默合并，按
-        // 本仓既有做法（crm_handler::resolve_role_data_permission）对 Err 记 warn 后
-        // 同走 fail-closed 默认处理，出参语义与原实现逐字一致。
+        // 权限查询 Err 与 Ok(None) 不静默合并：Err 显式记 warn 后同走 fail-closed
+        // 默认处理（本仓既有做法 = crm_handler::resolve_role_data_permission）。
         let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "ap_payment_request")
@@ -107,11 +106,12 @@ pub async fn list_requests(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // D-4 收口（波次）：admin 判定走本仓唯一权威源
+            // admin 判定走本仓唯一权威源
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定——播种漂移时字面量要么静默剔 admin 字段（功能坏）、
             // 要么静默给其他角色扩权（越权）。判定在循环外的分支条件处、每请求至多一次
-            //（admin_checker 内部带 5 分钟缓存，同 crm_handler:175 既有范式）。
+            //（admin_checker 内部带 5 分钟缓存，同 crm_handler::apply_opportunity_field_permission
+            // 既有范式）。
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             for request in &mut items_json {
                 if let Some(obj) = request.as_object_mut() {
@@ -139,7 +139,7 @@ pub async fn get_request(
     info!("用户 {} 查询付款申请详情 ID: {}", auth.username, id);
 
     let service = ApPaymentRequestService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let request = service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
@@ -177,7 +177,7 @@ pub async fn get_request(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与列表同一单源判定（见 list_requests 内 D-4 收口注释），每请求至多一次
+            // 与列表同一单源判定（见 list_requests 内 admin 判定注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = request_json.as_object_mut() {
                 obj.remove("request_amount");
@@ -247,7 +247,7 @@ pub async fn update_request(
     })?;
 
     let service = ApPaymentRequestService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // IDOR 防护——更新前先校验资源归属（复用列表/详情的 get_by_id + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
@@ -273,11 +273,11 @@ pub async fn delete_request(
     info!("用户 {} 删除付款申请 ID: {}", auth.username, id);
 
     let service = ApPaymentRequestService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // IDOR 防护——删除前先校验资源归属（复用列表/详情的 get_by_id + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // 传入真实操作人 user_id 用于审计日志
     service.delete(id, auth.user_id).await?;
 
     info!("用户 {} 删除付款申请成功", auth.username);
@@ -364,7 +364,7 @@ pub async fn approve_request(
         tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
     }
     if let Some(ref event_service) = state.event_notification_service {
-        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        // 通知发送失败显式记 warn，不静默吞错
         if let Err(e) = event_service
             .notify_approval_result(
                 request.created_by,
@@ -434,7 +434,7 @@ pub async fn reject_request(
         tracing::error!("事件通知服务未装配（container 应无条件构造），此处站内通知将缺失");
     }
     if let Some(ref event_service) = state.event_notification_service {
-        // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+        // 通知发送失败显式记 warn，不静默吞错
         if let Err(e) = event_service
             .notify_approval_result(
                 request.created_by,

@@ -1,11 +1,11 @@
-//! 第 5 波（仓储/调拨/采购收货/退货域）：更新端点可空列三态清空语义收口
-//! （对齐 RFC 7386 JSON Merge Patch，范式先例 `department_handler.rs` 与提交 ab257ea7；
-//! 与 wave3 互补：wave3 侧重库存域回环与本域 service 级拒清，本文件锁定
-//! 收货/退货/仓储/调拨四子域的 DTO 三态形状、真实 sqlite service 回环、
-//! 拒清零部分副作用、以及 handler `map_err(internal/bad_request)`→`?` 透传后
-//! 错误按真正责任模块定性（业务拒绝/404 不再被拍平成 500/400））
+//! 仓储/调拨/采购收货/退货域：更新端点可空列三态清空语义收口契约锁
+//! （对齐 RFC 7386 JSON Merge Patch，范式先例 `department_handler.rs`；
+//! 与 `contract_wave3_state_gate_family_consistency_test.rs` 的库存域锁互补：
+//! 本文件锁定收货/退货/仓储/调拨四子域的 DTO 三态形状、真库 service 回环、
+//! 拒清零部分副作用、以及 handler `map_err(internal/bad_request)`→`?` 透传——
+//! 业务拒绝/404 保持自身族与状态码，不得升级成 500/400）
 //!
-//! 覆盖端点与可空列（DDL/模型证据见各 `backend/src/models/*.rs`，普查表见 PR 描述）：
+//! 覆盖端点与可空列（DDL/模型证据见各 `backend/src/models/*.rs`）：
 //! - PUT /warehouses/{id}：address/manager→manager_id/phone/contact_person/capacity/
 //!   warehouse_type 可空；name/is_default/status(→is_active) NOT NULL 拒清
 //! - PUT /warehouse/locations/{id}：location_type/max_weight/max_height/
@@ -19,22 +19,21 @@
 //! - PUT /purchase/returns/{id}/items/{item_id}：notes 可空；追溯三列
 //!   color_no/dye_lot_no/batch_no 为 NOT NULL DEFAULT ''（"改回白坯"提交空串而非 null）、
 //!   数量/单价/税率/折扣率 NOT NULL 拒清（明细为原位 update，非整表重插——
-//!   历史缺陷"更新重复插行洗掉四维/辅量"由行数与原值双断言锁死）
+//!   由行数与原值双断言锁死，防"重插行洗掉四维/辅量"）
 //! - PUT /sales/returns/{id}：order_id/notes 可空；customer_id/return_date/warehouse_id/
 //!   reason_type NOT NULL 拒清；reason_detail 虚拟入参单独清空显式拒绝
 //! - PUT /sales/returns/{id}/items/{item_id}：reason→notes 可空；quantity/unit_price 拒清
 //! - PUT /inventory/transfers/{id}、items/{item_id}：notes/unit_cost/dye_lot_no 可空
 //!
-//! 覆盖策略（无 mock；路线一 判责：表结构唯一来源 = backend/migration，
-//! 不再自建 sqlite 同构表——quantity/total_quantity 等 DECIMAL 列被写成 TEXT
-//! 即本文件连坐解码红的根因）：
+//! 覆盖策略（无 mock；表结构唯一来源 = backend/migration，不自建 sqlite 同构表
+//! ——自建 DDL 把 quantity/total_quantity 等 DECIMAL 列写成 TEXT 会引发成片解码失败）：
 //! - 纯 serde：DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))），
 //!   并反向锁 serde_json 默认行为（裸双层 Option 会把显式 null 折成外层 None——
 //!   "只声明双层 Option 不挂适配器 = 清空静默失效"的根因形状）；
 //! - 真 PostgreSQL（test_common::setup_test_db）+ 真实 service/handler 回环：
 //!   仓储 update、采购退货单头/明细、调拨明细 handler 信封
 //!   （以上链路均不加行锁，常规分片可跑真实写读）；
-//!   FK 父行自种子（裁定 R1）：purchase_return_item.product_id → products、
+//!   FK 父行自种子：purchase_return_item.product_id → products、
 //!   inventory_transfers.from/to_warehouse_id → warehouses、
 //!   sales_return.customer_id → customers（customers.owner_id → users）、
 //!   purchase_receipt.supplier_id → suppliers / warehouse_id → warehouses、
@@ -126,7 +125,7 @@ async fn exec(db: &DatabaseConnection, sql: &str) {
     .unwrap_or_else(|e| panic!("种子执行失败: {e}\nSQL: {sql}"));
 }
 
-/// 已迁移真库 + 本文件各子域 FK 父行自种子（裁定 R1，一次配齐）：
+/// 已迁移真库 + 本文件各子域 FK 父行自种子（一次配齐）：
 /// - users(9101)：update_with_audit 的 fetch_username 与操作人引用；
 /// - warehouses(1/2)：purchase_receipt.warehouse_id、inventory_transfers.from/to_warehouse_id、
 ///   sales_return.warehouse_id 的真 FK；
@@ -1028,8 +1027,8 @@ async fn require_postgres(db: &DatabaseConnection) {
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（update_return_item 走 lock_exclusive + 事务）"]
 async fn live_sales_return_item_update_tri_state_on_postgres() {
-    // FK 父行走本文件既有 seeded_db 裁定 R1 自种子（CI 实证裸 setup_test_db
-    // 直连时 sales_return.customer_id=1 / warehouse_id=1 无父行 ⇒ 23503）；
+    // FK 父行走本文件既有 seeded_db 自种子（裸 setup_test_db 直连时
+    // sales_return.customer_id=1 / warehouse_id=1 无父行 ⇒ 23503）；
     // ignored lane 以 --test-threads=1 串行执行，TRUNCATE+重种无同库竞态。
     let db = seeded_db().await;
     require_postgres(&db).await;

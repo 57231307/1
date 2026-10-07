@@ -8,7 +8,7 @@ use crate::services::supplier_service::{
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-// V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
+// 导出端点使用水印版 xlsx 工具
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
     Json,
@@ -28,16 +28,16 @@ pub async fn list_suppliers(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文
+    // 提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let result = service
         .list_suppliers(params, Some(&data_scope_ctx))
         .await?;
 
     let mut value = serde_json::to_value(result).map_err(AppError::from)?;
-    // P1-08-5：非管理员对供应商列表手机号/邮箱脱敏（含 contacts 子数组）。
+    // 非管理员对供应商列表手机号/邮箱脱敏（含 contacts 子数组）。
     // admin 判定走本仓唯一权威源 admin_checker::is_admin_role（roles.code='admin'，
-    // role_id 缺失/查询失败 fail-closed=false，与原字面量判定下"无角色必脱敏"同方向），
+    // role_id 缺失/查询失败 fail-closed=false（无角色必脱敏），
     // 每请求在循环外算一次并复用，禁止下放进逐行循环（admin_checker 带 5 分钟缓存）。
     let is_admin = match auth.role_id {
         Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
@@ -53,7 +53,7 @@ pub async fn list_suppliers(
         }
     }
 
-    // B12-P2-2：字段级权限过滤
+    // 字段级权限过滤
     if let Some(role_id) = auth.role_id {
         if let Ok(Some(permission)) = state
             .data_permission_service
@@ -87,12 +87,12 @@ pub async fn get_supplier(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let supplier = service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
     let mut value = serde_json::to_value(supplier).map_err(AppError::from)?;
-    // P1-08-5：非管理员对供应商详情手机号/邮箱脱敏；
+    // 非管理员对供应商详情手机号/邮箱脱敏；
     // admin 判定走唯一权威源 admin_checker::is_admin_role（口径同 list_suppliers）。
     let is_admin = match auth.role_id {
         Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
@@ -100,7 +100,7 @@ pub async fn get_supplier(
     };
     value = crate::utils::field_mask::mask_contact_fields_for_role(value, is_admin);
 
-    // B12-P2-2：字段级权限过滤
+    // 字段级权限过滤
     if let Some(role_id) = auth.role_id {
         if let Ok(Some(permission)) = state
             .data_permission_service
@@ -146,7 +146,7 @@ pub async fn update_supplier(
     Json(req): Json<UpdateSupplierRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_supplier + data_scope_ctx）
+    // IDOR 防护：更新前先校验资源归属（get_supplier + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_supplier(id, Some(&data_scope_ctx)).await?;
 
@@ -165,7 +165,7 @@ pub async fn delete_supplier(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SupplierService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_supplier + data_scope_ctx）
+    // IDOR 防护：删除前先校验资源归属（get_supplier + data_scope_ctx）
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_supplier(id, Some(&data_scope_ctx)).await?;
     service.delete_supplier(id, auth.user_id).await?;
@@ -309,8 +309,8 @@ pub async fn delete_supplier_contact(
 
 // ==================== 供应商资质管理 Handler ====================
 
-/// 获取供应商资质列表；批次 118 P2-9 修复：原 handler 返回硬编码空数组 `serde_json::json!([])`， 违反规则 0（真实实现强制）
-/// 改为真实调用 service.list_supplier_qualifications， 从 supplier_qualification 表查询并返回数据。
+/// 获取供应商资质列表：真实调用 service.list_supplier_qualifications，
+/// 从 supplier_qualification 表查询并返回数据。
 /// IDOR 防护：子资源经父资源做归属门控（同 inventory_adjustment_handler 范式）——
 /// 先按 data_scope 校验路径供应商归属（与同域 list_suppliers 行级权限同源），越权 403，
 /// 避免任意 supplier_id 枚举他人资质。
@@ -329,8 +329,8 @@ pub async fn list_supplier_qualifications(
     Ok(Json(ApiResponse::success(qualifications)))
 }
 
-/// 创建供应商资质；批次 118 P2-9 修复：原 handler 返回拼接的假数据 `{"supplier_id": ..., "qualification": req}`， 违反规则
-/// 0（真实实现强制）。改为真实调用 service.create_supplier_qualification， 持久化到 supplier_qualification 表并返回真实记录。
+/// 创建供应商资质：真实调用 service.create_supplier_qualification，
+/// 持久化到 supplier_qualification 表并返回真实记录。
 /// IDOR 防护：写入前经父供应商做归属门控（与 update/delete/list 同源），越权 403。
 #[axum::debug_handler]
 pub async fn create_supplier_qualification(
@@ -404,8 +404,13 @@ pub async fn delete_supplier_qualification(
     )))
 }
 
-/// V15 P0-S12 + P0-S15 新增（Batch 474）：供应商列表导出为带水印的 xlsx；端点：`GET /api/v1/suppliers/export`；设计要点： - 复用 `list_suppliers` 的查询参数（SupplierQueryParams） - 通过 `SupplierService::list_suppliers` 一次性查询（page_size=10000 防 OOM） -
-/// 行级数据权限：与 `list_suppliers` 一致，调用 `to_data_scope_context` - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明 - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）；规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
+/// 供应商列表导出为带水印的 xlsx；端点：`GET /api/v1/suppliers/export`。
+/// 设计要点：复用 `list_suppliers` 的查询参数（SupplierQueryParams）与
+/// `SupplierService::list_suppliers` 一次性查询（page_size=10000 防 OOM）；
+/// 行级数据权限与 `list_suppliers` 一致，调用 `to_data_scope_context`；
+/// 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明；
+/// IP 为 None（middleware 未把 client_ip 注入 AuthContext）。
+/// 导出统一使用 xlsx 格式（含水印），失败用 AppError 信封表达。
 pub async fn export_suppliers(
     Query(mut params): Query<SupplierQueryParams>,
     State(state): State<AppState>,
@@ -418,7 +423,7 @@ pub async fn export_suppliers(
             .enforce_export_download(download_token.as_deref(), "supplier")
             .await?;
 
-    // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
+    // 复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
     let items = query_suppliers_for_export(&state, &auth, &mut params).await?;
     let row_count = items.len();
 
@@ -535,7 +540,7 @@ fn build_suppliers_table(items_json: &[serde_json::Value]) -> XlsxTable {
 fn build_suppliers_watermark(auth: &AuthContext, row_count: usize) -> WatermarkConfig {
     WatermarkConfig {
         operator: Some(auth.username.clone()),
-        ip_address: None, // 后续批次从 ConnectInfo 提取
+        ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
         extra: Some(format!("供应商列表导出（共 {} 条）", row_count)),
     }
@@ -546,7 +551,7 @@ fn record_suppliers_export_audit(state: &AppState, auth: &AuthContext, row_count
     use crate::models::audit_log::{OperationType, Severity};
     use crate::services::audit_log_service::{AuditEvent, AuditLogService};
     use std::sync::Arc;
-    // V15 P0-S12：异步记录导出操作
+    // 异步记录导出操作
     let svc = AuditLogService::new(state.db.clone());
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -565,7 +570,7 @@ fn record_suppliers_export_audit(state: &AppState, auth: &AuthContext, row_count
     Arc::new(svc).record_async(event, None);
 }
 
-/// batch-13 P2：查询供应商账户余额
+/// 查询供应商账户余额
 /// GET /api/v1/erp/suppliers/:id/balance
 pub async fn get_supplier_balance(
     State(state): State<AppState>,
@@ -582,7 +587,7 @@ pub async fn get_supplier_balance(
     Ok(Json(ApiResponse::success(serde_json::to_value(balance)?)))
 }
 
-/// batch-13 P2：检测异常大额订单
+/// 检测异常大额订单
 /// GET /api/v1/erp/suppliers/abnormal-orders
 pub async fn detect_abnormal_orders(
     State(state): State<AppState>,
@@ -609,14 +614,14 @@ pub struct AbnormalOrderQuery {
     pub threshold_ratio: Option<f64>,
 }
 
-/// batch-13 P3: 供货历史查询参数
+/// 供货历史查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct PurchaseHistoryQuery {
     pub limit: Option<u64>,
 }
 
-/// batch-13 P3: 供货历史查询端点
+/// 供货历史查询端点
 /// GET /api/v1/erp/suppliers/:id/purchase-history
 pub async fn get_supplier_purchase_history(
     State(state): State<AppState>,
@@ -698,7 +703,7 @@ async fn scan_qualification_attachment_for_viruses(data: &[u8]) -> Result<(), Ap
         return Ok(());
     }
 
-    // 决策定案：扫描依赖故障族（未配置/不可达/非 2xx/响应读取失败）不是
+    // 扫描依赖故障族（未配置/不可达/非 2xx/响应读取失败）不是
     // 「我方服务器坏了」（500 InternalError），而是外部扫描依赖不可用——统一走
     // AppError::service_unavailable（HTTP 503 / code=SERVICE_UNAVAILABLE / 公网脱敏文案）。
     // 真实原因只进 tracing::warn（CLAMAV_SCAN_UNAVAILABLE 事件标签），不外泄 URL/端口/配置键名；
@@ -873,7 +878,7 @@ pub async fn upload_supplier_qualification_attachment(
             qualification_id,
             "资质附件上传请求缺少 file 字段"
         );
-        // 反向族校正：请求体缺少必填 file 字段属「必填缺失」输入校验，归校验族（文案只述请求字段可外显）
+        请求体缺少必填 file 字段属「必填缺失」输入校验，归校验族（文案只述请求字段可外显）
         AppError::validation_displayable("请求中未找到附件文件字段（字段名须为 file）")
     })?;
 
@@ -886,7 +891,7 @@ pub async fn upload_supplier_qualification_attachment(
             size_bytes = data.len(),
             "资质附件超过大小上限，已拒绝"
         );
-        // 反向族校正：上传文件大小超限属「范围/大小」输入校验，归校验族；上限是公开规则可外显
+        上传文件大小超限属「范围/大小」输入校验，归校验族；上限是公开规则可外显
         return Err(AppError::validation_displayable(format!(
             "资质附件不能超过 {}MB",
             MAX_QUALIFICATION_ATTACHMENT_SIZE / 1024 / 1024
@@ -907,7 +912,7 @@ pub async fn upload_supplier_qualification_attachment(
             declared_ext = %ext,
             "资质附件扩展名不在白名单，已拒绝"
         );
-        // 反向族校正：扩展名不在白名单属「格式」输入校验，归校验族；白名单为公开规则可外显
+        扩展名不在白名单属「格式」输入校验，归校验族；白名单为公开规则可外显
         return Err(AppError::validation_displayable(
             "资质附件仅支持 pdf/jpg/jpeg/png 格式",
         ));
@@ -922,7 +927,7 @@ pub async fn upload_supplier_qualification_attachment(
             declared_ext = %ext,
             "资质附件内容 magic bytes 校验失败（非 PDF/JPEG/PNG），已拒绝"
         );
-        // 反向族校正：文件内容格式非法属「格式」输入校验，归校验族；
+        文件内容格式非法属「格式」输入校验，归校验族；
         // 文案已按安全边界去掉内部机制术语（magic bytes），只述用户可理解的格式事实。
         return Err(AppError::validation_displayable(
             "附件内容不是有效的证照文件，仅支持 PDF/JPEG/PNG",
@@ -937,7 +942,7 @@ pub async fn upload_supplier_qualification_attachment(
             detected_kind = magic_kind,
             "资质附件声明扩展名与实际内容不符（疑似伪造），已拒绝"
         );
-        // 反向族校正：声明扩展名与实际内容不符属「格式」输入校验，归校验族；回显的是用户自己的文件名可外显
+        声明扩展名与实际内容不符属「格式」输入校验，归校验族；回显的是用户自己的文件名可外显
         return Err(AppError::validation_displayable(format!(
             "附件扩展名 .{} 与文件实际内容不符，请检查后重新上传",
             ext

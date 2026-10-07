@@ -1,24 +1,24 @@
-//! wave4 G5（i500_5 清单 15 文件）：internal 重包拍平 4xx→500 的去除锁 + sku 映射删除引用预检锁
+//! wave4 G5（本组 15 个被锁文件）：internal 重包拍平 4xx→500 的去除锁 + sku 映射删除引用预检锁
 //!
-//! 背景契约（修复前的头号缺陷形态）：handler/service 把**已返回 AppError 的调用**用
+//! 背景契约（本锁禁绝的形态）：handler/service 把**已返回 AppError 的调用**用
 //! `AppError::internal(format!("{e}"))` 重包，400 业务拒绝 / 403 越权 / 404 不存在一律
 //! 拍平成 500 INTERNAL_ERROR/"服务器内部错误" 并丢真实 code 与文案。
 //!
 //! 锁分层：
-//! 1. shrink-only ratchet：每文件 `AppError::internal(` 计数 ≤ 修复前基线，且钉死在当前
+//! 1. shrink-only ratchet：每文件 `AppError::internal(` 计数 ≤ 登记基线，且钉死在当前
 //!    水位（cap）——新增 internal 站点必须先把 cap 调低（即先消灭别的站点）才能过。
 //!    本组 15 文件全部 `include_str!` 编译期载入，源文件缺失本身即编译失败。
-//! 2. AppError-returning 调用零 `map_err(internal)`：对被修复的 service 调用名做窗口扫描，
+//! 2. AppError-returning 调用零 `map_err(internal)`：对被锁的 service 调用名做窗口扫描，
 //!    调用点后 10 行内不得再出现 `map_err` 与 `AppError::internal` 组合（回潮即红）。
 //! 3. sku_mapping_service 删除路径：必须存在采购/调拨单据引用预检（purchase_order_items
 //!    转采购快照列匹配），被引用走 `business_displayable` 公开规则文案（不含约束名/23503），
 //!    delete 函数体内禁止 `AppError::internal`；真正 DbErr 经 `?`（From<DbErr>→DATABASE_ERROR）。
-//! 4. 真实断言（路线一：真库 PostgreSQL / 纯校验前置）：
+//! 4. 真实断言（真库 PostgreSQL / 纯校验前置）：
 //!    - 辅助核算余额查询非法期间：service 的 `validation_displayable("月份必须在1-12之间")`
-//!      经 handler 原样传播 → 400 + 真实原因外显（修复前是 500"服务器内部错误"）。
+//!      经 handler 原样传播 → 400 + 真实原因外显（被拍平成 500"服务器内部错误"即红）。
 //!    - 业务追溯不存在五维 ID（已迁移真库的空 business_trace_chain，夹具 TRUNCATE，
-//!      不再自建 sqlite 同构表）→ 真实调用 handler → 404 NOT_FOUND（修复前 service 侧
-//!      任何 4xx 都被拍平成 500），且出参 message 不得是"服务器内部错误"；
+//!      不自建 sqlite 同构表）→ 真实调用 handler → 404 NOT_FOUND（service 侧
+//!      4xx 被拍平成 500 即红），且出参 message 不得是"服务器内部错误"；
 //!      NotFound 出参按 `utils/error.rs` 白名单口径脱敏为固定常量"资源未找到"
 //!      （真实原因进 tracing，语义由 status/code 承载）。
 
@@ -239,7 +239,7 @@ fn g5_no_map_err_internal_over_apperror_returning_calls() {
 // =========================================================
 // 源码扫描锁公共工具（禁回潮锁专用）
 //
-// 三种脆断形态的正解（判责 B1）
+// 三种脆断形态的正解：
 // ① 禁词/必备项只看执行体 → `code_only` 先剥整行注释（`//`/`///`/`//!`）；
 //    被锁源码里的说明注释（"非自己账户需要 user:delete 权限"这类对权限键的**描述**）
 //    不是代码，按原文判禁词等于把文档当违例。
@@ -308,7 +308,7 @@ fn g5_user_handler_permission_semantics_locked() {
     let src = src_of("src/handlers/user_handler.rs");
     // 禁词只看执行体：`user_handler.rs:552`/`:577` 两处 "user:delete" **都在注释里**
     // （"非自己账户需要 user:delete 权限"是对权限键的说明），按整文件原文判会把
-    // 注释当违例（判责 B1①）。真实缺陷面是**出参文案构造点**，见下面的正向锁。
+    // 注释当违例。真实缺陷面是**出参文案构造点**，见下面的正向锁。
     let code = code_only(src);
     assert!(
         code.contains("AppError::permission_denied(\"用户未分配角色，无法执行删除操作\")"),
@@ -480,11 +480,11 @@ async fn assist_balance_invalid_period_surfaces_real_reason_400() {
     );
 }
 
-/// 业务追溯：不存在的五维 ID 经真实 handler → 404 NOT_FOUND（不再是 500 INTERNAL_ERROR）。
-/// 夹具为已迁移真库（路线一）：business_trace_chain 由迁移 m0013 建表、夹具 TRUNCATE
-/// 后为空表——"五维 ID 不存在"即生产语义本身，不再自建 sqlite 同构表。
+/// 业务追溯：不存在的五维 ID 经真实 handler → 404 NOT_FOUND（非 500 INTERNAL_ERROR）。
+/// 夹具为已迁移真库：business_trace_chain 由迁移 m0013 建表、夹具 TRUNCATE
+/// 后为空表——"五维 ID 不存在"即生产语义本身，不自建 sqlite 同构表。
 /// 出参 message 按 `utils/error.rs` 白名单脱敏口径为固定常量"资源未找到"，
-/// 语义由 status/code 承载；修复前 service 侧 4xx 全被拍平成 500。
+/// 语义由 status/code 承载。
 #[tokio::test]
 async fn trace_missing_id_returns_404_not_500() {
     let db = setup_test_db().await;

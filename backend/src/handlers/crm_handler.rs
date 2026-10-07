@@ -881,7 +881,7 @@ pub async fn export_opportunities(
     // 行级数据权限：与 list_opportunities（本文件）同法构造并注入 ctx；
     // 省略 ctx 会让 service 层整体跳过行级过滤，self/dept 用户可一次拿到全库商机。
     let data_scope_ctx = auth.to_data_scope_context();
-    // row_owner_ids：导出列定义不含 owner_id（列结构改造前后一致、不多出可见列），
+    // row_owner_ids：导出列定义不含 owner_id（不多出可见列），
     // 由服务层按行序回传归属人 ID，供"仅非本人行"统一判定定位行归属；
     // write_back_export_rows 只按列定义表回写，该键不会进入导出文件。
     let (mut table, row_owner_ids) = service

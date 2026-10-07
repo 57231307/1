@@ -1,39 +1,38 @@
-//! 采购交货周期样本谓词与词表同源契约锁（-①）
+//! 采购交货周期样本谓词与词表同源契约锁
 //!
-//! 表结构唯一来源 = backend/migration（路线一， 判责）：本文件不自建 DDL，
+//! 表结构唯一来源 = backend/migration：本文件不自建 DDL，
 //! 全部读写打已迁移 PostgreSQL 的真表 `purchase_orders`（`test_common::setup_test_db()`）。
 //!
-//! 锁定的根因（状态词表核查取证）：
-//! - `services/purchase_delivery_calculator.rs` 的样本谓词曾手写
-//!   `order_status IN ('COMPLETED','RECEIVED','PARTIALLY_RECEIVED')`，其中
+//! 锁定的根因：
+//! - `services/purchase_delivery_calculator.rs` 的样本谓词禁止手写
+//!   `order_status IN ('COMPLETED','RECEIVED','PARTIALLY_RECEIVED')` 这类字面量，其中
 //!   `RECEIVED` / `PARTIALLY_RECEIVED` **不在** purchase_order 权威词表
 //!   （`models/status/purchase_inventory.rs` 的 `purchase_order` 模块，全大写）中：
 //!   部分收货的权威拼写是 `PARTIAL_RECEIVED`，词表没有独立的 RECEIVED 态。
 //!   Postgres 字符串比较逐字符敏感 ⇒ 部分收货的订单恒不命中样本，平均交货周期失真。
 //! - 到货语义的写入方依据：`services/purchase_receipt_ops/crud.rs` 确认入库按收货程度
 //!   推进订单为 COMPLETED（全部收货）/ PARTIAL_RECEIVED（部分收货）。
-//! - 销售发货链的出库四维现口径 = 缸号/色号/批次/**匹号**（第四维不再是幅宽/款号，
-//!   `services/inv/fabric_class.rs`）；本文件是采购交期样本谓词，不涉及四维，
+//! - 销售发货链的出库四维现口径 = 缸号/色号/批次/**匹号**，判定唯一权威是
+//!   `services/inv/fabric_class.rs`；本文件是采购交期样本谓词，不涉及四维，
 //!   状态取值一律按 `models/status/purchase_inventory.rs::purchase_order` 权威词表核对。
 //!
-//! 修复形态（对齐 contract_wave3 先例：词表常量 + $N 绑定，禁手写 SQL 状态字面量）：
+//! 锁定形态（对齐 contract_wave3 先例：词表常量 + $N 绑定，禁手写 SQL 状态字面量）：
 //! - 谓词改为 `order_status IN ($2, $3)`，值绑定 `purchase_order::COMPLETED` /
 //!   `purchase_order::PARTIAL_RECEIVED`。
-//! - CLOSED（收货后终态）是否纳入样本属业务口径问题，本次未擅自扩充，待产品拍板；
-//!   本测试锁的是「谓词取值与词表同源」，不锁 CLOSED 口径。
+//! - CLOSED（收货后终态）不纳入样本：该业务口径尚未定，本测试不锁 CLOSED 取值；
 //!
 //! 覆盖策略（全部真实 SQL 行为，无 mock）：
 //! 1. 行为锁：真表 purchase_orders，按词表全部 9 态各种一行真实值
 //!    （含 actual_delivery_date 为 NULL 的对照行、异供应商对照行），用**与生产同形态**的
 //!    `IN ($1, $2)` 绑定词表常量过滤 → 命中集合恰为 {COMPLETED, PARTIAL_RECEIVED} 两行；
-//! 2. 缺陷实证对照：复现修复前的字面量谓词 → 仅 COMPLETED 命中（PARTIAL_RECEIVED 漏样）。
+//! 2. 反例对照：用例内平行跑一遍手写引号字面量谓词 → 仅 COMPLETED 命中（PARTIAL_RECEIVED 漏样）。
 //! 3. 词表同源锁：常量字面值逐字符核对（防第二套手写常量/拼写漂移）。
 //! 4. 防回潮源码扫描：calculator 须引用词表常量并以 $N 绑定，不得再出现引号状态字面量。
-//! 5. 决策定案 接入锁：`actual_delivery_date` 由收货确认回写后，原被
+//! 5. 回写接入锁：`actual_delivery_date` 由收货确认回写后，原被
 //!    `IS NOT NULL` 整批排除的单据必须进入平均交期样本（回写本体断言见
 //!    `contract_wave5_purchase_actual_delivery_writeback_test.rs`）。
 //!
-//! FK 前置（裁定 R1）：`purchase_orders.supplier_id` FK→`suppliers`。`suppliers` 是
+//! FK 前置：`purchase_orders.supplier_id` FK→`suppliers`。`suppliers` 是
 //! 迁移种子参照表（不清空、m0015 播种两个演示供应商），本文件按其稳定业务键
 //! supplier_code 反查真实 id 作种子供应商，不新插、更不删参照行。
 
@@ -63,7 +62,8 @@ async fn id_of_supplier(db: &sea_orm::DatabaseConnection, code: &str) -> i32 {
 }
 
 /// 真表 purchase_orders 的 NOT NULL 无默认列：order_no(UNIQUE)/supplier_id(FK)/
-/// order_date（其余列有默认或可空：order_status DEFAULT 'DRAFT' v15:4466-4467、
+/// order_date（其余列有默认或可空：order_status DEFAULT 'DRAFT' 见
+/// backend/migration/src/domain/v15/mod.rs、
 /// created_at/updated_at DEFAULT CURRENT_TIMESTAMP）。种子只写谓词触及的列 +
 /// 满足约束的最小真实值；夹具 TRUNCATE RESTART IDENTITY 后显式 id=1..11 稳定。
 async fn setup_db() -> (sea_orm::DatabaseConnection, i32, i32) {
@@ -253,16 +253,16 @@ async fn old_literal_predicate_drops_partial_received_defect_proof() {
     );
 }
 
-/// 决策定案 接入断言：`actual_delivery_date` 由收货确认回写后，原本被
+/// 回写接入断言：`actual_delivery_date` 由收货确认回写后，原本被
 /// `actual_delivery_date IS NOT NULL` 整批排除的单据应进入平均交期样本。
-/// 种子行 id3（COMPLETED + 到货日 NULL，即回写落地前的恒空现状）在被写入
+/// 种子行 id3（COMPLETED + 到货日 NULL，模拟未经收货确认链的直播种形态）在被写入
 /// 与其同形态的确认回写 UPDATE 后必须命中谓词——锁定「回写 → 样本非空」链路，
 /// 防止列再次退化为永不为真的幽灵字段。回写本体（含取最大日期语义）由
 /// `contract_wave5_purchase_actual_delivery_writeback_test.rs` 真实调用服务断言。
 #[tokio::test]
 async fn write_back_after_confirm_bring_po_into_lead_time_sample() {
     let (db, sup_main, _sup_other) = setup_db().await;
-    // 回写前：NULL 到货日的 COMPLETED 行被排除（现状=该列从无写入点）
+    // 回写前：直播种行 id3 到货日为 NULL（未经收货确认链），被谓词排除
     let before = matched_ids_bound_constants(&db, sup_main).await;
     assert_eq!(
         before,

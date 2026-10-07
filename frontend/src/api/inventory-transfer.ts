@@ -247,8 +247,8 @@ export const PIECE_TYPE = {
  * length/weight/width/gram_weight 是 rust_decimal `Decimal`，序列化为字符串，
  * 展示前 Number 归一，禁 .toFixed 造数；可空三者 null=未补录（标签缺值点名列）。
  * dye_lot_no/color_no 后端包 Some(...) 但类型 Option<String>，故 `string | null`。
- * width/gram_weight/barcode 为 后端已发、本行现补齐的前端消费键（原声明缺此三键，
- * 令"前端据此判断该匹能否打标签"的注释失去数据落点）。
+ * width/gram_weight/barcode 是后端 PieceResponse 已发键，也是前端"该匹能否打标签"
+ * 判断的数据落点，声明不可缺。
  */
 export interface InventoryPieceRow {
   id: number;
@@ -265,7 +265,7 @@ export interface InventoryPieceRow {
   /** 匹重（Decimal 串，可空） */
   weight: string | null;
   /**
-   * 幅宽 cm（实测值， 标签 fail-closed 点名列之一）。
+   * 幅宽 cm（实测值，标签 fail-closed 点名列之一）。
    * 后端 inventory_piece_handler.rs:60 `pub width: Option<Decimal>` ⇒ JSON 串（可空），
    * null = 未补录（打卷必填，委外收回产匹该列可为 NULL）；非后端回落主数据。
    */
@@ -358,7 +358,7 @@ export async function extractAppErrorEnvelope(error: unknown): Promise<ErrorResp
  * 成品布入库打印标签：后端 GET /inventory/pieces/{id}/print
  * （routes/inventory.rs:46-56 piece_routes → print_handler::inventory_piece_label_print_docx）
  * 成功 = docx 二进制（Content-Disposition attachment），失败 = 非 2xx + AppError 信封。
- * responseType:'blob' 先例照 api/ap.ts:279-283 printAPPaymentDocx；
+ * responseType:'blob' 的先例：api/ap.ts 的 printAPPaymentDocx（同款 blob 归一化）。
  * 成功响应非 Blob 属契约异状，显式抛错不掩盖（不兜底、不"解析失败当成功"）。
  */
 export async function printInventoryPieceLabelDocx(id: number): Promise<Blob> {

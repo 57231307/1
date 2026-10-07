@@ -1,4 +1,4 @@
-//! 契约波次 8 · `customers.customer_type` 渠道词表收口——**活体列形态锁**
+//! `customers.customer_type` 渠道词表收口——**活体列形态锁**
 //!
 //! ## 被测对象（三处交叉，任一漂移本文件即红）
 //! 1. **源码权威词表**：`backend/src/constants/customer_type.rs:64`
@@ -11,7 +11,7 @@
 //!    `SET DEFAULT 'other'` / `SET NOT NULL` / `ADD CONSTRAINT chk_customers_customer_type
 //!    CHECK (customer_type IN 五值)`；:130-159 回读 information_schema + pg_constraint
 //!    （含 `convalidated`）自证。前置只读点名：同目录 `m0077_...rs:51-89`。
-//!    注册位置：`business/mod.rs:231-236`（up 链尾，m0077 先于 m0078）。
+//!    注册位置：`business/mod.rs:252-255`（up 链尾，m0077 先于 m0078）。
 //! 3. **DB 目录视图**：本文件断言的 `information_schema.columns` / `pg_constraint` /
 //!    `pg_get_constraintdef` 就是收口后的**真实生效形态**，不是源码意图的转述。
 //!
@@ -23,7 +23,7 @@
 //!   `validate()` 单测只能证源码侧，证不了"库里还留着一条旁路写入的脏行也能过"这件事。
 //! - `DEFAULT 'other'` 只在 **INSERT 省略该列**时生效，显式写 NULL 走的是 NOT NULL
 //!   （23502）；这两条分支是 PostgreSQL 的语句级行为，ORM 单测与 mock 都构造不出来。
-//! - `ADD CONSTRAINT` 与"`finance/mod.rs:537` 那段 `ADD COLUMN IF NOT EXISTS
+//! - `ADD CONSTRAINT` 与"`finance/mod.rs:542` 那段 `ADD COLUMN IF NOT EXISTS
 //!   customer_type VARCHAR(255)` 恒 no-op"（列早已由 system/m0001:332 建成 VARCHAR(20)）
 //!   的共存关系，只能靠读回 `character_maximum_length` 与约束存在性来证。
 //! - varchar 默认值的文本渲染（`'other'` vs `'other'::character varying`）是 PG 的
@@ -52,9 +52,8 @@
 //!   本机只验证编译与格式，未验证行为——这是显式的"待 CI 活体证明"，不是跳过。
 //! - `nextest` 每用例独立进程；本地 `cargo test` 同进程共享连接池：每个用例各自
 //!   `setup_test_db()`（先 TRUNCATE 再自建种子），互不依赖顺序，无静态全局状态。
-//! - CHECK 违例的错误码必须从 `DbErr::Exec(RuntimeErr::SqlxError)` 里取 SQLSTATE；
-//!   只 `assert!(result.is_err())` 是本轮刚清掉的假绿形态（任何 FK/类型/长度错误都会
-//!   让它"看起来通过"）。
+//! - CHECK 违例的错误码必须从 `DbErr::Exec(RuntimeErr::SqlxError)` 里取 SQLSTATE 分别断；
+//!   只 `assert!(result.is_err())` 是假绿形态（任何 FK/类型/长度错误都会让它"看起来通过"）。
 //! - 每个"必须失败"的用例都配了**同模板合法值对照**，防止夹具本身写坏（列名/外键/
 //!   NOT NULL）导致所有拒绝集体假绿。
 
@@ -85,7 +84,7 @@ const NULL_PROBE_ID: i32 = 991_051;
 /// 备份列探针行
 const BACKUP_PROBE_ID: i32 = 991_060;
 
-/// 分层词、大写混维词与边界值——全部是 判定为非法的写入形态。
+/// 分层词、大写混维词与边界值——全部判定为非法的写入形态。
 /// `POTENTIAL` 属 CLV 分层 segment 词表（constants/customer_type.rs:39-42），
 /// `RETAIL`/`OTHER` 是**大写形式**（读侧 `services/customer_ops/crud.rs`、`query.rs`
 /// 是小写精确匹配，写大写即永远筛不到；本列 CHECK 逐字符敏感），

@@ -1,24 +1,24 @@
 //! 供应商商品/色号对照表（sku-mapping / 面料二批调货）契约测试
 //!
-//! 覆盖范围（与编排任务 A1–A7 对应，按可真实执行的层级选择验证方式）：
-//! - A1 resolve 无映射返回 `Ok(None)`（非 Err）、命中取 priority 最小：源码结构契约 +
+//! 覆盖范围（按可真实执行的层级选择验证方式）：
+//! - resolve 无映射返回 `Ok(None)`（非 Err）、命中取 priority 最小：源码结构契约 +
 //!   AppError 出参契约（`#[ignore]` 真库集成见 `sku_mapping_integration_test.rs`）。
-//! - A3 validate_refs 各失败分支均为 `AppError::validation`：源码结构契约。
-//! - A4 import_batch 计数字段为 `error_count`（非 `fail_count`）+ UPSERT ON CONFLICT：
+//! - validate_refs 各失败分支均为 `AppError::validation`：源码结构契约。
+//! - import_batch 计数字段为 `error_count`（非 `fail_count`）+ UPSERT ON CONFLICT：
 //!   序列化形状 + 源码契约。
-//! - A5 转采购 hook：无对照的拒绝文案中性（含「无该色号」、不含 供应商/对照/supplier）；
+//! - 转采购 hook：无对照的拒绝文案中性（含「无该色号」、不含 供应商/对照/supplier）；
 //!   resolve 命中回填 supplier_product_code/supplier_color_no：源码结构契约 + 出参脱敏保证。
-//! - A6 保密：sales_order_item 模型源码不含任何 supplier 字段；HTTP 出参脱敏使
+//! - 保密：sales_order_item 模型源码不含任何 supplier 字段；HTTP 出参脱敏使
 //!   `AppError::business` 真实文案不外显（防止调货模型泄露到销售可见面）。
 //! - 前端契约：resolve 返回对象不带 `.mapping` 包裹、列表 DTO 用 `color_no`。
 //!
-//! 说明（前提订正， 判责 B3"前提过期"族）：`setup_test_db` 已真库化——
-//! 语义为「已迁移 PostgreSQL（`TEST_DATABASE_URL` 必填，缺失即 panic，禁 sqlite 回退）
-//! + 业务表 TRUNCATE」，本文件的 `#[ignore]` 真库姊妹用例由 CI ignored 专用 job
-//! （`sku_mapping_integration_test.rs`）真实执行。本文件为纯静态/序列化契约锁，
-//! 不依赖 DB。所有源码扫描断言统一在"剥整行注释后的文本"上判定（正向必备项
-//! 走 canon 规范形防折行/尾逗号脆断，负向禁项只剥注释不 canon），防止
-//! "注释命中禁词=假判违例"与"注释里有 needle=假绿"两个方向（§2.2 B1 三形态）。
+//! 夹具口径：`setup_test_db` 为真库形态——「已迁移 PostgreSQL（`TEST_DATABASE_URL`
+//! 必填，缺失即 panic，禁 sqlite 回退）+ 业务表 TRUNCATE」（契约见
+//! `src/services/test_common.rs`），本文件的 `#[ignore]` 真库姊妹用例由 CI ignored
+//! 专用 job（见 `sku_mapping_integration_test.rs`）真实执行。本文件为纯静态/序列化
+//! 契约锁，不依赖 DB。所有源码扫描断言统一在"剥整行注释后的文本"上判定（正向
+//! 必备项走 canon 规范形防折行/尾逗号脆断，负向禁项只剥注释不 canon），同时防住
+//! "注释命中禁词=假判违例"与"注释里有 needle=假绿"两个方向。
 
 use bingxi_backend::services::sku_mapping_service::{ImportMappingResult, ResolvedSku};
 use bingxi_backend::utils::error::AppError;
@@ -35,25 +35,25 @@ const SALES_ITEM_SRC: &str = include_str!("../src/models/sales_order_item.rs");
 // 出参错误契约：AppError 变体 → code / HTTP 状态
 // ---------------------------------------------------------------------------
 
-/// A2/A3 契约：create/update 重复组合走 `AppError::business`，出参 code=BUSINESS_ERROR。
+/// create/update 重复组合走 `AppError::business`，出参 code=BUSINESS_ERROR。
 #[test]
 fn apperror_business_maps_to_business_error_code() {
     let err = AppError::business("该产品+色号+供应商组合的对照记录已存在，请勿重复创建");
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
 
-/// A3 契约：validate_refs 失败走 `AppError::validation`，出参 code=VALIDATION_ERROR。
+/// validate_refs 失败走 `AppError::validation`，出参 code=VALIDATION_ERROR。
 ///
-/// 注意：本仓 `ValidationError` 映射的 HTTP 状态是 **400（BAD_REQUEST）**，
-/// 而非任务描述里写的 422。断言以真实源码为准（`error_status_and_type`），
-/// 该偏差已在交付报告中标记为「任务描述与实现不一致」，不据描述放宽/篡改断言。
+/// 本仓 `ValidationError` 映射的 HTTP 状态是 **400（BAD_REQUEST）**，**非 422**
+/// （`utils/error.rs` 模块头：`HTTP 400 / code=VALIDATION_ERROR`，见
+/// `error_status_and_type`）。断言以真实源码为准，不据外部描述放宽/篡改。
 #[test]
 fn apperror_validation_maps_to_validation_error_code() {
     let err = AppError::validation("产品色号不属于指定的产品");
     assert_eq!(err.error_code(), "VALIDATION_ERROR");
 }
 
-/// A6 保密关键不变式：`AppError::business`（非 displayable）真实文案被脱敏，
+/// 保密关键不变式：`AppError::business`（非 displayable）真实文案被脱敏，
 /// HTTP 出参 message 恒为固定常量——即便转采购 hook 里带上内部编号，也不会外显。
 /// 这是「供应商编号/色号/调货模型绝不对销售暴露」的出参层保证。
 #[test]
@@ -68,7 +68,7 @@ fn business_error_http_message_is_sanitized_not_leaked() {
 }
 
 // ---------------------------------------------------------------------------
-// A1：resolve 无映射返回 Ok(None)（不抛错）+ 命中取 priority 最小
+// resolve 无映射返回 Ok(None)（不抛错）+ 命中取 priority 最小
 // ---------------------------------------------------------------------------
 
 /// resolve_supplier_sku 在查无映射时必须 `return Ok(None)`（契约：不再抛错），
@@ -109,7 +109,7 @@ fn resolve_orders_by_priority_ascending_source_contract() {
 }
 
 // ---------------------------------------------------------------------------
-// A2：create/update 重复组合 → business
+// create/update 重复组合 → business
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -120,7 +120,7 @@ fn create_and_update_map_unique_violation_to_business() {
         "create/update 应捕获唯一约束冲突"
     );
     // 两处（create 与 update）均落 business —— 计数在剥注释文本上做：
-    // 文案若在说明注释里再出现一次，旧写法会把 3 当违例、或把注释当命中。
+    // 说明注释里若再出现同一文案，全文计数会虚高、或把注释本身当代码命中。
     let dup_msg_count = code
         .matches("该产品+色号+供应商组合的对照记录已存在，请勿重复创建")
         .count();
@@ -135,7 +135,7 @@ fn create_and_update_map_unique_violation_to_business() {
 }
 
 // ---------------------------------------------------------------------------
-// A3：validate_refs 各失败分支 → validation
+// validate_refs 各失败分支 → validation
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -176,7 +176,7 @@ fn validate_refs_each_branch_uses_validation_error() {
 }
 
 // ---------------------------------------------------------------------------
-// A4：import_batch UPSERT 幂等 + 计数字段 error_count
+// import_batch UPSERT 幂等 + 计数字段 error_count
 // ---------------------------------------------------------------------------
 
 /// 计数字段序列化键必须是 error_count（非 fail_count），前端 api/sku-mapping.ts 依赖此键。
@@ -201,10 +201,11 @@ fn import_result_serializes_error_count_not_fail_count() {
 /// UPSERT 使用 ON CONFLICT (product_id, product_color_id, supplier_id) DO UPDATE，保证幂等。
 #[test]
 fn import_batch_upsert_on_conflict_contract() {
-    // 该字面量当前在三处**注释**（:444/:583/:636）与 upsert_mapping 的 raw SQL
-    // 执行体中同时出现——旧写法即使执行体删掉 SQL、只剩注释也会假绿。
-    // 判据收紧：锁定对象 = `upsert_mapping` 执行体内的 SQL（剥注释后仍可命中，
-    // 因为 SQL 在 raw string 内、非注释行）；若真执行体被删，剥注释后必红。
+    // 该字面量在 `sku_mapping_service.rs` 同时出现于两处注释（:444/:583）与
+    // upsert_mapping 的 raw SQL 执行体（:663）——只对全文断 contains 时，
+    // 执行体删掉 SQL、只剩注释也会假绿。故锁定对象 = `upsert_mapping` 执行体
+    // 内剥掉整行注释后的 SQL（SQL 在 raw string 内、非注释行，剥注释后仍命中；
+    // 真执行体被删则必红）。
     assert!(
         canon_contains(
             SERVICE_SRC,
@@ -224,7 +225,7 @@ fn import_batch_upsert_on_conflict_contract() {
 }
 
 // ---------------------------------------------------------------------------
-// A5：转采购 hook（保密中性文案 + 回填 supplier_* 快照）
+// 转采购 hook（保密中性文案 + 回填 supplier_* 快照）
 // ---------------------------------------------------------------------------
 
 /// 无对照时的拒绝文案必须中性：含「无该色号」，且绝不出现泄露调货模型的词。
@@ -307,7 +308,7 @@ fn po_hook_only_triggers_on_source_sales_order() {
 }
 
 // ---------------------------------------------------------------------------
-// A6：保密——sales_order_item 模型根本不承载 supplier_* 字段
+// 保密——sales_order_item 模型根本不承载 supplier_* 字段
 // ---------------------------------------------------------------------------
 
 /// sales_order_item 模型源码里不应出现任何 supplier 相关字段/token，
@@ -380,7 +381,7 @@ fn resolve_handler_preview_allows_guidance_text() {
 }
 
 // ---------------------------------------------------------------------------
-// 辅助：源码扫描三件套（与 contract_wave5_outsource_issue_guard_test.rs 同式先例）
+// 辅助：源码扫描三件套（同式工具另见 contract_wave5_outsource_issue_guard_test.rs）
 // ---------------------------------------------------------------------------
 
 /// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
@@ -421,8 +422,8 @@ fn canon_contains(src: &str, needle: &str) -> bool {
 }
 
 /// 以签名行为锚点，向后截取到函数结束（首个「\n    }」缩进闭合前的行块）。
-/// 锚点丢失必须 panic：旧实现 `unwrap_or(0)` 会把"锚点没了"降级成"拿文件头
-/// 当函数体"，必备项若恰在文件头出现即假绿（本仓定性的假绿形态，改紧）。
+/// 锚点丢失必须 panic：静默回退会把"锚点没了"降级成"拿文件头当函数体"，
+/// 必备项若恰在文件头出现即假绿（本仓禁止的假绿形态）。
 /// 调用方传入的必须是 `code_only` 文本——否则注释里的同名签名会骗走窗起点。
 fn extract_fn<'a>(code_src: &'a str, sig: &str) -> &'a str {
     let start = code_src.find(sig).unwrap_or_else(|| {

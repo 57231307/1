@@ -125,7 +125,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       output_quantity_kg: outputKg,
     };
 
-    // 创建失败直接暴露：apiCall 非 2xx 抛错即向上冒泡（原 try/catch 仅 throw e 属空转，已删除）
+    // 创建失败直接暴露：apiCall 非 2xx 即抛错向上冒泡，不静默 catch
     const result = await apiCall<{ id?: number }>(
       page,
       'POST',
@@ -183,7 +183,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       color_no: colorNo,
       items: [
         {
-          // 原材料入库借方：预置科目里"原材料"是 1403（migration finance/mod.rs:728），
+          // 原材料入库借方：预置科目里"原材料"是 1403（migration finance/mod.rs:736），
           // 不存在 1401；用不存在的编码会在凭证 create 的 assist 明细 lookup_subject_id 处
           // 抛"科目不存在"（voucher_ops/assist.rs:177-179）。
           subject_code: '1403',
@@ -207,7 +207,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     };
 
     // 凭证创建端点是 POST /vouchers（routes/finance.rs:224 create_voucher），
-    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由（原写法 404）。
+    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由。
     const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
     const voucherId = result.data?.id;
     expect(
@@ -231,7 +231,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       if (firstEntry) {
         expect(firstEntry.assist_grade).toBe('A');
         // 后端 quantity_meters/quantity_kg/unit_price 均为 Decimal，serde 序列化为两位
-        // 小数字符串（"100.00"/"30.00"/"25.50"），断言未对齐真实出参格式 → 数值归一比对。
+        // 小数字符串（"100.00"/"30.00"/"25.50"），断言按数值归一比对。
         expect(Number(firstEntry.quantity_meters)).toBe(100);
         expect(Number(firstEntry.quantity_kg)).toBe(30);
         expect(Number(firstEntry.unit_price)).toBe(25.5);
@@ -259,10 +259,9 @@ test.describe('面料单据专用字段全链路验证', () => {
   test('染色批次：缸号追溯字段验证', async ({ page }) => {
     const ctx = getCtx();
     const batchNo = genCode('DB');
-    // I 族前置（CI 判责 §⑤「色号 E2E-GC274371 在色卡档案中不存在」）：原用例引用
-    // ctx.colorNos[0]（product_colors 产品维度档案），但后端染色身份归一
-    // （dye_batch_handler.rs:203-254）反查的是**色卡明细档案** color_card_items.color_code，
-    // 且要求全局唯一命中——校验正当不放松。改为自建专属色卡+唯一入档色号。
+    // 染色身份前置：后端归一（dye_batch_handler.rs:203 resolve_dye_color_identity）按提交
+    // 的色号反查**色卡明细档案** color_card_items.color_code 且要求全局唯一命中，
+    // ctx.colorNos 是 product_colors 产品维度档案、不可作反查源，故自建专属色卡+唯一入档色号。
     const archive = await seedColorCardArchive(page, { context: '21d 染色批次' });
     const colorNo = archive.colorCode;
     const dyeLotNo = ctx.dyeLotNo || genCode('DL');

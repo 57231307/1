@@ -7,7 +7,7 @@
 // - 仅 piece_type='dyed' 可打；样布(SAMPLE)/生产匹 → BUSINESS 族；缺任一必填列 → 400
 //   VALIDATION_ERROR 且 message 逐列点名（≠脱敏常量「请求参数验证失败」）；
 // - 保密口径：supplier_piece_no/供应商侧编码/成本列不得进入标签正文；
-// - 打卷三实测值（roll_weight/roll_width/roll_gram_weight）已改必填（RollFabricRequest
+// - 打卷三实测值（roll_weight/roll_width/roll_gram_weight）为必填（RollFabricRequest
 //   validator required），本套件按真实契约传实测值。
 //
 // 用例组织（serial 共享一条真实前置链，避免每条用例重跑委外链）：
@@ -21,7 +21,7 @@
 //    → 400 VALIDATION_ERROR 且点名缺的列；
 // 5. 门控：生产匹（greige，同链报工产出）→ 只断 status/code=BUSINESS_ERROR 族（脱敏出参不断原因）。
 //
-// 全部真实后端 + 真实 PostgreSQL（IR 2026-09-07），每步显式日志；无 skip 掩盖、无放宽断言。
+// 全部真实后端 + 真实 PostgreSQL，每步显式日志；无 skip 掩盖、无放宽断言。
 import { test, expect } from '../diagnose-fixture';
 import JSZip from 'jszip';
 import type { Page } from '@playwright/test';
@@ -134,10 +134,10 @@ async function fetchLabelDocXml(page: Page, pieceId: number): Promise<string> {
 
 /**
  * GET /inventory/pieces 出参行（PieceResponse，inventory_piece_handler.rs:45-74）中
- * 本套件用到的列。后端现已在该响应回传 width/gram_weight/barcode（:58,60,62，
- * 前端 InventoryPieceRow 同步补齐消费）；本 PieceRow 仅声明本套断言用到的子集，
- * 落库回读只核到 weight/length 两维，幅宽/克重仍以用例 2 标签正文逐值断言为准
- * （属套件组织选择，不再是"响应缺列"）。
+ * 本套件用到的列。该响应含 width/gram_weight/barcode 列（:58,60,62，
+ * 前端 InventoryPieceRow 消费）；本 PieceRow 仅声明本套断言用到的子集，
+ * 落库回读只核到 weight/length 两维，幅宽/克重以用例 2 标签正文逐值断言为准
+ * （属套件组织选择）。
  * length/weight 为 Decimal（number 或尾零 string 两种序列化形态均如实归一比较）。
  */
 interface PieceRow {
@@ -227,13 +227,12 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     S.greigePiece = { id: Number(greigeHit.id), pieceNo: String(greigeHit.piece_no) };
     console.log(`[05-label] 生产匹就绪：${S.greigePiece.pieceNo}(id=${S.greigePiece.id})`);
 
-    // —— 前置链 B：验布记录创建 → 开始 → 评级 → 打卷（三实测值真实提交，新必填契约）——
+    // —— 前置链 B：验布记录创建 → 开始 → 评级 → 打卷（三实测值真实提交，均为必填契约）——
     // fabric_width_inches 必传：评级默认四分制（fabric_scoring::FOUR_POINT，
     // fabric_inspection_service.rs:236-246），grade_inspection 对四分制强制要求
-    // fabric_width_inches（:476-481，缺列 AppError::business fail-closed 正确，
-    // 判责 shard-32 本用例 step1 死于 POST .../grade「业务处理失败」即此门控）；
+    // fabric_width_inches（:476-481，缺列 AppError::business fail-closed，属正当门控）；
     // 幅宽是验布录入真实采集列（先例 quality/03-four-point.spec.ts:54 传 '60.00'），
-    // 属用例缺前置，不是后端缺陷——不得反向放宽「四分制需幅宽」。
+    // 缺幅宽属用例缺前置，不是后端缺陷——不得反向放宽「四分制需幅宽」。
     const inspection = await apiCall<{ id?: number; inspection_no?: string }>(
       page,
       'POST',
@@ -270,8 +269,8 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
         roll_gram_weight: ROLL_GRAM,
       }
     );
-    // 打卷返回的是更新后的验布单（InspectionModel，rolled），不含新匹 id——FE-220 报告 §①
-    // 同口径：按缸号+dyed 回查定位新匹是契约内正路，不视为绕行。
+    // 打卷返回的是更新后的验布单（InspectionModel，rolled），不含新匹 id——
+    // 按缸号+dyed 回查定位新匹是契约内正路，不视为绕行。
     expect(
       roll.data?.status,
       `打卷后验布单应流转 rolled，实际 ${JSON.stringify(roll.data).slice(0, 200)}`
@@ -299,9 +298,9 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     // 列表响应 length/weight 为 Decimal（序列化 number 或尾零字符串均可能，如 "50.25"/"50.2500"
     // ——DB 列标度是存储格式不是值差异），按数值精确等值核对种子；尾零归一后与后端标签
     // 装配 fmt_dec=Decimal::normalize（print_service.rs:5030）同形，作为用例 2 正文断言基准。
-    // 另：后端 GET /inventory/pieces 现已回传 width/gram_weight（inventory_piece_handler.rs:58,60，
-    // 前端 InventoryPieceRow 已补齐消费）；本用例落库回读仍只逐列核对 length/weight 两维，
-    // 幅宽/克重由用例 2 标签正文逐值断言覆盖（属本套件组织选择，非"响应缺列"）。
+    // 另：GET /inventory/pieces 回传 width/gram_weight（inventory_piece_handler.rs:58,60，
+    // 前端 InventoryPieceRow 消费）；本用例落库回读只逐列核对 length/weight 两维，
+    // 幅宽/克重由用例 2 标签正文逐值断言覆盖（属本套件组织选择）。
     const lengthNorm = normDec(rolled.length);
     const weightNorm = normDec(rolled.weight);
     expect(lengthNorm, `落库米数应等于打卷提交实测值 ${ROLL_LENGTH_M}`).toBe(
@@ -386,9 +385,9 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     //   backend/src/services/fabric_inspection_service.rs:696 —— 打卷产匹 Default::default()；
     //   backend/src/services/bulk_color_approval_service.rs:458 —— 样布路径 Set(None)。
     // 无任何 API 入参可把值写进 inventory_piece.supplier_piece_no/成本列——值级哨兵**真造不出**，
-    // 按派工纪律不造假（不经 API 直改 DB 属造假数据链），也不静默 skip：
-    // 本用例降级为键名/语义级零出现反证（仍是真实内容断言，钉死 PieceLabelView 泄露面），
-    // 「值级哨兵不可造 + 不可造的代码证据」已如实写入交付报告，交回编排方决策是否补 DB 级契约测。
+    // 不造假（不经 API 直改 DB 属造假数据链），也不静默 skip：
+    // 断言落键名/语义级零出现反证（仍是真实内容断言，钉死 PieceLabelView 泄露面），
+    // 值级哨兵不可造的代码证据即上列各写入点。
     const docXml = S.docXml ?? (await fetchLabelDocXml(page, S.rolled!.id));
     const lower = docXml.toLowerCase();
     const forbidden: Array<[string, string]> = [
@@ -421,7 +420,7 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     requireReady('用例4 缺列拒绝');
     const recovered = S.recovered!;
     // 该匹来自用例 1 的真实委外染整收回确认：写入点 piece_domain_service.rs:560-562 将
-    // weight/width/gram_weight 置 None（后端报告 §⑤ 声明的存量真实场景；打卷新必填造不出 NULL 匹，
+    // weight/width/gram_weight 置 None（该路径的真实存量形态；打卷必填契约造不出 NULL 匹，
     // 故取收回路径而非造数放宽——断言对象是产品真实行为，不是测试臆造的坏数据）。
     const fail = await apiCallExpectFail(page, 'GET', `/inventory/pieces/${recovered.id}/print`);
     console.log(
@@ -459,8 +458,8 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     test.setTimeout(120_000);
     requireReady('用例5 门控拒绝');
     const greige = S.greigePiece!;
-    // 样布(SAMPLE)族需大货色审批链才产出、本文件归属不重复建重链；派工口径为
-    // 「非 dyed（生产匹）**或**样布」任一即覆盖门控——生产匹即满足族别断言。
+    // 样布(SAMPLE)族需大货色审批链才产出、本文件不重复建重链；门控覆盖
+    // 「非 dyed（生产匹）**或**样布」任一即可——生产匹即满足族别断言。
     const fail = await apiCallExpectFail(page, 'GET', `/inventory/pieces/${greige.id}/print`);
     console.log(
       `[05-label] 生产匹门控 → status=${fail.status} code=${String(fail.code)}（message 脱敏不断言）`

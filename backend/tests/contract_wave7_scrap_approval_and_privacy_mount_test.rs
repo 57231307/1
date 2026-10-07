@@ -135,7 +135,7 @@ async fn get(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
 
 /// 自种子（迁移建表后夹具 TRUNCATE 不重播业务表）：质检记录（检验员固定 user 100）。
 /// 逐列对照 migration：NOT NULL = inspection_no/product_id/inspection_type/inspection_date
-/// （m0005:158-176；result 列 v15/mod.rs:3846 已 DROP NOT NULL）；实体非 Option 列
+/// （m0005:158-176；result 列 v15/mod.rs 已 DROP NOT NULL）；实体非 Option 列
 /// total_qty/inspected_qty/inspection_result 一并给值，保证 Model 可读。
 async fn seed_inspection(db: &sea_orm::DatabaseConnection, id: i64) {
     let sql = format!(

@@ -1,7 +1,6 @@
 //! 采购入库服务内部辅助方法（私有：订单数量更新 + 库存事务更新）
 //!
-//! 拆分自 purchase_receipt_service.rs：原 2 个私有 fn 独立成文件，
-//! 与公开方法分离便于测试和维护。
+//! 承载 `PurchaseReceiptService` 的私有辅助方法，与公开方法分离便于测试和维护。
 
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -55,10 +54,9 @@ impl PurchaseReceiptService {
 
     /// 按订单明细行汇总后更新已入库数量（含审计日志）
     ///
-    /// 必须先聚合再写：一个订单明细行通常对应多条入库明细（面料按缸号/批次/匹号分行入库），
-    /// 原实现逐条 `map.remove(order_item_id)`，同一订单行的第二条入库明细就查不到映射，
-    /// 确认入库直接报「订单明细不存在」（CI 1-4 的 NOT_FOUND 之因），
-    /// 而且同一条订单行被写两次也会互相覆盖。
+    /// 必须先聚合再写：一个订单明细行通常对应多条入库明细（面料按缸号/批次/匹号分行入库）。
+    /// 若逐条 `map.remove(order_item_id)`，同一订单行的第二条入库明细就查不到映射而报
+    /// 「订单明细不存在」（NOT_FOUND），且同一条订单行被写两次会互相覆盖。
     async fn update_order_items_received_quantity(
         txn: &sea_orm::DatabaseTransaction,
         items: Vec<purchase_receipt_item::Model>,
@@ -160,7 +158,7 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 回写采购订单实际到货日（决策定案，确认收货同一事务内调用）
+    /// 回写采购订单实际到货日（确认收货同一事务内调用）
     ///
     /// 语义：该 PO **已确认收货中的最大 `receipt_date`**（部分到货也回写；
     /// 补录的更早收货单不得把更晚日期回退）。`purchase_receipt.receipt_date`
@@ -205,7 +203,7 @@ impl PurchaseReceiptService {
     /// 更新采购订单的已入库数量、实际到货日与状态（事务内调用）
     ///
     /// `receipt_date` 取自被确认的入库单（NOT NULL 列），用于同事务回写
-    /// `purchase_orders.actual_delivery_date`（决策定案）。
+    /// `purchase_orders.actual_delivery_date`。
     pub async fn update_order_received_quantity(
         &self,
         order_id: i32,
@@ -256,8 +254,8 @@ impl PurchaseReceiptService {
             .await?;
 
         // 整单 fail-closed：任一行批次缺失即在建库前拒绝，事务不落任何库存行。
-        // 色号/缸号的「染色布必填」口径待白坯布共享判定落地后在此追加（见
-        // `upsert_stock_for_item` 内 TODO），本域不自行按色号名称判定白色。
+        // 色号/缸号的「染色布必填」口径当前未在本域强制（统一的白坯布判定函数尚未落地），
+        // 本域不自行按色号名称判定白色。
         for item in &items {
             Self::require_receipt_batch(item, receipt)?;
         }
@@ -367,11 +365,11 @@ impl PurchaseReceiptService {
             Ok((stock.clone(), after))
         } else {
             // 批次在建库前已逐行校验非空（update_inventory_txn），如实落库不再 unwrap 兜底成空串；
-            // 色号：白坯布合法为空（落 ''），染色布是否必填待白坯布共享判定落地后强制（见下 TODO）。
+            // 色号：白坯布合法为空（落 ''），染色布必填口径当前未强制（见下方说明）。
             let batch_no = Self::require_receipt_batch(item, receipt)?;
-            // TODO(共享白坯布判定)：色号非空⇒染色布⇒缸号(lot_no)/批次必填的口径应改调
-            //   采购/库存统一的白坯布判定函数（doto iter31 第 3/5 条，本域外同事落地，尚未存在）。
-            //   落地前保持色号/缸号原样落库，不在此按色号名称嗅探白色。
+            // 白坯布共享判定说明：色号非空⇒染色布⇒缸号(lot_no)/批次必填，本应调用
+            // 采购/库存统一的白坯布判定函数；该函数目前尚未落地，故色号/缸号原样落库，
+            // 不在此按色号名称嗅探白色。
             let color_no = item.color_code.clone().unwrap_or_default();
             let grade = item
                 .grade

@@ -1,10 +1,9 @@
-//! 第 5 波：凭证 / 预算错误族与保密分层契约锁
+//! 凭证 / 预算错误族与保密分层契约锁
 //!
-//! 被锁的缺口（族口径判据由用户拍板，提交 763c7ab9；保密分层见 `utils/error.rs` 模块文档）：
+//! 锁定的契约（保密分层见 `utils/error.rs` 模块文档）：
 //!
-//! 1. `voucher_ops/crud.rs::precheck_subjects_exist_txn` 曾把「科目查无」与「科目已停用」
-//!    压成同一条 `bad_request("科目不存在或已停用：…")`（HTTP 400 / BAD_REQUEST）。
-//!    两者语义不同，必须分属两族：
+//! 1. `voucher_ops/crud.rs::precheck_subjects_exist_txn`：「科目查无」与「科目已停用」
+//!    语义不同，必须分属两族（不得压成同一条 BAD_REQUEST 装配）：
 //!    - 查无此科目（引用存在性缺失）→ `AppError::not_found` → HTTP **404** + `NOT_FOUND`；
 //!    - 科目存在但状态非 `active`（引用主数据的前置状态门）→ **业务族**，文案含科目 code /
 //!      记录 ID → 按安全边界走**脱敏** `AppError::business` → HTTP **400** + `BUSINESS_ERROR`
@@ -16,22 +15,20 @@
 //! 3. `budget_management_service.rs::check_budget_available`：
 //!    「预算方案未审批或未激活」是前置状态门 → 业务族且纯规则文案可外显；
 //!    「预算方案与部门不匹配」是跨字段取值一致性 → 校验族且保持脱敏。
-//!    该域运行态分支需要真实 `budget_plans` 行 + 部门外键，本轮以源码扫描锁住两条族归类，
-//!    运行态补测点已移交测试专家（见交付说明）。
+//!    该域运行态分支需要真实 `budget_plans` 行 + 部门外键，本文件以源码扫描锁住两条族归类。
 //!
 //! 覆盖形态（无 mock、走真实 service 方法）：
 //! - 借贷不平衡的拒绝发生在 `create()` 触库之前（非生产分支只做纯金额求和），
-//!   本用例不需要任何表结构即可跑到被锁分支；但连接仍走路线一真库夹具
-//!   （`test_common::setup_test_db()`）——若未来有人把平衡校验挪到取号/落库之后，
+//!   本用例不需要任何表结构即可跑到被锁分支；但连接仍走真库夹具
+//!   （`test_common::setup_test_db()`）——若有人把平衡校验挪到取号/落库之后，
 //!   `expect_err("借贷不平衡必须被拒，绝不能落库成功")` 会因创建成功而显式变红，
-//!   不会静默（原写法靠 `sqlite::memory:` 空表把这类挪动伪装成 DATABASE_ERROR，
-//!   真库通道上"能连上、有表"才是诚实前置）；
+//!   不会静默（真库通道上"能连上、有表"才是诚实前置）。
 //! - 科目两分支的拒绝要先插入凭证主表再预检，需已迁移真库；本文件经
 //!   `test_common::setup_test_db()` 连 CI 注入的 `TEST_DATABASE_URL`（PostgreSQL），
 //!   **不做条件跳过、也不回退 sqlite 空表**：变量缺失或指向 sqlite 时夹具直接 panic。
 //! - 源码扫描锁（`include_str!`）：防 `bad_request("科目…")` / `bad_request("借…")` 回潮。
 //!
-//! 通道（路线一， 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! 通道：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
 //! `account_subjects` 属迁移种子参照表（不参与清空），故用例自建科目后必须按 ID 清理
 //! （见 `cleanup_subjects`），凭证/分录属业务表、每次进夹具即被清空。
 
@@ -201,7 +198,7 @@ fn assert_envelope(err: &AppError, status: StatusCode, code: &str, message: &str
 /// 借贷不平衡被拒：400 + VALIDATION_ERROR + 出参常量「请求参数验证失败」。
 ///
 /// 该拒绝在 `create()` 触库之前发生（非生产分支只做纯金额求和），故无需任何种子即可
-/// 跑到被锁分支；连接仍走路线一真库夹具（见文件头），若未来有人把平衡校验挪到
+/// 跑到被锁分支；连接仍走真库夹具（见文件头），若有人把平衡校验挪到
 /// 取号/落库之后，本用例会在真库上以"竟然创建成功"显式变红而非静默。
 #[tokio::test]
 async fn unbalanced_voucher_is_sanitized_validation_error() {

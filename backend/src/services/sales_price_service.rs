@@ -194,7 +194,7 @@ impl SalesPriceService {
     /// 存在性判定只取主键列（同 `sku_mapping_service::validate_refs` 对 suppliers 的
     /// select_only 口径）：判定本身只需要 id，整行解码会让历史列漂移行误报 500。
     /// 「软删/停用视同不存在」（`inventory_reservation_service::create_reservation` 口径）
-    /// 不在本预检范围内——价目列表本就如实展示软删品名，纳入与否属产品口径，待终裁。
+    /// 不在本预检范围内——价目列表本就如实展示软删品名，纳入与否属产品口径，当前未定。
     async fn assert_product_exists(&self, product_id: i32) -> Result<(), AppError> {
         let exists = product::Entity::find()
             .filter(product::Column::Id.eq(product_id))

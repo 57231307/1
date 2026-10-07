@@ -7,7 +7,7 @@ import {
   type BrowserContext,
 } from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
-// 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
+// 若用 require('fs')/require('crypto') 会抛 "require is not defined"，导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
 import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
@@ -275,8 +275,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   try {
     // /product-categories：product_category_handler.rs:44 define_crud_handlers! →
     // product_category_service::list 返回 PaginatedResponse，data 形状为 {items,total,page,page_size}。
-    // 单一形状直读（'items'）；原写法 `Array.isArray(cats)?cats:(cats.items||[])` 同时吞裸数组/items，
-    // 且 `|| []` 把 items 键缺失当成"无分类"——分类端点若改形会静默走创建分支重复建"面料"。
+    // 单一形状直读（'items'）：禁止裸数组容错与 `|| []` 兜底——后者把 items 键缺失
+    // 当成"无分类"，分类端点若改形会静默走创建分支重复建"面料"。
     const cats = await apiCallRaw<unknown>(page, 'GET', '/product-categories');
     const catItems = pickListArray<{ id: number; name?: string }>(
       cats,
@@ -289,7 +289,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     } else {
       // create（crud_macro.rs:89-134 define_crud_handlers!）返回 ApiResponse<to_value(item)>，
       // 载荷即实体本身，故泛型参数写载荷 { id?: number }，读 created.data.id；
-      // 原写法把 { data?: { id?: number } } 当作载荷传入，于是再读 .data.id 造成双重包装。
+      // 若把泛型参数写成 { data?: { id?: number } } 会双重包装，永远取不到 id。
       const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
         name: '面料',
         code: 'FABRIC',
@@ -319,10 +319,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 03-production「3-8 创建 BOM」用 items: productIds.slice(1)（需 ≥2 才非空，
   // 否则后端 bom_handler.rs:33 items min=1 合法 400）；
   // 01-p2p「1-6b」用 ctx.productIds[1] 作「产品对不上」负例（需 ≥2 才不 undefined）。
-  // wave5c 的 global-setup.ensureGlobalBusinessSeed 会先建全局产品，跨分片共库下
-  // readEntityIds 读到的现有产品可能已是 1~2 个。原逻辑仅在 length===0 时补齐，
-  // seed 产品会让补齐整段被跳过 → ctx.productIds 饿死到 1 个 → 两用例红。
-  // 故改为无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
+  // 跨分片共库下 readEntityIds 可能读到 1~2 个现有产品（含 global-setup 全局种子先建的），
+  // 故无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
   // 不足 3 才补建，补建走与本函数既有建产品一致的字段口径（含克重/幅宽）。
   if (ctx.productIds.length < 3) {
     const catId = ctx.productCategoryIds[0];
@@ -690,16 +688,14 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
 
-  // ---- 11. 染色批次（API 种子，31d 通知链前置）----
-  // 旧实现先走 createDyeBatchUI（UI 表单），但染色批次表单契约（dye-batch/index.vue:415-439）
-  // 必填 greige_fabric_id（选项源=坯布列表，本 ensure 步骤序内无坯布保障 ⇒ 空下拉必失败）
-  // 且色号非空即要求缸号；UI 校验必红后落入 120s race + API 兜底，而兜底色号又不在
-  // 色卡档案（dye_batch_handler.rs:204-254 resolve_dye_color_identity 反查
-  // color_card_items.color_code 恰一条）⇒ 确定性 400。
-  // 种子选 API 而非补全 UI 字段的理由：①UI 成功需先把"坯布非空 + 色号入档"两个跨实体
-  // 前置塞进通用种子序列，退化风险大；②染色批次 UI 创建不是 31d 通知链的被测对象，
-  // 共用种子重复 UI 路径即"第二套实现"反模式；③API 秒级确定性，把预算还给用例本体。
-  // createDyeBatchUI 保留并已与表单真实必填对齐（ui-helpers.ts 步骤 11 注释），供专项 UI 用例复用。
+  // ---- 11. 染色批次（API 种子，flow/31d-auto-notification-chain.spec.ts 通知链前置）----
+  // 选 API 种子而非 UI 表单：dye-batch/index.vue:415-439 表单契约必填 greige_fabric_id
+  // （选项源=坯布列表，本 ensure 步骤序内无坯布保障）且色号非空即要求缸号；色号还必须在
+  // 色卡档案 color_card_items.color_code 上恰好命中一条（dye_batch_handler.rs:204-254
+  // resolve_dye_color_identity）——"坯布非空 + 色号入档"两个跨实体前置塞进通用种子序列退化
+  // 风险大。染色批次 UI 创建不是本通知链的被测对象，共用种子重复 UI 路径即"第二套实现"反
+  // 模式；API 秒级确定性，把预算还给用例本体。createDyeBatchUI 保留并已与表单真实必填对齐
+  // （ui-helpers.ts 步骤 11 注释），供专项 UI 用例复用。
   try {
     ctx.dyeBatchId = await readFirstEntityId(
       page,
@@ -718,7 +714,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
       // batch_no 不手工传入：dye_batch_handler.rs:320-345 对缺省缸号走
       // DocumentNumberGenerator::insert_with_no_retry（事务内取号 + 23505 重试），
-      // 手写时间戳号跨分片同秒撞 UNIQUE 概率非零（后端注释原话），不重蹈覆辙。
+      // 手写时间戳号跨分片同秒撞 UNIQUE 概率非零（后端注释原话），故不手工传入。
       color_no: archive.colorCode,
       dye_lot_no: ctx.dyeLotNo,
       planned_quantity: 100,
@@ -726,8 +722,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     });
     ctx.dyeBatchId = result.data?.id;
     if (!ctx.dyeBatchId) {
-      // 种子失败不再 console.error 静默放行：31d 判责指出"种子退化时链路用例集体失去检验"
-      // 本身就是覆盖假绿——显式抛错让退化在 beforeAll 处即红。
+      // 种子失败显式抛错而非 console.error 静默放行：种子退化时通知链用例集体失去检验
+      // 本身就是覆盖假绿，让退化在 beforeAll 处即红。
       throw new Error(
         `[ensureTestEntities] 染色批次 API 种子失败（色号已入档 ${archive.colorCode}，` +
           `仍被拒绝即端点契约漂移，属真实缺陷）: ${JSON.stringify(result)}`
@@ -991,7 +987,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 节点 schema 必须匹配后端 bpm_service.rs::resolve_first_task_node：
   // 键为 nodes[].id / nodes[].name / nodes[].type，取值为 start_event / user_task / end_event，
   // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
-  // 此前用 node_id / node_name / node_type 且无 edges，后端解析不到任务节点，
+  // 若键写成 node_id / node_name / node_type 或缺 edges，后端解析不到任务节点，会
   // 走 bpm_ops/instance.rs 的「无任务节点，自动完成流程」分支：submit 即异步回写
   // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
   // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
@@ -1089,11 +1085,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
 
 /**
  * ensureTestEntities 整体护栏：Promise.race 5 分钟上限。
- * 背景：run 34041167918 的 10 个分片 exit 124（20 分钟强杀），定位为
- * ensure 内某个 UI 页面操作（safeGoto/页内 JS）在 Node 侧永久挂起，
- * 后端全程健康。整体超时让挂起的 ensure 变成可跳过的失败，保住分片
- * 其余测试的执行窗口（一个分片约 13 个测试 × 5 分钟 ensure 上限，
- * 最坏情况也不会触及 20 分钟分片强杀）。
+ * ensure 内某个 UI 页面操作（safeGoto/页内 JS）可能在 Node 侧永久挂起而后端全程健康，
+ * 整体超时让挂起的 ensure 变成可跳过的失败，保住分片其余测试的执行窗口
+ * （一个分片约 13 个测试 × 5 分钟 ensure 上限，最坏情况也不会触及 20 分钟分片强杀）。
  */
 /**
  * 通知列表项。后端 notification_handler.rs:75 的 list_notifications 返回
@@ -1319,7 +1313,7 @@ async function replayAfterCsrfRejection(
 }
 
 /**
- * loginViaUI 短路路径的 csrf 活性探测（缺陷1 修复点4）。
+ * loginViaUI 短路路径的 csrf 活性探测。
  *
  * 背景：storage-state 里的 csrf_token 是"服务端一次性消费"的凭证，会被第一个使用它的
  * 写请求打死；而 loginViaUI 的短路分支（同 worker 内 LOGGED_IN 已置位 + cookie 存在）
@@ -1470,10 +1464,10 @@ export async function apiCall<T = unknown>(
   }
 
   // 写请求（含 CSRF 竞败重试后的最终 response）完成后，先同步轮换后的 csrf 到会话，
-  // 再判定业务错误——顺序至关重要（缺陷1 修复点3）。
-  // 根因：后端在 handler 之前即消费旧 token 并 Set-Cookie 下发轮换后的新 token
+  // 再判定业务错误——顺序至关重要。
+  // 后端在 handler 之前即消费旧 token 并 Set-Cookie 下发轮换后的新 token
   // （csrf.rs:199 consume → :215-224 把新 token append 到 next.run 的响应，业务 4xx/5xx 同样携带）。
-  // 旧写法把同步放在 `json.code !== 200` 抛错之后，业务错误分支抛出时同步永不执行，
+  // 若把同步放在 `json.code !== 200` 抛错之后，业务错误分支抛出时同步永不执行，
   // 轮换出的新 token 丢失，同会话下一请求仍携带已消费的旧 token → 级联成片 403。
   // 故对携带请求体的方法无条件先同步，再决定是否抛业务错误。
   if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
@@ -1592,9 +1586,8 @@ export async function loginViaUI(
   password?: string,
   force = false
 ): Promise<void> {
-  // P2.4 去 mock 化：删除 lock-status route.fulfill 拦截
-  // 原因：P1.2 已将 check_lock_status 改为 OptionalAuthContext，
-  // 匿名预检不再 401，16 分片并发挂起若复现属真实性能问题另立项
+  // 登录流程对 lock-status 预检不做 route.fulfill 拦截：后端 check_lock_status 用
+  // OptionalAuthContext，匿名预检不返回 401，直接放行走真实端点
 
   // force 模式：清除旧 cookie + 重置 LOGGED_IN，确保切换到新角色
   // 不清除时旧 access_token 会让 /login 自动重定向到首页，新角色登录表单不执行
@@ -1860,8 +1853,8 @@ export async function loginOnPage(
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
     page.off('response', onLoginResp);
     // 强制关闭 page 释放挂起的网络请求/等待 promise（防 Playwright runner 挂起）
-    // shard 15 历史挂起 55 分钟教训：waitForURL 的 promise 在后端无响应时永不 resolve，
-    // 即使 timeout Error 抛出，page 挂起的 fetch 连接仍阻止 runner 退出
+    // 不强制关闭时：waitForURL 的 promise 在后端无响应时永不 resolve，即使 timeout
+    // Error 抛出，page 持有的挂起 fetch 连接仍会阻止 runner 退出（分片可挂数十分钟）
     await page.close().catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
@@ -2777,11 +2770,11 @@ export async function verifySoDConflict(
 }
 
 /**
- * 大货批色发货门禁是否**真的以业务拒绝生效**（返回布尔，签名与返回形态不变）。
+ * 大货批色发货门禁是否**真的以业务拒绝生效**（返回布尔）。
  *
- * 原实现 `return result.status >= 400` 有三处假绿：CSRF 中间件的一次性 token 竞败 403、
- * 后端裸 5xx、端点未注册的 404 都会被判成"门禁生效"。现复用 {@link isStateGateRejection}：
- * 必须 HTTP 恰 400 且 code ∈ {VALIDATION_ERROR, BUSINESS_ERROR, BAD_REQUEST}。
+ * 复用 {@link isStateGateRejection}：必须 HTTP 恰 400 且 code ∈ {VALIDATION_ERROR,
+ * BUSINESS_ERROR, BAD_REQUEST}；不可宽松成 `status >= 400`——CSRF 中间件的一次性 token
+ * 竞败 403、后端裸 5xx、端点未注册的 404 都会被宽松判据伪装成"门禁生效"。
  * 后端契约原文：services/so/delivery_ops/ship.rs:85-94 把
  * BulkColorApprovalError::InvalidState 映射为 `AppError::business` →
  * utils/error.rs:361 `(BAD_REQUEST, "BusinessError")`，出参机器码 BUSINESS_ERROR。
@@ -2892,13 +2885,13 @@ export async function getProcessSteps(
 /**
  * 按委外订单 + 凭证类型查凭证列表。
  *
- * 旧实现 catch 后返回 null，调用方又写 `expect(v === null || typeof v === 'object')`
- * 这种恒真断言——端点 404/500/权限失败全都算通过。现改为**不吞错**：
- * 请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否生效的断言。
+ * **不吞错**：请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否
+ * 生效的断言（catch 返 null 再配 `v === null || typeof v === 'object'` 恒真断言会把
+ * 端点 404/500/权限失败全算成通过）。
  * 后端真相：outsourcing_handler.rs:350 收 OutsourcingVoucherListQuery（含 voucher_type），
  * :364 返回 ApiResponse<PaginatedResponse<...>> ⇒ data.items 是唯一形状。
  * 路由挂载：routes/mod.rs:510 nest("/api/v1/erp/production", production::routes())，
- * 因此端点真实路径必须带 /production 前缀（原缺少导致 404 假绿——无调用方，当前仅 10b/10d 死 import）。
+ * 因此端点真实路径必须带 /production 前缀（缺前缀即 404）。
  */
 export async function verifyOutsourcingVoucher(
   page: Page,
@@ -2921,7 +2914,8 @@ export async function verifyOutsourcingVoucher(
  * rust_decimal 默认 serde 序列化为字符串（"123.45"），需 Number() 解析。
  * apiCallRaw 剥离 ApiResponse 外层信封后返回 data 对象本身。
  *
- * 前置旧缺陷：读不存在的键 debit_total/credit_total + `|| 0` 兜底 → 恒 0 → 恒平衡 → 假绿。
+ * 键名以 DTO 的 total_ending_debit / total_ending_credit 为准，不读 debit_total/credit_total，
+ * 也不做 `|| 0` 兜底（恒 0 → 恒平衡假绿）；
  * 本实现缺键/非数字/借贷皆零（未取到实际数据）均显式抛错，不回退为 0。
  */
 export async function verifyTrialBalance(page: Page): Promise<{
@@ -3039,7 +3033,7 @@ export interface EndpointHealthOptions {
 }
 
 /**
- * 404 响应体的 D-1「Q1 机械二分」判据（纯函数，便于离线喂假体自证检测力）。
+ * 404 响应体的「Q1 机械二分」判据（纯函数，便于离线喂假体自证检测力）。
  *
  * 后端两种 404 在信封层可二分（utils/error.rs NotFound → 机器码 "NOT_FOUND" → HTTP 404；
  * 未注册路由的 404 由 axum 路由层给出、无 JSON 信封，全仓无 not_found_handler 兜底）：
@@ -3079,7 +3073,7 @@ export function attribute404Body(bodyText: string): {
  * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝）。
  * - 其它 4xx       → 失败（请求契约破坏，如非法参数命中该端点）。
  *
- * 404 三态决策树（D-1 已裁定，机械执行、不留主观裁量）：
+ * 404 三态决策树（机械执行、不留主观裁量）：
  *   Q1 响应体 JSON 且 code=="NOT_FOUND"？ 否→【注册面】进 Q2；是→【数据面】进 Q3。
  *   Q2 注册面处置：(path, METHOD) 在 route-snapshot.txt 在册仅方法不符 → 探针写错，改指真实
  *      GET 契约或移出并注明由哪个用例覆盖；不在册且 src/api/** 有同语义调用点 → 后端缺端点，
@@ -3115,7 +3109,7 @@ export async function verifyEndpointHealthy(
     throw new Error(`GET ${path} 返回 ${status}（服务器内部错误）`);
   }
   if (status === 404) {
-    // D-1 Q1 二分归因：复读 404 响应体（GET 幂等，且仅失败路径才多这一次请求）。
+    // Q1 二分归因：复读 404 响应体（GET 幂等，且仅失败路径才多这一次请求）。
     // 只凭状态码一律判"端点未注册或路由已漂移"，会把数据面的 NOT_FOUND 信封（如"该客户
     // 无信用评级记录"，缺的是前置不是端点）误判成注册面缺陷，故必须看信封里的机器 code。
     let bodyText: string;
@@ -3186,7 +3180,7 @@ export async function verifyDownloadEndpointHealthy(
   );
 }
 
-// ==================== P3.2 E2E 公共断言库 ====================
+// ==================== E2E 公共断言库 ====================
 
 /**
  * 页面健康收集器：收集 pageerror / console.error / 5xx 响应
@@ -3334,7 +3328,7 @@ export async function expectSingleToast(page: Page, textPattern?: string | RegEx
   }
 }
 
-// ==================== P3.2 TOTP 生成器（RFC 6238） ====================
+// ==================== TOTP 生成器（RFC 6238） ====================
 
 /**
  * RFC 6238 TOTP 生成器（crypto HMAC-SHA1，免装包）
@@ -3378,7 +3372,7 @@ export function generateTotp(secretBase32: string, windowOffset = 0): string {
   return code.toString().padStart(6, '0');
 }
 
-// ==================== P3.1 角色凭证文件读取 ====================
+// ==================== 角色凭证文件读取 ====================
 
 const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
 
@@ -3401,8 +3395,8 @@ export function getRoleCredential(role: string): RoleCredential | null {
 
   // 回退凭证文件
   try {
-    // IR 详细日志：读取失败必须可见（run 34442679467 分片 41-49 全量
-    // credential not found 而文件写入 37 角色——静默 catch 掩盖了根因）
+    // IR 详细日志：读取失败必须可见——静默 catch 会掩盖"凭证文件已全角色写入、
+    // 读取端却报 credential not found"这类根因矛盾。
     if (!existsSync(ROLE_CREDENTIALS_PATH)) {
       console.error(
         `[getRoleCredential] 凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（cwd=${process.cwd()}）`
@@ -3552,12 +3546,12 @@ export interface DeferredCleanup {
  * 为什么要与同步 tryCleanup 并存（不替换、不改其即时语义）：`tryCleanup` 是**当场**发起的同步
  * 软删。若用例在被测主数据上还留有后续读断言（by-code/详情回读、"未删状态下重复应被拒"的判重
  * 前提等），当场软删会让后端按 is_deleted=false 过滤后查不到行 → 回读 404 / 判重返回 200——这对
- * 后端是**正确行为**，却曾把用例推向假红并被 误判成后端缺陷。清理本质是 housekeeping,
- * 语义上应发生在全部断言之后,故用队列延后 flush。
+ * 后端是**正确行为**，但会把用例推向假红并误导成后端缺陷判红。清理本质是 housekeeping，
+ * 语义上应发生在全部断言之后，故用队列延后 flush。
  *
  * 范式与 purchase/03（CREATED_ORDER_IDS + afterEach）、finance/01（CLEANUP[] + afterEach）一致：
  * 队列由调用方 spec 自行持有（逐文件独立、afterEach flush 后清空），杜绝跨 spec 共享态泄漏；
- * 本函数只 push、不发请求,向后兼容——不影响任何既有 tryCleanup 调用点。
+ * 本函数只 push、不发请求，不影响任何既有 tryCleanup 调用点。
  */
 export function deferCleanup(
   queue: DeferredCleanup[],
@@ -3644,18 +3638,16 @@ export function isStateGateRejection(result: ApiFailureResult): boolean {
 }
 
 /**
- * 断言「非法状态转换/业务门禁确实被状态门拒绝」（收紧只判 status 的假绿）。
- *
- * 原 `verifyIllegalTransition` 写法是 `if (status < 400) throw`，三处假绿：
+ * 断言「非法状态转换/业务门禁确实被状态门拒绝」。
+ * 钉死 HTTP=400 + 状态门机器码族，归因到 `AppError` 信封机器码，
+ * **永不读取错误文案**（文案脱敏，只能空转）。
+ * 只判 status 的宽松写法（如 `status < 400` 即抛）有三处假绿：
  * 1. **CSRF 冒名**：写方法的一次性 token 竞败重放耗尽后 apiCallExpectFail 原样返回
- *    403 + `CSRF_*`（见本文件 1564-1570 的日志分支）→ 状态门即使被整条删掉，用例照样"通过"；
+ *    403 + `CSRF_*`（见本文件 1569-1571 的日志分支）→ 状态门即使被整条删掉，用例照样"通过"；
  * 2. **裸 5xx**：INTERNAL_ERROR/DATABASE_ERROR（后端缺前置校验，靠 DB 约束或 panic 兜底）
  *    也被当成"拒绝生效"；
  * 3. **404**：端点未注册/路由漂移/资源不存在同样被当成"拒绝生效"。
- * 现在钉死 HTTP=400 + 状态门机器码族，归因到 `AppError` 信封机器码，
- * **永不读取错误文案**（文案脱敏，只能空转）。
- *
- * 判责：若后端对某条非法流转返回 403（权限门冒名状态门）或裸 5xx，本断言会红——
+ * 若后端对某条非法流转返回 403（权限门冒名状态门）或裸 5xx，本断言会红——
  * 那是真实缺陷（契约不符或权限/状态门混用），禁止放宽回 `>=400`。
  */
 export function expectStateGateRejection(result: ApiFailureResult, context = ''): void {
@@ -3701,7 +3693,7 @@ const SERVER_FAULT_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 断言「删除/引用防护被业务规则正确拒绝」的精确契约（收紧 >=400 假绿）。
+ * 断言「删除/引用防护被业务规则正确拒绝」的精确契约。
  *
  * 三条同时成立才算通过：
  * 1. HTTP 状态恰为 400（业务拒绝的正确契约，非 500 裸崩、非 404 路径错误）；
@@ -3709,7 +3701,7 @@ const SERVER_FAULT_CODES: ReadonlySet<string> = new Set([
  *    NOT_IMPLEMENTED）——排除"靠 DB FK 约束在 delete 阶段裸抛 500"被当成守卫；
  * 3. 响应含非空业务错误 message（守卫命中必带可读拒绝原因）。
  *
- * 判责：若后端实为裸 500（如引用校验前置缺失、FK 直接炸），本断言会红——这是源码缺陷，
+ * 若后端实为裸 500（如引用校验前置缺失、FK 直接炸），本断言会红——这是源码缺陷，
  * 应保持红并交后端修复（补前置业务校验返回 400 BUSINESS_ERROR），禁止把断言放宽回 >=400 蒙过。
  */
 export function expectBusinessRejection(
@@ -3736,7 +3728,7 @@ export function expectBusinessRejection(
 }
 
 /**
- * 「质检合格方可入库/结算」门控（commit 48aa4395）要求的真实前置链。
+ * 「质检合格方可入库/结算」门控要求的真实前置链。
  *
  * 后端 backend/src/services/purchase_receipt_service.rs::ensure_receipt_inspection_allows_flow
  * 只放行 inspection_status == PASSED 的收货单；新建收货单恒为 PENDING
@@ -3747,7 +3739,7 @@ export function expectBusinessRejection(
  * 因此凡是要 `POST /purchase/receipts/{id}/confirm`（或 `POST /ap/invoices/auto-generate`）
  * 的用例，都必须先跑完本函数：建质检单 → complete(pass) → 回读必须真读到 PASSED。
  * 任一步不达预期立即抛错，**不允许**继续去 confirm 撞 400 —— 那会把"回写链断了"
- * 伪装成"确认接口故障"，正是本仓反复踩过的隐性红。
+ * 伪装成"确认接口故障"，属隐性假红误导。
  * 结论 token 用权威词表原值 pass/fail/partial（models/status/purchase_inventory.rs），
  * fail/partial 都会得到 REJECTED，故本函数只用于 pass 场景。
  *
@@ -3872,17 +3864,16 @@ export async function withEntity(
 }
 
 /**
- * 【新增函数（CI I 族收口）】为「染色批次/缸号」建一条真实的色卡档案前置。
+ * 为「染色批次/缸号」建一条真实的色卡档案前置。
  *
  * 后端强校验（正当，不得放松）：dye_batch_handler.rs::resolve_dye_identity 归一
  * （backend/src/handlers/dye_batch_handler.rs:203-254）要求 color_no 非空即染色布，且该色号
  * 必须在全仓唯一的色卡明细档案 `color_card_items.color_code` 上**恰好命中一条**：
- * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（CI 红 03-production:87、
- *   21d:237 的原文，即本函数消灭的前置缺失）；
+ * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（前置缺失即由本函数消除）；
  * - 同色号多条 → 显式业务错「无法唯一定位」，故色号取 genCode（时间戳+随机）保证全局唯一。
  *
- * 前置链全部走真实端点（与 fabric/02-dye.spec.ts 既有 seedColorCardItem 先例同型，本函数是
- * 其 helpers 版收口，供 flow 族多文件复用；不改动任何既有函数）：
+ * 前置链全部走真实端点（与 fabric/02-dye.spec.ts 既有 seedColorCardItem 同型，
+ * 提取到 helpers 供 flow 族多文件复用）：
  * 1. POST /color-cards（handlers/color_card/crud.rs:78-101，创建即 draft——色卡主体词表
  *    color_card::DRAFT；出参 ColorCardListItem 含 id）；
  * 2. POST /color-cards/{id}/items（handlers/color_card/items.rs:48-58；服务门控

@@ -143,13 +143,13 @@ export default async function globalSetup() {
   // 本步骤用纯 API 建最小前置集，使 GET 列表非空。幂等：先查后建。
   await ensureGlobalBusinessSeed(ctx);
 
-  // ---- 2.9 seed 之后回写 storage-state（CSRF 启动即失效根因的根治点）----
+  // ---- 2.9 seed 之后回写 storage-state（保证磁盘上携带存活 CSRF token）----
   // 后端 CSRF Token 为服务端一次性消费（middleware/csrf.rs:199 consume → :216 Set-Cookie
   // 轮换）。上面 :118 登录拿到的 csrf=T0；ensureGlobalBusinessSeed 内的连续写请求会逐次
   // 消费并轮换 T0（seed 走 requestWithCsrfRecovery，从 ctx cookie jar 读回轮换后的新 token），
-  // 至 seed 结束时 T0 早已死亡。若在 seed 前就把 T0 写入 storage-state（旧行为），
-  // 之后每条 playwright 用例从磁盘 storageState 恢复上下文都会带回已死的 T0，
-  // 任何需 CSRF 的写请求首轮即 403 CSRF_TOKEN_INVALID——这正是成片 403 的根因。
+  // 至 seed 结束时 T0 已死亡。若把 T0 写入 storage-state，之后每条 playwright 用例
+  // 从磁盘 storageState 恢复上下文都带回已死的 T0，
+  // 任何需 CSRF 的写请求首轮即 403 CSRF_TOKEN_INVALID（表现为成片 403）。
   // 因此在 seed 完成后重新读取当前 ctx 的 cookie jar（含仍然存活的 access_token 与
   // 轮换链末端的 csrf_token），覆盖写回磁盘，保证持久化的 storage-state 携带存活 token。
   const postSeedState = await ctx.storageState();
@@ -254,9 +254,9 @@ async function ensureShardUserViaUI(): Promise<void> {
       console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`);
       return '';
     });
-    // 幂等：400/409 或文案含"已存在"都视为账号已建（watchdog 重跑同一分片时
+    // 幂等：400/409 或文案含"已存在"都视为账号已建——watchdog 重跑同一分片时
     // 第 1 轮已创建账号，重复 POST 返回 400 BusinessError"用户名已存在"，
-    // run 34076635269 十二分片全部因 400 未被幂等识别而瞬间失败）
+    // 若不当作幂等识别，整片会瞬间失败。
     if (body.includes('已存在') || createResp.status() === 409 || createResp.status() === 400) {
       console.log(
         `[globalSetup] 分片账号 ${SHARD_USERNAME} 已存在（HTTP ${createResp.status()}），跳过创建`
@@ -422,15 +422,14 @@ const SEED_ROLES = [
   'fixed_assets_accountant',
   'budget_analyst',
   // inventory_manager：02-adjustment.spec.ts IDOR 用例的第二用户 B（getRoleCredential
-  // ('inventory_manager')）。CI 实测本库 init 只种 3 角色（out/rs32:257
-  // "[globalSetup] 后端现有角色 3 个"），后端 role.rs:168 的业务角色不保证存在，
-  // 必须由 ensureRoleUsers 补建——缺此码时凭证文件 37 键无 inventory_manager
-  // （out/rs32:55865 getRoleCredential 诊断），用例 setup 缺陷判红（149）。
+  // ('inventory_manager')）。本库 init 只种 3 个角色，后端 role.rs:168 的业务角色不
+  // 保证存在，必须由 ensureRoleUsers 补建——缺此码时 role-credentials 凭证文件无
+  // inventory_manager 键，getRoleCredential 返 null，用例在 setup 阶段即判红。
   'inventory_manager',
   // manager —— fullflow/15-report-export.spec.ts 15-05 的申请侧账号（loginAsRole('manager')）。
   // 后端 init 矩阵确有同名角色与 ("export-approvals","create")
   // （init_service_ops/permission.rs::management_role_resources），
-  // 但本库 init 实际只种 3 角色（取证见上方 inventory_manager 条目的说明），业务角色
+  // 但本库 init 实际只种 3 角色（见上方 inventory_manager 条目的说明），业务角色
   // 不保证存在；缺该码时 role-credentials.json 无 manager 键 ⇒ getRoleCredential 返
   // null、helpers.ts 的 loginAsRole 直接抛，15-05 在 setup 阶段判红。与
   // inventory_manager 同法由 ensureRoleUsers
@@ -452,9 +451,9 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // purchaser 对齐 permission.rs 的 purchase_clerk 权限集（read/create/update，不含 delete）。
   // 覆盖 sku-mapping.spec.ts A/C/D1/D2b/E1 用例：产品/供应商只读 + 目录 + 对照 CRUD。
   // product-categories:read —— /product 页挂载即拉产品分类树（api/product.ts GET
-  // /product-categories、/product-categories/tree），缺码则该页对 purchaser 恒 403 噪声
-  // （CI 矩阵 purchaser 真缺口红）。用户裁定口径为"purchaser 应见产品分类树、补真实
-  // 种子"（非前端降级隐藏）；init 矩阵/迁移通道①②须与此同口径落地（三通道同口径锁）。
+  // /product-categories、/product-categories/tree），缺码则该页对 purchaser 恒 403 噪声，
+  // 权限矩阵用例随之判红。本项目口径为 purchaser 应见产品分类树、补真实种子
+  // （非前端降级隐藏）；init 矩阵/迁移通道①②须与此同口径落地（三通道同口径锁）。
   purchaser: [
     'sku-mappings:read',
     'sku-mappings:create',
@@ -705,7 +704,7 @@ async function assignPermissionList(
         // 只按 HTTP 码 + 机器码分类，不解析文案：
         // 系统角色拒改 → HTTP 400 code=BUSINESS_ERROR（role_permission_service.rs:354-356）；
         // 可授角色的"权限行已存在"走 update → 200，不经此分支。故 400 只可能是真拒绝，
-        // 旧写法把 400 当幂等放行会静默吞掉全部 init 角色的 extras 授码（N1/N2 族根因）。
+        // 不可把 400 当幂等放行——那会静默吞掉全部 init 角色的 extras 授码。
         const machineCode = await readMachineCode(resp);
         rejectReason.set(code, `HTTP ${resp.status()} code=${machineCode}`);
       }
@@ -837,9 +836,9 @@ export async function ensureRoleUsers(): Promise<void> {
     ...BLACKLIST_TEST_ROLES.filter(r => !existingCodes.has(r.code)),
   ];
 
-  // 原写法 new Map<string, number>(existingRoles.map(r => [r.code, r.id]).filter(([code]) => code))
-  // 因 r.code: string | undefined 把元组放宽成 (string|number)[]，Map 构造报 TS2769；
-  // 收紧为：仅纳入 code 存在的行（与既有 existingCodes 口径一致）。
+  // Map 键仅纳入 code 存在的行（与既有 existingCodes 口径一致）：
+  // r.code 类型为 string | undefined，若把整表直接喂给 new Map 会把元组放宽成
+  // (string|number)[]，构造报 TS2769。
   const roleCodeToId = new Map<string, number>();
   for (const r of existingRoles) {
     if (r.code) roleCodeToId.set(r.code, r.id);
@@ -1005,9 +1004,9 @@ export async function ensureRoleUsers(): Promise<void> {
     } else if (createResp.status() === 400 || createResp.status() === 409) {
       // 已存在
     } else {
-      // 原写法 console.warn 后继续：凭证照样写入、账号实际不存在/未建，
-      // 下游 spec 登录 401 且根因埋在几分钟前的 setup 日志里（E 族的放大器）。
-      // 准备失败必须在这里判红，不许带病写出凭证。
+      // 非 400/409 的创建失败必须在这里判红：若只 console.warn 后继续，凭证照样写出、
+      // 账号实际不存在/未建，下游 spec 登录 401 且根因埋在几分钟前的 setup 日志里，
+      // 禁止带病写出凭证伪造就绪。
       const body = await createResp.text().catch(() => '');
       throw new Error(
         `ensureRoleUsers: 角色账号 ${username} 创建失败 HTTP ${createResp.status()} ` +
@@ -1018,10 +1017,10 @@ export async function ensureRoleUsers(): Promise<void> {
   }
 
   // 4.5 终验登录：spec 直接消费的角色账号必须"真能登进去"。
-  // 400/409"已存在"分支不重置密码，历史轮次密码漂移只会表现为下游 401（曾出现
-  // e2e_salesperson"账号在、helper 用错密码"形态，排查成本高）。这里用凭证文件里
+  // 400/409"已存在"分支不重置密码，库中密码与凭证漂移时只会表现为下游 401
+  // （"账号在、凭证里密码不符"，排查成本高）。这里用凭证文件里
   // 的密码做一次真实登录收口：成功→凭证可信；失败→立即判红并带后端原始响应。
-  // manager 加入理由：fullflow/15-report-export.spec.ts 15-05 直接 loginAsRole('manager')，
+  // manager 纳入终验的理由：fullflow/15-report-export.spec.ts 15-05 直接 loginAsRole('manager')，
   // 属"spec 直接消费"面。若该账号在库中已存在而密码与本次写出的凭证不符（400/409 分支不重置
   // 密码），不在此收口就只会表现为几分钟后的 401（形态同上：账号在、凭证里密码不符），排查成本高。
   const SPEC_CONSUMED_ROLES = ['salesperson', 'customer_service', 'inventory_manager', 'manager'];
@@ -1103,9 +1102,9 @@ export async function ensureRoleUsers(): Promise<void> {
 /**
  * 全局业务实体种子：为不依赖 ensureTestEntities 的 extras specs 提供最小前置数据。
  *
- * 背景（CI #4646 簇 A 铁证）：extras 分片的 sales/purchase/crm/color-card/price/
- * production/quality 等 spec 不调用 ensureTestEntities，直接导航后断言"状态行存在/
- * 下拉有选项"。globalSetup 过去只建角色/账号，不建业务实体 → 40+ 例成片空红。
+ * extras 分片的 sales/purchase/crm/color-card/price/production/quality 等 spec
+ * 不调用 ensureTestEntities，直接导航后断言"状态行存在/下拉有选项"；setup 若不
+ * 预建业务实体，这批用例会成片空红。
  *
  * 本函数使用已登录的 request context（同 globalSetup 主流程）做纯 API 调用，
  * 不依赖浏览器 page。所有创建均幂等（先查后建），跨分片复用同库不冲突。
@@ -1124,13 +1123,13 @@ export async function ensureRoleUsers(): Promise<void> {
 async function ensureGlobalBusinessSeed(
   ctx: Awaited<ReturnType<typeof request.newContext>>
 ): Promise<void> {
-  // 种子失败硬账（CI 判责 §⑤/§6.3 收口：静默失败必须响亮化）
+  // 种子失败硬账：静默失败必须响亮化。
   // 收集**本分片种子阶段的全部失败**——既包括「导致种子行根本产不出来」的硬失败，
-  // 也包括 ⚠️ 软失败（reportSeedWrite 的 4xx/5xx，历史上只打印不进台账，造成
+  // 也包括 ⚠️ 软失败（reportSeedWrite 的 4xx/5xx；若只打印不进台账，会出现
   // 「⚠️ 打了、汇总仍写 0 项」的自相矛盾，下游大片红查不到根因）。
   // 函数结束前若非空 → 打印清单 + 落盘 + GitHub 注解后**显式 throw 判红**：
   // setup 失败会终止本分片全部用例，这正是目的——种子没就绪的运行结果不可信，
-  // 宁可整片红并带着清单判责，也不要「绿一半红一半、根因隐身」。（本仓纪律）
+  // 不能接受「绿一半红一半、根因隐身」。（本仓纪律）
   // 声明必须位于函数最前：后续所有分支（含 csrf 缺失早退）都要能记账。
   const SEED_FAILURES: string[] = [];
   const recordSeedFailure = (label: string, detail: string): void => {
@@ -1142,7 +1141,7 @@ async function ensureGlobalBusinessSeed(
   const cookies = (await ctx.storageState()).cookies;
   const csrfCookie = cookies.find(c => c.name === 'csrf_token');
   if (!csrfCookie) {
-    // 无 CSRF 会话 = 种子阶段整体报废，旧口径 warn+return 属静默失败，判红：
+    // 无 CSRF 会话 = 种子阶段整体报废，warn+return 属静默失败，必须判红：
     console.error('[globalSeed] ❌ 无 csrf_token cookie，业务种子无法执行（判红，不再静默跳过）');
     throw new Error(
       '[globalSeed] 种子前置失败：登录会话缺 csrf_token cookie，全部业务种子未执行——' +
@@ -1183,9 +1182,9 @@ async function ensureGlobalBusinessSeed(
     return items ?? [];
   };
 
-  // 辅助：种子写请求失败暴露（消 SYS-4「≥500 才告警、4xx 静默」的伪装）。
+  // 辅助：种子写请求失败暴露——不只 ≥500 告警，4xx 同样不静默。
   // 非 2xx 一律 `[globalSeed] ⚠️` 显式打印 HTTP + 原始响应体，**并同步计入 SEED_FAILURES**
-  // （§6.3：⚠️ 分支过去不进台账，导致「种子失败汇总：0 项」与 ⚠️ 同屏自相矛盾）。
+  // （若 ⚠️ 分支不进台账，「种子失败汇总：0 项」会与 ⚠️ 同屏自相矛盾）。
   const reportSeedWrite = async (resp: SetupApiResponse, label: string): Promise<void> => {
     const status = resp.status();
     if (status >= 400) {
@@ -1200,7 +1199,7 @@ async function ensureGlobalBusinessSeed(
   };
 
   // 「质检合格方可入库/结算」门控（backend/src/services/purchase_receipt_service.rs
-  // ::ensure_receipt_inspection_allows_flow，commit 48aa4395）：
+  // ::ensure_receipt_inspection_allows_flow）：
   // 收货单 inspection_status 不是 PASSED 时，POST /purchase/receipts/{id}/confirm 与
   // POST /ap/invoices/auto-generate 一律 400 BUSINESS_ERROR；新建收货单恒为 PENDING
   // （列 NOT NULL DEFAULT 'PENDING'）。PASSED 的唯一业务写入口是质检完成回写
@@ -1261,7 +1260,7 @@ async function ensureGlobalBusinessSeed(
 
   // 辅助：取一个真实仓库 id（与前端发货/收货下拉、步骤15 同口径 GET /warehouses）。
   // 后端 validate_order_request（services/po/order_ops/crud.rs:137）对采购订单
-  // warehouse_id 强校验非空，缺失即稳定 400「仓库 ID 不能为空」（SYS-4）。
+  // warehouse_id 强校验非空，缺失即稳定 400「仓库 ID 不能为空」。
   const resolveWarehouseId = async (): Promise<number | undefined> => {
     try {
       const resp = await ctx.get(`${API_PREFIX}/warehouses?page=1&page_size=10`, { headers });
@@ -1768,7 +1767,7 @@ async function ensureGlobalBusinessSeed(
   // 端点：POST /api/v1/erp/purchase/orders + /orders/{id}/submit + /orders/{id}/approve
   // DTO：CreatePurchaseOrderRequest（services/po/mod.rs:31）supplier_id:i32, order_date:NaiveDate(必填), items:[{material_id,quantity_ordered,unit_price}]
   // 业务校验：validate_order_request（services/po/order_ops/crud.rs:112-173）除 DTO 外还强制
-  //   warehouse_id（:137「仓库 ID 不能为空」，SYS-4 根因）与 department_id（:148「部门 ID 不能为空」）
+  //   warehouse_id（:137「仓库 ID 不能为空」）与 department_id（:148「部门 ID 不能为空」）
   //   非空且必须真实存在，故种子建单必须一并带上真实 warehouse_id + department_id。
   try {
     const supResp = await ctx.get(`${API_PREFIX}/purchase/suppliers?page=1&page_size=1`, {
@@ -1777,7 +1776,7 @@ async function ensureGlobalBusinessSeed(
     const supBody = await safeJson(supResp);
     const supplierId = extractItems<{ id: number }>(supBody)[0]?.id;
 
-    // SYS-4 修复：取真实仓库/部门 id 作为采购订单必填前置（后端 validate_order_request 强校验）。
+    // 取真实仓库/部门 id 作为采购订单必填前置（后端 validate_order_request 强校验非空且必须存在）。
     const poWarehouseId = await resolveWarehouseId();
     const poDepartmentId = await resolveDepartmentId();
 
@@ -2024,9 +2023,9 @@ async function ensureGlobalBusinessSeed(
   }
 
   // ---- 15. 库存种子（sales/04 发货、purchase/04 质检等链路的前置库存）----
-  // 根因（取证 #4647 簇A）：步骤5只建了仓库、步骤2只建了产品，但从没建库存行，
-  //   导致 sales/04-04 打开发货对话框时 loadDeliveryStockRows（GET /inventory/stock?
-  //   warehouse_id&product_id）拿到空列表 → 「库存行」下拉无选项，四维出库走不通。
+  // 独立建库存行的原因：步骤5只建了仓库、步骤2只建了产品，没有库存行时
+  //   sales/04-04 打开发货对话框的 loadDeliveryStockRows（GET /inventory/stock?
+  //   warehouse_id&product_id）会拿到空列表 → 「库存行」下拉无选项，四维出库走不通。
   // seed 方式（最贴近真实业务，非直改库存真相表）：走后端确有的真实收货链路，
   //   由「建专属采购订单 → submit → approve → 建入库单（带批次/色号/缸号四维）→
   //   confirm」自动落 inventory_stocks：confirm_receipt 事务内 update_inventory_txn
@@ -2048,7 +2047,7 @@ async function ensureGlobalBusinessSeed(
   // 幂等：先查后建——对 (product_id, warehouse_id) 组合 GET /inventory/stock 取 total，
   //   total>0 即跳过；batch_no/dye_lot_no 带时间戳+分片后缀保证跨分片共库唯一不冲突。
   // 失败暴露：confirm/建单/建库任一步 >=500 视为后端潜伏缺陷，原样打印端点+HTTP+响应体，
-  //   不吞、不 fake（与 color_price INT8/i32 潜伏 bug 同类风险点）。
+  //   不吞、不 fake。
   if (productId) {
     try {
       // 取供应商（步骤3建）与产品编码/名称（入库明细 material_code/material_name 必填真实值）
@@ -2204,8 +2203,7 @@ async function ensureGlobalBusinessSeed(
   //       收货单推成 PASSED，pending 质检行就没了。
   //   (b) 已确认入库行（/purchase-receipt 页、purchase/04「已确认单可再建检验单」）：
   //       建单 → 质检 complete(pass) 回写 PASSED → confirm（见 seedInspectionPass）。
-  // 旧注释曾写「确认入库单后 receipt 的 inspection_status 保持 PENDING(state.rs 不改此字段)」——
-  // 该事实已被 commit 48aa4395 的入库质检门控推翻（PENDING 现在使确认必然 400）。
+  // 入库质检门控要求：inspection_status 非 PASSED 时 confirm 必然 400（PENDING 亦被拒）。
   // 入库单字段要求：supplier_id/warehouse_id/receipt_date + 明细(batch_no 必填, color_code 非空时 lot_no 必填)。
   // 幂等：先查 pending 态质检数量，不足才补建。
   if (productId && currentUserId) {
@@ -2252,7 +2250,7 @@ async function ensureGlobalBusinessSeed(
 
           // 公共前置：建一张"已审批采购订单 + 未确认收货单"。
           // 任一步失败都计入种子失败汇总并返回 null，调用方必须跳过本项而不是继续往下走
-          // （历史上这里只 console.error 后 continue，导致"种子行根本没建"变成下游整簇红的隐性根因）。
+          // （若只 console.error 后继续往下走，"种子行根本没建"会变成下游整簇红的隐性根因）。
           const seedApprovedReceipt = async (
             label: string,
             ts: string,
@@ -2538,11 +2536,10 @@ async function ensureGlobalBusinessSeed(
   // accounting_periods 表 start_date<=date AND end_date>=date，不存在则拒绝。
   // 端点：POST /api/v1/erp/finance/accounting-periods（routes/finance.rs:70-73，missing_handlers.rs:110）
   // Payload：{ year, period }（period=1-12），后端自动计算当月首日至末日为 start/end_date。
-  // 幂等口径改造（CI §⑤ 铁证）：原实现靠「400 body 文案含"已存在"」判幂等，但后端
-  // missing_handlers.rs:125 走 AppError::business（出参永久脱敏为「业务处理失败」），文案匹配
-  // 永不成立 → 每个后续分片都 ⚠️「会计期间创建失败 HTTP 400」而实际期间早已存在。
-  // 正解=用**读端点做存在性前置**（GET /finance/accounting-periods 返回 Vec<Dto>，
-  // missing_handlers.rs:72-83，含 year/period 列）：已存在即跳过写；不存在才 POST；
+  // 幂等口径：靠「400 body 文案含"已存在"」判幂等不可行——后端 missing_handlers.rs:125
+  // 走 AppError::business（出参永久脱敏为「业务处理失败」），文案匹配永不成立，
+  // 早已存在的期间会被误判成创建失败。正解=用**读端点做存在性前置**（GET /finance/accounting-periods
+  // 返回 Vec<Dto>，missing_handlers.rs:72-83，含 year/period 列）：已存在即跳过写；不存在才 POST；
   // POST 仍失败 = 真实缺陷，经 reportSeedWrite 计入汇总判红（禁止反向放松）。
   {
     const now = new Date();
@@ -2915,8 +2912,8 @@ async function ensureGlobalBusinessSeed(
   }
 
   // 种子失败汇总：缺行/软失败都不让它隐身——下游用例的红要先看这里，再判用例本身。
-  // CI §6.3 收口：本清单非空时**显式 throw 判红**（旧口径"打印后继续"把
-  // 「种子没就绪」放大成下游成片红且根因隐身；本仓纪律=静默失败必须响亮化）。
+  // 本清单非空时**显式 throw 判红**："打印后继续"会把
+  // 「种子没就绪」放大成下游成片红且根因隐身（本仓纪律=静默失败必须响亮化）。
   if (SEED_FAILURES.length > 0) {
     console.error(
       `[globalSeed] ❌ 种子失败汇总 ${SEED_FAILURES.length} 项` +
@@ -2925,10 +2922,9 @@ async function ensureGlobalBusinessSeed(
     SEED_FAILURES.forEach((f, idx) => {
       console.error(`  ${idx + 1}. ${f}`);
     });
-    // 判责取证落盘：种子失败历来只能靠人翻各分片 stdout，而 Playwright 的 --shard
-    // 按用例 hash 分配、与 spec 文件无关（ci-cd.yml 分片注释），红的那片往往不是
-    // 缺数据的那片。这里把清单落成随产物上传的 JSON + GitHub 注解，让"先看种子"
-    // 不再依赖人的记忆；打印/落盘/注解都完成后才 throw，判红不吞取证。
+    // 取证落盘：Playwright 的 --shard 按用例 hash 分配、与 spec 文件无关（ci-cd.yml 分片注释），
+    // 红的那片往往不是缺数据的那片，只翻各分片 stdout 极易漏根因。这里把清单落成
+    // 随产物上传的 JSON + GitHub 注解；打印/落盘/注解都完成后才 throw，判红不吞取证。
     const shardTag = SHARD_INDEX || 'local';
     try {
       mkdirSync('reports', { recursive: true });
@@ -2946,7 +2942,7 @@ async function ensureGlobalBusinessSeed(
     }
     SEED_FAILURES.forEach(f => {
       // 用 warn（本仓 no-console 只放行 warn/error；runner 对 stderr 同样解析
-      // workflow 命令），注解打到 PR checks 面板上，判责时不必再翻各片 stdout。
+      // workflow 命令），注解打到 PR checks 面板上，排查种子问题时不必再翻各片 stdout。
       console.warn(
         `::warning file=frontend/e2e/global-setup.ts::[globalSeed shard=${shardTag}] ${f}`
       );

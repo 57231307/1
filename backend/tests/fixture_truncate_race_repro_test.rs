@@ -1,4 +1,4 @@
-//! 夹具"并行互清窗口"活体复现对（任务板）—— 诊断用，**不是回归锁**。
+//! 夹具"并行互清窗口"活体复现对 —— 诊断用，**不是回归锁**。
 //!
 //! ## 它证明什么
 //! 集成测试夹具 `setup_test_db()` 每次调用都会对 public 下**全部业务表**执行
@@ -12,18 +12,19 @@
 //!
 //! ## 如何用它拿到红/绿证据
 //! 本文件两个用例都打了 `#[ignore]`：默认的 10 分片跑不到它们；
-//! CI 的 ignored 真库 job 以 `--test-threads=1` 串行跑本档 → **恒绿**（=修复后必绿）。
+//! CI 的 ignored 真库 job 以 `--test-threads=1` 串行跑本档 → **恒绿**。
 //! 要复现红，需用 `.config/nextest.toml` 里的 `repro-race` 档（刻意不串行化）并行跑：
 //! ```text
 //! cargo nextest run -P repro-race --run-ignored only \
 //!   --test fixture_truncate_race_repro --test-threads 4
 //! ```
-//! 预期 `repro_race_victim` 稳定 FAIL。二者对照即"治标"生效的证明。
+//! 预期 `repro_race_victim` 稳定 FAIL。二者对照即证明：并行互清窗口真实存在，
+//! 串行化（default 档的 db-integration 组）能消除它。
 //! 由于本地禁止 `cargo test/build`，红/绿的活体切换只能在受控并行环境（CI/手工）复核。
 //!
 //! ## 约定
 //! 用 id 落在项目私有段 992x（不复用他用例的 id）；哨兵 code 用运行期语义名，
-//! 不新增硬编码 `TEST_` 前缀值（规避 反模式）。
+//! 不新增硬编码 `TEST_` 前缀值（规避反模式）。
 
 mod test_common;
 
@@ -53,8 +54,8 @@ async fn seed_work_center(db: &DatabaseConnection, id: i64, code: &str) {
 
 /// 统计指定 id 的 `work_centers` 行是否仍存在（0 = 已被并行的全局 TRUNCATE 清掉）。
 async fn count_work_center(db: &DatabaseConnection, id: i64) -> i64 {
-    // sea-orm 2.0.2 契约（registry 源码 database/connection.rs:36/39 + 本仓既有先例
-    // tests/contract_wave4_ar_report_truth_test.rs:347）：泛型 query_one 收 &impl StatementBuilder
+    // sea-orm 2.0.2 契约（registry 源码 database/connection.rs:36 + 本仓既有先例
+    // tests/contract_wave4_ar_report_truth_test.rs:686）：泛型 query_one 收 &impl StatementBuilder
     // （SchemaBuilder 族），预构造 Statement 必须走 query_one_raw（按值）。
     let stmt = Statement::from_string(
         DbBackend::Postgres,

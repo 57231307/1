@@ -1,5 +1,5 @@
 /**
- * P5.12 全量遍历配置——全部视图模块数据驱动框架（完整版）
+ * 全量遍历配置——全部视图模块数据驱动框架（完整版）
  *
  * 清单来源：frontend/src/router/index.ts 真实路由（120+ 条）逐模块登记
  * 分层策略：Tier A（简单 CRUD，visit+新建+填表+保存+回读）
@@ -99,10 +99,9 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'quotations', route: '/quotations', domain: 'sales', tier: 'B', listApi: '/quotations' },
   { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },
   { id: 'custom-orders', route: '/custom-orders', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
-  // after-sales（/after-sales）登记已撤销：src/router/index.ts 无该路由（人人 404，
-  // CI 判责 P1「幽灵登记」），用户裁定口径 = 删登记而非补路由。
-  // 售后业务面真实入口是 /sales-returns 与 /custom-orders/{id}/after-sales/*（后端端点，
-  // 见 endpoints.config 打印族），若产品补 /after-sales 页面路由，届时再登记本条。
+  // 本清单不登记 after-sales 模块：src/router/index.ts 无 /after-sales 路由，
+  // 直达该地址人人 404。售后业务面真实入口是 /sales-returns 页面与
+  // /custom-orders/{id}/after-sales/* 后端端点（打印族见 endpoints.config）。
   { id: 'logistics', route: '/logistics', domain: 'sales', tier: 'C', noCreate: true },
 
   // ===== purchase 域 =====
@@ -180,11 +179,11 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'material-shortage', route: '/material-shortage', domain: 'production', tier: 'C', noCreate: true },
   { id: 'scheduling', route: '/scheduling', domain: 'production', tier: 'C', noCreate: true },
   { id: 'scheduling-gantt', route: '/scheduling/gantt', domain: 'production', tier: 'C', noCreate: true },
-  // 注：process-routes 已从 UI 遍历清单移除。前端 router/index.ts 无 /process-routes
-  // 路由、src/views 下亦无对应页面组件（grep 精确匹配数=0），page.goto('/process-routes')
-  // 落到 catch-all/空白路由，故 Tier A 的「新建」按钮断言必然 waitFor 超时。
+  // process-routes 不在本清单：前端 router/index.ts 无 /process-routes 路由、src/views
+  // 下亦无对应页面组件，page.goto('/process-routes') 落到 catch-all/空白路由，
+  // Tier A 的「新建」按钮断言必然 waitFor 超时。
   // 后端 /production/process-routes 端点确实存在（production.rs:225-231），属"有后端、
-  // 无管理 UI"，不是可遍历的前端页面；若产品需补 UI，届时再登记本条并按实际按钮文案调整。
+  // 无管理 UI"，不是可遍历的前端页面。
 
   // ===== quality 域 =====
   { id: 'quality', route: '/quality', domain: 'quality', tier: 'C', noCreate: true },

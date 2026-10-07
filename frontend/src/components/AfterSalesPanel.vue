@@ -295,7 +295,7 @@ const submitting = ref(false);
 const formRef = ref();
 const currentRecord = ref<AfterSales | null>(null);
 
-/** 原因分类取值 = 后端权威词表（列 COMMENT 见 backend/migration/src/domain/v15/mod.rs:1891）：
+/** 原因分类取值 = 后端权威词表（列 COMMENT 见 backend/migration/src/domain/v15/mod.rs）：
  * quality/logistics/customer_preference/other */
 const REASON_CATEGORY_KEYS = ['quality', 'logistics', 'customer_preference', 'other'] as const;
 

@@ -1,8 +1,7 @@
 //! CRM 公海服务（crm/pool）
 //!
-//! 公海池基于 crm_lead 实现（status="pool" 状态），
-//! 因为客户主表（customers）没有 owner_id 字段。
-//! 拆分自原 `crm_service.rs`。
+//! 公海池基于 crm_lead 实现（`lead_status` 列取常量 `status::crm_lead::POOL`，
+//! 模型 `models/crm_lead.rs`）。
 //!
 //! 公海领取的规则校验（所有领取入口统一生效）：
 //! - 保护期校验：领取后 N 天内不能被他人领取（防止恶意抢单）

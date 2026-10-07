@@ -1,19 +1,20 @@
 use bingxi_backend::models::customer_credit;
 use bingxi_backend::models::status::master_data;
 use bingxi_backend::services::customer_credit_service::CreditRatingRequest;
-// decs 宏在测试中不可用，使用 Decimal::from_str 替代
+// 真库正/负前提交集：setup_test_db = 已迁移 PG + TRUNCATE；connect_empty_schema_db = 建库未跑迁移（缺表）
 use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
-// ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use chrono::Utc;
-// 批次 415：测试中使用 Arc::new(db)，需导入（文件顶部在批次 357 移除了 unused Arc 导入）
+// decs! 宏在集成测试可直接使用（crate 根重导出），用于金额字面量构造
 use bingxi_backend::decs;
 use bingxi_backend::utils::error::AppError;
+// ymd! 宏在集成测试可直接使用（crate 根重导出），用于日期字面量构造
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
+// 真库用例以 Arc::new(db) 构造 service，需显式导入 Arc
 use std::sync::Arc;
 
 /// 构建测试用客户信用模型夹具
-/// 封装 `customer_credit::Model` 的构造，便于在各测试中复用，；默认 available_credit = credit_limit - used_credit，保持业务不变量。
+/// 封装 `customer_credit::Model` 的构造，便于在各测试中复用，默认 available_credit = credit_limit - used_credit，保持业务不变量。
 fn make_credit_model(
     customer_id: i32,
     credit_limit: Decimal,
@@ -78,7 +79,7 @@ fn test_xyedjs_sfcjzc() {
 }
 
 /// test_xydjpd_mrztclj
-/// 验证 set_credit_rating 中 Option 字段的默认值填充规则：credit_level 默认 "B"、credit_score 默认 60、credit_days 默认 30；批次 414：credit_limit 现在也是 Option<Decimal>，None 表示未提供
+/// 验证 set_credit_rating 中 Option 字段的默认值填充规则：credit_level 默认 "B"、credit_score 默认 60、credit_days 默认 30；入参 credit_limit 为 Option<Decimal>，None 表示未提供（customer_credit_limit.rs:41/:70）
 #[test]
 fn test_xydjpd_mrztclj() {
     // 模拟 CreditRatingRequest 字段全为 None 的场景
@@ -131,8 +132,8 @@ fn test_edcxjc_zycejy() {
     assert!(amount_over > model.available_credit);
 
     // 复现 occupy_credit 的错误构造，验证错误类型
-    // 断言跟随源码变更：额度门归业务族；文案含查询所得可用余额数字，
-    // 源码保持脱敏 AppError::business（出参 code 仍为 BUSINESS_ERROR）。
+    // 额度门归业务族；文案含查询所得可用余额数字，
+    // 源码用脱敏 AppError::business（出参 code = BUSINESS_ERROR）。
     let err = AppError::business(format!(
         "可用额度不足：请求 {}，可用 {}",
         amount_over, model.available_credit
@@ -150,8 +151,8 @@ fn test_edcxjc_zyztfhy() {
     let should_reject = model.status != master_data::ACTIVE;
     assert!(should_reject);
 
-    // 断言跟随源码变更：「客户信用状态非活跃」是前置状态未满足的状态门，
-    // 源码 occupy_credit 已改为 AppError::business_displayable，族 = BUSINESS_ERROR。
+    // 「客户信用状态非活跃」是前置状态未满足的状态门，
+    // 源码 occupy_credit 用 AppError::business_displayable（customer_credit_limit.rs:122），族 = BUSINESS_ERROR。
     let err = AppError::business_displayable("客户信用状态非活跃");
     assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
@@ -174,7 +175,7 @@ fn test_edcxjc_sfcejy() {
     let amount_over = model.used_credit + decs!("0.01");
     assert!(amount_over > model.used_credit);
 
-    // 断言跟随源码变更：额度门归业务族，源码为 business_displayable（文案无数字可外显）
+    // 额度门归业务族，源码为 business_displayable（文案无数字可外显）
     let err = AppError::business_displayable("释放额度超过已占用额度".to_string());
     assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
@@ -223,7 +224,7 @@ fn test_yyedjs_tzjsdyyyed() {
     let should_reject = decreased < model.used_credit;
     assert!(should_reject);
 
-    // 断言跟随源码变更：额度门归业务族，源码为 business_displayable（文案无数字可外显）
+    // 额度门归业务族，源码为 business_displayable（文案无数字可外显）
     let err = AppError::business_displayable("降低后的额度不能低于已使用额度".to_string());
     assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
@@ -237,8 +238,8 @@ fn test_yyedjs_wxtzlx() {
     let is_valid = matches!(adjustment_type, "increase" | "decrease");
     assert!(!is_valid);
 
-    // 断言跟随源码变更：调整类型取值非法属输入校验，族保持 VALIDATION_ERROR，
-    // 源码用 validation_displayable 外显真实原因（不是放宽，而是与源码变体一致）。
+    // 调整类型取值非法属输入校验，族 = VALIDATION_ERROR，
+    // 源码用 validation_displayable 外显真实原因（断言与源码变体一致）。
     let err = AppError::validation_displayable("无效的额度调整类型");
     assert!(matches!(err, AppError::ValidationErrorDisplayable(_)));
     assert_eq!(err.error_code(), "VALIDATION_ERROR");
@@ -332,7 +333,7 @@ fn test_tyxy_yzyedjj() {
     let should_reject = model.used_credit > Decimal::ZERO;
     assert!(should_reject);
 
-    // 断言跟随源码变更：停用前置（占用额度未清零）属状态门，归业务族
+    // 停用前置（占用额度未清零）属状态门，归业务族
     let err = AppError::business_displayable("客户仍有占用额度，无法停用".to_string());
     assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
@@ -360,16 +361,16 @@ async fn test_fwslcj() {
     assert!(Arc::strong_count(&service.db) >= 1);
 }
 
-/// test_zyxyed_xypjbcz —— 真库化夹具前提校准 + 收紧为机器码（判责 §A.1
-/// 同族；范本见 600e5640 ap_payment confirm 条）：钉"已建库空表上 occupy_credit
-/// 无信用评级记录 ⇒ NOT_FOUND 机器码，而非 panic"。
+/// test_zyxyed_xypjbcz —— 已建库空表上 occupy_credit 钉"无信用评级记录 ⇒ NOT_FOUND
+/// 机器码，而非 panic"：裸 `is_err()` 会把夹具退化（DATABASE_ERROR）混进判据，
+/// 故钉死机器码。
 ///
-/// 真实契约依据（读函数体）：`src/services/customer_credit_limit.rs:81-131`
-/// begin（:93，连库正常）后对 customer_credit_ratings find + FOR UPDATE（:95-99），
-/// 空表 ⇒ None ⇒ `AppError::not_found`（:100）；状态门/额度门（:102-116 ⇒
-/// BUSINESS）只有记录存在才可达。裸 `is_err()` 会把夹具退化（DATABASE_ERROR）
-/// 混进来 ⇒ 钉死机器码。缺表报错形态不属本条职责（本文件 check_credit_warning
-/// 条已按 R-9 改绑 `bingxi_empty` 钉死同型防线）。
+/// 真实契约依据（读函数体）：`src/services/customer_credit_limit.rs:98-133`
+/// begin（:110，连库正常）后对 customer_credit 实体（表 customer_credit_ratings）
+/// find + FOR UPDATE（:112-116），
+/// 空表 ⇒ None ⇒ `AppError::not_found`（:117）；状态门/额度门（:119-133 ⇒ BUSINESS）
+/// 只有记录存在才可达。缺表报错形态不属本条职责，见本文件
+/// test_jcxyyj_xyzssjk（`connect_empty_schema_db()` 钉 `bingxi_empty` 同型防线）。
 #[tokio::test]
 #[ignore]
 async fn test_zyxyed_xypjbcz() {
@@ -388,14 +389,14 @@ async fn test_zyxyed_xypjbcz() {
     );
 }
 
-/// test_jcxyyj_xyzssjk —— 依据裁决 R-9 拆前提（§A.1 pI credit:387）
-/// 本条断言消息自陈钉"**无 schema** 时应返回数据库错误"，而 `setup_test_db()`
-/// 现语义 = 已建表 + TRUNCATE，空表上 get_by_customer_id ⇒ None ⇒ 恒
-/// `Ok(None)`（customer_credit_limit.rs:277-281 + customer_credit_service.rs:81-85），
-/// 旧 `is_err()` 必红 ⇒ 前提改绑 `connect_empty_schema_db()`，并把裸 `is_err()`
-/// **收紧**为钉 DATABASE_ERROR。缺表首触库点 = get_by_customer_id 的
-/// `customer_credit::Entity::find().one()`（customer_credit_service.rs:81-83）⇒
-/// DbErr::Query ⇒ `utils/error.rs:562-565` ⇒ "DATABASE_ERROR"（error.rs:747）。
+/// test_jcxyyj_xyzssjk —— 缺表负前提用例：本条钉"**无 schema** 时
+/// check_credit_warning 返回数据库错误"，夹具绑 `connect_empty_schema_db()`，并在
+/// 裸 `is_err()` 之上钉死 DATABASE_ERROR 机器码。若绑 `setup_test_db()`
+/// （已建表 + TRUNCATE），空表上 get_by_customer_id ⇒ None ⇒ 恒
+/// `Ok(None)`（customer_credit_limit.rs:294-298 + customer_credit_service.rs:81-86），
+/// `is_err()` 必红。缺表首触库点 = get_by_customer_id 的
+/// `customer_credit::Entity::find().one()`（customer_credit_service.rs:81-84）⇒
+/// DbErr::Query ⇒ `utils/error.rs:561-578` ⇒ "DATABASE_ERROR"（error.rs:798）。
 #[tokio::test]
 #[ignore]
 async fn test_jcxyyj_xyzssjk() {
@@ -415,12 +416,11 @@ async fn test_jcxyyj_xyzssjk() {
 }
 
 /// test_jcxykyx_xyzssjk —— 文档自陈契约："无信用评级记录时应返回 Ok(true)
-/// （允许下单）"。真实契约依据（读函数体）：
-/// `src/services/customer_credit_limit.rs:239-254` check_credit_available 对
-/// get_by_customer_id 得 None 的记录**显式早返回 `Ok(true)`**（:244-247）；
-/// 真库化空表正是"无记录"提交集。旧写法 `if let Ok(available) = result` 把
-/// Err 静默放过 = 无条件断言（假绿形态），**收紧**为无条件 expect Ok + 断 true
-/// （是收紧不是放宽：夹具退化报 Err 时本条将显形为红）。
+/// （允许下单）"。真实契约依据（读函数体）：`src/services/customer_credit_limit.rs:256-271`
+/// check_credit_available 对 get_by_customer_id 得 None 的记录**显式早返回
+/// `Ok(true)`**（:261-264）；真库化空表正是"无记录"提交集。
+/// 断言无条件 expect Ok + 断 true：夹具退化报 Err 时本条显形为红，
+/// Err 不会被静默放过（假绿形态）。
 #[tokio::test]
 #[ignore]
 async fn test_jcxykyx_xyzssjk() {
@@ -437,10 +437,10 @@ async fn test_jcxykyx_xyzssjk() {
     );
 }
 
-// ========== 批次 414：credit_limit Option<Decimal> 语义测试 ==========
+// ========== credit_limit Option<Decimal> 语义测试 ==========
 
 /// test_credit_limityy_gxcjnonebcyz
-/// 批次 414 技术债务修复验证：更新场景下 credit_limit = None 时，应保持原有额度不变。；复现 set_credit_rating 中 `req.credit_limit.unwrap_or(old_limit)` 的逻辑。
+/// 更新场景下 credit_limit = None 时，应保持原有额度不变。复现 set_credit_rating 中 `req.credit_limit.unwrap_or(old_limit)` 的逻辑。
 #[test]
 fn test_credit_limityy_gxcjnonebcyz() {
     // 模拟已有信用记录：原额度 10000
@@ -455,7 +455,7 @@ fn test_credit_limityy_gxcjnonebcyz() {
     assert_eq!(new_limit - used_credit, decs!("7000"));
 }
 
-/// test_credit_limityy_gxcjsome0xszl（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(0) 时，应显式将额度设置为 0（区别于 None 保持原值）。）
+/// test_credit_limityy_gxcjsome0xszl（更新场景下 credit_limit = Some(0) 时，应显式将额度设置为 0（区别于 None 保持原值）。）
 #[test]
 fn test_credit_limityy_gxcjsome0xszl() {
     let old_limit = decs!("10000");
@@ -468,7 +468,7 @@ fn test_credit_limityy_gxcjsome0xszl() {
     assert_eq!(new_limit - used_credit, Decimal::ZERO);
 }
 
-/// test_credit_limityy_gxcjsomevszxz（批次 414 技术债务修复验证：更新场景下 credit_limit = Some(v) 时，应将额度设置为 v。）
+/// test_credit_limityy_gxcjsomevszxz（更新场景下 credit_limit = Some(v) 时，应将额度设置为 v。）
 #[test]
 fn test_credit_limityy_gxcjsomevszxz() {
     let used_credit = decs!("2000");
@@ -481,7 +481,7 @@ fn test_credit_limityy_gxcjsomevszxz() {
     assert_eq!(new_limit - used_credit, decs!("13000"));
 }
 
-/// test_credit_limityy_cjcjnonemrl（批次 414 技术债务修复验证：创建场景下 credit_limit = None 时，应默认为 0（新建允许从 0 开始）。）
+/// test_credit_limityy_cjcjnonemrl（创建场景下 credit_limit = None 时，应默认为 0（新建允许从 0 开始）。）
 #[test]
 fn test_credit_limityy_cjcjnonemrl() {
     // 复现 set_credit_rating 创建分支：unwrap_or_default() → Decimal::ZERO
@@ -490,7 +490,7 @@ fn test_credit_limityy_cjcjnonemrl() {
     assert_eq!(limit, Decimal::ZERO);
 }
 
-/// test_credit_limityy_cjcjsomevszcsz（批次 414 技术债务修复验证：创建场景下 credit_limit = Some(v) 时，应使用 v 作为初始额度。）
+/// test_credit_limityy_cjcjsomevszcsz（创建场景下 credit_limit = Some(v) 时，应使用 v 作为初始额度。）
 use bingxi_backend::services::customer_credit_service::CustomerCreditService;
 #[test]
 fn test_credit_limityy_cjcjsomevszcsz() {

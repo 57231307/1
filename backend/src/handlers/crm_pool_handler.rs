@@ -1,7 +1,6 @@
 //! CRM客户公海 Handler
 //!
-//! 提供客户公海池的列表查询、领取和回收功能
-//! V15 P0-S08 修复：新增公海规则 CRUD 接口（保护期/领取上限/最大持有数）
+//! 提供客户公海池的列表查询、领取和回收功能，以及公海规则 CRUD（保护期/领取上限/最大持有数）
 
 use axum::{
     Json,
@@ -14,7 +13,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::crm_dto::BatchClaimRequest;
 use crate::models::status::crm_lead as lead_status;
 use crate::services::crm::cust::CrmService;
-// V15 P0-S08：公海规则服务
+// 公海规则服务
 use crate::services::crm::pool::PoolRuleService;
 use crate::utils::data_scope::check_resource_owner;
 use crate::utils::error::AppError;
@@ -26,9 +25,9 @@ use crate::utils::response::ApiResponse;
 pub struct PoolQueryParams {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    // 批次 111 P1-10：source / keyword 接入 LeadQuery 过滤（移除 dead_code 标注）
+    // source / keyword 透传 LeadQuery 参与过滤
     pub source: Option<String>,
-    // v11 批次 153 P2-A：接入 industry 过滤（crm_lead.industry 列已通过 m0043 迁移添加）
+    // industry 参与过滤（crm_lead.industry 列由 m0043 迁移添加）
     pub industry: Option<String>,
     pub keyword: Option<String>,
 }
@@ -56,16 +55,16 @@ pub async fn list_pool(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
 
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     // 查询公海客户（owner_id为空或特定状态的线索）
     let query = crate::models::dto::crm_dto::LeadQuery {
         lead_status: Some(lead_status::POOL.to_string()),
-        // 批次 111 P1-10：透传 source / keyword 到 LeadQuery，由 list_leads 服务执行过滤
+        // source / keyword 透传到 LeadQuery，由 list_leads 服务执行过滤
         source: params.source,
         keyword: params.keyword,
-        // v11 批次 153 P2-A：透传 industry 到 LeadQuery
+        // industry 透传到 LeadQuery
         industry: params.industry,
         page: Some(page),
         page_size: Some(page_size),
@@ -73,7 +72,8 @@ pub async fn list_pool(
 
     // 行级数据权限按正常列表入口（crm_handler::list_leads）同口径接入：
     // scope 上下文缺省会整体跳过服务层 apply_department_scope_with_pool 行级过滤
-    // （services/crm/lead.rs:143-151）——公海入口跨行泄露根因，禁止再省略该实参。
+    // （services/crm/lead.rs:152 的 `if let Some(ctx)` 判断）——公海行会跨行泄露，
+    // 该实参不可省略。
     let data_scope_ctx = auth.to_data_scope_context();
     let result = service.list_leads(query, Some(&data_scope_ctx)).await?;
 
@@ -128,8 +128,8 @@ pub async fn list_pool(
     // - 配置了数据权限行 → filter_fields_batch（hidden/allowed 优先，不叠加默认打码）；
     // - 无权限行且非 admin → 默认脱敏（查询 Err 与 role_id 缺失同走此分支，fail-closed）。
     //   admin 判定基准以本仓唯一权威源 `admin_checker::is_admin_role`（roles.code='admin'，
-    // 查询失败 fail-closed=false）为准，禁止角色主键字面量判定（D-4 收口， 波次
-    //   播种漂移时字面量要么静默剔 admin 字段、要么给恰好命中字面量的其他角色静默扩权）。
+    //   查询失败 fail-closed=false）为准，禁止角色主键字面量判定——播种漂移时字面量
+    //   要么静默剔 admin 字段、要么给恰好命中字面量的其他角色静默扩权。
     // 本入口出参由上方按挑选字段构造，不含 address 键；mobile_phone/email 若存在则掩码。
     crate::handlers::crm_handler::apply_lead_field_permission(&state, auth.role_id, &mut items)
         .await;
@@ -147,9 +147,9 @@ pub async fn list_pool(
 /// （`crm_handler::apply_lead_field_permission` → 有权限行 `filter_fields_batch`，
 /// 无权限行且非 admin 走 `CrmService::mask_lead_pii_defaults`）。
 ///
-/// 修复前这里是 `serde_json::to_value(updated_lead)?` 原文直出，携带
-/// `mobile_phone`/`tel_phone`/`email`/`address` 明文，而同一个非 admin 角色
-/// 走 `GET /crm/leads/:id` 或列表时是被打码的 —— 构成"列表打码、写响应原文"的旁路：
+/// 领取/回收成功的出参是整行序列化，携带 `mobile_phone`/`tel_phone`/`email`/`address`
+/// 明文，而同一个非 admin 角色走 `GET /crm/leads/:id` 或列表时是被打码的——
+/// 若此处不过掩码即构成"列表打码、写响应原文"的旁路：
 /// 点一次"领取"即可批量换取他人联系方式原文。
 /// 本函数只处理出参：不改状态码、不外显任何拒绝原因（权限拒绝仍走
 /// `AppError::permission_denied` 的固定脱敏信封 + `FORBIDDEN` 码）。
@@ -172,9 +172,9 @@ async fn mask_lead_write_response(
 ///
 /// 行级边界：领取**只能作用于公海行**。
 /// - RBAC 层：本路径 `/api/v1/erp/crm/pool/claim` 由 URL 段推导出资源 `pool`、
-///   动作 `create`（`middleware/permission.rs:259` `extract_resource_info`；`crm` 是模块
+///   动作 `create`（`middleware/permission.rs:269` `extract_resource_info`；`crm` 是模块
 ///   前缀 `utils/path_utils.rs:75`，`resolve_module_prefixed_resource` 默认臂保留原名），
-///   admin 角色在 `check_permission`（`permission.rs:536` `admin_checker::is_admin_role`）
+///   admin 角色在 `check_permission`（`permission.rs:534`，内部 `admin_checker::is_admin_role`）
 ///   整体放行。claim 与 recycle 推导出的是**同一个键 `pool:create`**，RBAC 无法区分二者，
 ///   所以"谁能对哪一行写"只能由行级数据权限决定。
 /// - 行级层：公海行的业务语义是"无归属人、对有权进公海者开放"（`utils/data_scope.rs`
@@ -187,7 +187,7 @@ async fn mask_lead_write_response(
 /// 走与 `POST /crm/pool/:id/claim` 相同的每日领取上限 / 最大持有数 /
 /// 保护期校验（判据 `last_claimed_at`，原领取人本人重领豁免），见
 /// `services/crm/pool.rs` 文件头。
-/// 出参边界（遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
+/// 出参边界：成功响应不整行原文回传，必须走与读路径同一实现的
 /// `mask_lead_write_response`（详见该函数文档）。
 pub async fn claim_from_pool(
     State(state): State<AppState>,
@@ -212,11 +212,10 @@ pub async fn claim_from_pool(
         return Err(AppError::business_displayable("该客户不在公海中"));
     }
 
-    // 领取即转移归属（附带项收口）：写 owner_id/owner_name 与 lead_status=new，
+    // 领取即转移归属：写 owner_id/owner_name 与 lead_status=new，
     // 复用批量领取同一个 `services/crm/pool.rs::build_claimed_active`（单一归属实现，
-    // 消除两条领取路径的归属漂移）。修复前本路径只置 lead_status=new、不写归属，
-    // 线索仍挂在回收前的原归属人名下，领取人在自己的 self 数据范围列表里
-    // 看不到刚领取的行——功能事实性坏掉。
+    // 消除两条领取路径的归属漂移——若不写归属，线索仍挂在回收前的原归属人名下，
+    // 领取人在自己的 self 数据范围列表里看不到刚领取的行）。
     // 归属人展示名取 `auth.username`：AuthContext（middleware/auth_context.rs:58-83）
     // 只有 username 一个身份展示字段，无真实姓名字段；users.real_name 未随令牌/权限
     // 中间件注入上下文，取它需新增一次跨模块查库与上下文改造，故此处落真实登录名——
@@ -241,23 +240,23 @@ pub async fn claim_from_pool(
 
 /// POST /api/v1/erp/crm/pool/recycle - 回收客户到公海
 ///
-/// 行级边界（越权写修复点）：回收写的是**私海行**，属行级归属判定范畴。
-/// 修复前用 `get_lead(lead_id, None)`，`services/crm/lead.rs:360-367` 的
+/// 行级边界（越权写防护）：回收写的是**私海行**，属行级归属判定范畴。
+/// `get_lead` 必须带 ctx 调用——`services/crm/lead.rs:464` `get_lead` 内的
 /// `check_resource_owner` 包在 `if let Some(ctx)` 内，传 None 即整体跳过 →
 /// 任意用户可把他人私海线索回收进公海。
 /// 权限依据（均为既有机制，不新增权限键、不放宽任何判定）：
-/// - RBAC：与 claim 推导出同一个键 `pool:create`（`middleware/permission.rs:259` +
-///   `utils/path_utils.rs:75/102`），admin 角色在 `permission.rs:536`
-///   `admin_checker::is_admin_role`（roles.code='admin'）处整体放行；
+/// - RBAC：与 claim 推导出同一个键 `pool:create`（`middleware/permission.rs:269` +
+///   `utils/path_utils.rs:75/102`），admin 角色在 `permission.rs:534` `check_permission`
+///   内经 `admin_checker::is_admin_role`（roles.code='admin'）处整体放行；
 /// - 行级：与 `list_leads`/`get_lead`/`update_lead`/`delete_lead` 正常路径同口径注入
 ///   `auth.to_data_scope_context()` 后复用 `check_resource_owner`
-///   （`utils/data_scope.rs:149-171`）——`DataScope::All`（admin/总经理）可越界回收
+///   （`utils/data_scope.rs:155`）——`DataScope::All`（admin/总经理）可越界回收
 ///   他人行；`Dept` 需资源 department_id ∈ 可见部门集合；`Self_` 仅原归属人本人；
 ///   不满足即 403（与 update/delete 线索的越权语义完全一致，不额外收紧也不放松：
 ///   例如 Dept 用户回收 department_id 为 NULL 的行同样会被拒，这是既有 get_lead 口径）。
-/// 出参边界（遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
+/// 出参边界：成功响应不整行原文回传，必须走与读路径同一实现的
 /// `mask_lead_write_response`（详见该函数文档）——回收同样会整行返回 mobile_phone/
-/// tel_phone/email/address，修复前与领取端点是同一个旁路的两个入口。
+/// tel_phone/email/address，与领取端点是同一条旁路的两个入口。
 pub async fn recycle_to_pool(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -280,7 +279,7 @@ pub async fn recycle_to_pool(
         ..Default::default()
     };
 
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // 传入真实操作人 user_id 用于审计日志
     let updated_lead = service
         .update_lead(req.lead_id, update_req, auth.user_id)
         .await?;
@@ -350,7 +349,7 @@ pub async fn batch_claim(
 }
 
 // =====================================================
-// V15 P0-S08 修复：公海规则 CRUD 接口
+// 公海规则 CRUD 接口
 // =====================================================
 // 提供保护期/领取上限/最大持有数规则的查询、创建、更新、删除
 // 路由前缀：/pool/rules
@@ -364,7 +363,7 @@ pub struct CreatePoolRuleRequest {
     pub rule_type: String,
     pub rule_value: i32,
     /// 适用客户类型：all / wholesale / retail / vip（规则作用域档位，非 customers 列值域；
-    /// 运行时只有 `all` 生效，其余三档为已登记的死分支，见 `create_pool_rule` 注释）
+    /// 运行时只有 `all` 生效，其余三档当前无消费分支，见 `create_pool_rule` 注释）
     pub customer_type: String,
     pub notes: Option<String>,
 }
@@ -408,11 +407,10 @@ pub async fn create_pool_rule(
     // 唯一词表（`constants::customer_type::ALLOWED`）是**两回事**，不并入、不共享：
     // 字面重合的 retail/wholesale 只是巧合同名 token，语义层不同（本处 `vip` 也只是
     // 规则作用域档位，不代表 customers 行能有 vip）。
-    // ⚠️ 已登记（本批只登记，不删字段、不删值域）：运行时**只有 `all` 被消费**——
+    // ⚠️ 运行时**只有 `all` 被消费**——
     // `services/crm/pool.rs` 取规则值时固定 `CustomerType.eq("all")`，
     // wholesale/retail/vip 三档写进规则表后没有任何判定分支读取（`list_rules` 只回显、
-    // 不参与规则生效）⇒ per-type 是死分支，配了也不生效。作用域维度的真正生效需要
-    // 与 customers 渠道/分层重设计一起做，另立功能波，不在本批处理。
+    // 不参与规则生效）⇒ per-type 是死分支，配了也不生效。
     if !matches!(
         req.customer_type.as_str(),
         "all" | "wholesale" | "retail" | "vip"

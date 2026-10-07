@@ -14,7 +14,7 @@ mod m0006_add_general_ledger_and_finance_base;
 // 存量归一迁移；pub：集成测试需直接引用其 SQL 常量在 sqlite 上真跑验证
 pub mod m0007_normalize_account_subject_balance_direction;
 // customers.owner_id 生效列形态归一（可空无默认 → NOT NULL DEFAULT 0）。
-// 必须在域 up 链尾执行：晚于本域 inline 补列块（:229 裸 INTEGER 为该列生效定义，
+// 必须在域 up 链尾执行：晚于本域 inline 补列块（:233 裸 INTEGER 为该列生效定义，
 // 历史迁移不可改写），且早于 finance 域 customers_isolation RLS policy 建立。
 mod m0070_normalize_customers_owner_id;
 
@@ -378,7 +378,7 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(18
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_percent" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "width" DECIMAL(18,4);
--- purchase_order_item（单数表，建表 DDL 见 v15/mod.rs:3460）的折扣率/税率取 DECIMAL(7,4)：
+-- purchase_order_item（单数表，建表 DDL 见 v15/mod.rs）的折扣率/税率取 DECIMAL(7,4)：
 -- 税率按百分数存（如 13），若用 DECIMAL(5,4)（最大 9.9999）插入即报 numeric field overflow。
 -- 注意：model 表名为单数 purchase_order_item；m0001 的复数 purchase_order_items
 -- 为历史遗留表（model 未使用，不加列不动）。
@@ -488,8 +488,9 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
-        // owner_id 归一必须晚于上方 inline 补列（:229）、早于 finance
-        // 域 RLS policy（NULL 行两侧判 unknown 的可见性缺陷在 policy 建立前闭合）。
+        // owner_id 归一必须晚于上方 inline 补列（:233）、早于 finance
+        // 域 RLS policy（NULL owner_id 行使 policy 两侧判 unknown、可见性不确定，
+        // 须在 policy 建立前完成归一）。
         m0070_normalize_customers_owner_id::Migration
             .up(manager)
             .await?;

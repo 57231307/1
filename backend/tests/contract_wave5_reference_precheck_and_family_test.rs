@@ -1,27 +1,27 @@
-//! wave5 契约锁：库存预留引用存在性预检 + 凭证借贷不平衡装配族一致性
+//! 契约锁：库存预留引用存在性预检 + 凭证借贷不平衡装配族一致性
 //! + 委外订单 DbErr 重包装防回潮（先例：contract_wave2_reservation_error_mapping_test.rs /
 //! contract_wave3_state_gate_family_consistency_test.rs）
 //!
-//! 锁定三条根因→修复：
+//! 锁定三条契约：
 //! 1. `inventory_reservation_service.rs::create_reservation` 写库前显式预检
 //!    order_id/product_id/warehouse_id 三个引用（照 purchase_inspection_service.rs 的
 //!    receipt_id 预检、sku_mapping_service.rs 的 validate_refs 范式）：
 //!    - 引用行不存在 → 404 NOT_FOUND（含 ID 的真实原因走脱敏 not_found，出参恒「资源未找到」）；
-//!      修复前坏引用直达 DB 外键，经 From<DbErr> Exec 分支裸落 DATABASE_ERROR/500；
+//!      预检先于触库，坏引用不得直达 DB 外键经 From<DbErr> Exec 分支落 DATABASE_ERROR/500；
 //!    - 软删/停用视同不存在：products.is_deleted=true 或 status≠active、warehouses.is_active=false
 //!      （判定依据逐列对照 models/product.rs、models/warehouse.rs；sales_orders 无软删/停用列，
 //!      存在性=行存在，cancelled/rejected 是终态而非"不存在"，不并入本预检）；
 //!    - 拒绝必须零脏行；正向合法引用创建成功并可回读。
-//! 真库化（路线一， 判责）后表结构唯一来源 = backend/migration，
+//! 表结构唯一来源 = backend/migration，
 //!    inventory_reservations 的三个真外键（fk_inventory_reservations_order/product/
-//!    warehouse，m0010:63-65）同样存在：本用例锁的仍是「应用层预检先行」——
+//!    warehouse，m0010:63-65）同样存在：本用例锁的是「应用层预检先行」——
 //!    坏引用在触库前即被 404 拒绝（若预检被删，才会以 23503 FK 落 DATABASE_ERROR/500）；
-//!    修复前后形态对照语义不变（404 + 零脏行）。
-//! 2. `voucher_ops/workflow.rs` 借贷不平衡拒绝复用 `crud.rs` 的唯一装配点
-//!    `balance_error`（VALIDATION 族 + 脱敏出参「请求参数验证失败」），修复前是
-//!    AppError::bad_request（BAD_REQUEST 码）——与 crud.rs create/update 同语义不同族，
-//!    前端按 code 分支必然不一致。workflow 状态门带 lock_exclusive（PG 行锁），
-//!    真库化后活库行为用例**转正真跑**（路线一）；族一致性另配源码扫描锁双保险。
+//!    契约出参口径恒为 404 + 零脏行。
+//! 2. `voucher_ops/workflow.rs` 借贷不平衡拒绝必须复用 `crud.rs` 的唯一装配点
+//!    `balance_error`（VALIDATION 族 + 脱敏出参「请求参数验证失败」），不得另装配
+//!    BAD_REQUEST——同语义与 crud.rs create/update 分属两族会让前端按 code 分支不一致。
+//!    workflow 状态门带 lock_exclusive（PG 行锁），活库行为用例在真 PG 直接真跑
+//!    （不带 `#[ignore]`）；族一致性另配源码扫描锁双保险。
 //! 3. `outsourcing_ops/order.rs` 不得再把 SeaORM DbErr 重包装成 DatabaseError 并拼
 //!    错误原文（{e} 含约束名/列名）——一律经 From<DbErr> 统一分类，真实原因只进
 //!    tracing::error，出参脱敏。源码扫描锁固化。
@@ -55,7 +55,7 @@ use tower::ServiceExt;
 // 1) 库存预留引用预检（真 PG 行为锁；表结构唯一来源 = backend/migration）
 // =========================================================
 
-/// 真库 FK 父行自插（裁定 R1）：`sales_orders.customer_id NOT NULL` 有
+/// 真库 FK 父行自插：`sales_orders.customer_id NOT NULL` 有
 /// fk_sales_orders_customer→customers、fk_sales_orders_created_by→users（m0001:632-633），
 /// 而 customers/users 属会被清空且不播种的业务表 ⇒ 用例必须自带合法父行，
 /// 不指望环境已有数据。链：users(7) → customers(1) → sales_orders(1)。
@@ -197,7 +197,7 @@ async fn assert_not_found_rejection(err: AppError, ctx: &str) {
     );
 }
 
-/// 不存在的 order_id → 404 NOT_FOUND（修复前：直达 DB 外键 → DATABASE_ERROR/500）
+/// 不存在的 order_id → 404 NOT_FOUND（不得直达 DB 外键成 DATABASE_ERROR/500）
 #[tokio::test]
 async fn create_reservation_missing_order_is_404_not_500() {
     let db = seeded_db().await;
@@ -310,7 +310,7 @@ async fn create_reservation_with_valid_refs_succeeds_and_readable() {
 }
 
 /// handler 级端到端（POST 真实 JSON 出参）：坏 order 引用 → 404 NOT_FOUND，
-/// 修复前形态为直达 FK 的 500 "数据库错误"（23503 经 From<DbErr> 裸落 DATABASE_ERROR）
+/// 锁不得成 500 "数据库错误"（23503 不得经 From<DbErr> 裸落 DATABASE_ERROR）
 #[tokio::test]
 async fn create_reservation_handler_returns_404_envelope_for_missing_refs() {
     fn make_auth(user_id: i32) -> AuthContext {
@@ -381,7 +381,7 @@ async fn create_reservation_handler_returns_404_envelope_for_missing_refs() {
 }
 
 // =========================================================
-// 2) 凭证 workflow 借贷不平衡：VALIDATION 族 + 脱敏（真库转正真跑，路线一）
+// 2) 凭证 workflow 借贷不平衡：VALIDATION 族 + 脱敏（真库用例直接真跑）
 // =========================================================
 
 /// 借贷不平衡凭证种子（draft 或指定状态；分录借 100 / 贷 99，绕开 create 校验直插）
@@ -487,8 +487,8 @@ fn assert_balance_validation_family(err: AppError) {
 }
 
 /// 真库：draft 借贷不平凭证 submit → 400 VALIDATION_ERROR + 脱敏出参。
-/// 路线一真库化：workflow 状态门 lock_exclusive 是 PG 行锁，真库可真跑 ⇒ 转正执行，
-/// 不再 #[ignore]；连接走公共夹具 setup_test_db()（清业务表后自插种子，无环境耦合）。
+/// workflow 状态门 lock_exclusive 是 PG 行锁 ⇒ 本用例在真 PG 直接真跑（不带
+/// `#[ignore]`）；连接走公共夹具 setup_test_db()（清业务表后自插种子，无环境耦合）。
 #[tokio::test]
 async fn voucher_submit_unbalanced_is_validation_error_redacted() {
     let db = test_common::setup_test_db().await;
@@ -549,7 +549,7 @@ fn source_scan_balance_error_single_validation_family_across_files() {
     }
 
     // workflow：两个校验函数都经 Self::balance_error 复用同族同措辞，
-    // 全文件不得再出现 bad_request（修复前 :265/:289 两处即在此）
+    // 全文件不得再出现 bad_request（出现即 BAD_REQUEST 族回潮）
     assert_eq!(
         workflow.matches("Self::balance_error(").count(),
         2,

@@ -1,6 +1,5 @@
-//! 仓库删除引用预检契约锁（`DELETE /warehouses/3` 被
-//! `fk_greige_fabric_warehouse` 拒后 DbErr 裸冒 500 `DATABASE_ERROR`，本波修复 →
-//! 400 `BUSINESS_ERROR` + 可外显文案）
+//! 仓库删除引用预检契约锁：删除被引用挡住（如 `fk_greige_fabric_warehouse`）时必须出
+//! 400 `BUSINESS_ERROR` + 可外显文案，不得让 FK 违约的 DbErr 裸冒 500 `DATABASE_ERROR`。
 //!
 //! 锁定的契约（`backend/src/services/warehouse_service.rs` delete /
 //! find_warehouse_references / map_warehouse_fk_error）：
@@ -11,15 +10,15 @@
 //! - 拒绝路径不删行、不 CASCADE 静默删子行；无引用 → 硬删 + 审计落库（真实 user_id）
 //! - `products.warehouse_id`（m0001 遗留列、实体未映射、FK fk_products_warehouse 存活）
 //!   由参数化原生 COUNT 覆盖，本文件锁该分支不回归 500
-//! - 不存在的仓库 → 404 NOT_FOUND（与修复前语义一致）
+//! - 不存在的仓库 → 404 NOT_FOUND（预检不得把 404 拉成 400/500）
 //!
-//! 覆盖策略（路线一，同 contract_wave1_crm_lead_delete_reference_test）：
+//! 覆盖策略（同 contract_wave1_crm_lead_delete_reference_test）：
 //! `test_common::setup_test_db()` 打已迁移 PostgreSQL（每次 TRUNCATE 业务表，用例互不串库）。
 //!
 //! 已知不可判定分支（诚实记录）：竞态兜底 `map_warehouse_fk_error`（预检清单外的 FK 在
 //! DELETE 阶段命中）无法在单连接测试上确定性触发；预检与删除已同事务 + 父行
 //! lock_exclusive 收窄窗口（PG 子表插入对父行 FOR KEY SHARE 与 FOR UPDATE 互斥），
-//! 兜底分支未在本文件断言范围，见交付报告。
+//! 兜底分支未在本文件断言范围。
 
 mod test_common;
 
@@ -52,7 +51,7 @@ const WH_REFERENCED_ID: i32 = 9471;
 const WH_CLEAN_ID: i32 = 9472;
 const WH_PRODUCTS_ID: i32 = 9473;
 
-/// 预检命中（实体列分支，CI 事故同型：greige_fabric 引用 2 行）
+/// 预检命中（实体列分支：greige_fabric 引用 2 行）
 const REFUSED_GREIGE: &str = "该仓库已被 2条坯布库存记录占用，无法删除，请先处理关联数据";
 /// 预检命中（products.warehouse_id 遗留列原生 COUNT 分支）
 const REFUSED_PRODUCTS: &str = "该仓库已被 1个产品档案的默认仓关联占用，无法删除，请先处理关联数据";
@@ -79,7 +78,7 @@ async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32) {
 }
 
 /// 引用行：真表 greige_fabric（FK fk_greige_fabric_warehouse → warehouses(id)，
-/// 即 CI 日志里拒绝 DELETE 的那条约束）。
+/// 即挡住本用例 DELETE 的约束）。
 async fn seed_greige_ref(db: &sea_orm::DatabaseConnection, warehouse_id: i32, n: i32) {
     for seq in 1..=n {
         greige_fabric::ActiveModel {
@@ -182,7 +181,7 @@ fn assert_no_internal_leak(msg: &str, hidden_id: i32) {
 // service 层（真实 PostgreSQL）
 // =========================================================
 
-/// 被坯布引用的仓库删除 → 预检拒绝（CI 事故同型）：BusinessErrorDisplayable 族、
+/// 被坯布引用的仓库删除 → 预检拒绝：BusinessErrorDisplayable 族、
 /// 文案逐字锁死、仓库必须仍在（拒绝发生在 DELETE 之前，不静默删、不 CASCADE）
 #[tokio::test]
 async fn delete_warehouse_referenced_by_greige_rejected_with_displayable_business_error() {
@@ -231,7 +230,7 @@ async fn delete_warehouse_referenced_by_greige_rejected_with_displayable_busines
 }
 
 /// products.warehouse_id 遗留列（实体未映射）分支：原生 COUNT 预检必须同样拦截，
-/// 否则该 FK 命中仍会裸冒 500（本分支若不覆盖，修复只堵住 CI 日志那一条约束）
+/// 否则该 FK 命中仍会裸冒 500（greige 约束分支覆盖不了这条遗留 FK）
 #[tokio::test]
 async fn delete_warehouse_referenced_by_legacy_products_column_rejected() {
     let db = live_db().await;
@@ -284,7 +283,7 @@ async fn delete_unreferenced_warehouse_succeeds_and_writes_audit() {
     assert!(audits[0].before_snapshot.is_some(), "删除前快照必须留存");
 }
 
-/// 不存在的仓库 → 404 NOT_FOUND（与修复前语义一致，预检改动不得把 404 拉成 400/500）
+/// 不存在的仓库 → 404 NOT_FOUND（预检改动不得把 404 拉成 400/500）
 #[tokio::test]
 async fn delete_missing_warehouse_is_404() {
     let db = live_db().await;

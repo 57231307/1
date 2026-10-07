@@ -1,18 +1,19 @@
-//! 销售价目批 —— `price_level` 写链接入（A′）+ `expiry_date` 静默/三态 + 查询参数漂移 防回潮契约锁
+//! 销售价目 `price_level` 写链接入 + `expiry_date` 静默/三态 + 查询参数收口 防回潮契约锁
 //!
-//! 钉死事实（决策建议书裁定 2 A′ + F1b 交回清单 §6-6/§6-7）：
-//! - `price_level` 此前是"列有（m0011:185）、实体有（models/sales_price.rs:20）、读链有、
-//!   写链断（两写 DTO 无键 ⇒ create 恒 NULL）"的中间态；A′ 按真实词表接入，取值域**单源**于
-//!   `inventory_stock_grade`（models/status/purchase_inventory.rs:308-320，一等品/二等品/等外品），
-//!   保守集 = {一等品, 二等品}（「等外品」是否开放手工定价待用户终裁，批了才扩白名单并同步改本锁）。
+//! 钉死事实（本文件唯一职责）：
+//! - `price_level` 写链已接入：列（m0011:185）、实体（models/sales_price.rs:20）、读链、写链
+//!   同源贯通；取值域**单源**于 `inventory_stock_grade`
+//!   （models/status/purchase_inventory.rs:321-332，一等品/二等品/等外品），
+//!   保守集 = {一等品, 二等品}（等外品不在手工定价白名单内）。
 //!   前端伪词表 `A/B/C/D`（"A级"）必须 400 + VALIDATION_ERROR——裸收会造出既不被当标准价、
-//!   又不匹配二等品的孤儿行，打断质检降级链（quality_inspection_service.rs:570-600）。
-//! - create 的 `expiry_date` 此前 `.and_then(|d| d.parse().ok())` 把非法日期串静默吞成 NULL
-//!   （不报错、不落库，F1b §6-7 证真），现与 `effective_date` 同口径 fail-visible 400，且拒绝路径零副作用。
-//! - update `expiry_date`（可空列）三态统一（任务板，照 department_service.rs:220-221 先例）
+//!   又不匹配二等品的孤儿行，打断质检降级链（quality_inspection_service.rs:711-725
+//!   按"一等品或 price_level IS NULL"认标准价）。
+//! - create 的 `expiry_date` 与 `effective_date` 同口径 fail-visible：非法日期串 → 400，
+//!   拒绝路径零副作用（绝不允许 `.parse().ok()` 式静默吞成 NULL——不报错也不落值）。
+//! - update `expiry_date`（可空列）三态统一（照 department_service.rs:220-221 先例）：
 //!   缺键=保持 / 显式 null=清空 NULL / 给值=改值；`effective_date` 为 NOT NULL 列，显式 null 拒绝而非静默保持。
-//! - 列表查询参数 `keyword`（前端承诺"产品名称/客户名称"模糊匹配）与 `customer_id` 此前前端在传、
-//! 后端 `SalesPriceQuery` 无键被 serde 静默忽略（同族假筛选），现已接收并下推谓词。
+//! - 列表查询参数 `keyword`（产品名称/客户名称模糊匹配）与 `customer_id` 已由
+//!   `SalesPriceQuery` 接收并下推谓词——不收键即被 serde 静默忽略，属假筛选。
 //! - 夹具为真库（`setup_test_db`，已迁移 PostgreSQL，缺 TEST_DATABASE_URL 直接 panic，禁静默回退）；
 //!   种子自建自清（夹具每次调用 TRUNCATE 业务表）。只断 status + 信封机器码，
 //!   **不断错误文案原文**（本仓拒绝文案永久脱敏）。
@@ -88,9 +89,8 @@ async fn seed_customer(db: &Arc<DatabaseConnection>, id: i32, name: &str) {
         credit_limit: Set(Decimal::ZERO),
         payment_terms: Set(30),
         status: Set("active".to_string()),
-        // 词表安全侧：constants::customer_type::ALLOWED 成员（见 models/customer.rs 列注）。
-        // 旧值 "direct" 不在 chk_customers_customer_type 五值集合内，种子插入即被 DB 拒绝
-        // （CI 族A 8 例同因），此处仅改数据取值对齐姊妹文件，不动任何断言。
+        // 词表安全侧：constants::customer_type::ALLOWED 成员（见 models/customer.rs 列注）；
+        // 词表外的取值会在种子插入时被 chk_customers_customer_type CHECK 直接拒绝。
         customer_type: Set("retail".to_string()),
         created_at: Set(now()),
         updated_at: Set(now()),
@@ -101,7 +101,7 @@ async fn seed_customer(db: &Arc<DatabaseConnection>, id: i32, name: &str) {
     .unwrap_or_else(|e| panic!("种子客户 {id} 插入失败: {e}"));
 }
 
-/// 线格式口径建单入参（price 走十进制 string，对齐 F1b §1.2 终态；等级/到期日按用例注入）
+/// 线格式口径建单入参（price 走十进制 string；等级/到期日按用例注入）
 fn create_input(price_level: Option<&str>, expiry_date: Option<&str>) -> CreateSalesPriceInput {
     CreateSalesPriceInput {
         product_id: SEED_PRODUCT_ID,
@@ -200,9 +200,9 @@ async fn create_price_level_second_grade_persists_and_lists_back() {
 }
 
 // ---------------------------------------------------------------------------
-// 2. 伪词表拒绝："A级"/"A"/"B级"（前端表单伪造值）与保守集外的"等外品"（待用户终裁）
+// 2. 伪词表拒绝："A级"/"A"/"B级"（前端表单伪造值）与保守集外的"等外品"
 //    一律 400 + VALIDATION_ERROR，且拒绝路径零副作用（不落行）。
-//    改坏什么必红：裸收 DTO 键不做白名单 → "A级" 段红（孤儿行打断质检降级链的入口 reopen）。
+//    改坏什么必红：裸收 DTO 键不做白名单 → "A级" 段红（孤儿行打断质检降级链的入口重现）。
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn create_price_level_out_of_whitelist_is_400_with_zero_side_effects() {
@@ -212,7 +212,7 @@ async fn create_price_level_out_of_whitelist_is_400_with_zero_side_effects() {
     seed_customer(&db, SEED_CUSTOMER_ID, "波次等级客户丙").await;
     let svc = SalesPriceService::new(db.clone());
 
-    // "等外品"属词表真实值但不在本批保守集 {一等品,二等品}；用户终裁开放时本例随白名单同步扩
+    // "等外品"属词表真实值但不在保守集 {一等品,二等品}；若白名单调整，本例须同步改
     for illegal in ["A级", "A", "B级", inventory_stock_grade::OFF_GRADE] {
         let err = svc
             .create_price(create_input(Some(illegal), None), OPERATOR_ID)
@@ -233,7 +233,7 @@ async fn create_price_level_out_of_whitelist_is_400_with_zero_side_effects() {
 // ---------------------------------------------------------------------------
 // 3. 缺键/空串 ⇒ NULL ⇒ 标准价语义保持：线格式 JSON（无 price_level 键）反序列化建单
 //    落 NULL；空串归一 NULL；两者审批后落库回读仍是 NULL 等级 + approved——质检侧
-//    quality_inspection_service.rs:576 用 price_level IS NULL 认标准价，本语义不得改成空串。
+//    quality_inspection_service.rs:711-725 用 price_level IS NULL 认标准价，本语义不得改成空串。
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn create_without_or_empty_price_level_falls_null_and_stays_standard_price() {
@@ -336,7 +336,7 @@ async fn update_price_level_passes_through_and_rejects_fake_vocab() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. update expiry_date 三态（任务板 统一口径）：缺键=保持 / 显式 null=清空 NULL /
+// 5. update expiry_date 三态（统一口径）：缺键=保持 / 显式 null=清空 NULL /
 //    给值=改值 / 非法值=400 且行不动。double_option 的"显式 null 不塌成缺键"在
 //    线格式层直接取证（matches! 三态形状）。
 // ---------------------------------------------------------------------------
@@ -386,7 +386,7 @@ async fn update_expiry_date_three_states_via_wire() {
         .expect("给合法日期更新必须成功");
     assert_eq!(after.expiry_date, Some(y2027_06_30), "给值必须改值");
 
-    // ③ 显式 null = 清空为 NULL（此前无通道：前端清空到期日必然无效——F1b §6-7 证真）
+    // ③ 显式 null = 清空为 NULL（前端"清空到期日"的唯一通道；缺此语义清空必然无效）
     let req: UpdateSalesPriceInput = serde_json::from_value(json!({ "expiry_date": null }))
         .expect("显式 null 线格式必须可反序列化");
     assert!(
@@ -460,8 +460,8 @@ async fn update_effective_date_explicit_null_is_rejected_not_silent() {
 }
 
 // ---------------------------------------------------------------------------
-// 7. create expiry_date 非法串：F1b §6-7 证真的缺陷（旧 `.parse().ok()` 不报错不落值）
-//    钉回潮面：必须 400 + VALIDATION_ERROR + 零副作用（不落行）。
+// 7. create expiry_date 非法串：必须 400 + VALIDATION_ERROR + 零副作用（不落行）；
+//    钉回潮面：`.parse().ok()` 式静默吞 NULL（不报错、不落值）。
 // ---------------------------------------------------------------------------
 #[tokio::test]
 async fn create_invalid_expiry_date_is_fail_visible_400_not_silent_null() {
@@ -489,7 +489,7 @@ async fn create_invalid_expiry_date_is_fail_visible_400_not_silent_null() {
 }
 
 // ---------------------------------------------------------------------------
-// 8. 查询参数漂移（同族）：keyword（产品名称/客户名称模糊）与 customer_id
+// 8. 查询参数收口：keyword（产品名称/客户名称模糊）与 customer_id
 //    后端已接收并下推谓词——命中、不命中、等值三类形态各钉一条。
 //    改坏什么必红：谓词摘回"收了不用"→ 命中段红；JOIN 误用 InnerJoin → 无客户行丢、0 段仍绿
 //    但命中段（客户 NULL 行按产品名命中）红。

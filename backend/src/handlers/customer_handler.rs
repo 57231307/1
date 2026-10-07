@@ -2,7 +2,6 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-// v9 P1-G 修复：移除未使用的 Serialize import
 use serde::Deserialize;
 use validator::Validate;
 
@@ -15,7 +14,7 @@ use crate::utils::admin_checker::is_admin_role;
 use crate::utils::data_permission::{DEFAULT_HIDDEN_FIELDS, DataPermissionFilter};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
-// V15 P0-S15/P0-S12 补齐（Batch 474）：导出端点使用水印版 xlsx 工具
+// 客户列表导出端点用带水印的 xlsx 构造器（utils/xlsx_export.rs）
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 
 /// 创建客户请求
@@ -129,21 +128,19 @@ pub struct UpdateCustomerRequest {
     pub notes: Option<String>,
 }
 
-/// 客户域标准入口第一层：`field_permissions` 表驱动的字段级读过滤（历史 12.3-3 接入）。
+/// 客户域读出口的第一层：按 `field_permissions` 表（`resource_type="customer"`）做
+/// 字段级读过滤，调用方为 `list_customers` / `get_customer`。
 ///
-/// 由 `list_customers`/`get_customer` 两处**逐字内联的同型代码块**纯提取为唯一实现，
-/// 判定顺序与语义保持不变：对持 `role_id` 的角色查 `resource_type="customer"` 的字段
-/// 配置，非空时逐行先 `filter_fields_by_read_permission`（`can_read=false` 整键移除）、
-/// 再 `mask_fields`（`!can_read && mask_strategy=="MASK"` 置 `"***"`——`"***"` 字面量
-/// 属 `FieldPermissionService` 既有实现，本函数不重写、不复制）。`role_id` 缺失或配置
-/// 为空 = 空操作（原内联行为）；配置查询 `Err` 按空配置继续（原内联
-/// `unwrap_or_default` 形态原样保留，非本轮新引入的回落）。
+/// 判定顺序：按入参 `role_id` 查该角色的字段配置行 → 逐行先
+/// `filter_fields_by_read_permission`（`can_read=false` 整键移除）、再 `mask_fields`
+/// （`mask_strategy="MASK"` 置 `"***"`，该字面量属 `FieldPermissionService` 的实现，
+/// 本函数不重写、不复制列名清单）。`role_id` 缺失、配置行为空、或配置查询返回 `Err`
+/// （`unwrap_or_default` 降级为空配置）时是空操作，出参原样返回。
 ///
 /// 与第二层 `crm_customer_handler::apply_customer_field_permission`（`data_permissions`
 /// 行 + 默认脱敏掩码）是**两个判定源、两层叠加**，不是二选一：客户域读出口（列表/详情/
-/// 360）按"先本函数、后第二层"的既有顺序串联调用；不消费 `field_permissions` 配置行的
-/// 其它出口维持单层调用（其改造前形态）。360 出口接线本函数即为"与列表端点看到的
-/// 完全一致"的等式前提——不在 360 里复制一份内联配置处理。
+/// 360）按"先本函数、后第二层"的顺序串联调用；不消费 `field_permissions` 配置行的
+/// 其它出口只走单层。
 pub(crate) async fn apply_customer_field_config_mask(
     state: &AppState,
     role_id: Option<i32>,
@@ -177,14 +174,15 @@ pub async fn list_customers(
 ) -> Result<Json<ApiResponse<crate::utils::response::PaginatedResponse<serde_json::Value>>>, AppError>
 {
     let page_req = PageRequest {
-        page: query.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        page: query.page.unwrap_or(1).clamp(1, 1000), // 深翻页防护：page 钳位 1..=1000
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
     };
 
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
-    // V15 P0-S01：提取行级数据权限上下文
+    // 行级数据权限上下文：作为 data_scope 参数下传 list_customers_with_filter，
+    // 按当前用户数据范围（self/dept/all）限定可见客户行
     let data_scope_ctx = auth.to_data_scope_context();
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
@@ -199,17 +197,17 @@ pub async fn list_customers(
         )
         .await?;
 
-    // 12.3-3：字段级读权限过滤（field_permissions 接入）——判定语义见
-    // `apply_customer_field_config_mask`（本出口与详情/360 共用同一实现，不再内联）
+    // 字段级读权限过滤（field_permissions 表）：判定语义见本文件
+    // `apply_customer_field_config_mask`，列表/详情/360 共用同一实现
     let mut masked_items = result.items;
     apply_customer_field_config_mask(&state, auth.role_id, &mut masked_items).await;
 
-    // P1-08-5：非管理员对客户列表手机号/邮箱脱敏——收口到客户域字段级权限唯一实现
-    // `apply_customer_field_permission`（终局口径：同资源同形状同一行配置判定）。
-    // 其默认脱敏分支 `mask_customer_pii_defaults` 掩码等价原内联
-    // `mask_contact_fields_for_role`（权威列集合唯一=utils/field_mask，只掩码不删键），
-    // 另加非 admin `address` 整键移除=只更严不放松；有权限行时走同一
-    // filter_fields_batch，不再维护第二套内联分支。
+    // 客户域 PII 出参脱敏的唯一实现 `crm_customer_handler::apply_customer_field_permission`
+    // （列表/详情/360 同一入口，同资源同形状）：第 1 层 `utils/field_mask::mask_contact_fields_for_role`
+    // 掩码手机号/邮箱列集合并对非 admin 移除 `address`，第 2 层叠加角色数据权限行的
+    // allowed/hidden（只删键，不会把掩码还原成原文）。admin 由
+    // `utils/admin_checker::is_admin_role`（roles.code='admin'）判定；列名清单只在该
+    // 工具模块维护，本 handler 不重写第二套分支。
     apply_customer_field_permission(&state, auth.role_id, &mut masked_items).await;
 
     Ok(Json(ApiResponse::success(
@@ -231,7 +229,8 @@ pub async fn get_customer(
     // 获取数据权限过滤器
     let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
 
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 行级数据权限上下文：下传 get_customer_with_filter，由其内部
+    // `utils/data_scope.rs::check_resource_owner` 判归属（IDOR 防护），越权返回 403
     let data_scope_ctx = auth.to_data_scope_context();
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
@@ -239,8 +238,8 @@ pub async fn get_customer(
         .get_customer_with_filter(id, permission_filter, Some(&data_scope_ctx))
         .await?;
 
-    // 12.3-3：字段级读权限过滤（field_permissions 接入）——与列表出口共用
-    // `apply_customer_field_config_mask` 同一实现（判定顺序与语义逐字同原内联块）
+    // 字段级读权限过滤：与列表出口共用 `apply_customer_field_config_mask`，
+    // 详情单行按 `slice::from_mut` 传入同一批处理入口
     let mut customer_json = customer_json;
     apply_customer_field_config_mask(
         &state,
@@ -249,9 +248,8 @@ pub async fn get_customer(
     )
     .await;
 
-    // P1-08-5：非管理员对客户详情手机号/邮箱脱敏——与列表同一收口（终局口径：
-    // 权限版 `apply_customer_field_permission`；默认脱敏掩码等价旧内联
-    // `mask_contact_fields_for_role`，只更严不放松，掩码列集合全仓唯一）
+    // PII 脱敏与列表同一收口 `apply_customer_field_permission`（两层判定见列表出口
+    // 上方说明），保证详情与列表对同一角色给出同形状的掩码结果
     apply_customer_field_permission(
         &state,
         auth.role_id,
@@ -272,8 +270,8 @@ pub async fn create_customer(
 
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
-    // P2-1 修复（批次 388 v13 复审）：原 parse().ok().unwrap_or(ZERO) 静默置零信用额度，
-    // 用户输入非法值时无任何提示，改为显式校验报错
+    // 信用额度：缺省/空串取 Decimal::ZERO 入库；非空但解析失败出 VALIDATION 并外显原因，
+    // 不走 `ok().unwrap_or()` 把非法输入静默变成 0
     let credit_limit = match payload.credit_limit.as_deref() {
         Some(s) if !s.is_empty() => s.parse::<rust_decimal::Decimal>().map_err(|e| {
             AppError::validation_displayable(format!("信用额度格式错误：{}（请输入有效数字）", e))
@@ -359,12 +357,12 @@ pub async fn update_customer(
     let existing = customer_service
         .get_customer(id, Some(&data_scope_ctx))
         .await?;
-    // 方案 A（用户 2026-10-02 裁定）：读可 All、写须 owner 或显式「管理员代操作」键 + 留痕。
-    // 上面的 get_customer 只保证"看得见"（All 看得见全库），看不见才 403；跨 owner 的
-    // **写**另由本门判定，未授予 crm/cross_owner_write 的角色改他人客户即 403。
-    // 归属列与读门逐字同源（owner_id）：created_by 只是可空审计列，按它判定会把
-    // "本人名下但 created_by 为 NULL/由他人创建后转给我"的行误判为跨 owner（合法
-    // 归属人被拒），同时把"我创建后已转让他人"的行放行给创建人（越权写）。
+    // 写侧越权门：上方的 get_customer 只保证"看得见"（DataScope::All 可读全域），
+    // 跨 owner 的**写**另由 `crm_write_guard::ensure_cross_owner_write_allowed` 判定——
+    // 须本人行，或持有权限键 resource_type="crm"/action="cross_owner_write"
+    // （`CROSS_OWNER_WRITE_KEY`），否则 403。
+    // 归属列与读门同取 `owner_id`（customers 的 RLS 归属列，权威口径见
+    // `migration/src/domain/rls_dept/mod.rs`）；`created_by` 只是可空审计列，不参与归属判定。
     crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
         state.db.clone(),
         &auth,
@@ -375,8 +373,8 @@ pub async fn update_customer(
     )
     .await?;
 
-    // P2-1 修复（批次 388 v13 复审）：原 parse().ok() 静默吞错，
-    // 用户输入非法值时信用额度不更新且无提示，改为显式校验报错
+    // 信用额度：缺省/空串写 None（不更新该列）；非空但解析失败出 VALIDATION 并外显原因，
+    // 不走 `parse().ok()` 把非法输入静默当成"没改"
     let credit_limit = match payload.credit_limit.as_deref() {
         Some(s) if !s.is_empty() => Some(s.parse::<rust_decimal::Decimal>().map_err(|e| {
             AppError::validation_displayable(format!("信用额度格式错误：{}（请输入有效数字）", e))
@@ -409,7 +407,7 @@ pub async fn update_customer(
             quality_requirement: payload.quality_requirement,
             inspection_standard: payload.inspection_standard,
             notes: payload.notes,
-            // 批次 101 v6 复审 P2-1：透传操作人 user_id 用于审计日志
+            // 操作人 user_id 随参数下传，由 update_with_audit 写入 audit_log 的 actor
             user_id: auth.user_id,
         })
         .await?;
@@ -458,7 +456,7 @@ pub async fn delete_customer(
     )
     .await?;
 
-    // 批次 101 v6 复审 P2-2：透传操作人 user_id 用于审计日志
+    // 操作人 user_id 随删除请求一并下传，供服务层写审计日志
     customer_service.delete_customer(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message((), "客户删除成功")))
 }
@@ -476,8 +474,14 @@ pub struct CustomerListQuery {
     pub download_token: Option<String>,
 }
 
-/// 获取数据权限过滤器；根据角色权限构建数据库层面的字段过滤器，将数据权限过滤下推到数据库层；参数 - `state`: 应用状态 - `auth`: 认证上下文 - `resource_type`: 资源类型（如 "customer"）；返回 返回数据权限过滤器
-/// 如果管理员或无需过滤则返回 None；P2-1 修复（批次 388 v13 复审）：原返回 Option 静默吞 DB 错误， 改为 Result<Option<...>, AppError> 并在 Err 时 tracing::warn! 记录
+/// 构建下推到数据库层的字段级数据权限过滤器 `DataPermissionFilter`；调用方为本域的
+/// `list_customers` / `get_customer` / `export_customers`。
+///
+/// 入参 `resource_type` 是权限资源名（客户域固定传 `"customer"`）。出参 `Ok(None)` =
+/// 不加字段过滤（`role_id` 缺失、admin 由 `utils/admin_checker::is_admin_role`
+/// （roles.code='admin'）判定、或 `data_scope="all"`）；`Ok(Some(filter))` 携带
+/// allowed/hidden 列名集合，角色无权限配置行时 hidden 取 `DEFAULT_HIDDEN_FIELDS`。
+/// 权限查询返回 `Err` 时记 warn 后按 `DEFAULT_HIDDEN_FIELDS` 降级，查询继续不中断。
 async fn get_permission_filter(
     state: &AppState,
     auth: &AuthContext,
@@ -488,8 +492,8 @@ async fn get_permission_filter(
         None => return Ok(None),
     };
 
-    // 管理员角色或全量数据权限不过滤
-    // V15 P2 B10-P2-5：使用 is_admin_role 函数替代硬编码 role_id==1 判定
+    // 管理员角色或全量数据权限范围不做字段过滤；admin 判定走唯一权威源
+    // `utils/admin_checker::is_admin_role`（roles.code='admin'），不用角色主键字面量
     if is_admin_role(&state.db, role_id).await || auth.data_scope.as_deref() == Some("all") {
         return Ok(None);
     }
@@ -518,8 +522,8 @@ async fn get_permission_filter(
             )))
         }
         Err(e) => {
-            // P2-1 修复（批次 388 v13 复审）：原 Err(_) 静默吞错，
-            // 改为 warn 日志记录 + 返回默认隐藏字段（降级处理，不阻断主流程）
+            // 权限查询失败不阻断主流程：记 warn 后按 DEFAULT_HIDDEN_FIELDS 降级，
+            // 即"读不到配置就按最严格默认隐藏列"，不放大可见范围
             tracing::warn!(
                 role_id,
                 resource_type,

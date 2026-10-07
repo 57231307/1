@@ -1,7 +1,7 @@
 // 采购 E2E 套件 — 14 采购退货过账 → 库存扣减回退 + 订单进度（联动现状锁）
 //
-// 补齐审计缺口「采购退货仅 toast、未回读库存回退与订单进度联动」(P1)。
-// 本例「退货过账（approve）→ GET /inventory/stock 精确回读四维行 quantity_on_hand 减少」，禁只断 toast。
+// 联动现状锁：退货过账后的库存回退与订单进度必须 API 回读取证，禁只断 toast。
+// 本例「退货过账（approve）→ GET /inventory/stock 精确回读四维行 quantity_on_hand 减少」。
 //
 // 后端事实来源（写入方为准，逐字段核对）：
 // - 退货过账：POST /purchase/returns/{id}/approve（purchase_return_service.rs::approve_return）：
@@ -16,13 +16,12 @@
 //     ③ 同一事务内 writeback_source_order_received_quantity 按产品归集退货量、在该订单同产品
 //        明细行按 line_no 升序逐行把 received_quantity 减回（min 保下限 0），并重算 PO 状态
 //        （全收 COMPLETED / 有收 PARTIAL_RECEIVED / 归零回 APPROVED）。
-// ⚠ CI E11 判责更新：旧版本文件头注「仅按产品+仓库定位第一行、approve 不回写订单进度」
-//     是旧契约描述，现源码两条都已推翻——退货明细必须携带与入库一致的色号/缸号/批次
+// 退货明细契约（与源码逐字段核对）：明细必须携带与入库一致的色号/缸号/批次
 //     （CreateReturnItemRequest.color_no/dye_lot_no/batch_no），扣减才按四维真实发生；
-//     且退货过账**会**回退来源 PO received_quantity 并重算状态。本例据此如实断言新契约，
+//     且退货过账**会**回退来源 PO received_quantity 并重算状态。本例据此如实断言，
 //     维度值取自本用例自建入库后回读的真实库存行（不硬编码、不塞 TEST 假值）。
 //     四维口径核对：本退货链路后端定位键 = 产品+色号+缸号+批次（三维追溯 + 产品），
-//     不含匹号——出库销售侧的「缸号/色号/批次/匹号」四维强制不适用于采购退货，未擅自扩维。
+//     不含匹号——出库销售侧的「缸号/色号/批次/匹号」四维强制不适用于采购退货，不擅自扩维。
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -190,8 +189,8 @@ test.describe('14 采购退货过账 → 库存回退', () => {
     // 四维定位契约（return_item_stock_key vs stock_row_key）下，同产品同仓存在其它批次行
     // 不构成歧义——扣减按 (产品+色号+缸号+批次) 唯一命中，仅当同四维键多行（差异只在等级）
     // 才触发后端歧义拒绝；本用例维度值带唯一 tag，天然排除该形态。
-    // 旧版此处 test.skip(行数>1) 的前提是「按产品+仓库取第一行」的旧契约，已被源码推翻，
-    // 条件跳过会制造假绿盲区，故删除 skip，如实走四维扣减。
+    // 此处不加 test.skip(行数>1)："按产品+仓库取第一行"的前提与四维定位契约相悖，
+    // 条件跳过只会制造假绿盲区，故如实走四维扣减。
 
     // 建退货单（draft）→ 加明细（退货 20，**带与入库一致的真实三维**）→ submit → approve（过账）
     const ret = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', {
@@ -208,11 +207,11 @@ test.describe('14 采购退货过账 → 库存回退', () => {
     if (!returnId) throw new Error(`建退货单未返回 id：${JSON.stringify(ret)}`);
     CREATED_RETURN_IDS.push(returnId);
 
-    // CI E11 修复：退货明细补传 color_no/dye_lot_no/batch_no——CreateReturnItemRequest
+    // 退货明细必须携带 color_no/dye_lot_no/batch_no——CreateReturnItemRequest
     // 本就支持这三键（purchase_return_service.rs::CreateReturnItemRequest，落库 NOT NULL DEFAULT ''）。
     // 取值全部来自本用例自建入库后 GET /inventory/stock 回读的那一行真实维度（before 行），
     // 不硬编码假值、不塞 TEST；缺维度时后端按空串四维匹配不到入库行，
-    // approve 会 400 BUSINESS_ERROR fail-closed（正是 的红因）。
+    // approve 会 400 BUSINESS_ERROR fail-closed（用例红的直接来源）。
     const returnDims = {
       colorNo: before.color_no,
       dyeLotNo: before.dye_lot_no ?? '',

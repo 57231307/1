@@ -8,13 +8,13 @@ import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
 /**
  * 按状态筛选生产订单列表。
  * 用于把目标状态行集中呈现，确保"造出的工单"对应的状态操作按钮一定在屏内。
- * （order_no 缺陷已修复，本 helper 仅服务状态维度；按单号定位用 filterByOrderNo。）
+ * （本 helper 仅服务状态维度；按单号定位用 filterByOrderNo。）
  */
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
   await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-  // 状态为筛选栏 el-select：旧 pickSelect+elSelectByLabel(/状态/) 命中只读 combobox 内层 input
-  // 被 placeholder 拦 → click 超时。改用冻结 helper：以筛选表单容器（aria-label=生产订单筛选表单）
-  // 为 root + 精确 label「状态」锚定，按整串匹配目标状态项。
+  // 状态筛选是 el-select：不可用 placeholder 正则锚到只读 combobox 的内层 input
+  // （click 超时），改为以筛选表单容器（aria-label=生产订单筛选表单）为 root、
+  // 精确 label「状态」经 pickSelectIn 锚定，按整串匹配目标状态项。
   const filterForm = page.getByLabel('生产订单筛选表单');
   await pickSelectIn(filterForm, page, '状态', { optionText: new RegExp(`^${statusLabel}$`) });
   await page.getByRole('button', { name: /查询/ }).click();
@@ -22,8 +22,8 @@ async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
 
 /**
  * 按「订单编号」筛选生产订单列表。
- * 后端 production-orders 列表接口现已真实接收 order_no 并对 production_order.order_no 列做
- * like 过滤（此前该参数被 serde 静默丢弃、筛选恒不生效）。用于把列表精确收敛到目标单号。
+ * 后端 production-orders 列表接口接收 order_no 并对 production_order.order_no 列做
+ * like 过滤。用于把列表精确收敛到目标单号。
  */
 async function filterByOrderNo(page: Page, orderNo: string): Promise<void> {
   await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
@@ -74,7 +74,7 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
 
   test('新建生产工单', async ({ page }) => {
     // 真实造数：产品为外键，ProductionForm 的「产品ID / 工作中心ID / 计划数量 / 优先级」均为
-    // el-input-number 数字输入（非下拉）——原用例把它们当 el-select 点 option 属臆测；
+    // el-input-number 数字输入（非下拉，按 el-select 点 option 不会命中）；
     // 且「订单编号」label 与筛选栏同名（production.form/filter.labelOrderNo='订单编号'）→ getByLabel strict 命中 2。
     await ensureTestEntities(page);
     const ctx = getCtx();
@@ -86,12 +86,11 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     // 限定到可见 .el-dialog 消除与筛选栏「订单编号」同名 strict；提交按钮真实文案「确定」
     // （production.form.buttonConfirm）；成功提示 production.index.messageCreateSuccess=「创建生产订单成功」。
     // 产品ID/计划数量/优先级均为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
-    // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现（既往红根因）。
+    // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现。
     const dlg = page.locator('.el-dialog:visible').last();
-    // 判责 K-2（测试操作错误，非选择器噪声）：新建对话框「订单编号」是系统自动
-    // 取号字段——DOM 事实（CI call log 原文）：input 带 disabled 且
+    // 新建对话框「订单编号」是系统自动取号字段：DOM 事实——input 带 disabled 且
     // placeholder=「单据号由系统自动生成，无需填写」；fillFieldByLabel 对 disabled input
-    // 恒 "element is not enabled" 重试到 10s 超时（历史教训同型：fabric/02 批次号 readonly）。
+    // 恒 "element is not enabled" 重试到 10s 超时（同型：fabric/02 批次号 readonly）。
     // 真实契约＝自动填充不可手填：此处只断言该字段存在且为禁用自动态，不再 fill。
     const orderNoInput = dlg.getByLabel(/订单编号/);
     await expect(orderNoInput, '订单编号应为系统自动取号的禁用态输入').toBeDisabled({
@@ -110,10 +109,10 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
   test('草稿工单可编辑', async ({ page }) => {
     // 真实造数：建两张 DRAFT 工单，一张为编辑目标、一张为干扰项，
     // 保证列表必有"编辑"入口。
-    // 原实现 `if (await editBtn.isVisible())`：V2Table 操作列按钮是 el-button(link)
+    // 不用 `if (await editBtn.isVisible())` 分支：V2Table 操作列按钮是 el-button(link)
     // → ARIA 角色是 button 而非 link，`getByRole('link')` 恒不命中 → 零断言假绿。
-    // order_no 缺陷已修复：此处恢复按「订单编号」精确定位目标工单（此前因后端丢弃
-    // order_no 只能用状态筛选规避，无法把结果收敛到单个单号）。
+    // 后端列表接口消费 order_no，故本用例按「订单编号」精确定位目标工单
+    // （仅用状态筛选无法把结果收敛到单个单号）。
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
@@ -144,9 +143,9 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
 
   test('已审批工单可计划排产（APPROVED → 已排产）', async ({ page }) => {
     // 状态机为 DRAFT →(submit)→ PENDING_APPROVAL →(approve)→ APPROVED →(排产)→ SCHEDULED。
-    // 原用例标题"草稿工单可计划排产（draft→planned）"与产品不符："计划"按钮仅在
-    // APPROVED 态渲染，DRAFT 态点不到；且 `if (await scheduleBtn.isVisible())` + getByRole('link')
-    // 双重失配 → 恒零断言假绿。此处先经 API 把工单推进到 APPROVED，再硬断言"计划"按钮并驱动排产。
+    // "计划"按钮仅在 APPROVED 态渲染，DRAFT 态点不到；若用 `if (await scheduleBtn.isVisible())`
+    // + getByRole('link') 会双重失配 → 恒零断言假绿。
+    // 故本用例先经 API 把工单推进到 APPROVED，再硬断言"计划"按钮并驱动排产。
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);

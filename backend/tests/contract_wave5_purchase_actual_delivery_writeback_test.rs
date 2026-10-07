@@ -1,37 +1,37 @@
-//! 采购订单 `actual_delivery_date` 收货确认回写契约锁（决策定案）
+//! 采购订单 `actual_delivery_date` 收货确认回写契约锁
 //!
-//! 根因取证（调查组结论，本文件修复后逐项锁死）：
+//! 契约依据（逐项由本文件锁死，路径基准仓库根）：
 //! - 列存在：`migration/src/domain/system/mod.rs` `ALTER TABLE "purchase_orders"
 //!   ADD COLUMN IF NOT EXISTS "actual_delivery_date" DATE;`（可空、**无 DEFAULT**）；
 //!   模型 `models/purchase_order.rs` 为 `Option<NaiveDate>`。
 //! - 有真实读方：`services/purchase_delivery_calculator.rs` 平均交期谓词要求
 //!   `actual_delivery_date IS NOT NULL`（无到货日的单据整批排除）；
 //!   `services/po/order_ops/query.rs` 导出与 `frontend/src/api/purchase.ts` 亦透出。
-//! - 修复前**全仓零写入点**（`purchase_orders` 域内无任何 `actual_delivery_date`
-//!   的 `Set`/赋值；唯一 `Set(None)` 属 `custom_orders` 同名异表列）⇒ 幽灵字段，
-//!   交期绩效恒基于空集。
+//! - 全仓唯一写入点：`services/purchase_receipt_private.rs::write_back_actual_delivery_date`
+//!   （`purchase_orders` 域内仅此一处 `Set`；`custom_orders` 域的 `Set(None)` 属同名异表列）
+//!   ——缺了这条回写，该列恒 NULL、交期绩效恒基于空集。
 //!
-//! 裁定落地：确认收货的**同一事务**回写，语义 = 该 PO 已确认收货中的最大
+//! 回写契约：确认收货的**同一事务**回写，语义 = 该 PO 已确认收货中的最大
 //! `receipt_date`（`purchase_receipt.receipt_date` 为 NOT NULL，入口守显式清空，
 //! 见 `purchase_receipt_ops/crud.rs` 的 `update_receipt` 门控）；部分到货也回写；
 //! 完成判定/状态谓词不动；回写失败 `?` 上抛整单回滚，严禁 `let _ =`/`.ok()` 半成功。
 //!
 //! 覆盖策略（对齐 `contract_wave2_po_item_update_fields_test.rs` 先例，无 mock；
-//! 路线一 判责：表结构唯一来源 = backend/migration，不再自建 sqlite 同构表
-//! ——exchange_rate 等 DECIMAL 列被写成 TEXT 即本文件 5 例连坐红的根因）：
+//! 表结构唯一来源 = backend/migration，不自建 sqlite 同构表
+//! ——自建 DDL 把 exchange_rate 等 DECIMAL 列写成 TEXT 会引发成片 ColumnDecode 失败）：
 //! 1. 真 PostgreSQL（test_common::setup_test_db）+ **真实调用**
 //!    `update_order_received_quantity`（confirm_receipt 事务内的同一入口，
 //!    链路无 lock_exclusive）：首次确认 → 列 == 该收货单 receipt_date 且进度/状态同步；
 //!    更晚收货 → 覆盖为更大日期；更早补录收货 → 保持最大值不回退；未确认收货的 PO 恒 NULL；
-//!    FK 父行自种子（裁定 R1）：suppliers/warehouses/products/users 及 purchase_receipt
-//!    （purchase_receipt_item.receipt_id 为真表外键，旧 sqlite 表根本没有该父行）；
+//!    FK 父行自种子：suppliers/warehouses/products/users 及 purchase_receipt
+//!    （purchase_receipt_item.receipt_id 为真表外键，父行必须先种出）；
 //! 2. 失败实证：PO 不存在时回写入口如实报错上抛，事务不 commit 回滚后
 //!    已收进度零残留（锁死「不允许进度写了、到货日没写」的半成功形态）；
 //! 3. 防回潮源码扫描：回写调用点必须带 `?` 且夹在 confirm 的 begin/commit 之间；
 //!    迁移 DDL 该列不得出现 DEFAULT（NULL 兜底会把"未收货"伪装成有到货日）。
 //!
-//! 口径影响声明：本列修复前有值恒空 ⇒ 平均交期样本恒空集、页面数字无意义；
-//! 修复后样本随真实收货累积，属**数值真实化**，不是回归。
+//! 口径说明：本列 NULL = 未收货（平均交期整批排除）；回写到位后样本随真实收货
+//! 累积，属**数值真实化**。
 
 mod test_common;
 
@@ -424,7 +424,7 @@ async fn confirm_partial_receipt_writes_back_receipt_date() {
         "进度须与到货日同事务落库"
     );
 
-    // 双单对照的隔离侧（判责 2.2：item_b 建了从不回读=隔离侧从未被验证）
+    // 双单对照的隔离侧：po_b 侧必须回读，否则"不回写串单"从未被验证
     // 回写以 order_id 精确定位，po_b 的明细与到货日不得被 po_a 的确认污染。
     let item_b = purchase_order_item::Entity::find_by_id(s.item_b)
         .one(&db)

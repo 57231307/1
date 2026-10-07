@@ -5,7 +5,6 @@
 # 门禁语义：扫描得到的指纹不在本文件内 => 判红（新增行号引用须显式登记并承担复审）；
 # 基线条目在代码中消失 => 门禁提示"应删行使棘轮真实缩短"。
 # 禁止为让 CI 变绿向本文件添加新豁免条目——那是掩盖不是修复。
-backend/migration/src/domain/business/m0071_normalize_array_columns.rs::contract_wave3_explicit_null_clear_test.rs
 backend/migration/src/domain/business/m0071_normalize_array_columns.rs::models/ap_invoice.rs
 backend/migration/src/domain/business/m0071_normalize_array_columns.rs::models/ap_payment.rs
 backend/migration/src/domain/business/m0071_normalize_array_columns.rs::models/ap_payment_request.rs
@@ -62,7 +61,6 @@ backend/migration/src/domain/production/m0079_add_approval_reason_columns.rs::sa
 backend/migration/src/domain/production/m0079_add_approval_reason_columns.rs::system/mod.rs
 backend/migration/src/domain/production/mod.rs::domain/v15/mod.rs
 backend/migration/src/domain/production/mod.rs::m0010_add_inventory_extensions.rs
-backend/migration/src/domain/production/mod.rs::v15/mod.rs
 backend/migration/src/domain/rls_dept_user_sync/mod.rs::data_scope.rs
 backend/migration/src/domain/rls_dept_user_sync/mod.rs::rls_dept/mod.rs
 backend/migration/src/domain/rls_dept_user_sync/mod.rs::src/services/user_service.rs
@@ -168,7 +166,6 @@ backend/src/services/crm/opp.rs::models/crm_opportunity.rs
 backend/src/services/crm/opp.rs::services/so/order_crud.rs
 backend/src/services/crm/opp.rs::system/mod.rs
 backend/src/services/currency_service.rs::ap_invoice_service.rs
-backend/src/services/custom_order_aftersales_service.rs::m0044_integrate_unreferenced_migrations.rs
 backend/src/services/custom_order_crud_service.rs::migration/src/domain/production/m0044_integrate_unreferenced_migrations.rs
 backend/src/services/customer_ops/crud.rs::migration/src/domain/rls_dept/mod.rs
 backend/src/services/dye_batch_cost_bridge_service.rs::cost_collection_service.rs
@@ -248,7 +245,6 @@ backend/src/services/quality_standard_service.rs::migration/src/domain/sales_crm
 backend/src/services/quality_standard_service.rs::migration/src/domain/system/m0005_add_basic_data_and_system_tables.rs
 backend/src/services/quality_standard_service.rs::services/custom_order_crud_service.rs
 backend/src/services/sales_contract_service.rs::migration/src/domain/v15/mod.rs
-backend/src/services/sales_contract_service.rs::production_order_service.rs
 backend/src/services/sales_price_service.rs::api_gateway_handler.rs
 backend/src/services/sales_price_service.rs::department_handler.rs
 backend/src/services/sales_price_service.rs::department_service.rs
@@ -374,7 +370,6 @@ backend/tests/contract_wave3_bi_status_lowercase_test.rs::bi_analysis_service.rs
 backend/tests/contract_wave3_bi_status_lowercase_test.rs::sales.rs
 backend/tests/contract_wave3_dashboard_daily_sales_status_test.rs::models/status/sales.rs
 backend/tests/contract_wave3_dashboard_status_lowercase_test.rs::models/status/sales.rs
-backend/tests/contract_wave3_explicit_null_clear_test.rs::migration/src/domain/system/mod.rs
 backend/tests/contract_wave3_state_gate_family_consistency_test.rs::models/bom.rs
 backend/tests/contract_wave4_ar_report_truth_test.rs::models/ar_invoice.rs
 backend/tests/contract_wave4_dye_batch_no_fake_defaults_test.rs::handlers/inventory_stock_handler_dto.rs
@@ -394,12 +389,10 @@ backend/tests/contract_wave5_authz_trace_source_test.rs::observability/trace_con
 backend/tests/contract_wave5_color_card_issue_gate_test.rs::backend/migration/src/domain/v15/mod.rs
 backend/tests/contract_wave5_color_card_issue_gate_test.rs::color_card_crud_service.rs
 backend/tests/contract_wave5_color_card_issue_gate_test.rs::customer_credit_limit.rs
-backend/tests/contract_wave5_color_card_issue_gate_test.rs::mod.rs
 backend/tests/contract_wave5_color_card_issue_gate_test.rs::models/status/wage_energy_chemical_business.rs
 backend/tests/contract_wave5_dye_batch_complete_actual_output_test.rs::cost_collection_service.rs
 backend/tests/contract_wave5_env_tax_rates_from_config_test.rs::environmental_tax_service.rs
 backend/tests/contract_wave5_outsource_issue_guard_test.rs::contract_wave5_delete_precheck_and_status_literal_lock_test.rs
-backend/tests/contract_wave5_outsource_issue_guard_test.rs::outsourcing_handler.rs
 backend/tests/contract_wave5_outsource_issue_guard_test.rs::sku_mapping_contract_test.rs
 backend/tests/contract_wave5_scan_failure_codes_test.rs::src/handlers/import_export_handler.rs
 backend/tests/contract_wave5_status_unity_ar_dashboard_test.rs::business/mod.rs
@@ -639,7 +632,6 @@ backend/tests/services_quotation_service_test.rs::src/services/quotation_ops/lif
 backend/tests/services_quotation_service_test.rs::src/services/quotation_ops/update.rs
 backend/tests/services_quotation_service_test.rs::update.rs
 backend/tests/services_quotation_service_test.rs::utils/pagination.rs
-backend/tests/services_voucher_service_test.rs::crud.rs
 backend/tests/services_voucher_service_test.rs::error.rs
 backend/tests/services_voucher_service_test.rs::src/services/voucher_ops/crud.rs
 backend/tests/services_voucher_service_test.rs::src/services/voucher_ops/workflow.rs
@@ -658,7 +650,6 @@ frontend/e2e/bpm/01-definitions.spec.ts::BpmDefinitionTable.vue
 frontend/e2e/bpm/01-definitions.spec.ts::models/dto/bpm_dto.rs
 frontend/e2e/bpm/01-definitions.spec.ts::src/views/bpm/definitions.vue
 frontend/e2e/bpm/01-definitions.spec.ts::useBpmDfProc.ts
-frontend/e2e/bpm/01-definitions.spec.ts::zh-CN.ts
 frontend/e2e/bpm/02-approval.spec.ts::backend/src/handlers/bpm_handler.rs
 frontend/e2e/bpm/02-approval.spec.ts::backend/src/models/status/bpm_crm_contract.rs
 frontend/e2e/bpm/02-approval.spec.ts::services/bpm_ops/instance.rs
@@ -1716,7 +1707,6 @@ frontend/src/api/inventory-count.ts::handlers/inventory_count_handler.rs
 frontend/src/api/inventory-count.ts::inventory_count_service.rs
 frontend/src/api/inventory-count.ts::models/inventory_count.rs
 frontend/src/api/inventory-count.ts::models/status/purchase_inventory.rs
-frontend/src/api/inventory-transfer.ts::api/ap.ts
 frontend/src/api/inventory-transfer.ts::backend/src/services/inv/mod.rs
 frontend/src/api/inventory-transfer.ts::backend/src/utils/error.rs
 frontend/src/api/inventory-transfer.ts::handlers/inventory_piece_handler.rs
@@ -1729,7 +1719,6 @@ frontend/src/api/inventory-transfer.ts::routes/inventory.rs
 frontend/src/api/inventory-transfer.ts::services/inv/inventory_move.rs
 frontend/src/api/inventory-transfer.ts::services/inv/mod.rs
 frontend/src/api/inventory-transfer.ts::services/piece_domain_service.rs
-frontend/src/api/inventory-transfer.ts::services/po/order_ops/crud.rs
 frontend/src/api/inventory-transfer.ts::types/api-response.ts
 frontend/src/api/inventory.ts::rust_decimal-1.42.1/src/serde.rs
 frontend/src/api/lab-dip.ts::lab_dip_handler.rs

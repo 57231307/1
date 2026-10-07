@@ -1,4 +1,3 @@
-// decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
 use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
@@ -7,7 +6,6 @@ use bingxi_backend::services::quotation_service::{QuotationService, ServiceError
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
-// ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use rust_decimal::Decimal;
 use sea_orm::ConnectionTrait;
 use std::sync::Arc;
@@ -196,7 +194,7 @@ async fn test_calculate_totals_dmxhzzq() {
 }
 
 /// test_calculate_totals_jdgyd2wxs
-/// 批次 87：33.333 * 3 = 99.999 → 100.00（round_dp(2)）
+/// 小数量×单价的尾差口径：33.333 × 3 = 99.999，小计按 round_dp(2) 舍入 ⇒ 100.00。
 #[tokio::test]
 async fn test_calculate_totals_jdgyd2wxs() {
     let db = setup_test_db().await;
@@ -292,14 +290,14 @@ async fn test_quotationservice_new_zqcysjklj() {
         .expect("数据库连接应可用");
 }
 
-/// test_quotationservice_get_by_id_ksjkfherr —— 真库化夹具前提校准
-/// （判责 §A.1；手法照抄 600e5640 的 confirm/get_receipt 收紧范本）
-/// 钉"已建库空表上 get_by_id 不存在记录 ⇒ Err(NotFound)，而非 panic"。
+/// test_quotationservice_get_by_id_ksjkfherr —— 钉"已建库空表上 get_by_id 不存在记录
+/// ⇒ Err(ServiceError::NotFound)，而非 panic"。
 ///
-/// 真实契约依据（读函数体）：`src/services/quotation_ops/crud.rs:317-322`
-/// find_by_id().one() 空表 ⇒ None ⇒ `.ok_or(ServiceError::NotFound)` ⇒ Err 方向
-/// 成立；但裸 `is_err()` 会把夹具退化成 Query Err 也放过 ⇒ 收紧为钉变体，并顺带
-/// 锁装配点机器码（`handlers/quotation_handler.rs:564` NotFound ⇒ NOT_FOUND）。
+/// 契约依据（读函数体）：`src/services/quotation_ops/crud.rs:318-322`
+/// find_by_id().one() 空表 ⇒ None ⇒ `.ok_or(ServiceError::NotFound)`。
+/// 钉 NotFound 变体而非裸 `is_err()`，防把夹具退化的 Query Err 也当作本条命中；
+/// 并同锁装配点出参（`handlers/quotation_handler.rs:598-601`
+/// `ServiceError::NotFound` ⇒ `AppError::not_found`，code=NOT_FOUND）。
 #[tokio::test]
 async fn test_quotationservice_get_by_id_ksjkfherr() {
     let db = setup_test_db().await;
@@ -319,16 +317,14 @@ async fn test_quotationservice_get_by_id_ksjkfherr() {
     );
 }
 
-/// test_quotationservice_list_ksjkfherr —— 依据裁决 R-9 拆前提后钉另一件事：
-/// 已建库、业务表已清空 ⇒ `list` 不 panic 且返回**空集**（total=0）。
+/// test_quotationservice_list_ksjkfherr —— 钉"已建库、业务表已清空 ⇒ `list` 不 panic
+/// 且返回**空集**（total=0）"。
 ///
-/// 真实契约依据（读函数体）：`src/services/quotation_ops/crud.rs:227-263` 对空表
+/// 契约依据（读函数体）：`src/services/quotation_ops/crud.rs:228-264` 对空表
 /// 走 `paginate_with_total`（`utils/pagination.rs:17-23` fetch_page=[] /
 /// num_items=0）⇒ `Ok(([], 0))`；`attach_names` 对空入参早退 Ok
-/// （crud.rs:274-276）。原断 `is_err()` 是把真库化夹具当"空 SQLite 无 schema"的
-/// 过期前提（判责 §A.1 点名本行 p3 红签名 `assertion failed
-/// result.is_err()`）。schema 缺失的报错形态不属本条职责（本文件无该防线需求，
-/// 负前提交集已由 ap_payment/production_order 族在 `bingxi_empty` 上统一钉死）。
+/// （crud.rs:275-276）。缺 schema 的报错形态不属本条职责——负前提交集由
+/// 各域用例经空 schema 库夹具（`connect_empty_schema_db`）另行钉死。
 #[tokio::test]
 async fn test_quotationservice_list_ksjkfherr() {
     let db = setup_test_db().await;
@@ -345,14 +341,13 @@ async fn test_quotationservice_list_ksjkfherr() {
     assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
-/// test_quotationservice_cancel_bczfhapperror —— 真库化前提校准 + 收紧为机器码
-/// （判责 §A.1 同族；范本见 600e5640 ap_payment confirm 条）
-/// 钉"已建库空表上 cancel 不存在的单 ⇒ NOT_FOUND 机器码，而非 panic"。
+/// test_quotationservice_cancel_bczfhapperror —— 钉"已建库空表上 cancel 不存在的单
+/// ⇒ NOT_FOUND 机器码，而非 panic"。
 ///
-/// 真实契约依据：`src/services/quotation_ops/lifecycle.rs:20-26` begin 后
-/// find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`；
-/// 裸 `is_err()` 会把 converted 状态门（BUSINESS，lifecycle.rs:27-32）或夹具
-/// 退化（DATABASE）混进来，本条锁的是"记录不存在"这一件事 ⇒ 钉死机器码。
+/// 契约依据：`src/services/quotation_ops/lifecycle.rs:21-26` begin 后
+/// find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`。
+/// 钉机器码而非裸 `is_err()`：把状态门（converted ⇒ BUSINESS，lifecycle.rs:27-32）
+/// 与夹具退化（DATABASE 族）都排除在外，本条锁的仅是"记录不存在"这一件事。
 #[tokio::test]
 async fn test_quotationservice_cancel_bczfhapperror() {
     let db = setup_test_db().await;
@@ -371,10 +366,10 @@ async fn test_quotationservice_cancel_bczfhapperror() {
 
 // ============ update 状态机校验测试 ============
 
-/// test_quotationservice_update_bczfhapperror —— 同族收紧：钉"已建库空表上
+/// test_quotationservice_update_bczfhapperror —— 钉"已建库空表上
 /// update 不存在的单 ⇒ NOT_FOUND 机器码，而非 panic"。
 ///
-/// 真实契约依据：`src/services/quotation_ops/update.rs:27-34` begin 后先
+/// 契约依据：`src/services/quotation_ops/update.rs:33-34` begin 后先
 /// `load_for_update`（update.rs:56-74 find_by_id + lock_exclusive，None ⇒
 /// `AppError::not_found` :64）；状态门（仅 draft/rejected 可改 ⇒ BUSINESS）在
 /// 记录存在时才可达，本条夹具下必先在 not_found 处返回。

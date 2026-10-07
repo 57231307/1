@@ -390,10 +390,9 @@ function loadBackendEndpoints() {
  *     ——`page.request.get(API_BASE + API_PREFIX + path)`；
  *   - `e2e/traversal/modules.config.ts` 的 `listApi: '...'`
  *     ——`/api/v1/erp${listApi}?page=1&page_size=1`。
- * 实案（判责见）：这两处同时存在 21 条"后端无该 GET"的路径。14 条 listApi 的消费
- * 判据是 `status() < 500`，admin 会话下 403/404 一律判绿；4 条对着**只注册 POST 的同一
- * 静态节点**打 GET 得到 405，而 51 把非 CRASH 码只塞进不参与断言的 warns 数组。⇒ 探针
- * "存在且跑过"不等于契约成立，必须在静态面核对。
+ * 探针的"存在且跑过"不等于契约成立：51 健康扫描把 405 等非崩溃码只塞进不参与断言的
+ * warns 数组（见该文件头判定矩阵），listApi strict 判据也只证明端点可达、不证明路径
+ * 由哪条注册产生。⇒ 必须在静态面核对。
  *
  * 判据：登记表里每条 (path, GET) 都必须在后端展开路由集合里存在，缺一即失败（与 A 类同
  * 等严重）。**本检查不设豁免表**：探针的意义就是对着真实契约打真实请求，后端若确实没有
@@ -401,7 +400,7 @@ function loadBackendEndpoints() {
  * 405 语义的**负向**探针（GET 打 POST-only 节点应得 405）不属本判据，不在扫描面内。
  *
  * 反空操作：定位不到清单声明、清单里出现取不到字面值的成员（模板串/变量/拼接），一律
- * 直接抛错退出，绝不把"解析不到"当成"没有漂移"（门禁形同空操作是本轮反复出现的事故根因）。
+ * 直接抛错退出，绝不把"解析不到"当成"没有漂移"（防止门禁形同空操作）。
  */
 const E2E_PROBE_REGISTRIES = [
   {
@@ -449,8 +448,8 @@ export function loadE2eProbeEndpoints() {
       }
     } else {
       // 数据条目形如 `{ id: 'x', route: '/y', listApi: '/crm/customers' }`，绝大多数与
-      // 其它键同一行；早先用"独占整行"的锚定正则只能捞到 1/43 条，等于把 listApi 半区
-      // 整片放出门禁扫描面而计数看起来正常（本仓门禁空操作事故族）。现按"键出现次数 ==
+      // 其它键同一行；若按"独占整行"锚定正则只能捞到少数条目，等于把 listApi 半区
+      // 整片放出门禁扫描面而计数看起来正常。故按"键出现次数 ==
       // 解析到的字面量次数"自证：少一个就是模板串/变量/跨行写法在静默漏检，直接抛错。
       const keyCount = (src.match(/\blistApi:/g) || []).length;
       const declCount = (src.match(/\blistApi\?:/g) || []).length;
@@ -482,15 +481,15 @@ export function loadE2eProbeEndpoints() {
 
 // ---------- 已知例外（逐条显式登记，禁止通配/静默） ----------
 // 分为两类，每条附「具体原因」。命中者不计入 A 类失败，但仍每次运行逐条打印，
-// 以免被误当作稳态；本轮修完两类后仍无法在既定范围内消除者才登记于此。
+// 以免被误当作稳态。
 //
 // 【G = 功能缺口】前端调用的语义后端根本没有对应实现，不能伪造端点、也不能把
 //     写操作降级成 GET 去迁就前端——登记为待产品/后端排期确认。
-// 【D = 范围外前置漂移】属本任务两类（双重 nest）+ 列举 7 项方法之外的历史契约漂移：
-//     后端在别的路径/方法上提供了同类操作，但「正确映射」需业务语义确认（如
+// 【D = 范围外前置漂移】后端在别的路径/方法上提供了同类操作的历史契约漂移，
+//     但「正确映射」需业务语义确认（如
 //     receive vs confirm、confirm/send vs base send），不可盲改前端，单独排期处理。
 const KNOWN_GAPS = new Map([
-  // ---- 本轮范围内、经判读确认的 5 项功能缺口（对应任务列举 7 项中的 1/2/3/4/6） ----
+  // ---- G 类：功能缺口，每条附具体原因 ----
   [
     `${BASE_URL}/ar-reconciliations-enhanced/auto-match GET`,
     'G: 触发式自动对账为写(后端 POST /auto-match)；前端另发 GET 想分页列出结果，后端无此只读列表端点（基础 /ar-reconciliations 入参/响应契约不同）',
@@ -511,7 +510,7 @@ const KNOWN_GAPS = new Map([
     `${BASE_URL}/data-import/templates POST`,
     'G: 前端 createImportTemplate 新建导入模板，后端 import_export_handler 无 create_import_template',
   ],
-  // ---- 【D 类】范围外前置契约漂移（非本轮两类/7 项）：后端操作位于别处或语义待确认 ----
+  // ---- D 类：范围外前置契约漂移（后端操作位于别处或语义待确认）----
   [
     `${BASE_URL}/report-templates/* GET`,
     'D: 报表模板详情后端在 /reports/enhanced/templates/{id}（同 get/put/delete handler），report-templates.ts 走的是不存在的 /report-templates/{id}',

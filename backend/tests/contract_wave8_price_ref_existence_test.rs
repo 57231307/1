@@ -1,10 +1,10 @@
-//! 任务板 —— 价目写链「引用存在性预检」真库契约锁（后端线）
+//! 价目写链「引用存在性预检」真库契约锁（后端线）
 //!
-//! 钉死缺陷（调查组结论）：`sales_price_service::create_price`/`update_price` 与
-//! `purchase_price_service::create_price` 此前把 product_id/customer_id/supplier_id
-//! 直接 `Set(...)` 落库、**完全不校验引用存在性**，而 `sales_prices`/`purchase_prices`
-//! 两表当前没有指向 products/customers/suppliers 的外键（补 FK 属另一路任务板
-//! 的迁移）⇒ 给不存在的产品/客户/供应商建价目行会静默成功，产生孤儿价目（列表侧
+//! 钉死事实（本文件唯一职责）：`sales_price_service::create_price`/`update_price` 与
+//! `purchase_price_service::create_price` 在落库前必须校验 product_id/customer_id/supplier_id
+//! 的引用存在性——`sales_prices`/`purchase_prices` 两表当前**没有**指向
+//! products/customers/suppliers 的外键（补 FK 属迁移侧，不在本锁范围），预检失守即
+//! 给不存在的产品/客户/供应商静默落孤儿价目行（列表侧
 //! `SalesPriceView`/`PurchasePriceView` 的 JOIN 名列如实 NULL 即其下游形态）。
 //!
 //! 收紧后的口径（本文件逐条钉死）：
@@ -394,7 +394,8 @@ async fn valid_refs_pass_precheck_for_create_and_update() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. 源码扫描锁（"把预检从落点上摘掉就必红"的结构性证明，照 wave5 先例）：
+// 5. 源码扫描锁（"把预检从落点上摘掉就必红"的结构性证明，
+//    同型范式见 contract_wave5_reference_precheck_and_family_test.rs）：
 //    ①三处预检必须位于各自写库语句之前；②装配族只能是 validation_displayable；
 // ③两个 service 文件不得出现 AppError::internal（收口族防回潮）。
 // ---------------------------------------------------------------------------
@@ -433,7 +434,7 @@ fn source_scan_price_ref_prechecks_precede_writes_and_stay_in_validation_family(
     }
 
     // 族装配：引用拒绝只能是 validation_displayable（可外显 VALIDATION 族），
-    // 且两个文件对 AppError::internal 零容忍（禁止把业务拒绝拍平成 500，任务板）
+    // 且两个文件对 AppError::internal 零容忍（禁止把业务拒绝拍平成 500）
     for (name, src) in [("sales", &sales), ("purchase", &purchase)] {
         assert!(
             src.contains("AppError::validation_displayable"),

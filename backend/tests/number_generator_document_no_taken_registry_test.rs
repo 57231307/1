@@ -1,9 +1,9 @@
 //! `is_document_no_taken` 集中注册表（`/document-no/check` 查重白名单）
 //! 的 doc_type→真实表真实列 一致性契约测试。
 //!
-//! 根因防复发：查重白名单必须是单一注册表
-//! `backend/src/utils/number_generator.rs::is_document_no_taken`，不得拆回 handler
-//! 内嵌 match——内嵌 match 会随新单据类型漏登记，前端取号后查重直接 400、查重形同虚设。
+//! 核心契约：查重白名单必须是单一注册表
+//! `backend/src/utils/number_generator.rs::is_document_no_taken`，handler 内不得再
+//! 各自内嵌 doc_type match——内嵌 match 会随新单据类型漏登记，前端取号后查重直接 400、查重形同虚设。
 //! 本测试锁定：
 //! 1. 要求覆盖的每一类 doc_type（销售 SO/采购 PO/报价 QT/销售合同 SC/
 //!    采购合同 PC/委外凭证 OVIS·OVFE·OVRC·OVLS/薪酬 WR·PWR/CRM CUS·OPP·TA/
@@ -16,15 +16,15 @@
 //! 4. 未知 doc_type 必须返回**可区分错误**（BAD_REQUEST，文案含类型名），
 //!    绝不静默返回 Ok(false)（"误判可用"——查重形同虚设的复发形态）。
 //!
-//! 说明（库存四类）：库存域真实拥有自有单号列的单据表为调拨/调整/盘点三张
+//! 说明（库存单据类）：库存域真实拥有自有单号列的单据表为调拨/调整/盘点三张
 //! （inventory_transfers/inventory_adjustment/inventory_counts，模型见
 //! `src/models/inventory_*.rs` 的 transfer_no/adjustment_no/count_no）；
 //! 库存流水/预占/跌价准备/匹等表无自有单号列，故"库存类"以这三张为准逐一断言，
-//! 第四个库存单据若未来引入单号列，必须同步登记注册表并加入本清单。
+//! 若未来有第四张库存单据引入单号列，必须同步登记注册表并加入本清单。
 //!
 //! 通道：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
 //! - 需要可连接库的行为用例走 `test_common::setup_test_db()`（已迁移 PostgreSQL + 清空
-//!   业务表）；未知 doc_type 那条虽然按代码路径在触库前就返回 Err，同样不得再用
+//!   业务表）；未知 doc_type 那条虽然按代码路径在触库前就返回 Err，同样禁止用
 //!   `sqlite::memory:` 当"随便连一下都算跑过"的通道——夹具缺变量/指 sqlite 直接 panic。
 //! - 活库用例（#[ignore]）走 `test_common::connect_live_db()`：只连已迁移 PG、不清空，
 //!   因为这两条用例自带"插入探针→按主键删除"的清理闭环，清空反而会打断同 job 内
@@ -115,7 +115,7 @@ const REQUIRED_REGISTRY: &[(&str, &str)] = &[
         "inventory_adjustment::Column::AdjustmentNo.eq(no)",
     ),
     ("inventory_count", "inventory_count::Column::CountNo.eq(no)"),
-    // 委外单据主表（OUT/ORC 前端预生成仍依赖查重，历史根因项，保留断言）
+    // 委外单据主表（OUT/ORC 前端预生成依赖查重）
     (
         "outsourcing_order",
         "outsourcing_order::Column::OrderNo.eq(no)",
@@ -160,7 +160,7 @@ fn registry_rejects_unknown_doc_types_instead_of_defaulting_to_available() {
     );
 }
 
-/// 查重 handler 不得再各自维护 doc_type 映射（双白名单漂移根因）。
+/// 查重 handler 必须委托单一注册表，不得内嵌 doc_type 映射（防双白名单漂移）。
 #[test]
 fn check_handler_delegates_to_central_registry() {
     let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));

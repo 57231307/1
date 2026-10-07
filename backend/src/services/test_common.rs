@@ -1,21 +1,18 @@
-//! 测试公共夹具模块（P0-D11 → 路线一改造）
+//! 测试公共夹具模块
 //!
-//! ## 为什么必须改（实证，非推测）
-//! CI 的 215 例 Rust 失败里约 130 例的签名是
-//! `mismatched types; Rust type Option<f64> is not compatible with SQL type TEXT`、
-//! `Sqlite doesn't support array arguments`、`Type("String unsupported by sqlx-sqlite")`——
-//! 全部来自**测试自建 DDL 在 sqlite 上的亲和性失真**（测试把 DECIMAL 列写成 `TEXT`，
-//! sqlite 的 TEXT 亲和把绑定值转存文本，读回按 REAL/Decimal 解码必炸），与业务源码无关。
-//! 另一族（约 45 例）断言的是"无 schema 时应返回数据库错误"，前提同样是
-//! "测试连的是空 sqlite 内存库"。
+//! ## 为什么禁止 sqlite
+//! 测试自建 DDL 在 sqlite 上存在**亲和性失真**：DECIMAL 列写成 `TEXT` 时，
+//! sqlite 的 TEXT 亲和把绑定值转存文本，读回按 REAL/Decimal 解码必炸
+//! （`mismatched types; Rust type Option<f64> is not compatible with SQL type TEXT`、
+//! `Sqlite doesn't support array arguments`、`Type("String unsupported by sqlx-sqlite")`），
+//! 与业务源码无关；断言"无 schema 时应返回数据库错误"的负前提交集同样需要
+//! 空 schema 的真实 PostgreSQL。
+//! 若 `TEST_DATABASE_URL` 缺失时静默回退 sqlite::memory:，用例从未验证过
+//! 生产方言、报告页却显示"通过"——即本仓禁止的假绿形态，故夹具一律直接 panic。
 //!
-//! 旧实现 `TEST_DATABASE_URL` 缺失时**静默回退 sqlite::memory:**，于是
-//! "分片 job 起了 PostgreSQL 并跑完迁移"这件事对这些用例毫无作用：它们从未验证过
-//! 生产方言，报告页却显示"通过"。这就是本仓反复禁止的假绿形态。
-//!
-//! ## 新契约
+//! ## 契约
 //! - [`setup_test_db`]：**必须**由 `TEST_DATABASE_URL` 指向已跑完迁移的 PostgreSQL；
-//!   未设置或指向 sqlite 一律 panic（fail-loudly，不再静默降级）。随后把 public 下的
+//!   未设置或指向 sqlite 一律 panic（fail-loudly，绝不静默降级）。随后把 public 下的
 //!   业务表清空（`TRUNCATE … RESTART IDENTITY CASCADE`），使每个用例都从
 //!   "已迁移的空库 + 迁移种子主数据"起步：既有确定性（自增 ID 从 1 起、互不串库），
 //!   又不必由各测试自建一份与生产不同构的表。

@@ -1,7 +1,8 @@
-//! 库存盘点服务集成测试（V15 P2 B06-P2-5）
+//! 库存盘点服务集成测试
 //!
 //! 覆盖：盘点状态常量值 + Service 构造签名 + 请求 DTO 字段语义 + 已建库空表异常路径
-//! （判责 §⑤ W4：旧"空 DB=空 SQLite"前提已随真库化过期，各条契约按被测函数体核定）。
+//! （夹具 `setup_test_db()` = 已迁移 PostgreSQL + 业务表 TRUNCATE，
+//! 契约见 `src/services/test_common.rs:14-18`；各条契约按被测函数体核定）。
 //! InventoryCountService 所有业务方法（create_count / record_count_items /
 //! submit_for_approval / approve_count 等）均需数据库事务，
 //! 完整业务流程由 CI 集成环境执行（同 test_quality_standard.rs / ap_payment_workflow_test.rs 模式）。
@@ -17,7 +18,7 @@ use rust_decimal::Decimal;
 use std::sync::Arc;
 use test_common::setup_test_db;
 
-// 测试夹具（规则 6：mock 数据抽取到 fixtures，禁止硬编码）
+// 测试夹具：mock 数据统一抽取到 fixtures，避免散落硬编码
 mod fixtures {
     use rust_decimal::Decimal;
 
@@ -25,7 +26,7 @@ mod fixtures {
     pub const CREATED_BY: i32 = 9001;
     pub const STOCK_ID_A: i32 = 3001;
     pub const STOCK_ID_B: i32 = 3002;
-    /// 空 DB 异常路径测试用的不存在盘点单 ID
+    /// 空表异常路径测试用的不存在盘点单 ID
     pub const NON_EXISTENT_COUNT_ID: i32 = 999_999;
     /// 账面数量 120.50 米
     pub fn quantity_before() -> Decimal {
@@ -78,7 +79,7 @@ fn test_inventory_count_service_constructor_signature() {
     );
 }
 
-/// 验证 Service 可在 SQLite 内存库上实例化（不 panic）。
+/// 验证 Service 可在真库测试夹具（`setup_test_db()`）上实例化（不 panic）。
 #[tokio::test]
 async fn test_inventory_count_service_instantiation() {
     let db = setup_test_db().await;
@@ -86,15 +87,14 @@ async fn test_inventory_count_service_instantiation() {
     let _ = svc;
 }
 
-// ===== 空 DB 异常路径（验证优雅降级，不 panic）=====
+// ===== 空表异常路径（验证优雅降级，不 panic）=====
 
 /// 验证在**已建库空表**上 get_count 不存在记录返回 Err(NOT_FOUND) 而非 panic。
 ///
-/// 真库化夹具前提校准（判责 §⑤ W4，手法同 ap_payment R-9 族）：旧注释
-/// "空 SQLite 库"过期——`setup_test_db()` 现为"已迁移 PG + TRUNCATE 业务表"
-/// （`src/services/test_common.rs:17-24`）。真实契约按读函数体判定：
+/// 真库夹具前提：`setup_test_db()` = 已迁移 PG + TRUNCATE 业务表
+/// （`src/services/test_common.rs:14-18`）。契约按读函数体判定：
 /// `inventory_count_service.rs:285-293` find_by_id 空表 ⇒ None ⇒ `AppError::not_found`
-/// ⇒ Err 方向成立，断言由裸 `is_err()` 收紧为钉机器码。
+/// ⇒ Err 方向成立；断言钉 NOT_FOUND 机器码，防把夹具退化（DATABASE 族）当本条命中。
 #[tokio::test]
 async fn test_get_count_returns_err_on_empty_db() {
     let db = setup_test_db().await;
@@ -117,8 +117,8 @@ async fn test_get_count_returns_err_on_empty_db() {
 /// 真实契约依据（读函数体，非读注释）：`inventory_count_service.rs:107-130`
 /// create_count 先取号、再 `fetch_stocks_for_count_txn`，`inventory_stocks` 属业务表
 /// 被 TRUNCATE ⇒ 快照恒空 ⇒ `AppError::business("仓库 … 下无库存记录…")`。
-/// 原注释"空 SQLite"前提过期；断言收紧为钉机器码——若未来把该门控误接成
-/// 静默建空单（Ok）或退化 DATABASE_ERROR，本条必须红。
+/// 断言钉 BUSINESS_ERROR 机器码——若该门控被误接成静默建空单（Ok）或退化
+/// DATABASE_ERROR，本条必须红。
 #[tokio::test]
 async fn test_create_count_returns_err_on_empty_db() {
     let db = setup_test_db().await;

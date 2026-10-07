@@ -1,6 +1,6 @@
 //! 采购入库-状态流转子模块（purchase_receipt_ops/state）
 //!
-//! 批次 D10 拆分：从原 `purchase_receipt_service.rs` 迁移。
+//! 职责：采购收货单的确认入库与质检态流转。
 //! 包含 `PurchaseReceiptService` 的状态流转方法 + helper：
 //! - `confirm_receipt`：确认入库单（DRAFT → COMPLETED），事务内完成库存入库与订单已收数量推进，
 //!   commit 后发布事件 + 自动生成应付账单
@@ -29,7 +29,10 @@ use crate::utils::error::AppError;
 
 impl PurchaseReceiptService {
     /// 确认采购入库单
-    /// 批次 16（2026-06-28）：入库单状态门查询加 lock_exclusive，；防止并发 confirm_receipt 同一入库单导致重复入库 + 重复生成应付账单 + 重复累加采购单已收数量。；原状态门无锁，两并发 confirm 均通过 DRAFT 检查，第二个 confirm 重复执行库存入库与；order_item received_quantity 累加，commit 后还会重复触发 auto_generate_from_receipt 生成应付账单。
+    ///
+    /// 状态门查询加 `lock_exclusive` 串行化并发 `confirm_receipt`：同一入库单被并发确认时，
+    /// 行锁保证只有一个事务通过 DRAFT 检查，避免重复入库 + 重复累加
+    /// order_item.received_quantity + commit 后重复触发 auto_generate_from_receipt 生成应付账单。
     pub async fn confirm_receipt(
         &self,
         receipt_id: i32,
@@ -54,7 +57,7 @@ impl PurchaseReceiptService {
         Self::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")?;
 
         // 关联采购单时更新已收数量，并在**同一事务**内回写实际到货日
-        // （决策定案：actual_delivery_date = 该单已确认收货的最大 receipt_date；
+        // （actual_delivery_date = 该单已确认收货的最大 receipt_date；
         // 回写失败随本事务整体回滚，不允许进度与到货日半成功）
         if let Some(order_id) = receipt.order_id {
             self.update_order_received_quantity(
@@ -152,7 +155,7 @@ impl PurchaseReceiptService {
 /// 的 purchase_receipt_inspection；改判目标取值对齐 purchase_inspection_result）
 impl PurchaseReceiptService {
     /// 理由必填校验（让步接收与复检改判共用）：`None`、空串、纯空白一律拒
-    /// `VALIDATION_ERROR`（字段校验归 VALIDATION，本仓裁定），合法值返回 trim 后
+    /// `VALIDATION_ERROR`（字段校验归 VALIDATION 错误族），合法值返回 trim 后
     /// 原文用于落专用真实列（禁挪用 notes/remarks）。
     ///
     /// 调用方：`concede_receipt` / `rejudge_receipt`。文案只说"该做什么"，
@@ -173,9 +176,9 @@ impl PurchaseReceiptService {
     /// 让步接收：把收货单检验状态转入 CONCESSION_ACCEPTED（特采降级接收）。
     ///
     /// 合法前驱（以词表与 DB CHECK 现值域为准的真实态）：
-    /// - PENDING：收货时即选让步（用户终裁"收货时可选让步接收"）；
+    /// - PENDING：收货时即可选择让步接收；
     /// - REJECTED：质检判不合格后特采（"不合格特采/降级接收"语义）。
-    /// 其余前驱（PASSED/已处于让步态）⇒ `BUSINESS_ERROR`（状态门归 BUSINESS，本仓裁定）。
+    /// 其余前驱（PASSED/已处于让步态）⇒ `BUSINESS_ERROR`（状态门归 BUSINESS 错误族）。
     /// 单据门控：仅 receipt_status=DRAFT 可操作——已确认入库（COMPLETED）必然已经
     /// 质检合格放行，事后转让步属越权状态流转。
     ///
@@ -246,7 +249,7 @@ impl PurchaseReceiptService {
     /// （pass/fail/partial），目标状态经同源映射 `to_receipt_inspection_status`
     /// （pass→PASSED，fail/partial→REJECTED）——词表外结论 ⇒ `VALIDATION_ERROR`
     /// （字段校验归 VALIDATION）；前驱非 CONCESSION_ACCEPTED ⇒ `BUSINESS_ERROR`
-    /// （R1：离开让步态只允许→合格/不合格）。单据门控同样要求 receipt_status=DRAFT。
+    /// （离开让步态只允许→合格/不合格）。单据门控同样要求 receipt_status=DRAFT。
     ///
     /// 留痕：改判理由/操作人/时间落 rejudge_reason/rejudge_by/rejudge_at 专用列，
     /// rejudge_count 累加；audit_log 前后快照记录改判前后状态（update_with_audit，

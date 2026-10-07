@@ -1,11 +1,9 @@
-// decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::status::common;
 use bingxi_backend::models::status::production;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
-// ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::services::production_order_service::{
     CreateProductionOrderRequest, ProductionOrderQuery, ProductionOrderService,
     UpdateProductionOrderRequest,
@@ -554,7 +552,8 @@ fn test_fromstr_ydecshjgyz() {
 // ============== 服务实例化与请求结构 ==============
 
 /// test_fwslh_sysqlitencsjk
-/// 标注 #[ignore]：依赖 SQLite 内存数据库 schema，CI 中不强制运行；用于本地手动验证 ProductionOrderService::new 能正常构造。
+/// 仅验证 ProductionOrderService::new 能在 `setup_test_db()` 夹具上构造（不调用任何
+/// 依赖 schema 的方法）。#[ignore]：常规分片不执行，由 CI 的 ignored 专用 job 跑。
 #[tokio::test]
 #[ignore = "依赖 SQLite 内存数据库 schema，CI 中跳过；本地手动验证用"]
 async fn test_fwslh_sysqlitencsjk() {

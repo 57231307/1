@@ -149,7 +149,7 @@ export interface ApprovalChainNode {
 
 /**
  * GET /bpm/definitions 真实响应载荷（唯一真相：backend
- * handlers/bpm_definition_handler.rs::page_to_frontend_json 第 47-61 行）。
+ * handlers/bpm_definition_handler.rs::page_to_frontend_json 第 56-68 行）。
  * 逐条 model_to_frontend_json 后以统一分页信封承载列表，列表键为 `items`，
  * 另含 total/page/page_size（与 utils/response.rs 的 PaginatedResponse 一致）。
  */
