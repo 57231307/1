@@ -430,7 +430,8 @@ async fn production_order_reject_writeback_advances_bpm_task_live() {
         .await
         .expect("提交审批必须成功并启动 BPM");
     let instance = BpmService::new(db.clone())
-        .get_process_by_business("production_order", order.id)
+        // business_id 随 DDL 拓宽为 BIGINT，生产订单主键仍是 SERIAL：无损加宽后比对
+        .get_process_by_business("production_order", i64::from(order.id))
         .await
         .unwrap()
         .expect("提交后必须存在流程实例");
