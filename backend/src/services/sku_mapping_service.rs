@@ -459,7 +459,7 @@ impl SkuMappingService {
 
             // 校验 product_code 存在。
             // 只投影主键、整行 Model 不解码：products 表的 unit/status/product_type 等为
-// 后续 ALTER 加入的可空列（product 表在 v15 域链里被多次 ALTER 追加列），而 product::Model
+            // 后续 ALTER 加入的可空列（product 表在 v15 域链里被多次 ALTER 追加列），而 product::Model
             // 把这些列声明为非 Option；整行读取在只填了 code/name 的稀疏/历史行上会抛
             // ColumnDecode，被顶层 `?` 归一为 DATABASE_ERROR(500)。本处只需 id，故按
             // validate_refs 对 supplier 的同类写法（见本文件 validate_refs）取 id 投影。

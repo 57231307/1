@@ -469,7 +469,7 @@ async fn send_alert_for_stock(
             )
             .await
         {
-            tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
+            tracing::warn!("库存预警通知发送失败: {}", e);
         }
     } else {
         if let Err(e) = event_service
@@ -482,7 +482,7 @@ async fn send_alert_for_stock(
             )
             .await
         {
-            tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
+            tracing::warn!("库存预警通知发送失败: {}", e);
         }
     }
 }
@@ -638,7 +638,7 @@ async fn notify_single_low_stock(
             )
             .await
         {
-            tracing::warn!("批次 94 P2-11：库存预警通知(with_setting)发送失败: {}", e);
+            tracing::warn!("库存预警通知发送失败: {}", e);
         }
     } else {
         // 设置查询失败时回退到原方法（兼容性保留）
@@ -652,7 +652,7 @@ async fn notify_single_low_stock(
             )
             .await
         {
-            tracing::warn!("批次 94 P2-11：库存预警通知发送失败: {}", e);
+            tracing::warn!("库存预警通知发送失败: {}", e);
         }
     }
 }

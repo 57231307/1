@@ -528,7 +528,7 @@ async fn get_permission_filter(
                 role_id,
                 resource_type,
                 error = %e,
-                "批次 388 P2-1: 查询角色数据权限失败，使用默认隐藏字段降级处理"
+                "查询角色数据权限失败，按默认隐藏字段降级"
             );
             Ok(Some(DataPermissionFilter::new(
                 vec![],
