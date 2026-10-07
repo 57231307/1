@@ -95,7 +95,6 @@ backend/src/constants/customer_type.rs::services/customer_ops/query.rs
 backend/src/constants/customer_type.rs::utils/error.rs
 backend/src/container/mod.rs::event_notification_service.rs
 backend/src/handlers/ap_payment_request_handler.rs::migration/src/domain/business/m0012_add_ap_ar_finance_analysis.rs
-backend/src/handlers/api_gateway_handler.rs::purchase_contract_service.rs
 backend/src/handlers/bom_handler.rs::migration/src/domain/business/m0007_add_mrp_production_bom.rs
 backend/src/handlers/crm_customer_handler.rs::migration/src/domain/rls_dept/mod.rs
 backend/src/handlers/crm_customer_handler.rs::services/data_permission_service.rs

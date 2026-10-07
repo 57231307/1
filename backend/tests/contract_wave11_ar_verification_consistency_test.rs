@@ -157,7 +157,7 @@ async fn seed_confirmed_collection(
 
 /// 播 2026-04 会计期间且为 OPEN（覆盖 `fixture_date()` 2026-04-10）。
 /// `create_payment` 经 `check_payment_period_locked`→`check_date_locked_txn`
-/// （ar_ops/collection.rs:122 / accounting_period_service.rs:638，闭区间 start<=date<=end）
+/// （权威校验在 ar_ops/collection.rs 与 accounting_period_service.rs，期间为闭区间 start<=date<=end）
 /// 要求收款日期落在已设置期间内；`accounting_periods` 非参照表、随 setup_test_db 被清空，
 /// 故按 seed 范式在每用例真库播种真实前置数据（OPEN 词表常量与写入方逐字符相同）。
 async fn seed_open_period_2026_04(db: &DatabaseConnection) {
