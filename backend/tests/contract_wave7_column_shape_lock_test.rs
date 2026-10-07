@@ -193,6 +193,25 @@ const EXPECTED: &[ColExpect] = &[
         column_default: Some("0"),
         why: "m0073：发放门 issued_qty <= stock_quantity 的比较依据，不可为 NULL",
     },
+    // ---- m0088：凭证侧多态来源单据 ID 宽度（BIGSERIAL 主键单据可无损承载） ----
+    ColExpect {
+        table: "vouchers",
+        column: "source_bill_id",
+        data_type: "bigint",
+        udt_name: "int8",
+        is_nullable: "YES",
+        column_default: None,
+        why: "m0088：仍为 int4 时期末调整记录(BIGSERIAL)主键进不了数值关联，凭证只能降级为仅留单号",
+    },
+    ColExpect {
+        table: "assist_accounting_record",
+        column: "business_id",
+        data_type: "bigint",
+        udt_name: "int8",
+        is_nullable: "NO",
+        column_default: None,
+        why: "m0088：与 vouchers.source_bill_id 同源同值，不同步拓宽会把类型落差下移到辅助核算列",
+    },
 ];
 
 struct LiveCol {
