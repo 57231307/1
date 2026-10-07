@@ -4231,14 +4231,49 @@ jobs:
                           yield (i, line[found:end + 3])
 
 
+          def migration_domain_names():
+              """仓内真实存在的迁移域目录名（backend/migration/src/domain/*）。"""
+              root = os.path.join(REPO, 'backend', 'migration', 'src', 'domain')
+              try:
+                  return {n for n in os.listdir(root)
+                          if os.path.isdir(os.path.join(root, n))}
+              except OSError:
+                  return set()
+
+
+          def repo_doc_exists(token):
+              """`path/x.md §3` 的路径部分若指向仓内真实文档则为合法证据引用。
+
+              判据是"仓内是否存在"而非静态白名单：文件改名或消失后同一条引用
+              自动重新判红，因此本通道不能用来冻结存量。"""
+              path = token.split('§')[0].strip().replace('\\', '/')
+              path = re.sub(r'^\./', '', path)
+              if not path or path.startswith('/') or re.match(r'^[A-Za-z]:', path):
+                  return False
+              return os.path.isfile(os.path.join(REPO, *path.split('/')))
+
+
           def scan_text(relpath, text):
               """生产与探针共用的唯一调用形态：返回 [(规则ID, 行号, 注释文本, 命中token)]。"""
+              domains = None
               hits = []
               for lineno, ctext in iter_comment_lines(relpath, text):
                   for rid, rx in HARD_PATTERNS + RATCHET_PATTERNS:
                       m = rx.search(ctext)
-                      if m:
-                          hits.append((rid, lineno, ctext.strip(), m.group(0)))
+                      if not m:
+                          continue
+                      tok = m.group(0)
+                      # 结构名放行：`v15 域`/`domain/v15` 指的是真实存在的迁移域
+                      # 目录（IR 要求注释指向仓内证据），与 `v14 排障史` 同类写法
+                      # 不同物；目录不存在时（v13/v14）本通道不生效。
+                      if rid == 'R2.v编号':
+                          if domains is None:
+                              domains = migration_domain_names()
+                          if tok in domains:
+                              continue
+                      elif rid == 'R4.md章节引用' and repo_doc_exists(tok):
+                          continue
+                      hits.append((rid, lineno, ctext.strip(), tok))
               return hits
 
           # ------------------------------------------------------------------ 探针自检
@@ -4251,11 +4286,18 @@ jobs:
               ('R2.批次号', 'probe_r2a.rs', '// 批次 213 交付\n'),
               ('R2.批次序', 'probe_r2d.rs', '//! 行为级活体证明 —— 第 5 批（库存盘点 / 跌价准备）\n'),
               ('R2.v编号', 'probe_r2b.ts', '// v14 排障史\n'),
+              # 存在性通道必须"目标不存在时照旧判红"，否则它会退化成万能放行：
+              # v16 不是本仓任何迁移域目录名（域目录现仅 v15）。
+              ('R2.v编号', 'probe_r2e.rs', '// v16 排障史：先按此顺序改写再回填\n'),
               ('R2.P-S段', 'probe_r2c.rs', '//! P0-S01 波次说明\n'),
               ('R3.run号', 'probe_r3.rs', '// 实证：CI run #4675\nfn g() {}\n'),
               ('R4.盘符路径', 'probe_r4a.ts', '// 报告 C:/Users/x/decision.md 结论\n'),
               ('R4.gitbash路径', 'probe_r4b.js', '// 见 /c/Users/x/decision.md\n'),
               ('R4.md章节引用', 'probe_r4c.rs', '/* 依据 decision-round4.md §1 裁定 */\n'),
+              # 仓内风格路径但文件不存在（幽灵引用）必须照旧判红：存在性通道
+              # 只放"仓内真实文档"，不是"看着像仓内路径"。
+              ('R4.md章节引用', 'probe_r4d.rs',
+               '// 依据：docs/superpowers/specs/2099-01-01-nonexistent-design.md §1 设计\n'),
               ('R5.行号引用', 'probe_r5a.ts', '// 见 api_gateway_handler.rs:129-151\n'),
               ('R5.行号引用', 'probe_r5b.vue',
                '<!-- 详见 store/fabric.ts:31 -->\n<template><div/></template>\n'),
@@ -4269,6 +4311,12 @@ jobs:
                '//! 建表 DDL 见 backend/migration/src/domain/v15/mod.rs 的 certificate_of_origin 语句\n'),
               ('R2.v编号', 'neg_r2b.rs',
                '// 注册位置：migration/src/domain/v15/ 域链尾，建表先于 CHECK\n'),
+              # 裸域名写法（不带路径）：v15 是本仓真实迁移域目录名，属结构指认非版本史
+              ('R2.v编号', 'neg_r2c.rs',
+               '// 幂等实现细节同 m0069：不用 `ON CONFLICT`——其依赖 v15 域内才创建的目标表\n'),
+              # 指向仓内真实文档的章节引用同属合法证据引用（文件消失则自动重新判红）
+              ('R4.md章节引用', 'neg_r4a.rs',
+               '/// 依据：.monkeycode/docs/research/fabric-industry-research.md §12.4 验布打卷\n'),
               ('R1.看板引用', 'neg_r1a.ts',
                "// 前端跳转 /crm/customers#2 定位第二张卡片\n"),
               ('R1.看板引用', 'neg_r1b.vue',
