@@ -17,6 +17,10 @@ pub mod m0007_normalize_account_subject_balance_direction;
 // 必须在域 up 链尾执行：晚于本域 inline 补列块（:233 裸 INTEGER 为该列生效定义，
 // 历史迁移不可改写），且早于 finance 域 customers_isolation RLS policy 建立。
 mod m0070_normalize_customers_owner_id;
+// 凭证/辅助核算的多态来源单据 ID 列拓宽（INTEGER → BIGINT）。
+// 必须在本域 up 链末尾执行：晚于建表迁移（两列均由其创建），且早于任何
+// 依赖 BIGINT 宽度的写入路径上线。
+mod m0088_widen_voucher_business_bill_id;
 
 pub struct Migration;
 
@@ -494,12 +498,18 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
         m0070_normalize_customers_owner_id::Migration
             .up(manager)
             .await?;
+        m0088_widen_voucher_business_bill_id::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 逆序首位——把 owner_id 恢复为归一前形态（可空、无默认）
+        // 逆序首位——先把两列收窄回 INTEGER（内部含拒滚探测），再回退 owner_id 归一
+        m0088_widen_voucher_business_bill_id::Migration
+            .down(manager)
+            .await?;
         m0070_normalize_customers_owner_id::Migration
             .down(manager)
             .await?;
