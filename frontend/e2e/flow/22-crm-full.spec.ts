@@ -20,7 +20,110 @@ import {
   verifyEndpointHealthy,
   ensureTestEntities,
   tryCleanup,
+  expectDenied,
+  isCsrfRejection,
+  type IsolatedAuthedSession,
 } from './helpers';
+
+/**
+ * 隔离会话的**原始**鉴权请求：返回完整响应体（非 apiCallExpectFail 的 {status,code,message} 窄形状），
+ * 以便钉死统一失败信封的四键形状 {code,message,trace_id,timestamp}（utils/error.rs ErrorResponse）。
+ * 写方法必须携带存活 CSRF token（后端 csrf.rs 一次性消费）；本函数在竞败时以有界重试复读
+ * cookie 轮换后的新 token 重放一次——与 helpers 的 CSRF_RECOVERY 同策略。若重试后仍是 CSRF 中间件
+ * 拒绝，返回体如实带 CSRF_* 码，调用方按业务拒绝码断言即判红（不静默、不兜底掩盖）。
+ */
+async function rawAuthedAttempt(
+  session: IsolatedAuthedSession,
+  method: 'GET' | 'POST',
+  path: string,
+  payload?: Record<string, unknown>
+): Promise<{ status: number; body: ApiFailureBody; text: string }> {
+  const url = `${API_BASE}${API_PREFIX}${path}`;
+  const readCsrf = async () =>
+    (await session.page.context().cookies()).find(c => c.name === 'csrf_token')?.value ?? '';
+  const doFetch = async (token: string) =>
+    session.page.request.fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(method === 'POST' ? { 'X-CSRF-Token': token } : {}),
+      },
+      data: method === 'POST' ? JSON.stringify(payload ?? {}) : undefined,
+    });
+  let res = await doFetch(await readCsrf());
+  let text = await res.text();
+  let body: ApiFailureBody;
+  try {
+    body = JSON.parse(text) as ApiFailureBody;
+  } catch {
+    return { status: res.status(), body: {}, text };
+  }
+  // CSRF 竞败有界重放（上限 1）：读回轮换后的 token 再试一次，排除竞败冒充业务拒绝
+  if (method === 'POST' && isCsrfRejection(res.status(), body)) {
+    res = await doFetch(await readCsrf());
+    text = await res.text();
+    try {
+      body = JSON.parse(text) as ApiFailureBody;
+    } catch {
+      /* 保持上一轮结果：调用方按非预期码判红，根因由 text 外显 */
+    }
+  }
+  return { status: res.status(), body, text };
+}
+
+/**
+ * 拒绝信封既有键形断言：{code,message,trace_id,timestamp} 四键齐全、类型正确，**只钉形状与机器码，
+ * 绝不读取 message 内容**（权限/存在类拒绝文案永久脱敏，且可能含记录 ID，外显断言即越界）。
+ * 拒绝来源层（归属门 vs RBAC vs 存在门）的归因不靠文案，靠同 Actor 同路径正例 2xx 的对照（见用例注释）。
+ */
+function assertFailureEnvelopeShape(
+  result: { status: number; body: ApiFailureBody; text: string },
+  expectStatus: number,
+  expectCode: string,
+  context: string
+): void {
+  expect(
+    result.status,
+    `${context}：应恰为 HTTP ${expectStatus}（实际 ${result.status} body=${result.text.slice(0, 200)}）`
+  ).toBe(expectStatus);
+  expect(
+    failureCode(result.body),
+    `${context}：拒绝必须走 AppError 统一信封且 code=${expectCode}（实际 body=${result.text.slice(0, 200)}）`
+  ).toBe(expectCode);
+  expect(
+    isCsrfRejection(result.status, result.body),
+    `${context}：该 ${expectStatus} 的 code=${failureCode(result.body)} 属 CSRF 中间件拒绝，是会话前置未成立而非被测门判定——假绿拦截，勿放宽`
+  ).toBe(false);
+  expect(typeof result.body.message, `${context}：失败信封应含 message 键（内容不钉）`).toBe(
+    'string'
+  );
+  expect(typeof result.body.trace_id, `${context}：失败信封应含 trace_id 键`).toBe('string');
+  expect(typeof result.body.timestamp, `${context}：失败信封应含 timestamp 键（数字秒级）`).toBe(
+    'number'
+  );
+}
+
+/**
+ * 在指定会话下建一条商机（owner_id = 该会话登录用户，services/crm/opp.rs 取 auth.user_id），
+ * 返回其 id。customer_id 引用 ensureTestEntities 已备的真实客户（列 NOT NULL，仅作 FK 落地，
+ * 建单不校验客户归属）。失败 apiCallRaw 直接抛真实原因判红，不静默。
+ */
+async function seedOpportunityInSession(
+  sessionPage: import('@playwright/test').Page,
+  customerId: number,
+  name: string
+): Promise<number> {
+  const created = await apiCallRaw<{ id?: number }>(sessionPage, 'POST', '/crm/opportunities', {
+    opportunity_name: name,
+    customer_id: customerId,
+  });
+  const id = Number(created?.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    throw new Error(`建商机未返回有效 id：${JSON.stringify(created)}`);
+  }
+  return id;
+}
 
 test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   test.beforeEach(async ({ page }) => {
@@ -424,6 +527,255 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     // ⚠️ 反转条件：该端点当前无鉴权、无行级 scope。若将来给 competitors:read 授权给任何
     //    角色，持证者会读到全量竞品（跨 owner 泄漏），届时必须同时补鉴权+scope，
     //    并把本锁反转为"非 admin 亦可 2xx 且只返回其可见行"。
+  });
+
+  // ===== 商机竞品子面（/crm/opportunities/{id}/competitors）跨归属回归锁 =====
+  // 为什么本文件既有那条 admin 探针不足以守这个面：探针跑在 admin 会话上，admin 的
+  // DataScope=All 使读侧 check_resource_owner（utils/data_scope.rs All 分支恒 true）、
+  // 写侧 ensure_cross_owner_write_allowed（crm_write_guard.rs admin 经 is_admin_role 内置放行）
+  // 两条归属门对 admin 恒真——它在"补归属门"前后都返回 2xx，抓不到任何跨 owner 越权。
+  // 下面两条锁的判据主体必须是**持 crm-opportunities:read/create 的 self 范围角色**：
+  // crm_rep 由后端 init 播种（role.rs data_scope=self）并授 crm-opportunities
+  // read/create/update（permission.rs），CI 的 /init/initialize 无条件补建全部角色、
+  // ensureRoleUsers 为 roles 表每个在册角色建 e2e_<code> 账号并写凭证，故 getRoleCredential
+  // ('crm_rep') 就绪。凭证取不到即前置判红——禁止改用 admin 兜底（那等于把越权面重新变回恒真探针）。
+  // 拒绝来源层归因：crm_rep 的 GET/POST 派生 RBAC 键是 URL 段 crm/opportunities →
+  // crm-opportunities:read/create（middleware/permission.rs 取 seg3/seg4、非 PATH_ACTION_
+  // KEYWORDS 末段回落 method），**与 {id} 归属无关**；同一角色对本人商机已取到 2xx 即证明该 RBAC
+  // 键已真实越过，故对他人商机的 403 只可能来自 handler 行级归属门，绝非 RBAC 缺码伪装。
+  // 拒绝断言强度：同 salesperson 契约锁，走原始会话请求钉四键失败信封（apiCallExpectFail 拿不到
+  // trace_id/timestamp），只断状态 + 机器码 + 键形，绝不断含记录 ID 的对外文案；不存在商机的写
+  // 被拒走的是"存在性校验"通道（get_opportunity 查无行 → AppError::not_found），故钉 HTTP 404
+  // + NOT_FOUND，与越权读的 403 + FORBIDDEN 是两条不同的门，不得混判、不得写成"任意 4xx 都算过"。
+  test('商机竞品子面跨归属读门锁：self 角色读本人商机竞品可达、读他人商机竞品被行级归属门拒绝', async ({
+    page,
+    browser,
+  }) => {
+    const cred = getRoleCredential('crm_rep');
+    if (!cred) {
+      throw new Error(
+        '[flow/22 competitors-idor] role-credentials.json 无 crm_rep 凭证：前置缺失判红，' +
+          '不得改用 admin 兜底（admin 归属门恒真，兜底即把越权锁改成空操作）'
+      );
+    }
+    const ctx = getCtx();
+    const customerId = ctx.customerId;
+    if (!customerId) {
+      throw new Error(
+        '[flow/22 competitors-idor] ensureTestEntities 未落地客户 id，商机 FK 前置缺失'
+      );
+    }
+
+    const selfSession = await loginInIsolatedContext(browser, cred.username, cred.password);
+    let selfOppId = 0;
+    let otherOppId = 0;
+    try {
+      const selfMe = await apiCallRaw<{ id: number }>(selfSession.page, 'GET', '/auth/me');
+      const adminMe = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
+      expect(selfMe.id, 'crm_rep 用户 id 必须有效').toBeGreaterThan(0);
+      expect(
+        selfMe.id,
+        `crm_rep(${selfMe.id}) 与 admin(${adminMe.id}) 必须是不同 owner（越权前提）`
+      ).not.toBe(adminMe.id);
+
+      // 自建本人商机 + admin 建他人商机（各自 owner_id 落登录人）
+      selfOppId = await seedOpportunityInSession(
+        selfSession.page,
+        customerId,
+        `E2E 竞品本人商机 ${Date.now()}`
+      );
+      otherOppId = await seedOpportunityInSession(
+        page,
+        customerId,
+        `E2E 竞品他人商机 ${Date.now()}`
+      );
+      // owner 归属真值回读（越权前提最后一环；admin all 范围可直读两行的 owner_id）
+      const selfBack = await apiCallRaw<{ id: number; owner_id: number }>(
+        page,
+        'GET',
+        `/crm/opportunities/${selfOppId}`
+      );
+      expect(selfBack.owner_id, '本人商机 owner_id 应落 crm_rep').toBe(selfMe.id);
+      const otherBack = await apiCallRaw<{ id: number; owner_id: number }>(
+        page,
+        'GET',
+        `/crm/opportunities/${otherOppId}`
+      );
+      expect(otherBack.owner_id, '他人商机 owner_id 应落 admin（≠crm_rep）').toBe(adminMe.id);
+
+      // 正向：crm_rep 读本人商机竞品 → 2xx 且 data 为数组（Vec<OpportunityCompetitorItem> 直出，
+      // 空表也不豁免形状）。apiCallRaw 非 2xx 直接抛真因判红，即 strict 健康口径。
+      const ownResp = await apiCallRaw<unknown>(
+        selfSession.page,
+        'GET',
+        `/crm/opportunities/${selfOppId}/competitors`
+      );
+      expect(Array.isArray(ownResp), '本人商机竞品 data 应为数组').toBe(true);
+
+      // 负向：crm_rep 读他人商机竞品 → 403 + FORBIDDEN + 四键信封。RBAC 键与正向同（见上注释），
+      // 正向已 2xx ⇒ 此 403 只能来自 handler 行级归属门（services/crm/opp.rs check_resource_owner）。
+      const crossGet = await rawAuthedAttempt(
+        selfSession,
+        'GET',
+        `/crm/opportunities/${otherOppId}/competitors`
+      );
+      assertFailureEnvelopeShape(
+        crossGet,
+        403,
+        APP_ERROR_CODES.FORBIDDEN,
+        'crm_rep(self) 读他人商机竞品应被行级归属门拒绝'
+      );
+      // 二次复用既有严格拒绝判据 expectDenied（403 + FORBIDDEN + 排除 CSRF 冒名），双保险归因
+      expectDenied(
+        { status: crossGet.status, code: crossGet.body.code },
+        'crm_rep(self) 读他人商机竞品 403 归因复核'
+      );
+    } finally {
+      if (selfOppId)
+        await tryCleanup(
+          page,
+          'DELETE',
+          `/crm/opportunities/${selfOppId}`,
+          'crm_opportunity(self)'
+        );
+      if (otherOppId)
+        await tryCleanup(
+          page,
+          'DELETE',
+          `/crm/opportunities/${otherOppId}`,
+          'crm_opportunity(other)'
+        );
+      await selfSession.close();
+    }
+  });
+
+  test('商机竞品子面跨归属写门锁：self 角色写本人商机竞品可达、写他人商机竞品被拒、写不存在商机竞品按存在性被拒', async ({
+    page,
+    browser,
+  }) => {
+    const cred = getRoleCredential('crm_rep');
+    if (!cred) {
+      throw new Error(
+        '[flow/22 competitors-idor-write] role-credentials.json 无 crm_rep 凭证：前置缺失判红，' +
+          '不得改用 admin 兜底（admin 写门经 is_admin_role 内置放行，兜底即把越权写锁改成空操作）'
+      );
+    }
+    const ctx = getCtx();
+    const customerId = ctx.customerId;
+    if (!customerId) {
+      throw new Error(
+        '[flow/22 competitors-idor-write] ensureTestEntities 未落地客户 id，商机 FK 前置缺失'
+      );
+    }
+
+    const selfSession = await loginInIsolatedContext(browser, cred.username, cred.password);
+    let selfOppId = 0;
+    let otherOppId = 0;
+    // 一个真实竞品（competitor 为全局参照表、无 owner 列；admin 建，供子面 POST 携带合法 competitor_id）
+    const competitor = await apiCallRaw<{ id?: number }>(page, 'POST', '/crm/competitors', {
+      name: `E2E 竞品池 ${Date.now()}`,
+    });
+    const competitorId = Number(competitor?.id);
+    if (!Number.isFinite(competitorId) || competitorId <= 0) {
+      await selfSession.close();
+      throw new Error(`建竞品未返回有效 id：${JSON.stringify(competitor)}`);
+    }
+    try {
+      const selfMe = await apiCallRaw<{ id: number }>(selfSession.page, 'GET', '/auth/me');
+      const adminMe = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
+      expect(
+        selfMe.id,
+        `crm_rep(${selfMe.id}) 与 admin(${adminMe.id}) 必须是不同 owner（写越权前提）`
+      ).not.toBe(adminMe.id);
+
+      selfOppId = await seedOpportunityInSession(
+        selfSession.page,
+        customerId,
+        `E2E 竞品写本人商机 ${Date.now()}`
+      );
+      otherOppId = await seedOpportunityInSession(
+        page,
+        customerId,
+        `E2E 竞品写他人商机 ${Date.now()}`
+      );
+
+      // 正向：crm_rep 向本人商机写竞品 → 2xx（写门 owner==本人直接放行，crm_write_guard.rs）。
+      // apiCallRaw 非 2xx 抛真因判红，即 strict。
+      const ownWrite = await apiCallRaw<{ id?: number; competitor_id?: number }>(
+        selfSession.page,
+        'POST',
+        `/crm/opportunities/${selfOppId}/competitors`,
+        { competitor_id: competitorId, threat_level: 'high' }
+      );
+      expect(
+        Number(ownWrite?.competitor_id),
+        `本人商机写竞品应回显 competitor_id=${competitorId}，实际 ${JSON.stringify(ownWrite)}`
+      ).toBe(competitorId);
+
+      // 负向：crm_rep 向他人商机写竞品 → 403 + FORBIDDEN + 四键信封。写侧先过读门
+      // get_opportunity(他人, self ctx) → check_resource_owner false（services/crm/opp.rs）
+      // ⇒ 请求在归属门即被拒，绝不触达 add_opportunity_competitor 的落库（crm_handler.rs:1448-1458）。
+      const crossWrite = await rawAuthedAttempt(
+        selfSession,
+        'POST',
+        `/crm/opportunities/${otherOppId}/competitors`,
+        { competitor_id: competitorId, threat_level: 'high' }
+      );
+      assertFailureEnvelopeShape(
+        crossWrite,
+        403,
+        APP_ERROR_CODES.FORBIDDEN,
+        'crm_rep(self) 写他人商机竞品应被行级归属门拒绝'
+      );
+      expectDenied(
+        { status: crossWrite.status, code: crossWrite.body.code },
+        'crm_rep(self) 写他人商机竞品 403 归因复核'
+      );
+      // 零漂移复证：越权写被拒后，他人商机的竞品集未被悄然写入（admin all 范围回读恒 0 行）
+      const otherList = await apiCallRaw<unknown[]>(
+        page,
+        'GET',
+        `/crm/opportunities/${otherOppId}/competitors`
+      );
+      expect(
+        Array.isArray(otherList) && otherList.length === 0,
+        `越权写被拒后他人商机竞品应零漂移，实际=${JSON.stringify(otherList).slice(0, 200)}`
+      ).toBe(true);
+
+      // 存在性门：向**不存在**的商机写竞品必须被拒，且走的是存在性通道（get_opportunity 查无行 →
+      // AppError::not_found，services/crm/opp.rs）⇒ HTTP 404 + NOT_FOUND，
+      // 与越权 403 分属两条门。id 取一个远大于任何已发放 SERIAL 的哨兵值（不臆造既有 owner，
+      // 也不与本次真实 id 相邻），拒绝只钉状态 + 机器码 + 键形，绝不断含该 id 的对外文案。
+      const ghostOppId = 2000000000;
+      const ghostWrite = await rawAuthedAttempt(
+        selfSession,
+        'POST',
+        `/crm/opportunities/${ghostOppId}/competitors`,
+        { competitor_id: competitorId, threat_level: 'low' }
+      );
+      assertFailureEnvelopeShape(
+        ghostWrite,
+        404,
+        APP_ERROR_CODES.NOT_FOUND,
+        `向不存在商机(${ghostOppId})写竞品应被存在性校验拒绝`
+      );
+    } finally {
+      if (selfOppId)
+        await tryCleanup(
+          page,
+          'DELETE',
+          `/crm/opportunities/${selfOppId}`,
+          'crm_opportunity(self)'
+        );
+      if (otherOppId)
+        await tryCleanup(
+          page,
+          'DELETE',
+          `/crm/opportunities/${otherOppId}`,
+          'crm_opportunity(other)'
+        );
+      await selfSession.close();
+    }
   });
 
   test('五维管理+销售分析+标签', async ({ page }) => {

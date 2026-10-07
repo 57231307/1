@@ -1422,9 +1422,11 @@ pub async fn record_opportunity_stage_change(
 pub async fn list_opportunity_competitors(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let competitors = service.list_opportunity_competitors(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         competitors,
@@ -1435,10 +1437,24 @@ pub async fn list_opportunity_competitors(
 pub async fn add_opportunity_competitor(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<crate::services::crm::opp::AddOpportunityCompetitorRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 行级读门：先校验商机存在 + 操作人可见（不存在 = 与既有"资源不存在"同一通道，
+    // 不可见 = 固定脱敏 403，均不拼记录 ID 对外）。竞品隶属该商机，写子资源等同对该
+    // 商机 owner 的写，故读门后再过跨 owner 写门（方案 A）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机竞品添加",
+    )
+    .await?;
     let competitor = service.add_opportunity_competitor(id, req).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         competitor,
