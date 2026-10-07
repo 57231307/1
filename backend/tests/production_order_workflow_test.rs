@@ -9,14 +9,14 @@ mod test_common;
 
 use std::sync::Arc;
 
+use bingxi_backend::models::status::common::STATUS_COMPLETED;
+use bingxi_backend::models::status::common::STATUS_DRAFT;
 use bingxi_backend::models::status::{common, production};
 use bingxi_backend::services::production_order_service::{
     CreateProductionOrderRequest, ProductionOrderQuery, ProductionOrderService,
 };
-use rust_decimal::Decimal;
-use bingxi_backend::models::status::common::STATUS_COMPLETED;
-use bingxi_backend::models::status::common::STATUS_DRAFT;
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use test_common::setup_test_db;
 
