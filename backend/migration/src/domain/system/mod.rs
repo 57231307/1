@@ -21,6 +21,11 @@ mod m0070_normalize_customers_owner_id;
 // 必须在本域 up 链末尾执行：晚于建表迁移（两列均由其创建），且早于任何
 // 依赖 BIGINT 宽度的写入路径上线。
 mod m0088_widen_voucher_business_bill_id;
+// 其余多态单据 ID 列拓宽（INTEGER → BIGINT）。文件留在本域，但 up/down 由 v15 域
+// 在全部建表完成后调用：6 张目标表分散在 system / business / v15，本域 up 链跑完时
+// business 与 v15 的表还不存在，照 m0058/m0063/m0068/m0075 先例后置。
+// 需要跨域可见，故声明为 pub(crate)。
+pub(crate) mod m0089_widen_remaining_polymorphic_bill_id_columns;
 
 pub struct Migration;
 

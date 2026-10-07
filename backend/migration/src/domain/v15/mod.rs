@@ -4618,10 +4618,20 @@ COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号�
         crate::domain::production::m0075_add_outsourcing_receipt_measured_values::Migration
             .up(manager)
             .await?;
+        // m0089 其余多态单据 ID 列拓宽：6 张目标表分散在 system / business / v15，
+        // 其中 period_adjustment_record 由本域建表，必须晚于全部建表语句才全部在场，
+        // 照 m0058/m0063/m0068/m0075 先例后置到本域 up 末尾（晚于 m0075）。
+        crate::domain::system::m0089_widen_remaining_polymorphic_bill_id_columns::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 与 up 严格逆序：m0089 最后应用故最先回滚（先做逐列溢出探测，超限即 RAISE 中止）。
+        crate::domain::system::m0089_widen_remaining_polymorphic_bill_id_columns::Migration
+            .down(manager)
+            .await?;
         // 与 up 严格逆序：m0075 最后应用故最先回滚（撤三条值域 CHECK + 丢弃三列，
         // 其 down 先点名"已补录实测值行数"再删除，不留静默）。
         crate::domain::production::m0075_add_outsourcing_receipt_measured_values::Migration
