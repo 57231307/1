@@ -1,9 +1,6 @@
 /**
  * useApiEp.ts - API 网关接口管理 composable
- * 任务编号: P14 批 1 B3 I-2
- * 提供接口列表查询、新建、编辑、删除等业务方法
- * 行为完全保持一致（仅结构重构）
- * 批次 281：接入 useTableApi，移除手写 endpoints/endpointTotal/endpointLoading/endpointQuery + fetchEndpoints
+ * 提供接口列表查询、新建、编辑、删除等业务方法（列表/分页由 useTableApi 承载）
  */
 import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
@@ -20,7 +17,7 @@ import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 接口管理 composable
- * 批次 281：返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
+ * 返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
  */
 export function useApiEp() {
   const {

@@ -1,8 +1,6 @@
 /**
  * useDiProc.ts - 数据导入流程操作 composable
- * 任务编号: P14 批 2 I-3 第 5 批（拆分原 data-import/index.vue）
  * 封装新建/编辑/删除模板、上传/重试/取消任务、下载模板/错误日志等流程性方法
- * 行为完全保持一致（仅结构重构）
  *
  * 设计说明：通过 callbacks 接收 useDi 的状态引用（Reactive 包装层）；
  * 由于 useDi 返回 reactive({...})，父组件传入 di.fetchTemplates 等会自动解包为值
@@ -66,7 +64,7 @@ function isImportColumn(v: unknown): v is ImportColumn {
 
 /**
  * 流程回调（接收 useDi 返回的状态，自动解包后的值类型）
- * 批次 289：简化为仅包含实际使用的字段（fetchTemplates/fetchTasks/activeTab）
+ * 仅包含实际使用的字段（fetchTemplates/fetchTasks/activeTab）
  */
 interface DiCallbacks {
   // 模板列表刷新

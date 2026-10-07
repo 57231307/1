@@ -1,8 +1,6 @@
 /**
  * apiGwFmts.ts - API 网关共享格式化工具
- * 任务编号: P14 批 1 B3 I-2（拆分原 api-gateway/index.vue）
  * 提供 HTTP 方法、端点状态、密钥状态的标签/类型映射
- * 行为完全保持一致（仅结构重构）
  */
 
 /** HTTP 方法 → el-tag 类型 */

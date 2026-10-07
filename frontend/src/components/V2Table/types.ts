@@ -1,10 +1,9 @@
 /**
  * V2Table 组件类型契约
- * 任务编号: Wave 4 P2-3 V2Table 重做 + 对齐 P2-1 API
  *
  * 设计原则：
- * 1. 对齐 P2-1（test 分支）API 风格：title 字段、可选 width、formatter(row) 签名、renderCell(row) 钩子
- * 2. 保留 P2-3 价值：estimatedRowHeight prop 参数化（页面级行高调优）
+ * 1. 统一 API 风格：title 字段、可选 width、formatter(row) 签名、renderCell(row) 钩子
+ * 2. 页面级行高调优：estimatedRowHeight prop 参数化
  * 3. 单一来源：所有 V2Table 相关类型在此文件导出，避免散落
  */
 import type { VNode } from 'vue';
@@ -58,6 +57,6 @@ export interface V2TableProps<T = unknown> {
   rowKey?: string;
   /** 空数据文案 */
   emptyText?: string;
-  /// 估算行高（像素），P2-3 价值保留，默认 48
+  /// 估算行高（像素），用于页面级行高调优，默认 48
   estimatedRowHeight?: number;
 }

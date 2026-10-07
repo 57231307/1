@@ -1,8 +1,6 @@
 /**
  * useVchrLstProc.ts - 凭证列表流程操作 composable
- * 任务编号: P14 批 2 I-3 第 1 批（拆分原 VoucherListTab.vue）
  * 封装凭证打印、导出、审核、记账、反记账、删除等流程性方法
- * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';

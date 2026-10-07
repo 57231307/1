@@ -1,9 +1,7 @@
 /**
  * useApiKey.ts - API 网关密钥管理 composable
- * 任务编号: P14 批 1 B3 I-2
- * 提供 API 密钥列表查询、新建、编辑、删除、重新生成等业务方法
- * 批次 281：接入 useTableApi，移除手写 keys/keyTotal/keyLoading/keyQuery + fetchKeys
- * wave4 契约收口：编辑对话框回显 description / expires_at 真值，
+ * 提供 API 密钥列表查询、新建、编辑、删除、重新生成等业务方法（列表/分页由 useTableApi 承载）。
+ * 编辑对话框回显 description / expires_at 真值，
  * 清空即送显式 null（后端落 NULL / 永不过期），局部更新保持"键缺席=不动"。
  */
 import { isDialogDismissal } from '@/utils/monitor';
@@ -26,7 +24,7 @@ import { useTableApi } from '@/composables/useTableApi';
  * 密钥新建/编辑对话框的表单模型（UI 态，非线上契约）。
  *
  * 可空列与后端出参同形：`null` 就是"未填/已清空"，不用空串冒充
- * （空串会被原样落库并显示为空，正是本轮修掉的缺陷形态）。
+ * （空串会被原样落库并显示为空）。
  * `expires_at` 用 el-date-picker 的 `value-format="X"`（unix 秒），
  * 提交时由 `toWireExpiresAt` 转成 ISO 8601 送后端，`null` → 显式送 null（永不过期）。
  */
@@ -68,7 +66,7 @@ export function toWireDescription(value: string | null | undefined): string | nu
 
 /**
  * 密钥管理 composable
- * 批次 281：返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
+ * 返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
  */
 export function useApiKey() {
   const {

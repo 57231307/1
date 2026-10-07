@@ -1,6 +1,5 @@
 /**
  * ppFmts.ts - 采购价格格式化工具
- * 任务编号: P14 批 2 I-3 （拆分原 purchase-price/index.vue）；对齐销售侧 spFmts 范式收口
  *
  * 价格状态词表权威 = backend/src/models/status/sales 的 price_approval 模块（全小写），
  * 采购侧四值均有写入方：建单写 pending（purchase_price_service.rs::create_price）、
@@ -13,9 +12,6 @@
  * 契约锁 backend/tests/contract_wave8_price_status_parity_test.rs 钉 词表常量==DB CHECK，含销售侧
  * 旁路写 inactive 被拒、采购侧 inactive 必须可写的分表负例；该测试不读前端文件，本数组与
  * 词表一致性由 PURCHASE_PRICE_STATUS 常量与本注释同文维持）。
- * 历史纠偏：本模块旧注释与诊断文案曾把权威指向 models/status/general.rs::master_data
- * （那是 supplier/customer 等启用/停用词表，取值域 {active,inactive}，与价格词表仅
- * "inactive" 一字面重合，指向错），连同 api/purchase-price.ts 头注一并纠正为 price_approval。
  * 本模块以 pending/approved/rejected/inactive 原值为比较对象，文案走 i18n 键（purchasePrice.statusLabels.*），
  * 未知 token 记日志后抛错（fail-visible），禁止 `|| status` 兜底外显。
  * 注：本文件字符串字面量（含诊断文案）不得出现裸中文（同销售侧 spFmts 判据：对字符串字面量

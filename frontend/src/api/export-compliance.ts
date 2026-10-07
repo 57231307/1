@@ -1,7 +1,7 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
-// 出口商检与出口退税：合并自 tax-rebate.ts / export-inspection.ts（统一出口，避免重复实现）
+// 出口商检与出口退税：本模块为二者的统一 re-export 出口；
 // 商检端点返回裸 JSON（无 ApiResponse 信封），由 export-inspection.ts 的独立 axios 实例处理；
 // 退税端点带 ApiResponse 信封，由 tax-rebate.ts 处理。
 export {

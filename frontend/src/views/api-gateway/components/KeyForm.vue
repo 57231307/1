@@ -1,8 +1,7 @@
 <!--
   KeyForm.vue - API 密钥新建/编辑对话框
-  拆分自 api-gateway/index.vue（P14 批 1 B3 I-2）
-  P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
-  wave4 契约收口：description / expires_at 按后端可空列真值回显（null 不冒充空串），
+  本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件；
+  description / expires_at 按后端可空列真值回显（null 不冒充空串），
   过期时间以 unix 秒承载、提交时转 ISO 8601。
 -->
 <template>
@@ -105,7 +104,7 @@ const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{
   // 对话框可见性
   visible: boolean;
-  // 表单实例（批次 281：改为可选，通过 v-model:formRef 双向同步）
+  // 表单实例（可选，通过 v-model:formRef 双向同步）
   formRef?: FormInstance | undefined;
   // 表单数据（由父组件管理，子组件通过 emit 回写；可空列以 null 表达"未填/已清空"）
   form?: Partial<ApiKeyFormValues>;
@@ -119,7 +118,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:visible': [v: boolean];
-  // 批次 281：通过 emit 通知父组件 formRef 变化（替代原 props.formRef.value 写回）
+  // 通过 emit 通知父组件 formRef 变化
   'update:formRef': [value: FormInstance | undefined];
   'update:permissionsText': [v: string];
   // 整体回写表单（父组件监听此事件并 Object.assign 到自己的 form）
@@ -161,7 +160,7 @@ watch(
   { deep: true }
 );
 
-// 批次 281：将 el-form 的 ref 实例通过 emit 通知父组件（替代原 props.formRef.value 写回）
+// 将 el-form 的 ref 实例通过 emit 通知父组件
 const formRefValue = ref<FormInstance | undefined>(undefined);
 watch(
   formRefValue,

@@ -99,13 +99,13 @@ export function deleteAsset(id: number): Promise<ApiResponse<void>> {
 }
 
 export function depreciateAsset(id: number, period: string): Promise<ApiResponse<FixedAsset>> {
-  // 批次 88 PH-2：补传 period 参数（YYYY-MM 格式），后端 DepreciateRequest 必填
+  // period（YYYY-MM 格式）为后端 DepreciateRequest 必填字段
   return request.post(`/fixed-assets/${id}/depreciate`, { period });
 }
 
 // 资产处置请求（对齐后端 fixed_asset_handler::DisposalRequestDto）
 // disposal_type：SALE 出售 / SCRAP 报废 / TRANSFER 转移
-// v3 复审 P1-2：新增资产处置能力，支持出售/报废/转移
+// 资产处置：支持出售/报废/转移
 export interface DisposalRequest {
   disposal_type: string;
   /**
@@ -127,7 +127,7 @@ export function disposeAsset(id: number, data: DisposalRequest): Promise<ApiResp
 export const batchDepreciateAssets = (data: { asset_ids: number[]; calculation_date: string }) =>
   request.post('/fixed-assets/batch-depreciate', data);
 
-// ===== 预算审批：统一出口（签名一致的重复实现收敛自 budget.ts）=====
+// ===== 预算审批：统一出口 =====
 export {
   getBudgetList,
   deleteBudget,

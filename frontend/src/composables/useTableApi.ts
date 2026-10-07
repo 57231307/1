@@ -1,7 +1,5 @@
 /**
  * useTableApi - 通用表格数据 composable
- * 任务编号: Wave 4 P2-1 PR-1
- * 关联 spec: docs/superpowers/specs/2026-06-16-wave4-p2-1-design.md 第四章
  */
 import { ref, watch, onBeforeUnmount } from 'vue';
 import type { Ref } from 'vue';
@@ -73,7 +71,6 @@ interface ListResponsePayload {
 
 export interface UseTableApiOptions {
   url: string;
-  // v11 批次 172 P2-1 修复：Record<string, any> 改为 Record<string, unknown>
   defaultParams?: Record<string, unknown>;
   defaultPageSize?: number;
   pageKey?: string;
@@ -125,7 +122,6 @@ export function useTableApi<T = unknown>(
   const loading = ref(false);
   const page = ref(1);
   const pageSize = ref(defaultPageSize);
-  // v11 批次 172 P2-1 修复：ref<Record<string, any>> 改为 Record<string, unknown>
   const queryParams = ref<Record<string, unknown>>({ ...defaultParams });
 
   /**
@@ -135,7 +131,6 @@ export function useTableApi<T = unknown>(
    * 都不匹配时**必须报错**：这里返回 [] 会把"契约漂移"伪装成"这张表没有数据"，
    * 用户看到的是空表而不是失败，缺陷永远暴露不出来。
    */
-  // v11 批次 172 P2-1 修复：payload: any 改为 payload: ListResponsePayload | unknown[]
   const detectList = (payload: ListResponsePayload | unknown[]): T[] => {
     if (Array.isArray(payload)) return payload as T[];
     // 优先按 listKey 指定的字段名取
@@ -215,7 +210,6 @@ export function useTableApi<T = unknown>(
   const fetchData = async (attempt = 0, throwOnFail = false): Promise<void> => {
     loading.value = true;
     try {
-      // v11 批次 172 P2-1 修复：params: Record<string, any> 改为 Record<string, unknown>
       const params: Record<string, unknown> = {
         ...queryParams.value,
         [pageKey]: page.value,
@@ -226,7 +220,7 @@ export function useTableApi<T = unknown>(
         ApiResponse<ListResponsePayload | T[]> | ListResponsePayload | T[]
       >(url, { params });
       // 兼容三种返回：ApiResponse 包装 / 裸 list / 裸对象
-      // 批次 277：当 res.data 是裸数组（如 `{ data: T[], total: number }`）时，
+      // 当 res.data 是裸数组（如 `{ data: T[], total: number }`）时，
       // 需要把 res 外层的 total/count 保留到 payload，否则 detectTotal 会丢失总数。
       const resObj = res as ListResponsePayload;
       const raw: ListResponsePayload | T[] =
@@ -262,7 +256,6 @@ export function useTableApi<T = unknown>(
     pageSize.value = defaultPageSize;
   };
 
-  // v11 批次 172 P2-1 修复：value: any 改为 value: unknown
   const setQueryParam = (key: string, value: unknown): void => {
     queryParams.value = { ...queryParams.value, [key]: value };
   };

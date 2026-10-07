@@ -1,9 +1,6 @@
 /**
  * useApiLog.ts - API 网关调用日志 composable
- * 任务编号: P14 批 1 B3 I-2
- * 提供调用日志列表查询与详情查看业务方法
- * 行为完全保持一致（仅结构重构）
- * 批次 281：接入 useTableApi，移除手写 logs/logTotal/logLoading/logQuery + fetchLogs
+ * 提供调用日志列表查询与详情查看业务方法（列表/分页由 useTableApi 承载）
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -13,7 +10,7 @@ import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 调用日志 composable
- * 批次 281：返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
+ * 返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
  */
 export function useApiLog() {
   const {
@@ -40,7 +37,7 @@ export function useApiLog() {
     logDetailVisible.value = true;
   };
 
-  // 批次 281：reactive 包装返回值，ref 自动解包，父组件无需 .value
+  // reactive 包装返回值，ref 自动解包，父组件无需 .value
   // logQuery 是 ref<Record>，reactive 解包后为 reactive 对象，子组件可直接 Object.assign 修改属性
   // page/pageSize 暴露给子组件用于 v-model 分页绑定
   return reactive({

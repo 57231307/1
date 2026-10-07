@@ -1,9 +1,7 @@
 /**
  * arRecFmts.ts - AR 对账共享格式化工具
- * 任务编号: P14 批 1 B3 I-2（拆分原 arReconciliation/enhanced.vue）
  * 提供匹配状态/争议类型/状态/确认状态的标签与类型映射
- * 行为完全保持一致（仅结构重构）
- * i18n：label 值改为 i18n key 字符串，由调用方通过 t() 翻译
+ * i18n：label 值为 i18n key 字符串，由调用方通过 t() 翻译
  */
 
 /** 匹配状态 → el-tag 类型 */

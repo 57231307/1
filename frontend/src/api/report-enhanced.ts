@@ -11,7 +11,6 @@ export interface ReportField {
 export interface ReportFilterCondition {
   field: string;
   operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in' | 'between';
-  // 批次 98 P2-D 修复（v5 复审）：原 any 改为联合类型，覆盖所有 operator 的取值
   value: string | number | boolean | string[] | number[] | null;
 }
 
@@ -165,8 +164,7 @@ export function exportReport(
   return request.post(`/reports/enhanced/templates/${templateId}/export`, data ?? {});
 }
 
-// P2-16 修复（批次 86 v2 复审）：previewReport ApiResponse<any> → 显式接口
-// 增强预览契约修复：键名/形状逐字对齐后端 json! 构造（report_enhanced_handler.rs:512-518）
+// 增强预览契约：键名/形状逐字对齐后端 json! 构造（report_enhanced_handler.rs:512-518）
 // 与其数据源 execute_custom_report 的返回类型 (Vec<String>, Vec<Vec<String>>, u64)
 // （report_template_service.rs:559）——columns 为字符串表头数组，data 为「行=字符串数组」的二维数组，
 // 而非此前臆造的 fields/rows 对象形状。
@@ -220,7 +218,7 @@ export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: 
   return request.post(`/reports/enhanced/subscriptions/${id}/send`);
 }
 
-// ===== 报表模板 CRUD：统一出口（重复实现收敛自 report-templates.ts）=====
+// ===== 报表模板 CRUD：统一出口 =====
 export {
   getReportTemplateList,
   getReportTemplate,

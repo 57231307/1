@@ -1,15 +1,13 @@
 /**
  * useVchrLst.ts - 凭证列表核心 composable
- * 任务编号: P14 批 2 I-3 第 1 批（拆分原 VoucherListTab.vue）
  * 提供凭证列表查询、表单管理、科目加载、详情等核心方法
  * 业务流程（打印/导出/审核/记账）由 useVchrLstProc 提供
- * 批次 287：tableData 接入 useTableApi，移除手写分页逻辑
  *
  * 设计说明：使用 reactive 而非 ref 包装返回值，便于父组件
  *   const vchr = useVchrLst() 后直接以 plain value 形式访问 vchr.xxx
  *   避免子组件 prop 期望 boolean/array 等基础类型时类型不匹配
  *
- * P0 契约修复（本轮，凭证 voucher_type/items 键名错配）：
+ * 凭证提交/回显的契约要点：
  * - 原提交体携带前端自创键 type/entries ⇒ 创建 400（后端 CreateVoucherRequestDto
  *   必填 voucher_type/items 反序列化失败）、更新静默 no-op（后端两字段均 Option，
  *   收不到即全部保持原值）。现 handleSubmit 构造后端规范键 payload：

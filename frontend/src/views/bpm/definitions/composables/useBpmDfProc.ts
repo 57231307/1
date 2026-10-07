@@ -1,8 +1,6 @@
 /**
  * useBpmDfProc.ts - BPM 流程定义流程操作 composable
- * 任务编号: P14 批 2 I-3 第 5 批（拆分原 bpm/definitions.vue）
  * 封装搜索 / 重置 / 创建 / 编辑 / 删除 / 版本 / 创建版本 / 激活 / 保存为模板等流程性方法
- * 行为完全保持一致（仅结构重构）
  *
  * 设计说明：通过 callbacks 接收 useBpmDf 的状态引用（Reactive 包装层）
  */
@@ -10,7 +8,6 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
-// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   deleteBpmDefinition,
   updateBpmDefinition,
@@ -29,7 +26,7 @@ import { logger } from '@/utils/logger';
 
 /**
  * 流程回调（接收 useBpmDf 返回的状态，自动解包后的值类型）
- * 批次 282：适配 useTableApi（page 独立 ref，queryParams 不含 page/page_size）
+ * 适配 useTableApi：page 独立 ref，queryParams 不含 page/page_size
  */
 interface BpmDfCallbacks {
   // 列表
@@ -38,7 +35,7 @@ interface BpmDfCallbacks {
   total: number;
   // 分页（useTableApi 独立 ref）
   page: number;
-  // 过滤（批次 282：useTableApi queryParams 为 Record<string, unknown>）
+  // 过滤（useTableApi queryParams 为 Record<string, unknown>）
   queryParams: Record<string, unknown>;
   // 表单
   dialogVisible: boolean;
@@ -103,13 +100,13 @@ function getAssigneeTypeName(type?: string): string {
  * BPM 流程定义流程操作方法集合
  */
 export function useBpmDfProc(cb: BpmDfCallbacks) {
-  /** 搜索（批次 282：page 独立 ref，refresh 别名 fetchDefinitions） */
+  /** 搜索（page 独立 ref，refresh 别名 fetchDefinitions） */
   const handleSearch = () => {
     cb.page = 1;
     cb.fetchDefinitions();
   };
 
-  /** 重置（批次 282：page 独立 ref，queryParams 为 Record<string, unknown>） */
+  /** 重置（page 独立 ref，queryParams 为 Record<string, unknown>） */
   const handleReset = () => {
     cb.queryParams.category = '';
     cb.page = 1;
