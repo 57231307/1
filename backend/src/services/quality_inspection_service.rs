@@ -191,6 +191,16 @@ pub struct ProcessUnqualifiedRequest {
     pub handling_result: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（"键缺席 ≠ 显式 null"语义所需）。
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 台账行「处置结果原地更新」（D1②）请求体：只承载处置结果字段。
 /// 身份字段（操作人/审批人/user_id 等）在本 DTO 类型层不存在，serde 无法承载——
 /// 操作人一律取服务端会话身份（purchase_receipt_ops/state.rs concede/rejudge 同构范式）
@@ -199,10 +209,10 @@ pub struct ProcessResultRequest {
     /// 处理方式：必须与权威词表常量（HANDLING_REWORK/HANDLING_DOWNGRADE_SALE/
     /// HANDLING_SCRAP）逐字符相同；词表外值 ⇒ VALIDATION
     pub handling_method: String,
-    /// 处置理由（可选）。本表当前无承载"处置理由"的专用列（handling_result 的既有
-    /// 语义是结果数据：降级单价/返工工时/报废损失金额，禁挪用语义），故本轮仅做
-    /// 校验并显式记日志、不落库；理由入库需新增专用列＝迁移，属破坏性动作待裁
-    pub reason: Option<String>,
+    /// 处置理由（DB 可空 TEXT 列 handling_reason）。三态语义：键缺席=保持原值、
+    /// 显式 null=清空、有值=覆盖（trim 后落库）；有值时空白串 ⇒ VALIDATION
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason: Option<Option<String>>,
 }
 
 pub struct QualityInspectionService {
@@ -561,8 +571,9 @@ impl QualityInspectionService {
     /// 留痕：`handling_by`/`handling_at` 落真实处置操作人与时间（操作人取会话，请求体
     /// 身份字段在 DTO 层无对应键），`updated_at` 同步推进；`update_with_audit` 同事务
     /// 写 audit_log 前后全行快照（purchase_receipt_ops/state.rs concede/rejudge 同构
-    /// 范式）。本表无 `updated_by` 列（m0013 建表 + 模型字段逐列核实），不挪用
-    /// remark/handling_result 承载操作人或理由（语义挪列是真缺陷，S-2 教训）。
+    /// 范式）。本表无 `updated_by` 列（m0013 建表 + 模型字段逐列核实），处置理由落
+    /// 专用列 `handling_reason`（TEXT NULL），不挪用 remark/handling_result（语义挪列
+    /// 是真缺陷，S-2 教训）。
     /// 事务内 `lock_exclusive` 串行化并发更新，任一步失败 `?` 上抛整体回滚，不允许半成功。
     pub async fn process_unqualified_result(
         &self,
@@ -580,9 +591,8 @@ impl QualityInspectionService {
                 HANDLING_VOCAB.join("/")
             )));
         }
-        // 理由若提交则不得为空白串（字段校验，返回 VALIDATION）；表无专用列故理由不落库，
-        // 但静默丢弃违反"不静默"红线，因此下方 info! 显式记录校验通过的理由内容
-        if let Some(raw) = req.reason.as_deref() {
+        // 理由三态：缺席=保持原值、显式null=清空、有值=校验后落库；有值时不得为空白
+        if let Some(Some(raw)) = &req.reason {
             if raw.trim().is_empty() {
                 return Err(AppError::validation_displayable(
                     "处置理由填写后不能为空白，请填写实质理由或留空不提交",
@@ -616,14 +626,6 @@ impl QualityInspectionService {
                 "报废处理须经财务与总经理两级审批达成终态，处置结果端点不直进报废",
             ));
         }
-        if let Some(raw) = req.reason {
-            info!(
-                unqualified_id = row.id,
-                reason = %raw.trim(),
-                "处置理由已校验；unqualified_products 暂无专用理由列，本轮未落库（新列迁移裁定后再落）"
-            );
-        }
-
         let now = chrono::Utc::now();
         let mut active: unqualified_product::ActiveModel = row.into();
         active.handling_method = Set(req.handling_method);
@@ -631,6 +633,11 @@ impl QualityInspectionService {
         active.handling_by = Set(Some(user_id));
         active.handling_at = Set(Some(now));
         active.updated_at = Set(now);
+        match req.reason {
+            None => {}
+            Some(None) => active.handling_reason = Set(None),
+            Some(Some(val)) => active.handling_reason = Set(Some(val.trim().to_string())),
+        }
 
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,

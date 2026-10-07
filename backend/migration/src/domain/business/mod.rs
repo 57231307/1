@@ -46,9 +46,11 @@ mod m0083_add_customer_tier_column;
 // 注册在本域 up 链尾；列语义与「无外键/不存原文」判据见文件头。
 mod m0085_add_pii_reveal_audit;
 // customers:reveal 存量库补授（roles/role_permissions 属 system 域、早于本域，
-// 注册在本域 up 链最末/down 链首，同 m0069/m0072/m0081 授权补种范式；
+// 注册紧随 m0085，同 m0069/m0072/m0081 授权补种范式；
 // 受授集合与三通道口径见文件头）
 mod m0086_grant_customers_pii_reveal;
+// 疵点处置理由载体列：理由此前只校验不落库，补一列承接；列语义见文件头。
+mod m0087_add_unqualified_handling_reason;
 
 pub struct Migration;
 
@@ -279,8 +281,12 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         // PII 按需揭示留痕表：自包含新表，无上游依赖，注册在本域 up 链最末
         m0085_add_pii_reveal_audit::Migration.up(manager).await?;
         // customers:reveal 存量库补授：roles/role_permissions 由 system 域先建，
-        // 注册在本域 up 链最末（其后无其它迁移消费该键；见 m0086 文件头三通道口径）
+        // 注册紧随 m0085（见 m0086 文件头三通道口径）
         m0086_grant_customers_pii_reveal::Migration
+            .up(manager)
+            .await?;
+        // 疵点处置理由列：自包含加列，无上游依赖，注册在本域 up 链最末
+        m0087_add_unqualified_handling_reason::Migration
             .up(manager)
             .await?;
         Ok(())
@@ -288,8 +294,12 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // customers:reveal 补授：最后应用者最先回滚（只回收本迁移按角色码授予的
-        // reveal 键，人工另授的 customers 键不动）
+        // 疵点处置理由列：最后应用者最先回滚（只撤本迁移施加的列）
+        m0087_add_unqualified_handling_reason::Migration
+            .down(manager)
+            .await?;
+        // customers:reveal 补授：只回收本迁移按角色码授予的
+        // reveal 键，人工另授的 customers 键不动
         m0086_grant_customers_pii_reveal::Migration
             .down(manager)
             .await?;

@@ -50,6 +50,12 @@
           <template #default="{ row }">{{ handlingMethodLabel(row.handling_method) }}</template>
         </el-table-column>
         <el-table-column
+          prop="handling_reason"
+          :label="t('quality.defectTab.colHandlingReason')"
+          min-width="180"
+          show-overflow-tooltip
+        />
+        <el-table-column
           prop="handling_status"
           :label="t('quality.defectTab.colProcessed')"
           width="100"

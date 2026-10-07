@@ -3530,6 +3530,7 @@ export default {
       dialogAriaLabel: 'Unqualified product handling dialog',
       dialogHandlingMethod: 'Handling Method',
       dialogUnqualifiedReason: 'Unqualified Reason',
+      colHandlingReason: 'Handling Reason',
       handlingDowngradeSale: 'Downgrade Sale',
       handlingRework: 'Rework',
       handlingScrap: 'Scrap',

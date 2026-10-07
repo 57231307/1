@@ -346,6 +346,7 @@ export interface UnqualifiedProductRecord {
   remark: string | null;
   grade: string | null;
   handling_result: string | null;
+  handling_reason: string | null;
   created_at: string;
   updated_at: string;
   stock_grade_synced: boolean;

@@ -74,8 +74,13 @@ const GHOST_KEYS = [
   'record_id',
 ] as const;
 
-/** 缺陷台账必须展示的三列真实载体（删列可以，但这三列不得再退成推导值） */
-const REQUIRED_REAL_KEYS = ['unqualified_qty', 'handling_status', 'handling_method'] as const;
+/** 缺陷台账必展示列（删列即判红，不得再退成推导值） */
+const REQUIRED_REAL_KEYS = [
+  'unqualified_qty',
+  'handling_status',
+  'handling_method',
+  'handling_reason',
+] as const;
 
 /** 截取 TS interface 正文；接口被删除或改名即抛错（防判据静默失去覆盖） */
 function tsInterfaceBody(src: string, name: string): string {
@@ -286,6 +291,10 @@ describe('不合格品（缺陷台账）出参形状锁（后端构造点 ↔ �
     expect(boundProps.length).toBeGreaterThanOrEqual(6);
     for (const prop of boundProps) {
       expect(backendKeys, `视图绑定了后端不输出的列 ${prop}`).toContain(prop);
+    }
+    // 双向锁：必展示列在视图 prop= 绑定中必须出现（删列即判红）
+    for (const key of REQUIRED_REAL_KEYS) {
+      expect(boundProps, `视图缺少必展示列 ${key}`).toContain(key);
     }
     // 无数据源的列直接删，不得留 ?? '-' 之类的假列占位
     expect(DEFECT_TAB_SRC).not.toContain("?? '-'");

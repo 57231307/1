@@ -146,7 +146,7 @@ async fn row_count(db: &DatabaseConnection) -> u64 {
 fn result_req(method: &str, reason: Option<&str>) -> ProcessResultRequest {
     ProcessResultRequest {
         handling_method: method.to_string(),
-        reason: reason.map(str::to_string),
+        reason: reason.map(|r| Some(r.to_string())),
     }
 }
 
@@ -580,4 +580,91 @@ async fn lock5_record_id_filter_pushes_down_to_inspection_id() {
         .expect("组合筛选查询必须成功");
     assert_eq!(total, 1, "88001+pending 组合必须只剩 1 行");
     assert_eq!(rows[0].handling_status, quality_handling::PENDING);
+}
+
+// =========================================================
+// 锁6：处置理由三态落库真库回读——有值=覆盖、缺席=保持原值、显式null=清空
+// =========================================================
+
+#[tokio::test]
+async fn lock6_reason_present_persists_trimmed_value() {
+    let db = seeded_db().await;
+    let row = seed_pending(&db).await;
+
+    let payload = json!({
+        "handling_method": HANDLING_REWORK,
+        "reason": "  缸差返工后复检合格  "
+    });
+    let req: ProcessResultRequest = serde_json::from_value(payload).expect("反序列化必须成功");
+    service(&db)
+        .process_unqualified_result(row.id, req, SESSION_A)
+        .await
+        .expect("带理由处置必须成功");
+
+    let updated = reread(&db, row.id).await;
+    assert_eq!(
+        updated.handling_reason.as_deref(),
+        Some("缸差返工后复检合格"),
+        "理由 trim 后必须落库"
+    );
+}
+
+#[tokio::test]
+async fn lock6_reason_absent_preserves_original_value() {
+    let db = seeded_db().await;
+    let mut row = seed_pending(&db).await;
+
+    // 先手动写入一个 reason 模拟"原值已存在"
+    let mut am: unqualified_product::ActiveModel = row.clone().into();
+    am.handling_reason = Set(Some("原始理由".to_string()));
+    row = am.update(&db).await.expect("预置原值必须成功");
+    assert_eq!(row.handling_reason.as_deref(), Some("原始理由"));
+
+    // 构造不含 reason 键的 JSON（缺席态）
+    let payload = json!({
+        "handling_method": HANDLING_DOWNGRADE_SALE
+    });
+    let req: ProcessResultRequest =
+        serde_json::from_value(payload).expect("缺席 reason 反序列化必须成功");
+    service(&db)
+        .process_unqualified_result(row.id, req, SESSION_A)
+        .await
+        .expect("reason 缺席时处置仍应成功");
+
+    let updated = reread(&db, row.id).await;
+    assert_eq!(
+        updated.handling_reason.as_deref(),
+        Some("原始理由"),
+        "键缺席时原值不得被覆盖或清空"
+    );
+}
+
+#[tokio::test]
+async fn lock6_reason_explicit_null_clears_to_none() {
+    let db = seeded_db().await;
+    let mut row = seed_pending(&db).await;
+
+    // 预置 reason 非 NULL
+    let mut am: unqualified_product::ActiveModel = row.clone().into();
+    am.handling_reason = Set(Some("待清空".to_string()));
+    row = am.update(&db).await.expect("预置原值必须成功");
+    assert_eq!(row.handling_reason.as_deref(), Some("待清空"));
+
+    // 构造 reason=null 的 JSON（显式 null 态）
+    let payload = json!({
+        "handling_method": HANDLING_REWORK,
+        "reason": null
+    });
+    let req: ProcessResultRequest =
+        serde_json::from_value(payload).expect("显式 null reason 反序列化必须成功");
+    service(&db)
+        .process_unqualified_result(row.id, req, SESSION_A)
+        .await
+        .expect("显式 null 清空理由处置必须成功");
+
+    let updated = reread(&db, row.id).await;
+    assert_eq!(
+        updated.handling_reason, None,
+        "显式 null 必须落库为 SQL NULL"
+    );
 }

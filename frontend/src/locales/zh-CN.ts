@@ -3516,6 +3516,7 @@ export default {
       dialogAriaLabel: '不合格品处理对话框',
       dialogHandlingMethod: '处理方式',
       dialogUnqualifiedReason: '不合格原因',
+      colHandlingReason: '处置理由',
       handlingDowngradeSale: '降级销售',
       handlingRework: '返工',
       handlingScrap: '报废',

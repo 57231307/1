@@ -36,6 +36,8 @@ pub struct Model {
     // v14 批次 421：处理结果（降级销售单价/返工工时/报废损失金额）
     #[sea_orm(column_name = "handling_result")]
     pub handling_result: Option<String>,
+    #[sea_orm(column_name = "handling_reason")]
+    pub handling_reason: Option<String>,
     #[sea_orm(column_name = "created_at")]
     pub created_at: DateTime<Utc>,
     #[sea_orm(column_name = "updated_at")]
