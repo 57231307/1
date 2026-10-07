@@ -2588,9 +2588,7 @@ async function ensureGlobalBusinessSeed(
         (listBody?.data as Array<{ year?: number; period?: number }> | undefined) ?? null;
       if (!listResp.ok() || !Array.isArray(periods)) {
         await reportSeedWrite(listResp, `${periodLabel} 存在性回读`);
-      } else if (
-        periods.some(p => p.year === fixedPeriodYear && p.period === fixedPeriodMonth)
-      ) {
+      } else if (periods.some(p => p.year === fixedPeriodYear && p.period === fixedPeriodMonth)) {
         console.log(`[globalSeed] ${periodLabel} 已存在（读端点确认），跳过创建`);
       } else {
         const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
