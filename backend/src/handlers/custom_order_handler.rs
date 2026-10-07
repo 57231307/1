@@ -53,10 +53,13 @@ pub struct ListCustomOrdersQuery {
 
 /// 推进请求体（推进备注选填）
 /// 操作人身份唯一来源是服务端会话 AuthContext.user_id，请求体不承载 operator_id。
+/// `to_status` 选填：省略时按状态机顺序推进到下一相邻阶段；提供时必须是被权威转移表
+/// 允许的合法目标，非法跳跃（如 draft → dyeing）由服务层显式拒绝为 BUSINESS_ERROR。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdvanceRequest {
     pub notes: Option<String>,
+    pub to_status: Option<String>,
 }
 
 // ----------------------------------------------------------------------
@@ -85,10 +88,13 @@ fn state_err(e: crate::services::custom_order_state_service::StateError) -> AppE
     use crate::services::custom_order_state_service::StateError::*;
     match e {
         NotFound => AppError::not_found("定制订单不存在"),
-        InvalidTransition(msg) => AppError::business(msg),
+        // 状态机拒绝非法跳跃，文案 `from → to` 仅含公开状态 token（逐字符取自权威词表），
+        // 无记录 ID / 无内部判定依据 → 按安全边界用 business_displayable 外显真实原因。
+        InvalidTransition(msg) => AppError::business_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         StateMachine(e) => AppError::business(e.to_string()),
-        // 状态门未通过（关联打样单/报价单缺失或未确认），服务层文案走业务族外显
+        // 状态门未通过（关联打样单/报价单缺失或未确认），服务层文案含内部记录 ID，
+        // 按 error.rs 安全边界不得外显，走脱敏 business。
         GateValidation(msg) => AppError::business(msg),
         LabDipRequestNotFound(id) => AppError::not_found(format!("打样通知单 {} 不存在", id)),
         QuotationNotFound(id) => AppError::not_found(format!("报价单 {} 不存在", id)),
@@ -405,11 +411,15 @@ pub async fn advance_custom_order(
     Path(id): Path<i64>,
     OptionalJson(req): OptionalJson<AdvanceRequest>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    // 备注选填 ⇒ 体本身选填（OptionalJson 语义表：缺体/JSON 头空体都是合法输入），
-    // 状态门与门校验在 service 事务内执行。
+    // 备注与目标阶段均选填 ⇒ 体本身选填（OptionalJson 语义表：缺体/JSON 头空体都是合法输入），
+    // 状态门与非法跳跃拒绝在 service 事务内经唯一权威转移表判定。
     let service = CustomOrderStateService::from_state(&state);
+    let (notes, to_status) = match req {
+        Some(r) => (r.notes, r.to_status),
+        None => (None, None),
+    };
     let updated = service
-        .advance(id, auth.user_id, req.and_then(|r| r.notes))
+        .advance(id, auth.user_id, notes, to_status.as_deref())
         .await
         .map_err(state_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {

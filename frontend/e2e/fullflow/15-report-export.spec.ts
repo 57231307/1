@@ -153,10 +153,10 @@ test.describe('15 财务报表/导出/快照契约链', () => {
   test('15-01 利润表：seed 过账凭证后装配恒等 + 自建收入行确计入表（抓硬编码比例/漏聚合）', async ({
     page,
   }) => {
-    const rev = await seedSubject(page, '60', 'E2E15营业收入', '贷');
-    const cogs = await seedSubject(page, '64', 'E2E15营业成本', '借');
-    const exp = await seedSubject(page, '6602', 'E2E15管理费用', '借');
-    const other = await seedSubject(page, '112', 'E2E15其他应收', '借');
+    const rev = await seedSubject(page, '60', 'E2E15营业收入', 'credit');
+    const cogs = await seedSubject(page, '64', 'E2E15营业成本', 'debit');
+    const exp = await seedSubject(page, '6602', 'E2E15管理费用', 'debit');
+    const other = await seedSubject(page, '112', 'E2E15其他应收', 'debit');
     // 借：成本3000 + 费用1000 + 挂账1000 = 贷：收入5000
     await createPostedVoucher(page, [
       { subjectId: cogs.id, debit: 3000, credit: 0, summary: 'E2E15成本' },
@@ -204,8 +204,8 @@ test.describe('15 财务报表/导出/快照契约链', () => {
   test('15-02 试算平衡：period 参数生效 + 自建唯一科目行期间发生额精确回读 + 全局恒等', async ({
     page,
   }) => {
-    const sub = await seedSubject(page, '99', 'E2E15试算专用科目', '借');
-    const counter = await seedSubject(page, '98', 'E2E15试算对方科目', '贷');
+    const sub = await seedSubject(page, '99', 'E2E15试算专用科目', 'debit');
+    const counter = await seedSubject(page, '98', 'E2E15试算对方科目', 'credit');
     await createPostedVoucher(page, [
       { subjectId: sub.id, debit: 4321, credit: 0, summary: 'E2E15借发生' },
       { subjectId: counter.id, debit: 0, credit: 4321, summary: 'E2E15贷发生' },
@@ -247,8 +247,8 @@ test.describe('15 财务报表/导出/快照契约链', () => {
   test('15-03 总账：按自建科目 code 精确查询命中自建凭证分录（voucher_no/借贷/余额链）', async ({
     page,
   }) => {
-    const sub = await seedSubject(page, '97', 'E2E15总账科目', '借');
-    const counter = await seedSubject(page, '96', 'E2E15总账对方', '贷');
+    const sub = await seedSubject(page, '97', 'E2E15总账科目', 'debit');
+    const counter = await seedSubject(page, '96', 'E2E15总账对方', 'credit');
     const v = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/vouchers', {
       voucher_type: '记账凭证',
       voucher_date: today(),

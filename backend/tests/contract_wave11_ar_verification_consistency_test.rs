@@ -25,7 +25,7 @@ mod test_common;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
@@ -155,6 +155,35 @@ async fn seed_confirmed_collection(
     .id
 }
 
+/// 播 2026-04 会计期间且为 OPEN（覆盖 `fixture_date()` 2026-04-10）。
+/// `create_payment` 经 `check_payment_period_locked`→`check_date_locked_txn`
+/// （ar_ops/collection.rs:122 / accounting_period_service.rs:638，闭区间 start<=date<=end）
+/// 要求收款日期落在已设置期间内；`accounting_periods` 非参照表、随 setup_test_db 被清空，
+/// 故按 seed 范式在每用例真库播种真实前置数据（OPEN 词表常量与写入方逐字符相同）。
+async fn seed_open_period_2026_04(db: &DatabaseConnection) {
+    let start = NaiveDate::from_ymd_opt(2026, 4, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 4, 30)
+        .unwrap()
+        .and_hms_opt(23, 59, 59)
+        .unwrap();
+    bingxi_backend::models::accounting_period::ActiveModel {
+        year: Set(2026),
+        period: Set(4),
+        period_name: Set("2026-04".to_string()),
+        start_date: Set(Utc.from_utc_datetime(&start)),
+        end_date: Set(Utc.from_utc_datetime(&end)),
+        status: Set(bingxi_backend::models::status::accounting_period::OPEN.to_string()),
+        created_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
 async fn reload_invoice(db: &DatabaseConnection, id: i32) -> ar_invoice::Model {
     ar_invoice::Entity::find_by_id(id)
         .one(db)
@@ -214,6 +243,7 @@ async fn receipt_lines_of(
 #[tokio::test]
 async fn create_payment_linked_invoice_lands_ledger_and_blocks_decrease() {
     let db = setup_test_db().await;
+    seed_open_period_2026_04(&db).await;
     let uid = seed_user(&db, "warv_link1").await;
     let cid = seed_customer(&db, uid).await;
     let inv_id = seed_ar_invoice(&db, cid, uid, "1000.00").await;
@@ -317,6 +347,7 @@ async fn create_payment_linked_invoice_lands_ledger_and_blocks_decrease() {
 #[tokio::test]
 async fn cancel_collection_rolls_back_invoice_and_recovers_ledger() {
     let db = setup_test_db().await;
+    seed_open_period_2026_04(&db).await;
     let uid = seed_user(&db, "warv_cancel2").await;
     let cid = seed_customer(&db, uid).await;
     let inv_id = seed_ar_invoice(&db, cid, uid, "1000.00").await;
@@ -593,6 +624,7 @@ async fn ledger_and_statement_amount_scopes_do_not_mix() {
 #[tokio::test]
 async fn cancel_collection_midway_failure_writes_nothing() {
     let db = setup_test_db().await;
+    seed_open_period_2026_04(&db).await;
     let uid = seed_user(&db, "warv_rollback5").await;
     let cid = seed_customer(&db, uid).await;
     let inv_id = seed_ar_invoice(&db, cid, uid, "1000.00").await;
