@@ -164,6 +164,7 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         // ("leads", *) 行，等于把权限键名定在注册表之外。
         // 消歧到注册表权威名 crm-leads，与 purchase-/sales- 前缀族同构，纯对齐不新增授权。
         ("crm", "leads") => "crm-leads".to_string(),
+        ("crm", "opportunities") => "crm-opportunities".to_string(),
         // ===== 生产域：`/erp/production/production-orders/orders*` 的资源段消歧 =====
         // 该路由是双层模块前缀（seg3=production、seg4=production-orders 均在
         // is_module_prefix 表内），extract_resource_info（middleware/permission.rs:274-279）
