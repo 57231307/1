@@ -457,13 +457,21 @@ impl SkuMappingService {
         for (idx, row) in rows.iter().enumerate() {
             let row_num = idx + 1;
 
-            // 校验 product_code 存在
+            // 校验 product_code 存在。
+            // 只投影主键、整行 Model 不解码：products 表的 unit/status/product_type 等为
+            // 后续 ALTER 加入的可空列（v15/mod.rs:3821,3824,3828 等），而 product::Model
+            // 把这些列声明为非 Option；整行读取在只填了 code/name 的稀疏/历史行上会抛
+            // ColumnDecode，被顶层 `?` 归一为 DATABASE_ERROR(500)。本处只需 id，故按
+            // validate_refs 对 supplier 的同类写法（见本文件 validate_refs）取 id 投影。
             let prod = match product::Entity::find()
                 .filter(product::Column::Code.eq(&row.product_code))
+                .select_only()
+                .column(product::Column::Id)
+                .into_tuple::<i32>()
                 .one(&*self.db)
                 .await
             {
-                Ok(Some(p)) => p,
+                Ok(Some(id)) => id,
                 Ok(None) => {
                     result.error_count += 1;
                     result
@@ -479,16 +487,19 @@ impl SkuMappingService {
                 Err(e) => return Err(AppError::from(e)),
             };
 
-            // 校验 color_no 对应的 product_color_id
+            // 校验 color_no 对应的 product_color_id（同样只投影 id）
             let product_color_id = match &row.color_no {
                 Some(cn) if !cn.is_empty() => {
                     match product_color::Entity::find()
-                        .filter(product_color::Column::ProductId.eq(prod.id))
+                        .filter(product_color::Column::ProductId.eq(prod))
                         .filter(product_color::Column::ColorNo.eq(cn))
+                        .select_only()
+                        .column(product_color::Column::Id)
+                        .into_tuple::<i32>()
                         .one(&*self.db)
                         .await
                     {
-                        Ok(Some(pc)) => Some(pc.id),
+                        Ok(Some(id)) => Some(id),
                         Ok(None) => {
                             result.error_count += 1;
                             result
@@ -507,13 +518,16 @@ impl SkuMappingService {
                 _ => None,
             };
 
-            // 校验 supplier_code 存在
+            // 校验 supplier_code 存在（只投影 id）
             let sup = match supplier::Entity::find()
                 .filter(supplier::Column::SupplierCode.eq(&row.supplier_code))
+                .select_only()
+                .column(supplier::Column::Id)
+                .into_tuple::<i32>()
                 .one(&*self.db)
                 .await
             {
-                Ok(Some(s)) => s,
+                Ok(Some(id)) => id,
                 Ok(None) => {
                     result.error_count += 1;
                     result
@@ -529,14 +543,17 @@ impl SkuMappingService {
                 Err(e) => return Err(AppError::from(e)),
             };
 
-            // 校验 supplier_product_code 存在
+            // 校验 supplier_product_code 存在（只投影 id）
             let sup_prod = match supplier_product::Entity::find()
-                .filter(supplier_product::Column::SupplierId.eq(sup.id))
+                .filter(supplier_product::Column::SupplierId.eq(sup))
                 .filter(supplier_product::Column::ProductCode.eq(&row.supplier_product_code))
+                .select_only()
+                .column(supplier_product::Column::Id)
+                .into_tuple::<i32>()
                 .one(&*self.db)
                 .await
             {
-                Ok(Some(sp)) => sp,
+                Ok(Some(id)) => id,
                 Ok(None) => {
                     result.error_count += 1;
                     result
@@ -552,16 +569,19 @@ impl SkuMappingService {
                 Err(e) => return Err(AppError::from(e)),
             };
 
-            // 校验 supplier_color_no 对应的 supplier_product_color_id
+            // 校验 supplier_color_no 对应的 supplier_product_color_id（只投影 id）
             let supplier_product_color_id = match &row.supplier_color_no {
                 Some(scn) if !scn.is_empty() => {
                     match supplier_product_color::Entity::find()
-                        .filter(supplier_product_color::Column::SupplierProductId.eq(sup_prod.id))
+                        .filter(supplier_product_color::Column::SupplierProductId.eq(sup_prod))
                         .filter(supplier_product_color::Column::ColorNo.eq(scn))
+                        .select_only()
+                        .column(supplier_product_color::Column::Id)
+                        .into_tuple::<i32>()
                         .one(&*self.db)
                         .await
                     {
-                        Ok(Some(spc)) => Some(spc.id),
+                        Ok(Some(id)) => Some(id),
                         Ok(None) => {
                             result.error_count += 1;
                             result
@@ -584,10 +604,10 @@ impl SkuMappingService {
             let now = chrono::Utc::now();
             let insert_result = Self::upsert_mapping(
                 &*self.db,
-                prod.id,
+                prod,
                 product_color_id,
-                sup.id,
-                sup_prod.id,
+                sup,
+                sup_prod,
                 supplier_product_color_id,
                 row.supplier_price,
                 row.min_order_quantity,
