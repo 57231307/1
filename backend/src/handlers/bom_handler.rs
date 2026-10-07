@@ -42,8 +42,7 @@ pub struct CreateBomItemPayload {
     pub quantity: Decimal,
     /// 单位长度上限对齐真实 DDL：`bom_items.unit VARCHAR(20)`
     /// （`migration/src/domain/business/m0007_add_mrp_production_bom.rs:40`）。
-    /// 原 DTO 无长度约束，超长值过校验后直撞列宽报 PG 长度错误冒 500；
-    /// 收进 DTO 校验后转 400 `VALIDATION_ERROR`（可外显）。
+    /// 超长值在 DTO 层即拒绝并转 400 `VALIDATION_ERROR`（文案可外显），避免越过校验直撞列宽冒 500。
     #[validate(length(
         max = 20,
         message = "BOM明细的单位长度不能超过 20 个字符，请缩短或选择标准单位名"

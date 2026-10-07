@@ -207,12 +207,12 @@ impl CrmService {
     pub const EXPORT_PII_PHONE_COLUMNS: &'static [&'static str] = &["mobile_phone", "tel_phone"];
     pub const EXPORT_PII_EMAIL_COLUMNS: &'static [&'static str] = &["email"];
 
-    /// 线索默认字段脱敏的**唯一实现**（"无角色数据权限行且非 admin"分支，即 P1-08-5 分支），
+    /// 线索默认字段脱敏的**唯一实现**（"无角色数据权限行且非 admin"分支），
     /// 供四个出口共用：`crm_handler::list_leads`（列表）、`crm_handler::get_lead`（详情）、
     /// `crm_pool_handler::list_pool`（公海列表）、`claim_from_pool`/`recycle_to_pool`（写响应）。
     ///
     /// 为什么必须收敛成一个函数而不是各写一份内联分支：掩码列集合一旦出现第二份手写实现
-    /// 就会漂移。本波次实证到的两处漂移即此因：
+    /// 就会漂移，典型后果有两类：
     /// - 列表/详情漏 `tel_phone`（座机），而导出侧 `EXPORT_PII_PHONE_COLUMNS` 已含它
     ///   → 同一角色"导出被打码、列表/详情原文"；
     /// - 公海写响应整行原文回传（含 mobile_phone/tel_phone/email/address）

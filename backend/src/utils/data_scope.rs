@@ -224,11 +224,10 @@ pub fn check_resource_write_owner(
 pub enum PoolVisibility {
     /// 公海行可见性与归属条件**相互独立**（OR 组合，与 RLS USING 的公海 OR 支
     /// 同形态）：`归属条件 OR 公海条件`。Dept/Self 用户都能看全公海行；
-    /// All 本就不加行级过滤。`crm_lead` 调用点使用（用户 2026-10-02 拍板 ②）。
+    /// All 本就不加行级过滤。`crm_lead` 调用点使用。
     Open,
-    /// 历史组合形态：公海条件仅在 Dept 分支（有可见部门时）AND 进归属条件，
-    /// Self/All 分支无公海放行。`customers` 调用点本轮保持该口径——
-    /// **客户公海（owner_id=0）是否同步放开另待拍板，本轮可见面零变化**。
+    /// 公海条件仅在 Dept 分支（有可见部门时）AND 进归属条件，
+    /// Self/All 分支无公海放行。`customers` 调用点使用此口径（不得套用 Open）。
     Scoped,
 }
 
@@ -272,18 +271,16 @@ where
 
 /// RLS 5 表专用（m_rls_dept_domain）：带公海分支的数据范围过滤，组合口径由
 /// `PoolVisibility` **显式传入**，函数本身不再隐含公海语义：
-/// - [`PoolVisibility::Open`]（crm_lead 调用点，用户 2026-10-02 拍板 ②）：
+/// - [`PoolVisibility::Open`]（crm_lead 调用点）：
 ///   `归属条件 OR 公海条件`——公海行可见性与归属条件相互独立，与 DB 层 RLS
 ///   USING 的独立公海 OR 支同形态（`rls_dept/mod.rs:195-207`
-///   `lead_status='pool'`、`:146-159` customers `owner_id=0`）。修复前 Dept 分支
-///   为 `(self ∪ dept) AND 公海条件`：公海页查不到本应可见的公海行，且 Dept 用户
-///   **领取后**该行 `lead_status` 变 `new` 反而跌出可见集（回收→领取→再查看
-///   的合法链被遮蔽）。改 OR **不扩大 DB 边界**（DB 早已放行），只是应用层不再
-///   遮蔽本可出行的；写侧越权门 `check_resource_owner` 逐字不变（见其文档）。
-/// - [`PoolVisibility::Scoped`]（customers 调用点，本轮**可见面零变化**）：
-///   保持历史组合——公海条件仅在 Dept 分支且有可见部门时 AND 进归属条件，
-///   Self/All 无公海放行。客户公海（`owner_id=0`）是否同步放开属另一待拍板项，
-///   不得顺手套用 Open。
+///   `lead_status='pool'`、`:146-159` customers `owner_id=0`）。OR 组合不扩大
+///   DB 边界（DB 层早已放行），只是应用层不再遮蔽本可放行的公海行；Dept 用户
+///   领取公海行后 `lead_status` 变 `new`，独立 OR 支保证其仍可见。写侧越权门
+///   `check_resource_owner` 不受影响（见其文档）。
+/// - [`PoolVisibility::Scoped`]（customers 调用点）：
+///   公海条件仅在 Dept 分支且有可见部门时 AND 进归属条件，
+///   Self/All 分支无公海放行；不得套用 Open。
 ///
 /// 示例：`apply_department_scope_with_pool(crm_lead::Entity::find(), &ctx,
 ///         crm_lead::Column::OwnerId, crm_lead::Column::DepartmentId,

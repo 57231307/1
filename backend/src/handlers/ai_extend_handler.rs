@@ -77,7 +77,7 @@ pub async fn create_process_optimization(
     auth: AuthContext,
     Json(body): Json<CreateProcessOptDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // V15 P2 14-4.5：输入校验（color_no / fabric_type 长度 + dye_type 枚举）
+    // 输入校验：color_no / fabric_type 长度 + dye_type 枚举
     // 长度单位 = 字符数：DB 列 ai_process_optimizations.color_no / .fabric_type 均为
     // VARCHAR(64)，PG 按字符计数；String::len() 返回 UTF-8 字节数，中文色号/布类会被误拒。
     let color_no_chars = body.request.color_no.chars().count();

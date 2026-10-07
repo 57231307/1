@@ -427,7 +427,7 @@ pub async fn list_contacts(
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人；批次 90b P2-12：实现前端 detail.vue "新增联系人" 占位符的真实后端。
+/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人（挂载见 `routes/crm.rs` 客户增强路由）。
 #[axum::debug_handler]
 pub async fn create_contact(
     State(state): State<AppState>,

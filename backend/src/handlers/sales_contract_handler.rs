@@ -36,10 +36,9 @@ pub struct SalesContractQuery {
 
 /// 创建销售合同请求 DTO
 ///
-/// P0 契约修复（本轮）：
-/// - `delivery_date` 改 Option：真实列 sales_contracts.delivery_date 可空，原非 Option
-///   导致前端未填时反序列化失败 → 400「参数错误」。
-/// - 补齐表头真实列 signed_date/effective_date/expiry_date/payment_method/delivery_location。
+/// 创建销售合同请求 DTO：可空列以 Option 表示（`delivery_date` 对应真实列
+/// sales_contracts.delivery_date 可空），并覆盖表头真实列
+/// signed_date/effective_date/expiry_date/payment_method/delivery_location。
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateSalesContractRequestDto {
     pub contract_no: String,
@@ -466,13 +465,11 @@ pub async fn update_contract(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新销售合同: ID={}", auth.username, id);
 
-    // P1-2o 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // req 为强类型 DTO，经 validator 校验字段，非法返回 400 VALIDATION
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    // P0 契约修复（本轮）：原实现在 handler 内联「取模型→改 2 个字段→保存」，
-    // 无事务/无行锁且其余表头字段与明细全部丢失。改为下沉 service.update
-    // （txn + lock_exclusive + DRAFT 状态门 + 表头全集 + 明细整表替换）。
+    // 更新委托 service.update：事务 + 排他锁 + DRAFT 状态门 + 表头全字段 + 明细整表替换
     let service = SalesContractService::new(state.db.clone());
     let update_req = crate::services::sales_contract_service::UpdateSalesContractRequest {
         contract_name: req.contract_name,

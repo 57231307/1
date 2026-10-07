@@ -79,7 +79,7 @@ type PermTriple = (&'static str, &'static str, &'static str);
 struct PermissionWritePlan {
     /// 待写模型（库里缺失的角色级授权）
     to_insert: Vec<role_permission::ActiveModel>,
-    /// 本轮真正涉及的角色 ID（写后对账按这批角色计数）
+    /// 本次授权涉及的角色 ID（写后对账按这批角色计数）
     pending_role_ids: Vec<i32>,
     /// 应写条数（= to_insert 长度，另存一份供对账与日志）
     expected_total: usize,

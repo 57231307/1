@@ -258,7 +258,7 @@ impl DepartmentService {
         // 三态写入规则：None=不 Set（列保持 Unset，UPDATE 不含该列，原值不动）；
         // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
         // 不得塌成单层 Option<T>：塌层后"清空"与"保持"共用同一表示，
-        // description/parent_id/manager_id 将无法置 NULL——本轮要消灭的静默丢弃形态。
+        // description/parent_id/manager_id 将无法置 NULL（清空请求会被静默丢弃）。
         // name/code 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
         if let Some(n) = req.name.flatten() {
             // 检查部门名称是否已存在

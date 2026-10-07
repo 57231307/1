@@ -95,13 +95,12 @@ impl ApiKeyService {
         crate::utils::hash::sha256_hex(key.as_bytes())
     }
 
-    /// 创建 API 密钥（批次 112 P1-9：新增 created_by 参数，注入真实创建者 user_id（原表无此列，handler 传 0 占位））
+    /// 创建 API 密钥：生成明文密钥、其 SHA-256 哈希与 8 位前缀，落库 api_key 表并返回 (模型, 明文)。
     ///
-    /// 契约收口（本轮）：
-    /// - `description` 真实落库（此前创建链路根本不接收该字段，用户填了被静默丢弃）；
-    /// - `expires_at` 改为接收 handler 精确解析后的绝对时刻（原 `expires_days` 由
-    ///   `now + days` 反算，会把用户选的精确到期时间改写成一个近似值，且解析失败
-    ///   被 `.ok()` 吞成"永不过期"）。NULL = 永不过期。
+    /// 入参语义：
+    /// - `description`：用户填写的说明，NULL 表示未填；
+    /// - `expires_at`：handler 解析后的绝对到期时刻，NULL 表示永不过期；
+    /// - `created_by`：真实创建者 user_id。
     pub async fn create_api_key(
         &self,
         name: &str,
@@ -126,9 +125,9 @@ impl ApiKeyService {
             last_used_at: Set(None),
             expires_at: Set(expires_at),
             is_active: Set(true),
-            // 批次 112 P1-9：持久化真实创建者 user_id
+            // 持久化真实创建者 user_id 到 created_by 列
             created_by: Set(Some(created_by)),
-            // 契约收口：创建即写入真实描述（NULL = 用户未填）
+            // 创建即写入用户填写的描述（NULL = 未填）
             description: Set(description.map(|s| s.to_string())),
             created_at: Set(now),
             updated_at: Set(now),
@@ -139,8 +138,9 @@ impl ApiKeyService {
         Ok((model, plain_key))
     }
 
-    /// 撤销 API 密钥
-    /// 漏洞 #5 修复：撤销时同时将 `key_hash` 加入 `AppCache.token_blacklist` 缓存。；历史问题：原实现仅设置 `is_active = false`，旧的明文 API Key；（若被攻击者截获）在撤销后仍能继续使用。；修复策略：撤销时通过 `key_hash` 写入黑名单，未来 API Key 认证中间件；可通过 [`Self::is_api_key_revoked`] 检查是否已撤销。；TTL 7 天后自动失效（与典型 API Key 生命周期对齐）。
+    /// 撤销 API 密钥：置 `is_active = false`，并把 `key_hash` 写入 `AppCache.token_blacklist`
+    /// 缓存（TTL [`API_KEY_BLACKLIST_TTL_SECS`] 秒），使已撤销的明文密钥即时失效。
+    /// cache 缺省时仅更新 DB，黑名单不写并记 warn 供运维发现未接管的调用方。
     pub async fn revoke_api_key(&self, id: i32, cache: Option<&AppCache>) -> Result<(), AppError> {
         let key = ApiKey::find_by_id(id)
             .one(self.db.as_ref())
@@ -152,7 +152,7 @@ impl ApiKeyService {
         active_model.updated_at = Set(Utc::now());
         active_model.update(self.db.as_ref()).await?;
 
-        // 漏洞 #5 修复：将 key_hash 加入黑名单缓存，TTL 7 天
+        // 将 key_hash 加入黑名单缓存，TTL 内认证可即时拦截已撤销密钥
         if let Some(cache) = cache {
             let blacklist_key = format!("{}{}", API_KEY_BLACKLIST_PREFIX, key.key_hash);
             cache.get_token_blacklist().set(
@@ -191,8 +191,10 @@ impl ApiKeyService {
             .map_err(AppError::from)
     }
 
-    /// 更新 API 密钥（批次 91 P0-1）
-    /// 仅更新传入的字段，未传入的字段保持不变。； 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）； 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，；消除 `clippy::too_many_arguments` 警告。；本轮契约收口：`expires_at` / `description` 均为 `Option<Option<T>>` 三态——；键缺席=保持原值、显式 null=落 NULL（永不过期 / 清空描述）、有值=覆盖。
+    /// 更新 API 密钥：按 `UpdateApiKeyPayload` 仅覆盖传入的字段，未传入的保持不变。
+    ///
+    /// `expires_at` / `description` 为 `Option<Option<T>>` 三态——键缺席 = 保持原值、
+    /// 显式 null = 落 NULL（永不过期 / 清空描述）、有值 = 覆盖。
     pub async fn update_api_key(
         &self,
         payload: UpdateApiKeyPayload,
@@ -231,12 +233,13 @@ impl ApiKeyService {
             .map_err(AppError::from)
     }
 
-    /// 重新生成 API 密钥（批次 91 P0-1）（生成新的明文密钥 + 哈希，旧 key_hash 加入黑名单。；返回 (更新后的 model, 新明文密钥)。）
+    /// 重新生成 API 密钥：生成新的明文密钥与哈希并覆盖 `key_hash`/`key_prefix`，
+    /// 旧 `key_hash` 加入黑名单缓存，返回 (更新后的 model, 新明文密钥)。
     pub async fn regenerate_api_key(
         &self,
         id: i32,
         cache: Option<&AppCache>,
-        // 批次 112 P1-9：新增 regenerated_by 参数，更新 created_by 为重新生成操作者
+        // 重新生成操作者的 user_id，落 created_by（新密钥的创建者）
         regenerated_by: i32,
     ) -> Result<(api_key::Model, String), AppError> {
         let key = ApiKey::find_by_id(id)
@@ -263,7 +266,7 @@ impl ApiKeyService {
         active_model.key_hash = Set(key_hash);
         active_model.key_prefix = Set(key_prefix);
         active_model.is_active = Set(true);
-        // 批次 112 P1-9：重新生成时更新 created_by 为操作者（语义：新密钥的创建者）
+        // 重新生成时 created_by 更新为本次操作者（新密钥的创建者）
         active_model.created_by = Set(Some(regenerated_by));
         active_model.updated_at = Set(Utc::now());
 
@@ -271,8 +274,11 @@ impl ApiKeyService {
         Ok((model, plain_key))
     }
 
-    /// 检查 API Key 是否已被撤销（漏洞 #5 修复）
-    /// 流程：1. 计算明文 key 的 SHA-256 哈希；2. 检查 `AppCache.token_blacklist` 中是否存在 `<prefix><key_hash>` 条目；未来 API Key 认证中间件应在每次校验 key 前调用此方法。；# 参数；`cache`: 应用全局缓存；`plain_key`: 明文 API Key（含 `bx_` 前缀）；# 返回；`true`: 已撤销（拒绝使用）；`false`: 未撤销或黑名单已过期
+    /// 检查 API Key 是否已被撤销：对明文 key 取 SHA-256 哈希，查 `AppCache.token_blacklist`
+    /// 是否存在 `<API_KEY_BLACKLIST_PREFIX><key_hash>` 条目。
+    ///
+    /// 入参：`cache` 应用全局缓存；`plain_key` 明文 API Key（含 `bx_` 前缀）。
+    /// 返回：`true` 已撤销（应拒绝使用）；`false` 未撤销或黑名单条目已过期。
     pub fn is_api_key_revoked(cache: &AppCache, plain_key: &str) -> bool {
         let key_hash = Self::hash_api_key(plain_key);
         let blacklist_key = format!("{}{}", API_KEY_BLACKLIST_PREFIX, key_hash);

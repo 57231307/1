@@ -826,7 +826,7 @@ pub async fn upload_supplier_qualification_attachment(
                 error = %e,
                 "资质附件上传请求不是合法 multipart（Content-Type 缺失或无 boundary）"
             );
-            // 请求形态非法属输入格式校验族（VALIDATION），文案只述请求形态事实
+            // 用 AppError::validation_displayable 返回：文案只述请求形态事实（无内部数据），可安全外显
             AppError::validation_displayable(
                 "上传请求必须是合法的 multipart/form-data（需包含 boundary）",
             )
@@ -878,7 +878,7 @@ pub async fn upload_supplier_qualification_attachment(
             qualification_id,
             "资质附件上传请求缺少 file 字段"
         );
-        // 请求体缺少必填 file 字段属「必填缺失」输入校验，归校验族（文案只述请求字段可外显）
+        // 缺少必填 file 字段，用 AppError::validation_displayable 返回：文案只述请求字段，可安全外显
         AppError::validation_displayable("请求中未找到附件文件字段（字段名须为 file）")
     })?;
 
@@ -891,7 +891,7 @@ pub async fn upload_supplier_qualification_attachment(
             size_bytes = data.len(),
             "资质附件超过大小上限，已拒绝"
         );
-        // 上传文件大小超限属「范围/大小」输入校验，归校验族；上限是公开规则可外显
+        // 大小超限，用 AppError::validation_displayable 返回：上限是公开规则，可安全外显
         return Err(AppError::validation_displayable(format!(
             "资质附件不能超过 {}MB",
             MAX_QUALIFICATION_ATTACHMENT_SIZE / 1024 / 1024
@@ -912,7 +912,7 @@ pub async fn upload_supplier_qualification_attachment(
             declared_ext = %ext,
             "资质附件扩展名不在白名单，已拒绝"
         );
-        // 扩展名不在白名单属「格式」输入校验，归校验族；白名单为公开规则可外显
+        // 扩展名不在白名单，用 AppError::validation_displayable 返回：白名单是公开规则，可安全外显
         return Err(AppError::validation_displayable(
             "资质附件仅支持 pdf/jpg/jpeg/png 格式",
         ));
@@ -927,8 +927,8 @@ pub async fn upload_supplier_qualification_attachment(
             declared_ext = %ext,
             "资质附件内容 magic bytes 校验失败（非 PDF/JPEG/PNG），已拒绝"
         );
-        // 文件内容格式非法属「格式」输入校验，归校验族；
-        // 文案已按安全边界去掉内部机制术语（magic bytes），只述用户可理解的格式事实。
+        // 内容格式非法，用 AppError::validation_displayable 返回：文案去掉内部术语（magic bytes），
+        // 只述用户可理解的格式事实，可安全外显。
         return Err(AppError::validation_displayable(
             "附件内容不是有效的证照文件，仅支持 PDF/JPEG/PNG",
         ));
@@ -942,7 +942,7 @@ pub async fn upload_supplier_qualification_attachment(
             detected_kind = magic_kind,
             "资质附件声明扩展名与实际内容不符（疑似伪造），已拒绝"
         );
-        // 声明扩展名与实际内容不符属「格式」输入校验，归校验族；回显的是用户自己的文件名可外显
+        // 声明扩展名与实际内容不符，用 AppError::validation_displayable 返回：回显用户自己的文件名，可安全外显
         return Err(AppError::validation_displayable(format!(
             "附件扩展名 .{} 与文件实际内容不符，请检查后重新上传",
             ext

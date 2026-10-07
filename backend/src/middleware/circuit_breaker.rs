@@ -1,11 +1,11 @@
-//! V15 P1 20.6-B：API 网关熔断中间件
+//! API 网关熔断中间件
 //!
 //! 实现滑动窗口（5s）失败率检测，> 50% 触发熔断（open 状态直接返回 503），
 //! 30s 后进入 half-open 探测，成功则 closed，失败则继续 open。
 //!
 //! 设计：每个 route_key 维护独立的 CircuitState，全局 HashMap + Mutex 管理。
 //!
-//! 出参与日志契约（本波次收口）：
+//! 出参与日志契约：
 //! - 短路响应必须是统一 `AppError` 信封（HTTP 503 + `code=SERVICE_UNAVAILABLE` +
 //!   `trace_id` + `timestamp`），不再返回裸文本；`trace_id` 与 `X-Trace-Id` 响应头同源
 //!   （本层挂载在 `trace_context_middleware` 内层，`TRACE_ID` task-local 已绑定）。

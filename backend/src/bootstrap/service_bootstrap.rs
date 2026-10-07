@@ -15,10 +15,8 @@ use crate::container::{AppState, AppStateParams};
 
 /// 启动过程中创建的需要在 graceful shutdown 时关闭的服务句柄。
 ///
-/// L-30 修复（批次 372 v13 复审）：保留 OmniAuditEngine clone 用于 shutdown 后
-/// 调用 shutdown()，避免审计引擎 detached task 泄漏。
-/// L-32 修复（批次 380 v13 复审）：保留 AuditLogService clone 用于 shutdown 后
-/// 调用 shutdown()，避免审计日志 detached task 泄漏。
+/// 保留 OmniAuditEngine clone，shutdown 时调用其 shutdown()，避免审计引擎 detached task 泄漏。
+/// 保留 AuditLogService clone，shutdown 时调用其 shutdown()，避免审计日志 detached task 泄漏。
 pub struct BootstrapShutdownHandles {
     omni_audit: Option<Arc<crate::services::omni_audit_service::OmniAuditEngine>>,
     audit_log: Option<Arc<crate::services::audit_log_service::AuditLogService>>,
@@ -36,9 +34,8 @@ impl Default for BootstrapShutdownHandles {
 impl BootstrapShutdownHandles {
     /// 关闭所有持有的服务（幂等安全，可重复调用）。
     ///
-    /// V15 P1 修复（E0507）：将 `self` 改为 `&mut self`，避免在 `&mut` 引用上
-    /// 触发 move。使用 `Option::take()` 取出所有权，第二次调用时 `Option` 已为 `None`，
-    /// 自然实现幂等。
+    /// 以 `&mut self` + `Option::take()` 取出所有权，避免在 `&mut` 引用上触发 move；
+    /// 第二次调用时 `Option` 已为 `None`，天然幂等。
     pub fn shutdown(&mut self) {
         if let Some(omni_audit) = self.omni_audit.take() {
             omni_audit.shutdown();
@@ -49,24 +46,23 @@ impl BootstrapShutdownHandles {
     }
 }
 
-/// L-26 修复（批次 374 v13 复审）：main.rs 后台定时任务 spawn 句柄
-/// 保存 admin 缓存清理 + JTI 黑名单清理 + 慢查询采集句柄，供 shutdown abort
+/// main.rs 后台定时任务 spawn 句柄：
+/// 保存 admin 缓存清理 + JTI 黑名单清理 + 慢查询采集句柄，供 shutdown 时 abort
 static MAIN_BACKGROUND_TASKS: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>> =
     std::sync::Mutex::new(Vec::new());
 
-/// V15 P2 B05-P2-5：后台定时任务统一取消 Token。
-/// shutdown 时先 cancel() 通知循环优雅退出，再保留 abort() 兜底强杀未退出的任务。
+/// 后台定时任务统一取消 Token：shutdown 时先 cancel() 通知循环优雅退出，再保留 abort() 兜底强杀未退出的任务。
 static MAIN_CANCELLATION_TOKEN: once_cell::sync::Lazy<CancellationToken> =
     once_cell::sync::Lazy::new(CancellationToken::new);
 
-/// V15 P2 B05-P2-5：获取后台任务取消 Token 的引用（供 5 个 spawn 任务 clone 传入循环）。
+/// 获取后台任务取消 Token 的引用（供 5 个 spawn 任务 clone 传入循环）。
 #[allow(dead_code)]
 pub fn main_cancellation_token() -> &'static CancellationToken {
     &MAIN_CANCELLATION_TOKEN
 }
 
-/// L-26 修复（批次 374）：关闭 main.rs 后台定时任务，幂等安全。
-/// V15 P2 B05-P2-5：先调用 token.cancel() 通知所有循环优雅退出，再 abort() 兜底。
+/// 关闭 main.rs 后台定时任务，幂等安全。
+/// 先调用 token.cancel() 通知所有循环优雅退出，再 abort() 兜底。
 pub fn shutdown_main_background_tasks() {
     MAIN_CANCELLATION_TOKEN.cancel();
     let tasks = match MAIN_BACKGROUND_TASKS.lock() {
@@ -133,38 +129,38 @@ pub async fn bootstrap_full_mode(
     start_failover_monitor(&app_state);
     start_report_subscription_scheduler(&app_state);
     start_color_card_issue_scheduler(&app_state);
-    // V15 P1 batch-16 缺陷 6.1/6.2/6.3：邮件队列后台 Worker（扫描 PENDING 邮件 + 指数退避重试）
+    // 邮件队列后台 Worker（扫描 PENDING 邮件 + 指数退避重试）
     start_email_queue_worker(&app_state);
-    // V15 P1 10-1/10-2：导出合规审查定时任务（每日扫描 + 6 类异常导出行为识别）
+    // 导出合规审查定时任务（每日扫描 + 6 类异常导出行为识别）
     start_export_compliance_scheduler(&app_state);
-    // V15 P1 batch-16 缺陷 8.3/8.4：追踪数据 90 天保留策略（page_views/user_behaviors 归档清理）
+    // 追踪数据 90 天保留策略（page_views/user_behaviors 归档清理）
     start_tracking_cleanup_scheduler(&app_state);
-    // P1 batch-18 缺陷 7.2：库存告警通知调度器（扫描库存告警 + 推送通知）
+    // 库存告警通知调度器（扫描库存告警 + 推送通知）
     start_stock_alert_notification_scheduler(&app_state);
-    // 15.2-1：供应商评估定时调度（每季度/每年自动触发评估）
+    // 供应商评估定时调度（每季度/每年自动触发评估）
     start_supplier_evaluation_scheduler(&app_state);
-    // 16.2-D1：定时推送后台调度（扫描到期推送订阅并触发推送）
+    // 定时推送后台调度（扫描到期推送订阅并触发推送）
     start_notification_push_scheduler(&app_state);
-    // V15 P2 B05-P2-7：PDA/工控终端心跳超时清理任务（默认每 60 秒扫描一次超时设备）
+    // PDA/工控终端心跳超时清理任务（默认每 60 秒扫描一次超时设备）
     start_device_connection_cleanup_task(&app_state);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     init_es_indices().await;
-    // V15 P1 20.3-B：启动 WebSocket Redis Pub/Sub 多实例广播订阅器
+    // 启动 WebSocket Redis Pub/Sub 多实例广播订阅器
     let ws_pubsub_handle =
         tokio::spawn(crate::websocket::notifications::start_ws_pubsub_subscriber());
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(ws_pubsub_handle);
     }
-    // V15 P1-14.9-C：启动权限缓存 Redis Pub/Sub 订阅器（多实例缓存热更新）
+    // 启动权限缓存 Redis Pub/Sub 订阅器（多实例缓存热更新）
     let perm_pubsub_handle =
         tokio::spawn(crate::middleware::permission::start_permission_cache_pubsub_subscriber());
     if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
         tasks.push(perm_pubsub_handle);
     }
-    // V15 P1-14.10-C：启动权限合规审查定时任务（异常权限分配识别 + 定期合规审查）
+    // 启动权限合规审查定时任务（异常权限分配识别 + 定期合规审查）
     start_permission_compliance_review(&app_state);
-    // batch-12 P2-8：启动审计日志分级保留清理调度
+    // 启动审计日志分级保留清理调度
     start_audit_cleanup_scheduler(&app_state);
 
     Ok((app_state, shutdown_handles))
@@ -197,7 +193,7 @@ async fn run_defensive_migrations(db: &DatabaseConnection) {
     }
 }
 
-/// 启动时执行全部 SeaORM 迁移（m0001-m0028，移除 Some(5) 上限避免关键 schema 修复漏掉）。
+/// 启动时执行全部 SeaORM 迁移（m0001-m0028，无数量上限，避免关键 schema 变更被漏执行）。
 async fn run_seaorm_migrator(db: &DatabaseConnection) {
     use migration::{Migrator, MigratorTrait};
     tracing::info!("启动时执行数据库迁移（全部 m0001-m0028）...");
@@ -206,16 +202,16 @@ async fn run_seaorm_migrator(db: &DatabaseConnection) {
     } else {
         tracing::info!("数据库迁移执行完成");
     }
-    // V15 P1 25.4-J：迁移完成后检查 schema 兼容性（蓝绿部署保障）
+    // 迁移完成后检查 schema 兼容性（蓝绿部署保障）
     check_migration_compatibility(db).await;
-    // batch-17 P3：检查迁移连续性，检测是否有跳跃的迁移版本
+    // 检查迁移连续性，检测是否有跳跃的迁移版本
     check_migration_continuity(db).await;
 }
 
-/// V15 P1 25.4-J：检查数据库迁移兼容性，检测违反蓝绿部署规范的 schema 设计。
+/// 检查数据库迁移兼容性，检测违反蓝绿部署规范的 schema 设计。
 ///
 /// 检测 NOT NULL 无 DEFAULT 的非主键字段（违反规则 1），这些字段会导致
-/// 蓝绿部署时旧版本 INSERT 失败。仅 warn 不阻塞启动，由开发者在下一版本修复。
+/// 蓝绿部署时旧版本 INSERT 失败。检测仅 warn 不阻塞启动。
 ///
 /// 排除项：
 /// - 主键所在表（主键列 is_nullable='NO' 且 column_default 为 NULL 是正常状态）
@@ -266,7 +262,7 @@ async fn check_migration_compatibility(db: &DatabaseConnection) {
     }
 }
 
-/// batch-17 P3: 检查迁移连续性，检测是否有跳跃的迁移版本
+/// 检查迁移连续性，检测是否有跳跃的迁移版本
 ///
 /// 从 seaql_migrations 表读取已 applied 的迁移，检查编号是否连续。
 /// 仅 warn 不阻塞启动，用于发现人为跳过迁移的情况。
@@ -302,7 +298,7 @@ async fn check_migration_continuity(db: &DatabaseConnection) {
     }
 }
 
-/// 强制要求独立 cookie_secret 配置，禁止降级复用 jwt_secret（Wave B-2 安全修复）。
+/// 强制要求独立 cookie_secret 配置，禁止降级复用 jwt_secret。
 fn require_cookie_secret(settings: &AppSettings) -> String {
     let cookie_secret = match settings.auth.cookie_secret.clone() {
         Some(secret) => secret,
@@ -333,7 +329,7 @@ fn require_cookie_secret(settings: &AppSettings) -> String {
     cookie_secret
 }
 
-/// 强制要求独立 webhook_secret 配置（M-2 安全修复）。
+/// 强制要求独立 webhook_secret 配置。
 fn require_webhook_secret(settings: &AppSettings) -> String {
     let webhook_secret = match settings.auth.webhook_secret.clone() {
         Some(secret) => secret,
@@ -507,7 +503,7 @@ fn start_crm_recycle_task(db: &Arc<DatabaseConnection>) {
     info!("CRM 公海回收规则自动执行任务已启动（间隔 6 小时）");
 }
 
-/// V15 P1 20.8-B：启动日志文件保留期清理任务（每日扫描 log_dir，删除超过 retention_days 的滚动日志文件）。
+/// 启动日志文件保留期清理任务（每日扫描 log_dir，删除超过 retention_days 的滚动日志文件）。
 fn start_log_cleanup_task(settings: &AppSettings) {
     let log_dir = settings.log.dir.clone();
     let retention_days = settings.log.retention_days;
@@ -645,7 +641,7 @@ fn start_report_subscription_scheduler(app_state: &AppState) {
     info!("报表订阅调度任务已启动（默认每 60 秒扫描一次到期订阅）");
 }
 
-/// 启动色卡发放过期检查调度任务（V15 P1 缺陷 10.5-1）。
+/// 启动色卡发放过期检查调度任务。
 /// 默认每 24 小时扫描一次过期发放记录并自动标记为 cancelled，同时恢复色卡库存。
 /// 环境变量门控：COLOR_CARD_ISSUE_EXPIRY_CHECK_ENABLED（默认 true）/ COLOR_CARD_ISSUE_EXPIRY_CHECK_INTERVAL_SECS（默认 86400）。
 fn start_color_card_issue_scheduler(app_state: &AppState) {
@@ -662,12 +658,12 @@ fn start_color_card_issue_scheduler(app_state: &AppState) {
     info!("色卡发放过期检查调度任务已启动（默认每 24 小时扫描一次过期发放记录）");
 }
 
-/// 启动邮件队列后台 Worker（V15 P1 batch-16 缺陷 6.1/6.2/6.3）。
+/// 启动邮件队列后台 Worker。
 ///
 /// 默认每 60 秒扫描一次 PENDING 邮件并通过 EmailService 实际发送：
-/// - 缺陷 6.1 修复：send_email 入口仅入队，实际发送由本 Worker 异步执行
-/// - 缺陷 6.2 修复：失败时按指数退避（60s/300s/1800s）重试，超过 3 次转入 FAILED 死信
-/// - 缺陷 6.3 修复：附件通过 SendGrid base64 编码方式发送
+/// - send_email 入口仅入队，实际发送由本 Worker 异步执行
+/// - 失败按指数退避（60s/300s/1800s）重试，超过 3 次转入 FAILED 死信
+/// - 附件通过 SendGrid base64 编码方式发送
 ///
 /// 环境变量门控：
 /// - `EMAIL_QUEUE_WORKER_ENABLED`（默认 "true"）— 设为 "false" / "0" 时跳过启动
@@ -683,7 +679,7 @@ fn start_email_queue_worker(app_state: &AppState) {
     info!("邮件队列后台 Worker 已启动（默认每 60 秒扫描一次 PENDING 邮件，含指数退避重试）");
 }
 
-/// 启动导出合规审查定时任务（V15 P1 缺陷 10-1/10-2）。
+/// 启动导出合规审查定时任务。
 ///
 /// 默认每 24 小时执行一次合规审查，扫描前一天的 print/export 操作并识别 6 类异常：
 /// 高频导出 / 大批量导出 / 非工作时间导出 / 离职用户导出 / 跨权限导出 / 敏感数据无审批导出。
@@ -706,7 +702,7 @@ fn start_export_compliance_scheduler(app_state: &AppState) {
     );
 }
 
-/// 启动追踪数据 90 天保留策略定时任务（V15 P1 batch-16 缺陷 8.3/8.4）。
+/// 启动追踪数据 90 天保留策略定时任务。
 ///
 /// 默认每 24 小时执行一次清理，将超过 retention_days 的 page_views / user_behaviors
 /// 明细按 (date, path|event_type) 聚合到 page_view_daily_summary /
@@ -737,7 +733,7 @@ fn start_tracking_cleanup_scheduler(app_state: &AppState) {
     );
 }
 
-/// P1 batch-18 缺陷 7.2：启动库存告警通知调度器
+/// 启动库存告警通知调度器
 fn start_stock_alert_notification_scheduler(app_state: &AppState) {
     let scheduler = std::sync::Arc::new(
         crate::services::stock_alert_notification_scheduler::StockAlertNotificationScheduler::new(
@@ -777,7 +773,7 @@ fn start_notification_push_scheduler(app_state: &AppState) {
     info!("定时推送后台调度任务已启动（默认每 60 秒扫描一次到期推送订阅）");
 }
 
-/// B05-P2-7：启动设备连接心跳超时清理任务（默认 60s 扫描，超时标记 timeout）。
+/// 启动设备连接心跳超时清理任务（默认 60s 扫描，超时标记 timeout）。
 // 环境变量门控：DEVICE_CONNECTION_CLEANUP_ENABLED(默认true) / DEVICE_HEARTBEAT_TIMEOUT_SECS(默认300) / DEVICE_CONNECTION_CLEANUP_INTERVAL_SECS(默认60)
 fn start_device_connection_cleanup_task(app_state: &AppState) {
     let db = app_state.db.clone();
@@ -848,7 +844,7 @@ async fn init_event_bus(app_state: &AppState, settings: &AppSettings) {
     crate::services::event_bus::init_event_bus_with_kafka_config(&settings.kafka).await;
 }
 
-/// V15 P1-14.10-C：启动权限合规审查定时任务（每 7 天扫描权限变更日志，识别 6 类异常行为）。
+/// 启动权限合规审查定时任务（每 7 天扫描权限变更日志，识别 6 类异常行为）。
 fn start_permission_compliance_review(app_state: &AppState) {
     let service = std::sync::Arc::new(
         crate::services::permission_compliance_service::PermissionComplianceService::new(
@@ -863,7 +859,7 @@ fn start_permission_compliance_review(app_state: &AppState) {
     info!("权限合规审查定时任务已启动（14.10-C，受 MAIN_CANCELLATION_TOKEN 控制）");
 }
 
-/// batch-12 P2-8：启动审计日志分级保留清理调度（标准 scheduler 模式）
+/// 启动审计日志分级保留清理调度（标准 scheduler 模式）
 fn start_audit_cleanup_scheduler(app_state: &AppState) {
     let retention_days = resolve_audit_retention_days();
     let service = std::sync::Arc::new(

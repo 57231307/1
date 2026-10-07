@@ -22,13 +22,12 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use validator::Validate;
 
-// V15 P0-S12 修复（Batch 475d）：派生 Clone，export_prices 需要 clone 后覆盖分页参数用于全量导出
+// 派生 Clone：export_prices 需克隆查询条件后覆盖分页参数以做全量导出
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct SalesPriceQuery {
     pub product_id: Option<i32>,
-    /// 客户等值筛选：前端筛选栏（SalesPriceFilter.vue 客户下拉）一直在传，此前本结构无键、
-    /// serde 静默忽略 ⇒ 假筛选（同族），本轮接收并下推 service 谓词。
+    /// 客户等值筛选：来自前端筛选栏（SalesPriceFilter.vue 客户下拉），下推为 service 查询谓词。
     pub customer_id: Option<i32>,
     /// 关键词筛选：语义 =「产品名称/客户名称」模糊匹配（筛选栏 placeholderKeyword 承诺），
     /// 经 LeftJoin 下推（多对一，不倍增行）。
@@ -68,9 +67,8 @@ const SALES_PRICE_STATUS_FILTER_ALLOWED: &[&str] = &[
 
 /// 销售价目列表 `status` 筛选入参校验。
 ///
-/// 此前该参数原样下推成 SQL 等值条件，越界值恒零命中并静默返回 200 + 空列表，把拼写
-/// 错误伪装成"没有数据"。现按取值域拒绝并回显允许值；`None` 或去空白后的空串视为不加
-/// 筛选（trim 语义与 greige_fabric / inventory_stock 同族先例一致，空串另有
+/// 越界值按取值域 `SALES_PRICE_STATUS_FILTER_ALLOWED` 拒绝并回显允许值；`None` 或去空白后的
+/// 空串视为不加筛选（trim 语义与 greige_fabric / inventory_stock 一致，空串另有
 /// `normalize_empty_query_params` 中间件在链路更外层先行剔除）。
 fn validate_sales_price_status_param(raw: Option<&str>) -> Result<(), AppError> {
     let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
@@ -386,13 +384,12 @@ pub async fn export_prices(
             .enforce_export_download(download_token.as_deref(), "price_list")
             .await?;
 
-    // 导出与列表同一筛选口径：越界 status 在列表已 400 化（C-2/R3），导出此前不收口
-    // 仍会静默产出空表；同族缺陷同批修，校验放在审批令牌之后避免向未授权方外显。
+    // 导出复用列表的 status 筛选校验；放在审批令牌校验之后，避免向未授权方回显允许取值。
     validate_sales_price_status_param(query.status.as_deref())?;
 
     let service = SalesPriceService::new(state.db.clone());
 
-    // V15 P0-S12 修复（Batch 475d）：导出全量数据
+    // 导出全量数据（覆盖分页参数）
     let query_params = crate::services::sales_price_service::SalesPriceQueryParams {
         product_id: query.product_id,
         customer_id: query.customer_id,

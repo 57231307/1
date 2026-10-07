@@ -28,7 +28,7 @@ use rust_decimal::Decimal;
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct CostCollectionQuery {
-    /// 成本归集单号模糊筛选（前端列表页有该筛选框，此前后端无字段被静默丢弃）
+    /// 成本归集单号模糊筛选（对应前端列表页该筛选框，下推为查询条件）
     pub collection_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,

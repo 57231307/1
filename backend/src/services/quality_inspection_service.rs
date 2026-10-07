@@ -580,8 +580,8 @@ impl QualityInspectionService {
                 HANDLING_VOCAB.join("/")
             )));
         }
-        // 理由若提交则不得为空白串（字段校验归 VALIDATION）；本轮理由不落库——
-        // 表无专用列（见方法文档与交付报告 §需裁），静默丢弃属"静默"红线，显式记日志
+        // 理由若提交则不得为空白串（字段校验，返回 VALIDATION）；表无专用列故理由不落库，
+        // 但静默丢弃违反"不静默"红线，因此下方 info! 显式记录校验通过的理由内容
         if let Some(raw) = req.reason.as_deref() {
             if raw.trim().is_empty() {
                 return Err(AppError::validation_displayable(

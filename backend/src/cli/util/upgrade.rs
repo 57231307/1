@@ -57,9 +57,9 @@ const POST_DEPLOY_MONITOR_RETRIES: u8 = 3;
 /// V15 P1 25.4-L：自动回滚监控间隔
 const POST_DEPLOY_MONITOR_INTERVAL_SECS: u64 = 10;
 
-// ==================== V15 P1 升级流程加固辅助函数 ====================
+// ==================== 升级流程加固辅助函数 ====================
 
-/// （收口原 fail-open）：下载后 SHA256 强校验，返回 true 仅在**官方校验值取得且本地重算匹配**时。
+/// 下载后 SHA256 强校验，返回 true 仅在**官方校验值取得且本地重算匹配**时。
 ///
 /// 信任模型（与后端 `github.rs`/facade 同源，复用其 `pub(crate)` 原语，勿各写一套）：
 /// - 校验基准**只从官方域取**（`validate_official_digest_url` + 仅官方直连下载，绝不走镜像）；

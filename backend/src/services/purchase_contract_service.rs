@@ -176,8 +176,7 @@ impl PurchaseContractService {
 
     /// 更新采购合同（表头全集，三态字段语义：None=保持、Some(None)=置 NULL、Some(Some)=覆盖）
     ///
-    /// P0 契约修复（本轮）：下沉 handler 内联逻辑到 service，补事务边界 +
-    /// lock_exclusive + DRAFT 状态门；原实现仅 2 字段可更新且无锁。
+    /// 在事务内以排他锁更新，仅 DRAFT 状态可改；覆盖表头全字段，可空列支持三态置 NULL。
     pub async fn update(
         &self,
         id: i32,
@@ -236,7 +235,7 @@ impl PurchaseContractService {
         //   Some(None)    = 显式 null → Set(None) → 该列写入 NULL
         //   Some(Some(v)) = 有值 → Set(v)/Set(Some(v)) → 覆盖
         // 三者不可塌成两层：塌成单层 Option<T> 后"清空"与"保持"共用同一表示，
-        // 可空列将永远无法置 NULL，用户删掉交货日期/备注保存即被静默丢弃——本轮要消灭的形态。
+        // 可空列将永远无法置 NULL，用户删掉交货日期/备注保存即被静默丢弃。
         // contract_name/supplier_id 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
         if let Some(v) = req.contract_name.flatten() {
             active.contract_name = Set(v);

@@ -82,7 +82,7 @@ pub async fn list_orders(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // D-4 收口（波次）：admin 判定走本仓唯一权威源
+            // admin 判定走本仓唯一权威源
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
             // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。

@@ -34,8 +34,8 @@ pub struct ContractQuery {
 
 /// 创建采购合同请求 DTO
 ///
-/// P0 契约修复（本轮）：delivery_date 改 Option（真实列可空）；补齐真实列
-/// contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location。
+/// 创建采购合同请求 DTO：字段对齐采购合同真实列，可空列以 Option 表示（delivery_date、
+/// contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location 等）。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateContractRequestDto {
@@ -354,11 +354,11 @@ pub async fn update_contract(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新采购合同: ID={}", auth.username, id);
 
-    // P1-2m 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // req 为强类型 DTO，经 validator 校验字段，非法返回 400 VALIDATION
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
-    // P0 契约修复（本轮）：下沉 service.update（txn + lock_exclusive + DRAFT 状态门 + 表头全集）
+    // 更新委托 service.update：事务 + 排他锁 + DRAFT 状态门 + 表头全字段
     let service = PurchaseContractService::new(state.db.clone());
     let update_req = crate::services::purchase_contract_service::UpdateContractRequest {
         contract_name: req.contract_name,

@@ -413,7 +413,7 @@ impl CustomerTeamShareService {
     }
 
     // =====================================================
-    // 18.4-D3：数据共享时效
+    // 数据共享时效
     // =====================================================
 
     /// 共享客户给其他用户（带时效和权限）
@@ -422,12 +422,11 @@ impl CustomerTeamShareService {
     /// `operator_name`：操作人（当前登录人）落库展示名 `shared_by_user_name` 的唯一合法来源，
     /// 由调用方从 `AuthContext.username` 传入（与 `services/crm/{pool,lead,opp}.rs` 同一口径：
     /// `AuthContext` 只有 username 一个身份展示字段，无真实姓名，见
-    /// `middleware/auth_context.rs:58-83`）。修复前此处为取操作人姓名**额外**查一次
-    /// `users`（find_by_id(operator_id)），查不到时 `format!("用户{operator_id}")` 造假名落库；
-    /// 现该次查询整体删除（本方法不再为取名查库），真实登录名由入参带入。
+    /// `middleware/auth_context.rs:58-83`）。因此操作人展示名只取入参 `operator_name`，本方法
+    /// 不再为其额外查 `users`，禁止拼 `format!("用户{operator_id}")` 造假名落库。
     /// 注意：`shared_to_user_name` 取的是**被共享方**（第三方）的 `username`，来源是同方法内
     /// 既有"被共享方必须存在且活跃"校验那次查询（`user::Entity::find_by_id(req.shared_to_user_id)`）
-    /// 的真实结果，不是操作人姓名，本轮不动、也不得以 `operator_name` 顶替。
+    /// 的真实结果，不是操作人姓名，不得用 `operator_name` 顶替。
     pub async fn share_customer(
         &self,
         req: ShareCustomerRequest,

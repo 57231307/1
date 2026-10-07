@@ -1002,7 +1002,7 @@ pub async fn delete_opportunity(
     // IDOR 防护：删除前先校验资源归属（复用 get_opportunity + data_scope_ctx 的行级判定）
     let data_scope_ctx = auth.to_data_scope_context();
     let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
-    // 删除是跨 owner 写的最强形态，与 update 同门判定（商机同族不留缺口）
+    // 删除是跨 owner 写的最强形态，与 update 用同一归属判定
     // （owner=owner_id、dept=department_id）；service 侧既有引用/FK 语义不受影响。
     crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
         state.db.clone(),

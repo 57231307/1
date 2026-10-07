@@ -413,7 +413,7 @@ pub async fn update_customer(
         .await?;
 
     // 写响应收口：与 create_customer 同一实现，更新成功响应不得整行原文回传 PII
-    // （读打码、写原文旁路在本波次已全域收口，此处是客户域标准入口的最后两个出口）
+    // 写响应与读侧同源打码，不旁路回传原文 PII
     let mut customer_json = serde_json::to_value(customer)
         .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
     apply_customer_field_permission(

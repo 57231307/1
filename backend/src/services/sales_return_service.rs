@@ -7,7 +7,7 @@ use crate::models::{
     customer, inventory_stock, product, sales_delivery, sales_delivery_item, sales_order,
     sales_order_item, sales_return, sales_return_item,
 };
-// V15 P0-S01：行级数据权限工具
+// 行级数据权限工具
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use super::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use super::inventory_stock_query::RecordTransactionArgs;
 use super::inventory_stock_service::InventoryStockService;
-// 批次 358 v13 复审 B-P1-1 修复：导入 BusinessEvent 和 EVENT_BUS 用于事务安全的事件发布
+// 导入 BusinessEvent 与 EVENT_BUS，供事务提交后安全发布库存流水事件
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 
 /// 创建销售退货请求
@@ -376,7 +376,7 @@ impl SalesReturnService {
             // Wait, sales_return_item doesn't have an `amount` field. We must use unit_price * quantity.
             let qty = item.quantity;
             let price = item.unit_price;
-            // 批次 97 P1-7 修复（v5 复审）：金额累加补 round_dp(2) 防止精度漂移
+            // 金额累加补 round_dp(2) 防止精度漂移
             total += (qty * price).round_dp(2);
         }
 
@@ -387,7 +387,7 @@ impl SalesReturnService {
 
         let mut return_active: crate::models::sales_return::ActiveModel = return_order.into();
         return_active.total_amount = sea_orm::ActiveValue::Set(total);
-        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+        // 审计 user_id 取真实操作人（非 0 占位），便于审计追踪
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
             "auto_audit",
@@ -452,7 +452,7 @@ impl SalesReturnService {
         req: CreateSalesReturnItemRequest,
         user_id: i32,
     ) -> Result<sales_return_item::Model, AppError> {
-        // P1-6 修复（批次 79 v1 复审）：状态门 + insert 移入单一事务，加 lock_exclusive 串行化
+        // 状态门 + insert 在同一事务内，加 lock_exclusive 串行化并发
         // 原实现状态门用 self.db 裸查询无锁、insert 用 txn，
         // 并发场景下可能在状态检查通过后、insert 之前发生 approve/submit 状态变更，
         // 导致已审批退货单被追加明细。
@@ -537,7 +537,7 @@ impl SalesReturnService {
         let item = item.insert(&txn).await?;
 
         // 更新退货单总金额
-        // 批次 94 P2-10：透传 user_id 用于审计日志
+        // 透传 user_id 供 update_return_totals 记审计日志
         self.update_return_totals(return_id, &txn, user_id).await?;
 
         txn.commit().await?;
@@ -583,7 +583,7 @@ impl SalesReturnService {
             ));
         }
 
-        // P1-7 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
+        // 状态门 + update 在同一事务内，加 lock_exclusive 串行化并发
         // 原实现状态门用 self.db 裸查询、update_with_audit 也用 self.db，无事务边界，
         // 并发场景下可能在状态检查通过后、update 之前发生状态变更导致已审批单被篡改。
         let txn = (*self.db).begin().await?;
@@ -639,7 +639,7 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计 user_id 取调用方传入的真实操作人（非 0 占位）
             Some(user_id),
         )
         .await?;
@@ -655,7 +655,7 @@ impl SalesReturnService {
         return_id: i32,
         user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
-        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 状态机用 lock_exclusive 串行化并发状态变更
         // 原实现先在事务外用 &*self.db 裸查询退货单状态，再 begin() 开启事务，
         // 并发 submit_return 均通过状态检查后基于过期状态写入，导致状态门失效。
         let txn = (*self.db).begin().await?;
@@ -675,8 +675,8 @@ impl SalesReturnService {
         }
 
         // 验证是否包含明细
-        // 批次 27 v7 P1 修复：事务边界泄漏，原实现 count 用 &*self.db 裸查询
-        // 存在 TOCTOU 风险（并发 submit + add_item 时计数读快照不一致，可绕过"明细非空"校验）
+        // 在事务内 count 明细，避免 &*self.db 裸查询的 TOCTOU 风险
+        // （并发 submit + add_item 时计数读快照不一致，可绕过"明细非空"校验）
         let items_count = sales_return_item::Entity::find()
             .filter(sales_return_item::Column::ReturnId.eq(return_id))
             .count(&txn)
@@ -687,7 +687,7 @@ impl SalesReturnService {
         }
 
         // 更新退货单总金额
-        // 批次 94 P2-10：透传 user_id 用于审计日志
+        // 透传 user_id 供 update_return_totals 记审计日志
         self.update_return_totals(return_id, &txn, user_id).await?;
 
         // 更新状态为已提交
@@ -704,7 +704,7 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计 user_id 取调用方传入的真实操作人（非 0 占位）
             Some(user_id),
         )
         .await?;
@@ -727,11 +727,11 @@ impl SalesReturnService {
         let (return_order, items) = Self::validate_and_lock_submitted_txn(&txn, return_id).await?;
 
         // 2. 更新退货单总金额
-        // 批次 94 P2-10：透传 user_id 用于审计日志
+        // 透传 user_id 供 update_return_totals 记审计日志
         self.update_return_totals(return_id, &txn, user_id).await?;
 
         // 3. 批量库存入库
-        // 批次 358 v13 复审 B-P1-1 修复：接收待发布事件列表，commit 成功后统一 publish
+        // 接收待发布事件列表，事务 commit 成功后再统一 publish
         let pending_inventory_events = self
             .apply_stock_inbound_txn(&txn, &return_order, &items, user_id)
             .await?;
@@ -739,16 +739,14 @@ impl SalesReturnService {
         // 4. 状态变更（APPROVED）
         let return_order = Self::mark_approved_txn(&txn, return_order, user_id).await?;
 
-        // 5. P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚
-        // 原实现在 commit 后调用 ar_invoice_service.create，但 create 强制 amount > 0，
-        // 红字金额（负数）注定失败，且失败仅 tracing::error 不回滚，导致账实不符。
-        // 改用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查），在 commit 前调用。
+        // 5. 红字应收单在事务内用 create_credit_memo 生成（支持负金额 + 外部事务 + 幂等检查），
+        // 失败则整体回滚，避免 commit 后生成时红字（负金额）注定失败且账实不符。
         Self::generate_red_ar_txn(&self.db, &txn, &return_order, user_id).await?;
 
         txn.commit().await?;
 
-        // 批次 358 v13 复审 B-P1-1 修复：commit 成功后统一 publish 库存流水事件，
-        // 避免事务回滚时已发布事件造成的幻事件（订阅方库存财务桥接会基于不存在的流水生成凭证）
+        // commit 成功后才统一 publish 库存流水事件，避免事务回滚时已发布事件造成幻事件
+        // （订阅方库存财务桥接会基于不存在的流水生成凭证）
         for event in pending_inventory_events {
             EVENT_BUS.publish(event);
         }
@@ -758,7 +756,7 @@ impl SalesReturnService {
         Ok(return_order)
     }
 
-    /// P2 1-5 修复：lock_exclusive + 状态校验 + 获取明细（从 approve_return 抽取）（批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更）
+    /// 事务内 lock_exclusive 读取退货单、校验状态并返回其明细，串行化并发状态变更
     async fn validate_and_lock_submitted_txn(
         txn: &sea_orm::DatabaseTransaction,
         return_id: i32,
@@ -813,7 +811,7 @@ impl SalesReturnService {
             .filter(inventory_stock::Column::ProductId.is_in(product_ids))
             .all(txn)
             .await?;
-        // v14 批次 419 修复 T-P0-5：stock_map 改为四维索引 (product_id, color_no, batch_no, dye_lot_no)，
+        // stock_map 用四维索引 (product_id, color_no, batch_no, dye_lot_no)，
         // 避免同一产品多缸号库存时 HashMap 覆盖导致库存错配
         let stock_map: std::collections::HashMap<
             (i32, String, String, Option<String>),
@@ -853,8 +851,7 @@ impl SalesReturnService {
         let _product_info = product_map
             .get(&item.product_id)
             .ok_or_else(|| AppError::not_found(format!("商品 {} 不存在", item.product_id)))?;
-        // v14 批次 419 修复 T-P0-5：从退货明细获取缸号/色号/批号，
-        // 按四维 (product_id, color_no, batch_no, dye_lot_no) 查找匹配库存
+        // 从退货明细取缸号/色号/批号，按四维 (product_id, color_no, batch_no, dye_lot_no) 匹配库存
         let item_color_no = item.color_no.clone();
         // 追溯字段不可空规范：sales_return_item.dye_lot_no 已 String 化，
         // 四维索引 key 的 dye_lot_no 仍为 Option<String>，此处包 Some
@@ -883,8 +880,7 @@ impl SalesReturnService {
             )
             .await?;
         }
-        // 批次 358 v13 复审 B-P1-1 修复：改用 record_transaction_txn 关联函数，
-        // 流水写入与主事务同生共死，事件返回由调用方在 commit 后统一 publish
+        // 用 record_transaction_txn 关联函数写流水，与主事务同生共死，事件由调用方在 commit 后统一 publish
         let args = Self::build_inbound_txn_args(
             return_order,
             item,
@@ -1022,7 +1018,7 @@ impl SalesReturnService {
             txn,
             "auto_audit",
             active_model,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计 user_id 取调用方传入的真实操作人（非 0 占位）
             Some(user_id),
         )
         .await?;
@@ -1031,7 +1027,7 @@ impl SalesReturnService {
     }
 
     /// P2 1-5 修复：红字应收单生成（从 approve_return 抽取）
-    /// P1 5-5/1-3 修复（批次 62）：红字应收单生成移入事务内，失败则整体回滚；使用 create_credit_memo（支持负金额 + 外部事务 + 幂等检查）
+    /// 在事务内用 create_credit_memo 生成红字应收单（支持负金额 + 外部事务 + 幂等检查），失败则整体回滚
     async fn generate_red_ar_txn(
         db: &Arc<DatabaseConnection>,
         txn: &sea_orm::DatabaseTransaction,
@@ -1073,7 +1069,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // 行级数据权限校验（IDOR 防护）
         // sales_return 表 created_by 为 i32（非 Option），Dept 退化为 Self
         if let Some(ctx) = data_scope {
             if !check_resource_owner(ctx, Some(return_order.created_by), None) {
@@ -1118,11 +1114,10 @@ impl SalesReturnService {
     }
 
     /// 删除退货单
-    // 批次 93 P1-7 修复：补 user_id 参数 + lock_exclusive + 状态门移入 txn + 审计 user_id
+    // delete_return 接收 user_id 用于审计；状态门与 delete 均在事务内加 lock_exclusive
     pub async fn delete_return(&self, return_id: i32, user_id: i32) -> Result<(), AppError> {
-        // 批次 93 P1-7 修复：状态门 + delete 移入同一事务，补 lock_exclusive 串行化并发
-        // 原实现 find_by_id 在 self.db → 状态门 → begin txn，
-        // 状态门在事务外，并发 delete + submit 会竞态绕过 DRAFT 状态门控。
+        // 状态门与 delete 在同一事务内、find 加 lock_exclusive：
+        // 状态门置于事务内可串行化并发 delete + submit，避免竞态绕过 DRAFT 状态门控。
         let txn = (*self.db).begin().await?;
 
         let return_order = sales_return::Entity::find_by_id(return_id)
@@ -1145,7 +1140,7 @@ impl SalesReturnService {
             .exec(&txn)
             .await?;
 
-        // 再删除退货单（P0 8-3 修复：补审计日志；批次 93 P1-7：user_id 从 handler AuthContext 注入）
+        // 再删除退货单（记审计日志，user_id 由 handler 的 AuthContext 注入）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             sales_return::Entity,
             _,
@@ -1163,7 +1158,7 @@ impl SalesReturnService {
         reason: String,
         user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 状态机用 lock_exclusive 串行化并发状态变更
         // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发拒绝同一退货单导致状态不一致
         let txn = (*self.db).begin().await?;
 
@@ -1189,7 +1184,7 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计 user_id 取调用方传入的真实操作人（非 0 占位）
             Some(user_id),
         )
         .await?;
@@ -1205,7 +1200,7 @@ impl SalesReturnService {
         return_id: i32,
         user_id: i32,
     ) -> Result<sales_return::Model, AppError> {
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 状态机用 lock_exclusive 串行化并发状态变更
         // 事务包裹"查询 + 状态检查 + update_with_audit"，加 lock_exclusive 防止并发执行同一退货单导致状态不一致
         let txn = (*self.db).begin().await?;
 
@@ -1230,7 +1225,7 @@ impl SalesReturnService {
             &txn,
             "auto_audit",
             active_model,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计 user_id 取调用方传入的真实操作人（非 0 占位）
             Some(user_id),
         )
         .await?;
@@ -1260,13 +1255,11 @@ impl SalesReturnService {
         Ok(items)
     }
 
-    /// 更新退货单明细
-    /// P0 修复（本轮）：原实现对「已存在 Model 转成的 ActiveModel」调用 insert()，
-    /// SeaORM insert 恒发 INSERT（主键被忽略/重生成），每次编辑明细都会插入一条新行，
-    /// 旧行仍在 ⇒ 用户感知「同一行被插成新行 / 重复行」。改为事务内 lock_exclusive
-    /// 读取 + ActiveModel update()（UPDATE 语义），并在数量/单价变化时按行内既有
-    /// discount_percent / tax_percent 用同源算法重算金额四元组，防止 total_amount 失真。
-    /// 注意：不改 create 路径（add_return_item）的 quantity_alt 既有实现。
+    /// 更新退货单明细：事务内以 lock_exclusive 读取后用 ActiveModel 的 update()（UPDATE 语义）写回，
+    /// 避免用 insert() 重生成主键、把一行编辑成重复行。数量或单价任一变化时，按行内既有
+    /// discount_percent / tax_percent 调 compute_return_item_amounts 重算
+    /// subtotal/discount_amount/tax_amount/total_amount，与 create 路径同源、保证口径一致。
+    /// `reason` 落可空列 notes；只改上述字段，不动 create 路径（add_return_item）的实现。
     pub async fn update_return_item(
         &self,
         item_id: i32,
@@ -1333,11 +1326,11 @@ impl SalesReturnService {
         }
         active_model.updated_at = Set(Utc::now());
 
-        // 关键修复：update 而非 insert（原 insert 造成重复行）
+        // 用 update() 写回（UPDATE 语义），避免 insert 重生成主键产生重复行
         let item = active_model.update(&txn).await?;
 
         // 更新退货单总金额
-        // 批次 94 P2-10：透传 user_id 用于审计日志
+        // 透传 user_id 供 update_return_totals 记审计日志
         self.update_return_totals(item.return_id, &txn, user_id)
             .await?;
 
@@ -1346,11 +1339,10 @@ impl SalesReturnService {
     }
 
     /// 删除退货单明细
-    // 批次 93 P1-8 修复：find + delete 移入同一事务，补 lock_exclusive 串行化并发
+    // find + delete 在同一事务内，加 lock_exclusive 串行化并发
     pub async fn delete_return_item(&self, item_id: i32, user_id: i32) -> Result<(), AppError> {
-        // 批次 93 P1-8 修复：find 移入 txn + lock_exclusive，消除 TOCTOU 风险
-        // 原实现 find_by_id 在 self.db → begin txn → delete_by_id 在 txn，
-        // find 与 delete 跨事务边界，并发删除同一明细可能双写 / return_id 读取过期。
+        // find 在事务内加 lock_exclusive、与 delete 同事务，消除 TOCTOU 风险：
+        // find 与 delete 若跨事务边界，并发删除同一明细可能双写或读到过期 return_id。
         let txn = (*self.db).begin().await?;
 
         let item = sales_return_item::Entity::find_by_id(item_id)
@@ -1359,7 +1351,7 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("退货明细 {}", item_id)))?;
 
-        // 批次 94 P2-6 修复：用 delete_with_audit 记录审计日志（原 delete_by_id 无审计）
+        // 用 delete_with_audit 删除并写审计日志（delete_by_id 不记审计）：
         // delete_with_audit 内部 find_by_id + delete + 写审计日志；行已被 lock_exclusive 锁定，重复查询安全
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             sales_return_item::Entity,
@@ -1368,7 +1360,7 @@ impl SalesReturnService {
         .await?;
 
         // 更新退货单总金额
-        // 批次 94 P2-10：透传 user_id 用于审计日志
+        // 透传 user_id 供 update_return_totals 记审计日志
         self.update_return_totals(item.return_id, &txn, user_id)
             .await?;
 
@@ -1392,7 +1384,7 @@ impl SalesReturnService {
             .join(JoinType::LeftJoin, sales_return::Relation::Customer.def())
             .join(JoinType::LeftJoin, sales_return::Relation::SalesOrder.def());
 
-        // V15 P0-S01：行级数据权限过滤（sales_return 表 created_by 为 i32，Dept 退化为 Self）
+        // 行级数据权限过滤（sales_return 表 created_by 为 i32，Dept 退化为 Self）
         if let Some(ctx) = data_scope {
             query = apply_data_scope(
                 query,

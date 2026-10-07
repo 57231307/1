@@ -226,12 +226,12 @@ fn log_to_json(m: log_api_access::Model) -> Value {
 /// 将读侧富化视图（`api_keys` 全列 + LEFT JOIN `users`）转换为前端期望的 JSON 结构。
 ///
 /// 可空列一律「NULL → JSON null」，不再塌成空串/`unwrap_or_default()`：
-/// - `description`：真实列值（此前硬写 `""`，用户填的描述存进去却永远显示不出来）；
+/// - `description`：真实列值，NULL→null（用户填的描述如实显示，不塌成空串）；
 /// - `expires_at`：null = 永不过期（列真值），与「解析失败的脏值」可区分；
 /// - `created_by_name`：LEFT JOIN `users.username` 真值，用户行缺失时 null（禁止空串/假名）；
-/// - `last_used_at`：null = 从未使用（与 expires_at 同一口径，同源修复）。
+/// - `last_used_at`：null = 从未使用（与 `expires_at` 同一 NULL→null 口径）。
 ///
-/// P1-9：created_by 直接从视图 `created_by` 读取（migration m0039 新增列）。
+/// `created_by` 直接读视图 `created_by` 列（DDL 见 migration m0039）。
 /// 历史数据 created_by 为 NULL 时返回 0 保持前端 `created_by: number` 兼容。
 fn key_to_json(m: &ApiKeyWithCreator) -> Value {
     // permissions 字段为 JSON 字符串，解析为 string[]
@@ -705,7 +705,7 @@ pub async fn create_api_key(
     let (created, plain_key) = service
         .create_api_key(
             &req.key_name,
-            // 契约收口：创建 DTO 真实接收并落库 description（此前该字段根本不采集）
+            // 创建时传入并落库 description（可空）
             req.description.as_deref(),
             permissions.as_deref(),
             rate_limit,

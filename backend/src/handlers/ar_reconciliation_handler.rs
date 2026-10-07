@@ -330,7 +330,7 @@ pub struct ListResultsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub customer_id: Option<i32>,
-    // 批次 109 P3：日期范围过滤接入（原标注 dead_code，现已接入 service.list）
+    // 日期范围过滤，下推接入 service.list
     pub start_date: Option<NaiveDate>,
     pub end_date: Option<NaiveDate>,
 }
