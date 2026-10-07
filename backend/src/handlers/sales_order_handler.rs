@@ -381,7 +381,7 @@ pub async fn submit_order(
                 .notify_order_submitted(created_by, &order.order_no, order.id)
                 .await
             {
-                tracing::warn!("批次 94 P2-11：订单提交通知发送失败: {}", e);
+                tracing::warn!("订单提交通知发送失败: {}", e);
             }
         }
     }
@@ -440,7 +440,7 @@ pub async fn approve_order(
                 )
                 .await
             {
-                tracing::warn!("批次 94 P2-11：订单审批通知发送失败: {}", e);
+                tracing::warn!("订单审批通知发送失败: {}", e);
             }
         }
     }
@@ -490,7 +490,7 @@ pub async fn ship_order(
                 .notify_order_shipped(created_by, &order.order_no, order.id)
                 .await
             {
-                tracing::warn!("批次 94 P2-11：订单发货通知发送失败: {}", e);
+                tracing::warn!("订单发货通知发送失败: {}", e);
             }
         }
     }
@@ -525,7 +525,7 @@ pub async fn complete_order(
                 .notify_order_completed(created_by, &order.order_no, order.id)
                 .await
             {
-                tracing::warn!("批次 94 P2-11：订单完成通知发送失败: {}", e);
+                tracing::warn!("订单完成通知发送失败: {}", e);
             }
         }
     }

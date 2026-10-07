@@ -620,7 +620,7 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
         let displayable = format!("AppError::business_displayable(format!(\"{key_flat}");
         assert!(
             flat.contains(&displayable),
-            "{rel} 判重拒绝「{key}」必须走 business_displayable（可外显业务族，先例 #165）"
+            "{rel} 判重拒绝「{key}」必须走 business_displayable（可外显业务族）"
         );
         let masked = format!("AppError::business(format!(\"{key_flat}");
         assert!(

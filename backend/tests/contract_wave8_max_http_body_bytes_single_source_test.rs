@@ -66,7 +66,7 @@ fn max_http_body_bytes_value_pinned_12mb_over_csv_10mb_plus_margin() {
     assert_eq!(
         bingxi_backend::constants::MAX_HTTP_BODY_BYTES,
         12 * 1024 * 1024,
-        "全局 HTTP 请求体上限既定值 12MB（安全漏洞 #8），改动需连带口径评审"
+        "全局 HTTP 请求体上限既定值 12MB（请求体上限越界防护），改动需连带口径评审"
     );
     assert_eq!(
         bingxi_backend::constants::MAX_HTTP_BODY_BYTES - 10 * 1024 * 1024,
@@ -117,7 +117,7 @@ fn middleware_bootstrap_reexports_single_source_and_never_redefines_locally() {
     );
     assert!(
         MIDDLEWARE_BOOTSTRAP_SRC.contains("DefaultBodyLimit::max(MAX_HTTP_BODY_BYTES)"),
-        "全局请求体上限层必须继续引用本常量（引用点脱钩即安全边界 #8 回潮前兆）"
+        "全局请求体上限层必须继续引用本常量（引用点脱钩即安全边界回潮前兆）"
     );
 }
 

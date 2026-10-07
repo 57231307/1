@@ -295,7 +295,7 @@ impl ProductionOrderService {
                 order_id = model.id,
                 product_id = model.product_id,
                 error = %e,
-                "批次 386 B-P2-4: 生产订单创建后 MRP 计算失败，请人工检查物料需求"
+                "生产订单创建后 MRP 计算失败，请人工检查物料需求"
             );
         }
     }

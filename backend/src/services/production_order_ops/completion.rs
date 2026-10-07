@@ -78,7 +78,7 @@ impl ProductionOrderService {
                     order_id,
                     work_center_id,
                     load_rate = %item.load_rate,
-                    "批次 386 B-P2-5: 工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
+                    "工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
                 );
             }
         }

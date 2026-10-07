@@ -543,7 +543,7 @@ async fn receipt_measured_values_land_on_piece_and_enable_label() {
     // 反兜底：products 标称幅宽/克重绝不得出现在标签上
     assert!(
         !text.contains("150") && !text.contains("300"),
-        "标签出现主数据标称值即为回落 products（违背 #220 已锁口径），实得: {text}"
+        "标签出现主数据标称值即为回落 products（违背成品布标签已锁口径），实得: {text}"
     );
 }
 

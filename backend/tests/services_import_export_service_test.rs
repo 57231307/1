@@ -41,7 +41,7 @@ async fn test_import_data_rejects_exceeding_max_rows() {
     let result = service.import_data("products", &data, 1).await;
     assert!(
         result.is_err(),
-        "漏洞 #8 单测：{} 行数据应被拒绝，但 import_data 返回成功",
+        "导入 service 层行数上限校验：{} 行数据应被拒绝，但 import_data 返回成功",
         data.len()
     );
     let err_msg = result.err().unwrap().to_string();
@@ -49,7 +49,7 @@ async fn test_import_data_rejects_exceeding_max_rows() {
         err_msg.contains("最大行数")
             || err_msg.contains("MAX_EXCEL_ROWS")
             || err_msg.contains("上限"),
-        "漏洞 #8 单测：错误信息应包含'最大行数'或'上限'，实际：{}",
+        "导入 service 层行数上限校验：错误信息应包含'最大行数'或'上限'，实际：{}",
         err_msg
     );
 }
@@ -71,7 +71,7 @@ async fn test_import_data_rejects_exceeding_max_cols() {
     let result = service.import_data("products", &data, 1).await;
     assert!(
         result.is_err(),
-        "漏洞 #8 单测：{} 列数据应被拒绝，但 import_data 返回成功",
+        "导入 service 层列数上限校验：{} 列数据应被拒绝，但 import_data 返回成功",
         data[0].len()
     );
 }
@@ -90,7 +90,7 @@ async fn test_import_data_rejects_exceeding_max_cell_len() {
     let result = service.import_data("products", &data, 1).await;
     assert!(
         result.is_err(),
-        "漏洞 #8 单测：{} 字符的单元格应被拒绝，但 import_data 返回成功",
+        "导入 service 层单元格长度校验：{} 字符的单元格应被拒绝，但 import_data 返回成功",
         long_cell.len()
     );
 }
@@ -113,12 +113,12 @@ async fn test_import_data_allows_within_limits() {
     let result = service.import_data("unknown_type", &data, 1).await;
     assert!(
         result.is_err(),
-        "漏洞 #8 单测：边界内数据不应被 service 层校验拒绝"
+        "导入 service 层边界校验：边界内数据不应被 service 层校验拒绝"
     );
     let err_msg = result.err().unwrap().to_string();
     assert!(
         err_msg.contains("不支持的导入类型"),
-        "漏洞 #8 单测：service 层应通过校验，仅在 import_type 校验处失败，实际：{}",
+        "导入 service 层边界校验：service 层应通过校验，仅在 import_type 校验处失败，实际：{}",
         err_msg
     );
 }

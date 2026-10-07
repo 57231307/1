@@ -144,7 +144,7 @@ fn expect_displayable_validation(err: &AppError, site: &str) -> String {
         resp.message,
         err_msg::VALIDATION_PUBLIC,
         "{site}：用户自己提交的日期串的解析拒绝原因被脱敏成固定常量，用户看不到\
-         哪个日期不合法（#298 收口残留回归位）"
+         哪个日期不合法"
     );
     assert!(
         !resp.message.trim().is_empty(),

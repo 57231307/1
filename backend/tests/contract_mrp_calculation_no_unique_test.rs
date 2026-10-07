@@ -107,7 +107,7 @@ async fn batch_calculate_twice_yields_distinct_calculation_no_both_persisted() {
     let second = svc
         .batch_calculate(batch_request())
         .await
-        .expect("同一订单第二次批量计算必须成功（CI #4675 中此调用 500）");
+        .expect("同一订单第二次批量计算必须成功（历史上该调用曾返回 500）");
 
     assert_ne!(
         first.calculation_no, second.calculation_no,

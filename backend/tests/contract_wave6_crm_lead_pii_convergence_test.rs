@@ -262,7 +262,7 @@ fn assert_default_masked(lead: &Value, where_label: &str, pii: &LeadPii) {
     assert_eq!(
         lead["tel_phone"],
         json!(pii.masked_tel),
-        "{where_label}：tel_phone 未掩码（本波次根因：内联分支漏座机列）"
+        "{where_label}：tel_phone 未掩码（根因：内联分支漏座机列）"
     );
     assert_eq!(
         lead["email"],
@@ -271,7 +271,7 @@ fn assert_default_masked(lead: &Value, where_label: &str, pii: &LeadPii) {
     );
     assert!(
         lead.get("address").is_none(),
-        "{where_label}：address 应被整键移除（P1-08-5 既有语义）: {lead}"
+        "{where_label}：address 应被整键移除（既有语义）: {lead}"
     );
     // 泄露面锁死：出参任何字符串值都不得含**任一行**的原文 PII（跨行泄漏同样判红）
     let raw = lead.to_string();
@@ -429,7 +429,7 @@ async fn list_with_allowed_fields_keeps_tel_phone_raw() {
     assert_eq!(
         row["tel_phone"],
         json!(A_TEL),
-        "allowed_fields 含 tel_phone 时应放行原文（受控通道，与导出侧 #207 同语义）"
+        "allowed_fields 含 tel_phone 时应放行原文（受控通道，与导出侧同语义）"
     );
 }
 

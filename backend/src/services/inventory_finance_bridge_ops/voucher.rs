@@ -142,7 +142,7 @@ impl InventoryFinanceBridgeService {
                 tracing::warn!(
                     product_id,
                     error = %e,
-                    "V15 Batch05-P1-5: 移动加权平均成本更新失败，凭证已生成但 cost_price 未更新"
+                    "移动加权平均成本更新失败，凭证已生成但 cost_price 未更新"
                 );
             }
         }
@@ -971,7 +971,7 @@ impl InventoryFinanceBridgeService {
             tracing::warn!(
                 product_id,
                 product_name = %product.name,
-                "P2 3-17: 产品未设置成本价，金额计算将为 0，请先维护成本价"
+                "产品未设置成本价，金额计算将为 0，请先维护成本价"
             );
         }
         Ok((product.name, cost_price))
@@ -1049,7 +1049,7 @@ impl InventoryFinanceBridgeService {
             old_cost = %old_cost_price,
             received_price = %received_unit_price,
             new_cost = %new_cost,
-            "V15 Batch05-P1-5: 移动加权平均成本已更新"
+            "移动加权平均成本已更新"
         );
         Ok(new_cost)
     }

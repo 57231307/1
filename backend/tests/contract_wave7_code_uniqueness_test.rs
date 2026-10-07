@@ -397,7 +397,7 @@ fn w7_chemical_ops_unique_race_fallback_locked() {
         let displayable = format!("AppError::business_displayable(format!(\"{key}");
         assert!(
             flat.contains(&displayable),
-            "{rel} 判重拒绝「{key}」必须走 business_displayable（可外显业务族，先例 #165 流程编码）"
+            "{rel} 判重拒绝「{key}」必须走 business_displayable（可外显业务族，流程编码）"
         );
     }
 }

@@ -174,7 +174,7 @@ fn source_scan_state_gate_messages_never_use_validation_family() {
             for ctor in forbidden {
                 assert!(
                     !window.contains(ctor),
-                    "{f}:{} 状态门文案仍挂校验族构造器 {ctor:?}，违反 #165 判据：{}",
+                    "{f}:{} 状态门文案仍挂校验族构造器 {ctor:?}，违反状态门统一口径：{}",
                     i + 1,
                     trimmed
                 );

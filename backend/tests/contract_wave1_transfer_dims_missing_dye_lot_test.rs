@@ -686,7 +686,7 @@ async fn greige_outbound_dims_kept_as_given_readback_live_db() {
     assert_eq!(
         status,
         StatusCode::OK,
-        "白坯给值/不给值/给空白串三种明细都必须放行（R-1 免填语义），实际 {v}"
+        "白坯给值/不给值/给空白串三种明细都必须放行（白坯免填语义），实际 {v}"
     );
     let tid = v["data"]["id"].as_i64().expect("建单响应必须回传单据 id") as i32;
 
@@ -719,12 +719,12 @@ async fn greige_outbound_dims_kept_as_given_readback_live_db() {
     assert_eq!(
         items[0].piece_no.as_deref(),
         Some("P-R1"),
-        "R-1：白坯主动给匹号必须如实保留 trim 值，不得清空/静默丢弃（假保存形态）"
+        "白坯主动给匹号必须如实保留 trim 值，不得清空/静默丢弃（假保存形态）"
     );
     assert_eq!(
         items[0].dye_lot_no.as_deref(),
         Some("DL-R1"),
-        "R-1：白坯主动给缸号必须如实保留 trim 值，不得清空/静默丢弃"
+        "白坯主动给缸号必须如实保留 trim 值，不得清空/静默丢弃"
     );
 
     // —— 明细 2：不给值 ⇒ 缺省 None（匹号列可空如实 NULL）——

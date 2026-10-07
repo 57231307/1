@@ -524,7 +524,7 @@ async fn detail_exit_shares_scope_own_row_keeps_amount_other_row_dropped() {
     assert_eq!(
         v["data"]["estimated_amount"],
         Value::String(amount_text(A_EST_1)),
-        "本人行金额真实外显（裁定 #2）"
+        "本人行金额真实外显"
     );
 }
 
@@ -658,12 +658,12 @@ async fn admin_sees_all_amounts_on_all_rows() {
     assert_eq!(
         item_by_no(&dept_items, "OPPA001")["estimated_amount"],
         Value::String(amount_text(A_EST_1)),
-        "对照段：本人行金额必须是原值而非掩码/占位（裁定 #2）"
+        "对照段：本人行金额必须是原值而非掩码/占位"
     );
     assert_eq!(
         item_by_no(&dept_items, "OPPA002")["estimated_amount"],
         Value::String(amount_text(A_EST_2)),
-        "对照段：本人行金额必须是原值而非掩码/占位（裁定 #2）"
+        "对照段：本人行金额必须是原值而非掩码/占位"
     );
 }
 
@@ -792,7 +792,7 @@ async fn amount_hide_gate_keys_on_owner_id_not_created_by() {
     assert_eq!(
         item_by_no(&admin_items, "OPPB006")["estimated_amount"],
         Value::String(amount_text(T_OTHER_EST)),
-        "admin 对交叉他人行仍原值（裁定 #3 既有契约）"
+        "admin 对交叉他人行仍原值（既有契约）"
     );
     assert_export_equals_list_for_amounts(&admin_app).await;
 }
@@ -949,8 +949,8 @@ fn amount_scope_ratchet_source_scan() {
         !apply_body.contains("rid == 1") && !apply_body.contains("role_id == 1"),
         "回潮棘轮：admin 判定禁止角色主键字面量——播种漂移时字面量判定要么静默失效\
          （admin 被当普通用户剔字段）要么静默扩权（其他角色恰好命中字面量），两头都是缺陷。\
-         原断言钉的是 `if rid == 1 {{ return; }}` 旧形态（CI #4672 §A.5 双源缺陷），\
-         现按 D-4 收口改钉权威源调用形态，负方向由 contract_wave8 读侧旁路棘轮共同覆盖。"
+         原断言钉的是 `if rid == 1 {{ return; }}` 旧形态（双源缺陷），\
+         现收口改钉权威源调用形态，负方向由 contract_wave8 读侧旁路棘轮共同覆盖。"
     );
     // 导出通道的行归属来源与列表同源（handler 侧只能从 service 回传的 owner_id 注入，
     // 不得改为 created_by，否则导出与列表的"本人行"集合会分叉）

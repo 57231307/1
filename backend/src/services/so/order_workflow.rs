@@ -453,7 +453,7 @@ impl SalesService {
                     order_id,
                     product_id = item.product_id,
                     error = %e,
-                    "批次 386 B-P2-4: 销售订单审批后 MRP 计算失败，请人工检查物料需求"
+                    "销售订单审批后 MRP 计算失败，请人工检查物料需求"
                 );
             }
         }

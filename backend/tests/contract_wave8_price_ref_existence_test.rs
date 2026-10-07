@@ -199,7 +199,7 @@ fn expect_validation_400(err: &AppError) {
     assert_ne!(
         http.status(),
         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        "禁止 500（含 map_err(internal) 拍平族，任务板 #175 口径）"
+        "禁止 500（含 map_err(internal) 拍平族，与错误包装统一收口口径同源）"
     );
 }
 
@@ -442,7 +442,7 @@ fn source_scan_price_ref_prechecks_precede_writes_and_stay_in_validation_family(
         );
         assert!(
             !src.contains("AppError::internal("),
-            "{name} 侧 service 禁止 AppError::internal（业务拒绝拍平 500 回潮，#175 收口族）"
+            "{name} 侧 service 禁止 AppError::internal（业务拒绝拍平 500 回潮，收口族）"
         );
         assert!(
             !src.contains("AppError::database(format!("),

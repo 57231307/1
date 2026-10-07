@@ -482,7 +482,7 @@ async fn share_customer_success_decodes_bigint_pk() {
     assert_eq!(
         status,
         StatusCode::OK,
-        "共享写入在 PK 宽度对齐后必须成功（此前即 #225 的 500）: {v}"
+        "共享写入在 PK 宽度对齐后必须成功（此前该路径会返 500）: {v}"
     );
     assert_ne!(
         v["code"],

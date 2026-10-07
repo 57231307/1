@@ -430,7 +430,7 @@ async fn customer_360_opp_subset_matches_list_amount_gate() {
         assert_eq!(
             amount_signature(&row_by_id(&list, id)),
             want.clone(),
-            "列表本人行 {id} 金额原值契约（裁定 #2）"
+            "列表本人行 {id} 金额原值契约"
         );
         assert_eq!(
             amount_signature(&row_by_id(&briefs, id)),

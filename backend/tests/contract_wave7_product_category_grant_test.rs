@@ -141,7 +141,7 @@ fn role_matrix_forbids_wildcard_and_write_actions_for_product_categories() {
     ] {
         assert!(
             !src.contains(banned),
-            "产品分类树对采购岗只读是裁定 R-6 的最小授权口径，矩阵禁止出现 {banned}"
+            "产品分类树对采购岗只读是最小授权口径，矩阵禁止出现 {banned}"
         );
     }
 }

@@ -613,7 +613,7 @@ fn opp_export_handler_and_service_must_inject_data_scope_and_drop_amounts() {
         handler.contains(
             "apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, &mut rows_json)"
         ),
-        "商机导出字段级处理必须走列表/详情同一个 apply_opportunity_field_permission（2026-10-02 裁定 #4：同资源同口径）"
+        "商机导出字段级处理必须走列表/详情同一个 apply_opportunity_field_permission（同资源同口径）"
     );
     let export_body = handler
         .split("pub async fn export_opportunities")

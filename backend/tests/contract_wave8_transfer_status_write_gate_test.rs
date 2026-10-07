@@ -575,7 +575,7 @@ fn source_scan_transfer_status_gate_is_wired_at_the_write_point() {
     let body = body.split("\n    /// ").next().unwrap_or(body);
     assert!(
         body.contains("Self::validate_transfer_status_write("),
-        "状态写落点必须就地过门（改回直接 Set 即视为把门摘掉，#246 ① 回归）"
+        "状态写落点必须就地过门（改回直接 Set 即视为把门摘掉，回归）"
     );
     assert!(
         body.contains("lock_exclusive()"),

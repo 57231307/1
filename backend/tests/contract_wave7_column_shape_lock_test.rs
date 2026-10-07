@@ -60,7 +60,7 @@ const EXPECTED: &[ColExpect] = &[
         udt_name: "int4",
         is_nullable: "NO",
         column_default: Some("0"),
-        why: "m0070：可空无默认 ⇒ NULL 行使 RLS 公海/归属判据两侧 unknown（#4671 后果 B）",
+        why: "m0070：可空无默认 ⇒ NULL 行使 RLS 公海/归属判据两侧 unknown（后果 B）",
     },
     // ---- m0071：附件 URL 数组列（写侧 Set(Vec) 活路径，见 m0071 头注释） ----
     ColExpect {

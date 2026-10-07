@@ -208,7 +208,10 @@ async fn auth_middleware_401_missing_credentials_is_trace_scoped() {
     let hdr = trace_header(&resp);
     let json = read_json(resp).await;
     assert_envelope_keys(&json);
-    assert_eq!(json["code"], "UNAUTHORIZED", "code 取值不得因本波次漂移");
+    assert_eq!(
+        json["code"], "UNAUTHORIZED",
+        "code 取值不得因本次改动而漂移"
+    );
     assert_same_source(&hdr, &json, "auth 401（缺认证凭据）");
 }
 
@@ -431,7 +434,7 @@ async fn hyphenated_upstream_traceparent_is_discarded_not_normalized() {
     // 判据①（函数层负向锁）：非规范值必须被丢弃，而不是被"洗"成可用 id
     assert!(
         TraceContext::from_traceparent(&header_value).is_none(),
-        "带连字符 trace_id 使整串成 5 段，W3C 严格口径下必须解析失败（R-8）"
+        "带连字符 trace_id 使整串成 5 段，W3C 严格口径下必须解析失败"
     );
 
     let app = auth_app(AppState::default());

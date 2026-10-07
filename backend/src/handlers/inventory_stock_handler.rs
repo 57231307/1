@@ -139,7 +139,7 @@ pub async fn get_stock(
                 tracing::warn!(
                     role_id,
                     error = %e,
-                    "批次 388 P2-1: 查询库存数据权限失败，跳过字段过滤"
+                    "查询库存数据权限失败，跳过字段过滤"
                 );
             }
         }
@@ -445,7 +445,7 @@ async fn load_alert_products(
     {
         Ok(p) => p.into_iter().map(|p| (p.id, p)).collect(),
         Err(e) => {
-            tracing::warn!(error = %e, "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过");
+            tracing::warn!(error = %e, "查询库存预警产品信息失败，本轮预警通知将跳过");
             std::collections::HashMap::new()
         }
     }
@@ -533,7 +533,7 @@ async fn apply_data_permission_filter(
             }
         }
         Err(e) => {
-            tracing::warn!(role_id, error = %e, "批次 388 P2-1: 查询库存数据权限失败，跳过字段过滤");
+            tracing::warn!(role_id, error = %e, "查询库存数据权限失败，跳过字段过滤");
         }
     }
 }
@@ -596,7 +596,7 @@ async fn load_low_stock_product_map(
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "批次 388 P2-1: 查询库存预警产品信息失败，本轮预警通知将跳过"
+                "查询库存预警产品信息失败，本轮预警通知将跳过"
             );
             vec![]
         }
