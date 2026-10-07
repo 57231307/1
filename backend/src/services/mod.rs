@@ -215,7 +215,6 @@ pub mod ai_model_management_service;
 // V15 P0-S14 敏感数据导出二级审批
 pub mod export_approval_service;
 // 扩展能力模块
-pub mod api_key_service;
 pub mod webhook_service;
 // 消息通知模块
 pub mod data_permission_service;

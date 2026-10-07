@@ -1,6 +1,6 @@
 {
   "note": "i18n 存量孤儿键棘轮基线：locale 里有文案、src/e2e 里无任何引用（且不受动态拼接与完整 token 救回）。只准降不准升；新增孤儿要么删文案，要么确认它确实被动态拼接消费。重生成：node scripts/check-i18n.mjs --write-baseline",
-  "total": 637,
+  "total": 634,
   "modules": {
     "accountSubject": {
       "count": 16,
@@ -68,14 +68,6 @@
         "apModule.verification.paymentAmount",
         "apModule.verification.pleaseFillComplete",
         "apModule.verification.verifiedAmount"
-      ]
-    },
-    "apiGateway": {
-      "count": 3,
-      "keys": [
-        "apiGateway.logTab.dateRangeSeparator",
-        "apiGateway.logTab.endDatePlaceholder",
-        "apiGateway.logTab.startDatePlaceholder"
       ]
     },
     "arModule": {

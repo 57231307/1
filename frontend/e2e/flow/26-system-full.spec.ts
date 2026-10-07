@@ -48,10 +48,8 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     // → 最终 GET /webhooks/integrations；list_integrations（webhook_integration_handler.rs:85-88）
     // 无 Query 入参、仅 AuthContext，admin 必 2xx → strict，不再 optional 吞 404）
     await verifyEndpointHealthy(page, '/webhooks/integrations?page=1&page_size=5');
-    // API 网关
+    // API 网关：endpoints 列表为真实消费面（dynamic_router 按状态门控）
     await verifyEndpointHealthy(page, '/api-gateway/endpoints?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/api-gateway/keys?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/api-gateway/logs?page=1&page_size=5');
     // 邮件+通知
     await verifyEndpointHealthy(page, '/email-templates?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/notifications?page=1&page_size=5');
@@ -135,7 +133,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     }
   });
 
-  test('API 网关 UI：Tab 切换+新建接口', async ({ page }) => {
+  test('API 网关 UI：接口列表+新建接口', async ({ page }) => {
     await page.goto(`${BASE_URL}/api-gateway`);
     await page.waitForTimeout(3000);
     await page
@@ -146,29 +144,7 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     const tabs = page.locator('.el-tabs__item');
     const tabCount = await tabs.count();
     expect(tabCount).toBeGreaterThan(0);
-    // 切换到第二个 Tab
-    if (tabCount > 1) {
-      await tabs.nth(1).click();
-      // 等待 Tab 对应的表格真实渲染（懒加载组件延迟，固定 2s 不足）。
-      // 只匹配可见表格：Element Plus 非活动 TabPane 仍留在 DOM（display:none），
-      // 不加 :visible 时 .first() 会命中旧 Tab 的隐藏表格导致断言恒假
-      const table = page
-        .locator(
-          '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
-        )
-        .first();
-      await table.waitFor({ state: 'visible', timeout: 15_000 });
-      const tableOk = await table.isVisible();
-      expect(tableOk).toBe(true);
-    }
-    // 「新建接口」按钮位于第一个 Tab「接口管理」(index 0，ApiEndpointTab.vue)；
-    // 上一步为验证 Tab 切换已切到 index 1「API 密钥」，此时接口管理 TabPane
-    // 仍在 DOM 但 display:none（error-context：14× locator resolved to hidden），
-    // 故须先切回 index 0 再定位该按钮，否则 waitFor 必然超时。
-    if (tabCount > 1) {
-      await tabs.nth(0).click();
-    }
-    // 新建接口按钮
+    // 默认激活「接口管理」Tab（index 0，ApiEndpointTab.vue），其「新建接口」按钮进入页面即可见
     const newBtn = page.locator('button:has-text("新建接口")').first();
     await newBtn.waitFor({ state: 'visible', timeout: 5000 });
     const newBtnVisible = await newBtn.isVisible();

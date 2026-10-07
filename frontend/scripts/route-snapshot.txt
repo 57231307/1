@@ -1,4 +1,4 @@
-# layers=8 endpoints=1774
+# layers=8 endpoints=1766
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -6,7 +6,6 @@ DELETE	/api/v1/erp/ai/quality-predictions/*	ai_extend_handler::delete_quality_pr
 DELETE	/api/v1/erp/ap/invoices/*	ap_invoice_handler::delete_ap_invoice	finance
 DELETE	/api/v1/erp/ap/payment-requests/*	ap_payment_request_handler::delete_request	finance
 DELETE	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::delete_api_endpoint	analytics
-DELETE	/api/v1/erp/api-gateway/keys/*	api_gateway_handler::delete_api_key	analytics
 DELETE	/api/v1/erp/ar-reconciliations/*	ar_reconciliation_handler::delete_reconciliation	finance
 DELETE	/api/v1/erp/ar/invoices/*	ar_invoice_handler::delete_ar_invoice	finance
 DELETE	/api/v1/erp/asset-categories/*	crate::handlers::asset_category_handler::delete_category	finance
@@ -179,10 +178,6 @@ GET	/api/v1/erp/ap/verifications/unverified/invoices	ap_verification_handler::ge
 GET	/api/v1/erp/ap/verifications/unverified/payments	ap_verification_handler::get_unverified_payments	finance
 GET	/api/v1/erp/api-gateway/endpoints	api_gateway_handler::list_api_endpoints	analytics
 GET	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::get_api_endpoint	analytics
-GET	/api/v1/erp/api-gateway/keys	api_gateway_handler::list_api_keys	analytics
-GET	/api/v1/erp/api-gateway/keys/*	api_gateway_handler::get_api_key	analytics
-GET	/api/v1/erp/api-gateway/logs	api_gateway_handler::list_api_logs	analytics
-GET	/api/v1/erp/api-gateway/logs/*	api_gateway_handler::get_api_log	analytics
 GET	/api/v1/erp/api-gateway/stats	api_gateway_handler::get_api_stats	analytics
 GET	/api/v1/erp/ar-reconciliation-alias/*/details	ar_reconciliation_enhanced_handler::get_reconciliation_details	finance
 GET	/api/v1/erp/ar-reconciliation-alias/aging-analysis	ar_reconciliation_enhanced_handler::aging_report	finance
@@ -1018,8 +1013,6 @@ POST	/api/v1/erp/ap/verifications/*/cancel	ap_verification_handler::cancel_verif
 POST	/api/v1/erp/ap/verifications/auto	ap_verification_handler::auto_verify	finance
 POST	/api/v1/erp/ap/verifications/manual	ap_verification_handler::manual_verify	finance
 POST	/api/v1/erp/api-gateway/endpoints	api_gateway_handler::create_api_endpoint	analytics
-POST	/api/v1/erp/api-gateway/keys	api_gateway_handler::create_api_key	analytics
-POST	/api/v1/erp/api-gateway/keys/*/regenerate	api_gateway_handler::regenerate_api_key	analytics
 POST	/api/v1/erp/ar-reconciliation-alias/*/confirm/send	ar_reconciliation_enhanced_handler::send_confirmation	finance
 POST	/api/v1/erp/ar-reconciliation-alias/auto-reconcile	ar_reconciliation_enhanced_handler::auto_match	finance
 POST	/api/v1/erp/ar-reconciliation-alias/confirmations	ar_reconciliation_enhanced_handler::create_confirmation	finance
@@ -1623,7 +1616,6 @@ PUT	/api/v1/erp/ap/invoices/*	ap_invoice_handler::update_ap_invoice	finance
 PUT	/api/v1/erp/ap/payment-requests/*	ap_payment_request_handler::update_request	finance
 PUT	/api/v1/erp/ap/payments/*	ap_payment_handler::update_payment	finance
 PUT	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::update_api_endpoint	analytics
-PUT	/api/v1/erp/api-gateway/keys/*	api_gateway_handler::update_api_key	analytics
 PUT	/api/v1/erp/ar-reconciliation-alias/confirmations/*/status	ar_reconciliation_enhanced_handler::update_confirmation_status	finance
 PUT	/api/v1/erp/ar-reconciliation-alias/disputes/*/resolve	ar_reconciliation_enhanced_handler::resolve_dispute	finance
 PUT	/api/v1/erp/ar-reconciliations-enhanced/confirmations/*/status	ar_reconciliation_enhanced_handler::update_confirmation_status	finance
