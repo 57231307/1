@@ -1560,10 +1560,13 @@ impl CrmService {
     }
 
     /// V15 P2 18.1-D6: 获取线索培育计划列表
+    /// 归属经 `lead_nurture_plan.lead_id → crm_lead.owner_id` 继承；
+    /// 当 `data_scope` 为 Some 时，结果集限定于操作人可见线索的计划。
     pub async fn list_nurture_plans(
         &self,
         lead_id: Option<i32>,
         status: Option<&str>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<crate::models::lead_nurture_plan::Model>, AppError> {
         use crate::models::lead_nurture_plan;
 
@@ -1573,6 +1576,24 @@ impl CrmService {
         }
         if let Some(s) = status {
             q = q.filter(lead_nurture_plan::Column::Status.eq(s));
+        }
+        if let Some(ctx) = data_scope {
+            if ctx.scope != DataScope::All {
+                let visible_leads = apply_department_scope_with_pool(
+                    crm_lead::Entity::find(),
+                    ctx,
+                    crm_lead::Column::OwnerId,
+                    crm_lead::Column::DepartmentId,
+                    crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+                    PoolVisibility::Open,
+                )
+                .select_only()
+                .column(crm_lead::Column::Id)
+                .into_tuple::<i32>()
+                .all(&*self.db)
+                .await?;
+                q = q.filter(lead_nurture_plan::Column::LeadId.is_in(visible_leads));
+            }
         }
         let plans = q
             .order_by(lead_nurture_plan::Column::CreatedAt, sea_orm::Order::Desc)

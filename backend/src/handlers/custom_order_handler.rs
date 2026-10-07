@@ -35,6 +35,7 @@ use crate::services::custom_order_state_service::CustomOrderStateService;
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
+use sea_orm::EntityTrait;
 
 // ----------------------------------------------------------------------
 // 公共 DTO
@@ -241,20 +242,28 @@ pub async fn create_custom_order(
 
 /// GET /api/v1/erp/custom-orders/:id - 详情
 pub async fn get_custom_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<CustomOrderDetail>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let quality_svc = CustomOrderQualityService::from_state(&state);
     let after_svc = CustomOrderAfterSalesService::from_state(&state);
+
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
 
     // 防御：本端点串行发 4 次查询（订单主表 / 工艺节点 / 质量异常 / 售后工单），
     // sqlx 0.9 连接池在 acquire 环节可能长阻塞且 acquire_timeout/statement_timeout
     // 不足以覆盖，故 handler 整体 15s 超时兜底；超时按 InternalError（HTTP 500）返回，
     // 让调用方重试而不是占死 worker
     let detail = tokio::time::timeout(Duration::from_secs(15), async {
-        let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
         let nodes = crud_svc.list_process_nodes(id).await.map_err(crud_err)?;
         let (issues, _) = quality_svc
             .list_by_order(id, 1, 100)
@@ -343,12 +352,20 @@ fn map_quality_issues(issues: Vec<crate::models::quality_issue::Model>) -> Vec<Q
 
 /// PUT /api/v1/erp/custom-orders/:id - 更新（仅草稿）
 pub async fn update_custom_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
+    let order = service.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let updated = service.update(id, dto).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: updated.id,
@@ -444,11 +461,20 @@ pub async fn advance_custom_order(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes - 添加工艺节点
 pub async fn add_process_node(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<CreateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderProcessService::from_state(&state);
     // 激活 CreateProcessNodeDto 的 Validate 注解，校验入参
     dto.validate()?;
@@ -526,14 +552,21 @@ pub async fn advance_process_node(
 
 /// GET /api/v1/erp/custom-orders/:id/timeline - 完整时间线
 pub async fn get_timeline(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProcessTimeline>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let process_svc = CustomOrderProcessService::from_state(&state);
 
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
     let timeline_data = process_svc.get_timeline(id).await.map_err(process_err)?;
 
     let nodes: Vec<ProcessNodeWithLogs> = timeline_data
@@ -594,11 +627,20 @@ pub async fn get_timeline(
 /// 被 serde 当未知字段忽略——越权防护是结构性排除，不依赖"反序列化后覆盖"。
 /// 同范式先例：`handlers/color_card/items.rs::create_color_item`。
 pub async fn report_quality_issue(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ReportQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderQualityService::from_state(&state);
     let issue = service.report_issue(id, dto).await.map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
@@ -622,11 +664,20 @@ pub struct ListIssuesQuery {
 }
 
 pub async fn list_quality_issues(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<QualityIssueInfo>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderQualityService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 深翻页防护：page 钳位 1..=1000
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -693,11 +744,20 @@ pub async fn resolve_quality_issue(
 /// 也会被 serde 当未知字段忽略——归属不可能被 body 覆盖，越权防护为结构性排除，
 /// 对齐 `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)` 先例。
 pub async fn create_after_sales(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<CreateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderAfterSalesService::from_state(&state);
     let after = service.create(id, dto).await.map_err(aftersales_err)?;
     // 出参与列表/详情同源：写入后回读一次带 customers LEFT JOIN 的富化查询，
@@ -718,11 +778,20 @@ pub async fn create_after_sales(
 
 /// GET /api/v1/erp/custom-orders/:id/after-sales - 售后列表
 pub async fn list_after_sales(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<AfterSalesInfo>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderAfterSalesService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 深翻页防护：page 钳位 1..=1000
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -743,12 +812,29 @@ pub async fn list_after_sales(
 
 /// PUT /api/v1/erp/custom-orders/after-sales/:id - 更新售后
 pub async fn update_after_sales(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderAfterSalesService::from_state(&state);
+    // 归属链校验：售后行 id → custom_order_id → created_by（不能只看售后行存在）
+    let after_row = crate::models::after_sales::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("售后工单不存在"))?;
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let parent_order = crud_svc
+        .get_by_id(after_row.custom_order_id)
+        .await
+        .map_err(crud_err)?;
+    let owner = parent_order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let after = service.update(id, dto).await.map_err(aftersales_err)?;
     // 与创建端点同口径：更新后回读带 customers LEFT JOIN 的富化查询出参，
     // customer_name 取 JOIN 真值；回读未命中说明行已被并发移除，如实 404

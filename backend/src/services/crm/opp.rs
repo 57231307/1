@@ -14,7 +14,9 @@ use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScope, DataScopeContext, apply_department_scope, check_resource_owner,
+};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
@@ -254,7 +256,7 @@ impl CrmService {
         }
     }
 
-    /// 导出商机为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
+    /// 导出商机为 xlsx（走 `utils/xlsx_export::XlsxTable`，不是 CSV）
     /// 新增：前端 exportOpportunities API 真实接入。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段见 `EXPORT_OPP_COLUMNS`
     ///
     /// 行级数据权限：`data_scope` 与 `list_opportunities`（本文件 :146-169）同语义
@@ -1030,15 +1032,33 @@ impl CrmService {
     }
 
     /// V15 P2 18.2-D5: 阶段停留时长分析（统计每个商机在各阶段的停留天数）
+    /// 当 `data_scope` 为 Some 时，结果集强制限定于操作人可见商机行（与
+    /// `list_opportunities` 同一 `apply_department_scope` 判定源口径）。
     pub async fn stage_duration_analysis(
         &self,
         opportunity_id: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<StageDurationItem>, AppError> {
         use crate::models::opportunity_stage_history;
 
         let mut q = opportunity_stage_history::Entity::find();
         if let Some(opp_id) = opportunity_id {
             q = q.filter(opportunity_stage_history::Column::OpportunityId.eq(opp_id));
+        } else if let Some(ctx) = data_scope {
+            if ctx.scope != DataScope::All {
+                let visible_opps = apply_department_scope(
+                    crm_opportunity::Entity::find(),
+                    ctx,
+                    crm_opportunity::Column::OwnerId,
+                    crm_opportunity::Column::DepartmentId,
+                )
+                .select_only()
+                .column(crm_opportunity::Column::Id)
+                .into_tuple::<i32>()
+                .all(&*self.db)
+                .await?;
+                q = q.filter(opportunity_stage_history::Column::OpportunityId.is_in(visible_opps));
+            }
         }
         let records = q
             .order_by(

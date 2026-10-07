@@ -440,11 +440,19 @@ pub async fn cancel_order(
 
 /// 获取订单明细列表
 pub async fn list_order_items(
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门（读口）：purchase_order_item 按 order_id 隶属父采购订单，越权可读他人
+    // 采购明细。对齐父端点 get_order/update_order/cancel_order 范式——先
+    // `get_order(order_id, Some(&ctx))`：不存在走既有 not_found（404），不可见走
+    // permission_denied（403 + FORBIDDEN），不得把越权降级成 2xx 空列表。
+    // purchase_orders 归属列 `created_by`、部门列 `department_id`（均为 NOT NULL i32，
+    // get_order 内 check_resource_owner 已按此两列判定）。
     let service = PurchaseOrderService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(order_id, Some(&data_scope_ctx)).await?;
     let items = service.list_order_items(order_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))

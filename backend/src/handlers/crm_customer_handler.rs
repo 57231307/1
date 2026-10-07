@@ -475,12 +475,42 @@ pub async fn update_contact(
     )))
 }
 
-/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人；批次 90b P2-12：实现联系人删除功能。
+/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人
 pub async fn delete_contact(
-    Path((_customer_id, contact_id)): Path<(i32, i32)>,
+    Path((customer_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(customer_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+        "联系人删除",
+    )
+    .await?;
+    let contact = crate::models::customer_contact::Entity::find_by_id(contact_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("联系人不存在".to_string()))?;
+    if contact.customer_id != customer_id {
+        return Err(AppError::not_found("联系人不存在".to_string()));
+    }
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     service.delete_customer_contact(contact_id).await?;
 
@@ -543,10 +573,25 @@ pub async fn delete_tag(
 /// 单次 JOIN 查询（customer_tag INNER JOIN crm_tag），无 N+1。
 pub async fn list_customer_tags(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<crate::services::crm::CustomerTagBrief>>>, AppError> {
-    use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
 
     let tags: Vec<crate::services::crm::CustomerTagBrief> = crm_tag::Entity::find()
         .inner_join(crate::models::customer_tag::Entity)
@@ -612,11 +657,35 @@ pub async fn attach_customer_tag(
 /// DELETE /api/v1/erp/crm/customers/:id/tags/:tagId - 解除客户标签关联
 pub async fn detach_customer_tag(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path((customer_id, tag_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::models::customer_tag;
-    use sea_orm::{ColumnTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(customer_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+        "标签解除",
+    )
+    .await?;
 
     let result = customer_tag::Entity::delete_many()
         .filter(customer_tag::Column::CustomerId.eq(customer_id))
@@ -625,10 +694,7 @@ pub async fn detach_customer_tag(
         .await?;
 
     if result.rows_affected == 0 {
-        return Err(AppError::not_found(format!(
-            "客户 {} 与标签 {} 的关联不存在",
-            customer_id, tag_id
-        )));
+        return Err(AppError::not_found("该标签关联不存在".to_string()));
     }
 
     Ok(Json(ApiResponse::success_with_message(

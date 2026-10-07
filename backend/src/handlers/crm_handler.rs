@@ -21,6 +21,8 @@ use axum::{
     extract::{Multipart, Path, Query, State},
 };
 use chrono::Datelike;
+// 归属门需按主键取行：find_by_id 由 EntityTrait 提供，不入作用域则方法不可见
+use sea_orm::EntityTrait;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
@@ -1254,8 +1256,22 @@ pub async fn create_follow_up(
 pub async fn get_rfm_score(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
     let service = CrmService::new(state.db.clone());
     let detail = service.compute_rfm_score(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(detail)?)))
@@ -1357,12 +1373,20 @@ pub async fn auto_assign_lead(
 /// GET /api/v1/erp/crm/leads/nurture-plans - 获取线索培育计划列表
 pub async fn list_nurture_plans(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<NurturePlanQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    if let Some(lid) = params.lead_id {
+        service.get_lead(lid, Some(&data_scope_ctx)).await?;
+    }
     let plans = service
-        .list_nurture_plans(params.lead_id, params.status.as_deref())
+        .list_nurture_plans(
+            params.lead_id,
+            params.status.as_deref(),
+            Some(&data_scope_ctx),
+        )
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(plans)?)))
 }
@@ -1382,9 +1406,26 @@ pub async fn create_nurture_plan(
 pub async fn execute_nurture_plan(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let plan_row = crate::models::lead_nurture_plan::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("培育计划不存在".to_string()))?;
+    let lead = service
+        .get_lead(plan_row.lead_id, Some(&data_scope_ctx))
+        .await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(lead.owner_id),
+        lead.department_id,
+        "培育计划执行",
+    )
+    .await?;
     let plan = service.execute_nurture_plan(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
 }
@@ -1394,12 +1435,18 @@ pub async fn execute_nurture_plan(
 /// GET /api/v1/erp/crm/opportunities/stage-duration - 阶段停留时长分析
 pub async fn get_stage_duration_analysis(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<StageDurationQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    if let Some(opp_id) = params.opportunity_id {
+        service
+            .get_opportunity(opp_id, Some(&data_scope_ctx))
+            .await?;
+    }
     let analysis = service
-        .stage_duration_analysis(params.opportunity_id)
+        .stage_duration_analysis(params.opportunity_id, Some(&data_scope_ctx))
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
 }
@@ -1412,8 +1459,20 @@ pub async fn record_opportunity_stage_change(
     Json(req): Json<StageChangeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机阶段变更",
+    )
+    .await?;
+    let from_stage = existing.opportunity_stage;
     service
-        .record_stage_change(id, req.from_stage, &req.to_stage, auth.user_id)
+        .record_stage_change(id, from_stage, &req.to_stage, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::Value::Null)))
 }
@@ -1465,9 +1524,11 @@ pub async fn add_opportunity_competitor(
 pub async fn list_opportunity_follow_ups(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let follow_ups = service.list_opportunity_follow_ups(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         follow_ups,
@@ -1545,9 +1606,23 @@ pub async fn set_customer_field_permission(
 pub async fn list_customer_audit_logs(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
     let service = CrmService::new(state.db.clone());
     let logs = service
         .list_customer_audit_logs(id, params.operation.as_deref())
@@ -1584,8 +1659,31 @@ pub async fn create_customer_audit_log(
 pub async fn calculate_customer_clv(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+        "客户CLV计算",
+    )
+    .await?;
     let service = CrmService::new(state.db.clone());
     let clv = service.calculate_customer_clv(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
@@ -1595,8 +1693,22 @@ pub async fn calculate_customer_clv(
 pub async fn get_customer_clv(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
     let service = CrmService::new(state.db.clone());
     let clv = service.get_customer_clv(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))

@@ -330,7 +330,7 @@ async fn test_quotationservice_list_ksjkfherr() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
     let (items, total) = svc
-        .list(1, 20, None, None, None, None)
+        .list(1, 20, None, None, None, None, None)
         .await
         .expect("已建库空表上 list 应返回 Ok 空集，而非 Err/panic");
     assert!(

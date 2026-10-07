@@ -264,13 +264,21 @@ pub struct ApproveReturnRequest {
 
 pub async fn list_purchase_return_items(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<
     Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>,
     AppError,
 > {
+    // 行级归属门（读口）：purchase_return_item 按 return_id 隶属父采购退货单，越权可读
+    // 他人退货明细。对齐父端点 get_purchase_return 范式——先 `get_return(id, Some(&ctx))`：
+    // 不存在走既有 not_found（404），不可见走 permission_denied（403 + FORBIDDEN），不得把
+    // 越权降级成 2xx 空列表。purchase_return 归属列 `created_by`、部门列 `department_id`
+    //（两列在模型与建表 DDL 均为可空 INTEGER；get_return 内 check_resource_owner 按此两列
+    // 判定，NULL 历史行按"无归属"处理——Dept/Self 判 false 即 403，不放行、不空列表兜底）。
     let service = PurchaseReturnService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_return(id, Some(&data_scope_ctx)).await?;
     let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(items)))
 }

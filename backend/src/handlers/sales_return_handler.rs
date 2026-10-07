@@ -204,9 +204,16 @@ pub async fn execute_sales_return(
 pub async fn list_return_items(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<SalesReturnItemView>>>, AppError> {
+    // 行级归属门（读口）：sales_return_item 按 return_id 隶属父退货单，越权可读他人
+    // 退货明细。对齐父端点 get_sales_return 范式——先 `get_return(id, Some(&ctx))`：
+    // 不存在走既有 not_found（404），不可见走 permission_denied（403 + FORBIDDEN），
+    // 不得把越权降级成 2xx 空列表。sales_return 归属列为 `created_by`（NOT NULL i32，
+    // 无冗余部门列，Dept 范围在该表退化为 Self 判定，与 get_return 既有实现同一判据）。
     let service = SalesReturnService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_return(id, Some(&data_scope_ctx)).await?;
     let items = service.list_return_items(id).await?;
     Ok(Json(ApiResponse::success(items)))
 }
@@ -267,7 +274,7 @@ pub async fn delete_return_item(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // 操作人身份取会话，供 service 落审计日志
     service.delete_return_item(item_id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }

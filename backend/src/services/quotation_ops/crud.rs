@@ -24,6 +24,7 @@ use crate::models::sales_quotation_term::{ActiveModel as TermActive, Entity as T
 use crate::models::status::quotation as quotation_status;
 use crate::models::user;
 use crate::services::quotation_service::{QuotationService, ServiceError};
+use crate::utils::data_scope::{DataScope, DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use std::collections::HashMap;
@@ -223,8 +224,9 @@ impl QuotationService {
         Ok(())
     }
 
-    /// 列表查询（分页 + 过滤）
-    /// 批次 265：接入 paginate_with_total（已做 page-1 偏移）+ clamp(1,1000) 防 DoS
+    /// 列表查询（分页 + 过滤 + 行级数据权限）
+    /// data_scope 为 Some 时在查询构造处下推 scope 过滤（非 post-filter），
+    /// 保证分页 total 与可见集一致。客户端 sales_user_id 仅在可见集内再收窄。
     pub async fn list(
         &self,
         page: u64,
@@ -233,8 +235,18 @@ impl QuotationService {
         customer_id: Option<i32>,
         sales_user_id: Option<i64>,
         keyword: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<QuotationResponseDto>, u64), ServiceError> {
         let mut query = QuotationEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                sales_quotation::Column::SalesUserId,
+                sales_quotation::Column::SalesUserId,
+            );
+        }
 
         if let Some(s) = status {
             query = query.filter(sales_quotation::Column::Status.eq(s));
@@ -320,5 +332,96 @@ impl QuotationService {
             .one(&*self.db)
             .await?
             .ok_or(ServiceError::NotFound)
+    }
+
+    /// 按 ID 查询（带行级数据权限归属门）。
+    /// 不存在返回 NotFound；存在但不可见返回 permission_denied（403+FORBIDDEN），
+    /// 不降级为空结果。归属列取 `sales_user_id`（与列表 `apply_data_scope` 同源，
+    /// 不另造第二套判定规则）。
+    pub async fn get_by_id_scoped(
+        &self,
+        id: i64,
+        ctx: &DataScopeContext,
+    ) -> Result<sales_quotation::Model, ServiceError> {
+        let model = self.get_by_id(id).await?;
+        Self::ensure_visible_by_scope(ctx, model.sales_user_id)?;
+        Ok(model)
+    }
+
+    /// 即将到期查询（带行级数据权限）
+    pub async fn list_expiring_scoped(
+        &self,
+        today: chrono::NaiveDate,
+        until: chrono::NaiveDate,
+        ctx: &DataScopeContext,
+    ) -> Result<Vec<QuotationResponseDto>, ServiceError> {
+        let query = QuotationEntity::find()
+            .filter(sales_quotation::Column::Status.eq(quotation_status::APPROVED))
+            .filter(sales_quotation::Column::ValidUntil.between(today, until));
+        let query = apply_data_scope(
+            query,
+            ctx,
+            sales_quotation::Column::SalesUserId,
+            sales_quotation::Column::SalesUserId,
+        );
+        let items: Vec<QuotationResponseDto> = query
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(QuotationResponseDto::from)
+            .collect();
+        Ok(items)
+    }
+
+    /// 已过期查询（带行级数据权限）
+    pub async fn list_expired_scoped(
+        &self,
+        today: chrono::NaiveDate,
+        ctx: &DataScopeContext,
+    ) -> Result<Vec<QuotationResponseDto>, ServiceError> {
+        use crate::models::status::quotation_ext;
+        use sea_orm::Condition;
+        let query = QuotationEntity::find()
+            .filter(sales_quotation::Column::ValidUntil.lt(today))
+            .filter(
+                Condition::all()
+                    .add(sales_quotation::Column::Status.ne(quotation_status::CANCELLED))
+                    .add(sales_quotation::Column::Status.ne(quotation_ext::EXPIRED))
+                    .add(sales_quotation::Column::Status.ne(quotation_ext::CONVERTED)),
+            );
+        let query = apply_data_scope(
+            query,
+            ctx,
+            sales_quotation::Column::SalesUserId,
+            sales_quotation::Column::SalesUserId,
+        );
+        let items: Vec<QuotationResponseDto> = query
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .map(QuotationResponseDto::from)
+            .collect();
+        Ok(items)
+    }
+
+    /// 单行可见性判定：与 `build_data_scope_condition` 同语义——
+    /// Dept 用 `dept_member_user_ids.contains`（sales_quotation 无 department_id 列，
+    /// 统一按归属人∈可见成员集合判断）。
+    fn ensure_visible_by_scope(
+        ctx: &DataScopeContext,
+        sales_user_id: i64,
+    ) -> Result<(), ServiceError> {
+        let owner = sales_user_id as i32;
+        let visible = match ctx.scope {
+            DataScope::All => true,
+            DataScope::Dept => ctx.dept_member_user_ids.contains(&owner),
+            DataScope::Self_ => owner == ctx.user_id,
+        };
+        if !visible {
+            return Err(ServiceError::App(AppError::permission_denied(
+                "无权访问报价单（数据范围限制）",
+            )));
+        }
+        Ok(())
     }
 }

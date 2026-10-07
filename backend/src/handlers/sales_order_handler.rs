@@ -549,10 +549,21 @@ pub struct HistoryQuery {
 
 pub async fn get_order_history(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门：变更历史按 order_id 索引，若父订单不在当前操作人可见范围（Self
+    // 非本人 owner / Dept 非可见部门）即 403；父订单不存在走既有 not_found（404），
+    // 不得把越权降级成 2xx 空列表——空列表会被前端误读为"该单无变更历史"，是假绿。
+    // sales_orders 属 m_rls_dept_domain 5 张 RLS 表之一，归属列 `created_by`、冗余部门
+    // 列 `department_id`（触发器 trg_sales_orders_dept 维护）；父端点范式已用
+    // `get_order_detail(id, Some(&ctx))` 承载此门，与 ship_order/update_order 同源。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     let history_service =
         crate::services::order_change_history_service::OrderChangeHistoryService::new(
             state.db.clone(),
@@ -703,7 +714,7 @@ pub struct ApproveSalesOrderRequest {
 /// 拒绝订单
 /// POST /api/v1/erp/sales/orders/:id/reject
 pub async fn reject_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
     Json(req): Json<RejectSalesOrderRequest>,
@@ -715,18 +726,33 @@ pub async fn reject_order(
     if reason.is_empty() {
         tracing::warn!(
             "用户 {} 拒绝销售订单被拒：单据 ID {id} 拒绝理由为纯空白（ID 只进日志不进文案）",
-            _auth.user_id
+            auth.user_id
         );
         return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
     }
 
+    // 行级归属门（写口）：本域无 CRM 域那套 `crm/cross_owner_write` 显式代操作键，
+    // 不能硬套 `crm_write_guard::ensure_cross_owner_write_allowed`（其权限键 resource_type
+    // 固定为 "crm"，语义仅限 CRM 域），因此对齐 ship_order/update_order 的同域写门范式——
+    // 先 `get_order_detail(id, Some(&ctx))`：
+    //   - 路径 id 不存在 → 既有 not_found（404），不裸 500、不冒充空；
+    //   - Self 用户试图拒绝他人 PENDING 单 → check_resource_owner=false → 403 FORBIDDEN，
+    //     判红分叉在此（修复前 handler 丢弃会话、service 仅按 status==PENDING 放行，任何
+    //     同 RBAC 键的 Self/Dept 用户都能拒他人订单）；
+    //   - Dept 用户拒本部门单据 → 放行（dept 的本职代管，与 CRM 写门 Dept 分支同语义）。
+    // 门在 service 落库点之前——越权不会触达 reject_order 的事务，订单状态零漂移。
+    // 缺口（交主编排）：All 范围跨 owner 代拒本域无等价 cross_owner_write 键，须新增
+    // sales 域跨 owner 写键并同步权限注册表；本轮不新增权限键、不改 hub，仅按上述范式
+    // 堵 Self/Dept 水平越权。
+    let data_scope_ctx = auth.to_data_scope_context();
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
 
     // service 直接返回 AppError（状态机拒绝 business / 404 not_found 等 4xx），
     // 透传保留其 status/code/文案，不把业务拒绝压成 500。
-    sales_service
-        .reject_order(id, reason, _auth.user_id)
-        .await?;
+    sales_service.reject_order(id, reason, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "订单已拒绝"
@@ -754,11 +780,19 @@ pub async fn cancel_order(
 /// 获取订单发货记录
 /// GET /api/v1/erp/sales/orders/:id/deliveries
 pub async fn get_order_deliveries(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门（读口）：sales_delivery 按 order_id 隶属父销售订单，越权可读他人发货
+    // 记录等同于泄露他人单据。对齐父端点范式——先 `get_order_detail(id, Some(&ctx))`：
+    // 不存在走既有 not_found（404），不可见走 permission_denied（403 + FORBIDDEN），
+    // 不得把越权降级成 2xx 空列表（那是前端"该单无发货记录"的假绿）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
 
     let deliveries = sales_service.get_order_deliveries(id).await?;
 

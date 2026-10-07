@@ -20,7 +20,6 @@ use crate::models::quotation_response_dto::{
 };
 use crate::models::quotation_update_dto::UpdateQuotationDto;
 use crate::models::status::approval;
-use crate::models::status::quotation as quotation_status;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
@@ -114,13 +113,15 @@ impl From<crate::models::sales_order::Model> for SalesOrderResponse {
 
 /// GET /api/v1/erp/quotations
 pub async fn list_quotations(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListQuotationsQuery>,
 ) -> Result<Json<ApiResponse<ListQuotationsResponse>>, AppError> {
     let service = QuotationService::from_state(&state);
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+
+    let ctx = auth.to_data_scope_context();
 
     let (dtos, total) = service
         .list(
@@ -130,6 +131,7 @@ pub async fn list_quotations(
             query.customer_id,
             query.sales_user_id,
             query.keyword,
+            Some(&ctx),
         )
         .await?;
 
@@ -143,12 +145,13 @@ pub async fn list_quotations(
 
 /// GET /api/v1/erp/quotations/:id
 pub async fn get_quotation(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     let service = QuotationService::from_state(&state);
-    let model = service.get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let model = service.get_by_id_scoped(id, &ctx).await?;
 
     // 明细：LEFT JOIN products，取真实 name/code 别名为 product_name/product_code（单次查询）
     let items: Vec<QuotationItemResponseDto> = crate::models::sales_quotation_item::Entity::find()
@@ -338,10 +341,14 @@ pub async fn convert_to_sales_order(
 
 /// GET /api/v1/erp/quotations/:id/terms
 pub async fn get_quotation_terms(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
+    let service = QuotationService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    service.get_by_id_scoped(id, &ctx).await?;
+
     let terms: Vec<QuotationTermResponseDto> = crate::models::sales_quotation_term::Entity::find()
         .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
         .all(&*state.db)
@@ -355,17 +362,19 @@ pub async fn get_quotation_terms(
 /// PUT /api/v1/erp/quotations/:id/terms
 /// 全量替换报价单贸易条款
 pub async fn set_quotation_terms(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(terms): Json<Vec<crate::models::quotation_create_dto::CreateQuotationTermDto>>,
 ) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
     use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
 
-    // 校验报价单存在
-    // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
     let service = QuotationService::from_state(&state);
-    service.get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    // 行级读门：校验报价单存在且操作人可见（不存在 404，不可见 403+FORBIDDEN）。
+    // 跨 owner 写门：报价域尚无等价 *_write_guard（待主编排定夺），此处以读门
+    // 的 scope 可见性约束覆盖 D18 写入口——Self 用户不可改他人报价条款。
+    service.get_by_id_scoped(id, &ctx).await?;
 
     let txn = state.db.begin().await?;
 
@@ -411,7 +420,7 @@ pub async fn set_quotation_terms(
 /// GET /api/v1/erp/quotations/expiring
 /// 即将到期（默认 7 天内）
 pub async fn list_expiring(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ExpiryQuery>,
 ) -> Result<Json<ApiResponse<Vec<QuotationResponseDto>>>, AppError> {
@@ -419,45 +428,23 @@ pub async fn list_expiring(
     let today = Utc::now().date_naive();
     let until = today + chrono::Duration::days(days as i64);
 
-    use crate::models::sales_quotation;
-    let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
-        .filter(sales_quotation::Column::Status.eq(quotation_status::APPROVED))
-        .filter(sales_quotation::Column::ValidUntil.between(today, until))
-        .all(&*state.db)
-        .await?
-        .into_iter()
-        .map(QuotationResponseDto::from)
-        .collect();
+    let service = QuotationService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    let items = service.list_expiring_scoped(today, until, &ctx).await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
 /// GET /api/v1/erp/quotations/expired
 /// 已过期（valid_until < today 且状态非 cancelled/converted）
 pub async fn list_expired(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<QuotationResponseDto>>>, AppError> {
     let today = Utc::now().date_naive();
 
-    use crate::models::sales_quotation;
-    use crate::models::status::quotation_ext;
-    use sea_orm::Condition;
-    // 状态过滤统一走 SeaORM Column 表达式 + status 词表常量绑定，
-    // 与写入侧 models::status 同源（此前手写裸 SQL 字面量绕过了唯一词表来源）。
-    // NOT IN (cancelled, expired, converted) 展开为逐列 ne 的 AND 组合。
-    let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
-        .filter(sales_quotation::Column::ValidUntil.lt(today))
-        .filter(
-            Condition::all()
-                .add(sales_quotation::Column::Status.ne(quotation_status::CANCELLED))
-                .add(sales_quotation::Column::Status.ne(quotation_ext::EXPIRED))
-                .add(sales_quotation::Column::Status.ne(quotation_ext::CONVERTED)),
-        )
-        .all(&*state.db)
-        .await?
-        .into_iter()
-        .map(QuotationResponseDto::from)
-        .collect();
+    let service = QuotationService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    let items = service.list_expired_scoped(today, &ctx).await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
