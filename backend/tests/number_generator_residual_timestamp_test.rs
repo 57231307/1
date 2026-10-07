@@ -1,4 +1,4 @@
-//! 任务 #158 契约锁：残余 4 处手写时间戳拼号收口到 `DocumentNumberGenerator`。
+//! 契约锁：残余 4 处手写时间戳拼号收口到 `DocumentNumberGenerator`。
 //!
 //! 覆盖点位（前缀常量 → 落库列 → UNIQUE 证据）：
 //! - `services/mrp_engine_ops/calculation.rs`：`MRP`（单次计算行号=单据号）、

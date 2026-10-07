@@ -59,7 +59,7 @@ const POST_DEPLOY_MONITOR_INTERVAL_SECS: u64 = 10;
 
 // ==================== V15 P1 升级流程加固辅助函数 ====================
 
-/// 任务 #121（收口原 fail-open）：下载后 SHA256 强校验，返回 true 仅在**官方校验值取得且本地重算匹配**时。
+/// （收口原 fail-open）：下载后 SHA256 强校验，返回 true 仅在**官方校验值取得且本地重算匹配**时。
 ///
 /// 信任模型（与后端 `github.rs`/facade 同源，复用其 `pub(crate)` 原语，勿各写一套）：
 /// - 校验基准**只从官方域取**（`validate_official_digest_url` + 仅官方直连下载，绝不走镜像）；
@@ -244,7 +244,7 @@ fn init_upgrade_logger() {
 /// V15 P2 25.3-D：版本降级检查（禁止降级，除非 --force-downgrade）
 /// 返回 true 表示允许继续，false 表示终止
 ///
-/// 任务 #116 修复：不再要求"必须四段"才判定（原逻辑使三段 current 配四段 target 恒 fail-open）。
+/// 修复：不再要求"必须四段"才判定（原逻辑使三段 current 配四段 target 恒 fail-open）。
 /// 改用后端共享归一路径 `to_calver_quad`：四段（tag / 注入格式）直接透传，三段
 /// （Cargo `Y.MD.T` MD 折叠）在本项目 CalVer 年份下反解为四元组后比较；任一侧无法归类
 /// （非本项目 CalVer / MD 折叠非法 / 段数不足）→ 显式 `[WARN]` 记录后 fail-open，不静默放行。
@@ -494,7 +494,7 @@ pub(super) fn cmd_upgrade(version: Option<String>, no_backup: bool) {
     init_upgrade_logger();
 
     println!("=== 系统升级 ===\n");
-    // 任务 #116：current 与后端 get_current_version 同源 —— 优先编译期注入的权威四段版本
+    // current 与后端 get_current_version 同源 —— 优先编译期注入的权威四段版本
     // （BINGXI_RELEASE_VERSION，与 release tag 同格式），未注入时回退三段 CARGO_PKG_VERSION
     // 并显式告警（见 authoritative_current_version），避免 CLI 与后端各写一份版本来源。
     let current = crate::services::system_update_service::authoritative_current_version();

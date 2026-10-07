@@ -165,7 +165,7 @@
               </template>
             </el-table-column>
             <el-table-column prop="grade" :label="$t('outsourcing.columns.grade')" width="80" />
-            <!-- 打卷实测值三列（#220 成品布入库标签数据源）：出参为 Decimal 字符串，
+            <!-- 打卷实测值三列（成品布入库标签数据源）：出参为 Decimal 字符串，
                  未录入（null）显示「未补录」占位文案，不显示空/0（0 属伪造实测值） -->
             <el-table-column :label="$t('outsourcing.receipt.measured.weight')" width="110">
               <template #default="{ row }">{{ measuredCellText(row.weight) }}</template>
@@ -516,7 +516,7 @@
         <el-form-item :label="$t('outsourcing.columns.grade')">
           <el-input v-model="receiptForm.grade" placeholder="A / B / C" />
         </el-form-item>
-        <!-- 打卷实测值（#220 成品布入库标签数据源）：DB 可空列，可留空不录入；
+        <!-- 打卷实测值（成品布入库标签数据源）：DB 可空列，可留空不录入；
              建单直写口径（CreateOutsourcingReceiptRequest types.rs:230-234），
              留空=落 NULL（未补录），填 0/负数本地按 >0 拦下（同后端 validate_measured_values） -->
         <el-divider content-position="left">{{

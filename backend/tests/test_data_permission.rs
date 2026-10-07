@@ -145,7 +145,7 @@ fn test_data_scope_as_str() {
     assert_eq!(DataScope::Self_.as_str(), "self");
 }
 
-// ===== 同源重建（#4671 判责 §⑤ W4·D）=====
+// ===== 同源重建（判责 §⑤ W4·D）=====
 // 本节把 data_permission 侧断言与 `src/utils/data_scope.rs` 真实实现**同源**钉死，
 // 作为"公海领取/超管跨 owner 写"两条拍板口径的纯函数行为锁。背景（判责 §2.3 A4）：
 // handler 级活体锁（contract_wave6_crm_pool_owner_test 5 条）被 AppState::default()

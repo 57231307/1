@@ -76,7 +76,7 @@ fn crud_err(e: crate::services::custom_order_crud_service::CrudError) -> AppErro
         InvalidStateDisplayable(msg) => AppError::business_displayable(msg),
         Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
-        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        // 服务层分页查询已构造好 AppError，原样透传不二次包装
         App(e) => e,
     }
 }
@@ -116,7 +116,7 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
         InvalidState(msg) => AppError::business_displayable(msg),
         Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
-        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        // 服务层分页查询已构造好 AppError，原样透传不二次包装
         App(e) => e,
     }
 }
@@ -134,7 +134,7 @@ fn aftersales_err(
         InvalidState(msg) => AppError::business_displayable(msg),
         Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
-        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        // 服务层分页查询已构造好 AppError，原样透传不二次包装
         App(e) => e,
         // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）。
         // 文案含内部记录 ID，按 error.rs 安全边界不得外显，保持脱敏 business。
@@ -585,7 +585,7 @@ pub async fn get_timeline(
 
 /// POST /api/v1/erp/custom-orders/:id/issues - 上报异常
 ///
-/// 契约修复（任务 #148 售后先例同构）：归属 `custom_order_id` 由 path 权威注入
+/// 契约修复（售后先例同构）：归属 `custom_order_id` 由 path 权威注入
 /// `service.report_issue(id, dto)`，body 不再携带该字段（伪造键被 serde 忽略，
 /// 越权防护为结构性排除，不再依赖"反序列化后覆盖"）
 pub async fn report_quality_issue(
@@ -681,7 +681,7 @@ pub async fn resolve_quality_issue(
 
 /// POST /api/v1/erp/custom-orders/:id/after-sales - 创建售后工单
 ///
-/// 任务 #148 契约修复：工单归属以 path 参数 `:id` 为唯一权威来源，
+/// 契约修复：工单归属以 path 参数 `:id` 为唯一权威来源，
 /// `CreateAfterSalesDto` 不再包含 `custom_order_id` 字段——修复前 DTO 为非 Option
 /// 必填，而前端 payload 从不携带该键，反序列化层直接 "missing field" 报参数错误，
 /// 创建必失败；且旧代码 "先反序列化 body、后 dto.custom_order_id = path" 的覆盖

@@ -132,7 +132,7 @@ test.describe.serial('Shard 4: 财务核算闭环', () => {
     // Json<ApiResponse<PaginatedResponse<ar_invoice::Model>>>，success_paginated
     // （utils/response.rs:97-112）把分页信封完整放进 data：
     // data={items,total,page,page_size}（PaginatedResponse 定义 utils/response.rs:39-45）。
-    // CI run #4675 shard2 本用例红（Array.isArray(data)=false）根因即测试侧前提过期：
+    // shard2 本用例红（Array.isArray(data)=false）根因即测试侧前提过期
     // 旧注释与断言仍按"ApiResponse<Vec 裸数组"写；同文件 4-5 AP 用例（ap_invoice_handler.rs:67）
     // 与 02-o2c 2-8（该 spec:399-412）均已按 items 读，唯此处未同步。
     // total 语义=筛选条件下全量条数（service.get_list 返回 (invoices,total) 二元，

@@ -19,7 +19,7 @@
 //!   非法日期 400 VALIDATION_ERROR。
 //! - 状态门拒绝：reject/cancel 状态门在事务内 lock_exclusive 之后——真库通道上真实执行；
 //!   订单由**用例自种子**（自己插销售订单+明细，用真实 ID 喂服务），不再依赖任何
-//!   CI 播种的 TEST_SEED_* 环境变量（#4669 实证：分片 job 只迁移不播种，env 恒 NotPresent）。
+//! CI 播种的 TEST_SEED_* 环境变量（实证：分片 job 只迁移不播种，env 恒 NotPresent）。
 //!   经真实 handler（含 `?` 映射）返回，断言 4xx + code=BUSINESS_ERROR + 底层拒绝原因非“服务器内部错误”。
 //! - 源码扫描防回潮锁（CI 必跑）：A3 六站点 + 导出站点的 internal 强转文案零命中；
 //!   AppError::internal 仅收缩棘轮；报价词表同源锁（禁 Expr::cust 手写状态字面量）。

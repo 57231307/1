@@ -1,4 +1,4 @@
-//! 缸号（dye_batch）完工实际产出三列（任务 #168）
+//! 缸号（dye_batch）完工实际产出三列
 //!
 //! 依据：
 //! - `.monkeycode/docs/research/fabric-industry-research.md:149-158`——缸号全生命周期

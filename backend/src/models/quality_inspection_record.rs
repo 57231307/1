@@ -48,7 +48,7 @@ pub struct Model {
     // 依据：.monkeycode/docs/research/fabric-industry-research.md §4.7 质量检验模块
     #[sea_orm(column_name = "grade")]
     pub grade: Option<String>,
-    // v14 批次 421：按缸号追溯质检结果，依据 .monkeycode/docs/research/fabric-industry-research.md §2.1 四层级联关系
+    // 按缸号追溯质检结果，依据 .monkeycode/docs/research/fabric-industry-research.md §2.1 四层级联关系
     #[sea_orm(column_name = "color_no")]
     pub color_no: Option<String>,
     #[sea_orm(column_name = "dye_lot_no")]

@@ -41,7 +41,7 @@ pub struct UpdateProductCategoryRequest {
     pub description: Option<String>,
 }
 
-// define_crud_handlers! 出参实参 = service 的真实返回类型（批次 476 契约收紧）：
+// define_crud_handlers! 出参实参 = service 的真实返回类型（契约收紧）
 // list -> PaginatedResponse<product_category::Model>，get/create/update -> product_category::Model
 // （证据 services/product_category_service.rs:24/61/69/104）
 crate::define_crud_handlers!(

@@ -259,7 +259,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   test('染色批次：缸号追溯字段验证', async ({ page }) => {
     const ctx = getCtx();
     const batchNo = genCode('DB');
-    // I 族前置（CI #4669 判责 §⑤「色号 E2E-GC274371 在色卡档案中不存在」）：原用例引用
+    // I 族前置（CI 判责 §⑤「色号 E2E-GC274371 在色卡档案中不存在」）：原用例引用
     // ctx.colorNos[0]（product_colors 产品维度档案），但后端染色身份归一
     // （dye_batch_handler.rs:203-254）反查的是**色卡明细档案** color_card_items.color_code，
     // 且要求全局唯一命中——校验正当不放松。改为自建专属色卡+唯一入档色号。

@@ -10,7 +10,7 @@ export interface FabricInspection {
 /**
  * 打卷入库入参：与后端 `RollFabricRequest` 逐字段一致
  * （backend/src/services/fabric_inspection_service.rs:201-209，键名不变）。
- * #220 裁定 §3：roll_weight/roll_width/roll_gram_weight 为实测值必填——后端类型虽写作
+ * 裁定 §3：roll_weight/roll_width/roll_gram_weight 为实测值必填——后端类型虽写作
  * `Option<Decimal>`，但 `#[validate(required)]` + service 入口 `req.validate()` 强制
  * 缺失即 400 VALIDATION_ERROR（外显「打卷入库必须填写××」），故前端不标 `?`。
  * 取值范围口径 = `validate_roll_preconditions`（:592-609）：四数值均须 >0，

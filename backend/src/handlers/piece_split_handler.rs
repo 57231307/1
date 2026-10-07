@@ -243,7 +243,7 @@ fn build_new_piece(
         // 与 length/weight 的处理不矛盾：那两个量随剪裁被物理分割，这两个量不被分割。
         width: Set(parent.width),
         gram_weight: Set(parent.gram_weight),
-        // v14 批次 416：其余 nullable 字段拆分产生的新布卷不设置（保持 NULL）
+        // 其余 nullable 字段拆分产生的新布卷不设置（保持 NULL）
         supplier_piece_no: sea_orm::ActiveValue::NotSet,
         position_no: sea_orm::ActiveValue::NotSet,
         package_no: sea_orm::ActiveValue::NotSet,

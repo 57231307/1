@@ -88,7 +88,7 @@ test.describe('01 流程定义', () => {
   });
 
   test('01-03 流程定义筛选功能可用', async ({ page }) => {
-    // 判责 #4669 J-3（测试缺陷）：「流程名称」筛选控件已被前端有意移除——后端
+    // 判责 J-3（测试缺陷）：「流程名称」筛选控件已被前端有意移除——后端
     // ProcessDefinitionQuery 仅有 category/status/page/page_size（models/dto/bpm_dto.rs:34-39），
     // 无 keyword 字段，发送即被静默丢弃=假筛选（BpmDefinitionFilter.vue:10-11 注释点名，
     // CI error-context a11y 快照逐字证实筛选表单内只有 流程分类 combobox + 查询/重置）。

@@ -12,8 +12,7 @@
 //! - `purchase_prices.product_id`  INTEGER NOT NULL → products.id  (SERIAL/INTEGER)
 //! - `purchase_prices.supplier_id` INTEGER NOT NULL → suppliers.id (SERIAL/INTEGER)
 //!
-//! 列型逐型对齐核查（本仓有 i32/INTEGER vs i64/BIGINT 宽度漂移前科，任务板 #68/#237，
-//! 宽度不一致时 FK 根本建不起来）：
+//! 列型逐型对齐核查（列与主键宽度不一致时 FK 根本建不起来）：
 //! - 参照表主键：system/m0001_initial_schema.rs 中 products / suppliers / customers
 //!   三表均为 `"id" SERIAL PRIMARY KEY`（即 INTEGER）；
 //! - 价目列：business m0009（purchase_prices）与 m0011（sales_prices）建表列
@@ -21,7 +20,7 @@
 //! - 全仓 grep `ALTER COLUMN "(product_id|customer_id|supplier_id|id)" TYPE` 仅命中
 //!   custom_orders（BIGINT 加宽），未触及上述任何列；m0044 fix_fk_types 只改写
 //!   m0044 内嵌 SQL 的建表列声明，且其 INTEGER_ID_TABLES 白名单（products/customers/
-//!   suppliers 均在列）方向是 BIGINT→INTEGER，与本批列无关。
+//!   suppliers 均在列）方向是 BIGINT→INTEGER，与本迁移各列无关。
 //! 结论：四组列/主键同为 INTEGER，无宽度冲突，本迁移不设"暂缓列"。
 //! SeaORM 实体侧同为 i32（models/product.rs、customer.rs、supplier.rs 与
 //! sales_price.rs、purchase_price.rs 的对应字段），与 DDL 同源。
@@ -38,8 +37,8 @@
 //! 交业务侧核实更正后重跑本迁移。
 //!
 //! 幂等：up 先对四条约束 `DROP CONSTRAINT IF EXISTS` 再加守卫与 ADD，可安全重跑；
-//! 守卫通过后 ADD 前约束必不存在，不会撞重名。注册在迁移链尾（由主编排在
-//! migration/src/domain/mod.rs 与 lib.rs 完成），晚于全部建表迁移（system m0001、
+//! 守卫通过后 ADD 前约束必不存在，不会撞重名。注册点在 migration/src/domain/mod.rs
+//! 与 lib.rs，位于迁移链尾，晚于全部建表迁移（system m0001、
 //! business m0009/m0011），全新迁移库上链跑到此时四组引用关系均已定型。
 //!
 //! 删除行为说明：不加 ON DELETE 子句即 PostgreSQL 默认 NO ACTION（等价 RESTRICT，
@@ -178,8 +177,7 @@ ALTER TABLE "purchase_prices" ADD CONSTRAINT "fk_purchase_prices_supplier" FOREI
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 回滚仅对称移除 4 条 FK，回到"可旁路写入"状态，不回退、不删除任何数据
-        // （口径同 price_vocab_check 的 down；不留空实现，空 down 会被判缺陷，
-        // 前科见任务板 #214 rls_dept）。
+        // （口径同 price_vocab_check 的 down；不留空实现，空 down 会被判缺陷）。
         let sql = r#"
 ALTER TABLE "sales_prices"    DROP CONSTRAINT IF EXISTS "fk_sales_prices_product";
 ALTER TABLE "sales_prices"    DROP CONSTRAINT IF EXISTS "fk_sales_prices_customer";

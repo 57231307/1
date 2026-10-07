@@ -1,4 +1,4 @@
-//! 任务 #168（PR #942 续）：缸号完工强制登记实际产出（kg + 米 + 坯布投料量）契约锁
+//! （续）：缸号完工强制登记实际产出（kg + 米 + 坯布投料量）契约锁
 //!
 //! 锁定的契约（修复后形态）：
 //! - `backend/migration/src/domain/production/m0062_add_dye_batch_actual_output.rs`
@@ -27,10 +27,10 @@
 //! - ④：源码扫描——旧桥接含 `output_quantity_kg: None`、旧 handler complete 块不含
 //!   `Json(req): Json<CompleteDyeBatchRequest>`，m0062 文件不存在（include_str! 编译即红）。
 //!
-//! 覆盖策略（无 mock；路线一 #4669 判责：表结构唯一来源 = backend/migration）：
+//! 覆盖策略（无 mock；路线一 判责：表结构唯一来源 = backend/migration）
 //! 真 PostgreSQL（test_common::setup_test_db，连接已迁移库并清空业务表）跑
 //! dye_batch 真实模型读写 + tower oneshot 真实路由。不再自建 sqlite 同构表
-//! ——#4669 里 DECIMAL 写成 TEXT 的解码红（planned_quantity ColumnDecode）根除。
+//! —— 里 DECIMAL 写成 TEXT 的解码红（planned_quantity ColumnDecode）根除。
 //! 成本 draft 整链无法夹具化（cost_collection 取号走 pg_advisory_xact_lock，
 //! utils/crud_macro.rs::impl_generate_no → number_generator::lock_prefix），故对
 //! "行真值→draft 请求分母"映射用纯函数 build_draft_cost_request 直接断言 + 源码扫描锁
@@ -88,7 +88,7 @@ async fn inject_auth(
 }
 
 // =========================================================
-// 真库夹具：表结构由迁移提供（列与 models/dye_batch.rs 一一对应，含 #168 三列）
+// 真库夹具：表结构由迁移提供（列与 models/dye_batch.rs 一一对应，含 三列）
 // =========================================================
 
 async fn fresh_db() -> sea_orm::DatabaseConnection {

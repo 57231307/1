@@ -1,6 +1,6 @@
 //! 定制订单状态词表三源合一契约锁（change_pending 收口批次）
 //!
-//! 路线一（#4669 判责）：表结构唯一来源 = backend/migration，本文件连真 PostgreSQL
+//! 路线一（判责）：表结构唯一来源 = backend/migration，本文件连真 PostgreSQL
 //! （test_common::setup_test_db），不再自建 sqlite 同构 CHECK 表——
 //! "词表 token 是否违反约束"改由真表 chk_custom_order_status 亲自裁决。
 //!

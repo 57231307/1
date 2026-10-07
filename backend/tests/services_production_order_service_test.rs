@@ -411,7 +411,9 @@ fn test_sljs_sjslqsqjhsl() {
 }
 
 /// test_sljs_scslwlscfcwlj
-/// 复现 handle_production_completion_inventory_txn 中 production_qty.is_zero() 校验：当 actual_quantity 和 planned_quantity 均为零时，应触发业务错误。
+/// 复现 handle_production_completion_inventory_txn 的 production_qty.is_zero() 门判定条件：
+/// actual_quantity 为 None 且 planned_quantity 为零时，resolve_production_qty 返回零，
+/// 命中生产端"生产数量为零，无法执行库存联动"拒绝分支（completion.rs）。
 #[test]
 fn test_sljs_scslwlscfcwlj() {
     let planned = Decimal::ZERO;
@@ -557,13 +559,12 @@ fn test_fromstr_ydecshjgyz() {
 #[ignore = "依赖 SQLite 内存数据库 schema，CI 中跳过；本地手动验证用"]
 async fn test_fwslh_sysqlitencsjk() {
     let db = setup_test_db().await;
-    // L-20 修复（批次 377 v13 复审）：删除 let _ = service 占位变量
     // 仅验证服务能正常构造，不调用任何依赖 schema 的方法
     let _service = ProductionOrderService::new(std::sync::Arc::new(db));
 }
 
 /// test_qqjg_cjddqqkgz（验证 CreateProductionOrderRequest 能正常构造，字段类型匹配。）
-/// 形态锁（任务 #153 缺陷3）：结构体不存在 order_no 字段（单据号禁手输、一律服务端取号），
+/// 形态锁：结构体不存在 order_no 字段（单据号禁手输、一律服务端取号），
 /// planned_quantity 为必填 Decimal（NOT NULL 列不设 Option 兜底）。
 #[test]
 fn test_qqjg_cjddqqkgz() {

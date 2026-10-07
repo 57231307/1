@@ -20,7 +20,7 @@
 //!    响应体不含他人 lead_no（同时锁"过滤后不成组"与"公司名分支也套 scope"）；
 //! 4. admin（data_scope=all）用他人手机号查重复 → 可见全部，组含 LD-A-001/LD-A-002。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! crm_lead.owner_id 无外键，但迁移触发器 trg_crm_lead_dept 按 owner 的
 //! users.department_id 回填冗余列，故按裁定 R1 自种子归属人 users 父行（50/60）。

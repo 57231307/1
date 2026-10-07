@@ -22,7 +22,7 @@
 //!    同批种入的 customers/crm_opportunity(按 owner_id)、suppliers/sales_orders
 //!    (按 created_by)一并断言,再改回 A 验证双向重算。
 //! 2. 公海跨部门领取:u1(A) 的线索回收进公海(只改 lead_status,归属语义保持原 owner,
-//!    #204 口径)→ u2(B) 经 `claim_lead_ownership`(pool.rs:153,两条领取路径共用的
+//! 口径)→ u2(B) 经 `claim_lead_ownership`(pool.rs:153,两条领取路径共用的
 //!    唯一归属实现)领取 → owner_id、department_id 同时跟随领取人
 //!    (rls_dept 的 BEFORE UPDATE OF owner_id 触发链首次活体真验)。
 //! 3. 回填可重入:`sql.rs` 常量(与迁移 up() 逐字符同源,经 `#[path]` 直引)连跑两遍,
@@ -408,7 +408,7 @@ async fn live_pool_claim_cross_dept_follows_owner_and_dept() {
     let lead_id = seeded.id;
     assert!(lead_id > 0, "种子线索应返回有效主键");
 
-    // 回收进公海:#204 口径——recycle 只写 lead_status=pool,owner/department 保持原值
+    // 回收进公海: 口径——recycle 只写 lead_status=pool,owner/department 保持原值
     let pooled_model = crm_lead::Entity::find_by_id(lead_id)
         .one(&db)
         .await

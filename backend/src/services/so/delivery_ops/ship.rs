@@ -100,7 +100,7 @@ impl SalesService {
     ///
     /// 原实现不校验：订单外的产品会一路走到
     /// - `lookup_line_price` → 取不到订单行，按 `(0, 0)` 兜底 ⇒ 发货单金额恒 0、
-    ///   收入凭证被 `create_revenue_voucher_for_delivery` 判「含税金额为 0」跳过（CI #4669 制品日志原话）；
+    /// 收入凭证被 `create_revenue_voucher_for_delivery` 判「含税金额为 0」跳过（CI 制品日志原话）；
     /// - `update_order_item_shipped_qty` → `WHERE order_id AND product_id` 匹配 0 行，
     ///   一行发货量都没写进去 ⇒ `check_order_fully_shipped` 恒假，订单永远停在 `partial_shipped`。
     /// 两处静默兜底叠加的结果是「发货成功、账实两头空」，属必须 fail-closed 的前置缺失，
@@ -322,7 +322,7 @@ impl SalesService {
     /// 「行数量×(1+容差)」上界之和；落在 `数量×(1±容差)` 区间内一律放行（不拒发），
     /// 仅越界时返回含上下界的业务错误。
     ///
-    /// 口径修正（CI #4669 G 族）：同一面料常因跨缸/分色号被拆成多条订单明细行，
+    /// 口径修正（CI G 族）：同一面料常因跨缸/分色号被拆成多条订单明细行，
     /// 原实现用 `order_items.iter().find(product_id)` 只取**第一条**行做上下界，
     /// 其余同产品行既不计入允许上界（正确性相反方向：把可发总量算少），
     /// 也不计入已发量 ⇒ 与按行回写的发货量无法对账。现按产品聚合全部行。

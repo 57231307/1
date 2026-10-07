@@ -1,6 +1,6 @@
-//! 契约波次 6 · 任务 #208 遗留项：CRM 商机导出（xlsx）行级 scope + 金额列字段级权限
+//! 契约波次 6 · 遗留项：CRM 商机导出（xlsx）行级 scope + 金额列字段级权限
 //!
-//! 根因（修复前实证，与已提交的线索导出 #207 同一模式的第二条旁路）：
+//! 根因（修复前实证，与已提交的线索导出 同一模式的第二条旁路）
 //! `handlers/crm_handler.rs::export_opportunities` 调
 //! `service.export_opportunities(query)`（`services/crm/opp.rs`），该服务签名
 //! **不接收** `DataScopeContext`，只过滤 `opportunity_stage`；handler 既不构造
@@ -10,8 +10,8 @@
 //! ⇒ self/dept 用户点一次"导出"即拿到全库商机（limit 10000）含金额，
 //!   形成"列表隐藏金额、导出原文外显"的双层旁路（越权读 + 商业秘密外泄）。
 //!
-//! 修复口径（与 #207 线索导出严格同构，不新造权限模型、不新增权限键；
-//! 2026-10-02 用户裁定 #4 后字段级分支已与列表/详情合并为同一个
+//! 修复口径（与 线索导出严格同构，不新造权限模型、不新增权限键；
+//! 2026-10-02 用户裁定 后字段级分支已与列表/详情合并为同一个
 //! `crm_handler::apply_opportunity_field_permission`）：
 //! - 行级：handler 与 `list_opportunities` 同法构造 ctx 注入 service，service 内套用
 //!   与列表**同一个** `apply_department_scope`（opp.rs 口径）。
@@ -20,7 +20,7 @@
 //!   `apply_department_scope_with_pool` —— 用错即凭空放行一整类行；
 //! - 字段级：行对象转换后走列表/详情**同一个** `apply_opportunity_field_permission`
 //!   （配置角色 → `filter_fields_batch`；无权限行且非 admin → 按 `EXPORT_AMOUNT_COLUMNS`
-//!   真实列名剔**非本人行**金额，本人行金额真实外显——2026-10-02 裁定 #2）；
+//! 真实列名剔**非本人行**金额，本人行金额真实外显——2026-10-02 裁定）；
 //!   列名未命中导出列定义表 ⇒ fail-closed 报错不出文件；
 //! - 导出列序/表头/取值由 `CrmService::EXPORT_OPP_COLUMNS` 单源定义（列名 =
 //!   crm_opportunity 出参键），改造前后表头逐列一致，前端与既有模板不受影响
@@ -35,10 +35,10 @@
 //!   （读不存在的键、恒不生效）已于 2026-10-02 裁定后改为剔真实列且范围 = 仅非本人行，
 //!   运行时锁见 `contract_wave7_crm_opp_amount_scope_test.rs`。本文件锁导出入口与
 //!   该统一口径的一致性。
-//! - 导出审计事件（V15 P0-S11 `record_async`）为 best-effort 异步落库，时序不可判定，
+//! - 导出审计事件（V15 `record_async`）为 best-effort 异步落库，时序不可判定，
 //!   本文件不断言。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! `crm_opportunity.customer_id` 有真外键 `fk_crm_opportunity_customer`（裁定 R1
 //! 自种子合法 customers 父行）；`owner_id` 冗余部门列由 trg_crm_opportunity_dept
@@ -422,7 +422,7 @@ fn assert_amount_columns_blank(headers: &[String], rows: &[Vec<String>], who: &s
 
 // ---------------------------------------------------------------------------
 // 1) self 用户：导出行集 == 列表可见集；行集仅本人行，且本人行金额真实外显
-//    （2026-10-02 裁定 #2：隐藏范围 = 仅非本人行，本人行金额必须可见）
+// （2026-10-02 裁定：隐藏范围 = 仅非本人行，本人行金额必须可见）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -449,7 +449,7 @@ async fn self_user_opp_export_rows_equal_list_visible_and_own_amounts_kept() {
         );
     }
 
-    // 本人行金额原文外显（裁定 #2：否则销售日常功能被做没）
+    // 本人行金额原文外显（裁定：否则销售日常功能被做没）
     let own = row_of(&headers, &rows, "OPPB003");
     assert_eq!(
         cell(own, column(&headers, "预估金额")),

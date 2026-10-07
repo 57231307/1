@@ -382,7 +382,7 @@ function loadBackendEndpoints() {
   return walkBackendRoutes().endpoints;
 }
 
-// ---------- e2e 探针路径注册表（#260 覆盖盲区补齐） ----------
+// ---------- e2e 探针路径注册表（覆盖盲区补齐） ----------
 /**
  * A 类只比对 `src/api/**` 的 request.get/post 与后端展开路由，但本仓另有两份**绕过
  * src/api、直接拼 URL 发出**的 e2e 探针注册表，门禁从来看不见它们：
@@ -390,7 +390,7 @@ function loadBackendEndpoints() {
  *     ——`page.request.get(API_BASE + API_PREFIX + path)`；
  *   - `e2e/traversal/modules.config.ts` 的 `listApi: '...'`
  *     ——`/api/v1/erp${listApi}?page=1&page_size=1`。
- * 实案（判责见 #260）：这两处同时存在 21 条"后端无该 GET"的路径。14 条 listApi 的消费
+ * 实案（判责见）：这两处同时存在 21 条"后端无该 GET"的路径。14 条 listApi 的消费
  * 判据是 `status() < 500`，admin 会话下 403/404 一律判绿；4 条对着**只注册 POST 的同一
  * 静态节点**打 GET 得到 405，而 51 把非 CRASH 码只塞进不参与断言的 warns 数组。⇒ 探针
  * "存在且跑过"不等于契约成立，必须在静态面核对。
@@ -569,7 +569,7 @@ function main() {
   const fe = loadFrontendEndpoints();
   const be = loadBackendEndpoints();
 
-  // e2e 探针注册表核对（#260）：与 A 类同等严重，不设豁免
+  // e2e 探针注册表核对：与 A 类同等严重，不设豁免
   const probes = loadE2eProbeEndpoints();
   const probeMisses = probes.filter(p => !be.has(p.key));
 

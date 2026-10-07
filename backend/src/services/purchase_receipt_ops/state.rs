@@ -54,7 +54,7 @@ impl PurchaseReceiptService {
         Self::ensure_receipt_inspection_allows_flow(&receipt, "确认入库")?;
 
         // 关联采购单时更新已收数量，并在**同一事务**内回写实际到货日
-        // （决策定案 #7：actual_delivery_date = 该单已确认收货的最大 receipt_date；
+        // （决策定案：actual_delivery_date = 该单已确认收货的最大 receipt_date；
         // 回写失败随本事务整体回滚，不允许进度与到货日半成功）
         if let Some(order_id) = receipt.order_id {
             self.update_order_received_quantity(

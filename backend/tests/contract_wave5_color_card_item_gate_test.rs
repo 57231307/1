@@ -14,7 +14,7 @@
 //! - 拒绝文案按保密分层：'只有草稿态色卡可以维护色号' 是纯公开业务规则（不含内部状态 token /
 //!   记录 ID）→ `AppError::business_displayable`（HTTP 400 / code=BUSINESS_ERROR + 真实文案外显）。
 //!
-//! 覆盖策略（路线一，#4669 判责：表结构唯一来源 = backend/migration）：
+//! 覆盖策略（路线一， 判责：表结构唯一来源 = backend/migration）
 //! - 正向：真实 draft 卡 → POST items 成功、色号回读等值（建卡→加色号链首次跑通）；批量导入同链成功；
 //! - 反向：终态（archived）/ 已发放（issued）→ 400 + code=BUSINESS_ERROR
 //!   + 外显文案；被拒时零色号落库；
@@ -53,9 +53,9 @@ use test_common::setup_test_db;
 use tower::ServiceExt;
 
 // =========================================================
-// 夹具：真 PostgreSQL（表结构唯一来源 = backend/migration，路线一 #4669 判责）
+// 夹具：真 PostgreSQL（表结构唯一来源 = backend/migration，路线一 判责）
 // 列与 models/color_card.rs、models/color_card_item.rs 一一对应由迁移保证，
-// 本文件不再自建 CREATE TABLE（sqlite 方言把 DECIMAL 写成 TEXT 是 #4669 解码红根因）。
+// 本文件不再自建 CREATE TABLE（sqlite 方言把 DECIMAL 写成 TEXT 是 解码红根因）。
 // =========================================================
 
 async fn fresh_db() -> sea_orm::DatabaseConnection {
@@ -91,7 +91,7 @@ fn build_app(db: sea_orm::DatabaseConnection) -> Router {
     Router::new()
         .route("/color-cards", post(create_color_card))
         // axum 0.8 起路径参数语法为 {id}；写 :id 会在 build 时 panic
-        // "Path segments must not start with ':'"（CI #4669 5 例连坐）
+        // "Path segments must not start with ':'"（CI 5 例连坐）
         .route(
             "/color-cards/{id}/items",
             get(list_color_items).post(create_color_item),

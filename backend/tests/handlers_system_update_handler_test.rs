@@ -91,7 +91,7 @@ fn test_versionresponsehupdateresultgz() {
 }
 
 // ============================================================================
-// 任务 #118：task_to_frontend_json / backup_to_frontend_json 键集合逐字段断言
+// task_to_frontend_json / backup_to_frontend_json 键集合逐字段断言
 // ============================================================================
 
 fn sample_task_model() -> system_update_task::Model {
@@ -270,7 +270,7 @@ fn test_paginated_response_with_items() {
 }
 
 // ============================================================================
-// 任务 #120：CheckUpdateResponse 序列化包含全部字段（含 current_release_notes）
+// CheckUpdateResponse 序列化包含全部字段（含 current_release_notes）
 // ============================================================================
 
 /// CheckUpdateResponse 序列化后包含所有 10 个键
@@ -342,7 +342,7 @@ fn test_check_update_response_no_current_release_honest_null() {
 }
 
 // ============================================================================
-// 任务 #120：fetch_release_by_tag 的 URL 拼接验证（v 前缀正确性）
+// fetch_release_by_tag 的 URL 拼接验证（v 前缀正确性）
 // ============================================================================
 
 /// 验证 tag 拼接：给定 version 字符串，生成的 URL 含 `tags/v{version}` 段

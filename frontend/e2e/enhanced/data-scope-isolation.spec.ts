@@ -56,7 +56,7 @@ async function createUserAndSeedLead(
   // 不置空则本 context 实际带着 admin 身份，"不同用户隔离"前提被伪造成同一身份。
   // password 必须取 cred.password：角色账号初始密码是 ensureRoleUsers 的
   // DEFAULT_ROLE_PASSWORD，而非分片主账号 TEST_PASSWORD——
-  // 只传 username 时 applyAuthMocks 用主账号密码登录，#4669 里整片 401
+  // 只传 username 时 applyAuthMocks 用主账号密码登录， 里整片 401
   // （backend.log rs31:17482 reason="无效的密码: 密码错误"）。
   const context = await browser.newContext({
     baseURL: BASE_URL,
@@ -208,7 +208,7 @@ test.describe('数据范围行级隔离（self scope）', () => {
     browser,
   }) => {
     // 创建一个未认证的裸请求，访问线索列表 → 应被 auth 中间件 401 拦截
-    // #4669 假绿前兆实证：本行原写法 newContext 不指定 storageState 时，会继承
+    // 假绿前兆实证：本行原写法 newContext 不指定 storageState 时，会继承
     // playwright.config.ts:66 的 use.storageState（分片主账号 cookie），"匿名"请求
     // 实际带着 e2e_admin_s31 的 access_token 到达后端（backend.log rs31 22:58:14
     // "从 access_token Cookie 获取Token … 认证成功 user_id=2 username=e2e_admin_s31"）

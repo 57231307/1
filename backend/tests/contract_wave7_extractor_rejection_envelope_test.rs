@@ -1,4 +1,4 @@
-//! Wave-H 契约测（CI #4669 H 族）：提取器拒绝必须走统一 `AppError` 失败信封
+//! Wave-H 契约测（CI H 族）：提取器拒绝必须走统一 `AppError` 失败信封
 //!
 //! 锁定口径（收口链路见 `middleware/trace_context.rs::catch_panic_middleware` 与
 //! `utils/error.rs::into_response`，各条由本文件断言自证）：

@@ -1,26 +1,26 @@
-//! 波次六 · AP 付款申请汇率条件必填契约锁
+//! AP 付款申请汇率条件必填契约锁
 //!
 //! 契约面：`backend/src/services/ap_payment_request_service.rs`
 //! （`create` 入口 → `resolve_currency_and_rate` 服务端权威解析 →
 //!   `build_payment_request_active_model` 真实落库路径）
 //!
-//! 修复前缺陷：落库走 `exchange_rate.unwrap_or(Decimal::new(1, 0))`，
-//! 外币（USD/EUR）付款申请未录汇率时被静默伪造成 1，直接污染折算/核销/汇兑损益；
-//! 且前端创建表单根本没有汇率输入项，缺陷必然触发。
+//! 锁定动机：落库汇率绝不允许 `exchange_rate.unwrap_or(Decimal::new(1, 0))` 这类
+//! 静默兜底——外币（USD/EUR）付款申请未录汇率时被伪造成 1，会直接污染
+//! 折算/核销/汇兑损益，故外币缺汇率必须显式拒绝。
 //!
 //! 本文件锁定的四条契约（全部真 PostgreSQL 活库执行，无 #[ignore]；
-//! 表结构唯一来源 = backend/migration，路线一 #4669 判责）：
+//! 表结构唯一来源 = backend/migration）
 //! 1) 外币缺汇率 → 400 VALIDATION_ERROR（字段校验族，非状态门 BUSINESS 族），
 //!    出参 message 外显真实文案「外币付款请填写汇率」，非脱敏常量「请求参数验证失败」，
 //!    且主表零写入（校验先行于事务/取号/明细动作）；
 //! 2) 外币带汇率 → 经服务端解析 + 真实 builder 落库，真库回读断言汇率为请求真实值
 //!    （不是只看 HTTP status）；
-//! 3) 本位币（CNY / 币种缺省）即使携带汇率 → 落库汇率恒 1（服务端权威短路；
-//!    「忽略而非拒绝」为决策留置待用户拍板口径，见修复报告）；
+//! 3) 本位币（CNY / 币种缺省）即使携带汇率 → 落库汇率恒 1（服务端权威短路，
+//!    当前口径为「忽略而非拒绝」）；
 //! 4) 源码扫描防回潮锁：`exchange_rate` 落库行 unwrap_or 命中数恒 0（绝对锁），
-//!    全文件 `.unwrap_or(` 计数为只减不增 ratchet（基线 = 本次修复后剩余合法值）。
+//!    全文件 `.unwrap_or(` 计数为只减不增 ratchet（基线 = 当前剩余合法值计数）。
 //!
-//! 覆盖边界声明（真库化后更新，路线一 #4669 判责）：create 的**单号生成**走
+//! 覆盖边界声明：create 的**单号生成**走
 //! pg_advisory_xact_lock——真 PG 下取号可全程真跑，HTTP 端到端不再停在拒绝点；
 //! 1) 仍只到校验先行即返回（外币缺汇率不触库），2)/3) 的落库值契约以
 //! 「服务端权威解析 + 生产 builder + 真实 INSERT/回读」锁定，不 mock、不复制构建逻辑。
@@ -70,8 +70,8 @@ fn base_body() -> Value {
 }
 
 // =========================================================
-// 真库基建：表结构唯一来源 = backend/migration（路线一，#4669 判责）
-// ap_payment_request 的 DECIMAL/DEFAULT 口径由迁移提供（m0012 + v15 时区列转换），
+// 真库基建：表结构唯一来源 = backend/migration（不自建同构表）
+// ap_payment_request 的 DECIMAL/DEFAULT 口径由迁移提供（m0012 + v15/mod.rs 时区列转换），
 // 不再由测试自建 sqlite 同构表（currency/exchange_rate 的 DEFAULT 见
 // models/ap_payment_request.rs:49-54 与 m0012:65-66，测试只引用、不重述）
 // =========================================================
@@ -156,7 +156,7 @@ async fn foreign_currency_without_rate_rejected_400_validation_displayable() {
     let (app, db) = seeded_http_app().await;
     let mut body = base_body();
     body["currency"] = json!("USD");
-    // 不发 exchange_rate 键——修复前该请求会以汇率 1 静默落库
+    // 不发 exchange_rate 键——该形态必须被显式拒绝，绝不允许以汇率 1 静默落库
 
     let (status, v) = call(&app, Method::POST, "/ap/payment-requests", Some(body)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "外币缺汇率必须 400: {v}");

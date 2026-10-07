@@ -1,4 +1,4 @@
-//! 任务 #198：account_subjects.balance_direction 存量归一（中文 → 权威英文词表）
+//! account_subjects.balance_direction 存量归一（中文 → 权威英文词表）
 //!
 //! 背景：该列的写入方权威词表为英文 debit/credit（m0006 DDL 默认值、迁移种子 28 行、
 //! 前端两处科目 Tab 提交值三端同源），但历史 e2e 直灌/legacy 快照混入中文「借/贷」，

@@ -1,6 +1,6 @@
-//! 采购入库单列表四筛选项「真正生效」契约锁（wave6，任务 #206）
+//! 采购入库单列表四筛选项「真正生效」契约锁（wave6，）
 //!
-//! 缺陷形态（#205 判责）：`GET /purchase/receipts` 的查询 DTO 只有
+//! 缺陷形态（判责）：`GET /purchase/receipts` 的查询 DTO 只有
 //! page/page_size/status/supplier_id/order_id，前端界面上的 keyword（单号/物料名）、
 //! warehouse_id、receipt_date_from、receipt_date_to 四个筛选项后端整体不接收——
 //! 用户怎么选都是同一份未过滤列表（静默功能缺失，非报错）。
@@ -19,7 +19,7 @@
 //!    （先例 contract_wave4_api_key_echo_and_expiry_test.rs 的裁定口径）。
 //!
 //! 覆盖策略（无 mock、真实 handler/service 调用）：
-//! - 真 PostgreSQL 真跑（路线一，#4669 判责；表结构唯一来源 = `backend/migration`，
+//! - 真 PostgreSQL 真跑（路线一， 判责；表结构唯一来源 = `backend/migration`，
 //!   本文件不再自建同构 DDL）：经真实 handler `list_receipts`（Query DTO → service →
 //!   分页信封）断言各筛选项命中集合、total 过滤后语义、EXISTS 防行倍增、空串归一
 //!   （axum Query oneshot 抽取器真路径，先例 handlers_query_param_coercion_test.rs）、

@@ -10,7 +10,7 @@
  *   (c) 交叉类型 A & B —— 两侧键集合并参与比对（禁止半解析）；一员不可解析则整条显式盲区；
  *   (d) 叶子类型（serde_json::Value / any / Record<string, unknown> / 索引签名 / 不可解析 config）
  *       —— 必须显式返回 blind/叶子标记，绝不允许无声当作通过。
- * 看板 #40 追加（盲区口径收紧，逐类可复验）：
+ * 追加（盲区口径收紧，逐类可复验）
  *   (e) 形参注解尾注释剥离；(f) 联合类型逐员合并/一员失明整条盲区；
  *   (g) 交叉类型含 Omit 成员的完整展开；(h) 跨文件同名歧义类型的本文件遮蔽还原；
  *   (i) 同名跨文件副本调用点的补录（含幂等）。数组载荷 `T[]`↔`Json<Vec<T>>`、
@@ -162,7 +162,7 @@ console.log('\n[a] 箭头函数签名：sig 回填 + 形参类型解析 + 失配
     '(a5) 顶层默认值剥除后取到类型注解',
     JSON.stringify(paramTypeOf('id: number, data?: WidgetPatch = {}', 'data'))
   );
-  // 看板 #40 盲区 1+2 联合形态：async 箭头函数 + 数组类型注解载荷,违规必须能报
+  // 盲区 1+2 联合形态：async 箭头函数 + 数组类型注解载荷,违规必须能报
   const srcArr = `export const receiveItems = async (receiptId: number, data: Partial<WidgetDto>[]): Promise<ApiResponse<null>> =>
   request.post<ApiResponse<null>>(\`/receipts/\${receiptId}/receive\`, data);
 `;
@@ -194,7 +194,7 @@ console.log('\n[a] 箭头函数签名：sig 回填 + 形参类型解析 + 失配
     '(a9) 后端 Json<Vec<T>> 展开到元素类型 T（旧实现截到 Vec 后整条盲区）',
     extractorType('Json(items): Json<Vec<WidgetPayload>>', 'Json')
   );
-  // `data ?? {}` 兜底写法：载荷即 data,全部键置可选（看板 #40：13 处曾整体拒检）
+  // `data ?? {}` 兜底写法：载荷即 data,全部键置可选（13 处曾整体拒检）
   const rAlt = feKeysOf({ sig: 'id: number, data: NameDto', payload: '' }, 'data ?? {}', tsIndex);
   ok(
     rAlt.kind === 'keys' && rAlt.keys.length === 1 && rAlt.keys[0].optional,
@@ -373,7 +373,7 @@ console.log('\n[d] 叶子类型：可比部分照常比，不可比部分必须�
   );
 }
 
-// ---------- (e) 注解尾注释剥离（看板 #40 盲区 2-带注释的类型注解） ----------
+// ---------- (e) 注解尾注释剥离（盲区 2-带注释的类型注解） ----------
 console.log('\n[e] 形参注解后的 `//` 说明注释不得再污染类型解析');
 {
   const sig =
@@ -396,7 +396,7 @@ console.log('\n[e] 形参注解后的 `//` 说明注释不得再污染类型解�
   );
 }
 
-// ---------- (f) 联合类型（复杂类型注解,看板 #40 盲区 2） ----------
+// ---------- (f) 联合类型（复杂类型注解, 盲区 2） ----------
 console.log('\n[f] 联合类型：逐员合并,一员失明整条显式盲区');
 {
   const r = feKeysOf(
@@ -449,7 +449,7 @@ console.log('\n[g] 交叉类型 x Omit：成员展开后再合并');
   );
 }
 
-// ---------- (h) 跨文件同名歧义类型:本文件定义优先（看板 #40 盲区 2-多定义） ----------
+// ---------- (h) 跨文件同名歧义类型:本文件定义优先（盲区 2-多定义） ----------
 console.log('\n[h] 同名歧义类型:调用方文件自身定义优先');
 {
   const ambIndex = new Map([['AmbDto', { kind: 'ambiguous', file: 'other' }]]);
@@ -465,7 +465,7 @@ console.log('\n[h] 同名歧义类型:调用方文件自身定义优先');
   ok(rNoLocal.kind === 'blind', '(h2) 无本地定义时仍显式盲区,不猜别文件的同名类型');
 }
 
-// ---------- (i) 被全局去重吞掉的调用点必须补录（看板 #40 盲区 1-静默丢弃） ----------
+// ---------- (i) 被全局去重吞掉的调用点必须补录（盲区 1-静默丢弃） ----------
 console.log('\n[i] 同名跨文件副本调用点补录');
 {
   const twinSrc = `export const getList = (data: CreateWidgetDto) =>

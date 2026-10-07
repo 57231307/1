@@ -1,6 +1,6 @@
 //! 契约波次 7 · 商机金额"仅非本人行"统一口径（用户 2026-10-02 拍板落地锁）
 //!
-//! 根因（调查报告 #1/#2/#4）：
+//! 根因（调查报告）
 //! 1. `apply_opportunity_field_permission` 默认分支写的是 `obj.remove("amount")`，
 //!    而 `crm_opportunity` 出参真实列是 `estimated_amount`/`actual_amount`（无 `amount`
 //!    键，见 `models/crm_opportunity.rs:43/:46/:67`）——该分支恒不生效；
@@ -17,21 +17,21 @@
 //!    覆盖——未种该形态时两种实现出参完全等价，锁没有区分力。
 //! 6. admin（`roles.code='admin'` / role_id==1）例外口径：跨 owner **读**含他人行金额
 //!    原文（`handlers/crm_handler.rs:168-170` + `data_permission_service.rs:64-71`
-//!    的空操作分支，即裁定 #3"既有原值契约，不叠加"）；跨 owner 限制只落在**写**侧
+//! 的空操作分支，即裁定 "既有原值契约，不叠加"）；跨 owner 限制只落在**写**侧
 //!    （`crm_write_guard::ensure_cross_owner_write_allowed`）。因此本文件的 admin 用例
 //!    必须同时带"非 admin 对照段"，否则"隐藏门整体丢失"会以"admin 全显"的形态假绿。
 //!
 //! 本文件断言口径：只断 HTTP `status` + 信封 `code`，不断案文案原文（权限拒绝出参
 //! 永久脱敏，见 utils/error.rs 固定信封）；金额可见性按"键是否存在/单元格是否空"断。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! roles/data_permissions 语义不变（roles 为迁移种子参照表不再插）；
 //! users（归属人父行，trg_crm_opportunity_dept 触发器按其 department_id 回填行部门）
 //! 与 customers（crm_opportunity.customer_id 真 FK 父行，裁定 R1）自种子。
 //! 金额外显形状按真列定标：crm_opportunity.estimated_amount/actual_amount 为
 //! DECIMAL(15,2)，真库回读经 Decimal 序列化为带列标度的字符串（如 "111111.00"），
-//! amount_text 即该口径（sqlite 时代 TEXT 列的裸整数文本正是 #4669 的失真源）。
+//! amount_text 即该口径（sqlite 时代 TEXT 列的裸整数文本正是 的失真源）。
 
 mod test_common;
 
@@ -456,7 +456,7 @@ async fn dept_user_list_hides_amounts_only_on_non_own_rows() {
         let has_est = item.get("estimated_amount").is_some();
         let has_act = item.get("actual_amount").is_some();
         if own {
-            // 裁定 #2：本人行金额必须可见（否则销售日常功能被做没）
+            // 裁定：本人行金额必须可见（否则销售日常功能被做没）
             assert!(has_est, "本人行 {no} 预估金额应可见", no = item_no(item));
             assert_eq!(
                 item["estimated_amount"],
@@ -615,7 +615,7 @@ async fn admin_sees_all_amounts_on_all_rows() {
     // apply_opportunity_field_permission；admin 命中 get_role_data_permission 的
     // 空操作分支（services/data_permission_service.rs:64-71 → allowed/hidden 均 None）
     // 或 rid==1 提前返回（handlers/crm_handler.rs:168-170），两条都不剔金额列。
-    // 即"读跨 owner"在 admin 口径下**含**他人行金额原文（裁定 #3 既有原值契约；
+    // 即"读跨 owner"在 admin 口径下**含**他人行金额原文（裁定 既有原值契约；
     // 跨 owner 的限制只落在写侧，见 update/delete/close 的 ensure_cross_owner_write_allowed）。
     let (status, detail) = get_json(&app, "/erp/crm/opportunities/3").await;
     assert_eq!(
@@ -798,7 +798,7 @@ async fn amount_hide_gate_keys_on_owner_id_not_created_by() {
 }
 
 // ---------------------------------------------------------------------------
-// 4) 配了 hidden_fields 的角色：仍走配置分支，不叠加"仅非本人行"默认处理（裁定 #3）
+// 4) 配了 hidden_fields 的角色：仍走配置分支，不叠加"仅非本人行"默认处理（裁定）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]

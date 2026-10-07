@@ -240,7 +240,7 @@ impl RolePermissionService {
 
     /// 删除角色
     ///
-    /// 引用口径与 DB 约束逐条对齐（CI #4669 `DELETE /roles/40` 撞
+    /// 引用口径与 DB 约束逐条对齐（CI `DELETE /roles/40` 撞
     /// `fk_data_permissions_role` 被 `From<DbErr>` 裸映射成 500 之真因）：
     /// - `users.role_id`（`fk_users_role`）= 外部主体引用 ⇒ 仍有绑定用户即整单拒绝，
     ///   绝不代为改动用户数据；条数属查询所得实体值，只进日志不外显。

@@ -698,7 +698,7 @@ async fn scan_qualification_attachment_for_viruses(data: &[u8]) -> Result<(), Ap
         return Ok(());
     }
 
-    // 决策定案 #4：扫描依赖故障族（未配置/不可达/非 2xx/响应读取失败）不是
+    // 决策定案：扫描依赖故障族（未配置/不可达/非 2xx/响应读取失败）不是
     // 「我方服务器坏了」（500 InternalError），而是外部扫描依赖不可用——统一走
     // AppError::service_unavailable（HTTP 503 / code=SERVICE_UNAVAILABLE / 公网脱敏文案）。
     // 真实原因只进 tracing::warn（CLAMAV_SCAN_UNAVAILABLE 事件标签），不外泄 URL/端口/配置键名；

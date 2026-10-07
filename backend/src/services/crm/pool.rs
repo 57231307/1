@@ -4,7 +4,7 @@
 //! 因为客户主表（customers）没有 owner_id 字段。
 //! 拆分自原 `crm_service.rs`。
 //!
-//! V15 P0-S08 修复：claim_pool_customers 注入公海规则校验
+//! 公海领取的规则校验（所有领取入口统一生效）：
 //! - 保护期校验：领取后 N 天内不能被他人领取（防止恶意抢单）
 //! - 领取上限校验：每个销售每天最多领取 N 条线索（防 DoS）
 //! - 最大持有数校验：每个销售最多持有 N 条活跃线索（防囤积）
@@ -21,7 +21,6 @@ use crate::models::crm_lead;
 use crate::models::customer_pool_rule::{
     self, RULE_TYPE_CLAIM_LIMIT, RULE_TYPE_MAX_HOLDINGS, RULE_TYPE_PROTECTION_PERIOD,
 };
-// 批次 236 v13 P1-1：线索状态常量接入（规则 0）
 use crate::models::status::crm_lead as lead_status;
 use crate::utils::error::AppError;
 use chrono::Utc;
@@ -42,8 +41,8 @@ impl CrmService {
     ///
     /// `operator_name`：真实操作人展示名，由调用方（`crm_pool_handler`）传
     /// `&auth.username`，落库到 `crm_lead.owner_name`。
-    /// 本参数是 `owner_name` 的唯一合法取值来源：#204 附带项收口前它被忽略、
-    /// 改由 user_id 拼出展示名，属本仓硬规则禁止的造假名（既不可读也不可回查）。
+    /// 本参数是 `owner_name` 的唯一合法取值来源：必须由调用方传入真实展示名，
+    /// 不得改由 user_id 拼出（既不可读也不可回查，属本仓硬规则禁止的造假名）。
     pub async fn claim_pool_customers(
         &self,
         lead_ids: Vec<i32>,
@@ -54,7 +53,7 @@ impl CrmService {
             return Ok(0);
         }
 
-        // V15 P0-S08：领取前规则校验
+        // 领取前规则校验（上限/持有数）
         self.validate_claim_rules(user_id).await?;
 
         // 批量查询所有线索，避免循环内逐个 find_by_id（N+1 查询）
@@ -85,7 +84,7 @@ impl CrmService {
                 continue;
             }
 
-            // V15 P0-S08：保护期校验
+            // 保护期校验：命中则跳过该行
             if Self::is_within_protection_period(&lead, lid, now, protection_days, user_id) {
                 continue;
             }
@@ -97,7 +96,7 @@ impl CrmService {
                 &*self.db,
                 "auto_audit",
                 lead_active,
-                // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+                // 审计日志落真实操作人 user_id
                 Some(user_id),
             )
             .await?;
@@ -154,11 +153,10 @@ impl CrmService {
     /// 并落领取事件列 last_claimed_at/last_claimed_by——保护期与每日领取计数的
     /// 唯一数据来源）
     ///
-    /// **两条领取路径的唯一归属实现**（#204 附带项收口）：批量领取
+    /// **两条领取路径的唯一归属实现**：批量领取
     /// `claim_pool_customers` 与单条领取 `claim_lead_ownership` 都只经此函数落
-    /// `owner_id`/`owner_name`，避免出现第二套"领取后归属"写法（修复前单条路径
-    /// 只把 lead_status 置 new、不写归属，销售领取后该线索仍挂在原归属人名下，
-    /// 在他的 self 列表里看不到自己刚领取的行）。
+    /// `owner_id`/`owner_name`，避免出现第二套"领取后归属"写法——若不落归属，
+    /// 销售领取后该线索仍挂在原归属人名下，其 self 列表看不到刚领取的行。
     fn build_claimed_active(
         lead: crm_lead::Model,
         user_id: i32,
@@ -209,21 +207,21 @@ impl CrmService {
             &*self.db,
             "auto_audit",
             lead_active,
-            // 批次 94 P2-10：审计落真实操作人 user_id
+            // 审计日志落真实操作人 user_id
             Some(user_id),
         )
         .await?;
         Ok(updated)
     }
 
-    /// V15 P0-S08：领取前规则校验（两条领取路径共用）
+    /// 领取前规则校验（两条领取路径共用）
     /// 校验项：1. 领取上限：user_id 当天已领取线索数 < claim_limit；2. 最大持有数：user_id 当前活跃线索数（lead_status not in ['converted','lost','pool']）< max_holdings
     ///
     /// 每日领取计数判据 = 领取事件列 `last_claimed_at`/`last_claimed_by`
-    /// （唯一写点 `build_claimed_active`）。修复前用 `owner_id + updated_at ≥
-    /// 今日`：回收/跟进等任意字段更新都会刷新 `updated_at`，把"本人今天被动过
-    /// 的存量线索"计入当日领取量，计数虚高撞 claim_limit 误拒，与真实领取行为
-    /// 无关。存量行 `last_claimed_at` 为 NULL 不计入（领取事件自本列落地起记录，
+    /// （唯一写点 `build_claimed_active`）。不用 `updated_at` 判：回收/跟进等任意
+    /// 字段更新都会刷新 `updated_at`，会把"本人今天被动过的存量线索"计入当日领取量，
+    /// 计数虚高撞 claim_limit 误拒，与真实领取行为无关。存量行 `last_claimed_at`
+    /// 为 NULL 不计入（领取事件自本列落地起记录，
     /// 与保护期同列同语义，见迁移 m_crm_lead_claim_record 头注释）。
     async fn validate_claim_rules(&self, user_id: i32) -> Result<(), AppError> {
         // 1. 领取上限校验
@@ -268,14 +266,14 @@ impl CrmService {
         Ok(())
     }
 
-    /// V15 P0-S08：获取公海规则值
+    /// 获取公海规则值
     /// 按规则类型查询启用的规则值，取第一条匹配的（同类型规则应唯一启用）；若无配置则返回默认值：protection_period=7, claim_limit=5, max_holdings=50
     ///
-    /// ⚠️ 已登记（只登记，不改作用域语义、不删值域）：这里固定 `CustomerType.eq("all")`，
+    /// ⚠️ 已知边界（登记在案，不改作用域语义、不删值域）：这里固定 `CustomerType.eq("all")`，
     /// 是本服务**唯一**读取 pool 规则作用域的地方 ⇒ 只有 `all` 档真正参与判定，
     /// 规则表里的 wholesale/retail/vip 三档写进去后永不被读（`PoolRuleService::list_rules`
     /// 只把规则回显给管理端，不参与生效），per-type 分支为死分支。
-    /// 让 per-type 作用域真正生效需要与 customers 渠道/分层维度重设计同批做，另立功能波。
+    /// 让 per-type 作用域真正生效需要与 customers 渠道/分层维度一并重设计，不属本服务范畴。
     async fn get_rule_value(&self, rule_type: &str) -> Result<i32, AppError> {
         let rule = customer_pool_rule::Entity::find()
             .filter(customer_pool_rule::Column::RuleType.eq(rule_type))
@@ -299,7 +297,7 @@ impl CrmService {
     }
 }
 
-/// V15 P0-S08：公海规则服务（独立于 CrmService，提供规则 CRUD）
+/// 公海规则服务（独立于 CrmService，提供规则 CRUD）
 pub struct PoolRuleService {
     db: Arc<sea_orm::DatabaseConnection>,
 }

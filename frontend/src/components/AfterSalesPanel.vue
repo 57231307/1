@@ -63,7 +63,7 @@
       </el-table-column>
       <el-table-column :label="t('common.afterSales.colRefundAmount')" width="140" align="right">
         <template #default="{ row }">
-          <!-- 任务 #148 缺陷 D：refund_amount 后端为 rust_decimal，JSON 出参是字符串
+          <!-- 缺陷 D：refund_amount 后端为 rust_decimal，JSON 出参是字符串
                （如 "1200.50"），展示必须经 Number() 归一的 formatCurrency，禁止裸显/直接 toFixed -->
           <span v-if="row.refund_amount != null">{{ formatCurrency(row.refund_amount) }}</span>
           <span v-else>-</span>
@@ -86,7 +86,7 @@
         show-overflow-tooltip
       />
       <el-table-column :label="t('common.afterSales.colOperation')" width="220" fixed="right">
-        <!-- 任务 #148 缺陷 B：动作严格对齐后端 is_valid_transition
+        <!-- 缺陷 B：动作严格对齐后端 is_valid_transition
              （custom_order_aftersales_service.rs:406-418）：
              opened→accepted/rejected/closed；accepted→processing/rejected/closed；
              processing→resolved/closed/rejected；resolved→evaluated/closed；evaluated→closed -->
@@ -196,7 +196,7 @@
         <el-form-item :label="t('common.afterSales.formDescription')" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" />
         </el-form-item>
-        <!-- 任务 #148 缺陷 C：后端 CreateAfterSalesDto 的 reason_category / reason_detail /
+        <!-- 缺陷 C：后端 CreateAfterSalesDto 的 reason_category / reason_detail /
              quality_issue_id（custom_order_aftersales_service.rs:39-45）此前完全不采集。
              分类取值以后端权威注释为准（migration v15/mod.rs:1891 列 COMMENT）：
              quality / logistics / customer_preference / other，不臆造枚举。 -->
@@ -295,7 +295,8 @@ const submitting = ref(false);
 const formRef = ref();
 const currentRecord = ref<AfterSales | null>(null);
 
-/** 原因分类取值 = 后端权威词表（migration v15 列 COMMENT：quality/logistics/customer_preference/other） */
+/** 原因分类取值 = 后端权威词表（列 COMMENT 见 backend/migration/src/domain/v15/mod.rs:1891）：
+ * quality/logistics/customer_preference/other */
 const REASON_CATEGORY_KEYS = ['quality', 'logistics', 'customer_preference', 'other'] as const;
 
 const form = ref({
@@ -322,7 +323,7 @@ const rules = computed(() => ({
   ],
   refund_amount: [
     {
-      // v11 批次 167 P2-1 修复：validator 参数类型化
+      // validator 参数显式标注类型（unknown + 回调签名）
       validator: (_rule: unknown, val: unknown, cb: (error?: Error) => void) => {
         if (form.value.issue_type === 'refund' && (val === undefined || val === null)) {
           cb(new Error(t('common.afterSales.rule.refundAmountRequired')));
@@ -358,7 +359,7 @@ function getStatusLabel(s: string): string {
   return t(`common.afterSales.status.${s}`);
 }
 
-// v11 批次 167 P2-1 修复：Record<string, any> 改为联合字面量类型
+// 状态标签类型收敛为 el-tag 合法取值的联合字面量
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
 
 function getStatusType(s: string): TagType {
@@ -392,7 +393,7 @@ function showCreateDialog() {
   createVisible.value = true;
 }
 
-/** 任务 #148 缺陷 A/C：payload 逐字段对照后端 CreateAfterSalesDto 构造——
+/** payload 逐字段对照后端 CreateAfterSalesDto 构造：
  * - 不发送 custom_order_id（归属由路由 path 权威提供，后端 DTO 已无该字段）；
  * - 后端 Option 字符串字段空值必须**省略该键**（Some("") 过不了 validator，
  *   范式见 views/system/tabs/UserTab.vue:358-359），不发送空串占位。 */
@@ -424,7 +425,7 @@ async function handleCreateSubmit() {
     createVisible.value = false;
     emit('refresh');
   } catch (e: unknown) {
-    // v11 批次 167 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    // 错误按 unknown 处理，经类型守卫提取可外显 message
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('common.afterSales.createFailed')
     );
@@ -439,7 +440,7 @@ async function handleUpdate(row: AfterSales, status: string) {
     ElMessage.success(t('common.afterSales.statusUpdated'));
     emit('refresh');
   } catch (e: unknown) {
-    // v11 批次 167 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    // 错误按 unknown 处理，经类型守卫提取可外显 message
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('common.afterSales.updateFailed')
     );
@@ -459,7 +460,7 @@ async function handleResolveSubmit() {
   }
   submitting.value = true;
   try {
-    // v11 批次 167 CI1 修复：currentRecord.value 可能为 null，添加非空守卫
+    // 未选中工单时 currentRecord 为 null，先取 id 做非空守卫
     const recordId = currentRecord.value?.id;
     if (!recordId) {
       ElMessage.warning(t('common.afterSales.pleaseSelectTicket'));
@@ -473,7 +474,7 @@ async function handleResolveSubmit() {
     resolveVisible.value = false;
     emit('refresh');
   } catch (e: unknown) {
-    // v11 批次 167 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
+    // 错误按 unknown 处理，经类型守卫提取可外显 message
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('common.afterSales.resolveFailed')
     );

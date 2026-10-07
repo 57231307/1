@@ -71,7 +71,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       }
     }
     await apiCallRaw(page, 'GET', `/crm/customers/${customerId}`);
-    // E3 用例内前置（CI run #4675 shard6 判责）：GET /crm/customers/{id}/credit 的 404
+    // E3 用例内前置（shard6 判责）：GET /crm/customers/{id}/credit 的 404
     // 判据是"该客户无信用评级记录"而非路由漂移——路由已注册（routes/crm.rs:48-49 →
     // customer_credit_handler.rs:111 get_credit，Path 参数即客户 id），无行时
     // customer_credit_service::get_by_customer_id（:77-86）返回 None → handler:125
@@ -385,7 +385,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   });
 
   test('竞品端点契约锁：非 admin 角色恒 403（孤儿端点现状，不静默放宽）', async ({ browser }) => {
-    // 用户裁定（PR #942）：本波不补授权、不删端点，只把现状钉成契约。
+    // 用户裁定：本波不补授权、不删端点，只把现状钉成契约。
     // 凭据取不到即前置判红——禁止改用 admin 身份兜底（那等于把这条锁改成空操作）。
     const cred = getRoleCredential('salesperson');
     if (!cred) {

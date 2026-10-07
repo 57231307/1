@@ -1,4 +1,4 @@
-//! CI run #4675（flow shard37，rs37/backend.log:16642-16645）MRP 计算 500 的契约锁。
+//! （flow shard37，rs37/backend.log:16642-16645）MRP 计算 500 的契约锁。
 //!
 //! 缺陷场景：同一订单连打两次 MRP 批量计算，第二次 500——`{批次基数}-0` 行号
 //! 撞 `mrp_results` 表 `calculation_no` 的 UNIQUE 键（mrp_results_calculation_no_key）。
@@ -92,7 +92,7 @@ fn batch_request() -> MrpCalculationRequest {
     }
 }
 
-/// CI #4675 场景本体：同一订单（同参数）连算两次批量 MRP。
+/// CI 场景本体：同一订单（同参数）连算两次批量 MRP。
 /// 第二次不得 500（旧实现重发同一基数导致 `{基数}-0` 撞 UNIQUE），
 /// 两批必须拿到不同批次号，且各批首行 `{批次号}-0` 真实落库、表内无重号。
 #[tokio::test]
@@ -182,7 +182,7 @@ async fn run_mrp_calculation_twice_yields_distinct_line_no_both_persisted() {
 /// 基数判据行为锁：模拟一次已提交批次的落库形态——**只有**派生行
 /// `{基数}-{行序}` 在表内（MRPB 裸基数从不落库），下一次取号必须以
 /// 派生行的基数流水 + 1 起号；若判据回潮为“带后缀行不参与基数”，
-/// 将重发已被占用的基数 010，`{010}-0` 落库即撞 UNIQUE（CI #4675 500 本体）。
+/// 将重发已被占用的基数 010，`{010}-0` 落库即撞 UNIQUE（CI 500 本体）。
 /// 同段再造一条含字母的旁路行 `07X-1`：它**仍不得**参与基数（判据不被
 /// 顺手放宽成“截取任意前导数字”）。
 #[tokio::test]

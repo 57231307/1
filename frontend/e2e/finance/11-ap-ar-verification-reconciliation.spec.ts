@@ -17,8 +17,8 @@
 //      → confirm 分支（PENDING→CONFIRMED）与 dispute 分支（PENDING→DISPUTED，原因回显），
 //      各含门控负例（已确认再确认被拒 / DISPUTED 确认被拒），断真实 400+机器码且状态不漂移。
 //      前置：generate 对账口径排除 DRAFT/CANCELLED（ap_reconciliation_ops/crud.rs:41-44），
-//      发票建单默认 DRAFT（ap_invoice_ops/crud.rs:75），须先 approve 到 AUDITED（#4671 判责，
-//      推翻 #4669 §D「核销回写事务真缺陷」——缺的是用例审核步骤，后端口径不动）。
+// 发票建单默认 DRAFT（ap_invoice_ops/crud.rs:75），须先 approve 到 AUDITED（判责，
+// 推翻 §D「核销回写事务真缺陷」——缺的是用例审核步骤，后端口径不动）。
 //      状态词表：backend/src/models/status/finance.rs:104-112（PENDING/CONFIRMED/DISPUTED 大写）。
 //   4. AP 付款申请 submit 门控负例（ap_payment_request_service.rs:336-338）：
 //      无 items 建单成功（DRAFT）→ submit 被拒 400 BUSINESS_ERROR → 回读仍 DRAFT（无副作用）
@@ -504,7 +504,7 @@ test.describe('11 AP/AR 核销闭环 + AP 对账 + 付款申请提交门控', ()
     const supplierId = await seedSupplier(page, 'R1');
     const d = today();
     // 专属新供应商 + 当日唯一发票 → 期初 0、本期应付 800、本期付款 0 全部可控。
-    // 对账纳入口径（#4671 判责推翻 #4669 §D 的「核销回写事务真缺陷」）：
+    // 对账纳入口径（判责推翻 §D 的「核销回写事务真缺陷」）
     // generate 排除 DRAFT/CANCELLED（backend/src/services/ap_reconciliation_ops/crud.rs:41-44）是既定口径，
     // 而建单默认即 DRAFT（ap_invoice_ops/crud.rs:75 invoice_status=STATUS_DRAFT），
     // 必须走真实审核步 approve（DRAFT→AUDITED，ap_invoice_ops/crud.rs:204）发票才进对账集合。

@@ -29,7 +29,7 @@ pub struct CancelReason {
 }
 
 /// 查询参数
-// V15 P0-S12 修复（Batch 475e）：派生 Clone，export_ar_invoices 需要 clone 后覆盖分页参数用于全量导出
+// 派生 Clone：export_ar_invoices 需 clone 查询参数并覆盖分页做全量导出
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ArInvoiceQuery {
@@ -67,7 +67,7 @@ pub async fn list_ar_invoices(
 
     // 分页不变量：与仓库其它 list handler 同源，返回标准 PaginatedResponse{items,total,page,page_size}
     // page/page_size 仍从同一查询参数读取，路由路径与参数名不变
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // page 钳位 1..=1000：拒绝超大页码防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let service = ArInvoiceService::new(state.db.clone());
@@ -157,7 +157,7 @@ pub async fn get_ar_invoice(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护：get_by_id 按 data_scope 过滤资源归属）
     let data_scope_ctx = auth.to_data_scope_context();
     let invoice = service.get_by_id(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(invoice)?)))
@@ -171,7 +171,7 @@ pub async fn update_ar_invoice(
     Json(req): Json<UpdateArInvoiceRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // IDOR 防护——更新前先以 get_by_id + data_scope_ctx 行级过滤校验资源归属
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
@@ -189,7 +189,7 @@ pub async fn delete_ar_invoice(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // IDOR 防护——删除前先以 get_by_id + data_scope_ctx 行级过滤校验资源归属
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
@@ -332,7 +332,7 @@ fn record_ar_invoices_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/ar/invoices/export - 导出应收发票列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
+/// GET /api/v1/erp/ar/invoices/export - 导出应收发票列表（带水印 + 异步审计日志）：
 /// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
 pub async fn export_ar_invoices(
     State(state): State<AppState>,

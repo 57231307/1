@@ -1,6 +1,5 @@
 use crate::models::sales_contract;
 use crate::models::sales_contract_item;
-// 批次 210 P2-5 修复（v12 复审）：合同状态字符串替换为 contract 常量
 use crate::models::status::contract;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
@@ -140,8 +139,8 @@ impl SalesContractService {
         // 使用事务确保合同和明细行原子创建
         let txn = self.db.begin().await?;
 
-        // P0 契约修复：校验客户存在并回填冗余列 customer_name
-        //（原实现既不校验也不回填 ⇒ 悬挂 customer_id 可入库、列表/详情客户名恒空）
+        // 创建时校验客户存在并回填冗余列 customer_name：客户不存在直接业务可显错误，
+        // 防止悬挂 customer_id 入库、列表/详情客户名恒空
         let customer = crate::models::customer::Entity::find_by_id(req.customer_id)
             .one(&txn)
             .await?
@@ -159,7 +158,7 @@ impl SalesContractService {
             status: Set(contract::DRAFT.to_string()),
             payment_terms: Set(req.payment_terms),
             delivery_date: Set(req.delivery_date),
-            // P0 契约修复：补齐真实列表头字段（原三处不一致中被 service 吞掉的一组）
+            // 列表/详情表头展示所需字段随合同头一并落库
             signed_date: Set(req.signed_date),
             effective_date: Set(req.effective_date),
             expiry_date: Set(req.expiry_date),
@@ -193,8 +192,7 @@ impl SalesContractService {
             let amount = item.quantity * item.unit_price;
             // sales_contract_items.created_at / updated_at 均为 NOT NULL 且 DDL 无默认值
             // （`migration/src/domain/v15/mod.rs:3531`）：`..Default::default()` 会把这两列
-            // 留成 Unset → INSERT 传 NULL → 违反非空约束直接 500（CI #4669 用例
-            // 66-submit-contract-regression 的 POST /sales/sales-contracts）。
+            // 留成 Unset → INSERT 传 NULL → 违反非空约束，POST /sales/sales-contracts 直接 500。
             let now = chrono::Utc::now();
             let active_item = sales_contract_item::ActiveModel {
                 contract_id: Set(contract_id),
@@ -220,9 +218,8 @@ impl SalesContractService {
 
     /// 更新销售合同（表头 + 明细整表替换；表头三态字段语义：None=保持、Some(None)=置 NULL、Some(Some)=覆盖）
     ///
-    /// P0 契约修复（本轮）：原 handler 内联实现只接受 contract_name/payment_terms，
-    /// 且 get_by_id 裸查询 + update 无事务边界。现改为：
-    /// begin txn + lock_exclusive + DRAFT 状态门 + 表头字段 Some=覆盖 + items 整表替换 + commit。
+    /// 写路径：begin txn + lock_exclusive + DRAFT 状态门 + 表头字段 Some=覆盖 +
+    /// items 整表替换 + commit。
     pub async fn update(
         &self,
         id: i32,
@@ -275,7 +272,7 @@ impl SalesContractService {
 
         // 印花税生效值（在 contract 被 move 前捕获）：类型或金额任一键出现（含显式 null 清空）即重算。
         // 键缺席 → 生效值取 DB 原值；显式 null（Some(None)）→ 生效值即 NULL（三态不得塌层）；
-        // 金额按既有口径：NULL 参与印花税计算记为 0（与历史 NULL 行的原实现处理一致）。
+        // 金额口径：NULL 金额参与印花税重算时按 0 计（见下方 effective_total_amount 的 unwrap_or(ZERO)）。
         let stamp_tax_recalc_needed = req.contract_type.is_some() || req.total_amount.is_some();
         let effective_contract_type = match &req.contract_type {
             Some(v) => v.clone(),
@@ -401,14 +398,11 @@ impl SalesContractService {
         // 获取总数
         let total = query.clone().count(&*self.db).await?;
 
-        // 分页和排序
-        // 批次 24 v6 P1-2 修复：分页偏移 off-by-one。
-        // 原代码 offset=(page.saturating_sub(1) * page_size)，当 page=1（HTTP 第一页）时 offset=page_size，
-        // 跳过第一页数据。改为 ((page - 1) * page_size)，与 production_order_service.rs:279
-        // 的 paginator.fetch_page(query.page - 1) 0-indexed 写法一致。
+        // 分页和排序：HTTP 层 page 为 1-indexed，DB offset 为 0-indexed，
+        // 按 offset=(page-1)*page_size 取页，page=1 即第一页。
         let contracts = query
             .order_by(sales_contract::Column::Id, Order::Desc)
-            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+            // page clamp(1, 1000) 防 DoS：恶意超大页码不会触发超大偏移查询
             .offset(((params.page.clamp(1, 1000).saturating_sub(1)) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .all(&*self.db)
@@ -451,9 +445,9 @@ impl SalesContractService {
             user_id, contract_id, req.execution_type, req.execution_amount
         );
 
-        // 批次 26 v6 P1 修复：状态机 lock_exclusive 补全，串行化并发状态变更
-        // 原实现先在事务外用 get_by_id 裸查询合同状态，再 begin() 开启事务，
-        // 并发 execute 均通过状态检查后基于过期状态写入，导致状态门失效。
+        // 状态门与写库同事务：先 begin()，事务内 lock_exclusive 查询合同，
+        // 串行化并发状态变更（若在事务外查状态再开事务，并发请求会均通过
+        // 状态检查后基于过期状态写入，导致状态门失效）
         let txn = (*self.db).begin().await?;
 
         // 获取合同（加 lock_exclusive 串行化并发状态变更）
@@ -508,7 +502,7 @@ impl SalesContractService {
     }
 
     /// 审核合同（通过动作）：draft → active，通过理由真实落 `approval_reason` 列
-    /// 批次 22（2026-06-28 v5 P0-6）：重构 approve 补全事务边界 + lock_exclusive + update_with_audit；原 `approve` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，；并发审核同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 写路径：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit；行锁串行化并发审核同一合同，避免基于过期快照的状态覆盖，update_with_audit 保留审计追溯。
     pub async fn approve(
         &self,
         contract_id: i32,
@@ -540,8 +534,8 @@ impl SalesContractService {
         contract_active.updated_at = Set(chrono::Utc::now());
 
         // 走 update_with_audit 保留审计追溯
-        // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-        // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+        // 有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
+        // 审计日志为关键路径：错误经 ? 直接传播，不以 let _ = 吞掉
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -611,7 +605,7 @@ impl SalesContractService {
     }
 
     /// 取消合同
-    /// 批次 22（2026-06-28 v5 P0-6）：重构 cancel 补全事务边界 + lock_exclusive + update_with_audit；原 `cancel` 在 `&*self.db` 上裸查询 + 裸 `save`，无事务边界也无行锁，；并发取消同一合同可能基于过期快照导致状态覆盖；同时未走 update_with_audit 会丢失审计追溯。；改为：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit。
+    /// 写路径：begin txn + lock_exclusive 查询 + 状态校验 + update_with_audit(&txn, Some(user_id)) + commit；行锁串行化并发取消同一合同，避免基于过期快照的状态覆盖，update_with_audit 保留审计追溯。
     pub async fn cancel(
         &self,
         contract_id: i32,
@@ -644,8 +638,8 @@ impl SalesContractService {
         contract_active.updated_at = Set(chrono::Utc::now());
 
         // 走 update_with_audit 保留审计追溯
-        // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-        // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+        // 有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
+        // 审计日志为关键路径：错误经 ? 直接传播，不以 let _ = 吞掉
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",

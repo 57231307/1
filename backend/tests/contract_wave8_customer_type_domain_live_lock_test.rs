@@ -1,4 +1,4 @@
-//! 契约波次 8 · #259 `customers.customer_type` 渠道词表收口——**活体列形态锁**
+//! 契约波次 8 · `customers.customer_type` 渠道词表收口——**活体列形态锁**
 //!
 //! ## 被测对象（三处交叉，任一漂移本文件即红）
 //! 1. **源码权威词表**：`backend/src/constants/customer_type.rs:64`
@@ -85,7 +85,7 @@ const NULL_PROBE_ID: i32 = 991_051;
 /// 备份列探针行
 const BACKUP_PROBE_ID: i32 = 991_060;
 
-/// 分层词、大写混维词与边界值——全部是 #259 判定为非法的写入形态。
+/// 分层词、大写混维词与边界值——全部是 判定为非法的写入形态。
 /// `POTENTIAL` 属 CLV 分层 segment 词表（constants/customer_type.rs:39-42），
 /// `RETAIL`/`OTHER` 是**大写形式**（读侧 `services/customer_ops/crud.rs`、`query.rs`
 /// 是小写精确匹配，写大写即永远筛不到；本列 CHECK 逐字符敏感），

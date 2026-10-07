@@ -168,7 +168,7 @@ impl ProductionOrderService {
 
     /// 创建生产订单（校验引用 + 服务端取号 + 写入 + 触发 MRP 计算，失败 warn 不阻塞）
     ///
-    /// 单号禁手输（任务 #153 缺陷3）：`CreateProductionOrderRequest` 类型上不存在
+    /// 单号禁手输（缺陷3）：`CreateProductionOrderRequest` 类型上不存在
     /// `order_no` 字段，任何调用方都无法注入外部编号；单号一律经
     /// `DocumentNumberGenerator` 取号（advisory lock 串行化 + order_no UNIQUE 兜底）。
     pub async fn create(
@@ -215,7 +215,7 @@ impl ProductionOrderService {
 
     /// 构建创建生产订单的 ActiveModel
     ///
-    /// 默认值单一来源纪律（任务 #153）：
+    /// 默认值单一来源纪律
     /// - `status` 不显式 Set：由 DB `DEFAULT 'DRAFT'`（m0007:84）生效，代码侧不再
     ///   硬编码第二处 DRAFT 字面量（PG 下 insert 经 RETURNING 回填完整实体）；
     /// - `priority` 为 None 时不 Set：由 DB `DEFAULT 5`（m0007:85）生效，不再

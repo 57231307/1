@@ -31,7 +31,7 @@ interface TransferSeed {
 // 调拨出库要求「调出仓库对该产品有足量库存」（inventory_move::check_from_warehouse_inventory），
 // 且正规页 TransferFormDialogTab 的出库四维经「调出仓+产品的真实库存行」下拉
 // （GET /inventory/stock）选定——若该产品在调出仓无库存行，则明细的下拉为空、无法建单。
-// 批次 5a82561a 补匹号选择器后的新契约（判责 #4669 J-2）：
+// a82561a 补匹号选择器后的新契约（判责 J-2）
 // - 染色布（色号非空）第四维匹号必选（TransferFormDialogTab.vue:110-126/614-622，
 //   与后端 services/inv/fabric_class.rs 唯一判定同口径；不许为过用例放松）；
 // - 可命中的真实染色匹只由写入方链产出：piece_domain_service.rs:518-556 委外染色回仓确认
@@ -154,7 +154,7 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
 
     // 数量：明细行第一个 el-input-number 的内层 <input>，placeholder 直传原生 input
     // （EP input-number → el-input → input[placeholder]，本地 node_modules 源码核实）。
-    // CI #4669 判红根因：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
+    // CI 判红根因：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
     // （role 由 EP onMounted setAttribute、名称回落 placeholder 的链条在真实浏览器不可靠），
     // 正解为按 DOM 属性直查并以 :visible 过滤到可见项——找不到即自然超时抛真实红，
     // 绝不改成「填不进就跳过」。

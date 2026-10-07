@@ -1,7 +1,7 @@
-//! 测试公共夹具模块（P0-D11 → #4669 路线一改造）
+//! 测试公共夹具模块（P0-D11 → 路线一改造）
 //!
 //! ## 为什么必须改（实证，非推测）
-//! CI #4669 的 215 例 Rust 失败里约 130 例的签名是
+//! CI 的 215 例 Rust 失败里约 130 例的签名是
 //! `mismatched types; Rust type Option<f64> is not compatible with SQL type TEXT`、
 //! `Sqlite doesn't support array arguments`、`Type("String unsupported by sqlx-sqlite")`——
 //! 全部来自**测试自建 DDL 在 sqlite 上的亲和性失真**（测试把 DECIMAL 列写成 `TEXT`，

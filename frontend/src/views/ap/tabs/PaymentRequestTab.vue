@@ -187,12 +187,12 @@
         </el-form-item>
 
         <!--
-          明细录入（决策定案 #10）：后端 submit 门控要求「至少一条真实已审批应付单明细」
-          （ap_payment_request_service.rs:330-339），候选=已审批且未付清（AUDITED/PARTIAL_PAID
-          且 unpaid_amount>0；validate_invoice_items_txn :100-142 拒绝 DRAFT/CANCELLED 与超未付额，
+          明细录入：后端 submit 门控要求「至少一条真实已审批应付单明细」
+          （ap_payment_request_service.rs::submit 明细非空门 :386-394），候选=已审批且未付清（AUDITED/PARTIAL_PAID
+          且 unpaid_amount>0；validate_invoice_items_txn :113-151 拒绝 DRAFT/CANCELLED 与超未付额，
           本地预校验仅提前暴露问题，最终以服务端校验为准）。
-          明细仅创建契约（CreateApPaymentRequest.items :655-656）可送：更新契约
-          UpdateApPaymentRequest（:699-730）无 items，且后端无付款申请明细行级端点
+          明细仅创建契约（CreateApPaymentRequest.items :713）可送：更新契约
+          UpdateApPaymentRequest（:757-787）无 items，且后端无付款申请明细行级端点
           （routes/finance.rs:708-746），编辑态给出真实口径提示而非假编辑器。
         -->
         <el-form-item v-if="!editId" :label="t('apModule.paymentRequest.itemsTitle')">
@@ -355,7 +355,7 @@ const submitting = ref(false);
 // 供应商下拉（与核销 Tab 同款 getSupplierList，仅加载一次供对话框复用）
 const suppliers = ref<Supplier[]>([]);
 
-// 明细录入（决策定案 #10）：候选应付单 = 已审批且未付清
+// 明细录入（决策定案）：候选应付单 = 已审批且未付清
 interface PaymentRequestItemRow {
   invoice_id: number | undefined;
   /** 未采集=undefined：提交前显式转十进制字符串，禁止 ?? 0 把未采集伪装成 0 */

@@ -1,6 +1,6 @@
 // 财务管理 E2E 套件 — 05 AP 付款「方案B 禁手工绕过」内控负向
 //
-// 任务 #942 缺口 2：AP 付款必须经「已审批的付款申请」派生（方案B 内控），
+// 内控契约：AP 付款必须经「已审批的付款申请」派生（方案B 通道），
 // 后端 ap_payment_service.rs::create 强制：request_id 必填、对应申请必须 APPROVED、
 // 付款金额取 request_amount（CreateApPaymentRequest 根本不含金额字段）——三者共同构成"不可手工绕过"。
 // 本套件用真实后端断这三条内控，全部断真实状态码/业务码/回读金额，禁 verifyEndpointHealthy / >=400。

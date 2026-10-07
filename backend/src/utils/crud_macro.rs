@@ -44,7 +44,7 @@ macro_rules! impl_generate_no {
 
 /// 通用 CRUD Handler 生成宏（减少增删改查路由模板代码；要求 Service 实现 list/get/create/update/delete，update/delete 注入 user_id 审计；另有 define_tuple_crud_handlers! 变体适用于返回元组与 Option 的 Service）
 ///
-/// 出参类型形参（批次 476 契约收紧）：`$list_resp_ty` 为 list 的**真实**载荷类型
+/// 出参类型形参（契约收紧）：`$list_resp_ty` 为 list 的**真实**载荷类型
 /// （各域 service 一律返回 `PaginatedResponse<T>`，序列化后顶层键为
 /// `items/total/page/page_size`，见 utils/response.rs:39-45），`$item_resp_ty` 为
 /// get/create/update 的真实单对象类型（各域 service 一律返回实体 `Model`）。

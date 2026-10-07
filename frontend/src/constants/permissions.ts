@@ -184,7 +184,7 @@ export const PERMISSIONS = {
   INVENTORY_DELETE: 'inventory:delete',
   // Batch 468 P0-S28：库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
   INVENTORY_TRANSFER: 'inventory:transfer',
-  // #220 成品布入库标签打印（GET /inventory/pieces/{id}/print）。权限键非自造：
+  // 成品布入库标签打印（GET /inventory/pieces/{id}/print）。权限键非自造
   // resource_type 由 URL 段推导——middleware/permission.rs::extract_resource_info 对
   // 模块前缀 inventory（utils/path_utils.rs::is_business_module_prefix）取 segment4
   // "pieces"（path_utils.rs:102-117 resolve_module_prefixed_resource 默认分支，

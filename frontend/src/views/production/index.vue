@@ -141,7 +141,7 @@ const onSubmitForm = async () => {
   prd.submitLoading = true;
   try {
     if (!prd.orderForm.id) {
-      // 任务 #153 缺陷3：单据号系统生成禁手打——创建剔除 order_no。
+      // 缺陷3：单据号系统生成禁手打——创建剔除 order_no。
       // 空串 '' 序列化后会成为 Some("")，后端 resolve_order_no 会把 "" 当作手输单号
       // 直插（绕过统一取号器）；undefined 经 JSON 序列化剔除 → 后端走
       // utils/number_generator.rs 取号（PO{YYYYMMDD}{3位流水}）。

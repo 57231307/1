@@ -1,7 +1,7 @@
 //! P0-T02 生产订单全流程集成测试（V15 Batch 487）
 //!
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径（各条按被测函数体在**真库化夹具**
-//! 下的真实契约逐条校准，见各用例文档注释；#4671 判责 §⑤ W4 / 裁决 R-9）
+//! 下的真实契约逐条校准，见各用例文档注释； 判责 §⑤ W4 / 裁决 R-9）
 //! 纯状态机校验函数 validate_status_transition 为私有方法，通过 DB 异常路径间接验证状态门逻辑。
 //! 完整业务流程测试（create → submit → approve → complete）需要真实 PostgreSQL，标记 #[ignore]。
 
@@ -23,7 +23,7 @@ use test_common::setup_test_db;
 
 /// 构造最小 CreateProductionOrderRequest（仅必填字段）
 ///
-/// 无 order_no 字段（任务 #153 缺陷3：单据号禁手输，一律服务端取号）；
+/// 无 order_no 字段（缺陷3：单据号禁手输，一律服务端取号）；
 /// planned_quantity 为必填 Decimal（NOT NULL 列，无 Option/默认值兜底）。
 fn sample_create_request() -> CreateProductionOrderRequest {
     CreateProductionOrderRequest {
@@ -92,7 +92,7 @@ async fn test_productionorderservice_slhbcfdb() {
     let _ = svc;
 }
 
-/// test_productionorderservice_create_kdbfherr —— 真库化夹具前提校准（#4671 判责
+/// test_productionorderservice_create_kdbfherr —— 真库化夹具前提校准（判责
 /// §⑤ W4；手法照抄 ap_payment_workflow_test 的 R-9 拆分范本）：
 /// 钉"已建库空表上 create（引用不存在的产品/工作中心）返回 **VALIDATION_ERROR**
 /// 机器码而非 panic"。
@@ -217,7 +217,7 @@ async fn test_productionorderservice_approve_order_kdbfherr() {
 
 /// 集成测试：生产订单全流程 create → submit → approve → schedule → in_progress → complete
 ///
-/// 真库化前提补齐（CI #4672 §A.2 种子族，只补剩下这条前提，600e5640 已提交的
+/// 真库化前提补齐（CI §A.2 种子族，只补剩下这条前提，600e5640 已提交的
 /// 判据用例不动）：create 的第一步是引用校验（读函数体
 /// `production_order_ops/crud.rs`：`validate_create_references` →
 /// `validate_product_exists`（:48-56，products 空表 ⇒ ValidationError("产品ID 1 不存在")

@@ -49,7 +49,7 @@ impl ChemicalCategoryService {
 
         // 校验编码唯一性（仅查未删除行 —— 本表既定语义：软删后编码可复用，
         // 与 master/lot 同口径；判据"用户改一下编码即可通过"归可外显业务族
-        // （先例：#165 流程编码、供应商名称），文案只回显用户自己提交的编码，
+        // （先例： 流程编码、供应商名称），文案只回显用户自己提交的编码，
         // 不含表名/内部 ID/其他记录；真因同时落 WARN 日志，不静默）
         if let Some(_existing) = CategoryEntity::find()
             .filter(chemical_category::Column::CategoryCode.eq(&req.category_code))

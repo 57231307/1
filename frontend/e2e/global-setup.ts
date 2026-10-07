@@ -422,10 +422,10 @@ const SEED_ROLES = [
   'fixed_assets_accountant',
   'budget_analyst',
   // inventory_manager：02-adjustment.spec.ts IDOR 用例的第二用户 B（getRoleCredential
-  // ('inventory_manager')）。CI 实测本库 init 只种 3 角色（#4669 out/rs32:257
+  // ('inventory_manager')）。CI 实测本库 init 只种 3 角色（out/rs32:257
   // "[globalSetup] 后端现有角色 3 个"），后端 role.rs:168 的业务角色不保证存在，
   // 必须由 ensureRoleUsers 补建——缺此码时凭证文件 37 键无 inventory_manager
-  // （out/rs32:55865 getRoleCredential 诊断），用例 setup 缺陷判红（#4669 :149）。
+  // （out/rs32:55865 getRoleCredential 诊断），用例 setup 缺陷判红（149）。
   'inventory_manager',
   // manager —— fullflow/15-report-export.spec.ts 15-05 的申请侧账号（loginAsRole('manager')）。
   // 后端 init 矩阵确有同名角色与 ("export-approvals","create")
@@ -453,7 +453,7 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // 覆盖 sku-mapping.spec.ts A/C/D1/D2b/E1 用例：产品/供应商只读 + 目录 + 对照 CRUD。
   // product-categories:read —— /product 页挂载即拉产品分类树（api/product.ts GET
   // /product-categories、/product-categories/tree），缺码则该页对 purchaser 恒 403 噪声
-  // （CI #4671 矩阵 purchaser 真缺口红）。用户裁定口径为"purchaser 应见产品分类树、补真实
+  // （CI 矩阵 purchaser 真缺口红）。用户裁定口径为"purchaser 应见产品分类树、补真实
   // 种子"（非前端降级隐藏）；init 矩阵/迁移通道①②须与此同口径落地（三通道同口径锁）。
   purchaser: [
     'sku-mappings:read',
@@ -1006,7 +1006,7 @@ export async function ensureRoleUsers(): Promise<void> {
       // 已存在
     } else {
       // 原写法 console.warn 后继续：凭证照样写入、账号实际不存在/未建，
-      // 下游 spec 登录 401 且根因埋在几分钟前的 setup 日志里（#4669 E 族的放大器）。
+      // 下游 spec 登录 401 且根因埋在几分钟前的 setup 日志里（E 族的放大器）。
       // 准备失败必须在这里判红，不许带病写出凭证。
       const body = await createResp.text().catch(() => '');
       throw new Error(
@@ -1124,7 +1124,7 @@ export async function ensureRoleUsers(): Promise<void> {
 async function ensureGlobalBusinessSeed(
   ctx: Awaited<ReturnType<typeof request.newContext>>
 ): Promise<void> {
-  // 种子失败硬账（CI #4669 判责 §⑤/§6.3 收口：静默失败必须响亮化）：
+  // 种子失败硬账（CI 判责 §⑤/§6.3 收口：静默失败必须响亮化）
   // 收集**本分片种子阶段的全部失败**——既包括「导致种子行根本产不出来」的硬失败，
   // 也包括 ⚠️ 软失败（reportSeedWrite 的 4xx/5xx，历史上只打印不进台账，造成
   // 「⚠️ 打了、汇总仍写 0 项」的自相矛盾，下游大片红查不到根因）。
@@ -1185,7 +1185,7 @@ async function ensureGlobalBusinessSeed(
 
   // 辅助：种子写请求失败暴露（消 SYS-4「≥500 才告警、4xx 静默」的伪装）。
   // 非 2xx 一律 `[globalSeed] ⚠️` 显式打印 HTTP + 原始响应体，**并同步计入 SEED_FAILURES**
-  // （#4669 §6.3：⚠️ 分支过去不进台账，导致「种子失败汇总：0 项」与 ⚠️ 同屏自相矛盾）。
+  // （§6.3：⚠️ 分支过去不进台账，导致「种子失败汇总：0 项」与 ⚠️ 同屏自相矛盾）。
   const reportSeedWrite = async (resp: SetupApiResponse, label: string): Promise<void> => {
     const status = resp.status();
     if (status >= 400) {
@@ -2538,7 +2538,7 @@ async function ensureGlobalBusinessSeed(
   // accounting_periods 表 start_date<=date AND end_date>=date，不存在则拒绝。
   // 端点：POST /api/v1/erp/finance/accounting-periods（routes/finance.rs:70-73，missing_handlers.rs:110）
   // Payload：{ year, period }（period=1-12），后端自动计算当月首日至末日为 start/end_date。
-  // 幂等口径改造（CI #4669 §⑤ 铁证）：原实现靠「400 body 文案含"已存在"」判幂等，但后端
+  // 幂等口径改造（CI §⑤ 铁证）：原实现靠「400 body 文案含"已存在"」判幂等，但后端
   // missing_handlers.rs:125 走 AppError::business（出参永久脱敏为「业务处理失败」），文案匹配
   // 永不成立 → 每个后续分片都 ⚠️「会计期间创建失败 HTTP 400」而实际期间早已存在。
   // 正解=用**读端点做存在性前置**（GET /finance/accounting-periods 返回 Vec<Dto>，
@@ -2743,7 +2743,7 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
-  // ---- 20. 本位币种子（GET /currencies/base 404 的数据层根因，CI run #4675 flow shard8 实证）----
+  // ---- 20. 本位币种子（GET /currencies/base 404 的数据层根因， flow shard8 实证）----
   // 后端契约事实（逐行读源，非推测）：
   //   ① currency_handler::get_base_currency —— currency_service::get_base_currency 查不到
   //      currencies 表 is_base=true 行时返回 AppError::not_found（HTTP 404），
@@ -2814,7 +2814,7 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
-  // ---- 21. 客户信用评级种子（GET /crm/customers/{id}/credit 404 的数据层根因，CI run #4675 flow shard6 实证）----
+  // ---- 21. 客户信用评级种子（GET /crm/customers/{id}/credit 404 的数据层根因， flow shard6 实证）----
   // 后端契约事实（逐行读源，非推测）：
   //   ① routes/crm.rs:48-9 注册 "/customers/{id}/credit" → customer_credit_handler::get_credit，
   //      Path 参数是客户 id（handler:112 Path(customer_id)）；查无行时
@@ -2915,7 +2915,7 @@ async function ensureGlobalBusinessSeed(
   }
 
   // 种子失败汇总：缺行/软失败都不让它隐身——下游用例的红要先看这里，再判用例本身。
-  // CI #4669 §6.3 收口：本清单非空时**显式 throw 判红**（旧口径"打印后继续"把
+  // CI §6.3 收口：本清单非空时**显式 throw 判红**（旧口径"打印后继续"把
   // 「种子没就绪」放大成下游成片红且根因隐身；本仓纪律=静默失败必须响亮化）。
   if (SEED_FAILURES.length > 0) {
     console.error(

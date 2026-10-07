@@ -5,7 +5,7 @@
 //! 完整审批链（有效/无效/跨资源 token）尚未实现，现有占位用例标 #[ignore] 且只锁
 //! 第 1 步，缺口已作为补测点移交测试专家（见该用例注释与交付报告）。
 //!
-//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! 通道（路线一， 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
 //! - 需要可连接库的用例 → `test_common::setup_test_db()`（已迁移 PostgreSQL）；
 //! - 「非空 token 必须进入 DB 校验、且表缺失时显式报错」这一负前提 →
 //!   `test_common::connect_empty_schema_db()`（`TEST_EMPTY_DATABASE_URL` → 已建库但

@@ -68,7 +68,7 @@ test.describe('系统管理 - 03 用户改密闭环', () => {
     expect(pwOld.toLowerCase().includes(username), '前置：P0 不得含用户名').toBe(false);
     expect(pwNew.toLowerCase().includes(username), '前置：P1 不得含用户名').toBe(false);
 
-    // 一次性用户**故意不带角色**建：#4671 本用例的真红是 `POST /users/change-password`
+    // 一次性用户**故意不带角色**建： 本用例的真红是 `POST /users/change-password`
     // 返回 403 `FORBIDDEN`「没有关联角色，无法访问」（xr35/backend.log:38084，认证成功
     // user_id=42 之后被 permission.rs 的 extract_role_id 拦死）。改密只操作调用者自身凭据，
     // 属自助端点，不得要求任何业务角色/权限码；把"无角色"从偶然前提改为显式前提并回读校验，

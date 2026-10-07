@@ -313,7 +313,7 @@ test.describe('11 质检不合格生成退货', () => {
     // 403 CSRF_TOKEN_INVALID，前端 axios 拦截器再用恢复头静默重放第二个 POST 才 200
     //（api/request.ts:197-223）。只按 URL 过滤时 waitForResponse 命中那个 403 中间态——
     // 它是 AppError 形状、data=null，读 id 落空即「建单响应未返回 id」的**真红假象**
-    //（#4671 11-03 实证：backend.log 首试 403 CSRF_TOKEN_INVALID → 紧随 200 且 570B 含 id）。
+    // （11-03 实证：backend.log 首试 403 CSRF_TOKEN_INVALID → 紧随 200 且 570B 含 id）。
     // 只等 200 = 绑定真实建单成功；真被业务拒绝时既无 200 也无 → 下方"未捕获"断言判红，
     // 不存在放宽（toast「创建成功」与 id/单号断言一字未动）。
     const createdResp = page

@@ -1,4 +1,4 @@
-//! 色卡错误映射单元测试（批次 394 补测，V15 P0-F03 删除 borrow_err 测试）
+//! 色卡错误映射单元测试（crud_err / item_err 各变体 → AppError 族与出参脱敏口径）
 //!
 //! 覆盖目标：
 //! - crud_err 5 个变体的错误映射
@@ -68,9 +68,9 @@ fn test_crud_err_invalid_stateys() {
 }
 
 /// test_crud_err_validationys
-/// 断言跟随源码变更（任务 #165）：`CrudError::Validation` 通道承载提交字段取值/格式/必填，
-/// 映射点已由脱敏 `validation` 改为 `validation_displayable`——族仍是 VALIDATION_ERROR，
-/// 但出参 message 外显真实原因（同域 ItemError::Validation 早已如此，此处对齐）。
+/// `CrudError::Validation` 通道承载提交字段取值/格式/必填，映射点为
+/// `validation_displayable`（handlers/color_card/error_map.rs:18）——族仍是 VALIDATION_ERROR，
+/// 出参 message 外显真实原因（与同域 ItemError::Validation 的口径一致）。
 #[test]
 fn test_crud_err_validationys() {
     let err = crud_err(CrudError::Validation("字段不能为空".to_string()));

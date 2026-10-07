@@ -121,7 +121,7 @@ impl SystemUpdateService {
     }
 
     pub fn get_current_version(&self) -> String {
-        // 方案 C 编译期真实版本（任务 #116 增强）：优先返回编译期注入的权威四段版本
+        // 方案 C 编译期真实版本（增强）：优先返回编译期注入的权威四段版本
         // `BINGXI_RELEASE_VERSION`（与 release tag 同格式 `YYYY.M.D.HHMM`），使 current 与
         // GitHub latest 同为四段，跨格式比较假阴性从根上消除；未注入（本地/历史二进制）时
         // 回退构建内嵌三段 `CARGO_PKG_VERSION`，回退由 `authoritative_current_version` 显式

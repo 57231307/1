@@ -65,7 +65,7 @@ impl AccountSubjectService {
         Self { db }
     }
 
-    /// 余额方向写入白名单（任务 #198）：仅接受 `status::account_subject::ALL`
+    /// 余额方向写入白名单：仅接受 `status::account_subject::ALL`
     /// （debit/credit，与前端两处提交值、m0006 DDL 默认值、迁移种子同源）的精确匹配；
     /// 其余 token（含历史中文「借/贷」、大小写变体）一律拒绝，不做 trim/大小写归一——禁止静默改写用户输入。
     ///
@@ -90,7 +90,7 @@ impl AccountSubjectService {
     ) -> Result<account_subject::Model, AppError> {
         info!("创建会计科目：code={}, name={}", req.code, req.name);
 
-        // 任务 #198：写入白名单在任何触库前拒收非法方向（校验先行，不带病触库）
+        // 写入白名单在任何触库前拒收非法方向（校验先行，不带病触库）
         if let Some(direction) = req.balance_direction.as_deref() {
             Self::validate_balance_direction(direction)?;
         }
@@ -263,7 +263,7 @@ impl AccountSubjectService {
     ) -> Result<account_subject::Model, AppError> {
         info!("更新会计科目 ID: {}", id);
 
-        // 任务 #198：写入白名单在任何触库前拒收非法方向（校验先行，不带病触库）
+        // 写入白名单在任何触库前拒收非法方向（校验先行，不带病触库）
         if let Some(direction) = req.balance_direction.as_deref() {
             Self::validate_balance_direction(direction)?;
         }
@@ -376,7 +376,7 @@ impl AccountSubjectService {
         let (current_period_debit, current_period_credit) = self
             .query_voucher_sums(&subject.code, start_date, end_date)
             .await?;
-        // 任务 #198：词表与写入方同源，缺失方向按 DDL 默认值 debit 处理（原中文默认串为反号根因之一）
+        // 词表与写入方同源，缺失方向按 DDL 默认值 debit 处理（原中文默认串为反号根因之一）
         let balance_direction = subject
             .balance_direction
             .as_deref()

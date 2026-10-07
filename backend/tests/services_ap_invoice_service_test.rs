@@ -215,7 +215,7 @@ fn test_cancelztjm_jauditedhpartial_paidyx() {
     assert!(!can_cancel(status::common::STATUS_CANCELLED));
 }
 
-// ============ 批次 393 补测：账龄分桶算法（直接调用生产纯判定；`classify_aging_bucket`，get_aging_analysis 即调用它） ============
+// ============ 补测：账龄分桶算法（直接调用生产纯判定；`classify_aging_bucket`，get_aging_analysis 即调用它） ============
 
 /// test_zlftsf_6gqj（验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界）
 #[test]

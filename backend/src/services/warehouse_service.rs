@@ -89,7 +89,7 @@ impl WarehouseService {
         // WAREHOUSE_CODE_NO_PREFIX 注释）。取号与 INSERT 同事务。
         let manual_code = req.code.clone().filter(|c| !c.is_empty());
 
-        // 批次 93 P1 扩展：接入 manager（解析为 manager_id，与 update 方法对齐）；
+        // P1 扩展：接入 manager（解析为 manager_id，与 update 方法对齐）；
         // 按引用匹配：req 后续还被取号闭包整体借用，不能部分移出字段
         let manager_id = match &req.manager {
             Some(m) if !m.is_empty() => match m.parse::<i32>() {
@@ -106,7 +106,7 @@ impl WarehouseService {
         let result = match manual_code {
             // 人工指定码：先在同事务内预校验，编码已存在 → 可外显业务拒绝
             //（"改一个码再提交"属可执行公开规则，先例：chemical_ops/category.rs、
-            // supplier 名称、#165 流程编码 = business_displayable 族）；文案只回显
+            // supplier 名称、 流程编码 = business_displayable 族）；文案只回显
             // 用户自己提交的编码，禁止撞 warehouses.warehouse_code UNIQUE(23505)
             // 经 From<DbErr> 拍平成 500 DATABASE_ERROR 裸抛，也禁止重新取号覆盖用户码。
             Some(code) => {
@@ -337,7 +337,7 @@ impl WarehouseService {
     ///
     /// 口径与 supplier_service::delete_supplier / crm lead 同族：先做引用存在性预检，
     /// 命中即返回可外显业务拒绝（HTTP 400 / BUSINESS_ERROR），不再让数据库 FK 约束在
-    /// DELETE 阶段裸冒 DATABASE_ERROR(500)（CI run #4672：DELETE /warehouses/3 被
+    /// DELETE 阶段裸冒 DATABASE_ERROR(500)（DELETE /warehouses/3 被
     /// fk_greige_fabric_warehouse 拒绝后 500）。禁止 CASCADE 静默删子行，禁止吞错返回成功。
     ///
     /// 与 supplier 先例的差异（更严）：预检查询全部放进与删除**同一事务**、且在父行

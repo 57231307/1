@@ -92,7 +92,7 @@ impl VoucherService {
             let subject = subject_by_id
                 .get(&subject_id)
                 .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_id)))?;
-            // 任务 #198：默认值与写入词表同源（DDL 默认 debit），原中文默认串会令英文行落贷方分支
+            // 默认值与写入词表同源（DDL 默认 debit），原中文默认串会令英文行落贷方分支
             let balance_direction = subject
                 .balance_direction
                 .as_deref()
@@ -273,7 +273,7 @@ impl VoucherService {
                 .get(&subject_id)
                 // 批次 102 v6 P3-4 修复：科目不存在属于资源未找到，应为 not_found
                 .ok_or_else(|| AppError::not_found(format!("科目不存在：{}", subject_id)))?;
-            // 任务 #198：默认值与写入词表同源（DDL 默认 debit）
+            // 默认值与写入词表同源（DDL 默认 debit）
             let balance_direction = subject
                 .balance_direction
                 .as_deref()
@@ -417,7 +417,7 @@ impl VoucherService {
     /// 计算期末余额（debit/credit 双方向，余额为正记同向，为负记反向）
     /// debit：期初借+本期借-本期贷；credit：期初贷+本期贷-本期借
     ///
-    /// 可见性说明：`pub` 仅为契约测试（任务 #198 #2）提供纯函数测试缝，
+    /// 可见性说明：`pub` 仅为契约测试提供纯函数测试缝，
     /// 生产调用路径不变（本模块 update/create 内部复用），不承载任何 DB/IO 副作用。
     pub fn compute_ending_balance(
         balance_direction: &str,

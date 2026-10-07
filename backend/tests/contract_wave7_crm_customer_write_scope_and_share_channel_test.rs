@@ -1,5 +1,5 @@
-//! 契约波次 7 · 看板 #223 / #225：
-//! - #223 增强客户域写路径（PUT/DELETE `/crm/customers/enhanced/:id`）行级数据权限门——
+//! 契约波次 7 · 看板
+//! - 增强客户域写路径（PUT/DELETE `/crm/customers/enhanced/:id`）行级数据权限门——
 //!   修复前该两端点**完全不注入 data_scope ctx**，任何过 RBAC 键的角色可按 id 改/删他人行；
 //!   收口为与标准入口完全同门：构造 `auth.to_data_scope_context()`，写前走既有
 //!   `get_customer(id, Some(&ctx))`（owner=created_by、dept=department_id）/
@@ -9,9 +9,9 @@
 //!   不落"部分成功"）。2026-10-02 用户裁定**方案 A** 已落定 All 豁免问题：读可 All、
 //!   写须 owner 本人或显式 `crm/cross_owner_write` 代表键 + 留痕（admin 靠 is_admin_role
 //!   放行路径不变）——本文件据此在既有断言之上**只收紧不放宽**地补齐两侧：
-//!   非 admin 的 all 范围无键跨 owner 写 403（用例 #223-C）、带键 2xx + 审计行
-//!   actor=操作人（#223-D）；admin 通道用例保持 200。
-//! - #225 `POST /customer-shares` 裸 500（CI run #4669 e2e
+//! 非 admin 的 all 范围无键跨 owner 写 403（用例 -C）、带键 2xx + 审计行
+//! actor=操作人（-D）；admin 通道用例保持 200。
+//! - `POST /customer-shares` 裸 500（e2e
 //!   `frontend/e2e/crm/05-assign-share-merge.spec.ts:341`，backend.log 真因：
 //!   `error occurred while decoding column "id": mismatched types; Rust type
 //!   core::option::Option<i32> (as SQL type INT4) is not compatible with SQL type INT8`，
@@ -23,7 +23,7 @@
 //!   不再可能落 `DATABASE_ERROR`；非约束类 DbErr 原样上报（不吞不改道）。
 //!   本文件同时是源码扫描棘轮：PK 宽度对齐与"共享写路径 insert 不得裸重包"锁死。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL
 //! （customer_shares 的 BIGSERIAL 主键、唯一约束 uk_cs_customer_to_user_active、
 //! customers/crm_lead 的触发器与 FK 全部取真表）。users/customers/crm_lead
@@ -212,7 +212,7 @@ fn assert_error_envelope_shape(v: &Value) {
 }
 
 // ---------------------------------------------------------------------------
-// #223-A · PUT /crm/customers/enhanced/:id 行级门
+// -A · PUT /crm/customers/enhanced/:id 行级门
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -276,7 +276,7 @@ async fn enhanced_update_self_scope_owner_row_passes_same_gate() {
 async fn enhanced_update_admin_all_scope_channel_not_tightened() {
     // 裁定方案 A（2026-10-02）：admin 靠 check_permission 内置 is_admin_role 放行，
     // "放行路径不变"——本 200 的依据是 admin 身份（role_id=1，code='admin'），
-    // 不是"凡 data_scope=all 皆可代写"（该侧由 #223-C/D 用非 admin 角色双向锁定）
+    // 不是"凡 data_scope=all 皆可代写"（该侧由 -C/D 用非 admin 角色双向锁定）
     let state = base_state().await;
     let app = build_app(state, make_auth(ADMIN, "admin_user", Some(1), "all"));
     let (status, v) = send(
@@ -290,7 +290,7 @@ async fn enhanced_update_admin_all_scope_channel_not_tightened() {
 }
 
 // ---------------------------------------------------------------------------
-// #223-C · 裁定方案 A 改判侧：非 admin 的 data_scope=all 角色**无代表键**跨 owner 写
+// -C · 裁定方案 A 改判侧：非 admin 的 data_scope=all 角色**无代表键**跨 owner 写
 //         → 403 + FORBIDDEN + 零写入。旧口径"可见即可改（All=200）"即水平越权成因，
 //         裁定"读门不得复用为写门"后本侧必须为 403；只断 status/code/固定脱敏常量。
 // ---------------------------------------------------------------------------
@@ -325,7 +325,7 @@ async fn all_scope_non_admin_without_key_cross_owner_update_is_403_zero_write() 
 }
 
 // ---------------------------------------------------------------------------
-// #223-D · 裁定方案 A 放行侧：同一非 admin all 角色**显式授予** crm/cross_owner_write
+// -D · 裁定方案 A 放行侧：同一非 admin all 角色**显式授予** crm/cross_owner_write
 //         代表键后跨 owner 写 → 2xx + 真生效 + 审计行 actor=操作人（audit_logs 可查
 //         证据；放行同时 crm_write_guard 打 tracing::info! 结构化留痕，其存在由
 //         contract_wave7_crm_read_vs_write_gate_test.rs 源码棘轮锁定）。
@@ -387,7 +387,7 @@ fn source_scan_cross_owner_write_key_is_never_seeded_in_migration() {
 }
 
 // ---------------------------------------------------------------------------
-// #223-B · DELETE /crm/customers/enhanced/:id 行级门（落点 crm_lead 行）
+// -B · DELETE /crm/customers/enhanced/:id 行级门（落点 crm_lead 行）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -452,7 +452,7 @@ async fn enhanced_delete_owner_self_scope_and_admin_all_scope_both_pass() {
 }
 
 // ---------------------------------------------------------------------------
-// #225 · POST /customer-shares 错误通道锁（真 PostgreSQL 发 HTTP）
+// · POST /customer-shares 错误通道锁（真 PostgreSQL 发 HTTP）
 // ---------------------------------------------------------------------------
 
 fn share_body(shared_to: i32) -> Value {
@@ -595,7 +595,7 @@ async fn share_operator_not_owner_is_forbidden_masked() {
 }
 
 // ---------------------------------------------------------------------------
-// #225 棘轮 · 源码扫描（防该出口再退回裸重包 / 防模型宽度与 DDL 再度漂移）
+// 棘轮 · 源码扫描（防该出口再退回裸重包 / 防模型宽度与 DDL 再度漂移）
 // ---------------------------------------------------------------------------
 
 fn read_src(rel: &str) -> String {
@@ -605,7 +605,7 @@ fn read_src(rel: &str) -> String {
 
 /// DDL 权威源（`customer_shares.id` / `customer_team_members.id` 均为 BIGSERIAL）
 /// 与模型 PK 宽度（i64）必须**成对**锁死：任一侧单独漂移都会在生产（PG）把
-/// 写路径拍成 500 DATABASE_ERROR（CI #4669 e2e 05-assign-share-merge:341 实证）。
+/// 写路径拍成 500 DATABASE_ERROR（CI e2e 05-assign-share-merge:341 实证）。
 #[test]
 fn source_scan_share_tables_pk_width_locked_to_bigint_ddl() {
     let ddl = read_src("migration/src/domain/v15/mod.rs");

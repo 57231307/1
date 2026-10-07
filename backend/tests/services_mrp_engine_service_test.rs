@@ -473,7 +473,7 @@ async fn test_fwslcj() {
     assert!(Arc::strong_count(&service.db) >= 1);
 }
 
-/// test_hqkcxx_xyzssjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 mrp 条）：
+/// test_hqkcxx_xyzssjk —— 依据裁决 R-9 拆前提（判责 §A.1 pI 族 mrp 条）
 /// 本条断言消息自陈钉的是"**无 schema** 时应返回数据库错误"，而 `setup_test_db()`
 /// 现语义 = 已迁移 PG + TRUNCATE 业务表 ⇒ 前提与判据错位，改绑
 /// `connect_empty_schema_db()` 并把裸 `is_err()` **收紧**为钉 DATABASE_ERROR。

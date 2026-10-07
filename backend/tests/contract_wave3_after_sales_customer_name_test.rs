@@ -378,7 +378,7 @@ fn extract_impl_fn(src: &str, anchor: &str) -> String {
 }
 
 /// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
-/// #4671 B1① 判责：本组扫描锁既有"源码不该出现 X"禁项（`AfterSalesInfo {`、
+/// B1① 判责：本组扫描锁既有"源码不该出现 X"禁项（`AfterSalesInfo {`、
 /// `customer_name:`、`row.customer_id`），极易被"旧实现曾在此构造 …"类说明注释
 /// 假判违例；正向必备项若只在注释出现则是假绿。故**正反判定统一在剥注释文本上**，
 /// 锚点定位也在剥注释文本上进行（防窗起点被注释里的同名符号骗走）。
@@ -436,14 +436,14 @@ fn source_scan_dto_customer_name_field() {
 #[test]
 fn source_scan_service_join_chain_and_no_fake_name() {
     // 判据在剥注释文本上执行：service 里"修复前这里是拼装假名"类自述注释
-    // 不是执行体，命中禁词属假判违例（#4671 B1① all_lead_pii 同型）。
+    // 不是执行体，命中禁词属假判违例（B1① all_lead_pii 同型）。
     let clean = code_only(include_str!(
         "../src/services/custom_order_aftersales_service.rs"
     ));
     for anchor in ["pub async fn list_by_order", "pub async fn find_dto_by_id"] {
         let block = extract_impl_fn(&clean, anchor);
         // 正向必备项在去空白规范形上比对：`column_as(...)` 被 rustfmt 折行/改对齐
-        // 不参与判定（#4671 B1② 纪律；同 `contract_wave5_outsource_issue_guard_test.rs::canon`）。
+        // 不参与判定（B1② 纪律；同 `contract_wave5_outsource_issue_guard_test.rs::canon`）。
         let block_flat: String = block.chars().filter(|c| !c.is_whitespace()).collect();
         for marker in [
             "column_as(customer::Column::CustomerName, \"customer_name\")",

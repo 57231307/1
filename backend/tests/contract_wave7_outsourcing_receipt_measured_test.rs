@@ -1,9 +1,9 @@
-//! #220 委外收回匹实测值补录（m0075）—— 真库契约锁（后端+DB 线，用户裁定"立项并完成"）
+//! 委外收回匹实测值补录（m0075）—— 真库契约锁（后端+DB 线，用户裁定"立项并完成"）
 //!
 //! 表结构唯一来源 = backend/migration（不自建 DDL）；夹具 = `test_common::setup_test_db()`
 //! （缺 TEST_DATABASE_URL 直接 panic，禁 sqlite 回退）；FK 父行自种子。
 //!
-//! 钉死行为（与 #220 已锁口径逐条对齐：标签字段全取匹行实测值、不回落主数据、缺值 fail-closed 点名）：
+//! 钉死行为（与 已锁口径逐条对齐：标签字段全取匹行实测值、不回落主数据、缺值 fail-closed 点名）
 //! ① 收回单创建带三列实测值 ⇒ 逐列落收回单行、confirm 后逐列落匹行（**不取 products 标称值**：
 //!    种子里刻意把 products.width/gram_weight 设成与实测值不同的哨兵数，回落即红）；
 //! ② 该匹可打出成品布入库标签，标签正文是实测值（打通"收回匹根本打不出标签"的断链）；
@@ -248,7 +248,7 @@ async fn seed_base(db: &Arc<sea_orm::DatabaseConnection>) {
         status: Set("active".to_string()),
         is_deleted: Set(false),
         product_type: Set("fabric".to_string()),
-        // 主数据标称值哨兵：#220 口径禁止标签/匹行回落这里
+        // 主数据标称值哨兵： 口径禁止标签/匹行回落这里
         width: Set(Some(dec(NOMINAL_WIDTH))),
         gram_weight: Set(Some(dec(NOMINAL_GRAM))),
         created_at: Set(now()),
@@ -962,7 +962,7 @@ async fn pieces_list_returns_measured_columns_and_barcode() {
     // barcode **不在**本清单：生产全部产匹路径都按"由 piece_no 派生"落库
     // （piece_domain_service.rs:186/:657、fabric_inspection_service.rs:688、
     // piece_split_handler.rs:229），本文件 seed_parent:428 同口径写入 ⇒ 它恒非 null，
-    // 旧断言循环把它列进"缺值必须回 null"是测试自身矛盾（CI #4675 族F 实得
+    // 旧断言循环把它列进"缺值必须回 null"是测试自身矛盾（CI 族F 实得
     // barcode="OS220-L111" 判红）。双向覆盖：这里改钉"键存在 + 等于生产派生值"。
     for key in ["weight", "width", "gram_weight"] {
         assert!(

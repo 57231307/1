@@ -374,7 +374,7 @@ pub async fn record_count_items(
     Json(payload): Json<RecordItemsPayload>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——录入实盘前先校验资源归属（复用 P0-S01 的 get_count + data_scope_ctx），
+    // V15：IDOR 防护——录入实盘前先校验资源归属（复用 的 get_count + data_scope_ctx），
     // 与 update_count/delete_count 的「先 get_count(Some(&data_scope_ctx))」写法同源；
     // record_count_items 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权由 get_count 返回 403。
     let data_scope_ctx = auth.to_data_scope_context();
@@ -405,7 +405,7 @@ pub async fn submit_for_approval(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——提交审批前先校验资源归属（复用 P0-S01 的 get_count + data_scope_ctx），
+    // V15：IDOR 防护——提交审批前先校验资源归属（复用 的 get_count + data_scope_ctx），
     // 与 update_count/delete_count 的「先 get_count(Some(&data_scope_ctx))」写法同源；
     // submit_for_approval 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权由 get_count 返回 403。
     let data_scope_ctx = auth.to_data_scope_context();
@@ -447,7 +447,7 @@ pub async fn reject_count(
 
 /// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{3 位流水}`
 /// 流水位数与落库权威 `InventoryCountService::create_count` 内
-/// `generate_no_with_txn("IC")`（默认 3 位）对齐；任务 #154 修复同前缀不同位数
+/// `generate_no_with_txn("IC")`（默认 3 位）对齐； 修复同前缀不同位数
 /// 导致列表与库内单号长度不一致（原展示 4 位）。
 /// 对应前端 api/inventory-count.ts 的 generateInventoryCountNo。
 pub async fn generate_no(

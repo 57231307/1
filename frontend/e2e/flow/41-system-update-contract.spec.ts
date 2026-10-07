@@ -1,4 +1,4 @@
-// 系统更新「契约级」e2e —— 锁住本轮功能改造不回退（任务 #122）
+// 系统更新「契约级」e2e —— 锁住本轮功能改造不回退
 //
 // 背景（已改源码、须被 e2e 真实锁住）：
 //   1) GET /system-update/tasks、GET /system-update/backups 原「错绑」返回单对象 / Vec<String>，

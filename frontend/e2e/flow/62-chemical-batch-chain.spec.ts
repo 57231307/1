@@ -21,7 +21,7 @@ import {
 import { fillFieldByLabel } from './ui-helpers';
 
 /**
- * 62 染化料台账 → 批次 → 领用 → 消耗/追溯链路（e2e 补齐 A 路）
+ * 62 染化料台账 → 批次 → 领用 → 消耗/追溯链路
  *
  * 端点真实性（catalog 域 merge 进 /api/v1/erp 根，routes/mod.rs:417；缸号在 production nest）：
  * - GET/POST     /chemicals、GET /chemicals/by-code/{code}、GET/PUT/DELETE /chemicals/{id}   routes/catalog.rs:151-168
@@ -46,7 +46,7 @@ import { fillFieldByLabel } from './ui-helpers';
  * （chemical-lots 按 chemical_id 过滤 + page_size=1）；软删除后 by-no 必须 404；
  * 二进制 xlsx/docx 全部走 verifyDownloadEndpointHealthy。
  *
- * 已知前端缺陷（本 spec 不编码、不改测试掩盖，详见交付报告）：
+ * 已知前端缺陷（本 spec 不编码 UI 创建链路、不改测试掩盖）：
  * ① chemicals/index.vue 批次弹窗提交 chemical_code/lot_date/quantity/status，后端必填
  *    chemical_id（chemical_ops/types.rs:158-176）→ UI 新建批次恒 4xx；
  * ② 分类弹窗提交 {name,parent_id}，后端必填 category_code/category_name/category_type
@@ -58,7 +58,7 @@ import { fillFieldByLabel } from './ui-helpers';
  */
 
 /**
- * 断言精确拒绝契约（收紧原「任意 4xx + 三族机器码来者不拒」的假绿）：
+ * 断言精确拒绝契约（拒绝「任意 4xx + 三族机器码来者不拒」式假绿）：
  * - HTTP 必须恰为 400（backend/utils/error.rs:356-373：ValidationError/BusinessError/
  *   BadRequest 全部映射 BAD_REQUEST 状态，本域拒绝不存在其它 4xx 分支）；
  * - 机器码逐条等于调用点期望族。chemical_ops 域写入方真相：
@@ -82,7 +82,7 @@ const today = (): string => new Date().toISOString().slice(0, 10);
  * 延迟清理队列（范式同 purchase/03 的 CREATED_ORDER_IDS + afterEach、finance/01 的 CLEANUP[]）：
  * 本 spec 大量用例在自建主数据上还留有后续读断言（by-code 回读、by-no 回读、分页真值、
  * 生产领用按缸号追溯等）。同步 tryCleanup 当场软删会让后端按 is_deleted=false 过滤后查不到行
- * → 回读 404 / 关联校验被拒 → 用例假红、曾被误判成后端缺陷（见 #4669/#4671）。
+ * → 回读 404 / 关联校验被拒 → 用例假红，且会被误判成后端缺陷。
  * 故所有 housekeeping 清理改为 deferCleanup 登记，统一在每条用例（全部断言之后）flush。
  */
 const CLEANUP: DeferredCleanup[] = [];
@@ -127,9 +127,9 @@ function requireItems(data: { items?: unknown }, endpoint: string): Array<Record
  *
  * 四维门控前置（dye_batch_handler.rs:203-254 resolve_dye_color_identity 函数体）：
  * color_no 非空 ⇒ 染色布 ⇒ dye_lot_no 必填，且 color_no 必须在色卡档案（color_card_item）
- * 中按 color_code 唯一可查，否则 400「色号…在色卡档案中不存在」。原 seed 提交未入档的
- * 编造色号 `E2E-CN62xxxx` 且缺 dye_lot_no，被正当门控拒绝——按本仓既有 seed 范式
- * （10a-extended-inventory-approval.spec.ts:175-181 / fabric/02-dye.spec.ts:43-49）补前置：
+ * 中按 color_code 唯一可查，否则 400「色号…在色卡档案中不存在」——未入档的编造色号
+ * 会被正当门控拒绝。seed 按本仓既有 seed 范式
+ * （10a-extended-inventory-approval.spec.ts:175-181 / fabric/02-dye.spec.ts:43-49）：
  * 先建专属色卡+唯一色号（值真实可追溯），再带统一取号器生成的缸号建批次。 */
 async function seedDyeBatch(page: import('@playwright/test').Page): Promise<number> {
   const batchNo = genCode('E2E-DB62');
@@ -285,7 +285,7 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     expect(Number(c1.data?.total_cost), '总成本 = 500 × 2.5 = 1250 落库').toBe(1250);
     expect(c1.data?.inspection_status, '新建批次检验状态应为 pending').toBe('pending');
     expect(c1.data?.status, '新建批次库存状态应为 active').toBe('active');
-    // 批次1 稍后还要 by-no 回读、分页第二页真值、pass-inspection 流转断言——当场软删会 404，登记之后再清理
+    // 稍后还要 by-no 回读、分页第二页真值、pass-inspection 流转断言——当场软删会 404，登记之后再清理
     deferCleanup(CLEANUP, 'DELETE', `/chemical-lots/${lot1}`, '[62] lot1');
 
     await apiCall(page, 'POST', '/chemical-lots', {
@@ -304,7 +304,7 @@ test.describe.serial('62 染化料台账→批次→领用→消耗/追溯链路
     expect(Number(byNo.id), 'by-no 应命中批次1').toBe(lot1);
     expect(Number(byNo.chemical_id), '批次须挂在自建化料下').toBe(chemId);
 
-    // 分页真值：chemical_id 精确过滤 + page_size=1，page2 必须返回较早的批次1（id 倒序，
+    // 分页真值：chemical_id 精确过滤 + page_size=1，page2 必须返回较早的（id 倒序，
     // 排序真相：chemical_ops/lot.rs list → order_by_desc(Id)）
     const p1 = await apiCallRaw<{ items: Array<Record<string, unknown>>; total: number }>(
       page,

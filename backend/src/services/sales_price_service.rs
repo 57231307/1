@@ -28,19 +28,18 @@ where
     Deserialize::deserialize(de).map(Some)
 }
 
-/// 手工维护销售价目的价格等级白名单（保守集）。
+/// 手工维护销售价目的价格等级白名单（保守集，仅一等品/二等品）。
 ///
 /// 词表**唯一来源**是 `inventory_stock_grade`（models/status/purchase_inventory.rs:308-320，
 /// 一等品/二等品/等外品）——该列的真实系统写入方与过滤消费方是质检降级联动
-/// （quality_inspection_service.rs:53-54 引用同一组词表常量）；抄字面量数组进来正是
-/// 本缺陷族（前端 A/B/C/D 伪词表）的成因，禁止。
-/// TODO(待用户终裁)：「等外品」(`inventory_stock_grade::OFF_GRADE`) 是否开放手工定价
-/// 入口尚未拍板（决策建议书 §5 裁定 2 保守推荐仅一等/二等），批了才扩白名单，本批不扩。
+/// （quality_inspection_service.rs:53-54 引用同一组词表常量）；抄字面量数组另立一套
+/// 词表必然与唯一来源漂移，故本白名单一律引用常量。「等外品」
+/// （`inventory_stock_grade::OFF_GRADE`）当前未开放手工定价入口，不在白名单内。
 const SALES_PRICE_LEVEL_ALLOWED: &[&str] =
     &[inventory_stock_grade::FIRST, inventory_stock_grade::SECOND];
 
 /// 价格等级入参白名单校验：空串/纯空白/缺键 ⇒ `None`（落 NULL = 标准价语义，见
-/// quality_inspection_service.rs:576 `PriceLevel.is_null()` 认标准价，不得把该语义
+/// quality_inspection_service.rs:711-725 `PriceLevel.is_null()` 认标准价，不得把该语义
 /// 改成空串）；合法值 trim 后原样返回；越界值 ⇒ 400 `VALIDATION_ERROR` 并回显允许值
 /// （范式照 handlers/inventory_stock_handler.rs:62-74 与销售侧 status 筛选校验）。
 fn validate_price_level_input(raw: Option<String>) -> Result<Option<String>, AppError> {
@@ -117,7 +116,7 @@ pub struct SalesPriceView {
 #[derive(Debug, Clone, Default)]
 pub struct SalesPriceQueryParams {
     pub product_id: Option<i32>,
-    /// 客户 ID 等值筛选（sales_prices.customer_id 真实列，前端筛选栏一直在传，此前后端不收）
+    /// 客户 ID 等值筛选（sales_prices.customer_id 真实列，对应前端筛选栏的客户筛选项）
     pub customer_id: Option<i32>,
     /// 关键词筛选：语义 =「产品名称/客户名称」模糊匹配（前端筛选栏承诺，见 handler SalesPriceQuery 注释）
     pub keyword: Option<String>,
@@ -153,13 +152,14 @@ pub struct UpdateSalesPriceInput {
     pub price: Option<Decimal>,
     pub currency: Option<String>,
     /// 价格等级：给合法值 = 改值；空串 ⇒ 视为未填（不改）；越界值 ⇒ 400。
-    /// 注：本键为透传通道，「显式 null 清空回标准价」未在本批裁定范围（三态统一见任务板 #169），交回列账。
+    /// 注：本键为透传通道（Option<String>，无 double_option）：显式 null 等同键缺席=保持原值，
+    /// 不支持「显式 null 清空回标准价」（可空列三态口径当前仅覆盖下方日期列）。
     pub price_level: Option<String>,
     pub min_order_qty: Option<Decimal>,
     /// 三态（effective_date 为 NOT NULL 列）：键缺席=不改、有值=改值、显式 null=拒绝（不能清空必填列）
     #[serde(default, deserialize_with = "double_option")]
     pub effective_date: Option<Option<String>>,
-    /// 三态（可空列统一口径，任务板 #169；照 department_service.rs:220-221 先例）：
+    /// 三态（可空列统一口径，照 department_service.rs:220-221 先例）
     /// 键缺席=保持原值、显式 null=清空为 NULL、有值=改值
     #[serde(default, deserialize_with = "double_option")]
     pub expiry_date: Option<Option<String>>,
@@ -183,7 +183,7 @@ impl SalesPriceService {
     ///    （列表侧 `SalesPriceView` 的 JOIN 名列如实 NULL 即其下游形态）；
     /// 2. 即便 FK 上线，23503 违约经 `AppError::From<DbErr>` 的 Exec 分支只落裸
     ///    500 `DATABASE_ERROR`（同 `inventory_reservation_service::create_reservation` 头注
-    ///    所述缺陷族），用户拿不到可外显的拒绝原因；引用不存在是「用户自己提交的字段非法」，
+    ///    所述 500 兜底问题），用户拿不到可外显的拒绝原因；引用不存在是「用户自己提交的字段非法」，
     ///    按 `utils/error.rs` 模块文档的铁律走 `AppError::validation_displayable`
     ///    （HTTP 400 + code=VALIDATION_ERROR，出参携带真实原因）。
     ///    可外显文案**只含资源名与操作指引、不含数据库记录 ID**——`utils/error.rs`
@@ -298,7 +298,7 @@ impl SalesPriceService {
             .column_as(customer::Column::CustomerName, "customer_name")
             .column_as(customer::Column::CustomerCode, "customer_code")
             .order_by(sales_price::Column::Id, Order::Desc)
-            // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+            // page clamp 防深分页 DoS：page 越界值夹到 [1,1000]
             .offset((params.page.clamp(1, 1000).saturating_sub(1) * params.page_size) as u64)
             .limit(params.page_size as u64)
             .into_model::<SalesPriceView>()
@@ -337,7 +337,7 @@ impl SalesPriceService {
             unit: Set(req.unit),
             price_type: Set(req.price_type),
             // 白名单校验后的等级：合法值 Some(v) 落库；空串/缺键 None 落 NULL——
-            // NULL 是"标准价"的既有语义载体（quality_inspection_service.rs:576 按
+            // NULL 是"标准价"的既有语义载体（quality_inspection_service.rs:711-725 按
             // price_level IS NULL 认标准价），不可写空串顶替。
             price_level: Set(validate_price_level_input(req.price_level)?),
             min_order_qty: Set(req.min_order_qty.unwrap_or_default()),
@@ -346,8 +346,8 @@ impl SalesPriceService {
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
                 .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?),
-            // 到期日与生效日同口径严格解析：此前 `.and_then(|d| d.parse().ok())` 把
-            // 非法日期串静默吞成 NULL（不报错、不落值），属"不静默"红线缺陷，改 fail-visible 400。
+            // 到期日与生效日同口径严格解析：非法日期串 fail-visible 抛 400，
+            // 不静默吞成 NULL（不报错、不落值的写法属"不静默"红线，禁止）。
             expiry_date: Set(req
                 .expiry_date
                 .map(|d| {
@@ -386,7 +386,7 @@ impl SalesPriceService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在批准销售价格，ID: {}", user_id, id);
 
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 状态机：先 lock_exclusive 再判定流转，串行化并发状态变更
         let txn = (*self.db).begin().await?;
 
         let price_model = sales_price::Entity::find_by_id(id)
@@ -412,8 +412,8 @@ impl SalesPriceService {
         price.approval_reason = Set(Some(approval_reason));
 
         // 使用 update_with_audit 在事务内同步写入审计日志
-        // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
-        // 批次 94 P2-11：审计日志为关键路径，错误已通过 ? 传播；去掉 let _ = 直接丢弃 ActiveModel 返回值
+        // 返回的 ActiveModel 有意忽略（更新意图已通过 Set 表达），语句尾 `?` 只传播错误；
+        // 审计日志属关键路径，失败必须中断流转而非被 let _ = 吞掉。
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
             "auto_audit",
@@ -557,7 +557,7 @@ impl SalesPriceService {
                 .parse()
                 .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?);
         }
-        // expiry_date 三态（可空列统一清空口径，任务板 #169；写法照 department_service.rs:258-261
+        // expiry_date 三态（可空列统一清空口径；写法照 department_service.rs:258-261
         // 的三态注释）：None=不 Set（列保持原值）/ Some(None)=Set(None) 清空为 NULL /
         // Some(Some(d))=严格解析后覆盖，非法日期 400，绝不静默。
         match req.expiry_date {
@@ -575,10 +575,10 @@ impl SalesPriceService {
         Ok(updated)
     }
 
-    /// 删除销售价格（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际删除人。）
+    /// 删除销售价格。`user_id` 为真实操作人，透传给审计日志以追溯实际删除人。
     pub async fn delete_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("删除销售价格，ID: {}，操作人: {}", id, user_id);
-        // P0 8-3 修复：delete 操作补审计日志
+        // 删除走 delete_with_audit 落审计日志（user_id 即操作人）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             sales_price::Entity,
             _,

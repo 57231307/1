@@ -1,8 +1,8 @@
-//! 契约波次 7 · 活库列形态锁（information_schema 断言，run #4671 W1 交付）
+//! 契约波次 7 · 活库列形态锁（information_schema 断言， W1 交付）
 //!
 //! 终结的静默失效机制：`ALTER TABLE ... ADD COLUMN IF NOT EXISTS ... NOT NULL/DEFAULT/
 //! 数组类型` 在**列已存在**时被 PG 恒 no-op 吞掉——迁移文本写了约束/类型，真实列
-//! 却是先建域的裸定义（可空标量）。#4671 实证两族：
+//! 却是先建域的裸定义（可空标量）。 实证两族
 //! - customers.owner_id：system/mod.rs:229 裸 `INTEGER` 先生效，finance/mod.rs:109 的
 //!   `NOT NULL DEFAULT 0` 恒 no-op ⇒ NULL 行使 `customers_isolation` RLS 判据
 //!   （owner_id=… OR owner_id=0）两侧皆 unknown，公海/历史行对所有人不可见
@@ -296,7 +296,7 @@ async fn no_customer_row_can_have_null_owner_id() {
 // ===========================================================================
 
 /// 后果 A 修复面：写入路径不设 owner_id（ActiveValue NotSet ⇒ INSERT 省略该列）
-/// 必须由库默认取 0（公海）并正常回读——#4671 `Missing value for column 'owner_id'`
+/// 必须由库默认取 0（公海）并正常回读—— `Missing value for column 'owner_id'`
 /// 三红的正向对照锁。禁止改成夹具补 Set(0)（那只会掩盖默认值缺失的库形态）。
 #[tokio::test]
 async fn customer_insert_without_owner_id_defaults_to_pool_zero() {
@@ -385,7 +385,7 @@ async fn crm_lead_tags_roundtrip_as_text_array() {
         .expect("原生回读失败");
     // PG `array_length()` 返回 INT4（integer），按 Option<i64>（INT8）解码会撞
     // 运行期 ColumnDecode "mismatched types; Rust type Option<i64> (as SQL type
-    // INT8) is not compatible with SQL type INT4"（#4672 §A.3 绿转红根因，
+    // INT8) is not compatible with SQL type INT4"（§A.3 绿转红根因，
     // b7e33b52 引入本段时写错解码类型；被测 tags 往返功能本身无涉）。
     assert_eq!(
         empty[0]

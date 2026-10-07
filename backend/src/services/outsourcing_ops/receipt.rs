@@ -169,7 +169,7 @@ impl OutsourcingReceiptService {
     /// 校验创建请求：委外订单存在 + 成品存在 + 收回单号唯一
     ///
     /// "单号重复/缺前置"两类拒绝均属可执行公开规则 → business_displayable 可外显族
-    /// （先例：#165 流程编码、chemical_ops 编码族）；文案只回显用户自己提交的
+    /// （先例： 流程编码、chemical_ops 编码族）；文案只回显用户自己提交的
     /// 单号/ID，不含表名/约束名/其它记录字段；真因同步落 WARN，不静默。
     async fn validate_create_request(
         db: &sea_orm::DatabaseConnection,
@@ -266,7 +266,7 @@ impl OutsourcingReceiptService {
                     .unwrap_or_else(|| outsourcing_receipt_quality_status::PENDING.to_string()),
             )),
             grade: Set(req.grade.clone()),
-            // 实测值三列如实落库（#220 补录链的采集点）：有值必落、无值落 NULL。
+            // 实测值三列如实落库（补录链的采集点）：有值必落、无值落 NULL。
             // 这里不写 unwrap_or(ZERO)、不查 products 标称值——那等于伪造实测档案
             // （口径见 m0075 文件头与 models/outsourcing_receipt.rs 列注释）。
             weight: Set(req.weight),
@@ -521,7 +521,7 @@ impl OutsourcingReceiptService {
                 product_id: updated_receipt.product_id,
                 warehouse_id: updated_receipt.warehouse_id,
                 length_m: updated_receipt.return_quantity,
-                // #220 实测值补录链：收回单登记的三列实测值逐列透传给匹行（同一单据同一事务，
+                // 实测值补录链：收回单登记的三列实测值逐列透传给匹行（同一单据同一事务，
                 // 不做二次读取/不做主数据回落）；NULL 原样透传 ⇒ 标签继续按缺值点名拒绝。
                 weight: updated_receipt.weight,
                 width: updated_receipt.width,

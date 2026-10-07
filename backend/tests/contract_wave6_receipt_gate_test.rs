@@ -27,7 +27,7 @@
 //! - **禁止"配置未开即放行"旁路**：源码扫描锁④钉死门控链路上不存在任何 config/feature/
 //!   setting 判定分支。
 //!
-//! 覆盖策略（路线一，#4669 判责；无 mock、真实 service 调用，全部跑真 PostgreSQL）：
+//! 覆盖策略（路线一， 判责；无 mock、真实 service 调用，全部跑真 PostgreSQL）
 //! - 表结构唯一来源 = backend/migration（不再自建 DDL）。结算入口
 //!   （auto_generate_from_receipt）对 REJECTED/PENDING/词表外/PASSED 四向判定与错误信封
 //!   （400+BUSINESS_ERROR+真实文案）；PASSED 正向不再用"sqlite 缺表旁证"——真库

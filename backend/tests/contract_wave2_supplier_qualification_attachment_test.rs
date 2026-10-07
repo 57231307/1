@@ -1,4 +1,4 @@
-//! 供应商资质附件真上传写侧契约锁（任务 260929：attachment_path 由手敲文本改为真上传）
+//! 供应商资质附件真上传写侧契约锁：attachment_path 只接受服务端上传生成的受控 URL，非手敲文本
 //!
 //! 锁定的缺陷与修复（现状实证：全页无 el-upload，文本框直写 VARCHAR(500)，超限裸 500）：
 //! - 新端点 `POST /purchase/suppliers/{supplier_id}/qualifications/{qualification_id}/attachment`
@@ -15,7 +15,7 @@
 //!   7. 读取端点 `GET .../attachment` 与双键归属同源（错配对读取同样可见文案拒绝）。
 //! - 病毒扫描边界：CLAMAV_ENABLED 未启用时 warn 日志跳过（本仓禁止静默；CI 环境不联网扫描）。
 //!
-//! 覆盖策略（路线一，#4669 判责；表结构唯一来源 = backend/migration，不自建 DDL）：
+//! 覆盖策略（路线一， 判责；表结构唯一来源 = backend/migration，不自建 DDL）
 //! - 全部用例经 `test_common::setup_test_db()` 打已迁移 PostgreSQL；真实 handler 端到端
 //!   （tower oneshot + AuthContext 注入层）。注意 `suppliers` 属迁移种子参照表
 //!   （SEALED，不清空）：本文件不写显式 id、不自造与迁移演示行（id 1/2）冲突的主键，

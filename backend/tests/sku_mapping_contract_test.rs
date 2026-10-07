@@ -12,13 +12,13 @@
 //!   `AppError::business` 真实文案不外显（防止调货模型泄露到销售可见面）。
 //! - 前端契约：resolve 返回对象不带 `.mapping` 包裹、列表 DTO 用 `color_no`。
 //!
-//! 说明（前提订正，#4671 判责 B3"前提过期"族）：`setup_test_db` 已真库化——
+//! 说明（前提订正， 判责 B3"前提过期"族）：`setup_test_db` 已真库化——
 //! 语义为「已迁移 PostgreSQL（`TEST_DATABASE_URL` 必填，缺失即 panic，禁 sqlite 回退）
 //! + 业务表 TRUNCATE」，本文件的 `#[ignore]` 真库姊妹用例由 CI ignored 专用 job
 //! （`sku_mapping_integration_test.rs`）真实执行。本文件为纯静态/序列化契约锁，
 //! 不依赖 DB。所有源码扫描断言统一在"剥整行注释后的文本"上判定（正向必备项
 //! 走 canon 规范形防折行/尾逗号脆断，负向禁项只剥注释不 canon），防止
-//! "注释命中禁词=假判违例"与"注释里有 needle=假绿"两个方向（#4671 §2.2 B1 三形态）。
+//! "注释命中禁词=假判违例"与"注释里有 needle=假绿"两个方向（§2.2 B1 三形态）。
 
 use bingxi_backend::services::sku_mapping_service::{ImportMappingResult, ResolvedSku};
 use bingxi_backend::utils::error::AppError;
@@ -145,7 +145,7 @@ fn validate_refs_each_branch_uses_validation_error() {
     // 空白归一 + 消尾逗号后再 contains：源码里 `AppError::validation(format!( … ))`
     // 与多行 `_displayable("…",)` 调用被 rustfmt 拆行后，末实参/末元素必带 `,`，
     // 单行字面 needle 或"仅去空白"都会因折行尾逗号假失败
-    // （CI #4671 分片 p6 本用例恒红的根因：`validation_displayable("…",)` 的尾逗号，
+    // （CI 分片 p6 本用例恒红的根因：`validation_displayable("…",)` 的尾逗号，
     // 源码正确，测断言写法过脆）。契约只要求「该失败分支确实写了」，
     // 与折行/缩进/尾逗号无关。仅用于正向 contains（负向 !contains 不套 canon）。
     let body_c = canon(body);
@@ -316,7 +316,7 @@ fn po_hook_only_triggers_on_source_sales_order() {
 fn sales_order_item_model_has_no_supplier_fields() {
     // 保密禁项只看执行体：本模型当前无任何 supplier 词元（代码与注释均无）；
     // 若未来有人在**文档注释**里写"本模型刻意不含 supplier 字段"，
-    // 原文扫描会把这条正确自述假判成违例（#4671 B1① crm_pool_handler 同型）。
+    // 原文扫描会把这条正确自述假判成违例（B1① crm_pool_handler 同型）。
     // 真正的字段回潮一定以代码行出现，剥注释后照样红——判据不放松。
     let code = code_only(SALES_ITEM_SRC);
     let lower = code.to_lowercase();
@@ -396,7 +396,7 @@ fn code_only(src: &str) -> String {
 
 /// 规范形（**仅用于正向 contains / 定位**）：`code_only` 后剔全部空白并消闭合
 /// 定界符前的尾逗号/尾分号前逗号（rustfmt 把长调用拆多行后末实参必带 `,`，
-/// 是折行必然产物非语义——#4671 `validate_refs_each_branch` 恒假的根因）。
+/// 是折行必然产物非语义—— `validate_refs_each_branch` 恒假的根因）。
 /// 负向 `!contains` 一律只用 `code_only` 原文：去空白扩大匹配面，会把"不含"
 /// 误判成"含"，不参与判定语义。
 fn canon(src: &str) -> String {

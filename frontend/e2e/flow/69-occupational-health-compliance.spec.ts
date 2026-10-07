@@ -55,10 +55,10 @@ import { findTableRow } from './ui-helpers';
  *    日志里那条 422→400 `missing field hazard_type`
  *    （backend.log xr19:11850/11853/11854）正是这条负例的预期拒绝，不是建单失败；
  * ② 「过期扫描」按钮真实调用 POST /ppe-distributions/scan-expired；
- * ③ **曾有缺陷（#4671 69-02 判红，本批已在源码侧修复）**：危害监测/PPE 表格列曾由 index.vue
+ * ③ **曾有缺陷（69-02 判红，本批已在源码侧修复）**：危害监测/PPE 表格列曾由 index.vue
  *    `colsOf(rows, ['id'], 6)` 采样——取 JSON 键序前 6 个非对象键，而 serde_json 序列化
  *    Model 时键按字母序排 ⇒ 实际渲染 created_at/created_by/exceeding_ratio/hazard_name/
- *    hazard_type/is_exceeding，**监测点位 monitoring_point 永不渲染**（#4671 69-02 失败现场
+ * hazard_type/is_exceeding，**监测点位 monitoring_point 永不渲染**（69-02 失败现场
  *    ARIA 快照实证）。用户看不到危害监测的核心维度，属功能缺陷；现视图显式声明列
  *    （HAZARD_COLUMNS / PPE_COLUMNS，prop 逐一对齐后端 Model），本 spec 的表头断言 +
  *    行内容断言即该修复的活体回归锁，禁止反过来删断言换绿。
@@ -358,7 +358,7 @@ test.describe.serial('69 职业健康合规：危害监测 + 体检档案 + PPE 
       `UI 行应回读 hazard_name=苯，实际行文本=${JSON.stringify(ownRowText)}`
     ).toContain('苯');
 
-    // —— 列渲染回归锁（#4671 69-02 真红根因，已在源码侧修复，此断言防回潮）——
+    // —— 列渲染回归锁（69-02 真红根因，已在源码侧修复，此断言防回潮）——
     // 该用例当时失败的原因既不是"没提交 hazard_type"（该键自始随 POST 提交，并已在上面 API
     // 回读处逐字段断过落库=chemical），也不是时序：失败现场 ARIA 快照实证表头渲染为
     // created at | created by | exceeding ratio | hazard name | hazard type | is exceeding

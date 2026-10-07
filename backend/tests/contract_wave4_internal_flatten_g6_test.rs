@@ -1,4 +1,4 @@
-//! G6（PR #942 清理波）internal 重包拍平缺陷契约测
+//! G6（清理波）internal 重包拍平缺陷契约测
 //!
 //! 缺陷本体：`AppError::internal(format!("{e}"))` / `AppError::internal(e.to_string())`
 //! 包裹**已经返回 AppError 或已可归类**的调用，把服务层的 400/403/404 拍平成 500，

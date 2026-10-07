@@ -1,10 +1,10 @@
 //! 任务 wave5：色卡"发放"门控契约锁（闸门 1 不再比一个永不出现的状态值）
-//! + 任务 2：custom_order_process_service 流程节点状态常量化源码扫描锁
+//! + custom_order_process_service 流程节点状态必须引用权威常量的源码扫描锁
 //!
 //! 坐实的断裂（修复前恒 400，发放链路对所有真实色卡恒失败，与 98f3bb0b 色号创建门同根因）：
 //! - `color_card_issue_service.rs` 闸门 1 比较裸字面量 `"active"`；
 //! - 但色卡权威词表 `color_card::ALL`（models/status/wage_energy_chemical_business.rs:157）
-//!   不含 active，DB CHECK `chk_color_card_status`（migration v15 mod.rs:4493-4498）已把
+//!   不含 active，DB CHECK `chk_color_card_status`（backend/migration/src/domain/v15/mod.rs:4493-4498）已把
 //!   历史 active 回填为 draft，且没有任何端点能把色卡写成 active；
 //! - 发放流转权威 `validate_color_card_status_transition`（color_card_crud_service.rs:335）
 //!   仅允许 `DRAFT → ISSUED` ⇒ 发放门放行集合 = `{draft}`；
@@ -16,7 +16,7 @@
 //!   外显"只有草稿态色卡可以发放"）；含库存数字/超期条数/客户状态 token 的其余闸门
 //!   维持脱敏 `business`。
 //!
-//! 覆盖策略（路线一，#4669 判责；表结构唯一来源 = backend/migration，不自建 DDL）：
+//! 覆盖策略（路线一， 判责；表结构唯一来源 = backend/migration，不自建 DDL）
 //! - 全部数据用例走 `test_common::setup_test_db()`（已迁移 PG + 清空业务表）：
 //!   反向 issued/archived 卡 → CardNotIssuable + 400 契约 + 零落库；
 //!   legacy `active` 死值按裁定 R2 做**双层锁**（真 PG 的 `chk_color_card_status`
@@ -172,7 +172,7 @@ async fn issue_rejected_on_archived_card() {
 #[tokio::test]
 async fn issue_rejected_on_legacy_active_dead_value() {
     // 'active' 不在 card_status::ALL / DB CHECK 内（迁移已回填为 draft）。
-    // 裁定 R2（#4669 判责）：真 PG 下"库里存在 active 脏行"这一前置**不可能成立**
+    // 裁定 R2（判责）：真 PG 下"库里存在 active 脏行"这一前置**不可能成立**
     // （chk_color_card_status 23514 直接拒写），故本用例做双层锁，缺一层即回归：
     //
     // ── 活库层：把 legacy 死值写进色卡状态列，必须被数据库拒绝且整笔零落库/零漂移 ──
@@ -375,7 +375,7 @@ fn source_scan_issue_gate_no_dead_active_and_tokens_from_word_list() {
 }
 
 // =========================================================
-// 4) 任务 2 扫描锁：custom_order_process_service.rs 状态必须引常量
+// 4) 源码扫描锁：custom_order_process_service.rs 节点状态必须引常量
 // =========================================================
 
 #[test]

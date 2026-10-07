@@ -208,7 +208,7 @@ test.describe('13 报价翻译回读', () => {
     await expect(row, `列表应能筛出本例自建单 ${source.quotation_no}`).toBeVisible({
       timeout: 30000,
     });
-    // 判责 #4669 K-1（测试定位器错写，功能实已接出）：「复制为新单」入口真实存在——
+    // 判责 K-1（测试定位器错写，功能实已接出）：「复制为新单」入口真实存在——
     // list.vue:124-126 goCopy 按钮恒渲染（可见性与"查看"一致），文案键
     // quotations.list.copy 的 zh 值为「复制」（zh-CN.ts:7853），非「复制为新单」；
     // getByRole name 按子串匹配，「复制为新单」永远不包含于「复制」→ CI 30s click 超时。

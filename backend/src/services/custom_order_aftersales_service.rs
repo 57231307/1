@@ -29,7 +29,7 @@ use crate::utils::pagination::paginate_with_total;
 ///
 /// DB 侧 CHECK `chk_aftersales_status`（`migration/src/domain/production/
 /// m0044_integrate_unreferenced_migrations.rs:251`）目前缺 `accepted`/`evaluated`
-/// 两态 ⇒ 写这两态撞 CHECK 被裸映射成 500（CI #4669 用例 65-01 的
+/// 两态 ⇒ 写这两态撞 CHECK 被裸映射成 500（CI 用例 65-01 的
 /// `PUT /custom-orders/after-sales/{id}`）。补齐 CHECK 属迁移改动，
 /// 已随本轮报告列出取值集合与 up/down 写法交数据库专家，此处不自写迁移。
 const AFTERSALES_TRANSITIONS: &[(&str, &[&str])] = &[
@@ -68,14 +68,10 @@ const AFTERSALES_TRANSITIONS: &[(&str, &[&str])] = &[
 
 /// 创建售后工单 DTO
 ///
-/// 任务 #148 契约修复：`custom_order_id`（工单归属）由路由
-/// `POST /custom-orders/{orderId}/after-sales` 的 path 参数权威提供，不再属于
-/// 请求体字段。此前该字段为非 Option 必填且无 serde default，前端 payload 从不
-/// 携带它，导致反序列化层 "missing field custom_order_id" —— 创建必失败；而
-/// handler 又在反序列化成功后用 path 值覆盖 body 值，body 携带本无任何语义。
-/// 若客户端仍在 body 发送 `custom_order_id`（含伪造他人订单 ID），serde 默认忽略
-/// 未知字段，归属一律以 path 为准（越权防护不变，对齐 color_card items 先例：
-/// `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)`）。
+/// `custom_order_id`（工单归属）由路由 `POST /custom-orders/{orderId}/after-sales` 的
+/// path 参数权威提供，不属于请求体字段；若客户端仍在 body 发送 `custom_order_id`
+/// （含伪造他人订单 ID），serde 默认忽略未知字段，归属一律以 path 为准（越权防护，
+/// 与 `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)` 同型）。
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CreateAfterSalesDto {
     pub customer_id: i32,
@@ -83,11 +79,11 @@ pub struct CreateAfterSalesDto {
     pub issue_type: String,
     pub description: String,
     pub refund_amount: Option<Decimal>,
-    /// V15 P0-B12：可选关联已有质量异常 ID
+    /// 可选关联已有质量异常 ID
     pub quality_issue_id: Option<i64>,
-    /// V15 P1 batch-19 缺陷 23.3.3：原因分类（quality/logistics/customer_preference/other）
+    /// 原因分类（quality/logistics/customer_preference/other）
     pub reason_category: Option<String>,
-    /// V15 P1 batch-19 缺陷 23.3.3：原因明细
+    /// 原因明细
     pub reason_detail: Option<String>,
 }
 
@@ -110,10 +106,10 @@ pub enum AfterSalesError {
     Validation(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
-    /// 批次 263：接入 paginate_with_total（返回 AppError）所需的错误转换
+    /// 接入 paginate_with_total（返回 AppError）所需的错误转换
     #[error("应用错误: {0}")]
     App(#[from] AppError),
-    /// V15 P0-B12：售后工单已关联质量异常，禁止重复触发
+    /// 售后工单已关联质量异常，禁止重复触发
     #[error("售后工单 {0} 已关联质量异常 {1}，禁止重复触发质量调查")]
     AlreadyLinked(i64, i64),
 }
@@ -136,18 +132,16 @@ impl CustomOrderAfterSalesService {
 
     /// 创建售后工单
     ///
-    /// 任务 #148：`custom_order_id` 由调用方（handler）从路由 path 参数权威传入，
+    /// `custom_order_id` 由调用方（handler）从路由 path 参数权威传入，
     /// 不从请求体 DTO 取值，客户端 body 伪造归属被结构性排除。
     pub async fn create(
         &self,
         custom_order_id: i64,
         dto: CreateAfterSalesDto,
     ) -> Result<after_sales::Model, AfterSalesError> {
-        // 校验售后类型
-        // V15 P2 23.3 缺陷1 修复：增加 return_goods（退货）类型。
-        // 原因：审计计划 23.3 要求支持退货/换货/维修/投诉 4 类，原实现仅有
-        // complaint/repair/exchange/refund，缺失"退货"独立类型；退货涉及物流收货、
-        // 库存回库，与退款（财务出账）是不同业务。此处保留 refund 以兼容既有场景。
+        // 校验售后类型：退货/换货/维修/投诉为四类业务面；退货涉及物流收货、
+        // 库存回库，与退款（财务出账）是不同业务，故 return_goods 独立成类，
+        // refund 保留以兼容既有场景。
         if !["complaint", "repair", "exchange", "return_goods", "refund"]
             .contains(&dto.issue_type.as_str())
         {
@@ -253,8 +247,21 @@ impl CustomOrderAfterSalesService {
         Ok(updated)
     }
 
-    /// V15 P0-B12：触发质量调查
-    /// 根据售后工单信息自动创建一条 quality_issue 记录，并回填 quality_issue_id 到售后工单。；用于售后→质量改进闭环：客诉/维修/换货类售后工单可触发质量调查，避免同类问题重复发生。；业务规则：1. 售后工单必须存在且未关闭（status != closed/rejected）；2. 售后工单不能已关联 quality_issue_id（禁止重复触发，避免产生冗余质量异常）；3. 自动创建的 quality_issue 字段映射：custom_order_id：从售后工单继承；issue_type："after_sales_reported"（售后上报）；severity：根据售后类型推断（complaint=high / repair=medium / exchange=low / refund=high）；description：售后工单描述；discovered_at：当前时间；status："open"；4. 注：8D 流程（quality_8d_service）当前不存在，本方法仅创建 quality_issue 记录，；8D 触发部分待后续批次补齐；参数说明：`after_sales_id`：售后工单 ID；`severity_override`：可选严重程度覆盖（high/medium/low），None 时按售后类型自动推断；返回：(更新后的售后工单, 新创建的质量异常)
+    /// 触发质量调查：根据售后工单信息自动创建一条 quality_issue 记录，并回填
+    /// quality_issue_id 到售后工单；用于售后→质量改进闭环——客诉/维修/换货类售后
+    /// 工单可触发质量调查，避免同类问题重复发生。
+    /// 业务规则：
+    /// 1. 售后工单必须存在且未关闭（status != closed/rejected，终态归 InvalidState 业务族）；
+    /// 2. 售后工单不能已关联 quality_issue_id（禁止重复触发，避免产生冗余质量异常）；
+    /// 3. 自动创建的 quality_issue 字段映射：custom_order_id 从售后工单继承；
+    ///    issue_type="after_sales_reported"（售后上报）；severity 取 severity_override，
+    ///    为 None 时按售后类型推断（complaint/refund=high、repair=medium、exchange=low、
+    ///    其余=medium）；description 为售后工单描述加工单号前缀；discovered_at 为当前
+    ///    时间；status="open"；
+    /// 4. 本方法只创建 quality_issue 记录，不启动 8D 流程（8D 主体在
+    ///    `services/quality_8d_service.rs`，与本方法无调用关系）。
+    /// 参数：`after_sales_id` 售后工单 ID；`severity_override` 可选严重程度覆盖
+    /// （high/medium/low）。返回：(更新后的售后工单, 新创建的质量异常)。
     pub async fn trigger_quality_investigation(
         &self,
         after_sales_id: i64,
@@ -268,8 +275,7 @@ impl CustomOrderAfterSalesService {
         // 校验：已关闭/已拒绝的售后工单不允许触发质量调查
         if existing.status == ext::AFTERSALES_CLOSED || existing.status == ext::AFTERSALES_REJECTED
         {
-            // 状态门：工单已处于关闭/拒绝终态，前置状态未满足，归业务族（InvalidState）；
-            // 原走 Validation 通道族与本域其余状态门不一致
+            // 状态门：工单已处于关闭/拒绝终态，前置状态未满足，归业务族（InvalidState）
             return Err(AfterSalesError::InvalidState(format!(
                 "售后工单状态为 {}，已关闭/拒绝的工单不允许触发质量调查",
                 existing.status
@@ -331,7 +337,7 @@ impl CustomOrderAfterSalesService {
     /// `into_model::<AfterSalesInfo>()`（本仓唯一正解范式，对照
     /// `services/po/order_ops/crud.rs::list_orders`），客户名由 JOIN 结果忠实回显，
     /// 客户行缺失时 `customer_name` 为 NULL，禁止逐项再查或拼装假名。
-    /// 批次 263：paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1；
+    /// paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1；
     /// clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
     pub async fn list_by_order(
         &self,
@@ -368,7 +374,7 @@ impl CustomOrderAfterSalesService {
         Ok(dto)
     }
 
-    /// V15 P1 batch-19 缺陷 23.3.2：受理售后工单（opened → accepted）
+    /// 受理售后工单（opened → accepted）
     pub async fn accept_after_sales(&self, id: i64) -> Result<after_sales::Model, AfterSalesError> {
         let txn = self.db.begin().await?;
         let existing = Entity::find_by_id(id)
@@ -393,7 +399,7 @@ impl CustomOrderAfterSalesService {
         Ok(updated)
     }
 
-    /// V15 P1 batch-19 缺陷 23.3.2：客户评价售后处理结果（resolved → evaluated）
+    /// 客户评价售后处理结果（resolved → evaluated）
     pub async fn evaluate_after_sales(
         &self,
         id: i64,
@@ -431,7 +437,7 @@ impl CustomOrderAfterSalesService {
         Ok(updated)
     }
 
-    /// V15 P1 batch-19 缺陷 23.3.3：生成售后原因 TOP5 月报
+    /// 生成售后原因 TOP5 月报（按 reason_category/reason_detail 聚合当年当月计数，取前 5）
     pub async fn monthly_top5_report(
         &self,
         year: i32,
@@ -489,7 +495,7 @@ impl CustomOrderAfterSalesService {
     }
 }
 
-/// V15 P1 batch-19 缺陷 23.3.3：售后 TOP5 原因月报 DTO
+/// 售后 TOP5 原因月报 DTO
 #[derive(Debug, Serialize)]
 pub struct MonthlyTop5Report {
     pub year: i32,
@@ -497,7 +503,7 @@ pub struct MonthlyTop5Report {
     pub items: Vec<Top5ReasonItem>,
 }
 
-/// V15 P1 batch-19 缺陷 23.3.3：TOP5 原因项
+/// TOP5 原因项
 #[derive(Debug, Serialize)]
 pub struct Top5ReasonItem {
     pub reason_category: String,

@@ -13,7 +13,7 @@ export interface ProcessDefinition {
   version?: string;
   status: 'draft' | 'active' | 'suspended' | 'deprecated';
   category?: string;
-  // 批次 98 P2-D 修复（v5 复审）：原 any 改为 Record<string, unknown>，动态 JSON Schema 字段
+  // 动态 JSON Schema 字段：类型用 Record<string, unknown>，不用 any
   form_schema?: Record<string, unknown>;
   nodes?: ProcessNode[];
   // 后端持久化真源：节点存于 config.nodes（bpm_service.rs:141 resolve_first_task_node），
@@ -49,8 +49,9 @@ export interface ProcessVersion {
  * 流程模板行（GET /bpm/templates 真实形状，唯一真相：bpm_definition_handler.rs
  * page_to_frontend_json → model_to_frontend_json：模板即 category='__TEMPLATE__' 的
  * bpm_process_definition 记录，行列与流程定义完全同构）。
- * 后端不返回 template_key/template_name/icon/usage_count/process_definition（此前为臆造键，
- * 读取处恒 undefined；usage_count 统计为后端缺口，已登记串行清单）。
+ * 后端不返回 template_key/template_name/icon/usage_count/process_definition 等键
+ * （GET /bpm/templates 出参 = 流程定义行列，无模板专属键），类型因此不声明它们；
+ * usage_count 统计后端尚未实现。
  */
 export type ProcessTemplate = ProcessDefinition;
 
@@ -184,9 +185,9 @@ export interface ApprovalTaskPage {
   page_size: number;
 }
 
-// D14 Batch 5b：原 bpmEnhancedApi.listDefinitions 转为风格 B 函数
+// 流程定义分页列表（GET /bpm/definitions）
 // 查询键唯一真相：bpm_dto.rs ProcessDefinitionQuery{category,status,page,page_size}；
-// 后端无 keyword 参数（名称模糊搜索为后端缺口，登记串行清单），前端不得声明被静默丢弃的键。
+// 后端无 keyword 参数（名称模糊搜索后端未提供），前端不得声明被静默丢弃的键。
 export const getBpmDefinitionList = (params?: {
   page?: number;
   page_size?: number;
@@ -194,71 +195,71 @@ export const getBpmDefinitionList = (params?: {
   status?: string;
 }) => request.get<ApiResponse<ProcessDefinitionPage>>('/bpm/definitions', { params });
 
-// D14 Batch 5b：原 bpmEnhancedApi.getDefinition 转为风格 B 函数
+// 单个流程定义（GET /bpm/definitions/{id}）
 export const getBpmDefinitionById = (id: number) =>
   request.get<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`);
 
-// D14 Batch 5b：原 bpmEnhancedApi.createDefinition 转为风格 B 函数
+// 创建流程定义（POST /bpm/definitions）
 // 载荷 name/code 必填见 CreateProcessDefinitionPayload（后端 DTO 非 Option，禁止 Partial 掩盖）
 export const createBpmDefinition = (data: CreateProcessDefinitionPayload) =>
   request.post<ApiResponse<ProcessDefinition>>('/bpm/definitions', data);
 
-// D14 Batch 5b：原 bpmEnhancedApi.updateDefinition 转为风格 B 函数
+// 更新流程定义（PUT /bpm/definitions/{id}）
 export const updateBpmDefinition = (id: number, data: UpdateProcessDefinitionPayload) =>
   request.put<ApiResponse<ProcessDefinition>>(`/bpm/definitions/${id}`, data);
 
-// D14 Batch 5b：原 bpmEnhancedApi.deleteDefinition 转为风格 B 函数
+// 删除流程定义（DELETE /bpm/definitions/{id}）
 export const deleteBpmDefinition = (id: number) =>
   request.delete<ApiResponse<null>>(`/bpm/definitions/${id}`);
 
-// D14 Batch 5b：原 bpmEnhancedApi.createVersion 转为风格 B 函数
+// 为流程定义创建新版本（POST /bpm/definitions/{id}/versions）
 export const createBpmVersion = (definitionId: number, data?: { change_log?: string }) =>
   request.post<ApiResponse<ProcessVersion>>(`/bpm/definitions/${definitionId}/versions`, data);
 
-// D14 Batch 5b：原 bpmEnhancedApi.listVersions 转为风格 B 函数
+// 流程定义的版本列表（GET /bpm/definitions/{id}/versions）
 export const getBpmVersionList = (definitionId: number) =>
   request.get<ApiResponse<ProcessVersion[]>>(`/bpm/definitions/${definitionId}/versions`);
 
-// D14 Batch 5b：原 bpmEnhancedApi.activateVersion 转为风格 B 函数
+// 激活指定版本（POST /bpm/versions/{id}/activate）
 export const activateBpmVersion = (versionId: number) =>
   request.post<ApiResponse<null>>(`/bpm/versions/${versionId}/activate`);
 
-// D14 Batch 5b：原 bpmEnhancedApi.saveAsTemplate 转为风格 B 函数
+// 将流程定义存为模板（POST /bpm/definitions/{id}/template）
 export const saveBpmAsTemplate = (
   definitionId: number,
   data: { template_name: string; category: string; description?: string }
 ) => request.post<ApiResponse<ProcessTemplate>>(`/bpm/definitions/${definitionId}/template`, data);
 
-// D14 Batch 5b：原 bpmEnhancedApi.listTemplates 转为风格 B 函数
+// 模板分页列表（GET /bpm/templates）
 // 查询键唯一真相：bpm_dto.rs TemplateQuery{page,page_size}；后端不读 category
-// （模板分类与 usage_count 统计为后端缺口，登记串行清单），前端不得声明被静默丢弃的键。
+// （模板分类与 usage_count 统计后端未提供），前端不得声明被静默丢弃的键。
 export const getBpmTemplateList = (params?: { page?: number; page_size?: number }) =>
   request.get<ApiResponse<ProcessTemplatePage>>('/bpm/templates', { params });
 
-// D14 Batch 5b：原 bpmEnhancedApi.getTemplate 转为风格 B 函数
+// 单个模板（GET /bpm/templates/{id}）
 export const getBpmTemplateById = (id: number) =>
   request.get<ApiResponse<ProcessTemplate>>(`/bpm/templates/${id}`);
 
-// D14 Batch 5b：原 bpmEnhancedApi.createFromTemplate 转为风格 B 函数
+// 从模板创建新流程定义（POST /bpm/templates/{id}/create）：
 // 后端 create_from_template(template_id, Json<CreateProcessDefinitionRequest>)：name/code 必填
-// （批次 199 P1-6 后请求体真实生效，客户端字段优先、缺省回退模板值），
+// （请求体真实生效：客户端字段优先、缺省回退模板值），
 // 未提供 config 时继承模板 config.nodes，故载荷必带新流程的 name+code。
 export const createBpmFromTemplate = (templateId: number, data: CreateProcessDefinitionPayload) =>
   request.post<ApiResponse<ProcessDefinition>>(`/bpm/templates/${templateId}/create`, data);
 
-// D14 Batch 5b：原 bpmEnhancedApi.deleteTemplate 转为风格 B 函数
+// 删除模板（DELETE /bpm/templates/{id}）
 export const deleteBpmTemplate = (id: number) =>
   request.delete<ApiResponse<null>>(`/bpm/templates/${id}`);
 
-// D14 Batch 5b：原 bpmEnhancedApi.getPendingTasks 转为风格 B 函数
+// 待办任务分页列表（GET /bpm/tasks/pending）
 export const getBpmPendingTaskList = (params?: { page?: number; page_size?: number }) =>
   request.get<ApiResponse<ApprovalTaskPage>>('/bpm/tasks/pending', { params });
 
-// D14 Batch 5b：原 bpmEnhancedApi.getCompletedTasks 转为风格 B 函数
+// 已办任务分页列表（GET /bpm/tasks/completed）
 export const getBpmCompletedTaskList = (params?: { page?: number; page_size?: number }) =>
   request.get<ApiResponse<ApprovalTaskPage>>('/bpm/tasks/completed', { params });
 
-// D14 Batch 5b：原 bpmEnhancedApi.executeApproval 转为风格 B 函数
+// 执行审批（POST /bpm/approval/execute，action 取值域 approve/reject）
 // 请求体字段与后端 ExecuteApprovalRequest 逐字一致（缺 handler_id/handler_name 会 422）
 export const executeBpmApproval = (data: ApprovalAction) =>
   request.post<ApiResponse<string>>('/bpm/approval/execute', data);
@@ -267,6 +268,6 @@ export const executeBpmApproval = (data: ApprovalAction) =>
 export const transferBpmEnhancedTask = (taskId: number, data: TransferTaskAction) =>
   request.post<ApiResponse<string>>(`/bpm/tasks/${taskId}/transfer`, data);
 
-// D14 Batch 5b：原 bpmEnhancedApi.getApprovalChain 转为风格 B 函数
+// 审批链节点列表（GET /bpm/instances/{id}/chain）
 export const getBpmEnhancedApprovalChain = (instanceId: number) =>
   request.get<ApiResponse<ApprovalChainNode[]>>(`/bpm/instances/${instanceId}/chain`);

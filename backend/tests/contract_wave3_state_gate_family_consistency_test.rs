@@ -1,4 +1,4 @@
-//! 任务 #165 跨域状态门族一致性契约测（先例形态：contract_wave2_reservation_error_mapping_test.rs）
+//! 跨域状态门族一致性契约测（先例形态：contract_wave2_reservation_error_mapping_test.rs）
 //!
 //! 锁三例 + 一道防回潮源码扫描：
 //! 1. BOM 重复提交审核（记录已处于「审核中」）——真实 `BomService::submit` 打

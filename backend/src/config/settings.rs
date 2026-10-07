@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use tracing::{error, warn};
 
-/// 进程级 `UpdateConfig` 单例（任务 #121）：`AppSettings::new()` 校验通过后写入，
+/// 进程级 `UpdateConfig` 单例：`AppSettings::new` 校验通过后写入，
 /// `SystemUpdateService`（无状态构造，`new()` 不带参数）与 SSRF 域名白名单由此读取
 /// 下载镜像清单 / 校验开关，避免把第二套配置常量散落到下载链路。
 /// 未加载配置时 `global_update_config()` 回退 [`UpdateConfig::default`]（官方优先 + 强校验 +
@@ -23,7 +23,7 @@ fn set_global_update_config(cfg: UpdateConfig) {
     let _ = GLOBAL_UPDATE_CONFIG.set(cfg);
 }
 
-/// 进程级环保税适用税额单例（决策定案 #6）：`AppSettings::new()` 解析完成后写入，
+/// 进程级环保税适用税额单例：`AppSettings::new` 解析完成后写入，
 /// 环保税计税链路（`handlers/environmental_tax_handler.rs` → `EnvironmentalTaxService`）
 /// 由此读取部署配置的地方适用税额（元/污染当量），避免在业务代码里出现第二套手写税额常量。
 ///
@@ -46,7 +46,7 @@ pub struct AppSettings {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     /// 认证配置（`#[serde(default)]` 允许 auth 段缺失，由环境变量填充）。
-    /// 批次 261 修复：缺失时走 `AuthConfig::default()`，由 `load_sensitive_from_env()` 从 JWT_SECRET 等填充。
+    /// 缺失时走 `AuthConfig::default()`，由 `load_sensitive_from_env()` 从 JWT_SECRET 等填充。
     #[serde(default)]
     pub auth: AuthConfig,
     pub log: LogConfig,
@@ -58,15 +58,15 @@ pub struct AppSettings {
     /// `#[serde(default)]` 保证老配置无需补充 kafka 段即可解析（默认 Broadcast 模式）。
     #[serde(default)]
     pub kafka: KafkaSettings,
-    /// 慢查询采集配置（部署-3 修复，默认 enabled=true，每 5 分钟采集 pg_stat_statements）。
+    /// 慢查询采集配置（默认 enabled=true，每 5 分钟采集 pg_stat_statements）。
     /// 扩展未安装时静默 warn 失败不阻断启动；CI/单机环境可在配置中关闭。
     #[serde(default)]
     pub slow_query: SlowQuerySettings,
-    /// 面料行业配置（V15 Batch05-P1-2：6 个核心配置项，支持环境变量覆盖）
+    /// 面料行业配置（6 个核心配置项，支持环境变量覆盖）
     /// 缺失时走 [`FabricIndustryConfig::default()`]，关键配置（如 dyehouse_vat_count）由 main.rs fail-fast 校验。
     #[serde(default)]
     pub fabric_industry: FabricIndustryConfig,
-    /// 系统更新下载配置（任务 #121：多镜像加速 + 官方 SHA-256 强校验，防镜像投毒）。
+    /// 系统更新下载配置（多镜像加速 + 官方 SHA-256 强校验，防镜像投毒）。
     /// `#[serde(default)]`：缺失 update 段时走 [`UpdateConfig::default`]（官方优先 + 强校验 +
     /// 启用内置公共默认加速镜像），老配置无需补充即可解析。运维显式镜像清单来自 `config.update.mirrors`
     /// / 环境变量 `UPDATE__MIRRORS`；内置默认加速镜像（`DEFAULT_RELEASE_MIRRORS`）由
@@ -103,7 +103,7 @@ pub struct DatabaseConfig {
     pub max_connections: u32,
 }
 
-/// 认证配置（批次 261：派生 `Default` 支持 `#[serde(default)]`）。
+/// 认证配置（派生 `Default` 支持 `#[serde(default)]`）。
 /// 默认 `jwt_secret=""` 会被 `validate_secret()` 拒绝，确保未配置时 fail-fast。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct AuthConfig {
@@ -113,11 +113,11 @@ pub struct AuthConfig {
     pub jwt_secret: String,
     pub previous_jwt_secret: Option<String>,
     pub cookie_secret: Option<String>,
-    /// M-2 修复：独立 Webhook HMAC 密钥，与 JWT_SECRET 分离（防泄露后 webhook 被伪造）。
+    /// 独立 Webhook HMAC 密钥，与 JWT_SECRET 分离（防泄露后 webhook 被伪造）。
     /// None 时 fallback 到 `webhook.inherit_jwt_secret`（默认 false），启动时 fail-fast 要求显式配置。
     #[serde(default)]
     pub webhook_secret: Option<String>,
-    /// M-2 修复：是否允许 webhook 复用 JWT_SECRET（仅用于迁移期，默认 false）
+    /// 是否允许 webhook 复用 JWT_SECRET（仅用于迁移期，默认 false）
     #[serde(default)]
     #[allow(dead_code, reason = "预留配置字段")]
     pub webhook_inherit_jwt_secret: bool,
@@ -127,7 +127,7 @@ pub struct AuthConfig {
 pub struct LogConfig {
     pub level: String,
     pub dir: String,
-    /// V15 P1 20.8-B：日志文件保留天数（默认 90 天），过期文件由 LogCleanupService 自动清理
+    /// 日志文件保留天数（默认 90 天），过期文件由 LogCleanupService 自动清理
     #[serde(default = "default_log_retention_days")]
     pub retention_days: i32,
 }
@@ -177,7 +177,7 @@ impl Default for KafkaSettings {
     }
 }
 
-/// 慢查询采集配置（部署-3 修复，默认 enabled=true，每 5 分钟采集 pg_stat_statements）。
+/// 慢查询采集配置（默认 enabled=true，每 5 分钟采集 pg_stat_statements）。
 /// 扩展未安装时 warn 失败不阻断；interval/threshold/limit 可调。
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -245,10 +245,9 @@ impl Default for CorsConfig {
     }
 }
 
-/// 面料行业配置（V15 Batch05-P1-2：6 个核心配置项，支持环境变量覆盖）。
+/// 面料行业配置（6 个核心配置项，支持环境变量覆盖）。
 ///
-/// 依据：V15 审计报告 类五 P1（batch-05 维度 5.5：配置依赖闭环 缺陷项 1）
-/// 业务背景：面料行业 6 个核心配置完全缺失，影响业务可配置性：
+/// 业务背景：面料行业 6 个核心配置项支撑业务可配置性：
 ///   1. DYEHOUSE_VAT_COUNT（染缸设备数）：配置染厂染缸总数，影响排缸算法和产能统计
 ///   2. PROCESS_UNIT_PRICE_BASE（工序单价基准）：工序单价基准，避免硬编码
 ///   3. ENERGY_ALLOCATION_RULE（能耗分摊规则）：能耗分摊规则（duration 按工时/quantity 按产量）
@@ -287,7 +286,7 @@ impl Default for FabricIndustryConfig {
     }
 }
 
-/// 更新下载镜像优先策略（任务 #121）。
+/// 更新下载镜像优先策略。
 /// 无论选择哪种顺序，官方域（github.com / objects.githubusercontent.com）永远列入候选并作为最终兜底。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -326,7 +325,7 @@ impl Default for MirrorOrder {
 pub(crate) const DEFAULT_RELEASE_MIRRORS: &[&str] =
     &["https://gh-proxy.com", "https://mirror.ghproxy.com"];
 
-/// 系统更新下载配置（任务 #121：多镜像加速 + 官方强校验，防镜像投毒）。
+/// 系统更新下载配置（多镜像加速 + 官方强校验，防镜像投毒）。
 ///
 /// 信任模型（安全红线，违反即引入 RCE）：
 /// - `mirrors` **只用于搬运大 tar 字节**；校验基准永远只从官方域取（见 `github.rs` / facade），
@@ -381,11 +380,11 @@ impl AppSettings {
         Self::load_cors_from_env(&mut app_settings);
         Self::load_database_config(&mut app_settings);
         Self::load_update_from_env(&mut app_settings);
-        // 任务 #121：镜像清单 fail-fast 校验（非法 https/内网/IP 字面量 → 拒绝启动），
+        // 镜像清单 fail-fast 校验（非法 https/内网/IP 字面量 → 拒绝启动），
         // 校验通过后再写入进程级单例供下载链路读取，避免带病镜像进入运行期。
         Self::validate_update_mirrors(&app_settings)?;
         set_global_update_config(app_settings.update.clone());
-        // 决策定案 #6：环保税适用税额（地方可变值）写入进程级单例供计税链路读取；
+        // 环保税适用税额（地方可变值）写入进程级单例供计税链路读取；
         // None（未配置）同样是合法部署态——计税端点会显式失败，不在此处报错、不 panic。
         set_global_env_tax_rate(app_settings.env_tax_rate_per_equivalent);
         Ok(app_settings)
@@ -443,7 +442,7 @@ impl AppSettings {
         error!("═══════════════════════════════════════════════════════════════");
     }
 
-    /// 将 config.yaml 的 env 字段同步到 APP_ENV 环境变量（批次 398 修复）。
+    /// 将 config.yaml 的 env 字段同步到 APP_ENV 环境变量。
     fn sync_env_variable(app_settings: &AppSettings) {
         // 优先级：APP_ENV 环境变量 > config.yaml env 字段（环境变量已设置时不覆盖）
         if std::env::var("APP_ENV").is_err() {
@@ -460,7 +459,7 @@ impl AppSettings {
         }
     }
 
-    /// 校验 JWT/COOKIE/WEBHOOK 密钥强度（v5 审计批次 21：WEBHOOK 也纳入校验）。
+    /// 校验 JWT/COOKIE/WEBHOOK 密钥强度（COOKIE/WEBHOOK 仅在其存在时校验）。
     fn validate_secrets(app_settings: &AppSettings) -> Result<(), ConfigError> {
         if !Self::validate_secret(&app_settings.auth.jwt_secret) {
             return Err(ConfigError::Message(
@@ -533,7 +532,7 @@ impl AppSettings {
         }
     }
 
-    /// 任务 #121：从环境变量覆盖 `update` 段（仿 `load_cors_from_env` 逗号分隔范式）。
+    /// 从环境变量覆盖 `update` 段（仿 `load_cors_from_env` 逗号分隔范式）。
     /// - `UPDATE__MIRRORS`：逗号分隔的镜像 base URL 列表（覆盖 config.yaml mirrors）。
     /// - `UPDATE__USE_DEFAULT_MIRRORS`：`true/1/yes/on`→启用内置默认镜像 /
     ///   `false/0/no/off`→关闭；其它值保持默认（true）。
@@ -599,7 +598,7 @@ impl AppSettings {
         }
     }
 
-    /// 任务 #121：启动 fail-fast 校验 `update.mirrors`（配置错误绝不容忍到运行期被利用）。
+    /// 启动 fail-fast 校验 `update.mirrors`（配置错误绝不容忍到运行期被利用）。
     /// 每个镜像必须满足：
     /// 1. 合法**绝对 URL** 且 scheme=https；
     /// 2. host 非 IP 字面量（镜像须为域名，禁裸 IP 绕过 DNS/SSRF 判定）；
@@ -681,15 +680,15 @@ impl AppSettings {
             self.auth.previous_jwt_secret = Some(prev_secret);
         }
 
-        // v5 审计批次 21：WEBHOOK_SECRET 从环境变量加载（原仅靠 config.yaml，
-        // 部署场景下 webhook_secret 缺失会静默走 inherit_jwt_secret 兜底）
+        // WEBHOOK_SECRET 支持环境变量填充：仅靠 config.yaml 时，部署场景下
+        // webhook_secret 缺失会静默走 inherit_jwt_secret 兜底。
         if let Ok(webhook_secret) = std::env::var("WEBHOOK_SECRET") {
             self.auth.webhook_secret = Some(webhook_secret);
         }
 
-        // v5 审计批次 21：AUDIT_SECRET_KEY 走 validate_secret 校验
-        // 原仅做长度校验（< 32 字节），无法拦截 placeholder/change-me 等弱模式密钥。
-        // 改用 validate_secret 后，与 JWT_SECRET / COOKIE_SECRET 共享同一套强度校验。
+        // AUDIT_SECRET_KEY 走 validate_secret 强度校验（而非仅长度 < 32 判断），
+        // 与 JWT_SECRET / COOKIE_SECRET 共享同一套规则，可拦截 placeholder/change-me
+        // 等弱模式密钥。
         if let Ok(audit_secret) = std::env::var("AUDIT_SECRET_KEY") {
             if !Self::validate_secret(&audit_secret) {
                 return Err(ConfigError::Message(
@@ -723,7 +722,7 @@ impl AppSettings {
             }
         }
 
-        // P0-D15：BINGXI_PORT 环境变量覆盖 config.yaml 的 server.port
+        // BINGXI_PORT 环境变量覆盖 config.yaml 的 server.port
         // 用途：双实例蓝绿部署时，bingxi-backend@blue.service 用 8082，
         // bingxi-backend@green.service 用 8083，通过环境变量区分实例端口。
         if let Ok(v) = std::env::var("BINGXI_PORT") {
@@ -732,7 +731,7 @@ impl AppSettings {
             }
         }
 
-        // V15 Batch05-P1-2：面料行业配置从环境变量覆盖（6 个核心配置项）
+        // 面料行业配置从环境变量覆盖（6 个核心配置项）
         // 优先级：环境变量 > config.yaml > 默认值
         if let Ok(v) = std::env::var("DYEHOUSE_VAT_COUNT") {
             if let Ok(parsed) = v.trim().parse::<i32>() {
@@ -771,7 +770,7 @@ impl AppSettings {
             }
         }
 
-        // 决策定案 #6：环保税适用税额（元/污染当量，地方可变值）从环境变量覆盖
+        // 环保税适用税额（元/污染当量，地方可变值）从环境变量覆盖
         // （优先级：ENV_TAX_RATE_PER_EQUIVALENT 环境变量 > config.yaml 顶层字段 > 未配置=None）。
         // 未配置保持 None：计税端点显式失败（**不取任何默认税额**）；
         // 配置了但解析失败记显式 WARN 后同样保持 None——两种形态都会在计税时给出真实错误，
@@ -794,9 +793,9 @@ impl AppSettings {
             return false;
         }
 
-        // 弱密钥黑名单：覆盖常见占位符、文档示例、默认密钥模式
-        // v5 审计批次 21 扩展：新增 your_/your_jwt_secret/your_cookie_secret 等
-        // 占位符前缀，以及 placeholder/change-me/at-least-32 等文档示例片段，
+        // 弱密钥黑名单：覆盖常见占位符、文档示例、默认密钥模式——
+        // 含 your_/your_jwt_secret/your_cookie_secret 等占位符前缀，
+        // 以及 placeholder/change-me/at-least-32 等文档示例片段，
         // 防止 .env.example 或文档示例被原样复制到生产环境。
         // 该黑名单适用于 JWT_SECRET / COOKIE_SECRET / WEBHOOK_SECRET / AUDIT_SECRET_KEY。
         let weak_patterns = [
@@ -839,7 +838,7 @@ impl AppSettings {
 }
 
 // =====================================================
-// 任务 #121：内置默认加速镜像配置不变量单测（静态、不触网）
+// 内置默认加速镜像配置不变量单测（静态、不触网）
 // =====================================================
 #[cfg(test)]
 mod default_mirrors_tests {

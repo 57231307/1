@@ -10,7 +10,7 @@
 //! - `backend/src/handlers/crm_handler.rs:328-341`（HTTP 层：先 get_lead(Some(&ctx)) 归属门禁，
 //!   再 service.delete_lead；出参 data=="删除成功" biz_msg::DELETE_OK）
 //!
-//! 覆盖策略（路线一，#4669 判责；表结构唯一来源 = backend/migration，不再自建 DDL）：
+//! 覆盖策略（路线一， 判责；表结构唯一来源 = backend/migration，不再自建 DDL）
 //! - 全部用例经 `test_common::setup_test_db()` 打已迁移 PostgreSQL；service 层与
 //!   HTTP handler 层各锁一遍 400/200/403。`crm_opportunity` 的 customer/lead 双 FK
 //!   为真实约束（`fk_crm_opportunity_customer`/`fk_crm_opportunity_lead`），引用行

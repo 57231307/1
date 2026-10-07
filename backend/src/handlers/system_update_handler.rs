@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use tokio::fs;
 use validator::Validate;
 
-/// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志。
+/// 要求调用者具备 admin 角色，否则拒绝并记录审计日志。
 /// 系统更新属高危操作（二进制替换/版本回滚可致 RCE），需 handler 层显式校验防中间件被绕过。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
@@ -137,7 +137,7 @@ pub async fn download_and_update(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：远程下载并应用更新属高危操作，仅 admin 可执行
+    // 远程下载并应用更新属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let service = SystemUpdateService::new();
@@ -186,7 +186,7 @@ pub async fn upload_and_update(
     auth: AuthContext,
     multipart: Multipart,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：上传并应用更新包属高危操作（可导致 RCE），仅 admin 可执行
+    // 上传并应用更新包属高危操作（可导致 RCE），仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let update_file = extract_update_file_from_multipart(multipart).await?;
@@ -284,7 +284,7 @@ fn cleanup_file(path: &PathBuf) {
 fn map_update_error(e: UpdateError) -> AppError {
     let message = e.to_string();
     match e {
-        // 任务 #121：完整性/校验值错误属服务端安全护栏判定，映射为 internal（与 facade
+        // 完整性/校验值错误属服务端安全护栏判定，映射为 internal（与 facade
         // From<UpdateError> 一致，不外泄细节），真实原因已在 tracing 中文日志留痕。
         UpdateError::IoError(_)
         | UpdateError::UnzipError(_)
@@ -310,7 +310,7 @@ pub async fn rollback_version(
     auth: AuthContext,
     Json(payload): Json<RollbackRequest>,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：版本回滚属高危操作，仅 admin 可执行
+    // 版本回滚属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let service = SystemUpdateService::new();
@@ -385,7 +385,7 @@ pub async fn apply_local_update(
     auth: AuthContext,
     Json(payload): Json<ApplyLocalUpdateRequest>,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：应用本地更新包属高危操作，仅 admin 可执行
+    // 应用本地更新包属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let service = SystemUpdateService::new();

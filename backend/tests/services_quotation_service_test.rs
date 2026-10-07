@@ -55,7 +55,7 @@ fn sample_dto() -> CreateQuotationDto {
 // ============ ServiceError 枚举值正确性测试 ============
 
 /// test_serviceerror_display_gszq
-/// 族镜像锁（任务 #165）：报价域 `ServiceError::InvalidState` 是「前置状态未满足」状态门，
+/// 族镜像锁：报价域 `ServiceError::InvalidState` 是「前置状态未满足」状态门，
 /// handler 的 `From<ServiceError> for AppError` 装配点必须出 BUSINESS_ERROR 且外显真实文案
 /// （修复前出 VALIDATION_ERROR，前端按 code 分支时把业务拒绝当"我填错了"）。
 /// 断言跟随源码现状：`AppError::business_displayable("当前状态不允许此操作")`。
@@ -293,7 +293,7 @@ async fn test_quotationservice_new_zqcysjklj() {
 }
 
 /// test_quotationservice_get_by_id_ksjkfherr —— 真库化夹具前提校准
-/// （#4672 判责 §A.1；手法照抄 600e5640 的 confirm/get_receipt 收紧范本）：
+/// （判责 §A.1；手法照抄 600e5640 的 confirm/get_receipt 收紧范本）
 /// 钉"已建库空表上 get_by_id 不存在记录 ⇒ Err(NotFound)，而非 panic"。
 ///
 /// 真实契约依据（读函数体）：`src/services/quotation_ops/crud.rs:317-322`
@@ -326,7 +326,7 @@ async fn test_quotationservice_get_by_id_ksjkfherr() {
 /// 走 `paginate_with_total`（`utils/pagination.rs:17-23` fetch_page=[] /
 /// num_items=0）⇒ `Ok(([], 0))`；`attach_names` 对空入参早退 Ok
 /// （crud.rs:274-276）。原断 `is_err()` 是把真库化夹具当"空 SQLite 无 schema"的
-/// 过期前提（#4672 判责 §A.1 点名本行 p3 红签名 `assertion failed:
+/// 过期前提（判责 §A.1 点名本行 p3 红签名 `assertion failed
 /// result.is_err()`）。schema 缺失的报错形态不属本条职责（本文件无该防线需求，
 /// 负前提交集已由 ap_payment/production_order 族在 `bingxi_empty` 上统一钉死）。
 #[tokio::test]
@@ -346,7 +346,7 @@ async fn test_quotationservice_list_ksjkfherr() {
 }
 
 /// test_quotationservice_cancel_bczfhapperror —— 真库化前提校准 + 收紧为机器码
-/// （#4672 判责 §A.1 同族；范本见 600e5640 ap_payment confirm 条）：
+/// （判责 §A.1 同族；范本见 600e5640 ap_payment confirm 条）
 /// 钉"已建库空表上 cancel 不存在的单 ⇒ NOT_FOUND 机器码，而非 panic"。
 ///
 /// 真实契约依据：`src/services/quotation_ops/lifecycle.rs:20-26` begin 后

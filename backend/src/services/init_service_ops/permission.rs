@@ -4,7 +4,7 @@
 //! - create_default_role_permissions：为全部角色创建 role_permission 权限矩阵（覆盖 60+ 资源 × 11 操作码）
 //! - create_default_role_conflicts：初始化默认角色互斥规则（SoD 职责分离）
 //!
-//! 授权落库口径（CI run #4675 E6 根修，本模块唯一判据）：矩阵的幂等按**角色 × (resource,action)
+//! 授权落库口径（E6 根修，本模块唯一判据）：矩阵的幂等按**角色 × (resource,action)
 //! 逐条对账**，不再用"role_permissions 表整体有行就跳过"；三类缺口一律 fail-visible 点名报错，
 //! 不许静默 skip 后返回成功——① 资源码不在 `PERMISSION_RESOURCES` 注册表（授予也是死码）、
 //! ② 角色码在 roles 表解析不到（上游建角色链断）、③ 写后"应写 vs 实写"对账不足。
@@ -12,7 +12,7 @@
 //! 且新角色码必须同步在 `role.rs::create_default_roles` 在册、新资源码必须已在
 //! `PERMISSION_RESOURCES` 登记，闸门①②会对违约直接判红。
 //!
-//! E6 的因果分工（避免下个改动把根因认错）：CI #4675 里业务授权没落库的**直接**原因是
+//! E6 的因果分工（避免下个改动把根因认错）：CI 里业务授权没落库的**直接**原因是
 //! `init_service_ops/role.rs::create_default_roles` 旧写法"admin 已存在即整体早退"，
 //! 矩阵 37 个角色码里只有 2 个能在 roles 表解析到；本模块的 `count>0` 整体跳过守卫是
 //! **第二道**会吞授权的雷（存量库或已被迁移/e2e 授过部分码时重放 init 必然吞掉首建），
@@ -126,7 +126,7 @@ pub fn find_unregistered_matrix_resources(
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）。
     ///
-    /// 幂等与可观测性口径（CI run #4675 根修，见本模块顶部说明）：
+    /// 幂等与可观测性口径（根修，见本模块顶部说明）
     /// - 幂等**按角色逐条 (resource,action) 对账**：库里已有的角色级授权跳过（可重入、不重复插），
     ///   库里缺失的组合补齐。旧的全表 `count>0 即整体跳过` 会把"迁移/e2e 半截补建的少量授权行"
     ///   误当成全矩阵已落地，从而吞掉 production-orders 等业务授权的首建（本条是 E6 的第二道雷，
@@ -671,7 +671,7 @@ impl InitService {
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
                     // 产品分类树（同为我方内部主数据；对照表维护页挂载即拉
-                    // GET /product-categories/tree，缺码该页对采购岗恒 403 —— CI #4671
+                    // GET /product-categories/tree，缺码该页对采购岗恒 403 —— CI
                     // 矩阵 purchaser 真缺口，裁定 R-6：补真实种子而非前端降级隐藏）
                     ("product-categories", "read"),
                     ("reports", "read"),
@@ -744,7 +744,7 @@ impl InitService {
                     // （GET /inventory/pieces/{id}/print）。键名 `pieces:read` / `pieces:print`
                     // 由 URL 段推导（middleware/permission.rs::extract_resource_info 对模块前缀
                     // inventory 取 segment4），与 `inventory:*` 不同源、不被其覆盖；
-                    // 缺码则非 admin 的库存经理整页 403（本波 #217 匹号选择器、#220 标签即此形态）。
+                    // 缺码则非 admin 的库存经理整页 403（本波 匹号选择器、 标签即此形态）。
                     // 存量库由迁移 m0069 同口径补授，e2e 侧由 global-setup 的
                     // SEED_ROLE_EXTRA_PERMISSIONS 同口径补授，三处清单一致性由
                     // tests/contract_wave7_piece_permission_grant_test.rs 双向钉。
@@ -971,7 +971,7 @@ impl InitService {
                     ("dye-batches", "read"),
                     ("products", "read"),
                     ("quality-standards", "read"),
-                    // 打卷员是本岗产出成品布的打印人（#220 成品布入库标签）
+                    // 打卷员是本岗产出成品布的打印人（成品布入库标签）
                     ("pieces", "read"),
                     ("pieces", "print"),
                 ],

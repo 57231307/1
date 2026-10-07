@@ -1,24 +1,24 @@
-//! 采购质检结论词表强校验 + 完成质检同事务回写入库单检验状态 契约锁（PR #942 wave5）
+//! 采购质检结论词表强校验 + 完成质检同事务回写入库单检验状态 契约锁
 //!
-//! 权威链（本锁的唯一判据，全部经实地取证坐实，路径基准仓库根）：
+//! 权威链（本锁的唯一判据，路径基准仓库根）：
 //! - `purchase_inspection.inspection_result` 列的真实写入方是前端「完成」三连 prompt
 //!   的结论采集：`frontend/src/views/purchase-inspection/composables/usePiProc.ts`
 //!   （inputPattern 由 `frontend/src/utils/purchase-inspection-result.ts` 的权威常量
 //!   构造，原样提交 token）；真实落库 token 全集 = pass / fail / partial。
 //! - 本域权威词表 `backend/src/models/status/purchase_inventory.rs::purchase_inspection_result`
 //!   与前端常量逐字同源；后端完成校验与「结论→入库单检验状态」映射共用该表的
-//!   `to_receipt_inspection_status`（Some ⟺ 词表内），杜绝"校验一套、映射另一套"漂移。
+//!   `to_receipt_inspection_status`（Some ⟺ 词表内），校验与映射同源、不漂移。
 //! - 通用质检记录域 `quality_inspection_records.inspection_result` 的中文词表
 //!   `quality_inspection_result`（待检/合格/不合格）服务的是**另一张表**
 //!   （见 `backend/src/services/quality_inspection_service.rs::sync_receipt_inspection_status`）。
 //!   跨域借用它校验本列会把 pass/fail/partial 这些合法生产数据判成非法——本锁反向钉死
 //!   两个方向：中文 token 对本列非法；采购质检服务源码不得再引用通用域词表/映射。
-//! - 生产行为佐证（已提交 e2e，不随本锁改动）：`frontend/e2e/purchase/04-inspection.spec.ts`
+//! - 生产行为佐证（e2e 用例）：`frontend/e2e/purchase/04-inspection.spec.ts`
 //!   UI 三连 prompt 送 pass/partial 并断成功；`frontend/e2e/fullflow/22-inspection-to-return.spec.ts`
 //!   送 pass/fail 并回读落库原值；`frontend/e2e/purchase/11-return-from-inspection.spec.ts`
 //!   送 fail。三处 token 与本域词表逐字符一致。
 //!
-//! 回写映射裁定（入库词表 purchase_receipt_inspection 只有大写三态）：
+//! 回写映射（入库词表 purchase_receipt_inspection 只有大写三态）：
 //! - pass → PASSED（「质检合格：允许后续入库/结算流转」）；
 //! - fail → REJECTED（「质检不合格：不得入库/结算，唯一下游处置出口是采购退货」）；
 //! - partial → REJECTED：部分合格≠整批合格，按 PASSED 放行即兜底开门；PENDING 语义为
@@ -27,20 +27,19 @@
 //!   落入 REJECTED 后本域唯一处置通道是采购退货（无让步接收改判端点）；精确结论 partial 无损保留在本列。
 //!   依据原文见 `purchase_inspection_result::to_receipt_inspection_status` 文档注释。
 //!
-//! 其余根因锁（前批坐实、形态保留）：
+//! 其余根因锁：
 //! - 完成链路的回写与质检落库同事务：回写失败或关联入库单缺失一律 `?` 上抛、整体回滚，
 //!   禁止"质检显示已完成但入库单状态未回写"的静默半成功。
 //! - 建单在任何写库动作（含取号）之前显式校验 receipt_id 指向的入库单存在，
 //!   不存在 → not_found（含 ID 的真实原因按 utils/error.rs 口径走脱敏族），不让外键裸 500 兜底。
 //!
-//! 覆盖策略（无 mock、真实 service 调用；路线一 #4669 判责：
-//! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）：
+//! 覆盖策略（无 mock、真实 service 调用；表结构唯一来源 = backend/migration，
+//! 不再自建 sqlite 同构表）：
 //! - 真 PostgreSQL（test_common::setup_test_db，连接已迁移库并清空业务表）：
 //!   非法结论拒绝（回查质检行与 count 无痕）、合法 token 不被词表判非法、
 //!   坏引用建单 404（先于取号）；purchase_receipt 的 FK 父行
-//!   （suppliers/warehouses，裁定 R1）由夹具自种子，不指望环境已有数据；
-//! - 完成成功链路含 `lock_exclusive()`（先例：
-//!   contract_wave1_ap_payment_error_mapping_test.rs 同口径行锁）→ 三 token 完整接受、回写与
+//!   （suppliers/warehouses）由夹具自种子，不指望环境已有数据；
+//! - 完成成功链路含 `lock_exclusive()`（同口径行锁）→ 三 token 完整接受、回写与
 //!   回滚行为用 `#[ignore]` 活库用例（TEST_DATABASE_URL→已迁移 PG，ci-test-rust-ignored
 //!   执行；夹具缺 TEST_DATABASE_URL 直接 panic，禁止条件跳过假绿）。
 //! - 防回潮源码扫描（include_str!）：白名单校验必须先于任何 Set/begin；回写必须在同一
@@ -390,7 +389,7 @@ async fn live_complete_accepts_domain_tokens_and_writes_back_receipt_status() {
     let svc = PurchaseInspectionService::new(Arc::new(db.clone()));
 
     // (结论本域 token, 期望入库单检验状态) —— 两侧均取权威常量，逐字符同源。
-    // partial→REJECTED 的裁定依据（入库词表仅三态、partial 与 fail 同走退货/让步通道、
+    // partial→REJECTED 的判定依据（入库词表仅三态、partial 与 fail 同走退货/让步通道、
     // PASSED 放行属兜底开门）见 purchase_inspection_result::to_receipt_inspection_status 注释。
     let cases = [
         (
@@ -606,7 +605,7 @@ fn purchase_inspection_result_vocabularies_are_character_identical() {
 
 /// 从源码截取一个 impl 内方法块：anchor 起，到首个以 4 空格缩进的 `}` 行
 /// （方法体内部行均 ≥8 空格缩进，首个 `\n    }` 即方法结束）。
-/// 先剔除 `\r`：Windows 工作树 CRLF 会使跨行 contains 断言漏检（先例 wave5 测试）。
+/// 先剔除 `\r`：Windows 工作树 CRLF 会使跨行 contains 断言漏检。
 fn extract_method(src: &str, anchor: &str) -> String {
     let src = src.replace('\r', "");
     let i = src

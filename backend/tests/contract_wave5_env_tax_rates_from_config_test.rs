@@ -1,4 +1,4 @@
-//! 环保税"污染当量值 / 适用税额"分源契约锁（PR #942 wave5 决策定案 #6）
+//! 环保税"污染当量值 / 适用税额"分源契约锁
 //!
 //! 权威链（本锁的唯一判据）：
 //! - **污染当量值＝法定不可调值**：唯一来源 `backend/src/constants/environmental_tax.rs`
@@ -21,8 +21,8 @@
 //!    `Decimal::from_parts(` 裸字面量（含旧硬编码税额 `Decimal::new(24, 1)` 与 `_ => 1kg`
 //!    兜底残留），且必须引用常量模块；常量模块内法定值逐项在场（防"删常量当迁移"）。
 //!
-//! 覆盖策略：纯函数注入 + 真 PostgreSQL（test_common::setup_test_db，路线一
-//! #4669 判责：表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）
+//! 覆盖策略：纯函数注入 + 真 PostgreSQL（test_common::setup_test_db；
+//! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）
 //! 跑真实 service 全链路（无 mock）。
 
 mod test_common;

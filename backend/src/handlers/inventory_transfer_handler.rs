@@ -319,7 +319,7 @@ pub async fn delete_item(
 /// 生成库存调拨单号 GET /api/v1/erp/inventory/transfers/generate-no；单据号格式：`TRF{yyyyMMdd}{3 位流水}`
 /// 例如 `TRF20260514001`。前缀/位数与落库权威
 /// `generate_transfer_no`（inv/inventory_move.rs，impl_generate_no! "TRF"，默认 3 位）逐字一致，
-/// 任务 #154 修复展示码≠落库码双轨缺陷（原展示 "IT"/4 位）。
+/// 修复展示码≠落库码双轨缺陷（原展示 "IT"/4 位）。
 /// 数据库列 `inventory_transfers.transfer_no` 上的 `UNIQUE` 约束负责最终去重。
 pub async fn generate_no(
     State(state): State<AppState>,

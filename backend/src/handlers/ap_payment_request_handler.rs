@@ -107,7 +107,7 @@ pub async fn list_requests(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // D-4 收口（PR #942 波次）：admin 判定走本仓唯一权威源
+            // D-4 收口（波次）：admin 判定走本仓唯一权威源
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定——播种漂移时字面量要么静默剔 admin 字段（功能坏）、
             // 要么静默给其他角色扩权（越权）。判定在循环外的分支条件处、每请求至多一次

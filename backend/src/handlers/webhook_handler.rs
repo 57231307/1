@@ -205,7 +205,7 @@ pub async fn retry_webhook(
                 )))
             }
         }
-        // 批次 109 P1-2：trigger_webhook 返回的即是带真实 status/code 的 AppError
+        // P1-2：trigger_webhook 返回的即是带真实 status/code 的 AppError
         // （事件不匹配/已禁用→BusinessError 400、不存在→NotFound 404、越权→PermissionDenied 403、
         // 数据库故障→DatabaseError 500），一律原样透传，不再重包为 500 丢失语义。
         // AppError::into_response 会按各自族记录 WARN/ERROR 日志，无需在此重复脱敏包装。

@@ -240,10 +240,10 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     const id = ctx.salesOrderId;
     expect(id, '2-4 未产出销售订单，发货链路无从验证').toBeTruthy();
 
-    // 发货明细产品必须属于该订单行（#4669「订单外产品被静默按 0 单价/0 发货量」的
+    // 发货明细产品必须属于该订单行（「订单外产品被静默按 0 单价/0 发货量」的
     // 收口门控，so/delivery_ops/ship.rs::ensure_ship_items_belong_to_order，不许回退）：
     // 本订单由 2-4 报价单 convert 而来，订单行产品=报价行产品 ctx.quotationProductId。
-    // 旧写法发 ctx.productIds[0]||1（订单外产品）被门控正当拒绝（CI #4671 原文
+    // 旧写法发 ctx.productIds[0]||1（订单外产品）被门控正当拒绝（CI 原文
     // 「发货明细中存在该销售订单未包含的产品」）⇒ 正解是先回读订单明细、按订单行产品发货，
     // 并钉住「转单后订单行含报价行产品」这一契约，而不是放宽发货入参接受任意产品。
     const orderDetail = await apiCallRaw<{ items?: Array<{ product_id: number }> }>(

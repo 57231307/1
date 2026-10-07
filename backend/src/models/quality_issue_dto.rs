@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 //! 质量异常 DTO
-//!
-//! 设计依据：docs/superpowers/specs/2026-06-16-custom-order-design.md
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -10,13 +8,11 @@ use validator::Validate;
 
 /// 上报质量异常请求
 ///
-/// 契约修复（与任务 #148 CreateAfterSalesDto 先例同构）：`custom_order_id`（异常
-/// 归属）由路由 `POST /custom-orders/{orderId}/issues` 的 path 参数权威提供，不再
-/// 属于请求体字段。此前该字段为非 Option 必填且无 serde default，而 handler 又在
-/// 反序列化成功后用 path 值覆盖 body 值——body 携带本无任何语义，前端不发该键却
-/// 必在反序列化层报 missing field（上报 100% 失败）。若客户端仍在 body 发送
-/// `custom_order_id`（含伪造他人订单 ID），serde 默认忽略未知字段，归属一律以
-/// path 为准（越权防护不变，对齐 handlers/color_card/items.rs::create_color_item
+/// 与 `CreateAfterSalesDto` 同构：`custom_order_id`（异常归属）由路由
+/// `POST /custom-orders/{orderId}/issues` 的 path 参数权威提供
+/// （`handlers/custom_order_handler.rs::report_quality_issue`），不属于请求体字段，
+/// 结构性排除后伪造键被 serde 忽略，越权防护不依赖"反序列化后覆盖"。
+/// body 携带 `custom_order_id` 也无语义（对齐 handlers/color_card/items.rs::create_color_item
 /// 的 `service.create(id, dto)` 范式）。
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct ReportQualityIssueDto {

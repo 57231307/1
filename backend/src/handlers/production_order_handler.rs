@@ -31,7 +31,7 @@ use std::sync::Arc;
 
 /// 创建生产订单请求
 ///
-/// 单号禁手输（任务 #153 缺陷3）：DTO 上**不存在** order_no 字段，单号一律服务端取号
+/// 单号禁手输（缺陷3）：DTO 上**不存在** order_no 字段，单号一律服务端取号
 /// （`PO{YYYYMMDD}{3位流水}`，DocumentNumberGenerator），前端已同步不再传该字段。
 /// 旧客户端仍携带 order_no 时经 flatten 残差映射识别为非空字符串 → warn 日志（不静默、
 /// 不透传服务层）。本 handler 未采用 `Json<Value>` 全量透传形态，仅用 flatten 收集未声明键。
@@ -215,7 +215,7 @@ pub async fn create_production_order(
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     payload.validate().map_err(AppError::from)?;
 
-    // 单号禁手输（任务 #153 缺陷3）：DTO 无 order_no 字段、服务层请求结构无注入口，
+    // 单号禁手输（缺陷3）：DTO 无 order_no 字段、服务层请求结构无注入口，
     // 单号一律服务端取号。旧前端仍携带非空 order_no 时经残差映射显式 warn（不静默），
     // 该值不进建单流程——修复前它会被 resolve_order_no 原样入库，可伪造单号/撞 UNIQUE。
     let forwarded_order_no = payload
@@ -372,7 +372,7 @@ pub async fn approve_production_order(
     Json(req): Json<ApprovalRequest>,
 ) -> Result<Json<ApiResponse<ProductionOrderResponse>>, AppError> {
     let service = ProductionOrderService::new(state.db.clone());
-    // IDOR 防护（任务 #153 缺陷2）：审批前先按当前用户数据范围校验资源归属（与同域
+    // IDOR 防护（缺陷2）：审批前先按当前用户数据范围校验资源归属（与同域
     // update/delete/submit_for_approval 的 get_by_id(Some(&data_scope_ctx)) 同源范式），
     // 越权由 get_by_id 内部归属校验返回 403（permission_denied）。
     // approve_order 服务侧仅 find_by_id+lock_exclusive+状态门，无归属校验，
@@ -442,7 +442,7 @@ pub async fn update_production_progress(
         .await?
         .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
 
-    // 状态门（任务 #153 缺陷1）：actual_quantity/remarks 是成本归集与审计口径的写入口，
+    // 状态门（缺陷1）：actual_quantity/remarks 是成本归集与审计口径的写入口，
     // 必须参与写入方状态机（services/production_order_ops/crud.rs::validate_status_transition
     // + models/status/* 词表）：仅 IN_PROGRESS 允许上报进度。此前"只有 IN_PROGRESS 能报进度"
     // 只存在于前端 ProductionTable.vue 的按钮门控，属 UI 约束而非安全边界——DRAFT/

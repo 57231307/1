@@ -77,7 +77,7 @@ pub mod voucher {
     pub const VOUCHER_POSTED: &str = "posted";
 }
 
-/// 会计科目余额方向常量（account_subjects.balance_direction，小写英文值，任务 #198）
+/// 会计科目余额方向常量（account_subjects.balance_direction，小写英文值，）
 ///
 /// 写入方权威词表三处同源均为英文：前端 SubjectTab.vue / SubjectListTab.vue 提交值、
 /// 迁移 m0006 DDL `DEFAULT 'debit'`、domain/finance 迁移种子 28 行全部 debit/credit；

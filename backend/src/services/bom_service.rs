@@ -164,7 +164,7 @@ impl BomService {
     /// （`backend/migration/src/domain/business/m0007_add_mrp_production_bom.rs:41`），
     /// 存储口径为 0–1 十进制比率（`models/bom_item.rs` 字段注释 `(0-1)` 同源；
     /// p=5、s=4 ⇒ 整数位仅 1 位，≥10 的值直插必触发 PG `numeric field overflow`，
-    /// CI #4672 e2e/mrp/01:82 即写入侧未换算所致）。
+    /// CI e2e/mrp/01:82 即写入侧未换算所致）。
     /// API/业务口径为百分比数值（10 表示 10%，见 frontend/e2e/mrp/01-calculation.spec.ts
     /// 入参与损耗乘数语义），写入前必须经本函数换算，禁止把百分比数值直接落库。
     /// 越界（<0 或 >100%）与超精度（百分比小数位 >2，即 0.01% 粒度）一律

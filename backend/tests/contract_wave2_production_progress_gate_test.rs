@@ -1,4 +1,4 @@
-//! 生产订单进度上报状态门 + 审批归属预检契约锁(任务 #153 缺陷1/2)
+//! 生产订单进度上报状态门 + 审批归属预检契约锁(缺陷1/2)
 //!
 //! 锁定的 file:line 契约(修复后形态):
 //! - `backend/src/handlers/production_order_handler.rs::update_production_progress`
@@ -242,7 +242,7 @@ async fn progress_allowed_for_in_progress_and_persists() {
     );
 }
 
-/// progress 归属预检防回潮锁(既有 V15 P0-S02 范式):非 owner self 范围 → 403,
+/// progress 归属预检防回潮锁(既有 V15 范式):非 owner self 范围 → 403,
 /// 且拒绝发生在状态判定之前(PENDING_APPROVAL 单被他人访问是 403 而非 400)
 #[tokio::test]
 async fn progress_non_owner_403_before_status_gate() {

@@ -239,7 +239,7 @@ impl ArService {
     }
 
     /// 获取月报表
-    /// v14 中风险性能修复（批次 244）：SQL GROUP BY to_char 月份聚合，避免全量加载到内存
+    /// 中风险性能修复：SQL GROUP BY to_char 月份聚合，避免全量加载到内存
     pub async fn get_monthly_report(
         &self,
         start_date: Option<NaiveDate>,

@@ -26,7 +26,7 @@
 //! - `test_common::setup_test_db()`：必须 `TEST_DATABASE_URL` → 已迁移 PostgreSQL，
 //!   api_keys/users 表由 migration（m0005/m0001 + m0039(created_by) + m0044(description)）
 //!   产出，用例不自建 DDL；缺变量/指 sqlite 由夹具 panic（sqlite 自建同构表是
-//!   CI #4669 方言失真红的根因形态，已彻底移除回退路径）；
+//! CI 方言失真红的根因形态，已彻底移除回退路径）；
 //! - 源码扫描防回潮锁：禁空串字面量出参、禁 `unwrap_or_default()` 出参、
 //!   禁富化链路旁路（into_tuple / 手工拼装 created_by_name）、禁前端把 null 掩盖成空串。
 

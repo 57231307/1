@@ -1,6 +1,6 @@
 /**
  * spFmts.ts - 销售价格格式化工具
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales-price/index.vue）；按价格域权威词表整体重写
+ * 任务编号: P14 批 2 I-3 （拆分原 sales-price/index.vue）；按价格域权威词表整体重写
  *
  * 价格状态词表以销售侧写入方全集为准：建单写 price_approval::PENDING
  * （backend/src/services/sales_price_service.rs::create_price）、审批通过写 APPROVED（::approve_price）、

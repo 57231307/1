@@ -438,7 +438,7 @@ pub async fn delete_customer(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
 
-    // V15 P0-S01/P0-S02：行级数据权限（IDOR）防护——删除前先按当前用户数据范围校验资源归属，
+    // V15：行级数据权限（IDOR）防护——删除前先按当前用户数据范围校验资源归属，
     // 复用 get_customer 内部 check_resource_owner（customers 归属列 = owner_id），
     // 与 update_supplier/delete_supplier/delete_order
     // 的「先 get_X(Some(&data_scope_ctx))」写法同源；越权返回 403（permission_denied），不静默放行。

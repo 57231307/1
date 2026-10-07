@@ -1289,7 +1289,7 @@ async function refreshCsrfToken(page: Page): Promise<string> {
  * 而同一浏览器上下文里除了本 helper，UI 自己的写请求也在消费同一个 token
  * （前端 axios 拦截器同样"403 → 用 X-New-CSRF-Token 重放一次"，api/request.ts:197-223）。
  * 两侧各重放一次时，helper 换回的新 token 仍可能被对侧那次在途请求抢先消费——
- * 单侧重放把这种交错固化成"偶发成片 403"红（#4671 shard19/32/34/35 的
+ * 单侧重放把这种交错固化成"偶发成片 403"红（shard19/32/34/35 的
  * POST /products、POST /incoterms/cost-calculation、POST /production/dye-batches 即此族）。
  * 上限内每次重放都取"后端权威 token"（恢复头，缺失时重登），上限用尽仍被拒即判红：
  * CSRF 拒绝不是业务成功，绝不静默放过、也绝不无限重试掩盖。
@@ -3552,7 +3552,7 @@ export interface DeferredCleanup {
  * 为什么要与同步 tryCleanup 并存（不替换、不改其即时语义）：`tryCleanup` 是**当场**发起的同步
  * 软删。若用例在被测主数据上还留有后续读断言（by-code/详情回读、"未删状态下重复应被拒"的判重
  * 前提等），当场软删会让后端按 is_deleted=false 过滤后查不到行 → 回读 404 / 判重返回 200——这对
- * 后端是**正确行为**，却曾把用例推向假红并被 #4669/#4671 误判成后端缺陷。清理本质是 housekeeping,
+ * 后端是**正确行为**，却曾把用例推向假红并被 误判成后端缺陷。清理本质是 housekeeping,
  * 语义上应发生在全部断言之后,故用队列延后 flush。
  *
  * 范式与 purchase/03（CREATED_ORDER_IDS + afterEach）、finance/01（CLEANUP[] + afterEach）一致：
@@ -3872,12 +3872,12 @@ export async function withEntity(
 }
 
 /**
- * 【新增函数（CI #4669 I 族收口）】为「染色批次/缸号」建一条真实的色卡档案前置。
+ * 【新增函数（CI I 族收口）】为「染色批次/缸号」建一条真实的色卡档案前置。
  *
  * 后端强校验（正当，不得放松）：dye_batch_handler.rs::resolve_dye_identity 归一
  * （backend/src/handlers/dye_batch_handler.rs:203-254）要求 color_no 非空即染色布，且该色号
  * 必须在全仓唯一的色卡明细档案 `color_card_items.color_code` 上**恰好命中一条**：
- * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（CI #4669 红 03-production:87、
+ * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（CI 红 03-production:87、
  *   21d:237 的原文，即本函数消灭的前置缺失）；
  * - 同色号多条 → 显式业务错「无法唯一定位」，故色号取 genCode（时间戳+随机）保证全局唯一。
  *

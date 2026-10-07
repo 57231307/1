@@ -29,7 +29,7 @@ pub(crate) const SERVICE_NAME: &str = "bingxi";
 /// GitHub 仓库
 pub(crate) const GITHUB_REPO: &str = "57231307/1";
 
-/// 任务 #121：更新下载 / API 加速镜像清单 = 运维显式环境变量 `UPDATE__MIRRORS`（逗号分隔）
+/// 更新下载 / API 加速镜像清单 = 运维显式环境变量 `UPDATE__MIRRORS`（逗号分隔）
 /// ∪（默认档）内置公共默认加速镜像 [`DEFAULT_RELEASE_MIRRORS`]，与后端 `config.update.mirrors`
 /// + `use_default_mirrors` 完全同源同口径（复用同一 `pub(crate) const`，不各写一套域名）。
 /// 内置默认开关：环境变量 `UPDATE__USE_DEFAULT_MIRRORS`（`false/0/no/off`→关闭，其它/未设→开启，
@@ -285,7 +285,7 @@ pub(crate) fn build_release_url(version: &str) -> String {
     )
 }
 
-/// 任务 #121：仅官方直连下载（不试任何镜像）。
+/// 仅官方直连下载（不试任何镜像）。
 /// 专用于取回**校验值文件**（.sha256）——校验基准绝不能从镜像下载，否则投毒镜像可伪造
 /// 校验文件使校验形同虚设（与后端 `is_official_digest_host`/`validate_official_digest_url` 同模型）。
 /// 调用方须保证 `url` 为官方域（本模块 `build_release_url` 派生的 github.com URL 即满足）。

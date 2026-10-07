@@ -27,7 +27,7 @@
 //! - `frontend/e2e/flow/22-crm-full.spec.ts:199`：GET /crm/customers/enhanced 仅健康探针。
 //! → 非 admin 在增强页开始看到掩码值，不破坏任何流程；本仓亦不以"让断言过"放行原文。
 //!
-//! 通道（路线一，#4669 判责）：全部用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：全部用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；**表结构唯一来源 = backend/migration**，本文件不再自建任何 DDL。
 //! 种子按真表逐列对齐：users/customers/crm_lead/customer_contacts 属会被清空的业务
 //! 表（裁定 R1 自种子合法父行）；roles 属迁移种子参照表（id=1 code='admin'、

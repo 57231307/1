@@ -50,7 +50,7 @@ export const AFTER_SALES_TYPE: Record<string, string> = {
   refund: '退款',
 };
 
-// 任务 #148 缺陷 B：词表对齐后端写入方（custom_order_aftersales_service.rs
+// 缺陷 B：词表对齐后端写入方（custom_order_aftersales_service.rs
 // is_valid_transition + accept/evaluate 方法实际写入的状态全集），补齐 accepted/evaluated
 export const AFTER_SALES_STATUS: Record<string, string> = {
   opened: '已开',
@@ -62,7 +62,7 @@ export const AFTER_SALES_STATUS: Record<string, string> = {
   rejected: '已拒绝',
 };
 
-// P2-9a 修复（批次 82 v1 复审）：定制订单 API 强类型化，替代 11 处 any
+// 定制订单 API 请求/响应全部强类型化，调用方不用 any
 // 字段与后端 DTO 对齐：custom_order_create_dto.rs / custom_order_update_dto.rs /
 // quality_issue_dto.rs / custom_order_aftersales_service.rs
 
@@ -141,7 +141,7 @@ export interface NodeLogCreateDto {
 }
 
 /** 上报质量异常请求（对齐后端 ReportQualityIssueDto）
- * - custom_order_id **不属于请求体**（任务 #148 同构契约修复）：异常归属由 URL
+ * - custom_order_id **不属于请求体**（同构契约修复）：异常归属由 URL
  *   path 参数权威提供（handler `service.report_issue(id, dto)` 注入），后端 DTO
  *   已删除该字段，body 即使携带也会被 serde 忽略（防伪造覆盖）。此前声明为
  *   虚标可选键，掩盖了后端曾必填 422 的真实契约缺口。 */
@@ -165,7 +165,7 @@ export interface QualityIssueQueryParams {
 /** 售后工单信息（对齐后端 AfterSalesInfo）
  * 注意：refund_amount 后端为 rust_decimal::Decimal，JSON 出参序列化为**字符串**
  *（如 "1200.50"），消费处不得按 number 直接做算术 / .toFixed，
- *  展示统一走 utils/formatCurrency 的 Number() 归一（任务 #148 缺陷 D）。 */
+ * 展示统一走 utils/formatCurrency 的 Number 归一（缺陷 D）。 */
 export interface AfterSales {
   id: number;
   issue_type: string;
@@ -188,7 +188,7 @@ export interface AfterSales {
   reason_detail?: string;
 }
 
-/** 创建售后工单请求（任务 #148 契约修复，逐字段对齐后端 CreateAfterSalesDto）
+/** 创建售后工单请求，逐字段对齐后端 CreateAfterSalesDto
  * - custom_order_id **不属于请求体**：工单归属由 URL path 参数权威提供，
  *   body 即使携带也会被后端忽略（防伪造覆盖）。
  * - issue_type / customer_id / description 对应后端 NOT NULL 必填列，不得标可选；
@@ -283,7 +283,7 @@ export interface CustomOrderDetail extends CustomOrderListItem {
   custom_requirements?: unknown;
   updated_at: string;
   process_nodes: CustomOrderProcessNode[];
-  // v11 批次 181 P2-1 修复：详情接口返回的关联字段，之前未声明导致前端用 unknown[] 绕过
+  // 详情接口返回的关联字段：在此声明类型，前端据此取真实结构而非 unknown[] 绕过
   quality_issues?: QualityIssue[];
   after_sales?: AfterSales[];
 }

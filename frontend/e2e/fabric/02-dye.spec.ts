@@ -11,7 +11,7 @@ import { apiCall, genCode, genDyeLotNo, tryCleanup } from '../flow/helpers';
  * 后端 complete（dye_batch_handler.rs:280）仅接受 inspecting→stored（状态机规则表），
  * 故必须用 inspecting 才能同时满足「按钮渲染」与「完成流转成功」。批次号 batch_no 用于定位自身行。
  *
- * 缸号/色号前置（CI #4669 J 族判责：属测试缺前置，后端校验正当不放松）：
+ * 缸号/色号前置（CI J 族判责：属测试缺前置，后端校验正当不放松）
  * 后端新建归一 resolve_dye_color_identity（dye_batch_handler.rs:203-251）要求——色号非空即
  * 染色布，dye_lot_no 必填（缺 ⇒ 400「染色布必须提供缸号」，与出库四维唯一判定
  * services/inv/fabric_class.rs:60-65 同口径），且色号必须在色卡明细档案（color_card_item）
@@ -188,7 +188,7 @@ test.describe('02 染色批次', () => {
   test('02-03 染色批次可标记为完成', async ({ page }) => {
     // 假绿清零：原 `if (await completeBtn.isVisible())` 无数据/无匹配状态时零断言通过。
     // 改为造 inspecting 批次 → 完成按钮渲染 → 点击 → 完工登记对话框强制采集实际产出三值
-    //（任务 #168：DyeTab.vue:98 handleComplete 打开的是 CompleteDyeBatchDialog，
+    // （DyeTab.vue:98 handleComplete 打开的是 CompleteDyeBatchDialog，
     // 原 ElMessageBox.confirm 形态已废弃；后端 CompleteDyeBatchRequest 三值必填，
     // 缺一即 400 且状态不推进）→ 提交成功提示 dyeBatch.complete.messageSuccess=「完工登记成功」。
     const colorNo = await seedColorCardItem(page);

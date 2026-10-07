@@ -18,7 +18,7 @@
 //!
 //! 掩码契约=掩码**保留键**（`138****8888`），非整键移除（与标准读出口既有语义一致）。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! sales_orders 的 DECIMAL 金额列、TIMESTAMPTZ 日期列取真表类型；
 //! users/customers 按裁定 R1 自种子（sales_orders.customer_id 有真 FK，

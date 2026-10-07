@@ -100,7 +100,7 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },
   { id: 'custom-orders', route: '/custom-orders', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
   // after-sales（/after-sales）登记已撤销：src/router/index.ts 无该路由（人人 404，
-  // CI #4671 判责 P1「幽灵登记」），用户裁定口径 = 删登记而非补路由。
+  // CI 判责 P1「幽灵登记」），用户裁定口径 = 删登记而非补路由。
   // 售后业务面真实入口是 /sales-returns 与 /custom-orders/{id}/after-sales/*（后端端点，
   // 见 endpoints.config 打印族），若产品补 /after-sales 页面路由，届时再登记本条。
   { id: 'logistics', route: '/logistics', domain: 'sales', tier: 'C', noCreate: true },

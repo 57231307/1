@@ -18,7 +18,7 @@ pub struct PrintData {
     pub template: String,
     pub data: HashMap<String, serde_json::Value>,
     pub items: Vec<HashMap<String, serde_json::Value>>,
-    /// 可选嵌入位图（当前唯一消费方：#220 成品布入库标签的 Code128 条码图）。
+    /// 可选嵌入位图（当前唯一消费方： 成品布入库标签的 Code128 条码图）。
     /// `#[serde(skip)]`：打印数据 JSON 出参形态不因图形新增而变化（不破坏既有前端契约），
     /// 字节只走 generate_docx → docx-rs media 打包这一条渲染线。
     #[serde(skip)]
@@ -39,7 +39,7 @@ struct TransferPrintContext {
     product_map: HashMap<i32, crate::models::product::Model>,
 }
 
-/// 成品布入库标签视图（#220，doc_type `inventory_piece_label`）：
+/// 成品布入库标签视图（doc_type `inventory_piece_label`）
 /// inventory_piece 单行 + LEFT JOIN products 富化款号(product.code)/品名(product.name)，
 /// 单次查询范式同 PurchaseOrderDto（column_as + LeftJoin + into_model，禁止逐字段再查）。
 /// 字段全部取该匹自身行实测值（决策 §2：匹行才是交易事实，不回落产品主数据）；
@@ -4995,7 +4995,7 @@ impl PrintService {
         })
     }
 
-    /// 成品布入库标签数据装配（#220，doc_type `inventory_piece_label`）：
+    /// 成品布入库标签数据装配（doc_type `inventory_piece_label`）
     /// 1. 单次查询该匹行 + LEFT JOIN products（款号=product.code、品名=product.name，
     ///    PurchaseOrderDto 范式，禁止逐行再查/造假名）；
     /// 2. 状态门控（BUSINESS_ERROR 族）：样布(SAMPLE)与非染色匹(≠dyed)按业务错误拒绝；

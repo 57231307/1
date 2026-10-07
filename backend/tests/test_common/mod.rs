@@ -7,7 +7,7 @@
 //!
 //! 语义要点（详见实现文件头注释）：
 //! - `setup_test_db()` 必须连已迁移的 PostgreSQL，缺 `TEST_DATABASE_URL` 或指向
-//!   sqlite 直接 panic —— 静默回退 sqlite::memory: 是 CI #4669 约 130 例方言解码
+//! sqlite 直接 panic —— 静默回退 sqlite::memory: 是 CI 约 130 例方言解码
 //!   红的根因，已彻底禁止。
 //! - 每次调用先 `TRUNCATE` 业务表（保留迁移种子参照表），用例之间互不串库。
 //! - 需要"空 schema"负前提交集用 `connect_empty_schema_db()`（`TEST_EMPTY_DATABASE_URL`）。

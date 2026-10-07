@@ -541,8 +541,8 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
   test('61-09 环保税：缺法定当量配置 fail-closed 拒绝计税且零落库 + 税额未配置 fail-visible + 负例族', async ({
     page,
   }) => {
-    // 契约真相（CI #4675 E8 判责：测试前提过期，源码一侧已被证为正确）：
-    // 提交 cfcd6bf3 按裁定 #6 拆掉「未知污染物按 1kg 兜底、默认税率 2.4」的旧行为。
+    // 契约真相（CI E8 判责：测试前提过期，源码一侧已被证为正确）
+    // 提交 cfcd6bf3 按裁定 拆掉「未知污染物按 1kg 兜底、默认税率 2.4」的旧行为。
     // environmental_tax_service.rs::calculate_tax 现为双门 fail-closed，且都发生在 insert 之前
     // （create_discharge_record 先算税再落库）：
     // ① 法定当量门（constants/environmental_tax.rs::statutory_pollution_equivalent）：

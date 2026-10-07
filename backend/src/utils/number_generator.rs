@@ -281,8 +281,8 @@ impl DocumentNumberGenerator {
     ///   `services/mrp_engine_ops/calculation.rs::batch_calculate`：批次基数
     ///   本身不落库，落库的是 `{基数}-{行序}`（及其 BOM 子行 `{基数}-{行序}-{子行}`），
     ///   若把这类行排除在基数之外，第二次批量计算会重发同一基数，`{基数}-0`
-    ///   直接撞 `mrp_results.calculation_no` UNIQUE（实证：CI run #4675，
-    ///   rs37/backend.log:16642-16645，同订单连算两次 MRP 第二次 500）。
+    ///   直接撞 `mrp_results.calculation_no` UNIQUE（同一订单连算两次 MRP，
+    ///   第二次即 500）。
     /// 其余后缀（含字母混排、人工输入）不视为基数派生态、不参与 max，
     /// 由调用方逐条 warn 显式暴露——不做“猜首段数字”，避免把真正的旁路号
     /// 误当基数导致无谓跳号。
@@ -388,12 +388,13 @@ impl DocumentNumberGenerator {
 }
 
 /// 单据号类型白名单注册表：doc_type → (实体表, 单号列) 的占用查询。
+/// 调用方：`/document-no/check`（handlers/document_no_handler.rs）及各单据
+/// 服务保存前的号段占用探测。
 ///
-/// 为什么集中在这里：`/document-no/check` 的 doc_type 白名单历史上只有
-/// 7 个类型（handlers/document_no_handler.rs），新单据（如 outsourcing_receipt）
-/// 前端取号后查重直接 400，阻塞提交。所有需要自动编码、且可能被前端
-/// 预生成/查重的单据都必须在此登记；新增单据时同步登记，避免再次出现
-/// 白名单与实际单据脱节。取值键 = 后端单据类型 snake_case 名。
+/// 为什么集中在这里：doc_type 白名单必须覆盖所有需要自动编码、且可能被前端
+/// 预生成/查重的单据——漏登记会让前端取号查重直接 400、阻塞提交；
+/// 新增单据时同步在此登记，保持白名单与实际单据一致。
+/// 取值键 = 后端单据类型 snake_case 名。
 pub async fn is_document_no_taken<C: ConnectionTrait>(
     db: &C,
     doc_type: &str,
@@ -595,7 +596,7 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
             .one(db)
             .await?
             .is_some(),
-        // —— 任务 #158 残余收口新增自动取号点（两列均带 UNIQUE，必须登记）——
+        // —— 自动取号且列带 UNIQUE 的表（必须登记进占用探测，否则撞号）——
         // MRP 计算单号（mrp_results.calculation_no UNIQUE：
         // migration/src/domain/business/m0007_add_mrp_production_bom.rs:105；
         // 取号方 services/mrp_engine_ops/calculation.rs）
@@ -612,7 +613,7 @@ pub async fn is_document_no_taken<C: ConnectionTrait>(
             .one(db)
             .await?
             .is_some(),
-        // —— 原有登记类型（handlers/document_no_handler.rs 旧 match 全集保留）——
+        // —— 其他登记单据类型（染色批次/配方、合同、发票）——
         "dye_batch" => crate::models::dye_batch::Entity::find()
             .filter(crate::models::dye_batch::Column::BatchNo.eq(no))
             .one(db)

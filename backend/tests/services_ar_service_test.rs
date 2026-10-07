@@ -7,7 +7,7 @@
 //! - 核销金额贪心匹配算法
 //! - ArService 实例化
 //!
-//! 通道（路线一，#4669 判责）：实例化用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：实例化用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL。原写法 `TEST_DATABASE_URL` 缺失时**静默回退 sqlite::memory:**，
 //! 正是本批假绿的根：它让"分片 job 已起 PG 并跑完迁移"这件事对该用例毫无作用，
 //! 报告页却显示通过。夹具现在缺变量/指 sqlite 直接 panic，不再有回退分支。

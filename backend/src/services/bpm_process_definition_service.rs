@@ -47,7 +47,7 @@ impl BpmService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            // 唯一性冲突：流程编码已存在，按 #165 判据归业务族；回显用户自己提交的编码可外显
+            // 唯一性冲突：流程编码已存在，按 判据归业务族；回显用户自己提交的编码可外显
             return Err(AppError::business_displayable(format!(
                 "流程编码已存在: {}",
                 req.code
@@ -122,7 +122,7 @@ impl BpmService {
     /// （`migration/src/domain/system/m0001_initial_schema.rs:680`，无 ON DELETE 动作）
     /// 引用 `bpm_process_definition.id`。原实现裸 `delete()` ⇒ 只要该定义起过流程，
     /// 就命中 FK 并被 `From<DbErr>` 裸映射成 500 `DATABASE_ERROR`
-    /// （CI #4669 制品日志：`update or delete on table "bpm_process_definition" violates
+    /// （CI 制品日志：`update or delete on table "bpm_process_definition" violates
     /// foreign key constraint "bpm_process_instance_process_definition_id_fkey"`，
     /// 用例 `DELETE /bpm/definitions/{3..11}` 共 9 例）。
     ///
@@ -359,7 +359,7 @@ impl BpmService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            // 唯一性冲突：流程编码已存在，按 #165 判据归业务族；回显用户自己提交的编码可外显
+            // 唯一性冲突：流程编码已存在，按 判据归业务族；回显用户自己提交的编码可外显
             return Err(AppError::business_displayable(format!(
                 "流程编码已存在: {}",
                 req.code

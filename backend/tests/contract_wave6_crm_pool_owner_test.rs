@@ -1,4 +1,4 @@
-//! 契约波次 6 · 任务 #204：CRM 公海写端点行级归属门禁（越权回收/越权领取）
+//! 契约波次 6 · CRM 公海写端点行级归属门禁（越权回收/越权领取）
 //!
 //! 根因（修复前实证）：`crm_pool_handler.rs` 的 `claim_from_pool` 与 `recycle_to_pool`
 //! 均用 `service.get_lead(lead_id, None)`。`services/crm/lead.rs` 的
@@ -38,7 +38,7 @@
 //! 3. B recycle 本人私海行 → 200，lead_status→pool（未被误收紧）；
 //! 4. B claim A 的公海行 → 200，lead_status→new（领取可用性未被归属门打死）；
 //! 5. admin（data_scope=all）recycle A 的私海行 → 200（既有可越界通道未收紧）；
-//! 6. 两条领取路径归属语义已统一（#204 附带项收口）：批量路径
+//! 6. 两条领取路径归属语义已统一（附带项收口）：批量路径
 //!    `/pool/{id}/claim`（`services/crm/pool.rs` build_claimed_active）与单条路径
 //!    `/pool/claim`（claim_from_pool → `claim_lead_ownership`）都真写 owner_id=领取人，
 //!    并把 owner_name 写成**真实操作人名**（AuthContext.username），不再落
@@ -240,7 +240,7 @@ async fn row_state_with_owner_name(
 }
 
 // ---------------------------------------------------------------------------
-// 1) self 用户 recycle 他人私海行 → 403，且该行零漂移（#204 核心越权写）
+// 1) self 用户 recycle 他人私海行 → 403，且该行零漂移（核心越权写）
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -442,7 +442,7 @@ fn pool_write_handlers_must_not_skip_data_scope() {
         claim.contains("check_resource_owner(&data_scope_ctx"),
         "领取端点缺非公海行的归属回落（可借领取改写他人私海行）"
     );
-    // #204 附带项收口棘轮：单条领取必须经统一的归属实现
+    // 附带项收口棘轮：单条领取必须经统一的归属实现
     assert!(
         claim.contains("claim_lead_ownership(lead, auth.user_id, &auth.username)"),
         "回潮棘轮：单条领取端点不再经 claim_lead_ownership 落归属（两条领取路径重新分叉）"

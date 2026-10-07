@@ -179,7 +179,7 @@ impl OutsourcingOrderService {
     }
 
     /// 校验委外订单号唯一性 —— "你填的单号已存在，换一个再提交"属可执行公开规则，
-    /// 归 business_displayable 族（先例：#165 流程编码、chemical_ops 编码族）；
+    /// 归 business_displayable 族（先例： 流程编码、chemical_ops 编码族）；
     /// 文案只回显用户自己提交的单号，不含表名/约束名/其它单据；真因落 WARN
     async fn validate_order_no_unique(&self, order_no: &str) -> Result<(), AppError> {
         if OrderEntity::find()

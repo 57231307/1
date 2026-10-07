@@ -113,7 +113,7 @@ impl PurchaseOrderService {
             notes: Set(req.notes),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            // v14 批次 417：面料行业追溯字段（D-P1-6），色号如实落库，其余留 DB 默认
+            // 面料行业追溯字段（D-P1-6），色号如实落库，其余留 DB 默认
             color_code: Set(req.color_no),
             lot_no: sea_orm::ActiveValue::NotSet,
             batch_no: sea_orm::ActiveValue::NotSet,

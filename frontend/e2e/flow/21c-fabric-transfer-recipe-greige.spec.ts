@@ -31,7 +31,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     // 匹号必须命中真实 AVAILABLE 染色匹（piece_domain_service 存在性预检）。
     // 旧 seedFourDimStockIn 只灌 batch≠缸号 的库存行——写入方（piece_domain_service.rs:518-556）
     // 的染色匹恒 batch_no=dye_lot_no=缸号，按旧 tuple 造不出真实匹，本批门控下建单必被拒
-    // （CI #4671 原文「染色布必须提供匹号」）。改用仓库既有匹感知 seed 先例
+    // （CI 原文「染色布必须提供匹号」）。改用仓库既有匹感知 seed 先例
     // （flow/07 委外染色真实链、flow/12 同法）：batch=缸号 库存行 + 真实链同维 AVAILABLE 匹，
     // seed 维度与被测明细逐一对应，不造假、不绕门控。
     const target = await pickDyeableWarehouse(page);
@@ -101,7 +101,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   // ============================================================
   // add_item 端点（POST /inventory/transfers/{id}/items）的追溯字段写入验证。
   // add_item 同为出库单写入口：batch.rs::add_item 先经 require_outbound_dimensions
-  // 强制四维（染色布缺匹号即 4xx「染色布必须提供匹号」，CI #4671 原文），再对
+  // 强制四维（染色布缺匹号即 4xx「染色布必须提供匹号」，CI 原文），再对
   // transfer.from_warehouse_id 做 validate_dyed_piece_for_outbound 匹存在性预检
   // （拒绝假匹号入单）——追溯四字段如实落库并回显（禁止 NotSet 丢入参的历史缺陷已修）。
   // 故本用例必须先用匹感知 seed 在调出仓造真实 AVAILABLE 染色匹，再带四维加明细。

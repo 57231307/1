@@ -1,7 +1,7 @@
 //! Wave11 契约锁：MRP 批量计算链路必须做 BOM 多级展开，且展开结果必须进入 HTTP 响应
 //! 的 `requirements` 数组（父行 bom_level=0 + 子行 bom_level≥1），与 `mrp_results` 落库行同源。
 //!
-//! 缺陷场景（CI run #4676 e2e `frontend/e2e/mrp/01-calculation.spec.ts:141`）：
+//! 缺陷场景（e2e `frontend/e2e/mrp/01-calculation.spec.ts:141`）
 //! `POST /production/mrp/calculate` → `batch_calculate` 的响应 `requirements` 只装顶层行，
 //! BOM 展开的子物料需求从调用方视角不可见（`Received: 1`）。
 //!

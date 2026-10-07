@@ -1,11 +1,11 @@
-//! 契约波次 6 · 任务 #202：CRM 公海列表行级 scope + phone/email 掩码锁
+//! 契约波次 6 · CRM 公海列表行级 scope + phone/email 掩码锁
 //!
 //! 根因（修复前实证）：crm_pool_handler.rs 的 list_pool 调
 //! `service.list_leads(query, None)` —— services/crm/lead.rs:143-151 中
 //! 行级数据权限过滤 `apply_department_scope_with_pool` 仅在
 //! `data_scope = Some(ctx)` 时应用，传 None 即整体跳过行级过滤（跨行泄露）；
 //! 且出参构造对 mobile_phone/email 原样直通，无 crm_handler::list_leads
-//! （#200 定稿）的字段级掩码分支——同一份线索数据，走公海入口就不打码。
+//! （定稿）的字段级掩码分支——同一份线索数据，走公海入口就不打码。
 //!
 //! 修复口径：行级 scope 与字段级掩码均按 crm_handler::list_leads 同构接入
 //! （`auth.to_data_scope_context()` + get_role_data_permission 判定源 +
@@ -31,7 +31,7 @@
 //! 用例 5（原 #[ignore] 记录该边界的目标契约）已取消 ignore 成为常跑回归锁；
 //! 私海行（lead_status≠'pool'）仍严格受行级 scope 约束（用例 2 锁）。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! users 50/60 为自种子父行（trg_crm_lead_dept 触发器按 owner 回填冗余部门列，
 //! Dept 用例的 department_id=1 覆盖由此成立）；roles 为迁移种子参照表，不再插。

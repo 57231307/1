@@ -88,7 +88,7 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     // 产品ID/计划数量/优先级均为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
     // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现（既往红根因）。
     const dlg = page.locator('.el-dialog:visible').last();
-    // 判责 #4669 K-2（测试操作错误，非选择器噪声）：新建对话框「订单编号」是系统自动
+    // 判责 K-2（测试操作错误，非选择器噪声）：新建对话框「订单编号」是系统自动
     // 取号字段——DOM 事实（CI call log 原文）：input 带 disabled 且
     // placeholder=「单据号由系统自动生成，无需填写」；fillFieldByLabel 对 disabled input
     // 恒 "element is not enabled" 重试到 10s 超时（历史教训同型：fabric/02 批次号 readonly）。

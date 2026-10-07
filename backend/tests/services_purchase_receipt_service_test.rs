@@ -115,7 +115,7 @@ async fn test_purchasereceiptservice_new_zqcysjklj() {
         .expect("数据库连接应可用");
 }
 
-/// test_purchasereceiptservice_get_receipt_ksjkfherr —— CI #4672 §A.1 收紧族：
+/// test_purchasereceiptservice_get_receipt_ksjkfherr —— CI §A.1 收紧族
 /// "schema 缺失必须报 Err"的负前提交集改绑 `connect_empty_schema_db()`
 /// （不跑迁移的 `bingxi_empty` 库）。原写法把 `setup_test_db()`（现语义 = 已迁移
 /// PG + TRUNCATE）当"无表 SQLite"用，前提已过期：已建表空库上 get_receipt(9999)

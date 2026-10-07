@@ -415,7 +415,7 @@ async fn test_fwslh_xsjk() {
     assert!(Arc::strong_count(&svc.db) >= 1);
 }
 
-/// test_zddzwzlc_xsjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 :441）：
+/// test_zddzwzlc_xsjk —— 依据裁决 R-9 拆前提（判责 §A.1 pI 族 :441）
 /// 钉"schema 缺失（customers 表根本不存在）时 auto_match 返回 DATABASE_ERROR
 /// 机器码而非 panic"，本意不变，前提是负前提交集 ⇒ 改绑
 /// `connect_empty_schema_db()`（不跑迁移的 `bingxi_empty` 库）。
@@ -428,7 +428,7 @@ async fn test_fwslh_xsjk() {
 /// error_code "DATABASE_ERROR"（error.rs:747）。
 /// 为什么不能再留在 `setup_test_db()` 上断 Err：该夹具现语义 = 已迁移 PG +
 /// TRUNCATE 业务表，空表 ⇒ customers=[] ⇒ 循环体不执行 ⇒ `Ok(vec![])` 才是
-/// 真实契约（match.rs:29-62），旧 `is_err()` 在真库化夹具上必红（#4672 即此）。
+/// 真实契约（match.rs:29-62），旧 `is_err` 在真库化夹具上必红（即此）。
 #[tokio::test]
 #[ignore]
 async fn test_zddzwzlc_xsjk() {
@@ -452,7 +452,7 @@ async fn test_zddzwzlc_xsjk() {
     );
 }
 
-/// test_zlbgwzlc_xsjk —— 同族（#4672 判责 §A.1 pI :453）：按 R-9 改绑
+/// test_zlbgwzlc_xsjk —— 同族（判责 §A.1 pI :453）：按 R-9 改绑
 /// `connect_empty_schema_db()`，钉"schema 缺失时 get_aging_report 返回
 /// DATABASE_ERROR 而非 panic"。
 ///

@@ -59,7 +59,7 @@ impl OutsourcingVoucherService {
         }
 
         // 校验凭证号唯一性 —— "你填的凭证号已存在，换一个再提交"属可执行公开规则，
-        // 归 business_displayable 族（先例：#165 流程编码、chemical_ops 编码族）；
+        // 归 business_displayable 族（先例： 流程编码、chemical_ops 编码族）；
         // 文案只回显用户自己提交的凭证号；真因落 WARN
         if let Some(_existing) = VoucherEntity::find()
             .filter(outsourcing_voucher::Column::VoucherNo.eq(&req.voucher_no))

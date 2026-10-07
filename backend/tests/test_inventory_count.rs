@@ -90,7 +90,7 @@ async fn test_inventory_count_service_instantiation() {
 
 /// 验证在**已建库空表**上 get_count 不存在记录返回 Err(NOT_FOUND) 而非 panic。
 ///
-/// 真库化夹具前提校准（#4671 判责 §⑤ W4，手法同 ap_payment R-9 族）：旧注释
+/// 真库化夹具前提校准（判责 §⑤ W4，手法同 ap_payment R-9 族）：旧注释
 /// "空 SQLite 库"过期——`setup_test_db()` 现为"已迁移 PG + TRUNCATE 业务表"
 /// （`src/services/test_common.rs:17-24`）。真实契约按读函数体判定：
 /// `inventory_count_service.rs:285-293` find_by_id 空表 ⇒ None ⇒ `AppError::not_found`

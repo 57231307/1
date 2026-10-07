@@ -1,4 +1,4 @@
-//! 角色权限矩阵落库的**行为级**锁（CI run #4675 E6 根修，真库通道）
+//! 角色权限矩阵落库的**行为级**锁（E6 根修，真库通道）
 //!
 //! 缺陷事实（不是推测，逐条可核）：
 //! - `ci4675/rs/rs14/backend.log:8429-8432`：`resource=production-orders, action=read,
@@ -255,7 +255,7 @@ async fn test_role_permission_matrix_is_idempotent_on_replay() {
 async fn test_unresolvable_role_codes_fail_visible_without_partial_write() {
     let _guard = DB_SERIAL.lock().await;
     let db = test_common::setup_test_db().await;
-    // 起点 = 迁移后、业务角色不存在（正是 CI #4675 的实际形态：roles 只有 3 行）
+    // 起点 = 迁移后、业务角色不存在（正是 CI 的实际形态：roles 只有 3 行）
     reset_to_migrated_state(&db).await;
 
     let before_total = role_permission::Entity::find()

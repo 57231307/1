@@ -227,9 +227,9 @@ async fn test_fwslcj() {
     // 验证服务内部 db 引用计数 >= 1
 }
 
-/// test_sdyl_wbjgfhcw —— 族名自陈钉"**无表结构**返回错误"，按裁决 R-9 改绑
+/// test_sdyl_wbjgfhcw —— 族名自陈钉"**无表结构**返回错误"：绑定
 /// `connect_empty_schema_db()`（`setup_test_db()` 现语义 = 已迁移 PG + TRUNCATE，
-/// 缺表前提在它身上不成立），并把裸 `is_err()` **收紧**为钉 DATABASE_ERROR。
+/// 缺表前提在它身上不成立），断言 Err 并钉死错误族 DATABASE_ERROR。
 ///
 /// 真实契约依据（读函数体）：`src/services/inventory_reservation_service.rs:91-104`
 /// lock_reservation begin（:98，连库正常）后 `find_by_id + lock_exclusive`
@@ -255,7 +255,7 @@ async fn test_sdyl_wbjgfhcw() {
     );
 }
 
-/// test_sfyl_wbjgfhcw —— 同族按 R-9 改绑空 schema 库，钉 DATABASE_ERROR。
+/// test_sfyl_wbjgfhcw —— 同族：绑定空 schema 库，钉 DATABASE_ERROR。
 ///
 /// 真实契约依据（读函数体）：`src/services/inventory_reservation_service.rs:130-143`
 /// release_reservation begin（:137）后 `find_by_id + lock_exclusive`（:139-141）；
@@ -278,10 +278,9 @@ async fn test_sfyl_wbjgfhcw() {
     );
 }
 
-/// test_cxyllb_wbjgfhcw —— 同族按 R-9 改绑空 schema 库（#4672 §A.1 pI
-/// reservation:268 红点即本条旧 `is_err()`：真库化空表上分页返回 `Ok(([], 0))`
-/// 才是契约，见 inventory_reservation_service.rs:207-210 +
-/// `utils/pagination.rs:17-23`，谎称 Err 的过期前提已失效）。
+/// test_cxyllb_wbjgfhcw —— 同族：绑定空 schema 库（区别于真库化空表——那里分页
+/// 返回 `Ok(([], 0))` 才是契约，见 inventory_reservation_service.rs:207-210 +
+/// `utils/pagination.rs:17-23`，不能用来断"缺表报错"）。
 /// 本条只锁"缺表必须报错、绝不静默吞成空集/panic"⇒ 钉 DATABASE_ERROR。
 #[tokio::test]
 #[ignore]

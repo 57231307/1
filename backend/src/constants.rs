@@ -45,7 +45,7 @@ pub const DEFAULT_DEPARTMENT_ID: i32 = 1;
 /// 应由当前登录用户的采购员身份决定。
 pub const DEFAULT_PURCHASER_ID: i32 = 1;
 
-/// 全局 HTTP 请求体大小上限：12 MB（安全漏洞 #8 既定值：CSV 导入 10MB + 2MB 编码/头部余量）。
+/// 全局 HTTP 请求体大小上限：12 MB（安全漏洞 既定值：CSV 导入 10MB + 2MB 编码/头部余量）。
 ///
 /// 唯一事实源：`bootstrap/middleware_bootstrap.rs` 的全局 `DefaultBodyLimit` 层与任何
 /// handler 内单点覆写提取上限（如供应商资质附件上传须让业务侧 5MB 显式校验先于

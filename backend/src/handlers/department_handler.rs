@@ -86,7 +86,7 @@ pub struct UpdateDepartmentRequest {
     pub is_active: Option<Option<bool>>,
 }
 
-// define_crud_handlers! 出参实参 = service 的真实返回类型（批次 476 契约收紧）：
+// define_crud_handlers! 出参实参 = service 的真实返回类型（契约收紧）
 // list -> PaginatedResponse<department::Model>，get/create/update -> department::Model
 // （证据 services/department_service.rs:84/130/142/222）
 crate::define_crud_handlers!(

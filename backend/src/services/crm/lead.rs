@@ -182,7 +182,7 @@ impl CrmService {
     ///
     /// 列名逐字取 `models/crm_lead.rs` 的字段名（= list_leads/get_lead 出参键），
     /// 因此 handler 侧可直接用同一份 `allowed_fields`/`hidden_fields`（按列名配置）
-    /// 与同一份 `filter_fields` 判定，不为导出另造第二套字段权限规则（#207）；
+    /// 与同一份 `filter_fields` 判定，不为导出另造第二套字段权限规则；
     /// handler 需掩码/剔除某列时按列名经 `export_column_index` 定位，不重复硬编码下标。
     ///
     /// 顺序同时是 `import_leads` 的解析口径（`build_lead_request_from_row` 按下标取值），
@@ -275,9 +275,9 @@ impl CrmService {
     }
 
     /// 导出线索为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    /// v11 批次 141 新增：前端 exportLeads API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段见 `EXPORT_LEAD_COLUMNS`
+    /// 新增：前端 exportLeads API 真实接入。； 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的线索，生成 XlsxTable。；导出字段见 `EXPORT_LEAD_COLUMNS`
     ///
-    /// #207 行级数据权限：`data_scope` 与 `list_leads` 同语义 —— 传入 ctx 时套用同一个
+    /// 行级数据权限：`data_scope` 与 `list_leads` 同语义 —— 传入 ctx 时套用同一个
     /// `apply_department_scope_with_pool`（含公海放行分支），使导出的行集合与该用户
     /// 列表可见集严格一致；传 None 则整体跳过行级过滤（修复前 export 恒为此路径，
     /// self/dept 用户可一次导出全库线索，属越权读 + 个人信息外泄）。

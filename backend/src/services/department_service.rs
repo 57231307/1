@@ -306,7 +306,7 @@ impl DepartmentService {
         if let Some(pid) = req.parent_id {
             match pid {
                 Some(pid) => {
-                    // 检查父部门存在（批次 98 P2-C 修复 v5 复审：去掉冗余 let _ = ）
+                    // 检查父部门存在（P2-C 修复 v5 复审：去掉冗余 let _ =）
                     DepartmentEntity::find_by_id(pid)
                         .one(&*self.db)
                         .await?

@@ -16,9 +16,9 @@ export {
 } from '../fixtures/auth';
 
 /**
- * applyAuthMocks 的角色账号登录修正（CI #4669 E 族成片 401 的根因修复点）。
+ * applyAuthMocks 的角色账号登录修正（CI E 族成片 401 的根因修复点）。
  *
- * 根因链（#4669 制品实证，非推断）：
+ * 根因链（制品实证，非推断）
  * - 角色测试账号由 global-setup ensureRoleUsers 创建，初始密码是
  *   DEFAULT_ROLE_PASSWORD='E2eRole#2026'（global-setup.ts:484、:746-751），
  *   与分片主账号密码（env TEST_PASSWORD）不同；

@@ -1,7 +1,7 @@
 //! 验布打卷 Service
 //!
-//! v14 批次 426：验布打卷流程贯通
-//! 依据：面料行业真实业务调研文档 §12.4 验布打卷与成品入库
+//! 业务口径依据 .monkeycode/docs/research/fabric-industry-research.md
+//! §12.4 验布打卷与成品入库
 //! 真实业务流程：
 //!   验布机对接码表/电子称 → 疵点采集 → 生成验布报告
 //!   → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库
@@ -502,8 +502,7 @@ impl FabricInspectionService {
             req.qualification_rate,
         );
 
-        // V15 P1-3: A 级判定需外观合格率达标 且 物理指标全部 pass
-        // 依据：审计报告 类四 P1 维度 7（A 级需外观 + 物理双达标）
+        // A 级判定需外观合格率达标 且 物理指标全部 pass（双达标才保 A 级）
         let abc_grade = if abc_grade == crate::services::quality_inspection_service::QUALITY_GRADE_A
         {
             let physical_service = FabricPhysicalTestService::new(self.db.clone());
@@ -529,8 +528,7 @@ impl FabricInspectionService {
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
 
-        // V15 P1-7: 评级完成发布 QualityInspectionCompleted 事件
-        // 依据：审计报告 类四 P1 维度 17（QualityInspectionCompleted 无发布者）
+        // 评级完成发布 QualityInspectionCompleted 事件（event_bus_ops/listener.rs 主监听消费）
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
                 inspection_id: updated.id,
@@ -541,7 +539,7 @@ impl FabricInspectionService {
             },
         );
 
-        // V15 Batch05-P1-3：发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
+        // 发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
                 inspection_id: updated.id,
@@ -602,7 +600,7 @@ impl FabricInspectionService {
         if req.roll_length <= Decimal::ZERO {
             return Err(AppError::business("打卷长度必须 > 0"));
         }
-        // #220：三个实测值必填性已由 DTO validator 拦住；此处校验取值范围（字段族，
+        // 三个实测值必填性已由 DTO validator 拦住；此处校验取值范围（字段族，
         // 文案只描述用户自己提交的字段规则，经 validation_displayable 可读外显）
         for (label, value) in [
             ("重量(kg)", req.roll_weight),
@@ -730,7 +728,7 @@ impl FabricInspectionService {
     ) -> Result<InspectionModel, AppError> {
         let new_total_rolls = model.total_rolls + 1;
         let new_total_length = model.total_roll_length + req.roll_length;
-        // #220：重量实测值必填（roll_fabric 入口已 validate）；此处仍显式拒绝而非
+        // 重量实测值必填（roll_fabric 入口已 validate）；此处仍显式拒绝而非
         // unwrap_or(ZERO) 兜底掩盖——缺值属调用方违约，必须报错不可静默加 0
         let roll_weight = req.roll_weight.ok_or_else(|| {
             AppError::validation_displayable("打卷入库必须填写重量(kg)，成品布标签重量取该实测值")
@@ -928,7 +926,7 @@ impl FabricDefectService {
 }
 
 // ============================================================================
-// V15 P1-3: 面料物理指标检测 Service（十项指标）
+// 面料物理指标检测 Service（十项指标）
 // ============================================================================
 
 /// 物理指标检测项目常量（十项指标，对应 .monkeycode/docs/research/fabric-industry-research.md §4.7）

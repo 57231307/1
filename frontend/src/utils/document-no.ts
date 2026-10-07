@@ -29,7 +29,7 @@ export function generateDocNo(prefix: string): string {
  * @param docType 单据类型（后端查重映射：outsourcing_order / dye_batch / dye_recipe /
  *                sales_contract / purchase_contract / labor_contract / finance_invoice）
  * @throws Error 取号失败（查重接口异常或重试耗尽）时抛出用户可见错误——
- *         任务 #153：禁止"本地追加随机后缀"式兜底（制造第三种号段格式、静默吞错，
+ * 禁止"本地追加随机后缀"式兜底（制造第三种号段格式、静默吞错，
  *         违本仓"不做兜底、fail-visible"红线；取号失败必须阻止提交，不许本地编号）
  */
 export async function generateUniqueDocNo(prefix: string, docType: string): Promise<string> {

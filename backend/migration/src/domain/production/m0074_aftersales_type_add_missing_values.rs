@@ -1,9 +1,9 @@
 //! 售后工单类型 CHECK 补齐 return_goods（退货）——三端词表同源收口
 //!
-//! 写入方唯一权威取值集合 `services/custom_order_aftersales_service.rs:151`
+//! 写入方唯一权威取值集合 `services/custom_order_aftersales_service.rs:145`
 //! （create 的类型白名单，UpdateAfterSalesDto 不含 issue_type、无其他写点）为 5 值：
-//! complaint / repair / exchange / return_goods / refund（V15 P2 23.3 缺陷1 新增
-//! return_goods，退货与退款是不同业务：物流收货+库存回库 vs 财务出账）；
+//! complaint / repair / exchange / return_goods / refund（return_goods=退货，
+//! 与退款是不同业务：物流收货+库存回库 vs 财务出账）；
 //! 前端候选三处同源同为 5 值（`AfterSalesPanel.vue` 创建表单 radio 候选与
 //! getIssueTypeLabel known 数组、`api/custom-order.ts::AFTER_SALES_TYPE`、
 //! locales zh-CN/en-US `common.afterSales.issueType.*` 键）。
@@ -11,9 +11,9 @@
 //! （complaint/repair/exchange/refund），缺 `return_goods`。
 //! ⇒ `POST /custom-orders/{orderId}/after-sales` 创建"退货"工单必违反该约束，
 //! PG 回 SQLSTATE 23514（violates check constraint），经 aftersales_err 的
-//! Database 通道冒 DATABASE_ERROR(500) 裸错——用户与操作侧都看不到原因，
-//! 本缺陷与 CI #4669 65-01 的 chk_aftersales_status 缺 accepted/evaluated 同型，
-//! 修复范式照抄 m0067（先例：扩值不更名、fail-visible、down 真回退）。
+//! Database 通道冒 DATABASE_ERROR(500) 裸错——用户与操作侧都看不到原因；
+//! 问题形态与 m0067 处理的 chk_aftersales_status 缺 accepted/evaluated 同型，
+//! 处理范式同 m0067（扩值不更名、fail-visible、down 真回退）。
 //!
 //! 本迁移重建该 CHECK，取值集合与写入方白名单逐字符对齐（全小写、无派生别名），
 //! 使 写入方白名单 = 本 CHECK 取值集 = 前端候选 三端同源。
@@ -25,11 +25,11 @@
 //! 仅当历史库约束缺失/漂移（ADD CONSTRAINT ... NOT VALID 之类）才可能存在白名单外
 //! 取值，此类行属未知业务类型、不允许借扩集之机洗进约束——up 先只读检测，存在
 //! 白名单外取值即 RAISE EXCEPTION 点名（样例最多 10 个），交人工核实真实业务类型
-//! 处置后重跑；检测通过则以 RAISE NOTICE 逐值打印存量行数（判责与回放证据）。
+//! 处置后重跑；检测通过则以 RAISE NOTICE 逐值打印存量行数（逐值留痕，供回放核对）。
 //!
 //! 幂等性：up 为「只读检测 → NOTICE 计数 → DROP CONSTRAINT IF EXISTS → ADD
 //! CONSTRAINT」，重跑等价；down 反向恢复 m0044 原 4 值集，并带 return_goods 在途
-//! 行的 fail-visible 拒滚检查（本仓纪律：down 不留空实现，教训见 rls_dept 登记）。
+//! 行的 fail-visible 拒滚检查（本仓纪律：down 不留空实现）。
 //!
 //! 契约锁：`backend/tests/contract_wave7_aftersales_status_check_parity_test.rs`
 //! 的类型族段将 写入方白名单 / 本文件 CHECK 取值集合 / 前端候选（radio + known +

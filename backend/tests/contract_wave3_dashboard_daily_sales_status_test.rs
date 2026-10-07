@@ -1,4 +1,4 @@
-//! 仪表盘日/周/月销售卡片状态排除门契约锁(任务 #164,
+//! 仪表盘日/周/月销售卡片状态排除门契约锁(,
 //! dashboard_service.rs::query_daily_sales_amounts)
 //!
 //! 锁定的根因(与同文件分维/周转率及 BI sales 聚合先例同源):
@@ -239,7 +239,7 @@ fn status_word_table_is_lowercase_single_source_daily_card_gate() {
 }
 
 /// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
-/// #4671 B1①：禁词/必备项都不得被说明性注释命中（"这里以前是 draft 字面量"之类）；
+/// B1①：禁词/必备项都不得被说明性注释命中（"这里以前是 draft 字面量"之类）；
 /// 按行剥的理由同 `contract_wave5_outsource_issue_guard_test.rs::code_only` 先例。
 fn code_only(src: &str) -> String {
     src.lines()
@@ -250,7 +250,7 @@ fn code_only(src: &str) -> String {
 
 /// 符号定位取函数体：从签名的**代码**（剥注释后）出现处起，到下一个任意缩进的
 /// fn 符号之前为止。替代"紧邻下家函数名"这一边界 needle——同文件重构/改名/调序
-/// 会移动边界甚至吞进相邻函数（#4671 B1 判责：窗边界必须锚在被锁符号自身上）。
+/// 会移动边界甚至吞进相邻函数（B1 判责：窗边界必须锚在被锁符号自身上）。
 /// 全部偏移在按行拼接文本上产生，find 返回的字节索引天然落在 char boundary，
 /// 杜绝多字节字符劈窗 panic（B1③）。
 fn fn_body(code_src: &str, signature: &str) -> String {

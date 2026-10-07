@@ -41,7 +41,7 @@ pub const AUDIT_RESOURCE_TYPE: &str = "production_order";
 
 /// 创建生产订单请求
 ///
-/// 不含 `order_no` 字段：单据号禁手输（任务 #153 缺陷3），一律由服务端
+/// 不含 `order_no` 字段：单据号禁手输（缺陷3），一律由服务端
 /// `DocumentNumberGenerator` 取号（`PO{YYYYMMDD}{3位流水}`）；类型层面不提供
 /// 注入口，编译期即杜绝任何调用方旁路写号。
 #[derive(Debug, Clone)]

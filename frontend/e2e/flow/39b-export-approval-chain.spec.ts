@@ -28,7 +28,7 @@ interface ApprovalModel {
  * 它先读 csrf_token cookie、命中 403 且判据为 CSRF（csrf.rs 直出体 MISSING/INVALID）时用后端
  * x-new-csrf-token 恢复头在 CSRF_RECOVERY_MAX_ATTEMPTS 上限内有界重放，耗尽仍被拒即抛错判红。
  * 本用例原先自持 csrfJsonHeaders 直连 page.request.post，只取一次 cookie 里的 token、无任何重放
- * ——一次性 token 被并发/UI 抢先消费后即 403 CSRF_TOKEN_INVALID（#4672 新红）。改用 apiCall 复用
+ * ——一次性 token 被并发/UI 抢先消费后即 403 CSRF_TOKEN_INVALID（新红）。改用 apiCall 复用
  * 同一有界重放原语，不 skip、不放宽 CSRF 断言。GET 导出为安全方法不消费 CSRF，仍直连。
  */
 async function createApprovalAsManager(page: import('@playwright/test').Page): Promise<number> {

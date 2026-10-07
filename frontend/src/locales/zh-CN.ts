@@ -10039,7 +10039,7 @@ export default {
       detail: '详情',
     },
   },
-  // 成品布入库（验布打卷）：#220 标签打印与打卷实测值必填口径的用户可见文案
+  // 成品布入库（验布打卷）： 标签打印与打卷实测值必填口径的用户可见文案
   fabricInspections: {
     roll: {
       warehouseRequired: '打卷入库必须选择仓库',

@@ -1,7 +1,7 @@
 use crate::models::role;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
-// P0-D03（Batch 488）：Redis 分布式缓存接入（find_by_id 读穿透 + 写失效）
+// Redis 分布式缓存（find_by_id 读穿透 + update/delete 写失效）
 use crate::utils::redis_cache::{
     DEFAULT_CACHE_TTL_SECS, cache_key, redis_cache_del, redis_cache_get_json, redis_cache_set_json,
 };
@@ -23,10 +23,10 @@ impl RoleService {
         Self { db }
     }
 
-    /// 根据 ID 查找角色
-    /// P0-D03（Batch 488）：接入 Redis 分布式缓存（5 分钟 TTL）；读穿透：先查 Redis，未命中查 DB 后回填 Redis；写失效：update/delete 时清除对应 key
+    /// 根据 ID 查找角色：Redis 缓存（DEFAULT_CACHE_TTL_SECS）读穿透——先查 Redis，
+    /// 未命中查 DB 后回填；写失效由 update_role/delete_role 清除对应 key。
     pub async fn find_by_id(&self, id: i32) -> Result<role::Model, AppError> {
-        // P0-D03：先查 Redis 缓存
+        // 先查 Redis 缓存
         let cache_key_str = cache_key("role", id);
         if let Some(cached) = redis_cache_get_json::<role::Model>(&cache_key_str).await {
             return Ok(cached);
@@ -53,7 +53,7 @@ impl RoleService {
             .ok_or_else(|| AppError::not_found(format!("角色编码 {} 不存在", code)))
     }
 
-    /// 创建角色（V15 P0-S01：新增 data_scope 参数（all/dept/self），默认 self）
+    /// 创建角色：入参 `data_scope` 为数据范围，未指定时默认 self（最小权限原则）
     pub async fn create_role(
         &self,
         name: String,
@@ -63,7 +63,7 @@ impl RoleService {
         is_system: bool,
         data_scope: Option<String>,
     ) -> Result<role::Model, AppError> {
-        // V15 P2 14.5-C：is_system 只能用于 admin 系统角色，防止普通角色被标记为系统角色
+        // is_system 只能用于 admin 系统角色，防止普通角色被标记为系统角色
         if is_system && code != "admin" {
             return Err(AppError::validation(
                 "仅 admin 角色可标记为系统角色（is_system=true）",
@@ -76,7 +76,7 @@ impl RoleService {
             description: Set(description),
             permissions: Set(permissions),
             is_system: Set(is_system),
-            // V15 P0-S01：数据范围，未指定时默认 self（最小权限原则）
+            // 数据范围：未指定时默认 self（最小权限原则）
             data_scope: Set(data_scope.unwrap_or_else(|| "self".to_string())),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -85,8 +85,9 @@ impl RoleService {
         active_role.insert(&*self.db).await
     }
 
-    /// 更新角色信息（V15 P1-14.12-E：role.code 不可修改，移除 code 参数防提权）
-    /// 批次 86 v2 复审 P2-1 修复：find + 状态门 + update 移入单一事务 + lock_exclusive 串行化
+    /// 更新角色信息：role.code 不可修改（入参不含 code，防 admin 把其他角色 code
+    /// 改成 "admin" 提权）；find + 状态门 + update 在同一事务内执行，
+    /// lock_exclusive 串行化并发状态变更。
     pub async fn update_role(
         &self,
         role_id: i32,
@@ -114,7 +115,7 @@ impl RoleService {
         if let Some(name) = name {
             role_active.name = Set(name);
         }
-        // V15 P1-14.12-E：禁止修改 role.code，防止 admin 将其他角色 code 改为 "admin" 提权
+        // 禁止修改 role.code：防止 admin 将其他角色 code 改为 "admin" 提权
         if let Some(description) = description {
             role_active.description = Set(Some(description));
         }
@@ -129,19 +130,19 @@ impl RoleService {
         let result = role_active.update(&txn).await?;
         txn.commit().await?;
 
-        // P0-D03：失效角色缓存（角色信息已更新）
+        // 失效角色缓存（角色信息已更新）
         redis_cache_del(&cache_key("role", role_id)).await;
 
         Ok(result)
     }
 
-    /// 删除角色（批次 86 v2 复审 P2-2 修复：find + 状态门 + delete 移入单一事务 + lock_exclusive 串行化）
+    /// 删除角色：find + 状态门 + delete 在同一事务内执行，lock_exclusive 串行化并发状态变更
     ///
     /// 引用口径与 `RolePermissionService::delete_role` 完全一致（同族先例
     /// `services/crm/lead.rs::delete_lead`）：`users.role_id` 属外部主体引用 ⇒ 有绑定即拒；
     /// `role_permissions`/`data_permissions`/`field_permissions` 是角色自身的授权配置行 ⇒
     /// 同事务物理清除（`data_permissions` 的软删残留行同样会以 FK 永久阻塞删除，
-    /// CI #4669 `DELETE /roles/40` 的 500 即此）。禁止 `ON DELETE CASCADE` 静默删引用方数据。
+    /// 漏清即 `DELETE /roles/{id}` 报 500）。禁止 `ON DELETE CASCADE` 静默删引用方数据。
     pub async fn delete_role(&self, role_id: i32) -> Result<(), AppError> {
         let txn = (*self.db).begin().await?;
 
@@ -218,7 +219,7 @@ impl RoleService {
         txn.commit().await?;
         tracing::info!("角色 {} 删除成功", role_id);
 
-        // P0-D03：失效角色缓存（角色已删除）
+        // 失效角色缓存（角色已删除）
         redis_cache_del(&cache_key("role", role_id)).await;
 
         Ok(())
@@ -232,16 +233,13 @@ impl RoleService {
     ) -> Result<(Vec<role::Model>, u64), AppError> {
         let paginator = role::Entity::find().paginate(&*self.db, page_size);
 
-        // 批次 255 修复：接入 paginate_with_total 统一分页逻辑
-        // 修复原 bug：fetch_page(page) 未做 saturating_sub(1) 偏移，导致第一页跳到第二页
-        // 补充 page.clamp(1, 1000) 防 DoS
+        // 统一走 paginate_with_total：页码 1 基偏移由其收敛；page.clamp(1, 1000) 防超大页码 DoS
         let (roles, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((roles, total))
     }
 
-    /// 获取所有角色（不分页）
-    /// P3 维度 6 修复（批次 87）：补 LIMIT 兜底防止全表加载
+    /// 获取所有角色（不分页）：limit(10_000) 兜底防止全表加载
     pub async fn get_all_roles(&self) -> Result<Vec<role::Model>, AppError> {
         role::Entity::find().limit(10_000).all(&*self.db).await
     }

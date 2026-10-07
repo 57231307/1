@@ -1,4 +1,4 @@
-//! 采购订单 `actual_delivery_date` 收货确认回写契约锁（决策定案 #7）
+//! 采购订单 `actual_delivery_date` 收货确认回写契约锁（决策定案）
 //!
 //! 根因取证（调查组结论，本文件修复后逐项锁死）：
 //! - 列存在：`migration/src/domain/system/mod.rs` `ALTER TABLE "purchase_orders"
@@ -17,7 +17,7 @@
 //! 完成判定/状态谓词不动；回写失败 `?` 上抛整单回滚，严禁 `let _ =`/`.ok()` 半成功。
 //!
 //! 覆盖策略（对齐 `contract_wave2_po_item_update_fields_test.rs` 先例，无 mock；
-//! 路线一 #4669 判责：表结构唯一来源 = backend/migration，不再自建 sqlite 同构表
+//! 路线一 判责：表结构唯一来源 = backend/migration，不再自建 sqlite 同构表
 //! ——exchange_rate 等 DECIMAL 列被写成 TEXT 即本文件 5 例连坐红的根因）：
 //! 1. 真 PostgreSQL（test_common::setup_test_db）+ **真实调用**
 //!    `update_order_received_quantity`（confirm_receipt 事务内的同一入口，
@@ -424,7 +424,7 @@ async fn confirm_partial_receipt_writes_back_receipt_date() {
         "进度须与到货日同事务落库"
     );
 
-    // 双单对照的隔离侧（#4671 判责 2.2：item_b 建了从不回读=隔离侧从未被验证）：
+    // 双单对照的隔离侧（判责 2.2：item_b 建了从不回读=隔离侧从未被验证）
     // 回写以 order_id 精确定位，po_b 的明细与到货日不得被 po_a 的确认污染。
     let item_b = purchase_order_item::Entity::find_by_id(s.item_b)
         .one(&db)
@@ -545,7 +545,7 @@ async fn write_back_failure_rolls_back_progress_no_half_success() {
 /// 从源码截取 impl 块内方法（4 空格收口，先例 contract_wave2 同式；剔 \r 防 CRLF 漏检）
 ///
 /// 调用方必须先 `code_only` 剥整行注释再传入：锚点若只在注释里出现（"旧实现曾有
-/// `async fn xxx`"之类自述），按原文 find 会把窗起点定在注释上（#4671 B1① 同型事故）。
+/// `async fn xxx`"之类自述），按原文 find 会把窗起点定在注释上（B1① 同型事故）。
 fn extract_impl_method(src: &str, anchor: &str) -> String {
     let src = src.replace('\r', "");
     let i = src
@@ -574,7 +574,7 @@ fn code_only(src: &str) -> String {
 /// 负向 `!contains` 一律只用 `code_only` 原文，不套本函数——去空白扩大匹配面，
 /// 只适用于"必含"判定（同 `sku_mapping_contract_test.rs::strip_ws` 纪律）。
 /// 全部切片在规范形（纯 ASCII 词元边界不要求，但 find 返回的偏移恒为
-/// char boundary，杜绝 `byte index is not a char boundary` panic——#4671 B1③ 正解）。
+/// char boundary，杜绝 `byte index is not a char boundary` panic—— B1③ 正解）。
 fn canon(src: &str) -> String {
     let mut out: String = code_only(src)
         .chars()
@@ -597,7 +597,7 @@ fn canon(src: &str) -> String {
 fn source_scan_write_back_inside_confirm_transaction() {
     let raw = include_str!("../src/services/purchase_receipt_ops/state.rs");
     // 判据全部落在剥注释的 confirm_receipt 函数体上：
-    // - 禁词不再被同文件说明注释命中（#4671 B1①）；
+    // - 禁词不再被同文件说明注释命中（B1①）；
     // - 窗边界由符号定位（不再依赖"begin/commit 首次出现在本函数"这一顺序假设）；
     // - canon 规范形上的 find 偏移天然是 char boundary，杜绝字节窗 panic（B1③）。
     let body = extract_impl_method(&code_only(raw), "pub async fn confirm_receipt");

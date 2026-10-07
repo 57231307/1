@@ -2,23 +2,23 @@
 //! 被当改列约束用"族）
 //!
 //! 根因（全部 file:line 实测）：
-//! - `domain/system/mod.rs:229` = `ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS
+//! - `domain/system/mod.rs:233` = `ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS
 //!   "owner_id" INTEGER;`（可空、无默认）—— 这是该列的**生效定义**（system 域先执行）；
-//! - `domain/finance/mod.rs:109` = `... ADD COLUMN IF NOT EXISTS "owner_id" INTEGER
+//! - `domain/finance/mod.rs:114` = `... ADD COLUMN IF NOT EXISTS "owner_id" INTEGER
 //!   NOT NULL DEFAULT 0`，因列已存在被 `IF NOT EXISTS` 吃成**恒 no-op**，其 NOT NULL
-//!   DEFAULT 0 从未生效（域执行序 `migration/src/lib.rs:36-40` system→…→finance）；
-//! - 模型 `src/models/customer.rs:97` 是非 Option `owner_id: i32` ⇒ 写入路径不设值即
-//!   落 NULL ⇒ 回读报 `Missing value for column 'owner_id'`（#4671 p4/p5/p6 三条红，
-//!   `contract_wave2_after_sales_create_test.rs:188` 等）。
+//!   DEFAULT 0 从未生效（域执行序 `migration/src/lib.rs:44-48` system→…→finance）；
+//! - 模型 `src/models/customer.rs:104` 是非 Option `owner_id: i32` ⇒ 写入路径不设值即
+//! 落 NULL ⇒ 回读报 `Missing value for column 'owner_id'`
+//!   （集成用例 `contract_wave2_after_sales_create_test.rs:172-188` 的 customers 播种即触发）。
 //!
-//! 比测试红更重的后果 B（静默数据可见性缺陷）：`domain/finance/mod.rs:116-131` 的
+//! 更重的后果（静默数据可见性缺陷）：`domain/finance/mod.rs:123` 起的
 //! RLS policy `customers_isolation` 判据 `owner_id = current_setting(...)::int
 //! OR owner_id = 0` 对 NULL 行两侧均判 unknown ⇒ 公海/历史客户行对所有人不可见。
 //! 本迁移必须落在 system 域 up 链尾（finance 域建 policy 之前），policy 生效后列即
 //! NOT NULL DEFAULT 0，NULL 盲区闭合。
 //!
 //! 修法纪律（本仓红线）：
-//! - **只新建迁移，绝不修改已应用迁移**：`system/mod.rs:229` 的裸 `INTEGER` 一行保持
+//! - **只新建迁移，绝不修改已应用迁移**：`system/mod.rs:233` 的裸 `INTEGER` 一行保持
 //!   原样不动（历史迁移被 `_seaorm_` 记账，改写文本对已部署库永不重放，只会制造
 //!   历史漂移）；新迁移在域 up 链尾（晚于该 inline 补列块）做真实归一。
 //! - 回填前先做 fail-visible 存量探测：`owner_id IS NULL AND owner_assigned_at
@@ -26,14 +26,14 @@
 //!   公海、暴露给任意领取 ⇒ 拒绝归一，RAISE EXCEPTION 点名 id 样例，人工按
 //!   crm_assignment 记录/审计轨迹回填后重跑。绝不猜归属、绝不 COALESCE 洗数据。
 //! - 双列皆空（owner_id 与 owner_assigned_at 均 NULL）= 未分配，归 0 是列的
-//!   **成文语义**（`finance/mod.rs:110` COMMENT 与 `customer.rs:95-97` 文档注释
+//!   **成文语义**（`finance/mod.rs:115` COMMENT 与 `customer.rs:102-104` 文档注释
 //!   "0 表示未分配/公海客户"），不是发明默认值。
 //!
 //! 幂等性：探测条件在 NOT NULL 生效后恒空、UPDATE 无匹配行、SET DEFAULT/SET NOT
 //! NULL 重放等价、COMMENT 覆盖同文 ⇒ up 可重跑。
 //!
-//! down 真实可逆（本仓纪律，教训见 rls_dept 空 down 登记）：恢复"可空、无默认"的
-//! 修复前形态。数据无损性论证：up 只把 NULL 归 0（0 在旧形态同样可表达），down 后
+//! down 真实可逆（本仓纪律：down 不留空实现）：恢复"可空、无默认"的
+//! 未归一形态。数据无损性论证：up 只把 NULL 归 0（0 在旧形态同样可表达），down 后
 //! 不存在被吞掉的取值形态，无需拒滚探测；但回滚即重新打开 RLS NULL 盲区与
 //! "Missing value for column" 写入缺陷（0 行在 down 后新写入会退回 NULL），故 down
 //! 仅用于"整链回退演练"；若库中已依赖 NOT NULL 约束保数据完整性，回滚前须人工
@@ -93,7 +93,7 @@ COMMENT ON COLUMN "customers"."owner_id" IS '客户归属人 ID（0=公海客户
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // 恢复修复前形态（可空、无默认）。up 只把 NULL 归 0、未收窄任何可表达取值，
+        // 恢复为可空、无默认的未归一形态。up 只把 NULL 归 0、未收窄任何可表达取值，
         // 故回滚不吞数据、无需拒滚探测（论证见文件头）；回滚会重新打开 RLS NULL
         // 盲区，仅用于整链回退演练。
         let sql = r#"

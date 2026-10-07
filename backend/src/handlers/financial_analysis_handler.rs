@@ -19,8 +19,8 @@ use crate::services::financial_analysis_service::{
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
-/// P1-2c 修复（批次 81 v1 复审）：创建财务指标请求 DTO
-/// 替代 create_indicator 中的 Json<serde_json::Value>，提供强类型校验
+/// 创建财务指标请求 DTO
+/// create_indicator 的强类型请求体，字段级校验由 validator 执行
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateIndicatorDto {
@@ -41,8 +41,8 @@ pub struct CreateIndicatorDto {
     pub description: Option<String>,
 }
 
-/// P1-2c 修复（批次 81 v1 复审）：创建财务趋势数据请求 DTO
-/// 替代 create_trend 中的 Json<serde_json::Value>，提供强类型校验
+/// 创建财务趋势数据请求 DTO
+/// create_trend 的强类型请求体，字段级校验由 validator 执行
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateTrendDto {
@@ -89,8 +89,8 @@ pub struct CreateReportRequest {
     pub description: Option<String>,
 }
 
-/// 执行财务分析报告查询参数；批次 129 v8 复审 P2 修复：原 execute_report 无 period 参数
-/// 仅查询最新结果不执行计算。 现新增可选 period 参数（默认当前年月），调用 calculate_indicators 真实计算财务指标。
+/// 执行财务分析报告的查询参数（execute_report 用）：
+/// 可选 period（YYYY-MM），缺失时按当前年月，调用 calculate_indicators 真实计算财务指标。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ExecuteReportParams {
@@ -106,9 +106,9 @@ pub async fn get_indicators(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
+    // 分页参数钳位防 DoS：page 限 1..=1000
     let page = params.page.clamp(1, 1000);
-    // v11 批次 36 修复：page_size clamp 防止 DoS（i64 无 unwrap_or，直接 clamp；负值经 as u64 会放大为 u64::MAX）
+    // page_size 限 1..=100 防 DoS：必填 i64 不经 unwrap_or 直接 clamp（负值若 as u64 会放大为 u64::MAX）
     let page_size = params.page_size.clamp(1, 100);
 
     let query = IndicatorQueryParams {
@@ -136,7 +136,7 @@ pub async fn create_indicator(
     auth: AuthContext,
     Json(req): Json<CreateIndicatorDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
     req.validate().map_err(AppError::from)?;
 
     let service = FinancialAnalysisService::new(state.db.clone());
@@ -233,7 +233,7 @@ pub async fn create_trend(
     auth: AuthContext,
     Json(req): Json<CreateTrendDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    // P1-2c 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
     req.validate().map_err(AppError::from)?;
 
     let service = FinancialAnalysisService::new(state.db.clone());
@@ -279,9 +279,9 @@ pub async fn list_reports(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = FinancialAnalysisService::new(state.db.clone());
 
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v11 批次 36 修复：防止 DoS
+    // 分页参数钳位防 DoS：page 限 1..=1000
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // page 钳位 1..=1000
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // page_size 钳位 1..=100
 
     let query_params = IndicatorQueryParams {
         page: page.saturating_sub(1),
@@ -508,7 +508,7 @@ pub async fn get_report(
     }))))
 }
 
-/// POST /api/v1/erp/financial-analysis/reports/:id/execute - 执行财务分析报告；批次 129 v8 复审 P2 修复：原返回硬编码 "completed" + Utc::now() 假执行状态， 仅查询最新结果不执行任何计算。现调用 calculate_indicators
+/// POST /api/v1/erp/financial-analysis/reports/:id/execute - 执行财务分析报告：调用 calculate_indicators
 /// 真实计算财务指标： 1. 读取指定期间的科目余额（account_balance） 2. 按科目代码前缀分类汇总（资产/负债/损益） 3. 计算流动比率/速动比率/资产负债率等指标 4. 落库到 financial_analysis_results 表 5. 返回当前指标的计算结果（非预查询的旧数据）
 pub async fn execute_report(
     State(state): State<AppState>,

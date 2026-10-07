@@ -1,5 +1,5 @@
 //! `inventory_piece` 三列打卷实测值补值域 CHECK：`weight` / `width` / `gram_weight`
-//! （任务 #246 ②；同型先例 = `m0075_add_outsourcing_receipt_measured_values`，本文件的
+//! （②；同型先例 = `m0075_add_outsourcing_receipt_measured_values`，本文件的
 //! 检测/点名/重建约束/回读自证结构与 down 口径全部照它，不另起一套）
 //!
 //! 缺陷事实（三段证据，读函数体不读注释）：

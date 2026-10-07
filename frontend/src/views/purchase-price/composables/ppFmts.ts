@@ -1,6 +1,6 @@
 /**
  * ppFmts.ts - 采购价格格式化工具
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 purchase-price/index.vue）；对齐销售侧 spFmts 范式收口
+ * 任务编号: P14 批 2 I-3 （拆分原 purchase-price/index.vue）；对齐销售侧 spFmts 范式收口
  *
  * 价格状态词表权威 = backend/src/models/status/sales 的 price_approval 模块（全小写），
  * 采购侧四值均有写入方：建单写 pending（purchase_price_service.rs::create_price）、

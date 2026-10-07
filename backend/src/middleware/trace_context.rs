@@ -232,7 +232,7 @@ async fn catch_unwind_in_poll<F: Future>(fut: F) -> Result<F::Output, Box<dyn An
 /// 超限说明响应异常，显式记 ERROR 后仍转统一信封，不放行超大 body、不静默。
 const MAX_REJECTION_BODY_BYTES: usize = 64 * 1024;
 
-/// H 族收口（CI #4669）：把**提取器拒绝**的纯文本响应归一为统一 `AppError` 失败信封。
+/// H 族收口（CI）：把**提取器拒绝**的纯文本响应归一为统一 `AppError` 失败信封。
 ///
 /// 背景：`Json<T>` 解码失败 → axum 默认 422 纯文本、`Query<T>`/`Path<T>`/`Form<T>`
 /// 解码失败 → 400 纯文本、缺 `Content-Type: application/json` → 415 纯文本；

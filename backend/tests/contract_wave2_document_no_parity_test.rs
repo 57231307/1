@@ -1,4 +1,4 @@
-//! 任务 #154 契约锁：取号/展示端 与 落库端「前缀 + 流水位数」逐字一致（防双轨复发）
+//! 契约锁：取号/展示端 与 落库端「前缀 + 流水位数」逐字一致（防双轨复发）
 //!
 //! 覆盖 4 个单据类型（展示端 handler generate_no 端点 vs 落库权威 service）：
 //! - 库存调整单 `handlers/inventory_adjustment_handler.rs` vs
@@ -15,7 +15,7 @@
 //! 实现体解析（generate_no / generate_no_with_txn 各自转调 with_width 的实参），
 //! 保证「解析器 → 真实代码」单向依赖，不存在第二套手写常量。
 //!
-//! 另锁 #154 第 5 项：`handlers/document_no_handler.rs` 查重已委托
+//! 另锁 第 5 项：`handlers/document_no_handler.rs` 查重已委托
 //! `utils/number_generator.rs::is_document_no_taken` 注册表，且注册表包含
 //! 前端仍在取号查重的 `outsourcing_receipt`（真实表真实列 receipt_no，
 //! 委外收回单 receipt_no 仍由前端预生成——OVRC 只是入库凭证号，不替代收回单号）
@@ -255,7 +255,7 @@ fn inventory_count_display_matches_storage_authority() {
     );
 }
 
-/// #154 第 5 项：查重 handler 必须委托注册表，不得回退为 handler 内嵌 doc_type match；
+/// 第 5 项：查重 handler 必须委托注册表，不得回退为 handler 内嵌 doc_type match；
 /// 注册表必须覆盖前端仍在「取号 + 查重」的全部类型（真实表真实列）。
 #[test]
 fn doc_no_check_handler_delegates_to_registry() {

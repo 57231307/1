@@ -130,7 +130,7 @@ impl DyeBatchCostBridgeServiceInternal {
     /// 处理染色完成事件，创建成本归集草稿记录
     /// 创建一个 draft 状态的 cost_collection 记录，所有成本字段初始化为 0，；关联 batch_no/color_no/cost_object_no，后续由财务人员补充成本明细并审核。；依据：.monkeycode/docs/research/fabric-industry-research.md §5.6——染色完成后需归集染料/助剂/能耗成本到对应缸号；V15 P0-F01：补全 dye_lot_no 关联；原实现 dye_lot_no 写死为 None（dye_batch 表无此字段），导致四维标识断裂、；成本归集无法关联到具体染缸号。修复后通过 batch_id 查询 dye_batch 表获取 dye_lot_no。
     ///
-    /// 任务 #168：产量分母回填——dye_lot_no 与 actual_output_kg/actual_output_m 取自同一
+    /// 产量分母回填——dye_lot_no 与 actual_output_kg/actual_output_m 取自同一
     /// dye_batch 行（完工端点强制必填后必有真值）。原实现把 output_quantity_kg/_meters
     /// 恒写 None，导致 draft 无分母、单位成本/能耗分摊算不出。单位成本本身仍由
     /// CostCollectionService 既有算法（total_cost / 产量，cost_collection_service.rs:88-103）
@@ -147,7 +147,7 @@ impl DyeBatchCostBridgeServiceInternal {
     ) -> Result<(), AppError> {
         let cost_service = CostCollectionService::new(self.db.clone());
 
-        // V15 P0-F01 + 任务 #168：一次查询同取 dye_lot_no 与完工登记的实际产出（分母）
+        // V15 P0-F01 + 一次查询同取 dye_lot_no 与完工登记的实际产出（分母）
         // 术语：dye_lot_no（染色批号）≠ batch_no（缸号=染色批次号，同一概念不同叫法）
         // 历史数据回填为 'DEFAULT'，新数据由创建接口传入实际染色批号
         let (dye_lot_no, output_kg, output_m) = match dye_batch::Entity::find_by_id(batch_id)
@@ -207,7 +207,7 @@ impl DyeBatchCostBridgeServiceInternal {
         Ok(())
     }
 
-    /// 组装成本归集草稿请求（纯函数、无 IO）——产量分母回填的唯一落点（任务 #168）。
+    /// 组装成本归集草稿请求（纯函数、无 IO）——产量分母回填的唯一落点。
     /// 拆出独立函数的原因：cost_collection 单号生成走 pg_advisory_xact_lock
     /// （utils/crud_macro.rs::impl_generate_no → number_generator::lock_prefix），
     /// sqlite 契约测无法整链驱动 create()，故对"行值→请求分母"这一映射直接断言。
@@ -235,7 +235,7 @@ impl DyeBatchCostBridgeServiceInternal {
             manufacturing_overhead: Decimal::ZERO,
             processing_fee: Decimal::ZERO,
             dyeing_fee: Decimal::ZERO,
-            // 任务 #168：完工登记的实际产出回填分母（原恒写 None）
+            // 完工登记的实际产出回填分母（原恒写 None）
             output_quantity_meters: output_m,
             output_quantity_kg: output_kg,
         }

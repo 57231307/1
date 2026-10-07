@@ -1,4 +1,4 @@
-//! 任务 #169 第 5 波（仓储/调拨/采购收货/退货域）：更新端点可空列三态清空语义收口
+//! 第 5 波（仓储/调拨/采购收货/退货域）：更新端点可空列三态清空语义收口
 //! （对齐 RFC 7386 JSON Merge Patch，范式先例 `department_handler.rs` 与提交 ab257ea7；
 //! 与 wave3 互补：wave3 侧重库存域回环与本域 service 级拒清，本文件锁定
 //! 收货/退货/仓储/调拨四子域的 DTO 三态形状、真实 sqlite service 回环、
@@ -25,7 +25,7 @@
 //! - PUT /sales/returns/{id}/items/{item_id}：reason→notes 可空；quantity/unit_price 拒清
 //! - PUT /inventory/transfers/{id}、items/{item_id}：notes/unit_cost/dye_lot_no 可空
 //!
-//! 覆盖策略（无 mock；路线一 #4669 判责：表结构唯一来源 = backend/migration，
+//! 覆盖策略（无 mock；路线一 判责：表结构唯一来源 = backend/migration，
 //! 不再自建 sqlite 同构表——quantity/total_quantity 等 DECIMAL 列被写成 TEXT
 //! 即本文件连坐解码红的根因）：
 //! - 纯 serde：DTO 三态形状锁（缺席=None / null=Some(None) / 有值=Some(Some(v))），
@@ -1028,7 +1028,7 @@ async fn require_postgres(db: &DatabaseConnection) {
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 已迁移 PostgreSQL（update_return_item 走 lock_exclusive + 事务）"]
 async fn live_sales_return_item_update_tri_state_on_postgres() {
-    // FK 父行走本文件既有 seeded_db() 裁定 R1 自种子（CI #4672 实证裸 setup_test_db
+    // FK 父行走本文件既有 seeded_db 裁定 R1 自种子（CI 实证裸 setup_test_db
     // 直连时 sales_return.customer_id=1 / warehouse_id=1 无父行 ⇒ 23503）；
     // ignored lane 以 --test-threads=1 串行执行，TRUNCATE+重种无同库竞态。
     let db = seeded_db().await;

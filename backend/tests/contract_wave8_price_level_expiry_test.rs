@@ -9,10 +9,10 @@
 //!   又不匹配二等品的孤儿行，打断质检降级链（quality_inspection_service.rs:570-600）。
 //! - create 的 `expiry_date` 此前 `.and_then(|d| d.parse().ok())` 把非法日期串静默吞成 NULL
 //!   （不报错、不落库，F1b §6-7 证真），现与 `effective_date` 同口径 fail-visible 400，且拒绝路径零副作用。
-//! - update `expiry_date`（可空列）三态统一（任务板 #169，照 department_service.rs:220-221 先例）：
+//! - update `expiry_date`（可空列）三态统一（任务板，照 department_service.rs:220-221 先例）
 //!   缺键=保持 / 显式 null=清空 NULL / 给值=改值；`effective_date` 为 NOT NULL 列，显式 null 拒绝而非静默保持。
 //! - 列表查询参数 `keyword`（前端承诺"产品名称/客户名称"模糊匹配）与 `customer_id` 此前前端在传、
-//!   后端 `SalesPriceQuery` 无键被 serde 静默忽略（#206/#160 同族假筛选），现已接收并下推谓词。
+//! 后端 `SalesPriceQuery` 无键被 serde 静默忽略（同族假筛选），现已接收并下推谓词。
 //! - 夹具为真库（`setup_test_db`，已迁移 PostgreSQL，缺 TEST_DATABASE_URL 直接 panic，禁静默回退）；
 //!   种子自建自清（夹具每次调用 TRUNCATE 业务表）。只断 status + 信封机器码，
 //!   **不断错误文案原文**（本仓拒绝文案永久脱敏）。
@@ -90,7 +90,7 @@ async fn seed_customer(db: &Arc<DatabaseConnection>, id: i32, name: &str) {
         status: Set("active".to_string()),
         // 词表安全侧：constants::customer_type::ALLOWED 成员（见 models/customer.rs 列注）。
         // 旧值 "direct" 不在 chk_customers_customer_type 五值集合内，种子插入即被 DB 拒绝
-        // （CI #4675 族A 8 例同因），此处仅改数据取值对齐姊妹文件，不动任何断言。
+        // （CI 族A 8 例同因），此处仅改数据取值对齐姊妹文件，不动任何断言。
         customer_type: Set("retail".to_string()),
         created_at: Set(now()),
         updated_at: Set(now()),
@@ -336,7 +336,7 @@ async fn update_price_level_passes_through_and_rejects_fake_vocab() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. update expiry_date 三态（任务板 #169 统一口径）：缺键=保持 / 显式 null=清空 NULL /
+// 5. update expiry_date 三态（任务板 统一口径）：缺键=保持 / 显式 null=清空 NULL /
 //    给值=改值 / 非法值=400 且行不动。double_option 的"显式 null 不塌成缺键"在
 //    线格式层直接取证（matches! 三态形状）。
 // ---------------------------------------------------------------------------
@@ -489,7 +489,7 @@ async fn create_invalid_expiry_date_is_fail_visible_400_not_silent_null() {
 }
 
 // ---------------------------------------------------------------------------
-// 8. 查询参数漂移（#206/#160 同族）：keyword（产品名称/客户名称模糊）与 customer_id
+// 8. 查询参数漂移（同族）：keyword（产品名称/客户名称模糊）与 customer_id
 //    后端已接收并下推谓词——命中、不命中、等值三类形态各钉一条。
 //    改坏什么必红：谓词摘回"收了不用"→ 命中段红；JOIN 误用 InnerJoin → 无客户行丢、0 段仍绿
 //    但命中段（客户 NULL 行按产品名命中）红。

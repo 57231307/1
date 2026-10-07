@@ -49,7 +49,7 @@ fn piece_routes() -> Router<AppState> {
             "/pieces",
             get(crate::handlers::inventory_piece_handler::list_pieces),
         )
-        // #220 成品布入库打印标签：单匹 docx 卷唛（仅 dyed 可打，缺字段 fail-closed）
+        // 成品布入库打印标签：单匹 docx 卷唛（仅 dyed 可打，缺字段 fail-closed）
         .route(
             "/pieces/{id}/print",
             get(print_handler::inventory_piece_label_print_docx),

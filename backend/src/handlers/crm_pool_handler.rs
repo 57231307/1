@@ -128,7 +128,7 @@ pub async fn list_pool(
     // - 配置了数据权限行 → filter_fields_batch（hidden/allowed 优先，不叠加默认打码）；
     // - 无权限行且非 admin → 默认脱敏（查询 Err 与 role_id 缺失同走此分支，fail-closed）。
     //   admin 判定基准以本仓唯一权威源 `admin_checker::is_admin_role`（roles.code='admin'，
-    //   查询失败 fail-closed=false）为准，禁止角色主键字面量判定（D-4 收口，PR #942 波次：
+    // 查询失败 fail-closed=false）为准，禁止角色主键字面量判定（D-4 收口， 波次
     //   播种漂移时字面量要么静默剔 admin 字段、要么给恰好命中字面量的其他角色静默扩权）。
     // 本入口出参由上方按挑选字段构造，不含 address 键；mobile_phone/email 若存在则掩码。
     crate::handlers::crm_handler::apply_lead_field_permission(&state, auth.role_id, &mut items)
@@ -170,7 +170,7 @@ async fn mask_lead_write_response(
 
 /// POST /api/v1/erp/crm/pool/claim - 从公海领取客户
 ///
-/// 行级边界（#204）：领取**只能作用于公海行**。
+/// 行级边界：领取**只能作用于公海行**。
 /// - RBAC 层：本路径 `/api/v1/erp/crm/pool/claim` 由 URL 段推导出资源 `pool`、
 ///   动作 `create`（`middleware/permission.rs:259` `extract_resource_info`；`crm` 是模块
 ///   前缀 `utils/path_utils.rs:75`，`resolve_module_prefixed_resource` 默认臂保留原名），
@@ -187,7 +187,7 @@ async fn mask_lead_write_response(
 /// 走与 `POST /crm/pool/:id/claim` 相同的每日领取上限 / 最大持有数 /
 /// 保护期校验（判据 `last_claimed_at`，原领取人本人重领豁免），见
 /// `services/crm/pool.rs` 文件头。
-/// 出参边界（#204 遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
+/// 出参边界（遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
 /// `mask_lead_write_response`（详见该函数文档）。
 pub async fn claim_from_pool(
     State(state): State<AppState>,
@@ -212,7 +212,7 @@ pub async fn claim_from_pool(
         return Err(AppError::business_displayable("该客户不在公海中"));
     }
 
-    // 领取即转移归属（#204 附带项收口）：写 owner_id/owner_name 与 lead_status=new，
+    // 领取即转移归属（附带项收口）：写 owner_id/owner_name 与 lead_status=new，
     // 复用批量领取同一个 `services/crm/pool.rs::build_claimed_active`（单一归属实现，
     // 消除两条领取路径的归属漂移）。修复前本路径只置 lead_status=new、不写归属，
     // 线索仍挂在回收前的原归属人名下，领取人在自己的 self 数据范围列表里
@@ -241,7 +241,7 @@ pub async fn claim_from_pool(
 
 /// POST /api/v1/erp/crm/pool/recycle - 回收客户到公海
 ///
-/// 行级边界（#204 越权写修复点）：回收写的是**私海行**，属行级归属判定范畴。
+/// 行级边界（越权写修复点）：回收写的是**私海行**，属行级归属判定范畴。
 /// 修复前用 `get_lead(lead_id, None)`，`services/crm/lead.rs:360-367` 的
 /// `check_resource_owner` 包在 `if let Some(ctx)` 内，传 None 即整体跳过 →
 /// 任意用户可把他人私海线索回收进公海。
@@ -255,7 +255,7 @@ pub async fn claim_from_pool(
 ///   他人行；`Dept` 需资源 department_id ∈ 可见部门集合；`Self_` 仅原归属人本人；
 ///   不满足即 403（与 update/delete 线索的越权语义完全一致，不额外收紧也不放松：
 ///   例如 Dept 用户回收 department_id 为 NULL 的行同样会被拒，这是既有 get_lead 口径）。
-/// 出参边界（#204 遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
+/// 出参边界（遗留项收口）：成功响应不再整行原文回传，改走与读路径同一实现的
 /// `mask_lead_write_response`（详见该函数文档）——回收同样会整行返回 mobile_phone/
 /// tel_phone/email/address，修复前与领取端点是同一个旁路的两个入口。
 pub async fn recycle_to_pool(

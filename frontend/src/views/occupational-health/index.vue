@@ -265,7 +265,7 @@ const PPE_TYPES = ['mask', 'gloves', 'goggles', 'earplug', 'respirator', 'suit']
  * 顺序按业务阅读顺序排列，而不是跟着 JSON 键序走。
  * 旧实现用 `Object.keys(rows[0]).slice(0, 6)` 采样列，而 serde_json 序列化 Model 时对象键按
  * 字母序落 map ⇒ 前 6 恒为 created_at/created_by/exceeding_ratio/hazard_name/hazard_type/
- * is_exceeding，监测点位等核心追溯维度永不渲染（#4671 69-02 判红根因）。
+ * is_exceeding，监测点位等核心追溯维度永不渲染（69-02 判红根因）。
  */
 type TableColumn = { prop: string; labelKey: string };
 

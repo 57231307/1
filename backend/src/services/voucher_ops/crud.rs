@@ -160,7 +160,7 @@ impl VoucherService {
     /// 契约对齐扩展：除按 subject_code 校验外，同时校验按 subject_id 提交的科目
     /// （前端 VoucherEntry 仅带科目 ID，不带 code）
     ///
-    /// 这里的两种拒绝语义不同，必须分属两族（#942 族口径判据）：
+    /// 这里的两种拒绝语义不同，必须分属两族（族口径判据）
     /// - 查无此科目（分录引用了库里不存在的 code / id）→ 引用存在性缺失，
     ///   归 [`AppError::not_found`]（HTTP 404 / `NOT_FOUND`），与 `voucher_ops/balance.rs`
     ///   同族同文案；

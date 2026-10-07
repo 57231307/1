@@ -1,4 +1,4 @@
-//! 委外发料匹状态占用闭环上线的存量回填（任务 #194）
+//! 委外发料匹状态占用闭环上线的存量回填
 //!
 //! 背景：发料链路此前从不写 `inventory_piece.status`（占用闭环上线前，被
 //! issued/processing 委外单引用的胚布匹永远停在 AVAILABLE，同一实物可被重复发料）。
@@ -33,7 +33,7 @@
 //! 域内注册位置：目标表 outsourcing_order（v15/mod.rs:3227）与
 //! outsourcing_order_item（v15/mod.rs:671）均在 v15 域内建表，而 production 域
 //! 早于 v15 执行（lib.rs:34 vs :36）；直接注册本域 up() 会因
-//! "relation ... does not exist" 中断迁移链（先例教训 #4645，见 m0058/m0063
+//! "relation ... does not exist" 中断迁移链（先例教训，见 m0058/m0063
 //! 文件头）。故照 m0063 先例：迁移文件留在 production 域（m00NN 命名序列），
 //! up/down 由 domain/v15/mod.rs 在全部建表完成后调用。
 

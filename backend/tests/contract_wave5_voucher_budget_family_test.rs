@@ -1,4 +1,4 @@
-//! 任务 #942 第 5 波：凭证 / 预算错误族与保密分层契约锁
+//! 第 5 波：凭证 / 预算错误族与保密分层契约锁
 //!
 //! 被锁的缺口（族口径判据由用户拍板，提交 763c7ab9；保密分层见 `utils/error.rs` 模块文档）：
 //!
@@ -31,7 +31,7 @@
 //!   **不做条件跳过、也不回退 sqlite 空表**：变量缺失或指向 sqlite 时夹具直接 panic。
 //! - 源码扫描锁（`include_str!`）：防 `bad_request("科目…")` / `bad_request("借…")` 回潮。
 //!
-//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! 通道（路线一， 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
 //! `account_subjects` 属迁移种子参照表（不参与清空），故用例自建科目后必须按 ID 清理
 //! （见 `cleanup_subjects`），凭证/分录属业务表、每次进夹具即被清空。
 
@@ -497,7 +497,7 @@ fn crud_source_scan_no_bad_request_left_for_subject_and_balance() {
         "crud.rs 内不得再出现 bad_request(\"借…"
     );
     // 该文件的四类拒绝已全部归位（查无→NOT_FOUND、停用→业务、不平→校验、状态门→业务族），
-    // BAD_REQUEST 在此不再有合法用途；任何回潮都违反 #942 族口径。
+    // BAD_REQUEST 在此不再有合法用途；任何回潮都违反 族口径。
     assert!(
         !CRUD_SRC.contains("AppError::bad_request("),
         "crud.rs 内 AppError::bad_request( 必须为 0 处"

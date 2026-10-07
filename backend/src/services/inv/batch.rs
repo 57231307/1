@@ -1228,7 +1228,7 @@ impl InventoryTransferService {
             notes: sea_orm::ActiveValue::Set(req.notes),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             updated_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
-            // v14 批次 417：面料行业追溯字段（T-P0-1），真实写入入参值
+            // 面料行业追溯字段（T-P0-1），真实写入入参值
             color_no: sea_orm::ActiveValue::Set(dims.color_no),
             // 白坯布缸号：列 DDL NOT NULL DEFAULT ''（system/mod.rs:292），Set(None) 会触发
             // NOT NULL 违例，白坯合法缺省走 NotSet 让 DEFAULT '' 生效（与建单路径同法）

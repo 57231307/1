@@ -1,4 +1,4 @@
-//! 编译期版本注入（任务 #116：修复"系统更新判断当前是否最新"的版本比较假阴性）。
+//! 编译期版本注入（修复"系统更新判断当前是否最新"的版本比较假阴性）。
 //!
 //! release tag 采用四段 CalVer `YYYY.M.D.HHMM`（由 `.github/workflows/ci-cd.yml` 版本 step
 //! 产生），而 `Cargo.toml` 受 semver 三段约束被折叠为 `YYYY.MD.HHMM`（月日并入第二段）。

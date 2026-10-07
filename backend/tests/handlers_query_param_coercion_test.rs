@@ -1,4 +1,4 @@
-//! 查询参数「真正生效」回归测试（任务 #160 同族修复）
+//! 查询参数「真正生效」回归测试（同族修复）
 //!
 //! 根因锁定：多处 handler 曾以 `Query<serde_json::Value>` 接收查询串。Axum 的 `Query` 抽取器
 //! 走 urlencoded 反序列化，`serde_json::Value` 是无类型的 ⇒ 每个值都被反序列化成

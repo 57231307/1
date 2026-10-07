@@ -1,7 +1,7 @@
-//! 契约波次 6 · 任务 #209：CRM 建单/更新/关单成功响应不得整行原文回传
+//! 契约波次 6 · CRM 建单/更新/关单成功响应不得整行原文回传
 //! （线索写响应旁路收口 + 商机字段级出参四出口收敛的等价性锁）
 //!
-//! 根因（与已修的公海领取/回收 #204 同一旁路类，只是换了端点）：
+//! 根因（与已修的公海领取/回收 同一旁路类，只是换了端点）
 //! 1. **线索写响应回原文 PII**：`crm_handler::create_lead` / `update_lead` 直接
 //!    `serde_json::to_value(res)?` 返回整行 `crm_lead::Model`（含 `mobile_phone`/
 //!    `tel_phone`/`email`/`address` 明文）。`update_lead` 虽受行级 `check_resource_owner`
@@ -18,7 +18,7 @@
 //!    金额默认隐藏范围属待用户拍板项，本轮不收紧），仅让配了数据权限行的角色在**全部五个出口**
 //!    （含此前完全没有字段处理的建单/更新/关单写响应）都走同一个 `filter_fields_batch`。
 //!
-//! 附带收口（#209 B）：`create_lead` / `create_opportunity` 的 `owner_name` 由
+//! 附带收口（B）：`create_lead` / `create_opportunity` 的 `owner_name` 由
 //! `format!("用户{user_id}")` 改为传入的真实登录名（`&auth.username`，与公海领取
 //! `services/crm/pool.rs` 同一口径）；本文件用运行时断言锁定"落库 owner_name == 传入登录名
 //! 且不以『用户』开头"。
@@ -28,7 +28,7 @@
 //! 写响应后靠 `getList()`/GET 重新拉取，**不读取写响应体的 address/mobile_phone/tel_phone/email**
 //! （e2e 仅取 `created.data.id`）→ 写响应 mask/移除 address 不破坏任何前端流程。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! roles 为迁移种子参照表（id=1 code='admin'、id=2 为 data_permissions 外键父行），
 //! 不再插种子；users/customers 属会被清空的业务表，按裁定 R1 自种子
@@ -611,7 +611,7 @@ fn services_crm_must_not_fabricate_owner_name_or_ignore_operator_param() {
     let lead_service = include_str!("../src/services/crm/lead.rs");
     let opp_service = include_str!("../src/services/crm/opp.rs");
     let pool_service = include_str!("../src/services/crm/pool.rs");
-    // 看板 #212-B 纳入同一零命中集合：共享落库展示名改由调用方传真实登录名
+    // -B 纳入同一零命中集合：共享落库展示名改由调用方传真实登录名
     let share_service = include_str!("../src/services/crm/customer_team_share_service.rs");
     // to_user_name 透传裁定落地后纳入：被转移人姓名由 transfer_lead 的
     // TransferLeadResult 回传（真实 users.username，零额外查询），不再 format! 造名

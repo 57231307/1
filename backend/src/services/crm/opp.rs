@@ -198,7 +198,7 @@ impl CrmService {
     /// 列名逐字取 `models/crm_opportunity.rs` 的字段名（= `list_opportunities`/
     /// `get_opportunity` 出参键），因此 handler 侧可直接用同一份
     /// `allowed_fields`/`hidden_fields`（按列名配置）与同一个 `filter_fields_batch`
-    /// 判定，不为导出另造第二套字段权限规则（与线索导出 `EXPORT_LEAD_COLUMNS` 同构，#208）。
+    /// 判定，不为导出另造第二套字段权限规则（与线索导出 `EXPORT_LEAD_COLUMNS` 同构，）。
     /// 表头与列序保持改造前完全一致，前端与既有导出模板不受影响。
     pub const EXPORT_OPP_COLUMNS: &[(&str, &str)] = &[
         ("opportunity_no", "商机编号"),
@@ -214,7 +214,7 @@ impl CrmService {
         ("created_at", "创建时间"),
     ];
 
-    /// 商机金额列（"仅非本人行"默认处理的剔除列集合，2026-10-02 裁定 #2/#4：
+    /// 商机金额列（"仅非本人行"默认处理的剔除列集合，2026-10-02 裁定
     /// 列表/详情/写响应与导出共用）：列名取 `models/crm_opportunity.rs:43/:46` 的
     /// 真实列，不用不存在的 `amount` 键。
     pub const EXPORT_AMOUNT_COLUMNS: &'static [&'static str] =
@@ -255,14 +255,14 @@ impl CrmService {
     }
 
     /// 导出商机为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段见 `EXPORT_OPP_COLUMNS`
+    /// 新增：前端 exportOpportunities API 真实接入。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段见 `EXPORT_OPP_COLUMNS`
     ///
-    /// #208 行级数据权限：`data_scope` 与 `list_opportunities`（本文件 :146-169）同语义
+    /// 行级数据权限：`data_scope` 与 `list_opportunities`（本文件 :146-169）同语义
     /// —— 传入 ctx 时套用**同一个** `apply_department_scope`（商机无公海语义，
     /// 故不带 pool 放行分支，与列表一致）；传 None 则整体跳过行级过滤
     ///（修复前 export 恒为此路径，self/dept 用户可一次导出全库商机，属越权读 + 金额外泄）。
     /// 字段级处理不在此处做：判定与掩码在 handler 侧与列表/详情**同一个**
-    /// `crm_handler::apply_opportunity_field_permission`（2026-10-02 裁定 #4：入口一致），
+    /// `crm_handler::apply_opportunity_field_permission`（2026-10-02 裁定：入口一致），
     /// 本函数按行序回传 `owner_id` 供其定位"仅非本人行"（导出列定义不含 owner_id，
     /// 该列表格回写时不落盘、不进文件，见 crm_handler 导出注释）。
     pub async fn export_opportunities(

@@ -160,7 +160,7 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 回写采购订单实际到货日（决策定案 #7，确认收货同一事务内调用）
+    /// 回写采购订单实际到货日（决策定案，确认收货同一事务内调用）
     ///
     /// 语义：该 PO **已确认收货中的最大 `receipt_date`**（部分到货也回写；
     /// 补录的更早收货单不得把更晚日期回退）。`purchase_receipt.receipt_date`
@@ -205,7 +205,7 @@ impl PurchaseReceiptService {
     /// 更新采购订单的已入库数量、实际到货日与状态（事务内调用）
     ///
     /// `receipt_date` 取自被确认的入库单（NOT NULL 列），用于同事务回写
-    /// `purchase_orders.actual_delivery_date`（决策定案 #7）。
+    /// `purchase_orders.actual_delivery_date`（决策定案）。
     pub async fn update_order_received_quantity(
         &self,
         order_id: i32,

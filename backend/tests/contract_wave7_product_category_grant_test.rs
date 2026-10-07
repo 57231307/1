@@ -1,4 +1,4 @@
-//! 产品分类树权限键三通道同源锁（CI run #4671 角色矩阵 purchaser 真缺口 · 裁定 R-6）
+//! 产品分类树权限键三通道同源锁（角色矩阵 purchaser 真缺口 · 裁定 R-6）
 //!
 //! 缺陷事实：`/api/v1/erp/product-categories*` 由 `routes/mod.rs:368-391` 别名段注册，
 //! 运行时权限键是 `product-categories:read`（`middleware/permission.rs::extract_resource_info`

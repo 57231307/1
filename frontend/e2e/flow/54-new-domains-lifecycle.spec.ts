@@ -210,7 +210,7 @@ test.describe.serial('新域业务流转链', () => {
     await page.goto(`${BASE_URL}/outsourcing`);
     await expect(page.locator('.page')).toBeVisible();
 
-    // 前置（CI #4675 E7 判责：测试前提缺失，源码 fail-closed 正确）：
+    // 前置（CI E7 判责：测试前提缺失，源码 fail-closed 正确）
     // 委外发料门控对 issue 无条件生效（outsourcing_ops/order.rs::issue_order 事务内
     // reserve_pieces_for_issue → piece_domain_service.rs::validate_pieces_for_issue）：
     // 明细集合为空整单拒绝「委外订单没有发料明细，无法发料；发料必须精确到匹」，
@@ -342,7 +342,7 @@ test.describe.serial('新域业务流转链', () => {
     await dialog.locator('.el-input-number input').nth(1).fill('100'); // 发出数量
     // 材料成本 + 三费均为后端 outsourcing_order NOT NULL 列（v15:3247-3249）对应的建单必填，
     // 前端 onCreate 守卫（views/outsourcing/index.vue:499-513）对 材料成本/加工费/运费/税额
-    // 逐项 ==null 判空，缺任一项即 warning 拦截、不发 POST——判责 #4669 J-4：
+    // 逐项 ==null 判空，缺任一项即 warning 拦截、不发 POST——判责 J-4
     // CI 的 waitForResponse(/outsourcing-orders POST) 15s 超时根因是请求根本没发出
     // （测试漏填三费触发正当前端守卫），非响应慢、也非 reactive 断链类前端缺陷。
     await fillFieldByLabel(dialog, page, '材料成本', '500');

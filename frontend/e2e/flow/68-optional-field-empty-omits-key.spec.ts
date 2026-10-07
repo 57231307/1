@@ -178,7 +178,7 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     const supplierId = Number(created.data?.id);
     expect(supplierId, `[68-02] 预置供应商应回 id：${JSON.stringify(created)}`).toBeGreaterThan(0);
 
-    // 「回读 vs 掩码」口径取证（CI #4669 §②/§③ 本族收口，先核源码真实出参再断言）：
+    // 「回读 vs 掩码」口径取证（CI §②/§③ 本族收口，先核源码真实出参再断言）
     // 供应商读出口（handlers/supplier_handler.rs:24-110）的打码列集合 = utils/field_mask.rs
     // 权威定义 `mask_contact_fields_for_role` —— **仅手机号/邮箱键集**（138****8888 形态，
     // 且 role_id=1 放行原文）；本用例三列 supplier_short_name / credit_code / remarks

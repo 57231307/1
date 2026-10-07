@@ -1,11 +1,11 @@
-//! 契约波次 6 · 任务 #207：CRM 线索导出（xlsx）行级 scope + 字段级掩码
+//! 契约波次 6 · CRM 线索导出（xlsx）行级 scope + 字段级掩码
 //!
 //! 根因（修复前实证）：
 //! 1. 行级：`services/crm/lead.rs` 的 `export_leads` 签名不吃 `DataScopeContext`，
 //!    handler `crm_handler.rs` 也不构造 ctx —— 而 `list_leads`（:143-151）会套
 //!    `apply_department_scope_with_pool`。于是 self/dept 用户点一次"导出"就拿到
 //!    全库线索（limit 10000），列表/详情/公海三条读路径本波次前已分别做了行级 scope
-//!    与掩码（#200/#202），导出是第四条旁路（"三打一漏"）。
+//! 与掩码，导出是第四条旁路（"三打一漏"）。
 //! 2. 字段级：`export_leads` 把 `mobile_phone`/`tel_phone`/`email` 原文写进 xlsx，
 //!    无任何 allowed_fields/hidden_fields/默认掩码分支。
 //!
@@ -18,7 +18,7 @@
 //!   hidden_fields 移除，不叠加默认打码）；无权限行且 role_id != 1 走
 //!   `utils/field_mask::mask_phone` / `mask_email`。因此"配了 allowed_fields 的角色"
 //!   天然就是放行原文的受控通道；
-//! - 既有 P0-S11 导出审计事件（`crm_handler.rs`）保持原样，本文件不断言
+//! - 既有 导出审计事件（`crm_handler.rs`）保持原样，本文件不断言
 //!   （`record_async` 为 best-effort 异步落库，时序不可判定，是否升级 fail-closed 待用户拍板）。
 //!
 //! 一致性证明方式：断言"导出解析出的数据行数 == 同一用户同一查询条件下
@@ -28,11 +28,11 @@
 //!
 //! 覆盖边界（诚实声明）：
 //! - 本文件用例经 `test_common::setup_test_db()` 连已迁移 PostgreSQL 真跑（路线一，
-//!   #4669 判责：表结构唯一来源 = backend/migration，不再自建 DDL；sqlite 可验性
+//! 判责：表结构唯一来源 = backend/migration，不再自建 DDL；sqlite 可验性
 //!   假设已废弃）。导出路径无取号咨询锁、无 lock_exclusive，因此没有需要
 //!   #[ignore] 的活库用例；`create_lead` 的 LD 取号（advisory_xact_lock）不在导出
 //!   链上，种子一律走 raw SQL。
-//! - `export_opportunities`（商机导出）是同一模式的另一处旁路，属 #207 描述之外的
+//! - `export_opportunities`（商机导出）是同一模式的另一处旁路，属 描述之外的
 //!   独立端点，本批未改、未断言（见交付报告"未覆盖项"）。
 //! - 掩码列由 `CrmService::EXPORT_LEAD_COLUMNS` 的列名定位（与列表出参键同源）；
 //!   若有人改表头顺序而不改定义，本文件的列名取值断言会失败，不会静默放行。

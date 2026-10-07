@@ -58,7 +58,7 @@
               @click="openRoll(row)"
               >打卷</el-button
             >
-            <!-- #220：打卷成功即产出染色匹(inventory_piece, piece_type=dyed)，
+            <!-- 打卷成功即产出染色匹(inventory_piece, piece_type=dyed)，
                  标签入口挂在 rolled 行；打开后按缸号+dyed 过滤真实匹列表逐匹下载 docx。
                  权限键 pieces:print 与后端 URL 段推导一致（constants/permissions.ts 注释） -->
             <el-button
@@ -231,7 +231,7 @@
             class="w-full"
           />
         </el-form-item>
-        <!-- #220 裁定 §3：卷重/幅宽/克重由可选改必填，口径与后端 RollFabricRequest
+        <!-- 裁定 §3：卷重/幅宽/克重由可选改必填，口径与后端 RollFabricRequest
              逐字段一致（validate(required) + >0 范围校验，无上限）；初值为空不预填 0，
              杜绝以假默认值冒充实测值（成品布标签三列 fail-closed 依赖实测值） -->
         <el-form-item label="卷重 kg" prop="roll_weight" required>
@@ -255,7 +255,7 @@
       </template>
     </el-dialog>
 
-    <!-- #220 成品布入库标签：数据源为 GET /inventory/pieces 按 缸号+piece_type=dyed
+    <!-- 成品布入库标签：数据源为 GET /inventory/pieces 按 缸号+piece_type=dyed
          下推查询的真实匹行（inventory_piece.id 即打印端点入参），不手写死数据 -->
     <el-dialog v-model="labelVisible" :title="t('fabricInspections.label.dialogTitle')" width="760">
       <p class="label-scope">
@@ -658,7 +658,7 @@ const rollVisible = ref(false);
 const rollSaving = ref(false);
 const rollingId = ref<number | null>(null);
 const rollFormRef = ref<FormInstance>();
-// #220：三实测值必填且无假默认——初值为空（undefined），置空即"未填"，不以 0 冒充实测值
+// 三实测值必填且无假默认——初值为空（undefined），置空即"未填"，不以 0 冒充实测值
 const rollForm = reactive({
   warehouse_id: undefined as number | undefined,
   roll_length: undefined as number | undefined,
@@ -782,7 +782,7 @@ async function onRollSubmit() {
   }
 }
 
-// ===== #220 成品布入库标签打印（rolled 态入口，权限码 pieces:print 见 constants/permissions.ts） =====
+// ===== 成品布入库标签打印（rolled 态入口，权限码 pieces:print 见 constants/permissions.ts） =====
 const labelVisible = ref(false);
 const labelLoading = ref(false);
 const labelPieces = ref<InventoryPieceRow[]>([]);

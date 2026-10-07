@@ -1,4 +1,4 @@
-//! 契约波次 5 · AR 报表 & 仪表盘库存状态口径统一契约锁（决策定案 #1 + 词表核查 A1）
+//! 契约波次 5 · AR 报表 & 仪表盘库存状态口径统一契约锁（决策定案 + 词表核查 A1）
 //!
 //! 锁定的两条根因：
 //! 1. **AR 报表口径分裂**：`services/ar_ops/report.rs` 的 8 处过滤门只写
@@ -16,7 +16,7 @@
 //!    中英不同 ⇒ 在库价值/品类价值/库龄/周转率分母恒空。修复形态：4 处改绑定
 //!    `inventory_stock_status::NORMAL` 常量（周转率处基址避让 $1/$2 用 $3）。
 //!
-//! 覆盖策略（路线一真库化，#4669 判责；表结构唯一来源 = backend/migration）：
+//! 覆盖策略（路线一真库化， 判责；表结构唯一来源 = backend/migration）
 //! - 真 PG 行为锁：调用**生产同源 builder** 得到 (sql, params) 后在真实 ar_invoices /
 //!   inventory_stocks 表上执行——统计/日报表逐值断言只含 APPROVED（含全过滤参数形态，
 //!   锁 $N 基址位移不撞号）；修复前旧谓词（只排 CANCELLED）作缺陷实证对照（草稿被误计入）。
@@ -89,7 +89,7 @@ async fn seed_customer_77(db: &sea_orm::DatabaseConnection) {
 
 /// 真表种子：同一客户 77、三个不同开票日：DRAFT 2222.50 / APPROVED 1000.00 / CANCELLED 3333.75，
 /// 到期日均早于基准日 2096-12-31（逾期口径三张同构，差异只在状态）。
-/// 金额按真表 DECIMAL 列以 Decimal 绑定（sqlite TEXT 亲和失真族即本用例集的 #4669 根因）。
+/// 金额按真表 DECIMAL 列以 Decimal 绑定（sqlite TEXT 亲和失真族即本用例集的 根因）。
 async fn setup_ar_invoices(db: &sea_orm::DatabaseConnection) {
     seed_customer_77(db).await;
     for (id, no, inv_day, amount, status) in [
@@ -138,7 +138,7 @@ fn col_i64(row: &QueryResult, idx: usize) -> i64 {
 }
 
 /// 真表金额列为 DECIMAL：聚合结果按 Decimal 解码逐值断言
-/// （原 f64 解码是 sqlite REAL 同构表时代的形态，真库下必 ColumnDecode——#4669 判责原文
+/// （原 f64 解码是 sqlite REAL 同构表时代的形态，真库下必 ColumnDecode—— 判责原文
 /// 「第 0 列应可解码为 f64: mismatched types DECIMAL」即此族）
 fn col_decimal(row: &QueryResult, idx: usize) -> Decimal {
     row.try_get_by_index::<Option<Decimal>>(idx)
@@ -209,7 +209,7 @@ fn expect_status_value(v: &Value, want: &str, ctx: &str) {
 }
 
 // ===========================================================================
-// 1) AR 报表真库行为锁（任务 1：草稿与取消都不计入）
+// 1) AR 报表真库行为锁：草稿与取消状态均不计入（聚合只含 APPROVED）
 // ===========================================================================
 
 /// 统计报表：调用生产 builder `build_statistics_sql_and_params`，返回的 (sql, params)
@@ -453,7 +453,7 @@ async fn ar_aging_builder_all_branches_bind_constants_with_shifted_placeholders(
 }
 
 // ===========================================================================
-// 2) 仪表盘库存门真库行为锁（任务 2：中文词表列上的恒 0 门）
+// 2) 仪表盘库存门真库行为锁：中文词表列上的门必须绑定中文常量才命中「正常」行
 // ===========================================================================
 
 /// 真表 inventory_stocks 的 product_id/warehouse_id 有真外键（fk_inventory_product/

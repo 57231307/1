@@ -1,10 +1,11 @@
-//! 任务 #144：`is_document_no_taken` 集中注册表（`/document-no/check` 查重白名单）
+//! `is_document_no_taken` 集中注册表（`/document-no/check` 查重白名单）
 //! 的 doc_type→真实表真实列 一致性契约测试。
 //!
-//! 根因防复发：历史上查重白名单只有 7 个类型（handler 内嵌 match），新单据
-//! 前端取号后查重直接 400，查重形同虚设。现在白名单收敛到
-//! `backend/src/utils/number_generator.rs::is_document_no_taken`，本测试锁定：
-//! 1. 任务 #144 要求覆盖的每一类 doc_type（销售 SO/采购 PO/报价 QT/销售合同 SC/
+//! 根因防复发：查重白名单必须是单一注册表
+//! `backend/src/utils/number_generator.rs::is_document_no_taken`，不得拆回 handler
+//! 内嵌 match——内嵌 match 会随新单据类型漏登记，前端取号后查重直接 400、查重形同虚设。
+//! 本测试锁定：
+//! 1. 要求覆盖的每一类 doc_type（销售 SO/采购 PO/报价 QT/销售合同 SC/
 //!    采购合同 PC/委外凭证 OVIS·OVFE·OVRC·OVLS/薪酬 WR·PWR/CRM CUS·OPP·TA/
 //!    库存单据类）在注册表中登记，且指向**该单据自己的实体与自己的单号列**
 //!    （静态源码层断言臂结构，不放宽）；
@@ -13,7 +14,7 @@
 //!    doc_type 查重都能在真实表真实列上执行 SELECT（不存在的表/列会直接 DB 报错），
 //!    并锁定"插入后查得到、删除后查不到"的正反例；
 //! 4. 未知 doc_type 必须返回**可区分错误**（BAD_REQUEST，文案含类型名），
-//!    绝不静默返回 Ok(false)（"误判可用"——当年白名单形同虚设的复发形态）。
+//!    绝不静默返回 Ok(false)（"误判可用"——查重形同虚设的复发形态）。
 //!
 //! 说明（库存四类）：库存域真实拥有自有单号列的单据表为调拨/调整/盘点三张
 //! （inventory_transfers/inventory_adjustment/inventory_counts，模型见
@@ -21,13 +22,13 @@
 //! 库存流水/预占/跌价准备/匹等表无自有单号列，故"库存类"以这三张为准逐一断言，
 //! 第四个库存单据若未来引入单号列，必须同步登记注册表并加入本清单。
 //!
-//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! 通道：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
 //! - 需要可连接库的行为用例走 `test_common::setup_test_db()`（已迁移 PostgreSQL + 清空
 //!   业务表）；未知 doc_type 那条虽然按代码路径在触库前就返回 Err，同样不得再用
 //!   `sqlite::memory:` 当"随便连一下都算跑过"的通道——夹具缺变量/指 sqlite 直接 panic。
 //! - 活库用例（#[ignore]）走 `test_common::connect_live_db()`：只连已迁移 PG、不清空，
 //!   因为这两条用例自带"插入探针→按主键删除"的清理闭环，清空反而会打断同 job 内
-//!   其它活库用例；env 缺失由夹具显式 panic（比原 `expect` 更严：指 sqlite 也 panic）。
+//!   其它活库用例；env 缺失由夹具显式 panic（比一般 expect 更严：指 sqlite 也 panic）。
 
 mod test_common;
 
@@ -67,7 +68,7 @@ fn registry_arm<'s>(src: &'s str, doc_type: &str) -> &'s str {
     &rest[..end]
 }
 
-/// 任务 #144 点名的必须登记项：(doc_type, 实体, 单号列表达式)。
+/// 点名的必须登记项：(doc_type, 实体, 单号列表达式)。
 /// 委外凭证 OVIS/OVFE/OVRC/OVLS 四类前缀同落 outsourcing_voucher.voucher_no；
 /// 薪酬 WR→wage_record.record_no、PWR→process_wage_rate.rate_no；
 /// CRM CUS→customer.customer_code、OPP→crm_opportunity.opportunity_no、
@@ -214,7 +215,7 @@ fn entities_map_to_expected_real_tables() {
 
 // =========================================================
 // 行为层：未知 doc_type 的误判防复发
-// （该路径在触达任何表之前就返回 Err；连接仍走路线一真库夹具，
+// （该路径在触达任何表之前就返回 Err；连接仍走真库夹具，
 //   这样一旦有人把兜底挪到查询之后，用例会在真库上显式变红而不是继续"看起来通过"）
 // =========================================================
 

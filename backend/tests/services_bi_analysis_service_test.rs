@@ -1,4 +1,4 @@
-//! 通道（路线一，#4669 判责）：夹具经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：夹具经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL，表结构唯一来源 = `backend/migration`；缺 `TEST_DATABASE_URL` 或指向
 //! sqlite 时夹具直接 panic。原写法在变量缺失时**静默回退 sqlite::memory:**，
 //! 那正是本批假绿的根（"没连上真库也算通过"），回退分支已彻底删除。

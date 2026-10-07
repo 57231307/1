@@ -231,7 +231,7 @@ fn log_to_json(m: log_api_access::Model) -> Value {
 /// - `created_by_name`：LEFT JOIN `users.username` 真值，用户行缺失时 null（禁止空串/假名）；
 /// - `last_used_at`：null = 从未使用（与 expires_at 同一口径，同源修复）。
 ///
-/// 批次 112 P1-9：created_by 直接从视图 `created_by` 读取（migration m0039 新增列）。
+/// P1-9：created_by 直接从视图 `created_by` 读取（migration m0039 新增列）。
 /// 历史数据 created_by 为 NULL 时返回 0 保持前端 `created_by: number` 兼容。
 fn key_to_json(m: &ApiKeyWithCreator) -> Value {
     // permissions 字段为 JSON 字符串，解析为 string[]

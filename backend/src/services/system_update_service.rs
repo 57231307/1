@@ -65,7 +65,7 @@ pub struct GitHubAsset {
     pub size: u64,
     pub content_type: String,
     /// GitHub Releases assets API 返回的官方校验值，形如 `sha256:<hex>`（服务端上传时计算）。
-    /// 任务 #121：作为 SHA-256 强校验的兜底源（优先 CI 上传的 `.sha256` 资产，其次此 digest）。
+    /// 作为 SHA-256 强校验的兜底源（优先 CI 上传的 `.sha256` 资产，其次此 digest）。
     /// `#[serde(default)]`：老/无 digest 的 release 仍可反序列化（digest=None 时按 fail-closed 处理）。
     #[serde(default)]
     pub digest: Option<String>,
@@ -106,10 +106,10 @@ pub enum UpdateError {
     AlreadyUpdating,
     #[error("网络错误：{0}")]
     NetworkError(String),
-    /// 任务 #121：官方 SHA-256 校验值存在但与本地重算结果不一致 → 文件损坏或被投毒，拒绝 apply。
+    /// 官方 SHA-256 校验值存在但与本地重算结果不一致 → 文件损坏或被投毒，拒绝 apply。
     #[error("完整性校验失败：{0}")]
     IntegrityError(String),
-    /// 任务 #121：两官方校验源（CI `.sha256` 资产 / API `assets[].digest`）均不可得 →
+    /// 两官方校验源（CI `.sha256` 资产 / API `assets[].digest`）均不可得 →
     /// fail-closed 拒绝 apply（严禁因取不到校验值而放行）。
     #[error("校验值不可用：{0}")]
     ChecksumUnavailable(String),
@@ -125,7 +125,7 @@ impl From<UpdateError> for AppError {
             UpdateError::VersionError(e) => AppError::bad_request(format!("版本错误: {}", e)),
             UpdateError::AlreadyUpdating => AppError::business("更新正在进行中"),
             UpdateError::NetworkError(e) => AppError::internal(format!("网络错误: {}", e)),
-            // 任务 #121：完整性/校验值错误属服务端安全护栏判定，映射为 internal（不外泄细节），
+            // 完整性/校验值错误属服务端安全护栏判定，映射为 internal（不外泄细节），
             // 真实原因已在 tracing 中文日志留痕，出参按 AppError 统一脱敏。
             UpdateError::IntegrityError(e) => AppError::internal(format!("完整性校验失败: {}", e)),
             UpdateError::ChecksumUnavailable(e) => {
@@ -188,7 +188,7 @@ pub fn parse_version(v: &str) -> Vec<u32> {
 }
 
 // =====================================================
-// 任务 #116：编译期权威四段版本 + 三段(MD 折叠)↔四段 跨格式确定性反解
+// 编译期权威四段版本 + 三段(MD 折叠)↔四段 跨格式确定性反解
 // =====================================================
 
 /// 本项目 CalVer 特征年份下限。首段 >= 此值才认定为本项目双编码版本，
@@ -390,11 +390,11 @@ pub fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
     }
 }
 
-/// 官方 GitHub 域白名单（任务 #121 信任模型：校验基准**只**从这些域取；镜像仅搬 tar 字节）。
+/// 官方 GitHub 域白名单（信任模型：校验基准**只**从这些域取；镜像仅搬 tar 字节）。
 pub(crate) const OFFICIAL_DOWNLOAD_HOSTS: &[&str] =
     &["github.com", "objects.githubusercontent.com"];
 
-/// 下载/重定向链允许的 host：官方域 ∪ `config.update.mirrors` 派生 host ∪（默认档）内置默认镜像派生 host（任务 #121）。
+/// 下载/重定向链允许的 host：官方域 ∪ `config.update.mirrors` 派生 host ∪（默认档）内置默认镜像派生 host。
 /// 仅用于**字节下载** URL 与重定向终点复核；校验值取源走 `is_official_digest_host`（官方域收窄）。
 /// 内置默认镜像（`DEFAULT_RELEASE_MIRRORS`）在 `use_default_mirrors==true` 时并入允许域，
 /// 使 `{mirror}/{official}` 候选能过 `validate_download_url`；但**绝不**并入
@@ -439,7 +439,7 @@ fn is_allowed_download_host(host: &str) -> bool {
         .any(|h| h.eq_ignore_ascii_case(host))
 }
 
-/// host 是否为**官方**域（校验值取源专用收窄，任务 #121：绝不从镜像取校验值）。
+/// host 是否为**官方**域（校验值取源专用收窄，绝不从镜像取校验值）。
 pub fn is_official_digest_host(host: &str) -> bool {
     OFFICIAL_DOWNLOAD_HOSTS
         .iter()
@@ -470,7 +470,7 @@ pub fn validate_download_url(url_str: &str) -> Result<(), UpdateError> {
     Ok(())
 }
 
-/// 校验**校验值取源** URL：scheme=https + host ∈ 官方域（收窄，不含镜像，任务 #121 信任模型）。
+/// 校验**校验值取源** URL：scheme=https + host ∈ 官方域（收窄，不含镜像， 信任模型）。
 /// CI 上传的官方 `.sha256`/`.md5` 资产其 `browser_download_url` 必须过此判定才可信。
 pub fn validate_official_digest_url(url_str: &str) -> Result<(), UpdateError> {
     let parsed = url::Url::parse(url_str)
@@ -494,7 +494,7 @@ pub fn validate_official_digest_url(url_str: &str) -> Result<(), UpdateError> {
 }
 
 // =====================================================
-// 任务 #121：完整性校验纯函数（SHA-256 为权威安全判据）
+// 完整性校验纯函数（SHA-256 为权威安全判据）
 // =====================================================
 
 /// 流式计算文件 SHA-256，返回小写 64 位 hex（用仓内既有 `sha2` + `hex`，不新增依赖）。
@@ -620,7 +620,7 @@ pub fn validate_asset_name(name: &str) -> Result<(), UpdateError> {
 }
 
 // =====================================================
-// 任务 #121：官方强校验决策树单测（校验值只信官方 + fail-closed）
+// 官方强校验决策树单测（校验值只信官方 + fail-closed）
 // 集成测试（backend/tests）只能访问 pub 项，此处覆盖 pub(crate) 纯函数决策树。
 // =====================================================
 #[cfg(test)]

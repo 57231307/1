@@ -547,7 +547,7 @@ async fn test_fwslcj() {
 // ===== 数据库交互测试（标注 #[ignore]） =====
 
 /// test_cjdzd_xysjk（真库正向口径：对账单 create 落库并回读落库值。）
-/// 历史前提更正（CI #4675 族H 同族既存红）：本例曾用于「库未迁移/无 schema」时期的
+/// 历史前提更正（CI 族H 同族既存红）：本例曾用于「库未迁移/无 schema」时期的
 /// 负探测（"无 schema 时应返回数据库错误"）；ignored 专用 job 现跑**真库真迁移**
 /// （该 job「迁移本 job PostgreSQL service」步骤 success），负前提不再成立——
 /// CI 里 create 成功是正确行为，旧负断言是过期前提的假红。现由真库夹具取代：

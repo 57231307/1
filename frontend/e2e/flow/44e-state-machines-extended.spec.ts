@@ -43,8 +43,8 @@ interface ScrapDefectRow {
 /**
  * 44e-7 专用：按缺陷 id 从 defects 列表回读落库真值行。
  * 端点 GET /production/quality-inspection/defects（handler :396-414）data 为**裸数组**
- * （Vec<Model>，K 族信封口径待决前按当前真实契约钉死，不用两端兼容），列表 id 倒序
- * （service get_defects_list :744-764），新建缺陷恒在首页。
+ * （Vec<Model>，本用例按当前真实契约钉死，不做两端兼容），列表 id 倒序
+ * （service `get_defects_list`，quality_inspection_service.rs），新建缺陷恒在首页。
  */
 async function findScrapDefectRow(page: Page, id: number): Promise<ScrapDefectRow | undefined> {
   const res = await apiCallRaw<ScrapDefectRow[] | { items?: ScrapDefectRow[] }>(
@@ -124,15 +124,14 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    // 根因C + 用户 2026-10-02 口径（出库四维第四维=匹号）：建调拨单前，调出仓须对该产品
+    // 业务口径（出库四维第四维=匹号）：建调拨单前，调出仓须对该产品
     // 有「维度匹配」的足量库存行，且染色布（color_no 非空）明细在建单期即强制
-    // 缸号+色号+批次+匹号四维（inv/fabric_class.rs::normalize_outbound_piece_no，
-    // CI #4671 原文「染色布必须提供匹号…四维强制」在本用例建单 POST 就抛，导致
-    // 下方 ship 状态机负例根本没执行——非词表/CHECK 问题；反证：44e-4b 白坯 color_no=""
-    // 本轮通过，白坯免填放行正确）。
-    // 本用例目标是「pending 直接 ship 应被状态门拒绝」，与白坯/染色无关；旧
+    // 缸号+色号+批次+匹号四维（inv/fabric_class.rs::normalize_outbound_piece_no
+    // 在建单 POST 直接报错，错误原文即「染色布必须提供匹号」——非词表/CHECK 问题；
+    // 白坯 color_no="" 免填放行，对照用例见 44e-4b）。
+    // 本用例目标是「pending 直接 ship 应被状态门拒绝」，与白坯/染色无关；
     // seedFourDimStockIn 灌的 batch≠缸号 库存行按写入方口径（piece_domain_service.rs:518-556
-    // 染色匹恒 batch=缸号）配不出真实匹，四维预检必拒 ⇒ 改用匹感知 seed 先例
+    // 染色匹恒 batch=缸号）配不出真实匹，四维预检必拒 ⇒ 用匹感知 seed 先例
     // （flow/07 委外染色真实链、flow/12 同法）：真实 AVAILABLE 染色匹 + 同维库存行，
     // 明细维度逐一对应真实落库值，不造假、不绕门控。
     const target = await pickDyeableWarehouse(page);
@@ -228,12 +227,13 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   test('44e-7 报废两级审批：真实端点全链路（财务→GM）+ 跳级/非报废/终态复批被拒 + 被拒零残留回读', async ({
     page,
   }) => {
-    // CI #4669 判责 §3-F 族收口：原用例打臆造路径（/quality/inspections/.../scrap-approval/gm、
-    // /production/scrap-approval/gm），权限中间件按 URL 段推导资源键，段3 不在白名单 →
-    // 403「未知的资源路径」。真实端点（backend/src/routes/production.rs:544-551，F-be 注册）：
+    // 端点路径必须与真实挂载一致：权限中间件按 URL 段推导资源键，段3 不在白名单即
+    // 403「未知的资源路径」——臆造路径（/quality/inspections/.../scrap-approval/gm、
+    // /production/scrap-approval/gm）不命中任何挂载，用例只会撞 403。
+    // 真实端点（backend/src/routes/production.rs:556-563）：
     //   POST /production/quality-inspection/defects/{id}/scrap-approval/{financial|gm}
-    // 其中 {id}=unqualified_products.id；审批人只取会话（handlers/quality_inspection_handler.rs
-    // :433-596，契约无 approver 字段）；跳级/非报废/终态复批 = BUSINESS_ERROR 族且**出参脱敏**
+    // 其中 {id}=unqualified_products.id；审批人只取会话（quality_inspection_handler 的
+    // approve_scrap_financial/approve_scrap_gm + assert_scrap_approval_access，契约无 approver 字段）；跳级/非报废/终态复批 = BUSINESS_ERROR 族且**出参脱敏**
     // ——按硬约束只断 status 与信封 code（expectBusinessRejection/显式 code），禁止断言原因文案。
     await ensureTestEntities(page);
     const ctx = getCtx();
@@ -446,8 +446,8 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
   test('44e-11 销售价格状态机：pending→approved/rejected 双向出边 + 理由必填/落库 + 空理由与缺通过理由负例', async ({
     page,
   }) => {
-    // 销售价目侧与采购价目同族（price_approval 小写 pending/approved/rejected）。此前销售侧仅 flow/27
-    // verifyEndpointHealthy 假绿族探测，无拒绝链真断言——本例补真实状态机出边与理由列逐字回读。
+    // 销售价目侧与采购价目同族（price_approval 小写 pending/approved/rejected）；
+    // 本例对销售侧拒绝链做真实断言：状态机出边逐条走 + 理由列落库逐字回读。
     await ensureTestEntities(page);
     const ctx = getCtx();
     if (!ctx.productIds[0]) throw new Error('前置缺失：ctx.productIds[0] 未就绪');

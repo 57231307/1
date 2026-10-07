@@ -1,5 +1,5 @@
 <!--
-  CompleteDyeBatchDialog.vue - 缸号完工登记对话框（任务 #168）
+  CompleteDyeBatchDialog.vue - 缸号完工登记对话框
   完工时强制采集实际产出三值：实际落布重量(kg) / 实际落布长度(米) / 坯布投料量(kg)。
   契约对齐后端 CompleteDyeBatchRequest（handlers/dye_batch_handler.rs）：三值必填、
   为正、最多 2 位小数；缺失或非法后端 400 且状态不推进（失败提示由 api/request.ts

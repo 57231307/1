@@ -1,4 +1,4 @@
-//! D-4 收口源码扫描锁（PR #942 波次）：admin 判定唯一权威源单点化。
+//! D-4 收口源码扫描锁（波次）：admin 判定唯一权威源单点化。
 //!
 //! 背景：本仓 admin 判定的唯一权威是 `crate::utils::admin_checker::is_admin_role`
 //! （按 `roles.code='admin'` 查，查询失败 fail-closed 返回 false）。角色表按名称播种、

@@ -1,6 +1,6 @@
-//! 出库四维（缸/色/批/匹）真实 PostgreSQL 契约锁：调拨发运消耗染色匹（用户 2026-10-02 纠正口径）
+//! 出库四维（缸/色/批/匹）真实 PostgreSQL 契约锁：调拨发运消耗染色匹
 //!
-//! 表结构唯一来源 = backend/migration（路线一，#4669 判责）：本文件不再自建任何 DDL，
+//! 表结构唯一来源 = backend/migration：本文件不再自建任何 DDL，
 //! 全部读写打真实迁移表（正确的 DECIMAL/CHECK/触发器/索引由迁移提供）。
 //!
 //! 锁定行为（判定唯一来源 `services/inv/fabric_class.rs`，出库包装
@@ -86,7 +86,7 @@ async fn inject_auth(
 /// - 调拨单 1（approved，item piece_no='P-9' 指向真实可用染色匹）→ 发运成功组；
 /// - 调拨单 2（approved，item piece_no IS NULL 的染色布存量行）→ 缺匹号拒绝组；
 /// - 调出仓(1)库存 50、调入仓(2)库存 0；染色匹 P-9 AVAILABLE。
-/// FK 父行自种子（裁定 R1）：warehouses(1,2) / products(5)。
+/// FK 父行自种子：warehouses(1,2) / products(5)。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
     let db = Arc::new(test_common::setup_test_db().await);
     for (wid, name, code) in [

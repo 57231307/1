@@ -1,8 +1,8 @@
-//! `pieces:read` / `pieces:print` 存量库补授（复审 #4669 挂账项：匹号领域权限键从未注册）
+//! `pieces:read` / `pieces:print` 存量库补授（复审 挂账项：匹号领域权限键从未注册）
 //!
 //! 缺陷事实（非推断）：
 //! - `/api/v1/erp/inventory/pieces`（四维追溯选匹）与 `/api/v1/erp/inventory/pieces/{id}/print`
-//!   （#220 成品布入库标签）的资源段由 URL 推导：`middleware/permission.rs::extract_resource_info`
+//! （成品布入库标签）的资源段由 URL 推导：`middleware/permission.rs::extract_resource_info`
 //!   对模块前缀 `inventory` 取 segment4（`utils/path_utils.rs:102-117` 默认分支），
 //!   运行时权限键是 `pieces:read` / `pieces:print`；
 //! - 该资源段从未进过 `init_service::PERMISSION_RESOURCES`，也没有任何角色被授予过它

@@ -224,7 +224,7 @@ export function createOutsourcingItem(orderId: number, data: Record<string, unkn
  * 收回单出参 —— 键对齐 backend/src/models/outsourcing_receipt.rs Model（snake_case）。
  * 状态词值域 draft/confirmed/cancelled（权威 outsourcing_receipt_status，
  * wage_energy_chemical_business.rs:288-295；utils/outsourcing-status.ts 目前**只收录订单态**，
- * 收回态映射缺失已交回编排者，见任务 #149 报告）。
+ * 收回态映射缺失已交回编排者，见 报告）。
  */
 export interface OutsourcingReceipt {
   id: number;
@@ -246,7 +246,7 @@ export interface OutsourcingReceipt {
   abnormal_loss_amount: string;
   quality_status: string | null;
   grade: string | null;
-  // #220 打卷实测值三列（m0075 DB 可空列，CHECK >0 或 NULL）：键逐字符对齐
+  // 打卷实测值三列（m0075 DB 可空列，CHECK >0 或 NULL）：键逐字符对齐
   // backend/src/models/outsourcing_receipt.rs:72,75,78（Option<Decimal>）。
   // rust_decimal 序列化为 JSON **字符串**（如 "12.5000"）→ string 而非 number；
   // null = 未补录。参与数值运算/回显数值输入控件前须 Number() 归一，

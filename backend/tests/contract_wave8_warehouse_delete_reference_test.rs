@@ -1,4 +1,4 @@
-//! 仓库删除引用预检契约锁（CI run #4672：`DELETE /warehouses/3` 被
+//! 仓库删除引用预检契约锁（`DELETE /warehouses/3` 被
 //! `fk_greige_fabric_warehouse` 拒后 DbErr 裸冒 500 `DATABASE_ERROR`，本波修复 →
 //! 400 `BUSINESS_ERROR` + 可外显文案）
 //!
@@ -79,7 +79,7 @@ async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32) {
 }
 
 /// 引用行：真表 greige_fabric（FK fk_greige_fabric_warehouse → warehouses(id)，
-/// 即 CI #4672 日志里拒绝 DELETE 的那条约束）。
+/// 即 CI 日志里拒绝 DELETE 的那条约束）。
 async fn seed_greige_ref(db: &sea_orm::DatabaseConnection, warehouse_id: i32, n: i32) {
     for seq in 1..=n {
         greige_fabric::ActiveModel {
@@ -182,7 +182,7 @@ fn assert_no_internal_leak(msg: &str, hidden_id: i32) {
 // service 层（真实 PostgreSQL）
 // =========================================================
 
-/// 被坯布引用的仓库删除 → 预检拒绝（CI #4672 事故同型）：BusinessErrorDisplayable 族、
+/// 被坯布引用的仓库删除 → 预检拒绝（CI 事故同型）：BusinessErrorDisplayable 族、
 /// 文案逐字锁死、仓库必须仍在（拒绝发生在 DELETE 之前，不静默删、不 CASCADE）
 #[tokio::test]
 async fn delete_warehouse_referenced_by_greige_rejected_with_displayable_business_error() {

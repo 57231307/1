@@ -1,6 +1,6 @@
-//! Wave「编码唯一性/裸 500 同族」第二收口族契约锁（warehouse / supplier / outsourcing）
+//! 「编码唯一性/裸 500 同族」第二收口（warehouse / supplier / outsourcing）契约锁
 //!
-//! 锁定的契约面（文件:行号以本波修复后为准，判责来源 wave-i §③ 待收口表）：
+//! 锁定的契约面（文件:行号以当前源码为准）：
 //! - `backend/src/services/warehouse_service.rs::create` 人工指定码分支：
 //!   ①同事务预校验命中 `warehouses.warehouse_code` 已有值 → 400 `BUSINESS_ERROR`
 //!   + 可外显真实文案（回显用户自己提交的编码，禁表名/约束名/内部信息）；
@@ -149,7 +149,7 @@ async fn scalar_text(db: &DatabaseConnection, sql: String) -> Option<String> {
 }
 
 /// 拒绝出参双向钉：400 + BUSINESS_ERROR + 真实文案回显用户自己提交值，
-/// 且不得是脱敏常量、不得含表名/SQL/约束细节（先例：wave-i 同族判据）
+/// 且不得是脱敏常量、不得含表名/SQL/约束细节
 fn assert_reject_envelope(v: &Value, status: StatusCode, code_in_msg: &str) {
     assert_eq!(
         status,
@@ -563,8 +563,8 @@ async fn w7s_outsourcing_receipt_voucher_duplicate_and_missing_prereq_400_displa
 // =========================================================
 
 /// 只保留"代码 + 字符串字面量"：整行注释（`//`、`///`、`//!`）逐行剔除。
-/// 本族的禁词/必备文案在源码里**同时存在于说明注释**（"旧口径是脱敏 business，
-/// 现升为 business_displayable"这类），按原文判会把注释当执行体（#4671 判责 B1①）。
+/// 本族的禁词/必备文案只以执行体意义成立：说明性注释里的同名词句不算违例也不算
+/// 达标，故必须先剥注释再判禁词/必备项。
 /// 按行而非按字符扫描：被锁文件里的跨行 raw string/多行 format 参数使单行引号配平
 /// 不可靠，宁少剥（行尾尾注释、块注释不动）不可错吃代码文本。
 fn code_only(src: &str) -> String {
@@ -605,12 +605,9 @@ fn w7s_source_scan_displayable_and_race_fallback_locked() {
         let src =
             std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
         // 判据文本 = 剥掉整行注释后再去空白：
-        // ① needle 里的 `{}` 与中文标点两侧本就没有空白，而源码里的文案字面量是
-        //    `"仓库编码 {} 已存在…"`（`{}` 两侧有空格，rustfmt/可读性所需），
-        //    原写法把去空白后的 needle 拿去 `src.contains` 比对**原文**，对 4 条 case
-        //    全不成立（#4671 判责 B1②：单行字面量 needle 假失败，改一处会连报三处）；
-        // ② 说明性注释（"旧口径是脱敏 business，现升为 business_displayable"）不是
-        //    执行体，禁项/必备项都只看代码文本。
+        // ① 源码文案字面量里 `{}` 两侧带空白（rustfmt/可读性所需），needle 里没有——
+        //    两者只在去空白后文本形态相等，contains 判定必须在剥注释+去空白的文本上进行；
+        // ② 说明性注释不是执行体，禁项/必备项都只看代码文本。
         let flat: String = code_only(&src)
             .chars()
             .filter(|c| !c.is_whitespace())

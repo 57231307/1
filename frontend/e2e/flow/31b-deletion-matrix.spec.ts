@@ -275,7 +275,7 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
         code: `P0SUB${TS}`,
         name: `P0科目${TS}`,
         level: 1,
-        // balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（#198）
+        // balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量
         balance_direction: 'debit',
       },
     },

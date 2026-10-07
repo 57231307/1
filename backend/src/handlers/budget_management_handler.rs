@@ -20,8 +20,8 @@ use std::sync::Arc;
 use tracing::info;
 use validator::Validate;
 
-/// P1-2a 修复（批次 81 v1 复审）：创建预算请求 DTO
-/// 替代 create_budget 中的 Json<serde_json::Value>，提供强类型校验
+/// 创建预算请求 DTO
+/// create_budget 的强类型请求体，字段级校验由 validator 执行
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBudgetDto {
@@ -45,8 +45,8 @@ pub struct CreateBudgetDto {
     pub remark: Option<String>,
 }
 
-/// P1-2a 修复（批次 81 v1 复审）：更新预算请求 DTO
-/// 替代 update_budget 中的 Json<serde_json::Value>，所有字段可选
+/// 更新预算请求 DTO
+/// update_budget 的强类型请求体，所有字段可选
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateBudgetDto {
@@ -64,8 +64,8 @@ pub struct UpdateBudgetDto {
     pub remark: Option<String>,
 }
 
-/// P1-2a 修复（批次 81 v1 复审）：审批预算请求 DTO
-/// 替代 approve_budget 中的 Json<serde_json::Value>
+/// 审批预算请求 DTO
+/// approve_budget 的强类型请求体（审批意见选填）
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ApproveBudgetDto {
@@ -74,7 +74,7 @@ pub struct ApproveBudgetDto {
 }
 
 /// 预算科目查询参数 DTO
-// V15 P0-S12 修复（Batch 475e）：派生 Clone，export_budget_items 需要 clone 后覆盖分页参数用于全量导出
+// 派生 Clone：export_budget_items 需 clone 查询参数并覆盖分页做全量导出
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct BudgetItemQuery {
@@ -198,7 +198,7 @@ pub async fn list_budget_items(
         status: params.status,
         plan_id: params.plan_id,
         page: params.page.unwrap_or(1).clamp(1, 1000),
-        // v11 批次 36 修复：page_size clamp 防止 DoS
+        // page/page_size 钳位（1..=1000 / 1..=100）防超大分页参数 DoS
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
@@ -319,7 +319,7 @@ pub async fn list_plans(
             None,
             None,
             params.page.unwrap_or(1).clamp(1, 1000),
-            // v11 批次 36 修复：page_size clamp 防止 DoS
+            // page/page_size 钳位（1..=1000 / 1..=100）防超大分页参数 DoS
             params.page_size.unwrap_or(10).clamp(1, 100),
         )
         .await?;
@@ -475,7 +475,7 @@ pub async fn create_execution(
         .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(state.db.clone());
-    // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
+    // 创建入参聚合为参数对象，转交 service.create_execution
     let params = crate::services::budget_management_service::CreateBudgetExecutionParams {
         plan_id: id,
         item_id: None,
@@ -535,9 +535,9 @@ pub async fn list_budgets(
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v11 批次 36 修复：防止 DoS
+    // 分页参数钳位防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // page 限 1..=1000
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // page_size 限 1..=100
 
     let query = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
@@ -565,7 +565,7 @@ pub async fn create_budget(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 创建预算", auth.username);
 
-    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
     req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
@@ -600,7 +600,7 @@ pub async fn update_budget(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新预算: ID={}", auth.username, id);
 
-    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
     req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
@@ -661,7 +661,7 @@ pub async fn approve_budget(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 审批预算: ID={}", auth.username, id);
 
-    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
     if let Some(r) = req.as_ref() {
         r.validate().map_err(AppError::from)?;
     }
@@ -826,7 +826,7 @@ fn record_budget_items_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/budgets/export - 导出预算科目列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
+/// GET /api/v1/erp/budgets/export - 导出预算科目列表（带水印 + 异步审计日志）：
 /// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_items_list 取全量数据
 pub async fn export_budget_items(
     State(state): State<AppState>,

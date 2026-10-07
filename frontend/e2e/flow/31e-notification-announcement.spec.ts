@@ -166,7 +166,7 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
   test('4. 通知公告直发：POST /notifications/announcement→通知产生→已读→删除', async ({ page }) => {
     test.setTimeout(120_000);
-    // 判责 #4669 J-5（测试侧超时预算被无关 seed 吃光，后端端点无阻塞）：
+    // 判责 J-5（测试侧超时预算被无关 seed 吃光，后端端点无阻塞）
     // 本用例只需要「当前登录用户 id」，原实现却调用 ensureTestEntities ——其染色批次
     // seed 分支（冻结 helper ui-helpers/createDyeBatchUI）在「染色身份归一」新契约下
     // UI 表单错误 [请选择产品/染色布必须填写缸号]、API 兜底又被色卡档案校验拒绝

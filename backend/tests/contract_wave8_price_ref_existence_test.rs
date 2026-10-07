@@ -1,9 +1,9 @@
-//! 任务板 #294 —— 价目写链「引用存在性预检」真库契约锁（后端线）
+//! 任务板 —— 价目写链「引用存在性预检」真库契约锁（后端线）
 //!
 //! 钉死缺陷（调查组结论）：`sales_price_service::create_price`/`update_price` 与
 //! `purchase_price_service::create_price` 此前把 product_id/customer_id/supplier_id
 //! 直接 `Set(...)` 落库、**完全不校验引用存在性**，而 `sales_prices`/`purchase_prices`
-//! 两表当前没有指向 products/customers/suppliers 的外键（补 FK 属另一路任务板 #293
+//! 两表当前没有指向 products/customers/suppliers 的外键（补 FK 属另一路任务板
 //! 的迁移）⇒ 给不存在的产品/客户/供应商建价目行会静默成功，产生孤儿价目（列表侧
 //! `SalesPriceView`/`PurchasePriceView` 的 JOIN 名列如实 NULL 即其下游形态）。
 //!
@@ -396,7 +396,7 @@ async fn valid_refs_pass_precheck_for_create_and_update() {
 // ---------------------------------------------------------------------------
 // 5. 源码扫描锁（"把预检从落点上摘掉就必红"的结构性证明，照 wave5 先例）：
 //    ①三处预检必须位于各自写库语句之前；②装配族只能是 validation_displayable；
-//    ③两个 service 文件不得出现 AppError::internal（#175 收口族防回潮）。
+// ③两个 service 文件不得出现 AppError::internal（收口族防回潮）。
 // ---------------------------------------------------------------------------
 #[test]
 fn source_scan_price_ref_prechecks_precede_writes_and_stay_in_validation_family() {
@@ -433,7 +433,7 @@ fn source_scan_price_ref_prechecks_precede_writes_and_stay_in_validation_family(
     }
 
     // 族装配：引用拒绝只能是 validation_displayable（可外显 VALIDATION 族），
-    // 且两个文件对 AppError::internal 零容忍（禁止把业务拒绝拍平成 500，任务板 #175）
+    // 且两个文件对 AppError::internal 零容忍（禁止把业务拒绝拍平成 500，任务板）
     for (name, src) in [("sales", &sales), ("purchase", &purchase)] {
         assert!(
             src.contains("AppError::validation_displayable"),

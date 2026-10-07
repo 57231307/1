@@ -1,6 +1,6 @@
-//! 采购交货周期样本谓词与词表同源契约锁（任务 #162-①）
+//! 采购交货周期样本谓词与词表同源契约锁（-①）
 //!
-//! 表结构唯一来源 = backend/migration（路线一，#4669 判责）：本文件不自建 DDL，
+//! 表结构唯一来源 = backend/migration（路线一， 判责）：本文件不自建 DDL，
 //! 全部读写打已迁移 PostgreSQL 的真表 `purchase_orders`（`test_common::setup_test_db()`）。
 //!
 //! 锁定的根因（状态词表核查取证）：
@@ -29,7 +29,7 @@
 //! 2. 缺陷实证对照：复现修复前的字面量谓词 → 仅 COMPLETED 命中（PARTIAL_RECEIVED 漏样）。
 //! 3. 词表同源锁：常量字面值逐字符核对（防第二套手写常量/拼写漂移）。
 //! 4. 防回潮源码扫描：calculator 须引用词表常量并以 $N 绑定，不得再出现引号状态字面量。
-//! 5. 决策定案 #7 接入锁：`actual_delivery_date` 由收货确认回写后，原被
+//! 5. 决策定案 接入锁：`actual_delivery_date` 由收货确认回写后，原被
 //!    `IS NOT NULL` 整批排除的单据必须进入平均交期样本（回写本体断言见
 //!    `contract_wave5_purchase_actual_delivery_writeback_test.rs`）。
 //!
@@ -253,7 +253,7 @@ async fn old_literal_predicate_drops_partial_received_defect_proof() {
     );
 }
 
-/// 决策定案 #7 接入断言：`actual_delivery_date` 由收货确认回写后，原本被
+/// 决策定案 接入断言：`actual_delivery_date` 由收货确认回写后，原本被
 /// `actual_delivery_date IS NOT NULL` 整批排除的单据应进入平均交期样本。
 /// 种子行 id3（COMPLETED + 到货日 NULL，即回写落地前的恒空现状）在被写入
 /// 与其同形态的确认回写 UPDATE 后必须命中谓词——锁定「回写 → 样本非空」链路，

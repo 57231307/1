@@ -1,6 +1,6 @@
-//! #220 成品布入库打印标签 — 真库契约锁（后端线，用户 2026-10-02 点名功能）
+//! 成品布入库打印标签 — 真库契约锁（后端线，用户 2026-10-02 点名功能）
 //!
-//! 表结构唯一来源 = backend/migration（不自建 DDL，遵 #4669 判责路线一）；
+//! 表结构唯一来源 = backend/migration（不自建 DDL，遵 判责路线一）；
 //! 夹具 = `test_common::setup_test_db()`（缺 TEST_DATABASE_URL 直接 panic，禁 sqlite 回退）；
 //! FK 父行自种子（warehouses/products/batch_dye_lot 等被清空且不播种）。
 //!

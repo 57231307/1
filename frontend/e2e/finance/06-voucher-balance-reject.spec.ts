@@ -1,6 +1,6 @@
 // 财务管理 E2E 套件 — 06 借贷不平衡凭证被拒
 //
-// 判族（#942 族口径）：借贷是否平衡完全由提交进来的分录金额决定，属「提交数据一致性校验」
+// 判族（族口径）：借贷是否平衡完全由提交进来的分录金额决定，属「提交数据一致性校验」
 // → **校验族**（VALIDATION_ERROR），绝不是 BAD_REQUEST 兜底族，也不是状态门。
 // 后端 voucher_ops/crud.rs::validate_voucher_create_req 在 dev/prod 两分支都做
 // total_debit != total_credit → `Self::balance_error(...)` = 脱敏 `AppError::validation(
@@ -30,7 +30,7 @@ test.afterEach(async ({ page }) => {
 const SANITIZED_VALIDATION = '请求参数验证失败';
 
 /** 建一枚真实叶子科目（凭证分录科目为外键，须存在），返回 { id, code }。
- *  balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。 */
+ * balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit）， 起禁灌中文。 */
 async function seedLeafSubject(
   page: import('@playwright/test').Page,
   direction: 'debit' | 'credit'

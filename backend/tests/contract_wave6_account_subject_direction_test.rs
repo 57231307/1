@@ -1,4 +1,4 @@
-//! 契约波次 6 · 科目余额方向词表三端同源与写入白名单（任务 #198）
+//! 契约波次 6 · 科目余额方向词表三端同源与写入白名单
 //!
 //! 锁定的根因：
 //! 1. **比较点认中文、写入方是英文**：`account_subjects.balance_direction` 的写入方权威
@@ -14,10 +14,10 @@
 //! 3. **存量中文数据**：m0007 归一迁移（借→debit、贷→credit），备份表精确回退，幂等。
 //!
 //! 覆盖策略（分层，路线一真库化：全部真实 PostgreSQL 执行，无 #[ignore]；
-//! 表结构唯一来源 = backend/migration，#4669 判责）：
+//! 表结构唯一来源 = backend/migration， 判责）
 //! - 生产服务行为锁：`AccountSubjectService::refresh_balance` 在真表上按 debit/credit
 //!   两条方向各自验证期末余额符号落位（正向断言）；NULL 方向默认 debit 语义保持。
-//! - 纯函数行为锁：`VoucherService::compute_ending_balance`（#198 起 pub，仅作测试缝）
+//! - 纯函数行为锁：`VoucherService::compute_ending_balance`（起 pub，仅作测试缝）
 //!   借贷两条 + 负值翻向 + 中文 token 不再命中借方分支的反例锁。
 //! - 白名单行为锁：中文「借」create 被 400/VALIDATION_ERROR 拒且零新增写入；「贷」update
 //!   被拒且存量行不变；大小写变体同样拒（不做静默归一）；"debit" 正常落库。
@@ -115,7 +115,7 @@ fn now() -> chrono::DateTime<Utc> {
 /// 种子科目：全字段 ActiveModel 插入（Decimal/时间戳由 SeaORM 原生编码，
 /// 不手拼 raw SQL）。code 必须带 W6DIR 前缀——account_subjects 是迁移播种
 /// （m0006 种子 28 行，code UNIQUE）且不清空的参照表，真码 1001/2202/1403 已存在，
-/// 直接复用会撞 UNIQUE（这正是 #4669 判责里该族种子失败的下一形态）。
+/// 直接复用会撞 UNIQUE（这正是 判责里该族种子失败的下一形态）。
 async fn seed_subject(
     db: &sea_orm::DatabaseConnection,
     code: &str,
@@ -719,7 +719,7 @@ fn source_scan_m198_migration_shape_locked() {
     )
     .replace('\r', "");
     // 禁项只看执行体：m0007 文件头 §设计 里正当出现"不用 UPDATE...FROM、DO $$ 等 PG
-    // 专有形态"这句**说明文字**，按原文判禁词会把自我约束声明当成违例（#4671 判责 B1①
+    // 专有形态"这句**说明文字**，按原文判禁词会把自我约束声明当成违例（判责 B1①
     // 同一形态）。必备项同理只在剥注释后的文本上查——注释里复述 SQL 片段不算实现。
     let code = code_only(&src);
     for needle in [

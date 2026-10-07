@@ -123,7 +123,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     // 语义①：第三段（module）不在资源白名单 → 中间件在 admin 旁路**之前**就 fail-closed 到 403。
     //   证据链：backend/src/middleware/permission.rs:59-69 `validate_route_whitelist` 对
     //   `unknown-module` 判 `is_known_resource_segment` 为假，直接 `forbidden_response(未知的资源路径)`
-    //   （utils/response.rs:144 CODE_FORBIDDEN）；该白名单机制自 PR #758（commit 8757c3a2）即存在，
+    // （utils/response.rs:144 CODE_FORBIDDEN）；该白名单机制自 （commit 8757c3a2）即存在，
     //   非本批引入。所以"未注册路由"命中白名单时按设计就是 403 FORBIDDEN，而非 404。
     const notWhitelisted = await apiCallExpectFail(page, 'GET', '/unknown-module/unknown-resource');
     expect(

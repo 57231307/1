@@ -120,7 +120,7 @@ fn calc_ending_balance(
     period_debit: Decimal,
     period_credit: Decimal,
 ) -> (Decimal, Decimal) {
-    // 写入方权威词表＝models/status/finance.rs 的 account_subject 常量（#198）：方向值英文 debit/credit，
+    // 写入方权威词表＝models/status/finance.rs 的 account_subject 常量：方向值英文 debit/credit，
     // 本夹具复刻源码比较逻辑，须与英文权威值对齐，禁再按中文「借」比较。
     if balance_direction == "debit" {
         let ending_balance = initial_debit + period_debit - period_credit;
@@ -498,10 +498,10 @@ async fn test_fwslcj() {
 
 // ============ 数据库交互测试（标注 #[ignore]）============
 
-/// test_cjpz_xyzssjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 voucher:524）：
+/// test_cjpz_xyzssjk —— 依据裁决 R-9 拆前提（判责 §A.1 pI 族 voucher:524）
 /// 本条文档自陈钉"**无 schema** 时返回数据库错误"，而 `setup_test_db()` 现语义 =
 /// 已迁移 PG + TRUNCATE 业务表，空表上 create 借贷平衡 ⇒ 科目 1001 命中迁移种子 ⇒
-/// **Ok(凭证)** 才是真实契约（#4672 该条红的签名正是"is_err 失败"）⇒ 前提改绑
+/// **Ok(凭证)** 才是真实契约（该条红的签名正是"is_err 失败"）⇒ 前提改绑
 /// `connect_empty_schema_db()`，并把裸 `is_err()` **收紧**为钉 DATABASE_ERROR。
 ///
 /// 真实契约依据（读函数体）：`src/services/voucher_ops/crud.rs:42-94` create 首个
@@ -542,7 +542,7 @@ async fn test_cjpz_xyzssjk() {
     );
 }
 
-/// test_cxpzlb_xyzssjk —— 同族按 R-9 改绑空 schema 库（#4672 §A.1 voucher:548），
+/// test_cxpzlb_xyzssjk —— 同族按 R-9 改绑空 schema 库（§A.1 voucher:548），
 /// 钉 DATABASE_ERROR。旧注释自己写了"有 schema 时为 Ok"——那半件事（真库化空表 ⇒
 /// `Ok(([], 0))`，crud.rs:349-360 count=0/all=[]）由 contract_wave5 凭证族与
 /// handlers_voucher 用例在真库上覆盖，本条只锁缺表报错，拆开各钉各的。
@@ -579,7 +579,7 @@ async fn test_cxpzlb_xyzssjk() {
     );
 }
 
-/// test_pzgz_xyzssjk —— 真库化夹具前提校准 + 收紧为机器码（#4672 §A.1 同族收口；
+/// test_pzgz_xyzssjk —— 真库化夹具前提校准 + 收紧为机器码（§A.1 同族收口；
 /// 范本见 600e5640 ap_payment confirm 条）：钉"已建库空表上 post 不存在的凭证
 /// ⇒ NOT_FOUND 机器码，而非 panic"。
 ///

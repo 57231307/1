@@ -62,7 +62,7 @@ fn uniq_tag() -> String {
 /// 列齐性依据：`models/supplier.rs` 的 supplier_short_name/supplier_type/credit_code/
 /// registered_address/legal_representative/registered_capital/establishment_date/
 /// taxpayer_type/bank_name/bank_account/contact_phone/is_processor 均为非 Option 字段，
-/// SeaORM insert 必须逐列显式 Set——CI #4672 实证只给 code/name 即
+/// SeaORM insert 必须逐列显式 Set——CI 实证只给 code/name 即
 /// `Type("Missing value for column 'supplier_short_name'")`；取值口径照抄本仓活库
 /// 范式 `contract_wave5_inspection_result_authority_test.rs:107-128`（同为供应商 FK 父行种子）。
 async fn seed_supplier(db: &DatabaseConnection, tag: &str) -> i32 {

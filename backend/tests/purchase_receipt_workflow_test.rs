@@ -1,7 +1,7 @@
 //! P0-T02 采购收货全流程集成测试（V15 Batch 487）
 //!
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径（各条按被测函数体在**真库化夹具**
-//! 下的真实契约逐条校准，见用例文档注释；#4671 判责 §⑤ W4 / 裁决 R-9）+ 完整流程（#[ignore]）
+//! 下的真实契约逐条校准，见用例文档注释； 判责 §⑤ W4 / 裁决 R-9）+ 完整流程（#[ignore]）
 //! confirm_receipt 在同一事务内完成库存入库并把入库单推进到 COMPLETED 终态，
 //! 集成测试覆盖 DRAFT → COMPLETED 全流程。
 
@@ -99,7 +99,7 @@ async fn test_purchasereceiptservice_slhbcfdb() {
 /// test_purchasereceiptservice_create_receipt_kdbfherr
 ///
 /// test_purchasereceiptservice_create_receipt_kdbfherr —— 真库化夹具前提校准
-/// （#4671 判责 §⑤ W4；手法照抄 ap_payment_workflow_test 的 R-9 拆分范本）：
+/// （判责 §⑤ W4；手法照抄 ap_payment_workflow_test 的 R-9 拆分范本）
 /// 钉"已建库空表上 create_receipt 引用不存在的前置单据 ⇒ 返回 Err 而非 panic"。
 ///
 /// 真实契约依据（读函数体，非读注释）：`purchase_receipt_ops/crud.rs:31-71`
@@ -192,7 +192,7 @@ async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
 
 /// 集成测试：采购收货全流程 create(PENDING 质检) → 门控拒确认 → 质检合格回写 → confirm(COMPLETED)
 ///
-/// 真库化前提补齐（CI #4672 §A.2 种子族，只补剩下这条前提，600e5640 已提交的
+/// 真库化前提补齐（CI §A.2 种子族，只补剩下这条前提，600e5640 已提交的
 /// 判据用例不动）：`sample_request()` 引用 order_id=1 / warehouse_id=1 /
 /// material_id=1 / order_item_id=1，读函数体
 /// `purchase_receipt_ops/crud.rs::create_receipt` 与 DDL 逐一对应——

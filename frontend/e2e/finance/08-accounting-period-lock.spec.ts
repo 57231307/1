@@ -1,6 +1,6 @@
 // 财务管理 E2E 套件 — 08 会计期间锁定（关账后录入被拒 + business_displayable 真实文案）
 //
-// 任务 #942 缺口 5。核心真相（务必理解，否则测例会假绿或跑偏）：
+// 缺口 5。核心真相（务必理解，否则测例会假绿或跑偏）
 //   - voucher_ops/crud.rs::validate_voucher_create_req 的"期间锁"仅在 is_production() 下执行；
 //     CI e2e 以 APP_ENV=development 运行（见 ci-cd.yml E2E job），故【凭证创建】不检锁。
 //   - 但 voucher_ops/workflow.rs::post / unpost、ar_ops/collection.rs::create_payment
@@ -69,7 +69,7 @@ async function ensurePeriodClosed(
   return found!.id;
 }
 
-// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。
+// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit）， 起禁灌中文。
 async function seedLeafSubject(
   page: import('@playwright/test').Page,
   direction: 'debit' | 'credit'

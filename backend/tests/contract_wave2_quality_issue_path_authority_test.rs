@@ -1,4 +1,4 @@
-//! 质检上报端点归属权威契约锁（任务 #148 售后先例同构缺陷，本波修复）
+//! 质检上报端点归属权威契约锁（售后先例同构缺陷，本波修复）
 //!
 //! 锁定的 file:line 契约（修复后形态）：
 //! - `backend/src/models/quality_issue_dto.rs::ReportQualityIssueDto`
@@ -9,7 +9,7 @@
 //!   覆盖"（越权防护由 handler 覆盖升级为结构性排除）
 //! - `backend/src/handlers/custom_order_handler.rs::quality_err`
 //!   InvalidState → `AppError::business_displayable`、Validation → `AppError::validation_displayable`
-//!   （拒绝原因均外显，族按 #165 判据拆分，对齐 aftersales_err）
+//! （拒绝原因均外显，族按 判据拆分，对齐 aftersales_err）
 //!
 //! 覆盖策略（先例：contract_wave2_after_sales_create_test.rs，全部真实行为无 mock）：
 //! - serde 解码（无 DB）：缺 custom_order_id 键必须成功（修复前必失败）；伪造键被
@@ -103,7 +103,7 @@ fn decode_missing_required_fields_still_fails() {
 
 // =========================================================
 // 2) 真实 handler 端到端（真 PostgreSQL；表结构唯一来源 = backend/migration，
-//    路线一 #4669 判责。FK 父行按裁定 R1 自种子：
+// 路线一 判责。FK 父行按裁定 R1 自种子
 //    quality_issues.custom_order_id → custom_orders(42) → customers/products）
 // =========================================================
 
@@ -243,7 +243,7 @@ async fn forged_custom_order_id_in_body_cannot_override_path_ownership() {
 }
 
 /// 用户可见性锁：非法严重度 / 色牢度越界 → 400 + code=VALIDATION_ERROR + message
-/// 外显真实拒绝文案。断言跟随源码变更（任务 #165）：severity 枚举越界与色牢度等级越界
+/// 外显真实拒绝文案。断言跟随源码变更：severity 枚举越界与色牢度等级越界
 /// 都是「用户提交字段」的输入校验，族归 VALIDATION_ERROR；validation_displayable 仍外显真实原因。
 #[tokio::test]
 async fn validation_rejections_return_displayable_validation_message() {
@@ -330,7 +330,7 @@ fn source_scan_report_quality_issue_contract() {
 
 /// quality_err：InvalidState 必须 business_displayable（记录状态门归业务族并外显），
 /// Validation 必须 validation_displayable（提交字段校验归校验族并外显）。
-/// 断言跟随源码变更（任务 #165）：#148 曾把两者并成 business，本轮按判据拆族。
+/// 断言跟随源码变更： 曾把两者并成 business，本轮按判据拆族。
 #[test]
 fn source_scan_quality_err_displayable_mapping() {
     let src = include_str!("../src/handlers/custom_order_handler.rs");

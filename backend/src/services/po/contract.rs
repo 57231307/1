@@ -260,7 +260,7 @@ impl PurchaseOrderService {
     }
 
     /// 取消采购订单
-    /// 批次 215 P2-1 修复（v12 复审）：实现采购订单 cancel_order 功能，；移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。；业务规则：允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED；（已收货部分通过采购退货流程处理，取消仅作用于未收货部分）；禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）；取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）；取消原因落 cancel_reason 专列（m0079 拆列），rejected_reason 回归只承载 reject 拒绝结论，两动作两列
+    /// P2-1 修复（复审）：实现采购订单 cancel_order 功能，；移除 purchase_order::CANCELLED 的 #[allow(dead_code)] 标注。；业务规则：允许取消状态：DRAFT / PENDING_APPROVAL / APPROVED / PARTIAL_RECEIVED；（已收货部分通过采购退货流程处理，取消仅作用于未收货部分）；禁止取消状态：REJECTED（终态）/ CLOSED（终态）/ COMPLETED（终态）/ CANCELLED（终态）；取消时释放已占用的预算（若创建时预算占用成功，插入反向冲销记录）；取消原因落 cancel_reason 专列（m0079 拆列），rejected_reason 回归只承载 reject 拒绝结论，两动作两列
     pub async fn cancel_order(
         &self,
         order_id: i32,

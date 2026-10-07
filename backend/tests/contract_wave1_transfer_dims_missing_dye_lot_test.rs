@@ -284,7 +284,7 @@ async fn live_create_transfer_dyed_missing_dye_lot_400_and_rollback() {
 
     // —— 播种：产品/两仓/染色库存行（COL-A/DYE-9，50，供 ①染色组场景）
     //          + 白坯库存行（色号空串/缸号 NULL 的白坯真实口径，50，供 ②白坯免缸号放行组）——
-    // 修复夹具坏前提（#4672 判责取证）：本用例头注释原自述"播种白坯库存行"，但下方只插了
+    // 修复夹具坏前提（判责取证）：本用例头注释原自述"播种白坯库存行"，但下方只插了
     // 染色行；②的请求色号缺席归一为空串，match_single_item_against_stocks
     // （inv/stock.rs:88-105）按 `s.color_no == dims.color_no` 匹配，COL-A 行对白坯明细恒不命中
     // ⇒ "无匹配库存"正当 400（BUSINESS），检验的并不是"白坯免缸号被过度收紧"。

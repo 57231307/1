@@ -1,4 +1,4 @@
-//! 决策定案 #4 契约锁：ClamAV 扫描依赖故障不再谎报 500，改 503 SERVICE_UNAVAILABLE
+//! 决策定案 契约锁：ClamAV 扫描依赖故障不再谎报 500，改 503 SERVICE_UNAVAILABLE
 //!
 //! 锁定的语义三分（对 `crm_handler.rs::scan_leads_for_viruses` 与
 //! `supplier_handler.rs::scan_qualification_attachment_for_viruses`）：
@@ -9,7 +9,7 @@
 //! ③扫描通过 → 200 正常落盘（证明 503 改造没有把可用路径也拦死）。
 //!
 //! 覆盖策略（对齐 `contract_wave2_supplier_qualification_attachment_test.rs` 先例；
-//! 表结构唯一来源 = backend/migration，路线一 #4669 判责，裁定 R3 双连接）：
+//! 表结构唯一来源 = backend/migration，路线一 判责，裁定 R3 双连接）
 //! - supplier 侧：`setup_test_db()` 真 PG（已迁移+清业务表）+ 真实 handler 端到端
 //!   （tower oneshot + AuthContext 注入），断 HTTP 状态 + 信封 code/message
 //!   + DB 回读 attachment_path + 磁盘文件存在性。供应商父行不自建：

@@ -4,16 +4,16 @@ import type { ApproveTransferPayload } from './inventory';
 
 /**
  * 库存调拨单出参形状：与后端 `backend/src/services/inv/mod.rs:37 InventoryTransferDetail`
- * 逐字段对齐（列表与详情共用同一结构：`services/inv/inventory_move.rs:79`（列表，items 恒为
- * 空数组）、`:111 get_transfer_detail`（详情带 items）；handler 直接
- * `serde_json::to_value(detail)`，见 `handlers/inventory_transfer_handler.rs:66/89`）。
+ * 逐字段对齐（列表与详情共用同一结构：`services/inv/inventory_move.rs:41 list_transfers`
+ * （列表，items 恒为空数组）、`:149 get_transfer_detail`（详情带 items）；handler 直接
+ * `serde_json::to_value(detail)`，见 `handlers/inventory_transfer_handler.rs:72/96`）。
  *
  * 数量/金额是 rust_decimal `Decimal`，序列化为字符串（与 StockAlertRow 同口径），展示前按需
  * `Number()` 转换。
  *
- * 末尾 4 个键后端当前不返回（该结构里没有名称列，也没有 total_amount），
- * 需按 `services/po/order_ops/crud.rs:463 PurchaseOrderDto` 的
- * `column_as + LeftJoin + into_model::<Dto>()` 范式补齐，补齐前对应列必然为空。
+ * 名称列（from/to_warehouse_name、created_by_name）由后端单次查询 LEFT JOIN 富化
+ * （读模型 `InventoryTransferView`，见 `services/inv/mod.rs:66` 文件注释）；
+ * 参照行缺失时后端回 null，前端不手拼假名。
  */
 export interface InventoryTransferEntity {
   id: number;
@@ -35,23 +35,24 @@ export interface InventoryTransferEntity {
   updated_at: string;
   /** 列表接口固定返回空数组，只有详情接口填实 */
   items: TransferItem[];
-  /** 需后端 JOIN：`models/inventory_transfer.rs:45 Relation::FromWarehouse` → warehouses.warehouse_name */
+  /** 调出仓库名：后端 LEFT JOIN warehouses（from_warehouse_id）富化，仓行缺失为 null */
   from_warehouse_name: string | null;
-  /** 需后端 JOIN：`models/inventory_transfer.rs:51 Relation::ToWarehouse` → warehouses.warehouse_name */
+  /** 调入仓库名：后端 LEFT JOIN warehouses（to_warehouse_id）富化，仓行缺失为 null */
   to_warehouse_name: string | null;
-  /** 需后端 JOIN：`inventory_transfers.created_by` → users.real_name */
+  /** 创建人姓名：后端 LEFT JOIN users 取 real_name（created_by），用户行缺失为 null */
   created_by_name: string | null;
   /**
-   * 需后端补出参：`models/inventory_transfer.rs:36` 有 total_amount 列（Decimal NOT NULL），
-   * 但 `services/inv/mod.rs:37 InventoryTransferDetail` 未把它带出。
+   * 对应后端 `inventory_transfer.total_amount`（`models/inventory_transfer.rs:36`，
+   * Decimal NOT NULL，序列化为字符串；`services/inv/mod.rs:46` 已带出）。
    */
   total_amount: string | null;
 }
 
 /**
- * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs InventoryTransferItemDetail`
- * 逐字段对齐。面料四维（色号/缸号/批次/匹号）后端全部回传，
- * 产品主数据名称（code/name/等级/单位）不在该结构里。
+ * 调拨明细行出参：与后端 `backend/src/services/inv/mod.rs:94 InventoryTransferItemDetail`
+ * 逐字段对齐。面料四维（色号/缸号/批次/匹号）后端全部回传；
+ * 产品主数据名称字段（product_code/product_name/grade/unit）由后端 LEFT JOIN products 富化，
+ * 不在 inventory_transfer_items 表内。
  */
 export interface TransferItem {
   id: number;
@@ -72,18 +73,18 @@ export interface TransferItem {
   piece_no: string | null;
   created_at: string;
   updated_at: string;
-  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.product_code */
+  /** 产品编码：后端 LEFT JOIN products（product_id）富化，产品行缺失为 null */
   product_code: string | null;
-  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.product_name */
+  /** 产品名称：后端 LEFT JOIN products（product_id）富化，产品行缺失为 null */
   product_name: string | null;
-  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.grade */
+  /** 产品等级：后端 LEFT JOIN products 取 product_grade，产品行缺失为 null */
   grade: string | null;
-  /** 需后端 JOIN：`inventory_transfer_items.product_id` → products.unit */
+  /** 计量单位：后端 LEFT JOIN products 取 unit，产品行缺失为 null */
   unit: string | null;
 }
 
 /**
- * 建单入参：与后端 `services/inv/mod.rs:77 CreateInventoryTransferRequest` 对齐——
+ * 建单入参：与后端 `services/inv/mod.rs:122 CreateInventoryTransferRequest` 对齐——
  * 该结构每个字段都是 `Option<…>`，故前端逐字段可选（缺字段由服务侧报参数缺失，
  * 不在界面上用默认值兜底）。`transfer_date` 是 `Option<DateTime<Utc>>`，
  * serde chrono 只接受 RFC3339（`YYYY-MM-DD` 反序列化失败 → 400），
@@ -228,7 +229,7 @@ export const INVENTORY_PIECE_STATUS = {
 } as const;
 
 /**
- * 匹类型词表（#220 成品布标签打印入口的 dyed 过滤维度）。唯一事实来源 = 后端
+ * 匹类型词表（成品布标签打印入口的 dyed 过滤维度）。唯一事实来源 = 后端
  * `services/piece_domain_service.rs:18-19`（PIECE_TYPE_GREIGE/PIECE_TYPE_DYED，
  * 小写 token），与 `handlers/inventory_piece_handler.rs` ListPieceParams.piece_type
  * 的取值逐字符相同。类型语义由后端权威判定，前端只透传词表值、不推断。
@@ -244,9 +245,9 @@ export const PIECE_TYPE = {
  * 可出库匹行：与后端 `handlers/inventory_piece_handler.rs:45 PieceResponse` 逐字段对齐
  * （GET /inventory/pieces -> PaginatedResponse<PieceResponse>）。
  * length/weight/width/gram_weight 是 rust_decimal `Decimal`，序列化为字符串，
- * 展示前 Number() 归一，禁 .toFixed 造数；可空三者 null=未补录（#220 标签缺值点名列）。
+ * 展示前 Number 归一，禁 .toFixed 造数；可空三者 null=未补录（标签缺值点名列）。
  * dye_lot_no/color_no 后端包 Some(...) 但类型 Option<String>，故 `string | null`。
- * width/gram_weight/barcode 为 #220 后端已发、本行现补齐的前端消费键（原声明缺此三键，
+ * width/gram_weight/barcode 为 后端已发、本行现补齐的前端消费键（原声明缺此三键，
  * 令"前端据此判断该匹能否打标签"的注释失去数据落点）。
  */
 export interface InventoryPieceRow {
@@ -264,7 +265,7 @@ export interface InventoryPieceRow {
   /** 匹重（Decimal 串，可空） */
   weight: string | null;
   /**
-   * 幅宽 cm（实测值，#220 标签 fail-closed 点名列之一）。
+   * 幅宽 cm（实测值， 标签 fail-closed 点名列之一）。
    * 后端 inventory_piece_handler.rs:60 `pub width: Option<Decimal>` ⇒ JSON 串（可空），
    * null = 未补录（打卷必填，委外收回产匹该列可为 NULL）；非后端回落主数据。
    */
@@ -354,7 +355,7 @@ export async function extractAppErrorEnvelope(error: unknown): Promise<ErrorResp
 }
 
 /**
- * #220 成品布入库打印标签：后端 GET /inventory/pieces/{id}/print
+ * 成品布入库打印标签：后端 GET /inventory/pieces/{id}/print
  * （routes/inventory.rs:46-56 piece_routes → print_handler::inventory_piece_label_print_docx）
  * 成功 = docx 二进制（Content-Disposition attachment），失败 = 非 2xx + AppError 信封。
  * responseType:'blob' 先例照 api/ap.ts:279-283 printAPPaymentDocx；

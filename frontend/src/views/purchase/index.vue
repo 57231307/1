@@ -123,7 +123,7 @@ const rcv = usePurchRcv(list.fetchData, () => list.products.value);
 // 新建采购单（表单对话框）
 const create = useCreate(() => list.products.value, list.fetchData);
 
-// 明细行保存成功（PurchaseViewDialog @saved，任务 #145）：
+// 明细行保存成功（PurchaseViewDialog @saved，）
 // 回源刷新详情（后端重算的派生金额列/保密快照以真实出参为准，前端不本地拼算）
 // 并刷新列表（订单合计 total_amount/total_quantity_alt 已随明细更新变化）
 const handleItemSaved = async () => {

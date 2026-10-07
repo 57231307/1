@@ -1,4 +1,4 @@
-//! CI #4672 e2e/mrp/01:82 契约锁：POST /boms scrap_rate 写边界换算
+//! CI e2e/mrp/01:82 契约锁：POST /boms scrap_rate 写边界换算
 //!
 //! 根因（取证链）：
 //! - `bom_items.scrap_rate DECIMAL(5,4)` (migration m0007:41)
@@ -269,7 +269,7 @@ fn test_scrap_read_boundary_none() {
 /// 树端点序列化口径（纯函数层，只钉**数值**）：BomTreeNode 内部字段保持存储比率参与
 /// collect_requirements，序列化输出为百分比（POST 10 ⇒ 回显 10，同一字段两种口径即红）。
 ///
-/// 口径分工声明（CI #4675 族G）：本链**不过 DB**——`scrap_percent_to_ratio` 的
+/// 口径分工声明（CI 族G）：本链**不过 DB**——`scrap_percent_to_ratio` 的
 /// `round_dp(4)` 与 `scrap_ratio_to_percent` 的 `round_dp(2)` 都只做数值舍入、
 /// **不补零位**（bom_service.rs:185/:205，10.0 ⇒ 0.1 ⇒ 10.0，scale 保持 1），
 /// 所以这里断言 `"10.00"` 字符串逐位相等测的并不是本链能决定的东西——

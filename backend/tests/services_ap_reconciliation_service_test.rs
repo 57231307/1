@@ -377,7 +377,7 @@ async fn test_fwslcj() {
 // 九、DB 交互测试（依赖 schema，标注 #[ignore]）
 // =====================================================
 
-/// test_scdzd_xyzssjk —— 依据裁决 R-9 拆前提（#4672 判责 §A.1 pI 族 ap_recon 条）：
+/// test_scdzd_xyzssjk —— 依据裁决 R-9 拆前提（判责 §A.1 pI 族 ap_recon 条）
 /// 本条文档自陈钉的是"**无 schema** 时返回数据库错误"，而 `setup_test_db()` 现语义 =
 /// 已迁移 PG + TRUNCATE 业务表（`src/services/test_common.rs` 头注释），前提与判据
 /// 错位 ⇒ 改绑 `connect_empty_schema_db()`（不跑迁移的 `bingxi_empty` 库），并把裸
@@ -413,7 +413,7 @@ async fn test_scdzd_xyzssjk() {
     );
 }
 
-/// test_qrdzd_xyzssjk —— 真库化夹具前提校准 + 收紧为机器码（#4672 §A.1 同族；
+/// test_qrdzd_xyzssjk —— 真库化夹具前提校准 + 收紧为机器码（§A.1 同族；
 /// 范本见 600e5640 ap_payment confirm 条）：钉"已建库空表上 confirm 不存在的
 /// 对账单 ⇒ NOT_FOUND 机器码，而非 panic"。
 ///

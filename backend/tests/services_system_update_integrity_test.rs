@@ -1,7 +1,7 @@
-//! 任务 #121 系统更新镜像 / SHA-256 完整性 fail-closed —— 集成测试（公有面）
+//! 系统更新镜像 / SHA-256 完整性 fail-closed —— 集成测试（公有面）
 //!
 //! 本文件位于 `backend/tests/`（独立 crate `bingxi_backend` 之外），**只能访问 `pub` 项**。
-//! 因此本文件覆盖 #121 信任模型中可从 crate 外部真实观测的公有契约：
+//! 因此本文件覆盖 信任模型中可从 crate 外部真实观测的公有契约
 //! - 校验值取源 host/URL 收窄判定（`is_official_digest_host` / `validate_official_digest_url`）；
 //! - 字节下载 URL 判定（`validate_download_url`，默认无镜像态）；
 //! - `UpdateError::IntegrityError` / `ChecksumUnavailable` → `AppError` 映射语义；
@@ -62,7 +62,7 @@ fn official_digest_host_rejects_api_mirror_ip_and_lookalikes() {
         !is_official_digest_host("api.github.com"),
         "api.github.com 不属资产下载 host 白名单（API digest 走 JSON 字段不经此判定），真实应为 false"
     );
-    // 镜像 host 绝不放行（#121 红线：严禁从镜像取校验基准，防连带投毒）。
+    // 镜像 host 绝不放行（红线：严禁从镜像取校验基准，防连带投毒）。
     assert!(!is_official_digest_host("ghproxy.net"), "镜像 host 必须拒");
     assert!(
         !is_official_digest_host("mirror.example.com"),
@@ -198,7 +198,7 @@ fn validate_download_url_rejects_insecure_and_disallowed_hosts() {
         "内网 IP 应为 NetworkError，实得: {metadata:?}"
     );
 
-    // 默认配置 mirrors 为空 → 镜像 host 不在允许列表，被拒（#121 信任模型：镜像须显式配置且经
+    // 默认配置 mirrors 为空 → 镜像 host 不在允许列表，被拒（信任模型：镜像须显式配置且经
     // validate_update_mirrors 的 https/非 IP/SSRF 启动校验后方可入列）。
     let mirror = validate_download_url("https://ghproxy.net/https://github.com/x.tar.gz")
         .expect_err("未配置镜像 host 必须被拒");
@@ -209,7 +209,7 @@ fn validate_download_url_rejects_insecure_and_disallowed_hosts() {
 }
 
 // =====================================================
-// D. validate_asset_name（pub）：asset.name 路径穿越防护（下载落盘文件名，#121 链路一环）
+// D. validate_asset_name（pub）：asset.name 路径穿越防护（下载落盘文件名， 链路一环）
 // =====================================================
 
 /// asset.name 合法值放行；路径穿越 / 绝对路径 / 隐藏文件被拒。
@@ -236,7 +236,7 @@ fn validate_asset_name_guards_path_traversal() {
 }
 
 // =====================================================
-// E. UpdateError -> AppError 映射（pub From impl）：#121 新增两分支映射为 internal
+// E. UpdateError -> AppError 映射（pub From impl）： 新增两分支映射为 internal
 // =====================================================
 
 /// IntegrityError（SHA-256 不匹配，投毒/损坏）→ AppError::InternalError（护栏判定，不降级为业务/校验类）。
@@ -260,7 +260,7 @@ fn checksum_unavailable_maps_to_internal_app_error() {
 }
 
 // =====================================================
-// F. GitHubAsset.digest serde 契约（pub 字段）：#121 fail-closed 的输入前提
+// F. GitHubAsset.digest serde 契约（pub 字段）： fail-closed 的输入前提
 // =====================================================
 
 /// release JSON 缺 digest 字段 → None（老 release 兼容；resolve 据此走 fail-closed）。

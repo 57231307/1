@@ -640,7 +640,7 @@ fn price_vocab_authority_is_self_consistent_and_lowercase() {
 ///   （建单 PENDING / 审批 APPROVED / 质检联动 APPROVED 三点均属此类）；
 /// - 形态②守卫后透传：文件出现 `price_approval::ALL.contains(` 入参守卫，**且**同文件
 ///   存在含 `Set(` 的 status 写列行（守卫本身不写列不算——那只是读/筛选参数校验）。
-/// 背景（CI #4675 族C）：旧判据「文件里出现 `price_approval::` 就算写入方」把两个 handler
+/// 背景（CI 族C）：旧判据「文件里出现 `price_approval::` 就算写入方」把两个 handler
 /// 的**读/筛选白名单**（`SALES_PRICE_STATUS_FILTER_ALLOWED`、`validate_purchase_price_status_param`）
 /// 误当写入方，锁测量的不是它声称测的东西。判据收窄为真实写列特征后，新增写列文件
 /// （无论常量直写还是守卫透传）仍会被抓到并因未登记而判红；只加读引用的文件不再误伤。

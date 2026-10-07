@@ -42,7 +42,7 @@ async fn require_postgres(db: &DatabaseConnection) {
 async fn exec(db: &DatabaseConnection, sql: &str) {
     // 同源常量里的 DROP_LAST_CLAIMED_COLUMNS_SQL 含**两条** ALTER（迁移侧正是
     // execute_unprepared 多语句简单查询协议执行的）；走 execute_raw 会被 PG 以
-    // "cannot insert multiple commands into a prepared statement" 拒绝（CI #4672 实证）。
+    // "cannot insert multiple commands into a prepared statement" 拒绝（CI 实证）。
     // 执行方式对齐本仓活库先例 rls_dept_user_sync_live_test.rs:77-81。
     db.execute_unprepared(sql)
         .await

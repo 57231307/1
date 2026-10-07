@@ -1,19 +1,17 @@
-//! 契约波次 6 · AP 状态字面量与报表口径对齐 AR 先例（任务 #191）
+//! AP 状态字面量与报表口径对齐 AR 先例的契约锁
 //!
-//! 锁定的根因（与 commit a256bbb6 的 AR 修复同族）：
-//! 1. **AP 报表/余额/账龄口径分裂**：AP 发票创建即写入 `common::STATUS_DRAFT`
-//!    （写入方 `services/ap_invoice_ops/crud.rs:75`），而 `services/ap_report_service.rs`
-//!    各聚合门只写 `invoice_status <> CANCELLED`（或未写门）⇒ 草稿应付被计入
-//!    总额/未付/逾期/月初月末余额；`services/ap_invoice_ops/report.rs` 账龄与余额、
-//!    `services/ap_reconciliation_ops/crud.rs|auto.rs` 对账口径同样缺 DRAFT 门。
-//!    修复形态：一律 `invoice_status NOT IN ($k, $k+1)` 参数化绑定写入方词表常量
+//! 锁定的根因（AR 域已有同族口径）：
+//! 1. **AP 报表/余额/账龄口径分裂风险**：AP 发票创建即写入 `common::STATUS_DRAFT`
+//!    （写入方 `services/ap_invoice_ops/crud.rs:75`），聚合门若只排除 CANCELLED（或不写门）
+//!    ⇒ 草稿应付被计入总额/未付/逾期/月初月末余额；`services/ap_invoice_ops/report.rs`
+//!    账龄与余额、`services/ap_reconciliation_ops/crud.rs|auto.rs` 对账口径同受 DRAFT 门约束。
+//!    锁定形态：一律 `invoice_status NOT IN ($k, $k+1)` 参数化绑定写入方词表常量
 //!    （SQL 层）或 `is_not_in([CANCELLED, DRAFT])`（SeaORM 层），与 AR 先例逐字同构。
-//! 2. **裸字符串字面量比较/过滤**：`ap_report_service.rs` CASE WHEN 里的
-//!    `'PAID'`/`'PARTIAL_PAID'`/`'CANCELLED'`、`ap_verification_service.rs` 的
-//!    `"CONFIRMED"` 比较与 `"PARTIAL_PAID"`/`"AUDITED"` 写入、
-//!    `ap_reconciliation_ops/crud.rs` 的 `"CANCELLED"`、
+//! 2. **裸状态字面量禁回潮**：`ap_report_service.rs` CASE WHEN 的 PAID/PARTIAL_PAID/
+//!    CANCELLED、`ap_verification_service.rs` 的 CONFIRMED 比较与 PARTIAL_PAID/AUDITED
+//!    写入、`ap_reconciliation_ops/crud.rs` 的 CANCELLED、
 //!    `ap_reconciliation_ops/auto.rs` 与 `handlers/ap_reconciliation_handler.rs` 的
-//!    `"FAILED"` ——全部改绑该列写入方权威常量：
+//!    FAILED——各处比较/写入均绑该列写入方权威常量：
 //!    `status::general::payment::{PAYMENT_CONFIRMED, PAYMENT_PAID, PAYMENT_PARTIAL_PAID}`、
 //!    `status::general::common::{STATUS_DRAFT, STATUS_CANCELLED}`、
 //!    `status::ap_invoice::INVOICE_AUDITED`（ap_invoice_ops/crud.rs:226 写入）、
@@ -21,11 +19,10 @@
 //!    不新造常量、不跨域借用。
 //!
 //! 覆盖策略（分层）：
-//! - 真库行为锁（路线一，#4669 判责）：调用生产 builder 得 (sql, params) 后在
+//! - 真库行为锁：调用生产 builder 得 (sql, params) 后在
 //!   **已迁移 PostgreSQL** 的真实 `ap_invoice`/`ap_payment` 表上执行，逐值断言
-//!   草稿/已取消不计入；修复前旧谓词（只排 CANCELLED）作缺陷实证对照。
-//!   表结构唯一来源 = `backend/migration`，本文件不自建同构 DDL（原 sqlite 夹具把
-//!   DECIMAL 列写成 REAL/TEXT，正是 #4669 约 130 例解码红的根）。
+//!   草稿/已取消不计入；另以旧谓词（只排 CANCELLED）作对照，证明其会把草稿计入统计。
+//!   表结构唯一来源 = `backend/migration`，本文件不自建同构 DDL。
 //! - 生产服务行为锁：`ApInvoiceService::get_balance_summary/get_aging_analysis`
 //!   （纯 SeaORM 查询）验证 DRAFT/CANCELLED 剔除。
 //! - $N 占位一致性锁：账龄 SQL（含 CURRENT_DATE 日期算术，PG 语义）只断言 SQL 文本、
@@ -36,8 +33,8 @@
 //! - `#[ignore]` 真库锁：统计/日报在真实 PG 上只计入 AUDITED；缺 `TEST_DATABASE_URL`
 //!   由夹具直接 panic，禁止条件跳过。
 //!
-//! 用例名中的 `on_sqlite` 属历史命名（通道已按路线一改为真库）；为保持 CI 历史
-//! 判责引用的可追溯性不改名，语义以本注释与用例体为准。
+//! 注意：用例名中的 `on_sqlite` 与实际通道不符——当前在真库（PostgreSQL）执行，
+//! 语义以本注释与用例体为准（名称保留以维持 CI 用例可追溯）。
 
 mod test_common;
 
@@ -107,7 +104,7 @@ fn col_i64(row: &QueryResult, idx: usize) -> i64 {
 /// 金额列解码：真库 `ap_invoice.amount/paid_amount/unpaid_amount` 是 DECIMAL(18,2)、
 /// `COALESCE(SUM(...), 0)` 在 PG 返回 numeric ⇒ 必须按 Decimal 解码（与生产侧
 /// `fetch_ap_statistics_*` 的 `try_get_by_index::<Decimal>` 同口径；sqlite 时代按
-/// REAL/f64 读是方言失真，正是 #4669 解码红的那一族）。
+/// REAL/f64 读是方言失真，正是 解码红的那一族）。
 fn col_decimal(row: &QueryResult, idx: usize) -> Decimal {
     row.try_get_by_index::<Option<Decimal>>(idx)
         .unwrap_or_else(|e| panic!("第 {idx} 列应可解码为 Decimal: {e}"))
@@ -179,7 +176,7 @@ fn expect_status_value(v: &Value, want: &str, ctx: &str) {
 /// 逐列对照 `models/ap_invoice.rs` + 迁移建表语句 `m0012_add_ap_ar_finance_analysis.rs:18`：
 /// NOT NULL 且无 DB 默认值的列全部给业务合法值（invoice_no/supplier_id/invoice_type/
 /// invoice_date/due_date/amount/created_by）；金额列按 `Decimal` 绑定（真列是
-/// DECIMAL(18,2)，原 sqlite 夹具写成 REAL 并绑 f64，即 #4669 解码红的根因形态）。
+/// DECIMAL(18,2)，原 sqlite 夹具写成 REAL 并绑 f64，即 解码红的根因形态）。
 async fn setup_ap_invoices(db: &DatabaseConnection, supplier_id: i32) {
     // 到期日 2096-12-15 早于统计基准日 2096-12-31（逾期口径五张同构，差异只在状态）
     let rows: [(&str, NaiveDate, &str, Decimal, Decimal, Decimal); 5] = [
@@ -331,7 +328,7 @@ async fn ap_main_aggregate_builder_excludes_draft_and_cancelled_on_sqlite() {
     );
     // total_paid_amount = SUM(paid_amount) 在门内三张上 = 0(AUDITED)+200(PARTIAL)+400(PAID)
     // = 600。原期望 200 是把"只统计部分付款那张"误当成该列口径的自身算错
-    // （CI #4669 已实测 left: 600.0，SQL 见 ap_report_service.rs:96）；
+    // （CI 已实测 left: 600.0，SQL 见 ap_report_service.rs:96）；
     // 该列在门内/门外五张上的差异为 0（草稿/取消的 paid_amount 均为 0），
     // 真正区分 DRAFT 门的是 count/总额/未付额三列，下面各自的断言原样保留。
     assert_eq!(
@@ -395,7 +392,7 @@ async fn ap_main_aggregate_builder_no_filter_binds_gate_and_shifts_today() {
     assert_eq!(col_i64(&rows[0], 0), 3, "无过滤同样只计入门内三张");
 }
 
-/// 缺陷实证对照：修复前口径（只排 CANCELLED、无 DRAFT 门）在同一数据上把草稿计入统计
+/// 缺陷实证对照：旧谓词（只排 CANCELLED、无 DRAFT 门）在同一数据上把草稿计入统计
 #[tokio::test]
 async fn ap_legacy_cancelled_only_gate_wrongly_counts_draft_defect_proof() {
     let db = live_db().await;
@@ -825,7 +822,7 @@ async fn ap_invoice_service_aging_analysis_excludes_draft_rows() {
 /// 本节的判据是"裸状态字面量不得出现在**比较/门**里"与"必须绑写入方常量"，两者都
 /// 只有执行体意义：`ap_report_service.rs:375` 的文档注释里正当写着
 /// 「…绑 `payment::PAYMENT_CONFIRMED`，禁止裸 "CONFIRMED" 字面量」，按原文判禁词
-/// 会把这句自我约束当成违例（#4671 判责 B1①）。
+/// 会把这句自我约束当成违例——故先剥注释再判禁词。
 /// 按行处理而不做字符级扫描：被锁文件里 SQL 多为跨行 raw string/多行参数，
 /// 单行引号配平会把代码文本当注释吃掉；宁少剥（行尾尾注释、块注释不动）不可错剥。
 fn code_only(src: &str) -> String {

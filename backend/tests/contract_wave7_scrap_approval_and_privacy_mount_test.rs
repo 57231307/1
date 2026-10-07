@@ -1,4 +1,4 @@
-//! Wave F（CI #4669 F 族判责）两处后端真缺的契约锁：
+//! 两处后端挂载/白名单契约锁：报废审批端点接出 + /privacy 白名单与挂载对齐
 //!
 //! 1. **报废 GM 级审批端点**（services/quality_inspection_service.rs:661/:700 的 service 死码
 //!    接出）：真实挂载 = `/api/v1/erp/production/quality-inspection/defects/{id}/scrap-approval/{financial,gm}`
@@ -6,11 +6,11 @@
 //!    钉死：①路由已注册（不再出现 403「未知的资源路径」）；②状态真实两级流转（回读）；
 //!    ③跳级/非报废/越权被拒且零写残留（回读）；④拒绝族恒 BUSINESS_ERROR 且出参脱敏，
 //!    权限拒绝出参永久脱敏；⑤审批人身份服务端派生（body 伪造无效）。
-//! 2. **/privacy/consents 白名单与挂载漂移**：真实挂载 `/api/v1/erp/privacy/*`（routes/analytics.rs
-//!    `.nest("/privacy", privacy())`），白名单曾错登 seg4 名 `consents` 而缺 seg3 名 `privacy`，
-//!    导致 admin 也被权限中间件白名单层 403。本文件钉死两处对齐 + 端点对 admin 200 + 信封形状。
+//! 2. **/privacy/consents 白名单与挂载对齐**：真实挂载 `/api/v1/erp/privacy/*`（routes/analytics.rs
+//!    `.nest("/privacy", privacy())`），白名单必须登记 seg3 名 `privacy` 而非仅 seg4 名
+//!    `consents`，否则 admin 也会被权限中间件白名单层 403。本文件钉死两处对齐 + 端点对 admin 200 + 信封形状。
 //!
-//! 测试路线（判责报告裁定 R1）：真 PostgreSQL（缺 TEST_DATABASE_URL 即 panic，禁 sqlite::memory）、
+//! 测试路线：真 PostgreSQL（缺 TEST_DATABASE_URL 即 panic，禁 sqlite::memory）、
 //! 表结构唯一来源 backend/migration、FK/父行自种子（夹具 TRUNCATE 后不重播）、真实路由函数
 //! （production::quality_inspection / analytics::privacy）+ tower oneshot 端到端，无 mock。
 
@@ -135,7 +135,7 @@ async fn get(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
 
 /// 自种子（迁移建表后夹具 TRUNCATE 不重播业务表）：质检记录（检验员固定 user 100）。
 /// 逐列对照 migration：NOT NULL = inspection_no/product_id/inspection_type/inspection_date
-/// （m0005:158-176；result 列 v15:3846 已 DROP NOT NULL）；实体非 Option 列
+/// （m0005:158-176；result 列 v15/mod.rs:3846 已 DROP NOT NULL）；实体非 Option 列
 /// total_qty/inspected_qty/inspection_result 一并给值，保证 Model 可读。
 async fn seed_inspection(db: &sea_orm::DatabaseConnection, id: i64) {
     let sql = format!(
@@ -154,7 +154,7 @@ async fn seed_inspection(db: &sea_orm::DatabaseConnection, id: i64) {
 }
 
 /// 自种子：不合格品（报废）记录。逐列对照 models/unqualified_product.rs +
-/// m0013 建表 + business/v15 域 ALTER；实体非 Option 列（stock_grade_synced 等）全部给值。
+/// m0013 建表 + business 域 v15/mod.rs ALTER；实体非 Option 列（stock_grade_synced 等）全部给值。
 async fn seed_scrap(
     db: &sea_orm::DatabaseConnection,
     id: i64,
@@ -196,7 +196,7 @@ async fn scrap_approval_routes_registered_and_reach_handler_envelope() {
     );
 
     // 行为锁：对不存在记录走真实注册路由 → 必须是 AppError 信封 404 NOT_FOUND（说明请求
-    // 已穿过权限白名单族段并抵达 handler），而 #4669 现场是 403「未知的资源路径」。
+    // 已穿过权限白名单族段并抵达 handler；若白名单族段缺失，会在中间件层 403「未知的资源路径」）。
     let (app, _db) = scrap_app(300, "all").await;
     let miss = |u: String| u.replace("/601/", "/99999999/");
     for uri in [
@@ -464,8 +464,8 @@ async fn self_scope_attacker_denied_and_target_row_untouched() {
 
 #[tokio::test]
 async fn privacy_whitelist_aligned_with_mount() {
-    // 真实挂载 seg3=privacy 已在白名单（#4669 现场：admin GET /privacy/consents 被白名单层
-    // 403「未知的资源路径」，根本没走到 RBAC —— 该缺陷不得复发）
+    // 真实挂载 seg3=privacy 必须在白名单：若只登记 seg4 名 `consents`，admin GET
+    // /privacy/consents 会在白名单层 403「未知的资源路径」，根本走不到 RBAC（防回潮钉）。
     assert!(
         is_known_resource_segment("privacy"),
         "privacy 必须按 seg3（与 .nest(\"/privacy\") 挂载）登记进白名单"

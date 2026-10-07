@@ -1,7 +1,7 @@
 /**
  * e2e 程序专用的 Node 全局类型建模（最小面、故意不引 @types/node）。
  *
- * 背景：Playwright 的 spec/helper/globalSetup 运行在 Node，但本仓 #27 裁定不在本轮引入
+ * 背景：Playwright 的 spec/helper/globalSetup 运行在 Node，但本仓 裁定不在本轮引入
  * `@types/node`——它会连带把此前不判定的表达式全部纳入检查，需单独 PR 逐个判责。
  * 于是 `process`/`Buffer`/`node:fs` 长期报 TS2580/TS2307，被 `check-e2e-types.mjs`
  * 按 `文件|错误码` 记账成棘轮基线。

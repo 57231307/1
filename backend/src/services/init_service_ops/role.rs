@@ -18,7 +18,7 @@ impl InitService {
             None => self.create_admin_role().await?,
         };
 
-        // CI run #4675 E6 的上游断链就在这里：旧写法"admin 已存在即整体早退"，业务角色
+        // E6 的上游断链就在这里：旧写法"admin 已存在即整体早退"，业务角色
         // 一条都不建。迁移 m0001 只种 admin/manager/operator 三行
         // （`migration/src/domain/system/m0001_initial_schema.rs:609-612`），而 CI/e2e 库
         // 恰好处于"admin 已存在"的状态（实证：`ci4675/rs/rs14/playwright-output.txt:257`
@@ -73,7 +73,7 @@ impl InitService {
     /// 幂等与 fail-visible 口径：按 `code` 走 `ON CONFLICT DO NOTHING`（重复 init 不报错、
     /// 不产生第二行），但**写失败必须上抛**——角色建不出，`permission.rs` 的矩阵就没有落点，
     /// 旧写法 `warn!("批量创建角色失败…可能部分已存在")` 后照常返回成功，正是
-    /// "看起来跑过了其实没写"的静默形态（CI #4675 E6 上游断链的放大器）。
+    /// "看起来跑过了其实没写"的静默形态（CI E6 上游断链的放大器）。
     async fn batch_insert_roles(&self, roles: Vec<role::ActiveModel>) -> Result<(), InitError> {
         role::Entity::insert_many(roles)
             .on_conflict(

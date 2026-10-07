@@ -130,7 +130,7 @@ fn test_data_scope_filter_semantics() {
     assert!(si.customer_id.is_none());
 }
 
-// ===== 写门行为锁（#4671 判责 §⑤ W4·D：与 utils/data_scope.rs 真实实现同源重建）=====
+// ===== 写门行为锁（判责 §⑤ W4·D：与 utils/data_scope.rs 真实实现同源重建）=====
 // "超管跨 owner 写"（用户 2026-10-02 裁定方案 A，data_scope.rs:179-214）与
 // "公海领取/回收"的写侧边界，此前只有源码文本棘轮（contract_wave7_crm_read_vs_write_gate
 // :416 按函数体字符串比对）与 handler 级活体锁；后者 5 条被 AppState::default() 的

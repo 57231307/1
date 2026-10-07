@@ -1,4 +1,4 @@
-//! BI 利润分析/KPI/OLAP 状态词表大小写契约锁(任务 #161,profit.rs 6 处 + olap.rs 1 处)
+//! BI 利润分析/KPI/OLAP 状态词表大小写契约锁(,profit.rs 6 处 + olap.rs 1 处)
 //!
 //! 锁定的根因(与已修的 sales 聚合范式同源):
 //! - 写入方权威词表 `crate::models::status::sales::sales_order` 各状态均为**小写**

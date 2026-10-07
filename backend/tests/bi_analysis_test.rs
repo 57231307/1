@@ -27,7 +27,7 @@ async fn make_service() -> BiAnalysisService {
     BiAnalysisService::new(Arc::new(database))
 }
 
-/// 活库真数据夹具（CI #4672 §A.2 "BI 无 seed" 族）：
+/// 活库真数据夹具（CI §A.2 "BI 无 seed" 族）
 /// `setup_test_db()`（已迁移 PG + TRUNCATE 业务表）后种**真实**父行与一张有效销售订单
 /// 及其明细，手法逐列照抄本仓 BI 真库种子范式
 /// `contract_wave3_bi_profit_status_lowercase_test.rs:59-137`：
@@ -182,7 +182,7 @@ async fn test_sales_by_time_invalid_dates() {
 
 /// 单元测试：pivot（需要真实 DB，标记 ignore）
 ///
-/// 度量名按后端权威词表改判（CI #4672 §A.2 定性）：合法度量只有
+/// 度量名按后端权威词表改判（CI §A.2 定性）：合法度量只有
 /// `["total_amount", "order_count", "quantity", "profit_amount"]`
 /// （`bi_analysis_ops/olap.rs:135`，聚合表达式实现 `bi_analysis_service.rs:82-102`
 /// 逐词列举、无 "amount" 分支），原用例传的 `"amount"` 是**不存在的度量名**，
@@ -203,7 +203,7 @@ async fn test_pivot() {
     assert_eq!(result["measure"], "total_amount");
 }
 
-/// kpi/利润/透视族的数据前提锁（#4672 反证另一半）：非法度量名 `amount` **不在**
+/// kpi/利润/透视族的数据前提锁（反证另一半）：非法度量名 `amount` **不在**
 /// 后端权威词表（olap.rs:135），pivot 必须在触库前就返回可外显的校验错误；
 /// 防止有人为洗绿在词表里补一个 "amount" 同义分支、把词表契约改成第二套口径。
 #[tokio::test]
@@ -222,7 +222,7 @@ async fn test_pivot_invalid_measure_rejected_before_db() {
 
 /// 单元测试：kpi_summary（需要真实 DB，标记 ignore）
 ///
-/// 真值断言走 `make_seeded_service()`：#4672 判责 §A.2 定性为"BI 无 seed"——
+/// 真值断言走 `make_seeded_service`： 判责 §A.2 定性为"BI 无 seed"——
 /// fetch_current_kpi（bi_analysis_ops/profit.rs:128-165）对 TRUNCATE 后的空
 /// sales_orders 聚合恒得 0，断 >0 必红；本仓裁定是**种真实数据**而非放宽断言。
 #[tokio::test]

@@ -80,7 +80,7 @@ pub async fn list_receipts(
                 &permission.hidden_fields,
             );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // D-4 收口（PR #942 波次）：admin 判定走本仓唯一权威源
+            // D-4 收口（波次）：admin 判定走本仓唯一权威源
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
             // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
@@ -433,7 +433,7 @@ pub async fn delete_receipt_item(
 /// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`PR{yyyyMMdd}{3 位流水}`
 /// 例如 `PR20260514001`。前缀/位数与落库权威
 /// `PurchaseReceiptService::generate_receipt_no`（impl_generate_no! "PR"，默认 3 位）逐字一致，
-/// 任务 #154 修复展示码≠落库码双轨缺陷（原展示 "RK"/4 位）。
+/// 修复展示码≠落库码双轨缺陷（原展示 "RK"/4 位）。
 /// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
 pub async fn generate_no(
     State(state): State<AppState>,

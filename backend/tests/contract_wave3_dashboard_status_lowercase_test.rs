@@ -1,4 +1,4 @@
-//! 仪表盘销售卡片状态词表大小写契约锁(任务 #161,dashboard_service.rs 4 处)
+//! 仪表盘销售卡片状态词表大小写契约锁(,dashboard_service.rs 4 处)
 //!
 //! 锁定的根因(与已修的 BI sales 聚合范式同源):
 //! - 写入方权威词表 `crate::models::status::sales::sales_order` 各状态均为**小写**
@@ -224,7 +224,7 @@ async fn dashboard_uppercase_literal_predicate_wrongly_includes_all_orders_defec
 
 /// 周转率销售侧行为锁:复现 query_turnover_rate 修复后形态(INNER JOIN + $1/$2)。
 /// 生产销售侧子查询**没有**日期谓词(源码 dashboard_service.rs::query_turnover_rate
-/// 实证,CI #4669 分片 3 报"实际 15"即该形态真值),故本锁判定基线为:
+/// 实证,CI 分片 3 报"实际 15"即该形态真值),故本锁判定基线为
 /// sold = 全部非 draft/cancelled 明细数量 = 窗内 pending 10 + 窗外 pending 5 = 15;
 /// 大小写门失守(draft 100/cancelled 200 误入)签名 = 315,判别力不降。
 /// （旧期望 10 建立在"周转率带日期窗"的错误前提上——真库首跑证明与生产形态不符，

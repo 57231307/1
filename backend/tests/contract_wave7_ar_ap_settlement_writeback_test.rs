@@ -1,6 +1,6 @@
-//! Wave7 — AP/AR 结算「金额回写」真库契约锁（CI #4669 D 族真缺陷的防回归钉）
+//! AP/AR 结算「金额回写」真库契约锁（金额列必须显式 Set 才真实落库的防回潮钉）
 //!
-//! 根因锁定（修复前必红、修复后必绿的语义）：
+//! 机制锁定（本锁钉死的 sea-orm 2.0.2 行为语义）：
 //! - sea-orm 2.0.2 中 `DeriveActiveModel` 生成的 `From<Model> for ActiveModel` 将**全字段**
 //!   标为 `ActiveValue::Unchanged`（sea-orm-macros active_model.rs L115），而 `Update` 只把
 //!   `ActiveValue::Set` 列写进 SQL（sea-orm query/update.rs L113-117）。
@@ -8,18 +8,18 @@
 //!   实际生成的 UPDATE 只带 `updated_at` 一列——金额累加停留在内存副本，**接口 200、库中恒 0**。
 //! - 命中的写入路径（全部要求显式 Set 后真实落库）：
 //!   1. `ap_payment_service.rs::apply_invoice_payment` —— 付款确认分摊回写
-//!      paid_amount/unpaid_amount/invoice_status（04-02、11-01 基线的直接根因）；
+//!      paid_amount/unpaid_amount/invoice_status（04-02、11-01 两钉的钉点）；
 //!   2. `ap_verification_service.rs::update_invoice_for_item_txn / process_verify_items /
 //!      restore_invoices_on_cancel` —— AP 自动/手工核销回写与 cancel 精确回退；
 //!   3. `ar_ops/verification_ops/auto.rs::batch_update_invoice_states` —— AR 自动核销回写
-//!      received_amount/unpaid_amount/status（11-02 auto 断言的直接根因）；
+//!      received_amount/unpaid_amount/status（11-02 auto 断言的钉点）；
 //!   4. `ar_ops/verification_ops/manual.rs::rollback_invoices` —— AR 取消核销金额回退。
 //! - `finance_report_service.rs::get_trial_balance` —— account_subjects.status 写入方词表为
-//!   小写 `master_data::ACTIVE`（DDL DEFAULT 'active'，批次 208 P2-5 明确与大写 common 区分），
-//!   此前用大写 `"ACTIVE"` 等值过滤 → 所有科目被排除、entries 恒空（10-01 根因）。
-//! - `ap_payment_service.rs::create` —— 未审批付款申请的状态门拒绝改用
+//! 小写 `master_data::ACTIVE`（DDL DEFAULT 'active'，有意与大写 common 区分），
+//!   若用大写 `"ACTIVE"` 等值过滤则所有科目被排除、entries 恒空（10-01 钉的锁定面）。
+//! - `ap_payment_service.rs::create` —— 未审批付款申请的状态门拒绝用
 //!   `AppError::business_displayable`：机器码仍 BUSINESS_ERROR（族不变），出参 message 外显
-//!   用户下一步操作所需的公开规则，内部状态 token 只进日志（05-01 根因）。
+//!   用户下一步操作所需的公开规则，内部状态 token 只进日志（05-01 钉）。
 //!
 //! 夹具口径：全部活库用例走 `test_common::setup_test_db()`（真 PostgreSQL，缺
 //! `TEST_DATABASE_URL` 直接 panic，禁 sqlite 回退）；业务表每次清空，FK 父行（users/
@@ -319,8 +319,8 @@ async fn reload_ar_invoice(db: &DatabaseConnection, id: i32) -> ar_invoice::Mode
 
 /// 【04-02 / 11-01 基线钉】付款确认后，应付单 paid/unpaid/状态必须**真实落库**：
 /// paid 400、unpaid 600、PARTIAL_PAID、恒等 amount-paid=unpaid。
-/// 修复前 `apply_invoice_payment` 走 Model 改字段 + `.into()`（全 Unchanged）→ UPDATE 不含
-/// 金额列 → 本用例断 paid=400 必红（实际 0），即 #4669 证据「期望=400 实际=0」的契约面。
+/// 防回潮面：若退回"Model 改字段 + `.into()`"（全 Unchanged）写法，UPDATE 不含
+/// 金额列、paid 恒 0——本用例断 paid=400 即锁该契约面。
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL：confirm 链用 lock_exclusive + advisory_xact_lock"]
 async fn ap_payment_confirm_writes_back_invoice_amounts() {
@@ -391,8 +391,8 @@ async fn ap_payment_confirm_writes_back_invoice_amounts() {
 }
 
 /// 【05-01 钉】未审批付款申请被拒：机器码仍是 BUSINESS_ERROR（族不变），
-/// 出参 message 外显「审批」原因且不含内部状态 token（旧 `AppError::business` 被脱敏成
-/// 固定常量、用户看不到拒绝原因，正是 #4669 该用例的红点）。
+/// 出参 message 外显「审批」原因且不含内部状态 token（若用 `AppError::business`
+/// 则被脱敏成固定常量、用户看不到拒绝原因）。
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL：create 查 ap_payment_request 真表"]
 async fn ap_payment_create_unapproved_rejection_is_displayable_business_error() {
@@ -460,8 +460,8 @@ async fn ap_payment_create_unapproved_rejection_is_displayable_business_error() 
 
 /// 【11-01 手工核销 + cancel 钉】manual 后 B paid 增 unpaid 减至结清 PAID；
 /// cancel 后金额**精确回退**（paid=0/unpaid=600/AUDITED）。
-/// 修复前 `process_verify_items`/`restore_invoices_on_cancel` 同踩 Unchanged 坑，
-/// 核销只插明细、主表金额恒 0，cancel 也回退不出痕迹。
+/// `process_verify_items`/`restore_invoices_on_cancel` 同属全 Unchanged 陷阱面：
+/// 若回潮则核销只插明细、主表金额恒 0，cancel 也回退不出痕迹。
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL：manual/cancel 用 lock_exclusive + advisory_xact_lock"]
 async fn ap_manual_verification_adds_and_cancel_rolls_back_exact_amounts() {
@@ -530,8 +530,8 @@ async fn ap_manual_verification_adds_and_cancel_rolls_back_exact_amounts() {
 }
 
 /// 【11-02 auto 钉】AR 自动核销后发票 received/unpaid/状态必须真实回写
-/// （received=300、unpaid=700、PARTIAL_PAID）。修复前 `batch_update_invoice_states`
-/// 全字段 Unchanged → UPDATE 只刷 updated_at，「auto 后 received 增：期望=300 实际=0」。
+/// （received=300、unpaid=700、PARTIAL_PAID）。若 `batch_update_invoice_states`
+/// 退回全字段 Unchanged，UPDATE 只刷 updated_at，received 恒 0。
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL：auto_verify 全局贪心 + lock_exclusive"]
 async fn ar_auto_verification_writes_back_invoice_amounts() {
@@ -632,7 +632,7 @@ async fn ar_manual_verify_settles_and_cancel_rolls_back_only_that_amount() {
 
 /// 【10-01 钉】试算平衡必须包含小写 'active' 的科目（写入方词表 master_data），
 /// 且大写 'ACTIVE'（非写入值）不得混入——锁比较点与写入值逐字符同源。
-/// 修复前过滤大写常量 → entries 恒空 → 「entries 应含借方科目」必红。
+/// 若过滤改用大写常量 → entries 恒空 → 「entries 应含借方科目」断言必失败。
 /// 注意：account_subjects 是 sealed 参照表（夹具不清空），用例自建行、断言后自删。
 #[tokio::test]
 #[ignore = "需要 TEST_DATABASE_URL 指向已跑完迁移的 PostgreSQL：读取 account_subjects 真表"]

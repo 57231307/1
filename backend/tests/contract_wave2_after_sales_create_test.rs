@@ -1,6 +1,6 @@
-//! 售后工单创建端点契约锁（任务 #148：本波修复"创建必失败 + 拒绝原因被脱敏"）
+//! 售后工单创建端点契约锁：归属由 path 提供、拒绝原因外显真实文案
 //!
-//! 锁定的 file:line 契约（修复后形态）：
+//! 锁定的契约（现状形态）：
 //! - `backend/src/services/custom_order_aftersales_service.rs::CreateAfterSalesDto`
 //!   （`custom_order_id` 已从 DTO 移除：归属由路由 path 权威提供，body 不再必填、
 //!   发送也被 serde 忽略未知字段；issue_type/customer_id/description 仍为 NOT NULL 必填）
@@ -8,15 +8,14 @@
 //!   （`service.create(id, dto)`，body 伪造归属结构性不可能覆盖 path）
 //! - `backend/src/handlers/custom_order_handler.rs::aftersales_err`
 //!   （InvalidState → `AppError::business_displayable`、Validation → `AppError::validation_displayable`：
-//!   出参 message 均外显真实拒绝文案，族按 #165 判据拆分；AlreadyLinked 含内部 ID 保持脱敏 business）
+//! 出参 message 均外显真实拒绝文案，族按判据拆分；AlreadyLinked 含内部 ID 保持脱敏 business）
 //!
-//! 修复前缺陷（客诉实证"编辑填写正常、提交保存报参数错误"）：
-//! DTO 的 `custom_order_id: i64` 非 Option 无 serde default，而前端
-//! `AfterSalesPanel.vue` payload 从不携带该键 → 反序列化层 missing field，创建 100% 失败；
-//! 且 handler 的 path 覆盖发生在反序列化之后，body 该字段本就无语义。
+//! 契约背景：DTO 不含 `custom_order_id`——若该键为非 Option 必填，前端
+//! `AfterSalesPanel.vue` 的 payload（从不携带该键）必在反序列化层 missing field
+//! 而创建必失败；归属由路由 path 权威提供，body 无此字段，伪造覆盖在结构上不可能。
 //!
 //! 覆盖策略（全部真实行为，无 mock）：
-//! - serde 解码（无 DB）：缺 custom_order_id 键必须成功（修复前必失败）；伪造键被忽略；
+//! - serde 解码（无 DB）：缺 custom_order_id 键必须成功；伪造键被忽略；
 //!   NOT NULL 字段缺失仍须判 Err（不得为过测试放宽）；refund_amount 字符串/数字双形态
 //! - 真 PostgreSQL（TEST_DATABASE_URL + 迁移建表，夹具清空业务表）走真实 handler 端到端
 //!   （tower oneshot）：先播种 customers/product/custom_orders 满足真表 FK
@@ -53,7 +52,7 @@ fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
 }
 
-/// 前端 AfterSalesPanel.vue 提交的真实 payload 形状（任务取证：从不携带 custom_order_id）
+/// 前端 AfterSalesPanel.vue 提交的真实 payload 形状（从不携带 custom_order_id）
 fn frontend_real_payload() -> Value {
     json!({
         "issue_type": "complaint",
@@ -67,8 +66,7 @@ fn frontend_real_payload() -> Value {
 // 1) serde 解码层（无 DB）
 // =========================================================
 
-/// 缺 custom_order_id 键 → 解码必须成功（本波契约核心：修复前此形状即
-/// "missing field custom_order_id"，客诉工单创建 100% 失败）
+/// 缺 custom_order_id 键 → 解码必须成功（契约核心：归属由 path 提供，body 不要求该键）
 #[test]
 fn decode_frontend_payload_without_custom_order_id_succeeds() {
     let dto: CreateAfterSalesDto =
@@ -96,7 +94,7 @@ fn decode_body_with_forged_custom_order_id_is_ignored() {
 }
 
 /// NOT NULL 必填字段（issue_type/customer_id/description）缺失仍须判 Err——
-/// 本波只解耦 path 已提供的归属 ID，不得顺手放宽任何真实必填
+/// 本契约只解耦 path 已提供的归属 ID，不得顺手放宽任何真实必填
 #[test]
 fn decode_missing_not_null_required_fields_still_fails() {
     for key in ["issue_type", "customer_id", "description"] {
@@ -262,7 +260,7 @@ async fn get_list(app: &Router, path_id: i64) -> (StatusCode, Value) {
 }
 
 /// 核心回归锁：前端真实 payload（无 custom_order_id）走创建端点 → 200，
-/// 且 DB 回读的 custom_order_id == path 参数（本波缺陷修复的直接验证）
+/// 且 DB 回读的 custom_order_id == path 参数（path 归属口径的直接验证）
 #[tokio::test]
 async fn create_without_custom_order_id_in_body_succeeds_and_persists_path_ownership() {
     let (app, db) = seeded_app().await;
@@ -318,7 +316,7 @@ async fn refund_amount_serialized_as_string_in_response_and_roundtrips_exactly()
 }
 
 /// 越权防护锁：body 伪造 custom_order_id=999，path=42 → 落库归属仍为 42，
-/// 伪造值不生效（修复前 body 值也会被 handler 覆盖，语义不变；现为结构性排除）
+/// 伪造值不生效（DTO 无该字段，body 值被结构性排除，不可能覆盖 path 归属）
 #[tokio::test]
 async fn forged_custom_order_id_in_body_cannot_override_path_ownership() {
     let (app, db) = seeded_app().await;
@@ -339,8 +337,8 @@ async fn forged_custom_order_id_in_body_cannot_override_path_ownership() {
 }
 
 /// 用户可见性锁：退款类型缺金额 → 400 + code=VALIDATION_ERROR + message 外显
-/// 真实拒绝文案。断言跟随源码变更（任务 #165）：缺必填金额与非法售后类型是「用户提交
-/// 字段」的输入校验，族必须归 VALIDATION_ERROR（此前 #148 误并入 business 使前端把
+/// 真实拒绝文案。缺必填金额与非法售后类型是「用户提交
+/// 字段」的输入校验，族归 VALIDATION_ERROR（若误并入 business，前端会把
 /// "我填错了"当业务提示）；validation_displayable 仍外显真实文案，不回退脱敏常量。
 #[tokio::test]
 async fn refund_without_amount_rejected_with_displayable_validation_message() {
@@ -390,9 +388,8 @@ async fn rejected_creations_leave_no_rows() {
 
 // =========================================================
 // 3) 读端回传锁：创建时采集的 customer_id / reason_category / reason_detail
-//    必须在创建端点响应与列表端点回读中可见（防"落库了但读不回"复发——
-//    写入侧 Set(...) 早已落库，读端 AfterSalesInfo/map_after_sales 曾缺列，
-//    前端永远显示不完整内容）
+//    必须在创建端点响应与列表端点回读中可见（"落库了但读不回"形态：
+//    写入侧 Set(...) 落库成功、读端 DTO 缺列，则前端永远显示不完整内容）
 // =========================================================
 
 /// 对单个 AfterSalesInfo 出参对象断言三键齐全且值忠实
@@ -521,8 +518,8 @@ fn source_scan_create_after_sales_contract() {
 /// aftersales_err：InvalidState 必须 business_displayable（记录状态门归业务族并外显），
 /// Validation 必须 validation_displayable（提交字段校验归校验族并外显）；
 /// AlreadyLinked 文案含内部 ID，必须保持脱敏 business。
-/// 断言跟随源码变更（任务 #165）：#148 曾把两者并成 business_displayable，导致输入校验
-/// 也出 BUSINESS_ERROR、前端按 code 分支错乱；本轮按判据拆族——状态门 business、校验 validation。
+/// 二者若并成 business_displayable，输入校验也出 BUSINESS_ERROR、前端按 code 分支错乱；
+/// 按判据拆族——状态门 business、校验 validation。
 #[test]
 fn source_scan_aftersales_err_displayable_mapping() {
     let src = include_str!("../src/handlers/custom_order_handler.rs");
@@ -568,8 +565,7 @@ fn source_scan_service_dto_and_create_signature() {
 
 /// 读端防回潮锁：AfterSalesInfo 必须声明读端字段，且售后读侧必须走
 /// LEFT JOIN + column_as(customer_name) + into_model::<AfterSalesInfo> 富化链路
-/// （本波缺陷本体：写入侧 Set(...) 落库了，读端 DTO/映射缺列导致前端永远读不回；
-/// 旧 map_after_sales 逐字段透传形态已被单次 JOIN 富化取代，customer_name
+/// （读端缺列则写入侧落库的值前端永远读不回；customer_name
 /// 只允许来自该查询，真实回显断言见 contract_wave3 测试文件）
 #[test]
 fn source_scan_after_sales_readback_dto_and_mapping() {

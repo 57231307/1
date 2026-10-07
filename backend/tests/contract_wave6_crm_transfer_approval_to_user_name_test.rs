@@ -11,7 +11,7 @@
 //! 回写审批行（+0 次 SELECT，审批行多 1 次 UPDATE——单行操作，非 N+1）。
 //! 转移失败则 `?` 沿 `AppError` 信封显式上抛（不静默、不落空串、不造名）。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! 转移审批链路涉及的 crm_lead / users / customer_transfer_approvals /
 //! assignment_histories 全部取真表（BOOLEAN 列用 TRUE/FALSE，TIMESTAMPTZ 用

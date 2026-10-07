@@ -476,7 +476,7 @@ impl FinanceReportService {
         let period_str = period.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m").to_string());
 
         // 写入方权威词表：account_subjects.status 为小写主数据状态（DDL DEFAULT 'active' +
-        // models/status/general.rs master_data::{ACTIVE,INACTIVE}，批次 208 P2-5 明确与
+        // models/status/general.rs master_data::{ACTIVE,INACTIVE}， P2-5 明确与
         // common::STATUS_ACTIVE 大写区分）。此前用大写 "ACTIVE" 等值过滤导致所有科目被排除、
         // entries 恒空（试算平衡取不到分录的根因）。比较点必须与写入值逐字符同源。
         let subjects = account_subject::Entity::find()

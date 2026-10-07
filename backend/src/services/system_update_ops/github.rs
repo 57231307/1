@@ -181,7 +181,7 @@ impl SystemUpdateService {
     }
 
     pub fn compare_versions(&self, current: &str, latest: &str) -> bool {
-        // 任务 #116：改走共享归一路径，消除三段 current vs 四段 tag 的跨格式假阴性
+        // 改走共享归一路径，消除三段 current vs 四段 tag 的跨格式假阴性
         // （同段数原样比 / 3↔4 才 MD 反解 / 不可判定退回 element-wise 并 warn）；
         // 与 compare_versions_for_sort 同源，避免逻辑重复。
         let (current_parts, latest_parts) = normalize_versions_for_compare(current, latest);
@@ -201,7 +201,7 @@ impl SystemUpdateService {
     }
 
     pub fn compare_versions_for_sort(&self, a: &str, b: &str) -> std::cmp::Ordering {
-        // 任务 #116：与 compare_versions 走同一归一路径（normalize_versions_for_compare），
+        // 与 compare_versions 走同一归一路径（normalize_versions_for_compare），
         // 保证排序与"是否最新"判定对三段/四段混排的口径一致。
         let (a_parts, b_parts) = normalize_versions_for_compare(a, b);
 
@@ -242,7 +242,7 @@ impl SystemUpdateService {
         }
         let download_path = download_dir.join(&asset.name);
 
-        // 任务 #121：读取进程级更新配置，按 mirror_order 生成候选下载 URL（官方永远列入并兜底）。
+        // 读取进程级更新配置，按 mirror_order 生成候选下载 URL（官方永远列入并兜底）。
         let cfg = global_update_config();
         let candidates = Self::build_download_candidates(&asset.browser_download_url, &cfg);
         tracing::info!(
@@ -292,7 +292,7 @@ impl SystemUpdateService {
             return Err(last_err.unwrap_or_else(|| UpdateError::NetworkError(msg.to_string())));
         }
 
-        // 任务 #121：字节到手后取【官方】校验值 + 本地 SHA-256 重算比对（fail-closed）。
+        // 字节到手后取【官方】校验值 + 本地 SHA-256 重算比对（fail-closed）。
         // 校验值只从官方域取（CI .sha256 资产优先，其次 API assets[].digest）；镜像仅搬 tar 字节。
         if let Err(e) = self
             .verify_downloaded_integrity(asset, &release.assets, &download_path, &cfg)
@@ -312,7 +312,7 @@ impl SystemUpdateService {
         Ok(download_path)
     }
 
-    /// 任务 #121：按 `mirror_order` 生成候选下载 URL 列表。
+    /// 按 `mirror_order` 生成候选下载 URL 列表。
     /// - 官方 `browser_download_url` 永远列入且作最终兜底；
     /// - 镜像改写形如 `{mirror}/{githubAssetUrl}`（**仅搬大 tar 字节，绝不用于取校验值**）；
     /// - 镜像 base 集合 = 运维显式 `cfg.mirrors` ∪（`cfg.use_default_mirrors==true` 时并入的
@@ -396,7 +396,7 @@ impl SystemUpdateService {
         Ok(())
     }
 
-    /// 任务 #121：取【官方】SHA-256 校验基准 + 本地重算比对。
+    /// 取【官方】SHA-256 校验基准 + 本地重算比对。
     /// 优先级：① CI 上传的官方 `.sha256` 资产内容 ② GitHub API `assets[].digest` 兜底。
     /// - 两源皆无 → `Err(ChecksumUnavailable)`（`verify_digest=true` 时 fail-closed 拒绝 apply）；
     /// - 取到但不匹配 → `Err(IntegrityError)`（无论 verify_digest 均拒绝，投毒零容忍）。
@@ -560,7 +560,7 @@ impl SystemUpdateService {
 }
 
 // =====================================================
-// 任务 #121：多镜像候选下载 URL 生成单测（官方永远列入且兜底）
+// 多镜像候选下载 URL 生成单测（官方永远列入且兜底）
 // =====================================================
 #[cfg(test)]
 mod download_candidate_tests {

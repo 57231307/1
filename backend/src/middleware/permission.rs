@@ -55,7 +55,7 @@ fn extract_role_id(auth: &AuthContext) -> Result<i32, Box<Response>> {
     }
 }
 
-/// V15 P0-S21：校验 segment3 是否在已知资源白名单中
+/// 校验 segment3 是否在已知资源白名单中
 fn validate_route_whitelist(path: &str) -> Result<(), Box<Response>> {
     if let Some(segment3) = extract_segment3(path) {
         if !is_known_resource_segment(segment3) {
@@ -99,13 +99,13 @@ pub async fn permission_middleware(
     let auth = extract_auth_context(&request).map_err(|e| *e)?;
     tracing::debug!("权限检查: user_id={}, path={}", auth.user_id, path);
 
-    // V15 P1-5-3：认证豁免 RBAC 路径（自服务端点）——仅需 JWT 认证，不查业务权限码，
+    // 认证豁免 RBAC 路径（自服务端点）：仅需 JWT 认证，不查业务权限码，
     // 也不要求 role_id。
     // 本判定必须在 extract_role_id **之前**：白名单里三个端点（/auth/me、/ws/ticket、
     // /users/change-password）都只按调用者自身身份工作、不需要任何业务权限码；
     // 若先取 role_id，未分配角色的账号连"读自己的身份/改自己的密码"都会被
-    // extract_role_id 的固定 403「没有关联角色」拦死（与批次 24 v6 P0-2 为 /auth/me
-    // 根治的"刷新即 403 跳登录"完全同型，只是命中的是改密自助面）。
+    // extract_role_id 的固定 403「没有关联角色」拦死（与 /auth/me 曾有的
+    // 「刷新即 403 跳登录」同型故障，只是命中的是改密自助面）。
     // 越权面不因此放宽：跳过 RBAC 后各 handler 自身的"只操作 auth.user_id"约束不变。
     if is_auth_only_path(path) {
         tracing::debug!(
@@ -121,7 +121,7 @@ pub async fn permission_middleware(
     validate_route_whitelist(path).map_err(|e| *e)?;
     let (resource_type, resource_id, action) = extract_route_info(path, uri, method);
 
-    // V15 P2 B12-P2-13：resource_type="unknown" 时 fail-closed，直接拒绝
+    // resource_type="unknown" 时 fail-closed，直接拒绝
     // extract_resource_info 对不符合 /api/v1/erp/... 前缀的路径返回 "unknown"，
     // 此时不应继续权限匹配（可能误放行），直接拒绝并记录审计日志。
     if resource_type == "unknown" {
@@ -152,7 +152,7 @@ pub async fn permission_middleware(
         Ok(next.run(request).await)
     } else {
         warn!("权限不足: path={} {}", method, path);
-        // V15 P1 12.5：权限拒绝日志落库（resource_type=permission_denied）
+        // 权限拒绝日志落库（resource_type=permission_denied）
         // 安全原因：权限拒绝是安全事件，必须落库审计以便追溯越权尝试。
         record_permission_denial(
             &state.audit_log,
@@ -167,7 +167,7 @@ pub async fn permission_middleware(
     }
 }
 
-/// V15 P1 12.5：异步落库权限拒绝审计事件（best-effort，不阻塞业务响应）。
+/// 异步落库权限拒绝审计事件（best-effort，不阻塞业务响应）。
 /// 字段说明：user_id/path/method/ip/user_agent/required_permission（resource_type:action）
 fn record_permission_denial(
     audit_log: &Arc<AuditLogService>,
@@ -208,7 +208,7 @@ fn record_permission_denial(
     audit_log.clone().record_async(event, None);
 }
 
-/// V15 P0-S21：提取 URL segment3（/api/v1/erp/{segment3}/...），用于白名单校验
+/// 提取 URL segment3（/api/v1/erp/{segment3}/...），用于白名单校验
 pub fn extract_segment3(path: &str) -> Option<&str> {
     let path_parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
     if path_parts.len() >= 4
@@ -222,7 +222,7 @@ pub fn extract_segment3(path: &str) -> Option<&str> {
     }
 }
 
-/// V15 P0-S20：路径动作关键字集合（出现在 URL 末段时优先作为 action）
+/// 路径动作关键字集合（出现在 URL 末段时优先作为 action）
 /// `reveal` = PII 按需揭示端点（POST /crm/customers/{id}/pii/reveal）的动作段，
 /// 与 `print` 同族：末段是动作而非资源 ID，提取资源 ID 时该关键字段一并跳过。
 const PATH_ACTION_KEYWORDS: &[&str] = &[
@@ -230,9 +230,9 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
     "submit", "release", "reveal",
 ];
 
-/// V15 P0-S20：从路径末段提取动作关键字，非关键字返回 None
+/// 从路径末段提取动作关键字，非关键字返回 None
 pub fn extract_action_from_path(path: &str) -> Option<String> {
-    // V15 clippy 修复：使用 rfind 从后向前查找第一个非空段，等价于 filter().next_back() 但更简洁
+    // rfind 从后向前取第一个非空段，等价于 filter().next_back()
     let last_segment = path.split('/').rfind(|p| !p.is_empty())?;
     if PATH_ACTION_KEYWORDS.contains(&last_segment) {
         Some(last_segment.to_string())
@@ -241,10 +241,10 @@ pub fn extract_action_from_path(path: &str) -> Option<String> {
     }
 }
 
-/// V15 P0-S10：查询参数 action 关键字白名单（print/export/download）
+/// 查询参数 action 关键字白名单（print/export/download）
 const QUERY_ACTION_KEYWORDS: &[&str] = &["print", "export", "download"];
 
-/// V15 P0-S10：从 `?action=xxx` 提取动作，仅识别白名单内动作以防绕过权限
+/// 从 `?action=xxx` 提取动作，仅识别白名单内动作以防绕过权限
 pub fn extract_action_from_query(uri: &axum::http::Uri) -> Option<String> {
     let query = uri.query()?;
     // 解析 query string，查找 action 参数
@@ -278,9 +278,9 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         // 处理嵌套路径，如 /api/v1/erp/sales/orders/:id/approve
         // 资源类型由第4段决定，如果第4段是资源类型（如users, products），直接使用
         // 如果第4段是模块名（如sales, purchase），则使用第5段作为资源类型
-        // V15 P1 4.2：处理双层嵌套模块前缀（如 /advanced/ai/recipe-optimization）
+        // 处理双层嵌套模块前缀（如 /advanced/ai/recipe-optimization）
         // 当 segment3 与 segment4 均为模块前缀时，使用 segment5 作为资源类型
-        // V15 P1-14.4-C：对模块前缀下的资源进行消歧（如 purchase/orders → purchase-orders）
+        // 对模块前缀下的资源进行消歧（如 purchase/orders → purchase-orders）
         let resource_type = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
             if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
                 resolve_module_prefixed_resource(path_parts[3], path_parts[5])
@@ -292,7 +292,7 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         };
 
         // 尝试提取资源ID（跳过模块前缀）
-        // V15 P0-S20 修复：跳过路径中的动作段（如 approve/export/print），
+        // 跳过路径中的动作段（如 approve/export/print），
         // 避免动作关键字被误认为资源ID
         let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
             if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
@@ -315,7 +315,7 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
 
         (resource_type, None)
     } else {
-        // V15 P2 B12-P2-13：路径不符合 /api/v1/erp/... 前缀，记录 warn 便于发现配置错误
+        // 路径不符合 /api/v1/erp/... 前缀，记录 warn 便于发现配置错误
         tracing::warn!(
             resource = %path,
             "extract_resource_info 返回 unknown，可能存在配置错误"
@@ -365,7 +365,7 @@ pub static PERMISSION_CACHE: LazyLock<DashMap<i32, CacheEntry<Arc<Vec<role_permi
     LazyLock::new(DashMap::new);
 
 /// 权限缓存 TTL（分钟），可通过环境变量 PERMISSION_CACHE_TTL_MINS 配置，默认 5 分钟。
-// B03-P2-3 修复：原硬编码 const 5 分钟，现改为启动时读取环境变量，便于按部署规模调优；
+// 启动时从环境变量惰性读取 TTL，便于按部署规模调优；
 // 非法值（非数字/<=0）回退为默认 5 分钟，避免配置错误导致缓存失效或永驻。
 static PERMISSION_CACHE_TTL_MINS: LazyLock<i64> = LazyLock::new(|| {
     let raw = std::env::var("PERMISSION_CACHE_TTL_MINS").unwrap_or_else(|_| "5".to_string());
@@ -378,11 +378,11 @@ static PERMISSION_CACHE_TTL_MINS: LazyLock<i64> = LazyLock::new(|| {
     mins
 });
 
-/// V15 P0-S07：失效指定角色的权限缓存（P1-14.9-C 同步发布 Redis pub/sub，多实例失效）
+/// 失效指定角色的权限缓存（同步发布 Redis pub/sub，多实例失效）
 pub fn invalidate_permission_cache(role_id: i32) {
     PERMISSION_CACHE.remove(&role_id);
     tracing::info!(role_id, "权限缓存已失效");
-    // V15 P1-14.9-C：发布 Redis pub/sub 通知（异步，不阻塞调用方）
+    // 发布 Redis pub/sub 通知（异步，不阻塞调用方）
     // 无 Tokio runtime（如同步测试）时安全跳过 spawn
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         let channel = PERMISSION_CACHE_INVALIDATION_CHANNEL;
@@ -393,7 +393,7 @@ pub fn invalidate_permission_cache(role_id: i32) {
     }
 }
 
-/// V15 P0-S07：失效全部权限缓存（P1-14.9-C 同步发布 Redis pub/sub "ALL"，多实例清空）
+/// 失效全部权限缓存（同步发布 Redis pub/sub "ALL"，多实例清空）
 #[allow(dead_code)]
 pub fn invalidate_all_permission_cache() {
     PERMISSION_CACHE.clear();
@@ -406,10 +406,10 @@ pub fn invalidate_all_permission_cache() {
     }
 }
 
-/// V15 P1-14.9-C：权限缓存失效 Redis pub/sub 频道名
+/// 权限缓存失效 Redis pub/sub 频道名
 const PERMISSION_CACHE_INVALIDATION_CHANNEL: &str = "permission_cache_invalidation";
 
-/// V15 P1-14.9-C：启动权限缓存 Redis pub/sub 订阅器（应用启动时调用）
+/// 启动权限缓存 Redis pub/sub 订阅器（应用启动时调用）
 // 行为：订阅频道，"ALL"→清空本地缓存，"<role_id>"→失效指定角色缓存；
 // 无 Redis 时 no-op；Redis 连接失败仅 warn 不阻塞启动
 //
@@ -470,13 +470,13 @@ pub async fn start_permission_cache_pubsub_subscriber() {
     tracing::warn!("权限缓存 Redis Pub/Sub 订阅器流结束（Redis 连接断开或服务器关闭）");
 }
 
-/// V15 P1-2-4：禁止打印操作的角色清单（customer/temporary 即使持有 print 权限码也拒绝）
+/// 禁止打印操作的角色清单（customer/temporary 即使持有 print 权限码也拒绝）
 const PRINT_DENIED_ROLE_CODES: &[&str] = &["customer", "temporary"];
 
-/// V15 P1-2-4：禁止导出操作的角色清单（customer 外部用户/temporary 临时账号）
+/// 禁止导出操作的角色清单（customer 外部用户/temporary 临时账号）
 const EXPORT_DENIED_ROLE_CODES: &[&str] = &["customer", "temporary"];
 
-/// V15 P1-2-4：染色配方导出额外禁止的角色清单（仅 dye_recipe_master 可导出）
+/// 染色配方导出额外禁止的角色清单（仅 dye_recipe_master 可导出）
 const DYE_RECIPE_EXPORT_DENIED_ROLE_CODES: &[&str] = &[
     "customer",
     "temporary",
@@ -487,7 +487,7 @@ const DYE_RECIPE_EXPORT_DENIED_ROLE_CODES: &[&str] = &[
     "warehouse",
 ];
 
-/// V15 P1-2-4：检查角色是否被禁止执行指定动作（print/export/dye_recipe export 三类规则）
+/// 检查角色是否被禁止执行指定动作（print/export/dye_recipe export 三类规则）
 // 规则：action="print"→PRINT_DENIED；action="export"→EXPORT_DENIED；dye_recipe+export→DYE_RECIPE_EXPORT_DENIED
 async fn is_action_denied_for_role(
     db: &sea_orm::DatabaseConnection,
@@ -547,7 +547,7 @@ async fn check_permission(
         return true;
     }
 
-    // V15 P1-2-4：print/export 动作的角色黑名单校验（在权限码校验之前）
+    // print/export 动作的角色黑名单校验（在权限码校验之前）
     // 安全原因：customer/temporary 等外部角色即使误配 print/export 权限码也必须拒绝。
     // fail-closed：查询失败时拒绝（避免放行敏感操作）。
     if is_action_denied_for_role(db, role_id, resource_type, action).await {
@@ -563,7 +563,7 @@ async fn check_permission(
     }
 
     // 尝试从缓存加载，检查是否过期
-    // 死锁修复：与 admin_checker 同款问题——DashMap get() 的 Ref 存活期间对同
+    // DashMap get() 的 Ref 存活期间对同
     // key remove() 会自死锁（读锁未放、等写锁），缓存过期（默认 TTL 5 分钟）
     // 时首个并发请求卡死 worker 并堵死同 key 全部后续请求。先释放 Ref 再 remove。
     let permissions = if let Some(cached) = PERMISSION_CACHE.get(&role_id) {
@@ -602,14 +602,14 @@ async fn check_permission(
     };
 
     // 检查是否有匹配的权限
-    // M-6 修复：resource_id 精确匹配，action 支持 "*" 通配符
+    // resource_id 精确匹配，action 支持 "*" 通配符
     permissions
         .iter()
         .any(|p| matches_permission(p, resource_type, resource_id, action))
 }
 
 /// 权限匹配纯函数：resource_type 精确匹配，action 支持 "*"，resource_id 仅约束「按记录授权」。
-/// V15 P2 14.11-F：resource_type 支持 "*" 通配（超级权限码 "resource:*" 或 "*:*"）
+/// resource_type 支持 "*" 通配（超级权限码 "resource:*" 或 "*:*"）
 ///
 /// 资源授权语义（RBAC）：
 /// - 角色级授权（p.resource_id = None）覆盖该资源类型的**全部实例**，既能命中列表类请求

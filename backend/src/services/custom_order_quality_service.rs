@@ -52,7 +52,7 @@ impl CustomOrderQualityService {
 
     /// 上报质量异常
     ///
-    /// 契约修复（任务 #148 售后先例同构）：`custom_order_id` 由调用方（handler）
+    /// 契约修复（售后先例同构）：`custom_order_id` 由调用方（handler）
     /// 从路由 path 参数权威传入，不从请求体 DTO 取值，客户端 body 伪造归属被
     /// 结构性排除。
     pub async fn report_issue(

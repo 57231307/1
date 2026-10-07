@@ -589,7 +589,7 @@ export interface APInvoiceRelation {
 // 统计报表数据
 // 金额键为后端 rust_decimal（ap_report_service.rs::ApStatisticsReport 金额字段全部
 // Decimal(:814/:817/:820/:835）），serde 序列化为十进制字符串；声明 number 属类型谎言
-// （#4671 判责 A3 同族未钉清单 557-560，.toFixed 运行期崩族，先例 83b8028b/42f67500）。
+// （判责 A3 同族未钉清单 557-560，.toFixed 运行期崩族，先例 83b8028b/42f67500）。
 // ⚠️ 本接口键名与后端现行为 ApStatisticsReport 出参键（total_invoice_amount/total_paid_amount/
 // total_unpaid_amount）整体错位属独立契约漂移，交主编排立案，本次只修值类型。
 export interface APStatisticsData {

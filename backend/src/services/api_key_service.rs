@@ -192,7 +192,7 @@ impl ApiKeyService {
     }
 
     /// 更新 API 密钥（批次 91 P0-1）
-    /// 仅更新传入的字段，未传入的字段保持不变。；批次 158 v11 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）；批次 413 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，；消除 `clippy::too_many_arguments` 警告。；本轮契约收口：`expires_at` / `description` 均为 `Option<Option<T>>` 三态——；键缺席=保持原值、显式 null=落 NULL（永不过期 / 清空描述）、有值=覆盖。
+    /// 仅更新传入的字段，未传入的字段保持不变。； 真实接入：新增 description 参数持久化（原 #[allow(dead_code)] 移除）； 技术债务清理：签名从 7 参数改为单一参数对象 `UpdateApiKeyPayload`，；消除 `clippy::too_many_arguments` 警告。；本轮契约收口：`expires_at` / `description` 均为 `Option<Option<T>>` 三态——；键缺席=保持原值、显式 null=落 NULL（永不过期 / 清空描述）、有值=覆盖。
     pub async fn update_api_key(
         &self,
         payload: UpdateApiKeyPayload,

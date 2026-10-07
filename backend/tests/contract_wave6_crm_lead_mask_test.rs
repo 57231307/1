@@ -1,4 +1,4 @@
-//! 契约波次 6 · 任务 #200：CRM 线索默认字段脱敏读错键防回潮锁
+//! 契约波次 6 · CRM 线索默认字段脱敏读错键防回潮锁
 //!
 //! 根因（修复前实证）：crm_handler.rs 的 P1-08-5「默认脱敏」块（无数据权限行 +
 //! 非 admin 分支）读写的键是 `contact_phone`，但 crm_lead 出参由
@@ -14,12 +14,12 @@
 //! 3. admin（role_id=1，roles.code='admin'）→ get_role_data_permission 返回
 //!    Ok(Some(ALL, None, None))，filter_fields_batch 为空操作且默认打码分支不可达
 //!    （role_id != 1 为假）→ 出参保持原值（这是既有契约，依据即该两行代码路径）；
-//! 4. 源码扫描锁：默认脱敏已收敛为唯一实现（#208 收口），锁的两条断言是
+//! 4. 源码扫描锁：默认脱敏已收敛为唯一实现（收口），锁的两条断言是
 //!    「权威 PII 列集合覆盖 crm_lead 真实电话列 mobile_phone/tel_phone」与
 //!    「四个出口只调用共用函数、不再有内联掩码分支」；`get("contact_phone")`
 //!    这一读错键写法仍被禁止（回潮即红）。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL；roles 为
 //! 迁移种子参照表（id=1 code='admin' 即 is_admin_role 判定源），不再插种子。
 
@@ -258,7 +258,7 @@ async fn admin_list_and_detail_keep_raw_values() {
 // 4) 源码扫描锁：默认脱敏收敛到唯一实现，且不得再按不存在的键打码
 //    contact_phone 属 customer/customer_address/sales_order/supplier 模型，
 //    crm_lead 出参不存在该键——读错键 = 脱敏恒不生效。
-//    #208 遗留项收口后，掩码列集合不再写在 crm_handler.rs 的内联分支里，
+// 遗留项收口后，掩码列集合不再写在 crm_handler.rs 的内联分支里，
 //    而是四个出口（列表/详情/公海列表/公海写响应）共用
 //    `CrmService::mask_lead_pii_defaults` → `utils::field_mask::mask_contact_fields_for_role`
 //    （本仓 PII 列集合权威定义）。因此本锁从"handler 里有 get("mobile_phone")"

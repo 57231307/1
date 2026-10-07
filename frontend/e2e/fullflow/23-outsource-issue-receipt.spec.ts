@@ -39,7 +39,7 @@
 //   API 可录入回读，FEE 凭证金额取真实值。23-03 由缺陷钉转为回归钉，再红即回归。
 //   本批后端新增两道硬拒（commit 0d74c04f）⇒ 前端门控与之同口径，契约级由本例锁定：
 //   零费用结算拒（order.rs:607-611，23-04）；零数量收回入口拒（receipt.rs:99-101，23-02-G）。
-// PR #942/#220 实测值三列（weight/width/gram_weight，receipt.rs:76-85/:230/:269-271/:373-383/:523-525）
+// PR 实测值三列（weight/width/gram_weight，receipt.rs:76-85/:230/:269-271/:373-383/:523-525）
 //   e2e 活体覆盖：23-05 建单落值+回读+三态（键缺席保持/显式 null 清空/有值覆盖）+confirm 出参透传；
 //   23-06 值域负例（0/负数建单与更新口一律 400+VALIDATION_ERROR，拒绝零变化）。
 //   权限/校验类拒绝文案永久脱敏 ⇒ 只断 status+信封 code，不断任何中文文案（与 23-02 D2 同口径）。
@@ -103,7 +103,7 @@ function requireNum(v: unknown, label: string): number {
 }
 
 /**
- * #220 实测值三列（weight/width/gram_weight）出参类型如实性断言。
+ * 实测值三列（weight/width/gram_weight）出参类型如实性断言。
  *
  * 类型事实（不许用 Number()/parseFloat() 归一把"类型谎言"洗成通过行）：
  *   - rust_decimal 在本仓仅启用 serde feature（backend/Cargo.toml:60 `features=["serde"]`，

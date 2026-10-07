@@ -1,4 +1,4 @@
-//! 任务 #246 ②「`inventory_piece` 三列实测值缺值域 CHECK」—— 真库契约锁（后端+DB 线）
+//! ②「`inventory_piece` 三列实测值缺值域 CHECK」—— 真库契约锁（后端+DB 线）
 //!
 //! 钉死两件事（同一取值域的两道门，缺一道都算没修）：
 //! 1. **DB 兜底（migration m0076）**：`weight` / `width` / `gram_weight` 三条

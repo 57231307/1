@@ -1,4 +1,4 @@
-//! #220 成品布入库标签 — Code128 条码图形真库契约锁
+//! 成品布入库标签 — Code128 条码图形真库契约锁
 //!
 //! 表结构唯一来源 = backend/migration（不自建 DDL）；
 //! 夹具 = `test_common::setup_test_db()`（缺 TEST_DATABASE_URL 直接 panic，禁 sqlite 回退）。

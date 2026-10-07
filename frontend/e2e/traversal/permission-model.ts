@@ -10,7 +10,7 @@
  *      纯别名路由（redirect 指向目标且自身无组件/子树）继承**目标路由**的门控：
  *      vue-router 在守卫执行前完成 redirect 解析，守卫读到的一直是 to=目标路由 的 meta；
  *      实测面 goto /workflow 落点即 /bpm 的门控判定。不跟随 redirect 链会把别名恒派生为
- *      "登录即可达"，与实测分叉（CI #4671 角色矩阵 31 条 /workflow 伪影红的根因）。
+ * "登录即可达"，与实测分叉（CI 角色矩阵 31 条 /workflow 伪影红的根因）。
  *      链上的 redirect 目标缺失/成环/非字面量一律抛错判红交人工，禁止静默降级。
  *   匹配语义逐一对齐 router/index.ts:1474-1560 的 splitPermissionCode / actionEquivalent /
  *   hasRoutePermission（通配 *:*、resource:*、read↔view、update↔edit）。
@@ -69,7 +69,7 @@ const CANDIDATE_DIR = 'e2e/.auth/access-map';
  * 路由门控"人工审阅快照"：key = 模块 id（对应 TRAVERSAL_MODULES），
  * value = 该路由 router meta.permission 的评审期望值（null = 登录即可达）。
  * 本表不参与派生；assertRoutePermissionsInSync 每轮核它与 router 现值的一致性。
- * 值来源：CI #4669 判责后按 src/router/index.ts 现值人工逐条核对录入（2026-10-02）。
+ * 值来源：CI 判责后按 src/router/index.ts 现值人工逐条核对录入（2026-10-02）。
  */
 export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   dashboard: 'dashboard:read',

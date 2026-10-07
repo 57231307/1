@@ -1,4 +1,4 @@
-//! 采购质检「复检改判覆写」契约锁（PR #942 wave6）
+//! 采购质检「复检改判覆写」契约锁（wave6）
 //!
 //! 钉死的现状事实（与 `models/status/purchase_inventory.rs::purchase_receipt_inspection`
 //! REJECTED 注释同源；注释撒谎在本仓是明令禁止的，本锁是其代码级实证）：
@@ -19,7 +19,7 @@
 //! 契约（风险：任何人对 REJECTED 收货单再建一单质检并 pass 即可完成改判，绕过审批）。
 //!
 //! 覆盖策略（无 mock、真实 service 调用，禁止硬编码 JSON 假装断言；
-//! 路线一 #4669 判责：全部用例经 `test_common::setup_test_db()` 跑已迁移
+//! 路线一 判责：全部用例经 `test_common::setup_test_db` 跑已迁移
 //! PostgreSQL，表结构唯一来源 = backend/migration，不再自建同构 DDL；
 //! FK 父行 users/warehouses/products 按裁定 R1 自种子，suppliers id=1 为
 //! 迁移种子参照表恒在）：

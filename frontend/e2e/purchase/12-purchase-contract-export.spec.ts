@@ -1,4 +1,4 @@
-// 采购合同导出「真 OOXML xlsx」契约级 e2e（任务 #122）
+// 采购合同导出「真 OOXML xlsx」契约级 e2e
 //
 // 背景：新增 GET /purchase/purchase-contracts/export（backend purchase_contract_handler.rs
 //   export_purchase_contracts → utils/xlsx_export.rs build_xlsx_response_with_watermark），

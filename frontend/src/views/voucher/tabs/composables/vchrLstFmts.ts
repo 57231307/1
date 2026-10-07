@@ -1,10 +1,10 @@
 /**
  * vchrLstFmts.ts - 凭证列表格式化工具
- * 任务编号: P14 批 2 I-3 第 1 批
+ * 任务编号: P14 批 2 I-3
  * 提供状态标签/类型映射/格式化金额/凭证类型选项等纯函数
  *
  * P0 契约修复（本轮，三端同源）：
- * - 状态词表对齐后端 crate::models::status::finance::voucher（批次 102 v6 P3-1）：
+ * - 状态词表对齐后端 crate::models::status::finance::voucher（v6 P3-1）
  *   draft→submitted→reviewed→posted；原前端自创 'approved' 后端从不产出 ⇒ 状态列/
  *   过滤/按钮判断全部失真。
  * - 凭证类型不在前端维护第二套常量：原 general/customized 自创词表删除，

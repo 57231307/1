@@ -1,4 +1,4 @@
-//! 任务 #144：`DocumentNumberGenerator::allocate_no`（基数与真实号段同源 + 占用探测）
+//! `DocumentNumberGenerator::allocate_no`（基数与真实号段同源 + 占用探测）
 //! 真实行为契约测试
 //!
 //! 覆盖 `backend/src/utils/number_generator.rs` 中取号核心 `allocate_no` 的公开入口

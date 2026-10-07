@@ -1,4 +1,4 @@
-//! 契约波次 6 · 任务 #204/#208 遗留项：CRM 线索 PII 出口收敛（公海写响应 + tel_phone）
+//! 契约波次 6 · 任务 遗留项：CRM 线索 PII 出口收敛（公海写响应 + tel_phone）
 //!
 //! 根因（修复前实证，两条同源缺陷）：
 //! 1. **写响应回传原文 PII**：`handlers/crm_pool_handler.rs` 的 `claim_from_pool`
@@ -28,7 +28,7 @@
 //! - 公海写响应新增的掩码分支不影响状态码：越权仍由行级 `check_resource_owner` 判 403，
 //!   该锁在 `contract_wave6_crm_pool_owner_test.rs` 用例 1/2。
 //!
-//! 通道（路线一，#4669 判责）：用例经 `test_common::setup_test_db()` 连已迁移
+//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。领取/回收
 //! 写路径经 AuditLogService::update_with_audit 落真实 audit_logs 表（迁移提供），
 //! 操作人 users 行按裁定 R1 自种子。
@@ -65,7 +65,7 @@ const A_PHONE: &str = "13812348888";
 const A_TEL: &str = "03191234567";
 const A_EMAIL: &str = "alice@example.com";
 const A_ADDRESS: &str = "河北省邢台市某某路 1 号";
-/// lead 2（回收目标）自身的 PII 原文——#4671 判责 :137：本族旧写法把掩码期望
+/// lead 2（回收目标）自身的 PII 原文—— 判责 :137：本族旧写法把掩码期望
 /// 硬编码成 lead 1 的 `138****8888`，回收 lead 2 得 `137****1111`（已正确掩码）
 /// 却因"未按被断言行参数化"而红。正解是**参数化 + 收紧**：每行断言自己的
 /// 掩码期望，同时禁止出参出现**两行任何一列**的原文（跨行泄漏也在网内）。
@@ -249,7 +249,7 @@ async fn post_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) 
 }
 
 /// 默认脱敏四件套断言：mobile_phone/tel_phone/email 掩码 + address 整键移除。
-/// **按被断言行参数化**（`pii` 传入该行自己的原文与掩码期望；#4671 判责 :137
+/// **按被断言行参数化**（`pii` 传入该行自己的原文与掩码期望； 判责 :137
 /// 的旧形态是把 lead 1 的掩码常量硬编码进通用断言，回收/领取其它行时假判）。
 /// `where_label` 只用于失败信息定位是哪个出口泄露（四个出口共用一个实现，
 /// 任一处回潮都应在本函数报错）。
@@ -332,7 +332,7 @@ async fn list_and_detail_default_mask_covers_tel_phone_and_drops_address() {
 }
 
 // ---------------------------------------------------------------------------
-// 2) #204 遗留项核心：公海写响应（领取 / 回收）不得回传原文 PII
+// 2) 遗留项核心：公海写响应（领取 / 回收）不得回传原文 PII
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -357,7 +357,7 @@ async fn recycle_response_does_not_leak_raw_pii() {
     .await;
     assert_eq!(status, StatusCode::OK, "本人回收应成功: {v}");
     assert_eq!(v["data"]["lead_status"], json!("pool"));
-    // 回收的是 **lead 2**：断言按 lead 2 自己的 PII 档案参数化（#4671 判责 :137
+    // 回收的是 **lead 2**：断言按 lead 2 自己的 PII 档案参数化（判责 :137
     // 的"硬编码 lead 1 掩码常量"假判形态不得回潮），禁止清单则覆盖两行全部原文
     assert_default_masked(&v["data"], "POST /crm/pool/recycle 写响应", &LEAD_2_PII);
 }
@@ -440,7 +440,7 @@ async fn list_with_allowed_fields_keeps_tel_phone_raw() {
 /// 只保留"代码 + 字符串字面量"：整行注释（`//`/`///`/`//!`）逐行剔除。
 /// 本节禁词是"原文直出的整行 to_value"，而 `crm_pool_handler.rs:147` 的**文档注释**
 /// 正在描述"修复前这里是 serde_json::to_value(updated_lead)? 原文直出"——不剥注释
-/// 就把整改说明判成旁路复活（#4671 判责 B1①）。
+/// 就把整改说明判成旁路复活（判责 B1①）。
 /// 按行处理而不做字符级扫描：被锁 handler 里 JSON/SQL 字符串成对出现的引号会让
 /// 单行配平失真，宁少剥（行尾尾注释、块注释不动）不可错吃代码文本。
 fn code_only(src: &str) -> String {
@@ -502,7 +502,7 @@ fn all_lead_pii_exits_share_one_masking_implementation() {
     // 公海写响应：领取与回收都必须过共用实现；禁项扫描对象是**出参构造点**
     // （各自的函数体），不是整文件原文——`crm_pool_handler.rs:147` 的文档注释里
     // 正当写着"修复前这里是 `serde_json::to_value(updated_lead)?` 原文直出"，
-    // 按整文件计数会把这段说明判成旁路复活（#4671 判责 B1①）。
+    // 按整文件计数会把这段说明判成旁路复活（判责 B1①）。
     for name in ["claim_from_pool", "recycle_to_pool"] {
         let body = fn_body(&pool_handler, &format!("pub async fn {name}"));
         assert!(

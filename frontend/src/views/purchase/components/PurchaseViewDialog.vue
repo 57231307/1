@@ -3,7 +3,7 @@
  * ViewDlg - 采购单详情对话框
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 查看对话框）
  *
- * 明细编辑（任务 #145）：DRAFT 订单可对每行编辑「色号 / 辅助数量 / 折扣率 /
+ * 明细编辑：DRAFT 订单可对每行编辑「色号 / 辅助数量 / 折扣率 /
  * 交货允差」四个写侧字段，经 PUT /purchase/orders/{id}/items/{item_id}
  * （后端 UpdateOrderItemRequest）落库并回显。
  * - 读键用后端出参真实 snake_case 键（color_code / quantity_alt / discount_percent /

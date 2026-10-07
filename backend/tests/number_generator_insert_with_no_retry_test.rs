@@ -1,4 +1,4 @@
-//! 任务 #144：`DocumentNumberGenerator::insert_with_no_retry`（调用方事务内
+//! `DocumentNumberGenerator::insert_with_no_retry`（调用方事务内
 //! SAVEPOINT 包「取号+INSERT」、仅 23505 重试、其余 SQL 错误原样上抛）真实行为契约。
 //!
 //! 全部打真实 PostgreSQL 真实表（`customers` / `crm_opportunity`），依赖迁移后的

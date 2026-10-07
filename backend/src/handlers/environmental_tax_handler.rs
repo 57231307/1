@@ -17,7 +17,7 @@ use serde::Deserialize;
 /// 构造环保税服务：适用税额（地方可变值）从进程级部署配置注入。
 ///
 /// 未配置时 `global_env_tax_rate_per_equivalent()` 返回 `None`，计税路径会在
-/// 服务层显式失败并记 warn（启动/构造阶段不报错、不取默认值，决策定案 #6）。
+/// 服务层显式失败并记 warn（启动/构造阶段不报错、不取默认值，决策定案）。
 fn env_tax_service(state: &AppState) -> EnvironmentalTaxService {
     EnvironmentalTaxService::new(
         state.db.clone(),

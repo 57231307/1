@@ -273,7 +273,7 @@ pub struct UpdateOutsourcingReceiptRequest {
     /// 备注：DB 可空 TEXT——显式 null 清空
     #[serde(default, deserialize_with = "double_option")]
     pub remarks: Option<Option<String>>,
-    // ========== #220 收回匹实测值三列（m0075，DB 可空无默认）==========
+    // ========== 收回匹实测值三列（m0075，DB 可空无默认）==========
     // 三态语义与其余可空列一致：键缺席=保持原值、显式 null=清空回"未补录"、有值=覆盖。
     // 清空只把匹行/收回单退回 NULL（标签继续 fail-closed 点名），绝不代表回落主数据。
     /// 实测重量（千克）：DB 可空 DECIMAL——显式 null 清空

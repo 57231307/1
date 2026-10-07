@@ -1,6 +1,6 @@
 // 财务管理 E2E 套件 — 07 会计科目「停用持久化回读」+「停用科目被凭证引用防护」
 //
-// 任务 #942 缺口 4：现有 finance/03 仅在 UI 上切开关、不保存、更不回读，属假绿。
+// 缺口 4：现有 finance/03 仅在 UI 上切开关、不保存、更不回读，属假绿。
 // 本套件走真实后端：
 //   07-01 停用持久化：PUT /subjects/{id} status='inactive' → GET 回读 status 确为 'inactive'，
 //         再置回 'active' → 回读确为 'active'（双向真实落库，非内存/非 UI）。
@@ -41,7 +41,7 @@ const SANITIZED_NOT_FOUND = '资源未找到';
 /** error.rs `AppError::error_code()` 中 NotFound 的机器码（helpers.APP_ERROR_CODES 未收录该族） */
 const CODE_NOT_FOUND = 'NOT_FOUND';
 
-// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。
+// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit）， 起禁灌中文。
 async function seedSubject(
   page: import('@playwright/test').Page,
   direction: 'debit' | 'credit'

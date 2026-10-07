@@ -31,7 +31,7 @@ import {
  *   入参 CreditAmountRequest（handler:82-85）**只有一个 `amount` 键**；路径 {id} 即 customer_id（handler:167/193）
  * - GET  /api/v1/erp/crm/customer-credits/{customer_id}      routes/crm.rs:97；出参 customer_credit::Model 单对象
  * - POST /api/v1/erp/custom-orders/{id}/after-sales          routes/custom_order.rs:72-76；
- *   CreateAfterSalesDto（services/custom_order_aftersales_service.rs:34-46）已无 custom_order_id（任务 #148：
+ * CreateAfterSalesDto（services/custom_order_aftersales_service.rs:34-46）已无 custom_order_id（
  *   归属由 path 权威提供，body 携带未知键被 serde 忽略）；issue_type ∈ complaint/repair/exchange/return_goods/refund（service:105-112）
  * - GET  /api/v1/erp/custom-orders/{id}/after-sales          出参 PagedResponse{items,total,page,page_size}（handler:738）
  * - POST /api/v1/erp/sales/sales-contracts                   routes/sales.rs:136-139；
@@ -46,7 +46,7 @@ import {
  *   （purchase_order_handler.rs:378-387 → services/po/order_ops/query.rs:21-46 出参
  *   **Vec<PurchaseOrderItemDto>**（services/po/order.rs:63-90），读键以 DTO rename 为准：
  *   material_id=实体列 product_id（order.rs:65）、quantity_ordered=实体列 quantity（order.rs:71），
- *   unit_price/quantity_tolerance_pct 无改名——#4671 判责 66-04 读实体原名 quantity/product_id 得 NaN 属用例读键错）
+ * unit_price/quantity_tolerance_pct 无改名—— 判责 66-04 读实体原名 quantity/product_id 得 NaN 属用例读键错）
  * - PUT  /api/v1/erp/departments/{id}                        routes/iam.rs:68；UpdateDepartmentRequest 已含
  *   code: Option<String>（department_handler.rs:47，P0 契约修复：原缺字段⇒前端编辑编码被静默丢弃），
  *   service 侧非空才覆盖并查重排除自身（services/department_service.rs:247-263）
@@ -217,7 +217,7 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     page,
   }) => {
     // 修复前形态：CreateAfterSalesDto.custom_order_id 非 Option 必填，前端从不携带
-    // → 反序列化 missing field 报"参数错误"，创建必失败（任务 #148，见 service:23-33 注释）。
+    // → 反序列化 missing field 报"参数错误"，创建必失败（见 service:23-33 注释）。
     const customerId = await seedCustomer(page, '售后');
     const productId = await seedProduct(page, '售后');
     const orderBody = (spec: string) => ({
@@ -497,7 +497,7 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
     // 读键=出参 DTO rename 后真键（services/po/order.rs:71 #[serde(rename =
     // "quantity_ordered")] pub quantity、:65 #[serde(rename = "material_id")] pub product_id）。
     // 读实体原名 quantity/product_id 恒 undefined→NaN，属本用例读键笔误（同 purchase/13-:182
-    // 族，#4671 判责 ②），后端出参契约无错——不加 ?? 兜底、不改期望值。
+    // 族， 判责 ②），后端出参契约无错——不加 ?? 兜底、不改期望值。
     expect(Number(row0.quantity_ordered), '采购明细回读：quantity_ordered=300.00').toBe(300);
     expect(Number(row0.unit_price), '采购明细回读：unit_price=20.00').toBe(20);
     expect(Number(row0.material_id), '采购明细回读：material_id（DTO 键，落 product_id 列）').toBe(

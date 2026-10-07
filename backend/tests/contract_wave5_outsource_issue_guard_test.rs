@@ -1,31 +1,30 @@
-//! 任务 #169 第 5 波（委外发料匹号门控）：空明细整单放行缺陷的契约锁
+//! 委外发料匹号门控契约锁：空明细必须显式拒绝、不得整单放行
 //!
-//! 缺陷证据链（修复前状态）：
+//! 门控背景（为什么必须入口拦截）：
 //! - `services/piece_domain_service.rs::validate_pieces_for_issue` 的门控是逐条明细
-//!   校验（`for it in items`），0 条明细 = 0 次校验 = 静默 `Ok(())`；
-//! - 唯一调用方 `services/outsourcing_ops/order.rs::issue_order`（L370-384）先
-//!   `list_by_order` 再直接进校验，中间**没有任何空明细前置拦截**
-//!   （`outsourcing_ops/order_item.rs::list_by_order` L220-227 仅按订单 ID 过滤）；
-//! - handler `POST /outsourcing-orders/:id/issue`（`outsourcing_handler.rs:185-191`）
+//!   校验（`for it in items`），入口不拦时 0 条明细 = 0 次校验 = 静默 `Ok(())`；
+//! - 唯一调用方 `services/outsourcing_ops/order.rs::issue_order` 装载明细后
+//!   随即进校验，中间**没有空明细前置拦截**
+//!   （`outsourcing_ops/order_item.rs::list_by_order` 仅按订单 ID 过滤）；
+//! - handler `POST /outsourcing-orders/:id/issue`（`outsourcing_handler.rs`）
 //!   是薄透传，同样无明细数校验；
-//! - 于是空明细订单会被推进 `issued` 并在事务内生成 OVIS 发料凭证
-//!   （order.rs L388-437），与「发料精确到匹」的域规则相悖，属静默数据完整性漏洞。
+//! - 于是空明细订单会被推进 `issued` 并在事务内生成 OVIS 发料凭证，
+//!   与「发料精确到匹」的域规则相悖，属静默数据完整性漏洞。
 //!
-//! 修复：`validate_pieces_for_issue` 入口显式拒绝空明细
+//! 现门控：`validate_pieces_for_issue` 入口显式拒绝空明细
 //! （`AppError::business_displayable`，公开规则文案、无内部标识/记录 ID）；
 //! 既有逐条拒绝分支（未填匹号/匹不存在/非可用）文案携带查询所得缸号，
-//! 按 `utils/error.rs` 模块文档保持脱敏 `business` 形态不变。
+//! 按 `utils/error.rs` 模块文档保持脱敏 `business` 形态。
 //!
-//! 覆盖策略（无 mock、真实 service/handler 路径；路线一 #4669 判责：
-//! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表——
-//! `issue_quantity TEXT NOT NULL` 自建 DDL 与模型 Decimal(14,4) 的方言矛盾即
-//! 本文件约 10 例连坐红（ColumnDecode）的根因）：
-//! - 两条拒绝路径均发生在 `issue_order` 开启事务/取号**之前**
-//!   （validate 在 order.rs，begin 在其后），真 PG（test_common::setup_test_db，
+//! 覆盖策略（无 mock、真实 service/handler 路径；表结构唯一来源 = backend/migration，
+//! 不再自建 sqlite 同构表——自建 DDL 如与模型 Decimal(14,4) 方言矛盾，
+//! 会引发本文件约 10 例连坐红的 ColumnDecode 失败）：
+//! - 两条拒绝路径均发生在 `issue_order` 取号生成凭证之前（拒绝即事务回滚、零副作用），
+//!   真 PG（test_common::setup_test_db，
 //!   连接已迁移库并清空业务表）上 handler→service→domain 全链真实跑通；
 //! - 零漂移不只看错误码：拒绝后回查订单**整行逐列相等**（Model PartialEq）、
 //!   该订单凭证行数=0、OVIS 前缀凭证数=0；
-//! - FK 前置自种子（裁定 R1）：inventory_piece.product_id → products、
+//! - FK 前置自种子：inventory_piece.product_id → products、
 //!   warehouse_id → warehouses 均为真表外键，会被清空且不播种——夹具自种父行，
 //!   不指望环境已有数据；
 //! - 正向对照（合规明细发料成功）必经 `generate_no_with_txn`
@@ -92,7 +91,7 @@ fn unique_tag() -> i64 {
         .expect("测试环境时间戳必须可用")
 }
 
-/// FK 前置自种子（裁定 R1）：inventory_piece.product_id → products、
+/// FK 前置自种子：inventory_piece.product_id → products、
 /// warehouse_id → warehouses 为真表外键（business/m0010），两表会被清空且不播种，
 /// 缺父行就造父行。返回 (product_id, warehouse_id)。
 async fn seed_piece_parents(db: &DatabaseConnection) -> (i32, i32) {
@@ -333,7 +332,7 @@ const EMPTY_ITEMS_REJECT_MSG: &str =
 
 // =========================================================
 // A) 空明细发料：真实 service 路径显式拒绝（business_displayable），
-//    且订单与凭证零漂移（修复前该场景 0 次校验整单放行）
+//    且订单与凭证零漂移（空明细若整单放行，正是"0 次校验推进 issued"的漏洞形态）
 // =========================================================
 
 #[tokio::test]
@@ -526,7 +525,7 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
         Some(voucher_no.as_str())
     );
 
-    // 占用闭环（#194）：发料事务提交后，被引用匹必须已被 CAS 置 RESERVED。
+    // 占用闭环：发料事务提交后，被引用匹必须已被 CAS 置 RESERVED。
     // 发料成功路径必经 generate_no_with_txn 的 pg_advisory_xact_lock（见本用例
     // #[ignore] 说明），故"发料成功→RESERVED"整链只能活库真跑；CAS 占用本身
     // （不需要行锁）由下方 D1 用例直接真跑域服务覆盖。
@@ -548,13 +547,13 @@ async fn live_issue_with_compliant_piece_succeeds_on_postgres() {
 }
 
 // =========================================================
-// 结算零费用门 + 收回零数量门（决策定案：委外三条业务裁量中的第 2、3 条）
+// 结算零费用门 + 收回零数量门（委外三条业务裁量中的第 2、3 条）
 //
 // 覆盖边界（不假装全绿）：
 // - settle 的拒绝发生在**取号与 begin() 之前**，故真 PG 常规分片即可真跑全链、真回读零漂移；
-// - 收回单 confirm 的 0 量门位于 receipt 行 lock_exclusive 之后（锁路径本批不端到端真跑），
+// - 收回单 confirm 的 0 量门位于 receipt 行 lock_exclusive 之后（锁路径本文件不端到端真跑），
 //   因此 create/update/confirm 三处门以**源码扫描锁**钉住族、文案与位置，
-//   活库端到端真跑留给后续批次（挂账任务 #194）。
+// 活库端到端真跑不在本文件覆盖范围。
 // =========================================================
 
 /// 种一张已收回(received)态委外订单，费用两列由入参决定
@@ -675,10 +674,10 @@ async fn settle_with_zero_fee_is_rejected_with_displayable_message_and_no_empty_
 // =========================================================
 // 源码扫描锁公共工具（本文件两把扫描锁共用）
 //
-// 为什么需要这三件套（#4671 判责 B1 三形态，全部是"测的写法脆"而非源码脆）：
+// 为什么需要这三件套（三形态的"测的写法脆"，而非源码脆）
 // 1. `&src[at..at + 1200]` 这类**固定字节窗**在含中文的源码里会在多字节字符中间
-//    劈开 → `byte index is not a char boundary` panic（本批 `c1902082` 给
-//    `outsourcing_ops/receipt.rs` 加了约 25 行中文注释、整体移动字节偏移即为此）。
+//    劈开 → `byte index is not a char boundary` panic（被锁源码一旦增删注释，
+//    字节偏移即整体移动，固定窗必炸）。
 //    正解：窗的边界一律由**符号**定位（`fn_body`），不做任何硬字节长度假设。
 // 2. 单行字面 needle 会因 rustfmt 折行/尾逗号假失败（`cas_piece_status` 已泛型化为
 //    `async fn cas_piece_status<C: ConnectionTrait>(`）。正解：正向 contains 之前
@@ -834,23 +833,23 @@ async fn receipt_zero_quantity_gates_are_wired_in_all_three_paths() {
 }
 
 // =========================================================
-// D) 任务 #194：委外发料匹状态占用与释放闭环（CAS 条件更新）
+// D) 委外发料匹状态占用与释放闭环（CAS 条件更新）
 //
-// 可测性边界（不假装全绿；路线一后统一真 PG）：
+// 可测性边界（不假装全绿；本文件统一真 PG）：
 // - CAS 占用/释放不需要行锁/取号：D1 直接真跑域服务 reserve_pieces_for_issue
 //   （AVAILABLE→RESERVED 落库回查），D2/D3 走完整 issue_order 服务路径
 //   （拒绝分支全部发生在凭证取号 pg_advisory_xact_lock 之前，真跑归因与零漂移）；
 //   D4 cancel 释放路径无行锁/无取号，真跑整链。
 // - "发料成功后 RESERVED" 的端到端正向必经 OVIS 取号（pg_advisory_xact_lock），
 //   由上方 #[ignore] 活库用例 C 覆盖（走 ci-test-rust-ignored 通道）；
-// - confirm 收回转 SHIPPED 位于 lock_exclusive 之后，本批仍以源码扫描锁
-//   钉住"事务内、commit 前"的接线，活库真跑留给后续批次（测试专家补点）。
-// - 审计溯源 updated_by（#941 本批）：流转与操作者写入在同一条 CAS update_many 内，
+// - confirm 收回转 SHIPPED 位于 lock_exclusive 之后，本文件以源码扫描锁
+//   钉住"事务内、commit 前"的接线，活库端到端真跑不在本文件覆盖范围。
+// - 审计溯源 updated_by：流转与操作者写入在同一条 CAS update_many 内，
 //   故凡能真跑 CAS 的路径都能真回读 updated_by——D1（占用 AVAILABLE→RESERVED）、
 //   D4（释放 RESERVED→AVAILABLE）真断言 updated_by=操作者；
 //   "发料成功链/收回转出链"的 updated_by 分别由活库用例 C（真断言）与 D5 的
 //   cas_piece_status 源码扫描锁（updated_by 必须位于 set 与 exec 之间，且迁移回填
-//   SET 段不得含 updated_by）覆盖——D5 两条链的行锁路径本批不真跑，不假装全绿。
+//   SET 段不得含 updated_by）覆盖——D5 两条链的行锁路径不真跑，不假装全绿。
 // =========================================================
 
 /// D1 正向（真 PG CAS 占用，无需行锁/取号，可在常规分片真跑）：域服务 CAS
@@ -957,7 +956,8 @@ async fn issue_second_order_referencing_reserved_piece_rejected_with_zero_drift(
 }
 
 /// D3 负例（同单重复引用）：同一订单两条明细引用同一 AVAILABLE 匹 → 显式拒绝。
-/// 修复前 validate 的批量 map 双双放行，CAS 循环会把第二条误判为自占用；
+/// 同单重复在 `reserve_pieces_for_issue` 入口按「一匹一条明细」显式拦截——
+/// 若放行，CAS 循环会把第二条误判为自占用；
 /// 拒绝必须整单零副作用（匹不得被部分占用）。
 #[tokio::test]
 async fn issue_same_order_duplicate_piece_no_rejected_with_zero_drift() {
@@ -1118,7 +1118,7 @@ async fn piece_occupancy_calls_are_wired_inside_their_transactions() {
     let piece_code = code_only(&piece_src);
     // 符号只锚到函数名（不带 `(`）：该函数已泛型化为
     // `async fn cas_piece_status<C: ConnectionTrait>(`，把泛型参数写进 needle 会随
-    // 签名排版漂移而假失败（#4671 判责 B1②）。
+    // 签名排版漂移而假失败。
     let cas_body = fn_body(&piece_code, "async fn cas_piece_status");
     let cas_flat = canon(&cas_body);
     assert!(

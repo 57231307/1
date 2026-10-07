@@ -12,7 +12,7 @@
 //!      （判定依据逐列对照 models/product.rs、models/warehouse.rs；sales_orders 无软删/停用列，
 //!      存在性=行存在，cancelled/rejected 是终态而非"不存在"，不并入本预检）；
 //!    - 拒绝必须零脏行；正向合法引用创建成功并可回读。
-//!    真库化（路线一，#4669 判责）后表结构唯一来源 = backend/migration，
+//! 真库化（路线一， 判责）后表结构唯一来源 = backend/migration，
 //!    inventory_reservations 的三个真外键（fk_inventory_reservations_order/product/
 //!    warehouse，m0010:63-65）同样存在：本用例锁的仍是「应用层预检先行」——
 //!    坏引用在触库前即被 404 拒绝（若预检被删，才会以 23503 FK 落 DATABASE_ERROR/500）；

@@ -1,4 +1,4 @@
-//! 契约波次 6 · 任务 #151 三缺陷防回潮锁（销售发货 500 漏网站点 / BI DELETE 键推导 / AP 付款契约）
+//! 契约波次 6 · 三缺陷防回潮锁（销售发货 500 漏网站点 / BI DELETE 键推导 / AP 付款契约）
 //!
 //! 覆盖：
 //! 1. **销售发货提交/审批链 internal 重包漏网站点**（取证：handler 对已返回
@@ -19,7 +19,7 @@
 //!    在前端 ap.ts 必须是 `string`（rust_decimal 序列化为十进制字符串，先例 commit
 //!    83b8028b/42f67500），NOT NULL 列不得标 `?` —— 源码扫描锁防回潮。
 //!
-//! 通道（路线一，#4669 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
+//! 通道（路线一， 判责）：表结构唯一来源 = `backend/migration`，本文件不自建 DDL。
 //! - 正向 200 形状用例 → `test_common::setup_test_db()`（已迁移 PG + 清空业务表），
 //!   `inventory_stocks` 的 FK 父行（warehouses/products）按裁定 R1 自建，产品 ID 由夹具
 //!   返回真实值后再拼 URI（不再假设 id=7 这类环境预置行）。
@@ -127,7 +127,7 @@ async fn exec_pg(db: &DatabaseConnection, sql: &str) {
 ///   原 sqlite 夹具写的 `"normal"` 不属该列取值域（真库上等于自造 token）；
 /// - `max_stock_point`（库存上限）在模型侧为非 Option `Decimal`
 ///   （`models/inventory_stock.rs:25`），SeaORM insert 要求显式 Set——
-///   CI #4672 实证省略即 `Type("Missing value for column 'max_stock_point'")`
+/// CI 实证省略即 `Type("Missing value for column 'max_stock_point'")`
 ///   （"靠 DB DEFAULT 0 生效"的旧假设不成立，本仓活库范式如
 ///   `contract_piece_four_dim_outbound_ship_test.rs:200` 一律显式给值）；
 ///   取 0 = 未设置上限（DDL 依据 `m0044_integrate_unreferenced_migrations.rs:1231`
@@ -478,9 +478,9 @@ async fn shipment_error_family_envelopes_exact() {
 /// 已在 `path_utils.rs:148` 消歧为 `bi-analysis`，与注册表权威名
 /// （`services/init_service.rs` 的 `"bi-analysis"`）和角色种子
 /// （`init_service_ops/permission.rs` 的 `bi-analysis:read` / data_analyst 的 `bi-analysis:*`）
-/// 三方互证一致。该映射在 #4672 的 head `90ae08ee` 就已存在（消歧是 #4671 判责修复批
+/// 三方互证一致。该映射在 的 head `90ae08ee` 就已存在（消歧是 判责修复批
 /// 有意为之的**收窄**：防止持销售域键的角色经 URL 词面顺带读走 BI 分析面）；
-/// 本文件此前仍按消歧前的规则期望 `sales`，故 #4672 报 `left bi-analysis / right sales`
+/// 本文件此前仍按消歧前的规则期望 `sales`，故 报 `left bi-analysis / right sales`
 /// ——是测试自己的前提陈述过期，按后端事实改判，**不是**把源码改回 `sales`
 /// （那会同时打开越权面并把已登记的 bi-analysis 授权变成死码）。
 ///

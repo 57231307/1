@@ -15,20 +15,20 @@ mod m0013_add_business_process_and_traceability;
 mod m0014_add_saas_notification_report_email_oa;
 mod m0015_seed_supplier_product_catalog;
 mod m0016_add_contract_remark;
-// run #4671 W1：数组语义列 TEXT→text[]/integer[] 归一（12 列，模型无 Json 属性的
+// 数组语义列 TEXT→text[]/integer[] 归一（12 列，模型无 Json 属性的
 // Vec 字段 vs 生效 DDL 标量 TEXT 的列型漂移族）。注册在域 up 链尾：目标表全部由
 // 本域 m0009/m0012/m0013 建表，必须晚于建表；production 域对 crm_lead.tags 的
 // JSONB ADD IF NOT EXISTS 恒 no-op、不构成生效定义（依据与存量探测策略见文件头注释）。
 mod m0071_normalize_array_columns;
-// run #4671 R-6：product-categories:read 存量库补授（roles/role_permissions 属 system 域、
+// product-categories:read 存量库补授（roles/role_permissions 属 system 域、
 // 早于本域，故可直接注册在 business 域 up 链尾/down 链首）
 mod m0072_grant_product_categories_read;
-// #259 customer_type 渠道词表收口：m0077 只读点名（现状有哪些脏值/各多少行），
+// customer_type 渠道词表收口：m0077 只读点名（现状有哪些脏值/各多少行），
 // m0078 才回填 + 加 DEFAULT/NOT NULL/CHECK。两者必须同域且 m0077 在前——"回填没
 // 干净就不许进 CHECK"的判据依据就是 m0077 留在迁移日志里的逐值分账。
 mod m0077_report_customer_type_dirty_values;
 mod m0078_finalize_customer_type_domain;
-// 审批改造波：合同/价格 reject 存量库补授（roles/role_permissions 属 system 域、早于
+// 合同/价格 reject 存量库补授（roles/role_permissions 属 system 域、早于
 // 本域，注册在 business 域 up 链尾/down 链首，同 m0072 授权补种范式）
 mod m0081_grant_contract_price_reject;
 // customer_credit_ratings 补 customer_id 全表唯一 + customers 外键（本表由本域 m0012
@@ -236,16 +236,16 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0015_seed_supplier_product_catalog::Migration
             .up(manager)
             .await?;
-        // run #4671 W1：数组列归一，注册在 business 域 up 链尾——目标表全部由本域
+        // 数组列归一，注册在 business 域 up 链尾——目标表全部由本域
         // m0009/m0012/m0013 建表（含 attachment_urls/tags/product_* /internal_piece_*
         // 的生效 TEXT 定义），归一必须晚于建表、且早于任何读写这些列的后续域。
         m0071_normalize_array_columns::Migration.up(manager).await?;
-        // run #4671 R-6：采购岗补 product-categories:read，注册在本域 up 链尾（角色表与
+        // 采购岗补 product-categories:read，注册在本域 up 链尾（角色表与
         // 权限表均由 system 域先建）
         m0072_grant_product_categories_read::Migration
             .up(manager)
             .await?;
-        // #259：customer_type 渠道词表收口注册在本域 up 链尾——目标表 customers 由
+        // customer_type 渠道词表收口注册在本域 up 链尾——目标表 customers 由
         // system/m0001 建（VARCHAR(20)、可空、无 CHECK，m0001:332），点名与回填必须
         // 晚于建表；finance 域那段 `ADD COLUMN IF NOT EXISTS customer_type VARCHAR(255)`
         // 恒 no-op（列早已存在），排在其前不构成干扰。
@@ -255,7 +255,7 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0078_finalize_customer_type_domain::Migration
             .up(manager)
             .await?;
-        // 审批改造波：合同/价格 reject 存量库补授，注册在本域 up 链尾（角色表与权限表
+        // 合同/价格 reject 存量库补授，注册在本域 up 链尾（角色表与权限表
         // 均由 system 域先建，见 m0081 文件头）
         m0081_grant_contract_price_reject::Migration
             .up(manager)
@@ -312,7 +312,7 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0081_grant_contract_price_reject::Migration
             .down(manager)
             .await?;
-        // #259：最后应用者最先回滚——先撤 CHECK/NOT NULL/DEFAULT 并自备份列还原原值，
+        // 最后应用者最先回滚——先撤 CHECK/NOT NULL/DEFAULT 并自备份列还原原值，
         // 再回滚只读点名（其 up 对库内状态零改变，down 是显式 no-op）。
         m0078_finalize_customer_type_domain::Migration
             .down(manager)
@@ -320,11 +320,11 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0077_report_customer_type_dirty_values::Migration
             .down(manager)
             .await?;
-        // run #4671 R-6：最后应用者最先回滚（只回收本迁移按角色码授予的 read 键）
+        // 最后应用者最先回滚（只回收本迁移按角色码授予的 read 键）
         m0072_grant_product_categories_read::Migration
             .down(manager)
             .await?;
-        // run #4671 W1：逆序首位——数组列回退 TEXT（多元素行存在时拒滚，见 m0071 文件头）
+        // 逆序首位——数组列回退 TEXT（多元素行存在时拒滚，见 m0071 文件头）
         m0071_normalize_array_columns::Migration
             .down(manager)
             .await?;

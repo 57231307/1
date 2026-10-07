@@ -239,7 +239,7 @@ fn g5_no_map_err_internal_over_apperror_returning_calls() {
 // =========================================================
 // 源码扫描锁公共工具（禁回潮锁专用）
 //
-// 三种脆断形态的正解（#4671 判责 B1）：
+// 三种脆断形态的正解（判责 B1）
 // ① 禁词/必备项只看执行体 → `code_only` 先剥整行注释（`//`/`///`/`//!`）；
 //    被锁源码里的说明注释（"非自己账户需要 user:delete 权限"这类对权限键的**描述**）
 //    不是代码，按原文判禁词等于把文档当违例。
@@ -308,7 +308,7 @@ fn g5_user_handler_permission_semantics_locked() {
     let src = src_of("src/handlers/user_handler.rs");
     // 禁词只看执行体：`user_handler.rs:552`/`:577` 两处 "user:delete" **都在注释里**
     // （"非自己账户需要 user:delete 权限"是对权限键的说明），按整文件原文判会把
-    // 注释当违例（#4671 判责 B1①）。真实缺陷面是**出参文案构造点**，见下面的正向锁。
+    // 注释当违例（判责 B1①）。真实缺陷面是**出参文案构造点**，见下面的正向锁。
     let code = code_only(src);
     assert!(
         code.contains("AppError::permission_denied(\"用户未分配角色，无法执行删除操作\")"),

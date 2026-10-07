@@ -135,7 +135,7 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
     });
 
     // Step5: GET 退货单明细 → 验证 quantity_returned 精确等于 unqualified_quantity
-    // 判责 #4669 K-3（测试缺陷，信封口径）：GET /purchase/returns/:id/items 是「子表明细
+    // 判责 K-3（测试缺陷，信封口径）：GET /purchase/returns/:id/items 是「子表明细
     // 全量列表」（无 page/page_size 查询参），后端 handler 出参 = ApiResponse<Vec<
     // PurchaseReturnItemDto>>（handlers/purchase_return_handler.rs:225-236），前端契约
     // 早已按同一单形状声明 ApiResponse<PurchaseReturnItem[]>

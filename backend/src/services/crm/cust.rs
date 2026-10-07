@@ -191,7 +191,7 @@ impl CrmService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // D-2 收口（PR #942）：归属权威列 = `customers.owner_id`（models/customer.rs:97，
+        // D-2 收口：归属权威列 = `customers.owner_id`（models/customer.rs:97，
         // 0=未分配/公海），与 RLS 归属列口径同源（crm_write_guard 文件头：customers →
         // owner_id）、同域先例 `customer_ops::crud.rs:95`、商机金额门（handler 取
         // owner_id）逐一对齐；`created_by` 只是可空审计列，按它判归属在"转派后
@@ -289,7 +289,7 @@ impl CrmService {
         data_scope: Option<&DataScopeContext>,
     ) -> Result<serde_json::Value, AppError> {
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // D-2 收口（PR #942）：与 `get_customer_360` 同一归属口径——权威列
+        // D-2 收口：与 `get_customer_360` 同一归属口径——权威列
         // `customers.owner_id` + 触发器维护的 `department_id`（判定依据与 fail-closed
         // 语义的完整说明见 get_customer_360 处注释），不再用可空审计列 created_by。
         if let Some(ctx) = data_scope {

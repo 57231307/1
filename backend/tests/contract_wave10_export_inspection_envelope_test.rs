@@ -9,7 +9,7 @@
 //! - `backend/src/utils/response.rs:16-26`（ApiResponse 成功出参顶层仅 code/data，message/total 为 None 被 skip）
 //!   与 `response.rs:39-45`（PaginatedResponse 字段恰为 items/total/page/page_size）。
 //!
-//! 回潮判据（对应 CI run #4675 e2e flow 27 片 shard8 红点）：本波前这两个 handler 直接返回裸
+//! 回潮判据（对应 e2e flow 27 片 shard8 红点）：本波前这两个 handler 直接返回裸
 //! `{items,total}` / 裸实体对象，顶层没有 `code`，前端 strict 探针 `apiCall`（helpers.ts:1478）
 //! 见 `json.code !== 200` 而把 HTTP 200 判成「请求异常」。故本锁同时钉住：
 //!   1) 顶层键集合恰为 {code,data}（回退裸 {items,total} → 顶层变 [items,total]，判红）；

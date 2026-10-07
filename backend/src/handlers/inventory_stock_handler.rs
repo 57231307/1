@@ -119,7 +119,7 @@ pub async fn get_stock(
                 );
             }
             Ok(None) => {
-                // D-4 收口（PR #942 波次）：admin 判定走本仓唯一权威源
+                // D-4 收口（波次）：admin 判定走本仓唯一权威源
                 // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
                 // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的
                 // 分支入口一次算出、每请求至多一次（admin_checker 内部带 5 分钟缓存）。
@@ -516,7 +516,7 @@ async fn apply_data_permission_filter(
             );
         }
         Ok(None) => {
-            // D-4 收口（PR #942 波次）：与 get_stock 同一单源判定
+            // D-4 收口（波次）：与 get_stock 同一单源判定
             // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
             // 禁止角色主键字面量判定；本辅助函数自带 state，判定在循环外的分支入口一次
             // 算出，列表/导出每请求至多各调用本函数一次。

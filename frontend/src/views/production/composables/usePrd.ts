@@ -66,7 +66,7 @@ export function usePrd() {
   });
 
   // 表单验证规则
-  // 任务 #153 缺陷3：order_no 不再必填/手输——单据号由后端统一生成器取号
+  // 缺陷3：order_no 不再必填/手输——单据号由后端统一生成器取号
   // （backend/src/utils/number_generator.rs，PO{YYYYMMDD}{3位流水}），
   // 前端"必填+手输"违背"单据号系统生成禁手打"红线，且手输值会绕过取号器造成双源格式。
   const orderRules = {

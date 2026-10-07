@@ -1,4 +1,4 @@
-//! 任务 #163（PR #942 续）：染色缸号（dye_batch）新建链路"造假默认值/幽灵字段"拆除契约锁
+//! （续）：染色缸号（dye_batch）新建链路"造假默认值/幽灵字段"拆除契约锁
 //!
 //! 锁定的契约（修复后形态，file:line 以修复后工作树为准）：
 //! - `backend/src/handlers/dye_batch_handler.rs::resolve_dye_color_identity`
@@ -19,7 +19,7 @@
 //! - 染色布缺缸号用例：旧实现静默把 dye_lot_no 写成占位串返回 200，断言 400+零落库必红；
 //! - 源码扫描：旧源码含三处假值字面量与类型断言/幽灵字段，任何一条都会命中。
 //!
-//! 覆盖策略（路线一，#4669 判责；无 mock）：表结构唯一来源 = backend/migration ——
+//! 覆盖策略（路线一， 判责；无 mock）：表结构唯一来源 = backend/migration ——
 //! `test_common::setup_test_db()`（已迁移 PostgreSQL，TRUNCATE 业务表 + RESTART IDENTITY，
 //! 显式种子 id 稳定）+ 真实 handler 端到端（tower oneshot，同 contract_wave2 先例）。
 //! 新建一律显式传 batch_no，避开自动生成路径的 pg advisory lock 并发取号噪声。

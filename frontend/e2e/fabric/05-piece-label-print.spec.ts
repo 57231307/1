@@ -231,7 +231,7 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     // fabric_width_inches 必传：评级默认四分制（fabric_scoring::FOUR_POINT，
     // fabric_inspection_service.rs:236-246），grade_inspection 对四分制强制要求
     // fabric_width_inches（:476-481，缺列 AppError::business fail-closed 正确，
-    // #4671 判责 shard-32 本用例 step1 死于 POST .../grade「业务处理失败」即此门控）；
+    // 判责 shard-32 本用例 step1 死于 POST .../grade「业务处理失败」即此门控）；
     // 幅宽是验布录入真实采集列（先例 quality/03-four-point.spec.ts:54 传 '60.00'），
     // 属用例缺前置，不是后端缺陷——不得反向放宽「四分制需幅宽」。
     const inspection = await apiCall<{ id?: number; inspection_no?: string }>(

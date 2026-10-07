@@ -228,7 +228,7 @@ pub mod custom_order_ext {
     /// ⚠️ DB 侧 CHECK `chk_aftersales_status`（migration
     /// `m0044_integrate_unreferenced_migrations.rs:251`）当前只覆盖
     /// opened/processing/resolved/closed/rejected，缺 `accepted`/`evaluated`
-    /// ⇒ 写这两态必撞 CHECK 返回裸 500（CI #4669 用例 65-01）。
+    /// ⇒ 写这两态必撞 CHECK 返回裸 500（CI 用例 65-01）。
     /// 迁移须把本列表补齐进 CHECK（三端同源：写入方词表 = 本列表 = CHECK 取值集）。
     pub const AFTERSALES_ALL: &[&str] = &[
         AFTERSALES_OPENED,

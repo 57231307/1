@@ -1,16 +1,16 @@
-//! `product-categories:read` 存量库补授（CI run #4671 角色矩阵 purchaser 真缺口，裁定 R-6）
+//! `product-categories:read` 存量库补授（角色矩阵 purchaser 真缺口）
 //!
-//! 缺陷事实（非推断）：
-//! - `/api/v1/erp/product-categories*` 由 `routes/mod.rs:368-391` 的别名段注册，资源段取自
+//! 背景事实：
+//! - `/api/v1/erp/product-categories*` 由 `routes/mod.rs:368-394` 的别名段注册，资源段取自
 //!   路径段 ⇒ 运行时权限键是 `product-categories:read`；
 //! - 该键从未出现在 `init_service_ops/permission.rs` 角色矩阵，`PERMISSION_RESOURCES`
 //!   也只注册了 `categories`（另一条资源码），历史迁移亦无授予；
-//! - `matches_permission`（`middleware/permission.rs:601-610`）按资源段**精确**匹配，
+//! - `matches_permission`（`middleware/permission.rs:621-640`）按资源段**精确**匹配，
 //!   `categories:*` 不覆盖 `product-categories` ⇒ 除 admin（`*:*`）外任何采购岗访问
 //!   产品分类树恒 403。采购员维护「我方 SKU↔供应商 SKU 对照表」时 /product 页挂载即拉
 //!   分类树，功能对目标岗位实际不可用（e2e 主体用 admin 登录，CI 测不到）。
 //!
-//! 裁定口径（R-6）：产品分类树是**我方内部主数据**，非供应商保密面（本批保密面隔离的是
+//! 授权口径：产品分类树是**我方内部主数据**，非供应商保密面（保密面隔离的对象是
 //! 供应商侧编码/名称，方向不同），采购岗应见 ⇒ 补真实种子，**不采用**"前端按权限降级隐藏"。
 //!
 //! 三条授予通道必须同口径（本迁移是其中「存量库」通道，同 m0069 范式）：
@@ -23,8 +23,9 @@
 //! 最小授权：只授 `read`。分类树的写面（create/update/delete）仍归 admin/系统配置岗，
 //! 本迁移不扩权；`("product-categories", "*")` 为禁项（由锁测把关）。
 //!
-//! 幂等实现细节同 m0069：用 `WHERE NOT EXISTS` 而非 `ON CONFLICT`——后者依赖 v15 域内
-//! 才创建的 `uq_role_permissions_role_resource_action` 唯一索引，为一条授予提前动全局
+//! 幂等实现细节同 m0069：用 `WHERE NOT EXISTS` 而非 `ON CONFLICT`——后者依赖
+//! backend/migration/src/domain/v15/ 域内才创建的
+//! `uq_role_permissions_role_resource_action` 唯一索引，为一条授予提前动全局
 //! 约束不值得；迁移串行执行，NOT EXISTS 足以保证重跑等价。
 //!
 //! 域内注册位置：`roles`（m0001）与 `role_permissions`（m0005）均属 system 域、早于

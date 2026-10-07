@@ -260,7 +260,7 @@ test.describe
     // 2. 登记逐匹发料明细 → 发料（draft → issued）。
     // 门控（匹号领域二期，piece_domain_service.rs:160-205 validate_pieces_for_issue，
     // 发料事务内 reserve_pieces_for_issue CAS AVAILABLE→RESERVED）：染色外发发料必须
-    // 精确到匹——明细集合为空即整单拒绝（CI #4671 原文「委外订单没有发料明细…发料必须
+    // 精确到匹——明细集合为空即整单拒绝（CI 原文「委外订单没有发料明细…发料必须
     // 精确到匹」），缺匹号/匹不存在/非可用匹均逐条拒绝。旧用例直接 issue 与本门控不符，
     // 正解是按真实业务动作先登记明细：引用 7-4 报工入胚布仓的真实 AVAILABLE 生产匹
     // （greigePieceNo1，50 米，与 issue_quantity 一致），不造假匹号、不绕门控。

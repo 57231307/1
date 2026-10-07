@@ -1,7 +1,7 @@
-//! 契约波次 6 · 看板 #212-A/#212-B：CRM 客户域写响应不得整行原文回传 PII，
+//! 契约波次 6 · -A/#212-B：CRM 客户域写响应不得整行原文回传 PII，
 //! 共享落库展示名不得 `format!` 造假
 //!
-//! 根因（与已修的线索/公海写响应 #204/#209 同一旁路类，换了端点与资源）：
+//! 根因（与已修的线索/公海写响应 同一旁路类，换了端点与资源）
 //! 1. **客户域写响应整行原文回传**：`crm_customer_handler` 的
 //!    `create_customer`（增强建档，落 `crm_lead` 行）/ `update_customer`（增强更新，落
 //!    `customers` 行）/ `add_tags`（更新线索行）/ `create_contact` / `update_contact`
@@ -67,7 +67,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 // ---------------------------------------------------------------------------
-// 种子与夹具（路线一，#4669 判责：全部用例经 test_common::setup_test_db() 连已迁移
+// 种子与夹具（路线一， 判责：全部用例经 test_common::setup_test_db 连已迁移
 // PostgreSQL；表结构唯一来源 = backend/migration，本文件不再自建任何 DDL。
 // roles 属迁移种子参照表（id=1 code='admin'、id=2 manager 已播种且不清空），不再插；
 // users/customers/crm_lead 属被清空业务表，按裁定 R1 自种子合法父行。）

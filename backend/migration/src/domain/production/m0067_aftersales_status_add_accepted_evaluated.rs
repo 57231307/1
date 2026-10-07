@@ -5,11 +5,10 @@
 //! `services/custom_order_aftersales_service.rs::AFTERSALES_TRANSITIONS` 状态机节点集与
 //! 其逐 token 相等；而建表迁移 m0044 的生效 CHECK `chk_aftersales_status` 只含原 5 态
 //! （opened/processing/resolved/closed/rejected），缺 `accepted`/`evaluated`。
-//! `PUT /custom-orders/after-sales/{id}` 走 opened→accepted（V15 P1 batch-19 缺陷 23.3.2
-//! 受理链）或 resolved→evaluated（评价链）时写 status 必违反该约束，PG 回 SQLSTATE 23514
-//! （violates check constraint），对上游冒 DATABASE_ERROR(500)——CI #4669 用例 65-01 判责；
-//! `tests/contract_wave3_after_sales_customer_name_test.rs` 首跑注释亦点名此为
-//! 「迁移/表结构缺口」，禁止反向改断言或改服务迁就约束。
+//! `PUT /custom-orders/after-sales/{id}` 走 opened→accepted（受理链）或 resolved→evaluated（评价链）时
+//! 写 status 必违反该约束，PG 回 SQLSTATE 23514（violates check constraint），
+//! 对上游冒 DATABASE_ERROR(500)；`tests/contract_wave3_after_sales_customer_name_test.rs:325-330`
+//! 有同结论归因注记（疑迁移/表结构缺口），禁止反向改断言或改服务迁就约束。
 //!
 //! 本迁移重建该 CHECK，取值集合与 `AFTERSALES_ALL` 逐字符对齐（全小写、无派生别名），
 //! 使 写入方常量 = 本 CHECK 取值集 = 服务层状态机节点集 三端同源。
@@ -24,7 +23,7 @@
 //!
 //! 幂等性：up 为「只读检测 → DROP CONSTRAINT IF EXISTS → ADD CONSTRAINT」，重跑等价；
 //! down 反向恢复 m0044 原 5 值集，并带 accepted/evaluated 在途行的 fail-visible 拒滚
-//! 检查（本仓纪律：down 不留空实现，教训见 rls_dept down 空实现登记）。
+//! 检查（本仓纪律：down 不留空实现）。
 //!
 //! 契约锁：`backend/tests/contract_wave7_aftersales_status_check_parity_test.rs`
 //! 将 AFTERSALES_ALL / AFTERSALES_TRANSITIONS 节点集 / 本文件 CHECK 取值集合三端

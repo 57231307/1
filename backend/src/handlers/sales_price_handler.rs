@@ -28,7 +28,7 @@ use validator::Validate;
 pub struct SalesPriceQuery {
     pub product_id: Option<i32>,
     /// 客户等值筛选：前端筛选栏（SalesPriceFilter.vue 客户下拉）一直在传，此前本结构无键、
-    /// serde 静默忽略 ⇒ 假筛选（#206/#160 同族），本轮接收并下推 service 谓词。
+    /// serde 静默忽略 ⇒ 假筛选（同族），本轮接收并下推 service 谓词。
     pub customer_id: Option<i32>,
     /// 关键词筛选：语义 =「产品名称/客户名称」模糊匹配（筛选栏 placeholderKeyword 承诺），
     /// 经 LeftJoin 下推（多对一，不倍增行）。

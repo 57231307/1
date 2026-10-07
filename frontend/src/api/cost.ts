@@ -76,7 +76,7 @@ export interface CreateCostCollectionInput {
   cost_object_no?: string;
   batch_no?: string;
   color_no?: string;
-  /** v14 批次 422 T-P1-6：按缸号核算 */
+  /* * 按缸号核算 */
   dye_lot_no?: string;
   workshop?: string;
   direct_material: number;

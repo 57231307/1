@@ -283,7 +283,7 @@ fn test_cwxx_bombcz() {
 }
 
 /// test_cwxx_bomycyshzzt（验证 submit 方法中状态为 Pending 时拒绝重复提交的错误消息。）
-/// 断言跟随源码变更（任务 #165）：该拒绝是「已处于某态不可重复动作」的状态门，
+/// 断言跟随源码变更：该拒绝是「已处于某态不可重复动作」的状态门，
 /// 源码由 `AppError::validation` 改为 `AppError::business_displayable`，族 = BUSINESS_ERROR。
 #[test]
 fn test_cwxx_bomycyshzzt() {
@@ -294,7 +294,7 @@ fn test_cwxx_bomycyshzzt() {
 }
 
 /// test_cwxx_jshzztksp（验证 approve 方法中状态非 Pending 时拒绝审批的错误消息。）
-/// 断言跟随源码变更（任务 #165）：前置状态未满足的状态门归业务族，
+/// 断言跟随源码变更：前置状态未满足的状态门归业务族，
 /// 源码为 `AppError::business_displayable`，出参 code=BUSINESS_ERROR 且文案外显。
 #[test]
 fn test_cwxx_jshzztksp() {
@@ -312,10 +312,10 @@ async fn test_fwslcj() {
 }
 
 /// test_cjbom_xyzssjk（真库正向口径：BOM create 全链路落库并回读落库值。）
-/// 历史前提更正（CI #4675 族H）：本例曾用于「库未迁移/无 schema」时期的负探测
+/// 历史前提更正（CI 族H）：本例曾用于「库未迁移/无 schema」时期的负探测
 /// （`assert!(result.is_err())`，注释自述"无 schema 时返回数据库错误"）；ignored 专用
 /// job 现跑**真库真迁移**（该 job「迁移本 job PostgreSQL service」步骤 success），
-/// 负前提不再成立——CI #4675 里 create 成功正是正确行为，旧负断言反而是过期前提的假红。
+/// 负前提不再成立——CI 里 create 成功正是正确行为，旧负断言反而是过期前提的假红。
 /// 现由真库夹具取代：断言创建成功 + **回读落库值**，正向证明写链可用。
 #[tokio::test]
 #[ignore]

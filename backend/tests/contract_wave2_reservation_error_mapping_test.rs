@@ -1,6 +1,6 @@
 //! 库存预留四端点错误映射契约锁（本波修复"业务拒绝/404/403 被压成 500"）
 //!
-//! 表结构唯一来源 = backend/migration（路线一，#4669 判责）：本文件不自建 DDL，
+//! 表结构唯一来源 = backend/migration（路线一， 判责）：本文件不自建 DDL，
 //! 全部用例经 `test_common::setup_test_db()` 打已迁移 PostgreSQL。
 //!
 //! 锁定的 file:line 契约（修复后形态）：
@@ -11,7 +11,7 @@
 //!   全部压成 500，用户看不到"释放的预留不可删除"等拒绝原因）
 //! - `backend/src/services/inventory_reservation_service.rs`
 //!   三个状态门拒绝（lock/release/delete）用 `AppError::business_displayable`：
-//!   文案仅含本预留自身状态 + 公开状态流转规则（对齐任务 #148 aftersales_err
+//! 文案仅含本预留自身状态 + 公开状态流转规则（对齐 aftersales_err
 //!   的外显安全边界），出参 message 外显真实拒绝文案；修复前 business 变体
 //!   会被脱敏成固定"业务处理失败"
 //!

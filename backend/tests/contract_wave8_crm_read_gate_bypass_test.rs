@@ -1,4 +1,4 @@
-//! 契约波次 8 · CRM 读侧旁路与归属列收口（PR #942 四条已定位缺陷 D-1~D-4）
+//! CRM 读侧旁路与归属列收口契约锁（四条缺陷面 D-1~D-4）
 //!
 //! 四条缺陷与对应锁（详见各用例文档）：
 //! - **D-1** `get_customer_360` 内嵌"商机简报"不走 `apply_opportunity_field_permission`
@@ -9,11 +9,11 @@
 //! - **D-2** `services/crm/cust.rs` 行级归属用可空审计列 `created_by` 而非权威列
 //!   `owner_id`（RLS 归属列口径见 `handlers/crm_write_guard.rs` 文件头与
 //!   `migration/src/domain/rls_dept/mod.rs:74`）→ 转派后现任 owner 被拒（功能坏）、
-//!   原创建者越权（写通道）。dept 参数过去恒传 `None`（Dept 范围一律误拒）。
+//!   原创建者越权（写通道）。dept 参数若恒传 `None` 则 Dept 范围一律误拒。
 //!   锁：owner≠created_by 交叉行（owner=50/created_by=80）上，self 现任 owner 读 360
 //!   与跟进 → 200；self 原创建者 → 403；dept 用户（department_id ∈ 可见集合）→ 200
 //!   （钉 dept 参传真实列后 Dept 分支恢复语义）；公海行 owner_id=0 对 self 原创建者
-//!   fail-closed 403（旧代码按 created_by 会放行）。
+//!   fail-closed 403（按 created_by 判定则会放行）。
 //! - **D-3** `convert_opportunity_to_order` 内 `get_opportunity(id, None)` 跳过行级
 //!   读门、且无写门 → 跨主把他人商机转成销售订单（派生落库带对方金额）。
 //!   锁：All 范围无 `crm/cross_owner_write` 键转他人商机 → 403+FORBIDDEN+固定脱敏
@@ -26,11 +26,11 @@
 //!   字面量在本文件清零；功能面把"code='admin' 即 admin（与 id 无关）""all 范围但
 //!   code≠'admin' 的角色不享受豁免"两条契约钉住。
 //!
-//! 断言口径（本批已锁）：失败只断 HTTP status + 信封 code（权限族=403/FORBIDDEN，
+//! 断言口径：失败只断 HTTP status + 信封 code（权限族=403/FORBIDDEN，
 //! 属业务失败族、非 5xx）与固定脱敏常量 `err_msg::PERMISSION_PUBLIC`，不断言/不外显
 //! 拒绝原因；成功金额按 Decimal 序列化字符串（DECIMAL(15,2) → "111111.00"）钉原值。
 //!
-//! 通道（路线一）：`test_common::setup_test_db()` 真 PostgreSQL 真跑 + 真 HTTP 装配，
+//! 通道：`test_common::setup_test_db()` 真 PostgreSQL 真跑 + 真 HTTP 装配，
 //! 表结构唯一来源 = backend/migration；users/customers/crm_opportunity 自种子
 //! （FK 父行先插）；roles/role_permissions 属**密封参照表**（不参与逐用例 TRUNCATE，
 //! 见 `services/test_common.rs::SEALED_REFERENCE_TABLES`），本文件用到的自造角色/
@@ -521,8 +521,8 @@ async fn customer_gate_keys_owner_id_not_created_by() {
     assert_eq!(v["code"], serde_json::json!("FORBIDDEN"));
 
     // dept 用户（55，可见部门 [1]）：客户 1 的 department_id 由 trg_customers_dept
-    // 回填=1 → Dept 分支放行。修复前 dept 参数恒传 None ⇒ Dept 恒 false（误拒），
-    // 本断言即"dept 参按真实列传 department_id"的落地锁。
+    // 回填=1 → Dept 分支放行。本断言即"dept 参按真实列传 department_id"的落地锁
+    // （dept 参若恒传 None，Dept 恒 false，将误拒 Dept 范围用户）。
     let app = build_app(
         &db,
         make_auth(USER_DEPT_MGR, Some(ROLE_SEED_NONADMIN), "dept"),
@@ -705,8 +705,8 @@ async fn admin_exception_follows_role_code_not_literal_one() {
     )
     .await;
 
-    // code='admin' 的角色（无论主键）：他人行金额原值契约（裁定 #3 既有原值契约
-    // 的**权威源**表述——admin 身份来自 roles.code，不来自 id==1 字面量）
+    // code='admin' 的角色（无论主键）：他人行金额原值契约
+    // （权威源表述—— admin 身份来自 roles.code，不来自 id==1 字面量）
     let app = build_app(&db, make_auth(USER_A, Some(ROLE_CODE_ADMIN), "all"));
     let rows = list_rows(&app).await;
     for (id, est, act) in [(3i64, OPP_B3_EST, OPP_B3_ACT), (6, OPP_Y_EST, OPP_Y_ACT)] {

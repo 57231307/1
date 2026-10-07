@@ -1,4 +1,4 @@
-//! Wave-I（CI #4669 I 族）染化料单据族编码唯一性契约锁
+//! Wave-I（CI I 族）染化料单据族编码唯一性契约锁
 //!
 //! 锁定的契约面（文件:行号以本波修复后为准）：
 //! - `backend/src/services/chemical_ops/category.rs::create`：`category_code` 对

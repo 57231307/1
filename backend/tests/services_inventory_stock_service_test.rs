@@ -5,7 +5,7 @@
 //! - 库存硬编码状态字符串常量值正确性
 //! - InventoryStockService 实例化
 //!
-//! 通道（路线一，#4669 判责）：
+//! 通道（路线一， 判责）
 //! - 需要可连接真库的用例经 `test_common::setup_test_db()` 连已迁移 PostgreSQL，
 //!   表结构唯一来源 = `backend/migration`；原写法 `TEST_DATABASE_URL` 缺失时
 //!   **静默回退 sqlite::memory:**，正是本批假绿的根（缺变量也"通过"），夹具现在

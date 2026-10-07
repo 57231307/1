@@ -165,7 +165,7 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
   test('L1-9 验证匹号状态机', async ({ page }) => {
     // 后端无匹号列表 API（匹号由色卡审批小样流程内部创建），改用缸号生命周期
     // 状态机日志（真实端点）验证状态数据可查询。
-    // #4671 判责 §2.4-C：原实现直接拼 ctx.dyeBatchId——globalSeed 染色批次种子因
+    // 判责 §2.4-C：原实现直接拼 ctx.dyeBatchId——globalSeed 染色批次种子因
     // 「色号 E2E-GCxxxxxx 在色卡档案中不存在」失败后 id=undefined 落入 path，被
     // by-batch/{batch_id}: Path<i32> 正当 400（routes/production.rs:474 +
     // dye_batch_state_machine_handler.rs:150-153）。正解=本用例自建真实 seed 链，

@@ -1,6 +1,6 @@
 // 财务管理 E2E 套件 — 10 财务报表：试算平衡恒等 + 资产负债表结构一致性 + 真实 xlsx 导出字节
 //
-// 任务 #942 缺口 7。断真实数值/字节，禁 toBeTruthy / verifyEndpointHealthy / >=400 / 仅 toast。
+// 缺口 7。断真实数值/字节，禁 toBeTruthy / verifyEndpointHealthy / >=400 / 仅 toast。
 //   10-01 试算平衡：真实 seed 一张过账凭证 + refresh 科目余额，避免空库 vacuity；
 //         断①全局 |Σ期末借 − Σ期末贷| < 0.01（非恒真的会计不变量）②两个被 seed 的科目在
 //         entries 里携带精确借贷金额（内容级，证数据真的进了报表，非 0/0）。
@@ -46,7 +46,7 @@ interface ReportItem {
   amount: unknown;
 }
 
-// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。
+// balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit）， 起禁灌中文。
 async function seedLeafSubject(
   page: import('@playwright/test').Page,
   direction: 'debit' | 'credit'

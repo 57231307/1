@@ -85,7 +85,7 @@ function todayStr(): string {
 }
 
 /** 自建两枚一级科目（debit/credit），返回 [借科目, 贷科目]。DTO 全集见 account_subject_handler.rs:35-53。
- *  balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit），#198 起禁灌中文。 */
+ * balance_direction 写入方权威词表＝backend models/status/finance.rs 的 account_subject 常量（debit/credit）， 起禁灌中文。 */
 async function seedSubjects(
   page: import('@playwright/test').Page,
   tag: string

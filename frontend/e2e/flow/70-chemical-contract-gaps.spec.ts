@@ -25,7 +25,7 @@ import {
  * - 主数据词表必填对（dye→dye_category / auxiliary→auxiliary_category）、状态流转、
  *   非法状态拒绝、软删除后 by-code/详情/list 三读路径一致 404、软删后编码可复用；
  * - 批次 fail-inspection 及其状态机闭包（failed 后再 pass 必须被拒+无痕）、PUT 改单位成本
- *   重算总成本、expiry_before 近效期过滤真实生效、批次软删后 by-no 404、更新不存在批次 404；
+ * 重算总成本、expiry_before 近效期过滤真实生效、批次软删后 by-no 404、更新不存在；
  * - 领用单 PUT 的 draft 门控（approved 后更新被拒且原值未变）、cancel 分支（draft→cancelled；
  *   cancelled 不可 approve；closed 不可 cancel；cancelled 不可删但 by-no 仍可读）、缺必填/幽灵引用负例。
  *

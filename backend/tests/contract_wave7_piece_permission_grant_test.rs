@@ -1,7 +1,7 @@
-//! 匹号领域权限键三通道同源锁（复审 #4669 挂账：`pieces` 资源自始未注册）
+//! 匹号领域权限键三通道同源锁（复审 挂账：`pieces` 资源自始未注册）
 //!
 //! 缺陷事实：`/api/v1/erp/inventory/pieces`（四维选匹）与
-//! `/api/v1/erp/inventory/pieces/{id}/print`（#220 成品布入库标签）的权限键是
+//! `/api/v1/erp/inventory/pieces/{id}/print`（成品布入库标签）的权限键是
 //! `pieces:read` / `pieces:print`（`middleware/permission.rs::extract_resource_info`
 //! 对模块前缀 inventory 取 segment4，`utils/path_utils.rs:102-117` 默认分支），
 //! 而 `matches_permission`（`permission.rs:601-610`）按资源段**精确**匹配
@@ -447,7 +447,7 @@ fn migration_grants_same_role_set_and_is_idempotent_without_on_conflict() {
     // 禁项只查执行体（文件头注释里出现"ON CONFLICT"是解释为何不用它）——
     // 执行体的定位必须是**符号**：早先用 `&src[..find("async fn down")]` 从文件 0 起切，
     // 把 m0069 文件头 §幂等实现细节 那段"用 WHERE NOT EXISTS 而不是 ON CONFLICT (…)
-    // 动全局约束、并可能因存量重复行让迁移链中断"的说明文字算进了执行体（#4671 判责
+    // 动全局约束、并可能因存量重复行让迁移链中断"的说明文字算进了执行体（判责
     // B1①/B1③ 的同一形态，且本行注释自陈"禁项只查执行体"——实现与意图矛盾）。
     let up_body = up_execution(&mig);
     for banned in ["ON CONFLICT", "CREATE UNIQUE INDEX"] {

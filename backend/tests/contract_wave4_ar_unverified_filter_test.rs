@@ -1,4 +1,4 @@
-//! AR 核销候选列表 customer_id 过滤真正生效契约锁（任务 #162-②）
+//! AR 核销候选列表 customer_id 过滤真正生效契约锁（-②）
 //!
 //! 锁定的根因（日志取证 + 契约断言两路一致）：
 //! - `handlers/ar_verification_handler.rs` 的两个候选列表端点曾以

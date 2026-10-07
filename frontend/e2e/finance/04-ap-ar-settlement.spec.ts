@@ -1,12 +1,12 @@
 // 财务管理 E2E 套件 — 04 AP/AR 核销「金额级」回读
 //
-// 任务 #942 缺口 1：AP/AR 结算闭环此前只断状态迁移（PARTIAL→PAID）而无金额校验，
-// 属假绿——状态词表写死也能过。本套件改为「付款/收款后 GET 发票回读真实金额」：
+// 契约：AP/AR 结算闭环若只断状态迁移（PARTIAL→PAID）而无金额校验即属假绿
+// （状态词表写死也能过）。本套件按「付款/收款后 GET 发票回读真实金额」断言：
 //   - AR 应收：收款后回读 received_amount 递增、unpaid_amount 递减（invoice - received = unpaid 恒等）。
 //   - AP 应付：走完整方案B内控链（应付单审核 → 付款申请 → 提交 → 审批 → 建付款 → 填交易流水号 → 确认付款），
 //     确认付款后回读 paid_amount 递增、unpaid_amount 递减（amount - paid = unpaid 恒等）。
 // 全部基于真实后端 + 数值断言，禁用 verifyEndpointHealthy / >=400 / 仅 toast / toBeTruthy。
-//   - 04-03 AR 列表分页真值：本批 GET /ar/invoices 迁移 PaginatedResponse{items,total,page,page_size}，
+//   - 04-03 AR 列表分页真值：GET /ar/invoices 为 PaginatedResponse{items,total,page,page_size}，
 //     seed 6 条 > page_size=3，断跨页满页、total=全量、两页 id 不相交且日期并集不重不漏。
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
@@ -211,7 +211,7 @@ test.describe('04 AP/AR 核销金额级回读', () => {
   test('04-03 AR 列表分页真值：PaginatedResponse{items,total,page,page_size}，跨页不重不漏', async ({
     page,
   }) => {
-    // 本批契约：GET /ar/invoices 迁移到标准 PaginatedResponse（ar_invoice_handler.rs:61-88
+    // 契约：GET /ar/invoices 返回标准 PaginatedResponse（ar_invoice_handler.rs:61-88
     // → ApiResponse::success_paginated，utils/response.rs:95-113：data={items,total,page,page_size}）。
     // 专属新客户的行数完全可控（customer_id 过滤 = 真值 total），
     // 且每单 invoice_date 互不相同 —— 服务层唯一排序是 invoice_date desc
