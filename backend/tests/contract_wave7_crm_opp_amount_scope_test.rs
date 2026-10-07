@@ -1,4 +1,4 @@
-//! 契约波次 7 · 商机金额"仅非本人行"统一口径（用户 2026-10-02 拍板落地锁）
+//! 契约测试：商机金额"仅非本人行"统一口径（用户 2026-10-02 拍板落地锁）
 //!
 //! 根因（调查报告）
 //! 1. `apply_opportunity_field_permission` 默认分支写的是 `obj.remove("amount")`，
@@ -24,7 +24,7 @@
 //! 本文件断言口径：只断 HTTP `status` + 信封 `code`，不断案文案原文（权限拒绝出参
 //! 永久脱敏，见 utils/error.rs 固定信封）；金额可见性按"键是否存在/单元格是否空"断。
 //!
-//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
+//! 通道：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL。
 //! roles/data_permissions 语义不变（roles 为迁移种子参照表不再插）；
 //! users（归属人父行，trg_crm_opportunity_dept 触发器按其 department_id 回填行部门）

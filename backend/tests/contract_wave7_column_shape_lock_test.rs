@@ -1,4 +1,4 @@
-//! 契约波次 7 · 活库列形态锁（information_schema 断言， W1 交付）
+//! 契约测试：活库列形态锁（information_schema 断言）
 //!
 //! 终结的静默失效机制：`ALTER TABLE ... ADD COLUMN IF NOT EXISTS ... NOT NULL/DEFAULT/
 //! 数组类型` 在**列已存在**时被 PG 恒 no-op 吞掉——迁移文本写了约束/类型，真实列

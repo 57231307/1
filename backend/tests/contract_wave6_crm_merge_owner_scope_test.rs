@@ -1,4 +1,4 @@
-//! 契约波次 6 · 线索合并 /leads/merge 行级归属校验（越权写，不可逆）
+//! 契约测试：线索合并 /leads/merge 行级归属校验（越权写，不可逆）
 //!
 //! 根因（修复前实证）：`services/crm/lead.rs` 的 `merge_leads` 用
 //! `find_by_id(master_lead_id)` 与循环内 `find_by_id(*dup_id)` 取行，

@@ -1,4 +1,4 @@
-//! 契约波次 11 · 采购质检统计卡端点（GET /purchase/inspections/stats）真库契约锁
+//! 契约测试：采购质检统计卡端点（GET /purchase/inspections/stats）真库契约锁
 //!
 //! ## 锁的对象与通道（为什么直连夹具库 + 生产 service 入口）
 //! - 本缺陷根因是"分母用服务端 total（全量）、分子只数当前页行集"导致合格率

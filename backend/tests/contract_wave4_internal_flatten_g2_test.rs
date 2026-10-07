@@ -1,4 +1,4 @@
-//! 契约波次 4 · internal 拍平治理 G2 组防回潮测试
+//! 契约测试：internal 拍平治理 G2 组防回潮
 //!
 //! 覆盖本组（G2）15 个文件，三重防线（与 G1 同构）：
 //! 1. **shrink-only ratchet**：逐文件统计 `AppError::internal(` 命中数，任何

@@ -1,4 +1,4 @@
-//! 契约波次 7 · 看板
+//! 契约测试：CRM 客户写路径行级权限门与共享通道
 //! - 增强客户域写路径（PUT/DELETE `/crm/customers/enhanced/:id`）行级数据权限门——
 //!   修复前该两端点**完全不注入 data_scope ctx**，任何过 RBAC 键的角色可按 id 改/删他人行；
 //!   收口为与标准入口完全同门：构造 `auth.to_data_scope_context()`，写前走既有
@@ -23,7 +23,7 @@
 //!   不再可能落 `DATABASE_ERROR`；非约束类 DbErr 原样上报（不吞不改道）。
 //!   本文件同时是源码扫描棘轮：PK 宽度对齐与"共享写路径 insert 不得裸重包"锁死。
 //!
-//! 通道（路线一， 判责）：用例经 `test_common::setup_test_db` 连已迁移
+//! 通道：用例经 `test_common::setup_test_db` 连已迁移
 //! PostgreSQL 真跑；表结构唯一来源 = backend/migration，不再自建 DDL
 //! （customer_shares 的 BIGSERIAL 主键、唯一约束 uk_cs_customer_to_user_active、
 //! customers/crm_lead 的触发器与 FK 全部取真表）。users/customers/crm_lead

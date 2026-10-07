@@ -1,4 +1,4 @@
-//! 契约波次 6 · 线索查重 detect-duplicates 行级数据权限（越权读）
+//! 契约测试：线索查重 detect-duplicates 行级数据权限（越权读）
 //!
 //! 根因（修复前实证）：`services/crm/lead.rs` 的 `detect_duplicate_leads` 直接
 //! `crm_lead::Entity::find()` 按手机号/公司名全表匹配，不注入行级数据权限；

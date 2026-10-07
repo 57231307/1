@@ -211,7 +211,7 @@ test.describe('15 财务报表/导出/快照契约链', () => {
       { subjectId: counter.id, debit: 0, credit: 4321, summary: 'E2E15贷发生' },
     ]);
     // 试算取数=account_subject 本期列（finance_report_service.rs:485-497），过账同步写入后
-    // 仍需按当期刷新保险（batch 400 refresh-balance API；period=YYYY-MM，
+    // 仍需按当期刷新保险（refresh-balance API；period=YYYY-MM，
     // handlers/account_subject_handler.rs:220-232）
     await apiCall(page, 'POST', `/subjects/${sub.id}/refresh-balance?period=${currentPeriod()}`);
     await apiCall(

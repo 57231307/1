@@ -1,4 +1,4 @@
-//! 契约波次 6 · CRM 线索默认字段脱敏读错键防回潮锁
+//! 契约测试：CRM 线索默认字段脱敏读错键防回潮锁
 //!
 //! 根因（修复前实证）：crm_handler.rs 的 P1-08-5「默认脱敏」块（无数据权限行 +
 //! 非 admin 分支）读写的键是 `contact_phone`，但 crm_lead 出参由
@@ -280,7 +280,7 @@ fn lead_default_mask_is_single_implementation_on_real_columns() {
         "crm_handler.rs 回潮：对 crm_lead 出参读不存在的 contact_phone 键打码"
     );
     // 权威列集合必须含 crm_lead 真实列（models/crm_lead.rs:40/:43）与 email；
-    // 漏任一列 = 该列原文直通（本波次实证到的 tel_phone 漏码即此类）
+    // 漏任一列 = 该列原文直通（曾实证到的 tel_phone 漏码即此类）
     let phone_keys = field_mask
         .split("pub fn mask_contact_fields_for_role")
         .nth(1)

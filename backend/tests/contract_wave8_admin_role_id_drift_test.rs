@@ -1,4 +1,4 @@
-//! 契约波次 8 · admin 判定唯一权威源「行为级活体锁」（461efcd9 收口的真正验收点）
+//! 契约测试：admin 判定唯一权威源「行为级活体锁」
 //!
 //! 被测对象：`bingxi_backend::utils::admin_checker::is_admin_role(&DatabaseConnection, i32)`
 //! —— 判据必须是 `roles.code = 'admin'`（`ADMIN_ROLE_CODE` 全等），**与主键无关**；

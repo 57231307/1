@@ -1,4 +1,4 @@
-//! 契约波次 6 · 客户转移审批 `to_user_name` 必须透传 transfer_lead 已解析的真实姓名
+//! 契约测试：客户转移审批 `to_user_name` 必须透传 transfer_lead 已解析的真实姓名
 //!
 //! 根因（已裁定口径）：`customer_transfer_approval_service.rs` 的
 //! `manager_approve`/`director_approve` 在此前写的是 `to_user_name = Set(Some(format!("用户{to_user_id}")))`

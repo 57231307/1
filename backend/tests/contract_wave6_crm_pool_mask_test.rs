@@ -1,4 +1,4 @@
-//! 契约波次 6 · CRM 公海列表行级 scope + phone/email 掩码锁
+//! 契约测试：CRM 公海列表行级 scope + phone/email 掩码锁
 //!
 //! 根因（修复前实证）：crm_pool_handler.rs 的 list_pool 调
 //! `service.list_leads(query, None)` —— services/crm/lead.rs:143-151 中

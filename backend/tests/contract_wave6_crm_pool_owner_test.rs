@@ -1,4 +1,4 @@
-//! 契约波次 6 · CRM 公海写端点行级归属门禁（越权回收/越权领取）
+//! 契约测试：CRM 公海写端点行级归属门禁（越权回收/越权领取）
 //!
 //! 根因（修复前实证）：`crm_pool_handler.rs` 的 `claim_from_pool` 与 `recycle_to_pool`
 //! 均用 `service.get_lead(lead_id, None)`。`services/crm/lead.rs` 的
@@ -134,7 +134,7 @@ async fn exec(db: &sea_orm::DatabaseConnection, sql: &str) {
 /// 二者均由迁移提供；trg_crm_lead_dept 触发器按 owner 的 users.department_id
 /// 回填冗余部门列，布尔列按 PG 写 TRUE/FALSE）。
 /// roles 不再插：id=1 code='admin'（is_admin_role 判定源，admin_checker.rs:86-87）
-/// 为迁移种子参照行。customer_pool_rules 为迁移真实表（v15 建表），批量领取路径
+/// 为迁移种子参照行。customer_pool_rules 为迁移真实表，批量领取路径
 /// 的规则校验读到空表 → 走默认值兜底，无需建表也无需播种。
 /// department_id 不手写：由触发器维护。
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {

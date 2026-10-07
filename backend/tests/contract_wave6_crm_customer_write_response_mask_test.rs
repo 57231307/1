@@ -1,4 +1,4 @@
-//! 契约波次 6 · -A/#212-B：CRM 客户域写响应不得整行原文回传 PII，
+//! 契约测试：CRM 客户域写响应不得整行原文回传 PII，
 //! 共享落库展示名不得 `format!` 造假
 //!
 //! 根因（与已修的线索/公海写响应 同一旁路类，换了端点与资源）
@@ -766,7 +766,7 @@ fn customer_write_exits_all_route_through_field_permission() {
             "回潮棘轮：{name} 出参形状是线索行，却未复用线索侧同一实现（口径分叉）"
         );
     }
-    // 三个读出口（后续批次收口）：增强页列表/详情/联系人统一挂客户域唯一实现
+    // 三个读出口（已收口）：增强页列表/详情/联系人统一挂客户域唯一实现
     // （裁定口径：同页四形状同一 resource_type=customer 判定行，不引用 crm_lead 行配置；
     // 默认脱敏分支掩码等价 + 非 admin 移除 address，行为只更严不放松）
     for name in ["list_customers", "get_customer", "list_contacts"] {
@@ -809,7 +809,7 @@ fn customer_write_exits_all_route_through_field_permission() {
 }
 
 /// 默认脱敏必须是"复用 utils/field_mask 权威集合 + address 整键移除"，且权威集合
-/// 确实覆盖客户域真实列（读错键 = 该列脱敏恒不生效，正是本波次线索侧的根因）。
+/// 确实覆盖客户域真实列（读错键 = 该列脱敏恒不生效，正是线索侧同类根因）。
 #[test]
 fn customer_default_mask_is_single_implementation_on_real_columns() {
     let service = include_str!("../src/services/crm/cust.rs");

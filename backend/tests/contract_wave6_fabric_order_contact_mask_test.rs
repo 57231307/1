@@ -1,4 +1,4 @@
-//! 契约波次 6 · 面料行业版销售订单出口不得整行原文回传联系方式
+//! 契约测试：面料行业版销售订单出口不得整行原文回传联系方式
 //!
 //! 根因：面料订单复用 `sales_order` Entity（`services/so/fabric_order.rs`），
 //! `contact_phone`/`contact_person` 为真实列（`models/sales_order.rs:28-30`）。

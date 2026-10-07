@@ -1,6 +1,6 @@
-//! 契约波次 7 · 裁定方案 A 核心锁：**读门 ≠ 写门**（同一角色、同一他人行）
+//! 契约测试：裁定方案 A 核心锁：**读门 ≠ 写门**（同一角色、同一他人行）
 //!
-//! 背景（判责 §③"两拨互相矛盾的测试"的根）：`DataScope::All` 的本职是
+//! 背景（"两拨互相矛盾的测试"的根）：`DataScope::All` 的本职是
 //! "能看全库"（读门 `check_resource_owner` All 恒真），把它同时当成"能改任何人的行"
 //! 就是水平越权的成因；e2e `flow/34-horizontal-privilege`（按 B 越权必拒口径）与
 //! Rust 写权限族（按 All=200 口径）因此永远互相打红。用户 2026-10-02 裁定方案 A：
@@ -394,7 +394,7 @@ fn read_gate_and_write_gate_must_stay_separate_functions() {
     // 两扇门的边界用**符号定位 + 大括号配平**取，不用 `split(下一扇门签名)`：
     // 后者会把写门的整段文档注释（`data_scope.rs:180-193` 解释"为什么读侧和写侧必须
     // 分家"、并逐条列出 `behalf_granted` 判定规则）吞进读门窗口，于是"读门不得掺入
-    // 代操作键"这条棘轮被**文档**判红（判责 B1①）。注释先剥，再按符号切片。
+    // 代操作键"这条棘轮被**文档**判红。注释先剥，再按符号切片。
     let code = code_only(&src);
     let read_gate = fn_body(&code, "pub fn check_resource_owner(");
     assert!(

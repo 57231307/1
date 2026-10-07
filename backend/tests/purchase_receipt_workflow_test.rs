@@ -1,7 +1,7 @@
-//! P0-T02 采购收货全流程集成测试（V15 Batch 487）
+//! 采购收货全流程集成测试
 //!
 //! 覆盖：状态常量值 + Service 实例化 + DB 异常路径（各条按被测函数体在**真库化夹具**
-//! 下的真实契约逐条校准，见用例文档注释； 判责 §⑤ W4 / 裁决 R-9）+ 完整流程（#[ignore]）
+//! 下的真实契约逐条校准，见用例文档注释）+ 完整流程（#[ignore]）
 //! confirm_receipt 在同一事务内完成库存入库并把入库单推进到 COMPLETED 终态，
 //! 集成测试覆盖 DRAFT → COMPLETED 全流程。
 
@@ -99,13 +99,13 @@ async fn test_purchasereceiptservice_slhbcfdb() {
 /// test_purchasereceiptservice_create_receipt_kdbfherr
 ///
 /// test_purchasereceiptservice_create_receipt_kdbfherr —— 真库化夹具前提校准
-/// （判责 §⑤ W4；手法照抄 ap_payment_workflow_test 的 R-9 拆分范本）
+/// （手法照抄 ap_payment_workflow_test 的 R-9 拆分范本）
 /// 钉"已建库空表上 create_receipt 引用不存在的前置单据 ⇒ 返回 Err 而非 panic"。
 ///
 /// 真实契约依据（读函数体，非读注释）：`purchase_receipt_ops/crud.rs:31-71`
 /// create_receipt 走事务插入 `purchase_receipt(order_id=Some(1))`，而
 /// `purchase_orders` 不在 `test_common.rs` 种子白名单、已被 TRUNCATE ⇒ 23503 FK 拒绝
-/// （判责原文 §2.3-C "purchase_receipt_workflow 建单失败"即此路径，Err 方向成立）。
+/// （"purchase_receipt_workflow 建单失败"即此路径，Err 方向成立）。
 /// 族别不钉机器码：失败可能先被维度校验（VALIDATION）或 FK（DATABASE）拦下，
 /// 家族取决于门控顺序而非本条要锁的契约，本条锁"绝不 panic、绝不静默半落库"。
 #[tokio::test]

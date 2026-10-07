@@ -1,4 +1,4 @@
-//! 契约波次 6 · 遗留项：CRM 商机导出（xlsx）行级 scope + 金额列字段级权限
+//! 契约测试：CRM 商机导出（xlsx）行级 scope + 金额列字段级权限
 //!
 //! 根因（修复前实证，与已提交的线索导出 同一模式的第二条旁路）
 //! `handlers/crm_handler.rs::export_opportunities` 调

@@ -1,4 +1,4 @@
-//! 契约波次 8 · 价格状态词表 == 真库 DB CHECK **活体契约锁**（`price_vocab_check` 的纸面承诺落地）
+//! 契约测试：价格状态词表 == 真库 DB CHECK **活体契约锁**（`price_vocab_check` 的纸面承诺落地）
 //!
 //! ## 为什么这个文件必须存在（审计判定的阻塞项 D1）
 //! `backend/migration/src/domain/price_vocab_check/mod.rs:19`、`:103-104` 与

@@ -1,4 +1,4 @@
-//! 契约波次 4 · AR 报表取真防回潮测试（G4/ar_report_truth）
+//! 契约测试：AR 报表取真防回潮（G4/ar_report_truth）
 //!
 //! 三重防线（普查 A1/B2 + P1 500 拍平族）：
 //! 1. **表名同源锁**：`services/ar_ops/report.rs` 内每一处 `ar_invoice` 都必须

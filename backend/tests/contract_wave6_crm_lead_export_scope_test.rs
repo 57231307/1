@@ -1,10 +1,10 @@
-//! 契约波次 6 · CRM 线索导出（xlsx）行级 scope + 字段级掩码
+//! 契约测试：CRM 线索导出（xlsx）行级 scope + 字段级掩码
 //!
 //! 根因（修复前实证）：
 //! 1. 行级：`services/crm/lead.rs` 的 `export_leads` 签名不吃 `DataScopeContext`，
 //!    handler `crm_handler.rs` 也不构造 ctx —— 而 `list_leads`（:143-151）会套
 //!    `apply_department_scope_with_pool`。于是 self/dept 用户点一次"导出"就拿到
-//!    全库线索（limit 10000），列表/详情/公海三条读路径本波次前已分别做了行级 scope
+//!    全库线索（limit 10000），列表/详情/公海三条读路径此前已分别做了行级 scope
 //! 与掩码，导出是第四条旁路（"三打一漏"）。
 //! 2. 字段级：`export_leads` 把 `mobile_phone`/`tel_phone`/`email` 原文写进 xlsx，
 //!    无任何 allowed_fields/hidden_fields/默认掩码分支。

@@ -1,4 +1,4 @@
-//! 契约波次 11 · `customer_credit_ratings` 「每客户一行 UNIQUE + 客户 FK」真库契约锁
+//! 契约测试：`customer_credit_ratings` 「每客户一行 UNIQUE + 客户 FK」真库契约锁
 //!
 //! ## 锁的对象与通道（为什么直连夹具库而不是端点级）
 //! - 本约束的**形态**（唯一索引名/定义、FK 所指表）只存在于 pg_catalog，任何端点

@@ -1,4 +1,4 @@
-//! 契约波次 6 · 任务 遗留项：CRM 线索 PII 出口收敛（公海写响应 + tel_phone）
+//! 契约测试：CRM 线索 PII 出口收敛（公海写响应 + tel_phone）
 //!
 //! 根因（修复前实证，两条同源缺陷）：
 //! 1. **写响应回传原文 PII**：`handlers/crm_pool_handler.rs` 的 `claim_from_pool`
