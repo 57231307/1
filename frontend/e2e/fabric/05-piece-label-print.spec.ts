@@ -162,7 +162,7 @@ async function listDyedPiecesByLot(page: Page, dyeLotNo: string): Promise<PieceR
   return pickListArray<PieceRow>(res, 'items', `${dyeLotNo} 缸染色匹回读`);
 }
 
-test.describe('05 成品布入库标签打印（#220 内容级）', () => {
+test.describe('05 成品布入库标签打印（标签内容级校验）', () => {
   test.describe.configure({ mode: 'serial' });
 
   test.beforeEach(async ({ page }) => {
@@ -370,7 +370,7 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     for (const [label, value] of expects) {
       expect(
         docXml.includes(value),
-        `标签正文应出现${label}的种子值「${value}」——逐值内容匹配（#220 契约：字段全取匹行实测值）`
+        `标签正文应出现${label}的种子值「${value}」——逐值内容匹配（字段全取匹行实测值）`
       ).toBeTruthy();
       console.log(`[05-label] ✅ 内容命中 ${label}=${value}`);
     }
@@ -399,7 +399,7 @@ test.describe('05 成品布入库标签打印（#220 内容级）', () => {
     for (const [label, token] of forbidden) {
       expect(
         lower.includes(token),
-        `标签正文禁止出现${label}（token=「${token}」）——保密口径（裁定 §6）零出现反证`
+        `标签正文禁止出现${label}（token=「${token}」）——保密口径零出现反证`
       ).toBe(false);
     }
     for (const zh of ['供应商', '成本']) {

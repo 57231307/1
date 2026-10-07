@@ -218,7 +218,7 @@ function extractBlockRedirectAlias(block: string, fullPath: string): string | un
   if (!lit) {
     throw new Error(
       `别名路由 ${fullPath} 的 redirect 目标不是单引号字符串字面量（函数/对象/命名路由形态）` +
-        `——静态解析无法跟随，禁止把它按"登录即可达"静默派生（#4671 /workflow 伪影同源），需人工复核本解析口径。`
+        `——静态解析无法跟随，禁止把它按"登录即可达"静默派生，需人工复核本解析口径。`
     );
   }
   if (!lit[1].startsWith('/')) {
@@ -252,7 +252,7 @@ function inheritRedirectPermissions(
       if (!(current in map)) {
         throw new Error(
           `别名路由 ${startPath} 的 redirect 目标 ${current} 不在 router 已解析路由表中` +
-            `——无法继承目标门控；按"登录即可达"派生即是 #4671 那族伪红的机制，判红交人工。`
+            `——无法继承目标门控；按"登录即可达"派生会复现该族伪红机制，判红交人工。`
         );
       }
       const next = aliases[current];

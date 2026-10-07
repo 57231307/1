@@ -205,7 +205,7 @@ test.describe('跨域越权成对矩阵: 生产工单 production-orders', () => 
  * `inventory:*` 不覆盖）。三通道授予（init 矩阵 / m0069 迁移 / e2e 补授）此前只有
  * 文本级双向钉，**没有任何"真实 token 访问端点不被 RBAC 拒"的端到端证据**——
  * 而本 spec 的其余用例都用 admin（`*:*` 掩盖一切缺授），CI 永远测不到该缺口。
- * 依据 R-7：迁移在 CI 分片库对后建角色必然 0 命中，运行期证据只能由真实 token 直连给出。
+ * 该缺口成因：迁移在 CI 分片库对后建角色必然 0 命中，运行期证据只能由真实 token 直连给出。
  *
  * 判据只打状态码层（权限拒绝文案永久脱敏，不断 message 原文）：
  * - 正向面：`not.toBe(403)`。403 只可能来自 RBAC 拒绝；200/404/400 都说明请求已过
@@ -216,7 +216,7 @@ const PIECES_LIST = '/inventory/pieces?page=1&page_size=5';
 /** 详情段 id 是否存在无关——RBAC 中间件先于 handler，越权必在权限层被拦 */
 const PIECES_PRINT = '/inventory/pieces/1/print';
 
-test.describe('pieces:read / pieces:print 运行期授权（依据 R-7、R-13）', () => {
+test.describe('pieces:read / pieces:print 运行期授权（按最小授权与只授读口径）', () => {
   // 正向面覆盖 = 裁定口径 5 岗中 e2e 已建号的 4 岗（warehouse_keeper/inventory_manager/
   // warehouse_manager/quality_inspector 均在 SEED_ROLES；fabric_inspector 未被
   // SEED_ROLES 建出，该岗在 CI 无运行期覆盖——已知待决项，见任务看板与
@@ -250,7 +250,7 @@ test.describe('pieces:read / pieces:print 运行期授权（依据 R-7、R-13）
     });
   }
 
-  test('salesperson GET /inventory/pieces → 非 403（R-13 只授 read）', async ({ page }) => {
+  test('salesperson GET /inventory/pieces → 非 403（只授 read）', async ({ page }) => {
     await loginAsRole(page, 'salesperson');
     const res = await getRaw(page, PIECES_LIST);
     expect(
@@ -264,7 +264,7 @@ test.describe('pieces:read / pieces:print 运行期授权（依据 R-7、R-13）
     const res = await getRaw(page, PIECES_PRINT);
     expect(
       res.status,
-      `salesperson 越权打标签必须被权限门拦成 403（R-13 最小授权），实际 ${res.status}`
+      `salesperson 越权打标签必须被权限门拦成 403（最小授权），实际 ${res.status}`
     ).toBe(403);
   });
 });

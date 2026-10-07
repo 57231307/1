@@ -97,7 +97,7 @@ test.describe(`P5.14 角色权限矩阵: ${role}`, () => {
         type: 'router-missing-route',
         description: `模块登记与 router 实现分叉：${routerMissingRoutes.join(
           '; '
-        )}——待人工拍板补路由或删除登记（CI #4669 判责 P1）。`,
+        )}——待人工拍板补路由或删除登记（P1 缺陷）。`,
       });
     }
 

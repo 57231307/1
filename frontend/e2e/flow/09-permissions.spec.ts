@@ -128,7 +128,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     const notWhitelisted = await apiCallExpectFail(page, 'GET', '/unknown-module/unknown-resource');
     expect(
       notWhitelisted.status,
-      `非白名单模块段应在权限中间件 fail-closed 为 403（#758 白名单设计，先于 admin 旁路），实际=${notWhitelisted.status}`
+      `非白名单模块段应在权限中间件 fail-closed 为 403（白名单设计，先于 admin 旁路），实际=${notWhitelisted.status}`
     ).toBe(403);
     expect(
       failureCode(notWhitelisted),

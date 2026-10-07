@@ -757,7 +757,7 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     ).toBe(true);
   });
 
-  test('23-05 #220 实测值三列活体证明：建单落值(串型)→by-no/列表双路回读→三态(键缺席保持/显式null清空/有值覆盖)→confirm 出参逐列透传', async ({
+  test('23-05 实测值三列活体证明：建单落值(串型)→by-no/列表双路回读→三态(键缺席保持/显式null清空/有值覆盖)→confirm 出参逐列透传', async ({
     page,
   }) => {
     const ctx = getCtx();
@@ -880,7 +880,7 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     expectMeasured(confirmed, 'gram_weight', '200.25', 'confirm 出参三列');
   });
 
-  test('23-06 #220 实测值值域负例：建单/更新口 0 与负数一律 400+VALIDATION_ERROR，被拒写入零变化（只断 status+信封 code，不断脱敏文案）', async ({
+  test('23-06 实测值值域负例：建单/更新口 0 与负数一律 400+VALIDATION_ERROR，被拒写入零变化（只断 status+信封 code，不断脱敏文案）', async ({
     page,
   }) => {
     const ctx = getCtx();
