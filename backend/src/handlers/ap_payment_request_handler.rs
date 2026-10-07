@@ -194,8 +194,7 @@ pub async fn get_request(
         .filter(crate::models::ap_payment_request_item::Column::RequestId.eq(id))
         .all(&*state.db)
         .await?;
-    request_json["items"] =
-        serde_json::to_value(items).map_err(|e| AppError::internal(e.to_string()))?;
+    request_json["items"] = serde_json::to_value(items)?;
 
     Ok(Json(ApiResponse::success(request_json)))
 }

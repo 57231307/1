@@ -552,7 +552,7 @@ fn injected_drift_is_detected_by_report() {
     assert!(
         report2
             .iter()
-            .any(|r| r.contains("ghost_role_for_probe") && r.contains("缺少角色码")),
+            .any(|r| r.contains("ghost_role_for_probe") && r.contains("解析缺角色码")),
         "权威侧凭空多出的角色码必须被点名: {report2:?}"
     );
 }

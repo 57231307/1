@@ -322,10 +322,18 @@ fn oa_announcement_list_payload_is_typed_paginated_envelope() {
         "visibility_scope",
     ];
     for row in rows {
+        // 本断言锁定的是「出参键集合与实体字段集合一致」(既无缺键也无多余键)，与序列化顺序无关：
+        // 真实行经 sorted_keys 归一顺序，即声明作者只比集合不比顺序；出参 JSON 对象的键序由
+        // serde_json 的 Map 实现/结构体声明顺序决定，并非本契约要防的漂移面(见文件头回潮判据
+        // 「键名漂移→键集合恰为」)。故两侧取集合相等比较，避免参考字面量书写顺序与字典序
+        // 不一致(如 publish_date/publisher_id 一处)而误判红——缺键或多键仍判红，未放宽为「非空即可」。
+        let actual_keys: std::collections::BTreeSet<String> =
+            sorted_keys(row).into_iter().collect();
+        let expected_keys: std::collections::BTreeSet<String> =
+            expected.iter().map(|s| s.to_string()).collect();
         assert_eq!(
-            sorted_keys(row),
-            expected.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
-            "oa_announcement::Model 出参键必须与实体字段逐一对应"
+            actual_keys, expected_keys,
+            "oa_announcement::Model 出参键集合必须与实体字段集合逐一对应（缺键/多键判红，键序不参与比较）"
         );
         assert!(row["id"].is_number(), "整数列 id 必须是数字");
         assert!(

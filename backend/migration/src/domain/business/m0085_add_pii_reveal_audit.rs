@@ -104,7 +104,7 @@ $$;
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .get_connection()
-            .execute_unprepared("DROP TABLE IF EXISTS \"pii_reveal_audit\";")
+            .execute_unprepared(r#"DROP TABLE IF EXISTS "pii_reveal_audit";"#)
             .await?;
         Ok(())
     }
