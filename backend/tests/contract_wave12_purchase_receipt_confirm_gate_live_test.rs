@@ -12,9 +12,9 @@
 //! 存哪里：PostgreSQL `roles` / `role_permissions` / `users`（夹具不清这三张参照表，
 //!       故用例开头先按角色码收敛起点再重种）。
 //!
-//! 为什么不断业务码：本锁的对象是"门层按哪枚键放行"。confirm 记录不存在时业务侧的
-//! 具体码（404/状态门）由流转门锁另行覆盖，这里只钉"门层放行 vs 门层拒绝"这一刀两断，
-//! 免得把业务前置条件的漂移也算进权限键的判据。
+//! 为什么正向断 404 而不是断 200：本锁的对象是"门层按哪枚键放行"。收货单不存在时业务侧
+//! 必然给 NOT_FOUND，故"404 + NOT_FOUND"恰好等价于"权限门已放行、且没有把 500/422 之类
+//! 意外也算成放行"。真实状态流转与库存落库的判据由流转门活体锁覆盖，不在本文件重复。
 //!
 //! 反空操作自证：修复前矩阵授的是 approve（该资源没有 approve 端点），confirm 键无人持有
 //! ⇒ 两向都会拿到 403，本文件的正向断言必红；反向断言若被写成"也放行"则立即红。
@@ -205,15 +205,18 @@ async fn confirm_key_is_what_the_gate_checks() {
 
     let (status, body) =
         post_confirm(&app_with_role(db.clone(), grantee), MISSING_RECEIPT_ID).await;
-    assert_ne!(
+    // 门层放行后必然落到业务侧"记录不存在"（夹具已 TRUNCATE 收货单，且 data_scope=all
+    // 让行级归属门不参与）——据此把"权限门放行"与"权限门拒绝"一刀分开，
+    // 而不是只断"不是 403"那种把 500/422 也当放行的弱判据。
+    assert_eq!(
         status,
-        axum::http::StatusCode::FORBIDDEN,
-        "持 purchase-receipts:confirm 的角色不应被门层拦成 403（那样确认收货对本岗就是永久不可达），实得 {status} {body}"
+        axum::http::StatusCode::NOT_FOUND,
+        "持 confirm 键的角色应穿过权限门进到业务侧（缺行必 404）；被门层拦则实得 403，实得 {status} {body}"
     );
-    assert_ne!(
+    assert_eq!(
         body["code"].as_str(),
-        Some("FORBIDDEN"),
-        "门层放行的判据是机器码不是 FORBIDDEN，实得 {body}"
+        Some("NOT_FOUND"),
+        "放行侧的机器码须为 NOT_FOUND（绝不得是 FORBIDDEN），实得 {body}"
     );
 
     let (status, body) =
