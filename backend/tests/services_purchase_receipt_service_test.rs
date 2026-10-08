@@ -156,7 +156,7 @@ async fn test_purchasereceiptservice_list_receipts_ksjkfherr() {
     let svc = PurchaseReceiptService::new(Arc::new(db));
     // 后 4 个 None = status/supplier_id/order_id 之外新增的 keyword/仓库/日期区间筛选全不传
     let err = svc
-        .list_receipts(1, 20, None, None, None, None, None, None, None)
+        .list_receipts(1, 20, None, None, None, None, None, None, None, None)
         .await
         .expect_err("schema 缺失（无 purchase_receipts 表）时必须返回 Err 而非 panic");
     assert_eq!(

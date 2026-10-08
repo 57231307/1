@@ -37,7 +37,7 @@ use axum::{
     http::{Method, Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::Response,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::{ar_reconciliation_handler, bulk_color_approval_handler};
@@ -75,6 +75,8 @@ const BCA_CROSS: i64 = 9405; // pending，跨主读/写目标，父 SO_CROSS
 const AR_OWN: i32 = 9601;
 const AR_CROSS: i32 = 9602;
 
+const OTHER_DEPT: i32 = 9999;
+
 fn make_self_auth(user_id: i32) -> AuthContext {
     AuthContext {
         user_id,
@@ -84,6 +86,18 @@ fn make_self_auth(user_id: i32) -> AuthContext {
         data_scope: Some("self".to_string()),
         dept_ids: None,
         dept_member_user_ids: None,
+    }
+}
+
+fn make_dept_auth(user_id: i32, visible_dept_ids: &str) -> AuthContext {
+    AuthContext {
+        user_id,
+        username: format!("scope_fixture_{user_id}"),
+        role_id: Some(2),
+        department_id: Some(DEPT_ID),
+        data_scope: Some("dept".to_string()),
+        dept_ids: Some(Arc::new(visible_dept_ids.to_string())),
+        dept_member_user_ids: Some(Arc::new(user_id.to_string())),
     }
 }
 
@@ -151,6 +165,7 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
             status: Set("active".to_string()),
             customer_type: Set("retail".to_string()),
             owner_id: Set(owner),
+            department_id: Set(Some(DEPT_ID)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -309,7 +324,45 @@ fn build_app(auth: AuthContext, db: Arc<sea_orm::DatabaseConnection>) -> Router 
         )
         .route(
             "/ar-reconciliations/{id}",
-            get(ar_reconciliation_handler::get_reconciliation),
+            get(ar_reconciliation_handler::get_reconciliation)
+                .put(ar_reconciliation_handler::update_reconciliation)
+                .delete(ar_reconciliation_handler::delete_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/{id}/status",
+            put(ar_reconciliation_handler::update_reconciliation_status),
+        )
+        .route(
+            "/ar-reconciliations/{id}/send",
+            post(ar_reconciliation_handler::send_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/{id}/confirm",
+            post(ar_reconciliation_handler::confirm_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/{id}/dispute",
+            post(ar_reconciliation_handler::dispute_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/{id}/close",
+            post(ar_reconciliation_handler::close_reconciliation),
+        )
+        .route(
+            "/ar-reconciliations/{id}/details",
+            get(ar_reconciliation_handler::get_reconciliation_details),
+        )
+        .route(
+            "/ar-reconciliations/{id}/pdf",
+            get(ar_reconciliation_handler::export_reconciliation_pdf),
+        )
+        .route(
+            "/ar-reconciliations/confirmations/{id}/status",
+            put(ar_reconciliation_handler::update_confirmation_status),
+        )
+        .route(
+            "/ar-reconciliations/disputes/{id}/resolve",
+            put(ar_reconciliation_handler::resolve_dispute),
         )
         .with_state(state)
         .layer(from_fn_with_state(auth, inject_auth))
@@ -809,4 +862,349 @@ async fn ar_get_cross_owner_is_forbidden() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "跨主对账单详情必须 403: {v}");
     assert_eq!(v["code"], "FORBIDDEN");
+}
+
+// ============ 对账单：update_status（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_update_status_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/ar-reconciliations/{AR_CROSS}/status"),
+        Some(json!({ "status": "sent" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主状态变更必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权状态变更严禁流转他人记录"
+    );
+}
+
+// ============ 对账单：update（写门 + 数据零漂移） ============
+
+#[tokio::test]
+async fn ar_update_cross_owner_is_forbidden_and_data_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let before = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/ar-reconciliations/{AR_CROSS}"),
+        Some(json!({ "opening_balance": "9999.99", "notes": "越权篡改" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主更新必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let after = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after.opening_balance, before.opening_balance,
+        "越权更新严禁改动他人金额"
+    );
+    assert_eq!(after.notes, before.notes, "越权更新严禁改动他人备注");
+}
+
+// ============ 对账单：delete（写门 + 行仍存在） ============
+
+#[tokio::test]
+async fn ar_delete_cross_owner_is_forbidden_and_row_remains() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::DELETE,
+        &format!("/ar-reconciliations/{AR_CROSS}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主删除必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap();
+    assert!(row.is_some(), "越权删除严禁删除他人记录");
+}
+
+// ============ 对账单：send（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_send_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/ar-reconciliations/{AR_CROSS}/send"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主发送必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权发送严禁流转他人记录状态"
+    );
+}
+
+// ============ 对账单：close（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_close_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/ar-reconciliations/{AR_CROSS}/close"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主关闭必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权关闭严禁流转他人记录状态"
+    );
+}
+
+// ============ 对账单：confirm（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_confirm_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/ar-reconciliations/{AR_CROSS}/confirm"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主确认必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权确认严禁流转他人记录状态"
+    );
+}
+
+// ============ 对账单：dispute（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_dispute_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/ar-reconciliations/{AR_CROSS}/dispute"),
+        Some(json!({ "reason": "越权争议" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主争议必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权争议严禁流转他人记录状态"
+    );
+}
+
+// ============ 对账单：update_confirmation_status（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_update_confirmation_status_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/ar-reconciliations/confirmations/{AR_CROSS}/status"),
+        Some(json!({ "status": "confirmed", "remark": "越权确认" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "跨主确认状态变更必须 403: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权确认状态变更严禁流转他人记录"
+    );
+}
+
+// ============ 对账单：resolve_dispute（写门 + 状态零漂移） ============
+
+#[tokio::test]
+async fn ar_resolve_dispute_cross_owner_is_forbidden_and_status_unmoved() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/ar-reconciliations/disputes/{AR_CROSS}/resolve"),
+        Some(json!({ "resolution": "越权解决争议" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主解决争议必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_CROSS)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权解决争议严禁流转他人记录状态"
+    );
+}
+
+// ============ 对账单：get_details（读门 + 数据零泄露） ============
+
+#[tokio::test]
+async fn ar_get_details_cross_owner_is_forbidden() {
+    let (app, _db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::GET,
+        &format!("/ar-reconciliations/{AR_CROSS}/details"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主明细读取必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+}
+
+// ============ 对账单：export_pdf（读门 + 零文件产出） ============
+
+#[tokio::test]
+async fn ar_export_pdf_cross_owner_is_forbidden() {
+    let (app, _db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let (status, v) = call(
+        &app,
+        Method::GET,
+        &format!("/ar-reconciliations/{AR_CROSS}/pdf"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "跨主导出PDF必须 403: {v}");
+    assert_eq!(v["code"], "FORBIDDEN");
+}
+
+// ============ 对账单：Dept 范围（父客户 department_id 命中可见部门 ⇒ 放行） ============
+
+#[tokio::test]
+async fn ar_dept_scope_visible_dept_allows_access() {
+    // OWNER_A 以 dept 范围、可见 DEPT_ID（客户 CUS_OWN 的父部门），
+    // 访问 AR_OWN：父客户 department_id=DEPT_ID 在可见集内 ⇒ 放行。
+    let (app, db) = seeded_app(make_dept_auth(OWNER_B, &DEPT_ID.to_string())).await;
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/ar-reconciliations/{AR_OWN}/status"),
+        Some(json!({ "status": "sent" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "Dept 范围可见部门命中父客户部门应放行: {v}"
+    );
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_OWN)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("sent"),
+        "Dept 放行后状态如实流转"
+    );
+}
+
+// ============ 对账单：Dept 范围（不命中可见部门 ⇒ 403） ============
+
+#[tokio::test]
+async fn ar_dept_scope_invisible_dept_is_forbidden_and_status_unmoved() {
+    // OWNER_A 以 dept 范围、仅可见 OTHER_DEPT（客户 CUS_OWN 的父部门是 DEPT_ID），
+    // 访问 AR_OWN：父客户 department_id=DEPT_ID 不在可见集内 ⇒ 403，状态不动。
+    let (app, db) = seeded_app(make_dept_auth(OWNER_A, &OTHER_DEPT.to_string())).await;
+    let (status, v) = call(
+        &app,
+        Method::PUT,
+        &format!("/ar-reconciliations/{AR_OWN}/status"),
+        Some(json!({ "status": "sent" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "Dept 范围不命中可见部门必须 403: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+
+    let row = ar_reconciliation::Entity::find_by_id(AR_OWN)
+        .one(&*db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.reconciliation_status.as_deref(),
+        Some("draft"),
+        "越权（Dept 不命中）严禁流转他人记录状态"
+    );
 }

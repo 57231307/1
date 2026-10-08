@@ -594,6 +594,7 @@ async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
             None,
             Some(date(2099, 1, 5)),
             Some(date(2099, 1, 5)),
+            None,
         )
         .await
         .expect("from==to 查询应成功");
@@ -608,6 +609,7 @@ async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
             None,
             None,
             Some(format!("PRW6L{suffix}")),
+            None,
             None,
             None,
             None,
@@ -628,6 +630,7 @@ async fn live_postgres_keyword_case_sensitivity_and_inclusive_range() {
             None,
             None,
             Some(format!("prw6l{suffix}").to_lowercase()),
+            None,
             None,
             None,
             None,

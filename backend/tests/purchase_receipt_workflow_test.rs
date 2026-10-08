@@ -177,7 +177,7 @@ async fn test_purchasereceiptservice_list_receipts_kdbfherr() {
     let svc = PurchaseReceiptService::new(Arc::new(db));
     // 后 4 个 None = status/supplier_id/order_id 之外新增的 keyword/仓库/日期区间筛选全不传
     let (items, total) = svc
-        .list_receipts(1, 20, None, None, None, None, None, None, None)
+        .list_receipts(1, 20, None, None, None, None, None, None, None, None)
         .await
         .expect("已建库空表上 list_receipts 应返回 Ok 空集，而非 Err/panic");
     assert!(

@@ -130,6 +130,7 @@ async fn manager_approve_lands_real_to_user_name_transferred_from_result() {
             },
             MANAGER,
             "manager_li",
+            &scope_all_ctx(),
         )
         .await
         .expect("经理审批通过应成功");
@@ -190,6 +191,7 @@ async fn director_approve_lands_real_to_user_name_transferred_from_result() {
             },
             DIRECTOR,
             "director_zhao",
+            &scope_all_ctx(),
         )
         .await
         .expect("总监审批通过应成功");
@@ -226,6 +228,7 @@ async fn manager_approve_reject_does_not_touch_to_user_name() {
             },
             MANAGER,
             "manager_li",
+            &scope_all_ctx(),
         )
         .await
         .expect("拒绝应成功");
@@ -267,4 +270,16 @@ fn transfer_approval_must_not_fabricate_to_user_name() {
         src.contains("-> Result<TransferLeadResult, AppError>"),
         "execute_transfer 必须回传 TransferLeadResult（真实姓名的透传载体）"
     );
+}
+
+/// 审批流用例的范围夹具：All 范围（主管复核可读全域），只锁状态机与层级门，
+/// 不在此文件重复验证行级归属；行级归属由归属门用例覆盖。
+fn scope_all_ctx() -> bingxi_backend::utils::data_scope::DataScopeContext {
+    bingxi_backend::utils::data_scope::DataScopeContext {
+        scope: bingxi_backend::utils::data_scope::DataScope::All,
+        user_id: 1,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    }
 }

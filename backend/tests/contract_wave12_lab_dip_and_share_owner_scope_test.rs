@@ -5,11 +5,16 @@
 //!   `data_scope` 判定源，越权即 403+FORBIDDEN、绝不降级成空列表或静默 None"。
 //! - 判据：本人 ⇒ 2xx 且回读如实（写族断言字段/状态真实变更）；他人 ⇒ 403+FORBIDDEN
 //!   且写族回读断言零写入 / 状态零漂移；身份自报族另加"query 传他人 user_id 不得越权"。
-//! - 依据：打样通知单/小样与各写端点按 `created_by` 走 `check_resource_owner(ctx, owner, None)`；
-//!   团队成员/共享的客户维度读门借 customers 的真实 `owner_id`/`department_id` 同函数判定，
-//!   身份自报主体则按 `to_data_scope_context` 的可见成员集合（`dept_member_user_ids`）判定。
-//!   本锁以 self 范围会话取证"本人可、他人 403+FORBIDDEN"；无部门列的表在 Dept 范围下会被
-//!   `check_resource_owner` 恒拒，该口径待裁，本文件不为 Dept 立断言。
+//!   Dept 范围另立断言：本人行 / 归属人∈可见成员集合的行 ⇒ 2xx 且状态如实流转；归属人
+//!   ∉ 可见成员集合的他人行 ⇒ 403+FORBIDDEN 且状态零漂移。
+//! - 依据：打样通知单/小样无 department_id 列，各写端点按 `created_by` 走
+//!   `check_resource_owner_by_member_scope(ctx, owner)`（本函数与列表侧 `apply_data_scope`
+//!   的 Dept 判据同源）——All=任意行；Dept=本人行或归属人 ∈ 可见部门成员集合
+//!   `dept_member_user_ids`（集合为空退化仅本人）；Self_=仅本人行；`created_by` 为 NULL
+//!   的历史行一律拒绝。团队成员/共享的客户维度读门借 customers 的真实
+//!   `owner_id`/`department_id` 同函数判定，身份自报主体则按 `to_data_scope_context` 的
+//!   可见成员集合判定。本锁既以 self 范围会话取证"本人可、他人 403+FORBIDDEN"，
+//!   也以 Dept 范围会话取证上述"本人可/可见成员可/非可见成员 403+状态零漂移"。
 //! - 夹具：真 PostgreSQL（`test_common::setup_test_db()`），禁 sqlite/mock/`#[ignore]`。
 //! - 覆盖：PUT/DELETE 打样通知单、start-sampling/submit/approve/reject/restart/complete
 //!   状态流转、PUT/DELETE 打样小样、团队成员 by-customer/by-user/check、共享
@@ -50,6 +55,10 @@ use tower::ServiceExt;
 
 const USER_A: i32 = 7101;
 const USER_B: i32 = 7102;
+// Dept 用例的"可见成员"同事：与 A 同部门（department_id=1），且被显式写入 A 的
+// dept_member_user_ids；USER_B 不在该集合内，用来区分"可见成员"与"非可见成员"，
+// 确保 Dept 放行/拒绝由成员集合真实驱动、非靠巧合。
+const USER_C: i32 = 7103;
 // 部门 ID 取迁移种子已存在的 1（departments 为参照种子表，不自建；users/customers
 // 的 department_id 外键指向它，用 7xxx 会触发 FK 违例）。
 const DEPT_ID: i32 = 1;
@@ -64,6 +73,8 @@ const R_A_SUBMITTED_REJECT: i32 = 7304;
 const R_A_REJECTED: i32 = 7305;
 const R_A_APPROVED: i32 = 7306;
 const R_B_PENDING: i32 = 7311;
+// USER_C（Dept 可见成员）归属的 pending 单，用于"Dept 用户改可见成员行 ⇒ 2xx 且状态流转"。
+const R_C_PENDING: i32 = 7312;
 
 const S_A_UPD: i32 = 7401;
 const S_A_DEL: i32 = 7402;
@@ -86,6 +97,27 @@ fn make_auth(user_id: i32) -> AuthContext {
         data_scope: Some("self".to_string()),
         dept_ids: None,
         dept_member_user_ids: None,
+    }
+}
+
+/// Dept 范围会话：actor 的可见成员集合为 visible_members（CSV 由 auth 中间件注入，
+/// 语义即"归属人∈此集合的行按部门经理可见可写"）。集合显式不含 actor 之外的他人
+/// （如 USER_B），以真数据区分"可见成员"与"非可见成员"，杜绝靠巧合通过。
+fn make_auth_dept(actor: i32, visible_members: &[i32]) -> AuthContext {
+    AuthContext {
+        user_id: actor,
+        username: format!("owner_scope_{actor}"),
+        role_id: Some(2),
+        department_id: Some(DEPT_ID),
+        data_scope: Some("dept".to_string()),
+        dept_ids: Some(Arc::new(DEPT_ID.to_string())),
+        dept_member_user_ids: Some(Arc::new(
+            visible_members
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+        )),
     }
 }
 
@@ -136,7 +168,7 @@ fn assert_403_forbidden(status: StatusCode, v: &Value, label: &str) {
 }
 
 async fn seed(db: &sea_orm::DatabaseConnection) {
-    for uid in [USER_A, USER_B] {
+    for uid in [USER_A, USER_B, USER_C] {
         user::ActiveModel {
             id: Set(uid),
             username: Set(format!("owner_scope_{uid}")),
@@ -182,6 +214,7 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         (R_A_REJECTED, USER_A, req_status::REJECTED, CUST_A),
         (R_A_APPROVED, USER_A, req_status::APPROVED, CUST_A),
         (R_B_PENDING, USER_B, req_status::PENDING, CUST_B),
+        (R_C_PENDING, USER_C, req_status::PENDING, CUST_A),
     ] {
         lab_dip_request::ActiveModel {
             id: Set(rid),
@@ -667,6 +700,76 @@ async fn lab_dip_complete_other_is_403_and_status_frozen() {
     assert_eq!(
         after.production_recipe_id, None,
         "403 后他人单不得被写入配方"
+    );
+}
+
+// ============================================================================
+// lab_dip：Dept 范围行级归属门（无 department_id 列，按 created_by∈可见成员集合判据）
+// ============================================================================
+// 判据来自 check_resource_owner_by_member_scope：Dept=本人行或归属人∈dept_member_user_ids。
+// 用 USER_A 作部门经理、可见成员显式设为 [USER_A, USER_C]（USER_B 不在集合内）：
+//   ① 本人行 R_A_PENDING ⇒ 2xx 且状态真实流转；
+//   ② 可见成员行 R_C_PENDING（归属 USER_C）⇒ 2xx 且状态真实流转——此条专证放行由
+//      成员集合驱动而非"仅本人"退化（若集合未被真正读取，本条必红）；
+//   ③ 非可见成员行 R_B_PENDING（归属 USER_B）⇒ 403+FORBIDDEN 且状态零漂移。
+
+#[tokio::test]
+async fn lab_dip_start_sampling_dept_own_is_2xx_and_status_moves() {
+    let (app, db) = build_app(make_auth_dept(USER_A, &[USER_A, USER_C])).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/lab-dip/requests/{R_A_PENDING}/start-sampling"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "Dept 本人流转应 2xx: {v}");
+    assert_eq!(
+        reload_request(&db, R_A_PENDING).await.status,
+        req_status::SAMPLING,
+        "Dept 本人流转必须真实推进状态"
+    );
+}
+
+#[tokio::test]
+async fn lab_dip_start_sampling_dept_visible_member_is_2xx_and_status_moves() {
+    let (app, db) = build_app(make_auth_dept(USER_A, &[USER_A, USER_C])).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/lab-dip/requests/{R_C_PENDING}/start-sampling"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "Dept 可见成员行流转应 2xx: {v}");
+    assert_eq!(
+        reload_request(&db, R_C_PENDING).await.status,
+        req_status::SAMPLING,
+        "Dept 改可见成员行必须真实推进状态（成员集合判据生效，非靠仅本人巧合）"
+    );
+}
+
+#[tokio::test]
+async fn lab_dip_start_sampling_dept_non_visible_member_is_403_and_status_frozen() {
+    let (app, db) = build_app(make_auth_dept(USER_A, &[USER_A, USER_C])).await;
+    let before = reload_request(&db, R_B_PENDING).await;
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/lab-dip/requests/{R_B_PENDING}/start-sampling"),
+        None,
+    )
+    .await;
+    assert_403_forbidden(status, &v, "Dept 非可见成员行流转越权");
+    let after = reload_request(&db, R_B_PENDING).await;
+    assert_eq!(
+        after.status, before.status,
+        "403 后非可见成员行状态不得漂移"
+    );
+    assert_eq!(
+        after.status,
+        req_status::PENDING,
+        "403 后非可见成员行必须仍为 pending"
     );
 }
 

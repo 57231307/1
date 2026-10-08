@@ -255,11 +255,11 @@ async fn approve(
     };
     let result = if as_manager {
         svc(db)
-            .manager_approve(req, USER_MANAGER, "mc3_manager")
+            .manager_approve(req, USER_MANAGER, "mc3_manager", &scope_all_ctx())
             .await
     } else {
         svc(db)
-            .director_approve(req, USER_DIRECTOR, "mc3_director")
+            .director_approve(req, USER_DIRECTOR, "mc3_director", &scope_all_ctx())
             .await
     };
     result.unwrap_or_else(|e| panic!("审批操作失败(approval={approval_id}): {e}"))
@@ -422,6 +422,7 @@ async fn non_major_tier_never_enters_second_level() {
             },
             USER_DIRECTOR,
             "mc3_director",
+            &scope_all_ctx(),
         )
         .await
         .err()
@@ -455,4 +456,16 @@ async fn non_major_tier_never_enters_second_level() {
         USER_TARGET,
         "非大客户单经理通过后应立即完成转移(单级即可达终态)"
     );
+}
+
+/// 审批流用例的范围夹具：All 范围（主管复核可读全域），只锁状态机与层级门，
+/// 不在此文件重复验证行级归属；行级归属由归属门用例覆盖。
+fn scope_all_ctx() -> bingxi_backend::utils::data_scope::DataScopeContext {
+    bingxi_backend::utils::data_scope::DataScopeContext {
+        scope: bingxi_backend::utils::data_scope::DataScope::All,
+        user_id: 1,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    }
 }

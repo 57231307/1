@@ -754,6 +754,7 @@ async fn major_tier_routes_to_director_level_and_denies_bypass() {
             },
             USER_MANAGER,
             "lc_manager",
+            &scope_all_ctx(),
         )
         .await
         .unwrap_or_else(|e| panic!("经理审批通过失败（大客户单 {}）: {e}", large.approval_no));
@@ -783,6 +784,7 @@ async fn major_tier_routes_to_director_level_and_denies_bypass() {
             },
             USER_DIRECTOR,
             "lc_director",
+            &scope_all_ctx(),
         )
         .await
         .unwrap_or_else(|e| panic!("总监拒绝审批失败（大客户单 {}）: {e}", large.approval_no));
@@ -817,6 +819,7 @@ async fn major_tier_routes_to_director_level_and_denies_bypass() {
             },
             USER_DIRECTOR,
             "lc_director",
+            &scope_all_ctx(),
         )
         .await
         .err()
@@ -847,6 +850,7 @@ async fn major_tier_routes_to_director_level_and_denies_bypass() {
             },
             USER_MANAGER,
             "lc_manager",
+            &scope_all_ctx(),
         )
         .await
         .unwrap_or_else(|e| panic!("经理拒绝审批失败（普通单 {}）: {e}", low_tier.approval_no));
@@ -860,4 +864,16 @@ async fn major_tier_routes_to_director_level_and_denies_bypass() {
         owner_low_before,
         "普通客户拒绝路径同样不得执行转移（保持 {owner_low_before}）"
     );
+}
+
+/// 审批流用例的范围夹具：All 范围（主管复核可读全域），只锁状态机与层级门，
+/// 不在此文件重复验证行级归属；行级归属由归属门用例覆盖。
+fn scope_all_ctx() -> bingxi_backend::utils::data_scope::DataScopeContext {
+    bingxi_backend::utils::data_scope::DataScopeContext {
+        scope: bingxi_backend::utils::data_scope::DataScope::All,
+        user_id: 1,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    }
 }

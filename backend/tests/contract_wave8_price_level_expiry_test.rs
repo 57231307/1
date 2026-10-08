@@ -187,7 +187,11 @@ async fn create_price_level_second_grade_persists_and_lists_back() {
 
     let mut p = query_params();
     p.product_id = Some(SEED_PRODUCT_ID);
-    let (rows, total) = svc.get_prices_list(p).await.expect("列表查询必须成功");
+    // 夹具直连 service 层：无 HTTP 身份 ⇒ 不传行级数据权限（None = 不下推），与列表端点鉴权无关。
+    let (rows, total) = svc
+        .get_prices_list(p, None)
+        .await
+        .expect("列表查询必须成功");
     assert_eq!(
         total, 1,
         "自建自清后应按产品命中唯一建行，实得 total={total}"
@@ -223,8 +227,9 @@ async fn create_price_level_out_of_whitelist_is_400_with_zero_side_effects() {
         expect_validation_400(&err);
     }
 
+    // 夹具直连 service 层不下推行级数据权限（None）。
     let (rows, total) = svc
-        .get_prices_list(query_params())
+        .get_prices_list(query_params(), None)
         .await
         .expect("列表查询必须成功");
     assert_eq!(total, 0, "被拒建单必须零副作用（不落行），实得 {rows:?}");
@@ -481,8 +486,9 @@ async fn create_invalid_expiry_date_is_fail_visible_400_not_silent_null() {
         expect_validation_400(&err);
     }
 
+    // 夹具直连 service 层不下推行级数据权限（None）。
     let (rows, total) = svc
-        .get_prices_list(query_params())
+        .get_prices_list(query_params(), None)
         .await
         .expect("列表查询必须成功");
     assert_eq!(total, 0, "被拒建单必须零副作用（不落行），实得 {rows:?}");
@@ -520,7 +526,7 @@ async fn list_keyword_and_customer_id_filters_take_effect() {
     let mut p = query_params();
     p.keyword = Some("面料甲".to_string());
     let (rows, total) = svc
-        .get_prices_list(p)
+        .get_prices_list(p, None)
         .await
         .expect("keyword 列表查询必须成功");
     assert_eq!(total, 1, "产品名 keyword 必须只命中 row1，实得 ids 见 rows");
@@ -530,7 +536,7 @@ async fn list_keyword_and_customer_id_filters_take_effect() {
     let mut p = query_params();
     p.keyword = Some("客户丙".to_string());
     let (rows, _total) = svc
-        .get_prices_list(p)
+        .get_prices_list(p, None)
         .await
         .expect("keyword 列表查询必须成功");
     assert_eq!(rows.len(), 1, "客户名 keyword 必须只命中 row1");
@@ -540,7 +546,7 @@ async fn list_keyword_and_customer_id_filters_take_effect() {
     let mut p = query_params();
     p.keyword = Some("绝对不存在的关键词丁".to_string());
     let (_rows, total) = svc
-        .get_prices_list(p)
+        .get_prices_list(p, None)
         .await
         .expect("keyword 列表查询必须成功");
     assert_eq!(total, 0, "全不命中必须空集（而非静默全量）");
@@ -549,7 +555,7 @@ async fn list_keyword_and_customer_id_filters_take_effect() {
     let mut p = query_params();
     p.customer_id = Some(SEED_CUSTOMER_ID);
     let (rows, total) = svc
-        .get_prices_list(p)
+        .get_prices_list(p, None)
         .await
         .expect("customer_id 列表查询必须成功");
     assert_eq!(total, 1, "customer_id 等值必须只命中 row1");
@@ -558,7 +564,10 @@ async fn list_keyword_and_customer_id_filters_take_effect() {
     // 无关客户 → 空集（防止谓词写成恒真兜底）
     let mut p = query_params();
     p.customer_id = Some(9999);
-    let (_rows, total) = svc.get_prices_list(p).await.expect("列表查询必须成功");
+    let (_rows, total) = svc
+        .get_prices_list(p, None)
+        .await
+        .expect("列表查询必须成功");
     assert_eq!(
         total, 0,
         "未引用的 customer_id 必须零命中（row2 的 NULL 也不许被当成命中）"
