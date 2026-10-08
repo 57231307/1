@@ -29,6 +29,11 @@
 //      （require_admin_role :22-32）；配置 hidden_fields 后 U 的线索列表行**真的不含该键**
 //      （crm_handler.rs:58-73 filter_fields_batch），而默认分支是脱敏非删除
 //      （P1-08-5，crm_handler.rs:75-101 + utils/field_mask.rs mask_phone）。
+//   6) 客户收货地址出参的 PII 形态与客户域同一真源
+//      （services/crm/cust.rs::mask_customer_pii_defaults，经
+//      handlers/customer_address_handler.rs 的出参转换接入）：非 admin 会话 contact_phone
+//      为打码值、address 整键不下发；读写出口同形（写响应原文回显即旁路）；admin 同一行
+//      原文与本人行的非 PII 列作为正向对照（防"整列恒空"型假绿）。
 //
 // CI 测不到（显式声明）：
 //   - DEPT/DEPT_AND_BELOW 范围：role.data_scope 无 API 写入口（仅迁移 SQL 更新，
@@ -388,6 +393,238 @@ test.describe('29 权限键与数据范围契约链', () => {
         after && !('email' in after),
         `hidden_fields 生效后列表行不应含 email 键，实际=${JSON.stringify(after).slice(0, 300)}`
       ).toBe(true);
+    } finally {
+      await session?.close();
+    }
+  });
+
+  test('29-05 客户收货地址出参 PII：非 admin 电话打码且 address 键不下发；admin 同一行原文对照', async ({
+    page,
+    browser,
+  }) => {
+    const { roleId, username, password } = await seedRoleAndUser(page, 'Z5');
+    // 地址端点的权限键按 URL 段推导（seg3='crm' 是模块前缀，seg4='customers' 未登记消歧
+    // 映射 ⇒ path_utils.rs resolve_module_prefixed_resource 走默认分支）⇒ 运行时键 'customers'
+    await grantPermission(page, roleId, 'customers', 'read');
+    await grantPermission(page, roleId, 'customers', 'create');
+    await grantPermission(page, roleId, 'customers', 'update');
+
+    const PLAIN_PHONE = '13800002905';
+    const PLAIN_ADDRESS = 'E2F29明文详细地址不应外显';
+
+    let session: IsolatedAuthedSession | undefined;
+    try {
+      session = await loginInIsolatedContext(browser, username, password);
+
+      // 地址行的可见性经父客户归属继承（SELF 范围 ⇒ 必须 U 本人的客户），
+      // 故先由 U 自建客户（customer_handler.rs 把 owner 落创建人本人）
+      const cust = await apiCallRaw<Record<string, unknown>>(
+        session.page,
+        'POST',
+        '/crm/customers',
+        {
+          customer_name: `E2F29地址脱敏客户${Date.now().toString().slice(-6)}`,
+        }
+      );
+      const customerId = requireNum(cust.id, 'U 建客户');
+      CLEANUP.push({ path: `/crm/customers/${customerId}`, label: `customer(U)#${customerId}` });
+
+      // admin 写入明文电话与详细地址；写响应即第一重正向对照（admin 拿原文，不是空列）
+      const created = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'POST',
+        `/crm/customers/${customerId}/addresses`,
+        {
+          contact_name: '收货人戊',
+          contact_phone: PLAIN_PHONE,
+          address: PLAIN_ADDRESS,
+          province: '广东省',
+        }
+      );
+      const addressId = requireNum(created.id, 'admin 建地址');
+      CLEANUP.push({
+        path: `/crm/customers/${customerId}/addresses/${addressId}`,
+        label: `customer_address#${addressId}`,
+      });
+      expect(String(created.contact_phone), 'admin 写响应 contact_phone 应为原文').toBe(
+        PLAIN_PHONE
+      );
+      expect(String(created.address), 'admin 写响应 address 应为原文').toBe(PLAIN_ADDRESS);
+
+      // admin 读列表：同一行仍是原文（读出口未被"为脱敏而清空"）
+      const adminRow = pickListArray<Record<string, unknown>>(
+        await apiCallRaw<unknown>(page, 'GET', `/crm/customers/${customerId}/addresses`),
+        'bare',
+        'F29 admin 地址列表'
+      ).find(r => Number(r.id) === addressId);
+      expect(adminRow, 'admin 列表应含该地址行').toBeTruthy();
+      expect(String(adminRow!.contact_phone), 'admin 列表电话应为原文').toBe(PLAIN_PHONE);
+      expect(String(adminRow!.address), 'admin 列表 address 应为原文').toBe(PLAIN_ADDRESS);
+
+      // 非 admin 读列表：同一门（本人客户）放行、同一行，但出参形态按客户域真源改写
+      const uRow = pickListArray<Record<string, unknown>>(
+        await apiCallRaw<unknown>(session.page, 'GET', `/crm/customers/${customerId}/addresses`),
+        'bare',
+        'F29 非 admin 地址列表'
+      ).find(r => Number(r.id) === addressId);
+      expect(uRow, 'SELF 用户应看到本人客户的地址行（脱敏只改形态，不隐藏行）').toBeTruthy();
+      // ① 电话：键保留、值打码，且必须 ≠ 原文
+      expect(
+        typeof uRow!.contact_phone === 'string' &&
+          String(uRow!.contact_phone).includes('****') &&
+          uRow!.contact_phone !== PLAIN_PHONE,
+        `非 admin 列表 contact_phone 应为打码值，实际=${JSON.stringify(uRow!.contact_phone)}`
+      ).toBe(true);
+      // ② 详细地址：整键不下发（既不是空串也不是 null——那是"值确实为空"，两回事）
+      expect(
+        !('address' in uRow!),
+        `非 admin 列表不应含 address 键，实际行=${JSON.stringify(uRow).slice(0, 300)}`
+      ).toBe(true);
+      // 正向对照②：本人行的非 PII 列照常下发（防"整行被清空"型假绿）
+      expect(String(uRow!.contact_name), '非 admin 收货人列仍下发').toBe('收货人戊');
+      expect(String(uRow!.province), '非 admin 省份列仍下发').toBe('广东省');
+      expect(uRow!.is_default, '非 admin 默认标记仍下发').toBe(false);
+
+      // 写响应旁路：非 admin 只改一个非 PII 列（remark），响应不得回显原文电话/地址
+      const updated = await apiCallRaw<Record<string, unknown>>(
+        session.page,
+        'PUT',
+        `/crm/customers/${customerId}/addresses/${addressId}`,
+        { remark: 'E2F29仅改备注' }
+      );
+      expect(
+        typeof updated.contact_phone === 'string' &&
+          String(updated.contact_phone).includes('****') &&
+          updated.contact_phone !== PLAIN_PHONE,
+        `非 admin 写响应 contact_phone 应为打码值，实际=${JSON.stringify(updated.contact_phone)}`
+      ).toBe(true);
+      expect(
+        !('address' in updated),
+        `非 admin 写响应不应含 address 键，实际=${JSON.stringify(updated).slice(0, 300)}`
+      ).toBe(true);
+      expect(String(updated.remark), '写响应应回读本次真正改动的列').toBe('E2F29仅改备注');
+
+      // 库侧零污染复证：U 的一次编辑不能把打码值/空地址写回真实列（admin 原文回读）
+      const afterWrite = pickListArray<Record<string, unknown>>(
+        await apiCallRaw<unknown>(page, 'GET', `/crm/customers/${customerId}/addresses`),
+        'bare',
+        'F29 admin 地址列表（写后复证）'
+      ).find(r => Number(r.id) === addressId);
+      expect(afterWrite, '写后 admin 仍能读回该地址行').toBeTruthy();
+      expect(String(afterWrite!.contact_phone), '库内电话应仍是原文（打码值未被写回）').toBe(
+        PLAIN_PHONE
+      );
+      expect(String(afterWrite!.address), '库内详细地址应仍是原文').toBe(PLAIN_ADDRESS);
+    } finally {
+      await session?.close();
+    }
+  });
+
+  test('29-06 客户 360 的 shipping_addresses 出参 PII：非 admin 电话打码且 address 键不下发；admin 同一行原文对照', async ({
+    page,
+    browser,
+  }) => {
+    const { roleId, username, password } = await seedRoleAndUser(page, 'Z6');
+    // 360 端点权限键按 URL 段推导（seg3='crm' 模块前缀、seg4='customers' ⇒ 运行时键 'customers'，
+    // 与地址列表端点同源）；读 360 需 customers:read，SELF 用户自建本人客户需 customers:create
+    await grantPermission(page, roleId, 'customers', 'read');
+    await grantPermission(page, roleId, 'customers', 'create');
+
+    const PLAIN_PHONE = '13800002906';
+    const PLAIN_ADDRESS = 'E2F29明文收货地址不应经360外显';
+
+    let session: IsolatedAuthedSession | undefined;
+    try {
+      session = await loginInIsolatedContext(browser, username, password);
+
+      // SELF 范围 ⇒ 地址行可见性经父客户归属继承（get_customer_360 行门 check_resource_owner
+      // 按 customers.owner_id），故先由 U 自建客户（owner 落本人）
+      const cust = await apiCallRaw<Record<string, unknown>>(
+        session.page,
+        'POST',
+        '/crm/customers',
+        { customer_name: `E2F29地址360客户${Date.now().toString().slice(-6)}` }
+      );
+      const customerId = requireNum(cust.id, 'U 建客户');
+      CLEANUP.push({ path: `/crm/customers/${customerId}`, label: `customer(U)#${customerId}` });
+
+      // admin 写入明文电话与详细地址，作为两种会话共同的数据基线
+      const created = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'POST',
+        `/crm/customers/${customerId}/addresses`,
+        {
+          contact_name: '收货人己',
+          contact_phone: PLAIN_PHONE,
+          address: PLAIN_ADDRESS,
+          province: '广东省',
+        }
+      );
+      const addressId = requireNum(created.id, 'admin 建地址');
+      CLEANUP.push({
+        path: `/crm/customers/${customerId}/addresses/${addressId}`,
+        label: `customer_address#${addressId}`,
+      });
+
+      // 正向对照（admin）：360 出参 shipping_addresses 行是原文，address 键存在、
+      // contact_phone 是原文 ⇒ 证明"脱敏没把整列清空"，且 admin 既有放行口径未收紧
+      const adminData = await apiCallRaw<{ shipping_addresses: Record<string, unknown>[] }>(
+        page,
+        'GET',
+        `/crm/customers/${customerId}/360`
+      );
+      expect(
+        Array.isArray(adminData.shipping_addresses),
+        `360 出参应含 shipping_addresses 数组，实际=${JSON.stringify(adminData).slice(0, 300)}`
+      ).toBe(true);
+      const adminRow = adminData.shipping_addresses.find(r => Number(r.id) === addressId);
+      expect(adminRow, 'admin 360 应含该地址行').toBeTruthy();
+      expect(String(adminRow!.contact_phone), 'admin 360 contact_phone 应为原文').toBe(PLAIN_PHONE);
+      expect(
+        'address' in adminRow! && String(adminRow!.address),
+        'admin 360 address 键应存在且为原文'
+      ).toBe(PLAIN_ADDRESS);
+      // 非 PII 列（收货人/省份/默认标记）admin 侧照常下发
+      expect(String(adminRow!.contact_name), 'admin 360 收货人列仍下发').toBe('收货人己');
+
+      // 非 admin（SELF 本人客户，行门放行同一行）：出参形态按客户域真源逐行改写
+      const uData = await apiCallRaw<{ shipping_addresses: Record<string, unknown>[] }>(
+        session.page,
+        'GET',
+        `/crm/customers/${customerId}/360`
+      );
+      expect(
+        Array.isArray(uData.shipping_addresses),
+        `非 admin 360 出参应含 shipping_addresses 数组，实际=${JSON.stringify(uData).slice(0, 300)}`
+      ).toBe(true);
+      const uRow = uData.shipping_addresses.find(r => Number(r.id) === addressId);
+      expect(uRow, 'SELF 用户应看到本人客户的地址行（脱敏只改形态，不隐藏行）').toBeTruthy();
+      // ① 电话：键保留、值打码，且必须 ≠ 原文
+      expect(
+        typeof uRow!.contact_phone === 'string' &&
+          String(uRow!.contact_phone).includes('****') &&
+          uRow!.contact_phone !== PLAIN_PHONE,
+        `非 admin 360 contact_phone 应为打码值，实际=${JSON.stringify(uRow!.contact_phone)}`
+      ).toBe(true);
+      // ② 详细地址：整键不下发（既不是空串也不是 null——那是"值确实为空"，两回事）
+      expect(
+        !('address' in uRow!),
+        `非 admin 360 不应含 address 键，实际行=${JSON.stringify(uRow).slice(0, 300)}`
+      ).toBe(true);
+      // 正向对照②：本人行的非 PII 列照常下发（防"整行被清空"型假绿）
+      expect(String(uRow!.contact_name), '非 admin 360 收货人列仍下发').toBe('收货人己');
+      expect(String(uRow!.province), '非 admin 360 省份列仍下发').toBe('广东省');
+      expect(uRow!.is_default, '非 admin 360 默认标记仍下发').toBe(false);
+      // 响应体任何位置都不得出现明文电话/地址（无论键名、无论嵌套）
+      const raw = JSON.stringify(uData);
+      expect(
+        raw.includes(PLAIN_PHONE),
+        `非 admin 360 响应不得含明文电话: ${raw.slice(0, 300)}`
+      ).toBe(false);
+      expect(
+        raw.includes(PLAIN_ADDRESS),
+        `非 admin 360 响应不得含明文地址: ${raw.slice(0, 300)}`
+      ).toBe(false);
     } finally {
       await session?.close();
     }

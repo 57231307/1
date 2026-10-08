@@ -960,8 +960,8 @@ fn w9_360_exit_shares_same_gates_source_ratchet() {
     }
     assert_eq!(
         body.matches("tracing::error!").count(),
-        2,
-        "customer/opportunities 两处门定位失败都必须显式记 error（静默跳过形状漂移即缺陷）"
+        3,
+        "customer/opportunities/shipping_addresses 三处门定位失败都必须显式记 error（静默跳过形状漂移即缺陷）"
     );
 
     // 2) 服务层：360 商机子集必须复用列表同一个 apply_department_scope（同判据列），

@@ -1170,6 +1170,13 @@ pub struct FollowUpQuery {
 ///   `apply_opportunity_field_permission`（金额隐藏口径单源），owner 判据同源：
 ///   简报行对象携带 `owner_id`（投影自 `crm_opportunity.owner_id`，见
 ///   `services/crm/mod.rs::OpportunityBrief`）。
+/// - `shipping_addresses`（收货地址子集）：逐行套用与地址列表出口
+///   （`customer_address_handler::list_customer_addresses`）同一默认脱敏——判定源同为
+///   `admin_checker::is_admin_role`，掩码列集合同为 `CrmService::mask_customer_pii_defaults`
+///   （非 admin：`contact_phone` 打码保留键、`address` 整键移除；admin 放行原文）。地址行
+///   只过默认脱敏层、不叠加 `data_permissions` 的 allowed/hidden 过滤：那份配置字段名面向
+///   `customers` 表列，套到 `customer_addresses` 行会删掉 `province`/`is_default` 等非 PII
+///   列，与地址列表出口同口径（该处 `apply_address_pii_mask` 亦只应用默认脱敏层）。
 /// - 任一定位失败（键缺失/形状漂移）= 门无处可施 = 原文直通，显式记 error 不静默。
 pub async fn get_customer_360(
     Path(id): Path<i32>,
@@ -1210,6 +1217,30 @@ pub async fn get_customer_360(
         tracing::error!(
             customer_id = id,
             "客户 360 出参未定位到 opportunities 数组，商机字段级数据权限未应用"
+        );
+    }
+    // 收货地址子集：与非 admin 的地址列表出口逐行同一默认脱敏（判定源同为
+    // `admin_checker::is_admin_role`，掩码列集合同为 `CrmService::mask_customer_pii_defaults`：
+    // 非 admin `contact_phone` 打码保留键、`address` 整键移除；admin 放行原文，与既有 admin
+    // 口径一致）。地址行只过默认脱敏层、不叠加 data_permissions 过滤（配置字段名面向
+    // customers 表列，套地址行会删 `province`/`is_default` 等非 PII 列，与地址列表出口同口径）。
+    // admin 判定在行循环外算一次复用（admin_checker 内部 DashMap 缓存，循环内反复调用会
+    // 持分片读锁放大竞争）。定位不到数组 = 脱敏无处可施 = 原文直通，显式记 error 不静默。
+    if let Some(addrs) = value
+        .get_mut("shipping_addresses")
+        .and_then(Value::as_array_mut)
+    {
+        let is_admin = match auth.role_id {
+            Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+            None => false,
+        };
+        for addr in addrs.iter_mut() {
+            *addr = CrmService::mask_customer_pii_defaults(std::mem::take(addr), is_admin);
+        }
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 shipping_addresses 数组，地址字段级默认脱敏未应用"
         );
     }
     Ok(Json(ApiResponse::success(value)))

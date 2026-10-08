@@ -220,6 +220,17 @@ export interface Customer360Data {
 /** @deprecated 使用 Customer360Data 替代（保留向后兼容引用） */
 export type Customer360 = Customer360Data;
 
+/**
+ * 360 出参里的收货地址行（后端 models/customer_address.rs::Model 经
+ * handlers/crm_handler.rs::get_customer_360 逐行过客户域真源脱敏后的形态，判据与
+ * `customer.ts::CustomerAddress`（地址列表出口）完全同源）。
+ * - `contact_phone`：键恒存在；非 admin 会话值是 `utils/field_mask.rs` 的 `mask_phone`
+ *   打码结果（形如 138****8888），admin 是原文，两种都是 string，故不标 `?`。
+ * - `address`：非 admin 会话**整键不下发**（真源对该键是移除而非打码），admin 下发原文
+ *   ⇒ 如实标 optional。消费点禁止 `?? ''` 之类兜底把"无权限查看"吞成"地址为空"：
+ *   库内地址为空时后端下发的是空串 string，两者语义不同，必须按键是否存在区分。
+ * - 其余列（province/city/district/postal_code 等）不属真源掩码列，非 admin 仍照常下发。
+ */
 export interface ShippingAddress {
   id: number;
   customer_id: number;
@@ -228,7 +239,7 @@ export interface ShippingAddress {
   province: string;
   city: string;
   district: string;
-  address: string;
+  address?: string;
   postal_code: string;
   is_default: boolean;
   remark: string;

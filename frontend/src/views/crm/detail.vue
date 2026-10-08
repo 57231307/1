@@ -249,7 +249,13 @@
                   </div>
                   <div class="addr-phone">{{ addr.contact_phone }}</div>
                   <div class="addr-detail">
-                    {{ addr.province }} {{ addr.city }} {{ addr.district }} {{ addr.address }}
+                    {{ addr.province }} {{ addr.city }} {{ addr.district }}
+                    <span v-if="typeof addr.address === 'string'">{{ addr.address }}</span>
+                    <!-- 非 admin 会话 address 整键不下发（真源脱敏），缺键=无权查看，
+                         禁止兜底成空串把"无权限"吞成"地址为空"；库内地址为空时 admin
+                         收到的是空串（typeof 仍为 string），两态据此区分。
+                         本行复用既有通用无权查看文案键（本域暂无对应键）。 -->
+                    <span v-else>{{ t('crmOpportunities.table.amountHidden') }}</span>
                   </div>
                 </div>
                 <el-empty

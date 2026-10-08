@@ -266,12 +266,11 @@
                 {{ [row.province, row.city, row.district].filter(Boolean).join(' / ') || '-' }}
               </template>
             </el-table-column>
-            <el-table-column
-              prop="address"
-              label="详细地址"
-              min-width="180"
-              show-overflow-tooltip
-            />
+            <el-table-column label="详细地址" min-width="180" show-overflow-tooltip>
+              <!-- 非 admin 会话后端不下发 address 键（无查看权限，见 api/customer.ts::CustomerAddress），
+                   与同表 postal_code/remark 两列同形态地以 '-' 表示"无值可显示" -->
+              <template #default="{ row }">{{ row.address || '-' }}</template>
+            </el-table-column>
             <el-table-column prop="postal_code" label="邮编" width="100">
               <template #default="{ row }">{{ row.postal_code || '-' }}</template>
             </el-table-column>
@@ -348,7 +347,7 @@
     <!-- 新增/编辑地址弹窗 -->
     <el-dialog
       v-model="addressDialogVisible"
-      :title="editingAddressId ? '编辑地址' : '新增地址'"
+      :title="editingAddress ? '编辑地址' : '新增地址'"
       width="520px"
     >
       <el-form :model="addressForm" label-width="100px">
@@ -426,6 +425,7 @@ import {
   getCustomerCreditInfo,
   createCustomerAuditLog,
   type CustomerAddress,
+  type CustomerAddressUpdate,
   type CustomerAuditLog,
   type CustomerClv,
   type CustomerCreditInfo,
@@ -712,7 +712,9 @@ const handleCreditQuery = async () => {
 
 // ===== 地址簿管理 =====
 const addressDialogVisible = ref(false);
-const editingAddressId = ref<number | null>(null);
+// 编辑目标：地址 id 与"打开弹窗时读回的真实行"同生同灭。
+// 分两个 ref 会出现"有 id 无基准行"的中间态，而提交前必须有基准行才能算出改动集。
+const editingAddress = ref<{ id: number; base: CustomerAddress } | null>(null);
 const addressSaving = ref(false);
 const addressForm = ref({
   contact_name: '',
@@ -726,12 +728,22 @@ const addressForm = ref({
   remark: '',
 });
 
+/**
+ * el-input 的模型只接受 string：把后端可空列（null）与"无查看权限、整键不下发"的列
+ * （undefined）都落成输入框的空态。
+ * 本函数只做控件初始化，不是数据层兜底：某列是否写回后端由
+ * `buildAddressUpdatePayload` 的改动集决定，空态未被用户重新填写就不会被下发，
+ * 库内原值不受影响。
+ */
+const inputText = (value: string | null | undefined): string =>
+  typeof value === 'string' ? value : '';
+
 const openCreateAddress = () => {
   if (!clvCustomerId.value) {
     ElMessage.warning('请输入客户 ID');
     return;
   }
-  editingAddressId.value = null;
+  editingAddress.value = null;
   addressForm.value = {
     contact_name: '',
     contact_phone: '',
@@ -747,19 +759,48 @@ const openCreateAddress = () => {
 };
 
 const openEditAddress = (row: CustomerAddress) => {
-  editingAddressId.value = row.id;
+  editingAddress.value = { id: row.id, base: row };
   addressForm.value = {
     contact_name: row.contact_name,
+    // 非 admin 会话这里就是后端下发的打码值（138****8888 形态），按原样呈现，不伪造原文
     contact_phone: row.contact_phone,
-    province: row.province || '',
-    city: row.city || '',
-    district: row.district || '',
-    address: row.address,
-    postal_code: row.postal_code || '',
+    province: inputText(row.province),
+    city: inputText(row.city),
+    district: inputText(row.district),
+    // 非 admin 会话后端不下发 address 键 ⇒ 空态；不重新填写就不会进提交载荷，库内地址不变
+    address: inputText(row.address),
+    postal_code: inputText(row.postal_code),
     is_default: row.is_default,
-    remark: row.remark || '',
+    remark: inputText(row.remark),
   };
   addressDialogVisible.value = true;
+};
+
+/**
+ * 编辑提交只含"真正改动过的键"。后端 UpdateCustomerAddressDto 逐列 `if let Some` 更新，
+ * 缺键=该列不改（见 handlers/customer_address_handler.rs::update_customer_address），
+ * 因此整表单原样提交会有两类真实写坏：
+ * - contact_phone 读回的是打码值 ⇒ 原样提交等于把 "138****8888" 写进库；
+ * - address 读回时键可能根本不存在（无查看权限）⇒ 原样提交等于把真实地址清成空串。
+ * 判据：
+ * - contact_phone / address 两列仅在"用户填入非空、且与读回态不同"时下发；
+ * - 其余列按与读回态是否不同下发（可空列的 null 与输入框空态同为"未填"，不算改动）。
+ */
+const buildAddressUpdatePayload = (base: CustomerAddress): CustomerAddressUpdate => {
+  const form = addressForm.value;
+  const payload: CustomerAddressUpdate = {};
+  if (form.contact_name !== base.contact_name) payload.contact_name = form.contact_name;
+  if (form.contact_phone !== base.contact_phone && form.contact_phone.trim() !== '')
+    payload.contact_phone = form.contact_phone;
+  if (form.address !== inputText(base.address) && form.address.trim() !== '')
+    payload.address = form.address;
+  if (form.province !== inputText(base.province)) payload.province = form.province;
+  if (form.city !== inputText(base.city)) payload.city = form.city;
+  if (form.district !== inputText(base.district)) payload.district = form.district;
+  if (form.postal_code !== inputText(base.postal_code)) payload.postal_code = form.postal_code;
+  if (form.is_default !== base.is_default) payload.is_default = form.is_default;
+  if (form.remark !== inputText(base.remark)) payload.remark = form.remark;
+  return payload;
 };
 
 const handleSaveAddress = async () => {
@@ -768,19 +809,27 @@ const handleSaveAddress = async () => {
     ElMessage.warning('请输入客户 ID');
     return;
   }
+  const target = editingAddress.value;
+  // contact_name 不在脱敏列集合内（任何角色都下发明文），空值在两种入口都不成立：
+  // 新建时后端 CreateCustomerAddressDto 必填，编辑时清空同样拒绝（改造前后一致）。
+  // 电话/详细地址只在"新建"这一必填态卡非空：编辑时非 admin 读回的是打码值或缺键，
+  // 输入框空态表示"未改动"而非"待填"，是否下发由 buildAddressUpdatePayload 的改动集决定。
   if (
     !addressForm.value.contact_name ||
-    !addressForm.value.contact_phone ||
-    !addressForm.value.address
+    (!target && (!addressForm.value.contact_phone || !addressForm.value.address))
   ) {
     ElMessage.warning('请填写收货人/电话/详细地址');
     return;
   }
   addressSaving.value = true;
   try {
-    if (editingAddressId.value) {
-      await updateCustomerAddress(customerId, editingAddressId.value, addressForm.value);
-      ElMessage.success('地址已更新');
+    if (target) {
+      const payload = buildAddressUpdatePayload(target.base);
+      // 改动集为空 ⇒ 不打后端、也不宣称"已更新"（无任何写动作发生）
+      if (Object.keys(payload).length > 0) {
+        await updateCustomerAddress(customerId, target.id, payload);
+        ElMessage.success('地址已更新');
+      }
     } else {
       await createCustomerAddress(customerId, addressForm.value);
       ElMessage.success('地址已添加');

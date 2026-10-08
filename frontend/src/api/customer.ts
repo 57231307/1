@@ -200,7 +200,17 @@ export const exportCustomers = (params?: CustomerQueryParams) =>
 
 // ============== 客户地址簿/CLV/审计日志（Batch 补齐 API 封装）==============
 
-/** 客户收货地址（对应后端 models/customer_address.rs::Model） */
+/**
+ * 客户收货地址出参（对应后端 models/customer_address.rs::Model 经
+ * handlers/customer_address_handler.rs 出参脱敏后的形态）。
+ * 脱敏判据与客户域同一真源（services/crm/cust.rs::mask_customer_pii_defaults）：
+ * - `contact_phone`：键恒存在；非 admin 会话值是 `utils/field_mask.rs` 的 `mask_phone`
+ *   打码结果（形如 138****8888），admin 是原文。两种都是 string，故不标 `?`。
+ * - `address`：非 admin 会话**整键不下发**（真源对该键是移除而非打码），admin 下发原文
+ *   ⇒ 如实标 optional。消费点禁止 `?? ''` 之类兜底把"无权限查看"吞成"地址为空"：
+ *   库内地址为空时后端下发的是空串 string，两者语义不同，必须按键是否存在区分。
+ * - 其余列与实体一致（Option 列如实为可选）。
+ */
 export interface CustomerAddress {
   id: number;
   customer_id: number;
@@ -209,7 +219,7 @@ export interface CustomerAddress {
   province?: string;
   city?: string;
   district?: string;
-  address: string;
+  address?: string;
   postal_code?: string;
   is_default: boolean;
   remark?: string;
@@ -279,6 +289,7 @@ export interface CustomerAuditLogInput {
 /**
  * 获取客户收货地址列表（默认地址在前）
  * 后端路由：GET /api/v1/erp/crm/customers/{id}/addresses（routes/crm.rs customers + customer_address_handler）
+ * 出参形态见 CustomerAddress：非 admin 会话 contact_phone 为打码值、address 键不下发。
  */
 export const getCustomerAddressList = (customerId: number) =>
   request.get<ApiResponse<CustomerAddress[]>>(`/crm/customers/${customerId}/addresses`);
@@ -286,6 +297,7 @@ export const getCustomerAddressList = (customerId: number) =>
 /**
  * 创建客户收货地址（设为默认时后端自动清除其他默认标记）
  * 后端路由：POST /api/v1/erp/crm/customers/{id}/addresses（routes/crm.rs customers + customer_address_handler）
+ * 入参提交原文，写响应与读出口同一套脱敏形态（非 admin 会话回的是打码行，不是原文回显）。
  */
 export const createCustomerAddress = (customerId: number, data: CustomerAddressInput) =>
   request.post<ApiResponse<CustomerAddress>>(`/crm/customers/${customerId}/addresses`, data);
@@ -293,6 +305,9 @@ export const createCustomerAddress = (customerId: number, data: CustomerAddressI
 /**
  * 更新客户收货地址
  * 后端路由：PUT /api/v1/erp/crm/customers/{customer_id}/addresses/{address_id}（routes/crm.rs customers + customer_address_handler）
+ * 调用方传 CustomerAddressUpdate：后端逐列 `if let Some` 更新，**缺键=该列不改**。
+ * 因此读回来的打码值/缺键列不得原样回填提交（会把掩码写进库、把看不见的列清空），
+ * 只提交真正被用户改动的键；写响应同样按读出口脱敏形态下发。
  */
 export const updateCustomerAddress = (
   customerId: number,
