@@ -1,8 +1,9 @@
-//! 采购收货「让步接收 / 复检改判」两枚显式权限键的派生正确 + 三通道一致静态锁。
+//! 采购收货三枚显式权限键（让步接收 / 复检改判 / 收货确认）的派生正确 + 三通道一致静态锁。
 //!
-//! 功能：以纯静态方式（不连库、不启服务）钉死 concession 与 rejudge 两枚权限键，从
+//! 功能：以纯静态方式（不连库、不启服务）钉死 concession、rejudge 与 confirm 三枚权限键，从
 //!       「URL 末段动作词派生 → 资源段消歧 → 注册表权威名 → 新装矩阵授予 → 存量迁移
-//!       授予 → 前端常量字面量」这条唯一链路上各口径互相同源，任一处漂移即判红。
+//!       授予 → 前端常量与按钮权限门」这条唯一链路上各口径互相同源，任一处漂移即判红。
+//!       confirm 还反向锁住"矩阵/迁移不得再出现无端点对应的 approve 行"。
 //! 调用方：本文件是集成测试 crate 的可执行用例，由测试运行器（cargo test 的 tests 目标）
 //!       在 CI 调用；不参与生产运行期，也不被任何生产模块调用。
 //! 入参：向生产函数传入真实请求路径（`/api/v1/erp/purchase/receipts/{收货单ID}/{动作}`）
@@ -399,5 +400,127 @@ fn lock_will_go_red_when_grant_or_derivation_drifts() {
     assert!(
         matrix_roles_with_action(&code_only(&matrix_src()), "concession").len() == 2,
         "真实矩阵里 concession 恰被两岗（采购经理 + 质量经理）持有；解析器对真源应给出非空且计数为二"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 收货确认键 confirm：真实端点派生 + 三通道同源 + 悬空 approve 缺席
+// ---------------------------------------------------------------------------
+
+/// confirm 键完整字面量（与运行期派生键、前端常量同形）。
+const CONFIRM_KEY: &str = "purchase-receipts:confirm";
+
+/// 采购经理在部署/e2e 侧的在册别名码 → 矩阵规范码。
+const PURCHASE_MANAGER_ALIAS: &str = "purchasing_manager";
+const PURCHASE_MANAGER_CANONICAL: &str = "purchase_manager";
+/// 采购员在部署/e2e 侧的在册别名码 → 矩阵规范码。
+const PURCHASER_ALIAS: &str = "purchaser";
+const PURCHASER_CANONICAL: &str = "purchase_clerk";
+
+/// 通道② confirm 的存量库授权迁移（真源）。
+fn confirm_migration_src() -> String {
+    include_str!("../migration/src/domain/business/m0091_realign_purchase_receipt_confirm.rs")
+        .replace('\r', "")
+}
+
+/// 把迁移清单里的在册别名码折回矩阵规范码（两码同现时由 dedup 归一）。
+fn fold_purchase_aliases(raw: &[String]) -> BTreeSet<String> {
+    raw.iter()
+        .map(|c| match c.as_str() {
+            PURCHASE_MANAGER_ALIAS => PURCHASE_MANAGER_CANONICAL.to_string(),
+            PURCHASER_ALIAS => PURCHASER_CANONICAL.to_string(),
+            _ => c.clone(),
+        })
+        .collect()
+}
+
+/// 派生腿（真调用生产函数）：确认收货路径末段须派生成 confirm，而不是 approve。
+#[test]
+fn confirm_derives_from_real_action_extractor() {
+    assert_eq!(
+        extract_action_from_path("/api/v1/erp/purchase/receipts/123/confirm").as_deref(),
+        Some("confirm"),
+        "/receipts/{{id}}/confirm 必须派生成 confirm 动作，授权才落在运行期真正查的那枚键上"
+    );
+}
+
+/// 通道①↔②↔③：confirm 的受授集合在别名折回后双向相等，且恰为采购经理 + 采购员两岗。
+#[test]
+fn confirm_role_set_matches_matrix_modulo_purchaser_aliases() {
+    let matrix_code = code_only(&matrix_src());
+    let matrix = matrix_roles_with_action(&matrix_code, "confirm");
+    let mig_raw = migration_role_codes(&code_only(&confirm_migration_src()), "CONFIRM_ROLE_CODES");
+    let mig = fold_purchase_aliases(&mig_raw);
+
+    assert_eq!(
+        to_set(&matrix),
+        mig,
+        "通道① 矩阵与通道② 迁移对 confirm 的授予集合须在别名折回后双向相等（改一处必须同步另一处）"
+    );
+    // 折回前的原集里两枚在册别名确实在场（否则等于凭空豁免真实存量面）。
+    for alias in [PURCHASE_MANAGER_ALIAS, PURCHASER_ALIAS] {
+        assert!(
+            mig_raw.iter().any(|c| c == alias),
+            "在册别名码 {alias} 必须在迁移的 confirm 清单里在场（存量库的真实受授面）"
+        );
+    }
+    // 矩阵侧只认规范码，不得双写别名码。
+    for alias in [PURCHASE_MANAGER_ALIAS, PURCHASER_ALIAS] {
+        assert!(
+            !matrix.iter().any(|c| c == alias),
+            "矩阵不得双写别名码 {alias}（采购两岗在矩阵用规范码）"
+        );
+    }
+    let adjudicated: BTreeSet<String> = [PURCHASE_MANAGER_CANONICAL, PURCHASER_CANONICAL]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    assert_eq!(
+        to_set(&matrix),
+        adjudicated,
+        "confirm 矩阵集合须恰为采购经理 + 采购员两岗"
+    );
+
+    let front = code_only(&frontend_src());
+    assert!(
+        front.contains(CONFIRM_KEY) && front.contains("PURCHASE_RECEIPT_CONFIRM"),
+        "前端 permissions.ts 必须以命名常量声明 {CONFIRM_KEY}，否则确认按钮对持权岗位恒不可达"
+    );
+    // 视图侧确有用这枚键门控入口（只在常量文件里声明而不接按钮＝假就绪）。
+    let table_view = include_str!(
+        "../../frontend/src/views/purchase-receipt/components/PurchaseReceiptTable.vue"
+    )
+    .replace('\r', "");
+    assert!(
+        table_view.contains(CONFIRM_KEY),
+        "收货列表的确认入口必须按 {CONFIRM_KEY} 做权限门控，不得让无键岗位看见必吃 403 的按钮"
+    );
+}
+
+/// 悬空授权反向锁：purchase-receipts 没有 approve 端点，矩阵与迁移都不得再出现 approve 行。
+/// 端点缺席这一事实由 approve/reject 成对锁的缺席断言守着，本锁守的是授权侧不再回潮。
+#[test]
+fn ghost_approve_grant_is_retired_on_both_channels() {
+    let matrix = matrix_roles_with_action(&code_only(&matrix_src()), "approve");
+    assert!(
+        matrix.is_empty(),
+        "purchase-receipts 无 approve 端点，矩阵不得保留任何 approve 行（悬空授权回潮会掩盖真实键 confirm 的缺失）"
+    );
+    // 迁移里 approve 只允许出现在 down 的"恢复原态"语句里，不得出现在任何授予常量中。
+    let mig_code = code_only(&confirm_migration_src());
+    let granted = migration_role_codes(&mig_code, "CONFIRM_ROLE_CODES");
+    assert!(
+        !granted.iter().any(|c| c.contains("approve")),
+        "confirm 授予清单里不得混入 approve 项"
+    );
+    assert!(
+        mig_code.contains("const LEGACY_APPROVE_ROLE_CODES"),
+        "回滚需要按原在册角色码恢复被删的 approve 行，该常量缺失则 down 不可逆"
+    );
+    // 检测力自证：合成输入含 approve 行时解析器必须给出非空——证明上面的空集断言有判别力。
+    let synthetic = format!("\"some_role\",\n&[\n(\"{RESOURCE}\", \"approve\"),\n],");
+    assert!(
+        !matrix_roles_with_action(&synthetic, "approve").is_empty(),
+        "解析器须能检出 approve 行的存在；否则上面的空集断言是恒真假绿"
     );
 }

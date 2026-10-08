@@ -644,7 +644,10 @@ impl InitService {
                     ("purchase-orders", "approve"),
                     ("purchase-orders", "reject"),
                     ("purchase-receipts", "read"),
-                    ("purchase-receipts", "approve"),
+                    // 收货确认的真实端点是 POST /receipts/{id}/confirm，`confirm` 在动作关键字表内
+                    // ⇒ 运行期键为 purchase-receipts:confirm；原先的 approve 行没有对应端点，
+                    // 属悬空授权（点了也只会 403），改按真实键授予。
+                    ("purchase-receipts", "confirm"),
                     // 让步接收＝对不合格品的放行决定，由采购经理与质量经理共签；
                     // 不授建单收货的采购员与仓管（职责分离，键语义见迁移
                     // business/m0090_grant_purchase_receipt_concession_rejudge.rs）
@@ -690,6 +693,9 @@ impl InitService {
                     ("purchase-orders", "update"),
                     ("purchase-receipts", "read"),
                     ("purchase-receipts", "create"),
+                    // 建单与确认收货同线（与采购经理一致按真实键 confirm 授予）；
+                    // 让步与改判仍不授本岗——见 quality 域的 concession/rejudge 分配。
+                    ("purchase-receipts", "confirm"),
                     ("suppliers", "read"),
                     ("inventory", "read"),
                     ("purchase-prices", "read"),
@@ -828,6 +834,9 @@ impl InitService {
                     ("outsourcing-orders", "*"),
                     ("outsourcing-receipts", "*"),
                     ("business-modes", "read"),
+                    // 生产经理要能查物料清单（/bom 页路由门是 boms:read，工单用料也以 BOM 为据），
+                    // 而生产域此前没有任何 boms 授权 ⇒ 该页对本岗恒被守卫拦成 403。只授读。
+                    ("boms", "read"),
                     ("mrp", "*"),
                     ("capacity", "*"),
                     ("scheduling", "*"),

@@ -280,9 +280,11 @@ fn endpoint_fact_table_matches_route_sources() {
 }
 
 /// 未闭环清单（如实点名，不为凑对称造端点）：
-/// ① `purchase-receipts`：矩阵有 approve 行但**连 approve 端点都不存在**
-///    （收货确认走 `/receipts/{id}/confirm`，`confirm` 是另一动作键）——该 approve 行本身悬空。
 /// `fabric-orders` 与 `dye-recipes` 已闭环（reject 端点在册，事实表已登记）。
+/// `purchase-receipts` 没有 approve/reject 端点这一事实仍未变（端点缺席断言仍在册），
+/// 但它原先那行**永远不会被命中**的矩阵 approve 授权已回收：收货确认走
+/// `/receipts/{id}/confirm`，运行期派生键是 `purchase-receipts:confirm`，
+/// 授权已改挂到该真实键上（受授集合见本用例末尾的事实登记）。
 #[test]
 fn unpaired_resources_are_registered_not_fabricated() {
     assert!(
@@ -302,9 +304,26 @@ fn unpaired_resources_are_registered_not_fabricated() {
         rows.contains(&("sales_manager", "fabric-orders", "approve")),
         "事实登记：fabric-orders 的 approve 行仍在册（缺口在端点侧，不在授权侧）"
     );
+    // 悬空授权已回收：任何角色都不许再持 purchase-receipts 的 approve 行——
+    // 该资源没有 approve 端点，留着这行只会让"看着已授权"掩盖真实键 confirm 的缺失。
     assert!(
-        rows.contains(&("purchase_manager", "purchase-receipts", "approve")),
-        "事实登记：purchase-receipts 的 approve 行仍在册（悬空事实由端点缺席断言另行点名）"
+        !rows
+            .iter()
+            .any(|(_, res, act)| *res == "purchase-receipts" && *act == "approve"),
+        "purchase-receipts 无 approve 端点，矩阵里不得再出现 approve 行（悬空授权回潮）"
+    );
+    // 真实键侧的事实登记：确认收货的授权挂在派生键 confirm 上，采购经理与采购员都必须在册，
+    // 否则 /receipts/{id}/confirm 对这两个岗位恒 403（功能不可用而非权限收紧）。
+    for role in ["purchase_manager", "purchase_clerk"] {
+        assert!(
+            rows.contains(&(role, "purchase-receipts", "confirm")),
+            "事实登记：{role} 必须持有 purchase-receipts 的 confirm 行，否则收货确认端点对本岗不可达"
+        );
+    }
+    // 生产岗可读物料清单：/boms 与前端 /bom 路由门都判 boms:read
+    assert!(
+        rows.contains(&("production_manager", "boms", "read")),
+        "事实登记：production_manager 必须持有 boms 的 read 行，否则物料清单页对本岗恒被拦"
     );
 }
 

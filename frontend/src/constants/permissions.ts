@@ -122,6 +122,11 @@ export const PERMISSIONS = {
   PURCHASE_RECEIPT_CONCESSION: 'purchase-receipts:concession',
   PURCHASE_RECEIPT_REJUDGE: 'purchase-receipts:rejudge',
 
+  // 收货确认键：真实端点是 POST /purchase/receipts/{id}/confirm（URL 末段派生 confirm），
+  // 与建单权 create 分键；原先矩阵授的是 approve——该端点不存在，授权永不命中。
+  // 受授岗位集合见迁移 business/m0091_realign_purchase_receipt_confirm.rs
+  PURCHASE_RECEIPT_CONFIRM: 'purchase-receipts:confirm',
+
   // 采购合同（后端资源：purchase-contracts）
   PURCHASE_CONTRACT_READ: 'purchase-contracts:read',
   PURCHASE_CONTRACT_CREATE: 'purchase-contracts:create',

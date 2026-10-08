@@ -122,10 +122,13 @@
         >
           <el-icon><Edit /></el-icon>
         </el-button>
+        <!-- 收货确认入口：状态门与权限门各自独立——本岗无 confirm 键时不该看见一个必吃 403 的按钮 -->
         <el-button
           v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
+          v-permission="'purchase-receipts:confirm'"
           size="small"
           type="warning"
+          data-testid="receipt-confirm-btn"
           @click="emit('approve', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Check /></el-icon> {{ t('purchaseReceipt.table.button.approve') }}

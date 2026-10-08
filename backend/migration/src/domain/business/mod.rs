@@ -54,6 +54,11 @@ mod m0087_add_unqualified_handling_reason;
 // 采购收货让步接收/复检改判两枚显式权限键的存量库补授：role_permissions 由 system 域
 // 先建，注册紧随 m0087，岗位集合与 init 矩阵、e2e 三通道同口径（见文件头）。
 mod m0090_grant_purchase_receipt_concession_rejudge;
+// 采购收货确认键正名：回收矩阵里那行永远不会被命中的 purchase-receipts/approve，
+// 改按真实派生键 confirm 授给采购经理与采购员（受授集合与 init 矩阵同口径，见文件头）。
+mod m0091_realign_purchase_receipt_confirm;
+// 生产经理补 boms:read：物料清单页与工单用料判据对本岗不再恒 403（只授读，见文件头）。
+mod m0092_grant_boms_read_production_manager;
 
 pub struct Migration;
 
@@ -296,11 +301,27 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0090_grant_purchase_receipt_concession_rejudge::Migration
             .up(manager)
             .await?;
+        // 收货确认键正名（回收悬空 approve + 授 confirm）：紧随其后注册在本域 up 链最末
+        m0091_realign_purchase_receipt_confirm::Migration
+            .up(manager)
+            .await?;
+        // 生产经理 boms:read 补授：本域 up 链最末
+        m0092_grant_boms_read_production_manager::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // 生产经理 boms:read：最后应用者最先回滚（只按角色码回收本迁移授予的行）
+        m0092_grant_boms_read_production_manager::Migration
+            .down(manager)
+            .await?;
+        // 收货确认键正名：回滚本迁移授予的 confirm 并恢复被删的 approve 原态
+        m0091_realign_purchase_receipt_confirm::Migration
+            .down(manager)
+            .await?;
         // 让步/改判补授：最后应用者最先回滚（只按角色码回收本迁移授予的两枚键）
         m0090_grant_purchase_receipt_concession_rejudge::Migration
             .down(manager)
