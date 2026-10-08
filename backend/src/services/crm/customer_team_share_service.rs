@@ -33,6 +33,7 @@ use tracing::{error, info};
 use crate::models::customer_share as share_model;
 use crate::models::customer_team_member as team_model;
 use crate::models::{customer, customer_share, customer_team_member, user};
+use crate::utils::data_scope::{DataScope, DataScopeContext, check_resource_owner};
 use crate::utils::error::AppError;
 
 // =====================================================
@@ -305,10 +306,18 @@ impl CustomerTeamShareService {
     }
 
     /// 列出客户的活跃团队成员
+    ///
+    /// 归属门：客户必须存在（不存在 404），且该客户的归属对当前登录人数据范围可见
+    /// （不可见 403+FORBIDDEN，绝不降级成空列表）。`customer_id` 由调用方提供，不能
+    /// 作为可枚举任意客户团队成员的依据——判定复用 `check_resource_owner` 权威源
+    /// （customers 有真实 `owner_id`/`department_id`，Dept 分支据此校验）。
     pub async fn list_team_members(
         &self,
         customer_id: i32,
+        ctx: &DataScopeContext,
     ) -> Result<Vec<TeamMemberDto>, AppError> {
+        Self::ensure_customer_readable(&self.db, customer_id, ctx).await?;
+
         let members = customer_team_member::Entity::find()
             .filter(customer_team_member::Column::CustomerId.eq(customer_id))
             .filter(customer_team_member::Column::IsActive.eq(true))
@@ -320,11 +329,19 @@ impl CustomerTeamShareService {
     }
 
     /// 列出用户参与的客户团队
+    ///
+    /// 身份自报门：`user_id` 是查询主体而非身份来源，必须落在登录人可见集内
+    /// （越权 403，不降级成空列表）。判定与 `build_data_scope_condition` 的
+    /// Dept/Self 分支同语义（All 任意 / Dept 主体∈可见部门成员集合 / Self 仅本人），
+    /// 复用 `DataScopeContext` 权威字段，不另造归属规则。
     pub async fn list_user_teams(
         &self,
         user_id: i32,
         active_only: bool,
+        ctx: &DataScopeContext,
     ) -> Result<Vec<TeamMemberDto>, AppError> {
+        Self::ensure_subject_visible(ctx, user_id)?;
+
         let mut q = customer_team_member::Entity::find()
             .filter(customer_team_member::Column::UserId.eq(user_id));
 
@@ -341,11 +358,18 @@ impl CustomerTeamShareService {
     }
 
     /// 校验用户是否为客户的活跃团队成员（返回 Some(team_role) 表示是团队成员，None 表示不是）
+    ///
+    /// 身份自报门：`user_id` 是查询主体而非身份来源，越权探测他人团队成员拓扑时
+    /// 403 拒绝（不返回 None 静默放过）；通过后可见主体的是否成员结果如实返回。
+    /// `customer_id` 为主体关系维度，不作为登录人可枚举任意客户的入口。
     pub async fn is_team_member(
         &self,
         customer_id: i32,
         user_id: i32,
+        ctx: &DataScopeContext,
     ) -> Result<Option<String>, AppError> {
+        Self::ensure_subject_visible(ctx, user_id)?;
+
         let member = customer_team_member::Entity::find()
             .filter(customer_team_member::Column::CustomerId.eq(customer_id))
             .filter(customer_team_member::Column::UserId.eq(user_id))
@@ -354,6 +378,46 @@ impl CustomerTeamShareService {
             .await?;
 
         Ok(member.map(|m| m.team_role))
+    }
+
+    /// 身份自报端点的主体可见性门：被查询主体必须落在登录人可见集内。
+    /// All=任意；Dept=主体∈可见部门成员用户集合；Self_=仅本人。与
+    /// `build_data_scope_condition` 的 Dept/Self 分支同语义（同一 DataScopeContext
+    /// 权威字段，无 department_id 列的团队成员/共享表按「归属人∈成员集合」判断）。
+    fn ensure_subject_visible(
+        ctx: &DataScopeContext,
+        subject_user_id: i32,
+    ) -> Result<(), AppError> {
+        let visible = match ctx.scope {
+            DataScope::All => true,
+            DataScope::Dept => ctx.dept_member_user_ids.contains(&subject_user_id),
+            DataScope::Self_ => subject_user_id == ctx.user_id,
+        };
+        if !visible {
+            return Err(AppError::permission_denied(
+                "无权查看该用户的团队协作数据（数据范围限制）".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 客户维度读门：客户必须存在（404），且其归属对登录人数据范围可见（403）。
+    /// 判定复用 `check_resource_owner`（customers 有真实 owner_id/department_id）。
+    async fn ensure_customer_readable(
+        db: &DatabaseConnection,
+        customer_id: i32,
+        ctx: &DataScopeContext,
+    ) -> Result<(), AppError> {
+        let customer = customer::Entity::find_by_id(customer_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+        if !check_resource_owner(ctx, Some(customer.owner_id), customer.department_id) {
+            return Err(AppError::permission_denied(
+                "无权查看该客户的团队/共享数据（数据范围限制）".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// 校验团队角色合法性
@@ -607,11 +671,17 @@ impl CustomerTeamShareService {
     }
 
     /// 列出客户的共享记录
+    ///
+    /// 归属门：客户必须存在（404）且归属对登录人数据范围可见（403，不降级成空列表），
+    /// `customer_id` 不能作为枚举任意客户共享拓扑的依据。判定复用 `check_resource_owner`。
     pub async fn list_customer_shares(
         &self,
         customer_id: i32,
         status: Option<String>,
+        ctx: &DataScopeContext,
     ) -> Result<Vec<CustomerShareDto>, AppError> {
+        Self::ensure_customer_readable(&self.db, customer_id, ctx).await?;
+
         let mut q = customer_share::Entity::find()
             .filter(customer_share::Column::CustomerId.eq(customer_id));
 
@@ -628,11 +698,17 @@ impl CustomerTeamShareService {
     }
 
     /// 列出用户收到的共享
+    ///
+    /// 身份自报门：`user_id` 是被查询主体而非身份来源，越权查看他人共享列表时 403
+    /// 拒绝（不降级成空列表）。判定与 `build_data_scope_condition` Dept/Self 同语义。
     pub async fn list_user_shares(
         &self,
         user_id: i32,
         active_only: bool,
+        ctx: &DataScopeContext,
     ) -> Result<Vec<CustomerShareDto>, AppError> {
+        Self::ensure_subject_visible(ctx, user_id)?;
+
         let mut q = customer_share::Entity::find()
             .filter(customer_share::Column::SharedToUserId.eq(user_id));
 
@@ -649,11 +725,18 @@ impl CustomerTeamShareService {
     }
 
     /// 校验用户的共享权限（返回 Some(permission) 表示有共享权限，None 表示无；自动过期检查：若 expire_at < now 则视为无权限）
+    ///
+    /// 身份自报门：`user_id` 是被查询主体而非身份来源，越权探测他人授权拓扑时 403 拒绝
+    /// （不返回 None 静默放过）；通过后可见主体的权限结果如实返回（None 是"该可见主体
+    /// 确无共享"的真实业务答案，非越权吞没）。过期即视为无权限维持既有逻辑。
     pub async fn check_share_permission(
         &self,
         customer_id: i32,
         user_id: i32,
+        ctx: &DataScopeContext,
     ) -> Result<Option<String>, AppError> {
+        Self::ensure_subject_visible(ctx, user_id)?;
+
         let share = customer_share::Entity::find()
             .filter(customer_share::Column::CustomerId.eq(customer_id))
             .filter(customer_share::Column::SharedToUserId.eq(user_id))

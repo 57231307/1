@@ -18,6 +18,7 @@ use crate::services::lab_dip_service::{
     LabDipRequestService, LabDipResampleService, LabDipSampleService, RecordMatchingResultRequest,
     RecordResampleResultRequest, UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
 };
+use crate::utils::data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -106,11 +107,21 @@ pub async fn create_request(
 /// PUT /api/v1/erp/lab-dip/requests/:id - 更新打样通知单
 pub async fn update_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateLabDipRequestRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).update(id, req).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门；本域尚无跨 owner 写门，
+    // 写入口以行级 scope 可见性约束（Self 不可改他人单）。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "打样通知单更新成功",
@@ -120,10 +131,19 @@ pub async fn update_request(
 /// DELETE /api/v1/erp/lab-dip/requests/:id - 软删除打样通知单
 pub async fn delete_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    request_service(&state).delete(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可删。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    service.delete(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "打样通知单删除成功",
@@ -133,10 +153,19 @@ pub async fn delete_request(
 /// POST /api/v1/erp/lab-dip/requests/:id/start-sampling - 开始打样（pending → sampling）
 pub async fn start_sampling(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).start_sampling(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.start_sampling(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已开始打样",
@@ -146,10 +175,19 @@ pub async fn start_sampling(
 /// POST /api/v1/erp/lab-dip/requests/:id/submit - 送客户确认（sampling → submitted）
 pub async fn submit_to_customer(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).submit_to_customer(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.submit_to_customer(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已送客户确认",
@@ -167,11 +205,20 @@ pub struct ApproveOkSampleRequest {
 /// POST /api/v1/erp/lab-dip/requests/:id/approve - 客户确认 OK 样（submitted → approved）
 pub async fn approve_ok_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<ApproveOkSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state)
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service
         .approve_ok_sample(id, req.sample_id, req.comment)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -190,13 +237,20 @@ pub struct RejectRequest {
 /// POST /api/v1/erp/lab-dip/requests/:id/reject - 客户要求重打（submitted → rejected）
 pub async fn reject_and_redo(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state)
-        .reject_and_redo(id, req.comment)
-        .await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.reject_and_redo(id, req.comment).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已标记需重打",
@@ -206,10 +260,19 @@ pub async fn reject_and_redo(
 /// POST /api/v1/erp/lab-dip/requests/:id/restart - 重新打样（rejected → sampling）
 pub async fn restart_sampling(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).restart_sampling(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.restart_sampling(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已重新开始打样",
@@ -226,13 +289,20 @@ pub struct CompleteRequest {
 /// POST /api/v1/erp/lab-dip/requests/:id/complete - 完成建库（approved → completed）
 pub async fn complete_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<CompleteRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state)
-        .complete(id, req.production_recipe_id)
-        .await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.complete(id, req.production_recipe_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已建库完成",
@@ -278,11 +348,20 @@ pub async fn create_sample(
 /// PUT /api/v1/erp/lab-dip/samples/:id - 更新打样小样
 pub async fn update_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateLabDipSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let updated = sample_service(&state).update(id, req).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = sample_service(&state);
+    // 存在性→404 先行，再按小样 created_by 走行级归属门，他人样不可改。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样小样（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "打样小样更新成功",
@@ -292,10 +371,19 @@ pub async fn update_sample(
 /// DELETE /api/v1/erp/lab-dip/samples/:id - 软删除小样
 pub async fn delete_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    sample_service(&state).delete(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = sample_service(&state);
+    // 存在性→404 先行，再按小样 created_by 走行级归属门，他人样不可删。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样小样（数据范围限制）".to_string(),
+        ));
+    }
+    service.delete(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "打样小样删除成功",
