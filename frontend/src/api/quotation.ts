@@ -1,9 +1,13 @@
 // 销售报价单 API 模块
 // 基础路径：/quotations（由 request baseURL /api/v1/erp 补全）
 // 字段名遵循后端 DTO（snake_case）
+// 后端 rust_decimal 未启 serde-floats，出参金额/比率序列化为 JSON 十进制字符串；
+// 前端对应字段声明为 string，展示/求和/图表入参走 utils/money.ts 归一。
+// 提交 DTO 内 Decimal 字段同样按 string 上送，缺值整键省略（严禁伪造 ''/0 冒充未填）。
 
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import { numberToDecimalWire } from '@/utils/money';
 
 /** 报价单状态（后端 DTO 7 种） */
 export type QuotationStatus =
@@ -22,34 +26,40 @@ export type CustomerLevel = 'VIP' | 'NORMAL';
 export type TermType = 'logistics' | 'payment' | 'sample' | 'inspection';
 
 /**
- * 阶梯定价项：后端 tier_pricing 字段为 JSON 数组，每项描述一个数量区间的单价
+ * 阶梯定价项：后端 tier_pricing 字段为 JSON 数组（Option<serde_json::Value>），
+ * 每项描述一个数量区间的单价；对应单元 Rust 类型见 quotation_pricing_service.rs::TierPrice
+ * （min_quantity/max_quantity/unit_price 皆 Decimal），出参形态为 JSON 十进制字符串。
  */
 export interface TierPricingItem {
-  /** 起订数量（含） */
-  min_quantity: number;
-  /** 截止数量（含，可选 -1 表示无上限） */
-  max_quantity?: number;
-  /** 单价（不含税） */
-  unit_price: number;
-  /** 单价（含税） */
-  unit_price_with_tax?: number;
+  /** 起订数量（含）；Rust TierPrice.min_quantity: Decimal */
+  min_quantity: string;
+  /** 截止数量（含）；Rust TierPrice.max_quantity: Option<Decimal>；无上限省略键 */
+  max_quantity?: string;
+  /** 单价（不含税）；Rust TierPrice.unit_price: Decimal */
+  unit_price: string;
+  /** 单价（含税）；JSON 扩展键，与 unit_price 同 DecimalWire 口径 */
+  unit_price_with_tax?: string;
 }
 
-/** 创建报价单 DTO（与后端 CreateQuotationDto 一致） */
+/** 创建报价单 DTO（与后端 quotation_create_dto.rs::CreateQuotationDto 一致） */
 export interface CreateQuotationDto {
   customer_id: number;
   sales_user_id: number;
   quotation_date: string;
   valid_until: string;
   currency: CurrencyCode;
-  exchange_rate: number;
+  /** Rust: Decimal */
+  exchange_rate: string;
   base_currency: string;
   price_terms: PriceTerms;
   incoterms_version?: string;
   incoterm_location?: string;
   tax_inclusive: boolean;
-  tax_rate: number;
-  moq?: number;
+  /** Rust: Decimal */
+  tax_rate: string;
+  /** Rust: Option<Decimal>；缺值省略键 */
+  moq?: string;
+  /** Rust: Option<i32> */
   lead_time_days?: number;
   customer_level?: CustomerLevel;
   notes?: string;
@@ -57,55 +67,72 @@ export interface CreateQuotationDto {
   terms?: CreateQuotationTermDto[];
 }
 
-/** 创建报价单明细 DTO */
+/** 创建报价单明细 DTO（Rust: CreateQuotationItemDto） */
 export interface CreateQuotationItemDto {
   product_id: number;
+  /** Rust: Option<i64> */
   color_id?: number;
   specification?: string;
   unit: string;
-  quantity: number;
-  unit_price: number;
-  unit_price_with_tax: number;
+  /** Rust: Decimal */
+  quantity: string;
+  /** Rust: Decimal */
+  unit_price: string;
+  /** Rust: Decimal */
+  unit_price_with_tax: string;
   tier_pricing?: TierPricingItem[];
-  discount_rate?: number;
+  /** Rust: Option<Decimal>；缺值省略键 */
+  discount_rate?: string;
   notes?: string;
 }
 
-/** 创建贸易条款 DTO */
+/** 创建贸易条款 DTO（Rust: CreateQuotationTermDto，无 Decimal 字段） */
 export interface CreateQuotationTermDto {
   term_type: TermType;
   term_key: string;
   term_value: string;
+  /** Rust: i32 */
   sequence: number;
 }
 
-/** 报价单响应 DTO */
+/** 报价单响应 DTO（Rust: QuotationResponseDto） */
 export interface QuotationResponseDto {
+  /** Rust: i64 */
   id: number;
   quotation_no: string;
+  /** Rust: i32 */
   customer_id: number;
   /** 后端 QuotationResponseDto 仅 customer_id，需后端 JOIN customers 补 customer_name */
   customer_name: string | null;
+  /** Rust: i64 */
   sales_user_id: number;
   /** 后端 QuotationResponseDto 仅 sales_user_id，需后端 JOIN users 补 sales_user_name */
   sales_user_name: string | null;
   quotation_date: string;
   valid_until: string;
   currency: string;
-  exchange_rate: number;
+  /** Rust: Decimal */
+  exchange_rate: string;
   base_currency?: string;
   price_terms: string;
   incoterms_version?: string;
   incoterm_location?: string;
   tax_inclusive: boolean;
-  tax_rate: number;
-  moq?: number;
+  /** Rust: Decimal */
+  tax_rate: string;
+  /** Rust: Option<Decimal> */
+  moq?: string;
+  /** Rust: Option<i32> */
   lead_time_days?: number;
   customer_level?: string;
   status: QuotationStatus;
-  subtotal: number;
-  tax_amount: number;
-  total_amount: number;
+  /** Rust: Decimal */
+  subtotal: string;
+  /** Rust: Decimal */
+  tax_amount: string;
+  /** Rust: Decimal */
+  total_amount: string;
+  /** Rust: Option<i64> */
   approved_by?: number;
   approved_at?: string;
   /** 后端 QuotationResponseDto.approved_by_name（Option<String>，service.attach_names 按 approved_by 富化 users.real_name；非实体列） */
@@ -114,6 +141,7 @@ export interface QuotationResponseDto {
   approval_reason?: string | null;
   /** 后端 QuotationResponseDto.rejection_reason（Option<String>，落 sales_quotations.rejection_reason 列） */
   rejection_reason?: string | null;
+  /** Rust: Option<i64> */
   converted_sales_order_id?: number;
   converted_at?: string;
   notes?: string;
@@ -123,76 +151,104 @@ export interface QuotationResponseDto {
   updated_at: string;
 }
 
-/** 报价单明细响应 DTO */
+/** 报价单明细响应 DTO（Rust: QuotationItemResponseDto） */
 export interface QuotationItemResponseDto {
+  /** Rust: i64 */
   id: number;
+  /** Rust: i64 */
   product_id: number;
   /** 后端 QuotationItemResponseDto 仅 product_id，需后端 JOIN products 补 product_name */
   product_name: string | null;
   /** 后端 QuotationItemResponseDto 仅 product_id，需后端 JOIN products 补 product_code */
   product_code: string | null;
+  /** Rust: Option<i64> */
   color_id?: number;
   color_code?: string;
   pantone_code?: string;
   cncs_code?: string;
   specification?: string;
   unit: string;
-  quantity: number;
-  unit_price: number;
-  unit_price_with_tax: number;
-  amount: number;
-  amount_with_tax: number;
+  /** Rust: Decimal */
+  quantity: string;
+  /** Rust: Decimal */
+  unit_price: string;
+  /** Rust: Decimal */
+  unit_price_with_tax: string;
+  /** Rust: Decimal */
+  amount: string;
+  /** Rust: Decimal */
+  amount_with_tax: string;
   tier_pricing?: TierPricingItem[];
-  discount_rate?: number;
-  discount_amount?: number;
+  /** Rust: Option<Decimal> */
+  discount_rate?: string;
+  /** Rust: Option<Decimal> */
+  discount_amount?: string;
   notes?: string;
+  /** Rust: i32 */
   sequence: number;
 }
 
-/** 贸易条款响应 DTO */
+/** 贸易条款响应 DTO（Rust: QuotationTermResponseDto，无 Decimal 字段） */
 export interface QuotationTermResponseDto {
+  /** Rust: i64 */
   id: number;
   term_type: TermType;
   term_key: string;
   term_value: string;
+  /** Rust: i32 */
   sequence: number;
 }
 
 /** 列表查询参数 */
 export interface QuotationListQuery {
+  /** Rust: Option<u64> */
   page?: number;
+  /** Rust: Option<u64> */
   page_size?: number;
   status?: QuotationStatus;
+  /** Rust: Option<i32> */
   customer_id?: number;
 }
 
-/** 价格预计算请求 */
+/** 价格预计算请求（Rust: PricingContext） */
 export interface CalculatePriceRequest {
+  /** Rust: i64 */
   customer_id: number;
   customer_level: CustomerLevel;
+  /** Rust: i64 */
   product_id: number;
+  /** Rust: Option<i64> */
   color_id?: number;
-  quantity: number;
+  /** Rust: Decimal */
+  quantity: string;
   currency: CurrencyCode;
   quotation_date: string;
 }
 
-/** 价格预计算响应 */
+/** 价格预计算响应（Rust: PricingResult / TierPrice） */
 export interface CalculatePriceResponse {
-  unit_price: number;
-  unit_price_with_tax: number;
+  /** Rust: Decimal */
+  unit_price: string;
+  /** Rust: Decimal */
+  unit_price_with_tax: string;
   tier_breakdown: Array<{
-    min_quantity: number;
-    max_quantity?: number;
-    unit_price: number;
+    /** Rust: Decimal */
+    min_quantity: string;
+    /** Rust: Option<Decimal> */
+    max_quantity?: string;
+    /** Rust: Decimal */
+    unit_price: string;
   }>;
-  discount_applied: number;
-  final_amount: number;
+  /** Rust: Decimal */
+  discount_applied: string;
+  /** Rust: Decimal */
+  final_amount: string;
   price_source: 'color_price' | 'product_price' | 'promotion';
 }
 
-/** 转销售订单响应 */
+/** 转销售订单响应（Rust: SalesOrderResponse；无 Decimal 字段） */
 export interface ConvertResponse {
+  /** Rust: i64 */
   id: number;
   order_no: string;
   status: string;
@@ -405,3 +461,111 @@ export const TERM_TYPE_LABELS: Record<TermType, string> = {
   sample: '样品条款',
   inspection: '检验条款',
 };
+
+// ---------------------------------------------------------------------------
+// 编辑态（表单控件持数值 number）与提交边界（写线 string）
+// 后端 Decimal 未启 serde-floats，提交/回读线格式都是十进制字符串；
+// el-input-number 只能绑定数值，因此表单内部保持 number，最终提交前经 toWire 构造器转换。
+// 缺值语义：可选字段 undefined ⇒ 省略键（严禁伪造 ''/0 冒充未填）；
+// NOT NULL 字段（quantity/unit_price/unit_price_with_tax/tax_rate/exchange_rate）
+// 由表单校验拦截，提交前必然有效数值。
+// ---------------------------------------------------------------------------
+
+/** 阶梯定价项编辑态 */
+export interface TierPricingEditItem {
+  min_quantity: number;
+  max_quantity?: number;
+  unit_price: number;
+  unit_price_with_tax?: number;
+}
+
+/** 报价明细行编辑态 */
+export interface QuotationItemEditForm {
+  product_id?: number;
+  color_id?: number;
+  specification?: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  unit_price_with_tax: number;
+  tier_pricing?: TierPricingEditItem[];
+  discount_rate?: number;
+  notes?: string;
+}
+
+/** 报价主表编辑态 */
+export interface QuotationEditForm {
+  customer_id?: number;
+  sales_user_id: number;
+  quotation_date: string;
+  valid_until: string;
+  currency: CurrencyCode;
+  exchange_rate: number;
+  base_currency: string;
+  price_terms: PriceTerms;
+  incoterms_version?: string;
+  incoterm_location?: string;
+  tax_inclusive: boolean;
+  tax_rate: number;
+  moq?: number;
+  lead_time_days?: number;
+  customer_level?: CustomerLevel;
+  notes?: string;
+  items: QuotationItemEditForm[];
+  terms?: CreateQuotationTermDto[];
+}
+
+function tierPricingToWire(items: TierPricingEditItem[]): TierPricingItem[] {
+  return items.map(it => ({
+    min_quantity: numberToDecimalWire(it.min_quantity) as string,
+    ...(it.max_quantity !== undefined
+      ? { max_quantity: numberToDecimalWire(it.max_quantity)! }
+      : {}),
+    unit_price: numberToDecimalWire(it.unit_price) as string,
+    ...(it.unit_price_with_tax !== undefined
+      ? { unit_price_with_tax: numberToDecimalWire(it.unit_price_with_tax)! }
+      : {}),
+  }));
+}
+
+/** 明细行编辑态 → 后端 CreateQuotationItemDto（写线 string；可选字段缺值省略键） */
+export function quotationItemToWire(row: QuotationItemEditForm): CreateQuotationItemDto {
+  return {
+    product_id: row.product_id as number,
+    ...(row.color_id !== undefined ? { color_id: row.color_id } : {}),
+    ...(row.specification !== undefined ? { specification: row.specification } : {}),
+    unit: row.unit,
+    quantity: numberToDecimalWire(row.quantity) as string,
+    unit_price: numberToDecimalWire(row.unit_price) as string,
+    unit_price_with_tax: numberToDecimalWire(row.unit_price_with_tax) as string,
+    ...(row.tier_pricing ? { tier_pricing: tierPricingToWire(row.tier_pricing) } : {}),
+    ...(row.discount_rate !== undefined
+      ? { discount_rate: numberToDecimalWire(row.discount_rate)! }
+      : {}),
+    ...(row.notes !== undefined ? { notes: row.notes } : {}),
+  };
+}
+
+/** 报价主表编辑态 → 后端 CreateQuotationDto（写线 string；可选字段缺值省略键） */
+export function quotationToWire(form: QuotationEditForm): CreateQuotationDto {
+  return {
+    customer_id: form.customer_id as number,
+    sales_user_id: form.sales_user_id,
+    quotation_date: form.quotation_date,
+    valid_until: form.valid_until,
+    currency: form.currency,
+    exchange_rate: numberToDecimalWire(form.exchange_rate) as string,
+    base_currency: form.base_currency,
+    price_terms: form.price_terms,
+    ...(form.incoterms_version !== undefined ? { incoterms_version: form.incoterms_version } : {}),
+    ...(form.incoterm_location !== undefined ? { incoterm_location: form.incoterm_location } : {}),
+    tax_inclusive: form.tax_inclusive,
+    tax_rate: numberToDecimalWire(form.tax_rate) as string,
+    ...(form.moq !== undefined ? { moq: numberToDecimalWire(form.moq)! } : {}),
+    ...(form.lead_time_days !== undefined ? { lead_time_days: form.lead_time_days } : {}),
+    ...(form.customer_level !== undefined ? { customer_level: form.customer_level } : {}),
+    ...(form.notes !== undefined ? { notes: form.notes } : {}),
+    items: form.items.map(quotationItemToWire),
+    ...(form.terms ? { terms: form.terms } : {}),
+  };
+}

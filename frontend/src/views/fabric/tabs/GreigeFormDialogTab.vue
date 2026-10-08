@@ -107,6 +107,7 @@ import {
 } from '@/api/greige-fabric';
 import type { Supplier } from '@/api/supplier';
 import { logger } from '@/utils/logger';
+import { decimalWireToNumber } from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -179,9 +180,9 @@ watch(
         formData.fabric_name = row.fabric_name ?? '';
         formData.fabric_type = row.fabric_type ?? '';
         formData.supplier_id = row.supplier_id ?? undefined;
-        // 后端 Decimal 出参为字符串，回填输入框前 Number() 归一
-        formData.width = row.width != null ? Number(row.width) : 0;
-        formData.gram_weight = row.gram_weight != null ? Number(row.gram_weight) : 0;
+        // 后端 Decimal 出参为十进制字符串，回填 el-input-number 前用 utils/money 归一
+        formData.width = row.width != null ? decimalWireToNumber(row.width) : 0;
+        formData.gram_weight = row.gram_weight != null ? decimalWireToNumber(row.gram_weight) : 0;
         formData.composition = row.composition ?? '';
         // 后端状态列只会是 GREIGE_STATUS 中文 token；词表外取值属脏数据，不静默改写
         formData.status = (row.status as GreigeStatusValue) ?? GREIGE_STATUS.IN_STOCK;

@@ -19,3 +19,44 @@ export function sumDecimalAmounts(values: readonly (string | number | null | und
     return total + num;
   }, 0);
 }
+
+/**
+ * 单值归一：后端 rust_decimal 出参（十进制字符串）转前端数值以参与四则运算/图表入参。
+ * 与 sumDecimalAmounts 同纪律：null/undefined/'' 视为「无值」返回 0，非数值脏数据显式抛出。
+ * 调用方：需要把后端 DecimalWire 字符串作为数值使用的视图（表格列计算、图表数据、比较）。
+ * 用途窄于 sumDecimalAmounts（后者只做「合计」）；单值参与运算时用它，别在组件里各自 parseFloat。
+ */
+export function decimalWireToNumber(value: string | number | null | undefined): number {
+  if (value === null || value === undefined || value === '') return 0;
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    throw new Error(`decimalWireToNumber 收到非数值金额: ${String(value)}`);
+  }
+  return num;
+}
+
+/**
+ * 显示格式化：把后端 rust_decimal 出参（十进制字符串）按最小/最大小数位统一格式化。
+ * 空值（null/undefined/''）显示为「0.00」（2 位默认，按 fractionDigits 缩放），避免因缺键崩溃。
+ * 调用方：表格列 formatter、详情页金额展示；不参与落库回写。
+ */
+export function formatDecimalAmount(
+  value: string | number | null | undefined,
+  fractionDigits = 2
+): string {
+  return decimalWireToNumber(value).toLocaleString('zh-CN', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
+
+/**
+ * 写线格式（编辑态 number → DecimalWire string）。
+ * undefined = 缺值 ⇒ 返回 undefined，由载荷构造处省略键（严禁伪造 0/'' 上送）；
+ * 0 是合法业务值，会被如实转成 "0" 与「缺值」可区分。
+ * 后端 rust_decimal 的 visit_str 精确接收十进制与科学计数法两种字符串形态。
+ * 调用方：表单提交前把 el-input-number 数值转字符串上送（见 api/quotation.ts CreateQuotationDto）。
+ */
+export function numberToDecimalWire(value: number | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
+}

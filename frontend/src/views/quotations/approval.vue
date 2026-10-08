@@ -106,6 +106,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
+import { formatDecimalAmount } from '@/utils/money';
 import {
   getQuotation,
   submitQuotation,
@@ -217,12 +218,9 @@ async function handleConvert() {
   }
 }
 
-function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00';
-  return Number(value).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** 金额展示：后端 rust_decimal 出参形态是 JSON 十进制字符串，须经 utils/money 归一后展示 */
+function formatAmount(value?: string | null): string {
+  return formatDecimalAmount(value);
 }
 
 onMounted(loadData);
