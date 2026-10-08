@@ -346,12 +346,7 @@ impl SalesService {
 
         // 行级数据权限校验（IDOR 防护）：owner=created_by，dept=order.department_id
         //（m_rls_dept_domain，与 RLS 策略口径一致）
-        Self::validate_order_data_scope(
-            data_scope,
-            order.created_by,
-            order.department_id,
-            order_id,
-        )?;
+        Self::validate_order_data_scope(data_scope, order.created_by, order.department_id)?;
 
         let customer = order
             .find_related(crate::models::customer::Entity)
@@ -393,14 +388,13 @@ impl SalesService {
         data_scope: Option<&DataScopeContext>,
         created_by: Option<i32>,
         department_id: Option<i32>,
-        order_id: i32,
     ) -> Result<(), AppError> {
         if let Some(ctx) = data_scope {
             if !crate::utils::data_scope::check_resource_owner(ctx, created_by, department_id) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问销售订单 {}（数据范围限制）",
-                    order_id
-                )));
+                // 权限拒绝走固定脱敏常量：记录 ID 只进内部日志，不进用户可见文案
+                return Err(AppError::permission_denied(
+                    "无权访问销售订单（数据范围限制）".to_string(),
+                ));
             }
         }
         Ok(())
