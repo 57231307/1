@@ -157,10 +157,11 @@ fn aftersales_err(
 
 /// GET /api/v1/erp/custom-orders - 列表
 pub async fn list_custom_orders(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListCustomOrdersQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<CustomOrderListItem>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 深翻页防护：page 钳位 1..=1000
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -172,6 +173,7 @@ pub async fn list_custom_orders(
             query.status,
             query.customer_id,
             query.keyword,
+            Some(&ctx),
         )
         .await
         .map_err(crud_err)?;
@@ -394,8 +396,21 @@ pub async fn cancel_custom_order(
     Path(id): Path<i64>,
     Json(dto): Json<CancelCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    let user_id = auth.user_id as i64;
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
+    // 行级归属门（写口，先于 service 状态门）：取消是状态转移（→ cancelled），必须先证明
+    // 本行归属；否则同 RBAC 键的他人可凭 order id 取消别人的定制单。本域无 crm 那套
+    // cross_owner_write 代操作键，跨 owner 写按现有口径 check_resource_owner 拒 Self/Dept
+    // 水平越权（对齐同域已修 update_custom_order；All 跨 owner 代取消键缺口登记交主编排）。
+    // 门在 service 落库点之前——越权不会触达 cancel 的事务，订单状态零漂移。
+    let order = service.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let user_id = auth.user_id as i64;
     let updated = service.cancel(id, dto, user_id).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: updated.id,
@@ -430,6 +445,18 @@ pub async fn advance_custom_order(
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
     // 备注与目标阶段均选填 ⇒ 体本身选填（OptionalJson 语义表：缺体/JSON 头空体都是合法输入），
     // 状态门与非法跳跃拒绝在 service 事务内经唯一权威转移表判定。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    // 行级归属门（写口，先于 service 状态机门）：推进改主单状态并联动工艺节点，必须先证归属；
+    // 本域无 cross_owner_write 代操作键，按现有口径 check_resource_owner 拒 Self/Dept 越权
+    // （对齐同域 update_custom_order），All 跨 owner 代推进键缺口登记交主编排。
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderStateService::from_state(&state);
     let (notes, to_status) = match req {
         Some(r) => (r.notes, r.to_status),
@@ -498,10 +525,29 @@ pub async fn add_process_node(
 pub async fn update_process_node(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path((_oid, nid)): Path<(i64, i64)>,
+    Path((oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<UpdateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
     // 节点更新的动作人取会话身份，写 process_nodes.operator_id 留痕（同 advance_node 范式）。
+    // 归属链校验（同 delete_contact 型）：父单存在→父单归属→节点存在→节点实际归属==路径父 id，
+    // 堵"配对 oid/nid 绕过归属"；本域无 cross_owner_write 键，跨 owner 写按现有口径
+    // check_resource_owner 拒 Self/Dept，门在 service 落库点之前，越权零写入。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let node_row = crate::models::process_node::Entity::find_by_id(nid)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("工艺节点不存在"))?;
+    if node_row.custom_order_id != oid {
+        return Err(AppError::not_found("工艺节点不存在"));
+    }
     let service = CustomOrderProcessService::from_state(&state);
     let node = service
         .update_node(nid, dto, auth.user_id)
@@ -526,10 +572,28 @@ pub async fn update_process_node(
 pub async fn advance_process_node(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path((_oid, nid)): Path<(i64, i64)>,
+    Path((oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AdvanceNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
     // 节点推进的动作人取会话身份，同时写 process_log.operator_id 留痕。
+    // 归属链校验（同 delete_contact 型）：父单存在→父单归属→节点存在→节点实际归属==路径父 id，
+    // 堵"配对 oid/nid 绕过归属"；推进同时落 process_log，越权须整体早退零写入零日志。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let node_row = crate::models::process_node::Entity::find_by_id(nid)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("工艺节点不存在"))?;
+    if node_row.custom_order_id != oid {
+        return Err(AppError::not_found("工艺节点不存在"));
+    }
     let service = CustomOrderProcessService::from_state(&state);
     let node = service
         .advance_node(nid, dto, auth.user_id)
@@ -715,6 +779,26 @@ pub async fn resolve_quality_issue(
     Path(id): Path<i64>,
     Json(dto): Json<ResolveQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    // 归属链校验（同 update_after_sales 型）：路径 id 是异常行 id（无父单 id 在路径），
+    // 必须先取异常行 → 上溯父定制单 → 过父单归属门，不能只看异常行存在。
+    // service.resolve_issue 按 id 取行、无归属判定，且状态门(closed)+update_with_audit 落库
+    // 都在事务内，门须前置——越权不触达 resolve，异常状态零漂移。
+    let issue_row = crate::models::quality_issue::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("质量异常不存在"))?;
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let parent_order = crud_svc
+        .get_by_id(issue_row.custom_order_id)
+        .await
+        .map_err(crud_err)?;
+    let owner = parent_order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderQualityService::from_state(&state);
     // 服务层返回的已是 AppError（错误族在 service 内定好），此处 ? 直接透传，
     // 不经 map_err(quality_err) 二次映射。
@@ -854,10 +938,29 @@ pub async fn update_after_sales(
 pub async fn add_node_log(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path((_oid, nid)): Path<(i64, i64)>,
+    Path((oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AddProcessLogDto>,
 ) -> Result<Json<ApiResponse<ProcessLogInfo>>, AppError> {
     // 日志的 operator_id 是「谁记的这条日志」，取会话身份。
+    // 归属链校验（同 delete_contact 型）：service.add_log 连节点都不查、直接按 nid 落日志，
+    // 故 handler 必须自证「父单存在→父单归属→节点存在→节点实际归属==路径父 id」，
+    // 否则任意持键用户可往他人单任意 nid 塞日志。越权早退，零日志写入。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let node_row = crate::models::process_node::Entity::find_by_id(nid)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("工艺节点不存在"))?;
+    if node_row.custom_order_id != oid {
+        return Err(AppError::not_found("工艺节点不存在"));
+    }
     let service = CustomOrderProcessService::from_state(&state);
     let log = service
         .add_log(nid, dto, auth.user_id)

@@ -22,6 +22,7 @@ use crate::models::custom_order_create_dto::{
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
 use crate::models::status::custom_order as co_status;
 use crate::models::status::process_node as node_status;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -193,6 +194,12 @@ impl CustomOrderCrudService {
 
     /// 列表查询（分页 + 过滤）
     /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 clamp(1, 1000) 防 DoS（恶意请求 page=999999 不会导致超大偏移查询）。
+    /// 分页列表（带行级数据权限）。
+    ///
+    /// 本表无 department_id 列，Dept 分支按「归属人 ∈ 可见部门成员集合」下推，与
+    /// `build_data_scope_condition` 同函数同语义（该函数的 Dept 分支不使用部门列，
+    /// 故两个列参数同传 `created_by`，与 ai_extend_service 同范式）。过滤在查询构造处，
+    /// `total` 与可见集一致；`created_by` 为 NULL 的历史行按最小权限不可见。
     pub async fn list(
         &self,
         page: u64,
@@ -200,8 +207,18 @@ impl CustomOrderCrudService {
         status: Option<String>,
         customer_id: Option<i64>,
         keyword: Option<String>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<custom_order::Model>, u64), CrudError> {
         let mut query = CustomOrderEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                custom_order::Column::CreatedBy,
+                custom_order::Column::CreatedBy,
+            );
+        }
 
         if let Some(s) = status {
             query = query.filter(custom_order::Column::Status.eq(s));
