@@ -15,10 +15,11 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 
+use crate::models::status::sales_fabric_order as fabric_status;
 use crate::models::{sales_order, sales_order_item};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
@@ -258,22 +259,65 @@ impl SalesService {
     }
 
     /// 面料行业版订单审核（pending → approved）
-    pub async fn approve_fabric_order(&self, id: i32) -> Result<sales_order::Model, AppError> {
+    /// approved_by 存审批人用户 ID，由 handler 从服务端会话取，请求体不承载身份。
+    pub async fn approve_fabric_order(
+        &self,
+        id: i32,
+        approved_by: i32,
+    ) -> Result<sales_order::Model, AppError> {
         let mut order: sales_order::ActiveModel = sales_order::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?
             .into();
 
-        order.status = Set("approved".to_string());
-        order.approved_by = Set(None);
+        order.status = Set(fabric_status::APPROVED.to_string());
+        order.approved_by = Set(Some(approved_by));
         order.approved_at = Set(Some(chrono::Utc::now()));
         order.updated_at = Set(chrono::Utc::now());
 
-        let updated = order
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::bad_request(format!("审核订单失败：{}", e)))?;
+        let updated = order.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 面料行业版订单拒绝（pending → rejected）
+    pub async fn reject_fabric_order(
+        &self,
+        id: i32,
+        reason: String,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        let order = sales_order::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("订单不存在"))?;
+
+        if order.status != fabric_status::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审核状态的订单可以拒绝，当前状态：{}",
+                order.status
+            )));
+        }
+
+        let mut active: sales_order::ActiveModel = order.into();
+        active.status = Set(fabric_status::REJECTED.to_string());
+        active.rejected_reason = Set(Some(reason));
+        active.approved_by = Set(Some(user_id));
+        active.approved_at = Set(Some(chrono::Utc::now()));
+        active.updated_at = Set(chrono::Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 

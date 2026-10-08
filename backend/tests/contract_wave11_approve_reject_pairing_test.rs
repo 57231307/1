@@ -21,11 +21,14 @@
 mod test_common;
 
 use bingxi_backend::container::AppState;
+use bingxi_backend::handlers::sales_fabric_order_handler;
 use bingxi_backend::handlers::sales_price_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::middleware::permission::{invalidate_permission_cache, permission_middleware};
-use bingxi_backend::models::status::price_approval;
-use bingxi_backend::models::{product, role, role_permission, sales_price, user};
+use bingxi_backend::models::status::{master_data, price_approval, sales_fabric_order};
+use bingxi_backend::models::{
+    customer, product, role, role_permission, sales_order, sales_price, user,
+};
 use bingxi_backend::services::init_service::{InitService, PERMISSION_RESOURCES};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
@@ -44,6 +47,14 @@ const RESOURCES_WITH_REJECT_ENDPOINT: &[(&str, &str)] = &[
     (
         "orders",
         "src/routes/sales.rs: /orders/{id}/reject（sales 域 orders 保留原名，不消歧）",
+    ),
+    (
+        "fabric-orders",
+        "src/routes/sales.rs: /fabric-orders/{id}/reject",
+    ),
+    (
+        "dye-recipes",
+        "src/routes/production.rs: /dye-recipes/{id}/reject",
     ),
     (
         "sales-returns",
@@ -229,6 +240,7 @@ fn endpoint_fact_table_matches_route_sources() {
     // 有 reject 端点侧：字面必须在场
     for literal in [
         "\"/orders/{id}/reject\"",
+        "\"/fabric-orders/{id}/reject\"",
         "\"/sales-contracts/{id}/reject\"",
         "\"/sales-prices/{id}/reject\"",
     ] {
@@ -257,12 +269,8 @@ fn endpoint_fact_table_matches_route_sources() {
     // 缺席断言同时是功能缺口的显式登记——补端点时必须同步把资源加进
     // RESOURCES_WITH_REJECT_ENDPOINT 并补矩阵 reject 行，否则本用例红。
     assert!(
-        !sales.contains("\"/fabric-orders/{id}/reject\""),
-        "未闭环事实变更：fabric-orders 已出现 reject 端点，须同步登记事实表与矩阵 reject 行"
-    );
-    assert!(
-        !production.contains("\"/dye-recipes/{id}/reject\""),
-        "未闭环事实变更：dye-recipes 已出现 reject 端点，须同步登记事实表与矩阵 reject 行"
+        production.contains("\"/dye-recipes/{id}/reject\""),
+        "routes/production.rs 必须注册 /dye-recipes/{{id}}/reject，否则事实表里的 dye-recipes reject 端点是虚报"
     );
     assert!(
         !purchase.contains("\"/receipts/{id}/approve\"")
@@ -272,20 +280,18 @@ fn endpoint_fact_table_matches_route_sources() {
 }
 
 /// 未闭环清单（如实点名，不为凑对称造端点）：
-/// ① `fabric-orders`：矩阵有显式 approve 行、只有 approve 端点（routes/sales.rs），无 reject 端点；
-/// ② `dye-recipes`：dye_recipe_master 显式 approve 行 + `/dye-recipes/{id}/approve` 端点，无 reject 端点；
-/// ③ `purchase-receipts`：矩阵有 approve 行但**连 approve 端点都不存在**
+/// ① `purchase-receipts`：矩阵有 approve 行但**连 approve 端点都不存在**
 ///    （收货确认走 `/receipts/{id}/confirm`，`confirm` 是另一动作键）——该 approve 行本身悬空。
-/// 本用例钉的是"上述资源不得混入 reject 事实表"（混入即虚报端点），并钉 ①② 的 approve 行仍在册。
+/// `fabric-orders` 与 `dye-recipes` 已闭环（reject 端点在册，事实表已登记）。
 #[test]
 fn unpaired_resources_are_registered_not_fabricated() {
     assert!(
-        !has_reject_endpoint("fabric-orders"),
-        "fabric-orders 无 reject 端点，禁止为凑成对把它虚报进事实表"
+        has_reject_endpoint("fabric-orders"),
+        "fabric-orders reject 端点已闭环，须登记在事实表"
     );
     assert!(
-        !has_reject_endpoint("dye-recipes"),
-        "dye-recipes 无 reject 端点，禁止为凑成对把它虚报进事实表"
+        has_reject_endpoint("dye-recipes"),
+        "dye-recipes reject 端点已在册（词表/CHECK/rejected_reason 列/service/handler/routes 全套），须登记在事实表"
     );
     assert!(
         !has_reject_endpoint("purchase-receipts"),
@@ -606,5 +612,413 @@ async fn reject_key_really_passes_and_missing_key_really_403() {
         .await
         .unwrap();
     invalidate_permission_cache(grantee);
+    invalidate_permission_cache(stranger);
+}
+
+// ---------------------------------------------------------------------------
+// 五、fabric-orders reject 行为锁（service 层正向/负例 + RBAC 门层反向）
+// ---------------------------------------------------------------------------
+
+const FO_SEED_USER_ID: i32 = 9482;
+const FO_SEED_CUSTOMER_ID: i32 = 9483;
+const FO_GRANTEE_ROLE: &str = "it_w11_fo_grantee";
+const FO_STRANGER_ROLE: &str = "it_w11_fo_stranger";
+
+fn fo_now() -> chrono::DateTime<chrono::Utc> {
+    chrono::Utc::now()
+}
+
+/// 种一行客户（满足 sales_orders.customer_id 外键前提）
+async fn seed_fo_customer(db: &DatabaseConnection) -> i32 {
+    let m = customer::ActiveModel {
+        id: Set(FO_SEED_CUSTOMER_ID),
+        customer_code: Set("CUS-W11-FO".to_string()),
+        customer_name: Set("面料拒绝锁客户".to_string()),
+        customer_type: Set("retail".to_string()),
+        status: Set(master_data::ACTIVE.to_string()),
+        owner_id: Set(FO_SEED_USER_ID),
+        created_at: Set(fo_now()),
+        updated_at: Set(fo_now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("种子客户失败: {e}"));
+    m.id
+}
+
+/// 种一行 status=pending 的面料订单（sales_orders 表）返回 id
+async fn seed_pending_fabric_order(db: &DatabaseConnection, created_by: i32) -> i32 {
+    let order = sales_order::ActiveModel {
+        order_no: Set(format!(
+            "SO-FO-REJECT-{}",
+            chrono::Utc::now().timestamp_millis()
+        )),
+        customer_id: Set(FO_SEED_CUSTOMER_ID),
+        order_date: Set(fo_now()),
+        status: Set(sales_fabric_order::PENDING.to_string()),
+        subtotal: Set(rust_decimal::Decimal::new(10000, 2)),
+        tax_amount: Set(rust_decimal::Decimal::ZERO),
+        discount_amount: Set(rust_decimal::Decimal::ZERO),
+        shipping_cost: Set(rust_decimal::Decimal::ZERO),
+        total_amount: Set(rust_decimal::Decimal::new(10000, 2)),
+        paid_amount: Set(rust_decimal::Decimal::ZERO),
+        balance_amount: Set(rust_decimal::Decimal::new(10000, 2)),
+        created_by: Set(Some(created_by)),
+        created_at: Set(fo_now()),
+        updated_at: Set(fo_now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("种子 pending 面料订单失败: {e}"));
+    order.id
+}
+
+/// 种一行 status=approved 的面料订单（用于非法前置状态负例）
+async fn seed_approved_fabric_order(db: &DatabaseConnection, created_by: i32) -> i32 {
+    let order = sales_order::ActiveModel {
+        order_no: Set(format!(
+            "SO-FO-APPROVED-{}",
+            chrono::Utc::now().timestamp_millis()
+        )),
+        customer_id: Set(FO_SEED_CUSTOMER_ID),
+        order_date: Set(fo_now()),
+        status: Set(sales_fabric_order::APPROVED.to_string()),
+        subtotal: Set(rust_decimal::Decimal::new(20000, 2)),
+        tax_amount: Set(rust_decimal::Decimal::ZERO),
+        discount_amount: Set(rust_decimal::Decimal::ZERO),
+        shipping_cost: Set(rust_decimal::Decimal::ZERO),
+        total_amount: Set(rust_decimal::Decimal::new(20000, 2)),
+        paid_amount: Set(rust_decimal::Decimal::ZERO),
+        balance_amount: Set(rust_decimal::Decimal::new(20000, 2)),
+        created_by: Set(Some(created_by)),
+        created_at: Set(fo_now()),
+        updated_at: Set(fo_now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("种子 approved 面料订单失败: {e}"));
+    order.id
+}
+
+fn fo_app_with_role(db: Arc<DatabaseConnection>, role_id: i32, user_id: i32) -> axum::Router {
+    let state = AppState {
+        db: db.clone(),
+        ..Default::default()
+    };
+    async fn inject_auth(
+        auth: axum::extract::State<AuthContext>,
+        mut request: axum::http::Request<axum::body::Body>,
+        next: axum::middleware::Next,
+    ) -> axum::response::Response {
+        request.extensions_mut().insert(auth.0);
+        next.run(request).await
+    }
+    let auth = AuthContext {
+        user_id,
+        username: "it_w11_fo".to_string(),
+        role_id: Some(role_id),
+        department_id: None,
+        data_scope: Some("all".to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    };
+    axum::Router::new()
+        .route(
+            "/api/v1/erp/sales/fabric-orders/{id}/reject",
+            axum::routing::post(sales_fabric_order_handler::reject_fabric_order),
+        )
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            permission_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(auth, inject_auth))
+        .with_state(state)
+}
+
+async fn post_fo_reject(
+    app: &axum::Router,
+    id: i32,
+    reason: &str,
+) -> (axum::http::StatusCode, Value) {
+    use tower::ServiceExt;
+    let resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method(axum::http::Method::POST)
+                .uri(format!("/api/v1/erp/sales/fabric-orders/{id}/reject"))
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(
+                    json!({ "reason": reason }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    let text = String::from_utf8_lossy(&bytes).to_string();
+    (
+        status,
+        serde_json::from_str(&text).unwrap_or(Value::String(text)),
+    )
+}
+
+/// 正向：持 fabric-orders:reject 键 + pending 行 → 200，status 翻 rejected，rejected_reason 落库
+#[tokio::test]
+async fn fabric_order_reject_flips_status_and_stores_reason() {
+    let db = Arc::new(test_common::setup_test_db().await);
+
+    let _ = role_permission::Entity::delete_many()
+        .filter(
+            role_permission::Column::RoleId.is_in(
+                role::Entity::find()
+                    .filter(role::Column::Code.is_in([FO_GRANTEE_ROLE, FO_STRANGER_ROLE]))
+                    .all(db.as_ref())
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|r| r.id)
+                    .collect::<Vec<i32>>(),
+            ),
+        )
+        .exec(db.as_ref())
+        .await;
+    role::Entity::delete_many()
+        .filter(role::Column::Code.is_in([FO_GRANTEE_ROLE, FO_STRANGER_ROLE]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+
+    user::ActiveModel {
+        id: Set(FO_SEED_USER_ID),
+        username: Set("it_w11_fo".to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        real_name: Set(Some("面料拒绝锁操作人".to_string())),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(fo_now()),
+        updated_at: Set(fo_now()),
+        ..Default::default()
+    }
+    .insert(db.as_ref())
+    .await
+    .unwrap_or_else(|e| panic!("种子操作人失败: {e}"));
+
+    let grantee = seed_role(&db, FO_GRANTEE_ROLE).await;
+    seed_role_level_grant(&db, grantee, "fabric-orders", "reject").await;
+    invalidate_permission_cache(grantee);
+
+    seed_fo_customer(&db).await;
+    let order_id = seed_pending_fabric_order(&db, FO_SEED_USER_ID).await;
+
+    let app = fo_app_with_role(db.clone(), grantee, FO_SEED_USER_ID);
+    let (status, body) = post_fo_reject(&app, order_id, "色差超出允收范围").await;
+    assert_eq!(
+        status,
+        axum::http::StatusCode::OK,
+        "持 fabric-orders:reject 的角色对 pending 行应放行，实得 {status} {body}"
+    );
+    assert_eq!(
+        body["code"],
+        json!(200),
+        "成功信封数字码应为 200，实得 {body}"
+    );
+
+    let row = sales_order::Entity::find_by_id(order_id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .expect("正向例的订单行必须还在");
+    assert_eq!(
+        row.status,
+        sales_fabric_order::REJECTED,
+        "reject 后状态必须为 rejected"
+    );
+    assert_eq!(
+        row.rejected_reason.as_deref(),
+        Some("色差超出允收范围"),
+        "拒绝理由必须落库 rejected_reason 列"
+    );
+
+    role_permission::Entity::delete_many()
+        .filter(role_permission::Column::RoleId.is_in([grantee]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+    role::Entity::delete_many()
+        .filter(role::Column::Id.is_in([grantee]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+    invalidate_permission_cache(grantee);
+}
+
+/// 负例：已 approved 行发起 reject → BUSINESS_ERROR，状态零变化
+#[tokio::test]
+async fn fabric_order_reject_non_pending_returns_business_error() {
+    let db = Arc::new(test_common::setup_test_db().await);
+
+    let _ = role_permission::Entity::delete_many()
+        .filter(
+            role_permission::Column::RoleId.is_in(
+                role::Entity::find()
+                    .filter(role::Column::Code.is_in([FO_GRANTEE_ROLE]))
+                    .all(db.as_ref())
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|r| r.id)
+                    .collect::<Vec<i32>>(),
+            ),
+        )
+        .exec(db.as_ref())
+        .await;
+    role::Entity::delete_many()
+        .filter(role::Column::Code.is_in([FO_GRANTEE_ROLE]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+
+    user::ActiveModel {
+        id: Set(FO_SEED_USER_ID),
+        username: Set("it_w11_fo".to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        real_name: Set(Some("面料拒绝锁操作人".to_string())),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(fo_now()),
+        updated_at: Set(fo_now()),
+        ..Default::default()
+    }
+    .insert(db.as_ref())
+    .await
+    .unwrap_or_else(|e| panic!("种子操作人失败: {e}"));
+
+    let grantee = seed_role(&db, FO_GRANTEE_ROLE).await;
+    seed_role_level_grant(&db, grantee, "fabric-orders", "reject").await;
+    invalidate_permission_cache(grantee);
+
+    seed_fo_customer(&db).await;
+    let order_id = seed_approved_fabric_order(&db, FO_SEED_USER_ID).await;
+
+    let app = fo_app_with_role(db.clone(), grantee, FO_SEED_USER_ID);
+    let (status, body) = post_fo_reject(&app, order_id, "对已审批行发起拒绝").await;
+    assert_eq!(
+        status,
+        axum::http::StatusCode::BAD_REQUEST,
+        "非 pending 行 reject 应返回 BUSINESS_ERROR（400），实得 {status} {body}"
+    );
+    assert_eq!(
+        body["code"].as_str(),
+        Some("BUSINESS_ERROR"),
+        "非 pending 行 reject 机器码必须为 BUSINESS_ERROR，实得 {body}"
+    );
+
+    let row = sales_order::Entity::find_by_id(order_id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .expect("负例的订单行必须还在");
+    assert_eq!(
+        row.status,
+        sales_fabric_order::APPROVED,
+        "非法前置状态 reject 不得改动作废当前状态"
+    );
+
+    role_permission::Entity::delete_many()
+        .filter(role_permission::Column::RoleId.is_in([grantee]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+    role::Entity::delete_many()
+        .filter(role::Column::Id.is_in([grantee]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+    invalidate_permission_cache(grantee);
+}
+
+/// RBAC 门层反向：不持 fabric-orders:reject 键的角色 → 403 FORBIDDEN，行零变化
+#[tokio::test]
+async fn fabric_order_reject_without_key_returns_403() {
+    let db = Arc::new(test_common::setup_test_db().await);
+
+    let _ = role_permission::Entity::delete_many()
+        .filter(
+            role_permission::Column::RoleId.is_in(
+                role::Entity::find()
+                    .filter(role::Column::Code.is_in([FO_STRANGER_ROLE]))
+                    .all(db.as_ref())
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|r| r.id)
+                    .collect::<Vec<i32>>(),
+            ),
+        )
+        .exec(db.as_ref())
+        .await;
+    role::Entity::delete_many()
+        .filter(role::Column::Code.is_in([FO_STRANGER_ROLE]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
+
+    user::ActiveModel {
+        id: Set(FO_SEED_USER_ID),
+        username: Set("it_w11_fo".to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        real_name: Set(Some("面料拒绝锁陌生人".to_string())),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(fo_now()),
+        updated_at: Set(fo_now()),
+        ..Default::default()
+    }
+    .insert(db.as_ref())
+    .await
+    .unwrap_or_else(|e| panic!("种子操作人失败: {e}"));
+
+    let stranger = seed_role(&db, FO_STRANGER_ROLE).await;
+    invalidate_permission_cache(stranger);
+
+    seed_fo_customer(&db).await;
+    let order_id = seed_pending_fabric_order(&db, FO_SEED_USER_ID).await;
+
+    let app = fo_app_with_role(db.clone(), stranger, FO_SEED_USER_ID);
+    let (status, body) = post_fo_reject(&app, order_id, "无授权发起拒绝").await;
+    assert_eq!(
+        status,
+        axum::http::StatusCode::FORBIDDEN,
+        "不持 fabric-orders:reject 的角色必须被门层 403，实得 {status} {body}"
+    );
+    assert_eq!(
+        body["code"].as_str(),
+        Some("FORBIDDEN"),
+        "403 机器码必须为 FORBIDDEN，实得 {body}"
+    );
+
+    let row = sales_order::Entity::find_by_id(order_id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .expect("门层拒绝后行必须还在");
+    assert_eq!(
+        row.status,
+        sales_fabric_order::PENDING,
+        "403 必须发生在 RBAC 门层：不得改业务状态"
+    );
+
+    role::Entity::delete_many()
+        .filter(role::Column::Id.is_in([stranger]))
+        .exec(db.as_ref())
+        .await
+        .unwrap();
     invalidate_permission_cache(stranger);
 }

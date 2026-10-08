@@ -1,4 +1,4 @@
-# layers=8 endpoints=1766
+# layers=8 endpoints=1768
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -1363,6 +1363,7 @@ POST	/api/v1/erp/production/dye-batches	dye_batch_handler::create_dye_batch	prod
 POST	/api/v1/erp/production/dye-batches/*/complete	dye_batch_handler::complete_dye_batch	production
 POST	/api/v1/erp/production/dye-recipes	dye_recipe_handler::create_dye_recipe	production
 POST	/api/v1/erp/production/dye-recipes/*/approve	dye_recipe_handler::approve_recipe	production
+POST	/api/v1/erp/production/dye-recipes/*/reject	dye_recipe_handler::reject_recipe	production
 POST	/api/v1/erp/production/dye-recipes/*/submit	dye_recipe_handler::submit_dye_recipe	production
 POST	/api/v1/erp/production/dye-recipes/*/version	dye_recipe_handler::create_new_version	production
 POST	/api/v1/erp/production/energy-allocations	energy_handler::create_energy_allocation	production
@@ -1547,6 +1548,7 @@ POST	/api/v1/erp/roles	role_handler::create_role	iam
 POST	/api/v1/erp/roles/*/permissions	role_handler::assign_permission	iam
 POST	/api/v1/erp/sales/fabric-orders	sales_fabric_order_handler::create_fabric_order	sales
 POST	/api/v1/erp/sales/fabric-orders/*/approve	sales_fabric_order_handler::approve_fabric_order	sales
+POST	/api/v1/erp/sales/fabric-orders/*/reject	sales_fabric_order_handler::reject_fabric_order	sales
 POST	/api/v1/erp/sales/orders	sales_order_handler::create_order	sales
 POST	/api/v1/erp/sales/orders/*/approve	sales_order_handler::approve_order	sales
 POST	/api/v1/erp/sales/orders/*/cancel	sales_order_handler::cancel_order	sales

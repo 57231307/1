@@ -575,6 +575,7 @@ impl InitService {
                     ("orders", "reject"),
                     ("fabric-orders", "read"),
                     ("fabric-orders", "approve"),
+                    ("fabric-orders", "reject"),
                     // 拒绝键与审批键成对授予同一批角色：/reject 端点与 /approve 端点
                     // 一一对应，缺一侧即前端按钮可达而 RBAC 恒 403（或反向授权悬空）；
                     // 成对性由 tests/contract_wave11_approve_reject_pairing_test.rs 双向钉。

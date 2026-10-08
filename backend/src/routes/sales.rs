@@ -110,6 +110,10 @@ fn sales_fabric_order_routes() -> Router<AppState> {
             "/fabric-orders/{id}/approve",
             post(sales_fabric_order_handler::approve_fabric_order),
         )
+        .route(
+            "/fabric-orders/{id}/reject",
+            post(sales_fabric_order_handler::reject_fabric_order),
+        )
 }
 
 /// 销售订单路由（nest 到 /api/v1/erp/sales，合并订单 + 面料订单）

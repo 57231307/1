@@ -183,7 +183,7 @@ pub async fn approve_fabric_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SalesService::new(state.db.clone(), state.search_client.clone());
-    let updated = service.approve_fabric_order(id).await?;
+    let updated = service.approve_fabric_order(id, auth.user_id).await?;
     // 同 update_fabric_order：审核写响应走同一权威掩码实现，不整行原文回传；
     // admin 判定走唯一权威源 admin_checker::is_admin_role（口径见 list_fabric_orders）
     let is_admin = match auth.role_id {
@@ -198,5 +198,44 @@ pub async fn approve_fabric_order(
     Ok(Json(ApiResponse::success_with_message(
         order_json,
         "订单审核成功",
+    )))
+}
+
+/// 拒绝订单入参：拒绝理由必填（trim 非空），落 rejected_reason 专列。
+#[derive(Debug, Deserialize)]
+pub struct RejectFabricOrderRequest {
+    pub reason: String,
+}
+
+/// 拒绝订单（pending → rejected）
+pub async fn reject_fabric_order(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<RejectFabricOrderRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
+    let service = SalesService::new(state.db.clone(), state.search_client.clone());
+    let updated = service
+        .reject_fabric_order(id, reason, auth.user_id)
+        .await?;
+    // 与 approve 同族掩码口径：写响应走 field_mask 权威实现，admin 判定走 is_admin_role；
+    // 操作人身份取会话 auth.user_id，请求体不承载身份。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    let order_json = crate::utils::field_mask::mask_contact_fields_for_role(
+        serde_json::to_value(updated)
+            .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?,
+        is_admin,
+    );
+    Ok(Json(ApiResponse::success_with_message(
+        order_json,
+        "订单已拒绝",
     )))
 }

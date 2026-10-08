@@ -252,4 +252,7 @@ pub mod sales_fabric_order {
 
     /// 已审批
     pub const APPROVED: &str = "approved";
+
+    /// 已拒绝（与 sales_order::REJECTED 同值，reject 动作写入方）
+    pub const REJECTED: &str = "rejected";
 }

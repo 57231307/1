@@ -761,7 +761,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
           color_name: '测试色',
           chemical_formula: 'E2E测试内容',
           // dye_recipe.status 迁移 CHECK chk_dye_recipe_status 为小写英文闭合词表
-          // （draft/pending_approval/approved/disabled，见 quality_dyeing.rs::dye_recipe DRAFT="draft"），
+          // （draft/pending_approval/approved/rejected/disabled，见 quality_dyeing.rs::dye_recipe DRAFT="draft"），
           // 传大写 'DRAFT' 会命中同一 CHECK 报 DATABASE_ERROR
           status: 'draft',
         });
