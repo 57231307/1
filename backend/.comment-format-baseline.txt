@@ -353,7 +353,6 @@ backend/tests/contract_wave1_transfer_dims_missing_dye_lot_test.rs::purchase_ret
 backend/tests/contract_wave2_contract_no_and_remark_test.rs::handlers/supplier_handler.rs
 backend/tests/contract_wave2_prod_quality_outsourcing_dye_test.rs::import_export_handler.rs
 backend/tests/contract_wave2_prod_quality_outsourcing_dye_test.rs::models/dye_recipe.rs
-backend/tests/contract_wave2_prod_quality_outsourcing_dye_test.rs::v15/mod.rs
 backend/tests/contract_wave2_stock_direct_create_fabric_trace_test.rs::backend/src/services/inv/fabric_class.rs
 backend/tests/contract_wave2_stock_version_roundtrip_test.rs::backend/src/models/inventory_stock.rs
 backend/tests/contract_wave2_supplier_qualification_attachment_test.rs::bootstrap/middleware_bootstrap.rs
