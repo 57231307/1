@@ -24,7 +24,9 @@ use crate::services::production_recipe_service::{
     UpdateProductionRecipeRequest,
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 impl ProductionRecipeService {
@@ -263,10 +265,10 @@ impl ProductionRecipeService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("大货处方单 {} 不存在", id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // production_recipe 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        // 行级数据权限校验（IDOR 防护）：production_recipe 无 department_id 列，
+        // 使用成员集合归属门与列表侧 apply_data_scope Dept 分支同源判定。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问大货处方单 {}（数据范围限制）",
                     id
@@ -336,9 +338,9 @@ impl ProductionRecipeService {
             .one(&*self.db)
             .await?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
+        // 行级数据权限校验（IDOR 防护）：同工单归属门，与 get_by_id 同一判据。
         if let (Some(ctx), Some(m)) = (data_scope, &model) {
-            if !check_resource_owner(ctx, m.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, m.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问工单 {} 的大货处方（数据范围限制）",
                     work_order_id

@@ -25,8 +25,8 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -38,6 +38,7 @@ use crate::models::quality_8d_dto::{
 };
 use crate::models::quality_8d_report::{self, ActiveModel, Entity};
 use crate::models::quality_issue;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -408,15 +409,39 @@ impl QualityEightDService {
         Ok(model)
     }
 
-    /// 列表查询（带分页与过滤）
+    /// 列表查询（带分页与过滤 + 行级数据权限下推）
+    ///
+    /// 8D 报告自身无归属列，归属经父链继承：
+    /// quality_8d_report → quality_issue → custom_order.created_by。
+    /// data_scope 为 Some 时 INNER JOIN 两级父表并按 custom_order.created_by 下推过滤；
+    /// 为 None 时不附加行级过滤（仅供系统内部调度通路使用）。
     pub async fn list(
         &self,
         query: ListEightDQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<quality_8d_report::Model>, u64), EightDError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
         let mut select = Entity::find();
+        // 按归属链下推可见集（INNER JOIN 保证父行存在性，不产生笛卡尔积）
+        if let Some(ctx) = data_scope {
+            select = select
+                .join(
+                    JoinType::InnerJoin,
+                    quality_8d_report::Relation::QualityIssue.def(),
+                )
+                .join(
+                    JoinType::InnerJoin,
+                    quality_issue::Relation::CustomOrder.def(),
+                );
+            select = apply_data_scope(
+                select,
+                ctx,
+                crate::models::custom_order::Column::CreatedBy,
+                crate::models::custom_order::Column::CreatedBy,
+            );
+        }
         if let Some(v) = query.quality_issue_id {
             select = select.filter(quality_8d_report::Column::QualityIssueId.eq(v));
         }

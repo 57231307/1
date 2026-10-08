@@ -20,6 +20,7 @@ use crate::models::inventory_count_item;
 use crate::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
+use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
@@ -29,6 +30,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 
 /// 创建盘点单请求体
@@ -467,12 +469,35 @@ pub async fn generate_no(
 
 /// 更新单条盘点明细 PUT /api/v1/erp/inventory/counts/items/{itemId}
 /// 对应前端 updateCountItem（实盘数量/备注），仅待盘点状态可改。
+///
+/// 子行端点归属门（写前）：`inventory_count_item` 无归属列，归属在父盘点单
+/// `inventory_count.created_by`（models/inventory_count.rs::created_by），本域无
+/// `department_id` 列 ⇒ 取子行→按 `item.count_id` 上溯父单→过
+/// `check_resource_owner_by_member_scope`（判据与父单列表侧 Dept 分支同源）。
+/// 路由为扁平 `/counts/items/{item_id}`，URL 不携带父 id，故父单只能由子行外键反查
+/// 得到，不存在可被伪造的「路径父 id↔子行」配对，配对绕过面天然为空；子行/父单任一
+/// 不存在走 404（文案不含记录 ID），归属门在 service 落库点之前，越权零写入。
 pub async fn update_count_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
     Json(payload): Json<UpdateCountItemPayload>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let item = inventory_count_item::Entity::find_by_id(item_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点明细不存在"))?;
+    let parent = inventory_count::Entity::find_by_id(item.count_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点单不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, parent.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该盘点明细（数据范围限制）",
+        ));
+    }
+
     let updated = InventoryCountService::new(state.db.clone())
         .update_count_item(item_id, payload.quantity_actual, payload.notes)
         .await?;
@@ -488,11 +513,32 @@ pub async fn update_count_item(
 
 /// 删除单条盘点明细 DELETE /api/v1/erp/inventory/counts/items/{itemId}
 /// 对应前端 deleteCountItem，仅待盘点状态可删。
+///
+/// 子行端点归属门（写前）：与 `update_count_item` 同款——`inventory_count_item` 无归属列，
+/// 取子行→按 `item.count_id` 上溯父盘点单→过 `check_resource_owner_by_member_scope`
+/// 判定父单 `created_by`（本域无部门列，判据与父单列表侧 Dept 分支同源）。扁平路由
+/// 不携带父 id，父单由子行外键唯一反查，无「路径父 id↔子行」配对可伪造。子行/父单任一
+/// 不存在走 404（文案不含记录 ID），归属门在 service 删除落库点之前，越权零删除。
 pub async fn delete_count_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let item = inventory_count_item::Entity::find_by_id(item_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点明细不存在"))?;
+    let parent = inventory_count::Entity::find_by_id(item.count_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点单不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, parent.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该盘点明细（数据范围限制）",
+        ));
+    }
+
     InventoryCountService::new(state.db.clone())
         .delete_count_item(item_id)
         .await?;

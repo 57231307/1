@@ -21,6 +21,11 @@ use crate::models::dye_recipe::{
     self, ActiveModel, Entity as DyeRecipeEntity, Model as DyeRecipeModel,
 };
 use crate::models::status::dye_recipe as recipe_status;
+// 行级数据权限：列表/导出下推 apply_data_scope，单行归属门 check_resource_owner_by_member_scope
+// （dye_recipe 表无 department_id 列，归属列 created_by，dept 分支退化为可见成员集合语义）
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
@@ -174,7 +179,8 @@ impl DyeRecipeService {
 
     /// 提交配方审核（批次 423B：草稿 → 待审核，贯通化验室打样审批流）
     pub async fn submit(&self, id: i32) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        // 归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取记录做状态流转，传 None 不重复门。
+        let model = self.get_by_id(id, None).await?;
         if model.status.as_deref() != Some(recipe_status::DRAFT) {
             return Err(AppError::business(format!(
                 "只有草稿状态的配方可以提交审核，当前状态：{}",
@@ -292,22 +298,56 @@ impl DyeRecipeService {
     }
 
     /// 根据 ID 获取配方
-    pub async fn get_by_id(&self, id: i32) -> Result<DyeRecipeModel, AppError> {
-        DyeRecipeEntity::find_by_id(id)
+    ///
+    /// 归属门（IDOR 防护）：dye_recipe 无 department_id 列，按归属列 created_by 走
+    /// `check_resource_owner_by_member_scope`（与列表侧 apply_data_scope Dept 分支同源）。
+    /// 传入 `data_scope` 时在取行后立即校验，越权返回 403；传 None 表示不做行级归属门
+    /// （供内部方法取记录、以及无认证上下文的系统级回写调用点使用，门在各自 handler 前置）。
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<DyeRecipeModel, AppError> {
+        let model = DyeRecipeEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found("配方不存在"))
+            .ok_or_else(|| AppError::not_found("配方不存在"))?;
+
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问配方 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
+
+        Ok(model)
     }
 
     /// 分页查询配方列表
+    ///
+    /// 行级数据权限：dye_recipe 工艺机密面（染化料、配比、温度曲线），归属列 created_by、
+    /// 无 department_id，故按 `apply_data_scope(q, ctx, CreatedBy, CreatedBy)` 下推；
+    /// total 由同一 paginator（已含 scope 过滤）派生，与列表同源，导出复用同一 ctx 保证一致。
     pub async fn list(
         &self,
         query: DyeRecipeQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<DyeRecipeModel>, u64), AppError> {
         let page = query.page.clamp(1, 1000);
         let page_size = query.page_size.clamp(1, 100);
 
         let mut select = DyeRecipeEntity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
+
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                dye_recipe::Column::CreatedBy,
+                dye_recipe::Column::CreatedBy,
+            );
+        }
 
         if let Some(recipe_no) = &query.recipe_no {
             select = select.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
@@ -349,7 +389,10 @@ impl DyeRecipeService {
             ));
         }
 
-        let model = self.get_by_id(id).await?;
+        // 归属门由调用方 handler 前置（handler.update_dye_recipe 以 Some(&ctx) 校验后才进本方法）；
+        // 此处取记录传 None 不重复行级门，使无认证上下文的系统级复样自动回写（复样通过后回写配方）
+        // 仍能直达本方法、不被行级数据范围判死——此联动写链必须保持不经归属门。
+        let model = self.get_by_id(id, None).await?;
         // 在转为 ActiveModel 前记录当前状态，用于状态流转校验
         // 注意：必须 clone 后再 model.into()，否则 as_deref() 借用 model.status 会与
         // 后续 model.into() 移动 model 冲突（E0505 cannot move out of borrowed）
@@ -413,7 +456,8 @@ impl DyeRecipeService {
 
     /// 软删除配方
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
+        // 归属门在 handler 前置（Some(&ctx)）；此处取记录传 None 做状态校验与软删，不重复门。
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_delete(model.status.as_deref())?;
 
         let mut active: ActiveModel = model.into();
@@ -425,7 +469,8 @@ impl DyeRecipeService {
 
     /// 审核配方
     pub async fn approve(&self, id: i32, approved_by: i32) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        // 归属门在 handler 前置（Some(&ctx)）；此处取记录传 None 做状态门与审批写入，不重复门。
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_approve(model.status.as_deref())?;
 
         let mut active: ActiveModel = model.into();
@@ -446,7 +491,8 @@ impl DyeRecipeService {
         remarks: Option<String>,
         created_by: i32,
     ) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        // 复制源配方的归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取父记录派生新版本，传 None 不重复门。
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_create_version(model.status.as_deref())?;
 
         let new_version = model.version.unwrap_or(1) + 1;
@@ -503,8 +549,14 @@ impl DyeRecipeService {
     }
 
     /// 获取配方的所有版本
-    pub async fn get_recipe_versions(&self, id: i32) -> Result<Vec<DyeRecipeModel>, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 版本列表以父配方归属门把关（与列表侧 apply_data_scope 同源：对 id 有读权限即可查看其版本树）。
+    pub async fn get_recipe_versions(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<DyeRecipeModel>, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         let parent_id = model.parent_recipe_id.unwrap_or(id);
 
         let versions = DyeRecipeEntity::find()

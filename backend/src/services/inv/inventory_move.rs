@@ -21,9 +21,11 @@ use crate::models::inventory_transfer::{self, Entity as InventoryTransferEntity}
 use crate::models::inventory_transfer_item::{self, Entity as InventoryTransferItemEntity};
 use crate::models::status::inventory_transfer as transfer_status;
 use crate::models::{product, user, warehouse};
-// V15 P0-S01：行级数据权限工具
+// 行级数据权限工具
 use crate::utils::PaginatedResponse;
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -37,7 +39,8 @@ use super::{
 
 impl InventoryTransferService {
     /// 获取库存调拨列表
-    /// V15 P0-S01：新增 data_scope 参数，按行级数据权限过滤。；inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    /// 新增 data_scope 参数按行级数据权限过滤；本表无 department_id 列，Dept 按「归属人 ∈
+    /// 可见部门成员集合」判定（owner 取 `created_by: Option<i32>`）。
     pub async fn list_transfers(
         &self,
         page_req: PageRequest,
@@ -89,7 +92,7 @@ impl InventoryTransferService {
         if let Some(no) = transfer_no {
             query = query.filter(inventory_transfer::Column::TransferNo.contains(&no));
         }
-        // V15 P0-S01：行级数据权限过滤
+        // 行级数据权限过滤
         // inventory_transfer 表无 department_id，Dept 退化为 Self，使用 created_by（Option<i32>）。
         if let Some(ctx) = data_scope {
             query = apply_data_scope(
@@ -145,7 +148,8 @@ impl InventoryTransferService {
     }
 
     /// 获取库存调拨详情（包含明细项）
-    /// V15 P0-S01：新增 data_scope 参数，对单资源做 IDOR 校验。；inventory_transfer 表无 department_id，Dept 范围退化为 Self，使用 created_by（Option<i32>）。
+    /// 新增 data_scope 参数对单资源做 IDOR 校验；本表无 department_id 列，Dept 按归属人 ∈
+    /// 可见部门成员集合判定（owner 取 `created_by: Option<i32>`）。
     pub async fn get_transfer_detail(
         &self,
         transfer_id: i32,
@@ -183,13 +187,14 @@ impl InventoryTransferService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存调拨单 {} 未找到", transfer_id)))?;
 
-        // V15 P0-S01：行级数据权限 IDOR 校验（created_by 由视图携带）
+        // 行级数据权限 IDOR 校验（created_by 由视图携带）
+        // inventory_transfer 表无 department_id 列，归属判定走成员集合语义
+        // （与列表侧 apply_data_scope Dept 分支同源），created_by 为 Option<i32>。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, header.created_by, None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问库存调拨单 {}（数据范围限制）",
-                    transfer_id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, header.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问库存调拨单（数据范围限制）".to_string(),
+                ));
             }
         }
 
@@ -462,7 +467,7 @@ impl InventoryTransferService {
     pub async fn create_transfer(
         &self,
         request: CreateInventoryTransferRequest,
-        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        // 操作人取会话 user_id，供审计日志留痕
         user_id: i32,
     ) -> Result<InventoryTransferDetail, AppError> {
         // 建单状态门在任何 DB 访问前：status 键缺席时由
@@ -720,7 +725,7 @@ impl InventoryTransferService {
         transfer_id: i32,
         approved: bool,
         notes: Option<String>,
-        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        // 操作人取会话 user_id，供审计日志留痕
         user_id: i32,
         // P1 batch-18 缺陷 6.1：注入审批人 role_id 用于分级审批权限校验
         role_id: Option<i32>,
@@ -799,7 +804,7 @@ impl InventoryTransferService {
             &txn,
             "auto_audit",
             transfer_update,
-            // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            // 操作人取会话 user_id（不再用 0 占位），便于审计追踪
             Some(user_id),
         )
         .await?;
@@ -823,7 +828,7 @@ impl InventoryTransferService {
     pub async fn delete_transfer(
         &self,
         transfer_id: i32,
-        // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+        // 操作人取会话 user_id，供审计日志留痕
         user_id: i32,
     ) -> Result<(), AppError> {
         let transfer = InventoryTransferEntity::find_by_id(transfer_id)
@@ -850,7 +855,7 @@ impl InventoryTransferService {
             .exec(&txn)
             .await?;
         // P0 8-3 修复：delete 操作补审计日志
-        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+        // 操作人取会话 user_id（不再用 0 占位），便于审计追踪
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             InventoryTransferEntity,
             _,

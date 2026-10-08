@@ -28,7 +28,9 @@ use crate::models::production_order::{
     self, ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -391,10 +393,10 @@ impl ProductionOrderService {
             .one(&*self.db)
             .await?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // production_order 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        // 行级数据权限校验（IDOR 防护）：production_orders 无 department_id 列，
+        // 使用成员集合归属门与列表侧 apply_data_scope Dept 分支同源判定。
         if let (Some(ctx), Some(m)) = (data_scope, &row) {
-            if !check_resource_owner(ctx, Some(m.created_by), None) {
+            if !check_resource_owner_by_member_scope(ctx, Some(m.created_by)) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问生产订单 {}（数据范围限制）",
                     id

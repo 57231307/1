@@ -21,6 +21,7 @@ use crate::models::status::common;
 use crate::models::status::production;
 use crate::models::status::scheduling as scheduling_status;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use chrono::{NaiveDate, Utc};
@@ -221,12 +222,24 @@ impl SchedulingService {
         &self,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<crate::models::scheduling_result::Model>, u64), AppError> {
-        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
-        let paginator = SchedulingResultEntity::find()
-            .order_by_desc(crate::models::scheduling_result::Column::CreatedAt)
-            .paginate(&*self.db, page_size);
+        let base = SchedulingResultEntity::find()
+            .order_by_desc(crate::models::scheduling_result::Column::CreatedAt);
+        // 本表无 department_id 列，Dept/Self 一律按建单人 created_by 下推；None 仅用于
+        // 无会话上下文的内部通路，HTTP 列表必须带上下文。
+        let scoped = match data_scope {
+            Some(ctx) => apply_data_scope(
+                base,
+                ctx,
+                crate::models::scheduling_result::Column::CreatedBy,
+                crate::models::scheduling_result::Column::CreatedBy,
+            ),
+            None => base,
+        };
 
+        // paginate_with_total 内部已处理 saturating_sub(1) 偏移，page 在此夹紧
+        let paginator = scoped.paginate(&*self.db, page_size);
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))

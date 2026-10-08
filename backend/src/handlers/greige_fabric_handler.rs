@@ -15,6 +15,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
 use crate::models::status::purchase_inventory::greige_fabric_status;
+use crate::utils::data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -160,14 +161,26 @@ fn validate_greige_status_param(raw: Option<&str>) -> Result<(), AppError> {
 /// `AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_greige_fabrics(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<GreigeFabricListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<greige_fabric::Model>>>, AppError> {
     validate_greige_status_param(query.status.as_deref())?;
 
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = greige_fabric::Entity::find().filter(greige_fabric::Column::IsDeleted.eq(false));
+
+    // 行级数据权限下推：greige_fabric 无 department_id 列，Dept 分支按
+    // 「归属人 ∈ 可见部门成员集合」过滤（build_data_scope_condition），
+    // owner_column 与 dept_column 均为 CreatedBy。
+    let ctx = auth.to_data_scope_context();
+    q = data_scope::apply_data_scope(
+        q,
+        &ctx,
+        greige_fabric::Column::CreatedBy,
+        greige_fabric::Column::CreatedBy,
+    );
 
     if let Some(fabric_no) = &query.fabric_no {
         q = q.filter(greige_fabric::Column::FabricNo.contains(fabric_no));
@@ -195,10 +208,7 @@ pub async fn list_greige_fabrics(
 
     let paginator = q.paginate(&*state.db, page_size);
     let total = paginator.num_items().await?;
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let fabrics = paginator
-        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-        .await?;
+    let fabrics = paginator.fetch_page(page.saturating_sub(1)).await?;
     Ok(Json(ApiResponse::success_paginated(
         fabrics, total, page, page_size,
     )))
@@ -296,14 +306,22 @@ pub async fn create_greige_fabric(
 pub async fn update_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<UpdateGreigeFabricRequest>,
 ) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
-    let mut fabric: greige_fabric::ActiveModel = greige_fabric::Entity::find_by_id(id)
+    let ctx = auth.to_data_scope_context();
+    let fabric_entity = greige_fabric::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("坯布不存在"))?
-        .into();
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?;
+
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, fabric_entity.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该坯布（数据范围限制）",
+        ));
+    }
+
+    let mut fabric: greige_fabric::ActiveModel = fabric_entity.into();
 
     if let Some(fabric_name) = req.fabric_name {
         fabric.fabric_name = Set(fabric_name);
@@ -384,12 +402,19 @@ pub async fn update_greige_fabric(
 pub async fn delete_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let fabric = greige_fabric::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("坯布不存在"))?;
+
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, fabric.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该坯布（数据范围限制）",
+        ));
+    }
 
     if fabric.status.as_deref() == Some(greige_fabric_status::IN_STOCK) {
         return Err(AppError::business_displayable(
@@ -409,14 +434,22 @@ pub async fn delete_greige_fabric(
 pub async fn stock_in(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<StockInRequest>,
 ) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
-    let mut fabric: greige_fabric::ActiveModel = greige_fabric::Entity::find_by_id(id)
+    let ctx = auth.to_data_scope_context();
+    let fabric_entity = greige_fabric::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
-        .ok_or_else(|| AppError::not_found("坯布不存在"))?
-        .into();
+        .ok_or_else(|| AppError::not_found("坯布不存在"))?;
+
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, fabric_entity.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该坯布（数据范围限制）",
+        ));
+    }
+
+    let mut fabric: greige_fabric::ActiveModel = fabric_entity.into();
 
     // 累加库存而不是覆盖
     let current_weight = fabric
@@ -496,13 +529,20 @@ pub async fn stock_in(
 pub async fn stock_out(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<StockOutRequest>,
 ) -> Result<Json<ApiResponse<greige_fabric::Model>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let fabric = greige_fabric::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("坯布不存在"))?;
+
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, fabric.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该坯布（数据范围限制）",
+        ));
+    }
 
     let mut update_fabric: greige_fabric::ActiveModel = fabric.clone().into();
 

@@ -19,7 +19,7 @@ use crate::services::production_recipe_service::{
     ProductionRecipeAdditionService,
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, check_resource_owner};
+use crate::utils::data_scope::{DataScopeContext, check_resource_owner_by_member_scope};
 use crate::utils::error::AppError;
 
 impl ProductionRecipeAdditionService {
@@ -90,10 +90,10 @@ impl ProductionRecipeAdditionService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("加料处方单 {} 不存在", id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // production_recipe_addition 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        // 行级数据权限校验（IDOR 防护）：production_recipe_addition 无 department_id 列，
+        // 使用成员集合归属门与列表侧 apply_data_scope Dept 分支同源判定。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问加料处方单 {}（数据范围限制）",
                     id

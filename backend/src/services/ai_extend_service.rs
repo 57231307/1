@@ -25,7 +25,9 @@ use crate::models::ai_quality_prediction::{
     Model as QualityModel,
 };
 use crate::services::lab_dip_service::{CreateLabDipRequestRequest, LabDipRequestService};
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 use super::ai::AiAnalysisService;
@@ -308,9 +310,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属（created_by 与 user_id 同为 i32，直接传入 check_resource_owner）
+        // 归属门：ai_process_optimizations 无 department_id 列，使用成员集合语义
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权访问该工艺优化记录"));
             }
         }
@@ -356,9 +358,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属
+        // 归属门：ai_process_optimizations 无 department_id 列
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权操作该工艺优化记录"));
             }
         }
@@ -396,7 +398,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权删除该工艺优化记录"));
             }
         }
@@ -558,9 +560,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属
+        // 归属门：ai_quality_predictions 无 department_id 列
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权访问该质量预测记录"));
             }
         }
@@ -605,9 +607,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属
+        // 归属门：ai_quality_predictions 无 department_id 列
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权操作该质量预测记录"));
             }
         }
@@ -634,7 +636,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权删除该质量预测记录"));
             }
         }

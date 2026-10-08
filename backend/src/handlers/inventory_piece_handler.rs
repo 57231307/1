@@ -8,6 +8,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::status::purchase_inventory::inventory_piece as piece_status;
 use crate::models::{inventory_piece, warehouse};
+use crate::utils::data_scope::apply_data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
@@ -76,13 +77,21 @@ pub struct PieceResponse {
 }
 
 /// GET /api/v1/erp/inventory/pieces - 匹号分页列表（四维追溯查询）
+///
+/// 读侧行级数据权限下推：`inventory_piece` 有 `created_by` 归属列（models/
+/// inventory_piece.rs::created_by）而无 `department_id` 列，故用 `apply_data_scope`
+/// 的 owner 列成员集合语义（Dept 分支按「归属人 ∈ 可见部门成员集合」，与
+/// `check_resource_owner_by_member_scope` 单行门同源），owner 与 dept 两列均传
+/// `Column::CreatedBy`（本表无部门列，Dept 分支不使用 dept 列）。过滤在构造处下推，
+/// `total` 取自同一已过滤 paginator，与 items 同口径，不出现「列表比 total 少」的错位。
 pub async fn list_pieces(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListPieceParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<PieceResponse>>>, AppError> {
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let mut condition = Condition::all();
     if let Some(no) = &params.piece_no {
@@ -122,8 +131,13 @@ pub async fn list_pieces(
         condition = condition.add(inventory_piece::Column::Status.eq(st));
     }
 
-    let paginator = inventory_piece::Entity::find()
-        .filter(condition)
+    let query = apply_data_scope(
+        inventory_piece::Entity::find().filter(condition),
+        &data_scope_ctx,
+        inventory_piece::Column::CreatedBy,
+        inventory_piece::Column::CreatedBy,
+    );
+    let paginator = query
         .order_by_desc(inventory_piece::Column::CreatedAt)
         .paginate(state.db.as_ref(), page_size);
     let total = paginator.num_items().await?;

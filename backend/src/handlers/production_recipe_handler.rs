@@ -80,7 +80,7 @@ pub async fn list(
         page_size: Some(page_size),
     };
 
-    // V15 P0-S01：提取行级数据权限上下文
+    // 行级数据权限上下文：读取前先按会话范围过滤
     let data_scope_ctx = auth.to_data_scope_context();
     let (items, total) = recipe_service(&state)
         .list(svc_query, Some(&data_scope_ctx))
@@ -110,7 +110,7 @@ pub async fn get(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 行级数据权限上下文：读取前先按会话范围过滤
     let data_scope_ctx = auth.to_data_scope_context();
     let recipe = recipe_service(&state)
         .get_by_id(id, Some(&data_scope_ctx))
@@ -126,7 +126,7 @@ pub async fn update(
     Json(req): Json<UpdateProductionRecipeRequest>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
     let service = recipe_service(&state);
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // 更新前先按会话范围取该行，越权即 403 且不落库
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
     let updated = service.update(id, req).await?;
@@ -143,7 +143,7 @@ pub async fn delete(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = recipe_service(&state);
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // 删除前先按会话范围取该行，越权即 403 且不落库
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
     service.delete(id).await?;
@@ -161,7 +161,12 @@ pub async fn approve(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let updated = recipe_service(&state).approve(id, auth.user_id).await?;
+    let service = recipe_service(&state);
+    // 归属门：审批前先按 created_by 走 check_resource_owner_by_member_scope，
+    // 越权 403 在落库之前，与 close/cancel 同源。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "大货处方单审核成功",
@@ -171,10 +176,15 @@ pub async fn approve(
 /// POST /api/v1/erp/production-recipes/:id/close - 关闭大货处方（approved → closed）；真实业务：生产完成，处方归档
 pub async fn close(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let updated = recipe_service(&state).close(id).await?;
+    let service = recipe_service(&state);
+    // 归属门：service.get_by_id 内按 created_by 走 check_resource_owner_by_member_scope，
+    // All=放行/Dept=本人或可见成员/Self_=仅本人/NULL=拒，越权 403 在落库之前。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.close(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "大货处方单已关闭",
@@ -184,10 +194,15 @@ pub async fn close(
 /// POST /api/v1/erp/production-recipes/:id/cancel - 取消大货处方（draft → cancelled）；真实业务：草稿状态作废
 pub async fn cancel(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe::Model>>, AppError> {
-    let updated = recipe_service(&state).cancel(id).await?;
+    let service = recipe_service(&state);
+    // 归属门：service.get_by_id 内按 created_by 走 check_resource_owner_by_member_scope，
+    // All=放行/Dept=本人或可见成员/Self_=仅本人/NULL=拒，越权 403 在落库之前。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.cancel(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "大货处方单已取消",
@@ -211,7 +226,7 @@ pub async fn get_by_work_order(
     auth: AuthContext,
     Path(work_order_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Option<production_recipe::Model>>>, AppError> {
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 行级数据权限上下文：读取前先按会话范围过滤
     let data_scope_ctx = auth.to_data_scope_context();
     let recipe = recipe_service(&state)
         .get_by_work_order(work_order_id, Some(&data_scope_ctx))
@@ -229,7 +244,7 @@ pub async fn list_additions(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<production_recipe_addition::Model>>>, AppError> {
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护，透传给 list_additions_by_recipe）
+    // 行级范围随主单归属下推到明细列表
     let data_scope_ctx = auth.to_data_scope_context();
     let items = recipe_service(&state)
         .list_additions_by_recipe(id, Some(&data_scope_ctx))
@@ -261,7 +276,7 @@ pub async fn get_addition(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe_addition::Model>>, AppError> {
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 行级数据权限上下文：读取前先按会话范围过滤
     let data_scope_ctx = auth.to_data_scope_context();
     let item = addition_service(&state)
         .get_by_id(id, Some(&data_scope_ctx))
@@ -276,7 +291,12 @@ pub async fn approve_addition(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe_addition::Model>>, AppError> {
-    let updated = addition_service(&state).approve(id, auth.user_id).await?;
+    let service = addition_service(&state);
+    // 归属门：审批前先按 created_by 走 check_resource_owner_by_member_scope，
+    // 越权 403 在落库之前，与 close_addition 同源。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "加料处方单审核成功",
@@ -286,10 +306,15 @@ pub async fn approve_addition(
 /// POST /api/v1/erp/production-recipes/additions/:id/close - 关闭加料处方（approved → closed）
 pub async fn close_addition(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<production_recipe_addition::Model>>, AppError> {
-    let updated = addition_service(&state).close(id).await?;
+    let service = addition_service(&state);
+    // 归属门：service.get_by_id 内按 created_by 走 check_resource_owner_by_member_scope，
+    // All=放行/Dept=本人或可见成员/Self_=仅本人/NULL=拒，越权 403 在落库之前。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.close(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "加料处方单已关闭",

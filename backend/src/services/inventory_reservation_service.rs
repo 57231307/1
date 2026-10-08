@@ -10,7 +10,9 @@ use crate::models::status::inventory_reservation as reservation_status;
 use crate::models::status::master_data;
 use crate::models::{product, sales_order, warehouse};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 /// 库存预留服务
@@ -222,9 +224,11 @@ impl InventoryReservationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("库存预留 {} 未找到", reservation_id)))?;
 
-        // V15 P0-S02：行级数据权限 IDOR 校验
+        // 行级数据权限 IDOR 校验
+        // inventory_reservation 表无 department_id 列，归属判定走成员集合语义
+        // （与列表侧 apply_data_scope Dept 分支同源），created_by 为 Option<i32>。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, reservation.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, reservation.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问库存预留 {}（数据范围限制）",
                     reservation_id

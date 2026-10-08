@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::crm_lead;
+use crate::utils::data_scope::apply_data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -25,17 +26,22 @@ pub struct ConversionTimeStats {
 }
 
 /// GET /api/v1/erp/crm/leads/conversion-stats - 转化耗时分析
-/// batch-15 P3: 转化耗时分析
 pub async fn get_conversion_time_stats(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<ConversionTimeStats>>, AppError> {
-    // 查询已转化的线索
-    let converted_leads = crm_lead::Entity::find()
-        .filter(crm_lead::Column::ConvertedAt.is_not_null())
-        .filter(crm_lead::Column::CreatedAt.is_not_null())
-        .all(&*state.db)
-        .await?;
+    let ctx = auth.to_data_scope_context();
+
+    // 已转化线索：按数据范围下推 owner_id 归属过滤
+    let converted_query = apply_data_scope(
+        crm_lead::Entity::find()
+            .filter(crm_lead::Column::ConvertedAt.is_not_null())
+            .filter(crm_lead::Column::CreatedAt.is_not_null()),
+        &ctx,
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+    );
+    let converted_leads = converted_query.all(&*state.db).await?;
 
     let converted_count = converted_leads.len() as i64;
 
@@ -73,11 +79,14 @@ pub async fn get_conversion_time_stats(
         .cloned()
         .fold(f64::NEG_INFINITY, f64::max);
 
-    // 查询未转化线索数
-    let unconverted_count = crm_lead::Entity::find()
-        .filter(crm_lead::Column::ConvertedAt.is_null())
-        .count(&*state.db)
-        .await? as i64;
+    // 未转化线索：同样按数据范围下推归属过滤
+    let unconverted_query = apply_data_scope(
+        crm_lead::Entity::find().filter(crm_lead::Column::ConvertedAt.is_null()),
+        &ctx,
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+    );
+    let unconverted_count = unconverted_query.count(&*state.db).await? as i64;
 
     Ok(Json(ApiResponse::success(ConversionTimeStats {
         avg_conversion_days,

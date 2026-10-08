@@ -14,7 +14,9 @@ use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock, user, warehouse};
 use crate::services::audit_log_service::AuditLogService;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 359 v13 复审 B-P1-2 修复：导入 BusinessEvent 和 EVENT_BUS，
 // 在 approve_count commit 成功后发布 InventoryCountCompleted 事件，
@@ -291,9 +293,11 @@ impl InventoryCountService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        // V15 P0-S01：行级数据权限 IDOR 校验
+        // 行级数据权限 IDOR 校验
+        // inventory_count 表无 department_id 列，归属判定走成员集合语义
+        // （与列表侧 apply_data_scope Dept 分支同源），created_by 为 Option<i32>。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, count.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, count.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问盘点单 {}（数据范围限制）",
                     count_id
