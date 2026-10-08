@@ -5,7 +5,9 @@ use crate::models::finance_invoice::Model as InvoiceModel;
 use crate::models::finance_invoice::{self, ActiveModel, Entity as FinanceInvoice};
 use crate::models::status::finance_invoice as invoice_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -55,14 +57,11 @@ impl FinanceInvoiceService {
             .await
             .map_err(AppError::from)?;
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // finance_invoice 表无 department_id，Dept 退化为 Self；
+        // finance_invoice 表无 department_id，使用成员归属集合判定；
         // finance_invoice.created_by 当前恒为 None（create_invoice 未显式设置）。
         if let (Some(ctx), Some(inv)) = (data_scope, &invoice) {
-            if !check_resource_owner(ctx, inv.created_by, None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问发票 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, inv.created_by) {
+                return Err(AppError::permission_denied("无权访问发票（数据范围限制）"));
             }
         }
         Ok(invoice)

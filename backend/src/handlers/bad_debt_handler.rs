@@ -214,7 +214,7 @@ pub async fn run_provision(
 
 /// GET /api/v1/erp/bad-debts - 计提记录列表
 pub async fn list_provisions(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListProvisionQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<ProvisionInfo>>>, AppError> {
@@ -222,7 +222,12 @@ pub async fn list_provisions(
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
-    let (items, total) = service.list_provisions(query).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+
+    let (items, total) = service
+        .list_provisions(query, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let infos: Vec<ProvisionInfo> = items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(PagedResponse {
         items: infos,
@@ -234,12 +239,16 @@ pub async fn list_provisions(
 
 /// GET /api/v1/erp/bad-debts/:id - 计提记录详情
 pub async fn get_provision(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProvisionInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
-    let record = service.get_provision(id).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_provision(id, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -287,7 +296,7 @@ pub async fn create_writeoff(
 
 /// GET /api/v1/erp/bad-debts/writeoffs - 核销申请列表
 pub async fn list_writeoffs(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListWriteoffQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<WriteoffInfo>>>, AppError> {
@@ -295,7 +304,12 @@ pub async fn list_writeoffs(
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
-    let (items, total) = service.list_writeoffs(query).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+
+    let (items, total) = service
+        .list_writeoffs(query, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let infos: Vec<WriteoffInfo> = items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(PagedResponse {
         items: infos,
@@ -307,12 +321,16 @@ pub async fn list_writeoffs(
 
 /// GET /api/v1/erp/bad-debts/writeoffs/:id - 核销申请详情
 pub async fn get_writeoff(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WriteoffInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
-    let record = service.get_writeoff(id).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_writeoff(id, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 

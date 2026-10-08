@@ -47,9 +47,10 @@ pub async fn revoke_signature(
 /// 列出已签署合同
 pub async fn list_signed_contracts(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let scope_ctx = auth.to_data_scope_context();
     let service = ContractSignatureService::new(state.db.clone());
-    let list = service.list_signed_contracts().await?;
+    let list = service.list_signed_contracts(Some(&scope_ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
 }

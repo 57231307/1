@@ -29,7 +29,9 @@ use tracing::{info, warn};
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 use super::json_helpers::collection_to_json;
@@ -94,14 +96,13 @@ impl ArService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("收款单 {} 不存在", payment_id)))?;
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ar_collection 表无 department_id，Dept 退化为 Self；
+        // ar_collection 表无 department_id，使用成员归属集合判定；
         // ar_collection.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(payment.created_by), None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问收款单 {}（数据范围限制）",
-                    payment_id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(payment.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问收款单（数据范围限制）",
+                ));
             }
         }
         Ok(collection_to_json(payment))

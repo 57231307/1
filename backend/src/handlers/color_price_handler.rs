@@ -9,6 +9,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use std::str::FromStr;
 use validator::Validate;
@@ -22,10 +23,12 @@ use crate::models::color_price_dto::{
 };
 use crate::models::color_price_history_dto::PriceHistoryItem;
 use crate::models::color_price_tier_dto::CreatePriceTierDto;
+use crate::models::customer;
 use crate::models::customer_color_price;
 use crate::models::customer_color_price_dto::{
     CreateCustomerColorPriceDto, ListCustomerColorPricesQuery,
 };
+use crate::models::product_color_price;
 use crate::models::seasonal_price_rule_dto::{
     CreateSeasonalRuleDto, ListSeasonalRulesQuery, UpdateSeasonalRuleDto,
 };
@@ -34,6 +37,10 @@ use crate::services::color_price_crud_service::{ColorPriceCrudService, CrudError
 use crate::services::color_price_history_service::ColorPriceHistoryService;
 use crate::services::color_price_seasonal_service::{ColorPriceSeasonalService, SeasonalError};
 use crate::services::color_price_tier_service::{ColorPriceTierService, TierError};
+use crate::utils::data_scope::{
+    DataScope, PoolVisibility, apply_department_scope_with_pool,
+    check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -138,14 +145,15 @@ fn model_to_detail(m: crate::models::product_color_price::Model) -> ColorPriceDe
 
 /// GET /api/v1/erp/color-prices - 色号价格列表
 pub async fn list_color_prices(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListColorPricesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<ColorPriceListItem>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = ColorPriceCrudService::from_state(&state);
 
-    let (items, total) = service.list(&query).await.map_err(crud_err)?;
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let (items, total) = service.list(&query, Some(&ctx)).await.map_err(crud_err)?;
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let list: Vec<ColorPriceListItem> = items.into_iter().map(model_to_list_item).collect();
 
@@ -338,11 +346,29 @@ pub struct PriceCalcQuery {
 // ----------------------------------------------------------------------
 
 /// GET /api/v1/erp/color-prices/tiers/:price_id - 阶梯价列表
+///
+/// `color_price_tiers` 表无归属列，行级可见性经父实体 `product_color_price` 继承
+/// （父表有 `created_by`）。本表无 `department_id` 列，用
+/// `check_resource_owner_by_member_scope`（Dept 分支按归属人 ∈ 成员集合判定，与
+/// 列表侧 `build_data_scope_condition` 同源）。父记录不存在→404，不在可见范围→403
+/// （固定脱敏文案，不含记录 ID）。
 pub async fn list_tiers(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(price_id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+
+    let parent = product_color_price::Entity::find_by_id(price_id)
+        .one(&*state.db)
+        .await
+        .map_err(|e| AppError::database(e.to_string()))?
+        .ok_or_else(|| AppError::not_found("色号价格不存在"))?;
+
+    if !check_resource_owner_by_member_scope(&ctx, parent.created_by) {
+        return Err(AppError::permission_denied("无权查看该资源的关联数据"));
+    }
+
     let service = ColorPriceTierService::from_state(&state);
 
     let items = service.list_by_price(price_id).await.map_err(tier_err)?;
@@ -384,20 +410,62 @@ pub async fn delete_tier(
 // ----------------------------------------------------------------------
 
 /// GET /api/v1/erp/color-prices/customer-special - 客户专属价列表
-/// 支持按 customer_id / product_id / color_id / active_only 过滤，分页查询避免全表加载导致 OOM
+///
+/// `customer_color_prices` 表无自身归属列，行级可见性经父实体 `customer` 继承
+/// （客户表有 `owner_id` + `department_id`，属 RLS 5 表）。All 范围不加过滤（全量
+/// 可见）；Dept/Self 范围先取可见客户 ID 集合，再 `WHERE customer_id IN (...)`
+/// 下推到查询构造处，`total` 与 items 同源。
+///
+/// 可见客户集使用 `apply_department_scope_with_pool` + `PoolVisibility::Scoped`
+/// （与 `customer_ops/query.rs::apply_customer_data_scope` 同参数），保证与主客户
+/// 列表可见面完全一致。
 pub async fn list_customer_special_prices(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListCustomerColorPricesQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<customer_color_price::Model>>>, AppError> {
     use chrono::Utc;
-    use sea_orm::{ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter};
+    use sea_orm::{Condition, PaginatorTrait};
 
-    // 页码采用 1-based 约定，page_size clamp 防止 DoS
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let ctx = auth.to_data_scope_context();
+
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let mut q = customer_color_price::Entity::find();
+
+    // 行级数据范围：非 All 时按可见客户 ID 集下推（在业务筛选之前、paginate 之前，
+    // 使 total 同源包含 scope 条件）
+    if ctx.scope != DataScope::All {
+        let customer_q = apply_department_scope_with_pool(
+            customer::Entity::find(),
+            &ctx,
+            customer::Column::OwnerId,
+            customer::Column::DepartmentId,
+            customer::Column::OwnerId.eq(0),
+            PoolVisibility::Scoped,
+        );
+        // 公海客户不在本轮下推范围内——Scoped 组合对 owner_id=0 恒判 false，
+        // 实际等价于 apply_department_scope（无 pool 放行）；保留函数签名以便
+        // 未来公海口径变更时单点切换。
+        let visible_ids: Vec<i32> = customer_q
+            .all(&*state.db)
+            .await
+            .map_err(|e| AppError::database(e.to_string()))?
+            .into_iter()
+            .map(|c| c.id)
+            .collect();
+        if visible_ids.is_empty() {
+            // 无可见客户：直接返回空集（避免 IN() 生成非法 SQL）
+            return Ok(Json(ApiResponse::success(PaginatedResponse::new(
+                Vec::new(),
+                0u64,
+                page,
+                page_size,
+            ))));
+        }
+        q = q.filter(customer_color_price::Column::CustomerId.is_in(visible_ids));
+    }
 
     if let Some(customer_id) = query.customer_id {
         q = q.filter(customer_color_price::Column::CustomerId.eq(customer_id));
@@ -408,7 +476,6 @@ pub async fn list_customer_special_prices(
     if let Some(color_id) = query.color_id {
         q = q.filter(customer_color_price::Column::ColorId.eq(color_id));
     }
-    // active_only=true 时只返回有效期内（valid_until 为空或未过期）的记录
     if query.active_only == Some(true) {
         let today = Utc::now().date_naive();
         q = q.filter(
@@ -423,10 +490,8 @@ pub async fn list_customer_special_prices(
         .num_items()
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
-    // fetch_page 接收 0-based 页码，需将 1-based page 转换
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
     let items = paginator
-        .fetch_page(page.clamp(1, 1000).saturating_sub(1))
+        .fetch_page(page.saturating_sub(1))
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 

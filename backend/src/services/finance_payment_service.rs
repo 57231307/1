@@ -1,7 +1,9 @@
 use crate::models::finance_payment;
 use crate::models::status::finance_payment as payment_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
@@ -51,14 +53,11 @@ impl FinancePaymentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款 ID {} 不存在", id)))?;
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // finance_payment 表无 department_id，Dept 退化为 Self；
+        // finance_payment 表无 department_id，使用成员归属集合判定；
         // finance_payment.created_by 是 Option<i32>（create_payment 时已显式 Set(Some(auth.user_id))）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, payment.created_by, None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问付款 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, payment.created_by) {
+                return Err(AppError::permission_denied("无权访问付款（数据范围限制）"));
             }
         }
         Ok(payment)

@@ -103,8 +103,12 @@ pub async fn confirm_adjustment(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
+    // 行级归属门：按当前用户数据范围校验被操作记录，越权由 service 在落库前拒绝（零写入）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PeriodAdjustmentService::new(state.db.clone());
-    let model = service.confirm(id, auth.user_id).await?;
+    let model = service
+        .confirm(id, auth.user_id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(model.into())))
 }
 
@@ -114,43 +118,54 @@ pub async fn reverse_adjustment(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
+    // 行级归属门：红字冲销改状态并生成凭证，越权须在落库前被拒（零写入、零状态漂移）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PeriodAdjustmentService::new(state.db.clone());
-    let model = service.reverse(id, auth.user_id).await?;
+    let model = service
+        .reverse(id, auth.user_id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(model.into())))
 }
 
 /// POST /api/v1/erp/period-adjustments/:id/cancel - 取消
 pub async fn cancel_adjustment(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
+    // 行级归属门：取消是状态写操作，越权须在落库前被拒（零写入、零状态漂移）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PeriodAdjustmentService::new(state.db.clone());
-    let model = service.cancel(id).await?;
+    let model = service.cancel(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(model.into())))
 }
 
 /// GET /api/v1/erp/period-adjustments/:id - 详情
 pub async fn get_adjustment(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<PeriodAdjustmentInfo>>, AppError> {
+    // 行级归属门：详情读同样受数据范围约束，防持读键用户凭 ID 直接读取不可见记录（IDOR）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PeriodAdjustmentService::new(state.db.clone());
-    let model = service.get_by_id(id).await?;
+    let model = service.get_by_id(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(model.into())))
 }
 
 /// GET /api/v1/erp/period-adjustments - 列表（按类型/期间/状态过滤分页）
 pub async fn list_adjustments(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<PeriodAdjustmentQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<PeriodAdjustmentInfo>>>, AppError> {
+    // 行级数据权限：按当前用户数据范围下推过滤，持读键用户不得枚举全库期末调整记录；
+    // service.list 内 total 与可见集同源（过滤在 count/分页前下推，非后置过滤）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PeriodAdjustmentService::new(state.db.clone());
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
-    let (items, total) = service.list(query).await?;
+    let (items, total) = service.list(query, Some(&data_scope_ctx)).await?;
     let infos: Vec<PeriodAdjustmentInfo> = items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(PagedResponse {
         items: infos,

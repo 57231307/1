@@ -4,10 +4,75 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use sea_orm::EntityTrait;
 use serde::Deserialize;
+use std::collections::HashSet;
 
+use crate::models::{ar_invoice, ar_reconciliation, customer};
+use crate::utils::data_scope::{self, DataScope, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// 核销族归属门：按父客户 owner_id/department_id 校验数据范围，与对账族同口径。
+/// 不可见→403 + 固定脱敏文案（不含客户 ID，权限文案永久脱敏）。
+async fn ensure_ar_customer_access(
+    db: &sea_orm::DatabaseConnection,
+    ctx: &DataScopeContext,
+    customer_id: i32,
+) -> Result<(), AppError> {
+    let parent = customer::Entity::find_by_id(customer_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在"))?;
+    if !data_scope::check_resource_owner(ctx, Some(parent.owner_id), parent.department_id) {
+        return Err(AppError::permission_denied(
+            "无权访问该核销记录（数据范围限制）",
+        ));
+    }
+    Ok(())
+}
+
+/// 计算可见客户 ID 集合：All 范围返回 None（不过滤）；Dept/Self 返回可见子集。
+/// 用于辅助查询端点（候选列表）下推归属过滤。
+async fn compute_visible_customer_ids(
+    db: &sea_orm::DatabaseConnection,
+    ctx: &DataScopeContext,
+) -> Result<Option<HashSet<i32>>, AppError> {
+    if ctx.scope == DataScope::All {
+        return Ok(None);
+    }
+    // 与 ensure_ar_customer_access 的 check_resource_owner 同属「部门族」判据：
+    // customers 是 RLS 表，Dept 范围按 department_id ∈ 可见部门集合放行。
+    let query = data_scope::apply_department_scope(
+        customer::Entity::find(),
+        ctx,
+        customer::Column::OwnerId,
+        customer::Column::DepartmentId,
+    );
+    let ids: HashSet<i32> = query.all(db).await?.into_iter().map(|c| c.id).collect();
+    Ok(Some(ids))
+}
+
+/// 按可见集合过滤 JSON 数组中的对象（每项须有 `customer_id` 字段）
+fn filter_json_by_visible_customers(
+    value: serde_json::Value,
+    visible_ids: &HashSet<i32>,
+) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(arr) => {
+            let filtered: Vec<serde_json::Value> = arr
+                .into_iter()
+                .filter(|item| {
+                    item.get("customer_id")
+                        .and_then(|v| v.as_i64())
+                        .is_some_and(|cid| visible_ids.contains(&(cid as i32)))
+                })
+                .collect();
+            serde_json::Value::Array(filtered)
+        }
+        other => other,
+    }
+}
 
 /// 核销查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -75,7 +140,7 @@ pub async fn get_verification(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = crate::services::ar_service::ArService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 行级数据权限上下文：核销前按会话范围校验父客户可见性
     let data_scope_ctx = auth.to_data_scope_context();
 
     let verification = service.get_verification(id, Some(&data_scope_ctx)).await?;
@@ -103,6 +168,14 @@ pub async fn manual_verify(
     State(state): State<AppState>,
     Json(payload): Json<ManualVerifyRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 归属门：取发票父客户校验可见性，不可见→403
+    let data_scope_ctx = auth.to_data_scope_context();
+    let inv = ar_invoice::Entity::find_by_id(payload.invoice_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("应收单不存在"))?;
+    ensure_ar_customer_access(&state.db, &data_scope_ctx, inv.customer_id).await?;
+
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let verification = service
@@ -125,6 +198,14 @@ pub async fn cancel_verification(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 归属门：取核销单父客户校验可见性，不可见→403
+    let data_scope_ctx = auth.to_data_scope_context();
+    let rec = ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("核销单不存在"))?;
+    ensure_ar_customer_access(&state.db, &data_scope_ctx, rec.customer_id).await?;
+
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let result = service.cancel_verification(id, auth.user_id).await?;
@@ -160,15 +241,27 @@ fn build_unverified_docs_params(q: UnverifiedDocsQuery) -> serde_json::Value {
 /// 获取未核销发票
 /// GET /api/v1/erp/ar/verifications/unverified/invoices
 pub async fn get_unverified_invoices(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(q): Query<UnverifiedDocsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    // 若指定了 customer_id 过滤，先验该客户是否可见
+    if let Some(cid) = q.customer_id {
+        ensure_ar_customer_access(&state.db, &data_scope_ctx, cid as i32).await?;
+    }
+    let visible_ids = compute_visible_customer_ids(&state.db, &data_scope_ctx).await?;
+
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let invoices = service
         .get_unverified_invoices(build_unverified_docs_params(q))
         .await?;
+
+    let invoices = match &visible_ids {
+        Some(ids) => filter_json_by_visible_customers(invoices, ids),
+        None => invoices,
+    };
 
     Ok(Json(ApiResponse::success(invoices)))
 }
@@ -176,15 +269,27 @@ pub async fn get_unverified_invoices(
 /// 获取未核销收款
 /// GET /api/v1/erp/ar/verifications/unverified/payments
 pub async fn get_unverified_payments(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(q): Query<UnverifiedDocsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    // 若指定了 customer_id 过滤，先验该客户是否可见
+    if let Some(cid) = q.customer_id {
+        ensure_ar_customer_access(&state.db, &data_scope_ctx, cid as i32).await?;
+    }
+    let visible_ids = compute_visible_customer_ids(&state.db, &data_scope_ctx).await?;
+
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let payments = service
         .get_unverified_payments(build_unverified_docs_params(q))
         .await?;
+
+    let payments = match &visible_ids {
+        Some(ids) => filter_json_by_visible_customers(payments, ids),
+        None => payments,
+    };
 
     Ok(Json(ApiResponse::success(payments)))
 }

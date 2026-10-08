@@ -40,6 +40,9 @@ use crate::models::bad_debt_writeoff::{
 use crate::models::status::bad_debt_provision_status as provision_status;
 use crate::models::status::bad_debt_writeoff_status as writeoff_status;
 use crate::models::status::common;
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -368,21 +371,31 @@ impl BadDebtService {
         Ok(updated)
     }
 
-    /// 按 ID 查询计提记录
+    /// 按 ID 查询计提记录（含 IDOR 行级归属校验）
     pub async fn get_provision(
         &self,
         provision_id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<bad_debt_provision::Model, BadDebtError> {
-        ProvisionEntity::find_by_id(provision_id)
+        let provision = ProvisionEntity::find_by_id(provision_id)
             .one(&*self.db)
             .await?
-            .ok_or(BadDebtError::ProvisionNotFound)
+            .ok_or(BadDebtError::ProvisionNotFound)?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, Some(provision.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问该计提记录（数据范围限制）",
+                ))?;
+            }
+        }
+        Ok(provision)
     }
 
-    /// 列表查询计提记录
+    /// 列表查询计提记录（行级数据权限下推：created_by 为 NOT NULL i32，无 NULL-owner 公海语义）
     pub async fn list_provisions(
         &self,
         query: ListProvisionQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<bad_debt_provision::Model>, u64), BadDebtError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -416,6 +429,18 @@ impl BadDebtService {
                 )));
             }
             select = select.filter(bad_debt_provision::Column::Status.eq(v));
+        }
+
+        // 行级数据权限：bad_debt_provisions 无 department_id，created_by 是唯一归属列。
+        // Dept 范围按可见部门成员集合过滤 created_by；Self 仅本人；All 不过滤。
+        // created_by 列类型为 i32（NOT NULL），不存在 NULL-owner 可见性问题。
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                bad_debt_provision::Column::CreatedBy,
+                bad_debt_provision::Column::CreatedBy,
+            );
         }
 
         let paginator = select
@@ -668,21 +693,31 @@ impl BadDebtService {
         Ok(updated)
     }
 
-    /// 按 ID 查询核销申请
+    /// 按 ID 查询核销申请（含 IDOR 行级归属校验）
     pub async fn get_writeoff(
         &self,
         writeoff_id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<bad_debt_writeoff::Model, BadDebtError> {
-        WriteoffEntity::find_by_id(writeoff_id)
+        let writeoff = WriteoffEntity::find_by_id(writeoff_id)
             .one(&*self.db)
             .await?
-            .ok_or(BadDebtError::WriteoffNotFound)
+            .ok_or(BadDebtError::WriteoffNotFound)?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, Some(writeoff.applicant_user_id)) {
+                return Err(AppError::permission_denied(
+                    "无权访问该核销申请（数据范围限制）",
+                ))?;
+            }
+        }
+        Ok(writeoff)
     }
 
-    /// 列表查询核销申请
+    /// 列表查询核销申请（行级数据权限下推：applicant_user_id 为 NOT NULL i32，无 NULL-owner 公海语义）
     pub async fn list_writeoffs(
         &self,
         query: ListWriteoffQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<bad_debt_writeoff::Model>, u64), BadDebtError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -705,6 +740,18 @@ impl BadDebtService {
         }
         if let Some(v) = query.applicant_user_id {
             select = select.filter(bad_debt_writeoff::Column::ApplicantUserId.eq(v));
+        }
+
+        // 行级数据权限：bad_debt_writeoffs 无 department_id，applicant_user_id 是唯一归属列。
+        // Dept 范围按可见部门成员集合过滤 applicant_user_id；Self 仅本人；All 不过滤。
+        // applicant_user_id 列类型为 i32（NOT NULL），不存在 NULL-owner 可见性问题。
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                bad_debt_writeoff::Column::ApplicantUserId,
+                bad_debt_writeoff::Column::ApplicantUserId,
+            );
         }
 
         let paginator = select

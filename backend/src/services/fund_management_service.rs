@@ -2,6 +2,10 @@ use crate::models::fund_management;
 use crate::models::fund_transfer_record;
 // 批次 210 P2-5 修复（v12 复审）：资金账户状态字符串替换为 master_data 常量
 use crate::models::status::master_data;
+// 行级数据权限：读列表下推 scope 过滤 + 单行详情归属门（无 department_id 列的表走成员集合语义）
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -71,9 +75,15 @@ impl FundManagementService {
     }
 
     /// 获取资金账户列表
+    /// 入参：分页/筛选参数 + 行级数据范围（handler 由 auth.to_data_scope_context() 构造后传入 Some）；
+    /// 下推时机在 paginate 之前，items 与 total 共用同一已过滤 paginator；
+    /// 出参：可见账户行 + 同口径总数。
+    /// 归属列：`fund_accounts.created_by`（NOT NULL i32），表无 department_id，
+    /// Dept 分支按可见部门成员集合过滤 created_by，与 `check_resource_owner_by_member_scope` 同源。
     pub async fn get_accounts_list(
         &self,
         params: FundAccountQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<fund_management::Model>, u64), AppError> {
         let mut query = fund_management::Entity::find();
 
@@ -83,6 +93,15 @@ impl FundManagementService {
 
         if let Some(status) = &params.status {
             query = query.filter(fund_management::Column::Status.eq(status));
+        }
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                fund_management::Column::CreatedBy,
+                fund_management::Column::CreatedBy,
+            );
         }
 
         // 批次 266：接入 paginate_with_total，消除手写 count + offset/limit 重复
@@ -126,11 +145,27 @@ impl FundManagementService {
     }
 
     /// 获取账户详情
-    pub async fn get_account_by_id(&self, id: i32) -> Result<fund_management::Model, AppError> {
+    /// 入参：账户 ID + 行级数据范围（`GET /fund-management/accounts/{id}` handler 传 Some 触发 IDOR 门；
+    /// 服务内部写路径 deposit/withdraw/freeze/unfreeze/delete/bank_reconciliation 各自有独立写门，
+    /// 传 None 跳过本次读归属校验，不承担读侧责任）。
+    /// 归属列：`fund_accounts.created_by` NOT NULL i32；表无 department_id，走成员集合语义
+    /// （与 `get_accounts_list` 的 Dept 分支同源）。
+    pub async fn get_account_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<fund_management::Model, AppError> {
         let account = fund_management::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("资金账户不存在：{}", id)))?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, Some(account.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问资金账户（数据范围限制）",
+                ));
+            }
+        }
         Ok(account)
     }
 
@@ -142,7 +177,7 @@ impl FundManagementService {
     ) -> Result<fund_management::Model, AppError> {
         info!("更新资金账户 ID: {}", id);
 
-        let account = self.get_account_by_id(id).await?;
+        let account = self.get_account_by_id(id, None).await?;
         let mut active: fund_management::ActiveModel = account.into_active_model();
 
         if let Some(account_name) = req.account_name {
@@ -188,7 +223,7 @@ impl FundManagementService {
             user_id, account_id, amount
         );
 
-        let account = self.get_account_by_id(account_id).await?;
+        let account = self.get_account_by_id(account_id, None).await?;
 
         if account.status != master_data::ACTIVE {
             return Err(AppError::validation("账户状态非活跃"));
@@ -228,7 +263,7 @@ impl FundManagementService {
             user_id, account_id, amount
         );
 
-        let account = self.get_account_by_id(account_id).await?;
+        let account = self.get_account_by_id(account_id, None).await?;
 
         if account.status != master_data::ACTIVE {
             return Err(AppError::validation("账户状态非活跃"));
@@ -268,7 +303,7 @@ impl FundManagementService {
             user_id, account_id, amount, reason
         );
 
-        let account = self.get_account_by_id(account_id).await?;
+        let account = self.get_account_by_id(account_id, None).await?;
 
         if amount > account.available_balance {
             return Err(AppError::validation("可用余额不足"));
@@ -303,7 +338,7 @@ impl FundManagementService {
             user_id, account_id, amount
         );
 
-        let account = self.get_account_by_id(account_id).await?;
+        let account = self.get_account_by_id(account_id, None).await?;
 
         if amount > account.frozen_balance {
             return Err(AppError::validation("冻结余额不足"));
@@ -325,7 +360,7 @@ impl FundManagementService {
     pub async fn delete_account(&self, account_id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在删除账户 {}", user_id, account_id);
 
-        let account = self.get_account_by_id(account_id).await?;
+        let account = self.get_account_by_id(account_id, None).await?;
 
         if account.balance != Decimal::ZERO {
             // 状态/额度门：账户仍有余额这一业务前置未满足，归业务族；
@@ -365,7 +400,7 @@ impl FundManagementService {
         // 小额自动审批，直接执行转账
         if status == "APPROVED" {
             self.execute_transfer(record.id, user_id).await?;
-            return self.get_transfer_record(record.id).await;
+            return self.get_transfer_record(record.id, None).await;
         }
 
         Ok(record)
@@ -414,14 +449,28 @@ impl FundManagementService {
     }
 
     /// V15 P1 17.6-D5：获取转账记录
+    /// 入参：转账 ID + 行级数据范围（`GET /fund-management/transfers/{id}` handler 传 Some 触发 IDOR 门；
+    /// 服务内部 transfer_fund/approve_transfer/reject_transfer/execute_transfer 各自有写门/状态门，
+    /// 传 None 跳过本次读归属校验，不承担读侧责任）。
+    /// 归属列：`fund_transfers.applied_by` 为 Option<i32>；表无 department_id，走成员集合语义
+    /// （与 `list_transfer_records` 的 Dept 分支同源）。
     pub async fn get_transfer_record(
         &self,
         transfer_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        crate::models::fund_transfer_record::Entity::find_by_id(transfer_id)
+        let record = crate::models::fund_transfer_record::Entity::find_by_id(transfer_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("转账记录不存在：{}", transfer_id)))
+            .ok_or_else(|| AppError::not_found(format!("转账记录不存在：{}", transfer_id)))?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, record.applied_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问转账记录（数据范围限制）",
+                ));
+            }
+        }
+        Ok(record)
     }
 
     /// V15 P1 17.6-D5：审批通过转账
@@ -430,7 +479,7 @@ impl FundManagementService {
         transfer_id: i32,
         approver_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        let record = self.get_transfer_record(transfer_id).await?;
+        let record = self.get_transfer_record(transfer_id, None).await?;
 
         // 只有待审批状态的记录才能审批
         if record.status.as_deref() != Some("PENDING") {
@@ -457,7 +506,7 @@ impl FundManagementService {
 
         // 单级审批完成或第二级审批通过，执行转账
         self.execute_transfer(transfer_id, approver_id).await?;
-        self.get_transfer_record(transfer_id).await
+        self.get_transfer_record(transfer_id, None).await
     }
 
     /// V15 P1 17.6-D5：拒绝转账
@@ -466,7 +515,7 @@ impl FundManagementService {
         transfer_id: i32,
         _rejector_id: i32,
     ) -> Result<crate::models::fund_transfer_record::Model, AppError> {
-        let record = self.get_transfer_record(transfer_id).await?;
+        let record = self.get_transfer_record(transfer_id, None).await?;
 
         // 只有待审批状态的记录才能拒绝
         if record.status.as_deref() != Some("PENDING") {
@@ -486,7 +535,7 @@ impl FundManagementService {
 
     /// V15 P1 17.6-D5：执行实际转账（内部方法）
     async fn execute_transfer(&self, transfer_id: i32, approver_id: i32) -> Result<(), AppError> {
-        let record = self.get_transfer_record(transfer_id).await?;
+        let record = self.get_transfer_record(transfer_id, None).await?;
 
         let from_account_id = record
             .from_account_id
@@ -517,13 +566,27 @@ impl FundManagementService {
     }
 
     /// V15 P1 17.6-D5：获取待审批转账列表
+    /// 入参：分页 + 行级数据范围（handler 由 auth.to_data_scope_context() 构造后传入 Some）。
+    /// 下推时机在分页之前；归属列与 `list_transfer_records` 同源（`applied_by`）。
     pub async fn get_pending_transfers(
         &self,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<fund_transfer_record::Model>, AppError> {
-        let records = fund_transfer_record::Entity::find()
-            .filter(fund_transfer_record::Column::Status.eq("PENDING"))
+        let mut query = fund_transfer_record::Entity::find()
+            .filter(fund_transfer_record::Column::Status.eq("PENDING"));
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                fund_transfer_record::Column::AppliedBy,
+                fund_transfer_record::Column::AppliedBy,
+            );
+        }
+
+        let records = query
             .order_by(fund_transfer_record::Column::TransferDate, Order::Desc)
             .paginate(&*self.db, page_size)
             .fetch_page(page.saturating_sub(1))
@@ -593,6 +656,10 @@ impl FundManagementService {
     }
 
     /// 查询转账记录列表
+    /// 入参：账户/状态筛选 + 分页 + 行级数据范围（handler 由 auth.to_data_scope_context() 构造后传入 Some）。
+    /// 下推时机在分页之前，可见集与 total 由同一已过滤 query 决定；
+    /// 归属列：`fund_transfers.applied_by` 为 Option<i32>，表无 department_id，
+    /// Dept 分支按可见部门成员集合过滤 applied_by，与单行详情归属门同源。
     pub async fn list_transfer_records(
         &self,
         from_account_id: Option<i32>,
@@ -600,6 +667,7 @@ impl FundManagementService {
         status: Option<String>,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<fund_transfer_record::Model>, AppError> {
         let mut query = fund_transfer_record::Entity::find();
 
@@ -611,6 +679,15 @@ impl FundManagementService {
         }
         if let Some(s) = status {
             query = query.filter(fund_transfer_record::Column::Status.eq(s));
+        }
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                fund_transfer_record::Column::AppliedBy,
+                fund_transfer_record::Column::AppliedBy,
+            );
         }
 
         let records = query
@@ -739,7 +816,7 @@ impl FundManagementService {
         bank_statement_balance: Decimal,
         statement_date: NaiveDate,
     ) -> Result<BankReconciliationResult, AppError> {
-        let account = self.get_account_by_id(account_id).await?;
+        let account = self.get_account_by_id(account_id, None).await?;
 
         if !requires_reconciliation(&account.account_type) {
             return Err(AppError::validation(format!(

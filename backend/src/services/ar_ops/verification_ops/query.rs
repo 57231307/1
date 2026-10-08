@@ -18,7 +18,9 @@ use serde_json::json;
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 use super::super::json_helpers::{
@@ -109,14 +111,13 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ar_reconciliation 表无 department_id，Dept 退化为 Self；
+        // ar_reconciliation 表无 department_id，使用成员归属集合判定；
         // ar_reconciliation.created_by 是 Option<i32>（可能为空，空时按"无主数据"处理）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, reconciliation.created_by, None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问核销单 {}（数据范围限制）",
-                    verification_id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, reconciliation.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问核销单（数据范围限制）",
+                ));
             }
         }
 

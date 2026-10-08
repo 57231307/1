@@ -28,6 +28,9 @@ use crate::models::collection_task_dto::{
 };
 use crate::models::collection_template;
 use crate::models::status::common;
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
@@ -598,21 +601,32 @@ impl CollectionTaskService {
         Ok(updated)
     }
 
-    /// 按 ID 查询任务
+    /// 按 ID 查询任务（含 IDOR 行级归属校验）
     pub async fn get_task(
         &self,
         task_id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<collection_task::Model, CollectionTaskError> {
-        Entity::find_by_id(task_id)
+        let task = Entity::find_by_id(task_id)
             .one(&*self.db)
             .await?
-            .ok_or(CollectionTaskError::NotFound)
+            .ok_or(CollectionTaskError::NotFound)?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, Some(task.assigned_to)) {
+                return Err(AppError::permission_denied(
+                    "无权访问该催收任务（数据范围限制）",
+                ))?;
+            }
+        }
+        Ok(task)
     }
 
-    /// 列表查询
+    /// 列表查询（行级数据权限下推：Dept/Self 范围仅可见归属人 ∈ 对应集合的行；
+    /// assigned_to 为 NOT NULL i32，不存在 NULL-owner 公海语义，fail-closed 无需额外放行分支）
     pub async fn list_tasks(
         &self,
         query: ListTaskQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<collection_task::Model>, u64), CollectionTaskError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -658,6 +672,18 @@ impl CollectionTaskService {
             // due_date < today 视为逾期未处理
             let today = Utc::now().date_naive();
             select = select.filter(collection_task::Column::DueDate.lt(today));
+        }
+
+        // 行级数据权限：collection_task 无 department_id，assigned_to 是唯一归属列。
+        // Dept 范围按可见部门成员集合过滤 assigned_to；Self 范围仅本人；All 不过滤。
+        // assigned_to 列类型为 i32（NOT NULL），故不存在"未指派"NULL 行可见性问题。
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                collection_task::Column::AssignedTo,
+                collection_task::Column::AssignedTo,
+            );
         }
 
         let paginator = select

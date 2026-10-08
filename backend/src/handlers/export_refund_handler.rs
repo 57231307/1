@@ -104,14 +104,18 @@ pub async fn generate_refund_declaration(
 }
 
 /// 查询出口退税申报表
+///
+/// 读取会话数据范围上下文交给 service 做行级下推：handler 不在取数后再过滤，
+/// 返回集直接就是该用户可见范围内的申报表，避免持读键用户枚举全公司退税申报。
 pub async fn list_refund_declarations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<RefundPeriodQuery>,
 ) -> Result<Json<ApiResponse<Vec<RefundModel>>>, AppError> {
     let service = ExportRefundService::new(state.db.clone());
+    let scope_ctx = auth.to_data_scope_context();
     let list = service
-        .list_refund_declarations(params.period_year, params.period_month)
+        .list_refund_declarations(params.period_year, params.period_month, Some(&scope_ctx))
         .await?;
     Ok(Json(ApiResponse::success(list)))
 }

@@ -71,8 +71,15 @@ pub async fn list_ar_invoices(
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
     let service = ArInvoiceService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (invoices, total) = service
-        .get_list(params.customer_id, params.status, page, page_size)
+        .get_list(
+            params.customer_id,
+            params.status,
+            page,
+            page_size,
+            Some(&data_scope_ctx),
+        )
         .await?;
 
     info!(
@@ -340,8 +347,15 @@ pub async fn export_ar_invoices(
     Query(query): Query<ArInvoiceQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (invoices, _total) = service
-        .get_list(query.customer_id, query.status, 1, 10000)
+        .get_list(
+            query.customer_id,
+            query.status,
+            1,
+            10000,
+            Some(&data_scope_ctx),
+        )
         .await?;
     let row_count = invoices.len();
     let invoices_json: Vec<serde_json::Value> = invoices

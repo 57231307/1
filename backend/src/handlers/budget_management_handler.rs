@@ -192,6 +192,7 @@ pub async fn list_budget_items(
 ) -> Result<Json<ApiResponse<Vec<budget_management::Model>>>, AppError> {
     info!("用户 {} 正在查询预算科目列表", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
@@ -202,7 +203,9 @@ pub async fn list_budget_items(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (items, _total) = service.get_items_list(query_params).await?;
+    let (items, _total) = service
+        .get_items_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("预算科目列表查询成功，共 {} 条记录", items.len());
 
     Ok(Json(ApiResponse::success(items)))
@@ -313,6 +316,7 @@ pub async fn list_plans(
 ) -> Result<Json<ApiResponse<Vec<budget_plan::Model>>>, AppError> {
     info!("用户 {} 正在查询预算方案列表", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
     let (plans, _total) = service
         .get_plans_list(
@@ -321,6 +325,7 @@ pub async fn list_plans(
             params.page.unwrap_or(1).clamp(1, 1000),
             // page/page_size 钳位（1..=1000 / 1..=100）防超大分页参数 DoS
             params.page_size.unwrap_or(10).clamp(1, 100),
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -533,6 +538,7 @@ pub async fn list_budgets(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询预算列表", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
 
     // 分页参数钳位防 DoS
@@ -547,7 +553,7 @@ pub async fn list_budgets(
         page_size,
     };
 
-    let (items, total) = service.get_items_list(query).await?;
+    let (items, total) = service.get_items_list(query, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -833,6 +839,7 @@ pub async fn export_budget_items(
     auth: AuthContext,
     Query(query): Query<BudgetItemQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: query.item_type,
@@ -841,7 +848,9 @@ pub async fn export_budget_items(
         page: 1,
         page_size: 10000,
     };
-    let (items, _total) = service.get_items_list(query_params).await?;
+    let (items, _total) = service
+        .get_items_list(query_params, Some(&data_scope_ctx))
+        .await?;
     let row_count = items.len();
     let items_json: Vec<serde_json::Value> = items
         .into_iter()

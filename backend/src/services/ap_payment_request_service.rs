@@ -6,7 +6,9 @@
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
 use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -527,14 +529,13 @@ impl ApPaymentRequestService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请 ID: {}", id)))?;
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ap_payment_request 表无 department_id，Dept 退化为 Self；
+        // ap_payment_request 表无 department_id，使用成员归属集合判定；
         // ap_payment_request.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(request.created_by), None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问付款申请 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(request.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问付款申请（数据范围限制）",
+                ));
             }
         }
         Ok(request)

@@ -22,6 +22,7 @@ use crate::models::product_color_price::{
     self, ActiveModel as ColorPriceActive, Entity as ColorPriceEntity,
 };
 use crate::models::status::approval;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -96,16 +97,31 @@ impl ColorPriceCrudService {
         Ok(result)
     }
 
-    /// 列表查询（分页 + 过滤）
-    /// 批次 263 修复：接入 paginate_with_total 工具函数，消除手写 num_items + fetch_page 重复。；paginate_with_total 内部已做 page.saturating_sub(1) 偏移，调用方不可再减 1。；补 page.clamp(1, 1000) 防 DoS（page_size 已有 clamp(1,100)）。
+    /// 列表查询（分页 + 过滤 + 行级数据范围）
+    ///
+    /// 行级下推置于业务筛选与 `total` 统计之前，`paginate_with_total` 对同一 query 做
+    /// num_items + fetch_page，`total` 与 items 同源自带 scope，无需后置过滤。
+    /// `product_color_prices` 无 `department_id` 列，Dept 分支按「归属人 ∈ 可见部门
+    /// 成员用户集合」下推（`build_data_scope_condition` 通用形态），两列参数同传
+    /// `CreatedBy`（与 `custom_order_crud_service` 同范式）。
     pub async fn list(
         &self,
         query: &ListColorPricesQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<product_color_price::Model>, u64), CrudError> {
         let page = query.page.unwrap_or(1);
-        let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut q = ColorPriceEntity::find();
+
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                product_color_price::Column::CreatedBy,
+                product_color_price::Column::CreatedBy,
+            );
+        }
 
         if let Some(pid) = query.product_id {
             q = q.filter(product_color_price::Column::ProductId.eq(pid));

@@ -5,6 +5,7 @@ use crate::models::{
 use crate::models::status::approval;
 // 批次 209 P2-5 修复（v12 复审）：预算方案/项目状态字符串替换为 budget 常量
 use crate::models::status::budget;
+use crate::utils::data_scope::{DataScope, DataScopeContext, apply_department_scope};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use rust_decimal::Decimal;
@@ -52,10 +53,23 @@ impl BudgetManagementService {
         Self { db }
     }
 
-    /// 获取预算科目列表
+    /// 获取预算科目列表（带行级数据权限）。
+    ///
+    /// 明细表 `budget_items` 经模型与 DDL 逐字段核实：既无归属人列（`created_by`/
+    /// `prepared_by`）也无部门列（`department_id`），仅有 `plan_id` 外键指向
+    /// `budget_plans`，故明细自身无独立归属语义，可见性只能经父方案继承。`data_scope`
+    /// 非 `All` 时先在 `budget_plans` 上以 `apply_department_scope`（与方案列表同一
+    /// 下推口径，保证"方案可见 ⇔ 其明细可见"）算出可见方案 id 集合，再以
+    /// `plan_id IN` 该集合在查询构造处收窄——非 handler 后置过滤，保证分页 `total`
+    /// 与可见集同源，杜绝"全库预算明细可枚举"。可见集合为空时 sea-query 把 `IN ()`
+    /// 渲染为恒假，即"无可见方案即无可见明细"；`All` 跳过子查询避免全表 id 物化。
+    ///
+    /// 本方法是明细列表的唯一通路：不设"不带 scope 的平行版本"，否则新增调用点漏传
+    /// 即静默全量可见。
     pub async fn get_items_list(
         &self,
         params: BudgetItemQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<budget_management::Model>, u64), AppError> {
         let mut query = budget_management::Entity::find();
 
@@ -69,6 +83,25 @@ impl BudgetManagementService {
 
         if let Some(plan_id) = params.plan_id {
             query = query.filter(budget_management::Column::PlanId.eq(plan_id));
+        }
+
+        // 行级数据范围：经父方案继承收窄（明细自身无归属/部门列，见方法文档）。
+        // 置于 count() 之前，使 total 与可见集同源。
+        if let Some(ctx) = data_scope {
+            if ctx.scope != DataScope::All {
+                let visible_plan_ids: Vec<i32> = apply_department_scope(
+                    budget_plan::Entity::find(),
+                    ctx,
+                    budget_plan::Column::PreparedBy,
+                    budget_plan::Column::DepartmentId,
+                )
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|p| p.id)
+                .collect();
+                query = query.filter(budget_management::Column::PlanId.is_in(visible_plan_ids));
+            }
         }
 
         let total = query.clone().count(&*self.db).await?;
@@ -393,13 +426,24 @@ impl BudgetManagementService {
         Ok(())
     }
 
-    /// 获取预算方案列表
+    /// 获取预算方案列表（带行级数据权限）。
+    ///
+    /// `budget_plans` 经模型与 DDL 逐字段核实同时具备部门列 `department_id`（预算
+    /// 所属部门，业务真实列）与归属人列 `prepared_by`（编制人），故用
+    /// `apply_department_scope`：`Dept` 分支 = 本人编制行 OR `department_id` ∈
+    /// 可见部门集合（与 RLS 策略 USING 的 OR 组合同形态）；`Self_` 仅本人编制行；
+    /// `All` 不加行级过滤。`budget_plans` 不属于 m_rls_dept_domain 的 DB 触发器表，
+    /// 其 `department_id` 是预算编制时直接写入的业务列，按该列过滤即与语义等价，
+    /// 无需借归属人成员集合。显式 `department_id` 业务筛选与行级范围两条件 AND，
+    /// 只能在可见集内进一步收窄。下推置于 `count()` 之前，`total` 与可见集同源；
+    /// 本方法是方案列表唯一通路，不设"不带 scope 的平行版本"。
     pub async fn get_plans_list(
         &self,
         budget_year: Option<i32>,
         department_id: Option<i32>,
         page: i64,
         page_size: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<budget_plan::Model>, u64), AppError> {
         let mut query = budget_plan::Entity::find();
 
@@ -409,6 +453,16 @@ impl BudgetManagementService {
 
         if let Some(dept_id) = department_id {
             query = query.filter(budget_plan::Column::DepartmentId.eq(dept_id));
+        }
+
+        // 行级数据范围下推（apply_department_scope 内 All 返回空 Condition，无需再判 scope）。
+        if let Some(ctx) = data_scope {
+            query = apply_department_scope(
+                query,
+                ctx,
+                budget_plan::Column::PreparedBy,
+                budget_plan::Column::DepartmentId,
+            );
         }
 
         let total = query.clone().count(&*self.db).await?;

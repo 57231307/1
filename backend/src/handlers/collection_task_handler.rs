@@ -153,7 +153,7 @@ pub async fn create_task(
 
 /// GET /api/v1/erp/collection-tasks - 任务列表
 pub async fn list_tasks(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListTaskQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<TaskInfo>>>, AppError> {
@@ -161,8 +161,10 @@ pub async fn list_tasks(
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let (items, total) = service
-        .list_tasks(query)
+        .list_tasks(query, Some(&data_scope_ctx))
         .await
         .map_err(collection_task_err)?;
     let infos: Vec<TaskInfo> = items.into_iter().map(Into::into).collect();
@@ -176,12 +178,16 @@ pub async fn list_tasks(
 
 /// GET /api/v1/erp/collection-tasks/:id - 任务详情
 pub async fn get_task(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
-    let record = service.get_task(id).await.map_err(collection_task_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_task(id, Some(&data_scope_ctx))
+        .await
+        .map_err(collection_task_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 

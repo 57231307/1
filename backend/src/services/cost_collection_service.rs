@@ -12,6 +12,9 @@ use tracing::info;
 
 use crate::models::cost_collection;
 use crate::models::status::cost_collection as cc_status;
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -135,6 +138,12 @@ impl CostCollectionService {
     }
 
     /// 查询成本归集列表
+    ///
+    /// 行级数据权限下推：成本归集含成本金额、工序、工单号等敏感业务数据，必须按调用者
+    /// 归属范围过滤，否则全库行可被任意登录用户枚举。列表端点与导出端点复用本函数并
+    /// 传入同一 `data_scope`，使两者可见行同源同口径；`total` 由施加过滤后的同一条查询
+    /// 统计得出，保证分页总数不泄露范围外的行。`data_scope` 传 `None` 表示无终端用户
+    /// 上下文的内部受信调用（当前仅测试/聚合链路，不针对终端用户暴露）。
     pub async fn get_list(
         &self,
         collection_no: Option<String>,
@@ -143,6 +152,7 @@ impl CostCollectionService {
         status: Option<String>,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<cost_collection::Model>, u64), AppError> {
         info!("查询成本归集列表");
 
@@ -174,6 +184,20 @@ impl CostCollectionService {
             }
         }
 
+        // 行级数据权限下推（业务敏感行不可越权枚举）。cost_collections 无 department_id
+        // 列，created_by 是唯一归属列：Dept 范围按「归属人 ∈ 可见部门成员集合」过滤
+        // （成员集合为空时退化为仅本人）、Self 范围仅本人、All 范围不过滤——三档语义与
+        // 详情/审核归属门同源。过滤必须在统计 total 之前施加，使 total 与分页列表源自
+        // 同一条已下推权限的查询，二者口径一致。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                cost_collection::Column::CreatedBy,
+                cost_collection::Column::CreatedBy,
+            );
+        }
+
         let total = query.clone().count(&*self.db).await?;
         let collections = query
             .order_by(cost_collection::Column::CollectionDate, Order::Desc)
@@ -187,13 +211,31 @@ impl CostCollectionService {
     }
 
     /// 查询成本归集详情
-    pub async fn get_by_id(&self, id: i32) -> Result<cost_collection::Model, AppError> {
+    ///
+    /// 详情按行级数据权限做单行归属门（IDOR 防护）。cost_collections 无 department_id，
+    /// 判据与列表侧 Dept 分支同源——「归属人 ∈ 可见部门成员集合」，而非资源自身部门列，
+    /// 以避免「列表能显示、点详情即丢失或越权」的自相矛盾。归属人为 NULL 的历史行一律
+    /// 拒绝，不放宽成「无主即可读」。`data_scope` 传 `None` 表示内部受信调用不加门。
+    /// 拒绝文案为固定脱敏常量，不含记录 ID。
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<cost_collection::Model, AppError> {
         info!("查询成本归集详情 ID: {}", id);
 
         let collection = cost_collection::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("成本归集单不存在：{}", id)))?;
+
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, collection.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问该成本归集（数据范围限制）",
+                ));
+            }
+        }
 
         Ok(collection)
     }
@@ -436,23 +478,41 @@ impl CostCollectionService {
         Ok(result)
     }
 
-    /// 审核成本归集
-    /// 批次 85 v2 复审 P1-3 修复：用 txn 包裹 find + 状态门 + update，加 lock_exclusive 串行化；原实现全程无 txn 无 lock_exclusive，并发审核会基于过期状态通过检查后重复写入
+    /// 审核成本归集（确认 / 反确认写端点）
+    ///
+    /// 并发一致性：用事务包裹 find + 归属门 + 状态门 + 写回，并以排他锁串行化并发状态
+    /// 变更，避免基于过期状态通过检查后重复写入。
+    ///
+    /// 行级数据权限：审核是写操作，须在落库前按与详情/列表同源的归属门把关
+    /// （cost_collections 无 department_id，按「归属人 ∈ 可见部门成员集合」判定）。门置于
+    /// 排他锁读之后、状态校验与写回之前，越权请求不得进入审核状态变更；归属人为 NULL 的
+    /// 历史行一律拒绝。拒绝文案为固定脱敏常量，不含记录 ID。`data_scope` 传 `None` 表示
+    /// 无终端用户上下文的内部受信调用，不加门。
     pub async fn audit(
         &self,
         id: i32,
         approved: bool,
         _comment: Option<String>,
         _user_id: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<cost_collection::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        // 加 lock_exclusive 串行化并发状态变更
+        // 加排他锁串行化并发状态变更
         let collection = cost_collection::Entity::find_by_id(id)
             .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found("成本归集"))?;
+
+        // 落库前的行级数据权限归属门（口径与详情/列表一致）
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, collection.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权审核该成本归集（数据范围限制）",
+                ));
+            }
+        }
 
         // 只有草稿状态才能审核
         if collection.status != "draft" {

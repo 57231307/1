@@ -21,6 +21,9 @@ use crate::models::period_adjustment_record::{
     self, ActiveModel as AdjustmentActiveModel, Entity as AdjustmentEntity,
     Model as AdjustmentModel,
 };
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
@@ -168,8 +171,18 @@ impl PeriodAdjustmentService {
     }
 
     /// 确认期末调整（draft → confirmed），生成调整凭证并回写 voucher_id
-    pub async fn confirm(&self, id: i64, user_id: i32) -> Result<AdjustmentModel, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 行级归属门透传给 `get_by_id`（按 created_by 判定），门置于状态校验与凭证生成之前：
+    /// 越权请求在校验归属时即被拒，绝不触达 `active.update` 与 `create_adjustment_voucher`，
+    /// 因此零写入、零状态漂移。`data_scope` 为 None 表示系统批处理路径（如结账前批量确认），
+    /// 不加行级门。
+    pub async fn confirm(
+        &self,
+        id: i64,
+        user_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         if model.status != period_adjustment_status::DRAFT {
             return Err(AppError::business(format!(
                 "仅草稿(draft)状态可确认，当前状态: {}",
@@ -193,8 +206,16 @@ impl PeriodAdjustmentService {
 
     /// 红字冲销（confirmed → reversed），生成红字冲销凭证（借贷对调）并回写 reverse_voucher_id
     /// 典型场景：暂估类调整下月初红字冲销
-    pub async fn reverse(&self, id: i64, user_id: i32) -> Result<AdjustmentModel, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 行级归属门透传给 `get_by_id`，门在状态校验与红字凭证生成之前，越权即拒，零写入零状态漂移；
+    /// `data_scope` 为 None 表示系统批处理路径，不加行级门。
+    pub async fn reverse(
+        &self,
+        id: i64,
+        user_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         if model.status != period_adjustment_status::CONFIRMED {
             return Err(AppError::business(format!(
                 "仅已确认(confirmed)状态可冲销，当前状态: {}",
@@ -217,8 +238,15 @@ impl PeriodAdjustmentService {
     }
 
     /// 取消期末调整（draft → cancelled）
-    pub async fn cancel(&self, id: i64) -> Result<AdjustmentModel, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 行级归属门透传给 `get_by_id`（按 created_by 判定），门在状态校验之前，越权即拒，
+    /// 不触达 `active.update`，零写入零状态漂移；`data_scope` 为 None 表示系统路径，不加行级门。
+    pub async fn cancel(
+        &self,
+        id: i64,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         if model.status != period_adjustment_status::DRAFT {
             return Err(AppError::business(format!(
                 "仅草稿(draft)状态可取消，当前状态: {}",
@@ -377,7 +405,9 @@ impl PeriodAdjustmentService {
         let total = pending.len() as u64;
         let mut confirmed = 0u64;
         for adj in pending {
-            match self.confirm(adj.id, user_id).await {
+            // 结账批处理属系统路径（无 HTTP 鉴权上下文），对 confirm 传 data_scope=None
+            // 即不加行级归属门，等价于系统按期间全量处理本域 draft，与既有行为一致。
+            match self.confirm(adj.id, user_id, None).await {
                 Ok(_) => confirmed += 1,
                 Err(e) => tracing::warn!(
                     adjustment_id = adj.id,
@@ -397,19 +427,44 @@ impl PeriodAdjustmentService {
         Ok(confirmed)
     }
 
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i64) -> Result<AdjustmentModel, AppError> {
-        AdjustmentEntity::find_by_id(id)
+    /// 按 ID 查询（含行级归属校验，IDOR 防护）
+    ///
+    /// period_adjustment_record 无 department_id 列，created_by 是唯一归属列，单行门按
+    /// 「归属人 ∈ 可见部门成员集合」判定（check_resource_owner_by_member_scope），与列表侧
+    /// apply_data_scope 的 Dept 分支同源；data_scope 为 None 时（系统批处理调用）不加行级门。
+    /// 拒绝文案固定脱敏、不带记录 ID，避免越权探测借响应回显枚举有效 ID。
+    pub async fn get_by_id(
+        &self,
+        id: i64,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = AdjustmentEntity::find_by_id(id)
             .filter(period_adjustment_record::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("期末调整记录 {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("期末调整记录 {} 不存在", id)))?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问该期末调整记录（数据范围限制）",
+                ));
+            }
+        }
+        Ok(model)
     }
 
-    /// 分页查询
+    /// 分页查询（行级数据权限下推）
+    ///
+    /// 持读键用户不得枚举全库期末调整记录，故 `data_scope` 携带时按 created_by 归属下推行级
+    /// 过滤：period_adjustment_record 无 department_id，owner 与 dept 两列均传 Column::CreatedBy
+    /// （Dept 范围按可见部门成员集合过滤归属人，Self 仅本人，All 不过滤）。过滤必须下推到
+    /// count 与 paginate **之前**、在同一 `q` 上派生，使 `total` 与可见集严格同源——绝不可取回
+    /// 整页后再做后置过滤，否则 total 虚高、越权行仍可被翻页枚举。`data_scope` 为 None 时不加
+    /// 行级门（供系统批处理等无鉴权上下文路径复用）。
     pub async fn list(
         &self,
         query: PeriodAdjustmentQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<AdjustmentModel>, u64), AppError> {
         let mut q =
             AdjustmentEntity::find().filter(period_adjustment_record::Column::IsDeleted.eq(false));
@@ -421,6 +476,14 @@ impl PeriodAdjustmentService {
         }
         if let Some(v) = query.status {
             q = q.filter(period_adjustment_record::Column::Status.eq(v));
+        }
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                period_adjustment_record::Column::CreatedBy,
+                period_adjustment_record::Column::CreatedBy,
+            );
         }
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);

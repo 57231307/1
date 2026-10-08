@@ -16,6 +16,7 @@ use crate::models::export_refund_declaration::{
     self, ActiveModel as RefundActiveModel, Entity as RefundEntity, Model as RefundModel,
 };
 use crate::models::foreign_exchange_verification::{self, Entity as FxEntity};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -355,10 +356,17 @@ impl ExportRefundService {
     }
 
     /// 查询出口退税申报表
+    ///
+    /// 行级数据权限在查询构建阶段下推：申报表无 department_id 归属列，`created_by`
+    /// 是唯一归属列，故 owner 列与 dept 列同传 `created_by`（Dept 范围据此按可见
+    /// 部门成员集合过滤，Self 仅本人，All 不加过滤）。过滤在 `.all()` 取数前生效，
+    /// 返回列表本身即为范围内结果，调用方不得再对返回集做后置过滤或另发一次未加
+    /// 范围的 count——归属人为 NULL 的历史行一律不进可见集，不放行成"无主即可读"。
     pub async fn list_refund_declarations(
         &self,
         period_year: Option<i32>,
         period_month: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<RefundModel>, AppError> {
         let mut query = RefundEntity::find();
         if let Some(y) = period_year {
@@ -366,6 +374,14 @@ impl ExportRefundService {
         }
         if let Some(m) = period_month {
             query = query.filter(export_refund_declaration::Column::PeriodMonth.eq(m));
+        }
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                export_refund_declaration::Column::CreatedBy,
+                export_refund_declaration::Column::CreatedBy,
+            );
         }
         let list = query.all(&*self.db).await?;
         Ok(list)

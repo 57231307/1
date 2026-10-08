@@ -7,8 +7,10 @@
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
-// V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+// 行级数据权限工具
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -325,7 +327,7 @@ impl ApPaymentService {
         items: &[ap_payment_request_item::Model],
         total_apply_amount: Decimal,
     ) -> Result<std::collections::HashMap<i32, ap_invoice::Model>, AppError> {
-        // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单
+        // 循环外批量查询并锁定所有关联的应付单
         let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
         Ok(
             if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
@@ -362,7 +364,7 @@ impl ApPaymentService {
             .checked_mul(ratio)
             .unwrap_or_default();
 
-        // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
+        // 从批量查询结果取应付单（O(1) 查找，避免逐项再查）
         // 改用 get_mut + clone：同一 invoice_id 出现多条明细时复用 map 中已累加的值，
         // 第二笔起不再被静默丢弃（原 remove 语义下重复明细拿不到 model，分摊金额无痕丢失）。
         if let Some(inv) = invoice_map.get_mut(&item.invoice_id) {
@@ -650,15 +652,14 @@ impl ApPaymentService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款单 {}", id)))?;
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ap_payment 表无 department_id，Dept 退化为 Self；
+        // 行级数据权限校验（IDOR 防护）
+        // ap_payment 表无 department_id，使用成员归属集合判定；
         // ap_payment.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(payment.created_by), None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问付款单 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(payment.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问付款单（数据范围限制）",
+                ));
             }
         }
         Ok(payment)
@@ -689,7 +690,7 @@ impl ApPaymentService {
             query = query.filter(ap_payment::Column::PaymentDate.lte(ed));
         }
 
-        // V15 P0-S01：行级数据权限过滤
+        // 行级数据权限过滤
         // ap_payment 表无 department_id，Dept 退化为 Self；
         // ap_payment.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {
