@@ -4,6 +4,7 @@
 //! system → business → sales_crm → production → finance → v15 → rls_dept
 //!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check → price_vocab_check
 //!   → price_vocab_extend → price_fk → export_inspection_vocab_check → dye_recipe_reject
+//!   → ddl_nullability_tighten
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -62,6 +63,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::price_fk::Migration),
             Box::new(domain::export_inspection_vocab_check::Migration),
             Box::new(domain::dye_recipe_reject::Migration),
+            Box::new(domain::ddl_nullability_tighten::Migration),
         ]
     }
 }
