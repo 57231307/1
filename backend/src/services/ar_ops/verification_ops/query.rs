@@ -3,11 +3,12 @@
 //! D10 拆分自原 `ar_ops/verification.rs`，包含 4 个查询类公开 API：
 //! - `list_verifications`     核销列表（支持 invoice_id / payment_id / status 过滤 + 行级数据权限）
 //! - `get_verification`       核销详情（含明细行 + IDOR 防护）
-//! - `get_unverified_invoices` 未核销发票列表（支持 customer_id 过滤）
+//! - `get_unverified_invoices` 未核销发票列表（支持 customer_id 过滤 + 可见客户集合下推）
 //! - `get_unverified_payments` 未核销收款列表（支持 customer_id 过滤 + 已核销金额排除）
 //!
 //! 业务规则：
-//! - list/get 支持 V15 P0-S01 行级数据权限（ar_reconciliation 表无 department_id，Dept 退化为 Self）
+//! - list/get 支持行级数据权限（ar_reconciliation 表无 department_id，Dept 退化为 Self）
+//! - 候选列表按调用方传入的可见客户集合在 SQL 侧过滤 customer_id，调用方不再二次裁剪载荷
 //! - get_unverified_payments 批量查询已有核销记录，过滤已完全核销的收款
 
 use rust_decimal::Decimal;
@@ -142,10 +143,12 @@ impl ArService {
     }
 
     /// 获取未核销发票
-    /// 支持 query.customer_id 过滤
+    /// 支持 query.customer_id 过滤；visible_customer_ids 为会话可见客户集合，
+    /// `None` 表示全可见范围（不过滤），空集合表示无可见客户（返回空）。
     pub async fn get_unverified_invoices(
         &self,
         query: serde_json::Value,
+        visible_customer_ids: Option<&Vec<i32>>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
@@ -153,6 +156,9 @@ impl ArService {
 
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
             q = q.filter(ar_invoice::Column::CustomerId.eq(cid as i32));
+        }
+        if let Some(ids) = visible_customer_ids {
+            q = q.filter(ar_invoice::Column::CustomerId.is_in(ids.clone()));
         }
 
         let invoices = q
@@ -169,10 +175,11 @@ impl ArService {
     }
 
     /// 获取未核销收款
-    /// 支持 query.customer_id 过滤
+    /// 支持 query.customer_id 过滤；visible_customer_ids 语义同 `get_unverified_invoices`。
     pub async fn get_unverified_payments(
         &self,
         query: serde_json::Value,
+        visible_customer_ids: Option<&Vec<i32>>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_collection::Entity::find().filter(
             ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED),
@@ -180,6 +187,9 @@ impl ArService {
 
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
             q = q.filter(ar_collection::Column::CustomerId.eq(cid as i32));
+        }
+        if let Some(ids) = visible_customer_ids {
+            q = q.filter(ar_collection::Column::CustomerId.is_in(ids.clone()));
         }
 
         let payments = q

@@ -6,7 +6,6 @@ use axum::{
 };
 use sea_orm::EntityTrait;
 use serde::Deserialize;
-use std::collections::HashSet;
 
 use crate::models::{ar_invoice, ar_reconciliation, customer};
 use crate::utils::data_scope::{self, DataScope, DataScopeContext};
@@ -37,7 +36,7 @@ async fn ensure_ar_customer_access(
 async fn compute_visible_customer_ids(
     db: &sea_orm::DatabaseConnection,
     ctx: &DataScopeContext,
-) -> Result<Option<HashSet<i32>>, AppError> {
+) -> Result<Option<Vec<i32>>, AppError> {
     if ctx.scope == DataScope::All {
         return Ok(None);
     }
@@ -49,29 +48,8 @@ async fn compute_visible_customer_ids(
         customer::Column::OwnerId,
         customer::Column::DepartmentId,
     );
-    let ids: HashSet<i32> = query.all(db).await?.into_iter().map(|c| c.id).collect();
+    let ids: Vec<i32> = query.all(db).await?.into_iter().map(|c| c.id).collect();
     Ok(Some(ids))
-}
-
-/// 按可见集合过滤 JSON 数组中的对象（每项须有 `customer_id` 字段）
-fn filter_json_by_visible_customers(
-    value: serde_json::Value,
-    visible_ids: &HashSet<i32>,
-) -> serde_json::Value {
-    match value {
-        serde_json::Value::Array(arr) => {
-            let filtered: Vec<serde_json::Value> = arr
-                .into_iter()
-                .filter(|item| {
-                    item.get("customer_id")
-                        .and_then(|v| v.as_i64())
-                        .is_some_and(|cid| visible_ids.contains(&(cid as i32)))
-                })
-                .collect();
-            serde_json::Value::Array(filtered)
-        }
-        other => other,
-    }
 }
 
 /// 核销查询参数
@@ -220,8 +198,8 @@ pub async fn cancel_verification(
 /// service 端 `as_i64()` 恒 `None` ⇒ customer_id 筛选静默失效（勾了客户仍返回全部单据）。
 /// typed DTO 由 serde 在反序列化边界完成字符串→整数转换（非法值直接 400，不做任何
 /// `unwrap_or` 静默回落），再按 service 既有契约键 `customer_id` 以 `Value::Number` 重建透传，
-/// 不改 service 签名、不新造键名。空串筛选由最外层 `normalize_empty_query_params`
-/// 中间件剔除后收敛为 None（不过滤），与全仓查询 DTO 边界语义一致。
+/// 不新造键名。可见客户集合作为独立入参下推到 service 的 SQL 过滤条件。空串筛选由最外层
+/// `normalize_empty_query_params` 中间件剔除后收敛为 None（不过滤），与全仓查询 DTO 边界语义一致。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UnverifiedDocsQuery {
@@ -255,13 +233,8 @@ pub async fn get_unverified_invoices(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let invoices = service
-        .get_unverified_invoices(build_unverified_docs_params(q))
+        .get_unverified_invoices(build_unverified_docs_params(q), visible_ids.as_ref())
         .await?;
-
-    let invoices = match &visible_ids {
-        Some(ids) => filter_json_by_visible_customers(invoices, ids),
-        None => invoices,
-    };
 
     Ok(Json(ApiResponse::success(invoices)))
 }
@@ -283,13 +256,8 @@ pub async fn get_unverified_payments(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
 
     let payments = service
-        .get_unverified_payments(build_unverified_docs_params(q))
+        .get_unverified_payments(build_unverified_docs_params(q), visible_ids.as_ref())
         .await?;
-
-    let payments = match &visible_ids {
-        Some(ids) => filter_json_by_visible_customers(payments, ids),
-        None => payments,
-    };
 
     Ok(Json(ApiResponse::success(payments)))
 }

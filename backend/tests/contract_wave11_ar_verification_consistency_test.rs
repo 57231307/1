@@ -598,7 +598,7 @@ async fn ledger_and_statement_amount_scopes_do_not_mix() {
     // 无账本行的收款 B 仍在列表中（正向对照，防"全量剔除"假绿）
     let payment_b = seed_confirmed_collection(&db, cid, uid, "100.00").await;
     let unverified = service
-        .get_unverified_payments(json!({}))
+        .get_unverified_payments(json!({}), None)
         .await
         .expect("可核销收款列表查询应成功");
     let listed_ids: Vec<i64> = unverified

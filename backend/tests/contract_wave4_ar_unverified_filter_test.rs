@@ -9,7 +9,7 @@
 //! - 修复形态（对齐 sales_order_handler::OrderStatisticsQuery / budget_management_handler::BudgetListQuery 先例）：
 //!   handler 改 typed DTO `UnverifiedDocsQuery { customer_id: Option<i64> }`，serde 在反序列化
 //!   边界完成字符串→整数（非法值 400，不 unwrap_or 静默回落），再按 service **既有契约键**
-//!   `customer_id` 以 `Value::Number` 重建透传，service 签名不变。
+//!   `customer_id` 以 `Value::Number` 重建透传；可见客户集合由 service 的独立入参在 SQL 侧过滤。
 //!
 //! 覆盖策略（全部真实 handler + 真实 SQL 行为，无 mock）：
 //! 1. invoices 端点：不带过滤 = 两客户全部未核销发票（非 CANCELLED 且 unpaid>0）；
@@ -17,8 +17,10 @@
 //!    边界锁：unpaid=0 行与 CANCELLED 行两个口径都不出现。
 //! 2. payments 端点：confirmed 收款 + 已完全核销行排除的既有口径不变，customer_id 过滤生效。
 //! 3. 非法值 `customer_id=abc` → 400（typed DTO 反序列化拒绝，锁"不再静默吞掉"）。
-//! 4. 防回潮源码扫描：handler 不再出现 `Query<serde_json::Value>`；service 契约键
-//!    `customer_id` + `as_i64()` 形态未动（本次只修 handler 侧取数，不改 service 签名）。
+//! 4. Self 范围会话：候选列表只含「父客户归属人=本人」的单据，指定不可见客户 → 403
+//!    （列表可见集与单行归属门同判据）。
+//! 5. 防回潮源码扫描：handler 不再出现 `Query<serde_json::Value>`；service 侧仍以
+//!    `customer_id` + `as_i64()` 消费该参数，防两侧各改一半。
 
 use std::str::FromStr;
 
@@ -237,16 +239,23 @@ async fn seed_collections(db: &DatabaseConnection) -> (i32, i32, i32) {
     (p1, p2, p3)
 }
 
-async fn seeded_app() -> Router {
-    // 路线一：真库 PostgreSQL（迁移产出真实表），不再自建 sqlite 同构 DDL
+/// 真库夹具：返回 (可供 handler 挂载的 state, 同一库句柄)
+/// 路线一：真库 PostgreSQL（迁移产出真实表），不再自建 sqlite 同构 DDL
+async fn seeded_state() -> (AppState, std::sync::Arc<sea_orm::DatabaseConnection>) {
     let db = setup_test_db().await;
     seed_fk_prerequisites(&db).await;
     seed_invoices(&db).await;
     seed_collections(&db).await;
+    let db = std::sync::Arc::new(db);
     let state = AppState {
-        db: std::sync::Arc::new(db),
+        db: db.clone(),
         ..Default::default()
     };
+    (state, db)
+}
+
+async fn seeded_app() -> Router {
+    let (state, _db) = seeded_state().await;
     build_app(state, make_auth(100, "e2e_ar_verifier", Some("all")))
 }
 
@@ -357,6 +366,60 @@ async fn non_integer_customer_id_is_rejected_400() {
     }
 }
 
+/// 行级范围锁：Self 会话的候选列表按「父客户归属人=本人」下推到 SQL 过滤。
+/// 负向前置：两个客户都是公海行（owner_id=0）时列表必须为空——若可见集过滤根本没生效，
+/// 这里会拿到全量 5 张发票 / 2 笔收款。
+/// 正向对照：把客户 1 归属给本人后只剩客户 1 的单据（防"恒空"另一种假绿）。
+/// 一致性：带 customer_id 指定不可见客户时按单行归属门直接 403，与列表不可见同判据。
+#[tokio::test]
+async fn self_scope_session_only_sees_own_customers_documents() {
+    let (state, db) = seeded_state().await;
+    let app = build_app(state, make_auth(100, "e2e_ar_self", Some("self")));
+
+    for uri in [
+        "/ar/verifications/unverified/invoices",
+        "/ar/verifications/unverified/payments",
+    ] {
+        let (status, body) = get_status_and_json(&app, uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}: 范围过滤不应改变状态码");
+        let rows = body["data"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{uri}: data 应为数组，实际 {body}"));
+        assert!(
+            rows.is_empty(),
+            "{uri}: 客户均为公海行时 Self 会话应拿不到单据，实际 {rows:?}"
+        );
+    }
+
+    exec_pg(&db, "UPDATE customers SET owner_id = 100 WHERE id = 1").await;
+
+    let (status, inv) = get_status_and_json(&app, "/ar/verifications/unverified/invoices").await;
+    assert_eq!(status, StatusCode::OK);
+    let inv_rows = collect_rows(&inv["data"], Some(1));
+    assert_eq!(
+        inv_rows.len(),
+        3,
+        "客户 1 归属本人后应只剩其 3 张未清发票，实际 {inv_rows:?}"
+    );
+
+    let (status, pay) = get_status_and_json(&app, "/ar/verifications/unverified/payments").await;
+    assert_eq!(status, StatusCode::OK);
+    let pay_rows = collect_rows(&pay["data"], Some(1));
+    assert_eq!(
+        pay_rows.len(),
+        1,
+        "客户 1 的可核销收款应只剩未核销的那笔，实际 {pay_rows:?}"
+    );
+
+    let (status, _) =
+        get_status_and_json(&app, "/ar/verifications/unverified/invoices?customer_id=2").await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "指定不可见客户必须按单行归属门 403，不得静默返回空集"
+    );
+}
+
 /// 防回潮源码扫描：handler 改 typed DTO 且不残留 Value 透传；service 契约键保持 customer_id 不变。
 #[test]
 fn source_scan_handler_typed_dto_and_service_contract_unchanged() {
@@ -379,7 +442,7 @@ fn source_scan_handler_typed_dto_and_service_contract_unchanged() {
     // 注：不限扫 handler 全文的 unwrap_or —— list_verifications 的分页 unwrap_or+clamp
     // 是既有合法默认语义；本族修复的"不静默回落"由 typed DTO 400 行为锁
     // （non_integer_customer_id_is_rejected_400）保证。
-    // service 契约：本次修复不改 service 签名与键名，防两边各改一半
+    // service 契约：customer_id 键名与消费形态保持不变，防两侧各改一半
     assert!(
         service.contains("query.get(\"customer_id\")")
             && service.contains("and_then(|v| v.as_i64())"),
