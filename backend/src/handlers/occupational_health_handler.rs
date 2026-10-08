@@ -6,12 +6,14 @@ use crate::services::occupational_health_service::{
     CreateHazardMonitoringRequest, CreateHealthExamRequest, CreatePpeDistributionRequest,
     HazardMonitoringQuery, HealthExamQuery, OccupationalHealthService, PpeDistributionQuery,
 };
+use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use sea_orm::EntityTrait;
 
 /// 创建职业危害因素检测记录
 pub async fn create_hazard_monitoring(
@@ -28,11 +30,12 @@ pub async fn create_hazard_monitoring(
 /// 查询职业危害因素检测记录列表
 pub async fn list_hazard_monitorings(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<HazardMonitoringQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = OccupationalHealthService::new(state.db.clone());
-    let (list, total) = service.list_hazard_monitorings(params).await?;
+    let (list, total) = service.list_hazard_monitorings(params, Some(&ctx)).await?;
     let value = serde_json::json!({ "list": list, "total": total });
     Ok(Json(ApiResponse::success(value)))
 }
@@ -52,11 +55,12 @@ pub async fn create_health_exam(
 /// 查询体检档案列表
 pub async fn list_health_exams(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<HealthExamQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = OccupationalHealthService::new(state.db.clone());
-    let (list, total) = service.list_health_exams(params).await?;
+    let (list, total) = service.list_health_exams(params, Some(&ctx)).await?;
     let value = serde_json::json!({ "list": list, "total": total });
     Ok(Json(ApiResponse::success(value)))
 }
@@ -64,10 +68,11 @@ pub async fn list_health_exams(
 /// 扫描在岗期间体检到期预警
 pub async fn scan_exam_expiry_warnings(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = OccupationalHealthService::new(state.db.clone());
-    let warnings = service.scan_exam_expiry_warnings().await?;
+    let warnings = service.scan_exam_expiry_warnings(Some(&ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(warnings)?)))
 }
 
@@ -86,11 +91,12 @@ pub async fn create_ppe_distribution(
 /// 查询 PPE 发放记录列表
 pub async fn list_ppe_distributions(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<PpeDistributionQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = OccupationalHealthService::new(state.db.clone());
-    let (list, total) = service.list_ppe_distributions(params).await?;
+    let (list, total) = service.list_ppe_distributions(params, Some(&ctx)).await?;
     let value = serde_json::json!({ "list": list, "total": total });
     Ok(Json(ApiResponse::success(value)))
 }
@@ -98,9 +104,21 @@ pub async fn list_ppe_distributions(
 /// 回收 PPE
 pub async fn return_ppe(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    // 行级归属门：回收是写操作，先取行验证归属
+    let ppe_row = crate::models::ppe_distribution_record::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("PPE 发放记录不存在"))?;
+    let owner = ppe_row.created_by;
+    if !check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该 PPE 记录（数据范围限制）",
+        ));
+    }
     let service = OccupationalHealthService::new(state.db.clone());
     let model = service.return_ppe(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
@@ -109,9 +127,10 @@ pub async fn return_ppe(
 /// 扫描已过期的 PPE
 pub async fn scan_expired_ppe(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = OccupationalHealthService::new(state.db.clone());
-    let list = service.scan_expired_ppe().await?;
+    let list = service.scan_expired_ppe(Some(&ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
 }

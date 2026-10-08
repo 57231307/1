@@ -12,6 +12,7 @@ use crate::constants::environmental_tax::statutory_pollution_equivalent;
 use crate::models::pollutant_discharge_record::{
     self, ActiveModel as DischargeActiveModel, Entity as DischargeEntity, Model as DischargeModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -114,27 +115,38 @@ impl EnvironmentalTaxService {
         Ok(result)
     }
 
-    /// 按期间查询污染物排放记录
+    /// 按期间查询污染物排放记录（带行级数据权限下推）
     pub async fn list_by_period(
         &self,
         period_year: i32,
         period_month: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<DischargeModel>, AppError> {
-        let list = DischargeEntity::find()
+        let mut query = DischargeEntity::find()
             .filter(pollutant_discharge_record::Column::PeriodYear.eq(period_year))
-            .filter(pollutant_discharge_record::Column::PeriodMonth.eq(period_month))
-            .all(&*self.db)
-            .await?;
+            .filter(pollutant_discharge_record::Column::PeriodMonth.eq(period_month));
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollutant_discharge_record::Column::CreatedBy,
+                pollutant_discharge_record::Column::CreatedBy,
+            );
+        }
+        let list = query.all(&*self.db).await?;
         Ok(list)
     }
 
-    /// 生成环保税申报表（按期间汇总）
+    /// 生成环保税申报表（按期间汇总，受行级数据权限约束）
     pub async fn generate_tax_declaration(
         &self,
         period_year: i32,
         period_month: i32,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<EnvironmentalTaxResult>, AppError> {
-        let records = self.list_by_period(period_year, period_month).await?;
+        let records = self
+            .list_by_period(period_year, period_month, data_scope)
+            .await?;
 
         // 按污染物名称汇总
         use std::collections::HashMap;

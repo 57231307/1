@@ -16,6 +16,7 @@ use crate::models::pollutant_monitoring_record::{
 use crate::models::solid_waste_disposal_record::{
     self, ActiveModel as WasteActiveModel, Entity as WasteEntity, Model as WasteModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -177,12 +178,22 @@ impl PollutionMonitoringService {
         Ok(result)
     }
 
-    /// 查询监测记录列表
+    /// 查询监测记录列表（带行级数据权限下推）
     pub async fn list_monitoring_records(
         &self,
         params: MonitoringRecordQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<MonitoringModel>, u64), AppError> {
         let mut query = MonitoringEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollutant_monitoring_record::Column::OperatorId,
+                pollutant_monitoring_record::Column::OperatorId,
+            );
+        }
 
         if let Some(monitoring_type) = &params.monitoring_type {
             query = query
@@ -273,6 +284,14 @@ impl PollutionMonitoringService {
         Ok(result)
     }
 
+    /// 按 ID 查询固废处置联单（供 handler 行级归属门使用）
+    pub async fn get_waste_by_id(&self, id: i32) -> Result<WasteModel, AppError> {
+        WasteEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("固废处置联单不存在"))
+    }
+
     /// 更新固废处置状态（运输中 / 已处置）
     pub async fn update_waste_status(
         &self,
@@ -313,10 +332,22 @@ impl PollutionMonitoringService {
         Ok(updated)
     }
 
-    /// 查询超标记录并生成预警
-    pub async fn scan_exceedance_alerts(&self) -> Result<Vec<ExceedanceAlert>, AppError> {
-        let exceeding_records = MonitoringEntity::find()
-            .filter(pollutant_monitoring_record::Column::IsExceeding.eq(true))
+    /// 查询超标记录并生成预警（带行级数据权限下推）
+    pub async fn scan_exceedance_alerts(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ExceedanceAlert>, AppError> {
+        let mut query = MonitoringEntity::find()
+            .filter(pollutant_monitoring_record::Column::IsExceeding.eq(true));
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollutant_monitoring_record::Column::OperatorId,
+                pollutant_monitoring_record::Column::OperatorId,
+            );
+        }
+        let exceeding_records = query
             .order_by_desc(pollutant_monitoring_record::Column::MonitoringTime)
             .all(&*self.db)
             .await?;

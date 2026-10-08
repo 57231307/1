@@ -52,12 +52,13 @@ pub async fn create_discharge_record(
 /// 前端 `export-compliance.ts` 按裸数组消费，这里用真实类型把它钉死。
 pub async fn list_discharge_records(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<PeriodQuery>,
 ) -> Result<Json<ApiResponse<Vec<DischargeModel>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = env_tax_service(&state);
     let list = service
-        .list_by_period(params.period_year, params.period_month)
+        .list_by_period(params.period_year, params.period_month, Some(&ctx))
         .await?;
     Ok(Json(ApiResponse::success(list)))
 }
@@ -68,12 +69,13 @@ pub async fn list_discharge_records(
 /// 让契约门禁能静态核对前端的裸数组声明。
 pub async fn generate_tax_declaration(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<PeriodQuery>,
 ) -> Result<Json<ApiResponse<Vec<EnvironmentalTaxResult>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = env_tax_service(&state);
     let result = service
-        .generate_tax_declaration(params.period_year, params.period_month)
+        .generate_tax_declaration(params.period_year, params.period_month, Some(&ctx))
         .await?;
     Ok(Json(ApiResponse::success(result)))
 }

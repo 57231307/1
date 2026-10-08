@@ -34,6 +34,7 @@ use crate::models::lab_dip_sample::{
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_sample as sample_status;
 use crate::services::lab_dip_service::LAB_DIP_REQUEST_NO_PREFIX;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
@@ -253,6 +254,7 @@ impl LabDipRequestService {
     pub async fn list(
         &self,
         query: LabDipRequestQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<RequestModel>, u64), AppError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -267,6 +269,17 @@ impl LabDipRequestService {
         }
         if let Some(status) = &query.status {
             q = q.filter(lab_dip_request::Column::Status.eq(status));
+        }
+
+        // 本表无 department_id 列，行级范围一律按 created_by 下推；None 仅用于
+        // 无会话的系统内部通路，HTTP 列表必须带上下文。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                lab_dip_request::Column::CreatedBy,
+                lab_dip_request::Column::CreatedBy,
+            );
         }
 
         q = q.order_by_desc(lab_dip_request::Column::CreatedAt);

@@ -38,6 +38,7 @@ use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_resample as resample_status;
 use crate::models::status::lab_dip_sample as sample_status;
 use crate::services::lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 
@@ -360,10 +361,26 @@ impl LabDipResampleService {
     }
 
     /// 按通知单 ID 查询所有复样记录
-    pub async fn list_by_request(&self, request_id: i32) -> Result<Vec<ResampleModel>, AppError> {
-        let items = ResampleEntity::find()
+    pub async fn list_by_request(
+        &self,
+        request_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ResampleModel>, AppError> {
+        let mut q = ResampleEntity::find()
             .filter(lab_dip_resample::Column::RequestId.eq(request_id))
-            .filter(lab_dip_resample::Column::IsDeleted.eq(false))
+            .filter(lab_dip_resample::Column::IsDeleted.eq(false));
+
+        // 复样记录无 department_id 列，行级范围按登记人 created_by 下推。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                lab_dip_resample::Column::CreatedBy,
+                lab_dip_resample::Column::CreatedBy,
+            );
+        }
+
+        let items = q
             .order_by_desc(lab_dip_resample::Column::CreatedAt)
             .all(&*self.db)
             .await?;

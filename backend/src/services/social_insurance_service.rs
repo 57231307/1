@@ -12,6 +12,7 @@
 use crate::models::social_insurance_record::{
     self, ActiveModel as InsuranceActiveModel, Entity as InsuranceEntity, Model as InsuranceModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -226,12 +227,22 @@ impl SocialInsuranceService {
             .ok_or_else(|| AppError::not_found(format!("社保记录 {} 不存在", id)))
     }
 
-    /// 查询社保记录列表
+    /// 查询社保记录列表（行级归属过滤在查询构造处，total 与可见集一致）
     pub async fn list(
         &self,
         params: SocialInsuranceQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<InsuranceModel>, u64), AppError> {
         let mut query = InsuranceEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                social_insurance_record::Column::CreatedBy,
+                social_insurance_record::Column::CreatedBy,
+            );
+        }
 
         if let Some(worker_id) = params.worker_id {
             query = query.filter(social_insurance_record::Column::WorkerId.eq(worker_id));

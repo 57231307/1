@@ -30,6 +30,9 @@ use crate::models::{
     customer_transfer_approval::{self, Entity as TransferApprovalEntity},
 };
 use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest, TransferLeadResult};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 /// 创建转移审批请求
@@ -289,8 +292,9 @@ impl CustomerTransferApprovalService {
         req: ApproveRequest,
         manager_id: i32,
         manager_name: &str,
+        ctx: &DataScopeContext,
     ) -> Result<TransferApprovalDto, AppError> {
-        let approval = self.get_pending_approval(req.approval_id, 1).await?;
+        let approval = self.get_pending_approval(req.approval_id, 1, ctx).await?;
 
         // 在转为 ActiveModel 前从原始 Model 提取字段值，避免对 ActiveModel 调用 unwrap()
         let max_level = approval.max_level;
@@ -372,8 +376,9 @@ impl CustomerTransferApprovalService {
         req: ApproveRequest,
         director_id: i32,
         director_name: &str,
+        ctx: &DataScopeContext,
     ) -> Result<TransferApprovalDto, AppError> {
-        let approval = self.get_pending_approval(req.approval_id, 2).await?;
+        let approval = self.get_pending_approval(req.approval_id, 2, ctx).await?;
 
         if approval.max_level != 2 {
             return Err(AppError::validation(
@@ -469,15 +474,30 @@ impl CustomerTransferApprovalService {
         Ok(updated.into())
     }
 
-    /// 查询审批列表
+    /// 查询审批列表（行级数据权限）
+    ///
+    /// 以「申请人」为归属列下推行级过滤（`apply_data_scope`）：All=全量、Dept=申请人∈可见部门
+    /// 成员集合、Self=仅本人。本表无 `department_id` 列，故 Dept 走「归属人∈成员集合」语义、
+    /// owner 列与 dept 列两参同传。过滤在构造分页器之前施加，`total` 与可见集同源，杜绝
+    /// "持键用户跨归属枚举全公司审批单"的水平越权。`applicant_id` / `approver_id` 客户端筛选
+    /// 只在可见集内再收窄，不放宽可见面。
     pub async fn list_approvals(
         &self,
         query: ApprovalQuery,
+        ctx: &DataScopeContext,
     ) -> Result<(Vec<TransferApprovalDto>, u64), AppError> {
         let page = query.page.unwrap_or(1).clamp(1, 1000);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let mut q = TransferApprovalEntity::find();
+
+        // 行级数据权限：归属列取申请人，与详情/审批写门同源，不另造第二套判定规则
+        q = apply_data_scope(
+            q,
+            ctx,
+            customer_transfer_approval::Column::ApplicantId,
+            customer_transfer_approval::Column::ApplicantId,
+        );
 
         if let Some(status) = query.status {
             q = q.filter(customer_transfer_approval::Column::ApprovalStatus.eq(status));
@@ -506,13 +526,38 @@ impl CustomerTransferApprovalService {
         Ok((dtos, total))
     }
 
-    /// 获取审批详情
-    pub async fn get_approval(&self, approval_id: i32) -> Result<TransferApprovalDto, AppError> {
+    /// 获取审批详情（行级数据权限）
+    ///
+    /// 不存在 → 404 先行；存在但申请人不在可见范围 → 403（固定脱敏文案、不含记录 ID）。
+    /// 归属列取申请人，与列表 `apply_data_scope`、审批写门同源，不另造第二套判定。
+    pub async fn get_approval(
+        &self,
+        approval_id: i32,
+        ctx: &DataScopeContext,
+    ) -> Result<TransferApprovalDto, AppError> {
         let approval = TransferApprovalEntity::find_by_id(approval_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("审批单 {} 不存在", approval_id)))?;
+        Self::ensure_applicant_visible(ctx, approval.applicant_id)?;
         Ok(approval.into())
+    }
+
+    /// 单行归属门（详情读 / 经理审批 / 总监审批共用）。
+    ///
+    /// 判据与列表侧 `apply_data_scope` 的 Dept 分支同源——以「申请人 ∈ 可见部门成员集合」判断，
+    /// 而非资源自身部门列（本表无 `department_id` 列，只能用 `check_resource_owner_by_member_scope`，
+    /// 若误用 `check_resource_owner` 传 None 会把部门经理连自己的单都判死）。
+    /// All=任意行；Dept=本人行或申请人∈可见成员集合（集合空退化仅本人）；Self=仅本人行；
+    /// 申请人为 NULL 的历史行一律拒绝（此处 applicant_id 非空，恒有值）。越权返回的
+    /// `PermissionDenied` 经 `public_message` 恒出固定脱敏常量，不含记录 ID。
+    fn ensure_applicant_visible(ctx: &DataScopeContext, applicant_id: i32) -> Result<(), AppError> {
+        if !check_resource_owner_by_member_scope(ctx, Some(applicant_id)) {
+            return Err(AppError::permission_denied(
+                "无权访问该客户转移审批单（数据范围限制）".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// 检查是否大客户转移。**唯一判据**：线索关联客户（`converted_customer_id`）的
@@ -536,16 +581,24 @@ impl CustomerTransferApprovalService {
             .is_some_and(customer_tier::is_major))
     }
 
-    /// 获取待审批的审批单（指定层级）
+    /// 获取待审批的审批单（指定层级，带行级数据权限）
+    ///
+    /// 归属门在状态/层级校验之前：越权者不得通过状态码/文案探测他人审批单的当前状态或层级；
+    /// 门亦在任何落库之前（本函数只读，调用方拿到返回值后事务写入），故越权请求零审批、
+    /// 零状态漂移、零审计写入。404（不存在）先于 403（不可见），与详情读同口径。
     async fn get_pending_approval(
         &self,
         approval_id: i32,
         expected_level: i32,
+        ctx: &DataScopeContext,
     ) -> Result<customer_transfer_approval::Model, AppError> {
         let approval = TransferApprovalEntity::find_by_id(approval_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("审批单 {} 不存在", approval_id)))?;
+
+        // 行级归属门：以申请人归属列判定，越权即 403 且在任何状态流转之前
+        Self::ensure_applicant_visible(ctx, approval.applicant_id)?;
 
         if approval.approval_status != customer_transfer_approval::STATUS_PENDING {
             // 状态门：审批单当前非 pending，前置状态未满足，归业务族；文案含状态 token 保持脱敏

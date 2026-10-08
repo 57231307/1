@@ -25,6 +25,7 @@ use crate::models::lab_dip_sample::{
 };
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_sample as sample_status;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 
 use crate::services::lab_dip_ops::types::{
@@ -285,10 +286,26 @@ impl LabDipSampleService {
     }
 
     /// 按通知单 ID 查询所有小样
-    pub async fn list_by_request(&self, request_id: i32) -> Result<Vec<SampleModel>, AppError> {
-        let samples = SampleEntity::find()
+    pub async fn list_by_request(
+        &self,
+        request_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<SampleModel>, AppError> {
+        let mut q = SampleEntity::find()
             .filter(lab_dip_sample::Column::RequestId.eq(request_id))
-            .filter(lab_dip_sample::Column::IsDeleted.eq(false))
+            .filter(lab_dip_sample::Column::IsDeleted.eq(false));
+
+        // 小样无 department_id 列，行级范围按建单人 created_by 下推。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                lab_dip_sample::Column::CreatedBy,
+                lab_dip_sample::Column::CreatedBy,
+            );
+        }
+
+        let samples = q
             .order_by_asc(lab_dip_sample::Column::VersionSeq)
             .all(&*self.db)
             .await?;

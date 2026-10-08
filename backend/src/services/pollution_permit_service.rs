@@ -11,6 +11,7 @@
 use crate::models::pollution_permit::{
     self, ActiveModel as PermitActiveModel, Entity as PermitEntity, Model as PermitModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use sea_orm::{
@@ -136,12 +137,22 @@ impl PollutionPermitService {
         Ok(result)
     }
 
-    /// 查询排污许可证列表（分页）
+    /// 查询排污许可证列表（分页，带行级数据权限下推）
     pub async fn list(
         &self,
         params: PollutionPermitQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PermitModel>, u64), AppError> {
         let mut query = PermitEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollution_permit::Column::CreatedBy,
+                pollution_permit::Column::CreatedBy,
+            );
+        }
 
         if let Some(permit_type) = &params.permit_type {
             query = query.filter(pollution_permit::Column::PermitType.eq(permit_type));
@@ -190,13 +201,23 @@ impl PollutionPermitService {
         Ok(updated)
     }
 
-    /// 扫描即将到期/已过期的许可证并生成预警（业务规则（《排污许可管理条例》第24条）：到期前 90/60/30 天三级预警；已过期的许可证状态自动更新为 expired）
-    pub async fn scan_expiry_warnings(&self) -> Result<Vec<PermitExpiryWarning>, AppError> {
+    /// 扫描即将到期/已过期的许可证并生成预警（带行级数据权限下推）
+    pub async fn scan_expiry_warnings(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<PermitExpiryWarning>, AppError> {
         let today = chrono::Local::now().date_naive();
-        let all_permits = PermitEntity::find()
-            .filter(pollution_permit::Column::Status.is_in(["active".to_string()]))
-            .all(&*self.db)
-            .await?;
+        let mut query = PermitEntity::find()
+            .filter(pollution_permit::Column::Status.is_in(["active".to_string()]));
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollution_permit::Column::CreatedBy,
+                pollution_permit::Column::CreatedBy,
+            );
+        }
+        let all_permits = query.all(&*self.db).await?;
 
         let mut warnings = Vec::new();
         for permit in all_permits {

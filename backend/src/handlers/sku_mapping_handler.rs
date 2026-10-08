@@ -7,6 +7,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::sku_mapping_service::{
     ImportMappingRow, SkuMappingQueryParams, SkuMappingService, UpsertSkuMappingInput,
 };
+use crate::utils::data_scope;
 use crate::utils::error::AppError;
 use crate::utils::import_export::{CsvImporter, FieldValidator, XlsxImporter};
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -211,6 +212,19 @@ pub async fn update_mapping(
     info!("用户 {} 正在更新 SKU 对照 ID: {}", auth.user_id, id);
 
     let service = SkuMappingService::new(state.db.clone());
+
+    // 行级归属门（写口）：product_supplier_mappings 有 created_by 归属列、无 department_id
+    // 列，判据按 check_resource_owner_by_member_scope（无部门列的同族配对），与列表读侧
+    // 的"全员可读主数据"口径分家——读宽写窄是有意拆分，不产生"列表可见、详情 403"矛盾
+    // （读侧本就不设门）。门在 service 落库点之前，越权零写入。
+    let ctx = auth.to_data_scope_context();
+    let existing = service.get(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该 SKU 对照（数据范围限制）",
+        ));
+    }
+
     let input = to_upsert_input(
         req.product_id,
         req.product_color_id,
@@ -243,6 +257,18 @@ pub async fn delete_mapping(
     info!("用户 {} 正在删除 SKU 对照 ID: {}", auth.user_id, id);
 
     let service = SkuMappingService::new(state.db.clone());
+
+    // 行级归属门（写口）：删除是硬删他人建的对照行，须先证归属（同 update_mapping，
+    // 无 department_id 列 ⇒ check_resource_owner_by_member_scope）；门在 service 删除
+    // 落库点之前，越权零删除。行不存在时 service.get 直接 404。
+    let ctx = auth.to_data_scope_context();
+    let existing = service.get(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该 SKU 对照（数据范围限制）",
+        ));
+    }
+
     service.delete(id).await?;
     info!("SKU 对照删除成功，ID: {}", id);
     Ok(Json(ApiResponse::success_with_message(
@@ -328,6 +354,14 @@ pub async fn import_mappings(
     let rows = build_sku_import_rows(&records)?;
 
     let service = SkuMappingService::new(state.db.clone());
+    // 导入写口的归属口径（本轮不套行级门，理由如下，非遗漏）：import_batch 按
+    // (product_id, product_color_id, supplier_id) 自然键做 UPSERT，逐行归属门需在
+    // import_batch 内按 ctx 判每行既有 created_by；而 import_batch 的公开签名已被
+    // 契约/集成测试按 arity 与 upsert_mapping 执行体源码锁定（backend/tests/** 本轮
+    // 禁改），加 ctx 形参会破坏其编译，另建带 ctx 的并行解析路径同样被本文件顶部
+    // "不建并行路径"契约禁止。该族为采购共用主数据，导入由持相应数据范围的运维在
+    // 全员可读前提下整体执行，行级越权收口需先为 import_batch 引入非破坏性 ctx 接缝
+    // （交测试专家补 seam 后再补门）。解析与落库逻辑本轮零改动。
     let result = service.import_batch(rows, auth.user_id).await?;
 
     info!(

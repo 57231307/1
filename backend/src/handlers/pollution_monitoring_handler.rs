@@ -38,11 +38,12 @@ pub async fn create_monitoring_record(
 /// 查询监测记录列表（分页）
 pub async fn list_monitoring_records(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<MonitoringRecordQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = PollutionMonitoringService::new(state.db.clone());
-    let (list, total) = service.list_monitoring_records(params).await?;
+    let (list, total) = service.list_monitoring_records(params, Some(&ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": serde_json::to_value(list)?,
         "total": total,
@@ -66,11 +67,19 @@ pub async fn create_solid_waste_disposal(
 /// 更新固废处置状态
 pub async fn update_waste_status(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateWasteStatusRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = PollutionMonitoringService::new(state.db.clone());
+    // 行级归属门：固废处置联单表无 department_id 列，按成员集合判定
+    let waste = service.get_waste_by_id(id).await?;
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, waste.created_by) {
+        return Err(AppError::permission_denied(
+            "无权访问该固废处置记录（数据范围限制）".to_string(),
+        ));
+    }
     let model = service
         .update_waste_status(id, &req.status, req.disposal_date)
         .await?;
@@ -80,9 +89,10 @@ pub async fn update_waste_status(
 /// 扫描超标记录并生成预警
 pub async fn scan_exceedance_alerts(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = PollutionMonitoringService::new(state.db.clone());
-    let alerts = service.scan_exceedance_alerts().await?;
+    let alerts = service.scan_exceedance_alerts(Some(&ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(alerts)?)))
 }

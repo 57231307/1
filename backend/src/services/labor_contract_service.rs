@@ -12,6 +12,7 @@
 use crate::models::labor_contract::{
     self, ActiveModel as ContractActiveModel, Entity as ContractEntity, Model as ContractModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -247,12 +248,22 @@ impl LaborContractService {
         Ok(updated)
     }
 
-    /// 查询劳动合同列表
+    /// 查询劳动合同列表（行级归属过滤在查询构造处，total 与可见集一致）
     pub async fn list(
         &self,
         params: LaborContractQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ContractModel>, u64), AppError> {
         let mut query = ContractEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                labor_contract::Column::CreatedBy,
+                labor_contract::Column::CreatedBy,
+            );
+        }
 
         if let Some(worker_id) = params.worker_id {
             query = query.filter(labor_contract::Column::WorkerId.eq(worker_id));
@@ -307,13 +318,25 @@ impl LaborContractService {
     }
 
     /// 扫描合同到期并生成预警（业务规则（《劳动合同法》第10条：建立劳动关系应当订立书面劳动合同）：到期前 90/60/30 天三级预警；已过期合同状态自动更新为 expired；无固定期限合同不参与到期预警）
-    pub async fn scan_expiry_warnings(&self) -> Result<Vec<ContractExpiryWarning>, AppError> {
+    pub async fn scan_expiry_warnings(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ContractExpiryWarning>, AppError> {
         let today = chrono::Local::now().date_naive();
-        let active_contracts = ContractEntity::find()
+        let mut query = ContractEntity::find()
             .filter(labor_contract::Column::Status.eq("active"))
-            .filter(labor_contract::Column::EndDate.is_not_null())
-            .all(&*self.db)
-            .await?;
+            .filter(labor_contract::Column::EndDate.is_not_null());
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                labor_contract::Column::CreatedBy,
+                labor_contract::Column::CreatedBy,
+            );
+        }
+
+        let active_contracts = query.all(&*self.db).await?;
 
         let mut warnings = Vec::new();
         for contract in active_contracts {

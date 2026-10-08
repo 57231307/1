@@ -316,15 +316,15 @@ async fn assign_single_lead(
     Ok(())
 }
 
-/// GET /api/v1/erp/crm/assignments - 获取分配列表
+/// GET /api/v1/erp/crm/assignments - 获取分配列表（按数据范围收窄可见行）
 pub async fn list_assignments(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<AssignmentHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = AssignmentHistoryService::new(state.db.clone());
-
-    let (items, total) = service.list(query).await?;
+    let ctx = auth.to_data_scope_context();
+    let (items, total) = service.list(query, Some(&ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -332,15 +332,15 @@ pub async fn list_assignments(
     }))))
 }
 
-/// GET /api/v1/erp/crm/assignment/history - 获取分配历史
+/// GET /api/v1/erp/crm/assignment/history - 获取分配历史（按数据范围收窄可见行）
 pub async fn list_assignment_history(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<AssignmentHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = AssignmentHistoryService::new(state.db.clone());
-
-    let (items, total) = service.list(query).await?;
+    let ctx = auth.to_data_scope_context();
+    let (items, total) = service.list(query, Some(&ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -350,6 +350,7 @@ pub async fn list_assignment_history(
 
 /// POST /api/v1/erp/crm/assignments/auto-assign - 自动分配线索（轮询策略）；v10 P1 批次 140 新增：实现
 /// assign 模块"保留扩展空间"中的自动分配功能。 将 lead_status='new' 的未分配线索按 round-robin 轮询分配给指定销售团队。
+// 公海语义（lead_status='new' 无归属人），非私海行操作，无需行级归属门。
 pub async fn auto_assign(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -423,6 +424,7 @@ pub async fn transfer_lead(
 
 /// GET /api/v1/erp/crm/assignments/workload - 查询销售用户线索负载；v10 P1 批次
 /// 140 新增：辅助端点，查询指定销售用户列表的当前活跃线索数， 用于自动分配前的预览（按负载升序排序，负载最少的优先分配）。
+// 运营统计（仅返回 user_id/username/count 数字），无 PII 或业务行内容外泄，无需行级归属门。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct WorkloadQuery {
@@ -470,6 +472,7 @@ pub async fn list_workload(
 
 /// POST /api/v1/erp/crm/assignments/claim - 抢单模式认领线索；v10 P1 批次 140 新增：实现
 /// assign 模块"保留扩展空间"中的抢单功能。 销售主动认领一条未分配线索（FIFO，最早入库的优先），写入分配历史 action="CLAIM"。
+// 公海语义：service 校验 lead_status='new' 才放行认领，非私海行操作，无需行级归属门。
 pub async fn claim_lead(
     State(state): State<AppState>,
     auth: AuthContext,

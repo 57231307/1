@@ -6,16 +6,42 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrde
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::customer;
 use crate::models::customer_address::{self, CreateCustomerAddressDto, UpdateCustomerAddressDto};
+use crate::utils::data_scope::DataScopeContext;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
+
+/// 归属经父客户继承的读/写门：地址表本身无 owner_id/department_id 列，
+/// 可见性判定取父客户的 owner_id + department_id（与 ar_reconciliation 同范式）。
+async fn ensure_customer_parent_access(
+    db: &sea_orm::DatabaseConnection,
+    ctx: &DataScopeContext,
+    customer_id: i32,
+) -> Result<(), AppError> {
+    let parent = customer::Entity::find_by_id(customer_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在"))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        ctx,
+        Some(parent.owner_id),
+        parent.department_id,
+    ) {
+        return Err(AppError::permission_denied("无权访问该客户地址"));
+    }
+    Ok(())
+}
 
 /// GET /api/v1/erp/customers/:id/addresses - 获取客户收货地址列表
 pub async fn list_customer_addresses(
     State(state): State<AppState>,
     Path(customer_id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<customer_address::Model>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    ensure_customer_parent_access(&state.db, &ctx, customer_id).await?;
+
     let addresses = customer_address::Entity::find()
         .filter(customer_address::Column::CustomerId.eq(customer_id))
         .order_by_desc(customer_address::Column::IsDefault)
@@ -29,10 +55,12 @@ pub async fn list_customer_addresses(
 pub async fn create_customer_address(
     State(state): State<AppState>,
     Path(customer_id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(dto): Json<CreateCustomerAddressDto>,
 ) -> Result<Json<ApiResponse<customer_address::Model>>, AppError> {
-    // 如果设为默认地址，先取消其他默认地址
+    let ctx = auth.to_data_scope_context();
+    ensure_customer_parent_access(&state.db, &ctx, customer_id).await?;
+
     if dto.is_default.unwrap_or(false) {
         clear_default_addresses(&state, customer_id).await?;
     }
@@ -61,9 +89,12 @@ pub async fn create_customer_address(
 pub async fn update_customer_address(
     State(state): State<AppState>,
     Path((customer_id, address_id)): Path<(i32, i64)>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(dto): Json<UpdateCustomerAddressDto>,
 ) -> Result<Json<ApiResponse<customer_address::Model>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    ensure_customer_parent_access(&state.db, &ctx, customer_id).await?;
+
     let existing = customer_address::Entity::find_by_id(address_id)
         .one(&*state.db)
         .await?
@@ -73,7 +104,6 @@ pub async fn update_customer_address(
         return Err(AppError::permission_denied("无权修改该地址"));
     }
 
-    // 如果设为默认地址，先取消其他默认地址
     if dto.is_default.unwrap_or(false) {
         clear_default_addresses(&state, customer_id).await?;
     }
@@ -115,8 +145,11 @@ pub async fn update_customer_address(
 pub async fn delete_customer_address(
     State(state): State<AppState>,
     Path((customer_id, address_id)): Path<(i32, i64)>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    ensure_customer_parent_access(&state.db, &ctx, customer_id).await?;
+
     let existing = customer_address::Entity::find_by_id(address_id)
         .one(&*state.db)
         .await?

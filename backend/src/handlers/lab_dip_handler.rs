@@ -59,6 +59,7 @@ pub struct LabDipRequestListQuery {
 /// GET /api/v1/erp/lab-dip/requests - 分页查询打样通知单
 pub async fn list_requests(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<LabDipRequestListQuery>,
 ) -> Result<
     Json<ApiResponse<crate::utils::response::PaginatedResponse<lab_dip_request::Model>>>,
@@ -75,7 +76,8 @@ pub async fn list_requests(
         page_size: Some(page_size),
     };
 
-    let (items, total) = request_service(&state).list(svc_query).await?;
+    let ctx = auth.to_data_scope_context();
+    let (items, total) = request_service(&state).list(svc_query, Some(&ctx)).await?;
     Ok(Json(ApiResponse::success_paginated(
         items, total, page, page_size,
     )))
@@ -84,9 +86,18 @@ pub async fn list_requests(
 /// GET /api/v1/erp/lab-dip/requests/:id - 查询打样通知单详情
 pub async fn get_request(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let req = request_service(&state).get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，与本资源各写端点同源。
+    let req = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, req.created_by) {
+        return Err(AppError::permission_denied(
+            "无权查看该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(req)))
 }
 
@@ -113,10 +124,13 @@ pub async fn update_request(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门；本域尚无跨 owner 写门，
-    // 写入口以行级 scope 可见性约束（Self 不可改他人单）。
+    // 存在性→404 先行，再按 created_by 走行级归属门。本表无 department_id 列，
+    // 归属门按「归属人 ∈ 可见部门成员集合」判定，与列表侧 apply_data_scope 的 Dept
+    // 判据同源：All=任意行；Dept=本人行或 created_by∈可见成员集合（集合空退化仅本人）；
+    // Self_=仅本人行；created_by 为 NULL 的历史行一律拒绝。跨 owner 代操作另由写门/权限键
+    // 把关，此处只锁行级可见范围，不放大成可变更权。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -136,9 +150,9 @@ pub async fn delete_request(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可删。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -158,9 +172,9 @@ pub async fn start_sampling(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -180,9 +194,9 @@ pub async fn submit_to_customer(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -211,9 +225,9 @@ pub async fn approve_ok_sample(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -243,9 +257,9 @@ pub async fn reject_and_redo(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -265,9 +279,9 @@ pub async fn restart_sampling(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -295,9 +309,9 @@ pub async fn complete_request(
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = request_service(&state);
-    // 存在性→404 先行，再按 created_by 走行级归属门，他人单不可流转。
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样通知单（数据范围限制）".to_string(),
         ));
@@ -316,18 +330,31 @@ pub async fn complete_request(
 /// GET /api/v1/erp/lab-dip/samples/by-request/:request_id - 按通知单查询所有小样
 pub async fn list_samples_by_request(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(request_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<lab_dip_sample::Model>>>, AppError> {
-    let samples = sample_service(&state).list_by_request(request_id).await?;
+    let ctx = auth.to_data_scope_context();
+    let samples = sample_service(&state)
+        .list_by_request(request_id, Some(&ctx))
+        .await?;
     Ok(Json(ApiResponse::success(samples)))
 }
 
 /// GET /api/v1/erp/lab-dip/samples/:id - 查询小样详情
 pub async fn get_sample(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let sample = sample_service(&state).get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = sample_service(&state);
+    // 小样无 department_id 列，按建单人 created_by 走行级归属门，与本资源写端点同源。
+    let sample = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, sample.created_by) {
+        return Err(AppError::permission_denied(
+            "无权查看该打样小样（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(sample)))
 }
 
@@ -354,9 +381,9 @@ pub async fn update_sample(
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = sample_service(&state);
-    // 存在性→404 先行，再按小样 created_by 走行级归属门，他人样不可改。
+    // 存在性→404 先行，再按小样 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样小样（数据范围限制）".to_string(),
         ));
@@ -376,9 +403,9 @@ pub async fn delete_sample(
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let ctx = auth.to_data_scope_context();
     let service = sample_service(&state);
-    // 存在性→404 先行，再按小样 created_by 走行级归属门，他人样不可删。
+    // 存在性→404 先行，再按小样 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
     let existing = service.get_by_id(id).await?;
-    if !data_scope::check_resource_owner(&ctx, existing.created_by, None) {
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
         return Err(AppError::permission_denied(
             "无权操作该打样小样（数据范围限制）".to_string(),
         ));
@@ -414,18 +441,31 @@ pub async fn record_matching_result(
 /// GET /api/v1/erp/lab-dip/resamples/by-request/:request_id - 按通知单查询复样记录
 pub async fn list_resamples_by_request(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(request_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<lab_dip_resample::Model>>>, AppError> {
-    let items = resample_service(&state).list_by_request(request_id).await?;
+    let ctx = auth.to_data_scope_context();
+    let items = resample_service(&state)
+        .list_by_request(request_id, Some(&ctx))
+        .await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
 /// GET /api/v1/erp/lab-dip/resamples/:id - 查询复样记录详情
 pub async fn get_resample(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let item = resample_service(&state).get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = resample_service(&state);
+    // 复样记录无 department_id 列，按登记人 created_by 走行级归属门。
+    let item = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, item.created_by) {
+        return Err(AppError::permission_denied(
+            "无权查看该复样记录（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(item)))
 }
 
