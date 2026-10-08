@@ -13,7 +13,7 @@ import {
  *
  * rule provenance（对照后端 handler/服务实际契约，勿改后端）：
  * - 建单：POST /production/dye-recipes（dye_recipe_handler.rs，CreateDyeRecipeRequest
- *   color_code 必填 NOT NULL，见 m0003_add_dye_tables.rs:30），初始态 draft。
+ *   color_code 必填 NOT NULL，染色域建表迁移即此形态），初始态 draft。
  * - 提交：POST /production/dye-recipes/{id}/submit（draft→pending_approval）。
  * - 拒绝：POST /production/dye-recipes/{id}/reject，请求体 {reason}（必填非空），
  *   成功返回整行配方（含新列 rejected_reason），状态写 rejected；
