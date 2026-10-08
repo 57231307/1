@@ -502,7 +502,7 @@ pub async fn list_customer_special_prices(
 
 /// POST /api/v1/erp/color-prices/customer-special - 新建客户专属价
 pub async fn create_customer_special_price(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(dto): Json<CreateCustomerColorPriceDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
@@ -510,6 +510,30 @@ pub async fn create_customer_special_price(
 
     // 激活 CreateCustomerColorPriceDto 的 Validate 注解，校验入参
     dto.validate()?;
+
+    // 专属价无自身归属列，可见性经父客户继承；判据与 list_customer_special_prices
+    // 的可见客户集完全同源（同一 apply_department_scope_with_pool + Scoped 组合），
+    // 避免"列表看得见该客户、建单却被拒"或反向的口径分叉。
+    let ctx = auth.to_data_scope_context();
+    if ctx.scope != DataScope::All {
+        let visible = apply_department_scope_with_pool(
+            customer::Entity::find().filter(customer::Column::Id.eq(dto.customer_id)),
+            &ctx,
+            customer::Column::OwnerId,
+            customer::Column::DepartmentId,
+            customer::Column::OwnerId.eq(0),
+            PoolVisibility::Scoped,
+        )
+        .one(&*state.db)
+        .await
+        .map_err(|e| AppError::database(e.to_string()))?
+        .is_some();
+        if !visible {
+            return Err(AppError::permission_denied(
+                "无权为该客户新建专属价（数据范围限制）",
+            ));
+        }
+    }
 
     let now = chrono::Utc::now();
     let active = customer_color_price::ActiveModel {

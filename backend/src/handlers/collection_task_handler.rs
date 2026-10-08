@@ -193,12 +193,18 @@ pub async fn get_task(
 
 /// POST /api/v1/erp/collection-tasks/:id/contact - 记录催收结果
 pub async fn record_contact(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<RecordContactRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
+    // 行级归属门在登记事务之前：越权零登记、任务状态零漂移
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_task(id, Some(&ctx))
+        .await
+        .map_err(collection_task_err)?;
     let record = service
         .record_contact(id, req)
         .await
@@ -208,12 +214,18 @@ pub async fn record_contact(
 
 /// POST /api/v1/erp/collection-tasks/:id/reassign - 重新分配
 pub async fn reassign(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<ReassignTaskRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
+    // 改派只能发生在操作人可见的任务上；跨 owner 代改派另由写门/权限键把关
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_task(id, Some(&ctx))
+        .await
+        .map_err(collection_task_err)?;
     let record = service
         .reassign(id, req)
         .await
@@ -223,12 +235,17 @@ pub async fn reassign(
 
 /// POST /api/v1/erp/collection-tasks/:id/cancel - 取消任务
 pub async fn cancel_task(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<CancelTaskRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_task(id, Some(&ctx))
+        .await
+        .map_err(collection_task_err)?;
     let record = service.cancel(id, req).await.map_err(collection_task_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }

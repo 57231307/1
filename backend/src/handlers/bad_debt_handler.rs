@@ -254,23 +254,34 @@ pub async fn get_provision(
 
 /// POST /api/v1/erp/bad-debts/:id/confirm - 确认计提（draft → confirmed）
 pub async fn confirm_provision(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProvisionInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
+    // 行级归属门在状态跃迁事务之前：越权确认零落库、计提状态零漂移
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_provision(id, Some(&ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let record = service.confirm_provision(id).await.map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/bad-debts/:id/reverse - 转回计提（confirmed → reversed）
 pub async fn reverse_provision(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<ReverseProvisionRequest>,
 ) -> Result<Json<ApiResponse<ProvisionInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_provision(id, Some(&ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let record = service
         .reverse_provision(id, req)
         .await
