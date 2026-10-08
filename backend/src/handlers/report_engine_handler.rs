@@ -89,7 +89,7 @@ pub struct ReportDataResponse {
 
 pub async fn execute_report(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ExecuteReportQuery>,
 ) -> Result<Json<ApiResponse<ReportDataResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
@@ -116,6 +116,11 @@ pub async fn execute_report(
         format: "json".to_string(),
         use_cache: Some(false),
     };
+
+    // 模板可见性门在执行查询之前：他人私有模板的口径与字段选择不得被旁人跑取
+    service
+        .ensure_template_runnable(&query.template_id, auth.user_id)
+        .await?;
 
     // service 返回的本就是 AppError，透传保留真实 status/code（不得压成 500）
     let data = service.execute_report(req).await?;
@@ -193,6 +198,11 @@ pub async fn export_report(
     let _export_format: ExportFormat = query.format.parse().unwrap_or(ExportFormat::Csv);
     let filters = parse_export_filters(query.filters_json.as_deref())?;
     let date_range = parse_date_range(query.date_start.as_deref(), query.date_end.as_deref());
+
+    // 导出同样先过模板可见性门（导出即整表数据外发，门槛不能低于在线执行）
+    service
+        .ensure_template_runnable(&query.template_id, auth.user_id)
+        .await?;
 
     // 先执行报表获取数据
     let req = crate::services::report::ExecuteReportRequest {
