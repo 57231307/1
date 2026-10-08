@@ -198,7 +198,8 @@ pub async fn auto_schedule(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 获取甘特图数据
+/// 甘特图数据查询（全员共享工作面）——`_auth` 仅认证、不构 ctx：跨 owner 可见是排产
+/// 协调的业务前提，行级 data_scope 不适用此端点。
 pub async fn get_gantt_data(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -257,7 +258,8 @@ pub async fn get_gantt_data(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 检测排程冲突
+/// 排程冲突检测（全员共享工作面）——`_auth` 仅认证、不构 ctx：冲突是跨 owner 的产能竞争，
+/// 需全局视角，行级 data_scope 不适用此端点。
 pub async fn detect_conflicts(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -402,7 +404,8 @@ pub async fn adjust_schedule_task(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 排程工单列表
+/// 待排工单池列表（全员共享工作面）——`_auth` 仅认证、不构 ctx：排产协调需看到所有待排
+/// 工单，跨 owner 不可见则无法编排，行级 data_scope 不适用此端点。
 pub async fn list_scheduled_orders(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -516,7 +519,10 @@ pub async fn get_schedule_history(
     }))))
 }
 
-/// 获取排程结果详情
+/// 排程结果详情（私有面）——按 created_by 执行行级归属门：
+/// 表无 department_id 列，使用 `check_resource_owner_by_member_scope` 与列表侧 `get_schedule_history`
+/// 的 `apply_data_scope` Dept 分支同源判据，不写 `check_resource_owner(ctx, owner, None)` 形态。
+/// 403 走 `AppError::permission_denied`，用户可见文案禁止含记录 ID。
 pub async fn get_schedule_result(
     State(state): State<AppState>,
     auth: AuthContext,

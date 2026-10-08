@@ -39,6 +39,12 @@ impl SchedulingService {
     // 内容来自原 scheduling_service.rs L387-445 + L583-794 + L862-947
     // 私有 fn: build_gantt_data + get_work_center_name
 
+    /// 排程甘特图数据查询——全员共享工作面，刻意不做行级 data_scope 过滤。
+    ///
+    /// 调用方：handler `get_gantt_data`（`_auth` 仅认证、不构 ctx）。
+    /// 入参：work_center_id/date_from/date_to 为可选过滤条件，数据来源 production_order 表。
+    /// 设计意图：甘特视图是排产员全局协调工具，跨 owner 不可见则产能分配失去意义；
+    /// 与"我的排程运行按 owner 收窄"（history/result）属不同判据族。
     pub async fn get_gantt_data(
         &self,
         work_center_id: Option<i32>,
@@ -139,7 +145,12 @@ impl SchedulingService {
             .await?)
     }
 
-    /// 检测排程冲突
+    /// 待排工单池列表——全员共享工作面，刻意不做行级 data_scope 过滤。
+    ///
+    /// 调用方：handler `list_scheduled_orders`（`_auth` 仅认证、不构 ctx）。
+    /// 入参：ScheduledOrderQuery（work_center_id/status/date_from/date_to），数据来源 production_order 表。
+    /// 设计意图：排产协调需要看到所有待排工单（含他人创建），
+    /// 与"我的排程运行按 owner 收窄"属不同判据族。
     pub async fn list_scheduled_orders(
         &self,
         query: ScheduledOrderQuery,
@@ -245,7 +256,12 @@ impl SchedulingService {
         Ok((items, total))
     }
 
-    /// 获取排程结果详情
+    /// 按主键取排程结果原始行。
+    ///
+    /// 本函数属私有面（单行查询）：行级归属门在调用方 handler（`scheduling_handler::get_schedule_result`），
+    /// 以 `check_resource_owner_by_member_scope` 按 created_by 校验数据范围后决定 403。
+    /// 表无 `department_id` 列，因此判据走成员集合变体，与列表侧 `get_schedule_history` 的
+    /// `apply_data_scope` Dept 分支同源。
     pub async fn get_schedule_result(
         &self,
         id: i32,
