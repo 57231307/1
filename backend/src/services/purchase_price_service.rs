@@ -1,6 +1,7 @@
 use crate::models::purchase_price;
 use crate::models::status::price_approval;
 use crate::models::{product, supplier};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -145,6 +146,7 @@ impl PurchasePriceService {
     pub async fn get_prices_list(
         &self,
         params: PurchasePriceQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchasePriceView>, u64), AppError> {
         let mut query = purchase_price::Entity::find();
 
@@ -160,7 +162,19 @@ impl PurchasePriceService {
             query = query.filter(purchase_price::Column::Status.eq(status));
         }
 
-        // 总数在无 JOIN 的基础查询上统计：所有 JOIN 均为多对一（不倍增行），单次查询无 N+1。
+        // 行级数据权限下推（调用方为 /purchase-prices 列表，scope 条件在总数统计前注入，
+        // 列表与 total 同源同一查询）。purchase_price 表无 department_id，归属列 created_by
+        // （Option<i32>），Dept 退化为按可见部门成员集合过滤 created_by。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                purchase_price::Column::CreatedBy,
+                purchase_price::Column::CreatedBy,
+            );
+        }
+
+        // 总数与分页共用上方已含数据范围的同一查询：count 在 JOIN 前统计，JOIN 均为多对一（不倍增行）。
         let total = query.clone().count(&*self.db).await?;
 
         let prices = query
@@ -261,7 +275,7 @@ impl PurchasePriceService {
     ) -> Result<(), AppError> {
         info!("用户 {} 正在批准采购价格，ID: {}", user_id, id);
 
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 状态变更以 lock_exclusive 串行化，防并发覆盖
         let txn = (*self.db).begin().await?;
 
         let price_model = purchase_price::Entity::find_by_id(id)

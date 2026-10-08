@@ -204,7 +204,6 @@ pub async fn create_quotation(
 }
 
 /// PUT /api/v1/erp/quotations/:id
-// 批次 94 P2-13 修复：移除 let _ = auth; 占位，注入 auth.user_id 到 service.update 用于审计日志
 pub async fn update_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -217,6 +216,10 @@ pub async fn update_quotation(
     }
 
     let service = QuotationService::from_state(&state);
+    // 行级归属门（写口）：更新报价单前校验操作人对本行的可见性（sales_quotations 无
+    // department_id 列，归属列 sales_user_id，门口径与 get_by_id_scoped 同源）。
+    let ctx = auth.to_data_scope_context();
+    service.get_by_id_scoped(id, &ctx).await?;
     let model = service.update(id, dto, auth.user_id as i64).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
@@ -234,6 +237,12 @@ pub async fn submit_quotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    // 行级归属门（写口）：提交是创建人推进自身草稿的动作，必须先证归属。
+    // sales_quotations 无 department_id，按 get_by_id_scoped 判定（与列表侧同源）。
+    let ctx = auth.to_data_scope_context();
+    QuotationService::from_state(&state)
+        .get_by_id_scoped(id, &ctx)
+        .await?;
     let service = QuotationApprovalService::from_state(&state);
     let model = service.submit(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -309,7 +318,10 @@ pub async fn cancel_quotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    // 行级归属门（写口）：取消改报价单状态，必须先证归属再触达 service。
+    let ctx = auth.to_data_scope_context();
     let service = QuotationService::from_state(&state);
+    service.get_by_id_scoped(id, &ctx).await?;
     let model = service.cancel(id, auth.user_id as i64).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
@@ -327,6 +339,12 @@ pub async fn convert_to_sales_order(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<SalesOrderResponse>>, AppError> {
+    // 行级归属门（写口）：转单在 sales_orders 落新行并将报价单置 converted 终态，
+    // 必须先证报价单归属——否则同 RBAC 键的他人可凭报价 id 转走他人已审批报价。
+    let ctx = auth.to_data_scope_context();
+    QuotationService::from_state(&state)
+        .get_by_id_scoped(id, &ctx)
+        .await?;
     let service = QuotationConvertService::from_state(&state);
     let order = service.convert(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(

@@ -361,7 +361,13 @@ pub async fn cut_sample(
     Path(id): Path<i64>,
     Json(dto): Json<CutSampleDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：按 approval id 取父销售订单判归属，门在 service 剪样事务前——越权 403，
+    // 零库存扣减、零 inventory_piece 生成、零 approval_status 漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+
     let params = CutSampleParams {
         sample_length_m: dto.sample_length_m,
         sample_piece_id: dto.sample_piece_id,
@@ -398,7 +404,13 @@ pub async fn customer_approve(
     // 状态门仍由服务层 customer_approve 真实执行
     OptionalJson(dto): OptionalJson<CustomerApproveDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：按 approval id 取父销售订单判归属，门在 service 状态流转前——越权 403，
+    // approval_status 与 history 零漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+
     let dto = dto.unwrap_or_default();
     let record = service
         .customer_approve(id, auth.user_id, dto.feedback, dto.delta_e_value)
@@ -414,7 +426,13 @@ pub async fn customer_reject(
     Path(id): Path<i64>,
     Json(dto): Json<CustomerRejectDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：按 approval id 取父销售订单判归属，门在 service 状态流转前——越权 403，
+    // approval_status 与 history 零漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+
     let record = service
         .customer_reject(id, auth.user_id, dto.reject_reason, dto.feedback)
         .await
@@ -429,7 +447,13 @@ pub async fn customer_rework(
     Path(id): Path<i64>,
     Json(dto): Json<CustomerReworkDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：按 approval id 取父销售订单判归属，门在 service 状态流转与返工订单创建前——
+    // 越权 403，approval_status/history/生产订单零漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+
     let record = service
         .customer_rework(id, auth.user_id, dto.reject_reason, dto.feedback)
         .await
@@ -627,10 +651,11 @@ pub async fn get_pending_reminders(
 
 /// GET /api/v1/erp/bulk-color-approvals/report - 批色报表（按客户/产品/时间段统计通过率）
 pub async fn report(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ReportQuery>,
 ) -> Result<Json<ApiResponse<Vec<ApprovalReportRow>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let rows = service
         .report_by_dimensions(
@@ -638,6 +663,7 @@ pub async fn report(
             query.to_date,
             query.customer_id,
             query.product_id,
+            Some(&data_scope_ctx),
         )
         .await
         .map_err(bca_err)?;
@@ -646,13 +672,14 @@ pub async fn report(
 
 /// GET /api/v1/erp/bulk-color-approvals/statistics - 批色统计 KPI（平均 ΔE/通过率/退回率/降级率）
 pub async fn statistics(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<StatisticsQuery>,
 ) -> Result<Json<ApiResponse<ApprovalStatistics>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let stats = service
-        .get_statistics(query.from_date, query.to_date)
+        .get_statistics(query.from_date, query.to_date, Some(&data_scope_ctx))
         .await
         .map_err(bca_err)?;
     Ok(Json(ApiResponse::success(stats)))

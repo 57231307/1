@@ -8,7 +8,9 @@ use crate::models::{
     sales_order_item, sales_return, sales_return_item,
 };
 // 行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use chrono::Utc;
@@ -1071,10 +1073,11 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        // 行级数据权限校验（IDOR 防护）
-        // sales_return 表 created_by 为 i32（非 Option），Dept 退化为 Self
+        // 行级数据权限校验（IDOR 防护）：sales_return 无 department_id 列，
+        // 使用成员集合归属门与列表侧 apply_data_scope Dept 分支同源判定。
+        // sales_return.created_by 为 i32（NOT NULL），包装为 Some 传入统一 Option 接口。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(return_order.created_by), None) {
+            if !check_resource_owner_by_member_scope(ctx, Some(return_order.created_by)) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问销售退货单 {}（数据范围限制）",
                     return_id
@@ -1102,9 +1105,9 @@ impl SalesReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售退货单 {}", return_id)))?;
 
-        // 行级数据权限校验（IDOR 防护），与 get_return 同一判据
+        // 行级数据权限校验（IDOR 防护），与 get_return 同一判据。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(row.created_by), None) {
+            if !check_resource_owner_by_member_scope(ctx, Some(row.created_by)) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问销售退货单 {}（数据范围限制）",
                     return_id

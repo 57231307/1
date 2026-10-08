@@ -255,7 +255,7 @@ pub async fn get_custom_order(
 
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权访问该定制订单（数据范围限制）",
         ));
@@ -363,7 +363,7 @@ pub async fn update_custom_order(
     let service = CustomOrderCrudService::from_state(&state);
     let order = service.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -399,13 +399,12 @@ pub async fn cancel_custom_order(
     let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
     // 行级归属门（写口，先于 service 状态门）：取消是状态转移（→ cancelled），必须先证明
-    // 本行归属；否则同 RBAC 键的他人可凭 order id 取消别人的定制单。本域无 crm 那套
-    // cross_owner_write 代操作键，跨 owner 写按现有口径 check_resource_owner 拒 Self/Dept
-    // 水平越权（对齐同域已修 update_custom_order；All 跨 owner 代取消键缺口登记交主编排）。
-    // 门在 service 落库点之前——越权不会触达 cancel 的事务，订单状态零漂移。
+    // 本行归属；否则同 RBAC 键的他人可凭 order id 取消别人的定制单。本域无 department_id
+    // 列，归属门按 check_resource_owner_by_member_scope 判定（Self_=仅本人、Dept=归属人∈
+    // 可见成员集合、All=任意行），NULL 归属拒绝。门在 service 落库点之前，越权零写入。
     let order = service.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -448,11 +447,11 @@ pub async fn advance_custom_order(
     let ctx = auth.to_data_scope_context();
     let crud_svc = CustomOrderCrudService::from_state(&state);
     // 行级归属门（写口，先于 service 状态机门）：推进改主单状态并联动工艺节点，必须先证归属；
-    // 本域无 cross_owner_write 代操作键，按现有口径 check_resource_owner 拒 Self/Dept 越权
-    // （对齐同域 update_custom_order），All 跨 owner 代推进键缺口登记交主编排。
+    // 本域无 department_id 列，按 check_resource_owner_by_member_scope 判定（与列表侧
+    // apply_data_scope 的 Dept 判据同源：归属人∈可见成员集合）。
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -497,7 +496,7 @@ pub async fn add_process_node(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -530,13 +529,13 @@ pub async fn update_process_node(
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
     // 节点更新的动作人取会话身份，写 process_nodes.operator_id 留痕（同 advance_node 范式）。
     // 归属链校验（同 delete_contact 型）：父单存在→父单归属→节点存在→节点实际归属==路径父 id，
-    // 堵"配对 oid/nid 绕过归属"；本域无 cross_owner_write 键，跨 owner 写按现有口径
-    // check_resource_owner 拒 Self/Dept，门在 service 落库点之前，越权零写入。
+    // 堵"配对 oid/nid 绕过归属"；本域无 department_id 列，按
+    // check_resource_owner_by_member_scope 拒水平越权，门在 service 落库点之前，越权零写入。
     let ctx = auth.to_data_scope_context();
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -582,7 +581,7 @@ pub async fn advance_process_node(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -626,7 +625,7 @@ pub async fn get_timeline(
 
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权访问该定制订单（数据范围限制）",
         ));
@@ -700,7 +699,7 @@ pub async fn report_quality_issue(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -737,7 +736,7 @@ pub async fn list_quality_issues(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权访问该定制订单（数据范围限制）",
         ));
@@ -794,7 +793,7 @@ pub async fn resolve_quality_issue(
         .await
         .map_err(crud_err)?;
     let owner = parent_order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -837,7 +836,7 @@ pub async fn create_after_sales(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -871,7 +870,7 @@ pub async fn list_after_sales(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权访问该定制订单（数据范围限制）",
         ));
@@ -914,7 +913,7 @@ pub async fn update_after_sales(
         .await
         .map_err(crud_err)?;
     let owner = parent_order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));
@@ -949,7 +948,7 @@ pub async fn add_node_log(
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
     let owner = order.created_by.map(|v| v as i32);
-    if !crate::utils::data_scope::check_resource_owner(&ctx, owner, None) {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作该定制订单（数据范围限制）",
         ));

@@ -408,6 +408,10 @@ pub async fn close_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
+    // 行级归属门（写口）：关闭改订单终态，先证归属（purchase_orders 的 get_order
+    // 内部按 check_resource_owner_by_member_scope 判定）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
 
     let order = service.close_order(id, user_id).await?;
 
@@ -418,7 +422,6 @@ pub async fn close_order(
 }
 
 /// 取消采购订单
-/// 批次 215 P2-1 修复（v12 复审）：实现采购订单取消功能
 pub async fn cancel_order(
     auth: AuthContext,
     Path(id): Path<i32>,
@@ -427,6 +430,9 @@ pub async fn cancel_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
+    // 行级归属门（写口）：取消改订单状态并释放预算占用，必须先证归属。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
 
     let order = service
         .cancel_order(id, req.reason.clone(), user_id)
@@ -748,7 +754,10 @@ pub async fn calculate_order_total(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门（写口）：重算落库改主表聚合列，须先证归属。
     let service = crate::services::po::order::PurchaseOrderService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
     service.calculate_order_total(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"order_id": id}),

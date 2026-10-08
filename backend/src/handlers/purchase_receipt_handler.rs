@@ -31,6 +31,7 @@ pub async fn list_receipts(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (receipts, total) = service
         .list_receipts(
             params.page.unwrap_or(1).clamp(1, 1000), // 分页参数 clamp 防 DoS
@@ -42,6 +43,7 @@ pub async fn list_receipts(
             params.warehouse_id,
             parse_receipt_date_param(params.receipt_date_from.as_deref(), "receipt_date_from")?,
             parse_receipt_date_param(params.receipt_date_to.as_deref(), "receipt_date_to")?,
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -111,6 +113,9 @@ pub async fn get_receipt(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    // 行级归属门先于详情出参：列表里不可见的单，凭 ID 也不可读
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
     let receipt = service.get_receipt(id).await?;
     let mut receipt_json = serde_json::to_value(receipt)?;
 
@@ -238,6 +243,10 @@ pub async fn confirm_receipt(
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;
 
+    // 行级归属门在状态流转事务之前：越权确认零落库、零事件发布
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
+
     let receipt = service.confirm_receipt(id, user_id).await?;
 
     // 收货事实（库存增加、订单转收货态、入库单置 COMPLETED）已在 confirm_receipt 事务内完成，
@@ -270,6 +279,8 @@ pub async fn concede_receipt(
     Json(req): Json<ConcedeReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
     let receipt = service.concede_receipt(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -292,6 +303,8 @@ pub async fn rejudge_receipt(
     Json(req): Json<RejudgeReceiptRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
     let receipt = service.rejudge_receipt(id, req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
@@ -324,6 +337,8 @@ pub async fn list_receipt_items(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(receipt_id, &ctx).await?;
     let items = service.list_receipt_items(receipt_id).await?;
     let mut items_json = serde_json::to_value(items)?;
 

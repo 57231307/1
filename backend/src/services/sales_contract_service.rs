@@ -1,6 +1,7 @@
 use crate::models::sales_contract;
 use crate::models::sales_contract_item;
 use crate::models::status::contract;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -372,6 +373,7 @@ impl SalesContractService {
     pub async fn get_list(
         &self,
         params: SalesContractQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<sales_contract::Model>, u64), AppError> {
         let mut query = sales_contract::Entity::find();
 
@@ -395,7 +397,17 @@ impl SalesContractService {
             query = query.filter(sales_contract::Column::CustomerId.eq(*customer_id));
         }
 
-        // 获取总数
+        // 行级数据权限下推：scope 过滤在 total 计算之前注入，保证分页总数与可见集一致
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                sales_contract::Column::CreatedBy,
+                sales_contract::Column::CreatedBy,
+            );
+        }
+
+        // 获取总数（已含 data_scope 过滤）
         let total = query.clone().count(&*self.db).await?;
 
         // 分页和排序：HTTP 层 page 为 1-indexed，DB offset 为 0-indexed，

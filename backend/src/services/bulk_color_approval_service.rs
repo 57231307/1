@@ -1312,12 +1312,17 @@ impl BulkColorApprovalService {
     }
 
     /// P1-10：批色报表 - 按客户/产品/时间段统计批色通过率（业务规则：按 customer_id + product_id 维度聚合，统计总数/通过/拒绝/返工/降级/报废数量）
+    ///
+    /// 聚合口径随登录人可见集收窄：通过 [`Self::scoped_base`] 在查询构造处 INNER JOIN 父
+    /// 销售订单并按其 RLS 归属列下推，分母仅含本人可见的批色记录（与列表同形，非 handler
+    /// 后置内存过滤）。`data_scope` 为 `None` 时等同全库（仅系统调度内部调用）。
     pub async fn report_by_dimensions(
         &self,
         from_date: Option<chrono::DateTime<Utc>>,
         to_date: Option<chrono::DateTime<Utc>>,
         customer_id: Option<i64>,
         product_id: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<ApprovalReportRow>, BulkColorApprovalError> {
         let mut cond = Condition::all();
         if let Some(v) = from_date {
@@ -1333,7 +1338,10 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::ProductId.eq(v));
         }
 
-        let rows = Entity::find()
+        // 可见集在查询构造处下推（scoped_base = INNER JOIN sales_orders + RLS 归属列），
+        // 后续内存聚合的分母 = 可见行数，越权行既不参与 total 也不参与各状态计数。
+        let rows = self
+            .scoped_base(data_scope)
             .filter(cond)
             .order_by_desc(bulk_color_approval::Column::CreatedAt)
             .all(&*self.db)
@@ -1377,10 +1385,16 @@ impl BulkColorApprovalService {
     }
 
     /// P1-10：批色统计 - 平均 ΔE/通过率/退回率/降级率（业务规则：聚合所有记录的关键 KPI（不分维度））
+    ///
+    /// 聚合口径随登录人可见集收窄：通过 [`Self::scoped_base`] 在查询构造处 INNER JOIN 父
+    /// 销售订单并按其 RLS 归属列下推，所有分母（total/approved/rejected/downgraded/
+    /// avg_delta_e）仅基于本人可见的批色记录。无可见数据时各率如实返回 0（Decimal::ZERO），
+    /// total 返回 0，不编造/不兜底。
     pub async fn get_statistics(
         &self,
         from_date: Option<chrono::DateTime<Utc>>,
         to_date: Option<chrono::DateTime<Utc>>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<ApprovalStatistics, BulkColorApprovalError> {
         let mut cond = Condition::all();
         if let Some(v) = from_date {
@@ -1390,7 +1404,12 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
         }
 
-        let rows = Entity::find().filter(cond).all(&*self.db).await?;
+        // 可见集在查询构造处下推，total/各计数/delta_e 聚合仅基于 scoped_base 返回的行子集。
+        let rows = self
+            .scoped_base(data_scope)
+            .filter(cond)
+            .all(&*self.db)
+            .await?;
 
         let total = rows.len() as u64;
         let mut approved = 0u64;

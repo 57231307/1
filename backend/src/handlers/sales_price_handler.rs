@@ -103,7 +103,12 @@ pub async fn list_prices(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (prices, _total) = service.get_prices_list(query_params).await?;
+    // 行级数据权限：把当前请求身份构造为 DataScopeContext，下推到 service 查询内层
+    // （列表与导出同函数下推，total 同源），handler 不做后置过滤。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let (prices, _total) = service
+        .get_prices_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("销售价格列表查询成功，共 {} 条记录", prices.len());
 
     Ok(Json(ApiResponse::success(prices)))
@@ -400,7 +405,12 @@ pub async fn export_prices(
         page_size: 10000,
     };
 
-    let (prices, _total) = service.get_prices_list(query_params).await?;
+    // 行级数据权限与列表同函数下推：导出全量行同样受当前身份 scope 约束，
+    // 不在 handler 后置过滤（否则导出行与列表/total 口径分叉）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let (prices, _total) = service
+        .get_prices_list(query_params, Some(&data_scope_ctx))
+        .await?;
     let row_count = prices.len();
 
     // 序列化为 JSON 以统一字段处理

@@ -2,6 +2,7 @@ use crate::models::purchase_contract;
 // 批次 210 P2-5 修复（v12 复审）：合同状态字符串替换为 contract 常量
 use crate::models::status::contract;
 use crate::models::user;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
@@ -299,6 +300,7 @@ impl PurchaseContractService {
     pub async fn get_list(
         &self,
         params: ContractQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchaseContractView>, u64), AppError> {
         let mut query = purchase_contract::Entity::find();
 
@@ -336,7 +338,20 @@ impl PurchaseContractService {
             }
         }
 
-        // 总数在无 JOIN 的基础查询上统计：Creator JOIN 为多对一（不倍增行），单次查询无 N+1。
+        // 行级数据权限下推（调用方为 /purchase-contracts 列表与 /purchase-contracts/export，
+        // 二者复用本函数，scope 条件在总数统计前注入，列表与 total 同源同一查询）。
+        // purchase_contract 表无 department_id，归属列 created_by（i32 必填），
+        // Dept 退化为按可见部门成员集合过滤 created_by。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                purchase_contract::Column::CreatedBy,
+                purchase_contract::Column::CreatedBy,
+            );
+        }
+
+        // 总数与分页共用上方已含数据范围的同一查询：count 在 JOIN 前统计，Creator JOIN 为多对一（不倍增行）。
         let total = query.clone().count(&*self.db).await?;
 
         // 分页和排序（LEFT JOIN users 补创建人姓名）

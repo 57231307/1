@@ -222,6 +222,7 @@ pub async fn list_contracts(
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     info!("用户 {} 正在查询销售合同列表", auth.user_id);
 
+    let scope_ctx = auth.to_data_scope_context();
     let service = SalesContractService::new(state.db.clone());
     let query_params = crate::services::sales_contract_service::SalesContractQueryParams {
         keyword: params.keyword,
@@ -231,7 +232,7 @@ pub async fn list_contracts(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (contracts, _total) = service.get_list(query_params).await?;
+    let (contracts, _total) = service.get_list(query_params, Some(&scope_ctx)).await?;
     info!("销售合同列表查询成功，共 {} 条记录", contracts.len());
 
     // created_by_name 富化：单次批量查询 users.real_name（杜绝逐行查询），
@@ -628,6 +629,7 @@ pub async fn export_contracts(
     auth: AuthContext,
     Query(query): Query<SalesContractQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    let scope_ctx = auth.to_data_scope_context();
     let service = SalesContractService::new(state.db.clone());
     // V15 P0-S12 修复（Batch 475d）：导出全量数据（覆盖分页参数）
     let query_params = crate::services::sales_contract_service::SalesContractQueryParams {
@@ -637,7 +639,7 @@ pub async fn export_contracts(
         page: 1,
         page_size: 10000,
     };
-    let (contracts, _total) = service.get_list(query_params).await?;
+    let (contracts, _total) = service.get_list(query_params, Some(&scope_ctx)).await?;
     let row_count = contracts.len();
     // 序列化为 JSON 以统一字段处理
     let contracts_json: Vec<serde_json::Value> = contracts

@@ -160,6 +160,7 @@ pub async fn list_contracts(
 ) -> Result<Json<ApiResponse<Vec<PurchaseContractView>>>, AppError> {
     info!("用户 {} 正在查询采购合同列表", auth.user_id);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PurchaseContractService::new(state.db.clone());
     let query_params = crate::services::purchase_contract_service::ContractQueryParams {
         keyword: params.keyword,
@@ -170,7 +171,9 @@ pub async fn list_contracts(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (contracts, _total) = service.get_list(query_params).await?;
+    let (contracts, _total) = service
+        .get_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("采购合同列表查询成功，共 {} 条记录", contracts.len());
 
     Ok(Json(ApiResponse::success(contracts)))
@@ -431,6 +434,7 @@ pub async fn export_purchase_contracts(
 ) -> Result<axum::response::Response, AppError> {
     info!("用户 {} 正在导出采购合同", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PurchaseContractService::new(state.db.clone());
     // 分页参数不参与导出：page 固定 1，page_size 取导出上限（与既有导出 MAX_EXPORT_ROWS 口径一致）
     let query_params = ContractQueryParams {
@@ -442,7 +446,9 @@ pub async fn export_purchase_contracts(
         page_size: MAX_EXPORT_ROWS as i64,
     };
 
-    let (contracts, _total) = service.get_list(query_params).await?;
+    let (contracts, _total) = service
+        .get_list(query_params, Some(&data_scope_ctx))
+        .await?;
     let row_count = contracts.len();
 
     let table = XlsxTable {

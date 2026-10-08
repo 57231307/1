@@ -4,6 +4,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use sea_orm::EntityTrait;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -368,6 +369,13 @@ pub async fn submit_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     let user_id = auth.user_id;
+    // 行级归属门（写口）：提交推进自身草稿状态（DRAFT→PENDING），必须先证归属。
+    // sales_orders 属 RLS 表，归属列 created_by + 部门列 department_id，
+    // 复用 get_order_detail(Some(&ctx)) 承载 check_resource_owner 判定。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     let order = sales_service.submit_order(id, user_id).await?;
 
     // 订单提交成功后发送通知给申请人
@@ -511,6 +519,11 @@ pub async fn complete_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    // 行级归属门（写口）：完成改订单终态，先证归属。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     // 传入真实操作人 ID 用于审计日志
     let order = sales_service.complete_order(id, auth.user_id).await?;
 
@@ -767,7 +780,11 @@ pub async fn cancel_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-
+    // 行级归属门（写口）：取消改订单状态为 CANCELLED，必须先证归属。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
     let _order = sales_service.cancel_order(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -817,6 +834,12 @@ pub async fn create_delivery(
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
+    // 行级归属门（写口）：创建发货是对父订单的写操作，必须先证父订单归属。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(id, Some(&data_scope_ctx))
+        .await?;
+
     // warehouse_id 缺失即拒绝，不允许默认为 0 落到非法仓库
     let warehouse_id = payload
         .warehouse_id
@@ -835,12 +858,28 @@ pub async fn create_delivery(
 pub async fn cancel_delivery(
     auth: AuthContext,
     State(state): State<AppState>,
-    Path((_order_id, delivery_id)): Path<(i32, i32)>,
+    Path((order_id, delivery_id)): Path<(i32, i32)>,
     Json(req): Json<CancelDeliveryRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     req.validate().map_err(AppError::from)?;
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+
+    // 行级归属门（写口）：取消发货回退库存和订单状态，必须先证父订单归属。
+    // 路径已有 order_id，直接用它做 scope 校验。
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .get_order_detail(order_id, Some(&data_scope_ctx))
+        .await?;
+
+    // 路径一致性：delivery 实际所属订单须与 path order_id 相同（防错配绕归属）
+    let delivery_row = crate::models::sales_delivery::Entity::find_by_id(delivery_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("发货单不存在"))?;
+    if delivery_row.order_id != order_id {
+        return Err(AppError::not_found("发货单不存在"));
+    }
 
     let delivery = sales_service
         .cancel_delivery(delivery_id, req.reason.clone(), auth.user_id)

@@ -35,7 +35,9 @@ use crate::services::sku_mapping_service::SkuMappingService;
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::services::supplier_qualification_gate::SupplierQualificationGate;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 单号取号+插入的唯一入口（事务内取号 + 23505 保存点重试），见 `create_order_header`
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -741,14 +743,14 @@ impl PurchaseOrderService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // PurchaseOrderDto 的 created_by/department_id 由查询结果携带
+        // 行级归属门（读族）：本表 department_id 由建单请求所选采购部门直填、不由 m_rls_dept_domain
+        // 触发器维护，不能当权威部门；列表侧按「归属人∈可见成员集合」下推，故单行同用成员集合
+        // 口径，保证列表可见 ⇔ 详情可读。拒绝出参为固定脱敏常量（不含单据 ID）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(order.created_by), Some(order.department_id)) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问采购订单 {}（数据范围限制）",
-                    order_id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(order.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问该采购订单（数据范围限制）",
+                ));
             }
         }
 

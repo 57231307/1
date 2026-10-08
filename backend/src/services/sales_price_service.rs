@@ -2,6 +2,7 @@ use crate::models::sales_price;
 use crate::models::status::price_approval;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::{customer, product};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -238,14 +239,34 @@ impl SalesPriceService {
 
     /// 销售价目列表（读模型富化版）。
     ///
+    /// `data_scope` = 行级数据权限上下文；`Some(ctx)` 时按 owner 列（`created_by`）下推
+    /// All/Dept/Self 过滤（本表无 department_id 列 ⇒ owner 与 dept 两参同传 `CreatedBy`，
+    /// Dept 走「归属人 ∈ 可见部门成员集合」分支，与 ai_extend_service 里无部门列表的写法同范式）；
+    /// `None` 不下推行级过滤（系统内部调用方显式传入时须附理由）。
+    ///
     /// `total` 在带筛选的基础查询上统计（无富化 JOIN；keyword 谓词命中时含其所需的
     /// 两条 LEFT JOIN，保证 total 与 items 同源）；两条 LEFT JOIN 均指向对端主键、
     /// 多对一不倍增行 ⇒ 有无富化 JOIN 行数/分页/offset 语义完全一致。
     pub async fn get_prices_list(
         &self,
         params: SalesPriceQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<SalesPriceView>, u64), AppError> {
         let mut query = sales_price::Entity::find();
+
+        // 行级数据权限下推置于业务筛选之前、`total` 统计之前：`total` 取 `query.clone().count()`
+        // 与 items 取同一 `query` ⇒ 二者同源自带同一 scope；`apply_data_scope` 返回的 Condition
+        // 经 `.filter()` 与下方 product_id/customer_id/customer_type/status/keyword 各谓词以 AND
+        // 叠加（All=空 Condition 不改可见集；Dept/Self=owner 列等值/IN），既不放大也不吞掉
+        // 业务筛选命中的子集。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                sales_price::Column::CreatedBy,
+                sales_price::Column::CreatedBy,
+            );
+        }
 
         if let Some(product_id) = params.product_id {
             query = query.filter(sales_price::Column::ProductId.eq(product_id));

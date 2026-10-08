@@ -19,6 +19,7 @@ use crate::models::{
 };
 use crate::services::purchase_receipt_dto::PurchaseReceiptDto;
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
@@ -60,6 +61,10 @@ impl PurchaseReceiptService {
     ///
     /// `total` 由 `paginate_with_total` 对**同一已过滤查询**做 `num_items()` 统计
     /// （即 `utils::pagination::paginate_with_total`），关键字/仓库/日期条件天然计入过滤后行数。
+    ///
+    /// `data_scope`：行级数据权限上下文，在查询构造处下推（Dept 分支 =
+    /// `created_by = 本人 OR department_id IN 可见部门集合`，与 RLS USING 同形态）；
+    /// `None` 表示内部调度不经 handler 鉴权链路、跳过行级下推（测试直接调用验证筛选逻辑时使用）。
     #[allow(clippy::too_many_arguments)]
     pub async fn list_receipts(
         &self,
@@ -72,6 +77,7 @@ impl PurchaseReceiptService {
         warehouse_id: Option<i32>,
         receipt_date_from: Option<NaiveDate>,
         receipt_date_to: Option<NaiveDate>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchaseReceiptDto>, u64), AppError> {
         let mut query = purchase_receipt::Entity::find()
             .column_as(supplier::Column::SupplierName, "supplier_name")
@@ -91,6 +97,18 @@ impl PurchaseReceiptService {
                 JoinType::LeftJoin,
                 purchase_receipt::Relation::Creator.def(),
             );
+
+        // 行级数据权限下推：purchase_receipt 同时有 department_id 与 created_by 列，
+        // 选 apply_department_scope（Dept 分支 = 本人行 OR 部门∈可见集合，与 RLS 策略 USING
+        // 同形态）；下推在分页构造前，total 由带 scope 的同一查询算出。
+        if let Some(ctx) = data_scope {
+            query = apply_department_scope(
+                query,
+                ctx,
+                purchase_receipt::Column::CreatedBy,
+                purchase_receipt::Column::DepartmentId,
+            );
+        }
 
         if let Some(ref status) = status {
             query = query.filter(purchase_receipt::Column::ReceiptStatus.eq(status));
@@ -135,6 +153,26 @@ impl PurchaseReceiptService {
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
+    }
+
+    /// 行级归属门：入库单存在性→404 先行，再按 created_by + department_id 走部门族判定，
+    /// 与列表侧 apply_department_scope 同源。详情/明细/状态流转端点在读写前调用，
+    /// 越权返回 403 且不触达后续事务。
+    pub async fn ensure_receipt_access(
+        &self,
+        receipt_id: i32,
+        ctx: &DataScopeContext,
+    ) -> Result<(), AppError> {
+        let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
+        if !check_resource_owner(ctx, Some(receipt.created_by), receipt.department_id) {
+            return Err(AppError::permission_denied(
+                "无权访问该采购入库单（数据范围限制）".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// 获取入库单详情 —— 同样 LEFT JOIN 富化名称字段。

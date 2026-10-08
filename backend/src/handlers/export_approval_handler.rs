@@ -172,11 +172,19 @@ pub async fn cancel_request(
 /// 校验下载 token（导出 handler 调用前校验）
 pub async fn verify_token(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<VerifyTokenQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let svc = ExportApprovalService::new(state.db);
     let model = svc.verify_download_token(&q.token).await?;
+    // 行级归属门：表无 department_id 列，按申请人字段判定归属人可见性
+    let owner = Some(model.applicant_user_id);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该导出审批记录（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

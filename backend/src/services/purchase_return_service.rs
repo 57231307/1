@@ -15,7 +15,9 @@ use crate::models::{
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::inventory_stock_query::RecordTransactionArgs;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -954,14 +956,14 @@ impl PurchaseReturnService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购退货单 {}", return_id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // purchase_return 表有 created_by + department_id，支持完整 Dept
+        // 行级归属门（读族）：本表虽有 department_id 列，但该值由建单请求直填、不由
+        // m_rls_dept_domain 触发器维护，不能当作权威部门归属；列表侧按「归属人∈可见成员集合」
+        // 下推，故单行判定同用成员集合口径，保证列表可见 ⇔ 详情可读。拒绝出参为固定脱敏常量。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, return_order.created_by, return_order.department_id) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问采购退货单 {}（数据范围限制）",
-                    return_id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, return_order.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问该采购退货单（数据范围限制）",
+                ));
             }
         }
 

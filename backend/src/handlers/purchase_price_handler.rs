@@ -77,6 +77,7 @@ pub async fn list_prices(
 
     info!("用户 {} 正在查询采购价格列表", auth.user_id);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PurchasePriceService::new(state.db.clone());
     let query_params = crate::services::purchase_price_service::PurchasePriceQueryParams {
         product_id: params.product_id,
@@ -86,7 +87,9 @@ pub async fn list_prices(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (prices, _total) = service.get_prices_list(query_params).await?;
+    let (prices, _total) = service
+        .get_prices_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("采购价格列表查询成功，共 {} 条记录", prices.len());
 
     Ok(Json(ApiResponse::success(prices)))
