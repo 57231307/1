@@ -116,6 +116,10 @@ pub fn dye_recipes() -> Router<AppState> {
             post(dye_recipe_handler::approve_recipe),
         )
         .route(
+            "/dye-recipes/{id}/reject",
+            post(dye_recipe_handler::reject_recipe),
+        )
+        .route(
             "/dye-recipes/{id}/submit",
             post(dye_recipe_handler::submit_dye_recipe),
         )

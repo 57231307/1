@@ -235,8 +235,9 @@ async fn live_db() -> DatabaseConnection {
     test_common::setup_test_db().await
 }
 
-/// dye_recipe 种子行：列值严格满足真表约束（chk_dye_recipe_status 只认
-/// draft/pending_approval/approved/disabled，v15/mod.rs:4514-4523；
+/// dye_recipe 种子行：列值严格满足真表约束（chk_dye_recipe_status 现行取值集 =
+/// draft/pending_approval/approved/rejected/disabled——v15 域尾建四值基线，
+/// dye_recipe_reject 域随拒绝通道扩至五值，种子行取 draft 两版均满足；
 /// recipe_name/color_code 为建表即 NOT NULL，m0003:27-35）。
 async fn seed_dye_recipe(db: &DatabaseConnection, recipe_no: &str) -> dye_recipe::Model {
     // created_at/updated_at 为 DateTimeWithTimeZone（models/dye_recipe.rs:42-43，

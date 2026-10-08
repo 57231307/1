@@ -3,12 +3,13 @@ import type { ApiResponse } from '@/types/api';
 
 /**
  * 染色配方状态词表（唯一真相源：backend/src/models/status/quality_dyeing.rs::dye_recipe，
- * 与迁移 v15 的 CHECK "chk_dye_recipe_status" 取值集逐项相等；中文只出现在 i18n 展示层）
+ * 与 CHECK "chk_dye_recipe_status" 取值集逐项相等；中文只出现在 i18n 展示层）
  */
 export const DYE_RECIPE_STATUS = {
   DRAFT: 'draft',
   PENDING_APPROVAL: 'pending_approval',
   APPROVED: 'approved',
+  REJECTED: 'rejected',
   DISABLED: 'disabled',
 } as const;
 
@@ -32,6 +33,8 @@ export interface DyeRecipe {
   approved_by: number;
   approved_by_name: string;
   approved_at: string;
+  /** 审批拒绝理由（后端 dye_recipe.rejected_reason，TEXT 可空列 ⇒ 键恒存在、无值为 null） */
+  rejected_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -126,6 +129,12 @@ export function deleteDyeRecipe(id: number): Promise<ApiResponse<void>> {
 // 前端不得再声明/发送 approved_by（否则触发 check-api-request 载荷失配）。
 export function approveDyeRecipe(id: number): Promise<ApiResponse<void>> {
   return request.post(`/production/dye-recipes/${id}/approve`);
+}
+
+// 拒绝端点与审批端点的身份口径相同：操作人取服务端会话，请求体只承载理由；
+// 后端 RejectRecipeRequest 仅有 reason 一个字段，多传键会被 check-api-request 判失配。
+export function rejectDyeRecipe(id: number, reason: string): Promise<ApiResponse<DyeRecipe>> {
+  return request.post(`/production/dye-recipes/${id}/reject`, { reason });
 }
 
 export function submitDyeRecipe(id: number): Promise<ApiResponse<void>> {

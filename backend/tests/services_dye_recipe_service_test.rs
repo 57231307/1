@@ -122,6 +122,36 @@ fn test_validate_can_approve_disabled() {
     assert!(DyeRecipeService::validate_can_approve(Some(recipe_status::DISABLED)).is_err());
 }
 
+/// 测试拒绝校验：仅待审核状态可拒绝
+#[test]
+fn test_validate_can_reject_pending_approval() {
+    assert!(DyeRecipeService::validate_can_reject(Some(recipe_status::PENDING_APPROVAL)).is_ok());
+}
+
+/// 测试拒绝校验：草稿状态不可拒绝（未进入审批流无拒绝语义）
+#[test]
+fn test_validate_can_reject_draft() {
+    assert!(DyeRecipeService::validate_can_reject(Some(recipe_status::DRAFT)).is_err());
+}
+
+/// 测试拒绝校验：已审核状态不可拒绝
+#[test]
+fn test_validate_can_reject_approved() {
+    assert!(DyeRecipeService::validate_can_reject(Some(recipe_status::APPROVED)).is_err());
+}
+
+/// 测试拒绝校验：已停用状态不可拒绝
+#[test]
+fn test_validate_can_reject_disabled() {
+    assert!(DyeRecipeService::validate_can_reject(Some(recipe_status::DISABLED)).is_err());
+}
+
+/// 测试拒绝校验：None 状态不可拒绝
+#[test]
+fn test_validate_can_reject_none() {
+    assert!(DyeRecipeService::validate_can_reject(None).is_err());
+}
+
 /// 测试创建版本校验：已审核状态可创建新版本
 #[test]
 fn test_validate_can_create_version_approved() {
@@ -146,5 +176,6 @@ fn test_status_constants() {
     assert_eq!(recipe_status::DRAFT, "draft");
     assert_eq!(recipe_status::PENDING_APPROVAL, "pending_approval");
     assert_eq!(recipe_status::APPROVED, "approved");
+    assert_eq!(recipe_status::REJECTED, "rejected");
     assert_eq!(recipe_status::DISABLED, "disabled");
 }

@@ -6,7 +6,7 @@
 //! 核心能力：
 //! - 配方 CRUD + 软删除
 //! - 状态流转校验（草稿→已审核/已停用；已审核→已停用；已停用→已审核）
-//! - 审核流程（仅草稿可审核）
+//! - 审核流程（approve：草稿或待审核可通过；reject：仅待审核可拒绝，理由落 rejected_reason 专列）
 //! - 版本管理（仅已审核可建新版本，version+1，parent_recipe_id 关联）
 
 use rust_decimal::Decimal;
@@ -16,6 +16,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::info;
 
 use crate::models::dye_recipe::{
     self, ActiveModel, Entity as DyeRecipeEntity, Model as DyeRecipeModel,
@@ -177,6 +178,17 @@ impl DyeRecipeService {
         Ok(())
     }
 
+    /// 校验配方是否允许拒绝（仅待审核状态可拒绝，与 validate_can_approve 同款判据写法）
+    pub fn validate_can_reject(status: Option<&str>) -> Result<(), AppError> {
+        if status != Some(recipe_status::PENDING_APPROVAL) {
+            return Err(AppError::business(format!(
+                "只有待审核状态的配方可以拒绝，当前状态：{}",
+                status.unwrap_or("未知")
+            )));
+        }
+        Ok(())
+    }
+
     /// 提交配方审核（批次 423B：草稿 → 待审核，贯通化验室打样审批流）
     pub async fn submit(&self, id: i32) -> Result<DyeRecipeModel, AppError> {
         // 归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取记录做状态流转，传 None 不重复门。
@@ -282,6 +294,7 @@ impl DyeRecipeService {
             parent_recipe_id: Set(req.parent_recipe_id),
             approved_by: Set(None),
             approved_at: Set(None),
+            rejected_reason: NotSet,
             remarks: Set(req.remarks),
             // 建单人取服务端会话（handler 传入），请求体不承载身份
             created_by: Set(Some(user_id)),
@@ -482,6 +495,37 @@ impl DyeRecipeService {
         Ok(updated)
     }
 
+    /// 拒绝配方（待审核 → 已拒绝），拒绝理由落 rejected_reason 专列。
+    ///
+    /// 入参：id=配方主键；reason=服务端 trim 非空后的拒绝理由原文（handler 校验）；
+    /// rejected_by=拒绝人会话身份——本表无拒绝人专列，且 approved_by 仅承载"通过人"
+    /// 语义（拒绝不复用，两动作两列），故拒绝人身份记入服务端日志留痕、不落库。
+    /// approved_at 记最近一次审批动作时间，通过与拒绝都写。
+    pub async fn reject(
+        &self,
+        id: i32,
+        reason: String,
+        rejected_by: i32,
+    ) -> Result<DyeRecipeModel, AppError> {
+        // 归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取记录传 None 做状态门与拒绝写入，不重复门。
+        let model = self.get_by_id(id, None).await?;
+        Self::validate_can_reject(model.status.as_deref())?;
+
+        let mut active: ActiveModel = model.into();
+        active.status = Set(Some(recipe_status::REJECTED.to_string()));
+        active.rejected_reason = Set(Some(reason));
+        active.approved_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
+        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        let updated = active.update(&*self.db).await?;
+        info!(
+            "染色配方审批拒绝完成：recipe_id={}, rejected_by={}, 新状态={}",
+            updated.id,
+            rejected_by,
+            updated.status.as_deref().unwrap_or("未知")
+        );
+        Ok(updated)
+    }
+
     /// 创建新版本（仅已审核配方可建新版本）
     /// created_by 为建版人，由 handler 从服务端会话取（AuthContext.user_id），
     /// 不接受请求体身份，故签名是必填 i32 而非 Option。
@@ -520,6 +564,7 @@ impl DyeRecipeService {
             parent_recipe_id: Set(Some(id)),
             approved_by: Set(None),
             approved_at: Set(None),
+            rejected_reason: NotSet,
             remarks: Set(remarks),
             created_by: Set(Some(created_by)),
             created_at: Set(crate::utils::date_utils::utc_now_fixed()),

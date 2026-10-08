@@ -49,6 +49,13 @@ pub struct CreateVersionRequest {
     pub remarks: Option<String>,
 }
 
+/// 拒绝配方请求体：拒绝理由 reason 必填（服务端 trim 非空强制），身份不由请求体承载
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct RejectRecipeRequest {
+    pub reason: String,
+}
+
 /// 从 AppState 构造 DyeRecipeService（每个请求构造轻量实例，无状态）
 fn service(state: &AppState) -> DyeRecipeService {
     DyeRecipeService::new(state.db.clone())
@@ -164,6 +171,30 @@ pub async fn approve_recipe(
     )))
 }
 
+/// POST /api/v1/erp/production/dye-recipes/:id/reject - 拒绝配方（待审核 → 已拒绝）
+// 拒绝人身份唯一来源是服务端会话（AuthContext.user_id），请求体只承载拒绝理由 reason
+// （trim 非空必填）。归属门沿用 approve 的 handler 前置口径：先按 created_by 校验
+// 数据范围（越权 403），未通过绝不进入 service.reject 写路径。
+pub async fn reject_recipe(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<RejectRecipeRequest>,
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+    let service = service(&state);
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.reject(id, reason, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "配方拒绝成功",
+    )))
+}
+
 /// POST /api/v1/erp/production/dye-recipes/:id/new-version - 基于已审核配方创建新版本
 // 新版本行的建版人同样取会话；备注 remarks 选填 ⇒ 体本身选填（OptionalJson 语义表），
 // 缺体合法放行到服务层状态门，不得在解码层被吞成 400。
@@ -187,6 +218,10 @@ pub async fn create_new_version(
     )))
 }
 
+/// 按色号查询参考配方（共享工艺参考面）——handler 刻意不注入 AuthContext：
+/// service `get_recipes_by_color` 仅返回 status=APPROVED 且未删除的配方，属跨部门
+/// 共享工艺知识（与主列表机密面、"我的排程运行"owner 私有面属不同判据族），
+/// 调用方传 color_code，数据存 dye_recipe 表。
 pub async fn get_recipes_by_color(
     State(state): State<AppState>,
     Path(color_code): Path<String>,

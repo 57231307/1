@@ -63,6 +63,10 @@
               :value="DYE_RECIPE_STATUS.APPROVED"
             />
             <el-option
+              :label="t('dyeRecipe.index.optionRejected')"
+              :value="DYE_RECIPE_STATUS.REJECTED"
+            />
+            <el-option
               :label="t('dyeRecipe.index.optionInactive')"
               :value="DYE_RECIPE_STATUS.DISABLED"
             />
@@ -176,6 +180,16 @@
               @click="handleApprove(row as DyeRecipe)"
               >{{ t('dyeRecipe.index.buttonApprove') }}</el-button
             >
+            <!-- 拒绝仅对待审核开放：后端 service.reject 的状态门是 pending_approval→rejected，
+                 草稿态按钮若可达只会换来一次业务拒绝 -->
+            <el-button
+              v-if="canReject((row as DyeRecipe).status)"
+              type="danger"
+              link
+              size="small"
+              @click="handleReject(row as DyeRecipe)"
+              >{{ t('dyeRecipe.index.buttonReject') }}</el-button
+            >
             <el-button type="info" link size="small" @click="handleVersion(row as DyeRecipe)">{{
               t('dyeRecipe.index.buttonVersion')
             }}</el-button>
@@ -265,6 +279,14 @@
             :placeholder="t('dyeRecipe.index.placeholderRemarks')"
           />
         </el-form-item>
+        <!-- 拒绝理由是已裁定的审批结果，只在查看态只读展示；编辑态不出现该控件，
+             避免把裁量文本重新纳入可提交载荷 -->
+        <el-form-item
+          v-if="isView && formData.rejected_reason"
+          :label="t('dyeRecipe.index.labelRejectReason')"
+        >
+          <el-input :model-value="formData.rejected_reason" type="textarea" :rows="2" readonly />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{
@@ -342,6 +364,7 @@ import {
   createDyeRecipe,
   updateDyeRecipe,
   approveDyeRecipe,
+  rejectDyeRecipe,
   submitDyeRecipe,
   getRecipeVersions,
   exportDyeRecipes,
@@ -349,6 +372,7 @@ import {
 import { DYE_RECIPE_STATUS } from '@/api/dye-recipe';
 import type { DyeRecipe, DyeRecipeStatus, DyeRecipeUpdatePayload } from '@/api/dye-recipe';
 import { logger } from '@/utils/logger';
+import { isDialogDismissal } from '@/utils/monitor';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -394,6 +418,7 @@ const formData = reactive({
   color_name: '',
   content: '',
   remarks: '',
+  rejected_reason: null as string | null,
 });
 
 // 表单验证规则
@@ -450,6 +475,7 @@ const handleCreate = () => {
     color_name: '',
     content: '',
     remarks: '',
+    rejected_reason: null,
   });
   dialogVisible.value = true;
 };
@@ -502,6 +528,27 @@ const handleApprove = async (row: DyeRecipe) => {
     refresh();
   } catch (error) {
     logger.error(t('dyeRecipe.index.messageApproveFailed'), error);
+  }
+};
+
+// 审批拒绝：理由经输入校验非空后提交，操作人身份由后端按会话派生，前端不承载
+const handleReject = async (row: DyeRecipe) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('dyeRecipe.index.rejectReasonPrompt'),
+      t('dyeRecipe.index.titlePrompt'),
+      {
+        inputValidator: (input: string) =>
+          (input ?? '').trim().length > 0 || t('dyeRecipe.index.rejectReasonRequired'),
+      }
+    );
+    await rejectDyeRecipe(row.id, value.trim());
+    ElMessage.success(t('dyeRecipe.index.rejectSuccess'));
+    refresh();
+  } catch (error) {
+    if (!isDialogDismissal(error)) {
+      logger.error(t('dyeRecipe.index.rejectFailed'), error);
+    }
   }
 };
 
@@ -599,6 +646,7 @@ const getStatusType = (status: DyeRecipeStatus): 'info' | 'warning' | 'success' 
     [DYE_RECIPE_STATUS.DRAFT]: 'info',
     [DYE_RECIPE_STATUS.PENDING_APPROVAL]: 'warning',
     [DYE_RECIPE_STATUS.APPROVED]: 'success',
+    [DYE_RECIPE_STATUS.REJECTED]: 'danger',
     [DYE_RECIPE_STATUS.DISABLED]: 'danger',
   };
   return map[status];
@@ -609,6 +657,7 @@ const getStatusLabel = (status: DyeRecipeStatus): string => {
     [DYE_RECIPE_STATUS.DRAFT]: t('dyeRecipe.index.optionDraft'),
     [DYE_RECIPE_STATUS.PENDING_APPROVAL]: t('dyeRecipe.index.optionPending'),
     [DYE_RECIPE_STATUS.APPROVED]: t('dyeRecipe.index.optionApproved'),
+    [DYE_RECIPE_STATUS.REJECTED]: t('dyeRecipe.index.optionRejected'),
     [DYE_RECIPE_STATUS.DISABLED]: t('dyeRecipe.index.optionInactive'),
   };
   return map[status];
@@ -617,6 +666,9 @@ const getStatusLabel = (status: DyeRecipeStatus): string => {
 // 审批门槛与后端 validate_can_approve 同源：草稿或待审核均可审批
 const canApprove = (status: DyeRecipeStatus) =>
   status === DYE_RECIPE_STATUS.DRAFT || status === DYE_RECIPE_STATUS.PENDING_APPROVAL;
+
+// 拒绝门槛与后端 validate_can_reject 同源：仅待审核可拒（草稿态后端会直接业务拒绝）
+const canReject = (status: DyeRecipeStatus) => status === DYE_RECIPE_STATUS.PENDING_APPROVAL;
 
 // 批次 271：useTableApi 构造时自动初始加载，无需 onMounted 调用 getList
 </script>

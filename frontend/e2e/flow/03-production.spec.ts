@@ -43,7 +43,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         { name: '匀染剂', amount: 2, unit: 'g/L' },
         { name: '固色剂', amount: 5, unit: 'g/L' },
       ],
-      // dye_recipe.status 是闭合小写英文词表（draft/pending_approval/approved/disabled），
+      // dye_recipe.status 是闭合小写英文词表（draft/pending_approval/approved/rejected/disabled），
       // 与 migration chk_dye_recipe_status CHECK 逐项一致；"草稿" 只是展示标签，落库会被 CHECK 拒绝。
       status: 'draft',
     });
