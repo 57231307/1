@@ -16,6 +16,9 @@
 //!   时守卫 RAISE EXCEPTION 中止，不在迁移内洗数据）
 //! - export_inspection_vocab_check: 出口商检结论词表 DB CHECK 约束（export_inspection.result，
 //!   依赖 `migration/src/domain/v15/` 建表，排链尾满足"建表先于 CHECK"原则，全新库与存量库均不违反 CHECK）
+//!   权重与出站开关三组，注册全链尾，角色/建表域均早于它）
+//! - dye_recipe_reject: 染色配方拒绝通道（chk_dye_recipe_status 同约束名扩 rejected +
+//!   rejected_reason 专列，必须排全链尾：v15 域尾重建四值 CHECK，早于它执行会被覆盖回窄集）
 
 pub mod system;
 pub mod business;
@@ -31,3 +34,4 @@ pub mod price_vocab_check;
 pub mod price_vocab_extend;
 pub mod price_fk;
 pub mod export_inspection_vocab_check;
+pub mod dye_recipe_reject;

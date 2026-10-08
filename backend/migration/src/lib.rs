@@ -1,14 +1,17 @@
 //! 数据库迁移模块
 //!
-//! 按业务域聚合，每个域 1 个迁移文件，共 13 个：
+//! 按业务域聚合，每个域 1 个注册项（域内可含多条子迁移，台账只记域名）：
 //! system → business → sales_crm → production → finance → v15 → rls_dept
 //!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check → price_vocab_check
-//!   → price_fk → export_inspection_vocab_check
+//!   → price_vocab_extend → price_fk → export_inspection_vocab_check → dye_recipe_reject
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
 //!         m_rls_dept_user_sync / m_crm_lead_claim_record / m_crm_vocab_check
-//!         / m_price_vocab_check / m_price_fk / m_export_inspection_vocab_check
+//!         / m_price_vocab_check / m0080_extend_price_status_check_rejected / m_price_fk
+//!         / m_export_inspection_vocab_check / m0091_widen_dye_recipe_status_for_reject
+//!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
+//! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
 //! 顺序说明：
 //! 1. system: 核心表（含 customers.owner_id/suppliers.created_by 补列）
@@ -30,6 +33,9 @@
 //!    （依赖 9 刚完成的默认值收敛与回填；施加前先点名词表外存量，非 0 即中止不造值）
 //! 10. price_fk: 价格两表引用列外键（依赖 system 的 products/customers/suppliers；
 //!    排在全部建表/回填之后，孤儿行存在时守卫中止而非静默删数据）
+//! 11. dye_recipe_reject: 染色配方拒绝通道（chk_dye_recipe_status 同约束名扩 rejected +
+//!    rejected_reason 专列；必须排全链尾——生效 CHECK 以本域为准，早于 v15 执行会被
+//!    v15 域尾按同名约束重建的四值窄集覆盖回旧集）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -55,6 +61,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::price_vocab_extend::Migration),
             Box::new(domain::price_fk::Migration),
             Box::new(domain::export_inspection_vocab_check::Migration),
+            Box::new(domain::dye_recipe_reject::Migration),
         ]
     }
 }
