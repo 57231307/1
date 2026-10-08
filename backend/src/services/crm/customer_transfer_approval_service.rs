@@ -1,18 +1,25 @@
 //! 客户转移审批服务（crm/customer_transfer_approval）
 //!
-//! V15 P0-S08 修复：实现客户转移的多级审批流
+//! 提供线索/客户转移的分级审批流。审批级数由 `check_large_customer` 计算：命中大客户
+//! 高档分层集合的走两级（销售经理 → 总监），否则单级（销售经理审批即完成）。
 //!
-//! 流程：
-//! 1. 销售员发起转移申请 → 创建审批单（pending）
-//! 2. 销售经理审批：
-//!    - 普通客户：经理通过即完成审批，触发实际转移
-//!    - 大客户（判据见 `check_large_customer`）：经理通过后进入总监审批层
-//! 3. 总监审批（仅大客户）：
-//!    - 通过 → 触发实际转移
-//!    - 拒绝 → 审批失败
-//! 4. 任意层级拒绝 → 审批失败，不执行转移
+//! 流程（按 `max_level` 分支，非独立开关）：
+//! 1. 销售员发起转移申请 → 创建审批单（pending），按 `check_large_customer` 落 `max_level`
+//! 2. 销售经理审批通过：
+//!    - `max_level=1`（普通客户）：直接执行转移并置 approved
+//!    - `max_level=2`（大客户）：进入总监审批层（`current_level=2`），此刻不执行转移
+//! 3. 总监审批通过 → 执行转移并置 approved；任意层级拒绝 → rejected，不执行转移
 //!
-//! 关联：审批通过后调用 CrmAssignService::transfer_lead 执行实际转移
+//! 关联：审批通过后调用 `CrmAssignService::transfer_lead` 执行实际转移。
+//!
+//! 二级分支的真实可达性（如实说明，勿当已就绪能力）：`check_large_customer` 的唯一输入是
+//! 线索 `converted_customer_id` 所指向客户的分层列（`customers.tier` 是否落在
+//! `constants::customer_tier::MAJOR`）。而 `converted_customer_id` 仅在线索转化时与
+//! `lead_status=CONVERTED` 同时写入；创建门 `fetch_and_validate_lead` 又拒绝 `CONVERTED`
+//! 线索。因此按正常生命周期，能通过创建门的线索其 `converted_customer_id` 恒为 NULL，
+//! `check_large_customer` 恒判非大客户、`max_level` 恒为 1，二级（总监）分支对正常生命周期
+//! 数据不可达；该分支仅在线索同时携带 `converted_customer_id` 且状态非 `CONVERTED`（正常
+//! 生命周期不产出此组合）时命中。总监层审批逻辑本身完整、未被删减，只是无正常来源触发它。
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -140,8 +147,15 @@ impl CustomerTransferApprovalService {
         Self { db, assign_service }
     }
 
-    /// 创建转移审批申请
-    /// 业务规则：1. 线索必须存在且未转化为客户；2. 新归属人必须不等于当前归属人；3. 大客户（判据唯一：线索关联客户的分层列落在高档集合，见 `check_large_customer`）需总监二次审批；4. 同一线索不能存在 pending 状态的审批单
+    /// 创建转移审批申请。
+    /// 业务规则：
+    /// 1. 线索必须存在且未转化为客户（`lead_status=CONVERTED` 在本步被拒）；
+    /// 2. 新归属人必须不等于当前归属人；
+    /// 3. `max_level` 由 `check_large_customer` 计算：线索关联客户分层落在高档集合为 2，
+    ///    否则为 1；由于本步已拒绝 CONVERTED 线索、而 `converted_customer_id` 只在转化时
+    ///    与 CONVERTED 同时写入，正常生命周期进入本函数的线索恒得 `max_level=1`
+    ///    （二级分支可达性详见模块文档「二级分支的真实可达性」）；
+    /// 4. 同一线索不能存在 pending 状态的审批单。
     pub async fn create_approval(
         &self,
         req: CreateTransferApprovalRequest,

@@ -73,6 +73,29 @@ pub async fn merge_customers(
     )
     .await?;
 
+    // 客户合并会把源客户信用评级行的 customer_id 改写为目标客户 id。评级表对
+    // customer_id 施加全表唯一约束、读写契约为每客户一行（见 customer_credit_ratings
+    // 唯一索引迁移），若源、目标此刻都已有评级行，该改写会与目标已有行撞唯一约束——
+    // 撞约束在 SeaORM 层以 DbErr 冒泡、经 `?` 映射为 DATABASE_ERROR(500)，不是可据以
+    // 纠正的业务拒绝。故在开事务、动任何数据之前先判「两侧是否都有评级行」，命中即整笔
+    // 以 BUSINESS 拒绝：既不静默把源行挪过去覆盖目标，也不静默保留源行，出参为固定脱敏
+    // 文案 + BUSINESS_ERROR 机器码（真实原因只进日志，文案不含记录 ID），数据库零写入。
+    let source_rating_exists = customer_credit::Entity::find()
+        .filter(customer_credit::Column::CustomerId.eq(req.source_customer_id))
+        .one(&*state.db)
+        .await?
+        .is_some();
+    let target_rating_exists = customer_credit::Entity::find()
+        .filter(customer_credit::Column::CustomerId.eq(req.target_customer_id))
+        .one(&*state.db)
+        .await?
+        .is_some();
+    if source_rating_exists && target_rating_exists {
+        return Err(AppError::business(
+            "客户合并失败：源客户与目标客户均已存在信用评级行，评级按客户单行唯一无法自动合并",
+        ));
+    }
+
     // 开始事务
     let txn = state.db.begin().await?;
 
