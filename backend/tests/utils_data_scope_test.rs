@@ -349,3 +349,104 @@ fn test_scoped_pool_visibility_preserves_historical_shape() {
         "Scoped·Self 不应出现公海放行（可见面零变化），实际: {self_sql}"
     );
 }
+
+// ===== check_resource_owner_by_member_scope 测试 =====
+
+#[test]
+fn test_member_scope_all_always_true() {
+    let ctx = DataScopeContext {
+        scope: DataScope::All,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    // All 无论归属人如何均通过
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(999)));
+    assert!(check_resource_owner_by_member_scope(&ctx, None));
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(1)));
+}
+
+#[test]
+fn test_member_scope_dept_owner_in_member_set() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![10],
+        dept_member_user_ids: vec![1, 7, 9],
+    };
+    // owner=9 在成员集合内但不是本人 → 放行
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(9)));
+    // owner=1 等于本人 → 放行（第一短路）
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(1)));
+}
+
+#[test]
+fn test_member_scope_dept_owner_not_in_member_set_rejects() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![10],
+        dept_member_user_ids: vec![7, 9],
+    };
+    // owner=999 既不是本人也不在成员集合 → 拒绝
+    assert!(!check_resource_owner_by_member_scope(&ctx, Some(999)));
+}
+
+#[test]
+fn test_member_scope_dept_empty_members_degrades_to_self_only() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    // 本人行放行
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(1)));
+    // 非本人行：成员集合为空，无法通过 → 拒绝
+    assert!(!check_resource_owner_by_member_scope(&ctx, Some(999)));
+}
+
+#[test]
+fn test_member_scope_self_only_own_row() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Self_,
+        user_id: 42,
+        department_id: Some(10),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![42, 7, 9],
+    };
+    // 本人放行
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(42)));
+    // 他人行拒绝（即使对方在 dept_member_user_ids 中，Self_ 不参考该集合）
+    assert!(!check_resource_owner_by_member_scope(&ctx, Some(7)));
+}
+
+#[test]
+fn test_member_scope_none_owner_dept_rejects() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![10],
+        dept_member_user_ids: vec![1, 7],
+    };
+    // 归属人为 NULL → 一律拒绝，不放宽为"无主即可操作"
+    assert!(!check_resource_owner_by_member_scope(&ctx, None));
+}
+
+#[test]
+fn test_member_scope_none_owner_self_rejects() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Self_,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    // 归属人为 NULL → 拒绝
+    assert!(!check_resource_owner_by_member_scope(&ctx, None));
+}

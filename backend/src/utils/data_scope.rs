@@ -176,6 +176,36 @@ pub fn check_resource_owner(
     }
 }
 
+/// 单行归属门（**无 `department_id` 列的表专用**）：判据与列表侧
+/// `build_data_scope_condition` 的 Dept 分支同源——「归属人 ∈ 可见部门成员集合」，
+/// 而非资源自身部门列。
+///
+/// 为什么要与 `check_resource_owner` 分家：后者的 Dept 分支只看资源部门 ID，无部门列的表
+/// 只能传 `None` ⇒ 恒判死，部门经理连自己创建的建行都拿不到；而同一张表的列表端点按
+/// `apply_data_scope` 下推时**会**把这些行显示出来，形成"列表能看、点详情/执行动作即 403"
+/// 的自相矛盾，也违背"本人行恒可写（三种 scope 都一样）"的既有裁定。
+///
+/// 规则：`All`=任意行（与读侧同宽，跨 owner 代操作另由写门把关）；`Dept`=本人行或归属人
+/// ∈ 可见部门成员集合（集合为空时退化为仅本人，与列表侧同款守卫）；`Self_`=仅本人行。
+/// 归属人为 `NULL` 的历史行一律拒绝，不放宽成"无主即可读写"。
+pub fn check_resource_owner_by_member_scope(
+    ctx: &DataScopeContext,
+    resource_owner_id: Option<i32>,
+) -> bool {
+    match ctx.scope {
+        DataScope::All => true,
+        DataScope::Dept => match resource_owner_id {
+            Some(owner) => {
+                owner == ctx.user_id
+                    || (!ctx.dept_member_user_ids.is_empty()
+                        && ctx.dept_member_user_ids.contains(&owner))
+            }
+            None => false,
+        },
+        DataScope::Self_ => resource_owner_id == Some(ctx.user_id),
+    }
+}
+
 /// 写侧归属门（用户 2026-10-02 裁定**方案 A**：读可 All，写须 owner 或显式
 /// 「管理员代操作」权限键 + 留痕）。
 ///
