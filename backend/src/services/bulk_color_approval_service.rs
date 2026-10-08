@@ -24,8 +24,9 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, JoinType,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, Set,
+    TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -42,6 +43,7 @@ use crate::models::production_order;
 use crate::models::status::inventory_piece as piece_status;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -289,10 +291,34 @@ impl BulkColorApprovalService {
         Ok(model)
     }
 
-    /// 列表查询（带分页与过滤）
+    /// 批色记录的可见基查询：INNER JOIN 父销售订单（`sales_order_id` 为 FK NOT NULL，父行必
+    /// 存在且一对一，不产生重复行），`data_scope` 为 Some 时按父单 RLS 归属列（`created_by` +
+    /// 冗余部门列 `department_id`，m_rls_dept_domain）下推数据范围。批色表自身无归属列，归属
+    /// 只能经父单继承；各读族共用本函数，避免某条读路径漏下推。
+    fn scoped_base(&self, data_scope: Option<&DataScopeContext>) -> Select<Entity> {
+        let base = Entity::find().join(
+            JoinType::InnerJoin,
+            bulk_color_approval::Relation::SalesOrder.def(),
+        );
+        match data_scope {
+            Some(ctx) => apply_department_scope(
+                base,
+                ctx,
+                crate::models::sales_order::Column::CreatedBy,
+                crate::models::sales_order::Column::DepartmentId,
+            ),
+            None => base,
+        }
+    }
+
+    /// 列表查询（带分页与过滤 + 行级数据权限）
+    ///
+    /// `data_scope` 为 Some 时按 [`Self::scoped_base`] 的父单归属下推，过滤在查询构造处，
+    /// 分页 `total` 与可见集一致。
     pub async fn list(
         &self,
         query: ListBulkColorApprovalQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<bulk_color_approval::Model>, u64), BulkColorApprovalError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -317,7 +343,9 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
         }
 
-        let paginator = Entity::find()
+        // 父单归属下推 + 分页计数同基查询，越权行既不进 items 也不进 total
+        let paginator = self
+            .scoped_base(data_scope)
             .filter(cond)
             .order_by_desc(bulk_color_approval::Column::CreatedAt)
             .paginate(&*self.db, page_size);
@@ -622,16 +650,18 @@ impl BulkColorApprovalService {
         Ok(rejected_records)
     }
 
-    /// P0-F17：获取待提醒的批色记录（审计报告 11.3）
+    /// P0-F17：获取待提醒的批色记录（审计报告 11.3），`data_scope` 为 Some 时按父单归属下推
     pub async fn get_pending_reminders(
         &self,
         config: Option<ApprovalTimeoutConfig>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let config = config.unwrap_or_default();
         let now = Utc::now();
         let reminder_threshold = now - chrono::Duration::days(config.reminder_days);
 
-        let records = Entity::find()
+        let records = self
+            .scoped_base(data_scope)
             .filter(
                 Condition::all()
                     .add(bulk_color_approval::Column::ApprovalStatus.eq("sent_to_customer"))
@@ -1160,9 +1190,11 @@ impl BulkColorApprovalService {
     pub async fn list_pending_reminders(
         &self,
         threshold_hours: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
-        let rows = Entity::find()
+        let rows = self
+            .scoped_base(data_scope)
             .filter(
                 bulk_color_approval::Column::ApprovalStatus.eq(ApprovalStatus::Pending.as_str()),
             )
@@ -1177,9 +1209,11 @@ impl BulkColorApprovalService {
     pub async fn list_customer_followups(
         &self,
         threshold_hours: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
-        let rows = Entity::find()
+        let rows = self
+            .scoped_base(data_scope)
             .filter(
                 bulk_color_approval::Column::ApprovalStatus
                     .eq(ApprovalStatus::SentToCustomer.as_str()),
@@ -1200,7 +1234,9 @@ impl BulkColorApprovalService {
         use crate::models::notification::{NotificationPriority, NotificationType};
         use crate::services::notification_service::CreateNotificationRequest;
 
-        let pending_records = self.list_pending_reminders(threshold_hours).await?;
+        // 系统调度广播：提醒对象是各单的 approver 而非调用者，按全库扫描（None=不下推个人可见集）；
+        // 面向用户的同数据列表端点按登录人数据范围下推。
+        let pending_records = self.list_pending_reminders(threshold_hours, None).await?;
         let mut sent_count = 0usize;
         for record in pending_records {
             let title = format!("批色待剪样超时提醒 #{}", record.id);
@@ -1241,7 +1277,9 @@ impl BulkColorApprovalService {
         use crate::models::notification::{NotificationPriority, NotificationType};
         use crate::services::notification_service::CreateNotificationRequest;
 
-        let records = self.list_customer_followups(threshold_hours).await?;
+        // 系统调度广播：提醒对象是各单的 approver 而非调用者，按全库扫描（None=不下推个人可见集）；
+        // 面向用户的同数据列表端点按登录人数据范围下推。
+        let records = self.list_customer_followups(threshold_hours, None).await?;
         let mut sent_count = 0usize;
         for record in records {
             let title = format!("客户批色跟进提醒 #{}", record.id);

@@ -54,6 +54,9 @@ pub struct CreateReconciliationRequest {
     pub total_invoices: Decimal,
     pub total_collections: Decimal,
     pub notes: Option<String>,
+    /// 创建人用户 ID：由 handler 从会话 AuthContext 如实注入（落库 created_by），
+    /// 不再因丢弃会话而留 NULL——历史遗留 NULL 行在归属读门下按最小权限不可见。
+    pub created_by: Option<i32>,
 }
 
 /// 更新对账单请求（批次 108 P1-6 修复：已通过 PUT /ar-reconciliations/:id 路由接入业务，；移除 dead_code 标注。）

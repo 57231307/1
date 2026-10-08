@@ -168,6 +168,7 @@ fn test_cjqqgz_qmyejs() {
         total_invoices: decs!("5000"),
         total_collections: decs!("3000"),
         notes: None,
+        created_by: None,
     };
 
     // 复现 create 方法的期末余额计算
@@ -568,6 +569,7 @@ async fn test_cjdzd_xysjk() {
         total_invoices: decs!("5000"),
         total_collections: decs!("3000"),
         notes: None,
+        created_by: None,
     };
 
     let created = service

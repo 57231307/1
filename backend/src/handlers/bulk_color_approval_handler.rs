@@ -22,6 +22,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::EntityTrait; // 归属门需按主键取父单行：find_by_id 由 EntityTrait 提供
 use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
@@ -251,14 +252,47 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
     }
 }
 
+/// 行级归属门（批色记录族）：批色记录表无自身归属列，归属经父销售订单继承
+/// （`sales_order_id` FK NOT NULL）。本域无 CRM 域那套 `crm/cross_owner_write` 显式代操作键，
+/// 不硬套 `crm_write_guard::ensure_cross_owner_write_allowed`（其权限键 resource_type 固定为
+/// "crm"，语义仅限 CRM 域），故对齐同域 `sales_order_handler` 写门范式——读/写前取父
+/// 销售订单，走唯一权威判定 `data_scope::check_resource_owner`（归属列 `created_by`、冗余部门列
+/// `department_id`，与列表查询构造处下推的 `apply_department_scope` 同源）。
+/// 父单不存在→404；不在当前操作人可见范围→403 + 固定脱敏文案（不含记录 ID，权限文案永久脱敏）。
+/// 缺口（交主编排）：`All` 范围跨 owner 代操作本域无等价 cross_owner_write 键，须新增 ERP 批色域
+/// 跨 owner 写键并同步权限注册表；本轮不新增权限键、不改 hub，仅按上述范式堵 Self/Dept 水平越权。
+async fn ensure_parent_sales_order_access(
+    db: &sea_orm::DatabaseConnection,
+    ctx: &crate::utils::data_scope::DataScopeContext,
+    sales_order_id: i32,
+) -> Result<(), AppError> {
+    let parent = crate::models::sales_order::Entity::find_by_id(sales_order_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::not_found("销售订单不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(ctx, parent.created_by, parent.department_id)
+    {
+        return Err(AppError::permission_denied(
+            "无权操作批色记录（数据范围限制）".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 // ==================== Handler 端点 ====================
 
 /// POST /api/v1/erp/bulk-color-approvals - 创建批色记录
 pub async fn create_bulk_color_approval(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Json(dto): Json<CreateBulkColorApprovalDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    // 写门（建单）：dto.sales_order_id 直传 service 会让任意持本 RBAC 键的用户对
+    // 他人销售订单发起批色单（跨 owner 写）。service 落库前先校验父单存在性与行级归属，
+    // 越权即 403 且不触达 service.create（零落库、不留孤儿行）。
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, dto.sales_order_id).await?;
+
     let service = BulkColorApprovalService::from_state(&state);
 
     let params = CreateBulkColorApprovalParams {
@@ -280,15 +314,22 @@ pub async fn create_bulk_color_approval(
 
 /// GET /api/v1/erp/bulk-color-approvals - 批色记录列表
 pub async fn list_bulk_color_approvals(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListBulkColorApprovalQuery>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
-    let (items, total) = service.list(query).await.map_err(bca_err)?;
+    // 行级归属门（读族）：在 service 查询构造处下推 data_scope（INNER JOIN 父销售订单按其
+    // RLS 归属列过滤），越权行既不进 items 也不进 total，杜绝"全量越权可见"，且分页 total
+    // 与可见集一致（非 handler 后置过滤）。
+    let (items, total) = service
+        .list(query, Some(&data_scope_ctx))
+        .await
+        .map_err(bca_err)?;
     let infos: Vec<BulkColorApprovalInfo> = items.into_iter().map(Into::into).collect();
 
     Ok(Json(ApiResponse::success(BulkColorApprovalPagedResponse {
@@ -301,12 +342,15 @@ pub async fn list_bulk_color_approvals(
 
 /// GET /api/v1/erp/bulk-color-approvals/:id - 批色记录详情
 pub async fn get_bulk_color_approval(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let record = service.get(id).await.map_err(bca_err)?;
+    // 行级归属门（读单行 IDOR 防护）：详情按 approval id 取，校验其父销售订单是否在可见范围。
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, record.sales_order_id).await?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -331,11 +375,16 @@ pub async fn cut_sample(
 
 /// POST /api/v1/erp/bulk-color-approvals/:id/send-to-customer - 发送客户批色
 pub async fn send_to_customer(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：先按 approval id 取父销售订单判归属，门在 service 写事务之前——越权即 403，
+    // 不触达 send_to_customer 的状态流转，approval_status 零漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
     let record = service.send_to_customer(id).await.map_err(bca_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
@@ -390,12 +439,16 @@ pub async fn customer_rework(
 
 /// POST /api/v1/erp/bulk-color-approvals/:id/downgrade - 降级处理
 pub async fn downgrade(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<DowngradeDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：按 approval id 取父销售订单判归属，门在 service 降级事务前——越权 403，状态零漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
     let record = service
         .downgrade(id, dto.reject_reason)
         .await
@@ -405,12 +458,16 @@ pub async fn downgrade(
 
 /// POST /api/v1/erp/bulk-color-approvals/:id/scrap - 报废
 pub async fn scrap(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ScrapDto>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 写门：按 approval id 取父销售订单判归属，门在 service 报废事务前——越权 403，状态零漂移。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
     let record = service
         .scrap(id, dto.reject_reason)
         .await
@@ -422,11 +479,16 @@ pub async fn scrap(
 
 /// GET /api/v1/erp/bulk-color-approvals/:id/history - 批色状态变更历史追溯
 pub async fn list_history(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<BulkColorApprovalHistoryInfo>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
+    // 行级归属门（读单行 IDOR 防护）：历史按 approval_id 取，越权不得返回他人变更轨迹，
+    // 也不得降级成"该单无历史"的 2xx 空列表——先校验 approval 父销售订单归属再取历史。
+    let approval = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
     let rows = service.list_history(id).await.map_err(bca_err)?;
     let infos: Vec<BulkColorApprovalHistoryInfo> = rows.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(infos)))
@@ -434,14 +496,15 @@ pub async fn list_history(
 
 /// GET /api/v1/erp/bulk-color-approvals/reminders/pending - pending 超时未剪样提醒列表
 pub async fn list_pending_reminders(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ReminderQuery>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let threshold_hours = query.threshold_hours.unwrap_or(72);
     let items = service
-        .list_pending_reminders(threshold_hours)
+        .list_pending_reminders(threshold_hours, Some(&data_scope_ctx))
         .await
         .map_err(bca_err)?;
     let total = items.len() as u64;
@@ -456,14 +519,15 @@ pub async fn list_pending_reminders(
 
 /// GET /api/v1/erp/bulk-color-approvals/reminders/followups - 客户跟进超时提醒列表
 pub async fn list_customer_followups(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ReminderQuery>,
 ) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let threshold_hours = query.threshold_hours.unwrap_or(72);
     let items = service
-        .list_customer_followups(threshold_hours)
+        .list_customer_followups(threshold_hours, Some(&data_scope_ctx))
         .await
         .map_err(bca_err)?;
     let total = items.len() as u64;
@@ -543,17 +607,18 @@ pub async fn check_approval_timeouts(
 
 /// GET /api/v1/erp/bulk-color-approvals/reminders/pending-configurable - 基于配置的待提醒列表
 pub async fn get_pending_reminders(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<TimeoutCheckQuery>,
 ) -> Result<Json<ApiResponse<Vec<BulkColorApprovalInfo>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let config = ApprovalTimeoutConfig {
         reminder_days: query.reminder_days.unwrap_or(3),
         reject_days: query.reject_days.unwrap_or(7),
     };
     let records = service
-        .get_pending_reminders(Some(config))
+        .get_pending_reminders(Some(config), Some(&data_scope_ctx))
         .await
         .map_err(bca_err)?;
     let infos: Vec<BulkColorApprovalInfo> = records.into_iter().map(Into::into).collect();
