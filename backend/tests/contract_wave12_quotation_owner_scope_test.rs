@@ -381,7 +381,7 @@ async fn self_user_set_own_terms_is_2xx_and_persists() {
     assert_eq!(before, 1, "前提：own 报价有 1 条条款");
 
     let body = json!([
-        {"term_type": "shipping", "term_key": "CIF", "term_value": "USD 500", "sequence": 0}
+        {"term_type": "logistics", "term_key": "CIF", "term_value": "USD 500", "sequence": 0}
     ]);
     let (status, v) = call(
         &app,
