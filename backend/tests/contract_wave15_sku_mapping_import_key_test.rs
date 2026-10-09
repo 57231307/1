@@ -92,8 +92,17 @@ fn migration_role_codes(mig_code: &str, const_name: &str) -> Vec<String> {
         .find(&anchor)
         .unwrap_or_else(|| panic!("迁移缺少常量 {const_name} —— 受授集合必须写在迁移里才可回滚"));
     let tail = &mig_code[start..];
-    let open = tail.find('[').expect("受授常量应为数组字面量");
-    let close = tail.find(']').expect("受授常量数组未闭合");
+    // 数组字面量的 `[` 必须从赋值号 `=` 之后取：类型标注 `&[&str]` 里也有一对 []，
+    // 直接 find('[') 会命中类型段而把 `[&str]` 误当成角色码。
+    let eq = tail.find('=').expect("受授常量声明缺少赋值号");
+    let open = tail[eq..]
+        .find('[')
+        .map(|i| eq + i)
+        .expect("受授常量应为数组字面量");
+    let close = tail[open..]
+        .find(']')
+        .map(|i| open + i)
+        .expect("受授常量数组未闭合");
     tail[open..=close]
         .split('"')
         .step_by(2)
