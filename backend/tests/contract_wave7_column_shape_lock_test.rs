@@ -422,6 +422,45 @@ const EXPECTED: &[ColExpect] = &[
         column_default: Some("false"),
         why: "webhook 开关默认关闭，模型非 Option bool；无默认会让未显式配置的建行使开关落 NULL",
     },
+    // ---- m0095：不合格品台账两条被裸加列吞掉约束的列 ----
+    ColExpect {
+        table: "unqualified_products",
+        column: "stock_grade_synced",
+        data_type: "boolean",
+        udt_name: "bool",
+        is_nullable: "NO",
+        column_default: Some("false"),
+        why: "降级同步标志模型非 Option bool；可空且无默认时省略列的写入落 NULL，回读即 ColumnNull",
+    },
+    ColExpect {
+        table: "unqualified_products",
+        column: "scrap_approval_status",
+        data_type: "character varying",
+        udt_name: "varchar",
+        is_nullable: "NO",
+        column_default: Some("'not_required'::character varying"),
+        why: "报废审批状态模型非 Option String；not_required 与写入方词表初值同字，须与门控判据一致",
+    },
+    // ---- m0097：时间戳列形态归位（DDL 裸建不带时区的 TIMESTAMP、模型声明 Option<DateTime<Utc>>
+    // ⇒ 库列须为 timestamp with time zone；否则列解码类型失配、让步端点回读即事务整体回滚） ----
+    ColExpect {
+        table: "purchase_receipt",
+        column: "concession_at",
+        data_type: "timestamp with time zone",
+        udt_name: "timestamptz",
+        is_nullable: "YES",
+        column_default: None,
+        why: "让步接收时间模型 Option<DateTime<Utc>>，列须带时区；裸建 TIMESTAMP 与模型语义解耦致回读取数失败",
+    },
+    ColExpect {
+        table: "purchase_receipt",
+        column: "rejudge_at",
+        data_type: "timestamp with time zone",
+        udt_name: "timestamptz",
+        is_nullable: "YES",
+        column_default: None,
+        why: "复检改判时间模型 Option<DateTime<Utc>>，列须带时区；与 concession_at 同批裸建同族，须一并归位",
+    },
 ];
 
 struct LiveCol {
