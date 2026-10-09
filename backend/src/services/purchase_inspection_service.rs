@@ -89,12 +89,21 @@ impl PurchaseInspectionService {
         // 引用存在性校验先于任何写库动作（含取号）：receipt_id 指向的入库单不存在时
         // 显式 404（含 ID 的真实原因走脱敏 not_found），不把坏引用交给 DB 外键行为
         // 兜底——外键违约会是裸 500 而非业务 4xx。
-        if let Some(receipt_id) = req.receipt_id {
-            purchase_receipt::Entity::find_by_id(receipt_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
-        }
+        // 同一次取回的入库单行同时用于 order_id 派生：UI 建单只带 receipt_id，
+        // 采购订单 ID 属入库单自身携带的真实列（purchase_receipt.order_id），入库单
+        // 即该列的权威来源；后端据此派生，避免 order_id 落成 NULL（前端未上送即缺键，
+        // 不得让"派生自入库单"的字段依赖前端补传）。显式上送 order_id 者（API 直连）
+        // 以其为准，仅在缺省时用入库单派生值，不覆盖调用方明确意图。
+        let receipt_order_id = match req.receipt_id {
+            Some(receipt_id) => {
+                let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
+                    .one(&*self.db)
+                    .await?
+                    .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
+                receipt.order_id
+            }
+            None => None,
+        };
 
         let inspection_no = self.generate_inspection_no().await?;
 
@@ -102,7 +111,7 @@ impl PurchaseInspectionService {
             id: Default::default(),
             inspection_no: Set(inspection_no),
             receipt_id: Set(req.receipt_id),
-            order_id: Set(req.order_id),
+            order_id: Set(req.order_id.or(receipt_order_id)),
             // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
             supplier_id: Set(req
                 .supplier_id
