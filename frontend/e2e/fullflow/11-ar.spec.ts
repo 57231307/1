@@ -299,14 +299,20 @@ test.describe('11 AR 应收全流程契约链', () => {
     expectDecimal(row, 'amount', 2500.75, 'AR收款列表行');
     expectKeyValue(row, 'status', 'pending', 'AR收款列表行');
 
-    // PUT 仅 pending（collection.rs:406-430）：改 bank_account（真实列）+ remark（→check_no 承载），
+    // PUT 仅 pending（collection.rs:406-430）：remark 与 check_no 是**独立两列**——
+    // collection.rs:579-598 里 remark 入参只写 active.remark、check_no 入参只写 active.check_no，
+    // 各列互不覆盖，键缺席=保持原值（#334 已把备注与支票号分列）。本次只提交 remark+bank_account，
+    // 未提交 check_no，故 remark 落 remark 列、check_no 保持建单时的 null（不被备注顶用）。
     // 省略 amount/payment_date 保持
     await apiCall(page, 'PUT', `/ar/payments/${id}`, {
       remark: 'E2E-收款-改后',
       bank_account: '6217000000000010',
     });
     const afterUpd = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ar/payments/${id}`);
-    expectKeyValue(afterUpd, 'check_no', 'E2E-收款-改后', '收款 PUT 后 remark 承载键回读');
+    // 与建单侧 :283-285 同口径：提交什么键就按什么键原文回读，不被别的列顶用。
+    expectKeyValue(afterUpd, 'remark', 'E2E-收款-改后', '收款 PUT 后 remark 按专用列原文回读');
+    // 反向不变量：未提交 check_no，PUT 后仍须为 null，防备注再次污染支票号列（同建单侧 :285）。
+    expectKeyValue(afterUpd, 'check_no', null, '收款 PUT 不得把备注写入 check_no');
     expectKeyValue(afterUpd, 'bank_account', '6217000000000010', '收款 PUT 回读');
     expectDecimal(afterUpd, 'amount', 2500.75, '收款 PUT 省略键应保持');
     expectKeyValue(afterUpd, 'payment_date', '2026-05-06', '收款 PUT 省略键应保持');

@@ -20,8 +20,8 @@
 //      DELETE /users/{id} 为**软删除**：is_active=false、记录仍在（user_service.rs:470-480）。
 //   6) 单据号查重端点（"单号禁手输"契约的读侧）：GET /document-no/check
 //      （handlers/document_no_handler.rs:27-41）——真实单号→true、未占用→false、
-//      空号→400 BAD_REQUEST、未登记 doc_type→400 BAD_REQUEST
-//      （utils/number_generator.rs:582-585 兜底分支）。
+//      空号→400 VALIDATION_ERROR（no 被 query_params 边界中间件剥键→缺失字段按 IR 判 VALIDATION）、
+//      未登记 doc_type→400 BAD_REQUEST（utils/number_generator.rs:582-585 兜底分支）。
 //
 // CI 测不到（显式声明）：
 //   - 部门负责人 manager_name 的 JOIN 富化正确性（依赖 users.real_name 种子，分片账号常为空串）；
@@ -248,9 +248,13 @@ test.describe('30 系统配置契约链', () => {
     ).toBeUndefined();
 
     // 重名 → 业务族（user_service.rs:131-144）
+    // 密码必须是「强度合规」的强密码（含 ASCII 小写——password_validator.rs:61 require_lowercase，
+    // 且大小写+数字+特殊齐全），否则请求会先被强度校验门以 VALIDATION_ERROR 拒，根本到不了
+    // 唯一性门（BUSINESS），本负例就验不到重名语义。旧值 E30别的!${ts}W9 无 ASCII 小写
+    // （别的 为中文、W 大写、余皆数字）即卡此门——形状对齐首个建单 E30ok!${ts}Zq（line 238）。
     const dup = await apiCallExpectFail(page, 'POST', '/users', {
       username,
-      password: `E30别的!${ts}W9`,
+      password: `E30dup!${ts}Zq`,
     });
     expect(dup.status, '重复用户名应 400').toBe(400);
     expect(failureCode(dup), '重名机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
@@ -306,14 +310,18 @@ test.describe('30 系统配置契约链', () => {
     );
     expect(free, '未占用单号应返回 false').toBe(false);
 
-    // 空号 → 400 BAD_REQUEST（handler :34-36）
+    // 空白单号 no=%20：normalize_empty_query_params 在 handler 之前按 trim 剔除空值 query 键
+    // （query_params.rs:25-38/53-74），CheckDocNoQuery.no 随之缺失，走 Query 反序列化——本仓既定 IR
+    // 「字段/缺失校验 = VALIDATION_ERROR」（error.rs:358/794，HTTP 仍 400）。旧用例误设 BAD_REQUEST，
+    // 以为命中 handler :34-36 的空号分支，但剥键后该分支不可达。纯空白是否应改判 BAD_REQUEST 属后端
+    // 契约待判，本任务只按 IR 对齐判据、不动后端。
     const empty = await apiCallExpectFail(
       page,
       'GET',
       `/document-no/check?doc_type=crm_lead&no=%20`
     );
     expect(empty.status, '空单号应 400').toBe(400);
-    expect(failureCode(empty), '空单号机器码').toBe(APP_ERROR_CODES.BAD_REQUEST);
+    expect(failureCode(empty), '空单号机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 
     // 未登记 doc_type → 400 BAD_REQUEST（number_generator.rs:582-585 兜底分支）
     const unknown = await apiCallExpectFail(

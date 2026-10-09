@@ -810,6 +810,13 @@ test.describe('23 委外发料→收回→结算契约链', () => {
         product_id: ctx.productIds[0],
         return_quantity: '95',
         quality_status: 'qualified',
+        // confirm 产匹必填（piece_domain_service.rs）：:541 要求 warehouse_id、:549 对染色外发
+        // 要求收回单自带缸号——seedOutsourcingOrder 建的是 order_type=dyeing、dye_lot_no 已持久化
+        // （order.rs:219），而 build_receipt_active_model:250 原样存请求值不回落订单 ⇒ 缺此二键
+        // confirm 直接 business 拒（旧用例只送 5 键，卡在 :541 未指定仓库）。与 :407-425 成功建单
+        // 同口径补 warehouse_id + 回显订单 dye_lot_no；color_no 有订单回落（receipt.rs:517-520）非必填。
+        warehouse_id: ctx.warehouseIds[0],
+        dye_lot_no: order.dye_lot_no,
       }
     );
     const rcptId = requireNum(rcpt.id, '建收回单(zfee)');
@@ -883,6 +890,13 @@ test.describe('23 委外发料→收回→结算契约链', () => {
         product_id: ctx.productIds[0],
         return_quantity: '95',
         quality_status: 'qualified',
+        // confirm 产匹必填：piece_domain_service.rs:541 要求 warehouse_id、:549 对染色外发要求
+        // 收回单自带缸号（seedOutsourcingOrder 建 dyeing 订单且已持久化 dye_lot_no，收回单不回落
+        // 订单值）；与 :407-425 成功建单同口径补 warehouse_id + 回显订单 dye_lot_no，color_no 有
+        // 订单回落（receipt.rs:517-520）非必填。本用例主体仍验实测值三列透传，此二键仅为让
+        // confirm 合法通过的前置。
+        warehouse_id: ctx.warehouseIds[0],
+        dye_lot_no: order.dye_lot_no,
         // 提交值一律十进制字符串（与后端集成锁 contract_wave7 receipt_body 同口径，不经浮点）；
         // 三值形状刻意不同：一位小数 / 整数 / 两位小数，钉 DECIMAL(18,4) 无损透传
         weight: '21.5',

@@ -565,7 +565,12 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         level: 1,
         balance_direction: 'debit',
       },
-      '/assist-accounting',
+      // 会计科目的 UI 维护页是 /account-subject（views/account-subject/index.vue →
+      // SubjectListTab.vue：列含 prop="name"，操作列有行内「删除」按钮 deleteSubject）。
+      // 原写成 /assist-accounting（views/assist-accounting/index.vue）错误——该页 records 表
+      // 无科目名称列、操作列只有 View 按钮，findRowAction 按科目名找不到行也找不到删除按钮，
+      // 删除链路根本发不起（测试导航错，非源码缺陷）。
+      '/account-subject',
       `P0待删科目${EXT_TS}`,
       // account_subject_handler::list_subjects → ApiResponse<Vec> → 裸数组
       'bare'

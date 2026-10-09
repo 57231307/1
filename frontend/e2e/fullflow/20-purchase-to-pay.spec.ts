@@ -51,7 +51,7 @@ import {
   APP_ERROR_CODES,
   seedInspectionPass,
 } from '../flow/helpers';
-import { pickSelectIn, pickListArray } from '../flow/ui-helpers';
+import { pickSelectIn, pickListArray, findRowAction } from '../flow/ui-helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -200,14 +200,17 @@ async function seedPo(
   return { id, order_no: orderNo, status };
 }
 
-/** 按唯一 order_no 把 /purchase 列表收敛到本例行（purchase/03 locateRowByOrderNo 范式） */
-async function locatePoRow(page: Page, orderNo: string) {
+/** 按唯一 order_no 把 /purchase 列表收敛到本例行（purchase/03 locateRowByOrderNo 范式）。
+ *  只做导航 + 筛选 + 「恰一行」存在性断言；**不**返回行供点按钮——PurchaseTable.vue:8
+ *  的标准 el-table 对 fixed 列（:9 order_no fixed / :65 操作列 fixed="right"）走独立覆盖层
+ *  克隆行，主 `getByRole('row')` 作用域取不到行内操作按钮（收货），必须改用 findRowAction
+ *  做主↔右覆盖层同序号对齐后再点（见 receiveViaUI）。 */
+async function locatePoRow(page: Page, orderNo: string): Promise<void> {
   await page.goto('/purchase');
   await page.getByPlaceholder('订单号/供应商名').fill(orderNo);
   await page.getByRole('button', { name: '查询', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: orderNo });
   await expect(row, `按订单号 ${orderNo} 应筛出本例专属行`).toHaveCount(1, { timeout: 30000 });
-  return row;
 }
 
 /**
@@ -222,8 +225,14 @@ async function receiveViaUI(
   altQty: string,
   batchNo: string
 ): Promise<number> {
-  const row = await locatePoRow(page, orderNo);
-  await row.getByRole('button', { name: '收货', exact: true }).click();
+  await locatePoRow(page, orderNo);
+  // 收货按钮在操作列（PurchaseTable.vue:65 fixed="right"）的固定列覆盖层里，主 getByRole('row')
+  // 作用域取不到；用 findRowAction 按 order_no 做主↔右覆盖层同序号对齐命中后再点，
+  // 未命中即抛错（fail-visible，不回退到点首行/行内直取）。
+  const receiveBtn = await findRowAction(page, orderNo, r =>
+    r.getByRole('button', { name: '收货', exact: true })
+  );
+  await receiveBtn.click();
   const dialog = page.getByRole('dialog', { name: '采购收货' });
   await expect(dialog).toBeVisible({ timeout: 30000 });
   await pickSelectIn(dialog, page, '仓库');
@@ -561,15 +570,20 @@ test.describe('20 采购到付款全流程契约链', () => {
     );
     expectDecimal(poRows[0], 'received_quantity', 5, '重复确认被拒后已收量不应翻倍');
 
-    // 空批次入库单：建单可过（CreateReceiptItemRequest 维度为可空列），确认整单业务拒
-    // （require_receipt_batch private.rs:183-196 fail-closed，不落任何库存行）
+    // 空批次入库单：后端在「建单期」即按四维准入拒绝——create_receipt 在开启事务前逐行调用
+    // validate_receipt_item_dimensions（purchase_receipt_ops/crud.rs:39-41），对 trim 后空白的
+    // batch_no 直接返回 AppError::business（crud.rs:121-132），整单不落库。单测
+    // blank_batch_is_rejected / missing_batch_is_rejected（crud.rs:628-651）已把该 fail-closed
+    // 口径钉死，源码正确。故本负例判据是「建单口 POST /purchase/receipts 即 400 +
+    // BUSINESS_ERROR」，而非旧用例误设的「建单可过、仅确认门拒」——旧写法 requireNum(bad.id)
+    // 之所以恒抛，正是因为建单这一步就被拒、压根没有入库单 id 可取。
     const ctx = getCtx();
     const prod = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
       `/products/${ctx.productIds[0]}`
     );
-    const bad = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/purchase/receipts', {
+    const failCreate = await apiCallExpectFail(page, 'POST', '/purchase/receipts', {
       supplier_id: ctx.supplierId,
       order_id: poId,
       receipt_date: new Date().toISOString().slice(0, 10),
@@ -590,40 +604,16 @@ test.describe('20 采购到付款全流程契约链', () => {
         },
       ],
     });
-    const badId = requireNum(bad.id, '建空批次入库单');
-    CLEANUP.push({ path: `/purchase/receipts/${badId}`, label: `purchase_receipt#${badId}` });
-    // 空批次负例的归因前置：这张单必须"已质检合格但批次为空白"。
-    // 否则确认会先被质检门（PENDING）拒，而质检门与批次门的出参形状完全相同
-    // （400 + BUSINESS_ERROR + 仍 DRAFT），用例表面绿、实际验的已不是空批次 fail-closed
-    // （require_receipt_batch，purchase_receipt_private.rs:231-244）。
-    await seedInspectionPass(page, {
-      receiptId: badId,
-      supplierId: ctx.supplierId!,
-      context: '20-02 空批次收货单',
-    });
-
-    const failConfirm = await apiCallExpectFail(
-      page,
-      'POST',
-      `/purchase/receipts/${badId}/confirm`
+    expect(failCreate.status, `空批次建单应 400，实际=${failCreate.status}`).toBe(400);
+    expect(failureCode(failCreate), '空批次建单机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    // 归因收紧：拒绝文案必须命中「批次」这一维（源码拒绝语 crud.rs:128-131 含「批次号」），
+    // 杜绝让其它同形 400+BUSINESS_ERROR（缺产品 / 染色布缺缸号 / 质检门）蹭作本例证据。
+    expect(failCreate.message, `空批次建单的拒绝原因应命中批次维：${failCreate.message}`).toMatch(
+      /批次/
     );
-    expect(failConfirm.status, `空批次确认应 400，实际=${failConfirm.status}`).toBe(400);
-    expect(failureCode(failConfirm), '空批次确认机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
-    expect(
-      failConfirm.message,
-      `空批次确认的拒绝原因不应是质检门文案：${failConfirm.message}`
-    ).not.toMatch(/质检尚未完成|质检不合格/);
-    const badAfter = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'GET',
-      `/purchase/receipts/${badId}`
-    );
-    expectKeyValue(
-      badAfter,
-      'receipt_status',
-      'DRAFT',
-      '确认被拒后入库单应仍 DRAFT（fail-closed 无痕）'
-    );
+    // 建单即整单被拒、不落库：无入库单 id 可清理、无 DRAFT 单可回读，故移除旧用例的
+    // seedInspectionPass 前置与 /confirm 断言。确认门是否与建单门冗余属后端契约范畴，
+    // 本任务不改动后端，仅在此点明。
 
     // 付款申请无明细 submit 被拒（ap_payment_request_service.rs:336-338，10-ap 头注释同源）
     const noItem = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/payment-requests', {

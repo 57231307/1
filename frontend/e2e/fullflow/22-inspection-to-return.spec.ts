@@ -307,7 +307,12 @@ test.describe('22 质检到退货全流程契约链', () => {
     });
     const itemRows = pickListArray<Record<string, unknown>>(
       await apiCallRaw<unknown>(page, 'GET', `/purchase/inspections/${insp.id}/items`),
-      'bare',
+      // 该端点出参 data 是对象 {items,total,inspection_id}
+      // （purchase_inspection_handler.rs:200-213 list_inspection_items →
+      //   ApiResponse::success(json!{items,total,inspection_id})），非裸数组。
+      // apiCallRaw 返回信封内层 data（helpers.ts:1495），故须以 'items' 直读 data.items；
+      // 原声明 'bare' 与真实形状不符会让 pickListArray 抛「列表契约失配」——测试声明错，非源码缺陷。
+      'items',
       `质检单 ${insp.id} 明细`
     );
     expect(itemRows.length, '明细应含 1 行').toBe(1);
