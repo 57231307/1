@@ -795,6 +795,12 @@ impl InitService {
                     ("counts", "create"),
                     ("products", "read"),
                     ("warehouses", "read"),
+                    // 发货必须读已批销售订单与本厂定制单：`/sales/orders` 派生键是默认分支的
+                    // `orders`（非 `sales`），`/custom-orders` 派生 `custom-orders`；两枚都只授
+                    // read，写面仍由销售/定制域岗位持有。行级仍受各自 data_scope 过滤，
+                    // 授 read 不等于可见他人行。
+                    ("orders", "read"),
+                    ("custom-orders", "read"),
                 ],
             ),
             (
@@ -1075,6 +1081,9 @@ impl InitService {
                     ("wages", "read"),
                     ("energy-allocations", "read"),
                     ("gl", "read"),
+                    // 单位成本分母要坯布入库量：`/production/greige-fabrics` 派生
+                    // `greige-fabrics`（消歧默认分支保留段名），只授 read。
+                    ("greige-fabrics", "read"),
                 ],
             ),
         ]
@@ -1225,7 +1234,20 @@ impl InitService {
             // e2e 补建 fixture；缺册时闸门②点名判红，不会静默。
             // /audit-logs 的资源段是 seg3 直接资源（audit-logs 自身即注册码），
             // 本授权行运行期可命中，与 audit_log_handler 的角色深度防御双层一致。
-            ("auditor", &[("audit-logs", "read"), ("reports", "read")]),
+            (
+                "auditor",
+                &[
+                    ("audit-logs", "read"),
+                    ("reports", "read"),
+                    // 这两页的路由 meta 就是 `audit-logs:read`（auditor 已持），页面进得去而
+                    // API 派生键各自独立——缺下面两行会稳定 403，构成"入口可达、内容死态"。
+                    // `/slow-queries` 派生 `slow-queries`（seg3 直接资源），`/slow-queries/stats`
+                    // 因 slow-queries 登记为模块前缀而派生 `stats`，属派生侧待治的另一族
+                    // （见任务板"派生键↔注册表对账活体锁"），不在本行授权范围内绕过。
+                    ("export-approvals", "read"),
+                    ("slow-queries", "read"),
+                ],
+            ),
             (
                 "system_admin",
                 &[
