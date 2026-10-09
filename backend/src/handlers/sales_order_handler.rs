@@ -322,7 +322,10 @@ pub async fn update_order(
         }
     }
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // IDOR 防护：更新前先校验资源归属（get_order_detail + data_scope_ctx）
+    // IDOR 防护：更新前先校验资源归属（get_order_detail + data_scope_ctx）。
+    // 门刻意保留整详情解码而非 assert_order_ownership：update_order 服务返回整详情
+    // (SalesOrderDetail) 作响应，切只读主表会让畸形明细行"先改后回读 500"半写；
+    // 保留整详情门＝改状态前先失败，是正确 fail-safe。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
         .get_order_detail(id, Some(&data_scope_ctx))
@@ -347,10 +350,11 @@ pub async fn delete_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // IDOR 防护：删除前先校验资源归属（get_order_detail + data_scope_ctx）
+    // 行级归属门（写口）：删除前先证归属，走 assert_order_ownership 只读主表——
+    // 删除响应为空、不依赖订单明细解码，无需整详情。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
     // 传入真实操作人 user_id 用于审计日志
     sales_service.delete_order(id, auth.user_id).await?;
@@ -370,11 +374,11 @@ pub async fn submit_order(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     let user_id = auth.user_id;
     // 行级归属门（写口）：提交推进自身草稿状态（DRAFT→PENDING），必须先证归属。
-    // sales_orders 属 RLS 表，归属列 created_by + 部门列 department_id，
-    // 复用 get_order_detail(Some(&ctx)) 承载 check_resource_owner 判定。
+    // sales_orders 属 RLS 表，归属列 created_by + 部门列 department_id；提交走
+    // assert_order_ownership 只读主表（submit 返主表模型，响应不依赖明细解码）。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
     let order = sales_service.submit_order(id, user_id).await?;
 
@@ -478,6 +482,9 @@ pub async fn ship_order(
     // IDOR 防护：发货前先按当前用户数据范围校验订单归属（复用 get_order_detail 内部的
     // validate_order_data_scope），与 customer/supplier 的「先 get_X(Some(&data_scope_ctx))」写法同源；
     // ship_order 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权返回 403。
+    // 此处刻意保留整详情门而非 assert_order_ownership：发货响应需在 commit 后回读整详情
+    // （见下方 get_order_detail(id, None)），若门只读主表，畸形明细行会先落库再回读 500
+    // 形成半写；保留整详情门＝改状态前先失败，是正确 fail-safe（明细可空性属另一族）。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
         .get_order_detail(id, Some(&data_scope_ctx))
@@ -519,10 +526,11 @@ pub async fn complete_order(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
-    // 行级归属门（写口）：完成改订单终态，先证归属。
+    // 行级归属门（写口）：完成改订单终态，先证归属；走 assert_order_ownership 只读
+    // 主表（complete 返主表模型，响应不依赖明细解码）。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
     // 传入真实操作人 ID 用于审计日志
     let order = sales_service.complete_order(id, auth.user_id).await?;
@@ -570,12 +578,12 @@ pub async fn get_order_history(
     // 非本人 owner / Dept 非可见部门）即 403；父订单不存在走既有 not_found（404），
     // 不得把越权降级成 2xx 空列表——空列表会被前端误读为"该单无变更历史"，是假绿。
     // sales_orders 属 m_rls_dept_domain 5 张 RLS 表之一，归属列 `created_by`、冗余部门
-    // 列 `department_id`（触发器 trg_sales_orders_dept 维护）；父端点范式已用
-    // `get_order_detail(id, Some(&ctx))` 承载此门，与 ship_order/update_order 同源。
+    // 列 `department_id`（触发器 trg_sales_orders_dept 维护）；此处走 assert_order_ownership
+    // 只读主表——变更历史正文由独立 service 取，无需整详情解码。
     let data_scope_ctx = auth.to_data_scope_context();
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
     let history_service =
         crate::services::order_change_history_service::OrderChangeHistoryService::new(
@@ -807,13 +815,13 @@ pub async fn get_order_deliveries(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 行级归属门（读口）：sales_delivery 按 order_id 隶属父销售订单，越权可读他人发货
-    // 记录等同于泄露他人单据。对齐父端点范式——先 `get_order_detail(id, Some(&ctx))`：
-    // 不存在走既有 not_found（404），不可见走 permission_denied（403 + FORBIDDEN），
-    // 不得把越权降级成 2xx 空列表（那是前端"该单无发货记录"的假绿）。
+    // 记录等同于泄露他人单据。走 assert_order_ownership 只读主表：不存在走 not_found（404），
+    // 不可见走 permission_denied（403 + FORBIDDEN），不得把越权降级成 2xx 空列表
+    //（那是前端"该单无发货记录"的假绿）。发货记录正文由独立 service 取，无需整详情解码。
     let data_scope_ctx = auth.to_data_scope_context();
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
 
     let deliveries = sales_service.get_order_deliveries(id).await?;
@@ -839,10 +847,11 @@ pub async fn create_delivery(
 
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
-    // 行级归属门（写口）：创建发货是对父订单的写操作，必须先证父订单归属。
+    // 行级归属门（写口）：创建发货是对父订单的写操作，必须先证父订单归属；走
+    // assert_order_ownership 只读主表——响应体是新建发货行，不依赖订单明细解码。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
 
     // warehouse_id 缺失即拒绝，不允许默认为 0 落到非法仓库
@@ -871,10 +880,10 @@ pub async fn cancel_delivery(
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
 
     // 行级归属门（写口）：取消发货回退库存和订单状态，必须先证父订单归属。
-    // 路径已有 order_id，直接用它做 scope 校验。
+    // 路径已有 order_id，走 assert_order_ownership 只读主表做归属校验——响应是发货行。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
-        .get_order_detail(order_id, Some(&data_scope_ctx))
+        .assert_order_ownership(order_id, Some(&data_scope_ctx))
         .await?;
 
     // 路径一致性：delivery 实际所属订单须与 path order_id 相同（防错配绕归属）
