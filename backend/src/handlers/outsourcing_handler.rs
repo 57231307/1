@@ -319,6 +319,18 @@ pub async fn get_outsourcing_receipt_by_no(
     Ok(Json(ApiResponse::success(model)))
 }
 
+/// GET /api/v1/erp/outsourcing-receipts/:id - 按主键查询单张委外收回单
+/// 调用方：委外收回单详情/契约链按 ID 读取一张收回记录（routes 挂载 GET /outsourcing-receipts/{id}）。
+/// 入参 id：收回单主键。委托 OutsourcingReceiptService::get_by_id，传回未删除的一张收回单 Model，
+/// 口径与按单号读取一致（同一 service 读出口、同一字段集、同一软删过滤，缺失返回 NOT_FOUND）。
+pub async fn get_outsourcing_receipt(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<outsourcing_receipt::Model>>, AppError> {
+    let model = receipt_service(&state).get_by_id(id).await?;
+    Ok(Json(ApiResponse::success(model)))
+}
+
 /// POST /api/v1/erp/outsourcing-receipts/:id/confirm - 确认收回单（draft → confirmed）
 pub async fn confirm_outsourcing_receipt(
     State(state): State<AppState>,

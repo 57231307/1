@@ -1,4 +1,4 @@
-# layers=8 endpoints=1768
+# layers=8 endpoints=1769
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -737,6 +737,7 @@ GET	/api/v1/erp/production/outsourcing-orders/by-no/*	outsourcing_handler::get_o
 GET	/api/v1/erp/production/outsourcing-orders/items/by-order/*	outsourcing_handler::list_outsourcing_items	production
 GET	/api/v1/erp/production/outsourcing-orders/report	outsourcing_handler::get_outsourcing_report	production
 GET	/api/v1/erp/production/outsourcing-receipts	outsourcing_handler::list_outsourcing_receipts	production
+GET	/api/v1/erp/production/outsourcing-receipts/*	outsourcing_handler::get_outsourcing_receipt	production
 GET	/api/v1/erp/production/outsourcing-receipts/*/print	print_handler::outsourcing_receipt_print_docx	production
 GET	/api/v1/erp/production/outsourcing-receipts/by-no/*	outsourcing_handler::get_outsourcing_receipt_by_no	production
 GET	/api/v1/erp/production/outsourcing-vouchers	outsourcing_handler::list_outsourcing_vouchers	production

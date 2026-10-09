@@ -422,6 +422,7 @@ pub fn outsourcing() -> Router<AppState> {
         .route("/outsourcing-receipts", get(outsourcing_handler::list_outsourcing_receipts))
         .route("/outsourcing-receipts", post(outsourcing_handler::create_outsourcing_receipt))
         .route("/outsourcing-receipts/by-no/{no}", get(outsourcing_handler::get_outsourcing_receipt_by_no))
+        .route("/outsourcing-receipts/{id}", get(outsourcing_handler::get_outsourcing_receipt))
         .route("/outsourcing-receipts/{id}/confirm", post(outsourcing_handler::confirm_outsourcing_receipt))
         .route("/outsourcing-receipts/{id}", put(outsourcing_handler::update_outsourcing_receipt))
         .route("/outsourcing-receipts/{id}", delete(outsourcing_handler::delete_outsourcing_receipt))

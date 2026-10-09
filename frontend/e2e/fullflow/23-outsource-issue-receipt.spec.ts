@@ -53,6 +53,7 @@ import {
   apiCallExpectFail,
   failureCode,
   genCode,
+  genName,
   tryCleanup,
   APP_ERROR_CODES,
 } from '../flow/helpers';
@@ -165,6 +166,100 @@ function todayStr(): string {
 }
 
 /**
+ * 造一条【真实存在且 AVAILABLE 的生产匹（胚布）】：走 生产订单→流转卡→备布→工序报工逐匹
+ * 全链（piece_domain_service.rs::create_greige_pieces_from_report 落 status=AVAILABLE）。
+ * 发料门 validate_pieces_for_issue（piece_domain_service.rs:218-275）要求：
+ *   · 明细集合为空 → 整单拒「委外订单没有发料明细…请先登记发料明细」；
+ *   · 明细 piece_no 为空/匹不存在/非 AVAILABLE → 逐条拒。
+ * 故发料前必须先有可引用的真实生产匹——不造假匹号、不绕门控（与 07-fabric 7-4、
+ * helpers.seedDyedPieceChain 步 1-2 同构）。返回该匹 piece_no。
+ */
+async function mintAvailableGreigePiece(
+  page: Page,
+  productId: number,
+  tag: string,
+  lengthMeters = 100
+): Promise<string> {
+  // 胚布匹入仓须非成品仓（validate_warehouse_for_piece_type，07-5 反例钉死成品仓拒收胚布匹）
+  const whRes = await apiCallRaw<Record<string, unknown>>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const whRows = pickListArray<Record<string, unknown>>(whRes, 'items', `${tag} 仓库列表`);
+  const greigeWhId = Number(whRows.find(w => w.warehouse_type !== 'finished')?.id ?? 0);
+  if (!greigeWhId) {
+    throw new Error(`[${tag}] 无非成品仓可存发料前置生产匹（胚布仓缺失），显式判红勿 skip`);
+  }
+  const productionOrderNo = genCode(`${tag}PO`);
+  const po = await apiCall<{ id?: number }>(page, 'POST', '/production/production-orders/orders', {
+    order_no: productionOrderNo,
+    product_id: productId,
+    planned_quantity: lengthMeters,
+  });
+  const poId = po.data?.id;
+  if (!poId) throw new Error(`[${tag}] 生产订单创建未返回 id：${JSON.stringify(po).slice(0, 200)}`);
+  const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+    production_order_id: poId,
+    product_id: productId,
+    product_name: genName(`${tag}胚布`),
+    planned_fabric_weight: lengthMeters,
+  });
+  const cardId = card.data?.id;
+  if (!cardId)
+    throw new Error(`[${tag}] 流转卡创建未返回 id：${JSON.stringify(card).slice(0, 200)}`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/schedule`, {});
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/start-preparing`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/complete-preparing`, {
+    actual_fabric_weight: lengthMeters,
+  });
+  const step = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards/steps/start', {
+    flow_card_id: cardId,
+  });
+  const stepId = step.data?.id;
+  if (!stepId) throw new Error(`[${tag}] 工序启动未返回 id：${JSON.stringify(step).slice(0, 200)}`);
+  const pieceNo = `GR-${genCode(`${tag}P`)}-001`;
+  await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
+    actual_quantity: lengthMeters,
+    qualified_quantity: lengthMeters,
+    pieces: [
+      {
+        piece_no: pieceNo,
+        machine_no: `M-${tag}`,
+        machine_operator: 'E2E开机人',
+        length: lengthMeters,
+        weight: lengthMeters / 2,
+        warehouse_id: greigeWhId,
+      },
+    ],
+  });
+  return pieceNo;
+}
+
+/**
+ * 登记一条逐匹发料明细：先 mint 真实 AVAILABLE 生产匹，再以该匹号 POST 发料明细。
+ * 与 07-fabric 7-6/7-7 及 helpers.seedDyedPieceChain 步 3 的发料前置同构（quantity≤匹长）。
+ */
+async function registerIssueDetailWithRealPiece(
+  page: Page,
+  orderId: number,
+  productId: number,
+  tag: string,
+  quantity = 100
+): Promise<string> {
+  const pieceNo = await mintAvailableGreigePiece(page, productId, tag, Math.max(quantity, 100));
+  await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+    outsourcing_order_id: orderId,
+    product_id: productId,
+    piece_no: pieceNo,
+    quantity: String(quantity),
+    unit: '米',
+    unit_cost: '1',
+  });
+  return pieceNo;
+}
+
+/**
  * 自建唯一委外订单（order_type=dyeing，发料 100kg、材料成本 1000、标准损耗率 10%），
  * 全键回读（缺陷①）。初始 draft：total_cost=material_cost、unit_cost=0、return_quantity=0
  * （services/outsourcing_ops/order.rs:185-220 build+create）。
@@ -266,7 +361,10 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     }
     pickListArray<Record<string, unknown>>(list, 'items', '订单列表');
 
-    // ── 发料（无明细⇒匹号门整单放行，见 23-02 的另一面）──
+    // ── 发料 ──
+    // 发料门（piece_domain_service.rs:229 空明细整单拒）：先登记逐匹发料明细（引用真实
+    // AVAILABLE 生产匹），再发料。旧注释「无明细⇒整单放行」已与已落地门控不符——现无明细分必拒。
+    await registerIssueDetailWithRealPiece(page, orderId, getCtx().productIds[0], 'MAIN', 100);
     const issued = await apiCallRaw<Record<string, unknown>>(
       page,
       'POST',
@@ -542,6 +640,8 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     // C) 重复发料：draft 门（order.rs:371-376）
     const issued = await seedOutsourcingOrder(page, 'DUP');
     const issuedId = requireNum(issued.id, 'DUP 订单');
+    // 首次发料前登记逐匹明细（空明细会被 validate_pieces_for_issue 整单拒，非本用例要的 draft 门）
+    await registerIssueDetailWithRealPiece(page, issuedId, ctx.productIds[0], 'DUP', 100);
     await apiCall(page, 'POST', `/production/outsourcing-orders/${issuedId}/issue`);
     const f1 = await apiCallExpectFail(
       page,
@@ -696,6 +796,8 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     // 全程不补录，订单推进到 received 后结算只剩费用门（状态门 order.rs:594-597 已通过）。
     const order = await seedOutsourcingOrder(page, 'ZFEE');
     const orderId = requireNum(order.id, 'ZFEE 订单');
+    // 发料门：先登记逐匹明细（空明细整单拒），再推进到 issued→received 后只剩 settle 费用门
+    await registerIssueDetailWithRealPiece(page, orderId, ctx.productIds[0], 'ZFEE', 100);
     await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
     const rcpt = await apiCallRaw<Record<string, unknown>>(
       page,
@@ -765,6 +867,8 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     // 与 23-01/23-04 同取值路径，无假 id），发料后收回单才允许 confirm（资格门 order.rs:42-52）
     const order = await seedOutsourcingOrder(page, 'MEAS');
     const orderId = requireNum(order.id, 'MEAS 订单');
+    // 发料门：先登记逐匹明细（空明细整单拒），订单才推进到 issued 供收回单 confirm
+    await registerIssueDetailWithRealPiece(page, orderId, ctx.productIds[0], 'MEAS', 100);
     await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
 
     const receiptNo = `E23-RM${genCode('RC')}`;
@@ -886,6 +990,8 @@ test.describe('23 委外发料→收回→结算契约链', () => {
     const ctx = getCtx();
     const order = await seedOutsourcingOrder(page, 'MZV');
     const orderId = requireNum(order.id, 'MZV 订单');
+    // 发料门：先登记逐匹明细（空明细整单拒），订单才 issued 供后续收回单建/更新前置
+    await registerIssueDetailWithRealPiece(page, orderId, ctx.productIds[0], 'MZV', 100);
     await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
 
     // A) 建单口逐列点名：weight=0 ⇒ 值域门（receipt.rs:230 validate_measured_values → :65-74，
