@@ -171,9 +171,12 @@ describe('增强客户列表幽灵聚合键形状锁（后端载体 ↔ 前端�
     const printTd = (CUSTOMER_LIST_TAB_SRC.match(/<td>/g) || []).length;
     expect(printTh).toBe(printTd);
     expect(printTh).toBe(7);
-    // RfmTab：6 列删 total_amount/total_orders 两列 → 4
+    // RfmTab：6 列删 total_amount/total_orders 两列 → 4；再加一档位列 = 4+1。
+    // 该列的数据源是后端真实出参键 `segment`（`RfmSegmentItem`，档位词表权威在
+    // `RfmSegment::as_str`），不是幽灵键；`access !== 'visible'` 时后端恒回 null、
+    // 前端显中性占位。幽灵键判据（上面两条差集与形状锁）对本列同样生效。
     const rfmColumns = (RFM_TAB_SRC.match(/<el-table-column/g) || []).length;
-    expect(rfmColumns).toBe(4);
+    expect(rfmColumns).toBe(5);
   });
 
   it('检测力自证：复现历史幽灵形态的夹具必被上述判据抓到（防判据静默失效）', () => {

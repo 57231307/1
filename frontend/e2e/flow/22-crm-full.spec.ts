@@ -354,6 +354,114 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     await apiCallRaw(page, 'GET', '/crm/sales-users');
   });
 
+  // ===== 批量档位联显端点 /crm/rfm/segments 内容级锁 =====
+  // 前端 RfmTab 档位列直接绑定本端点的 segment 值，且仅 access==='visible' 才显示——
+  // 本锁把这条渲染判据背后的数据契约钉死：非 visible 行后端 segment 必为 null（无档位可显，
+  // 不泄露越权/不存在客户的分级）；visible 行 segment 必落在群体分布词表（RfmSegment::as_str 唯一权威，
+  // 与 /crm/rfm/distribution 逐字同源）内；被请求 id 不得被静默丢行（否则前端按 customer_id 建 Map 会假显无档位）。
+  // 判据为内容级（成功信封 code + 逐行 access/segment 不变量 + 词表交叉核对 + 超限 400），
+  // 绝非「只要 2xx 就算通过」，也不断后端根本不输出的键。
+  test('批量档位端点 /crm/rfm/segments：三态不变量 + 档位与分布词表同源 + 非 visible 不带档位 + 超限 400', async ({
+    page,
+  }) => {
+    const ctx = getCtx();
+    // 「存在」样本：ensureTestEntities 已落地的真实客户（admin all 范围，档位可算）
+    const realCustomerId = ctx.customerId;
+    if (!realCustomerId) {
+      throw new Error(
+        '[segments锁] ensureTestEntities 未落地客户 id，前置缺失（拒绝臆造 id 造成假绿）'
+      );
+    }
+    // 「不存在」样本：远大于任何已发放 SERIAL 的哨兵值 → 后端必判 not_found（不臆造既有 owner/客户）
+    const ghostCustomerId = 2000000000;
+
+    // 群体分布键集 = 后端档位词表唯一权威，用于交叉核对 segment token 归属；绝不在测试里硬编码四桶造第二套
+    const distEnv = await apiCall<Record<string, number>>(page, 'GET', '/crm/rfm/distribution');
+    expect(distEnv.code, `distribution 信封应成功 code=200，实际 ${JSON.stringify(distEnv)}`).toBe(
+      200
+    );
+    const bucketKeys = Object.keys(distEnv.data ?? {}).filter(k => k !== 'total_customers');
+    expect(bucketKeys.length, 'distribution 档位词表键集不应为空').toBeGreaterThan(0);
+
+    // 单次批量：两个 id 逗号分隔一起上送（与前端「按页 id 集合一次取回」的调用形态一致）
+    const env = await apiCall<unknown>(
+      page,
+      'GET',
+      `/crm/rfm/segments?customer_ids=${realCustomerId},${ghostCustomerId}`
+    );
+    expect(env.code, `segments 成功信封 code=200，实际 ${JSON.stringify(env)}`).toBe(200);
+    expect(
+      Array.isArray(env.data),
+      'segments data 必须是数组（后端 Vec<RfmSegmentItem> 直出）'
+    ).toBe(true);
+    const rows = env.data as Array<Record<string, unknown>>;
+
+    // 无静默丢弃：每个被请求 id 恰有一行确定结论
+    for (const wantId of [realCustomerId, ghostCustomerId]) {
+      const hits = rows.filter(r => r.customer_id === wantId);
+      expect(
+        hits.length,
+        `被请求 customer_id=${wantId} 必须恰有一行结果，实际 rows=${JSON.stringify(rows)}`
+      ).toBe(1);
+    }
+
+    // 核心不变量（档位列渲染判据）：access==='visible' ⇔ segment 为词表内非空串；access!=='visible' ⇒ segment 恒 null
+    for (const row of rows) {
+      const access = row.access;
+      expect(
+        access === 'visible' || access === 'not_found' || access === 'no_permission',
+        `access 必须是 snake_case 三态之一，实际=${JSON.stringify(access)}`
+      ).toBe(true);
+      // 后端 Serialize 恒带 segment 键（可 null 不下掉），前端靠键存在区分「无档位」与「有档位」
+      expect(
+        'segment' in row,
+        `每行必须含 segment 键，实际 keys=${Object.keys(row).join(',')}`
+      ).toBe(true);
+      if (access === 'visible') {
+        expect(
+          typeof row.segment === 'string' && (row.segment as string).length > 0,
+          `visible 行必须回带非空档位字符串，实际行=${JSON.stringify(row)}`
+        ).toBe(true);
+        expect(
+          bucketKeys.includes(row.segment as string),
+          `档位 token「${String(row.segment)}」必须是 distribution 词表键之一（两出参逐字同源，禁词表漂移）`
+        ).toBe(true);
+      } else {
+        expect(
+          row.segment === null,
+          `access=${String(access)} 的行后端必须下发 segment=null（不泄露档位），实际=${JSON.stringify(row)}`
+        ).toBe(true);
+      }
+    }
+
+    // 哨兵 id 必为 not_found 且 segment=null —— 直接钉「access!=visible 的行无档位可显」
+    const ghostRow = rows.find(r => r.customer_id === ghostCustomerId);
+    expect(ghostRow?.access, `不存在客户(${ghostCustomerId}) 应判 not_found`).toBe('not_found');
+    expect(ghostRow?.segment, 'not_found 行不得带档位').toBeNull();
+
+    // 真实客户在 admin all 范围应可算档位（visible），且档位属词表——与分布面同源
+    const realRow = rows.find(r => r.customer_id === realCustomerId);
+    expect(
+      realRow?.access,
+      `admin all 范围对真实客户(${realCustomerId}) 应 visible，实际=${JSON.stringify(realRow)}`
+    ).toBe('visible');
+    expect(
+      bucketKeys.includes(String(realRow?.segment)),
+      `真实客户档位「${String(realRow?.segment)}」须属词表 ${JSON.stringify(bucketKeys)}`
+    ).toBe(true);
+
+    // 上界 500：501 个 id 一次上送必须被后端按字段校验族拒绝（400 + VALIDATION_ERROR）——
+    // 证明「批量不无界」，前端按页/按上界切片才不会触发此拒绝。
+    const overLimitIds = Array.from({ length: 501 }, (_, i) => realCustomerId + i).join(',');
+    const over = await apiCallExpectFail(
+      page,
+      'GET',
+      `/crm/rfm/segments?customer_ids=${overLimitIds}`
+    );
+    expect(over.status, `超过单次 500 上界应 400，实际 ${JSON.stringify(over)}`).toBe(400);
+    expect(failureCode(over), '超限机器码=VALIDATION_ERROR').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+  });
+
   test('客户信用管理：列表+评级+占用+释放+调整', async ({ page }) => {
     await apiCallRaw(page, 'GET', '/crm/customer-credits?page=1&page_size=5');
     const result = await apiCallExpectFail(page, 'POST', '/crm/customer-credits', {

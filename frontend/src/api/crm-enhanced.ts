@@ -61,6 +61,14 @@ export interface CustomerWithTags {
   tags: CustomerTag[];
   created_at: string;
   updated_at: string;
+  /**
+   * 本线索已转化成的客户主键（crm_lead.converted_customer_id，FK→customer.id；未转化为 null）。
+   * RFM 档位是「客户」域概念（按 customer 表 + 该客户订单聚合计算），故客户列表按档位联显时
+   * 必须以本键、而非行主键 `id`（那是线索 id）去请求 `/crm/rfm/segments`——用 `id` 会把线索 id
+   * 误当客户 id 查询，命中同号无关客户即错显他人档位（数据完整性/越权），是缺陷不是取舍。
+   * 后端 crm_lead::Model 恒序列化该键（Option → null 或 number），故按存在性标 `number | null`（不写 `?`）。
+   */
+  converted_customer_id: number | null;
 }
 
 export interface PoolCustomer {
@@ -543,6 +551,56 @@ export const revealCustomerPii = (customerId: number, payload: CustomerPiiReveal
 // D14 Batch 5b：原 crmEnhancedApi.getRfmDistribution 转为风格 B 函数
 export const getCustomerRfmDistribution = () =>
   request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution');
+
+/**
+ * 批量档位单行可见性三态，逐字对齐 backend services/crm/mod.rs::RfmSegmentAccess
+ * （serde `#[serde(rename_all = "snake_case")]` 序列化，取值恒为下列三者之一）。
+ * 用字面量联合而非 `string`：把「缺该行/无权」与「有档位」在类型层分离，
+ * 避免下游用真值判断把 not_found/no_permission 误当有档位渲染。
+ */
+export type RfmSegmentAccess = 'visible' | 'not_found' | 'no_permission';
+
+/**
+ * GET /crm/rfm/segments 单行出参 = backend services/crm/mod.rs::RfmSegmentItem
+ * （serde Serialize，无 rename_all，键即字段名 customer_id/access/segment）。
+ * `segment` 声明 `string | null`：后端契约保证「access!=='visible' 时恒 null（不下发档位，
+ * 不泄露越权/不存在客户的分级）」，access==='visible' 时为中文四桶 token。
+ * 四桶词表唯一权威是后端 RfmSegment::as_str（与 /crm/rfm/distribution 逐字同源），
+ * 前端不得自造四桶字符串做判断逻辑，只按 access 决定是否展示 segment 原文。
+ */
+export interface RfmSegmentItem {
+  customer_id: number;
+  access: RfmSegmentAccess;
+  segment: string | null;
+}
+
+/**
+ * 批量档位单次上送 id 上界，与后端 handlers/crm_handler.rs 的常量同值（超限后端返
+ * 400 VALIDATION_ERROR）。调用方（RfmTab）按页收集客户 id，本函数对超出上界的部分按此
+ * 值分批串行请求后合并，保证每批不越界、不无界上送。
+ */
+export const RFM_SEGMENTS_MAX_CUSTOMERS = 500;
+
+/**
+ * 按客户 id 集合批量联显档位：GET /crm/rfm/segments?customer_ids=1,2,3（逗号分隔）。
+ * 入参是当前页去重后的客户主键数组（调用方 RfmTab 从 crm_lead 行的 converted_customer_id 收集，
+ * 非逐行发请求、非全库无界）；返回项以 customer_id 为键供调用方建 Map 回填展示。
+ * 空集合直接返回空数组（不发无效请求）。超过单次上界自动分批，合并各批结果。
+ * 失败时向上抛出，由调用方按 logAuxLoadFailure 降级为告警，本函数不静默吞成空数据（防假绿）。
+ */
+export async function getCustomerRfmSegments(customerIds: number[]): Promise<RfmSegmentItem[]> {
+  const uniqueIds = Array.from(new Set(customerIds));
+  if (uniqueIds.length === 0) return [];
+  const merged: RfmSegmentItem[] = [];
+  for (let i = 0; i < uniqueIds.length; i += RFM_SEGMENTS_MAX_CUSTOMERS) {
+    const batch = uniqueIds.slice(i, i + RFM_SEGMENTS_MAX_CUSTOMERS);
+    const res = await request.get<ApiResponse<RfmSegmentItem[]>>('/crm/rfm/segments', {
+      params: { customer_ids: batch.join(',') },
+    });
+    merged.push(...res.data);
+  }
+  return merged;
+}
 
 // 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
 /**
