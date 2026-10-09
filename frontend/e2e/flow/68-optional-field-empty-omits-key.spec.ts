@@ -321,11 +321,12 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     const dateInput = inputOf(dlg, '交货日期');
     await expect.poll(() => dateInput.inputValue(), { timeout: 10_000 }).toBe(headerDeliveryDate);
 
-    // 清空日期：EP date-picker 文本框可编辑——全选删除后 Enter 提交空值（面板按 Escape 收起）
+    // 清空日期：EP date-picker 文本框可编辑——全选删除后 Enter 即提交空值并收起面板。
+    // 不得再按 Escape：表单的 el-dialog 未关 close-on-press-escape，全局 Escape 会把整个
+    // 对话框关掉，随后的「确定」点击落在已隐藏的按钮上，PUT 请求根本不会发出。
     await dateInput.click({ clickCount: 3 });
     await dateInput.press('Backspace');
     await dateInput.press('Enter');
-    await page.keyboard.press('Escape');
     await expect.poll(() => dateInput.inputValue(), { timeout: 10_000 }).toBe('');
 
     const cap = await captureUiSubmit(

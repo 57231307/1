@@ -12,6 +12,7 @@ import {
   safePostAction,
   verifyEndpointHealthy,
   verifyDownloadEndpointHealthy,
+  seedColorCardArchive,
   failureCode,
 } from './helpers';
 
@@ -95,8 +96,16 @@ test.describe('色卡+色卡价格：API 端点 + 真实 UI 交互', () => {
       await verifyEndpointHealthy(page, `/color-cards/warnings/${cardId}`);
       await verifyEndpointHealthy(page, `/color-cards/cost/production/${cardId}`);
       await verifyDownloadEndpointHealthy(page, `/color-cards/export/${cardId}`);
-      await verifyEndpointHealthy(page, `/color-cards/scan-by-id/${cardId}`);
     }
+    // scan-by-id/:id 契约：path 参数是【色号 id】(color_card_items.id)，不是色卡 id——
+    // scan_color_by_id(scan_export.rs:41-49)→ColorCardScanService::scan_by_id
+    // (color_card_scan_service.rs:140-149) 对 ItemEntity::find_by_id(id) 取色号，查不到即
+    // AppError::not_found → 404 NOT_FOUND（数据面缺前置，非注册面/软删/状态过滤差——该 service
+    // 无任何状态或软删过滤）。旧探针把上面 cardId(色卡 id) 喂进色号端点，两 id 空间不同 → 恒 404。
+    // 正解：用 seedColorCardArchive 自建一条【真实存在】的色号(新建卡状态=DRAFT、色号可维护，
+    // 见 color_card_item_service.rs:65 EDITABLE_CARD_STATUSES=[DRAFT]) 拿 itemId，strict 探不吞码。
+    const arch = await seedColorCardArchive(page, { context: 'flow/23-scan-by-id' });
+    await verifyEndpointHealthy(page, `/color-cards/scan-by-id/${arch.itemId}`);
     await verifyEndpointHealthy(page, '/color-cards/issues?page=1&page_size=5');
     // 色卡发放报表三端点（color_card.rs:80/88/96 已注册，仅分页入参可选、admin 经
     // check_permission 角色绕过 require_issue_permission，应 2xx）：迁回严格，不再 optional 吞 404。

@@ -1,6 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
-import { findTableRow, pickListArray, uiDeleteRow, type ListShapeKey } from './ui-helpers';
+import {
+  findTableRow,
+  pickListArray,
+  uiDeleteRow,
+  safeGoto,
+  type ListShapeKey,
+} from './ui-helpers';
 
 /**
  * P0 级删除与停用验证（2026-09-10 用户指令）
@@ -493,16 +499,62 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('产品分类：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    await createThenUiDelete(
-      page,
-      '产品分类',
-      '/product-categories',
-      { name: `P0分类${EXT_TS}`, code: `P0-CAT-${EXT_TS}` },
-      '/product',
-      `P0分类${EXT_TS}`,
-      // product_category_handler define_crud → PaginatedResponse → {items}
-      'items'
-    );
+    // 判责：通用 createThenUiDelete 走 uiDeleteRow(page, '/product', …)——它导航到 /product
+    // 后在**产品列表主表**（ProductListTab，`.el-table__row` 为产品行）里按分类名找行。
+    // 但「产品分类」不是产品：它的 UI 维护入口是 /product 页「产品分类」统计卡
+    // （ProductListTab.vue:36-52 `.stat-card.warning @click=emit('openCategory')`）点开后的
+    // CategoryDialogTab 对话框表格（index.vue:41 挂载，列 name + 行内 删除/编辑）。
+    // 产品行永远不含分类名 → 旧用例恒报 "standard 表未找到含「P0分类…」的行（共 5 行）"。
+    // 这是页面/作用域用错（非选择器可放宽项、非后端缺陷），故按真实 DOM 在对话框内删除。
+    const catName = `P0分类${EXT_TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
+      name: catName,
+      code: `P0-CAT-${EXT_TS}`,
+    });
+    const catId = created?.data?.id;
+    expect(catId, '[P0-删除-产品分类] API 创建分类未返回 id').toBeTruthy();
+
+    await safeGoto(page, '/product');
+    // 打开分类管理对话框：命中「产品分类」统计卡（对话框尚未出现，此时全页唯此卡含该文本）
+    const catCard = page.locator('.stat-card').filter({ hasText: '产品分类' }).first();
+    await catCard.waitFor({ state: 'visible', timeout: 30_000 });
+    await catCard.click();
+    const dialog = page.locator('.el-dialog:visible').filter({ hasText: '产品分类管理' }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 20_000 });
+
+    // 对话框表格拉取 GET /product-categories，先等自建分类行渲染（scoped 到 dialog，避开产品主表）
+    const row = dialog.locator('.el-table__row').filter({ hasText: catName }).first();
+    await row.waitFor({ state: 'visible', timeout: 20_000 });
+
+    // 行内「删除」→ CategoryDialogTab.handleDelete 触发 ElMessageBox.confirm（标题「删除确认」）
+    const delPromise = page
+      .waitForResponse(
+        r =>
+          r.url().includes(`/api/v1/erp/product-categories/${catId}`) &&
+          r.request().method() === 'DELETE',
+        { timeout: 20_000 }
+      )
+      .catch(() => null);
+    await row.locator('button.el-button--danger, button:has-text("删除")').first().click();
+    const confirmBtn = page.locator('.el-message-box').locator('button.el-button--primary').first();
+    await confirmBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    await confirmBtn.click();
+    const delResp = await delPromise;
+    expect(
+      delResp,
+      `[P0-删除-产品分类] 未在 20s 内捕获 DELETE /product-categories/${catId} 响应——删除按钮/确认未真实触发后端删除`
+    ).not.toBeNull();
+    expect(
+      delResp!.ok(),
+      `[P0-删除-产品分类] DELETE 应成功（分类无引用），实际 status=${delResp!.status()}`
+    ).toBe(true);
+
+    // 删除成功后 handleDelete 调 fetchCategories 重渲染：断自建分类行从对话框表格消失
+    await dialog
+      .locator('.el-table__row')
+      .filter({ hasText: catName })
+      .first()
+      .waitFor({ state: 'detached', timeout: 15_000 });
   });
 
   test('会计科目：API 创建→UI 删除→验证消失', async ({ page }) => {

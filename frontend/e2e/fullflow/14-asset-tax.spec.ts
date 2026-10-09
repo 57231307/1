@@ -32,6 +32,7 @@
 // 诚实标注：处置/折旧端点 data 返回 String 消息而非模型，流转真值一律以 GET 回查为准；
 //   /auth/me 提供当前用户 id（routes/auth.rs:31）供催收 assigned_to 引用，不硬编码。
 import { test, expect } from '../diagnose-fixture';
+import { getAiTestUsername } from '../fixtures/auth';
 import {
   loginViaUI,
   apiCall,
@@ -40,6 +41,8 @@ import {
   failureCode,
   genCode,
   tryCleanup,
+  loginInIsolatedContext,
+  TEST_PASSWORD,
   APP_ERROR_CODES,
 } from '../flow/helpers';
 
@@ -395,10 +398,12 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
 
   test('14-06 坏账核销二级审批链：pending→finance_approved→approved 并核销应收；超额拒绝无痕', async ({
     page,
+    browser,
   }) => {
     const custId = await seedCustomer(page, '核销');
     const invId = await seedApprovedAr(page, custId, 3000, '2025-05-01');
 
+    // 建单人为本会话的分片管理员，其 user_id 即核销申请的申请人。
     const wo = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/bad-debts/writeoffs', {
       customer_id: custId,
       ar_invoice_id: invId,
@@ -410,26 +415,37 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
     expectKeyValue(wo, 'approval_status', 'pending', '核销初始（finance.rs:170）');
     expectKeyValue(wo, 'reason', 'E2E 核销申请', '原因回读');
 
-    await apiCall(page, 'POST', `/bad-debts/writeoffs/${woId}/finance-approve`, {
-      comment: 'E2E 财务通过',
-    });
-    const d1 = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'GET',
-      `/bad-debts/writeoffs/${woId}`
-    );
-    expectKeyValue(d1, 'approval_status', 'finance_approved', '一级审批回读');
-    expectKeyValue(d1, 'finance_manager_comment', 'E2E 财务通过', '一级意见回读');
+    // 后端按职责分离拒绝「申请人审批自己提交的核销」：一级、二级审批人 user_id 都不得等于建单人，
+    // 否则判权限拒绝。因此两级审批必须由与建单人不同 user_id 的身份执行，审批链才能真正推进到
+    // approved，触发应收未付额按核销额递减（下方 unpaid 3000→2000 的断言依赖链路走通，不能只断 4xx）。
+    // 身份取自全局种子预置的第二个管理员（admin 角色、与分片账号不同 user_id），在独立浏览器上下文
+    // 内以该账号真实登录，得到与本会话互不干扰的审批人页面；一级、二级审批人同用此独立身份即可满足
+    // 「审批人≠申请人」这一约束（后端不要求一二级审批人互异）。
+    const approver = await loginInIsolatedContext(browser, getAiTestUsername(), TEST_PASSWORD);
+    try {
+      await apiCall(approver.page, 'POST', `/bad-debts/writeoffs/${woId}/finance-approve`, {
+        comment: 'E2E 财务通过',
+      });
+      const d1 = await apiCallRaw<Record<string, unknown>>(
+        approver.page,
+        'GET',
+        `/bad-debts/writeoffs/${woId}`
+      );
+      expectKeyValue(d1, 'approval_status', 'finance_approved', '一级审批回读');
+      expectKeyValue(d1, 'finance_manager_comment', 'E2E 财务通过', '一级意见回读');
 
-    await apiCall(page, 'POST', `/bad-debts/writeoffs/${woId}/general-manager-approve`, {
-      comment: 'E2E 总经理通过',
-    });
-    const d2 = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'GET',
-      `/bad-debts/writeoffs/${woId}`
-    );
-    expectKeyValue(d2, 'approval_status', 'approved', '二级审批终态回读');
+      await apiCall(approver.page, 'POST', `/bad-debts/writeoffs/${woId}/general-manager-approve`, {
+        comment: 'E2E 总经理通过',
+      });
+      const d2 = await apiCallRaw<Record<string, unknown>>(
+        approver.page,
+        'GET',
+        `/bad-debts/writeoffs/${woId}`
+      );
+      expectKeyValue(d2, 'approval_status', 'approved', '二级审批终态回读');
+    } finally {
+      await approver.close();
+    }
     // 核销执行作用于应收：unpaid 减 1000
     const inv = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ar/invoices/${invId}`);
     expectDecimal(inv, 'unpaid_amount', 2000, '核销后应收 unpaid 精确减额');
@@ -446,6 +462,37 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
     expect(failureCode(fEx), '超额机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     const inv2 = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ar/invoices/${invId}`);
     expectDecimal(inv2, 'unpaid_amount', 2000, '超额被拒后应收未动');
+
+    // 反自审批门的直接复现：申请人（本会话建单人）审批自己提交的核销，必须被权限拒绝。
+    // 判据锁 HTTP 403 + 机器码 FORBIDDEN（无权限族固定机器码）；其 message 为后端固定脱敏常量，
+    // 断言不臆测字面值。此负例证明「换第二身份审批」的前置是真实所需，而非绕开一个可过的用例。
+    const selfWo = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/bad-debts/writeoffs', {
+      customer_id: custId,
+      ar_invoice_id: invId,
+      writeoff_amount: 300,
+      reason: 'E2E 申请人自审批负例',
+    });
+    const selfWoId = requireId(selfWo, '建自审批负例核销');
+    const fSelf = await apiCallExpectFail(
+      page,
+      'POST',
+      `/bad-debts/writeoffs/${selfWoId}/finance-approve`,
+      { comment: 'E2E 申请人自审批' }
+    );
+    expect(fSelf.status, `申请人自审批应 403（权限拒绝），实际=${fSelf.status}`).toBe(403);
+    expect(failureCode(fSelf), '自审批机器码').toBe('FORBIDDEN');
+    const dSelf = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/bad-debts/writeoffs/${selfWoId}`
+    );
+    expectKeyValue(dSelf, 'approval_status', 'pending', '自审批被拒后未推进');
+    const invAfterSelf = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ar/invoices/${invId}`
+    );
+    expectDecimal(invAfterSelf, 'unpaid_amount', 2000, '自审批被拒后应收未二次变动');
   });
 
   test('14-07 催收任务链：建单→pending 回读→contact 完成→completed；completed 上再操作被拒；cancel 分支', async ({
