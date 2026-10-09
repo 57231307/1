@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
@@ -96,7 +96,7 @@ const fetchRfmDistribution = async () => {
     const res = await getCustomerRfmDistribution();
     rfmDistribution.value = res.data || {};
   } catch (error) {
-    logger.error(t('crmRfm.distributionLoadFailed'), error);
+    logAuxLoadFailure(t('crmRfm.distributionLoadFailed'), error);
     rfmDistribution.value = {};
   }
 };

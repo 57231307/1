@@ -361,7 +361,7 @@ import {
   type DyeBatchLifecycleStatus,
 } from '@/utils/dye-batch-status';
 import { getGreigeFabricList, type GreigeFabric } from '@/api/greige-fabric';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -453,7 +453,7 @@ const getGreigeFabrics = async () => {
     const res = await getGreigeFabricList({ page: 1, page_size: 1000 });
     greigeFabrics.value = res.data?.items ?? [];
   } catch (error) {
-    logger.error(t('dyeBatch.index.messageFetchProductsFailed'), error);
+    logAuxLoadFailure(t('dyeBatch.index.messageFetchProductsFailed'), error);
   }
 };
 
