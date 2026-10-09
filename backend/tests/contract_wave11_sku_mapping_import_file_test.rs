@@ -681,6 +681,16 @@ async fn xlsx_upload_imports_via_real_handler_and_lands_resolved_rows() {
         json!(OPERATOR_ID),
         "xlsx 导入 created_by 归属操作人"
     );
+    // numeric 列逐字对拍（与 CSV 锁同一谓词，补强 xlsx 成功路径的读回维度）：
+    // 行A 的 supplier_price/min_order_quantity 必须按数值 12.50/30 真实落库。
+    // 修复前的裸 SQL 把 Decimal 绑成 Value::String，import_batch 会抛 42804、
+    // success_count 变 0 ⇒ 上面 651 行先红；此处再确认落库的数值本身正确，
+    // 堵住「不抛错但绑成别的数值」的漂移，让本锁的绿是真绿而非只断不抛。
+    assert_eq!(
+        count_row_a_decimals(&db, supplier_id).await,
+        1,
+        "xlsx 行A numeric 列 supplier_price/min_order_quantity 按数值 12.50/30 落库"
+    );
 }
 
 // ---------------------------------------------------------------------------

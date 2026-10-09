@@ -59,6 +59,8 @@ mod m0090_grant_purchase_receipt_concession_rejudge;
 mod m0091_realign_purchase_receipt_confirm;
 // 生产经理补 boms:read：物料清单页与工单用料判据对本岗不再恒 403（只授读，见文件头）。
 mod m0092_grant_boms_read_production_manager;
+// 采购两岗补 sku-mappings:import：对照表批量导入端点不再被门层判死（见文件头）。
+mod m0096_grant_sku_mapping_import_purchase_roles;
 
 pub struct Migration;
 
@@ -305,8 +307,12 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0091_realign_purchase_receipt_confirm::Migration
             .up(manager)
             .await?;
-        // 生产经理 boms:read 补授：本域 up 链最末
+        // 生产经理 boms:read 补授
         m0092_grant_boms_read_production_manager::Migration
+            .up(manager)
+            .await?;
+        // 采购两岗 sku-mappings:import 补授：本域 up 链最末
+        m0096_grant_sku_mapping_import_purchase_roles::Migration
             .up(manager)
             .await?;
         Ok(())
@@ -314,7 +320,11 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 生产经理 boms:read：最后应用者最先回滚（只按角色码回收本迁移授予的行）
+        // 采购 sku-mappings:import：最后应用者最先回滚（只按角色码回收本迁移授予的行）
+        m0096_grant_sku_mapping_import_purchase_roles::Migration
+            .down(manager)
+            .await?;
+        // 生产经理 boms:read：只按角色码回收本迁移授予的行
         m0092_grant_boms_read_production_manager::Migration
             .down(manager)
             .await?;

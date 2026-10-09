@@ -666,6 +666,8 @@ impl InitService {
                     ("sku-mappings", "read"),
                     ("sku-mappings", "update"),
                     ("sku-mappings", "delete"),
+                    // 批量导入是对照表的成批建单通路，与建单同授予本岗
+                    ("sku-mappings", "import"),
                     // 供应商商品/色号目录（对照表依赖的父级数据；采购经理审批可改不可建，
                     // 且保密：销售角色一律不授，故仅出现在采购域分组）
                     ("supplier-products", "read"),
@@ -702,6 +704,8 @@ impl InitService {
                     ("sku-mappings", "read"),
                     ("sku-mappings", "create"),
                     ("sku-mappings", "update"),
+                    // 批量导入是对照表的成批建单通路，与建单同授予本岗
+                    ("sku-mappings", "import"),
                     // 供应商商品/色号目录（采购员可建可改，对照表父级数据维护主力；保密域不授销售）
                     ("supplier-products", "read"),
                     ("supplier-products", "create"),

@@ -704,12 +704,20 @@ impl SkuMappingService {
             supplier_product_color_id
                 .map(|v| v.into())
                 .unwrap_or(Value::Int(None)),
-            supplier_price
-                .map(|d| Value::String(Some(d.to_string())))
-                .unwrap_or(Value::String(None)),
-            min_order_quantity
-                .map(|d| Value::String(Some(d.to_string())))
-                .unwrap_or(Value::String(None)),
+            // supplier_price / min_order_quantity 在库表里是 numeric（见
+            // models/product_supplier_mapping.rs 的 `column_type = "Decimal(Some((12, 2)))"`），
+            // 此前把 Decimal 经 `.to_string()` 绑成 `Value::String` ⇒ Postgres 报
+            // 42804「numeric 列表达式为 text」，文件导入只要带价格/最小订购量就 500。
+            // 改走 sea-orm(=sea-query 1.0.2) 的 Decimal 变体：`Value::Decimal(Option<Decimal>)`
+            // 在 1.0.2 里是**未装箱**（与同版本 `Value::BigDecimal(Option<Box<BigDecimal>>)` 相反，
+            // 证据见 registry src/sea-query-1.0.2/src/value.rs 的 `Decimal(Option<Decimal>)` 行与
+            // with_rust_decimal.rs 的 `type_to_value!(Decimal, Decimal, Decimal(None))`）。
+            // Option<Decimal> 直接 `.into()` 即产出该变体（Some→Value::Decimal(Some(v))、
+            // None→T::null()=Value::Decimal(None)，由 value.rs 的 `impl From<Option<T>> for Value`），
+            // 与本仓测试既有正确范式一致（tests/bi_analysis_test.rs、
+            // contract_wave11_customer_credit_constraint_test.rs 的 `Decimal::new(..).into()`）。
+            supplier_price.into(),
+            min_order_quantity.into(),
             lead_time.map(|v| v.into()).unwrap_or(Value::Int(None)),
             is_primary.into(),
             priority.into(),

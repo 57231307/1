@@ -259,6 +259,7 @@ export const PERMISSIONS = {
   // SKU 对照表（后端资源：sku-mappings，采购域）
   SKU_MAPPING_READ: 'sku-mappings:read',
   SKU_MAPPING_CREATE: 'sku-mappings:create',
+  SKU_MAPPING_IMPORT: 'sku-mappings:import',
   SKU_MAPPING_UPDATE: 'sku-mappings:update',
   SKU_MAPPING_DELETE: 'sku-mappings:delete',
 
