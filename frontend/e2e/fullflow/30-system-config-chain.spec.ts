@@ -323,7 +323,7 @@ test.describe('30 系统配置契约链', () => {
     expect(empty.status, '空单号应 400').toBe(400);
     expect(failureCode(empty), '空单号机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 
-    // 未登记 doc_type → 400 BAD_REQUEST（number_generator.rs:582-585 兜底分支）
+    // 未登记 doc_type → 400 BAD_REQUEST（number_generator 未登记兜底分支）
     const unknown = await apiCallExpectFail(
       page,
       'GET',

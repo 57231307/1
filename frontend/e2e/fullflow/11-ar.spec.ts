@@ -299,7 +299,7 @@ test.describe('11 AR 应收全流程契约链', () => {
     expectDecimal(row, 'amount', 2500.75, 'AR收款列表行');
     expectKeyValue(row, 'status', 'pending', 'AR收款列表行');
 
-    // PUT 仅 pending（collection.rs:406-430）：remark 与 check_no 是**独立两列**——
+    // PUT 仅 pending 门：remark 与 check_no 是**独立两列**——
     // collection.rs:579-598 里 remark 入参只写 active.remark、check_no 入参只写 active.check_no，
     // 各列互不覆盖，键缺席=保持原值（收款备注与支票号分列两列）。本次只提交 remark+bank_account，
     // 未提交 check_no，故 remark 落 remark 列、check_no 保持建单时的 null（不被备注顶用）。
