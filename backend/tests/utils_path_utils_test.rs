@@ -21,10 +21,14 @@ fn test_is_module_prefix_cgyxzpx() {
 
 #[test]
 fn test_is_module_prefix_scyxz() {
-    // V15 新增：production 原缺失
     assert!(is_module_prefix("production"));
-    assert!(is_module_prefix("material-shortage"));
-    assert!(is_module_prefix("scheduling"));
+    // material-shortage / scheduling 根级挂载：其子段（alerts/list/summary/tasks）是同一
+    // 注册资源下的查询维度而非子资源。留作模块前缀会让资源名漂到该子段、派生成注册表外死键，
+    // 持已授键的角色访问恒 403；改直接资源后统一派生 material-shortage / scheduling。
+    assert!(!is_module_prefix("material-shortage"));
+    assert!(!is_module_prefix("scheduling"));
+    assert!(is_known_resource_segment("material-shortage"));
+    assert!(is_known_resource_segment("scheduling"));
 }
 
 #[test]
