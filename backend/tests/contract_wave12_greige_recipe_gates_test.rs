@@ -28,7 +28,9 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::{greige_fabric_handler, production_recipe_handler};
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{greige_fabric, production_recipe, production_recipe_addition};
+use bingxi_backend::models::{
+    greige_fabric, production_recipe, production_recipe_addition, warehouse,
+};
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -162,6 +164,22 @@ async fn seed_greige_fabric(
         quantity_meters: Set(Some(dec("100.00"))),
         created_at: Set(Utc::now().fixed_offset()),
         updated_at: Set(Utc::now().fixed_offset()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32) {
+    warehouse::ActiveModel {
+        id: Set(id),
+        warehouse_code: Set(format!("WH-TEST-{id:04}")),
+        name: Set(format!("测试仓库-{id}")),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
         ..Default::default()
     }
     .insert(db)
@@ -367,6 +385,7 @@ async fn greige_delete_non_owner_403_and_zero_drift() {
 #[tokio::test]
 async fn greige_stock_in_owner_200_weight_increases() {
     let db = test_common::setup_test_db().await;
+    seed_warehouse(&db, 1).await;
     seed_greige_fabric(&db, 1, Some(100), "已出库", dec("10.00")).await;
 
     let app = build_greige_app(db.clone(), make_auth(100, Some("self")));

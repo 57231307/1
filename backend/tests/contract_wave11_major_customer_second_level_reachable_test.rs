@@ -290,6 +290,7 @@ async fn major_tier_customer_lead_reaches_director_level_and_transfer_executes_o
     seed_scene(&db).await;
 
     // ① 创建即判大客户:判据唯一由 customers.tier ∈ MAJOR 产出,与金额/额度无关
+    let mut approvals: Vec<TransferApprovalDto> = Vec::new();
     for token in MAJOR {
         let approval = create(&db, lead_of(token)).await;
         assert!(
@@ -313,6 +314,7 @@ async fn major_tier_customer_lead_reaches_director_level_and_transfer_executes_o
             "审批单号必须经统一取号器产出 TA 前缀(证明走生产 service 路径);实际 {:?}",
             approval.approval_no
         );
+        approvals.push(approval);
     }
 
     // ② 经理通过 → 进入总监层,此刻**不得**发生转移(取 VIP 线索走全链)
@@ -322,7 +324,8 @@ async fn major_tier_customer_lead_reaches_director_level_and_transfer_executes_o
         owner_before, USER_OWNER,
         "种子前置:线索归属人应为 {USER_OWNER}"
     );
-    let approval = create(&db, lead).await;
+    // 复用步骤①中 VIP 线索已创建的 pending 审批单（同一 lead 不允许再建第二张 pending）
+    let approval = &approvals[0];
     let after_manager = approve(&db, approval.id, true, "经理同意,转总监复核", true).await;
     assert_eq!(
         after_manager.current_level, 2,

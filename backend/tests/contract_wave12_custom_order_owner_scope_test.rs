@@ -350,7 +350,7 @@ async fn d22_update_others_custom_order_is_403_and_zero_write() {
 async fn d23_add_node_own_is_2xx_and_persists() {
     let (app, db) = seeded_app(make_auth(OWNER_A)).await;
     let before = node_count_for_co(&db, CO_OWN).await;
-    let body = json!({"node_type": "dyeing", "node_name": "own-node", "sequence": 99});
+    let body = json!({"node_type": "dyeing", "node_name": "own-node", "sequence": 1});
     let (status, v) = call(
         &app,
         Method::POST,

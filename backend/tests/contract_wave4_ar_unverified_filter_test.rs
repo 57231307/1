@@ -115,12 +115,13 @@ async fn exec_pg(db: &DatabaseConnection, sql: &str) {
 async fn seed_fk_prerequisites(db: &DatabaseConnection) {
     exec_pg(
         db,
-        // 波0 夹具补 NULL 地雷：customers.customer_type 模型非 Option 而 DDL 可空，
-        // 省略该列的种下行按模型读出即 SeaORM 类型错；补真实白名单值（唯一词表模块）。
+        // 夹具补 NULL 地雷：customers 模型非 Option 的列（customer_type、payment_terms、status）
+        // DDL 可空无默认，省略即 SeaORM 解码 NULL 为 i32/String 报错（DbErr → 500）；
+        // 种真实合法值避免读路径炸裂。
         &format!(
-            r#"INSERT INTO customers (id, customer_code, customer_name, customer_type) VALUES
-           (1, 'W4AR-C1', 'AR过滤锁客户一', '{0}'),
-           (2, 'W4AR-C2', 'AR过滤锁客户二', '{0}')"#,
+            r#"INSERT INTO customers (id, customer_code, customer_name, customer_type, payment_terms, status) VALUES
+           (1, 'W4AR-C1', 'AR过滤锁客户一', '{0}', 30, 'active'),
+           (2, 'W4AR-C2', 'AR过滤锁客户二', '{0}', 30, 'active')"#,
             bingxi_backend::constants::customer_type::RETAIL
         ),
     )
