@@ -3425,6 +3425,19 @@ jobs:
             frontend/reports/matrix-*.txt
           retention-days: 30
 
+      # 矩阵 job 的后端运行日志：断言只能看到 HTTP 状态与信封机器码，500 的内部成因
+      # （列类型解码失败、DbErr 原文、panic 栈）只存在于服务端日志里。此前该日志写在
+      # /tmp/matrix-logs 却从不入产物，导致"某端点 500"永远无法定责，只能靠猜。
+      - name: 上传矩阵 job 后端与前端预览日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrix-runtime-logs-${{ matrix.group_name }}-${{ github.run_id }}
+          path: |
+            /tmp/matrix-logs/backend.log
+            /tmp/matrix-logs/frontend.log
+          retention-days: 7
+
   # ==========================================================================
   # Job 15c: 供应链检查（依赖漏洞 + 秘密泄露 + 静态扫描 + 依赖图 + lockfile 漂移）
   #
