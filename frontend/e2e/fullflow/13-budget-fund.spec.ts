@@ -118,6 +118,39 @@ async function createPlan(
   return plan;
 }
 
+/**
+ * 补齐「Σ 明细 planned_amount == 方案 total_amount」的审批前置（真实门，非本用例臆造）。
+ * approve_plan 在任何状态门前先跑 validate_plan_items_consistency
+ * （backend/src/services/budget_management_service.rs:532 调用、:197-214 判据），
+ * 空明细方案 Σ=0≠total_amount ⇒ POST /budgets/plans/N/approve 返回 BUSINESS_ERROR
+ * 「预算明细合计与方案总额不一致，无法审批」——CI run #4679 该族红的直接根因。
+ * 明细经 POST /budgets/items（CreateBudgetItemRequest）建，periods:[] ⇒
+ * normalize_periods 自动生成 {budget_year}-FY 全量期间且 Σ期间==planned_amount（13-03 同口径），
+ * planned_amount 取方案 total_amount ⇒ 单条即令 Σ==total。
+ * 注意：调整（/budgets/adjust）会把方案总额抬高、使 Σ明细与总额再次不等，但 13-04
+ * 之后再无「方案 approve」动作（approve_adjustment 不跑一致性门，见 :835-893），故不受影响。
+ */
+async function seedBalancingItem(
+  page: import('@playwright/test').Page,
+  planId: number,
+  plannedAmount: number,
+  budgetYear = 2032
+): Promise<number> {
+  const item = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/budgets/items', {
+    item_code: genCode('BAL'),
+    item_name: 'E2E13-审批前置平衡明细',
+    item_type: '费用',
+    plan_id: planId,
+    budget_year: budgetYear,
+    planned_amount: plannedAmount,
+    periods: [],
+    remark: 'E2E13-审批前置（Σ明细==方案总额）',
+  });
+  const itemId = requireId(item, '建审批前置平衡明细');
+  CLEANUP.push({ path: `/budgets/${itemId}`, label: 'budget_item(平衡)' });
+  return itemId;
+}
+
 async function seedAccount(page: import('@playwright/test').Page, tag: string, currency = 'CNY') {
   const no = genCode('ACCT');
   const acc = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/fund-management/accounts', {
@@ -160,6 +193,8 @@ test.describe('13 预算+资金全流程契约链', () => {
     expectKeyValue(detail, 'remark', 'E2E13-方案备注', '方案详情');
     expectKeyValue(detail, 'status', 'draft', '方案初始（bpm_crm_contract.rs:21 小写）');
 
+    // 审批一致性门前置：建 Σ==total 的明细，否则 approve 必 BUSINESS_ERROR（见 seedBalancingItem 注释）
+    await seedBalancingItem(page, id, 100000);
     await apiCall(page, 'POST', `/budgets/plans/${id}/approve`, { approval_comment: 'E2E 批准' });
     const d2 = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/budgets/plans/${id}`);
     expectKeyValue(d2, 'status', 'approved', 'approve 回查（:31 approved）');
@@ -208,6 +243,8 @@ test.describe('13 预算+资金全流程契约链', () => {
     expectKeyValue(d, 'status', 'rejected', 'reject 回查（:27 rejected）');
 
     // REJECTED 可再 approve（门 DRAFT/REJECTED，service:485-486）
+    // 一致性门先于状态门：补 Σ==total 的明细，否则 approve 必 BUSINESS_ERROR
+    await seedBalancingItem(page, id, 50000);
     await apiCall(page, 'POST', `/budgets/plans/${id}/approve`, {
       approval_comment: 'E2E 复议批准',
     });
@@ -307,6 +344,9 @@ test.describe('13 预算+资金全流程契约链', () => {
     const deptId = await seedDepartment(page, '调');
     const plan = await createPlan(page, deptId, 60000);
     const planId = requireId(plan, '方案');
+    // 一致性门先于状态门：补 Σ==total 明细（60000），否则 approve 必 BUSINESS_ERROR；
+    // 其后 INCREASE 调整把总额抬到 75000 后再无「方案 approve」（approve_adjustment 不跑此门）
+    await seedBalancingItem(page, planId, 60000);
     await apiCall(page, 'POST', `/budgets/plans/${planId}/approve`, { approval_comment: 'E2E' });
 
     const adj = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/budgets/adjust', {
@@ -376,6 +416,8 @@ test.describe('13 预算+资金全流程契约链', () => {
     const deptId = await seedDepartment(page, '执');
     const plan = await createPlan(page, deptId, 30000);
     const planId = requireId(plan, '方案');
+    // 一致性门先于状态门：补 Σ==total 明细，否则 approve 必 BUSINESS_ERROR
+    await seedBalancingItem(page, planId, 30000);
     await apiCall(page, 'POST', `/budgets/plans/${planId}/approve`, { approval_comment: 'E2E' });
 
     await apiCall(page, 'POST', `/budgets/plans/${planId}/execute`, {
@@ -432,6 +474,9 @@ test.describe('13 预算+资金全流程契约链', () => {
     const plan = await createPlan(page, deptId, 10000);
     const planId = requireId(plan, '方案');
     const planNo = String(plan.plan_no);
+    // 一致性门先于状态门：补 Σ==total 明细（10000），否则 approve 必 BUSINESS_ERROR；
+    // 下方「下达/使用」是 execution 明细（预警扫描源），不影响 Σitems==total 判据
+    await seedBalancingItem(page, planId, 10000);
     await apiCall(page, 'POST', `/budgets/plans/${planId}/approve`, { approval_comment: 'E2E' });
     // 预警扫描口径（budget_management_service.rs:1409-1429）：issued=「下达」类执行明细求和，
     // issued 为 0 的方案直接 continue 不进预警。执行率=已执行/已下达，故必须先建一条
@@ -568,7 +613,10 @@ test.describe('13 预算+资金全流程契约链', () => {
         reason: 'E2E 小额划拨',
       }
     );
-    expectKeyValue(small, 'status', 'APPROVED', '小额自动审批');
+    // 小额划拨是"自动审批并立即执行"，终态为 COMPLETED（fund_management_service 先落
+    // APPROVED 再进 execute_transfer 置 COMPLETED，返回给调用方的是终态）；
+    // 下面的余额真值断言本身就是"已执行"的证据，状态判据须与同一事实对齐。
+    expectKeyValue(small, 'status', 'COMPLETED', '小额自动审批并执行的终态');
     let da = await accountDetail(page, a.id);
     let db = await accountDetail(page, b.id);
     expectDecimal(da, 'balance', 45000, '转出户余额真值');
@@ -628,7 +676,7 @@ test.describe('13 预算+资金全流程契约链', () => {
       'GET',
       `/fund-management/transfers/${big2Id}`
     );
-    expectKeyValue(dApp, 'status', 'APPROVED', 'approve 回查');
+    expectKeyValue(dApp, 'status', 'COMPLETED', 'approve 后执行完毕的终态');
     da = await accountDetail(page, a.id);
     db = await accountDetail(page, b.id);
     expectDecimal(da, 'balance', 25000, '执行后转出户');

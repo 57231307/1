@@ -51,6 +51,7 @@ pub struct ReconciliationResponse {
     pub closing_balance: String,
     pub reconciliation_status: Option<String>,
     pub dispute_reason: Option<String>,
+    pub notes: Option<String>,
     pub created_at: String,
 }
 
@@ -69,6 +70,7 @@ impl From<crate::models::ar_reconciliation::Model> for ReconciliationResponse {
             closing_balance: model.closing_balance.to_string(),
             reconciliation_status: model.reconciliation_status,
             dispute_reason: model.dispute_reason,
+            notes: model.notes,
             created_at: model.created_at.to_rfc3339(),
         }
     }

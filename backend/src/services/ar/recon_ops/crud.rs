@@ -165,6 +165,13 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
+        // 状态门：对账单一经发出即进入客户对账流程，改它会让已送出的单据与回执不一致，
+        // 故只允许草稿态更新。非草稿一律拒绝（400 + BUSINESS_ERROR），且在写入之前返回，
+        // 事务随之回滚，不留半改。
+        if model.reconciliation_status.as_deref() != Some(ar_status::RECONCILIATION_DRAFT) {
+            return Err(AppError::business("对账单已发出，不允许修改"));
+        }
+
         let mut active_model: ActiveModel = model.into();
 
         if let Some(opening_balance) = req.opening_balance {

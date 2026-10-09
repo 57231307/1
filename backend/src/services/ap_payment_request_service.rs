@@ -348,8 +348,18 @@ impl ApPaymentRequestService {
             )));
         }
 
-        // 3. 删除付款申请（级联删除明细）（P0 8-3 修复：补审计日志）
-        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+        // 3. 先级联删除明细，再删除主表
+        // 子表外键 `fk_ap_payment_request_item_request`（定义见 m0012_add_ap_ar_finance_analysis）
+        // 为 NO ACTION，库侧不级联；只删主表会触发外键违例（500 DATABASE_ERROR）。
+        // 同事务内按 request_id 清子表再删主表，删除顺序即外键依赖的逆序。
+        // 门控已限定仅 DRAFT/REJECTED 可删，此状态下付款单尚未生成（付款源自 APPROVED），
+        // 故不触碰 ap_payment.request_id 外键。
+        ap_payment_request_item::Entity::delete_many()
+            .filter(ap_payment_request_item::Column::RequestId.eq(request.id))
+            .exec(&txn)
+            .await?;
+
+        // 4. 删除付款申请主表（带审计日志，user_id 为真实操作人）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ap_payment_request::Entity,
             _,

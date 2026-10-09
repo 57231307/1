@@ -277,19 +277,12 @@ test.describe('11 AR 应收全流程契约链', () => {
     expectKeyValue(pay, 'payment_date', '2026-05-06', '收款创建响应');
     expectKeyValue(pay, 'bank_account', '6217000000000009', '收款创建响应');
     expectKeyValue(pay, 'customer_id', custId, '收款创建响应');
-    // 缺陷①实证打点：AR 收款无 remark 列，后端把提交的 remark 异名承载进 check_no
-    // （services/ar_ops/collection.rs:441-444），出参 collection_to_json
-    // （services/ar_ops/json_helpers.rs:11-30）不含 remark 键 ⇒ 前端重编辑无法回显。
-    // 按「每个提交字段回读值与提交值相等」红线，该断言**预期判红**，红即点名上述 file:line，
-    // 禁止改断言来蒙过（真实缺陷族：创建时保存的数据在契约层就显示不出来）。
-    expectKeyValue(pay, 'remark', 'E2E-收款-建单', '收款建单 remark 回读（当前源码必红）');
-    // 并钉住"确已落库但换了键名"的事实面：check_no 应等于提交的 remark
-    expectKeyValue(
-      pay,
-      'check_no',
-      'E2E-收款-建单',
-      'remark→check_no 承载事实（collection.rs:441-444）'
-    );
+    // 收款备注落专用真实列（services/ar_ops/collection.rs 的 build_collection_active_model
+    // 只写 remark 列），出参 collection_to_json 同时输出 remark 与 check_no 两个独立键，
+    // 因此提交的备注按原键回读、支票号不再被备注顶用。
+    expectKeyValue(pay, 'remark', 'E2E-收款-建单', '收款建单 remark 按专用列原文回读');
+    // 并钉住反向不变量：未提交支票号时该键必须是 null，防止备注再次污染 check_no。
+    expectKeyValue(pay, 'check_no', null, '收款建单不得把备注写入 check_no');
 
     // 列表真实形状 {list,total,page,page_size}（ar_payment_handler.rs:81-87）
     const list = await apiCallRaw<Record<string, unknown>>(
