@@ -638,18 +638,20 @@ impl CrmService {
         opportunity: crm_opportunity::Model,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // 赢单成交金额从商机估算金额结转而来：必须在 into() 消费 opportunity 之前读取
+        // Model 上的估算金额原值。ActiveModel 由 Model 转换后各列均为 Unchanged，
+        // 从中解包取不到真实数值，结转来源只能取 Model 字段。
+        let carried_actual_amount: Option<Decimal> = opportunity.estimated_amount;
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_status = Set(Some(opp_status::CLOSED_WON.to_string()));
         opp_active.opportunity_stage = Set(Some(opp_status::CLOSED_WON.to_string()));
         // V15 P0-B08：赢单时赢率自动设为 100%
         opp_active.win_probability = Set(Some(Decimal::ONE_HUNDRED));
-        // 估算金额 -> 实际金额：解包 ActiveValue
-        let estimated: Option<rust_decimal::Decimal> = match opp_active.estimated_amount {
-            sea_orm::ActiveValue::Set(v) => v,
-            _ => None,
-        };
-        opp_active.estimated_amount = Set(None);
-        opp_active.actual_amount = Set(estimated);
+        // 赢单语义为"估算金额结转成实际金额"：actual_amount 落库为上面读取的估算原值；
+        // estimated_amount 保持 Unchanged 不重新赋值，UPDATE 不会触碰该列，
+        // 原始预测基准值得以保留供预测准确率分析作为当月预测分母统计。
+        // 因此该列赢单后仍是结转来源的原值——是"结转"，不是把它抹空。
+        opp_active.actual_amount = Set(carried_actual_amount);
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
         opp_active.updated_at = Set(Some(chrono::Utc::now()));
         // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id

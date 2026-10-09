@@ -144,7 +144,7 @@ impl SalesService {
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
         if order.status != so_status::APPROVED {
-            return Err(AppError::business("只有已审批的订单才能发货"));
+            return Err(AppError::business_displayable("只有已审批的订单才能发货"));
         }
         // 查询订单明细
         // 保留查询结果用于款号一致性门控与发货金额计算

@@ -19,7 +19,7 @@ use std::sync::Arc;
 /// 与 ship_order 中 `if order.status != so_status::APPROVED` 保持一致：仅已审批订单可发货，其余状态返回业务错误。
 fn ship_order_status_gate(status: &str) -> Result<(), AppError> {
     if status != so_status::APPROVED {
-        return Err(AppError::business("只有已审批的订单才能发货"));
+        return Err(AppError::business_displayable("只有已审批的订单才能发货"));
     }
     Ok(())
 }
@@ -149,9 +149,9 @@ fn test_fhztjy_jyspddkfh() {
     assert!(ship_order_status_gate(so_status::PARTIAL_SHIPPED).is_err());
     assert!(ship_order_status_gate(so_status::CANCELLED).is_err());
 
-    // 错误类型应为 BusinessError
+    // 发货状态门拒绝为可外显业务错误（出参 code 仍为 BUSINESS_ERROR）
     let err = ship_order_status_gate(so_status::DRAFT).unwrap_err();
-    assert!(matches!(err, AppError::BusinessError(_)));
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
 }
 
 // ===== 全部发货判定 =====
