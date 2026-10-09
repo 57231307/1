@@ -586,6 +586,10 @@ impl BadDebtService {
             return Err(BadDebtError::SelfApprovalForbidden);
         }
 
+        // 在 existing.into() 移动前保存核销目标，用于事务内回写应收未付额
+        let writeoff_ar_invoice_id = existing.ar_invoice_id;
+        let writeoff_amount = existing.writeoff_amount;
+
         let now = Utc::now();
         let mut active: WriteoffActiveModel = existing.into();
         active.approval_status = Set(writeoff_status::APPROVED.to_string());
@@ -595,6 +599,19 @@ impl BadDebtService {
         active.completed_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&txn).await?;
+
+        // 核销生效：终态 approved 时按核销金额递减应收单未付额，与建单门
+        // 「writeoff_amount 不得超过 unpaid_amount」同一读法（核销消耗应收未付额）。
+        // 递减不低于 0，未付额归零即视为该应收单全额坏账核销完毕。
+        let invoice = ar_invoice::Entity::find_by_id(writeoff_ar_invoice_id)
+            .one(&txn)
+            .await?
+            .ok_or(BadDebtError::ArInvoiceNotFound)?;
+        let new_unpaid = (invoice.unpaid_amount - writeoff_amount).max(Decimal::ZERO);
+        let mut invoice_active: ar_invoice::ActiveModel = invoice.into();
+        invoice_active.unpaid_amount = Set(new_unpaid);
+        invoice_active.update(&txn).await?;
+
         txn.commit().await?;
         Ok(updated)
     }

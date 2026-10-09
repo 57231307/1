@@ -4,6 +4,7 @@
 
 use crate::models::period_report_snapshot;
 use crate::utils::error::AppError;
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
@@ -63,6 +64,8 @@ impl PeriodReportSnapshotService {
             report_data: Set(req.report_data),
             snapshot_hash: Set(hash),
             created_by: Set(user_id),
+            // created_at 建表为 NOT NULL 且无 DEFAULT，必须显式赋值否则 INSERT 省略该列触发约束错误
+            created_at: Set(Utc::now()),
             ..Default::default()
         };
 
@@ -90,7 +93,7 @@ impl PeriodReportSnapshotService {
 
         let snapshots = query
             .order_by(period_report_snapshot::Column::CreatedAt, Order::Desc)
-            .offset(params.page * params.page_size)
+            .offset((params.page.max(1) - 1) * params.page_size)
             .limit(params.page_size)
             .all(&*self.db)
             .await?;

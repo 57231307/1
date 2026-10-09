@@ -552,6 +552,8 @@ impl BudgetManagementService {
 
         let mut plan_active: budget_plan::ActiveModel = plan.into();
         plan_active.status = Set(Some(budget::APPROVED.to_string()));
+        plan_active.approved_by = Set(Some(user_id));
+        plan_active.approved_at = Set(Some(chrono::Utc::now()));
         plan_active.save(&txn).await?;
         txn.commit().await?;
 
