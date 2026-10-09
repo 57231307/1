@@ -53,6 +53,13 @@ const REAL_CUSTOMER_NAME: &str = "滨海针织有限公司";
 const SECOND_CUSTOMER_ID: i64 = 8;
 const SECOND_CUSTOMER_NAME: &str = "远东纺织厂";
 const MISSING_CUSTOMER_ID: i64 = 999;
+/// 夹具代表操作人身份（self 数据范围）。after_sales 三端点在读侧对父定制单执行
+/// `check_resource_owner_by_member_scope` 行级归属门：self 作用域仅能触达
+/// `created_by == 本人` 的行（NULL 归属按最小权限拒绝，非过度收紧）。真实建单流程
+/// （`custom_order_handler::create_custom_order` → service.create_draft）必然写入
+/// created_by，故夹具 raw seed 的父单也必须写入该列并等于操作人，才能以有权身份
+/// 复现"本应可达"的读侧回显。
+const ACTING_USER_ID: i32 = 100;
 
 fn make_auth(user_id: i32) -> AuthContext {
     AuthContext {
@@ -111,13 +118,15 @@ async fn seed_custom_order(db: &sea_orm::DatabaseConnection, order_id: i64, cust
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         r#"INSERT INTO custom_orders
-               (id, order_no, customer_id, product_id, spec, quantity)
-           VALUES ($1, $2, $3, $4, '180cm*120g', 100.00)"#,
+               (id, order_no, customer_id, product_id, spec, quantity, created_by)
+           VALUES ($1, $2, $3, $4, '180cm*120g', 100.00, $5)"#,
         vec![
             order_id.into(),
             format!("W3A-CO-{order_id}").into(),
             customer_id.into(),
             PRODUCT_ID.into(),
+            // created_by 与夹具操作人同源：见 ACTING_USER_ID 说明（self 归属门要求本人行）
+            (ACTING_USER_ID as i64).into(),
         ],
     ))
     .await
@@ -144,7 +153,7 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
             put(custom_order_handler::update_after_sales),
         )
         .with_state(state)
-        .layer(from_fn_with_state(make_auth(100), inject_auth));
+        .layer(from_fn_with_state(make_auth(ACTING_USER_ID), inject_auth));
     (app, db)
 }
 
