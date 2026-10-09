@@ -746,21 +746,23 @@ pub async fn reject_order(
 
     // 行级归属门（写口）：本域无 CRM 域那套 `crm/cross_owner_write` 显式代操作键，
     // 不能硬套 `crm_write_guard::ensure_cross_owner_write_allowed`（其权限键 resource_type
-    // 固定为 "crm"，语义仅限 CRM 域），因此对齐 ship_order/update_order 的同域写门范式——
-    // 先 `get_order_detail(id, Some(&ctx))`：
+    // 固定为 "crm"，语义仅限 CRM 域），因此对齐本域写门范式——先只读主表证归属：
     //   - 路径 id 不存在 → 既有 not_found（404），不裸 500、不冒充空；
     //   - Self 用户试图拒绝他人 PENDING 单 → check_resource_owner=false → 403 FORBIDDEN，
     //     判红分叉在此（修复前 handler 丢弃会话、service 仅按 status==PENDING 放行，任何
     //     同 RBAC 键的 Self/Dept 用户都能拒他人订单）；
     //   - Dept 用户拒本部门单据 → 放行（dept 的本职代管，与 CRM 写门 Dept 分支同语义）。
     // 门在 service 落库点之前——越权不会触达 reject_order 的事务，订单状态零漂移。
+    // 归属判定与读详情同走 `validate_order_data_scope`（单源），但走 `assert_order_ownership`
+    // 只解码主表：拒绝是写动作，不需要明细/客户关联，避免整详情解码把状态机的
+    // 4xx BUSINESS 拒绝（如非 pending 单不可拒绝）提前拖成 DbErr/500。
     // 缺口（交主编排）：All 范围跨 owner 代拒本域无等价 cross_owner_write 键，须新增
     // sales 域跨 owner 写键并同步权限注册表；本轮不新增权限键、不改 hub，仅按上述范式
     // 堵 Self/Dept 水平越权。
     let data_scope_ctx = auth.to_data_scope_context();
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
 
     // service 直接返回 AppError（状态机拒绝 business / 404 not_found 等 4xx），
@@ -781,9 +783,12 @@ pub async fn cancel_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
     // 行级归属门（写口）：取消改订单状态为 CANCELLED，必须先证归属。
+    // 与 reject_order 同走 `assert_order_ownership` 只解码主表（判定单源
+    // `validate_order_data_scope`），不做整详情关联解码——写动作无需明细/客户行，
+    // 避免关联解码把状态机的 4xx BUSINESS 拒绝提前拖成 DbErr/500。
     let data_scope_ctx = auth.to_data_scope_context();
     sales_service
-        .get_order_detail(id, Some(&data_scope_ctx))
+        .assert_order_ownership(id, Some(&data_scope_ctx))
         .await?;
     let _order = sales_service.cancel_order(id, auth.user_id).await?;
 

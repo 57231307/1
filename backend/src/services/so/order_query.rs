@@ -383,6 +383,30 @@ impl SalesService {
         ))
     }
 
+    /// 写口行级归属门（仅读主表单行）：拒绝/取消等状态推进动作先证归属，
+    /// 归属判定与 `get_order_detail` 同源（复用同一个 `validate_order_data_scope`，
+    /// owner=`created_by`、dept=`department_id`），但不做整详情投影。
+    ///
+    /// 为什么与 `get_order_detail` 分家：写动作的语义只需要「这单存在 + 归我管」，
+    /// 不需要明细/客户/产品关联行。`get_order_detail` 会 `find_related(items).all()`
+    /// 整行解码 `sales_order_item::Model`（其中 discount_percent/tax_amount/color_no
+    /// 等列在模型里声明为非 Option），一旦关联行缺值即 ColumnNull → DbErr → 500，
+    /// 把状态机本应外显的 4xx BUSINESS 拒绝提前压成内部错误通道。故写口走本方法，
+    /// 只解码主表（其非 Option 列均由建表默认值/业务写入保证有值）。
+    /// 订单不存在走既有 not_found（404），越权走 permission_denied（403 + FORBIDDEN）。
+    pub async fn assert_order_ownership(
+        &self,
+        order_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(), AppError> {
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
+        // 归属判定与 get_order_detail 复用同一私有函数，判定口径全站唯一
+        Self::validate_order_data_scope(data_scope, order.created_by, order.department_id)
+    }
+
     /// 行级数据权限校验（IDOR 防护）
     fn validate_order_data_scope(
         data_scope: Option<&DataScopeContext>,
