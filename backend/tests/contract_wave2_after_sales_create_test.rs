@@ -52,6 +52,14 @@ fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
 }
 
+/// 会话用户与定制订单归属人必须同一人：`create_after_sales`/`list_after_sales` 的写读归属门
+/// 取 `custom_orders.created_by`（handlers/custom_order_handler.rs），
+/// `data_scope=self` 下 `check_resource_owner_by_member_scope`（utils/data_scope.rs）
+/// 要求 owner == 会话 user_id，created_by 为 NULL 即判 403。
+/// custom_orders.created_by 为 `BIGINT`、无 REFERENCES users
+/// （migration/src/domain/v15/mod.rs），故无需另种 users 行，取值仅需与会话一致。
+const OWNER_USER_ID: i32 = 100;
+
 /// 前端 AfterSalesPanel.vue 提交的真实 payload 形状（从不携带 custom_order_id）
 fn frontend_real_payload() -> Value {
     json!({
@@ -191,6 +199,8 @@ async fn seed_fk_prereq(db: &sea_orm::DatabaseConnection) {
         product_id: Set(1),
         spec: Set("180gsm 全棉".to_string()),
         quantity: Set(dec("10.00")),
+        // 归属人与会话用户一致，使 self 范围归属门放行（见 OWNER_USER_ID 说明）
+        created_by: Set(Some(OWNER_USER_ID as i64)),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
         ..Default::default()
@@ -214,7 +224,7 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
                 .get(custom_order_handler::list_after_sales),
         )
         .with_state(state)
-        .layer(from_fn_with_state(make_auth(100), inject_auth));
+        .layer(from_fn_with_state(make_auth(OWNER_USER_ID), inject_auth));
     (app, db)
 }
 

@@ -29,14 +29,46 @@ mod test_common;
 use axum::{
     Router,
     body::Body,
+    extract::State,
     http::{Request, StatusCode},
+    middleware::{Next, from_fn_with_state},
+    response::Response,
     routing::{get, post},
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::chemical_handler;
+use bingxi_backend::middleware::auth_context::AuthContext;
 use chrono::Utc;
 use serde_json::{Value, json};
 use tower::ServiceExt;
+
+/// 构造供中间件注入的会话上下文（`AuthContext`）。
+/// `create_chemical` 与 `create_chemical_lot`
+/// （handlers/chemical_handler.rs）都以 `AuthContext` 作提取器，仅用 `auth.user_id`
+/// 作建单人（created_by 为 chemical_master/lot 的可空无外键列）。
+/// `AuthContext::FromRequestParts` 从 request.extensions 取，缺省即
+/// `AuthRejection::unauthorized` → 401（middleware/auth_context.rs），故测试
+/// 装配层须先把 AuthContext 注入 extensions，口径同 wave12 crm/bca 夹具。
+fn make_auth() -> AuthContext {
+    AuthContext {
+        user_id: 1,
+        username: "w7_chemical_operator".to_string(),
+        role_id: Some(2),
+        department_id: Some(1),
+        data_scope: Some("all".to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    }
+}
+
+async fn inject_auth(
+    State(auth): State<AuthContext>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    request.extensions_mut().insert(auth);
+    next.run(request).await
+}
 
 /// 本用例专属唯一码（纳秒后缀，防撞既有残留行）
 fn uniq_code(prefix: &str) -> String {
@@ -73,6 +105,7 @@ async fn build_app() -> Router {
             post(chemical_handler::create_chemical_lot),
         )
         .with_state(state)
+        .layer(from_fn_with_state(make_auth(), inject_auth))
 }
 
 async fn send(app: &Router, method: &str, uri: &str, body: Option<Value>) -> (StatusCode, Value) {

@@ -38,7 +38,7 @@ use bingxi_backend::handlers::bulk_color_approval_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{
     bulk_color_approval, bulk_color_approval_history, customer, department, dye_batch,
-    inventory_piece, inventory_stock, sales_order, user,
+    inventory_piece, inventory_stock, product, sales_order, user, warehouse,
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -262,6 +262,42 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         status: Set(Some("completed".to_string())),
         created_at: Set(now.into()),
         updated_at: Set(now.into()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+
+    // 库存父行：下方 inventory_stocks 行的 product_id=1、warehouse_id=1 分别受
+    // `fk_inventory_product`→products(id)、`fk_inventory_warehouse`→warehouses(id) 两条外键约束
+    // （定义见 migration/src/domain/system/m0001_initial_schema.rs）。products/warehouses
+    // 均属逐用例 TRUNCATE 的业务表（不在 test_common SEALED_REFERENCE_TABLES），迁移不播种，
+    // 清空后无 id=1 父行，故此处按被引用的固定主键自建：products 的 NOT NULL 列 code/name、
+    // warehouses 的 NOT NULL 列 name/warehouse_code 均按建表 DDL 给值。
+    warehouse::ActiveModel {
+        id: Set(1),
+        warehouse_code: Set("W-BCAFLOW".to_string()),
+        name: Set("批色流程门测试仓".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+
+    product::ActiveModel {
+        id: Set(1),
+        code: Set("P-BCAFLOW".to_string()),
+        name: Set("批色流程门测试面料".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("成品布".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
         ..Default::default()
     }
     .insert(db)

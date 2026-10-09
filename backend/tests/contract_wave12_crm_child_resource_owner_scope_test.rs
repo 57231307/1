@@ -267,17 +267,30 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         .unwrap();
     }
 
-    crm_tag::ActiveModel {
-        id: Set(TAG_ID),
-        name: Set("高价值".to_string()),
-        color: Set("#1890ff".to_string()),
-        created_at: Set(Utc::now().fixed_offset()),
-        updated_at: Set(Utc::now().fixed_offset()),
-        ..Default::default()
+    // 标签字典行：`crm_tag` 属迁移种子参照表（见 src/services/test_common.rs 的
+    // SEALED_REFERENCE_TABLES），逐用例**不** TRUNCATE，故本文件每个 #[tokio::test] 再调
+    // seed() 时，若直插固定主键 TAG_ID=9700 会在第二个用例撞 `crm_tag_pkey` 23505
+    // （name 亦 UNIQUE）。而 TAG_ID 常量还被 detach URL 与 customer_tag.tag_id 引用，必须
+    // 保持稳定，故取"按主键查、已存在即跳过"的幂等口径（CI 以 --test-threads=1 串行跑真库，
+    // 查后即插无竞态），与同仓 departments 种子既有的幂等写法同源。
+    if crm_tag::Entity::find_by_id(TAG_ID)
+        .one(db)
+        .await
+        .unwrap()
+        .is_none()
+    {
+        crm_tag::ActiveModel {
+            id: Set(TAG_ID),
+            name: Set("高价值".to_string()),
+            color: Set("#1890ff".to_string()),
+            created_at: Set(Utc::now().fixed_offset()),
+            updated_at: Set(Utc::now().fixed_offset()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
     }
-    .insert(db)
-    .await
-    .unwrap();
 
     for (link_id, cid) in [
         (CUST_TAG_LINK_OWN, CUST_OWN),

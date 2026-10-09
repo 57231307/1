@@ -17,6 +17,7 @@
 mod test_common;
 
 use bingxi_backend::models::status::purchase_inventory::purchase_receipt as pr_status;
+use bingxi_backend::models::status::purchase_inventory::purchase_receipt_inspection as pr_inspection;
 use bingxi_backend::models::status::purchase_order as po_status;
 use bingxi_backend::models::{purchase_inspection, purchase_order, purchase_receipt};
 use bingxi_backend::services::purchase_inspection_service::{
@@ -104,7 +105,13 @@ async fn seed_receipt(db: &DatabaseConnection, order_id: Option<i32>) -> purchas
         supplier_id: Set(1),
         receipt_date: Set(date(2026, 9, 1)),
         warehouse_id: Set(1),
-        inspection_status: Set(pr_status::DRAFT.to_string()),
+        // inspection_status 列受 DB CHECK `chk_purchase_receipt_inspection_status` 约束，
+        // 权威取值集 = 词表 purchase_inventory.rs::purchase_receipt_inspection::ALL
+        // （PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED，大写），与迁移
+        // business/m0084_concession_receiving_channel.rs 的 ALLOWED_SQL 逐项相等。
+        // 该列 NOT NULL 且与 receipt_status（另一套词表 purchase_receipt::DRAFT）分列，
+        // 故不能沿用 pr_status::DRAFT——取权威首态 PENDING（待检）。
+        inspection_status: Set(pr_inspection::PENDING.to_string()),
         receipt_status: Set(pr_status::DRAFT.to_string()),
         total_quantity: Set(Decimal::ZERO),
         total_quantity_alt: Set(Decimal::ZERO),

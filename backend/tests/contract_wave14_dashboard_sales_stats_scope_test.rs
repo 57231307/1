@@ -391,7 +391,7 @@ async fn sales_stats_scope_zero_visible_rows_returns_empty_not_error() {
     let stats = fetch(
         &db,
         AppCache::arc(),
-        Some(ctx(DataScope::Dept, USER_NO_ROWS, vec![DEPT_OTHER])),
+        Some(ctx(DataScope::Self_, USER_NO_ROWS, vec![])),
     )
     .await;
     assert!(

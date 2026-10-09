@@ -555,9 +555,13 @@ impl DashboardService {
             None => (String::new(), Vec::new()),
         };
         // 日期过滤基址 = 排除门(2) + 数据范围已消耗的绑定数（self/dept=1、all/无部门=0）。
-        let date_base_idx = 3 + scope_values.len();
-        let (sql, date_params) =
-            Self::append_date_filters(base_sql, &scope_sql, date_base_idx, start_date, end_date);
+        let (sql, date_params) = Self::append_date_filters(
+            base_sql,
+            &scope_sql,
+            scope_values.len(),
+            start_date,
+            end_date,
+        );
         // 参数按占位符号序拼接：$1/$2 排除门 → 数据范围 → 日期。
         let mut params: Vec<sea_orm::Value> =
             vec![so_status::CANCELLED.into(), so_status::DRAFT.into()];
@@ -618,12 +622,15 @@ impl DashboardService {
 
     /// 追加数据范围片段、日期过滤参数与分组排序。
     /// `scope_sql` 为 build_data_scope_sql 产出的以 `AND ` 起始的片段（all 时为空串），
-    /// 直接拼到排除门 WHERE 之后；`date_base_idx` 为日期过滤起始占位符号
-    /// （= 3 + 数据范围已消耗的绑定数），确保与 $1/$2 排除门、$3.. 范围片段互不撞号。
+    /// 直接拼到排除门 WHERE 之后；`scope_binding_count` 为数据范围片段消耗的占位符数
+    /// （self/dept=1、all=0）。
+    ///
+    /// 基址固定为 $3：$1/$2 已被排除门（status NOT IN）占用，数据范围从 $3 起，
+    /// 日期过滤从 3+scope_binding_count 起——确保三类占位符互不撞号。
     fn append_date_filters(
         mut sql: String,
         scope_sql: &str,
-        date_base_idx: usize,
+        scope_binding_count: usize,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> (String, Vec<sea_orm::Value>) {
@@ -635,7 +642,8 @@ impl DashboardService {
             sql.push_str(scope_sql);
         }
 
-        let mut param_idx = date_base_idx;
+        let mut param_idx = 3usize;
+        param_idx += scope_binding_count;
         if let Some(start) = start_date {
             sql.push_str(&format!(" AND s.order_date >= ${} ", param_idx));
             params.push(start.naive_utc().into());

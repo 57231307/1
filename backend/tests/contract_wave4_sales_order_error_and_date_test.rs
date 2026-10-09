@@ -95,10 +95,16 @@ fn make_auth(user_id: i32) -> AuthContext {
 async fn seed_fk_prerequisites(db: &sea_orm::DatabaseConnection) {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        // 波0 夹具补 NULL 地雷：customers.customer_type 模型非 Option 而 DDL 可空，
-        // 省略该列的种下行按模型读出即 SeaORM 类型错；补真实白名单值（唯一词表模块）。
+        // customers 的 customer_type/payment_terms/status 在 `customer::Model`
+        // （src/models/customer.rs）声明为非 Option，reject/cancel 走
+        // `customer::Entity::find_by_id`（services/so/contract.rs）整行解码，
+        // 任一列以 NULL 落库即报 `Missing value for column`。customer_type 有 DB CHECK
+        // `chk_customers_customer_type`（五值），故取常量 RETAIL；payment_terms/status
+        // 均为 `ALTER ADD ... INTEGER/VARCHAR` 可空无默认列
+        // （见 migration/src/domain/finance/mod.rs），无 CHECK，按同仓 sibling 夹具
+        // 口径取账期 30 天、状态 'active' 供真实值。
         format!(
-            "INSERT INTO customers (id, customer_code, customer_name, customer_type) VALUES ($1, $2, $3, '{}')",
+            "INSERT INTO customers (id, customer_code, customer_name, customer_type, status, payment_terms) VALUES ($1, $2, $3, '{}', 'active', 30)",
             bingxi_backend::constants::customer_type::RETAIL
         ),
         vec![
