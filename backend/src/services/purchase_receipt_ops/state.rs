@@ -284,11 +284,7 @@ impl PurchaseReceiptService {
                 "已确认入库的收货单不允许复检改判",
             ));
         }
-        if receipt.inspection_status != status::purchase_receipt_inspection::CONCESSION_ACCEPTED {
-            return Err(AppError::business_displayable(
-                "仅处于让步接收状态的收货单可复检改判为合格或不合格",
-            ));
-        }
+        Self::require_concession_state(&receipt)?;
 
         let rejudge_count = receipt.rejudge_count + 1;
         let mut active: purchase_receipt::ActiveModel = receipt.into();

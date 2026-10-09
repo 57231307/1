@@ -117,6 +117,20 @@ impl PurchaseReceiptService {
         )))
     }
 
+    /// 复检改判前驱门控：收货单必须处于让步接收态（CONCESSION_ACCEPTED）才允许进入
+    /// 改判流程；非让步态返回可外显业务拒绝。判定唯一实现收口于 facade，
+    /// 调用方不得另写 `inspection_status !=` 比较。
+    pub(crate) fn require_concession_state(
+        receipt: &purchase_receipt::Model,
+    ) -> Result<(), AppError> {
+        if receipt.inspection_status != status::purchase_receipt_inspection::CONCESSION_ACCEPTED {
+            return Err(AppError::business_displayable(
+                "仅处于让步接收状态的收货单可复检改判为合格或不合格",
+            ));
+        }
+        Ok(())
+    }
+
     /// 构建入库单主表 ActiveModel（String 字段 clone 避免移动 req）（`pub(crate)`：crud 子模块的 `create_receipt` 调用。）
     pub(crate) fn build_receipt_active_model(
         req: &CreatePurchaseReceiptRequest,
