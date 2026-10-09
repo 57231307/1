@@ -88,13 +88,13 @@ fn approval_service_has_no_bare_status_literals() {
 /// 而非独立的小写字面量（值相同也要同源，否则词表演进时静默漂移）。
 #[test]
 fn expiry_query_filters_with_constant() {
-    let h = read_rel("src/handlers/quotation_handler.rs");
+    let svc = read_rel("src/services/quotation_ops/crud.rs");
     assert!(
-        h.contains("Column::Status.eq(quotation_status::APPROVED)"),
+        svc.contains("Column::Status.eq(quotation_status::APPROVED)"),
         "到期预警查询必须以 quotation::APPROVED 为源"
     );
     assert!(
-        !h.contains(r#"Column::Status.eq("approved")"#),
+        !svc.contains(r#"Column::Status.eq("approved")"#),
         "不得残留 \"approved\" 裸字面量查询"
     );
 }
