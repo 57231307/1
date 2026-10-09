@@ -96,8 +96,9 @@ pub struct CustomerRelationSummary {
 /// `cust.rs::compute_rfm_score`；`score` = 三项均值（合成分语义与三个分项同源，
 /// 分项不得在聚合时被丢弃，否则前端三列无值可渲染）。
 /// 四项同为 f64，serde 序列化为 JSON number（非 Decimal，故线上不是字符串）。
-/// 本结构体无档位/标签字段：客户分级词表的写入方是 `cust.rs::get_rfm_distribution`
-/// （VIP/重要/一般/低价值四桶），逐客户档位归属仍待词表裁定，不得在此预留死键。
+/// 本结构体无档位/标签字段：客户分级词表的权威定义收敛到 [`RfmSegment`]（中文四桶），
+/// 群体分布与批量档位两个出参都从它取 token；逐客户档位归属走批量端点
+/// `GET /crm/rfm/segments`，本四键契约（`contract_wave11_rfm_score_shape_test.rs`）不变。
 #[derive(Debug, Clone, Serialize)]
 pub struct RfmScoreDetail {
     /// R（Recency）分项：最近一次订单距今天数分档
@@ -108,6 +109,81 @@ pub struct RfmScoreDetail {
     pub monetary: f64,
     /// 合成分 = (recency + frequency + monetary) / 3
     pub score: f64,
+}
+
+/// 客户 RFM 中文四桶档位——本仓**唯一**权威词表。
+///
+/// 存在意义：档位既是群体分布 `cust.rs::get_rfm_distribution` 的 JSON 键，也是
+/// 批量档位 `cust.rs::get_rfm_segments` 的出参值，还是分布计数 `add_score` 的比较点。
+/// 三处曾各自手写 `"VIP"/"重要"/"一般"/"低价值"` 字面量与阈值 `if 分支`，任一处改动即
+/// 词表漂移。现统一到本枚举：词表 token 只在 [`RfmSegment::as_str`] 出现一次，阈值判定
+/// 只在 [`RfmSegment::from_score`] 出现一次，其余各处一律复用本枚举，不得再抄第二套。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RfmSegment {
+    /// 高价值（合成分 >= 4.5）
+    Vip,
+    /// 重要（4.5 > 合成分 >= 3.5）
+    Important,
+    /// 一般（3.5 > 合成分 >= 2.5）
+    Normal,
+    /// 低价值（合成分 < 2.5）
+    LowValue,
+}
+
+impl RfmSegment {
+    /// 落库 / 出参的中文档位 token（禁止用 Debug 形态或变体名外显，前端按此词表联显档位）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RfmSegment::Vip => "VIP",
+            RfmSegment::Important => "重要",
+            RfmSegment::Normal => "一般",
+            RfmSegment::LowValue => "低价值",
+        }
+    }
+
+    /// 合成分 → 档位（唯一阈值判定：VIP>=4.5 / 重要>=3.5 / 一般>=2.5 / 低价值<2.5）。
+    /// 阈值与分布计数、单客户评分同源；分布路径与批量路径都调用本函数，杜绝边界不一致。
+    pub fn from_score(score: f64) -> Self {
+        if score >= 4.5 {
+            RfmSegment::Vip
+        } else if score >= 3.5 {
+            RfmSegment::Important
+        } else if score >= 2.5 {
+            RfmSegment::Normal
+        } else {
+            RfmSegment::LowValue
+        }
+    }
+}
+
+/// 批量档位查询单行可见性结论（`cust.rs::get_rfm_segments` 的行级 outcome）。
+///
+/// 为什么需要显式结论：请求里可能混入不存在或超出调用者数据范围的 customer_id。
+/// 静默过滤会让调用方无法区分"这条没数据"与"这条你没权限"，故对**每一个被请求的 id**
+/// 都回一个确定的本枚举，不吞、不裸 500。序列化取 snake_case，作为出参键值不外泄记录内容。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RfmSegmentAccess {
+    /// 客户存在且在调用者数据范围内可见：`segment` 有值
+    Visible,
+    /// 客户不存在：`segment` 为 null
+    NotFound,
+    /// 客户存在但不在调用者数据范围内：`segment` 为 null（不泄露其档位）
+    NoPermission,
+}
+
+/// `GET /crm/rfm/segments` 批量档位的单行出参（前端按 `customer_id` 联显 `segment`）。
+///
+/// 字段命名与本域既有出参（`RfmScoreDetail`/`CustomerRelationSummary`）一致的 snake_case；
+/// `segment` 为 `RfmSegment::as_str()` 的中文四桶 token，与群体分布词表逐字同源。
+#[derive(Debug, Clone, Serialize)]
+pub struct RfmSegmentItem {
+    /// 请求中提交的客户主键（原样回带，保证每个被请求 id 都在结果中有确定结论）
+    pub customer_id: i32,
+    /// 该 id 的可见性/存在性结论
+    pub access: RfmSegmentAccess,
+    /// 仅 `access=visible` 时为中文四桶档位；否则为 null
+    pub segment: Option<String>,
 }
 
 // =====================================================

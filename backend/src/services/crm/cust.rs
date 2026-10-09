@@ -54,16 +54,14 @@ struct RfmDistributionCounts {
 }
 
 impl RfmDistributionCounts {
-    /// 按评分累加到对应分桶（VIP>=4.5 / 重要>=3.5 / 一般>=2.5 / 低价值<2.5）
+    /// 按评分累加到对应分桶。阈值与档位词表都取自 [`super::RfmSegment`]（唯一来源），
+    /// 本函数不再自写阈值 `if` 分支，避免与批量档位/分布出参漂移。
     fn add_score(&mut self, score: f64) {
-        if score >= 4.5 {
-            self.vip += 1;
-        } else if score >= 3.5 {
-            self.important += 1;
-        } else if score >= 2.5 {
-            self.normal += 1;
-        } else {
-            self.low_value += 1;
+        match super::RfmSegment::from_score(score) {
+            super::RfmSegment::Vip => self.vip += 1,
+            super::RfmSegment::Important => self.important += 1,
+            super::RfmSegment::Normal => self.normal += 1,
+            super::RfmSegment::LowValue => self.low_value += 1,
         }
     }
 }
@@ -508,9 +506,25 @@ impl CrmService {
         (r_score + f_score + m_score) / 3.0
     }
 
-    /// 批量计算所有客户的 RFM 评分并聚合分布
-    pub async fn get_rfm_distribution(&self) -> Result<serde_json::Value, AppError> {
-        let customers: Vec<customer::Model> = CustomerEntity::find().all(&*self.db).await?;
+    /// 客户 RFM 群体分布计数。调用方：`handlers/crm_handler.rs::get_rfm_distribution`
+    /// （GET `/crm/rfm/distribution`）。入参：调用方行级数据范围 `ctx`。
+    /// 口径：先按 `ctx` 收敛可见客户集，再对可见客户聚合档位——分桶计数与
+    /// `total_customers` 都只覆盖可见集，不把他人/他部门客户折进分布。
+    /// 判据列与同文件关联商机过滤同为 `OwnerId`/`DepartmentId` 的
+    /// `apply_department_scope`，与批量档位端点逐行 `check_resource_owner` 同族。
+    /// 订单聚合按 customer_id 建映射、只被可见集查表使用，故不重复下推第二套范围条件。
+    pub async fn get_rfm_distribution(
+        &self,
+        ctx: &DataScopeContext,
+    ) -> Result<serde_json::Value, AppError> {
+        let customers: Vec<customer::Model> = apply_department_scope(
+            CustomerEntity::find(),
+            ctx,
+            customer::Column::OwnerId,
+            customer::Column::DepartmentId,
+        )
+        .all(&*self.db)
+        .await?;
         let customer_ids: Vec<i32> = customers.iter().map(|c| c.id).collect();
         let order_aggs = Self::query_customer_order_aggregations(&*self.db).await?;
         let order_map = Self::build_customer_order_stats_map(order_aggs);
@@ -523,13 +537,160 @@ impl CrmService {
                 Self::compute_rfm_score_for_customer(order_count, last_order_at, total_amount, now);
             counts.add_score(score);
         }
-        Ok(serde_json::json!({
-            "VIP": counts.vip,
-            "重要": counts.important,
-            "一般": counts.normal,
-            "低价值": counts.low_value,
-            "total_customers": customer_ids.len() as u64,
-        }))
+        // 分布 JSON 键取自档位枚举的 as_str()（唯一词表来源），出参形态与原
+        // json! 字面量逐字节一致；不在此重写 "VIP"/"重要"/"一般"/"低价值" 字面量。
+        let mut dist = serde_json::Map::new();
+        dist.insert(
+            super::RfmSegment::Vip.as_str().to_string(),
+            serde_json::json!(counts.vip),
+        );
+        dist.insert(
+            super::RfmSegment::Important.as_str().to_string(),
+            serde_json::json!(counts.important),
+        );
+        dist.insert(
+            super::RfmSegment::Normal.as_str().to_string(),
+            serde_json::json!(counts.normal),
+        );
+        dist.insert(
+            super::RfmSegment::LowValue.as_str().to_string(),
+            serde_json::json!(counts.low_value),
+        );
+        dist.insert(
+            "total_customers".to_string(),
+            serde_json::json!(customer_ids.len() as u64),
+        );
+        Ok(serde_json::Value::Object(dist))
+    }
+
+    /// 批量档位查询专用聚合：按给定 customer_id 集合聚合订单，列/分组口径与群体分布
+    /// `query_customer_order_aggregations` **完全一致**，仅多一条 `customer_id IN (...)`
+    /// 过滤（避免全表扫描），不新增任何聚合字段或口径。空集合直接返回空映射，不发无意义查询。
+    async fn query_customer_order_aggregations_for_ids(
+        db: &DatabaseConnection,
+        customer_ids: &[i32],
+    ) -> Result<std::collections::HashMap<i32, CustomerOrderStats>, AppError> {
+        use rust_decimal::prelude::ToPrimitive;
+        use sea_orm::sea_query::Expr;
+        if customer_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let order_aggs: Vec<OrderAggRow> = SalesOrderEntity::find()
+            .select_only()
+            .column(SalesOrderColumn::CustomerId)
+            .column_as(Expr::col(SalesOrderColumn::Id).count(), "order_count")
+            .column_as(
+                Expr::col(SalesOrderColumn::CreatedAt).max(),
+                "last_order_at",
+            )
+            .column_as(
+                Expr::col(SalesOrderColumn::TotalAmount).sum(),
+                "total_amount",
+            )
+            .filter(SalesOrderColumn::CustomerId.is_in(customer_ids.iter().copied()))
+            .group_by(SalesOrderColumn::CustomerId)
+            .into_tuple()
+            .all(db)
+            .await?;
+        Ok(order_aggs
+            .into_iter()
+            .map(|(cid, count, last_order, total)| {
+                let total_f64 = total.and_then(|d| d.to_f64()).unwrap_or(0.0);
+                (cid, (count, last_order, total_f64))
+            })
+            .collect())
+    }
+
+    /// 批量档位查询：给定一批 customer_id，逐个回一行 [`super::RfmSegmentItem`]（请求去重后
+    /// 保持首次出现顺序）。调用方是 `handlers/crm_handler.rs::get_rfm_segments`，用于前端按
+    /// `customer_id` 联显档位。
+    ///
+    /// - 词表：档位取 [`super::RfmSegment`]（中文四桶），评分内核复用
+    ///   `compute_rfm_score_for_customer`，聚合口径复用分布列——与群体分布逐字同源，无第二套。
+    /// - 归属门：客户域是 RLS 表，行级判据与 `get_rfm_score` 同族——部门族
+    ///   [`check_resource_owner`]（owner_id + department_id），**不**跨用成员族谓词。
+    /// - 不存在 / 越权：不静默过滤、不裸 500，而是对每个被请求 id 给确定 `access`
+    ///   （not_found / no_permission），且不为其计算或泄露档位（`segment` 恒为 null）。
+    pub async fn get_rfm_segments(
+        &self,
+        customer_ids: &[i32],
+        ctx: &DataScopeContext,
+    ) -> Result<Vec<super::RfmSegmentItem>, AppError> {
+        // 去重且保持首次出现顺序，保证每个被请求 id 恰好有一行确定结论（不重复、不遗漏）。
+        let mut seen = std::collections::HashSet::new();
+        let requested: Vec<i32> = customer_ids
+            .iter()
+            .copied()
+            .filter(|id| seen.insert(*id))
+            .collect();
+        if requested.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 一次批量取客户行，据以判定存在性与部门族归属（无逐行查询）。
+        let rows: Vec<customer::Model> = CustomerEntity::find()
+            .filter(customer::Column::Id.is_in(requested.iter().copied()))
+            .all(&*self.db)
+            .await?;
+        let row_map: std::collections::HashMap<i32, &customer::Model> =
+            rows.iter().map(|r| (r.id, r)).collect();
+
+        // 仅对"存在且过部门族归属门"的客户聚合订单；越权/不存在者不参与聚合、不泄露档位。
+        let visible_set: std::collections::HashSet<i32> = requested
+            .iter()
+            .copied()
+            .filter(|id| {
+                row_map.get(id).is_some_and(|row| {
+                    check_resource_owner(ctx, Some(row.owner_id), row.department_id)
+                })
+            })
+            .collect();
+        let visible_ids: Vec<i32> = requested
+            .iter()
+            .copied()
+            .filter(|id| visible_set.contains(id))
+            .collect();
+        let stats_map =
+            Self::query_customer_order_aggregations_for_ids(&*self.db, &visible_ids).await?;
+
+        let now = chrono::Utc::now();
+        let mut out = Vec::with_capacity(requested.len());
+        for cid in requested {
+            let item = match row_map.get(&cid) {
+                None => super::RfmSegmentItem {
+                    customer_id: cid,
+                    access: super::RfmSegmentAccess::NotFound,
+                    segment: None,
+                },
+                Some(_) => {
+                    if !visible_set.contains(&cid) {
+                        super::RfmSegmentItem {
+                            customer_id: cid,
+                            access: super::RfmSegmentAccess::NoPermission,
+                            segment: None,
+                        }
+                    } else {
+                        let (order_count, last_order_at, total_amount) =
+                            stats_map.get(&cid).copied().unwrap_or((0, None, 0.0));
+                        let score = Self::compute_rfm_score_for_customer(
+                            order_count,
+                            last_order_at,
+                            total_amount,
+                            now,
+                        );
+                        super::RfmSegmentItem {
+                            customer_id: cid,
+                            access: super::RfmSegmentAccess::Visible,
+                            segment: Some(
+                                super::RfmSegment::from_score(score).as_str().to_string(),
+                            ),
+                        }
+                    }
+                }
+            };
+            out.push(item);
+        }
+        Ok(out)
     }
 
     /// V15 P2 18.4-D5: 获取客户字段权限配置

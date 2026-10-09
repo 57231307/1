@@ -33,6 +33,11 @@ const DISAMBIGUATION_CASES: &[(&str, &str, &str)] = &[
     // CRM 域
     ("crm", "leads", "crm-leads"),
     ("crm", "opportunities", "crm-opportunities"),
+    // RFM 聚合面（`/crm/rfm/{distribution,segments}`）与它的行级同族端点
+    // `/crm/customers/{id}/rfm` 必须落在同一个注册表名上：走默认分支会派生出注册表外的
+    // `rfm:read`（注册表、角色种子、前端 CRM 页 meta 三通道都没有它），后果是除超管旁路
+    // 外全员 403——CRM 页能打开、客户分级 tab 必红。
+    ("crm", "rfm", "customers"),
     // 采购域
     ("purchase", "orders", "purchase-orders"),
     ("purchase", "returns", "purchase-returns"),
@@ -59,6 +64,9 @@ const MUST_NOT_BE_RAW_REGISTERED: &[&str] = &[
     "receipts",
     "contracts",
     "prices",
+    // RFM 档位面的权威键是它行级同族端点所用的 customers；若把裸段名 rfm 登记进注册表，
+    // 等于承认"派生名可以由 URL 段直接决定"，上面那条消歧就成了死分支。
+    "rfm",
 ];
 
 /// 默认分支对照表：(module_prefix, resource_segment, expected_passthrough)。

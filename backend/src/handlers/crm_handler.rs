@@ -1311,11 +1311,84 @@ pub async fn get_rfm_score(
 /// GET /api/v1/erp/crm/rfm/distribution - 客户群体 RFM 分布
 pub async fn get_rfm_distribution(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CrmService::new(state.db.clone());
-    let dist = service.get_rfm_distribution().await?;
+    let dist = service.get_rfm_distribution(&ctx).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(dist)?)))
+}
+
+/// 批量档位查询单次客户数上限。
+///
+/// 取值依据：对齐本仓既有「按 id 列表批量」端点的同族上界
+/// （`handlers/bulk_product_handler.rs` 的 `ids` `#[validate(length(max = 500))]`），
+/// 不另造新量级。超限属入参规模约束（字段校验），命中即 400 拒绝、不进入聚合查询，
+/// 避免超大数组拖垮 `sales_orders` 分组聚合。
+const RFM_SEGMENTS_MAX_CUSTOMERS: usize = 500;
+
+/// `GET /crm/rfm/segments` 查询入参：逗号分隔的客户 ID 列表（如 `?customer_ids=1,2,3`）。
+/// 解析范式与 `crm_assignment_handler::list_workload` 的 `user_ids` 逐项显式校验一致。
+#[derive(Debug, Deserialize)]
+pub struct RfmSegmentsQuery {
+    /// 逗号分隔的客户主键列表
+    pub customer_ids: String,
+}
+
+/// GET /api/v1/erp/crm/rfm/segments - 批量查询客户 RFM 档位（中文四桶）。
+///
+/// 出参每行 `RfmSegmentItem{customer_id, access, segment}`：前端按 `customer_id` 联显
+/// `segment`（`access=visible` 时为 VIP/重要/一般/低价值 之一，与群体分布词表逐字同源）。
+/// 不存在/越权的 id 不被静默丢弃：各回一行确定 `access`（not_found / no_permission），
+/// 其 `segment` 为 null。权限键由 URL 段派生并经 `resolve_module_prefixed_resource`
+/// 把 `crm/rfm` 消歧到注册表权威名 `customers`（与行级端点 `/crm/customers/{id}/rfm`
+/// 同一枚 `customers:read`，聚合面与行级面同源同权、不新增授权），行级可见性再由 service
+/// 内的部门族归属门约束。
+pub async fn get_rfm_segments(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(q): Query<RfmSegmentsQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 逗号分隔列表逐项显式校验：任一空项/非整数项即整体拒绝，绝不静默丢项
+    //（沿用 list_workload 判据，避免调用方误以为覆盖了全部提交的 ID）。
+    if q.customer_ids.trim().is_empty() {
+        return Err(AppError::validation_displayable(
+            "customer_ids 参数不能为空",
+        ));
+    }
+    let tokens: Vec<&str> = q.customer_ids.split(',').collect();
+    // 入参规模上界：超限属字段校验族（VALIDATION），出参走固定脱敏常量、文案绝不带记录 ID。
+    if tokens.len() > RFM_SEGMENTS_MAX_CUSTOMERS {
+        return Err(AppError::validation(format!(
+            "批量档位查询单次客户数 {} 超过上限 {}",
+            tokens.len(),
+            RFM_SEGMENTS_MAX_CUSTOMERS
+        )));
+    }
+    let customer_ids: Vec<i32> = tokens
+        .iter()
+        .enumerate()
+        .map(|(idx, raw)| {
+            let token = raw.trim();
+            if token.is_empty() {
+                return Err(AppError::validation_displayable(format!(
+                    "customer_ids 第 {} 项为空，逗号分隔列表中不允许空项",
+                    idx + 1
+                )));
+            }
+            token.parse::<i32>().map_err(|_| {
+                AppError::validation_displayable(format!(
+                    "customer_ids 第 {} 项不是合法整数，列表中每一项都必须是整数",
+                    idx + 1
+                ))
+            })
+        })
+        .collect::<Result<Vec<i32>, AppError>>()?;
+
+    let ctx = auth.to_data_scope_context();
+    let service = CrmService::new(state.db.clone());
+    let items = service.get_rfm_segments(&customer_ids, &ctx).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
 }
 
 // ===== 渠道 ROI 分析 =====

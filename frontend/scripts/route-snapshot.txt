@@ -1,4 +1,4 @@
-# layers=8 endpoints=1769
+# layers=8 endpoints=1770
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -397,6 +397,7 @@ GET	/api/v1/erp/crm/pool	crm_pool_handler::list_pool	crm
 GET	/api/v1/erp/crm/pool/rules	crm_pool_handler::list_pool_rules	crm
 GET	/api/v1/erp/crm/recycle-rules	missing_handlers::get_recycle_rules	crm
 GET	/api/v1/erp/crm/rfm/distribution	crate::handlers::crm_handler::get_rfm_distribution	crm
+GET	/api/v1/erp/crm/rfm/segments	crate::handlers::crm_handler::get_rfm_segments	crm
 GET	/api/v1/erp/crm/sales-analysis/customer-ranking	sales_analysis_handler::get_customer_ranking	crm
 GET	/api/v1/erp/crm/sales-analysis/export	sales_analysis_handler::export_analysis	crm
 GET	/api/v1/erp/crm/sales-analysis/product-ranking	sales_analysis_handler::get_product_ranking	crm

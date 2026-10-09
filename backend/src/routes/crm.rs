@@ -576,6 +576,12 @@ fn crm_customer_enhancement_routes() -> Router<AppState> {
             "/rfm/distribution",
             get(crate::handlers::crm_handler::get_rfm_distribution),
         )
+        // 批量档位：入参 `?customer_ids=1,2,3`，出参每项 {customer_id, segment}，
+        // 档位 token 取 `RfmSegment::as_str` 中文四桶，与上面分布端点的键同源。
+        .route(
+            "/rfm/segments",
+            get(crate::handlers::crm_handler::get_rfm_segments),
+        )
 }
 
 /// CRM 业务路由（合并线索/商机/客户增强，子前缀互不重叠）

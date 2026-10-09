@@ -165,6 +165,14 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         // 消歧到注册表权威名 crm-leads，与 purchase-/sales- 前缀族同构，纯对齐不新增授权。
         ("crm", "leads") => "crm-leads".to_string(),
         ("crm", "opportunities") => "crm-opportunities".to_string(),
+        // ===== CRM 域：`/erp/crm/rfm/{distribution,segments}` 的资源段消歧 =====
+        // 走默认分支会派生出注册表外的 `rfm:read`：`PERMISSION_RESOURCES` 里没有 rfm、
+        // 角色种子里没有该键、前端 CRM 页 meta 是 customers:read ⇒ 除超管旁路外全员 403，
+        // 表现为"页面能打开、客户分级 tab 必红"。同一份 RFM 数据的行级端点
+        // `/crm/customers/{id}/rfm` 派生的正是注册表权威名 customers，故把聚合档位面消歧到
+        // 同一个键：聚合面与行级面同源同权，能读单客户档位者即可读档位分布与批量档位。
+        // 方向为纯对齐，不新增任何"角色×资源×动作"授权。
+        ("crm", "rfm") => "customers".to_string(),
         // ===== 生产域：`/erp/production/production-orders/orders*` 的资源段消歧 =====
         // 该路由是双层模块前缀（seg3=production、seg4=production-orders 均在
         // is_module_prefix 表内），extract_resource_info（middleware/permission.rs:274-279）
