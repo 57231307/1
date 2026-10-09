@@ -103,8 +103,13 @@ fn migration_role_codes(mig_code: &str, const_name: &str) -> Vec<String> {
         .find(']')
         .map(|i| open + i)
         .expect("受授常量数组未闭合");
+    // 数组字面量首段（open..=close 内含前导 `[`）按 `"` 切分后，引号内的角色码落在
+    // 奇数位（1,3,5…），偶数位是 `[`/`,`/`]` 等分隔符。须先 skip(1) 丢掉 `[` 前导段
+    // 再 step_by(2)，取到的才是引号内角色码；若直接从 0 起 step_by(2) 取到的全是分隔符，
+    // 过滤后恒空集——通道②永远读不到内容，三通道相等断言失去检测力。
     tail[open..=close]
         .split('"')
+        .skip(1)
         .step_by(2)
         .map(|s| s.trim())
         .filter(|s| !s.is_empty() && s.chars().any(|c| c.is_ascii_alphabetic()))
