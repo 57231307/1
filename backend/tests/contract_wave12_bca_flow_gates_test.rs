@@ -57,6 +57,7 @@ const DEPT_B: i32 = 9600;
 const SO_OWN: i32 = 9201;
 const SO_CROSS: i32 = 9202;
 const SO_DEPT_B: i32 = 9203;
+const SO_NULL: i32 = 9204; // created_by=NULL 的历史父单（无归属人）
 const CUS_ID: i32 = 9150;
 const DYE_ID: i32 = 9301;
 const STOCK_ID: i32 = 9350;
@@ -65,6 +66,7 @@ const STOCK_ID: i32 = 9350;
 const BCA_CUT: i64 = 9401; // pending，剪样目标，父 SO_OWN（归 OWNER_A / DEPT_A）
 const BCA_CUT_CROSS: i64 = 9402; // pending，剪样跨主目标，父 SO_CROSS（归 OWNER_B / DEPT_A）
 const BCA_CUT_DEPT_B: i64 = 9403; // pending，剪样 Dept-B 不可见目标，父 SO_DEPT_B（归 OWNER_B / DEPT_B）
+const BCA_CUT_NULL: i64 = 9441; // pending，剪样无归属目标，父 SO_NULL（created_by=NULL）
 
 const BCA_APPR: i64 = 9411; // sent_to_customer，通过目标，父 SO_OWN
 const BCA_APPR_CROSS: i64 = 9412; // sent_to_customer，通过跨主目标，父 SO_CROSS
@@ -105,6 +107,20 @@ fn make_dept_auth(user_id: i32, visible_depts: &[i32]) -> AuthContext {
         department_id: Some(DEPT_A),
         data_scope: Some("dept".to_string()),
         dept_ids: Some(Arc::new(csv)),
+        dept_member_user_ids: None,
+    }
+}
+
+fn make_all_auth_nokey(user_id: i32) -> AuthContext {
+    // role_id 取一个在 roles 表必不存在的高值：is_admin_role→false、无任何
+    // role_permissions→check_permission 返回 false（All 跨 owner 无代表键 ⇒ fail-closed 403）。
+    AuthContext {
+        user_id,
+        username: format!("bca_flow_gate_all_{user_id}"),
+        role_id: Some(999_999),
+        department_id: Some(DEPT_A),
+        data_scope: Some("all".to_string()),
+        dept_ids: None,
         dept_member_user_ids: None,
     }
 }
@@ -252,6 +268,31 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         .unwrap();
     }
 
+    // SO_NULL：created_by=NULL 的历史父单（无归属人，department_id=DEPT_A）。
+    sales_order::ActiveModel {
+        id: Set(SO_NULL),
+        order_no: Set(format!("SO-BCAFLOW-{SO_NULL}")),
+        customer_id: Set(CUS_ID),
+        order_date: Set(now),
+        required_date: Set(Some(now)),
+        status: Set("approved".to_string()),
+        subtotal: Set(Decimal::ONE),
+        tax_amount: Set(Decimal::ZERO),
+        discount_amount: Set(Decimal::ZERO),
+        shipping_cost: Set(Decimal::ZERO),
+        total_amount: Set(Decimal::ONE),
+        paid_amount: Set(Decimal::ZERO),
+        balance_amount: Set(Decimal::ONE),
+        created_by: Set(None),
+        department_id: Set(Some(DEPT_A)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+
     // 染色批次（状态 "completed" 满足剪样前置）
     dye_batch::ActiveModel {
         id: Set(DYE_ID),
@@ -349,6 +390,7 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         (BCA_CUT, SO_OWN, "pending"),
         (BCA_CUT_CROSS, SO_CROSS, "pending"),
         (BCA_CUT_DEPT_B, SO_DEPT_B, "pending"),
+        (BCA_CUT_NULL, SO_NULL, "pending"),
         (BCA_APPR, SO_OWN, "sent_to_customer"),
         (BCA_APPR_CROSS, SO_CROSS, "sent_to_customer"),
         (BCA_APPR_DEPT_B, SO_DEPT_B, "sent_to_customer"),
@@ -583,6 +625,100 @@ async fn cut_sample_dept_scope_invisible_dept_is_forbidden() {
         "零状态漂移"
     );
     assert_eq!(stock_quantity_meters(&db).await, before_qty, "零库存变动");
+}
+
+// ============ All 范围跨 owner / created_by=NULL 归属边界（方案 A 写侧收紧）============
+
+#[tokio::test]
+async fn cut_sample_all_scope_without_behalf_key_is_forbidden_with_zero_drift() {
+    // All 范围非 admin、未持 ("erp","cross_owner_write") 代表键，剪他人父单下批色：
+    // 方案 A 要求跨 owner 写须代表键，缺键即 fail-closed 403（此前 All 一律放行，本测试锁收紧）。
+    let (app, db) = seeded_app(make_all_auth_nokey(OWNER_A)).await;
+    let before_status = approval_status(&db, BCA_CUT_CROSS).await;
+    let before_qty = stock_quantity_meters(&db).await;
+    let before_pieces = piece_count_for_dye_lot(&db).await;
+
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/erp/bulk-color-approvals/{BCA_CUT_CROSS}/cut-sample"),
+        Some(json!({ "sample_length_m": "1.0" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "All 无键跨主剪样必须 403: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+    assert_eq!(
+        approval_status(&db, BCA_CUT_CROSS).await,
+        before_status,
+        "零状态漂移"
+    );
+    assert_eq!(stock_quantity_meters(&db).await, before_qty, "零库存扣减");
+    assert_eq!(
+        piece_count_for_dye_lot(&db).await,
+        before_pieces,
+        "零新 SAMPLE 行"
+    );
+}
+
+#[tokio::test]
+async fn cut_sample_all_scope_null_owner_without_key_is_forbidden() {
+    // All 范围 + 父单 created_by=NULL：无归属人＝非本人，且未持代表键 ⇒ 403。
+    // 锁"无主行不因 All 而自动放行"（NULL 归属一律拒绝代操作）。
+    let (app, db) = seeded_app(make_all_auth_nokey(OWNER_A)).await;
+    let before_status = approval_status(&db, BCA_CUT_NULL).await;
+    let before_qty = stock_quantity_meters(&db).await;
+
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/erp/bulk-color-approvals/{BCA_CUT_NULL}/cut-sample"),
+        Some(json!({ "sample_length_m": "1.0" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "All 无键 + NULL 归属必须 403: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+    assert_eq!(
+        approval_status(&db, BCA_CUT_NULL).await,
+        before_status,
+        "零状态漂移"
+    );
+    assert_eq!(stock_quantity_meters(&db).await, before_qty, "零库存扣减");
+}
+
+#[tokio::test]
+async fn cut_sample_dept_scope_null_owner_is_forbidden() {
+    // Dept 范围 + 父单 created_by=NULL：归属人 None ∉ 成员集合 ⇒ 403（不放宽成"无主即可写"）。
+    let (app, db) = seeded_app(make_dept_auth(OWNER_A, &[DEPT_A])).await;
+    let before_status = approval_status(&db, BCA_CUT_NULL).await;
+    let before_qty = stock_quantity_meters(&db).await;
+
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        &format!("/erp/bulk-color-approvals/{BCA_CUT_NULL}/cut-sample"),
+        Some(json!({ "sample_length_m": "1.0" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "Dept + NULL 归属必须 403: {v}"
+    );
+    assert_eq!(v["code"], "FORBIDDEN");
+    assert_eq!(
+        approval_status(&db, BCA_CUT_NULL).await,
+        before_status,
+        "零状态漂移"
+    );
+    assert_eq!(stock_quantity_meters(&db).await, before_qty, "零库存扣减");
 }
 
 // ============ customer_approve：客户批色通过 ============

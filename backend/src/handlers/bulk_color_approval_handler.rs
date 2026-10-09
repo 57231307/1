@@ -252,29 +252,63 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
     }
 }
 
-/// 行级归属门（批色记录族）：批色记录表无自身归属列，归属经父销售订单继承
-/// （`sales_order_id` FK NOT NULL）。本域无 CRM 域那套 `crm/cross_owner_write` 显式代操作键，
-/// 不硬套 `crm_write_guard::ensure_cross_owner_write_allowed`（其权限键 resource_type 固定为
-/// "crm"，语义仅限 CRM 域）。判据取单行归属门的既有权威实现
-/// `data_scope::check_resource_owner_by_member_scope`（归属人 `created_by` ∈ 当前操作人可见部门
-/// 成员集合，本人行恒可读写），而非按父单 `department_id` 列判定的 `check_resource_owner`：
-/// sales_orders 为 RLS 表，`sync_data_department_by_creator` 触发器把该行 `department_id` 覆写为
-/// 创建人所在部门，使「资源部门」恒等于「创建人部门」，Dept 范围下退化成「凡创建人部门可见即放行」，
-/// 拦不住跨归属人（超出可见部门成员集合）的越权写；故父单部门列不可作本门 Dept 判据，须按归属人成员
-/// 集合判定，与列族单行写门及 `build_data_scope_condition` Dept 分支同源。
-/// 父单不存在→404；不在当前操作人可见范围→403 + 固定脱敏文案（不含记录 ID，权限文案永久脱敏）。
-/// 缺口（交主编排）：`All` 范围跨 owner 代操作本域无等价 cross_owner_write 键，须新增 ERP 批色域
-/// 跨 owner 写键并同步权限注册表；本轮不新增权限键、不改 hub，仅按上述范式堵 Self/Dept 水平越权。
+/// 行级归属门（批色记录族，写侧）：批色记录无自身归属列，归属经父销售订单继承
+/// （`sales_order_id` FK NOT NULL）。判据按方案 A「读可 All、写须 owner 或显式代操作键」三档分流：
+/// - 本人行（父单 `created_by == 操作人`）：恒可写，不查键（最常见路径，省一次权限表往返）；
+/// - `All` 范围跨 owner＝代他人操作：须持 ERP 域显式代操作键 `("erp","cross_owner_write")`。
+///   该键不在迁移里播种、admin 由 `check_permission` 内置放行，故默认仅超管可代操作，
+///   其余 All 范围角色须经运维在权限管理界面显式授予；放行即打结构化 info 留痕（actor/role/owner），
+///   拒绝出参为固定脱敏常量（权限文案永久脱敏，原因只进日志）；role_id 缺失按 fail-closed 拒绝。
+/// - `Dept`/`Self`：沿用成员集合归属判定 `check_resource_owner_by_member_scope`（归属人 `created_by`
+///   ∈ 当前操作人可见部门成员集合，集合为空退化为仅本人）——部门代管是 Dept 本职，不需额外键。
+///   sales_orders 为 RLS 表，其 `department_id` 恒＝创建人部门，作 Dept 判据会退化成「创建人部门可见
+///   即放行」、拦不住跨归属人越权，故 Dept 取归属人成员集合而非部门列。
+/// 父单不存在→404；不在可见范围或 All 越权未持键→403。
 async fn ensure_parent_sales_order_access(
-    db: &sea_orm::DatabaseConnection,
+    db: std::sync::Arc<sea_orm::DatabaseConnection>,
+    auth: &crate::middleware::auth_context::AuthContext,
     ctx: &crate::utils::data_scope::DataScopeContext,
     sales_order_id: i32,
 ) -> Result<(), AppError> {
     let parent = crate::models::sales_order::Entity::find_by_id(sales_order_id)
-        .one(db)
+        .one(db.as_ref())
         .await?
         .ok_or_else(|| AppError::not_found("销售订单不存在".to_string()))?;
-    if !crate::utils::data_scope::check_resource_owner_by_member_scope(ctx, parent.created_by) {
+    let owner = parent.created_by;
+    if owner.is_some_and(|o| o == ctx.user_id) {
+        return Ok(());
+    }
+    if ctx.scope == crate::utils::data_scope::DataScope::All {
+        let role_id = auth.role_id.ok_or_else(|| {
+            tracing::warn!(
+                actor = auth.user_id,
+                "批色代操作写被拒：角色未加载，无法校验跨 owner 写权限键"
+            );
+            AppError::permission_denied("无权操作批色记录（数据范围限制）".to_string())
+        })?;
+        let granted = crate::services::role_permission_service::RolePermissionService::new(db)
+            .check_permission(role_id, "erp", "cross_owner_write", None)
+            .await?;
+        if !granted {
+            tracing::warn!(
+                actor = auth.user_id,
+                role = role_id,
+                resource_owner = ?owner,
+                "批色代操作写被拒：All 范围但未持有跨 owner 写权限键"
+            );
+            return Err(AppError::permission_denied(
+                "无权操作批色记录（数据范围限制）".to_string(),
+            ));
+        }
+        tracing::info!(
+            actor = auth.user_id,
+            role = role_id,
+            resource_owner = ?owner,
+            "批色代操作写放行（方案 A：All 范围 + 显式 cross_owner_write 键）"
+        );
+        return Ok(());
+    }
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(ctx, owner) {
         return Err(AppError::permission_denied(
             "无权操作批色记录（数据范围限制）".to_string(),
         ));
@@ -294,7 +328,8 @@ pub async fn create_bulk_color_approval(
     // 写门（建单）：dto.sales_order_id 直传 service 会让任意持本 RBAC 键的用户对
     // 他人销售订单发起批色单（跨 owner 写）。service 落库前先校验父单存在性与行级归属，
     // 越权即 403 且不触达 service.create（零落库、不留孤儿行）。
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, dto.sales_order_id).await?;
+    ensure_parent_sales_order_access(state.db.clone(), &auth, &data_scope_ctx, dto.sales_order_id)
+        .await?;
 
     let service = BulkColorApprovalService::from_state(&state);
 
@@ -353,7 +388,13 @@ pub async fn get_bulk_color_approval(
     let service = BulkColorApprovalService::from_state(&state);
     let record = service.get(id).await.map_err(bca_err)?;
     // 行级归属门（读单行 IDOR 防护）：详情按 approval id 取，校验其父销售订单是否在可见范围。
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, record.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        record.sales_order_id,
+    )
+    .await?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -369,7 +410,13 @@ pub async fn cut_sample(
     // 写门：按 approval id 取父销售订单判归属，门在 service 剪样事务前——越权 403，
     // 零库存扣减、零 inventory_piece 生成、零 approval_status 漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
 
     let params = CutSampleParams {
         sample_length_m: dto.sample_length_m,
@@ -393,7 +440,13 @@ pub async fn send_to_customer(
     // 写门：先按 approval id 取父销售订单判归属，门在 service 写事务之前——越权即 403，
     // 不触达 send_to_customer 的状态流转，approval_status 零漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
     let record = service.send_to_customer(id).await.map_err(bca_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
@@ -412,7 +465,13 @@ pub async fn customer_approve(
     // 写门：按 approval id 取父销售订单判归属，门在 service 状态流转前——越权 403，
     // approval_status 与 history 零漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
 
     let dto = dto.unwrap_or_default();
     let record = service
@@ -434,7 +493,13 @@ pub async fn customer_reject(
     // 写门：按 approval id 取父销售订单判归属，门在 service 状态流转前——越权 403，
     // approval_status 与 history 零漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
 
     let record = service
         .customer_reject(id, auth.user_id, dto.reject_reason, dto.feedback)
@@ -455,7 +520,13 @@ pub async fn customer_rework(
     // 写门：按 approval id 取父销售订单判归属，门在 service 状态流转与返工订单创建前——
     // 越权 403，approval_status/history/生产订单零漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
 
     let record = service
         .customer_rework(id, auth.user_id, dto.reject_reason, dto.feedback)
@@ -475,7 +546,13 @@ pub async fn downgrade(
     let service = BulkColorApprovalService::from_state(&state);
     // 写门：按 approval id 取父销售订单判归属，门在 service 降级事务前——越权 403，状态零漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
     let record = service
         .downgrade(id, dto.reject_reason)
         .await
@@ -494,7 +571,13 @@ pub async fn scrap(
     let service = BulkColorApprovalService::from_state(&state);
     // 写门：按 approval id 取父销售订单判归属，门在 service 报废事务前——越权 403，状态零漂移。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
     let record = service
         .scrap(id, dto.reject_reason)
         .await
@@ -515,7 +598,13 @@ pub async fn list_history(
     // 行级归属门（读单行 IDOR 防护）：历史按 approval_id 取，越权不得返回他人变更轨迹，
     // 也不得降级成"该单无历史"的 2xx 空列表——先校验 approval 父销售订单归属再取历史。
     let approval = service.get(id).await.map_err(bca_err)?;
-    ensure_parent_sales_order_access(&state.db, &data_scope_ctx, approval.sales_order_id).await?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        approval.sales_order_id,
+    )
+    .await?;
     let rows = service.list_history(id).await.map_err(bca_err)?;
     let infos: Vec<BulkColorApprovalHistoryInfo> = rows.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(infos)))
