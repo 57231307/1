@@ -162,6 +162,10 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "maintenance-records",
     // ===== 分析与报表域 =====
     "reports",
+    // 期末报表快照（路由挂在 finance 模块下：`routes/finance.rs` 的
+    // `/period-report-snapshots`）。运行时权限键由 URL 取 segment5 派生为本资源码，
+    // 未登记就会被门层判成"未知的资源路径"而对任何角色都不放行（含管理员）。
+    "period-report-snapshots",
     "bi-analysis",
     "dashboard",
     "sales-analysis",

@@ -197,6 +197,7 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "departments"
             | "permissions"
             | "field-permissions"
+            | "permission-audits"
             // ===== 产品目录直接资源 =====
             | "products"
             | "categories"
@@ -220,10 +221,16 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "ar-reconciliations"
             | "ar-reconciliations-enhanced"
             | "ar-reconciliation-alias"
+            | "period-report-snapshots"
+            | "aging-alert-rules"
+            | "aging-grades"
+            | "asset-categories"
+            | "industry-benchmarks"
             // ===== 生产直接资源 =====
             | "quality-standards"
             | "print-templates"
             | "suppliers"
+            | "supplier-qualifications"
     )
 }
 
@@ -236,6 +243,8 @@ fn is_misc_direct_resource(part: &str) -> bool {
             | "validate"
             | "csv"
             | "excel"
+            | "xlsx"
+            | "stream"
             | "templates"
             | "report-templates"
             | "execute"
