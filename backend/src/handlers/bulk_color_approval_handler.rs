@@ -255,9 +255,13 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
 /// 行级归属门（批色记录族）：批色记录表无自身归属列，归属经父销售订单继承
 /// （`sales_order_id` FK NOT NULL）。本域无 CRM 域那套 `crm/cross_owner_write` 显式代操作键，
 /// 不硬套 `crm_write_guard::ensure_cross_owner_write_allowed`（其权限键 resource_type 固定为
-/// "crm"，语义仅限 CRM 域），故对齐同域 `sales_order_handler` 写门范式——读/写前取父
-/// 销售订单，走唯一权威判定 `data_scope::check_resource_owner`（归属列 `created_by`、冗余部门列
-/// `department_id`，与列表查询构造处下推的 `apply_department_scope` 同源）。
+/// "crm"，语义仅限 CRM 域）。判据取单行归属门的既有权威实现
+/// `data_scope::check_resource_owner_by_member_scope`（归属人 `created_by` ∈ 当前操作人可见部门
+/// 成员集合，本人行恒可读写），而非按父单 `department_id` 列判定的 `check_resource_owner`：
+/// sales_orders 为 RLS 表，`sync_data_department_by_creator` 触发器把该行 `department_id` 覆写为
+/// 创建人所在部门，使「资源部门」恒等于「创建人部门」，Dept 范围下退化成「凡创建人部门可见即放行」，
+/// 拦不住跨归属人（超出可见部门成员集合）的越权写；故父单部门列不可作本门 Dept 判据，须按归属人成员
+/// 集合判定，与列族单行写门及 `build_data_scope_condition` Dept 分支同源。
 /// 父单不存在→404；不在当前操作人可见范围→403 + 固定脱敏文案（不含记录 ID，权限文案永久脱敏）。
 /// 缺口（交主编排）：`All` 范围跨 owner 代操作本域无等价 cross_owner_write 键，须新增 ERP 批色域
 /// 跨 owner 写键并同步权限注册表；本轮不新增权限键、不改 hub，仅按上述范式堵 Self/Dept 水平越权。
@@ -270,8 +274,7 @@ async fn ensure_parent_sales_order_access(
         .one(db)
         .await?
         .ok_or_else(|| AppError::not_found("销售订单不存在".to_string()))?;
-    if !crate::utils::data_scope::check_resource_owner(ctx, parent.created_by, parent.department_id)
-    {
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(ctx, parent.created_by) {
         return Err(AppError::permission_denied(
             "无权操作批色记录（数据范围限制）".to_string(),
         ));
