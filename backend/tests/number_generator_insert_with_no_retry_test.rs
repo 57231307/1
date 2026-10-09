@@ -309,11 +309,19 @@ async fn insert_with_no_retry_recovers_from_bypass_duplicate_23505() {
     guard.rollback().await.expect("释放锁守卫事务失败");
 }
 
-/// 轮询观测：**A 自己的后端**（按 backend pid 精确锁定）正被唯一索引的未提交冲突行
-/// 挂起（`wait_event_type='Transaction' AND wait_event='transactionid'`）。
-/// 这是"B 提交前 A 的第一次取号+插入已就位"的确定性证据；超时即 panic，并把该后端
-/// 当时的 state / 实际等待事件 / 正在执行的语句原文一起打出，暴露前置失效的真实方向
-/// （连接断了？被表级锁挡住？根本没走到 INSERT？），防止退化成"跳过断言"的假绿。
+/// 轮询观测：**A 自己的后端**（按 backend pid 精确锁定）确实走到了候选号 INSERT，并被
+/// B 未提交的重复唯一键行挡在唯一索引冲突的等待上。PG 把"INSERT 等待持冲突行的未提交
+/// 事务出结果"这一等待归类为 `wait_event_type='Lock'`（等待事件枚举里根本不存在
+/// `'Transaction'` 这一类型），其 wait_event 为行/事务级冲突形态：`transactionid`＝等待
+/// 对方事务结束、`tuple`＝等待冲突元组锁、`speculativeinsertion`＝btree 投机插入令牌
+/// 等待——三者都是 INSERT 撞**未提交**重复键时的真实挂起形态，一并作为放行判据以如实
+/// 覆盖真实等待形态全集；再叠加"正在执行的语句是 `INSERT INTO "customers"`"把观测对象
+/// 钉死到 A 的候选号插入本身，排除停在 `pg_advisory_xact_lock`（wait_event='advisory'）
+/// 或停在兄弟用例表级清理（wait_event='relation'）等无关形态。这是"B 提交前 A 的第一次
+/// 取号+插入已就位、且确实被唯一索引挡下而非静默成功"的确定性证据；超时即 panic，并把
+/// 该后端当时的 state / 实际等待事件 / 正在执行的语句原文一起打出，暴露前置失效的真实
+/// 方向（连接断了？被表级锁挡住？根本没走到 INSERT？），防止退化成"跳过断言"的假绿。
+/// 判据只认上列真实冲突形态、未观测到挂起就绝不放行，也绝不放宽成"只要 A 在跑就算通过"。
 async fn wait_until_a_insert_blocked(db: &DatabaseConnection, backend_pid: i32, timeout: Duration) {
     let started = std::time::Instant::now();
     loop {
@@ -339,9 +347,16 @@ async fn wait_until_a_insert_blocked(db: &DatabaseConnection, backend_pid: i32, 
             let query: String = row
                 .try_get_by_index(3)
                 .unwrap_or_else(|_| "<不可读>".to_string());
-            if wait_type.as_deref() == Some("Transaction")
-                && wait_event.as_deref() == Some("transactionid")
-            {
+            // PG 中 INSERT 撞未提交重复键的挂起一律归 wait_event_type='Lock'，
+            // wait_event 为行/事务级冲突三形态之一；再要求正在执行的语句确为
+            // customers 的候选号 INSERT，把观测对象钉死到 A 的被挡插入本身。
+            let blocked_by_unique_conflict = wait_type.as_deref() == Some("Lock")
+                && matches!(
+                    wait_event.as_deref(),
+                    Some("transactionid") | Some("tuple") | Some("speculativeinsertion")
+                )
+                && query.contains("INSERT INTO \"customers\"");
+            if blocked_by_unique_conflict {
                 return;
             }
             if started.elapsed() > timeout {

@@ -228,8 +228,21 @@ async fn test_productionorderservice_approve_order_kdbfherr() {
 /// 写入侧三者恒非空（handlers/product_handler.rs:383-390 默认 "个"/master_data::ACTIVE
 /// ("active")/"成品"，services/product_ops/crud.rs:210 Set(unit)），故种子必须补齐，
 /// 否则解码报 `Missing value for column 'unit'`。取面料域真实词值：米 / active / 成品布。
+///
+/// 完工（complete）步骤走**真实库存联动**：`update_status` 推进到 COMPLETED 时调用生产
+/// 订单完工库存处理，其第一步取"默认成品仓库"——判据是 `warehouses` 中 `is_active = true`
+/// 的行，且按**单行**读取（SeaORM `.one()`）：命中 0 行即返回
+/// `BusinessError("未找到可用仓库，无法执行库存联动")`，命中多行则结果
+/// 歧义直接报错。故夹具必须且只能补**恰好一行**激活仓库。`warehouses` 不在
+/// `setup_test_db()` 的 `SEALED_REFERENCE_TABLES` 种子保留清单内，会随业务表被
+/// TRUNCATE 清空，seed 时该表为空、补一行即唯一命中。列形态按真表 DDL：`name`、
+/// `warehouse_code` 为 NOT NULL 且无默认（本 PR 收紧后必须显式给值，否则撞
+/// "Missing value for column"），`warehouse_code` 全局 UNIQUE；`is_active` 显式给
+/// `true` 命中判据；`is_default`/`is_deleted`/`created_at`/`updated_at` 均有库默认值，
+/// 无需显式给。该仓供成品入库联动使用，取成品仓词值 `warehouse_type='finished'`
+/// （表无 CHECK 约束，且完工链路不按仓库类型过滤，此值仅为语义标注）。
 #[tokio::test]
-#[ignore = "需要 PostgreSQL 测试数据库 + 前置产品/工作中心数据"]
+#[ignore = "需要 PostgreSQL 测试数据库 + 前置产品/工作中心/可用仓库数据"]
 async fn test_scddqlc_cjdwc() {
     let db = setup_test_db().await;
     for (sql, what) in [
@@ -242,6 +255,11 @@ async fn test_scddqlc_cjdwc() {
             "INSERT INTO work_centers (id, code, name) VALUES \
              (1, 'WC-WF-1', '生产全流程测试工作中心')",
             "work_centers 父行",
+        ),
+        (
+            "INSERT INTO warehouses (id, warehouse_code, name, warehouse_type, is_active) \
+             VALUES (1, 'WH-WF-1', '生产全流程测试成品仓', 'finished', true)",
+            "warehouses 默认成品仓库行（完工库存联动判据：is_active=true 的唯一仓库）",
         ),
     ] {
         db.execute_raw(Statement::from_sql_and_values(
