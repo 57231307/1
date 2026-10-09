@@ -50,6 +50,9 @@ const DISAMBIGUATION_CASES: &[(&str, &str, &str)] = &[
     ("sales", "prices", "sales-prices"),
     // 生产域
     ("production", "orders", "production-orders"),
+    // 质量检验 URL 段是单数 quality-inspection，注册表与授权是复数 quality-inspections，
+    // 不消歧则运行时键恒不等于已授复数键、quality_inspector 访问自己检验/缺陷面反而 403。
+    ("production", "quality-inspection", "quality-inspections"),
     // BI 分析域
     ("bi", "sales", "bi-analysis"),
 ];

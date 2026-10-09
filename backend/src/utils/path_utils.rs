@@ -60,8 +60,9 @@ fn is_business_module_prefix(part: &str) -> bool {
             // ===== 生产域（V15 新增：原缺失导致 30+ 资源共用 production 权限码）=====
             | "production"
             | "production-orders"
-            | "material-shortage"
-            | "scheduling"
+            // material-shortage / scheduling 已由 V15 提升到根级（/material-shortage/*、/scheduling/*），
+            // 其第四段是同一资源下的动作/查询维度而非子资源；留在模块前缀表会让资源名漂到 seg4
+            // （alerts/list/summary/tasks），命中不了注册表权威名。改作直接资源，见 is_misc_direct_resource。
             // ===== 财务域 =====
             | "finance"
             | "ap"
@@ -185,6 +186,13 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         // 消歧到注册表权威名 production-orders，同时关掉越权面并复活死授权；
         // 纯收窄，不新增任何"角色×资源×动作"。
         ("production", "orders") => "production-orders".to_string(),
+        // ===== 生产域：质量检验路由 URL 用单数、注册表与授权用复数 =====
+        // URL 段是 `/production/quality-inspection/{records,defects,...}`（单数，routes/production.rs），
+        // 而 PERMISSION_RESOURCES 与角色种子登记的都是复数 `quality-inspections`（init_service.rs /
+        // init_service_ops/permission.rs）。走默认分支直传单数 ⇒ 运行时键 quality-inspection:*
+        // 恒不等于已授的 quality-inspections:*，quality_inspector 等持权岗访问自己检验/缺陷面反而 403。
+        // 消歧到注册表权威复数名，纯对齐复活死授权，不新增任何"角色×资源×动作"。
+        ("production", "quality-inspection") => "quality-inspections".to_string(),
         // ===== 其他情况：保留 resource 原名 =====
         _ => resource.to_string(),
     }
@@ -302,6 +310,9 @@ fn is_misc_direct_resource(part: &str) -> bool {
         // 任何角色种子都不含这些名字，非 admin 用户必然 403（fail-closed 静默失效）。
         | "dashboard"
         | "notifications"
+        // ===== 缺料预警与排产：根级挂载，第四段是动作/维度不是子资源（与 dashboard 同型）=====
+        | "material-shortage"
+        | "scheduling"
         // ===== 审计与日志直接资源 =====
         | "logs"
         | "health"
