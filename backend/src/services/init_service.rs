@@ -162,10 +162,20 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "maintenance-records",
     // ===== 分析与报表域 =====
     "reports",
-    // 期末报表快照（路由挂在 finance 模块下：`routes/finance.rs` 的
-    // `/period-report-snapshots`）。运行时权限键由 URL 取 segment5 派生为本资源码，
-    // 未登记就会被门层判成"未知的资源路径"而对任何角色都不放行（含管理员）。
+    // 以下五枚是"路由早已注册、资源段却从未进本表"的收编：路径均挂在 `/api/v1/erp/<段>`
+    // 根级（segment3 即资源码），缺登记时中间件按"未知的资源路径"对**任何**角色拒（含管理员）；
+    // 补登记只解决"路径认识"，能否放行仍由下面各岗位的授权行决定。
+    // 期末报表快照：GET 列表/详情/verify 派生 read，POST 生成派生 create。
     "period-report-snapshots",
+    // 账龄预警规则与账龄档位：财务侧配置主数据，GET=read、POST=create、PUT=update、DELETE=delete。
+    "aging-alert-rules",
+    "aging-grades",
+    // 资产类别（固定资产卡片表单取数）与行业基准（财务分析对标取数）。
+    "asset-categories",
+    "industry-benchmarks",
+    // 供应商资质到期扫描 `POST /supplier-qualifications/scan-expiry-warnings`：末段不在
+    // 动作关键字表内，故按方法派生为 create（不是 scan）；读取资质走同资源 read。
+    "supplier-qualifications",
     "bi-analysis",
     "dashboard",
     "sales-analysis",
@@ -181,7 +191,7 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "slow-queries",
     "print-templates",
     "data-import",
-    "permissions-audit",
+    "permission-audits",
     // ===== 审批流域 =====
     "export-approvals",
     "role-change-approvals",

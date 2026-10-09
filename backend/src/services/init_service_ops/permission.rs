@@ -478,6 +478,10 @@ impl InitService {
             (
                 "gm",
                 &[
+                    // 经营分析入口要读期末报表快照与行业基准对标；`/period-report-snapshots`、
+                    // `/industry-benchmarks` 的 seg3 即资源码，只授 read，写面归财务责任岗。
+                    ("period-report-snapshots", "read"),
+                    ("industry-benchmarks", "read"),
                     ("users", "read"),
                     ("roles", "read"),
                     ("departments", "read"),
@@ -519,6 +523,9 @@ impl InitService {
             (
                 "deputy_gm",
                 &[
+                    // 同 gm：经营分析入口读期末报表快照与行业基准对标，均只读。
+                    ("period-report-snapshots", "read"),
+                    ("industry-benchmarks", "read"),
                     ("users", "read"),
                     ("roles", "read"),
                     ("departments", "read"),
@@ -638,6 +645,10 @@ impl InitService {
             (
                 "purchase_manager",
                 &[
+                    // 供应商资质到期扫描 `POST /supplier-qualifications/scan-expiry-warnings`：
+                    // 末段不在动作关键字表，按方法派生为 create，故采购主管需 read+create 双键。
+                    ("supplier-qualifications", "read"),
+                    ("supplier-qualifications", "create"),
                     ("purchase-orders", "read"),
                     ("purchase-orders", "update"),
                     ("purchase-orders", "delete"),
@@ -722,6 +733,8 @@ impl InitService {
             (
                 "sourcing_specialist",
                 &[
+                    // 寻源岗需读供应商资质以核对供方准入，只读不写。
+                    ("supplier-qualifications", "read"),
                     ("suppliers", "read"),
                     ("suppliers", "create"),
                     ("suppliers", "update"),
@@ -980,6 +993,8 @@ impl InitService {
             (
                 "quality_inspector",
                 &[
+                    // 质检需读供应商资质判定来料是否属已核准供方，只读。
+                    ("supplier-qualifications", "read"),
                     ("quality-inspections", "*"),
                     ("quality-issues", "read"),
                     ("quality-issues", "create"),
@@ -1015,6 +1030,14 @@ impl InitService {
             (
                 "finance_manager",
                 &[
+                    // 财务侧配置主数据责任岗：期末快照可读可生成，账龄预警规则/档位/资产类别
+                    // 全权（这些段的 CRUD 由 seg3 直接派生），行业基准仅读作对标取数。
+                    ("period-report-snapshots", "read"),
+                    ("period-report-snapshots", "create"),
+                    ("aging-alert-rules", "*"),
+                    ("aging-grades", "*"),
+                    ("asset-categories", "*"),
+                    ("industry-benchmarks", "read"),
                     ("vouchers", "*"),
                     ("subjects", "*"),
                     ("fixed-assets", "*"),
@@ -1037,6 +1060,13 @@ impl InitService {
             (
                 "accountant",
                 &[
+                    // 记账岗只读财务配置主数据（快照/账龄规则档位/资产类别/行业基准），
+                    // 编辑权仍由 finance_manager 持有。
+                    ("period-report-snapshots", "read"),
+                    ("aging-alert-rules", "read"),
+                    ("aging-grades", "read"),
+                    ("asset-categories", "read"),
+                    ("industry-benchmarks", "read"),
                     ("vouchers", "*"),
                     ("subjects", "read"),
                     ("gl", "read"),
@@ -1237,6 +1267,9 @@ impl InitService {
             (
                 "auditor",
                 &[
+                    // 权限审计页 `GET /permission-audits`：seg3 派生 permission-audits，
+                    // 审计岗需只读。
+                    ("permission-audits", "read"),
                     ("audit-logs", "read"),
                     ("reports", "read"),
                     // 这两页的路由 meta 就是 `audit-logs:read`（auditor 已持），页面进得去而
@@ -1261,13 +1294,16 @@ impl InitService {
                     ("slow-queries", "*"),
                     ("print-templates", "*"),
                     ("data-import", "*"),
-                    ("permissions-audit", "*"),
+                    ("permission-audits", "*"),
                     ("business-trace", "read"),
                 ],
             ),
             (
                 "data_analyst",
                 &[
+                    // 数据分析岗读期末报表快照与行业基准作建模对标取数，均只读。
+                    ("period-report-snapshots", "read"),
+                    ("industry-benchmarks", "read"),
                     ("reports", "*"),
                     ("bi-analysis", "*"),
                     ("dashboard", "*"),
