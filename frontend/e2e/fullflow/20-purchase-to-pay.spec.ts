@@ -201,7 +201,7 @@ async function seedPo(
 }
 
 /** 按唯一 order_no 把 /purchase 列表收敛到本例行（purchase/03 locateRowByOrderNo 范式）。
- *  只做导航 + 筛选 + 「恰一行」存在性断言；**不**返回行供点按钮——PurchaseTable.vue:8
+ *  只做导航 + 筛选 + 「恰一行」存在性断言；**不**返回行供点按钮——PurchaseTable.vue 第 8 行
  *  的标准 el-table 对 fixed 列（:9 order_no fixed / :65 操作列 fixed="right"）走独立覆盖层
  *  克隆行，主 `getByRole('row')` 作用域取不到行内操作按钮（收货），必须改用 findRowAction
  *  做主↔右覆盖层同序号对齐后再点（见 receiveViaUI）。 */
@@ -226,7 +226,7 @@ async function receiveViaUI(
   batchNo: string
 ): Promise<number> {
   await locatePoRow(page, orderNo);
-  // 收货按钮在操作列（PurchaseTable.vue:65 fixed="right"）的固定列覆盖层里，主 getByRole('row')
+  // 收货按钮在操作列（PurchaseTable.vue 第 65 行 fixed="right"）的固定列覆盖层里，主 getByRole('row')
   // 作用域取不到；用 findRowAction 按 order_no 做主↔右覆盖层同序号对齐命中后再点，
   // 未命中即抛错（fail-visible，不回退到点首行/行内直取）。
   const receiveBtn = await findRowAction(page, orderNo, r =>
@@ -571,9 +571,9 @@ test.describe('20 采购到付款全流程契约链', () => {
     expectDecimal(poRows[0], 'received_quantity', 5, '重复确认被拒后已收量不应翻倍');
 
     // 空批次入库单：后端在「建单期」即按四维准入拒绝——create_receipt 在开启事务前逐行调用
-    // validate_receipt_item_dimensions（purchase_receipt_ops/crud.rs:39-41），对 trim 后空白的
-    // batch_no 直接返回 AppError::business（crud.rs:121-132），整单不落库。单测
-    // blank_batch_is_rejected / missing_batch_is_rejected（crud.rs:628-651）已把该 fail-closed
+    // validate_receipt_item_dimensions（purchase_receipt_ops/crud.rs 第 39-41 行），对 trim 后空白的
+    // batch_no 直接返回 AppError::business（crud.rs 第 121-132 行），整单不落库。单测
+    // blank_batch_is_rejected / missing_batch_is_rejected（crud.rs 第 628-651 行）已把该 fail-closed
     // 口径钉死，源码正确。故本负例判据是「建单口 POST /purchase/receipts 即 400 +
     // BUSINESS_ERROR」，而非旧用例误设的「建单可过、仅确认门拒」——旧写法 requireNum(bad.id)
     // 之所以恒抛，正是因为建单这一步就被拒、压根没有入库单 id 可取。
@@ -606,7 +606,7 @@ test.describe('20 采购到付款全流程契约链', () => {
     });
     expect(failCreate.status, `空批次建单应 400，实际=${failCreate.status}`).toBe(400);
     expect(failureCode(failCreate), '空批次建单机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
-    // 归因收紧：拒绝文案必须命中「批次」这一维（源码拒绝语 crud.rs:128-131 含「批次号」），
+    // 归因收紧：拒绝文案必须命中「批次」这一维（源码拒绝语 crud.rs 第 128-131 行含「批次号」），
     // 杜绝让其它同形 400+BUSINESS_ERROR（缺产品 / 染色布缺缸号 / 质检门）蹭作本例证据。
     expect(failCreate.message, `空批次建单的拒绝原因应命中批次维：${failCreate.message}`).toMatch(
       /批次/

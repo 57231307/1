@@ -248,9 +248,9 @@ test.describe('30 系统配置契约链', () => {
     ).toBeUndefined();
 
     // 重名 → 业务族（user_service.rs:131-144）
-    // 密码必须是「强度合规」的强密码（含 ASCII 小写——password_validator.rs:61 require_lowercase，
+    // 密码必须是「强度合规」的强密码（含 ASCII 小写——password_validator 的 require_lowercase，
     // 且大小写+数字+特殊齐全），否则请求会先被强度校验门以 VALIDATION_ERROR 拒，根本到不了
-    // 唯一性门（BUSINESS），本负例就验不到重名语义。旧值 E30别的!${ts}W9 无 ASCII 小写
+    // 唯一性门（BUSINESS），本负例就验不到重名语义。旧值缺 ASCII 小写字母
     // （别的 为中文、W 大写、余皆数字）即卡此门——形状对齐首个建单 E30ok!${ts}Zq（line 238）。
     const dup = await apiCallExpectFail(page, 'POST', '/users', {
       username,
@@ -311,8 +311,8 @@ test.describe('30 系统配置契约链', () => {
     expect(free, '未占用单号应返回 false').toBe(false);
 
     // 空白单号 no=%20：normalize_empty_query_params 在 handler 之前按 trim 剔除空值 query 键
-    // （query_params.rs:25-38/53-74），CheckDocNoQuery.no 随之缺失，走 Query 反序列化——本仓既定 IR
-    // 「字段/缺失校验 = VALIDATION_ERROR」（error.rs:358/794，HTTP 仍 400）。旧用例误设 BAD_REQUEST，
+    // （query_params 第 25-38、53-74 行），CheckDocNoQuery.no 随之缺失，走 Query 反序列化——本仓既定 IR
+    // 「字段/缺失校验 = VALIDATION_ERROR」（error 第 358、794 行，HTTP 仍 400）。旧用例误设 BAD_REQUEST，
     // 以为命中 handler :34-36 的空号分支，但剥键后该分支不可达。纯空白是否应改判 BAD_REQUEST 属后端
     // 契约待判，本任务只按 IR 对齐判据、不动后端。
     const empty = await apiCallExpectFail(
