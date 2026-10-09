@@ -14,6 +14,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use sea_orm::{ActiveModelTrait, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -262,32 +263,29 @@ pub async fn update_asset(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新固定资产: ID={}", auth.username, id);
 
-    // P1-2j 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
     req.validate().map_err(AppError::from)?;
 
     let service = FixedAssetService::new(state.db.clone());
 
-    // 获取现有资产
-    let mut asset = service.get_by_id(id).await?;
+    let asset = service.get_by_id(id).await?;
 
-    // 更新字段
+    // 先转 ActiveModel（全部字段标记为 Unchanged），再逐字段 Set 提交值；
+    // 仅在 DTO 字段为 Some 时写入，None 保持原值不动。
+    let mut active_model: fixed_asset::ActiveModel = asset.into();
+
     if let Some(name) = req.asset_name {
-        asset.asset_name = name;
+        active_model.asset_name = Set(name);
     }
     if let Some(category) = req.asset_category {
-        asset.asset_category = Some(category);
+        active_model.asset_category = Set(Some(category));
     }
     if let Some(spec) = req.specification {
-        asset.specification = Some(spec);
+        active_model.specification = Set(Some(spec));
     }
     if let Some(location) = req.use_location {
-        asset.use_location = Some(location);
+        active_model.use_location = Set(Some(location));
     }
-
-    // 保存更新
-    use sea_orm::ActiveModelTrait;
-    let mut active_model: crate::models::fixed_asset::ActiveModel = asset.into();
-    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
+    active_model.updated_at = Set(chrono::Utc::now());
 
     let updated = active_model.update(&*state.db).await?;
 
