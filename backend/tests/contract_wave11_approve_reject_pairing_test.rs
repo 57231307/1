@@ -654,6 +654,8 @@ async fn seed_fo_customer(db: &DatabaseConnection) -> i32 {
         customer_code: Set("CUS-W11-FO".to_string()),
         customer_name: Set("面料拒绝锁客户".to_string()),
         customer_type: Set("retail".to_string()),
+        credit_limit: Set(rust_decimal::Decimal::ZERO),
+        payment_terms: Set(30),
         status: Set(master_data::ACTIVE.to_string()),
         owner_id: Set(FO_SEED_USER_ID),
         created_at: Set(fo_now()),

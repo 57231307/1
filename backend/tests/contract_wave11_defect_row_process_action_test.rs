@@ -108,6 +108,7 @@ async fn seed_unqualified(
         handling_status: Set(handling_status.to_string()),
         scrap_approval_status: Set(scrap_approval_status.to_string()),
         grade: Set(Some("C".to_string())),
+        stock_grade_synced: Set(false),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
         ..Default::default()

@@ -47,7 +47,7 @@ use bingxi_backend::handlers::quotation_handler::{
     set_quotation_terms,
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{sales_quotation, sales_quotation_term};
+use bingxi_backend::models::{customer, sales_quotation, sales_quotation_term, user};
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
@@ -156,6 +156,45 @@ fn make_quotation(
 
 async fn seed(db: &sea_orm::DatabaseConnection) {
     use sea_orm::ActiveModelTrait;
+
+    // 父行播种顺序 users → customers → sales_quotations：`sales_crm/mod.rs` 权威建表把
+    // customer_id→customers、sales_user_id 与 created_by→users 都声明为 NOT NULL 内联
+    // REFERENCES（即报告点名的 sales_quotations_customer_id_fkey 同族的三个 FK 约束均强制）。
+    // users/customers 属业务表、每次 setup_test_db 都 TRUNCATE（不在 SEALED 名单），故直接插
+    // 新行、无需幂等跳过；部门取迁移种子已有的 id=1。缺任一父行报价插入即报 23503。
+    for uid in [OWNER_A, OWNER_B] {
+        user::ActiveModel {
+            id: Set(uid),
+            username: Set(format!("qt_owner_{uid}")),
+            password_hash: Set("test-only-not-a-real-hash".to_string()),
+            is_active: Set(true),
+            is_totp_enabled: Set(false),
+            department_id: Set(Some(1)),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+    }
+
+    customer::ActiveModel {
+        id: Set(CUSTOMER_ID),
+        customer_code: Set("CUS-QTOWN".to_string()),
+        customer_name: Set("报价归属门测试客户".to_string()),
+        credit_limit: Set(Decimal::ZERO),
+        payment_terms: Set(30),
+        status: Set("active".to_string()),
+        customer_type: Set("retail".to_string()),
+        owner_id: Set(OWNER_A),
+        created_at: Set(Utc::now()),
+        updated_at: Set(Utc::now()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
 
     // 播种三条报价：QT_OWN(self, owner_a)、QT_OWN_APPROVED(APPROVED, owner_a)、QT_CROSS(APPROVED, owner_b)
     let today = Utc::now().date_naive();

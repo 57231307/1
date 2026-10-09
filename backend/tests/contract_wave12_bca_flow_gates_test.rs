@@ -37,8 +37,8 @@ use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::bulk_color_approval_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{
-    bulk_color_approval, bulk_color_approval_history, customer, dye_batch, inventory_piece,
-    inventory_stock, sales_order, user,
+    bulk_color_approval, bulk_color_approval_history, customer, department, dye_batch,
+    inventory_piece, inventory_stock, sales_order, user,
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -149,6 +149,38 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
 
 async fn seed(db: &sea_orm::DatabaseConnection) {
     let now = Utc::now();
+
+    // 部门参照种子（必须在插用户前）：夹具 `services/test_common.rs` 把 `departments`
+    // 列入 SEALED_REFERENCE_TABLES（不参与 TRUNCATE），迁移又只播种 id 1~5（m0001），
+    // 而本文件把 DEPT_A=9500 / DEPT_B=9600 写进 `users.department_id`（fk_users_department）
+    // 与 `sales_order.department_id`，故必须自建这两行。因 departments 跨用例/跨文件在同一
+    // 直库上持续累积、只有迁移种子 1~5 被复用，重复插固定主键会撞 23505，故照既有幂等口径
+    // "按主键查、已存在即跳过"（CI 以 `--test-threads=1` 串行跑真库写删，见 ci-cd.yml，查后即插无竞态）。
+    for (dept_id, code, name) in [
+        (DEPT_A, "D-BCAFLOW-A", "批色流程门测试部门A"),
+        (DEPT_B, "D-BCAFLOW-B", "批色流程门测试部门B"),
+    ] {
+        let exists = department::Entity::find_by_id(dept_id)
+            .one(db)
+            .await
+            .unwrap()
+            .is_some();
+        if !exists {
+            department::ActiveModel {
+                id: Set(dept_id),
+                name: Set(name.to_string()),
+                code: Set(code.to_string()),
+                sort_order: Set(0),
+                is_active: Set(true),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .unwrap();
+        }
+    }
 
     // 用户
     for uid in [OWNER_A, OWNER_B] {

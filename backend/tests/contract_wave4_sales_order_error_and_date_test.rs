@@ -417,16 +417,18 @@ fn source_scan_sales_order_handler_internal_ratchet_shrink_only() {
 
 /// 报价词表同源锁：list_expired 不得再用 Expr::cust 手写状态字面量，须绑定 quotation 词表常量；
 /// 全文件不得出现大写状态字面量硬串。
+/// 注：list_expired 过滤逻辑已从 handler 下沉到 service 层（quotation_ops/crud.rs），
+/// 本锁对应扫描 service 文件。
 #[test]
 fn source_scan_quotation_status_filter_uses_word_table_constants() {
-    let src = include_str!("../src/handlers/quotation_handler.rs").replace('\r', "");
+    let src = include_str!("../src/services/quotation_ops/crud.rs").replace('\r', "");
     assert!(
         !src.contains("Expr::cust"),
-        "quotation_handler 禁止再用 Expr::cust 手写 SQL 状态字面量（绕过唯一词表来源）"
+        "quotation_ops/crud 禁止再用 Expr::cust 手写 SQL 状态字面量（绕过唯一词表来源）"
     );
     assert!(
         !src.contains("status NOT IN"),
-        "quotation_handler 禁止残留手写 'status NOT IN (...)' SQL 字面量"
+        "quotation_ops/crud 禁止残留手写 'status NOT IN (...)' SQL 字面量"
     );
     // list_expired 必须引用词表常量
     assert!(
@@ -447,7 +449,7 @@ fn source_scan_quotation_status_filter_uses_word_table_constants() {
     ] {
         assert!(
             !src.contains(literal),
-            "quotation_handler 不得出现大写状态字面量硬串 {literal}"
+            "quotation_ops/crud 不得出现大写状态字面量硬串 {literal}"
         );
     }
 }

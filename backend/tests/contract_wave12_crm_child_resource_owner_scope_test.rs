@@ -221,6 +221,10 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
             lead_source: Set("web".to_string()),
             contact_name: Set(format!("联系人-{lid}")),
             owner_id: Set(owner),
+            // owner_name 为 m0013 crm_lead NOT NULL 列，缺省经 `..Default::default()` 落
+            // ActiveValue::NotSet 会被 Postgres 判为 NULL 触发 23502；按本仓硬规则取真实
+            // 种子用户名（= 上面 users 种入的 username），与同文件 crm_opportunity 种法同源。
+            owner_name: Set(format!("owner_scope_{owner}")),
             department_id: Set(Some(1)),
             ..Default::default()
         }

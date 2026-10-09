@@ -467,7 +467,11 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         custom_order_id: Set(CO),
         process_node_id: Set(None),
         issue_type: Set("quality".to_string()),
-        severity: Set("major".to_string()),
+        // severity 取值权威为 DB CHECK `chk_issue_severity`（m0044）IN
+        // ('low','medium','high','critical')；`"major"` 是词表外值、插入即 CHECK 违例。
+        // 本处是 8D 归属链的正向前置种子（非测越界被拒的负例），按同族
+        // custom_order_process_gates_test.rs 的种法取合法高值 high。
+        severity: Set("high".to_string()),
         description: Set("流转门契约质量异常".to_string()),
         discovered_at: Set(now),
         resolved_at: Set(None),

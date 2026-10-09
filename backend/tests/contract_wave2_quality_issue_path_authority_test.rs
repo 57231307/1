@@ -152,9 +152,9 @@ async fn seeded_app() -> (Router, sea_orm::DatabaseConnection) {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         r#"INSERT INTO custom_orders (id,order_no,customer_id,product_id,spec,quantity,
-                 status,created_at,updated_at) VALUES
+                 status,created_by,created_at,updated_at) VALUES
                  (42,'W2QI-CO-42',1,1,'150D/48F 平纹 160cm',1000,
-                  'dyeing','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
+                  'dyeing',100,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')"#,
         Vec::<sea_orm::Value>::new(),
     ))
     .await

@@ -48,10 +48,14 @@ use bingxi_backend::handlers::{
     ar_reconciliation_handler, lab_dip_handler, labor_contract_handler,
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{ar_reconciliation, customer, lab_dip_request, labor_contract, user};
+use bingxi_backend::models::{
+    ar_reconciliation, customer, department, lab_dip_request, labor_contract, user,
+};
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseBackend, Statement};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ConnectionTrait, DatabaseBackend, EntityTrait, Statement,
+};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -151,6 +155,35 @@ async fn call(app: &Router, uri: &str) -> (StatusCode, Value) {
 
 async fn seed(db: &sea_orm::DatabaseConnection) {
     let now = Utc::now();
+
+    // 部门参照种子（必须在插用户前）：`departments` 在 SEALED_REFERENCE_TABLES 中不参与
+    // TRUNCATE，迁移只播种 id 1~5，而本文件 DEPT_HOME=9470 / DEPT_OTHER=9471 被写入
+    // users.department_id（fk_users_department），需自建。幂等：主键查已存在则跳过。
+    for (dept_id, code, name) in [
+        (DEPT_HOME, "D-DEPTSCOPE-9470", "部门范围测试主部门"),
+        (DEPT_OTHER, "D-DEPTSCOPE-9471", "部门范围测试他部门"),
+    ] {
+        let exists = department::Entity::find_by_id(dept_id)
+            .one(db)
+            .await
+            .unwrap()
+            .is_some();
+        if !exists {
+            department::ActiveModel {
+                id: Set(dept_id),
+                name: Set(name.to_string()),
+                code: Set(code.to_string()),
+                sort_order: Set(0),
+                is_active: Set(true),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .unwrap();
+        }
+    }
 
     // 三个用户：A、B 归 DEPT_HOME，C 归 DEPT_OTHER（父客户继承通路据此决定 C 不可见）。
     for (uid, dept) in [

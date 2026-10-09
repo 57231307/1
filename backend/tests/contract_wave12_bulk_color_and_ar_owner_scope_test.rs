@@ -43,7 +43,7 @@ use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::{ar_reconciliation_handler, bulk_color_approval_handler};
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{
-    ar_reconciliation, bulk_color_approval, customer, dye_batch, sales_order, user,
+    ar_reconciliation, bulk_color_approval, customer, department, dye_batch, sales_order, user,
 };
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -137,6 +137,36 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
 
 async fn seed(db: &sea_orm::DatabaseConnection) {
     let now = Utc::now();
+
+    // 部门参照种子（必须在插用户前）：夹具 `services/test_common.rs` 把 `departments`
+    // 列入 SEALED_REFERENCE_TABLES（不参与 TRUNCATE），迁移又只播种 id 1~5，
+    // 而本文件把 DEPT_ID=9500 / OTHER_DEPT=9999 写进 `users.department_id`（fk_users_department）
+    // 与 `sales_order.department_id`，故必须自建这两行。按幂等口径"主键查、已存在即跳过"。
+    for (dept_id, code, name) in [
+        (DEPT_ID, "D-BCAAR-9500", "归属门测试部门A"),
+        (OTHER_DEPT, "D-BCAAR-9999", "归属门测试其他部门"),
+    ] {
+        let exists = department::Entity::find_by_id(dept_id)
+            .one(db)
+            .await
+            .unwrap()
+            .is_some();
+        if !exists {
+            department::ActiveModel {
+                id: Set(dept_id),
+                name: Set(name.to_string()),
+                code: Set(code.to_string()),
+                sort_order: Set(0),
+                is_active: Set(true),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .unwrap();
+        }
+    }
 
     for uid in [OWNER_A, OWNER_B] {
         user::ActiveModel {
