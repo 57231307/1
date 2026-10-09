@@ -18,7 +18,7 @@ use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::sales_order as so_status;
 use crate::utils::cache::{AppCache, Cache};
 // 缺陷 4.3 修复：仪表板按角色控制可见卡片 + 数据范围过滤
-use crate::utils::data_scope::DataScopeContext;
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, build_data_scope_sql};
 use crate::utils::error::AppError;
 
 /// V15 P2 B07-P2-2：仪表板缓存 TTL 常量（5 分钟），消除 Duration::from_secs(300) 魔法数字
@@ -344,13 +344,36 @@ impl DashboardService {
         Ok(overview)
     }
 
-    /// 按起止日期生成销售统计缓存键
+    /// 按起止日期 + 当前数据范围生成销售统计缓存键。
+    /// 键必须纳入 data_scope（scope + 归属人 + 可见部门集合）：销售统计已按角色下推行级
+    /// 过滤，若沿用只含日期的共享键，先到的会话会把其范围结果写进缓存、随后不同范围
+    /// 的会话直接命中 ⇒ 跨角色串数据。无 ctx（预热/历史调用）按 all 参与键。
     fn build_sales_cache_key(
+        &self,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> String {
+        let scope_tag = match self.data_scope.as_ref() {
+            Some(ctx) => {
+                let mut depts = ctx.dept_ids.clone();
+                depts.sort_unstable();
+                depts.dedup();
+                format!(
+                    "{}|u{}|d[{}]",
+                    ctx.scope.as_str(),
+                    ctx.user_id,
+                    depts
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            }
+            None => "all".to_string(),
+        };
         format!(
-            "dashboard:sales:{}-{}",
+            "dashboard:sales:{}:{}-{}",
+            scope_tag,
             start_date
                 .map(|d| d.to_rfc3339())
                 .unwrap_or("all".to_string()),
@@ -377,11 +400,25 @@ impl DashboardService {
         end_date: Option<DateTime<Utc>>,
     ) -> Result<Vec<(chrono::NaiveDate, Option<Decimal>)>, AppError> {
         let mut query = sales_order::Entity::find();
-        // 金额与其所在日分桶由同一谓词门控：draft/cancelled 行在聚合前即被剔除，
+        // 金额与其所在日分桶由同一谓词门控：draft/cancelled 行在聚合前即被路由，
         // SUM(total_amount) 与按日行数计数天然同口径，不存在"只滤金额不滤单数"。
         query = query.filter(
             sales_order::Column::Status.is_not_in([so_status::CANCELLED, so_status::DRAFT]),
         );
+        // 缺陷 4.3 补全：日/周/月卡片同样按角色数据范围过滤（此前仅概览下推，销售
+        // 统计端点把 ctx 建好却从不用 ⇒ 非管理员在此看到全库销售趋势，越权且与概览
+        // 口径互相矛盾）。sales_orders 是 5 张 RLS 表之一（有 department_id 冗余列），
+        // 走 apply_department_scope：All 不加行级过滤；Dept 取「本人 OR 部门 ∈ 可见集合」，
+        // 可见部门为空时内部退化为「仅本人」——由 SeaORM 条件树绑定参数，dept 集合为空
+        // 时不会拼出 `IN ()` 这类非法语句；零命中行时聚合按分组返回空集，非 500。
+        if let Some(ctx) = self.data_scope.as_ref() {
+            query = apply_department_scope(
+                query,
+                ctx,
+                sales_order::Column::CreatedBy,
+                sales_order::Column::DepartmentId,
+            );
+        }
         if let Some(start) = start_date {
             query = query.filter(sales_order::Column::OrderDate.gte(start.date_naive()));
         }
@@ -468,7 +505,7 @@ impl DashboardService {
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> Result<SalesStatistics, AppError> {
-        let cache_key = Self::build_sales_cache_key(start_date, end_date);
+        let cache_key = self.build_sales_cache_key(start_date, end_date);
         if let Some(cached) = self.try_read_sales_cache(&cache_key) {
             return Ok(cached);
         }
@@ -497,6 +534,11 @@ impl DashboardService {
 
     /// 按维度（customer/product/salesperson）聚合销售统计
     /// 批次 134 v9 P1 修复：替代原 vec![] 占位。；通过 raw SQL 关联对应主数据表，按维度字段分组聚合销售额与订单数。；排除 CANCELLED/DRAFT 状态订单。
+    /// 缺陷 4.3 补全：raw SQL 与 BI 分维同源，注入角色数据范围片段（sales_orders 别名 s）。
+    /// 占位符顺序严格对齐参数顺序，避免 $N 撞号：$1/$2=排除门 → $3..=数据范围（可能 0 或 1 个）
+    /// → 其后顺延=日期过滤。self 用绑定 created_by；dept 有可见部门时按 department_id =
+    /// ANY(int[]) 绑定，无可见部门内部退化为 created_by=uid 字面量；all 不追加片段——
+    /// 因此不存在「IN ()」空集合非法语句，也不存在把非管理员会话直接拍成 500 的分支。
     async fn query_sales_by_dimension(
         &self,
         start_date: Option<DateTime<Utc>>,
@@ -507,10 +549,19 @@ impl DashboardService {
             Some(sql) => sql,
             None => return Ok(vec![]),
         };
-        let (sql, date_params) = Self::append_date_filters(base_sql, start_date, end_date);
-        // 排除门取值绑定写入方权威词表（小写），$1/$2；日期过滤从 $3 起
+        // 数据范围片段：$1/$2 已被排除门占用，片段基址从 $3 起（与 BI raw SQL 口径同源）。
+        let (scope_sql, scope_values) = match self.data_scope.as_ref() {
+            Some(ctx) => build_data_scope_sql(ctx, "s", 3),
+            None => (String::new(), Vec::new()),
+        };
+        // 日期过滤基址 = 排除门(2) + 数据范围已消耗的绑定数（self/dept=1、all/无部门=0）。
+        let date_base_idx = 3 + scope_values.len();
+        let (sql, date_params) =
+            Self::append_date_filters(base_sql, &scope_sql, date_base_idx, start_date, end_date);
+        // 参数按占位符号序拼接：$1/$2 排除门 → 数据范围 → 日期。
         let mut params: Vec<sea_orm::Value> =
             vec![so_status::CANCELLED.into(), so_status::DRAFT.into()];
+        params.extend(scope_values);
         params.extend(date_params);
         let stmt = Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, params);
         let rows = SalesByDimensionRow::find_by_statement(stmt)
@@ -565,16 +616,26 @@ impl DashboardService {
         }
     }
 
-    /// 追加日期过滤参数与分组排序
-    /// 基址为 $3：$1/$2 已被 build_dimension_sql 中的排除门状态绑定占位
+    /// 追加数据范围片段、日期过滤参数与分组排序。
+    /// `scope_sql` 为 build_data_scope_sql 产出的以 `AND ` 起始的片段（all 时为空串），
+    /// 直接拼到排除门 WHERE 之后；`date_base_idx` 为日期过滤起始占位符号
+    /// （= 3 + 数据范围已消耗的绑定数），确保与 $1/$2 排除门、$3.. 范围片段互不撞号。
     fn append_date_filters(
         mut sql: String,
+        scope_sql: &str,
+        date_base_idx: usize,
         start_date: Option<DateTime<Utc>>,
         end_date: Option<DateTime<Utc>>,
     ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = Vec::new();
-        let mut param_idx = 3usize;
 
+        // 数据范围片段（self/dept/all）紧随排除门；all 为空串不追加任何东西。
+        if !scope_sql.is_empty() {
+            sql.push(' ');
+            sql.push_str(scope_sql);
+        }
+
+        let mut param_idx = date_base_idx;
         if let Some(start) = start_date {
             sql.push_str(&format!(" AND s.order_date >= ${} ", param_idx));
             params.push(start.naive_utc().into());
