@@ -1253,7 +1253,6 @@ frontend/e2e/fullflow/11-ar.spec.ts::models/status/finance.rs
 frontend/e2e/fullflow/11-ar.spec.ts::recon_ops/crud.rs
 frontend/e2e/fullflow/11-ar.spec.ts::services/ar/recon_ops/crud.rs
 frontend/e2e/fullflow/11-ar.spec.ts::services/ar_invoice_service.rs
-frontend/e2e/fullflow/11-ar.spec.ts::services/ar_ops/collection.rs
 frontend/e2e/fullflow/11-ar.spec.ts::services/ar_ops/json_helpers.rs
 frontend/e2e/fullflow/11-ar.spec.ts::utils/messages.rs
 frontend/e2e/fullflow/12-voucher-period.spec.ts::account_subject_handler.rs

@@ -85,7 +85,7 @@ async fn inject_auth(
 }
 
 /// 组装带会话注入层的 Router，按生产挂载形状注册 PUT `/fixed-assets/{id}`
-/// （`src/routes/finance.rs` 中 `put(fixed_asset_handler::update_asset)`），
+/// （与生产路由绑定的同一个 `fixed_asset_handler::update_asset`），
 /// 使测试请求命中生产 handler 本体而非在测试里重拼 ActiveModel Set。
 fn layered_app(state: AppState) -> Router {
     Router::new()

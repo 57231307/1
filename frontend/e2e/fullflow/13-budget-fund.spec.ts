@@ -119,16 +119,15 @@ async function createPlan(
 }
 
 /**
- * 补齐「Σ 明细 planned_amount == 方案 total_amount」的审批前置（真实门，非本用例臆造）。
- * approve_plan 在任何状态门前先跑 validate_plan_items_consistency
- * （backend/src/services/budget_management_service.rs:532 调用、:197-214 判据），
+ * 补齐「Σ 明细 planned_amount == 方案 total_amount」的审批前置。
+ * approve_plan 在任何状态门前先跑 validate_plan_items_consistency，
  * 空明细方案 Σ=0≠total_amount ⇒ POST /budgets/plans/N/approve 返回 BUSINESS_ERROR
- * 「预算明细合计与方案总额不一致，无法审批」——CI run #4679 该族红的直接根因。
+ * 「预算明细合计与方案总额不一致，无法审批」。
  * 明细经 POST /budgets/items（CreateBudgetItemRequest）建，periods:[] ⇒
  * normalize_periods 自动生成 {budget_year}-FY 全量期间且 Σ期间==planned_amount（13-03 同口径），
  * planned_amount 取方案 total_amount ⇒ 单条即令 Σ==total。
  * 注意：调整（/budgets/adjust）会把方案总额抬高、使 Σ明细与总额再次不等，但 13-04
- * 之后再无「方案 approve」动作（approve_adjustment 不跑一致性门，见 :835-893），故不受影响。
+ * 之后再无「方案 approve」动作（approve_adjustment 不跑一致性门），故不受影响。
  */
 async function seedBalancingItem(
   page: import('@playwright/test').Page,

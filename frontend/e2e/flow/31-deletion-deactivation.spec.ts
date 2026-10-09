@@ -499,13 +499,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('产品分类：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    // 判责：通用 createThenUiDelete 走 uiDeleteRow(page, '/product', …)——它导航到 /product
-    // 后在**产品列表主表**（ProductListTab，`.el-table__row` 为产品行）里按分类名找行。
-    // 但「产品分类」不是产品：它的 UI 维护入口是 /product 页「产品分类」统计卡
-    // （ProductListTab.vue:36-52 `.stat-card.warning @click=emit('openCategory')`）点开后的
-    // CategoryDialogTab 对话框表格（index.vue:41 挂载，列 name + 行内 删除/编辑）。
-    // 产品行永远不含分类名 → 旧用例恒报 "standard 表未找到含「P0分类…」的行（共 5 行）"。
-    // 这是页面/作用域用错（非选择器可放宽项、非后端缺陷），故按真实 DOM 在对话框内删除。
+    // 产品分类不是产品：通用 uiDeleteRow 在产品列表主表按分类名找行，产品行不含分类名 → 找不到。
+    // 分类 UI 维护入口是 /product 页「产品分类」统计卡点开的 CategoryDialogTab 对话框表格
+    // （列 name + 行内删除/编辑），故按真实 DOM 在对话框内操作删除。
     const catName = `P0分类${EXT_TS}`;
     const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
       name: catName,
