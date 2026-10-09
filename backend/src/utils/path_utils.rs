@@ -23,7 +23,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             | "init"
             | "system-update"
             | "audit-logs"
-            | "slow-queries"
             | "user"
             | "data-import"
             // ===== IAM 与组织域 =====
@@ -315,6 +314,10 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "scheduling"
         // ===== 审计与日志直接资源 =====
         | "logs"
+        // 慢查询 `/slow-queries/stats` 的 stats 是同一资源下的查询维度而非子资源；
+        // 留在模块前缀表会让资源名漂到 stats、派生成注册表外死键，改作直接资源后
+        // 根级与 stats 面统一落到已登记的 slow-queries。
+        | "slow-queries"
         | "health"
         | "system-config"
         // ===== 单据号查重（前端自动生成单据号后确认唯一性）=====

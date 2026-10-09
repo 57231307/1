@@ -23,7 +23,8 @@
 
 use bingxi_backend::services::init_service::PERMISSION_RESOURCES;
 use bingxi_backend::utils::path_utils::{
-    is_module_prefix, is_nested_module_prefix, resolve_module_prefixed_resource,
+    is_known_resource_segment, is_module_prefix, is_nested_module_prefix,
+    resolve_module_prefixed_resource,
 };
 
 /// 代表性消歧映射表：(module_prefix, resource_segment, expected_registered_key)。
@@ -204,5 +205,32 @@ fn lock_has_detection_power_via_negative_assertions() {
         purchase_orders.as_str(),
         "purchase-orders",
         "purchase/orders 必须消歧到 purchase-orders——否则与 orders 撞键导致跨域越权"
+    );
+}
+
+/// 慢查询面派生锁：`slow-queries` 必须作为直接资源而非模块前缀，
+/// 否则 `/slow-queries/stats` 会把资源名漂到 seg4=`stats`、派生成注册表外死键，
+/// 令除超管旁路外持 `slow-queries:read` 的角色（auditor）访问统计面恒 403。
+/// 三条不变量：①不再是模块前缀（否则中间件进 resolve 漂段）；②仍在资源白名单
+/// （否则 fail-closed 全员拒）；③权威名 `slow-queries` 已登记而裸 `stats` 未登记
+/// （钉死"漂到 stats 即死键"这一根因前提）。
+#[test]
+fn slow_queries_derives_to_registered_direct_resource() {
+    assert!(
+        !is_module_prefix("slow-queries"),
+        "slow-queries 不得再是模块前缀——否则中间件取 seg4 作资源名，\
+         /slow-queries/stats 漂成注册表外死键 stats"
+    );
+    assert!(
+        is_known_resource_segment("slow-queries"),
+        "slow-queries 必须在资源白名单内——改直接资源后若漏登记会 fail-closed 403"
+    );
+    assert!(
+        PERMISSION_RESOURCES.contains(&"slow-queries"),
+        "派生权威名 slow-queries 必须登记在 PERMISSION_RESOURCES，否则恒不命中授权行"
+    );
+    assert!(
+        !PERMISSION_RESOURCES.contains(&"stats"),
+        "裸段名 stats 不得登记——登记等于承认漂段后的 URL 段可直接决定权限键"
     );
 }

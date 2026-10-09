@@ -1274,9 +1274,8 @@ impl InitService {
                     ("reports", "read"),
                     // 这两页的路由 meta 就是 `audit-logs:read`（auditor 已持），页面进得去而
                     // API 派生键各自独立——缺下面两行会稳定 403，构成"入口可达、内容死态"。
-                    // `/slow-queries` 派生 `slow-queries`（seg3 直接资源），`/slow-queries/stats`
-                    // 因 slow-queries 登记为模块前缀而派生 `stats`，属派生侧待治的另一族
-                    // （见任务板"派生键↔注册表对账活体锁"），不在本行授权范围内绕过。
+                    // slow-queries 是直接资源：`/slow-queries` 与 `/slow-queries/stats` 均派生到
+                    // 注册名 slow-queries，故授 slow-queries:read 即同时覆盖列表面与统计面。
                     ("export-approvals", "read"),
                     ("slow-queries", "read"),
                 ],
