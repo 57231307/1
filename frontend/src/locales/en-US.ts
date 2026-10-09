@@ -13158,6 +13158,7 @@ export default {
       processingFee: 'Settlement FEE voucher = processing fee + freight',
       freightFee: 'Included in total cost and the FEE voucher',
       taxAmount: 'Input VAT; recorded as tax_amount of the FEE voucher at settlement',
+      pieceNo: 'Select an available production piece',
     },
     statusLabels: {
       draft: 'Draft',
@@ -13233,9 +13234,14 @@ export default {
       freightFee: 'Freight',
       taxAmount: 'Tax Amount',
       totalCost: 'Total Cost',
+      pieceNo: 'Piece No.',
+      pieceLength: 'Piece Length',
       remarks: 'Remarks',
     },
     message: {
+      pieceNoRequired:
+        'Outsourcing issue must reference an available production piece; select the piece first',
+      pieceNoLoadFailed: 'Failed to load available production pieces',
       requiredOrderFields:
         'Please fill in required fields: order no. / supplier / issue date / quantity / material cost / processing fee / freight / tax',
       requiredEditFields: 'Please fill in required fields: supplier / issue date / quantity',

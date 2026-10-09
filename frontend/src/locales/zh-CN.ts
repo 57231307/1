@@ -13117,6 +13117,7 @@ export default {
       processingFee: '结算 FEE 凭证按 加工费+运费 计',
       freightFee: '计入总成本与 FEE 凭证',
       taxAmount: '进项税额，结算时记入 FEE 凭证 tax_amount',
+      pieceNo: '选择可外发的生产匹',
     },
     statusLabels: {
       draft: '草稿',
@@ -13186,9 +13187,13 @@ export default {
       freightFee: '运费',
       taxAmount: '税额',
       totalCost: '总成本',
+      pieceNo: '匹号',
+      pieceLength: '匹长',
       remarks: '备注',
     },
     message: {
+      pieceNoRequired: '委外发料必须精确到匹，请先选定可用生产匹',
+      pieceNoLoadFailed: '加载可用生产匹失败',
       requiredOrderFields: '请填写必填项：单号/供应商/日期/数量/材料成本/加工费/运费/税额',
       requiredEditFields: '请填写必填项：供应商/日期/数量',
       requiredItemFields: '请填写必填项：产品/数量',

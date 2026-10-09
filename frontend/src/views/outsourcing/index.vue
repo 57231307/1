@@ -383,6 +383,7 @@
             :label="$t('outsourcing.columns.dyeLotNo')"
             width="110"
           />
+          <el-table-column prop="piece_no" :label="$t('outsourcing.columns.pieceNo')" width="120" />
           <el-table-column
             prop="quantity"
             :label="$t('outsourcing.columns.quantity')"
@@ -426,6 +427,24 @@
         <el-form-item :label="$t('outsourcing.columns.dyeLotNo')"
           ><el-input v-model="itemForm.dye_lot_no"
         /></el-form-item>
+        <!-- 匹号：委外发料逐条引用真实可用生产匹，选项按产品从 GET /inventory/pieces 下推
+             取回（生产匹 + 可用），不由前端手填或自行推断 -->
+        <el-form-item :label="$t('outsourcing.columns.pieceNo')" required>
+          <el-select
+            v-model="itemForm.piece_no"
+            :placeholder="$t('outsourcing.formPlaceholders.pieceNo')"
+            :disabled="!itemForm.product_id"
+            class="w-full"
+            @visible-change="(v: boolean) => v && void loadProductionPieces()"
+          >
+            <el-option
+              v-for="p in pieceOptions"
+              :key="p.piece_no"
+              :label="`${$t('outsourcing.columns.pieceNo')}: ${p.piece_no} · ${$t('outsourcing.columns.pieceLength')}: ${p.length}`"
+              :value="p.piece_no"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.quantity')" required>
           <el-input-number v-model="itemForm.quantity" :min="0.01" :precision="2" class="w-full" />
         </el-form-item>
@@ -610,7 +629,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
@@ -651,6 +670,12 @@ import {
   type OutsourcingReceipt,
   type UpdateOutsourcingReceiptPayload,
 } from '@/api/outsourcing';
+import {
+  getAvailablePieces,
+  INVENTORY_PIECE_STATUS,
+  PIECE_TYPE,
+  type InventoryPieceRow,
+} from '@/api/inventory-transfer';
 
 const { t } = useI18n();
 
@@ -861,12 +886,63 @@ const itemForm = reactive({
   product_id: undefined as number | undefined,
   color_no: '',
   dye_lot_no: '',
+  // 生产匹号：委外发料逐条必须引用真实可用生产匹（后端发料门精确到匹），
+  // 取值仅允许来自 loadProductionPieces 经 GET /inventory/pieces 下推查回的生产匹
+  piece_no: '',
   quantity: undefined as number | undefined,
   unit: '',
   unit_cost: 0,
   processing_fee: 0,
   freight_fee: 0,
   remarks: '',
+});
+
+// 生产匹候选按产品 ID 缓存（产品→该产品的可用生产匹列表），与调拨/发货出库第四维
+// 同源取数（GET /inventory/pieces，piece_type=greige + status=AVAILABLE）
+const productionPiecesMap = ref<Record<number, InventoryPieceRow[]>>({});
+
+// 当前明细行的匹号候选：已填产品则读其缓存（未加载时为空数组，由下拉展开时按需取回），
+// 未填产品无候选可选
+const pieceOptions = computed(() =>
+  itemForm.product_id ? (productionPiecesMap.value[itemForm.product_id] ?? []) : []
+);
+
+/** 下拉展开时按当前产品拉取可用生产匹（生产匹 + 可用），命中缓存则不重复请求 */
+const loadProductionPieces = async () => {
+  const productId = itemForm.product_id;
+  if (!productId || productionPiecesMap.value[productId]) return;
+  try {
+    // 出参 PaginatedResponse{items,total,page,page_size} 单一形状，固定读 res.data.items，
+    // 不做 items/data 双形状探测、不做 ?? [] 兜底掩盖缺键
+    const res = await getAvailablePieces({
+      product_id: productId,
+      piece_type: PIECE_TYPE.GREIGE,
+      status: INVENTORY_PIECE_STATUS.AVAILABLE,
+      page: 1,
+      page_size: 100,
+    });
+    productionPiecesMap.value = { ...productionPiecesMap.value, [productId]: res.data.items };
+  } catch (e) {
+    logger.error('[outsourcing] 加载可用生产匹失败', e);
+    ElMessage.error(t('outsourcing.message.pieceNoLoadFailed'));
+  }
+};
+
+// 产品变更使已选匹号失效（生产匹按产品归属），清空已选，等待按新产品重新取回
+watch(
+  () => itemForm.product_id,
+  () => {
+    itemForm.piece_no = '';
+  }
+);
+
+// 每次打开明细登记对话框都清空上一次的匹号残留并按最新库存重新取数，
+// 避免把已被他单占用/发出的旧匹号带入本次登记
+watch(itemDialogVisible, visible => {
+  if (visible) {
+    itemForm.piece_no = '';
+    productionPiecesMap.value = {};
+  }
 });
 
 const openDetail = async (row: OutsourcingOrder) => {
@@ -889,6 +965,11 @@ const onSaveItem = async () => {
     ElMessage.warning(t('outsourcing.message.requiredItemFields'));
     return;
   }
+  // 委外发料精确到匹：无匹号的明细无法通过后端发料门，登记时必须已选定真实可用生产匹
+  if (!itemForm.piece_no) {
+    ElMessage.warning(t('outsourcing.message.pieceNoRequired'));
+    return;
+  }
   itemSaving.value = true;
   try {
     await createOutsourcingItem(detailOrder.value.id, {
@@ -896,6 +977,7 @@ const onSaveItem = async () => {
       product_id: itemForm.product_id,
       color_no: itemForm.color_no || null,
       dye_lot_no: itemForm.dye_lot_no || null,
+      piece_no: itemForm.piece_no,
       quantity: itemForm.quantity,
       unit: itemForm.unit || null,
       unit_cost: itemForm.unit_cost,
@@ -905,6 +987,7 @@ const onSaveItem = async () => {
     });
     ElMessage.success(t('outsourcing.message.itemAdded'));
     itemDialogVisible.value = false;
+    itemForm.piece_no = '';
     await openDetail(detailOrder.value);
   } finally {
     itemSaving.value = false;
