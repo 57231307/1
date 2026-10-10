@@ -308,11 +308,39 @@ async fn ensure_parent_sales_order_access(
         );
         return Ok(());
     }
-    if !crate::utils::data_scope::check_resource_owner_by_member_scope(ctx, owner) {
+    Ok(())
+}
+
+/// 批色系统级批处理入口门。send-pending、send-followups、check-timeouts 跨全表操作他人记录，属方案 A 的 All 范围代他人操作，须持 erp 域 cross_owner_write 显式代操作键。该键不在迁移里播种，admin 由 check_permission 内置放行，故默认仅超管可触发。缺 role_id 或未持键一律 fail-closed 403，原因只进日志，出参走固定脱敏常量（权限文案永久脱敏）。
+async fn ensure_cross_owner_batch_op(
+    db: std::sync::Arc<sea_orm::DatabaseConnection>,
+    auth: &crate::middleware::auth_context::AuthContext,
+) -> Result<(), AppError> {
+    let role_id = auth.role_id.ok_or_else(|| {
+        tracing::warn!(
+            actor = auth.user_id,
+            "批色批处理被拒：角色未加载，无法校验跨 owner 操作权限键"
+        );
+        AppError::permission_denied("无权执行批色批处理（数据范围限制）".to_string())
+    })?;
+    let granted = crate::services::role_permission_service::RolePermissionService::new(db)
+        .check_permission(role_id, "erp", "cross_owner_write", None)
+        .await?;
+    if !granted {
+        tracing::warn!(
+            actor = auth.user_id,
+            role = role_id,
+            "批色批处理被拒：未持有跨 owner 操作权限键"
+        );
         return Err(AppError::permission_denied(
-            "无权操作批色记录（数据范围限制）".to_string(),
+            "无权执行批色批处理（数据范围限制）".to_string(),
         ));
     }
+    tracing::info!(
+        actor = auth.user_id,
+        role = role_id,
+        "批色批处理放行（方案 A：显式 cross_owner_write 键）"
+    );
     Ok(())
 }
 
@@ -658,10 +686,11 @@ pub async fn list_customer_followups(
 
 /// POST /api/v1/erp/bulk-color-approvals/reminders/send-pending - 发送 pending 超时提醒
 pub async fn send_pending_reminders(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ReminderQuery>,
 ) -> Result<Json<ApiResponse<ReminderSendResult>>, AppError> {
+    ensure_cross_owner_batch_op(state.db.clone(), &auth).await?;
     let service = BulkColorApprovalService::from_state(&state);
     let threshold_hours = query.threshold_hours.unwrap_or(72);
     let sent_count = service
@@ -676,10 +705,11 @@ pub async fn send_pending_reminders(
 
 /// POST /api/v1/erp/bulk-color-approvals/reminders/send-followups - 发送客户跟进提醒
 pub async fn send_customer_followup_reminders(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ReminderQuery>,
 ) -> Result<Json<ApiResponse<ReminderSendResult>>, AppError> {
+    ensure_cross_owner_batch_op(state.db.clone(), &auth).await?;
     let service = BulkColorApprovalService::from_state(&state);
     let threshold_hours = query.threshold_hours.unwrap_or(72);
     let sent_count = service
@@ -704,10 +734,11 @@ pub struct TimeoutCheckQuery {
 
 /// POST /api/v1/erp/bulk-color-approvals/reminders/check-timeouts - 检查超时并自动拒绝
 pub async fn check_approval_timeouts(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<TimeoutCheckQuery>,
 ) -> Result<Json<ApiResponse<Vec<BulkColorApprovalInfo>>>, AppError> {
+    ensure_cross_owner_batch_op(state.db.clone(), &auth).await?;
     let service = BulkColorApprovalService::from_state(&state);
     let config = ApprovalTimeoutConfig {
         reminder_days: query.reminder_days.unwrap_or(3),
