@@ -173,6 +173,14 @@
               >{{ t('dyeRecipe.index.buttonSubmit') }}</el-button
             >
             <el-button
+              v-if="row.status === DYE_RECIPE_STATUS.DRAFT"
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row as DyeRecipe)"
+              >{{ t('common.delete') }}</el-button
+            >
+            <el-button
               v-if="canApprove((row as DyeRecipe).status)"
               type="success"
               link
@@ -366,6 +374,7 @@ import {
   approveDyeRecipe,
   rejectDyeRecipe,
   submitDyeRecipe,
+  deleteDyeRecipe,
   getRecipeVersions,
   exportDyeRecipes,
 } from '@/api/dye-recipe';
@@ -510,6 +519,26 @@ const handleSubmit = async (row: DyeRecipe) => {
     refresh();
   } catch (error) {
     logger.error(t('dyeRecipe.index.messageSubmitFailed'), error);
+  }
+};
+
+// 删除（草稿态可删、与编辑提交同状态门、非草稿不给删除入口、后端 service 另有状态门时前端保持 DRAFT 门不放宽）
+const handleDelete = async (row: DyeRecipe) => {
+  try {
+    await ElMessageBox.confirm(
+      '删除后该配方不可恢复，确认删除吗？',
+      t('dyeRecipe.index.titlePrompt'),
+      {
+        type: 'warning',
+      }
+    );
+    await deleteDyeRecipe(row.id);
+    ElMessage.success(t('common.message.deleteSuccess'));
+    refresh();
+  } catch (error) {
+    if (!isDialogDismissal(error)) {
+      logger.error(t('common.message.operationFailed'), error);
+    }
   }
 };
 
