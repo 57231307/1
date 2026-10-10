@@ -308,7 +308,21 @@ async fn ensure_parent_sales_order_access(
         );
         return Ok(());
     }
-    Ok(())
+    // Self 与 Dept 归属门（沿用成员集合归属判定、与列表侧 build_data_scope_condition 的 Dept 分支同源、亦即本函数文档承诺却此前漏实现的分支）。
+    // 此前缺该判定直接放行、致 self 或 dept 用户跨主读写他人批色记录拿到 200。现补回、归属人属于可见部门成员集合（含本人）放行、否则 403。
+    // 归属人为 NULL 一律拒绝（check_resource_owner_by_member_scope 对 None 恒 false）。
+    if crate::utils::data_scope::check_resource_owner_by_member_scope(ctx, owner) {
+        return Ok(());
+    }
+    tracing::warn!(
+        actor = auth.user_id,
+        scope = ctx.scope.as_str(),
+        resource_owner = ?owner,
+        "批色记录访问被拒：非本人行且归属人不在可见部门成员集合（Self/Dept 越权）"
+    );
+    Err(AppError::permission_denied(
+        "无权操作批色记录（数据范围限制）".to_string(),
+    ))
 }
 
 /// 批色系统级批处理入口门。send-pending、send-followups、check-timeouts 跨全表操作他人记录，属方案 A 的 All 范围代他人操作，须持 erp 域 cross_owner_write 显式代操作键。该键不在迁移里播种，admin 由 check_permission 内置放行，故默认仅超管可触发。缺 role_id 或未持键一律 fail-closed 403，原因只进日志，出参走固定脱敏常量（权限文案永久脱敏）。
