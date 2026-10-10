@@ -1,6 +1,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
 import {
+  findRowAction,
   findTableRow,
   pickListArray,
   uiDeleteRow,
@@ -496,6 +497,51 @@ async function firstRefOrSeed(
   return id;
 }
 
+/**
+ * 产品色号删除走真实 UI 嵌套对话框路径。
+ * 色号行只在产品行色号按钮弹出的子表对话框内渲染，主产品表单元格不含色号值，
+ * 故不能用按主表行定位的通用删除器。这里先在产品列表按产品名定位该行并点开色号对话框，
+ * 再把定位收敛到对话框内的色号子表，点行内删除经确认框删除，最后验证该色号行消失。
+ * 调用方须先自建产品并取其产品名，不能用列表首条引用，否则无法在 UI 唯一定位到目标产品行。
+ */
+async function uiDeleteProductColor(
+  page: import('@playwright/test').Page,
+  productName: string,
+  colorNo: string
+): Promise<void> {
+  await safeGoto(page, '/product');
+  await page.waitForTimeout(1000);
+
+  const colorsBtn = await findRowAction(page, productName, row =>
+    row.getByRole('button', { name: '色号' })
+  );
+  await colorsBtn.click();
+
+  const dialog = page.locator('.el-dialog:visible').first();
+  await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+
+  const colorRow = dialog.locator('.el-table__row:visible', { hasText: colorNo }).first();
+  await colorRow.waitFor({ state: 'visible', timeout: 10_000 });
+  const delBtn = colorRow.locator('button.el-button--danger, button:has-text("删除")').first();
+  await delBtn.click();
+  console.log(`[P0-删除-产品色号] 已在色号对话框点击色号 ${colorNo} 的行内删除`);
+
+  // 确认框为 ElMessageBox，用其主按钮类精确定位，避免与子表行内删除按钮文案冲突误点
+  await page
+    .locator('.el-message-box:visible .el-message-box__btns button.el-button--primary')
+    .first()
+    .click();
+  await page.waitForTimeout(1500);
+
+  const remain = await dialog.locator('.el-table__row:visible', { hasText: colorNo }).count();
+  if (remain !== 0) {
+    throw new Error(
+      `[P0-删除-产品色号] 色号 ${colorNo} 删除后对话框子表仍有 ${remain} 行，删除未真实生效`
+    );
+  }
+  console.log(`[P0-删除-产品色号] ✅ 色号 ${colorNo} 已从对话框子表消失`);
+}
+
 test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
@@ -756,26 +802,44 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       },
       'items'
     );
-    await createThenUiDelete(
+    const fabricName = `P0待删坯布${EXT_TS}`;
+    // 建单带物理重量与长度，成为真实在库坯布。后端删除门按业务禁止删除在库坯布，
+    // 故先真实出库把重量与长度同时归零，后端据剩余库存把状态合法翻为已出库这一可删态，
+    // 再走 UI 删除验证放行态下删除真实生效。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
+      fabric_no: `P0-GF-${EXT_TS}`,
+      fabric_name: fabricName,
+      product_id: productId,
+      supplier_id: supplierId,
+      warehouse_id: warehouseId,
+      fabric_type: 'fabric',
+      quantity_meters: 100,
+      quantity_kg: 50,
+      weight_kg: 50,
+      length_m: 100,
+      dye_lot_no: `P0-DL-${EXT_TS}`,
+    });
+    const fabricId = created?.data?.id;
+    expect(fabricId, `[P0-删除-坯布] 自建坯布未返回 id：${JSON.stringify(created)}`).toBeTruthy();
+    const stockedOut = await apiCall<{ status?: string }>(
       page,
-      '坯布',
-      '/production/greige-fabrics',
-      {
-        fabric_no: `P0-GF-${EXT_TS}`,
-        fabric_name: `P0待删坯布${EXT_TS}`,
-        product_id: productId,
-        supplier_id: supplierId,
-        warehouse_id: warehouseId,
-        fabric_type: 'fabric',
-        quantity_meters: 100,
-        quantity_kg: 50,
-        dye_lot_no: `P0-DL-${EXT_TS}`,
-      },
-      '/greige-fabrics',
-      `P0待删坯布${EXT_TS}`,
-      // greige_fabric_handler::list_greige_fabrics → success_paginated → {items}
-      'items'
+      'POST',
+      `/production/greige-fabrics/${fabricId}/stock-out`,
+      { weight_kg: 50, length_m: 100 }
     );
+    // 回读确认状态已由后端按库存判为已出库，锁定删除前置条件真实成立（apiCall 已对非 200 抛错）
+    expect(
+      stockedOut?.data?.status,
+      `[P0-删除-坯布] 出库后状态应为已出库方可删，实际 ${stockedOut?.data?.status}`
+    ).toBe('已出库');
+    const deleted = await uiDeleteRow(page, '/greige-fabrics', {
+      column: 'name',
+      value: fabricName,
+    });
+    expect(
+      deleted,
+      `[P0-删除-坯布] 已出库坯布 ${fabricName} 的 UI 删除必须真实完成（行内删除→行消失）`
+    ).toBe(true);
   });
 
   test('染色批次：API 创建→UI 删除→验证消失', async ({ page }) => {
@@ -794,39 +858,35 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('产品色号：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    // 先取一个真实产品 id（无产品时按契约补建，不再静默跳过）
-    const productId = await firstRefOrSeed(
-      page,
-      '产品',
-      '/products',
-      '/products',
-      {
-        name: `P0色号产品${EXT_TS}`,
-        code: `P0-COLP-${EXT_TS}`,
-        unit: '米',
-        status: 'active',
-        // /products → PaginatedResponse → {items}
-      },
-      'items'
-    );
-    await createThenUiDelete(
-      page,
-      '产品色号',
-      `/products/${productId}/colors`,
-      // CreateProductColorRequest 的 color_type: String 与 extra_cost: f64 均为必填
-      // （非 Option、无 serde default），原实现只发 color_no/color_name 必 422
-      // missing field `color_type`。STANDARD 取自列定义
-      // m0008_add_supplier_and_product_extensions.rs: color_type VARCHAR(20) NOT NULL DEFAULT 'STANDARD'
-      {
-        color_no: `P0-COLOR-${EXT_TS}`,
-        color_name: `P0色号${EXT_TS}`,
-        color_type: 'STANDARD',
-        extra_cost: 0,
-      },
-      '/product',
-      `P0-COLOR-${EXT_TS}`,
-      // product_handler::list_product_colors → ApiResponse<Vec> → 裸数组
-      'bare'
-    );
+    // 色号只在产品行色号按钮弹出的对话框子表内渲染，删除须经该对话框定位，
+    // 故必须自建并持有一个名字确定的宿主产品，不能用列表首条引用（其产品在 UI 无法唯一定位）。
+    const productName = `P0色号产品${EXT_TS}`;
+    const product = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      name: productName,
+      code: `P0-COLP-${EXT_TS}`,
+      unit: '米',
+      status: 'active',
+    });
+    const productId = product?.data?.id;
+    expect(
+      productId,
+      `[P0-删除-产品色号] 宿主产品创建未返回 id：${JSON.stringify(product)}`
+    ).toBeTruthy();
+
+    // CreateProductColorRequest 的 color_type 与 extra_cost 为非 Option 必填，
+    // 只提交色号编号与色名会因缺字段被拒。STANDARD 取自色卡列定义默认值。
+    const colorNo = `P0-COLOR-${EXT_TS}`;
+    const color = await apiCall<{ id?: number }>(page, 'POST', `/products/${productId}/colors`, {
+      color_no: colorNo,
+      color_name: `P0色号${EXT_TS}`,
+      color_type: 'STANDARD',
+      extra_cost: 0,
+    });
+    expect(
+      color?.data?.id,
+      `[P0-删除-产品色号] 色号创建未返回 id：${JSON.stringify(color)}`
+    ).toBeTruthy();
+
+    await uiDeleteProductColor(page, productName, colorNo);
   });
 });
