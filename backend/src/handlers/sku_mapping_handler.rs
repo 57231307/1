@@ -9,12 +9,13 @@ use crate::services::sku_mapping_service::{
 };
 use crate::utils::data_scope;
 use crate::utils::error::AppError;
-use crate::utils::import_export::{CsvImporter, FieldValidator, XlsxImporter};
+use crate::utils::import_export::{FieldValidator, XlsxImporter};
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Multipart, Path, Query, State},
 };
+use csv::ReaderBuilder;
 use serde::Deserialize;
 use std::collections::{BTreeSet, HashMap};
 use tracing::info;
@@ -402,7 +403,7 @@ fn parse_sku_import_file(
 ) -> Result<Vec<HashMap<String, String>>, AppError> {
     let lower = file_name.to_ascii_lowercase();
     if lower.ends_with(".csv") {
-        CsvImporter::parse(strip_utf8_bom(data))
+        parse_csv_flexible(strip_utf8_bom(data))
     } else if lower.ends_with(".xlsx") || lower.ends_with(".xlsm") {
         XlsxImporter::parse(data)
     } else if lower.ends_with(".xls") {
@@ -412,8 +413,49 @@ fn parse_sku_import_file(
     } else if XlsxImporter::verify_magic(data) {
         XlsxImporter::parse(data)
     } else {
-        CsvImporter::parse(strip_utf8_bom(data))
+        parse_csv_flexible(strip_utf8_bom(data))
     }
+}
+
+/// 以 flexible 模式解析 CSV 字节流为表头键到值的行集合。
+///
+/// 表头级校验的设计前提见 validate_sku_import_headers。该前提要求解析器把数据行里
+/// 出现过的键原样保留下来，行尾短列只是该行的键缺失、不视作解析错误。csv 库默认 strict
+/// 模式会在数据行迭代阶段对列数不等抛 record 字段数错误、被通用 CsvImporter 转成脱敏的
+/// validation 错误、先于 validate_sku_import_headers 命中，导致表头缺必需列场景外显成
+/// 泛化的请求参数验证失败、无法点名缺失列名（e2e 用例 purchaser 上传 csv 表头缺列整文件拒
+/// 在此拿到泛化文案）。flexible 模式下短行不报错、只让对应键缺席，validate_sku_import_headers
+/// 按权威表对全行取并集后如实点名缺失列、符合本文件 fail-visible 契约。
+///
+/// 仅在本 handler 内做这一局部替换，不改共享 CsvImporter，以免影响其他导入路径。
+/// UTF-8 解码与结构性 csv 错误如未闭合引号仍走脱敏 validation，这些文案含第三方库原文不外显。
+fn parse_csv_flexible(data: &[u8]) -> Result<Vec<HashMap<String, String>>, AppError> {
+    let content = std::str::from_utf8(data)
+        .map_err(|e| AppError::validation(format!("无效的 UTF-8 数据: {}", e)))?;
+
+    let mut reader = ReaderBuilder::new()
+        .flexible(true)
+        .from_reader(content.as_bytes());
+    let headers: Vec<String> = reader
+        .headers()
+        .map_err(|e| AppError::validation(format!("CSV 头解析失败: {}", e)))?
+        .iter()
+        .map(|h| h.to_string())
+        .collect();
+
+    let mut records = Vec::new();
+    for (row_idx, result) in reader.records().enumerate() {
+        let record = result
+            .map_err(|e| AppError::validation(format!("第 {} 行解析失败: {}", row_idx + 2, e)))?;
+        let mut row = HashMap::new();
+        for (col_idx, field) in record.iter().enumerate() {
+            if let Some(header) = headers.get(col_idx) {
+                row.insert(header.clone(), field.to_string());
+            }
+        }
+        records.push(row);
+    }
+    Ok(records)
 }
 
 /// 剥离 UTF-8 BOM（EF BB BF）。
