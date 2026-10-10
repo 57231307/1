@@ -151,7 +151,9 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           )
         );
       }
-      if (row.status === 'approved') {
+      // 发货门已放行 partial_shipped（后端支持分批续发），按钮须同步在部分发货态可见，
+      // 否则续发在列表上不可达。终态 shipped/completed/cancelled 仍隐藏。
+      if (row.status === 'approved' || row.status === 'partial_shipped') {
         buttons.push(
           h(
             ElButton,
