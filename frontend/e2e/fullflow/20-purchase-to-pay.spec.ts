@@ -606,9 +606,9 @@ test.describe('20 采购到付款全流程契约链', () => {
     });
     expect(failCreate.status, `空批次建单应 400，实际=${failCreate.status}`).toBe(400);
     expect(failureCode(failCreate), '空批次建单机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
-    // 拒绝文案经 AppError::business 默认脱敏，出参 message 不含「批次」等内部维度（永久脱敏口径），
+    // 拒绝文案经 AppError 的 business 构造器默认脱敏，出参 message 不含批次等内部维度（永久脱敏口径），
     // 无法在此按文案归因到批次维。批次 fail-closed 的精确归因由源码单测
-    // missing_batch_is_rejected / blank_batch_is_rejected 钉死；e2e 只断「400 + BUSINESS_ERROR」形态。
+    // missing_batch_is_rejected 与 blank_batch_is_rejected 钉死，e2e 只断 400 及 BUSINESS_ERROR 形态。
     // 建单即整单被拒、不落库：无入库单 id 可清理、无 DRAFT 单可回读，故移除旧用例的
     // seedInspectionPass 前置与 /confirm 断言。确认门是否与建单门冗余属后端契约范畴，
     // 本任务不改动后端，仅在此点明。

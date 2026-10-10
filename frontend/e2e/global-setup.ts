@@ -448,10 +448,10 @@ const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
 // 不越界、不虚构。保密矩阵所需的**不授**purchase/sku-mappings 等对销售角色的保密面，
 // 保持负向断言（403 FORBIDDEN）真实成立。
 const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
-  // purchaser 对齐 permission.rs 的 purchase_clerk 权限集（read/create/update/import，不含 delete）。
-  // 覆盖 sku-mapping.spec.ts A/C/D1/D2b/E1/E3 用例：产品/供应商只读 + 目录 + 对照 CRUD + 批量导入
-  // （import 是"与建单同授本岗"的成批建单通路，purchase_clerk 亦有，缺则 E3 批量导入按钮被
-  // v-permission 删、用例无法打开导入对话框）。
+  // purchaser 对齐后端 purchase_clerk 权限集（read、create、update、import，不含 delete）。
+  // 覆盖 sku-mapping 用例 A、C、D1、D2b、E1、E3，即产品与供应商只读、目录、对照 CRUD、批量导入。
+  // import 是与建单同授本岗的成批建单通路，purchase_clerk 亦有，缺则 E3 批量导入按钮被
+  // v-permission 删、用例无法打开导入对话框。
   // product-categories:read —— /product 页挂载即拉产品分类树（api/product.ts GET
   // /product-categories、/product-categories/tree），缺码则该页对 purchaser 恒 403 噪声，
   // 权限矩阵用例随之判红。本项目口径为 purchaser 应见产品分类树、补真实种子

@@ -408,9 +408,9 @@ async function createThenUiDelete(
   // 取代原 `body.data.items ?? body.data.roles ?? body.data ?? []` 三重形状宽容探测——
   // 它同时吞分页 items / 具名 roles / 裸数组并 `?? []`，端点改形时静默读成空集。
   listKey: ListShapeKey,
-  // 软删除实体的删除后状态值：给定则本验证器按软删处理（行保留、只改 status），
-  // 走真实 UI 删除点击但声明 expectRowGone:false，删除效果由 GET 详情断言 status==此值
-  // （合同 delete 置 status::contract::CANCELLED="cancelled"，list 不过滤，行仍在）。
+  // 软删除实体的删除后状态值。给定则本验证器按软删处理（行保留、只改 status），
+  // 走真实 UI 删除点击但声明 expectRowGone 为 false，删除效果由 GET 详情断言 status 等于此值
+  // （合同 delete 置状态词表 CANCELLED 即 cancelled，list 不过滤，行仍在）。
   softDeleteStatus?: string
 ): Promise<void> {
   const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
@@ -440,9 +440,9 @@ async function createThenUiDelete(
     );
   }
 
-  // UI 删除：软删除实体（给定 softDeleteStatus）走真实删除点击但声明行不消失，
-  // 删除效果改由 GET 详情契约断言 status（对齐本文件客户软删用例）；
-  // 硬删除实体仍按"行必须消失"做硬断言（uiDeleteRow 对一切真实失败显式抛错）。
+  // UI 删除。软删除实体（给定 softDeleteStatus）走真实删除点击但声明行不消失，
+  // 删除效果改由 GET 详情契约断言 status（对齐本文件客户软删用例）。
+  // 硬删除实体仍按行必须消失做硬断言（uiDeleteRow 对一切真实失败显式抛错）。
   if (softDeleteStatus !== undefined) {
     await uiDeleteRow(
       page,
@@ -673,7 +673,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       `P0-SC-${EXT_TS}`,
       // sales_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
       'bare',
-      // 合同删除为软删（status→cancelled、list 不过滤，行保留）→ 按软删断言 status
+      // 合同删除为软删（status 置 cancelled、list 不过滤，行保留），按软删断言 status
       'cancelled'
     );
   });
@@ -695,7 +695,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       `P0-PC-${EXT_TS}`,
       // purchase_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
       'bare',
-      // 合同软删（status→cancelled、行保留）→ 按软删断言 status
+      // 合同软删（status 置 cancelled、行保留），按软删断言 status
       'cancelled'
     );
   });
