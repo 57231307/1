@@ -16,9 +16,9 @@ use rust_decimal::Decimal;
 use std::sync::Arc;
 
 /// 复现 ship_order 的订单状态校验门（不涉及数据库）
-/// 与 ship_order 中 `if order.status != so_status::APPROVED` 保持一致：仅已审批订单可发货，其余状态返回业务错误。
+/// 与 ship_order 中 `if order.status != APPROVED && order.status != PARTIAL_SHIPPED` 保持一致：已审批可建首发，部分发货态可续发，其余状态返回业务错误。
 fn ship_order_status_gate(status: &str) -> Result<(), AppError> {
-    if status != so_status::APPROVED {
+    if status != so_status::APPROVED && status != so_status::PARTIAL_SHIPPED {
         return Err(AppError::business_displayable("只有已审批的订单才能发货"));
     }
     Ok(())
@@ -137,16 +137,16 @@ fn test_kcylztclzzqx() {
 
 // ===== ship_order 状态校验 =====
 
-/// test_fhztjy_jyspddkfh（验证 ship_order 中订单状态校验门：仅 APPROVED 状态可发货，其余状态拒绝。）
+/// test_fhztjy_jyspddkfh（验证 ship_order 中订单状态校验门：APPROVED 建首发、PARTIAL_SHIPPED 续发放行，其余状态拒绝。）
 #[test]
 fn test_fhztjy_jyspddkfh() {
-    // 已审批：放行
+    // 已审批、部分发货：放行（后者支持分批续发）
     assert!(ship_order_status_gate(so_status::APPROVED).is_ok());
+    assert!(ship_order_status_gate(so_status::PARTIAL_SHIPPED).is_ok());
     // 其他状态：拒绝
     assert!(ship_order_status_gate(so_status::DRAFT).is_err());
     assert!(ship_order_status_gate(so_status::PENDING).is_err());
     assert!(ship_order_status_gate(so_status::SHIPPED).is_err());
-    assert!(ship_order_status_gate(so_status::PARTIAL_SHIPPED).is_err());
     assert!(ship_order_status_gate(so_status::CANCELLED).is_err());
 
     // 发货状态门拒绝为可外显业务错误（出参 code 仍为 BUSINESS_ERROR）
