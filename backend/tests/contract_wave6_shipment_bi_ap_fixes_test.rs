@@ -428,7 +428,7 @@ async fn stock_by_product_db_error_maps_to_database_error_not_internal() {
 async fn shipment_error_family_envelopes_exact() {
     let cases: Vec<(AppError, StatusCode, &str, &str)> = vec![
         (
-            AppError::business("只有已审批的订单才能发货"),
+            AppError::business("仅已审批或部分发货的订单可发货，请确认订单状态后重试"),
             StatusCode::BAD_REQUEST,
             "BUSINESS_ERROR",
             "业务处理失败",

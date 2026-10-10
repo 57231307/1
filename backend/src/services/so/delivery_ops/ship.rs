@@ -143,9 +143,11 @@ impl SalesService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
-        // 已审批可建首发；部分发货后订单仍处可续发态，须放行补发否则二次发货被误拒。
+        // 已审批可建首发。部分发货后订单仍处可续发态，须放行补发否则二次发货被误拒。
         if order.status != so_status::APPROVED && order.status != so_status::PARTIAL_SHIPPED {
-            return Err(AppError::business_displayable("只有已审批的订单才能发货"));
+            return Err(AppError::business_displayable(
+                "仅已审批或部分发货的订单可发货，请确认订单状态后重试",
+            ));
         }
         // 查询订单明细
         // 保留查询结果用于款号一致性门控与发货金额计算
