@@ -305,6 +305,112 @@ function actionEquivalent(userAction: string, requiredAction: string): boolean {
 }
 
 /**
+ * 粗域键到细资源段集，必须与 router 里 index 文件的 COARSE_DOMAIN_RESOURCES 逐字一致（同源镜像），否则派生侧与实际守卫分叉会推高 drift。仅 4 个无对应后端 resource 段的粗键需展开。
+ */
+const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
+  finance: [
+    'vouchers',
+    'subjects',
+    'fixed-assets',
+    'budgets',
+    'cost-collections',
+    'ar',
+    'ap',
+    'gl',
+    'financial-analysis',
+    'fund-management',
+    'fund-transfers',
+    'currencies',
+    'exchange-rates',
+    'ar-reconciliations',
+    'accounting-periods',
+    'period-report-snapshots',
+    'aging-alert-rules',
+    'aging-grades',
+    'asset-categories',
+    'industry-benchmarks',
+    'wages',
+    'reports',
+  ],
+  sales: [
+    'orders',
+    'quotations',
+    'sales-returns',
+    'sales-contracts',
+    'sales-prices',
+    'sales-analysis',
+    'custom-orders',
+    'fabric-orders',
+    'customer-credits',
+    'customers',
+    'color-cards',
+    'color-prices',
+    'export-inspections',
+    'pieces',
+    'ar',
+    'reports',
+  ],
+  purchases: [
+    'purchase-orders',
+    'purchase-contracts',
+    'purchase-prices',
+    'purchase-receipts',
+    'purchase-returns',
+    'suppliers',
+    'supplier-products',
+    'supplier-qualifications',
+    'supplier-evaluations',
+    'supplier-product-colors',
+    'sku-mappings',
+    'products',
+    'product-categories',
+    'inventory',
+    'ap',
+    'reports',
+  ],
+  production: [
+    'production-orders',
+    'boms',
+    'process-routes',
+    'production-recipes',
+    'dye-batches',
+    'dye-recipes',
+    'lab-dip',
+    'greige-fabrics',
+    'fabric-inspections',
+    'flow-cards',
+    'mrp',
+    'capacity',
+    'scheduling',
+    'outsourcing-orders',
+    'outsourcing-receipts',
+    'outsourcing-vouchers',
+    'material-shortage',
+    'business-modes',
+    'chemicals',
+    'chemical-lots',
+    'chemical-requisitions',
+    'chemical-categories',
+    'energy-meters',
+    'energy-consumptions',
+    'equipment',
+    'maintenance-records',
+    'dye-batch-lifecycle-logs',
+    'dye-batch-operations',
+    'dye-batch-reworks',
+    'dye-batch-state-rules',
+    'color-cards',
+    'color-prices',
+    'pieces',
+    'inventory',
+    'stock',
+    'suppliers',
+    'purchase-orders',
+    'reports',
+  ],
+};
+
+/**
  * 权限码匹配——逐分支镜像 router/index.ts:1585-1602 hasRoutePermission：
  * null/'' = 无 meta.permission，登录即可达；空数组 [] 在守卫里为真值且 some 恒 false（拒绝），
  * 镜像必须保留该边界语义，不得"顺手宽容"。
@@ -317,10 +423,11 @@ export function hasRoutePermission(
   const requiredList = Array.isArray(required) ? required : [required];
   return requiredList.some(req => {
     const { resource: reqResource, action: reqAction } = splitPermissionCode(req);
+    const domain = COARSE_DOMAIN_RESOURCES[reqResource];
     return userPermissions.some(up => {
       const { resource: upResource, action: upAction } = splitPermissionCode(up);
       if (upResource === '*' && upAction === '*') return true;
-      if (upResource !== reqResource) return false;
+      if (domain ? !domain.includes(upResource) : upResource !== reqResource) return false;
       return actionEquivalent(upAction, reqAction);
     });
   });

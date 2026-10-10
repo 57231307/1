@@ -1535,6 +1535,112 @@ function actionEquivalent(userAction: string, requiredAction: string): boolean {
 }
 
 /**
+ * 粗域键到该域后端细资源段集的映射，逐字取自后端权限种子 init_service_ops 里 permission 文件的各 role resources 域分组函数。仅 finance、sales、purchases、production 这 4 个域在后端无同名 resource 段（实测种子零命中），需据此把粗键解释为细资源集任一读命中即放行。customers、users、inventory 等本身是真实资源段，不列入，走原等值匹配。
+ */
+const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
+  finance: [
+    'vouchers',
+    'subjects',
+    'fixed-assets',
+    'budgets',
+    'cost-collections',
+    'ar',
+    'ap',
+    'gl',
+    'financial-analysis',
+    'fund-management',
+    'fund-transfers',
+    'currencies',
+    'exchange-rates',
+    'ar-reconciliations',
+    'accounting-periods',
+    'period-report-snapshots',
+    'aging-alert-rules',
+    'aging-grades',
+    'asset-categories',
+    'industry-benchmarks',
+    'wages',
+    'reports',
+  ],
+  sales: [
+    'orders',
+    'quotations',
+    'sales-returns',
+    'sales-contracts',
+    'sales-prices',
+    'sales-analysis',
+    'custom-orders',
+    'fabric-orders',
+    'customer-credits',
+    'customers',
+    'color-cards',
+    'color-prices',
+    'export-inspections',
+    'pieces',
+    'ar',
+    'reports',
+  ],
+  purchases: [
+    'purchase-orders',
+    'purchase-contracts',
+    'purchase-prices',
+    'purchase-receipts',
+    'purchase-returns',
+    'suppliers',
+    'supplier-products',
+    'supplier-qualifications',
+    'supplier-evaluations',
+    'supplier-product-colors',
+    'sku-mappings',
+    'products',
+    'product-categories',
+    'inventory',
+    'ap',
+    'reports',
+  ],
+  production: [
+    'production-orders',
+    'boms',
+    'process-routes',
+    'production-recipes',
+    'dye-batches',
+    'dye-recipes',
+    'lab-dip',
+    'greige-fabrics',
+    'fabric-inspections',
+    'flow-cards',
+    'mrp',
+    'capacity',
+    'scheduling',
+    'outsourcing-orders',
+    'outsourcing-receipts',
+    'outsourcing-vouchers',
+    'material-shortage',
+    'business-modes',
+    'chemicals',
+    'chemical-lots',
+    'chemical-requisitions',
+    'chemical-categories',
+    'energy-meters',
+    'energy-consumptions',
+    'equipment',
+    'maintenance-records',
+    'dye-batch-lifecycle-logs',
+    'dye-batch-operations',
+    'dye-batch-reworks',
+    'dye-batch-state-rules',
+    'color-cards',
+    'color-prices',
+    'pieces',
+    'inventory',
+    'stock',
+    'suppliers',
+    'purchase-orders',
+    'reports',
+  ],
+};
+
+/**
  * 详情/编辑（`/{id}`）可访问性判定——与后端 `matches_permission` 同源（唯一真相）。
  *
  * 后端事实（backend/src/middleware/permission.rs）：
@@ -1590,11 +1696,13 @@ export function hasRoutePermission(
   const requiredList = Array.isArray(required) ? required : [required];
   return requiredList.some(req => {
     const { resource: reqResource, action: reqAction } = splitPermissionCode(req);
+    const domain = COARSE_DOMAIN_RESOURCES[reqResource];
     return userPermissions.some(up => {
       const { resource: upResource, action: upAction } = splitPermissionCode(up);
       // P2 1-12 修复：支持 *:* 超级通配权限（系统管理员角色由后端注入）
       if (upResource === '*' && upAction === '*') return true;
-      if (upResource !== reqResource) return false;
+      // 粗域键解释为"持该域任一细资源读权限即放行"，数据层仍由后端按细资源鉴权兜底
+      if (domain ? !domain.includes(upResource) : upResource !== reqResource) return false;
       // 通配与 read/view、update/edit 等价规则统一到 actionEquivalent
       return actionEquivalent(upAction, reqAction);
     });
