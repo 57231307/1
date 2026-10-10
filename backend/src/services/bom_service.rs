@@ -37,11 +37,12 @@ pub struct CreateBomRequest {
     pub version: Option<i32>,
     pub is_default: Option<bool>,
     pub remarks: Option<String>,
-    pub created_by: i32,
     pub items: Vec<CreateBomItemRequest>,
 }
 
-/// 创建BOM明细请求
+/// 创建BOM明细请求（scrap_rate 为**存储口径**十进制裁损率 0–1，
+/// 由 handler 边界经 [`BomService::scrap_percent_to_ratio`] 从 API 百分比数值换算而来；
+/// 服务层内部（含 `copy`）流转的本结构一律保持存储口径，禁止二次换算）
 #[derive(Debug, Clone)]
 pub struct CreateBomItemRequest {
     pub material_id: i32,
@@ -86,8 +87,20 @@ pub struct BomTreeNode {
     pub product_name: Option<String>,
     pub quantity: Decimal,
     pub unit: Option<String>,
+    /// 结构体字段 = 存储口径 0–1 比率（`collect_requirements` 按 (1+rate) 消费）；
+    /// 仅序列化输出经 `scrap_ratio_to_percent` 转 API 百分比口径（与写边界对称）
+    #[serde(serialize_with = "serialize_scrap_rate_as_percent")]
     pub scrap_rate: Option<Decimal>,
     pub children: Vec<BomTreeNode>,
+}
+
+/// `BomTreeNode.scrap_rate` 的读边界序列化：存储比率 → 百分比数值（None 保持 None）
+fn serialize_scrap_rate_as_percent<S: serde::Serializer>(
+    value: &Option<Decimal>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    use serde::Serialize;
+    BomService::scrap_ratio_to_percent(*value).serialize(serializer)
 }
 
 /// BOM需求项
@@ -143,6 +156,52 @@ impl BomService {
             .exec(txn)
             .await?;
         Ok(())
+    }
+
+    /// 损耗率口径换算（写边界）：API 入参百分比数值 → 存储口径十进制比率。
+    ///
+    /// DDL 证据：`bom_items.scrap_rate DECIMAL(5, 4) DEFAULT 0`
+    /// （`backend/migration/src/domain/business/m0007_add_mrp_production_bom.rs:41`），
+    /// 存储口径为 0–1 十进制比率（`models/bom_item.rs` 字段注释 `(0-1)` 同源；
+    /// p=5、s=4 ⇒ 整数位仅 1 位，≥10 的值直插必触发 PG `numeric field overflow`，
+    /// CI e2e/mrp/01:82 即写入侧未换算所致）。
+    /// API/业务口径为百分比数值（10 表示 10%，见 frontend/e2e/mrp/01-calculation.spec.ts
+    /// 入参与损耗乘数语义），写入前必须经本函数换算，禁止把百分比数值直接落库。
+    /// 越界（<0 或 >100%）与超精度（百分比小数位 >2，即 0.01% 粒度）一律
+    /// fail-closed 抛 VALIDATION_ERROR 点名实值，禁止 clamp/截断/静默舍入。
+    pub fn scrap_percent_to_ratio(
+        scrap_percent: Option<Decimal>,
+    ) -> Result<Option<Decimal>, AppError> {
+        let Some(percent) = scrap_percent else {
+            return Ok(None);
+        };
+        if percent < Decimal::ZERO || percent > Decimal::from(100) {
+            return Err(AppError::validation_displayable(format!(
+                "BOM 损耗率（百分比数值）必须在 0–100 范围内，实际: {percent}"
+            )));
+        }
+        let ratio = percent / Decimal::from(100);
+        let storage = ratio.round_dp(4);
+        if storage != ratio {
+            return Err(AppError::validation_displayable(format!(
+                "BOM 损耗率最多保留两位小数（0.01% 粒度），实际: {percent}"
+            )));
+        }
+        Ok(Some(storage))
+    }
+
+    /// 损耗率口径换算（读边界/回显）：存储口径十进制比率 → API 百分比数值。
+    ///
+    /// [`Self::scrap_percent_to_ratio`] 的精确逆函数：合法存储值由 DDL
+    /// `DECIMAL(5,4)` 保证为 0.0001 的整数倍，×100 后必为 0.01 的整数倍，
+    /// `round_dp(2)` 无损失（如 0.1000 → 10.00、0.0333 → 3.33）。
+    /// API 对外口径 = 百分比数值（写入/回显同一口径，同一字段名禁止两种口径；
+    /// 依据：e2e `frontend/e2e/mrp/01-calculation.spec.ts:95`「scrap_rate=10 ⇒
+    /// 乘数 1+10/100」），故 handler 响应与树端点序列化输出必须经本函数换算，
+    /// 而服务内部计算链（`collect_requirements`、MRP 展开、缺料测算）
+    /// 一律消费存储比率，不换算。
+    pub fn scrap_ratio_to_percent(ratio: Option<Decimal>) -> Option<Decimal> {
+        ratio.map(|r| (r * Decimal::from(100)).round_dp(2))
     }
 
     /// 构建 BOM 明细 ActiveModel 列表（批量插入用）

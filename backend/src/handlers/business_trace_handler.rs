@@ -101,8 +101,7 @@ pub async fn get_trace_by_five_dimension(
 
     let traces = service
         .find_trace_chain_by_five_dimension(&five_dimension_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let first_trace = traces
         .first()
@@ -168,8 +167,7 @@ pub async fn forward_trace(
 
     let traces = service
         .forward_trace(params.supplier_id, &params.batch_no)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let trace_responses: Vec<TraceChainResponse> = traces
         .into_iter()
@@ -217,8 +215,7 @@ pub async fn backward_trace(
 
     let traces = service
         .backward_trace(params.customer_id, &params.batch_no)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let trace_responses: Vec<TraceChainResponse> = traces
         .into_iter()
@@ -264,10 +261,7 @@ pub async fn create_trace_snapshot(
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BusinessTraceService::new(state.db.clone());
 
-    let snapshot = service
-        .create_snapshot(&trace_chain_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let snapshot = service.create_snapshot(&trace_chain_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         format!("追溯快照创建成功，快照 ID: {}", snapshot.id),

@@ -18,8 +18,9 @@ use crate::container::AppState;
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_item::{self, ActiveModel as ItemActive, Entity as ItemEntity};
 use crate::models::color_card_item_dto::{BatchImportError, BatchImportResponse, ColorItemDto};
-// 批次 211 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
-use crate::models::status::master_data;
+// 色号增删/批量导入的色卡状态门控：比较值以色卡权威词表 color_card 为唯一来源，
+// 严禁比较词表外的 legacy `active`（已被 DB CHECK 排除并由迁移回填为 draft）等永不写入的死值。
+use crate::models::status::color_card as card_status;
 use crate::utils::color_space_converter;
 
 /// 业务错误
@@ -47,6 +48,21 @@ type CmykTuple = (
 
 /// CIELab 色彩空间三元组（用于降低 `compute_color_spaces` 返回类型复杂度）
 type LabTuple = (Option<Decimal>, Option<Decimal>, Option<Decimal>);
+
+/// 允许维护色号（新增色号 / 批量导入）的色卡可编辑状态集合。
+///
+/// 业务语义（与写入方、DB CHECK、前端入口四方同源）：
+/// - 色卡创建即落 `draft`（`color_card_crud_service.rs` create → `card_status::DRAFT`）；
+/// - 色卡主体字段更新门控同样只放行 `draft`（`color_card_crud_service.rs` update）；
+/// - 前端列表编辑入口 `views/color-cards/list.vue` 亦按 `status === 'draft'` 渲染；
+/// - `issued/received/used/expired/archived/lost` 均为已发放或终态，色号内容不可再增删。
+/// 故可编辑态集合 = `{draft}`。
+///
+/// 守卫：本集合每个 token 必须来自色卡权威词表 `color_card`（`ALL` 子集）。
+/// 门控只能比较"色卡状态真实可达且会被写入"的值——比较词表外的值（如 legacy `active`，
+/// 已被 `color_card::ALL` 与 DB CHECK 排除、迁移回填为 `draft`、无任何端点可写出）
+/// 会让门控恒不满足，等价于把该操作对全量数据永久封死。
+const EDITABLE_CARD_STATUSES: &[&str] = &[card_status::DRAFT];
 
 /// 色号管理服务
 pub struct ColorCardItemService {
@@ -95,7 +111,8 @@ impl ColorCardItemService {
             .await?
             .ok_or(ItemError::ColorCardNotFound)?;
 
-        if card.status != master_data::ACTIVE {
+        // 门控：色号内容仅在色卡处于可编辑态（见 EDITABLE_CARD_STATUSES，取自色卡词表）时可维护
+        if !EDITABLE_CARD_STATUSES.contains(&card.status.as_str()) {
             return Err(ItemError::InvalidState);
         }
 
@@ -286,7 +303,8 @@ impl ColorCardItemService {
 
     /// 校验色卡状态是否允许导入
     fn validate_color_card_for_import(card: &color_card::Model) -> Result<(), ItemError> {
-        if card.status != master_data::ACTIVE {
+        // 与单条新增同一门控来源：色号仅在可编辑态（色卡词表集合）可批量维护
+        if !EDITABLE_CARD_STATUSES.contains(&card.status.as_str()) {
             return Err(ItemError::InvalidState);
         }
         Ok(())

@@ -5,6 +5,7 @@ use crate::models::dto::bpm_dto::{
 use crate::models::status::bpm_task as task_status;
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
@@ -39,11 +40,16 @@ pub async fn cancel_instance(
     Path(instance_id): Path<i32>,
     State(state): State<AppState>,
     auth: crate::middleware::auth_context::AuthContext,
-    Json(req): Json<CancelInstanceRequest>,
+    // 撤回理由选填：缺体经 OptionalJson 归一为 None，交由服务层状态门判定
+    OptionalJson(req): OptionalJson<CancelInstanceRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
     service
-        .cancel_instance(instance_id, Some(auth.user_id), req.cancel_reason)
+        .cancel_instance(
+            instance_id,
+            Some(auth.user_id),
+            req.and_then(|r| r.cancel_reason),
+        )
         .await?;
     Ok(Json(ApiResponse::success("撤回成功".to_string())))
 }
@@ -62,7 +68,7 @@ pub async fn query_tasks(
 #[derive(Debug, Deserialize)]
 pub struct BusinessRelationQuery {
     pub business_type: String,
-    pub business_id: i32,
+    pub business_id: i64,
 }
 
 /// Get BPM business relation

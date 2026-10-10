@@ -51,11 +51,13 @@ pub async fn create_approval(
 /// GET /api/v1/erp/crm/transfer-approvals
 pub async fn list_approvals(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ApprovalQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级数据权限：以申请人为归属列下推到查询，total 与可见集同源，杜绝持键用户跨归属枚举全公司审批单
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTransferApprovalService::new(state.db.clone());
-    let (items, total) = service.list_approvals(query).await?;
+    let (items, total) = service.list_approvals(query, &ctx).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -67,11 +69,13 @@ pub async fn list_approvals(
 /// GET /api/v1/erp/crm/transfer-approvals/:id
 pub async fn get_approval(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门：不存在→404 先行，申请人不在可见范围→403 固定脱敏文案（禁带记录 ID）
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTransferApprovalService::new(state.db.clone());
-    let result = service.get_approval(id).await?;
+    let result = service.get_approval(id, &ctx).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
@@ -109,9 +113,11 @@ pub async fn manager_approve(
     // 路径参数覆盖请求体中的 approval_id
     req.approval_id = id;
 
+    // 行级归属门（以申请人为归属列）：门在 service 事务落库之前，越权零审批、状态零漂移、零审计行
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTransferApprovalService::new(state.db.clone());
     let result = service
-        .manager_approve(req, auth.user_id, &auth.username)
+        .manager_approve(req, auth.user_id, &auth.username, &ctx)
         .await?;
 
     tracing::info!(
@@ -137,9 +143,11 @@ pub async fn director_approve(
     // 路径参数覆盖请求体中的 approval_id
     req.approval_id = id;
 
+    // 行级归属门（以申请人为归属列）：门在 service 事务落库之前，越权零审批、状态零漂移、零审计行
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTransferApprovalService::new(state.db.clone());
     let result = service
-        .director_approve(req, auth.user_id, &auth.username)
+        .director_approve(req, auth.user_id, &auth.username, &ctx)
         .await?;
 
     tracing::info!("总监 {} 审批转移单 {}", auth.username, result.approval_no);

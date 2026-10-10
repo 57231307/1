@@ -142,7 +142,7 @@ impl InventoryFinanceBridgeService {
                 tracing::warn!(
                     product_id,
                     error = %e,
-                    "V15 Batch05-P1-5: 移动加权平均成本更新失败，凭证已生成但 cost_price 未更新"
+                    "移动加权平均成本更新失败，凭证已生成但 cost_price 未更新"
                 );
             }
         }
@@ -223,7 +223,7 @@ impl InventoryFinanceBridgeService {
     ) -> Result<(), AppError> {
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -389,7 +389,7 @@ impl InventoryFinanceBridgeService {
 
     fn validate_quantity_meters(&self, quantity_meters: Decimal) -> Result<(), AppError> {
         if quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -530,7 +530,7 @@ impl InventoryFinanceBridgeService {
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证，
         // 避免 amount / quantity_meters 裸除法触发 panic 导致监听器任务异常
         if quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -711,7 +711,7 @@ impl InventoryFinanceBridgeService {
     ) -> Result<(), AppError> {
         // P0 5-4 修复：除零保护，quantity_meters 为 0 时拒绝生成凭证
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -813,7 +813,7 @@ impl InventoryFinanceBridgeService {
         args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -916,7 +916,7 @@ impl InventoryFinanceBridgeService {
         args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
         if args.quantity_meters.is_zero() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "quantity_meters 不能为 0，无法计算单价",
             ));
         }
@@ -971,7 +971,7 @@ impl InventoryFinanceBridgeService {
             tracing::warn!(
                 product_id,
                 product_name = %product.name,
-                "P2 3-17: 产品未设置成本价，金额计算将为 0，请先维护成本价"
+                "产品未设置成本价，金额计算将为 0，请先维护成本价"
             );
         }
         Ok((product.name, cost_price))
@@ -981,7 +981,7 @@ impl InventoryFinanceBridgeService {
     /// 通过 source_bill_id（采购订单 ID）+ product_id 查询 purchase_order_item.unit_price
     async fn fetch_purchase_unit_price(
         &self,
-        source_bill_id: Option<i32>,
+        source_bill_id: Option<i64>,
         product_id: i32,
     ) -> Option<Decimal> {
         use crate::models::purchase_order_item;
@@ -1049,7 +1049,7 @@ impl InventoryFinanceBridgeService {
             old_cost = %old_cost_price,
             received_price = %received_unit_price,
             new_cost = %new_cost,
-            "V15 Batch05-P1-5: 移动加权平均成本已更新"
+            "移动加权平均成本已更新"
         );
         Ok(new_cost)
     }

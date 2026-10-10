@@ -33,6 +33,11 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 产品目录域 =====
     "products",
     "categories",
+    // 产品分类路由别名段的运行时权限键（`/product-categories*` ⇒ `product-categories:*`，
+    // 见 routes/mod.rs:368-391 与 middleware/permission.rs 的资源段取自路径段）。
+    // 与 "categories" 是两条不同资源码，`categories:*` 不覆盖它 ⇒ 采购岗读分类树
+    // 必须授此键（CI 矩阵 purchaser 真缺口，裁定 R-6）。
+    "product-categories",
     "warehouses",
     "boms",
     "chemicals",
@@ -42,6 +47,11 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 库存仓储域 =====
     "inventory",
     "stock",
+    // 匹号领域查询与成品布入库标签（GET /inventory/pieces、/inventory/pieces/{id}/print）。
+    // 必须在此注册：`middleware/permission.rs::extract_resource_info` 对模块前缀 inventory
+    // 取 segment4 作资源段（utils/path_utils.rs:102-117 默认分支），运行时权限键是
+    // `pieces:read` / `pieces:print`，与 `inventory:*` 不同源、不会被其覆盖。
+    "pieces",
     "piece-split",
     "transfers",
     "adjustments",
@@ -68,6 +78,14 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "suppliers",
     "supplier-evaluations",
     "supplier-blacklists",
+    // 供应商 SKU 对照表与其父级目录（路由挂在 purchase 模块下：
+    // `routes/purchase.rs:461/488/507` 的 `/sku-mappings`、`/supplier-products`、
+    // `/supplier-product-colors`）。运行时权限键取 segment4（同 `purchase-orders` 的推导口径），
+    // 所以这三条是与 `suppliers` 彼此独立的资源码；矩阵 `init_service_ops/permission.rs`
+    // 已在授予它们，注册表缺登记就会让闸门①（未登记资源码 = 授予后永不命中）判红。
+    "sku-mappings",
+    "supplier-products",
+    "supplier-product-colors",
     // ===== 生产域（面料行业深化）=====
     "production-orders",
     "dye-batches",
@@ -132,6 +150,9 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "logistics",
     "ship-orders",
     "incoterms",
+    // 出口商检单：运行时权限键 `export-inspections:{read,create,update,print}` 由 URL 段
+    // 推导（seg3=export-inspections 为直接资源），必须在此登记否则矩阵授权行运行期永不命中。
+    "export-inspections",
     // ===== 人力资源域 =====
     "employees",
     // ===== 安全环保域 =====
@@ -141,6 +162,20 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "maintenance-records",
     // ===== 分析与报表域 =====
     "reports",
+    // 以下五枚是"路由早已注册、资源段却从未进本表"的收编：路径均挂在 `/api/v1/erp/<段>`
+    // 根级（segment3 即资源码），缺登记时中间件按"未知的资源路径"对**任何**角色拒（含管理员）；
+    // 补登记只解决"路径认识"，能否放行仍由下面各岗位的授权行决定。
+    // 期末报表快照：GET 列表/详情/verify 派生 read，POST 生成派生 create。
+    "period-report-snapshots",
+    // 账龄预警规则与账龄档位：财务侧配置主数据，GET=read、POST=create、PUT=update、DELETE=delete。
+    "aging-alert-rules",
+    "aging-grades",
+    // 资产类别（固定资产卡片表单取数）与行业基准（财务分析对标取数）。
+    "asset-categories",
+    "industry-benchmarks",
+    // 供应商资质到期扫描 `POST /supplier-qualifications/scan-expiry-warnings`：末段不在
+    // 动作关键字表内，故按方法派生为 create（不是 scan）；读取资质走同资源 read。
+    "supplier-qualifications",
     "bi-analysis",
     "dashboard",
     "sales-analysis",
@@ -156,7 +191,7 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "slow-queries",
     "print-templates",
     "data-import",
-    "permissions-audit",
+    "permission-audits",
     // ===== 审批流域 =====
     "export-approvals",
     "role-change-approvals",
@@ -269,7 +304,9 @@ impl From<InitError> for AppError {
             InitError::DatabaseError(e) => AppError::database(e),
             InitError::UserNotFound => AppError::not_found("用户不存在"),
             InitError::ConfigError(e) => AppError::bad_request(format!("配置错误: {}", e)),
-            InitError::ValidationError(e) => AppError::validation(format!("参数校验失败: {}", e)),
+            InitError::ValidationError(e) => {
+                AppError::validation_displayable(format!("参数校验失败: {}", e))
+            }
         }
     }
 }

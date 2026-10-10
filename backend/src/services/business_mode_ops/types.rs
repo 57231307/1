@@ -28,7 +28,6 @@ pub struct CreateBusinessModeConfigRequest {
     pub require_sales: Option<bool>,
     pub mode_category: String,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新业务模式配置请求

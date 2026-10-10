@@ -40,45 +40,51 @@ pub struct ProductionOrderDto {
 pub const AUDIT_RESOURCE_TYPE: &str = "production_order";
 
 /// 创建生产订单请求
+///
+/// 不含 `order_no` 字段：单据号禁手输（缺陷3），一律由服务端
+/// `DocumentNumberGenerator` 取号（`PO{YYYYMMDD}{3位流水}`）；类型层面不提供
+/// 注入口，编译期即杜绝任何调用方旁路写号。
 #[derive(Debug, Clone)]
 pub struct CreateProductionOrderRequest {
-    /// 订单编号（None 时自动生成 PO-时间戳-随机数）
-    pub order_no: Option<String>,
     /// 关联销售订单 ID（可选）
     pub sales_order_id: Option<i32>,
     /// 产品 ID
     pub product_id: i32,
-    /// 计划数量（None 取默认 0）
-    pub planned_quantity: Option<Decimal>,
+    /// 计划数量：NOT NULL DECIMAL（m0007:78）——类型上必填，不设 Option/默认值兜底
+    pub planned_quantity: Decimal,
     /// 计划开始日期
     pub planned_start_date: Option<chrono::NaiveDate>,
     /// 计划结束日期
     pub planned_end_date: Option<chrono::NaiveDate>,
-    /// 优先级（None 取 0）
+    /// 优先级（1-10，1 最高）：None 时该列不进 INSERT，由 DB DEFAULT 5 生效
+    ///（m0007:85；不再 unwrap_or_default 塌成 0 抢占最高优先级）
     pub priority: Option<i32>,
     /// 工作中心 ID
     pub work_center_id: Option<i32>,
     /// 备注
     pub remarks: Option<String>,
-    /// 创建人 ID
-    pub created_by: i32,
 }
 
 /// 更新生产订单请求
+///
+/// 字段三态语义（RFC 7386 JSON Merge Patch，形态对齐 handlers/department_handler.rs）：
+/// 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（planned_quantity/priority，m0007 DDL）同样双层表示，
+/// 显式 null 由 service 入口在任何 DB 访问前判业务错误拒绝。
 #[derive(Debug, Clone)]
 pub struct UpdateProductionOrderRequest {
-    /// 计划数量
-    pub planned_quantity: Option<Decimal>,
-    /// 计划开始日期
-    pub planned_start_date: Option<chrono::NaiveDate>,
-    /// 计划结束日期
-    pub planned_end_date: Option<chrono::NaiveDate>,
-    /// 优先级
-    pub priority: Option<i32>,
-    /// 工作中心 ID
-    pub work_center_id: Option<i32>,
-    /// 备注
-    pub remarks: Option<String>,
+    /// 计划数量：NOT NULL DECIMAL（m0007:78）——显式 null 被 service 拒绝
+    pub planned_quantity: Option<Option<Decimal>>,
+    /// 计划开始日期：DB 可空 DATE（m0007:80）——显式 null 清空
+    pub planned_start_date: Option<Option<chrono::NaiveDate>>,
+    /// 计划结束日期：DB 可空 DATE（m0007:81）——显式 null 清空
+    pub planned_end_date: Option<Option<chrono::NaiveDate>>,
+    /// 优先级：NOT NULL INTEGER DEFAULT 5（m0007:84）——显式 null 被 service 拒绝
+    pub priority: Option<Option<i32>>,
+    /// 工作中心 ID：DB 可空 INTEGER（m0007:85）——显式 null 清空
+    pub work_center_id: Option<Option<i32>>,
+    /// 备注：DB 可空 TEXT（m0007:86）——显式 null 清空
+    pub remarks: Option<Option<String>>,
 }
 
 /// 生产订单查询参数

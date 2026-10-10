@@ -2,7 +2,7 @@
 //!
 //! 批次 490 D10-4a 拆分：从原 `wage_service.rs` L634-848 迁移。
 //! 包含 WageRecordService 的 10 个方法（new 留在 facade）：
-//! - generate_record_no（私有，生成单号 WR-YYYYMM-NNN）
+//! - generate_record_no（私有，统一生成器生成单号 WR{YYYYMMDD}{NNN}）
 //! - create / update / delete（CRUD + 业务校验）
 //! - confirm / pay / cancel（状态机 draft→confirmed→paid/cancelled）
 //! - get_by_id / get_by_no / list（查询）
@@ -30,21 +30,33 @@ use crate::services::wage_service::{
 };
 
 impl WageRecordService {
-    /// 生成工资单号：WR-YYYYMM-NNN
-    fn generate_record_no(period: chrono::NaiveDate) -> String {
-        let ym = period.format("%Y%m");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("WR-{}-{:03}", ym, random)
+    /// 生成工资单号（统一生成器：`WR{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
+    async fn generate_record_no(&self) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "WR",
+            RecordEntity,
+            wage_record::Column::RecordNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "工资单号生成失败");
+            AppError::business_displayable("工资单号生成失败，请稍后重试")
+        })
     }
 
-    /// 创建工资记录（仅创建空记录，需调用 calculate 触发计算）
-    pub async fn create(&self, req: CreateWageRecordRequest) -> Result<RecordModel, AppError> {
+    /// 创建工资记录（仅创建空记录，需调用 calculate 触发计算）；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateWageRecordRequest,
+        user_id: i32,
+    ) -> Result<RecordModel, AppError> {
         // 业务校验：周期结束必须 ≥ 周期开始
         if req.period_end < req.period_start {
             return Err(AppError::business("周期结束日期必须 ≥ 周期开始日期"));
         }
 
-        let record_no = Self::generate_record_no(req.period_start);
+        let record_no = self.generate_record_no().await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RecordActiveModel {
@@ -65,7 +77,7 @@ impl WageRecordService {
             paid_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -226,7 +238,7 @@ impl WageRecordService {
             voucher_date,
             source_type: Some("wage".to_string()),
             source_module: Some("wage_record".to_string()),
-            source_bill_id: Some(record.id),
+            source_bill_id: Some(i64::from(record.id)),
             source_bill_no: Some(record.record_no.clone()),
             batch_no: None,
             color_no: None,
@@ -299,7 +311,7 @@ impl WageRecordService {
             voucher_date,
             source_type: Some("wage".to_string()),
             source_module: Some("wage_record".to_string()),
-            source_bill_id: Some(record.id),
+            source_bill_id: Some(i64::from(record.id)),
             source_bill_no: Some(record.record_no.clone()),
             batch_no: None,
             color_no: None,

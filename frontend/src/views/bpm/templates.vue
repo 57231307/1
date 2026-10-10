@@ -13,37 +13,9 @@
       </div>
     </div>
 
-    <el-card shadow="hover" class="filter-card">
-      <el-form
-        :inline="true"
-        :model="filterForm"
-        class="filter-form"
-        :aria-label="$t('bpm.templates.filter.ariaLabel')"
-      >
-        <el-form-item :label="$t('bpm.templates.filter.category')">
-          <el-select
-            v-model="filterForm.category"
-            :placeholder="$t('bpm.templates.filter.categoryPlaceholder')"
-            clearable
-            style="width: 160px"
-            @change="handleSearch"
-          >
-            <el-option :label="$t('bpm.templates.category.sales')" value="sales" />
-            <el-option :label="$t('bpm.templates.category.purchase')" value="purchase" />
-            <el-option :label="$t('bpm.templates.category.finance')" value="finance" />
-            <el-option :label="$t('bpm.templates.category.hr')" value="hr" />
-            <el-option :label="$t('bpm.templates.category.production')" value="production" />
-            <el-option :label="$t('bpm.templates.category.common')" value="common" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">{{
-            $t('bpm.templates.filter.query')
-          }}</el-button>
-          <el-button @click="handleResetFilter">{{ $t('bpm.templates.filter.reset') }}</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+    <!-- 分类筛选已移除：后端 GET /bpm/templates 查询 DTO TemplateQuery 仅 {page,page_size}，
+         无 category（模板业务分类与 usage_count 统计为后端缺口，已登记串行清单；
+         且模板行 category 恒为后端内部哨兵值 __TEMPLATE__，按其过滤/展示均无业务意义） -->
 
     <el-row v-loading="loading" :gutter="20">
       <el-col
@@ -57,8 +29,8 @@
       >
         <el-card shadow="hover" class="template-card">
           <div class="template-header">
-            <div class="template-icon" :class="`icon-${template.category}`">
-              <el-icon><component :is="getCategoryIcon(template.category)" /></el-icon>
+            <div class="template-icon">
+              <el-icon><Document /></el-icon>
             </div>
             <el-dropdown trigger="click" class="template-actions">
               <el-icon><MoreFilled /></el-icon>
@@ -81,15 +53,12 @@
             </el-dropdown>
           </div>
           <div class="template-body">
-            <h3 class="template-name">{{ template.template_name }}</h3>
+            <h3 class="template-name">{{ template.process_name }}</h3>
             <p class="template-desc">
               {{ template.description || $t('bpm.templates.card.noDescription') }}
             </p>
             <div class="template-meta">
-              <el-tag size="small">{{ getCategoryText(template.category) }}</el-tag>
-              <span class="usage-count">{{
-                $t('bpm.templates.card.usageCount', { count: template.usage_count })
-              }}</span>
+              <el-tag size="small">v{{ template.version || '1' }}</el-tag>
             </div>
           </div>
           <div class="template-footer">
@@ -125,22 +94,18 @@
       :aria-label="$t('bpm.templates.detailDialog.ariaLabel')"
     >
       <div v-if="currentTemplate" class="template-detail">
+        <!-- 模板行= bpm_process_definition（process_name/code/version/description/nodes），
+             后端不返回 template_name/template_key/usage_count（恒 undefined，已按真实键改写） -->
         <el-descriptions
           :column="2"
           border
           :aria-label="$t('bpm.templates.detailDialog.descriptionsAriaLabel')"
         >
           <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateName')">{{
-            currentTemplate.template_name
-          }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateCategory')">{{
-            getCategoryText(currentTemplate.category)
+            currentTemplate.process_name
           }}</el-descriptions-item>
           <el-descriptions-item :label="$t('bpm.templates.detailDialog.templateKey')">{{
-            currentTemplate.template_key
-          }}</el-descriptions-item>
-          <el-descriptions-item :label="$t('bpm.templates.detailDialog.usageCount')">{{
-            currentTemplate.usage_count
+            currentTemplate.code
           }}</el-descriptions-item>
           <el-descriptions-item :label="$t('bpm.templates.detailDialog.createdAt')">{{
             currentTemplate.created_at
@@ -149,10 +114,10 @@
             currentTemplate.description || '-'
           }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="currentTemplate.process_definition" class="process-preview">
+        <div v-if="currentTemplate.nodes && currentTemplate.nodes.length" class="process-preview">
           <h4>{{ $t('bpm.templates.detailDialog.nodePreview') }}</h4>
           <el-table
-            :data="currentTemplate.process_definition.nodes || []"
+            :data="currentTemplate.nodes"
             size="small"
             style="margin-top: 12px"
             :aria-label="$t('bpm.templates.detailDialog.nodePreviewAriaLabel')"
@@ -212,7 +177,15 @@
         :aria-label="$t('bpm.templates.createDialog.formAriaLabel')"
       >
         <el-form-item :label="$t('bpm.templates.createDialog.templateName')">
-          <span>{{ currentTemplate?.template_name }}</span>
+          <span>{{ currentTemplate?.process_name }}</span>
+        </el-form-item>
+        <!-- 后端 create_from_template 收 Json<CreateProcessDefinitionRequest>：
+             name/code 为非 Option 必填（缺任一必 422），两者都必须真实采集 -->
+        <el-form-item :label="$t('bpm.definitions.form.processKey')">
+          <el-input
+            v-model="createForm.process_key"
+            :placeholder="$t('bpm.definitions.form.processKeyPlaceholder')"
+          />
         </el-form-item>
         <el-form-item :label="$t('bpm.templates.createDialog.processName')">
           <el-input
@@ -234,22 +207,14 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
-import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import {
-  MoreFilled,
-  Document,
-  ShoppingBag,
-  Money,
-  User,
-  TrendCharts,
-  Connection,
-} from '@element-plus/icons-vue';
+import { MoreFilled, Document } from '@element-plus/icons-vue';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import { createBpmFromTemplate, deleteBpmTemplate, getBpmTemplateById } from '@/api/bpm-enhanced';
-import type { ProcessTemplate } from '@/api/bpm-enhanced';
+import type { ProcessTemplate, CreateProcessDefinitionPayload } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -258,35 +223,10 @@ const { t } = useI18n({ useScope: 'global' });
 const submitLoading = ref(false);
 const currentTemplate = ref<ProcessTemplate | null>(null);
 
-const filterForm = reactive({ category: '' });
-
 const detailDialogVisible = ref(false);
 const createDialogVisible = ref(false);
-const createForm = reactive({ process_name: '' });
-
-const getCategoryText = (category: string) => {
-  const map: Record<string, string> = {
-    sales: t('bpm.templates.category.sales'),
-    purchase: t('bpm.templates.category.purchase'),
-    finance: t('bpm.templates.category.finance'),
-    hr: t('bpm.templates.category.hr'),
-    production: t('bpm.templates.category.production'),
-    common: t('bpm.templates.category.common'),
-  };
-  return map[category] || category;
-};
-
-const getCategoryIcon = (category: string): Component => {
-  const map: Record<string, Component> = {
-    sales: TrendCharts,
-    purchase: ShoppingBag,
-    finance: Money,
-    hr: User,
-    production: Connection,
-    common: Document,
-  };
-  return map[category] || Document;
-};
+// 后端 CreateProcessDefinitionRequest：name/code 非 Option 必填，两者都必须真实采集
+const createForm = reactive({ process_key: '', process_name: '' });
 
 const getNodeTypeName = (type: string) => {
   const map: Record<string, string> = {
@@ -318,7 +258,6 @@ const {
   pageSize,
   total,
   refresh: fetchData,
-  setQueryParam,
 } = useTableApi<ProcessTemplate>({
   url: '/bpm/templates',
   // 后端 page_to_frontend_json 以统一分页信封承载列表，键为 `items`，显式钉住 listKey。
@@ -326,24 +265,6 @@ const {
   defaultPageSize: 12,
   onError: (err: unknown) => logger.error(String(err)),
 });
-
-// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
-const syncQueryParams = () => {
-  setQueryParam('category', filterForm.category || undefined);
-};
-
-const handleSearch = () => {
-  syncQueryParams();
-  page.value = 1;
-  fetchData();
-};
-
-const handleResetFilter = () => {
-  filterForm.category = '';
-  syncQueryParams();
-  page.value = 1;
-  fetchData();
-};
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
@@ -373,20 +294,34 @@ const handleCreateFromTemplate = (row: ProcessTemplate | null) => {
   if (!row && currentTemplate.value) row = currentTemplate.value;
   if (!row) return;
   currentTemplate.value = row;
-  createForm.process_name = row.template_name;
+  // 预填真实可提交值：名称取模板 process_name；编码取模板 code
+  // （后端唯一性校验排除模板自身记录，同名 code 建流程是合法初值，可改）
+  createForm.process_name = row.process_name;
+  createForm.process_key = row.code;
   detailDialogVisible.value = false;
   createDialogVisible.value = true;
 };
 
 const confirmCreateFromTemplate = async () => {
   if (!currentTemplate.value) return;
+  if (!createForm.process_key.trim()) {
+    ElMessage.warning(t('bpm.definitions.formRules.processKeyRequired'));
+    return;
+  }
+  if (!createForm.process_name.trim()) {
+    ElMessage.warning(t('bpm.definitions.formRules.processNameRequired'));
+    return;
+  }
   submitLoading.value = true;
   try {
-    const data =
-      createForm.process_name !== currentTemplate.value.template_name
-        ? { process_name: createForm.process_name }
-        : undefined;
-    await createBpmFromTemplate(currentTemplate.value.id, data);
+    // 后端 create_from_template(template_id, Json<CreateProcessDefinitionRequest>)：
+    // name/code 必填；description/category/config 省略时后端回退模板值
+    // （config 回退=继承模板 config.nodes 流程节点，不得发送顶层 nodes/仅 process_name）。
+    const payload: CreateProcessDefinitionPayload = {
+      code: createForm.process_key.trim(),
+      name: createForm.process_name.trim(),
+    };
+    await createBpmFromTemplate(currentTemplate.value.id, payload);
     ElMessage.success(t('bpm.templates.message.createSuccess'));
     createDialogVisible.value = false;
   } catch (e) {
@@ -399,7 +334,7 @@ const confirmCreateFromTemplate = async () => {
 const handleDeleteTemplate = async (row: ProcessTemplate) => {
   try {
     await ElMessageBox.confirm(
-      t('bpm.templates.message.deleteConfirm', { name: row.template_name }),
+      t('bpm.templates.message.deleteConfirm', { name: row.process_name }),
       t('bpm.templates.message.deleteConfirmTitle'),
       {
         type: 'warning',
@@ -409,7 +344,7 @@ const handleDeleteTemplate = async (row: ProcessTemplate) => {
     ElMessage.success(t('bpm.templates.message.deleteSuccess'));
     fetchData();
   } catch (e) {
-    if (e !== 'cancel') logger.error(String(e));
+    if (!isDialogDismissal(e)) logger.error(String(e));
   }
 };
 </script>

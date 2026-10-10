@@ -4,6 +4,17 @@
 //! 消除后端业务代码中的硬编码（"CNY" 币种码、默认账期天数、默认仓库/部门/采购员 ID）。
 //! 所有硬编码常量集中于此，便于统一维护和审计。
 
+/// 环保税法定常量（污染当量值＝法定不可调值，唯一来源）
+pub mod environmental_tax;
+
+/// customers.customer_type 唯一词表（列语义=渠道；允许值集合、缺省 `other`
+/// 与各写入口校验的单一来源）
+pub mod customer_type;
+
+/// customers.tier 唯一词表（列语义=分层；四值 + NULL=未定档、`MAJOR` 高档集合
+/// 是大客户二级审批唯一判据的单一来源）
+pub mod customer_tier;
+
 /// 默认币种码（ISO 4217）
 ///
 /// 用于 currency 字段的默认值。当前业务主要面向国内市场，默认人民币。
@@ -33,3 +44,10 @@ pub const DEFAULT_DEPARTMENT_ID: i32 = 1;
 /// 用于 purchaser_id 字段的默认值。当前系统仅配置了一个采购员（ID=1）。
 /// 应由当前登录用户的采购员身份决定。
 pub const DEFAULT_PURCHASER_ID: i32 = 1;
+
+/// 全局 HTTP 请求体大小上限：12 MB（安全漏洞 既定值：CSV 导入 10MB + 2MB 编码/头部余量）。
+///
+/// 唯一事实源：`bootstrap/middleware_bootstrap.rs` 的全局 `DefaultBodyLimit` 层与任何
+/// handler 内单点覆写提取上限（如供应商资质附件上传须让业务侧 5MB 显式校验先于
+/// axum Multipart 的 2MB 默认截断生效）都引用本常量，禁止在业务代码里另写第二份数值。
+pub const MAX_HTTP_BODY_BYTES: usize = 12 * 1024 * 1024;

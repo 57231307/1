@@ -64,6 +64,13 @@ impl CustomOrderStateService {
     /// 推进到下一阶段（自动判断下一状态）
     /// V15 P0-B11：状态门校验；`lab_dip → quotation`：校验 `lab_dip_request_id` 已关联且打样通知单 `approved_sample_id IS NOT NULL`；（客户已确认 OK 样才允许进入报价阶段）；`quotation → yarn_purchasing`：校验 `quotation_id` 已关联且报价单 `status = 'approved'`；（报价审批通过才允许进入生产阶段），并自动同步 `total_amount` 从报价单到定制订单
     ///
+    /// `to_status` 为调用方显式请求的目标阶段：
+    /// - `None`：沿用逐字符取自权威词表的顺序推进（`next_status`）。
+    /// - `Some(target)`：先按权威词表解析 target（词表外 token 一律拒绝），
+    ///   再用唯一权威转移表 `can_transition` 门控。非法跳跃（如 `draft → dyeing`）
+    ///   一律返回 `InvalidTransition` 显式拒绝，绝不降级为顺序推进静默放行。
+    ///   门控值与解析、写入值同源于 `utils::process_state_machine`，不另造词表。
+    ///
     /// V15 主线审计 P0 修复：原实现顺序执行 3 步写入（主单状态 / 完成当前节点 / 启动下一节点），
     /// 任一步失败都会留下半成品数据。现在把 3 步放进同一数据库事务 + 行级排它锁，
     /// 整体回滚保证主单状态、节点状态、工艺日志严格一致。
@@ -72,6 +79,7 @@ impl CustomOrderStateService {
         order_id: i64,
         operator_id: i32,
         notes: Option<String>,
+        to_status: Option<&str>,
     ) -> Result<custom_order::Model, StateError> {
         let txn = (*self.db).begin().await?;
 
@@ -82,7 +90,7 @@ impl CustomOrderStateService {
             .await?
             .ok_or(StateError::NotFound)?;
 
-        let next = next_status(&order.status)?;
+        let next = self.resolve_next_status(&order.status, to_status)?;
         let next_str = next.as_str().to_string();
 
         // 门校验（沿用 self.db，避免破坏原实现语义）。
@@ -101,6 +109,34 @@ impl CustomOrderStateService {
 
         txn.commit().await?;
         Ok(updated)
+    }
+
+    /// 解析本次推进的目标状态：显式请求的 `to_status` 走唯一权威转移表门控，
+    /// 未提供时沿用顺序推进。非法跳跃（词表外 token、或 `can_transition` 判定为假的
+    /// 非相邻阶段）一律 `InvalidTransition` 显式拒绝，绝不回退成顺序推进静默放行。
+    fn resolve_next_status(
+        &self,
+        current: &str,
+        to_status: Option<&str>,
+    ) -> Result<CustomOrderStatus, StateError> {
+        match to_status {
+            Some(target) => {
+                // 词表外 token 由 FromStr 显式拒绝（InvalidState），不做兜底。
+                let requested = target.parse::<CustomOrderStatus>().map_err(|_| {
+                    StateError::InvalidTransition(format!("{} → {}", current, target))
+                })?;
+                // 门控值与写入值同源：can_transition 与解析共用同一套权威词表常量，
+                // 逐字符比较，禁止英文化或大小写归一。
+                if !can_transition(current, target) {
+                    return Err(StateError::InvalidTransition(format!(
+                        "{} → {}",
+                        current, target
+                    )));
+                }
+                Ok(requested)
+            }
+            None => Ok(next_status(current)?),
+        }
     }
 
     /// 事务内版本：状态门校验（V15 P0 修复）

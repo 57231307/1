@@ -86,7 +86,7 @@
         </el-table-column>
         <el-table-column :label="t('customOrders.list.colStatus')" width="120" align="center">
           <template #default="{ row }">
-            <el-tag :type="STATUS_COLORS[row.status] || 'info'">
+            <el-tag :type="customOrderStatusTagType(row.status)">
               {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
@@ -159,27 +159,25 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import {
-  advanceCustomOrder,
-  cancelCustomOrder,
-  CUSTOM_ORDER_STATUS as STATUS_LABELS,
-  CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
-} from '@/api/custom-order';
+import { advanceCustomOrder, cancelCustomOrder } from '@/api/custom-order';
 import type { CustomOrderListItem } from '@/api/custom-order';
-// 批次 94 P2-12 修复：导入 useUserStore 用于获取真实操作人 ID（原硬编码为 1）
-import { useUserStore } from '@/store/user';
+import {
+  CUSTOM_ORDER_STATUSES,
+  customOrderStatusLabelKey,
+  customOrderStatusTagType,
+} from '@/utils/custom-order-status';
 import logger from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 // 批次 94 P2-12 修复：获取用户 store 以读取当前登录用户 ID
-const userStore = useUserStore();
 const filters = ref({ status: '', keyword: '' });
 
 // 批次 274：接入 useTableApi，消除手写 orders/loading/pagination.total + loadData 重复
@@ -201,22 +199,20 @@ const {
   },
 });
 
-// 状态选项（从 STATUS_LABELS 提取键）
-const statusOptions = computed(() => Object.keys(STATUS_LABELS));
+// 状态筛选选项：由后端权威同源的词表派生（utils/custom-order-status，11 态），
+// 不再取自残缺手写 map——旧实现缺 lab_dip/quotation/change_pending，
+// 这三态的行既显示不对也筛不出来
+const statusOptions = computed(() => [...CUSTOM_ORDER_STATUSES]);
 
-// 状态标签映射函数（i18n）
+// 状态标签映射函数（i18n）：labelKey 由权威词表给出；
+// 词表外取值由 normalizeCustomOrderStatus 抛错显式暴露，
+// 禁止旧实现 `map[status] || status` 把裸英文兜底回显给用户
 const getStatusLabel = (status: string): string => {
-  const map: Record<string, string> = {
-    draft: t('customOrders.status.draft'),
-    yarn_purchasing: t('customOrders.status.yarnPurchasing'),
-    dyeing: t('customOrders.status.dyeing'),
-    finishing: t('customOrders.status.finishing'),
-    delivery: t('customOrders.status.delivery'),
-    after_sales: t('customOrders.status.afterSales'),
-    completed: t('customOrders.status.completed'),
-    cancelled: t('customOrders.status.cancelled'),
-  };
-  return map[status] || status;
+  const key = customOrderStatusLabelKey(status);
+  if (key === undefined) {
+    throw new Error('定制订单状态缺失：custom_orders.status 为 NOT NULL 列，取值不得为空');
+  }
+  return t(key);
 };
 
 function formatAmount(val: number | string | null | undefined) {
@@ -269,20 +265,14 @@ async function handleAdvance(row: CustomOrderListItem) {
       t('customOrders.list.messageAdvanceTitle'),
       { type: 'warning' }
     );
-    // 批次 94 P2-12 修复：原硬编码 operator_id: 1，改为从 userStore 获取真实当前用户 ID
-    const operatorId = userStore.userInfo?.id;
-    if (!operatorId) {
-      ElMessage.error(t('customOrders.list.messageNoUserInfo'));
-      return;
-    }
+    // 操作人身份由后端按会话（AuthContext.user_id）派生，前端不采集、不传 operator_id。
     await advanceCustomOrder(row.id, {
-      operator_id: operatorId,
       notes: t('customOrders.list.messageAdvanceNotes'),
     });
     ElMessage.success(t('customOrders.list.messageAdvanceSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const msg = e instanceof Error ? e.message : String(e);
       ElMessage.error(msg || t('customOrders.list.messageAdvanceFailed'));
     }
@@ -305,7 +295,7 @@ async function handleCancel(row: CustomOrderListItem) {
     ElMessage.success(t('customOrders.list.messageCancelSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const msg = e instanceof Error ? e.message : String(e);
       ElMessage.error(msg || t('customOrders.list.messageCancelFailed'));
     }

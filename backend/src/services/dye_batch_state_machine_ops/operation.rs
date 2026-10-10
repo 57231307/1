@@ -22,7 +22,14 @@ use crate::utils::error::AppError;
 
 impl DyeBatchOperationService {
     /// 创建操作记录
-    pub async fn create(&self, req: CreateOperationRequest) -> Result<OperationModel, AppError> {
+    ///
+    /// `operator_id` 是操作人身份的唯一来源，由 handler 按服务端会话
+    /// （`AuthContext.user_id`）传入；请求 DTO 不承载该字段。
+    pub async fn create(
+        &self,
+        req: CreateOperationRequest,
+        operator_id: i32,
+    ) -> Result<OperationModel, AppError> {
         validate_operation_type(&req.operation_type)?;
 
         let now = crate::utils::date_utils::utc_now_fixed();
@@ -35,7 +42,8 @@ impl DyeBatchOperationService {
             source_batch_ids: Set(req.source_batch_ids),
             source_batch_nos: Set(req.source_batch_nos),
             operation_data: Set(req.operation_data),
-            operator_id: Set(req.operator_id),
+            // 操作人取服务端会话（由 handler 传入），请求体不承载身份
+            operator_id: Set(Some(operator_id)),
             operator_name: Set(req.operator_name),
             operation_at: Set(now),
             remarks: Set(req.remarks),

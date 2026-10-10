@@ -20,7 +20,6 @@ pub struct CreateProcessRouteRequest {
     pub default_duration_minutes: Option<i32>,
     pub require_scan: Option<bool>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新工序路线请求
@@ -56,7 +55,6 @@ pub struct CreateFlowCardRequest {
     pub planned_fabric_weight: Option<Decimal>,
     pub priority: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新流转卡请求（仅 pending 状态可更新）
@@ -103,7 +101,6 @@ pub struct StartStepRequest {
     pub worker_names: Option<String>,
     pub equipment_id: Option<i32>,
     pub equipment_name: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 结束工序请求（扫码结束）
@@ -134,13 +131,11 @@ pub struct CreateFeedbackRequest {
     pub severity: Option<String>,
     pub found_by: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
-/// 处理反馈单请求
+/// 处理反馈单请求（处理人身份由服务端会话决定，请求体不承载 handled_by）
 #[derive(Debug, Clone, Deserialize)]
 pub struct HandleFeedbackRequest {
     pub handling_opinion: Option<String>,
     pub handling_result: Option<String>,
-    pub handled_by: Option<i32>,
 }

@@ -13,7 +13,13 @@ import { ref, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { type PurchaseInspection, type PurchaseInspectionItem } from '@/api/purchase-inspection';
+import {
+  type PurchaseInspection,
+  type PurchaseInspectionItem,
+  type PurchaseInspectionQueryParams,
+  type PurchaseInspectionStats,
+  getPurchaseInspectionStats,
+} from '@/api/purchase-inspection';
 import {
   getPurchaseReceiptList,
   getReceiptItems,
@@ -24,19 +30,19 @@ import { getSupplierList } from '@/api/supplier';
 import { useTableApi } from '@/composables/useTableApi';
 import { logger } from '@/utils/logger';
 import { i18n } from '@/i18n';
+// 统计分桶（pending/pass/failed+partial 归不合格）全部发生在服务端
+// （backend services/purchase_inspection_service.rs::base_filtered_query，词表常量与写入侧同源），
+// 前端不再对行集做任何词表比较，故本文件不引入 PURCHASE_INSPECTION_* 常量——
+// 比较点收敛到唯一写入侧，禁止在浏览器里维持第二套计数口径。
 
 /**
  * 采购验货主业务 composable
  * 集中管理列表、统计、过滤、表单、详情、选项加载
  */
 export function usePi() {
-  // 统计数据（依据列表数据动态计算）
-  const stats = reactive({
-    total: 0,
-    pending: 0,
-    passed: 0,
-    failed: 0,
-  });
+  // 统计卡数据：服务端聚合四值（GET /purchase/inspections/stats）。
+  // null = 未取到（失败或从未返回），卡片显示占位符「—」，不以 0 顶替真实未知。
+  const stats = ref<PurchaseInspectionStats | null>(null);
 
   // 日期范围（独立 ref，便于 PurchaseInspectionFilter 双向绑定；fetch 前注入 queryParams.inspection_date_from/to）
   const dateRange = ref<[Date, Date] | null>(null);
@@ -67,17 +73,68 @@ export function usePi() {
     },
   });
 
-  // 监听列表/总数变化，同步统计字段（保持原 fetchData 中 stats 更新行为）
-  watch(
-    [tableData, total],
-    () => {
-      stats.total = total.value;
-      stats.pending = tableData.value.filter(i => i.inspection_status === 'pending').length;
-      stats.passed = tableData.value.filter(i => i.inspection_result === 'pass').length;
-      stats.failed = tableData.value.filter(i => i.inspection_result === 'fail').length;
-    },
-    { deep: false }
-  );
+  // 统计卡消费契约（服务端聚合，四值不在前端重算）：
+  // 1) 数据源：GET /purchase/inspections/stats，出参四键 total/pending/passed/failed
+  //    与后端 DTO PurchaseInspectionStats（models/purchase_inspection 内定义）逐键对齐，
+  //    均为整数计数（u64）；partial 归入 failed 的分桶裁定在服务端与写入词表同源。
+  // 2) 同参数同刷新：触发点为 watch(tableData)——useTableApi 每次列表取数成功都会把
+  //    响应行集以**新数组**写回 data.value（含初始加载、翻页自动重载、handleQuery/
+  //    handleReset/创建/更新/完成后的显式 refresh），这是"列表刚以当前参数完成一次取数"
+  //    的唯一汇聚信号；stats 请求参数与列表请求实发的集合取**同一份快照**
+  //    （{...queryParams, page, page_size}），不在前端另装配第二套参数。
+  //    刻意不以 queryParams 变化为触发：筛选表单每次键入都改 queryParams 而列表只在
+  //    点「查询」后才取数，事件不同步会让卡片先于表格换口径（口径分叉正根）。
+  // 3) 竞态保护：请求序号 statsSeq——后发请求为代表，旧响应晚到一律丢弃，
+  //    既不得覆盖新参数取到的值，也不得用旧参数的失败清空新参数的数据。
+  // 4) 失败处置（fail-visible）：请求失败或四键形状不符契约（requireStatsShape 显式抛错，
+  //    不做 ?? 0 兜底）→ stats 置 null（卡片渲染「—」明确留空）+ msg.error('loadFailed')
+  //    即时提示 + logger 细节；列表自身取数失败时 tableData 不更新 → stats 与表格行同步
+  //    保持旧数据，两侧陈旧一致，不会出现卡片新表格旧的单边刷新。
+  // 5) 已知恒等式事实（非缺陷，分桶口径见服务端 purchase_inspection_service 的
+  //    inspection_stats 文书，partial 归入 failed）：
+  //    pending+passed+failed===total 在当前写入规则下成立但无 DB 约束兜底，
+  //    词表外异常行只进 total——四卡之和偶小于总数时差值即异常行数，如实呈现不掩盖。
+  let statsSeq = 0;
+
+  /** 四键逐键校验为有限数字；缺键/非数字=契约漂移，显式抛错进失败分支，绝不兜底成 0 */
+  const requireStatsShape = (raw: unknown): PurchaseInspectionStats => {
+    const obj = raw as Partial<PurchaseInspectionStats> | null | undefined;
+    const invalid = (['total', 'pending', 'passed', 'failed'] as const).filter(
+      key => typeof obj?.[key] !== 'number' || !Number.isFinite(obj[key] as number)
+    );
+    if (invalid.length > 0) {
+      throw new Error(
+        `[purchase-inspection] stats 响应契约不符：键 ${invalid.join('/')} 缺失或非整数计数，实际=${JSON.stringify(raw)}`
+      );
+    }
+    return obj as PurchaseInspectionStats;
+  };
+
+  const fetchStats = async (): Promise<void> => {
+    const seq = ++statsSeq;
+    try {
+      // queryParams 的键集由上方 useTableApi defaultParams 按 PurchaseInspectionQueryParams
+      // 形状构造（keyword/supplier_id/status/result/inspection_date_from/to），
+      // Record<string, unknown> → 具名形状是类型桥接断言，键名单一来源、无第二处装配点。
+      const params: PurchaseInspectionQueryParams = {
+        ...queryParams.value,
+        page: page.value,
+        page_size: pageSize.value,
+      } as PurchaseInspectionQueryParams;
+      const res = await getPurchaseInspectionStats(params);
+      if (seq !== statsSeq) return;
+      stats.value = requireStatsShape(res.data);
+    } catch (error) {
+      if (seq !== statsSeq) return;
+      stats.value = null;
+      logger.error('[purchase-inspection] 统计卡服务端聚合取数失败', error);
+      msg.error('loadFailed');
+    }
+  };
+
+  watch(tableData, () => {
+    void fetchStats();
+  });
 
   // 选项
   const suppliers = ref<{ id: number; name: string }[]>([]);

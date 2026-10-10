@@ -154,7 +154,8 @@ pub struct VoucherItemDetail {
     pub credit: Decimal,
     pub source_type: Option<String>,
     pub source_module: Option<String>,
-    pub source_bill_id: Option<i32>,
+    /// 来源单据 ID：凭证出参，随 vouchers.source_bill_id 宽度为 64 位
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
 }
 

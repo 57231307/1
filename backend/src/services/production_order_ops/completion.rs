@@ -78,7 +78,7 @@ impl ProductionOrderService {
                     order_id,
                     work_center_id,
                     load_rate = %item.load_rate,
-                    "批次 386 B-P2-5: 工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
+                    "工作中心负荷率较高（>80%），排产成功但建议关注产能瓶颈"
                 );
             }
         }
@@ -485,7 +485,7 @@ impl ProductionOrderService {
                 quantity_kg: Decimal::ZERO,
                 source_bill_type: Some("production_order".to_string()),
                 source_bill_no: Some(order.order_no.clone()),
-                source_bill_id: Some(order.id),
+                source_bill_id: Some(i64::from(order.id)),
                 quantity_before_meters: Some(stock_record.quantity_meters),
                 quantity_before_kg: Some(stock_record.quantity_kg),
                 quantity_after_meters: Some(qty_after_meters),
@@ -679,7 +679,7 @@ impl ProductionOrderService {
                 quantity_kg: record.added_kg,
                 source_bill_type: Some("production_order".to_string()),
                 source_bill_no: Some(order.order_no.clone()),
-                source_bill_id: Some(order.id),
+                source_bill_id: Some(i64::from(order.id)),
                 quantity_before_meters: Some(record.qty_before_meters),
                 quantity_before_kg: Some(record.qty_before_kg),
                 quantity_after_meters: Some(record.qty_after_meters),

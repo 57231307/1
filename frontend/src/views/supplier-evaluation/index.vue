@@ -425,6 +425,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { useTableApi } from '@/composables/useTableApi';
 import {
   createEvaluationRecord,
@@ -665,8 +666,9 @@ const handleDeleteEvaluation = async (row: EvaluationRecord) => {
       t('common.warning'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('supplierEvaluation.handleDelete', error);
   }
   try {
     await deleteEvaluation(row.id);

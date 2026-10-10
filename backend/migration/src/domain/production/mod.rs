@@ -28,13 +28,80 @@ mod m0054_add_import_task_file_fields;
 mod m0055_create_system_update_tables;
 mod m0056_normalize_stock_quality_status;
 mod m0057_normalize_stock_status_domain;
-// m0058 目标表 purchase_order_item / sales_contract_items 均在 v15 域内 CREATE，
-// 而 production 域早于 v15 执行；故 m0058 的 up/down 改由 v15 域在建表之后调用
+// m0058 目标表 purchase_order_item / sales_contract_items 均在 domain/v15 域内 CREATE，
+// 而 production 域早于该域执行；故 m0058 的 up/down 改由该域在建表之后调用
 // （见 domain/v15/mod.rs）。此处仅保留类型定义供跨域引用，故提升可见性为 pub(crate)。
 pub(crate) mod m0058_add_delivery_tolerance;
 mod m0059_add_product_piece_roll_conversion;
 mod m0060_add_so_item_tolerance;
 mod m0061_custom_order_status_add_lab_dip_quotation;
+mod m0062_add_dye_batch_actual_output;
+// m0063 为 9 张单据表补单号列 UNIQUE 兜底：其中 outsourcing_order /
+// outsourcing_receipt / finance_invoices 在 domain/v15 域内建表，而 production 域
+// 早于该域执行，直接注册本域会因 "relation ... does not exist" 中断迁移链。
+// 照 m0058 先例（见上方注释与 domain/v15/mod.rs），up/down 由该域在
+// 全部建表完成后调用，此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0063_add_document_no_unique_constraints;
+// m0064 扩 chk_custom_order_status 取值集为权威模块 custom_order::ALL 的 11 值
+// （+ change_pending）；目标表 custom_orders 由本域 m0044 建表（早于本迁移执行），
+// 直接注册本域 up 末尾即可。
+mod m0064_custom_order_status_add_change_pending;
+// m0065 委外发料匹占用存量回填：目标表 outsourcing_order / outsourcing_order_item
+// 在 domain/v15 域内建表（domain/v15/mod.rs:3227/:671），而 production 域早于该域执行，直接注册
+// 本域会因 "relation ... does not exist" 中断迁移链。照 m0058/m0063 先例，
+// up/down 由 domain/v15/mod.rs 在全部建表完成后调用，此处仅保留定义，
+// 提升可见性为 pub(crate)。
+pub(crate) mod m0065_backfill_outsourcing_reserved_pieces;
+// m0066 调拨出库明细补匹号列（出库四维=缸/色/批/匹，用户 2026-10-02 纠正口径）：
+// 目标表 inventory_transfer_items 由 system 域 m0001 建表，早于本域执行，直接注册本域。
+mod m0066_add_piece_no_to_transfer_items;
+// m0067 扩 chk_aftersales_status 取值集为写入方权威词表 AFTERSALES_ALL 的 7 值
+// （+ accepted/evaluated，三端词表同源收口）；目标表 after_sales 由本域
+// m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可。
+mod m0067_aftersales_status_add_accepted_evaluated;
+// m0068 化学品三表编码列部分唯一索引：目标表 chemical_category/chemical_master/
+// chemical_lot 均在 domain/v15 域内建表（domain/v15/mod.rs:2457/:2499/:2472），production 域早于
+// 该域执行。照 m0058/m0063/m0065 先例，up/down 由 domain/v15/mod.rs 在建表完成后
+// 调用，此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0068_add_chemical_code_partial_unique_constraints;
+// m0069 存量库补授 pieces:read / pieces:print（匹号领域权限键自始未注册，非 admin
+// 访问 /inventory/pieces* 一律 403，成因论证详见文件头）。目标表 role_permissions
+// 由 system 域 m0005 建表、roles 由 m0001 建表并种 3 角色，均早于本域执行，直接注册本域。
+mod m0069_grant_piece_read_and_print;
+// m0073 收紧 color_cards.stock_quantity / issued_quantity 为 NOT NULL DEFAULT 0：
+// 列由本域 inline SQL 先建成裸可空，finance 域的 NOT NULL DEFAULT 0 被
+// ADD COLUMN IF NOT EXISTS 吃成恒 no-op，
+// 而模型/出参都是非 Option i32 ⇒ NULL 行读取即 ColumnNull。成因链见文件头。
+mod m0073_normalize_color_card_quantities;
+// m0074 扩 chk_aftersales_type 取值集为写入方权威白名单的 5 值（+ return_goods，
+// 三端同源：service create 白名单 = CHECK = 前端候选）；目标表 after_sales 由本域
+// m0044 建表（早于本迁移执行），直接注册本域 up 末尾即可（与 m0067 同口径）。
+mod m0074_aftersales_type_add_missing_values;
+// m0075 委外收回入库单补三列打卷实测值（weight/width/gram_weight，收回→产匹透传的数据源）：
+// 目标表 outsourcing_receipt 在 domain/v15 域内建表（domain/v15/mod.rs:689），而 production 域早于
+// 该域执行，直接注册本域会因 "relation outsourcing_receipt does not exist" 中断迁移链。
+// 照 m0058/m0063/m0065/m0068 先例，up/down 由 domain/v15/mod.rs 在全部建表完成后调用（up
+// 见 domain/v15/mod.rs:4618、down 见 :4627），此处仅保留定义，提升可见性为 pub(crate)。
+pub(crate) mod m0075_add_outsourcing_receipt_measured_values;
+// m0076 给 inventory_piece 的 weight/width/gram_weight 三列补值域 CHECK
+// （`IS NULL OR > 0`）：这三列是成品布入库标签的**直读源**，
+// 服务层已有 >0 门（`outsourcing_ops/receipt.rs`、`inv/batch.rs`），CHECK 是并发/旁路
+// 写入的兜底——否则 0 或负值可落库并被**印上标签**（0 属伪造实测值）。
+// 注册链与 m0075 不同：目标表由 **business 域 m0010_add_inventory_extensions.rs:126** 建表，
+// 而 lib.rs 域顺序为 system→business→sales_crm→**production**（business 早于本域执行），
+// 故直接注册本域即可，无需像 m0075 那样挂到 domain/v15 之后。
+mod m0076_add_inventory_piece_measured_checks;
+// m0079 交易域审批「通过/拒绝」双理由专列（价目/报价/合同/两订单/采购退货 8 表 14 列）：
+// 目标表 sales_quotations 由 sales_crm 域建表（lib.rs 域序 system→business→sales_crm→
+// production，sales_crm 早于本域），其余 7 表由 system/m0001 与 business/m0009、m0011
+// 更早建表，故直接注册本域 up 链尾即可，全部目标表届时应存在。
+// 链序约束：加列必须先于 price_vocab_check 的后继 CHECK 迁移（补列先于 CHECK 的既定链序）。
+mod m0079_add_approval_reason_columns;
+// m0083 出口商检权限键 export-inspections:{read,create,update,print} 存量库补授
+// （资源段自始未注册，除 admin 外全员 403，成因论证详见该文件头）。目标表 role_permissions
+// 由 system 域 m0005 建表、roles 由 m0001 建表，均早于本域执行；本迁移不触碰 export_inspection
+// 业务表，故直接注册本域 up 链尾 / down 链首，无需后置到 `migration/src/domain/v15/`（口径同 m0069）。
+mod m0083_grant_export_inspections_perms;
 
 pub struct Migration;
 
@@ -152,8 +219,8 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         // 交货数量容差行级列（采购订单行 / 销售合同行）：目标表 purchase_order_item /
-        // sales_contract_items 均在 v15 域内建表，production 先于 v15 执行会导致
-        // "relation ... does not exist"，故 m0058.up() 已后置至 v15 域（见 domain/v15/mod.rs）。
+        // sales_contract_items 均在 domain/v15 域内建表，production 先于该域执行会导致
+        // "relation ... does not exist"，故 m0058.up() 已后置至 domain/v15 域（见 domain/v15/mod.rs）。
         // 产品匹/卷换算元数据列（meters_per_piece / meters_per_roll），域内最后追加
         m0059_add_product_piece_roll_conversion::Migration
             .up(manager)
@@ -162,6 +229,24 @@ impl MigrationTrait for Migration {
         m0060_add_so_item_tolerance::Migration.up(manager).await?;
         // 定制订单状态 CHECK 补齐 lab_dip/quotation（与状态机 as_str() 同源），须在建表后执行
         m0061_custom_order_status_add_lab_dip_quotation::Migration
+            .up(manager)
+            .await?;
+        // 缸号完工实际产出三列（dye_batch 表由 system 域 m0003 建表，早于 production 域执行）
+        m0062_add_dye_batch_actual_output::Migration
+            .up(manager)
+            .await?;
+        // 定制订单状态 CHECK 扩为权威词表 11 值（+ change_pending，写入方
+        // submit_change_request），存量词表外取值 fail-visible 中止，须晚于
+        // m0044 建表与 m0061 十值重建（同域顺序执行）
+        m0064_custom_order_status_add_change_pending::Migration
+            .up(manager)
+            .await?;
+        // 调拨出库明细补匹号列（出库四维=缸/色/批/匹 落库点，见文件头注释）
+        m0066_add_piece_no_to_transfer_items::Migration
+            .up(manager)
+            .await?;
+        // 售后工单状态 CHECK 补齐 accepted/evaluated（三端同源，见文件头注释），须晚于 m0044 建表
+        m0067_aftersales_status_add_accepted_evaluated::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "api_keys" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ;
@@ -460,11 +545,80 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // m0069 存量库补授 pieces:read / pieces:print（本域最后应用；依赖的
+        // role_permissions/roles 由 system 域 m0005/m0001 建表，早于本域执行）
+        m0069_grant_piece_read_and_print::Migration
+            .up(manager)
+            .await?;
+        // m0073 收紧色卡数量列（本域最后应用；目标表 color_cards 由本域建表建列）
+        m0073_normalize_color_card_quantities::Migration
+            .up(manager)
+            .await?;
+        // m0074 售后工单类型 CHECK 补齐 return_goods（三端同源，见文件头注释），
+        // 须晚于 m0044 建表；本域最后应用，down 最先回滚
+        m0074_aftersales_type_add_missing_values::Migration
+            .up(manager)
+            .await?;
+        // m0076 匹表三列实测值补 >0 CHECK（本域最后应用，故 down 最先回滚）
+        m0076_add_inventory_piece_measured_checks::Migration
+            .up(manager)
+            .await?;
+        // m0079 交易域审批双理由专列（8 表 14 列，全部可空 ADD IF NOT EXISTS；
+        // 目标表均由更早的 system/business/sales_crm 域建表，注册本域 up 链尾）
+        m0079_add_approval_reason_columns::Migration
+            .up(manager)
+            .await?;
+        // m0083 出口商检权限键存量库补授（本域最后应用，故 down 最先回滚；
+        // role_permissions/roles 由 system 域更早建表，直接注册本域，口径同 m0069）
+        m0083_grant_export_inspections_perms::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // m0083 最后应用故最先回滚（只回收本迁移按角色码授予的 export-inspections 键）
+        m0083_grant_export_inspections_perms::Migration
+            .down(manager)
+            .await?;
+        // m0079 最后应用故最先回滚（对称 DROP 本迁移新增的 14 列，不触碰既有列）
+        m0079_add_approval_reason_columns::Migration
+            .down(manager)
+            .await?;
+        // m0076 最后应用故最先回滚（撤三条值域 CHECK + 丢弃三列，带在途实测值时
+        // fail-visible 拒滚，见该文件 down 注释）
+        m0076_add_inventory_piece_measured_checks::Migration
+            .down(manager)
+            .await?;
+        // m0074 最后应用故最先回滚（售后类型 CHECK 回 m0044 原 4 值，
+        // 含 return_goods 在途行 fail-visible 拒滚）
+        m0074_aftersales_type_add_missing_values::Migration
+            .down(manager)
+            .await?;
+        // m0073 次后应用（撤 NOT NULL/DEFAULT，回到未收紧前的可空无默认形态）
+        m0073_normalize_color_card_quantities::Migration
+            .down(manager)
+            .await?;
+        // m0069 次后应用（只回收本迁移按角色码授予的 pieces 键）
+        m0069_grant_piece_read_and_print::Migration
+            .down(manager)
+            .await?;
+        // m0067 次后应用（售后状态 CHECK 回原 5 值，含在途行 fail-visible 拒滚）
+        m0067_aftersales_status_add_accepted_evaluated::Migration
+            .down(manager)
+            .await?;
+        // m0066 次后应用（调拨明细匹号列）
+        m0066_add_piece_no_to_transfer_items::Migration
+            .down(manager)
+            .await?;
+        // m0064 次后应用（带在途 change_pending 行的 fail-visible 拒滚检查）
+        m0064_custom_order_status_add_change_pending::Migration
+            .down(manager)
+            .await?;
+        m0062_add_dye_batch_actual_output::Migration
+            .down(manager)
+            .await?;
         m0061_custom_order_status_add_lab_dip_quotation::Migration
             .down(manager)
             .await?;
@@ -472,7 +626,7 @@ ALTER TABLE "sales_quotations" ADD COLUMN IF NOT EXISTS "insurance_cost" DECIMAL
         m0059_add_product_piece_roll_conversion::Migration
             .down(manager)
             .await?;
-        // m0058 的 down() 已随之迁移至 v15 域（与 up 对称），此处不再回滚。
+        // m0058 的 down() 已随之迁移至 domain/v15 域（与 up 对称），此处不再回滚。
         m0057_normalize_stock_status_domain::Migration
             .down(manager)
             .await?;

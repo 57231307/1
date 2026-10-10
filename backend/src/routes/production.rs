@@ -116,6 +116,10 @@ pub fn dye_recipes() -> Router<AppState> {
             post(dye_recipe_handler::approve_recipe),
         )
         .route(
+            "/dye-recipes/{id}/reject",
+            post(dye_recipe_handler::reject_recipe),
+        )
+        .route(
             "/dye-recipes/{id}/submit",
             post(dye_recipe_handler::submit_dye_recipe),
         )
@@ -418,6 +422,7 @@ pub fn outsourcing() -> Router<AppState> {
         .route("/outsourcing-receipts", get(outsourcing_handler::list_outsourcing_receipts))
         .route("/outsourcing-receipts", post(outsourcing_handler::create_outsourcing_receipt))
         .route("/outsourcing-receipts/by-no/{no}", get(outsourcing_handler::get_outsourcing_receipt_by_no))
+        .route("/outsourcing-receipts/{id}", get(outsourcing_handler::get_outsourcing_receipt))
         .route("/outsourcing-receipts/{id}/confirm", post(outsourcing_handler::confirm_outsourcing_receipt))
         .route("/outsourcing-receipts/{id}", put(outsourcing_handler::update_outsourcing_receipt))
         .route("/outsourcing-receipts/{id}", delete(outsourcing_handler::delete_outsourcing_receipt))
@@ -534,9 +539,32 @@ pub fn quality_inspection() -> Router<AppState> {
             "/quality-inspection/defects/{id}/process",
             post(quality_inspection_handler::process_defect),
         )
+        // `/handle` 与 `/process` 完全同一语义、同一 handler：均为**从质检记录开单**
+        // （`{id}` = quality_inspection_records 记录 id，服务层 process_unqualified 依据
+        // 该记录 INSERT 一条 unqualified_products，并带同记录非终态行幂等守卫）。
+        // 保留仅为兼容既有调用方；它**不是**"更新台账行"。台账行原地更新处置结果
+        // （`{id}` = unqualified_products.id）走下方独立端点 /process-result，
+        // 两种语义不共用同一路径/handler（D1 裁定：禁止同路径承载双语义）
         .route(
             "/quality-inspection/defects/{id}/handle",
             post(quality_inspection_handler::process_defect),
+        )
+        // D1②：台账行处置结果原地更新（不新开行）。`{id}` = unqualified_products.id，
+        // 与下方报废两级审批同一 id 语义；权限键由 URL 段推导，与前缀段同源
+        .route(
+            "/quality-inspection/defects/{id}/process-result",
+            post(quality_inspection_handler::process_defect_result),
+        )
+        // P1 batch-18 缺陷 5.3 报废两级审批（财务一级 → 总经理二级）：
+        // {id} = unqualified_products.id（与 defects 列表同一实体）；权限键沿用 URL 段推导
+        // （production 模块前缀 → resource=quality-inspection），与本区块 defects/{id}/process 同源。
+        .route(
+            "/quality-inspection/defects/{id}/scrap-approval/financial",
+            post(quality_inspection_handler::approve_scrap_financial),
+        )
+        .route(
+            "/quality-inspection/defects/{id}/scrap-approval/gm",
+            post(quality_inspection_handler::approve_scrap_gm),
         )
         .route(
             "/quality/inspections/{id}/print",

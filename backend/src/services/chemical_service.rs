@@ -67,7 +67,8 @@ pub fn validate_chemical_type(chemical_type: &str) -> Result<(), AppError> {
         chemical_type::CHEMICAL,
     ];
     if !valid_types.contains(&chemical_type) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "染化料类型必须是 dye / auxiliary / chemical，当前: {}",
             chemical_type
         )));
@@ -84,7 +85,8 @@ pub fn validate_inspection_status(status: &str) -> Result<(), AppError> {
         chemical_inspection_status::QUARANTINE,
     ];
     if !valid.contains(&status) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "来料检验状态必须是 pending / passed / failed / quarantine，当前: {}",
             status
         )));
@@ -101,7 +103,8 @@ pub fn validate_lot_status(status: &str) -> Result<(), AppError> {
         chemical_lot_status::SCRAPPED,
     ];
     if !valid.contains(&status) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "批次状态必须是 active / consumed / expired / scrapped，当前: {}",
             status
         )));
@@ -117,7 +120,8 @@ pub fn validate_requisition_type(requisition_type: &str) -> Result<(), AppError>
         chemical_requisition_type::RD,
     ];
     if !valid.contains(&requisition_type) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "领用单类型必须是 production / lab / rd，当前: {}",
             requisition_type
         )));
@@ -136,7 +140,8 @@ pub fn validate_requisition_status(status: &str) -> Result<(), AppError> {
         chemical_requisition_status::CANCELLED,
     ];
     if !valid.contains(&status) {
-        return Err(AppError::business(format!(
+        // 枚举取值非法（提交字段）→ 校验族，可外显
+        return Err(AppError::validation_displayable(format!(
             "领用单状态必须是 draft / approved / issued / partial_returned / closed / cancelled，当前: {}",
             status
         )));

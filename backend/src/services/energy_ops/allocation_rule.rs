@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -16,9 +17,16 @@ use crate::models::energy_allocation_rule::{
 use crate::models::process_route::Entity as RouteEntity;
 use crate::models::status::energy_rule_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 // 复用 facade 的纯函数校验（保持单一来源，避免逻辑重复）
 use crate::services::energy_service::{validate_allocation_basis, validate_meter_type};
+
+/// 分摊规则编号（energy_allocation_rule.rule_no）自动编码前缀：沿用原手写格式
+/// "EAR-{时间戳}-{随机}" 的业务前缀 EAR，新格式统一为 {EAR}{YYYYMMDD}{3位流水}。
+/// 注意：分摊记录（energy_allocation_record.allocation_no）历史上与规则共用 EAR
+/// 前缀，本批改写保持既有业务前缀不动（两表各自独立取号，见 allocation_record.rs）。
+pub const ENERGY_ALLOCATION_RULE_NO_PREFIX: &str = "EAR";
 
 /// 创建分摊规则请求
 #[derive(Debug, Clone, Deserialize)]
@@ -34,7 +42,6 @@ pub struct CreateRuleRequest {
     pub standard_consumption_per_unit: Option<Decimal>,
     pub standard_unit: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新分摊规则请求（仅 draft 状态可更新）
@@ -74,16 +81,13 @@ impl EnergyAllocationRuleService {
         Self { db }
     }
 
-    /// 生成规则编号：EAR-YYYYMMDDHHMMSS-NNN
-    fn generate_rule_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("EAR-{}-{:03}", timestamp, random)
-    }
-
     /// 创建分摊规则
-    pub async fn create(&self, req: CreateRuleRequest) -> Result<RuleModel, AppError> {
+    /// 创建分摊规则；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateRuleRequest,
+        user_id: i32,
+    ) -> Result<RuleModel, AppError> {
         validate_meter_type(&req.meter_type)?;
         validate_allocation_basis(&req.allocation_basis)?;
 
@@ -108,7 +112,28 @@ impl EnergyAllocationRuleService {
             return Err(AppError::business("标准单位能耗不能为负"));
         }
 
-        let rule_no = Self::generate_rule_no();
+        // 规则编号取号与 INSERT 同事务：energy_allocation_rule.rule_no NOT NULL
+        // 无 UNIQUE（migration/src/domain/v15/mod.rs:2790），旧手写
+        // "EAR-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零，get_by_no 的 `.one()`
+        // 在重复号上直接报错；改为按 ENERGY_ALLOCATION_RULE_NO_PREFIX 经生成器在
+        // 事务内取号（pg_advisory_xact_lock 持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let rule_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            ENERGY_ALLOCATION_RULE_NO_PREFIX,
+            RuleEntity,
+            energy_allocation_rule::Column::RuleNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = ENERGY_ALLOCATION_RULE_NO_PREFIX,
+                "分摊规则编号取号失败（energy_ops/allocation_rule.create）"
+            );
+            AppError::business_displayable("分摊规则编号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RuleActiveModel {
@@ -127,15 +152,16 @@ impl EnergyAllocationRuleService {
             status: Set(energy_rule_status::DRAFT.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("分摊规则创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 

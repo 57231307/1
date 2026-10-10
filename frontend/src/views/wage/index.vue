@@ -237,6 +237,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { ApiResponse } from '@/types/api';
 import {
   calculateWageRecord,
@@ -364,8 +365,9 @@ async function onSaveRecord() {
 async function onDeleteRecord(row: WageRecord) {
   try {
     await ElMessageBox.confirm(`确认删除工资单 #${row.id}？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('wage.onDeleteRecord', error);
   }
   try {
     await deleteWageRecord(row.id);
@@ -522,8 +524,9 @@ const onDisableRate = async (row: Record<string, unknown>) => {
 const onDeleteRate = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认删除费率 #${row.id}？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('wage.onDeleteRate', error);
   }
   try {
     await deleteWageRate(Number(row.id));

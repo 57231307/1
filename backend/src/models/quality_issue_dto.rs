@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 //! 质量异常 DTO
-//!
-//! 设计依据：docs/superpowers/specs/2026-06-16-custom-order-design.md
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -9,9 +7,15 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 /// 上报质量异常请求
+///
+/// 与 `CreateAfterSalesDto` 同构：`custom_order_id`（异常归属）由路由
+/// `POST /custom-orders/{orderId}/issues` 的 path 参数权威提供
+/// （`handlers/custom_order_handler.rs::report_quality_issue`），不属于请求体字段，
+/// 结构性排除后伪造键被 serde 忽略，越权防护不依赖"反序列化后覆盖"。
+/// body 携带 `custom_order_id` 也无语义（对齐 handlers/color_card/items.rs::create_color_item
+/// 的 `service.create(id, dto)` 范式）。
 #[derive(Debug, Deserialize, Serialize, Validate, Clone)]
 pub struct ReportQualityIssueDto {
-    pub custom_order_id: i64,
     pub process_node_id: Option<i64>,
 
     /// 异常类型：color_diff(色差) / color_fastness(色牢度) / spec(规格不符) / damage(破损) / other
@@ -37,7 +41,6 @@ pub struct ReportQualityIssueDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResolveQualityIssueDto {
     pub resolution: String,
-    pub operator_id: i64,
 }
 
 /// 质量异常详情

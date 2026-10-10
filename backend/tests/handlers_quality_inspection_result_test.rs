@@ -89,7 +89,7 @@ fn test_receipt_inspection_status_maps_within_its_own_domain() {
 
     assert_eq!(
         purchase_receipt_inspection::ALL,
-        &["PENDING", "PASSED", "REJECTED"]
+        &["PENDING", "PASSED", "REJECTED", "CONCESSION_ACCEPTED"]
     );
     for result in quality_inspection_result::ALL {
         let mapped = purchase_receipt_inspection::from_inspection_result(result);

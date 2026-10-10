@@ -16,11 +16,11 @@ use crate::models::export_refund_declaration::{
     self, ActiveModel as RefundActiveModel, Entity as RefundEntity, Model as RefundModel,
 };
 use crate::models::foreign_exchange_verification::{self, Entity as FxEntity};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -39,7 +39,6 @@ pub struct CreateCustomsDeclarationRequest {
     pub exchange_rate: Decimal,
     pub customs_code: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 创建外汇核销单请求
@@ -89,10 +88,29 @@ impl ExportRefundService {
         Self { db }
     }
 
+    /// 单证核验状态唯一判定 token（models/export_customs_declaration.rs:39、
+    /// models/foreign_exchange_verification.rs:36 词表中的 verified 项）。
+    /// 核验端点（verify_documents_completeness）、documents_complete
+    /// （orders_documents_complete）与退税申报金额聚合
+    /// （verified_export_sales_amount）三者共用此常量，禁止任何一处另写第二套状态规则。
+    const VERIFIED_STATUS: &'static str = "verified";
+
+    /// 退税申报基数聚合：只计入 status=verified 报关单的人民币口径金额
+    /// （total_amount × exchange_rate 逐单求和）。pending/cancelled 等非已核验
+    /// 状态的行不进申报基数——与 [`Self::orders_documents_complete`] 的核验口径同源。
+    pub fn verified_export_sales_amount(customs_list: &[CustomsModel]) -> Decimal {
+        customs_list
+            .iter()
+            .filter(|c| c.status == Self::VERIFIED_STATUS)
+            .map(|c| c.total_amount * c.exchange_rate)
+            .sum()
+    }
+
     /// 创建出口报关单
     pub async fn create_customs_declaration(
         &self,
         req: CreateCustomsDeclarationRequest,
+        user_id: i32,
     ) -> Result<CustomsModel, AppError> {
         if req.total_amount < Decimal::ZERO {
             return Err(AppError::bad_request("报关金额不能为负"));
@@ -128,7 +146,8 @@ impl ExportRefundService {
             customs_code: Set(req.customs_code),
             status: Set("pending".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -142,23 +161,59 @@ impl ExportRefundService {
     }
 
     /// 校验"单证齐全"（报关单+核销单）（业务规则：免抵退税申报要求报关单与核销单齐全）
+    ///
+    /// 与 `generate_refund_declaration` 的 `documents_complete` 共用同一判定源
+    /// [`Self::orders_documents_complete`]（verified 报关单 + verified 核销单），
+    /// 不在两处各写一套规则。
     pub async fn verify_documents_completeness(
         &self,
         sales_order_id: i32,
     ) -> Result<bool, AppError> {
-        let customs_count = CustomsEntity::find()
-            .filter(export_customs_declaration::Column::SalesOrderId.eq(sales_order_id))
-            .filter(export_customs_declaration::Column::Status.eq("verified"))
-            .count(&*self.db)
-            .await?;
+        self.orders_documents_complete(&[sales_order_id]).await
+    }
 
-        let fx_count = FxEntity::find()
-            .filter(foreign_exchange_verification::Column::SalesOrderId.eq(sales_order_id))
-            .filter(foreign_exchange_verification::Column::Status.eq("verified"))
-            .count(&*self.db)
-            .await?;
+    /// 单证齐全统一判定源：给定销售订单集合，要求每个订单同时存在
+    /// status=verified 的出口报关单与 status=verified 的外汇核销单。
+    /// 空集合返回 false（无可判定对象不得虚报"齐全"）。
+    async fn orders_documents_complete(&self, sales_order_ids: &[i32]) -> Result<bool, AppError> {
+        if sales_order_ids.is_empty() {
+            return Ok(false);
+        }
+        use std::collections::HashSet;
 
-        Ok(customs_count > 0 && fx_count > 0)
+        let customs_verified: HashSet<i32> = CustomsEntity::find()
+            .filter(
+                export_customs_declaration::Column::SalesOrderId
+                    .is_in(sales_order_ids.iter().copied()),
+            )
+            .filter(export_customs_declaration::Column::Status.eq(Self::VERIFIED_STATUS))
+            .select_only()
+            .column(export_customs_declaration::Column::SalesOrderId)
+            .into_tuple::<Option<i32>>()
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        let fx_verified: HashSet<i32> = FxEntity::find()
+            .filter(
+                foreign_exchange_verification::Column::SalesOrderId
+                    .is_in(sales_order_ids.iter().copied()),
+            )
+            .filter(foreign_exchange_verification::Column::Status.eq(Self::VERIFIED_STATUS))
+            .select_only()
+            .column(foreign_exchange_verification::Column::SalesOrderId)
+            .into_tuple::<Option<i32>>()
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Ok(sales_order_ids
+            .iter()
+            .all(|id| customs_verified.contains(id) && fx_verified.contains(id)))
     }
 
     /// 计算免抵退税额（纯函数）
@@ -203,21 +258,42 @@ impl ExportRefundService {
         carryforward_from_prev: Decimal,
         created_by: Option<i32>,
     ) -> Result<RefundModel, AppError> {
-        // 汇总当期出口销售额
+        // 汇总当期出口销售额：真实所属期间半开区间 [本月月初, 次月月初)。
+        // 修复前只有 gte 下界无上界，"当期申报"会把该月之后所有报关数据聚合进来。
+        // 期间非法拒绝文案仅回显用户自己提交的输入，走 business_displayable 外显
+        if !(1..=12).contains(&period_month) {
+            return Err(AppError::business_displayable(format!(
+                "退税申报期间月份非法: {period_month}（须为 1-12）"
+            )));
+        }
+        let period_start = chrono::NaiveDate::from_ymd_opt(period_year, period_month as u32, 1)
+            .ok_or_else(|| {
+                AppError::business_displayable(format!(
+                    "退税申报期间非法: {period_year}-{period_month:02}"
+                ))
+            })?;
+        let (next_year, next_month) = if period_month == 12 {
+            (period_year + 1, 1)
+        } else {
+            (period_year, period_month + 1)
+        };
+        let period_end = chrono::NaiveDate::from_ymd_opt(next_year, next_month as u32, 1)
+            .ok_or_else(|| {
+                AppError::business_displayable(format!(
+                    "退税申报期间次月月初非法: {next_year}-{next_month:02}"
+                ))
+            })?;
+
         let customs_list = CustomsEntity::find()
-            .filter(
-                export_customs_declaration::Column::ExportDate.gte(
-                    chrono::NaiveDate::from_ymd_opt(period_year, period_month as u32, 1)
-                        .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
-                ),
-            )
+            .filter(export_customs_declaration::Column::ExportDate.gte(period_start))
+            .filter(export_customs_declaration::Column::ExportDate.lt(period_end))
             .all(&*self.db)
             .await?;
 
-        let export_sales_amount: Decimal = customs_list
-            .iter()
-            .map(|c| c.total_amount * c.exchange_rate)
-            .sum();
+        // 申报基数只计入 status=verified 的报关单（核验口径同源，见
+        // [`Self::verified_export_sales_amount`]）；customs_list 保留全期间数据仅用于
+        // documents_complete 的当期存在性/归属判定，未核验行不进金额基数。
+        let export_sales_amount = Self::verified_export_sales_amount(&customs_list);
 
         let calc_input = RefundCalculationInput {
             export_sales_amount,
@@ -234,6 +310,22 @@ impl ExportRefundService {
             chrono::Utc::now().timestamp() % 100000
         );
 
+        // documents_complete 与 verify_documents_completeness 统一判定源（修复前
+        // `!customs_list.is_empty()` 是自造的第二套规则）：本期存在报关数据、且
+        // 每条报关单都能归属到销售订单、且每个相关订单都有 verified 报关单 +
+        // verified 核销单；无法归属（sales_order_id 为空）的报关单按核验口径
+        // 判不齐，不虚报齐全。
+        let period_order_ids: Vec<i32> = {
+            let uniq: std::collections::HashSet<i32> = customs_list
+                .iter()
+                .filter_map(|c| c.sales_order_id)
+                .collect();
+            uniq.into_iter().collect()
+        };
+        let documents_complete = !customs_list.is_empty()
+            && customs_list.iter().all(|c| c.sales_order_id.is_some())
+            && self.orders_documents_complete(&period_order_ids).await?;
+
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = RefundActiveModel {
             declaration_no: Set(declaration_no),
@@ -247,7 +339,7 @@ impl ExportRefundService {
             actual_refund_amount: Set(calc.actual_refund_amount),
             carryforward_amount: Set(calc.carryforward_amount),
             refund_rate: Set(refund_rate),
-            documents_complete: Set(!customs_list.is_empty()),
+            documents_complete: Set(documents_complete),
             status: Set("draft".to_string()),
             remarks: Set(None),
             created_by: Set(created_by),
@@ -264,10 +356,17 @@ impl ExportRefundService {
     }
 
     /// 查询出口退税申报表
+    ///
+    /// 行级数据权限在查询构建阶段下推：申报表无 department_id 归属列，`created_by`
+    /// 是唯一归属列，故 owner 列与 dept 列同传 `created_by`（Dept 范围据此按可见
+    /// 部门成员集合过滤，Self 仅本人，All 不加过滤）。过滤在 `.all()` 取数前生效，
+    /// 返回列表本身即为范围内结果，调用方不得再对返回集做后置过滤或另发一次未加
+    /// 范围的 count——归属人为 NULL 的历史行一律不进可见集，不放行成"无主即可读"。
     pub async fn list_refund_declarations(
         &self,
         period_year: Option<i32>,
         period_month: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<RefundModel>, AppError> {
         let mut query = RefundEntity::find();
         if let Some(y) = period_year {
@@ -275,6 +374,14 @@ impl ExportRefundService {
         }
         if let Some(m) = period_month {
             query = query.filter(export_refund_declaration::Column::PeriodMonth.eq(m));
+        }
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                export_refund_declaration::Column::CreatedBy,
+                export_refund_declaration::Column::CreatedBy,
+            );
         }
         let list = query.all(&*self.db).await?;
         Ok(list)

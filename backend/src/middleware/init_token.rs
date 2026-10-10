@@ -1,4 +1,4 @@
-//! 初始化接口 Token 校验中间件（bug.md #3 修复）
+//! 初始化接口 Token 校验中间件（.monkeycode/bug.md 修复）
 //!
 //! 防御 init 子系统的"窗口期攻击"：在系统首次部署（数据库无 users 表）时，
 //! `/api/v1/erp/init/initialize` 等接口无法通过 JWT 认证（无用户可登录）。

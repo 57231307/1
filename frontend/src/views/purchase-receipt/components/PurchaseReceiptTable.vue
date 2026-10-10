@@ -39,6 +39,28 @@
       width="120"
     />
     <el-table-column
+      prop="total_quantity"
+      :label="t('purchaseReceipt.table.column.quantity')"
+      width="110"
+      align="right"
+    >
+      <template #default="scope">
+        <!-- rust_decimal 出参为十进制字符串，原样回显（合计必落库，非空列） -->
+        {{ scope.row.total_quantity }}
+      </template>
+    </el-table-column>
+    <el-table-column
+      prop="total_quantity_alt"
+      :label="t('purchaseReceipt.table.column.quantityAlt')"
+      width="110"
+      align="right"
+    >
+      <template #default="scope">
+        <!-- 辅量合计：无辅量采集时为 0.0000（后端 unwrap_or(ZERO) 累加口径），原样回显 -->
+        {{ scope.row.total_quantity_alt }}
+      </template>
+    </el-table-column>
+    <el-table-column
       prop="total_amount"
       :label="t('purchaseReceipt.table.column.amount')"
       width="120"
@@ -82,7 +104,7 @@
       :label="t('purchaseReceipt.table.column.createdAt')"
       width="150"
     />
-    <el-table-column :label="t('purchaseReceipt.table.column.action')" width="250" align="center">
+    <el-table-column :label="t('purchaseReceipt.table.column.action')" width="320" align="center">
       <template #default="scope">
         <el-button
           size="small"
@@ -100,13 +122,47 @@
         >
           <el-icon><Edit /></el-icon>
         </el-button>
+        <!-- 收货确认入口：状态门与权限门各自独立——本岗无 confirm 键时不该看见一个必吃 403 的按钮 -->
         <el-button
           v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
+          v-permission="'purchase-receipts:confirm'"
           size="small"
           type="warning"
+          data-testid="receipt-confirm-btn"
           @click="emit('approve', scope.row as PurchaseReceiptEntity)"
         >
           <el-icon><Check /></el-icon> {{ t('purchaseReceipt.table.button.approve') }}
+        </el-button>
+        <!--
+          让步接收/复检改判通道入口：状态由词表常量 v-if 门控，
+          操作权限由 v-permission 独立门控，两者缺一不可。
+        -->
+        <el-button
+          v-if="
+            scope.row.receipt_status === RECEIPT_STATUS.DRAFT &&
+            (scope.row.inspection_status === RECEIPT_INSPECTION.PENDING ||
+              scope.row.inspection_status === RECEIPT_INSPECTION.REJECTED)
+          "
+          v-permission="'purchase-receipts:concession'"
+          size="small"
+          type="warning"
+          data-testid="receipt-concession-btn"
+          @click="emit('concede', scope.row as PurchaseReceiptEntity)"
+        >
+          {{ t('purchaseReceipt.table.button.concession') }}
+        </el-button>
+        <el-button
+          v-if="
+            scope.row.receipt_status === RECEIPT_STATUS.DRAFT &&
+            scope.row.inspection_status === RECEIPT_INSPECTION.CONCESSION_ACCEPTED
+          "
+          v-permission="'purchase-receipts:rejudge'"
+          size="small"
+          type="info"
+          data-testid="receipt-rejudge-btn"
+          @click="emit('rejudge', scope.row as PurchaseReceiptEntity)"
+        >
+          {{ t('purchaseReceipt.table.button.rejudge') }}
         </el-button>
         <el-button
           v-if="scope.row.receipt_status === RECEIPT_STATUS.DRAFT"
@@ -139,7 +195,10 @@
 import { View, Edit, Delete, Check } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import type { PurchaseReceiptEntity } from '@/api/purchase-receipt';
-import { PURCHASE_RECEIPT_STATUS as RECEIPT_STATUS } from '@/utils/purchase-receipt-status';
+import {
+  PURCHASE_RECEIPT_STATUS as RECEIPT_STATUS,
+  PURCHASE_RECEIPT_INSPECTION_STATUS as RECEIPT_INSPECTION,
+} from '@/utils/purchase-receipt-status';
 import {
   getReceiptStatusLabel,
   getReceiptStatusTagType,
@@ -169,6 +228,8 @@ const emit = defineEmits<{
   view: [row: PurchaseReceiptEntity];
   edit: [row: PurchaseReceiptEntity];
   approve: [row: PurchaseReceiptEntity];
+  concede: [row: PurchaseReceiptEntity];
+  rejudge: [row: PurchaseReceiptEntity];
   delete: [row: PurchaseReceiptEntity];
   'update:page': [v: number];
   'update:page-size': [v: number];

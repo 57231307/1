@@ -13,7 +13,9 @@
             <span class="title">{{
               t('customOrders.detail.title', { orderNo: order.order_no })
             }}</span>
-            <el-tag :type="STATUS_COLORS[order.status] || 'info'" style="margin-left: 12px">
+            <!-- 标签配色与文案唯一来源 utils/custom-order-status（TagType 函数对
+                 词表外脏值抛错，禁止旧 `STATUS_COLORS[...] || 'info'` 兜底掩盖） -->
+            <el-tag :type="customOrderStatusTagType(order.status)" style="margin-left: 12px">
               {{ getStatusLabel(order.status) }}
             </el-tag>
           </div>
@@ -141,9 +143,11 @@
 
         <!-- 售后 -->
         <el-tab-pane :label="tabAfterSalesLabel" name="aftersales">
+          <!-- 缺陷 C：quality_issues 下传面板，供创建工单可选关联 quality_issue_id -->
           <AfterSalesPanel
             :order-id="order.id"
             :after-sales="order.after_sales || []"
+            :quality-issues="order.quality_issues || []"
             @refresh="loadData"
           />
         </el-tab-pane>
@@ -234,8 +238,8 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { useUserStore } from '@/store/user';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -246,9 +250,11 @@ import {
   createProcessNode,
   updateProcessNode,
   createNodeLog,
-  CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS,
 } from '@/api/custom-order';
 import type { CustomOrderDetail } from '@/api/custom-order';
+// 状态词表唯一权威在 utils/custom-order-status.ts（与后端 custom_order::ALL 11 态逐字符同源）：
+// 视图不手写第二套 map，也不按下标取派生表（未知 token 会静默返回 undefined，等同兜底）
+import { customOrderStatusLabelKey, customOrderStatusTagType } from '@/utils/custom-order-status';
 import ProcessFlow from '@/components/ProcessFlow.vue';
 import QualityCheck from '@/components/QualityCheck.vue';
 import logger from '@/utils/logger';
@@ -280,19 +286,17 @@ const tabAfterSalesLabel = computed(() =>
   })
 );
 
-// 状态标签映射函数（i18n）
+// 状态标签映射函数（i18n）：与 list.vue 同一范式——labelKey 由权威词表
+// utils/custom-order-status 给出（11 态全覆盖，含 lab_dip/quotation/change_pending）；
+// 词表外取值（历史脏数据/漂移 token）由 normalizeCustomOrderStatus 抛错，
+// 经既有错误边界显式暴露——本仓口径：脏数据要可见，不可被伪装成可读文本。
+// 旧实现的手写 8-token map + `map[status] || status` 兜底已删除。
 const getStatusLabel = (status: string): string => {
-  const map: Record<string, string> = {
-    draft: t('customOrders.status.draft'),
-    yarn_purchasing: t('customOrders.status.yarnPurchasing'),
-    dyeing: t('customOrders.status.dyeing'),
-    finishing: t('customOrders.status.finishing'),
-    delivery: t('customOrders.status.delivery'),
-    after_sales: t('customOrders.status.afterSales'),
-    completed: t('customOrders.status.completed'),
-    cancelled: t('customOrders.status.cancelled'),
-  };
-  return map[status] || status;
+  const key = customOrderStatusLabelKey(status);
+  if (key === undefined) {
+    throw new Error('定制订单状态缺失：custom_orders.status 为 NOT NULL 列，取值不得为空');
+  }
+  return t(key);
 };
 
 async function loadData() {
@@ -318,30 +322,15 @@ async function handleAdvance() {
       t('customOrders.detail.messageAdvanceTitle'),
       { type: 'warning' }
     );
-    // 与 list.vue 同源：操作人必须取当前登录用户，不得硬编码。
-    // 本轮取证订正：原实现直接读 userStore.userInfo?.id，缺失即 ElMessage.warning + return——
-    // 这是一条「静默不发请求」分支（warning 非 error、不抛错），正是「确认框点确定后无『推进成功』」
-    // 的直接来源：整页直达 /custom-orders/:id 时 store 可能仍处权限缓存哨兵态(id=0)或守卫补全
-    // 尚未落定，读到 falsy 即静默中止、POST 从未发出。修正：操作人一律以服务端权威身份为准——
-    // 本地 store 无有效 id 时先 await fetchUserInfo() 从 /auth/me 取真实当前用户再读；取后仍缺
-    // 才用 error 显式中止（不静默）。非兜底掩盖：不硬编码、不以 ?? 造默认、不吞异常。
-    const userStore = useUserStore();
-    if (!userStore.userInfo?.id) {
-      await userStore.fetchUserInfo();
-    }
-    const operatorId = userStore.userInfo?.id;
-    if (!operatorId) {
-      ElMessage.error(t('customOrders.detail.operatorMissing'));
-      return;
-    }
+    // 操作人身份一律由后端按会话（AuthContext.user_id）派生：前端不再采集、也不再
+    // 因本地 store 取不到 id 而走「静默不发请求」分支。
     await advanceCustomOrder(order.value.id, {
-      operator_id: operatorId,
       notes: t('customOrders.detail.messageAdvanceNotes'),
     });
     ElMessage.success(t('customOrders.detail.messageAdvanceSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const msg = e instanceof Error ? e.message : String(e);
       ElMessage.error(msg || t('customOrders.detail.messageAdvanceFailed'));
     }
@@ -363,7 +352,7 @@ async function handleCancel() {
     ElMessage.success(t('customOrders.detail.messageCancelSuccess'));
     loadData();
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const msg = e instanceof Error ? e.message : String(e);
       ElMessage.error(msg || t('customOrders.detail.messageCancelFailed'));
     }
@@ -450,17 +439,10 @@ const handleCreateNodeLog = async () => {
     ElMessage.warning(t('customOrders.detail.logActionRequired'));
     return;
   }
-  const userStore = useUserStore();
-  const operatorId = userStore.userInfo?.id;
-  if (!operatorId) {
-    ElMessage.warning(t('customOrders.detail.operatorMissing'));
-    return;
-  }
   nodeSaving.value = true;
   try {
     await createNodeLog(order.value.id, selectedNodeId.value, {
       action: nodeLogForm.action,
-      operator_id: operatorId,
       log_content: nodeLogForm.log_content || undefined,
     });
     ElMessage.success(t('customOrders.detail.logCreated'));

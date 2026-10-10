@@ -61,9 +61,12 @@ export interface OaAnnouncementQuery {
   page_size?: number;
 }
 
+// 后端宏出参为统一分页信封 PaginatedResponse：items/total/page/page_size 四键恒在
 export function listOaAnnouncements(
   params?: OaAnnouncementQuery
-): Promise<ApiResponse<{ items: OaAnnouncement[]; total: number }>> {
+): Promise<
+  ApiResponse<{ items: OaAnnouncement[]; total: number; page: number; page_size: number }>
+> {
   return request.get('/oa-announcements', { params });
 }
 

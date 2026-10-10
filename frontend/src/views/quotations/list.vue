@@ -216,8 +216,10 @@ import { logger } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus } from '@element-plus/icons-vue';
 import { useTableApi } from '@/composables/useTableApi';
+import { formatDecimalAmount } from '@/utils/money';
 import {
   cancelQuotation,
   convertQuotation,
@@ -342,8 +344,9 @@ async function handleCancel(row: QuotationResponseDto) {
         type: 'warning',
       }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.list.handleCancel', error);
   }
   await cancelQuotation(row.id);
   ElMessage.success(t('quotations.list.cancelSuccess'));
@@ -357,8 +360,9 @@ async function handleConvert(row: QuotationResponseDto) {
       t('quotations.list.convertConfirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.list.handleConvert', error);
   }
   const res = await convertQuotation(row.id);
   const order = res.data;
@@ -370,13 +374,9 @@ async function handleConvert(row: QuotationResponseDto) {
   }
 }
 
-/** 金额格式化（保留 2 位 + 千分位） */
-function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00';
-  return Number(value).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** 金额格式化（保留 2 位 + 千分位）：后端 rust_decimal 出参形态是 JSON 十进制字符串，须经 utils/money 归一后展示 */
+function formatAmount(value?: string | null): string {
+  return formatDecimalAmount(value);
 }
 
 // 批次 268：useTableApi 构造时自动初始加载列表，onMounted 仅加载客户下拉

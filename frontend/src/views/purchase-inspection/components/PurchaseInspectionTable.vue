@@ -124,6 +124,8 @@ import { useI18n } from 'vue-i18n';
 import { getStatusType, getStatusText, getResultType, getResultText } from '../composables/piFmts';
 // 行内操作按钮的状态门槛以写入侧原值为比较对象（后端 purchase_inspection.inspection_status：pending/completed）
 import { PURCHASE_INSPECTION_STATUS } from '@/utils/purchase-inspection-status';
+// 「生成退货」门控取值取本域权威词表常量（后端 purchase_inspection_result，禁止手写第二套）
+import { PURCHASE_INSPECTION_RESULT } from '@/utils/purchase-inspection-result';
 import type { PurchaseInspection } from '@/api/purchase-inspection';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -153,8 +155,11 @@ const emit = defineEmits<{
   'update:page-size': [v: number];
 }>();
 
-/** 仅 completed 且结果为 fail/partial 时可发起退货 */
-const RETURN_ELIGIBLE_RESULTS = new Set(['fail', 'partial']);
+/** 仅 completed 且结果为 fail/partial 时可发起退货（partial 的不合格部分与 fail 同走退货路径） */
+const RETURN_ELIGIBLE_RESULTS = new Set<string>([
+  PURCHASE_INSPECTION_RESULT.FAIL,
+  PURCHASE_INSPECTION_RESULT.PARTIAL,
+]);
 function canGenerateReturn(row: PurchaseInspection): boolean {
   return (
     row.inspection_status === PURCHASE_INSPECTION_STATUS.COMPLETED &&

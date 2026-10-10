@@ -7,7 +7,6 @@ import {
   ElButton,
   ElDialog,
   ElInput,
-  ElSelect,
   ElDatePicker,
   ElMessage,
   ElRow,
@@ -30,14 +29,15 @@ const stats = ref<AuditStats | null>(null);
 // stats 独立加载状态（与 logs 的 useTableApi.loading 分离，避免双 tab 切换时互相干扰）
 const statsLoading = ref(false);
 
+// 筛选键唯一真相：omni_audit_query_service::AuditQueryFilter{user_id,event_type,start_date,end_date,keyword,page,page_size,include_sensitive}。
+// 原 resource/action/status/start_time/end_time 后端不读（被 Axum 静默丢弃=假筛选），已移除；
+// start_date/end_date 为 chrono NaiveDate → 'YYYY-MM-DD'。
+// （资源/动作/状态维度过滤属后端缺口，已登记串行清单）
 const searchForm = ref({
   user_id: '',
   event_type: '',
-  resource: '',
-  action: '',
-  status: '',
-  start_time: '',
-  end_time: '',
+  start_date: '',
+  end_date: '',
 });
 
 // 批次 273：接入 useTableApi，消除手写 logs/total/loading/pagination/loadLogs 重复
@@ -60,24 +60,9 @@ const {
 const viewDialogVisible = ref(false);
 const viewData = ref<AuditLog | null>(null);
 
-const statusOptions = [
-  { label: t('omniAudit.index.optionAll'), value: '' },
-  { label: t('omniAudit.index.optionSuccess'), value: 'SUCCESS' },
-  { label: t('omniAudit.index.optionFailed'), value: 'FAILED' },
-];
-
-const getStatusLabel = (value: string) => {
-  const map: Record<string, string> = {
-    '': t('omniAudit.index.optionAll'),
-    SUCCESS: t('omniAudit.index.optionSuccess'),
-    FAILED: t('omniAudit.index.optionFailed'),
-  };
-  return map[value] || value;
-};
-
-const getStatusClass = (value: string) => {
-  return value === 'SUCCESS' ? 'status-success' : 'status-failed';
-};
+// 真实出参为 response_status（HTTP 状态码整数；UI 事件行后端缺省 0），
+// 不存在字符串 status 列（SUCCESS/FAILED 为臆造词表，按后端缺口登记串行清单）
+const getResponseStatusClass = (code: number) => (code >= 400 ? 'status-failed' : 'status-success');
 
 const loadStats = async () => {
   statsLoading.value = true;
@@ -98,11 +83,8 @@ const loadStats = async () => {
 const syncQueryParams = () => {
   setQueryParam('user_id', searchForm.value.user_id ? Number(searchForm.value.user_id) : undefined);
   setQueryParam('event_type', searchForm.value.event_type || undefined);
-  setQueryParam('resource', searchForm.value.resource || undefined);
-  setQueryParam('action', searchForm.value.action || undefined);
-  setQueryParam('status', searchForm.value.status || undefined);
-  setQueryParam('start_time', searchForm.value.start_time || undefined);
-  setQueryParam('end_time', searchForm.value.end_time || undefined);
+  setQueryParam('start_date', searchForm.value.start_date || undefined);
+  setQueryParam('end_date', searchForm.value.end_date || undefined);
 };
 
 const handleSearch = () => {
@@ -115,11 +97,8 @@ const handleReset = () => {
   searchForm.value = {
     user_id: '',
     event_type: '',
-    resource: '',
-    action: '',
-    status: '',
-    start_time: '',
-    end_time: '',
+    start_date: '',
+    end_date: '',
   };
   syncQueryParams();
   page.value = 1;
@@ -228,6 +207,9 @@ loadStats();
 
       <ElTabPane :label="t('omniAudit.index.tabLogs')" name="logs">
         <div class="filter-container">
+          <!-- 筛选项与后端 AuditQueryFilter 逐键对齐：user_id/event_type/start_date/end_date。
+               原 resource/action/status 输入与日期时间(datetime)控件已移除——
+               后端不读这些键（发送即被静默丢弃=假筛选），资源/动作/状态过滤登记串行清单 -->
           <ElRow :gutter="20">
             <ElCol :span="6">
               <ElInput
@@ -239,49 +221,18 @@ loadStats();
             </ElCol>
             <ElCol :span="6">
               <ElInput
-                v-model="searchForm.resource"
-                :placeholder="t('omniAudit.index.placeholderResource')"
+                v-model="searchForm.event_type"
+                :placeholder="t('omniAudit.index.colEventType')"
                 class="filter-item"
                 @keyup.enter="handleSearch"
               />
             </ElCol>
-            <ElCol :span="6">
-              <ElInput
-                v-model="searchForm.action"
-                :placeholder="t('omniAudit.index.placeholderAction')"
-                class="filter-item"
-                @keyup.enter="handleSearch"
-              />
-            </ElCol>
-            <ElCol :span="6">
-              <ElSelect
-                v-model="searchForm.status"
-                :placeholder="t('omniAudit.index.placeholderStatus')"
-                class="filter-item"
-              >
-                <ElOption
-                  v-for="s in statusOptions"
-                  :key="s.value"
-                  :label="s.label"
-                  :value="s.value"
-                />
-              </ElSelect>
-            </ElCol>
-          </ElRow>
-          <ElRow :gutter="20" style="margin-top: 10px">
             <ElCol :span="10">
               <ElDatePicker
-                v-model="searchForm.start_time"
-                type="datetime"
+                v-model="searchForm.start_date"
+                type="date"
+                value-format="YYYY-MM-DD"
                 :placeholder="t('omniAudit.index.placeholderStartTime')"
-                class="filter-item"
-              />
-            </ElCol>
-            <ElCol :span="10">
-              <ElDatePicker
-                v-model="searchForm.end_time"
-                type="datetime"
-                :placeholder="t('omniAudit.index.placeholderEndTime')"
                 class="filter-item"
               />
             </ElCol>
@@ -292,6 +243,17 @@ loadStats();
                 }}</ElButton>
                 <ElButton @click="handleReset">{{ t('omniAudit.index.buttonReset') }}</ElButton>
               </div>
+            </ElCol>
+          </ElRow>
+          <ElRow :gutter="20" style="margin-top: 10px">
+            <ElCol :span="10">
+              <ElDatePicker
+                v-model="searchForm.end_date"
+                type="date"
+                value-format="YYYY-MM-DD"
+                :placeholder="t('omniAudit.index.placeholderEndTime')"
+                class="filter-item"
+              />
             </ElCol>
           </ElRow>
         </div>
@@ -306,15 +268,23 @@ loadStats();
           :aria-label="t('omniAudit.index.ariaLogsTable')"
         >
           <ElTableColumn prop="id" :label="t('omniAudit.index.colId')" width="80" />
-          <ElTableColumn prop="user_name" :label="t('omniAudit.index.colUser')" width="100" />
-          <ElTableColumn prop="event_type" :label="t('omniAudit.index.colEventType')" width="120" />
-          <ElTableColumn prop="event_name" :label="t('omniAudit.index.colEventName')" width="150" />
-          <ElTableColumn prop="resource" :label="t('omniAudit.index.colResource')" width="120" />
+          <ElTableColumn prop="username" :label="t('omniAudit.index.colUser')" width="100" />
+          <ElTableColumn prop="module" :label="t('omniAudit.index.colEventType')" width="120" />
           <ElTableColumn prop="action" :label="t('omniAudit.index.colAction')" width="100" />
-          <ElTableColumn prop="status" :label="t('omniAudit.index.colStatus')" width="100">
+          <ElTableColumn
+            prop="resource_name"
+            :label="t('omniAudit.index.colResource')"
+            width="120"
+          />
+          <ElTableColumn
+            prop="description"
+            :label="t('omniAudit.index.colEventName')"
+            width="150"
+          />
+          <ElTableColumn prop="response_status" :label="t('omniAudit.index.colStatus')" width="100">
             <template #default="scope">
-              <span :class="['status-tag', getStatusClass(scope.row.status)]">
-                {{ getStatusLabel(scope.row.status) }}
+              <span :class="['status-tag', getResponseStatusClass(scope.row.response_status)]">
+                {{ scope.row.response_status }}
               </span>
             </template>
           </ElTableColumn>
@@ -357,6 +327,8 @@ loadStats();
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">
+        <!-- 字段键按后端 row_to_json 真实出参改写（username/module/resource_name/
+             response_status/request_path 等）；payload/error_msg/user_name 为臆造键已移除 -->
         <ElDescriptions :column="2" border>
           <ElDescriptionsItem :label="t('omniAudit.index.colId')">{{
             viewData.id
@@ -367,42 +339,31 @@ loadStats();
           <ElDescriptionsItem :label="t('omniAudit.index.labelUserId')">{{
             viewData.user_id
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="t('omniAudit.index.labelUserName')">{{
-            viewData.user_name || '-'
+          <ElDescriptionsItem :label="t('omniAudit.index.colUser')">{{
+            viewData.username
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('omniAudit.index.colEventType')">{{
-            viewData.event_type
-          }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="t('omniAudit.index.colEventName')">{{
-            viewData.event_name
+            viewData.module
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('omniAudit.index.colResource')">{{
-            viewData.resource
+            viewData.resource_name || '-'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('omniAudit.index.colAction')">{{
             viewData.action
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('omniAudit.index.colStatus')">{{
-            getStatusLabel(viewData.status)
+            viewData.response_status
           }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('omniAudit.index.colDuration')">{{
             viewData.duration_ms
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem :label="t('omniAudit.index.labelIpAddress')">{{
-            viewData.ip_address || '-'
-          }}</ElDescriptionsItem>
           <ElDescriptionsItem :label="t('omniAudit.index.labelCreatedAt')">{{
             viewData.created_at
           }}</ElDescriptionsItem>
+          <ElDescriptionsItem :label="t('omniAudit.index.titleRequestParams')" :span="2">{{
+            viewData.request_method ? viewData.request_method + ' ' + viewData.request_path : '-'
+          }}</ElDescriptionsItem>
         </ElDescriptions>
-        <div v-if="viewData.payload" style="margin-top: 20px">
-          <h4>{{ t('omniAudit.index.titleRequestParams') }}</h4>
-          <pre class="payload-pre">{{ JSON.stringify(viewData.payload, null, 2) }}</pre>
-        </div>
-        <div v-if="viewData.error_msg" style="margin-top: 20px">
-          <h4>{{ t('omniAudit.index.titleErrorMsg') }}</h4>
-          <div class="error-box">{{ viewData.error_msg }}</div>
-        </div>
       </div>
     </ElDialog>
   </div>

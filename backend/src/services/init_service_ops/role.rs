@@ -8,23 +8,28 @@ use crate::models::role;
 use crate::services::init_service::{InitError, InitService};
 use crate::utils::admin_checker::ADMIN_ROLE_CODE;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-use tracing::warn;
 
 impl InitService {
     pub(crate) async fn create_default_roles(&self) -> Result<role::Model, InitError> {
         // 批次 24 v6 P0-1 修复：使用 ADMIN_ROLE_CODE 常量替代硬编码 "admin"，
         // 与 admin_checker.rs 保持单一真相源，避免角色编码变更时多处不同步。
-        if let Some(admin_role) = self.find_existing_admin_role().await? {
-            return Ok(admin_role);
-        }
+        let admin_role = match self.find_existing_admin_role().await? {
+            Some(existing) => existing,
+            None => self.create_admin_role().await?,
+        };
 
-        // 如果不存在，则创建角色
-        let admin_role = self.create_admin_role().await?;
-
-        // 创建其他角色
+        // E6 的上游断链就在这里：旧写法"admin 已存在即整体早退"，业务角色
+        // 一条都不建。迁移 m0001 只种 admin/manager/operator 三行
+        // （`migration/src/domain/system/m0001_initial_schema.rs:609-612`），而 CI/e2e 库
+        // 恰好处于"admin 已存在"的状态（实证：`ci4675/rs/rs14/playwright-output.txt:257`
+        // "[globalSetup] 后端现有角色 3 个"），于是 `permission.rs` 矩阵里 34 个角色码在
+        // roles 表解析不到、其业务授权一条都写不进去 ⇒ production_manager 读生产工单 403、
+        // 角色权限矩阵大面积只派生出 /dashboard。
+        // 现在无条件补建全部角色：写入侧已按 code 做 ON CONFLICT DO NOTHING（同 code 天然
+        // 幂等，可重入），并且失败不再只 warn —— 建不出角色 = 授权链断，必须红。
         let mut all_new_roles = vec![Self::build_manager_role(), Self::build_operator_role()];
         all_new_roles.extend(Self::build_business_roles());
-        self.batch_insert_roles(all_new_roles).await;
+        self.batch_insert_roles(all_new_roles).await?;
 
         Ok(admin_role)
     }
@@ -63,8 +68,14 @@ impl InitService {
             .map_err(|e| InitError::DatabaseError(format!("创建管理员角色失败: {}", e)))
     }
 
-    async fn batch_insert_roles(&self, roles: Vec<role::ActiveModel>) {
-        if let Err(e) = role::Entity::insert_many(roles)
+    /// 批量补建默认角色。
+    ///
+    /// 幂等与 fail-visible 口径：按 `code` 走 `ON CONFLICT DO NOTHING`（重复 init 不报错、
+    /// 不产生第二行），但**写失败必须上抛**——角色建不出，`permission.rs` 的矩阵就没有落点，
+    /// 旧写法 `warn!("批量创建角色失败…可能部分已存在")` 后照常返回成功，正是
+    /// "看起来跑过了其实没写"的静默形态（CI E6 上游断链的放大器）。
+    async fn batch_insert_roles(&self, roles: Vec<role::ActiveModel>) -> Result<(), InitError> {
+        role::Entity::insert_many(roles)
             .on_conflict(
                 sea_orm::sea_query::OnConflict::column(role::Column::Code)
                     .do_nothing()
@@ -72,9 +83,13 @@ impl InitService {
             )
             .exec(self.db.as_ref())
             .await
-        {
-            warn!("批量创建角色失败: {}, 可能部分已存在", e);
-        }
+            .map(|_| ())
+            .map_err(|e| {
+                InitError::DatabaseError(format!(
+                    "批量创建默认角色失败，角色权限矩阵将无落点: {}",
+                    e
+                ))
+            })
     }
 
     fn build_manager_role() -> role::ActiveModel {
@@ -283,6 +298,14 @@ impl InitService {
                 "安全生产与环保合规",
                 "self",
             ),
+            // 审计岗位：permission.rs 矩阵已给 ("auditor", 只读审计面) 分组，角色必须
+            // 同码在册，否则闸门②（角色码解析不到）点名判红；且
+            // utils/admin_checker.rs::AUDITOR_ROLE_CODE 与 handlers/audit_log_handler.rs
+            // 的运行期深度防御按该 code 判定，它不能只是 e2e 补建 fixture。
+            // data_scope=all：审计/报表为跨域只读观察面（授权侧零写码），
+            // 与同区 system_admin/data_analyst 的 all 口径一致，不按 self 过滤即
+            // 无法履行全量审计职责；审计端点另有 handler 层 admin/auditor 角色门。
+            ("审计员", "auditor", "审计与合规只读查询", "all"),
             // IT/数据域
             ("系统管理员", "system_admin", "系统配置与用户管理", "all"),
             ("数据分析师", "data_analyst", "BI报表与数据分析", "all"),

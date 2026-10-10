@@ -374,6 +374,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -391,7 +392,6 @@ import {
   type FixedAssetUpdateRequest,
   type DisposalRequest,
 } from '@/api/asset';
-import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
 
@@ -412,7 +412,9 @@ const disposalDialogVisible = ref(false);
 const disposalSubmitting = ref(false);
 const disposalFormRef = ref<FormInstance>();
 const disposalTargetId = ref<number | undefined>(undefined);
-const disposalForm = reactive<DisposalRequest>({
+// 视图态金额保持 number（el-input-number 绑定），线格式在提交处按后端
+// rust_decimal 口径转两位小数十进制字符串（DisposalRequest.disposal_value）。
+const disposalForm = reactive({
   disposal_type: 'SALE',
   disposal_value: 0,
   disposal_date: new Date().toISOString().split('T')[0],
@@ -597,7 +599,7 @@ const openDetail = async (row: FixedAsset) => {
       detailVisible.value = true;
     }
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '获取详情失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '获取详情失败');
   }
 };
 
@@ -648,7 +650,9 @@ const handleSubmit = async () => {
           asset_name: form.asset_name,
           asset_category: form.asset_category || undefined,
           location: form.location || undefined,
-          original_value: form.original_value,
+          // 后端 CreateAssetRequestDto.original_value 为 rust_decimal（serde-floats 未启用，
+          // JSON 浮点字面量反序列化即拒）：视图态 number 经必填校验后转两位小数十进制字符串下发
+          original_value: form.original_value.toFixed(2),
           useful_life: Math.round(form.useful_life_months / 12),
           depreciation_method: form.depreciation_method,
           purchase_date: form.purchase_date,
@@ -682,7 +686,7 @@ const handleDelete = async (row: FixedAsset) => {
     ElMessage.success(t('fixedAssets.message.deleteSuccess'));
     fetchAssets();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fixedAssets.message.deleteFailed'));
     }
@@ -706,7 +710,7 @@ const handleDepreciate = async (row: FixedAsset) => {
     ElMessage.success(t('fixedAssets.message.depreciateSuccess'));
     fetchAssets();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fixedAssets.message.depreciateFailed'));
     }
@@ -733,7 +737,13 @@ const submitDisposal = async () => {
     if (!valid) return;
     disposalSubmitting.value = true;
     try {
-      await disposeAsset(assetId, { ...disposalForm });
+      // 后端 DisposalRequestDto.disposal_value 为 rust_decimal（serde-floats 未启用，
+      // JSON 浮点字面量反序列化即拒）：视图态 number 在提交边界转两位小数十进制字符串下发
+      const payload: DisposalRequest = {
+        ...disposalForm,
+        disposal_value: disposalForm.disposal_value.toFixed(2),
+      };
+      await disposeAsset(assetId, payload);
       ElMessage.success(t('fixedAssets.message.disposeSuccess'));
       disposalDialogVisible.value = false;
       fetchAssets();
@@ -765,12 +775,6 @@ const handleDepreciateAll = async () => {
         inputErrorMessage: t('fixedAssets.message.invalidPeriod'),
       }
     );
-    const userStore = useUserStore();
-    const userId = userStore.userInfo?.id;
-    if (!userId) {
-      ElMessage.error(t('fixedAssets.message.userNotFound'));
-      return;
-    }
     const assetIds = assetList.value
       .filter(a => a.status === 'in_use' || a.status === 'active')
       .map(a => a.id);
@@ -793,12 +797,11 @@ const handleDepreciateAll = async () => {
     await batchDepreciateAssets({
       asset_ids: assetIds,
       calculation_date: inputPeriod,
-      user_id: userId,
     });
     ElMessage.success(t('fixedAssets.message.batchDepreciateSuccess', { count: assetIds.length }));
     fetchAssets();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('fixedAssets.message.batchDepreciateFailed'));
     }

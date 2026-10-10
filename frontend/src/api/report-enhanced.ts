@@ -11,7 +11,6 @@ export interface ReportField {
 export interface ReportFilterCondition {
   field: string;
   operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'contains' | 'in' | 'between';
-  // 批次 98 P2-D 修复（v5 复审）：原 any 改为联合类型，覆盖所有 operator 的取值
   value: string | number | boolean | string[] | number[] | null;
 }
 
@@ -68,13 +67,15 @@ export interface ReportSubscription {
 
 /**
  * GET /reports/enhanced/subscriptions 真实响应载荷（唯一真相：backend
- * handlers/report_enhanced_handler.rs subscriptions::list，第 75-76 行
- * `json!({"items": items, "total": total})`）。后端**只返回 items + total**，
- * 无 page/page_size，承载列表的键只有 items。
+ * handlers/report_enhanced_handler.rs subscriptions::list，由
+ * define_tuple_crud_handlers! 宏出参类型化贯穿，载荷为统一分页信封
+ * utils/response.rs PaginatedResponse：items/total/page/page_size 四键恒在）。
  */
 export interface SubscriptionPage {
   items: ReportSubscription[];
   total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface CreateTemplateRequest {
@@ -130,21 +131,40 @@ export function getAvailableFields(
   return request.get(`/reports/enhanced/fields/${templateType}`);
 }
 
-export function exportReport(
-  templateId: number,
-  params: {
-    format: 'pdf' | 'excel';
-    date_range?: { start: string; end: string };
-    filters?: ReportFilterCondition[];
-  }
-): Promise<Blob> {
-  return request.post(`/reports/enhanced/templates/${templateId}/export`, params, {
-    responseType: 'blob',
-  });
+/**
+ * POST /reports/enhanced/templates/{id}/export 载荷（唯一真相：
+ * report_enhanced_handler::TemplateExportRequest{format,title}，全 Option）。
+ * 后端仅识别 format='pdf'（其余值统一走 xlsx）；无 date_range/filters 字段
+ * （此前传入即被 serde 丢弃，导出条件过滤属后端缺口，已登记串行清单）。
+ */
+export interface ReportExportRequest {
+  format?: 'pdf' | 'excel';
+  title?: string;
 }
 
-// P2-16 修复（批次 86 v2 复审）：previewReport ApiResponse<any> → 显式接口
-// 增强预览契约修复：键名/形状逐字对齐后端 json! 构造（report_enhanced_handler.rs:512-518）
+/**
+ * 导出响应（唯一真相：export_handler json! 构造，report_enhanced_handler.rs:488-495）。
+ * 后端返回 JSON 信封 + base64 content，并非二进制流——禁止 responseType:'blob'
+ * （blob 会把整个 JSON 信封存进"xlsx 文件"，得到损坏文件）。
+ */
+export interface ReportExportResult {
+  template_id: number;
+  filename: string;
+  size: number;
+  content_type: string;
+  /** base64（标准 alphabet）编码的文件字节流 */
+  content: string;
+  message: string;
+}
+
+export function exportReport(
+  templateId: number,
+  data?: ReportExportRequest
+): Promise<ApiResponse<ReportExportResult>> {
+  return request.post(`/reports/enhanced/templates/${templateId}/export`, data ?? {});
+}
+
+// 增强预览契约：键名/形状逐字对齐后端 json! 构造（report_enhanced_handler.rs:512-518）
 // 与其数据源 execute_custom_report 的返回类型 (Vec<String>, Vec<Vec<String>>, u64)
 // （report_template_service.rs:559）——columns 为字符串表头数组，data 为「行=字符串数组」的二维数组，
 // 而非此前臆造的 fields/rows 对象形状。
@@ -198,7 +218,7 @@ export function sendSubscriptionNow(id: number): Promise<ApiResponse<{ message: 
   return request.post(`/reports/enhanced/subscriptions/${id}/send`);
 }
 
-// ===== 报表模板 CRUD：统一出口（重复实现收敛自 report-templates.ts）=====
+// ===== 报表模板 CRUD：统一出口 =====
 export {
   getReportTemplateList,
   getReportTemplate,

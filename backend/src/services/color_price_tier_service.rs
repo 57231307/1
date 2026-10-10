@@ -21,6 +21,10 @@ pub enum TierError {
     PriceNotFound,
     #[error("参数校验失败: {0}")]
     Validation(String),
+    /// 审计日志删除失败：属服务端持久化缺陷（AppError 原文），非用户输入校验，
+    /// 不得走 Validation 通道出 400。NotFound 单独归不存在，其余走此变体。
+    #[error("审计删除失败: {0}")]
+    AuditLog(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
 }
@@ -91,7 +95,7 @@ impl ColorPriceTierService {
         .await
         .map_err(|e| match e {
             crate::utils::error::AppError::NotFound(_) => TierError::NotFound,
-            other => TierError::Validation(other.to_string()),
+            other => TierError::AuditLog(other.to_string()),
         })
     }
 }

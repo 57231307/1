@@ -13,7 +13,8 @@ import { useTableApi } from '@/composables/useTableApi';
 import type { ProductionOrder } from '@/api/production';
 
 /**
- * 订单表单字段类型（所有字段可选，兼容 Partial<ProductionOrder>）
+ * 订单表单字段类型（所有字段可选，兼容 CreateProductionOrderPayload 提交形状；
+ * 出参 ProductionOrder 的 planned_quantity 是 Decimal 序列化字符串，表单值按 number 提交）
  */
 export interface PrdOrderForm {
   id?: number | undefined;
@@ -65,8 +66,10 @@ export function usePrd() {
   });
 
   // 表单验证规则
+  // 缺陷3：order_no 不再必填/手输——单据号由后端统一生成器取号
+  // （backend/src/utils/number_generator.rs，PO{YYYYMMDD}{3位流水}），
+  // 前端"必填+手输"违背"单据号系统生成禁手打"红线，且手输值会绕过取号器造成双源格式。
   const orderRules = {
-    order_no: [{ required: true, message: '请输入订单编号', trigger: 'blur' }],
     product_id: [{ required: true, message: '请输入产品ID', trigger: 'blur' }],
     planned_quantity: [{ required: true, message: '请输入计划数量', trigger: 'blur' }],
     priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],

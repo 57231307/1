@@ -6,7 +6,9 @@
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
 use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -64,22 +66,45 @@ impl ApPaymentRequestService {
         req: CreateApPaymentRequest,
         user_id: i32,
     ) -> Result<ap_payment_request::Model, AppError> {
+        // 跨字段条件必填校验先行于任何事务/取号动作：外币必录汇率（缺失即显式拒绝），
+        // 本位币由服务端短路为 1。修复前落库走 `exchange_rate.unwrap_or(1)`，
+        // 外币单汇率被静默伪造成 1，直接污染折算/核销/汇兑损益
+        // （违反红线：NOT NULL 列不得以默认值兜底掩盖缺键）。
+        let (currency, exchange_rate) = Self::resolve_currency_and_rate(&req)?;
+
         let txn = (*self.db).begin().await?;
 
         // 生成付款申请单号
         let request_no = self.generate_request_no().await?;
 
-        // 校验明细关联的应付单
-        self.validate_invoice_items_txn(&req.items, &txn).await?;
-
-        // 构建并插入付款申请主表
-        let request = Self::build_payment_request_active_model(&req, request_no, user_id)
-            .insert(&txn)
+        // 校验明细关联的应付单（items 可选：缺省时按空切片处理，不伪造默认明细，
+        // 因明细 invoice_id 为 NOT NULL 外键且表头无应付单来源，凭空生成会产生脏引用）
+        self.validate_invoice_items_txn(req.items.as_deref().unwrap_or(&[]), &txn)
             .await?;
 
-        // 创建付款申请明细
-        self.create_payment_request_items_txn(req.items, request.id, &txn)
+        // 构建并插入付款申请主表（币种/汇率取服务端权威解析结果，非请求原值）
+        let request = Self::build_payment_request_active_model(
+            &req,
+            request_no,
+            user_id,
+            currency,
+            exchange_rate,
+        )
+        .insert(&txn)
+        .await?;
+
+        // 创建付款申请明细（缺省 items 时不插入明细行，提交阶段由 submit 门控强制补真实明细）
+        let item_count = req.items.as_ref().map_or(0, |v| v.len());
+        self.create_payment_request_items_txn(req.items.unwrap_or_default(), request.id, &txn)
             .await?;
+
+        if item_count == 0 {
+            tracing::info!(
+                request_no = %request.request_no,
+                request_id = request.id,
+                "付款申请未携带明细创建（items 缺省），主表金额取表头 request_amount，提交前须补真实应付单明细"
+            );
+        }
 
         txn.commit().await?;
 
@@ -130,11 +155,57 @@ impl ApPaymentRequestService {
         Ok(())
     }
 
+    /// 服务端权威解析币种与汇率（创建入口唯一注入口）：
+    /// - 币种缺省按本位币（models/ap_payment_request.rs:49 列 DEFAULT 'CNY'，
+    ///   取值口径 crate::constants::DEFAULT_CURRENCY，不另立第二套词表；
+    ///   币种白名单校验在 services/currency_service.rs 既有实现，本函数不重复造）；
+    /// - 本位币（= DEFAULT_CURRENCY）：汇率恒为 1，前端即使传值也**忽略**并保持服务端权威
+    ///   （忽略而非拒绝为决策留置的待拍板口径，忽略时显式 WARN、不静默）；
+    /// - 外币（≠ 本位币）：汇率条件必填——缺失/非正一律显式拒绝，绝不兜底成 1。
+    ///
+    /// 错误族口径（沿用本仓裁定"状态门=BUSINESS、字段校验=VALIDATION"）：本拒绝是
+    /// 用户提交字段的跨字段条件必填，与同字段形状规则（validate_exchange_rate_payment
+    /// 经 validator 出的「汇率必须大于0」同族）一致，归 VALIDATION_ERROR/400。
+    /// 保密分层：文案仅涉及用户自己刚提交的字段与公开规则，不含记录 ID/他人数据/
+    /// SQL/内部字段名，允许 validation_displayable 外显真实原因。
+    pub fn resolve_currency_and_rate(
+        req: &CreateApPaymentRequest,
+    ) -> Result<(String, Decimal), AppError> {
+        let currency = req
+            .currency
+            .clone()
+            .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string());
+        if currency == crate::constants::DEFAULT_CURRENCY {
+            if let Some(passed) = req.exchange_rate {
+                tracing::warn!(
+                    currency = %currency,
+                    ignored_exchange_rate = %passed,
+                    "本位币付款申请携带汇率入参：服务端按权威值 1 短路（忽略前端传值，不静默）"
+                );
+            }
+            return Ok((currency, Decimal::ONE));
+        }
+        let rate = req
+            .exchange_rate
+            .ok_or_else(|| AppError::validation_displayable("外币付款请填写汇率"))?;
+        // 形状规则（0.01 历史缺陷值等）由 DTO validator 在同一 HTTP 路径先行裁决；
+        // 此处守住服务层直调路径的非正汇率，不吞不兜底。
+        if rate <= Decimal::ZERO {
+            return Err(AppError::validation_displayable("汇率必须大于0"));
+        }
+        Ok((currency, rate))
+    }
+
     // 构建付款申请主表 ActiveModel
-    fn build_payment_request_active_model(
+    // （currency/exchange_rate 由 resolve_currency_and_rate 服务端权威解析后传入，
+    //   本函数不再从 DTO 原值取汇率——NOT NULL 汇率列禁止 unwrap_or 兜底。
+    //   pub 仅为契约测试以真实构建路径做 sqlite 落库回读断言，不新增其他调用面。）
+    pub fn build_payment_request_active_model(
         req: &CreateApPaymentRequest,
         request_no: String,
         user_id: i32,
+        currency: String,
+        exchange_rate: Decimal,
     ) -> ap_payment_request::ActiveModel {
         ap_payment_request::ActiveModel {
             request_no: Set(request_no),
@@ -144,11 +215,8 @@ impl ApPaymentRequestService {
             payment_method: Set(req.payment_method.clone()),
             request_amount: Set(req.request_amount),
             approval_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            currency: Set(req
-                .currency
-                .clone()
-                .unwrap_or_else(|| crate::constants::DEFAULT_CURRENCY.to_string())),
-            exchange_rate: Set(req.exchange_rate.unwrap_or(Decimal::new(1, 0))),
+            currency: Set(currency),
+            exchange_rate: Set(exchange_rate),
             expected_payment_date: Set(req.expected_payment_date),
             bank_name: Set(req.bank_name.clone()),
             bank_account: Set(req.bank_account.clone()),
@@ -280,8 +348,18 @@ impl ApPaymentRequestService {
             )));
         }
 
-        // 3. 删除付款申请（级联删除明细）（P0 8-3 修复：补审计日志）
-        // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+        // 3. 先级联删除明细，再删除主表
+        // 子表外键 `fk_ap_payment_request_item_request`（定义见 m0012_add_ap_ar_finance_analysis）
+        // 为 NO ACTION，库侧不级联；只删主表会触发外键违例（500 DATABASE_ERROR）。
+        // 同事务内按 request_id 清子表再删主表，删除顺序即外键依赖的逆序。
+        // 门控已限定仅 DRAFT/REJECTED 可删，此状态下付款单尚未生成（付款源自 APPROVED），
+        // 故不触碰 ap_payment.request_id 外键。
+        ap_payment_request_item::Entity::delete_many()
+            .filter(ap_payment_request_item::Column::RequestId.eq(request.id))
+            .exec(&txn)
+            .await?;
+
+        // 4. 删除付款申请主表（带审计日志，user_id 为真实操作人）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             ap_payment_request::Entity,
             _,
@@ -323,7 +401,8 @@ impl ApPaymentRequestService {
             .await?;
 
         if items.is_empty() {
-            return Err(AppError::business("付款申请没有明细，不可提交".to_string()));
+            // 公开业务规则拒绝（无敏感数据），外显文案让用户看到具体不可提交原因
+            return Err(AppError::business_displayable("付款申请没有明细，不可提交"));
         }
 
         // 4. 提交付款申请
@@ -460,14 +539,13 @@ impl ApPaymentRequestService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款申请 ID: {}", id)))?;
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ap_payment_request 表无 department_id，Dept 退化为 Self；
+        // ap_payment_request 表无 department_id，使用成员归属集合判定；
         // ap_payment_request.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(request.created_by), None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问付款申请 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(request.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问付款申请（数据范围限制）",
+                ));
             }
         }
         Ok(request)
@@ -608,7 +686,9 @@ pub struct CreateApPaymentRequest {
     #[validate(length(equal = 3, message = "币种必须为 ISO 4217 三字母代码"))]
     pub currency: Option<String>,
 
-    /// 汇率（必须大于 0，防止 P0-1 历史缺陷的 0.01 汇率）
+    /// 汇率（条件必填：外币必录，缺失被创建入口 `resolve_currency_and_rate` 以
+    /// VALIDATION_ERROR 拒绝，绝不兜底 1；本位币即使传入也被服务端短路为 1。
+    /// 形状校验：必须大于 0，且防止 P0-1 历史缺陷的 0.01 汇率）
     #[validate(custom(function = "validate_exchange_rate_payment"))]
     pub exchange_rate: Option<Decimal>,
 
@@ -633,8 +713,15 @@ pub struct CreateApPaymentRequest {
     /// 附件 URL 列表
     pub attachment_urls: Option<Vec<String>>,
 
-    /// 付款申请明细
-    pub items: Vec<ApPaymentRequestItemDto>,
+    /// 付款申请明细（可选）
+    ///
+    /// 前端付款申请创建 UI 当前不录入逐条应付单明细（`createAPPaymentRequest` 从不发 items），
+    /// 故 items 为可选：缺省时按空明细集合处理，主表仍以 `request_amount` 落库。
+    /// 说明：明细行 `invoice_id` 为 NOT NULL 且外键引用 `ap_invoice(id)`，表头不含应付单来源，
+    /// 无法在「数据自洽 + 不硬编码业务值」前提下自动伪造一条默认明细；
+    /// 「申请无明细不可提交」由 `submit` 现有门控强制保证核销前必须补真实应付单明细。
+    #[serde(default)]
+    pub items: Option<Vec<ApPaymentRequestItemDto>>,
 }
 
 /// 付款申请明细 DTO

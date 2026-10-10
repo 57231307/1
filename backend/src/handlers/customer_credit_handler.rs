@@ -272,8 +272,7 @@ pub async fn create_credit(
     info!("用户 {} 创建客户信用", auth.username);
 
     // P1-2b 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CustomerCreditService::new(state.db.clone());
 
@@ -305,8 +304,7 @@ pub async fn update_credit(
     info!("用户 {} 更新客户信用: ID={}", auth.username, id);
 
     // P1-2b 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CustomerCreditService::new(state.db.clone());
 

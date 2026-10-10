@@ -30,20 +30,21 @@ export interface GreigeFabric {
   composition?: string;
   yarn_count?: string;
   density?: string;
+  // rust_decimal 出参一律为字符串（展示/计算前 Number() 归一，禁止对字符串直接 .toFixed）
   /** 幅宽（m） */
-  width?: number;
+  width?: string | null;
   /** 幅宽（cm） */
-  width_cm?: number;
+  width_cm?: string | null;
   /** 克重（g/m²） */
-  gram_weight?: number;
+  gram_weight?: string | null;
   /** 当前库存重量（kg） */
-  weight_kg?: number;
+  weight_kg?: string | null;
   /** 当前库存长度（m） */
-  length_m?: number;
+  length_m?: string | null;
   /** 累计入库重量（kg） */
-  quantity_kg?: number;
+  quantity_kg?: string | null;
   /** 累计入库米数（m） */
-  quantity_meters?: number;
+  quantity_meters?: string | null;
   batch_no?: string;
   location?: string;
   status?: string;
@@ -133,6 +134,81 @@ export interface GreigeFabricListParams {
   quality_grade?: string;
 }
 
+/**
+ * 创建坯布载荷：逐字段对齐 handlers/greige_fabric_handler.rs::CreateGreigeFabricRequest。
+ * 后端字段全为 Option，但 handler 要求 fabric_type 非空（DB NOT NULL，缺失返回 422）；
+ * fabric_no 留空由后端自动生成。禁止夹带 id/created_at 等实体回显键。
+ * 建单人 created_by 不是该后端请求结构体的入参（handler 按服务端会话派生），前端不得上送。
+ * 纺织四维口径（services/inv/fabric_class.rs::validate_fabric_trace）：
+ * color_no 白坯可空但禁止提交空串——空值整键省略；染色布必须带 dye_lot_no。
+ */
+export interface CreateGreigeFabricPayload {
+  fabric_no?: string;
+  fabric_name?: string;
+  fabric_type: string;
+  color_code?: string;
+  width_cm?: number;
+  weight_kg?: number;
+  length_m?: number;
+  supplier_id?: number;
+  batch_no?: string;
+  warehouse_id?: number;
+  location?: string;
+  /** 坯布状态中文 token（GREIGE_STATUS 词表），省略由后端默认「在库」 */
+  status?: GreigeStatusValue;
+  quality_grade?: string;
+  /** YYYY-MM-DD */
+  purchase_date?: string;
+  remarks?: string;
+  product_id?: number;
+  composition?: string;
+  yarn_count?: string;
+  density?: string;
+  width?: number;
+  gram_weight?: number;
+  structure?: string;
+  /** YYYY-MM-DD */
+  production_date?: string;
+  quantity_meters?: number;
+  quantity_kg?: number;
+  purchase_order_id?: number;
+  purchase_receipt_id?: number;
+  safety_stock?: number;
+  reorder_point?: number;
+  max_stock_point?: number;
+  reorder_quantity?: number;
+  dye_lot_no?: string;
+  color_no?: string;
+}
+
+/**
+ * 更新坯布载荷：对齐 UpdateGreigeFabricRequest。
+ * 注意：该 DTO 无 fabric_no/product_id/composition/yarn_count/density/width/
+ * structure/production_date/quantity_* 等键（创建后不可改），旧代码用
+ * Partial<实体> 提交会被 serde 静默丢弃；status 必须为 GREIGE_STATUS 中文 token。
+ */
+export interface UpdateGreigeFabricPayload {
+  fabric_name?: string;
+  fabric_type?: string;
+  color_code?: string;
+  width_cm?: number;
+  weight_kg?: number;
+  length_m?: number;
+  supplier_id?: number;
+  batch_no?: string;
+  warehouse_id?: number;
+  location?: string;
+  status?: GreigeStatusValue;
+  quality_grade?: string;
+  remarks?: string;
+  safety_stock?: number;
+  reorder_point?: number;
+  max_stock_point?: number;
+  reorder_quantity?: number;
+  dye_lot_no?: string;
+  color_no?: string;
+}
+
 export function getGreigeFabricList(
   params?: GreigeFabricListParams
 ): Promise<ApiResponse<{ items: GreigeFabric[]; total: number; page: number; page_size: number }>> {
@@ -144,14 +220,14 @@ export function getGreigeFabric(id: number): Promise<ApiResponse<GreigeFabric>> 
 }
 
 export function createGreigeFabric(
-  data: Partial<GreigeFabric>
+  data: CreateGreigeFabricPayload
 ): Promise<ApiResponse<GreigeFabric>> {
   return request.post('/production/greige-fabrics', data);
 }
 
 export function updateGreigeFabric(
   id: number,
-  data: Partial<GreigeFabric>
+  data: UpdateGreigeFabricPayload
 ): Promise<ApiResponse<GreigeFabric>> {
   return request.put(`/production/greige-fabrics/${id}`, data);
 }

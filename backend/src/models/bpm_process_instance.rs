@@ -18,7 +18,7 @@ pub struct Model {
 
     pub business_type: String,
 
-    pub business_id: i32,
+    pub business_id: Option<i64>,
 
     // DB 列 applicant_id INTEGER NOT NULL（m0001 初始 schema），
     // model 此前缺失该字段导致 INSERT 不含它 → null violation 500
@@ -40,8 +40,11 @@ pub struct Model {
 
     pub initiator_department_id: Option<i32>,
 
+    // 生效 DDL 为 JSONB（migration system/mod.rs:79-80），同 bpm_task 四列口径
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub current_handler_ids: Option<Vec<i32>>,
 
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub current_handler_names: Option<Vec<String>>,
 
     pub form_data: Option<serde_json::Value>,

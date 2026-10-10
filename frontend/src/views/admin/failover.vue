@@ -49,6 +49,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -111,7 +112,7 @@ async function handleSwitch(functionName: string) {
     await loadData();
   } catch (err: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (err: any) 改为 unknown + 类型守卫
-    if (err !== 'cancel') {
+    if (!isDialogDismissal(err)) {
       ElMessage.error(
         t('adminFailover.switchFailed', { msg: err instanceof Error ? err.message : String(err) })
       );

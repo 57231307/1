@@ -255,6 +255,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -273,6 +274,7 @@ import {
 import { getUserList, type User } from '@/api/user';
 import { getRoleList, type Role } from '@/api/role';
 import { request } from '@/api/request';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -437,7 +439,7 @@ const handlePublish = async (row: OaAnnouncement) => {
     ElMessage.success(`公告已发布${count > 0 ? `，已通知 ${count} 位用户` : ''}`);
     fetchList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '发布失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '发布失败');
   }
 };
 
@@ -448,7 +450,7 @@ const handleArchive = async (row: OaAnnouncement) => {
     ElMessage.success('公告已归档');
     fetchList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '归档失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '归档失败');
   }
 };
 
@@ -461,7 +463,7 @@ const handleDelete = async (row: OaAnnouncement) => {
     ElMessage.success('删除成功');
     fetchList();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '删除失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '删除失败');
   }
 };
 
@@ -480,13 +482,14 @@ const fetchOptions = async () => {
     logAuxLoadFailure(t('system.oaAnnouncement.message.loadRolesFailed'), error);
   }
   try {
-    const dres = await request.get<{ items?: { id: number; name: string }[] }>('/departments', {
-      params: { page: 1, page_size: 200 },
-    });
-    const raw = dres as unknown as {
-      data?: { items?: { id: number; name: string }[]; list?: { id: number; name: string }[] };
-    };
-    deptOptions.value = raw.data?.items || raw.data?.list || [];
+    const dres = await request.get<ApiResponse<PaginatedResponse<{ id: number; name: string }>>>(
+      '/departments',
+      {
+        params: { page: 1, page_size: 200 },
+      }
+    );
+    // /departments 走 define_crud_handlers! list → ApiResponse<PaginatedResponse>，数组在 data.items
+    deptOptions.value = dres.data.items;
   } catch (error) {
     logAuxLoadFailure(t('system.oaAnnouncement.message.loadDeptsFailed'), error);
   }

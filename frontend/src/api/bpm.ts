@@ -245,6 +245,8 @@ export const getBpmMonitorStats = () =>
   request.get<ApiResponse<MonitorStatsResponse>>('/bpm/monitor/stats');
 
 // D14 Batch 5b：原 bpmApi.getPendingTasksForMonitor 转为风格 B 函数
+// 后端查询 DTO：handlers/bpm_handler.rs MonitorQuery（仅 page/page_size 生效，
+// pending 状态由服务层固定小写 pending 过滤，见 MonitorPendingTasksParams 注释）
 export const getBpmPendingTaskList = (params?: MonitorPendingTasksParams) =>
   request.get<ApiResponse<{ items: BPMTask[]; total: number; page: number; page_size: number }>>(
     '/bpm/monitor/pending-tasks',

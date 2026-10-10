@@ -1,6 +1,9 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+// ⚠️ 本接口键集（budget_no/name/period/department_id/total_amount）与 GET /budgets 现行为
+// 出参（Vec<budget_management::Model>，键=item_code/item_name/planned_amount/plan_id 等）
+// 整体错位，属独立契约漂移交主编排立案；本批只按实体真实列修值类型形态，未消费本接口金额键。
 export interface Budget {
   id: number;
   budget_no: string;
@@ -43,10 +46,6 @@ export function getBudgetList(
   return request.get('/budgets', { params });
 }
 
-export function createBudget(data: Partial<Budget>): Promise<ApiResponse<Budget>> {
-  return request.post('/budgets', data);
-}
-
 export function updateBudget(id: number, data: Partial<Budget>): Promise<ApiResponse<Budget>> {
   return request.put(`/budgets/${id}`, data);
 }
@@ -82,7 +81,9 @@ export interface BudgetItem {
    */
   plan_id: number;
   budget_year: number | null;
-  planned_amount: string | number;
+  /** 计划金额：后端 models/budget_management.rs:26 planned_amount 为 rust_decimal NOT NULL，
+   * serde（未启 serde-floats，backend/Cargo.toml:60）出参恒为十进制字符串，消费方需 Number 显式归一 */
+  planned_amount: string;
   remark: string | null;
   account_subject_id: number | null;
   created_at: string;
@@ -97,8 +98,10 @@ export interface BudgetItemPeriod {
   id: number;
   item_id: number;
   period: string;
-  planned_amount: string | number;
-  actual_amount: string | number;
+  /** 后端 models/budget_item_periods.rs:24 planned_amount 为 rust_decimal，出参十进制字符串 */
+  planned_amount: string;
+  /** 后端 models/budget_item_periods.rs:27 actual_amount 为 rust_decimal，出参十进制字符串 */
+  actual_amount: string;
   created_at: string;
   updated_at: string;
 }
@@ -109,7 +112,8 @@ export interface BudgetItemPeriod {
  */
 export interface BudgetItemPeriodInput {
   period: string;
-  planned_amount: number | string;
+  /** 后端 BudgetItemPeriodInput.planned_amount 为 rust_decimal 非 Option（models/dto/budget_management_dto.rs:15）；serde-floats 未启用（backend/Cargo.toml:60），JSON 浮点字面量反序列化即拒，以十进制字符串下发 */
+  planned_amount: string;
 }
 
 /**
@@ -131,7 +135,8 @@ export interface BudgetPlan {
   budget_year: number;
   budget_type: string;
   department_id: number | null;
-  total_amount: string | number;
+  /** 方案总额：后端 models/budget_plan.rs:27 total_amount 为 rust_decimal NOT NULL，出参十进制字符串 */
+  total_amount: string;
   status: string | null;
   prepared_by: number | null;
   approved_by: number | null;
@@ -148,7 +153,8 @@ export interface CreateBudgetPlanPayload {
   budget_year?: number;
   budget_type?: string;
   department_id: number;
-  total_amount?: number;
+  /** 后端 CreateBudgetPlanRequest.total_amount 为 Option<rust_decimal>（handlers/budget_management_handler.rs:149）；serde-floats 未启用（backend/Cargo.toml:60），非整数浮点字面量反序列化即拒，以十进制字符串下发 */
+  total_amount?: string;
   remark?: string;
 }
 
@@ -161,7 +167,8 @@ export interface BudgetExecution {
   plan_id: number;
   item_id: number | null;
   execution_type: string;
-  amount: string | number;
+  /** 执行金额：后端 models/budget_execution.rs:24 amount 为 rust_decimal NOT NULL，出参十进制字符串 */
+  amount: string;
   expense_type: string | null;
   expense_date: string;
   related_document_type: string | null;
@@ -184,7 +191,8 @@ export interface CreateBudgetItemPayload {
   item_type?: string;
   plan_id: number;
   budget_year?: number;
-  planned_amount: number;
+  /** 后端 CreateBudgetDto.planned_amount 为 rust_decimal 非 Option（handlers/budget_management_handler.rs:40）；serde-floats 未启用（backend/Cargo.toml:60），JSON 浮点字面量反序列化即拒，以十进制字符串下发 */
+  planned_amount: string;
   periods?: BudgetItemPeriodInput[];
   remark?: string;
 }
@@ -193,7 +201,8 @@ export interface CreateBudgetItemPayload {
 export interface UpdateBudgetItemPayload {
   item_name?: string;
   item_type?: string;
-  planned_amount?: number;
+  /** 后端 UpdateBudgetDto.planned_amount 为 Option<rust_decimal>（handlers/budget_management_handler.rs:58），十进制字符串下发（非整数浮点字面量反序列化即拒） */
+  planned_amount?: string;
   periods?: BudgetItemPeriodInput[];
   status?: string;
   remark?: string;
@@ -205,7 +214,8 @@ export interface BudgetVersion {
   plan_id: number;
   version_no: string;
   version_name: string;
-  total_amount: string | number;
+  /** 版本总额：后端 models/budget_version.rs:17 total_amount 为 rust_decimal NOT NULL，出参十进制字符串 */
+  total_amount: string;
   status: string;
   change_reason: string | null;
   approved_by: number | null;
@@ -262,7 +272,8 @@ export function rejectBudget(id: number, opinion?: string): Promise<ApiResponse<
 /** 预算调整申请：POST /budgets/adjust（AdjustBudgetRequest） */
 export function adjustBudget(data: {
   item_id: number;
-  adjust_amount: number;
+  /** 后端 AdjustBudgetRequest.adjust_amount 为 rust_decimal 非 Option（models/dto/budget_dto.rs:8），十进制字符串下发（非整数浮点字面量反序列化即拒） */
+  adjust_amount: string;
   reason?: string;
 }): Promise<ApiResponse<unknown>> {
   return request.post('/budgets/adjust', data);

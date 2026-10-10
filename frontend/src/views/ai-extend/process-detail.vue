@@ -2,6 +2,7 @@
 /**
  * P2-4 工艺优化详情
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -82,7 +83,7 @@ async function handleApply() {
     ElMessage.success('已应用');
     await load();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '应用失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '应用失败');
   } finally {
     applying.value = false;
   }
@@ -112,7 +113,7 @@ async function handleHistoryQuery() {
     });
     historyItems.value = res.items ?? [];
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询历史失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '查询历史失败');
   } finally {
     historyLoading.value = false;
   }

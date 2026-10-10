@@ -36,6 +36,17 @@ export interface ContactInput {
 /** 联系人更新请求（批次 90b P2-12） */
 export type ContactUpdate = Partial<ContactInput>;
 
+/**
+ * 增强客户列表/详情行类型（GET /crm/customers/enhanced）。
+ * 后端该端点直接整行序列化 crm_lead 模型（services/crm/lead.rs::list_leads），
+ * 且出口只做掩码/删键不做补键，故出参键集恒 ⊆ crm_lead 字段名集：
+ * 成交总额/订单数/最后跟进日/内嵌联系人这类聚合键后端无任何出口提供，
+ * 不得声明（联系人唯一真实来源是 /crm/customers/{id}/contacts 独立端点）。
+ * customer_code/customer_name/contact_person/phone/customer_type/status 为视图列
+ * 当前仍在绑定的历史漂移键（取不到值，待与视图重绑同批收口），其余键与
+ * crm_lead 字段一一对应；tags 声明为对象数组与后端字符串数组的形状差异由
+ * 消费侧（CustomerListTab 的行类型）收敛。
+ */
 export interface CustomerWithTags {
   id: number;
   customer_code: string;
@@ -48,12 +59,16 @@ export interface CustomerWithTags {
   owner_id: number;
   owner_name: string;
   tags: CustomerTag[];
-  contacts: Contact[];
-  last_follow_up: string;
-  total_orders: number;
-  total_amount: number;
   created_at: string;
   updated_at: string;
+  /**
+   * 本线索已转化成的客户主键（crm_lead.converted_customer_id，FK→customer.id；未转化为 null）。
+   * RFM 档位是「客户」域概念（按 customer 表 + 该客户订单聚合计算），故客户列表按档位联显时
+   * 必须以本键、而非行主键 `id`（那是线索 id）去请求 `/crm/rfm/segments`——用 `id` 会把线索 id
+   * 误当客户 id 查询，命中同号无关客户即错显他人档位（数据完整性/越权），是缺陷不是取舍。
+   * 后端 crm_lead::Model 恒序列化该键（Option → null 或 number），故按存在性标 `number | null`（不写 `?`）。
+   */
+  converted_customer_id: number | null;
 }
 
 export interface PoolCustomer {
@@ -95,20 +110,30 @@ export interface AssignmentRecord {
   created_at: string;
 }
 
+/**
+ * GET /crm/sales-users 响应项，对齐后端 handlers/missing_handlers.rs::SalesUser
+ * （Serialize，无 rename_all，snake_case）。real_name 为 Option<String> 且后端当前恒置
+ * None（用户模型无真实姓名写入通道），需要人名展示/取值时用 username 兜底。
+ */
 export interface SalesUser {
   id: number;
-  name: string;
-  department: string;
-  customer_count: number;
-  active: boolean;
+  username: string;
+  real_name: string | null;
+  email: string | null;
+  phone: string | null;
 }
 
+/**
+ * GET /crm/customers/{id}/rfm 出参 = backend services/crm/mod.rs::RfmScoreDetail
+ * （serde 无 rename_all，键即字段名）。R/F/M 三个分项与合成分 score 均为后端 f64
+ * ⇒ 线上是 JSON number（不是 Decimal 那种 JSON 字符串），可直接参与数值渲染，
+ * 不需要也不允许在前端反推分项或自造档位词表。
+ */
 export interface RfmScore {
   recency: number;
   frequency: number;
   monetary: number;
-  level: 'A' | 'B' | 'C' | 'D' | 'E';
-  label: string;
+  score: number;
 }
 
 export interface FollowUpRecord {
@@ -122,31 +147,67 @@ export interface FollowUpRecord {
   created_at: string;
 }
 
-/** 客户实体（从 360 视图 data.customer 字段取得） */
+/**
+ * 客户实体（360 视图 data.customer 整行投影）。
+ * 键集 = backend/src/models/customer.rs 的 serde snake_case 字段名，
+ * 可空列（Option）如实为 `| null`；非 admin 会话经 handler 两层字段门
+ * （crm_handler.rs:1166-1178 → crm/cust.rs::mask_customer_pii_defaults）：
+ * contact_phone/contact_email 为已掩码字符串（键保留），address 整键移除（故可选）。
+ * 后端出参不含 owner_name / total_orders / total_amount / last_order_date
+ * （订单聚合在 summary，负责人姓名当前无任何出口提供）。
+ */
 export interface CustomerEntity {
   id: number;
   customer_code: string;
   customer_name: string;
-  contact_person: string;
-  phone: string;
-  email: string;
-  address: string;
-  customer_type: string;
+  contact_person: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  address?: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  postal_code: string | null;
+  // rust_decimal 出参（Cargo.toml 未启 serde-float）线上是 JSON 字符串，如实声明；
+  // 归一只发生在控件绑定/格式化边界，数据层不伪造类型。
+  credit_limit: string;
+  payment_terms: number;
+  tax_id: string | null;
+  bank_name: string | null;
+  bank_account: string | null;
   status: string;
-  tax_number: string;
-  bank_name: string;
-  bank_account: string;
-  credit_limit: number;
-  owner_name: string;
-  total_orders: number;
-  total_amount: number;
-  last_order_date: string;
+  customer_type: string;
+  notes: string | null;
+  created_by: number | null;
   created_at: string;
+  updated_at: string;
+  customer_industry: string | null;
+  main_products: string | null;
+  annual_purchase: string | null;
+  quality_requirement: string | null;
+  inspection_standard: string | null;
+  owner_id: number;
+  department_id: number | null;
+  owner_assigned_at: string | null;
+  special_process: string | null;
+  source: string | null;
+  pool_recycle_reason: string | null;
 }
 
-/** 360 视图 summary 载荷（包含聚合统计与 RFM 评分） */
+/**
+ * 360 视图 summary 载荷 = backend services/crm/mod.rs::CustomerRelationSummary
+ * 的真实序列化键（total_order_amount 为 Option<Decimal> → 线上 JSON 字符串或 null）。
+ * 该结构体只有以下 7 个键：RFM 评分不在 360 出参内，其唯一出口是独立端点
+ * `/crm/customers/{id}/rfm`（见 getCustomerRfmScore），消费方须直接调用它取分。
+ */
 export interface Customer360Summary {
-  rfm_score: RfmScore;
+  customer_id: number;
+  total_leads: number;
+  total_opportunities: number;
+  total_orders: number;
+  total_order_amount: string | null;
+  last_interaction_at: string | null;
+  follow_up_count: number;
   [key: string]: unknown;
 }
 
@@ -167,6 +228,17 @@ export interface Customer360Data {
 /** @deprecated 使用 Customer360Data 替代（保留向后兼容引用） */
 export type Customer360 = Customer360Data;
 
+/**
+ * 360 出参里的收货地址行（后端 models/customer_address.rs::Model 经
+ * handlers/crm_handler.rs::get_customer_360 逐行过客户域真源脱敏后的形态，判据与
+ * `customer.ts::CustomerAddress`（地址列表出口）完全同源）。
+ * - `contact_phone`：键恒存在；非 admin 会话值是 `utils/field_mask.rs` 的 `mask_phone`
+ *   打码结果（形如 138****8888），admin 是原文，两种都是 string，故不标 `?`。
+ * - `address`：非 admin 会话**整键不下发**（真源对该键是移除而非打码），admin 下发原文
+ *   ⇒ 如实标 optional。消费点禁止 `?? ''` 之类兜底把"无权限查看"吞成"地址为空"：
+ *   库内地址为空时后端下发的是空串 string，两者语义不同，必须按键是否存在区分。
+ * - 其余列（province/city/district/postal_code 等）不属真源掩码列，非 admin 仍照常下发。
+ */
 export interface ShippingAddress {
   id: number;
   customer_id: number;
@@ -175,7 +247,7 @@ export interface ShippingAddress {
   province: string;
   city: string;
   district: string;
-  address: string;
+  address?: string;
   postal_code: string;
   is_default: boolean;
   remark: string;
@@ -310,11 +382,32 @@ export const getRecycleRuleList = () =>
   request.get<ApiResponse<RecycleRule[]>>('/crm/recycle-rules');
 
 // D14 Batch 5b：原 crmEnhancedApi.createRecycleRule 转为风格 B 函数
-export const createRecycleRule = (data: Partial<RecycleRule>) =>
+/**
+ * POST /crm/recycle-rules 请求体，对齐后端 services/crm/recycle_rule.rs::CreateRecycleRulePayload
+ * （name/days 非 Option 必填且经 #[validate]（name 1-100、days 1-365）+ handler 调用 payload.validate()；
+ * is_enabled 为 Option，缺省时后端默认 true）。
+ */
+export interface CreateRecycleRuleInput {
+  name: string;
+  days: number;
+  is_enabled?: boolean;
+}
+
+export const createRecycleRule = (data: CreateRecycleRuleInput) =>
   request.post<ApiResponse<RecycleRule>>('/crm/recycle-rules', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.updateRecycleRule 转为风格 B 函数
-export const updateRecycleRule = (id: number, data: Partial<RecycleRule>) =>
+/**
+ * PUT /crm/recycle-rules/{id} 请求体，对齐后端 recycle_rule.rs::UpdateRecycleRulePayload
+ * （三字段均 Option 部分更新；id 走路径，不入 body）。
+ */
+export interface UpdateRecycleRuleInput {
+  name?: string;
+  days?: number;
+  is_enabled?: boolean;
+}
+
+export const updateRecycleRule = (id: number, data: UpdateRecycleRuleInput) =>
   request.put<ApiResponse<RecycleRule>>(`/crm/recycle-rules/${id}`, data);
 
 // D14 Batch 5b：原 crmEnhancedApi.deleteRecycleRule 转为风格 B 函数
@@ -322,17 +415,38 @@ export const deleteRecycleRule = (id: number) =>
   request.delete<ApiResponse<void>>(`/crm/recycle-rules/${id}`);
 
 // 客户分配
+/**
+ * POST /crm/assignments 请求体，对齐后端 handlers/crm_assignment_handler.rs::AssignCustomerRequest
+ * （Deserialize，无 rename_all；lead_id/assignee_id/assignee_name 非 Option 必填，notes 为 Option）。
+ * 分配对象是线索（crm_lead）——公海池/可分配客户列表行的 id 即 lead id。
+ * assignee_name 后端必填且无校验来源，前端由所选销售用户 real_name || username 真实推导。
+ */
+export interface AssignCustomerInput {
+  lead_id: number;
+  assignee_id: number;
+  assignee_name: string;
+  notes?: string;
+}
+
 // D14 Batch 5b：原 crmEnhancedApi.assignCustomer 转为风格 B 函数
-export const assignCustomer = (data: {
-  customer_ids: number[];
-  assign_to: number;
-  reason?: string;
-}) => request.post<ApiResponse<void>>('/crm/assignments', data);
+export const assignCustomer = (data: AssignCustomerInput) =>
+  request.post<ApiResponse<void>>('/crm/assignments', data);
+
+/**
+ * POST /crm/assignments/batch 请求体，对齐后端 crm_assignment_handler.rs::BatchAssignRequest：
+ * 批量 = 多条线索分配给同一负责人（lead_ids 数组 + 单 assignee），并非逐条自定义负责人；
+ * lead_ids/assignee_id/assignee_name 非 Option 必填，notes 为 Option。
+ */
+export interface BatchAssignCustomersInput {
+  lead_ids: number[];
+  assignee_id: number;
+  assignee_name: string;
+  notes?: string;
+}
 
 // D14 Batch 5b：原 crmEnhancedApi.batchAssign 转为风格 B 函数
-export const batchAssignCustomers = (data: {
-  assignments: { customer_id: number; assign_to: number }[];
-}) => request.post<ApiResponse<void>>('/crm/assignments/batch', data);
+export const batchAssignCustomers = (data: BatchAssignCustomersInput) =>
+  request.post<ApiResponse<void>>('/crm/assignments/batch', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.getAssignmentHistory 转为风格 B 函数
 export const getCustomerAssignmentHistory = (params?: AssignmentQueryParams) =>
@@ -396,16 +510,110 @@ export const createOpportunityFollowUp = (opportunityId: number, data: Opportuni
 
 // RFM 模型
 // D14 Batch 5b：原 crmEnhancedApi.getRfmScore 转为风格 B 函数
+/**
+ * RFM 评分唯一出口（后端 handlers/crm_handler.rs::get_rfm_score）。
+ * 客户 360 的 summary 不含 RFM，详情页的 RFM 卡必须走本端点取分。
+ */
 export const getCustomerRfmScore = (customerId: number) =>
   request.get<ApiResponse<RfmScore>>(`/crm/customers/${customerId}/rfm`);
+
+/**
+ * POST /crm/customers/{id}/pii/reveal 请求体（PII 按需揭示）。
+ * fields token 值域 = 后端 services/crm/pii_reveal.rs::PII_REVEAL_WHITELIST
+ * 唯一出处（phone/email/address；客户域无 id_card 载体列，token 未登记即整笔 400）。
+ * reason 必填（trim 后非空的查看用途，随留痕落库 pii_reveal_audit，不存原文）。
+ */
+export interface CustomerPiiRevealPayload {
+  fields: ('phone' | 'email' | 'address')[];
+  reason: string;
+}
+
+/**
+ * 揭示端点出参 data 载荷（后端 crm_customer_handler::reveal_customer_pii）。
+ * fields 键集合严格等于请求 token 集合（多给键即后端契约判红）；值 null 表示
+ * 库内该列为空。expires_at 为原文载荷的短 TTL 到期时间（RFC3339），
+ * 到期后页面不得缓存/驻留原文，需重新发起揭示。
+ */
+export interface CustomerPiiRevealData {
+  record_type: string;
+  record_id: number;
+  fields: Partial<Record<'phone' | 'email' | 'address', string | null>>;
+  expires_at: string;
+}
+
+/** 按需揭示客户 PII 原文；每次成功调用服务端强制留痕（运行时键 customers:reveal）。 */
+export const revealCustomerPii = (customerId: number, payload: CustomerPiiRevealPayload) =>
+  request.post<ApiResponse<CustomerPiiRevealData>>(
+    `/crm/customers/${customerId}/pii/reveal`,
+    payload
+  );
 
 // D14 Batch 5b：原 crmEnhancedApi.getRfmDistribution 转为风格 B 函数
 export const getCustomerRfmDistribution = () =>
   request.get<ApiResponse<Record<string, number>>>('/crm/rfm/distribution');
 
+/**
+ * 批量档位单行可见性三态，逐字对齐 backend services/crm/mod.rs::RfmSegmentAccess
+ * （serde `#[serde(rename_all = "snake_case")]` 序列化，取值恒为下列三者之一）。
+ * 用字面量联合而非 `string`：把「缺该行/无权」与「有档位」在类型层分离，
+ * 避免下游用真值判断把 not_found/no_permission 误当有档位渲染。
+ */
+export type RfmSegmentAccess = 'visible' | 'not_found' | 'no_permission';
+
+/**
+ * GET /crm/rfm/segments 单行出参 = backend services/crm/mod.rs::RfmSegmentItem
+ * （serde Serialize，无 rename_all，键即字段名 customer_id/access/segment）。
+ * `segment` 声明 `string | null`：后端契约保证「access!=='visible' 时恒 null（不下发档位，
+ * 不泄露越权/不存在客户的分级）」，access==='visible' 时为中文四桶 token。
+ * 四桶词表唯一权威是后端 RfmSegment::as_str（与 /crm/rfm/distribution 逐字同源），
+ * 前端不得自造四桶字符串做判断逻辑，只按 access 决定是否展示 segment 原文。
+ */
+export interface RfmSegmentItem {
+  customer_id: number;
+  access: RfmSegmentAccess;
+  segment: string | null;
+}
+
+/**
+ * 批量档位单次上送 id 上界，与后端 handlers/crm_handler.rs 的常量同值（超限后端返
+ * 400 VALIDATION_ERROR）。调用方（RfmTab）按页收集客户 id，本函数对超出上界的部分按此
+ * 值分批串行请求后合并，保证每批不越界、不无界上送。
+ */
+export const RFM_SEGMENTS_MAX_CUSTOMERS = 500;
+
+/**
+ * 按客户 id 集合批量联显档位：GET /crm/rfm/segments?customer_ids=1,2,3（逗号分隔）。
+ * 入参是当前页去重后的客户主键数组（调用方 RfmTab 从 crm_lead 行的 converted_customer_id 收集，
+ * 非逐行发请求、非全库无界）；返回项以 customer_id 为键供调用方建 Map 回填展示。
+ * 空集合直接返回空数组（不发无效请求）。超过单次上界自动分批，合并各批结果。
+ * 失败时向上抛出，由调用方按 logAuxLoadFailure 降级为告警，本函数不静默吞成空数据（防假绿）。
+ */
+export async function getCustomerRfmSegments(customerIds: number[]): Promise<RfmSegmentItem[]> {
+  const uniqueIds = Array.from(new Set(customerIds));
+  if (uniqueIds.length === 0) return [];
+  const merged: RfmSegmentItem[] = [];
+  for (let i = 0; i < uniqueIds.length; i += RFM_SEGMENTS_MAX_CUSTOMERS) {
+    const batch = uniqueIds.slice(i, i + RFM_SEGMENTS_MAX_CUSTOMERS);
+    const res = await request.get<ApiResponse<RfmSegmentItem[]>>('/crm/rfm/segments', {
+      params: { customer_ids: batch.join(',') },
+    });
+    merged.push(...res.data);
+  }
+  return merged;
+}
+
 // 释放客户到公海池（P1-5 补齐，与后端 /pool/recycle 对应）
+/**
+ * POST /crm/pool/recycle 请求体，对齐后端 handlers/crm_pool_handler.rs::RecycleRequest：
+ * 单条回收（lead_id 非 Option 必填；reason 为 Option，空值省略该键），后端无批量形状。
+ */
+export interface RecycleCustomerInput {
+  lead_id: number;
+  reason?: string;
+}
+
 // D14 Batch 5b：原 crmEnhancedApi.recycleToPool 转为风格 B 函数
-export const recycleCustomerToPool = (data: { customer_ids: number[]; reason?: string }) =>
+export const recycleCustomerToPool = (data: RecycleCustomerInput) =>
   request.post<ApiResponse<void>>('/crm/pool/recycle', data);
 
 // 联系人 CRUD（批次 90b P2-12：替代 detail.vue "新增联系人功能待实现" 占位符）
@@ -432,11 +640,40 @@ export const getCustomerList = (params?: CustomerListQuery) =>
   request.get<ApiResponse<CustomerPage>>('/crm/customers/enhanced', { params });
 
 // D14 Batch 5b：原 crmEnhancedApi.createCustomer 转为风格 B 函数
+/**
+ * 注意：后端 POST /crm/customers/enhanced 当前以线索域 DTO 反序列化
+ * （handlers/crm_customer_handler.rs::create_customer 接收 models/dto/crm_dto.rs::CreateLeadRequest，
+ * 落库 crm_lead），与本表单采集的客户域字段（customer_code/customer_name/tax_number/credit_limit/
+ * bank_name/bank_account/status 等）不同域，前端任何载荷映射都会丢字段或臆造语义——
+ * 属后端契约缺陷，已列入后端串行处理清单，前端不改此函数形状。
+ */
 export const createCustomer = (data: Partial<CustomerWithTags>) =>
   request.post<ApiResponse<CustomerWithTags>>('/crm/customers/enhanced', data);
 
 // D14 Batch 5b：原 crmEnhancedApi.updateCustomer 转为风格 B 函数
-export const updateCustomer = (id: number, data: Partial<CustomerWithTags>) =>
+/**
+ * PUT /crm/customers/enhanced/{id} 请求体，对齐后端
+ * crm_customer_handler.rs::UpdateEnhancedCustomerRequest（Deserialize，无 rename_all，
+ * 全部字段 Option——客户域 CustomerService.update_customer 落库；id 走路径不入 body，
+ * DTO 无 customer_code 键，多发即被 serde 静默丢弃）。
+ * 后端字段名是 contact_phone/contact_email（与客户列表实体 phone/email 不同），tax_number
+ * 原样透传（后端映射到 customer.tax_id 落库）。
+ */
+export interface EnhancedCustomerUpdateInput {
+  customer_name?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  address?: string;
+  customer_type?: string;
+  tax_number?: string;
+  credit_limit?: number;
+  bank_name?: string;
+  bank_account?: string;
+  status?: string;
+}
+
+export const updateCustomer = (id: number, data: EnhancedCustomerUpdateInput) =>
   request.put<ApiResponse<CustomerWithTags>>(`/crm/customers/enhanced/${id}`, data);
 
 // D14 Batch 5b：原 crmEnhancedApi.deleteCustomer 转为风格 B 函数

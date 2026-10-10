@@ -12,6 +12,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::social_insurance_service::{
     CreateSocialInsuranceRequest, SocialInsuranceQuery, SocialInsuranceService,
 };
+use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
@@ -41,11 +42,11 @@ pub struct MarkPaidRequest {
 pub async fn create(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(mut req): Json<CreateSocialInsuranceRequest>,
+    Json(req): Json<CreateSocialInsuranceRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.created_by = Some(auth.user_id);
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
     let service = SocialInsuranceService::new(state.db.clone());
-    let model = service.create(req).await?;
+    let model = service.create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -53,11 +54,18 @@ pub async fn create(
 /// GET /social-insurance/:id
 pub async fn get_by_id(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = SocialInsuranceService::new(state.db.clone());
     let model = service.get_by_id(id).await?;
+    let owner = model.created_by;
+    if !check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该社保记录（数据范围限制）",
+        ));
+    }
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -65,13 +73,14 @@ pub async fn get_by_id(
 /// GET /social-insurance
 pub async fn list(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<SocialInsuranceQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let page = params.page.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 200);
     let service = SocialInsuranceService::new(state.db.clone());
-    let (items, total) = service.list(params).await?;
+    let (items, total) = service.list(params, Some(&ctx)).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         PaginatedResponse::new(items, total, page, page_size),
     )?)))
@@ -81,14 +90,24 @@ pub async fn list(
 /// GET /social-insurance/by-worker/:worker_id
 pub async fn get_by_worker_period(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(worker_id): Path<i32>,
     Query(params): Query<WorkerPeriodQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = SocialInsuranceService::new(state.db.clone());
     let model = service
         .get_by_worker_period(worker_id, params.period_year, params.period_month)
         .await?;
+    // 行级归属门：命中记录须在当前用户可见范围内；无记录时返回 null 不受影响
+    if let Some(ref record) = model {
+        let owner = record.created_by;
+        if !check_resource_owner_by_member_scope(&ctx, owner) {
+            return Err(AppError::permission_denied(
+                "无权访问该社保记录（数据范围限制）",
+            ));
+        }
+    }
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
@@ -96,11 +115,20 @@ pub async fn get_by_worker_period(
 /// POST /social-insurance/:id/mark-paid
 pub async fn mark_paid(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<MarkPaidRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = SocialInsuranceService::new(state.db.clone());
+    // 行级归属门：确认缴纳是写操作，先验证归属
+    let existing = service.get_by_id(id).await?;
+    let owner = existing.created_by;
+    if !check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该社保记录（数据范围限制）",
+        ));
+    }
     let model = service.mark_paid(id, req.payment_date).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
@@ -109,10 +137,19 @@ pub async fn mark_paid(
 /// POST /social-insurance/:id/cancel
 pub async fn cancel(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = SocialInsuranceService::new(state.db.clone());
+    // 行级归属门：撤销是写操作，先验证归属
+    let existing = service.get_by_id(id).await?;
+    let owner = existing.created_by;
+    if !check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该社保记录（数据范围限制）",
+        ));
+    }
     let model = service.cancel(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }

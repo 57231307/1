@@ -120,7 +120,7 @@ pub struct RecordTransactionArgs {
     /// 来源单据号（可选）
     pub source_bill_no: Option<String>,
     /// 来源单据 ID（可选）
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     /// 变更前数量（米，可选）
     pub quantity_before_meters: Option<Decimal>,
     /// 变更前数量（公斤，可选）

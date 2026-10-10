@@ -1,73 +1,90 @@
 /**
  * useSpProc.ts - 销售价格流程操作 composable
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales-price/index.vue）
- * 封装销售价格审批/查看/历史/导出等流程性方法
- * 行为完全保持一致（仅结构重构）
+ * 封装销售价格审批（通过/拒绝）/查看/历史/导出等流程性方法
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
-import { promptApproval } from '@/composables/useActionPrompts';
+import { logger } from '@/utils/logger';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   approveSalesPrice,
+  rejectSalesPrice,
   getPriceHistory,
-  getPricingStrategyList,
   type SalesPrice,
-  type PricingStrategy,
+  type SalesPriceRow,
 } from '@/api/sales-price';
-// V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
-// 后端 GET /sales/sales-prices/export 已就绪（含异步审计日志 + 水印）
 import { exportFromBackend } from '@/utils/export';
 
 /**
  * 刷新回调
- *
- * V15 P0-S12 修复（Batch 475d）：新增 getQueryParams，用于导出时传递列表筛选条件
- * 保证导出数据与当前列表筛选一致（product_id/status）
+ * getQueryParams：导出时透传列表筛选全集（product_id/customer_id/keyword/status），与列表同口径
  */
 interface RefreshCallbacks {
   getList: () => Promise<void>;
-  // V15 P0-S12 修复（Batch 475d）：获取当前筛选条件（product_id/status），用于导出
-  getQueryParams?: () => { product_id?: number; status?: string };
+  getQueryParams?: () => {
+    product_id?: number;
+    customer_id?: number;
+    keyword?: string;
+    status?: string;
+  };
 }
 
 /**
  * 销售价格流程操作方法集合
  */
 export function useSpProc(refresh: RefreshCallbacks) {
-  // 查看详情对话框状态
+  // 查看详情对话框状态（详情复用列表富化行，不再二次取数）
   const viewDialogVisible = ref(false);
-  // v11 批次 174 P2-1 修复：ref<any>({}) 改为 ref<SalesPrice>，初始空对象通过断言
-  const viewData = ref<SalesPrice>({} as SalesPrice);
+  const viewData = ref<SalesPriceRow>({} as SalesPriceRow);
 
   // 历史记录对话框状态
   const historyVisible = ref(false);
   const historyList = ref<SalesPrice[]>([]);
 
-  // 价格策略对话框状态（批次 95 P3-17 修复）
-  const strategyVisible = ref(false);
-  const strategyList = ref<PricingStrategy[]>([]);
-  const strategyLoading = ref(false);
-
-  /** 审批 */
+  /**
+   * 审批通过（pending → approved）：理由必填，先经 promptApprovalReason(true) 采集再提交，
+   * 取消采集框即中止整条链（不是失败，不弹错误）。
+   * 端点 POST /sales/sales-prices/{id}/approve 只受理批准（approved=false 被后端直接 400），
+   * 理由落 sales_prices.approval_reason 列；拒绝走独立端点（见 handleReject），
+   * 禁止用本端点兼职放行拒绝。
+   * 成功后 refresh.getList() 回读列表，以列表数据为准。
+   */
   const handleApprove = async (row: SalesPrice) => {
-    // 后端 ApprovePriceRequest 必填 approved（通过/拒绝均留痕）+ 可选 remark：
-    // 采集器让用户显式选择通过/不通过，取消即中断，不预设结论。
-    const decision = await promptApproval();
-    if (!decision) return;
+    const approvalReason = await promptApprovalReason(true);
+    if (approvalReason === null) return;
     try {
-      await approveSalesPrice(row.id, { approved: decision.approved, remark: decision.remark });
+      await approveSalesPrice(row.id, { approved: true, approval_reason: approvalReason });
       msg.success('approveSuccess');
       await refresh.getList();
     } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg) ElMessage.error(errMsg || msg.translate('approveFailed'));
+      logger.error('销售价目审批通过失败:', error);
+      msg.error('approveFailed');
     }
   };
 
-  /** 查看详情（弹出对话框） */
-  const handleView = (row: SalesPrice) => {
+  /**
+   * 审批拒绝（pending → rejected 审批终态，与 approved 同为不可回退的结论态）：
+   * 理由必填，先经 promptRejectReason() 采集再提交，取消采集框即中止整条链。
+   * 端点 POST /sales/sales-prices/{id}/reject（与 approve 各自独立），
+   * 理由落 sales_prices.rejected_reason 列。
+   * 成功后 refresh.getList() 回读列表。
+   */
+  const handleReject = async (row: SalesPrice) => {
+    const reason = await promptRejectReason();
+    if (reason === null) return;
+    try {
+      await rejectSalesPrice(row.id, { reason });
+      msg.success('rejectSuccess');
+      await refresh.getList();
+    } catch (error: unknown) {
+      logger.error('销售价目审批拒绝失败:', error);
+      msg.error('rejectFailed');
+    }
+  };
+
+  /** 查看详情（直接复用列表富化行，无需二次取数） */
+  const handleView = (row: SalesPriceRow) => {
     viewData.value = row;
     viewDialogVisible.value = true;
   };
@@ -79,40 +96,22 @@ export function useSpProc(refresh: RefreshCallbacks) {
       historyList.value = res.data || [];
       historyVisible.value = true;
     } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
       ElMessage.error(errMsg || msg.translate('loadHistoryFailed'));
     }
   };
 
-  /** 价格策略（批次 95 P3-17 修复：拉取策略列表并打开对话框） */
-  const handleStrategy = async () => {
-    strategyVisible.value = true;
-    strategyLoading.value = true;
-    try {
-      const res = await getPricingStrategyList();
-      // 后端 list_strategies 返回 PaginatedResponse ⇒ data.items
-      strategyList.value = res.data.items;
-    } catch (error: unknown) {
-      // v11 批次 174 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
-      const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || msg.translate('loadPriceStrategyFailed'));
-    } finally {
-      strategyLoading.value = false;
-    }
-  };
-
   /**
-   * 导出 Excel（V15 P0-S12 修复 Batch 475d）
-   *
-   * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
-   * 改为调用后端 GET /sales/sales-prices/export，后端注入水印 + 异步审计日志
-   * 传入当前列表筛选条件（product_id/status），保证导出与列表一致
+   * 导出 Excel（统一 xlsx，禁止 CSV 交付）：
+   * 调用后端 GET /sales/sales-prices/export（后端注入水印 + 异步审计日志），
+   * 透传当前列表筛选全集，与列表同口径。
    */
   const handleExport = async () => {
     const filters = refresh.getQueryParams?.() ?? {};
     const params: Record<string, unknown> = {
       product_id: filters.product_id,
+      customer_id: filters.customer_id,
+      keyword: filters.keyword || undefined,
       status: filters.status || undefined,
     };
     await exportFromBackend('/sales/sales-prices/export', params, 'sales_prices_export');
@@ -128,13 +127,9 @@ export function useSpProc(refresh: RefreshCallbacks) {
     historyVisible,
     historyList,
     handleHistory,
-    // 价格策略（批次 95 P3-17 修复）
-    strategyVisible,
-    strategyList,
-    strategyLoading,
-    handleStrategy,
     // 流程
     handleApprove,
+    handleReject,
     handleExport,
   });
 }

@@ -363,8 +363,9 @@ pub fn webhooks() -> Router<AppState> {
         .route("/{id}/logs", get(webhook_handler::get_webhook_logs))
 }
 
-/// API 网关管理路由；技术债务修复（2026-06-26）： 前端 api-gateway.ts 调用 /api-gateway/{endpoints,logs,keys,stats}
-/// 前缀。 原 api_keys() 挂载在 /api-keys 前缀，与前端不匹配。 新增 api_gateway() 统一挂载到 /api-gateway 前缀下。
+/// API 网关管理路由：统一挂载在 /api-gateway 前缀下，前端 `api-gateway.ts` 按
+/// `/api-gateway/{endpoints,stats}` 调用。`endpoints` 的启停由
+/// `middleware/dynamic_router.rs` 按 `api_endpoints.status` 真实放行或返回 503。
 pub fn api_gateway() -> Router<AppState> {
     Router::new()
         // endpoints CRUD
@@ -378,24 +379,6 @@ pub fn api_gateway() -> Router<AppState> {
             get(api_gateway_handler::get_api_endpoint)
                 .put(api_gateway_handler::update_api_endpoint)
                 .delete(api_gateway_handler::delete_api_endpoint),
-        )
-        // logs 查询
-        .route("/logs", get(api_gateway_handler::list_api_logs))
-        .route("/logs/{id}", get(api_gateway_handler::get_api_log))
-        // keys CRUD（list/create/delete/get/update/regenerate 均由 api_gateway_handler 提供）
-        .route(
-            "/keys",
-            get(api_gateway_handler::list_api_keys).post(api_gateway_handler::create_api_key),
-        )
-        .route(
-            "/keys/{id}",
-            get(api_gateway_handler::get_api_key)
-                .put(api_gateway_handler::update_api_key)
-                .delete(api_gateway_handler::delete_api_key),
-        )
-        .route(
-            "/keys/{id}/regenerate",
-            post(api_gateway_handler::regenerate_api_key),
         )
         // stats
         .route("/stats", get(api_gateway_handler::get_api_stats))

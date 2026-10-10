@@ -52,6 +52,8 @@ pub struct Model {
     pub approval_instance_id: Option<i64>,
     pub approved_by: Option<i64>,
     pub approved_at: Option<DateTime<Utc>>,
+    /// 审批通过理由（m0079 加列，TEXT 可空；仅承载非 BPM 直批路径，BPM 裁决不回写本列）
+    pub approval_reason: Option<String>,
     pub rejection_reason: Option<String>,
 
     /// 转换

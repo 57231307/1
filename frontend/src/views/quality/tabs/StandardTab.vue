@@ -41,9 +41,9 @@
           :label="t('quality.standardTab.colStandardName')"
           width="180"
         />
-        <el-table-column prop="type" :label="t('quality.standardTab.colType')" width="100">
+        <el-table-column prop="standard_type" :label="t('quality.standardTab.colType')" width="100">
           <template #default="{ row }">
-            {{ getTypeLabel(row.type) }}
+            {{ getTypeLabel(row.standard_type) }}
           </template>
         </el-table-column>
         <el-table-column prop="version" :label="t('quality.standardTab.colVersion')" width="80" />
@@ -129,6 +129,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, onMounted, defineEmits, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -155,26 +156,35 @@ const actions = inject<{
   openStandardDialog: (row: QualityStandard | null) => void;
 }>('qualityActions');
 
+// 取值集合＝后端实际写入值（quality_standard_service.rs：draft:128 / approved:314 /
+// rejected:351 / archived:384 / active:417，active 走 master_data::ACTIVE，general.rs:52）。
+// 后端从不写 'published'（handler 文档注释过时），故不含它；词表外存量值原样直出不猜。
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
     draft: t('quality.standardTab.statusDraft'),
     approved: t('quality.standardTab.statusApproved'),
-    published: t('quality.standardTab.statusPublished'),
+    active: t('quality.standardTab.statusActive'),
+    archived: t('quality.standardTab.statusArchived'),
     rejected: t('quality.standardTab.statusRejected'),
   };
   return map[status] || status;
 };
 
+// 取值词表（api/quality.ts::QualityStandard.standard_type）：product/process 为写入方文档口径
+// （quality_standard_handler.rs:40-41），存量另有服务层缺省 general（service:122-125）；
+// 列无 CHECK 约束，词表外值原样展示，不并入「工艺标准」。
 const getTypeLabel = (type: string) => {
   if (type === 'product') return t('quality.standardTab.typeProduct');
-  return t('quality.standardTab.typeProcess');
+  if (type === 'process') return t('quality.standardTab.typeProcess');
+  return type;
 };
 
 const getStatusType = (status: string) => {
   const map: Record<string, string> = {
     draft: 'info',
     approved: 'warning',
-    published: 'success',
+    active: 'success',
+    archived: 'info',
     rejected: 'danger',
   };
   return map[status] || 'info';
@@ -225,7 +235,7 @@ const handlePublish = async (row: QualityStandard) => {
     ElMessage.success(t('quality.standardTab.messagePublishSuccess'));
     fetchStandards();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('quality.standardTab.messageOperationFailed'));
     }
@@ -248,7 +258,7 @@ const buildPrintRows = (): string => {
       item => `
     <tr>
       <td>${escapeHtml(item.standard_code)}</td><td>${escapeHtml(item.standard_name)}</td>
-      <td>${escapeHtml(getTypeLabel(item.type))}</td>
+      <td>${escapeHtml(getTypeLabel(item.standard_type))}</td>
       <td>${escapeHtml(item.version)}</td><td>${escapeHtml(getStatusLabel(item.status))}</td>
       <td>${escapeHtml(item.created_by_name || '-')}</td>
     </tr>

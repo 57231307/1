@@ -64,45 +64,25 @@ const rows = ref<Record<string, unknown>[]>([]);
 
 const columns = computed(() => (rows.value.length ? Object.keys(rows.value[0]) : []));
 
-const fetchers = {
-  statistics: getARStatisticsReport,
-  daily: getARDailyReport,
-  monthly: getARMonthlyReport,
-  aging: getARAgingReport,
-};
-
 const fetchReport = async () => {
   loading.value = true;
   try {
-    const fetcher = fetchers[reportType.value];
-    // daily/monthly 需要日期参数（当月/当日即可获取数据）
-    const res =
-      reportType.value === 'daily'
-        ? await (fetcher as (date: string) => Promise<unknown>)(
-            new Date().toISOString().split('T')[0]
-          )
-        : reportType.value === 'monthly'
-          ? await (fetcher as (year: number, month: number) => Promise<unknown>)(
-              new Date().getFullYear(),
-              new Date().getMonth() + 1
-            )
-          : await (fetcher as () => Promise<unknown>)();
-    const d = res as unknown as
-      | { list?: Record<string, unknown>[]; items?: Record<string, unknown>[]; data?: unknown }
-      | Record<string, unknown>[]
-      | undefined;
-    let list: Record<string, unknown>[] = [];
-    if (d && typeof d === 'object' && !Array.isArray(d)) {
-      list =
-        d.list ||
-        d.items ||
-        (Array.isArray(d.data)
-          ? (d.data as Record<string, unknown>[])
-          : [d.data as Record<string, unknown>]);
+    // 出参形状以定稿 DTO 为唯一事实（backend/src/services/ar_ops/report.rs）：
+    // daily/monthly 为裸数组行集，statistics/aging 为单聚合对象（按一行展示）。
+    if (reportType.value === 'daily') {
+      const res = await getARDailyReport(new Date().toISOString().split('T')[0]);
+      rows.value = res.data;
+    } else if (reportType.value === 'monthly') {
+      const now = new Date();
+      const res = await getARMonthlyReport(now.getFullYear(), now.getMonth() + 1);
+      rows.value = res.data;
+    } else if (reportType.value === 'statistics') {
+      const res = await getARStatisticsReport();
+      rows.value = [res.data];
     } else {
-      list = (d as Record<string, unknown>[]) || [];
+      const res = await getARAgingReport();
+      rows.value = [res.data];
     }
-    rows.value = list.filter(Boolean);
   } catch (e) {
     const err = e as { message?: string };
     ElMessage.error(err.message || t('common.failed'));

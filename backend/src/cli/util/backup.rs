@@ -1,6 +1,10 @@
 //! 备份与恢复子命令实现：Backup / Restore
 
 use super::{get_backup_dir, get_install_dir, require_env, require_root, run_cmd, timestamp};
+
+// `fs::` 仅在下面 compress_backup 的 `#[cfg(unix)]` 权限设置块里使用：
+// 导入收进同一 cfg 作用域，Windows 编译不再报 unused import，Linux 行为逐字节不变。
+#[cfg(unix)]
 use std::fs;
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
@@ -129,17 +133,18 @@ fn backup_config_files(backup_dir: &str) {
 /// 规则 12 合规：设置备份文件权限为 0o600，防止 .env 敏感信息泄露。
 fn compress_backup(tar_file: &str, ts: &str) {
     println!("\n压缩备份...");
+    // 压缩失败时不得对不存在/半成品 tar 文件设权限；设权限分支仅在 Linux 生效。
     if let Err(e) = run_cmd("tar", &["-czf", tar_file, "-C", &get_backup_dir(), ts]) {
         println!("[ERROR] 压缩失败: {}", e);
-        return;
-    }
-    // 规则 12 合规：设置备份文件权限为 0o600（仅所有者可读），
-    // 防止备份中的 .env（含数据库密码等敏感信息）被其他用户读取
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Err(e) = fs::set_permissions(tar_file, fs::Permissions::from_mode(0o600)) {
-            println!("[WARN] 设置备份文件权限失败（可忽略）: {}", e);
+    } else {
+        // 规则 12 合规：设置备份文件权限为 0o600（仅所有者可读），
+        // 防止备份中的 .env（含数据库密码等敏感信息）被其他用户读取
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = fs::set_permissions(tar_file, fs::Permissions::from_mode(0o600)) {
+                println!("[WARN] 设置备份文件权限失败（可忽略）: {}", e);
+            }
         }
     }
 }

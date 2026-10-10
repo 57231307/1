@@ -257,6 +257,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { logAuxLoadFailure, logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -467,7 +468,7 @@ const handleDelete = async (row: InventoryBatch) => {
     ElMessage.success(t('inventoryBatch.batchListTab.messageDeleteSuccess'));
     fetchBatches();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error as Error).message || t('inventoryBatch.batchListTab.messageDeleteFailed')
       );

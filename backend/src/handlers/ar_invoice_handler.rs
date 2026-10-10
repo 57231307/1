@@ -17,7 +17,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::ar_invoice_service::{ArInvoiceService, CreateArInvoiceRequest};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use rust_decimal::Decimal;
 
@@ -29,7 +29,7 @@ pub struct CancelReason {
 }
 
 /// 查询参数
-// V15 P0-S12 修复（Batch 475e）：派生 Clone，export_ar_invoices 需要 clone 后覆盖分页参数用于全量导出
+// 派生 Clone：export_ar_invoices 需 clone 查询参数并覆盖分页做全量导出
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ArInvoiceQuery {
@@ -49,7 +49,7 @@ pub struct CreateArInvoiceRequestDto {
     pub customer_id: Option<i32>,
     pub customer_name: Option<String>,
     pub source_type: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub invoice_amount: Option<Decimal>,
     pub batch_no: Option<String>,
@@ -62,22 +62,36 @@ pub async fn list_ar_invoices(
     Query(params): Query<ArInvoiceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<ar_invoice::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<ar_invoice::Model>>>, AppError> {
     info!("用户 {} 查询应收单列表", auth.username);
 
+    // 分页不变量：与仓库其它 list handler 同源，返回标准 PaginatedResponse{items,total,page,page_size}
+    // page/page_size 仍从同一查询参数读取，路由路径与参数名不变
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // page 钳位 1..=1000：拒绝超大页码防 DoS
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+
     let service = ArInvoiceService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (invoices, total) = service
         .get_list(
             params.customer_id,
             params.status,
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
-            params.page_size.unwrap_or(20).clamp(1, 100),
+            page,
+            page_size,
+            Some(&data_scope_ctx),
         )
         .await?;
 
-    info!("用户 {} 查询应收单成功，共 {} 条", auth.username, total);
+    info!(
+        "用户 {} 查询应收单成功，共 {} 条，当前页 {} 条",
+        auth.username,
+        total,
+        invoices.len()
+    );
 
-    Ok(Json(ApiResponse::success(invoices)))
+    Ok(Json(ApiResponse::success_paginated(
+        invoices, total, page, page_size,
+    )))
 }
 
 /// 创建应收单
@@ -97,7 +111,7 @@ pub async fn create_ar_invoice(
         .map(|d| {
             d.parse().map_err(|e| {
                 warn!("用户 {} 应收单日期格式错误：{}", auth.username, e);
-                AppError::validation("应收单日期格式错误")
+                AppError::validation_displayable("应收单日期格式错误")
             })
         })
         .transpose()?;
@@ -107,7 +121,7 @@ pub async fn create_ar_invoice(
         .map(|d| {
             d.parse().map_err(|e| {
                 warn!("用户 {} 到期日格式错误：{}", auth.username, e);
-                AppError::validation("到期日格式错误")
+                AppError::validation_displayable("到期日格式错误")
             })
         })
         .transpose()?;
@@ -150,12 +164,10 @@ pub async fn get_ar_invoice(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护：get_by_id 按 data_scope 过滤资源归属）
     let data_scope_ctx = auth.to_data_scope_context();
     let invoice = service.get_by_id(id, Some(&data_scope_ctx)).await?;
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
-    )))
+    Ok(Json(ApiResponse::success(serde_json::to_value(invoice)?)))
 }
 
 /// 更新应收发票
@@ -166,13 +178,13 @@ pub async fn update_ar_invoice(
     Json(req): Json<UpdateArInvoiceRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // IDOR 防护——更新前先以 get_by_id + data_scope_ctx 行级过滤校验资源归属
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
     let invoice = service.update(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票更新成功",
     )))
 }
@@ -184,7 +196,7 @@ pub async fn delete_ar_invoice(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_by_id + data_scope_ctx）
+    // IDOR 防护——删除前先以 get_by_id + data_scope_ctx 行级过滤校验资源归属
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_by_id(id, Some(&data_scope_ctx)).await?;
 
@@ -204,7 +216,7 @@ pub async fn approve_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票审批成功",
     )))
 }
@@ -219,7 +231,7 @@ pub async fn cancel_ar_invoice(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.cancel(id, req.reason, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票取消成功",
     )))
 }
@@ -233,7 +245,7 @@ pub async fn mark_ar_invoice_as_paid(
     let service = ArInvoiceService::new(state.db.clone());
     let invoice = service.mark_as_paid(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(invoice).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(invoice)?,
         "应收发票已标记为已收款",
     )))
 }
@@ -327,7 +339,7 @@ fn record_ar_invoices_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/ar/invoices/export - 导出应收发票列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
+/// GET /api/v1/erp/ar/invoices/export - 导出应收发票列表（带水印 + 异步审计日志）：
 /// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
 pub async fn export_ar_invoices(
     State(state): State<AppState>,
@@ -335,8 +347,15 @@ pub async fn export_ar_invoices(
     Query(query): Query<ArInvoiceQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let service = ArInvoiceService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (invoices, _total) = service
-        .get_list(query.customer_id, query.status, 1, 10000)
+        .get_list(
+            query.customer_id,
+            query.status,
+            1,
+            10000,
+            Some(&data_scope_ctx),
+        )
         .await?;
     let row_count = invoices.len();
     let invoices_json: Vec<serde_json::Value> = invoices

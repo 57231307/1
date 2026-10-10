@@ -1,6 +1,7 @@
 use crate::models::purchase_price;
-use crate::models::status::master_data;
+use crate::models::status::price_approval;
 use crate::models::{product, supplier};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -10,7 +11,7 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 /// 采购价格读模型：实体列 + LEFT JOIN 关联出的产品名 / 产品编码 / 供应商名（实体仅有外键 ID）。
@@ -79,10 +80,73 @@ impl PurchasePriceService {
         Self { db }
     }
 
+    /// 产品引用存在性预检。
+    ///
+    /// 范式照 `sku_mapping_service::validate_refs` 与 `inventory_reservation_service::create_reservation`：
+    /// 坏引用绝不交给 DB 兜底，理由有二——
+    /// 1. `purchase_prices` 当前**没有**指向 products/suppliers 的外键（FK 迁移尚未上线），
+    ///    不给应用层预检则不存在的 product_id/supplier_id 静默落库成孤儿价目行
+    ///    （列表侧 `PurchasePriceView` 的 JOIN 名列如实 NULL 即其下游形态）；
+    /// 2. 即便 FK 上线，23503 违约经 `AppError::From<DbErr>` 的 Exec 分支只落裸
+    ///    500 `DATABASE_ERROR`（同 `inventory_reservation_service::create_reservation` 头注
+    ///    所述缺陷族），用户拿不到可外显的拒绝原因；引用不存在是「用户自己提交的字段非法」，
+    ///    按 `utils/error.rs` 模块文档的铁律走 `AppError::validation_displayable`
+    ///    （HTTP 400 + code=VALIDATION_ERROR，出参携带真实原因）。
+    ///    可外显文案**只含资源名与操作指引、不含数据库记录 ID**——`utils/error.rs`
+    ///    「安全边界，硬性规则」的禁止示例明确列着「业务模式 42 不存在（含内部记录 ID）」，
+    ///    记录 ID 属内部标识，一律不得进对外 message；具体 ID 只进本函数的 warn 日志，
+    ///    保证出参摘除后线上仍可定位（不静默）。
+    ///
+    /// 存在性判定只取主键列（同 `sku_mapping_service::validate_refs` 对 suppliers 的
+    /// select_only 口径——`models/supplier.rs` 把 supplier_type/credit_code/legal_representative
+    /// 等经 ALTER 以可空列加入的扩展列声明为非 Option，整行解码会在历史/手工行上误抛 500，
+    /// 该实证注释就写在 `sku_mapping_service::validate_refs` 内）；products 同口径统一。
+    async fn assert_product_exists(&self, product_id: i32) -> Result<(), AppError> {
+        let exists = product::Entity::find()
+            .filter(product::Column::Id.eq(product_id))
+            .select_only()
+            .column(product::Column::Id)
+            .into_tuple::<i32>()
+            .one(&*self.db)
+            .await?
+            .is_some();
+        if !exists {
+            warn!(
+                "采购价格引用预检被拒：产品记录 ID {product_id} 不存在（记录 ID 只进日志，不进对外文案）"
+            );
+            return Err(AppError::validation_displayable(
+                "所选产品不存在，请重新选择",
+            ));
+        }
+        Ok(())
+    }
+
+    /// 供应商引用存在性预检（同 `Self::assert_product_exists` 口径）
+    async fn assert_supplier_exists(&self, supplier_id: i32) -> Result<(), AppError> {
+        let exists = supplier::Entity::find()
+            .filter(supplier::Column::Id.eq(supplier_id))
+            .select_only()
+            .column(supplier::Column::Id)
+            .into_tuple::<i32>()
+            .one(&*self.db)
+            .await?
+            .is_some();
+        if !exists {
+            warn!(
+                "采购价格引用预检被拒：供应商记录 ID {supplier_id} 不存在（记录 ID 只进日志，不进对外文案）"
+            );
+            return Err(AppError::validation_displayable(
+                "所选供应商不存在，请重新选择",
+            ));
+        }
+        Ok(())
+    }
+
     /// 获取采购价格列表
     pub async fn get_prices_list(
         &self,
         params: PurchasePriceQueryParams,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchasePriceView>, u64), AppError> {
         let mut query = purchase_price::Entity::find();
 
@@ -98,7 +162,19 @@ impl PurchasePriceService {
             query = query.filter(purchase_price::Column::Status.eq(status));
         }
 
-        // 总数在无 JOIN 的基础查询上统计：所有 JOIN 均为多对一（不倍增行），单次查询无 N+1。
+        // 行级数据权限下推（调用方为 /purchase-prices 列表，scope 条件在总数统计前注入，
+        // 列表与 total 同源同一查询）。purchase_price 表无 department_id，归属列 created_by
+        // （Option<i32>），Dept 退化为按可见部门成员集合过滤 created_by。
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                purchase_price::Column::CreatedBy,
+                purchase_price::Column::CreatedBy,
+            );
+        }
+
+        // 总数与分页共用上方已含数据范围的同一查询：count 在 JOIN 前统计，JOIN 均为多对一（不倍增行）。
         let total = query.clone().count(&*self.db).await?;
 
         let prices = query
@@ -129,6 +205,12 @@ impl PurchasePriceService {
             user_id, req.product_id, req.supplier_id
         );
 
+        // 引用存在性预检先于任何写库动作（口径见 `Self::assert_product_exists`
+        // 文档注）：product_id/supplier_id 均为 NOT NULL 必检；拒绝路径零副作用（不落行）。
+        // update_price 不收 product_id/supplier_id 键（无引用改道），故其路径无需预检。
+        self.assert_product_exists(req.product_id).await?;
+        self.assert_supplier_exists(req.supplier_id).await?;
+
         let active_price = purchase_price::ActiveModel {
             product_id: Set(req.product_id),
             supplier_id: Set(req.supplier_id),
@@ -143,9 +225,26 @@ impl PurchasePriceService {
                 .effective_date
                 .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string())
                 .parse()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?),
-            expiry_date: Set(req.expiry_date.and_then(|d| d.parse().ok())),
-            status: Set(master_data::PENDING.to_string()),
+                .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?),
+            // 到期日与生效日同口径严格解析（map + map_err + transpose，写法与销售侧
+            // `services/sales_price_service::create_price` 的 expiry_date 分支同形）：
+            // 非法日期串一律 fail-visible 拒绝，绝不落 NULL——NULL 是「长期有效」的既有
+            // 业务语义，不得让非法输入冒名顶替成成功行。错误走
+            // `AppError::validation_displayable`：HTTP 400 + 机器码 VALIDATION_ERROR，
+            // 出参携带真实拒绝原因；文案只描述用户自己提交的字段格式，满足
+            // `utils/error.rs` 模块文档的安全边界（先例：
+            // `handlers/budget_management_handler.rs` / `handlers/inventory_count_handler.rs`
+            // 的日期解析拒绝点）。禁止改用 `AppError::business`（出参被脱敏成固定文案，
+            // 用户看不到原因），也禁止 `AppError::internal`（把校验失败拍平成 500）。
+            expiry_date: Set(req
+                .expiry_date
+                .map(|d| {
+                    d.parse().map_err(|e| {
+                        AppError::validation_displayable(format!("日期格式错误：{}", e))
+                    })
+                })
+                .transpose()?),
+            status: Set(price_approval::PENDING.to_string()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         };
@@ -167,11 +266,16 @@ impl PurchasePriceService {
         Ok(price)
     }
 
-    /// 批准采购价格
-    pub async fn approve_price(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+    /// 批准采购价格：pending→approved，通过理由真实落 `approval_reason` 列。
+    pub async fn approve_price(
+        &self,
+        id: i32,
+        user_id: i32,
+        approval_reason: String,
+    ) -> Result<(), AppError> {
         info!("用户 {} 正在批准采购价格，ID: {}", user_id, id);
 
-        // 批次 25 v6 P0 修复：状态机 lock_exclusive 补全，串行化并发状态变更
+        // 状态变更以 lock_exclusive 串行化，防并发覆盖
         let txn = (*self.db).begin().await?;
 
         let price_model = purchase_price::Entity::find_by_id(id)
@@ -180,9 +284,22 @@ impl PurchasePriceService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
 
+        // 状态门：价格流转前置与写入值逐字符同源（price_approval::PENDING）。非待审批
+        // （approved/inactive）直接批准属状态机前置未满足，归业务族；文案含当前状态
+        // token，保持脱敏（与销售侧 approve_price 同一口径，出参 code=BUSINESS_ERROR）。
+        if price_model.status != price_approval::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审批状态的采购价格可以批准，当前状态：{}",
+                price_model.status
+            )));
+        }
+
         let mut price: purchase_price::ActiveModel = price_model.into();
-        price.status = Set(master_data::APPROVED.to_string());
+        price.status = Set(price_approval::APPROVED.to_string());
         price.approved_by = Set(Some(user_id));
+        price.approved_at = Set(Some(chrono::Utc::now()));
+        // 通过理由真实落列（handler 侧已保证 trim 非空），不再只进日志。
+        price.approval_reason = Set(Some(approval_reason));
 
         // 使用 update_with_audit 在事务内同步写入审计日志
         // P2-3 修复（批次 84 v1 复审）：有意忽略返回的 ActiveModel（字段已通过 Set 表达更新意图），仅传播错误
@@ -198,6 +315,57 @@ impl PurchasePriceService {
         txn.commit().await?;
 
         info!("采购价格批准成功，ID: {}", id);
+        Ok(())
+    }
+
+    /// 拒绝采购价格：pending→rejected 终态流转，拒绝理由落 `rejected_reason` 列。
+    pub async fn reject_price(
+        &self,
+        id: i32,
+        user_id: i32,
+        reason: String,
+    ) -> Result<(), AppError> {
+        info!("用户 {} 正在拒绝采购价格，ID: {}", user_id, id);
+
+        // 与 approve_price 同形：lock_exclusive 事务串行化并发状态变更
+        let txn = (*self.db).begin().await?;
+
+        let price_model = purchase_price::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购价格 {} 未找到", id)))?;
+
+        // 状态门：拒绝只允许 pending 起拒。rejected 与 approved 同为审批结论终态，
+        // 不出 rejected→pending/approved 的回退边——需变更请重新发起新价目行；
+        // 前置未满足归业务族，文案含状态 token 保持脱敏（与 approve_price 同口径）。
+        if price_model.status != price_approval::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审批状态的采购价格可以拒绝，当前状态：{}",
+                price_model.status
+            )));
+        }
+
+        let mut price: purchase_price::ActiveModel = price_model.into();
+        price.status = Set(price_approval::REJECTED.to_string());
+        price.rejected_reason = Set(Some(reason));
+        // 拒绝结论同样记录决策人与决策时间：本域决策人/决策时间只有
+        // approved_by/approved_at 一列套（无独立拒绝人列），结论由 status 区分。
+        price.approved_by = Set(Some(user_id));
+        price.approved_at = Set(Some(chrono::Utc::now()));
+
+        // 审计留痕沿用本域既有调用点口径（事务内 update_with_audit）
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            price,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        info!("采购价格拒绝成功，ID: {}", id);
         Ok(())
     }
 
@@ -236,10 +404,19 @@ impl PurchasePriceService {
         if let Some(ed) = expiry_date {
             price_model.expiry_date =
                 Set(Some(ed.parse().map_err(|e| {
-                    AppError::validation(format!("日期格式错误：{}", e))
+                    AppError::validation_displayable(format!("日期格式错误：{}", e))
                 })?));
         }
         if let Some(s) = status {
+            // 入参取值域校验先于 DB CHECK：非法值归字段校验族（400/VALIDATION_ERROR），
+            // 避免撞 chk_purchase_price_status 退化为裸 500 DATABASE_ERROR。
+            if !price_approval::ALL.contains(&s.as_str()) {
+                return Err(AppError::validation_displayable(format!(
+                    "价格状态 {} 不是合法取值，允许值：{}",
+                    s,
+                    price_approval::ALL.join("/")
+                )));
+            }
             price_model.status = Set(s);
         }
 

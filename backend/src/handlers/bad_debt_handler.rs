@@ -35,6 +35,7 @@ use crate::models::bad_debt_provision;
 use crate::models::bad_debt_writeoff;
 use crate::services::bad_debt_service::{BadDebtError, BadDebtService};
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 // ==================== 响应 DTO ====================
@@ -213,7 +214,7 @@ pub async fn run_provision(
 
 /// GET /api/v1/erp/bad-debts - 计提记录列表
 pub async fn list_provisions(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListProvisionQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<ProvisionInfo>>>, AppError> {
@@ -221,7 +222,12 @@ pub async fn list_provisions(
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
-    let (items, total) = service.list_provisions(query).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+
+    let (items, total) = service
+        .list_provisions(query, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let infos: Vec<ProvisionInfo> = items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(PagedResponse {
         items: infos,
@@ -233,34 +239,49 @@ pub async fn list_provisions(
 
 /// GET /api/v1/erp/bad-debts/:id - 计提记录详情
 pub async fn get_provision(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProvisionInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
-    let record = service.get_provision(id).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_provision(id, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/bad-debts/:id/confirm - 确认计提（draft → confirmed）
 pub async fn confirm_provision(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProvisionInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
+    // 行级归属门在状态跃迁事务之前：越权确认零落库、计提状态零漂移
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_provision(id, Some(&ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let record = service.confirm_provision(id).await.map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/bad-debts/:id/reverse - 转回计提（confirmed → reversed）
 pub async fn reverse_provision(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<ReverseProvisionRequest>,
 ) -> Result<Json<ApiResponse<ProvisionInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_provision(id, Some(&ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let record = service
         .reverse_provision(id, req)
         .await
@@ -286,7 +307,7 @@ pub async fn create_writeoff(
 
 /// GET /api/v1/erp/bad-debts/writeoffs - 核销申请列表
 pub async fn list_writeoffs(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListWriteoffQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<WriteoffInfo>>>, AppError> {
@@ -294,7 +315,12 @@ pub async fn list_writeoffs(
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
-    let (items, total) = service.list_writeoffs(query).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+
+    let (items, total) = service
+        .list_writeoffs(query, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     let infos: Vec<WriteoffInfo> = items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(PagedResponse {
         items: infos,
@@ -306,12 +332,16 @@ pub async fn list_writeoffs(
 
 /// GET /api/v1/erp/bad-debts/writeoffs/:id - 核销申请详情
 pub async fn get_writeoff(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<WriteoffInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
-    let record = service.get_writeoff(id).await.map_err(bad_debt_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_writeoff(id, Some(&data_scope_ctx))
+        .await
+        .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
@@ -320,11 +350,16 @@ pub async fn finance_approve(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<ApproveWriteoffRequest>,
+    OptionalJson(req): OptionalJson<ApproveWriteoffRequest>,
 ) -> Result<Json<ApiResponse<WriteoffInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
+    // 缺体归一为「审批意见未采集」（等价于体 {}），comment 仍由服务层按 Option 语义处理
     let record = service
-        .finance_approve(id, auth.user_id, req)
+        .finance_approve(
+            id,
+            auth.user_id,
+            req.unwrap_or(ApproveWriteoffRequest { comment: None }),
+        )
         .await
         .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))
@@ -335,11 +370,15 @@ pub async fn general_manager_approve(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<ApproveWriteoffRequest>,
+    OptionalJson(req): OptionalJson<ApproveWriteoffRequest>,
 ) -> Result<Json<ApiResponse<WriteoffInfo>>, AppError> {
     let service = BadDebtService::from_state(&state);
     let record = service
-        .general_manager_approve(id, auth.user_id, req)
+        .general_manager_approve(
+            id,
+            auth.user_id,
+            req.unwrap_or(ApproveWriteoffRequest { comment: None }),
+        )
         .await
         .map_err(bad_debt_err)?;
     Ok(Json(ApiResponse::success(record.into())))

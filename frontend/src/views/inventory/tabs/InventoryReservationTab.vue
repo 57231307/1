@@ -108,6 +108,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getReservationList,
@@ -176,14 +177,15 @@ const handleSubmit = async () => {
   if (!valid || !form.product_id || !form.warehouse_id) return;
   submitting.value = true;
   try {
-    // 按 ReservationData DTO 提交：order_id/order_no 为必填占位，备注映射到 notes
+    // 按后端 CreateReservationRequest 契约提交：order_no 不是该端点字段（多传=serde 静默丢弃）；
+    // quantity 为 Decimal 入参按字符串传；notes 为 Option——空值省略该键而非传空串。
+    // order_id: 0 为本页无订单上下文的既有占位（后端 order_id 必填），不在本次修复范围。
     await createReservation({
       order_id: 0,
-      order_no: '',
       product_id: form.product_id,
       warehouse_id: form.warehouse_id,
-      quantity: form.quantity,
-      notes: form.remark,
+      quantity: String(form.quantity),
+      notes: form.remark || undefined,
     });
     ElMessage.success(t('common.success'));
     dialogVisible.value = false;
@@ -218,8 +220,9 @@ const cancelReservationRow = async (row: Record<string, unknown>) => {
     await ElMessageBox.confirm(t('inventory.reservation.cancelConfirm'), t('common.cancel'), {
       type: 'warning',
     });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventory.cancelReservationRow', error);
   }
   await runAction(
     () => cancelReservation(Number(row.id)),

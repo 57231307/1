@@ -18,6 +18,7 @@ use crate::services::crm::cust::CrmService;
 use crate::services::customer_service::{
     CreateCustomerContactRequest, CustomerService, UpdateCustomerArgs, UpdateCustomerContactRequest,
 };
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -58,6 +59,89 @@ pub struct CreateTagDto {
     pub category: Option<String>,
 }
 
+/// 客户域**字段级**数据权限的唯一实现（形态与线索侧
+/// `crm_handler::apply_lead_field_permission` 逐项同构，不复用其函数体是因为判定源按
+/// resource_type 分行）。消费面（终局口径：客户域读写出口统一权限版）：
+/// - `customer_handler.rs` 四出口：list_customers/get_customer（读）与
+///   create_customer/update_customer（写响应）——customers 形状行同一判定源；
+/// - 本文件出口：list_customers/get_customer/list_contacts（增强页读）与
+///   update_customer/create_contact/update_contact（写响应）——同页四形状一致，
+///   contacts/客户行掩码保留键（掩码非删键契约在本函数默认分支与 filter_fields_batch
+///   两侧同时成立）；
+/// - `crm_lead` 形状出口（`crm_handler.rs` 读写出口及本页 `create_customer`/`add_tags`
+///   写响应）**不**使用本函数，走线索侧 `apply_lead_field_permission`——
+///   两域权限判定语义不同不强行统一；
+/// - `sales_fabric_order_handler.rs` 属销售域，维持 `mask_contact_fields_for_role`
+///   直调（标准销售订单读出口的既有唯一掩码实现），不消费客户域权限行。
+/// 判定源 = `data_permission_service.get_role_data_permission(role_id, "customer")`，
+/// 但**两层叠加而非二选一**：
+/// 1. 先 `CrmService::mask_customer_pii_defaults`（掩码列集合 = `utils/field_mask` 权威定义
+///    `mask_contact_fields_for_role`，非 admin 另加 `address` 整键移除；admin 放行原文
+///    依据入参 `is_admin`，由本函数经唯一权威源 `admin_checker::is_admin_role` 算出），
+///    非 admin 恒定执行；
+/// 2. 再叠加权限行的 `filter_fields_batch`（allowed 白名单保留 / hidden 移除）。
+/// 之所以不能像线索域那样"配了权限行就只按配置处理"：`filter_fields`（
+/// `services/data_permission_service.rs:202-222`）只会**删键**、不会把值还原成原文，
+/// 而本域改造前的读出口（`customer_handler.rs` 列表/详情）是**无条件掩码**的——
+/// 若走"配置即放行"，配了 `allowed_fields` 含 `contact_phone` 的非 admin 角色会从
+/// 掩码变原文，等于借本批"收敛唯一实现"顺手放松权限；同时增强入口（本文件读出口）
+/// 改造前完全不掩码，两种入口结果必须对每一种角色都一致，否则"同资源不同入口"
+/// 又成旁路。叠加后的结果对每一种角色都 ≥ 改造前。
+/// 代价与待裁定：本域 `allowed_fields` 因此**不能**作为"放行 PII 原文"的通道
+/// （线索/商机域保持其既有"配置即授权"语义不变）。若产品要让客户域也支持
+/// "显式配置即原文"，那是口径决策（需同时决定两个入口如何同步放松），交用户裁定。
+/// 权限查询 `Err` 与 `role_id` 缺失：记 warn 后仍走第 1 层默认脱敏（fail-closed）。
+/// 本文件不重写列名清单。
+///
+/// 本函数只处理出参：不改状态码、不外显任何拒绝原因（权限拒绝仍走
+/// `AppError::permission_denied` 的固定脱敏信封 + `FORBIDDEN` 码，真实原因只进日志）。
+pub(crate) async fn apply_customer_field_permission(
+    state: &AppState,
+    role_id: Option<i32>,
+    rows: &mut [serde_json::Value],
+) {
+    // admin 判定唯一权威源（D-4 收口口径）：`admin_checker::is_admin_role`
+    // （roles.code='admin'；role_id 缺失或查询失败 fail-closed=false，与原字面量判定下
+    // "无角色必脱敏"同一 fail-closed 方向）。每请求在循环外算一次并复用，
+    // 禁止下放进逐行循环（admin_checker 内部带 5 分钟缓存 + DashMap 自死锁修复史）。
+    let is_admin = match role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    // 第 1 层：默认脱敏对非 admin 恒定执行（admin 按上方权威源判定放行原文）
+    for row in rows.iter_mut() {
+        *row = CrmService::mask_customer_pii_defaults(std::mem::take(row), is_admin);
+    }
+
+    // 第 2 层：叠加权限行的 allowed/hidden（只删键，不会把第 1 层的掩码还原成原文）
+    if let Some(rid) = role_id {
+        match state
+            .data_permission_service
+            .get_role_data_permission(rid, "customer")
+            .await
+        {
+            Ok(Some(permission)) => {
+                state.data_permission_service.filter_fields_batch(
+                    rows,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                );
+            }
+            // Ok(None)：无权限行 → 只保留第 1 层默认脱敏
+            Ok(None) => {}
+            // 查询失败必须显式记 warn（不静默），第 1 层默认脱敏已经生效即 fail-closed
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id = rid,
+                    resource_type = "customer",
+                    "角色数据权限查询失败，客户域出参按默认脱敏处理（不叠加配置过滤）"
+                );
+            }
+        }
+    }
+}
+
 /// POST /api/v1/erp/crm/customers - 创建客户（通过线索）
 pub async fn create_customer(
     State(state): State<AppState>,
@@ -65,8 +149,20 @@ pub async fn create_customer(
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let lead = service.create_lead(req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    let lead = service
+        .create_lead(req, auth.user_id, &auth.username)
+        .await?;
+    // 本端点落的是线索域行（create_lead → crm_lead::Model，含 mobile_phone/tel_phone/email/
+    // address），写响应因此复用**线索侧**同一个字段级权限唯一实现（与 crm_handler 的
+    // create_lead/update_lead 写响应同源），不再整行原文直出。
+    let mut value = serde_json::to_value(lead)?;
+    crate::handlers::crm_handler::apply_lead_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// GET /api/v1/erp/crm/customers - 获取客户列表（线索列表）
@@ -91,7 +187,16 @@ pub async fn list_customers(
     // V15 P0-S01：提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let result = service.list_leads(query, Some(&data_scope_ctx)).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
+    // 增强页列表整行原文直出 = 同一份线索行在标准入口打码、本入口出原文的旁路，
+    // 收口到本文件客户侧唯一实现（裁定口径：增强页出参一致性优先——同页
+    // GET/:id、PUT、contacts 三形状统一走 resource_type=customer 权限行 +
+    // mask_customer_pii_defaults 默认掩码，不引用线索域 crm_lead 行配置，两域
+    // 权限判定语义不同不强行统一；掩码列集合仍全仓唯一 = utils/field_mask）。
+    let mut value = serde_json::to_value(result)?;
+    if let Some(list) = crate::handlers::crm_handler::paginated_list_array_mut(&mut value) {
+        apply_customer_field_permission(&state, auth.role_id, list).await;
+    }
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// GET /api/v1/erp/crm/customers/:id - 获取客户详情
@@ -104,7 +209,12 @@ pub async fn get_customer(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let lead = service.get_lead(id, Some(&data_scope_ctx)).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    // 增强页详情与本页列表/更新/联系人同挂客户侧唯一实现（裁定口径见 list_customers
+    // 处注释）：mobile_phone/tel_phone/email 命中权威掩码列集合、address 整键移除，
+    // 不引用 crm_lead 行配置；整行原文直出即旁路。
+    let mut value = serde_json::to_value(lead)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// CRM 增强客户更新请求 DTO：客户编辑弹窗提交字段，含状态（active/inactive）
@@ -133,7 +243,45 @@ pub async fn update_customer(
     Path(id): Path<i32>,
     Json(req): Json<UpdateEnhancedCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 波0 收编无校验写口：customer_type 经唯一词表模块 `constants::customer_type::validate`
+    // 校验，拒绝族别/文案与标准入口（customer_handler validator 通道）逐字符同源
+    // （400 + VALIDATION_ERROR，message `customer_type: invalid_customer_type`）。
+    // 校验置于任何触库之前，与标准入口"validator 先于 DB"同形。
+    // None（字段缺省）= 本列不更新，维持 `update.rs::apply_customer_field_updates`
+    // 的 `if let Some(v)` 语义原样透传；不把缺失静默写成缺省值（与创建入口不同）。
+    let customer_type = match req.customer_type.as_deref() {
+        Some(raw) => Some(crate::constants::customer_type::validate(Some(raw))?),
+        None => None,
+    };
+
     let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+
+    // 行级数据权限门（与其它写入口同判定源，非新增机制）：增强页 PUT 落的是 customers 表行，
+    // 故先走本域既有 `get_customer(id, Some(&ctx))` 预检——customers 的归属列是
+    // **owner_id**（`migration/src/domain/rls_dept/mod.rs:74`「customers/crm_lead/
+    // crm_opportunity 以 owner_id 为归属列，suppliers/sales_orders 以 created_by」），
+    // dept=department_id，判定源与标准入口（`customer_handler.rs` 写出口）及
+    // `utils/data_scope.rs::check_resource_owner` 逐字同源（同 `merge_leads`/
+    // `claim_from_pool` 的"先判后写"收口形态）。行不可见即整笔由 `permission_denied`
+    // 出 403（固定脱敏文案 + FORBIDDEN 码，真实原因只进服务端日志），不存在
+    // "跳过不可见行继续写"的降级。admin 的 `DataScope::All` 通道按
+    // `check_resource_owner` 既有语义原样通过，本门只把"完全没有门"变成"与其它入口同门"。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
+    // 方案 A（用户 2026-10-02 裁定）：可见 ≠ 可改。跨 owner 写另需 crm/cross_owner_write 键，
+    // 放行时代操作事实进结构化日志（各写出口本身已落 update_with_audit 审计行）。
+    // 归属列与上方读门逐字同源（owner_id），不取可空审计列 created_by。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "客户更新（增强入口）",
+    )
+    .await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let customer = customer_service
@@ -152,7 +300,7 @@ pub async fn update_customer(
             tax_id: req.tax_number,
             bank_name: req.bank_name,
             bank_account: req.bank_account,
-            customer_type: req.customer_type,
+            customer_type,
             status: req.status,
             country: None,
             customer_industry: None,
@@ -165,7 +313,10 @@ pub async fn update_customer(
         })
         .await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(customer)?)))
+    // 写响应不得整行原文回传（contact_phone/contact_email/address 明文），与读出口同源收口
+    let mut value = serde_json::to_value(customer)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// DELETE /api/v1/erp/crm/customers/:id - 删除客户
@@ -175,6 +326,28 @@ pub async fn delete_customer(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 行级数据权限门（与其它写入口同判定源，非新增机制）：本删除落点是 crm_lead 行
+    // （与本页详情出口 `get_lead(id, Some(&ctx))` 同一张表），故先用 ctx 走
+    // `get_lead` 预检——判定源即 `utils/data_scope.rs::check_resource_owner`
+    // （owner=owner_id、dept=department_id，与 `crm_handler.rs` update_lead 同一收口形态）。
+    // 行不可见即整笔 403（`permission_denied` 固定脱敏文案 + FORBIDDEN 码，
+    // 真实原因只进服务端日志），杜绝仅凭 RBAC 键按 id 删他人行。
+    // admin 的 `DataScope::All` 通道按既有语义原样通过，未收紧。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    // 方案 A（用户 2026-10-02 裁定）：可见 ≠ 可删。增强入口删除落的是 crm_lead 行，
+    // 跨 owner 写须 owner 本人或持有 crm/cross_owner_write 代表键（放行即 tracing::info
+    // 留痕）；无键 403 出参恒为固定脱敏常量。门后 service.delete_lead 的 FK 引用预校验
+    // 与并发兜底（G-221 收口，被引用线索删 400 不裸 500）逐字保留。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "客户删除（增强入口，落线索行）",
+    )
+    .await?;
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(
@@ -190,10 +363,24 @@ pub async fn add_tags(
     Json(req): Json<AddTagsDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2h 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CrmService::new(state.db.clone());
+
+    // 方案 A（用户 2026-10-02 裁定）：挂标签落的是 crm_lead 行的 tags 列，同属**线索更新**。
+    // 修复前本入口无任何归属校验（service.update_lead 内不注入 ctx），任意用户可按 id
+    // 改他人线索标签；现先按 ctx 读行（与其它写入口同判定源）再过跨 owner 写门。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索标签更新",
+    )
+    .await?;
 
     let update_req = UpdateLeadRequest {
         tags: Some(req.tags),
@@ -202,23 +389,45 @@ pub async fn add_tags(
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
     let lead = service.update_lead(id, update_req, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(lead)?)))
+    // 出参形状是线索行（crm_lead::Model），写响应复用线索侧同一字段级权限唯一实现
+    let mut value = serde_json::to_value(lead)?;
+    crate::handlers::crm_handler::apply_lead_field_permission(
+        &state,
+        auth.role_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
+    Ok(Json(ApiResponse::success(value)))
 }
 
 /// GET /api/v1/erp/crm/customers/:id/contacts - 获取联系人列表；批次 90b
 /// P2-12：原实现从 crm_lead 拼接 JSON 伪联系人，改为查 customer_contacts 表真实数据。
 pub async fn list_contacts(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(customer_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contacts = service.list_customer_contacts(customer_id).await?;
 
-    Ok(Json(ApiResponse::success(serde_json::to_value(contacts)?)))
+    // 联系人列表读出口（终局口径：客户域读写出口统一权限版）：本文件唯一实现
+    // `apply_customer_field_permission`（默认脱敏分支=权威掩码列集合 utils/field_mask，
+    // phone/email 掩码**保留键**不删键；有权限行走同一 filter_fields_batch），与本页
+    // 写响应及标准客户入口同一判定源；整行原文直出即旁路。
+    // 形状漂移（非数组）显式报错不静默。
+    let mut value = serde_json::to_value(contacts)?;
+    match value.as_array_mut() {
+        Some(rows) => apply_customer_field_permission(&state, auth.role_id, rows).await,
+        None => {
+            tracing::error!(
+                "联系人列表出参不是数组，客户域字段级数据权限未应用（形状漂移，不静默）"
+            )
+        }
+    }
+    Ok(Json(ApiResponse::success(value)))
 }
 
-/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人；批次 90b P2-12：实现前端 detail.vue "新增联系人" 占位符的真实后端。
+/// POST /api/v1/erp/crm/customers/:id/contacts - 创建联系人（挂载见 `routes/crm.rs` 客户增强路由）。
 #[axum::debug_handler]
 pub async fn create_contact(
     State(state): State<AppState>,
@@ -226,16 +435,18 @@ pub async fn create_contact(
     Path(customer_id): Path<i32>,
     Json(req): Json<CreateCustomerContactRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
         .create_customer_contact(customer_id, req, auth.user_id)
         .await?;
 
+    // 联系人行的 phone/email 属同一权威 PII 列集合，写响应不得整行原文直出
+    let mut value = serde_json::to_value(contact)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(contact)?,
+        value,
         "联系人创建成功",
     )))
 }
@@ -248,26 +459,58 @@ pub async fn update_contact(
     auth: AuthContext,
     Json(req): Json<UpdateCustomerContactRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     let contact = service
         .update_customer_contact(contact_id, req, auth.user_id)
         .await?;
 
+    // 同 create_contact：联系人写响应走客户域字段级权限唯一实现，不整行原文回传
+    let mut value = serde_json::to_value(contact)?;
+    apply_customer_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(contact)?,
+        value,
         "联系人更新成功",
     )))
 }
 
-/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人；批次 90b P2-12：实现联系人删除功能。
+/// DELETE /api/v1/erp/crm/customers/:id/contacts/:contact_id - 删除联系人
 pub async fn delete_contact(
-    Path((_customer_id, contact_id)): Path<(i32, i32)>,
+    Path((customer_id, contact_id)): Path<(i32, i32)>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(customer_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+        "联系人删除",
+    )
+    .await?;
+    let contact = crate::models::customer_contact::Entity::find_by_id(contact_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("联系人不存在".to_string()))?;
+    if contact.customer_id != customer_id {
+        return Err(AppError::not_found("联系人不存在".to_string()));
+    }
     let service = CustomerService::new(state.db.clone(), state.search_client.clone());
     service.delete_customer_contact(contact_id).await?;
 
@@ -293,8 +536,7 @@ pub async fn create_tag(
     auth: AuthContext,
     Json(req): Json<CreateTagDto>,
 ) -> Result<Json<ApiResponse<crm_tag::Model>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let new_tag = crm_tag::ActiveModel {
         name: Set(req.name),
@@ -331,10 +573,25 @@ pub async fn delete_tag(
 /// 单次 JOIN 查询（customer_tag INNER JOIN crm_tag），无 N+1。
 pub async fn list_customer_tags(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<crate::services::crm::CustomerTagBrief>>>, AppError> {
-    use sea_orm::{ColumnTrait, QueryFilter, QueryOrder};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
 
     let tags: Vec<crate::services::crm::CustomerTagBrief> = crm_tag::Entity::find()
         .inner_join(crate::models::customer_tag::Entity)
@@ -400,11 +657,35 @@ pub async fn attach_customer_tag(
 /// DELETE /api/v1/erp/crm/customers/:id/tags/:tagId - 解除客户标签关联
 pub async fn detach_customer_tag(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path((customer_id, tag_id)): Path<(i32, i32)>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     use crate::models::customer_tag;
-    use sea_orm::{ColumnTrait, QueryFilter};
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(customer_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+        "标签解除",
+    )
+    .await?;
 
     let result = customer_tag::Entity::delete_many()
         .filter(customer_tag::Column::CustomerId.eq(customer_id))
@@ -413,14 +694,107 @@ pub async fn detach_customer_tag(
         .await?;
 
     if result.rows_affected == 0 {
-        return Err(AppError::not_found(format!(
-            "客户 {} 与标签 {} 的关联不存在",
-            customer_id, tag_id
-        )));
+        return Err(AppError::not_found("该标签关联不存在".to_string()));
     }
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"customer_id": customer_id, "tag_id": tag_id, "deleted": true}),
         "标签解除成功",
     )))
+}
+
+/// PII 按需揭示请求 DTO：字段 token 白名单 + 用途。
+/// **不承载任何身份字段**（操作人恒取服务端会话 `AuthContext.user_id`，
+/// body 里伪造 `operator_id/user_id` 一律被 serde 忽略）；批量导出不在本面
+///（单记录路径 + 记录 ID 在 URL，天然无批量形态）。
+#[derive(Debug, Deserialize)]
+pub struct RevealCustomerPiiDto {
+    /// 要查看原文的字段 token 集合（值域见
+    /// `services/crm/pii_reveal.rs::PII_REVEAL_WHITELIST`）
+    pub fields: Vec<String>,
+    /// 本次查看用途（必填，trim 后非空）
+    pub reason: String,
+}
+
+/// `PII_REVEAL_REASON_MAX_CHARS`：用途文本上限。
+/// 取 500：一句话说清用途足够；上限防的是把留痕表当自由笔记区的写入放大。
+const PII_REVEAL_REASON_MAX_CHARS: usize = 500;
+
+/// `PII_REVEAL_TTL_SECONDS`：揭示响应中原文载荷的被认为有效的秒数。
+/// 取 60：够前端就地展示一次；再长会把"按需揭示"变成事实上的持久明文读取面，
+/// 前端在到期后应重新发起揭示而不是缓存原文。
+const PII_REVEAL_TTL_SECONDS: i64 = 60;
+
+/// POST /api/v1/erp/crm/customers/:id/pii/reveal - 按需揭示客户 PII 原文
+///
+/// 放行判据（三者**同时**成立，任一不成立即整笔拒绝且不落成功痕）：
+/// 1. RBAC 键 `customers:reveal`（权限中间件按 URL 段推导：模块前缀 crm 取
+///    seg4=customers，动作段 `reveal` 命中 `PATH_ACTION_KEYWORDS`）——缺键在
+///    中间件层即 403 + FORBIDDEN，本 handler 根本不执行；
+/// 2. 行级 `data_scope` 命中：走 `CustomerService::get_customer(id, Some(&ctx))`
+///    既有唯一判定源（归属列 owner_id + `check_resource_owner`，与标准详情/
+///    360 出口逐字同源），非本人/非管辖行 ⇒ 403 + FORBIDDEN；
+/// 3. 入参合法：字段 token 全部在白名单内、用途 trim 后非空（否则 400 +
+///    VALIDATION_ERROR，文案只说该做什么、不含记录 ID）。
+/// 成功后：先写 `pii_reveal_audit` 留痕（写痕失败 ⇒ 不返回原文，错误上抛），
+/// 响应只含所请求字段的原文（键集合恒等于请求白名单）+ 短 TTL 到期时间；
+/// 默认列表/详情/导出路径的掩码行为不受本端点影响（掩码仍由
+/// `apply_customer_field_permission`/`field_mask` 单源负责）。
+/// 拒绝路径的出参恒为固定脱敏信封（`AppError::permission_denied`），真实原因
+/// 只进服务端日志。
+pub async fn reveal_customer_pii(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<RevealCustomerPiiDto>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(AppError::validation_displayable("请填写本次查看的用途"));
+    }
+    if reason.chars().count() > PII_REVEAL_REASON_MAX_CHARS {
+        return Err(AppError::validation_displayable(format!(
+            "用途不能超过{}字，请简要说明查看原因",
+            PII_REVEAL_REASON_MAX_CHARS
+        )));
+    }
+    let fields = crate::services::crm::pii_reveal::resolve_fields(&req.fields)?;
+
+    // 行级数据权限门（与标准详情/360 同一判定源，非新增机制）：不可见行 ⇒
+    // permission_denied 403 + FORBIDDEN，先于任何原文读取与写痕。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+    let customer_row = customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
+
+    // 投影原文（键=请求 token 集合；列缺值如实 null）
+    let projected = crate::services::crm::pii_reveal::project_raw_fields(&customer_row, &fields);
+
+    // 留痕先行：写痕失败不得外发原文（揭示的强制代价，禁止静默放行）
+    crate::services::crm::pii_reveal::record_reveal(
+        &state.db,
+        crate::services::crm::pii_reveal::RECORD_TYPE_CUSTOMER,
+        id,
+        &fields,
+        auth.user_id,
+        &reason,
+    )
+    .await?;
+
+    tracing::info!(
+        user_id = auth.user_id,
+        record_type = crate::services::crm::pii_reveal::RECORD_TYPE_CUSTOMER,
+        record_id = id,
+        revealed_fields = ?fields.iter().map(|(token, _)| *token).collect::<Vec<_>>(),
+        "PII 按需揭示成功：留痕已落 pii_reveal_audit（日志与留痕均不含原文）"
+    );
+
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(PII_REVEAL_TTL_SECONDS);
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "record_type": crate::services::crm::pii_reveal::RECORD_TYPE_CUSTOMER,
+        "record_id": id,
+        "fields": projected,
+        "expires_at": expires_at.to_rfc3339(),
+    }))))
 }

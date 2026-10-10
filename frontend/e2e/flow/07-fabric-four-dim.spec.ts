@@ -11,7 +11,7 @@ import {
 } from './helpers';
 import { uiCreateDialog, pickListArray } from './ui-helpers';
 
-// 匹号/缸号领域真实链路测试（docs/piece-number-domain-design.md）
+// 匹号/缸号领域真实链路测试（.monkeycode/docs/piece-number-domain-design.md）
 // 编号语义（用户 2026-09-05 二次确认）：
 //   生产匹 = 生产单号下的产品生产出来的第 * 匹（batch_no 记生产单号）
 //   染色匹 = 缸号/染色批次号染色后的第 * 匹（piece_no={缸号}-{seq:03}，batch_no=缸号，piece_seq 同缸递增）
@@ -20,6 +20,9 @@ interface PieceItem {
   id: number;
   piece_no: string;
   piece_type: string;
+  // 词表唯一来源 models/status/purchase_inventory.rs::inventory_piece（大写），
+  // 发料占用闭环（reserve_pieces_for_issue CAS AVAILABLE→RESERVED）断言需要
+  status: string;
   batch_no: string;
   color_no: string | null;
   dye_lot_no: string | null;
@@ -254,11 +257,39 @@ test.describe
     const orderId = order.data.id;
     console.log('[7-6] 委外订单创建 id=', orderId);
 
-    // 2. 发料（draft → issued）
+    // 2. 登记逐匹发料明细 → 发料（draft → issued）。
+    // 门控（匹号领域二期，piece_domain_service.rs:160-205 validate_pieces_for_issue，
+    // 发料事务内 reserve_pieces_for_issue CAS AVAILABLE→RESERVED）：染色外发发料必须
+    // 精确到匹——明细集合为空即整单拒绝（CI 原文「委外订单没有发料明细…发料必须
+    // 精确到匹」），缺匹号/匹不存在/非可用匹均逐条拒绝。旧用例直接 issue 与本门控不符，
+    // 正解是按真实业务动作先登记明细：引用 7-4 报工入胚布仓的真实 AVAILABLE 生产匹
+    // （greigePieceNo1，50 米，与 issue_quantity 一致），不造假匹号、不绕门控。
+    await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+      outsourcing_order_id: orderId,
+      product_id: ctx.productIds[0],
+      color_no: colorNo,
+      dye_lot_no: dyeLotNo,
+      piece_no: greigePieceNo1,
+      quantity: 50,
+      unit: '米',
+      unit_cost: 1,
+    });
+
+    // 3. 发料
     await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
     console.log('[7-6] 委外订单已发料');
 
-    // 3. 回仓创建（draft）
+    // 发料占用回读（写后必回读）：被引用生产匹必须被 CAS 置为 RESERVED（已预留），
+    // 词表大写来源 models/status/purchase_inventory.rs::inventory_piece
+    const reservedPieces = await fetchPieces(page, { piece_no: greigePieceNo1 });
+    const reserved = reservedPieces.find(p => p.piece_no === greigePieceNo1);
+    expect(reserved, `发料后应能回读被引用生产匹 ${greigePieceNo1}`).toBeTruthy();
+    expect(
+      String(reserved!.status),
+      `生产匹 ${greigePieceNo1} 应被发料占用为 RESERVED（词表 inventory_piece 大写），实际 ${reserved!.status}`
+    ).toBe('RESERVED');
+
+    // 4. 回仓创建（draft）
     const receiptNo = genCode('RC');
     const receiptDate = new Date().toISOString().slice(0, 10);
     const receipt = await apiCall<{ id: number }>(
@@ -281,7 +312,7 @@ test.describe
     const receiptId = receipt.data.id;
     console.log('[7-6] 回仓单创建 id=', receiptId, 'no=', receiptNo);
 
-    // 4. 确认回仓（confirm 触发缸号自动建档 + 染色匹生成）
+    // 5. 确认回仓（confirm 触发缸号自动建档 + 染色匹生成）
     await apiCall(page, 'POST', `/production/outsourcing-receipts/${receiptId}/confirm`);
     console.log('[7-6] 回仓确认完成（染色匹生成）');
 
@@ -331,6 +362,18 @@ test.describe
       material_cost: 500,
     });
     const orderId = order.data.id;
+    // 发料门控对 issue 无条件生效（outsourcing_ops/order.rs 事务内
+    // reserve_pieces_for_issue → validate_pieces_for_issue 空明细整单拒绝），
+    // 净布外发同样必须逐匹：引用 7-4 报工入胚布仓、尚未被 7-6 占用的真实生产匹
+    // greigePieceNo2（30 米发料 ≤ 匹长 50 米）。
+    await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+      outsourcing_order_id: orderId,
+      product_id: ctx.productIds[0],
+      piece_no: greigePieceNo2,
+      quantity: 30,
+      unit: '米',
+      unit_cost: 1,
+    });
     await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
     console.log('[7-7] 净布订单已发料');
 

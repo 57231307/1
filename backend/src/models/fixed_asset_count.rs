@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// 盘点单 ID（主键）
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: i64,
 
     /// 盘点单号
     #[sea_orm(unique)]

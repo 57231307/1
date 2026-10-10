@@ -246,7 +246,7 @@ impl WebhookService {
     ) -> Result<WebhookDeliveryResult, AppError> {
         // SSRF 缓解：仅允许 HTTPS 协议
         if !url.to_lowercase().starts_with("https://") {
-            return Err(AppError::validation("仅允许 HTTPS 协议"));
+            return Err(AppError::validation_displayable("仅允许 HTTPS 协议"));
         }
 
         let client = Self::build_webhook_client(url)?;

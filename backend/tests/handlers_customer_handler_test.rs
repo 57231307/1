@@ -1,8 +1,10 @@
 use bingxi_backend::handlers::customer_handler::*;
 use bingxi_backend::models::customer::Model as CustomerModel;
+use bingxi_backend::utils::error::AppError;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde_json::json;
+use validator::Validate;
 
 /// 构造测试用的客户模型
 fn make_customer_model(id: i32) -> CustomerModel {
@@ -11,7 +13,7 @@ fn make_customer_model(id: i32) -> CustomerModel {
         id,
         customer_code: format!("C-2026-{:04}", id),
         customer_name: format!("测试客户-{}", id),
-        customer_type: "enterprise".to_string(),
+        customer_type: "retail".to_string(),
         province: Some("四川".to_string()),
         city: Some("成都".to_string()),
         address: Some("测试地址".to_string()),
@@ -41,7 +43,7 @@ fn test_customer_model_serialization() {
 
     assert_eq!(json["id"], 1);
     assert_eq!(json["customer_code"], "C-2026-0001");
-    assert_eq!(json["customer_type"], "enterprise");
+    assert_eq!(json["customer_type"], "retail");
     assert_eq!(json["status"], "active");
 }
 
@@ -68,10 +70,37 @@ fn test_customer_credit_info() {
 
 // ===== 客户类型测试 =====
 
+// 夹具值必须是校验器真实白名单成员（波0 前此处用 'enterprise' 断言"合法客户类型"，
+// 而 enterprise 不在白名单——纯 serde 构造绕过校验器的编造合法值，假绿形状）。
 #[test]
-fn test_customer_type_enterprise() {
+fn test_customer_type_fixture_uses_allowed_token() {
     let customer = make_customer_model(1);
-    assert_eq!(customer.customer_type, "enterprise".to_string());
+    assert!(
+        bingxi_backend::constants::customer_type::ALLOWED
+            .contains(&customer.customer_type.as_str()),
+        "夹具 customer_type 必须是唯一词表 ALLOWED 成员，当前值：{}",
+        customer.customer_type
+    );
+}
+
+/// 负例：校验器会拒 `enterprise`（非白名单值经 validator 通道 400 + VALIDATION_ERROR，
+/// 真实拒绝形态；不许把校验器扩成接受 enterprise）
+#[test]
+fn test_enterprise_customer_type_rejected_by_validator() {
+    let req: CreateCustomerRequest = serde_json::from_value(json!({
+        "customer_name": "负例客户",
+        "customer_type": "enterprise",
+    }))
+    .expect("反序列化失败");
+    let errors = req
+        .validate()
+        .expect_err("enterprise 不在白名单，validator 必须拒绝");
+    assert!(
+        errors.errors().contains_key("customer_type"),
+        "拒绝必须落在 customer_type 字段上"
+    );
+    let err = AppError::from(errors);
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
 }
 
 // ===== 状态测试 =====

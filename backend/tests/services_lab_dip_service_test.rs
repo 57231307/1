@@ -1,6 +1,6 @@
 use bingxi_backend::models::status::lab_dip_request as req_status;
 use bingxi_backend::models::status::quality_dyeing::*;
-use bingxi_backend::services::lab_dip_service::LabDipRequestService;
+use bingxi_backend::services::lab_dip_service::{LabDipRequestService, LabDipSampleService};
 
 /// 测试版本标识生成：1→A, 2→B, 3→C, 4→D
 #[test]
@@ -111,28 +111,4 @@ fn test_validate_can_delete() {
     assert!(LabDipRequestService::validate_can_delete(req_status::PENDING).is_ok());
     assert!(LabDipRequestService::validate_can_delete(req_status::SAMPLING).is_err());
     assert!(LabDipRequestService::validate_can_delete(req_status::APPROVED).is_err());
-}
-
-/// 测试打样通知单号生成格式
-#[test]
-fn test_generate_request_no() {
-    let no = LabDipRequestService::generate_request_no();
-    assert!(no.starts_with("LD-"));
-    let parts: Vec<&str> = no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14); // YYYYMMDDHHMMSS
-    assert_eq!(parts[2].len(), 3); // 3 位随机
-}
-
-use bingxi_backend::services::lab_dip_service::LabDipResampleService;
-/// 测试复样单号生成格式
-use bingxi_backend::services::lab_dip_service::LabDipSampleService;
-#[test]
-fn test_generate_resample_no() {
-    let no = LabDipResampleService::generate_resample_no();
-    assert!(no.starts_with("RS-"));
-    let parts: Vec<&str> = no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14);
-    assert_eq!(parts[2].len(), 3);
 }

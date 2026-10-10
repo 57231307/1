@@ -98,7 +98,7 @@ impl OaAnnouncementService {
     fn validate_announcement_type(t: &str) -> Result<(), AppError> {
         match t {
             "NOTICE" | "ANNOUNCEMENT" | "NEWS" => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的公告类型: {}（应为 NOTICE/ANNOUNCEMENT/NEWS）",
                 t
             ))),
@@ -109,7 +109,7 @@ impl OaAnnouncementService {
     fn validate_visibility_scope(s: &str) -> Result<(), AppError> {
         match s {
             "ALL" | "DEPT" | "ROLE" | "CUSTOM" => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的可见性范围: {}（应为 ALL/DEPT/ROLE/CUSTOM）",
                 s
             ))),
@@ -125,14 +125,14 @@ impl OaAnnouncementService {
             return Ok(());
         }
         let cfg = config.as_ref().ok_or_else(|| {
-            AppError::validation(format!(
+            AppError::validation_displayable(format!(
                 "visibility_scope={} 必须提供 visible_scope_config JSON",
                 scope
             ))
         })?;
-        let obj = cfg
-            .as_object()
-            .ok_or_else(|| AppError::validation("visible_scope_config 必须为 JSON 对象"))?;
+        let obj = cfg.as_object().ok_or_else(|| {
+            AppError::validation_displayable("visible_scope_config 必须为 JSON 对象")
+        })?;
         let required_key = match scope {
             "DEPT" => "department_ids",
             "ROLE" => "role_ids",
@@ -140,13 +140,13 @@ impl OaAnnouncementService {
             _ => return Ok(()),
         };
         let arr = obj.get(required_key).ok_or_else(|| {
-            AppError::validation(format!(
+            AppError::validation_displayable(format!(
                 "visibility_scope={} 时 visible_scope_config 必须包含 {} 字段",
                 scope, required_key
             ))
         })?;
         if !arr.is_array() {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "visible_scope_config.{} 必须为 JSON 数组",
                 required_key
             )));
@@ -158,7 +158,7 @@ impl OaAnnouncementService {
     fn validate_status(s: &str) -> Result<(), AppError> {
         match s {
             "DRAFT" | "PUBLISHED" | "ARCHIVED" => Ok(()),
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "无效的公告状态: {}（应为 DRAFT/PUBLISHED/ARCHIVED）",
                 s
             ))),
@@ -176,11 +176,11 @@ impl OaAnnouncementService {
         Self::validate_visibility_config(&req.visibility_scope, &req.visible_scope_config)?;
 
         if req.effective_date < req.publish_date {
-            return Err(AppError::validation("生效日期不能早于发布日期"));
+            return Err(AppError::validation_displayable("生效日期不能早于发布日期"));
         }
         if let Some(expiry) = req.expiry_date {
             if expiry < req.effective_date {
-                return Err(AppError::validation("失效日期不能早于生效日期"));
+                return Err(AppError::validation_displayable("失效日期不能早于生效日期"));
             }
         }
 
@@ -283,7 +283,7 @@ impl OaAnnouncementService {
                 active_model.visible_scope_config = Set(Some(config));
             }
         } else if req.visible_scope_config.is_some() {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "更新 visible_scope_config 必须同时提供 visibility_scope",
             ));
         }
@@ -354,11 +354,12 @@ impl OaAnnouncementService {
         Ok(updated)
     }
 
-    /// 查询公告列表（按发布日期倒序 + 创建时间倒序）
+    /// 查询公告列表（按发布日期倒序 + 创建时间倒序）；返回统一分页信封
+    /// `PaginatedResponse`（page/page_size 为经默认值与 clamp 后的实际生效值，与查询行为同源）
     pub async fn list(
         &self,
         query: OaAnnouncementQuery,
-    ) -> Result<(Vec<OaAnnouncementModel>, u64), AppError> {
+    ) -> Result<crate::utils::response::PaginatedResponse<OaAnnouncementModel>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -387,12 +388,19 @@ impl OaAnnouncementService {
             .order_by_desc(crate::models::oa_announcement::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let effective_page = page.clamp(1, 1000);
+        let (items, total) = paginate_with_total(paginator, effective_page).await?;
 
-        Ok((items, total))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            items,
+            total,
+            effective_page,
+            page_size,
+        ))
     }
 
-    /// 缺陷 7.2 修复：按用户上下文过滤可见公告列表
+    /// 缺陷 7.2 修复：按用户上下文过滤可见公告列表；返回统一分页信封 `PaginatedResponse`
+    /// （page/page_size 为经默认值与 clamp 后的实际生效值，与切片行为同源）
     /// 过滤规则：ALL：所有用户可见；DEPT：仅当用户 department_id 在 visible_scope_config.department_ids 中时可见；ROLE：仅当用户 role_id 在 visible_scope_config.role_ids 中时可见；CUSTOM：仅当用户 user_id 在 visible_scope_config.user_ids 中时可见
     pub async fn list_for_user(
         &self,
@@ -400,7 +408,7 @@ impl OaAnnouncementService {
         user_id: i32,
         department_id: Option<i32>,
         role_id: Option<i32>,
-    ) -> Result<(Vec<OaAnnouncementModel>, u64), AppError> {
+    ) -> Result<crate::utils::response::PaginatedResponse<OaAnnouncementModel>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -448,7 +456,9 @@ impl OaAnnouncementService {
             visible_items[start..end].to_vec()
         };
 
-        Ok((items, total))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            items, total, page, page_size,
+        ))
     }
 
     /// 缺陷 7.2 修复：判断公告对当前用户是否可见

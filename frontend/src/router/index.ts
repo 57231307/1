@@ -73,7 +73,7 @@ const routes: RouteRecordRaw[] = [
         path: 'system',
         name: 'System',
         component: () => import('@/views/system/index.vue'),
-        meta: { title: '系统管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '系统管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'system/oa-announcements',
@@ -117,7 +117,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Histogram',
           permission: 'audit-logs:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'finance',
@@ -294,7 +294,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '坯布管理',
           icon: 'Goods',
-          permission: 'inventory:read',
+          permission: ['greige-fabrics:read'],
           requiresAuth: true,
         },
       },
@@ -392,13 +392,18 @@ const routes: RouteRecordRaw[] = [
           icon: 'List',
           permission: 'audit-logs:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'quality',
         name: 'Quality',
         component: () => import('@/views/quality/index.vue'),
-        meta: { title: '质量管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '质量管理',
+          icon: 'Cpu',
+          permission: ['quality-standards:read', 'quality-inspections:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'crm',
@@ -409,7 +414,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'User',
           permission: 'customers:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'crm/pool',
@@ -420,13 +425,13 @@ const routes: RouteRecordRaw[] = [
           icon: 'User',
           permission: 'customers:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'crm/assignment',
         name: 'CRMAssignment',
         component: () => import('@/views/crm/assignment.vue'),
-        meta: { title: '客户分配', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '客户分配', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'crm/detail/:id',
@@ -438,33 +443,38 @@ const routes: RouteRecordRaw[] = [
           permission: 'customers:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - CRM线索管理
       {
         path: 'crm/leads',
         name: 'CRMLeads',
         component: () => import('@/views/crm/leads/index.vue'),
-        meta: { title: '线索管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '线索管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - CRM商机管理
       {
         path: 'crm/opportunities',
         name: 'CRMOpportunities',
         component: () => import('@/views/crm/opportunities/index.vue'),
-        meta: { title: '商机管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '商机管理', icon: 'User', permission: 'customers:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'advanced',
         name: 'Advanced',
         component: () => import('@/views/advanced/index.vue'),
-        meta: { title: '高级功能', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '高级功能', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'production',
         name: 'Production',
         component: () => import('@/views/production/index.vue'),
-        meta: { title: '生产计划', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '生产计划',
+          icon: 'Cpu',
+          permission: ['production-orders:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'customer-collab',
@@ -546,7 +556,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '染化料管理',
           icon: 'Connection',
-          permission: 'inventory:read',
+          permission: ['chemicals:read'],
           requiresAuth: true,
         },
       },
@@ -557,7 +567,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '验布管理',
           icon: 'Search',
-          permission: 'inventory:read',
+          permission: ['fabric-inspections:read'],
           requiresAuth: true,
         },
       },
@@ -582,7 +592,12 @@ const routes: RouteRecordRaw[] = [
         path: 'outsourcing',
         name: 'Outsourcing',
         component: () => import('@/views/outsourcing/index.vue'),
-        meta: { title: '委外管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true },
+        meta: {
+          title: '委外管理',
+          icon: 'Box',
+          permission: ['outsourcing-orders:read', 'outsourcing-receipts:read'],
+          requiresAuth: true,
+        },
       },
       {
         path: 'flow-cards',
@@ -591,7 +606,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '流转卡管理',
           icon: 'Tickets',
-          permission: 'inventory:read',
+          permission: ['flow-cards:read'],
           requiresAuth: true,
         },
       },
@@ -602,7 +617,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '打样管理',
           icon: 'Brush',
-          permission: 'inventory:read',
+          permission: ['lab-dip:read'],
           requiresAuth: true,
         },
       },
@@ -624,7 +639,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '生产配方',
           icon: 'Document',
-          permission: 'inventory:read',
+          permission: ['production-recipes:read'],
           requiresAuth: true,
         },
       },
@@ -632,13 +647,13 @@ const routes: RouteRecordRaw[] = [
         path: 'bom',
         name: 'Bom',
         component: () => import('@/views/bom/index.vue'),
-        meta: { title: 'BOM管理', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: 'BOM管理', icon: 'Cpu', permission: ['boms:read'], requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'mrp',
         name: 'Mrp',
         component: () => import('@/views/mrp/index.vue'),
-        meta: { title: 'MRP计算', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: 'MRP计算', icon: 'Cpu', permission: ['mrp:read'], requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'mrp/history',
@@ -647,22 +662,27 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'MRP历史记录',
           icon: 'Cpu',
-          permission: 'inventory:read',
+          permission: ['mrp:read'],
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'capacity',
         name: 'Capacity',
         component: () => import('@/views/capacity/index.vue'),
-        meta: { title: '产能分析', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '产能分析', icon: 'Cpu', permission: ['capacity:read'], requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'material-shortage',
         name: 'MaterialShortage',
         component: () => import('@/views/material-shortage/index.vue'),
-        meta: { title: '缺料预警', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '缺料预警',
+          icon: 'Cpu',
+          permission: ['material-shortage:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'cost',
@@ -703,7 +723,7 @@ const routes: RouteRecordRaw[] = [
         path: 'notification',
         name: 'Notification',
         component: () => import('@/views/notification/index.vue'),
-        meta: { title: '通知中心', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '通知中心', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'data-permission',
@@ -714,7 +734,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Setting',
           permission: 'users:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'inventory-batch',
@@ -726,7 +746,7 @@ const routes: RouteRecordRaw[] = [
         path: 'five-dimension',
         name: 'FiveDimension',
         component: () => import('@/views/five-dimension/index.vue'),
-        meta: { title: '五维管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '五维管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'assist-accounting',
@@ -743,13 +763,13 @@ const routes: RouteRecordRaw[] = [
           icon: 'List',
           permission: 'audit-logs:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'barcode-scanner',
         name: 'BarcodeScanner',
         component: () => import('@/views/barcode-scanner/index.vue'),
-        meta: { title: '扫码功能', icon: 'List', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '扫码功能', icon: 'List', permission: 'inventory:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'omni-audit',
@@ -766,7 +786,12 @@ const routes: RouteRecordRaw[] = [
         path: 'scheduling',
         name: 'Scheduling',
         component: () => import('@/views/scheduling/index.vue'),
-        meta: { title: '生产排程', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '生产排程',
+          icon: 'Cpu',
+          permission: ['scheduling:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'scheduling/gantt',
@@ -775,10 +800,10 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '排程甘特图',
           icon: 'Cpu',
-          permission: 'inventory:read',
+          permission: ['scheduling:read'],
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'components-demo',
@@ -790,7 +815,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'users:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - 凭证管理
       {
@@ -834,7 +859,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Setting',
           permission: 'audit-logs:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - BPM流程定义
       {
@@ -847,7 +872,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'audit-logs:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - BPM流程模板
       {
@@ -860,7 +885,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'audit-logs:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - BPM审批中心
       {
@@ -872,7 +897,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'List',
           permission: 'audit-logs:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - 增强版应收对账
       {
@@ -927,7 +952,7 @@ const routes: RouteRecordRaw[] = [
         path: 'security',
         name: 'Security',
         component: () => import('@/views/security/index.vue'),
-        meta: { title: '安全管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '安全管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - 双因素认证(修复 user-profile 死链)
       {
@@ -940,7 +965,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'users:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - 修改密码(修复 user-profile 死链)
       {
@@ -953,19 +978,29 @@ const routes: RouteRecordRaw[] = [
           permission: 'users:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'dye-recipe',
         name: 'DyeRecipe',
         component: () => import('@/views/dye-recipe/index.vue'),
-        meta: { title: '染色配方', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '染色配方',
+          icon: 'Cpu',
+          permission: ['dye-recipes:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'dye-batch',
         name: 'DyeBatch',
         component: () => import('@/views/dye-batch/index.vue'),
-        meta: { title: '染色批次', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '染色批次',
+          icon: 'Cpu',
+          permission: ['dye-batches:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'purchase-contract',
@@ -1016,7 +1051,7 @@ const routes: RouteRecordRaw[] = [
         path: 'email',
         name: 'Email',
         component: () => import('@/views/email/index.vue'),
-        meta: { title: '邮件管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '邮件管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - 主备隔离监控
       {
@@ -1028,7 +1063,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Setting',
           permission: 'users:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - 采购检验
       {
@@ -1059,37 +1094,42 @@ const routes: RouteRecordRaw[] = [
         path: 'logistics',
         name: 'Logistics',
         component: () => import('@/views/logistics/index.vue'),
-        meta: { title: '物流管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '物流管理', icon: 'Box', permission: 'inventory:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'quality-standards',
         name: 'QualityStandards',
         component: () => import('@/views/quality-standards/index.vue'),
-        meta: { title: '质量标准', icon: 'Cpu', permission: 'inventory:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: {
+          title: '质量标准',
+          icon: 'Cpu',
+          permission: ['quality-standards:read'],
+          requiresAuth: true,
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'data-import',
         name: 'DataImport',
         component: () => import('@/views/data-import/index.vue'),
-        meta: { title: '数据导入', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '数据导入', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'print-templates',
         name: 'PrintTemplates',
         component: () => import('@/views/print-templates/index.vue'),
-        meta: { title: '打印模板', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '打印模板', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'api-gateway',
         name: 'ApiGateway',
         component: () => import('@/views/api-gateway/index.vue'),
-        meta: { title: 'API网关', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: 'API网关', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'system-update',
         name: 'SystemUpdate',
         component: () => import('@/views/system-update/index.vue'),
-        meta: { title: '系统更新', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        meta: { title: '系统更新', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'system/profile',
@@ -1101,7 +1141,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'users:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 报价单模块 - 列表 + 新建
       {
@@ -1173,7 +1213,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Cpu',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'custom-orders/new',
@@ -1185,7 +1225,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'custom-orders/:id',
@@ -1197,7 +1237,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'custom-orders/:id/edit',
@@ -1220,7 +1260,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 色卡仓储管理模块（P0-4）
       {
@@ -1232,7 +1272,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Goods',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'color-cards/create',
@@ -1244,7 +1284,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'color-cards/detail/:id',
@@ -1256,7 +1296,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'color-cards/issues',
@@ -1280,7 +1320,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Goods',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'color-prices/create',
@@ -1293,7 +1333,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'color-prices/detail/:id',
@@ -1305,7 +1345,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'color-prices/batch-adjust',
@@ -1316,7 +1356,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Goods',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // P2-4 AI 分析深化（工艺优化 + 质量预测）
       {
@@ -1328,7 +1368,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'MagicStick',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'ai-extend/process-optimization',
@@ -1339,7 +1379,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'MagicStick',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'ai-extend/process-detail/:id',
@@ -1351,7 +1391,7 @@ const routes: RouteRecordRaw[] = [
           permission: 'inventory:read',
           requiresAuth: true,
           hidden: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         path: 'ai-extend/quality-prediction',
@@ -1362,7 +1402,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'MagicStick',
           permission: 'inventory:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
         // P3-4 BI 销售多维分析
@@ -1374,7 +1414,7 @@ const routes: RouteRecordRaw[] = [
           icon: 'Money',
           permission: 'sales:read',
           requiresAuth: true,
-        }, // 批次 22（v5 P0-4）：补齐 meta.permission
+        }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
     ],
   },

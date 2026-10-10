@@ -54,6 +54,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -93,8 +94,9 @@ const handleDeleteTransfer = async (row: InventoryTransferEntity) => {
       t('inventoryTransfer.transferList.message.deleteTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryTransfer.handleDeleteTransfer', error);
   }
   try {
     await deleteInventoryTransfer(row.id as number);

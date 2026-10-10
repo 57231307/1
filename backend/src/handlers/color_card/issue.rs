@@ -23,6 +23,7 @@ use crate::services::color_card_issue_service::{
 };
 use crate::services::role_permission_service::RolePermissionService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 
@@ -136,7 +137,11 @@ pub fn issue_err(e: IssueError) -> AppError {
         IssueError::CustomerNotFound => AppError::not_found("客户不存在"),
         IssueError::RecordNotFound => AppError::not_found("发放记录不存在"),
         IssueError::InvalidState(msg) => AppError::business(msg),
-        IssueError::Validation(msg) => AppError::validation(msg),
+        // 色卡可发放态门：拒绝依据"只有草稿态色卡可以发放"是纯公开业务规则，
+        // 变体本身不携带内部状态 token/记录 ID/库存数字 ⇒ 满足 business_displayable
+        // 安全边界，外显真实原因（与色号创建门 ItemError::InvalidState 同策）。
+        IssueError::CardNotIssuable => AppError::business_displayable("只有草稿态色卡可以发放"),
+        IssueError::Validation(msg) => AppError::validation_displayable(msg),
         IssueError::GateCheckFailed(msg) => AppError::business(msg),
         IssueError::Database(e) => AppError::database(e.to_string()),
     }
@@ -157,8 +162,7 @@ pub(crate) async fn require_issue_permission(
     let svc = RolePermissionService::new(state.db.clone());
     let allowed = svc
         .check_permission(role_id, "color_card_issue", action, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
     if !allowed {
         return Err(AppError::permission_denied(format!(
             "没有 color_card_issue:{} 权限",
@@ -233,10 +237,12 @@ pub async fn return_issue(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
-    Json(dto): Json<ReturnColorCardDto>,
+    // 归还日期/备注选填：缺体经 OptionalJson 归一为「未采集」（等价体 {}）
+    OptionalJson(dto): OptionalJson<ReturnColorCardDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
     // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
     require_issue_permission(&state, &auth, "return").await?;
+    let dto = dto.unwrap_or_default();
 
     let user_id = auth.user_id as i64;
     let service = ColorCardIssueService::from_state(&state);
@@ -311,10 +317,12 @@ pub async fn mark_issue_damaged(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
-    Json(dto): Json<MarkDamagedDto>,
+    // 赔偿额/备注选填：缺体经 OptionalJson 归一为「未采集」
+    OptionalJson(dto): OptionalJson<MarkDamagedDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
     // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库员/仓库经理）
     require_issue_permission(&state, &auth, "damaged").await?;
+    let dto = dto.unwrap_or_default();
 
     let service = ColorCardIssueService::from_state(&state);
 
@@ -349,10 +357,12 @@ pub async fn cancel_issue(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(record_id): Path<i64>,
-    Json(dto): Json<CancelIssueDto>,
+    // 取消备注选填：缺体经 OptionalJson 归一为「未采集」
+    OptionalJson(dto): OptionalJson<CancelIssueDto>,
 ) -> Result<Json<ApiResponse<IssueRecordInfo>>, AppError> {
     // V15 P1 10.4-1：角色权限矩阵校验（admin/仓库经理）
     require_issue_permission(&state, &auth, "cancel").await?;
+    let dto = dto.unwrap_or_default();
 
     let service = ColorCardIssueService::from_state(&state);
 

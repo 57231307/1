@@ -52,9 +52,9 @@ impl PurchaseOrderService {
 
         let order = crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,
-            "auto_audit",
+            "purchase_order",
             order_active,
-            // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
+            // 审计操作人取真实 user_id（非占位），由 handler 从 AuthContext 透传
             Some(user_id),
         )
         .await?;

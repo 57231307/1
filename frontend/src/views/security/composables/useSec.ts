@@ -29,8 +29,12 @@ export const useSec = () => {
     refresh: getLoginLogs,
   } = useTableApi<LoginLog>({
     url: '/login-logs',
+    // 后端该端点分页承载键为手拼的 "list"（非统一 PaginatedResponse 的 items，
+    // 信封漂移已登记串行清单），读取处按真实键取
     listKey: 'list',
-    defaultParams: { username: '', status: '', date_range: [] as string[] },
+    // LoginLogQuery 仅 {user_id,username,status,page,page_size}：原 date_range 后端不读
+    // （时间范围过滤属后端缺口，已登记串行清单），筛选控件与参数一并移除
+    defaultParams: { username: '', status: '' },
     onError: (err: unknown) => logger.error('获取登录日志失败:', err),
   });
 

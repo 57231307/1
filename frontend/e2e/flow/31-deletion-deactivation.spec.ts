@@ -1,6 +1,13 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
-import { findTableRow, pickListArray, uiDeleteRow, type ListShapeKey } from './ui-helpers';
+import {
+  findRowAction,
+  findTableRow,
+  pickListArray,
+  uiDeleteRow,
+  safeGoto,
+  type ListShapeKey,
+} from './ui-helpers';
 
 /**
  * P0 级删除与停用验证（2026-09-10 用户指令）
@@ -67,7 +74,6 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     // UI 删除
     const deleted = await uiDeleteRow(page, '/product', { column: 'name', value: productName });
     console.log(`[P0-删除-产品] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
     expect(deleted, `[P0-删除-产品] 自建且无引用的产品 ${productName} UI 删除应成功`).toBe(true);
   });
 
@@ -99,9 +105,17 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     // 客户删除为「软删除」：delete_customer 仅把 status 置为 inactive（customer_ops/crud.rs:178），
     // 且 list_customers 默认不过滤 inactive（query.rs:77，仅当显式传入 status 才过滤）——
     // 故删除后该行仍留在列表（状态变「禁用」），"行消失"模型对本实体不适用。
-    // 仍用 uiDeleteRow 走真实 UI 点击（行内「删除」→确认弹窗）触发删除；其对软删除
-    // 返回 false 属预期，删除效果改由后端权威契约断言（见下）。
-    await uiDeleteRow(page, '/customer', { column: 'name', value: customerName });
+    // 仍用 uiDeleteRow 走真实 UI 点击（行内「删除」→确认弹窗）触发删除；uiDeleteRow 现对
+    // 一切真实失败（找不到行/按钮未渲染/点击异常）**显式抛错**，软删除的"行仍在"预期通过
+    // expectRowGone:false 声明，删除效果改由后端权威契约断言（见下）。
+    await uiDeleteRow(
+      page,
+      '/customer',
+      { column: 'name', value: customerName },
+      {
+        expectRowGone: false,
+      }
+    );
     const detail = await apiCallRaw<{ status?: string }>(
       page,
       'GET',
@@ -142,7 +156,6 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
 
     const deleted = await uiDeleteRow(page, '/supplier', { column: 'name', value: supplierName });
     console.log(`[P0-删除-供应商] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
     expect(deleted, `[P0-删除-供应商] 自建且无引用的供应商 ${supplierName} UI 删除应成功`).toBe(
       true
     );
@@ -175,7 +188,6 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
 
     const deleted = await uiDeleteRow(page, '/warehouse', { column: 'name', value: warehouseName });
     console.log(`[P0-删除-仓库] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
-    expect(typeof deleted).toBe('boolean');
     expect(deleted, `[P0-删除-仓库] 自建且无引用的仓库 ${warehouseName} UI 删除应成功`).toBe(true);
   });
 
@@ -396,7 +408,11 @@ async function createThenUiDelete(
   // 该资源列表端点（GET createApi）的显式形状：调用方按后端 handler 逐一声明。
   // 取代原 `body.data.items ?? body.data.roles ?? body.data ?? []` 三重形状宽容探测——
   // 它同时吞分页 items / 具名 roles / 裸数组并 `?? []`，端点改形时静默读成空集。
-  listKey: ListShapeKey
+  listKey: ListShapeKey,
+  // 软删除实体的删除后状态值。给定则本验证器按软删处理（行保留、只改 status），
+  // 走真实 UI 删除点击但声明 expectRowGone 为 false，删除效果由 GET 详情断言 status 等于此值
+  // （合同 delete 置状态词表 CANCELLED 即 cancelled，list 不过滤，行仍在）。
+  softDeleteStatus?: string
 ): Promise<void> {
   const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
   console.log(`[P0-删除-${label}] 创建响应:`, JSON.stringify(createResp?.data)?.slice(0, 300));
@@ -425,13 +441,31 @@ async function createThenUiDelete(
     );
   }
 
-  // UI 删除
+  // UI 删除。软删除实体（给定 softDeleteStatus）走真实删除点击但声明行不消失，
+  // 删除效果改由 GET 详情契约断言 status（对齐本文件客户软删用例）。
+  // 硬删除实体仍按行必须消失做硬断言（uiDeleteRow 对一切真实失败显式抛错）。
+  if (softDeleteStatus !== undefined) {
+    await uiDeleteRow(
+      page,
+      listRoute,
+      { column: 'name', value: rowName },
+      { expectRowGone: false }
+    );
+    const detail = await apiCallRaw<{ status?: string }>(page, 'GET', `${createApi}/${id}`);
+    console.log(`[P0-删除-${label}] UI 软删除后 status=${detail?.status}`);
+    expect(
+      detail?.status,
+      `[P0-删除-${label}] 自建 ${rowName} UI 删除（软删除）后 status 应为 ${softDeleteStatus}，实际 ${detail?.status}`
+    ).toBe(softDeleteStatus);
+    return;
+  }
   const deleted = await uiDeleteRow(page, listRoute, { column: 'name', value: rowName });
-  console.log(
-    `[P0-删除-${label}] UI 删除结果: ${deleted ? '✅成功' : '❌失败（可能被业务约束拒绝）'}`
-  );
-  // 记录结果：删除可能被引用约束拒绝（如产品被 BOM 引用），不断言硬失败
-  expect(typeof deleted).toBe('boolean');
+  console.log(`[P0-删除-${label}] UI 删除结果: ✅（失败路径已由 uiDeleteRow 抛错判红）`);
+  expect(
+    deleted,
+    `[P0-删除-${label}] 自建行 ${rowName} 的 UI 删除必须真实完成（点中行内删除→确认→行消失），` +
+      `uiDeleteRow 现在只可能返回 true 或抛错，实际返回=${deleted}`
+  ).toBe(true);
 }
 
 /**
@@ -463,6 +497,51 @@ async function firstRefOrSeed(
   return id;
 }
 
+/**
+ * 产品色号删除走真实 UI 嵌套对话框路径。
+ * 色号行只在产品行色号按钮弹出的子表对话框内渲染，主产品表单元格不含色号值，
+ * 故不能用按主表行定位的通用删除器。这里先在产品列表按产品名定位该行并点开色号对话框，
+ * 再把定位收敛到对话框内的色号子表，点行内删除经确认框删除，最后验证该色号行消失。
+ * 调用方须先自建产品并取其产品名，不能用列表首条引用，否则无法在 UI 唯一定位到目标产品行。
+ */
+async function uiDeleteProductColor(
+  page: import('@playwright/test').Page,
+  productName: string,
+  colorNo: string
+): Promise<void> {
+  await safeGoto(page, '/product');
+  await page.waitForTimeout(1000);
+
+  const colorsBtn = await findRowAction(page, productName, row =>
+    row.getByRole('button', { name: '色号' })
+  );
+  await colorsBtn.click();
+
+  const dialog = page.locator('.el-dialog:visible').first();
+  await dialog.waitFor({ state: 'visible', timeout: 10_000 });
+
+  const colorRow = dialog.locator('.el-table__row:visible', { hasText: colorNo }).first();
+  await colorRow.waitFor({ state: 'visible', timeout: 10_000 });
+  const delBtn = colorRow.locator('button.el-button--danger, button:has-text("删除")').first();
+  await delBtn.click();
+  console.log(`[P0-删除-产品色号] 已在色号对话框点击色号 ${colorNo} 的行内删除`);
+
+  // 确认框为 ElMessageBox，用其主按钮类精确定位，避免与子表行内删除按钮文案冲突误点
+  await page
+    .locator('.el-message-box:visible .el-message-box__btns button.el-button--primary')
+    .first()
+    .click();
+  await page.waitForTimeout(1500);
+
+  const remain = await dialog.locator('.el-table__row:visible', { hasText: colorNo }).count();
+  if (remain !== 0) {
+    throw new Error(
+      `[P0-删除-产品色号] 色号 ${colorNo} 删除后对话框子表仍有 ${remain} 行，删除未真实生效`
+    );
+  }
+  console.log(`[P0-删除-产品色号] ✅ 色号 ${colorNo} 已从对话框子表消失`);
+}
+
 test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
@@ -484,16 +563,58 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('产品分类：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    await createThenUiDelete(
-      page,
-      '产品分类',
-      '/product-categories',
-      { name: `P0分类${EXT_TS}`, code: `P0-CAT-${EXT_TS}` },
-      '/product',
-      `P0分类${EXT_TS}`,
-      // product_category_handler define_crud → PaginatedResponse → {items}
-      'items'
-    );
+    // 产品分类不是产品：通用 uiDeleteRow 在产品列表主表按分类名找行，产品行不含分类名 → 找不到。
+    // 分类 UI 维护入口是 /product 页「产品分类」统计卡点开的 CategoryDialogTab 对话框表格
+    // （列 name + 行内删除/编辑），故按真实 DOM 在对话框内操作删除。
+    const catName = `P0分类${EXT_TS}`;
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
+      name: catName,
+      code: `P0-CAT-${EXT_TS}`,
+    });
+    const catId = created?.data?.id;
+    expect(catId, '[P0-删除-产品分类] API 创建分类未返回 id').toBeTruthy();
+
+    await safeGoto(page, '/product');
+    // 打开分类管理对话框：命中「产品分类」统计卡（对话框尚未出现，此时全页唯此卡含该文本）
+    const catCard = page.locator('.stat-card').filter({ hasText: '产品分类' }).first();
+    await catCard.waitFor({ state: 'visible', timeout: 30_000 });
+    await catCard.click();
+    const dialog = page.locator('.el-dialog:visible').filter({ hasText: '产品分类管理' }).first();
+    await dialog.waitFor({ state: 'visible', timeout: 20_000 });
+
+    // 对话框表格拉取 GET /product-categories，先等自建分类行渲染（scoped 到 dialog，避开产品主表）
+    const row = dialog.locator('.el-table__row').filter({ hasText: catName }).first();
+    await row.waitFor({ state: 'visible', timeout: 20_000 });
+
+    // 行内「删除」→ CategoryDialogTab.handleDelete 触发 ElMessageBox.confirm（标题「删除确认」）
+    const delPromise = page
+      .waitForResponse(
+        r =>
+          r.url().includes(`/api/v1/erp/product-categories/${catId}`) &&
+          r.request().method() === 'DELETE',
+        { timeout: 20_000 }
+      )
+      .catch(() => null);
+    await row.locator('button.el-button--danger, button:has-text("删除")').first().click();
+    const confirmBtn = page.locator('.el-message-box').locator('button.el-button--primary').first();
+    await confirmBtn.waitFor({ state: 'visible', timeout: 10_000 });
+    await confirmBtn.click();
+    const delResp = await delPromise;
+    expect(
+      delResp,
+      `[P0-删除-产品分类] 未在 20s 内捕获 DELETE /product-categories/${catId} 响应——删除按钮/确认未真实触发后端删除`
+    ).not.toBeNull();
+    expect(
+      delResp!.ok(),
+      `[P0-删除-产品分类] DELETE 应成功（分类无引用），实际 status=${delResp!.status()}`
+    ).toBe(true);
+
+    // 删除成功后 handleDelete 调 fetchCategories 重渲染：断自建分类行从对话框表格消失
+    await dialog
+      .locator('.el-table__row')
+      .filter({ hasText: catName })
+      .first()
+      .waitFor({ state: 'detached', timeout: 15_000 });
   });
 
   test('会计科目：API 创建→UI 删除→验证消失', async ({ page }) => {
@@ -508,7 +629,12 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         level: 1,
         balance_direction: 'debit',
       },
-      '/assist-accounting',
+      // 会计科目的 UI 维护页是 /account-subject（views/account-subject/index.vue →
+      // SubjectListTab.vue：列含 prop="name"，操作列有行内「删除」按钮 deleteSubject）。
+      // 原写成 /assist-accounting（views/assist-accounting/index.vue）错误——该页 records 表
+      // 无科目名称列、操作列只有 View 按钮，findRowAction 按科目名找不到行也找不到删除按钮，
+      // 删除链路根本发不起（测试导航错，非源码缺陷）。
+      '/account-subject',
       `P0待删科目${EXT_TS}`,
       // account_subject_handler::list_subjects → ApiResponse<Vec> → 裸数组
       'bare'
@@ -592,7 +718,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/sales-contract',
       `P0-SC-${EXT_TS}`,
       // sales_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
-      'bare'
+      'bare',
+      // 合同删除为软删（status 置 cancelled、list 不过滤，行保留），按软删断言 status
+      'cancelled'
     );
   });
 
@@ -612,7 +740,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/purchase-contract',
       `P0-PC-${EXT_TS}`,
       // purchase_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
-      'bare'
+      'bare',
+      // 合同软删（status 置 cancelled、行保留），按软删断言 status
+      'cancelled'
     );
   });
 
@@ -672,26 +802,44 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       },
       'items'
     );
-    await createThenUiDelete(
+    const fabricName = `P0待删坯布${EXT_TS}`;
+    // 建单带物理重量与长度，成为真实在库坯布。后端删除门按业务禁止删除在库坯布，
+    // 故先真实出库把重量与长度同时归零，后端据剩余库存把状态合法翻为已出库这一可删态，
+    // 再走 UI 删除验证放行态下删除真实生效。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
+      fabric_no: `P0-GF-${EXT_TS}`,
+      fabric_name: fabricName,
+      product_id: productId,
+      supplier_id: supplierId,
+      warehouse_id: warehouseId,
+      fabric_type: 'fabric',
+      quantity_meters: 100,
+      quantity_kg: 50,
+      weight_kg: 50,
+      length_m: 100,
+      dye_lot_no: `P0-DL-${EXT_TS}`,
+    });
+    const fabricId = created?.data?.id;
+    expect(fabricId, `[P0-删除-坯布] 自建坯布未返回 id：${JSON.stringify(created)}`).toBeTruthy();
+    const stockedOut = await apiCall<{ status?: string }>(
       page,
-      '坯布',
-      '/production/greige-fabrics',
-      {
-        fabric_no: `P0-GF-${EXT_TS}`,
-        fabric_name: `P0待删坯布${EXT_TS}`,
-        product_id: productId,
-        supplier_id: supplierId,
-        warehouse_id: warehouseId,
-        fabric_type: 'fabric',
-        quantity_meters: 100,
-        quantity_kg: 50,
-        dye_lot_no: `P0-DL-${EXT_TS}`,
-      },
-      '/greige-fabrics',
-      `P0待删坯布${EXT_TS}`,
-      // greige_fabric_handler::list_greige_fabrics → success_paginated → {items}
-      'items'
+      'POST',
+      `/production/greige-fabrics/${fabricId}/stock-out`,
+      { weight_kg: 50, length_m: 100 }
     );
+    // 回读确认状态已由后端按库存判为已出库，锁定删除前置条件真实成立（apiCall 已对非 200 抛错）
+    expect(
+      stockedOut?.data?.status,
+      `[P0-删除-坯布] 出库后状态应为已出库方可删，实际 ${stockedOut?.data?.status}`
+    ).toBe('已出库');
+    const deleted = await uiDeleteRow(page, '/greige-fabrics', {
+      column: 'name',
+      value: fabricName,
+    });
+    expect(
+      deleted,
+      `[P0-删除-坯布] 已出库坯布 ${fabricName} 的 UI 删除必须真实完成（行内删除→行消失）`
+    ).toBe(true);
   });
 
   test('染色批次：API 创建→UI 删除→验证消失', async ({ page }) => {
@@ -710,39 +858,35 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
 
   test('产品色号：API 创建→UI 删除→验证消失', async ({ page }) => {
     test.setTimeout(120_000);
-    // 先取一个真实产品 id（无产品时按契约补建，不再静默跳过）
-    const productId = await firstRefOrSeed(
-      page,
-      '产品',
-      '/products',
-      '/products',
-      {
-        name: `P0色号产品${EXT_TS}`,
-        code: `P0-COLP-${EXT_TS}`,
-        unit: '米',
-        status: 'active',
-        // /products → PaginatedResponse → {items}
-      },
-      'items'
-    );
-    await createThenUiDelete(
-      page,
-      '产品色号',
-      `/products/${productId}/colors`,
-      // CreateProductColorRequest 的 color_type: String 与 extra_cost: f64 均为必填
-      // （非 Option、无 serde default），原实现只发 color_no/color_name 必 422
-      // missing field `color_type`。STANDARD 取自列定义
-      // m0008_add_supplier_and_product_extensions.rs: color_type VARCHAR(20) NOT NULL DEFAULT 'STANDARD'
-      {
-        color_no: `P0-COLOR-${EXT_TS}`,
-        color_name: `P0色号${EXT_TS}`,
-        color_type: 'STANDARD',
-        extra_cost: 0,
-      },
-      '/product',
-      `P0-COLOR-${EXT_TS}`,
-      // product_handler::list_product_colors → ApiResponse<Vec> → 裸数组
-      'bare'
-    );
+    // 色号只在产品行色号按钮弹出的对话框子表内渲染，删除须经该对话框定位，
+    // 故必须自建并持有一个名字确定的宿主产品，不能用列表首条引用（其产品在 UI 无法唯一定位）。
+    const productName = `P0色号产品${EXT_TS}`;
+    const product = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      name: productName,
+      code: `P0-COLP-${EXT_TS}`,
+      unit: '米',
+      status: 'active',
+    });
+    const productId = product?.data?.id;
+    expect(
+      productId,
+      `[P0-删除-产品色号] 宿主产品创建未返回 id：${JSON.stringify(product)}`
+    ).toBeTruthy();
+
+    // CreateProductColorRequest 的 color_type 与 extra_cost 为非 Option 必填，
+    // 只提交色号编号与色名会因缺字段被拒。STANDARD 取自色卡列定义默认值。
+    const colorNo = `P0-COLOR-${EXT_TS}`;
+    const color = await apiCall<{ id?: number }>(page, 'POST', `/products/${productId}/colors`, {
+      color_no: colorNo,
+      color_name: `P0色号${EXT_TS}`,
+      color_type: 'STANDARD',
+      extra_cost: 0,
+    });
+    expect(
+      color?.data?.id,
+      `[P0-删除-产品色号] 色号创建未返回 id：${JSON.stringify(color)}`
+    ).toBeTruthy();
+
+    await uiDeleteProductColor(page, productName, colorNo);
   });
 });

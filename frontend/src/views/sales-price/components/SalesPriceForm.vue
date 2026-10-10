@@ -51,7 +51,15 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('salesPrice.form.labelPrice')" prop="price">
+          <el-form-item prop="price">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('salesPrice.form.labelPrice') }}
+                <el-tooltip :content="t('salesPrice.form.tipPrice')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-input-number
               v-model="localFormData.price"
               :precision="6"
@@ -126,7 +134,15 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item :label="t('salesPrice.form.labelEffectiveDate')" prop="effective_date">
+          <el-form-item prop="effective_date">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('salesPrice.form.labelEffectiveDate') }}
+                <el-tooltip :content="t('salesPrice.form.tipEffectiveDate')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-date-picker
               v-model="localFormData.effective_date"
               type="date"
@@ -136,7 +152,15 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('salesPrice.form.labelExpiryDate')" prop="expiry_date">
+          <el-form-item prop="expiry_date">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('salesPrice.form.labelExpiryDate') }}
+                <el-tooltip :content="t('salesPrice.form.tipExpiryDate')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-date-picker
               v-model="localFormData.expiry_date"
               type="date"
@@ -146,14 +170,6 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="t('salesPrice.form.labelRemarks')" prop="remarks">
-        <el-input
-          v-model="localFormData.remarks"
-          type="textarea"
-          :rows="3"
-          :placeholder="t('salesPrice.form.placeholderRemarks')"
-        />
-      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{
@@ -169,12 +185,18 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { QuestionFilled } from '@element-plus/icons-vue';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单数据类型（所有字段可选，兼容 Partial<SalesPrice>）
+// 表单数据类型 = 编辑态（el-input-number/el-select/el-date-picker 的原生值形态），
+// 与父组件 useSp.ts formData 一一对应；price/min_order_qty 在此保持 number|undefined，
+// undefined=未填（占位为空，不再伪造 0）。写线格式（Decimal 十进制字符串、缺值省略键）
+// 由 useSp.handleSubmitForm 在提交边界换算（SalesPriceCreateInput/SalesPriceUpdateInput，
+// 依据见 api/sales-price.ts 头注与后端 sales_price_service.rs::CreateSalesPriceInput/::UpdateSalesPriceInput），
+// 控件层不承载换算职责。
 interface SpFormData {
   id?: number | undefined;
   product_id?: number | undefined;
@@ -187,7 +209,6 @@ interface SpFormData {
   price_level?: string;
   effective_date?: string;
   expiry_date?: string;
-  remarks?: string;
 }
 
 // 表单校验规则
@@ -264,3 +285,15 @@ const onVisibleChange = (v: boolean) => {
   emit('update:visible', v);
 };
 </script>
+
+<style scoped>
+.form-label-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.form-label-tip {
+  color: var(--el-text-color-secondary);
+  cursor: help;
+}
+</style>

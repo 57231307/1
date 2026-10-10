@@ -64,6 +64,14 @@
               >{{ t('fabric.recipeTab.buttonApprove') }}</el-button
             >
             <el-button
+              v-if="canReject(row.status)"
+              type="danger"
+              link
+              size="small"
+              @click="handleReject(row)"
+              >{{ t('fabric.recipeTab.buttonReject') }}</el-button
+            >
+            <el-button
               v-if="row.status === DYE_RECIPE_STATUS.APPROVED"
               type="warning"
               link
@@ -79,6 +87,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, onMounted, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -86,16 +95,15 @@ import { Plus } from '@element-plus/icons-vue';
 import {
   getDyeRecipe,
   approveDyeRecipe,
+  rejectDyeRecipe,
   createNewVersion as createNewVersionApi,
   DYE_RECIPE_STATUS,
   type DyeRecipe,
   type DyeRecipeStatus,
 } from '@/api/dye-recipe';
-import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
-const userStore = useUserStore();
 
 const emit = defineEmits<{ openDialog: [row: DyeRecipe | null] }>();
 
@@ -109,6 +117,7 @@ const getStatusLabel = (status: DyeRecipeStatus): string => {
     [DYE_RECIPE_STATUS.DRAFT]: t('fabric.recipeTab.statusDraft'),
     [DYE_RECIPE_STATUS.PENDING_APPROVAL]: t('fabric.recipeTab.statusPendingApproval'),
     [DYE_RECIPE_STATUS.APPROVED]: t('fabric.recipeTab.statusApproved'),
+    [DYE_RECIPE_STATUS.REJECTED]: t('fabric.recipeTab.statusRejected'),
     [DYE_RECIPE_STATUS.DISABLED]: t('fabric.recipeTab.statusDisabled'),
   };
   return map[status];
@@ -119,6 +128,7 @@ const statusTagType = (status: DyeRecipeStatus): 'info' | 'warning' | 'success' 
     [DYE_RECIPE_STATUS.DRAFT]: 'info',
     [DYE_RECIPE_STATUS.PENDING_APPROVAL]: 'warning',
     [DYE_RECIPE_STATUS.APPROVED]: 'success',
+    [DYE_RECIPE_STATUS.REJECTED]: 'danger',
     [DYE_RECIPE_STATUS.DISABLED]: 'danger',
   };
   return map[status];
@@ -127,6 +137,9 @@ const statusTagType = (status: DyeRecipeStatus): 'info' | 'warning' | 'success' 
 // 审批按钮渲染条件与后端 validate_can_approve 同源：草稿或待审核均可审批。
 const canApprove = (status: DyeRecipeStatus) =>
   status === DYE_RECIPE_STATUS.DRAFT || status === DYE_RECIPE_STATUS.PENDING_APPROVAL;
+
+// 拒绝按钮渲染条件与后端 validate_can_reject 同源：仅待审核可拒（草稿态换来的是业务拒绝）。
+const canReject = (status: DyeRecipeStatus) => status === DYE_RECIPE_STATUS.PENDING_APPROVAL;
 
 const fetchRecipes = async () => {
   loading.value = true;
@@ -163,20 +176,37 @@ const handleApprove = async (row: DyeRecipe) => {
       t('fabric.common.confirmTitle'),
       { type: 'info' }
     );
-    // approved_by 取自登录用户真实 ID（参考本仓库其它审批入口，如 custom-orders/bpm）；
-    // 取不到身份必须显式报错，不得用查询串/硬编码/默认值伪造。
-    const approverId = userStore.userInfo?.id;
-    if (!approverId) {
-      ElMessage.error(t('fabric.recipeTab.messageNoUserInfo'));
-      return;
-    }
-    await approveDyeRecipe(row.id, { approved_by: approverId });
+    // 审批人身份由后端按会话（AuthContext.user_id）派生，请求体不承载；
+    // 前端不得再取登录 ID 组装载荷或对缺失身份做前置锁死。
+    await approveDyeRecipe(row.id);
     ElMessage.success(t('fabric.recipeTab.messageApproveSuccess'));
     fetchRecipes();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('fabric.recipeTab.messageApproveFailed'));
+    }
+  }
+};
+// 拒绝配方：理由必填（非空 trim 后提交），操作人身份由后端按会话派生，请求体不承载。
+const handleReject = async (row: DyeRecipe) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      t('fabric.recipeTab.rejectReasonPrompt'),
+      t('fabric.common.confirmTitle'),
+      {
+        inputValidator: (input: string) =>
+          (input ?? '').trim().length > 0 || t('fabric.recipeTab.rejectReasonRequired'),
+      }
+    );
+    await rejectDyeRecipe(row.id, value.trim());
+    ElMessage.success(t('fabric.recipeTab.messageRejectSuccess'));
+    fetchRecipes();
+  } catch (error) {
+    if (!isDialogDismissal(error)) {
+      const err = error as Error;
+      ElMessage.error(err.message || t('fabric.recipeTab.messageRejectFailed'));
+      logger.error(t('fabric.recipeTab.messageRejectFailed'), error);
     }
   }
 };
@@ -192,7 +222,7 @@ const handleNewVersion = async (row: DyeRecipe) => {
     ElMessage.success(t('fabric.recipeTab.messageNewVersionSuccess'));
     fetchRecipes();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('fabric.common.failed'));
     }

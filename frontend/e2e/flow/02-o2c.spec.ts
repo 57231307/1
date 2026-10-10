@@ -9,10 +9,9 @@ import {
   verifyAuditLog,
   getCtx,
   genCode,
-  genDyeLotNo,
-  genPieceNo,
   ensureTestEntities,
-  seedFourDimStockIn,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   BASE_URL,
 } from './helpers';
 import { pickListArray } from './ui-helpers';
@@ -30,7 +29,6 @@ const SO_STATUSES = [
 ];
 
 test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', () => {
-  const dyeLotNo = genDyeLotNo();
   /** 2-8 新建的分次收款专用应收单金额；2-9 按此金额做 50% + 50% 两笔收款并断言状态流转 */
   const AR_INVOICE_AMOUNT = 113000;
   const AR_PAYMENT_HALF = AR_INVOICE_AMOUNT / 2;
@@ -118,10 +116,16 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     }
 
     const q = await apiCallRaw<{ status: string }>(page, 'GET', `/quotations/${id}`);
-    const status = (q.status || '').toLowerCase();
-    expect(['approved', 'confirmed', 'converted', 'submitted', 'draft', 'expired']).toContain(
-      status ?? '(missing-status)'
-    );
+    // 2-2 用例即"draft → submitted → approved"：上面已 submit 并在必要时补 approve，
+    // 本用例独立报价单不会被 2-4 转化（2-4 用 ctx.quotationId/2-1 的报价）。
+    // 旧白名单 ['approved','confirmed','converted','submitted','draft','expired'] 里
+    // confirmed/submitted 根本不在 quotation 词表（draft/approved/rejected/cancelled +
+    // quotation_ext pending_approval/expired/converted），且允许 draft/expired/converted →
+    // 无论审批链是否真的走通都能绿=恒真。收紧为该步骤精确期望值 approved。
+    expect(
+      (q.status || '').toLowerCase(),
+      `submit+approve 后报价单 ${id} 应为 approved（词表 quotation），实际 ${q.status}`
+    ).toBe('approved');
   });
 
   test('2-3 验证报价单非法转换被拒绝', async ({ page }) => {
@@ -231,12 +235,30 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
   });
 
   test('2-6 发货（扫码匹号出库，双计量扣减）', async ({ page }) => {
+    test.setTimeout(240_000);
     const ctx = getCtx();
     const id = ctx.salesOrderId;
     expect(id, '2-4 未产出销售订单，发货链路无从验证').toBeTruthy();
 
-    const pieceNo1 = genPieceNo(dyeLotNo, 1);
-    const pieceNo2 = genPieceNo(dyeLotNo, 2);
+    // 发货明细产品必须属于该订单行（「订单外产品被静默按 0 单价/0 发货量」的
+    // 收口门控，so/delivery_ops/ship.rs::ensure_ship_items_belong_to_order，不许回退）：
+    // 本订单由 2-4 报价单 convert 而来，订单行产品=报价行产品 ctx.quotationProductId。
+    // 旧写法发 ctx.productIds[0]||1（订单外产品）被门控正当拒绝（CI 原文
+    // 「发货明细中存在该销售订单未包含的产品」）⇒ 正解是先回读订单明细、按订单行产品发货，
+    // 并钉住「转单后订单行含报价行产品」这一契约，而不是放宽发货入参接受任意产品。
+    const orderDetail = await apiCallRaw<{ items?: Array<{ product_id: number }> }>(
+      page,
+      'GET',
+      `/sales/orders/${id}`
+    );
+    const lineProductIds = (orderDetail.items ?? []).map(l => Number(l.product_id));
+    const shipProductId = lineProductIds.find(p => p === Number(ctx.quotationProductId));
+    expect(
+      shipProductId,
+      `2-4 转单订单 ${id} 的明细行应包含报价行产品 ${ctx.quotationProductId}` +
+        `（实际订单行产品集合=${JSON.stringify(lineProductIds)}）；发货必须按订单行产品`
+    ).toBeTruthy();
+    const productId = Number(shipProductId);
 
     // warehouse_code：从仓库列表取第一个真实编码（ShipOrderRequest 传 code 而非 id）
     // 注意 warehouse 列表字段名为 warehouse_code（非 code）
@@ -257,64 +279,82 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
       );
     }
 
-    // 出库四维扣减（款号+色号+缸号+批次）：先按本次出库要用的四个维度真实入库两行，
-    // 再用同四维出库；不依赖种子库存行（种子行维度与本轮生成的匹号/缸号无关）。
-    await seedFourDimStockIn(page, {
-      productId: ctx.productIds[0] || 1,
+    // 出库四维扣减（款号+色号+缸号+批次+匹号，用户 2026-10-02 口径：染色布第四维=匹号强制）：
+    // 旧写法以 genPieceNo(缸号-001/-002) 充当 batch_no 且不带 piece_no——真实写入方
+    // （piece_domain_service.rs:518-556 委外染色回仓）生成的染色匹恒为 batch_no=缸号、
+    // piece_no={缸号}-{seq:03}，旧 tuple 造不出真实匹，发货必被 VALIDATION/BUSINESS 拒。
+    // 改按写入方口径 seed：一行 batch=缸号 的四维库存行 + 同缸真实链 2 匹 AVAILABLE 染色匹
+    // （helpers.seedDyedOutboundBundle → 委外染色真实链，见 flow/07 先例），
+    // 出库两笔逐匹消耗（500→{缸}-001，300→{缸}-002）。
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId,
       warehouseId,
-      colorNo: 'RED-001',
-      dyeLotNo,
-      batchNo: pieceNo1,
-      quantityMeters: '600',
+      quantityMeters: '1000',
+      pieceCount: 2,
+      context: '2-6',
     });
-    await seedFourDimStockIn(page, {
-      productId: ctx.productIds[0] || 1,
-      warehouseId,
-      colorNo: 'RED-001',
-      dyeLotNo,
-      batchNo: pieceNo2,
-      quantityMeters: '400',
-    });
+    const pieceNo1 = bundle.pieces[0].piece_no;
+    const pieceNo2 = bundle.pieces[1].piece_no;
 
     await apiCall(page, 'POST', `/sales/orders/${id}/ship`, {
       // 后端 ShipOrderRequest 必填 order_id + warehouse_code（非 warehouse_id），
-      // items 接受 product_id/quantity/batch_no/color_no/dye_lot_no，出库按四维匹配扣减
+      // items 接受 product_id/quantity/batch_no/color_no/dye_lot_no/piece_no，出库按四维匹配扣减
       order_id: id,
       warehouse_code: warehouseCode,
       items: [
         {
-          product_id: ctx.productIds[0] || 1,
+          product_id: productId,
           quantity: 500,
-          batch_no: pieceNo1,
-          color_no: 'RED-001',
-          dye_lot_no: dyeLotNo,
+          batch_no: bundle.dyeLotNo,
+          color_no: bundle.colorNo,
+          dye_lot_no: bundle.dyeLotNo,
+          piece_no: pieceNo1,
         },
         {
-          product_id: ctx.productIds[0] || 1,
+          product_id: productId,
           quantity: 300,
-          batch_no: pieceNo2,
-          color_no: 'RED-001',
-          dye_lot_no: dyeLotNo,
+          batch_no: bundle.dyeLotNo,
+          color_no: bundle.colorNo,
+          dye_lot_no: bundle.dyeLotNo,
+          piece_no: pieceNo2,
         },
       ],
     });
 
+    // 第四维消耗回读（写后必回读）：两匹必须 AVAILABLE→SHIPPED
+    for (const pieceNo of [pieceNo1, pieceNo2]) {
+      const consumed = await readDyedPieceByNo(page, {
+        productId,
+        warehouseId,
+        dyeLotNo: bundle.dyeLotNo,
+        batchNo: bundle.dyeLotNo,
+        pieceNo,
+      });
+      expect(consumed, `发货后应能按四维 tuple 回读到匹 ${pieceNo}`).toBeTruthy();
+      expect(
+        String(consumed!.status),
+        `匹 ${pieceNo} 应被本次出库消耗为 SHIPPED（词表 inventory_piece 大写），实际 ${consumed!.status}`
+      ).toBe('SHIPPED');
+    }
+
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/sales/orders/${id}`);
-    const status = (order.status || '').toLowerCase();
-    // 后端状态枚举为 partial_shipped（models/status/sales.rs PARTIAL_SHIPPED）
-    expect([
-      'shipped',
-      'partial_shipped',
-      'completed',
-      'approved',
-      'confirmed',
-      'pending_shipment',
-    ]).toContain(status ?? '(missing-status)');
+    // 2-4 由报价（数量 800）转单，2-6 发货 500+300=800 已全额发出。
+    // ship.rs:559-562 check_order_fully_shipped：所有明细 shipped_quantity>=quantity → SHIPPED，
+    // 否则 PARTIAL_SHIPPED。旧白名单含 confirmed/pending_shipment（根本不属 so_status 枚举）
+    // 与 approved（"发货没推进状态"也照样过）→ 恒真。收紧为该步骤精确期望值 shipped。
+    expect(
+      order.status,
+      `全额发货后销售订单 ${id} 应为 shipped（词表 so_status，models/status/sales.rs），实际 ${order.status}`
+    ).toBe('shipped');
   });
 
   test('2-7 验证库存扣减（四维查询）', async ({ page }) => {
     const ctx = getCtx();
-    const productId = ctx.productIds[0] || 1;
+    // 2-6 已按订单行产品（=报价行产品）发货，出库量必然落在该产品库存行上；
+    // 旧写法查 ctx.productIds[0]（订单外产品）与 2-6 发货产品不是同一个，
+    // 与「发货明细必须属订单行」门控（ship.rs::ensure_ship_items_belong_to_order）矛盾。
+    const productId = ctx.quotationProductId;
+    expect(productId, '前置失败：报价专用产品未就绪').toBeTruthy();
 
     // 2-6 发货 500+300，出库量必须落到该产品的库存行上。
     // 注意：发货选行只按（产品 + 仓库），不校验订单行的色号/缸号
@@ -356,18 +396,19 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
     ctx.arInvoiceId = result.data?.id;
     expect(ctx.arInvoiceId, '创建应收单应返回 id').toBeDefined();
 
-    // 回读校验：后端 ar_invoice_handler.rs list_ar_invoices 返回 ApiResponse<Vec<Model>>
-    // （ar_invoice_handler.rs:20 Ok(Json(ApiResponse::success(invoices)))），
-    // data 直接是裸数组、无 items 包装 → 声明为 'bare'。
+    // 回读校验：后端 ar_invoice_handler.rs list_ar_invoices 函数体（已逐行核对）返回
+    // Json(ApiResponse<PaginatedResponse<ar_invoice::Model>>)，即 data={items,total,page,page_size}
+    // → 声明为 'items'。此前声明 'bare' 依据的是 handler 旧形态/过时注释，与已落地
+    // 契约（utils/response.rs PaginatedResponse）不符，属测试侧信封声明错，以后端为准改判。
     // 原写法 `Array.isArray(invoices)?invoices:(invoices?.items??[])` 是双形状探测，
     // 且其后只 `expect(Array.isArray(invoiceList))` 验形状、未断言任何内容——应收单列表
-    // 恒空也会全绿。现改为单一形状直读 + 断言"刚创建的应收单确实在列表里且金额正确"。
+    // 恒空也会全绿。现保留单一形状直读 + 断言"刚创建的应收单确实在列表里且金额正确"。
     const invoices = await apiCallRaw<unknown>(page, 'GET', '/ar/invoices?page=1&page_size=200');
     // ar_invoice::Model 金额字段真实名为 invoice_amount（models/ar_invoice.rs:37），
     // 旧声明误写成 amount——原用例从不读该字段所以没暴露。
     const invoiceList = pickListArray<{ id: number; invoice_amount: number; status: string }>(
       invoices,
-      'bare',
+      'items',
       '2-8 AR 应收单列表'
     );
     const mine = invoiceList.find(i => i.id === ctx.arInvoiceId);

@@ -4,7 +4,9 @@ use crate::models::{
 };
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 260 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -32,14 +34,24 @@ pub struct CreateAdjustmentRequest {
 }
 
 /// 更新库存调整单请求
+///
+/// 字段三态语义（对齐 RFC 7386 JSON Merge Patch，与 handlers::inventory_adjustment_handler
+/// 的 UpdateAdjustmentRequestPayload 同源）：
+/// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、Some(Some(v))=覆盖。
 #[derive(Debug, Clone, Default)]
 pub struct UpdateAdjustmentRequest {
-    pub warehouse_id: Option<i32>,
-    pub adjustment_date: Option<DateTime<Utc>>,
-    pub adjustment_type: Option<String>,
-    pub reason_type: Option<String>,
-    pub reason_description: Option<String>,
-    pub notes: Option<String>,
+    /// NOT NULL 列 warehouse_id（m0010 DDL）——显式 null 由 update 拒绝
+    pub warehouse_id: Option<Option<i32>>,
+    /// NOT NULL 列 adjustment_date（m0010 DDL）——显式 null 由 update 拒绝
+    pub adjustment_date: Option<Option<DateTime<Utc>>>,
+    /// NOT NULL 列 adjustment_type（m0010 DDL）——显式 null 由 update 拒绝
+    pub adjustment_type: Option<Option<String>>,
+    /// NOT NULL 列 reason_type（m0010 DDL）——显式 null 由 update 拒绝
+    pub reason_type: Option<Option<String>>,
+    /// DB 可空列 reason_description TEXT（m0010 DDL）——显式 null 清空
+    pub reason_description: Option<Option<String>>,
+    /// DB 可空列 notes TEXT（m0010 DDL）——显式 null 清空
+    pub notes: Option<Option<String>>,
 }
 
 /// 调整明细项请求
@@ -392,7 +404,7 @@ impl InventoryAdjustmentService {
             quantity_kg: Decimal::ZERO,
             source_bill_type: Some("inventory_adjustment".to_string()),
             source_bill_no: Some(adjustment_no.to_string()),
-            source_bill_id: Some(adjustment_id),
+            source_bill_id: Some(i64::from(adjustment_id)),
             batch_no: stock_model.batch_no.clone(),
             color_no: stock_model.color_no.clone(),
             created_by: Some(approved_by),
@@ -494,11 +506,11 @@ impl InventoryAdjustmentService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // inventory_adjustment 表无 department_id，Dept 退化为 Self；
-        // inventory_adjustment.created_by 是 Option<i32>。
+        // 行级数据权限校验（IDOR 防护）
+        // inventory_adjustment 表无 department_id 列，归属判定走成员集合语义
+        // （与列表侧 apply_data_scope Dept 分支同源），created_by 为 Option<i32>。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, adjustment.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, adjustment.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问调整单 {}（数据范围限制）",
                     adjustment_id
@@ -528,6 +540,30 @@ impl InventoryAdjustmentService {
         adjustment_id: i32,
         req: UpdateAdjustmentRequest,
     ) -> Result<inventory_adjustment::Model, AppError> {
+        // NOT NULL 列门控（warehouse_id/adjustment_date/adjustment_type/reason_type，
+        // m0010_add_inventory_extensions DDL）：显式 null 是调用方错误，不是"保持原值"；
+        // 在任何 DB 访问之前拒绝，错误外显不脱敏（对齐 department_service 参照形态）。
+        if matches!(req.warehouse_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "仓库不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.adjustment_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "调整日期不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.adjustment_type, Some(None)) {
+            return Err(AppError::business_displayable(
+                "调整类型不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.reason_type, Some(None)) {
+            return Err(AppError::business_displayable(
+                "原因类型不能清空：该字段为必填项",
+            ));
+        }
+
         // P1-11 修复（批次 79 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
         // 并发场景下可能在状态检查通过后、update 前发生状态变更，导致已审批/已驳回单被篡改。
@@ -547,23 +583,29 @@ impl InventoryAdjustmentService {
 
         let mut active: inventory_adjustment::ActiveModel = adjustment_model.into_active_model();
 
-        if let Some(warehouse_id) = req.warehouse_id {
+        // 三态写入规则：None=不 Set（列保持 Unset，UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+        // warehouse_id/adjustment_date/adjustment_type/reason_type 为 NOT NULL 列
+        // （Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(warehouse_id) = req.warehouse_id.flatten() {
             active.warehouse_id = Set(warehouse_id);
         }
-        if let Some(adjustment_date) = req.adjustment_date {
+        if let Some(adjustment_date) = req.adjustment_date.flatten() {
             active.adjustment_date = Set(adjustment_date);
         }
-        if let Some(adjustment_type) = req.adjustment_type {
+        if let Some(adjustment_type) = req.adjustment_type.flatten() {
             active.adjustment_type = Set(adjustment_type);
         }
-        if let Some(reason_type) = req.reason_type {
+        if let Some(reason_type) = req.reason_type.flatten() {
             active.reason_type = Set(reason_type);
         }
+        // reason_description/notes 为 DB 可空列（m0010 DDL）：Some(inner)=Set(inner)，
+        // 显式 null 直落 NULL，不得塌成"保持原值"
         if let Some(reason_description) = req.reason_description {
-            active.reason_description = Set(Some(reason_description));
+            active.reason_description = Set(reason_description);
         }
         if let Some(notes) = req.notes {
-            active.notes = Set(Some(notes));
+            active.notes = Set(notes);
         }
         active.updated_at = Set(Utc::now());
 
@@ -611,6 +653,18 @@ impl InventoryAdjustmentService {
 
         txn.commit().await?;
         Ok(())
+    }
+
+    /// 由明细项反查其所属调整单 ID（供 item 级端点做归属校验）。
+    /// handler 路径仅有 item_id 而无父调整单 id 时（如 `PUT/DELETE /adjustments/items/{item_id}`），
+    /// 先用此查询拿到 adjustment_id，再走 `get_adjustment(adjustment_id, Some(&ctx))` 的既有 data-scope 范式。
+    /// 明细不存在返回 404（not_found）。不改 schema，仅复用既有实体查询。
+    pub async fn get_adjustment_id_by_item(&self, item_id: i32) -> Result<i32, AppError> {
+        let item = inventory_adjustment_item::Entity::find_by_id(item_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("调整单明细 {} 不存在", item_id)))?;
+        Ok(item.adjustment_id)
     }
 
     /// 列出调整单的所有明细项

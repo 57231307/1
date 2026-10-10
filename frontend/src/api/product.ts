@@ -29,26 +29,93 @@ export interface Product {
   updated_at?: string;
 }
 
+/**
+ * 产品色号响应模型 —— 逐字段对齐后端 models/product_color.rs::Model（直接 serde 出参，snake_case）。
+ * 此前接口写有 color_code / rgb / price_adjustment 三个后端不存在的幽灵键，且缺
+ * color_type / pantone_code / dye_formula / extra_cost —— 那三键读回恒 undefined（假字段）。
+ * extra_cost 为 rust_decimal（NOT NULL），序列化为字符串（如 "0.00"），运算/展示前需 Number() 归一。
+ * NOT NULL 列（color_no/color_name/color_type/extra_cost/is_active）不得标 `?`。
+ */
 export interface ProductColor {
   id: number;
   product_id: number;
-  /** 色号（对应后端 product_color.color_no） */
+  /** 色号（对应后端 product_color.color_no，NOT NULL） */
   color_no: string;
-  color_code?: string;
   color_name: string;
-  rgb?: string;
-  price_adjustment?: number;
+  /** 潘通色号（Option，NULL→null） */
+  pantone_code: string | null;
+  /** 色号类型（NOT NULL；DB 列默认 'STANDARD'，全仓唯一确证取值） */
+  color_type: string;
+  /** 染色配方（Option，NULL→null） */
+  dye_formula: string | null;
+  /** 特殊色号加价，rust_decimal 出参为字符串（"0.00"），Number() 归一后再展示/运算 */
+  extra_cost: string;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
+/**
+ * 创建色号载荷 —— 逐字段对齐后端 product_handler.rs::CreateProductColorRequest。
+ * 非 Option 必填：color_no / color_name / color_type / extra_cost（handler 无 #[validate]、无 validate()，
+ * 但 serde 对非 Option 字段缺键即反序列化失败 422，故四者必发）。
+ * extra_cost 为 f64 入参 → JSON number；pantone_code/dye_formula 为 Option，空值省略键。
+ */
+export interface CreateProductColorPayload {
+  color_no: string;
+  color_name: string;
+  color_type: string;
+  extra_cost: number;
+  pantone_code?: string;
+  dye_formula?: string;
+}
+
+/**
+ * 更新色号载荷 —— 逐字段对齐后端 product_handler.rs::UpdateProductColorRequest（全部 Option）。
+ * 后端更新结构无 color_no（色号编码不可经 PUT 改），故此处不含该键，避免误发被丢弃。
+ */
+export interface UpdateProductColorPayload {
+  color_name?: string;
+  color_type?: string;
+  extra_cost?: number;
+  pantone_code?: string;
+  dye_formula?: string;
+  is_active?: boolean;
+}
+
+/**
+ * 产品分类响应模型 —— 对齐 models/product_category.rs::Model（列表）与
+ * services/product_category_service.rs::CategoryTreeNode（/tree，含 children、无 code）。
+ * 此前接口写有 level / sort_order 两个后端不存在的幽灵键，已移除。
+ */
 export interface ProductCategory {
   id: number;
   name: string;
   code: string;
   parent_id?: number;
-  level?: number;
-  sort_order?: number;
+  description?: string;
   children?: ProductCategory[];
+}
+
+/**
+ * 创建分类载荷 —— 对齐 CreateProductCategoryRequest。name 非 Option 必填(min1)；
+ * code/parent_id/description 为 Option，空值省略键（后端 code 未传时按名称生成 CAT-<ts> 落库）。
+ */
+export interface CreateProductCategoryPayload {
+  name: string;
+  code?: string;
+  parent_id?: number;
+  description?: string;
+}
+
+/**
+ * 更新分类载荷 —— 对齐 UpdateProductCategoryRequest（全部 Option，未携带即不改）。
+ */
+export interface UpdateProductCategoryPayload {
+  name?: string;
+  code?: string;
+  parent_id?: number;
+  description?: string;
 }
 
 /**
@@ -155,11 +222,11 @@ export const getProductCategoryList = () =>
   request.get<ApiResponse<{ items: ProductCategory[]; total: number }>>('/product-categories');
 
 // D14 Batch 5b：原 productApi.createCategory 转为风格 B 函数
-export const createProductCategory = (data: Partial<ProductCategory>) =>
+export const createProductCategory = (data: CreateProductCategoryPayload) =>
   request.post<ApiResponse<ProductCategory>>('/product-categories', data);
 
 // D14 Batch 5b：原 productApi.updateCategory 转为风格 B 函数
-export const updateProductCategory = (id: number, data: Partial<ProductCategory>) =>
+export const updateProductCategory = (id: number, data: UpdateProductCategoryPayload) =>
   request.put<ApiResponse<ProductCategory>>(`/product-categories/${id}`, data);
 
 // D14 Batch 5b：原 productApi.deleteCategory 转为风格 B 函数
@@ -175,14 +242,14 @@ export const getProductColorList = (productId: number) =>
   request.get<ApiResponse<ProductColor[]>>(`/products/${productId}/colors`);
 
 // D14 Batch 5b：原 productApi.createColor 转为风格 B 函数
-export const createProductColor = (productId: number, data: Partial<ProductColor>) =>
+export const createProductColor = (productId: number, data: CreateProductColorPayload) =>
   request.post<ApiResponse<ProductColor>>(`/products/${productId}/colors`, data);
 
 // D14 Batch 5b：原 productApi.updateColor 转为风格 B 函数
 export const updateProductColor = (
   productId: number,
   colorId: number,
-  data: Partial<ProductColor>
+  data: UpdateProductColorPayload
 ) => request.put<ApiResponse<ProductColor>>(`/products/${productId}/colors/${colorId}`, data);
 
 // D14 Batch 5b：原 productApi.deleteColor 转为风格 B 函数
@@ -190,9 +257,13 @@ export const deleteProductColor = (productId: number, colorId: number) =>
   request.delete<ApiResponse<null>>(`/products/${productId}/colors/${colorId}`);
 
 // D14 Batch 5b：原 productApi.batchCreateColors 转为风格 B 函数
-// P2-16 修复（批次 86 v2 复审）：批量创建颜色 ApiResponse<any> → ProductColor[]
-export const batchCreateProductColors = (productId: number, colors: Partial<ProductColor>[]) =>
-  request.post<ApiResponse<ProductColor[]>>(`/products/${productId}/colors/batch`, colors);
+// 后端 body 是 Json<BatchCreateColorsRequest>（product_handler.rs:161-163），结构只有一个键
+// colors: Vec<CreateProductColorRequest>——此前发裸数组与 DTO 顶层形状不符，serde 反序列化
+// 直接失败（必 422）。这里按 DTO 包一层 { colors }；元素载荷与单条创建同构，复用
+// CreateProductColorPayload（Partial<ProductColor> 是响应模型，extra_cost 为字符串且缺
+// color_type 必填语义，不能冒充创建契约）。
+export const batchCreateProductColors = (productId: number, colors: CreateProductColorPayload[]) =>
+  request.post<ApiResponse<ProductColor[]>>(`/products/${productId}/colors/batch`, { colors });
 
 // D14 Batch 5b：原 productApi.getImportTemplate 转为风格 B 函数
 export const getProductImportTemplate = () =>

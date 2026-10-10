@@ -36,6 +36,11 @@ impl ProcessRouteService {
 // 流转卡 Service struct 定义（impl 块在 flow_card_ops/card_crud、card_state 子模块）
 // ============================================================================
 
+/// 流转卡号（production_flow_card.card_no）自动编码前缀：沿用原手写格式
+/// "FC-{时间戳}-{随机}" 的业务前缀 FC，新格式统一为 {FC}{YYYYMMDD}{3位流水}
+///（前缀集中定义于此，ops 子模块只引用常量，不散落字面量）。
+pub const FLOW_CARD_NO_PREFIX: &str = "FC";
+
 /// 流转卡 Service
 pub struct FlowCardService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -44,22 +49,6 @@ pub struct FlowCardService {
 impl FlowCardService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成流转卡号：FC-YYYYMMDDHHMMSS-NNN
-    pub fn generate_card_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("FC-{}-{:03}", timestamp, random)
-    }
-
-    /// 生成条码：FC + 14位时间戳 + 6位随机数
-    pub fn generate_barcode() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit();
-        format!("FC{}{:06}", timestamp, random)
     }
 
     /// 状态流转校验（缸号全生命周期状态机）
@@ -121,6 +110,11 @@ impl StepRecordService {
 // 工序质量反馈单 Service struct 定义（impl 块在 flow_card_ops/feedback 子模块）
 // ============================================================================
 
+/// 质量反馈单号（process_quality_feedback.feedback_no）自动编码前缀：
+/// 沿用原手写格式 "QF-{时间戳}-{随机}" 的业务前缀 QF，
+/// 新格式统一为 {QF}{YYYYMMDD}{3位流水}。
+pub const QUALITY_FEEDBACK_NO_PREFIX: &str = "QF";
+
 /// 质量反馈单 Service
 pub struct QualityFeedbackService {
     pub(crate) db: Arc<DatabaseConnection>,
@@ -129,14 +123,6 @@ pub struct QualityFeedbackService {
 impl QualityFeedbackService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成反馈单号：QF-YYYYMMDDHHMMSS-NNN
-    pub fn generate_feedback_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("QF-{}-{:03}", timestamp, random)
     }
 }
 

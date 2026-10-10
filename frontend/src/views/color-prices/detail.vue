@@ -274,6 +274,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
@@ -411,7 +412,7 @@ const handleDeleteTier = async (row: PriceTier) => {
     loadData();
   } catch (e: unknown) {
     // v11 批次 174 P2-1 修复：catch (e: any) 改为 unknown + 类型守卫
-    if (e === 'cancel') return;
+    if (isDialogDismissal(e)) return;
     ElMessage.error(
       t('colorPrices.message.deleteFailed', { msg: e instanceof Error ? e.message : String(e) })
     );
@@ -451,9 +452,10 @@ const onSubmitEdit = async () => {
     await updateColorPrice(priceId, {
       base_price: editForm.base_price,
       effective_from: editForm.effective_from,
-      effective_to: editForm.effective_to || null,
+      // 后端 UpdateColorPriceDto 为 Option-skip 语义（提交 null/"" 无效），空值直接省略键
+      ...(editForm.effective_to ? { effective_to: editForm.effective_to } : {}),
       priority: editForm.priority,
-      notes: editForm.notes || null,
+      ...(editForm.notes ? { notes: editForm.notes } : {}),
     });
     ElMessage.success(t('colorPrices.message.createSuccess'));
     editDialogVisible.value = false;

@@ -13,6 +13,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr,
 };
 
 use crate::models::outsourcing_order::{self, Entity as OrderEntity};
@@ -27,10 +28,11 @@ use crate::services::outsourcing_ops::types::{
 use crate::services::outsourcing_service::{OutsourcingVoucherService, validate_voucher_type};
 
 impl OutsourcingVoucherService {
-    /// 创建委外凭证
+    /// 创建委外凭证；建单人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateOutsourcingVoucherRequest,
+        user_id: i32,
     ) -> Result<VoucherModel, AppError> {
         validate_voucher_type(&req.voucher_type)?;
 
@@ -38,30 +40,41 @@ impl OutsourcingVoucherService {
             return Err(AppError::business("金额不能为负"));
         }
 
-        // 校验委外订单存在
+        // 校验委外订单存在（"缺前置"拒绝属可执行公开规则 → business_displayable
+        // 可外显族，回显用户自己提交的 ID；真因落 WARN，不静默）
         if OrderEntity::find_by_id(req.outsourcing_order_id)
             .filter(outsourcing_order::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!(
-                "委外订单 {} 不存在",
+            tracing::warn!(
+                "创建委外凭证被拒：关联订单 outsourcing_order_id={} 不存在或未删除",
+                req.outsourcing_order_id
+            );
+            return Err(AppError::business_displayable(format!(
+                "委外订单 {} 不存在，请重新选择委外订单",
                 req.outsourcing_order_id
             )));
         }
 
-        // 校验凭证号唯一性
+        // 校验凭证号唯一性 —— "你填的凭证号已存在，换一个再提交"属可执行公开规则，
+        // 归 business_displayable 族（先例： 流程编码、chemical_ops 编码族）；
+        // 文案只回显用户自己提交的凭证号；真因落 WARN
         if let Some(_existing) = VoucherEntity::find()
             .filter(outsourcing_voucher::Column::VoucherNo.eq(&req.voucher_no))
             .one(&*self.db)
             .await?
         {
-            return Err(AppError::business(format!(
-                "凭证号 {} 已存在",
+            tracing::warn!("创建委外凭证被拒：凭证号 {} 已存在", req.voucher_no);
+            return Err(AppError::business_displayable(format!(
+                "凭证号 {} 已存在，请更换凭证号后重试",
                 req.voucher_no
             )));
         }
+
+        // voucher_no 随后被移入 ActiveModel，先留一份用于 INSERT 竞态兜底文案
+        let voucher_no_for_race = req.voucher_no.clone();
 
         let now = crate::utils::date_utils::utc_now_fixed();
 
@@ -79,7 +92,7 @@ impl OutsourcingVoucherService {
             is_posted: Set(false),
             posted_at: Set(None),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -87,7 +100,28 @@ impl OutsourcingVoucherService {
         let result = active
             .insert(&*self.db)
             .await
-            .map_err(|e| AppError::database(format!("委外凭证创建失败: {}", e)))?;
+            .map_err(|e| {
+                // 竞态兜底（照 role_permission/chemical_ops「预校验 + 23505 归类」范式）：
+                // 上方凭证号查重通过后、INSERT 落库前，并发请求可能已插入同码凭证。
+                // 本表 voucher_no 当前仅 NOT NULL 无 DB UNIQUE（v15/mod.rs:1179，待
+                // 数据库专家补全列唯一索引）；索引就位后此处将以 23505 显式拒绝——
+                // 单语句 INSERT 原子失败、不留半行，归类必须与预检同口径的业务拒绝，
+                // 禁止 map_err 自造 database() 把撞号拍平成 500 吞真因。
+                if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                    tracing::error!(
+                        "委外凭证创建撞凭证号唯一约束（并发同码，voucher_no={}）：行未写入，整语句回滚，底层错误={}",
+                        voucher_no_for_race,
+                        e
+                    );
+                    AppError::business_displayable(format!(
+                        "凭证号 {} 已存在，请更换凭证号后重试",
+                        voucher_no_for_race
+                    ))
+                } else {
+                    tracing::error!(voucher_no = %voucher_no_for_race, "委外凭证创建落库失败");
+                    AppError::from(e)
+                }
+            })?;
         Ok(result)
     }
 

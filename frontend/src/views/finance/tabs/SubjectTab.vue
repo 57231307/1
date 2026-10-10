@@ -44,18 +44,20 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="direction"
+          prop="balance_direction"
           :label="t('finance.subjectTab.columnDirection')"
           width="100"
         >
           <template #default="{ row }">
-            <el-tag :type="row.direction === 'debit' ? 'success' : 'danger'" size="small">
-              {{
-                row.direction === 'debit'
-                  ? t('finance.subjectTab.directionDebit')
-                  : t('finance.subjectTab.directionCredit')
-              }}
+            <!-- 词表外值/空值原样呈现，不并入借贷任一（DB 可空且存量含中文借/贷，见 api/finance.ts 注释） -->
+            <el-tag
+              v-if="row.balance_direction"
+              :type="isDebitDirection(row.balance_direction) ? 'success' : 'danger'"
+              size="small"
+            >
+              {{ getDirectionLabel(row.balance_direction) }}
             </el-tag>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -202,6 +204,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -209,7 +212,7 @@ import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import printJS from 'print-js';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
-  getSubjectTree,
+  getSubjectList,
   createSubject,
   updateSubject,
   deleteSubject as deleteSubjectApi,
@@ -230,7 +233,9 @@ const blankSubjectForm = () => ({
   code: '',
   name: '',
   parent_id: undefined as number | undefined,
-  balance_direction: 'debit',
+  // 新建默认 debit（与 DB 列默认一致，m0006:23）；编辑回填真实值，可空列为 null 时
+  // 单选组留空、由必填规则强制用户显式选择——禁止 || 'debit' 类兜底伪造方向后回写覆盖
+  balance_direction: 'debit' as string | null,
   // 启用/停用状态：新建默认 active（与后端 account_subjects.status DB 默认一致），编辑时回填真实值
   status: 'active',
   assist_customer: false,
@@ -280,12 +285,38 @@ const getCategoryLabel = (category: string) => {
   return map[category] || category;
 };
 
+// 方向取值四词表并存（同源证据见 api/finance.ts::AccountSubject.balance_direction 注释）：
+// debit/credit（radio 写入值与 DB 默认）与 借/贷（后端余额计算与 e2e 存量直灌）→ 如实映射；
+// 其余值原样展示，不并入借贷任一。
+const isDebitDirection = (value: string) => value === 'debit' || value === '借';
+const getDirectionLabel = (value: string) => {
+  if (isDebitDirection(value)) return t('finance.subjectTab.directionDebit');
+  if (value === 'credit' || value === '贷') return t('finance.subjectTab.directionCredit');
+  return value;
+};
+
+// 树在前端按 parent_id 组装：数据源为 GET /subjects（list_subjects 直出 account_subject::Model
+// 全列，含 balance_direction）；GET /subjects/tree 的 SubjectTreeNode 不含该列（service:494-502），
+// 无法支撑方向列展示与编辑回填。排序沿用后端 Code Asc（service:213-215），孤儿节点上提为根
+// ——与后端 get_tree 组装规则一致（service:162-177），显示顺序与原树视图相同。
+const buildSubjectTree = (flat: AccountSubject[]): AccountSubject[] => {
+  const nodeMap = new Map<number, AccountSubject>();
+  flat.forEach(item => nodeMap.set(item.id, { ...item, children: [] }));
+  const roots: AccountSubject[] = [];
+  flat.forEach(item => {
+    const node = nodeMap.get(item.id)!;
+    const parentNode = item.parent_id ? nodeMap.get(item.parent_id) : undefined;
+    if (parentNode) parentNode.children?.push(node);
+    else roots.push(node);
+  });
+  return roots;
+};
+
 const fetchSubjects = async () => {
   subjectLoading.value = true;
   try {
-    const res = await getSubjectTree();
-    const d = res.data as AccountSubject[] | { items?: AccountSubject[]; data?: AccountSubject[] };
-    subjects.value = Array.isArray(d) ? d : d?.items || d?.data || [];
+    const res = await getSubjectList();
+    subjects.value = buildSubjectTree(res.data);
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('finance.subjectTab.messageFetchFailed'));
@@ -302,11 +333,13 @@ const openSubjectDialog = (row?: AccountSubject) => {
     subjectForm.code = row.code;
     subjectForm.name = row.name;
     subjectForm.parent_id = row.parent_id;
-    subjectForm.balance_direction = row.direction || 'debit';
-    // 启用/停用开关按真实值回填（/subjects/tree 现返回 status 列，NOT NULL，直连不兜底）
+    // 方向如实回填：DB 列可空（m0006:23），Model 为 Option——键缺席/值为 null 时置空单选，
+    // 由必填规则强制显式选择；禁止 || 'debit' 兜底伪造方向再回写覆盖真实值
+    subjectForm.balance_direction = row.balance_direction ?? null;
+    // 启用/停用开关按真实值回填（account_subjects.status NOT NULL，直连不兜底）
     subjectForm.status = row.status;
-    // 注意：/subjects/tree 仅返回 id/code/name/level/status/children，不含辅助核算位，
-    // 编辑时无法回填既有辅助位，需后端补齐树字段或前端改调 GET /subjects/:id（见交付报告）。
+    // 辅助核算位：数据源已改为 GET /subjects（Model 直出含 assist_* 全列），
+    // 回填链路可用——但属另一缺陷域，本轮不扩改（见交付报告）。
   }
   subjectDialogVisible.value = true;
 };
@@ -314,13 +347,16 @@ const openSubjectDialog = (row?: AccountSubject) => {
 const submitSubject = async () => {
   const valid = await subjectFormRef.value?.validate();
   if (!valid) return;
+  // 空方向（legacy NULL 行编辑未选）已被上面的必填规则拦下；这里仅让类型收敛到后端要求的非空值
+  const balanceDirection = subjectForm.balance_direction;
+  if (balanceDirection === null) return;
 
   subjectSubmitLoading.value = true;
   try {
     if (subjectForm.id) {
       await updateSubject(subjectForm.id, {
         name: subjectForm.name,
-        balance_direction: subjectForm.balance_direction,
+        balance_direction: balanceDirection,
         assist_customer: subjectForm.assist_customer,
         assist_supplier: subjectForm.assist_supplier,
         assist_batch: subjectForm.assist_batch,
@@ -335,7 +371,7 @@ const submitSubject = async () => {
         name: subjectForm.name,
         level: resolveLevel(subjectForm.parent_id),
         parent_id: subjectForm.parent_id,
-        balance_direction: subjectForm.balance_direction,
+        balance_direction: balanceDirection,
         assist_customer: subjectForm.assist_customer,
         assist_supplier: subjectForm.assist_supplier,
         assist_batch: subjectForm.assist_batch,
@@ -365,7 +401,7 @@ const deleteSubject = async (row: AccountSubject) => {
     ElMessage.success(t('finance.subjectTab.messageDeleteSuccess'));
     fetchSubjects();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('finance.subjectTab.messageDeleteFailed'));
     }
@@ -378,10 +414,9 @@ const handlePrintSubjects = () => {
     [t('finance.subjectTab.exportColCode')]: item.code,
     [t('finance.subjectTab.exportColName')]: item.name,
     [t('finance.subjectTab.exportColCategory')]: getCategoryLabel(item.category),
-    [t('finance.subjectTab.exportColDirection')]:
-      item.direction === 'debit'
-        ? t('finance.subjectTab.directionDebit')
-        : t('finance.subjectTab.directionCredit'),
+    [t('finance.subjectTab.exportColDirection')]: item.balance_direction
+      ? getDirectionLabel(item.balance_direction)
+      : '-',
     [t('finance.subjectTab.exportColLevel')]: `L${item.level}`,
   }));
   printJS({

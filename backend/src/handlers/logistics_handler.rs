@@ -20,6 +20,7 @@ use crate::models::status::common as common_status;
 use crate::models::status::logistics_waybill as waybill_status;
 use crate::models::status::sales_order as so_status;
 use crate::services::ar_invoice_service::ArInvoiceService;
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -229,11 +230,17 @@ pub async fn list_waybills(
 
     let order_no_map = fetch_order_no_map(&*state.db, &waybills).await?;
 
-    // 非管理员对运单列表司机手机号脱敏
+    // 非管理员对运单列表司机手机号脱敏。admin 判定走本仓唯一权威源
+    // `admin_checker::is_admin_role`（roles.code='admin'；role_id 缺失或查询失败
+    // fail-closed=false，与原字面量判定下"无角色必脱敏"同一 fail-closed 方向），
+    // 每请求在循环外算一次并复用，禁止下放进逐行循环（admin_checker 带 5 分钟缓存）。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
     let mut items = Vec::with_capacity(waybills.len());
     for waybill in &waybills {
-        let mut value = serde_json::to_value(waybill)
-            .map_err(|e| AppError::internal(format!("运单序列化失败: {}", e)))?;
+        let mut value = serde_json::to_value(waybill)?;
         match order_no_map.get(&waybill.order_id) {
             Some(order_no) => {
                 value["order_no"] = serde_json::Value::String(order_no.clone());
@@ -249,8 +256,7 @@ pub async fn list_waybills(
             }
         }
         items.push(crate::utils::field_mask::mask_contact_fields_for_role(
-            value,
-            auth.role_id,
+            value, is_admin,
         ));
     }
 
@@ -316,7 +322,9 @@ pub async fn update_waybill(
         Some(raw) => {
             let target = validate_status_param(raw, "status")?;
             if !is_legal_waybill_transition(&current, target) {
-                return Err(AppError::bad_request(format!(
+                // 状态门：运单当前状态不允许该流转，归业务族；
+                // 文案回显了记录的内部状态 token，按安全边界保持脱敏 business。
+                return Err(AppError::business(format!(
                     "非法状态流转：{} → {}；本接口仅支持 {} → {}，签收请使用签收接口",
                     current,
                     target,
@@ -413,7 +421,8 @@ pub async fn sign_waybill(
     // 校验：仅 DELIVERED 状态允许签收
     let current_status = waybill.status.as_deref().unwrap_or("");
     if current_status != waybill_status::DELIVERED {
-        return Err(AppError::bad_request(format!(
+        // 状态门：签收前置状态未满足，归业务族；文案含状态 token 保持脱敏 business
+        return Err(AppError::business(format!(
             "运单状态为 {}，仅 {} 状态允许签收",
             current_status,
             waybill_status::DELIVERED
@@ -422,7 +431,8 @@ pub async fn sign_waybill(
 
     // 校验：禁止重复签收
     if waybill.signed_by.is_some() {
-        return Err(AppError::bad_request(format!(
+        // 状态门（不可重复动作）：运单已签收，归业务族；文案含运单/用户内部 ID 保持脱敏
+        return Err(AppError::business(format!(
             "运单 {} 已由用户 {} 签收，禁止重复签收",
             id,
             waybill.signed_by.unwrap_or(0)
@@ -486,9 +496,14 @@ pub async fn get_waybill(
         .await?
         .ok_or_else(|| AppError::not_found("运单不存在"))?;
 
-    // 非管理员对运单详情司机手机号脱敏；关联销售订单号由 order_id 回查补齐
-    let mut value = serde_json::to_value(&waybill)
-        .map_err(|e| AppError::internal(format!("运单序列化失败: {}", e)))?;
+    // 非管理员对运单详情司机手机号脱敏；关联销售订单号由 order_id 回查补齐。
+    // admin 判定走唯一权威源 admin_checker::is_admin_role（口径同 list_waybills：
+    // roles.code='admin'，role_id 缺失/查询失败 fail-closed=false），每请求一次。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    let mut value = serde_json::to_value(&waybill)?;
     let order_no_map = fetch_order_no_map(&*state.db, std::slice::from_ref(&waybill)).await?;
     match order_no_map.get(&waybill.order_id) {
         Some(order_no) => value["order_no"] = serde_json::Value::String(order_no.clone()),
@@ -501,7 +516,7 @@ pub async fn get_waybill(
             value["order_no"] = serde_json::Value::Null;
         }
     }
-    let value = crate::utils::field_mask::mask_contact_fields_for_role(value, auth.role_id);
+    let value = crate::utils::field_mask::mask_contact_fields_for_role(value, is_admin);
 
     Ok(Json(ApiResponse::success(value)))
 }

@@ -75,7 +75,7 @@ fn 非法商机阶段建单应被校验拒绝() {
         assert!(
             !stage_is_valid(bad),
             "非法商机阶段 {:?} 必须被 ensure_valid_opportunity_stage 拒绝（不在 ALL_STAGES），\
-             否则修复 commit 6a0cfa4b 的校验被绕过",
+             否则该状态流转校验被绕过",
             bad
         );
     }
@@ -146,7 +146,7 @@ fn create_opportunity_在建单前调用阶段校验() {
     // (1) 接线：建单确实调用了校验函数——移除该调用（回归到直穿 DB 报 500）即红。
     assert!(
         body.contains("ensure_valid_opportunity_stage("),
-        "create_opportunity 必须调用 ensure_valid_opportunity_stage（否则 commit 6a0cfa4b 的建单校验被移除，\
+        "create_opportunity 必须调用 ensure_valid_opportunity_stage（否则建单校验被移除，\
          非法阶段将重新直穿 DB 触发 500 而非 400）"
     );
     // (2) 校验须发生在写库之前：调用点先于 insert。

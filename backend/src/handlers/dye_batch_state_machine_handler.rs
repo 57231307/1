@@ -14,6 +14,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::{
     dye_batch_lifecycle_log, dye_batch_operation, dye_batch_rework, dye_batch_state_rule,
 };
@@ -114,13 +115,6 @@ pub struct OperationListQuery {
     pub keyword: Option<String>,
 }
 
-/// 审批回修单请求
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
-pub struct ApproveReworkRequest {
-    pub approved_by: i32,
-}
-
 // ============================================================================
 // 缸号生命周期日志 Handler
 // ============================================================================
@@ -169,11 +163,15 @@ pub async fn get_latest_status(
 }
 
 /// POST /api/v1/erp/dye-batch-lifecycle-logs - 记录状态流转
+// 操作人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载该字段。
 pub async fn record_transition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateTransitionRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_lifecycle_log::Model>>, AppError> {
-    let model = lifecycle_log_service(&state).record_transition(req).await?;
+    let model = lifecycle_log_service(&state)
+        .record_transition(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -315,12 +313,14 @@ pub async fn get_rework(
 }
 
 /// POST /api/v1/erp/dye-batch-reworks/:id/approve - 审批回修单（draft → approved）
+// 审批人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载审批身份。
+// 端点无必填报文字段 ⇒ 不绑定 body 提取器：缺体合法，状态门在 service 层。
 pub async fn approve_rework(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<ApproveReworkRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_rework::Model>>, AppError> {
-    let model = rework_service(&state).approve(id, req.approved_by).await?;
+    let model = rework_service(&state).approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -415,11 +415,13 @@ pub async fn list_operations_by_batch(
 }
 
 /// POST /api/v1/erp/dye-batch-operations - 创建操作记录
+// 操作人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载该字段。
 pub async fn create_operation(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOperationRequest>,
 ) -> Result<Json<ApiResponse<dye_batch_operation::Model>>, AppError> {
-    let model = operation_service(&state).create(req).await?;
+    let model = operation_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

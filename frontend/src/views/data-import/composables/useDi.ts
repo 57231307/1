@@ -1,12 +1,9 @@
 /**
  * useDi.ts - 数据导入核心 composable
- * 任务编号: P14 批 2 I-3 第 5 批（拆分原 data-import/index.vue）
  * 提供导入模板 / 任务列表查询、分页、状态等核心方法
  * 业务流程（新建/编辑/删除/下载/上传/重试/取消）由 useDiProc 提供
- * 行为完全保持一致（仅结构重构）
  *
- * 批次 289：templates 和 tasks 分别接入 useTableApi（两个实例），
- *   移除手写分页逻辑，返回 reactive 包装
+ * templates 和 tasks 分别接入 useTableApi（两个实例），返回 reactive 包装
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */

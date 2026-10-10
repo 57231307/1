@@ -2,6 +2,11 @@
 
 use sea_orm_migration::prelude::*;
 
+// 收款单备注列：目标表 ar_collections 由 business 域 m0012 建表（先于本域执行），
+// 补列注册在本域 up 链尾/down 链首；不回填历史 check_no 中混入的备注（无法与真实
+// 支票号区分），甄别与更正属业务侧人工核对范围（见 m0083 文件头）。
+mod m0083_add_remark_to_ar_collections;
+
 pub struct Migration;
 
 impl MigrationName for Migration {
@@ -531,6 +536,9 @@ ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "credit_limit" DECIMAL(12,2);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "customer_code" VARCHAR(255);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "customer_industry" VARCHAR(255);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "customer_name" VARCHAR(255);
+-- 登记（非本行生效说明）：customers.customer_type 早在 system/m0001_initial_schema.rs:332
+-- 以 VARCHAR(20) 建列，本条 ADD COLUMN IF NOT EXISTS 恒为静默 no-op——VARCHAR(255) 与
+-- 任何约束意图从未在本段生效；该列真实宽度/形态口径见 m0001:332 与 business m0078 收口。
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "customer_type" VARCHAR(255);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "inspection_standard" VARCHAR(255);
 ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "main_products" VARCHAR(255);
@@ -842,10 +850,20 @@ CREATE INDEX IF NOT EXISTS "idx_budget_executions_item" ON "budget_executions" (
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // 收款单备注列：注册在本域 up 链最末——目标表 ar_collections 由 business 域
+        // m0012 建表（早于本域），补列不回填历史 check_no 中混入的备注（见文件头）。
+        m0083_add_remark_to_ar_collections::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
-    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 收款单备注列：最后应用者最先回滚（仅 DROP 本迁移补的 remark 列，
+        // 不触碰其他列与任何数据行）
+        m0083_add_remark_to_ar_collections::Migration
+            .down(manager)
+            .await?;
         Ok(())
     }
 }

@@ -26,6 +26,9 @@ pub struct Model {
     pub dye_lot_no: Option<String>,
     /// 批号（面料行业追溯字段）
     pub batch_no: String,
+    /// 匹号（出库四维=缸号/色号/批次/匹号之第四维，用户 2026-10-02 纠正口径；
+    /// 染色布必填、白坯布合法为 NULL；m0066 补列）
+    pub piece_no: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

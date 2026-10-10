@@ -130,6 +130,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -249,7 +250,7 @@ const deleteRole = async (row: Role) => {
     fetchRoles();
   } catch (e: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
-    if (e !== 'cancel')
+    if (!isDialogDismissal(e))
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('system.role.message.deleteFailed')
       );

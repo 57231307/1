@@ -109,19 +109,28 @@ pub async fn create_adjustment(
     let adjustment_date: DateTime<Utc> = payload
         .adjustment_date
         .parse::<DateTime<Utc>>()
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let mut items = Vec::with_capacity(payload.items.len());
     for item in payload.items {
         let quantity = item
             .quantity
             .parse::<Decimal>()
-            .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+            .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
 
         items.push(AdjustmentItemRequest {
             stock_id: item.stock_id,
             quantity,
-            unit_cost: item.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+            // unit_cost 非法字符串如实报校验错误：原 and_then(parse.ok()) 把
+            // "abc" 静默塌成 None（=清空成本），与"未提供"不可区分，属吞异常兜底
+            unit_cost: item
+                .unit_cost
+                .map(|s| {
+                    s.parse::<Decimal>().map_err(|e| {
+                        AppError::validation_displayable(format!("成本格式错误：{}", e))
+                    })
+                })
+                .transpose()?,
             notes: item.notes,
         });
     }
@@ -138,10 +147,7 @@ pub async fn create_adjustment(
         items,
     };
 
-    let detail = service
-        .create_adjustment(request)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.create_adjustment(request).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -181,15 +187,9 @@ pub async fn approve_adjustment(
     let service = InventoryAdjustmentService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    service
-        .approve_adjustment(id, user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.approve_adjustment(id, user_id).await?;
 
-    let detail = service
-        .get_adjustment(id, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.get_adjustment(id, None).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -228,15 +228,9 @@ pub async fn reject_adjustment(
 ) -> Result<Json<ApiResponse<AdjustmentResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
 
-    service
-        .reject_adjustment(id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.reject_adjustment(id).await?;
 
-    let detail = service
-        .get_adjustment(id, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.get_adjustment(id, None).await?;
 
     // 发送审批拒绝通知
     if state.event_notification_service.is_none() {
@@ -311,8 +305,7 @@ pub async fn list_adjustments(
             params.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(AdjustmentListResponse {
         adjustments: adjustments
@@ -357,10 +350,7 @@ pub async fn get_adjustment(
     // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
 
-    let detail = service
-        .get_adjustment(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::not_found(e.to_string()))?;
+    let detail = service.get_adjustment(id, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -391,16 +381,49 @@ pub async fn get_adjustment(
     })))
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新调整单请求 DTO
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（warehouse_id/adjustment_date/adjustment_type/reason_type，
+/// m0010_add_inventory_extensions DDL）不开 null 清空，显式 null 由 service 拒绝。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateAdjustmentRequestPayload {
-    pub warehouse_id: Option<i32>,
-    pub adjustment_date: Option<String>,
-    pub adjustment_type: Option<String>,
-    pub reason_type: Option<String>,
-    pub reason_description: Option<String>,
-    pub notes: Option<String>,
+    /// 仓库 ID：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub warehouse_id: Option<Option<i32>>,
+    /// 调整日期：NOT NULL 列——显式 null 被 service 拒绝（格式非法在入口显式报错）
+    #[serde(default, deserialize_with = "double_option")]
+    pub adjustment_date: Option<Option<String>>,
+    /// 调整类型：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub adjustment_type: Option<Option<String>>,
+    /// 原因类型：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_type: Option<Option<String>>,
+    /// 原因说明：DB 可空列 reason_description TEXT（m0010 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason_description: Option<Option<String>>,
+    /// 备注：DB 可空列 notes TEXT（m0010 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 /// 更新调整单
@@ -416,11 +439,13 @@ pub async fn update_adjustment(
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_adjustment(id, Some(&data_scope_ctx)).await?;
 
+    // adjustment_date 三态透传：有值解析为时间戳（格式错误在入口显式报错）、
+    // 显式 null 保持 Some(None) 交 service 判 NOT NULL 列清空拒绝、缺席 None 保持原值
     let adjustment_date = match payload.adjustment_date {
-        Some(s) => Some(
-            s.parse::<DateTime<Utc>>()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?,
-        ),
+        Some(Some(s)) => Some(Some(s.parse::<DateTime<Utc>>().map_err(|e| {
+            AppError::validation_displayable(format!("日期格式错误：{}", e))
+        })?)),
+        Some(None) => Some(None),
         None => None,
     };
 
@@ -433,15 +458,9 @@ pub async fn update_adjustment(
         notes: payload.notes,
     };
 
-    service
-        .update_adjustment(id, req)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.update_adjustment(id, req).await?;
 
-    let detail = service
-        .get_adjustment(id, None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let detail = service.get_adjustment(id, None).await?;
 
     Ok(Json(ApiResponse::success(AdjustmentResponse {
         id: detail.adjustment.id,
@@ -484,23 +503,24 @@ pub async fn delete_adjustment(
     service.get_adjustment(id, Some(&data_scope_ctx)).await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    service
-        .delete_adjustment(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    service.delete_adjustment(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 
 /// 列出调整单的所有明细项
 pub async fn list_items(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<AdjustmentItemResponse>>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
-    let items = service
-        .list_items(id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // IDOR 防护：明细只读同样需 data-scope，先校验父调整单归属（与同文件
+    // update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），
+    // 越权由 get_adjustment 内部 check_resource_owner 返回 403，避免越权枚举他人明细。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_adjustment(id, Some(&data_scope_ctx)).await?;
+
+    let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(
         items
             .into_iter()
@@ -521,24 +541,34 @@ pub async fn list_items(
 /// 向调整单添加明细
 pub async fn add_item(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<AdjustmentItemPayload>,
 ) -> Result<Json<ApiResponse<AdjustmentItemResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：路径 id 即父调整单 id，添加明细前先校验其归属（与同文件
+    // update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），越权 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_adjustment(id, Some(&data_scope_ctx)).await?;
+
     let quantity = payload
         .quantity
         .parse::<Decimal>()
-        .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
     let req = AdjustmentItemRequest {
         stock_id: payload.stock_id,
         quantity,
-        unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+        // unit_cost 非法字符串如实报校验错误（不静默塌成 None=清空成本）
+        unit_cost: payload
+            .unit_cost
+            .map(|s| {
+                s.parse::<Decimal>()
+                    .map_err(|e| AppError::validation_displayable(format!("成本格式错误：{}", e)))
+            })
+            .transpose()?,
         notes: payload.notes,
     };
-    let item = service
-        .add_item(id, req)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let item = service.add_item(id, req).await?;
     Ok(Json(ApiResponse::success(AdjustmentItemResponse {
         id: item.id,
         stock_id: item.stock_id,
@@ -554,24 +584,37 @@ pub async fn add_item(
 /// 更新调整单明细
 pub async fn update_item(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
     Json(payload): Json<AdjustmentItemPayload>,
 ) -> Result<Json<ApiResponse<AdjustmentItemResponse>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：路径仅有 item_id，先反查其所属调整单 id，再走父调整单归属校验
+    // （与同文件 update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），越权 403。
+    let adjustment_id = service.get_adjustment_id_by_item(item_id).await?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    service
+        .get_adjustment(adjustment_id, Some(&data_scope_ctx))
+        .await?;
+
     let quantity = payload
         .quantity
         .parse::<Decimal>()
-        .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
     let req = AdjustmentItemRequest {
         stock_id: payload.stock_id,
         quantity,
-        unit_cost: payload.unit_cost.and_then(|s| s.parse::<Decimal>().ok()),
+        // unit_cost 非法字符串如实报校验错误（不静默塌成 None=清空成本）
+        unit_cost: payload
+            .unit_cost
+            .map(|s| {
+                s.parse::<Decimal>()
+                    .map_err(|e| AppError::validation_displayable(format!("成本格式错误：{}", e)))
+            })
+            .transpose()?,
         notes: payload.notes,
     };
-    let item: inventory_adjustment_item::Model = service
-        .update_item(item_id, req)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    let item: inventory_adjustment_item::Model = service.update_item(item_id, req).await?;
     Ok(Json(ApiResponse::success(AdjustmentItemResponse {
         id: item.id,
         stock_id: item.stock_id,
@@ -587,27 +630,35 @@ pub async fn update_item(
 /// 删除调整单明细
 pub async fn delete_item(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = InventoryAdjustmentService::new(state.db.clone());
+    // IDOR 防护：路径仅有 item_id，先反查其所属调整单 id，再走父调整单归属校验
+    // （与同文件 update/delete_adjustment 的 get_adjustment(Some(&data_scope_ctx)) 同源），越权 403。
+    let adjustment_id = service.get_adjustment_id_by_item(item_id).await?;
+    let data_scope_ctx = auth.to_data_scope_context();
     service
-        .delete_item(item_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+        .get_adjustment(adjustment_id, Some(&data_scope_ctx))
+        .await?;
+
+    service.delete_item(item_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 
-/// 生成库存调整单号 GET /api/v1/erp/inventory/adjustments/generate-no；单据号格式：`IA{yyyyMMdd}{4 位流水}`
-/// 例如 `IA202605140001`。 数据库列 `inventory_adjustments.adjustment_no` 上的 `UNIQUE` 约束负责最终去重。
+/// 生成库存调整单号 GET /api/v1/erp/inventory/adjustments/generate-no；单据号格式：`ADJ{yyyyMMdd}{3 位流水}`
+/// 例如 `ADJ20260514001`。前缀/位数与落库权威
+/// `InventoryAdjustmentService::generate_adjustment_no`（impl_generate_no! "ADJ"，默认 3 位）逐字一致，
+/// 修复展示码≠落库码双轨缺陷（原展示 "IA"/4 位）。
+/// 数据库列 `inventory_adjustments.adjustment_no` 上的 `UNIQUE` 约束负责最终去重。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let adjustment_no = DocumentNumberGenerator::generate_no_with_width(
+    let adjustment_no = DocumentNumberGenerator::generate_no(
         &*state.db,
-        "IA",
+        "ADJ",
         inventory_adjustment::Entity,
         inventory_adjustment::Column::AdjustmentNo,
-        4,
     )
     .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({

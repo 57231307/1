@@ -134,6 +134,7 @@ import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   getARVerificationList,
   getARVerification,
@@ -186,8 +187,9 @@ const handleAutoVerify = async () => {
       t('arModule.verification.auto'),
       { type: 'info' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('ar.VerificationTab.handleAutoVerify', error);
   }
   autoVerifying.value = true;
   try {
@@ -282,7 +284,7 @@ const cancelVerification = async (row: ARVerification) => {
     ElMessage.success(t('common.success'));
     fetchVerifications();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }

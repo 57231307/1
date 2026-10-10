@@ -110,16 +110,17 @@ fn sales_fabric_order_routes() -> Router<AppState> {
             "/fabric-orders/{id}/approve",
             post(sales_fabric_order_handler::approve_fabric_order),
         )
+        .route(
+            "/fabric-orders/{id}/reject",
+            post(sales_fabric_order_handler::reject_fabric_order),
+        )
 }
 
 /// 销售订单路由（nest 到 /api/v1/erp/sales，合并订单 + 面料订单）
 pub fn sales() -> Router<AppState> {
-    // P1-4 修复（2026-06-25 综合审计）：移除 quotations 双重路由注册。
-    // 销售报价单已由 routes/quotations.rs::routes() 统一挂载至
-    // /api/v1/erp/quotations/*（mod.rs:339），该处提供 12 个端点（超集）。
-    // 原 sales.rs::quotations() 仅 8 个端点（子集），双重注册导致：
-    // - 同一资源暴露在两路径，能力不同，前端调用混乱
-    // - 同一报价操作可能命中不同端点，行为不可预测
+    // 销售报价单路由统一由 routes/quotations.rs::routes 挂载至 /api/v1/erp/quotations
+    // （nest 注册见 routes/mod.rs 的 quotations::routes()），本函数不再注册 quotations 端点，
+    // 避免同一资源双路径暴露、行为不可预测。
     Router::new()
         .merge(sales_order_crud_routes())
         .merge(sales_order_delivery_report_routes())
@@ -157,6 +158,10 @@ pub fn sales_contracts() -> Router<AppState> {
         .route(
             "/sales-contracts/{id}/approve",
             post(sales_contract_handler::approve_contract),
+        )
+        .route(
+            "/sales-contracts/{id}/reject",
+            post(sales_contract_handler::reject_contract),
         )
         .route(
             "/sales-contracts/{id}/execute",
@@ -197,12 +202,12 @@ pub fn sales_prices() -> Router<AppState> {
             post(sales_price_handler::approve_price),
         )
         .route(
-            "/sales-prices/history/{product_id}",
-            get(sales_price_handler::get_price_history),
+            "/sales-prices/{id}/reject",
+            post(sales_price_handler::reject_price),
         )
         .route(
-            "/sales-prices/strategies",
-            get(sales_price_handler::list_strategies),
+            "/sales-prices/history/{product_id}",
+            get(sales_price_handler::get_price_history),
         )
 }
 

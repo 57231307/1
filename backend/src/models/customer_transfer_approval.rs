@@ -56,7 +56,9 @@ pub struct Model {
     /// 申请原因（必填）
     pub reason: String,
 
-    /// 是否大客户转移（信用额度超过阈值时自动标记）
+    /// 是否大客户转移（判据唯一：`services/crm/customer_transfer_approval_service.rs`
+    /// `check_large_customer`——线索关联客户的分层列 `customers.tier` 落在
+    /// `constants::customer_tier::MAJOR` 高档集合）
     pub is_large_customer: bool,
 
     /// 审批状态：pending / approved / rejected / cancelled

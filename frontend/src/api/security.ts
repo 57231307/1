@@ -21,12 +21,14 @@ export interface SecurityStats {
 
 export interface LoginLog {
   id: number;
+  // 出参唯一真相：login_security_handler::LoginLogItem（Option 列序列化为 null，不得省略声明）
+  user_id: number | null;
   username: string;
   login_type: string;
   ip_address: string;
-  user_agent: string;
+  user_agent: string | null;
   status: string;
-  fail_reason?: string;
+  fail_reason: string | null;
   login_time: string;
 }
 
@@ -48,12 +50,18 @@ export interface SecurityAlert {
   status: string;
 }
 
+/**
+ * 登录日志查询/导出共用参数（唯一真相：login_security_handler::LoginLogQuery，
+ * 全 Option → 可选）。后端无日期区间字段（date_range 传入即被 Axum 静默丢弃，
+ * 时间范围过滤属后端缺口，已登记串行清单），故不再声明 date_range。
+ * 导出端点固定取前 10000 条，page/page_size 仅对列表生效。
+ */
 export interface SecurityQueryParams {
-  page?: number;
-  page_size?: number;
+  user_id?: number;
   username?: string;
   status?: string;
-  date_range?: string[];
+  page?: number;
+  page_size?: number;
 }
 
 // D14 Batch 5b：原 securityApi.getStats 转为风格 B 函数
@@ -61,11 +69,16 @@ export interface SecurityQueryParams {
 export const getSecurityStats = () => request.get<ApiResponse<SecurityStats>>('/stats');
 
 // D14 Batch 5b：原 securityApi.getLoginLogs 转为风格 B 函数
-// 后端路由 GET /api/v1/erp/login-logs
+// 后端路由 GET /api/v1/erp/login-logs。
+// 注意：该端点分页承载键为 "list"（后端 json!({list,total,page,page_size}) 手拼，
+// 偏离统一 PaginatedResponse{items}——后端信封漂移已登记串行清单，读取处按真实键取）。
 export const getLoginLogList = (params?: SecurityQueryParams) =>
-  request.get<ApiResponse<{ list: LoginLog[]; total: number }>>('/login-logs', {
-    params,
-  });
+  request.get<ApiResponse<{ list: LoginLog[]; total: number; page: number; page_size: number }>>(
+    '/login-logs',
+    {
+      params,
+    }
+  );
 
 // D14 Batch 5b：原 securityApi.getLockedAccounts 转为风格 B 函数
 // 后端路由 GET /api/v1/erp/locked-accounts

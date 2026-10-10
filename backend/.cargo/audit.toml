@@ -11,4 +11,8 @@ ignore = [
     # 影响：未受信任 PDF 文件可触发 SIGABRT DoS。本项目仅使用 printpdf 生成内部 PDF（无外部输入），
     # 风险可接受；待 printpdf 发布兼容版本后立即移除 ignore。
     "RUSTSEC-2026-0187",
+    # rkyv 0.7.46 为 rust_decimal 传递依赖（serde 归档路径），项目未使用 rkyv 反序列化入口，无攻击面；
+    # 修复版 0.8 与 rust_decimal 锁定冲突，待上游升级后移除本豁免。
+    # （自 backend/audit.toml 并入：原路径 cargo-audit 不读取，豁免从未生效，死文件已删除）
+    "RUSTSEC-2026-0235",
 ]

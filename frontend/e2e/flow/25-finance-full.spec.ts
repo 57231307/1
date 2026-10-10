@@ -21,11 +21,30 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
   // ===== API 端点覆盖 =====
   test('资金管理：账户+存取+冻结+转账+审批+报表+预测', async ({ page }) => {
     await verifyEndpointHealthy(page, '/fund-management/accounts?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/fund-management/accounts/by-type');
+    // accounts/by-type 契约（据代码订正判责报告）：报告所称「reports/by-type / report_type /
+    // handlers/report_handler.rs:16 / models/report.rs ReportType 枚举」经全树 grep 均不存在
+    // （backend 无该路由、无 report_handler.rs、无 enum ReportType）。file 25 中本行才是真实 400：
+    // handler fund_management_handler.rs:448-456 AccountsByTypeQuery.account_type:String 必填
+    // （非 Option/无 serde 默认），缺 → serde 400 missing field `account_type`；
+    // service list_accounts_by_type(fund_management_service.rs:706-712) 按 AccountType+ACTIVE 过滤，
+    // 空命中仍 200。按报告本意「取值必须在后端权威词表内」：account_type 权威词表
+    // fund_management_service.rs:23-32（bank/cash/alipay/wechat），取 bank 为合法枚举项
+    // （此为过滤入参，非伪造实体 id；与报告对 report_type 的处理口径一致）。
+    await verifyEndpointHealthy(page, '/fund-management/accounts/by-type?account_type=bank');
     await verifyEndpointHealthy(page, '/fund-management/transfers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/fund-management/transfers/pending');
-    await verifyEndpointHealthy(page, '/fund-management/reports/daily');
-    await verifyEndpointHealthy(page, '/fund-management/reports/monthly');
+    // 资金日报/月报（finance.rs:599/603 已注册）：handler 的 Query 结构体 date / year+month
+    // 为必填(非 Option、无 serde default)，缺参会 400；报表为按日期区间聚合、空数据仍返回 200，
+    // 故用合法当前日期作入参迁回严格(非实体 id 查询、不会 404)。
+    const today = new Date();
+    const fundDailyDate = today.toISOString().slice(0, 10);
+    const fundYear = today.getFullYear();
+    const fundMonth = today.getMonth() + 1;
+    await verifyEndpointHealthy(page, `/fund-management/reports/daily?date=${fundDailyDate}`);
+    await verifyEndpointHealthy(
+      page,
+      `/fund-management/reports/monthly?year=${fundYear}&month=${fundMonth}`
+    );
     await verifyEndpointHealthy(page, '/fund-management/cash-flow-forecast');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
@@ -50,10 +69,14 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     // 应收对账
     await verifyEndpointHealthy(page, '/ar-reconciliations?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/ar-reconciliations-enhanced/aging-report');
+    // 自动对账结果（finance.rs:1027 已注册）：list_results 的 Query 字段全 Option、page 默认 1，
+    // admin 上下文应 2xx → 迁回严格。
     await verifyEndpointHealthy(page, '/ar-reconciliation-alias/auto-reconcile/results');
     // 财务分析
+    // financial-analysis/reports（finance.rs:497，Query<Value> 空参默认分页）与
+    // indicators（finance.rs:515，Query 的 page/page_size 为必填非 Option，缺参 400，故补合法分页）：迁回严格。
     await verifyEndpointHealthy(page, '/financial-analysis/reports');
-    await verifyEndpointHealthy(page, '/financial-analysis/indicators');
+    await verifyEndpointHealthy(page, '/financial-analysis/indicators?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/financial-analysis/dupont');
     // 报表
     await verifyEndpointHealthy(page, '/finance/reports/balance-sheet');
@@ -68,6 +91,7 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     // 预算
     await verifyEndpointHealthy(page, '/budgets?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/budgets/plans?page=1&page_size=5');
+    // 预算执行预警（finance.rs:407 已注册）：budget_year 缺省时后端取当前年度，admin 应 2xx → 迁回严格。
     await verifyEndpointHealthy(page, '/budgets/execution-warnings');
     // 固定资产
     await verifyEndpointHealthy(page, '/fixed-assets?page=1&page_size=5');
@@ -86,7 +110,16 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     }
     // 科目
     await verifyEndpointHealthy(page, '/subjects?page=1&page_size=50');
-    await verifyEndpointHealthy(page, '/assist-accounting?page=1&page_size=5');
+    // assist-accounting 域为 nest 挂载（routes/analytics.rs:596 .nest("/assist-accounting", …)），
+    // 注册面只有子路径 dimensions/records/records/business/records/five-dimension/{id}/
+    // summary/drill-down/balance/check-balance（analytics.rs:44-79，
+    // route-snapshot.txt:219-226 逐一在册）；裸 "/assist-accounting" 根路径【本就无路由】，
+    // 404 是注册面事实而非缺口——该域功能齐全（前端 api/assist-accounting.ts 也只消费子路径），
+    // 旧裸前缀探针属路径写错，改钉真实子路径，不进任何豁免清单。
+    // /records 契约：AssistRecordQueryParams 全 Option（assist_accounting_handler.rs:83-90），
+    // page 缺省 1、page_size 缺省 20 并 clamp；service query_assist_records 无过滤即全表分页，
+    // 空表仍 200（assist_accounting_service.rs:151-171，fetch_page 已做 1→0 对齐）。
+    await verifyEndpointHealthy(page, '/assist-accounting/records?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/period-adjustments?page=1&page_size=5');
   });
 

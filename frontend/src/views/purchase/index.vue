@@ -72,7 +72,7 @@
       @update:form="v => (rcv.receiveForm.value = v)"
     />
 
-    <!-- 查看对话框 -->
+    <!-- 查看对话框（DRAFT 明细行内编辑：色号/辅量/折扣/允差；保存后回源刷新详情与列表合计） -->
     <PurchaseViewDialog
       :model-value="act.viewDialogVisible.value"
       :aria-label="t('purchase.index.viewDlgAriaLabel')"
@@ -82,6 +82,7 @@
       :get-payment-status-type="list.getPaymentStatusType"
       :get-payment-status-text="list.getPaymentStatusText"
       @update:model-value="(v: boolean) => (act.viewDialogVisible.value = v)"
+      @saved="handleItemSaved"
     />
   </div>
 </template>
@@ -121,6 +122,14 @@ const rcv = usePurchRcv(list.fetchData, () => list.products.value);
 
 // 新建采购单（表单对话框）
 const create = useCreate(() => list.products.value, list.fetchData);
+
+// 明细行保存成功（PurchaseViewDialog @saved，）
+// 回源刷新详情（后端重算的派生金额列/保密快照以真实出参为准，前端不本地拼算）
+// 并刷新列表（订单合计 total_amount/total_quantity_alt 已随明细更新变化）
+const handleItemSaved = async () => {
+  await act.refreshViewData();
+  await list.fetchData();
+};
 
 // 初始化：按需懒加载数据
 list.initPage();

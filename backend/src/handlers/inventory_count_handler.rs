@@ -20,6 +20,7 @@ use crate::models::inventory_count_item;
 use crate::services::inventory_count_service::{
     CountItemInput, CreateCountRequest, InventoryCountService, UpdateCountRequest,
 };
+use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
@@ -29,6 +30,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 
 /// 创建盘点单请求体
@@ -166,12 +168,23 @@ pub struct ListCountsParams {
     pub count_no: Option<String>,
 }
 
-/// 录入实盘数量请求体
+/// 录入实盘数量请求体（PUT /inventory/counts/items/{item_id}）
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（quantity_actual，inventory_count_item 模型为非 Option Decimal 列）
+/// 不开 null 清空，显式 null 由 service 拒绝。前端 api/inventory-count.ts 的
+/// `updateCountItem` 出参已声明 `notes?: string | null`——后端必须兑现该 null=清空契约，
+/// 否则清空静默失效（单 Option 无适配器会把显式 null 塌成"未提供"）。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateCountItemPayload {
-    pub quantity_actual: Option<rust_decimal::Decimal>,
-    pub notes: Option<String>,
+    /// 实盘数量：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_actual: Option<Option<rust_decimal::Decimal>>,
+    /// 备注：DB 可空列 notes（inventory_count_item 模型 Option<String>）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -189,12 +202,36 @@ pub struct RecordItemInput {
     pub notes: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新盘点单请求体
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（count_date，m0001 DDL）不开 null 清空，显式 null 由 service 拒绝。
 #[derive(Debug, Deserialize)]
 #[allow(dead_code, reason = "反序列化输入字段")]
 pub struct UpdateCountPayload {
-    pub count_date: Option<String>,
-    pub notes: Option<String>,
+    /// 盘点日期：NOT NULL 列——显式 null 被 service 拒绝（格式非法在入口显式报错）
+    #[serde(default, deserialize_with = "double_option")]
+    pub count_date: Option<Option<String>>,
+    /// 备注：DB 可空列 notes TEXT（m0001 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
 }
 
 /// 创建盘点单
@@ -207,7 +244,7 @@ pub async fn create_count(
     let count_date: DateTime<Utc> = payload
         .count_date
         .parse::<DateTime<Utc>>()
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let req = CreateCountRequest {
         warehouse_id: payload.warehouse_id,
@@ -296,13 +333,15 @@ pub async fn update_count(
     let data_scope_ctx = auth.to_data_scope_context();
     service.get_count(id, Some(&data_scope_ctx)).await?;
 
-    let count_date = payload
-        .count_date
-        .map(|s| {
-            s.parse::<DateTime<Utc>>()
-                .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))
-        })
-        .transpose()?;
+    // count_date 三态透传：有值解析为时间戳（格式错误在入口显式报错）、
+    // 显式 null 保持 Some(None) 交 service 判 NOT NULL 列清空拒绝、缺席 None 保持原值
+    let count_date = match payload.count_date {
+        Some(Some(s)) => Some(Some(s.parse::<DateTime<Utc>>().map_err(|e| {
+            AppError::validation_displayable(format!("日期格式错误：{}", e))
+        })?)),
+        Some(None) => Some(None),
+        None => None,
+    };
     let req = UpdateCountRequest {
         count_date,
         notes: payload.notes,
@@ -332,16 +371,23 @@ pub async fn delete_count(
 /// 录入实盘数量并自动计算差异
 pub async fn record_count_items(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<RecordItemsPayload>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
+    // V15：IDOR 防护——录入实盘前先校验资源归属（复用 的 get_count + data_scope_ctx），
+    // 与 update_count/delete_count 的「先 get_count(Some(&data_scope_ctx))」写法同源；
+    // record_count_items 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权由 get_count 返回 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_count(id, Some(&data_scope_ctx)).await?;
+
     let mut inputs = Vec::with_capacity(payload.items.len());
     for it in payload.items {
         let qty = it
             .quantity_actual
             .parse::<Decimal>()
-            .map_err(|e| AppError::validation(format!("数量格式错误：{}", e)))?;
+            .map_err(|e| AppError::validation_displayable(format!("数量格式错误：{}", e)))?;
         inputs.push(CountItemInput {
             stock_id: it.stock_id,
             quantity_actual: qty,
@@ -357,9 +403,16 @@ pub async fn record_count_items(
 /// 提交盘点单进入审批
 pub async fn submit_for_approval(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<CountResponse>>, AppError> {
     let service = InventoryCountService::new(state.db.clone());
+    // V15：IDOR 防护——提交审批前先校验资源归属（复用 的 get_count + data_scope_ctx），
+    // 与 update_count/delete_count 的「先 get_count(Some(&data_scope_ctx))」写法同源；
+    // submit_for_approval 服务侧仅 find_by_id+lock_exclusive 无归属校验，越权由 get_count 返回 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_count(id, Some(&data_scope_ctx)).await?;
+
     let updated = service.submit_for_approval(id).await?;
     let detail = service.get_count(id, None).await?;
     let mut resp: CountResponse = updated.into();
@@ -394,17 +447,19 @@ pub async fn reject_count(
     Ok(Json(ApiResponse::success(resp)))
 }
 
-/// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{4 位流水}`
+/// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{3 位流水}`
+/// 流水位数与落库权威 `InventoryCountService::create_count` 内
+/// `generate_no_with_txn("IC")`（默认 3 位）对齐； 修复同前缀不同位数
+/// 导致列表与库内单号长度不一致（原展示 4 位）。
 /// 对应前端 api/inventory-count.ts 的 generateInventoryCountNo。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let count_no = DocumentNumberGenerator::generate_no_with_width(
+    let count_no = DocumentNumberGenerator::generate_no(
         &*state.db,
         "IC",
         inventory_count::Entity,
         inventory_count::Column::CountNo,
-        4,
     )
     .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -414,12 +469,35 @@ pub async fn generate_no(
 
 /// 更新单条盘点明细 PUT /api/v1/erp/inventory/counts/items/{itemId}
 /// 对应前端 updateCountItem（实盘数量/备注），仅待盘点状态可改。
+///
+/// 子行端点归属门（写前）：`inventory_count_item` 无归属列，归属在父盘点单
+/// `inventory_count.created_by`（models/inventory_count.rs::created_by），本域无
+/// `department_id` 列 ⇒ 取子行→按 `item.count_id` 上溯父单→过
+/// `check_resource_owner_by_member_scope`（判据与父单列表侧 Dept 分支同源）。
+/// 路由为扁平 `/counts/items/{item_id}`，URL 不携带父 id，故父单只能由子行外键反查
+/// 得到，不存在可被伪造的「路径父 id↔子行」配对，配对绕过面天然为空；子行/父单任一
+/// 不存在走 404（文案不含记录 ID），归属门在 service 落库点之前，越权零写入。
 pub async fn update_count_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
     Json(payload): Json<UpdateCountItemPayload>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let item = inventory_count_item::Entity::find_by_id(item_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点明细不存在"))?;
+    let parent = inventory_count::Entity::find_by_id(item.count_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点单不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, parent.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该盘点明细（数据范围限制）",
+        ));
+    }
+
     let updated = InventoryCountService::new(state.db.clone())
         .update_count_item(item_id, payload.quantity_actual, payload.notes)
         .await?;
@@ -435,11 +513,32 @@ pub async fn update_count_item(
 
 /// 删除单条盘点明细 DELETE /api/v1/erp/inventory/counts/items/{itemId}
 /// 对应前端 deleteCountItem，仅待盘点状态可删。
+///
+/// 子行端点归属门（写前）：与 `update_count_item` 同款——`inventory_count_item` 无归属列，
+/// 取子行→按 `item.count_id` 上溯父盘点单→过 `check_resource_owner_by_member_scope`
+/// 判定父单 `created_by`（本域无部门列，判据与父单列表侧 Dept 分支同源）。扁平路由
+/// 不携带父 id，父单由子行外键唯一反查，无「路径父 id↔子行」配对可伪造。子行/父单任一
+/// 不存在走 404（文案不含记录 ID），归属门在 service 删除落库点之前，越权零删除。
 pub async fn delete_count_item(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(item_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let item = inventory_count_item::Entity::find_by_id(item_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点明细不存在"))?;
+    let parent = inventory_count::Entity::find_by_id(item.count_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("盘点单不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, parent.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该盘点明细（数据范围限制）",
+        ));
+    }
+
     InventoryCountService::new(state.db.clone())
         .delete_count_item(item_id)
         .await?;

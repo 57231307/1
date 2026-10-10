@@ -81,6 +81,15 @@
             {{ t('quotations.detail.approverLabel') }}{{ quotation.approved_by_name }}
           </span>
         </el-descriptions-item>
+        <!-- 审批结论回显：approval_reason 为后端出参原文；出参有值才出行，
+             与下方拒绝行同判据（理由列上线前批准的历史行该列为空，不出空行） -->
+        <el-descriptions-item
+          v-if="quotation.approval_reason"
+          :label="t('actionForm.approvalReasonTitle')"
+          :span="3"
+        >
+          <span>{{ quotation.approval_reason }}</span>
+        </el-descriptions-item>
         <el-descriptions-item
           v-if="quotation.rejection_reason"
           :label="t('quotations.detail.labelRejectionReason')"
@@ -192,14 +201,13 @@
 </template>
 
 <script setup lang="ts">
-// 报价单详情页脚本
-// - 加载报价单
-// - 按钮按状态显示
-// - 提交/批准/拒绝/转订单/取消
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
+import { formatDecimalAmount } from '@/utils/money';
 import {
   getQuotation,
   submitQuotation,
@@ -236,7 +244,6 @@ async function loadData() {
     const res = await getQuotation(id);
     quotation.value = res.data as QuotationResponseDto;
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.detail.loadFailed')
     );
@@ -286,12 +293,9 @@ function termTypeLabel(type: TermType): string {
   return TERM_TYPE_LABELS[type] || type;
 }
 
-function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00';
-  return Number(value).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** 金额展示：后端 rust_decimal 出参形态是 JSON 十进制字符串，须经 utils/money 归一后展示 */
+function formatAmount(value?: string | null): string {
+  return formatDecimalAmount(value);
 }
 
 /** 提交审批 */
@@ -305,16 +309,10 @@ async function handleSubmit() {
 /** 批准 */
 async function handleApprove() {
   if (!quotation.value) return;
-  try {
-    await ElMessageBox.confirm(
-      t('quotations.detail.approveConfirmText'),
-      t('quotations.detail.approveConfirmTitle'),
-      { type: 'warning' }
-    );
-  } catch {
-    return;
-  }
-  await approveQuotation(quotation.value.id);
+  // 批准理由后端必填：先经 promptApprovalReason(true) 采集再提交，取消即中止；理由落 sales_quotations.approval_reason 列
+  const approvalReason = await promptApprovalReason(true);
+  if (approvalReason === null) return;
+  await approveQuotation(quotation.value.id, approvalReason);
   ElMessage.success(t('quotations.detail.approveSuccess'));
   loadData();
 }
@@ -322,21 +320,9 @@ async function handleApprove() {
 /** 拒绝 */
 async function handleReject() {
   if (!quotation.value) return;
-  let reason = '';
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t('quotations.detail.rejectPromptText'),
-      t('quotations.detail.rejectTitle'),
-      {
-        inputValidator: (v: string) =>
-          v && v.trim() ? true : t('quotations.detail.rejectReasonRequired'),
-        inputErrorMessage: t('quotations.detail.rejectReasonRequired'),
-      }
-    );
-    reason = value;
-  } catch {
-    return;
-  }
+  // 拒绝理由后端必填：经 promptRejectReason() 采集，取消即中止；理由落 sales_quotations.rejection_reason 列
+  const reason = await promptRejectReason();
+  if (reason === null) return;
   await rejectQuotation(quotation.value.id, reason);
   ElMessage.success(t('quotations.detail.rejectSuccess'));
   loadData();
@@ -351,8 +337,9 @@ async function handleConvert() {
       t('quotations.detail.convertConfirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.detail.handleConvert', error);
   }
   const res = await convertQuotation(quotation.value.id);
   const order: ConvertResponse | undefined = res.data;
@@ -373,8 +360,9 @@ async function handleCancel() {
       t('quotations.detail.cancelConfirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.detail.handleCancel', error);
   }
   await cancelQuotation(quotation.value.id);
   ElMessage.success(t('quotations.detail.cancelSuccess'));

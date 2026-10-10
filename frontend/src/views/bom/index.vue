@@ -238,6 +238,7 @@ import { ref, reactive, computed } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus, Download } from '@element-plus/icons-vue';
 import { exportFromBackend } from '@/utils/export';
 import {
@@ -337,11 +338,19 @@ const formData = reactive({
   is_default: false,
   status: 'draft' as 'draft' | 'active' | 'archived',
   remark: '',
+  // 行对象键名对齐后端 BomItemResponse（api/bom.ts::BomItem）：
+  // handleEdit 灌入 GET /boms/:id 的 items，同名键才能接住回显。
+  // quantity/scrap_rate 后端 Decimal 序列化为字符串（Cargo.toml:60 未启 serde-float），
+  // 类型如实写 string / string|null；el-input-number 需 number 的归一发生在
+  // BillOfMaterialsForm 控件绑定边界，此处（数据回显层）不伪造为 number。
   items: [] as Array<{
-    material_name: string;
-    quantity: number;
-    unit: string;
-    loss_rate: number;
+    id?: number;
+    bom_id?: number;
+    material_id?: number;
+    quantity: string;
+    unit: string | null;
+    scrap_rate: string | null;
+    sort_order?: number | null;
   }>,
 });
 
@@ -400,7 +409,9 @@ const handleEdit = async (row: Bom) => {
     id: source.id,
     product_id: source.product_id,
     product_name: source.product_name,
-    version: source.version,
+    // 响应 version 为 number（后端 i32），表单 el-input 绑字符串，回显转 String；
+    // 提交时 BillOfMaterialsForm 再 Number() 转回数字（保持请求体为 i32）。
+    version: String(source.version ?? ''),
     is_default: source.is_default,
     status: source.status,
     remark: source.remark,
@@ -421,7 +432,7 @@ const handleCopy = async (row: Bom) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('bomModule.message.copyFailed')
@@ -441,7 +452,7 @@ const handleSetDefault = async (row: Bom) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('bomModule.message.setDefaultFailed')
@@ -458,8 +469,9 @@ const handleSubmitApproval = async (row: Bom) => {
       t('bomModule.approve.confirmTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('bom.handleSubmitApproval', error);
   }
   try {
     await submitBom(row.id);
@@ -532,7 +544,7 @@ const handleDelete = async (row: Bom) => {
     fetchData();
   } catch (error: unknown) {
     // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('bomModule.message.deleteFailed')

@@ -8,6 +8,7 @@ import {
   getCtx,
   BASE_URL,
   ensureTestEntities,
+  seedColorCardArchive,
 } from './helpers';
 
 test.describe('面料单据专用字段全链路验证', () => {
@@ -17,14 +18,21 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   // ============================================================
+  // 【响应 id 契约取证 + 唯一编码回读】
+  // 建单响应必须回新建行 id 是后端契约（handlers/outsourcing_handler.rs::create_outsourcing_order
+  // 返回 outsourcing_order::Model，含 id）。
+  // 响应缺 id → 显式判红（不静默绕行）；而后续步骤使用的 id **不依赖响应体**，
+  // 改由唯一 order_no 经真实端点 GET /outsourcing-orders/by-no/{no}（挂载点见 routes/production.rs
+  // 的 get_outsourcing_order_by_no）回读获得，并交叉校验两者一致——把「响应契约」与「链路可用」两件事分开取证。
   test('委外加工订单：面料追溯字段验证', async ({ page }) => {
     const ctx = getCtx();
     const colorNo = ctx.colorNos[0] || 'CN-001';
     const dyeLotNo = ctx.dyeLotNo || genCode('DL');
     const batchNo = genCode('BN');
+    const orderNo = genCode('OS');
 
     const orderData = {
-      order_no: genCode('OS'),
+      order_no: orderNo,
       order_type: 'dyeing',
       supplier_id: ctx.supplierId,
       dye_batch_id: ctx.dyeBatchId,
@@ -42,35 +50,49 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/outsourcing-orders',
       orderData
     );
-    const orderId = result.data?.id;
+    const respId = result.data?.id;
     expect(
-      orderId,
-      `委外加工订单创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+      respId,
+      `委外加工订单建单响应未返回 id（后端建单响应回 id 是契约，缺失即源码缺陷判红；` +
+        `取证见 C:/Users/57231/wave-e2e-misc.md 第 3 节核实表）。实际响应：${JSON.stringify(result).slice(0, 200)}`
     ).toBeTruthy();
 
-    if (orderId) {
-      // 添加发料明细（含面料追溯字段）
-      await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
-        outsourcing_order_id: orderId,
-        product_id: ctx.productIds[0],
-        color_no: colorNo,
-        dye_lot_no: dyeLotNo,
-        batch_no: batchNo,
-        quantity: '100',
-        unit: '米',
-        unit_cost: '5.00',
-      });
-
-      // 查询订单详情
-      const detail = await apiCallRaw<{
-        status: string;
-        color_no: string;
-        dye_lot_no: string;
-      }>(page, 'GET', `/production/outsourcing-orders/${orderId}`);
-
-      expect(detail.color_no).toBe(colorNo);
-      expect(detail.dye_lot_no).toBe(dyeLotNo);
+    // 后续链路使用的 id 以唯一编码回读为准（不依赖响应体）
+    const byNo = await apiCallRaw<{ id?: number; color_no?: string; dye_lot_no?: string }>(
+      page,
+      'GET',
+      `/production/outsourcing-orders/by-no/${encodeURIComponent(orderNo)}`
+    );
+    const orderId = byNo?.id;
+    expect(
+      orderId,
+      `按唯一 order_no=${orderNo} 回读应命中委外订单（by-no 端点回 outsourcing_order::Model 含 id）`
+    ).toBeTruthy();
+    if (respId !== undefined) {
+      expect(orderId, `响应 id 与回读 id 应一致（响应=${respId} 回读=${orderId}）`).toBe(respId);
     }
+
+    // 添加发料明细（含面料追溯字段）
+    await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+      outsourcing_order_id: orderId,
+      product_id: ctx.productIds[0],
+      color_no: colorNo,
+      dye_lot_no: dyeLotNo,
+      batch_no: batchNo,
+      quantity: '100',
+      unit: '米',
+      unit_cost: '5.00',
+    });
+
+    // 查询订单详情（by-no 回读体已是落库真值，再按 id 取详情交叉确认追溯字段）
+    const detail = await apiCallRaw<{
+      status: string;
+      color_no: string;
+      dye_lot_no: string;
+    }>(page, 'GET', `/production/outsourcing-orders/${orderId}`);
+
+    expect(detail.color_no).toBe(colorNo);
+    expect(detail.dye_lot_no).toBe(dyeLotNo);
   });
 
   // ============================================================
@@ -103,7 +125,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       output_quantity_kg: outputKg,
     };
 
-    // 创建失败直接暴露：apiCall 非 2xx 抛错即向上冒泡（原 try/catch 仅 throw e 属空转，已删除）
+    // 创建失败直接暴露：apiCall 非 2xx 即抛错向上冒泡，不静默 catch
     const result = await apiCall<{ id?: number }>(
       page,
       'POST',
@@ -161,7 +183,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       color_no: colorNo,
       items: [
         {
-          // 原材料入库借方：预置科目里"原材料"是 1403（migration finance/mod.rs:728），
+          // 原材料入库借方：预置科目里"原材料"是 1403（migration finance/mod.rs:736），
           // 不存在 1401；用不存在的编码会在凭证 create 的 assist 明细 lookup_subject_id 处
           // 抛"科目不存在"（voucher_ops/assist.rs:177-179）。
           subject_code: '1403',
@@ -185,7 +207,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     };
 
     // 凭证创建端点是 POST /vouchers（routes/finance.rs:224 create_voucher），
-    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由（原写法 404）。
+    // 与下方 GET /vouchers/{id} 同前缀；不存在 /finance/vouchers 路由。
     const result = await apiCall<{ id?: number }>(page, 'POST', '/vouchers', voucherData);
     const voucherId = result.data?.id;
     expect(
@@ -209,7 +231,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       if (firstEntry) {
         expect(firstEntry.assist_grade).toBe('A');
         // 后端 quantity_meters/quantity_kg/unit_price 均为 Decimal，serde 序列化为两位
-        // 小数字符串（"100.00"/"30.00"/"25.50"），断言未对齐真实出参格式 → 数值归一比对。
+        // 小数字符串（"100.00"/"30.00"/"25.50"），断言按数值归一比对。
         expect(Number(firstEntry.quantity_meters)).toBe(100);
         expect(Number(firstEntry.quantity_kg)).toBe(30);
         expect(Number(firstEntry.unit_price)).toBe(25.5);
@@ -237,7 +259,11 @@ test.describe('面料单据专用字段全链路验证', () => {
   test('染色批次：缸号追溯字段验证', async ({ page }) => {
     const ctx = getCtx();
     const batchNo = genCode('DB');
-    const colorNo = ctx.colorNos[0] || 'CN-001';
+    // 染色身份前置：后端归一（dye_batch_handler.rs:203 resolve_dye_color_identity）按提交
+    // 的色号反查**色卡明细档案** color_card_items.color_code 且要求全局唯一命中，
+    // ctx.colorNos 是 product_colors 产品维度档案、不可作反查源，故自建专属色卡+唯一入档色号。
+    const archive = await seedColorCardArchive(page, { context: '21d 染色批次' });
+    const colorNo = archive.colorCode;
     const dyeLotNo = ctx.dyeLotNo || genCode('DL');
 
     const batchData = {
@@ -255,24 +281,42 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/dye-batches',
       batchData
     );
-    const batchId = result.data?.id;
+    const respId = result.data?.id;
     expect(
-      batchId,
-      `染色批次创建应返回 data.id，实际响应：${JSON.stringify(result).slice(0, 200)}`
+      respId,
+      `染色批次建单响应未返回 id（后端建单响应回 id 是契约，缺失即源码缺陷判红；` +
+        `取证见 C:/Users/57231/wave-e2e-misc.md 第 3 节核实表）。实际响应：${JSON.stringify(result).slice(0, 200)}`
     ).toBeTruthy();
 
-    if (batchId) {
-      const detail = await apiCallRaw<{
-        batch_no: string;
-        color_no: string;
-        dye_lot_no: string;
-        status: string;
-      }>(page, 'GET', `/production/dye-batches/${batchId}`);
-
-      expect(detail.batch_no).toBe(batchNo);
-      expect(detail.color_no).toBe(colorNo);
-      expect(detail.dye_lot_no).toBe(dyeLotNo);
+    // 后续 id 以唯一 batch_no 回读为准（list 支持 batch_no 过滤，dye_batch_handler.rs::list）
+    const list = await apiCall<{
+      items?: Array<{ id?: number; batch_no?: string; color_no?: string }>;
+    }>(
+      page,
+      'GET',
+      `/production/dye-batches?batch_no=${encodeURIComponent(batchNo)}&page=1&page_size=50`
+    );
+    const row = list.data?.items?.find(it => it.batch_no === batchNo);
+    expect(row, `建单后应能按唯一 batch_no=${batchNo} 回读染色批次`).toBeTruthy();
+    const batchId = row?.id;
+    expect(batchId, `回读行应含 id，实际行：${JSON.stringify(row)}`).toBeTruthy();
+    expect(row!.color_no, `回读 color_no 应等于入档色号 ${colorNo}（后端归一落库真值）`).toBe(
+      colorNo
+    );
+    if (respId !== undefined) {
+      expect(batchId, `响应 id 与回读 id 应一致（响应=${respId} 回读=${batchId}）`).toBe(respId);
     }
+
+    const detail = await apiCallRaw<{
+      batch_no: string;
+      color_no: string;
+      dye_lot_no: string;
+      status: string;
+    }>(page, 'GET', `/production/dye-batches/${batchId}`);
+
+    expect(detail.batch_no).toBe(batchNo);
+    expect(detail.color_no).toBe(colorNo);
+    expect(detail.dye_lot_no).toBe(dyeLotNo);
   });
 
   // ============================================================

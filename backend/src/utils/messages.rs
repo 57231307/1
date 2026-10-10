@@ -74,6 +74,10 @@ pub mod err_msg {
     // === 数据库错误分类（classify_db_*） ===
     pub const DB_DUPLICATE: &str = "数据重复";
     pub const DB_RELATION: &str = "数据关联错误";
+    // 新增：CHECK / NOT NULL 约束违例的独立分类（与 FK/UNIQUE 同源，
+    // 判据为 PostgreSQL SQLSTATE 23514/23502，见 utils::error::classify_db_constraint）
+    pub const DB_CHECK: &str = "数据校验约束违例";
+    pub const DB_NOT_NULL: &str = "必填数据缺失";
     pub const DB_EXEC: &str = "数据库执行错误";
     pub const DB_QUERY_SYNTAX: &str = "查询语法错误";
     pub const DB_QUERY: &str = "数据库查询错误";

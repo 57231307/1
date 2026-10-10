@@ -15,11 +15,11 @@ use crate::models::production_recipe_addition::{
 use crate::models::status::production_recipe as recipe_status;
 use crate::models::status::production_recipe_addition as addition_status;
 use crate::services::production_recipe_service::{
-    ApproveRecipeRequest, CreateProductionRecipeAdditionRequest, ProductionRecipeAdditionQuery,
+    CreateProductionRecipeAdditionRequest, ProductionRecipeAdditionQuery,
     ProductionRecipeAdditionService,
 };
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, check_resource_owner};
+use crate::utils::data_scope::{DataScopeContext, check_resource_owner_by_member_scope};
 use crate::utils::error::AppError;
 
 impl ProductionRecipeAdditionService {
@@ -27,6 +27,7 @@ impl ProductionRecipeAdditionService {
     pub async fn create(
         &self,
         req: CreateProductionRecipeAdditionRequest,
+        user_id: i32,
     ) -> Result<AdditionModel, AppError> {
         // 校验大货处方存在且为 approved 状态
         let recipe = RecipeEntity::find_by_id(req.production_recipe_id)
@@ -44,7 +45,7 @@ impl ProductionRecipeAdditionService {
             )));
         }
 
-        let addition_no = Self::generate_addition_no();
+        let addition_no = self.generate_addition_no().await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = AdditionActiveModel {
@@ -59,10 +60,13 @@ impl ProductionRecipeAdditionService {
             status: Set(addition_status::DRAFT.to_string()),
             approved_by: Set(None),
             approved_at: Set(None),
-            issued_by: Set(req.issued_by),
+            // 开单人取服务端会话（handler 传入的 AuthContext.user_id），请求体不承载身份；
+            // issued_by 列为可空 INTEGER（migration/src/domain/v15/ 域建表迁移），写 Some(user_id)
+            issued_by: Set(Some(user_id)),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
@@ -86,10 +90,10 @@ impl ProductionRecipeAdditionService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("加料处方单 {} 不存在", id)))?;
 
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // production_recipe_addition 表无 department_id，Dept 退化为 Self（按 created_by 校验）
+        // 行级数据权限校验（IDOR 防护）：production_recipe_addition 无 department_id 列，
+        // 使用成员集合归属门与列表侧 apply_data_scope Dept 分支同源判定。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问加料处方单 {}（数据范围限制）",
                     id
@@ -141,11 +145,8 @@ impl ProductionRecipeAdditionService {
     }
 
     /// 审核加料处方（draft → approved）
-    pub async fn approve(
-        &self,
-        id: i32,
-        req: ApproveRecipeRequest,
-    ) -> Result<AdditionModel, AppError> {
+    /// approved_by 是审批人审计列，由 handler 从服务端会话（AuthContext.user_id）传入。
+    pub async fn approve(&self, id: i32, approved_by: i32) -> Result<AdditionModel, AppError> {
         let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, addition_status::APPROVED)?;
 
@@ -159,7 +160,7 @@ impl ProductionRecipeAdditionService {
 
         let mut active: AdditionActiveModel = model.into();
         active.status = Set(addition_status::APPROVED.to_string());
-        active.approved_by = Set(Some(req.approved_by));
+        active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;

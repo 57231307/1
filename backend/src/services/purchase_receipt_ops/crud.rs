@@ -365,6 +365,19 @@ impl PurchaseReceiptService {
         req: UpdatePurchaseReceiptRequest,
         user_id: i32,
     ) -> Result<purchase_receipt::Model, AppError> {
+        // NOT NULL 列门控（purchase_receipt.supplier_id/receipt_date，m0009 DDL）：
+        // 显式 null 在任何 DB 访问前拒绝，错误外显不脱敏，不得塌成"保持原值"
+        if matches!(req.supplier_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "供应商不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.receipt_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "入库日期不能清空：该字段为必填项",
+            ));
+        }
+
         // 批次 18（2026-06-28）：补全事务边界，原实现无事务且 update_with_audit 传 &*self.db 非原子
         let txn = (*self.db).begin().await?;
 
@@ -393,23 +406,28 @@ impl PurchaseReceiptService {
         // 4. 更新入库单（update_with_audit 传 &txn 纳入事务，保证原子性）
         let mut receipt_active: purchase_receipt::ActiveModel = receipt.into();
 
-        if let Some(supplier_id) = req.supplier_id {
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+        // supplier_id/receipt_date 为 NOT NULL 列（Some(None) 已入口拒绝）：仅覆盖/保持
+        if let Some(supplier_id) = req.supplier_id.flatten() {
             receipt_active.supplier_id = Set(supplier_id);
         }
-        if let Some(receipt_date) = req.receipt_date {
+        if let Some(receipt_date) = req.receipt_date.flatten() {
             receipt_active.receipt_date = Set(receipt_date);
         }
+        // department_id/inspector_id/notes/attachment_urls 为 DB 可空列：
+        // Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(department_id) = req.department_id {
-            receipt_active.department_id = Set(Some(department_id));
+            receipt_active.department_id = Set(department_id);
         }
         if let Some(inspector_id) = req.inspector_id {
-            receipt_active.inspector_id = Set(Some(inspector_id));
+            receipt_active.inspector_id = Set(inspector_id);
         }
         if let Some(notes) = req.notes {
-            receipt_active.notes = Set(Some(notes));
+            receipt_active.notes = Set(notes);
         }
         if let Some(attachment_urls) = req.attachment_urls {
-            receipt_active.attachment_urls = Set(Some(attachment_urls));
+            receipt_active.attachment_urls = Set(attachment_urls);
         }
 
         receipt_active.updated_by = Set(Some(user_id));

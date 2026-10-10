@@ -3,6 +3,8 @@ import type { ApiResponse } from '@/types/api';
 
 // 生产订单出参：键 = handlers/production_order_handler.rs 的 ProductionOrderResponse 字段名
 // （snake_case，Option ⇒ | null，NOT NULL ⇒ 必选）。名称类列后端未透出，见下注释。
+// planned_quantity/actual_quantity 后端为 Rust Decimal（handler ProductionOrderResponse:138-139），
+// 序列化为 JSON 字符串，渲染处需显式 Number() 转换；提交方向走独立载荷类型（number 入参合法）。
 export interface ProductionOrder {
   id: number;
   order_no: string;
@@ -11,8 +13,8 @@ export interface ProductionOrder {
   // 名称列：ProductionOrderResponse（handlers/production_order_handler.rs:93）只有 product_id、
   // 无 product_name，需后端按 §5 范式 LEFT JOIN product.product_name 输出为 product_name。
   product_name: string | null;
-  planned_quantity: number;
-  actual_quantity?: number;
+  planned_quantity: string;
+  actual_quantity?: string | null;
   planned_start_date: string | null;
   planned_end_date: string | null;
   // 实际起止日期：production_order 表有列（models/production_order.rs），但 ProductionOrderResponse
@@ -78,17 +80,51 @@ export function getProductionOrder(id: number): Promise<ApiResponse<ProductionOr
   return request.get(`/production/production-orders/orders/${id}`);
 }
 
+/**
+ * 创建生产订单载荷 —— 与后端 CreateProductionOrderPayload（handlers/production_order_handler.rs:40，
+ * 字段集 sales_order_id/product_id/planned_quantity/planned_start_date/planned_end_date/priority/
+ * work_center_id/remarks）对齐，独立于出参类型 ProductionOrder 声明：出参 planned_quantity 是
+ * Decimal 序列化字符串、入参是 Decimal（rust_decimal 反序列化同时接受 JSON number，见
+ * rust_decimal-1.42.1/src/serde.rs visit_f64），两形状不可共用一个类型。
+ * 单号 order_no 由服务端取号，该端点不接收，禁止声明/提交；id/status 不在后端入参结构内，同理不带。
+ * 键全可选 = 保持既有提交行为：表单缺值时键被 JSON 剔除，由后端 serde 必填校验在请求边界显式 422。
+ */
+export interface CreateProductionOrderPayload {
+  sales_order_id?: number | null;
+  product_id?: number;
+  planned_quantity?: number;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
+  priority?: number;
+  work_center_id?: number | null;
+  remarks?: string | null;
+}
+
 // 创建生产订单
 export function createProductionOrder(
-  data: Partial<ProductionOrder>
+  data: CreateProductionOrderPayload
 ): Promise<ApiResponse<ProductionOrder>> {
   return request.post('/production/production-orders/orders', data);
+}
+
+// 更新生产订单载荷 —— 逐字段对齐后端 UpdateProductionOrderPayload
+// （handlers/production_order_handler.rs，三态语义 RFC 7386 JSON Merge Patch）：
+// 键缺席=保持原值、显式 null=清空为 NULL（仅后端 DB 可空列，见下 | null 声明）、有值=覆盖。
+// NOT NULL 列（planned_quantity/priority，backend/migration/src/domain/business/m0007_add_mrp_production_bom.rs:78/84）
+// 不声明 null：清空必被后端 business_displayable 拒绝，前端禁送。
+export interface UpdateProductionOrderPayload {
+  planned_quantity?: number;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
+  priority?: number;
+  work_center_id?: number | null;
+  remarks?: string | null;
 }
 
 // 更新生产订单
 export function updateProductionOrder(
   id: number,
-  data: Partial<ProductionOrder>
+  data: UpdateProductionOrderPayload
 ): Promise<ApiResponse<ProductionOrder>> {
   return request.put(`/production/production-orders/orders/${id}`, data);
 }
@@ -120,13 +156,15 @@ export function approveProductionOrder(
 }
 
 // 汇报生产进度
-// 后端 UpdateProgressRequest（handlers/production_order_handler.rs:320）仅接受
-// actual_quantity / remarks 两字段，无次品数量列——故此处不再发送 defect_quantity（详见交付报告的能力缺口）。
+// 后端 UpdateProgressRequest（handlers/production_order_handler.rs）现为三态 DTO
+// （actual_quantity/remarks 均 DB 可空列 m0007:79/86）：
+// 键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+// 无次品数量列——此处不发送 defect_quantity（详见交付报告能力缺口）。
 export function reportProductionProgress(
   id: number,
   data: {
-    actual_quantity: number;
-    remarks?: string;
+    actual_quantity?: number | null;
+    remarks?: string | null;
   }
 ): Promise<ApiResponse<void>> {
   return request.post(`/production/production-orders/orders/${id}/progress`, data);

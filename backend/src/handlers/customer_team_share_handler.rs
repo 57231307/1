@@ -62,23 +62,26 @@ pub async fn remove_team_member(
 /// 列出客户团队成员
 pub async fn list_team_members(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(customer_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTeamShareService::new(state.db.clone());
-    let list = service.list_team_members(customer_id).await?;
+    let list = service.list_team_members(customer_id, &ctx).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
 }
 
 /// 列出用户参与的团队
 pub async fn list_user_teams(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<UserTeamsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTeamShareService::new(state.db.clone());
+    // query 的 user_id 是可见集内的筛选主体，身份权威是登录人（越权判定在服务层）
     let list = service
-        .list_user_teams(q.user_id, q.active_only.unwrap_or(true))
+        .list_user_teams(q.user_id, q.active_only.unwrap_or(true), &ctx)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
 }
@@ -86,11 +89,15 @@ pub async fn list_user_teams(
 /// 检查团队成员身份
 pub async fn is_team_member(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<TeamMemberCheckQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTeamShareService::new(state.db.clone());
-    let role = service.is_team_member(q.customer_id, q.user_id).await?;
+    // query 的 user_id 是被查询主体而非身份来源，越权探测在服务层拒绝
+    let role = service
+        .is_team_member(q.customer_id, q.user_id, &ctx)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(role)?)))
 }
 
@@ -101,7 +108,10 @@ pub async fn share_customer(
     Json(req): Json<ShareCustomerRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CustomerTeamShareService::new(state.db.clone());
-    let dto = service.share_customer(req, auth.user_id).await?;
+    // 操作人展示名由入口以真实登录名（auth.username）作入参传入，服务层不得自造
+    let dto = service
+        .share_customer(req, auth.user_id, &auth.username)
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(dto)?)))
 }
 
@@ -119,12 +129,13 @@ pub async fn revoke_share(
 /// 列出客户共享记录
 pub async fn list_customer_shares(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<CustomerIdQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTeamShareService::new(state.db.clone());
     let list = service
-        .list_customer_shares(q.customer_id, q.status)
+        .list_customer_shares(q.customer_id, q.status, &ctx)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
 }
@@ -132,12 +143,14 @@ pub async fn list_customer_shares(
 /// 列出用户收到的共享
 pub async fn list_user_shares(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<UserTeamsQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTeamShareService::new(state.db.clone());
+    // query 的 user_id 是可见集内的筛选主体，身份权威是登录人（越权判定在服务层）
     let list = service
-        .list_user_shares(q.user_id, q.active_only.unwrap_or(true))
+        .list_user_shares(q.user_id, q.active_only.unwrap_or(true), &ctx)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(list)?)))
 }
@@ -145,12 +158,14 @@ pub async fn list_user_shares(
 /// 检查共享权限
 pub async fn check_share_permission(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<TeamMemberCheckQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomerTeamShareService::new(state.db.clone());
+    // query 的 user_id 是被查询主体而非身份来源，越权探测在服务层拒绝
     let perm = service
-        .check_share_permission(q.customer_id, q.user_id)
+        .check_share_permission(q.customer_id, q.user_id, &ctx)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(perm)?)))
 }

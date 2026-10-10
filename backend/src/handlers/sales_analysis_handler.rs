@@ -6,7 +6,8 @@ use crate::models::sales_analysis;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::sales_analysis_service::{
     CreateSalesTargetInput, CustomerRankingParams, ExportParams, ProductRankingParams,
-    SalesAnalysisService, SalesTargetDto, UpdateSalesTargetRequest,
+    SalesAnalysisService, SalesTargetDto, SalesTrendPoint, SalesTrendQueryParams,
+    UpdateSalesTargetRequest,
 };
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
@@ -31,7 +32,19 @@ pub struct SalesStatisticQuery {
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct TrendQuery {
-    pub period: String,
+    /// 分桶粒度：`day`/`week`/`month`/`quarter`/`year`（与 BI 聚合实现点同词表）。
+    /// 缺省（键不存在，或空串被 `normalize_empty_query_params` 剔除）＝ `month`；
+    /// 非法值不 400：由 service 层回落 `month` 并 `tracing::warn` 留痕（不静默）。
+    pub granularity: Option<String>,
+    /// 起始日期 `YYYY-MM-DD`。与 `end_date` 成对出现；只给一半或形态非法 → 400 `VALIDATION_ERROR`；
+    /// 两者缺省 → 按粒度回看 12 个桶。
+    pub start_date: Option<String>,
+    /// 结束日期 `YYYY-MM-DD`。`end_date < start_date` → 400 `VALIDATION_ERROR`（机器码判点在复用聚合）。
+    pub end_date: Option<String>,
+    /// 桶键等值过滤（如月粒度 `2026-08`）。缺省（键不存在，或空串被 `normalize_empty_query_params`
+    /// 剔除）＝ **不过滤，返回窗口内全部桶**。该 `Option` 缺省不过滤语义沿用已提交的契约，
+    /// 不退回必填，也不得退化成按空串过滤的恒 0 行假过滤。
+    pub period: Option<String>,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -69,19 +82,44 @@ pub async fn list_statistics(
     Ok(Json(ApiResponse::success(statistics)))
 }
 
+/// 销售趋势查询 —— `GET /api/v1/erp/crm/sales-analysis/trends`（别名 `/trend` 挂同一 handler）
+///
+/// 做什么：现算 `sales_orders`，按 `granularity` 分桶返回时间序列（聚合本体复用
+/// `BiAnalysisService::sales_by_time`，出参行类型 `SalesTrendPoint`，`total_amount→amount`
+/// 的键名映射只发生在 service 的唯一映射点）。不再读 `sales_statistics`——该表对实际销售
+/// 零写入方（仅 target 行），读它无论怎么过滤都结构性恒空。
+/// 谁调：前端销售分析页趋势卡片（`api/sales-analysis.ts::getSalesTrendData`）。
+/// 入参：`granularity`（day/week/month/quarter/year，缺省 `month`，非法值回落 `month` 并
+/// `tracing::warn` 留痕，不 400）；`start_date`/`end_date`（`YYYY-MM-DD` 且成对，缺省按粒度
+/// 回看 12 桶；`end_date < start_date` → 400 + `VALIDATION_ERROR`）；
+/// `period`（桶键等值过滤，`Option` 缺省不过滤语义沿用已提交契约，不退回必填）。
+/// 返回什么：`ApiResponse<Vec<SalesTrendPoint>>`，`data` 恒为数组；窗口内真无销售 ⇒
+/// `200 + []`（真空，与旧"恒空壳表"区分）；桶键升序（定宽前缀，字符串升序＝时间升序）。
+/// 存在哪：读 PostgreSQL `sales_orders`（复用点自带数据范围注入、状态排除门与 5min TTL 缓存）。
 pub async fn get_trends(
     Query(params): Query<TrendQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<SalesTrendPoint>>>, AppError> {
     info!(
-        "用户 {} 正在查询销售趋势，周期：{}",
-        auth.user_id, params.period
+        "用户 {} 正在查询销售趋势，粒度：{:?}，窗口：{:?}..={:?}，桶键过滤：{:?}",
+        auth.user_id, params.granularity, params.start_date, params.end_date, params.period
     );
 
     let service = SalesAnalysisService::new(state.db.clone());
-    let trends = service.get_trends(&params.period).await?;
-    info!("销售趋势查询成功，共 {} 条记录", trends.len());
+    let trends = service
+        .get_trends(
+            SalesTrendQueryParams {
+                granularity: params.granularity,
+                start_date: params.start_date,
+                end_date: params.end_date,
+                period: params.period,
+            },
+            auth.to_data_scope_context(),
+            state.cache.clone(),
+        )
+        .await?;
+    info!("销售趋势查询成功，共 {} 个桶", trends.len());
 
     Ok(Json(ApiResponse::success(trends)))
 }

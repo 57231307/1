@@ -10,7 +10,10 @@ import {
   verifyNetWeight,
   getCtx,
   genCode,
+  genDyeLotNo,
   ensureTestEntities,
+  seedColorCardArchive,
+  tryCleanup,
 } from './helpers';
 
 test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量', () => {
@@ -161,14 +164,57 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
 
   test('L1-9 验证匹号状态机', async ({ page }) => {
     // 后端无匹号列表 API（匹号由色卡审批小样流程内部创建），改用缸号生命周期
-    // 状态机日志（真实端点）验证状态数据可查询
-    const ctx = getCtx();
-    const logs = await apiCallRaw<Record<string, unknown> | unknown[]>(
+    // 状态机日志（真实端点）验证状态数据可查询。
+    // 判责 §2.4-C：原实现直接拼 ctx.dyeBatchId——globalSeed 染色批次种子因
+    // 「色号 E2E-GCxxxxxx 在色卡档案中不存在」失败后 id=undefined 落入 path，被
+    // by-batch/{batch_id}: Path<i32> 正当 400（routes/production.rs:474 +
+    // dye_batch_state_machine_handler.rs:150-153）。正解=本用例自建真实 seed 链，
+    // 维度不省：色号必须先入色卡明细档案（dye_batch_handler.rs::resolve_dye_color_identity
+    // 对非空 color_no 全局反查 color_card_items.color_code 且要求唯一命中，校验正当），
+    // 染色布 dye_lot_no 必填（缺失显式 400），再建缸号。先例 flow/03-production 3-3。
+    const archive = await seedColorCardArchive(page, { context: '10a L1-9 缸号链' });
+    const dyeLotNo = genDyeLotNo();
+    const batchNo = genCode('缸');
+    const batch = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
+      batch_no: batchNo,
+      color_no: archive.colorCode,
+      dye_lot_no: dyeLotNo,
+      planned_quantity: 1000,
+      status: 'pending_schedule',
+    });
+    const batchId = batch.data?.id;
+    if (!batchId) {
+      throw new Error(
+        `[L1-9] 缸号建单未返回 id（后端建单回 id 为契约），实际响应：${JSON.stringify(batch)}`
+      );
+    }
+    // 写后维度回读：缸号详情（get_dye_batch 出参 dye_batch::Model 全列）必须落真实
+    // 入档色号与缸号——任一维被吞/被兜底即判红。
+    const detail = await apiCallRaw<{
+      batch_no: string;
+      color_no: string | null;
+      dye_lot_no: string;
+      status: string;
+    }>(page, 'GET', `/production/dye-batches/${batchId}`);
+    expect(String(detail.batch_no), '缸号回读 batch_no 应等于提交值').toBe(batchNo);
+    expect(String(detail.color_no), '缸号回读 color_no 应等于入档色号').toBe(archive.colorCode);
+    expect(String(detail.dye_lot_no), '缸号回读 dye_lot_no 应等于提交缸号').toBe(dyeLotNo);
+
+    const logs = await apiCallRaw<unknown>(
       page,
       'GET',
-      `/production/dye-batch-lifecycle-logs/by-batch/${ctx.dyeBatchId}`
+      `/production/dye-batch-lifecycle-logs/by-batch/${batchId}`
     );
-    expect(logs).toBeDefined();
+    // 出参为 Vec<dye_batch_lifecycle_log::Model> 裸数组（handler:153 ApiResponse<Vec<...>>），
+    // 断形状不兜底：非数组=信封漂移即红（严于修复前的 toBeDefined 空断，只增不减）。
+    expect(
+      Array.isArray(logs),
+      `生命周期日志出参应为数组，实际：${JSON.stringify(logs).slice(0, 200)}`
+    ).toBe(true);
+    console.log(
+      `[L1-9] 缸号 ${batchNo}(id=${batchId}) 生命周期日志条数=${(logs as unknown[]).length}`
+    );
+    await tryCleanup(page, 'DELETE', `/production/dye-batches/${batchId}`, '[L1-9] 染色批次');
   });
 
   test('L1-10 验证低库存预警', async ({ page }) => {

@@ -79,20 +79,72 @@ impl ArReconciliationService {
     /// 解析并校验匹配策略，返回 (run_exact, run_date_order) 开关
     fn parse_match_strategy(req: &AutoMatchRequest) -> Result<(bool, bool), AppError> {
         // match_strategy 控制：exact=仅策略1 / date_order=策略1+2 / all=全策略（默认）
-        let strategy = req
-            .match_strategy
-            .as_deref()
-            .unwrap_or("all")
-            .to_lowercase();
+        let strategy = Self::normalize_match_strategy(req.match_strategy.as_deref())?;
+        let run_exact = matches!(strategy.as_str(), "exact" | "date_order" | "all");
+        let run_date_order = matches!(strategy.as_str(), "date_order" | "all");
+        Ok((run_exact, run_date_order))
+    }
+
+    /// 归一并校验匹配策略字符串（auto_match 在任何 DB 调用之前的纯算法段，生产与
+    /// 集成测试同源调用，禁止测试侧另写复现）。缺省取 "all"，大小写不敏感；
+    /// 非法策略返回可外显校验族 `AppError::validation_displayable`——策略词表是
+    /// 用户可自助修正的公开规则，拒绝原因必须外显而非脱敏。
+    pub fn normalize_match_strategy(raw: Option<&str>) -> Result<String, AppError> {
+        let strategy = raw.unwrap_or("all").to_lowercase();
         if !matches!(strategy.as_str(), "exact" | "date_order" | "all") {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "无效的匹配策略: {}（支持 exact / date_order / all）",
                 strategy
             )));
         }
-        let run_exact = matches!(strategy.as_str(), "exact" | "date_order" | "all");
-        let run_date_order = matches!(strategy.as_str(), "date_order" | "all");
-        Ok((run_exact, run_date_order))
+        Ok(strategy)
+    }
+
+    /// 期末余额公式（auto_match / generate_reconciliation 同源纯算法，生产与
+    /// 集成测试同源调用，禁止测试侧另写复现）：
+    /// closing_balance = opening_balance + total_invoices - total_collections
+    pub fn compute_closing_balance(
+        opening_balance: Decimal,
+        total_invoices: Decimal,
+        total_collections: Decimal,
+    ) -> Decimal {
+        opening_balance + total_invoices - total_collections
+    }
+
+    /// 策略2 日期顺序匹配的日期窗口阈值（纯判定，不触 DB，生产与集成测试同源调用）：
+    /// 收款日与发票日相差绝对天数 <= 30 天才可配对。
+    pub fn is_within_match_date_window(
+        collection_date: chrono::NaiveDate,
+        invoice_date: chrono::NaiveDate,
+    ) -> bool {
+        (collection_date - invoice_date).num_days().abs() <= 30
+    }
+
+    /// 策略2 部分匹配命中额（纯计算，生产与集成测试同源调用）：
+    /// matched = min(invoice_amount, collection_amount)
+    pub fn compute_matched_amount(invoice_amount: Decimal, collection_amount: Decimal) -> Decimal {
+        std::cmp::min(invoice_amount, collection_amount)
+    }
+
+    /// 匹配明细状态判定（纯判定，生产与集成测试同源调用）：
+    /// matched == amount → ar::MATCH_MATCHED；否则 → ar::MATCH_PARTIAL。
+    pub fn classify_match_status(matched: Decimal, amount: Decimal) -> &'static str {
+        if matched == amount {
+            ar_status::MATCH_MATCHED
+        } else {
+            ar_status::MATCH_PARTIAL
+        }
+    }
+
+    /// auto_match 汇总未匹配数公式（纯计算，生产与集成测试同源调用）：
+    /// unmatched_count = invoice_count + collection_count - matched_count * 2
+    /// （每次匹配消耗 1 张发票 + 1 笔收款，故乘 2）
+    pub fn compute_unmatched_count(
+        invoice_count: usize,
+        collection_count: usize,
+        matched_count: usize,
+    ) -> usize {
+        invoice_count + collection_count - matched_count * 2
     }
 
     /// 加载参与匹配的客户列表（指定 ID 或全量 LIMIT 兜底）
@@ -182,7 +234,8 @@ impl ArReconciliationService {
         let total_collections: Decimal = cust_collections.iter().map(|c| c.collection_amount).sum();
         // 批次 27 v7 P1：单号生成在 txn 内，避免断号/重复
         let reconciliation_no = generate_reconciliation_no(txn).await?;
-        let closing_balance = opening_balance + total_invoices - total_collections;
+        let closing_balance =
+            Self::compute_closing_balance(opening_balance, total_invoices, total_collections);
         let reconciliation = Self::build_match_reconciliation_model(
             req,
             user_id,
@@ -225,7 +278,8 @@ impl ArReconciliationService {
         invoice_count: usize,
         collection_count: usize,
     ) -> AutoMatchResult {
-        let unmatched_count = invoice_count + collection_count - matched_count * 2;
+        let unmatched_count =
+            Self::compute_unmatched_count(invoice_count, collection_count, matched_count);
         AutoMatchResult {
             reconciliation_id,
             reconciliation_no,
@@ -397,14 +451,14 @@ impl ArReconciliationService {
                     rec_id,
                     inv,
                     Some(inv.invoice_amount),
-                    "MATCHED",
+                    ar_status::MATCH_MATCHED,
                     Some(coll.id),
                 ));
                 all_items.push(Self::make_collection_recon_item(
                     rec_id,
                     coll,
                     Some(coll.collection_amount),
-                    "MATCHED",
+                    ar_status::MATCH_MATCHED,
                     Some(inv.id),
                 ));
                 matched_count += 1;
@@ -425,13 +479,13 @@ impl ArReconciliationService {
         let mut matched_count = 0;
         for inv in unmatched_invoices {
             let date_match = remaining_collections.iter().position(|c| {
-                let date_diff = (c.collection_date - inv.invoice_date).num_days().abs();
-                date_diff <= 30
+                Self::is_within_match_date_window(c.collection_date, inv.invoice_date)
             });
 
             if let Some(idx) = date_match {
                 let coll = remaining_collections.remove(idx);
-                let matched = std::cmp::min(inv.invoice_amount, coll.collection_amount);
+                let matched =
+                    Self::compute_matched_amount(inv.invoice_amount, coll.collection_amount);
                 Self::push_date_order_matched_items(rec_id, inv, coll, matched, all_items);
                 matched_count += 1;
             } else {
@@ -455,16 +509,8 @@ impl ArReconciliationService {
         matched: Decimal,
         all_items: &mut Vec<crate::models::ar_reconciliation_item::ActiveModel>,
     ) {
-        let inv_status = if matched == inv.invoice_amount {
-            "MATCHED"
-        } else {
-            "PARTIAL"
-        };
-        let coll_status = if matched == coll.collection_amount {
-            "MATCHED"
-        } else {
-            "PARTIAL"
-        };
+        let inv_status = Self::classify_match_status(matched, inv.invoice_amount);
+        let coll_status = Self::classify_match_status(matched, coll.collection_amount);
         all_items.push(Self::make_invoice_recon_item(
             rec_id,
             inv,

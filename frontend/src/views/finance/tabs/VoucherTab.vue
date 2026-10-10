@@ -41,7 +41,6 @@
       :vouchers="vchr.vouchers"
       :voucher-loading="vchr.voucherLoading"
       :voucher-total="vchr.voucherTotal"
-      :format-money="vchr.formatMoney"
       :get-voucher-status-label="vchr.getVchrStatusLabel"
       :get-voucher-status-type="vchr.getVchrStatusType"
       @view="onView"
@@ -57,6 +56,7 @@
       :voucher-submit-loading="vchr.voucherSubmitLoading"
       :voucher-rules="vchr.voucherRules"
       :leaf-subjects="vchr.leafSubjects"
+      :voucher-types="vchr.voucherTypes"
       :total-debit="vchr.totalDebit"
       :total-credit="vchr.totalCredit"
       :is-balanced="vchr.isBalanced"
@@ -116,7 +116,9 @@ const voucherViewVisible = ref(false);
 const openVoucherDialog = () => {
   vchr.voucherFormRef?.resetFields();
   vchr.voucherForm.voucher_date = new Date().toISOString().split('T')[0];
-  vchr.voucherForm.voucher_type = 'JZ';
+  // P0 修复：凭证类型不预置前端自创码 'JZ'（后端词表 code=记/收/付/转，来自 /vouchers/types），
+  // 置空 + 表单必填校验
+  vchr.voucherForm.voucher_type = '';
   vchr.voucherForm.entries = [
     { subject_id: undefined, debit: 0, credit: 0, summary: '' },
     { subject_id: undefined, debit: 0, credit: 0, summary: '' },
@@ -137,5 +139,6 @@ const onView = (row: Voucher) => {
 // 列表由 useTableApi setup 自动加载，onMounted 仅加载辅助数据
 onMounted(() => {
   vchr.fetchSubjects();
+  vchr.loadVoucherTypes();
 });
 </script>

@@ -98,7 +98,10 @@
             >{{ t('common.delete') }}</el-button
           >
           <el-button
-            v-if="row.status === PURCHASE_ORDER_STATUS.APPROVED"
+            v-if="
+              row.status === PURCHASE_ORDER_STATUS.APPROVED ||
+              row.status === PURCHASE_ORDER_STATUS.PARTIAL_RECEIVED
+            "
             v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
             type="warning"
             link

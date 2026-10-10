@@ -8,7 +8,7 @@ use crate::models::system_version;
 use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
-use crate::utils::response::ApiResponse;
+use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Multipart, Path, State},
@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use tokio::fs;
 use validator::Validate;
 
-/// P0 7-2 修复：要求调用者具备 admin 角色，否则拒绝并记录审计日志。
+/// 要求调用者具备 admin 角色，否则拒绝并记录审计日志。
 /// 系统更新属高危操作（二进制替换/版本回滚可致 RCE），需 handler 层显式校验防中间件被绕过。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
@@ -78,6 +78,8 @@ pub struct CheckUpdateResponse {
     pub file_size: Option<u64>,
     pub release_notes: Option<String>,
     pub published_at: Option<String>,
+    pub current_release_notes: Option<String>,
+    pub current_published_at: Option<String>,
 }
 
 pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>>, AppError> {
@@ -87,6 +89,10 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
     if let Some(err) = result.error {
         return Err(AppError::internal(err));
     }
+
+    let current_release = result.current_release_info.as_ref();
+    let current_release_notes = current_release.and_then(|r| r.body.clone());
+    let current_published_at = current_release.map(|r| r.published_at.clone());
 
     let response = if result.has_update {
         let release = result.release_info.as_ref();
@@ -104,6 +110,8 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
             file_size: asset.map(|a| a.size),
             release_notes: release.and_then(|r| r.body.clone()),
             published_at: release.map(|r| r.published_at.clone()),
+            current_release_notes,
+            current_published_at,
         }
     } else {
         CheckUpdateResponse {
@@ -114,6 +122,8 @@ pub async fn check_for_updates() -> Result<Json<ApiResponse<CheckUpdateResponse>
             file_size: None,
             release_notes: None,
             published_at: None,
+            current_release_notes,
+            current_published_at,
         }
     };
 
@@ -127,7 +137,7 @@ pub async fn download_and_update(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：远程下载并应用更新属高危操作，仅 admin 可执行
+    // 远程下载并应用更新属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let service = SystemUpdateService::new();
@@ -144,15 +154,7 @@ pub async fn download_and_update(
                 "更新下载完成",
             )))
         }
-        Err(e) => {
-            let message = e.to_string();
-            Err(match e {
-                UpdateError::NetworkError(_) => AppError::internal(message),
-                UpdateError::VersionError(_) => AppError::bad_request(message),
-                UpdateError::AlreadyUpdating => AppError::business(message),
-                _ => AppError::internal(message),
-            })
-        }
+        Err(e) => Err(map_update_error(e)),
     }
 }
 
@@ -184,7 +186,7 @@ pub async fn upload_and_update(
     auth: AuthContext,
     multipart: Multipart,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：上传并应用更新包属高危操作（可导致 RCE），仅 admin 可执行
+    // 上传并应用更新包属高危操作（可导致 RCE），仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let update_file = extract_update_file_from_multipart(multipart).await?;
@@ -282,10 +284,14 @@ fn cleanup_file(path: &PathBuf) {
 fn map_update_error(e: UpdateError) -> AppError {
     let message = e.to_string();
     match e {
+        // 完整性/校验值错误属服务端安全护栏判定，映射为 internal（与 facade
+        // From<UpdateError> 一致，不外泄细节），真实原因已在 tracing 中文日志留痕。
         UpdateError::IoError(_)
         | UpdateError::UnzipError(_)
         | UpdateError::BackupError(_)
-        | UpdateError::NetworkError(_) => AppError::internal(message),
+        | UpdateError::NetworkError(_)
+        | UpdateError::IntegrityError(_)
+        | UpdateError::ChecksumUnavailable(_) => AppError::internal(message),
         UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
             AppError::bad_request(message)
         }
@@ -304,7 +310,7 @@ pub async fn rollback_version(
     auth: AuthContext,
     Json(payload): Json<RollbackRequest>,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：版本回滚属高危操作，仅 admin 可执行
+    // 版本回滚属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let service = SystemUpdateService::new();
@@ -321,7 +327,7 @@ pub async fn rollback_version(
                 "版本回滚成功",
             )))
         }
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(map_update_error(e)),
     }
 }
 
@@ -364,7 +370,7 @@ pub async fn list_local_releases() -> Result<Json<ApiResponse<LocalReleasesRespo
             count: releases.len(),
             releases,
         }))),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(map_update_error(e)),
     }
 }
 
@@ -379,14 +385,12 @@ pub async fn apply_local_update(
     auth: AuthContext,
     Json(payload): Json<ApplyLocalUpdateRequest>,
 ) -> Result<Json<ApiResponse<UpdateResult>>, AppError> {
-    // P0 7-2 修复：应用本地更新包属高危操作，仅 admin 可执行
+    // 应用本地更新包属高危操作，仅 admin 可执行
     require_admin_role(&state, &auth).await?;
 
     let service = SystemUpdateService::new();
 
-    let releases = service
-        .list_local_releases()
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let releases = service.list_local_releases().map_err(map_update_error)?;
 
     let release = releases
         .into_iter()
@@ -405,25 +409,8 @@ pub async fn apply_local_update(
                 "本地更新应用成功",
             )))
         }
-        Err(e) => {
-            let message = e.to_string();
-            Err(match e {
-                UpdateError::IoError(_)
-                | UpdateError::UnzipError(_)
-                | UpdateError::BackupError(_)
-                | UpdateError::NetworkError(_) => AppError::internal(message),
-                UpdateError::ValidationError(_) | UpdateError::VersionError(_) => {
-                    AppError::bad_request(message)
-                }
-                UpdateError::AlreadyUpdating => AppError::business(message),
-            })
-        }
+        Err(e) => Err(map_update_error(e)),
     }
-}
-
-pub async fn get_backup_versions() -> Json<ApiResponse<Vec<String>>> {
-    let service = SystemUpdateService::new();
-    Json(ApiResponse::success(service.list_backup_versions()))
 }
 
 // ============================================================================
@@ -478,7 +465,7 @@ async fn push_update_task(
 }
 
 /// system_update_task Model → 前端 `UpdateTask` 契约 JSON
-fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
+pub fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
     serde_json::json!({
         "id": t.id,
         "task_code": t.task_code,
@@ -497,7 +484,7 @@ fn task_to_frontend_json(t: &system_update_task::Model) -> serde_json::Value {
 }
 
 /// system_update_backup Model → 前端 `SystemBackup` 契约 JSON
-fn backup_to_frontend_json(b: &system_update_backup::Model) -> serde_json::Value {
+pub fn backup_to_frontend_json(b: &system_update_backup::Model) -> serde_json::Value {
     serde_json::json!({
         "id": b.id,
         "backup_code": b.backup_code,
@@ -549,8 +536,7 @@ pub async fn create_backup_task(
     auth: AuthContext,
     Json(req): Json<CreateBackupRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     use sea_orm::{ActiveModelTrait, Set};
     let now = chrono::Utc::now();
@@ -689,4 +675,52 @@ pub async fn install_version_update(
         task,
         "版本安装任务已创建",
     )))
+}
+
+/// GET /api/v1/erp/system-update/tasks — 更新任务列表（全表，按 id 降序）
+pub async fn list_update_tasks(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
+    use sea_orm::{EntityTrait, QueryOrder};
+
+    let tasks = system_update_task::Entity::find()
+        .order_by_desc(system_update_task::Column::Id)
+        .all(state.db.as_ref())
+        .await?;
+    let total = tasks.len() as u64;
+    let items: Vec<serde_json::Value> = tasks.iter().map(task_to_frontend_json).collect();
+
+    tracing::info!(
+        "[system_update] list_update_tasks 返回 {} 条更新任务",
+        total
+    );
+
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, 1, total,
+    ))))
+}
+
+/// GET /api/v1/erp/system-update/backups — 备份任务列表（全表，按 id 降序）
+pub async fn list_backup_tasks(
+    State(state): State<AppState>,
+    _auth: AuthContext,
+) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
+    use sea_orm::{EntityTrait, QueryOrder};
+
+    let backups = system_update_backup::Entity::find()
+        .order_by_desc(system_update_backup::Column::Id)
+        .all(state.db.as_ref())
+        .await?;
+    let total = backups.len() as u64;
+    let items: Vec<serde_json::Value> = backups.iter().map(backup_to_frontend_json).collect();
+
+    tracing::info!(
+        "[system_update] list_backup_tasks 返回 {} 条备份记录",
+        total
+    );
+
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        items, total, 1, total,
+    ))))
 }

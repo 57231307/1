@@ -63,9 +63,13 @@
             :placeholder="$t('crmCustomer.filter.customerTypePlaceholder')"
             clearable
           >
-            <el-option :label="$t('crmCustomer.customerType.normal')" value="normal" />
-            <el-option :label="$t('crmCustomer.customerType.vip')" value="vip" />
+            <!-- value 取后端唯一词表 constants::customer_type::ALLOWED 的五个渠道 token；
+                 分层词 normal/vip 不属本列（后端 400 拒绝）。 -->
+            <el-option :label="$t('crmCustomer.customerType.retail')" value="retail" />
             <el-option :label="$t('crmCustomer.customerType.wholesale')" value="wholesale" />
+            <el-option :label="$t('crmCustomer.customerType.distributor')" value="distributor" />
+            <el-option :label="$t('crmCustomer.customerType.manufacturer')" value="manufacturer" />
+            <el-option :label="$t('crmCustomer.customerType.other')" value="other" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('crmCustomer.filter.tag')">
@@ -143,21 +147,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="owner_name" :label="$t('crmCustomer.table.owner')" width="100" />
-        <el-table-column
-          prop="total_amount"
-          :label="$t('crmCustomer.table.totalAmount')"
-          width="120"
-          align="right"
-        >
-          <template #default="{ row }">
-            {{ row.total_amount ? formatCurrency(row.total_amount) : '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="last_follow_up"
-          :label="$t('crmCustomer.table.lastFollowUp')"
-          width="120"
-        />
         <el-table-column prop="status" :label="$t('crmCustomer.table.status')" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
@@ -228,8 +217,10 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('crmCustomer.dialog.customerCode')" prop="customer_code">
+              <!-- 后端更新 DTO（UpdateEnhancedCustomerRequest）无 customer_code 键：编码建档后不可改，编辑态禁用避免假可编辑 -->
               <el-input
                 v-model="formData.customer_code"
+                :disabled="isEdit"
                 :placeholder="$t('crmCustomer.dialog.customerCodePlaceholder')"
               />
             </el-form-item>
@@ -277,9 +268,19 @@
                 :placeholder="$t('crmCustomer.dialog.customerTypePlaceholder')"
                 style="width: 100%"
               >
-                <el-option :label="$t('crmCustomer.customerType.normal')" value="normal" />
-                <el-option :label="$t('crmCustomer.customerType.vip')" value="vip" />
+                <!-- 与筛选下拉同源：五个渠道 token（constants::customer_type::ALLOWED）全覆盖，
+                     少列 distributor/manufacturer 就建不出这两类客户。 -->
+                <el-option :label="$t('crmCustomer.customerType.retail')" value="retail" />
                 <el-option :label="$t('crmCustomer.customerType.wholesale')" value="wholesale" />
+                <el-option
+                  :label="$t('crmCustomer.customerType.distributor')"
+                  value="distributor"
+                />
+                <el-option
+                  :label="$t('crmCustomer.customerType.manufacturer')"
+                  value="manufacturer"
+                />
+                <el-option :label="$t('crmCustomer.customerType.other')" value="other" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -346,13 +347,13 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue';
-import { formatCurrency } from '@/utils';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
 import {
   getCrmTagList,
@@ -361,6 +362,7 @@ import {
   createCustomer,
   type CustomerTag,
   type CustomerWithTags,
+  type EnhancedCustomerUpdateInput,
 } from '@/api/crm-enhanced';
 import { useTableApi } from '@/composables/useTableApi';
 // V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
@@ -427,6 +429,11 @@ const syncQueryParams = () => {
   setQueryParam('tag_id', queryParams.tag_id);
 };
 
+// 缺省渠道与后端 `constants::customer_type::validate(None)` 同源（详见 formData 处注释）。
+// 显式标注 string：const 字面量的类型是 `"other"`，直接喂给 reactive 会让 customer_type
+// 收窄成该单一 token，下拉改选其它渠道时模板赋值过不了 vue-tsc。
+const DEFAULT_CUSTOMER_TYPE: string = 'other';
+
 const formData = reactive({
   id: undefined as number | undefined,
   customer_code: '',
@@ -435,7 +442,9 @@ const formData = reactive({
   contact_phone: '',
   contact_email: '',
   address: '',
-  customer_type: 'normal',
+  // 缺省与后端 `constants::customer_type::validate(None)` 同源写 `other`（渠道未知），
+  // 不由前端替业务方断言"零售/普通"；后端该字段为 Option 无必填门，此处不额外收紧校验。
+  customer_type: DEFAULT_CUSTOMER_TYPE,
   tax_number: '',
   credit_limit: 0,
   bank_name: '',
@@ -468,20 +477,29 @@ const dialogTitle = computed(() =>
 );
 
 // D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
+// 回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表逐值取文案；
+// 未知/历史脏值不吞不造假名，回落显示原始 token。
+// 入参非可选：列表行类型 crm-enhanced.ts 里 customer_type 是必填 string（后端 NOT NULL 列），
+// 前端不得用可选/兜底参数掩盖缺键。
 const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: t('crmCustomer.customerType.normal'),
-    vip: t('crmCustomer.customerType.vip'),
+    retail: t('crmCustomer.customerType.retail'),
     wholesale: t('crmCustomer.customerType.wholesale'),
+    distributor: t('crmCustomer.customerType.distributor'),
+    manufacturer: t('crmCustomer.customerType.manufacturer'),
+    other: t('crmCustomer.customerType.other'),
   };
   return labels[type] || type;
 };
 
+// tag 颜色仅供列表视觉区分，不承载状态/层级语义（同 token 在不同页面配色不同不影响契约）。
 const getCustomerTypeTag = (type: string) => {
   const typeMap: Record<string, string> = {
-    normal: '',
-    vip: 'warning',
+    retail: '',
     wholesale: 'success',
+    distributor: 'warning',
+    manufacturer: 'info',
+    other: 'danger',
   };
   return typeMap[type] || '';
 };
@@ -532,7 +550,7 @@ const resetForm = () => {
   formData.contact_phone = '';
   formData.contact_email = '';
   formData.address = '';
-  formData.customer_type = 'normal';
+  formData.customer_type = DEFAULT_CUSTOMER_TYPE;
   formData.tax_number = '';
   formData.credit_limit = 0;
   formData.bank_name = '';
@@ -567,7 +585,7 @@ const handleDelete = async (row: CustomerListRow) => {
     ElMessage.success(t('crmCustomer.message.deleteSuccess'));
     fetchCustomerList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('crmCustomer.message.deleteFailed'));
     }
@@ -583,7 +601,22 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (isEdit.value) {
-        await updateCustomer(formData.id as number, formData);
+        // 按后端 UpdateEnhancedCustomerRequest 真实键集组下载荷（不含 customer_code/id——
+        // DTO 无此键，多发会被 serde 静默丢弃；customer_code 为建档即定的编码，编辑不修改）
+        const payload: EnhancedCustomerUpdateInput = {
+          customer_name: formData.customer_name,
+          contact_person: formData.contact_person,
+          contact_phone: formData.contact_phone,
+          contact_email: formData.contact_email,
+          address: formData.address,
+          customer_type: formData.customer_type,
+          tax_number: formData.tax_number,
+          credit_limit: formData.credit_limit,
+          bank_name: formData.bank_name,
+          bank_account: formData.bank_account,
+          status: formData.status,
+        };
+        await updateCustomer(formData.id as number, payload);
         ElMessage.success(t('crmCustomer.message.updateSuccess'));
       } else {
         await createCustomer(formData);
@@ -636,7 +669,6 @@ const handlePrint = () => {
       <td>${escapeHtml(item.phone)}</td>
       <td>${escapeHtml(getCustomerTypeLabel(item.customer_type))}</td>
       <td>${escapeHtml(item.owner_name || '-')}</td>
-      <td style="text-align:right">${item.total_amount ? '¥' + item.total_amount.toLocaleString() : '-'}</td>
       <td>${escapeHtml(item.status === 'active' ? t('crmCustomer.status.active') : t('crmCustomer.status.inactive'))}</td>
     </tr>
   `
@@ -657,7 +689,7 @@ const handlePrint = () => {
     <h1>${t('crmCustomer.printDialog.title')}</h1>
     <div class="meta">${t('crmCustomer.printDialog.date')}: ${now} | ${t('crmCustomer.printDialog.total', { count: customers.value.length })}</div>
     <table>
-      <thead><tr><th>${t('crmCustomer.table.customerCode')}</th><th>${t('crmCustomer.table.customerName')}</th><th>${t('crmCustomer.table.contactPerson')}</th><th>${t('crmCustomer.table.phone')}</th><th>${t('crmCustomer.table.type')}</th><th>${t('crmCustomer.table.owner')}</th><th>${t('crmCustomer.table.totalAmount')}</th><th>${t('crmCustomer.table.status')}</th></tr></thead>
+      <thead><tr><th>${t('crmCustomer.table.customerCode')}</th><th>${t('crmCustomer.table.customerName')}</th><th>${t('crmCustomer.table.contactPerson')}</th><th>${t('crmCustomer.table.phone')}</th><th>${t('crmCustomer.table.type')}</th><th>${t('crmCustomer.table.owner')}</th><th>${t('crmCustomer.table.status')}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     </body></html>

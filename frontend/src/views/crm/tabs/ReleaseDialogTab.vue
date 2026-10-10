@@ -70,10 +70,10 @@ const handleSubmit = async () => {
   if (!props.customerId) return;
   try {
     submitLoading.value = true;
-    // P1-5：实际调用释放 API（recycle 释放客户到公海池）
+    // 后端契约 RecycleRequest（crm_pool_handler.rs:45-48）：单条 lead_id 回收，reason 为 Option，空值省略
     await recycleCustomerToPool({
-      customer_ids: [props.customerId],
-      reason: form.reason,
+      lead_id: props.customerId,
+      reason: form.reason || undefined,
     });
     ElMessage.success(t('crmReleaseDialog.message.success'));
     visible.value = false;

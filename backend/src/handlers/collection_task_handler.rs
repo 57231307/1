@@ -109,7 +109,7 @@ pub fn collection_task_err(e: CollectionTaskError) -> AppError {
             "当前状态 {} 不允许此操作（期望 {}）",
             current, expected
         )),
-        CollectionTaskError::Validation(msg) => AppError::validation(msg),
+        CollectionTaskError::Validation(msg) => AppError::validation_displayable(msg),
         CollectionTaskError::Database(e) => AppError::database(e.to_string()),
         // paginate_with_total 返回的 AppError 直接透传
         CollectionTaskError::App(e) => e,
@@ -153,7 +153,7 @@ pub async fn create_task(
 
 /// GET /api/v1/erp/collection-tasks - 任务列表
 pub async fn list_tasks(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListTaskQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<TaskInfo>>>, AppError> {
@@ -161,8 +161,10 @@ pub async fn list_tasks(
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
+    let data_scope_ctx = auth.to_data_scope_context();
+
     let (items, total) = service
-        .list_tasks(query)
+        .list_tasks(query, Some(&data_scope_ctx))
         .await
         .map_err(collection_task_err)?;
     let infos: Vec<TaskInfo> = items.into_iter().map(Into::into).collect();
@@ -176,23 +178,33 @@ pub async fn list_tasks(
 
 /// GET /api/v1/erp/collection-tasks/:id - 任务详情
 pub async fn get_task(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
-    let record = service.get_task(id).await.map_err(collection_task_err)?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_task(id, Some(&data_scope_ctx))
+        .await
+        .map_err(collection_task_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }
 
 /// POST /api/v1/erp/collection-tasks/:id/contact - 记录催收结果
 pub async fn record_contact(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<RecordContactRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
+    // 行级归属门在登记事务之前：越权零登记、任务状态零漂移
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_task(id, Some(&ctx))
+        .await
+        .map_err(collection_task_err)?;
     let record = service
         .record_contact(id, req)
         .await
@@ -202,12 +214,18 @@ pub async fn record_contact(
 
 /// POST /api/v1/erp/collection-tasks/:id/reassign - 重新分配
 pub async fn reassign(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<ReassignTaskRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
+    // 改派只能发生在操作人可见的任务上；跨 owner 代改派另由写门/权限键把关
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_task(id, Some(&ctx))
+        .await
+        .map_err(collection_task_err)?;
     let record = service
         .reassign(id, req)
         .await
@@ -217,12 +235,17 @@ pub async fn reassign(
 
 /// POST /api/v1/erp/collection-tasks/:id/cancel - 取消任务
 pub async fn cancel_task(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<CancelTaskRequest>,
 ) -> Result<Json<ApiResponse<TaskInfo>>, AppError> {
     let service = CollectionTaskService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    service
+        .get_task(id, Some(&ctx))
+        .await
+        .map_err(collection_task_err)?;
     let record = service.cancel(id, req).await.map_err(collection_task_err)?;
     Ok(Json(ApiResponse::success(record.into())))
 }

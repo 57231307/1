@@ -36,6 +36,21 @@ pub struct PurchaseReceiptDto {
     pub confirmed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub confirmed_by: Option<i32>,
 
+    /// 最近一次让步接收理由（真实列，前端详情回显「既有理由」）
+    pub concession_reason: Option<String>,
+    /// 最近一次让步接收操作人（会话派生）
+    pub concession_by: Option<i32>,
+    /// 最近一次让步接收时间
+    pub concession_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 最近一次复检改判理由（真实列）
+    pub rejudge_reason: Option<String>,
+    /// 最近一次复检改判操作人（会话派生）
+    pub rejudge_by: Option<i32>,
+    /// 最近一次复检改判时间
+    pub rejudge_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 复检改判累计次数
+    pub rejudge_count: i32,
+
     /// 供应商名称：supplier_id -> suppliers.supplier_name（LEFT JOIN）
     pub supplier_name: Option<String>,
     /// 仓库名称：warehouse_id -> warehouses.name（LEFT JOIN）
@@ -78,15 +93,71 @@ pub struct CreatePurchaseReceiptRequest {
     pub items: Vec<CreateReceiptItemRequest>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围；本文件 DTO 为 wire 直连，适配器落位 DTO 同文件）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新采购入库单请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（purchase_receipt.supplier_id/receipt_date，m0009 DDL）不开 null 清空，
+/// 显式 null 由 service 拒绝。
 #[derive(Debug, Default, Deserialize)]
 pub struct UpdatePurchaseReceiptRequest {
-    pub supplier_id: Option<i32>,
-    pub receipt_date: Option<chrono::NaiveDate>,
-    pub department_id: Option<i32>,
-    pub inspector_id: Option<i32>,
-    pub notes: Option<String>,
-    pub attachment_urls: Option<Vec<String>>,
+    /// NOT NULL 列 supplier_id（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub supplier_id: Option<Option<i32>>,
+    /// NOT NULL 列 receipt_date（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub receipt_date: Option<Option<chrono::NaiveDate>>,
+    /// DB 可空列 department_id（m0009 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub department_id: Option<Option<i32>>,
+    /// DB 可空列 inspector_id（m0009 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub inspector_id: Option<Option<i32>>,
+    /// DB 可空列 notes TEXT（m0009 DDL）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
+    /// DB 可空列 attachment_urls（m0009 DDL，TEXT 序列化列表）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub attachment_urls: Option<Option<Vec<String>>>,
+}
+
+/// 让步接收请求（POST /purchase/receipts/{id}/concession）
+///
+/// 载荷仅业务值：`reason` 必填（空/纯空白由 service 拒 `VALIDATION_ERROR`）。
+/// **不含任何身份键**——让步操作人一律取会话 `AuthContext.user_id`（本仓裁定：
+/// 身份只认服务端会话，请求体携带的同名键在此类型层即不存在）。
+#[derive(Debug, Deserialize)]
+pub struct ConcedeReceiptRequest {
+    pub reason: Option<String>,
+}
+
+/// 复检改判请求（POST /purchase/receipts/{id}/rejudge）
+///
+/// `inspection_result` 取值对齐既有质检结论权威词表
+/// `models/status/purchase_inventory.rs::purchase_inspection_result`（pass/fail/partial），
+/// 改判目标状态经其 `to_receipt_inspection_status` 同源映射（pass→PASSED，
+/// fail/partial→REJECTED），不手写第二套取值清单。`reason` 必填语义同让步；
+/// 同样不含身份键。
+#[derive(Debug, Deserialize)]
+pub struct RejudgeReceiptRequest {
+    pub inspection_result: Option<String>,
+    pub reason: Option<String>,
 }
 
 /// 创建入库明细请求
@@ -160,23 +231,59 @@ pub struct CreateReceiptItemRequest {
 }
 
 /// 更新入库明细请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（purchase_receipt_item.line_no/product_id/material_code/material_name/
+/// quantity，m0009 DDL）不开 null 清空，显式 null 由 service 拒绝。
 #[derive(Debug, Default, Deserialize)]
 pub struct UpdateReceiptItemRequest {
-    pub line_no: Option<i32>,
-    pub material_id: Option<i32>,
-    pub material_code: Option<String>,
-    pub material_name: Option<String>,
-    pub batch_no: Option<String>,
-    pub color_code: Option<String>,
-    pub lot_no: Option<String>,
-    pub grade: Option<String>,
-    pub gram_weight: Option<Decimal>,
-    pub width: Option<Decimal>,
-    pub quantity: Option<Decimal>,
-    pub quantity_alt: Option<Decimal>,
-    pub unit_price: Option<Decimal>,
-    pub location_code: Option<String>,
-    pub notes: Option<String>,
-    /// 染色匹号
-    pub piece_no: Option<String>,
+    /// NOT NULL 列 line_no（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub line_no: Option<Option<i32>>,
+    /// NOT NULL 列 product_id（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub material_id: Option<Option<i32>>,
+    /// NOT NULL 列 material_code（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub material_code: Option<Option<String>>,
+    /// NOT NULL 列 material_name（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub material_name: Option<Option<String>>,
+    /// DB 可空列 batch_no——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub batch_no: Option<Option<String>>,
+    /// DB 可空列 color_code——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_code: Option<Option<String>>,
+    /// DB 可空列 lot_no——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub lot_no: Option<Option<String>>,
+    /// DB 可空列 grade——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub grade: Option<Option<String>>,
+    /// DB 可空列 gram_weight——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub gram_weight: Option<Option<Decimal>>,
+    /// DB 可空列 width——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub width: Option<Option<Decimal>>,
+    /// NOT NULL 列 quantity（m0009 DDL）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity: Option<Option<Decimal>>,
+    /// DB 可空列 quantity_alt——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity_alt: Option<Option<Decimal>>,
+    /// DB 可空列 unit_price——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_price: Option<Option<Decimal>>,
+    /// DB 可空列 location_code——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub location_code: Option<Option<String>>,
+    /// DB 可空列 notes——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub notes: Option<Option<String>>,
+    /// 染色匹号：DB 可空列 piece_no——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub piece_no: Option<Option<String>>,
 }

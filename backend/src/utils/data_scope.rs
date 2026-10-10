@@ -146,6 +146,12 @@ where
 ///
 /// m_rls_dept_domain：Dept 分支从「单部门 ID 匹配」改为「资源部门 ID ∈ 可见部门集合」，
 /// 与 RLS 策略 dept 分支口径一致。
+///
+/// 与公海可见集（`PoolVisibility::Open`）的关系（写侧边界，**刻意不随读侧放开**）：
+/// 本函数只作用于**私海归属语义**的行；公海行在各写入口（如
+/// `crm_pool_handler::claim_from_pool`）有自己的公海分支，不套用本门——读侧
+/// "多看到公海行"与写侧"能改哪一行"是两个判定，领取/回收/合并的越权门均维持
+/// 现状（All 可越界、Dept 需资源部门在可见集合内、Self 仅本人行），未做任何放松。
 pub fn check_resource_owner(
     ctx: &DataScopeContext,
     resource_owner_id: Option<i32>,
@@ -168,6 +174,91 @@ pub fn check_resource_owner(
             }
         }
     }
+}
+
+/// 单行归属门（**无 `department_id` 列的表专用**）：判据与列表侧
+/// `build_data_scope_condition` 的 Dept 分支同源——「归属人 ∈ 可见部门成员集合」，
+/// 而非资源自身部门列。
+///
+/// 为什么要与 `check_resource_owner` 分家：后者的 Dept 分支只看资源部门 ID，无部门列的表
+/// 只能传 `None` ⇒ 恒判死，部门经理连自己创建的建行都拿不到；而同一张表的列表端点按
+/// `apply_data_scope` 下推时**会**把这些行显示出来，形成"列表能看、点详情/执行动作即 403"
+/// 的自相矛盾，也违背"本人行恒可写（三种 scope 都一样）"的既有裁定。
+///
+/// 规则：`All`=任意行（与读侧同宽，跨 owner 代操作另由写门把关）；`Dept`=本人行或归属人
+/// ∈ 可见部门成员集合（集合为空时退化为仅本人，与列表侧同款守卫）；`Self_`=仅本人行。
+/// 归属人为 `NULL` 的历史行一律拒绝，不放宽成"无主即可读写"。
+pub fn check_resource_owner_by_member_scope(
+    ctx: &DataScopeContext,
+    resource_owner_id: Option<i32>,
+) -> bool {
+    match ctx.scope {
+        DataScope::All => true,
+        DataScope::Dept => match resource_owner_id {
+            Some(owner) => {
+                owner == ctx.user_id
+                    || (!ctx.dept_member_user_ids.is_empty()
+                        && ctx.dept_member_user_ids.contains(&owner))
+            }
+            None => false,
+        },
+        DataScope::Self_ => resource_owner_id == Some(ctx.user_id),
+    }
+}
+
+/// 写侧归属门（用户 2026-10-02 裁定**方案 A**：读可 All，写须 owner 或显式
+/// 「管理员代操作」权限键 + 留痕）。
+///
+/// 为什么读侧和写侧必须分家：`DataScope::All` 的本职是"能看全库"（报表/审计/主管
+/// 复核），把它同时当成"能改任何人的行"就把可见性升级成了可变更权——水平越权缺陷
+/// 正是从这里长出来的。ERP 惯例（超管/审计角色可读全域，代他人操作须显式授权并
+/// 留痕）也按此分家。
+///
+/// 判定：
+/// - **本人行恒可写**（三种 scope 都一样，own row 不需要代操作键）；
+/// - `All`：跨 owner 写只有 `behalf_granted`（持有 `crm_data/cross_owner_write` 键）
+///   才放行；未授予即 403（出参仍是固定脱敏常量，权限文案永久脱敏是硬令）；
+/// - `Dept`：资源部门 ∈ 可见部门集合（部门经理代管本部门是 dept 的本职，不需额外键）；
+/// - `Self_`：仅本人行。
+///
+/// 留痕：走 `behalf_granted` 的跨 owner 写由调用方（handler）在写前打
+/// `crm 代操作写` 结构化日志（含 actor/role/resource/owner），且各写入口本身都经
+/// `AuditLogService::update_with_audit` 落审计行，actor 即操作人，可回溯。
+pub fn check_resource_write_owner(
+    ctx: &DataScopeContext,
+    resource_owner_id: Option<i32>,
+    resource_dept_id: Option<i32>,
+    behalf_granted: bool,
+) -> bool {
+    if resource_owner_id.is_some_and(|owner| owner == ctx.user_id) {
+        return true;
+    }
+    match ctx.scope {
+        DataScope::All => behalf_granted,
+        DataScope::Dept => match resource_dept_id {
+            Some(dept_id) => ctx.dept_ids.contains(&dept_id),
+            None => false,
+        },
+        DataScope::Self_ => false,
+    }
+}
+
+/// 公海行可见性组合方式（`apply_department_scope_with_pool` 的显式口径参数）。
+///
+/// 存在意义：公海放行与 DB 层 RLS 的组合形态必须逐表拍板，不能靠函数隐含。
+/// DB 层 RLS 的公海分支本来就是**独立的 OR 支**（`lead_status='pool'` /
+/// `owner_id=0`，migration `domain/rls_dept/mod.rs:146-159`、`:195-207`），
+/// 应用层若把公海条件 AND 进归属条件，只会遮蔽 DB 本可放行的行（收窄可见集），
+/// 永远不会放大 DB 边界——因此 `Open` 不是放松权限，而是与 DB 同源纠偏。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoolVisibility {
+    /// 公海行可见性与归属条件**相互独立**（OR 组合，与 RLS USING 的公海 OR 支
+    /// 同形态）：`归属条件 OR 公海条件`。Dept/Self 用户都能看全公海行；
+    /// All 本就不加行级过滤。`crm_lead` 调用点使用。
+    Open,
+    /// 公海条件仅在 Dept 分支（有可见部门时）AND 进归属条件，
+    /// Self/All 分支无公海放行。`customers` 调用点使用此口径（不得套用 Open）。
+    Scoped,
 }
 
 /// 为查询构建器应用数据范围过滤（便捷方法，= build_data_scope_condition + query.filter）。
@@ -208,31 +299,77 @@ where
     query.filter(condition)
 }
 
-/// RLS 5 表专用（m_rls_dept_domain）：dept 分支按 department_id 列 IN 可见部门集合，
-/// 与 self 分支及公海分支做 OR 组合，与 RLS 策略 USING 完全同形态（列上可走索引）。
-/// 公海行（customers owner_id=0 / crm_lead lead_status='pool'）由 RLS 放行，
-/// 应用层需同口径放行，避免列表过滤遮蔽公海数据。
-/// 示例：apply_department_scope_with_pool(customer::Entity::find(), &ctx,
-///         customer::Column::OwnerId, customer::Column::DepartmentId,
-///         customer::Column::OwnerId.eq(0))
+/// RLS 5 表专用（m_rls_dept_domain）：带公海分支的数据范围过滤，组合口径由
+/// `PoolVisibility` **显式传入**，函数本身不再隐含公海语义：
+/// - [`PoolVisibility::Open`]（crm_lead 调用点）：
+///   `归属条件 OR 公海条件`——公海行可见性与归属条件相互独立，与 DB 层 RLS
+///   USING 的独立公海 OR 支同形态（`rls_dept/mod.rs:195-207`
+///   `lead_status='pool'`、`:146-159` customers `owner_id=0`）。OR 组合不扩大
+///   DB 边界（DB 层早已放行），只是应用层不再遮蔽本可放行的公海行；Dept 用户
+///   领取公海行后 `lead_status` 变 `new`，独立 OR 支保证其仍可见。写侧越权门
+///   `check_resource_owner` 不受影响（见其文档）。
+/// - [`PoolVisibility::Scoped`]（customers 调用点）：
+///   公海条件仅在 Dept 分支且有可见部门时 AND 进归属条件，
+///   Self/All 分支无公海放行；不得套用 Open。
+///
+/// 示例：`apply_department_scope_with_pool(crm_lead::Entity::find(), &ctx,
+///         crm_lead::Column::OwnerId, crm_lead::Column::DepartmentId,
+///         crm_lead::Column::LeadStatus.eq(lead_status::POOL),
+///         PoolVisibility::Open)`
 pub fn apply_department_scope_with_pool<E, T, U>(
     query: sea_orm::Select<E>,
     ctx: &DataScopeContext,
     owner_column: T,
     department_column: U,
     pool_condition: sea_orm::sea_query::Expr,
+    pool_visibility: PoolVisibility,
 ) -> sea_orm::Select<E>
 where
     E: sea_orm::EntityTrait,
     T: ColumnTrait,
     U: ColumnTrait,
 {
-    let mut condition = build_department_scope_condition(ctx, owner_column, department_column);
-    if ctx.scope == DataScope::Dept && !ctx.dept_ids.is_empty() {
-        // 公海行放行（与 RLS 策略公海分支同口径）
-        condition = condition.add(pool_condition);
-    }
+    let condition = build_department_scope_with_pool_condition(
+        ctx,
+        owner_column,
+        department_column,
+        pool_condition,
+        pool_visibility,
+    );
     query.filter(condition)
+}
+
+/// `apply_department_scope_with_pool` 的条件构造内核（与外层过滤应用分离，
+/// 谓词形态可被 `tests/utils_data_scope_test.rs` 直接断言——防"组合形态只在
+/// 文档里、实际 SQL 无人核验"的假绿）。
+pub fn build_department_scope_with_pool_condition<T, U>(
+    ctx: &DataScopeContext,
+    owner_column: T,
+    department_column: U,
+    pool_condition: sea_orm::sea_query::Expr,
+    pool_visibility: PoolVisibility,
+) -> Condition
+where
+    T: ColumnTrait,
+    U: ColumnTrait,
+{
+    let scope_condition = build_department_scope_condition(ctx, owner_column, department_column);
+    match pool_visibility {
+        PoolVisibility::Open => match ctx.scope {
+            // All：行级本无归属过滤，公海放行无从再 OR（空 Condition = 全量可见）
+            DataScope::All => Condition::all(),
+            // 归属条件与公海条件相互独立（OR），与 RLS USING 同形态
+            _ => Condition::any().add(scope_condition).add(pool_condition),
+        },
+        // 历史组合，逐字符保持现状（customers 可见面本轮零变化）
+        PoolVisibility::Scoped => {
+            let mut condition = scope_condition;
+            if ctx.scope == DataScope::Dept && !ctx.dept_ids.is_empty() {
+                condition = condition.add(pool_condition);
+            }
+            condition
+        }
+    }
 }
 
 /// V15 P0-B10：为 raw SQL 查询构建数据范围过滤片段（用于 Statement::from_sql_and_values 场景，返回可拼接到 WHERE 的 SQL 片段 + 绑定参数）

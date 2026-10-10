@@ -14,6 +14,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use sea_orm::{ActiveModelTrait, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
@@ -262,33 +263,29 @@ pub async fn update_asset(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新固定资产: ID={}", auth.username, id);
 
-    // P1-2j 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = FixedAssetService::new(state.db.clone());
 
-    // 获取现有资产
-    let mut asset = service.get_by_id(id).await?;
+    let asset = service.get_by_id(id).await?;
 
-    // 更新字段
+    // 先转 ActiveModel（全部字段标记为 Unchanged），再逐字段 Set 提交值；
+    // 仅在 DTO 字段为 Some 时写入，None 保持原值不动。
+    let mut active_model: fixed_asset::ActiveModel = asset.into();
+
     if let Some(name) = req.asset_name {
-        asset.asset_name = name;
+        active_model.asset_name = Set(name);
     }
     if let Some(category) = req.asset_category {
-        asset.asset_category = Some(category);
+        active_model.asset_category = Set(Some(category));
     }
     if let Some(spec) = req.specification {
-        asset.specification = Some(spec);
+        active_model.specification = Set(Some(spec));
     }
     if let Some(location) = req.use_location {
-        asset.use_location = Some(location);
+        active_model.use_location = Set(Some(location));
     }
-
-    // 保存更新
-    use sea_orm::ActiveModelTrait;
-    let mut active_model: crate::models::fixed_asset::ActiveModel = asset.into();
-    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
+    active_model.updated_at = Set(chrono::Utc::now());
 
     let updated = active_model.update(&*state.db).await?;
 
@@ -679,7 +676,7 @@ pub async fn create_count_plan(
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]
 pub struct RecordCountItemRequestDto {
-    pub count_id: i32,
+    pub count_id: i64,
     pub asset_id: i32,
     pub actual_original_value: Option<rust_decimal::Decimal>,
     pub actual_net_value: Option<rust_decimal::Decimal>,
@@ -718,7 +715,7 @@ pub async fn record_count_item(
 pub async fn complete_count_plan(
     State(state): State<AppState>,
     auth: AuthContext,
-    Path(plan_id): Path<i32>,
+    Path(plan_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
     let result = service.complete_count_plan(plan_id, auth.user_id).await?;
@@ -730,16 +727,23 @@ pub async fn complete_count_plan(
 }
 
 /// GET /api/v1/erp/fixed-assets/count-plans - 查询盘点计划
+///
+/// `Query<serde_json::Value>` + `as_i64()` 对 urlencoded 的 `?page=2` 恒失败并静默回落第 1 页。
+/// 改 typed DTO：serde 完成字符串→整数转换，非法值 400（范围 clamp 由 service 既有实现负责）。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ListCountPlansQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_count_plans(
     State(state): State<AppState>,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<ListCountPlansQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
-    let page = params.get("page").and_then(|v| v.as_i64()).unwrap_or(1);
-    let page_size = params
-        .get("page_size")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(20);
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20);
     let result = service.list_count_plans(page, page_size).await?;
     Ok(Json(serde_json::json!({
         "code": 200,
@@ -750,7 +754,7 @@ pub async fn list_count_plans(
 /// GET /api/v1/erp/fixed-assets/count-plans/:id/items - 查询盘点明细
 pub async fn list_count_items(
     State(state): State<AppState>,
-    Path(plan_id): Path<i32>,
+    Path(plan_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let service = FixedAssetService::new(state.db.clone());
     let result = service.list_count_items(plan_id).await?;

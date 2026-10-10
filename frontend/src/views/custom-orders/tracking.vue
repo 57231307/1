@@ -14,8 +14,10 @@
             <span class="title"
               >{{ t('customOrders.tracking.title') }} - {{ timeline.order_no }}</span
             >
+            <!-- 标签配色与文案唯一来源 utils/custom-order-status（TagType 函数对
+                 词表外脏值抛错，禁止旧 `STATUS_COLORS[...] || 'info'` 兜底掩盖） -->
             <el-tag
-              :type="STATUS_COLORS[timeline.current_status] || 'info'"
+              :type="customOrderStatusTagType(timeline.current_status)"
               style="margin-left: 12px"
             >
               {{ getStatusLabel(timeline.current_status) }}
@@ -102,13 +104,16 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
-import { getTimeline, CUSTOM_ORDER_STATUS_COLORS as STATUS_COLORS } from '@/api/custom-order';
+import { getTimeline } from '@/api/custom-order';
 import type {
   TimelineProcessNode,
   NodeLog,
   CustomOrderProcessNode,
   OrderTimeline,
 } from '@/api/custom-order';
+// 订单状态词表唯一权威在 utils/custom-order-status.ts（与后端 custom_order::ALL 11 态逐字符同源）：
+// 视图不手写第二套 map，也不按下标取派生表（未知 token 会静默返回 undefined，等同兜底）
+import { customOrderStatusLabelKey, customOrderStatusTagType } from '@/utils/custom-order-status';
 import logger from '@/utils/logger';
 
 const route = useRoute();
@@ -136,22 +141,25 @@ function formatDate(d: string | Date | null | undefined) {
   return new Date(d).toLocaleString('zh-CN');
 }
 
-// 订单状态标签映射函数（i18n）
+// 订单状态标签映射函数（i18n）：与 list.vue 同一范式——labelKey 由权威词表
+// utils/custom-order-status 给出（11 态全覆盖，含 lab_dip/quotation/change_pending）；
+// 词表外取值（历史脏数据/漂移 token）由 normalizeCustomOrderStatus 抛错，
+// 经既有错误边界显式暴露——本仓口径：脏数据要可见，不可被伪装成可读文本。
+// 旧实现的手写 8-token map + `map[status] || status` 兜底已删除。
 const getStatusLabel = (status: string): string => {
-  const map: Record<string, string> = {
-    draft: t('customOrders.status.draft'),
-    yarn_purchasing: t('customOrders.status.yarnPurchasing'),
-    dyeing: t('customOrders.status.dyeing'),
-    finishing: t('customOrders.status.finishing'),
-    delivery: t('customOrders.status.delivery'),
-    after_sales: t('customOrders.status.afterSales'),
-    completed: t('customOrders.status.completed'),
-    cancelled: t('customOrders.status.cancelled'),
-  };
-  return map[status] || status;
+  const key = customOrderStatusLabelKey(status);
+  if (key === undefined) {
+    throw new Error('定制订单状态缺失：custom_orders.status 为 NOT NULL 列，取值不得为空');
+  }
+  return t(key);
 };
 
 // 节点状态标签映射函数（i18n）
+// 注意：pending/in_progress/completed/blocked 是工艺节点状态词表
+// （custom_order_process_nodes.status），与本任务的订单状态权威词表
+// utils/custom-order-status（11 态）是两个不同维度，不在 494dd0f3 收敛范围内；
+// 其 `map[s] || s` 兜底与本文件 getStatusLabel 旧兜底同性质，但节点状态尚无
+// utils 权威表可引，建表+强校验属独立批次，本轮不动（已列入报告）。
 const getNodeStatusText = (s: string): string => {
   const map: Record<string, string> = {
     pending: t('customOrders.tracking.nodeStatusPending'),

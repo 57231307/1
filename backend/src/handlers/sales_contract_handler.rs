@@ -7,6 +7,7 @@ use crate::services::sales_contract_service::{
 };
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
@@ -18,7 +19,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 /// 销售合同查询参数 DTO
@@ -34,7 +35,10 @@ pub struct SalesContractQuery {
 }
 
 /// 创建销售合同请求 DTO
-#[allow(dead_code, reason = "序列化/反序列化字段")]
+///
+/// 创建销售合同请求 DTO：可空列以 Option 表示（`delivery_date` 对应真实列
+/// sales_contracts.delivery_date 可空），并覆盖表头真实列
+/// signed_date/effective_date/expiry_date/payment_method/delivery_location。
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateSalesContractRequestDto {
     pub contract_no: String,
@@ -43,7 +47,12 @@ pub struct CreateSalesContractRequestDto {
     pub total_amount: rust_decimal::Decimal,
     pub contract_type: Option<String>,
     pub payment_terms: Option<String>,
-    pub delivery_date: chrono::NaiveDate,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    pub signed_date: Option<chrono::NaiveDate>,
+    pub effective_date: Option<chrono::NaiveDate>,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub payment_method: Option<String>,
+    pub delivery_location: Option<String>,
     pub remark: Option<String>,
     /// 合同明细行
     #[validate(nested)]
@@ -83,16 +92,93 @@ fn validate_quantity_tolerance_pct(
     Ok(())
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/purchase_contract_handler.rs 中同名适配器形状一致（本批授权文件仅限
+/// 合同/部门，各域 handler 内私有定义；跨域合并到共享工具需动 utils，超出本批授权范围）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// P1-2o 修复（批次 81 v1 复审）：更新销售合同请求 DTO
-/// 替代 update_contract 中的 Json<serde_json::Value>，提供强类型校验
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖；items=明细整表替换。
+/// NOT NULL 列（contract_name/customer_id，m0011 DDL）不开 null 清空，显式 null 由 service 拒绝。
+/// 不含 contract_no：合同编号属系统生成单据号（前端预生成 + /document-no/check 查重，
+/// 数据库 UNIQUE 兜底），编辑链路不接受改写；请求里携带的 contract_no 一律忽略。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct UpdateSalesContractDto {
-    /// 合同名称：可选
+    /// 合同名称：NOT NULL 列——显式 null 被 service 拒绝（业务错误，非脱敏）
+    #[serde(default, deserialize_with = "double_option")]
     #[validate(length(max = 200, message = "合同名称长度不能超过200字符"))]
-    pub contract_name: Option<String>,
-    /// 付款条款：可选
-    pub payment_terms: Option<String>,
+    pub contract_name: Option<Option<String>>,
+    /// 客户ID：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub customer_id: Option<Option<i32>>,
+    /// 合同金额：DB 可空列 total_amount DECIMAL(15,2)（m0011 DDL 核实）
+    #[serde(default, deserialize_with = "double_option")]
+    pub total_amount: Option<Option<rust_decimal::Decimal>>,
+    /// 合同类型：DB 可空列 contract_type VARCHAR(50)（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub contract_type: Option<Option<String>>,
+    /// 付款条款：DB 可空列 payment_terms TEXT（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub payment_terms: Option<Option<String>>,
+    /// 交货日期：DB 可空列 delivery_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub delivery_date: Option<Option<chrono::NaiveDate>>,
+    /// 签订日期：DB 可空列 signed_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub signed_date: Option<Option<chrono::NaiveDate>>,
+    /// 生效日期：DB 可空列 effective_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub effective_date: Option<Option<chrono::NaiveDate>>,
+    /// 到期日期：DB 可空列 expiry_date DATE（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub expiry_date: Option<Option<chrono::NaiveDate>>,
+    /// 付款方式：DB 可空列 payment_method VARCHAR(50)（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub payment_method: Option<Option<String>>,
+    /// 交货地点：DB 可空列 delivery_location VARCHAR(200)（m0011）
+    #[serde(default, deserialize_with = "double_option")]
+    pub delivery_location: Option<Option<String>>,
+    /// 备注：DB 可空列 remark TEXT（m0016 补列）
+    #[serde(default, deserialize_with = "double_option")]
+    pub remark: Option<Option<String>>,
+    /// 明细行（含 quantity_tolerance_pct 的 [0,100] 行级校验，与 create 同口径）。
+    /// 数组字段不开放"显式 null 清全表"：清空明细须传空数组 `[]`，与"键缺席=不动明细"区分。
+    #[validate(nested)]
+    pub items: Option<Vec<CreateContractItemDto>>,
+}
+
+fn map_item_d_tos(
+    items: Option<Vec<CreateContractItemDto>>,
+) -> Option<Vec<CreateContractItemRequest>> {
+    items.map(|items| {
+        items
+            .into_iter()
+            .map(|item| CreateContractItemRequest {
+                product_id: item.product_id,
+                product_name: item.product_name,
+                product_spec: item.product_spec,
+                unit: item.unit,
+                quantity: item.quantity,
+                quantity_tolerance_pct: item.quantity_tolerance_pct,
+                unit_price: item.unit_price,
+                delivery_date: item.delivery_date,
+                remarks: item.remarks,
+            })
+            .collect()
+    })
 }
 
 /// 合同执行请求 DTO
@@ -113,6 +199,20 @@ pub struct CancelSalesContractRequest {
     pub reason: String,
 }
 
+/// 审批通过请求 DTO：通过理由本域必填（缺失/空串/纯空白一律服务端拒绝）。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用走到统一的 `AppError`
+/// 校验信封，而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+#[derive(Debug, Deserialize)]
+pub struct ApproveSalesContractRequest {
+    pub approval_reason: Option<String>,
+}
+
+/// 审批拒绝请求 DTO：拒绝理由全域必填（trim 非空）并落 `rejected_reason` 列。
+#[derive(Debug, Deserialize)]
+pub struct RejectSalesContractRequest {
+    pub reason: String,
+}
+
 /// 获取销售合同列表
 pub async fn list_contracts(
     Query(params): Query<SalesContractQuery>,
@@ -122,6 +222,7 @@ pub async fn list_contracts(
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     info!("用户 {} 正在查询销售合同列表", auth.user_id);
 
+    let scope_ctx = auth.to_data_scope_context();
     let service = SalesContractService::new(state.db.clone());
     let query_params = crate::services::sales_contract_service::SalesContractQueryParams {
         keyword: params.keyword,
@@ -131,7 +232,7 @@ pub async fn list_contracts(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (contracts, _total) = service.get_list(query_params).await?;
+    let (contracts, _total) = service.get_list(query_params, Some(&scope_ctx)).await?;
     info!("销售合同列表查询成功，共 {} 条记录", contracts.len());
 
     // created_by_name 富化：单次批量查询 users.real_name（杜绝逐行查询），
@@ -223,23 +324,13 @@ pub async fn create_contract(
         contract_type: req.contract_type,
         payment_terms: req.payment_terms,
         delivery_date: req.delivery_date,
+        signed_date: req.signed_date,
+        effective_date: req.effective_date,
+        expiry_date: req.expiry_date,
+        payment_method: req.payment_method,
+        delivery_location: req.delivery_location,
         remark: req.remark,
-        items: req.items.map(|items| {
-            items
-                .into_iter()
-                .map(|item| CreateContractItemRequest {
-                    product_id: item.product_id,
-                    product_name: item.product_name,
-                    product_spec: item.product_spec,
-                    unit: item.unit,
-                    quantity: item.quantity,
-                    quantity_tolerance_pct: item.quantity_tolerance_pct,
-                    unit_price: item.unit_price,
-                    delivery_date: item.delivery_date,
-                    remarks: item.remarks,
-                })
-                .collect()
-        }),
+        items: map_item_d_tos(req.items),
     };
 
     let contract = service.create(create_req, auth.user_id).await?;
@@ -248,18 +339,73 @@ pub async fn create_contract(
     Ok(Json(ApiResponse::success(contract)))
 }
 
-/// 审核销售合同
+/// 审核销售合同（通过动作）
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由必填并真实落
+// `approval_reason` 列；拒绝动作在 /reject（理由落 `rejected_reason` 列）。
 pub async fn approve_contract(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
+    payload: OptionalJson<ApproveSalesContractRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    info!("用户 {} 正在审核销售合同 {}", auth.user_id, id);
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400；缺体在此归一为 None，由下方必填分支给出统一 AppError 信封。
+    let approval_reason = payload
+        .0
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            // 可外显文案只定性规则、不带记录 ID（utils/error.rs 安全边界），ID 只进日志。
+            warn!(
+                "用户 {} 审核销售合同被拒：合同 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
+    info!(
+        "用户 {} 正在审核销售合同 {}，通过理由: {}",
+        auth.user_id, id, approval_reason
+    );
 
     let service = SalesContractService::new(state.db.clone());
-    service.approve(id, auth.user_id).await?;
+    service.approve(id, auth.user_id, approval_reason).await?;
 
     let message = format!("合同 {} 审核成功", id);
+    info!("{}", message);
+
+    Ok(Json(ApiResponse::success(message)))
+}
+
+/// 拒绝销售合同（拒绝动作）：draft → rejected 终态流转，拒绝理由落 `rejected_reason` 列
+pub async fn reject_contract(
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<RejectSalesContractRequest>,
+) -> Result<Json<ApiResponse<String>>, AppError> {
+    // 拒绝理由服务端必填（trim 非空），落库为 trim 后的值——与通过理由同一收口口径；
+    // 可外显文案定性、不带记录 ID。
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝销售合同被拒：合同 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
+    info!(
+        "用户 {} 正在拒绝销售合同 {}，拒绝理由: {}",
+        auth.user_id, id, reason
+    );
+
+    let service = SalesContractService::new(state.db.clone());
+    service.reject(id, auth.user_id, reason).await?;
+
+    let message = format!("合同 {} 已拒绝", id);
     info!("{}", message);
 
     Ok(Json(ApiResponse::success(message)))
@@ -320,36 +466,29 @@ pub async fn update_contract(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新销售合同: ID={}", auth.username, id);
 
-    // P1-2o 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // req 为强类型 DTO，经 validator 校验字段，非法返回 400 VALIDATION
     req.validate()
         .map_err(|e| AppError::validation(e.to_string()))?;
 
+    // 更新委托 service.update：事务 + 排他锁 + DRAFT 状态门 + 表头全字段 + 明细整表替换
     let service = SalesContractService::new(state.db.clone());
+    let update_req = crate::services::sales_contract_service::UpdateSalesContractRequest {
+        contract_name: req.contract_name,
+        customer_id: req.customer_id,
+        total_amount: req.total_amount,
+        contract_type: req.contract_type,
+        payment_terms: req.payment_terms,
+        delivery_date: req.delivery_date,
+        signed_date: req.signed_date,
+        effective_date: req.effective_date,
+        expiry_date: req.expiry_date,
+        payment_method: req.payment_method,
+        delivery_location: req.delivery_location,
+        remark: req.remark,
+        items: map_item_d_tos(req.items),
+    };
 
-    // 获取现有合同
-    let mut contract = service.get_by_id(id).await?;
-
-    // 检查状态
-    if contract.status != crate::models::status::contract::DRAFT {
-        return Err(AppError::validation(
-            "只有草稿状态的合同才能修改".to_string(),
-        ));
-    }
-
-    // 更新字段
-    if let Some(name) = req.contract_name {
-        contract.contract_name = name;
-    }
-    if let Some(terms) = req.payment_terms {
-        contract.payment_terms = Some(terms);
-    }
-
-    // 保存更新
-    use sea_orm::ActiveModelTrait;
-    let mut active_model: crate::models::sales_contract::ActiveModel = contract.into();
-    active_model.updated_at = sea_orm::Set(chrono::Utc::now());
-
-    let updated = active_model.update(&*state.db).await?;
+    let updated = service.update(id, update_req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(updated)?,
@@ -372,15 +511,16 @@ pub async fn delete_contract(
 
     // 检查状态
     if contract.status != crate::models::status::contract::DRAFT {
-        return Err(AppError::validation(
+        // 状态门：合同非草稿，删除前置未满足，归业务族；文案纯规则可外显
+        return Err(AppError::business_displayable(
             "只有草稿状态的合同才能删除".to_string(),
         ));
     }
 
-    // 软删除
+    // 软删除（写入值与权威词表 contract 同源，禁止裸字面量）
     use sea_orm::ActiveModelTrait;
     let mut active_model: crate::models::sales_contract::ActiveModel = contract.into();
-    active_model.status = sea_orm::Set("cancelled".to_string());
+    active_model.status = sea_orm::Set(crate::models::status::contract::CANCELLED.to_string());
     active_model.updated_at = sea_orm::Set(chrono::Utc::now());
 
     active_model.update(&*state.db).await?;
@@ -489,6 +629,7 @@ pub async fn export_contracts(
     auth: AuthContext,
     Query(query): Query<SalesContractQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    let scope_ctx = auth.to_data_scope_context();
     let service = SalesContractService::new(state.db.clone());
     // V15 P0-S12 修复（Batch 475d）：导出全量数据（覆盖分页参数）
     let query_params = crate::services::sales_contract_service::SalesContractQueryParams {
@@ -498,7 +639,7 @@ pub async fn export_contracts(
         page: 1,
         page_size: 10000,
     };
-    let (contracts, _total) = service.get_list(query_params).await?;
+    let (contracts, _total) = service.get_list(query_params, Some(&scope_ctx)).await?;
     let row_count = contracts.len();
     // 序列化为 JSON 以统一字段处理
     let contracts_json: Vec<serde_json::Value> = contracts

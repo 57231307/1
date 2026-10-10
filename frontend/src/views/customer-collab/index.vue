@@ -127,13 +127,16 @@
         <el-form-item label="客户ID" required
           ><el-input-number v-model="shareForm.customer_id" :min="1" class="w-full"
         /></el-form-item>
-        <el-form-item label="目标用户ID" required
-          ><el-input-number v-model="shareForm.target_user_id" :min="1" class="w-full"
+        <el-form-item :label="t('crmCustomerShare.sharedToUserId')" required
+          ><el-input-number v-model="shareForm.shared_to_user_id" :min="1" class="w-full"
         /></el-form-item>
         <el-form-item label="权限" required>
+          <!-- 后端词表唯一真相：customer_share.rs SHARE_PERMISSION_VIEW/EDIT/FULL = view/edit/full，
+               服务层 validate_share_permission_type 强校验（旧值 read/write 必 422） -->
           <el-select v-model="shareForm.permission" class="w-full">
-            <el-option label="只读" value="read" />
-            <el-option label="读写" value="write" />
+            <el-option :label="t('crmCustomerShare.permissionView')" value="view" />
+            <el-option :label="t('crmCustomerShare.permissionEdit')" value="edit" />
+            <el-option :label="t('crmCustomerShare.permissionFull')" value="full" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -164,7 +167,9 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   addTeamMember,
@@ -184,6 +189,8 @@ import {
   signContract,
   verifySignature,
 } from '@/api/customer-share';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const activeTab = ref('signature');
 const unwrapList = <T,>(p: unknown): T[] => (p as { data: T[] }).data;
@@ -243,10 +250,22 @@ const shares = ref<Array<Record<string, unknown>>>([]);
 const shareCols = ref<string[]>([]);
 const loadingShare = ref(false);
 const shareVisible = ref(false);
+// 共享权限词表唯一真相 = 后端 validate_share_permission_type
+// （services/crm/customer_team_share_service.rs:677-687，仅 view/edit/full；
+//  旧值 read/write 必 422）。源保持 string 以便 el-select v-model 回写，
+//  提交前用 isSharePermission 显式校验收窄为字面量联合，禁止裸断言。
+const SHARE_PERMISSIONS = ['view', 'edit', 'full'] as const;
+type SharePermission = (typeof SHARE_PERMISSIONS)[number];
+const isSharePermission = (v: string): v is SharePermission =>
+  (SHARE_PERMISSIONS as readonly string[]).includes(v);
+
 const shareForm = reactive({
   customer_id: undefined as number | undefined,
-  target_user_id: undefined as number | undefined,
-  permission: 'read',
+  // 后端 ShareCustomerRequest.shared_to_user_id（i32 非 Option，必填；
+  //  customer_team_share_service.rs:57）；前端旧键名 target_user_id 不在契约内。
+  shared_to_user_id: undefined as number | undefined,
+  // 默认值须落在后端词表内（旧值 read 会被 422 拒绝）；后端缺省口径同为 view。
+  permission: 'view',
 });
 
 async function loadShares() {
@@ -260,18 +279,29 @@ async function loadShares() {
 }
 
 async function onShare() {
-  if (!shareForm.customer_id || !shareForm.target_user_id) {
-    ElMessage.warning('请填写客户与目标用户');
+  if (!shareForm.customer_id || !shareForm.shared_to_user_id) {
+    ElMessage.warning(t('crmCustomerShare.fillCustomerAndUser'));
     return;
   }
-  await createCustomerShare({
-    customer_id: shareForm.customer_id,
-    target_user_id: shareForm.target_user_id,
-    permission: shareForm.permission,
-  });
-  ElMessage.success('已共享');
-  shareVisible.value = false;
-  await loadShares();
+  // 权限经显式类型守卫收窄为 SharePermission 后再赋值，匹配 CreateCustomerShareInput，
+  // 不做 as any/裸断言（后端 read/write 会 422）。
+  const permission = shareForm.permission;
+  if (!isSharePermission(permission)) {
+    ElMessage.warning(t('crmCustomerShare.invalidPermission'));
+    return;
+  }
+  try {
+    await createCustomerShare({
+      customer_id: shareForm.customer_id,
+      shared_to_user_id: shareForm.shared_to_user_id,
+      permission,
+    });
+    ElMessage.success(t('crmCustomerShare.shared'));
+    shareVisible.value = false;
+    await loadShares();
+  } catch (e) {
+    ElMessage.error((e as Error).message || t('common.failed'));
+  }
 }
 
 async function onRevokeShare(row: Record<string, unknown>) {
@@ -337,7 +367,7 @@ async function onSharesByCustomer() {
     shares.value = unwrapList(res);
     ElMessage.success(`客户 ${value} 的共享已加载`);
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '查询失败');
   }
 }
 
@@ -351,7 +381,7 @@ async function onSharesByUser() {
     shares.value = unwrapList(res);
     ElMessage.success(`用户 ${value} 的共享已加载`);
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '查询失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '查询失败');
   }
 }
 
@@ -372,7 +402,7 @@ async function onCheckSharePermission() {
     const res = await checkSharePermission(params);
     ElMessageBox.alert(JSON.stringify(res.data ?? res, null, 2), '权限检查结果');
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '检查失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '检查失败');
   }
 }
 

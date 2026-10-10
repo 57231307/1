@@ -11,6 +11,21 @@ mod m0003_add_dye_tables;
 mod m0004_add_field_permissions;
 mod m0005_add_basic_data_and_system_tables;
 mod m0006_add_general_ledger_and_finance_base;
+// 存量归一迁移；pub：集成测试需直接引用其 SQL 常量在 sqlite 上真跑验证
+pub mod m0007_normalize_account_subject_balance_direction;
+// customers.owner_id 生效列形态归一（可空无默认 → NOT NULL DEFAULT 0）。
+// 必须在域 up 链尾执行：晚于本域 inline 补列块（:233 裸 INTEGER 为该列生效定义，
+// 历史迁移不可改写），且早于 finance 域 customers_isolation RLS policy 建立。
+mod m0070_normalize_customers_owner_id;
+// 凭证/辅助核算的多态来源单据 ID 列拓宽（INTEGER → BIGINT）。
+// 必须在本域 up 链末尾执行：晚于建表迁移（两列均由其创建），且早于任何
+// 依赖 BIGINT 宽度的写入路径上线。
+mod m0088_widen_voucher_business_bill_id;
+// 其余多态单据 ID 列拓宽（INTEGER → BIGINT）。文件留在本域，但 up/down 由 v15 域
+// 在全部建表完成后调用：6 张目标表分散在 system / business / v15，本域 up 链跑完时
+// business 与 v15 的表还不存在，照 m0058/m0063/m0068/m0075 先例后置。
+// 需要跨域可见，故声明为 pub(crate)。
+pub(crate) mod m0089_widen_remaining_polymorphic_bill_id_columns;
 
 pub struct Migration;
 
@@ -34,6 +49,10 @@ impl MigrationTrait for Migration {
             .up(manager)
             .await?;
         m0006_add_general_ledger_and_finance_base::Migration
+            .up(manager)
+            .await?;
+        // balance_direction 中文存量归一为英文权威词表（幂等，可精确回退）
+        m0007_normalize_account_subject_balance_direction::Migration
             .up(manager)
             .await?;
         let sql = r#"ALTER TABLE "accounting_periods" ADD COLUMN IF NOT EXISTS "close_ip" VARCHAR(255);
@@ -235,9 +254,9 @@ ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "color_no" VARCHAR(
 UPDATE "inventory_count_items" SET "color_no" = '' WHERE "color_no" IS NULL;
 ALTER TABLE "inventory_count_items" ADD COLUMN IF NOT EXISTS "dye_lot_no" VARCHAR(255) NOT NULL DEFAULT '';
 UPDATE "inventory_count_items" SET "dye_lot_no" = '' WHERE "dye_lot_no" IS NULL;
--- batch_no：列由 production/mod.rs 以可空 VARCHAR(255) 添加，Model 为 String（非 Option），
--- NULL 行解码报 Missing value for column 'batch_no'（run 34067844812 shard-12）
--- 统一收敛为 NOT NULL DEFAULT '' 并清空存量 NULL
+-- batch_no：production/mod.rs 以可空 VARCHAR(255) 添加该列，而 SeaORM 模型声明为
+-- String（非 Option），NULL 行解码即报 Missing value for column 'batch_no'。
+-- 故在此统一收敛为 NOT NULL DEFAULT ''（存量 NULL 清为空串），使列形态与模型声明一致。
 ALTER TABLE "inventory_count_items" ALTER COLUMN "batch_no" SET DEFAULT '';
 UPDATE "inventory_count_items" SET "batch_no" = '' WHERE "batch_no" IS NULL;
 ALTER TABLE "inventory_count_items" ALTER COLUMN "batch_no" SET NOT NULL;
@@ -368,9 +387,9 @@ ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_amount" DECIMAL(18
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "tax_percent" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "total_amount" DECIMAL(18,4);
 ALTER TABLE "sales_order_items" ADD COLUMN IF NOT EXISTS "width" DECIMAL(18,4);
--- purchase_order_item（单数表，v15 域创建）的折扣率/税率原为 DECIMAL(5,4)（最大 9.9999），
--- 税率 13 插入报 numeric field overflow（backend.log 实证），已直接修改 v15 建表为 DECIMAL(7,4)。
--- 注意：model 表名为单数 purchase_order_item（v15 建表）；m0001 的复数 purchase_order_items
+-- purchase_order_item（单数表，建表 DDL 见 v15/mod.rs）的折扣率/税率取 DECIMAL(7,4)：
+-- 税率按百分数存（如 13），若用 DECIMAL(5,4)（最大 9.9999）插入即报 numeric field overflow。
+-- 注意：model 表名为单数 purchase_order_item；m0001 的复数 purchase_order_items
 -- 为历史遗留表（model 未使用，不加列不动）。
 -- custom_orders model（Rust i64 / Option<i64>）与 m0044 建表声明（BIGINT）对齐：
 -- 若实际 DB 列为 INT4（历史 INTEGER 建表），SeaORM 解码报
@@ -478,11 +497,31 @@ ALTER TABLE "warehouses" ADD COLUMN IF NOT EXISTS "warehouse_code" VARCHAR(255);
         if !sql.trim().is_empty() {
             manager.get_connection().execute_unprepared(sql).await?;
         }
+        // owner_id 归一必须晚于上方 inline 补列（:233）、早于 finance
+        // 域 RLS policy（NULL owner_id 行使 policy 两侧判 unknown、可见性不确定，
+        // 须在 policy 建立前完成归一）。
+        m0070_normalize_customers_owner_id::Migration
+            .up(manager)
+            .await?;
+        m0088_widen_voucher_business_bill_id::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
+        // 逆序首位——先把两列收窄回 INTEGER（内部含拒滚探测），再回退 owner_id 归一
+        m0088_widen_voucher_business_bill_id::Migration
+            .down(manager)
+            .await?;
+        m0070_normalize_customers_owner_id::Migration
+            .down(manager)
+            .await?;
+        // 按备份表精确还原 balance_direction（m0070 之后、m0006 之前）
+        m0007_normalize_account_subject_balance_direction::Migration
+            .down(manager)
+            .await?;
         m0006_add_general_ledger_and_finance_base::Migration
             .down(manager)
             .await?;

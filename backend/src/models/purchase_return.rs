@@ -29,6 +29,8 @@ pub struct Model {
     pub updated_at: DateTime<Utc>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
+    /// 审批通过理由（m0079 加列，TEXT 可空；流程放行类，选填可留空=NULL）
+    pub approval_reason: Option<String>,
     pub rejected_reason: Option<String>,
 }
 

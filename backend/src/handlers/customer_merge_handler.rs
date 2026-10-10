@@ -47,6 +47,55 @@ pub async fn merge_customers(
         .await?
         .ok_or_else(|| AppError::not_found("目标客户不存在"))?;
 
+    // 方案 A（用户 2026-10-02 裁定）：合并会改他人行——源客户行被置 merged、目标客户行
+    // 吸收其全部关联数据，两行都必须在**写**侧过跨 owner 门（owner=created_by、
+    // dept=department_id，判定与标准客户写入口逐字同源）。修复前本端点**完全无归属校验**，
+    // 任何过 RBAC 的用户可按 id 合并掉他人客户。任一行被拒即整笔 403（先判后写、零漂移），
+    // 出参恒为固定脱敏文案 + FORBIDDEN 码，真实原因只进日志。admin 经 is_admin_role 放行，
+    // 代他人合并须持 crm/cross_owner_write 键并留痕（ensure_ 内部完成）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        source.created_by,
+        source.department_id,
+        "客户合并（源客户）",
+    )
+    .await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        target.created_by,
+        target.department_id,
+        "客户合并（目标客户）",
+    )
+    .await?;
+
+    // 客户合并会把源客户信用评级行的 customer_id 改写为目标客户 id。评级表对
+    // customer_id 施加全表唯一约束、读写契约为每客户一行（见 customer_credit_ratings
+    // 唯一索引迁移），若源、目标此刻都已有评级行，该改写会与目标已有行撞唯一约束——
+    // 撞约束在 SeaORM 层以 DbErr 冒泡、经 `?` 映射为 DATABASE_ERROR(500)，不是可据以
+    // 纠正的业务拒绝。故在开事务、动任何数据之前先判「两侧是否都有评级行」，命中即整笔
+    // 以 BUSINESS 拒绝：既不静默把源行挪过去覆盖目标，也不静默保留源行，出参为固定脱敏
+    // 文案 + BUSINESS_ERROR 机器码（真实原因只进日志，文案不含记录 ID），数据库零写入。
+    let source_rating_exists = customer_credit::Entity::find()
+        .filter(customer_credit::Column::CustomerId.eq(req.source_customer_id))
+        .one(&*state.db)
+        .await?
+        .is_some();
+    let target_rating_exists = customer_credit::Entity::find()
+        .filter(customer_credit::Column::CustomerId.eq(req.target_customer_id))
+        .one(&*state.db)
+        .await?
+        .is_some();
+    if source_rating_exists && target_rating_exists {
+        return Err(AppError::business(
+            "客户合并失败：源客户与目标客户均已存在信用评级行，评级按客户单行唯一无法自动合并",
+        ));
+    }
+
     // 开始事务
     let txn = state.db.begin().await?;
 

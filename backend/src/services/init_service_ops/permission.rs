@@ -3,23 +3,45 @@
 //! 从原 `init_service.rs` 迁移 2 个方法：
 //! - create_default_role_permissions：为全部角色创建 role_permission 权限矩阵（覆盖 60+ 资源 × 11 操作码）
 //! - create_default_role_conflicts：初始化默认角色互斥规则（SoD 职责分离）
+//!
+//! 授权落库口径（E6 根修，本模块唯一判据）：矩阵的幂等按**角色 × (resource,action)
+//! 逐条对账**，不再用"role_permissions 表整体有行就跳过"；三类缺口一律 fail-visible 点名报错，
+//! 不许静默 skip 后返回成功——① 资源码不在 `PERMISSION_RESOURCES` 注册表（授予也是死码）、
+//! ② 角色码在 roles 表解析不到（上游建角色链断）、③ 写后"应写 vs 实写"对账不足。
+//! 授权语义（哪个角色该有哪些资源码）是本模块定义表的唯一职责：改授予面 = 改本表，
+//! 且新角色码必须同步在 `role.rs::create_default_roles` 在册、新资源码必须已在
+//! `PERMISSION_RESOURCES` 登记，闸门①②会对违约直接判红。
+//!
+//! E6 的因果分工（避免下个改动把根因认错）：CI 里业务授权没落库的**直接**原因是
+//! `init_service_ops/role.rs::create_default_roles` 旧写法"admin 已存在即整体早退"，
+//! 矩阵 37 个角色码里只有 2 个能在 roles 表解析到；本模块的 `count>0` 整体跳过守卫是
+//! **第二道**会吞授权的雷（存量库或已被迁移/e2e 授过部分码时重放 init 必然吞掉首建），
+//! 两道都已闭合，行为级证据见 `tests/services_init_role_permission_matrix_test.rs`
+//! （①②③ 各钉一条：真库回读授权行确实存在、重放逐条等价、缺角色时点名判红且零写入）。
+use std::collections::{HashMap, HashSet};
+
 use crate::models::{role, role_conflict, role_permission};
-use crate::services::init_service::{InitError, InitService};
+use crate::services::init_service::{InitError, InitService, PERMISSION_RESOURCES};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use tracing::warn;
 
 // ===== 类型别名（避免 clippy `type_complexity` 警告：嵌套引用切片类型过深）=====
+//
+// 前三个别名 `pub` 的必要性：`find_unregistered_matrix_resources` 是注册表 fail-visible
+// 闸门，除生产链内部调用外还要能被集成测试用"未登记资源码"直接驱动负向断言
+// （tests/services_init_role_permission_matrix_test.rs）。闸门只有一道实现，
+// 测试喂的是同一道闸门的入参形态，不存在第二套判定。
 
 /// 资源-操作对（如 ("users", "read")）
-type PermPair = (&'static str, &'static str);
+pub type PermPair = (&'static str, &'static str);
 
 /// 角色权限定义组：角色代码 + 该角色的资源操作列表
-type RoleResourceGroup = (&'static str, &'static [PermPair]);
+pub type RoleResourceGroup = (&'static str, &'static [PermPair]);
 
 /// 单个域的角色权限定义切片（多个角色权限组）
-type RoleResourceSlice = &'static [RoleResourceGroup];
+pub type RoleResourceSlice = &'static [RoleResourceGroup];
 
-/// 全部域的角色权限定义分组列表
+/// 全部域的角色权限定义分组列表（仅本模块内部聚合用，不进公开签名）
 type RoleResourceGroups = Vec<RoleResourceSlice>;
 
 /// 应用外壳权限码：每个角色都必须具备的两项。
@@ -33,30 +55,208 @@ type RoleResourceGroups = Vec<RoleResourceSlice>;
 /// 缺码的角色登录后会被路由守卫送到 /403，或每次进主页都在控制台抛 403。
 const SHELL_PERMISSIONS: &[PermPair] = &[("dashboard", "read"), ("notifications", "read")];
 
+/// 库里"已经算授权到位"的 role_permission 索引（按角色归组的 (resource,action) 集合）。
+///
+/// 判据必须是**角色级 + allowed=true**，不是"同键有行就算"：
+/// - 记录级行（`resource_id = Some(..)`）按 `matches_permission`
+///   （`middleware/permission.rs:619-637`：`(Some(_), None) => false`）不能放行整集合请求。
+///   若拿它顶替角色级授权，矩阵会跳过写入、生产工单列表 403 依旧，而 init 报"成功"——
+///   这正是"半截授权被当成已授权"的形态之一，故记录级行两侧都不计入。
+/// - `allowed = false` 是显式拒绝型权限（`role_permission_service.rs:366` 口径：
+///   "allowed=false 的拒绝型权限不构成冲突"），矩阵不得覆盖它（覆盖＝放大授权面，
+///   属授权语义变更，不在本修范围），但必须点名留痕，不得静默当成已授权。
+struct ExistingRoleGrants {
+    /// 角色级、allowed=true：矩阵幂等跳过的依据
+    granted: HashMap<i32, HashSet<(String, String)>>,
+    /// 角色级、allowed=false：矩阵不覆盖，逐条点名留痕
+    denied: HashMap<i32, HashSet<(String, String)>>,
+}
+
+/// (角色码, 资源码, 操作码) 三元组，仅用于缺口点名
+type PermTriple = (&'static str, &'static str, &'static str);
+
+/// 一轮授权建立的差集计划（应写集合 + 待点名缺口）。
+struct PermissionWritePlan {
+    /// 待写模型（库里缺失的角色级授权）
+    to_insert: Vec<role_permission::ActiveModel>,
+    /// 本次授权涉及的角色 ID（写后对账按这批角色计数）
+    pending_role_ids: Vec<i32>,
+    /// 应写条数（= to_insert 长度，另存一份供对账与日志）
+    expected_total: usize,
+    /// 在 roles 表解析不到的角色码（闸门②点名对象）
+    missing_role_codes: Vec<&'static str>,
+    /// 矩阵想授、库里却是同键显式拒绝行的组合
+    explicit_denied_kept: Vec<PermTriple>,
+}
+
+/// 未登记资源码的点名结果：(资源码, 引用它的角色码列表)
+pub type UnregisteredResource = (String, Vec<String>);
+
+/// 找出矩阵定义里未登记在 `PERMISSION_RESOURCES` 中的资源码（闸门①的判据）。
+///
+/// 纯函数、不碰库，返回 `Vec<(资源码, 引用它的角色码列表)>`，空集即全部合法。
+/// 生产闸门 `InitService::assert_matrix_resources_registered` 与集成测试共用这同一份
+/// 判据（不造第二套判定）：测试可直接喂未登记资源码驱动负向断言，只判返回集合、不判文案。
+/// 写成模块级自由函数而非 `InitService` 的关联函数：它不属于任何实例，也不建实例。
+pub fn find_unregistered_matrix_resources(
+    groups: &[RoleResourceSlice],
+) -> Vec<UnregisteredResource> {
+    let registry: HashSet<&str> = PERMISSION_RESOURCES.iter().copied().collect();
+    let mut unknown: Vec<UnregisteredResource> = Vec::new();
+    for definition in groups {
+        for (role_code, resources) in *definition {
+            for (resource, _action) in *resources {
+                if registry.contains(resource) {
+                    continue;
+                }
+                match unknown.iter_mut().find(|(res, _)| res == resource) {
+                    Some((_, roles)) => {
+                        if !roles.contains(&role_code.to_string()) {
+                            roles.push(role_code.to_string());
+                        }
+                    }
+                    None => unknown.push((resource.to_string(), vec![role_code.to_string()])),
+                }
+            }
+        }
+    }
+    unknown
+}
+
 impl InitService {
     /// 创建全部角色的 role_permission 权限矩阵（V15 P0-S03/S04/S20，覆盖 60+ 资源 × 11 操作码）。
-    pub(crate) async fn create_default_role_permissions(&self) -> Result<(), InitError> {
-        if Self::role_permissions_already_exist(self.db.as_ref()).await {
-            return Ok(());
-        }
+    ///
+    /// 幂等与可观测性口径（根修，见本模块顶部说明）
+    /// - 幂等**按角色逐条 (resource,action) 对账**：库里已有的角色级授权跳过（可重入、不重复插），
+    ///   库里缺失的组合补齐。旧的全表 `count>0 即整体跳过` 会把"迁移/e2e 半截补建的少量授权行"
+    ///   误当成全矩阵已落地，从而吞掉 production-orders 等业务授权的首建（本条是 E6 的第二道雷，
+    ///   直接原因见模块头"E6 的因果分工"），予以废除。
+    /// - fail-visible 三道闸门，任一不过一律点名报错，禁止静默 skip 后返回成功：
+    ///   ① 矩阵引用的资源码必须已登记在 `PERMISSION_RESOURCES`（未登记=写进库也永不生效的死码授权）；
+    ///   ② 角色码必须在 roles 表解析得到（解析不到=上游建角色链断，该角色授权一条都写不进）；
+    ///   ③ 写后按"应写 vs 实写"对账，实写 < 应写即落库缺口。
+    /// - 同键显式拒绝行不被覆盖，但逐条点名留痕。
+    ///
+    /// 可见性 `pub`：生产路径仍只由 `initialize` 链内部调用；放开是为了让集成测试能在
+    /// 真库上行为级驱动"授权到底有没有落库"（tests/services_init_role_permission_matrix_test.rs），
+    /// 而不是让测试另造一套等价实现来"自证"。
+    pub async fn create_default_role_permissions(&self) -> Result<(), InitError> {
+        let db = self.db.as_ref();
         let now = chrono::Utc::now();
-        let mut perms: Vec<role_permission::ActiveModel> = Vec::new();
-        for definitions in Self::all_role_permission_definition_groups() {
-            Self::extend_perms_from_definitions(self.db.as_ref(), definitions, now, &mut perms)
+
+        // 闸门①：纯静态校验，放在任何写之前——资源码没登记就别写，写了也是死码。
+        Self::assert_matrix_resources_registered()?;
+
+        // 一次性拉取现有授权并按 role_id 归组，避免逐角色 N+1。
+        let existing = Self::load_existing_permissions(db).await?;
+
+        // 逐角色解析、diff 出库里缺失的授权；缺口只收集不静默丢弃。
+        let PermissionWritePlan {
+            to_insert,
+            pending_role_ids,
+            expected_total,
+            missing_role_codes,
+            explicit_denied_kept,
+        } = Self::collect_missing_permission_writes(db, &existing, now).await?;
+
+        // 闸门②：任一角色码在 roles 表解析不到 = 授权建立上游断链，必须红。
+        if !missing_role_codes.is_empty() {
+            return Err(InitError::DatabaseError(format!(
+                "角色权限矩阵建立不完整：{} 个角色码在 roles 表解析不到、其授权一条都未写入：{:?}",
+                missing_role_codes.len(),
+                missing_role_codes
+            )));
+        }
+
+        // 显式拒绝保持不覆盖（不改授权语义），但必须点名——否则就是"半截授权被当成已授权"。
+        if !explicit_denied_kept.is_empty() {
+            let samples: Vec<String> = explicit_denied_kept
+                .iter()
+                .take(10)
+                .map(|(r, res, act)| format!("{}:{}.{}", r, res, act))
+                .collect();
+            warn!(
+                "角色权限矩阵存在同键显式拒绝行（allowed=false），按最小惊讶原则不覆盖、本批未补写授权：{} 条，样例 {:?}",
+                explicit_denied_kept.len(),
+                samples
+            );
+        }
+
+        let mut written = 0usize;
+        if !to_insert.is_empty() {
+            written = Self::persist_and_reconcile(db, to_insert, pending_role_ids, expected_total)
                 .await?;
         }
-        Self::batch_insert_permissions(self.db.as_ref(), perms).await;
+
+        tracing::info!(
+            "角色权限矩阵建立完成：应写 {} 条、实写 {} 条（库里已授权的角色级组合按条幂等跳过，同键显式拒绝 {} 条保持不覆盖）",
+            expected_total,
+            written,
+            explicit_denied_kept.len()
+        );
         Ok(())
     }
 
-    /// 检查 role_permission 表是否已有记录（幂等，查询错误时视为 0 条继续执行）。
-    async fn role_permissions_already_exist(db: &DatabaseConnection) -> bool {
-        let count = role_permission::Entity::find().count(db).await.unwrap_or(0);
-        count > 0
+    /// 闸门①：矩阵（含应用外壳码）引用的资源码必须已在 `PERMISSION_RESOURCES` 登记。
+    ///
+    /// 为什么算缺口而不是"多余授权"：运行时权限键由 URL 段推导并与注册表同源
+    /// （`middleware/permission.rs::validate_route_whitelist` + `utils/path_utils.rs`），
+    /// 没登记的资源段一律被判"未知的资源路径"403 ⇒ 该授权行写进 `role_permissions`
+    /// 也永不命中，属于"看起来授权过、其实那条授权是死码"的静默缺陷，与授权没落库同罪。
+    fn assert_matrix_resources_registered() -> Result<(), InitError> {
+        let mut groups = Self::all_role_permission_definition_groups();
+        // 应用外壳码同样是矩阵写入的一部分，一并纳入闸门校验（标一个可读的来源标签，
+        // 便于缺口点名时直接看出是外壳码没登记，而不是某个业务角色的码表写错）
+        groups.push(&[("ALL·应用外壳码", SHELL_PERMISSIONS)]);
+        let unknown = find_unregistered_matrix_resources(&groups);
+        if unknown.is_empty() {
+            return Ok(());
+        }
+        Err(InitError::DatabaseError(format!(
+            "角色权限矩阵存在未登记的资源码 {} 个（授予后运行期永不命中，等于没授权）：{}",
+            unknown.len(),
+            unknown
+                .iter()
+                .map(|(res, roles)| format!("{}(被引用角色 {:?})", res, roles))
+                .collect::<Vec<String>>()
+                .join("、")
+        )))
+    }
+
+    /// 拉取现有全部 role_permission 行，按 role_id 归组为 (resource_type, action) 集合。
+    /// 供逐条幂等 diff 使用，单次查询避免 N+1。判据见 [`ExistingRoleGrants`]。
+    async fn load_existing_permissions(
+        db: &DatabaseConnection,
+    ) -> Result<ExistingRoleGrants, InitError> {
+        let rows = role_permission::Entity::find().all(db).await.map_err(|e| {
+            InitError::DatabaseError(format!("查询现有角色权限失败，无法对账: {}", e))
+        })?;
+        let mut granted: HashMap<i32, HashSet<(String, String)>> = HashMap::new();
+        let mut denied: HashMap<i32, HashSet<(String, String)>> = HashMap::new();
+        for row in rows {
+            // 记录级授权与矩阵的角色级授权不是同一维度：既不顶替、也不算拒绝
+            if row.resource_id.is_some() {
+                continue;
+            }
+            let bucket = if row.allowed {
+                &mut granted
+            } else {
+                &mut denied
+            };
+            bucket
+                .entry(row.role_id)
+                .or_default()
+                .insert((row.resource_type, row.action));
+        }
+        Ok(ExistingRoleGrants { granted, denied })
     }
 
     /// 汇总全部域的角色权限定义分组（管理/高管/销售/采购/库存/生产/质量/财务/CRM物流HR/其他）。
-    fn all_role_permission_definition_groups() -> RoleResourceGroups {
+    ///
+    /// 可见性 `pub` 的必要性：approve/reject 成对性锁（tests/contract_wave11_approve_reject_pairing_test.rs）
+    /// 要判的就是**这一份**定义表；放开入口让测试直接驱动生产同一份数据，
+    /// 不在 tests/ 侧另抄一份矩阵副本造成第二套判定（同 `find_unregistered_matrix_resources` 的口径）。
+    pub fn all_role_permission_definition_groups() -> RoleResourceGroups {
         vec![
             Self::management_role_resources(),
             Self::executive_role_resources(),
@@ -72,32 +272,131 @@ impl InitService {
         ]
     }
 
-    /// 遍历角色权限定义分组，查询角色 ID 并扩展权限 ActiveModel 列表。
-    async fn extend_perms_from_definitions(
+    /// 遍历全部域的角色权限定义，逐角色解析并 diff 出"库里缺失"的授权待写集合。
+    ///
+    /// 角色解析不到者不静默丢弃，而是记入 `missing_role_codes` 交调用方判红；库里已存在的
+    /// **角色级 allowed=true** (resource,action) 逐条跳过，已完整授权的角色自然 0 补写
+    /// （可重入），半截授权的角色只补齐缺失项（不吞首建）；同键显式拒绝行记入
+    /// `explicit_denied_kept` 点名留痕、不覆盖。
+    async fn collect_missing_permission_writes(
         db: &DatabaseConnection,
-        definitions: RoleResourceSlice,
+        existing: &ExistingRoleGrants,
         now: chrono::DateTime<chrono::Utc>,
-        perms: &mut Vec<role_permission::ActiveModel>,
-    ) -> Result<(), InitError> {
-        for (role_code, resources) in definitions {
-            let mut effective: Vec<PermPair> = resources.to_vec();
-            for shell in SHELL_PERMISSIONS {
-                if !effective.contains(shell) {
-                    effective.push(*shell);
+    ) -> Result<PermissionWritePlan, InitError> {
+        let mut to_insert: Vec<role_permission::ActiveModel> = Vec::new();
+        let mut pending_role_ids: Vec<i32> = Vec::new();
+        let mut missing_role_codes: Vec<&'static str> = Vec::new();
+        let mut explicit_denied_kept: Vec<PermTriple> = Vec::new();
+        let mut expected_total: usize = 0;
+
+        for definitions in Self::all_role_permission_definition_groups() {
+            for (role_code, resources) in definitions {
+                // 应用外壳码：每个角色都必须具备 dashboard/notifications，缺则登录后停在 /403。
+                let mut effective: Vec<PermPair> = resources.to_vec();
+                for shell in SHELL_PERMISSIONS {
+                    if !effective.contains(shell) {
+                        effective.push(*shell);
+                    }
                 }
-            }
-            let role_model = role::Entity::find()
-                .filter(role::Column::Code.eq(*role_code))
-                .one(db)
-                .await
-                .map_err(|e| {
-                    InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e))
-                })?;
-            if let Some(r) = role_model {
-                perms.extend(Self::make_permission_models(r.id, &effective, now));
+
+                let role_model = role::Entity::find()
+                    .filter(role::Column::Code.eq(*role_code))
+                    .one(db)
+                    .await
+                    .map_err(|e| {
+                        InitError::DatabaseError(format!("查询 {} 角色失败: {}", role_code, e))
+                    })?;
+
+                // 角色解析不到：旧写法 `if let Some(r) {..}` 无 else 分支，会静默跳过、
+                // 一条不写也不报错（本仓硬教训：init 找不到 code 只 warn+skip =
+                // "看起来跑过了其实没写"）。这里点名收集，交由调用方 fail-visible 判红。
+                let Some(role) = role_model else {
+                    missing_role_codes.push(*role_code);
+                    continue;
+                };
+
+                // 逐条 diff：仅保留库里缺失"角色级 allowed=true"的 (resource,action) 组合。
+                let granted = existing.granted.get(&role.id);
+                let denied = existing.denied.get(&role.id);
+                let mut missing_perms: Vec<PermPair> = Vec::new();
+                for (res, act) in effective {
+                    let key = (res.to_string(), act.to_string());
+                    if granted.is_some_and(|set| set.contains(&key)) {
+                        continue;
+                    }
+                    if denied.is_some_and(|set| set.contains(&key)) {
+                        // 库里是同键显式拒绝：覆盖它会放大授权面（语义变更，本修不做），
+                        // 但绝不静默——点名交给调用方留痕。
+                        explicit_denied_kept.push((*role_code, res, act));
+                        continue;
+                    }
+                    missing_perms.push((res, act));
+                }
+
+                if missing_perms.is_empty() {
+                    // 该角色已按矩阵完整授权（可重入分支），跳过。
+                    continue;
+                }
+
+                expected_total += missing_perms.len();
+                pending_role_ids.push(role.id);
+                to_insert.extend(Self::make_permission_models(role.id, &missing_perms, now));
             }
         }
-        Ok(())
+
+        Ok(PermissionWritePlan {
+            to_insert,
+            pending_role_ids,
+            expected_total,
+            missing_role_codes,
+            explicit_denied_kept,
+        })
+    }
+
+    /// 落库并做"应写 vs 实写"对账：写失败或实写条数不足应写条数，一律点名判红。
+    ///
+    /// 返回**实写条数**给调用方留痕，避免日志把"应写"当"已写"播报。
+    async fn persist_and_reconcile(
+        db: &DatabaseConnection,
+        to_insert: Vec<role_permission::ActiveModel>,
+        pending_role_ids: Vec<i32>,
+        expected_total: usize,
+    ) -> Result<usize, InitError> {
+        // 写前基线：这些待补角色当前已有行数（写后精确算实写条数用）。
+        let before = role_permission::Entity::find()
+            .filter(role_permission::Column::RoleId.is_in(pending_role_ids.clone()))
+            .count(db)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("写前统计角色权限基线失败: {}", e)))?;
+
+        // 落库失败直接上抛（写不进 = 授权没落库 = 必须红），不再只 warn 后假绿。
+        role_permission::Entity::insert_many(to_insert)
+            .exec(db)
+            .await
+            .map_err(|e| {
+                InitError::DatabaseError(format!(
+                    "批量写入角色权限失败（本轮应写 {} 条）: {}",
+                    expected_total, e
+                ))
+            })?;
+
+        // 对账：写后总行数 - 写前基线 = 实写；不足应写即有行未真正落库（约束/触发器/静默丢行），
+        // 缺口显式化并判红。
+        let after = role_permission::Entity::find()
+            .filter(role_permission::Column::RoleId.is_in(pending_role_ids))
+            .count(db)
+            .await
+            .map_err(|e| InitError::DatabaseError(format!("写后角色权限对账计数失败: {}", e)))?;
+        let written = after.saturating_sub(before);
+        if written < expected_total as u64 {
+            return Err(InitError::DatabaseError(format!(
+                "角色权限落库对账缺口：应写 {} 条，实写 {} 条（差额 {} 条未落库）",
+                expected_total,
+                written,
+                expected_total as u64 - written
+            )));
+        }
+        Ok(written as usize)
     }
 
     /// 为指定角色按 resource×action 列表生成权限 ActiveModel（全部 allowed=true）。
@@ -120,19 +419,6 @@ impl InitService {
                 updated_at: Set(now),
             })
             .collect()
-    }
-
-    /// 批量插入角色权限记录（空列表跳过，失败仅 warn 不阻断初始化）。
-    async fn batch_insert_permissions(
-        db: &DatabaseConnection,
-        perms: Vec<role_permission::ActiveModel>,
-    ) {
-        if perms.is_empty() {
-            return;
-        }
-        if let Err(e) = role_permission::Entity::insert_many(perms).exec(db).await {
-            warn!("批量创建角色权限失败: {}, 可能部分已存在", e);
-        }
     }
 
     // ===== 角色权限数据定义（按域分组，每组 ≤50 行）=====
@@ -192,6 +478,10 @@ impl InitService {
             (
                 "gm",
                 &[
+                    // 经营分析入口要读期末报表快照与行业基准对标；`/period-report-snapshots`、
+                    // `/industry-benchmarks` 的 seg3 即资源码，只授 read，写面归财务责任岗。
+                    ("period-report-snapshots", "read"),
+                    ("industry-benchmarks", "read"),
                     ("users", "read"),
                     ("roles", "read"),
                     ("departments", "read"),
@@ -233,6 +523,9 @@ impl InitService {
             (
                 "deputy_gm",
                 &[
+                    // 同 gm：经营分析入口读期末报表快照与行业基准对标，均只读。
+                    ("period-report-snapshots", "read"),
+                    ("industry-benchmarks", "read"),
                     ("users", "read"),
                     ("roles", "read"),
                     ("departments", "read"),
@@ -289,10 +582,16 @@ impl InitService {
                     ("orders", "reject"),
                     ("fabric-orders", "read"),
                     ("fabric-orders", "approve"),
+                    ("fabric-orders", "reject"),
+                    // 拒绝键与审批键成对授予同一批角色：/reject 端点与 /approve 端点
+                    // 一一对应，缺一侧即前端按钮可达而 RBAC 恒 403（或反向授权悬空）；
+                    // 成对性由 tests/contract_wave11_approve_reject_pairing_test.rs 双向钉。
                     ("sales-contracts", "read"),
                     ("sales-contracts", "approve"),
+                    ("sales-contracts", "reject"),
                     ("sales-prices", "read"),
                     ("sales-prices", "approve"),
+                    ("sales-prices", "reject"),
                     ("sales-returns", "read"),
                     ("sales-returns", "approve"),
                     ("sales-returns", "reject"),
@@ -321,10 +620,18 @@ impl InitService {
                     ("quotations", "create"),
                     ("customers", "read"),
                     ("customers", "create"),
+                    // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键，
+                    // 与 m0086 存量补授/e2e SEED 三通道同口径；每次揭示强制留痕）
+                    ("customers", "reveal"),
                     ("sales-returns", "read"),
                     ("sales-returns", "create"),
                     ("color-cards", "read"),
                     ("sales-prices", "read"),
+                    // 发货对话框第四维匹号候选来自 GET /inventory/pieces（只读，不授打印）
+                    ("pieces", "read"),
+                    // 出口商检：销售代表可读自己出口订单对应的商检单与结论（只读，
+                    // 建单/登记结果属报关岗，不越界授予）。
+                    ("export-inspections", "read"),
                 ],
             ),
         ]
@@ -338,23 +645,40 @@ impl InitService {
             (
                 "purchase_manager",
                 &[
+                    // 供应商资质到期扫描 `POST /supplier-qualifications/scan-expiry-warnings`：
+                    // 末段不在动作关键字表，按方法派生为 create，故采购主管需 read+create 双键。
+                    ("supplier-qualifications", "read"),
+                    ("supplier-qualifications", "create"),
                     ("purchase-orders", "read"),
                     ("purchase-orders", "update"),
                     ("purchase-orders", "delete"),
                     ("purchase-orders", "approve"),
                     ("purchase-orders", "reject"),
                     ("purchase-receipts", "read"),
-                    ("purchase-receipts", "approve"),
+                    // 收货确认的真实端点是 POST /receipts/{id}/confirm，`confirm` 在动作关键字表内
+                    // ⇒ 运行期键为 purchase-receipts:confirm；原先的 approve 行没有对应端点，
+                    // 属悬空授权（点了也只会 403），改按真实键授予。
+                    ("purchase-receipts", "confirm"),
+                    // 让步接收＝对不合格品的放行决定，由采购经理与质量经理共签；
+                    // 不授建单收货的采购员与仓管（职责分离，键语义见迁移
+                    // business/m0090_grant_purchase_receipt_concession_rejudge.rs）
+                    ("purchase-receipts", "concession"),
                     ("purchase-returns", "read"),
                     ("purchase-returns", "approve"),
                     ("purchase-returns", "reject"),
+                    // 拒绝键与审批键成对授予同一批角色（同 sales 域口径，
+                    // 成对性锁见 tests/contract_wave11_approve_reject_pairing_test.rs）
                     ("purchase-contracts", "read"),
                     ("purchase-contracts", "approve"),
+                    ("purchase-contracts", "reject"),
                     ("purchase-prices", "read"),
                     ("purchase-prices", "approve"),
+                    ("purchase-prices", "reject"),
                     ("sku-mappings", "read"),
                     ("sku-mappings", "update"),
                     ("sku-mappings", "delete"),
+                    // 批量导入是对照表的成批建单通路，与建单同授予本岗
+                    ("sku-mappings", "import"),
                     // 供应商商品/色号目录（对照表依赖的父级数据；采购经理审批可改不可建，
                     // 且保密：销售角色一律不授，故仅出现在采购域分组）
                     ("supplier-products", "read"),
@@ -367,6 +691,10 @@ impl InitService {
                     ("inventory", "read"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
+                    // 产品分类树（同为我方内部主数据；对照表维护页挂载即拉
+                    // GET /product-categories/tree，缺码该页对采购岗恒 403 —— CI
+                    // 矩阵 purchaser 真缺口，裁定 R-6：补真实种子而非前端降级隐藏）
+                    ("product-categories", "read"),
                     ("reports", "read"),
                 ],
             ),
@@ -378,12 +706,17 @@ impl InitService {
                     ("purchase-orders", "update"),
                     ("purchase-receipts", "read"),
                     ("purchase-receipts", "create"),
+                    // 建单与确认收货同线（与采购经理一致按真实键 confirm 授予）；
+                    // 让步与改判仍不授本岗——见 quality 域的 concession/rejudge 分配。
+                    ("purchase-receipts", "confirm"),
                     ("suppliers", "read"),
                     ("inventory", "read"),
                     ("purchase-prices", "read"),
                     ("sku-mappings", "read"),
                     ("sku-mappings", "create"),
                     ("sku-mappings", "update"),
+                    // 批量导入是对照表的成批建单通路，与建单同授予本岗
+                    ("sku-mappings", "import"),
                     // 供应商商品/色号目录（采购员可建可改，对照表父级数据维护主力；保密域不授销售）
                     ("supplier-products", "read"),
                     ("supplier-products", "create"),
@@ -393,11 +726,15 @@ impl InitService {
                     ("supplier-product-colors", "update"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
+                    // 产品分类树：同 purchase_manager 口径（R-6）
+                    ("product-categories", "read"),
                 ],
             ),
             (
                 "sourcing_specialist",
                 &[
+                    // 寻源岗需读供应商资质以核对供方准入，只读不写。
+                    ("supplier-qualifications", "read"),
                     ("suppliers", "read"),
                     ("suppliers", "create"),
                     ("suppliers", "update"),
@@ -415,12 +752,15 @@ impl InitService {
                     ("supplier-product-colors", "update"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
+                    // 产品分类树：同 purchase_manager 口径（R-6）
+                    ("product-categories", "read"),
                 ],
             ),
         ]
     }
 
-    /// 库存仓储域角色权限定义（inventory_manager 库存经理 / warehouse_keeper 仓管员）。
+    /// 库存仓储域角色权限定义（inventory_manager 库存经理 / warehouse_keeper 仓管员 /
+    /// warehouse_manager 仓库经理）。
     fn inventory_role_resources() -> RoleResourceSlice {
         &[
             (
@@ -428,6 +768,16 @@ impl InitService {
                 &[
                     ("inventory", "*"),
                     ("stock", "*"),
+                    // 匹号领域（GET /inventory/pieces）与成品布入库标签
+                    // （GET /inventory/pieces/{id}/print）。键名 `pieces:read` / `pieces:print`
+                    // 由 URL 段推导（middleware/permission.rs::extract_resource_info 对模块前缀
+                    // inventory 取 segment4），与 `inventory:*` 不同源、不被其覆盖；
+                    // 缺码则非 admin 的库存经理整页 403（本波 匹号选择器、 标签即此形态）。
+                    // 存量库由迁移 m0069 同口径补授，e2e 侧由 global-setup 的
+                    // SEED_ROLE_EXTRA_PERMISSIONS 同口径补授，三处清单一致性由
+                    // tests/contract_wave7_piece_permission_grant_test.rs 双向钉。
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                     ("piece-split", "*"),
                     ("transfers", "*"),
                     ("adjustments", "*"),
@@ -449,12 +799,36 @@ impl InitService {
                     ("stock", "read"),
                     ("stock", "create"),
                     ("stock", "update"),
+                    // 仓管收发发货需按四维选匹（/inventory/pieces）并打印成品布入库标签
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                     ("transfers", "read"),
                     ("transfers", "create"),
                     ("counts", "read"),
                     ("counts", "create"),
                     ("products", "read"),
                     ("warehouses", "read"),
+                    // 发货必须读已批销售订单与本厂定制单：`/sales/orders` 派生键是默认分支的
+                    // `orders`（非 `sales`），`/custom-orders` 派生 `custom-orders`；两枚都只授
+                    // read，写面仍由销售/定制域岗位持有。行级仍受各自 data_scope 过滤，
+                    // 授 read 不等于可见他人行。
+                    ("orders", "read"),
+                    ("custom-orders", "read"),
+                ],
+            ),
+            (
+                "warehouse_manager",
+                &[
+                    // 仓库经理按四维选匹（GET /inventory/pieces）并打印成品布入库标签
+                    // （GET /inventory/pieces/{id}/print）。pieces 键由 URL 段推导、不被
+                    // inventory:* 覆盖（同 inventory_manager 分组内注释），三通道同口径：
+                    // 本分组与迁移 m0069 的 PRINT_ROLE_CODES/READ_ROLE_CODES、e2e 的
+                    // SEED_ROLE_EXTRA_PERMISSIONS 集合一致性由
+                    // tests/contract_wave7_piece_permission_grant_test.rs 双向钉。
+                    // 此处仅授 pieces 两键——仓库经理其余库存/仓储操作权的矩阵面
+                    // 维持现状（别岗权限不顺手扩）。
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                 ],
             ),
         ]
@@ -474,6 +848,8 @@ impl InitService {
                     ("dye-batch-reworks", "*"),
                     ("dye-batch-operations", "*"),
                     ("greige-fabrics", "read"),
+                    // 生产侧按匹跟踪（委外发料/收回、流转卡报工）需读匹号领域行
+                    ("pieces", "read"),
                     ("lab-dip", "read"),
                     ("production-recipes", "*"),
                     ("process-routes", "*"),
@@ -481,6 +857,9 @@ impl InitService {
                     ("outsourcing-orders", "*"),
                     ("outsourcing-receipts", "*"),
                     ("business-modes", "read"),
+                    // 生产经理要能查物料清单（/bom 页路由门是 boms:read，工单用料也以 BOM 为据），
+                    // 而生产域此前没有任何 boms 授权 ⇒ 该页对本岗恒被守卫拦成 403。只授读。
+                    ("boms", "read"),
                     ("mrp", "*"),
                     ("capacity", "*"),
                     ("scheduling", "*"),
@@ -601,6 +980,10 @@ impl InitService {
                     ("quality-standards", "*"),
                     ("fabric-inspections", "*"),
                     ("fabric-defects", "*"),
+                    // 质量经理既可放行让步，也可推翻既有质检结论（两枚键同授本岗，
+                    // 但都不授采购员——避免"自判自放"）
+                    ("purchase-receipts", "concession"),
+                    ("purchase-receipts", "rejudge"),
                     ("dye-batches", "read"),
                     ("production-orders", "read"),
                     ("reports", "read"),
@@ -610,12 +993,19 @@ impl InitService {
             (
                 "quality_inspector",
                 &[
+                    // 质检需读供应商资质判定来料是否属已核准供方，只读。
+                    ("supplier-qualifications", "read"),
                     ("quality-inspections", "*"),
                     ("quality-issues", "read"),
                     ("quality-issues", "create"),
+                    // 复检改判由质检执行：不授任何采购岗，避免采购自判自改
+                    ("purchase-receipts", "rejudge"),
                     ("dye-batches", "read"),
                     ("fabric-inspections", "read"),
                     ("fabric-inspections", "create"),
+                    // 验布打卷产出成品布 → 标签面板读匹行并可打印
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                 ],
             ),
             (
@@ -626,6 +1016,9 @@ impl InitService {
                     ("dye-batches", "read"),
                     ("products", "read"),
                     ("quality-standards", "read"),
+                    // 打卷员是本岗产出成品布的打印人（成品布入库标签）
+                    ("pieces", "read"),
+                    ("pieces", "print"),
                 ],
             ),
         ]
@@ -637,6 +1030,14 @@ impl InitService {
             (
                 "finance_manager",
                 &[
+                    // 财务侧配置主数据责任岗：期末快照可读可生成，账龄预警规则/档位/资产类别
+                    // 全权（这些段的 CRUD 由 seg3 直接派生），行业基准仅读作对标取数。
+                    ("period-report-snapshots", "read"),
+                    ("period-report-snapshots", "create"),
+                    ("aging-alert-rules", "*"),
+                    ("aging-grades", "*"),
+                    ("asset-categories", "*"),
+                    ("industry-benchmarks", "read"),
                     ("vouchers", "*"),
                     ("subjects", "*"),
                     ("fixed-assets", "*"),
@@ -659,6 +1060,13 @@ impl InitService {
             (
                 "accountant",
                 &[
+                    // 记账岗只读财务配置主数据（快照/账龄规则档位/资产类别/行业基准），
+                    // 编辑权仍由 finance_manager 持有。
+                    ("period-report-snapshots", "read"),
+                    ("aging-alert-rules", "read"),
+                    ("aging-grades", "read"),
+                    ("asset-categories", "read"),
+                    ("industry-benchmarks", "read"),
                     ("vouchers", "*"),
                     ("subjects", "read"),
                     ("gl", "read"),
@@ -703,6 +1111,9 @@ impl InitService {
                     ("wages", "read"),
                     ("energy-allocations", "read"),
                     ("gl", "read"),
+                    // 单位成本分母要坯布入库量：`/production/greige-fabrics` 派生
+                    // `greige-fabrics`（消歧默认分支保留段名），只授 read。
+                    ("greige-fabrics", "read"),
                 ],
             ),
         ]
@@ -737,6 +1148,33 @@ impl InitService {
                     ("crm-customers", "create"),
                     ("customers", "read"),
                     ("customers", "create"),
+                    // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键，
+                    // 与 sales_rep/m0086/e2e SEED 三通道同口径；每次揭示强制留痕）
+                    ("customers", "reveal"),
+                ],
+            ),
+            // 客户服务：线索域四动作（read/create/update/delete），与
+            // frontend/e2e/global-setup.ts SEED_ROLE_EXTRA_PERMISSIONS.customer_service
+            // 的动作集逐码对齐（资源名取注册表/前端常量 `permissions.ts` 的规范码
+            // crm-leads，e2e extras 用的是 /crm/leads 消歧前的运行时段 leads，
+            // 两码同源一名之差，见本分组下方运行时资源段备注）。
+            // 角色本体已由 role.rs 播种但矩阵此前无分组 ⇒ 角色级授权零行 ⇒ 登录后
+            // 路由守卫送 /403；本分组同时让其经 SHELL_PERMISSIONS 拿到
+            // dashboard/notifications 读，落地页恢复。
+            // 刻意**不**附带 customers/crm-customers/商机等别岗码：data-scope-isolation
+            // 用例的 403 必须来自行级归属校验（check_resource_owner，文案层判"无权限"），
+            // 越界扩权会把拒绝来源层上移到 RBAC，破坏该安全断言的层级判据。
+            // 运行时键同源：`/crm/leads` 的 URL 段派生已由
+            // utils/path_utils.rs::resolve_module_prefixed_resource 消歧到本规范码
+            // ("crm","leads") → crm-leads，与注册表登记名一致，故本授权行在 RBAC 匹配层
+            // 真实命中（crm_manager/crm_rep 的同域既有码同时被复活）。
+            (
+                "customer_service",
+                &[
+                    ("crm-leads", "read"),
+                    ("crm-leads", "create"),
+                    ("crm-leads", "update"),
+                    ("crm-leads", "delete"),
                 ],
             ),
             (
@@ -747,6 +1185,9 @@ impl InitService {
                     ("orders", "read"),
                     ("inventory", "read"),
                     ("incoterms", "read"),
+                    // 出口商检：物流协同跟踪出货需读商检单并打印报关随附单据（不建单、不改判结论）。
+                    ("export-inspections", "read"),
+                    ("export-inspections", "print"),
                     ("reports", "read"),
                 ],
             ),
@@ -760,6 +1201,13 @@ impl InitService {
                     ("incoterms", "create"),
                     ("orders", "read"),
                     ("ship-orders", "read"),
+                    // 出口商检：报关专员负责本域全生命周期——建单(POST)、登记/改判结论
+                    // (PUT /{id}/result)、看单与打印商检/报关单据(GET 列表/详情/print)。
+                    // 与同族 incoterms 授权面同口径；存量库由迁移 m0083、e2e 由 SEED 同补。
+                    ("export-inspections", "read"),
+                    ("export-inspections", "create"),
+                    ("export-inspections", "update"),
+                    ("export-inspections", "print"),
                 ],
             ),
             (
@@ -808,6 +1256,30 @@ impl InitService {
                     ("audit-logs", "read"),
                 ],
             ),
+            // 审计员：只读审计面，写法对齐上列 safety_officer 的只读审计授权
+            // （audit-logs/reports 仅 read，零写码，最小授权）。
+            // 该角色码被 utils/admin_checker.rs::AUDITOR_ROLE_CODE 与
+            // handlers/audit_log_handler.rs（审计日志查询 admin/auditor 双角色深度
+            // 防御）硬引用，必须是 roles 表在册岗位（由 role.rs 同码播种）而非
+            // e2e 补建 fixture；缺册时闸门②点名判红，不会静默。
+            // /audit-logs 的资源段是 seg3 直接资源（audit-logs 自身即注册码），
+            // 本授权行运行期可命中，与 audit_log_handler 的角色深度防御双层一致。
+            (
+                "auditor",
+                &[
+                    // 权限审计页 `GET /permission-audits`：seg3 派生 permission-audits，
+                    // 审计岗需只读。
+                    ("permission-audits", "read"),
+                    ("audit-logs", "read"),
+                    ("reports", "read"),
+                    // 这两页的路由 meta 就是 `audit-logs:read`（auditor 已持），页面进得去而
+                    // API 派生键各自独立——缺下面两行会稳定 403，构成"入口可达、内容死态"。
+                    // slow-queries 是直接资源：`/slow-queries` 与 `/slow-queries/stats` 均派生到
+                    // 注册名 slow-queries，故授 slow-queries:read 即同时覆盖列表面与统计面。
+                    ("export-approvals", "read"),
+                    ("slow-queries", "read"),
+                ],
+            ),
             (
                 "system_admin",
                 &[
@@ -821,13 +1293,16 @@ impl InitService {
                     ("slow-queries", "*"),
                     ("print-templates", "*"),
                     ("data-import", "*"),
-                    ("permissions-audit", "*"),
+                    ("permission-audits", "*"),
                     ("business-trace", "read"),
                 ],
             ),
             (
                 "data_analyst",
                 &[
+                    // 数据分析岗读期末报表快照与行业基准作建模对标取数，均只读。
+                    ("period-report-snapshots", "read"),
+                    ("industry-benchmarks", "read"),
                     ("reports", "*"),
                     ("bi-analysis", "*"),
                     ("dashboard", "*"),

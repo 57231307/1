@@ -253,10 +253,17 @@ async fn test_rls_guc_visible_in_same_pool_pg() {
     use bingxi_backend::middleware::rls_context::install_rls_pool_hooks;
     use sea_orm::{ConnectOptions, ConnectionTrait, QueryResult};
 
-    let db_url = std::env::var("TEST_DATABASE_URL").unwrap_or_default();
+    let db_url = std::env::var("TEST_DATABASE_URL").unwrap_or_else(|_| {
+        panic!(
+            "test_rls_guc_visible_in_same_pool_pg 需要 TEST_DATABASE_URL 指向已迁移 PostgreSQL；\
+             禁止以未执行冒充通过（原实现缺库时 return 静默跳过 = 假绿）"
+        )
+    });
     if !db_url.starts_with("postgres") {
-        eprintln!("跳过：TEST_DATABASE_URL 未指向 PostgreSQL（当前: {db_url}）");
-        return;
+        panic!(
+            "TEST_DATABASE_URL 必须指向 PostgreSQL（当前: {db_url}）——\
+             set_config GUC 为 PG 专属，本用例不可在其他后端下运行，也不可信其跳过算通过"
+        );
     }
 
     // max=1 保证两次查询复用同一物理连接，使「设置可见 / RESET 清理」断言确定性

@@ -7,6 +7,7 @@
  * 设计说明：通过 callbacks 接收 useLgs 的状态引用（Reactive 包装层）；
  * 内部访问 cb.isEdit.value 等即可修改实际 ref 的 value
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { reactive, computed } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -185,7 +186,7 @@ export function useLgsProc(cb: LgsCallbacks) {
       msg.success('signSuccess');
       await cb.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('签收失败:', error);
       }
     }
@@ -203,7 +204,7 @@ export function useLgsProc(cb: LgsCallbacks) {
       msg.success('deleteSuccess');
       await cb.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('删除失败:', error);
       }
     }

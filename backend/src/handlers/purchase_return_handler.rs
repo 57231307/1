@@ -9,6 +9,7 @@ use crate::services::purchase_return_service::{
     UpdatePurchaseReturnRequest, UpdateReturnItemRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
@@ -41,8 +42,7 @@ pub async fn list_purchase_returns(
         )
         .await?;
 
-    let result = serde_json::to_value(PaginatedResponse::new(returns, total, page, page_size))
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(returns, total, page, page_size))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -120,14 +120,29 @@ pub async fn submit_purchase_return(
 }
 
 /// 审批采购退货单
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由选填并落
+// approval_reason 专列；拒绝动作在 /reject（理由落 rejected_reason 专列）。
 pub async fn approve_purchase_return(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
+    payload: OptionalJson<ApproveReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReturnService::new(state.db.clone());
 
-    let return_order = service.approve_return(id, auth.user_id).await?;
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 的 OptionalFromRequest for Json 只在完全不带
+    // Content-Type 时才放行，"带 JSON 头 + 空体"仍被解码层判 400。
+    // 缺体/纯空白在此归一为 None ⇒ 列保持 NULL；有体但非法仍走 400 VALIDATION_ERROR。
+    let approval_reason = payload
+        .0
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let return_order = service
+        .approve_return(id, auth.user_id, approval_reason)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(return_order)?,
@@ -143,10 +158,23 @@ pub async fn reject_purchase_return(
     auth: AuthContext,
     Json(req): Json<RejectReturnRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 拒绝理由服务端必填：校验真实执行（本 DTO 此前无 Validate，两端皆空可入库）；
+    // validator 的 min=1 拦不住纯空白，trim 非空门在后，落库为 trim 后的值
+    // （口径同 quotation_handler.rs / sales_price_handler.rs reject 先例）。
+    req.validate()?;
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        tracing::warn!(
+            "用户 {} 拒绝采购退货单被拒：单据 ID {id} 拒绝理由为纯空白（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
     let service = PurchaseReturnService::new(state.db.clone());
 
     let return_order = service
-        .reject_return(id, req.reason.clone(), auth.user_id)
+        .reject_return(id, reason.clone(), auth.user_id)
         .await?;
 
     // 发送审批拒绝通知
@@ -163,7 +191,7 @@ pub async fn reject_purchase_return(
                     false,
                     auth.user_id,
                     &auth.username,
-                    Some(&req.reason),
+                    Some(&reason),
                 )
                 .await
             {
@@ -216,22 +244,41 @@ pub struct ReturnQueryParams {
     pub end_date: Option<String>,
 }
 
-/// 拒绝退货单请求
+/// 拒绝退货单请求：拒绝理由全域必填（handler 内 trim 非空门收口，min=1 只拦空串）。
+/// purchase_return.rejected_reason 为 TEXT（business/m0009 建列），无列宽截断风险，
+/// 不设上限——上限只在列型有容量约束时才有意义（对照 PO 的 VARCHAR(255)→255）。
 #[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct RejectReturnRequest {
+    #[validate(length(min = 1, message = "拒绝原因不能为空"))]
     pub reason: String,
+}
+
+/// 审批通过请求体（选填档）：通过理由缺失/空串/纯空白一律按未采集落 NULL。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用与选填语义在同一
+/// 形态下解码通过，不产生解码层裸 400。
+#[derive(Debug, Deserialize)]
+pub struct ApproveReturnRequest {
+    pub approval_reason: Option<String>,
 }
 
 pub async fn list_purchase_return_items(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<
     Json<ApiResponse<Vec<crate::services::purchase_return_service::PurchaseReturnItemDto>>>,
     AppError,
 > {
+    // 行级归属门（读口）：purchase_return_item 按 return_id 隶属父采购退货单，越权可读
+    // 他人退货明细。对齐父端点 get_purchase_return 范式——先 `get_return(id, Some(&ctx))`：
+    // 不存在走既有 not_found（404），不可见走 permission_denied（403 + FORBIDDEN），不得把
+    // 越权降级成 2xx 空列表。purchase_return 归属列 `created_by`、部门列 `department_id`
+    //（两列在模型与建表 DDL 均为可空 INTEGER；get_return 内 check_resource_owner 按此两列
+    // 判定，NULL 历史行按"无归属"处理——Dept/Self 判 false 即 403，不放行、不空列表兜底）。
     let service = PurchaseReturnService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_return(id, Some(&data_scope_ctx)).await?;
     let items = service.list_items(id).await?;
     Ok(Json(ApiResponse::success(items)))
 }

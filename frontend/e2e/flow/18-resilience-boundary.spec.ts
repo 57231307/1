@@ -11,7 +11,9 @@ import {
   TEST_USERNAME,
   TEST_PASSWORD,
   ensureTestEntities,
-  ensureStockInWarehouse,
+  pickDyeableWarehouse,
+  seedDyedOutboundBundle,
+  readDyedPieceByNo,
   expectBadRequest,
   failureCode,
   tryCleanup,
@@ -123,12 +125,17 @@ test.describe('异常处理与边界条件', () => {
       ],
     });
 
-    // 拒绝判据：HTTP 状态码，或 utils/error.rs:143-148 直出的字符串机器码
+    // 拒绝判据（与 :265 同风格）：4xx + 业务机器码，排除 5xx 裸崩
     const rejectCode = failureCode(result);
+    const rejectedByGate =
+      result.status >= 400 &&
+      result.status < 500 &&
+      (rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
+        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR ||
+        rejectCode === APP_ERROR_CODES.BAD_REQUEST);
     expect(
-      result.status >= 400 ||
-        rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
-        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR
+      rejectedByGate,
+      `零数量应被业务/校验拒绝（4xx + 业务码），实际 status=${result.status} code=${rejectCode ?? ''} message=${result.message ?? ''}`
     ).toBeTruthy();
   });
 
@@ -196,22 +203,29 @@ test.describe('异常处理与边界条件', () => {
   });
 
   test('销售建单不锁库存：可用量不足仅在发货时门控（不预占 reservation）', async ({ page }) => {
+    test.setTimeout(240_000);
     const ctx = getCtx();
     const productId = ctx.productIds[0];
-    const warehouseId = ctx.warehouseIds[0];
     expect(productId, '缺产品 id，无法验证建单/发货门控').toBeTruthy();
-    expect(warehouseId, '缺仓库 id，无法验证建单/发货门控').toBeTruthy();
 
-    // 预置一行带全四维（色号+缸号+批次）的真实库存作为可用量基准，
-    // 并取真实仓库编码（ship.rs 按 warehouse_code 查仓）供发货请求使用。
-    const stockRow = await ensureStockInWarehouse(page, productId, warehouseId);
-    const wh = await apiCallRaw<{ warehouse_code?: string }>(
-      page,
-      'GET',
-      `/warehouses/${warehouseId}`
-    );
-    const warehouseCode = wh?.warehouse_code;
-    expect(warehouseCode, `仓库 ${warehouseId} 应返回 warehouse_code`).toBeTruthy();
+    // 预置一行带全四维（色号+缸号=批次+匹号）的真实库存 + 同 tuple AVAILABLE 染色匹，
+    // 并确定性选定可承载染色匹的仓库带出其编码（ship.rs 按 warehouse_code 查仓）。
+    // 出库对染色布强制四维（用户 2026-10-02 口径）：本例是"数量不足"负例，必须让
+    // 请求先通过缺维（VALIDATION）与缺匹（BUSINESS 匹未命中）两道门，才能证明拒绝
+    // 只能来自可用量门控——所以匹号必须带真实可出库匹（helpers.seedDyedOutboundBundle：
+    // batch=缸号 库存行 + 委外染色真实链造匹；旧 ensureStockInWarehouse 行 batch≠缸号，
+    // 按写入方口径造不出命中匹，负例将退化成"缺维被拒"的假绿）。
+    const target = await pickDyeableWarehouse(page);
+    const bundle = await seedDyedOutboundBundle(page, {
+      productId,
+      warehouseId: target.id,
+      quantityMeters: '100',
+      pieceCount: 1,
+      context: '18-A5',
+    });
+    const stockRow = bundle.stockRow;
+    const warehouseCode = target.code;
+    expect(warehouseCode, `仓库 ${target.id} 应返回 warehouse_code`).toBeTruthy();
     expect(stockRow.batch_no, '库存行应带批次号（四维出库入参来源）').toBeTruthy();
     expect(stockRow.dye_lot_no, '库存行应带缸号（四维出库入参来源）').toBeTruthy();
 
@@ -223,8 +237,45 @@ test.describe('异常处理与边界条件', () => {
     //   reservation 行，历史 lock_inventory 死代码链已删除；唯一可用量门控是发货期
     //   check_inventory → decide_item_stock（四维口径）。故建单应返回 id 成功，发货因可用量
     //   不足被业务码拒绝——本用例两端断言均如实反映该语义，非为过而过的放宽。
+    //
+    // 前置配齐（用例自给自足，不吃全局 seed）：本用例命题是
+    // A5"建单不锁库存、可用量只在发货门控"，与提交期信用额度门无关。submit 的
+    // validate_customer_credit（backend/src/services/so/order_workflow.rs）对
+    // 共享种子客户判"信用额度不足"是正确行为——该客户在全局 seed 登记的额度 10 万
+    // （e2e/global-setup.ts::ensureGlobalBusinessSeed 的客户评级段）远小于本例刻意放大的
+    // 订单额 999999×100=99,999,900，因此"额度足够"这一前置必须在用例内自己保证：
+    // 自建专属客户 + 登记足额信用；不缩小订单金额、不把断言改判为"额度不足负例"
+    // （两者都会背离用例语义）。
+    const custCode = genCode('E2E18C');
+    const dedicated = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_name: `18-建单门控专属客户_${custCode}`,
+      contact_phone: '13800018000',
+    });
+    const dedicatedCustomerId = dedicated.data?.id;
+    expect(
+      dedicatedCustomerId,
+      `前置缺失：专属客户创建未返回 id（${JSON.stringify(dedicated)}）`
+    ).toBeTruthy();
+    // 登记信用：credit_limit 2 亿（≤10 亿上限，utils/validator.rs::validate_credit_limit_range），
+    // 新建行 status=active、available=limit（customer_credit_limit.rs set_credit_rating 语义）
+    await apiCall(page, 'POST', '/crm/customer-credits', {
+      customer_id: dedicatedCustomerId,
+      credit_level: 'A',
+      credit_limit: '200000000',
+      credit_days: 30,
+    });
+    // 前置自检（不靠隐式默认）：接口回读可用额度确已覆盖订单额，不足即抛真实响应原文
+    const credit = await apiCallRaw<{ available_credit: string | number }>(
+      page,
+      'GET',
+      `/crm/customer-credits/${dedicatedCustomerId}`
+    );
+    expect(
+      Number(credit.available_credit),
+      `专属客户可用额度应覆盖订单额 999999×100=99999900，实际 ${JSON.stringify(credit)}`
+    ).toBeGreaterThanOrEqual(99999900);
     const created = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
-      customer_id: ctx.customerId,
+      customer_id: dedicatedCustomerId,
       order_date: new Date().toISOString(),
       items: [
         {
@@ -241,13 +292,16 @@ test.describe('异常处理与边界条件', () => {
     await apiCall(page, 'POST', `/sales/orders/${soId}/submit`);
     await apiCall(page, 'POST', `/sales/orders/${soId}/approve`);
 
-    // 发货门控：按真实出库四维请求远超可用量的发货量，可用量校验（check_inventory，
-    // ship.rs:145 → inventory.rs:153 decide_item_stock）应判 Insufficient/NoStockRows 拒发。
-    // 与旧版的两处假绿不同：
+    // 发货门控：按真实出库四维（含匹号）请求远超可用量的发货量，可用量校验
+    // （check_inventory，ship.rs:145 → inventory.rs decide_item_stock/plan_deduction）
+    // 应判 Insufficient 拒发（BUSINESS 族）。与旧版的三处假绿不同：
     //  ①旧版用 if (soId) 包裹发货断言——建单未返回 id 时整段被跳过 = 空转假绿；现显式断言 soId。
     //  ②旧版 ship 传空 body → 因缺 order_id/warehouse_code/items 被 serde 判 4xx，
     //    "看似被阻断"实为请求格式错误（并非可用量门控），也是假绿；此处传结构合法请求体，
-    //    令拒绝只能来自可用量门控（status<500 且携带业务/校验机器码，非 500 崩溃、非 401/403）。
+    //    令拒绝只能来自可用量门控。
+    //  ③旧版允许 VALIDATION_ERROR 也算"门控拒绝"——四维口径下缺维（如缺匹号）也是 4xx
+    //    VALIDATION，会把"请求本身不合法"读成"可用量门控生效"。现钉死 BUSINESS_ERROR：
+    //    只有过了维度/匹号校验、真正败在可用量的拒绝才满足本用例命题。
     const ship = await apiCallExpectFail(page, 'POST', `/sales/orders/${soId}/ship`, {
       order_id: soId,
       warehouse_code: warehouseCode,
@@ -258,19 +312,41 @@ test.describe('异常处理与边界条件', () => {
           color_no: stockRow.color_no,
           batch_no: stockRow.batch_no,
           dye_lot_no: stockRow.dye_lot_no,
+          piece_no: bundle.pieces[0].piece_no,
         },
       ],
     });
     const shipReject = failureCode(ship);
-    const rejectedByGate =
-      ship.status >= 400 &&
-      ship.status < 500 &&
-      (shipReject === APP_ERROR_CODES.BUSINESS_ERROR ||
-        shipReject === APP_ERROR_CODES.VALIDATION_ERROR);
     expect(
-      rejectedByGate,
-      `发货应因可用量不足被业务门控拒绝，实际 status=${ship.status} code=${ship.code ?? ''} message=${ship.message ?? ''}`
-    ).toBeTruthy();
+      shipReject,
+      `发货应因可用量不足被 BUSINESS 族门控拒绝（非缺维 VALIDATION、非 5xx），` +
+        `实际 status=${ship.status} code=${ship.code ?? ''} message=${ship.message ?? ''}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(
+      ship.status,
+      `可用量不足拒绝应为 4xx（业务拒绝非裸崩），实际 status=${ship.status} message=${ship.message ?? ''}`
+    ).toBeGreaterThanOrEqual(400);
+    expect(ship.status, `可用量不足拒绝不得是 5xx，实际=${ship.status}`).toBeLessThan(500);
+    // 被拒的写无痕：库存未扣、匹未被消耗（仍 AVAILABLE）
+    const untouched = await readDyedPieceByNo(page, {
+      productId,
+      warehouseId: target.id,
+      dyeLotNo: bundle.dyeLotNo,
+      batchNo: bundle.dyeLotNo,
+      pieceNo: bundle.pieces[0].piece_no,
+    });
+    expect(untouched, '被拒发货不得吞掉匹记录').toBeTruthy();
+    expect(String(untouched!.status), '可用量不足被拒后匹应仍 AVAILABLE').toBe('AVAILABLE');
+    // 尽力清理：信用行（DELETE /crm/customer-credits/{customer_id} 走 deactivate 软停用，
+    // customer_credit_handler.rs:331-345）与专属客户（customers 软删）；本例销售订单已流转
+    // 不可删（与 purchase/02-approve afterEach 同口径：已流转删除告警属预期，非静默）。
+    await tryCleanup(
+      page,
+      'DELETE',
+      `/crm/customer-credits/${dedicatedCustomerId}`,
+      '18-A5 专属客户信用行'
+    );
+    await tryCleanup(page, 'DELETE', `/crm/customers/${dedicatedCustomerId}`, '18-A5 专属客户');
   });
 
   test('会计期间关闭后凭证录入应被阻断', async ({ page }) => {

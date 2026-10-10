@@ -48,8 +48,7 @@ pub async fn get_statistics_report(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
         .get_statistics_report(query.start_date, query.end_date, query.customer_id)
-        .await
-        .map_err(|e| AppError::internal(format!("获取统计报表失败: {}", e)))?;
+        .await?;
 
     if let Ok(bytes) = serde_json::to_vec(&report) {
         state
@@ -85,8 +84,7 @@ pub async fn get_daily_report(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
         .get_daily_report(query.start_date, query.end_date, query.customer_id)
-        .await
-        .map_err(|e| AppError::internal(format!("获取日报表失败: {}", e)))?;
+        .await?;
 
     if let Ok(bytes) = serde_json::to_vec(&report) {
         state
@@ -122,8 +120,7 @@ pub async fn get_monthly_report(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
         .get_monthly_report(query.start_date, query.end_date, query.customer_id)
-        .await
-        .map_err(|e| AppError::internal(format!("获取月报表失败: {}", e)))?;
+        .await?;
 
     if let Ok(bytes) = serde_json::to_vec(&report) {
         state
@@ -159,8 +156,7 @@ pub async fn get_aging_report(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
         .get_aging_report(query.customer_id, query.baseline_date, query.salesperson_id)
-        .await
-        .map_err(|e| AppError::internal(format!("获取账龄报表失败: {}", e)))?;
+        .await?;
 
     if let Ok(bytes) = serde_json::to_vec(&report) {
         state
@@ -191,8 +187,7 @@ pub async fn get_aging_by_salesperson(
     let service = crate::services::ar_service::ArService::new(state.db.clone());
     let report = service
         .get_aging_by_salesperson(query.baseline_date)
-        .await
-        .map_err(|e| AppError::internal(format!("获取业务员账龄报表失败: {}", e)))?;
+        .await?;
 
     if let Ok(bytes) = serde_json::to_vec(&report) {
         state

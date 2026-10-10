@@ -95,24 +95,11 @@ impl ArService {
             .order_by(ar_collection::Column::CollectionDate, Order::Asc)
             .all(txn)
             .await?;
-        // 批量查询已有核销记录，按 payment_id 汇总已核销金额
+        // 批量汇总各收款单已核销分配额：收款单维度"已核销分配额"的唯一读数
+        // （ar_ops/collection.rs::receipt_verify_totals），与手工核销可用余额门、
+        // 修改收款金额下限门、可核销收款列表同源；不再内联第二套求和。
         let payment_ids: Vec<i32> = payments.iter().map(|p| p.id).collect();
-        let existing_items: Vec<ar_reconciliation_item::Model> = if payment_ids.is_empty() {
-            Vec::new()
-        } else {
-            ar_reconciliation_item::Entity::find()
-                .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
-                .filter(ar_reconciliation_item::Column::DocumentId.is_in(payment_ids))
-                .all(txn)
-                .await?
-        };
-        let mut verified_map: std::collections::HashMap<i32, Decimal> =
-            std::collections::HashMap::new();
-        for item in &existing_items {
-            if let Some(doc_id) = item.document_id {
-                *verified_map.entry(doc_id).or_insert(Decimal::ZERO) += item.amount.abs();
-            }
-        }
+        let verified_map = Self::receipt_verify_totals(txn, &payment_ids).await?;
         Ok(AutoVerifyData {
             invoices,
             payments,
@@ -307,7 +294,14 @@ impl ArService {
                 continue; // 跳过已处理的发票
             }
             if let Some(invoice) = inv_map.remove(&inv_id) {
-                let inv_active: ar_invoice::ActiveModel = invoice.into();
+                // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+                // update_invoice_state 的累加结果必须显式 Set 回写列，否则自动核销金额不落库
+                // （paid/received 恒 0、状态不迁移，接口却返回 200——本次 CI D 族真缺陷根因）。
+                let mut inv_active: ar_invoice::ActiveModel = invoice.clone().into();
+                inv_active.received_amount = Set(invoice.received_amount);
+                inv_active.unpaid_amount = Set(invoice.unpaid_amount);
+                inv_active.status = Set(invoice.status.clone());
+                inv_active.updated_at = Set(Utc::now());
                 crate::services::audit_log_service::AuditLogService::update_with_audit::<
                     ar_invoice::Entity,
                     _,
@@ -320,9 +314,9 @@ impl ArService {
     }
 
     /// 收款匹配发票（贪心，返回 (inv_id, verify_amount) 列表，并更新 invoice_remaining）
-    fn match_payment_to_invoices<'a>(
+    fn match_payment_to_invoices(
         payment: &ar_collection::Model,
-        cust_invoices: &[&'a ar_invoice::Model],
+        cust_invoices: &[&ar_invoice::Model],
         invoice_remaining: &mut std::collections::HashMap<i32, Decimal>,
         already_verified: Decimal,
     ) -> Vec<(i32, Decimal)> {

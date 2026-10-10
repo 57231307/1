@@ -195,8 +195,7 @@ import {
   submitQuotation,
   getQuotation,
   PRICE_TERMS_LABELS,
-  type CreateQuotationDto,
-  type CreateQuotationItemDto,
+  quotationToWire,
   type CreateQuotationTermDto,
   type PriceTerms,
   type CurrencyCode,
@@ -204,9 +203,13 @@ import {
   type QuotationResponseDto,
   type QuotationItemResponseDto,
   type QuotationTermResponseDto,
+  type QuotationEditForm,
+  type QuotationItemEditForm,
+  type TierPricingEditItem,
 } from '@/api/quotation';
 import { getCustomerList } from '@/api/customer';
 import { useUserStore } from '@/store/user';
+import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
 import QuotationItemEditor from './components/QuotationItemEditor.vue';
 import TermEditor from './components/TermEditor.vue';
 
@@ -243,8 +246,8 @@ function defaultValidUntil(): string {
   return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-/** 表单数据 */
-const form = reactive<CreateQuotationDto>({
+/** 表单数据（编辑态：金额/数量/税率为 number 与 el-input-number 双向绑定；提交前 quotationToWire 转后端 DecimalWire string） */
+const form = reactive<QuotationEditForm>({
   // v11 批次 163 P2-1 修复：undefined as any 改为类型断言
   customer_id: undefined as unknown as number,
   sales_user_id: 0,
@@ -262,7 +265,7 @@ const form = reactive<CreateQuotationDto>({
   lead_time_days: undefined,
   customer_level: 'NORMAL',
   notes: '',
-  items: [] as CreateQuotationItemDto[],
+  items: [] as QuotationItemEditForm[],
   terms: [] as CreateQuotationTermDto[],
 });
 
@@ -289,7 +292,7 @@ const rules: FormRules = {
   items: [
     {
       // v11 批次 163 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
-      validator: (_rule: unknown, value: CreateQuotationItemDto[], cb: (error?: Error) => void) => {
+      validator: (_rule: unknown, value: QuotationItemEditForm[], cb: (error?: Error) => void) => {
         if (!value || value.length === 0) {
           cb(new Error(t('quotations.create.validateItemsRequired')));
           return;
@@ -310,14 +313,17 @@ const rules: FormRules = {
 
 const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([]);
 
-/** 金额计算 */
-const subtotal = computed(() =>
-  form.items.reduce(
-    (sum: number, i: CreateQuotationItemDto) => sum + (i.quantity || 0) * (i.unit_price || 0),
-    0
-  )
+/** 金额计算：编辑态 quantity/unit_price/tax_rate 是 number，直接算得本地展示值；提交时才转字符串 */
+const subtotal = computed(
+  () =>
+    form.items.reduce(
+      (sum: number, i: QuotationItemEditForm) => sum + (i.quantity || 0) * (i.unit_price || 0),
+      0
+    ) || 0
 );
-const taxAmount = computed(() => (form.tax_inclusive ? 0 : (subtotal.value * form.tax_rate) / 100));
+const taxAmount = computed(
+  () => (form.tax_inclusive ? 0 : (subtotal.value * form.tax_rate) / 100) || 0
+);
 const totalAmount = computed(() => subtotal.value + taxAmount.value);
 
 /** 加载客户下拉 */
@@ -334,7 +340,8 @@ async function loadCustomers() {
   }
 }
 
-/** 由报价详情构建表头字段（编辑态与复制态共用；不含明细/条款） */
+/** 由报价详情构建表头字段（编辑态与复制态共用；不含明细/条款）
+ *  后端 rust_decimal 出参形态是 JSON 十进制字符串，回填 el-input-number 前经 utils/money 归一 */
 function buildQuotationHeader(data: QuotationResponseDto) {
   return {
     customer_id: data.customer_id,
@@ -342,34 +349,55 @@ function buildQuotationHeader(data: QuotationResponseDto) {
     quotation_date: data.quotation_date,
     valid_until: data.valid_until,
     currency: data.currency as CurrencyCode,
-    exchange_rate: Number(data.exchange_rate),
+    exchange_rate: decimalWireToNumber(data.exchange_rate),
     base_currency: data.base_currency || 'CNY',
     price_terms: data.price_terms as PriceTerms,
     incoterms_version: data.incoterms_version || '2020',
     incoterm_location: data.incoterm_location || '',
     tax_inclusive: data.tax_inclusive,
-    tax_rate: Number(data.tax_rate),
-    moq: data.moq,
+    tax_rate: decimalWireToNumber(data.tax_rate),
+    moq: data.moq == null ? undefined : decimalWireToNumber(data.moq),
     lead_time_days: data.lead_time_days,
     customer_level: (data.customer_level as CustomerLevel) || 'NORMAL',
     notes: data.notes || '',
   };
 }
 
-/** 复制明细：按新建处理，剥离源行 id/序列/金额等响应字段，仅保留 CreateQuotationItemDto 字段 */
-function mapQuotationItemsForCopy(items: QuotationItemResponseDto[]): CreateQuotationItemDto[] {
-  return items.map(i => ({
+/** 阶梯价后端出参（DecimalWire 字符串）→ 编辑态 number；Option 出参 null/undefined 均视为缺值 */
+function mapTierPricingForEdit(
+  items?: QuotationItemResponseDto['tier_pricing']
+): TierPricingEditItem[] | undefined {
+  if (!items) return undefined;
+  return items.map(t => ({
+    min_quantity: decimalWireToNumber(t.min_quantity),
+    ...(t.max_quantity != null ? { max_quantity: decimalWireToNumber(t.max_quantity) } : {}),
+    unit_price: decimalWireToNumber(t.unit_price),
+    ...(t.unit_price_with_tax != null
+      ? { unit_price_with_tax: decimalWireToNumber(t.unit_price_with_tax) }
+      : {}),
+  }));
+}
+
+/** 复制/编辑回填：后端明细响应（DecimalWire 字符串）→ 编辑态 number */
+function mapQuotationItemToEditForm(i: QuotationItemResponseDto): QuotationItemEditForm {
+  const tier = mapTierPricingForEdit(i.tier_pricing);
+  return {
     product_id: i.product_id,
     color_id: i.color_id,
     specification: i.specification,
     unit: i.unit,
-    quantity: i.quantity,
-    unit_price: i.unit_price,
-    unit_price_with_tax: i.unit_price_with_tax,
-    tier_pricing: i.tier_pricing,
-    discount_rate: i.discount_rate,
+    quantity: decimalWireToNumber(i.quantity),
+    unit_price: decimalWireToNumber(i.unit_price),
+    unit_price_with_tax: decimalWireToNumber(i.unit_price_with_tax),
+    ...(tier ? { tier_pricing: tier } : {}),
+    ...(i.discount_rate != null ? { discount_rate: decimalWireToNumber(i.discount_rate) } : {}),
     notes: i.notes,
-  }));
+  };
+}
+
+/** 复制明细：按新建处理，剥离源行 id/序列/金额等响应字段，并回填为编辑态数值 */
+function mapQuotationItemsForCopy(items: QuotationItemResponseDto[]): QuotationItemEditForm[] {
+  return items.map(mapQuotationItemToEditForm);
 }
 
 /** 复制条款：按新建处理，剥离源条款 id，仅保留 CreateQuotationTermDto 字段 */
@@ -392,7 +420,7 @@ async function loadExisting() {
     const data = res.data;
     if (data) {
       Object.assign(form, buildQuotationHeader(data), {
-        items: (data.items || []) as CreateQuotationItemDto[],
+        items: (data.items || []).map(mapQuotationItemToEditForm),
         terms: (data.terms || []) as CreateQuotationTermDto[],
       });
     }
@@ -466,15 +494,16 @@ async function handleSaveDraft() {
   }
   await ensureSalesUserId();
   submitting.value = true;
+  const payload = quotationToWire(form);
   try {
     if (isEdit.value) {
       const id = Number(props.quotationId || route.params.id);
-      const res = await updateQuotation(id, form);
+      const res = await updateQuotation(id, payload);
       ElMessage.success(t('quotations.create.draftUpdated'));
       // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
       router.push(`/quotations/${res.data?.id ?? id}`);
     } else {
-      const res = await createQuotation(form);
+      const res = await createQuotation(payload);
       ElMessage.success(t('quotations.create.draftSaved'));
       router.push(`/quotations/${res.data?.id ?? ''}`);
     }
@@ -499,15 +528,16 @@ async function handleSubmit() {
   }
   await ensureSalesUserId();
   submitting.value = true;
+  const payload = quotationToWire(form);
   try {
     let quotationId: number;
     if (isEdit.value) {
       const id = Number(props.quotationId || route.params.id);
-      const res = await updateQuotation(id, form);
+      const res = await updateQuotation(id, payload);
       // v11 批次 163 P2-1 修复：res.data as any 改为 QuotationResponseDto
       quotationId = res.data?.id ?? id;
     } else {
-      const res = await createQuotation(form);
+      const res = await createQuotation(payload);
       quotationId = res.data?.id ?? 0;
     }
     await submitQuotation(quotationId);
@@ -524,10 +554,7 @@ async function handleSubmit() {
 }
 
 function formatAmount(value: number): string {
-  return Number(value).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return formatDecimalAmount(value);
 }
 
 /** 贸易条款变化（处理可选字段） */

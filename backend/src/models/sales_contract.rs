@@ -22,7 +22,13 @@ pub struct Model {
     pub payment_method: Option<String>,
     pub delivery_date: Option<NaiveDate>,
     pub delivery_location: Option<String>,
+    /// 备注（m0016 迁移补列，可空）
+    pub remark: Option<String>,
     pub status: String,
+    /// 合同审批通过理由（m0079 加列，TEXT 可空；NULL=历史行未采集）
+    pub approval_reason: Option<String>,
+    /// 合同审批拒绝理由（m0079 加列，TEXT 可空；cancel 动作不使用本列）
+    pub rejected_reason: Option<String>,
     pub created_by: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

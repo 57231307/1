@@ -166,10 +166,25 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
   test('4. 通知公告直发：POST /notifications/announcement→通知产生→已读→删除', async ({ page }) => {
     test.setTimeout(120_000);
-    await ensureTestEntities(page);
-    const ctx = getCtx();
-    const currentUserId = ctx.userIds[0];
-    expect(currentUserId, '[31e-4] 当前用户 id 未就绪').toBeTruthy();
+    // 判责 J-5（测试侧超时预算被无关 seed 吃光，后端端点无阻塞）
+    // 本用例只需要「当前登录用户 id」，原实现却调用 ensureTestEntities ——其染色批次
+    // seed 分支（冻结 helper ui-helpers/createDyeBatchUI）在「染色身份归一」新契约下
+    // UI 表单错误 [请选择产品/染色布必须填写缸号]、API 兜底又被色卡档案校验拒绝
+    //（CI r13 原文：waitListResponse dye-batches 20s 超时 ×2 + createDyeBatchUI 120s
+    // 超时 + POST dye-batches 45s 超时 + 「色号 E2E-GC578549 在色卡档案中不存在」），
+    // 120s 用例预算在到达通知断言前已耗尽，fetch 只是超时时钟落点。backend.log 证据：
+    // GET /notifications?status=UNREAD 均 4ms 200、POST /notifications/announcement
+    // 4ms 200（trace f4b8/837b/a901/删除矩阵 POST），不存在通知端点死锁/长事务。
+    // 正解＝本用例改直取 /auth/me（通知归属的唯一真值），不再为无关主数据 seed 买单；
+    // ensureTestEntities 染色 seed 分支自身的缺陷（缺色号档案/缸号前置）已写入交付报告
+    // 交主编排（helpers/ui-helpers 为冻结共享文件，本专家无权修改）。
+    const me = await apiCallRaw<{ id?: number; username?: string }>(page, 'GET', '/auth/me');
+    const currentUserId = me?.id;
+    expect(
+      currentUserId,
+      `[31e-4] /auth/me 未返回数值 id（实际=${JSON.stringify(me).slice(0, 200)}）`
+    ).toBeTruthy();
+    console.warn(`[31e-4] 当前用户 id=${currentUserId} username=${me?.username}`);
 
     const title = `P0直发通知${TS}`;
     const before = await listNotifications(page);
@@ -204,10 +219,16 @@ test.describe.serial('P0 OA 公告 + 通知公告直发', () => {
 
   test('5. 通知 CRUD：列表→单条已读→批量已读→全部已读→删除', async ({ page }) => {
     test.setTimeout(120_000);
-    await ensureTestEntities(page);
-    const ctx = getCtx();
-    const currentUserId = ctx.userIds[0];
-    expect(currentUserId, '[31e-5] 当前用户 id 未就绪').toBeTruthy();
+    // 与 31e-4 同因（见其判责注释）：仅需通知归属用户 id，直取 /auth/me，
+    // 不再让 ensureTestEntities 的染色 seed 长尾消耗 120s 预算（本轮它"碰巧"绿
+    // 只因缓存分支被前序用例点过，属不稳定绿，非本用例真实健康）。
+    const me = await apiCallRaw<{ id?: number; username?: string }>(page, 'GET', '/auth/me');
+    const currentUserId = me?.id;
+    expect(
+      currentUserId,
+      `[31e-5] /auth/me 未返回数值 id（实际=${JSON.stringify(me).slice(0, 200)}）`
+    ).toBeTruthy();
+    console.warn(`[31e-5] 当前用户 id=${currentUserId} username=${me?.username}`);
 
     // 三条通知 content 各异，规避 5 分钟去重窗口内同 dedup_key 折叠
     const titles = [`P0-CRUD-1-${TS}`, `P0-CRUD-2-${TS}`, `P0-CRUD-3-${TS}`];

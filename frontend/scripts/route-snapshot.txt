@@ -1,4 +1,4 @@
-# layers=8 endpoints=1758
+# layers=8 endpoints=1770
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -6,7 +6,6 @@ DELETE	/api/v1/erp/ai/quality-predictions/*	ai_extend_handler::delete_quality_pr
 DELETE	/api/v1/erp/ap/invoices/*	ap_invoice_handler::delete_ap_invoice	finance
 DELETE	/api/v1/erp/ap/payment-requests/*	ap_payment_request_handler::delete_request	finance
 DELETE	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::delete_api_endpoint	analytics
-DELETE	/api/v1/erp/api-gateway/keys/*	api_gateway_handler::delete_api_key	analytics
 DELETE	/api/v1/erp/ar-reconciliations/*	ar_reconciliation_handler::delete_reconciliation	finance
 DELETE	/api/v1/erp/ar/invoices/*	ar_invoice_handler::delete_ar_invoice	finance
 DELETE	/api/v1/erp/asset-categories/*	crate::handlers::asset_category_handler::delete_category	finance
@@ -179,10 +178,6 @@ GET	/api/v1/erp/ap/verifications/unverified/invoices	ap_verification_handler::ge
 GET	/api/v1/erp/ap/verifications/unverified/payments	ap_verification_handler::get_unverified_payments	finance
 GET	/api/v1/erp/api-gateway/endpoints	api_gateway_handler::list_api_endpoints	analytics
 GET	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::get_api_endpoint	analytics
-GET	/api/v1/erp/api-gateway/keys	api_gateway_handler::list_api_keys	analytics
-GET	/api/v1/erp/api-gateway/keys/*	api_gateway_handler::get_api_key	analytics
-GET	/api/v1/erp/api-gateway/logs	api_gateway_handler::list_api_logs	analytics
-GET	/api/v1/erp/api-gateway/logs/*	api_gateway_handler::get_api_log	analytics
 GET	/api/v1/erp/api-gateway/stats	api_gateway_handler::get_api_stats	analytics
 GET	/api/v1/erp/ar-reconciliation-alias/*/details	ar_reconciliation_enhanced_handler::get_reconciliation_details	finance
 GET	/api/v1/erp/ar-reconciliation-alias/aging-analysis	ar_reconciliation_enhanced_handler::aging_report	finance
@@ -402,6 +397,7 @@ GET	/api/v1/erp/crm/pool	crm_pool_handler::list_pool	crm
 GET	/api/v1/erp/crm/pool/rules	crm_pool_handler::list_pool_rules	crm
 GET	/api/v1/erp/crm/recycle-rules	missing_handlers::get_recycle_rules	crm
 GET	/api/v1/erp/crm/rfm/distribution	crate::handlers::crm_handler::get_rfm_distribution	crm
+GET	/api/v1/erp/crm/rfm/segments	crate::handlers::crm_handler::get_rfm_segments	crm
 GET	/api/v1/erp/crm/sales-analysis/customer-ranking	sales_analysis_handler::get_customer_ranking	crm
 GET	/api/v1/erp/crm/sales-analysis/export	sales_analysis_handler::export_analysis	crm
 GET	/api/v1/erp/crm/sales-analysis/product-ranking	sales_analysis_handler::get_product_ranking	crm
@@ -562,6 +558,7 @@ GET	/api/v1/erp/inventory/counts/generate-no	inventory_count_handler::generate_n
 GET	/api/v1/erp/inventory/logistics	logistics_handler::list_waybills	inventory
 GET	/api/v1/erp/inventory/logistics/*	logistics_handler::get_waybill	inventory
 GET	/api/v1/erp/inventory/pieces	crate::handlers::inventory_piece_handler::list_pieces	inventory
+GET	/api/v1/erp/inventory/pieces/*/print	print_handler::inventory_piece_label_print_docx	inventory
 GET	/api/v1/erp/inventory/reservations	inventory_reservation_handler::list_reservations	inventory
 GET	/api/v1/erp/inventory/stock	inventory_stock_handler::list_stock	inventory
 GET	/api/v1/erp/inventory/stock/*	inventory_stock_handler::get_stock	inventory
@@ -741,6 +738,7 @@ GET	/api/v1/erp/production/outsourcing-orders/by-no/*	outsourcing_handler::get_o
 GET	/api/v1/erp/production/outsourcing-orders/items/by-order/*	outsourcing_handler::list_outsourcing_items	production
 GET	/api/v1/erp/production/outsourcing-orders/report	outsourcing_handler::get_outsourcing_report	production
 GET	/api/v1/erp/production/outsourcing-receipts	outsourcing_handler::list_outsourcing_receipts	production
+GET	/api/v1/erp/production/outsourcing-receipts/*	outsourcing_handler::get_outsourcing_receipt	production
 GET	/api/v1/erp/production/outsourcing-receipts/*/print	print_handler::outsourcing_receipt_print_docx	production
 GET	/api/v1/erp/production/outsourcing-receipts/by-no/*	outsourcing_handler::get_outsourcing_receipt_by_no	production
 GET	/api/v1/erp/production/outsourcing-vouchers	outsourcing_handler::list_outsourcing_vouchers	production
@@ -788,6 +786,7 @@ GET	/api/v1/erp/products/select	product_handler::list_products	catalog
 GET	/api/v1/erp/purchase/inspections	purchase_inspection_handler::list_inspections	purchase
 GET	/api/v1/erp/purchase/inspections/*	purchase_inspection_handler::get_inspection	purchase
 GET	/api/v1/erp/purchase/inspections/*/items	purchase_inspection_handler::list_inspection_items	purchase
+GET	/api/v1/erp/purchase/inspections/stats	purchase_inspection_handler::get_inspection_stats	purchase
 GET	/api/v1/erp/purchase/orders	purchase_order_handler::list_orders	purchase
 GET	/api/v1/erp/purchase/orders/*	purchase_order_handler::get_order	purchase
 GET	/api/v1/erp/purchase/orders/*/items	purchase_order_handler::list_order_items	purchase
@@ -797,6 +796,7 @@ GET	/api/v1/erp/purchase/orders/generate-no	purchase_order_handler::generate_ord
 GET	/api/v1/erp/purchase/purchase-contracts	purchase_contract_handler::list_contracts	purchase
 GET	/api/v1/erp/purchase/purchase-contracts/*	purchase_contract_handler::get_contract	purchase
 GET	/api/v1/erp/purchase/purchase-contracts/*/print	print_handler::purchase_contract_print_docx	purchase
+GET	/api/v1/erp/purchase/purchase-contracts/export	purchase_contract_handler::export_purchase_contracts	purchase
 GET	/api/v1/erp/purchase/purchase-prices	purchase_price_handler::list_prices	purchase
 GET	/api/v1/erp/purchase/purchase-prices/*	purchase_price_handler::get_price	purchase
 GET	/api/v1/erp/purchase/purchase-prices/*/history	purchase_price_handler::get_price_history	purchase
@@ -836,6 +836,7 @@ GET	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::list_supplier_co
 GET	/api/v1/erp/purchase/suppliers/*/evaluations	supplier_evaluation_handler::list_evaluation_records	purchase
 GET	/api/v1/erp/purchase/suppliers/*/purchase-history	supplier_handler::get_supplier_purchase_history	purchase
 GET	/api/v1/erp/purchase/suppliers/*/qualifications	supplier_handler::list_supplier_qualifications	purchase
+GET	/api/v1/erp/purchase/suppliers/*/qualifications/*/attachment	supplier_handler::get_supplier_qualification_attachment	purchase
 GET	/api/v1/erp/purchase/suppliers/abnormal-orders	supplier_handler::detect_abnormal_orders	purchase
 GET	/api/v1/erp/purchase/suppliers/export	supplier_handler::export_suppliers	purchase
 GET	/api/v1/erp/purchase/suppliers/select	supplier_handler::list_suppliers	purchase
@@ -893,7 +894,6 @@ GET	/api/v1/erp/sales/sales-prices	sales_price_handler::list_prices	sales
 GET	/api/v1/erp/sales/sales-prices/*	sales_price_handler::get_price	sales
 GET	/api/v1/erp/sales/sales-prices/export	sales_price_handler::export_prices	sales
 GET	/api/v1/erp/sales/sales-prices/history/*	sales_price_handler::get_price_history	sales
-GET	/api/v1/erp/sales/sales-prices/strategies	sales_price_handler::list_strategies	sales
 GET	/api/v1/erp/sales/sales-returns	list_sales_returns	sales_return_handler
 GET	/api/v1/erp/sales/sales-returns/*	get_sales_return	sales_return_handler
 GET	/api/v1/erp/sales/sales-returns/*/items	list_return_items	sales_return_handler
@@ -929,16 +929,15 @@ GET	/api/v1/erp/subjects/*	account_subject_handler::get_subject	finance
 GET	/api/v1/erp/subjects/export	account_subject_handler::export_subjects	finance
 GET	/api/v1/erp/subjects/tree	account_subject_handler::get_subject_tree	finance
 GET	/api/v1/erp/suppliers/select	crate::handlers::supplier_handler::list_suppliers	mod
-GET	/api/v1/erp/system-update/backups	system_update_handler::get_backup_versions	mod
+GET	/api/v1/erp/system-update/backups	system_update_handler::list_backup_tasks	mod
 GET	/api/v1/erp/system-update/check	system_update_handler::check_for_updates	system
 GET	/api/v1/erp/system-update/current-version	system_update_handler::get_version	mod
 GET	/api/v1/erp/system-update/local-check	system_update_handler::check_for_local_updates	system
 GET	/api/v1/erp/system-update/local-releases	system_update_handler::list_local_releases	system
-GET	/api/v1/erp/system-update/tasks	system_update_handler::get_update_status	mod
+GET	/api/v1/erp/system-update/tasks	system_update_handler::list_update_tasks	mod
 GET	/api/v1/erp/system-update/tasks/*	system_update_handler::get_update_task_by_id	mod
 GET	/api/v1/erp/system-update/update-status	system_update_handler::get_update_status	system
 GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
-GET	/api/v1/erp/system-update/versions	system_update_handler::get_backup_versions	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
@@ -1016,8 +1015,6 @@ POST	/api/v1/erp/ap/verifications/*/cancel	ap_verification_handler::cancel_verif
 POST	/api/v1/erp/ap/verifications/auto	ap_verification_handler::auto_verify	finance
 POST	/api/v1/erp/ap/verifications/manual	ap_verification_handler::manual_verify	finance
 POST	/api/v1/erp/api-gateway/endpoints	api_gateway_handler::create_api_endpoint	analytics
-POST	/api/v1/erp/api-gateway/keys	api_gateway_handler::create_api_key	analytics
-POST	/api/v1/erp/api-gateway/keys/*/regenerate	api_gateway_handler::regenerate_api_key	analytics
 POST	/api/v1/erp/ar-reconciliation-alias/*/confirm/send	ar_reconciliation_enhanced_handler::send_confirmation	finance
 POST	/api/v1/erp/ar-reconciliation-alias/auto-reconcile	ar_reconciliation_enhanced_handler::auto_match	finance
 POST	/api/v1/erp/ar-reconciliation-alias/confirmations	ar_reconciliation_enhanced_handler::create_confirmation	finance
@@ -1161,6 +1158,7 @@ POST	/api/v1/erp/crm/customers/*/audit-logs	crate::handlers::crm_handler::create
 POST	/api/v1/erp/crm/customers/*/clv/calculate	crate::handlers::crm_handler::calculate_customer_clv	crm
 POST	/api/v1/erp/crm/customers/*/contacts	crm_customer_handler::create_contact	crm
 POST	/api/v1/erp/crm/customers/*/follow-ups	crate::handlers::crm_handler::create_follow_up	crm
+POST	/api/v1/erp/crm/customers/*/pii/reveal	crm_customer_handler::reveal_customer_pii	crm
 POST	/api/v1/erp/crm/customers/*/tags	crm_customer_handler::add_tags	crm
 POST	/api/v1/erp/crm/customers/*/tags/*	crm_customer_handler::attach_customer_tag	crm
 POST	/api/v1/erp/crm/customers/enhanced	crm_customer_handler::create_customer	crm
@@ -1229,6 +1227,7 @@ POST	/api/v1/erp/export-approvals	export_approval_handler::create_approval_reque
 POST	/api/v1/erp/export-approvals/*/approve	export_approval_handler::approve_request	system
 POST	/api/v1/erp/export-approvals/*/cancel	export_approval_handler::cancel_request	system
 POST	/api/v1/erp/export-approvals/*/reject	export_approval_handler::reject_request	system
+POST	/api/v1/erp/export-inspections	export_inspection_handler::create_inspection	export_inspection_routes
 POST	/api/v1/erp/export-refunds/customs-declarations	export_refund_handler::create_customs_declaration	export_refund
 POST	/api/v1/erp/export-refunds/refund-calculation	export_refund_handler::calculate_refund	export_refund
 POST	/api/v1/erp/export-refunds/refund-declarations	export_refund_handler::generate_refund_declaration	export_refund
@@ -1366,6 +1365,7 @@ POST	/api/v1/erp/production/dye-batches	dye_batch_handler::create_dye_batch	prod
 POST	/api/v1/erp/production/dye-batches/*/complete	dye_batch_handler::complete_dye_batch	production
 POST	/api/v1/erp/production/dye-recipes	dye_recipe_handler::create_dye_recipe	production
 POST	/api/v1/erp/production/dye-recipes/*/approve	dye_recipe_handler::approve_recipe	production
+POST	/api/v1/erp/production/dye-recipes/*/reject	dye_recipe_handler::reject_recipe	production
 POST	/api/v1/erp/production/dye-recipes/*/submit	dye_recipe_handler::submit_dye_recipe	production
 POST	/api/v1/erp/production/dye-recipes/*/version	dye_recipe_handler::create_new_version	production
 POST	/api/v1/erp/production/energy-allocations	energy_handler::create_energy_allocation	production
@@ -1446,6 +1446,9 @@ POST	/api/v1/erp/production/production-recipes/additions/*/close	production_reci
 POST	/api/v1/erp/production/production-recipes/calculate	production_recipe_handler::calculate	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/handle	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process	quality_inspection_handler::process_defect	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/process-result	quality_inspection_handler::process_defect_result	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/financial	quality_inspection_handler::approve_scrap_financial	production
+POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/gm	quality_inspection_handler::approve_scrap_gm	production
 POST	/api/v1/erp/production/quality-inspection/records	quality_inspection_handler::create_record	production
 POST	/api/v1/erp/production/quality-inspection/standards	quality_inspection_handler::create_standard	production
 POST	/api/v1/erp/production/wage-rates	wage_handler::create_wage_rate	production
@@ -1477,13 +1480,17 @@ POST	/api/v1/erp/purchase/orders/*/submit	purchase_order_handler::submit_order	p
 POST	/api/v1/erp/purchase/orders/delivery-date	purchase_order_handler::calculate_delivery_date	purchase
 POST	/api/v1/erp/purchase/purchase-contracts	purchase_contract_handler::create_contract	purchase
 POST	/api/v1/erp/purchase/purchase-contracts/*/approve	purchase_contract_handler::approve_contract	purchase
+POST	/api/v1/erp/purchase/purchase-contracts/*/reject	purchase_contract_handler::reject_contract	purchase
 POST	/api/v1/erp/purchase/purchase-prices	purchase_price_handler::create_price	purchase
 POST	/api/v1/erp/purchase/purchase-prices/*/approve	purchase_price_handler::approve_price	purchase
+POST	/api/v1/erp/purchase/purchase-prices/*/reject	purchase_price_handler::reject_price	purchase
 POST	/api/v1/erp/purchase/purchase-prices/import	purchase_price_handler::import_prices	purchase
 POST	/api/v1/erp/purchase/receipts	purchase_receipt_handler::create_receipt	purchase
+POST	/api/v1/erp/purchase/receipts/*/concession	purchase_receipt_handler::concede_receipt	purchase
 POST	/api/v1/erp/purchase/receipts/*/confirm	purchase_receipt_handler::confirm_receipt	purchase
 POST	/api/v1/erp/purchase/receipts/*/items	purchase_receipt_handler::create_receipt_item	purchase
 POST	/api/v1/erp/purchase/receipts/*/recalculate	purchase_receipt_handler::recalculate_receipt_total	purchase
+POST	/api/v1/erp/purchase/receipts/*/rejudge	purchase_receipt_handler::rejudge_receipt	purchase
 POST	/api/v1/erp/purchase/returns	purchase_return_handler::create_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/approve	purchase_return_handler::approve_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::create_purchase_return_item	purchase
@@ -1502,6 +1509,7 @@ POST	/api/v1/erp/purchase/suppliers	supplier_handler::create_supplier	purchase
 POST	/api/v1/erp/purchase/suppliers/*/contacts	supplier_handler::create_supplier_contact	purchase
 POST	/api/v1/erp/purchase/suppliers/*/evaluate	supplier_evaluation_handler::create_evaluation_record	purchase
 POST	/api/v1/erp/purchase/suppliers/*/qualifications	supplier_handler::create_supplier_qualification	purchase
+POST	/api/v1/erp/purchase/suppliers/*/qualifications/*/attachment	supplier_handler::upload_supplier_qualification_attachment	purchase
 POST	/api/v1/erp/purchase/suppliers/*/status	supplier_handler::toggle_supplier_status	purchase
 POST	/api/v1/erp/quality-8d-reports	quality_8d_handler::start_8d	quality_8d
 POST	/api/v1/erp/quality-8d-reports/*/advance	quality_8d_handler::advance	quality_8d
@@ -1542,6 +1550,7 @@ POST	/api/v1/erp/roles	role_handler::create_role	iam
 POST	/api/v1/erp/roles/*/permissions	role_handler::assign_permission	iam
 POST	/api/v1/erp/sales/fabric-orders	sales_fabric_order_handler::create_fabric_order	sales
 POST	/api/v1/erp/sales/fabric-orders/*/approve	sales_fabric_order_handler::approve_fabric_order	sales
+POST	/api/v1/erp/sales/fabric-orders/*/reject	sales_fabric_order_handler::reject_fabric_order	sales
 POST	/api/v1/erp/sales/orders	sales_order_handler::create_order	sales
 POST	/api/v1/erp/sales/orders/*/approve	sales_order_handler::approve_order	sales
 POST	/api/v1/erp/sales/orders/*/cancel	sales_order_handler::cancel_order	sales
@@ -1553,8 +1562,10 @@ POST	/api/v1/erp/sales/orders/*/ship	sales_order_handler::ship_order	sales
 POST	/api/v1/erp/sales/orders/*/submit	sales_order_handler::submit_order	sales
 POST	/api/v1/erp/sales/sales-contracts	sales_contract_handler::create_contract	sales
 POST	/api/v1/erp/sales/sales-contracts/*/approve	sales_contract_handler::approve_contract	sales
+POST	/api/v1/erp/sales/sales-contracts/*/reject	sales_contract_handler::reject_contract	sales
 POST	/api/v1/erp/sales/sales-prices	sales_price_handler::create_price	sales
 POST	/api/v1/erp/sales/sales-prices/*/approve	sales_price_handler::approve_price	sales
+POST	/api/v1/erp/sales/sales-prices/*/reject	sales_price_handler::reject_price	sales
 POST	/api/v1/erp/sales/sales-returns	create_sales_return	sales_return_handler
 POST	/api/v1/erp/sales/sales-returns/*/approve	approve_sales_return	sales_return_handler
 POST	/api/v1/erp/sales/sales-returns/*/execute	execute_sales_return	sales_return_handler
@@ -1572,6 +1583,7 @@ POST	/api/v1/erp/social-insurance/*/cancel	social_insurance_handler::cancel	soci
 POST	/api/v1/erp/social-insurance/*/mark-paid	social_insurance_handler::mark_paid	social_insurance
 POST	/api/v1/erp/subjects	account_subject_handler::create_subject	finance
 POST	/api/v1/erp/subjects/*/refresh-balance	account_subject_handler::refresh_subject_balance	finance
+POST	/api/v1/erp/supplier-qualifications/scan-expiry-warnings	supplier_qualification_gate_handler::scan_expiry_warnings	supplier_qualification_gate
 POST	/api/v1/erp/system-update/backups	system_update_handler::create_backup_task	mod
 POST	/api/v1/erp/system-update/local-update	system_update_handler::apply_local_update	system
 POST	/api/v1/erp/system-update/rollback	system_update_handler::rollback_version	system
@@ -1608,7 +1620,6 @@ PUT	/api/v1/erp/ap/invoices/*	ap_invoice_handler::update_ap_invoice	finance
 PUT	/api/v1/erp/ap/payment-requests/*	ap_payment_request_handler::update_request	finance
 PUT	/api/v1/erp/ap/payments/*	ap_payment_handler::update_payment	finance
 PUT	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::update_api_endpoint	analytics
-PUT	/api/v1/erp/api-gateway/keys/*	api_gateway_handler::update_api_key	analytics
 PUT	/api/v1/erp/ar-reconciliation-alias/confirmations/*/status	ar_reconciliation_enhanced_handler::update_confirmation_status	finance
 PUT	/api/v1/erp/ar-reconciliation-alias/disputes/*/resolve	ar_reconciliation_enhanced_handler::resolve_dispute	finance
 PUT	/api/v1/erp/ar-reconciliations-enhanced/confirmations/*/status	ar_reconciliation_enhanced_handler::update_confirmation_status	finance
@@ -1654,6 +1665,7 @@ PUT	/api/v1/erp/dashboard/layout	dashboard_handler::save_dashboard_layout	system
 PUT	/api/v1/erp/data-import/templates/*	import_export_handler::update_import_template	mod
 PUT	/api/v1/erp/departments/*	department_handler::update	iam
 PUT	/api/v1/erp/email-templates/*	email_handler::update	analytics
+PUT	/api/v1/erp/export-inspections/*/result	export_inspection_handler::update_result	export_inspection_routes
 PUT	/api/v1/erp/field-permissions/*	field_permission_handler::update_field_permission	iam
 PUT	/api/v1/erp/finance/accounting-periods/*	missing_handlers::update_accounting_period	finance
 PUT	/api/v1/erp/finance/invoices/*	finance_invoice_handler::update_finance_invoice	finance

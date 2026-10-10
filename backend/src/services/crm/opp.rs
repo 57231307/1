@@ -14,7 +14,9 @@ use crate::models::{crm_opportunity, customer, sales_order};
 // 批次 236 v13 P1-1：商机状态常量接入（规则 0）
 use crate::models::status::crm_opportunity as opp_status;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScope, DataScopeContext, apply_department_scope, check_resource_owner,
+};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::XlsxTable;
 use rust_decimal::Decimal;
@@ -55,7 +57,7 @@ fn default_win_probability_by_stage(stage: &str) -> Option<Decimal> {
 /// update_opportunity 阶段流转共用。
 fn ensure_valid_opportunity_stage(stage: &str) -> Result<(), AppError> {
     if !opp_status::ALL_STAGES.contains(&stage) {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "非法商机阶段 '{}'，合法取值为：{}",
             stage,
             opp_status::ALL_STAGES.join("/")
@@ -66,10 +68,17 @@ fn ensure_valid_opportunity_stage(stage: &str) -> Result<(), AppError> {
 
 impl CrmService {
     /// 创建商机
+    ///
+    /// `operator_name`：真实操作人展示名，由调用方从 `AuthContext.username` 传入
+    /// （与 `services/crm/lead.rs::create_lead`、`services/crm/pool.rs` 同一口径：
+    /// `AuthContext` 只有 username 一个身份展示字段，取 `users.real_name` 需新增跨模块查库）。
+    /// 本参数是 `owner_name` 的唯一合法取值来源——修复前它由 `format!("用户{user_id}")`
+    /// 拼出，属本仓硬规则禁止的造假展示名。
     pub async fn create_opportunity(
         &self,
         req: crate::models::dto::crm_dto::CreateOpportunityRequest,
         user_id: i32,
+        operator_name: &str,
     ) -> Result<crm_opportunity::Model, AppError> {
         // 验证客户存在（批次 98 P2-C 修复 v5 复审：去掉冗余 let _ = ，明确父级校验已通过 ? 传播错误）
         customer::Entity::find_by_id(req.customer_id)
@@ -77,9 +86,21 @@ impl CrmService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", req.customer_id)))?;
 
-        let opportunity_no = req
-            .opportunity_no
-            .unwrap_or_else(|| format!("OPP{}", chrono::Utc::now().format("%Y%m%d%H%M%S")));
+        // 商机编号：用户提供则沿用，未提供时经统一生成器取号（OPP{YYYYMMDD}{3位流水}）
+        let opportunity_no = match req.opportunity_no {
+            Some(no) => no,
+            None => crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+                &*self.db,
+                "OPP",
+                crm_opportunity::Entity,
+                crm_opportunity::Column::OpportunityNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "商机编号生成失败");
+                AppError::business_displayable("商机编号生成失败，请稍后重试")
+            })?,
+        };
         let opportunity_name = req.opportunity_name.clone();
         let opportunity_stage = req
             .opportunity_stage
@@ -87,7 +108,7 @@ impl CrmService {
             .unwrap_or_else(|| opp_status::QUALIFICATION.to_string());
         ensure_valid_opportunity_stage(&opportunity_stage)?;
         let owner_id = user_id;
-        let owner_name = format!("用户{}", user_id);
+        let owner_name = operator_name.to_string();
         let now = chrono::Utc::now();
 
         // V15 P0-B08：赢率自动计算
@@ -174,16 +195,97 @@ impl CrmService {
         }))
     }
 
-    /// 导出商机为 xlsx（v11 批次 142 升级：CSV → xlsx，规则 3 强制要求）
-    /// v11 批次 141 新增：前端 exportOpportunities API 真实接入。；v11 批次 142 升级：导出格式从 CSV 升级为 xlsx（Excel 标准格式）。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段：商机编号/商机名称/客户ID/商机阶段/预估金额/实际金额/预期成交日期/实际成交日期/负责人/优先级/创建时间
+    /// 商机导出列定义：`(crm_opportunity 列名, 中文表头)`，**列序/表头/取值的唯一事实来源**。
+    ///
+    /// 列名逐字取 `models/crm_opportunity.rs` 的字段名（= `list_opportunities`/
+    /// `get_opportunity` 出参键），因此 handler 侧可直接用同一份
+    /// `allowed_fields`/`hidden_fields`（按列名配置）与同一个 `filter_fields_batch`
+    /// 判定，不为导出另造第二套字段权限规则（与线索导出 `EXPORT_LEAD_COLUMNS` 同构，）。
+    /// 表头与列序保持改造前完全一致，前端与既有导出模板不受影响。
+    pub const EXPORT_OPP_COLUMNS: &[(&str, &str)] = &[
+        ("opportunity_no", "商机编号"),
+        ("opportunity_name", "商机名称"),
+        ("customer_id", "客户ID"),
+        ("opportunity_stage", "商机阶段"),
+        ("estimated_amount", "预估金额"),
+        ("actual_amount", "实际金额"),
+        ("expected_close_date", "预期成交日期"),
+        ("actual_close_date", "实际成交日期"),
+        ("owner_name", "负责人"),
+        ("priority", "优先级"),
+        ("created_at", "创建时间"),
+    ];
+
+    /// 商机金额列（"仅非本人行"默认处理的剔除列集合，2026-10-02 裁定
+    /// 列表/详情/写响应与导出共用）：列名取 `models/crm_opportunity.rs:43/:46` 的
+    /// 真实列，不用不存在的 `amount` 键。
+    pub const EXPORT_AMOUNT_COLUMNS: &'static [&'static str] =
+        &["estimated_amount", "actual_amount"];
+
+    /// 取单个商机导出单元格的原文（列名未命中定义表属编程错误：记录 error 后按空值
+    /// 返回，不静默整列错位；调用方按列名取值前应已用 `export_column_index` 校验）
+    fn export_opp_cell(opp: &crm_opportunity::Model, field: &str) -> String {
+        match field {
+            "opportunity_no" => opp.opportunity_no.clone(),
+            "opportunity_name" => opp.opportunity_name.clone(),
+            "customer_id" => opp.customer_id.to_string(),
+            "opportunity_stage" => opp.opportunity_stage.clone().unwrap_or_default(),
+            "estimated_amount" => opp
+                .estimated_amount
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            "actual_amount" => opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
+            "expected_close_date" => opp
+                .expected_close_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            "actual_close_date" => opp
+                .actual_close_date
+                .map(|d| d.to_string())
+                .unwrap_or_default(),
+            "owner_name" => opp.owner_name.clone(),
+            "priority" => opp.priority.clone().unwrap_or_default(),
+            "created_at" => opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
+            other => {
+                tracing::error!(
+                    field = %other,
+                    "导出列定义 EXPORT_OPP_COLUMNS 与 export_opp_cell 取值分支不一致"
+                );
+                String::new()
+            }
+        }
+    }
+
+    /// 导出商机为 xlsx（走 `utils/xlsx_export::XlsxTable`，不是 CSV）
+    /// 新增：前端 exportOpportunities API 真实接入。；查询所有匹配条件（不分页）的商机，生成 XlsxTable。；导出字段见 `EXPORT_OPP_COLUMNS`
+    ///
+    /// 行级数据权限：`data_scope` 与 `list_opportunities`（本文件 :146-169）同语义
+    /// —— 传入 ctx 时套用**同一个** `apply_department_scope`（商机无公海语义，
+    /// 故不带 pool 放行分支，与列表一致）；传 None 则整体跳过行级过滤
+    ///（修复前 export 恒为此路径，self/dept 用户可一次导出全库商机，属越权读 + 金额外泄）。
+    /// 字段级处理不在此处做：判定与掩码在 handler 侧与列表/详情**同一个**
+    /// `crm_handler::apply_opportunity_field_permission`（2026-10-02 裁定：入口一致），
+    /// 本函数按行序回传 `owner_id` 供其定位"仅非本人行"（导出列定义不含 owner_id，
+    /// 该列表格回写时不落盘、不进文件，见 crm_handler 导出注释）。
     pub async fn export_opportunities(
         &self,
         query: crate::models::dto::crm_dto::OpportunityQuery,
-    ) -> Result<XlsxTable, AppError> {
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(XlsxTable, Vec<i32>), AppError> {
         let mut q = crm_opportunity::Entity::find();
 
         if let Some(s) = query.opportunity_stage {
             q = q.filter(crm_opportunity::Column::OpportunityStage.eq(s));
+        }
+
+        // 行级数据权限过滤：与 list_opportunities(:162-169) 完全同一函数、同一列
+        if let Some(ctx) = data_scope {
+            q = apply_department_scope(
+                q,
+                ctx,
+                crm_opportunity::Column::OwnerId,
+                crm_opportunity::Column::DepartmentId,
+            );
         }
 
         // 限制导出最大 10000 条，防止 DoS
@@ -193,50 +295,30 @@ impl CrmService {
             .all(&*self.db)
             .await?;
 
-        let headers = vec![
-            "商机编号".to_string(),
-            "商机名称".to_string(),
-            "客户ID".to_string(),
-            "商机阶段".to_string(),
-            "预估金额".to_string(),
-            "实际金额".to_string(),
-            "预期成交日期".to_string(),
-            "实际成交日期".to_string(),
-            "负责人".to_string(),
-            "优先级".to_string(),
-            "创建时间".to_string(),
-        ];
+        let headers = Self::EXPORT_OPP_COLUMNS
+            .iter()
+            .map(|(_, label)| label.to_string())
+            .collect::<Vec<String>>();
 
         let rows: Vec<Vec<String>> = opportunities
             .iter()
             .map(|opp| {
-                vec![
-                    opp.opportunity_no.clone(),
-                    opp.opportunity_name.clone(),
-                    opp.customer_id.to_string(),
-                    opp.opportunity_stage.clone().unwrap_or_default(),
-                    opp.estimated_amount
-                        .map(|d| d.to_string())
-                        .unwrap_or_default(),
-                    opp.actual_amount.map(|d| d.to_string()).unwrap_or_default(),
-                    opp.expected_close_date
-                        .map(|d| d.to_string())
-                        .unwrap_or_default(),
-                    opp.actual_close_date
-                        .map(|d| d.to_string())
-                        .unwrap_or_default(),
-                    opp.owner_name.clone(),
-                    opp.priority.clone().unwrap_or_default(),
-                    opp.created_at.map(|t| t.to_rfc3339()).unwrap_or_default(),
-                ]
+                Self::EXPORT_OPP_COLUMNS
+                    .iter()
+                    .map(|(field, _)| Self::export_opp_cell(opp, field))
+                    .collect::<Vec<String>>()
             })
             .collect();
 
-        Ok(XlsxTable {
-            sheet_name: "商机列表".to_string(),
-            headers,
-            rows,
-        })
+        Ok((
+            XlsxTable {
+                sheet_name: "商机列表".to_string(),
+                headers,
+                rows,
+            },
+            // 与数据行同序的归属人 ID（"仅非本人行"判定的行归属来源，见函数文档）
+            opportunities.iter().map(|opp| opp.owner_id).collect(),
+        ))
     }
 
     /// 获取商机详情
@@ -481,7 +563,20 @@ impl CrmService {
         customer_id: i32,
         user_id: i32,
     ) -> Result<sales_order::Model, AppError> {
-        let order_no = format!("SO-TEMP-{}", chrono::Utc::now().timestamp());
+        // 商机转草稿销售订单：单号走统一生成器（SO{YYYYMMDD}{3位流水}，与销售订单
+        // 正常创建同一前缀/列，事务内取号，advisory lock 防并发重号）
+        let order_no =
+            crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                txn,
+                "SO",
+                sales_order::Entity,
+                sales_order::Column::OrderNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "商机转销售订单号生成失败");
+                AppError::business_displayable("销售订单号生成失败，请稍后重试")
+            })?;
         let total_amount = opportunity
             .estimated_amount
             .unwrap_or(rust_decimal::Decimal::ZERO);
@@ -491,7 +586,8 @@ impl CrmService {
             customer_id: Set(customer_id),
             opportunity_id: Set(Some(opportunity_id)),
             order_date: Set(chrono::Utc::now()),
-            required_date: Set(chrono::Utc::now() + chrono::Duration::days(30)),
+            // 商机不带交期：如实留空由销售在订单表单补录（前端为必填），禁止编造"当前+30 天"
+            required_date: Set(None),
             ship_date: Set(None),
             status: Set("draft".to_string()),
             subtotal: Set(rust_decimal::Decimal::ZERO),
@@ -512,14 +608,22 @@ impl CrmService {
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            // grade/packaging_requirement/quality_standard 生效 DDL 为 NOT NULL DEFAULT ''
+            //（migration system/mod.rs:432-437），与上一行 batch_no/color_no/dye_lot_no 同族。
+            // 显式 Set(None) 会向 INSERT 下传 NULL，触发 23502 NOT NULL 违例（商机转草稿
+            // 合法路径整链 500/DATABASE_ERROR）。按同列惯例落空串默认值，与正常建单路径
+            // services/so/order_crud.rs:293-297 `unwrap_or_default()` 一致。
+            grade: Set(Some(String::new())),
+            packaging_requirement: Set(Some(String::new())),
+            quality_standard: Set(Some(String::new())),
             created_by: Set(Some(user_id)),
             // m_rls_dept_domain：department_id 由 trg_sales_orders_dept 触发器自动维护
             department_id: sea_orm::ActiveValue::NotSet,
             approved_by: Set(None),
             approved_at: Set(None),
+            // 商机转草稿路径不采集审批/拒绝理由，专列落 NULL
+            approval_reason: Set(None),
+            rejected_reason: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         }
@@ -534,18 +638,20 @@ impl CrmService {
         opportunity: crm_opportunity::Model,
         user_id: i32,
     ) -> Result<(), AppError> {
+        // 赢单成交金额从商机估算金额结转而来：必须在 into() 消费 opportunity 之前读取
+        // Model 上的估算金额原值。ActiveModel 由 Model 转换后各列均为 Unchanged，
+        // 从中解包取不到真实数值，结转来源只能取 Model 字段。
+        let carried_actual_amount: Option<Decimal> = opportunity.estimated_amount;
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.opportunity_status = Set(Some(opp_status::CLOSED_WON.to_string()));
         opp_active.opportunity_stage = Set(Some(opp_status::CLOSED_WON.to_string()));
         // V15 P0-B08：赢单时赢率自动设为 100%
         opp_active.win_probability = Set(Some(Decimal::ONE_HUNDRED));
-        // 估算金额 -> 实际金额：解包 ActiveValue
-        let estimated: Option<rust_decimal::Decimal> = match opp_active.estimated_amount {
-            sea_orm::ActiveValue::Set(v) => v,
-            _ => None,
-        };
-        opp_active.estimated_amount = Set(None);
-        opp_active.actual_amount = Set(estimated);
+        // 赢单语义为"估算金额结转成实际金额"：actual_amount 落库为上面读取的估算原值；
+        // estimated_amount 保持 Unchanged 不重新赋值，UPDATE 不会触碰该列，
+        // 原始预测基准值得以保留供预测准确率分析作为当月预测分母统计。
+        // 因此该列赢单后仍是结转来源的原值——是"结转"，不是把它抹空。
+        opp_active.actual_amount = Set(carried_actual_amount);
         opp_active.actual_close_date = Set(Some(chrono::Utc::now().date_naive()));
         opp_active.updated_at = Set(Some(chrono::Utc::now()));
         // P1 1-1 修复（批次 59b）：原 Some(0) 占位符改为真实操作人 user_id
@@ -570,10 +676,12 @@ impl CrmService {
         // 流失原因必填校验（非空字符串）
         let lost_reason_trimmed = lost_reason.trim().to_string();
         if lost_reason_trimmed.is_empty() {
-            return Err(AppError::validation("输单原因不能为空"));
+            return Err(AppError::validation_displayable("输单原因不能为空"));
         }
         if lost_reason_trimmed.chars().count() > 500 {
-            return Err(AppError::validation("输单原因长度不能超过 500 字符"));
+            return Err(AppError::validation_displayable(
+                "输单原因长度不能超过 500 字符",
+            ));
         }
 
         let opportunity = self.get_opportunity(opportunity_id, None).await?;
@@ -617,7 +725,7 @@ impl CrmService {
         use chrono::NaiveDate;
 
         let month_start = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::validation("无效的年月参数"))?;
+            .ok_or_else(|| AppError::validation_displayable("无效的年月参数"))?;
         let month_end = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
@@ -700,18 +808,27 @@ impl CrmService {
         let mut details: Vec<WeightedForecastItem> = Vec::new();
 
         for opp in &opps {
-            let estimated = opp.estimated_amount.unwrap_or(Decimal::ZERO);
+            // 2026-10-02 裁定附带项：金额列按真实可空语义出参——estimated_amount 为
+            // Option<Decimal> 原样透传，不再用 unwrap_or(ZERO) 把"无金额"伪造成 0.00
+            // （前端预测列据此显示无值占位，见 enhanced/index.vue::fmtAmount）。
             let win_prob = opp.win_probability.unwrap_or(Decimal::ZERO);
-            // 加权金额 = 金额 × 赢率 / 100
-            let weighted = estimated * win_prob / Decimal::from(100);
-            total_estimated += estimated;
-            total_weighted += weighted;
+            // 加权金额 = 金额 × 赢率 / 100；金额无值则加权无值（不可计算，不伪造 0）
+            let weighted = opp
+                .estimated_amount
+                .map(|estimated| estimated * win_prob / Decimal::from(100));
+            // 汇总口径：无金额的行不贡献合计（数学上与加 0 等价，合计值不变）
+            if let Some(estimated) = opp.estimated_amount {
+                total_estimated += estimated;
+            }
+            if let Some(weighted) = weighted {
+                total_weighted += weighted;
+            }
             details.push(WeightedForecastItem {
                 opportunity_id: opp.id,
                 opportunity_no: opp.opportunity_no.clone(),
                 opportunity_name: opp.opportunity_name.clone(),
                 stage: opp.opportunity_stage.clone().unwrap_or_default(),
-                estimated_amount: estimated,
+                estimated_amount: opp.estimated_amount,
                 win_probability: win_prob,
                 weighted_amount: weighted,
                 expected_close_date: opp.expected_close_date,
@@ -917,15 +1034,33 @@ impl CrmService {
     }
 
     /// V15 P2 18.2-D5: 阶段停留时长分析（统计每个商机在各阶段的停留天数）
+    /// 当 `data_scope` 为 Some 时，结果集强制限定于操作人可见商机行（与
+    /// `list_opportunities` 同一 `apply_department_scope` 判定源口径）。
     pub async fn stage_duration_analysis(
         &self,
         opportunity_id: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<StageDurationItem>, AppError> {
         use crate::models::opportunity_stage_history;
 
         let mut q = opportunity_stage_history::Entity::find();
         if let Some(opp_id) = opportunity_id {
             q = q.filter(opportunity_stage_history::Column::OpportunityId.eq(opp_id));
+        } else if let Some(ctx) = data_scope {
+            if ctx.scope != DataScope::All {
+                let visible_opps = apply_department_scope(
+                    crm_opportunity::Entity::find(),
+                    ctx,
+                    crm_opportunity::Column::OwnerId,
+                    crm_opportunity::Column::DepartmentId,
+                )
+                .select_only()
+                .column(crm_opportunity::Column::Id)
+                .into_tuple::<i32>()
+                .all(&*self.db)
+                .await?;
+                q = q.filter(opportunity_stage_history::Column::OpportunityId.is_in(visible_opps));
+            }
         }
         let records = q
             .order_by(
@@ -1220,15 +1355,18 @@ pub struct WeightedForecastResult {
 }
 
 /// V15 P2 18.2-D5: 加权预测项
+///
+/// 金额列按 crm_opportunity 真实可空语义出参（Option，无值即 null，不伪造 0）；
+/// Decimal 经 serde 序列化为 JSON 字符串，前端格式化须经 Number 归一，不得 .toFixed()。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WeightedForecastItem {
     pub opportunity_id: i32,
     pub opportunity_no: String,
     pub opportunity_name: String,
     pub stage: String,
-    pub estimated_amount: rust_decimal::Decimal,
+    pub estimated_amount: Option<rust_decimal::Decimal>,
     pub win_probability: rust_decimal::Decimal,
-    pub weighted_amount: rust_decimal::Decimal,
+    pub weighted_amount: Option<rust_decimal::Decimal>,
     pub expected_close_date: Option<chrono::NaiveDate>,
 }
 

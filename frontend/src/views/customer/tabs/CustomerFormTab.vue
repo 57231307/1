@@ -72,9 +72,14 @@
               :placeholder="t('customer.form.placeholder.customerType')"
               style="width: 100%"
             >
+              <!-- value 一律是后端唯一词表 constants::customer_type::ALLOWED 的渠道 token
+                   （小写精确匹配，不 trim、不归一大小写）；分层词 vip/normal 不属本列，
+                   提交即被 400 VALIDATION_ERROR 拒绝。五个合法值全列，缺一即建不出该类客户。 -->
               <el-option :label="t('customer.form.option.typeRetail')" value="retail" />
               <el-option :label="t('customer.form.option.typeWholesale')" value="wholesale" />
-              <el-option :label="t('customer.form.option.typeVip')" value="vip" />
+              <el-option :label="t('customer.form.option.typeDistributor')" value="distributor" />
+              <el-option :label="t('customer.form.option.typeManufacturer')" value="manufacturer" />
+              <el-option :label="t('customer.form.option.typeOther')" value="other" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -271,6 +276,32 @@ const visible = ref(props.modelValue);
 const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
+/**
+ * Decimal 出参在本仓是 JSON 字符串（rust_decimal 未启 serde-float，backend/Cargo.toml:60），
+ * 而本表单把 credit_limit / annual_purchase 绑到 el-input-number（数值控件）。
+ * 归一只允许发生在这个控件边界（数据层类型不伪造）。
+ * null / 缺键（字段级权限会整键剔除，utils/data_permission.rs:72-81）/ 非法串一律得到
+ * undefined = 控件留空并记错误日志；绝不返回 0——表单里的 0 会被当成真实额度回写后端。
+ */
+const toControlNumber = (value: string | null | undefined, field: string): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    logger.error(`客户表单预填失败：${field} 不是十进制字符串`, value);
+    return undefined;
+  }
+  return parsed;
+};
+
+// 客户类型（渠道）缺省值与后端 `constants::customer_type::validate(None)` 的缺省口径同源：
+// 后端在请求未提供该字段时补 `OTHER`（语义=渠道未知）。前端未选时若替业务方断言"零售"
+// 会污染渠道维度的下游筛选与统计，故初值/reset 一律写 `other`，不写 `retail`。
+// 该字段后端 DTO 为 Option、无必填门（`validate_customer_type` 只在 Some 时校验取值），
+// 故此处维持同等校验强度，不额外加前端必填规则。
+// 显式标注 string：const 字面量的类型是 `"other"`，直接喂给 reactive 会让 customer_type
+// 收窄成该单一 token，下拉改选其它渠道时模板赋值过不了 vue-tsc。
+const DEFAULT_CUSTOMER_TYPE: string = 'other';
+
 const formData = reactive({
   id: undefined as number | undefined,
   customer_code: '',
@@ -283,9 +314,11 @@ const formData = reactive({
   province: '',
   country: '',
   postal_code: '',
-  customer_type: 'retail',
+  customer_type: DEFAULT_CUSTOMER_TYPE,
   tax_id: '',
-  credit_limit: 0,
+  // `| undefined` 是"未读到值"的可见状态（编辑回填可能是 null/缺键/掩码值），
+  // 与数值 0 语义不同，见 toControlNumber
+  credit_limit: 0 as number | undefined,
   payment_terms: 30,
   bank_name: '',
   bank_account: '',
@@ -293,7 +326,7 @@ const formData = reactive({
   notes: '',
   customer_industry: '',
   main_products: '',
-  annual_purchase: 0,
+  annual_purchase: 0 as number | undefined,
   quality_requirement: '',
   inspection_standard: '',
 });
@@ -342,6 +375,12 @@ watch(
       resetForm();
       if (props.rowData) {
         Object.assign(formData, props.rowData);
+        // Decimal 字符串列只在喂给数值控件这一步归一（见 toControlNumber 注释）
+        formData.credit_limit = toControlNumber(props.rowData.credit_limit, 'credit_limit');
+        formData.annual_purchase = toControlNumber(
+          props.rowData.annual_purchase,
+          'annual_purchase'
+        );
       }
     }
   }
@@ -363,7 +402,7 @@ const resetForm = () => {
   formData.province = '';
   formData.country = '';
   formData.postal_code = '';
-  formData.customer_type = 'retail';
+  formData.customer_type = DEFAULT_CUSTOMER_TYPE;
   formData.tax_id = '';
   formData.credit_limit = 0;
   formData.payment_terms = 30;
@@ -388,20 +427,49 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 信用额度后端 DTO 为字符串类型（显式格式校验），提交前转字符串防 422
+    // 载荷键集逐键对齐后端 customer_handler.rs：CreateCustomerRequest(:23-72)/
+    // UpdateCustomerRequest(:93-139)。此前整表单 rest 展开把 id/created_at/updated_at
+    // 只读生成列（以及更新侧的 customer_code——编辑 DTO 无此键，编码建档即定）
+    // 冒充可写字段提交，后端 serde 静默丢弃=契约漂移，现按 DTO 显式逐键构造。
+    // contact_email 空则省略键（后端 #[validate(email)] 对 Some("") 判失败触发 422、
+    // 对 None 跳过校验）；credit_limit 后端 DTO 为字符串（Option<String>，number 即 422），
+    // 提交前转字符串防 422。credit_limit / annual_purchase 为 undefined（回填不到值）时
+    // 必须省略键：更新侧 None=保持原值（customer_ops/update.rs:244-246），送 "0" 会把原额度
+    // 覆盖成 0；创建侧 None 由后端按 DEFAULT 处理（customer_handler.rs:277-282）。
+    const { contact_email, credit_limit, annual_purchase } = formData;
     const payload = {
-      ...formData,
-      credit_limit: String(formData.credit_limit ?? '0'),
-      annual_purchase:
-        formData.annual_purchase === null || formData.annual_purchase === undefined
-          ? undefined
-          : formData.annual_purchase,
+      customer_name: formData.customer_name,
+      contact_person: formData.contact_person,
+      contact_phone: formData.contact_phone,
+      address: formData.address,
+      city: formData.city,
+      province: formData.province,
+      postal_code: formData.postal_code,
+      ...(credit_limit === undefined ? {} : { credit_limit: String(credit_limit) }),
+      payment_terms: formData.payment_terms,
+      tax_id: formData.tax_id,
+      bank_name: formData.bank_name,
+      bank_account: formData.bank_account,
+      customer_type: formData.customer_type,
+      country: formData.country,
+      status: formData.status,
+      customer_industry: formData.customer_industry,
+      main_products: formData.main_products,
+      ...(annual_purchase === undefined ? {} : { annual_purchase }),
+      quality_requirement: formData.quality_requirement,
+      inspection_standard: formData.inspection_standard,
+      notes: formData.notes,
+      ...(contact_email ? { contact_email } : {}),
     };
     if (formData.id) {
       await updateCustomer(formData.id, payload);
       ElMessage.success(t('customer.form.message.saveSuccess'));
     } else {
-      await createCustomer(payload);
+      // customer_code 仅创建 DTO 有（Option，留空则省略键、由服务端建档规则生成）
+      await createCustomer({
+        ...payload,
+        ...(formData.customer_code ? { customer_code: formData.customer_code } : {}),
+      });
       ElMessage.success(t('customer.form.message.saveSuccess'));
     }
     visible.value = false;

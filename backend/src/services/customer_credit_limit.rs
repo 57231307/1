@@ -1,7 +1,9 @@
+use crate::models::customer;
 use crate::models::customer_credit;
 // 批次 208 P2-5 修复（v12 复审）：硬编码 "active"/"inactive" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::utils::error::AppError;
+use crate::utils::messages::err_msg;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
@@ -53,6 +55,17 @@ impl CustomerCreditService {
                 .await?
             }
             None => {
+                // FK 前置校验：customer_credit_ratings.customer_id 有外键指向
+                // customers(id)；客户行不存在时以 404 业务错误返回，而不是把驱动
+                // 约束违例拍平成 500（并发窗口内客户被删的残余场景由
+                // map_credit_constraint_error 兜底降级）。
+                if customer::Entity::find_by_id(req.customer_id)
+                    .one(&*self.db)
+                    .await?
+                    .is_none()
+                {
+                    return Err(AppError::not_found("引用客户不存在，无法建立信用评级"));
+                }
                 // 创建新评级：None 默认为 0
                 let limit = req.credit_limit.unwrap_or_default();
                 let active_credit = customer_credit::ActiveModel {
@@ -66,7 +79,11 @@ impl CustomerCreditService {
                     status: Set(master_data::ACTIVE.to_string()),
                     ..Default::default()
                 };
-                active_credit.insert(&*self.db).await?
+                active_credit
+                    .insert(&*self.db)
+                    .await
+                    .map_err(AppError::from)
+                    .map_err(Self::map_credit_constraint_error)?
             }
         };
 
@@ -101,12 +118,15 @@ impl CustomerCreditService {
 
         if credit.status != master_data::ACTIVE {
             txn.rollback().await?;
-            return Err(AppError::validation("客户信用状态非活跃"));
+            // 状态门：信用评级记录当前非活跃，前置状态未满足，归业务族
+            return Err(AppError::business_displayable("客户信用状态非活跃"));
         }
 
         if amount > credit.available_credit {
             txn.rollback().await?;
-            return Err(AppError::validation(format!(
+            // 额度门：请求超出系统记录的可用额度，属业务族；文案含可用余额数字，
+            // 按 error.rs 安全边界不得外显，保持脱敏 business。
+            return Err(AppError::business(format!(
                 "可用额度不足：请求 {}，可用 {}",
                 amount, credit.available_credit
             )));
@@ -151,7 +171,10 @@ impl CustomerCreditService {
 
         if amount > credit.used_credit {
             txn.rollback().await?;
-            return Err(AppError::validation("释放额度超过已占用额度".to_string()));
+            // 额度门：释放量受系统记录的已占用额度约束，属业务族；文案不含数字可外显
+            return Err(AppError::business_displayable(
+                "释放额度超过已占用额度".to_string(),
+            ));
         }
 
         let mut credit_active: customer_credit::ActiveModel = credit.clone().into();
@@ -199,7 +222,8 @@ impl CustomerCreditService {
                 // 确保降低后的额度不低于已使用额度
                 if decreased < credit.used_credit {
                     txn.rollback().await?;
-                    return Err(AppError::validation(
+                    // 额度门：调整后额度受系统记录的已使用额度约束，属业务族；文案不含数字可外显
+                    return Err(AppError::business_displayable(
                         "降低后的额度不能低于已使用额度".to_string(),
                     ));
                 }
@@ -207,7 +231,7 @@ impl CustomerCreditService {
             }
             _ => {
                 txn.rollback().await?;
-                return Err(AppError::validation("无效的额度调整类型"));
+                return Err(AppError::validation_displayable("无效的额度调整类型"));
             }
         };
 
@@ -314,7 +338,8 @@ impl CustomerCreditService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
 
         if credit.used_credit > rust_decimal::Decimal::ZERO {
-            return Err(AppError::validation(
+            // 状态门：记录仍有占用额度这一业务前置未满足，不可停用，归业务族；文案不含数字可外显
+            return Err(AppError::business_displayable(
                 "客户仍有占用额度，无法停用".to_string(),
             ));
         }
@@ -328,5 +353,22 @@ impl CustomerCreditService {
 
         info!("客户 {} 信用停用成功", customer_id);
         Ok(())
+    }
+
+    /// DB 约束兜底映射：`set_credit_rating` 插入路径在「先查后插」竞态窗口内可能
+    /// 撞上游离的 FK(23503)/UNIQUE(23505) 违例，From<DbErr> 会归类为
+    /// DatabaseError(DB_RELATION/DB_DUPLICATE)（对外 500）；此处把这两类降级为
+    /// 400 业务错误，文案脱敏不带记录 ID，其余错误原样返回（不猜成约束违例，
+    /// 判据常量与 utils::error::classify_db_constraint 同源）。
+    fn map_credit_constraint_error(err: AppError) -> AppError {
+        match &err {
+            AppError::DatabaseError(m) if m == err_msg::DB_RELATION => {
+                AppError::business_displayable("引用客户不存在，无法建立信用评级")
+            }
+            AppError::DatabaseError(m) if m == err_msg::DB_DUPLICATE => {
+                AppError::business_displayable("该客户信用评级已存在，请刷新后重试")
+            }
+            _ => err,
+        }
     }
 }

@@ -55,15 +55,32 @@ export function getImportTemplate(id: number): Promise<ApiResponse<ImportTemplat
   return request.get(`/data-import/templates/${id}`);
 }
 
-export function createImportTemplate(
-  data: Partial<ImportTemplate>
-): Promise<ApiResponse<ImportTemplate>> {
-  return request.post('/data-import/templates', data);
+// 规则 0（禁止指向不存在端点的封装）：后端 routes/mod.rs data_import_routes
+// 对 /data-import/templates 仅注册 GET（含 /{id} 的 GET/PUT/DELETE/download），
+// 全库无创建 handler —— 原 createImportTemplate 指向不存在的 POST，调用必 405，
+// 封装已删除。"新建导入模板"能力属后端缺口（待补 CreateImportTemplateRequest + 路由），
+// 已登记串行清单，前端不得为其伪造契约。
+
+/**
+ * PUT /data-import/templates/{id} 载荷（唯一真相：import_export_handler::UpdateImportTemplateRequest）。
+ * 全字段 Option（逐键 if let Some 更新）；template_name 后端 #[validate(length(min=1,max=100))]
+ * → 空串必须省略该键（发送 "" 直接 422）；columns 元素键见 ImportColumn（后端 ImportColumnDto）。
+ * DTO 无 template_code/id/created_at/updated_at/import_type：模板编码创建后不可改
+ * （可改性属产品决策，已登记串行清单）。
+ */
+export interface UpdateImportTemplateRequest {
+  template_name?: string;
+  description?: string;
+  module?: string;
+  file_format?: string;
+  columns?: ImportColumn[];
+  sample_data?: unknown[];
+  status?: string;
 }
 
 export function updateImportTemplate(
   id: number,
-  data: Partial<ImportTemplate>
+  data: UpdateImportTemplateRequest
 ): Promise<ApiResponse<ImportTemplate>> {
   return request.put(`/data-import/templates/${id}`, data);
 }

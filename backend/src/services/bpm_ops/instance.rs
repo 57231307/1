@@ -132,7 +132,7 @@ impl BpmService {
             process_definition_id: Set(definition.id),
             instance_no: Set(instance_no.clone()),
             business_type: Set(req.business_type.clone()),
-            business_id: Set(req.business_id),
+            business_id: Set(Some(req.business_id)),
             // applicant_id 与 initiator 同义（发起人），列 NOT NULL 必须显式写入
             applicant_id: Set(req.initiator_id),
             title: Set(format!("流程审批-{}", req.business_id)),
@@ -187,7 +187,8 @@ impl BpmService {
             || cur_status == instance_status::TERMINATED
             || cur_status == instance_status::CANCELLED
         {
-            return Err(AppError::validation("流程已结束，无法撤回"));
+            // 状态门：流程已处于终态，前置条件不满足，归业务族
+            return Err(AppError::business_displayable("流程已结束，无法撤回"));
         }
 
         // 先捕获事件所需字段，避免后续 instance 被 move 后无法引用
@@ -230,17 +231,33 @@ impl BpmService {
         )
         .await?;
 
-        // 收集事件，commit 后再 publish（撤回必然发布流程结束事件，无需 Option 包装）
-        let pending_event = crate::services::event_bus::BusinessEvent::BpmProcessFinished {
-            business_type,
-            business_id,
-            approved: false,
-            approver_id: user_id.unwrap_or_default(),
+        // 收集事件，commit 后再 publish。business_id 为 None 时无业务单据可回调，跳过；
+        // 有业务关联但拿不到操作人身份时显式报错并跳过，不用 0 顶替审批人（0 会被
+        // 下游写进业务单据审计，等于伪造归属）。
+        let pending_event = match (business_id, user_id) {
+            (Some(bid), Some(uid)) => Some(
+                crate::services::event_bus::BusinessEvent::BpmProcessFinished {
+                    business_type,
+                    business_id: bid,
+                    approved: false,
+                    approver_id: uid,
+                },
+            ),
+            (None, _) => None,
+            (Some(_), None) => {
+                tracing::error!(
+                    instance_id,
+                    "BPM 撤回事件未发布：缺少操作人身份，拒绝以 0 号顶替审批人写入业务单据审计"
+                );
+                None
+            }
         };
 
         txn.commit().await?;
 
-        crate::services::event_bus::EVENT_BUS.publish(pending_event);
+        if let Some(ev) = pending_event {
+            crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
         Ok(())
     }
 
@@ -248,7 +265,7 @@ impl BpmService {
     pub async fn get_business_relation(
         &self,
         business_type: &str,
-        business_id: i32,
+        business_id: i64,
     ) -> Result<BpmBusinessRelation, AppError> {
         let instance = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::BusinessType.eq(business_type))
@@ -299,7 +316,7 @@ impl BpmService {
     pub async fn get_process_by_business(
         &self,
         business_type: &str,
-        business_id: i32,
+        business_id: i64,
     ) -> Result<Option<bpm_process_instance::Model>, AppError> {
         bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::BusinessType.eq(business_type))

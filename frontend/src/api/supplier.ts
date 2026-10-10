@@ -190,9 +190,13 @@ export interface SupplierQualification {
   attachment_path?: string;
   need_annual_check: boolean;
   annual_check_record?: string;
-  is_expired?: boolean;
-  created_at?: string;
-  updated_at?: string;
+  /** DDL NOT NULL；后端由 valid_until 与当前日期派生（写入+读取双重保证），恒有值 */
+  is_expired: boolean;
+  /** DDL TEXT NULL（实体 remarks: Option<String>），后端恒序列化该键 */
+  remarks?: string;
+  /** DDL NOT NULL（TIMESTAMPTZ），后端 Model 直接序列化，恒有值 */
+  created_at: string;
+  updated_at: string;
 }
 
 /** 创建/更新资质请求（对应后端 supplier_service.rs::CreateQualificationRequest） */
@@ -300,4 +304,41 @@ export const updateSupplierQualification = (
 export const deleteSupplierQualification = (supplierId: number, qualificationId: number) =>
   request.delete<ApiResponse<{ deleted_id: number }>>(
     `/purchase/suppliers/${supplierId}/qualifications/${qualificationId}`
+  );
+
+/**
+ * 上传供应商资质附件（multipart，字段名 file）
+ * 后端路由：POST /api/v1/erp/purchase/suppliers/{supplier_id}/qualifications/{qualification_id}/attachment
+ * （routes/purchase.rs suppliers；白名单 pdf/jpg/jpeg/png、≤5MB、magic bytes 校验、
+ * 文件名服务端生成，返回更新后的资质模型——attachment_path 为服务端受控 URL）
+ */
+export const uploadSupplierQualificationAttachment = (
+  supplierId: number,
+  qualificationId: number,
+  file: File
+): Promise<ApiResponse<SupplierQualification>> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return request.post(
+    `/purchase/suppliers/${supplierId}/qualifications/${qualificationId}/attachment`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+};
+
+/**
+ * 读取供应商资质附件字节（受鉴权端点，fail-closed：未认证 401 / 无 suppliers:read 403 /
+ * 父门控或双键归属不过直接拒绝，uploads/qualifications 目录无匿名静态路由）
+ * 后端路由：GET /api/v1/erp/purchase/suppliers/{supplier_id}/qualifications/{qualification_id}/attachment
+ */
+export const getSupplierQualificationAttachment = (supplierId: number, qualificationId: number) =>
+  request.get<Blob>(
+    `/purchase/suppliers/${supplierId}/qualifications/${qualificationId}/attachment`,
+    {
+      responseType: 'blob',
+    }
   );

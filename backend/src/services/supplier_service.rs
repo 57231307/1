@@ -32,21 +32,18 @@ pub struct SupplierService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 供应商编码（suppliers.supplier_code）前缀常量：取号格式契约集中定义
+/// （对齐 WAREHOUSE_CODE_NO_PREFIX 形态）；DDL 证据
+/// migration/src/domain/system/m0001_initial_schema.rs:303
+/// `"supplier_code" VARCHAR(50) NOT NULL UNIQUE` —— 取号与 INSERT 之间的并发
+/// 撞号由 DocumentNumberGenerator::insert_with_no_retry 保存点重试兜底（见
+/// create_supplier），禁止第二处手写取号+直插。
+pub const SUPPLIER_CODE_NO_PREFIX: &str = "SUP";
+
 impl SupplierService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成供应商编码
-    pub async fn generate_supplier_code(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "SUP",
-            supplier::Entity,
-            supplier::Column::SupplierCode,
-        )
-        .await
     }
 
     /// 创建供应商（含联系人和资质，事务保证三表原子写入）
@@ -58,10 +55,26 @@ impl SupplierService {
         self.check_supplier_name_unique(&req.supplier_name).await?;
 
         let txn = (*self.db).begin().await?;
-        let supplier_code = self.generate_supplier_code().await?;
-        let supplier = Self::build_supplier_active_model(&req, supplier_code, user_id)
-            .insert(&txn)
-            .await?;
+        // 编码取号 + 判重 + INSERT 收敛到 DocumentNumberGenerator::insert_with_no_retry
+        // 唯一实现（同 warehouse_service::create 自动码路径）：撞 suppliers.supplier_code
+        // UNIQUE(23505) 时保存点重试重新取号，不让 From<DbErr> 把并发撞号拍平成
+        // 500 DATABASE_ERROR 裸抛；失败整事务回滚，联系人/资质不落半行。
+        let supplier = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            SUPPLIER_CODE_NO_PREFIX,
+            supplier::Entity,
+            supplier::Column::SupplierCode,
+            |code| Self::build_supplier_active_model(&req, code, user_id),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = SUPPLIER_CODE_NO_PREFIX,
+                "供应商编码取号/插入失败（supplier_service.create_supplier）"
+            );
+            AppError::business_displayable("供应商编码生成失败，请稍后重试")
+        })?;
 
         if let Some(contacts) = req.contacts {
             Self::insert_supplier_contacts(&txn, supplier.id, contacts).await?;
@@ -81,7 +94,8 @@ impl SupplierService {
             .one(&*self.db)
             .await?;
         if existing.is_some() {
-            return Err(AppError::validation(format!(
+            // 唯一性冲突：供应商名称重复，归业务族；回显用户自己提交的名称可外显
+            return Err(AppError::business_displayable(format!(
                 "供应商名称 '{}' 已存在",
                 supplier_name
             )));
@@ -130,6 +144,9 @@ impl SupplierService {
             category_id: Set(req.category_id),
             is_processor: Set(req.is_processor.unwrap_or(false)),
             processor_type: Set(req.processor_type.clone()),
+            // 备注与更新路径同源写入（更新分支见 `apply_supplier_business_fields`）：
+            // 建单时用户填的备注必须落库，入参省略则该可空列保持 NULL（不造默认值）。
+            remarks: Set(req.remarks.clone()),
             created_by: Set(Some(user_id)),
             ..Default::default()
         }
@@ -169,6 +186,7 @@ impl SupplierService {
         qualifications: Vec<CreateQualificationRequest>,
     ) -> Result<(), AppError> {
         for qual_req in qualifications {
+            Self::check_qualification_dates(qual_req.issue_date, qual_req.valid_until)?;
             supplier_qualification::ActiveModel {
                 supplier_id: Set(supplier_id),
                 qualification_name: Set(qual_req.qualification_name),
@@ -180,6 +198,8 @@ impl SupplierService {
                 attachment_path: Set(qual_req.attachment_path),
                 need_annual_check: Set(qual_req.need_annual_check),
                 annual_check_record: Set(qual_req.annual_check_record),
+                // is_expired 由 valid_until 与当前日期如实派生（NOT NULL 列，写入即落真实值）
+                is_expired: Set(Self::qualification_is_expired(qual_req.valid_until)),
                 ..Default::default()
             }
             .insert(txn)
@@ -366,6 +386,16 @@ impl SupplierService {
     ) -> Result<supplier::Model, AppError> {
         // V15 P0-S01：内部调用传 None（权限校验已由 update_supplier 的 handler 入口完成）
         let supplier = self.get_supplier(id, None).await?;
+        // 改名判重收敛到 check_supplier_name_unique 唯一实现（与 create_supplier 同
+        // 口径，禁止两份规则）：改到其它既有供应商的名称 → 可外显业务拒绝；
+        // 与自身当前名相同（幂等 PUT）放行，防过度收紧打错既有行为。
+        // 本列无 DB UNIQUE（竞态窗需数据库专家补约束，见 wave 报告 §④），
+        // 应用层预校验为当前唯一防线。
+        if let Some(new_name) = req.supplier_name.as_ref() {
+            if new_name != &supplier.supplier_name {
+                self.check_supplier_name_unique(new_name).await?;
+            }
+        }
         let mut supplier_active: supplier::ActiveModel = supplier.into();
         let mut req = req;
         // 更新字段（分组应用，每组 ≤50 行；使用 .take() 从 &mut req 移出字段值）
@@ -569,16 +599,18 @@ impl SupplierService {
     /// 枚举所有对 suppliers(id) 建外键（或语义上引用供应商）的业务/档案表，
     /// 返回首个存在引用的表的可读名称。任一命中即不应删除供应商。
     /// 与数据库 FK 集对齐：迁移 grep `REFERENCES "suppliers" ("id")` 得到的引用表清单
-    /// （purchase_orders / purchase_receipt / purchase_contracts / ap_payment_request /
-    /// ap_invoice / ap_payment / ap_reconciliation / ap_verification /
+    /// （purchase_orders / purchase_receipt / purchase_contracts / purchase_prices /
+    /// ap_payment_request / ap_invoice / ap_payment / ap_reconciliation / ap_verification /
     /// product_supplier_mappings / supplier_evaluation_records / greige_fabric）。
+    /// 其中 purchase_prices.supplier_id 的 FK 由 migration::domain::price_fk 补齐，
+    /// 此前仅靠 map_supplier_fk_error 兜底、拒绝文案无法点名，现纳入前置枚举。
     /// 说明：purchase_orders 原实现仅统计“未完成”状态，但 FK 不区分状态，
     /// 只要存在任意历史订单删除即会 500，故此处改为统计全部状态以与 FK 对齐。
     async fn find_supplier_reference(&self, id: i32) -> Result<Option<&'static str>, AppError> {
         use crate::models::{
             ap_invoice, ap_payment, ap_payment_request, ap_reconciliation, ap_verification,
             greige_fabric, product_supplier_mapping, purchase_contract, purchase_order,
-            purchase_receipt, supplier_evaluation_record,
+            purchase_price, purchase_receipt, supplier_evaluation_record,
         };
 
         // (实体查询闭包, 引用类型名称)；顺序即用户看到的优先级（先财务硬引用后档案）。
@@ -623,6 +655,10 @@ impl SupplierService {
             (
                 count_refs!(purchase_contract, purchase_contract::Column::SupplierId),
                 "采购合同",
+            ),
+            (
+                count_refs!(purchase_price, purchase_price::Column::SupplierId),
+                "采购价目",
             ),
             (
                 count_refs!(
@@ -739,8 +775,12 @@ impl SupplierService {
     }
 
     /// 更新供应商联系人（P2-6 修复（v12 复审）：clear_primary_contacts + update 包入同一事务，；保证"取消旧主联系人 + 更新联系人"原子性。）
+    /// 越权修复：路径 (supplier_id, contact_id) 必须一致——联系人不属于路径供应商时
+    /// 返回用户可见业务错误（business_displayable，business 会被出参脱敏），
+    /// 防止以 contact_id 单键跨供应商改写他人联系人。
     pub async fn update_supplier_contact(
         &self,
+        supplier_id: i32,
         contact_id: i32,
         req: UpdateContactRequest,
         user_id: i32,
@@ -752,12 +792,19 @@ impl SupplierService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
 
-        let supplier_id = contact.supplier_id;
+        if contact.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该联系人不属于此供应商，无法更新，请刷新后重试",
+            ));
+        }
+
+        let owner_supplier_id = contact.supplier_id;
         let mut contact_active: supplier_contact::ActiveModel = contact.into();
 
         // 如果设置为主要联系人，先将其他联系人取消主要联系人状态
         if let Some(true) = req.is_primary {
-            self.clear_primary_contacts_txn(supplier_id, &txn).await?;
+            self.clear_primary_contacts_txn(owner_supplier_id, &txn)
+                .await?;
         }
 
         if let Some(name) = req.contact_name {
@@ -805,22 +852,30 @@ impl SupplierService {
     }
 
     /// 删除供应商联系人
-    // 批次 93 P1-6 修复：补 user_id 参数 + txn + lock_exclusive + 审计日志
+    /// 越权修复：路径 (supplier_id, contact_id) 必须一致——联系人不属于路径供应商时
+    /// 返回用户可见业务错误（business_displayable），防止以 contact_id 单键跨供应商删除他人联系人。
     pub async fn delete_supplier_contact(
         &self,
+        supplier_id: i32,
         contact_id: i32,
         user_id: i32,
     ) -> Result<(), AppError> {
-        // 批次 93 P1-6 修复：get + delete 移入同一事务，补 lock_exclusive 串行化并发
-        // 原实现 get_contact 在 self.db → delete 在 self.db，两步非原子，存在 TOCTOU 风险。
+        // get + delete 在同一事务内，lock_exclusive 串行化并发删除
         let txn = (*self.db).begin().await?;
 
-        // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 仅用于持锁与存在性校验
-        supplier_contact::Entity::find_by_id(contact_id)
+        // lock_exclusive 串行化并发删除；锁持有至 txn 提交，model 用于持锁、
+        // 存在性校验与归属校验
+        let contact = supplier_contact::Entity::find_by_id(contact_id)
             .lock_exclusive()
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("联系人 {} 不存在", contact_id)))?;
+
+        if contact.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该联系人不属于此供应商，无法删除，请刷新后重试",
+            ));
+        }
 
         // 删除联系人（含审计日志）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
@@ -859,6 +914,29 @@ impl SupplierService {
 
     // ==================== 供应商资质管理方法 ====================
 
+    /// is_expired 的唯一派生源：valid_until（含当日）之后视为过期。
+    /// 写入时落真实值；读取输出时同样按此重算，保证列表/详情的过期语义与 valid_until 一致，
+    /// 避免出现"永不更新的僵尸布尔列"（历史存量行无需回填迁移即可输出正确语义）。
+    /// pub(crate)：资质过期门控（services/supplier_qualification_gate.rs）必须复用同一派生源，
+    /// 不允许在别处再写第二套日期比较。
+    pub(crate) fn qualification_is_expired(valid_until: NaiveDate) -> bool {
+        chrono::Utc::now().date_naive() > valid_until
+    }
+
+    /// 资质日期交叉校验：有效期至不得早于发证日期（脏数据拒绝入库，文案外显）。
+    /// 使用 business_displayable：仅涉及用户自己提交的日期，满足脱敏安全边界。
+    fn check_qualification_dates(
+        issue_date: NaiveDate,
+        valid_until: NaiveDate,
+    ) -> Result<(), AppError> {
+        if valid_until < issue_date {
+            return Err(AppError::business_displayable(
+                "资质「有效期至」不能早于发证日期",
+            ));
+        }
+        Ok(())
+    }
+
     /// 获取供应商资质列表
     /// 批次 118 P2-9 修复：移除 `#[allow(dead_code)]` 标记，；handler 已真实接入（supplier_handler.rs::list_supplier_qualifications）。
     pub async fn list_supplier_qualifications(
@@ -870,7 +948,14 @@ impl SupplierService {
             .order_by(supplier_qualification::Column::ValidUntil, Order::Asc)
             .all(&*self.db)
             .await?;
-        Ok(qualifications)
+        // 读取输出按 valid_until 重算 is_expired，语义与 valid_until 保持一致
+        Ok(qualifications
+            .into_iter()
+            .map(|mut q| {
+                q.is_expired = Self::qualification_is_expired(q.valid_until);
+                q
+            })
+            .collect())
     }
 
     /// 创建供应商资质
@@ -880,6 +965,7 @@ impl SupplierService {
         req: CreateQualificationRequest,
         _user_id: i32,
     ) -> Result<supplier_qualification::Model, AppError> {
+        Self::check_qualification_dates(req.issue_date, req.valid_until)?;
         let qualification = supplier_qualification::ActiveModel {
             supplier_id: Set(supplier_id),
             qualification_name: Set(req.qualification_name),
@@ -891,6 +977,8 @@ impl SupplierService {
             attachment_path: Set(req.attachment_path),
             need_annual_check: Set(req.need_annual_check),
             annual_check_record: Set(req.annual_check_record),
+            // is_expired 由 valid_until 与当前日期如实派生，不再依赖 DB 默认 false
+            is_expired: Set(Self::qualification_is_expired(req.valid_until)),
             ..Default::default()
         }
         .insert(&*self.db)
@@ -900,17 +988,25 @@ impl SupplierService {
     }
 
     /// 更新供应商资质
+    /// 越权修复：路径 (supplier_id, qualification_id) 必须一致——资质不属于路径供应商时
+    /// 返回用户可见业务错误（business_displayable，business 会被出参脱敏），防止单键枚举改写他人资质。
     pub async fn update_supplier_qualification(
         &self,
+        supplier_id: i32,
         qualification_id: i32,
         req: CreateQualificationRequest,
     ) -> Result<supplier_qualification::Model, AppError> {
-        let mut qual: supplier_qualification::ActiveModel =
-            supplier_qualification::Entity::find_by_id(qualification_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?
-                .into();
+        Self::check_qualification_dates(req.issue_date, req.valid_until)?;
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        if existing.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该资质不属于此供应商，无法更新，请刷新后重试",
+            ));
+        }
+        let mut qual: supplier_qualification::ActiveModel = existing.into();
         qual.qualification_name = Set(req.qualification_name);
         qual.qualification_type = Set(req.qualification_type);
         qual.qualification_no = Set(req.qualification_no);
@@ -920,22 +1016,78 @@ impl SupplierService {
         qual.attachment_path = Set(req.attachment_path);
         qual.need_annual_check = Set(req.need_annual_check);
         qual.annual_check_record = Set(req.annual_check_record);
+        // update 重算 is_expired：valid_until 变更后过期语义同步
+        qual.is_expired = Set(Self::qualification_is_expired(req.valid_until));
         Ok(qual.update(&*self.db).await?)
     }
 
     /// 删除供应商资质
+    /// 越权修复：与 update 同源，先校验资质归属再删除。
     pub async fn delete_supplier_qualification(
         &self,
+        supplier_id: i32,
         qualification_id: i32,
     ) -> Result<(), AppError> {
-        supplier_qualification::Entity::find_by_id(qualification_id)
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        if existing.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该资质不属于此供应商，无法删除，请刷新后重试",
+            ));
+        }
         supplier_qualification::Entity::delete_by_id(qualification_id)
             .exec(&*self.db)
             .await?;
         Ok(())
+    }
+
+    /// attachment_path 列宽上限（DDL VARCHAR(500)）：落库前必须应用层显式拒绝越界，
+    /// 不允许把越界留给 DB 层报裸 500。
+    pub const MAX_ATTACHMENT_PATH_LEN: usize = 500;
+
+    /// 按路径 (supplier_id, qualification_id) 双键读取资质。
+    /// 与 update/delete 同源的归属校验：错配返回用户可见业务错误（business 会被出参脱敏），
+    /// 防止以 qualification_id 单键跨供应商上传/读取他人证照附件。供附件上传/下载 handler 复用。
+    pub async fn get_supplier_qualification(
+        &self,
+        supplier_id: i32,
+        qualification_id: i32,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        if existing.supplier_id != supplier_id {
+            return Err(AppError::business_displayable(
+                "该资质不属于此供应商，无法操作附件，请刷新后重试",
+            ));
+        }
+        Ok(existing)
+    }
+
+    /// 附件上传成功后仅回写 attachment_path（服务端生成的受控 URL），
+    /// 不做全字段覆盖，避免上传动作把资质其他字段意外重置。
+    /// 列宽 VARCHAR(500)：越界在应用层显式拒绝（business_displayable 外显真实原因，不裸 500）。
+    pub async fn update_supplier_qualification_attachment_path(
+        &self,
+        qualification_id: i32,
+        attachment_url: &str,
+    ) -> Result<supplier_qualification::Model, AppError> {
+        if attachment_url.len() > Self::MAX_ATTACHMENT_PATH_LEN {
+            return Err(AppError::business_displayable(format!(
+                "生成的附件访问地址超过 {} 字符上限，请联系管理员检查部署配置",
+                Self::MAX_ATTACHMENT_PATH_LEN
+            )));
+        }
+        let existing = supplier_qualification::Entity::find_by_id(qualification_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("资质 ID {} 不存在", qualification_id)))?;
+        let mut qual: supplier_qualification::ActiveModel = existing.into();
+        qual.attachment_path = Set(Some(attachment_url.to_string()));
+        Ok(qual.update(&*self.db).await?)
     }
 }
 
@@ -970,6 +1122,9 @@ pub struct CreateSupplierRequest {
     pub category_id: Option<i32>,
     pub is_processor: Option<bool>,
     pub processor_type: Option<String>,
+    /// 备注（DDL TEXT NULL）。与 `UpdateSupplierRequest.remarks` 同名同类型：
+    /// 创建与更新的字段集合必须对称，否则前端建档弹窗填的备注会在建单时被静默丢弃。
+    pub remarks: Option<String>,
     #[validate(nested)]
     pub contacts: Option<Vec<CreateContactRequest>>,
     #[validate(nested)]

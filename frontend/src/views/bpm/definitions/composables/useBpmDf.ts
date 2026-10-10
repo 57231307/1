@@ -1,15 +1,12 @@
 /**
  * useBpmDf.ts - BPM 流程定义核心 composable
- * 任务编号: P14 批 2 I-3 第 5 批（拆分原 bpm/definitions.vue）
  * 提供流程定义列表 / 分页 / 过滤 / 节点列表等核心方法
  * 业务流程（创建/编辑/删除/版本/创建版本/激活/保存为模板）由 useBpmDfProc 提供
- * 批次 282：definitions 接入 useTableApi，移除手写分页/加载逻辑
  *
  * 注意：返回值使用 reactive({...}) 包装，父组件可直接访问字段（自动解包 ref）
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   getBpmVersionList,
   type ProcessDefinition,
@@ -21,7 +18,7 @@ import { useTableApi } from '@/composables/useTableApi';
 
 /** BPM 流程定义主业务 composable（集中管理列表、分页、过滤、节点、版本） */
 export function useBpmDf() {
-  // 列表 - 接入 useTableApi（批次 282）
+  // 列表 - 接入 useTableApi
   const {
     data: definitions,
     total,
@@ -34,7 +31,9 @@ export function useBpmDf() {
     url: '/bpm/definitions',
     // 后端 page_to_frontend_json 以统一分页信封承载列表，键为 `items`，显式钉住 listKey。
     listKey: 'items',
-    defaultParams: { keyword: '', category: '' },
+    // 后端 ProcessDefinitionQuery 仅 {category,status,page,page_size}：无 keyword（名称模糊搜索
+    // 属后端缺口，已登记串行清单），发送只会被 Axum 静默丢弃，故筛选参数不再声明 keyword。
+    defaultParams: { category: '' },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '获取流程定义列表失败';
       logger.error(msg);

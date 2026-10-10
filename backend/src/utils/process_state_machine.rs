@@ -5,6 +5,7 @@
 //! 设计依据：V15 审计报告 batch-19 §23.2 缺陷 1 + docs/superpowers/specs/2026-06-16-custom-order-design.md §3.3
 //! 创建时间: 2026-06-17
 
+use crate::models::status::custom_order as co_status;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
@@ -35,19 +36,20 @@ pub enum CustomOrderStatus {
 }
 
 impl CustomOrderStatus {
-    /// 序列化为字符串
+    /// 序列化为字符串（取值逐字符取自权威词表 `models/status/sales.rs::custom_order`，
+    /// 禁止在本机内再写裸字面量，防止状态机与 DB CHECK/权威模块漂移）
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Draft => "draft",
-            Self::LabDip => "lab_dip",
-            Self::Quotation => "quotation",
-            Self::YarnPurchasing => "yarn_purchasing",
-            Self::Dyeing => "dyeing",
-            Self::Finishing => "finishing",
-            Self::Delivery => "delivery",
-            Self::AfterSales => "after_sales",
-            Self::Completed => "completed",
-            Self::Cancelled => "cancelled",
+            Self::Draft => co_status::DRAFT,
+            Self::LabDip => co_status::LAB_DIP,
+            Self::Quotation => co_status::QUOTATION,
+            Self::YarnPurchasing => co_status::YARN_PURCHASING,
+            Self::Dyeing => co_status::DYEING,
+            Self::Finishing => co_status::FINISHING,
+            Self::Delivery => co_status::DELIVERY,
+            Self::AfterSales => co_status::AFTER_SALES,
+            Self::Completed => co_status::COMPLETED,
+            Self::Cancelled => co_status::CANCELLED,
         }
     }
 
@@ -62,17 +64,20 @@ impl FromStr for CustomOrderStatus {
     type Err = StateMachineError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // 模式同样取自权威词表常量（&str const 可作 match 模式），
+        // 保证解析域与写出域永远同源，含词表外 token（如 change_pending）
+        // 一律 InvalidState 显式拒绝，不做静默兜底
         match s {
-            "draft" => Ok(Self::Draft),
-            "lab_dip" => Ok(Self::LabDip),
-            "quotation" => Ok(Self::Quotation),
-            "yarn_purchasing" => Ok(Self::YarnPurchasing),
-            "dyeing" => Ok(Self::Dyeing),
-            "finishing" => Ok(Self::Finishing),
-            "delivery" => Ok(Self::Delivery),
-            "after_sales" => Ok(Self::AfterSales),
-            "completed" => Ok(Self::Completed),
-            "cancelled" => Ok(Self::Cancelled),
+            co_status::DRAFT => Ok(Self::Draft),
+            co_status::LAB_DIP => Ok(Self::LabDip),
+            co_status::QUOTATION => Ok(Self::Quotation),
+            co_status::YARN_PURCHASING => Ok(Self::YarnPurchasing),
+            co_status::DYEING => Ok(Self::Dyeing),
+            co_status::FINISHING => Ok(Self::Finishing),
+            co_status::DELIVERY => Ok(Self::Delivery),
+            co_status::AFTER_SALES => Ok(Self::AfterSales),
+            co_status::COMPLETED => Ok(Self::Completed),
+            co_status::CANCELLED => Ok(Self::Cancelled),
             _ => Err(StateMachineError::InvalidState(s.to_string())),
         }
     }

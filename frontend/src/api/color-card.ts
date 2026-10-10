@@ -198,17 +198,48 @@ export function archiveColorCard(id: number, reason?: string) {
 
 // ============== 色号 CRUD ==============
 
+/**
+ * 新增/更新色号载荷：对齐后端 models/color_card_item_dto.rs::ColorItemDto
+ * （create 与 update 共用同一 DTO，update 为全量替换而非增量更新）。
+ * 必填（非 Option）：color_code / color_name / rgb_r / rgb_g / rgb_b / hex_value（#RRGGBB，长度恰为 7）；
+ * 缺任一项即被 serde 反序列化拒绝（422），hex 格式另由 service validate_item 校验。
+ * cmyk 与 lab 系列可省略，后端由 RGB 自动计算；Option&lt;String&gt; 字段空值时省略该键。
+ * id 等出参字段不在契约内，禁止混入载荷。
+ */
+export interface ColorItemPayload {
+  color_code: string;
+  color_name: string;
+  rgb_r: number;
+  rgb_g: number;
+  rgb_b: number;
+  hex_value: string;
+  cmyk_c?: number;
+  cmyk_m?: number;
+  cmyk_y?: number;
+  cmyk_k?: number;
+  lab_l?: number;
+  lab_a?: number;
+  lab_b?: number;
+  pantone_code?: string;
+  cncs_code?: string;
+  custom_code?: string;
+  dye_recipe_id?: number;
+  product_color_price_id?: number;
+  swatch_image_url?: string;
+  sequence?: number;
+}
+
 export function getColorItemList(cardId: number, params?: { page?: number; page_size?: number }) {
   return request.get<{ data: PagedResponse<ColorItemInfo> }>(`/color-cards/${cardId}/items`, {
     params,
   });
 }
 
-export function createColorItem(cardId: number, dto: Partial<ColorItemInfo>) {
+export function createColorItem(cardId: number, dto: ColorItemPayload) {
   return request.post<{ data: ColorItemInfo }>(`/color-cards/${cardId}/items`, dto);
 }
 
-export function updateColorItem(cardId: number, itemId: number, dto: Partial<ColorItemInfo>) {
+export function updateColorItem(cardId: number, itemId: number, dto: ColorItemPayload) {
   return request.put<{ data: ColorItemInfo }>(`/color-cards/${cardId}/items/${itemId}`, dto);
 }
 

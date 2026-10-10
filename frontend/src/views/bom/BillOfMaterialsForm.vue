@@ -104,13 +104,22 @@
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.unit')" width="100">
           <template #default="{ row }">
-            <el-input v-model="row.unit" :placeholder="$t('bomModule.form.unitPlaceholder')" />
+            <!-- maxlength 对齐后端 DDL bom_items.unit VARCHAR(20)（m0007:40）与
+                 DTO 校验 max=20（bom_handler.rs::CreateBomItemPayload） -->
+            <el-input
+              v-model="row.unit"
+              :maxlength="20"
+              :placeholder="$t('bomModule.form.unitPlaceholder')"
+            />
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.lossRate')" width="130">
           <template #default="{ row }">
+            <!-- 损耗率 = API 百分比数值口径（10 = 10%），键名与后端 scrap_rate 同名；
+                 0–100 + 两位小数（0.01% 粒度）与后端写边界校验同口径，
+                 比率换算只发生在后端边界，前端不二次乘除 -->
             <el-input-number
-              v-model="row.loss_rate"
+              v-model="row.scrap_rate"
               :min="0"
               :max="100"
               :precision="2"
@@ -150,6 +159,35 @@ import type { Product } from '@/api/product';
 
 const { t } = useI18n({ useScope: 'global' });
 
+/**
+ * 编辑回显灌入的行形状：等于后端 BomItemResponse（api/bom.ts::BomItem）。
+ * quantity/scrap_rate 后端 rust_decimal 序列化为 JSON 字符串，此处类型如实为串；
+ * 判空用 `== null`（合法 0 不可误杀）。material_id 在回显行可缺（新行未选料）。
+ */
+interface BomItemEcho {
+  id?: number;
+  bom_id?: number;
+  material_id?: number;
+  quantity: string;
+  unit: string | null;
+  scrap_rate: string | null;
+  sort_order?: number | null;
+}
+
+/**
+ * 控件绑定态行形状：el-input-number 需要 number。仅在「回显数据灌入控件」这一点
+ * 由 toFormRow 归一得到，属绑定边界，不在数据层（api / index.vue props）伪造类型。
+ */
+interface BomFormRow {
+  id?: number;
+  bom_id?: number;
+  material_id?: number;
+  quantity: number;
+  unit: string | null;
+  scrap_rate: number | null;
+  sort_order?: number | null;
+}
+
 const props = defineProps<{
   formData: {
     id?: number;
@@ -159,13 +197,11 @@ const props = defineProps<{
     is_default: boolean;
     status: 'draft' | 'active' | 'archived';
     remark: string;
-    items: Array<{
-      material_id?: number;
-      material_name: string;
-      quantity: number;
-      unit: string;
-      loss_rate: number;
-    }>;
+    // 行对象键名对齐后端 BomItemResponse（见 api/bom.ts BomItem 注释）：
+    // 编辑回显直接灌 GET /boms/:id 的 items，同名键才接得住；
+    // quantity/scrap_rate 类型如实为 string/string|null（Decimal 序列化是字符串），
+    // 喂 el-input-number 的 number 归一只发生在下方 toFormRow 控件绑定边界。
+    items: BomItemEcho[];
   };
   mode: 'create' | 'edit';
 }>();
@@ -195,6 +231,18 @@ const loadProducts = async () => {
 
 onMounted(loadProducts);
 
+/**
+ * 归一灌入点（回显 → 控件）：后端 rust_decimal 序列化为 JSON 字符串，el-input-number 需 number，
+ * 只在数据进入控件的这一点显式 Number()，不在数据层（api/index.vue props）伪造类型。
+ * 判空一律 `== null`：scrap_rate 合法 0（"0"/"0.00"）须保留为数字 0，
+ * 不可被 `!value` / `Number('')` 误杀成空（本仓已多次因 `!value` 误杀合法 0 返工）。
+ */
+const toFormRow = (item: BomItemEcho): BomFormRow => ({
+  ...item,
+  quantity: Number(item.quantity),
+  scrap_rate: item.scrap_rate == null ? null : Number(item.scrap_rate),
+});
+
 const localFormData = ref({
   product_id: props.formData.product_id,
   product_name: props.formData.product_name,
@@ -202,7 +250,7 @@ const localFormData = ref({
   is_default: props.formData.is_default,
   status: props.formData.status,
   remark: props.formData.remark,
-  items: [...props.formData.items.map(item => ({ ...item }))],
+  items: [...props.formData.items.map(toFormRow)],
 });
 
 watch(
@@ -215,7 +263,7 @@ watch(
       is_default: newVal.is_default,
       status: newVal.status,
       remark: newVal.remark,
-      items: [...newVal.items.map(item => ({ ...item }))],
+      items: [...newVal.items.map(toFormRow)],
     };
   },
   { deep: true }
@@ -232,10 +280,9 @@ const formRules: FormRules = {
 const handleAddItem = () => {
   localFormData.value.items.push({
     material_id: undefined,
-    material_name: '',
     quantity: 1,
     unit: '',
-    loss_rate: 0,
+    scrap_rate: 0,
   });
 };
 

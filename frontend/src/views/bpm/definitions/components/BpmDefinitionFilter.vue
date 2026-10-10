@@ -7,13 +7,8 @@
 <template>
   <el-card class="filter-card">
     <el-form :inline="true" :model="localQuery" :aria-label="t('bpm.definitions.filter.ariaLabel')">
-      <el-form-item :label="t('bpm.definitions.filter.processName')">
-        <el-input
-          v-model="localQuery.keyword"
-          :placeholder="t('bpm.definitions.filter.processNamePlaceholder')"
-          clearable
-        />
-      </el-form-item>
+      <!-- 流程名称(keyword)筛选控件已移除：后端 ProcessDefinitionQuery 无 keyword 字段，
+           发送即被静默丢弃=假筛选（后端补齐名称模糊搜索后恢复，见串行清单） -->
       <el-form-item :label="t('bpm.definitions.filter.category')">
         <el-select
           v-model="localQuery.category"
@@ -55,9 +50,8 @@ const emit = defineEmits<{
   'update:queryParams': [value: Record<string, unknown>];
 }>();
 
-// 本地查询条件（筛选字段，不含分页参数）
-const localQuery = reactive<{ keyword: string; category: string }>({
-  keyword: (props.queryParams.keyword as string) ?? '',
+// 本地查询条件（筛选字段，不含分页参数；keyword 已随契约核实移除）
+const localQuery = reactive<{ category: string }>({
   category: (props.queryParams.category as string) ?? '',
 });
 
@@ -69,7 +63,6 @@ const handleSearch = () => {
 
 /** 重置：清空筛选条件 + 同步 + 触发加载 */
 const handleReset = () => {
-  localQuery.keyword = '';
   localQuery.category = '';
   emit('update:queryParams', { ...localQuery });
   emit('fetch');

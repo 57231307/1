@@ -18,6 +18,9 @@ import {
   getCtx,
   apiCall,
   apiCallRaw,
+  apiCallExpectFail,
+  failureCode,
+  APP_ERROR_CODES,
   BASE_URL,
 } from '../flow/helpers';
 
@@ -102,7 +105,11 @@ test.describe('02 报价单审批与转订单', () => {
       timeout: 30000,
     });
     await approveBtn.click();
-    await page.locator('.el-message-box__btns .el-button--primary').click();
+    // approve 现要求通过理由必填：approval.vue.handleApprove 先经 promptApprovalReason(true) 采集
+    // （ElMessageBox.prompt，textarea），空/纯空白被 inputValidator 拦在提交前 ⇒ 先填理由再确定
+    const approveMsgBox = page.locator('.el-message-box:visible');
+    await approveMsgBox.getByRole('textbox').fill('E2E 报价单审批通过');
+    await approveMsgBox.locator('.el-message-box__btns .el-button--primary').click();
     // 成功提示锚定到 toast 容器 .el-message--success，避免 getByText('已批准') 命中 2 个元素
     // 的 strict violation：行状态 el-tag__content + 操作成功 toast el-message__content。
     // 真证据三重并存、均不放宽（对齐 02-04 三重证据风格）：
@@ -121,7 +128,10 @@ test.describe('02 报价单审批与转订单', () => {
     await apiCall(page, 'POST', `/quotations/${id}/submit`);
     const afterSubmit = await quotationStatus(page, id);
     if (afterSubmit !== 'approved') {
-      await apiCall(page, 'POST', `/quotations/${id}/approve`);
+      // approve 现要求 approval_reason 必填（缺理由 → 400 VALIDATION_ERROR，转订单前置不成立）
+      await apiCall(page, 'POST', `/quotations/${id}/approve`, {
+        approval_reason: 'E2E 报价单转订单前置批准',
+      });
     }
     expect(await quotationStatus(page, id), '转订单前置：报价单应为 approved').toBe('approved');
 
@@ -161,5 +171,57 @@ test.describe('02 报价单审批与转订单', () => {
     });
     await expect(page.locator('.el-tag').filter({ hasText: '已取消' })).toBeVisible();
     expect(await quotationStatus(page, id), '取消后状态应为 cancelled').toBe('cancelled');
+  });
+
+  test('02-05 待审批报价单可拒绝（reject 端点：理由必填落 rejection_reason + 空理由/缺通过理由/状态门负例）', async ({
+    page,
+  }) => {
+    // 拒绝前置：金额 ≥ 10 万走 BPM → pending_approval（reject 状态门仅接受待审批）
+    const id = await createDraftQuotation(page, 200000);
+    await apiCall(page, 'POST', `/quotations/${id}/submit`);
+    expect(await quotationStatus(page, id), '拒绝前置：提交后应为 pending_approval').toBe(
+      'pending_approval'
+    );
+
+    // 正例：带理由拒绝 → pending_approval→rejected + 逐字回读 rejection_reason（防理由丢失仍绿）
+    const rejectReason = `E2E-QT-拒绝-${Date.now()}`;
+    await apiCall(page, 'POST', `/quotations/${id}/reject`, { reason: rejectReason });
+    const after = await apiCallRaw<{
+      status: string;
+      rejection_reason: string | null;
+      approval_reason: string | null;
+    }>(page, 'GET', `/quotations/${id}`);
+    expect(after.status, '拒绝后状态应为 rejected').toBe('rejected');
+    expect(after.rejection_reason, '拒绝理由应逐字落 rejection_reason 专列').toBe(rejectReason);
+    expect(after.approval_reason, '拒绝不得写入 approval_reason（两动作两列）').toBeNull();
+
+    // 状态门：rejected 终态再拒绝 → 400 BUSINESS_ERROR（reject 仅 pending_approval 起拒）
+    const repeatReject = await apiCallExpectFail(page, 'POST', `/quotations/${id}/reject`, {
+      reason: 'E2E-QT-重复拒绝',
+    });
+    expect(repeatReject.status, '已拒绝报价单再次拒绝应被状态门拦为 400').toBe(400);
+    expect(failureCode(repeatReject), '重复拒绝机器码应为 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+
+    // 空/纯空白理由 → 400 VALIDATION_ERROR（reason 服务端必填）
+    const id2 = await createDraftQuotation(page, 200000);
+    await apiCall(page, 'POST', `/quotations/${id2}/submit`);
+    const emptyReason = await apiCallExpectFail(page, 'POST', `/quotations/${id2}/reject`, {
+      reason: '   ',
+    });
+    expect(emptyReason.status, '纯空白拒绝理由应返回 HTTP 400').toBe(400);
+    expect(failureCode(emptyReason), '纯空白拒绝理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    const stillPending = await quotationStatus(page, id2);
+    expect(stillPending, '空理由 reject 被拒不得改变状态').toBe('pending_approval');
+
+    // approve 缺通过理由 → 400 VALIDATION_ERROR（必填档）
+    const approveNoReason = await apiCallExpectFail(page, 'POST', `/quotations/${id2}/approve`);
+    expect(approveNoReason.status, 'approve 缺 approval_reason 应返回 HTTP 400').toBe(400);
+    expect(failureCode(approveNoReason), 'approve 缺理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
   });
 });

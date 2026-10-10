@@ -1,9 +1,8 @@
 <!--
-  api-gateway/index.vue - API 网关（拆分重构版）
-  任务编号: P14 批 1 B3 I-2
-  拆分：835 行 → ~115 行 + 3 composable + 1 工具 + 8 子组件
-  行为完全保持一致（仅结构重构）
-  批次 281：3 个 composable 接入 useTableApi，父组件去掉 .value + 移除 onMounted fetch
+  api-gateway/index.vue - API 网关页面入口
+  功能：承载「端点启停管理」列表与「网关统计」两块业务，作为 /api-gateway 路由的页面容器。
+  调用方：路由懒加载本视图；子组件 ApiEndpointTab/ApiEndpointForm 通过 props/emit 与本入口交互。
+  数据源：useApiEp 走 /api-gateway/endpoints，loadStats 走 getApiStats(/api-gateway/stats)。
 -->
 <template>
   <div class="api-gateway-page">
@@ -28,38 +27,6 @@
           @edit-endpoint="ep.openEndpointDialog"
           @delete-endpoint="ep.handleDeleteEndpoint"
           @update:query-params="(v: EndpointQuery) => Object.assign(ep.endpointQuery, v)"
-        />
-      </el-tab-pane>
-
-      <el-tab-pane :label="t('apiGateway.index.tabKeys')" name="keys">
-        <ApiKeyTab
-          v-model:page="key.page"
-          v-model:page-size="key.pageSize"
-          :api-keys="key.keys"
-          :loading="key.keyLoading"
-          :total="key.keyTotal"
-          :query-params="key.keyQuery"
-          @fetch="key.fetchKeys"
-          @new-key="key.openKeyDialog()"
-          @view-key="key.viewKeyDetail"
-          @toggle-key="key.handleToggleKey"
-          @delete-key="key.handleDeleteKey"
-          @update:query-params="(v: ApiKeyQuery) => Object.assign(key.keyQuery, v)"
-        />
-      </el-tab-pane>
-
-      <el-tab-pane :label="t('apiGateway.index.tabLogs')" name="logs">
-        <ApiLogTab
-          v-model:page="log.page"
-          v-model:page-size="log.pageSize"
-          :logs="log.logs"
-          :loading="log.logLoading"
-          :total="log.logTotal"
-          :query-params="log.logQuery"
-          :method-type-map="log.methodTypeMap"
-          @fetch="log.fetchLogs"
-          @view-log="log.viewLogDetail"
-          @update:query-params="(v: LogQuery) => Object.assign(log.logQuery, v)"
         />
       </el-tab-pane>
 
@@ -88,46 +55,25 @@
       @submit="ep.handleEndpointSubmit"
       @update:form="v => Object.assign(ep.endpointForm, v)"
     />
-
-    <KeyForm
-      v-model:visible="key.keyDialogVisible"
-      v-model:form-ref="key.keyFormRef"
-      v-model:permissions-text="key.permissionsText"
-      :form="key.keyForm"
-      :submit-loading="key.keySubmitLoading"
-      :rules="key.keyRules"
-      @submit="key.handleKeySubmit"
-      @update:form="v => Object.assign(key.keyForm, v)"
-    />
-
-    <LogDetail v-model:visible="log.logDetailVisible" :current-log="log.currentLog" />
   </div>
 </template>
 
 <script setup lang="ts">
-// 此文件为 API 网关页面入口，组合 useApiEp/useApiKey/useApiLog 三个 composable。
-// 批次 281：3 个 composable 已接入 useTableApi，自动管理分页和数据加载，无需 onMounted 调用 fetch。
+// API 网关页面入口，组合 useApiEp（端点管理）与网关统计（getApiStats）。
+// 端点列表/分页由 useApiEp 内部的 useTableApi 承载，进入页面即自动加载，无需 onMounted。
 
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useApiEp } from './composables/useApiEp';
-import { useApiKey } from './composables/useApiKey';
-import { useApiLog } from './composables/useApiLog';
 import { getApiStats, type ApiStats } from '@/api/api-gateway';
 import ApiEndpointForm from './components/ApiEndpointForm.vue';
-import KeyForm from './components/KeyForm.vue';
-import LogDetail from './components/LogDetail.vue';
 import ApiEndpointTab, { type EndpointQuery } from './tabs/ApiEndpointTab.vue';
-import ApiKeyTab, { type ApiKeyQuery } from './tabs/ApiKeyTab.vue';
-import ApiLogTab, { type LogQuery } from './tabs/ApiLogTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const activeTab = ref('endpoints');
 
 const ep = useApiEp();
-const key = useApiKey();
-const log = useApiLog();
 
 // ===== 网关统计（getApiStats） =====
 const stats = ref<ApiStats | null>(null);
@@ -140,11 +86,6 @@ const statCards = computed(() => {
     { label: t('apiGateway.stats.totalEndpoints'), value: s.total_endpoints },
     { label: t('apiGateway.stats.activeEndpoints'), value: s.active_endpoints },
     { label: t('apiGateway.stats.inactiveEndpoints'), value: s.inactive_endpoints },
-    { label: t('apiGateway.stats.totalKeys'), value: s.total_keys },
-    { label: t('apiGateway.stats.activeKeys'), value: s.active_keys },
-    { label: t('apiGateway.stats.totalRequests'), value: s.total_requests },
-    { label: t('apiGateway.stats.totalErrors'), value: s.total_errors },
-    { label: t('apiGateway.stats.avgResponseTime'), value: s.avg_response_time_ms },
   ];
 });
 

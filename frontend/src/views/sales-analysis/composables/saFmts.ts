@@ -2,15 +2,20 @@
 // 拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
 // 行为完全保持一致（仅结构重构）
 
-/** 格式化货币：数值 → "¥xxx.xx" */
-export const formatCurrency = (value: number) => {
-  return value ? `¥${value.toFixed(2)}` : '¥0.00';
+/**
+ * 格式化货币：rust_decimal 出参为字符串（如 "1250.00"），统一 Number() 归一后再格式化；
+ * 直接对字符串 .toFixed 会 TypeError，禁止假定入参是 number。
+ */
+export const formatCurrency = (value: number | string) => {
+  const n = Number(value);
+  return n ? `¥${n.toFixed(2)}` : '¥0.00';
 };
 
-/** 根据完成率返回进度条颜色 */
-export const getProgressColor = (percentage: number) => {
-  if (percentage >= 100) return '#67c23a';
-  if (percentage >= 80) return '#e6a23c';
+/** 根据完成率返回进度条颜色（completion_rate 为 Decimal 出参字符串，先归一） */
+export const getProgressColor = (percentage: number | string) => {
+  const p = Number(percentage);
+  if (p >= 100) return '#67c23a';
+  if (p >= 80) return '#e6a23c';
   return '#f56c6c';
 };
 

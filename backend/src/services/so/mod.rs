@@ -47,7 +47,7 @@ pub struct SalesOrderDetail {
     pub customer_name: Option<String>,
     pub opportunity_id: Option<i32>,
     pub order_date: chrono::DateTime<chrono::Utc>,
-    pub required_date: chrono::DateTime<chrono::Utc>,
+    pub required_date: Option<chrono::DateTime<chrono::Utc>>,
     pub ship_date: Option<chrono::DateTime<chrono::Utc>>,
     pub status: String,
     pub subtotal: rust_decimal::Decimal,
@@ -75,6 +75,18 @@ pub struct SalesOrderDetail {
     pub contact_phone: Option<String>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// 审批通过理由：sales_orders.approval_reason 真实列（m0079 加列，TEXT 可空，
+    /// models/sales_order.rs:49）。写入方 `services/so/order_workflow.rs` approve 路径；
+    /// 选填口径：空/纯空白归一为 None ⇒ 列保持 NULL=未采集。键名与列名逐字同源
+    /// snake_case，无 skip_serializing_if：键恒存在，未采集出参为 null（前端据此
+    /// 区分「未审批」与「字段缺失」）。
+    pub approval_reason: Option<String>,
+    /// 审批拒绝理由：sales_orders.rejected_reason 真实列（m0079 加列，TEXT 可空，
+    /// models/sales_order.rs:51）。写入方 `services/so/contract.rs` reject 路径
+    /// （必填，trim 非空）；reject 起不再挪用 notes。两动作两列：approve 不写本列、
+    /// reject 不写 approval_reason。sales_orders 无 cancel_reason 列（m0079 该域仅
+    /// 建两列），本域出参不存在该键。
+    pub rejected_reason: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     #[sea_orm(skip)]

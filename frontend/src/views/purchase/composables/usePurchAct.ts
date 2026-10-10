@@ -1,12 +1,13 @@
 /**
  * usePurchAct - 采购单业务操作 composable
- * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue）
  * 包含：审批、查看、打印、导出
  */
 import { ref } from 'vue';
 import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { isDialogDismissal } from '@/utils/monitor';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
 import {
   getPurchaseOrderById,
@@ -20,18 +21,12 @@ import {
   type PurchaseOrder,
   type PurchaseOrderItem,
 } from '@/api/purchase';
-// V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
-// 后端 GET /purchase/orders/export 已就绪（含行级数据权限 + 异步审计日志 + 水印）
-// 前缀必须是单数 purchase：routes/mod.rs:507 nest("/api/v1/erp/purchase") +
-// routes/purchase.rs:62 route("/orders/export")。此前写成 /purchases/ 恒 404，
-// 导出按钮点了没有任何反应（exportFromBackend 抛错、无 blob 故无 download 事件）。
+// 导出走后端带水印 xlsx 接口（资源前缀为单数 /purchase，复数 /purchases 无挂载）
 import { exportFromBackend } from '@/utils/export';
 
 /**
  * 采购单业务操作 composable
- *
- * V15 P0-S12 修复（Batch 475b）：新增第 4 参数 getQueryParams，用于导出时传递列表筛选条件
- * 保证导出数据与当前列表筛选一致（status/supplier_id）
+ * 第 4 参数 getQueryParams：导出时透传列表筛选条件（status/supplier_id），导出与列表同口径
  */
 export function usePurchAct(
   orders: () => PurchaseOrder[],
@@ -58,21 +53,36 @@ export function usePurchAct(
   };
 
   /**
-   * 审批采购单
+   * 明细行保存成功后回源刷新对话框数据：派生金额列（subtotal/discount_amount/
+   * tax_amount/total_amount）与供应商保密快照列均由后端权威口径重算/反查，前端不得本地拼算；
+   * 取不到新数据时如实记日志并保留旧值，不清空。
+   */
+  const refreshViewData = async () => {
+    const current = viewData.value;
+    if (!current) return;
+    try {
+      const res = await getPurchaseOrderById(current.id);
+      if (res.data) viewData.value = res.data;
+    } catch (error) {
+      logger.error(msg.translate('loadPurchaseOrderDetailFailed'), error);
+    }
+  };
+
+  /**
+   * 审批通过（pending_approval → approved），理由选填：先经 promptApprovalReason(false) 采集，
+   * 取消即中止（非错误）。留空时省略 approval_reason 键，后端 purchase_orders.approval_reason 列写 NULL（不伪造空串）。
    */
   const handleApprove = async (row: PurchaseOrder) => {
+    const approvalReason = await promptApprovalReason(false);
+    if (approvalReason === null) return;
     try {
-      await ElMessageBox.confirm(`确定审批通过采购单 ${row.order_no} 吗？`, '审批确认', {
-        type: 'success',
-      });
-      await approvePurchaseOrder(row.id);
+      await approvePurchaseOrder(row.id, approvalReason);
       msg.success('purchaseOrderApproved', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
-        const errMsg = error instanceof Error ? error.message : String(error);
-        ElMessage.error(errMsg || msg.translate('approveFailed'));
-      }
+      if (isDialogDismissal(error)) return;
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('approveFailed'));
     }
   };
 
@@ -80,7 +90,6 @@ export function usePurchAct(
    * 打印采购订单列表
    */
   const handlePrint = () => {
-    // v11 批次 177 P2-1 修复：(item: any) 改为 (item: PurchaseOrder)
     const printData = orders().map((item: PurchaseOrder, index: number) => ({
       序号: index + 1,
       订单号: item.order_no,
@@ -102,11 +111,9 @@ export function usePurchAct(
   };
 
   /**
-   * 导出采购订单列表为 xlsx（V15 P0-S12 修复 Batch 475b）
-   *
-   * 规则 3：导出统一使用 xlsx 格式（禁止 CSV 作为最终交付格式）
-   * 改为调用后端 GET /purchase/orders/export，后端注入水印 + 行级数据权限 + 异步审计日志
-   * 传入当前列表筛选条件（status/supplier_id），保证导出与列表一致
+   * 导出采购订单 xlsx（禁止 CSV 交付）：
+   * 调用后端 GET /purchase/orders/export（后端注入水印 + 行级数据权限 + 异步审计日志），
+   * 透传当前列表筛选条件（status/supplier_id），与列表同口径。
    */
   const handleExport = async () => {
     const filters = getQueryParams();
@@ -129,7 +136,7 @@ export function usePurchAct(
       msg.success('purchaseOrderSubmitted', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('operationFailed'));
       }
@@ -137,20 +144,12 @@ export function usePurchAct(
   };
 
   /**
-   * 驳回采购单（原因必填）
+   * 驳回采购单：理由必填，先经 promptRejectReason() 采集再提交，取消即中止（非错误）。
+   * 理由落 purchase_orders.rejected_reason 专列；后端对空白/超列宽返回定性 400 文案，此处原样透出。
    */
   const handleReject = async (row: PurchaseOrder) => {
-    let reason = '';
-    try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 ${row.order_no}`, {
-        type: 'warning',
-        inputPattern: /\S+/,
-        inputErrorMessage: '驳回原因不能为空',
-      });
-      reason = value;
-    } catch {
-      return;
-    }
+    const reason = await promptRejectReason();
+    if (reason === null) return;
     try {
       await rejectPurchaseOrder(row.id, reason);
       msg.success('purchaseOrderRejected', { orderNo: row.order_no });
@@ -189,7 +188,7 @@ export function usePurchAct(
       msg.success('purchaseOrderDeleted', { orderNo: row.order_no });
       onRefresh();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('operationFailed'));
       }
@@ -225,6 +224,7 @@ export function usePurchAct(
     viewDialogVisible,
     viewData,
     handleView,
+    refreshViewData,
     handleApprove,
     handlePrint,
     handleExport,

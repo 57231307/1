@@ -197,24 +197,18 @@
               fmtAmount(creditInfo.credit_limit)
             }}</el-descriptions-item>
             <el-descriptions-item label="当前占用">{{
-              fmtAmount(creditInfo.current_balance)
+              fmtAmount(creditInfo.used_credit)
             }}</el-descriptions-item>
             <el-descriptions-item label="可用额度">{{
-              fmtAmount(creditInfo.available)
+              fmtAmount(creditInfo.available_credit)
             }}</el-descriptions-item>
           </el-descriptions>
 
-          <!-- RFM 评分结果 -->
+          <!-- RFM 评分结果（后端 RfmScoreDetail：三个分项各 1-5，恒有值 ⇒ 不做占位掩盖） -->
           <el-descriptions v-if="rfmRow" :column="3" border style="margin-bottom: 16px">
-            <el-descriptions-item label="最近消费(R)">{{
-              rfmRow.recency ?? '-'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="消费频率(F)">{{
-              rfmRow.frequency ?? '-'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="消费金额(M)">{{
-              rfmRow.monetary ?? '-'
-            }}</el-descriptions-item>
+            <el-descriptions-item label="最近消费(R)">{{ rfmRow.recency }}</el-descriptions-item>
+            <el-descriptions-item label="消费频率(F)">{{ rfmRow.frequency }}</el-descriptions-item>
+            <el-descriptions-item label="消费金额(M)">{{ rfmRow.monetary }}</el-descriptions-item>
           </el-descriptions>
 
           <!-- 分配历史 -->
@@ -272,12 +266,11 @@
                 {{ [row.province, row.city, row.district].filter(Boolean).join(' / ') || '-' }}
               </template>
             </el-table-column>
-            <el-table-column
-              prop="address"
-              label="详细地址"
-              min-width="180"
-              show-overflow-tooltip
-            />
+            <el-table-column label="详细地址" min-width="180" show-overflow-tooltip>
+              <!-- 非 admin 会话后端不下发 address 键（无查看权限，见 api/customer.ts::CustomerAddress），
+                   与同表 postal_code/remark 两列同形态地以 '-' 表示"无值可显示" -->
+              <template #default="{ row }">{{ row.address || '-' }}</template>
+            </el-table-column>
             <el-table-column prop="postal_code" label="邮编" width="100">
               <template #default="{ row }">{{ row.postal_code || '-' }}</template>
             </el-table-column>
@@ -354,7 +347,7 @@
     <!-- 新增/编辑地址弹窗 -->
     <el-dialog
       v-model="addressDialogVisible"
-      :title="editingAddressId ? '编辑地址' : '新增地址'"
+      :title="editingAddress ? '编辑地址' : '新增地址'"
       width="520px"
     >
       <el-form :model="addressForm" label-width="100px">
@@ -409,6 +402,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   detectDuplicateLeads,
   getLeadFunnelReport,
@@ -431,8 +425,10 @@ import {
   getCustomerCreditInfo,
   createCustomerAuditLog,
   type CustomerAddress,
+  type CustomerAddressUpdate,
   type CustomerAuditLog,
   type CustomerClv,
+  type CustomerCreditInfo,
 } from '@/api/customer';
 import {
   getCustomerRfmScore,
@@ -450,11 +446,17 @@ const unwrapList = <T,>(payload: unknown): T[] => {
   return paged?.items ?? paged?.history ?? [];
 };
 
-const fmtAmount = (value: number | null | undefined): string =>
-  value == null ? '-' : Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
+// 金额按真实可空语义显示：null/空串 = 无值 → '-' 占位（不伪装成 0.00，
+// 后端已不再用 unwrap_or(0) 伪造金额）；Decimal 出参为 JSON 字符串，须经 Number 归一
+const fmtAmount = (value: string | number | null | undefined): string =>
+  value === null || value === undefined || value === ''
+    ? '-'
+    : Number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2 });
 
-const fmtRate = (value: number | null | undefined): string =>
-  value == null ? '-' : `${Number(value).toFixed(1)}%`;
+// 比率既有 f64 出参（number），也有 Decimal 出参（如加权预测明细 win_probability，
+// 后端 opp.rs:1346 → JSON 字符串），统一经 Number 归一后格式化
+const fmtRate = (value: string | number | null | undefined): string =>
+  value == null || value === '' ? '-' : `${Number(value).toFixed(1)}%`;
 
 // ============== 页签一：销售漏斗 ==============
 
@@ -465,7 +467,8 @@ const funnelReport = ref<SalesFunnelReport | null>(null);
 interface FunnelRow {
   stage: string;
   count: number | null;
-  amount: number | null;
+  // 漏斗金额列为后端 Decimal → JSON 字符串，经 fmtAmount 归一展示
+  amount: string | number | null;
   rate: number | null;
 }
 
@@ -685,9 +688,9 @@ const handleCalculateClv = async () => {
 
 // ===== 客户信用 =====
 const creditLoading = ref(false);
-const creditInfo = ref<{ credit_limit: number; current_balance: number; available: number } | null>(
-  null
-);
+// 载荷形状由 api/customer.ts::CustomerCreditInfo 对齐后端实体，金额列是 Decimal 的
+// JSON 字符串（rust_decimal 未启 serde-float），展示一律走 fmtAmount 归一
+const creditInfo = ref<CustomerCreditInfo | null>(null);
 const handleCreditQuery = async () => {
   const customerId = clvCustomerId.value;
   if (!customerId) {
@@ -697,7 +700,9 @@ const handleCreditQuery = async () => {
   creditLoading.value = true;
   try {
     const res = await getCustomerCreditInfo(customerId);
-    creditInfo.value = res.data ?? null;
+    // 后端无评级行时以 AppError::not_found 返回（customer_credit_handler.rs:122-125），
+    // 2xx 的 data 恒是实体本体，不存在 null 分支，故不写 `?? null` 兜底
+    creditInfo.value = res.data;
   } catch {
     ElMessage.error('查询客户信用失败');
   } finally {
@@ -707,7 +712,9 @@ const handleCreditQuery = async () => {
 
 // ===== 地址簿管理 =====
 const addressDialogVisible = ref(false);
-const editingAddressId = ref<number | null>(null);
+// 编辑目标：地址 id 与"打开弹窗时读回的真实行"同生同灭。
+// 分两个 ref 会出现"有 id 无基准行"的中间态，而提交前必须有基准行才能算出改动集。
+const editingAddress = ref<{ id: number; base: CustomerAddress } | null>(null);
 const addressSaving = ref(false);
 const addressForm = ref({
   contact_name: '',
@@ -721,12 +728,22 @@ const addressForm = ref({
   remark: '',
 });
 
+/**
+ * el-input 的模型只接受 string：把后端可空列（null）与"无查看权限、整键不下发"的列
+ * （undefined）都落成输入框的空态。
+ * 本函数只做控件初始化，不是数据层兜底：某列是否写回后端由
+ * `buildAddressUpdatePayload` 的改动集决定，空态未被用户重新填写就不会被下发，
+ * 库内原值不受影响。
+ */
+const inputText = (value: string | null | undefined): string =>
+  typeof value === 'string' ? value : '';
+
 const openCreateAddress = () => {
   if (!clvCustomerId.value) {
     ElMessage.warning('请输入客户 ID');
     return;
   }
-  editingAddressId.value = null;
+  editingAddress.value = null;
   addressForm.value = {
     contact_name: '',
     contact_phone: '',
@@ -742,19 +759,48 @@ const openCreateAddress = () => {
 };
 
 const openEditAddress = (row: CustomerAddress) => {
-  editingAddressId.value = row.id;
+  editingAddress.value = { id: row.id, base: row };
   addressForm.value = {
     contact_name: row.contact_name,
+    // 非 admin 会话这里就是后端下发的打码值（138****8888 形态），按原样呈现，不伪造原文
     contact_phone: row.contact_phone,
-    province: row.province || '',
-    city: row.city || '',
-    district: row.district || '',
-    address: row.address,
-    postal_code: row.postal_code || '',
+    province: inputText(row.province),
+    city: inputText(row.city),
+    district: inputText(row.district),
+    // 非 admin 会话后端不下发 address 键 ⇒ 空态；不重新填写就不会进提交载荷，库内地址不变
+    address: inputText(row.address),
+    postal_code: inputText(row.postal_code),
     is_default: row.is_default,
-    remark: row.remark || '',
+    remark: inputText(row.remark),
   };
   addressDialogVisible.value = true;
+};
+
+/**
+ * 编辑提交只含"真正改动过的键"。后端 UpdateCustomerAddressDto 逐列 `if let Some` 更新，
+ * 缺键=该列不改（见 handlers/customer_address_handler.rs::update_customer_address），
+ * 因此整表单原样提交会有两类真实写坏：
+ * - contact_phone 读回的是打码值 ⇒ 原样提交等于把 "138****8888" 写进库；
+ * - address 读回时键可能根本不存在（无查看权限）⇒ 原样提交等于把真实地址清成空串。
+ * 判据：
+ * - contact_phone / address 两列仅在"用户填入非空、且与读回态不同"时下发；
+ * - 其余列按与读回态是否不同下发（可空列的 null 与输入框空态同为"未填"，不算改动）。
+ */
+const buildAddressUpdatePayload = (base: CustomerAddress): CustomerAddressUpdate => {
+  const form = addressForm.value;
+  const payload: CustomerAddressUpdate = {};
+  if (form.contact_name !== base.contact_name) payload.contact_name = form.contact_name;
+  if (form.contact_phone !== base.contact_phone && form.contact_phone.trim() !== '')
+    payload.contact_phone = form.contact_phone;
+  if (form.address !== inputText(base.address) && form.address.trim() !== '')
+    payload.address = form.address;
+  if (form.province !== inputText(base.province)) payload.province = form.province;
+  if (form.city !== inputText(base.city)) payload.city = form.city;
+  if (form.district !== inputText(base.district)) payload.district = form.district;
+  if (form.postal_code !== inputText(base.postal_code)) payload.postal_code = form.postal_code;
+  if (form.is_default !== base.is_default) payload.is_default = form.is_default;
+  if (form.remark !== inputText(base.remark)) payload.remark = form.remark;
+  return payload;
 };
 
 const handleSaveAddress = async () => {
@@ -763,19 +809,27 @@ const handleSaveAddress = async () => {
     ElMessage.warning('请输入客户 ID');
     return;
   }
+  const target = editingAddress.value;
+  // contact_name 不在脱敏列集合内（任何角色都下发明文），空值在两种入口都不成立：
+  // 新建时后端 CreateCustomerAddressDto 必填，编辑时清空同样拒绝（改造前后一致）。
+  // 电话/详细地址只在"新建"这一必填态卡非空：编辑时非 admin 读回的是打码值或缺键，
+  // 输入框空态表示"未改动"而非"待填"，是否下发由 buildAddressUpdatePayload 的改动集决定。
   if (
     !addressForm.value.contact_name ||
-    !addressForm.value.contact_phone ||
-    !addressForm.value.address
+    (!target && (!addressForm.value.contact_phone || !addressForm.value.address))
   ) {
     ElMessage.warning('请填写收货人/电话/详细地址');
     return;
   }
   addressSaving.value = true;
   try {
-    if (editingAddressId.value) {
-      await updateCustomerAddress(customerId, editingAddressId.value, addressForm.value);
-      ElMessage.success('地址已更新');
+    if (target) {
+      const payload = buildAddressUpdatePayload(target.base);
+      // 改动集为空 ⇒ 不打后端、也不宣称"已更新"（无任何写动作发生）
+      if (Object.keys(payload).length > 0) {
+        await updateCustomerAddress(customerId, target.id, payload);
+        ElMessage.success('地址已更新');
+      }
     } else {
       await createCustomerAddress(customerId, addressForm.value);
       ElMessage.success('地址已添加');
@@ -795,8 +849,9 @@ const handleDeleteAddress = async (row: CustomerAddress) => {
   if (!customerId) return;
   try {
     await ElMessageBox.confirm(`确认删除地址 #${row.id}？`, '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('crmEnhanced.handleDeleteAddress', error);
   }
   try {
     await deleteCustomerAddress(customerId, row.id);

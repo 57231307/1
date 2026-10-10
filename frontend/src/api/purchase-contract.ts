@@ -1,10 +1,12 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
-// 列表/详情出参 = 后端 purchase_contract::Model（services/purchase_contract_service.rs get_list/get_by_id）。
-// 键为实体 snake_case；status 词表 draft/active/cancelled（models/status/bpm_crm_contract.rs:34 contract）。
-// supplier_name/contract_name/total_amount/signed_date/effective_date/expiry_date/payment_terms 均为真实列。
-// 注：contract 表无 created_by 姓名列、无 currency/delivery_terms/明细，历史前端按这些自创键读取 ⇒ 恒空。
+// 列表/详情出参 = 后端 purchase_contract::Model，键为实体 snake_case。
+// status 词表 draft/active/cancelled/rejected（权威 models/status/bpm_crm_contract.rs::contract，
+// 采销两合同域共用；approve 写 active、reject 写 rejected，两动作各落一列理由）。
+// 审批理由两列（approval_reason/rejected_reason，m0079 加列）本接口刻意不声明：
+// 当前列表/详情均无展示位，补键即恒空假列（与销售合同域同一口径）。
+// contract 表无 created_by 姓名列、无 currency/delivery_terms/明细列；下方保留键为待后端补齐的缺口。
 export interface PurchaseContract {
   id: number;
   contract_no: string;
@@ -21,6 +23,8 @@ export interface PurchaseContract {
   payment_method: string | null;
   delivery_date: string | null;
   delivery_location: string | null;
+  /** 真实列 remark（m0016 迁移补列，可空）；后端出参键为单数 remark，非 remarks */
+  remark: string | null;
   status: string;
   created_by: number;
   created_at: string;
@@ -59,32 +63,55 @@ export interface PurchaseContractQuery {
 }
 
 /**
- * 创建采购合同请求（严格对齐 backend CreateContractRequestDto，
- * handlers/purchase_contract_handler.rs:31）。
- * 注意：后端字段是 remark（单数），前端历史用 remarks（复数）⇒ 键名不对齐导致 remark 恒为 None。
- * contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
- * 为真实 DB 列但不在 CreateContractRequestDto 内（schema gap）。
+ * 创建采购合同请求，逐字段对齐后端 CreateContractRequestDto。
+ * - delivery_date 后端可空（真实列 delivery_date 可空）；前端表单口径仍必填交货日期（产品要求），类型可选不冲突。
+ * - contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
+ *   均为真实 DB 列，DTO 接收并落库，须随建单入参提交。
+ * - 后端字段名是 remark（单数）而非 remarks，m0016 补齐的可空列。
  */
 export interface CreatePurchaseContractPayload {
   contract_no: string;
   contract_name: string;
   supplier_id: number;
   total_amount: number;
+  contract_type?: string;
   payment_terms?: string;
-  /** 后端为 chrono::NaiveDate（必填），格式 YYYY-MM-DD */
-  delivery_date: string;
+  delivery_date?: string;
+  signed_date?: string;
+  effective_date?: string;
+  expiry_date?: string;
+  payment_method?: string;
+  delivery_location?: string;
   /** 后端字段名为 remark（单数），非 remarks */
   remark?: string;
 }
 
 /**
- * 更新采购合同请求（严格对齐 backend UpdateContractDto，
- * handlers/purchase_contract_handler.rs:45）。
- * 仅 contract_name/payment_terms 可更新；其余字段为 schema gap。
+ * 更新采购合同请求，逐字段对齐后端 UpdateContractDto。
+ * 字段语义 = 显式三态（RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空该列为 NULL、有值=覆盖。
+ * - contract_name/supplier_id 为 NOT NULL 列：不开 null 清空，空则应省略键（保持原值），
+ *   发送显式 null 会被后端判业务错误（400 + 外显文案）。
+ * - 其余均为 DB 可空列，类型如实声明 `T | null`：清空须送 null，
+ *   禁止塌成 `|| undefined` 省略键（省略=保持原值）。
+ * - 不含 contract_no：单据号系统生成、编辑链路忽略，发送只会构成"后端不读"的死键。
  */
 export interface UpdatePurchaseContractPayload {
+  /** NOT NULL 列：空则省略键，禁止显式 null */
   contract_name?: string;
-  payment_terms?: string;
+  /** NOT NULL 列：空则省略键，禁止显式 null */
+  supplier_id?: number;
+  /** 以下均为 DB 可空列：有值=覆盖、null=清空、键缺席=保持原值 */
+  total_amount?: number | null;
+  contract_type?: string | null;
+  payment_terms?: string | null;
+  delivery_date?: string | null;
+  signed_date?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  payment_method?: string | null;
+  delivery_location?: string | null;
+  remark?: string | null;
 }
 
 export function getPurchaseContractList(
@@ -114,13 +141,42 @@ export function deletePurchaseContract(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/purchase/purchase-contracts/${id}`);
 }
 
-export function approvePurchaseContract(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/purchase/purchase-contracts/${id}/approve`);
+// 审批「通过」请求体，对齐后端 ApproveContractRequest。
+// approval_reason 必填语义在后端 handler 收口（缺失/空串/纯空白一律 400），
+// 值落 purchase_contracts.approval_reason 列 ⇒ 前端必带且必采（采集见 useActionPrompts）。
+export interface ApprovePurchaseContractRequest {
+  approval_reason: string;
 }
 
-// 执行采购合同请求体：对齐后端 purchase_contract_handler::ExecuteContractRequestDto。
-// execution_type / execution_amount / execution_date 必填；related_bill_type/related_bill_id 为可选关联单据，
-// 本表单暂不采集（后端为 Option，不发送即 None），避免留死字段。
+// 审批「拒绝」请求体，对齐后端 RejectContractRequest：reason 为 String 非 Option ⇒ 必带体；
+// trim 后空串 400，非空值落 purchase_contracts.rejected_reason 列。
+export interface RejectPurchaseContractRequest {
+  reason: string;
+}
+
+// approve/reject 两个端点成功出参均为 ApiResponse<String>（后端回含记录 ID 的拼接文案）：
+// 该 data 不外显，文案一律走前端 i18n，ID 不进用户可见文案。
+// 状态门：仅 draft 可通过/拒绝。
+
+/** 审批通过采购合同（draft → active，端点 POST /purchase/purchase-contracts/{id}/approve） */
+export function approvePurchaseContract(
+  id: number,
+  data: ApprovePurchaseContractRequest
+): Promise<ApiResponse<string>> {
+  return request.post(`/purchase/purchase-contracts/${id}/approve`, data);
+}
+
+/** 拒绝采购合同（draft → rejected 终态，端点 POST /purchase/purchase-contracts/{id}/reject，与 approve 各自独立） */
+export function rejectPurchaseContract(
+  id: number,
+  data: RejectPurchaseContractRequest
+): Promise<ApiResponse<string>> {
+  return request.post(`/purchase/purchase-contracts/${id}/reject`, data);
+}
+
+// 执行采购合同请求体，对齐后端 ExecuteContractRequestDto。
+// execution_type / execution_amount / execution_date 必填；
+// related_bill_type/related_bill_id 为可选关联单据，本表单不采集（不发送即后端 None），避免留死字段。
 export interface ExecutePurchaseContractRequest {
   execution_type: string;
   execution_amount: number;
@@ -140,10 +196,8 @@ export function cancelPurchaseContract(id: number, reason: string): Promise<ApiR
   return request.put(`/purchase/purchase-contracts/${id}/cancel`, { reason });
 }
 
-// 批次 94 P2-12 修复：补全采购合同导出接口（原缺失，导致 usePcProc 导出占位假成功）
-// 返回 blob，前端用 URL.createObjectURL 触发下载。
-// 注：后端目前未注册 /purchase/purchase-contracts/export 路由，查询参数按同资源 list_contracts 的
-// ContractQuery（PurchaseContractQuery）定型，避免使用泛型 QueryParams 让任意键被静默丢弃。
+// 导出采购合同：GET /purchase/purchase-contracts/export 返回 xlsx blob，前端 createObjectURL 触发下载。
+// 查询参数按同资源 list_contracts 的 ContractQuery（PurchaseContractQuery）定型，避免泛型键被静默丢弃。
 export function exportPurchaseContracts(params?: PurchaseContractQuery): Promise<Blob> {
   return request.get('/purchase/purchase-contracts/export', {
     params,

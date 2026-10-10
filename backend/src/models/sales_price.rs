@@ -24,12 +24,34 @@ pub struct Model {
     pub status: String,
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
+    /// 审批通过理由（m0079 加列，TEXT 可空；NULL=历史行未采集或选填留空）
+    pub approval_reason: Option<String>,
+    /// 审批拒绝理由（m0079 加列，TEXT 可空；与 approval_reason 两动作两列）
+    pub rejected_reason: Option<String>,
     pub created_by: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    /// 关联产品（product_id -> products.id）：仅供列表 `keyword` 按"产品名称"过滤时
+    /// LeftJoin 使用（照 purchase_price.rs:31-38 先例）；不追加 SELECT 列，响应仍为整 Model。
+    #[sea_orm(
+        belongs_to = "super::product::Entity",
+        from = "Column::ProductId",
+        to = "super::product::Column::Id"
+    )]
+    Product,
+
+    /// 关联客户（customer_id -> customers.id）：仅供 `keyword` 按"客户名称"过滤时
+    /// LeftJoin 使用；标准价行 customer_id 为 NULL，LEFT JOIN 下该行仅不被客户名命中。
+    #[sea_orm(
+        belongs_to = "super::customer::Entity",
+        from = "Column::CustomerId",
+        to = "super::customer::Column::Id"
+    )]
+    Customer,
+}
 
 impl ActiveModelBehavior for ActiveModel {}

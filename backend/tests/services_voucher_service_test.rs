@@ -3,7 +3,7 @@ use bingxi_backend::services::voucher_service::VoucherQueryParams;
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::status::voucher as voucher_status;
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
@@ -120,7 +120,9 @@ fn calc_ending_balance(
     period_debit: Decimal,
     period_credit: Decimal,
 ) -> (Decimal, Decimal) {
-    if balance_direction == "借" {
+    // 写入方权威词表＝models/status/finance.rs 的 account_subject 常量：方向值英文 debit/credit，
+    // 本夹具复刻源码比较逻辑，须与英文权威值对齐，禁再按中文「借」比较。
+    if balance_direction == "debit" {
         let ending_balance = initial_debit + period_debit - period_credit;
         if ending_balance >= Decimal::ZERO {
             (ending_balance, Decimal::ZERO)
@@ -309,7 +311,7 @@ fn test_pzbhqz_wzlxmr() {
 #[test]
 fn test_kmyejs_jfkmzc() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "借",
+        "debit",
         decs!("1000"),
         Decimal::ZERO,
         decs!("500"),
@@ -324,7 +326,7 @@ fn test_kmyejs_jfkmzc() {
 #[test]
 fn test_kmyejs_dfkmzc() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "贷",
+        "credit",
         Decimal::ZERO,
         decs!("2000"),
         decs!("300"),
@@ -339,7 +341,7 @@ fn test_kmyejs_dfkmzc() {
 #[test]
 fn test_kmyejs_jfkmcxdfye() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "借",
+        "debit",
         decs!("100"),
         Decimal::ZERO,
         decs!("200"),
@@ -354,7 +356,7 @@ fn test_kmyejs_jfkmcxdfye() {
 #[test]
 fn test_kmyejs_dfkmcxjfye() {
     let (ending_debit, ending_credit) = calc_ending_balance(
-        "贷",
+        "credit",
         Decimal::ZERO,
         decs!("100"),
         decs!("500"),
@@ -486,7 +488,7 @@ fn test_ymd_jjhkyx() {
 
 // ============ 服务实例化测试 ============
 
-/// test_fwslcj（验证 VoucherService 在 SQLite 内存数据库上能正常实例化。）
+/// test_fwslcj（验证 VoucherService 在 `setup_test_db()` 真库夹具上能正常实例化。）
 #[tokio::test]
 async fn test_fwslcj() {
     let db = setup_test_db().await;
@@ -496,11 +498,22 @@ async fn test_fwslcj() {
 
 // ============ 数据库交互测试（标注 #[ignore]）============
 
-/// test_cjpz_xyzssjk（需要 vouchers/voucher_items/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。无 schema 时返回数据库错误。）
+/// test_cjpz_xyzssjk —— 钉"缺 schema（无 vouchers 表）时 create 返回 DATABASE_ERROR"。
+/// 夹具用 `connect_empty_schema_db()`（不跑迁移的空 schema 库），不用 `setup_test_db()`：
+/// 后者是已迁移 PG + TRUNCATE 业务表，科目 1001 属迁移种子（`account_subjects`
+/// 不在清空名单）且借贷平衡 ⇒ 该夹具上 create 为 Ok(凭证)，两个前提必须分开绑定；
+/// 断言钉 DATABASE_ERROR 机器码而非裸 `is_err()`，防夹具退化族混入。
+///
+/// 契约依据（读函数体）：`src/services/voucher_ops/crud.rs:42-94` create 首个
+/// 落库动作在 `validate_voucher_create_req`（:48，非生产环境只查平衡不落库，
+/// :113-124）后 `generate_voucher_no`（:56-58，DocumentNumberGenerator 按 vouchers
+/// 表计数取号）⇒ 缺表 DbErr::Query ⇒ `utils/error.rs:561-578` DATABASE_ERROR
+/// （error.rs:798）；即便环境被判为生产，:129 check_date_locked 同样首发缺表错，
+/// 两分支族一致。
 #[tokio::test]
 #[ignore]
 async fn test_cjpz_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = VoucherService::new(Arc::new(db));
 
     let req = CreateVoucherRequest {
@@ -517,16 +530,29 @@ async fn test_cjpz_xyzssjk() {
             make_voucher_item_request(Decimal::ZERO, decs!("1000")),
         ],
     };
-    let result = service.create(req, 1).await;
-    // 无 schema 时为 Err
-    assert!(result.is_err());
+    let err = service
+        .create(req, 1)
+        .await
+        .expect_err("schema 缺失（无 vouchers 表）时 create 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:57 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_cxpzlb_xyzssjk（需要 vouchers 表 schema，标注 #[ignore] 仅在本地手动运行。）
+/// test_cxpzlb_xyzssjk —— 钉"缺 schema（无 vouchers 表）时 get_list 返回
+/// DATABASE_ERROR"，夹具为 `connect_empty_schema_db()`（不跑迁移的空 schema 库）。
+/// "已建库空表 ⇒ `Ok(([], 0))`"的正向契约由凭证列表正向用例覆盖，本条只锁缺表报错。
+///
+/// 契约依据：`src/services/voucher_ops/crud.rs:327-364` get_list 首个落库动作
+/// `query.clone().count()`（:357）打在 vouchers 表；缺表 ⇒ DATABASE_ERROR
+/// （`utils/error.rs:561-578`，code 见 error.rs:798）。
 #[tokio::test]
 #[ignore]
 async fn test_cxpzlb_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = VoucherService::new(Arc::new(db));
 
     let params = VoucherQueryParams {
@@ -540,25 +566,45 @@ async fn test_cxpzlb_xyzssjk() {
         page: None,
         page_size: None,
     };
-    let result = service.get_list(params).await;
-    // L-17 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    // 无 schema 时为 Err；有 schema 时为 Ok
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let err = service
+        .get_list(params)
+        .await
+        .expect_err("schema 缺失（无 vouchers 表）时 get_list 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（crud.rs:349 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_pzgz_xyzssjk（需要 vouchers/voucher_items/account_balances/account_subjects 表 schema，；标注 #[ignore] 仅在本地手动运行。）
+/// test_pzgz_xyzssjk —— 钉"已建库空表上 post 不存在的凭证 ⇒ NOT_FOUND 机器码，
+/// 而非 panic"。
+///
+/// 契约依据（读函数体）：`src/services/voucher_ops/workflow.rs:120-131`
+/// begin 后 find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`
+/// （:131）；状态门"只有已审核的凭证可以过账"（:133-136 ⇒ BUSINESS）只有记录
+/// 存在才可达。缺 schema 的报错形态已由本文件 test_cjpz/test_cxpzlb 在空 schema
+/// 库上钉死，本条按现夹具真实契约钉 NOT_FOUND，不放宽也不重复。
 #[tokio::test]
 #[ignore]
 async fn test_pzgz_xyzssjk() {
     let db = setup_test_db().await;
     let service = VoucherService::new(Arc::new(db));
 
-    let result = service.post(99999, 1).await;
-    // 无 schema 时为 Err
-    assert!(result.is_err());
+    let err = service
+        .post(99999, 1)
+        .await
+        .expect_err("已建库空表上 post 不存在的凭证必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 post 必须命中 not_found（workflow.rs:131），实得 {}",
+        err.error_code()
+    );
 }
 
-// ============ 批次 393 补测：凭证类型定义与辅助核算五维 ============
+// ============ 凭证类型定义与辅助核算五维 ============
 
 /// test_vouchertypedefinition_newgzq（验证 VoucherTypeDefinition::new 正确设置 code 和 name 字段。）
 #[test]
@@ -580,7 +626,7 @@ fn test_vouchertypedefinition_newgzq() {
     assert_eq!(def.name, "转账凭证");
 }
 
-/// test_available_voucher_typesfh4zlx（验证 available_voucher_types 静态方法返回 4 种凭证类型定义，；code 覆盖 "记/收/付/转" 全部业务类型。）
+/// test_available_voucher_typesfh4zlx（验证 available_voucher_types 静态方法返回 4 种凭证类型定义，code 覆盖 "记/收/付/转" 全部业务类型。）
 #[test]
 fn test_available_voucher_typesfh4zlx() {
     let types = VoucherService::available_voucher_types();
@@ -599,7 +645,10 @@ fn test_available_voucher_typesfh4zlx() {
 }
 
 /// test_kmbczcwxxgs
-/// 验证两个分支的科目不存在错误消息格式：1. validate_voucher_create_req 阶段："科目不存在或已停用：{code}"；2. update_account_balances 阶段："科目不存在：{code}"；（批次 102 v6 P3-4：后者已从 bad_request 改为 not_found）
+/// 验证两种构造形态的科目不存在消息串透传：bad_request 携带「科目不存在或已停用：{code}」、
+/// not_found 携带「科目不存在：{code}」，两串可区分。本条只锁 AppError→Display 层的消息形态，
+/// 不校验服务端族归类——服务侧现行文案与归类以 `voucher_ops/crud.rs`、
+/// `voucher_ops/assist.rs`、`voucher_ops/balance.rs` 为准。
 #[test]
 fn test_kmbczcwxxgs() {
     // 分支 1：校验阶段（科目不存在或已停用）
@@ -625,7 +674,9 @@ fn test_kmbczcwxxgs() {
 }
 
 /// test_fzhswwidpjgs
-/// 复现 create_assist_accounting_records 中的五维 ID 拼接逻辑。；格式：BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}；缺失字段使用 unwrap_or(0) / unwrap_or_default() 填充。
+/// 复现 `VoucherService::build_five_dimension_id` 的五维 ID
+/// 拼接逻辑。格式：BATCH:{}|COLOR:{}|DYE_LOT:{}|GRADE:{}|WORKSHOP:{}；缺失字段以
+/// unwrap_or(0) / unwrap_or_default() 填充。
 #[test]
 fn test_fzhswwidpjgs() {
     // 复现五维 ID 拼接逻辑（与源码一致）

@@ -1,15 +1,13 @@
 /**
  * useBpmDfProc.ts - BPM 流程定义流程操作 composable
- * 任务编号: P14 批 2 I-3 第 5 批（拆分原 bpm/definitions.vue）
  * 封装搜索 / 重置 / 创建 / 编辑 / 删除 / 版本 / 创建版本 / 激活 / 保存为模板等流程性方法
- * 行为完全保持一致（仅结构重构）
  *
  * 设计说明：通过 callbacks 接收 useBpmDf 的状态引用（Reactive 包装层）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
-// D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import {
   deleteBpmDefinition,
   updateBpmDefinition,
@@ -21,12 +19,14 @@ import {
   type ProcessDefinition,
   type ProcessNode,
   type ProcessVersion,
+  type CreateProcessDefinitionPayload,
+  type UpdateProcessDefinitionPayload,
 } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
 
 /**
  * 流程回调（接收 useBpmDf 返回的状态，自动解包后的值类型）
- * 批次 282：适配 useTableApi（page 独立 ref，queryParams 不含 page/page_size）
+ * 适配 useTableApi：page 独立 ref，queryParams 不含 page/page_size
  */
 interface BpmDfCallbacks {
   // 列表
@@ -35,7 +35,7 @@ interface BpmDfCallbacks {
   total: number;
   // 分页（useTableApi 独立 ref）
   page: number;
-  // 过滤（批次 282：useTableApi queryParams 为 Record<string, unknown>）
+  // 过滤（useTableApi queryParams 为 Record<string, unknown>）
   queryParams: Record<string, unknown>;
   // 表单
   dialogVisible: boolean;
@@ -100,15 +100,14 @@ function getAssigneeTypeName(type?: string): string {
  * BPM 流程定义流程操作方法集合
  */
 export function useBpmDfProc(cb: BpmDfCallbacks) {
-  /** 搜索（批次 282：page 独立 ref，refresh 别名 fetchDefinitions） */
+  /** 搜索（page 独立 ref，refresh 别名 fetchDefinitions） */
   const handleSearch = () => {
     cb.page = 1;
     cb.fetchDefinitions();
   };
 
-  /** 重置（批次 282：page 独立 ref，queryParams 为 Record<string, unknown>） */
+  /** 重置（page 独立 ref，queryParams 为 Record<string, unknown>） */
   const handleReset = () => {
-    cb.queryParams.keyword = '';
     cb.queryParams.category = '';
     cb.page = 1;
     cb.fetchDefinitions();
@@ -159,7 +158,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       msg.success('deleteSuccess');
       await cb.fetchDefinitions();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : msg.translate('deleteFailed');
         logger.error(errMsg);
         ElMessage.error(errMsg);
@@ -173,10 +172,12 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
     try {
       // 后端契约：流程节点持久化在 config.nodes（bpm_service.rs:141），顶层 nodes 非契约字段
       // 会被 serde 忽略 → 节点静默丢失。提交时把 nodes 包进 config，并按 DTO 真实键名构造载荷
-      // （create/update 走 process_key/process_name 别名映射到 name/code，见 bpm_dto.rs）。
+      // （name/code 为 CreateProcessDefinitionRequest/UpdateProcessDefinitionRequest 的 Rust
+      // 字段名；serde alias process_name/process_key 门禁不识别且视图内部键与 UI 表单解耦，
+      // 统一按真实字段名提交）。
       if (cb.isEdit && cb.formData.id) {
-        const payload: Partial<ProcessDefinition> = {
-          process_name: cb.formData.process_name,
+        const payload: UpdateProcessDefinitionPayload = {
+          name: cb.formData.process_name,
           description: cb.formData.description,
           category: cb.formData.category,
           config: { nodes: cb.formData.nodes },
@@ -184,9 +185,9 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
         await updateBpmDefinition(cb.formData.id, payload);
         msg.success('updateSuccess');
       } else {
-        const payload: Partial<ProcessDefinition> = {
-          process_key: cb.formData.process_key,
-          process_name: cb.formData.process_name,
+        const payload: CreateProcessDefinitionPayload = {
+          code: cb.formData.process_key,
+          name: cb.formData.process_name,
           description: cb.formData.description,
           category: cb.formData.category,
           config: { nodes: cb.formData.nodes },
@@ -225,7 +226,7 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       await cb.fetchVersions(cb.currentDefinition.id);
       await cb.fetchDefinitions();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg =
           error instanceof Error ? error.message : msg.translate('createVersionFailed');
         logger.error(errMsg);

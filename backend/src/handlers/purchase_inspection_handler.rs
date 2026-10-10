@@ -38,10 +38,33 @@ pub async fn list_inspections(
         )
         .await?;
 
-    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let result = serde_json::to_value(PaginatedResponse::new(inspections, total, page, page_size))?;
 
     Ok(Json(ApiResponse::success(result)))
+}
+
+/// 统计卡聚合（GET /purchase/inspections/stats）：总数/待检/合格/不合格四值，
+/// 与列表**同一筛选参数结构、同一条件构造点、同一行级口径**（分母同源）；
+/// 分页参数在本端点无意义，直接忽略（不参与任何条件构造）。
+/// 解析失败路径与列表完全同构（Query 反序列化 + 日期边界静默按未提供处理由
+/// 共用构造点单点决定），服务层错误经 AppError 通道外抛，无裸 500。
+pub async fn get_inspection_stats(
+    Query(params): Query<InspectionQueryParams>,
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseInspectionService::new(state.db.clone());
+    let stats = service
+        .inspection_stats(
+            params.status,
+            params.supplier_id,
+            params.keyword,
+            params.result,
+            params.inspection_date_from,
+            params.inspection_date_to,
+        )
+        .await?;
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(stats)?)))
 }
 
 /// 获取采购质检单详情
@@ -196,8 +219,7 @@ pub async fn create_inspection_item(
     auth: AuthContext,
     Json(req): Json<CreateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     // handler DTO 转 service DTO
     let svc_req = CreateInspectionItemRequest {
@@ -226,8 +248,7 @@ pub async fn update_inspection_item(
     auth: AuthContext,
     Json(req): Json<UpdateInspectionItemDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     // handler DTO 转 service DTO
     let svc_req = UpdateInspectionItemRequest {

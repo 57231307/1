@@ -28,6 +28,20 @@ pub enum NotificationType {
     Webhook,
 }
 
+impl NotificationType {
+    /// 序列化为大写字符串（取值与 `#[sea_orm(string_value)]` 逐字一致，
+    /// 是全仓唯一的 notification_type 出参/入库词表，禁止再用 Debug 形态或手工大小写归一）
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Internal => "INTERNAL",
+            Self::Email => "EMAIL",
+            Self::Sms => "SMS",
+            Self::System => "SYSTEM",
+            Self::Webhook => "WEBHOOK",
+        }
+    }
+}
+
 /// 通知优先级
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(10))")]
@@ -44,6 +58,19 @@ pub enum NotificationPriority {
     /// 紧急
     #[sea_orm(string_value = "URGENT")]
     Urgent,
+}
+
+impl NotificationPriority {
+    /// 序列化为大写字符串（取值与 `#[sea_orm(string_value)]` 逐字一致，
+    /// 是全仓唯一的 priority 出参/入库词表，禁止再用 Debug 形态或手工大小写归一）
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Low => "LOW",
+            Self::Normal => "NORMAL",
+            Self::High => "HIGH",
+            Self::Urgent => "URGENT",
+        }
+    }
 }
 
 /// 通知状态
@@ -85,8 +112,8 @@ pub struct Model {
     pub status: NotificationStatus,
     /// 业务类型（如：ORDER、APPROVAL、INVENTORY 等）
     pub business_type: Option<String>,
-    /// 业务 ID
-    pub business_id: Option<i32>,
+    /// 业务 ID（多态松散引用，容纳 BIGSERIAL 主键的被引用单据）
+    pub business_id: Option<i64>,
     /// 跳转链接
     pub action_url: Option<String>,
     /// 发送人 ID（系统通知为 NULL，表示无具体发送人；sender_name 携带显示名）

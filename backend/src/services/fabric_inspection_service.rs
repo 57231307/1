@@ -1,7 +1,7 @@
 //! 验布打卷 Service
 //!
-//! v14 批次 426：验布打卷流程贯通
-//! 依据：面料行业真实业务调研文档 §12.4 验布打卷与成品入库
+//! 业务口径依据 .monkeycode/docs/research/fabric-industry-research.md
+//! （验布打卷与成品入库）
 //! 真实业务流程：
 //!   验布机对接码表/电子称 → 疵点采集 → 生成验布报告
 //!   → 卷唛标签打印 → PDA 扫描卷唛条码 → 自动入库
@@ -17,9 +17,11 @@ use rust_decimal::prelude::ToPrimitive;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use validator::Validate;
 
 use crate::models::batch_dye_lot::{self, Entity as DyeLotEntity};
 use crate::models::fabric_defect_record::{
@@ -40,6 +42,12 @@ use crate::models::status::fabric_scoring;
 use crate::models::status::inventory_piece as piece_status;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 验布单号自动编码前缀（存量数据以 "FIR-" 开头；列无 DB UNIQUE——
+/// DDL 证据 migration/src/domain/v15/mod.rs:596 `"inspection_no" VARCHAR(32) NOT NULL`，
+/// 故取号必须与 INSERT 同事务，靠 advisory lock 串行化并发）
+const INSPECTION_NO_PREFIX: &str = "FIR-";
 
 // ============================================================================
 // 评分计算纯函数（四分制 / 十分制）
@@ -162,7 +170,6 @@ pub struct CreateInspectionRequest {
     pub scoring_system: Option<String>,
     pub fabric_width_inches: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新验布记录请求（仅 pending 状态可更新）
@@ -184,12 +191,20 @@ pub struct GradeInspectionRequest {
 }
 
 /// 打卷入库请求（graded → rolled）
-#[derive(Debug, Clone, Deserialize)]
+///
+/// 打卷即「成品布入库」的实测采集时刻，重量/幅宽/克重是成品布标签对应三列的取值来源，故**真实
+/// 必填**：字段级 `#[validate(required)]` + `Self::roll_fabric` 入口的 `req.validate()`，缺值即
+/// 400 VALIDATION_ERROR 并点名提交字段，不允许留 NULL 造成「无据标签」。字段保持 Option 是为走
+/// validator 族的可读外显而非 serde 裸拒绝；调用方为 `fabric_inspection_handler.rs` 的 roll_fabric。
+#[derive(Debug, Clone, Deserialize, validator::Validate)]
 pub struct RollFabricRequest {
     pub warehouse_id: i32,
     pub roll_length: Decimal,
+    #[validate(required(message = "打卷入库必须填写重量(kg)，成品布标签重量取该实测值"))]
     pub roll_weight: Option<Decimal>,
+    #[validate(required(message = "打卷入库必须填写幅宽(cm)，成品布标签幅宽取该实测值"))]
     pub roll_width: Option<Decimal>,
+    #[validate(required(message = "打卷入库必须填写克重(g/m²)，成品布标签克重取该实测值"))]
     pub roll_gram_weight: Option<Decimal>,
 }
 
@@ -215,16 +230,12 @@ impl FabricInspectionService {
         Self { db }
     }
 
-    /// 生成验布单号：FIR-YYYYMMDDHHMMSS-NNN
-    fn generate_inspection_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("FIR-{}-{:03}", timestamp, random)
-    }
-
     /// 创建验布记录
-    pub async fn create(&self, req: CreateInspectionRequest) -> Result<InspectionModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreateInspectionRequest,
+        user_id: i32,
+    ) -> Result<InspectionModel, AppError> {
         // 业务校验：评分制式合法
         let scoring_system = req
             .scoring_system
@@ -246,7 +257,22 @@ impl FabricInspectionService {
             }
         }
 
-        let inspection_no = Self::generate_inspection_no();
+        // 取号与 INSERT 同事务：原实现「秒级时间戳+3位随机」同秒并发直接产生
+        // 重复验布单号（inspection_no 无 UNIQUE 兜底，重复无法被发现）；
+        // advisory lock 持到提交，串行化同日并发的取号+插入。
+        let txn = (*self.db).begin().await?;
+        let inspection_no = DocumentNumberGenerator::generate_no_with_width_txn(
+            &txn,
+            INSPECTION_NO_PREFIX,
+            InspectionEntity,
+            fabric_inspection_record::Column::InspectionNo,
+            3,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "验布单号生成失败");
+            AppError::business_displayable("验布单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = InspectionActiveModel {
@@ -275,15 +301,17 @@ impl FabricInspectionService {
             status: Set(inspection_status::PENDING.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("验布记录创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -451,8 +479,14 @@ impl FabricInspectionService {
         // 根据评分制式判定等级
         let (grade, points_per_100_sq_yards) = if model.scoring_system == fabric_scoring::FOUR_POINT
         {
+            // 四分制评级强依赖幅宽（缺值 fail-closed，不以默认幅宽兜底）：属字段必填族
+            // → VALIDATION_ERROR 且可外显；内部记录 ID 与列名只进日志、不进 HTTP 出参
             let width = model.fabric_width_inches.ok_or_else(|| {
-                AppError::business("四分制评级需要幅宽(fabric_width_inches)，请先设置幅宽")
+                tracing::warn!(
+                    "验布记录 {} 未设置幅宽列 fabric_width_inches，四分制评级被拒",
+                    id
+                );
+                AppError::validation_displayable("四分制评级需要幅宽，请先在该验布单填写门幅(英寸)")
             })?;
             let p100 = calculate_points_per_100_sq_yards(total_points, req.inspected_yards, width)?;
             let g = determine_grade_by_four_point(p100);
@@ -468,8 +502,7 @@ impl FabricInspectionService {
             req.qualification_rate,
         );
 
-        // V15 P1-3: A 级判定需外观合格率达标 且 物理指标全部 pass
-        // 依据：审计报告 类四 P1 维度 7（A 级需外观 + 物理双达标）
+        // A 级判定需外观合格率达标 且 物理指标全部 pass（双达标才保 A 级）
         let abc_grade = if abc_grade == crate::services::quality_inspection_service::QUALITY_GRADE_A
         {
             let physical_service = FabricPhysicalTestService::new(self.db.clone());
@@ -495,8 +528,7 @@ impl FabricInspectionService {
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
 
-        // V15 P1-7: 评级完成发布 QualityInspectionCompleted 事件
-        // 依据：审计报告 类四 P1 维度 17（QualityInspectionCompleted 无发布者）
+        // 评级完成发布 QualityInspectionCompleted 事件（event_bus_ops/listener.rs 主监听消费）
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
                 inspection_id: updated.id,
@@ -507,7 +539,7 @@ impl FabricInspectionService {
             },
         );
 
-        // V15 Batch05-P1-3：发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
+        // 发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
                 inspection_id: updated.id,
@@ -530,6 +562,9 @@ impl FabricInspectionService {
         id: i32,
         req: RollFabricRequest,
     ) -> Result<InspectionModel, AppError> {
+        // 打卷实测三列（重量/幅宽/克重）必填门：缺值即 400，走字段校验族 VALIDATION_ERROR，
+        // 文案经 From<validator::ValidationErrors> 可读外显，点名缺哪个提交字段（见 RollFabricRequest）
+        req.validate()?;
         let model = self.get_by_id(id).await?;
         Self::validate_roll_preconditions(&model, &req)?;
         let dye_lot_no = model.dye_lot_no.clone().ok_or_else(|| {
@@ -551,7 +586,7 @@ impl FabricInspectionService {
         self.apply_roll_summary(model, &req).await
     }
 
-    /// 校验打卷前置条件（状态 + 长度）
+    /// 校验打卷前置条件（状态 + 长度 + 实测值范围为正）
     fn validate_roll_preconditions(
         model: &InspectionModel,
         req: &RollFabricRequest,
@@ -564,6 +599,22 @@ impl FabricInspectionService {
         }
         if req.roll_length <= Decimal::ZERO {
             return Err(AppError::business("打卷长度必须 > 0"));
+        }
+        // 三个实测值必填性已由 DTO validator 拦住；此处校验取值范围（字段族，
+        // 文案只描述用户自己提交的字段规则，经 validation_displayable 可读外显）
+        for (label, value) in [
+            ("重量(kg)", req.roll_weight),
+            ("幅宽(cm)", req.roll_width),
+            ("克重(g/m²)", req.roll_gram_weight),
+        ] {
+            if let Some(v) = value
+                && v <= Decimal::ZERO
+            {
+                return Err(AppError::validation_displayable(format!(
+                    "打卷入库{}必须大于 0",
+                    label
+                )));
+            }
         }
         Ok(())
     }
@@ -677,7 +728,12 @@ impl FabricInspectionService {
     ) -> Result<InspectionModel, AppError> {
         let new_total_rolls = model.total_rolls + 1;
         let new_total_length = model.total_roll_length + req.roll_length;
-        let new_total_weight = model.total_roll_weight + req.roll_weight.unwrap_or(Decimal::ZERO);
+        // 重量实测值必填（roll_fabric 入口已 validate）；此处仍显式拒绝而非
+        // unwrap_or(ZERO) 兜底掩盖——缺值属调用方违约，必须报错不可静默加 0
+        let roll_weight = req.roll_weight.ok_or_else(|| {
+            AppError::validation_displayable("打卷入库必须填写重量(kg)，成品布标签重量取该实测值")
+        })?;
+        let new_total_weight = model.total_roll_weight + roll_weight;
         let mut active: InspectionActiveModel = model.into();
         active.total_rolls = Set(new_total_rolls);
         active.total_roll_length = Set(new_total_length);
@@ -870,10 +926,10 @@ impl FabricDefectService {
 }
 
 // ============================================================================
-// V15 P1-3: 面料物理指标检测 Service（十项指标）
+// 面料物理指标检测 Service（十项指标）
 // ============================================================================
 
-/// 物理指标检测项目常量（十项指标，对应 fabric-industry-research.md §4.7）
+/// 物理指标检测项目常量（十项指标，对应 .monkeycode/docs/research/fabric-industry-research.md §4.7）
 pub mod physical_test_item {
     pub const SKEWNESS: &str = "skewness";
     pub const SHRINKAGE: &str = "shrinkage";

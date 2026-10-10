@@ -143,7 +143,7 @@ impl Default for FailoverMetrics {
                     target: "failover_metrics",
                     metric_name = name,
                     error = %e,
-                    "批次 95 P3-1: 静态指标初始化失败（应为编程错误），进程将终止"
+                    "静态指标初始化失败（编程错误），进程将终止"
                 );
                 std::process::abort()
             })
@@ -154,7 +154,7 @@ impl Default for FailoverMetrics {
                     target: "failover_metrics",
                     metric_name = name,
                     error = %e,
-                    "批次 95 P3-1: 静态指标初始化失败（应为编程错误），进程将终止"
+                    "静态指标初始化失败（编程错误），进程将终止"
                 );
                 std::process::abort()
             })

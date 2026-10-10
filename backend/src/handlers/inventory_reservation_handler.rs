@@ -1,9 +1,12 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::inventory_reservation;
+use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::error::AppError;
@@ -59,9 +62,11 @@ pub async fn list_reservations(
 
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(10).clamp(1, 100);
-    // V15 P0-S01：提取行级数据权限上下文
+    // 提取行级数据权限上下文，供归属门判定
     let data_scope_ctx = auth.to_data_scope_context();
 
+    // 铁律：service 返回的已是 AppError，直接 `?` 透传其真实 HTTP 状态与错误码，
+    // 禁止再 map_err 强转 internal 把业务拒绝/404 压成 500
     let (reservations, total) = service
         .list_reservations(
             page,
@@ -71,8 +76,7 @@ pub async fn list_reservations(
             query.status,
             Some(&data_scope_ctx),
         )
-        .await
-        .map_err(|e| AppError::internal(format!("获取预留列表失败: {}", e)))?;
+        .await?;
 
     let result = serde_json::json!({
         "list": reservations,
@@ -95,6 +99,7 @@ pub async fn create_reservation(
         state.db.clone(),
     );
 
+    // service 已返回 AppError，`?` 透传（含未来补业务校验时的 400/404 不被压成 500）
     let reservation = service
         .create_reservation(
             payload.order_id,
@@ -104,8 +109,7 @@ pub async fn create_reservation(
             Some(auth.user_id),
             payload.notes,
         )
-        .await
-        .map_err(|e| AppError::internal(format!("创建预留失败: {}", e)))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(ReservationResponse {
         id: reservation.id,
@@ -131,17 +135,13 @@ pub async fn delete_reservation(
         state.db.clone(),
     );
 
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 get_reservation + data_scope_ctx）
+    // IDOR 防护：删除前先经 get_reservation 的行级归属门
+    // 归属校验失败的 403/404 必须原样透传，不得强转 500 掩盖拒绝原因
     let data_scope_ctx = auth.to_data_scope_context();
-    service
-        .get_reservation(id, Some(&data_scope_ctx))
-        .await
-        .map_err(|e| AppError::internal(format!("IDOR 校验失败: {}", e)))?;
+    service.get_reservation(id, Some(&data_scope_ctx)).await?;
 
-    service
-        .delete_reservation(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("删除预留失败: {}", e)))?;
+    // 状态门拒绝（如"释放的预留不可删除"）为 400 BUSINESS_ERROR，`?` 透传
+    service.delete_reservation(id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "message": "预留已删除"
@@ -150,19 +150,34 @@ pub async fn delete_reservation(
 
 /// 锁定预留（从 pending 到 locked）
 /// POST /api/v1/erp/inventory/reservations/:id/lock
+///
+/// 单行写动作归属门（写前）：`inventory_reservation` 有 `created_by` 归属列
+/// （models/inventory_reservation.rs::created_by）而无 `department_id` 列 ⇒ 按 `id`
+/// 取本行、过 `check_resource_owner_by_member_scope`（判据与 `list_reservations` 列表侧
+/// Dept 分支同源）。取行不存在走 404（文案不含记录 ID），归属门在 service 状态翻转
+/// 落库点之前，越权零写入。
 pub async fn lock_reservation(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ReservationResponse>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let row = inventory_reservation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("库存预留不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, row.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该库存预留（数据范围限制）",
+        ));
+    }
+
     let service = crate::services::inventory_reservation_service::InventoryReservationService::new(
         state.db.clone(),
     );
 
-    let reservation = service
-        .lock_reservation(id)
-        .await
-        .map_err(|e| AppError::internal(format!("锁定预留失败: {}", e)))?;
+    // 状态门拒绝（400 BUSINESS_ERROR）与不存在（404）由 `?` 原样透传
+    let reservation = service.lock_reservation(id).await?;
 
     Ok(Json(ApiResponse::success(ReservationResponse {
         id: reservation.id,
@@ -179,19 +194,33 @@ pub async fn lock_reservation(
 
 /// 释放预留（从 locked/pending 到 released）
 /// POST /api/v1/erp/inventory/reservations/:id/release
+///
+/// 单行写动作归属门（写前）：与 `lock_reservation` 同款——`inventory_reservation` 有
+/// `created_by` 归属列无部门列，按 `id` 取本行、过 `check_resource_owner_by_member_scope`
+/// （判据与 `list_reservations` 列表侧 Dept 分支同源）。取行不存在走 404（文案不含记录
+/// ID），归属门在 service 状态翻转落库点之前，越权零写入。
 pub async fn release_reservation(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ReservationResponse>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let row = inventory_reservation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("库存预留不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, row.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该库存预留（数据范围限制）",
+        ));
+    }
+
     let service = crate::services::inventory_reservation_service::InventoryReservationService::new(
         state.db.clone(),
     );
 
-    let reservation = service
-        .release_reservation(id)
-        .await
-        .map_err(|e| AppError::internal(format!("释放预留失败: {}", e)))?;
+    // 状态门拒绝（400 BUSINESS_ERROR）与不存在（404）由 `?` 原样透传
+    let reservation = service.release_reservation(id).await?;
 
     Ok(Json(ApiResponse::success(ReservationResponse {
         id: reservation.id,

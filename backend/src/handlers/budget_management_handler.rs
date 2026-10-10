@@ -7,6 +7,7 @@ use crate::services::budget_management_service::{BudgetControlResponse, BudgetMa
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 use axum::{
     Json,
@@ -19,8 +20,8 @@ use std::sync::Arc;
 use tracing::info;
 use validator::Validate;
 
-/// P1-2a 修复（批次 81 v1 复审）：创建预算请求 DTO
-/// 替代 create_budget 中的 Json<serde_json::Value>，提供强类型校验
+/// 创建预算请求 DTO
+/// create_budget 的强类型请求体，字段级校验由 validator 执行
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBudgetDto {
@@ -44,8 +45,8 @@ pub struct CreateBudgetDto {
     pub remark: Option<String>,
 }
 
-/// P1-2a 修复（批次 81 v1 复审）：更新预算请求 DTO
-/// 替代 update_budget 中的 Json<serde_json::Value>，所有字段可选
+/// 更新预算请求 DTO
+/// update_budget 的强类型请求体，所有字段可选
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateBudgetDto {
@@ -63,8 +64,8 @@ pub struct UpdateBudgetDto {
     pub remark: Option<String>,
 }
 
-/// P1-2a 修复（批次 81 v1 复审）：审批预算请求 DTO
-/// 替代 approve_budget 中的 Json<serde_json::Value>
+/// 审批预算请求 DTO
+/// approve_budget 的强类型请求体（审批意见选填）
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct ApproveBudgetDto {
@@ -73,7 +74,7 @@ pub struct ApproveBudgetDto {
 }
 
 /// 预算科目查询参数 DTO
-// V15 P0-S12 修复（Batch 475e）：派生 Clone，export_budget_items 需要 clone 后覆盖分页参数用于全量导出
+// 派生 Clone：export_budget_items 需 clone 查询参数并覆盖分页做全量导出
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct BudgetItemQuery {
@@ -107,6 +108,10 @@ pub struct CreateBudgetItemRequest {
 }
 
 /// 更新预算科目请求 DTO
+///
+/// `account_subject_id` 是可空列，三态语义（键缺席=保持、显式 null=解除映射、有值=覆盖）
+/// 依赖 `deserialize_with = "double_option"`：serde_json 会把显式 `null` 折叠成外层
+/// `None`，不挂适配器则"解除映射"永远发不出去（范式同 `department_handler`）。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 
@@ -119,7 +124,16 @@ pub struct UpdateBudgetItemRequest {
     pub status: Option<String>,
     pub remark: Option<String>,
     /// P2-14：预算科目-会计科目映射
+    #[serde(default, deserialize_with = "double_option")]
     pub account_subject_id: Option<Option<i32>>,
+}
+
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 创建预算方案请求 DTO
@@ -178,17 +192,20 @@ pub async fn list_budget_items(
 ) -> Result<Json<ApiResponse<Vec<budget_management::Model>>>, AppError> {
     info!("用户 {} 正在查询预算科目列表", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: params.item_type,
         status: params.status,
         plan_id: params.plan_id,
         page: params.page.unwrap_or(1).clamp(1, 1000),
-        // v11 批次 36 修复：page_size clamp 防止 DoS
+        // page/page_size 钳位（1..=1000 / 1..=100）防超大分页参数 DoS
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (items, _total) = service.get_items_list(query_params).await?;
+    let (items, _total) = service
+        .get_items_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("预算科目列表查询成功，共 {} 条记录", items.len());
 
     Ok(Json(ApiResponse::success(items)))
@@ -299,14 +316,16 @@ pub async fn list_plans(
 ) -> Result<Json<ApiResponse<Vec<budget_plan::Model>>>, AppError> {
     info!("用户 {} 正在查询预算方案列表", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
     let (plans, _total) = service
         .get_plans_list(
             None,
             None,
             params.page.unwrap_or(1).clamp(1, 1000),
-            // v11 批次 36 修复：page_size clamp 防止 DoS
+            // page/page_size 钳位（1..=1000 / 1..=100）防超大分页参数 DoS
             params.page_size.unwrap_or(10).clamp(1, 100),
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -337,7 +356,7 @@ pub async fn create_plan(
                 // 部门 ID 缺失时返回 4xx 错误，避免脏 department_id=0 记录
                 department_id: req
                     .department_id
-                    .ok_or_else(|| AppError::validation("预算编制请求缺少部门ID"))?,
+                    .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少部门ID"))?,
                 total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
                 remark: req.remark,
             },
@@ -369,13 +388,14 @@ pub async fn approve_plan(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<BudgetApproveRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为 None，交由服务层状态门判定
+    OptionalJson(req): OptionalJson<BudgetApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批预算方案：{}", auth.username, id);
 
     let service = BudgetManagementService::new(state.db.clone());
     service
-        .approve_plan(id, auth.user_id, req.approval_comment)
+        .approve_plan(id, auth.user_id, req.and_then(|r| r.approval_comment))
         .await?;
 
     info!("预算方案审批通过：{}", id);
@@ -393,7 +413,7 @@ pub async fn execute_plan(
     info!("用户 {} 正在执行预算方案：{}", auth.username, id);
 
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(state.db.clone());
     service
@@ -457,10 +477,10 @@ pub async fn create_execution(
     );
 
     let expense_date = NaiveDate::parse_from_str(&req.expense_date, "%Y-%m-%d")
-        .map_err(|e| AppError::validation(format!("日期格式错误：{}", e)))?;
+        .map_err(|e| AppError::validation_displayable(format!("日期格式错误：{}", e)))?;
 
     let service = BudgetManagementService::new(state.db.clone());
-    // 批次 329 v10 复审 P3 修复：使用参数对象替代多参数
+    // 创建入参聚合为参数对象，转交 service.create_execution
     let params = crate::services::budget_management_service::CreateBudgetExecutionParams {
         plan_id: id,
         item_id: None,
@@ -497,46 +517,43 @@ pub async fn get_plan_executions(
 }
 
 /// GET /api/v1/erp/budgets - 预算列表查询
+///
+/// 查询参数改用 typed DTO：`Query<serde_json::Value>` 走 urlencoded 反序列化时所有值都是
+/// `Value::String`，`as_i64()` 对 `?page=3` / `?plan_id=5` 恒返回 `None`，导致分页与筛选
+/// 静默回落到默认值（功能根本不生效）。typed DTO 由 serde 完成字符串→数字转换，非法值直接 400。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct BudgetListQuery {
+    pub item_type: Option<String>,
+    pub status: Option<String>,
+    pub plan_id: Option<i64>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_budgets(
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<BudgetListQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 查询预算列表", auth.username);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
 
-    // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
-    let page = params
-        .get("page")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1)
-        .clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
-
-    let page_size = params
-        .get("page_size")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(20)
-        .clamp(1, 100); // v11 批次 36 修复：防止 DoS
+    // 分页参数钳位防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // page 限 1..=1000
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // page_size 限 1..=100
 
     let query = crate::services::budget_management_service::BudgetItemQueryParams {
-        item_type: params
-            .get("item_type")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        status: params
-            .get("status")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        plan_id: params
-            .get("plan_id")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32),
+        item_type: params.item_type,
+        status: params.status,
+        plan_id: params.plan_id.map(|v| v as i32),
         page,
         page_size,
     };
 
-    let (items, total) = service.get_items_list(query).await?;
+    let (items, total) = service.get_items_list(query, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": items,
@@ -554,9 +571,8 @@ pub async fn create_budget(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 创建预算", auth.username);
 
-    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
+    req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
 
@@ -590,9 +606,8 @@ pub async fn update_budget(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 更新预算: ID={}", auth.username, id);
 
-    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
+    req.validate().map_err(AppError::from)?;
 
     let service = BudgetManagementService::new(state.db.clone());
 
@@ -647,17 +662,21 @@ pub async fn approve_budget(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<ApproveBudgetDto>,
+    // 审批意见选填：缺体经 OptionalJson 归一为 None；有体时字段校验照常执行
+    OptionalJson(req): OptionalJson<ApproveBudgetDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 审批预算: ID={}", auth.username, id);
 
-    // P1-2a 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    // 请求体经强类型 DTO 反序列化，validator 拦截非法字段
+    if let Some(r) = req.as_ref() {
+        r.validate().map_err(AppError::from)?;
+    }
 
     let service = BudgetManagementService::new(state.db.clone());
 
-    service.approve_plan(id, auth.user_id, req.opinion).await?;
+    service
+        .approve_plan(id, auth.user_id, req.and_then(|r| r.opinion))
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"id": id}),
@@ -813,13 +832,14 @@ fn record_budget_items_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/budgets/export - 导出预算科目列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
+/// GET /api/v1/erp/budgets/export - 导出预算科目列表（带水印 + 异步审计日志）：
 /// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_items_list 取全量数据
 pub async fn export_budget_items(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<BudgetItemQuery>,
 ) -> Result<axum::response::Response, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = BudgetManagementService::new(state.db.clone());
     let query_params = crate::services::budget_management_service::BudgetItemQueryParams {
         item_type: query.item_type,
@@ -828,7 +848,9 @@ pub async fn export_budget_items(
         page: 1,
         page_size: 10000,
     };
-    let (items, _total) = service.get_items_list(query_params).await?;
+    let (items, _total) = service
+        .get_items_list(query_params, Some(&data_scope_ctx))
+        .await?;
     let row_count = items.len();
     let items_json: Vec<serde_json::Value> = items
         .into_iter()
@@ -849,7 +871,7 @@ pub async fn export_budget_items(
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
-/// V15 P1 17.7-D5：创建预算版本请求 DTO
+/// 创建预算版本请求 DTO
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBudgetVersionDto {
@@ -941,23 +963,30 @@ pub async fn get_budget_assessment(
 }
 
 /// POST /api/v1/erp/budgets/variance-analysis - 预算差异分析
+///
+/// 原 `Json<serde_json::Value>` + `as_i64().unwrap_or_else(当前年)` 会在提交非法/字符串值时
+/// 静默回落，改用 typed DTO：数字字段由 serde 转换，非法值 400；缺省才落业务默认年（当前年）。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct VarianceAnalysisRequest {
+    #[validate(range(min = 2000, max = 2100, message = "预算年度须在 2000-2100 之间"))]
+    pub budget_year: Option<i32>,
+    pub department_id: Option<i32>,
+}
+
 pub async fn variance_analysis(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<VarianceAnalysisRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     info!("用户 {} 执行预算差异分析", auth.username);
+    req.validate().map_err(AppError::from)?;
     let service = BudgetManagementService::new(state.db.clone());
-    let budget_year =
-        req.get("budget_year")
-            .and_then(|v| v.as_i64())
-            .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
-    let department_id = req
-        .get("department_id")
-        .and_then(|v| v.as_i64())
-        .map(|id| id as i32);
+    let budget_year = req
+        .budget_year
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year());
     let result = service
-        .variance_analysis(budget_year, department_id)
+        .variance_analysis(budget_year, req.department_id)
         .await?;
     Ok(Json(serde_json::json!({
         "code": 200,
@@ -966,29 +995,37 @@ pub async fn variance_analysis(
 }
 
 /// POST /api/v1/erp/budgets/create-with-mode - 多模式预算编制
+///
+/// 原 `Json<serde_json::Value>` 用 `as_i64().unwrap_or_else(...)` 取年度/部门，非法值静默回落。
+/// 改 typed DTO：数字字段 serde 转换、非法值 400；缺省才落业务默认（源年=当前年，目标年=明年）。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateBudgetWithModeRequest {
+    pub mode: Option<String>,
+    #[validate(range(min = 2000, max = 2100, message = "源年度须在 2000-2100 之间"))]
+    pub source_year: Option<i32>,
+    #[validate(range(min = 2000, max = 2100, message = "目标年度须在 2000-2100 之间"))]
+    pub target_year: Option<i32>,
+    #[validate(range(min = 1, message = "部门ID必须大于0"))]
+    pub department_id: Option<i32>,
+}
+
 pub async fn create_budget_with_mode(
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<serde_json::Value>,
+    Json(req): Json<CreateBudgetWithModeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     info!("用户 {} 创建多模式预算", auth.username);
+    req.validate().map_err(AppError::from)?;
     let service = BudgetManagementService::new(state.db.clone());
-    let mode = req
-        .get("mode")
-        .and_then(|v| v.as_str())
-        .unwrap_or("incremental");
-    let source_year =
-        req.get("source_year")
-            .and_then(|v| v.as_i64())
-            .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64) as i32;
-    let target_year =
-        req.get("target_year")
-            .and_then(|v| v.as_i64())
-            .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64 + 1) as i32;
-    let department_id = req
-        .get("department_id")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(1) as i32;
+    let mode = req.mode.as_deref().unwrap_or("incremental");
+    let source_year = req
+        .source_year
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year());
+    let target_year = req
+        .target_year
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() + 1);
+    let department_id = req.department_id.unwrap_or(1);
     let budget_mode = match mode {
         "zero_based" => crate::services::budget_management_service::BudgetMode::ZeroBased,
         "rolling" => crate::services::budget_management_service::BudgetMode::Rolling,
@@ -1011,18 +1048,25 @@ pub async fn create_budget_with_mode(
 }
 
 /// GET /api/v1/erp/budgets/execution-warnings - 预算执行预警
+///
+/// `Query<serde_json::Value>` + `as_i64()` 对 urlencoded 的 `?budget_year=2025` 恒失败并静默
+/// 回落当前年。改 typed DTO：数字由 serde 转换、非法值 400，缺省才落当前年。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct ExecutionWarningsQuery {
+    pub budget_year: Option<i32>,
+}
+
 pub async fn budget_execution_warnings(
     State(state): State<AppState>,
     auth: AuthContext,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<ExecutionWarningsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     info!("用户 {} 查询预算执行预警", auth.username);
     let service = BudgetManagementService::new(state.db.clone());
     let budget_year = params
-        .get("budget_year")
-        .and_then(|v| v.as_i64())
-        .unwrap_or_else(|| chrono::Utc::now().date_naive().year() as i64)
-        as i32;
+        .budget_year
+        .unwrap_or_else(|| chrono::Utc::now().date_naive().year());
     let result = service.budget_execution_warnings(budget_year).await?;
     Ok(Json(serde_json::json!({
         "code": 200,

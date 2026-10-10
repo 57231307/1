@@ -74,7 +74,7 @@ pub mod payload_serde {
         },
         BpmProcessFinished {
             business_type: String,
-            business_id: i32,
+            business_id: i64,
             approved: bool,
             /// P2 5-18 修复：审批人 ID（从 BPM 事件 payload 携带）
             approver_id: i32,
@@ -109,7 +109,7 @@ pub mod payload_serde {
             quantity_kg: Decimal,
             source_bill_type: Option<String>,
             source_bill_no: Option<String>,
-            source_bill_id: Option<i32>,
+            source_bill_id: Option<i64>,
             batch_no: String,
             color_no: String,
             created_by: Option<i32>,

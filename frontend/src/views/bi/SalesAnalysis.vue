@@ -42,7 +42,8 @@ import type {
   RegionStat,
   ProfitAnalysis,
   CategoryStat,
-  DrilldownOrderItem,
+  CustomerOrderDrilldown,
+  ProductOrderDrilldown,
 } from '@/api/bi';
 import logger from '@/utils/logger';
 
@@ -219,54 +220,58 @@ const monthDrill = reactive({ year: '2026', month: '1' });
 const customerDrillId = ref('');
 const productDrillId = ref('');
 const monthToDayData = ref<TimeSeriesPoint[]>([]);
-const orderDrillData = ref<DrilldownOrderItem[]>([]);
+const customerOrderDrill = ref<CustomerOrderDrilldown | null>(null);
+const productOrderDrill = ref<ProductOrderDrilldown | null>(null);
 
 async function loadMonthToDay() {
   const year = Number(monthDrill.year);
   const month = Number(monthDrill.month);
   if (!year || !month || month < 1 || month > 12) {
-    ElMessage.warning('请输入有效年份与月份');
+    ElMessage.warning(t('biSalesAnalysis.message.invalidYearMonth'));
     return;
   }
-  orderDrillData.value = [];
+  customerOrderDrill.value = null;
+  productOrderDrill.value = null;
   try {
     const res = await getDrilldownMonthToDay(year, month);
     monthToDayData.value = unwrapBi(res);
   } catch (e) {
-    ElMessage.error('获取月→日钻取数据失败');
-    logger.error('获取月→日钻取数据失败', e);
+    ElMessage.error(t('biSalesAnalysis.message.monthToDayFailed'));
+    logger.error(t('biSalesAnalysis.message.monthToDayFailed'), e);
   }
 }
 
 async function loadCustomerToOrder() {
   const id = Number(customerDrillId.value);
   if (!id) {
-    ElMessage.warning('请输入客户ID');
+    ElMessage.warning(t('biSalesAnalysis.message.invalidCustomerId'));
     return;
   }
   monthToDayData.value = [];
+  productOrderDrill.value = null;
   try {
     const res = await getDrilldownCustomerToOrder(id);
-    orderDrillData.value = unwrapBi(res);
+    customerOrderDrill.value = unwrapBi(res);
   } catch (e) {
-    ElMessage.error('获取客户→订单钻取数据失败');
-    logger.error('获取客户→订单钻取数据失败', e);
+    ElMessage.error(t('biSalesAnalysis.message.customerToOrderFailed'));
+    logger.error(t('biSalesAnalysis.message.customerToOrderFailed'), e);
   }
 }
 
 async function loadProductToOrder() {
   const id = Number(productDrillId.value);
   if (!id) {
-    ElMessage.warning('请输入产品ID');
+    ElMessage.warning(t('biSalesAnalysis.message.invalidProductId'));
     return;
   }
   monthToDayData.value = [];
+  customerOrderDrill.value = null;
   try {
     const res = await getDrilldownProductToOrder(id);
-    orderDrillData.value = unwrapBi(res);
+    productOrderDrill.value = unwrapBi(res);
   } catch (e) {
-    ElMessage.error('获取产品→订单钻取数据失败');
-    logger.error('获取产品→订单钻取数据失败', e);
+    ElMessage.error(t('biSalesAnalysis.message.productToOrderFailed'));
+    logger.error(t('biSalesAnalysis.message.productToOrderFailed'), e);
   }
 }
 
@@ -490,14 +495,36 @@ function resizeCharts() {
         <el-table-column prop="quantity" label="数量" width="110" />
       </el-table>
 
-      <el-table v-if="orderDrillData.length" :data="orderDrillData" stripe class="drill-table">
-        <el-table-column prop="order_no" label="订单号" min-width="150" />
-        <el-table-column prop="order_date" label="订单日期" width="120" />
-        <el-table-column prop="total_amount" label="订单金额">
-          <template #default="{ row }">{{ formatCurrency(row.total_amount) }}</template>
+      <el-table
+        v-if="customerOrderDrill !== null"
+        :data="customerOrderDrill.orders"
+        stripe
+        class="drill-table"
+        :aria-label="$t('biSalesAnalysis.drill.customerOrderTableAriaLabel')"
+      >
+        <el-table-column prop="order_id" :label="$t('biSalesAnalysis.drill.orderId')" width="120" />
+        <el-table-column prop="amount" :label="$t('biSalesAnalysis.drill.amount')">
+          <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
         </el-table-column>
-        <el-table-column prop="quantity" label="数量" width="110" />
-        <el-table-column prop="status" label="状态" width="110" />
+        <el-table-column prop="date" :label="$t('biSalesAnalysis.drill.date')" width="130" />
+      </el-table>
+
+      <el-table
+        v-if="productOrderDrill !== null"
+        :data="productOrderDrill.orders"
+        stripe
+        class="drill-table"
+        :aria-label="$t('biSalesAnalysis.drill.productOrderTableAriaLabel')"
+      >
+        <el-table-column prop="order_id" :label="$t('biSalesAnalysis.drill.orderId')" width="120" />
+        <el-table-column
+          prop="quantity"
+          :label="$t('biSalesAnalysis.drill.quantity')"
+          width="110"
+        />
+        <el-table-column prop="amount" :label="$t('biSalesAnalysis.drill.amount')">
+          <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
+        </el-table-column>
       </el-table>
     </el-card>
 

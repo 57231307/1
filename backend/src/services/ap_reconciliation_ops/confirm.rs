@@ -57,7 +57,7 @@ impl ApReconciliationService {
             voucher_date: reconciliation.end_date,
             source_type: Some("AP_RECONCILIATION".to_string()),
             source_module: Some("ap".to_string()),
-            source_bill_id: Some(reconciliation.id),
+            source_bill_id: Some(i64::from(reconciliation.id)),
             source_bill_no: Some(reconciliation.reconciliation_no.clone()),
             batch_no: None,
             color_no: None,

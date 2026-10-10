@@ -290,10 +290,7 @@ impl DataPermissionService {
         use crate::models::customer::{self, Column as CustomerColumn, Entity as CustomerEntity};
         use crate::models::user::Entity as UserEntity;
 
-        let user = UserEntity::find_by_id(user_id)
-            .one(&*self.db)
-            .await
-            .map_err(|e| AppError::internal(format!("查询门户用户失败: {}", e)))?;
+        let user = UserEntity::find_by_id(user_id).one(&*self.db).await?;
         let email = match user.and_then(|u| u.email) {
             Some(e) if !e.is_empty() => e,
             _ => return Ok(None),
@@ -305,8 +302,7 @@ impl DataPermissionService {
                 customer::Column::Status.eq(crate::models::status::general::master_data::ACTIVE),
             )
             .one(&*self.db)
-            .await
-            .map_err(|e| AppError::internal(format!("查询门户客户映射失败: {}", e)))?;
+            .await?;
         Ok(customer.map(|c| c.id as i64))
     }
 

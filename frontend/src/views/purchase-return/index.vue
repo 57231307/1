@@ -93,10 +93,8 @@
 
     <PurchaseReturnApproval
       v-model:visible="prRtnProc.approveDialogVisible"
-      :approve-form="prRtnProc.approveForm"
       @approve-confirm="prRtnProc.handleApproveConfirm"
       @reject="prRtnProc.handleReject"
-      @update:approve-form="v => Object.assign(prRtnProc.approveForm, v)"
     />
   </div>
 </template>

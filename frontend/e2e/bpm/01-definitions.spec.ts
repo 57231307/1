@@ -7,9 +7,9 @@ import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
- * 01-04 编辑流程定义（方法一）：
- * 原 `if (await btn.isVisible())` 在无任何流程定义时零断言假绿（这些目录不跑 ensureTestEntities，
- * 库里可能一条定义都没有）。现先用 POST /bpm/definitions 建一条带唯一 process_key 的定义，
+ * 01-04 编辑流程定义的前置构造：
+ * 本目录不跑 ensureTestEntities，库里可能一条流程定义都没有，"按钮可见才断言"
+ * 会退化为零断言假绿。故先 POST /bpm/definitions 建一条带唯一 process_key 的定义，
  * 按该 key 定位自己那一行点编辑，再断言编辑对话框打开且回填「流程标识」。
  * 编辑按钮无状态条件（BpmDefinitionTable.vue:61 恒渲染，仅受 bpm_definition:update 权限控制，admin 满足）。
  */
@@ -75,25 +75,41 @@ test.describe('01 流程定义', () => {
     await dlg.getByLabel('流程标识').fill(`e2e-${Date.now()}`);
     await dlg.getByLabel('流程名称').fill('E2E 测试流程');
     // 分类是 el-select：用共享 helper pickSelectIn（root=dlg + 精确 label「分类」）打开下拉选首项，
-    // 消除旧 pickSelect+elSelectByLabel（子串匹配、点 readonly combobox）的假红。
+    // label 精确匹配限定在弹窗作用域内，不直接点 readonly combobox input。
     await pickSelectIn(dlg, page, '分类');
     await dlg.getByLabel('描述').fill('E2E 测试流程定义');
     await dlg.getByRole('button', { name: '确定' }).click();
-    // 真实成功提示走 msg.success('createSuccess')（useBpmDfProc.ts:181）→
-    // i18n message.createSuccess 实际中文为「新增成功」（zh-CN.ts:67），既非「创建成功」也非「保存成功」。
-    // 原用例 regex 未覆盖该文案恒不可见而红；锚定真实 toast 容器 .el-message + 真实文案（仍要求成功提示出现，不放宽）。
+    // 真实成功提示走 ElMessage.success(i18n.global.t('common.message.createSuccess'))
+    // （useBpmDfProc.ts:199-202）→ 实际中文为「新增成功」（zh-CN.ts:68），
+    // 既非「创建成功」（顶层 message.createSuccess）也非「保存成功」。
+    // 断言锚定真实 toast 容器 .el-message + 真实文案（仍要求成功提示出现，不放宽）。
     await expect(page.locator('.el-message').filter({ hasText: '新增成功' })).toBeVisible({
       timeout: 30000,
     });
   });
 
   test('01-03 流程定义筛选功能可用', async ({ page }) => {
-    // 筛选栏真实 label 为「流程名称」（bpm.definitions.filter.processName），并不存在「关键词」字段
+    // 「流程名称」筛选控件已被前端有意移除：后端 ProcessDefinitionQuery 仅有
+    // category/status/page/page_size（models/dto/bpm_dto.rs:34-39），无 keyword 字段，
+    // 发送即被静默丢弃=假筛选（移除理由见 BpmDefinitionFilter.vue:10-11 注释）。
+    // 筛选表单的真实控件：流程分类 combobox + 查询/重置按钮。
+    // 本用例对真实控件验证"筛选功能可用"：选分类 → 查询请求真实携带
+    // category=finance（waitForRequest 注册在点击前；不发请求/不带条件即自然超时判红，不吞）。
     await page.goto('/bpm/definitions');
-    await page.getByLabel('流程名称').fill('E2E');
-    await page.getByRole('button', { name: '查询' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
-    await page.getByRole('button', { name: '重置' }).click();
+    const filterForm = page.getByLabel('流程定义筛选表单');
+    await pickSelectIn(filterForm, page, '流程分类', { optionText: '财务' });
+    const queried = page.waitForRequest(
+      r =>
+        r.url().includes('/bpm/definitions') &&
+        r.method() === 'GET' &&
+        new URL(r.url()).searchParams.get('category') === 'finance',
+      { timeout: 15000 }
+    );
+    await filterForm.getByRole('button', { name: '查询' }).click();
+    await queried;
+    await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
+    await filterForm.getByRole('button', { name: '重置' }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 

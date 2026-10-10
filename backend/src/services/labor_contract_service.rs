@@ -12,6 +12,7 @@
 use crate::models::labor_contract::{
     self, ActiveModel as ContractActiveModel, Entity as ContractEntity, Model as ContractModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -43,7 +44,6 @@ pub struct CreateLaborContractRequest {
     pub working_hours_system: String,
     pub sign_date: NaiveDate,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新劳动合同请求
@@ -108,7 +108,11 @@ impl LaborContractService {
 
     /// 创建劳动合同
     /// 业务校验（《劳动合同法》）：第 19 条：试用期长度限制（1-3 年合同试用期 ≤ 3 个月，3 年以上/无固定期限 ≤ 6 个月）；第 20 条：试用期工资 ≥ 转正工资 80%；合同编号唯一；合同结束日期 > 开始日期（固定期限合同）
-    pub async fn create(&self, req: CreateLaborContractRequest) -> Result<ContractModel, AppError> {
+    pub async fn create(
+        &self,
+        req: CreateLaborContractRequest,
+        user_id: i32,
+    ) -> Result<ContractModel, AppError> {
         Self::validate_contract_type(&req.contract_type)?;
         Self::validate_working_hours_system(&req.working_hours_system)?;
 
@@ -173,7 +177,8 @@ impl LaborContractService {
             termination_date: Set(None),
             termination_reason: Set(None),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -243,12 +248,22 @@ impl LaborContractService {
         Ok(updated)
     }
 
-    /// 查询劳动合同列表
+    /// 查询劳动合同列表（行级归属过滤在查询构造处，total 与可见集一致）
     pub async fn list(
         &self,
         params: LaborContractQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ContractModel>, u64), AppError> {
         let mut query = ContractEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                labor_contract::Column::CreatedBy,
+                labor_contract::Column::CreatedBy,
+            );
+        }
 
         if let Some(worker_id) = params.worker_id {
             query = query.filter(labor_contract::Column::WorkerId.eq(worker_id));
@@ -303,13 +318,25 @@ impl LaborContractService {
     }
 
     /// 扫描合同到期并生成预警（业务规则（《劳动合同法》第10条：建立劳动关系应当订立书面劳动合同）：到期前 90/60/30 天三级预警；已过期合同状态自动更新为 expired；无固定期限合同不参与到期预警）
-    pub async fn scan_expiry_warnings(&self) -> Result<Vec<ContractExpiryWarning>, AppError> {
+    pub async fn scan_expiry_warnings(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ContractExpiryWarning>, AppError> {
         let today = chrono::Local::now().date_naive();
-        let active_contracts = ContractEntity::find()
+        let mut query = ContractEntity::find()
             .filter(labor_contract::Column::Status.eq("active"))
-            .filter(labor_contract::Column::EndDate.is_not_null())
-            .all(&*self.db)
-            .await?;
+            .filter(labor_contract::Column::EndDate.is_not_null());
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                labor_contract::Column::CreatedBy,
+                labor_contract::Column::CreatedBy,
+            );
+        }
+
+        let active_contracts = query.all(&*self.db).await?;
 
         let mut warnings = Vec::new();
         for contract in active_contracts {

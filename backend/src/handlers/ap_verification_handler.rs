@@ -131,7 +131,7 @@ pub async fn manual_verify(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 手工核销验证失败：{}", auth.username, e);
-        AppError::validation(e.to_string())
+        AppError::from(e)
     })?;
 
     let service = ApVerificationService::new(state.db.clone());

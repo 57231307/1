@@ -49,12 +49,13 @@ fn test_includes_insurance() {
 
 #[test]
 fn test_includes_freight() {
-    // EXW / FCA / FAS 不含运费
+    // EXW / FCA / FAS / FOB 不含主运费
+    // （FOB 口径依据 ICC Incoterms 2020：主运费由买方订立并承担，与 FCA/FAS 同族）
     assert!(!Incoterms2020::Exw.includes_freight());
     assert!(!Incoterms2020::Fca.includes_freight());
     assert!(!Incoterms2020::Fas.includes_freight());
-    // 其他 8 种均含运费
-    assert!(Incoterms2020::Fob.includes_freight());
+    assert!(!Incoterms2020::Fob.includes_freight());
+    // 其他 7 种均含运费
     assert!(Incoterms2020::Cif.includes_freight());
     assert!(Incoterms2020::Cpt.includes_freight());
     assert!(Incoterms2020::Cip.includes_freight());

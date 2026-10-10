@@ -17,6 +17,7 @@ use crate::models::occupational_health_exam::{
 use crate::models::ppe_distribution_record::{
     self, ActiveModel as PpeActiveModel, Entity as PpeEntity, Model as PpeModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::{Local, NaiveDate};
 use rust_decimal::Decimal;
@@ -44,7 +45,6 @@ pub struct CreateHazardMonitoringRequest {
     pub monitoring_method: Option<String>,
     pub report_url: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 创建职业健康体检档案请求
@@ -64,7 +64,6 @@ pub struct CreateHealthExamRequest {
     pub contraindications: Option<String>,
     pub report_url: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 创建 PPE 发放记录请求
@@ -81,7 +80,6 @@ pub struct CreatePpeDistributionRequest {
     pub expiry_date: Option<NaiveDate>,
     pub hazard_type: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 危害因素检测记录查询参数
@@ -195,6 +193,7 @@ impl OccupationalHealthService {
     pub async fn create_hazard_monitoring(
         &self,
         req: CreateHazardMonitoringRequest,
+        user_id: i32,
     ) -> Result<HazardModel, AppError> {
         Self::validate_hazard_type(&req.hazard_type)?;
         if req.limit_value <= Decimal::ZERO {
@@ -220,7 +219,8 @@ impl OccupationalHealthService {
             monitoring_method: Set(req.monitoring_method),
             report_url: Set(req.report_url),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -245,12 +245,22 @@ impl OccupationalHealthService {
         Ok(result)
     }
 
-    /// 查询职业危害因素检测记录列表
+    /// 查询职业危害因素检测记录列表（行级归属过滤在查询构造处，total 与可见集一致）
     pub async fn list_hazard_monitorings(
         &self,
         params: HazardMonitoringQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<HazardModel>, u64), AppError> {
         let mut query = HazardEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                occupational_hazard_monitoring::Column::CreatedBy,
+                occupational_hazard_monitoring::Column::CreatedBy,
+            );
+        }
 
         if let Some(hazard_type) = &params.hazard_type {
             query =
@@ -284,6 +294,7 @@ impl OccupationalHealthService {
     pub async fn create_health_exam(
         &self,
         req: CreateHealthExamRequest,
+        user_id: i32,
     ) -> Result<ExamModel, AppError> {
         Self::validate_exam_type(&req.exam_type)?;
         Self::validate_exam_result(&req.exam_result)?;
@@ -314,7 +325,8 @@ impl OccupationalHealthService {
             contraindications: Set(req.contraindications),
             report_url: Set(req.report_url),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -337,12 +349,22 @@ impl OccupationalHealthService {
         Ok(result)
     }
 
-    /// 查询体检档案列表
+    /// 查询体检档案列表（行级归属过滤在查询构造处，total 与可见集一致）
     pub async fn list_health_exams(
         &self,
         params: HealthExamQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ExamModel>, u64), AppError> {
         let mut query = ExamEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                occupational_health_exam::Column::CreatedBy,
+                occupational_health_exam::Column::CreatedBy,
+            );
+        }
 
         if let Some(worker_id) = params.worker_id {
             query = query.filter(occupational_health_exam::Column::WorkerId.eq(worker_id));
@@ -370,14 +392,26 @@ impl OccupationalHealthService {
     }
 
     /// 扫描在岗期间体检到期预警（业务规则（《职业病防治法》第 35 条）：到期前 90/60/30 天三级预警；已过期的高优先级预警（应立即组织体检））
-    pub async fn scan_exam_expiry_warnings(&self) -> Result<Vec<ExamExpiryWarning>, AppError> {
+    pub async fn scan_exam_expiry_warnings(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ExamExpiryWarning>, AppError> {
         let today = Local::now().date_naive();
         // 仅扫描在岗期间体检，且有下次体检日期的记录
-        let exams = ExamEntity::find()
+        let mut query = ExamEntity::find()
             .filter(occupational_health_exam::Column::ExamType.eq("in_service"))
-            .filter(occupational_health_exam::Column::NextExamDate.is_not_null())
-            .all(&*self.db)
-            .await?;
+            .filter(occupational_health_exam::Column::NextExamDate.is_not_null());
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                occupational_health_exam::Column::CreatedBy,
+                occupational_health_exam::Column::CreatedBy,
+            );
+        }
+
+        let exams = query.all(&*self.db).await?;
 
         let mut warnings = Vec::new();
         for exam in exams {
@@ -404,6 +438,7 @@ impl OccupationalHealthService {
     pub async fn create_ppe_distribution(
         &self,
         req: CreatePpeDistributionRequest,
+        user_id: i32,
     ) -> Result<PpeModel, AppError> {
         Self::validate_ppe_type(&req.ppe_type)?;
         if req.quantity <= 0 {
@@ -429,7 +464,8 @@ impl OccupationalHealthService {
             hazard_type: Set(req.hazard_type),
             status: Set("distributed".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -443,12 +479,22 @@ impl OccupationalHealthService {
         Ok(result)
     }
 
-    /// 查询 PPE 发放记录列表
+    /// 查询 PPE 发放记录列表（行级归属过滤在查询构造处，total 与可见集一致）
     pub async fn list_ppe_distributions(
         &self,
         params: PpeDistributionQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PpeModel>, u64), AppError> {
         let mut query = PpeEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                ppe_distribution_record::Column::CreatedBy,
+                ppe_distribution_record::Column::CreatedBy,
+            );
+        }
 
         if let Some(worker_id) = params.worker_id {
             query = query.filter(ppe_distribution_record::Column::WorkerId.eq(worker_id));
@@ -497,13 +543,25 @@ impl OccupationalHealthService {
     }
 
     /// 扫描已过期的 PPE，自动更新状态为 expired（业务规则：PPE 到期后禁止使用，必须立即更换）
-    pub async fn scan_expired_ppe(&self) -> Result<Vec<PpeModel>, AppError> {
+    pub async fn scan_expired_ppe(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<PpeModel>, AppError> {
         let today = Local::now().date_naive();
-        let expired_candidates = PpeEntity::find()
+        let mut query = PpeEntity::find()
             .filter(ppe_distribution_record::Column::Status.eq("distributed"))
-            .filter(ppe_distribution_record::Column::ExpiryDate.is_not_null())
-            .all(&*self.db)
-            .await?;
+            .filter(ppe_distribution_record::Column::ExpiryDate.is_not_null());
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                ppe_distribution_record::Column::CreatedBy,
+                ppe_distribution_record::Column::CreatedBy,
+            );
+        }
+
+        let expired_candidates = query.all(&*self.db).await?;
 
         let mut expired_list = Vec::new();
         for model in expired_candidates {

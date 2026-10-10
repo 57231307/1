@@ -79,7 +79,7 @@ fn check_public_path_header(
         tracing::warn!(
             path = %path,
             method = %method,
-            "CSRF 验证失败：公开端点的非安全方法缺少自定义请求头（L-1 防御）"
+            "CSRF 验证失败：公开端点的非安全方法缺少自定义请求头"
         );
         return Err(Box::new(csrf_error_response(
             CODE_MISS,
@@ -114,7 +114,7 @@ fn consume_csrf_token(
                 path = %path,
                 method = %method,
                 client_ip = %client_ip,
-                "CSRF 验证失败：Token 绑定的 IP 与请求 IP 不一致（Wave 3 #7 防御）"
+                "CSRF 验证失败：Token 绑定的 IP 与请求 IP 不一致"
             );
             Err(Box::new(csrf_error_response(
                 CODE_IP_MM,

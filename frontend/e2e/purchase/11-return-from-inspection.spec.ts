@@ -103,7 +103,16 @@ async function seedCompletedFailInspection(page: import('@playwright/test').Page
   await apiCall(page, 'POST', `/purchase/orders/${poId}/submit`, {});
   await apiCall(page, 'POST', `/purchase/orders/${poId}/approve`, {});
 
-  // 2) 建入库单 + 确认
+  // 2) 建入库单（**故意不确认**）
+  //    「质检合格方可入库」门控（backend ensure_receipt_inspection_allows_flow）下，
+  //    质检不合格的收货单本来就不允许确认入库——本用例被测的正是"判不合格 → 一键生成退货"，
+  //    业务语义是货从未入库、直接退供，不是"先入库再退"。
+  //    逐条核对过：11-01 只断言 completed+fail 行的「生成退货」按钮可见；
+  //    11-02 只断言跳转 /purchase-return 且预填非空；11-03 只把退货单提交（submit）。
+  //    库存扣减发生在 approve_return（purchase_return_service.rs:286 起，
+  //    其内 deduct_stock_for_return_items:307），submit_return(:241) 不触库存，
+  //    因此移除这步确认不会让任何断言失去前置——保留它反而要用"先 pass 再 fail"的
+  //    复合质检把被测语义改写成"已入库货物复验不合格"，那是另一条链路。
   const rcv = await apiCall<{ id?: number }>(page, 'POST', '/purchase/receipts', {
     supplier_id: supplierId,
     order_id: poId,
@@ -130,7 +139,6 @@ async function seedCompletedFailInspection(page: import('@playwright/test').Page
   });
   const rcvId = rcv.data?.id;
   expect(rcvId, `建入库单未返回 id`).toBeTruthy();
-  await apiCall(page, 'POST', `/purchase/receipts/${rcvId}/confirm`, {});
 
   // 3) 建质检单
   const insp = await apiCall<{ id?: number; inspection_no?: string }>(
@@ -300,13 +308,21 @@ test.describe('11 质检不合格生成退货', () => {
       timeout: 10_000,
     });
 
-    // 监听 POST 建单请求
+    // 监听 POST 建单请求。**必须带状态码过滤**：后端 CSRF token 一次性消费
+    //（middleware/csrf.rs:110 consume + :216-224 轮换），并发下 UI 提交的首个 POST 会拿到
+    // 403 CSRF_TOKEN_INVALID，前端 axios 拦截器再用恢复头静默重放第二个 POST 才 200
+    //（api/request.ts:197-223）。只按 URL 过滤时 waitForResponse 命中那个 403 中间态——
+    // 它是 AppError 形状、data=null，读 id 落空即「建单响应未返回 id」的**真红假象**
+    // （11-03 实证：backend.log 首试 403 CSRF_TOKEN_INVALID → 紧随 200 且 570B 含 id）。
+    // 只等 200 = 绑定真实建单成功；真被业务拒绝时既无 200 也无 → 下方"未捕获"断言判红，
+    // 不存在放宽（toast「创建成功」与 id/单号断言一字未动）。
     const createdResp = page
       .waitForResponse(
         res =>
           res.request().method() === 'POST' &&
           res.url().includes('/purchase/returns') &&
-          !res.url().includes('/items'),
+          !res.url().includes('/items') &&
+          res.status() === 200,
         { timeout: 30_000 }
       )
       .catch(() => null);

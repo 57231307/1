@@ -13,8 +13,10 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::models::ar_invoice;
-// V15 P0-S02：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, check_resource_owner};
+// 行级数据权限工具
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
@@ -36,7 +38,7 @@ pub struct CreateArInvoiceRequest {
     pub customer_id: Option<i32>,
     pub customer_name: Option<String>,
     pub source_type: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub invoice_amount: Option<Decimal>,
     pub batch_no: Option<String>,
@@ -103,19 +105,21 @@ impl ArInvoiceService {
     fn validate_create_request(req: &CreateArInvoiceRequest) -> Result<(i32, Decimal), AppError> {
         let customer_id = req
             .customer_id
-            .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("客户ID不能为空"))?;
         if customer_id <= 0 {
-            return Err(AppError::validation("客户ID无效"));
+            return Err(AppError::validation_displayable("客户ID无效"));
         }
         let invoice_amount = req
             .invoice_amount
-            .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("发票金额不能为空"))?;
         if invoice_amount <= Decimal::ZERO {
-            return Err(AppError::validation("发票金额必须大于零"));
+            return Err(AppError::validation_displayable("发票金额必须大于零"));
         }
-        // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+        // 金额精度按货币口径校验：最多 2 位小数
         if invoice_amount.round_dp(2) != invoice_amount {
-            return Err(AppError::validation("发票金额精度不能超过 2 位小数"));
+            return Err(AppError::validation_displayable(
+                "发票金额精度不能超过 2 位小数",
+            ));
         }
         Ok((customer_id, invoice_amount))
     }
@@ -168,15 +172,17 @@ impl ArInvoiceService {
     ) -> Result<ar_invoice::Model, AppError> {
         let customer_id = req
             .customer_id
-            .ok_or_else(|| AppError::validation("客户ID不能为空"))?;
-        let source_bill_id = req.source_bill_id.unwrap_or(0);
+            .ok_or_else(|| AppError::validation_displayable("客户ID不能为空"))?;
+        let source_bill_id = req
+            .source_bill_id
+            .ok_or_else(|| AppError::validation_displayable("来源单据ID不能为空"))?;
 
         let invoice_amount = req
             .invoice_amount
-            .ok_or_else(|| AppError::validation("发票金额不能为空"))?;
+            .ok_or_else(|| AppError::validation_displayable("发票金额不能为空"))?;
         // 红字允许负数，但不允许 0
         if invoice_amount == Decimal::ZERO {
-            return Err(AppError::validation("红字应收单金额不能为零"));
+            return Err(AppError::validation_displayable("红字应收单金额不能为零"));
         }
 
         // 幂等检查：同退货单不重复创建红字应收单
@@ -240,12 +246,16 @@ impl ArInvoiceService {
     }
 
     /// 查询应收单列表
+    ///
+    /// data_scope 为 None 表示不做行级过滤，仅用于无会话上下文的内部/调度通路（这类通路
+    /// 不绑定具体操作人，无法构造归属判定）；HTTP 列表与导出必须传 Some。
     pub async fn get_list(
         &self,
         customer_id: Option<i32>,
         status: Option<String>,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ar_invoice::Model>, u64), AppError> {
         info!("查询应收单列表");
 
@@ -257,6 +267,16 @@ impl ArInvoiceService {
 
         if let Some(s) = status {
             query = query.filter(ar_invoice::Column::Status.eq(s));
+        }
+
+        // 行级数据范围下推：ar_invoice 无 department_id 列，dept/self 分支均按归属人 created_by 过滤
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                ar_invoice::Column::CreatedBy,
+                ar_invoice::Column::CreatedBy,
+            );
         }
 
         let total = query.clone().count(&*self.db).await?;
@@ -272,7 +292,9 @@ impl ArInvoiceService {
     }
 
     /// 查询应收单详情
-    /// V15 P0-S02：新增 data_scope 参数，对单资源做 IDOR 校验。；ar_invoice 表无 department_id，Dept 范围退化为 Self，使用 created_by（i32 必填）。
+    ///
+    /// 本表无 department_id 列，Dept 范围按「归属人 ∈ 可见部门成员集合」判定
+    /// （与列表侧 apply_data_scope 同源）；`created_by` 非空，历史 NULL 行一律拒绝。
     pub async fn get_by_id(
         &self,
         id: i32,
@@ -285,13 +307,12 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("应收单不存在：{}", id)))?;
 
-        // V15 P0-S02：行级数据权限 IDOR 校验
+        // 行级归属门：越权在读取之后、任何写入之前返回 403
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(invoice.created_by), None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问应收单 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(invoice.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问应收单（数据范围限制）",
+                ));
             }
         }
 
@@ -316,7 +337,7 @@ impl ArInvoiceService {
         // 原 update_with_audit(&*self.db, ...) 内部 2 次独立写入（实体 update + 审计 insert），
         // 无事务包裹时若审计插入失败会导致"实体已变更但审计缺失"
         // 批次 86 v2 复审 P2-3 修复：find_by_id 后追加 lock_exclusive 串行化并发状态变更
-        // 批次 86 v2 复审 P2-10 修复：补 invoice_amount round_dp(2) 精度校验（v1 批次 84 P2-4 遗漏）
+        // 金额精度按货币口径校验：最多 2 位小数
         let txn = (*self.db).begin().await?;
 
         let invoice = ar_invoice::Entity::find_by_id(id)
@@ -326,7 +347,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable(
                 "非草稿状态的应收单无法修改".to_string(),
             ));
         }
@@ -342,7 +364,9 @@ impl ArInvoiceService {
         if let Some(amt) = req.invoice_amount {
             // P2-10 修复（批次 86 v2 复审）：金额精度校验，最多 2 位小数（货币精度）
             if amt.round_dp(2) != amt {
-                return Err(AppError::validation("应收单金额精度不能超过 2 位小数"));
+                return Err(AppError::validation_displayable(
+                    "应收单金额精度不能超过 2 位小数",
+                ));
             }
             let new_unpaid = (amt - invoice.received_amount).max(Decimal::ZERO);
             active_invoice.invoice_amount = sea_orm::ActiveValue::Set(amt);
@@ -380,7 +404,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request(
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable(
                 "非草稿状态的应收单无法删除".to_string(),
             ));
         }
@@ -409,7 +434,8 @@ impl ArInvoiceService {
             .ok_or_else(|| AppError::not_found("应收单不存在"))?;
 
         if invoice.status != crate::models::status::common::STATUS_DRAFT {
-            return Err(AppError::bad_request("只能审批草稿状态的应收单"));
+            // 状态门：应收单当前非草稿，前置状态未满足，归业务族；文案不含状态 token/ID，可外显
+            return Err(AppError::business_displayable("只能审批草稿状态的应收单"));
         }
 
         let mut active_invoice: ar_invoice::ActiveModel = invoice.into();

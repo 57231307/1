@@ -14,6 +14,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr,
 };
 
 use crate::models::chemical_category::{
@@ -46,18 +47,28 @@ impl ChemicalCategoryService {
             }
         }
 
-        // 校验编码唯一性
+        // 校验编码唯一性（仅查未删除行 —— 本表既定语义：软删后编码可复用，
+        // 与 master/lot 同口径；判据"用户改一下编码即可通过"归可外显业务族
+        // （先例： 流程编码、供应商名称），文案只回显用户自己提交的编码，
+        // 不含表名/内部 ID/其他记录；真因同时落 WARN 日志，不静默）
         if let Some(_existing) = CategoryEntity::find()
             .filter(chemical_category::Column::CategoryCode.eq(&req.category_code))
             .filter(chemical_category::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
         {
-            return Err(AppError::business(format!(
-                "分类编码 {} 已存在",
+            tracing::warn!(
+                "创建染化料分类被拒：编码 {} 在未删除行中已存在",
+                req.category_code
+            );
+            return Err(AppError::business_displayable(format!(
+                "分类编码 {} 已存在，请更换编码后重试",
                 req.category_code
             )));
         }
+
+        // category_code 随后被移入 ActiveModel，先留一份用于 INSERT 竞态兜底文案
+        let code_for_race = req.category_code.clone();
 
         let now = crate::utils::date_utils::utc_now_fixed();
 
@@ -78,7 +89,28 @@ impl ChemicalCategoryService {
         let result = active
             .insert(&*self.db)
             .await
-            .map_err(|e| AppError::database(format!("染化料分类创建失败: {}", e)))?;
+            .map_err(|e| {
+                // 竞态兜底（照 role_permission_service「预校验 + 竞态兜底」范式）：
+                // 上方查重通过后、INSERT 落库前，并发请求可能已插入同码未删行。
+                // 该表当前无 DB UNIQUE（见 wave-i 报告，待数据库专家补
+                // category_code 的部分唯一索引），索引就位后此处将以 23505 显式拒绝——
+                // 单语句 INSERT 原子失败、不留半行；归类必须与预检同口径的业务拒绝，
+                // 禁止让 From<DbErr> 把它拍平成 500 DATABASE_ERROR 吞掉真因。
+                // 非唯一类 DbErr（FK/CHECK/类型）原样 database() 上报，不吞不改道。
+                if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                    tracing::error!(
+                        "染化料分类创建撞编码唯一约束（并发同码，category_code={}）：行未写入，整语句回滚，底层错误={}",
+                        code_for_race,
+                        e
+                    );
+                    AppError::business_displayable(format!(
+                        "分类编码 {} 已存在，请更换编码后重试",
+                        code_for_race
+                    ))
+                } else {
+                    AppError::database(format!("染化料分类创建失败: {}", e))
+                }
+            })?;
         Ok(result)
     }
 

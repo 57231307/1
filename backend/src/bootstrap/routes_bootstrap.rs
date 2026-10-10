@@ -33,11 +33,11 @@ struct InitErrorResponse {
 ///
 /// 当数据库尚未连接成功时（例如：用户首次部署、或者刚刚迁移到一台新机器），
 /// 后端会进入「Setup 模式」，仅暴露 `/init/*` 系列接口，不连接数据库。
-/// 在该模式下，原始实现的 `get_init_status` 永远返回 `initialized: false`，
+/// 在该模式下，`get_init_status` 若永远返回 `initialized: false`，
 /// 会导致前端在 `initialize_with_db` 成功并跳转到登录页时，被路由守卫判定为
 /// "系统未初始化" 再次拉回 setup 页面，形成跳转循环。
 ///
-/// 修复方案：使用一个进程级的可变标志位记录本进程内是否已经成功完成初始化。
+/// 故使用一个进程级的可变标志位记录本进程内是否已经成功完成初始化。
 /// 注意：完整模式（数据库已连接）下不走此分支，因此对正常启动流程零影响。
 static SETUP_MODE_INITIALIZED: std::sync::OnceLock<Arc<Mutex<bool>>> = std::sync::OnceLock::new();
 
@@ -49,8 +49,7 @@ fn setup_initialized_flag() -> Arc<Mutex<bool>> {
 
 async fn get_init_status() -> Json<InitStatusResponse> {
     // 优先使用内存中的初始化成功标志（处理「setup 模式内完成初始化」的场景）
-    // P0 修复（批次 4，2026-06-27）：锁中毒时改为优雅降级（e.into_inner()），
-    // 与 event_bus.rs / di_container.rs 一致，避免生产环境 panic 直接拖垮进程。
+    // 锁中毒时优雅降级（e.into_inner()），与 event_bus.rs / di_container.rs 一致，避免 panic 拖垮进程。
     // 锁中毒仅在持锁线程 panic 时发生，此时返回上次成功写入的值是安全降级。
     let arc = setup_initialized_flag();
     let guard = arc.lock().unwrap_or_else(|e| {
@@ -113,8 +112,7 @@ async fn initialize_with_db(
             // 标记 setup 模式下的初始化已完成，便于 `get_init_status`
             // 在同一进程内返回 initialized = true，避免前端在跳转登录页时
             // 被路由守卫再次拉回 setup 页面。
-            // P0 修复（批次 4，2026-06-27）：锁中毒时改为优雅降级（e.into_inner()），
-            // 与 event_bus.rs / di_container.rs 一致；若锁已中毒则不写入，
+            // 锁中毒时优雅降级（e.into_inner()），与 event_bus.rs / di_container.rs 一致；若锁已中毒则不写入，
             // 仅记录日志（初始化已成功完成，下次 get_init_status 走 DB 路径）。
             let arc = setup_initialized_flag();
             let mut guard = arc.lock().unwrap_or_else(|e| {
@@ -123,7 +121,7 @@ async fn initialize_with_db(
             });
             *guard = true;
 
-            // 引导成功性修复：Setup 模式主进程只有 /init/* 路由，初始化成功后
+            // Setup 模式主进程只有 /init/* 路由，初始化成功后
             // /auth/login 等业务路由不存在，用户无法登录（引导流程死路）。
             // 方案：响应送达后延迟自退进程，systemd（Restart=always）拉起时
             // config.yaml 指向的库已初始化完成 → 以完整模式启动，业务路由可用。
@@ -175,7 +173,7 @@ async fn initialize_with_db(
 
 /// 创建 Setup 模式路由器（数据库未连接时使用）。
 ///
-/// TS-S-1 修复（2026-06-25 第二次全面审计）：setup 模式下数据库未就绪，
+/// setup 模式下数据库未就绪，
 /// auth_middleware 未挂载，高危初始化接口必须由 init_token_middleware 保护，
 /// 防止攻击者匿名 POST 完成系统初始化（抢占首个管理员账号）。
 ///

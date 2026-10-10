@@ -58,19 +58,59 @@ pub struct CreateBatchRequest {
     pub remarks: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新批次请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（color_no/grade/stock_status/quality_status，inventory_stocks，
+/// m0010 扩展后 SeaORM 模型为非 Option 列）不开 null 清空，显式 null 由 service 拒绝。
+/// `remarks` 无 inventory_stocks 对应列（模型注释明示"批次表没有 remarks 字段"），
+/// 保留键仅为兼容旧调用方，服务端不据此写任何列——不是三态可清空目标，也不得假造落库。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateBatchRequest {
-    pub color_no: Option<String>,
-    pub dye_lot_no: Option<String>,
-    pub grade: Option<String>,
-    pub gram_weight: Option<f64>,
-    pub width: Option<f64>,
-    pub expiry_date: Option<DateTime<Utc>>,
+    /// 色号：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_no: Option<Option<String>>,
+    /// 缸号：DB 可空列 dye_lot_no（m0010 扩展）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub dye_lot_no: Option<Option<String>>,
+    /// 等级：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub grade: Option<Option<String>>,
+    /// 克重：DB 可空列 gram_weight（m0010 扩展）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub gram_weight: Option<Option<f64>>,
+    /// 幅宽：DB 可空列 width（m0010 扩展）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub width: Option<Option<f64>>,
+    /// 保质期：DB 可空列 expiry_date（m0010 扩展）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub expiry_date: Option<Option<DateTime<Utc>>>,
+    /// 备注：无对应 DB 列（幽灵键兼容保留），服务端不写库
     pub remarks: Option<String>,
-    pub stock_status: Option<String>,
-    pub quality_status: Option<String>,
+    /// 库存状态：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub stock_status: Option<Option<String>>,
+    /// 质量状态：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quality_status: Option<Option<String>>,
 }
 
 /// 批次转移请求

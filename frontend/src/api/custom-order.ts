@@ -5,29 +5,14 @@
 
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import { CUSTOM_ORDER_STATUSES } from '@/utils/custom-order-status';
 
-// 状态枚举（使用显式索引签名以支持外部字符串索引）
-export const CUSTOM_ORDER_STATUS: { [key: string]: string } = {
-  draft: '草稿',
-  yarn_purchasing: '纱线采购中',
-  dyeing: '染整中',
-  finishing: '后整理中',
-  delivery: '交付中',
-  after_sales: '售后中',
-  completed: '已完成',
-  cancelled: '已取消',
-};
-
-export const CUSTOM_ORDER_STATUS_COLORS: { [key: string]: string } = {
-  draft: 'info',
-  yarn_purchasing: 'primary',
-  dyeing: 'warning',
-  finishing: 'warning',
-  delivery: 'success',
-  after_sales: 'danger',
-  completed: 'success',
-  cancelled: 'info',
-};
+// 定制订单状态词表的唯一前端权威在 utils/custom-order-status.ts
+//（与后端 models/status/sales.rs::custom_order::ALL 逐字符同源的 11 态，
+// 含 lab_dip/quotation/change_pending）。本文件不再手写第二套中文词表——
+// 旧 CUSTOM_ORDER_STATUS 硬编码 map（仅 8 token，缺三真实可达态）已删除；
+// 标签文案一律走 utils 的 labelKey + i18n，筛选选项由 CUSTOM_ORDER_STATUSES 派生。
+export { CUSTOM_ORDER_STATUSES };
 
 export const NODE_STATUS: { [key: string]: string } = {
   pending: '待开始',
@@ -65,15 +50,19 @@ export const AFTER_SALES_TYPE: Record<string, string> = {
   refund: '退款',
 };
 
+// 缺陷 B：词表对齐后端写入方（custom_order_aftersales_service.rs
+// is_valid_transition + accept/evaluate 方法实际写入的状态全集），补齐 accepted/evaluated
 export const AFTER_SALES_STATUS: Record<string, string> = {
   opened: '已开',
+  accepted: '已受理',
   processing: '处理中',
   resolved: '已解决',
+  evaluated: '已评价',
   closed: '已关闭',
   rejected: '已拒绝',
 };
 
-// P2-9a 修复（批次 82 v1 复审）：定制订单 API 强类型化，替代 11 处 any
+// 定制订单 API 请求/响应全部强类型化，调用方不用 any
 // 字段与后端 DTO 对齐：custom_order_create_dto.rs / custom_order_update_dto.rs /
 // quality_issue_dto.rs / custom_order_aftersales_service.rs
 
@@ -111,10 +100,9 @@ export interface CustomOrderUpdateDto {
 }
 
 /** 推进订单状态请求（对齐后端 AdvanceRequest）
- * v11 批次 160 P2-6 修复：后端 handler 实际使用 AdvanceRequest（不含 target_status），
- * service.advance 自动判断下一状态；AdvanceStatusDto 死代码已从后端删除 */
+ * 后端 handler 用 AdvanceRequest（不含 target_status），service.advance 自动判断下一状态。
+ * 操作人身份由后端按会话（AuthContext.user_id）派生，请求体不承载 operator_id。 */
 export interface CustomOrderAdvanceDto {
-  operator_id: number;
   notes?: string;
 }
 
@@ -127,27 +115,25 @@ export interface ProcessNodeCreateDto {
   planned_end_date?: string;
 }
 
-/** 更新工艺节点请求（对齐后端 UpdateProcessNodeDto） */
+/** 更新工艺节点请求（对齐后端 UpdateProcessNodeDto）；
+ * 操作人由服务端按会话（AuthContext.user_id）派生并落库留痕，请求体不承载 operator_id */
 export interface ProcessNodeUpdateDto {
   status?: string;
-  operator_id?: number;
   actual_start_date?: string;
   actual_end_date?: string;
   notes?: string;
 }
 
-/** 推进工艺节点请求（对齐后端 AdvanceNodeDto） */
+/** 推进工艺节点请求（对齐后端 AdvanceNodeDto）；动作人取服务端会话，请求体不带 operator_id */
 export interface ProcessNodeAdvanceDto {
   action: string;
-  operator_id: number;
   notes?: string;
   attachments?: string[];
 }
 
-/** 添加节点日志请求（对齐后端 AddProcessLogDto） */
+/** 添加节点日志请求（对齐后端 AddProcessLogDto）；记日志的人取服务端会话 */
 export interface NodeLogCreateDto {
   action: string;
-  operator_id: number;
   before_status?: string;
   after_status?: string;
   log_content?: string;
@@ -155,9 +141,11 @@ export interface NodeLogCreateDto {
 }
 
 /** 上报质量异常请求（对齐后端 ReportQualityIssueDto）
- * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+ * - custom_order_id **不属于请求体**（同构契约修复）：异常归属由 URL
+ *   path 参数权威提供（handler `service.report_issue(id, dto)` 注入），后端 DTO
+ *   已删除该字段，body 即使携带也会被 serde 忽略（防伪造覆盖）。此前声明为
+ *   虚标可选键，掩盖了后端曾必填 422 的真实契约缺口。 */
 export interface QualityIssueCreateDto {
-  custom_order_id?: number;
   process_node_id?: number;
   issue_type: string;
   severity: string;
@@ -174,33 +162,55 @@ export interface QualityIssueQueryParams {
   severity?: string;
 }
 
-/** 售后工单信息（对齐后端 AfterSalesInfo） */
+/** 售后工单信息（对齐后端 AfterSalesInfo）
+ * 注意：refund_amount 后端为 rust_decimal::Decimal，JSON 出参序列化为**字符串**
+ *（如 "1200.50"），消费处不得按 number 直接做算术 / .toFixed，
+ * 展示统一走 utils/formatCurrency 的 Number 归一（缺陷 D）。 */
 export interface AfterSales {
   id: number;
   issue_type: string;
+  /** 后端实体 after_sales.customer_id 为 NOT NULL i32，出参恒有键，不得标可选 */
+  customer_id: number;
+  /** 客户名：后端读侧 LEFT JOIN customers + column_as(customer_name) 富化，
+   *  出参恒含该键；客户行缺失时 JOIN 产生 NULL → null（前端显示 '-'），
+   *  禁止用 customer_id 冒充名称显示 */
+  customer_name: string | null;
   description: string;
   status: string;
   opened_at: string;
   closed_at?: string;
   resolution?: string;
-  refund_amount?: number;
+  refund_amount?: string;
+  quality_issue_id?: number;
+  /** 原因分类（后端权威词表 quality/logistics/customer_preference/other，可空） */
+  reason_category?: string;
+  /** 原因明细（自由文本，可空） */
+  reason_detail?: string;
 }
 
-/** 创建售后工单请求（对齐后端 CreateAfterSalesDto）
- * 注意：custom_order_id 通过 URL 路径参数传递，请求体中可选 */
+/** 创建售后工单请求，逐字段对齐后端 CreateAfterSalesDto
+ * - custom_order_id **不属于请求体**：工单归属由 URL path 参数权威提供，
+ *   body 即使携带也会被后端忽略（防伪造覆盖）。
+ * - issue_type / customer_id / description 对应后端 NOT NULL 必填列，不得标可选；
+ * - refund_amount 后端为 Option<Decimal>，serde 同时接受 number 与 string，
+ *   refund 类型时后端业务校验必填；
+ * - quality_issue_id / reason_category / reason_detail 为后端可选字段，如实声明。 */
 export interface AfterSalesCreateDto {
-  custom_order_id?: number;
-  customer_id?: number;
+  customer_id: number;
   issue_type: string;
   description: string;
-  refund_amount?: number;
+  refund_amount?: string | number;
+  quality_issue_id?: number;
+  reason_category?: string;
+  reason_detail?: string;
 }
 
-/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto） */
+/** 更新售后工单请求（对齐后端 UpdateAfterSalesDto，全部可选；
+ * refund_amount 为 Option<Decimal>，入参接受 string | number） */
 export interface AfterSalesUpdateDto {
   status?: string;
   resolution?: string;
-  refund_amount?: number;
+  refund_amount?: string | number;
 }
 
 /** 售后列表查询参数 */
@@ -273,7 +283,7 @@ export interface CustomOrderDetail extends CustomOrderListItem {
   custom_requirements?: unknown;
   updated_at: string;
   process_nodes: CustomOrderProcessNode[];
-  // v11 批次 181 P2-1 修复：详情接口返回的关联字段，之前未声明导致前端用 unknown[] 绕过
+  // 详情接口返回的关联字段：在此声明类型，前端据此取真实结构而非 unknown[] 绕过
   quality_issues?: QualityIssue[];
   after_sales?: AfterSales[];
 }
@@ -390,10 +400,7 @@ export function getQualityIssueList(orderId: number, params?: QualityIssueQueryP
 }
 
 // 解决异常
-export function resolveQualityIssue(
-  issueId: number,
-  data: { resolution: string; operator_id: number }
-) {
+export function resolveQualityIssue(issueId: number, data: { resolution: string }) {
   return request.put(`/custom-orders/issues/${issueId}/resolve`, data);
 }
 

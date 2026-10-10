@@ -64,7 +64,7 @@ fn test_docx_djzdgj() {
         keys: vec!["合同编号".to_string(), "客户名称".to_string()],
         values: vec!["HT-2026-001".to_string(), "客户A".to_string()],
     };
-    let result = build_docx_with_kv(
+    let result = build_docx_with_kv_and_image(
         "销售合同",
         &kv,
         &["序号".to_string(), "产品".to_string()],
@@ -72,6 +72,7 @@ fn test_docx_djzdgj() {
             vec!["1".to_string(), "面料A".to_string()],
             vec!["2".to_string(), "面料B".to_string()],
         ],
+        None,
     );
     assert!(result.is_ok(), "带键值对 docx 构建应成功");
     let bytes = result.unwrap();

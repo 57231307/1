@@ -14,6 +14,7 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -28,6 +29,7 @@ use crate::models::production_flow_card::{self, Entity as FlowCardEntity};
 use crate::models::status::energy_allocation_basis;
 use crate::models::status::energy_record_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 // 复用 facade 的纯函数校验与计算（保持单一来源，避免逻辑重复）
 use crate::services::energy_service::{
@@ -37,6 +39,11 @@ use crate::services::energy_service::{
 
 // 跨 service 协作：月末分摊方法参数引用兄弟 service 类型
 use crate::services::energy_ops::{EnergyAllocationRuleService, EnergyConsumptionService};
+
+/// 分摊记录编号（energy_allocation_record.allocation_no）自动编码前缀：沿用原手写
+/// 格式 "EAR-{时间戳}-{随机}" 的业务前缀 EAR（分摊规则历史上与本表共用 EAR，
+/// 属既有业务前缀，本批不改语义、只改取号方式；两表各自独立按本表列取号）。
+pub const ENERGY_ALLOCATION_NO_PREFIX: &str = "EAR";
 
 /// 创建分摊记录请求
 #[derive(Debug, Clone, Deserialize)]
@@ -61,7 +68,6 @@ pub struct CreateAllocationRecordRequest {
     pub allocated_cost: Option<Decimal>,
     pub output_quantity: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新分摊记录请求（仅 draft 状态可更新）
@@ -100,7 +106,6 @@ pub struct MonthlyAllocationRequest {
     pub period_end: chrono::DateTime<chrono::FixedOffset>,
     pub workshop: Option<String>,
     pub meter_type: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 工时分组键（用于 monthly_allocation_by_duration 内部分组，避免复杂元组类型）
@@ -124,18 +129,11 @@ impl EnergyAllocationRecordService {
         Self { db }
     }
 
-    /// 生成分摊编号：EAR-YYYYMMDDHHMMSS-NNN
-    fn generate_allocation_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("EAR-{}-{:03}", timestamp, random)
-    }
-
-    /// 创建分摊记录
+    /// 创建分摊记录；登记人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateAllocationRecordRequest,
+        user_id: i32,
     ) -> Result<AllocationRecordModel, AppError> {
         validate_meter_type(&req.meter_type)?;
         validate_allocation_basis(&req.allocation_basis)?;
@@ -154,7 +152,28 @@ impl EnergyAllocationRecordService {
             .unwrap_or_else(|| compute_allocated_cost(req.total_cost, allocation_ratio));
         let unit_consumption = compute_unit_consumption(allocated_consumption, req.output_quantity);
 
-        let allocation_no = Self::generate_allocation_no();
+        // 分摊编号取号与 INSERT 同事务：energy_allocation_record.allocation_no
+        // NOT NULL 无 UNIQUE（migration/src/domain/v15/mod.rs:2755），旧手写
+        // "EAR-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零，get_by_no 的 `.one()`
+        // 在重复号上直接报错；改为按 ENERGY_ALLOCATION_NO_PREFIX 经生成器在事务内
+        // 取号（pg_advisory_xact_lock 持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let allocation_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            ENERGY_ALLOCATION_NO_PREFIX,
+            AllocationRecordEntity,
+            energy_allocation_record::Column::AllocationNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = ENERGY_ALLOCATION_NO_PREFIX,
+                "能耗分摊记录编号取号失败（energy_ops/allocation_record.create）"
+            );
+            AppError::business_displayable("分摊记录编号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = AllocationRecordActiveModel {
@@ -186,15 +205,16 @@ impl EnergyAllocationRecordService {
             confirmed_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("分摊记录创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -328,7 +348,7 @@ impl EnergyAllocationRecordService {
             voucher_date,
             source_type: Some("energy".to_string()),
             source_module: Some("energy_allocation_record".to_string()),
-            source_bill_id: Some(model.id),
+            source_bill_id: Some(i64::from(model.id)),
             source_bill_no: Some(model.allocation_no.clone()),
             batch_no: None,
             color_no: None,
@@ -539,6 +559,7 @@ impl EnergyAllocationRecordService {
     pub async fn monthly_allocation_by_duration(
         &self,
         req: MonthlyAllocationRequest,
+        user_id: i32,
         consumption_service: &EnergyConsumptionService,
         rule_service: &EnergyAllocationRuleService,
     ) -> Result<Vec<AllocationRecordModel>, AppError> {
@@ -557,6 +578,11 @@ impl EnergyAllocationRecordService {
         }
 
         let mut results = Vec::new();
+
+        // 月末批量分摊整体一个写入事务：每条记录的取号都在同一事务内完成
+        //（生成器同事务可见本事务未提交的插入，"取号→插入→取号→插入" 序列安全，
+        // 见 utils/number_generator.rs 注释），避免逐条脱事务取号再拼的并发窗口。
+        let txn = (*self.db).begin().await?;
 
         for summary in summaries {
             let workshop = summary.workshop;
@@ -592,8 +618,24 @@ impl EnergyAllocationRecordService {
                     None
                 };
 
+                let allocation_no = DocumentNumberGenerator::generate_no_with_txn(
+                    &txn,
+                    ENERGY_ALLOCATION_NO_PREFIX,
+                    AllocationRecordEntity,
+                    energy_allocation_record::Column::AllocationNo,
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        error = %e,
+                        prefix = ENERGY_ALLOCATION_NO_PREFIX,
+                        "月末分摊记录编号取号失败（monthly_allocation_by_duration）"
+                    );
+                    AppError::business_displayable("分摊记录编号生成失败，请稍后重试")
+                })?;
                 let active = Self::build_allocation_record(
                     &req,
+                    user_id,
                     &workshop,
                     &meter_type,
                     total_consumption,
@@ -602,16 +644,18 @@ impl EnergyAllocationRecordService {
                     duration,
                     total_duration_decimal,
                     &rule,
+                    allocation_no,
                 );
 
                 let result = active
-                    .insert(&*self.db)
+                    .insert(&txn)
                     .await
                     .map_err(|e| AppError::database(format!("分摊记录创建失败: {}", e)))?;
                 results.push(result);
             }
         }
 
+        txn.commit().await?;
         Ok(results)
     }
 
@@ -670,9 +714,13 @@ impl EnergyAllocationRecordService {
         Ok(grouped_duration)
     }
 
-    /// 构建分摊记录 ActiveModel
+    /// 构建分摊记录 ActiveModel。
+    /// allocation_no 由调用方在写入事务内经 DocumentNumberGenerator 取号后传入
+    ///（月末批量路径与单条 create 路径共用），本函数不再自行拼号。
+    #[allow(clippy::too_many_arguments)]
     fn build_allocation_record(
         req: &MonthlyAllocationRequest,
+        user_id: i32,
         workshop: &str,
         meter_type: &str,
         total_consumption: Decimal,
@@ -681,13 +729,13 @@ impl EnergyAllocationRecordService {
         duration: i32,
         total_duration_decimal: Decimal,
         rule: &Option<RuleModel>,
+        allocation_no: String,
     ) -> AllocationRecordActiveModel {
         let basis_value = Decimal::from(duration);
         let ratio = compute_allocation_ratio(basis_value, total_duration_decimal);
         let allocated_consumption = compute_allocated_consumption(total_consumption, ratio);
         let allocated_cost = compute_allocated_cost(total_cost, ratio);
 
-        let allocation_no = Self::generate_allocation_no();
         let now = crate::utils::date_utils::utc_now_fixed();
 
         AllocationRecordActiveModel {
@@ -719,7 +767,7 @@ impl EnergyAllocationRecordService {
             confirmed_at: Set(None),
             remarks: Set(Some("月末按工时自动分摊".to_string())),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }

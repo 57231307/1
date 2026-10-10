@@ -24,6 +24,7 @@ pub struct Model {
     pub collection_method: Option<String>,
     pub bank_account: Option<String>,
     pub check_no: Option<String>,
+    pub remark: Option<String>,
 
     // 关联收款申请
     pub request_id: Option<i32>,

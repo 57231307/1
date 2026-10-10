@@ -1,5 +1,7 @@
 use bingxi_backend::utils::data_scope::DataScope;
 use bingxi_backend::utils::data_scope::*;
+// Condition 里对 Column 调 .eq()/.contains() 需要 ColumnTrait 在作用域（sea-orm 2.x 不再预导出）
+use sea_orm::ColumnTrait;
 
 // ===== DataScope::parse_scope 测试 =====
 
@@ -221,4 +223,230 @@ fn test_department_scope_condition_or_combination() {
         sql.contains("OR") && sql.contains("IN (10, 11)"),
         "RLS 表 Dept 分支应为 self OR department_id IN 集合，实际: {sql}"
     );
+}
+
+// ===== apply_department_scope_with_pool 组合形态（拍板 ②：crm_lead=Open，customers=Scoped）=====
+
+use bingxi_backend::models::crm_lead;
+use bingxi_backend::utils::data_scope::build_department_scope_with_pool_condition;
+
+fn dept_ctx() -> DataScopeContext {
+    DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 55,
+        department_id: Some(1),
+        dept_ids: vec![10, 11],
+        dept_member_user_ids: vec![1, 7],
+    }
+}
+
+fn self_ctx() -> DataScopeContext {
+    DataScopeContext {
+        scope: DataScope::Self_,
+        user_id: 60,
+        department_id: Some(1),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![60],
+    }
+}
+
+/// Open（crm_lead）：归属条件与公海条件 **OR** 组合——Dept 档形如
+/// `(self/成员过滤) OR lead_status='pool'`，公海行可见性与归属条件相互独立
+#[test]
+fn test_open_pool_visibility_or_combines_dept() {
+    let pool = crm_lead::Column::LeadStatus.eq("pool");
+    let cond = build_department_scope_with_pool_condition(
+        &dept_ctx(),
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+        pool,
+        PoolVisibility::Open,
+    );
+    let sql = condition_sql(&cond);
+    assert!(
+        sql.contains("lead_status") && sql.contains("'pool'"),
+        "Open 组合必须携带公海条件，实际: {sql}"
+    );
+    // 顶层谓词必须是 OR（公海条件独立成支），绝不允许 AND 遮蔽
+    let top_is_or = sql.trim_start_matches('(').contains(" OR ")
+        && !sql.contains(" AND lead_status")
+        && !sql.contains(" AND (lead_status");
+    assert!(
+        top_is_or,
+        "Open 组合的公海条件必须与归属条件 OR（与 RLS USING 同形态），实际: {sql}"
+    );
+}
+
+/// Open · Self 档：`owner_id=本人 OR lead_status='pool'`（修复前 Self 分支无
+/// 公海放行，公海页 self 用户 0 行——拍板 ② 的纠偏点）
+#[test]
+fn test_open_pool_visibility_allows_self_branch_pool() {
+    let pool = crm_lead::Column::LeadStatus.eq("pool");
+    let cond = build_department_scope_with_pool_condition(
+        &self_ctx(),
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+        pool,
+        PoolVisibility::Open,
+    );
+    let sql = condition_sql(&cond);
+    assert!(
+        sql.contains("= 60") && sql.contains("'pool'") && sql.contains(" OR "),
+        "Self 档 Open 应为 本人行 OR 公海行，实际: {sql}"
+    );
+}
+
+/// Open · All 档：行级不过滤（空 Condition），公海放行无从也不需要
+#[test]
+fn test_open_pool_visibility_all_unfiltered() {
+    let ctx = DataScopeContext {
+        scope: DataScope::All,
+        user_id: 70,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    let pool = crm_lead::Column::LeadStatus.eq("pool");
+    let cond = build_department_scope_with_pool_condition(
+        &ctx,
+        crm_lead::Column::OwnerId,
+        crm_lead::Column::DepartmentId,
+        pool,
+        PoolVisibility::Open,
+    );
+    let sql = condition_sql(&cond);
+    assert!(
+        !sql.contains("owner_id") && !sql.contains("lead_status"),
+        "All 档不应有任何行级过滤，实际: {sql}"
+    );
+}
+
+/// Scoped（customers 本轮口径）：**逐字符保持历史组合**——公海条件仅 Dept 档
+/// AND 进归属条件；Self/All 无公海分支。客户公海是否改 Open 另待拍板。
+#[test]
+fn test_scoped_pool_visibility_preserves_historical_shape() {
+    let pool = customer::Column::OwnerId.eq(0);
+    let dept_sql = condition_sql(&build_department_scope_with_pool_condition(
+        &dept_ctx(),
+        customer::Column::OwnerId,
+        customer::Column::DepartmentId,
+        customer::Column::OwnerId.eq(0),
+        PoolVisibility::Scoped,
+    ));
+    assert!(
+        dept_sql.contains(" AND ") && dept_sql.contains("owner_id") && dept_sql.contains("= 0"),
+        "Scoped·Dept 应维持 归属条件 AND 公海条件 的历史形态，实际: {dept_sql}"
+    );
+    let self_sql = condition_sql(&build_department_scope_with_pool_condition(
+        &self_ctx(),
+        customer::Column::OwnerId,
+        customer::Column::DepartmentId,
+        pool,
+        PoolVisibility::Scoped,
+    ));
+    assert!(
+        !self_sql.contains("= 0"),
+        "Scoped·Self 不应出现公海放行（可见面零变化），实际: {self_sql}"
+    );
+}
+
+// ===== check_resource_owner_by_member_scope 测试 =====
+
+#[test]
+fn test_member_scope_all_always_true() {
+    let ctx = DataScopeContext {
+        scope: DataScope::All,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    // All 无论归属人如何均通过
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(999)));
+    assert!(check_resource_owner_by_member_scope(&ctx, None));
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(1)));
+}
+
+#[test]
+fn test_member_scope_dept_owner_in_member_set() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![10],
+        dept_member_user_ids: vec![1, 7, 9],
+    };
+    // owner=9 在成员集合内但不是本人 → 放行
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(9)));
+    // owner=1 等于本人 → 放行（第一短路）
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(1)));
+}
+
+#[test]
+fn test_member_scope_dept_owner_not_in_member_set_rejects() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![10],
+        dept_member_user_ids: vec![7, 9],
+    };
+    // owner=999 既不是本人也不在成员集合 → 拒绝
+    assert!(!check_resource_owner_by_member_scope(&ctx, Some(999)));
+}
+
+#[test]
+fn test_member_scope_dept_empty_members_degrades_to_self_only() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: None,
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    // 本人行放行
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(1)));
+    // 非本人行：成员集合为空，无法通过 → 拒绝
+    assert!(!check_resource_owner_by_member_scope(&ctx, Some(999)));
+}
+
+#[test]
+fn test_member_scope_self_only_own_row() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Self_,
+        user_id: 42,
+        department_id: Some(10),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![42, 7, 9],
+    };
+    // 本人放行
+    assert!(check_resource_owner_by_member_scope(&ctx, Some(42)));
+    // 他人行拒绝（即使对方在 dept_member_user_ids 中，Self_ 不参考该集合）
+    assert!(!check_resource_owner_by_member_scope(&ctx, Some(7)));
+}
+
+#[test]
+fn test_member_scope_none_owner_dept_rejects() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Dept,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![10],
+        dept_member_user_ids: vec![1, 7],
+    };
+    // 归属人为 NULL → 一律拒绝，不放宽为"无主即可操作"
+    assert!(!check_resource_owner_by_member_scope(&ctx, None));
+}
+
+#[test]
+fn test_member_scope_none_owner_self_rejects() {
+    let ctx = DataScopeContext {
+        scope: DataScope::Self_,
+        user_id: 1,
+        department_id: Some(10),
+        dept_ids: vec![],
+        dept_member_user_ids: vec![],
+    };
+    // 归属人为 NULL → 拒绝
+    assert!(!check_resource_owner_by_member_scope(&ctx, None));
 }

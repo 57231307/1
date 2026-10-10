@@ -7,8 +7,10 @@
 
 use crate::models::{ap_invoice, ap_payment, ap_payment_request, ap_payment_request_item};
 use crate::services::supplier_blacklist_service::SupplierBlacklistService;
-// V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+// 行级数据权限工具
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 259 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
@@ -72,10 +74,16 @@ impl ApPaymentService {
             .ok_or_else(|| AppError::not_found(format!("付款申请 {}", req.request_id)))?;
 
         if request.approval_status != crate::models::status::common::STATUS_APPROVED {
-            return Err(AppError::business(format!(
-                "付款申请状态为{}，未审批通过不可创建付款单",
-                request.approval_status
-            )));
+            // 状态门控拒绝归 BUSINESS_ERROR；拒绝原因（申请未审批）是用户下一步操作所需的
+            // 公开业务规则，用可外显变体让文案到达用户；真实状态 token 只进日志不外显。
+            tracing::warn!(
+                request_id = request.id,
+                approval_status = %request.approval_status,
+                "付款申请未通过审批，拒绝创建付款单"
+            );
+            return Err(AppError::business_displayable(
+                "付款申请尚未审批通过，请先完成审批后再创建付款单",
+            ));
         }
 
         // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
@@ -319,7 +327,7 @@ impl ApPaymentService {
         items: &[ap_payment_request_item::Model],
         total_apply_amount: Decimal,
     ) -> Result<std::collections::HashMap<i32, ap_invoice::Model>, AppError> {
-        // v16 批次 44 修复：循环外批量查询并锁定所有关联的应付单
+        // 循环外批量查询并锁定所有关联的应付单
         let invoice_ids: Vec<i32> = items.iter().map(|item| item.invoice_id).collect();
         Ok(
             if total_apply_amount <= Decimal::ZERO || invoice_ids.is_empty() {
@@ -356,26 +364,35 @@ impl ApPaymentService {
             .checked_mul(ratio)
             .unwrap_or_default();
 
-        // v16 批次 44 修复：从批量查询结果获取应付单（O(1) 查找）
-        if let Some(mut inv) = invoice_map.remove(&item.invoice_id) {
-            inv.paid_amount = inv
+        // 从批量查询结果取应付单（O(1) 查找，避免逐项再查）
+        // 改用 get_mut + clone：同一 invoice_id 出现多条明细时复用 map 中已累加的值，
+        // 第二笔起不再被静默丢弃（原 remove 语义下重复明细拿不到 model，分摊金额无痕丢失）。
+        if let Some(inv) = invoice_map.get_mut(&item.invoice_id) {
+            let new_paid = inv
                 .paid_amount
                 .checked_add(paid_amount)
                 .unwrap_or(inv.paid_amount);
-            inv.unpaid_amount = inv
-                .amount
-                .checked_sub(inv.paid_amount)
-                .unwrap_or(inv.amount);
-
-            // 更新应付状态
-            let became_fully_paid = inv.unpaid_amount <= Decimal::ZERO;
-            inv.invoice_status = if became_fully_paid {
+            let new_unpaid = inv.amount.checked_sub(new_paid).unwrap_or(inv.amount);
+            let became_fully_paid = new_unpaid <= Decimal::ZERO;
+            let new_status = if became_fully_paid {
                 crate::models::status::payment::PAYMENT_PAID.to_string()
             } else {
                 crate::models::status::payment::PAYMENT_PARTIAL_PAID.to_string()
             };
 
-            let invoice_active: ap_invoice::ActiveModel = inv.into();
+            inv.paid_amount = new_paid;
+            inv.unpaid_amount = new_unpaid;
+            inv.invoice_status = new_status.clone();
+
+            // sea-orm 2.0.2 语义：From<Model> for ActiveModel 将全字段标为 Unchanged，
+            // 而 UPDATE 只写 Set 列——资金回写列必须显式 Set，否则累加停留在内存副本、
+            // 库中 paid_amount 恒 0（本函数付款确认金额回写丢失的直接根因）。
+            let mut invoice_active: ap_invoice::ActiveModel = inv.clone().into();
+            invoice_active.paid_amount = Set(new_paid);
+            invoice_active.unpaid_amount = Set(new_unpaid);
+            invoice_active.invoice_status = Set(new_status);
+            invoice_active.updated_by = Set(Some(user_id));
+
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 txn,
                 "auto_audit",
@@ -422,7 +439,7 @@ impl ApPaymentService {
             voucher_date: payment.payment_date,
             source_type: Some("AP_PAYMENT".to_string()),
             source_module: Some("ap".to_string()),
-            source_bill_id: Some(payment.id),
+            source_bill_id: Some(i64::from(payment.id)),
             source_bill_no: Some(payment_no.clone()),
             batch_no: None,
             color_no: None,
@@ -635,15 +652,14 @@ impl ApPaymentService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("付款单 {}", id)))?;
-        // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ap_payment 表无 department_id，Dept 退化为 Self；
+        // 行级数据权限校验（IDOR 防护）
+        // ap_payment 表无 department_id，使用成员归属集合判定；
         // ap_payment.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, Some(payment.created_by), None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问付款单 {}（数据范围限制）",
-                    id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, Some(payment.created_by)) {
+                return Err(AppError::permission_denied(
+                    "无权访问付款单（数据范围限制）",
+                ));
             }
         }
         Ok(payment)
@@ -674,7 +690,7 @@ impl ApPaymentService {
             query = query.filter(ap_payment::Column::PaymentDate.lte(ed));
         }
 
-        // V15 P0-S01：行级数据权限过滤
+        // 行级数据权限过滤
         // ap_payment 表无 department_id，Dept 退化为 Self；
         // ap_payment.created_by 是 i32（必填）。
         if let Some(ctx) = data_scope {

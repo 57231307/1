@@ -11,8 +11,8 @@ use serde::Serialize;
 use std::sync::Arc;
 
 use crate::models::{
-    product, product_color, product_supplier_mapping, supplier, supplier_product,
-    supplier_product_color,
+    product, product_color, product_supplier_mapping, purchase_order, purchase_order_item,
+    supplier, supplier_product, supplier_product_color,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -301,7 +301,76 @@ impl SkuMappingService {
     }
 
     /// 删除对照
+    ///
+    /// 删除前做引用预检：转采购/调拨单据落库时把映射解析出的 supplier_product_code
+    /// 快照写进 purchase_order_items（po/order_ops/crud.rs 权威快照列）。硬删被引用
+    /// 的映射会让存量单据的 SKU 翻译悬空，并在 DB 层以 23503 裸落 DATABASE_ERROR(500)。
+    /// 被引用 → `business_displayable` 公开规则文案拒绝（不含约束名/内部标识）；
+    /// 真正的 DbErr 经 `?`（From<DbErr>）归 DATABASE_ERROR 并走 ERROR 日志。
+    ///
+    /// 快照取不到（mapping 指向的 supplier_product 行已不存在）时**不做静默跳过**：
+    /// 见下方 `None` 分支，先记 WARN 留痕，再退化为按 mapping 自身列继续查引用。
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
+        let mapping = product_supplier_mapping::Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("SKU 对照记录 {}", id)))?;
+
+        let supplier_product = supplier_product::Entity::find_by_id(mapping.supplier_product_id)
+            .one(&*self.db)
+            .await?;
+
+        match supplier_product {
+            // 常规路径：按权威快照列（product_id + supplier_product_code）精确判引用
+            Some(sp) => {
+                let referencing = purchase_order_item::Entity::find()
+                    .filter(purchase_order_item::Column::ProductId.eq(mapping.product_id))
+                    .filter(
+                        purchase_order_item::Column::SupplierProductCode
+                            .eq(sp.product_code.as_str()),
+                    )
+                    .count(&*self.db)
+                    .await?;
+                if referencing > 0 {
+                    return Err(AppError::business_displayable(
+                        "该映射已被采购/调拨单据引用，无法删除",
+                    ));
+                }
+            }
+            // 快照列取不到：`supplier_products` 行缺失（悬挂引用），无法用
+            // supplier_product_code 精确匹配历史单据。此时**不能**把「查不了」当成「没引用」
+            // 直接放行硬删，也不能一刀切拒绝（会误伤本就无人引用的脏 mapping）。
+            // 判定依据（与写入方一致）：单据侧唯一持有该映射语义的列组合是
+            // `purchase_order_item.product_id` + 其所属 `purchase_order.supplier_id`
+            // （映射本身即 (product_id, product_color_id, supplier_id) 三元组，见 resolve_supplier_sku），
+            // 因此退化为按 mapping 自身列 product_id + supplier_id 联表查采购明细：
+            // 命中 → 至少存在一张同供应商同产品的采购单，快照列无法证伪其引用关系，拒绝删除；
+            // 未命中 → 全库没有任何按此 (供应商, 产品) 落过的采购明细，确认无引用依据，放行删除。
+            None => {
+                tracing::warn!(
+                    mapping_id = mapping.id,
+                    supplier_product_id = mapping.supplier_product_id,
+                    product_id = mapping.product_id,
+                    supplier_id = mapping.supplier_id,
+                    "SKU 映射删除预检：关联 supplier_products 行缺失（悬挂引用），\
+                     无法按 supplier_product_code 快照精确判引用；\
+                     已退化为按 mapping 自身列 (product_id, supplier_id) 联表查 purchase_order_item，\
+                     该 mapping 的供应商商品外键指向不存在的行，属数据完整性问题，请另行核查"
+                );
+                let referencing = purchase_order_item::Entity::find()
+                    .inner_join(purchase_order::Entity)
+                    .filter(purchase_order_item::Column::ProductId.eq(mapping.product_id))
+                    .filter(purchase_order::Column::SupplierId.eq(mapping.supplier_id))
+                    .count(&*self.db)
+                    .await?;
+                if referencing > 0 {
+                    return Err(AppError::business_displayable(
+                        "该映射所在供应商+产品组合已被采购/调拨单据引用，无法删除",
+                    ));
+                }
+            }
+        }
+
         let result = product_supplier_mapping::Entity::delete_by_id(id)
             .exec(&*self.db)
             .await?;
@@ -388,13 +457,21 @@ impl SkuMappingService {
         for (idx, row) in rows.iter().enumerate() {
             let row_num = idx + 1;
 
-            // 校验 product_code 存在
+            // 校验 product_code 存在。
+            // 只投影主键、整行 Model 不解码：products 表的 unit/status/product_type 等为
+            // 后续 ALTER 加入的可空列（product 表在 v15 域链里被多次 ALTER 追加列），而 product::Model
+            // 把这些列声明为非 Option；整行读取在只填了 code/name 的稀疏/历史行上会抛
+            // ColumnDecode，被顶层 `?` 归一为 DATABASE_ERROR(500)。本处只需 id，故按
+            // validate_refs 对 supplier 的同类写法（见本文件 validate_refs）取 id 投影。
             let prod = match product::Entity::find()
                 .filter(product::Column::Code.eq(&row.product_code))
+                .select_only()
+                .column(product::Column::Id)
+                .into_tuple::<i32>()
                 .one(&*self.db)
                 .await
             {
-                Ok(Some(p)) => p,
+                Ok(Some(id)) => id,
                 Ok(None) => {
                     result.error_count += 1;
                     result
@@ -410,16 +487,19 @@ impl SkuMappingService {
                 Err(e) => return Err(AppError::from(e)),
             };
 
-            // 校验 color_no 对应的 product_color_id
+            // 校验 color_no 对应的 product_color_id（同样只投影 id）
             let product_color_id = match &row.color_no {
                 Some(cn) if !cn.is_empty() => {
                     match product_color::Entity::find()
-                        .filter(product_color::Column::ProductId.eq(prod.id))
+                        .filter(product_color::Column::ProductId.eq(prod))
                         .filter(product_color::Column::ColorNo.eq(cn))
+                        .select_only()
+                        .column(product_color::Column::Id)
+                        .into_tuple::<i32>()
                         .one(&*self.db)
                         .await
                     {
-                        Ok(Some(pc)) => Some(pc.id),
+                        Ok(Some(id)) => Some(id),
                         Ok(None) => {
                             result.error_count += 1;
                             result
@@ -438,13 +518,16 @@ impl SkuMappingService {
                 _ => None,
             };
 
-            // 校验 supplier_code 存在
+            // 校验 supplier_code 存在（只投影 id）
             let sup = match supplier::Entity::find()
                 .filter(supplier::Column::SupplierCode.eq(&row.supplier_code))
+                .select_only()
+                .column(supplier::Column::Id)
+                .into_tuple::<i32>()
                 .one(&*self.db)
                 .await
             {
-                Ok(Some(s)) => s,
+                Ok(Some(id)) => id,
                 Ok(None) => {
                     result.error_count += 1;
                     result
@@ -460,14 +543,17 @@ impl SkuMappingService {
                 Err(e) => return Err(AppError::from(e)),
             };
 
-            // 校验 supplier_product_code 存在
+            // 校验 supplier_product_code 存在（只投影 id）
             let sup_prod = match supplier_product::Entity::find()
-                .filter(supplier_product::Column::SupplierId.eq(sup.id))
+                .filter(supplier_product::Column::SupplierId.eq(sup))
                 .filter(supplier_product::Column::ProductCode.eq(&row.supplier_product_code))
+                .select_only()
+                .column(supplier_product::Column::Id)
+                .into_tuple::<i32>()
                 .one(&*self.db)
                 .await
             {
-                Ok(Some(sp)) => sp,
+                Ok(Some(id)) => id,
                 Ok(None) => {
                     result.error_count += 1;
                     result
@@ -483,16 +569,19 @@ impl SkuMappingService {
                 Err(e) => return Err(AppError::from(e)),
             };
 
-            // 校验 supplier_color_no 对应的 supplier_product_color_id
+            // 校验 supplier_color_no 对应的 supplier_product_color_id（只投影 id）
             let supplier_product_color_id = match &row.supplier_color_no {
                 Some(scn) if !scn.is_empty() => {
                     match supplier_product_color::Entity::find()
-                        .filter(supplier_product_color::Column::SupplierProductId.eq(sup_prod.id))
+                        .filter(supplier_product_color::Column::SupplierProductId.eq(sup_prod))
                         .filter(supplier_product_color::Column::ColorNo.eq(scn))
+                        .select_only()
+                        .column(supplier_product_color::Column::Id)
+                        .into_tuple::<i32>()
                         .one(&*self.db)
                         .await
                     {
-                        Ok(Some(spc)) => Some(spc.id),
+                        Ok(Some(id)) => Some(id),
                         Ok(None) => {
                             result.error_count += 1;
                             result
@@ -515,10 +604,10 @@ impl SkuMappingService {
             let now = chrono::Utc::now();
             let insert_result = Self::upsert_mapping(
                 &*self.db,
-                prod.id,
+                prod,
                 product_color_id,
-                sup.id,
-                sup_prod.id,
+                sup,
+                sup_prod,
                 supplier_product_color_id,
                 row.supplier_price,
                 row.min_order_quantity,
@@ -615,12 +704,20 @@ impl SkuMappingService {
             supplier_product_color_id
                 .map(|v| v.into())
                 .unwrap_or(Value::Int(None)),
-            supplier_price
-                .map(|d| Value::String(Some(d.to_string())))
-                .unwrap_or(Value::String(None)),
-            min_order_quantity
-                .map(|d| Value::String(Some(d.to_string())))
-                .unwrap_or(Value::String(None)),
+            // supplier_price / min_order_quantity 在库表里是 numeric（见
+            // models/product_supplier_mapping.rs 的 `column_type = "Decimal(Some((12, 2)))"`），
+            // 此前把 Decimal 经 `.to_string()` 绑成 `Value::String` ⇒ Postgres 报
+            // 42804「numeric 列表达式为 text」，文件导入只要带价格/最小订购量就 500。
+            // 改走 sea-orm(=sea-query 1.0.2) 的 Decimal 变体：`Value::Decimal(Option<Decimal>)`
+            // 在 1.0.2 里是**未装箱**（与同版本 `Value::BigDecimal(Option<Box<BigDecimal>>)` 相反，
+            // 证据见 registry src/sea-query-1.0.2/src/value.rs 的 `Decimal(Option<Decimal>)` 行与
+            // with_rust_decimal.rs 的 `type_to_value!(Decimal, Decimal, Decimal(None))`）。
+            // Option<Decimal> 直接 `.into()` 即产出该变体（Some→Value::Decimal(Some(v))、
+            // None→T::null()=Value::Decimal(None)，由 value.rs 的 `impl From<Option<T>> for Value`），
+            // 与本仓测试既有正确范式一致（tests/bi_analysis_test.rs、
+            // contract_wave11_customer_credit_constraint_test.rs 的 `Decimal::new(..).into()`）。
+            supplier_price.into(),
+            min_order_quantity.into(),
             lead_time.map(|v| v.into()).unwrap_or(Value::Int(None)),
             is_primary.into(),
             priority.into(),
@@ -654,7 +751,7 @@ impl SkuMappingService {
                 .await?
                 .ok_or_else(|| AppError::validation(format!("产品色号 ID {} 不存在", cid)))?;
             if pc.product_id != input.product_id {
-                return Err(AppError::validation("产品色号不属于指定的产品"));
+                return Err(AppError::validation_displayable("产品色号不属于指定的产品"));
             }
         }
 
@@ -687,7 +784,9 @@ impl SkuMappingService {
                 ))
             })?;
         if sp.supplier_id != input.supplier_id {
-            return Err(AppError::validation("供应商商品不属于指定的供应商"));
+            return Err(AppError::validation_displayable(
+                "供应商商品不属于指定的供应商",
+            ));
         }
 
         // 供应商色号（如果提供了）
@@ -697,7 +796,9 @@ impl SkuMappingService {
                 .await?
                 .ok_or_else(|| AppError::validation(format!("供应商色号 ID {} 不存在", spc_id)))?;
             if spc.supplier_product_id != input.supplier_product_id {
-                return Err(AppError::validation("供应商色号不属于指定的供应商商品"));
+                return Err(AppError::validation_displayable(
+                    "供应商色号不属于指定的供应商商品",
+                ));
             }
         }
 

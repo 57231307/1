@@ -33,6 +33,10 @@ pub enum CrudError {
     InvalidState,
     #[error("参数校验失败: {0}")]
     Validation(String),
+    /// 审计日志写入失败：属服务端持久化缺陷（AppError 原文），非用户输入校验，
+    /// 不得走 Validation 通道出 400。
+    #[error("审计写入失败: {0}")]
+    AuditLog(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
 }
@@ -189,7 +193,7 @@ impl ColorCardCrudService {
             Some(user_id),
         )
         .await
-        .map_err(|e| CrudError::Validation(e.to_string()))?;
+        .map_err(|e| CrudError::AuditLog(e.to_string()))?;
 
         txn.commit().await?;
         Ok(result)
@@ -226,7 +230,7 @@ impl ColorCardCrudService {
             Some(user_id),
         )
         .await
-        .map_err(|e| CrudError::Validation(e.to_string()))?;
+        .map_err(|e| CrudError::AuditLog(e.to_string()))?;
 
         txn.commit().await?;
         Ok(result)
@@ -258,7 +262,7 @@ impl ColorCardCrudService {
             Some(user_id),
         )
         .await
-        .map_err(|e| CrudError::Validation(e.to_string()))?;
+        .map_err(|e| CrudError::AuditLog(e.to_string()))?;
 
         txn.commit().await?;
         Ok(result)
@@ -313,7 +317,7 @@ impl ColorCardCrudService {
             Some(user_id),
         )
         .await
-        .map_err(|e| CrudError::Validation(e.to_string()))?;
+        .map_err(|e| CrudError::AuditLog(e.to_string()))?;
         txn.commit().await?;
         Ok(result)
     }

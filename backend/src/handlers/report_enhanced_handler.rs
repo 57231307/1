@@ -209,7 +209,7 @@ pub async fn export_pdf(
     let template_id: i32 = req
         .template_id
         .parse()
-        .map_err(|_| AppError::validation("无效的模板ID"))?;
+        .map_err(|_| AppError::validation_displayable("无效的模板ID"))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service
@@ -281,7 +281,7 @@ pub async fn export_excel(
     let template_id: i32 = req
         .template_id
         .parse()
-        .map_err(|_| AppError::validation("无效的模板ID"))?;
+        .map_err(|_| AppError::validation_displayable("无效的模板ID"))?;
 
     // 执行报表获取数据
     let (headers, data, _total) = service
@@ -347,12 +347,17 @@ pub mod subscriptions {
     use super::*;
     use crate::define_tuple_crud_handlers;
 
+    // define_tuple_crud_handlers! 出参实参 = service 的真实返回类型：
+    // list -> PaginatedResponse<report_subscription::Model>（services/report_subscription_service.rs list），
+    // get/create/update -> report_subscription::Model
     define_tuple_crud_handlers!(
         ReportSubscriptionService,
         CreateSubscriptionRequest,
         UpdateSubscriptionRequest,
         SubscriptionQuery,
         i32,
+        crate::utils::response::PaginatedResponse<crate::models::report_subscription::Model>,
+        crate::models::report_subscription::Model,
         "订阅不存在"
     );
 }
@@ -365,8 +370,7 @@ pub async fn toggle_subscription(
     Json(req): Json<ToggleSubscriptionDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // P1-2n 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = ReportSubscriptionService::new(state.db.clone());
 
