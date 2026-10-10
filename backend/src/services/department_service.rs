@@ -393,11 +393,10 @@ impl DepartmentService {
         Self::fill_manager_names(&self.db, &mut all_departments).await;
 
         // 构建部门树
-        let mut tree: Vec<DepartmentTreeNode> = Vec::new();
         let mut dept_map: std::collections::HashMap<i32, DepartmentTreeNode> =
             std::collections::HashMap::new();
 
-        // 先创建所有节点
+        // 阶段 1：创建所有节点，children 初始为空
         for dept in all_departments {
             dept_map.insert(
                 dept.id,
@@ -412,19 +411,43 @@ impl DepartmentService {
             );
         }
 
-        // 构建树形结构
-        let dept_ids: Vec<i32> = dept_map.keys().copied().collect();
-        for id in dept_ids {
-            if let Some(node) = dept_map.get(&id).cloned() {
-                if let Some(parent_id) = node.parent_id {
-                    if let Some(parent_node) = dept_map.get_mut(&parent_id) {
-                        parent_node.children.push(node);
-                    }
-                } else {
-                    tree.push(node);
-                }
+        // 阶段 2：收集根节点 id（parent_id 为 None）及父子关系映射
+        let roots: Vec<i32> = dept_map
+            .iter()
+            .filter(|(_, node)| node.parent_id.is_none())
+            .map(|(id, _)| *id)
+            .collect();
+
+        // parent_to_children 记录每个父节点的直接子节点 id 列表
+        let mut parent_to_children: std::collections::HashMap<i32, Vec<i32>> =
+            std::collections::HashMap::new();
+        for (id, node) in dept_map.iter() {
+            if let Some(pid) = node.parent_id {
+                parent_to_children.entry(pid).or_default().push(*id);
             }
         }
+
+        // 阶段 3：从根开始递归组装，将子节点从 dept_map 取出并挂入父 children
+        fn assemble(
+            id: i32,
+            dept_map: &mut std::collections::HashMap<i32, DepartmentTreeNode>,
+            parent_to_children: &std::collections::HashMap<i32, Vec<i32>>,
+        ) -> Option<DepartmentTreeNode> {
+            let mut node = dept_map.remove(&id)?;
+            if let Some(child_ids) = parent_to_children.get(&id) {
+                for &cid in child_ids {
+                    if let Some(child) = assemble(cid, dept_map, parent_to_children) {
+                        node.children.push(child);
+                    }
+                }
+            }
+            Some(node)
+        }
+
+        let tree: Vec<DepartmentTreeNode> = roots
+            .into_iter()
+            .filter_map(|rid| assemble(rid, &mut dept_map, &parent_to_children))
+            .collect();
 
         Ok(tree)
     }
