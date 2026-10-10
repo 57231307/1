@@ -506,6 +506,19 @@ test.describe('20 采购到付款全流程契约链', () => {
       Number(payDetail.payment_amount),
       '发票额与付款额逐值一致'
     );
+    // 后端确认门要求付款单已填写交易流水号 见 ap_payment_service.rs 239 至 247 行
+    // 付款确认须有交易流水号属财务常识门控 而建单入参 CreateApPaymentRequest 不含该字段
+    // 故按真实用户路径在确认前经 PUT 更新补录交易流水号 使夹具如实满足后端契约
+    await apiCall(page, 'PUT', `/ap/payments/${payId}`, {
+      transaction_no: `E2E-F20-TXN-${orderNo}`,
+    });
+    const payWithTxn = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/payments/${payId}`
+    );
+    // 回读确认交易流水号已落库非空 方可进入确认门
+    expect(payWithTxn.transaction_no, '确认前交易流水号已落库非空').toBeTruthy();
     await apiCall(page, 'POST', `/ap/payments/${payId}/confirm`);
     const payAfter = await apiCallRaw<Record<string, unknown>>(
       page,
