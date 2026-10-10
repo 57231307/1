@@ -407,7 +407,11 @@ async function createThenUiDelete(
   // 该资源列表端点（GET createApi）的显式形状：调用方按后端 handler 逐一声明。
   // 取代原 `body.data.items ?? body.data.roles ?? body.data ?? []` 三重形状宽容探测——
   // 它同时吞分页 items / 具名 roles / 裸数组并 `?? []`，端点改形时静默读成空集。
-  listKey: ListShapeKey
+  listKey: ListShapeKey,
+  // 软删除实体的删除后状态值：给定则本验证器按软删处理（行保留、只改 status），
+  // 走真实 UI 删除点击但声明 expectRowGone:false，删除效果由 GET 详情断言 status==此值
+  // （合同 delete 置 status::contract::CANCELLED="cancelled"，list 不过滤，行仍在）。
+  softDeleteStatus?: string
 ): Promise<void> {
   const createResp = await apiCall<{ id?: number }>(page, 'POST', createApi, createPayload);
   console.log(`[P0-删除-${label}] 创建响应:`, JSON.stringify(createResp?.data)?.slice(0, 300));
@@ -436,10 +440,24 @@ async function createThenUiDelete(
     );
   }
 
-  // UI 删除（本验证器删除的对象一律是**本用例刚自建的唯一行**，不存在"被引用拒绝"的合法分支）：
-  // uiDeleteRow 对找不到行 / 行内无删除按钮 / 点击异常 / 删除后行未消失等一切真实失败显式抛错
-  // （V2Table+fixed-right 等固定列层按钮可达性也走同一判据），故本行按删除结果做硬断言；
-  // 引用约束类拒绝若真实存在，会先在行消失校验处判红并带出后端原因。
+  // UI 删除：软删除实体（给定 softDeleteStatus）走真实删除点击但声明行不消失，
+  // 删除效果改由 GET 详情契约断言 status（对齐本文件客户软删用例）；
+  // 硬删除实体仍按"行必须消失"做硬断言（uiDeleteRow 对一切真实失败显式抛错）。
+  if (softDeleteStatus !== undefined) {
+    await uiDeleteRow(
+      page,
+      listRoute,
+      { column: 'name', value: rowName },
+      { expectRowGone: false }
+    );
+    const detail = await apiCallRaw<{ status?: string }>(page, 'GET', `${createApi}/${id}`);
+    console.log(`[P0-删除-${label}] UI 软删除后 status=${detail?.status}`);
+    expect(
+      detail?.status,
+      `[P0-删除-${label}] 自建 ${rowName} UI 删除（软删除）后 status 应为 ${softDeleteStatus}，实际 ${detail?.status}`
+    ).toBe(softDeleteStatus);
+    return;
+  }
   const deleted = await uiDeleteRow(page, listRoute, { column: 'name', value: rowName });
   console.log(`[P0-删除-${label}] UI 删除结果: ✅（失败路径已由 uiDeleteRow 抛错判红）`);
   expect(
@@ -654,7 +672,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/sales-contract',
       `P0-SC-${EXT_TS}`,
       // sales_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
-      'bare'
+      'bare',
+      // 合同删除为软删（status→cancelled、list 不过滤，行保留）→ 按软删断言 status
+      'cancelled'
     );
   });
 
@@ -674,7 +694,9 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       '/purchase-contract',
       `P0-PC-${EXT_TS}`,
       // purchase_contract_handler::list_contracts → ApiResponse<Vec> → 裸数组
-      'bare'
+      'bare',
+      // 合同软删（status→cancelled、行保留）→ 按软删断言 status
+      'cancelled'
     );
   });
 
