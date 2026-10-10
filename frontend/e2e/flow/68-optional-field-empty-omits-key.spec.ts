@@ -65,7 +65,14 @@ async function captureUiSubmit(
   what: string
 ): Promise<CapturedSubmit> {
   const respPromise = page.waitForResponse(
-    res => res.url().includes(urlFragment) && res.request().method() === method,
+    res =>
+      res.url().includes(urlFragment) &&
+      res.request().method() === method &&
+      // CSRF 首发返 403、前端 axios 拦截器刷新令牌后静默重放成 200。本文件以 loginViaUI
+      // 默认 admin 会话跑，admin 被权限中间件短路、结构上拿不到权限 403，故该路由唯一
+      // 403 源＝CSRF 中间件。跳过瞬态 403、等真实提交响应：若为持续真 403（非 CSRF）
+      // 则永无 200、waitForResponse 超时判红，不被掩盖。与采购 sku-mapping 用例同款容错。
+      res.status() !== 403,
     { timeout: 30_000 }
   );
   await action();
