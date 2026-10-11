@@ -19,7 +19,7 @@ import {
 import { getCustomerList, type Customer } from '@/api/customer';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 /**
@@ -121,7 +121,7 @@ export function useSp() {
       const res = await getCustomerList({ page: 1, page_size: 1000 });
       customers.value = res.data?.items || [];
     } catch (error) {
-      logger.error('获取客户列表失败:', error);
+      logAuxLoadFailure('获取客户列表失败:', error);
     }
   };
 
@@ -131,7 +131,7 @@ export function useSp() {
       const res = await getProductList({ page: 1, page_size: 1000 });
       products.value = res.data?.items || [];
     } catch (error) {
-      logger.error('获取产品列表失败:', error);
+      logAuxLoadFailure('获取产品列表失败:', error);
     }
   };
 

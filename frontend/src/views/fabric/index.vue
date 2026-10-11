@@ -123,7 +123,7 @@ import { getSupplierList, type Supplier } from '@/api/supplier';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import type { DyeBatch } from '@/api/dye-batch';
 import type { DyeRecipe as ApiDyeRecipe } from '@/api/dye-recipe';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import DyeTab from './tabs/DyeTab.vue';
 import GreigeTab from './tabs/GreigeTab.vue';
 import RecipeTab from './tabs/RecipeTab.vue';
@@ -211,8 +211,7 @@ const fetchSuppliers = async () => {
     const res = await getSupplierList();
     suppliers.value = (res.data?.items as Supplier[] | undefined) || [];
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('fabric.index.fetchSuppliersFailed'), err.message);
+    logAuxLoadFailure(t('fabric.index.fetchSuppliersFailed'), error);
   }
 };
 
@@ -221,8 +220,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList();
     warehouses.value = (res.data?.items as Warehouse[] | undefined) || [];
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('fabric.index.fetchWarehousesFailed'), err.message);
+    logAuxLoadFailure(t('fabric.index.fetchWarehousesFailed'), error);
   }
 };
 

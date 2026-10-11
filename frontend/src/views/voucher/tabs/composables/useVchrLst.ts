@@ -33,7 +33,7 @@ import {
 } from '@/api/voucher';
 import { getAccountSubjectTree } from '@/api/account-subject';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 /** 科目下拉选项 */
 interface SubjectOption {
@@ -137,7 +137,7 @@ export function useVchrLst() {
       const items = Array.isArray(res.data) ? res.data : [];
       voucherTypes.value = items.map(t => ({ label: t.name, value: t.code }));
     } catch (error) {
-      logger.error('获取凭证类型失败', error);
+      logAuxLoadFailure('获取凭证类型失败', error);
     }
   };
 
@@ -169,7 +169,7 @@ export function useVchrLst() {
       };
       accountSubjectOptions.value = flattenOptions();
     } catch (error) {
-      logger.error('获取科目列表失败', error);
+      logAuxLoadFailure('获取科目列表失败', error);
     }
   };
 

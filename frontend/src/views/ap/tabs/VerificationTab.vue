@@ -196,7 +196,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
@@ -230,7 +230,7 @@ const fetchSuppliers = async () => {
     const res = await getSupplierList({ page: 1, page_size: 1000 });
     suppliers.value = res.data?.items || [];
   } catch (e) {
-    logger.error(t('apModule.verification.loadSuppliersFailed'), e);
+    logAuxLoadFailure(t('apModule.verification.loadSuppliersFailed'), e);
   }
 };
 

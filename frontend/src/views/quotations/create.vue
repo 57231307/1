@@ -185,7 +185,7 @@
 // - 加载客户列表
 // - 提交保存草稿 / 提交审批
 import { ref, reactive, computed, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
@@ -335,7 +335,7 @@ async function loadCustomers() {
     const list = data.list || data.items || [];
     customers.value = list as { id: number; name: string }[];
   } catch (error) {
-    logger.error(t('quotations.create.customerLoadFailed'), error);
+    logAuxLoadFailure(t('quotations.create.customerLoadFailed'), error);
     customers.value = [];
   }
 }

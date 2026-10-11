@@ -269,7 +269,7 @@ import { ref, watch, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
-import logger from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
 import {
   type ReturnForm,
@@ -326,7 +326,7 @@ const loadWarehouses = async () => {
     const res = await getWarehouseList({ page_size: 100 });
     warehouseList.value = res.data?.items || [];
   } catch (error: unknown) {
-    logger.error('loadWarehouseListFailed', error instanceof Error ? error.message : String(error));
+    logAuxLoadFailure('loadWarehouseListFailed', error);
   }
 };
 onMounted(loadWarehouses);

@@ -19,7 +19,7 @@ import {
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 import { i18n } from '@/i18n';
 
@@ -131,7 +131,7 @@ export function usePp() {
       const res = await getSupplierList({ page: 1, page_size: 1000 });
       suppliers.value = res.data?.items || [];
     } catch (error) {
-      logger.error('获取供应商列表失败:', error);
+      logAuxLoadFailure('获取供应商列表失败:', error);
     }
   };
 
@@ -141,7 +141,7 @@ export function usePp() {
       const res = await getProductList({ page: 1, page_size: 1000 });
       products.value = res.data?.items || [];
     } catch (error) {
-      logger.error('获取产品列表失败:', error);
+      logAuxLoadFailure('获取产品列表失败:', error);
     }
   };
 

@@ -17,7 +17,7 @@ import {
 } from '@/api/purchase-contract';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 import { i18n } from '@/i18n';
 
@@ -129,7 +129,7 @@ export function usePc() {
       const res = await getSupplierList();
       suppliers.value = res.data?.items || [];
     } catch (error) {
-      logger.error('获取供应商列表失败:', error);
+      logAuxLoadFailure('获取供应商列表失败:', error);
     }
   };
 

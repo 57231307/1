@@ -445,7 +445,7 @@ import {
   type CreateEvaluationIndicatorRequest,
 } from '@/api/supplier-evaluation';
 import { getSupplierList, type Supplier } from '@/api/supplier';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -505,7 +505,7 @@ const fetchSuppliers = async () => {
     const res = await getSupplierList({ page: 1, page_size: 1000 });
     supplierList.value = res.data?.items || [];
   } catch (e) {
-    logger.error(t('supplierEvaluation.index.message.fetchSuppliersFailed'), String(e));
+    logAuxLoadFailure(t('supplierEvaluation.index.message.fetchSuppliersFailed'), e);
   }
 };
 

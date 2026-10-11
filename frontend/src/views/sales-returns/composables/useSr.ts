@@ -26,7 +26,7 @@ import {
 import { getSalesOrderList } from '@/api/sales';
 import { getCustomerList } from '@/api/customer';
 import { getProductList } from '@/api/product';
-import logger from '@/utils/logger';
+import logger, { logAuxLoadFailure } from '@/utils/logger';
 
 // v11 批次 163 P2-1 修复：定义具体类型替代 any
 // v11 批次 174 P2-1 修复：导出接口供 ReturnEditDialog 使用
@@ -205,7 +205,7 @@ export function useSr() {
       const res = await getCustomerList();
       customerList.value = (res.data?.items || []) as unknown as CustomerOption[];
     } catch (error: unknown) {
-      logger.error('加载客户列表失败', error instanceof Error ? error.message : String(error));
+      logAuxLoadFailure('加载客户列表失败', error);
     }
   };
 
@@ -215,7 +215,7 @@ export function useSr() {
       const res = await getProductList();
       productList.value = (res.data?.items || []) as unknown as ProductOption[];
     } catch (error: unknown) {
-      logger.error('加载产品列表失败', error instanceof Error ? error.message : String(error));
+      logAuxLoadFailure('加载产品列表失败', error);
     }
   };
 

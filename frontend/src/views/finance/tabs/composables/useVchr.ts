@@ -19,7 +19,7 @@ import {
   type Voucher,
 } from '@/api/finance';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { formatMoney, getVchrStatusLabel, getVchrStatusType } from './vchrFmts';
 
 /**
@@ -66,7 +66,7 @@ export function useVchr() {
         value: t.code,
       }));
     } catch (error) {
-      logger.error('获取凭证类型失败', error);
+      logAuxLoadFailure('获取凭证类型失败', error);
     }
   };
 

@@ -58,7 +58,7 @@ import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { deleteInventoryTransfer, type InventoryTransferEntity } from '@/api/inventory-transfer';
 import TransferListTab from './tabs/TransferListTab.vue';
 import TransferFormDialogTab from './tabs/TransferFormDialogTab.vue';
@@ -117,7 +117,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouses.value = (res.data?.items as Warehouse[] | undefined) || [];
   } catch (error) {
-    logger.error(t('inventoryTransfer.index.fetchWarehousesFailed'), (error as Error).message);
+    logAuxLoadFailure(t('inventoryTransfer.index.fetchWarehousesFailed'), error);
   }
 };
 
@@ -126,7 +126,7 @@ const fetchProducts = async () => {
     const res = await getProductList({ page: 1, page_size: 1000 });
     products.value = (res.data?.items as Product[] | undefined) || [];
   } catch (error) {
-    logger.error(t('inventoryTransfer.index.fetchProductsFailed'), (error as Error).message);
+    logAuxLoadFailure(t('inventoryTransfer.index.fetchProductsFailed'), error);
   }
 };
 

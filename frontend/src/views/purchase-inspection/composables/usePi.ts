@@ -28,7 +28,7 @@ import {
 } from '@/api/purchase-receipt';
 import { getSupplierList } from '@/api/supplier';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { i18n } from '@/i18n';
 // 统计分桶（pending/pass/failed+partial 归不合格）全部发生在服务端
 // （backend services/purchase_inspection_service.rs::base_filtered_query，词表常量与写入侧同源），
@@ -216,7 +216,7 @@ export function usePi() {
         name: s.supplier_name,
       }));
     } catch (error) {
-      logger.error('[purchase-inspection] 加载供应商列表失败', error);
+      logAuxLoadFailure('[purchase-inspection] 加载供应商列表失败', error);
     }
   };
 

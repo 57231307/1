@@ -260,7 +260,7 @@ import {
   type APInvoice,
 } from '@/api/ap-invoice';
 import { exportFromBackend } from '@/utils/export';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { autoGenerateAPInvoices, getAPAgingAnalysis, type APAgingItem } from '@/api/ap';
 import { getSupplierList, type Supplier } from '@/api/supplier';
 
@@ -547,7 +547,7 @@ const fetchSuppliers = async () => {
     const res = await getSupplierList({ page: 1, page_size: 1000 });
     suppliers.value = res.data?.items || [];
   } catch (error) {
-    logger.error(t('apModule.invoice.loadSuppliersFailed'), error);
+    logAuxLoadFailure(t('apModule.invoice.loadSuppliersFailed'), error);
   }
 };
 

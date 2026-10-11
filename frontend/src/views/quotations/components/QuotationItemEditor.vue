@@ -133,7 +133,7 @@
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
 import { onMounted, ref, watch } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -216,7 +216,7 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
     // 强制响应式：发出新数组
     emit('update:modelValue', [...props.modelValue]);
   } catch (error) {
-    logger.error(t('quotations.itemEditor.colorLoadFailed'), error);
+    logAuxLoadFailure(t('quotations.itemEditor.colorLoadFailed'), error);
   }
 }
 
@@ -252,7 +252,7 @@ onMounted(async () => {
     const res = await getProductList({ page: 1, page_size: 1000, status: 'active' });
     products.value = res.data?.items || [];
   } catch (error) {
-    logger.error(t('quotations.itemEditor.productLoadFailed'), error);
+    logAuxLoadFailure(t('quotations.itemEditor.productLoadFailed'), error);
     products.value = [];
   }
 });

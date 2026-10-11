@@ -6,7 +6,7 @@
  * 行为完全保持一致（仅结构重构）
  */
 import { ref, reactive, watch, h } from 'vue';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElTag } from 'element-plus';
 import { i18n } from '@/i18n';
 import { useTableApi } from '@/composables/useTableApi';
@@ -281,7 +281,7 @@ export function useOlv() {
       }
       customers.value = items;
     } catch (error) {
-      logger.error(msg.translate('loadCustomerListFailed'), error);
+      logAuxLoadFailure(msg.translate('loadCustomerListFailed'), error);
       customers.value = [];
     }
   };
@@ -298,7 +298,7 @@ export function useOlv() {
       }
       products.value = items;
     } catch (error) {
-      logger.error(msg.translate('loadProductListFailed'), error);
+      logAuxLoadFailure(msg.translate('loadProductListFailed'), error);
       products.value = [];
     }
   };
@@ -318,7 +318,7 @@ export function useOlv() {
       }
       warehouses.value = items;
     } catch (error) {
-      logger.error(msg.translate('loadWarehouseListFailed'), error);
+      logAuxLoadFailure(msg.translate('loadWarehouseListFailed'), error);
       warehouses.value = [];
     }
   };

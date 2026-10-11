@@ -15,7 +15,7 @@ import {
   type SalesTarget,
   type SalesTrendResult,
 } from '@/api/sales-analysis';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 /** 销售分析主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
 export const useSa = () => {
@@ -74,7 +74,7 @@ export const useSa = () => {
       const key = productRankType.value === 'quantity' ? 'quantity' : 'amount';
       productRanking.value = [...rows].sort((a, b) => Number(b[key]) - Number(a[key]));
     } catch (error) {
-      logger.error('获取产品排名失败:', error);
+      logAuxLoadFailure('获取产品排名失败:', error);
     }
   };
 
@@ -86,7 +86,7 @@ export const useSa = () => {
       const key = customerRankType.value === 'orders' ? 'order_count' : 'amount';
       customerRanking.value = [...rows].sort((a, b) => Number(b[key]) - Number(a[key]));
     } catch (error) {
-      logger.error('获取客户排名失败:', error);
+      logAuxLoadFailure('获取客户排名失败:', error);
     }
   };
 

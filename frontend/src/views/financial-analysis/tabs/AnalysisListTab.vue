@@ -327,7 +327,7 @@ import {
   type CreateReportRequest,
 } from '@/api/financial-analysis';
 import { financialStatusLabelKey, financialStatusTagType } from '@/utils/financial-status';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -389,7 +389,7 @@ const fetchReports = async () => {
     reports.value = res.data.items;
   } catch (e) {
     const err = e as Error;
-    logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
+    logAuxLoadFailure(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
     ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageFetchFailed'));
   } finally {
     loading.value = false;

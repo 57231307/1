@@ -319,7 +319,7 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, watch, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -460,7 +460,7 @@ const fetchSuppliers = async () => {
     suppliers.value = res.data.items;
     logger.info(`[付款申请] 供应商选项加载成功，共 ${suppliers.value.length} 条`);
   } catch (e) {
-    logger.error(t('apModule.paymentRequest.loadSuppliersFailed'), e);
+    logAuxLoadFailure(t('apModule.paymentRequest.loadSuppliersFailed'), e);
     ElMessage.error(t('apModule.paymentRequest.loadSuppliersFailed'));
   }
 };

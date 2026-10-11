@@ -45,7 +45,7 @@ import type {
   CustomerOrderDrilldown,
   ProductOrderDrilldown,
 } from '@/api/bi';
-import logger from '@/utils/logger';
+import logger, { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -254,7 +254,7 @@ async function loadCustomerToOrder() {
     customerOrderDrill.value = unwrapBi(res);
   } catch (e) {
     ElMessage.error(t('biSalesAnalysis.message.customerToOrderFailed'));
-    logger.error(t('biSalesAnalysis.message.customerToOrderFailed'), e);
+    logAuxLoadFailure(t('biSalesAnalysis.message.customerToOrderFailed'), e);
   }
 }
 
@@ -271,7 +271,7 @@ async function loadProductToOrder() {
     productOrderDrill.value = unwrapBi(res);
   } catch (e) {
     ElMessage.error(t('biSalesAnalysis.message.productToOrderFailed'));
-    logger.error(t('biSalesAnalysis.message.productToOrderFailed'), e);
+    logAuxLoadFailure(t('biSalesAnalysis.message.productToOrderFailed'), e);
   }
 }
 

@@ -251,7 +251,7 @@ import {
 } from '@/api/ar';
 import type { Customer } from '@/api/customer';
 import { getCustomerList } from '@/api/customer';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
 import { isDialogDismissal } from '@/utils/monitor';
 
@@ -520,7 +520,7 @@ const loadCustomers = async () => {
     const res = await getCustomerList({ page: 1, page_size: 1000 });
     customers.value = res.data.items;
   } catch (error) {
-    logger.error(t('arModule.invoice.fetchListFailed'), error);
+    logAuxLoadFailure(t('arModule.invoice.fetchListFailed'), error);
     customers.value = [];
   }
 };
