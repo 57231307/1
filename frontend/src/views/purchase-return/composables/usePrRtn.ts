@@ -31,7 +31,7 @@ import {
 } from '@/api/purchase-inspection';
 import { useTableApi } from '@/composables/useTableApi';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { i18n } from '@/i18n';
 import { PURCHASE_RETURN_STATUS } from '@/utils/purchase-return-status';
 import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
@@ -228,36 +228,52 @@ export function usePrRtn() {
 
   /** 加载供应商列表 */
   const fetchSuppliers = async () => {
-    const res = await getSupplierList({ page: 1, page_size: 1000 });
-    suppliers.value = (res.data?.items || []).map((s: { id: number; supplier_name: string }) => ({
-      id: s.id,
-      name: s.supplier_name,
-    }));
+    try {
+      const res = await getSupplierList({ page: 1, page_size: 1000 });
+      suppliers.value = (res.data?.items || []).map((s: { id: number; supplier_name: string }) => ({
+        id: s.id,
+        name: s.supplier_name,
+      }));
+    } catch (error) {
+      logAuxLoadFailure('获取供应商列表失败', error);
+    }
   };
 
   /** 加载采购订单列表 */
   const fetchPurchaseOrders = async () => {
-    const res = await getPurchaseOrderList({ page: 1, page_size: 500 });
-    purchaseOrders.value = (res.data?.items || []) as unknown as PurchaseOrder[];
+    try {
+      const res = await getPurchaseOrderList({ page: 1, page_size: 500 });
+      purchaseOrders.value = (res.data?.items || []) as unknown as PurchaseOrder[];
+    } catch (error) {
+      logAuxLoadFailure('获取采购订单列表失败', error);
+    }
   };
 
   /** 加载产品列表 */
   const fetchProducts = async () => {
-    const res = await getProductList({ page: 1, page_size: 1000 });
-    const items = (res.data?.items ||
-      (res.data as unknown as { list?: Product[] })?.list ||
-      []) as Product[];
-    products.value = items.map(p => ({
-      id: p.id,
-      name: p.product_name,
-      price: 0,
-    }));
+    try {
+      const res = await getProductList({ page: 1, page_size: 1000 });
+      const items = (res.data?.items ||
+        (res.data as unknown as { list?: Product[] })?.list ||
+        []) as Product[];
+      products.value = items.map(p => ({
+        id: p.id,
+        name: p.product_name,
+        price: 0,
+      }));
+    } catch (error) {
+      logAuxLoadFailure('获取产品列表失败', error);
+    }
   };
 
   /** 加载仓库列表（供 warehouse_id 选择，后端 CreatePurchaseReturnRequest 接受该字段） */
   const fetchWarehouses = async () => {
-    const res = await getWarehouseList({ page: 1, page_size: 1000 });
-    warehouses.value = res.data?.items || [];
+    try {
+      const res = await getWarehouseList({ page: 1, page_size: 1000 });
+      warehouses.value = res.data?.items || [];
+    } catch (error) {
+      logAuxLoadFailure('获取仓库列表失败', error);
+    }
   };
 
   /** 查询：先同步日期范围，重置页码，触发加载 */
