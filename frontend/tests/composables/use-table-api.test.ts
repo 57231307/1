@@ -186,7 +186,7 @@ describe('useTableApi · 403 经 logAuxLoadFailure 传原始 error 以保分级�
     expect(mockLogAuxLoadFailure).toHaveBeenCalledWith(expect.any(String), err403);
     const passedErr = mockLogAuxLoadFailure.mock.calls[0][1];
     expect((passedErr as { response?: { status?: number } }).response?.status).toBe(403);
-    // 403 不应被降级前转成字符串或丢弃 response（#417 同类回归防线）
+    // 403 报错对象在分级前不得被转成字符串或丢弃 response，否则 logAuxLoadFailure 读不到 status 致分级失效
     expect(typeof passedErr).toBe('object');
   });
 });
