@@ -127,6 +127,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   cancelCollectionTask,
   confirmBadDebt,
@@ -176,6 +177,8 @@ async function load() {
     const [d, t] = await Promise.all([getBadDebtList(), getCollectionTaskList()]);
     debts.value = unwrapList<BadDebt>(d);
     tasks.value = unwrapList<CollectionTask>(t);
+  } catch (e: unknown) {
+    logAuxLoadFailure('坏账与催收任务加载失败', e);
   } finally {
     loading.value = false;
     loadingTasks.value = false;

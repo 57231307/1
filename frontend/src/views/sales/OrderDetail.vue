@@ -120,6 +120,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getSalesOrderById, type SalesOrder } from '@/api/sales';
 import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const route = useRoute();
 const router = useRouter();
@@ -139,6 +140,8 @@ onMounted(async () => {
   try {
     const res = await getSalesOrderById(Number(route.params.id));
     order.value = res.data ?? null;
+  } catch (e: unknown) {
+    logAuxLoadFailure('销售订单详情加载失败', e);
   } finally {
     loading.value = false;
   }

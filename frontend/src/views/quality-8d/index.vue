@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure, logger } from '@/utils/logger';
 import {
   advanceQuality8d,
   closeQuality8d,
@@ -124,6 +124,8 @@ async function load() {
   loading.value = true;
   try {
     list.value = unwrapList(await getQuality8dList());
+  } catch (e: unknown) {
+    logAuxLoadFailure('质量 8D 报告列表加载失败', e);
   } finally {
     loading.value = false;
   }

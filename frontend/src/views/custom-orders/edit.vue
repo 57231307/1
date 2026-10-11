@@ -162,6 +162,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { getCustomOrder, updateCustomOrder } from '@/api/custom-order';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const route = useRoute();
 const router = useRouter();
@@ -278,6 +279,8 @@ onMounted(async () => {
       const req = detail.custom_requirements as { note?: string } | null | undefined;
       customReqText.value = req?.note || '';
     }
+  } catch (e: unknown) {
+    logAuxLoadFailure('定制订单详情加载失败', e);
   } finally {
     loading.value = false;
   }

@@ -194,6 +194,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import {
@@ -240,6 +241,8 @@ async function loadInspections() {
   try {
     inspections.value = unwrapList(await getExportInspectionList());
     inspectionCols.value = objKeys(inspections.value, ['id'], 6);
+  } catch (e: unknown) {
+    logAuxLoadFailure('出口检验列表加载失败', e);
   } finally {
     loading.value = false;
   }

@@ -107,6 +107,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   createLaborContract,
   getLaborContractList,
@@ -152,6 +153,8 @@ async function load() {
   loading.value = true;
   try {
     contracts.value = unwrapList(await getLaborContractList());
+  } catch (e: unknown) {
+    logAuxLoadFailure('劳动合同列表加载失败', e);
   } finally {
     loading.value = false;
   }

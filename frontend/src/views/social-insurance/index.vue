@@ -94,6 +94,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   cancelInsurance,
   createSocialInsurance,
@@ -133,6 +134,8 @@ async function load() {
         worker_id: query.worker_id,
       })
     );
+  } catch (e: unknown) {
+    logAuxLoadFailure('社保参保记录加载失败', e);
   } finally {
     loading.value = false;
   }

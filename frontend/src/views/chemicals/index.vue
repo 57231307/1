@@ -164,6 +164,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   createChemical,
   deleteChemical,
@@ -216,6 +217,8 @@ async function load() {
   loading.value = true;
   try {
     chemicals.value = unwrapList(await getChemicalList());
+  } catch (e: unknown) {
+    logAuxLoadFailure('染化料列表加载失败', e);
   } finally {
     loading.value = false;
   }

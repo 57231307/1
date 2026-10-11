@@ -304,6 +304,7 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { computed, ref, reactive, onMounted, provide } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import StandardTab from './tabs/StandardTab.vue';
 import RecordTab from './tabs/RecordTab.vue';
@@ -356,6 +357,8 @@ const fetchStandards = async () => {
     const res = await getQualityStandardList();
     // 安全检查：防止后端返回 data 为 null 时崩溃
     standards.value = res.data || [];
+  } catch (e: unknown) {
+    logAuxLoadFailure('质量标准列表加载失败', e);
   } finally {
     standardLoading.value = false;
   }

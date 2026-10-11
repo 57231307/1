@@ -228,6 +228,7 @@ import {
   type ColorItemPayload,
   type IssueRecordInfo,
 } from '@/api/color-card';
+import { logAuxLoadFailure } from '@/utils/logger';
 import ColorCardGrid from '@/components/ColorCardGrid.vue';
 import ColorItemEditor from '@/components/ColorItemEditor.vue';
 import IssueRecordTimeline from '@/components/IssueRecordTimeline.vue';
@@ -315,6 +316,8 @@ const loadData = async () => {
       data?: { items?: IssueRecordInfo[] };
     };
     issueRecords.value = recordsRes.data?.items || [];
+  } catch (e: unknown) {
+    logAuxLoadFailure('色卡详情加载失败', e);
   } finally {
     loading.value = false;
   }

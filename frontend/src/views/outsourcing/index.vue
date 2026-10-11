@@ -633,7 +633,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure, logger } from '@/utils/logger';
 import { msg } from '@/utils/message';
 import { isDialogDismissal } from '@/utils/monitor';
 import {
@@ -742,6 +742,8 @@ async function load() {
     // （utils/response.rs:38-43），读取键固定 data.items，不做形状探测、不做 ?? 兜底。
     const res = await getOutsourcingOrderList();
     orders.value = res.data.items;
+  } catch (e: unknown) {
+    logAuxLoadFailure('委外订单列表加载失败', e);
   } finally {
     loading.value = false;
   }
@@ -1025,6 +1027,8 @@ async function loadReceipts() {
     // 非 res.items。按单一形状取键，不做 ?? 兜底。
     const res = await getOutsourcingReceiptList();
     receipts.value = res.data.items;
+  } catch (e: unknown) {
+    logAuxLoadFailure('委外收货列表加载失败', e);
   } finally {
     receiptLoading.value = false;
   }

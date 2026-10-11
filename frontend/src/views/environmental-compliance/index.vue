@@ -159,6 +159,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
@@ -195,6 +196,8 @@ async function loadPermits() {
   try {
     const res = await getPollutionPermitList({ page: 1, page_size: 50 });
     permits.value = (res.data?.items ?? []) as Array<Record<string, unknown>>;
+  } catch (e: unknown) {
+    logAuxLoadFailure('排污许可证加载失败', e);
   } finally {
     permitLoading.value = false;
   }
@@ -286,6 +289,8 @@ async function loadRecords() {
   try {
     const res = await getPollutantMonitoringRecordList({ page: 1, page_size: 50 });
     records.value = res.data?.items ?? [];
+  } catch (e: unknown) {
+    logAuxLoadFailure('污染物监测记录加载失败', e);
   } finally {
     recordLoading.value = false;
   }

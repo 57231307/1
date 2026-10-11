@@ -169,6 +169,7 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -217,6 +218,8 @@ async function loadSignatures() {
   try {
     signatures.value = unwrapList(await listSignedContracts());
     sigCols.value = cols(signatures.value, ['id'], 6);
+  } catch (e: unknown) {
+    logAuxLoadFailure('合同签署列表加载失败', e);
   } finally {
     loadingSig.value = false;
   }
@@ -273,6 +276,8 @@ async function loadShares() {
   try {
     shares.value = unwrapList(await listCustomerShares());
     shareCols.value = cols(shares.value, ['id'], 6);
+  } catch (e: unknown) {
+    logAuxLoadFailure('客户共享列表加载失败', e);
   } finally {
     loadingShare.value = false;
   }

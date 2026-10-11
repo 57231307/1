@@ -238,6 +238,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { logAuxLoadFailure } from '@/utils/logger';
 import type { ApiResponse } from '@/types/api';
 import {
   calculateWageRecord,
@@ -288,6 +289,8 @@ async function load() {
   loading.value = true;
   try {
     records.value = unwrapList(await getWageRecordList());
+  } catch (e: unknown) {
+    logAuxLoadFailure('工资单列表加载失败', e);
   } finally {
     loading.value = false;
   }

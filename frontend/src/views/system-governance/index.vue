@@ -299,6 +299,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
@@ -522,6 +523,8 @@ async function loadRelations() {
   try {
     relations.value = unwrapDataArray(await getRoleRelations());
     relationCols.value = cols(relations.value, ['id'], 6);
+  } catch (e: unknown) {
+    logAuxLoadFailure('角色关系加载失败', e);
   } finally {
     loadingRelations.value = false;
   }
@@ -558,6 +561,8 @@ async function loadModels() {
   try {
     modelVersions.value = unwrapDataArray(await getModelVersionList());
     modelCols.value = cols(modelVersions.value, ['id'], 7);
+  } catch (e: unknown) {
+    logAuxLoadFailure('模型版本加载失败', e);
   } finally {
     loadingModels.value = false;
   }
@@ -613,6 +618,8 @@ async function loadDevices() {
     deviceCols.value = cols(devices.value, ['id'], 7);
     const c = count as { count?: number; data?: { count?: number } };
     onlineCount.value = c?.count ?? c?.data?.count ?? 0;
+  } catch (e: unknown) {
+    logAuxLoadFailure('设备列表加载失败', e);
   } finally {
     loadingDevices.value = false;
   }
