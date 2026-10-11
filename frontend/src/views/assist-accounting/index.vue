@@ -28,7 +28,7 @@ import {
   type AssistSummaryResponse,
 } from '@/api/assist-accounting';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -59,7 +59,7 @@ const {
     warehouse_id: '',
   },
   onError: (err: unknown) => {
-    logger.error(t('assistAccounting.message.fetchRecordsFailed'), err);
+    logAuxLoadFailure(t('assistAccounting.message.fetchRecordsFailed'), err);
     ElMessage.error(t('assistAccounting.message.fetchRecordsFailed'));
   },
 });
@@ -106,7 +106,7 @@ const loadDimensions = async () => {
     const res = await getAssistDimensionList();
     dimensions.value = res.data;
   } catch (error) {
-    logger.error(t('assistAccounting.message.loadDimensionFailed'), error);
+    logAuxLoadFailure(t('assistAccounting.message.loadDimensionFailed'), error);
     ElMessage.error(t('assistAccounting.message.loadDimensionFailed'));
   }
 };
@@ -122,7 +122,7 @@ const loadSummary = async () => {
     });
     summaryData.value = res.data;
   } catch (error) {
-    logger.error(t('assistAccounting.message.loadSummaryFailed'), error);
+    logAuxLoadFailure(t('assistAccounting.message.loadSummaryFailed'), error);
     ElMessage.error(t('assistAccounting.message.loadSummaryFailed'));
   } finally {
     summaryLoading.value = false;

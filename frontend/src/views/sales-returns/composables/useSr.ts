@@ -156,7 +156,7 @@ export function useSr() {
     } catch (error: unknown) {
       // v11 批次 163 P2-1 修复：catch (error: any) 改为 unknown + 类型守卫
       const errMsg = error instanceof Error ? error.message : String(error);
-      logger.error('[sales-return] 列表加载失败', errMsg);
+      logAuxLoadFailure('[sales-return] 列表加载失败', error);
       ElMessage.error(errMsg || msg.translate('loadReturnListFailed'));
     } finally {
       loading.value = false;

@@ -100,7 +100,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
-import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
@@ -154,7 +154,7 @@ const fetchNotificationSetting = async () => {
     notificationForm.finance_notification_type = d.finance_notification_type;
     notificationForm.system_notification_type = d.system_notification_type;
   } catch (_e) {
-    logger.error(t('system.notification.message.loadFailed'), _e);
+    logAuxLoadFailure(t('system.notification.message.loadFailed'), _e);
   }
 };
 
