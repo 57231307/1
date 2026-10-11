@@ -173,6 +173,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { useI18n } from 'vue-i18n';
@@ -224,6 +225,8 @@ async function loadSubscriptions() {
   try {
     const res = await getSubscriptionList({ page: 1, page_size: 50 });
     subscriptions.value = res.data.items;
+  } catch (e: unknown) {
+    logAuxLoadFailure('加载订阅列表失败', e);
   } finally {
     subLoading.value = false;
   }
