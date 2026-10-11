@@ -4,6 +4,7 @@
  */
 import { reactive, ref, onMounted } from 'vue';
 import { msg } from '@/utils/message';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   getSupplierProductList,
   updateSupplierProduct,
@@ -51,7 +52,7 @@ export function useSupplierProductList() {
       const res = await getSupplierList({ page_size: 200 });
       suppliers.value = res.data.items;
     } catch (error: unknown) {
-      console.error('[supplier-product] loadSuppliers error:', error);
+      logAuxLoadFailure('加载供应商列表失败', error);
     }
   };
 

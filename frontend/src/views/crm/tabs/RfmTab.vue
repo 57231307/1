@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 // D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
@@ -132,7 +132,7 @@ const fetchRfmCustomers = async () => {
     // 列表加载成功即触发一次批量档位联显（页内 converted_customer_id 集合，独立于分布聚合面）
     fetchRfmSegments(rfmCustomers.value);
   } catch (error) {
-    logger.error(t('crmRfm.loadFailed'), error);
+    logAuxLoadFailure(t('crmRfm.loadFailed'), error);
     rfmCustomers.value = [];
   } finally {
     rfmLoading.value = false;

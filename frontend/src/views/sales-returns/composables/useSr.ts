@@ -195,7 +195,7 @@ export function useSr() {
       const res = await getSalesOrderList({ status: 'completed' });
       salesOrderList.value = (res.data?.items || []) as unknown as SalesOrderOption[];
     } catch (error: unknown) {
-      logger.error('加载销售订单失败', error instanceof Error ? error.message : String(error));
+      logAuxLoadFailure('加载销售订单失败', error);
     }
   };
 

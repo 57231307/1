@@ -234,7 +234,7 @@ export function usePi() {
           supplier_id: r.supplier_id,
         }));
     } catch (error) {
-      logger.error('[purchase-inspection] 加载入库单列表失败', error);
+      logAuxLoadFailure('[purchase-inspection] 加载入库单列表失败', error);
     }
   };
 

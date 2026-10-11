@@ -3,6 +3,7 @@
  */
 import { reactive, ref, onMounted } from 'vue';
 import { msg } from '@/utils/message';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   getSkuMappingList,
   deleteSkuMapping,
@@ -48,7 +49,7 @@ export function useSkuMappingList() {
       const res = await getProductList({ page_size: 200 });
       products.value = res.data.items;
     } catch (error: unknown) {
-      console.error('[sku-mapping] loadProducts error:', error);
+      logAuxLoadFailure('加载产品列表失败', error);
     }
   };
 
@@ -57,7 +58,7 @@ export function useSkuMappingList() {
       const res = await getSupplierList({ page_size: 200 });
       suppliers.value = res.data.items;
     } catch (error: unknown) {
-      console.error('[sku-mapping] loadSuppliers error:', error);
+      logAuxLoadFailure('加载供应商列表失败', error);
     }
   };
 
