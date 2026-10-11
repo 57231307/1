@@ -98,8 +98,11 @@ async function seedRoleAndUser(
   CLEANUP.push({ path: `/roles/${roleId}`, label: `role#${roleId}` });
 
   const username = `f29${tag.toLowerCase()}u${ts}`;
-  // 密码强度：>=8 + 混合类型 + 非常见 + 不含用户名子串（user_handler.rs:44-72）
-  const password = `E2p!${ts}${tag}9qX`;
+  // 密码强度需满 8 位、混合类型、非常见、不含键盘序列（见 user_handler.rs）。
+  // ts 是毫秒尾数 6 位，直接连排可能含 4 连数字行子串（例如 2345 或 5678），
+  // 命中 has_keyboard_sequence 硬错误会让 POST users 偶发 400。
+  // 用一个字母把 ts 断成各 3 位两段，保证最长数字连排不超 3，键盘序列判据永不命中。
+  const password = `E2p!${ts.slice(0, 3)}v${ts.slice(3)}${tag}9qX`;
   const user = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/users', {
     username,
     password,
