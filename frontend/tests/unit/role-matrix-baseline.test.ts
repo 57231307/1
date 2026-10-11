@@ -49,9 +49,51 @@ const SPEC_PATH = resolve('e2e/traversal/44-role-matrix.spec.ts');
 /**
  * 已评审入库基线全集（人工审阅后的唯一权威清单）。
  * 扩充条件：某角色候选基线经人工逐条核对权限策略后另行入库，本锁必须同步改为
- * 显式评审结果——禁止为转绿把生成器候选直接塞进这里。
+ * 显式评审结果，禁止为转绿把生成器候选直接塞进这里。
+ * 现全集为矩阵六个分组的 33 个角色码。admin 与 e2e_noperm 为初始甲类，
+ * 其余 31 个角色基线为逐角色核对权限策略后人工评审入库的结果。
  */
-const APPROVED_BASELINES = ['admin.json', 'e2e_noperm.json'];
+const APPROVED_BASELINES = [
+  'admin.json',
+  'e2e_noperm.json',
+  // sales 分组
+  'sales_manager.json',
+  'salesperson.json',
+  'after_sales_manager.json',
+  'customer_service.json',
+  'report_viewer.json',
+  // admin 分组
+  'system_admin.json',
+  'auditor.json',
+  // finance 分组
+  'finance_manager.json',
+  'accountant.json',
+  'cashier.json',
+  'cost_accountant.json',
+  'inventory_accountant.json',
+  'tax_accountant.json',
+  'ap_accountant.json',
+  'ar_accountant.json',
+  'fixed_assets_accountant.json',
+  'budget_analyst.json',
+  // supply 分组
+  'purchasing_manager.json',
+  'purchaser.json',
+  'procurement_specialist.json',
+  'supplier_manager.json',
+  'warehouse_manager.json',
+  'warehouse_keeper.json',
+  // boundary 分组
+  'e2e_readonly.json',
+  'department_manager.json',
+  // production 分组
+  'production_manager.json',
+  'production_worker.json',
+  'dyeing_technician.json',
+  'color_card_manager.json',
+  'quality_manager.json',
+  'quality_inspector.json',
+];
 
 function syntheticMap(role: string, reachableRoutes: string[]): RoleAccessMap {
   const reachSet = new Set(reachableRoutes);
@@ -169,21 +211,26 @@ describe('基线轨语义：有基线=比对防回归，无基线=如实报告�
     }
   });
 
-  it('负向锁：未入库岗位（purchaser）现场有实测可达 → mode=missing，候选如实落盘供判红，绝不返回 compare', async () => {
+  it('负向锁：无基线岗位（合成探针角色）现场有实测可达 → mode=missing，候选如实落盘供判红，绝不返回 compare', async () => {
     const observedReachable = ['/dashboard', '/purchase'];
-    const outcome = await resolveRoleBaseline(syntheticMap('purchaser', observedReachable));
+    // 用不在 APPROVED_BASELINES 白名单内的合成角色，因沙箱只预置已评审基线，
+    // 该角色无对应基线文件，必走 missing 分支（已入库角色由上一条 compare 用例覆盖）
+    const unapprovedRole = 'probe_unreviewed_role';
+    const outcome = await resolveRoleBaseline(syntheticMap(unapprovedRole, observedReachable));
     // 调用方（44-role-matrix.spec.ts）对 mode!=='compare' 的分支是 throw 哨兵判红；
     // "missing" 就是判红信号，永不是放行信号
     expect(outcome.mode).toBe('missing');
     if (outcome.mode === 'missing') {
       // 基线路径必须指向已评审基线目录（相对 Playwright/vitest 工作目录 frontend/ 的口径）
-      expect(outcome.baselinePath).toBe('e2e/traversal/access-map-baseline/purchaser.json');
+      expect(outcome.baselinePath).toBe(
+        'e2e/traversal/access-map-baseline/probe_unreviewed_role.json'
+      );
       // 候选快照如实记录现场实测可达集（差异报告的真实内容，不掺派生假设）
       const candidate = JSON.parse(readFileSync(outcome.candidatePath, 'utf-8')) as {
         role: unknown;
         reachableRoutes: string[];
       };
-      expect(candidate.role).toBe('purchaser');
+      expect(candidate.role).toBe(unapprovedRole);
       expect(candidate.reachableRoutes).toEqual(observedReachable);
       // 未入库角色不得"因为没有基线"而被跳过：missing 分支必须产出可读候选文件本体
       expect(existsSync(outcome.candidatePath), 'missing 分支必须写出候选快照供人工审阅').toBe(
