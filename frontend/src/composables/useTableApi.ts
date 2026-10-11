@@ -4,7 +4,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue';
 import type { Ref } from 'vue';
 import { request } from '@/api/request';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { msg } from '@/utils/message';
 import type { ApiResponse } from '@/types/api';
 
@@ -174,15 +174,18 @@ export function useTableApi<T = unknown>(
   let lastSchemaToastAt = 0;
 
   /**
-   * 终端失败上报：契约/形状错误必须「可见」——
-   * - logger.error：技术细节（期望键 vs 实际键、url），始终输出（生产环境亦用于监控）；
-   * - msg toast：仅契约错误弹（网络/5xx 已由 axios 拦截器统一弹，重复弹会双条）；
-   *   若调用方传了 onError，则由调用方自行决定 UI（本处不再弹，避免与既有提示叠加）。
-   * 单次去重：同一表格同一契约错误在去重窗口内只弹一次。
+   * 终端失败上报，按错误性质分级，避免把正确的鉴权拒绝误报成页面故障。
+   * - 契约/形状错误、5xx、网络错误，走 logger.error，外显技术细节（期望键 vs 实际键、url），
+   *   属真实缺陷，须以 error 级暴露并供生产监控；
+   * - 权限门 403，走 logAuxLoadFailure 降为 warn，这是后端按细资源正确拒绝越权读取的预期结果
+   *   （粗域路由可达但缺该页细读键），不是页面健康缺陷，用户可见提示仍由 axios 拦截器负责；
+   * - msg toast，仅契约错误弹（网络与 5xx 已由拦截器统一弹，重复弹会双条），
+   *   若调用方传了 onError，则由调用方自行决定 UI，本处不再弹以避免与既有提示叠加。
+   * 单次去重，同一表格同一契约错误在去重窗口内只弹一次。
    */
   const reportTerminalError = (err: unknown, isSchema: boolean): void => {
     const detail = err instanceof Error ? err.message : String(err);
-    logger.error(
+    logAuxLoadFailure(
       `[useTableApi] ${url} 列表取数失败（${isSchema ? '响应结构不符合契约' : '请求失败'}）`,
       err
     );

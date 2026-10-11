@@ -5,7 +5,7 @@
  *  - detectList/detectTotal 命中「行数即总数」/正常分页分支；
  *  - 分页响应缺 total、无列表字段 → 抛 SchemaMismatchError；
  *  - 契约错误**不重试**（请求次数恒为 1），网络/5xx 瞬态错误**保持重试**；
- *  - 失败经 logger.error 显式留痕；契约错误无 onError 时经 msg 弹一次，网络错误不重复弹。
+ *  - 失败经 logAuxLoadFailure 分级留痕（403 降 warn、契约漂移与 5xx 与网络保持 error）；契约错误无 onError 时经 msg 弹一次，网络错误不重复弹。
  *
  * 本地按任务允许 `npx vitest run`；仓库既有约定「视图级覆盖由 CI e2e 承担」，此处仅测非视图 TS。
  */
@@ -19,17 +19,17 @@ vi.mock('@/api/request', () => ({
   request: { get: (...args: unknown[]) => mockRequestGet(...args) },
 }));
 
-// 观测 logger / msg 两条上报通道
-const mockLoggerError = vi.fn();
+// 观测 logAuxLoadFailure 分级上报通道（useTableApi 终态失败现经此函数分级留痕）
+const mockLogAuxLoadFailure = vi.fn();
 vi.mock('@/utils/logger', () => ({
   logger: {
-    error: (...args: unknown[]) => mockLoggerError(...args),
+    error: vi.fn(),
     warn: vi.fn(),
     info: vi.fn(),
     debug: vi.fn(),
   },
-  logAuxLoadFailure: vi.fn(),
-  default: { error: (...args: unknown[]) => mockLoggerError(...args) },
+  logAuxLoadFailure: (...args: unknown[]) => mockLogAuxLoadFailure(...args),
+  default: { error: vi.fn() },
 }));
 
 const mockMsgError = vi.fn();
@@ -60,7 +60,7 @@ function mountTable(options: UseTableApiOptions | string) {
 
 beforeEach(() => {
   mockRequestGet.mockReset();
-  mockLoggerError.mockReset();
+  mockLogAuxLoadFailure.mockReset();
   mockMsgError.mockReset();
 });
 
@@ -110,8 +110,8 @@ describe('useTableApi · 契约错误抛错且不重试', () => {
     await expect(api.refresh()).rejects.toBeInstanceOf(SchemaMismatchError);
     expect(isSchemaMismatchError(new SchemaMismatchError('total', '/x', 'e'))).toBe(true);
     expect(mockRequestGet).toHaveBeenCalledTimes(1); // 未重试
-    // 失败可见：logger.error 落痕；无 onError ⇒ 契约错误经 msg 弹一次
-    expect(mockLoggerError).toHaveBeenCalled();
+    // 失败分级留痕经 logAuxLoadFailure；无 onError ⇒ 契约错误经 msg 弹一次
+    expect(mockLogAuxLoadFailure).toHaveBeenCalled();
     expect(mockMsgError).toHaveBeenCalledWith('loadFailed');
   });
 
@@ -122,8 +122,8 @@ describe('useTableApi · 契约错误抛错且不重试', () => {
     await api.refresh().catch(() => undefined); // 同文案，窗口内应被去重
     await api.refresh().catch(() => undefined);
     expect(mockMsgError).toHaveBeenCalledTimes(1);
-    // 但留痕不丢：每次失败都进 logger
-    expect(mockLoggerError).toHaveBeenCalledTimes(3);
+    // 但留痕不丢：每次失败都进 logAuxLoadFailure
+    expect(mockLogAuxLoadFailure).toHaveBeenCalledTimes(3);
   });
 
   it('⑤ 响应无可识别列表字段 → 抛 SchemaMismatchError(kind=list) 且不重试', async () => {
@@ -146,7 +146,7 @@ describe('useTableApi · 契约错误抛错且不重试', () => {
     await flushPromises();
     // 悬浮加载只发 1 次（契约错误不重试）
     expect(mockRequestGet).toHaveBeenCalledTimes(1);
-    expect(mockLoggerError).toHaveBeenCalled();
+    expect(mockLogAuxLoadFailure).toHaveBeenCalled();
     expect(mockMsgError).toHaveBeenCalledWith('loadFailed');
   });
 });
@@ -159,15 +159,34 @@ describe('useTableApi · 网络/5xx 瞬态错误仍保持重试', () => {
     // 先让 mount 里的初始悬浮链跑完（1 首次 + 2 重试），再单独计量 refresh 链
     await vi.runAllTimersAsync();
     mockRequestGet.mockClear();
-    mockLoggerError.mockClear();
+    mockLogAuxLoadFailure.mockClear();
     // 先把断言挂上再推进定时器，避免 refresh 链的 rejection 短暂无人处理
     const assertion = expect(api.refresh()).rejects.toThrow('Network Error');
     await vi.runAllTimersAsync();
     await assertion;
     // 首次 + 2 次重试 = 3 次请求
     expect(mockRequestGet).toHaveBeenCalledTimes(3);
-    // 终端留痕走 logger，但网络错误不在本 composable 重复弹 msg（axios 拦截器已负责）
-    expect(mockLoggerError).toHaveBeenCalled();
+    // 终端留痕经 logAuxLoadFailure（网络错误无 response.status，内部分级仍落 error），但不在本 composable 重复弹 msg（axios 拦截器已负责）
+    expect(mockLogAuxLoadFailure).toHaveBeenCalled();
     expect(mockMsgError).not.toHaveBeenCalled();
+  });
+});
+
+describe('useTableApi · 403 经 logAuxLoadFailure 传原始 error 以保分级判据', () => {
+  it('列表 403 终态失败把带 response.status 的原始 error 交给 logAuxLoadFailure（非字符串，锁死分级可读 status）', async () => {
+    vi.useFakeTimers();
+    const err403 = { response: { status: 403 }, message: 'forbidden' };
+    mockRequestGet.mockRejectedValue(err403);
+    const { api } = mountTable({ url: '/forbidden', retryCount: 0 });
+    await vi.runAllTimersAsync();
+    mockRequestGet.mockClear();
+    mockLogAuxLoadFailure.mockClear();
+    await api.refresh().catch(() => undefined);
+    // 第二实参必须是原始 error 对象，logAuxLoadFailure 才能读 response.status 完成 403 降 warn
+    expect(mockLogAuxLoadFailure).toHaveBeenCalledWith(expect.any(String), err403);
+    const passedErr = mockLogAuxLoadFailure.mock.calls[0][1];
+    expect((passedErr as { response?: { status?: number } }).response?.status).toBe(403);
+    // 403 不应被降级前转成字符串或丢弃 response（#417 同类回归防线）
+    expect(typeof passedErr).toBe('object');
   });
 });
