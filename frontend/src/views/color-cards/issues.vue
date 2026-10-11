@@ -440,8 +440,12 @@ const loadCards = async () => {
 };
 
 const loadRecords = async () => {
-  const res = await getIssueList({ page_size: 100 });
-  issueRecords.value = res.data?.items || [];
+  try {
+    const res = await getIssueList({ page_size: 100 });
+    issueRecords.value = res.data?.items || [];
+  } catch (error) {
+    logAuxLoadFailure('加载色号问题记录失败', error);
+  }
 };
 
 const handleIssue = async () => {
