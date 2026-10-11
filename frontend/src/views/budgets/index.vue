@@ -242,7 +242,7 @@ import {
   type BudgetVersion,
   type BudgetPlan,
 } from '@/api/budget';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -509,7 +509,7 @@ const fetchPlanList = async () => {
     const res = await getBudgetPlanList({ page: 1, page_size: 200 });
     planList.value = Array.isArray(res.data) ? res.data : [];
   } catch (error) {
-    logger.error('加载预算方案列表失败', error);
+    logAuxLoadFailure('加载预算方案列表失败', error);
   }
 };
 

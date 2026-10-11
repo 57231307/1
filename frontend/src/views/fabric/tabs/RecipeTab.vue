@@ -101,7 +101,7 @@ import {
   type DyeRecipe,
   type DyeRecipeStatus,
 } from '@/api/dye-recipe';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -150,8 +150,7 @@ const fetchRecipes = async () => {
     // 不做「数组或 {items}」双形状宽容，那会让契约漂移永远暴露不出来。
     recipes.value = res.data.items;
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('fabric.recipeTab.fetchFailed'), err.message);
+    logAuxLoadFailure(t('fabric.recipeTab.fetchFailed'), error);
   } finally {
     loading.value = false;
   }

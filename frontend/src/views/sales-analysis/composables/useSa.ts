@@ -15,7 +15,7 @@ import {
   type SalesTarget,
   type SalesTrendResult,
 } from '@/api/sales-analysis';
-import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 /** 销售分析主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
 export const useSa = () => {
@@ -58,7 +58,7 @@ export const useSa = () => {
         Object.assign(stats, res.data);
       }
     } catch (error) {
-      logger.error('获取统计数据失败:', error);
+      logAuxLoadFailure('获取统计数据失败:', error);
     }
   };
 
@@ -96,7 +96,7 @@ export const useSa = () => {
       const res = await fetchSalesTargetList();
       salesTargets.value = res.data || [];
     } catch (error) {
-      logger.error('获取销售目标失败:', error);
+      logAuxLoadFailure('获取销售目标失败:', error);
     }
   };
 
@@ -107,7 +107,7 @@ export const useSa = () => {
       const res = await fetchSalesTrendData({ granularity: trendGranularity.value });
       trendData.value = res.data;
     } catch (error) {
-      logger.error('获取销售趋势数据失败:', error);
+      logAuxLoadFailure('获取销售趋势数据失败:', error);
     }
   };
 

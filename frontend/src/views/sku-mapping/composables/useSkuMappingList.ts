@@ -38,7 +38,7 @@ export function useSkuMappingList() {
       total.value = res.data.total;
     } catch (error: unknown) {
       msg.loadFail();
-      console.error('[sku-mapping] loadData error:', error);
+      logAuxLoadFailure('[sku-mapping] loadData error:', error);
     } finally {
       loading.value = false;
     }

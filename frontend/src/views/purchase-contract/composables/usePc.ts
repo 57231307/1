@@ -55,7 +55,7 @@ export function usePc() {
       date_range: [] as string[],
     },
     onError: (err: unknown) => {
-      logger.error('获取采购合同列表失败:', err);
+      logAuxLoadFailure('获取采购合同列表失败:', err);
     },
   });
 

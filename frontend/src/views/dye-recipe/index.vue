@@ -380,7 +380,7 @@ import {
 } from '@/api/dye-recipe';
 import { DYE_RECIPE_STATUS } from '@/api/dye-recipe';
 import type { DyeRecipe, DyeRecipeStatus, DyeRecipeUpdatePayload } from '@/api/dye-recipe';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { isDialogDismissal } from '@/utils/monitor';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -405,7 +405,7 @@ const {
   setQueryParam,
 } = useTableApi<DyeRecipe>({
   url: '/production/dye-recipes',
-  onError: (e: unknown) => logger.error(t('dyeRecipe.index.messageFetchFailed'), String(e)),
+  onError: (e: unknown) => logAuxLoadFailure(t('dyeRecipe.index.messageFetchFailed'), e),
 });
 
 // 对话框

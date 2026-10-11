@@ -11,7 +11,7 @@ import { ref, reactive } from 'vue';
 import { msg } from '@/utils/message';
 import type { ImportTemplate, ImportTask } from '@/api/data-import';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 /**
  * 数据导入主业务 composable
@@ -40,7 +40,7 @@ export function useDi() {
       module: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取模板列表失败', err);
+      logAuxLoadFailure('获取模板列表失败', err);
       msg.error('loadTemplateListFailed');
     },
   });
@@ -61,7 +61,7 @@ export function useDi() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取任务列表失败', err);
+      logAuxLoadFailure('获取任务列表失败', err);
       msg.error('loadTaskListFailed');
     },
   });

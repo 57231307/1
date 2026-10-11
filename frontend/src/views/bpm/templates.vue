@@ -215,7 +215,7 @@ import { MoreFilled, Document } from '@element-plus/icons-vue';
 // D14 Batch 5b：原 bpmEnhancedApi 对象已转风格 B 函数
 import { createBpmFromTemplate, deleteBpmTemplate, getBpmTemplateById } from '@/api/bpm-enhanced';
 import type { ProcessTemplate, CreateProcessDefinitionPayload } from '@/api/bpm-enhanced';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -263,7 +263,7 @@ const {
   // 后端 page_to_frontend_json 以统一分页信封承载列表，键为 `items`，显式钉住 listKey。
   listKey: 'items',
   defaultPageSize: 12,
-  onError: (err: unknown) => logger.error(String(err)),
+  onError: (err: unknown) => logAuxLoadFailure(String(err), err),
 });
 
 // 分页（useTableApi 自动 watch page/pageSize 变化触发重载）

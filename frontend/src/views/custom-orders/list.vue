@@ -172,7 +172,7 @@ import {
   customOrderStatusLabelKey,
   customOrderStatusTagType,
 } from '@/utils/custom-order-status';
-import logger from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 const router = useRouter();
@@ -193,8 +193,8 @@ const {
 } = useTableApi<CustomOrderListItem>({
   url: '/custom-orders',
   listKey: 'items',
-  onError: () => {
-    logger.error(t('customOrders.list.messageLoadFailed'));
+  onError: (err: unknown) => {
+    logAuxLoadFailure(t('customOrders.list.messageLoadFailed'), err);
     ElMessage.error(t('customOrders.list.messageLoadFailed'));
   },
 });

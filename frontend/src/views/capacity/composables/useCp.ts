@@ -20,7 +20,7 @@ import type {
   CapacityRow,
 } from '@/api/capacity';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const toDateInput = (d: Date): string => d.toISOString().slice(0, 10);
 
@@ -46,7 +46,7 @@ export const useCp = () => {
     listKey: 'data',
     defaultPageSize: 10,
     onError: (err: unknown) => {
-      logger.error('获取工作中心列表失败:', err);
+      logAuxLoadFailure('获取工作中心列表失败:', err);
       msg.error('loadWorkCenterFailed');
     },
   });
@@ -140,7 +140,7 @@ export const useCp = () => {
       if (res.data) loadItems.value = res.data;
       else loadItems.value = [];
     } catch (error: unknown) {
-      logger.error('获取产能负荷分析失败:', error);
+      logAuxLoadFailure('获取产能负荷分析失败:', error);
       msg.error('loadCapacityOverviewFailed');
     }
   };

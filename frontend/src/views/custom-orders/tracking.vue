@@ -114,7 +114,7 @@ import type {
 // 订单状态词表唯一权威在 utils/custom-order-status.ts（与后端 custom_order::ALL 11 态逐字符同源）：
 // 视图不手写第二套 map，也不按下标取派生表（未知 token 会静默返回 undefined，等同兜底）
 import { customOrderStatusLabelKey, customOrderStatusTagType } from '@/utils/custom-order-status';
-import logger from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const route = useRoute();
 const { t } = useI18n({ useScope: 'global' });
@@ -202,7 +202,7 @@ async function loadData() {
     const res = await getTimeline(id);
     timeline.value = res.data || null;
   } catch (e) {
-    logger.error(t('customOrders.tracking.messageLoadFailed'), e);
+    logAuxLoadFailure(t('customOrders.tracking.messageLoadFailed'), e);
     ElMessage.error(t('customOrders.tracking.messageLoadFailed'));
   } finally {
     loading.value = false;

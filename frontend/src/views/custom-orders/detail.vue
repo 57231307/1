@@ -257,7 +257,7 @@ import type { CustomOrderDetail } from '@/api/custom-order';
 import { customOrderStatusLabelKey, customOrderStatusTagType } from '@/utils/custom-order-status';
 import ProcessFlow from '@/components/ProcessFlow.vue';
 import QualityCheck from '@/components/QualityCheck.vue';
-import logger from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import AfterSalesPanel from '@/components/AfterSalesPanel.vue';
 
 // v11 批次 181 P2-1 修复：CustomOrderDetail 已声明 quality_issues 和 after_sales 字段
@@ -307,7 +307,7 @@ async function loadData() {
     const res = await getCustomOrder(id);
     order.value = (res.data || res) as unknown as CustomOrderDetail;
   } catch (e) {
-    logger.error(t('customOrders.detail.messageLoadFailed'), e);
+    logAuxLoadFailure(t('customOrders.detail.messageLoadFailed'), e);
     ElMessage.error(t('customOrders.detail.messageLoadFailed'));
   } finally {
     loading.value = false;

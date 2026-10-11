@@ -115,7 +115,7 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { reactive, ref, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -172,7 +172,7 @@ const fetchWebhooks = async () => {
     // list_integrations 出参为 ApiResponse<Vec<WebhookIntegrationItem>>，业务数组即 data 字段
     webhookList.value = res.data;
   } catch (_e) {
-    logger.error(t('system.webhook.message.loadFailed'), _e);
+    logAuxLoadFailure(t('system.webhook.message.loadFailed'), _e);
     webhookList.value = [];
   } finally {
     webhookLoading.value = false;

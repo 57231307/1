@@ -16,7 +16,7 @@ import {
   type ReplenishmentSuggestion,
 } from '@/api/material-shortage';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 /**
  * 物料短缺主业务 composable
@@ -50,7 +50,7 @@ export function useMs() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取缺料列表失败', err);
+      logAuxLoadFailure('获取缺料列表失败', err);
       msg.error('loadMaterialShortageFailed');
     },
   });
@@ -69,7 +69,7 @@ export function useMs() {
       suggestions.value = res.data?.suggestions ?? [];
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : '获取补货建议失败';
-      logger.error(errMsg);
+      logAuxLoadFailure(errMsg, error);
       ElMessage.error(errMsg);
       suggestions.value = [];
     } finally {
@@ -86,7 +86,7 @@ export function useMs() {
       summary.value = (res.data || {}) as MaterialShortageSummary;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : '获取缺料汇总失败';
-      logger.error(errMsg);
+      logAuxLoadFailure(errMsg, error);
       ElMessage.error(errMsg);
       summary.value = {} as MaterialShortageSummary;
     }

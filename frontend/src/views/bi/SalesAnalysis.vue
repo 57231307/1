@@ -107,7 +107,7 @@ async function loadAll() {
     renderCharts();
   } catch (e) {
     ElMessage.error(t('biSalesAnalysis.message.loadFailed'));
-    logger.error(t('biSalesAnalysis.message.loadFailed'), e);
+    logAuxLoadFailure(t('biSalesAnalysis.message.loadFailed'), e);
   }
 }
 

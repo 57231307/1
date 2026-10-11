@@ -25,7 +25,7 @@ import { Search, Box, Refresh } from '@element-plus/icons-vue';
 import { scanToShip, scanInventory, type ScanData, type ScanHistory } from '@/api/barcode-scanner';
 import type { ApiResponse } from '@/types/api';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import BarcodeScannerDialog from '@/components/BarcodeScannerDialog.vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -76,7 +76,7 @@ const {
   url: '/scanner/history',
   defaultPageSize: 20,
   onError: (err: unknown) => {
-    logger.error(t('barcodeScanner.message.fetchHistoryFailed'), err);
+    logAuxLoadFailure(t('barcodeScanner.message.fetchHistoryFailed'), err);
     ElMessage.error(t('barcodeScanner.message.fetchHistoryFailed'));
   },
 });

@@ -115,7 +115,7 @@ export function usePrRtn() {
       end_date: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取数据失败:', err);
+      logAuxLoadFailure('获取数据失败:', err);
     },
   });
 

@@ -7,7 +7,7 @@
  */
 import { reactive, watch } from 'vue';
 import { type ApprovalTask } from '@/api/bpm-enhanced';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 import { isOverdue } from './bpmApFmts';
 
@@ -34,7 +34,7 @@ export function useBpmAp() {
     // 禁止依赖 useTableApi 的 list→items→data→results 顺序探测兜底。
     listKey: 'items',
     defaultPageSize: 10,
-    onError: (err: unknown) => logger.error(String(err)),
+    onError: (err: unknown) => logAuxLoadFailure(String(err), err),
   });
 
   // 已办任务 - 接入 useTableApi（批次 283）
@@ -50,7 +50,7 @@ export function useBpmAp() {
     // 同 pending：后端返回 PaginatedResponse{items}，显式钉 listKey='items'。
     listKey: 'items',
     defaultPageSize: 10,
-    onError: (err: unknown) => logger.error(String(err)),
+    onError: (err: unknown) => logAuxLoadFailure(String(err), err),
   });
 
   // 批次 283：监听待办数据变化更新统计（pending 总数 + urgent 紧急数）

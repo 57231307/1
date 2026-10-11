@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
@@ -113,7 +113,7 @@ const fetchSystemVersion = async () => {
     systemVersion.value = res.data.version;
     lastUpdate.value = res.data.release_date;
   } catch (_e) {
-    logger.error(t('system.systemUpdate.message.loadVersionFailed'), _e);
+    logAuxLoadFailure(t('system.systemUpdate.message.loadVersionFailed'), _e);
   }
 };
 

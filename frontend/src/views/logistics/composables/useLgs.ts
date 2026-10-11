@@ -15,7 +15,7 @@ import { getSalesOrderList } from '@/api/sales';
 import { type LogisticsWaybill } from '@/api/logistics';
 import { WAYBILL_STATUS } from '@/constants/waybill-status';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import type { LgsStatusForm } from './useLgsProc';
 
 /**
@@ -71,7 +71,7 @@ export function useLgs() {
       end_date: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取数据失败:', err);
+      logAuxLoadFailure('获取数据失败:', err);
     },
   });
 
@@ -148,7 +148,7 @@ export function useLgs() {
       const res = await getSalesOrderList({ status: 'approved', page: 1, page_size: 100 });
       orders.value = res.data.items.map(o => ({ id: o.id, order_no: o.order_no }));
     } catch (err: unknown) {
-      logger.error('加载关联订单失败:', err);
+      logAuxLoadFailure('加载关联订单失败:', err);
     }
   };
 

@@ -155,7 +155,7 @@ import {
   isQualityHandlingStatus,
   isQualityUnqualifiedGrade,
 } from '@/constants/quality-unqualified-handling';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -219,8 +219,7 @@ const fetchDefects = async () => {
     const res = await getDefectList();
     defects.value = res.data;
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('quality.defectTab.messageFetchFailed'), err.message);
+    logAuxLoadFailure(t('quality.defectTab.messageFetchFailed'), error);
   } finally {
     loading.value = false;
   }

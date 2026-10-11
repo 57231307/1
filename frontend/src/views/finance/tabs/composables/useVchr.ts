@@ -47,7 +47,7 @@ export function useVchr() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取凭证列表失败', err);
+      logAuxLoadFailure('获取凭证列表失败', err);
       msg.error('loadVoucherListFailed');
     },
   });

@@ -409,7 +409,7 @@ import {
   FABRIC_SCORING_OPTIONS,
   type FabricScoringValue,
 } from '@/constants/fabric-scoring';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -495,7 +495,7 @@ async function load() {
   try {
     inspections.value = unwrapList(await getFabricInspectionList());
   } catch (e) {
-    logger.error('加载验布列表失败', e);
+    logAuxLoadFailure('加载验布列表失败', e);
   } finally {
     loading.value = false;
   }

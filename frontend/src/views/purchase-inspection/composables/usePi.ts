@@ -69,7 +69,7 @@ export function usePi() {
       inspection_date_to: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取数据失败:', err);
+      logAuxLoadFailure('获取数据失败:', err);
     },
   });
 
@@ -127,7 +127,7 @@ export function usePi() {
     } catch (error) {
       if (seq !== statsSeq) return;
       stats.value = null;
-      logger.error('[purchase-inspection] 统计卡服务端聚合取数失败', error);
+      logAuxLoadFailure('[purchase-inspection] 统计卡服务端聚合取数失败', error);
       msg.error('loadFailed');
     }
   };

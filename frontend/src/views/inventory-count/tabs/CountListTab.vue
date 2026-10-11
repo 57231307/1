@@ -233,7 +233,7 @@ import {
 } from '@/api/inventory-count';
 // 批次 280：接入 useTableApi，消除手写 counts/loading/total/fetchCounts 重复
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   INVENTORY_COUNT_STATUS,
   INVENTORY_COUNT_STATUSES,
@@ -276,7 +276,7 @@ const {
   url: '/inventory/counts',
   listKey: 'counts',
   onError: (err: unknown) => {
-    logger.error(t('inventoryCount.listTab.messageFetchFailure'), err);
+    logAuxLoadFailure(t('inventoryCount.listTab.messageFetchFailure'), err);
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) ||
         t('inventoryCount.listTab.messageFetchFailure')

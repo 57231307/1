@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { request } from '@/api/request';
 import type { ApiResponse } from '@/types/api';
@@ -74,7 +74,7 @@ const fetchPermissionList = async () => {
     const res = await request.get<ApiResponse<PermissionRow[]>>('/permissions');
     permissionList.value = res.data ?? [];
   } catch (_e) {
-    logger.error(t('system.permission.loadListFailed'), _e);
+    logAuxLoadFailure(t('system.permission.loadListFailed'), _e);
     permissionList.value = [];
   } finally {
     permissionListLoading.value = false;

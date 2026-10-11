@@ -135,7 +135,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import { getQualityStandard, publishQualityStandard, type QualityStandard } from '@/api/quality';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { escapeHtml } from '@/utils/print';
 // V15 P0-S12 修复（Batch 475d）：导出改用后端带水印 xlsx 接口
 // 后端 GET /quality-standards/export 已就绪（含异步审计日志 + 水印）
@@ -197,8 +197,7 @@ const fetchStandards = async () => {
     const res = await getQualityStandardList();
     standards.value = (res.data as QualityStandard[] | undefined) || [];
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('quality.standardTab.messageFetchFailed'), err.message);
+    logAuxLoadFailure(t('quality.standardTab.messageFetchFailed'), error);
   } finally {
     loading.value = false;
   }

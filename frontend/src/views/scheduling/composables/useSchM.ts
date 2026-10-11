@@ -18,7 +18,7 @@ import {
 } from '@/api/scheduling';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 /**
  * 排产管理 composable
@@ -48,7 +48,7 @@ export function useSchM() {
       status: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取排程任务失败:', err);
+      logAuxLoadFailure('获取排程任务失败:', err);
       msg.error('loadScheduleTaskFailed');
     },
   });

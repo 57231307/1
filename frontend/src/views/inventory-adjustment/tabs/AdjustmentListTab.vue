@@ -223,7 +223,7 @@ import { ElMessage } from 'element-plus';
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
 import { type InventoryAdjustmentEntity } from '@/api/inventory-adjustment';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   INVENTORY_ADJUSTMENT_STATUS,
   INVENTORY_ADJUSTMENT_STATUSES,
@@ -258,7 +258,7 @@ const {
     status: '',
   },
   onError: (err: unknown) => {
-    logger.error(t('inventoryAdjustment.listTab.fetchAdjustmentFailed'), err);
+    logAuxLoadFailure(t('inventoryAdjustment.listTab.fetchAdjustmentFailed'), err);
     ElMessage.error(t('inventoryAdjustment.listTab.messageFetchFailed'));
   },
 });

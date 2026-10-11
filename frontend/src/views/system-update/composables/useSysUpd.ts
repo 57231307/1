@@ -20,7 +20,7 @@ import {
   type UpdateTask,
   type SystemBackup,
 } from '@/api/system-update';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 /** 轮询 update-status 的最大次数与间隔（同步请求下为兜底观测窗口，非进度计时器） */
@@ -88,7 +88,7 @@ export function useSysUpd() {
       const res = await getCurrentVersion();
       currentVersion.value = res.data;
     } catch (error: unknown) {
-      logger.error('获取当前版本失败:', error);
+      logAuxLoadFailure('获取当前版本失败:', error);
     }
   };
 

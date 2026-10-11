@@ -242,7 +242,7 @@ import {
   type InventoryTransferEntity,
 } from '@/api/inventory-transfer';
 import { useTableApi } from '@/composables/useTableApi';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { formatCurrency } from '@/utils';
 import {
   INVENTORY_TRANSFER_STATUS,
@@ -280,7 +280,7 @@ const {
     status: '',
   },
   onError: (err: unknown) => {
-    logger.error(t('inventoryTransfer.transferList.message.loadListFailed'), err);
+    logAuxLoadFailure(t('inventoryTransfer.transferList.message.loadListFailed'), err);
     ElMessage.error(t('message.loadFailed'));
   },
 });

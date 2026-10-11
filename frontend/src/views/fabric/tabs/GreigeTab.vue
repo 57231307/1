@@ -94,7 +94,7 @@ import { ref, onMounted, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
 import type { GreigeFabric } from '@/api/greige-fabric';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -114,8 +114,7 @@ const fetchFabrics = async () => {
     // 后端 list_greige_fabrics 返回 PaginatedResponse ⇒ data.items 为唯一形状
     fabrics.value = res.data.items;
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('fabric.greigeTab.fetchFailed'), err.message);
+    logAuxLoadFailure(t('fabric.greigeTab.fetchFailed'), error);
   } finally {
     loading.value = false;
   }

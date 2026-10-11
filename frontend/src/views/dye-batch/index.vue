@@ -386,7 +386,7 @@ const {
   setQueryParam,
 } = useTableApi<DyeBatch>({
   url: '/production/dye-batches',
-  onError: (e: unknown) => logger.error(t('dyeBatch.index.messageFetchFailed'), String(e)),
+  onError: (e: unknown) => logAuxLoadFailure(t('dyeBatch.index.messageFetchFailed'), e),
 });
 
 // 坯布列表（染色批次消耗坯布，以 greige_fabric_id 关联）

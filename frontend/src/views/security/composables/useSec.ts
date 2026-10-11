@@ -5,7 +5,7 @@
 import { reactive, ref } from 'vue';
 import { getSecurityStats, getLockedAccountList, getSecurityAlertList } from '@/api/security';
 import type { LoginLog, LockedAccount, SecurityAlert } from '@/api/security';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 /** security 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
@@ -35,7 +35,7 @@ export const useSec = () => {
     // LoginLogQuery 仅 {user_id,username,status,page,page_size}：原 date_range 后端不读
     // （时间范围过滤属后端缺口，已登记串行清单），筛选控件与参数一并移除
     defaultParams: { username: '', status: '' },
-    onError: (err: unknown) => logger.error('获取登录日志失败:', err),
+    onError: (err: unknown) => logAuxLoadFailure('获取登录日志失败:', err),
   });
 
   // 锁定账户
@@ -54,7 +54,7 @@ export const useSec = () => {
         Object.assign(stats, res.data);
       }
     } catch (error) {
-      logger.error('获取统计数据失败:', error);
+      logAuxLoadFailure('获取统计数据失败:', error);
     }
   };
 
@@ -65,7 +65,7 @@ export const useSec = () => {
       const res = await getLockedAccountList();
       lockedAccounts.value = res.data || [];
     } catch (error) {
-      logger.error('获取锁定账户失败:', error);
+      logAuxLoadFailure('获取锁定账户失败:', error);
     } finally {
       lockLoading.value = false;
     }
@@ -78,7 +78,7 @@ export const useSec = () => {
       const res = await getSecurityAlertList();
       securityAlerts.value = res.data || [];
     } catch (error) {
-      logger.error('获取安全告警失败:', error);
+      logAuxLoadFailure('获取安全告警失败:', error);
     } finally {
       alertLoading.value = false;
     }

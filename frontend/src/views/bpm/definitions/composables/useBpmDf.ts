@@ -13,7 +13,7 @@ import {
   type ProcessNode,
   type ProcessVersion,
 } from '@/api/bpm-enhanced';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 /** BPM 流程定义主业务 composable（集中管理列表、分页、过滤、节点、版本） */
@@ -36,7 +36,7 @@ export function useBpmDf() {
     defaultParams: { category: '' },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : '获取流程定义列表失败';
-      logger.error(msg);
+      logAuxLoadFailure(msg, err);
       ElMessage.error(msg);
     },
   });

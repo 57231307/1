@@ -119,7 +119,7 @@ import { useI18n } from 'vue-i18n';
 import { Plus } from '@element-plus/icons-vue';
 import type { DyeBatch } from '@/api/dye-batch';
 import CompleteDyeBatchDialog from '@/components/CompleteDyeBatchDialog.vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -180,8 +180,7 @@ const fetchBatches = async () => {
     // 后端返回 PaginatedResponse ⇒ data.items 为唯一形状（不再双形状宽容）
     batches.value = res.data.items;
   } catch (error) {
-    const err = error as Error;
-    logger.error(t('fabric.dyeTab.fetchFailed'), err.message);
+    logAuxLoadFailure(t('fabric.dyeTab.fetchFailed'), error);
   } finally {
     loading.value = false;
   }
