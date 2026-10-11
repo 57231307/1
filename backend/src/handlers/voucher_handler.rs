@@ -514,19 +514,33 @@ pub async fn export_vouchers(
     info!("用户 {} 导出凭证列表", auth.username);
 
     let service = VoucherService::new(state.db.clone());
+
+    // 日期解析失败显式报错，不再 and_then 配 parse().ok() 静默吞成 None 让筛选凭空消失返回全量。
+    let parse_date =
+        |s: &Option<String>, label: &str| -> Result<Option<chrono::NaiveDate>, AppError> {
+            match s.as_deref() {
+                Some(v) if !v.is_empty() => v
+                    .parse::<chrono::NaiveDate>()
+                    .map(Some)
+                    .map_err(|e| AppError::validation(format!("{}日期格式错误：{}", label, e))),
+                _ => Ok(None),
+            }
+        };
+
     let query_params = VoucherQueryParams {
         voucher_no: params.voucher_no,
         voucher_type: params.voucher_type,
         status: params.status,
-        start_date: params.start_date.and_then(|d| d.parse().ok()),
-        end_date: params.end_date.and_then(|d| d.parse().ok()),
+        start_date: parse_date(&params.start_date, "开始")?,
+        end_date: parse_date(&params.end_date, "结束")?,
         batch_no: params.batch_no,
         color_no: params.color_no,
         page: Some(1),
         page_size: Some(EXPORT_LIMIT),
     };
 
-    let (vouchers, _total) = service.get_list(query_params).await?;
+    // 导出不走 get_list 的 page_size clamp(1,100)，改用 get_for_export 按 EXPORT_LIMIT 一次取全。
+    let vouchers = service.get_for_export(query_params, EXPORT_LIMIT).await?;
 
     let headers = vec![
         "凭证号".to_string(),

@@ -368,6 +368,46 @@ impl VoucherService {
         Ok((vouchers, total))
     }
 
+    /// 导出用取数，复用与 get_list 相同的筛选条件，但按 limit 上限一次取全、不做列表端点的 page_size clamp(1,100)。
+    /// 调用方为凭证导出，需拿到超过 100 行的完整结果集，故不能复用 get_list（其分页钳制会把导出量截到 100）。
+    pub async fn get_for_export(
+        &self,
+        params: VoucherQueryParams,
+        limit: u64,
+    ) -> Result<Vec<voucher::Model>, AppError> {
+        let mut query = voucher::Entity::find();
+
+        if let Some(voucher_no) = &params.voucher_no {
+            if !voucher_no.is_empty() {
+                query = query.filter(voucher::Column::VoucherNo.contains(voucher_no));
+            }
+        }
+
+        if let Some(voucher_type) = params.voucher_type {
+            query = query.filter(voucher::Column::VoucherType.eq(voucher_type));
+        }
+
+        if let Some(status) = params.status {
+            query = query.filter(voucher::Column::Status.eq(status));
+        }
+
+        if let Some(start_date) = params.start_date {
+            query = query.filter(voucher::Column::VoucherDate.gte(start_date));
+        }
+
+        if let Some(end_date) = params.end_date {
+            query = query.filter(voucher::Column::VoucherDate.lte(end_date));
+        }
+
+        let vouchers = query
+            .order_by(voucher::Column::VoucherDate, Order::Desc)
+            .limit(limit)
+            .all(&*self.db)
+            .await?;
+
+        Ok(vouchers)
+    }
+
     /// 查询凭证详情
     pub async fn get_by_id(&self, id: i32) -> Result<VoucherDetail, AppError> {
         info!("查询凭证详情 ID: {}", id);
