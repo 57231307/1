@@ -1,0 +1,6 @@
+{
+  "role": "department_manager",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

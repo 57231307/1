@@ -1,0 +1,25 @@
+{
+  "role": "cost_accountant",
+  "reachableRoutes": [
+    "/account-subject",
+    "/accounting-period",
+    "/ap",
+    "/ar",
+    "/ar-reconciliation",
+    "/ar-reconciliation/enhanced",
+    "/assist-accounting",
+    "/budget",
+    "/cost",
+    "/currency",
+    "/dashboard",
+    "/dye-batch",
+    "/finance",
+    "/finance-report",
+    "/financial-analysis",
+    "/fixed-assets",
+    "/fund",
+    "/greige-fabrics",
+    "/production",
+    "/voucher"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "role": "purchasing_manager",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "role": "production_manager",
+  "reachableRoutes": [
+    "/bi/sales-analysis",
+    "/bom",
+    "/capacity",
+    "/dashboard",
+    "/dye-batch",
+    "/dye-recipe",
+    "/greige-fabrics",
+    "/material-shortage",
+    "/mrp",
+    "/mrp/history",
+    "/production",
+    "/quotations",
+    "/quotations/new",
+    "/sales",
+    "/sales-contract",
+    "/sales-price",
+    "/sales-returns",
+    "/scheduling",
+    "/scheduling/gantt"
+  ]
+}

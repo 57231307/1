@@ -1,0 +1,6 @@
+{
+  "role": "fixed_assets_accountant",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

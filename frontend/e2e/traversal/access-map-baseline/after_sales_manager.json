@@ -1,0 +1,6 @@
+{
+  "role": "after_sales_manager",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

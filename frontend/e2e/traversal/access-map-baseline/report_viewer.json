@@ -1,0 +1,6 @@
+{
+  "role": "report_viewer",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

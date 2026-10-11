@@ -1,0 +1,15 @@
+{
+  "role": "purchaser",
+  "reachableRoutes": [
+    "/dashboard",
+    "/product",
+    "/purchase",
+    "/purchase-contract",
+    "/purchase-inspection",
+    "/purchase-price",
+    "/purchase-receipt",
+    "/purchase-return",
+    "/supplier",
+    "/supplier-evaluation"
+  ]
+}
