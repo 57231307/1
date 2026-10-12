@@ -87,9 +87,13 @@ export function createDyeRecipe(data: Partial<DyeRecipe>): Promise<ApiResponse<D
  * 键缺席=保持原值、显式 null=清空为 NULL（仅声明 `| null` 的 DB 可空列）、有值=覆盖。
  * 可空列依据 system 域 DDL（system/mod.rs:113-131 补列全部可空）。
  * color_code 为建表 NOT NULL（system/m0003_add_dye_tables.rs:30），不声明 null——
- * 显式 null 会被后端 business_displayable 拒绝。此前用 Partial<DyeRecipe>（出参形状）
- * 冒充更新契约：含后端更新 DTO 不消费的 recipe_no/recipe_name/recipe_items 等键（serde 丢弃），
- * 且可空列无法表达显式 null。
+ * 显式 null 会被后端 business_displayable 拒绝。
+ * recipe_name 同为建表 NOT NULL（system/m0003_add_dye_tables.rs:29），且对话框可编辑
+ * （views/dye-recipe/index.vue 配方名输入框 + ruleRecipeNameRequired），按「有值=覆盖」送当前值、
+ * 不声明 null；后端 UpdateDyeRecipeRequest 必须消费同名键，否则编辑改名被 serde 静默丢弃。
+ * recipe_no 不在载荷内：配方编号由后端取号，不参与编辑提交。
+ * 本接口键集合必须与后端更新 DTO 逐字段一致——多一列是「假输入被静默丢弃」，
+ * 少一列是「真实编辑提交不上去」，两侧都会表现成 UI 上点了没反应。
  */
 export interface DyeRecipeAuxiliary {
   name: string;
@@ -98,6 +102,7 @@ export interface DyeRecipeAuxiliary {
 }
 
 export interface DyeRecipeUpdatePayload {
+  recipe_name?: string;
   color_no?: string | null;
   color_code?: string;
   color_name?: string | null;

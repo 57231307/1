@@ -82,6 +82,11 @@ pub struct CreateDyeRecipeRequest {
 /// 显式 null 由 service 入口在任何 DB 访问前拒绝。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct UpdateDyeRecipeRequest {
+    /// 配方名称：对齐 create DTO 类型（单层 `Option<String>`），不参与三态"置 NULL"。
+    /// 配方名不应被编辑清空——键缺席/显式 null 均反序列化为 `None`（保持原值），
+    /// 仅在传入非空值时由 service 覆盖（见 `update()` 里的 `Set` 分支）。
+    #[serde(default)]
+    pub recipe_name: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
     pub color_no: Option<Option<String>>,
     /// 色代码：DB NOT NULL（m0003:30）——显式 null 被 service 拒绝
@@ -414,6 +419,15 @@ impl DyeRecipeService {
             .clone()
             .unwrap_or_else(|| recipe_status::DRAFT.to_string());
         let mut active: ActiveModel = model.into();
+
+        // recipe_name：编辑改名落库（缺陷 D1）。语义区别于下方三态可空列——配方名不允许
+        // 被编辑清空，故沿用"传了非空才 Set"范式：键缺席/显式 null 都是 None，保持原值不
+        // Set；仅当携带非空字符串时覆盖。列在 DB 为可空 `Option<String>`，覆盖时按列类型包 `Some(v)`。
+        if let Some(v) = req.recipe_name {
+            if !v.trim().is_empty() {
+                active.recipe_name = Set(Some(v));
+            }
+        }
 
         // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
         if let Some(v) = req.color_no {
