@@ -31,8 +31,12 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('supplier.dialog.label.supplierCode')" prop="supplier_code">
+            <!-- 供应商编码由后端取号生成，
+                 CreateSupplierRequest/UpdateSupplierRequest 都不接收该字段：
+                 可手输只会把用户输入静默丢弃，故此处只读展示，值单向来自后端返回值。 -->
             <el-input
-              v-model="localFormData.supplier_code"
+              :model-value="localFormData.supplier_code"
+              readonly
               :placeholder="t('supplier.dialog.placeholder.supplierCode')"
             />
           </el-form-item>
@@ -274,14 +278,9 @@ const formRef = ref<FormInstance>();
 const readonly = computed(() => props.mode === 'view');
 
 // 表单校验规则
+// supplier_code 不在这里出现：编码由后端取号并只读展示，新建态本就无值，
+// 保留 required 会让 formRef.validate 永远不通过、建档提交不出去。
 const formRules = computed<FormRules>(() => ({
-  supplier_code: [
-    {
-      required: true,
-      message: t('supplier.dialog.validation.supplierCodeRequired'),
-      trigger: 'blur',
-    },
-  ],
   supplier_name: [
     {
       required: true,

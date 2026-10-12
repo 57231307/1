@@ -7299,7 +7299,7 @@ export default {
         remarks: '备注',
       },
       placeholder: {
-        supplierCode: '请输入供应商编码',
+        supplierCode: '供应商编码由系统自动生成',
         supplierName: '请输入供应商名称',
         shortName: '请输入简称',
         supplierType: '请选择类型',
@@ -7336,7 +7336,6 @@ export default {
         save: '保存',
       },
       validation: {
-        supplierCodeRequired: '请输入供应商编码',
         supplierNameRequired: '请输入供应商名称',
         contactPhoneRequired: '请输入联系电话',
         phoneFormat: '请输入正确的手机号',

@@ -35,7 +35,7 @@
           <el-tag size="small" :type="statusType(row.status)">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="remark" :label="t('inventory.reservation.remark')" min-width="150" />
+      <el-table-column prop="notes" :label="t('inventory.reservation.remark')" min-width="150" />
       <el-table-column prop="created_at" :label="t('common.createTime')" width="170" />
       <el-table-column :label="t('common.action')" width="220" fixed="right">
         <template #default="{ row }">

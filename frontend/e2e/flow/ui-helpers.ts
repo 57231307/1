@@ -537,7 +537,7 @@ export async function createSupplierUI(page: Page): Promise<number | undefined> 
     Math.floor(Math.random() * 900000) + 100000
   )}`;
   const fields: UiField[] = [
-    { kind: 'input', label: '供应商编码', value: _genCode('E2E-S') },
+    // 供应商编码由后端取号（SupplierDialog 只读展示），不参与填写
     { kind: 'input', label: '供应商名称', value: _genName('E2E供应商') },
     { kind: 'input', label: '供应商简称', value: 'E2E供' },
     { kind: 'input', label: '联系电话', value: '13800000001' },
