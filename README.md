@@ -28,43 +28,44 @@
 
 ## 项目介绍
 
-Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划平台**，单体 Rust 后端 + 单体 Vue 3 前端架构，针对面料纺织行业深度定制（色卡/面料/缸号/批号/定制订单/多色号定价等），并通过 V15 25 大类 195 维度审计与主线八维审计的严格质量保障。
+Bingxi Management Platform 是一套面向**纺织（面料/染整）行业**的企业资源计划（ERP）平台，采用单体 Rust 后端 + 单体 Vue 3 前端的架构，覆盖采购、销售、库存、生产、财务、CRM 等核心业务，并针对纺织行业做了深度定制（色卡、面料、缸号、批号/匹号、定制订单、多色号定价、染整全流程等）。
 
-**项目亮点**：
+在通用 ERP 能力之上，平台内置若干支撑性能力：RBAC 角色权限矩阵与字段级/行级权限、PostgreSQL 原生 RLS 行级安全、打印导出审计与二级审批、BI 多维分析与报表订阅、WebSocket 实时推送、面向染整工艺与质量的 AI 辅助分析、以及 trace/指标/慢查询审计等可观测性。工程质量通过 V15 25 大类 195 维度审计与主线八维审计保障，详见「审计与质量」。
 
-- **行业深度**：覆盖染整全流程（化验室打样→大货处方→流转卡→验布打卷→产量工资→能耗管理→缸号状态机），针对纺织行业特殊业务深度定制
-- **AI 驱动**：工艺优化、质量预测、补货推荐、异常检测 4 类 AI 能力，含模型版本管理与可解释性
+**主要能力概览**：
+
+- **行业深度**：覆盖染整全流程（化验室打样 → 大货处方 → 流转卡 → 验布打卷 → 产量工资 → 能耗管理 → 缸号状态机），按纺织业务特殊形态定制
+- **AI 辅助**：工艺优化、质量预测、补货推荐、异常检测四类能力，含模型版本管理与可解释性
 - **实时通信**：WebSocket 推送订单状态、库存预警、审批进度、仪表板更新
-- **自动化部署**：systemd 直部署 + CLI 工具（bingxi update）+ SHA256 校验
 - **BI 数据仓库**：多维分析 + 仪表板 + 报表引擎 + 订阅推送
-- **合规安全**：RBAC 权限矩阵 + 字段级权限 + PostgreSQL RLS 行级安全（dept 数据范围语义）+ 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
-- **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
+- **合规与安全**：RBAC 权限矩阵 + 字段级权限 + RLS 行级安全（dept 数据范围语义）+ 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
+- **可观测性与运维**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移 + systemd 直部署与 `bingxi update` 升级（SHA256 校验）
 
-**项目数据（截至 2026-09-20，Round 7-iter21 后端编译阻塞清除与安全豁免清单收敛）**：
+**项目数据（截至 2026-10-12，按下表括注的可复现命令在真实代码树上实测）**：
 
 | 指标              | 数值                                                                                                                               |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 后端 Rust 代码    | ~298,600 行（src 251,054 + tests 33,246 + migration 14,285 实测）                                                                  |
-| 后端 Rust 文件    | 1,370 个（src 1,073 + tests 253 + migration 44）                                                                                   |
-| 后端 Handler      | 182 个                                                                                                                             |
-| 后端 Service      | 410 个（含 ops 子模块拆分文件）                                                                                                    |
-| 后端 Model        | 338 个                                                                                                                             |
-| 后端 Route 模块   | 43 个                                                                                                                              |
-| 后端 Middleware   | 21 个（含 RLS 会话上下文中间件）                                                                                                   |
-| 后端业务事件      | 34 种（事件总线 + Kafka + ES 刷新 + 幂等去重）                                                                                     |
-| 后端状态机        | 30+ 个（四种范式：DB规则表/枚举payload/utils纯函数/JSON图遍历）                                                                    |
-| 后端集成测试      | 257 个文件 / 2,095 个测试函数                                                                                                      |
-| 后端迁移          | 7 个业务域聚合迁移（system/business/sales_crm/production/finance/v15/rls_dept），Rust 代码内联 SQL，`bingxi migrate run` 执行      |
-| 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                     |
-| 前端 Vue 文件     | 420 个                                                                                                                             |
-| 前端 TS 文件      | 268 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                        |
-| 前端 Views 子模块 | 110 个                                                                                                                             |
-| 前端 API 模块     | 121 个                                                                                                                             |
-| 前端 i18n 翻译键  | zh-CN 10,101 / en-US 10,124（代码引用字面键 9,328，双语缺失校验 0；`labelKey:` 词表键同受校验；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验） |
-| 前端 E2E 测试     | 2,668 个 / 259 个 spec 文件（flow 工作流 + traversal 端点遍历 + 冒烟 + enhanced + Setup 向导 + 其余业务目录）                              |
-| Clippy Baseline   | 4,274 行（185 条唯一警告）                                                                                                         |
-| 最新版本          | Release v2026.9.7.1357（后端 2026.810.1 / 前端 2026.617.0001）                                                                     |
-| 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                           |
+| 后端 Rust 代码    | 451,841 行（src 284,950 + tests 144,210 + migration 22,681）                                                                        |
+| 后端 Rust 文件    | 1,673 个（src 1,097 + tests 472 + migration 104）                                                                                   |
+| 后端 Handler      | 187 个（`src/handlers` 下 `.rs` 文件）                                                                                              |
+| 后端 Service      | 417 个（`src/services` 下 `.rs` 文件，含 ops 子模块拆分文件）                                                                        |
+| 后端 Model        | 342 个（`src/models` 下 `.rs` 文件）                                                                                                |
+| 后端 Route 模块   | 44 个（`src/routes` 下 `.rs` 文件）                                                                                                 |
+| 后端 Middleware   | 21 个（含 RLS 会话上下文中间件）                                                                                                     |
+| 后端业务事件      | 34 种（`event_bus.rs` 中 `BusinessEvent` 枚举变体数；事件总线 + Kafka + ES 刷新 + 幂等去重）                                        |
+| 后端状态机        | 覆盖缸号 / 订单 / 凭证 / 质检 / 8D 等主业务流程，迁移规则以 DB 规则表与代码内迁移表两种形态定义                                    |
+| 后端集成测试      | 472 个文件 / 3,733 个测试函数（`tests/` 下 `#[test]` + `#[tokio::test]` 计数）                                                      |
+| 后端迁移          | 16 个注册迁移包（`migration/src/lib.rs` 的 `Migrator::migrations()`：7 大业务域聚合 + 9 个专项），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
+| 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                       |
+| 前端 Vue 文件     | 410 个（`src` 下 `.vue`）                                                                                                            |
+| 前端 TS 文件      | 291 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                          |
+| 前端 Views 子模块 | 105 个（`src/views` 一级子目录）                                                                                                     |
+| 前端 API 模块     | 120 个（`src/api` 下 `.ts` 模块）                                                                                                    |
+| 前端 i18n 翻译键  | 约 1.08 万个叶子翻译键（zh-CN 与 en-US 键集一致，双语缺失校验 0；常量表内的键名由 `tests/unit/translated-value-select.test.ts` 校验） |
+| 前端 E2E 测试     | 317 个 spec 文件（`e2e` 下 `*.spec.ts`）；用例约 1.26k（按 Playwright `test()`/`it()` 声明计，CI 精确数以 `--list` 为准，详见「测试」章节） |
+| Clippy Baseline   | 4,274 行（187 条唯一警告）                                                                                                           |
+| 最新版本          | Release v2026.9.29.1111（后端 2026.810.1 / 前端 2026.617.0001）                                                                      |
+| 安全漏洞存量      | 0（密钥泄露扫描工作区+git 历史：0 发现）                                                                                             |
 
 ---
 
@@ -98,7 +99,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 ### 3. AI 智能分析
 
 - **工艺优化**：染料-布类配伍性校验 + 参数推荐 + 化验室打样集成 + 模型版本管理
-- **质量预测**：特征工程（dye_type/auxiliary_type/temperature_range 等）+ 推理超时/模型不可用降级标记；实际结果回填与准确率对账端点已实现，界面尚未接入（见 doto）
+- **质量预测**：特征工程（dye_type/auxiliary_type/temperature_range 等）+ 推理超时/模型不可用降级标记；实际结果回填与准确率对账端点已实现，界面尚未接入
 - **补货推荐**：与 MRP 引擎对账 + 差异标注人工复核
 - **异常检测**：统计 + 机器学习双引擎
 - **AI 治理**：模型可解释性 + 数据脱敏 + 推理超时降级 + 并发控制 + 缓存策略 + 决策审计日志
@@ -133,7 +134,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 
 ### 7. 国际化与前端体验
 
-- **vue-i18n** 中英双语 + 约 1.01 万个翻译键（zh-CN 10,101 / en-US 10,124）
+- **vue-i18n** 中英双语 + 约 1.08 万个叶子翻译键（zh-CN 与 en-US 键集一致）
 - **PWA 支持**：manifest.json + Service Worker + 离线缓存
 - **移动端适配**：响应式 + 侧边栏抽屉化 + 汉堡按钮 ≥44px（WCAG 2.5.5）
 - **性能优化**：manualChunks 代码分割 + ECharts 按需引入 + optimizeDeps + V2Table 虚拟列表
@@ -278,8 +279,8 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 │  │  (UI 库)   │  │ (虚拟列表) │  │  (实时)    │           │
 │  └────────────┘  └────────────┘  └────────────┘           │
 │  ┌────────────────────────────────────────────┐            │
-│  │     376 Vue 文件 + 229 TS 文件              │            │
-│  │  (81 views 子模块 + 96 api + 8 composables)  │            │
+│  │     410 Vue 文件 + 291 TS 文件              │            │
+│  │  (105 views 子模块 + 120 api + 8 composables) │            │
 │  └────────────────────────────────────────────┘            │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -333,7 +334,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 | BI 数据仓库    | 已完成 | 16 个 HTTP 端点 + 仪表板 + 报表引擎 + 订阅推送           |
 | BPM 审批流     | 已完成 | 流程定义 / 实例 / 任务                                   |
 | WebSocket 实时 | 已完成 | 通知 / 订单 / 库存 / 审批 / 仪表板                       |
-| 国际化（i18n） | 已完成 | 中英双语 + 1.01 万翻译键，界面文案已无 `t()` 死兜底                     |
+| 国际化（i18n） | 已完成 | 中英双语 + 约 1.08 万叶子翻译键，界面文案已无 `t()` 死兜底                     |
 | systemd 部署   | 已完成 | CLI 工具 + SHA256 校验                                   |
 
 ---
@@ -442,7 +443,7 @@ sudo journalctl -u bingxi-backend -f
 | 环境 | 用途       | 部署方式                                                                                      | 配置                             |
 | ---- | ---------- | --------------------------------------------------------------------------------------------- | -------------------------------- |
 | 生产 | 正式环境   | `deploy/deploy.sh`（服务器执行）或 `deploy/deploy-latest.sh`（远程执行，拉取 GitHub Release） | `/etc/bingxi/.env` + config.yaml |
-| 测试 | 自动化验证 | GitHub Actions（Rust nextest 30 分片 + E2E 34 矩阵 + Setup 真实链路 E2E）                     | CI 环境变量注入                  |
+| 测试 | 自动化验证 | GitHub Actions（Rust nextest 10 分片 + E2E 42 分片 + Setup 真实链路 E2E）                    | CI 环境变量注入                  |
 
 ### 部署架构
 
@@ -478,7 +479,7 @@ sudo journalctl -u bingxi-backend -f
 
 ### 数据库与重构
 
-- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，按 7 个业务域聚合（system/business/sales_crm/production/finance/v15/rls_dept），共 32 个迁移单元文件（通过 `bingxi migrate run` 执行）
+- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，按业务域聚合为 16 个注册迁移包（7 大核心业务域 system/business/sales_crm/production/finance/v15/rls_dept + 9 个专项域，见 `migration/src/lib.rs` 的 `Migrator::migrations()`，通过 `bingxi migrate run` 执行）
 - [重构计划](.monkeycode/docs/refactoring/) — 重构任务清单
 
 ---
@@ -489,7 +490,7 @@ sudo journalctl -u bingxi-backend -f
 
 | 层级                      | 数量                  | 工具                  | 覆盖范围                                                                                 |
 | ------------------------- | --------------------- | --------------------- | ---------------------------------------------------------------------------------------- |
-| 后端集成测试              | 257 文件 / 2,095 函数 | cargo test + nextest  | 服务层 + API 层                                                                          |
+| 后端集成测试              | 472 文件 / 3,733 函数 | cargo test + nextest  | 服务层 + API 层                                                                          |
 | 前端 E2E 冒烟测试         | 130                   | Playwright            | 全部前端路由 + 物流/缺料取值契约（5 分片并行）                                           |
 | 前端 E2E 工作流测试       | 670                   | Playwright            | 75 个 flow spec 文件，业务闭环 + 纺织领域 + 权限矩阵 + 健康巡检                          |
 | 前端 E2E 端点遍历         | 266                   | Playwright            | 10 个 traversal spec：打印/导出/审批端点矩阵 + 42a-d 全模块遍历 + 角色矩阵（5 分片）     |
@@ -521,7 +522,7 @@ sudo journalctl -u bingxi-backend -f
 
 ### E2E 测试覆盖
 
-CI 执行口径的 254 个 spec 文件（36 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 6 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
+CI 执行口径的 spec 文件（42 分片：flow 20 片 + smoke 5 片 + traversal 5 片 + extras 12 片；Playwright `--shard` 按用例 hash 分配，分片与 spec 文件无对应关系，故 label 只标目录与片号），核心覆盖：
 
 | 类别           | spec 文件                                                                    | 覆盖内容                                                                                   |
 | -------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -547,7 +548,7 @@ CI 执行口径的 254 个 spec 文件（36 分片：flow 20 片 + smoke 5 片 +
 cd backend
 cargo test --all
 
-# 前端 E2E 测试（CI 36 分片：flow --shard=x/20 + smoke --shard=x/5 + traversal --shard=x/5 + extras --shard=x/6）
+# 前端 E2E 测试（CI 42 分片：flow --shard=x/20 + smoke --shard=x/5 + traversal --shard=x/5 + extras --shard=x/12）
 cd frontend
 npm run test:e2e
 
@@ -566,10 +567,10 @@ cargo bench --features bench
 
 | 审计阶段                 | 状态   | 说明                                |
 | ------------------------ | ------ | ----------------------------------- |
-| V15 25 大类 195 维度审计 | 已完成 | 详见 `.monkeycode/docs/audits/v15/` |
-| P0 修复（39 项）         | 已完成 | 100%                                |
+| V15 25 大类 195 维度审计 | 已完成 | 21 批并行子代理，共发现 732 项，详见 `.monkeycode/docs/audits/v15/` |
+| P0 修复（104 项）        | 已完成 | 100%                                |
 | P1 修复（257 项）        | 已完成 | 100%                                |
-| V15 主线八维审计         | 进行中 | P0 + P2 已完成                      |
+| V15 主线八维审计         | 进行中 | P0 已完成                           |
 | P2 修复（248 项）        | 待启动 | P1 完成后启动                       |
 
 ### 质量规则
@@ -602,7 +603,7 @@ cargo bench --features bench
 
 所有验证走 GitHub Actions（CI/CD Only）：
 
-- Rust：fmt + clippy（baseline 4,274 行 / 185 条警告）+ nextest 测试（30 分片并行）+ 后端构建 + cargo-llvm-cov 覆盖率
+- Rust：fmt + clippy（baseline 4,274 行 / 187 条警告）+ nextest 测试（10 分片并行）+ 后端构建 + cargo-llvm-cov 覆盖率
 - 前端：fmt + ESLint + 类型检查 + Vitest 测试 + Vite 构建
 - 依赖审计 + 环境信息 + 依赖图记录
 - E2E 批次测试（独立工作流 `e2e-batch.yml`，PostgreSQL + 后端 + 前端 + Playwright 全链路）
