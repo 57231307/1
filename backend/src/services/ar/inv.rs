@@ -172,9 +172,12 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
         // 幂等检查：同订单只允许存在一张应收单
+        // ar_invoices.source_bill_id 为多态单据 ID，列与模型均为 BIGINT/int64，
+        // 故按 i64 绑定（order_id 是 i32，无损加宽），与本文件写入侧 :214 同源，
+        // 避免把 i32(4 字节) 绑进 int8(8 字节) 列触发“incorrect binary data format in bind parameter”。
         let exists = ArInvoiceEntity::find()
             .filter(ArInvoiceColumn::SourceType.eq("SALES_ORDER"))
-            .filter(ArInvoiceColumn::SourceBillId.eq(order_id))
+            .filter(ArInvoiceColumn::SourceBillId.eq(i64::from(order_id)))
             .one(txn)
             .await?;
         if exists.is_some() {

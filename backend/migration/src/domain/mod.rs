@@ -20,6 +20,10 @@
 //!   状态、权重与出站开关三组，注册全链尾，角色/建表域均早于它）
 //! - dye_recipe_reject: 染色配方拒绝通道（chk_dye_recipe_status 同约束名扩 rejected +
 //!   rejected_reason 专列，必须排全链尾：v15 域尾重建四值 CHECK，早于它执行会被覆盖回窄集）
+//! - polymorphic_bill_id_widen: 把销售退货审批实际绑定的 `ar_invoices.source_bill_id` 与
+//!   `inventory_transactions.source_bill_id` 从 INTEGER 放宽为 BIGINT（与模型 i64 对齐）。
+//!   m0089 曾做同样放宽，但被卡在“已应用”的 v15 域 up() 内、复用库上永不重跑，故以更窄爆炸
+//!   半径重落为新的顶层条目置于链尾（先例：ddl_nullability_tighten）
 
 pub mod system;
 pub mod business;
@@ -37,3 +41,4 @@ pub mod price_fk;
 pub mod export_inspection_vocab_check;
 pub mod dye_recipe_reject;
 pub mod ddl_nullability_tighten;
+pub mod polymorphic_bill_id_widen;

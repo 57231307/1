@@ -455,10 +455,12 @@ pub async fn sign_waybill(
     // 查找关联销售订单的 ar_invoice（source_type=SALES_ORDER, source_bill_id=order_id），
     // 若状态为 DRAFT 则调用 approve 推进到 APPROVED（确认应收，财务可做收款计划），
     // 若不存在或已审批则跳过（幂等，不阻塞签收事务）
-    // 注：ar_invoice.source_bill_id 类型为 Option<i32>，与 waybill.order_id (i32) 一致
+    // 注：ar_invoice.source_bill_id 为多态单据 ID，列与模型均为 BIGINT/int64，
+    // waybill.order_id 是 i32，按 i64 无损加宽后绑定（与建单写入侧同源），
+    // 避免把 i32(4 字节) 绑进 int8(8 字节) 列触发“incorrect binary data format in bind parameter”。
     let ar_invoice_to_confirm = ar_invoice::Entity::find()
         .filter(ar_invoice::Column::SourceType.eq("SALES_ORDER"))
-        .filter(ar_invoice::Column::SourceBillId.eq(updated.order_id))
+        .filter(ar_invoice::Column::SourceBillId.eq(i64::from(updated.order_id)))
         .filter(ar_invoice::Column::Status.eq(common_status::STATUS_DRAFT))
         .one(&txn)
         .await?;
