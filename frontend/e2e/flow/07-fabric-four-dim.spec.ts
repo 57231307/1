@@ -81,7 +81,7 @@ test.describe
       console.log('[7-1] 胚布仓缺失，UI 创建');
       greigeWarehouseId =
         (await uiCreateDialog(page, '/warehouse', '/warehouses', /新建仓库/, /保存|确定/, [
-          { kind: 'input', label: '仓库编码', value: genCode('E2E-GW') },
+          // 仓库编码只读、后端自动取号（提交省略 warehouse_code 键），UI 不填写
           { kind: 'input', label: '仓库名称', value: genName('E2E胚布仓') },
           { kind: 'select', label: '类型', value: '胚布仓' },
         ])) || ctx.warehouseIds[0];
@@ -90,7 +90,7 @@ test.describe
       console.log('[7-1] 成品仓缺失，UI 创建');
       finishedWarehouseId =
         (await uiCreateDialog(page, '/warehouse', '/warehouses', /新建仓库/, /保存|确定/, [
-          { kind: 'input', label: '仓库编码', value: genCode('E2E-FW') },
+          // 仓库编码只读、后端自动取号（提交省略 warehouse_code 键），UI 不填写
           { kind: 'input', label: '仓库名称', value: genName('E2E成品仓') },
           { kind: 'select', label: '类型', value: '成品仓' },
         ])) || ctx.warehouseIds[1];

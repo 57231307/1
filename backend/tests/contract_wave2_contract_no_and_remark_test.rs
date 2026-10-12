@@ -244,7 +244,9 @@ fn purchase_update_dto_has_no_contract_no_channel() {
     assert_eq!(v["remark"], "波次备注");
 }
 
-/// create DTO 仍必须收 contract_no 与 remark（只收紧 update，不放开 create）
+/// create DTO 仍必须收 contract_no 与 remark（只收紧 update，不放开 create）。
+/// contract_no 为 Option 通道（generate-if-absent：传了就用，缺省/空串由后端取号），
+/// 本用例锁定"人工传入编号原样进 DTO"的兼容形态。
 #[test]
 fn create_dtos_still_carry_contract_no_and_remark() {
     let dto: sales_contract_handler::CreateSalesContractRequestDto =
@@ -256,7 +258,7 @@ fn create_dtos_still_carry_contract_no_and_remark() {
             "remark": "创建备注"
         }))
         .expect("sales create DTO 反序列化失败");
-    assert_eq!(dto.contract_no, "SC20260920001");
+    assert_eq!(dto.contract_no.as_deref(), Some("SC20260920001"));
     assert_eq!(dto.remark.as_deref(), Some("创建备注"));
 }
 
@@ -273,7 +275,8 @@ async fn sales_create_persists_remark_and_reads_back() {
     let created = service
         .create(
             CreateSalesContractRequest {
-                contract_no: "SC-W2-PG-001".to_string(),
+                // 人工指定编号分支（"传了就用"兼容形态）
+                contract_no: Some("SC-W2-PG-001".to_string()),
                 contract_name: "备注落库验证".to_string(),
                 customer_id: cid,
                 total_amount: Decimal::from(100),
@@ -312,7 +315,8 @@ async fn purchase_create_persists_remark_and_reads_back() {
     let created = service
         .create(
             CreateContractRequest {
-                contract_no: "PC-W2-PG-001".to_string(),
+                // 人工指定编号分支（"传了就用"兼容形态）
+                contract_no: Some("PC-W2-PG-001".to_string()),
                 contract_name: "采购备注落库验证".to_string(),
                 supplier_id: sup1,
                 total_amount: Decimal::from(200),
@@ -483,7 +487,7 @@ async fn live_sales_update_ignores_duplicate_contract_no_and_persists_remark() {
 
     let service = SalesContractService::new(Arc::new(db.clone()));
     let mk = |no: &str| CreateSalesContractRequest {
-        contract_no: no.to_string(),
+        contract_no: Some(no.to_string()),
         contract_name: "活库合同".to_string(),
         customer_id: cust.id,
         total_amount: Decimal::from(100),
@@ -605,7 +609,7 @@ async fn live_purchase_update_ignores_duplicate_contract_no_and_persists_remark(
 
     let service = PurchaseContractService::new(Arc::new(db.clone()));
     let mk = |no: &str| CreateContractRequest {
-        contract_no: no.to_string(),
+        contract_no: Some(no.to_string()),
         contract_name: "活库采购合同".to_string(),
         supplier_id: sup.id,
         total_amount: Decimal::from(100),

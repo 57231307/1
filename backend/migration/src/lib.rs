@@ -64,6 +64,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::export_inspection_vocab_check::Migration),
             Box::new(domain::dye_recipe_reject::Migration),
             Box::new(domain::ddl_nullability_tighten::Migration),
+            Box::new(domain::polymorphic_bill_id_widen::Migration),
         ]
     }
 }

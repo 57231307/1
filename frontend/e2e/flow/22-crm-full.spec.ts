@@ -1128,17 +1128,29 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       await codeInput.waitFor({ state: 'visible', timeout: 3000 });
       const codeVisible = await codeInput.isVisible();
       expect(codeVisible).toBe(true);
+      // 契约（本批只读化）：客户编码由后端自动取号，输入框只读、不再挂必填规则；
+      // 必填校验改由真必填项「客户名称」（CustomerListTab.vue formRules:456-458 required）验证。
+      expect(await codeInput.isEditable(), '新建客户：客户编码应只读（后端自动取号）').toBe(false);
       // 直接点保存触发必填校验
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();
       await saveBtn.click();
       await page.waitForTimeout(1000);
-      // 验证校验错误提示
-      const hasError = await page
-        .locator('.el-form-item__error, .el-message--error')
+      // 验证校验错误提示由「客户名称」表单项报出（而非编码字段）
+      const nameItem = dialog.locator('.el-form-item').filter({ hasText: '客户名称' }).first();
+      const hasError = await nameItem
+        .locator('.el-form-item__error')
         .first()
         .waitFor({ state: 'visible', timeout: 5000 })
         .then(() => true);
       expect(hasError).toBe(true);
+      // 只读化的编码字段不得挂必填规则：其表单项上不应出现校验错误
+      const codeItemErrorCount = await dialog
+        .locator('.el-form-item')
+        .filter({ hasText: '客户编码' })
+        .first()
+        .locator('.el-form-item__error')
+        .count();
+      expect(codeItemErrorCount, '只读化的客户编码不应触发必填校验错误').toBe(0);
       // 关闭弹窗
       await page.locator('.el-dialog__headerbtn').first().click();
     }

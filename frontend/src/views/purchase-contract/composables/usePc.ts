@@ -90,13 +90,6 @@ export function usePc() {
   // delivery_date: 后端 DTO 已对齐真实列可空性（purchase_contracts.delivery_date 可空 → Option），
   // 但采购录入产品口径要求必填交货日期 ⇒ 前端保留 required 规则（严于 DB 可空性允许）
   const formRules = {
-    contract_no: [
-      {
-        required: true,
-        message: i18n.global.t('purchaseContract.validation.contractNoRequired'),
-        trigger: 'blur',
-      },
-    ],
     contract_name: [
       {
         required: true,
@@ -215,7 +208,7 @@ export function usePc() {
         await updatePurchaseContract(formData.id, updatePayload);
       } else {
         const createPayload: CreatePurchaseContractPayload = {
-          contract_no: formData.contract_no,
+          // contract_no 不发送：合同编号由系统建档自动生成
           contract_name: formData.contract_name,
           supplier_id: formData.supplier_id as number,
           total_amount: formData.total_amount,

@@ -204,6 +204,7 @@
             <el-form-item :label="t('warehouse.index.colCode')" prop="warehouse_code">
               <el-input
                 v-model="formData.warehouse_code"
+                readonly
                 :placeholder="t('warehouse.index.placeholderCode')"
               />
             </el-form-item>
@@ -510,9 +511,6 @@ const formData = reactive({
 });
 
 const formRules: FormRules = {
-  warehouse_code: [
-    { required: true, message: t('warehouse.index.ruleCodeRequired'), trigger: 'blur' },
-  ],
   warehouse_name: [
     { required: true, message: t('warehouse.index.ruleNameRequired'), trigger: 'blur' },
   ],
@@ -627,9 +625,9 @@ const handleSubmit = async () => {
         });
         ElMessage.success(t('warehouse.index.messageUpdateSuccess'));
       } else {
+        // warehouse_code 不发送：仓库编码由系统建档自动生成
         await createWarehouse({
           name: formData.warehouse_name,
-          ...(formData.warehouse_code ? { code: formData.warehouse_code } : {}),
           ...(formData.address ? { address: formData.address } : {}),
           ...(formData.phone ? { phone: formData.phone } : {}),
           ...(formData.contact_person ? { contact_person: formData.contact_person } : {}),

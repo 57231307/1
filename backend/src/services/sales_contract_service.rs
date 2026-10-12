@@ -3,6 +3,7 @@ use crate::models::sales_contract_item;
 use crate::models::status::contract;
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -12,6 +13,14 @@ use sea_orm::{
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// 销售合同编号（sales_contracts.contract_no）自动取号前缀：
+/// 统一格式 `{SC}{YYYYMMDD}{3位流水}`（对齐 warehouse_service.rs 的
+/// WAREHOUSE_CODE_NO_PREFIX 形态；doc_type `sales_contract` 已登记于
+/// utils/number_generator.rs 的占用探测白名单）。人工传入编号原样保留
+/// （兼容导入/API 直传），缺省/空串时由生成器在事务内取号，
+/// sales_contracts.contract_no UNIQUE 兜底并发撞号（insert_with_no_retry）。
+pub const SALES_CONTRACT_NO_PREFIX: &str = "SC";
 
 /// 销售合同查询参数
 #[derive(Debug, Clone, Default)]
@@ -25,12 +34,14 @@ pub struct SalesContractQueryParams {
 
 /// 创建销售合同请求
 ///
+/// - `contract_no` 为 Option：传了就用（兼容导入/API 直传，原样落库）；
+///   `None`/空串由 `DocumentNumberGenerator` 在事务内按 SALES_CONTRACT_NO_PREFIX 取号。
 /// - `delivery_date` 为 Option：真实列 sales_contracts.delivery_date 可空（m0011 DDL）。
 /// - 表头真实列 signed_date/effective_date/expiry_date/payment_method/delivery_location
 ///   与 remark 全量落库（remark 列由 m0016 迁移补齐）。
 #[derive(Debug, Clone)]
 pub struct CreateSalesContractRequest {
-    pub contract_no: String,
+    pub contract_no: Option<String>,
     pub contract_name: String,
     pub customer_id: i32,
     pub total_amount: Decimal,
@@ -128,16 +139,27 @@ impl SalesContractService {
     }
 
     /// 创建销售合同
+    ///
+    /// 合同编号：人工传入（非空）原样保留（兼容导入/API 直传）；缺省/空串由
+    /// DocumentNumberGenerator 在同一事务内取号（取号与 INSERT 同事务，撞
+    /// sales_contracts.contract_no UNIQUE 时保存点重取重试，口径对齐
+    /// warehouse_service.rs 的 insert_with_no_retry 用法）。
     pub async fn create(
         &self,
         req: CreateSalesContractRequest,
         user_id: i32,
     ) -> Result<sales_contract::Model, AppError> {
-        info!("用户 {} 正在创建销售合同：{}", user_id, req.contract_no);
+        // 空串与缺省同义（未指定），统一进入系统取号分支；非空人工值原样保留
+        let manual_no = req.contract_no.clone().filter(|no| !no.is_empty());
+        info!(
+            "用户 {} 正在创建销售合同：{}",
+            user_id,
+            manual_no.as_deref().unwrap_or("(未指定编号，由系统取号)")
+        );
 
         let stamp_tax = Self::calculate_stamp_tax(req.contract_type.as_deref(), req.total_amount);
 
-        // 使用事务确保合同和明细行原子创建
+        // 使用事务确保合同（含取号）和明细行原子创建
         let txn = self.db.begin().await?;
 
         // 创建时校验客户存在并回填冗余列 customer_name：客户不存在直接业务可显错误，
@@ -149,29 +171,45 @@ impl SalesContractService {
                 AppError::business_displayable("创建失败：所选客户不存在，请重新选择客户")
             })?;
 
-        let active_contract = sales_contract::ActiveModel {
-            contract_no: Set(req.contract_no),
-            contract_name: Set(req.contract_name),
-            contract_type: Set(req.contract_type),
-            customer_id: Set(req.customer_id),
-            customer_name: Set(Some(customer.customer_name)),
-            total_amount: Set(Some(req.total_amount)),
-            status: Set(contract::DRAFT.to_string()),
-            payment_terms: Set(req.payment_terms),
-            delivery_date: Set(req.delivery_date),
-            // 列表/详情表头展示所需字段随合同头一并落库
-            signed_date: Set(req.signed_date),
-            effective_date: Set(req.effective_date),
-            expiry_date: Set(req.expiry_date),
-            payment_method: Set(req.payment_method),
-            delivery_location: Set(req.delivery_location),
-            remark: Set(req.remark),
-            stamp_tax_amount: Set(stamp_tax),
-            created_by: Set(user_id),
-            ..Default::default()
+        let contract = match manual_no {
+            // 人工指定编号：沿用现值直落（"传了就用"兼容口径，撞 UNIQUE 由
+            // From<DbErr> 统一分类上抛，与本修复前行为一致，不改道）
+            Some(no) => {
+                Self::build_sales_contract_active_model(
+                    no,
+                    &req,
+                    customer.customer_name.clone(),
+                    stamp_tax,
+                    user_id,
+                )
+                .insert(&txn)
+                .await?
+            }
+            None => DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                SALES_CONTRACT_NO_PREFIX,
+                sales_contract::Entity,
+                sales_contract::Column::ContractNo,
+                |no| {
+                    Self::build_sales_contract_active_model(
+                        no,
+                        &req,
+                        customer.customer_name.clone(),
+                        stamp_tax,
+                        user_id,
+                    )
+                },
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    prefix = SALES_CONTRACT_NO_PREFIX,
+                    "销售合同编号取号/插入失败（sales_contract_service.create）"
+                );
+                AppError::business_displayable("销售合同编号生成失败，请稍后重试")
+            })?,
         };
-
-        let contract = active_contract.insert(&txn).await?;
 
         // 创建明细行
         if let Some(items) = &req.items {
@@ -181,6 +219,38 @@ impl SalesContractService {
         txn.commit().await?;
         info!("销售合同创建成功：{}（含明细行）", contract.contract_no);
         Ok(contract)
+    }
+
+    /// 构建销售合同 ActiveModel（人工编号与自动取号两条路径共用字段装配，仅编号来源不同；
+    /// `insert_with_no_retry` 的重试闭包要求可按候选号重复构建）
+    fn build_sales_contract_active_model(
+        contract_no: String,
+        req: &CreateSalesContractRequest,
+        customer_name: String,
+        stamp_tax: Option<Decimal>,
+        user_id: i32,
+    ) -> sales_contract::ActiveModel {
+        sales_contract::ActiveModel {
+            contract_no: Set(contract_no),
+            contract_name: Set(req.contract_name.clone()),
+            contract_type: Set(req.contract_type.clone()),
+            customer_id: Set(req.customer_id),
+            customer_name: Set(Some(customer_name)),
+            total_amount: Set(Some(req.total_amount)),
+            status: Set(contract::DRAFT.to_string()),
+            payment_terms: Set(req.payment_terms.clone()),
+            delivery_date: Set(req.delivery_date),
+            // 列表/详情表头展示所需字段随合同头一并落库
+            signed_date: Set(req.signed_date),
+            effective_date: Set(req.effective_date),
+            expiry_date: Set(req.expiry_date),
+            payment_method: Set(req.payment_method.clone()),
+            delivery_location: Set(req.delivery_location.clone()),
+            remark: Set(req.remark.clone()),
+            stamp_tax_amount: Set(stamp_tax),
+            created_by: Set(user_id),
+            ..Default::default()
+        }
     }
 
     /// 事务内批量插入合同明细行（create 与 update 共用，金额=数量×单价同源）

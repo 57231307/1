@@ -116,13 +116,14 @@ export interface CreateContractItemInput {
 
 /**
  * 创建销售合同入参，逐字段对齐后端 CreateSalesContractRequestDto。
+ * - contract_no 后端为 Option：编号由系统建档自动生成，前端省略该键（表单只读回显，不采集）。
  * - delivery_date 后端可空（真实列可空）⇒ 前端可缺省。
  * - signed_date/effective_date/expiry_date/payment_method/delivery_location 均为真实 DB 列，
  *   DTO 接收并落库，须随建单入参提交。
  * - remark：DTO 接收并由后端真实落 sales_contracts.remark 列（m0016 补列，可空）。
  */
 export interface CreateSalesContractPayload {
-  contract_no: string;
+  contract_no?: string;
   contract_name: string;
   customer_id: number;
   total_amount: number;

@@ -23,8 +23,8 @@
           <el-form-item :label="t('purchaseContract.form.contractNo')" prop="contract_no">
             <el-input
               :model-value="localFormData.contract_no"
+              readonly
               :placeholder="t('purchaseContract.form.contractNoPlaceholder')"
-              @update:model-value="(v: string) => (localFormData.contract_no = v)"
             />
           </el-form-item>
         </el-col>
