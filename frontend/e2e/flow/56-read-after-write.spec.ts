@@ -470,36 +470,11 @@ test.describe.serial('56 读回可见性（保存显示成功→刷新→目标�
       `[56-04] 入库建单应回 receipt_no：${JSON.stringify(created).slice(0, 200)}`
     ).not.toBe('');
 
-    const listEpFrag = '/api/v1/erp/purchase/receipts';
-    await safeGoto(page, '/purchase-receipt');
-
     // 刷新一次以模拟用户「保存后看不到」的真实回读路径（入库单已由 API 建好，
-    // reload 强制重新拉后端、清空 SPA 内存态）。
+    // reload 强制重新拉后端、清空 SPA 内存态）。列表按 created_at 倒序，自建单必在第 1 页，
+    // 故同 56-03 直接按入库单号定位自建行，不用供应商下拉绕行（下拉过滤异步填充易超时，属脆弱实现）。
+    await safeGoto(page, '/purchase-receipt');
     await page.reload();
-    // 用后端支持的服务端过滤（supplier_id）把结果收敛，规避分页（入库列表后端不接收 receipt_no，
-    // 故不能用单号过滤；供应商下拉走 /suppliers/select 全量，自建供应商必在其中）。
-    // 重载后供应商下拉异步填充 + 再按 supplier_id 服务端过滤，等带 supplier_id 的列表 GET 落地。
-    const supWrap2 = page
-      .locator('.filter-container .el-select')
-      .first()
-      .locator('.el-select__wrapper')
-      .first();
-    await supWrap2.waitFor({ state: 'visible', timeout: 20_000 });
-    const filteredGet = page.waitForResponse(
-      r =>
-        r.url().includes(listEpFrag) &&
-        r.request().method() === 'GET' &&
-        /supplier_id=\d+/.test(r.url()) &&
-        r.status() === 200,
-      { timeout: 20_000 }
-    );
-    await supWrap2.click();
-    const supOption2 = page
-      .locator('.el-select-dropdown:visible .el-select-dropdown__item', { hasText: supplierName })
-      .first();
-    await supOption2.waitFor({ state: 'visible', timeout: 20_000 });
-    await supOption2.click();
-    await filteredGet;
 
     const row = await locateRow(page, receiptNo);
     const supplierCell = await columnCell(page, row, '供应商');
