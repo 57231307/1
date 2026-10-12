@@ -39,16 +39,16 @@ SCOPE_OVERRIDE = {
 }
 
 
-def get_commits(prev_tag):
+def get_commits(prev_tag, head_ref="HEAD"):
     if prev_tag:
-        rev_range = f"{prev_tag}..HEAD"
+        args = ["git", "log", f"{prev_tag}..{head_ref}"]
     else:
-        rev_range = "--max-count=200"
+        args = ["git", "log", head_ref, "--max-count=200"]
+    args += ["--no-merges", "--format=%H%x00%s%x00%b%x00"]
 
-    fmt = "--format=%H%x00%s%x00%b%x00"
     result = subprocess.run(
-        ["git", "log", rev_range, fmt, "--no-merges"],
-        capture_output=True, text=True,
+        args,
+        capture_output=True, text=True, encoding="utf-8",
     )
 
     parts = result.stdout.split("\x00")
@@ -60,6 +60,107 @@ def get_commits(prev_tag):
         if h and s:
             commits.append({"hash": h[:8], "subject": s, "body": b})
     return commits
+
+
+AREA_RULES = [
+    ("backend/src/", "后端源码 (backend/src)"),
+    ("backend/tests/", "后端测试 (backend/tests)"),
+    ("backend/migration/", "数据库迁移 (backend/migration)"),
+    ("backend/benches/", "性能基准 (backend/benches)"),
+    ("frontend/src/", "前端源码 (frontend/src)"),
+    ("frontend/e2e/", "前端 E2E (frontend/e2e)"),
+    ("frontend/tests/", "前端单测 (frontend/tests)"),
+    (".github/", "CI/CD (.github)"),
+    (".monkeycode/", "内部文档 (.monkeycode)"),
+]
+
+
+def classify_area(path):
+    for prefix, name in AREA_RULES:
+        if path.startswith(prefix):
+            return name
+    if path.endswith(".md"):
+        return "文档 (*.md)"
+    if path.startswith("backend/"):
+        return "后端其它 (backend/*)"
+    if path.startswith("frontend/"):
+        return "前端其它 (frontend/*)"
+    return "其它"
+
+
+def get_diff_stats(prev_tag, head_ref="HEAD"):
+    """计算相对上一版本 tag 的真实代码差异（按区域分桶 + 热点文件）。
+
+    仅依赖 git diff，不依赖 commit message，因此即使 PR 被 squash 合并、
+    commit 历史被压成一条，仍能如实反映本次版本相对上一版本的变更量与覆盖面。
+    返回 None 表示无对比基线或 diff 不可解析。"""
+    if not prev_tag:
+        return None
+    result = subprocess.run(
+        ["git", "diff", "--numstat", f"{prev_tag}..{head_ref}"],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+
+    total_files = 0
+    ins = 0
+    dele = 0
+    areas = OrderedDict()
+    files = []
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        a, d, path = parts
+        ai = 0 if a == "-" else int(a)
+        di = 0 if d == "-" else int(d)
+        total_files += 1
+        ins += ai
+        dele += di
+        area = classify_area(path)
+        rec = areas.setdefault(area, [0, 0, 0])
+        rec[0] += 1
+        rec[1] += ai
+        rec[2] += di
+        files.append((path, ai, di))
+
+    files.sort(key=lambda x: (x[1] + x[2]), reverse=True)
+    return {"files": total_files, "ins": ins, "del": dele,
+            "areas": areas, "top": files[:15]}
+
+
+def format_diff_section(prev_tag, stats):
+    lines = ["## 📈 与上一版本对比", ""]
+    if not prev_tag:
+        lines += ["_首个版本，无对比基线。_", ""]
+        return lines
+    if not stats:
+        lines += ["_无法计算 diff（对比基线不可解析）。_", ""]
+        return lines
+    lines += [
+        f"相对 `{prev_tag}` 的真实代码差异（`git diff {prev_tag}..HEAD`），"
+        "不受 squash 合并影响：", "",
+        f"- 合计变更 **{stats['files']}** 个文件，**+{stats['ins']}** 行 / "
+        f"**-{stats['del']}** 行", "",
+        "| 区域 | 文件数 | 新增行 | 删除行 |",
+        "|------|-------:|-------:|-------:|",
+    ]
+    named = [name for _, name in AREA_RULES]
+    for name in named:
+        if name in stats["areas"]:
+            f, i, d = stats["areas"][name]
+            lines.append(f"| {name} | {f} | +{i} | -{d} |")
+    for name, (f, i, d) in stats["areas"].items():
+        if name not in named:
+            lines.append(f"| {name} | {f} | +{i} | -{d} |")
+    lines.append("")
+    if stats["top"]:
+        lines += ["变更最集中的文件（按增删行数）：", ""]
+        for path, ai, di in stats["top"]:
+            lines.append(f"- `{path}` (+{ai} / -{di})")
+        lines.append("")
+    return lines
 
 
 def parse_bullets(body):
@@ -193,7 +294,7 @@ def get_commit_type(subject):
     return m.group(1) if m else "other"
 
 
-def format_release_notes(version, tag_name, prev_tag, commits):
+def format_release_notes(version, tag_name, prev_tag, commits, stats=None):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
     commit_range = f"{prev_tag}..{tag_name}" if prev_tag else f"初始版本（最近 {len(commits)} 个提交）"
     commit_count = len(commits)
@@ -242,6 +343,10 @@ def format_release_notes(version, tag_name, prev_tag, commits):
     lines.append("")
     lines.append(f"本次版本主要更新：{summary}")
     lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    lines += format_diff_section(prev_tag, stats)
     lines.append("---")
     lines.append("")
 
@@ -318,7 +423,10 @@ def format_release_notes(version, tag_name, prev_tag, commits):
     lines.append("")
     lines.append("---")
     lines.append("")
-    lines.append("*此发布说明由 CI 自动生成，依据 `.github/RELEASE_TEMPLATE.md` 模板格式化。*")
+    lines.append("*此发布说明由 CI 自动生成（`generate-release-notes.py`）："
+                 "更新/修复条目解析自 commit 历史，"
+                 "「与上一版本对比」章节由 `git diff PREV_TAG..HEAD` 计算，"
+                 "不受 squash 合并影响。*")
     lines.append("")
 
     return "\n".join(lines)
@@ -328,12 +436,14 @@ if __name__ == "__main__":
     prev_tag = sys.argv[1] if len(sys.argv) > 1 else ""
     version = sys.argv[2] if len(sys.argv) > 2 else ""
     tag_name = sys.argv[3] if len(sys.argv) > 3 else version
+    head_ref = sys.argv[4] if len(sys.argv) > 4 else "HEAD"
 
-    commits = get_commits(prev_tag)
-    notes = format_release_notes(version, tag_name, prev_tag, commits)
+    commits = get_commits(prev_tag, head_ref)
+    stats = get_diff_stats(prev_tag, head_ref)
+    notes = format_release_notes(version, tag_name, prev_tag, commits, stats)
 
     output_path = os.environ.get("RELEASE_NOTES_PATH", "release_notes.md")
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(notes)
     print(f"✅ Release notes 已生成: {output_path}")
     print(f"提交数: {len(commits)}")
