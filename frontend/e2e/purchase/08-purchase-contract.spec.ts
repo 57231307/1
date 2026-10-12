@@ -16,7 +16,7 @@
 //   check_remaining_amount_txn 拒绝即证明第一次执行已持久化）。
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { safeGoto, pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
+import { safeGoto, pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';
 import {
   apiCall,
   apiCallRaw,
@@ -108,15 +108,22 @@ test.describe('08 采购合同', () => {
   });
 
   test('08-02 新建采购合同（UI 建单 → 关键词回读确认落库且字段正确）', async ({ page }) => {
-    const contractNo = genCode('E2E-PC');
-    const contractName = `E2E 合同 ${contractNo}`;
+    // 契约（本批只读化）：新建对话框「合同编号」只读、提交省略 contract_no 键，
+    // 编号由后端自动取号（"传了就用"仅存 API 直传路径，见 seedDraftContract）。
+    const tag = genCode('E2E-PC');
+    const contractName = `E2E 合同 ${tag}`;
 
     await gotoContractList(page);
     await page.getByRole('button', { name: '新建合同' }).click();
     const dlg = page.locator('.el-dialog:visible');
     await expect(dlg).toBeVisible({ timeout: 30000 });
 
-    await fillFieldByLabel(dlg, page, '合同编号', contractNo);
+    // 合同编号只读：对 readonly 元素 fill 会被 Playwright 判 not editable
+    //（同型先例 fabric/02 批次号），故不填写，只断只读。
+    const noInput = formItemByExactLabel(dlg, '合同编号').locator('input').first();
+    await expect(noInput, '新建合同：合同编号输入框应带 readonly 属性').toHaveAttribute('readonly');
+    expect(await noInput.isEditable(), '新建合同：合同编号应只读（后端自动取号）').toBe(false);
+
     await fillFieldByLabel(dlg, page, '合同名称', contractName);
     // 供应商（filterable el-select，label '供应商'）：pickSelectIn 点 wrapper→选首项，
     // 消除点外层 .el-select/只读 input 后 dropdown first() 不稳定的 30s 超时（#4654 根因）。
@@ -134,10 +141,45 @@ test.describe('08 采购合同', () => {
     await dateInput.fill('2026-12-31');
     await page.keyboard.press('Enter');
 
+    // 抓前端真实提交请求体+响应（跳过 CSRF 瞬态 403 重放，同 flow/68 captureUiSubmit 口径；
+    // 持续真 403 会因等不到非 403 响应而超时判红，不被掩盖）
+    const respPromise = page.waitForResponse(
+      res =>
+        res.url().includes('/api/v1/erp/purchase/purchase-contracts') &&
+        res.request().method() === 'POST' &&
+        res.status() !== 403,
+      { timeout: 30_000 }
+    );
     await dlg.getByRole('button', { name: '确定' }).click();
+    const resp = await respPromise;
+    const raw = resp.request().postData();
+    expect(
+      raw,
+      '[08-02] 未捕获到前端提交请求体（POST /purchase/purchase-contracts postData 为空）'
+    ).not.toBeNull();
+    const body = JSON.parse(String(raw)) as Record<string, unknown>;
+    expect(
+      Object.prototype.hasOwnProperty.call(body, 'contract_no'),
+      `[08-02] 请求体必须省略 contract_no 键（只读字段不发送，发 ""/空值=只读化未落地的复发形态），实际=${raw}`
+    ).toBe(false);
+    // create_contract handler Ok(Json(ApiResponse)) 无状态改写 ⇒ HTTP 恰 200
+    expect(
+      resp.status(),
+      `[08-02] 省略编号键的 UI 建单必须被后端接受（HTTP 恰 200），实际 status=${resp.status()} body=${raw}`
+    ).toBe(200);
+    const createdJson = (await resp.json()) as {
+      code?: number;
+      data?: Record<string, unknown>;
+    };
+    expect(createdJson.code, `[08-02] 成功信封 code=200，实际请求体=${raw}`).toBe(200);
+    const generatedNo = String(createdJson.data?.contract_no ?? '');
+    expect(
+      generatedNo.length,
+      `[08-02] 省略编号键创建应回后端生成的非空 contract_no，实际 data=${JSON.stringify(createdJson.data)}`
+    ).toBeGreaterThan(0);
     await expect(page.getByText('保存成功')).toBeVisible({ timeout: 30000 });
 
-    // 真实回读：列表按合同编号检索（后端 list 返回 ApiResponse<Vec> ⇒ data 为裸数组）
+    // 真实回读：编号已不可预知，改按合同名称（含唯一 tag）检索（后端 keyword 覆盖编号/名称）
     const rows = await apiCallRaw<
       Array<{
         id: number;
@@ -147,9 +189,15 @@ test.describe('08 采购合同', () => {
         total_amount: number | string;
         status: string;
       }>
-    >(page, 'GET', `/purchase/purchase-contracts?keyword=${contractNo}&page=1&page_size=20`);
-    const mine = rows.find(r => r.contract_no === contractNo);
-    expect(mine, `回读未找到新建合同 ${contractNo}`).toBeTruthy();
+    >(page, 'GET', `/purchase/purchase-contracts?keyword=${tag}&page=1&page_size=20`);
+    const mine = rows.find(r => r.contract_name === contractName);
+    expect(mine, `回读未找到新建合同（名称 ${contractName}）`).toBeTruthy();
+    expect(
+      mine!.contract_no,
+      `列表回读 contract_no 应为后端生成的非空编号（实际 ${JSON.stringify(mine!.contract_no)}）`
+    ).not.toBe('');
+    expect(mine!.contract_no.length, '列表回读 contract_no 非空').toBeGreaterThan(0);
+    expect(mine!.contract_no, '后端生成编号应逐字回显在列表').toBe(generatedNo);
     expect(mine!.contract_name).toBe(contractName);
     expect(mine!.supplier_id, '供应商应为真实外键（>0）').toBeGreaterThan(0);
     expect(Number(mine!.total_amount)).toBe(100000);

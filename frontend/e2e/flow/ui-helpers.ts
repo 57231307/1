@@ -487,8 +487,8 @@ export async function createWarehouseUI(page: Page): Promise<number | undefined>
   // 仓库类型 select 选项为 原料仓/成品仓/半成品仓/退货仓（i18n 中文），
   // warehouse_type 必填（trigger:change），填错值会导致 select 选不上 →
   // formRef.validate 失败 → 提交请求不发 → waitCreateResponse 45s 超时
+  // 仓库编码（warehouse_code）只读、由后端自动取号（提交省略该键），UI 不填写
   const fields: UiField[] = [
-    { kind: 'input', label: '仓库编码', value: _genCode('E2E-W') },
     { kind: 'input', label: '仓库名称', value: _genName('E2E仓库') },
     { kind: 'select', label: '类型', value: '原料仓' },
   ];
