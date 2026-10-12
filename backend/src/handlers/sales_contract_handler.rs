@@ -39,9 +39,11 @@ pub struct SalesContractQuery {
 /// 创建销售合同请求 DTO：可空列以 Option 表示（`delivery_date` 对应真实列
 /// sales_contracts.delivery_date 可空），并覆盖表头真实列
 /// signed_date/effective_date/expiry_date/payment_method/delivery_location。
+/// `contract_no`：传了就用（兼容导入/API 直传），缺省/空串由 service 层
+/// 经 DocumentNumberGenerator 系统取号（generate-if-absent 政策，UNIQUE 兜底）。
 #[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct CreateSalesContractRequestDto {
-    pub contract_no: String,
+    pub contract_no: Option<String>,
     pub contract_name: String,
     pub customer_id: i32,
     pub total_amount: rust_decimal::Decimal,
@@ -306,7 +308,11 @@ pub async fn create_contract(
 ) -> Result<Json<ApiResponse<sales_contract::Model>>, AppError> {
     info!(
         "用户 {} 正在创建销售合同：{}",
-        auth.user_id, req.contract_no
+        auth.user_id,
+        // Option 通道：未指定时明示走系统取号，避免日志显示 Option 调试格式
+        req.contract_no
+            .as_deref()
+            .unwrap_or("(未指定编号，由系统取号)")
     );
 
     // 合同行交货允差百分比范围校验（validator derive 范式，与 so/po create 同口径）：

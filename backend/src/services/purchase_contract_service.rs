@@ -4,6 +4,7 @@ use crate::models::status::contract;
 use crate::models::user;
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -15,6 +16,14 @@ use sea_orm::{
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::info;
+
+/// 采购合同编号（purchase_contracts.contract_no）自动取号前缀：
+/// 统一格式 `{PC}{YYYYMMDD}{3位流水}`（对齐 warehouse_service.rs 的
+/// WAREHOUSE_CODE_NO_PREFIX 形态；doc_type `purchase_contract` 已登记于
+/// utils/number_generator.rs 的占用探测白名单）。人工传入编号原样保留
+/// （兼容导入/API 直传），缺省/空串时由生成器在事务内取号，
+/// purchase_contracts.contract_no UNIQUE 兜底并发撞号（insert_with_no_retry）。
+pub const PURCHASE_CONTRACT_NO_PREFIX: &str = "PC";
 
 /// 采购合同读模型：实体列 + LEFT JOIN 关联出的创建人姓名（实体仅有 created_by 数值）。
 ///
@@ -63,12 +72,14 @@ pub struct ContractQueryParams {
 
 /// 创建采购合同请求
 ///
+/// - `contract_no` 为 Option：传了就用（兼容导入/API 直传，原样落库）；
+///   `None`/空串由 `DocumentNumberGenerator` 在事务内按 PURCHASE_CONTRACT_NO_PREFIX 取号。
 /// - `delivery_date` 为 Option：真实列 purchase_contracts.delivery_date 可空（m0009 DDL）。
 /// - 表头真实列 contract_type/signed_date/effective_date/expiry_date/payment_method/
 ///   delivery_location 与 remark 全量落库（remark 列由 m0016 迁移补齐）。
 #[derive(Debug, Clone)]
 pub struct CreateContractRequest {
-    pub contract_no: String,
+    pub contract_no: Option<String>,
     pub contract_name: String,
     pub supplier_id: i32,
     pub total_amount: Decimal,
@@ -134,12 +145,23 @@ impl PurchaseContractService {
     }
 
     /// 创建采购合同
+    ///
+    /// 合同编号：人工传入（非空）原样保留（兼容导入/API 直传）；缺省/空串由
+    /// DocumentNumberGenerator 在同一事务内取号（取号与 INSERT 同事务，撞
+    /// purchase_contracts.contract_no UNIQUE 时保存点重取重试，口径对齐
+    /// warehouse_service.rs 的 insert_with_no_retry 用法）。
     pub async fn create(
         &self,
         req: CreateContractRequest,
         user_id: i32,
     ) -> Result<purchase_contract::Model, AppError> {
-        info!("用户 {} 正在创建采购合同：{}", user_id, req.contract_no);
+        // 空串与缺省同义（未指定），统一进入系统取号分支；非空人工值原样保留
+        let manual_no = req.contract_no.clone().filter(|no| !no.is_empty());
+        info!(
+            "用户 {} 正在创建采购合同：{}",
+            user_id,
+            manual_no.as_deref().unwrap_or("(未指定编号，由系统取号)")
+        );
 
         // P0 契约修复：校验供应商存在并回填冗余列 supplier_name
         //（原实现既不校验也不回填 ⇒ 悬挂 supplier_id 可入库、列表「供应商」列恒空）
@@ -150,29 +172,78 @@ impl PurchaseContractService {
                 AppError::business_displayable("创建失败：所选供应商不存在，请重新选择供应商")
             })?;
 
-        let active_contract = purchase_contract::ActiveModel {
-            contract_no: Set(req.contract_no),
-            contract_name: Set(req.contract_name),
-            contract_type: Set(req.contract_type),
+        // 取号（含保存点重试）与合同 INSERT 同事务，与 sales 侧 create 同形
+        let txn = (*self.db).begin().await?;
+        let contract = match manual_no {
+            // 人工指定编号：沿用现值直落（"传了就用"兼容口径，撞 UNIQUE 由
+            // From<DbErr> 统一分类上抛，与本修复前行为一致，不改道）
+            Some(no) => {
+                Self::build_purchase_contract_active_model(
+                    no,
+                    &req,
+                    supplier.supplier_name.clone(),
+                    user_id,
+                )
+                .insert(&txn)
+                .await?
+            }
+            None => DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                PURCHASE_CONTRACT_NO_PREFIX,
+                purchase_contract::Entity,
+                purchase_contract::Column::ContractNo,
+                |no| {
+                    Self::build_purchase_contract_active_model(
+                        no,
+                        &req,
+                        supplier.supplier_name.clone(),
+                        user_id,
+                    )
+                },
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    prefix = PURCHASE_CONTRACT_NO_PREFIX,
+                    "采购合同编号取号/插入失败（purchase_contract_service.create）"
+                );
+                AppError::business_displayable("采购合同编号生成失败，请稍后重试")
+            })?,
+        };
+        txn.commit().await?;
+
+        info!("采购合同创建成功：{}", contract.contract_no);
+        Ok(contract)
+    }
+
+    /// 构建采购合同 ActiveModel（人工编号与自动取号两条路径共用字段装配，仅编号来源不同；
+    /// `insert_with_no_retry` 的重试闭包要求可按候选号重复构建）
+    fn build_purchase_contract_active_model(
+        contract_no: String,
+        req: &CreateContractRequest,
+        supplier_name: String,
+        user_id: i32,
+    ) -> purchase_contract::ActiveModel {
+        purchase_contract::ActiveModel {
+            contract_no: Set(contract_no),
+            contract_name: Set(req.contract_name.clone()),
+            contract_type: Set(req.contract_type.clone()),
             supplier_id: Set(req.supplier_id),
-            supplier_name: Set(Some(supplier.supplier_name)),
+            supplier_name: Set(Some(supplier_name)),
             total_amount: Set(Some(req.total_amount)),
             status: Set(contract::DRAFT.to_string()),
-            payment_terms: Set(req.payment_terms),
-            payment_method: Set(req.payment_method),
+            payment_terms: Set(req.payment_terms.clone()),
+            payment_method: Set(req.payment_method.clone()),
             delivery_date: Set(req.delivery_date),
-            delivery_location: Set(req.delivery_location),
+            delivery_location: Set(req.delivery_location.clone()),
             signed_date: Set(req.signed_date),
             effective_date: Set(req.effective_date),
             expiry_date: Set(req.expiry_date),
-            remark: Set(req.remark),
+            remark: Set(req.remark.clone()),
             created_by: Set(user_id),
             ..Default::default()
-        };
-
-        let contract = active_contract.insert(&*self.db).await?;
-        info!("采购合同创建成功：{}", contract.contract_no);
-        Ok(contract)
+        }
     }
 
     /// 更新采购合同（表头全集，三态字段语义：None=保持、Some(None)=置 NULL、Some(Some)=覆盖）

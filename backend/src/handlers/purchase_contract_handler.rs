@@ -36,10 +36,12 @@ pub struct ContractQuery {
 ///
 /// 创建采购合同请求 DTO：字段对齐采购合同真实列，可空列以 Option 表示（delivery_date、
 /// contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location 等）。
+/// `contract_no`：传了就用（兼容导入/API 直传），缺省/空串由 service 层
+/// 经 DocumentNumberGenerator 系统取号（generate-if-absent 政策，UNIQUE 兜底）。
 #[allow(dead_code, reason = "序列化/反序列化字段")]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateContractRequestDto {
-    pub contract_no: String,
+    pub contract_no: Option<String>,
     pub contract_name: String,
     pub supplier_id: i32,
     pub total_amount: rust_decimal::Decimal,
@@ -203,7 +205,11 @@ pub async fn create_contract(
 ) -> Result<Json<ApiResponse<purchase_contract::Model>>, AppError> {
     info!(
         "用户 {} 正在创建采购合同：{}",
-        auth.user_id, req.contract_no
+        auth.user_id,
+        // Option 通道：未指定时明示走系统取号，避免日志显示 Option 调试格式
+        req.contract_no
+            .as_deref()
+            .unwrap_or("(未指定编号，由系统取号)")
     );
 
     let service = PurchaseContractService::new(state.db.clone());

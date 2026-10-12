@@ -477,7 +477,8 @@ async fn live_purchase_update_null_clears_nullable_and_absent_keeps_with_audit_t
     let created = service
         .create(
             CreateContractRequest {
-                contract_no: format!("PC-XNULL-{suffix}"),
+                // 人工指定编号分支（"传了就用"兼容形态）
+                contract_no: Some(format!("PC-XNULL-{suffix}")),
                 contract_name: "三态清空采购合同".to_string(),
                 supplier_id: sup.id,
                 total_amount: Decimal::from(500),
@@ -607,7 +608,8 @@ async fn live_sales_update_null_clears_nullable_and_absent_keeps() {
     let created = service
         .create(
             CreateSalesContractRequest {
-                contract_no: format!("SC-XNULL-{suffix}"),
+                // 人工指定编号分支（"传了就用"兼容形态）
+                contract_no: Some(format!("SC-XNULL-{suffix}")),
                 contract_name: "三态清空销售合同".to_string(),
                 customer_id: cust.id,
                 total_amount: Decimal::from(800),
