@@ -7327,7 +7327,7 @@ export default {
         remarks: 'Remarks',
       },
       placeholder: {
-        supplierCode: 'Please enter supplier code',
+        supplierCode: 'Supplier code is generated automatically',
         supplierName: 'Please enter supplier name',
         shortName: 'Please enter short name',
         supplierType: 'Please select type',
@@ -7364,7 +7364,6 @@ export default {
         save: 'Save',
       },
       validation: {
-        supplierCodeRequired: 'Please enter supplier code',
         supplierNameRequired: 'Please enter supplier name',
         contactPhoneRequired: 'Please enter contact phone',
         phoneFormat: 'Please enter a valid phone number',
