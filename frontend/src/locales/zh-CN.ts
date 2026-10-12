@@ -8621,7 +8621,6 @@ export default {
       column: {
         role: '角色',
         scopeType: '权限范围',
-        scopeValue: '范围值',
         createdAt: '创建时间',
       },
       loadListFailed: '获取数据权限列表失败',
@@ -8682,8 +8681,8 @@ export default {
         role: '角色',
         resource: '资源',
         fieldName: '字段名',
-        visible: '可见',
-        editable: '可编辑',
+        canRead: '可读',
+        canWrite: '可写',
       },
       common: {
         yes: '是',

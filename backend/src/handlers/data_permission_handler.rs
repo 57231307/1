@@ -4,7 +4,7 @@
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::data_permission;
+use crate::models::{data_permission, role};
 use crate::services::data_permission_service::DataPermissionService;
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::error::AppError;
@@ -13,7 +13,9 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use sea_orm::EntityTrait;
+use sea_orm::{
+    ColumnTrait, EntityTrait, FromQueryResult, JoinType, QueryFilter, QuerySelect, RelationTrait,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -115,6 +117,10 @@ pub struct DataPermissionResponse {
     pub allowed_fields: Option<Value>,
     pub hidden_fields: Option<Value>,
     pub is_enabled: bool,
+    /// 角色名称，来自 roles.name（LEFT JOIN role_id）
+    pub role_name: Option<String>,
+    /// 创建时间
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 impl From<crate::models::data_permission::Model> for DataPermissionResponse {
@@ -128,8 +134,25 @@ impl From<crate::models::data_permission::Model> for DataPermissionResponse {
             allowed_fields: model.allowed_fields,
             hidden_fields: model.hidden_fields,
             is_enabled: model.is_enabled,
+            role_name: None,
+            created_at: model.created_at,
         }
     }
+}
+
+/// 列表查询内部视图行（仅用于 LEFT JOIN 富化，不对外暴露）
+#[derive(Debug, FromQueryResult)]
+struct DataPermissionListRow {
+    pub id: i32,
+    pub role_id: i32,
+    pub resource_type: String,
+    pub scope_type: String,
+    pub custom_condition: Option<Value>,
+    pub allowed_fields: Option<Value>,
+    pub hidden_fields: Option<Value>,
+    pub is_enabled: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub role_name: Option<String>,
 }
 
 /// 设置数据权限
@@ -244,6 +267,8 @@ pub async fn get_data_permission(
                 )
             }),
             is_enabled: true,
+            role_name: None,
+            created_at: record.created_at,
         }
     }))))
 }
@@ -289,12 +314,29 @@ pub async fn list_data_permissions(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<DataPermissionResponse>>>, AppError> {
     require_admin_role(&state, &auth).await?;
-    let service = DataPermissionService::new(state.db.clone());
-    let permissions = service.list_all_data_permissions().await?;
 
-    let responses: Vec<DataPermissionResponse> = permissions
+    let rows: Vec<DataPermissionListRow> = data_permission::Entity::find()
+        .column_as(role::Column::Name, "role_name")
+        .join(JoinType::LeftJoin, data_permission::Relation::Role.def())
+        .filter(data_permission::Column::IsEnabled.eq(true))
+        .into_model::<DataPermissionListRow>()
+        .all(&*state.db)
+        .await?;
+
+    let responses: Vec<DataPermissionResponse> = rows
         .into_iter()
-        .map(DataPermissionResponse::from)
+        .map(|row| DataPermissionResponse {
+            id: row.id,
+            role_id: row.role_id,
+            resource_type: row.resource_type,
+            scope_type: row.scope_type,
+            custom_condition: row.custom_condition,
+            allowed_fields: row.allowed_fields,
+            hidden_fields: row.hidden_fields,
+            is_enabled: row.is_enabled,
+            role_name: row.role_name,
+            created_at: row.created_at,
+        })
         .collect();
 
     Ok(Json(ApiResponse::success(responses)))

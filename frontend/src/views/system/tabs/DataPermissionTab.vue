@@ -26,11 +26,6 @@
           width="120"
         />
         <el-table-column
-          prop="scope_value"
-          :label="t('system.dataPermission.column.scopeValue')"
-          min-width="200"
-        />
-        <el-table-column
           prop="created_at"
           :label="t('system.dataPermission.column.createdAt')"
           width="160"
@@ -50,9 +45,9 @@ import type { ApiResponse } from '@/types/api';
 const { t } = useI18n({ useScope: 'global' });
 
 interface DataPermissionRow {
-  role_name: string;
+  // 后端富化：role_name 来自 LEFT JOIN role（无匹配角色时为 null）
+  role_name: string | null;
   scope_type: string;
-  scope_value: string;
   created_at: string;
 }
 
