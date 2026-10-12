@@ -23,6 +23,7 @@
           <el-form-item :label="t('salesContract.form.labelContractNo')" prop="contract_no">
             <el-input
               v-model="localFormData.contract_no"
+              readonly
               :placeholder="t('salesContract.form.placeholderContractNo')"
             />
           </el-form-item>

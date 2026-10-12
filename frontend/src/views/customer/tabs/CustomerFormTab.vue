@@ -25,6 +25,7 @@
           <el-form-item :label="t('customer.form.label.customerCode')" prop="customer_code">
             <el-input
               v-model="formData.customer_code"
+              readonly
               :placeholder="t('customer.form.placeholder.customerCode')"
             />
           </el-form-item>
@@ -332,13 +333,6 @@ const formData = reactive({
 });
 
 const formRules: FormRules = {
-  customer_code: [
-    {
-      required: true,
-      message: t('customer.form.validation.customerCodeRequired'),
-      trigger: 'blur',
-    },
-  ],
   customer_name: [
     {
       required: true,
@@ -465,11 +459,8 @@ const handleSubmit = async () => {
       await updateCustomer(formData.id, payload);
       ElMessage.success(t('customer.form.message.saveSuccess'));
     } else {
-      // customer_code 仅创建 DTO 有（Option，留空则省略键、由服务端建档规则生成）
-      await createCustomer({
-        ...payload,
-        ...(formData.customer_code ? { customer_code: formData.customer_code } : {}),
-      });
+      // customer_code 不发送：编码由系统建档自动生成（创建 DTO 该键为 Option，缺省即服务端取号）
+      await createCustomer(payload);
       ElMessage.success(t('customer.form.message.saveSuccess'));
     }
     visible.value = false;

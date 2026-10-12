@@ -217,10 +217,10 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('crmCustomer.dialog.customerCode')" prop="customer_code">
-              <!-- 后端更新 DTO（UpdateEnhancedCustomerRequest）无 customer_code 键：编码建档后不可改，编辑态禁用避免假可编辑 -->
+              <!-- 客户编码由系统建档自动生成、编辑态建档后不可改：表单只读回显，不采集不发送 -->
               <el-input
                 v-model="formData.customer_code"
-                :disabled="isEdit"
+                readonly
                 :placeholder="$t('crmCustomer.dialog.customerCodePlaceholder')"
               />
             </el-form-item>
@@ -453,9 +453,6 @@ const formData = reactive({
 });
 
 const formRules = computed<FormRules>(() => ({
-  customer_code: [
-    { required: true, message: t('crmCustomer.validation.customerCodeRequired'), trigger: 'blur' },
-  ],
   customer_name: [
     { required: true, message: t('crmCustomer.validation.customerNameRequired'), trigger: 'blur' },
   ],
@@ -619,7 +616,9 @@ const handleSubmit = async () => {
         await updateCustomer(formData.id as number, payload);
         ElMessage.success(t('crmCustomer.message.updateSuccess'));
       } else {
-        await createCustomer(formData);
+        // customer_code 不发送：编码由系统建档自动生成（该建档端点不接收此键）
+        const { customer_code, ...createPayload } = formData;
+        await createCustomer(createPayload);
         ElMessage.success(t('crmCustomer.message.createSuccess'));
       }
       dialogVisible.value = false;

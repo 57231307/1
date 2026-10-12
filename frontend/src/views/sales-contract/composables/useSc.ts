@@ -287,7 +287,7 @@ export function useSc() {
         await updateSalesContract(formData.id, updatePayload);
       } else {
         const payload: CreateSalesContractPayload = {
-          contract_no: formData.contract_no,
+          // contract_no 不发送：合同编号由系统建档自动生成
           contract_name: formData.contract_name,
           customer_id: formData.customer_id!,
           total_amount: formData.total_amount,

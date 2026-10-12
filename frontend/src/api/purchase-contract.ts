@@ -64,13 +64,14 @@ export interface PurchaseContractQuery {
 
 /**
  * 创建采购合同请求，逐字段对齐后端 CreateContractRequestDto。
+ * - contract_no 后端为 Option：编号由系统建档自动生成，前端省略该键（表单只读回显，不采集）。
  * - delivery_date 后端可空（真实列 delivery_date 可空）；前端表单口径仍必填交货日期（产品要求），类型可选不冲突。
  * - contract_type/signed_date/effective_date/expiry_date/payment_method/delivery_location
  *   均为真实 DB 列，DTO 接收并落库，须随建单入参提交。
  * - 后端字段名是 remark（单数）而非 remarks，m0016 补齐的可空列。
  */
 export interface CreatePurchaseContractPayload {
-  contract_no: string;
+  contract_no?: string;
   contract_name: string;
   supplier_id: number;
   total_amount: number;
