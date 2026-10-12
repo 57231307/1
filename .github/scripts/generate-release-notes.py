@@ -347,14 +347,17 @@ def parse_subject_item(subject):
     return (CN_TYPE_MAP.get(t, "other"), desc)
 
 
-def format_semantic_section(pr_numbers, subjects):
+def format_semantic_section(pr_numbers, subjects, source_note=""):
     L = ["## 📝 语义更新要点（按提交聚合，句子级）", ""]
     if not pr_numbers:
         L += ["_未从 squash 提交中解析到 PR 编号，跳过语义聚合。_", ""]
         return L
-    L.append(f"来源：关联 PR {', '.join('#' + n for n in pr_numbers)}"
-             + (f"，聚合 {len(subjects)} 条提交（PR 提交在 squash 后仍保留，可逐条还原）。"
-                if subjects else "；未能拉取提交（权限或网络），此处降级省略。"))
+    prs = ', '.join('#' + n for n in pr_numbers)
+    if subjects:
+        note = source_note or f"，聚合 {len(subjects)} 条提交（PR 提交在 squash 后仍保留，可逐条还原）。"
+        L.append(f"来源：关联 PR {prs}{note}")
+    else:
+        L.append(f"来源：关联 PR {prs}；未能拉取提交（权限或网络）且本地无回退项，此处降级省略。")
     L.append("")
     if not subjects:
         return L
@@ -569,8 +572,9 @@ def format_release_notes(version, tag_name, prev_tag, commits, stats=None, matri
     lines.append("")
 
     if semantic:
-        pr_nums, subjects = semantic
-        lines += format_semantic_section(pr_nums, subjects)
+        pr_nums, subjects, *rest = semantic
+        source_note = rest[0] if rest else ""
+        lines += format_semantic_section(pr_nums, subjects, source_note)
         lines.append("---")
         lines.append("")
 
@@ -636,12 +640,32 @@ if __name__ == "__main__":
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
     pr_numbers = extract_pr_numbers(commits)
     subjects = []
+    source_note = ""
     if repo and token and pr_numbers:
         try:
             subjects = collect_pr_commit_subjects(repo, pr_numbers, token)
         except Exception as e:
-            print(f"⚠️ 语义要点拉取失败，降级省略：{e}")
-    semantic = (pr_numbers, subjects) if pr_numbers else None
+            print(f"⚠️ 语义要点拉取失败，回退本地提交：{e}")
+    if pr_numbers and not subjects:
+        # 回退 PR 提交 API 不可用时，用本地 commit 标题与其 body 的 conventional bullet 聚合，
+        # 如实标注来源，绝不静默留空（数字口径以本地 git 为准，不谎称 PR API）。
+        fallback = []
+        for c in commits:
+            subj = re.sub(r"\s*\(#\d+\)\s*$", "", c["subject"]).strip()
+            if subj:
+                fallback.append(subj)
+            for b in parse_bullets(c.get("body") or ""):
+                desc = (b.get("desc") or "").strip()
+                if not desc:
+                    continue
+                t = (b.get("type") or "").strip()
+                sc = (b.get("scope") or "").strip()
+                head = f"{t}({sc}):" if (t and sc) else (f"{t}:" if t else "")
+                fallback.append(f"{head} {desc}".strip())
+        subjects = fallback
+        if fallback:
+            source_note = f"，回退本地 git 提交聚合 {len(fallback)} 条（PR 提交 API 不可用）"
+    semantic = (pr_numbers, subjects, source_note) if pr_numbers else None
 
     notes = format_release_notes(version, tag_name, prev_tag, commits, stats, matrix, semantic)
 
