@@ -55,7 +55,7 @@ Bingxi Management Platform 是一套面向**纺织（面料/染整）行业**的
 | 后端业务事件      | 34 种（`event_bus.rs` 中 `BusinessEvent` 枚举变体数；事件总线 + Kafka + ES 刷新 + 幂等去重）                                        |
 | 后端状态机        | 覆盖缸号 / 订单 / 凭证 / 质检 / 8D 等主业务流程，迁移规则以 DB 规则表与代码内迁移表两种形态定义                                    |
 | 后端集成测试      | 472 个文件 / 3,733 个测试函数（`tests/` 下 `#[test]` + `#[tokio::test]` 计数）                                                      |
-| 后端迁移          | 16 个注册迁移包（`migration/src/lib.rs` 的 `Migrator::migrations()`：7 大业务域聚合 + 9 个专项），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
+| 后端迁移          | 17 个注册迁移包（`migration/src/lib.rs` 的 `Migrator::migrations()`：7 大业务域聚合 + 10 个专项），Rust 代码内联 SQL，`bingxi migrate run` 执行 |
 | 后端基准测试      | 4 个 criterion 基准（染整成本/库存/凭证/工资）                                                                                       |
 | 前端 Vue 文件     | 410 个（`src` 下 `.vue`）                                                                                                            |
 | 前端 TS 文件      | 291 个（`frontend/src` 下 `.ts`，不含 `.d.ts`；另含 `frontend/tests` 单测）                                                          |
@@ -479,7 +479,7 @@ sudo journalctl -u bingxi-backend -f
 
 ### 数据库与重构
 
-- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，按业务域聚合为 16 个注册迁移包（7 大核心业务域 system/business/sales_crm/production/finance/v15/rls_dept + 9 个专项域，见 `migration/src/lib.rs` 的 `Migrator::migrations()`，通过 `bingxi migrate run` 执行）
+- 数据库迁移以 Rust 代码内联 SQL（raw string）方式实现，按业务域聚合为 17 个注册迁移包（7 大核心业务域 system/business/sales_crm/production/finance/v15/rls_dept + 10 个专项域，含多态单据 ID 加宽收敛，见 `migration/src/lib.rs` 的 `Migrator::migrations()`，通过 `bingxi migrate run` 执行）
 - [重构计划](.monkeycode/docs/refactoring/) — 重构任务清单
 
 ---
