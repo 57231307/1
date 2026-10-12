@@ -1,10 +1,8 @@
 /**
  * useApiEp.ts - API 网关接口管理 composable
- * 任务编号: P14 批 1 B3 I-2
- * 提供接口列表查询、新建、编辑、删除等业务方法
- * 行为完全保持一致（仅结构重构）
- * 批次 281：接入 useTableApi，移除手写 endpoints/endpointTotal/endpointLoading/endpointQuery + fetchEndpoints
+ * 提供接口列表查询、新建、编辑、删除等业务方法（列表/分页由 useTableApi 承载）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -13,12 +11,13 @@ import {
   updateApiEndpoint,
   deleteApiEndpoint,
   type ApiEndpoint,
+  type CreateApiEndpointRequest,
 } from '@/api/api-gateway';
 import { useTableApi } from '@/composables/useTableApi';
 
 /**
  * 接口管理 composable
- * 批次 281：返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
+ * 返回 reactive 包装，父组件可直接 .字段 访问（无需 .value）
  */
 export function useApiEp() {
   const {
@@ -118,10 +117,26 @@ export function useApiEp() {
             return;
           }
         }
+        // 载荷按后端 UpsertApiEndpointRequest 键集显式构造：
+        // 禁止把表单整体当载荷（id/created_at/updated_at/version/deprecated_at 等非 DTO 管理键
+        // 会被 serde 静默丢弃，形成假提交）。version/deprecation 字段表单未维护 → 省略（后端保持原值）。
+        const payload: CreateApiEndpointRequest = {
+          path: endpointForm.path ?? '',
+          method: endpointForm.method ?? 'GET',
+          description: endpointForm.description ?? '',
+          module: endpointForm.module ?? '',
+          status: endpointForm.status ?? 'active',
+          rate_limit: endpointForm.rate_limit ?? 0,
+          timeout: endpointForm.timeout ?? 30000,
+          authentication: endpointForm.authentication ?? true,
+          authorization: endpointForm.authorization ?? [],
+          request_schema: endpointForm.request_schema ?? {},
+          response_schema: endpointForm.response_schema ?? {},
+        };
         if (endpointForm.id) {
-          await updateApiEndpoint(endpointForm.id, endpointForm);
+          await updateApiEndpoint(endpointForm.id, payload);
         } else {
-          await createApiEndpoint(endpointForm);
+          await createApiEndpoint(payload);
         }
         msg.success('operationSuccess');
         endpointDialogVisible.value = false;
@@ -144,7 +159,7 @@ export function useApiEp() {
       msg.success('deleteSuccess');
       await fetchEndpoints();
     } catch (error: unknown) {
-      if (error !== 'cancel')
+      if (!isDialogDismissal(error))
         ElMessage.error(
           (error instanceof Error ? error.message : String(error)) || msg.translate('deleteFailed')
         );

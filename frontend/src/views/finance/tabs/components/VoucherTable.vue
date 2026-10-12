@@ -26,24 +26,10 @@
         :label="t('finance.voucherTable.columnVoucherType')"
         width="100"
       />
-      <el-table-column
-        :label="t('finance.voucherTable.columnDebitAmount')"
-        width="120"
-        align="right"
-      >
-        <template #default="{ row }">
-          {{ formatMoney(row.total_debit) }}
-        </template>
-      </el-table-column>
-      <el-table-column
-        :label="t('finance.voucherTable.columnCreditAmount')"
-        width="120"
-        align="right"
-      >
-        <template #default="{ row }">
-          {{ formatMoney(row.total_credit) }}
-        </template>
-      </el-table-column>
+      <!-- P0 修复（移除假契约列）：后端 GET /vouchers 列表返回 Vec<voucher::Model>
+           （models/voucher.rs），从不包含 total_debit/total_credit（vouchers 表无合计列，
+           list_vouchers 无聚合）⇒ 原「借方/贷方金额」列恒显 0.00，已移除；
+           借贷合计真实来源为详情端点 entries（见 VoucherDetail / useVchr.viewVoucher 派生）。 -->
       <el-table-column
         prop="status"
         :label="t('finance.voucherTable.columnStatus')"
@@ -130,7 +116,6 @@ const props = defineProps<{
   voucherTotal: number;
   page: number;
   pageSize: number;
-  formatMoney: (amount: number) => string;
   getVoucherStatusLabel: (status?: string) => string;
   getVoucherStatusType: (status?: string) => string;
 }>();

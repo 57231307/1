@@ -252,8 +252,7 @@ pub async fn get_system_resources(
             sea_orm::DatabaseBackend::Postgres,
             db_connections_sql.to_string(),
         ))
-        .await
-        .map_err(|e| AppError::internal(format!("查询数据库连接数失败: {}", e)))?;
+        .await?;
     let database_connections = db_result
         .map(|r| r.try_get::<i64>("", "count").unwrap_or(0) as u32)
         .unwrap_or(0);

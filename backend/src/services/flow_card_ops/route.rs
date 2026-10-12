@@ -14,8 +14,12 @@ use crate::services::flow_card_service::{
 use crate::utils::error::AppError;
 
 impl ProcessRouteService {
-    /// 创建工序路线
-    pub async fn create(&self, req: CreateProcessRouteRequest) -> Result<RouteModel, AppError> {
+    /// 创建工序路线；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateProcessRouteRequest,
+        user_id: i32,
+    ) -> Result<RouteModel, AppError> {
         // 业务校验：工序编码格式
         let code = req.route_code.trim().to_uppercase();
         if code.is_empty() {
@@ -61,7 +65,7 @@ impl ProcessRouteService {
             is_active: Set(true),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

@@ -95,7 +95,7 @@ impl LogisticsService {
         // 事件类型必须先过取值域：该列历史上无校验，任意写法进轨迹后界面只能显示码原文，
         // 按事件判断运单进展的逻辑也会静默失配
         if !logistics_event_type::ALL.contains(&event.event_type.as_str()) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "无效的轨迹事件类型：{}（允许值：{}）",
                 event.event_type,
                 logistics_event_type::ALL.join("/")

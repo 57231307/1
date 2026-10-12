@@ -51,6 +51,15 @@
             ({{ quotation.approved_at }})
           </span>
         </el-descriptions-item>
+        <!-- 审批结论回显：approval_reason 为后端出参原文；出参有值才出行，
+             与下方拒绝行同判据（理由列上线前批准的历史行该列为空，不出空行） -->
+        <el-descriptions-item
+          v-if="quotation.approval_reason"
+          :label="t('actionForm.approvalReasonTitle')"
+          :span="2"
+        >
+          {{ quotation.approval_reason }}
+        </el-descriptions-item>
         <el-descriptions-item
           v-if="quotation.rejection_reason"
           :label="t('quotations.approval.labelRejectionReason')"
@@ -91,11 +100,13 @@
 </template>
 
 <script setup lang="ts">
-// 报价单审批页脚本
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
+import { formatDecimalAmount } from '@/utils/money';
 import {
   getQuotation,
   submitQuotation,
@@ -123,7 +134,6 @@ async function loadData() {
     const res = await getQuotation(id);
     quotation.value = res.data as QuotationResponseDto;
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('quotations.approval.loadFailed')
     );
@@ -153,18 +163,12 @@ async function handleSubmit() {
 
 async function handleApprove() {
   if (!quotation.value) return;
-  try {
-    await ElMessageBox.confirm(
-      t('quotations.approval.approveConfirmText'),
-      t('quotations.approval.approveConfirmTitle'),
-      { type: 'warning' }
-    );
-  } catch {
-    return;
-  }
+  // 批准理由后端必填：先经 promptApprovalReason(true) 采集再提交，取消即中止；理由落 sales_quotations.approval_reason 列
+  const approvalReason = await promptApprovalReason(true);
+  if (approvalReason === null) return;
   submitting.value = true;
   try {
-    await approveQuotation(quotation.value.id);
+    await approveQuotation(quotation.value.id, approvalReason);
     ElMessage.success(t('quotations.approval.approveSuccess'));
     loadData();
   } finally {
@@ -174,20 +178,9 @@ async function handleApprove() {
 
 async function handleReject() {
   if (!quotation.value) return;
-  let reason = '';
-  try {
-    const { value } = await ElMessageBox.prompt(
-      t('quotations.approval.rejectPromptText'),
-      t('quotations.approval.rejectTitle'),
-      {
-        inputValidator: (v: string) =>
-          v && v.trim() ? true : t('quotations.approval.rejectReasonRequired'),
-      }
-    );
-    reason = value;
-  } catch {
-    return;
-  }
+  // 拒绝理由后端必填：经 promptRejectReason() 采集，取消即中止；理由落 sales_quotations.rejection_reason 列
+  const reason = await promptRejectReason();
+  if (reason === null) return;
   submitting.value = true;
   try {
     await rejectQuotation(quotation.value.id, reason);
@@ -206,13 +199,13 @@ async function handleConvert() {
       t('quotations.approval.convertTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('quotations.approval.handleConvert', error);
   }
   submitting.value = true;
   try {
     const res = await convertQuotation(quotation.value.id);
-    // convertQuotation 返回 ApiResponse<ConvertResponse>，res.data 即 ConvertResponse
     const order = res.data;
     ElMessage.success(t('quotations.approval.convertSuccess', { id: order?.id }));
     if (order?.id) {
@@ -225,12 +218,9 @@ async function handleConvert() {
   }
 }
 
-function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00';
-  return Number(value).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+/** 金额展示：后端 rust_decimal 出参形态是 JSON 十进制字符串，须经 utils/money 归一后展示 */
+function formatAmount(value?: string | null): string {
+  return formatDecimalAmount(value);
 }
 
 onMounted(loadData);

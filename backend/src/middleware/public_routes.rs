@@ -79,10 +79,28 @@ pub fn is_public_path(path: &str) -> bool {
 ///   被 request.ts 拦截器踢回 /login，用户彻底无法进入任何受保护页（admin 靠 `*:*` 掩盖此缺口）。
 ///   这正是本端点 `批次 24 v6 P0-2` 注释要根治的"刷新后 permissions 缺失→403 跳转"回归。
 ///   安全等价：GET 无 CSRF 消费面，返回体只含调用者自身数据无越权面，故仅需认证、免 RBAC。
+/// - `/users/change-password`：自助改密端点（`handlers/user_handler.rs::change_password`）。
+///   与 `/auth/me` 同族——按 URL 段推导出的业务资源是 `users`（POST → action=create），
+///   要求权限码 `users:create`，而它属"管理员建用户"面，普通员工（含未分配角色的
+///   一次性账号）本就不该持有 ⇒ 自助改密必 403。定性依据（逐条对 handler 体核实）：
+///   ① 目标行**只能是调用者自己**——handler 只用 `auth.user_id` 取用户
+///     （`find_by_id(auth.user_id)`），请求体里没有、也不接受任何 user_id 参数；
+///   ② 属**有副作用的写**（更新自身 password_hash + 吊销旧会话 + 落审计行），
+///     因此豁免 CSRF 必须给出等价防线：**请求体强制 `old_password` 并与库中哈希校验**
+///     （不匹配 401「原密码不正确」并记失败审计）。跨站伪造表单既无法得知受害者原密码，
+///     也读不到任何响应，构造不出可通过校验的改密请求；且新密码还要过强度/历史/
+///     不得含用户名片段三道门。即"改密的授权凭证是原密码本身"，与 RBAC 权限码无关，
+///     故免 RBAC 不放松任何授权；
+///   ③ 无需 role_id：改密不查任何角色面（`permission.rs` 已把本判定提到 role 校验之前，
+///     否则未分配角色的账号连自助改密都会被"没有关联角色"固定 403 锁死）。
+///   拒绝出参仍为固定脱敏常量（权限文案永久脱敏是硬令，不因本条目松动）。
+///   ⚠️ 同前缀的 `/users/reset-password`（`init_handler::reset_admin_password`，管理员
+///   重置他人密码）**不在**本清单：它有跨用户写面，必须继续过 RBAC 与 CSRF。
 pub const AUTH_ONLY_PATHS: &[&str] = &[
     "/api/v1/erp/audit-logs/record-print",
     "/api/v1/erp/ws/ticket",
     "/api/v1/erp/auth/me",
+    "/api/v1/erp/users/change-password",
 ];
 
 /// 路径是否仅需认证（严格精确匹配，语义与 [`is_public_path`] 一致，不做子路径前缀放行）

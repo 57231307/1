@@ -1,29 +1,9 @@
 /**
  * sysUpdFmts.ts - 系统更新格式化工具
  * 任务编号: P14 批 2 I-3 第 1 批（拆分原 system-update/index.vue）
- * 提供版本/任务/备份状态标签与类型映射、文件大小格式化
- * 行为完全保持一致（仅结构重构）
+ * 提供任务/备份状态标签与类型映射、文件大小格式化
+ * 版本状态映射随版本 tab 移除一并删除；行为完全保持一致（仅结构重构）
  */
-
-/** 版本状态 → 中文标签 */
-export const VERSION_STATUS_LABEL: Record<string, string> = {
-  available: '可下载',
-  downloading: '下载中',
-  downloaded: '已下载',
-  installing: '安装中',
-  installed: '已安装',
-  failed: '失败',
-};
-
-/** 版本状态 → el-tag 类型 */
-export const VERSION_STATUS_TYPE: Record<string, string> = {
-  available: 'info',
-  downloading: 'warning',
-  downloaded: 'success',
-  installing: 'warning',
-  installed: 'success',
-  failed: 'danger',
-};
 
 /** 更新任务状态 → 中文标签 */
 export const TASK_STATUS_LABEL: Record<string, string> = {
@@ -76,12 +56,6 @@ export const BACKUP_TYPE_OPTIONS = [
   { label: '数据库备份', value: 'database' },
   { label: '文件备份', value: 'files' },
 ];
-
-/** 获取版本状态中文标签 */
-export const getVersionStatusLabel = (status: string) => VERSION_STATUS_LABEL[status] || status;
-
-/** 获取版本状态 el-tag 类型 */
-export const getVersionStatusType = (status: string) => VERSION_STATUS_TYPE[status] || 'info';
 
 /** 获取任务状态中文标签 */
 export const getTaskStatusLabel = (status: string) => TASK_STATUS_LABEL[status] || status;

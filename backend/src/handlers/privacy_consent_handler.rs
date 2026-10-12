@@ -74,8 +74,7 @@ pub async fn record_consent(
     headers: HeaderMap,
     Json(req): Json<RecordConsentRequest>,
 ) -> Result<Json<ApiResponse<RecordConsentResponse>>, AppError> {
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let ip_address = extract_client_ip(&headers);
     let user_agent = headers

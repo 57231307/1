@@ -28,7 +28,7 @@ use rust_decimal::Decimal;
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Clone, Deserialize)]
 pub struct CostCollectionQuery {
-    /// 成本归集单号模糊筛选（前端列表页有该筛选框，此前后端无字段被静默丢弃）
+    /// 成本归集单号模糊筛选（对应前端列表页该筛选框，下推为查询条件）
     pub collection_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,
@@ -70,6 +70,8 @@ pub async fn list_collections(
     info!("用户 {} 查询成本归集列表", auth.username);
 
     let service = CostCollectionService::new(state.db.clone());
+    // 行级数据权限：取当前用户的归属上下文下推到 service 列表查询（与导出、详情、审核同源）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let (collections, total) = service
         .get_list(
             params.collection_no,
@@ -78,6 +80,7 @@ pub async fn list_collections(
             params.status,
             params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
+            Some(&data_scope_ctx),
         )
         .await?;
 
@@ -100,7 +103,7 @@ pub async fn create_collection(
 
     let collection_date = req.collection_date.parse().map_err(|e| {
         warn!("用户 {} 成本日期格式错误：{}", auth.username, e);
-        AppError::validation("成本日期格式错误")
+        AppError::validation_displayable("成本日期格式错误")
     })?;
 
     let create_req = CreateCostCollectionRequest {
@@ -143,13 +146,15 @@ use serde_json::Value as JsonValue;
 pub async fn get_collection(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = CostCollectionService::new(state.db.clone());
-    let collection = service.get_by_id(id).await?;
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(collection).map_err(|_| AppError::internal("序列化失败"))?,
-    )))
+    // 行级数据权限：详情按归属门把关，越权或归属人为 NULL 的历史行一律拒绝（判据与列表同源）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let collection = service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(
+        collection,
+    )?)))
 }
 
 /// 更新成本归集
@@ -162,7 +167,7 @@ pub async fn update_collection(
     let service = CostCollectionService::new(state.db.clone());
     let collection = service.update(id, req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(collection).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(collection)?,
         "成本归集更新成功",
     )))
 }
@@ -203,9 +208,7 @@ pub async fn get_cost_analysis_summary(
         .get_cost_analysis_summary(start_date, end_date)
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        serde_json::to_value(summary).map_err(|_| AppError::internal("序列化失败"))?,
-    )))
+    Ok(Json(ApiResponse::success(serde_json::to_value(summary)?)))
 }
 
 /// 按批次查询成本参数
@@ -238,12 +241,20 @@ pub async fn audit_collection(
     Json(req): Json<AuditCostRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
     let service = CostCollectionService::new(state.db.clone());
+    // 行级数据权限：审核是写操作，归属门下推到 service 在落库前把关（判据与列表/详情同源）。
+    let data_scope_ctx = auth.to_data_scope_context();
     let collection = service
-        .audit(id, req.approved, req.comment, auth.user_id)
+        .audit(
+            id,
+            req.approved,
+            req.comment,
+            auth.user_id,
+            Some(&data_scope_ctx),
+        )
         .await?;
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(collection).map_err(|_| AppError::internal("序列化失败"))?,
+        serde_json::to_value(collection)?,
         if req.approved {
             "成本归集审核通过"
         } else {
@@ -359,14 +370,19 @@ fn record_collections_export_audit(
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/cost-collections/export - 导出成本归集列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
-/// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+/// GET /api/v1/erp/cost-collections/export - 导出成本归集列表（xlsx，带操作人/时间水印 + 异步审计日志）。
+///
+/// 与列表端点复用同一 service.get_list 并传入同一行级数据权限上下文：导出可见行、列表
+/// 可见行、分页总数三者源自同一条已下推权限的查询，口径完全一致（cost_collections 无
+/// department_id，按 created_by 归属过滤，范围外行不进入导出）。page_size 取全量上限，
+/// 用于覆盖当前权限范围内的全部行。
 pub async fn export_collections(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<CostCollectionQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let service = CostCollectionService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (collections, _total) = service
         .get_list(
             query.collection_no,
@@ -375,6 +391,7 @@ pub async fn export_collections(
             query.status,
             1,
             10000,
+            Some(&data_scope_ctx),
         )
         .await?;
     let row_count = collections.len();

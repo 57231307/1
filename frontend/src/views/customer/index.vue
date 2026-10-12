@@ -61,9 +61,19 @@
             :placeholder="$t('customer.index.filter.customerTypePlaceholder')"
             clearable
           >
-            <el-option :label="$t('customer.index.filterOption.typeNormal')" value="normal" />
-            <el-option :label="$t('customer.index.filterOption.typeVip')" value="vip" />
+            <!-- value 取后端唯一词表 constants::customer_type::ALLOWED 的五个渠道 token；
+                 分层词 normal/vip 不属本列（后端 400 拒绝），少列一个合法值就筛不出该类客户。 -->
+            <el-option :label="$t('customer.index.filterOption.typeRetail')" value="retail" />
             <el-option :label="$t('customer.index.filterOption.typeWholesale')" value="wholesale" />
+            <el-option
+              :label="$t('customer.index.filterOption.typeDistributor')"
+              value="distributor"
+            />
+            <el-option
+              :label="$t('customer.index.filterOption.typeManufacturer')"
+              value="manufacturer"
+            />
+            <el-option :label="$t('customer.index.filterOption.typeOther')" value="other" />
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('customer.index.filter.status')">
@@ -233,7 +243,7 @@
           detailCustomer.contact_email || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('customer.index.table.column.type')">{{
-          detailCustomer.customer_type
+          getCustomerTypeLabel(detailCustomer.customer_type)
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('customer.index.table.column.province')">{{
           detailCustomer.province || '-'
@@ -253,14 +263,13 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import { deleteCustomer, getCustomerById, type Customer } from '@/api/customer';
 import { formatCurrency } from '@/utils';
-// V15 P0-S12 + P0-S15 修复（Batch 474）：客户导出改用后端带水印 xlsx 接口
-// 保留 exportData 仅用于兼容场景（本视图已切换为 exportFromBackend）
 import { exportFromBackend } from '@/utils/export';
 import { printData } from '@/utils/print';
 import { logger } from '@/utils/logger';
@@ -334,20 +343,28 @@ const handleSizeChange = (s: number) => {
   page.value = 1;
 };
 
+// 回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表逐值取文案；
+// 文案复用同命名空间的 filterOption.type*。未知/历史脏值不吞不造假名，回落显示原始 token。
+// 入参非可选：api/customer.ts 的 Customer.customer_type 跟随 DB 的 NOT NULL 列，恒有值。
 const getCustomerTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
-    retail: t('customer.index.typeLabel.retail'),
-    vip: t('customer.index.typeLabel.vip'),
-    wholesale: t('customer.index.typeLabel.wholesale'),
+    retail: t('customer.index.filterOption.typeRetail'),
+    wholesale: t('customer.index.filterOption.typeWholesale'),
+    distributor: t('customer.index.filterOption.typeDistributor'),
+    manufacturer: t('customer.index.filterOption.typeManufacturer'),
+    other: t('customer.index.filterOption.typeOther'),
   };
   return labelMap[type] || type;
 };
 
+// tag 颜色仅供列表视觉区分，不承载状态/层级语义；同一 token 在四个页面各自配色不影响契约。
 const getCustomerTypeTag = (type: string) => {
   const typeMap: Record<string, string> = {
     retail: '',
-    vip: 'warning',
     wholesale: 'success',
+    distributor: 'warning',
+    manufacturer: 'info',
+    other: 'danger',
   };
   return typeMap[type] || '';
 };
@@ -400,7 +417,7 @@ const handleDelete = async (row: Customer) => {
     ElMessage.success(t('customer.index.message.deleteSuccess'));
     fetchData();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('customer.index.message.deleteFailed'));
     }
@@ -444,7 +461,9 @@ const handlePrint = () => {
         key: 'customer_type',
         title: t('customer.index.table.column.type'),
         width: '80px',
-        formatter: v => getCustomerTypeLabel(String(v)),
+        // 打印列值取自 Record<string, unknown>，缺值时留空而不是 String(v) 打成字面量
+        // "undefined"；有值一律按渠道词表取文案（不编造渠道名）。
+        formatter: v => (v == null ? '' : getCustomerTypeLabel(String(v))),
       },
       {
         key: 'status',

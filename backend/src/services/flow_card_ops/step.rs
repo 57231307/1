@@ -23,8 +23,12 @@ use crate::services::flow_card_service::{
 use crate::utils::error::AppError;
 
 impl StepRecordService {
-    /// 扫码开始工序（自动创建 pending 记录并切换到 in_progress）
-    pub async fn start_step(&self, req: StartStepRequest) -> Result<StepModel, AppError> {
+    /// 扫码开始工序（自动创建 pending 记录并切换到 in_progress）；开工登记人取服务端会话身份，请求体不承载身份
+    pub async fn start_step(
+        &self,
+        req: StartStepRequest,
+        user_id: i32,
+    ) -> Result<StepModel, AppError> {
         let card = CardEntity::find_by_id(req.flow_card_id)
             .filter(production_flow_card::Column::IsDeleted.eq(false))
             .one(&*self.db)
@@ -36,6 +40,7 @@ impl StepRecordService {
         let now = crate::utils::date_utils::utc_now_fixed();
         let active = Self::build_step_active_model(
             &req,
+            user_id,
             &card,
             route_code,
             route_name,
@@ -103,6 +108,7 @@ impl StepRecordService {
     /// 构建 StepActiveModel（含所有字段填充）
     fn build_step_active_model(
         req: &StartStepRequest,
+        user_id: i32,
         card: &CardModel,
         route_code: String,
         route_name: String,
@@ -134,7 +140,7 @@ impl StepRecordService {
             rework_source_id: Set(None),
             remarks: Set(None),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }
@@ -275,11 +281,12 @@ impl StepRecordService {
         Ok(list)
     }
 
-    /// 创建回修工序（关联原工序记录）
+    /// 创建回修工序（关联原工序记录）；回修登记人取服务端会话身份，请求体不承载身份
     pub async fn create_rework(
         &self,
         source_step_id: i32,
         req: StartStepRequest,
+        user_id: i32,
     ) -> Result<StepModel, AppError> {
         let source = self.get_by_id(source_step_id).await?;
 
@@ -310,7 +317,7 @@ impl StepRecordService {
             rework_source_id: Set(Some(source_step_id)),
             remarks: Set(None),
             is_deleted: Set(false),
-            created_by: Set(rework_req.created_by.take()),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

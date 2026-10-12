@@ -6,22 +6,47 @@
 //! 核心能力：
 //! - 配方 CRUD + 软删除
 //! - 状态流转校验（草稿→已审核/已停用；已审核→已停用；已停用→已审核）
-//! - 审核流程（仅草稿可审核）
+//! - 审核流程（approve：草稿或待审核可通过；reject：仅待审核可拒绝，理由落 rejected_reason 专列）
 //! - 版本管理（仅已审核可建新版本，version+1，parent_recipe_id 关联）
 
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, Set,
+    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::info;
 
 use crate::models::dye_recipe::{
     self, ActiveModel, Entity as DyeRecipeEntity, Model as DyeRecipeModel,
 };
 use crate::models::status::dye_recipe as recipe_status;
+// 行级数据权限：列表/导出下推 apply_data_scope，单行归属门 check_resource_owner_by_member_scope
+// （dye_recipe 表无 department_id 列，归属列 created_by，dept 分支退化为可见成员集合语义）
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 配方编号（dye_recipe.recipe_no）自动编码前缀：沿用原手写格式
+/// "DR-{时间戳}-{随机}" 的业务前缀 DR，新格式统一为 {DR}{YYYYMMDD}{3位流水}。
+pub const DYE_RECIPE_NO_PREFIX: &str = "DR";
+
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时直接调 visit_none()，
+/// 把"显式 null"塌成外层 `None`，与"键缺席"不可区分。本适配器先按内层 `Option<T>` 反序列化
+/// 再包一层：键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 形态与 handlers/department_handler.rs 中同名私有适配器一致（跨域合并到共享 utils 超本波授权范围）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
 
 /// 创建染色配方请求
 #[derive(Debug, Clone, Deserialize)]
@@ -43,25 +68,47 @@ pub struct CreateDyeRecipeRequest {
     pub version: Option<i32>,
     pub parent_recipe_id: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新染色配方请求
+///
+/// 三态语义（RFC 7386，对齐 handlers/department_handler.rs 范式）：
+/// 键缺席=保持原值、显式 null=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// 本域可空列依据：dye_recipe 补列全部为可空 ALTER
+/// （color_no system/mod.rs:118、color_name :117、fabric_type :120、dye_type :119、
+/// chemical_formula :116、temperature :129、time_minutes :130、ph_value :125、
+/// liquor_ratio :123、auxiliaries :115、status :128、remarks :127）。
+/// color_code 例外：建表即 NOT NULL（system/m0003_add_dye_tables.rs:30），
+/// 显式 null 由 service 入口在任何 DB 访问前拒绝。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct UpdateDyeRecipeRequest {
-    pub color_no: Option<String>,
-    pub color_code: Option<String>,
-    pub color_name: Option<String>,
-    pub fabric_type: Option<String>,
-    pub dye_type: Option<String>,
-    pub chemical_formula: Option<String>,
-    pub temperature: Option<Decimal>,
-    pub time_minutes: Option<i32>,
-    pub ph_value: Option<Decimal>,
-    pub liquor_ratio: Option<Decimal>,
-    pub auxiliaries: Option<Vec<crate::models::dye_recipe::AuxiliariesItem>>,
-    pub status: Option<String>,
-    pub remarks: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_no: Option<Option<String>>,
+    /// 色代码：DB NOT NULL（m0003:30）——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_code: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_name: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub fabric_type: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub dye_type: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub chemical_formula: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub temperature: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub time_minutes: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub ph_value: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub liquor_ratio: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub auxiliaries: Option<Option<Vec<crate::models::dye_recipe::AuxiliariesItem>>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub status: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
 }
 
 /// 染色配方查询参数
@@ -84,19 +131,6 @@ pub struct DyeRecipeService {
 impl DyeRecipeService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
-    }
-
-    /// 生成配方编号（格式：DR-{时间戳}-{4位随机}）
-    /// 若调用方提供了非空编号则直接使用
-    pub fn generate_recipe_no(provided: Option<&str>) -> String {
-        if let Some(no) = provided {
-            if !no.is_empty() {
-                return no.to_string();
-            }
-        }
-        let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_4_digit();
-        format!("DR-{}-{:04}", timestamp, random)
     }
 
     /// 校验配方状态流转是否合法
@@ -144,9 +178,21 @@ impl DyeRecipeService {
         Ok(())
     }
 
+    /// 校验配方是否允许拒绝（仅待审核状态可拒绝，与 validate_can_approve 同款判据写法）
+    pub fn validate_can_reject(status: Option<&str>) -> Result<(), AppError> {
+        if status != Some(recipe_status::PENDING_APPROVAL) {
+            return Err(AppError::business(format!(
+                "只有待审核状态的配方可以拒绝，当前状态：{}",
+                status.unwrap_or("未知")
+            )));
+        }
+        Ok(())
+    }
+
     /// 提交配方审核（批次 423B：草稿 → 待审核，贯通化验室打样审批流）
     pub async fn submit(&self, id: i32) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        // 归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取记录做状态流转，传 None 不重复门。
+        let model = self.get_by_id(id, None).await?;
         if model.status.as_deref() != Some(recipe_status::DRAFT) {
             return Err(AppError::business(format!(
                 "只有草稿状态的配方可以提交审核，当前状态：{}",
@@ -177,8 +223,44 @@ impl DyeRecipeService {
     }
 
     /// 创建染色配方
-    pub async fn create(&self, req: CreateDyeRecipeRequest) -> Result<DyeRecipeModel, AppError> {
-        let recipe_no = Self::generate_recipe_no(req.recipe_no.as_deref());
+    pub async fn create(
+        &self,
+        req: CreateDyeRecipeRequest,
+        user_id: i32,
+    ) -> Result<DyeRecipeModel, AppError> {
+        // 取号与 INSERT 同事务：调用方显式提供非空编号时尊重手工值（既有契约）；
+        // 否则经通用生成器在事务内
+        // 取 {DR}{YYYYMMDD}{3位流水}。
+        // 为什么不再用旧的 "DR-{14位时间戳}-{4位随机}"：同秒并发碰撞概率非零，且
+        // recipe_no 是配方业务识别与检索键（list 按前缀 contains 过滤、版本号按
+        // "{recipe_no}-V{n}" 派生）。DDL 事实：recipe_no 为
+        // migration/src/domain/system/mod.rs:126 ALTER 追加的 VARCHAR(255) 列、
+        // 无 UNIQUE 约束，唯一性由生成器 advisory 锁 + 事务内取号 + 占用探测保证
+        //（参照 services/quotation_ops/lifecycle.rs:54 的事务内取号路径）。
+        let provided_no = req
+            .recipe_no
+            .clone()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let txn = (*self.db).begin().await?;
+        let recipe_no = match provided_no {
+            Some(no) => no,
+            None => DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                DYE_RECIPE_NO_PREFIX,
+                DyeRecipeEntity,
+                dye_recipe::Column::RecipeNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    prefix = DYE_RECIPE_NO_PREFIX,
+                    "配方号取号失败（dye_recipe_service.create）"
+                );
+                AppError::business_displayable("配方号生成失败，请稍后重试")
+            })?,
+        };
 
         let active = ActiveModel {
             id: Default::default(),
@@ -212,36 +294,73 @@ impl DyeRecipeService {
             parent_recipe_id: Set(req.parent_recipe_id),
             approved_by: Set(None),
             approved_at: Set(None),
+            rejected_reason: NotSet,
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(crate::utils::date_utils::utc_now_fixed()),
             updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("配方创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 根据 ID 获取配方
-    pub async fn get_by_id(&self, id: i32) -> Result<DyeRecipeModel, AppError> {
-        DyeRecipeEntity::find_by_id(id)
+    ///
+    /// 归属门（IDOR 防护）：dye_recipe 无 department_id 列，按归属列 created_by 走
+    /// `check_resource_owner_by_member_scope`（与列表侧 apply_data_scope Dept 分支同源）。
+    /// 传入 `data_scope` 时在取行后立即校验，越权返回 403；传 None 表示不做行级归属门
+    /// （供内部方法取记录、以及无认证上下文的系统级回写调用点使用，门在各自 handler 前置）。
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<DyeRecipeModel, AppError> {
+        let model = DyeRecipeEntity::find_by_id(id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found("配方不存在"))
+            .ok_or_else(|| AppError::not_found("配方不存在"))?;
+
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
+                return Err(AppError::permission_denied(format!(
+                    "无权访问配方 {}（数据范围限制）",
+                    id
+                )));
+            }
+        }
+
+        Ok(model)
     }
 
     /// 分页查询配方列表
+    ///
+    /// 行级数据权限：dye_recipe 工艺机密面（染化料、配比、温度曲线），归属列 created_by、
+    /// 无 department_id，故按 `apply_data_scope(q, ctx, CreatedBy, CreatedBy)` 下推；
+    /// total 由同一 paginator（已含 scope 过滤）派生，与列表同源，导出复用同一 ctx 保证一致。
     pub async fn list(
         &self,
         query: DyeRecipeQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<DyeRecipeModel>, u64), AppError> {
         let page = query.page.clamp(1, 1000);
         let page_size = query.page_size.clamp(1, 100);
 
         let mut select = DyeRecipeEntity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
+
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                dye_recipe::Column::CreatedBy,
+                dye_recipe::Column::CreatedBy,
+            );
+        }
 
         if let Some(recipe_no) = &query.recipe_no {
             select = select.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
@@ -268,12 +387,25 @@ impl DyeRecipeService {
     }
 
     /// 更新配方
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列 color_code（m0003:30）的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateDyeRecipeRequest,
     ) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        if matches!(req.color_code, Some(None)) {
+            return Err(AppError::business_displayable(
+                "色代码不能清空：该字段为必填项",
+            ));
+        }
+
+        // 归属门由调用方 handler 前置（handler.update_dye_recipe 以 Some(&ctx) 校验后才进本方法）；
+        // 此处取记录传 None 不重复行级门，使无认证上下文的系统级复样自动回写（复样通过后回写配方）
+        // 仍能直达本方法、不被行级数据范围判死——此联动写链必须保持不经归属门。
+        let model = self.get_by_id(id, None).await?;
         // 在转为 ActiveModel 前记录当前状态，用于状态流转校验
         // 注意：必须 clone 后再 model.into()，否则 as_deref() 借用 model.status 会与
         // 后续 model.into() 移动 model 冲突（E0505 cannot move out of borrowed）
@@ -283,46 +415,51 @@ impl DyeRecipeService {
             .unwrap_or_else(|| recipe_status::DRAFT.to_string());
         let mut active: ActiveModel = model.into();
 
-        if let Some(color_no) = req.color_no {
-            active.color_no = Set(Some(color_no));
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.color_no {
+            active.color_no = Set(v);
         }
-        if let Some(color_code) = req.color_code {
-            active.color_code = Set(Some(color_code));
+        // color_code：NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.color_code.flatten() {
+            active.color_code = Set(Some(v));
         }
-        if let Some(color_name) = req.color_name {
-            active.color_name = Set(Some(color_name));
+        if let Some(v) = req.color_name {
+            active.color_name = Set(v);
         }
-        if let Some(fabric_type) = req.fabric_type {
-            active.fabric_type = Set(Some(fabric_type));
+        if let Some(v) = req.fabric_type {
+            active.fabric_type = Set(v);
         }
-        if let Some(dye_type) = req.dye_type {
-            active.dye_type = Set(Some(dye_type));
+        if let Some(v) = req.dye_type {
+            active.dye_type = Set(v);
         }
-        if let Some(chemical_formula) = req.chemical_formula {
-            active.chemical_formula = Set(Some(chemical_formula));
+        if let Some(v) = req.chemical_formula {
+            active.chemical_formula = Set(v);
         }
-        if let Some(temperature) = req.temperature {
-            active.temperature = Set(Some(temperature));
+        if let Some(v) = req.temperature {
+            active.temperature = Set(v);
         }
-        if let Some(time_minutes) = req.time_minutes {
-            active.time_minutes = Set(Some(time_minutes));
+        if let Some(v) = req.time_minutes {
+            active.time_minutes = Set(v);
         }
-        if let Some(ph_value) = req.ph_value {
-            active.ph_value = Set(Some(ph_value));
+        if let Some(v) = req.ph_value {
+            active.ph_value = Set(v);
         }
-        if let Some(liquor_ratio) = req.liquor_ratio {
-            active.liquor_ratio = Set(Some(liquor_ratio));
+        if let Some(v) = req.liquor_ratio {
+            active.liquor_ratio = Set(v);
         }
-        if let Some(auxiliaries) = req.auxiliaries {
-            active.auxiliaries = Set(Some(crate::models::dye_recipe::Auxiliaries(auxiliaries)));
+        if let Some(v) = req.auxiliaries {
+            active.auxiliaries = Set(v.map(crate::models::dye_recipe::Auxiliaries));
         }
-        if let Some(status) = req.status {
-            // 校验状态流转合法性
-            Self::validate_status_transition(&current_status, &status)?;
-            active.status = Set(Some(status));
+        // status：DB 可空列（system/mod.rs:128 补列无 NOT NULL；CHECK chk_dye_recipe_status
+        // 对 NULL 恒成立）——Some(None)=Set(None) 清空回"未定状态"，覆盖时校验状态流转
+        if let Some(v) = req.status {
+            if let Some(v) = v.as_ref() {
+                Self::validate_status_transition(&current_status, v)?;
+            }
+            active.status = Set(v);
         }
-        if let Some(remarks) = req.remarks {
-            active.remarks = Set(Some(remarks));
+        if let Some(v) = req.remarks {
+            active.remarks = Set(v);
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
@@ -332,7 +469,8 @@ impl DyeRecipeService {
 
     /// 软删除配方
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
-        let model = self.get_by_id(id).await?;
+        // 归属门在 handler 前置（Some(&ctx)）；此处取记录传 None 做状态校验与软删，不重复门。
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_delete(model.status.as_deref())?;
 
         let mut active: ActiveModel = model.into();
@@ -344,7 +482,8 @@ impl DyeRecipeService {
 
     /// 审核配方
     pub async fn approve(&self, id: i32, approved_by: i32) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        // 归属门在 handler 前置（Some(&ctx)）；此处取记录传 None 做状态门与审批写入，不重复门。
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_approve(model.status.as_deref())?;
 
         let mut active: ActiveModel = model.into();
@@ -356,14 +495,48 @@ impl DyeRecipeService {
         Ok(updated)
     }
 
+    /// 拒绝配方（待审核 → 已拒绝），拒绝理由落 rejected_reason 专列。
+    ///
+    /// 入参：id=配方主键；reason=服务端 trim 非空后的拒绝理由原文（handler 校验）；
+    /// rejected_by=拒绝人会话身份——本表无拒绝人专列，且 approved_by 仅承载"通过人"
+    /// 语义（拒绝不复用，两动作两列），故拒绝人身份记入服务端日志留痕、不落库。
+    /// approved_at 记最近一次审批动作时间，通过与拒绝都写。
+    pub async fn reject(
+        &self,
+        id: i32,
+        reason: String,
+        rejected_by: i32,
+    ) -> Result<DyeRecipeModel, AppError> {
+        // 归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取记录传 None 做状态门与拒绝写入，不重复门。
+        let model = self.get_by_id(id, None).await?;
+        Self::validate_can_reject(model.status.as_deref())?;
+
+        let mut active: ActiveModel = model.into();
+        active.status = Set(Some(recipe_status::REJECTED.to_string()));
+        active.rejected_reason = Set(Some(reason));
+        active.approved_at = Set(Some(crate::utils::date_utils::utc_now_fixed()));
+        active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
+        let updated = active.update(&*self.db).await?;
+        info!(
+            "染色配方审批拒绝完成：recipe_id={}, rejected_by={}, 新状态={}",
+            updated.id,
+            rejected_by,
+            updated.status.as_deref().unwrap_or("未知")
+        );
+        Ok(updated)
+    }
+
     /// 创建新版本（仅已审核配方可建新版本）
+    /// created_by 为建版人，由 handler 从服务端会话取（AuthContext.user_id），
+    /// 不接受请求体身份，故签名是必填 i32 而非 Option。
     pub async fn create_new_version(
         &self,
         id: i32,
         remarks: Option<String>,
-        created_by: Option<i32>,
+        created_by: i32,
     ) -> Result<DyeRecipeModel, AppError> {
-        let model = self.get_by_id(id).await?;
+        // 复制源配方的归属门在 handler 前置（get_by_id 传 Some(&ctx)）；此处取父记录派生新版本，传 None 不重复门。
+        let model = self.get_by_id(id, None).await?;
         Self::validate_can_create_version(model.status.as_deref())?;
 
         let new_version = model.version.unwrap_or(1) + 1;
@@ -391,8 +564,9 @@ impl DyeRecipeService {
             parent_recipe_id: Set(Some(id)),
             approved_by: Set(None),
             approved_at: Set(None),
+            rejected_reason: NotSet,
             remarks: Set(remarks),
-            created_by: Set(created_by),
+            created_by: Set(Some(created_by)),
             created_at: Set(crate::utils::date_utils::utc_now_fixed()),
             updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
         };
@@ -420,8 +594,14 @@ impl DyeRecipeService {
     }
 
     /// 获取配方的所有版本
-    pub async fn get_recipe_versions(&self, id: i32) -> Result<Vec<DyeRecipeModel>, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 版本列表以父配方归属门把关（与列表侧 apply_data_scope 同源：对 id 有读权限即可查看其版本树）。
+    pub async fn get_recipe_versions(
+        &self,
+        id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<DyeRecipeModel>, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         let parent_id = model.parent_recipe_id.unwrap_or(id);
 
         let versions = DyeRecipeEntity::find()

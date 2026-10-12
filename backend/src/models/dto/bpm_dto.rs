@@ -62,7 +62,7 @@ pub struct TemplateQuery {
 pub struct StartProcessRequest {
     pub process_key: String,
     pub business_type: String,
-    pub business_id: i32,
+    pub business_id: i64,
     pub title: String,
     pub initiator_id: i32,
     pub initiator_name: String,

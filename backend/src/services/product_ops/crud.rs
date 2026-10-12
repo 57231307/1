@@ -7,7 +7,7 @@
 //! - `list_products`：分页 + 过滤查询
 //! - `get_product`：详情查询（Redis 读穿透 + 写失效）
 //! - `create_product`：创建（含面料行业字段，事务提交后同步 ES）
-//! - `delete_product`：硬删除（审计日志 + 失效缓存 + 删除 ES 文档）
+//! - `delete_product`：硬删除（价目引用预检 + 审计日志 + 失效缓存 + 删除 ES 文档）
 //! - `update_product`：更新（审计日志 + 失效缓存 + 同步 ES）
 //!
 //! 跨模块调用：
@@ -17,14 +17,15 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, Order, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, NotSet, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_category;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 use crate::utils::error::AppError;
+use crate::utils::messages::err_msg;
 use crate::utils::number_generator::DocumentNumberGenerator;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_product 读穿透 + 写失效）
 // V15 P2 B07-P2-6：使用差异化 TTL（PRODUCT_CACHE_TTL_SECS=600s，产品目录低波动率）
@@ -258,15 +259,53 @@ impl ProductService {
 
     /// 删除产品
     pub async fn delete_product(&self, id: i32, user_id: i32) -> Result<(), AppError> {
+        // 引用预检与删除在同一事务、且在父行 lock_exclusive 之后执行
+        //（通道与措辞形状照 warehouse_service::delete 先例）：迁移
+        // migration::domain::price_fk 已给 sales_prices.product_id /
+        // purchase_prices.product_id 施加指向 products.id 的 NO ACTION 外键，
+        // 若无预检，删除被价目行引用的产品会撞 SQLSTATE 23503，经
+        // utils::error::From<DbErr> 归类成 DatabaseError(DB_RELATION) 裸落 500
+        //（出参脱敏为固定文案，用户不知道被谁引用）。并发窗口封堵原理：
+        // 子表插入引用行会对父行取 FOR KEY SHARE，与本轮 FOR UPDATE 互斥，
+        // 并发"插入价目行"要么先提交被本轮 COUNT 看到、要么阻塞到产品已删后
+        // 其 FK 校验自然失败，"预检→删除"之间的 TOCTOU 窗口就此关闭。
+        let txn = (*self.db).begin().await?;
+
+        // 存在性校验 + 父行排他锁（锁持有至 txn 提交）；缺失 → 404，
+        // 与原 delete_with_audit 内部缺失记录时的 not_found 语义一致
+        product::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("产品 ID {} 不存在", id)))?;
+
+        // 引用存在性预检：只统计与拒绝，绝不级联删除/软删价目行（FK 删除行为
+        // 属迁移既定口径，见 migration::domain::price_fk 文件头"删除行为说明"）。
+        // 文案只给"数量 + 业务名"，不输出表名/约束名/行 ID 列表（防出参泄露面）。
+        if let Some((label, count)) = Self::find_product_price_references(id, &txn).await? {
+            return Err(AppError::business_displayable(format!(
+                "该产品已被 {count} 条{label}引用，无法删除，请先处理关联价目数据"
+            )));
+        }
+
         // P0 8-3 修复：delete 操作补审计日志
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<ProductEntity, _>(
-            &*self.db,
-            "product",
-            id,
-            Some(user_id),
-        )
-        .await?;
+        let delete_result =
+            crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+                ProductEntity,
+                _,
+            >(&txn, "product", id, Some(user_id))
+            .await;
+        // 竞态兜底映射（非吞异常、非返回成功）：引用表未纳入前置枚举或
+        // deferred 约束在 DELETE 阶段真正命中 FK(23503) 时，降级为与预检同族
+        // 的可外显业务拒绝；其余 DB 错误原样传播（真实故障保留 500）。
+        if let Err(e) = delete_result {
+            return Err(Self::map_product_fk_error(e));
+        }
+
+        txn.commit()
+            .await
+            .map_err(|e| Self::map_product_fk_error(AppError::from(e)))?;
 
         // P0-D03：失效产品缓存（产品已删除）
         redis_cache_del(&cache_key("product", id)).await;
@@ -283,6 +322,56 @@ impl ProductService {
         }
 
         Ok(())
+    }
+
+    /// 功能：枚举对 products(id) 建外键的价目表，返回首个存在引用位的
+    /// (业务可读名称, 引用行数)。入参：id=待删产品主键；db=与删除同事务的连接
+    /// （由 delete_product 传入，预检必须先于 DELETE 且共享行锁窗口）。
+    /// 清单与迁移 migration::domain::price_fk 的 `REFERENCES "products" ("id")`
+    /// 逐一对齐：sales_prices.product_id / purchase_prices.product_id。
+    /// FK 不区分价目状态（pending/approved/inactive）与 customer/supplier 归属，
+    /// 计数口径与 FK 对齐：只要存在任意引用行删除即会被数据库拒绝，一律计入。
+    async fn find_product_price_references<C: ConnectionTrait>(
+        id: i32,
+        db: &C,
+    ) -> Result<Option<(&'static str, u64)>, AppError> {
+        use crate::models::{purchase_price, sales_price};
+
+        let sales = sales_price::Entity::find()
+            .filter(sales_price::Column::ProductId.eq(id))
+            .count(db)
+            .await?;
+        if sales > 0 {
+            return Ok(Some(("销售价目记录", sales)));
+        }
+
+        let purchase = purchase_price::Entity::find()
+            .filter(purchase_price::Column::ProductId.eq(id))
+            .count(db)
+            .await?;
+        if purchase > 0 {
+            return Ok(Some(("采购价目记录", purchase)));
+        }
+
+        Ok(None)
+    }
+
+    /// 功能：把删除阶段命中的外键/关联类数据库错误（`AppError::DatabaseError(DB_RELATION)`，
+    /// 由 utils::error::From<DbErr> 对 SQLSTATE 23503 foreign key 违规归类）映射为
+    /// 可外显业务拒绝（HTTP 400 / BUSINESS_ERROR）；非 FK 类错误原样返回
+    /// （属真实内部故障，须保留 500，不吞异常、不拍平）。
+    /// 调用方：delete_product 的删除与事务提交两处兜底；形状照
+    /// supplier_service::map_supplier_fk_error / warehouse_service::map_warehouse_fk_error 先例。
+    /// pub：竞态窗口（预检与 DELETE 之间新建价目行）在单连接测试中不可控，
+    /// 契约测试需以真实 23503 DbErr 输入直测本映射判据。
+    /// 入参：已归类后的 AppError；出参落点：调用方直接作为 Err 返回给 handler 出参。
+    pub fn map_product_fk_error(err: AppError) -> AppError {
+        match &err {
+            AppError::DatabaseError(m) if m == err_msg::DB_RELATION => {
+                AppError::business_displayable("该产品仍被业务数据引用，无法删除，请先处理关联数据")
+            }
+            _ => err,
+        }
     }
 
     /// 更新产品（面料行业版，审计日志 + 失效缓存 + 同步 ES）

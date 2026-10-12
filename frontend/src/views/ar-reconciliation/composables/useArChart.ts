@@ -63,9 +63,10 @@ export function useArChart() {
 
   const loadAgingAnalysis = async (endDate?: string) => {
     try {
+      // 后端 AgingReportQueryParams 基准日键名为 baseline_date（NaiveDate），
+      // 不存在 as_of_date 键；customer_id/salesperson_id 未筛选时省略
       const res = await getAgingAnalysis({
-        customer_id: undefined,
-        as_of_date: endDate || undefined,
+        baseline_date: endDate || undefined,
       });
       agingReport.value = res.data;
       await nextTick();

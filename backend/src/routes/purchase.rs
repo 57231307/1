@@ -107,6 +107,18 @@ fn purchase_receipt_routes() -> Router<AppState> {
             "/receipts/{id}/confirm",
             post(purchase_receipt_handler::confirm_receipt),
         )
+        // 让步接收/复检改判通道：末段 concession、rejudge 已登记进
+        // PATH_ACTION_KEYWORDS，故派生为独立权限键 purchase-receipts:concession
+        // 与 purchase-receipts:rejudge（岗位集合与授法见迁移
+        // business/m0090_grant_purchase_receipt_concession_rejudge.rs 文件头）。
+        .route(
+            "/receipts/{id}/concession",
+            post(purchase_receipt_handler::concede_receipt),
+        )
+        .route(
+            "/receipts/{id}/rejudge",
+            post(purchase_receipt_handler::rejudge_receipt),
+        )
         // v11 批次 154c：手动重算入库单总金额（运维兜底入口）
         .route(
             "/receipts/{id}/recalculate",
@@ -134,6 +146,14 @@ fn purchase_inspection_routes() -> Router<AppState> {
         .route(
             "/inspections",
             post(purchase_inspection_handler::create_inspection),
+        )
+        // 静态路径 /inspections/stats 先于 /inspections/{id} 注册（与
+        // /purchase-contracts/export、/suppliers/export 同款顺序判据）：
+        // 权限段派生对 GET 得到 inspections:read，与列表端点完全同键，
+        // 不发明新权限键。
+        .route(
+            "/inspections/stats",
+            get(purchase_inspection_handler::get_inspection_stats),
         )
         .route(
             "/inspections/{id}",
@@ -231,6 +251,12 @@ pub fn purchase_contracts() -> Router<AppState> {
             "/purchase-contracts",
             post(purchase_contract_handler::create_contract),
         )
+        // 静态路径 /purchase-contracts/export 必须在 /purchase-contracts/{id} 之前注册，
+        // 避免 axum 把 "export" 当作 {id} 参数匹配
+        .route(
+            "/purchase-contracts/export",
+            get(purchase_contract_handler::export_purchase_contracts),
+        )
         .route(
             "/purchase-contracts/{id}",
             get(purchase_contract_handler::get_contract),
@@ -246,6 +272,10 @@ pub fn purchase_contracts() -> Router<AppState> {
         .route(
             "/purchase-contracts/{id}/approve",
             post(purchase_contract_handler::approve_contract),
+        )
+        .route(
+            "/purchase-contracts/{id}/reject",
+            post(purchase_contract_handler::reject_contract),
         )
         .route(
             "/purchase-contracts/{id}/execute",
@@ -288,6 +318,10 @@ pub fn purchase_prices() -> Router<AppState> {
         .route(
             "/purchase-prices/{id}/approve",
             post(purchase_price_handler::approve_price),
+        )
+        .route(
+            "/purchase-prices/{id}/reject",
+            post(purchase_price_handler::reject_price),
         )
         // batch-13 P3: 价格清单导入
         .route(
@@ -354,6 +388,14 @@ pub fn suppliers() -> Router<AppState> {
             "/suppliers/{id}/qualifications/{qualification_id}",
             put(supplier_handler::update_supplier_qualification)
                 .delete(supplier_handler::delete_supplier_qualification),
+        )
+        // 资质附件真上传（POST multipart）+ 受鉴权读取（GET，fail-closed：
+        // uploads/qualifications 目录不挂任何匿名静态路由，字节只能经本鉴权端点读出；
+        // 权限键由 URL 段推导为 suppliers:create / suppliers:read，与既有资质端点同源）
+        .route(
+            "/suppliers/{id}/qualifications/{qualification_id}/attachment",
+            get(supplier_handler::get_supplier_qualification_attachment)
+                .post(supplier_handler::upload_supplier_qualification_attachment),
         )
         .route(
             "/suppliers/{id}/evaluate",

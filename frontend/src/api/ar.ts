@@ -3,11 +3,16 @@ import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 应收发票（列表/详情载荷）。
- * 后端 `ar_invoice_handler::list_ar_invoices` 直接 `to_value` 返回 SeaORM 实体
- * （无 JOIN、无 DTO 改名），字段与 `backend/src/models/ar_invoice.rs` 逐字一致：
+ * 后端 `ar_invoice_handler::list_ar_invoices` 返回标准 `PaginatedResponse<ar_invoice::Model>`
+ * （data = {items,total,page,page_size}），items 为 SeaORM 实体（无 JOIN、无 DTO 改名），
+ * 字段与 `backend/src/models/ar_invoice.rs` 逐字一致：
  * 金额键为 received_amount / unpaid_amount（非 verified_amount / unverified_amount），
  * status 值集为大写 DRAFT/APPROVED/PAID/PARTIAL_PAID/CANCELLED（见 ar_invoice_service 写入点）。
  * 实体无 payment_status / remark 列，故此处不再声明。
+ * 金额字段（invoice_amount/received_amount/unpaid_amount/tax_amount）为 rust_decimal：
+ * 后端依赖 `rust_decimal` 仅启用 `serde` feature（Cargo.toml，非 serde-float），
+ * 经 `serde_json::to_value` 序列化为 JSON **字符串**（如 "1234.56"），故类型为 string；
+ * tax_amount 后端为 Option<Decimal> ⇒ string | null。展示走 utils 侧 decimal-string 安全范式。
  */
 export interface ARInvoice {
   id: number;
@@ -15,12 +20,13 @@ export interface ARInvoice {
   customer_id: number;
   customer_name: string;
   invoice_date: string;
-  invoice_amount: number;
-  tax_amount: number;
-  received_amount: number;
-  unpaid_amount: number;
+  invoice_amount: string;
+  tax_amount: string | null;
+  received_amount: string;
+  unpaid_amount: string;
   status: string;
-  due_date?: string;
+  // 后端 models/ar_invoice.rs:17 due_date 为 NaiveDate(NOT NULL)，响应必带 → 必填 string
+  due_date: string;
   created_at: string;
 }
 
@@ -62,13 +68,27 @@ export interface CreateArPaymentRequest {
   invoice_ids?: number[];
 }
 
-/** 更新收款入参：对齐后端 `UpdateArPaymentRequest`（全字段可选，无 customer_id，金额键 amount）。 */
+/**
+ * 更新收款入参：对齐后端 `UpdateArPaymentRequest`
+ * （backend/src/handlers/ar_payment_handler.rs，双层 Option 三态：键缺席=保持原值、
+ * 显式 null=清空[仅可空列]、有值=覆盖；无 customer_id，身份/审计字段不经请求体）。
+ * amount/payment_date 对应 NOT NULL 列（collection_amount/collection_date），
+ * 后端更新链路已真实支持修改：金额执行与创建同源的 >0/精度≤2 位校验与
+ * "新金额≥已核销分配金额"一致性门（ar_ops/collection.rs::update_payment），
+ * 日期执行所属期间关账检查；二者显式 null 被业务拒绝，故此处声明为可选但不可传 null。
+ * amount 入站为 JSON number（rust_decimal serde 接受），与出参 string 形态解耦。
+ */
 export interface UpdateArPaymentRequest {
+  /** 收款金额：NOT NULL 列，编辑对话框必送；不允许 null（后端业务拒绝） */
   amount?: number;
-  payment_method?: string;
+  /** 收款日期（YYYY-MM-DD）：NOT NULL 列，编辑对话框必送；不允许 null */
   payment_date?: string;
+  /** 收款方式（可空列，后端另支持显式 null 清空） */
+  payment_method?: string;
+  /** 银行账号（可空列） */
   bank_account?: string;
-  remark?: string;
+  /** 备注（可空列；显式 null=清空为 NULL） */
+  remark?: string | null;
 }
 
 export interface ARVerification {
@@ -129,7 +149,14 @@ export interface ArInvoiceQuery {
   page_size?: number;
 }
 
-export function getARInvoiceList(params?: ArInvoiceQuery): Promise<ApiResponse<ARInvoice[]>> {
+/**
+ * 应收发票列表：后端 `ar_invoice_handler::list_ar_invoices` 返回标准
+ * `ApiResponse<PaginatedResponse<ARInvoice>>`（data = {items,total,page,page_size}）。
+ * items 为 ar_invoice::Model 数组，金额字段为 rust_decimal 序列化的 JSON 字符串（见 ARInvoice 注释）。
+ */
+export function getARInvoiceList(
+  params?: ArInvoiceQuery
+): Promise<ApiResponse<PaginatedResponse<ARInvoice>>> {
   return request.get('/ar/invoices', { params });
 }
 
@@ -137,13 +164,43 @@ export function getARInvoice(id: number): Promise<ApiResponse<ARInvoice>> {
   return request.get(`/ar/invoices/${id}`);
 }
 
-export function createARInvoice(data: Partial<ARInvoice>): Promise<ApiResponse<ARInvoice>> {
+/**
+ * 创建应收发票入参：对齐后端 `CreateArInvoiceRequestDto`（backend/src/handlers/ar_invoice_handler.rs:46），
+ * 全部字段 Option。金额键 invoice_amount 为 `Option<Decimal>`：serde 接受 JSON number，
+ * 故 el-input-number 的 number 可直接提交；请求侧金额是 number（与响应侧 ARInvoice 的 string 解耦，
+ * 因后端入参/出参对 Decimal 的 serde 处理方向不同）。invoice_no 由后端自生成，不入参。
+ */
+export interface CreateARInvoiceRequest {
+  customer_id?: number;
+  invoice_date?: string;
+  due_date?: string;
+  customer_name?: string;
+  source_type?: string;
+  source_bill_id?: number;
+  source_bill_no?: string;
+  invoice_amount?: number;
+  batch_no?: string;
+  color_no?: string;
+  sales_order_no?: string;
+}
+
+/**
+ * 更新应收发票入参：对齐后端 `UpdateArInvoiceRequest`
+ * （backend/src/services/ar_invoice_service.rs:26），全字段可选，金额键 invoice_amount（number）。
+ */
+export interface UpdateARInvoiceRequest {
+  invoice_date?: string;
+  due_date?: string;
+  invoice_amount?: number;
+}
+
+export function createARInvoice(data: CreateARInvoiceRequest): Promise<ApiResponse<ARInvoice>> {
   return request.post('/ar/invoices', data);
 }
 
 export function updateARInvoice(
   id: number,
-  data: Partial<ARInvoice>
+  data: UpdateARInvoiceRequest
 ): Promise<ApiResponse<ARInvoice>> {
   return request.put(`/ar/invoices/${id}`, data);
 }
@@ -307,50 +364,76 @@ export function getUnverifiedARPayments(): Promise<ApiResponse<ARPayment[]>> {
   return request.get('/ar/verifications/unverified/payments');
 }
 
-// P2-15 修复（批次 86 v2 复审）：4 处报表 ApiResponse<any> → 显式接口
-
-/** AR 统计报表汇总行 */
+/**
+ * AR 统计报表聚合行（单聚合对象载荷，非行集）。
+ * 出参形状以定稿 DTO 为唯一事实：键与 `backend/src/services/ar_ops/report.rs:141-149`
+ * `build_statistics_response` 的 `json!` 字面逐字一致；handler `get_statistics_report`
+ * （backend/src/handlers/ar_report_handler.rs:60）将 service 构造原样放入 ApiResponse 载荷，
+ * 无二次加工。金额键（total_amount/paid_amount/unpaid_amount/overdue_amount）为后端
+ * `Decimal.to_string()` 出的字符串（rust_decimal 仅启用 serde feature，非 float 序列化，
+ * 本仓裁定出参为字符串），计数键 total_invoices/overdue_count 为 JSON number，
+ * collection_rate 为 f64 回款率。
+ * `[key: string]: unknown` 索引签名仅供报表 tab 通用表格从载荷推导列（列 = Object.keys），
+ * 不代表后端另有出参键；真实键由后端契约形状锁逐键钉死，前端侧由
+ * `tests/unit/ar-report-keys.test.ts` 三向对锁（后端源码 ↔ 本声明 ↔ 钉死清单）。
+ */
 export interface ARStatisticsReport {
-  total_invoice_amount: number;
-  total_received_amount: number;
-  total_unreceived_amount: number;
-  total_verified_amount: number;
-  total_unverified_amount: number;
-  invoice_count: number;
+  total_invoices: number;
+  total_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
   overdue_count: number;
+  overdue_amount: string;
+  collection_rate: number;
   [key: string]: unknown;
 }
 
-/** AR 日报表行 */
+/**
+ * AR 日报表行：出参形状以后端定稿 DTO 为唯一事实
+ * （backend/src/services/ar_ops/report.rs:181-187，按 invoice_date GROUP BY 的聚合行）。
+ * 金额为后端 Decimal.to_string() 的字符串，非 number。
+ */
 export interface ARDailyReport {
   date: string;
-  invoice_amount: number;
-  received_amount: number;
-  verified_amount: number;
   invoice_count: number;
+  invoice_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
   [key: string]: unknown;
 }
 
-/** AR 月报表行 */
+/**
+ * AR 月报表行：同后端 report.rs:271-277（按 to_char 'YYYY-MM' GROUP BY 的聚合行），
+ * 金额同为字符串。
+ */
 export interface ARMonthlyReport {
   month: string;
-  invoice_amount: number;
-  received_amount: number;
-  verified_amount: number;
   invoice_count: number;
+  invoice_amount: string;
+  paid_amount: string;
+  unpaid_amount: string;
   [key: string]: unknown;
 }
 
-/** AR 账龄报表行 */
+/**
+ * AR 账龄报表聚合行（单聚合对象载荷，全体/筛选口径下的一组合计，非按客户行集）。
+ * 出参形状以定稿 DTO 为唯一事实：键与 `backend/src/services/ar_ops/report.rs:498-506`
+ * `build_aging_response` 的 `json!` 字面逐字一致；handler `get_aging_report`
+ * （backend/src/handlers/ar_report_handler.rs:168）将 service 构造原样放入 ApiResponse 载荷。
+ * 分桶由后端 SQL CASE WHEN 按 due_date 计算（未到期 not_due + 逾期 0-30/31-60/61-90/90+），
+ * total_overdue 为四桶逾期合计；全部金额键为 `Decimal.to_string()` 字符串（本仓裁定），
+ * invoice_count 为 JSON number。按业务员维度的行集走独立端点
+ * `/ar/reports/aging/by-salesperson`，与本类型无关。
+ * 索引签名同 ARStatisticsReport 的说明。
+ */
 export interface ARAgingReport {
-  customer_id: number;
-  customer_name: string;
-  age_0_30: number;
-  age_31_60: number;
-  age_61_90: number;
-  age_91_180: number;
-  age_180_plus: number;
-  total_amount: number;
+  not_due: string;
+  bucket_0_30: string;
+  bucket_31_60: string;
+  bucket_61_90: string;
+  bucket_90_plus: string;
+  total_overdue: string;
+  invoice_count: number;
   [key: string]: unknown;
 }
 
@@ -374,17 +457,18 @@ export function getARStatisticsReport(
 }
 
 // 后端 ar_report_handler::ArReportQuery 读取 start_date/end_date/customer_id/baseline_date/
-// salesperson_id，此前前端误传 date / year+month（均被 serde 静默丢弃）。
-// 日报：以所选日期为单日区间 [date, date] 传给 start_date/end_date。
-export function getARDailyReport(date: string): Promise<ApiResponse<ARDailyReport>> {
+// salesperson_id。日报：以所选日期为单日区间 [date, date] 传给 start_date/end_date。
+// 载荷为裸数组行集（backend/src/services/ar_ops/report.rs:191 Ok(json!(Vec))）。
+export function getARDailyReport(date: string): Promise<ApiResponse<ARDailyReport[]>> {
   return request.get('/ar/reports/daily', { params: { start_date: date, end_date: date } });
 }
 
-// 月报：将 (year, month) 换算为该月起止日期，按 start_date/end_date 传参（不再发明 year/month）。
+// 月报：将 (year, month) 换算为该月起止日期，按 start_date/end_date 传参（不发明 year/month 参数）。
+// 载荷为裸数组行集（backend/src/services/ar_ops/report.rs:281 Ok(json!(Vec))）。
 export function getARMonthlyReport(
   year: number,
   month: number
-): Promise<ApiResponse<ARMonthlyReport>> {
+): Promise<ApiResponse<ARMonthlyReport[]>> {
   const pad = (n: number) => String(n).padStart(2, '0');
   const startDate = `${year}-${pad(month)}-01`;
   const lastDay = new Date(year, month, 0).getDate();

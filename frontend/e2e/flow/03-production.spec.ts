@@ -13,6 +13,7 @@ import {
   ensureTestEntities,
   expectBadRequest,
   genName,
+  seedColorCardArchive,
 } from './helpers';
 
 test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', () => {
@@ -42,7 +43,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
         { name: '匀染剂', amount: 2, unit: 'g/L' },
         { name: '固色剂', amount: 5, unit: 'g/L' },
       ],
-      // dye_recipe.status 是闭合小写英文词表（draft/pending_approval/approved/disabled），
+      // dye_recipe.status 是闭合小写英文词表（draft/pending_approval/approved/rejected/disabled），
       // 与 migration chk_dye_recipe_status CHECK 逐项一致；"草稿" 只是展示标签，落库会被 CHECK 拒绝。
       status: 'draft',
     });
@@ -59,9 +60,8 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     ).toBeTruthy();
 
     await apiCall(page, 'POST', `/production/dye-recipes/${id}/submit`);
-    // ApproveRecipeRequest { approved_by: i32 } 必填（自审修复：原调用缺 body 恒 400
-    // 被 catch 掩盖，旧占位状态机下停留草稿恰好通过宽松断言；状态机真实化后必须真审批）
-    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`, { approved_by: 1 });
+    // 审批人取服务端会话身份（approve_recipe 无请求体）；本用例必须真审批而非停留草稿
+    await apiCall(page, 'POST', `/production/dye-recipes/${id}/approve`);
 
     const recipe = await apiCallRaw<{ status: string }>(
       page,
@@ -86,17 +86,26 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
 
   test('3-3 创建染色批次（缸号）', async ({ page }) => {
     const ctx = getCtx();
+    // I 族前置（CI 判责 §③「色号 RED-001 在色卡档案中不存在」）：后端
+    // resolve_dye_color_identity（backend/src/handlers/dye_batch_handler.rs:203-254）对非空
+    // color_no 强制反查色卡明细档案且要求全局唯一命中——该校验正当，不得放松。
+    // 原写死的 'RED-001' 属测试缺前置：本用例自建专属色卡+唯一色号（seedColorCardArchive，
+    // 与 fabric/02-dye 先例同型），用入档后的唯一色号替代硬编码。
+    const archive = await seedColorCardArchive(page, { context: '03-production 3-3' });
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
       batch_no: genCode('缸'),
       dye_lot_no: dyeLotNo,
       greige_fabric_id: ctx.greigeFabricId,
-      color_no: 'RED-001',
+      color_no: archive.colorCode,
       planned_quantity: 1000,
       status: 'pending_schedule',
     });
     ctx.dyeBatchId = result.data?.id;
     ctx.dyeLotNo = dyeLotNo;
-    expect(ctx.dyeBatchId).toBeDefined();
+    expect(
+      ctx.dyeBatchId,
+      `染色批次创建应返回 data.id（建单响应回 id 为后端契约），实际响应：${JSON.stringify(result).slice(0, 300)}`
+    ).toBeDefined();
   });
 
   test('3-4 缸号状态机流转（14 态：pending_schedule→scheduled→preparing→dyeing→stored）', async ({
@@ -230,9 +239,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     const ctx = getCtx();
     const id = ctx.productionRecipeId;
     expect(id, '3-6 未建出大货处方（ctx.productionRecipeId 缺失），本用例前置失败').toBeTruthy();
-    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`, {
-      approved_by: 1,
-    });
+    await apiCall(page, 'POST', `/production/production-recipes/${id}/approve`);
     const recipe = await apiCallRaw<{ status: string }>(
       page,
       'GET',

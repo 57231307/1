@@ -18,6 +18,13 @@
         width="60"
         align="center"
       />
+      <!--
+        产品名称/客户列的数据源 = 后端列表读模型 SalesPriceView 的 LEFT JOIN 富化列
+        （sales_price_service.rs::get_prices_list 以 column_as + LeftJoin(products/customers) 产出，
+        防漂移锁 backend/tests/sales_price_read_enrichment_drift_test.rs 钉死）。
+        两表无外键 ⇒ 孤儿引用与无客户标准价行名称为 NULL，el-table 将 null 渲染为空白——如实呈现，
+        禁止 '未知'/'-' 造名或本地缓存回填（列表显名唯一正解 = 后端 JOIN）。
+      -->
       <el-table-column
         prop="product_name"
         :label="t('salesPrice.table.columnProductName')"
@@ -27,7 +34,7 @@
       <el-table-column
         prop="customer_name"
         :label="t('salesPrice.table.columnCustomer')"
-        width="150"
+        min-width="150"
         show-overflow-tooltip
       />
       <el-table-column
@@ -103,7 +110,7 @@
         fixed="right"
       >
         <template #default="{ row }">
-          <el-button type="primary" link size="small" @click="emit('view', row as SalesPrice)">{{
+          <el-button type="primary" link size="small" @click="emit('view', row as SalesPriceRow)">{{
             t('salesPrice.table.buttonView')
           }}</el-button>
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
@@ -113,7 +120,7 @@
             type="primary"
             link
             size="small"
-            @click="emit('edit', row as SalesPrice)"
+            @click="emit('edit', row as SalesPriceRow)"
             >{{ t('salesPrice.table.buttonEdit') }}</el-button
           >
           <el-button
@@ -121,10 +128,10 @@
             type="success"
             link
             size="small"
-            @click="emit('approve', row as SalesPrice)"
+            @click="emit('approve', row as SalesPriceRow)"
             >{{ t('salesPrice.table.buttonApprove') }}</el-button
           >
-          <el-button type="info" link size="small" @click="emit('history', row as SalesPrice)">{{
+          <el-button type="info" link size="small" @click="emit('history', row as SalesPriceRow)">{{
             t('salesPrice.table.buttonHistory')
           }}</el-button>
         </template>
@@ -148,8 +155,14 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import type { SalesPrice } from '@/api/sales-price';
-import { formatCurrency, getStatusType } from '../composables/spFmts';
+import type { SalesPriceRow } from '@/api/sales-price';
+// 价格类型/状态文案统一走 spFmts（i18n 键 + 未知 token 抛错；词表权威 models/status/sales.rs::price_approval），删除组件局部 map
+import {
+  formatCurrency,
+  getStatusType,
+  getStatusLabel,
+  getPriceTypeLabel,
+} from '../composables/spFmts';
 // Batch 462 P0-S24：引入权限码常量，与后端 sales-prices 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
@@ -159,8 +172,8 @@ const { t } = useI18n({ useScope: 'global' });
  * 销售价格列表表格组件（批次 284：page/pageSize props + v-model 绑定分页）
  */
 defineProps<{
-  // 列表数据
-  priceList: SalesPrice[];
+  // 列表数据（后端 list_prices 富化行 SalesPriceView ⇒ SalesPriceRow）
+  priceList: SalesPriceRow[];
   // 加载状态
   loading: boolean;
   // 总数
@@ -172,34 +185,13 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  view: [row: SalesPrice];
-  edit: [row: SalesPrice];
-  approve: [row: SalesPrice];
-  history: [row: SalesPrice];
+  view: [row: SalesPriceRow];
+  edit: [row: SalesPriceRow];
+  approve: [row: SalesPriceRow];
+  history: [row: SalesPriceRow];
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();
-
-/** 获取价格类型标签（i18n 响应式） */
-const getPriceTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    STANDARD: t('salesPrice.table.priceTypeStandard'),
-    AGREED: t('salesPrice.table.priceTypeAgreed'),
-    PROMOTION: t('salesPrice.table.priceTypePromotion'),
-  };
-  return map[type] || type;
-};
-
-/** 获取销售价格状态标签（i18n 响应式） */
-const getStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    pending: t('salesPrice.table.statusPending'),
-    active: t('salesPrice.table.statusActive'),
-    expired: t('salesPrice.table.statusExpired'),
-    inactive: t('salesPrice.table.statusInactive'),
-  };
-  return map[status] || status;
-};
 </script>
 
 <style scoped>

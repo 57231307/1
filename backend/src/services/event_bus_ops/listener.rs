@@ -1227,7 +1227,7 @@ async fn handle_bpm_process_finished(
     db: Arc<DatabaseConnection>,
     search_client: Arc<dyn SearchClient>,
     business_type: String,
-    business_id: i32,
+    business_id: i64,
     approved: bool,
     approver_id: i32,
 ) {
@@ -1277,32 +1277,38 @@ async fn handle_bpm_process_finished(
 /// 处理采购订单 BPM 审批结果回写（approve_order / reject_order）
 async fn handle_bpm_purchase_order(
     db: Arc<DatabaseConnection>,
-    business_id: i32,
+    business_id: i64,
     approved: bool,
     approver_id: i32,
 ) {
+    // business_id 已随 BPM 侧列拓宽为 i64，而采购订单主键是 SERIAL(i32)：
+    // 窄化必须显式判定，超界即中止回写并报错，绝不用 as i32 截断成另一张订单。
+    let Ok(order_id) = i32::try_from(business_id) else {
+        tracing::error!(
+            business_id,
+            "BPM 审批回写中止：purchase_order 主键超出 INTEGER 范围，与采购订单主键类型不符，判定为数据异常，不做窄化回写"
+        );
+        return;
+    };
     let po_service = crate::services::po::order::PurchaseOrderService::new(db);
     // P2 5-18 修复：使用事件携带的 approver_id 替代硬编码 0
     if approved {
-        if let Err(e) = po_service.approve_order(business_id, approver_id).await {
+        if let Err(e) = po_service.approve_order(order_id, approver_id).await {
             tracing::error!(
                 "Failed to approve purchase_order {} via BPM: {}",
-                business_id,
+                order_id,
                 e
             );
         } else {
-            tracing::info!(
-                "Successfully approved purchase_order {} via BPM",
-                business_id
-            );
+            tracing::info!("Successfully approved purchase_order {} via BPM", order_id);
         }
     } else if let Err(e) = po_service
-        .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
+        .reject_order(order_id, "BPM审批拒绝".to_string(), approver_id)
         .await
     {
         tracing::error!(
             "Failed to reject purchase_order {} via BPM: {}",
-            business_id,
+            order_id,
             e
         );
     }
@@ -1312,32 +1318,31 @@ async fn handle_bpm_purchase_order(
 async fn handle_bpm_sales_order(
     db: Arc<DatabaseConnection>,
     search_client: Arc<dyn SearchClient>,
-    business_id: i32,
+    business_id: i64,
     approved: bool,
     approver_id: i32,
 ) {
+    let Ok(order_id) = i32::try_from(business_id) else {
+        tracing::error!(
+            business_id,
+            "BPM 审批回写中止：sales_order 主键超出 INTEGER 范围，与销售订单主键类型不符，判定为数据异常，不做窄化回写"
+        );
+        return;
+    };
     let sales_service = crate::services::so::order::SalesService::new(db, search_client);
     if approved {
-        if let Err(e) = sales_service.approve_order(business_id, approver_id).await {
-            tracing::error!(
-                "Failed to approve sales_order {} via BPM: {}",
-                business_id,
-                e
-            );
+        if let Err(e) = sales_service.approve_order(order_id, approver_id).await {
+            tracing::error!("Failed to approve sales_order {} via BPM: {}", order_id, e);
         } else {
-            tracing::info!("Successfully approved sales_order {} via BPM", business_id);
+            tracing::info!("Successfully approved sales_order {} via BPM", order_id);
         }
     } else {
         match sales_service
-            .reject_order(business_id, "BPM审批拒绝".to_string(), approver_id)
+            .reject_order(order_id, "BPM审批拒绝".to_string(), approver_id)
             .await
         {
-            Ok(_) => tracing::info!("Successfully rejected sales_order {} via BPM", business_id),
-            Err(e) => tracing::error!(
-                "Failed to reject sales_order {} via BPM: {}",
-                business_id,
-                e
-            ),
+            Ok(_) => tracing::info!("Successfully rejected sales_order {} via BPM", order_id),
+            Err(e) => tracing::error!("Failed to reject sales_order {} via BPM: {}", order_id, e),
         }
     }
 }
@@ -1345,42 +1350,49 @@ async fn handle_bpm_sales_order(
 /// 处理生产订单 BPM 审批结果回写（专用 approve_order_via_bpm/reject_order_via_bpm，不回调 BPM 避免循环）
 async fn handle_bpm_production_order(
     db: Arc<DatabaseConnection>,
-    business_id: i32,
+    business_id: i64,
     approved: bool,
     approver_id: i32,
 ) {
+    let Ok(order_id) = i32::try_from(business_id) else {
+        tracing::error!(
+            business_id,
+            "BPM 审批回写中止：production_order 主键超出 INTEGER 范围，与生产订单主键类型不符，判定为数据异常，不做窄化回写"
+        );
+        return;
+    };
     // B-P1-9 修复（批次 360 v13 复审）：原实现仅处理 purchase_order/sales_order，生产订单 BPM 审批结果无法回写
     let prod_service = crate::services::production_order_service::ProductionOrderService::new(db);
     if approved {
         if let Err(e) = prod_service
-            .approve_order_via_bpm(business_id, approver_id)
+            .approve_order_via_bpm(order_id, approver_id)
             .await
         {
             tracing::error!(
                 "Failed to approve production_order {} via BPM: {}",
-                business_id,
+                order_id,
                 e
             );
         } else {
             tracing::info!(
                 "Successfully approved production_order {} via BPM",
-                business_id
+                order_id
             );
         }
     } else {
         if let Err(e) = prod_service
-            .reject_order_via_bpm(business_id, "BPM审批拒绝".to_string(), approver_id)
+            .reject_order_via_bpm(order_id, "BPM审批拒绝".to_string(), approver_id)
             .await
         {
             tracing::error!(
                 "Failed to reject production_order {} via BPM: {}",
-                business_id,
+                order_id,
                 e
             );
         } else {
             tracing::info!(
                 "Successfully rejected production_order {} via BPM",
-                business_id
+                order_id
             );
         }
     }

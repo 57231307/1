@@ -21,7 +21,7 @@
 
   本主入口仅承担：Tab 切换 + 公共样式。
   业务逻辑已全部迁入子组件，通过 props/emit 通信。
-  拆分计划见：docs/refactoring/frontend-vue-splitting-plan.md
+  拆分计划见：.monkeycode/docs/refactoring/frontend-vue-splitting-plan.md
 -->
 <template>
   <div class="system-page">

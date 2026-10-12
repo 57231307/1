@@ -3,11 +3,12 @@ import { logger } from '@/utils/logger';
 /**
  * 销售合同状态的单一映射源。
  *
- * 词表出自写入方 `backend/src/models/status/bpm_crm_contract.rs` 的 `contract` 模块
- * （sales_contract_service.rs 仅写入 draft/active/cancelled 三态，无 pending / completed）。
- * 取值必须与写入方逐字符相同，故此处只有小写 draft/active/cancelled。
+ * 词表出自写入方 `backend/src/models/status/bpm_crm_contract.rs:35-50` 的 `contract` 模块
+ * （sales_contract_service.rs 写入 draft（建单）/active（::approve）/rejected（::reject）/
+ * cancelled（::cancel），无 pending / completed）。
+ * 取值必须与写入方逐字符相同，故此处只有小写 draft/active/cancelled/rejected。
  */
-export const SALES_CONTRACT_STATUSES = ['draft', 'active', 'cancelled'] as const;
+export const SALES_CONTRACT_STATUSES = ['draft', 'active', 'cancelled', 'rejected'] as const;
 
 export type SalesContractStatus = (typeof SALES_CONTRACT_STATUSES)[number];
 
@@ -19,6 +20,7 @@ export const SALES_CONTRACT_STATUS_LABEL_KEYS: Record<SalesContractStatus, strin
   draft: 'salesContract.table.statusDraft',
   active: 'salesContract.table.statusActive',
   cancelled: 'salesContract.table.statusCancelled',
+  rejected: 'salesContract.table.statusRejected',
 };
 
 /** Element Plus el-tag 类型 */
@@ -26,6 +28,7 @@ export const SALES_CONTRACT_STATUS_TAG_TYPES: Record<SalesContractStatus, SalesC
   draft: 'info',
   active: 'success',
   cancelled: 'danger',
+  rejected: 'danger',
 };
 
 /**

@@ -4,6 +4,7 @@
  * 封装凭证查看、提交、审核、过账、导出、打印等流程性方法
  * 行为完全保持一致（仅结构重构）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
@@ -30,7 +31,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.success('submitSuccess');
       await fetchVouchers();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as Error;
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -45,7 +46,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.success('auditSuccess');
       await fetchVouchers();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as Error;
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -62,7 +63,7 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.success('postSuccess');
       await fetchVouchers();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as Error;
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
@@ -81,13 +82,19 @@ export function useVchrProc(vouchers: { value: Voucher[] }, fetchVouchers: () =>
       msg.error('printWindowBlocked');
       return;
     }
+    // Voucher.total_debit/total_credit 是前端可选派生列：后端列表端点（GET /vouchers 返回
+    // Vec<voucher::Model>）不含合计，合计仅在详情 viewVoucher 里由 entries 前端求和派生
+    // （见 useVchr.ts:213-223），列表行恒为 undefined。formatMoney 形参是 number，
+    // 不能塞 undefined；此处不伪造 0（否则把"列表无该列数据"伪装成"金额为 0"），
+    // 缺失即如实留空，命中"按真实语义在使用处处理可选值"。
+    const printMoney = (amount?: number) => (typeof amount === 'number' ? formatMoney(amount) : '');
     const rows = vouchers.value
       .map(
         item => `
       <tr>
         <td>${escapeHtml(item.voucher_no)}</td><td>${escapeHtml(item.voucher_date)}</td><td>${escapeHtml(item.voucher_type)}</td>
-        <td style="text-align:right">${formatMoney(item.total_debit)}</td>
-        <td style="text-align:right">${formatMoney(item.total_credit)}</td>
+        <td style="text-align:right">${printMoney(item.total_debit)}</td>
+        <td style="text-align:right">${printMoney(item.total_credit)}</td>
         <td>${escapeHtml(getVchrStatusLabel(item.status))}</td><td>${escapeHtml(
           item.created_by_name || '-'
         )}</td>

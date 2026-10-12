@@ -257,6 +257,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance } from 'element-plus';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import {
@@ -446,15 +447,16 @@ const handleDeleteItem = async (row: ServerItem) => {
       t('inventoryAdjustment.listTab.titleDeleteConfirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryAdjustment.handleDeleteItem', error);
   }
   try {
     await deleteAdjustmentItem(row.id);
     ElMessage.success(t('inventoryAdjustment.listTab.messageSuccess'));
     await fetchServerItems();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e as Error).message || t('inventoryAdjustment.listTab.messageFailure'));
     }
   }
@@ -484,7 +486,18 @@ const handleSubmit = async () => {
       reason_description: formData.reason_description,
     };
     if (formData.id) {
-      await updateInventoryAdjustment(formData.id, fields);
+      // 三态语义（后端 UpdateAdjustmentRequestPayload DoubleOption，RFC 7386）：
+      // 对话框已回显原值，NOT NULL 列（warehouse_id/adjustment_date/adjustment_type/
+      // reason_type）恒送值（送 null 被后端 400 拒绝）；DB 可空列 reason_description
+      // UI 清空 ⇒ 送显式 null（=清空为 NULL），塌成省略会"改了不生效"；
+      // notes 不在本表单采集范围 ⇒ 不提交该键（缺席=保持原值）。
+      await updateInventoryAdjustment(formData.id, {
+        warehouse_id: formData.warehouse_id,
+        adjustment_date: new Date(formData.adjustment_date).toISOString(),
+        adjustment_type: formData.adjustment_type,
+        reason_type: formData.reason_type,
+        reason_description: formData.reason_description || null,
+      });
     } else {
       await createInventoryAdjustment({
         ...fields,

@@ -97,7 +97,7 @@ pub struct Model {
 
     // ========== v14 批次 426：验布打卷关联字段 ==========
     /// 关联验布记录（仅验布打卷产生的布卷才有，nullable）
-    /// 依据：fabric-industry-research.md §12.4 验布打卷与成品入库
+    /// 依据：.monkeycode/docs/research/fabric-industry-research.md §12.4 验布打卷与成品入库
     pub inspection_id: Option<i32>,
 
     /// 缸号内匹号序号（用于匹号生成：{dye_lot_no}-{seq:03}）

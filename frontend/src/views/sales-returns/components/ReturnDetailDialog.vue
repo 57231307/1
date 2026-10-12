@@ -136,6 +136,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { formatAmount } from '../composables/srFmts';
 import {
   salesReturnStatusLabelKey,
@@ -247,10 +248,12 @@ const handleUpdateItem = async () => {
   if (!props.currentReturn?.id || !editingItemId.value) return;
   itemSaving.value = true;
   try {
+    // 三态契约（后端 UpdateReturnItemRequest DoubleOption）：quantity/unit_price 为
+    // NOT NULL 列恒送值；reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
     await updateSalesReturnItem(props.currentReturn.id, editingItemId.value, {
       quantity: newItem.quantity,
       unit_price: newItem.unitPrice,
-      reason: newItem.reason || undefined,
+      reason: newItem.reason || null,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
     editingItemId.value = null;
@@ -279,15 +282,16 @@ const handleDeleteItem = async (row: SalesReturnItem) => {
       t('salesReturns.detailDialog.deleteItemTitle'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('salesReturns.handleDeleteItem', error);
   }
   try {
     await deleteSalesReturnItem(props.currentReturn.id, row.id);
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
     await refreshServerItems();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e as Error).message || t('salesReturns.detailDialog.itemFailed'));
     }
   }

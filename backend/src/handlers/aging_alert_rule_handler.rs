@@ -43,18 +43,33 @@ pub struct CreateAlertRuleDto {
 }
 
 /// 更新请求 DTO
+///
+/// 可空列三态（对齐 RFC 7386）：键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+/// 显式 `null` 会被 serde_json 折叠成外层 `None`，必须挂 `deserialize_with = "double_option"`
+/// 才能把"清空"与"未提供"区分开（范式同 `department_handler`）。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateAlertRuleDto {
     pub rule_name: Option<String>,
     pub aging_bucket: Option<String>,
     pub threshold_days: Option<i32>,
+    #[serde(default, deserialize_with = "double_option")]
     pub threshold_amount: Option<Option<rust_decimal::Decimal>>,
     pub alert_level: Option<String>,
     pub notify_method: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
     pub notify_roles: Option<Option<Vec<String>>>,
     pub is_active: Option<bool>,
+    #[serde(default, deserialize_with = "double_option")]
     pub remarks: Option<Option<String>>,
+}
+
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 创建预警规则

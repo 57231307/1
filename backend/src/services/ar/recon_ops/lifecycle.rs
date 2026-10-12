@@ -179,7 +179,7 @@ impl ArReconciliationService {
             voucher_date: result.period_end,
             source_type: Some("AR_RECONCILIATION".to_string()),
             source_module: Some("ar".to_string()),
-            source_bill_id: Some(result.id),
+            source_bill_id: Some(i64::from(result.id)),
             source_bill_no: Some(result.reconciliation_no.clone()),
             batch_no: None,
             color_no: None,

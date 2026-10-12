@@ -192,6 +192,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { useI18n } from 'vue-i18n';
@@ -379,7 +380,7 @@ const handleConvert = async (orderType: MrpOrderType) => {
 
     ElMessage.success(t('mrp.calc.convertSuccess', { count: res.data.length, type: typeLabel }));
   } catch (e: unknown) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       ElMessage.error((e instanceof Error ? e.message : String(e)) || t('mrp.calc.convertFailed'));
     }
   }

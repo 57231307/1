@@ -19,7 +19,9 @@ pub struct Model {
     // 凭证来源
     pub source_type: Option<String>,
     pub source_module: Option<String>,
-    pub source_bill_id: Option<i32>,
+    /// 来源单据 ID：多态松散引用（无外键），被引用单据含 BIGSERIAL 主键表
+    /// （期末调整记录等），列宽度为 BIGINT。
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
 
     // 面料行业字段

@@ -89,7 +89,7 @@ pub struct ReportDataResponse {
 
 pub async fn execute_report(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ExecuteReportQuery>,
 ) -> Result<Json<ApiResponse<ReportDataResponse>>, AppError> {
     let service = ReportEngineService::new(state.db);
@@ -117,53 +117,53 @@ pub async fn execute_report(
         use_cache: Some(false),
     };
 
-    match service.execute_report(req).await {
-        Ok(data) => {
-            // 将 ReportColumn 转换为 String (label)
-            let columns: Vec<String> = data.columns.iter().map(|c| c.label.clone()).collect();
-            // 将 serde_json::Value 行转换为 Vec<String>
-            let rows: Vec<Vec<String>> = data
-                .rows
-                .iter()
-                .map(|row| {
-                    if let Some(arr) = row.as_array() {
-                        arr.iter()
+    // 模板可见性门在执行查询之前：他人私有模板的口径与字段选择不得被旁人跑取
+    service
+        .ensure_template_runnable(&query.template_id, auth.user_id)
+        .await?;
+
+    // service 返回的本就是 AppError，透传保留真实 status/code（不得压成 500）
+    let data = service.execute_report(req).await?;
+
+    // 将 ReportColumn 转换为 String (label)
+    let columns: Vec<String> = data.columns.iter().map(|c| c.label.clone()).collect();
+    // 将 serde_json::Value 行转换为 Vec<String>
+    let rows: Vec<Vec<String>> = data
+        .rows
+        .iter()
+        .map(|row| {
+            if let Some(arr) = row.as_array() {
+                arr.iter()
+                    .map(|v| match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        _ => v.to_string().trim_matches('"').to_string(),
+                    })
+                    .collect()
+            } else if let Some(obj) = row.as_object() {
+                // 按列顺序提取值
+                data.columns
+                    .iter()
+                    .map(|c| {
+                        obj.get(&c.key)
                             .map(|v| match v {
                                 serde_json::Value::String(s) => s.clone(),
                                 _ => v.to_string().trim_matches('"').to_string(),
                             })
-                            .collect()
-                    } else if let Some(obj) = row.as_object() {
-                        // 按列顺序提取值
-                        data.columns
-                            .iter()
-                            .map(|c| {
-                                obj.get(&c.key)
-                                    .map(|v| match v {
-                                        serde_json::Value::String(s) => s.clone(),
-                                        _ => v.to_string().trim_matches('"').to_string(),
-                                    })
-                                    .unwrap_or_default()
-                            })
-                            .collect()
-                    } else {
-                        vec![row.to_string()]
-                    }
-                })
-                .collect();
+                            .unwrap_or_default()
+                    })
+                    .collect()
+            } else {
+                vec![row.to_string()]
+            }
+        })
+        .collect();
 
-            let response = ReportDataResponse {
-                columns,
-                rows,
-                total_count: data.total_rows,
-            };
-            Ok(Json(ApiResponse::success(response)))
-        }
-        Err(e) => {
-            tracing::error!("执行报表失败: {}", e);
-            Err(AppError::internal(format!("执行报表失败: {}", e)))
-        }
-    }
+    let response = ReportDataResponse {
+        columns,
+        rows,
+        total_count: data.total_rows,
+    };
+    Ok(Json(ApiResponse::success(response)))
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -199,6 +199,11 @@ pub async fn export_report(
     let filters = parse_export_filters(query.filters_json.as_deref())?;
     let date_range = parse_date_range(query.date_start.as_deref(), query.date_end.as_deref());
 
+    // 导出同样先过模板可见性门（导出即整表数据外发，门槛不能低于在线执行）
+    service
+        .ensure_template_runnable(&query.template_id, auth.user_id)
+        .await?;
+
     // 先执行报表获取数据
     let req = crate::services::report::ExecuteReportRequest {
         template_id: query.template_id.clone(),
@@ -209,20 +214,14 @@ pub async fn export_report(
         use_cache: Some(false),
     };
 
-    let data = service.execute_report(req).await.map_err(|e| {
-        tracing::error!("执行报表失败: {}", e);
-        AppError::internal(format!("执行报表失败: {}", e))
-    })?;
+    // service 返回 AppError，透传保留真实 status/code（失败已由 AppError 出参链路记日志）
+    let data = service.execute_report(req).await?;
 
     let template_name = query.template_id.clone();
     let format_str = query.format.clone();
     let bytes = service
         .export_report(&data, &format_str, &template_name)
-        .await
-        .map_err(|e| {
-            tracing::error!("导出报表失败: {}", e);
-            AppError::internal(format!("导出报表失败: {}", e))
-        })?;
+        .await?;
 
     let response = ExportReportResponse {
         data: String::from_utf8_lossy(&bytes).to_string(),
@@ -322,15 +321,11 @@ pub async fn aggregate_report(
         group_by_count = aggregate_request.group_by.len(),
         "报表聚合查询开始"
     );
-    match service.aggregate_data(aggregate_request).await {
-        Ok(results) => Ok(Json(ApiResponse::success(build_aggregate_response(
-            results,
-        )))),
-        Err(e) => {
-            tracing::error!("数据聚合失败: {}", e);
-            Err(AppError::internal(format!("数据聚合失败: {}", e)))
-        }
-    }
+    // service 返回 AppError，透传保留真实 status/code（不得压成 500）
+    let results = service.aggregate_data(aggregate_request).await?;
+    Ok(Json(ApiResponse::success(build_aggregate_response(
+        results,
+    ))))
 }
 
 /// 解析数据源字符串为 DataSource 枚举

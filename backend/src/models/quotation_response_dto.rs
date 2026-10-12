@@ -46,6 +46,8 @@ pub struct QuotationResponseDto {
     pub approval_instance_id: Option<i64>,
     pub approved_by: Option<i64>,
     pub approved_at: Option<DateTime<Utc>>,
+    /// 审批通过理由（与列 `sales_quotations.approval_reason` 逐字同名；两动作两列对称可读回）
+    pub approval_reason: Option<String>,
     pub rejection_reason: Option<String>,
 
     pub converted_sales_order_id: Option<i64>,
@@ -94,6 +96,7 @@ impl From<sales_quotation::Model> for QuotationResponseDto {
             approval_instance_id: m.approval_instance_id,
             approved_by: m.approved_by,
             approved_at: m.approved_at,
+            approval_reason: m.approval_reason,
             rejection_reason: m.rejection_reason,
             converted_sales_order_id: m.converted_sales_order_id,
             converted_at: m.converted_at,

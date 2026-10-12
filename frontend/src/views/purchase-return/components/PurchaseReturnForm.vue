@@ -143,6 +143,45 @@
           </template>
         </el-table-column>
         <el-table-column
+          prop="colorNo"
+          :label="t('purchaseReturn.form.column.colorNo')"
+          min-width="110"
+        >
+          <template #default="{ row }">
+            <el-input
+              v-model="row.colorNo"
+              size="small"
+              :placeholder="t('purchaseReturn.form.placeholder.colorNo')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="dyeLotNo"
+          :label="t('purchaseReturn.form.column.dyeLotNo')"
+          min-width="110"
+        >
+          <template #default="{ row }">
+            <el-input
+              v-model="row.dyeLotNo"
+              size="small"
+              :placeholder="t('purchaseReturn.form.placeholder.dyeLotNo')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="batchNo"
+          :label="t('purchaseReturn.form.column.batchNo')"
+          min-width="110"
+        >
+          <template #default="{ row }">
+            <el-input
+              v-model="row.batchNo"
+              size="small"
+              :placeholder="t('purchaseReturn.form.placeholder.batchNo')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
           prop="quantity"
           :label="t('purchaseReturn.form.column.quantity')"
           width="120"

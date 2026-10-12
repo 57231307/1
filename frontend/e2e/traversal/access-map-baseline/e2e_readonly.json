@@ -1,0 +1,6 @@
+{
+  "role": "e2e_readonly",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

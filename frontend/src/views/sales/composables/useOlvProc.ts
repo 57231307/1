@@ -1,8 +1,6 @@
 /**
  * useOlvProc.ts - 销售订单列表流程操作 composable
- * 任务编号: P14 批 2 I-3 第 3 批（拆分原 sales/views/OrderListView.vue）
  * 封装销售订单审批/取消/发货/表单提交等业务流程
- * 行为完全保持一致（仅结构重构）
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -19,9 +17,12 @@ import {
   shipSalesOrder,
   type SalesOrder,
 } from '@/api/sales';
-import type { OrderForm } from './useOlv';
+import type { OrderForm, OrderItemForm } from './useOlv';
 import { logger } from '@/utils/logger';
 import { msg } from '@/utils/message';
+import { isDialogDismissal } from '@/utils/monitor';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
+import type { CreateSalesOrderPayload, SalesOrderItemPayload, SalesShipItem } from '@/api/sales';
 
 /** 刷新回调 */
 interface RefreshCallbacks {
@@ -37,6 +38,8 @@ interface SalesShipForm {
     color_no: string;
     dye_lot_no: string;
     batch_no: string;
+    /** 匹号：染色布必填，白坯为空串（提交时省略该键，不发空串占位） */
+    piece_no: string;
   }[];
 }
 
@@ -44,18 +47,18 @@ interface SalesShipForm {
  * 销售订单列表流程操作方法集合
  */
 export function useOlvProc(refresh: RefreshCallbacks) {
-  /** 审批订单 */
+  /** 审批通过（pending → approved）：理由选填，先经 promptApprovalReason(false) 采集，取消即中止；留空时省略键，sales_orders.approval_reason 列写 NULL（不伪造空串）。 */
   const handleApprove = async (row: SalesOrder) => {
+    const approvalReason = await promptApprovalReason(false);
+    if (approvalReason === null) return;
     try {
-      await ElMessageBox.confirm('确定审批此订单吗？', '确认', { type: 'info' });
-      await approveSalesOrder(row.id);
+      await approveSalesOrder(row.id, approvalReason);
       msg.success('approveSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
-        const err = error as { message?: string };
-        ElMessage.error(err.message || msg.translate('operationFailed'));
-      }
+      if (isDialogDismissal(error)) return;
+      const err = error as { message?: string };
+      ElMessage.error(err.message || msg.translate('operationFailed'));
     }
   };
 
@@ -67,21 +70,60 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       msg.success('cancelSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as { message?: string };
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
 
+  /**
+   * 明细行 → 后端 SalesOrderItemRequest 契约映射：
+   * product_id/quantity/unit_price 非 Option 必填；color_no 空串=白坯布为业务语义，按原样透传；
+   * quantity_tolerance_pct 未填=null（后端 Option，走默认解析：品类>全局）。
+   * id/product_name/product_code/unit/subtotal 为响应/表单派生列，不在请求契约，不下发。
+   */
+  const toItemPayload = (it: OrderItemForm): SalesOrderItemPayload => ({
+    product_id: it.product_id as number,
+    quantity: it.quantity,
+    unit_price: it.unit_price,
+    color_no: it.color_no,
+    quantity_tolerance_pct: it.quantity_tolerance_pct ?? null,
+  });
+
+  /**
+   * 日期入参边界归一：后端 order_date/required_date 为 DateTime<Utc>（serde 仅收 RFC3339），
+   * 表单原生 date input 给 'YYYY-MM-DD'、默认值给 Date 对象——统一转 ISO 全串；
+   * 非法日期抛 RangeError 暴露给调用方（不静默吞错）。
+   */
+  const toIsoDateTime = (v: Date | string | undefined): string | undefined =>
+    v ? new Date(v).toISOString() : undefined;
+
   /** 提交订单表单 */
   const handleFormSubmit = async (data: OrderForm) => {
     try {
       if (data.id) {
-        await updateSalesOrder(data.id, data as unknown as Partial<SalesOrder>);
+        // 更新契约（后端 UpdateSalesOrderRequest）仅 required_date/status/shipping_address/
+        // billing_address/notes/items；客户/下单日期/联系人不在其中（编辑这些字段需后端支持，属既有缺口）
+        await updateSalesOrder(data.id, {
+          required_date: toIsoDateTime(data.required_date),
+          shipping_address: data.shipping_address || undefined,
+          notes: data.notes || undefined,
+          items: data.items.map(toItemPayload),
+        });
         msg.success('updateSuccess');
       } else {
-        await createSalesOrder(data as unknown as Partial<SalesOrder>);
+        const payload: CreateSalesOrderPayload = {
+          customer_id: data.customer_id as number,
+          order_date: toIsoDateTime(data.order_date),
+          required_date: toIsoDateTime(data.required_date),
+          contact_person: data.contact_person || undefined,
+          contact_phone: data.contact_phone || undefined,
+          shipping_address: data.shipping_address || undefined,
+          notes: data.notes || undefined,
+          items: data.items.map(toItemPayload),
+        };
+        await createSalesOrder(payload);
         msg.success('createSuccess');
       }
       await refresh.refresh();
@@ -95,7 +137,8 @@ export function useOlvProc(refresh: RefreshCallbacks) {
 
   /**
    * 提交发货（DeliveryDialog 调用）：走真实出库端点 POST /sales/orders/{id}/ship，
-   * 后端按"款号+色号+缸号+批次"四维匹配扣减库存（指定缸不足才显式跨缸回退）。
+   * 后端按"缸号+色号+批次+匹号"四维匹配扣减库存（款号由 product_id 承载；
+   * 指定缸不足才显式跨缸回退；白坯免缸号免匹号）。
    * warehouse_code 由调用方从已选仓库带出（后端按编码查仓）。
    */
   const handleDeliverySubmit = async (
@@ -109,13 +152,25 @@ export function useOlvProc(refresh: RefreshCallbacks) {
         remarks: undefined,
         items: form.items
           .filter(i => i.deliver_quantity > 0)
-          .map(i => ({
-            product_id: i.product_id,
-            quantity: i.deliver_quantity,
-            color_no: i.color_no,
-            dye_lot_no: i.dye_lot_no,
-            batch_no: i.batch_no,
-          })),
+          .map<SalesShipItem>(i =>
+            // 白坯（色号为空）无匹号维度：省略该键而非发空串/占位值
+            i.piece_no
+              ? {
+                  product_id: i.product_id,
+                  quantity: i.deliver_quantity,
+                  color_no: i.color_no,
+                  dye_lot_no: i.dye_lot_no,
+                  batch_no: i.batch_no,
+                  piece_no: i.piece_no,
+                }
+              : {
+                  product_id: i.product_id,
+                  quantity: i.deliver_quantity,
+                  color_no: i.color_no,
+                  dye_lot_no: i.dye_lot_no,
+                  batch_no: i.batch_no,
+                }
+          ),
       });
       msg.success('shipSuccess');
       await refresh.refresh();
@@ -136,26 +191,17 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       msg.success('submitSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as { message?: string };
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }
     }
   };
 
-  /** 驳回订单（提交后退回，需填写原因） */
+  /** 驳回订单：理由必填，先经 promptRejectReason() 采集再提交，取消即中止；理由落 sales_orders.rejected_reason 专列。 */
   const handleReject = async (row: SalesOrder) => {
-    let reason = '';
-    try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', '驳回订单', {
-        type: 'warning',
-        inputPattern: /\S+/,
-        inputErrorMessage: '驳回原因不能为空',
-      });
-      reason = value;
-    } catch {
-      return;
-    }
+    const reason = await promptRejectReason();
+    if (reason === null) return;
     try {
       await rejectSalesOrder(row.id, reason);
       msg.success('rejectSuccess');
@@ -176,7 +222,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       msg.success('deleteSuccess');
       await refresh.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const err = error as { message?: string };
         ElMessage.error(err.message || msg.translate('operationFailed'));
       }

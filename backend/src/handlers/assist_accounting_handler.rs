@@ -30,7 +30,8 @@ pub struct AssistRecordResponse {
     pub id: i32,
     pub business_type: String,
     pub business_no: String,
-    pub business_id: i32,
+    /// 业务单据 ID：随 assist_accounting_record.business_id 宽度为 64 位
+    pub business_id: i64,
     pub account_subject_id: i32,
     pub debit_amount: Decimal,
     pub credit_amount: Decimal,
@@ -134,8 +135,7 @@ pub async fn query_assist_records(
             page,
             page_size,
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -184,8 +184,7 @@ pub async fn get_assist_records_by_business(
 
     let records = service
         .find_by_business(&params.business_type, &params.business_no)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -235,10 +234,7 @@ pub async fn get_assist_records_by_five_dimension(
 ) -> Result<Json<ApiResponse<Vec<AssistRecordResponse>>>, AppError> {
     let service = AssistAccountingService::new(state.db.clone());
 
-    let records = service
-        .find_by_five_dimension(&five_dimension_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let records = service.find_by_five_dimension(&five_dimension_id).await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -292,8 +288,7 @@ pub async fn get_assist_summary(
     } else {
         service
             .find_summary_by_period_and_dimension(&params.accounting_period, dimension_code)
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?
+            .await?
             .into_iter()
             .map(|s| AssistSummaryResponse {
                 id: s.id,
@@ -356,8 +351,7 @@ pub async fn drill_down_to_assist(
             page,
             page_size,
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     let record_responses: Vec<AssistRecordResponse> = records
         .into_iter()
@@ -426,18 +420,27 @@ pub async fn get_assist_balance(
             &params.dimension_code,
             params.dimension_value_id,
         )
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
 
     Ok(Json(ApiResponse::success(balance)))
 }
 
 /// GET /api/v1/erp/assist-accounting/check-balance - 辅助核算余额核对
+///
+/// 原 `Query<serde_json::Value>` + `as_str().unwrap_or("")`：urlencoded 下 as_str 虽能取到值，
+/// 但 `period` 缺失时静默传空串给 service（核对空期间，结果错误且不报错）。改 typed 必填 DTO，
+/// 缺参由 serde 直接 400，与同文件 `AssistBalanceQueryParams` 口径一致。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct CheckBalanceQuery {
+    pub period: String,
+}
+
 pub async fn check_assist_vs_general_balance(
     State(state): State<AppState>,
-    Query(params): Query<serde_json::Value>,
+    Query(params): Query<CheckBalanceQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let period = params.get("period").and_then(|v| v.as_str()).unwrap_or("");
+    let period = &params.period;
 
     info!("执行辅助核算余额核对: 期间={}", period);
 

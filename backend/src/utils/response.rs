@@ -1,15 +1,17 @@
 use axum::{
     Json,
-    http::StatusCode,
+    http::{HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
 use chrono::Utc;
 use serde::Serialize;
-use uuid::Uuid;
 
 use utoipa::ToSchema;
 
-use crate::utils::error::{CODE_FORBIDDEN, CODE_UNAUTHORIZED, ErrorResponse};
+use crate::middleware::trace_context::X_TRACE_ID_HEADER;
+use crate::utils::error::{
+    CODE_FORBIDDEN, CODE_UNAUTHORIZED, ErrorResponse, TraceIdSource, current_trace_id,
+};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ApiResponse<T> {
@@ -144,19 +146,55 @@ pub fn forbidden_response(message: &str) -> Response {
 }
 
 /// 认证/鉴权中间件失败出参：与 `AppError::into_response` 完全同构（复用
-/// [`ErrorResponse`]，键与类型一致：`code` 为字符串码、`trace_id` 为 UUID、`timestamp` 为秒级 i64），
-/// HTTP 状态码由调用方（`StatusCode::UNAUTHORIZED` / `FORBIDDEN`）决定，保持不变。
+/// [`ErrorResponse`]，键与类型一致：`code` 为字符串码、`trace_id` 为 32 位小写 hex、
+/// `timestamp` 为秒级 i64），HTTP 状态码由调用方（`StatusCode::UNAUTHORIZED` / `FORBIDDEN`）决定，保持不变。
+///
+/// trace_id 与 [`AppError::into_response`] **同一取源**：[`current_trace_id`] 读 `TRACE_ID`
+/// task-local（由 `middleware::trace_context` 在链最外层绑定，覆盖 auth/permission/csrf/init_token
+/// 全部内层），因此响应体 `trace_id` 与响应头 `X-Trace-Id` 是同一个值，用户报障给出的号码
+/// 可以直接在日志里检索到。形态为 `Uuid::simple()` 的 32 位小写 hex（不带 `-`），
+/// 与 `X-Trace-Id` 响应头逐字符一致；task-local 未绑定时由 `current_trace_id` 显式记 WARN 后回退，
+/// 不静默。
 ///
 /// message 不走 `AppError::unauthorized(...).into_response()`：`public_message()`（`utils/error.rs`）
 /// 对 `Unauthorized`/`PermissionDenied` 一律返回脱敏常量（「未授权」/「无权限」），
 /// 会抹掉中间件刻意告知用户下一步动作的文案（如「令牌已被吊销，请重新登录」）。
 /// 这些文案是中间件自身的固定字面量、不含他人数据/内部 ID/SQL，外显不越出脱敏契约的安全边界。
 pub fn unified_error_response(status: StatusCode, code: &str, message: &str) -> Response {
+    let (trace_id, trace_source) = current_trace_id();
     let body = ErrorResponse {
         code: code.to_string(),
         message: message.to_string(),
-        trace_id: Uuid::new_v4().to_string(),
+        trace_id: trace_id.clone(),
         timestamp: Utc::now().timestamp(),
     };
-    (status, Json(body)).into_response()
+    let mut response = (status, Json(body)).into_response();
+    attach_trace_id_header(&mut response, &trace_id, trace_source);
+    response
+}
+
+/// 失败信封的 `X-Trace-Id` 响应头补齐（与 `AppError::respond` 同语义）。
+///
+/// `entry().or_insert()`：`trace_context` 位于链最外层，正常路径下它已用同一个 task-local 值
+/// 写好本头，这里不会覆盖；仅当响应产生于 trace 作用域之外（装配顺序被改动才会出现）时补齐，
+/// 让「用户拿到的号码」与「响应体里的号码」始终是同一个值。
+///
+/// `trace_id` 必须由调用方与响应体**同一次** [`current_trace_id`] 调用产出后传入：
+/// 若在补齐处再取一次，task-local 未绑定时会现造出第二个号码，同源就断了。
+pub fn attach_trace_id_header(response: &mut Response, trace_id: &str, source: TraceIdSource) {
+    match HeaderValue::from_str(trace_id) {
+        Ok(v) => {
+            response
+                .headers_mut()
+                .entry(HeaderName::from_static(X_TRACE_ID_HEADER))
+                .or_insert(v);
+        }
+        // trace_id 来自 Uuid，必为合法 ASCII；不可达仍需显式记录，不静默。
+        Err(e) => tracing::error!(
+            trace_id = %trace_id,
+            error = %e,
+            source = ?source,
+            "X-Trace-Id 响应头写入失败（trace_id 不是合法 header 值）"
+        ),
+    }
 }

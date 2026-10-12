@@ -19,7 +19,7 @@
           {{ t('skuMapping.create') }}
         </el-button>
         <el-button
-          v-permission="PERMISSIONS.SKU_MAPPING_CREATE"
+          v-permission="PERMISSIONS.SKU_MAPPING_IMPORT"
           @click="importProc.openImportDialog()"
         >
           {{ t('skuMapping.import') }}

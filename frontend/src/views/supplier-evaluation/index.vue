@@ -425,6 +425,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { useTableApi } from '@/composables/useTableApi';
 import {
   createEvaluationRecord,
@@ -444,7 +445,7 @@ import {
   type CreateEvaluationIndicatorRequest,
 } from '@/api/supplier-evaluation';
 import { getSupplierList, type Supplier } from '@/api/supplier';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -504,7 +505,7 @@ const fetchSuppliers = async () => {
     const res = await getSupplierList({ page: 1, page_size: 1000 });
     supplierList.value = res.data?.items || [];
   } catch (e) {
-    logger.error(t('supplierEvaluation.index.message.fetchSuppliersFailed'), String(e));
+    logAuxLoadFailure(t('supplierEvaluation.index.message.fetchSuppliersFailed'), e);
   }
 };
 
@@ -665,8 +666,9 @@ const handleDeleteEvaluation = async (row: EvaluationRecord) => {
       t('common.warning'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('supplierEvaluation.handleDelete', error);
   }
   try {
     await deleteEvaluation(row.id);

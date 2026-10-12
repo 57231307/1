@@ -89,7 +89,11 @@ test.describe('02 线索管理', () => {
     // 线索来源是 el-select（LeadFormTab.vue:23-39）：用共享 helper pickSelectIn（root=dlg +
     // 精确 label「线索来源」）打开下拉选首项，消除点 readonly combobox input 的不稳定假红。
     await pickSelectIn(dlg, page, '线索来源');
-    await dlg.getByLabel('备注').fill('E2E 测试线索');
+    // 判责 J-3（测试缺陷）：新建线索对话框真实字段为「需求描述」
+    //（LeadFormTab.vue:102 → formData.requirement_desc），从未有「备注」控件——
+    // CI error-context a11y 快照逐字证实对话框内 textbox 只有
+    // 公司名称/联系人/手机号/邮箱/职位/需求描述。原 getByLabel('备注') 恒 0 命中 → fill 30s 超时。
+    await dlg.getByLabel('需求描述').fill('E2E 测试线索');
     await dlg.getByRole('button', { name: '确定' }).click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
       timeout: 30000,

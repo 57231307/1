@@ -3,17 +3,15 @@
 //! 提供从 JWT Token 提取用户信息的功能
 
 use crate::services::auth_service::AppClaims;
-use crate::utils::error::{CODE_FORBIDDEN, CODE_UNAUTHORIZED, ErrorResponse};
+use crate::utils::error::{CODE_FORBIDDEN, CODE_UNAUTHORIZED};
+use crate::utils::response::unified_error_response;
 use axum::{
-    Json,
     extract::FromRequestParts,
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// 认证错误响应
 #[derive(Debug)]
@@ -36,22 +34,22 @@ impl AuthRejection {
 }
 
 impl IntoResponse for AuthRejection {
-    /// 出参体与 `AppError::into_response` 同构（复用 `ErrorResponse`，HTTP 状态码沿用
-    /// `self.status` 不变）。message 原样外显：该文案是提取器自身的固定字面量
-    /// （「未授权：缺少认证信息」），走 `AppError::unauthorized` 会被 `public_message()`
-    /// 替换成脱敏常量「未授权」，丢失告知用户的细节。
+    /// 出参完全委托 [`crate::utils::response::unified_error_response`]，与认证/权限中间件的
+    /// 失败信封共用同一条构造路径（HTTP 状态码沿用 `self.status`）。
+    ///
+    /// message 原样外显：该文案是提取器自身的固定字面量（「未授权：缺少认证信息」），
+    /// 走 `AppError::unauthorized` 会被 `public_message()` 替换成脱敏常量「未授权」，
+    /// 丢失告知用户的细节。
+    ///
+    /// trace_id 由 `unified_error_response` 经 `current_trace_id()` 取 `TRACE_ID` task-local
+    /// （`trace_context` 中间件绑定），保证响应体 `trace_id` == `X-Trace-Id` 响应头
+    /// （32 位小写 hex，不带 `-`）。
     fn into_response(self) -> Response {
         let code = match self.status {
             StatusCode::FORBIDDEN => CODE_FORBIDDEN,
             _ => CODE_UNAUTHORIZED,
         };
-        let body = ErrorResponse {
-            code: code.to_string(),
-            message: self.message,
-            trace_id: Uuid::new_v4().to_string(),
-            timestamp: Utc::now().timestamp(),
-        };
-        (self.status, Json(body)).into_response()
+        unified_error_response(self.status, code, &self.message)
     }
 }
 

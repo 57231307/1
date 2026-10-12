@@ -1,6 +1,6 @@
 //! P4-5 单元测试 - AR（应收账款）服务（5 测试）
 
-use chrono::DateTime;
+use bingxi_backend::services::ar::ArReconciliationService;
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
 use std::str::FromStr;
@@ -25,18 +25,6 @@ impl ArInvoice {
             (Utc::now() - self.due_date).num_days()
         } else {
             0
-        }
-    }
-    fn aging_bucket(&self) -> &'static str {
-        if !self.is_overdue() {
-            return "current";
-        }
-        let d = self.days_overdue();
-        match d {
-            0..=30 => "0-30",
-            31..=60 => "31-60",
-            61..=90 => "61-90",
-            _ => "90+",
         }
     }
 }
@@ -93,24 +81,34 @@ fn test_dqpd() {
 
 #[test]
 fn test_zlft() {
-    // 中文测试名：测试账龄分桶（0-30 / 31-60 / 61-90 / 90+）
-    let cases: Vec<(i64, &str)> = vec![
-        (-1, "current"),
-        (0, "0-30"),
-        (15, "0-30"),
-        (30, "0-30"),
-        (45, "31-60"),
-        (60, "31-60"),
-        (75, "61-90"),
-        (100, "90+"),
+    // 中文测试名：测试账龄分桶（改调生产纯函数 compute_aging_bucket_index，
+    // vfy_ops/aging.rs，桶序 0=当期 / 1=1-30天 / 2=31-60天 / 3=61-90天 / 4=90天以上）。
+    // 注意：本用例原影子实现把 0 天逾期归入 "0-30" 桶，与生产规则不一致
+    // （生产：overdue_days <= 0 归第 0 桶"当期"），以生产为准。
+    let cases: Vec<(i64, usize)> = vec![
+        (-1, 0),
+        (0, 0),
+        (1, 1),
+        (15, 1),
+        (30, 1),
+        (31, 2),
+        (45, 2),
+        (60, 2),
+        (61, 3),
+        (75, 3),
+        (90, 3),
+        (91, 4),
+        (100, 4),
+        (365, 4),
     ];
-    for (days, expected) in cases {
-        let inv = ArInvoice {
-            amount: Decimal::from(1000),
-            due_date: Utc::now() - Duration::days(days),
-            paid_amount: Decimal::ZERO,
-        };
-        assert_eq!(inv.aging_bucket(), expected, "days={}", days);
+    for (days, expected_idx) in cases {
+        assert_eq!(
+            ArReconciliationService::compute_aging_bucket_index(days),
+            expected_idx,
+            "days={} 应落桶索引 {}",
+            days,
+            expected_idx
+        );
     }
 }
 
@@ -143,5 +141,4 @@ fn test_yfqhbsyq() {
     };
     assert!(!paid.is_overdue());
     assert_eq!(paid.outstanding(), Decimal::ZERO);
-    assert_eq!(paid.aging_bucket(), "current");
 }

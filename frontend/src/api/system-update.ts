@@ -1,20 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
-
-export interface SystemVersion {
-  id: number;
-  version: string;
-  release_date: string;
-  release_notes: string;
-  features: string[];
-  bug_fixes: string[];
-  breaking_changes: string[];
-  download_url: string;
-  file_size: number;
-  checksum: string;
-  status: 'available' | 'downloading' | 'downloaded' | 'installing' | 'installed' | 'failed';
-  created_at: string;
-}
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 export interface UpdateTask {
   id: number;
@@ -54,31 +39,67 @@ export interface SystemBackup {
   created_at: string;
 }
 
-export function checkForUpdates(): Promise<ApiResponse<SystemVersion>> {
+/**
+ * GET /system-update/check 的响应载荷，逐字段对齐后端
+ * `backend/src/handlers/system_update_handler.rs:73` 的 `CheckUpdateResponse`。
+ * 后端无 `version` 字段（旧前端误用 SystemVersion.version 自算 hasUpdate 导致
+ * "已是最新仍永远提示有更新"）。has_update 为后端权威布尔，前端直接采用，不再自算。
+ * 各 Option 字段后端未加 skip_serializing_if，序列化时键恒在、值可为 null。
+ */
+export interface CheckUpdateResult {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  download_url: string | null;
+  file_size: number | null;
+  release_notes: string | null;
+  published_at: string | null;
+  current_release_notes: string | null;
+  current_published_at: string | null;
+}
+
+export function checkForUpdates(): Promise<ApiResponse<CheckUpdateResult>> {
   return request.get('/system-update/check');
 }
 
-// 后端 system_update_handler::get_backup_versions() 无参数提取器
-export function getSystemVersionList(): Promise<ApiResponse<SystemVersion[]>> {
-  return request.get('/system-update/versions');
+/**
+ * GET /system-update/update-status 载荷，逐字段对齐后端
+ * `backend/src/handlers/system_update_handler.rs:56` 的 `UpdateStatusResponse`。
+ * 前端仅消费 `is_updating` 作为「是否正在应用更新」的权威布尔（不确定态进度判据），
+ * 其余字段（current_version / last_update_time / backup_versions）后端仍在返回，
+ * 但更新页不消费，故不在此声明以免与其语义漂移（禁止把读不到的字段当已核实）。
+ */
+export interface UpdateStatusResult {
+  is_updating: boolean;
 }
 
-export function getSystemVersion(id: number): Promise<ApiResponse<SystemVersion>> {
-  return request.get(`/system-update/versions/${id}`);
+/**
+ * 查询后端更新应用状态（不确定态进度轮询源）。
+ * 后端 apply（POST /system-update/update）为同步单请求：请求返回即已应用完成，
+ * 因此轮询通常观测不到 is_updating=true 的中间态——这是后端能力限制，
+ * 前端据此只在「请求在途/观测到 true」期间展示 indeterminate「正在更新…」，绝不伪造百分比。
+ */
+export function getUpdateStatus(): Promise<ApiResponse<UpdateStatusResult>> {
+  return request.get('/system-update/update-status');
 }
 
-export function downloadUpdate(versionId: number): Promise<ApiResponse<UpdateTask>> {
-  return request.post(`/system-update/versions/${versionId}/download`);
+/**
+ * 触发应用更新（POST /system-update/update）。
+ * 后端 download_and_update 返回 UpdateResult{success,message,new_version}（单同步请求）。
+ */
+export function applyUpdate(): Promise<ApiResponse<{ success: boolean; message: string }>> {
+  return request.post('/system-update/update');
 }
 
-export function installUpdate(versionId: number): Promise<ApiResponse<UpdateTask>> {
-  return request.post(`/system-update/versions/${versionId}/install`);
+// 后端 handler: system_update_handler::list_update_tasks (GET /system-update/tasks)
+export function getUpdateTaskList(): Promise<ApiResponse<PaginatedResponse<UpdateTask>>> {
+  return request.get('/system-update/tasks');
 }
 
-// 说明：GET /system-update/tasks 在 routes/mod.rs:259 被注册到 get_update_status
-// （返回单个「更新状态」对象，不是任务列表），仓库里没有任务列表端点，也没有任何界面消费它，
-// 故原先那个名为 getUpdateTaskList 的声明已删除——名字与载荷都不符，留着就是下一个契约陷阱。
-// 任务详情/取消走 /system-update/tasks/{id}，后端确有对应 handler。
+// 后端 handler: system_update_handler::list_backup_tasks (GET /system-update/backups)
+export function getSystemBackupList(): Promise<ApiResponse<PaginatedResponse<SystemBackup>>> {
+  return request.get('/system-update/backups');
+}
 
 export function getUpdateTask(id: number): Promise<ApiResponse<UpdateTask>> {
   return request.get(`/system-update/tasks/${id}`);
@@ -97,10 +118,6 @@ export function rollbackUpdate(version: string): Promise<ApiResponse<void>> {
   return request.post('/system-update/rollback', { version });
 }
 
-export function getSystemBackupList(): Promise<ApiResponse<SystemBackup[]>> {
-  return request.get('/system-update/backups');
-}
-
 export function getSystemBackup(id: number): Promise<ApiResponse<SystemBackup>> {
   return request.get(`/system-update/backups/${id}`);
 }
@@ -111,20 +128,8 @@ export function createSystemBackup(
   return request.post('/system-update/backups', data);
 }
 
-export function deleteSystemBackup(id: number): Promise<ApiResponse<void>> {
-  return request.delete(`/system-update/backups/${id}`);
-}
-
-export function restoreFromBackup(id: number): Promise<ApiResponse<void>> {
-  return request.post(`/system-update/backups/${id}/restore`);
-}
-
-export function downloadBackup(id: number): Promise<Blob> {
-  return request.get(`/system-update/backups/${id}/download`, {
-    responseType: 'blob',
-  });
-}
-
-export function getCurrentVersion(): Promise<ApiResponse<{ version: string; build_date: string }>> {
+export function getCurrentVersion(): Promise<
+  ApiResponse<{ version: string; release_date: string }>
+> {
   return request.get('/system-update/current-version');
 }

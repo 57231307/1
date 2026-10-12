@@ -132,13 +132,24 @@ pub async fn create_version(
     let source = service.get_process_definition(id).await?;
     let source = source.ok_or_else(|| AppError::not_found(format!("流程定义不存在: {}", id)))?;
 
+    // 创建新版本业务语义要求显式指定非空版本号（同 code 多版本以 version 区分、name 由其派生）。
+    // DTO 已声明 version 为必填 String，但仅靠 serde 无法拦截空串：空串会绕开下游
+    // `create_process_definition` 的 Some("v1") 默认，把空 version 落库造成版本管理错乱。
+    // 此处补齐"必填即非空"校验，失败映射为 4xx 业务校验错误，不裸 500、不改 DB 列类型。
+    let version = req.version.trim().to_string();
+    if version.is_empty() {
+        return Err(AppError::validation_displayable(
+            "流程版本号不能为空".to_string(),
+        ));
+    }
+
     // 构造新定义：同 code，新 version，若 req.config 为空则继承原 config
     let new_req = CreateProcessDefinitionRequest {
-        name: format!("{}-v{}", source.name, req.version),
+        name: format!("{}-v{}", source.name, version),
         code: source.code,
         description: req.description.or(source.description),
         category: source.category,
-        version: Some(req.version),
+        version: Some(version),
         config: req.config.or(source.config),
         status: Some("DRAFT".to_string()),
     };

@@ -37,7 +37,7 @@
 import { test, expect, type Locator } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn, formItemByExactLabel, pickListArray } from '../flow/ui-helpers';
-import { apiCall, apiCallRaw } from '../flow/helpers';
+import { apiCall, apiCallRaw, seedInspectionPass } from '../flow/helpers';
 
 /** 当日 YYYY-MM-DD（检验日期 / 建单日期用） */
 function todayStr(): string {
@@ -145,7 +145,13 @@ async function seedConfirmedReceipt(page: import('@playwright/test').Page): Prom
   const rcvId = rcv.data?.id;
   expect(rcvId, `种子入库单未返回 id：${JSON.stringify(rcv)}`).toBeTruthy();
 
-  // 3) 确认入库（receipt_status: DRAFT → COMPLETED）
+  // 3) 质检合格回写（入库门控要求的真实前置：见 helpers.seedInspectionPass）→ 确认入库
+  //    （backend ensure_receipt_inspection_allows_flow 只放行 PASSED，未质检直接 confirm 必 400）
+  await seedInspectionPass(page, {
+    receiptId: rcvId as number,
+    supplierId,
+    context: 'purchase/04 种子入库单',
+  });
   await apiCall(page, 'POST', `/purchase/receipts/${rcvId}/confirm`, {});
 
   // 4) 断言造数真实成功：回读确认态 + 取真实 receipt_no（下拉锚点）

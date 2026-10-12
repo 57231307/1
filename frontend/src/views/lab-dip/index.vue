@@ -243,6 +243,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -429,7 +430,7 @@ const runAction = async (action: StatusAction, row: LabDipRequest) => {
     ElMessage.success(t('labDip.index.messageOperationSuccess', { action: action.label }));
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error(t('labDip.index.messageOperationFailed', { action: action.label }));
   }
 };
@@ -494,7 +495,7 @@ const handleDelete = async (row: LabDipRequest) => {
     ElMessage.success(t('common.message.deleteSuccess'));
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error(t('labDip.index.messageDeleteFailed'));
   }
 };

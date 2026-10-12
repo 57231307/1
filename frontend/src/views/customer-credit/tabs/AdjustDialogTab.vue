@@ -24,7 +24,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.amount')" prop="amount">
-        <el-input-number v-model="form.amount" :min="0" style="width: 100%" />
+        <el-input-number v-model="form.amount" :min="0" :precision="2" style="width: 100%" />
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.reason')" prop="reason">
         <el-input v-model="form.reason" type="textarea" :rows="3" />
@@ -86,6 +86,18 @@ const rules: FormRules = {
       message: t('customerCredit.adjust.validation.amountRequired'),
       trigger: 'blur',
     },
+    {
+      // 后端 CreditLimitAdjustmentRequestDto.amount 走 validate_amount_range（utils/validator.rs:14）
+      // 强制 amount>0；async-validator 的 required 对数字 0 视为有效值不会拦截，故补 >0 校验防 422。
+      validator: (_rule, value, callback) => {
+        if (value !== undefined && value !== null && Number(value) <= 0) {
+          callback(new Error(t('customerCredit.adjust.validation.amountMustPositive')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur',
+    },
   ],
   reason: [
     {
@@ -118,7 +130,7 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     submitLoading.value = true;
     await adjustCreditLimit(props.customerId, {
-      type: form.adjustmentType,
+      adjustment_type: form.adjustmentType,
       amount: form.amount,
       reason: form.reason,
     });

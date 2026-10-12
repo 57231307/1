@@ -13,6 +13,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::{
     process_quality_feedback, process_route, process_step_record, production_flow_card,
 };
@@ -23,6 +24,7 @@ use crate::services::flow_card_service::{
     UpdateProcessRouteRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 // ============================================================================
@@ -84,9 +86,11 @@ pub async fn list_process_routes(
 /// POST /api/v1/erp/process-routes - 创建工序路线
 pub async fn create_process_route(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateProcessRouteRequest>,
 ) -> Result<Json<ApiResponse<process_route::Model>>, AppError> {
-    let model = route_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = route_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -150,9 +154,11 @@ pub async fn list_flow_cards(
 /// POST /api/v1/erp/flow-cards - 创建流转卡
 pub async fn create_flow_card(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateFlowCardRequest>,
 ) -> Result<Json<ApiResponse<production_flow_card::Model>>, AppError> {
-    let model = card_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = card_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -328,9 +334,11 @@ pub async fn reactivate_flow_card(
 /// POST /api/v1/erp/flow-cards/steps/start - 扫码开始工序
 pub async fn start_step(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<StartStepRequest>,
 ) -> Result<Json<ApiResponse<process_step_record::Model>>, AppError> {
-    let model = step_service(&state).start_step(req).await?;
+    // 开工登记人取服务端会话，请求体不承载身份
+    let model = step_service(&state).start_step(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -338,8 +346,18 @@ pub async fn start_step(
 pub async fn complete_step(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    Json(req): Json<CompleteStepRequest>,
+    // 结束工序的产量/描述字段全部选填：缺体经 OptionalJson 归一为「未采集」
+    // （逐字段 None，等价体 {}），状态门与合格量≤实际量校验仍由服务层真实执行
+    OptionalJson(req): OptionalJson<CompleteStepRequest>,
 ) -> Result<Json<ApiResponse<process_step_record::Model>>, AppError> {
+    let req = req.unwrap_or(CompleteStepRequest {
+        actual_quantity: None,
+        qualified_quantity: None,
+        abnormal_description: None,
+        handling_opinion: None,
+        remarks: None,
+        pieces: None,
+    });
     let model = step_service(&state).complete_step(id, req).await?;
     Ok(Json(ApiResponse::success(model)))
 }
@@ -365,11 +383,13 @@ pub async fn list_steps_by_card(
 /// POST /api/v1/erp/flow-cards/steps/:source_step_id/rework - 创建回修工序
 pub async fn create_rework_step(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(source_step_id): Path<i32>,
     Json(req): Json<StartStepRequest>,
 ) -> Result<Json<ApiResponse<process_step_record::Model>>, AppError> {
+    // 回修登记人取服务端会话，请求体不承载身份
     let model = step_service(&state)
-        .create_rework(source_step_id, req)
+        .create_rework(source_step_id, req, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success(model)))
 }
@@ -381,9 +401,11 @@ pub async fn create_rework_step(
 /// POST /api/v1/erp/flow-cards/feedbacks - 创建质量反馈单
 pub async fn create_feedback(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateFeedbackRequest>,
 ) -> Result<Json<ApiResponse<process_quality_feedback::Model>>, AppError> {
-    let model = feedback_service(&state).create(req).await?;
+    // 建单人取服务端会话；发现人 found_by 是业务归属，仍由请求体录入
+    let model = feedback_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -399,10 +421,20 @@ pub async fn get_feedback(
 /// POST /api/v1/erp/flow-cards/feedbacks/:id/handle - 处理反馈单
 pub async fn handle_feedback(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<HandleFeedbackRequest>,
+    // 处理意见/处理结果全部选填：缺体经 OptionalJson 归一为「未采集」
+    // （逐字段 None，等价体 {}），状态机流转仍由服务层真实执行
+    OptionalJson(req): OptionalJson<HandleFeedbackRequest>,
 ) -> Result<Json<ApiResponse<process_quality_feedback::Model>>, AppError> {
-    let model = feedback_service(&state).handle(id, req).await?;
+    let req = req.unwrap_or(HandleFeedbackRequest {
+        handling_opinion: None,
+        handling_result: None,
+    });
+    // 处理人取服务端会话（调用处理端点的人即处理人），请求体不承载身份
+    let model = feedback_service(&state)
+        .handle(id, req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

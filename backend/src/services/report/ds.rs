@@ -223,12 +223,12 @@ impl ReportEngineService {
             let start = date_range
                 .start
                 .and_hms_opt(0, 0, 0)
-                .ok_or_else(|| AppError::internal("报表日期范围起始时分秒非法"))?
+                .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
                 .and_utc();
             let end = date_range
                 .end
                 .and_hms_opt(23, 59, 59)
-                .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
                 .and_utc();
             select = select
                 .filter(crate::models::finance_payment::Column::PaymentDate.between(start, end));
@@ -384,7 +384,7 @@ impl ReportEngineService {
                         date_range
                             .start
                             .and_hms_opt(0, 0, 0)
-                            .ok_or_else(|| AppError::internal("报表日期范围起始时分秒非法"))?
+                            .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
                             .and_utc(),
                     ),
             );
@@ -393,7 +393,7 @@ impl ReportEngineService {
                     date_range
                         .end
                         .and_hms_opt(23, 59, 59)
-                        .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
                         .and_utc(),
                 ),
             );
@@ -487,7 +487,7 @@ impl ReportEngineService {
                     date_range
                         .start
                         .and_hms_opt(0, 0, 0)
-                        .ok_or_else(|| AppError::internal("报表日期范围起始时分秒非法"))?
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
                         .and_utc(),
                 ),
             );
@@ -496,7 +496,7 @@ impl ReportEngineService {
                     date_range
                         .end
                         .and_hms_opt(23, 59, 59)
-                        .ok_or_else(|| AppError::internal("报表日期范围结束时分秒非法"))?
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
                         .and_utc(),
                 ),
             );

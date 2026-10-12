@@ -654,6 +654,7 @@ import {
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
+import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -696,16 +697,12 @@ const getReportTypeLabel = (type: string) => {
   return map[type] || t('financeReport.reportListTab.labelReport');
 };
 
-/** 金额格式化（¥ 前缀 + 2 位小数；后端 Decimal 序列化为字符串时按数值归一） */
-const formatAmount = (val: number | string | null | undefined) => {
-  const num = Number(val);
-  return `¥${(Number.isFinite(num) ? num : 0).toFixed(2)}`;
-};
+/** 金额格式化：后端 rust_decimal 出参形态是 JSON 十进制字符串，须经 utils/money 归一后展示 */
+const formatAmount = (val: string | null | undefined) => `¥${formatDecimalAmount(val)}`;
 
-/** 借贷平衡校验展示 */
-const formatBalanceCheck = (debit: number, credit: number) => {
-  const balanced = Number(debit) === Number(credit);
-  return balanced
+/** 借贷平衡校验展示；两侧同走 utils/money 归一后比较，避免字符串字面量误判 */
+const formatBalanceCheck = (debit: string, credit: string) => {
+  return decimalWireToNumber(debit) === decimalWireToNumber(credit)
     ? t('financeReport.reportListTab.balanceBalanced')
     : t('financeReport.reportListTab.balanceUnbalanced');
 };

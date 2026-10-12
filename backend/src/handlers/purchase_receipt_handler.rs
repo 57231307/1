@@ -7,10 +7,11 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::{purchase_order, purchase_receipt, warehouse};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::purchase_receipt_dto::{
-    CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
-    UpdateReceiptItemRequest,
+    ConcedeReceiptRequest, CreatePurchaseReceiptRequest, CreateReceiptItemRequest,
+    RejudgeReceiptRequest, UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -18,6 +19,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use chrono::NaiveDate;
 use sea_orm::EntityTrait;
 use serde::Deserialize;
 use validator::Validate;
@@ -29,17 +31,23 @@ pub async fn list_receipts(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let (receipts, total) = service
         .list_receipts(
-            params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
+            params.page.unwrap_or(1).clamp(1, 1000), // 分页参数 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
             params.status,
             params.supplier_id,
             params.order_id,
+            params.keyword,
+            params.warehouse_id,
+            parse_receipt_date_param(params.receipt_date_from.as_deref(), "receipt_date_from")?,
+            parse_receipt_date_param(params.receipt_date_to.as_deref(), "receipt_date_to")?,
+            Some(&data_scope_ctx),
         )
         .await?;
 
-    // 批次 406 修复：序列化失败应传播错误而非返回 Null，避免 API 返回空数据掩盖问题
+    // 序列化失败传播 AppError 而非返回 Null，避免 API 以空数据掩盖问题
     let mut items_json: Vec<serde_json::Value> = receipts
         .into_iter()
         .map(|r| serde_json::to_value(r).map_err(AppError::from))
@@ -47,17 +55,36 @@ pub async fn list_receipts(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // 权限查询 Err 不静默：记 warn 后按 None（fail-closed 默认处理）继续，
+        // 做法同本仓既有 crm_handler::resolve_role_data_permission。
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_receipt",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             state.data_permission_service.filter_fields_batch(
                 &mut items_json,
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // admin 判定走本仓唯一权威源
+            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+            // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
+            // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             for receipt in &mut items_json {
                 if let Some(obj) = receipt.as_object_mut() {
@@ -72,10 +99,9 @@ pub async fn list_receipts(
     let result = serde_json::to_value(PaginatedResponse::new(
         items_json,
         total,
-        params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
+        params.page.unwrap_or(1).clamp(1, 1000), // 分页参数 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    ))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -87,23 +113,40 @@ pub async fn get_receipt(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    // 行级归属门先于详情出参：列表里不可见的单，凭 ID 也不可读
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
     let receipt = service.get_receipt(id).await?;
-    let mut receipt_json = serde_json::to_value(receipt)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut receipt_json = serde_json::to_value(receipt)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // Err 记 warn 后同走 fail-closed 默认处理（与 list_receipts 同款，不静默）
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_receipt",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             state.data_permission_service.filter_fields(
                 &mut receipt_json,
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // 与列表同一单源判定（见 list_receipts 内 admin 判定注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = receipt_json.as_object_mut() {
                 obj.remove("total_amount");
@@ -155,7 +198,7 @@ pub async fn create_receipt(
                     String::new()
                 };
 
-                // 批次 114 P1-6：通知发送失败改 warn 日志（原 `let _ =` 静默吞错）
+                // 通知发送失败记 warn 日志，不静默吞错
                 if let Err(e) = event_service
                     .notify_purchase_arrived(user_id, &order.order_no, order_id, &warehouse_name)
                     .await
@@ -200,6 +243,10 @@ pub async fn confirm_receipt(
     let service = PurchaseReceiptService::new(state.db.clone());
     let user_id = auth.user_id;
 
+    // 行级归属门在状态流转事务之前：越权确认零落库、零事件发布
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
+
     let receipt = service.confirm_receipt(id, user_id).await?;
 
     // 收货事实（库存增加、订单转收货态、入库单置 COMPLETED）已在 confirm_receipt 事务内完成，
@@ -215,6 +262,54 @@ pub async fn confirm_receipt(
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(receipt)?,
         "采购入库单已确认",
+    )))
+}
+
+/// POST /api/v1/erp/purchase/receipts/{id}/concession - 让步接收（特采降级接收）
+///
+/// 用户终裁通道：收货时可选「让步接收」，理由必填（空/纯空白 ⇒ VALIDATION_ERROR，
+/// 由 service `require_trimmed_reason` 判定）；合法前驱 PENDING/REJECTED，非法前驱
+/// ⇒ BUSINESS_ERROR。操作人取 `AuthContext.user_id`（会话派生），**请求体不承载身份**；
+/// 理由/操作人/时间落 purchase_receipt 专用真实列，audit_log 同步写前后快照。
+#[axum::debug_handler]
+pub async fn concede_receipt(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<ConcedeReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(state.db.clone());
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
+    let receipt = service.concede_receipt(id, req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "让步接收已登记，入库/结算仍须复检改判为合格",
+    )))
+}
+
+/// POST /api/v1/erp/purchase/receipts/{id}/rejudge - 复检改判
+///
+/// 对处于让步态的**同一张收货单**显式改判为 PASSED/REJECTED（结论取值对齐质检结论
+/// 权威词表 pass/fail/partial，经同源映射；词表外 ⇒ VALIDATION_ERROR，前驱非法 ⇒
+/// BUSINESS_ERROR）；理由必填同让步接收；改判理由/操作人/时间与累计次数落专用真实列，
+/// 改判前后状态与操作人经 audit_log 前后快照可回读。操作人取会话，请求体不承载身份。
+#[axum::debug_handler]
+pub async fn rejudge_receipt(
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    State(state): State<AppState>,
+    Json(req): Json<RejudgeReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let service = PurchaseReceiptService::new(state.db.clone());
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(id, &ctx).await?;
+    let receipt = service.rejudge_receipt(id, req, auth.user_id).await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::to_value(receipt)?,
+        "复检改判完成",
     )))
 }
 
@@ -242,17 +337,32 @@ pub async fn list_receipt_items(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseReceiptService::new(state.db.clone());
+    let ctx = auth.to_data_scope_context();
+    service.ensure_receipt_access(receipt_id, &ctx).await?;
     let items = service.list_receipt_items(receipt_id).await?;
-    let mut items_json = serde_json::to_value(items)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut items_json = serde_json::to_value(items)?;
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // Err 记 warn 后同走 fail-closed 默认处理（与 list_receipts 同款，不静默）
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_receipt_item")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_receipt_item",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             if let Some(list) = items_json.as_array_mut() {
                 state.data_permission_service.filter_fields_batch(
                     list,
@@ -260,7 +370,8 @@ pub async fn list_receipt_items(
                     &permission.hidden_fields,
                 );
             }
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // 与单头同一单源判定（见 list_receipts 内 admin 判定注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(list) = items_json.as_array_mut() {
                 for item in list {
@@ -333,17 +444,19 @@ pub async fn delete_receipt_item(
     )))
 }
 
-/// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`RK{yyyyMMdd}{4 位流水}`
-/// 例如 `RK202605140001`。 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
+/// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`PR{yyyyMMdd}{3 位流水}`
+/// 例如 `PR20260514001`。前缀/位数与落库权威
+/// `PurchaseReceiptService::generate_receipt_no`（impl_generate_no! "PR"，默认 3 位）逐字一致，
+/// 保证展示码与落库码同源。
+/// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let receipt_no = DocumentNumberGenerator::generate_no_with_width(
+    let receipt_no = DocumentNumberGenerator::generate_no(
         &*state.db,
-        "RK",
+        "PR",
         purchase_receipt::Entity,
         purchase_receipt::Column::ReceiptNo,
-        4,
     )
     .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
@@ -352,7 +465,7 @@ pub async fn generate_no(
 }
 
 /// POST /api/v1/erp/purchase/receipts/:id/recalculate - 手动重算入库单总金额（运维兜底入口）
-/// v11 批次 154c P2-A：接入 calculate_receipt_total，用于数据修复场景
+/// 调用 `PurchaseReceiptService::calculate_receipt_total`，用于数据修复场景
 pub async fn recalculate_receipt_total(
     auth: AuthContext,
     Path(id): Path<i32>,
@@ -371,6 +484,25 @@ pub async fn recalculate_receipt_total(
 // 请求 DTO
 // =====================================================
 
+/// 日期查询参数按 `%Y-%m-%d` 严格解析（本仓同款惯例见
+/// budget_management_handler 与 tracking_handler 的日期入参解析）。
+/// 为什么不把 DTO 字段直接写成 `Option<NaiveDate>`：`axum::Query` 的类型化反序列化
+/// 失败走 QueryRejection，出参是纯文本 400、不经过 `AppError` 信封（本仓未覆盖
+/// Rejection 响应，见 `handlers_query_param_coercion_test.rs` 对拒绝体的文本断言），
+/// 会违背「字段取值错误 = VALIDATION_ERROR 信封」口径
+/// （先例：`contract_wave4_api_key_echo_and_expiry_test.rs` 非法日期断言
+/// `code=VALIDATION_ERROR` + 真实文案外显）。
+fn parse_receipt_date_param(raw: Option<&str>, field: &str) -> Result<Option<NaiveDate>, AppError> {
+    raw.map(|v| {
+        NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|e| {
+            AppError::validation_displayable(format!(
+                "{field} 日期格式无效（应为 YYYY-MM-DD）：{e}"
+            ))
+        })
+    })
+    .transpose()
+}
+
 /// 采购入库单查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -380,4 +512,23 @@ pub struct ReceiptQueryParams {
     pub status: Option<String>,
     pub supplier_id: Option<i32>,
     pub order_id: Option<i32>,
+    /// 关键字：匹配入库单号或明细物料名（purchase_receipt_item.material_name）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub keyword: Option<String>,
+    pub warehouse_id: Option<i32>,
+    /// 入库日期区间下界（YYYY-MM-DD，含当日）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub receipt_date_from: Option<String>,
+    /// 入库日期区间上界（YYYY-MM-DD，含当日）
+    #[serde(
+        default,
+        deserialize_with = "crate::utils::query_params::empty_str_as_none"
+    )]
+    pub receipt_date_to: Option<String>,
 }

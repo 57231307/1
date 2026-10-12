@@ -8,7 +8,8 @@
 use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -22,11 +23,17 @@ use crate::models::process_route::Entity as RouteEntity;
 use crate::models::status::energy_record_status;
 use crate::models::status::energy_recording_method;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 // 复用 facade 的纯函数校验与计算（保持单一来源，避免逻辑重复）
 use crate::services::energy_service::{
     compute_consumption, compute_total_cost, validate_meter_type,
 };
+
+/// 能耗记录编号（energy_consumption_record.record_no）自动编码前缀：沿用原手写格式
+/// "EC-{时间戳}-{随机}" 的业务前缀 EC，新格式统一为 {EC}{YYYYMMDD}{3位流水}
+///（前缀集中定义，不散落字面量）。
+pub const ENERGY_CONSUMPTION_NO_PREFIX: &str = "EC";
 
 /// 创建能耗记录请求
 #[derive(Debug, Clone, Deserialize)]
@@ -46,9 +53,7 @@ pub struct CreateConsumptionRequest {
     pub route_code: Option<String>,
     pub equipment_id: Option<i32>,
     pub equipment_name: Option<String>,
-    pub operator_id: Option<i32>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新能耗记录请求（仅 draft 状态可更新）
@@ -117,39 +122,62 @@ impl EnergyConsumptionService {
         Self { db }
     }
 
-    /// 生成记录编号：EC-YYYYMMDDHHMMSS-NNN
-    fn generate_record_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("EC-{}-{:03}", timestamp, random)
-    }
-
-    /// 创建能耗记录（校验引用 + 计算消耗量 + 写入 + 同步计量设备读数）
+    /// 创建能耗记录（校验引用 + 计算消耗量 + 写入 + 同步计量设备读数）；登记人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateConsumptionRequest,
+        user_id: i32,
     ) -> Result<ConsumptionModel, AppError> {
         self.validate_create_request(&req).await?;
         let calc = Self::compute_consumption_metrics(&req)?;
         let recording_method = Self::resolve_recording_method(req.recording_method.as_deref())?;
 
-        let record_no = Self::generate_record_no();
+        // 记录编号取号、能耗 INSERT 与计量设备读数回写收口到同一写入事务：
+        // energy_consumption_record.record_no NOT NULL 无 UNIQUE
+        //（migration/src/domain/v15/mod.rs:2812），旧手写
+        // "EC-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零，且 get_by_no 的
+        // `.one()` 在重复号上直接报错；改为按 ENERGY_CONSUMPTION_NO_PREFIX 经生成器
+        // 在事务内取号（pg_advisory_xact_lock 持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let record_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            ENERGY_CONSUMPTION_NO_PREFIX,
+            ConsumptionEntity,
+            energy_consumption_record::Column::RecordNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = ENERGY_CONSUMPTION_NO_PREFIX,
+                "能耗记录编号取号失败（energy_ops/consumption.create）"
+            );
+            AppError::business_displayable("能耗记录编号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active =
-            Self::build_consumption_active_model(&req, &calc, recording_method, record_no, now);
+        let active = Self::build_consumption_active_model(
+            &req,
+            user_id,
+            &calc,
+            recording_method,
+            record_no,
+            now,
+        );
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("能耗记录创建失败: {}", e)))?;
 
         self.sync_meter_readings(
+            &txn,
             req.meter_id,
             calc.previous_reading,
             calc.current_reading,
             now,
         )
         .await?;
+        txn.commit().await?;
 
         // V15 Batch05-P1-3：发布 EnergyConsumptionRecorded 事件（能耗异常告警/月末分摊被动触发）
         crate::services::event_bus::EVENT_BUS.publish(
@@ -229,6 +257,7 @@ impl EnergyConsumptionService {
     /// 构建能耗记录 ActiveModel（DRAFT 状态，单位默认"度"）
     fn build_consumption_active_model(
         req: &CreateConsumptionRequest,
+        user_id: i32,
         calc: &ConsumptionMetrics,
         recording_method: String,
         record_no: String,
@@ -255,20 +284,25 @@ impl EnergyConsumptionService {
             route_code: Set(req.route_code.clone()),
             equipment_id: Set(req.equipment_id),
             equipment_name: Set(req.equipment_name.clone()),
-            operator_id: Set(req.operator_id),
+            // 能耗登记操作人取服务端会话身份（列可空，见 migration/src/domain/v15/mod.rs 的
+            // energy_consumption_record."operator_id" INTEGER），请求体不承载该字段
+            operator_id: Set(Some(user_id)),
             recorded_at: Set(now),
             status: Set(energy_record_status::DRAFT.to_string()),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }
     }
 
-    /// 同步计量设备读数（关联 meter_id 时更新 previous/current/last_reading_at）
-    async fn sync_meter_readings(
+    /// 同步计量设备读数（关联 meter_id 时更新 previous/current/last_reading_at）。
+    /// 与能耗记录 INSERT 同事务调用，故连接类型泛型化
+    ///（DatabaseConnection / DatabaseTransaction 均实现 ConnectionTrait）。
+    async fn sync_meter_readings<C: ConnectionTrait>(
         &self,
+        db: &C,
         meter_id: Option<i32>,
         previous_reading: Decimal,
         current_reading: Decimal,
@@ -279,7 +313,7 @@ impl EnergyConsumptionService {
         };
         if let Some(meter) = MeterEntity::find_by_id(meter_id)
             .filter(energy_meter::Column::IsDeleted.eq(false))
-            .one(&*self.db)
+            .one(db)
             .await?
         {
             let mut meter_active: MeterActiveModel = meter.into();
@@ -287,7 +321,7 @@ impl EnergyConsumptionService {
             meter_active.current_reading = Set(current_reading);
             meter_active.last_reading_at = Set(Some(now));
             meter_active.updated_at = Set(now);
-            meter_active.update(&*self.db).await?;
+            meter_active.update(db).await?;
         }
         Ok(())
     }

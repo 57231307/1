@@ -39,6 +39,23 @@
         <el-descriptions-item :label="t('sales.orderDetail.shippingAddress')">
           {{ order?.shipping_address || '-' }}
         </el-descriptions-item>
+        <!-- 审批结论回显：与报价单域同范式（quotations/approval.vue:56-69）——后端出参
+             （SalesOrderDetail 的 approval_reason/rejected_reason，Option<String> 键恒存在）
+             有值才出行；无值（null）整行不出、不补占位文案、不做 ?? '' 兜底；标签复用既有双语键 -->
+        <el-descriptions-item
+          v-if="order?.approval_reason"
+          :label="t('actionForm.approvalReasonTitle')"
+          :span="2"
+        >
+          {{ order?.approval_reason }}
+        </el-descriptions-item>
+        <el-descriptions-item
+          v-if="order?.rejected_reason"
+          :label="t('actionForm.rejectReasonTitle')"
+          :span="2"
+        >
+          {{ order?.rejected_reason }}
+        </el-descriptions-item>
       </el-descriptions>
 
       <el-table :data="order?.items || []" border class="items-table">
@@ -103,6 +120,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getSalesOrderById, type SalesOrder } from '@/api/sales';
 import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const route = useRoute();
 const router = useRouter();
@@ -122,6 +140,8 @@ onMounted(async () => {
   try {
     const res = await getSalesOrderById(Number(route.params.id));
     order.value = res.data ?? null;
+  } catch (e: unknown) {
+    logAuxLoadFailure('销售订单详情加载失败', e);
   } finally {
     loading.value = false;
   }

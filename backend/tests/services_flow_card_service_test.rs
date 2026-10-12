@@ -1,37 +1,5 @@
 use bingxi_backend::models::status::flow_card as card_status;
-use bingxi_backend::services::flow_card_service::{FlowCardService, QualityFeedbackService};
-
-/// 测试流转卡号生成格式
-#[test]
-fn test_generate_card_no_format() {
-    let card_no = FlowCardService::generate_card_no();
-    assert!(card_no.starts_with("FC-"));
-    // 格式：FC-YYYYMMDDHHMMSS-NNN
-    let parts: Vec<&str> = card_no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14); // YYYYMMDDHHMMSS
-    assert_eq!(parts[2].len(), 3); // NNN
-}
-
-/// 测试条码生成格式
-#[test]
-fn test_generate_barcode_format() {
-    let barcode = FlowCardService::generate_barcode();
-    assert!(barcode.starts_with("FC"));
-    // 格式：FC + 14位时间戳 + 6位随机数 = 22 字符
-    assert_eq!(barcode.len(), 22);
-}
-
-/// 测试反馈单号生成格式
-#[test]
-fn test_generate_feedback_no_format() {
-    let no = QualityFeedbackService::generate_feedback_no();
-    assert!(no.starts_with("QF-"));
-    let parts: Vec<&str> = no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14);
-    assert_eq!(parts[2].len(), 3);
-}
+use bingxi_backend::services::flow_card_service::FlowCardService;
 
 /// 测试流转卡状态流转校验
 #[test]

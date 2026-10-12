@@ -38,10 +38,14 @@
               :placeholder="t('finance.voucherForm.placeholderVoucherType')"
               style="width: 100%"
             >
-              <el-option :label="t('finance.voucherForm.optionJZ')" value="JZ" />
-              <el-option :label="t('finance.voucherForm.optionSK')" value="SK" />
-              <el-option :label="t('finance.voucherForm.optionFK')" value="FK" />
-              <el-option :label="t('finance.voucherForm.optionZZ')" value="ZZ" />
+              <!-- 单一词表源：GET /vouchers/types（后端 available_voucher_types，code=记/收/付/转），
+                 选项由父组件经 voucherTypes prop 传入；禁止在前端维护第二套类型常量 -->
+              <el-option
+                v-for="option in voucherTypes"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
             </el-select>
           </el-form-item>
         </el-col>
@@ -168,6 +172,8 @@ const props = defineProps<{
   voucherRules: FormRules;
   // 叶子科目列表
   leafSubjects: AccountSubject[];
+  // 凭证类型选项（单一真源：GET /vouchers/types，code=记/收/付/转）
+  voucherTypes: { label: string; value: string }[];
   // 借贷合计
   totalDebit: number;
   totalCredit: number;

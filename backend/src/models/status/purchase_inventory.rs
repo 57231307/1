@@ -2,7 +2,7 @@
 //! 采购库存状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的采购/库存状态常量子模块组。
-//! 包含：purchase_order/purchase_receipt/inventory_reservation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/inventory_adjustment/inventory_piece/purchase_receipt_inspection
+//! 包含：purchase_order/purchase_receipt/inventory_reservation/inventory_transfer/inventory_count/purchase_return/purchase_inspection/purchase_inspection_result/inventory_adjustment/inventory_piece/purchase_receipt_inspection
 //!
 //! 大小写历史包袱说明：本模块下 status 字面量大小写混杂，源于历史数据库迁移遗留——
 //! 单据类（purchase_order/purchase_receipt）用大写（DRAFT/APPROVED/CLOSED），
@@ -75,6 +75,20 @@ pub mod inventory_transfer {
 
     /// 已完成：调拨流程完结
     pub const COMPLETED: &str = "completed";
+
+    /// 本列全部合法取值（取值域闭合集合）。
+    ///
+    /// 存在理由：写入方的取值域校验必须有可枚举的单一来源，否则"合法取值"只能在
+    /// 各调用点的字符串比较里各自复述一遍（本仓 `chk_*_status` 迁移与
+    /// `purchase_receipt_inspection::ALL` 同型）。取值逐条就是上方五个常量本身，
+    /// 不引入任何新 token；历史界面上出现过的 `draft`/`executed`/`cancelled`
+    /// 不在本表内（见 frontend/src/utils/inventory-transfer-status.ts 同口径注释）。
+    ///
+    /// ⚠️ 本常量是**取值域**，不是**流转集合**：某取值能否从当前状态被写入，
+    /// 由该状态的权威操作函数决定（见 services/inv/inventory_move.rs 的
+    /// `validate_transfer_status_write` 与其列出的四个写入落点），不得拿本表当
+    /// "任意取值都可写"的通行证。
+    pub const ALL: &[&str] = &[PENDING, APPROVED, REJECTED, SHIPPED, COMPLETED];
 }
 
 /// 库存盘点状态（inventory_count.status，小写值）
@@ -157,9 +171,15 @@ pub mod inventory_piece {
 /// 采购收货检验状态（purchase_receipt.inspection_status，大写值）
 /// 批次 236 v13 真实接入：purchase_receipt_service.rs
 ///
-/// 本列与 `quality_inspection_records.inspection_result`（中文：待检/合格/不合格）是
-/// 两张表的两套词表：质检结论回写入库单时必须经 `from_inspection_result` 显式映射，
-/// 直接复制中文值会让本列出现没有任何读取方认识的取值。
+/// 本列有三套写入方，前两套均不得直接复制结论原值：
+/// - 通用质检记录域 `quality_inspection_records.inspection_result`（中文：待检/合格/不合格）
+///   经 `from_inspection_result` 映射；
+/// - 采购质检域 `purchase_inspection.inspection_result`（英文小写码：pass/fail/partial）
+///   经本文件 `purchase_inspection_result::to_receipt_inspection_status` 映射；
+/// - 让步接收/复检改判端点（`purchase_receipt_ops::state.rs` 的 `concede_receipt`/
+///   `rejudge_receipt`）只写本模块常量（CONCESSION_ACCEPTED 与改判目标 PASSED/REJECTED），
+///   改判目标取值仍经 `to_receipt_inspection_status` 对齐质检结论词表，不手写第二套。
+/// 直接复制任何结论原值都会让本列出现没有读取方认识的取值。
 pub mod purchase_receipt_inspection {
     use crate::models::status::quality_inspection_result;
 
@@ -169,11 +189,30 @@ pub mod purchase_receipt_inspection {
     /// 质检合格：允许后续入库/结算流转
     pub const PASSED: &str = "PASSED";
 
-    /// 质检不合格：走让步接收或退货流程
+    /// 质检不合格：不得入库/结算。下游处置出口有二：按不合格质检生成采购退货，
+    /// 或经让步接收通道转 CONCESSION_ACCEPTED（特采降级接收，理由必填、留痕可回读）。
+    /// 复检改判：让步态改判为 PASSED/REJECTED 走显式端点
+    /// （services/purchase_receipt_ops/state.rs 的 `rejudge_receipt`，改判前后状态、
+    /// 操作人、时间、理由写入本表 rejudge_* 列并同步落审计日志）；对同一收货单再建
+    /// 质检单并 complete 仍是既有回写覆写链（无条件 Set 覆写本列，
+    /// services/purchase_inspection_service.rs 完成链路），历次质检结论存在于
+    /// purchase_inspection 各行自身的 inspection_result（契约测试
+    /// tests/contract_wave6_inspection_rejudge_override_test.rs 钉死该覆写现状，
+    /// tests/contract_wave11_concession_receiving_flow_test.rs 钉死让步/改判通道）。
     pub const REJECTED: &str = "REJECTED";
 
-    /// 本列全部合法取值
-    pub const ALL: &[&str] = &[PENDING, PASSED, REJECTED];
+    /// 让步接收（不合格特采/降级接收）：写入口为让步接收端点
+    /// （services/purchase_receipt_ops/state.rs 的 `concede_receipt`），合法前驱
+    /// PENDING（收货时即选让步）/REJECTED（质检判不合格后特采）；理由必填落
+    /// purchase_receipt.concession_reason，操作人/时间落 concession_by/concession_at
+    /// （操作人取会话身份，请求体不承载）。本态**不放行**入库/结算门控
+    /// （`ensure_receipt_inspection_allows_flow` 仅 PASSED 放行）——让步≠合格入库，
+    /// 离开本态只允许经复检改判 → PASSED / REJECTED。
+    pub const CONCESSION_ACCEPTED: &str = "CONCESSION_ACCEPTED";
+
+    /// 本列全部合法取值（与 DB CHECK `chk_purchase_receipt_inspection_status` 集合
+    /// 相等，契约锁见 tests/contract_wave11_concession_receiving_flow_test.rs）
+    pub const ALL: &[&str] = &[PENDING, PASSED, REJECTED, CONCESSION_ACCEPTED];
 
     /// 质检结论 → 入库单检验状态；词表外结论返回 `None`，由调用方报错而不是默认成某个值。
     /// 用显式比较而非 match 常量模式，与本仓其余取值域校验写法保持一致（避免引用比较歧义）。
@@ -184,6 +223,68 @@ pub mod purchase_receipt_inspection {
             Some(PASSED)
         } else if result == quality_inspection_result::UNQUALIFIED {
             Some(REJECTED)
+        } else {
+            None
+        }
+    }
+}
+
+/// 采购质检结论（purchase_inspection.inspection_result，英文小写码值）
+///
+/// 词表唯一来源＝真实写入方的采集入口：前端「完成」三连 prompt 的结论录入 pattern
+/// （frontend/src/views/purchase-inspection/composables/usePiProc.ts，由
+/// frontend/src/utils/purchase-inspection-result.ts 的常量构造，三端同源），
+/// 实际落库 token 为 pass / fail / partial。本列在完成质检前为 NULL（建单置 NULL），
+/// NULL 是合法初值、空串不是取值。
+///
+/// 与通用质检记录域 `quality_inspection_records.inspection_result` 的中文词表
+/// `quality_inspection_result`（待检/合格/不合格）分属两张表、两套词表：
+/// 比较点、白名单校验与回写映射一律取本模块常量，禁止英文化/中文化任何 token，
+/// 禁止跨域借用（拿中文表校验本列会把合法生产数据判成非法）。
+pub mod purchase_inspection_result {
+    use super::purchase_receipt_inspection;
+
+    /// 合格：整批通过
+    pub const PASS: &str = "pass";
+
+    /// 不合格：整批不通过，回写入库单 REJECTED，下游只能退货
+    pub const FAIL: &str = "fail";
+
+    /// 部分合格：整批存在不合格部分，整单按不合格对待（回写 REJECTED），下游只能退货
+    pub const PARTIAL: &str = "partial";
+
+    /// 本列全部合法取值：完成质检白名单强校验的唯一取值来源
+    pub const ALL: &[&str] = &[PASS, FAIL, PARTIAL];
+
+    /// 白名单判定：逐字符匹配，不做大小写/中英转换，词表外（含空串/变体）一律 false
+    pub fn is_valid(result: &str) -> bool {
+        ALL.contains(&result)
+    }
+
+    /// 采购质检结论 → 入库单检验状态（purchase_receipt_inspection 大写四态）。
+    /// 词表外结论返回 `None`，由调用方报错而不是默认成某个值；取值域与 `ALL`
+    /// 完全同源（Some ⟺ is_valid），杜绝"校验一套、映射另一套"的漂移。
+    /// 注意：本映射只产出 PASSED/REJECTED 两态，绝不产出 CONCESSION_ACCEPTED——
+    /// 让步接收只能经显式端点 `concede_receipt` 写入，不得从质检结论 token 混入。
+    ///
+    /// partial 的映射裁定依据（入库词表为 PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED 四态，
+    /// 但本映射的目标态只取其中两个）：
+    /// - pass → PASSED：语义即「质检合格：允许后续入库/结算流转」；
+    /// - fail → REJECTED：语义即「质检不合格：不得入库/结算」，下游处置出口为退货或让步接收
+    ///   （后者经 `concede_receipt` 显式端点，不由本映射产出）；
+    /// - partial → REJECTED：部分合格≠整批合格，不能按 PASSED 放行（那会打开
+    ///   「合格方可入库/结算」的门，属兜底放行）；PENDING 语义是「待检验」，
+    ///   与"已完成检验"不符；CONCESSION_ACCEPTED 语义是「特采降级接收、须复检改判」，
+    ///   完成质检的 fail/partial 结论不得直接落让步态（特采必须走带理由的显式端点留痕）。
+    ///   不合格部分要走的下游路径与 fail 完全相同——REJECTED 的定义文案（退货或让步接收），
+    ///   且前端「生成退货」门控对 fail/partial 同示（views/purchase-inspection/components/
+    ///   PurchaseInspectionTable.vue 的 RETURN_ELIGIBLE_RESULTS）。
+    ///   精确结论（partial）无损保留在 purchase_inspection.inspection_result 本列。
+    pub fn to_receipt_inspection_status(result: &str) -> Option<&'static str> {
+        if result == PASS {
+            Some(purchase_receipt_inspection::PASSED)
+        } else if result == FAIL || result == PARTIAL {
+            Some(purchase_receipt_inspection::REJECTED)
         } else {
             None
         }

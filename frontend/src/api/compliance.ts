@@ -59,7 +59,10 @@ export interface PollutantMonitoringRecord {
   updated_at: string;
 }
 
-/** 创建污染物监测记录请求（对齐 CreateMonitoringRecordRequest） */
+/**
+ * 创建污染物监测记录请求（对齐 CreateMonitoringRecordRequest）。
+ * 登记人由服务端按会话（AuthContext.user_id）派生并落 `operator_id` 留痕列，请求体不承载该键。
+ */
 export interface CreateMonitoringRecordPayload {
   monitoring_type: string;
   monitoring_point: string;
@@ -70,7 +73,6 @@ export interface CreateMonitoringRecordPayload {
   monitoring_time: string;
   monitoring_method?: string;
   equipment_id?: number;
-  operator_id?: number;
   remarks?: string;
 }
 

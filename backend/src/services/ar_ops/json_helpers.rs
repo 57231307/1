@@ -22,6 +22,8 @@ pub(super) fn collection_to_json(c: ar_collection::Model) -> serde_json::Value {
         "payment_method": c.collection_method,
         "collection_method": c.collection_method,
         "bank_account": c.bank_account,
+        "check_no": c.check_no,
+        "remark": c.remark,
         "status": c.status,
         "confirmed_by": c.confirmed_by,
         "confirmed_at": c.confirmed_at,

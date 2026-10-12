@@ -1,16 +1,19 @@
 //! 售后集成测试
 //!
-//! 覆盖 4 种售后类型（客诉/维修/换货/退款）+ 状态机
+//! 覆盖 5 种售后类型（客诉/维修/换货/退货/退款，与写入方
+//! `services/custom_order_aftersales_service.rs` create 白名单同集合；
+//! 三端同源由 `contract_wave7_aftersales_status_check_parity_test.rs` 类型族锁裁决）+ 状态机
 //! 创建时间: 2026-06-17
 
 use bingxi_backend::services::custom_order_aftersales_service::*;
 /// 售后类型枚举
 #[derive(Debug, PartialEq)]
 pub enum AfterSalesType {
-    Complaint, // 客诉
-    Repair,    // 维修
-    Exchange,  // 换货
-    Refund,    // 退款
+    Complaint,   // 客诉
+    Repair,      // 维修
+    Exchange,    // 换货
+    ReturnGoods, // 退货
+    Refund,      // 退款
 }
 
 impl AfterSalesType {
@@ -19,6 +22,7 @@ impl AfterSalesType {
             "complaint" => Some(Self::Complaint),
             "repair" => Some(Self::Repair),
             "exchange" => Some(Self::Exchange),
+            "return_goods" => Some(Self::ReturnGoods),
             "refund" => Some(Self::Refund),
             _ => None,
         }
@@ -51,6 +55,10 @@ fn test_after_sales_type_parsing() {
     assert_eq!(
         AfterSalesType::from_str("exchange"),
         Some(AfterSalesType::Exchange)
+    );
+    assert_eq!(
+        AfterSalesType::from_str("return_goods"),
+        Some(AfterSalesType::ReturnGoods)
     );
     assert_eq!(
         AfterSalesType::from_str("refund"),

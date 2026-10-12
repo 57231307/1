@@ -11,12 +11,19 @@ import {
   advanceCustomOrder,
   createCustomOrder,
   getCustomOrderList,
-  CUSTOM_ORDER_STATUS,
+  CUSTOM_ORDER_STATUSES,
 } from '@/api/custom-order';
 import { listOaAnnouncements, publishOaAnnouncement } from '@/api/oa-announcement';
 import { INSPECTION_STATUS_LABEL } from '@/api/fabric-inspection';
 import { WAGE_RECORD_STATUS_LABEL } from '@/api/wage';
-import { OUTSOURCING_STATUS_LABEL } from '@/api/outsourcing';
+import {
+  OUTSOURCING_ORDER_STATUS_VALUES,
+  normalizeOutsourcingStatus,
+  outsourcingStatusLabelKey,
+  outsourcingStatusTagType,
+} from '@/utils/outsourcing-status';
+import zhCN from '@/locales/zh-CN';
+import enUS from '@/locales/en-US';
 import { QUALITY_8D_STAGES } from '@/api/quality-8d';
 
 describe('新增域状态映射', () => {
@@ -35,8 +42,13 @@ describe('新增域状态映射', () => {
     expect(typeof getCustomOrderList).toBe('function');
     expect(typeof createCustomOrder).toBe('function');
     expect(typeof advanceCustomOrder).toBe('function');
-    expect(CUSTOM_ORDER_STATUS.draft).toBe('草稿');
-    expect(Object.keys(CUSTOM_ORDER_STATUS).length).toBeGreaterThan(4);
+    // 词表唯一来源＝后端权威模块 custom_order::ALL（11 态小写），
+    // 旧手写 8 token 中文 map 已删除；悬空 token pending 不在取值域内
+    expect(CUSTOM_ORDER_STATUSES).toHaveLength(11);
+    expect(CUSTOM_ORDER_STATUSES).toContain('lab_dip');
+    expect(CUSTOM_ORDER_STATUSES).toContain('quotation');
+    expect(CUSTOM_ORDER_STATUSES).toContain('change_pending');
+    expect(CUSTOM_ORDER_STATUSES).not.toContain('pending');
   });
 
   it('OA 公告 api 导出契约（列表/发布）', () => {
@@ -54,9 +66,42 @@ describe('新增域状态映射', () => {
     expect(WAGE_RECORD_STATUS_LABEL.paid).toBe('已发放');
   });
 
-  it('委外状态映射', () => {
-    expect(OUTSOURCING_STATUS_LABEL.issued).toBe('已发出');
-    expect(OUTSOURCING_STATUS_LABEL.settled).toBe('已结算');
+  it('委外状态映射与后端 7 态词表逐字对齐且双语可解析', () => {
+    // 取值来源：backend/src/models/status/wage_energy_chemical_business.rs::outsourcing_order_status
+    // （全小写下划线 7 态）。映射源已从 api 层迁到 utils/outsourcing-status.ts（单一权威），
+    // 这里锁定完整序列而非单点：漏任一 token（历史缺陷是漏 received）该状态列就直接显英文原值。
+    expect(OUTSOURCING_ORDER_STATUS_VALUES).toEqual([
+      'draft',
+      'issued',
+      'processing',
+      'received',
+      'settled',
+      'closed',
+      'cancelled',
+    ]);
+
+    const pick = (locale: unknown, key: string): unknown =>
+      key.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)?.[k], locale);
+
+    for (const status of OUTSOURCING_ORDER_STATUS_VALUES) {
+      const labelKey = outsourcingStatusLabelKey(status);
+      // 标签键必须落在 outsourcing.statusLabels.<原值> 命名约定上
+      expect(labelKey).toBe(`outsourcing.statusLabels.${status}`);
+      // 中英双侧都必须取得到真实文案：i18n 取不到键会返回键名本身，故逐字比对排除
+      const zh = pick(zhCN, labelKey);
+      const en = pick(enUS, labelKey);
+      expect(typeof zh).toBe('string');
+      expect(typeof en).toBe('string');
+      expect(zh).not.toBe(labelKey);
+      expect(en).not.toBe(labelKey);
+      expect((zh as string).length).toBeGreaterThan(0);
+      expect((en as string).length).toBeGreaterThan(0);
+    }
+
+    // 词表外脏值：不崩整页（归一为 undefined），标签回落 common.statusUnknown，配色回落 info
+    expect(normalizeOutsourcingStatus('ISSUED')).toBeUndefined();
+    expect(outsourcingStatusLabelKey('ISSUED')).toBe('common.statusUnknown');
+    expect(outsourcingStatusTagType('ISSUED')).toBe('info');
   });
 
   it('8D 阶段序列与后端状态机逐一相等', () => {

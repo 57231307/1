@@ -34,11 +34,13 @@ impl MrpEngineService {
         base_quantity: Decimal,
         scrap_rate: Option<Decimal>,
     ) -> Decimal {
-        // 损耗率>0时按 (1 + scrap/100) 放大数量，保留4位精度
+        // 损耗率口径 = 0–1 十进制比率（bom_items.scrap_rate DECIMAL(5,4) 存储口径，
+        // API 百分比入参已在 bom_handler 写边界经
+        // BomService::scrap_percent_to_ratio 换算落库），>0 时按 (1 + scrap) 放大，
+        // 保留4位精度
         if let Some(scrap_rate) = scrap_rate {
             if scrap_rate > Decimal::ZERO {
-                return (base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100))))
-                    .round_dp(4);
+                return (base_quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
             }
         }
         base_quantity

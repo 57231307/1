@@ -150,3 +150,107 @@ fn test_parse_version_invalid() {
     assert!(parse_version("abc").is_empty());
     assert_eq!(parse_version("1.a.3"), vec![1, 3]);
 }
+
+// ============ 三段(MD 折叠)↔四段 跨格式比较（假阴性回归锁定） ============
+
+/// 原假阴性回归：Cargo 三段 current `2026.929.1111`（Sep29 11:11）vs tag 四段 Oct1 latest
+/// `2026.10.1.0930` —— 逐段数值比会误判 current 更新（929 > 10）。归一反解后 Oct1 新于 Sep29。
+#[test]
+fn test_compare_versions_cross_format_md_folded_newer() {
+    let svc = SystemUpdateService::new();
+    assert!(svc.compare_versions("2026.929.1111", "2026.10.1.0930"));
+}
+
+/// 反解后相等：三段 `2026.929.1111` 与四段 `2026.9.29.1111` 是同一版本的两种编码，latest 不严格大于 → false
+#[test]
+fn test_compare_versions_cross_format_equal_after_expand() {
+    let svc = SystemUpdateService::new();
+    assert!(!svc.compare_versions("2026.929.1111", "2026.9.29.1111"));
+}
+
+/// 同日更晚分钟：三段 `2026.929.1111`（Sep29 11:11）vs 四段 `2026.9.29.1112`（Sep29 11:12）→ latest 更新
+#[test]
+fn test_compare_versions_cross_format_same_day_later_minute() {
+    let svc = SystemUpdateService::new();
+    assert!(svc.compare_versions("2026.929.1111", "2026.9.29.1112"));
+}
+
+/// 1 月边界 MD 反解：三段 `2026.101.0930`（Jan1 09:30）vs 四段 `2026.1.1.1000`（Jan1 10:00）→ latest 更新
+#[test]
+fn test_compare_versions_cross_format_january_boundary() {
+    let svc = SystemUpdateService::new();
+    assert!(svc.compare_versions("2026.101.0930", "2026.1.1.1000"));
+}
+
+/// 同四段（注入/tag 格式）直接逐段比：Sep29 vs Oct1 → latest 更新
+#[test]
+fn test_compare_versions_both_four_segment_calver() {
+    let svc = SystemUpdateService::new();
+    assert!(svc.compare_versions("2026.9.29.1111", "2026.10.1.0930"));
+}
+
+/// 排序归一：三段/四段混排列表按版本降序（锁 list_local_releases 排序口径）
+#[test]
+fn test_compare_versions_for_sort_cross_format_mixed() {
+    let svc = SystemUpdateService::new();
+    // 三段 Sep29 vs 四段 Oct1：Oct1 更新 → 降序里 Oct1 在前，compare_versions_for_sort 应返回 Greater
+    assert_eq!(
+        svc.compare_versions_for_sort("2026.929.1111", "2026.10.1.0930"),
+        std::cmp::Ordering::Greater,
+        "三段 Sep29 排四段 Oct1 之后（降序：较新在前）"
+    );
+    // 三段与四段同刻：反解后相等 → Equal
+    assert_eq!(
+        svc.compare_versions_for_sort("2026.929.1111", "2026.9.29.1111"),
+        std::cmp::Ordering::Equal,
+        "反解后相等版本排序 Equal"
+    );
+    // 完整混排列降序，首元素必为最新版本
+    let mut versions: Vec<String> = ["2026.9.29.1111", "2026.929.1111", "2026.10.1.0930"]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    versions.sort_by(|a, b| svc.compare_versions_for_sort(a, b));
+    // 首元素必为最新版本（Oct1 新于 Sep29）
+    assert_eq!(versions.first().map(|s| s.as_str()), Some("2026.10.1.0930"));
+    // 两个 Sep29 变体反解后相等，同属最旧组（相对顺序不定，按字典序归一后断言集合一致）
+    let mut oldest: Vec<String> = versions[1..].to_vec();
+    oldest.sort();
+    assert_eq!(
+        oldest,
+        vec!["2026.9.29.1111".to_string(), "2026.929.1111".to_string()]
+    );
+}
+
+/// 归一/反解边界：to_calver_quad 对非法 MD 折叠（第 2 段反解出 >12 月 / 0 日）返回 None，不崩
+#[test]
+fn test_to_calver_quad_invalid_md() {
+    // MD=1399 → 月 13 非法
+    assert_eq!(to_calver_quad(&[2026, 1399, 1111]), None);
+    // MD=900 → 月 9 合法但日 0 非法
+    assert_eq!(to_calver_quad(&[2026, 900, 1111]), None);
+    // MD=0 → 月 0 非法
+    assert_eq!(to_calver_quad(&[2026, 0, 1111]), None);
+    // 非本项目 CalVer 年份（< 2000）的三段不臆测
+    assert_eq!(to_calver_quad(&[1999, 929, 1111]), None);
+    // 段数不足 / 超出
+    assert_eq!(to_calver_quad(&[2026, 9]), None);
+    assert_eq!(to_calver_quad(&[2026, 9, 29, 1111, 5]), None);
+    // 合法反解 + 四段透传
+    assert_eq!(
+        to_calver_quad(&[2026, 929, 1111]),
+        Some([2026, 9, 29, 1111])
+    );
+    assert_eq!(
+        to_calver_quad(&[2026, 9, 29, 1111]),
+        Some([2026, 9, 29, 1111])
+    );
+}
+
+/// 跨格式不可判定：三段 MD 非法且配四段 latest 时不崩，退回 element-wise 补 0 比较
+#[test]
+fn test_compare_versions_cross_format_invalid_md_does_not_panic() {
+    let svc = SystemUpdateService::new();
+    // current 三段 [2026,1399,1111] 反解非法 → element-wise：idx1 1399 > 10 → latest 不更新 → false
+    assert!(!svc.compare_versions("2026.1399.1111", "2026.10.1.0930"));
+}

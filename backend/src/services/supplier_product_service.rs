@@ -81,7 +81,9 @@ impl SupplierProductService {
         let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
         let supplier_id = params.supplier_id.ok_or_else(|| {
-            AppError::validation("supplier_id 不能为空（供应商商品必须按供应商过滤查询）")
+            AppError::validation_displayable(
+                "supplier_id 不能为空（供应商商品必须按供应商过滤查询）",
+            )
         })?;
 
         let mut query = supplier_product::Entity::find()

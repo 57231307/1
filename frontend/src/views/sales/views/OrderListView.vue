@@ -60,9 +60,11 @@
       :form="olv.deliveryForm"
       :warehouses="olv.warehouses"
       :stock-rows="olv.deliveryStockRows"
+      :piece-rows="olv.deliveryPieceRows"
       :submitting="olvDeliverySubmitting"
       @update:form="v => Object.assign(olv.deliveryForm, v)"
       @warehouse-change="id => olv.loadDeliveryStockRows(id)"
+      @load-pieces="row => void olv.loadDeliveryPieces(row)"
       @submit="onDeliverySubmit"
     />
   </div>

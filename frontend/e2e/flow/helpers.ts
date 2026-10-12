@@ -1,13 +1,18 @@
 /* eslint-disable no-console */
-import { expect, type Page, type APIResponse } from '@playwright/test';
+import {
+  expect,
+  type Page,
+  type APIResponse,
+  type Browser,
+  type BrowserContext,
+} from '@playwright/test';
 // ESM 环境无 require（Playwright 原生 ESM 加载链），fs/crypto 必须静态导入；
-// 此前 require('fs')/require('crypto') 抛 "require is not defined" 导致
+// 若用 require('fs')/require('crypto') 会抛 "require is not defined"，导致
 // getRoleCredential 恒返 null（全角色 credentials not found）与 generateTotp 崩溃
 import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
 import {
   createColorCardUI,
-  createDyeBatchUI,
   createDyeRecipeUI,
   createBomUI,
   createCustomOrderUI,
@@ -79,6 +84,10 @@ export const APP_ERROR_CODES = {
   BUSINESS_ERROR: 'BUSINESS_ERROR',
   /** error.rs:464 AppError::BadRequest */
   BAD_REQUEST: 'BAD_REQUEST',
+  /** utils/error.rs:709 `CODE_FORBIDDEN`；中间件与 AppError::PermissionDenied 同码 */
+  FORBIDDEN: 'FORBIDDEN',
+  /** utils/error.rs:739 AppError::NotFound 分支的机器码 */
+  NOT_FOUND: 'NOT_FOUND',
 } as const;
 
 /**
@@ -266,8 +275,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   try {
     // /product-categories：product_category_handler.rs:44 define_crud_handlers! →
     // product_category_service::list 返回 PaginatedResponse，data 形状为 {items,total,page,page_size}。
-    // 单一形状直读（'items'）；原写法 `Array.isArray(cats)?cats:(cats.items||[])` 同时吞裸数组/items，
-    // 且 `|| []` 把 items 键缺失当成"无分类"——分类端点若改形会静默走创建分支重复建"面料"。
+    // 单一形状直读（'items'）：禁止裸数组容错与 `|| []` 兜底——后者把 items 键缺失
+    // 当成"无分类"，分类端点若改形会静默走创建分支重复建"面料"。
     const cats = await apiCallRaw<unknown>(page, 'GET', '/product-categories');
     const catItems = pickListArray<{ id: number; name?: string }>(
       cats,
@@ -280,7 +289,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     } else {
       // create（crud_macro.rs:89-134 define_crud_handlers!）返回 ApiResponse<to_value(item)>，
       // 载荷即实体本身，故泛型参数写载荷 { id?: number }，读 created.data.id；
-      // 原写法把 { data?: { id?: number } } 当作载荷传入，于是再读 .data.id 造成双重包装。
+      // 若把泛型参数写成 { data?: { id?: number } } 会双重包装，永远取不到 id。
       const created = await apiCall<{ id?: number }>(page, 'POST', '/product-categories', {
         name: '面料',
         code: 'FABRIC',
@@ -310,10 +319,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 03-production「3-8 创建 BOM」用 items: productIds.slice(1)（需 ≥2 才非空，
   // 否则后端 bom_handler.rs:33 items min=1 合法 400）；
   // 01-p2p「1-6b」用 ctx.productIds[1] 作「产品对不上」负例（需 ≥2 才不 undefined）。
-  // wave5c 的 global-setup.ensureGlobalBusinessSeed 会先建全局产品，跨分片共库下
-  // readEntityIds 读到的现有产品可能已是 1~2 个。原逻辑仅在 length===0 时补齐，
-  // seed 产品会让补齐整段被跳过 → ctx.productIds 饿死到 1 个 → 两用例红。
-  // 故改为无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
+  // 跨分片共库下 readEntityIds 可能读到 1~2 个现有产品（含 global-setup 全局种子先建的），
+  // 故无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
   // 不足 3 才补建，补建走与本函数既有建产品一致的字段口径（含克重/幅宽）。
   if (ctx.productIds.length < 3) {
     const catId = ctx.productCategoryIds[0];
@@ -681,7 +688,14 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     }
   }
 
-  // ---- 11. 染色批次（UI 创建）----
+  // ---- 11. 染色批次（API 种子，flow/31d-auto-notification-chain.spec.ts 通知链前置）----
+  // 选 API 种子而非 UI 表单：dye-batch/index.vue:415-439 表单契约必填 greige_fabric_id
+  // （选项源=坯布列表，本 ensure 步骤序内无坯布保障）且色号非空即要求缸号；色号还必须在
+  // 色卡档案 color_card_items.color_code 上恰好命中一条（dye_batch_handler.rs:204-254
+  // resolve_dye_color_identity）——"坯布非空 + 色号入档"两个跨实体前置塞进通用种子序列退化
+  // 风险大。染色批次 UI 创建不是本通知链的被测对象，共用种子重复 UI 路径即"第二套实现"反
+  // 模式；API 秒级确定性，把预算还给用例本体。createDyeBatchUI 保留并已与表单真实必填对齐
+  // （ui-helpers.ts 步骤 11 注释），供专项 UI 用例复用。
   try {
     ctx.dyeBatchId = await readFirstEntityId(
       page,
@@ -694,29 +708,26 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     console.error('[ensureTestEntities] 查找失败:', (e as Error).message);
   }
   if (!ctx.dyeBatchId) {
-    const id = await uiCreateWithRetry(page, createDyeBatchUI);
-    ctx.dyeBatchId = id;
-    if (!id) {
-      console.error(
-        '[ensureTestEntities] 染色批次 UI 创建失败: 返回 undefined（详见 ui-helpers 截图诊断）'
+    // 真实前置：为该批次建专属色卡档案色号（seedColorCardArchive 抛错即前置失败，不兜底）
+    const archive = await seedColorCardArchive(page, { context: 'ensureTestEntities/dye-batch' });
+    if (!ctx.dyeLotNo) ctx.dyeLotNo = genDyeLotNo();
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
+      // batch_no 不手工传入：dye_batch_handler.rs:320-345 对缺省缸号走
+      // DocumentNumberGenerator::insert_with_no_retry（事务内取号 + 23505 重试），
+      // 手写时间戳号跨分片同秒撞 UNIQUE 概率非零（后端注释原话），故不手工传入。
+      color_no: archive.colorCode,
+      dye_lot_no: ctx.dyeLotNo,
+      planned_quantity: 100,
+      dye_date: new Date().toISOString().slice(0, 10),
+    });
+    ctx.dyeBatchId = result.data?.id;
+    if (!ctx.dyeBatchId) {
+      // 种子失败显式抛错而非 console.error 静默放行：种子退化时通知链用例集体失去检验
+      // 本身就是覆盖假绿，让退化在 beforeAll 处即红。
+      throw new Error(
+        `[ensureTestEntities] 染色批次 API 种子失败（色号已入档 ${archive.colorCode}，` +
+          `仍被拒绝即端点契约漂移，属真实缺陷）: ${JSON.stringify(result)}`
       );
-      // API 兜底：UI 产品下拉交互脆弱（filterable select 偶发选项不渲染导致 120s 超时），
-      // 兜底仅填必填字段创建批次记录，避免 dyeBatchId 缺失阻塞后续流程
-      // status 后端用中文枚举（from_chinese_str），不传时后端默认"待生产"
-      try {
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
-          batch_no: `E2E-DB${Date.now().toString().slice(-6)}`,
-          color_no: ctx.colorNos[0] || 'TEST-COLOR',
-          dye_lot_no: ctx.dyeLotNo || genDyeLotNo(),
-          planned_quantity: 100,
-        });
-        ctx.dyeBatchId = result.data?.id;
-        if (!ctx.dyeBatchId) {
-          console.error('[ensureTestEntities] 染色批次 API 兜底未返回 id:', JSON.stringify(result));
-        }
-      } catch (e) {
-        console.error('[ensureTestEntities] 染色批次 API 兜底创建失败:', (e as Error).message);
-      }
     }
   }
 
@@ -750,7 +761,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
           color_name: '测试色',
           chemical_formula: 'E2E测试内容',
           // dye_recipe.status 迁移 CHECK chk_dye_recipe_status 为小写英文闭合词表
-          // （draft/pending_approval/approved/disabled，见 quality_dyeing.rs::dye_recipe DRAFT="draft"），
+          // （draft/pending_approval/approved/rejected/disabled，见 quality_dyeing.rs::dye_recipe DRAFT="draft"），
           // 传大写 'DRAFT' 会命中同一 CHECK 报 DATABASE_ERROR
           status: 'draft',
         });
@@ -976,7 +987,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 节点 schema 必须匹配后端 bpm_service.rs::resolve_first_task_node：
   // 键为 nodes[].id / nodes[].name / nodes[].type，取值为 start_event / user_task / end_event，
   // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
-  // 此前用 node_id / node_name / node_type 且无 edges，后端解析不到任务节点，
+  // 若键写成 node_id / node_name / node_type 或缺 edges，后端解析不到任务节点，会
   // 走 bpm_ops/instance.rs 的「无任务节点，自动完成流程」分支：submit 即异步回写
   // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
   // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
@@ -1074,11 +1085,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
 
 /**
  * ensureTestEntities 整体护栏：Promise.race 5 分钟上限。
- * 背景：run 34041167918 的 10 个分片 exit 124（20 分钟强杀），定位为
- * ensure 内某个 UI 页面操作（safeGoto/页内 JS）在 Node 侧永久挂起，
- * 后端全程健康。整体超时让挂起的 ensure 变成可跳过的失败，保住分片
- * 其余测试的执行窗口（一个分片约 13 个测试 × 5 分钟 ensure 上限，
- * 最坏情况也不会触及 20 分钟分片强杀）。
+ * ensure 内某个 UI 页面操作（safeGoto/页内 JS）可能在 Node 侧永久挂起而后端全程健康，
+ * 整体超时让挂起的 ensure 变成可跳过的失败，保住分片其余测试的执行窗口
+ * （一个分片约 13 个测试 × 5 分钟 ensure 上限，最坏情况也不会触及 20 分钟分片强杀）。
  */
 /**
  * 通知列表项。后端 notification_handler.rs:75 的 list_notifications 返回
@@ -1268,7 +1277,43 @@ async function refreshCsrfToken(page: Page): Promise<string> {
 }
 
 /**
- * loginViaUI 短路路径的 csrf 活性探测（缺陷1 修复点4）。
+ * CSRF 竞败重放的最大次数（有界，不是无限退避）。
+ *
+ * 为什么不能只重放一次：后端 token 是一次性消费（csrf.rs:110 consume + :216-224 轮换），
+ * 而同一浏览器上下文里除了本 helper，UI 自己的写请求也在消费同一个 token
+ * （前端 axios 拦截器同样"403 → 用 X-New-CSRF-Token 重放一次"，api/request.ts:197-223）。
+ * 两侧各重放一次时，helper 换回的新 token 仍可能被对侧那次在途请求抢先消费——
+ * 单侧重放把这种交错固化成"偶发成片 403"红（shard19/32/34/35 的
+ * POST /products、POST /incoterms/cost-calculation、POST /production/dye-batches 即此族）。
+ * 上限内每次重放都取"后端权威 token"（恢复头，缺失时重登），上限用尽仍被拒即判红：
+ * CSRF 拒绝不是业务成功，绝不静默放过、也绝不无限重试掩盖。
+ */
+const CSRF_RECOVERY_MAX_ATTEMPTS = 2;
+
+/**
+ * CSRF 竞败后取回一个存活 token 所用：优先后端 `x-new-csrf-token` 恢复头
+ * （csrf.rs:144-151，并发竞败场景的权威来源，无需重登），无恢复头时重新登录换新 token。
+ * 返回用该 token 重放后的响应（调用方负责继续判定，仍 403 则按各自语义判红）。
+ */
+async function replayAfterCsrfRejection(
+  page: Page,
+  url: string,
+  rejected: APIResponse,
+  doFetch: (token: string) => Promise<APIResponse>
+): Promise<APIResponse> {
+  const recoveryToken = rejected.headers()['x-new-csrf-token'];
+  let token: string;
+  if (recoveryToken) {
+    await writeCsrfCookie(page, url, recoveryToken);
+    token = recoveryToken;
+  } else {
+    token = await refreshCsrfToken(page);
+  }
+  return doFetch(token);
+}
+
+/**
+ * loginViaUI 短路路径的 csrf 活性探测。
  *
  * 背景：storage-state 里的 csrf_token 是"服务端一次性消费"的凭证，会被第一个使用它的
  * 写请求打死；而 loginViaUI 的短路分支（同 worker 内 LOGGED_IN 已置位 + cookie 存在）
@@ -1326,7 +1371,7 @@ export async function apiCall<T = unknown>(
   path: string,
   body?: Record<string, unknown>
 ): Promise<ApiResponse<T>> {
-  let csrfToken =
+  const csrfToken =
     (await getCsrfToken(page).catch(e => {
       console.warn(
         `[apiCall] ${method} ${path} CSRF cookie 提取失败（未登录态）: ${(e as Error).message}`
@@ -1375,35 +1420,18 @@ export async function apiCall<T = unknown>(
     throw httpErr;
   }
 
-  // CSRF 校验失败恢复（两级）：
-  // 1. 优先读取后端 X-New-CSRF-Token 恢复头（并发竞败场景的权威来源，无需重新登录）
-  // 2. 无恢复头时重新登录获取全新 token
-  // CSRF 拒绝走 middleware/csrf.rs:234-242 直出体（字符串机器码 CSRF_* + HTTP 403），
-  // 统一失败信封的 FORBIDDEN/UNAUTHORIZED 也是字符串码，故用 failureCode() + status===403
-  // 双判据区分，避免把权限拒绝误当成 CSRF 竞败。
-  if (isCsrfRejection(response.status(), json)) {
-    const recoveryToken = response.headers()['x-new-csrf-token'];
+  // CSRF 校验失败恢复：有界重放（见 CSRF_RECOVERY_MAX_ATTEMPTS 的成因说明），
+  // 每次优先读取后端 X-New-CSRF-Token 恢复头，无恢复头时重新登录取全新 token。
+  // 判据同 csrf.rs:234-242 直出体（字符串机器码 CSRF_* + HTTP 403）：统一失败信封的
+  // FORBIDDEN/UNAUTHORIZED 也是字符串码，故用 failureCode() + status===403 双判据区分，
+  // 权限拒绝不会被当成竞败而重试吞掉。
+  for (
+    let attempt = 1;
+    attempt <= CSRF_RECOVERY_MAX_ATTEMPTS && isCsrfRejection(response.status(), json);
+    attempt++
+  ) {
     try {
-      if (recoveryToken) {
-        // 将恢复 token 写入 context Cookie，供后续请求复用
-        const urlObj = new URL(url);
-        await page.context().addCookies([
-          {
-            name: 'csrf_token',
-            value: recoveryToken,
-            domain: urlObj.hostname,
-            path: '/',
-            httpOnly: false,
-            secure: false,
-            sameSite: 'Strict',
-            expires: Math.floor(Date.now() / 1000) + 1800,
-          },
-        ]);
-        csrfToken = recoveryToken;
-      } else {
-        csrfToken = await refreshCsrfToken(page);
-      }
-      response = await doFetch(csrfToken);
+      response = await replayAfterCsrfRejection(page, url, response, doFetch);
       text = await response.text();
       try {
         json = JSON.parse(text);
@@ -1424,11 +1452,22 @@ export async function apiCall<T = unknown>(
     }
   }
 
+  // 重放上限用尽仍被 CSRF 中间件拒绝：直接判红并点名是 CSRF 面（不是业务面），
+  // 绝不返回/放行一个"看起来像成功"的会话状态。
+  if (isCsrfRejection(response.status(), json)) {
+    const csrfErr = new Error(
+      `API ${method} ${path} CSRF 恢复耗尽（已重放 ${CSRF_RECOVERY_MAX_ATTEMPTS} 次仍被 CSRF 中间件拒绝，` +
+        `status=${response.status()} code=${json.code}）——属会话/中间件面失败，判红不放过`
+    ) as Error & { status?: number };
+    csrfErr.status = response.status();
+    throw csrfErr;
+  }
+
   // 写请求（含 CSRF 竞败重试后的最终 response）完成后，先同步轮换后的 csrf 到会话，
-  // 再判定业务错误——顺序至关重要（缺陷1 修复点3）。
-  // 根因：后端在 handler 之前即消费旧 token 并 Set-Cookie 下发轮换后的新 token
+  // 再判定业务错误——顺序至关重要。
+  // 后端在 handler 之前即消费旧 token 并 Set-Cookie 下发轮换后的新 token
   // （csrf.rs:199 consume → :215-224 把新 token append 到 next.run 的响应，业务 4xx/5xx 同样携带）。
-  // 旧写法把同步放在 `json.code !== 200` 抛错之后，业务错误分支抛出时同步永不执行，
+  // 若把同步放在 `json.code !== 200` 抛错之后，业务错误分支抛出时同步永不执行，
   // 轮换出的新 token 丢失，同会话下一请求仍携带已消费的旧 token → 级联成片 403。
   // 故对携带请求体的方法无条件先同步，再决定是否抛业务错误。
   if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
@@ -1463,7 +1502,7 @@ export async function apiCallExpectFail(
   body?: Record<string, unknown>
 ): Promise<ApiFailureResult> {
   const url = `${API_BASE}${API_PREFIX}${path}`;
-  let csrfToken =
+  const csrfToken =
     (await getCsrfToken(page).catch(e => {
       console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 提取失败: ${(e as Error).message}`);
       return null;
@@ -1494,30 +1533,15 @@ export async function apiCallExpectFail(
     );
   }
 
-  // CSRF 竞败恢复（与 apiCall 一致的两级策略），避免把 CSRF 失败误判为业务错误。
-  // 判据同 apiCall：csrf.rs:234-242 直出体（字符串机器码）+ HTTP 403。
-  if (isCsrfRejection(response.status(), json)) {
-    const recoveryToken = response.headers()['x-new-csrf-token'];
+  // CSRF 竞败恢复：与 apiCall 同一有界重放策略（共用 CSRF_RECOVERY_MAX_ATTEMPTS），
+  // 避免把 CSRF 失败误判为业务错误——被测的拒绝必须是业务/校验拒绝，不能是竞败中间态。
+  for (
+    let attempt = 1;
+    attempt <= CSRF_RECOVERY_MAX_ATTEMPTS && isCsrfRejection(response.status(), json);
+    attempt++
+  ) {
     try {
-      if (recoveryToken) {
-        const urlObj = new URL(url);
-        await page.context().addCookies([
-          {
-            name: 'csrf_token',
-            value: recoveryToken,
-            domain: urlObj.hostname,
-            path: '/',
-            httpOnly: false,
-            secure: false,
-            sameSite: 'Strict',
-            expires: Math.floor(Date.now() / 1000) + 1800,
-          },
-        ]);
-        csrfToken = recoveryToken;
-      } else {
-        csrfToken = await refreshCsrfToken(page);
-      }
-      response = await doFetch(csrfToken);
+      response = await replayAfterCsrfRejection(page, url, response, doFetch);
       text = await response.text();
       try {
         json = JSON.parse(text);
@@ -1527,8 +1551,21 @@ export async function apiCallExpectFail(
         );
       }
     } catch (e) {
-      console.warn(`[apiCallExpectFail] ${method} ${path} CSRF 重试失败: ${(e as Error).message}`);
+      // 重放动作本身异常（网络/重登失败）：如实报出，不静默。返回的仍是 CSRF 403，
+      // 调用方的拒绝码集合不含 CSRF_* ⇒ 用例判红，根因由本行日志外显。
+      console.error(
+        `[apiCallExpectFail] ${method} ${path} CSRF 第 ${attempt} 次重放异常: ${(e as Error).message}`
+      );
+      break;
     }
+  }
+
+  if (isCsrfRejection(response.status(), json)) {
+    console.error(
+      `[apiCallExpectFail] ${method} ${path} 最终响应仍是 CSRF 中间件拒绝` +
+        `（status=${response.status()} code=${json.code}，重放上限 ${CSRF_RECOVERY_MAX_ATTEMPTS}）——` +
+        `这不是被测的业务拒绝，调用方按拒绝码集合断言即判红`
+    );
   }
 
   // CSRF 恢复/业务错误后 token 可能已被消费并轮换（后端 middleware 在校验通过后
@@ -1549,9 +1586,8 @@ export async function loginViaUI(
   password?: string,
   force = false
 ): Promise<void> {
-  // P2.4 去 mock 化：删除 lock-status route.fulfill 拦截
-  // 原因：P1.2 已将 check_lock_status 改为 OptionalAuthContext，
-  // 匿名预检不再 401，16 分片并发挂起若复现属真实性能问题另立项
+  // 登录流程对 lock-status 预检不做 route.fulfill 拦截：后端 check_lock_status 用
+  // OptionalAuthContext，匿名预检不返回 401，直接放行走真实端点
 
   // force 模式：清除旧 cookie + 重置 LOGGED_IN，确保切换到新角色
   // 不清除时旧 access_token 会让 /login 自动重定向到首页，新角色登录表单不执行
@@ -1817,8 +1853,8 @@ export async function loginOnPage(
     await page.screenshot({ path: 'test-results/login-failure-diagnosis.png', fullPage: true });
     page.off('response', onLoginResp);
     // 强制关闭 page 释放挂起的网络请求/等待 promise（防 Playwright runner 挂起）
-    // shard 15 历史挂起 55 分钟教训：waitForURL 的 promise 在后端无响应时永不 resolve，
-    // 即使 timeout Error 抛出，page 挂起的 fetch 连接仍阻止 runner 退出
+    // 不强制关闭时：waitForURL 的 promise 在后端无响应时永不 resolve，即使 timeout
+    // Error 抛出，page 持有的挂起 fetch 连接仍会阻止 runner 退出（分片可挂数十分钟）
     await page.close().catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
@@ -1969,13 +2005,19 @@ export async function verifyIllegalTransition(
   action: string
 ): Promise<void> {
   const result = await apiCallExpectFail(page, 'POST', `${endpoint}/${id}/${action}`);
-  if (result.status < 400) {
-    throw new Error(
-      `Illegal transition ${action} on ${endpoint}/${id} was not rejected (status ${result.status})`
-    );
-  }
+  expectStateGateRejection(result, `非法流转 ${action} @ ${endpoint}/${id} 应被状态机门拒绝`);
 }
 
+/**
+ * 越权请求必须被**权限门**拒绝（HTTP 403 + 权限机器码 FORBIDDEN）。
+ *
+ * 判据全部下沉到 {@link expectDenied}（status + 信封机器码双钉），本函数只负责
+ * 发起真实请求并转交判定；签名与返回形态（async → Promise<void>）保持向后兼容。
+ * 为什么不能只判 status：本仓 CSRF 中间件与权限门**都**直出 403
+ * （csrf.rs:232-234 → code=CSRF_*；response.rs:145 + error.rs:709/742 → code=FORBIDDEN），
+ * 只判 status 时权限门被删掉用例照样绿。详见 expectDenied 的判据说明。
+ * 禁止断言或读取错误文案（权限拒绝文案永久脱敏）。
+ */
 export async function verifyPermissionDenied(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
@@ -1983,9 +2025,7 @@ export async function verifyPermissionDenied(
   body?: Record<string, unknown>
 ): Promise<void> {
   const result = await apiCallExpectFail(page, method, path, body);
-  if (result.status !== 403) {
-    throw new Error(`Expected 403 for ${method} ${path}, got ${result.status}`);
-  }
+  expectDenied(result, `${method} ${path} 应被权限门拒绝`);
 }
 
 /**
@@ -2129,6 +2169,442 @@ export async function seedFourDimStockIn(
     );
   }
   return row;
+}
+
+/**
+ * 白坯布库存播种（color_no 为空、无缸号、有批次）。
+ *
+ * 入库端点选择：POST /inventory/stock（通用建库存 handler `create_stock`，
+ * backend/src/handlers/inventory_stock_handler.rs:146）。
+ * 该 handler 虽复用 `CreateStockFabricRequest` DTO（含 color_no min=1 校验注解），
+ * 但**不调用 payload.validate()**（区别于 /stock/fabric 的 `create_stock_fabric`），
+ * service 层 `create_stock`（inventory_stock_service.rs:276）直接 Set(color_no) 落库，
+ * 且 DB 列 `inventory_stocks.color_no VARCHAR(255)` 无 CHECK 约束——
+ * 因此传 color_no="" 可合法写入白坯库存行。
+ *
+ * 另一条合法路径为采购收货入库（purchase_receipt_private.rs:327
+ * `item.color_code.clone().unwrap_or_default()` 当 color_code=None 时落空串），
+ * 但构造完整采购链（订单→收货→确认）复杂度过高且非本用例意图，
+ * 故 e2e seed 统一走 /inventory/stock 通用端点。
+ *
+ * seed 维度与调拨出库白坯口径一致：color_no=""、batch_no 必填、dye_lot_no 为空/不传。
+ */
+export async function seedGreigeStockIn(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    batchNo: string;
+    quantityMeters: string;
+  }
+): Promise<Record<string, unknown>> {
+  await apiCall(page, 'POST', '/inventory/stock', {
+    warehouse_id: opts.warehouseId,
+    product_id: opts.productId,
+    batch_no: opts.batchNo,
+    color_no: '',
+    grade: '一等品',
+    quantity_meters: opts.quantityMeters,
+    quantity_kg: opts.quantityMeters,
+  });
+  // 回读验证：按 product+warehouse+batch 查询，确认落库行 color_no 为空
+  const path =
+    `/inventory/stock?product_id=${opts.productId}` +
+    `&warehouse_id=${opts.warehouseId}` +
+    `&batch_no=${encodeURIComponent(opts.batchNo)}` +
+    `&page=1&page_size=50`;
+  const res = await apiCallRaw<{ items: Array<Record<string, unknown>> }>(page, 'GET', path);
+  const row = res.items?.find(r => !r.color_no || String(r.color_no) === '');
+  if (!row) {
+    throw new Error(
+      `[seedGreigeStockIn] POST /inventory/stock 成功但回读未命中白坯行：` +
+        `product=${opts.productId} warehouse=${opts.warehouseId} batch=${opts.batchNo} ` +
+        `—— 落库行 color_no 非空或行不存在，见 reports/backend.log`
+    );
+  }
+  return row;
+}
+
+/**
+ * 出库第四维（匹号）seed 族 —— 出库对染色布强制四维 = 缸号/色号/批次/匹号
+ * （用户 2026-10-02 拍板；后端 services/so/delivery_ops/inventory.rs 按四维 tuple 校验
+ *  + services/piece_domain_service.rs:606 outbound_piece_filter CAS 消耗匹号）。
+ *
+ * 写入方口径（唯一事实源，禁按测试偏好臆造维度）：
+ * backend/src/services/piece_domain_service.rs:518-556 —— 染色外发回仓确认生成染色匹：
+ *   piece_type='dyed'、piece_no=`{缸号}-{seq:03}`、**batch_no = 缸号（dye_lot_no 同源）**、
+ *   color_no 从回仓单/委外订单透传、status='AVAILABLE'、warehouse_id = 回仓单仓库。
+ * 因此出库可命中的染色匹 tuple 恒有 batch_no == dye_lot_no == 缸号；
+ * 历史 seedFourDimStockIn 以独立 batch 值灌的染色库存行（batch≠缸号）按该 tuple
+ * **造不出真实匹**（写入方不产出这种组合），凡要走 UI/API 出染色布的用例一律改用
+ * 本节的 seedDyedOutboundBundle（库存行 batch=缸号 + 委外真实链同维染色匹）。
+ *
+ * 链路先例：flow/07-fabric-four-dim.spec.ts（生产单→流转卡→报工逐匹→染色外发→回仓确认）
+ * 与 inventory/05-piece-split.spec.ts（写后必回读 GET /inventory/pieces，词表大写
+ * models/status/purchase_inventory.rs::inventory_piece）。
+ */
+
+/** GET /inventory/pieces 回读行（PieceResponse 中本族用到的字段） */
+export interface DyedSeedPiece {
+  id: number;
+  piece_no: string;
+  piece_type: string;
+  status: string;
+  color_no: string | null;
+  dye_lot_no: string | null;
+  batch_no: string;
+  product_id: number;
+  warehouse_id: number;
+  length: number | string;
+}
+
+/**
+ * 选一个"可承载染色匹"的仓库（piece_domain_service.rs:25-49 validate_warehouse_for_piece_type：
+ * 染色匹只允许 成品仓(finished) 或 未设类型(NULL) 仓；胚布仓(greige) 必被拒）。
+ * 返回含 warehouse_name/warehouse_code（发货对话框按名称选仓、API 出库按编码）。
+ */
+export async function pickDyeableWarehouse(
+  page: Page
+): Promise<{ id: number; name: string; code: string; warehouse_type: string | null }> {
+  const res = await apiCallRaw<{ items?: unknown }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const rows = pickListArray<Record<string, unknown>>(
+    res,
+    'items',
+    '四维seed 仓库列表 /warehouses'
+  );
+  const hit = rows.find(
+    w => w.warehouse_type === null || w.warehouse_type === undefined || w.warehouse_type === ''
+  ) as Record<string, unknown> | undefined;
+  const fallback = rows.find(w => w.warehouse_type === 'finished') as
+    Record<string, unknown> | undefined;
+  const target = hit ?? fallback;
+  if (!target) {
+    throw new Error(
+      '[pickDyeableWarehouse] 仓库列表中不存在可承载染色匹的仓库（需未设类型仓或成品仓；' +
+        '胚布仓按 validate_warehouse_for_piece_type 必拒染色匹入库）——真实链造不出匹，显式判红'
+    );
+  }
+  const name = String(target.warehouse_name ?? target.name ?? '');
+  const code = String(target.warehouse_code ?? target.code ?? '');
+  if (!name || !code) {
+    throw new Error(
+      `[pickDyeableWarehouse] 仓库 ${JSON.stringify(target).slice(0, 200)} 缺 warehouse_name/warehouse_code`
+    );
+  }
+  return {
+    id: Number(target.id),
+    name,
+    code,
+    warehouse_type: (target.warehouse_type as string | null | undefined) ?? null,
+  };
+}
+
+/** 按四维回读 AVAILABLE 染色匹候选（与发货对话框 loadDeliveryPieces 同一 UI/API 查询口径） */
+export async function fetchAvailableDyedPieces(
+  page: Page,
+  dims: { productId: number; warehouseId: number; dyeLotNo: string; batchNo?: string }
+): Promise<DyedSeedPiece[]> {
+  const qs =
+    `product_id=${dims.productId}&warehouse_id=${dims.warehouseId}` +
+    `&dye_lot_no=${encodeURIComponent(dims.dyeLotNo)}` +
+    `&batch_no=${encodeURIComponent(dims.batchNo ?? dims.dyeLotNo)}` +
+    '&status=AVAILABLE&page=1&page_size=50';
+  const res = await apiCallRaw<unknown>(page, 'GET', `/inventory/pieces?${qs}`);
+  const rows = pickListArray<DyedSeedPiece>(res, 'items', '染色匹候选 /inventory/pieces');
+  return rows.filter(p => p.piece_type === 'dyed' && String(p.status) === 'AVAILABLE');
+}
+
+/** 按匹号+四维 tuple 回读单匹（消耗后状态断言用；同匹号跨缸可重复，必须带 tuple 归因） */
+export async function readDyedPieceByNo(
+  page: Page,
+  dims: {
+    productId: number;
+    warehouseId: number;
+    dyeLotNo: string;
+    batchNo: string;
+    pieceNo: string;
+  }
+): Promise<DyedSeedPiece | null> {
+  const res = await apiCallRaw<unknown>(
+    page,
+    'GET',
+    `/inventory/pieces?piece_no=${encodeURIComponent(dims.pieceNo)}&product_id=${dims.productId}` +
+      `&warehouse_id=${dims.warehouseId}&page=1&page_size=20`
+  );
+  const rows = pickListArray<DyedSeedPiece>(res, 'items', '匹号回读 /inventory/pieces');
+  return (
+    rows.find(
+      p =>
+        p.piece_no === dims.pieceNo &&
+        p.product_id === dims.productId &&
+        p.warehouse_id === dims.warehouseId &&
+        String(p.dye_lot_no) === dims.dyeLotNo &&
+        String(p.batch_no) === dims.batchNo &&
+        p.piece_type === 'dyed'
+    ) ?? null
+  );
+}
+
+/**
+ * 真实委外染色链生成 N 匹 AVAILABLE 染色匹（不造假：全程状态机 + 写后必回读）。
+ *
+ * 链：生产订单 → 流转卡（schedule→备布→完成备布）→ 工序启动 → 报工逐匹（N 匹生产匹入非成品仓）
+ *  → N 笔染色委外单（同缸号同色号；发料明细逐匹引用 AVAILABLE 生产匹——
+ *    piece_domain_service.rs:160-205 发料必须精确到匹）→ 逐笔发料 → 回仓单（入目标仓）→ 确认
+ *  → 每笔确认生成 1 匹染色匹（同缸 piece_seq 递增 → {缸号}-001/-002…，batch_no=缸号）。
+ */
+export async function seedDyedPieceChain(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    colorNo: string;
+    dyeLotNo: string;
+    pieceCount?: number;
+    lengthPerPieceMeters?: number;
+    context?: string;
+  }
+): Promise<DyedSeedPiece[]> {
+  const tag = opts.context ?? 'DYEDSEED';
+  const pieceCount = opts.pieceCount ?? 1;
+  const length = opts.lengthPerPieceMeters ?? 100;
+  const ctx = getCtx();
+  if (!ctx.supplierId) {
+    throw new Error(`[${tag}] 前置缺失：ctx.supplierId 未就绪（染色委外单必填加工厂）`);
+  }
+
+  // 仓库类型口径：染色匹回仓入 opts.warehouseId（须非胚布仓）；生产匹（胚布匹）入仓不得为成品仓。
+  const whRes = await apiCallRaw<{ items?: unknown }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const whRows = pickListArray<Record<string, unknown>>(whRes, 'items', `${tag} 仓库列表`);
+  const target = whRows.find(w => Number(w.id) === opts.warehouseId);
+  if (!target) throw new Error(`[${tag}] 仓库 ${opts.warehouseId} 不在 /warehouses 列表中`);
+  if (target.warehouse_type === 'greige') {
+    throw new Error(
+      `[${tag}] 目标仓 ${opts.warehouseId} 为胚布仓（greige），validate_warehouse_for_piece_type ` +
+        '拒绝染色匹入仓——染色布出库 seed 必须选未设类型/成品仓，显式判红（勿 skip）'
+    );
+  }
+  const greigeWh =
+    target.warehouse_type !== 'finished'
+      ? opts.warehouseId
+      : Number((whRows.find(w => w.warehouse_type !== 'finished')?.id ?? 0) as number);
+  if (!greigeWh) {
+    throw new Error(`[${tag}] 无可用非成品仓存放产匹（发料前置），链断，显式判红`);
+  }
+
+  // 1. 生产订单 + 流转卡 + 备布完成（07 先例 7-2/7-3 同构载荷）
+  const productionOrderNo = genCode(`${tag}PO`);
+  const po = await apiCall<{ id?: number; order_no?: string }>(
+    page,
+    'POST',
+    '/production/production-orders/orders',
+    {
+      order_no: productionOrderNo,
+      product_id: opts.productId,
+      planned_quantity: pieceCount * length,
+    }
+  );
+  if (!po.data?.id)
+    throw new Error(`[${tag}] 生产订单创建未返回 id：${JSON.stringify(po).slice(0, 200)}`);
+  const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+    production_order_id: po.data.id,
+    product_id: opts.productId,
+    product_name: genName(`${tag}胚布`),
+    planned_fabric_weight: pieceCount * length,
+  });
+  const cardId = card.data?.id;
+  if (!cardId)
+    throw new Error(`[${tag}] 流转卡创建未返回 id：${JSON.stringify(card).slice(0, 200)}`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/schedule`, {});
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/start-preparing`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/complete-preparing`, {
+    actual_fabric_weight: pieceCount * length,
+  });
+
+  // 2. 工序报工逐匹：N 匹生产匹（发料必须逐匹引用，07 先例 7-4 同构载荷）
+  const step = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards/steps/start', {
+    flow_card_id: cardId,
+  });
+  const stepId = step.data?.id;
+  if (!stepId) throw new Error(`[${tag}] 工序启动未返回 id：${JSON.stringify(step).slice(0, 200)}`);
+  const greigePieceNos = Array.from(
+    { length: pieceCount },
+    (_, i) => `GR-${genCode(`${tag}P`)}-${String(i + 1).padStart(3, '0')}`
+  );
+  await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
+    actual_quantity: pieceCount * length,
+    qualified_quantity: pieceCount * length,
+    pieces: greigePieceNos.map(no => ({
+      piece_no: no,
+      machine_no: 'M-E2E-DYEED-SEED',
+      machine_operator: 'E2E开机人',
+      length,
+      weight: length / 2,
+      warehouse_id: greigeWh,
+    })),
+  });
+
+  // 3. 每匹一笔染色委外（同缸同色）：订单→发料明细（逐匹）→发料→回仓（入目标仓）→确认。
+  //    一笔订单确认收回后即 received，不再接受第二张回仓单（validate_receipt_eligibility），
+  //    故 N 匹必须 N 笔独立委外单——这是真实写入方口径，不是测试绕行。
+  const issueDate = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < pieceCount; i++) {
+    const order = await apiCall<{ id?: number }>(page, 'POST', '/production/outsourcing-orders', {
+      order_no: genCode(`${tag}OS`),
+      order_type: 'dyeing',
+      supplier_id: ctx.supplierId,
+      production_order_id: po.data.id,
+      dye_lot_no: opts.dyeLotNo,
+      color_no: opts.colorNo,
+      issue_date: issueDate,
+      issue_quantity: length,
+      issue_unit: '米',
+      material_cost: 100,
+    });
+    const orderId = order.data?.id;
+    if (!orderId)
+      throw new Error(`[${tag}] 染色委外单创建未返回 id：${JSON.stringify(order).slice(0, 200)}`);
+    await apiCall(page, 'POST', '/production/outsourcing-orders/items', {
+      outsourcing_order_id: orderId,
+      product_id: opts.productId,
+      color_no: opts.colorNo,
+      dye_lot_no: opts.dyeLotNo,
+      piece_no: greigePieceNos[i],
+      quantity: length,
+      unit: '米',
+      unit_cost: 1,
+    });
+    await apiCall(page, 'POST', `/production/outsourcing-orders/${orderId}/issue`);
+    const receipt = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/outsourcing-receipts',
+      {
+        receipt_no: genCode(`${tag}RC`),
+        outsourcing_order_id: orderId,
+        receipt_date: issueDate,
+        product_id: opts.productId,
+        dye_lot_no: opts.dyeLotNo,
+        color_no: opts.colorNo,
+        warehouse_id: opts.warehouseId,
+        return_quantity: length,
+        quality_status: 'qualified',
+        grade: 'A',
+      }
+    );
+    const receiptId = receipt.data?.id;
+    if (!receiptId)
+      throw new Error(`[${tag}] 回仓单创建未返回 id：${JSON.stringify(receipt).slice(0, 200)}`);
+    await apiCall(page, 'POST', `/production/outsourcing-receipts/${receiptId}/confirm`);
+  }
+
+  // 4. 写后必回读：四维 tuple 下的 AVAILABLE 染色匹数量必须与 pieceCount 一致，
+  //    且逐匹字段与写入方口径一致（batch_no=缸号、piece_type=dyed、大写 AVAILABLE）。
+  const pieces = await fetchAvailableDyedPieces(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    dyeLotNo: opts.dyeLotNo,
+    batchNo: opts.dyeLotNo,
+  });
+  if (pieces.length < pieceCount) {
+    throw new Error(
+      `[${tag}] 委外染色链回仓确认 ${pieceCount} 次后，GET /inventory/pieces 按 ` +
+        `product=${opts.productId} warehouse=${opts.warehouseId} 缸=${opts.dyeLotNo} ` +
+        `批=${opts.dyeLotNo} status=AVAILABLE 仅命中 ${pieces.length} 匹染色匹——真实链断裂` +
+        `（缸号建档/匹生成/回读口径任一断点），显式判红，勿 skip/放宽`
+    );
+  }
+  for (const p of pieces.slice(0, pieceCount)) {
+    if (p.piece_type !== 'dyed' || String(p.status) !== 'AVAILABLE') {
+      throw new Error(
+        `[${tag}] 匹 ${p.piece_no} 非 染色匹+AVAILABLE（实际 piece_type=${p.piece_type} status=${p.status}），` +
+          '词表来源 models/status/purchase_inventory.rs::inventory_piece（大写），出库 tuple 必不命中，显式判红'
+      );
+    }
+    if (String(p.batch_no) !== opts.dyeLotNo || String(p.dye_lot_no) !== opts.dyeLotNo) {
+      throw new Error(
+        `[${tag}] 匹 ${p.piece_no} 维度与写入方口径矛盾（batch=${p.batch_no} dye=${p.dye_lot_no}，应同为 ${opts.dyeLotNo}）`
+      );
+    }
+  }
+  console.log(
+    `[${tag}] 真实链染色匹就绪：缸=${opts.dyeLotNo} 色=${opts.colorNo} 批=缸 仓=${opts.warehouseId} ` +
+      `匹号=${pieces
+        .slice(0, pieceCount)
+        .map(p => p.piece_no)
+        .join(',')}`
+  );
+  return pieces.slice(0, pieceCount);
+}
+
+/**
+ * 染色布出库一体包：一行 batch=缸号 的四维库存行 + 同 tuple 真实 AVAILABLE 染色匹 N 匹。
+ * 返回的 stockRow/pieces 四维逐字段一致（色号/缸号/批次/产品/仓库），出库必真实命中。
+ */
+export async function seedDyedOutboundBundle(
+  page: Page,
+  opts: {
+    productId: number;
+    warehouseId: number;
+    quantityMeters: string;
+    pieceCount?: number;
+    colorNo?: string;
+    context?: string;
+  }
+): Promise<{
+  dyeLotNo: string;
+  colorNo: string;
+  stockRow: Record<string, unknown>;
+  pieces: DyedSeedPiece[];
+}> {
+  const tag = opts.context ?? 'DYEDBUNDLE';
+  const pieceCount = opts.pieceCount ?? 1;
+  const dyeLotNo = genDyeLotNo();
+  const colorNo = opts.colorNo ?? `E2EC-${genCode('C')}`;
+  if (!colorNo) throw new Error(`[${tag}] 染色布 bundle 色号必须非空`);
+
+  // 库存行按写入方口径造：batch_no = 缸号（与染色匹 tuple 同源同值）
+  const stockRow = await seedFourDimStockIn(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    colorNo,
+    dyeLotNo,
+    batchNo: dyeLotNo,
+    quantityMeters: opts.quantityMeters,
+  });
+  if (
+    String(stockRow.dye_lot_no) !== dyeLotNo ||
+    String(stockRow.batch_no) !== dyeLotNo ||
+    String(stockRow.color_no) !== colorNo
+  ) {
+    throw new Error(
+      `[${tag}] 库存行落库维度与入参矛盾：期望 色=${colorNo} 缸=批=${dyeLotNo}，` +
+        `实际=${JSON.stringify({ color_no: stockRow.color_no, dye_lot_no: stockRow.dye_lot_no, batch_no: stockRow.batch_no })}`
+    );
+  }
+
+  const total = Number(opts.quantityMeters);
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error(`[${tag}] quantityMeters 必须为正数米数，实际 ${opts.quantityMeters}`);
+  }
+  const pieces = await seedDyedPieceChain(page, {
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    colorNo,
+    dyeLotNo,
+    pieceCount,
+    lengthPerPieceMeters: Math.max(1, Math.floor(total / pieceCount)),
+    context: tag,
+  });
+  return { dyeLotNo, colorNo, stockRow, pieces };
 }
 
 export async function verifyAuditLog(
@@ -2293,12 +2769,29 @@ export async function verifySoDConflict(
   }
 }
 
+/**
+ * 大货批色发货门禁是否**真的以业务拒绝生效**（返回布尔）。
+ *
+ * 复用 {@link isStateGateRejection}：必须 HTTP 恰 400 且 code ∈ {VALIDATION_ERROR,
+ * BUSINESS_ERROR, BAD_REQUEST}；不可宽松成 `status >= 400`——CSRF 中间件的一次性 token
+ * 竞败 403、后端裸 5xx、端点未注册的 404 都会被宽松判据伪装成"门禁生效"。
+ * 后端契约原文：services/so/delivery_ops/ship.rs:85-94 把
+ * BulkColorApprovalError::InvalidState 映射为 `AppError::business` →
+ * utils/error.rs:361 `(BAD_REQUEST, "BusinessError")`，出参机器码 BUSINESS_ERROR。
+ * 判定结果与原始 status/code 一律打日志外显，不静默（发货成功返回 false 也看得见）。
+ */
 export async function verifyBulkColorDeliveryBlock(
   page: Page,
   salesOrderId: number
 ): Promise<boolean> {
   const result = await apiCallExpectFail(page, 'POST', `/sales/orders/${salesOrderId}/ship`);
-  return result.status >= 400;
+  const blocked = isStateGateRejection(result);
+  console.log(
+    `[verifyBulkColorDeliveryBlock] POST /sales/orders/${salesOrderId}/ship → ` +
+      `status=${result.status} code=${JSON.stringify(result.code)}；` +
+      `门禁拒绝判据命中=${blocked}（要求 HTTP 400 + 状态门机器码族，CSRF/5xx/404 一律不算）`
+  );
+  return blocked;
 }
 
 export async function verifyWeightConversion(
@@ -2392,13 +2885,13 @@ export async function getProcessSteps(
 /**
  * 按委外订单 + 凭证类型查凭证列表。
  *
- * 旧实现 catch 后返回 null，调用方又写 `expect(v === null || typeof v === 'object')`
- * 这种恒真断言——端点 404/500/权限失败全都算通过。现改为**不吞错**：
- * 请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否生效的断言。
+ * **不吞错**：请求失败直接抛出；成功则返回原始分页载荷，由用例自己做形状与过滤是否
+ * 生效的断言（catch 返 null 再配 `v === null || typeof v === 'object'` 恒真断言会把
+ * 端点 404/500/权限失败全算成通过）。
  * 后端真相：outsourcing_handler.rs:350 收 OutsourcingVoucherListQuery（含 voucher_type），
  * :364 返回 ApiResponse<PaginatedResponse<...>> ⇒ data.items 是唯一形状。
  * 路由挂载：routes/mod.rs:510 nest("/api/v1/erp/production", production::routes())，
- * 因此端点真实路径必须带 /production 前缀（原缺少导致 404 假绿——无调用方，当前仅 10b/10d 死 import）。
+ * 因此端点真实路径必须带 /production 前缀（缺前缀即 404）。
  */
 export async function verifyOutsourcingVoucher(
   page: Page,
@@ -2421,7 +2914,8 @@ export async function verifyOutsourcingVoucher(
  * rust_decimal 默认 serde 序列化为字符串（"123.45"），需 Number() 解析。
  * apiCallRaw 剥离 ApiResponse 外层信封后返回 data 对象本身。
  *
- * 前置旧缺陷：读不存在的键 debit_total/credit_total + `|| 0` 兜底 → 恒 0 → 恒平衡 → 假绿。
+ * 键名以 DTO 的 total_ending_debit / total_ending_credit 为准，不读 debit_total/credit_total，
+ * 也不做 `|| 0` 兜底（恒 0 → 恒平衡假绿）；
  * 本实现缺键/非数字/借贷皆零（未取到实际数据）均显式抛错，不回退为 0。
  */
 export async function verifyTrialBalance(page: Page): Promise<{
@@ -2528,21 +3022,165 @@ export async function safePostAction(
 }
 
 /**
- * 验证端点可达但不崩溃（用于报表/统计类端点）
+ * 端点健康校验参数。
+ *
+ * - `allowForbidden`：该端点是否属于「权限外探测」场景（用一个无权角色去访问、
+ *   预期被鉴权中间件 403 拒绝）。仅在此类显式声明时 403 才算健康；默认 false，
+ *   403 视为失败——避免把「未授权访问被拒」误当成路由/权限回归的绿灯掩盖。
  */
-export async function verifyEndpointHealthy(page: Page, path: string): Promise<void> {
-  try {
-    await apiCallRaw(page, 'GET', path);
-  } catch (e) {
-    const err = e as { status?: number };
-    if (err.status && err.status >= 500) {
-      throw new Error(`GET ${path} 返回 ${err.status}（服务器内部错误）`);
-    }
-    // 404/403 可接受（端点未实现或权限不足）
-  }
+export interface EndpointHealthOptions {
+  allowForbidden?: boolean;
 }
 
-// ==================== P3.2 E2E 公共断言库 ====================
+/**
+ * 404 响应体的「Q1 机械二分」判据（纯函数，便于离线喂假体自证检测力）。
+ *
+ * 后端两种 404 在信封层可二分（utils/error.rs NotFound → 机器码 "NOT_FOUND" → HTTP 404；
+ * 未注册路由的 404 由 axum 路由层给出、无 JSON 信封，全仓无 not_found_handler 兜底）：
+ * - 响应体能 JSON.parse 且 `code === "NOT_FOUND"` ⇒ **数据面**：路由在册、handler 判查无行，
+ *   缺的是前置（seed 回读 / 用例自建），不是端点。
+ * - 其余（解析失败 / 非信封体 / 信封但 code 非 NOT_FOUND）⇒ **注册面**：路由不存在或已漂移。
+ *
+ * 判据只取 HTTP 码与机器 `code` 两个机械量，**绝不把用户可见 message 文案作为断言对象**
+ * （文案永久脱敏，本仓红线）。
+ */
+export function attribute404Body(bodyText: string): {
+  surface: 'data' | 'registry';
+  code: string | null;
+} {
+  let json: unknown;
+  try {
+    json = JSON.parse(bodyText);
+  } catch {
+    return { surface: 'registry', code: null };
+  }
+  const rawCode =
+    json !== null && typeof json === 'object' ? (json as { code?: unknown }).code : null;
+  const code = typeof rawCode === 'string' ? rawCode : null;
+  if (code === 'NOT_FOUND') {
+    return { surface: 'data', code };
+  }
+  return { surface: 'registry', code };
+}
+
+/**
+ * 验证「应当注册存在」的端点可达且不崩溃（严格模式，默认）。
+ *
+ * 判红口径（收紧假绿）：
+ * - 2xx            → 健康。
+ * - 5xx            → 失败（服务器内部错误）。
+ * - 404            → 失败，并按下方三态判据**二分归因**（注册面 / 数据面，见 attribute404Body）。
+ * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝）。
+ * - 其它 4xx       → 失败（请求契约破坏，如非法参数命中该端点）。
+ *
+ * 404 三态决策树（机械执行、不留主观裁量）：
+ *   Q1 响应体 JSON 且 code=="NOT_FOUND"？ 否→【注册面】进 Q2；是→【数据面】进 Q3。
+ *   Q2 注册面处置：(path, METHOD) 在 route-snapshot.txt 在册仅方法不符 → 探针写错，改指真实
+ *      GET 契约或移出并注明由哪个用例覆盖；不在册且 src/api/** 有同语义调用点 → 后端缺端点，
+ *      补注册并再生成快照；不在册且无调用点 → 探针臆造，移出清单。
+ *   Q3 数据面处置：集合/统计端点 id 来源可疑 → 改用例自建或 seed 回读值，禁止可能 undefined
+ *      的列表来源插值参与 strict 探针；单资源/1:1 → 多 spec 依赖进 global seed（写后回读）、
+ *      单 spec 依赖用例内前置，两者都必须回读断言、禁吞码。
+ *   业务上本应 fail-closed 拒绝（缺法定配置）的 404/403 → 语义面，不是缺口，改断负例。
+ *
+ * 本仓不存在「允许缺失、用 404/403 装作健康」的端点类别，也没有把未注册端点登记成豁免的
+ * 通道：scripts/check-api-paths.mjs 的 KNOWN_GAPS 只覆盖 A 类（src/api 调用点），E 类 e2e
+ * 探针注册表在该文件中明文「本检查不设豁免表」。故未注册端点的处置只有：补注册 /
+ * 探针改指 / 移出清单并注明覆盖去向，**禁止登记成豁免**；也禁止以任何宽松探测把 404/403
+ * 伪装成健康（系统性假绿源，本模块不提供可选探测 helper）。
+ */
+export async function verifyEndpointHealthy(
+  page: Page,
+  path: string,
+  opts: EndpointHealthOptions = {}
+): Promise<void> {
+  let status: number;
+  try {
+    const res = await apiCallRaw(page, 'GET', path);
+    // apiCallRaw 成功即 2xx（非 2xx 会抛），无返回值也视为健康
+    void res;
+    return;
+  } catch (e) {
+    const err = e as { status?: number; message?: string };
+    status = err.status || 0;
+  }
+
+  if (status >= 500) {
+    throw new Error(`GET ${path} 返回 ${status}（服务器内部错误）`);
+  }
+  if (status === 404) {
+    // Q1 二分归因：复读 404 响应体（GET 幂等，且仅失败路径才多这一次请求）。
+    // 只凭状态码一律判"端点未注册或路由已漂移"，会把数据面的 NOT_FOUND 信封（如"该客户
+    // 无信用评级记录"，缺的是前置不是端点）误判成注册面缺陷，故必须看信封里的机器 code。
+    let bodyText: string;
+    try {
+      const res404 = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
+      bodyText = await res404.text();
+    } catch (e) {
+      throw new Error(
+        `GET ${path} 返回 404 且响应体复读失败（${(e as Error).message}）：无法执行 Q1 二分，需人工对照 backend.log 定性注册面/数据面，禁默认归因`
+      );
+    }
+    const attr = attribute404Body(bodyText);
+    const diagnosis =
+      attr.surface === 'data'
+        ? 'NOT_FOUND 信封=数据面缺前置（seed 回读或用例自建，禁吞码）'
+        : attr.code === null
+          ? '无 JSON 信封=注册面（路由不存在/已漂移：补注册或探针改指/移出，无豁免通道）'
+          : `JSON 信封 code=${attr.code}（非 NOT_FOUND）=按 Q1 判注册面，需人工复核信封来源`;
+    console.log(`[diag][http404] GET ${path} 归因=${attr.surface} — ${diagnosis}`);
+    throw new Error(
+      `GET ${path} 返回 404：${diagnosis}（严格健康检查判红，不再吞 404；归因判据只取 HTTP 码与机器 code，不断 message 文案）`
+    );
+  }
+  if (status === 403) {
+    if (opts.allowForbidden === true) {
+      return; // 显式权限外探测：403 属预期，健康
+    }
+    throw new Error(
+      `GET ${path} 返回 403：鉴权拒绝。若这是权限外探测端点，请显式传 { allowForbidden: true }；否则视为权限/路由回归判红（不存在可吞 403 的宽松健康探测函数，见本文件 strict 口径注释）`
+    );
+  }
+  if (status >= 400) {
+    throw new Error(`GET ${path} 返回 ${status}（请求契约破坏）`);
+  }
+  // status === 0：网络层错误（apiCall 已抛非数字状态）
+  throw new Error(`GET ${path} 请求异常（status=${status}）`);
+}
+
+/**
+ * 验证返回二进制/非 JSON 的下载类端点（xlsx / docx / zip 等）严格健康。
+ *
+ * `verifyEndpointHealthy` 走 apiCall → response.text() + JSON.parse()，对**二进制 2xx**
+ * 响应会因 JSON.parse 失败而抛错（status 仍是 200），落入其末尾分支误判「请求异常」——
+ * 对导出端点是假红。本函数改用原始响应状态判定，语义与 verifyEndpointHealthy 的严格口径一致：
+ * - 2xx            → 健康。
+ * - 5xx            → 失败（服务器内部错误）。
+ * - 404            → 失败（端点未注册 / 路由漂移）。
+ * - 403            → 失败，除非显式 `allowForbidden: true`（权限外探测的正常拒绝 / fail-closed）。
+ * - 其它非 2xx     → 失败（重定向、请求契约破坏等）。
+ *
+ * 适用于 admin 上下文应直接 2xx 的导出端点（如 /production/wage-records/export）。
+ */
+export async function verifyDownloadEndpointHealthy(
+  page: Page,
+  path: string,
+  opts: EndpointHealthOptions = {}
+): Promise<void> {
+  const res = await page.request.get(`${API_BASE}${API_PREFIX}${path}`);
+  const status = res.status();
+  if (status >= 200 && status < 300) {
+    return;
+  }
+  if (status === 403 && opts.allowForbidden === true) {
+    return;
+  }
+  throw new Error(
+    `GET ${path} 返回 ${status}（下载端点严格健康检查：期望 2xx；404=路由漂移/未注册，403=权限拒，5xx=服务错误，其它非 2xx 均判红）`
+  );
+}
+
+// ==================== E2E 公共断言库 ====================
 
 /**
  * 页面健康收集器：收集 pageerror / console.error / 5xx 响应
@@ -2690,7 +3328,7 @@ export async function expectSingleToast(page: Page, textPattern?: string | RegEx
   }
 }
 
-// ==================== P3.2 TOTP 生成器（RFC 6238） ====================
+// ==================== TOTP 生成器（RFC 6238） ====================
 
 /**
  * RFC 6238 TOTP 生成器（crypto HMAC-SHA1，免装包）
@@ -2734,7 +3372,7 @@ export function generateTotp(secretBase32: string, windowOffset = 0): string {
   return code.toString().padStart(6, '0');
 }
 
-// ==================== P3.1 角色凭证文件读取 ====================
+// ==================== 角色凭证文件读取 ====================
 
 const ROLE_CREDENTIALS_PATH = 'e2e/.auth/role-credentials.json';
 
@@ -2757,8 +3395,8 @@ export function getRoleCredential(role: string): RoleCredential | null {
 
   // 回退凭证文件
   try {
-    // IR 详细日志：读取失败必须可见（run 34442679467 分片 41-49 全量
-    // credential not found 而文件写入 37 角色——静默 catch 掩盖了根因）
+    // IR 详细日志：读取失败必须可见——静默 catch 会掩盖"凭证文件已全角色写入、
+    // 读取端却报 credential not found"这类根因矛盾。
     if (!existsSync(ROLE_CREDENTIALS_PATH)) {
       console.error(
         `[getRoleCredential] 凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（cwd=${process.cwd()}）`
@@ -2782,6 +3420,90 @@ export function getRoleCredential(role: string): RoleCredential | null {
   } catch (e) {
     console.error(`[getRoleCredential] 凭证文件读取异常: ${(e as Error).message}`);
     return null;
+  }
+}
+
+/** 隔离会话：独立 BrowserContext + 一个已登录 Page，供水平越权等多用户测试使用。 */
+export interface IsolatedAuthedSession {
+  context: BrowserContext;
+  page: Page;
+  username: string;
+  close: () => Promise<void>;
+}
+
+/**
+ * 在一个全新的隔离 BrowserContext 内用指定账号真实登录（cookie 会话独立，与默认 fixture
+ * context 互不干扰），返回该会话。用于水平越权：以 B 账号凭证去改/删 A 账号的资源。
+ *
+ * 走后端真实登录（POST /auth/login，Set-Cookie 写入本 context），不使用 UI 表单——UI 登录
+ * 会改写模块级共享 LOGGED_IN 标志并依赖 storageState，多 context 下不可靠。/auth/login 免
+ * 鉴权且 CSRF 豁免，故无需预取 csrf token。登录成功后校验 access_token 已落本 context，
+ * 否则判红（前置未就绪，不得伪装成"越权被拒"的绿灯）。
+ */
+export async function loginInIsolatedContext(
+  browser: Browser,
+  username: string,
+  password: string
+): Promise<IsolatedAuthedSession> {
+  // 不继承 storageState，确保是干净的独立会话（用另一账号重新登录）
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
+    data: { username, password },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+  });
+  if (!loginResp.ok()) {
+    const body = await loginResp.text().catch(() => '');
+    await context.close();
+    throw new Error(
+      `loginInIsolatedContext：账号 ${username} 登录失败 HTTP ${loginResp.status()} body=${body.slice(0, 200)}`
+    );
+  }
+  const cookies = await context.cookies();
+  if (!cookies.some(c => c.name === 'access_token')) {
+    await context.close();
+    throw new Error(`loginInIsolatedContext：账号 ${username} 登录后未获得 access_token cookie`);
+  }
+  return {
+    context,
+    page,
+    username,
+    close: async () => {
+      await context.close().catch(e => {
+        console.warn(`[loginInIsolatedContext] 关闭 context 失败: ${(e as Error).message}`);
+      });
+    },
+  };
+}
+
+/**
+ * 取一个与默认分片账号（TEST_USERNAME，即"用户 A"）不同的"用户 B"凭证。
+ * 从 role-credentials.json 中选一个 username 明确不等于 TEST_USERNAME 的角色账号，
+ * 保证 B 是独立身份的账号（水平越权前提：两个不同 owner）。找不到即判红，
+ * 不允许退化成"用同一账号自己测自己"的假越权。
+ */
+export function pickDifferentUserCredential(): { username: string; password: string } {
+  try {
+    if (!existsSync(ROLE_CREDENTIALS_PATH)) {
+      throw new Error(
+        `凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（global-setup ensureRoleUsers 未运行？）`
+      );
+    }
+    const data = JSON.parse(readFileSync(ROLE_CREDENTIALS_PATH, 'utf-8')) as Record<
+      string,
+      RoleCredential
+    >;
+    const candidate = Object.values(data).find(
+      c => c && c.username && c.username !== TEST_USERNAME
+    );
+    if (!candidate) {
+      throw new Error(
+        `role-credentials.json 中找不到与分片账号 ${TEST_USERNAME} 不同的第二个账号，无法构造水平越权前提`
+      );
+    }
+    return { username: candidate.username, password: candidate.password };
+  } catch (e) {
+    throw new Error(`pickDifferentUserCredential 失败：${(e as Error).message}`);
   }
 }
 
@@ -2809,21 +3531,276 @@ export async function tryCleanup(
 }
 
 /**
- * 断言 API 响应被拒绝（权限 403）
- *
- * 替代各 spec 中重复的: expect(result.status).toBe(403)
+ * 「延迟清理」队列元素：记录一条要推迟到断言之后再发的清理动作（不发请求，仅登记）。
  */
-export function expectDenied(result: { status: number }, context = ''): void {
-  expect(result.status, context || '应返回 403 权限拒绝').toBe(403);
+export interface DeferredCleanup {
+  method: 'DELETE' | 'PUT' | 'POST';
+  path: string;
+  label?: string;
+}
+
+/**
+ * 登记一条「清理到断言之后执行」的动作，真正的 DELETE/PUT 由 {@link flushDeferredCleanups}
+ * （通常在 test.afterEach 或 try/finally）统一发起。
+ *
+ * 为什么要与同步 tryCleanup 并存（不替换、不改其即时语义）：`tryCleanup` 是**当场**发起的同步
+ * 软删。若用例在被测主数据上还留有后续读断言（by-code/详情回读、"未删状态下重复应被拒"的判重
+ * 前提等），当场软删会让后端按 is_deleted=false 过滤后查不到行 → 回读 404 / 判重返回 200——这对
+ * 后端是**正确行为**，但会把用例推向假红并误导成后端缺陷判红。清理本质是 housekeeping，
+ * 语义上应发生在全部断言之后，故用队列延后 flush。
+ *
+ * 范式与 purchase/03（CREATED_ORDER_IDS + afterEach）、finance/01（CLEANUP[] + afterEach）一致：
+ * 队列由调用方 spec 自行持有（逐文件独立、afterEach flush 后清空），杜绝跨 spec 共享态泄漏；
+ * 本函数只 push、不发请求，不影响任何既有 tryCleanup 调用点。
+ */
+export function deferCleanup(
+  queue: DeferredCleanup[],
+  method: 'DELETE' | 'PUT' | 'POST',
+  path: string,
+  label?: string
+): void {
+  queue.push({ method, path, label });
+}
+
+/**
+ * 逆序 flush 延迟清理队列（子记录先于父记录删，尽量贴近引用顺序），逐条复用
+ * {@link tryCleanup} 的「失败仅告警不 rethrow」语义，随后清空队列防止跨用例泄漏。
+ */
+export async function flushDeferredCleanups(page: Page, queue: DeferredCleanup[]): Promise<void> {
+  for (const c of queue.slice().reverse()) {
+    await tryCleanup(page, c.method, c.path, c.label);
+  }
+  queue.length = 0;
+}
+
+/** CSRF 家族机器码全集（csrf.rs:37-43 CODE_MISS/CODE_INVAL/CODE_IP_MM），均由中间件直出 HTTP 403 */
+const CSRF_REJECT_CODES: ReadonlySet<string> = new Set<string>(Object.values(CSRF_ERROR_CODES));
+
+/**
+ * 断言 API 响应被**权限门**拒绝（HTTP 403 + 权限机器码 FORBIDDEN）。
+ *
+ * 判据 = status + `AppError` 信封机器码双钉，永不读取错误文案
+ * （本仓权限拒绝文案永久脱敏，文案只可能空转，不能承载归因）。
+ * 为什么只判 status 是假绿：本仓 CSRF 中间件与权限门**都**直出 403——
+ * - CSRF 面：csrf.rs:232-234 `csrf_error_response` → `unified_error_response(FORBIDDEN, "CSRF_*")`；
+ *   且一次性 token 竞败重放耗尽/异常时 apiCallExpectFail 仍返回该 403（仅记日志不抛），
+ *   `CSRF_IP_MISMATCH` 不在 isCsrfRejection 重放判据内、首次即原样返回。
+ * - 权限面：RBAC 直出 response.rs:145 与 AppError::PermissionDenied（error.rs:709/742）同码 `FORBIDDEN`。
+ * 只判 status 时，CSRF-403 会冒名权限-403 通过——权限门即使被删，本类用例照样绿。
+ * 故拒绝归因必须钉到权限家族唯一机器码 `FORBIDDEN`：实际 code 为 CSRF_* 即判红并点名
+ * "会话 CSRF 前置问题"（修复方向是确保调用前会话持有存活 token——复用本 helpers 既有的
+ * getCsrfToken / syncCsrfFromResponse / 有界重放机制，而非放宽本断言）。
+ *
+ * 参数类型向后兼容：apiCallExpectFail 的 ApiFailureResult 及既有裸 {status} 形态均可传入；
+ * code 缺失/非字符串（如响应体非 JSON）无法完成归因，同样判红而非静默放过。
+ */
+export function expectDenied(
+  result: { status: number; code?: string | number },
+  context = ''
+): void {
+  const prefix = context || '应返回 403 权限拒绝';
+  expect(result.status, `${prefix}：实际 status=${result.status}`).toBe(403);
+  const code = typeof result.code === 'string' ? result.code : undefined;
+  expect(
+    CSRF_REJECT_CODES.has(code ?? ''),
+    `${prefix}：该 403 的 code=${code ?? JSON.stringify(result.code)} 属 CSRF 中间件拒绝` +
+      `（${[...CSRF_REJECT_CODES].join('/')}），是会话 CSRF 前置未成立而非权限门判定——` +
+      `假绿拦截：禁止只判 status 放行，应确认会话持有存活 CSRF token（既有重放机制），勿放宽本断言`
+  ).toBe(false);
+  expect(
+    code,
+    `${prefix}：403 必须归因到权限门机器码 ${APP_ERROR_CODES.FORBIDDEN}（RBAC 直出与 AppError::PermissionDenied 同源），` +
+      `实际 code=${JSON.stringify(result.code)}（缺失/非字符串=响应体非统一信封，无法归因，同样判红）`
+  ).toBe(APP_ERROR_CODES.FORBIDDEN);
+}
+
+/**
+ * 状态机/业务门禁拒绝的机器码族。唯一事实来源是后端 HTTP 映射
+ * （backend/src/utils/error.rs:358-366 `error_status_and_type`）：
+ * ValidationError / ValidationErrorDisplayable / BusinessError / BusinessErrorDisplayable /
+ * BadRequest 全部映射到 **HTTP 400**，对应字符串码
+ * （error.rs:743-746 + error.rs:464）VALIDATION_ERROR / BUSINESS_ERROR / BAD_REQUEST。
+ * 403 不在此列——权限门与状态门是两条不同的门，混用即假绿。
+ */
+const STATE_GATE_REJECT_CODES: ReadonlySet<string> = new Set<string>([
+  APP_ERROR_CODES.VALIDATION_ERROR,
+  APP_ERROR_CODES.BUSINESS_ERROR,
+  APP_ERROR_CODES.BAD_REQUEST,
+]);
+
+/**
+ * 纯判据：失败体是否构成**状态机/业务门禁拒绝**（不抛错，供需要返回布尔的调用方复用）。
+ * 三条同时成立：HTTP 恰 400 + code 为字符串机器码 + code ∈ STATE_GATE_REJECT_CODES。
+ */
+export function isStateGateRejection(result: ApiFailureResult): boolean {
+  const code = failureCode(result);
+  return result.status === 400 && code !== undefined && STATE_GATE_REJECT_CODES.has(code);
+}
+
+/**
+ * 断言「非法状态转换/业务门禁确实被状态门拒绝」。
+ * 钉死 HTTP=400 + 状态门机器码族，归因到 `AppError` 信封机器码，
+ * **永不读取错误文案**（文案脱敏，只能空转）。
+ * 只判 status 的宽松写法（如 `status < 400` 即抛）有三处假绿：
+ * 1. **CSRF 冒名**：写方法的一次性 token 竞败重放耗尽后 apiCallExpectFail 原样返回
+ *    403 + `CSRF_*`（见本文件 1569-1571 的日志分支）→ 状态门即使被整条删掉，用例照样"通过"；
+ * 2. **裸 5xx**：INTERNAL_ERROR/DATABASE_ERROR（后端缺前置校验，靠 DB 约束或 panic 兜底）
+ *    也被当成"拒绝生效"；
+ * 3. **404**：端点未注册/路由漂移/资源不存在同样被当成"拒绝生效"。
+ * 若后端对某条非法流转返回 403（权限门冒名状态门）或裸 5xx，本断言会红——
+ * 那是真实缺陷（契约不符或权限/状态门混用），禁止放宽回 `>=400`。
+ */
+export function expectStateGateRejection(result: ApiFailureResult, context = ''): void {
+  const prefix = context || '非法流转应被状态机门拒绝';
+  const code = failureCode(result);
+  expect(
+    result.status,
+    `${prefix}：应恰为 HTTP 400（backend utils/error.rs:358-366 状态映射），实际 status=${result.status}` +
+      ` code=${JSON.stringify(result.code)}——403 属 CSRF 中间件拒绝或权限门（两条门都不是状态门）、` +
+      `404 属端点未注册/路由漂移、5xx 属后端裸崩，均不构成"状态门拒绝生效"`
+  ).toBe(400);
+  expect(
+    code,
+    `${prefix}：拒绝必须带字符串机器码（统一失败信封 utils/error.rs ErrorResponse），` +
+      `实际 code=${JSON.stringify(result.code)}（缺失/非字符串=响应体非统一信封，无法归因）`
+  ).toBeTruthy();
+  expect(
+    code !== undefined && STATE_GATE_REJECT_CODES.has(code),
+    `${prefix}：code=${code ?? JSON.stringify(result.code)} 不属状态门拒绝族` +
+      ` {${[...STATE_GATE_REJECT_CODES].join('/')}}——假绿拦截：勿放宽本断言，` +
+      `若后端确以其它族拒绝，应改后端契约而不是改这里`
+  ).toBe(true);
 }
 
 /**
  * 断言 API 响应为业务错误（status >= 400）
  *
  * 替代各 spec 中重复的: expect(result.status >= 400).toBe(true)
+ *
+ * 注意：本函数刻意保留「宽松」语义仅供确实只关心"被拒且非 5xx"的历史调用点。
+ * 删除/引用等防护类断言禁止用它兜底，应改用 expectBusinessRejection（钉死 400 + 业务码
+ * + 错误 message），否则后端裸 500 会被 >=400 伪装成"删除守卫生效"的绿灯。
  */
 export function expectBadRequest(result: { status: number }, context = ''): void {
   expect(result.status, context || '应返回 400+ 业务错误').toBeGreaterThanOrEqual(400);
+}
+
+/** 500/501 家族机器码：命中即"后端未实现前置校验、靠 DB 约束/未处理 panic 裸抛"——非业务拒绝。 */
+const SERVER_FAULT_CODES: ReadonlySet<string> = new Set([
+  'INTERNAL_ERROR',
+  'DATABASE_ERROR',
+  'NOT_IMPLEMENTED',
+]);
+
+/**
+ * 断言「删除/引用防护被业务规则正确拒绝」的精确契约。
+ *
+ * 三条同时成立才算通过：
+ * 1. HTTP 状态恰为 400（业务拒绝的正确契约，非 500 裸崩、非 404 路径错误）；
+ * 2. 响应 code 为字符串业务机器码且不属于 500 家族（INTERNAL_ERROR/DATABASE_ERROR/
+ *    NOT_IMPLEMENTED）——排除"靠 DB FK 约束在 delete 阶段裸抛 500"被当成守卫；
+ * 3. 响应含非空业务错误 message（守卫命中必带可读拒绝原因）。
+ *
+ * 若后端实为裸 500（如引用校验前置缺失、FK 直接炸），本断言会红——这是源码缺陷，
+ * 应保持红并交后端修复（补前置业务校验返回 400 BUSINESS_ERROR），禁止把断言放宽回 >=400 蒙过。
+ */
+export function expectBusinessRejection(
+  result: ApiFailureResult,
+  context = '删除/引用防护应被业务拒绝（HTTP 400 + 业务码 + 拒绝原因）'
+): void {
+  expect(
+    result.status,
+    `${context}：实际 status=${result.status} code=${result.code ?? '(none)'} message=${result.message ?? '(none)'}`
+  ).toBe(400);
+  const code = typeof result.code === 'string' ? result.code : undefined;
+  expect(
+    code,
+    `${context}：code 应为字符串业务机器码（非数字/非缺失），实际 raw code=${JSON.stringify(result.code)} message=${result.message ?? '(none)'}`
+  ).toBeTruthy();
+  expect(
+    code === undefined || !SERVER_FAULT_CODES.has(code),
+    `${context}：code=${code} 属 5xx 裸崩家族（后端缺少删除前置校验，靠 DB 约束/panic 兜底），应返回 400 业务码——源码缺陷，勿放宽本断言`
+  ).toBe(true);
+  expect(
+    typeof result.message === 'string' && result.message.trim().length > 0,
+    `${context}：响应应含非空业务错误 message，实际 message=${JSON.stringify(result.message)}`
+  ).toBe(true);
+}
+
+/**
+ * 「质检合格方可入库/结算」门控要求的真实前置链。
+ *
+ * 后端 backend/src/services/purchase_receipt_service.rs::ensure_receipt_inspection_allows_flow
+ * 只放行 inspection_status == PASSED 的收货单；新建收货单恒为 PENDING
+ * （purchase_receipt.inspection_status 列 NOT NULL DEFAULT 'PENDING'），REJECTED 也拒。
+ * PASSED 的唯一业务写入口是采购质检完成回写（purchase_inspection_service.rs::complete_inspection
+ * → to_receipt_inspection_status），不存在任何直改状态的旁路端点。
+ *
+ * 因此凡是要 `POST /purchase/receipts/{id}/confirm`（或 `POST /ap/invoices/auto-generate`）
+ * 的用例，都必须先跑完本函数：建质检单 → complete(pass) → 回读必须真读到 PASSED。
+ * 任一步不达预期立即抛错，**不允许**继续去 confirm 撞 400 —— 那会把"回写链断了"
+ * 伪装成"确认接口故障"，属隐性假红误导。
+ * 结论 token 用权威词表原值 pass/fail/partial（models/status/purchase_inventory.rs），
+ * fail/partial 都会得到 REJECTED，故本函数只用于 pass 场景。
+ *
+ * @returns 质检单 id（供用例断言待质检列表或清理用）
+ */
+export async function seedInspectionPass(
+  page: Page,
+  opts: {
+    receiptId: number;
+    supplierId: number;
+    /** 合格数量；省略时取收货单 total_quantity（即"整单全数合格"） */
+    passQuantity?: string | number;
+    context?: string;
+  }
+): Promise<number> {
+  const tag = opts.context ?? `receipt#${opts.receiptId}`;
+  let passQuantity = opts.passQuantity;
+  if (passQuantity === undefined) {
+    const head = await apiCall<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/receipts/${opts.receiptId}`
+    );
+    // 出参 total_quantity 是 rust_decimal 序列化的十进制字符串，原样透传即可
+    passQuantity = (head?.data as Record<string, unknown>)?.total_quantity as string | undefined;
+    if (!passQuantity) {
+      throw new Error(
+        `[${tag}] 收货单回读缺 total_quantity，无法按"整单全数合格"完成质检：` +
+          `${JSON.stringify(head)?.slice(0, 300)}`
+      );
+    }
+  }
+  const created = await apiCall<Record<string, unknown>>(page, 'POST', '/purchase/inspections', {
+    receipt_id: opts.receiptId,
+    supplier_id: opts.supplierId,
+    inspection_date: new Date().toISOString().slice(0, 10),
+  });
+  const inspId = (created?.data as Record<string, unknown>)?.id as number | undefined;
+  if (!inspId) {
+    throw new Error(`[${tag}] 建质检单未取到 id，响应=${JSON.stringify(created)?.slice(0, 300)}`);
+  }
+  await apiCall(page, 'POST', `/purchase/inspections/${inspId}/complete`, {
+    // 必须传局部变量：opts.passQuantity 省略时上面刚从收货单 total_quantity 推导出来，
+    // 直接回读 opts 会把 undefined 送出去（JSON.stringify 丢键 → 后端必填 400，种子步成片真红）。
+    pass_quantity: passQuantity,
+    reject_quantity: 0,
+    inspection_result: 'pass',
+  });
+  const readBack = await apiCall<Record<string, unknown>>(
+    page,
+    'GET',
+    `/purchase/receipts/${opts.receiptId}`
+  );
+  const inspectionStatus = (readBack?.data as Record<string, unknown>)?.inspection_status;
+  if (inspectionStatus !== 'PASSED') {
+    throw new Error(
+      `[${tag}] 质检 complete(pass) 后收货单 inspection_status=${String(inspectionStatus)}，` +
+        '期望 PASSED（词表 backend models/status/purchase_inventory.rs::purchase_receipt_inspection）'
+    );
+  }
+  return inspId;
 }
 
 /**
@@ -2884,4 +3861,74 @@ export async function withEntity(
     const delPath = options?.deletePath ? options.deletePath(id) : `${createPath}/${id}`;
     await tryCleanup(page, 'DELETE', delPath, label);
   }
+}
+
+/**
+ * 为「染色批次/缸号」建一条真实的色卡档案前置。
+ *
+ * 后端强校验（正当，不得放松）：dye_batch_handler.rs::resolve_dye_identity 归一
+ * （backend/src/handlers/dye_batch_handler.rs:203-254）要求 color_no 非空即染色布，且该色号
+ * 必须在全仓唯一的色卡明细档案 `color_card_items.color_code` 上**恰好命中一条**：
+ * - 档案无此色 → 400 VALIDATION「色号 XXX 在色卡档案中不存在」（前置缺失即由本函数消除）；
+ * - 同色号多条 → 显式业务错「无法唯一定位」，故色号取 genCode（时间戳+随机）保证全局唯一。
+ *
+ * 前置链全部走真实端点（与 fabric/02-dye.spec.ts 既有 seedColorCardItem 同型，
+ * 提取到 helpers 供 flow 族多文件复用）：
+ * 1. POST /color-cards（handlers/color_card/crud.rs:78-101，创建即 draft——色卡主体词表
+ *    color_card::DRAFT；出参 ColorCardListItem 含 id）；
+ * 2. POST /color-cards/{id}/items（handlers/color_card/items.rs:48-58；服务门控
+ *    EDITABLE_CARD_STATUSES=[draft]（color_card_item_service.rs:65），新建卡恒可挂色号；
+ *    出参 ColorItemInfo 含 id/color_code）。
+ *
+ * 色卡档案不做清理：DELETE 端点是**归档**语义（crud.rs archive，非物理删除），物理删档会
+ * 破坏历史染色批次的派生链；每次运行新建专属卡+唯一色号，跨分片互不干扰。
+ *
+ * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；itemId 色号明细 id
+ */
+export async function seedColorCardArchive(
+  page: Page,
+  opts?: { context?: string }
+): Promise<{ cardId: number; colorCode: string; itemId: number }> {
+  const tag = opts?.context ?? 'seedColorCardArchive';
+  const colorCode = genCode('E2E-ARCH');
+  const card = await apiCall<{ id?: number; card_no?: string }>(page, 'POST', '/color-cards', {
+    card_no: genCode('E2E-ARCHCC'),
+    card_name: `E2E 档案前置色卡 ${colorCode}`,
+    card_type: 'CUSTOM',
+  });
+  const cardId = card?.data?.id;
+  if (!cardId) {
+    throw new Error(
+      `[${tag}] 前置色卡创建未返回 id（后端契约：ColorCardListItem 必含 id）：${JSON.stringify(card)}`
+    );
+  }
+  // 载荷对照 ColorItemDto（backend/src/models/color_card_item_dto.rs:12-66）：
+  // color_code/color_name/rgb_r/g/b 必填，hex_value 必填且长度恰为 7（#RRGGBB）。
+  const item = await apiCall<{ id?: number; color_code?: string }>(
+    page,
+    'POST',
+    `/color-cards/${cardId}/items`,
+    {
+      color_code: colorCode,
+      color_name: 'E2E 档案前置色号',
+      rgb_r: 220,
+      rgb_g: 20,
+      rgb_b: 60,
+      hex_value: '#DC143C',
+    }
+  );
+  const itemId = item?.data?.id;
+  if (!itemId) {
+    throw new Error(
+      `[${tag}] 色号明细创建未返回 id（后端契约：ColorItemInfo 必含 id）：${JSON.stringify(item)}`
+    );
+  }
+  if (item.data.color_code !== colorCode) {
+    throw new Error(
+      `[${tag}] 色号明细回显与提交不一致（期望 ${colorCode}，实际 ${JSON.stringify(item)}）` +
+        '——色卡状态门控或端点契约漂移属后端问题，不得在此放宽'
+    );
+  }
+  console.log(`[${tag}] 色卡档案前置就绪：card=${cardId} item=${itemId} color_code=${colorCode}`);
+  return { cardId, colorCode, itemId };
 }

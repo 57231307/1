@@ -60,12 +60,17 @@ pub struct AttachmentDto {
 }
 
 // 邮件模板 CRUD Handler（通过宏生成）
+// define_tuple_crud_handlers! 出参实参 = service 的真实返回类型：
+// list -> PaginatedResponse<email_template::Model>（services/email_template_service.rs list），
+// get/create/update -> email_template::Model
 crate::define_tuple_crud_handlers!(
     EmailTemplateService,
     CreateEmailTemplateRequest,
     UpdateEmailTemplateRequest,
     EmailTemplateQuery,
     i32,
+    crate::utils::response::PaginatedResponse<crate::models::email_template::Model>,
+    crate::models::email_template::Model,
     "邮件模板不存在"
 );
 
@@ -220,7 +225,7 @@ async fn apply_template_rendering(
         // template_params 必须配合 template_id 使用，且必须为 JSON 对象
         if let Some(params) = req.template_params.clone() {
             if !params.is_object() {
-                return Err(AppError::validation(
+                return Err(AppError::validation_displayable(
                     "template_params 必须为 JSON 对象（如 {\"name\": \"张三\"}）",
                 ));
             }
@@ -232,7 +237,7 @@ async fn apply_template_rendering(
             req.html_content = Some(template.body_template);
         }
     } else if req.template_params.is_some() {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "template_params 必须配合 template_id 使用",
         ));
     }

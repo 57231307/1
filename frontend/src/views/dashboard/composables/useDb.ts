@@ -10,7 +10,7 @@ import {
   getDashboardInventoryStats,
 } from '@/api/dashboard';
 import type { DashboardOverview, SalesDataPoint, InventoryByCategory } from '@/api/dashboard';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 /** Dashboard 主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
 export const useDb = () => {
@@ -43,7 +43,7 @@ export const useDb = () => {
     } catch (error: unknown) {
       // 拦截器（request.ts showErrorOnce）已弹出统一错误提示；
       // 此处仅记录日志与回落数据，不再重复 ElMessage 避免同刻出现多条 toast。
-      logger.error(msg.translate('loadDashboardDataFailed'), error);
+      logAuxLoadFailure(msg.translate('loadDashboardDataFailed'), error);
       stats.value = overviewDefaults();
     }
   };
@@ -59,7 +59,7 @@ export const useDb = () => {
       categoryDistribution.value = inventoryRes.data?.by_category ?? [];
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      logger.error('获取图表数据失败:', error);
+      logAuxLoadFailure('获取图表数据失败:', error);
       trendData.value = [];
       categoryDistribution.value = [];
     }

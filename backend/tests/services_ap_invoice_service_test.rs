@@ -215,51 +215,47 @@ fn test_cancelztjm_jauditedhpartial_paidyx() {
     assert!(!can_cancel(status::common::STATUS_CANCELLED));
 }
 
-// ============ 批次 393 补测：账龄分桶算法 ============
-
-/// 复现 get_aging_analysis 中的账龄分桶逻辑
-/// 源码位置：get_aging_analysis 方法内的账龄区间分类。；6 个区间：未到期 / 1-30 / 31-60 / 61-90 / 91-180 / 180 天以上
-fn aging_bucket(days_overdue: i32) -> String {
-    if days_overdue < 0 {
-        "未到期".to_string()
-    } else if days_overdue <= 30 {
-        "逾期 1-30 天".to_string()
-    } else if days_overdue <= 60 {
-        "逾期 31-60 天".to_string()
-    } else if days_overdue <= 90 {
-        "逾期 61-90 天".to_string()
-    } else if days_overdue <= 180 {
-        "逾期 91-180 天".to_string()
-    } else {
-        "逾期 180 天以上".to_string()
-    }
-}
+// ============ 补测：账龄分桶算法（直接调用生产纯判定；`classify_aging_bucket`，get_aging_analysis 即调用它） ============
 
 /// test_zlftsf_6gqj（验证 get_aging_analysis 的账龄分桶覆盖 6 个区间边界）
 #[test]
 fn test_zlftsf_6gqj() {
+    use bingxi_backend::services::ap_invoice_service::ApInvoiceService;
+
     // 未到期（days_overdue = -1 表示未到期）
-    assert_eq!(aging_bucket(-1), "未到期");
-    assert_eq!(aging_bucket(-30), "未到期");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(-1), "未到期");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(-30), "未到期");
 
     // 逾期 1-30 天（边界 0 和 30）
-    assert_eq!(aging_bucket(0), "逾期 1-30 天");
-    assert_eq!(aging_bucket(1), "逾期 1-30 天");
-    assert_eq!(aging_bucket(30), "逾期 1-30 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(0), "逾期 1-30 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(1), "逾期 1-30 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(30), "逾期 1-30 天");
 
     // 逾期 31-60 天（边界 31 和 60）
-    assert_eq!(aging_bucket(31), "逾期 31-60 天");
-    assert_eq!(aging_bucket(60), "逾期 31-60 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(31), "逾期 31-60 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(60), "逾期 31-60 天");
 
     // 逾期 61-90 天（边界 61 和 90）
-    assert_eq!(aging_bucket(61), "逾期 61-90 天");
-    assert_eq!(aging_bucket(90), "逾期 61-90 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(61), "逾期 61-90 天");
+    assert_eq!(ApInvoiceService::classify_aging_bucket(90), "逾期 61-90 天");
 
     // 逾期 91-180 天（边界 91 和 180）
-    assert_eq!(aging_bucket(91), "逾期 91-180 天");
-    assert_eq!(aging_bucket(180), "逾期 91-180 天");
+    assert_eq!(
+        ApInvoiceService::classify_aging_bucket(91),
+        "逾期 91-180 天"
+    );
+    assert_eq!(
+        ApInvoiceService::classify_aging_bucket(180),
+        "逾期 91-180 天"
+    );
 
     // 逾期 180 天以上（边界 181）
-    assert_eq!(aging_bucket(181), "逾期 180 天以上");
-    assert_eq!(aging_bucket(365), "逾期 180 天以上");
+    assert_eq!(
+        ApInvoiceService::classify_aging_bucket(181),
+        "逾期 180 天以上"
+    );
+    assert_eq!(
+        ApInvoiceService::classify_aging_bucket(365),
+        "逾期 180 天以上"
+    );
 }

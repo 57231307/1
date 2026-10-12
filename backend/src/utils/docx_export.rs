@@ -6,7 +6,8 @@
 //! 本模块封装 docx-rs 提供统一的导出接口：
 //! - `build_docx`：从 DocxTable 构建 docx 字节流（标题 + 表头 + 数据行）
 //! - `docx_response`：构造 axum Response（含正确 Content-Type 和 Content-Disposition）
-//! - `build_docx_with_kv`：键值对形式输出主表数据 + 明细表（适用于合同/对账单）
+//! - `build_docx_with_kv_and_image`：键值对形式输出主表数据 + 明细表（适用于合同/对账单），
+//!   另可在主表与明细表之间嵌入一张 PNG 位图（标签条码图）；不需要嵌图时传 `image = None`
 
 use crate::utils::error::AppError;
 use axum::http::{HeaderValue, header};
@@ -32,6 +33,19 @@ pub struct DocxKeyValue {
     pub keys: Vec<String>,
     /// 值列表（与 keys 一一对应）
     pub values: Vec<String>,
+}
+
+/// 嵌入 docx 的位图（当前仅接受 PNG 栅格：docx-rs 0.4 的 image_collector 按
+/// `word/media/*.png` + PNG 魔数打包，不支持 SVG 直嵌；宽高为像素值，
+/// docx-rs 内部换算 EMU）
+#[derive(Debug, Clone)]
+pub struct DocxImage {
+    /// PNG 文件字节（含魔数，原样写入 media 部件）
+    pub png: Vec<u8>,
+    /// 像素宽
+    pub width_px: u32,
+    /// 像素高
+    pub height_px: u32,
 }
 
 /// 从 DocxTable 构建 docx 字节流（标题段落 + 表头表格 + 数据行）
@@ -110,12 +124,17 @@ pub fn build_docx_response(table: &DocxTable, filename: &str) -> Result<Response
     Ok(docx_response(bytes, filename))
 }
 
-/// 构建带键值对主表 + 明细表格的 docx（适用于合同/对账单；布局：标题→键值对表格(2列)→明细表格）
-pub fn build_docx_with_kv(
+/// 构建带键值对主表 + 明细表格的 docx（适用于合同/对账单；布局：标题→键值对表格(2列)
+/// →[可选嵌图段落]→明细表格）。调用方：`ExportService::export_docx`、
+/// `generate_reconciliation_docx`（不带图，传 `image = None`）与入库标签打印（带条码图）。
+/// `image` 为 Some 时在主表与明细表之间嵌入一张 PNG 位图（docx-rs 0.4 的 image_collector
+/// 按 `word/media/*.png` 打包，宽高为像素值，内部换算 EMU）。
+pub fn build_docx_with_kv_and_image(
     title: &str,
     kv: &DocxKeyValue,
     detail_headers: &[String],
     detail_rows: &[Vec<String>],
+    image: Option<&DocxImage>,
 ) -> Result<Vec<u8>, AppError> {
     let mut docx = Docx::new();
 
@@ -138,6 +157,15 @@ pub fn build_docx_with_kv(
         }
         kv_table = set_table_borders(kv_table);
         docx = docx.add_table(kv_table);
+    }
+
+    // 嵌入位图（居中一段；字节与像素尺寸交由 docx-rs image_collector 落 word/media/*.png）
+    if let Some(img) = image {
+        let pic = Pic::new_with_dimensions(img.png.clone(), img.width_px, img.height_px);
+        let img_para = Paragraph::new()
+            .add_run(Run::new().add_image(pic))
+            .align(AlignmentType::Center);
+        docx = docx.add_paragraph(img_para);
     }
 
     // 明细表格

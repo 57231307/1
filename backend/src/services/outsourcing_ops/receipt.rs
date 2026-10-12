@@ -15,21 +15,25 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, SqlErr, TransactionTrait,
 };
 
 use crate::models::outsourcing_order::{
     self, ActiveModel as OrderActiveModel, Entity as OrderEntity, Model as OrderModel,
 };
+use crate::models::outsourcing_order_item::{self, Entity as ItemEntity, Model as ItemModel};
 use crate::models::outsourcing_receipt::{
     self, ActiveModel as ReceiptActiveModel, Entity as ReceiptEntity, Model as ReceiptModel,
 };
-use crate::models::outsourcing_voucher::ActiveModel as VoucherActiveModel;
+use crate::models::outsourcing_voucher::{
+    ActiveModel as VoucherActiveModel, Column as VoucherColumn, Entity as VoucherEntity,
+};
 use crate::models::status::{
     outsourcing_order_status, outsourcing_receipt_quality_status, outsourcing_receipt_status,
     outsourcing_voucher_type, quality_inspection_result, quality_inspection_type,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::outsourcing_ops::order::{
     compute_receipt_calculation, validate_receipt_eligibility,
@@ -48,6 +52,40 @@ pub(crate) struct ReceiptCalculation {
     pub(crate) abnormal_loss_amount: Decimal,
     pub(crate) total_cost: Decimal,
     pub(crate) unit_cost: Decimal,
+}
+
+/// 校验收回单实测值三列的取值域：非空时必须 > 0，留空（None）不在本门内（NULL = 未补录）。
+///
+/// 与 m0075 的值域 CHECK（`"{col}" IS NULL OR "{col}" > 0`，migration/src/domain/production/
+/// m0075_add_outsourcing_receipt_measured_values.rs:107）是同一套取值域，不新造第二套：本门给用户
+/// 可外显的 400 点名（VALIDATION_ERROR 族，调用方 `validate_create_request`、`update`），DB CHECK
+/// 兜并发/旁路写入。0 与负数是**无业务含义的伪实测值**：标签 fail-closed 只判 NULL
+/// （`print_service.rs:4999-5007`），放 0 进来就会被当作"已实测"直接印上标签，与"缺值逐列点名
+/// 拒绝"的口径相反，因此在任何 DB 访问前拒绝；三列由 `validate_measured_values` 成组调用。
+fn validate_measured_value(label: &str, value: Option<Decimal>) -> Result<(), AppError> {
+    // 绑定名用 val（实测值），不与收回数量门（update 分支的 `if v <=`）同形：本守卫校的是
+    // weight/width/gram_weight 三列取值域，语义与 return_quantity 无关，两者各用各的绑定名，
+    // 避免把「数量 >0 门」的结构锚点混淆成两处。
+    if let Some(val) = value {
+        if val <= Decimal::ZERO {
+            return Err(AppError::validation_displayable(format!(
+                "收回单{label}必须大于零（填 0 或负数属伪造实测值；暂无实测数据请留空，标签将在补录前按缺值拒绝打印）"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// 三列实测值成组校验（列名与标签 fail-closed 点名的列名逐字符一致：重量(weight) /
+/// 幅宽(width) / 克重(gram_weight)，便于用户按同一套叫法在表单与错误文案间对齐）。
+fn validate_measured_values(
+    weight: Option<Decimal>,
+    width: Option<Decimal>,
+    gram_weight: Option<Decimal>,
+) -> Result<(), AppError> {
+    validate_measured_value("重量(weight)", weight)?;
+    validate_measured_value("幅宽(width)", width)?;
+    validate_measured_value("克重(gram_weight)", gram_weight)
 }
 
 /// 校验收回单质检结论取值，返回 `outsourcing_receipt_quality_status` 中的规范值。
@@ -70,13 +108,6 @@ pub fn validate_receipt_quality_status(raw: &str) -> Result<&'static str, AppErr
 }
 
 impl OutsourcingReceiptService {
-    /// 生成委外凭证号：OV-{prefix}-YYYYMMDDHHMMSS-NNN
-    fn generate_voucher_no(prefix: &str) -> String {
-        let now = crate::utils::date_utils::utc_now_fixed();
-        let suffix = (now.timestamp() as u32) % 1000;
-        format!("OV-{}-{}-{:03}", prefix, now.format("%Y%m%d%H%M%S"), suffix)
-    }
-
     /// 构造委外完成事件，供事务提交后发布
     pub fn build_completed_event(order: &OrderModel) -> crate::services::event_bus::BusinessEvent {
         crate::services::event_bus::BusinessEvent::OutsourcingOrderCompleted {
@@ -94,8 +125,13 @@ impl OutsourcingReceiptService {
         &self,
         req: CreateOutsourcingReceiptRequest,
     ) -> Result<ReceiptModel, AppError> {
-        if req.return_quantity < Decimal::ZERO {
-            return Err(AppError::business("收回数量不能为负"));
+        // 收回数量的取值域门（不是负数门）：0 米/0 公斤收回在委外加工里没有业务含义
+        // ——空跑、全损耗、录入错误三者在下游会污染成本链（损耗率恒 100% 判异常、
+        // unit_cost 静默归零、OVRC 入库凭证按费用+运费+定额材料差借记成品库存、
+        // 生成 length_m=0 的匹与 total_qty=0 的质检记录）。前端 index.vue 已 :min="0.01"
+        // 拦，后端不得信任前端。字段取值域错 → VALIDATION_ERROR 族 + 可外显公开规则文案。
+        if req.return_quantity <= Decimal::ZERO {
+            return Err(AppError::validation_displayable("收回数量必须大于零"));
         }
 
         Self::validate_create_request(&self.db, &req).await?;
@@ -106,10 +142,35 @@ impl OutsourcingReceiptService {
         active
             .insert(&*self.db)
             .await
-            .map_err(|e| AppError::database(format!("委外收回单创建失败: {}", e)))
+            .map_err(|e| {
+                // 竞态兜底（照 role_permission/chemical_ops「预校验 + 23505 归类」范式）：
+                // 上方 validate_create_request 的收回单号查重通过后、INSERT 落库前，
+                // 并发请求可能已插入同码未删行。本表 receipt_no 当前仅 NOT NULL 无
+                // DB UNIQUE（v15/mod.rs:691，待数据库专家补部分唯一索引）；索引就位后
+                // 此处将以 23505 显式拒绝——单语句 INSERT 原子失败、不留半行，归类
+                // 必须与预检同口径的业务拒绝，禁止 map_err 自造 database() 拍平 500 吞真因。
+                if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                    tracing::error!(
+                        "委外收回单创建撞单号唯一约束（并发同码，receipt_no={}）：行未写入，整语句回滚，底层错误={}",
+                        req.receipt_no,
+                        e
+                    );
+                    AppError::business_displayable(format!(
+                        "收回单号 {} 已存在，请更换单号后重试",
+                        req.receipt_no
+                    ))
+                } else {
+                    tracing::error!(receipt_no = %req.receipt_no, "委外收回单创建落库失败");
+                    AppError::from(e)
+                }
+            })
     }
 
     /// 校验创建请求：委外订单存在 + 成品存在 + 收回单号唯一
+    ///
+    /// "单号重复/缺前置"两类拒绝均属可执行公开规则 → business_displayable 可外显族
+    /// （先例： 流程编码、chemical_ops 编码族）；文案只回显用户自己提交的
+    /// 单号/ID，不含表名/约束名/其它记录字段；真因同步落 WARN，不静默。
     async fn validate_create_request(
         db: &sea_orm::DatabaseConnection,
         req: &CreateOutsourcingReceiptRequest,
@@ -121,8 +182,12 @@ impl OutsourcingReceiptService {
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!(
-                "委外订单 {} 不存在",
+            tracing::warn!(
+                "创建委外收回单被拒：关联订单 outsourcing_order_id={} 不存在或未删除",
+                req.outsourcing_order_id
+            );
+            return Err(AppError::business_displayable(format!(
+                "委外订单 {} 不存在，请重新选择委外订单",
                 req.outsourcing_order_id
             )));
         }
@@ -133,8 +198,12 @@ impl OutsourcingReceiptService {
             .await?
             .is_none()
         {
-            return Err(AppError::business(format!(
-                "成品 {} 不存在",
+            tracing::warn!(
+                "创建委外收回单被拒：成品 product_id={} 不存在",
+                req.product_id
+            );
+            return Err(AppError::business_displayable(format!(
+                "成品 {} 不存在，请重新选择成品",
                 req.product_id
             )));
         }
@@ -146,8 +215,9 @@ impl OutsourcingReceiptService {
             .one(db)
             .await?
         {
-            return Err(AppError::business(format!(
-                "收回单号 {} 已存在",
+            tracing::warn!("创建委外收回单被拒：收回单号 {} 已存在", req.receipt_no);
+            return Err(AppError::business_displayable(format!(
+                "收回单号 {} 已存在，请更换单号后重试",
                 req.receipt_no
             )));
         }
@@ -157,6 +227,10 @@ impl OutsourcingReceiptService {
         if let Some(raw) = req.quality_status.as_deref() {
             validate_receipt_quality_status(raw)?;
         }
+
+        // 实测值三列取值域门：非空必 > 0（0/负数属伪造实测值，会绕过标签 fail-closed）；
+        // 留空是本批允许的"未补录"形态，不在此处收紧（门控前移待用户裁定，见 PR 正文）
+        validate_measured_values(req.weight, req.width, req.gram_weight)?;
 
         Ok(())
     }
@@ -192,6 +266,12 @@ impl OutsourcingReceiptService {
                     .unwrap_or_else(|| outsourcing_receipt_quality_status::PENDING.to_string()),
             )),
             grade: Set(req.grade.clone()),
+            // 实测值三列如实落库（补录链的采集点）：有值必落、无值落 NULL。
+            // 这里不写 unwrap_or(ZERO)、不查 products 标称值——那等于伪造实测档案
+            // （口径见 m0075 文件头与 models/outsourcing_receipt.rs 列注释）。
+            weight: Set(req.weight),
+            width: Set(req.width),
+            gram_weight: Set(req.gram_weight),
             inventory_transaction_id: Set(None),
             status: Set(outsourcing_receipt_status::DRAFT.to_string()),
             remarks: Set(req.remarks.clone()),
@@ -204,11 +284,37 @@ impl OutsourcingReceiptService {
     }
 
     /// 更新委外收回入库单（仅 draft 状态可更新）
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列（receipt_date/product_id/return_quantity/loss_quantity，
+    /// v15 outsourcing_receipt DDL）的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateOutsourcingReceiptRequest,
     ) -> Result<ReceiptModel, AppError> {
+        if matches!(req.receipt_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "收回日期不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.product_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "成品不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.return_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "收回数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.loss_quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "损耗数量不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
         if model.status != outsourcing_receipt_status::DRAFT {
             return Err(AppError::business(format!(
@@ -219,42 +325,65 @@ impl OutsourcingReceiptService {
 
         let mut active: ReceiptActiveModel = model.into();
 
-        if let Some(v) = req.receipt_date {
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.receipt_date.flatten() {
             active.receipt_date = Set(v);
         }
-        if let Some(v) = req.product_id {
+        if let Some(v) = req.product_id.flatten() {
             active.product_id = Set(v);
         }
-        if let Some(v) = req.color_no {
-            active.color_no = Set(Some(v));
-        }
-        if let Some(v) = req.dye_lot_no {
-            active.dye_lot_no = Set(Some(v));
-        }
-        if let Some(v) = req.batch_no {
-            active.batch_no = Set(Some(v));
-        }
-        if let Some(v) = req.warehouse_id {
-            active.warehouse_id = Set(Some(v));
-        }
-        if let Some(v) = req.return_quantity {
-            if v < Decimal::ZERO {
-                return Err(AppError::business("收回数量不能为负"));
+        if let Some(v) = req.return_quantity.flatten() {
+            // 与 create 同一取值域门（同一族、同一文案）：更新到 0 同样是把成本链污染成隐性问题
+            if v <= Decimal::ZERO {
+                return Err(AppError::validation_displayable("收回数量必须大于零"));
             }
             active.return_quantity = Set(v);
         }
-        if let Some(v) = req.loss_quantity {
+        if let Some(v) = req.loss_quantity.flatten() {
             active.loss_quantity = Set(v);
         }
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
+        if let Some(v) = req.color_no {
+            active.color_no = Set(v);
+        }
+        if let Some(v) = req.dye_lot_no {
+            active.dye_lot_no = Set(v);
+        }
+        if let Some(v) = req.batch_no {
+            active.batch_no = Set(v);
+        }
+        if let Some(v) = req.warehouse_id {
+            active.warehouse_id = Set(v);
+        }
+        // quality_status：DB 可空列（v15:707）——Some(None)=Set(None) 清空回"未检"，
+        // Some(Some(v)) 覆盖前校验词表（词表 outsourcing_receipt_quality_status）
         if let Some(v) = req.quality_status {
-            validate_receipt_quality_status(&v)?;
-            active.quality_status = Set(Some(v));
+            if let Some(v) = v.as_ref() {
+                validate_receipt_quality_status(v)?;
+            }
+            active.quality_status = Set(v);
         }
         if let Some(v) = req.grade {
-            active.grade = Set(Some(v));
+            active.grade = Set(v);
         }
         if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
+            active.remarks = Set(v);
+        }
+        // 实测值三列（DB 可空 DECIMAL，m0075）：Some(None)=Set(None) 清空回"未补录"、
+        // Some(Some(v))=Set(v) 覆盖；覆盖值须 > 0（与 create 同族同文案）。
+        // 清空是纠错动作（把误录的 0/错值退回 NULL），标签随即继续 fail-closed 点名，
+        // 不存在"清空后回落主数据"的语义——主数据从未被读进这条链路。
+        if let Some(v) = req.weight {
+            validate_measured_value("重量(weight)", v)?;
+            active.weight = Set(v);
+        }
+        if let Some(v) = req.width {
+            validate_measured_value("幅宽(width)", v)?;
+            active.width = Set(v);
+        }
+        if let Some(v) = req.gram_weight {
+            validate_measured_value("克重(gram_weight)", v)?;
+            active.gram_weight = Set(v);
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
@@ -279,7 +408,11 @@ impl OutsourcingReceiptService {
     }
 
     /// 确认收回单：draft → confirmed，收回单/凭证/订单/质检同事务提交
-    pub async fn confirm(&self, id: i32) -> Result<ReceiptModel, AppError> {
+    pub async fn confirm(
+        &self,
+        id: i32,
+        operator_id: Option<i32>,
+    ) -> Result<ReceiptModel, AppError> {
         let txn = (*self.db).begin().await?;
 
         let receipt_model: ReceiptModel = ReceiptEntity::find_by_id(id)
@@ -293,6 +426,17 @@ impl OutsourcingReceiptService {
                 "仅草稿(draft)状态可确认，当前状态: {}",
                 receipt_model.status
             )));
+        }
+
+        // 收回数量取值域门（与 create/update 同族同文案）：0 量确认在下游会污染整条成本链——
+        // 损耗率恒 100% 判 abnormal、unit_cost 静默归零、OVRC 入库凭证仍按
+        // 费用+运费+定额材料差借记「库存商品」、生成 length_m=0 的匹与 total_qty=0 的质检记录。
+        // 前端 :min="0.01" 拦不住直接 POST，故本处必须自己拦；放在凭证/库存/订单任何写入之前，
+        // 被拒时事务未落一行。存量 0 量草稿（门控上线前建的）同样在此被拦住。
+        if receipt_model.return_quantity <= Decimal::ZERO {
+            return Err(AppError::business_displayable(
+                "收回数量为 0，无法确认回仓；请先录入实际收回数量",
+            ));
         }
 
         let order: OrderModel = OrderEntity::find_by_id(receipt_model.outsourcing_order_id)
@@ -326,7 +470,18 @@ impl OutsourcingReceiptService {
             .await
             .map_err(|e| AppError::database(format!("委外收回单确认失败: {}", e)))?;
 
-        let receipt_voucher_no = Self::generate_voucher_no("RC");
+        // 入库凭证号（统一生成器，事务内取号：`OVRC{YYYYMMDD}{3位流水}`）
+        let receipt_voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            "OVRC",
+            VoucherEntity,
+            VoucherColumn::VoucherNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "委外入库凭证号生成失败");
+            AppError::business_displayable("委外入库凭证号生成失败，请稍后重试")
+        })?;
         let receipt_voucher = VoucherActiveModel {
             id: Default::default(),
             voucher_no: Set(receipt_voucher_no.clone()),
@@ -366,6 +521,11 @@ impl OutsourcingReceiptService {
                 product_id: updated_receipt.product_id,
                 warehouse_id: updated_receipt.warehouse_id,
                 length_m: updated_receipt.return_quantity,
+                // 实测值补录链：收回单登记的三列实测值逐列透传给匹行（同一单据同一事务，
+                // 不做二次读取/不做主数据回落）；NULL 原样透传 ⇒ 标签继续按缺值点名拒绝。
+                weight: updated_receipt.weight,
+                width: updated_receipt.width,
+                gram_weight: updated_receipt.gram_weight,
                 grade: updated_receipt.grade.as_deref(),
                 remarks: &format!(
                     "委外回仓 {} 生成（订单 {}）",
@@ -375,7 +535,36 @@ impl OutsourcingReceiptService {
         )
         .await?;
 
+        // 占用闭环转出：确认收回时，发料时被占用（RESERVED）的原胚布匹实物已转到
+        // 委外商处并已由上方生成新染色匹回仓，原匹 CAS（RESERVED→SHIPPED）标记已转出。
+        // 历史数据（占用闭环上线前发料、匹从未 RESERVED）CAS 不命中时由域服务
+        // 逐匹 tracing::warn! 留痕后跳过——不静默，也不因此硬失败收回确认。
+        // 明细读取同样在本事务内（读取顺序与 order.rs 发料/取消路径同源）。
+        let issue_items: Vec<ItemModel> = ItemEntity::find()
+            .filter(outsourcing_order_item::Column::OutsourcingOrderId.eq(order.id))
+            .order_by_desc(outsourcing_order_item::Column::Id)
+            .all(&txn)
+            .await?;
+        crate::services::piece_domain_service::mark_reserved_pieces_shipped_on_receipt(
+            &txn,
+            &issue_items,
+            operator_id,
+        )
+        .await?;
+
         if calc.abnormal_loss_amount > Decimal::ZERO {
+            // 损耗处理凭证号（统一生成器，事务内取号：`OVLS{YYYYMMDD}{3位流水}`）
+            let loss_voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+                &txn,
+                "OVLS",
+                VoucherEntity,
+                VoucherColumn::VoucherNo,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "委外损耗凭证号生成失败");
+                AppError::business_displayable("委外损耗凭证号生成失败，请稍后重试")
+            })?;
             let vat_rate = Decimal::new(13, 2);
             let total_cost_basis = order.material_cost + order.processing_fee + order.freight_fee;
             let processing_ratio = if total_cost_basis > Decimal::ZERO {
@@ -387,7 +576,7 @@ impl OutsourcingReceiptService {
 
             let loss_voucher = VoucherActiveModel {
                 id: Default::default(),
-                voucher_no: Set(Self::generate_voucher_no("LS")),
+                voucher_no: Set(loss_voucher_no),
                 outsourcing_order_id: Set(order.id),
                 voucher_type: Set(outsourcing_voucher_type::LOSS.to_string()),
                 debit_account: Set("营业外支出".to_string()),

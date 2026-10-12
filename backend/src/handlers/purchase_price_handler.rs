@@ -1,17 +1,19 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_price;
+use crate::models::status::price_approval;
 use crate::services::purchase_price_service::{
     CreatePurchasePriceInput, PurchasePriceService, PurchasePriceView,
 };
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
 use serde::Deserialize;
-use tracing::info;
+use tracing::{info, warn};
 use validator::Validate;
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -24,11 +26,19 @@ pub struct PurchasePriceQuery {
     pub page_size: Option<i64>,
 }
 
-#[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct ApprovePriceRequest {
     pub approved: bool,
-    pub remark: Option<String>,
+    /// 审批通过理由：本域服务端必填（缺失/空串/纯空白一律拒绝）。字段保持
+    /// `Option<String>` 是为了让"缺键"调用走到统一的 `AppError` 校验信封，
+    /// 而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+    pub approval_reason: Option<String>,
+}
+
+/// 审批拒绝入参：拒绝理由全域必填（trim 非空）并落 `rejected_reason` 列。
+#[derive(Debug, Deserialize)]
+pub struct RejectPriceRequest {
+    pub reason: String,
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -39,13 +49,35 @@ pub struct UpdatePriceRequest {
     pub status: Option<String>,
 }
 
+/// 采购价目列表 `status` 筛选入参校验（取值域 = `price_approval::ALL`，与 DB CHECK
+/// `chk_purchase_price_status` 全等，词表单源不写字符串字面量）。
+///
+/// 越界值按取值域 `price_approval::ALL` 拒绝并回显允许值；`None` 或去空白后的空串视为不加
+/// 筛选（trim 语义与 greige_fabric / inventory_stock 一致，空串另有 `normalize_empty_query_params`
+/// 中间件在链路更外层先行剔除）。
+fn validate_purchase_price_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    if price_approval::ALL.contains(&value) {
+        return Ok(());
+    }
+    Err(AppError::validation_displayable(format!(
+        "采购价格状态筛选值 {value} 不是合法取值，允许值：{}",
+        price_approval::ALL.join("/")
+    )))
+}
+
 pub async fn list_prices(
     Query(params): Query<PurchasePriceQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<PurchasePriceView>>>, AppError> {
+    validate_purchase_price_status_param(params.status.as_deref())?;
+
     info!("用户 {} 正在查询采购价格列表", auth.user_id);
 
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = PurchasePriceService::new(state.db.clone());
     let query_params = crate::services::purchase_price_service::PurchasePriceQueryParams {
         product_id: params.product_id,
@@ -55,7 +87,9 @@ pub async fn list_prices(
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
 
-    let (prices, _total) = service.get_prices_list(query_params).await?;
+    let (prices, _total) = service
+        .get_prices_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("采购价格列表查询成功，共 {} 条记录", prices.len());
 
     Ok(Json(ApiResponse::success(prices)))
@@ -108,7 +142,7 @@ pub async fn update_price(
             id,
             req.price
                 .parse()
-                .map_err(|e| AppError::validation(format!("价格格式错误：{}", e)))?,
+                .map_err(|e| AppError::validation_displayable(format!("价格格式错误：{}", e)))?,
             req.expiry_date,
             req.status,
         )
@@ -136,22 +170,79 @@ pub async fn approve_price(
     State(state): State<AppState>,
     Path(id): Path<i32>,
     auth: AuthContext,
-    Json(req): Json<ApprovePriceRequest>,
+    payload: OptionalJson<ApprovePriceRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 批次 199 P1-6：真实接入请求体，原 stub 丢弃 _req 导致 approved=false 仍执行批准
-    if !req.approved {
-        return Err(AppError::validation(
-            "审批拒绝请使用专用拒绝接口，本接口仅处理批准操作",
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400；缺体在此归一为 None，由下方"通过理由必填"校验分支给出
+    // 统一 AppError 信封（字段必填语义不变，不属于放松必填）。
+    let req = payload.0;
+
+    // 端点单一职责：本端点只处理批准，approved=false 不做任何写入，拒绝指向真实
+    // 存在的独立拒绝端点（reject_price）。
+    if matches!(&req, Some(r) if !r.approved) {
+        warn!(
+            "用户 {} 批准采购价格被拒：记录 ID {id} 提交 approved=false（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable(
+            "审批拒绝请提交至价格拒绝接口，本接口仅处理批准操作",
         ));
     }
+
+    // 通过理由本域必填：缺失/空串/纯空白一律 400 VALIDATION_ERROR；可外显文案
+    // 定性、不含记录 ID（utils/error.rs 安全边界），ID 只进 warn 日志。
+    let approval_reason = req
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            warn!(
+                "用户 {} 批准采购价格被拒：记录 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
     info!(
-        "用户 {} 正在批准采购价格，ID: {}，备注: {:?}",
-        auth.user_id, id, req.remark
+        "用户 {} 正在批准采购价格，ID: {}，通过理由: {}",
+        auth.user_id, id, approval_reason
     );
 
     let service = PurchasePriceService::new(state.db.clone());
-    service.approve_price(id, auth.user_id).await?;
-    info!("采购价格批准成功，ID: {}，备注: {:?}", id, req.remark);
+    service
+        .approve_price(id, auth.user_id, approval_reason)
+        .await?;
+    info!("采购价格批准成功，ID: {}", id);
+
+    Ok(Json(ApiResponse::success(())))
+}
+
+pub async fn reject_price(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(req): Json<RejectPriceRequest>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+    // 拒绝理由必填与报价单域 reject 通道同范式（quotation_handler）：trim 非空，空串/纯空白
+    // 400 VALIDATION_ERROR；落库为 trim 后的值；可外显文案不含记录 ID。
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝采购价格被拒：记录 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
+    info!(
+        "用户 {} 正在拒绝采购价格，ID: {}，拒绝理由: {}",
+        auth.user_id, id, reason
+    );
+
+    let service = PurchasePriceService::new(state.db.clone());
+    service.reject_price(id, auth.user_id, reason).await?;
+    info!("采购价格拒绝成功，ID: {}", id);
 
     Ok(Json(ApiResponse::success(())))
 }

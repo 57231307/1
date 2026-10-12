@@ -73,6 +73,19 @@ const rules: FormRules = {
       message: t('customerCredit.amount.validation.amountRequired'),
       trigger: 'blur',
     },
+    {
+      // 后端 occupy/release 共用 CreditAmountRequest，绑定 validate_amount_range 强制 amount>0
+      // （backend/src/handlers/customer_credit_handler.rs:82-84 + utils/validator.rs:14）；
+      // async-validator 的 required 对数字 0 视为有效值，拦不住表单默认的 0。
+      validator: (_rule, value, callback) => {
+        if (value !== undefined && value !== null && Number(value) <= 0) {
+          callback(new Error(t('customerCredit.amount.validation.amountMustPositive')));
+        } else {
+          callback();
+        }
+      },
+      trigger: 'blur',
+    },
   ],
 };
 
@@ -96,13 +109,11 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     submitLoading.value = true;
     if (props.operationType === 'occupy') {
-      await occupyCredit(props.customerId, {
-        amount: form.amount,
-        business_type: 'manual',
-        business_id: 0,
-      });
+      await occupyCredit(props.customerId, { amount: form.amount });
     } else {
-      await releaseCredit(props.customerId, 0);
+      // 后端 release_credit 只认 amount（见 api/customer-credit.ts 注释），
+      // 这里必须提交表单真实金额，不能再传占位 0。
+      await releaseCredit(props.customerId, { amount: form.amount });
     }
     ElMessage.success(t('customerCredit.amount.message.success'));
     visible.value = false;

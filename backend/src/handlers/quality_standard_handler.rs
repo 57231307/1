@@ -4,6 +4,7 @@ use crate::models::quality_standard;
 use crate::services::quality_standard_service::QualityStandardService;
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // V15 P0-S11：导出审计日志写入所需依赖
@@ -207,13 +208,14 @@ pub async fn approve_standard(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    Json(req): Json<QualityApproveRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为 None，状态门由服务层执行
+    OptionalJson(req): OptionalJson<QualityApproveRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     info!("用户 {} 正在审批质量标准：{}", auth.username, id);
 
     let service = QualityStandardService::new(state.db.clone());
     service
-        .approve_standard(id, auth.user_id, req.approval_comment)
+        .approve_standard(id, auth.user_id, req.and_then(|r| r.approval_comment))
         .await?;
 
     info!("质量标准审批成功：{}", id);

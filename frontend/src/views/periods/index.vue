@@ -121,19 +121,23 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getAccountingPeriodList,
   getAccountingPeriod,
-  createPeriodByYearPeriod,
+  createAccountingPeriod,
   closePeriod,
   reopenPeriod,
   initPeriod,
   yearEndClosing,
   type AccountingPeriodDetail,
 } from '@/api/accounting-period';
+
+const { t } = useI18n({ useScope: 'global' });
 
 type PeriodStatus = 'OPEN' | 'CLOSED';
 
@@ -192,24 +196,38 @@ const loadList = async () => {
   }
 };
 
-/** 启停：OPEN → 关账停用（close）；CLOSED → 重开启用（reopen） */
+/** 启停：OPEN → 关账停用（close）；CLOSED → 重开启用（reopen，后端 ReopenPeriodRequest.reason 必填） */
 const handleToggle = async (row: AccountingPeriodDetail, mode: 'close' | 'reopen') => {
   const label = mode === 'close' ? '关账停用' : '重开启用';
   try {
-    await ElMessageBox.confirm(
-      `确认对期间 ${row.period_name || `${row.year}-${row.period}`} 执行「${label}」吗？`,
-      '操作确认',
-      { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
-    );
     if (mode === 'close') {
+      await ElMessageBox.confirm(
+        `确认对期间 ${row.period_name || `${row.year}-${row.period}`} 执行「${label}」吗？`,
+        '操作确认',
+        { confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning' }
+      );
       await closePeriod(row.id);
     } else {
-      await reopenPeriod(row.id);
+      // reason 为非 Option String 必填字段，缺失即 422：必须真实采集，不得兜底空串
+      const { value } = await ElMessageBox.prompt(
+        t('accountingPeriod.message.reopenReasonPrompt', {
+          name: row.period_name || `${row.year}-${row.period}`,
+        }),
+        t('accountingPeriod.message.reopenConfirmTitle'),
+        {
+          type: 'warning',
+          inputType: 'textarea',
+          inputPlaceholder: t('accountingPeriod.message.reopenReasonPlaceholder'),
+          inputValidator: (v: string) =>
+            (v && v.trim()) || t('accountingPeriod.message.reopenReasonRequired'),
+        }
+      );
+      await reopenPeriod(row.id, value.trim());
     }
     ElMessage.success(`操作成功：${label}`);
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error(`操作失败：${label}`);
   }
 };
@@ -229,7 +247,7 @@ const handleInit = async () => {
     ElMessage.success('初始化成功');
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error('初始化失败');
   }
 };
@@ -256,7 +274,7 @@ const handleYearEnd = async () => {
     );
     await loadList();
   } catch (error) {
-    if (error === 'cancel' || (error as { message?: string })?.message === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     ElMessage.error('年度结账失败');
   }
 };
@@ -290,7 +308,7 @@ const submitCreate = async () => {
     if (!formData.year || !formData.period) return;
     submitLoading.value = true;
     try {
-      await createPeriodByYearPeriod({ year: formData.year, period: formData.period });
+      await createAccountingPeriod({ year: formData.year, period: formData.period });
       ElMessage.success('会计期间创建成功');
       createVisible.value = false;
       await loadList();

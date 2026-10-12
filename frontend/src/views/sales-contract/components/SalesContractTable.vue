@@ -142,7 +142,10 @@ const columns: ColumnDef<SalesContract>[] = [
     title: t('salesContract.table.columnTotalAmount'),
     width: 120,
     align: 'right',
-    formatter: row => formatCurrency(row.total_amount),
+    // 后端 sales_contract.rs:17 total_amount=Option<Decimal> → JSON 字符串（或 null），
+    // 前端类型如实声明 string | null（api/sales-contract.ts:12,25）；formatCurrency 只吃 number，
+    // 故消费处 Number() 归一，null 透传由 formatCurrency 统一显示，禁止对字符串直接 .toFixed。
+    formatter: row => formatCurrency(row.total_amount == null ? null : Number(row.total_amount)),
   },
   {
     key: 'signed_date',

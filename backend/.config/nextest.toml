@@ -1,0 +1,80 @@
+# cargo-nextest 配置（任务板 #290）—— 串行化集成测试，规避夹具全局 TRUNCATE 互清窗口
+#
+# 背景（取证，非推测）：
+# 集成测试夹具 setup_test_db() 每次调用都对 public 下**全部业务表**执行
+#   `TRUNCATE … RESTART IDENTITY CASCADE`
+# （实现见 src/services/test_common.rs::setup_test_db → reset_business_tables，
+#  tests/test_common/mod.rs 仅是再导出 shim）。这是对整库的破坏性操作，
+#  天然与"同一只 PostgreSQL 上并发跑多个集成测试"互斥：
+#  用例 A 的 TRUNCATE 会清掉并行用例 B 刚写入、并即将断言的业务行。
+#
+# 现状：CI 的三个 nextest job（分片 10 分区、ignored 真库、llvm-cov）都在命令行上
+#  带了 `--test-threads=1`。按官方 running-tests 文档原文：
+#  "-jN, --test-threads=N  Number of tests to run simultaneously"——这是 nextest
+#  自己的进程级并发上限（非 cargo test 的进程内 harness 参数），CI 已全局一次只跑
+#  一个测试进程，串行组对其**零额外减速**。本配置的作用是把"集成测试彼此不得并发"
+#  固化为配置层不变量：本地 `cargo nextest run` 不带该参数时默认按 CPU 核数并行，
+#  正是"上次绿这次红"的互清场景，由本组的 max-threads = 1 确定性拦截。
+#
+# 本配置把该不变量固化进配置，使本地与 CI 行为一致，确定性消除互清窗口。
+# lib/bin 单元测试（kind(lib)/kind(bin)）不并入本组：src 内无夹具调用点，
+# 不触碰这只共享 PG，继续按默认并行跑。
+#
+# 【语法版本说明（2026-10-05 复核，防止静默死配置）】
+# 本文件早前使用 `serial = '<group>'` + `[profile.<p>.serial.<group>]` 旧语法。
+# 经对当前 CI 实际安装的 cargo-nextest（taiki-e/install-action@v2 → 最新稳定
+# 0.9.146）源码复核：nextest-runner/src/config/overrides/imp.rs 的
+# DeserializedOverride 已无 `serial` 字段（仅 test-group），未知键经 serde_ignored
+# 收集后只打 "ignoring unknown configuration key" 警告并继续（nextest-runner/
+# src/config/core/imp.rs 的 ConfigWarnings::unknown_config_keys）——即旧语法会被
+# **静默忽略**，串行化从未真正生效，属假绿陷阱。现按官方现行语法
+# （nexte.st/docs/configuration/test-groups/，0.9.48 起引入）重写为
+# 顶层 [test-groups] + override `test-group = ...`。
+#
+# 配置文件落位依据：cargo-nextest 默认从 **workspace 根** 的 .config/nextest.toml
+# 读取（CLI help 原文：`--config-file <PATH> ... [default: workspace-root/.config/nextest.toml]`）。
+# 本仓 workspace 根 = backend/（backend/Cargo.toml:216-217 `[workspace] members = [".", "migration"]`，
+# Cargo.lock 在 backend/，仓库根无 Cargo.toml），CI 各 nextest job 亦均 working-directory: backend，
+# 故本文件放在 backend/.config/ 下是正确落位、会被解析。
+#
+# 【诚实声明】这是【治标】：用串行化规避夹具的全局 TRUNCATE，而非根除破坏性清理本身。
+#  真正的【根修】应把夹具清理粒度从"全局业务表 TRUNCATE"降为
+#  "每用例按唯一前缀 DELETE 自有行"或"每用例独立 schema / 事务回滚隔离"，
+#  但那必须改 src/services/test_common.rs（本任务禁止改 src），已交回编排方处理。
+
+# 组声明是全局表：组名 → 并发上限。max-threads = 1 即组内互斥（串行）。
+[test-groups]
+db-integration = { max-threads = 1 }
+
+[profile.default]
+# 集成测试（tests/ 目录下的测试二进制，kind(test)——按官方 filterset 语义仅匹配
+# integration tests，不含 lib/bin 单元测试）全部并入 db-integration 组，彼此串行。
+[[profile.default.overrides]]
+filter = 'kind(test)'
+test-group = 'db-integration'
+
+# ---------------------------------------------------------------------------
+# 复现用诊断档（仅取证，切勿作为默认档或在真库回归中长期使用）：
+# 刻意【不】套用上面的串行组，用于活体证明互清窗口真实存在。
+# 用法（需 TEST_DATABASE_URL 指向已迁移的 PostgreSQL）：
+#   cargo nextest run -P repro-race --run-ignored only \
+#     --test fixture_truncate_race_repro --test-threads 4
+# 预期：repro_race_victim 稳定 FAIL（哨兵行被并行 clearer 的 setup_test_db TRUNCATE 清空）。
+# 而在 default 档（或串行组生效的任何档）下，同一对用例恒绿——即"修复后必绿"。
+# ---------------------------------------------------------------------------
+[profile.repro-race]
+inherits = "default"
+
+# override 匹配语义（官方 per-test-overrides 文档原文）：
+# "Starting with the selected profile, then following its inheritance chain through
+#  default, the first override that matches T and configures S is applied."
+# 即 repro-race 档下，本档自己的 override 先于继承自 default 的 override 被检查，
+# kind(test) 命中本条 → 进 repro-parallel 组（上限 100，远超 runner 核数，
+# 组内实际并发只受全局 -j 限制 ⇒ 不再互斥），default 的 db-integration 不再命中。
+[[profile.repro-race.overrides]]
+filter = 'kind(test)'
+test-group = 'repro-parallel'
+
+# repro-parallel 组声明（同为全局表；仅供诊断档使用，default 档不受影响）。
+[test-groups.repro-parallel]
+max-threads = 100

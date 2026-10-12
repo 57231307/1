@@ -8,6 +8,7 @@
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { i18n } from '@/i18n';
+import { isDialogDismissal } from '@/utils/monitor';
 import {
   autoReconcile,
   getAutoReconciliationResults,
@@ -91,8 +92,7 @@ export function useArRec() {
       ElMessage.success(t('arReconciliationModule.autoReconcileStarted'));
       await loadData();
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error(t('arReconciliationModule.startReconcileFailed'));
       }
     } finally {
@@ -124,8 +124,7 @@ export function useArRec() {
       await sendCustomerConfirmation(row.id);
       ElMessage.success(t('arReconciliationModule.confirmationSent'));
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error(t('arReconciliationModule.sendConfirmationFailed'));
       }
     }
@@ -162,8 +161,7 @@ export function useArRec() {
       ElMessage.success(t('common.message.operationSuccess'));
       await handleViewConfirmations();
     } catch (error: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error(t('common.failed'));
       }
     }

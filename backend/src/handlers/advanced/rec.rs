@@ -10,6 +10,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::ai::AiAnalysisService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 // ============================================================================
@@ -20,15 +21,16 @@ use crate::utils::response::ApiResponse;
 pub async fn recommendations(
     State(state): State<AppState>,
     _auth: AuthContext,
-    payload: Option<Json<RecommendationRequest>>,
+    payload: OptionalJson<RecommendationRequest>,
 ) -> Result<Json<ApiResponse<Vec<Recommendation>>>, AppError> {
     let service = AiAnalysisService::new(state.db);
 
     let rec_type = payload
+        .0
         .as_ref()
         .and_then(|p| p.recommendation_type.clone())
         .unwrap_or_else(|| "all".to_string());
-    let limit = payload.as_ref().and_then(|p| p.limit).unwrap_or(10);
+    let limit = payload.0.as_ref().and_then(|p| p.limit).unwrap_or(10);
 
     let recs = service.generate_recommendations(rec_type, limit).await?;
 

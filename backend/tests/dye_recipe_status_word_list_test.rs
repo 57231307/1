@@ -5,7 +5,9 @@
 //! 本项目口径（用户拍板）：DB/service 用小写英文闭合词表，中文只出现在前端 i18n 展示层。
 //!
 //! 本测试锁死三条不变量，防止再次漂移：
-//! 1. 词表常量值逐项 == 迁移 v15 域尾 CHECK `chk_dye_recipe_status` 的取值集（顺序一致）。
+//! 1. 词表常量值逐项 == 现行生效 CHECK `chk_dye_recipe_status` 的取值集（顺序一致）。
+//!    CHECK 的生效定义在链尾扩集域 `migration/src/domain/dye_recipe_reject/` 的 up()
+//!    （v15 域尾四值集是历史基线，扩 rejected 后以链尾重建为准）。
 //! 2. 词表常量均为小写纯 ASCII（不含任何中文状态值）。
 //! 3. dye_recipe 的 Rust 写入/比较点无中文状态字面量、无裸状态字面量——一律引常量。
 
@@ -33,15 +35,22 @@ fn code_only(src: &str) -> String {
         .join("\n")
 }
 
-/// 从迁移 v15 域尾源码中解析 CHECK chk_dye_recipe_status 的 IN(...) 取值列表。
+/// 从链尾扩集迁移（domain/dye_recipe_reject/m0091）源码中解析现行生效 CHECK
+/// chk_dye_recipe_status 的 IN(...) 取值列表。
+/// 只取 up() 段：down() 恢复的是 v15 历史四值窄集，不是现行生效定义。
 fn parse_migration_check_values() -> Vec<String> {
-    let sql = read("migration/src/domain/v15/mod.rs");
-    // 锚定 ADD CONSTRAINT 定义处（唯一），而非注释里对该约束名的后续提及。
+    let sql =
+        read("migration/src/domain/dye_recipe_reject/m0091_widen_dye_recipe_status_for_reject.rs");
+    let down_pos = sql
+        .find("async fn down")
+        .unwrap_or_else(|| panic!("m0091 未找到 down 段边界，无法截取 up 段解析 CHECK"));
+    let up_src = &sql[..down_pos];
+    // 锚定 up 段 ADD CONSTRAINT 定义处（唯一），而非注释/守卫 SQL 里对该约束名的后续提及。
     let anchor = "ADD CONSTRAINT \"chk_dye_recipe_status\"";
-    let start = sql
+    let start = up_src
         .find(anchor)
-        .unwrap_or_else(|| panic!("迁移 v15 域尾未找到 {anchor}"));
-    let tail = &sql[start..];
+        .unwrap_or_else(|| panic!("m0091 up 段未找到 {anchor}"));
+    let tail = &up_src[start..];
     // CHECK ("status" IN ( ... ))：从 IN 之后首个左括号取到其匹配右括号前的取值串。
     let in_pos = tail.find("IN (").or_else(|| tail.find("IN("));
     let in_pos = in_pos.unwrap_or_else(|| panic!("{anchor} 缺少 IN (...) 取值"));
@@ -66,24 +75,26 @@ fn parse_migration_check_values() -> Vec<String> {
     values
 }
 
-/// 1. 词表常量值逐项 == 迁移 CHECK 取值集（一一对应，不丢状态、不自创状态）。
+/// 1. 词表常量值逐项 == 现行生效 CHECK 取值集（一一对应，不丢状态、不自创状态）。
 #[test]
 fn dye_recipe_word_list_equals_migration_check_set() {
     let constants = vec![
         recipe_status::DRAFT.to_string(),
         recipe_status::PENDING_APPROVAL.to_string(),
         recipe_status::APPROVED.to_string(),
+        recipe_status::REJECTED.to_string(),
         recipe_status::DISABLED.to_string(),
     ];
     let check = parse_migration_check_values();
     assert_eq!(
         constants, check,
-        "词表常量值集合必须与迁移 CHECK chk_dye_recipe_status 取值集逐项相等"
+        "词表常量值集合必须与现行生效 CHECK chk_dye_recipe_status 取值集逐项相等"
     );
-    // 语义闭合：4 个状态一一对应收口前的中文值（草稿/待审核/已审核/已停用）。
+    // 语义闭合：5 个状态一一对应收口前的中文值（草稿/待审核/已审核/已拒绝/已停用）。
     assert_eq!(recipe_status::DRAFT, "draft");
     assert_eq!(recipe_status::PENDING_APPROVAL, "pending_approval");
     assert_eq!(recipe_status::APPROVED, "approved");
+    assert_eq!(recipe_status::REJECTED, "rejected");
     assert_eq!(recipe_status::DISABLED, "disabled");
     // ALL 常量与逐项一致，作为迁移/校验唯一来源。
     let all: Vec<&str> = recipe_status::ALL.to_vec();
@@ -128,6 +139,7 @@ fn dye_recipe_rust_sites_have_no_bare_status_literals() {
         "\"draft\"",
         "\"pending_approval\"",
         "\"approved\"",
+        "\"rejected\"",
         "\"disabled\"",
     ];
     for rel in [
@@ -146,7 +158,13 @@ fn dye_recipe_rust_sites_have_no_bare_status_literals() {
 
     // 正向：service 确实通过 recipe_status:: 常量读写状态（而非仅依赖上一条的否定式）。
     let svc = read("src/services/dye_recipe_service.rs");
-    for cst in ["DRAFT", "PENDING_APPROVAL", "APPROVED", "DISABLED"] {
+    for cst in [
+        "DRAFT",
+        "PENDING_APPROVAL",
+        "APPROVED",
+        "REJECTED",
+        "DISABLED",
+    ] {
         let needle = format!("recipe_status::{cst}");
         assert!(
             svc.contains(needle.as_str()),

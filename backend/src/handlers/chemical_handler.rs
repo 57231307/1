@@ -13,6 +13,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::{chemical_category, chemical_lot, chemical_master, chemical_requisition};
 use crate::services::chemical_service::{
     ChemicalCategoryQuery, ChemicalCategoryService, ChemicalLotQuery, ChemicalLotService,
@@ -115,13 +116,6 @@ pub struct InspectionReportRequest {
     pub inspection_report_url: Option<String>,
 }
 
-/// 发料/审批请求体（用于 approve / issue 接口）
-#[derive(Debug, Deserialize)]
-#[allow(dead_code, reason = "反序列化输入字段")]
-pub struct OperatorRequest {
-    pub operator_id: Option<i32>,
-}
-
 // ============================================================================
 // 染化料主数据 Handler
 // ============================================================================
@@ -155,9 +149,11 @@ pub async fn list_chemicals(
 /// POST /api/v1/erp/chemicals - 创建染化料主数据
 pub async fn create_chemical(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateChemicalMasterRequest>,
 ) -> Result<Json<ApiResponse<chemical_master::Model>>, AppError> {
-    let model = master_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = master_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -299,9 +295,11 @@ pub async fn list_chemical_lots(
 /// POST /api/v1/erp/chemical-lots - 创建染化料批次
 pub async fn create_chemical_lot(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateChemicalLotRequest>,
 ) -> Result<Json<ApiResponse<chemical_lot::Model>>, AppError> {
-    let model = lot_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = lot_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -415,9 +413,13 @@ pub async fn list_requisitions(
 /// POST /api/v1/erp/chemical-requisitions - 创建染化料领用单
 pub async fn create_requisition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateChemicalRequisitionRequest>,
 ) -> Result<Json<ApiResponse<chemical_requisition::Model>>, AppError> {
-    let model = requisition_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = requisition_service(&state)
+        .create(req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -459,26 +461,27 @@ pub async fn delete_requisition(
 }
 
 /// POST /api/v1/erp/chemical-requisitions/:id/approve - 审批领用单
+// 审批人身份只认服务端会话（AuthContext.user_id），端点无任何必填报文字段，
+// 故不绑定 body 提取器：缺体/带 JSON 头空体都是合法输入，直接进服务层状态门。
 pub async fn approve_requisition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<OperatorRequest>,
 ) -> Result<Json<ApiResponse<chemical_requisition::Model>>, AppError> {
     let model = requisition_service(&state)
-        .approve(id, req.operator_id)
+        .approve(id, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
 /// POST /api/v1/erp/chemical-requisitions/:id/issue - 发料
+// 同上：发料人身份取会话，不接 body（状态门在服务层）。
 pub async fn issue_requisition(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<OperatorRequest>,
 ) -> Result<Json<ApiResponse<chemical_requisition::Model>>, AppError> {
-    let model = requisition_service(&state)
-        .issue(id, req.operator_id)
-        .await?;
+    let model = requisition_service(&state).issue(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

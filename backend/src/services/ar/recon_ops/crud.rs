@@ -17,7 +17,9 @@ use crate::models::ar_reconciliation::{
     ActiveModel, Entity as ReconciliationEntity, Model as ReconciliationModel,
 };
 use crate::models::ar_reconciliation_item;
+use crate::models::customer;
 use crate::models::status::ar as ar_status;
+use crate::utils::data_scope::{DataScope, DataScopeContext, apply_department_scope};
 use crate::utils::error::AppError;
 
 use super::super::{
@@ -31,7 +33,13 @@ impl ArReconciliationService {
         &self,
         req: CreateReconciliationRequest,
     ) -> Result<ReconciliationModel, AppError> {
-        let closing_balance = req.opening_balance + req.total_invoices - req.total_collections;
+        // 期末余额判据统一走权威纯函数（vfy_ops/match.rs::compute_closing_balance），
+        // 禁止本模块再留内联副本。
+        let closing_balance = Self::compute_closing_balance(
+            req.opening_balance,
+            req.total_invoices,
+            req.total_collections,
+        );
 
         let active_model = ActiveModel {
             id: Default::default(),
@@ -50,7 +58,7 @@ impl ArReconciliationService {
             dispute_reason: Set(None),
             confirmed_by: Set(None),
             confirmed_at: Set(None),
-            created_by: Set(None),
+            created_by: Set(req.created_by),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             // 批次 109 P1-1：接入 notes 持久化（原 DTO 有字段但未写入 DB）
@@ -69,12 +77,44 @@ impl ArReconciliationService {
         Ok(model)
     }
 
-    /// 获取对账单列表
+    /// 获取对账单列表（带行级数据权限）。
+    ///
+    /// 对账单表无自身部门列，归属继承父客户（customers 为 m_rls_dept_domain RLS 表，
+    /// 归属列 `owner_id`、冗余部门列 `department_id`）。`data_scope` 非 `All` 时先在
+    /// customers 上以 `apply_department_scope` 下推得到可见客户 id 集合，再在查询构造处
+    /// 以 `customer_id IN` 该集合收窄——非 handler 后置过滤，保证分页 `total` 与可见集
+    /// 一致，杜绝"不传 customer_id 即全量 AR 对账单可见"。`All` 用户可见全部客户，跳过
+    /// 子查询避免全表 id 物化。既有可选 customer_id 筛选在可见集合之上再 AND 收窄，
+    /// 只能在可见集内进一步过滤。与单行门 `check_resource_owner`（同样借父 customer 的
+    /// `owner_id`/`department_id`）同源，列表可见 ⇔ 详情可读，不产生"列表能看点详情 403"。
+    ///
+    /// 本方法是列表的唯一通路：不设"不带 scope 的平行版本"，否则新增调用点漏传即静默全量可见。
     pub async fn list(
         &self,
         query: ReconciliationQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<ReconciliationModel>, u64), AppError> {
         let mut select = ReconciliationEntity::find();
+
+        if let Some(ctx) = data_scope {
+            if ctx.scope != DataScope::All {
+                let visible_ids: Vec<i32> = apply_department_scope(
+                    customer::Entity::find(),
+                    ctx,
+                    customer::Column::OwnerId,
+                    customer::Column::DepartmentId,
+                )
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|c| c.id)
+                .collect();
+                // 可见集为空时 sea-query 把 `IN ()` 渲染为恒假（`1 = 2`），即"无可见客户即无可见对账单"。
+                select = select.filter(
+                    crate::models::ar_reconciliation::Column::CustomerId.is_in(visible_ids),
+                );
+            }
+        }
 
         if let Some(status) = query.status {
             select = select
@@ -125,6 +165,13 @@ impl ArReconciliationService {
             .await?
             .ok_or_else(|| AppError::not_found("对账单不存在"))?;
 
+        // 状态门：对账单一经发出即进入客户对账流程，改它会让已送出的单据与回执不一致，
+        // 故只允许草稿态更新。非草稿一律拒绝（400 + BUSINESS_ERROR），且在写入之前返回，
+        // 事务随之回滚，不留半改。
+        if model.reconciliation_status.as_deref() != Some(ar_status::RECONCILIATION_DRAFT) {
+            return Err(AppError::business("对账单已发出，不允许修改"));
+        }
+
         let mut active_model: ActiveModel = model.into();
 
         if let Some(opening_balance) = req.opening_balance {
@@ -144,7 +191,11 @@ impl ArReconciliationService {
         let opening = *active_model.opening_balance.as_ref();
         let invoices = *active_model.total_invoices.as_ref();
         let collections = *active_model.total_collections.as_ref();
-        active_model.closing_balance = Set(opening + invoices - collections);
+        active_model.closing_balance = Set(Self::compute_closing_balance(
+            opening,
+            invoices,
+            collections,
+        ));
 
         active_model.updated_at = Set(Utc::now());
 

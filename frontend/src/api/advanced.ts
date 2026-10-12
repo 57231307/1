@@ -12,7 +12,9 @@ export const detectAnomalies = (data: {
   date_range?: Record<string, unknown>;
 }) => request.post('/advanced/ai/anomaly-detection', data);
 
-export const getRecommendations = (data?: { type?: string }) =>
+// 键名逐字对齐后端 RecommendationRequest（handlers/advanced/rec.rs：recommendation_type/limit，
+// 均 Option → 可选；原键 type 后端不存在，被 serde 静默丢弃 → 过滤恒不生效）
+export const getRecommendations = (data?: { recommendation_type?: string; limit?: number }) =>
   request.post('/advanced/ai/recommendations', data);
 
 // 染色工艺参数智能推荐（A2-1 工艺优化）

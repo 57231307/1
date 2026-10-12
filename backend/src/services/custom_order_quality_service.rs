@@ -51,8 +51,13 @@ impl CustomOrderQualityService {
     }
 
     /// 上报质量异常
+    ///
+    /// 契约修复（售后先例同构）：`custom_order_id` 由调用方（handler）
+    /// 从路由 path 参数权威传入，不从请求体 DTO 取值，客户端 body 伪造归属被
+    /// 结构性排除。
     pub async fn report_issue(
         &self,
+        custom_order_id: i64,
         dto: ReportQualityIssueDto,
     ) -> Result<quality_issue::Model, QualityError> {
         // 校验严重度
@@ -90,7 +95,7 @@ impl CustomOrderQualityService {
         let now = Utc::now();
         let active = ActiveModel {
             id: Default::default(),
-            custom_order_id: Set(dto.custom_order_id),
+            custom_order_id: Set(custom_order_id),
             process_node_id: Set(dto.process_node_id),
             issue_type: Set(dto.issue_type),
             severity: Set(dto.severity),
@@ -119,7 +124,7 @@ impl CustomOrderQualityService {
         detail: serde_json::Value,
     ) -> Result<quality_issue::Model, AppError> {
         if !["5why", "fishbone", "other"].contains(&method) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "根因分析方法必须是 5why/fishbone/other，当前: {}",
                 method
             )));
@@ -181,6 +186,7 @@ impl CustomOrderQualityService {
         &self,
         id: i64,
         dto: ResolveQualityIssueDto,
+        operator_id: i32,
     ) -> Result<quality_issue::Model, AppError> {
         // P2-6 修复（批次 84 v1 复审）：状态门 + update 移入单一事务，加 lock_exclusive 串行化
         // 原实现状态门查询在 self.db 上、update 也在 self.db 上，无事务边界，
@@ -209,7 +215,7 @@ impl CustomOrderQualityService {
             &txn,
             "quality_issue",
             active,
-            Some(dto.operator_id as i32),
+            Some(operator_id),
         )
         .await?;
         txn.commit().await?;

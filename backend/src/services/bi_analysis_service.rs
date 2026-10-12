@@ -70,7 +70,10 @@ pub fn dim_to_expr(dim: &str) -> Result<(&'static str, &'static str), AppError> 
             "to_char(s.order_date, 'YYYY-MM')",
             "to_char(s.order_date, 'YYYY-MM')",
         )),
-        _ => Err(AppError::validation(format!("不支持的维度: {}", dim))),
+        _ => Err(AppError::validation_displayable(format!(
+            "不支持的维度: {}",
+            dim
+        ))),
     }
 }
 
@@ -92,7 +95,10 @@ pub fn measure_to_expr(measure: &str, item_level: bool) -> Result<&'static str, 
         ("profit_amount", false) => Ok(
             "COALESCE(SUM(s.total_amount), 0) - COALESCE(SUM((SELECT SUM(si.quantity * COALESCE(p.cost_price, 0)) FROM sales_order_items si LEFT JOIN products p ON p.id = si.product_id WHERE si.order_id = s.id)), 0)",
         ),
-        _ => Err(AppError::validation(format!("不支持的度量: {}", measure))),
+        _ => Err(AppError::validation_displayable(format!(
+            "不支持的度量: {}",
+            measure
+        ))),
     }
 }
 

@@ -125,7 +125,7 @@
           align="right"
         >
           <template #default="{ row }">
-            {{ formatCurrency(row.estimated_amount) }}
+            {{ displayEstimatedAmount(row) }}
           </template>
         </el-table-column>
         <el-table-column
@@ -134,7 +134,7 @@
           width="100"
           align="center"
         >
-          <template #default="{ row }"> {{ row.win_probability }}% </template>
+          <template #default="{ row }"> {{ displayWinProbability(row) }} </template>
         </el-table-column>
         <el-table-column
           prop="opportunity_stage"
@@ -252,7 +252,6 @@
       v-model="formDialogVisible"
       :title="formDialogTitle"
       :row-data="currentRow"
-      :users="users"
       :customers="customers"
       @submitted="handleFormSubmitted"
     />
@@ -284,11 +283,11 @@
           viewData.owner_name || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.estimatedAmount')">{{
-          formatCurrency(viewData.estimated_amount)
+          displayEstimatedAmount(viewData)
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('crmOpportunities.viewDialog.winProbability')"
-          >{{ viewData.win_probability ?? viewData.probability ?? 0 }}%</el-descriptions-item
-        >
+        <el-descriptions-item :label="t('crmOpportunities.viewDialog.winProbability')">{{
+          displayWinProbability(viewData)
+        }}</el-descriptions-item>
         <el-descriptions-item :label="t('crmOpportunities.viewDialog.stage')">
           <el-tag :type="getStageType(viewData.opportunity_stage || '')">{{
             getStageLabel(viewData.opportunity_stage || '')
@@ -332,6 +331,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus, Download, Search, Refresh } from '@element-plus/icons-vue';
 import {
   updateOpportunity,
@@ -342,7 +342,6 @@ import {
   getStageDuration,
   type Opportunity,
 } from '@/api/crm';
-import { getUserList, type User } from '@/api/user';
 import { getCustomerList, type Customer } from '@/api/customer';
 import { formatCurrency } from '@/utils';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
@@ -367,8 +366,6 @@ interface OpportunityRow extends Opportunity {
   owner_name?: string;
   last_follow_up_date?: string;
   priority?: string;
-  // 批次 95 P3-19 修复：补充列表/详情展示所需字段（后端返回，类型定义缺失）
-  win_probability?: number;
 }
 
 // 键名与后端 OpportunityQuery（crm_dto.rs:108）对齐：后端不读 keyword/owner_id/priority
@@ -392,7 +389,6 @@ const {
   onError: (e: unknown) => logger.warn(t('crmOpportunities.message.loadFailed'), String(e)),
 });
 
-const users = ref<User[]>([]);
 const customers = ref<Customer[]>([]);
 
 const formDialogVisible = ref(false);
@@ -404,16 +400,6 @@ const currentFollowId = ref<number | null>(null);
 // 查看详情对话框状态（批次 95 P3-19 修复）
 const viewDialogVisible = ref(false);
 const viewData = ref<OpportunityRow | null>(null);
-
-const fetchUsers = async () => {
-  try {
-    const res = await getUserList();
-    users.value = res.data.users;
-  } catch (error) {
-    logAuxLoadFailure(t('crmOpportunities.message.loadUsersFailed'), error);
-    users.value = [];
-  }
-};
 
 const fetchCustomers = async () => {
   try {
@@ -480,7 +466,7 @@ const handleWin = async (row: OpportunityRow) => {
     ElMessage.success(t('crmOpportunities.message.winSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmOpportunities.message.winFailed'), (error as Error).message);
       ElMessage.error(t('crmOpportunities.message.winFailed'));
     }
@@ -495,8 +481,9 @@ const handleConvertToOrder = async (row: OpportunityRow) => {
       t('crmOpportunities.table.toOrder'),
       { type: 'info' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('crmOpportunities.handleConvertToOrder', error);
   }
   try {
     const res = await convertOpportunityToOrder(row.id);
@@ -563,7 +550,7 @@ const handleLost = async (row: OpportunityRow) => {
     ElMessage.success(t('crmOpportunities.message.lostSuccess'));
     getList();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.warn(t('crmOpportunities.message.lostFailed'), (error as Error).message);
       ElMessage.error(t('crmOpportunities.message.lostFailed'));
     }
@@ -613,9 +600,29 @@ const getStageLabel = (stage: string) => {
   return t(opportunityStageLabelKey(stage));
 };
 
+// 金额列展示（2026-10-02 裁定：字段级权限对"仅非本人行"移除真实金额列）：
+// - 键缺失 = 本入口不外显金额 → 中性占位（只说结论，不显示任何判定原因）；
+// - null/undefined（键在但库中无值）→ '-' 无值占位，不伪装成 ¥0.00；
+// - Decimal 出参为 JSON 字符串，须经 formatCurrency 归一，禁止 .toFixed()。
+const displayEstimatedAmount = (row: OpportunityRow): string => {
+  if (!('estimated_amount' in row)) return t('crmOpportunities.table.amountHidden');
+  const value = row.estimated_amount;
+  if (value === null || value === undefined) return '-';
+  return formatCurrency(value);
+};
+
+// 赢率列展示：后端 crm_opportunity.win_probability 为 Option<Decimal> 整行直出，
+// 线上形态是 JSON 字符串或 null；null/键缺失/伪形一律按"无值"占位 '-'，
+// 禁止 ?? 兜底把无值显示成 0%（赢率缺省时后端按阶段计算，刷新后即为真实值）。
+const displayWinProbability = (row: OpportunityRow): string => {
+  const value = row.win_probability;
+  if (value === null || value === undefined || value === '') return '-';
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n}%` : '-';
+};
+
 onMounted(() => {
-  // useTableApi 已自动初始加载，此处仅懒加载用户/客户下拉数据
-  loadIfNot('users', fetchUsers, hasLoaded);
+  // useTableApi 已自动初始加载，此处仅懒加载客户下拉数据
   loadIfNot('customers', fetchCustomers, hasLoaded);
 });
 </script>

@@ -25,7 +25,9 @@ pub struct Model {
     pub alert_level: String,
     /// 通知方式（system/email/sms）
     pub notify_method: String,
-    /// 通知角色列表
+    /// 通知角色列表（生效 DDL 为 JSONB，migration v15/mod.rs:2231；无 column_type
+    /// 属性时 SeaORM 按 Vec<String> 推断为 PG 数组，写非 NULL 即崩、读即 ColumnDecode）
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub notify_roles: Option<Vec<String>>,
     /// 是否启用
     pub is_active: bool,

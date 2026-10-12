@@ -38,11 +38,15 @@
     <el-card shadow="hover">
       <el-table
         v-loading="loading"
-        :data="periodList"
+        :data="filteredPeriods"
         stripe
         :aria-label="$t('accountingPeriod.table.ariaLabel')"
       >
-        <el-table-column prop="name" :label="$t('accountingPeriod.table.name')" width="160" />
+        <el-table-column
+          prop="period_name"
+          :label="$t('accountingPeriod.table.name')"
+          width="160"
+        />
         <el-table-column
           prop="year"
           :label="$t('accountingPeriod.table.year')"
@@ -50,7 +54,7 @@
           align="center"
         />
         <el-table-column
-          prop="month"
+          prop="period"
           :label="$t('accountingPeriod.table.month')"
           width="80"
           align="center"
@@ -58,13 +62,13 @@
         <el-table-column
           prop="start_date"
           :label="$t('accountingPeriod.table.startDate')"
-          width="120"
-        />
-        <el-table-column
-          prop="end_date"
-          :label="$t('accountingPeriod.table.endDate')"
-          width="120"
-        />
+          width="160"
+        >
+          <template #default="{ row }">{{ formatDate(row.start_date) }}</template>
+        </el-table-column>
+        <el-table-column prop="end_date" :label="$t('accountingPeriod.table.endDate')" width="160">
+          <template #default="{ row }">{{ formatDate(row.end_date) }}</template>
+        </el-table-column>
         <el-table-column prop="status" :label="$t('accountingPeriod.table.status')" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
@@ -74,22 +78,18 @@
           prop="closed_at"
           :label="$t('accountingPeriod.table.closedAt')"
           width="180"
-        />
+        >
+          <template #default="{ row }">{{
+            row.closed_at ? formatDate(row.closed_at) : '-'
+          }}</template>
+        </el-table-column>
         <el-table-column :label="$t('accountingPeriod.table.operation')" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDialog(row)">{{
               $t('accountingPeriod.table.edit')
             }}</el-button>
             <el-button
-              v-if="row.status === 'pending'"
-              type="success"
-              link
-              size="small"
-              @click="activatePeriod(row)"
-              >{{ $t('accountingPeriod.table.enable') }}</el-button
-            >
-            <el-button
-              v-if="row.status === 'active'"
+              v-if="row.status === 'OPEN'"
               type="warning"
               link
               size="small"
@@ -97,7 +97,7 @@
               >{{ $t('accountingPeriod.table.close') }}</el-button
             >
             <el-button
-              v-if="row.status === 'closed'"
+              v-if="row.status === 'CLOSED'"
               type="info"
               link
               size="small"
@@ -105,7 +105,7 @@
               >{{ $t('accountingPeriod.table.reopen') }}</el-button
             >
             <el-button
-              v-if="row.status !== 'active'"
+              v-if="row.status !== 'CLOSED'"
               type="danger"
               link
               size="small"
@@ -120,13 +120,11 @@
     <el-dialog
       v-model="dialogVisible"
       :title="
-        form.id
-          ? $t('accountingPeriod.dialog.editTitle')
-          : $t('accountingPeriod.dialog.createTitle')
+        isEdit ? $t('accountingPeriod.dialog.editTitle') : $t('accountingPeriod.dialog.createTitle')
       "
       width="500px"
       :aria-label="
-        form.id
+        isEdit
           ? $t('accountingPeriod.dialog.editAriaLabel')
           : $t('accountingPeriod.dialog.createAriaLabel')
       "
@@ -138,33 +136,28 @@
         label-width="100px"
         :aria-label="$t('accountingPeriod.dialog.ariaLabel')"
       >
-        <el-form-item :label="$t('accountingPeriod.dialog.year')" prop="year">
-          <el-input-number v-model="form.year" :min="2000" :max="2100" style="width: 100%" />
-        </el-form-item>
-        <el-form-item :label="$t('accountingPeriod.dialog.month')" prop="month">
-          <el-input-number v-model="form.month" :min="1" :max="12" style="width: 100%" />
-        </el-form-item>
-        <el-form-item :label="$t('accountingPeriod.dialog.name')">
-          <el-input :value="`${form.year}-${String(form.month).padStart(2, '0')}`" disabled />
-        </el-form-item>
-        <el-form-item :label="$t('accountingPeriod.dialog.startDate')" prop="start_date">
-          <el-date-picker
-            v-model="form.start_date"
-            type="date"
-            :placeholder="$t('accountingPeriod.dialog.datePlaceholder')"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
-        <el-form-item :label="$t('accountingPeriod.dialog.endDate')" prop="end_date">
-          <el-date-picker
-            v-model="form.end_date"
-            type="date"
-            :placeholder="$t('accountingPeriod.dialog.datePlaceholder')"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </el-form-item>
+        <template v-if="!isEdit">
+          <el-form-item :label="$t('accountingPeriod.dialog.year')" prop="year">
+            <el-input-number v-model="form.year" :min="2000" :max="2100" style="width: 100%" />
+          </el-form-item>
+          <el-form-item :label="$t('accountingPeriod.dialog.month')" prop="period">
+            <el-input-number v-model="form.period" :min="1" :max="12" style="width: 100%" />
+          </el-form-item>
+          <!-- 起止日期由后端按 year/period 推导（CreateAccountingPeriodPayload 无日期字段），
+               这里仅只读预览，不可编辑，避免"填了不生效"的假采集 -->
+          <el-form-item :label="$t('accountingPeriod.dialog.startDate')">
+            <el-input :value="previewRange.start_date" disabled />
+          </el-form-item>
+          <el-form-item :label="$t('accountingPeriod.dialog.endDate')">
+            <el-input :value="previewRange.end_date" disabled />
+          </el-form-item>
+        </template>
+        <template v-else>
+          <!-- 更新端点仅支持改 period_name / status(OPEN|CLOSING)，年度/期间/日期后端不可改 -->
+          <el-form-item :label="$t('accountingPeriod.dialog.name')" prop="period_name">
+            <el-input v-model="form.period_name" maxlength="50" />
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{
@@ -179,6 +172,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -190,7 +184,7 @@ import {
   deleteAccountingPeriod,
   closePeriod as closePeriodApi,
   reopenPeriod as reopenPeriodApi,
-  type AccountingPeriodEntity,
+  type AccountingPeriodDetail,
 } from '@/api/accounting-period';
 import { logger } from '@/utils/logger';
 
@@ -199,74 +193,66 @@ const { t } = useI18n({ useScope: 'global' });
 const loading = ref(false);
 const submitLoading = ref(false);
 const dialogVisible = ref(false);
-const periodList = ref<AccountingPeriodEntity[]>([]);
+const periodList = ref<AccountingPeriodDetail[]>([]);
 const formRef = ref<FormInstance>();
 
 const queryForm = reactive({
   year: new Date().getFullYear(),
 });
 
-const form = reactive<Partial<AccountingPeriodEntity>>({
+const isEdit = computed(() => !!form.id);
+
+const form = reactive<{ id?: number; year: number; period: number; period_name: string }>({
   id: undefined,
-  name: '',
   year: new Date().getFullYear(),
-  month: 1,
-  start_date: '',
-  end_date: '',
-  status: 'pending',
+  period: 1,
+  period_name: '',
 });
 
 const rules = computed<FormRules>(() => ({
   year: [
     { required: true, message: t('accountingPeriod.validation.yearRequired'), trigger: 'blur' },
   ],
-  month: [
+  period: [
     { required: true, message: t('accountingPeriod.validation.monthRequired'), trigger: 'blur' },
-  ],
-  start_date: [
-    {
-      required: true,
-      message: t('accountingPeriod.validation.startDateRequired'),
-      trigger: 'change',
-    },
-  ],
-  end_date: [
-    {
-      required: true,
-      message: t('accountingPeriod.validation.endDateRequired'),
-      trigger: 'change',
-    },
   ],
 }));
 
+// 状态词表写入方：services/accounting_period_service.rs + models/status/finance.rs
+// （OPEN / CLOSING / CLOSED 全大写），比较点与之逐字符一致
 const getStatusLabel = (status: string) => {
   const map: Record<string, string> = {
-    pending: t('accountingPeriod.status.pending'),
-    active: t('accountingPeriod.status.active'),
-    closed: t('accountingPeriod.status.closed'),
+    OPEN: t('accountingPeriod.status.open'),
+    CLOSING: t('accountingPeriod.status.closing'),
+    CLOSED: t('accountingPeriod.status.closed'),
   };
   return map[status] || status;
 };
 
 const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
-    pending: 'info',
-    active: 'success',
-    closed: 'warning',
+  const map: Record<string, 'success' | 'warning' | 'info'> = {
+    OPEN: 'success',
+    CLOSING: 'warning',
+    CLOSED: 'info',
   };
   return map[status] || 'info';
 };
+
+const formatDate = (value: string) => (value ? value.replace('T', ' ').slice(0, 10) : '-');
+
+// 后端列表端点无 Query<T>（参数被 Axum 整体丢弃），年度筛选只能在已加载全量列表本地做
+const filteredPeriods = computed(() => periodList.value.filter(p => p.year === queryForm.year));
 
 const fetchPeriods = async () => {
   loading.value = true;
   try {
     const res = await getAccountingPeriodList();
     const d = (res as { data?: unknown }).data as
-      | AccountingPeriodEntity[]
+      | AccountingPeriodDetail[]
       | {
-          items?: AccountingPeriodEntity[];
-          data?: AccountingPeriodEntity[];
-          list?: AccountingPeriodEntity[];
+          items?: AccountingPeriodDetail[];
+          data?: AccountingPeriodDetail[];
+          list?: AccountingPeriodDetail[];
         };
     if (Array.isArray(d)) {
       periodList.value = d;
@@ -299,20 +285,22 @@ const computeDateRange = (year: number, month: number) => {
   };
 };
 
-const openDialog = (row?: AccountingPeriodEntity) => {
+// 创建对话框的起止日期预览（后端推导逻辑的本地镜像，仅展示，不随请求发送）
+const previewRange = computed(() => computeDateRange(form.year, form.period));
+
+const openDialog = (row?: AccountingPeriodDetail) => {
   formRef.value?.resetFields();
   if (row) {
-    Object.assign(form, row);
+    form.id = row.id;
+    form.year = row.year;
+    form.period = row.period;
+    form.period_name = row.period_name;
   } else {
     const now = new Date();
     form.id = undefined;
-    form.name = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     form.year = now.getFullYear();
-    form.month = now.getMonth() + 1;
-    const { start_date, end_date } = computeDateRange(form.year, form.month);
-    form.start_date = start_date;
-    form.end_date = end_date;
-    form.status = 'pending';
+    form.period = now.getMonth() + 1;
+    form.period_name = '';
   }
   dialogVisible.value = true;
 };
@@ -323,12 +311,17 @@ const handleSubmit = async () => {
     if (!valid) return;
     submitLoading.value = true;
     try {
-      form.name = `${form.year}-${String(form.month).padStart(2, '0')}`;
       if (form.id) {
-        await updateAccountingPeriod(form.id, form);
+        // period_name 为 Option<String> 且 #[validate(length(min=1,max=50))]：
+        // 空串会触发 422，未填写时省略该键（Some("") 判空 = 假更新）
+        const trimmed = form.period_name.trim();
+        await updateAccountingPeriod(form.id, {
+          ...(trimmed ? { period_name: trimmed } : {}),
+        });
         ElMessage.success(t('accountingPeriod.message.updateSuccess'));
       } else {
-        await createAccountingPeriod(form);
+        // 后端 CreateAccountingPeriodPayload 仅 year + period(1-12)，日期由其推导
+        await createAccountingPeriod({ year: form.year, period: form.period });
         ElMessage.success(t('accountingPeriod.message.createSuccess'));
       }
       dialogVisible.value = false;
@@ -342,70 +335,59 @@ const handleSubmit = async () => {
   });
 };
 
-const activatePeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return;
-  try {
-    await ElMessageBox.confirm(
-      t('accountingPeriod.message.activateConfirm', { name: row.name }),
-      t('accountingPeriod.message.activateConfirmTitle'),
-      { type: 'info' }
-    );
-    await updateAccountingPeriod(row.id, { status: 'active' });
-    ElMessage.success(t('accountingPeriod.message.activatedSuccess'));
-    fetchPeriods();
-  } catch (e) {
-    if (e !== 'cancel') {
-      const err = e as Error;
-      ElMessage.error(err.message || t('accountingPeriod.message.activateFailed'));
-    }
-  }
-};
+const periodLabel = (row: AccountingPeriodDetail) =>
+  row.period_name || `${row.year}-${String(row.period).padStart(2, '0')}`;
 
-const closePeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return;
+const closePeriod = async (row: AccountingPeriodDetail) => {
   try {
     await ElMessageBox.confirm(
-      t('accountingPeriod.message.closeConfirm', { name: row.name }),
+      t('accountingPeriod.message.closeConfirm', { name: periodLabel(row) }),
       t('accountingPeriod.message.closeConfirmTitle'),
       { type: 'warning' }
     );
     await closePeriodApi(row.id);
-    logger.info('结账操作成功', { periodId: row.id, periodName: row.name });
+    logger.info('月末结账操作成功', { periodId: row.id, periodName: periodLabel(row) });
     ElMessage.success(t('accountingPeriod.message.closedSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
-      logger.error('结账操作失败', { periodId: row.id, error: err.message });
+      logger.error('月末结账操作失败', { periodId: row.id, error: err.message });
       ElMessage.error(err.message || t('accountingPeriod.message.closeFailed'));
     }
   }
 };
 
-const reopenPeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return;
+// 反结账：后端 ReopenPeriodRequest.reason 为必填非 Option String，
+// 必须真实采集反结账原因（缺失即 422），不得塞默认值
+const reopenPeriod = async (row: AccountingPeriodDetail) => {
   try {
-    await ElMessageBox.confirm(
-      t('accountingPeriod.message.reopenConfirm', { name: row.name }),
+    const { value } = await ElMessageBox.prompt(
+      t('accountingPeriod.message.reopenReasonPrompt', { name: periodLabel(row) }),
       t('accountingPeriod.message.reopenConfirmTitle'),
-      { type: 'info' }
+      {
+        type: 'warning',
+        inputType: 'textarea',
+        inputPlaceholder: t('accountingPeriod.message.reopenReasonPlaceholder'),
+        inputValidator: (v: string) =>
+          (v && v.trim()) || t('accountingPeriod.message.reopenReasonRequired'),
+      }
     );
-    await reopenPeriodApi(row.id);
+    await reopenPeriodApi(row.id, value.trim());
     ElMessage.success(t('accountingPeriod.message.reopenedSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('accountingPeriod.message.operationFailed'));
     }
   }
 };
 
-const deletePeriod = async (row: AccountingPeriodEntity) => {
-  if (!row.id) return;
+const deletePeriod = async (row: AccountingPeriodDetail) => {
   try {
     await ElMessageBox.confirm(
-      t('accountingPeriod.message.deleteConfirm', { name: row.name }),
+      t('accountingPeriod.message.deleteConfirm', { name: periodLabel(row) }),
       t('accountingPeriod.message.deleteConfirmTitle'),
       { type: 'warning' }
     );
@@ -413,7 +395,7 @@ const deletePeriod = async (row: AccountingPeriodEntity) => {
     ElMessage.success(t('accountingPeriod.message.deleteSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('accountingPeriod.message.deleteFailed'));
     }
@@ -429,20 +411,12 @@ const handleInitYear = async () => {
       { type: 'info' }
     );
     for (let month = 1; month <= 12; month++) {
-      const { start_date, end_date } = computeDateRange(year, month);
-      await createAccountingPeriod({
-        name: `${year}-${String(month).padStart(2, '0')}`,
-        year,
-        month,
-        start_date,
-        end_date,
-        status: 'pending',
-      });
+      await createAccountingPeriod({ year, period: month });
     }
     ElMessage.success(t('accountingPeriod.message.initSuccess'));
     fetchPeriods();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       logger.error(t('accountingPeriod.message.initFailed'), err);
       ElMessage.error(err.message || t('accountingPeriod.message.initFailed'));

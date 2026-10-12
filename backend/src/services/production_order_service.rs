@@ -2,7 +2,7 @@
 //!
 //! 本文件为 facade 入口，仅保留 `ProductionOrderService` struct + `new` 构造函数 + 单元测试。
 //! 业务实现已按职责拆分到 `production_order_ops/` 子模块（与 `production_order_service` 同为 `crate::services` 下兄弟模块）：
-//! - `production_order_ops::crud`：CRUD 与状态校验（14 方法，原 L92-624）
+//! - `production_order_ops::crud`：CRUD 与状态校验（13 方法，原 L92-624）
 //! - `production_order_ops::completion`：完成生产订单与库存联动（20 方法，原 L626-1243）
 //! - `production_order_ops::approval`：审批管理（7 方法，原 L1250-1501）
 //! - `production_order_ops::types`：请求/查询 DTO + 内部辅助 struct

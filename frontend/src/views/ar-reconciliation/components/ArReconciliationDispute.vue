@@ -2,7 +2,6 @@
   ArReconciliationDispute.vue - AR 对账争议处理对话框
   拆分自 arReconciliation/enhanced.vue（P14 批 1 B3 I-2）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
-  行为完全保持一致（仅结构重构）
 -->
 <template>
   <el-dialog
@@ -17,37 +16,10 @@
       label-width="100px"
       :aria-label="$t('arReconciliationModule.disputeFormAria')"
     >
-      <el-row :gutter="20">
-        <el-col :span="12">
-          <el-form-item :label="$t('arReconciliationModule.disputeType')">
-            <el-select
-              :model-value="localForm.dispute_type"
-              @update:model-value="
-                (v: string) => (localForm.dispute_type = v as DisputeRecord['dispute_type'])
-              "
-            >
-              <el-option
-                v-for="o in DISPUTE_TYPE_OPTIONS"
-                :key="o.value"
-                :label="$t(o.label)"
-                :value="o.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item :label="$t('arReconciliationModule.disputeAmount')">
-            <el-input-number
-              :model-value="localForm.dispute_amount"
-              :min="0"
-              :precision="2"
-              style="width: 100%"
-              @update:model-value="(v: number) => (localForm.dispute_amount = v ?? 0)"
-            />
-          </el-form-item>
-        </el-col>
-      </el-row>
-      <el-form-item :label="$t('arReconciliationModule.disputeDescription')">
+      <!-- 后端 CreateDisputeApiRequest 只有 reconciliation_id/customer_id/reason/description，
+           争议原因落 dispute_reason；原「争议类型/争议金额」采集项在 DTO 与表结构均无对应
+           （提交即被 serde 丢弃 = 假采集），已移除 -->
+      <el-form-item :label="$t('arReconciliationModule.disputeDescription')" required>
         <el-input
           :model-value="localForm.description"
           type="textarea"
@@ -64,38 +36,34 @@
     </el-form>
 
     <el-divider>{{ $t('arReconciliationModule.disputeRecords') }}</el-divider>
+    <!-- list_disputes 返回的是对账单列表（reconciliation_status='disputed'），
+         键为 reconciliation_no / period_* / dispute_reason / created_at -->
     <el-table
       :data="disputes"
       border
       style="width: 100%"
       :aria-label="$t('arReconciliationModule.disputeRecordsAria')"
     >
-      <el-table-column :label="$t('arReconciliationModule.disputeType')" width="100">
-        <template #default="scope">
-          {{ getDisputeTypeLabel(scope.row.dispute_type) }}
-        </template>
+      <el-table-column
+        prop="reconciliation_no"
+        :label="$t('arReconciliationModule.sourceNo')"
+        width="150"
+      />
+      <el-table-column :label="$t('arReconciliationModule.reconciliationPeriod')" width="210">
+        <template #default="scope"
+          >{{ scope.row.period_start }} ~ {{ scope.row.period_end }}</template
+        >
       </el-table-column>
       <el-table-column
-        prop="dispute_amount"
-        :label="$t('arReconciliationModule.disputeAmount')"
-        width="120"
-        align="right"
-      >
-        <template #default="scope">{{ Number(scope.row.dispute_amount ?? 0).toFixed(2) }}</template>
-      </el-table-column>
-      <el-table-column :label="$t('common.status')" width="100">
-        <template #default="scope">
-          <el-tag size="small" :type="getDisputeType(scope.row.status)">
-            {{ getDisputeStatusLabel(scope.row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="description" :label="$t('common.description')" show-overflow-tooltip />
+        prop="dispute_reason"
+        :label="$t('arReconciliationModule.disputeDescription')"
+        show-overflow-tooltip
+      />
       <el-table-column prop="created_at" :label="$t('common.createTime')" width="160" />
       <el-table-column :label="$t('common.operation')" width="100" align="center">
         <template #default="scope">
           <el-button
-            v-if="scope.row.status !== 'resolved' && scope.row.status !== 'closed'"
+            v-if="scope.row.reconciliation_status === 'disputed'"
             size="small"
             type="primary"
             @click="emit('resolve', scope.row)"
@@ -110,38 +78,12 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
-import { useI18n } from 'vue-i18n';
-import type { DisputeRecord } from '@/api/ar-reconciliation-enhanced';
-import { DISPUTE_TYPE_OPTIONS, getDisputeType } from '../composables/arRecFmts';
-
-const { t } = useI18n({ useScope: 'global' });
-
-/**
- * 争议类型 → 翻译文本（根据 DISPUTE_TYPE_OPTIONS 查找 i18n key 后翻译）
- */
-const getDisputeTypeLabel = (type: string) => {
-  const key = DISPUTE_TYPE_OPTIONS.find(o => o.value === type)?.label;
-  return key ? t(key) : type;
-};
-
-/**
- * 争议状态 → 翻译文本
- */
-const getDisputeStatusLabel = (status: string) => {
-  const keyMap: Record<string, string> = {
-    open: 'arReconciliationModule.disputeStatusOpen',
-    investigating: 'arReconciliationModule.disputeStatusInvestigating',
-    resolved: 'arReconciliationModule.disputeStatusResolved',
-    closed: 'arReconciliationModule.disputeStatusClosed',
-  };
-  const key = keyMap[status];
-  return key ? t(key) : status;
-};
+import type { CreateDisputePayload, DisputeRecord } from '@/api/ar-reconciliation-enhanced';
 
 const props = defineProps<{
   visible: boolean;
   // 表单数据（由父组件管理，子组件通过 emit 回写）
-  form: Partial<DisputeRecord>;
+  form: CreateDisputePayload;
   disputes: DisputeRecord[];
 }>();
 
@@ -150,11 +92,11 @@ const emit = defineEmits<{
   submit: [];
   resolve: [row: DisputeRecord];
   // 整体回写表单数据（父组件监听此事件并 Object.assign 到自己的 form）
-  'update:form': [v: Partial<DisputeRecord>];
+  'update:form': [v: CreateDisputePayload];
 }>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
-const localForm = ref<Partial<DisputeRecord>>({ ...props.form });
+const localForm = ref<CreateDisputePayload>({ ...props.form });
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;

@@ -60,3 +60,24 @@ pub enum Relation {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+/// 采购质检列表页统计卡聚合（GET /purchase/inspections/stats 出参）。
+///
+/// 四键与列表端点**同一套筛选条件、同一条基础查询**构造（见
+/// `services/purchase_inspection_service.rs::base_filtered_query`），
+/// 保证分母同源；分桶取值全部引用权威词表常量
+/// `models::status::purchase_inventory::{purchase_inspection, purchase_inspection_result}`，
+/// 与写入侧逐字符同源，禁止内联字符串。
+#[derive(Debug, Clone, Serialize)]
+pub struct PurchaseInspectionStats {
+    /// 与列表同筛选条件下的全量行数（分页不影响）
+    pub total: u64,
+    /// inspection_status = PENDING 的行数
+    pub pending: u64,
+    /// inspection_result = PASS 的行数
+    pub passed: u64,
+    /// inspection_result IN (FAIL, PARTIAL) 的行数
+    /// （partial 属不合格侧：既有裁定 `to_receipt_inspection_status` 把
+    /// fail/partial 一并回写为入库单 REJECTED，统计分桶与之同源）
+    pub failed: u64,
+}

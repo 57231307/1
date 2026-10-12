@@ -42,7 +42,7 @@ import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import type { InventoryCountEntity } from '@/api/inventory-count';
 import CountListTab from './tabs/CountListTab.vue';
 import CountFormDialogTab from './tabs/CountFormDialogTab.vue';
@@ -79,7 +79,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouses.value = (res.data?.items as Warehouse[] | undefined) || [];
   } catch (error) {
-    logger.error(t('inventoryCount.index.messageFetchWarehouseFailure'), (error as Error).message);
+    logAuxLoadFailure(t('inventoryCount.index.messageFetchWarehouseFailure'), error);
   }
 };
 

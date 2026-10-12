@@ -5,27 +5,9 @@ use bingxi_backend::services::production_recipe_service::*;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
-/// 测试大货处方单号生成格式：PR-YYYYMMDDHHMMSS-NNN
-#[test]
-fn test_generate_recipe_no() {
-    let no = ProductionRecipeService::generate_recipe_no();
-    assert!(no.starts_with("PR-"));
-    let parts: Vec<&str> = no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14); // YYYYMMDDHHMMSS
-    assert_eq!(parts[2].len(), 3); // 3 位随机
-}
-
-/// 测试加料处方单号生成格式：PA-YYYYMMDDHHMMSS-NNN
-#[test]
-fn test_generate_addition_no() {
-    let no = ProductionRecipeAdditionService::generate_addition_no();
-    assert!(no.starts_with("PA-"));
-    let parts: Vec<&str> = no.split('-').collect();
-    assert_eq!(parts.len(), 3);
-    assert_eq!(parts[1].len(), 14);
-    assert_eq!(parts[2].len(), 3);
-}
+// 大货/加料处方单号（PR{YYYYMMDD}{NNN} / PA{YYYYMMDD}{NNN}）已迁移至
+// DocumentNumberGenerator 统一生成器（依赖 DB 事务 + advisory lock），
+// 不再有可纯单测的静态取号函数；格式断言由集成侧覆盖（待测试专家补 DB 用例）。
 
 /// 测试浴比解析
 #[test]

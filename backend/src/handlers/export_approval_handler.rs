@@ -32,6 +32,7 @@ use crate::services::export_approval_service::{
     ApproveRequest, CreateApprovalRequest, ExportApprovalService, ListApprovalQuery,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 /// POST /api/v1/erp/export-approvals
@@ -129,9 +130,11 @@ pub async fn approve_request(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i64>,
-    Json(body): Json<ApproveRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为「未采集」（等价体 comments:null）
+    OptionalJson(body): OptionalJson<ApproveRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let svc = ExportApprovalService::new(state.db);
+    let body = body.unwrap_or(ApproveRequest { comments: None });
     let model = svc
         .approve(id, auth.user_id, auth.username.clone(), None, body)
         .await?;
@@ -169,11 +172,19 @@ pub async fn cancel_request(
 /// 校验下载 token（导出 handler 调用前校验）
 pub async fn verify_token(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(q): Query<VerifyTokenQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let svc = ExportApprovalService::new(state.db);
     let model = svc.verify_download_token(&q.token).await?;
+    // 行级归属门：表无 department_id 列，按申请人字段判定归属人可见性
+    let owner = Some(model.applicant_user_id);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该导出审批记录（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 

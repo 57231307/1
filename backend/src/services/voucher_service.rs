@@ -41,7 +41,8 @@ pub struct CreateVoucherRequest {
     pub voucher_date: chrono::NaiveDate,
     pub source_type: Option<String>,
     pub source_module: Option<String>,
-    pub source_bill_id: Option<i32>,
+    /// 来源单据 ID：落 vouchers.source_bill_id（BIGINT，多态松散引用）
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub batch_no: Option<String>,
     pub color_no: Option<String>,

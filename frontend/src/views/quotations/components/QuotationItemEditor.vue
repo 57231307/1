@@ -133,16 +133,18 @@
 // - 加载产品/色号
 // - 含税单价 = 单价 × 1.13
 import { onMounted, ref, watch } from 'vue';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { getProductColorList, getProductList } from '@/api/product';
 import type { Product, ProductColor } from '@/api/product';
-import type { CreateQuotationItemDto } from '@/api/quotation';
+import type { QuotationItemEditForm } from '@/api/quotation';
+import { formatDecimalAmount } from '@/utils/money';
 
-// QuotationItemRow 覆盖 product_id 为可选（创建空明细时 product_id 为 undefined，用户选择后才有值）
-interface QuotationItemRow extends Omit<CreateQuotationItemDto, 'product_id'> {
+// 明细行编辑态：金额/数量字段是 number 与 el-input-number 双向绑定；
+// 提交时由 quotationToWire 在 create.vue 边界转 DecimalWire 字符串上送后端
+interface QuotationItemRow extends QuotationItemEditForm {
   product_id?: number;
   _colors?: Array<{ id: number; color_code?: string; color_name?: string }>;
   amount?: number;
@@ -214,7 +216,7 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
     // 强制响应式：发出新数组
     emit('update:modelValue', [...props.modelValue]);
   } catch (error) {
-    logger.error(t('quotations.itemEditor.colorLoadFailed'), error);
+    logAuxLoadFailure(t('quotations.itemEditor.colorLoadFailed'), error);
   }
 }
 
@@ -238,13 +240,9 @@ watch(
   { deep: true }
 );
 
-/** 金额格式化 */
+/** 金额格式化：编辑态本地行内 amount 为 number（由 quantity×unit_price 计算），显示统一走 utils/money */
 function formatAmount(value?: number): string {
-  if (value === undefined || value === null) return '0.00';
-  return Number(value).toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return formatDecimalAmount(value);
 }
 
 onMounted(async () => {
@@ -254,7 +252,7 @@ onMounted(async () => {
     const res = await getProductList({ page: 1, page_size: 1000, status: 'active' });
     products.value = res.data?.items || [];
   } catch (error) {
-    logger.error(t('quotations.itemEditor.productLoadFailed'), error);
+    logAuxLoadFailure(t('quotations.itemEditor.productLoadFailed'), error);
     products.value = [];
   }
 });

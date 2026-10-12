@@ -56,6 +56,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -126,7 +127,7 @@ const handleReject = async () => {
     emit('update:modelValue', false);
     emit('submitted');
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('message.operationFailed'));
     }
   } finally {

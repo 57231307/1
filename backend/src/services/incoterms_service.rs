@@ -6,12 +6,13 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{DatabaseConnection, EntityTrait, FromQueryResult, Statement};
+use sea_orm::{DatabaseConnection, EntityTrait, FromQueryResult, Statement, Value};
 use serde::Serialize;
 use std::sync::Arc;
 
 use crate::container::AppState;
 use crate::models::sales_quotation::Entity as QuotationEntity;
+use crate::utils::data_scope::{DataScope, DataScopeContext};
 use crate::utils::error::AppError;
 use crate::utils::incoterms::{CostBearer, Incoterms2020, Party};
 
@@ -118,7 +119,7 @@ impl IncotermsService {
         insurance_cost: Option<Decimal>,
         duty_cost: Option<Decimal>,
     ) -> (Decimal, Option<Decimal>, Option<Decimal>, Option<Decimal>) {
-        // EXW/FCA/FAS 不含运费
+        // EXW/FCA/FAS/FOB 不含主运费（FOB 主运费由买方订立，ICC Incoterms 2020）
         let freight = if incoterm.includes_freight() {
             freight_cost
         } else {
@@ -139,40 +140,76 @@ impl IncotermsService {
         (product_cost, freight, insurance, duty)
     }
 
-    /// V15 P1 batch-19 缺陷 23.5.4：生成术语使用月报
+    /// 生成术语使用月报（按数据范围过滤可见报价单行）
     pub async fn monthly_usage_report(
         &self,
         year: i32,
         month: u32,
+        ctx: Option<&DataScopeContext>,
     ) -> Result<IncotermsMonthlyReport, AppError> {
         let start_date = NaiveDate::from_ymd_opt(year, month, 1)
-            .ok_or_else(|| AppError::validation("无效的年月".to_string()))?;
+            .ok_or_else(|| AppError::validation_displayable("无效的年月".to_string()))?;
         let next_month = if month == 12 {
             NaiveDate::from_ymd_opt(year + 1, 1, 1)
         } else {
             NaiveDate::from_ymd_opt(year, month + 1, 1)
         }
-        .ok_or_else(|| AppError::validation("无效的年月".to_string()))?;
+        .ok_or_else(|| AppError::validation_displayable("无效的年月".to_string()))?;
 
-        let sql = r#"
-            SELECT
-                price_terms as incoterm,
-                COUNT(*) as count,
-                COALESCE(SUM(total_amount), 0) as total_amount,
-                COALESCE(SUM(freight_cost), 0) as freight_cost,
-                COALESCE(SUM(insurance_cost), 0) as insurance_cost,
-                COALESCE(SUM(duty_cost), 0) as duty_cost
-            FROM sales_quotations
-            WHERE quotation_date >= $1 AND quotation_date < $2
-            AND status = 'approved'
-            GROUP BY price_terms
-            ORDER BY count DESC
-        "#;
+        // 行级数据范围：报价单的归属人是 sales_user_id（与报价域列表/单行门同列，
+        // 本表另有记录建档人的 created_by，不可混用）。All 不加过滤；Dept 按
+        // 「sales_user_id ∈ 可见部门成员集合」，Self 仅本人。
+        // Some(ids)=按这些归属人过滤；None=不加行级过滤（All 范围，以及不传 ctx 的
+        // 内部调度通路，后者由调用方 RBAC 兜底）。
+        let owner_filter: Option<Vec<i32>> = ctx.and_then(|c| match c.scope {
+            DataScope::All => None,
+            DataScope::Self_ => Some(vec![c.user_id]),
+            DataScope::Dept => Some(if c.dept_member_user_ids.is_empty() {
+                vec![c.user_id]
+            } else {
+                c.dept_member_user_ids.clone()
+            }),
+        });
+
+        // 成员逐个展开成位置参数（$3..$n）拼 IN 列表：参数个数由服务端集合长度决定，
+        // 值全部来自会话态整型 ID，不经字符串拼接。
+        let (scope_fragment, scope_params): (String, Vec<Value>) = match owner_filter {
+            Some(ids) => {
+                let placeholders = ids
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("${}", i + 3))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let params = ids.into_iter().map(|id| Value::Int(Some(id))).collect();
+                (format!("AND sales_user_id IN ({placeholders})"), params)
+            }
+            None => (String::new(), Vec::new()),
+        };
+
+        let sql = format!(
+            "SELECT \
+                price_terms as incoterm, \
+                COUNT(*) as count, \
+                COALESCE(SUM(total_amount), 0) as total_amount, \
+                COALESCE(SUM(freight_cost), 0) as freight_cost, \
+                COALESCE(SUM(insurance_cost), 0) as insurance_cost, \
+                COALESCE(SUM(duty_cost), 0) as duty_cost \
+            FROM sales_quotations \
+            WHERE quotation_date >= $1 AND quotation_date < $2 \
+            AND status = 'approved' {} \
+            GROUP BY price_terms \
+            ORDER BY count DESC",
+            scope_fragment
+        );
+
+        let mut bind_values: Vec<Value> = vec![start_date.into(), next_month.into()];
+        bind_values.extend(scope_params);
 
         let items = IncotermUsageItem::find_by_statement(Statement::from_sql_and_values(
             sea_orm::DbBackend::Postgres,
-            sql,
-            vec![start_date.into(), next_month.into()],
+            &sql,
+            bind_values,
         ))
         .all(&*self.db)
         .await?;

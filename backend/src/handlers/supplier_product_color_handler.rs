@@ -2,6 +2,11 @@
 //!
 //! list（?supplier_product_id 必填 + ?keyword）、get、create、update。软停用由 update 置
 //! is_enabled=false 完成（表被 product_supplier_mappings 以 FK 引用，不提供硬删）。
+//!
+//! 归属门口径：supplier_product_colors 表无 created_by/updated_by/department_id 任何归属
+//! 列（见 models/supplier_product_color.rs），色号是供应商商品目录的子项、采购共用主数据，
+//! 行本身无"归属人"语义。按"无归属列⇒不套行级门"的判定，读写端点均维持原样；给无主键归属
+//! 列的共用主数据硬套 IDOR 门即为本仓禁止的假修（会造成采购协同回归）。
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;

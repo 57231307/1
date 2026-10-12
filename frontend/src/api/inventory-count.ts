@@ -95,10 +95,15 @@ export interface CreateInventoryCountPayload {
   stock_ids?: number[];
 }
 
-/** 更新入参：与后端 `handlers/inventory_count_handler.rs:190 UpdateCountPayload` 对齐 */
+/**
+ * 更新入参：与后端 `handlers/inventory_count_handler.rs UpdateCountPayload` 对齐。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空、有值=覆盖。
+ * - count_date 映射 NOT NULL 列（m0001 DDL）：禁止送 null（后端 400「盘点日期不能清空」）；
+ * - notes 为 DB 可空列（m0001 DDL）：清空须显式送 null。
+ */
 export interface UpdateInventoryCountPayload {
   count_date?: string;
-  notes?: string;
+  notes?: string | null;
 }
 
 /** 实盘录入行入参：与后端 `handlers/inventory_count_handler.rs:180 RecordItemInput` 对齐（数量是字符串） */
@@ -148,6 +153,13 @@ export const rejectInventoryCount = (id: number) => request.post(`/inventory/cou
 
 export const getCountItems = (id: number) => request.get(`/inventory/counts/${id}`);
 
+/**
+ * 更新单条盘点明细。三态语义（RFC 7386 JSON Merge Patch，后端 UpdateCountItemPayload）：
+ * 键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - quantity_actual 映射 NOT NULL 列（inventory_count_item 模型非 Option）：禁止送 null
+ *   （后端 400「实盘数量不能清空」）——不改即省略键；
+ * - notes 为 DB 可空列：清空须显式送 null，塌成省略会"改了不生效"。
+ */
 export const updateCountItem = (
   itemId: number,
   data: { quantity_actual?: string; notes?: string | null }

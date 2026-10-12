@@ -184,6 +184,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Plus } from '@element-plus/icons-vue';
 import {
   getAPReconciliationList,
@@ -293,7 +294,7 @@ const confirmReconciliation = async (row: APReconciliation) => {
     ElMessage.success(t('apModule.reconciliation.confirmSuccess'));
     fetchReconciliations();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
@@ -314,7 +315,7 @@ const disputeReconciliation = async (row: APReconciliation) => {
     ElMessage.success(t('apModule.reconciliation.disputeSubmitted'));
     fetchReconciliations();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as { message?: string };
       ElMessage.error(err.message || t('common.failed'));
     }
@@ -330,8 +331,9 @@ const handleAutoReconcile = async () => {
       t('apModule.reconciliation.autoReconcile'),
       { type: 'info' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('ap.ReconciliationTab.handleAutoReconcile', error);
   }
   autoReconciling.value = true;
   try {

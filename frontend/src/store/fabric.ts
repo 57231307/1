@@ -10,6 +10,8 @@ import {
   type Fabric,
   type FabricCategory,
   type FabricQueryParams,
+  type CreateFabricPayload,
+  type UpdateFabricPayload,
 } from '@/api/fabric';
 import type { ApiResponse } from '@/types/api';
 import { logger } from '@/utils/logger';
@@ -26,11 +28,11 @@ export const useFabricStore = defineStore('fabric', () => {
     loading.value = true;
     try {
       const res = await getFabricList(params);
-      // 兼容 PaginatedResponse { items, total }（当前后端格式）与历史 { list, total }
-      const payload = res.data as { items?: Fabric[]; list?: Fabric[]; total?: number } | null;
+      // 分页唯一形状 PaginatedResponse{items,total,page,page_size}（utils/response.rs:34）
+      const payload = res.data;
       if (payload) {
-        fabrics.value = payload.items || payload.list || [];
-        total.value = payload.total || fabrics.value.length;
+        fabrics.value = payload.items;
+        total.value = payload.total;
       }
     } catch (error) {
       logger.error('获取面料列表失败:', error);
@@ -66,7 +68,7 @@ export const useFabricStore = defineStore('fabric', () => {
     }
   };
 
-  const createFabric = async (data: Partial<Fabric>): Promise<ApiResponse<Fabric> | null> => {
+  const createFabric = async (data: CreateFabricPayload): Promise<ApiResponse<Fabric> | null> => {
     try {
       const res = await createFabricApi(data);
       await fetchFabrics();
@@ -79,7 +81,7 @@ export const useFabricStore = defineStore('fabric', () => {
 
   const updateFabric = async (
     id: number,
-    data: Partial<Fabric>
+    data: UpdateFabricPayload
   ): Promise<ApiResponse<Fabric> | null> => {
     try {
       const res = await updateFabricApi(id, data);

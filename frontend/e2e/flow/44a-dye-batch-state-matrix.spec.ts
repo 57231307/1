@@ -180,7 +180,7 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
     }
   });
 
-  test('44a-4 on_hold resume 全工序覆盖（:240-250 V15 修复回归防线）', async ({ page }) => {
+  test('44a-4 on_hold resume 全工序覆盖（:240-250 修复回归防线）', async ({ page }) => {
     // 7 个可恢复工序必须全 true（防"修复被回退"回归）
     for (const target of [
       'dyeing',
@@ -192,7 +192,7 @@ test.describe.serial('44a 缸号状态机规则矩阵（dye_batch_state_machine_
       'preparing',
     ]) {
       const allowed = await checkTransition(page, 'on_hold', target, 'RESUME');
-      expect(allowed, `on_hold RESUME→${target} 应允许（V15 Batch05-P1-1）`).toBe(true);
+      expect(allowed, `on_hold RESUME→${target} 应允许`).toBe(true);
     }
     // resume 到 stored/shipped 必须拒绝
     for (const target of ['stored', 'shipped']) {

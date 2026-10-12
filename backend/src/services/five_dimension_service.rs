@@ -236,13 +236,13 @@ impl FiveDimensionService {
         // 解析五维ID（带前缀格式：P{}|B{}|C{}|D{}|G{}）
         let parts: Vec<&str> = five_dimension_id.split('|').collect();
         if parts.len() < 5 {
-            return Err(AppError::validation("无效的五维ID格式"));
+            return Err(AppError::validation_displayable("无效的五维ID格式"));
         }
 
         let product_id: i32 = parts[0]
             .trim_start_matches('P')
             .parse()
-            .map_err(|_| AppError::validation("无效的产品ID"))?;
+            .map_err(|_| AppError::validation_displayable("无效的产品ID"))?;
         let batch_no = parts[1].trim_start_matches('B').to_string();
         let color_no = parts[2].trim_start_matches('C').to_string();
         let dye_lot_part = parts[3].trim_start_matches('D');

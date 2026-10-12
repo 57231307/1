@@ -16,6 +16,7 @@ use crate::models::pollutant_monitoring_record::{
 use crate::models::solid_waste_disposal_record::{
     self, ActiveModel as WasteActiveModel, Entity as WasteEntity, Model as WasteModel,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -27,6 +28,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 /// 创建污染物监测记录请求
+///
+/// 登记人身份**不由请求体承载**：由 handler 按会话（`AuthContext.user_id`）派生后
+/// 传入 service，落 `pollutant_monitoring_records.operator_id` 留痕。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateMonitoringRecordRequest {
     /// 监测类型：wastewater(废水) / exhaust(废气) / noise(噪声) / solid_waste(固废)
@@ -40,11 +44,13 @@ pub struct CreateMonitoringRecordRequest {
     pub monitoring_time: chrono::DateTime<chrono::FixedOffset>,
     pub monitoring_method: Option<String>,
     pub equipment_id: Option<i32>,
-    pub operator_id: Option<i32>,
     pub remarks: Option<String>,
 }
 
 /// 创建固废处置联单请求
+///
+/// 建单人身份**不由请求体承载**：由 handler 按会话（`AuthContext.user_id`）派生后
+/// 传入 service 落库。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateSolidWasteDisposalRequest {
     pub manifest_no: String,
@@ -63,7 +69,6 @@ pub struct CreateSolidWasteDisposalRequest {
     pub transport_license_no: Option<String>,
     pub disposal_license_no: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 监测记录查询参数
@@ -122,6 +127,7 @@ impl PollutionMonitoringService {
     pub async fn create_monitoring_record(
         &self,
         req: CreateMonitoringRecordRequest,
+        operator_id: i32,
     ) -> Result<MonitoringModel, AppError> {
         Self::validate_monitoring_type(&req.monitoring_type)?;
         if req.limit_value <= Decimal::ZERO {
@@ -145,7 +151,8 @@ impl PollutionMonitoringService {
             monitoring_time: Set(req.monitoring_time),
             monitoring_method: Set(req.monitoring_method),
             equipment_id: Set(req.equipment_id),
-            operator_id: Set(req.operator_id),
+            // 操作人只取会话身份（handler 传入），落库值无兜底
+            operator_id: Set(Some(operator_id)),
             remarks: Set(req.remarks),
             created_at: Set(now),
             updated_at: Set(now),
@@ -171,12 +178,22 @@ impl PollutionMonitoringService {
         Ok(result)
     }
 
-    /// 查询监测记录列表
+    /// 查询监测记录列表（带行级数据权限下推）
     pub async fn list_monitoring_records(
         &self,
         params: MonitoringRecordQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<MonitoringModel>, u64), AppError> {
         let mut query = MonitoringEntity::find();
+
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollutant_monitoring_record::Column::OperatorId,
+                pollutant_monitoring_record::Column::OperatorId,
+            );
+        }
 
         if let Some(monitoring_type) = &params.monitoring_type {
             query = query
@@ -209,6 +226,7 @@ impl PollutionMonitoringService {
     pub async fn create_solid_waste_disposal(
         &self,
         req: CreateSolidWasteDisposalRequest,
+        user_id: i32,
     ) -> Result<WasteModel, AppError> {
         Self::validate_waste_type(&req.waste_type)?;
         Self::validate_waste_category(&req.waste_category)?;
@@ -252,7 +270,8 @@ impl PollutionMonitoringService {
             disposal_license_no: Set(req.disposal_license_no),
             status: Set("pending".to_string()),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -263,6 +282,14 @@ impl PollutionMonitoringService {
             .await
             .map_err(|e| AppError::database(format!("固废处置联单创建失败: {}", e)))?;
         Ok(result)
+    }
+
+    /// 按 ID 查询固废处置联单（供 handler 行级归属门使用）
+    pub async fn get_waste_by_id(&self, id: i32) -> Result<WasteModel, AppError> {
+        WasteEntity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found("固废处置联单不存在"))
     }
 
     /// 更新固废处置状态（运输中 / 已处置）
@@ -305,10 +332,22 @@ impl PollutionMonitoringService {
         Ok(updated)
     }
 
-    /// 查询超标记录并生成预警
-    pub async fn scan_exceedance_alerts(&self) -> Result<Vec<ExceedanceAlert>, AppError> {
-        let exceeding_records = MonitoringEntity::find()
-            .filter(pollutant_monitoring_record::Column::IsExceeding.eq(true))
+    /// 查询超标记录并生成预警（带行级数据权限下推）
+    pub async fn scan_exceedance_alerts(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ExceedanceAlert>, AppError> {
+        let mut query = MonitoringEntity::find()
+            .filter(pollutant_monitoring_record::Column::IsExceeding.eq(true));
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                pollutant_monitoring_record::Column::OperatorId,
+                pollutant_monitoring_record::Column::OperatorId,
+            );
+        }
+        let exceeding_records = query
             .order_by_desc(pollutant_monitoring_record::Column::MonitoringTime)
             .all(&*self.db)
             .await?;

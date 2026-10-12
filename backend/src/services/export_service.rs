@@ -4,7 +4,7 @@
 //! v11 批次 161 CI2：移除 CSV 导出，规则 3 要求 xlsx 交付
 //! V15 P1 batch-08 缺陷 8：新增 docx 导出，规则 3 要求合同/发票/报表支持 .docx
 
-use crate::utils::docx_export::{DocxKeyValue, build_docx_with_kv};
+use crate::utils::docx_export::{DocxKeyValue, build_docx_with_kv_and_image};
 use crate::utils::error::AppError;
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx};
 use serde::{Deserialize, Serialize};
@@ -137,7 +137,7 @@ impl ExportService {
             }
         };
 
-        build_docx_with_kv(&data.title, &kv, &data.headers, &data.rows)
+        build_docx_with_kv_and_image(&data.title, &kv, &data.headers, &data.rows, None)
     }
 
     /// 生成对账单文本（保留旧 generate_reconciliation_pdf 行为，仅用于内部调试）
@@ -237,7 +237,7 @@ impl ExportService {
             .map(|item| vec![item.item_type, item.document_no, item.amount, item.date])
             .collect();
 
-        build_docx_with_kv("应收账款对账单", &kv, &detail_headers, &detail_rows)
+        build_docx_with_kv_and_image("应收账款对账单", &kv, &detail_headers, &detail_rows, None)
     }
 }
 

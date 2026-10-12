@@ -240,7 +240,7 @@ pub async fn upload_avatar(
             .unwrap_or_else(|| "png".to_string());
         // 仅接受常见图片格式
         if !matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp") {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "头像仅支持 png/jpg/jpeg/gif/webp 格式",
             ));
         }
@@ -250,7 +250,7 @@ pub async fn upload_avatar(
             .map_err(|e| AppError::validation(format!("头像文件读取失败：{}", e)))?;
         // 2MB 上限（与前端上传前校验一致，双保险）
         if data.len() > 2 * 1024 * 1024 {
-            return Err(AppError::validation("头像文件不能超过 2MB"));
+            return Err(AppError::validation_displayable("头像文件不能超过 2MB"));
         }
         let dir = std::path::Path::new("uploads/avatars");
         tokio::fs::create_dir_all(dir)
@@ -270,7 +270,8 @@ pub async fn upload_avatar(
         break;
     }
 
-    let url = avatar_url.ok_or_else(|| AppError::validation("请求中未找到 avatar 文件字段"))?;
+    let url = avatar_url
+        .ok_or_else(|| AppError::validation_displayable("请求中未找到 avatar 文件字段"))?;
 
     let user_service = UserService::new(state.db.clone());
     user_service.update_avatar(auth.user_id, &url).await?;
@@ -303,9 +304,9 @@ pub async fn create_user(
     let user_service = UserService::new(state.db.clone());
 
     // v14 P0-1 修复：使用 spawn_blocking 包装 Argon2id 哈希计算，避免阻塞 tokio worker
-    let password_hash = AuthService::hash_password_async(payload.password.clone())
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    // AuthError 有保语义的 From<AuthError> for AppError 映射（哈希系统故障→internal），
+    // 不得重包丢原因
+    let password_hash = AuthService::hash_password_async(payload.password.clone()).await?;
 
     let user = user_service
         .create_user(
@@ -588,10 +589,11 @@ async fn check_delete_user_permission(
     // 缺角色时直接拒绝（避免 role_id=0 误匹配"超级管理员"角色）
     let role_id = auth_role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行删除操作"))?;
+    // check_permission 自身返回 AppError（403 权限拒绝/404/权限系统故障各有真实 code），
+    // 不得重包成 internal 拍平为 500 丢原因
     let has_permission = role_permission_service
         .check_permission(role_id, "user", "delete", Some(target_id))
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
     if !has_permission {
         return Err(AppError::permission_denied("没有删除用户的权限"));
     }
@@ -612,8 +614,7 @@ async fn protect_last_admin(
         .filter(user::Column::RoleId.eq(user_role_id))
         .filter(user::Column::IsActive.eq(true))
         .count(db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
     if active_admin_count <= 1 {
         return Err(AppError::bad_request(
             "系统仅剩最后一个管理员，禁止删除（删除后系统将永久锁定）",
@@ -714,8 +715,7 @@ pub async fn change_password(
 
     let is_valid =
         AuthService::verify_password_async(req.old_password.clone(), user.password_hash.clone())
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+            .await?;
 
     if !is_valid {
         record_audit_failure(&state.db, &auth, &audit_ctx, "原密码不正确");
@@ -724,8 +724,7 @@ pub async fn change_password(
 
     let is_same =
         AuthService::verify_password_async(req.new_password.clone(), user.password_hash.clone())
-            .await
-            .map_err(|e| AppError::internal(e.to_string()))?;
+            .await?;
 
     if is_same {
         return Err(AppError::bad_request("新密码不能与原密码相同"));
@@ -735,9 +734,7 @@ pub async fn change_password(
         return Err(AppError::bad_request("密码不能包含用户名片段，请更换密码"));
     }
 
-    let new_password_hash = AuthService::hash_password_async(req.new_password.clone())
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let new_password_hash = AuthService::hash_password_async(req.new_password.clone()).await?;
 
     let policy_svc = crate::services::auth::password_policy_service::PasswordPolicyService::new();
     validate_password_history(
@@ -816,10 +813,7 @@ async fn validate_password_history(
     new_password: &str,
     new_password_hash: &str,
 ) -> Result<(), AppError> {
-    let history = policy_svc
-        .load_history_from_db(db, user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("加载密码历史失败: {}", e)))?;
+    let history = policy_svc.load_history_from_db(db, user_id).await?;
     let history_result = policy_svc
         .validate_with_history(new_password, new_password_hash, &history)
         .await;

@@ -106,6 +106,12 @@ pub struct Model {
 
     /// 拒绝原因
     pub rejected_reason: Option<String>,
+
+    /// 审批通过理由（m0079 加列，TEXT 可空；流程放行类，选填可留空=NULL）
+    pub approval_reason: Option<String>,
+
+    /// 取消（cancel）动作理由专列（m0079 加列，TEXT 可空；不得再挪用 rejected_reason）
+    pub cancel_reason: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

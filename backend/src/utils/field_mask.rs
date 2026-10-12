@@ -1,4 +1,3 @@
-use crate::middleware::auth_context::AuthContext;
 use serde_json::Value;
 
 /// P1-08-5：手机号脱敏（保留前3后4，例 13812348888→138****8888）
@@ -57,11 +56,12 @@ pub fn mask_text_pii(text: &str) -> String {
     result
 }
 
-/// 脱敏敏感字段（如成本价、敏感金额）
-pub fn mask_sensitive_fields(mut value: Value, auth: &AuthContext) -> Value {
-    // 假设 role_id = 1 是超级管理员，其他角色脱敏
-    // 实际项目中可以根据权限表动态判断 `has_permission(user_id, "view_cost_price")`
-    if auth.role_id != Some(1) {
+/// 脱敏敏感字段（如成本价、敏感金额）。
+/// `is_admin` 判定由 async 调用方经本仓唯一权威源 `utils/admin_checker::is_admin_role`
+/// （roles.code='admin'，角色缺失/查询失败 fail-closed=false）在每请求循环外算出后传入，
+/// 本函数不判定角色主键字面量（播种漂移时字面量判定会静默剔权/静默扩权）。
+pub fn mask_sensitive_fields(mut value: Value, is_admin: bool) -> Value {
+    if !is_admin {
         // P3 维度 3 修复（批次 87）：消除 unwrap，改用 if let 显式模式匹配
         if let Some(obj) = value.as_object_mut() {
             // 移除或掩码成本价
@@ -71,11 +71,11 @@ pub fn mask_sensitive_fields(mut value: Value, auth: &AuthContext) -> Value {
 
             // 可以递归脱敏
             for (_, v) in obj.iter_mut() {
-                *v = mask_sensitive_fields(v.clone(), auth);
+                *v = mask_sensitive_fields(v.clone(), is_admin);
             }
         } else if let Some(arr) = value.as_array_mut() {
             for item in arr.iter_mut() {
-                *item = mask_sensitive_fields(item.clone(), auth);
+                *item = mask_sensitive_fields(item.clone(), is_admin);
             }
         }
     }
@@ -93,9 +93,13 @@ pub fn mask_bank_card(card: &str) -> String {
     format!("{}****{}", prefix, suffix)
 }
 
-/// P1-08-5：对客户/供应商/销售订单/运单响应做基于角色的手机号/邮箱脱敏（管理员不脱敏，非管理员 mask_phone/mask_email）
-pub fn mask_contact_fields_for_role(mut value: Value, role_id: Option<i32>) -> Value {
-    if role_id == Some(1) {
+/// P1-08-5：对客户/供应商/销售订单/运单响应做基于角色的手机号/邮箱脱敏（管理员不脱敏，非管理员 mask_phone/mask_email）。
+/// `is_admin` 由 async 调用方经本仓唯一权威源 `utils/admin_checker::is_admin_role`
+/// （roles.code='admin'，角色缺失/查询失败 fail-closed=false）在每请求循环外算出后传入；
+/// "取不到角色"与真 admin 判非的 fail-closed 方向与原字面量判定下"无角色必脱敏"一致，
+/// 本函数不判定角色主键字面量（播种漂移时字面量判定会静默剔权/静默扩权）。
+pub fn mask_contact_fields_for_role(mut value: Value, is_admin: bool) -> Value {
+    if is_admin {
         return value;
     }
     let phone_keys = [
@@ -128,18 +132,19 @@ pub fn mask_contact_fields_for_role(mut value: Value, role_id: Option<i32>) -> V
     value
 }
 
-/// P1-08-5：批量脱敏列表中每条记录的手机号/邮箱字段（非管理员）
+/// P1-08-5：批量脱敏列表中每条记录的手机号/邮箱字段（非管理员）。
+/// `is_admin` 口径与 `mask_contact_fields_for_role` 同源（权威源判定入参，见其文档）。
 pub fn mask_contact_fields_batch_for_role(
     mut value: Value,
-    role_id: Option<i32>,
+    is_admin: bool,
     list_key: &str,
 ) -> Value {
-    if role_id == Some(1) {
+    if is_admin {
         return value;
     }
     if let Some(list) = value.get_mut(list_key).and_then(|v| v.as_array_mut()) {
         for item in list.iter_mut() {
-            *item = mask_contact_fields_for_role(item.clone(), role_id);
+            *item = mask_contact_fields_for_role(item.clone(), is_admin);
         }
     }
     value

@@ -52,6 +52,33 @@
         min-width="150"
       />
       <el-table-column
+        prop="color_no"
+        :label="t('purchaseReturn.detail.column.colorNo')"
+        min-width="100"
+      >
+        <template #default="{ row }">
+          <span>{{ row.color_no || EMPTY_TEXT }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="dye_lot_no"
+        :label="t('purchaseReturn.detail.column.dyeLotNo')"
+        min-width="100"
+      >
+        <template #default="{ row }">
+          <span>{{ row.dye_lot_no || EMPTY_TEXT }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column
+        prop="batch_no"
+        :label="t('purchaseReturn.detail.column.batchNo')"
+        min-width="100"
+      >
+        <template #default="{ row }">
+          <span>{{ row.batch_no || EMPTY_TEXT }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column
         prop="quantity_returned"
         :label="t('purchaseReturn.detail.column.quantity')"
         width="100"
@@ -87,6 +114,9 @@ import {
 import { getStatusType, getStatusText } from '../composables/prRtnFmts';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 无值时的规范空态占位（与采购详情对话框 PurchaseViewDialog 明细空态同口径：无值显示 '-'）
+const EMPTY_TEXT = '-';
 
 const props = defineProps<{
   // 对话框可见性

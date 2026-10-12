@@ -18,11 +18,15 @@
 //! - validate_status_transition 跨 impl 块调用（定义在 crud 子模块，pub(crate) 可见性）
 
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, EntityTrait, QuerySelect, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
+};
 
+use crate::models::bpm_task;
 use crate::models::production_order::{
     ActiveModel, Entity as ProductionOrderEntity, Model as ProductionOrderModel,
 };
+use crate::models::status::bpm_task as task_status;
 use crate::utils::error::AppError;
 
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
@@ -66,7 +70,7 @@ impl ProductionOrderService {
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "production_order_approval".to_string(),
             business_type: "production_order".to_string(),
-            business_id: id,
+            business_id: i64::from(id),
             title: format!("生产订单审批 - {}", updated.order_no),
             initiator_id: user_id,
             initiator_name: user_name.to_string(),
@@ -155,7 +159,15 @@ impl ProductionOrderService {
         active_model
     }
 
-    /// 事务提交后完成 BPM 任务，失败仅 warn 不阻断主流程
+    /// 事务提交后完成 BPM 任务（容错：失败只记日志，不回改业务侧已提交的裁决结果）
+    ///
+    /// 定位口径：先按 business_type+business_id 定位流程实例，再按
+    /// `instance_id + 写入方同源常量 bpm_task::PENDING` 定位**本工单**的待办任务，
+    /// 只回写这些任务。旧形态用 `common::STATUS_PENDING`（大写 `"PENDING"`，属
+    /// 其他单据域词表）过滤任务状态，与写入方小写值（bpm_ops 写 `bpm_task::PENDING=
+    /// "pending"`，DB CHECK 钉小写集）永不相等 ⇒ 回写循环恒空转，`opinion` 既不进
+    /// 业务表（无列）也不进 `bpm_task`，理由彻底丢失；办理人过滤+分页上限 10 还会
+    /// 在待办较多时漏查本工单任务，故一并弃用。
     async fn handle_bpm_approval_after_commit(
         &self,
         id: i32,
@@ -170,27 +182,61 @@ impl ProductionOrderService {
         } else {
             REJECT_ACTION.to_string()
         };
-        let Ok(Some(instance)) = bpm_service
-            .get_process_by_business("production_order", id)
+        let instance = match bpm_service
+            .get_process_by_business("production_order", i64::from(id))
             .await
-        else {
-            return;
-        };
-        let Ok(task_list) = bpm_service
-            .query_user_tasks(crate::models::dto::bpm_dto::TaskQuery {
-                user_id: Some(user_id),
-                status: Some(crate::models::status::common::STATUS_PENDING.to_string()),
-                page: Some(1),
-                page_size: Some(10),
-            })
-            .await
-        else {
-            return;
-        };
-        for task in task_list.items {
-            if task.instance_id != instance.id {
-                continue;
+        {
+            Ok(Some(instance)) => instance,
+            Ok(None) => {
+                tracing::warn!(
+                    business_type = "production_order",
+                    business_id = id,
+                    expected_action = %action,
+                    "生产工单审批 BPM 回写：未找到该工单的流程实例，待办任务无法闭环，需人工对账"
+                );
+                return;
             }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    business_type = "production_order",
+                    business_id = id,
+                    "生产工单审批 BPM 回写：查询流程实例失败，任务未闭环"
+                );
+                return;
+            }
+        };
+        let tasks = match bpm_task::Entity::find()
+            .filter(bpm_task::Column::InstanceId.eq(instance.id))
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
+            .all(&*self.db)
+            .await
+        {
+            Ok(tasks) => tasks,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    business_type = "production_order",
+                    business_id = id,
+                    instance_id = instance.id,
+                    "生产工单审批 BPM 回写：查询待办任务失败，任务未闭环"
+                );
+                return;
+            }
+        };
+        if tasks.is_empty() {
+            tracing::warn!(
+                business_type = "production_order",
+                business_id = id,
+                instance_id = instance.id,
+                expected_task_status = task_status::PENDING,
+                "生产工单审批 BPM 回写：该实例下无状态为待处理的 bpm_task，裁决与理由未进 BPM，需人工对账"
+            );
+            return;
+        }
+        for task in tasks {
+            // approve_task 的处理人取已认证操作人（user_id 参数，见 bpm_ops/task.rs），
+            // req.handler_id/handler_name 在当前签名下不被消费，仅按 DTO 形状填真实入参。
             if let Err(e) = bpm_service
                 .approve_task(
                     crate::models::dto::bpm_dto::ApproveTaskRequest {
@@ -208,8 +254,16 @@ impl ProductionOrderService {
                 tracing::warn!(
                     error = %e,
                     task_id = task.id,
-                    order_id = id,
-                    "BPM 生产订单任务审批失败（不阻断主流程）"
+                    business_type = "production_order",
+                    business_id = id,
+                    "BPM 生产订单任务审批失败（不阻断已提交的业务状态）"
+                );
+            } else {
+                tracing::info!(
+                    task_id = task.id,
+                    business_id = id,
+                    approved,
+                    "生产工单审批 BPM 回写完成"
                 );
             }
         }

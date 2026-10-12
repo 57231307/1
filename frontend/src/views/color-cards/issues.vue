@@ -361,6 +361,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { ArrowLeft } from '@element-plus/icons-vue';
@@ -430,13 +431,21 @@ const damagedForm = reactive({ compensation_amount: 0, remark: '' });
 const cancelForm = reactive({ remark: '' });
 
 const loadCards = async () => {
-  const res = await getColorCardList({ status: 'draft', page_size: 200 });
-  availableCards.value = res.data?.items || [];
+  try {
+    const res = await getColorCardList({ status: 'draft', page_size: 200 });
+    availableCards.value = res.data?.items || [];
+  } catch (error) {
+    logAuxLoadFailure('加载色号列表失败', error);
+  }
 };
 
 const loadRecords = async () => {
-  const res = await getIssueList({ page_size: 100 });
-  issueRecords.value = res.data?.items || [];
+  try {
+    const res = await getIssueList({ page_size: 100 });
+    issueRecords.value = res.data?.items || [];
+  } catch (error) {
+    logAuxLoadFailure('加载色号问题记录失败', error);
+  }
 };
 
 const handleIssue = async () => {

@@ -20,7 +20,9 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::dye_recipe_service::{
     CreateDyeRecipeRequest, DyeRecipeQuery, DyeRecipeService, UpdateDyeRecipeRequest,
 };
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
@@ -40,19 +42,18 @@ pub struct DyeRecipeListQuery {
     pub download_token: Option<String>,
 }
 
-/// 审核请求体
-#[allow(dead_code, reason = "反序列化输入字段")]
-#[derive(Debug, Deserialize)]
-pub struct ApproveRecipeRequest {
-    pub approved_by: i32,
-}
-
-/// 创建新版本请求体
+/// 创建新版本请求体（仅 remarks 选填；建版人身份取 AuthContext.user_id，不由请求体提供）
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct CreateVersionRequest {
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
+}
+
+/// 拒绝配方请求体：拒绝理由 reason 必填（服务端 trim 非空强制），身份不由请求体承载
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct RejectRecipeRequest {
+    pub reason: String,
 }
 
 /// 从 AppState 构造 DyeRecipeService（每个请求构造轻量实例，无状态）
@@ -62,9 +63,10 @@ fn service(state: &AppState) -> DyeRecipeService {
 
 pub async fn list_dye_recipes(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<dye_recipe::Model>>>, AppError> {
-    // 批次 95 P3-3~8：分页 clamp 防 DoS
+    // 分页 clamp 防 DoS
     let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -78,7 +80,15 @@ pub async fn list_dye_recipes(
         page_size,
     };
 
-    let (recipes, total) = service(&state).list(svc_query).await?;
+    // 行级数据权限：染色配方属工艺机密面（染化料、配比、温度曲线），主列表必须按持键用户的
+    // data_scope 下推行级过滤，否则任意持读键用户可枚举全库配方。归属列 created_by、表无
+    // department_id，service.list 内以 apply_data_scope(..., CreatedBy, CreatedBy) 下推，
+    // total 由同一已过滤 paginator 派生（与列表同源）。auth 置于 Query 之前符合 axum
+    // 提取器规则（仅最后一个 body 提取器受限，FromRequestParts 之间顺序自由）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let (recipes, total) = service(&state)
+        .list(svc_query, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success_paginated(
         recipes, total, page, page_size,
     )))
@@ -86,18 +96,24 @@ pub async fn list_dye_recipes(
 
 pub async fn get_dye_recipe(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let recipe = service(&state).get_by_id(id).await?;
+    // 详情按 created_by 归属门（check_resource_owner_by_member_scope，与主列表 apply_data_scope
+    // Dept 分支同源判据）：All 放行 / Dept 本人或可见成员 / Self_ 仅本人 / NULL 历史行拒。
+    // 若不加门，主列表已收窄的机密行仍可被直查 :id 读出，形成"列表看不到、详情能拿到"的绕行。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let recipe = service(&state).get_by_id(id, Some(&data_scope_ctx)).await?;
     Ok(Json(ApiResponse::success(recipe)))
 }
 
 pub async fn create_dye_recipe(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateDyeRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let created = service(&state).create(req).await?;
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let created = service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "配方创建成功",
@@ -106,11 +122,16 @@ pub async fn create_dye_recipe(
 
 pub async fn update_dye_recipe(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    _auth: AuthContext,
     Json(req): Json<UpdateDyeRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let updated = service(&state).update(id, req).await?;
+    let service = service(&state);
+    // 写端点归属门必须前置于落库：先按 created_by 校验对目标行的数据范围，越权 403，
+    // 未通过绝不进入 service.update 写路径（防对他人机密配方做字段级篡改）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方更新成功",
@@ -119,34 +140,77 @@ pub async fn update_dye_recipe(
 
 pub async fn delete_dye_recipe(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    _auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    service(&state).delete(id).await?;
+    let service = service(&state);
+    // 删除归属门前置于软删落库：按 created_by 校验数据范围，越权 403，不得删他人机密配方。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    service.delete(id).await?;
     Ok(Json(ApiResponse::success_with_message((), "配方删除成功")))
 }
 
+/// POST /api/v1/erp/production/dye-recipes/:id/approve - 审核配方
+// 审批人身份唯一来源是服务端会话（AuthContext.user_id），请求体不承载审批身份。
+// 端点无必填报文字段，故不绑定 body 提取器：缺体是合法输入，状态门在 service 层。
 pub async fn approve_recipe(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    _auth: AuthContext,
-    Json(req): Json<ApproveRecipeRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let updated = service(&state).approve(id, req.approved_by).await?;
+    let service = service(&state);
+    // 审批类端点归属门前置于状态流转落库：按 created_by 校验数据范围，越权 403，
+    // 不得审批他人机密配方（审批人身份仍取会话 auth.user_id，不由请求体承载）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.approve(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方审核成功",
     )))
 }
 
+/// POST /api/v1/erp/production/dye-recipes/:id/reject - 拒绝配方（待审核 → 已拒绝）
+// 拒绝人身份唯一来源是服务端会话（AuthContext.user_id），请求体只承载拒绝理由 reason
+// （trim 非空必填）。归属门沿用 approve 的 handler 前置口径：先按 created_by 校验
+// 数据范围（越权 403），未通过绝不进入 service.reject 写路径。
+pub async fn reject_recipe(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(id): Path<i32>,
+    Json(req): Json<RejectRecipeRequest>,
+) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+    let service = service(&state);
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.reject(id, reason, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        updated,
+        "配方拒绝成功",
+    )))
+}
+
+/// POST /api/v1/erp/production/dye-recipes/:id/new-version - 基于已审核配方创建新版本
+// 新版本行的建版人同样取会话；备注 remarks 选填 ⇒ 体本身选填（OptionalJson 语义表），
+// 缺体合法放行到服务层状态门，不得在解码层被吞成 400。
 pub async fn create_new_version(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    _auth: AuthContext,
-    Json(req): Json<CreateVersionRequest>,
+    OptionalJson(req): OptionalJson<CreateVersionRequest>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let created = service(&state)
-        .create_new_version(id, req.remarks, req.created_by)
+    let service = service(&state);
+    // 建版（复制）类端点归属门前置于新行落库：对复制源父配方按 created_by 校验数据范围，
+    // 越权 403，不得凭他人机密配方派生新版本。缺体仍合法放行到 service 层状态门（OptionalJson）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let created = service
+        .create_new_version(id, req.and_then(|r| r.remarks), auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
@@ -154,6 +218,10 @@ pub async fn create_new_version(
     )))
 }
 
+/// 按色号查询参考配方（共享工艺参考面）——handler 刻意不注入 AuthContext：
+/// service `get_recipes_by_color` 仅返回 status=APPROVED 且未删除的配方，属跨部门
+/// 共享工艺知识（与主列表机密面、"我的排程运行"owner 私有面属不同判据族），
+/// 调用方传 color_code，数据存 dye_recipe 表。
 pub async fn get_recipes_by_color(
     State(state): State<AppState>,
     Path(color_code): Path<String>,
@@ -164,9 +232,16 @@ pub async fn get_recipes_by_color(
 
 pub async fn get_recipe_versions(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<dye_recipe::Model>>>, AppError> {
-    let recipes = service(&state).get_recipe_versions(id).await?;
+    // 版本列表归属门：以父配方 id 的 created_by 归属门把关（service.get_recipe_versions 内部
+    // 对 get_by_id(id, ctx) 走 check_resource_owner_by_member_scope）——与主列表同源：
+    // 用户对 id 有读权限即可查看其版本树，否则 403。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let recipes = service(&state)
+        .get_recipe_versions(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(recipes)))
 }
 
@@ -174,10 +249,15 @@ pub async fn get_recipe_versions(
 /// 化验室主管在待审核态执行审批（DRAFT 态仍保留直审兼容路径）。
 pub async fn submit_dye_recipe(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<dye_recipe::Model>>, AppError> {
-    let updated = service(&state).submit(id).await?;
+    let service = service(&state);
+    // 提交（状态流转写端点）归属门前置于落库：按 created_by 校验数据范围，越权 403，
+    // 不得把他人机密配方提交进审批流。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_by_id(id, Some(&data_scope_ctx)).await?;
+    let updated = service.submit(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "配方已提交审核",
@@ -198,8 +278,13 @@ pub async fn export_dye_recipes(
             .enforce_export_download(download_token.as_deref(), "dye_recipe")
             .await?;
 
+    // 导出与主列表必须同一 scope：此处复用 handler 的 AuthContext 构造 DataScopeContext，
+    // 下推到导出查询，避免列表已收窄而导出仍全库落盘（xlsx 一次性外带工艺机密）。
+    // auth 此前仅用于审计，现同时作为行级数据权限来源；审计记录仍按原口径写。
+    let data_scope_ctx = auth.to_data_scope_context();
+
     // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
-    let recipes = query_dye_recipes_for_export(&state.db, &query).await?;
+    let recipes = query_dye_recipes_for_export(&state.db, &query, Some(&data_scope_ctx)).await?;
     let row_count = recipes.len();
 
     let recipes_json: Vec<serde_json::Value> = recipes
@@ -230,8 +315,20 @@ const EXPORT_LIMIT: u64 = 10_000;
 async fn query_dye_recipes_for_export(
     db: &std::sync::Arc<sea_orm::DatabaseConnection>,
     query: &DyeRecipeListQuery,
+    data_scope: Option<&DataScopeContext>,
 ) -> Result<Vec<dye_recipe::Model>, AppError> {
     let mut q = dye_recipe::Entity::find().filter(dye_recipe::Column::IsDeleted.eq(false));
+    // 行级数据权限下推：与 service.list 完全同款——同一 apply_data_scope 入口、同一归属列
+    // created_by、同传 CreatedBy 作 owner 与 dept 列（表无 department_id，dept 退化为可见成员集合）。
+    // 保证导出可见集与主列表逐行一致，越权用户无法经导出旁路拿到全库机密配方。
+    if let Some(ctx) = data_scope {
+        q = apply_data_scope(
+            q,
+            ctx,
+            dye_recipe::Column::CreatedBy,
+            dye_recipe::Column::CreatedBy,
+        );
+    }
     if let Some(recipe_no) = &query.recipe_no {
         q = q.filter(dye_recipe::Column::RecipeNo.contains(recipe_no));
     }

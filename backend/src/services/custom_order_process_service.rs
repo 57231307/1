@@ -16,6 +16,9 @@ use crate::models::custom_order_update_dto::{
 };
 use crate::models::process_log::{self, ActiveModel as LogActive, Entity as LogEntity};
 use crate::models::process_node::{self, ActiveModel as NodeActive, Entity as NodeEntity};
+// process_nodes.status 取值权威 = models/status/production.rs::process_node
+// （与建表约束 chk_node_status 四值逐字符一致，提交 494dd0f3）；禁止本文件再写第二套字面量。
+use crate::models::status::production::process_node as node_status;
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -57,7 +60,7 @@ impl CustomOrderProcessService {
             node_type: Set(dto.node_type),
             node_name: Set(dto.node_name),
             sequence: Set(dto.sequence),
-            status: Set("pending".to_string()),
+            status: Set(node_status::PENDING.to_string()),
             planned_start_date: Set(dto.planned_start_date),
             planned_end_date: Set(dto.planned_end_date),
             actual_start_date: Set(None),
@@ -71,11 +74,12 @@ impl CustomOrderProcessService {
         Ok(result)
     }
 
-    /// 更新工艺节点
+    /// 更新工艺节点（操作人身份由 handler 层按会话传入，与 `advance_node` 同一范式）
     pub async fn update_node(
         &self,
         node_id: i64,
         dto: UpdateProcessNodeDto,
+        operator_id: i32,
     ) -> Result<process_node::Model, ProcessError> {
         let existing = NodeEntity::find_by_id(node_id)
             .one(&*self.db)
@@ -86,9 +90,8 @@ impl CustomOrderProcessService {
         if let Some(v) = dto.status {
             active.status = Set(v);
         }
-        if let Some(v) = dto.operator_id {
-            active.operator_id = Set(Some(v));
-        }
+        // 本次动作的操作人只取会话身份，落库值无兜底（调用方必须给出真实 user_id）
+        active.operator_id = Set(Some(operator_id));
         if let Some(v) = dto.actual_start_date {
             active.actual_start_date = Set(Some(v));
         }
@@ -108,6 +111,7 @@ impl CustomOrderProcessService {
         &self,
         node_id: i64,
         dto: AdvanceNodeDto,
+        operator_id: i32,
     ) -> Result<process_node::Model, ProcessError> {
         let existing = NodeEntity::find_by_id(node_id)
             .one(&*self.db)
@@ -115,12 +119,12 @@ impl CustomOrderProcessService {
             .ok_or(ProcessError::NotFound)?;
 
         let new_status = match dto.action.as_str() {
-            "start" => "in_progress",
-            "pause" => "pending",
-            "resume" => "in_progress",
-            "complete" => "completed",
-            "block" => "blocked",
-            "unblock" => "in_progress",
+            "start" => node_status::IN_PROGRESS,
+            "pause" => node_status::PENDING,
+            "resume" => node_status::IN_PROGRESS,
+            "complete" => node_status::COMPLETED,
+            "block" => node_status::BLOCKED,
+            "unblock" => node_status::IN_PROGRESS,
             _ => {
                 return Err(ProcessError::InvalidState(format!(
                     "不支持的操作: {}",
@@ -131,7 +135,7 @@ impl CustomOrderProcessService {
 
         let mut active: NodeActive = existing.clone().into();
         active.status = Set(new_status.to_string());
-        active.operator_id = Set(Some(dto.operator_id));
+        active.operator_id = Set(Some(operator_id));
         active.updated_at = Set(Utc::now());
 
         let now = Utc::now();
@@ -158,7 +162,7 @@ impl CustomOrderProcessService {
             id: Default::default(),
             process_node_id: Set(node_id),
             action: Set(dto.action),
-            operator_id: Set(Some(dto.operator_id)),
+            operator_id: Set(Some(operator_id)),
             before_status: Set(Some(existing.status)),
             after_status: Set(Some(new_status.to_string())),
             log_time: Set(Utc::now()),
@@ -175,12 +179,13 @@ impl CustomOrderProcessService {
         &self,
         node_id: i64,
         dto: AddProcessLogDto,
+        operator_id: i32,
     ) -> Result<process_log::Model, ProcessError> {
         let active = LogActive {
             id: Default::default(),
             process_node_id: Set(node_id),
             action: Set(dto.action),
-            operator_id: Set(Some(dto.operator_id)),
+            operator_id: Set(Some(operator_id)),
             before_status: Set(dto.before_status),
             after_status: Set(dto.after_status),
             log_time: Set(Utc::now()),

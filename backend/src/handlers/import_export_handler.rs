@@ -95,7 +95,7 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
     use crate::services::import_export_service::{MAX_CELL_LEN, MAX_EXCEL_COLS, MAX_EXCEL_ROWS};
 
     if data.len() > MAX_EXCEL_ROWS {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "Excel 数据超过 {} 行上限：当前 {} 行",
             MAX_EXCEL_ROWS,
             data.len()
@@ -103,7 +103,7 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
     }
     for (row_idx, row) in data.iter().enumerate() {
         if row.len() > MAX_EXCEL_COLS {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "Excel 第 {} 行列数超过 {} 列上限：当前 {} 列",
                 row_idx + 1,
                 MAX_EXCEL_COLS,
@@ -111,13 +111,16 @@ fn validate_excel_data(data: &[Vec<String>]) -> Result<(), AppError> {
             )));
         }
         for (col_idx, cell) in row.iter().enumerate() {
-            if cell.len() > MAX_CELL_LEN {
-                return Err(AppError::validation(format!(
+            // 文案承诺的是「字符」上限，故按字符计数；cell.len() 是 UTF-8 字节数，
+            // 会让中文单元格内容的实际上限被隐性收紧约 3 倍。
+            let cell_chars = cell.chars().count();
+            if cell_chars > MAX_CELL_LEN {
+                return Err(AppError::validation_displayable(format!(
                     "Excel 第 {} 行第 {} 列单元格超过 {} 字符上限：当前 {} 字符",
                     row_idx + 1,
                     col_idx + 1,
                     MAX_CELL_LEN,
-                    cell.len()
+                    cell_chars
                 )));
             }
         }
@@ -409,9 +412,13 @@ fn import_template_store() -> &'static Mutex<Vec<ImportTemplateRecord>> {
 }
 
 fn lock_import_templates() -> Result<MutexGuard<'static, Vec<ImportTemplateRecord>>, AppError> {
-    import_template_store()
-        .lock()
-        .map_err(|_| AppError::internal("导入模板存储不可用"))
+    import_template_store().lock().map_err(|e| {
+        tracing::error!(
+            "导入模板存储互斥锁被污染（此前存在 panic 破坏内存状态）: {}",
+            e
+        );
+        AppError::internal("导入模板存储不可用")
+    })
 }
 
 fn map_import_data_type(data_type: &str) -> String {
@@ -744,7 +751,10 @@ pub async fn create_import_task_from_upload(
     let task = import_task::Entity::find_by_id(task_id)
         .one(state.db.as_ref())
         .await?
-        .ok_or_else(|| AppError::internal("导入任务记录创建后查询失败"))?;
+        .ok_or_else(|| {
+            tracing::error!("导入任务创建后按 ID 查询不到记录，task_id={}", task_id);
+            AppError::internal("导入任务记录创建后查询失败")
+        })?;
 
     info!(
         "用户 {} 创建导入任务成功：ID={}，模板={}，文件={}",

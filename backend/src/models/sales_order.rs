@@ -13,7 +13,9 @@ pub struct Model {
     pub customer_id: i32,
     pub opportunity_id: Option<i32>,
     pub order_date: DateTime<Utc>,
-    pub required_date: DateTime<Utc>,
+    /// 要求交期：生效 DDL 为可空 TIMESTAMPTZ（migration system/mod.rs:420），
+    /// 声明成非 Option 会让任一 NULL 行在读取时 ColumnNull 报错（列表/详情整链 500）
+    pub required_date: Option<DateTime<Utc>>,
     pub ship_date: Option<DateTime<Utc>>,
     pub status: String,
     pub subtotal: Decimal,
@@ -43,6 +45,10 @@ pub struct Model {
     pub department_id: Option<i32>,
     pub approved_by: Option<i32>,
     pub approved_at: Option<DateTime<Utc>>,
+    /// 审批通过理由（m0079 加列，TEXT 可空；流程放行类，选填可留空=NULL）
+    pub approval_reason: Option<String>,
+    /// 审批拒绝理由（m0079 加列，TEXT 可空；自本列起 reject 不再挪用 notes）
+    pub rejected_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

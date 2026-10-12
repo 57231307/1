@@ -571,7 +571,7 @@ impl PermissionComplianceService {
             before_snapshot: None,
             after_snapshot: Some(serde_json::json!({
                 "alert_type": alert.alert_type,
-                "severity": format!("{:?}", alert.severity),
+                "severity": alert.severity.as_str(),
                 "source": "permission_compliance_review",
             })),
         };

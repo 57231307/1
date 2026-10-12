@@ -276,9 +276,15 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (formData.id) {
+        // 三态语义（后端 UpdateBatchRequest DoubleOption，RFC 7386）：
+        // NOT NULL 列 color_no/grade 恒送值（送 null 被后端 400 拒绝）；
+        // DB 可空列 dye_lot_no UI 清空 ⇒ 送显式 null（=清空为 NULL）——
+        // 此前塌成 `|| undefined`（省略=保持原值），清缸号保存不生效；
+        // gram_weight/width 表单为数值采集（含 0），恒按有值覆盖；
+        // 未采集的键（expiry_date/stock_status/quality_status/remarks）不提交=保持。
         const payload: UpdateBatchRequest = {
-          color_no: formData.color_no || undefined,
-          dye_lot_no: formData.dye_lot_no || undefined,
+          color_no: formData.color_no,
+          dye_lot_no: formData.dye_lot_no || null,
           grade: formData.grade,
           gram_weight: formData.gram_weight,
           width: formData.width,

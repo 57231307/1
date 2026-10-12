@@ -111,6 +111,53 @@ fabric_industry:
   # 缸号状态机超时（秒，超过此阈值触发异常告警，默认 14400=4 小时）
   dyebatch_status_timeout_secs: 14400
 
+# 系统更新下载配置（任务 #121：多镜像加速 + 官方 SHA-256 强校验，防镜像投毒）
+# 信任模型（安全红线）：
+#   1. mirrors / 内置默认加速镜像 **只用于搬运大 tar 字节**；SHA-256 校验基准永远只从官方域取
+#      （CI 上传的 .sha256 资产 / GitHub API assets[].digest），绝不从任何镜像取校验值。
+#   2. verify_digest=true 时，若两官方校验源均不可得 → fail-closed 拒绝 apply（严禁放行）。
+#   3. 官方域（github.com / objects.githubusercontent.com）永远是候选之一并作最终兜底。
+# 默认镜像策略：
+#   - use_default_mirrors=true（默认）：并入一组内置公共加速镜像（源码 DEFAULT_RELEASE_MIRRORS，
+#     第三方 ghproxy 系、可用性可能漂移），运维 mirrors 留空即享受内置默认，显式填则叠加去重。
+#   - 内置默认镜像**不参与启动 fail-fast**（公共镜像离线绝不应让服务起不来），仅下载期按序尝试、
+#     失败优雅跳到下一候选/官方；且**绝不进入校验值信任锚**（github.com / objects.githubusercontent.com 之外
+#     的 host 恒被校验锚判定拒）。可用 use_default_mirrors=false 彻底关闭内置默认。
+# 优先级：环境变量 > config.yaml update 段 > 默认值
+# 环境变量覆盖：UPDATE__MIRRORS（逗号分隔）/ UPDATE__USE_DEFAULT_MIRRORS（true/false）/
+#               UPDATE__MIRROR_ORDER / UPDATE__VERIFY_DIGEST /
+#               UPDATE__CONNECT_TIMEOUT_SECS / UPDATE__READ_TIMEOUT_SECS
+# 启动 fail-fast（仅针对运维显式 mirrors）：每个运维镜像必须是合法 https 绝对 URL、host 为域名
+#   （非 IP 字面量）、通过 SSRF/内网解析校验；任一不满足直接拒绝启动（内置默认镜像不受此约束）。
+update:
+  # 是否启用内置公共默认加速镜像（true=默认启用，官方优先兜底；false=只用下面显式 mirrors）。
+  # 内置默认仅搬字节、不作校验锚、不参与启动 fail-fast；可用 UPDATE__USE_DEFAULT_MIRRORS 覆盖。
+  use_default_mirrors: true
+  # GitHub Release 加速镜像 base URL 列表（运维显式配置；与内置默认叠加去重）。
+  # 留空即完全依赖内置默认 + 官方兜底；下载时镜像改写形如：{mirror}/{githubAssetUrl}
+  # 切勿填 http、裸 IP、内网地址（运维显式镜像会被启动校验拒绝）。
+  mirrors: []
+    # - "https://your-trusted-mirror.example.com"
+  # 镜像/官方优先：official（默认，官方优先、镜像仅兜底，投毒面最小）| mirror（镜像优先）
+  # 注意：serde 采用 lowercase 枚举名，取值须为 officialfirst / mirrorfirst（或对应环境变量简写）
+  mirror_order: "officialfirst"
+  # 是否强制 SHA-256 完整校验（默认 true，生产必须保持 true）——校验值永远只信官方域，与镜像无关。
+  # 置 false 仅用于校验源不可达的隔离调试，且会显式告警；即便 false，取到校验值不匹配仍拒绝。
+  verify_digest: true
+  # 下载连接超时（秒）
+  connect_timeout_secs: 15
+  # 下载单次读取超时（秒）
+  read_timeout_secs: 180
+
+# 环保税适用税额（元/污染当量）——决策定案 #6 分源口径：
+#   污染当量值＝法定不可调值，源码唯一来源 backend/src/constants/environmental_tax.rs；
+#   适用税额＝地方可变值，即本配置项。
+# 法定幅度：每污染当量 1.2–12 元，由省级人民政府在幅度内确定（运维取值须落在 1.2–12 内）。
+# ⚠️ 无默认值：未配置本项时环保税计税端点（POST /environmental-tax/discharge-records）
+#   显式返回"环保税适用税额未配置"并记 WARN——服务正常启动，但绝不按任何默认税额计算。
+# 环境变量覆盖：ENV_TAX_RATE_PER_EQUIVALENT（优先级高于本文件）
+# env_tax_rate_per_equivalent: 2.4
+
 # 批次 398 修复：env 字段现已接入 is_production() 判定链路
 # AppSettings::new() 启动时若 APP_ENV 环境变量未设置，会将此字段同步到 APP_ENV
 # 优先级：APP_ENV 环境变量 > config.yaml env 字段

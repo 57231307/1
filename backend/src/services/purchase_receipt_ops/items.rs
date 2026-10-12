@@ -97,6 +97,35 @@ impl PurchaseReceiptService {
         req: UpdateReceiptItemRequest,
         user_id: i32,
     ) -> Result<purchase_receipt_item::Model, AppError> {
+        // NOT NULL 列门控（purchase_receipt_item.line_no/product_id/material_code/
+        // material_name/quantity，m0009 DDL）：显式 null 在任何 DB 访问前拒绝，
+        // 错误外显不脱敏，不得塌成"保持原值"
+        if matches!(req.line_no, Some(None)) {
+            return Err(AppError::business_displayable(
+                "行号不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.material_id, Some(None)) {
+            return Err(AppError::business_displayable(
+                "物料不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.material_code, Some(None)) {
+            return Err(AppError::business_displayable(
+                "物料编码不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.material_name, Some(None)) {
+            return Err(AppError::business_displayable(
+                "物料名称不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "入库数量不能清空：该字段为必填项",
+            ));
+        }
+
         // 批次 19（2026-06-28）：补全事务边界，明细 update 与总金额重算原子化。
         // 原实现明细 update_with_audit 与 calculate_receipt_total 非原子且均用 &*self.db，
         // 并发 update_receipt_item 会导致总金额丢失更新。
@@ -137,10 +166,14 @@ impl PurchaseReceiptService {
         // DTO 声明的字段必须逐项落地：原实现只应用数量/辅助数量/单价/备注，
         // 前端提交的行号、物料、色号、缸号、批次、等级、克重、门幅、库位、匹号
         // 全部被静默丢弃，界面上改了、库里没变（假保存）。
-        if let Some(line_no) = req.line_no {
+        // 三态写入规则：None=不 Set（UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+        // line_no/product_id/material_code/material_name/quantity 为 NOT NULL 列
+        // （Some(None) 已入口拒绝）：仅覆盖/保持
+        if let Some(line_no) = req.line_no.flatten() {
             item_active.line_no = Set(line_no);
         }
-        if let Some(material_id) = req.material_id {
+        if let Some(material_id) = req.material_id.flatten() {
             // 已挂订单明细的行不允许改选其他产品，否则收货量会累加到别的产品的订单行上
             if let Some(order_item_id) = linked_order_item_id {
                 let linked = crate::models::purchase_order_item::Entity::find_by_id(order_item_id)
@@ -158,47 +191,48 @@ impl PurchaseReceiptService {
             }
             item_active.product_id = Set(material_id);
         }
-        if let Some(code) = req.material_code {
+        if let Some(code) = req.material_code.flatten() {
             item_active.material_code = Set(code);
         }
-        if let Some(name) = req.material_name {
+        if let Some(name) = req.material_name.flatten() {
             item_active.material_name = Set(name);
         }
+        // 以下均为 DB 可空列（m0009 DDL 核实）：Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(v) = req.batch_no {
-            item_active.batch_no = Set(Some(v));
+            item_active.batch_no = Set(v);
         }
         if let Some(v) = req.color_code {
-            item_active.color_code = Set(Some(v));
+            item_active.color_code = Set(v);
         }
         if let Some(v) = req.lot_no {
-            item_active.lot_no = Set(Some(v));
+            item_active.lot_no = Set(v);
         }
         if let Some(v) = req.grade {
-            item_active.grade = Set(Some(v));
+            item_active.grade = Set(v);
         }
         if let Some(v) = req.gram_weight {
-            item_active.gram_weight = Set(Some(v));
+            item_active.gram_weight = Set(v);
         }
         if let Some(v) = req.width {
-            item_active.width = Set(Some(v));
+            item_active.width = Set(v);
         }
         if let Some(v) = req.location_code {
-            item_active.location_code = Set(Some(v));
+            item_active.location_code = Set(v);
         }
         if let Some(v) = req.piece_no {
-            item_active.piece_no = Set(Some(v));
+            item_active.piece_no = Set(v);
         }
-        if let Some(quantity) = req.quantity {
+        if let Some(quantity) = req.quantity.flatten() {
             item_active.quantity = Set(quantity);
         }
         if let Some(quantity_alt) = req.quantity_alt {
-            item_active.quantity_alt = Set(Some(quantity_alt));
+            item_active.quantity_alt = Set(quantity_alt);
         }
         if let Some(unit_price) = req.unit_price {
-            item_active.unit_price = Set(Some(unit_price));
+            item_active.unit_price = Set(unit_price);
         }
         if let Some(notes) = req.notes {
-            item_active.notes = Set(Some(notes));
+            item_active.notes = Set(notes);
         }
 
         let item = crate::services::audit_log_service::AuditLogService::update_with_audit(

@@ -239,7 +239,7 @@ impl BusinessTraceService {
     /// * is_tail = true 时同理。
     ///
     /// 调用方必须把 new_node 的必填字段（trace_chain_id/current_stage/current_bill_no/...）置为 Set，
-    /// 否则内部 try_as_ref() 返回 None 时直接 AppError::validation。
+    /// 否则内部 try_as_ref() 返回 None 时视为服务端内部不变量违例，直接 AppError::internal。
     pub async fn upsert_chain_node(
         &self,
         new_node: business_trace_chain::ActiveModel,
@@ -252,19 +252,19 @@ impl BusinessTraceService {
         let trace_chain_id = match new_node.trace_chain_id.try_as_ref() {
             Some(v) => v.clone(),
             None => {
-                return Err(AppError::validation("chain 缺少 trace_chain_id"));
+                return Err(AppError::internal("chain 缺少 trace_chain_id"));
             }
         };
         let current_stage = match new_node.current_stage.try_as_ref() {
             Some(v) => v.clone(),
             None => {
-                return Err(AppError::validation("chain 缺少 current_stage"));
+                return Err(AppError::internal("chain 缺少 current_stage"));
             }
         };
         let current_bill_no = match new_node.current_bill_no.try_as_ref() {
             Some(v) => v.clone(),
             None => {
-                return Err(AppError::validation("chain 缺少 current_bill_no"));
+                return Err(AppError::internal("chain 缺少 current_bill_no"));
             }
         };
 
@@ -274,7 +274,7 @@ impl BusinessTraceService {
             new_node.next_trace_id.try_as_ref(),
         ) {
             if prev == next {
-                return Err(AppError::validation(
+                return Err(AppError::internal(
                     "chain 节点禁止 previous_trace_id == next_trace_id 自环",
                 ));
             }
@@ -286,7 +286,7 @@ impl BusinessTraceService {
             new_node.quantity_kg.try_as_ref(),
         ) {
             if *qm < rust_decimal::Decimal::ZERO || *qk < rust_decimal::Decimal::ZERO {
-                return Err(AppError::validation("chain 数量字段禁止负值"));
+                return Err(AppError::internal("chain 数量字段禁止负值"));
             }
         }
 

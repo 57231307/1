@@ -20,6 +20,25 @@ use crate::services::ap_invoice_service::{
 use crate::utils::error::AppError;
 
 impl ApInvoiceService {
+    /// 账龄逾期天数 → 桶标签（纯判定，不触 DB，生产与集成测试同源调用，
+    /// 禁止测试侧另写复现）：days_overdue < 0 未到期；否则按
+    /// 1-30 / 31-60 / 61-90 / 91-180 / 180 天以上六区间归类。
+    pub fn classify_aging_bucket(days_overdue: i32) -> String {
+        if days_overdue < 0 {
+            "未到期".to_string()
+        } else if days_overdue <= 30 {
+            "逾期 1-30 天".to_string()
+        } else if days_overdue <= 60 {
+            "逾期 31-60 天".to_string()
+        } else if days_overdue <= 90 {
+            "逾期 61-90 天".to_string()
+        } else if days_overdue <= 180 {
+            "逾期 91-180 天".to_string()
+        } else {
+            "逾期 180 天以上".to_string()
+        }
+    }
+
     /// 获取账龄分析
     pub async fn get_aging_analysis(
         &self,
@@ -31,15 +50,13 @@ impl ApInvoiceService {
             query = query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
 
-        // 查询未付清的应付单
+        // 查询未付清的应付单（DRAFT/CANCELLED 一律不计入账龄，与 AR 账龄同口径）
         let invoices = query
-            .filter(
-                ap_invoice::Column::InvoiceStatus.ne(crate::models::status::payment::PAYMENT_PAID),
-            )
-            .filter(
-                ap_invoice::Column::InvoiceStatus
-                    .ne(crate::models::status::common::STATUS_CANCELLED),
-            )
+            .filter(ap_invoice::Column::InvoiceStatus.is_not_in([
+                crate::models::status::payment::PAYMENT_PAID,
+                crate::models::status::common::STATUS_CANCELLED,
+                crate::models::status::common::STATUS_DRAFT,
+            ]))
             .all(&*self.db)
             .await?;
 
@@ -55,20 +72,8 @@ impl ApInvoiceService {
                 -1 // 未到期
             };
 
-            // 按账龄区间分类
-            let aging_bucket = if days_overdue < 0 {
-                "未到期".to_string()
-            } else if days_overdue <= 30 {
-                "逾期 1-30 天".to_string()
-            } else if days_overdue <= 60 {
-                "逾期 31-60 天".to_string()
-            } else if days_overdue <= 90 {
-                "逾期 61-90 天".to_string()
-            } else if days_overdue <= 180 {
-                "逾期 91-180 天".to_string()
-            } else {
-                "逾期 180 天以上".to_string()
-            };
+            // 按账龄区间分类（纯判定已提取为 classify_aging_bucket，生产与测试同源）
+            let aging_bucket = Self::classify_aging_bucket(days_overdue);
 
             let entry =
                 aging_map
@@ -97,12 +102,12 @@ impl ApInvoiceService {
             query = query.filter(ap_invoice::Column::SupplierId.eq(sid));
         }
 
-        // 查询所有有效应付单
+        // 查询所有有效应付单（草稿与已取消不计入余额）
         let invoices = query
-            .filter(
-                ap_invoice::Column::InvoiceStatus
-                    .ne(crate::models::status::common::STATUS_CANCELLED),
-            )
+            .filter(ap_invoice::Column::InvoiceStatus.is_not_in([
+                crate::models::status::common::STATUS_CANCELLED,
+                crate::models::status::common::STATUS_DRAFT,
+            ]))
             .all(&*self.db)
             .await?;
 
@@ -129,7 +134,7 @@ impl ApInvoiceService {
         &self,
         supplier_id: Option<i32>,
     ) -> Result<ApInvoiceStatistics, AppError> {
-        // 1. 余额汇总（排除已取消）
+        // 1. 余额汇总（排除草稿与已取消）
         let balance_summary = self.get_balance_summary(supplier_id).await?;
 
         // 2. 账龄分析（未付清的应付单）

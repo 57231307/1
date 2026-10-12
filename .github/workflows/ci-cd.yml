@@ -11,14 +11,14 @@
 #              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
 #              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
 #            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（36 分片并行端到端）],
+#                         [ci-e2e（42 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
 #   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 36 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 42 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
@@ -304,7 +304,10 @@ jobs:
             if [ '${{ github.event_name }}' = 'pull_request' ]; then
               echo "::error::PR 事件不做自动回推（merge ref 推不回目标分支）。请本地执行：cd backend && cargo fmt --all"
               echo "本次 run 已验证可修正的差异如下："
-              head -60 reports/cargo-fmt-diff.txt || true
+              # 此处已 cd 到 $GITHUB_WORKSPACE，而报告写在 backend/reports/ 下
+              # （#4669 实证：原相对路径报 `head: cannot open reports/cargo-fmt-diff.txt`，
+              #   产物 report.md 的 diff 段是空壳，判责时看不到差异内容）
+              head -60 backend/reports/cargo-fmt-diff.txt || true
               exit 1
             fi
             TARGET='${{ github.head_ref }}'
@@ -335,6 +338,15 @@ jobs:
             echo "::error::格式修正已提交但推送失败（contents: write 权限或分支保护问题），修正未持久化，判失败"
             exit 1
           fi
+          # 内容级终检（真实门禁，非退出码复核）：脚本自枚举全部 .rs、去 CR 后逐批
+          # rustfmt --check，以"真实 diff 计数 + 注入探针自检"双判据收口——探针不被
+          # 报出为未格式化、或实际校验文件数为 0，都会让脚本自身非零退出，杜绝
+          # "0 diff 其实是空操作"的假绿形态。与上方 cargo fmt 判定是叠加而非替换：
+          # 任一不过本 job 即红；逐文件点名在脚本 stdout（随 job 日志落盘）。
+          bash "$GITHUB_WORKSPACE/backend/scripts/check-rustfmt-content.sh" || {
+            echo "::error::内容级 rustfmt 终检未过（脚本输出含逐文件点名与检测力自检结果）"
+            exit 1
+          }
           exit 0
 
       - name: 上传报告
@@ -421,9 +433,19 @@ jobs:
           exit $EXIT_CODE
 
       - name: 运行契约对齐检查（纯 Node，无需安装依赖）
+        if: ${{ !cancelled() }}
         run: node frontend/scripts/check-contract.mjs
 
+      # 判定器自证（--self-test）：对称锁/孤儿锁/基线棘轮/提示族缺键的双向样例与检测力地板
+      # （引用集为空、locale 解析为空、msgRefs 空集都必须判红而不是"零问题"）。
+      # 必须排在 i18n 主门禁之前——判定器退化空转时，主门禁的"问题 0"只是假绿。
+      - name: i18n 判定器自证（对称锁/孤儿棘轮/提示族缺键/检测力地板）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-i18n.mjs --self-test
+
       - name: 运行 i18n key 完整性检查（严格阻塞）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-i18n.mjs
 
@@ -431,26 +453,70 @@ jobs:
       # 只在本地手动执行，导致"0 失配"结论无法阻止回归）。判负口径统一为
       # 「解析不出即失败」，豁免必须带 文件:行号 证据。
       - name: 前后端路由路径对齐（前端调用 ↔ 后端真实路由）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-paths.mjs
 
+      # 判定器自证（--self-test）：Rust 切分守恒夹具、比对判据注入违例必抓/合规样例不误伤、
+      # 豁免防过期锁、可比对数检测力地板。必须排在各自主门禁之前 —— 判定器若退化空转，
+      # 主门禁的"失配 0"只是零违规的假绿，自证步骤会先红并点名坏在哪条断言。
+      - name: 响应信封判定器自证（切分守恒/地板/豁免防过期锁）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-api-envelope.mjs --self-test
+
       - name: 响应信封形状对齐（前端读取键 ↔ handler 出参）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-envelope.mjs
 
+      # 迁移 SQL 里的 PL/pgSQL 块配平。同一条 42601 打断整条迁移链已在两个连续 run 上各炸一次：
+      # run #4673 = m0076 的点名块漏写 `END IF;` ⇒ Setup/flow×20/smoke×5/traversal×5/extras×8/
+      # Rust×10/真实性门禁/收尾清理 60 job 齐红；run #4674 = m0075 的自证块里 RAISE 文案一个
+      # `%` 都没写却传了实参 ⇒ PG 编译 DO 块即报 "too many parameters specified for RAISE"，
+      # 迁移链在更晚的 v15 域中断 ⇒ 15 绿/59 红。一个语法错伪装成几十个缺陷，而 rustfmt 与
+      # cargo check 都不校验 SQL 文本、本机又无 PG，只有静态配平能在推前拦住。判负口径与其它
+      # 门禁一致：解析不出块/RAISE 即失败，不设豁免表；判定器自身先跑内联夹具自证（正例零发现、
+      # 反例必抓到），防止"0 异常"其实是空操作。
+      - name: 迁移 SQL 的 PL/pgSQL 块配平与 RAISE 占位符配平（防整条迁移链被打断）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-migration-sql.mjs
+
+      # 解析器防回归自测（fixture，纯 Node，毫秒级）：四类历史盲区——(a)箭头函数签名
+      # (b)Partial<T> (c)交叉类型 A&B (d)叶子类型(Value/any/Record/索引签名/不可解析
+      # config)——若哪天解析器被改回「静默跳过」，本步骤先于请求门禁变红并点名是哪一类失明。
+      - name: 请求契约解析器 fixture 自测（四类盲区防回归）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-api-request-fixture-selftest.mjs
+
+      # 存量 147 条漂移已登记 scripts/api-request-baseline.json（过渡机制：只列示不判负，
+      # 只准缩短）；不在基线内的新失配仍立即红。清零后删除基线文件恢复全量阻断。
+      # 自证步骤（multipart 双向判据正/负夹具 + 真实仓库回归地板 + PENDING_TRUE_ERRORS
+      # 防过期锁）先于主门禁执行，理由与信封侧同一：判定器空转时主门禁恒绿不可信。
+      - name: 请求契约判定器自证（multipart 双向判据/地板/防过期锁）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-api-request.mjs --self-test
+
       - name: 请求体与查询参数对齐（前端实参 ↔ 后端 Json/Query 字段集）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-request.mjs
 
       - name: 路由挂载结构约定（相对路径 / 单一 nest 前缀 / handlers 下无 router）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-route-mount.mjs
 
       - name: 端点基线漂移（挂载重构必须让全量端点逐字节不变）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/route-snapshot.mjs --check
 
       - name: 接口键名编造棘轮（前端类型键必须存在于后端字段全集，只准降不准升）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-api-keys.mjs
 
@@ -458,6 +524,7 @@ jobs:
       # 本轮在其中发现 6 条真实类型错误（用例按后端根本不存在的键断言等），
       # 故把 tsc -p tsconfig.e2e.json 纳入阻断链并按 文件|错误码 记棘轮基线。
       - name: e2e 类型棘轮（tsconfig.e2e.json，存量 @types/node 族入基线，只准降不准升）
+        if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-e2e-types.mjs
 
@@ -466,7 +533,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-fmt-report
-          path: reports/
+          # 报告实际写在 frontend/reports/（各步骤 working-directory: frontend），
+          # upload-artifact 不认 working-directory，写 `reports/` 指向仓库根 = 传空
+          path: frontend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -1274,7 +1343,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-type-check-report
-          path: reports/
+          # 同 frontend-fmt-report：vue-tsc 输出写在 frontend/reports/，
+          # 根级 `reports/` 不存在 → 制品一直是空的，判责时无从取证
+          path: frontend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -1348,7 +1419,10 @@ jobs:
     runs-on: ubuntu-latest
     # 10 个分片仅从 archive 运行测试（不编译），时间大幅缩短
     timeout-minutes: 360
-    needs: ci-build-test-artifacts
+    # ci-build-rust 提供 release `bingxi` CLI（backend-binary 产物），
+    # 用于分片执行前对本 job 专属 postgres service 跑 migrate。
+    # 没有已迁移 schema，setup_test_db() 指向的 PG 只是空库，"集成测试"仍是假覆盖。
+    needs: [ci-build-test-artifacts, ci-build-rust]
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
     if: github.event_name == 'pull_request'
     strategy:
@@ -1376,6 +1450,13 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 测试 harness（setup_test_db）读的是 TEST_DATABASE_URL；不注入则所有
+      # "集成测试"实际跑 sqlite::memory: 空表（假绿）。与 DATABASE_URL 同库，先 migrate 后跑测试。
+      TEST_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 负前提交集（"库存在但没有业务表 ⇒ 服务必须报 DATABASE_ERROR"）专用第二只库：
+      # 夹具 connect_empty_schema_db() 连它；本 job 建库但**不跑迁移**，与已迁移库互不污染。
+      # 缺失时夹具直接 panic（禁止静默跳过/回退 sqlite）。
+      TEST_EMPTY_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_empty
       AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
@@ -1399,6 +1480,47 @@ jobs:
           name: nextest-archive
           path: backend/
 
+      - name: 下载后端 CLI 二进制（migrate 用，复用 ci-build-rust release 产物，分片不重编）
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 建负前提交集专用空库（bingxi_empty，故意不跑迁移）
+        # 契约测试路线一（#4669 判责）：断言"库存在但没有业务表 ⇒ 服务报 DATABASE_ERROR"的用例
+        # 必须有真正未迁移的库可用；旧实现靠 sqlite::memory: 空库冒充，同时把全部用例拖进
+        # sqlite 方言失真。建库后硬校验它确实是 0 表，否则那族锁验证的是假前提 → 直接判红。
+        run: |
+          set -e
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "DROP DATABASE IF EXISTS bingxi_empty"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "CREATE DATABASE bingxi_empty OWNER bingxi"
+          EMPTY_TABLES=$(psql "$TEST_EMPTY_DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "空库 bingxi_empty public 基表数量: $EMPTY_TABLES"
+          if [ "${EMPTY_TABLES:-1}" != "0" ]; then
+            echo "::error::TEST_EMPTY_DATABASE_URL 指向的库不是空库（$EMPTY_TABLES 张基表）→ 负前提交集将验证假前提"
+            exit 1
+          fi
+
+      - name: 迁移本分片 PostgreSQL service（集成测试真跑活库的前提）
+        working-directory: backend
+        # 迁移失败必须让 job 红（bash 默认 -e，migrate/psql 非零退出即传导），
+        # 严禁静默跳过后带着空 schema 跑测试造成假绿。
+        run: |
+          set -e
+          chmod +x target/release/bingxi
+          ./target/release/bingxi migrate run
+          # 迁移"成功但没建表"同样是假绿，psql 硬校验 schema 非空 + 核心表存在
+          TABLES=$(psql "$DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "迁移后 public 基表数量: $TABLES"
+          if [ "${TABLES:-0}" -lt 50 ]; then
+            echo "::error::迁移后表数量异常（$TABLES < 50），分片拒绝以空/半空 schema 运行"
+            exit 1
+          fi
+          if [ -z "$(psql "$DATABASE_URL" -At -c "select to_regclass('public.sales_orders')")" ]; then
+            echo "::error::核心表 sales_orders 不存在，迁移未真正生效"
+            exit 1
+          fi
+
       - name: 运行测试分片 ${{ matrix.partition }}/10（nextest archive run --partition hash:${{ matrix.partition }}/10）
         working-directory: backend
         # --no-fail-fast 确保分片内所有测试都跑完，暴露全部失败
@@ -1415,11 +1537,18 @@ jobs:
           EXIT_CODE=$?
           set -e
 
-          # 统计测试结果
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
-          SKIPPED=$(awk '/^ SKIP /{c++} END{print c+0}' reports/nextest-output.txt 2>/dev/null)
-          TOTAL=$((PASSED + FAILED))
+          # 统计测试结果（权威源 = nextest 自己的 Summary 行，见 scripts/ci/nextest-summary.sh）
+          # 旧写法 `awk '/^ FAIL /'` 永不匹配 nextest 的 8 空格缩进状态行 ⇒ #4669 里
+          # 215 例真实失败被报告成"通过 0 / 失败 0"，并同时落"进程异常退出"文案。
+          read -r PASSED FAILED SKIPPED TOTAL HAS_SUMMARY < <(
+            bash "$GITHUB_WORKSPACE/scripts/ci/nextest-summary.sh" reports/nextest-output.txt
+          )
+          # 剥色后的状态行，供失败列表与详情复用（避免 ANSI 码使 grep 失配）
+          sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' reports/nextest-output.txt > reports/nextest-output.clean.txt
+          if [ "$HAS_SUMMARY" != "1" ] && [ "$EXIT_CODE" -eq "0" ]; then
+            echo "::error::nextest 退出 0 但输出里没有 Summary 行 → 计数不可信，按未验证处理"
+            exit 1
+          fi
 
           # 生成报告
           {
@@ -1432,27 +1561,45 @@ jobs:
             echo "**跳过**: $SKIPPED  "
             echo "**总计**: $TOTAL  "
             echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo "**Summary 可信**: $([ "$HAS_SUMMARY" = "1" ] && echo yes || echo 'no（无 Summary 行，以下数字仅按状态行粗估）')  "
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "## ❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "## ❌ 分片未产生 Summary（编译失败/进程异常退出，EXIT_CODE=$EXIT_CODE）"
               echo ""
-              { grep -E "^error\[" reports/nextest-output.txt 2>/dev/null || true; } | head -20
+              { grep -E "^error(\[|:)" reports/nextest-output.clean.txt 2>/dev/null || true; } | head -20
               echo ""
               echo "### 完整输出（最后 50 行）"
               echo ""
-              { tail -50 reports/nextest-output.txt 2>/dev/null || true; }
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
-            else
+              { tail -50 reports/nextest-output.clean.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -gt "0" ]; then
               echo "## ❌ 分片 ${{ matrix.partition }} 发现 $FAILED 个失败"
               echo ""
+              # 旧写法 `grep "^[[:space:]]+(EXECUTION )?FAIL "` 会同时命中进度区与
+              # Summary 区的同一行状态（每例两条），叠加"失败详情"的 -A10 后同一条
+              # 用例在报告里渲染 3 遍；判责时按清单行数统计会数出 2 倍于真实值的失败。
+              # 失败清单：取 Summary 区（nextest 自己的权威失败枚举，每 target 一行）
               echo "### 失败列表"
               echo ""
-              { grep -E "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -30
+              { sed -n '/^ *Summary \[/,$p' reports/nextest-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" | head -40 || true; }
               echo ""
-              echo "### 失败详情"
+              echo "### 失败详情（进度区 inline stdout，每例一处）"
               echo ""
-              { grep -A 10 "^ FAIL " reports/nextest-output.txt 2>/dev/null || true; } | head -60
+              { sed -n '1,/^ *Summary \[/p' reports/nextest-output.clean.txt | grep -A 10 -E "^[[:space:]]+FAIL \[" | head -120 || true; }
+              echo ""
+              # lib/bin 双计观察（仅展示，门禁判定仍用 Summary 原始数）：backend/src
+              # 的同一单测会同时编译进 `bingxi-backend`(lib) 与 `bingxi-backend::bin/
+              # server`(bin) 两个测试单元，nextest 按 target+name 计数 ⇒ FAILED 是
+              # "target 计次"而非唯一用例数（run #4671 p1 报 8 实 7）。消除双计的根修
+              # 在把 src 单测移出 bin 编译单元（backend 侧），报告只负责如实点名。
+              DUP_EXTRA=$(sed -n '/^ *Summary \[/,$p' reports/nextest-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" \
+                | awk '{line=$0; sub(/^.*\) /,"",line); idx=index(line," "); name=(idx>0 ? substr(line,idx+1) : line); c[name]++} END{e=0; for(k in c) if(c[k]>1) e+=c[k]-1; print e+0}')
+              if [ "${DUP_EXTRA:-0}" -gt "0" ]; then
+                echo "## ⚠️ 双计观察（展示性，不改判定）：$FAILED 个 target 计次中有 $DUP_EXTRA 次为同名用例在 lib/bin 双 target 重复计数，唯一用例失败数约 $((FAILED - DUP_EXTRA))"
+              else
+                echo "## ℹ️ 无双 target 重复计数（$FAILED 即唯一用例失败数）"
+              fi
+            else
+              echo "## ✅ 分片 ${{ matrix.partition }} 全部通过"
             fi
           } > reports/cargo-test-report.md
 
@@ -1460,12 +1607,12 @@ jobs:
           {
             echo "## 🧪 Rust 测试分片 ${{ matrix.partition }}/10"
             echo ""
-            if [ "$EXIT_CODE" -ne "0" ] && [ "$FAILED" -eq "0" ]; then
-              echo "❌ 编译失败或进程异常退出（EXIT_CODE=$EXIT_CODE）"
-            elif [ "$FAILED" -eq "0" ]; then
-              echo "✅ 通过 $PASSED / $TOTAL"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "❌ 无 Summary（编译失败或进程异常退出，EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -gt "0" ]; then
+              echo "❌ 失败 $FAILED / $TOTAL（通过 $PASSED）"
             else
-              echo "❌ 失败 $FAILED / $TOTAL"
+              echo "✅ 通过 $PASSED / $TOTAL"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1486,6 +1633,214 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-report-partition-${{ matrix.partition }}
+          path: backend/reports/
+          retention-days: 90
+
+  # ==============================================================================
+  # Job 8b: Rust ignored 用例真库执行（#8b，杜绝"CI 永远 SKIP = 假绿"）
+  #
+  # 背景：约 60 个 #[ignore] 用例是真库流程集成测试（so_order/voucher/
+  # inventory_adjustment/bi/sku_mapping/supplier_product/bad_debt 等），
+  # 原分片命令 `nextest run --partition` 不带 ignored 参数 ⇒ 这些用例从未执行。
+  # 本 job 复用同一 nextest archive 与同一迁移流程，仅跑 ignored 子集
+  # （--run-ignored only），与 10 分片零重复、耗时只取决于 ignored 用例数。
+  # 退出码零容忍传导：任何 FAIL / 进程异常退出（含迁移失败）都让 job 红。
+  # ==============================================================================
+  ci-test-rust-ignored:
+    name: 🧪 Rust 集成测试（ignored 真库用例）
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    needs: [ci-build-test-artifacts, ci-build-rust]
+    if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bingxi
+          POSTGRES_PASSWORD: bingxi_test
+          POSTGRES_DB: bingxi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      TEST_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
+      # 负前提交集（"库存在但没有业务表 ⇒ 服务必须报 DATABASE_ERROR"）专用第二只库：
+      # 夹具 connect_empty_schema_db() 连它；本 job 建库但**不跑迁移**，与已迁移库互不污染。
+      # 缺失时夹具直接 panic（禁止静默跳过/回退 sqlite）。
+      TEST_EMPTY_DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_empty
+      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
+      # 部分 ignored 用例（websocket/bi e2e）会拉起 axum server，Settings::from_env
+      # 需要与 e2e job 同款的 CI 专用占位密钥（非真实密钥），否则以配置错误失败
+      JWT_SECRET: ci-only-jwt-signing-key-do-not-use-in-prod-32b
+      COOKIE_SECRET: ci-only-cookie-secret-do-not-use-in-prod-32b
+      WEBHOOK_SECRET: ci-only-webhook-secret-do-not-use-in-prod-32b
+      APP_ENV: development
+      ENV: development
+      KAFKA_ENABLED: "false"
+      ELASTICSEARCH_URL: ""
+      CACHE_ENABLED: "false"
+      SERVER__HOST: 127.0.0.1
+      SERVER__PORT: "8082"
+      DATABASE__HOST: localhost
+      DATABASE__PORT: "5432"
+      DATABASE__NAME: bingxi_test
+      DATABASE__USERNAME: bingxi
+      DATABASE__PASSWORD: bingxi_test
+      LOG__LEVEL: info
+      LOG__DIR: /tmp/ignored-test-logs
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: Setup Rust（系统依赖含 postgresql-client）
+        uses: ./.github/actions/setup-rust
+        with:
+          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+
+      - name: 安装 cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      - name: 下载预编译测试 archive（与分片同一产物）
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+          path: backend/
+
+      - name: 下载后端 CLI 二进制（migrate 用）
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: backend/target/release
+
+      - name: 建负前提交集专用空库（bingxi_empty，与分片同款，故意不跑迁移）
+        run: |
+          set -e
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "DROP DATABASE IF EXISTS bingxi_empty"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -At -c "CREATE DATABASE bingxi_empty OWNER bingxi"
+          EMPTY_TABLES=$(psql "$TEST_EMPTY_DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "空库 bingxi_empty public 基表数量: $EMPTY_TABLES"
+          if [ "${EMPTY_TABLES:-1}" != "0" ]; then
+            echo "::error::TEST_EMPTY_DATABASE_URL 指向的库不是空库（$EMPTY_TABLES 张基表）→ 负前提交集将验证假前提"
+            exit 1
+          fi
+
+      - name: 迁移本 job PostgreSQL service（ignored 真库用例的执行前提）
+        working-directory: backend
+        run: |
+          set -e
+          mkdir -p /tmp/ignored-test-logs
+          chmod +x target/release/bingxi
+          ./target/release/bingxi migrate run
+          TABLES=$(psql "$DATABASE_URL" -At -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "迁移后 public 基表数量: $TABLES"
+          if [ "${TABLES:-0}" -lt 50 ]; then
+            echo "::error::迁移后表数量异常（$TABLES < 50），拒绝以空/半空 schema 运行真库用例"
+            exit 1
+          fi
+          if [ -z "$(psql "$DATABASE_URL" -At -c "select to_regclass('public.sales_orders')")" ]; then
+            echo "::error::核心表 sales_orders 不存在，迁移未真正生效"
+            exit 1
+          fi
+
+      - name: 运行全部 #[ignore] 真库用例（nextest --run-ignored only）
+        working-directory: backend
+        # --run-ignored only：只跑 ignored 子集（真库流程测试），非 ignored 用例
+        #   已由 10 分片覆盖，此处不重复执行；nextest 对 ignored 的支持自 0.9.x
+        #   起提供（install-action 安装的当前 nextest 均含该参数）。
+        # --test-threads=1：真库写删串行，避免同库竞态。
+        run: |
+          mkdir -p reports
+          set +e
+          cargo nextest run \
+            --archive-file nextest-archive.tar.zst \
+            --run-ignored only \
+            --test-threads=1 \
+            --no-fail-fast \
+            > reports/nextest-ignored-output.txt 2>&1
+          EXIT_CODE=$?
+          set -e
+
+          # 计数与分片同款：权威源 = Summary 行（旧 `awk '/^ FAIL /'` 匹配不到 8 空格
+          # 缩进状态行，#4669 的 ignored 报告因此写"通过 0 / 失败 0 / 总计 0"却 exit 100）
+          read -r PASSED FAILED SKIPPED TOTAL HAS_SUMMARY < <(
+            bash "$GITHUB_WORKSPACE/scripts/ci/nextest-summary.sh" reports/nextest-ignored-output.txt
+          )
+          sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' reports/nextest-ignored-output.txt > reports/nextest-ignored-output.clean.txt
+          if [ "$HAS_SUMMARY" != "1" ] && [ "$EXIT_CODE" -eq "0" ]; then
+            echo "::error::nextest 退出 0 但输出里没有 Summary 行 → 计数不可信，按未验证处理"
+            exit 1
+          fi
+
+          {
+            echo "# Rust ignored 真库用例报告"
+            echo ""
+            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
+            echo "**通过**: $PASSED  "
+            echo "**失败**: $FAILED  "
+            echo "**跳过**: $SKIPPED  "
+            echo "**总计**: $TOTAL  "
+            echo "**EXIT_CODE**: $EXIT_CODE  "
+            echo "**Summary 可信**: $([ "$HAS_SUMMARY" = "1" ] && echo yes || echo 'no（无 Summary 行，以下数字仅按状态行粗估）')  "
+            echo ""
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "## ❌ 未产生 Summary（编译失败/进程异常退出/迁移库不可用，EXIT_CODE=$EXIT_CODE）"
+              echo ""
+              { tail -50 reports/nextest-ignored-output.clean.txt 2>/dev/null || true; }
+            elif [ "$FAILED" -gt "0" ]; then
+              echo "## ❌ 发现 $FAILED 个失败"
+              echo ""
+              # 锚点与分片报告同款：清单取 Summary 区（每例一行），
+              # 详情取进度区 inline stdout，避免同一状态行被双重匹配渲染 3 遍。
+              { sed -n '/^ *Summary \[/,$p' reports/nextest-ignored-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" | head -60 || true; }
+              echo ""
+              { sed -n '1,/^ *Summary \[/p' reports/nextest-ignored-output.clean.txt | grep -A 10 -E "^[[:space:]]+FAIL \[" | head -160 || true; }
+              echo ""
+              DUP_EXTRA=$(sed -n '/^ *Summary \[/,$p' reports/nextest-ignored-output.clean.txt | grep -E "^[[:space:]]+FAIL \[" \
+                | awk '{line=$0; sub(/^.*\) /,"",line); idx=index(line," "); name=(idx>0 ? substr(line,idx+1) : line); c[name]++} END{e=0; for(k in c) if(c[k]>1) e+=c[k]-1; print e+0}')
+              if [ "${DUP_EXTRA:-0}" -gt "0" ]; then
+                echo "**双计观察（展示性，不改判定）**：$FAILED 个 target 计次中 $DUP_EXTRA 次为同名用例在 lib/bin 双 target 重复计数，唯一用例失败数约 $((FAILED - DUP_EXTRA))"
+              fi
+            else
+              echo "## ✅ ignored 真库用例全部通过"
+            fi
+          } > reports/cargo-ignored-report.md
+
+          {
+            echo "## 🧪 Rust ignored 真库用例"
+            echo ""
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "❌ 无 Summary（进程异常退出/迁移失败，EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -gt "0" ]; then
+              echo "❌ 失败 $FAILED / $TOTAL（通过 $PASSED）"
+            else
+              echo "✅ 通过 $PASSED / $TOTAL"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 零容忍：与分片同款退出码传导
+          if [ "$FAILED" -gt "0" ]; then
+            echo "❌ ignored 真库用例发现 $FAILED 个失败，CI 失败"
+            exit 1
+          fi
+          if [ "$EXIT_CODE" -ne "0" ]; then
+            echo "❌ ignored 用例进程异常退出（EXIT_CODE=$EXIT_CODE）"
+            exit 1
+          fi
+          echo "✅ ignored 真库用例全部通过（$PASSED 个）"
+          exit 0
+
+      - name: 上传 ignored 用例测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-ignored
           path: backend/reports/
           retention-days: 90
 
@@ -1907,6 +2262,11 @@ jobs:
 
       - name: 构建后端 (Release)
         working-directory: backend
+        # 任务 #116：注入与 release tag 同格式的四段版本（YYYY.M.D.HHMM）作为权威版本，
+        # 供 build.rs 编译期写入 BINGXI_RELEASE_VERSION，使部署实例 current 与 GitHub
+        # tag latest 同为四段，跨格式比较假阴性从根上消除（tag / PR / main 三种触发均经此步）。
+        env:
+          BINGXI_RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p reports
           echo "🔨 开始构建后端（详细日志输出到 reports/cargo-build.log）"
@@ -1992,6 +2352,16 @@ jobs:
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
+
+      - name: E2E 分片覆盖自检（分配并集 == --list 全集）
+        working-directory: frontend
+        run: |
+          # 任务 #306 门禁：ci-e2e 的"目录分组 + hash 分片"是手工登记，历史上
+          # e2e/fullflow/（96 条）漏登记导致主 CI 全绿但整目录从未执行。本步用真实
+          # `playwright test --list`（只收集不执行）三层校验：workflow 解析锚点、
+          # 每分组 --shard 序号 1..N 无缺口、分组并集==chromium 全集。
+          # 失败即 ci-build-fe 红 → ci-e2e（needs ci-build-fe）不启动，假绿不可能发生。
+          node scripts/check-e2e-shard-coverage.mjs
 
       - name: 构建前端
         working-directory: frontend
@@ -2198,6 +2568,25 @@ jobs:
           echo "✅ 找到 $RELEASE_COUNT 个发布包文件"
           ls -lh release-*.tar.gz
 
+      - name: 生成官方校验资产（SHA-256 / MD5）
+        # 任务 #121：CI 产出第一方官方校验资产，作为后端/CLI 下载后 SHA-256 强校验的权威源。
+        # SHA-256 为安全判据；MD5 仅补充记录（不抗碰撞，不作独立门槛）。
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.package-release.outputs.version }}"
+          RELEASE_FILE="release-${VERSION}.tar.gz"
+          if [ ! -f "$RELEASE_FILE" ]; then
+            echo "::error::发布包不存在，无法生成校验资产: $RELEASE_FILE"
+            exit 1
+          fi
+          # SHA-256：后端 resolve_expected_sha256 优先取此资产内容（格式 `<hash>  <file>`）
+          sha256sum "$RELEASE_FILE" > "${RELEASE_FILE}.sha256"
+          # MD5：仅补充记录，非抗碰撞算法，后端不本地重算比对（不作安全门槛）
+          md5sum "$RELEASE_FILE" > "${RELEASE_FILE}.md5"
+          echo "✅ 已生成官方校验资产:"
+          cat "${RELEASE_FILE}.sha256"
+          cat "${RELEASE_FILE}.md5"
+
       - name: 生成发布说明（解析 commit body 中的 bullet points）
         id: release-notes
         run: |
@@ -2218,6 +2607,8 @@ jobs:
           VERSION="${{ needs.package-release.outputs.version }}"
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
           RELEASE_FILE="release-${VERSION}.tar.gz"
+          SHA_FILE="${RELEASE_FILE}.sha256"
+          MD_FILE="${RELEASE_FILE}.md5"
 
           echo "版本: $VERSION"
           echo "Tag: $TAG_NAME"
@@ -2232,10 +2623,18 @@ jobs:
           fi
           echo "✅ 发布包文件存在: $(ls -lh "$RELEASE_FILE" | awk '{print $5}')"
 
+          # 任务 #121：官方校验资产必须存在才能上传（缺失即 fail-fast，绝不静默放行无校验的发布）
+          if [ ! -f "$SHA_FILE" ] || [ ! -f "$MD_FILE" ]; then
+            echo "::error::官方校验资产缺失（$SHA_FILE 或 $MD_FILE），拒绝上传 Release"
+            ls -la release-*.sha256 release-*.md5 2>/dev/null || echo "无校验资产文件"
+            exit 1
+          fi
+          echo "✅ 官方校验资产就绪: $(ls -lh "$SHA_FILE" "$MD_FILE" | awk '{print $9": "$5}')"
+
           # 创建 Release（如果 tag 已存在则复用）
           if gh release view "$TAG_NAME" --repo ${{ github.repository }} >/dev/null 2>&1; then
             echo "Release $TAG_NAME 已存在，更新资产..."
-            gh release upload "$TAG_NAME" "$RELEASE_FILE" \
+            gh release upload "$TAG_NAME" "$RELEASE_FILE" "$SHA_FILE" "$MD_FILE" \
               --repo ${{ github.repository }} \
               --clobber
           else
@@ -2244,7 +2643,7 @@ jobs:
               --title "Bingxi Management Platform ${VERSION}" \
               --notes-file release_notes.md \
               --latest \
-              "$RELEASE_FILE"
+              "$RELEASE_FILE" "$SHA_FILE" "$MD_FILE"
           fi
 
           # 验证 Release 创建成功
@@ -2260,7 +2659,7 @@ jobs:
           ASSET_COUNT=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
           if [ "$ASSET_COUNT" -eq "0" ]; then
             echo "::error::Release 资产为空，重新上传..."
-            gh release upload "$TAG_NAME" "$RELEASE_FILE" \
+            gh release upload "$TAG_NAME" "$RELEASE_FILE" "$SHA_FILE" "$MD_FILE" \
               --repo ${{ github.repository }} \
               --clobber
             ASSET_COUNT=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets | length' 2>/dev/null || echo "0")
@@ -2270,6 +2669,19 @@ jobs:
             fi
           fi
           echo "✅ Release 资产数量: $ASSET_COUNT"
+
+          # 任务 #121：确认官方校验资产确实随 Release 上传（缺失则后端/CLI 将取不到校验值 → fail-closed）。
+          # 显式断言不静默：任一校验资产缺失即报错终止本步。
+          ASSET_NAMES=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets[].name' 2>/dev/null || echo "")
+          if ! printf '%s\n' "$ASSET_NAMES" | grep -qxF "$SHA_FILE"; then
+            echo "::error::官方 SHA-256 校验资产未随 Release 上传: $SHA_FILE"
+            exit 1
+          fi
+          if ! printf '%s\n' "$ASSET_NAMES" | grep -qxF "$MD_FILE"; then
+            echo "::error::官方 MD5 校验资产未随 Release 上传: $MD_FILE"
+            exit 1
+          fi
+          echo "✅ 官方校验资产已上传: $SHA_FILE, $MD_FILE"
 
       - name: 清理旧 Release（保留最近 10 个）
         env:
@@ -2322,8 +2734,12 @@ jobs:
       fail-fast: false
       max-parallel: 8
       matrix:
-        # 36 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
-        #            / 30-35 extras（6 片，见下方 extras 分支的原因说明）
+        # 42 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+        #            / 30-41 extras（12 片，按目录域重排，见下方 extras 分支说明。
+        #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑；
+        #            shard 40/41（e2e/fullflow/，96 条契约链用例）是 #306 补上的
+        #            "testMatch 全集内但从未被分片命令传入"的漏登记目录，
+        #            由 ci-build-fe 的 check-e2e-shard-coverage.mjs 自检强制并集==全集）
         # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
         # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
         # "flow: 11~22-returns/inventory/crm"）是错的——run 35722450943 该分片实际
@@ -2393,17 +2809,29 @@ jobs:
           - shard: 29
             label: "traversal: e2e/traversal(5/5)"
           - shard: 30
-            label: "extras: e2e/testMatch 内未执行目录(1/6)"
+            label: "extras: purchase 1/2（--shard hash 分片）"
           - shard: 31
-            label: "extras: e2e/testMatch 内未执行目录(2/6)"
+            label: "extras: purchase 2/2（--shard hash 分片）"
           - shard: 32
-            label: "extras: e2e/testMatch 内未执行目录(3/6)"
+            label: "extras: finance 1/2（--shard hash 分片）"
           - shard: 33
-            label: "extras: e2e/testMatch 内未执行目录(4/6)"
+            label: "extras: finance 2/2（--shard hash 分片）"
           - shard: 34
-            label: "extras: e2e/testMatch 内未执行目录(5/6)"
+            label: "extras: sales+quality"
           - shard: 35
-            label: "extras: e2e/testMatch 内未执行目录(6/6)"
+            label: "extras: crm+inventory"
+          - shard: 36
+            label: "extras: enhanced+production"
+          - shard: 37
+            label: "extras: bpm+fabric+mrp"
+          - shard: 38
+            label: "extras: ai+quotations+system"
+          - shard: 39
+            label: "extras: dashboard+e2e 根级 3 spec"
+          - shard: 40
+            label: "extras: fullflow 1/2（--shard hash 分片）"
+          - shard: 41
+            label: "extras: fullflow 2/2（--shard hash 分片）"
     services:
       postgres:
         image: postgres:16-alpine
@@ -2592,10 +3020,10 @@ jobs:
             SHARD_NO=$((SHARD - 24))
             SHARD_LIMIT=1800
           else
-            # 分片 30-35: testMatch 内、但分片命令从不传的全部目录 ——
-            # enhanced/purchase/sales/quality/finance/crm/bpm（119 用例）
-            # + e2e/ 根级 3 spec（12）+ ai/dashboard/fabric/inventory/mrp/production/
-            # quotations/system（71）= 实测用例数见本分片实跑结果。
+            # 分片 30-41: testMatch 内、但分片命令从不传的全部目录 ——
+            # enhanced/purchase/sales/quality/finance/crm/bpm
+            # + e2e/ 根级 3 spec + ai/dashboard/fabric/inventory/mrp/production/
+            # quotations/system/fullflow。
             # 这批此前在 CI 里从未执行过：playwright.config.ts 的 chromium testMatch
             # 早早就把它们纳入（注释写着"去 mock 后全部进主 CI testMatch"），
             # 但分片矩阵只跑 e2e/flow、e2e/smoke、e2e/traversal 三个目录，
@@ -2603,12 +3031,42 @@ jobs:
             # 这些目录全部无 page.route()/route.fulfill()/vi.mock()（e2e 真实性门禁
             # 本地复跑 260 个 spec 命中 0、豁免 0）；`applyAuthMocks` 是 2026-09-09
             # 去 mock 时保留的旧函数名，函数体已是真实 API 登录，不构成 mock 依赖。
-            # 切 6 片的依据：按 4 片每片约 50 用例，会逼近 flow 分片曾暴露的时长上限
-            # （run 35722450943 有 7 个分片撞满 1500s），6 片约 34 用例/片。
-            SPEC_TARGETS="e2e/enhanced/ e2e/purchase/ e2e/sales/ e2e/quality/ e2e/finance/ e2e/crm/ e2e/bpm/ e2e/ai/ e2e/dashboard/ e2e/fabric/ e2e/inventory/ e2e/mrp/ e2e/production/ e2e/quotations/ e2e/system/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"
-            SHARD_TOTAL=6
-            SHARD_NO=$((SHARD - 29))
-            SHARD_LIMIT=1800
+            # ——run #4671 判责后的重排（原 6 片方案两处错）：
+            # ①分片依据"202÷6≈34"是均值估算，实测 `npx playwright test --list`
+            #   全集共 327 条 / 85 文件（purchase 60、finance 39、sales 30、crm 25、
+            #   inventory 23、enhanced 21、production 20、bpm 19、fabric 17、
+            #   quality 15、ai 15、root 3 spec 11、quotations 11、system 9、
+            #   dashboard 8、mrp 4），hash 分片 4/6 片实际分到 55 条；
+            # ②extras SHARD_LIMIT=1800 只有 flow 的一半，而 :2906 注释自己写着
+            #   "收紧上限只会把真实性能回归伪装成超时"——18:25:25 起跑 1800s 整被
+            #   kill（exit 124），兜底传导正确，但 13 条用例根本没跑（覆盖丢失）。
+            # 正解：按域显式分组切 12 片（#306 补 fullflow 2 片后），慢域（purchase/finance/
+            # fullflow）各自 2 片，
+            # 其余按实测条数配平到 ≤48 条/片；上限对齐 flow 基线 3600；并行度
+            # 对齐 flow 取 3。禁止用减用例/拆断言/跳慢用例的方式凑窗口。
+            # "分组清单是否覆盖 testMatch 全集"不再靠人肉对账：ci-build-fe 的
+            # check-e2e-shard-coverage.mjs 每轮用真实 --list 断言 分配并集==全集。
+            SHARD_LIMIT=3600
+            SHARD_WORKERS=3
+            case "$SHARD" in
+              30) SPEC_TARGETS="e2e/purchase/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
+              31) SPEC_TARGETS="e2e/purchase/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
+              32) SPEC_TARGETS="e2e/finance/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
+              33) SPEC_TARGETS="e2e/finance/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
+              34) SPEC_TARGETS="e2e/sales/ e2e/quality/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              35) SPEC_TARGETS="e2e/crm/ e2e/inventory/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              36) SPEC_TARGETS="e2e/enhanced/ e2e/production/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              37) SPEC_TARGETS="e2e/bpm/ e2e/fabric/ e2e/mrp/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              38) SPEC_TARGETS="e2e/ai/ e2e/quotations/ e2e/system/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              39) SPEC_TARGETS="e2e/dashboard/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              # fullflow（96 条契约链用例，此前从未被任何分片传入 → 任务 #306 静默丢覆盖）：
+              # 按 extras 注释自己定的 ≤48 条/片 配平切 2 片，慢域对齐基线（3600s / 3 workers）。
+              40) SPEC_TARGETS="e2e/fullflow/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
+              41) SPEC_TARGETS="e2e/fullflow/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
+              # 矩阵 extras 段与这里的 case 是同一份切分的两处表达，必须同步演进；
+              # 漏同步时宁可整步红，不能静默少跑目录。
+              *) echo "::error::extras 分片 $SHARD 未在按域重排清单中登记（应为 30-41），拒绝以空目标集静默通过"; exit 1 ;;
+            esac
           fi
           if [ -n "$SPEC_TARGETS" ]; then
             # 挂起治理：Playwright 进程存活但输出停滞时，watchdog 每 30s 检查输出
@@ -2746,6 +3204,7 @@ jobs:
             frontend/reports/backend.log
             frontend/reports/frontend.log
             frontend/reports/playwright-output*.txt
+            frontend/reports/seed-failures*.json
           retention-days: 30
 
       - name: 打包失败诊断产物（仅失败片，压缩为单归档）
@@ -2966,6 +3425,19 @@ jobs:
             frontend/reports/matrix-*.txt
           retention-days: 30
 
+      # 矩阵 job 的后端运行日志：断言只能看到 HTTP 状态与信封机器码，500 的内部成因
+      # （列类型解码失败、DbErr 原文、panic 栈）只存在于服务端日志里。此前该日志写在
+      # /tmp/matrix-logs 却从不入产物，导致"某端点 500"永远无法定责，只能靠猜。
+      - name: 上传矩阵 job 后端与前端预览日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrix-runtime-logs-${{ matrix.group_name }}-${{ github.run_id }}
+          path: |
+            /tmp/matrix-logs/backend.log
+            /tmp/matrix-logs/frontend.log
+          retention-days: 7
+
   # ==========================================================================
   # Job 15c: 供应链检查（依赖漏洞 + 秘密泄露 + 静态扫描 + 依赖图 + lockfile 漂移）
   #
@@ -3159,6 +3631,9 @@ jobs:
           echo "npm ls 顶层依赖数: $(jq '.dependencies | length' "$D/npm-ls.json" 2>/dev/null || echo N/A)"
 
       - name: 秘密泄露扫描（gitleaks）
+        # 防"前序步骤红 → 密钥扫描整轮从未执行"的零覆盖盲区（#4669 实证被跳过）：
+        # 仍保持 fail-closed——本步失败照样判负，只是不再被别人的失败遮掉。
+        if: ${{ !cancelled() }}
         uses: gacts/gitleaks@v1
         continue-on-error: false
         with:
@@ -3166,6 +3641,9 @@ jobs:
           config-path: .gitleaks.toml
 
       - name: 静态安全扫描（semgrep 社区规则）
+        # 同 gitleaks：不再被前序失败连带跳过（#4669 实证零覆盖）。
+        # 仍 continue-on-error: true —— 社区规则首轮接入只做记录，提级为阻塞需单独评估误报面。
+        if: ${{ !cancelled() }}
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
         with:
@@ -3242,7 +3720,7 @@ jobs:
 # - 初始化完全通过 Setup 向导 UI 真实点击完成（test-database → initialize-with-db
 #   → 真实迁移 60+ 个 + 种子数据 + Argon2id 管理员 → 后端自退）
 # - 后端重启完整模式 → 真实登录验证（Argon2id 校验 + Cookie 会话 + *:* 权限）
-# - 不污染 ci-e2e 的 34 分片共享库（bingxi_test 由 CI init step 初始化）
+# - 不污染 ci-e2e 的 42 分片共享库（bingxi_test 由 CI init step 初始化）
   ci-e2e-setup-wizard:
     name: 🧭 Setup 向导真实链路 E2E
     runs-on: ubuntu-latest
@@ -3464,6 +3942,10 @@ jobs:
   # 3. 无意义注释模式（asdf/test/占位符）
   # 覆盖率阈值（按现状校准 2026-09-10）：Rust 82% / TS 35%；
   # TS 低于 30% → fail，低于 60% → warning（随补齐逐步提高阈值）
+  # 4. 注释形态门禁：
+  #    硬红档 diff-only（任务号/批次·v 编号/run 号/仓外报告路径引用，新增即拦、
+  #    无存量豁免）+ 棘轮档（行号引用，基线 backend/.comment-format-baseline.txt
+  #    只准降不准升）。探针自检/计数自证/diff fail-closed 全部内置，见步骤注释。
   # ==========================================================================
   comment-convention-check:
     name: 📝 注释规范性检查
@@ -3473,6 +3955,10 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+        with:
+          # 注释形态门禁需要历史：PR 求 merge-base、push 做 event.before..HEAD
+          # diff；仅查覆盖率不查形态的旧步骤无此需求，改动只影响本 job 检出耗时。
+          fetch-depth: 0
 
       - name: 注释覆盖率扫描
         run: |
@@ -3540,12 +4026,665 @@ jobs:
               print(f'::warning::注释覆盖率低于 60%（rust={rust_rate}% ts={ts_rate}%），需持续补齐')
           PYEOF
 
+      # ------------------------------------------------------------------
+      # 注释形态门禁（口径依据注释 IR，两档规则键设计不自造）：
+      # 两档规则（键设计严格照裁定，不自造）：
+      #   硬红档 diff-only —— 新增/修改行注释命中即拦、不给存量豁免：
+      #     ①任务号 ②批次/v 编号 ③run 号 ④仓外报告路径引用
+      #     依据 .monkeycode/MEMORY.md 注释 IR「禁止写变更日志式内容（批次号、
+      #     "修复xxx"过程、v14/批次xxx/exit 143 排障史等）；变更说明放 commit
+      #     message，注释永远只描述当前代码的用途」。
+      #   棘轮档 —— 行号引用（xxx.rs:123 / file.ts:45）不禁、基线只准降不准升；
+      #     键=去掉行号后的文本指纹（教训：api-request-baseline 的 _comment——带
+      #     行号会让漂移把老问题误报成新失配）。基线：
+      #     backend/.comment-format-baseline.txt。
+      # 三条防空操作假绿的硬要求全部内置：①探针自检（每类禁止形态内置注样例走
+      # 同一调用形态，任一未命中 exit 1；模板 contract_wave11_rbac_key_derivation
+      # _test.rs "解析结果为空即 fail"）②计数自证（打印扫描文件数/命中行数/各
+      # 规则命中数，文件数<500 或某类恒 0 命中 => 非零退出）③diff fail-closed
+      # （拿不到 base 或 diff 空集 => 判本步失败，禁止"取不到就当没有新增"）。
+      # ------------------------------------------------------------------
+      - name: 注释形态门禁（#330 硬红档 diff-only + 棘轮档行号基线）
+        env:
+          GATE_MODE: ci
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_BASE_REF: ${{ github.base_ref }}
+          GATE_BEFORE: ${{ github.event.before }}
+          GATE_REF: ${{ github.ref }}
+        run: |
+          if [ "$GATE_EVENT" = "pull_request" ] && [ -n "$GATE_BASE_REF" ]; then
+            # fetch-depth:0 通常已带全分支；显式再取 base 分支 ref，保证 merge-base 可算
+            git fetch --no-tags --prune origin \
+              "+refs/heads/$GATE_BASE_REF:refs/remotes/origin/$GATE_BASE_REF"
+          elif [ "$GATE_EVENT" = "push" ]; then
+            # tag push 求"上一 tag"作 base 用；取不到 tag 时脚本按 fail-closed 判失败
+            git fetch --tags --force origin '+refs/tags/*:refs/tags/*' || true
+          fi
+          python3 << 'PYEOF'
+          r"""
+          #330 注释形态门禁（硬红档 diff-only + 棘轮档行号引用基线）
+
+          口径权威 = 决策建议书 2026-10-06 第四轮 §1 裁定（决策专家裁定＝自动采纳）。
+          规则原文 = .monkeycode/MEMORY.md 注释 IR（"代码注释规范"条目）：
+            「代码注释规范（IR，2026-09-17）：注释只写"这段代码是干嘛用的"
+            （功能/业务规则描述），禁止写变更日志式内容（批次号、"修复xxx"过程、
+            v14/批次xxx/exit 143 排障史等）；变更说明放 commit message，
+            注释永远只描述当前代码的用途」
+
+          规则 <-> IR 条款对照（不自造规则，逐条对应裁定 §1 的两档清单）：
+            R1 任务号（`任务 #N` / `#\d+` 式看板引用）
+               <- IR「禁止写变更日志式内容…'修复xxx'过程」：任务/看板号是变更
+                  过程标识，不是"这段代码是干嘛用的"。（裁定 §1 硬红档①）
+            R2 批次/v 编号（`批次 \d+` / `v1\d` / `P\d-S\d+`）
+               <- IR 原文逐字点名「批次号、v14/批次xxx」。（裁定 §1 硬红档②）
+            R3 run 号（`run \d{4}`）
+               <- IR「…exit 143 排障史等」：CI run 号属排障历史记录。
+                  （裁定 §1 硬红档③；裁定同时列出 `#\d{4}` 指 CI run 的形态——
+                  该形态已被 R1 的 `#\d+` 通道覆盖命中，两档同为硬红、判责等价，
+                  故不重复立正则，避免双重计数失真。）
+            R4 仓外报告路径引用（`C:/Users/…`、`/c/Users/…`、`*.md §N`）
+               <- IR「注释永远只描述当前代码的用途」+「变更说明放 commit message」：
+                  指向仓外工作区报告的引用不是代码用途描述，且仓外路径换机器即失效。
+                  （裁定 §1 硬红档④）
+            R5 行号引用（`xxx.rs:123` / `file.ts:45`）——棘轮档，本身不禁：
+               <- 裁定 §1「行号引用不禁，因 file:line 是本仓契约取证 convention」；
+                  基线键=去掉行号后的文本指纹（`<承载文件>::<被引文件>`），教训来自
+                  frontend/scripts/api-request-baseline.json 的 _comment：带行号会让
+                  行号漂移把老问题误报成新失配。基线只准降不准升，超基线判红。
+
+          执行语义（裁定 §1 步骤 0+1，三条硬性要求）：
+            ① 探针自检：每类禁止形态内置注样例，构造伪文件走与生产完全相同的
+               调用形态（iter_comment_lines -> scan_text），任一未命中即 exit 1。
+               模板：backend/tests/contract_wave11_rbac_key_derivation_test.rs
+               （"消歧分支解析结果为空——本锁空跑"即 fail 的同型纪律）。
+            ② 计数自证：打印扫描文件数/命中行数/各规则命中数；扫描文件数<500 或
+               任一"类"全量 0 命中 => 判本步失败（类级恒 0=探测器或扫描面失效；
+               存量清零后该自证通道应随规则基线通道一并正式关闭——裁定步骤 3）。
+            ③ diff-only fail-closed：拿不到 base 或 git diff 为空集 => 判本步失败，
+               禁止"取不到 diff 就当作没有新增"的静默通过。
+            - R1..R4 仅对 base..HEAD 新增/修改行中的注释判定；存量只列示（步骤 1）。
+            - R5 全量扫描并与 backend/.comment-format-baseline.txt 对账。
+          """
+          import os
+          import re
+          import subprocess
+          import sys
+
+          MODE = os.environ.get('GATE_MODE', 'ci')  # ci | local-scan | gen-baseline
+          REPO = os.environ.get('GATE_REPO', '.')
+          BASELINE_PATH = os.environ.get('GATE_BASELINE', 'backend/.comment-format-baseline.txt')
+          REPORT_PATH = os.environ.get('GATE_REPORT', '/tmp/comment-format-report.md')
+          SAMPLE_N = int(os.environ.get('GATE_SAMPLE_N', '20'))
+
+          # 扫描面：backend/ frontend/ 两棵代码树内的源码文件（IR 口径=代码注释）。
+          # .md/.monkeycode/ 等文档不在本规则面内——同时规避裁定采纳记录里
+          # "门禁反向判定 MEMORY.md 自身引用行号写法需用户确认"的风险（默认不碰）。
+          SCAN_PREFIXES = ('backend/', 'frontend/')
+          EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'}
+
+          HARD_PATTERNS = [
+              # R1 任务号：`任务 #N`；裸 `#\d+` 看板/issue 引用（负向后顾避开 path/#1、标识符）。
+              # 位数上界 5：CSS 十六进制色值常写成 6 位纯数字（`#123456`），不设上界会把
+              # "主色 #123456" 这类合法注释判红；CI run 号另有 R3 腿覆盖。
+              ('R1.任务号', re.compile(r'任务\s*#?\d+')),
+              ('R1.看板引用', re.compile(r'(?<![\w/])#\d{1,5}\b')),
+              # 带字母后缀的看板号（`#323c` 这类子条目写法）：`#\d+\b` 因数字与字母间无词
+              # 边界而整条腿空转。只收"2-4 位数字 + 恰好 1 个字母"，避开 `#1a73e8` 色值。
+              ('R1.看板后缀', re.compile(r'(?<![\w/])#\d{2,4}[a-z](?![\w])')),
+              # 看板工作项的另一种写法：裸 `W1`/`W4`（"W3 让步键""判责 W4"）。
+              # 前后都不许接词字符，故 `W3C`（后接字母）、`net_weight_w7`（前接下划线）、
+              # `/api/W12`（前接斜杠）一律不命中——它们是标准名/字段名/路径而非看板号。
+              ('R1.看板W号', re.compile(r'(?<![\w/])W\d{1,3}(?![\w])')),
+              # R2 批次/v 编号（IR 逐字：批次号、v14/批次xxx；P\d-S\d+ 为裁定严口径键）
+              ('R2.批次号', re.compile(r'批次\s*\d+')),
+              # "第 N 批"是同禁令的另一写法（变更日志式注释），语序与上条相反故须独立成腿；
+              # 独立规则 ID 是刻意的：共用 ID 会让探针无法分辨"哪条腿死了"。
+              ('R2.批次序', re.compile(r'第\s*\d+\s*批')),
+              # 只猎"版本史/排障史"式裸用。本仓迁移域目录实名 migration/src/domain/v15/，
+              # 注释按路径指它是 IR 要求的"指向仓内证据"，故路径相邻形态一律放行——
+              # 否则准确引用反被判红，规则会逼注释退化成"不敢写路径"。
+              # 大小写同判：`V14` 与 `v14` 是同一种排障史写法，域目录名放行按小写比对
+              # （见 scan_text 的 tok.lower()）。
+              ('R2.v编号', re.compile(r'(?<![\w/\\.\-])[vV]1\d(?![\w/\\.\-])')),
+              # 英文批次写法：与 R2.批次号同一禁令的另一语系形态。只认 batch + 可选 # + 数字，
+              # batchNo/batch_size 这类标识符不含空格与裸数字，天然不误伤。
+              ('R2.Batch号', re.compile(r'(?i)\bbatch\s*#?\d+\b')),
+              # 中文"波次六/波次 12"：变更日志式交付批次。中文数词自成一体，\d+ 抓不到，
+              # 故数字与中文数词两支都要有；"波次划分/按波次下发"（指工厂染色波次）后不接数词。
+              ('R2.波次', re.compile(r'波次\s*(?:[〇○零一二两三四五六七八九十百千]+|\d+)')),
+              ('R2.P-S段', re.compile(r'P\d-S\d+')),
+              # R3 run 号：`run \d{4}`（含 `run #4675` / `run 34067844812` 形态）
+              ('R3.run号', re.compile(r'run\s*#?\d{4}')),
+              # R4 仓外报告路径：盘符绝对路径 / git-bash 风格 /x/Users / 仓外 *.md §N 章节引用
+              ('R4.盘符路径', re.compile(r'[A-Za-z]:[/\\]Users[/\\]')),
+              ('R4.gitbash路径', re.compile(r'(?<![\w])/[A-Za-z]/Users/')),
+              ('R4.md章节引用', re.compile(r'[\w.\-/]*\.md\s*§\s*\d+')),
+          ]
+          RATCHET_PATTERNS = [
+              # R5 行号引用：xxx.rs:123 / file.ts:45（含 :129-151 区间形态）
+              ('R5.行号引用', re.compile(
+                  r'[\w./\-]+\.(?:rs|ts|tsx|js|jsx|mjs|cjs|vue|py|java|sql):\d+(?:[ \t]*-[ \t]*\d+)?')),
+          ]
+          HARD_IDS = {rid for rid, _ in HARD_PATTERNS}
+          # 档位归属（裁定 §1 的"4 类禁止形态"按类计，类内多形态共用通道：
+          # ④仓外路径含 盘符/git-bash/md§ 三种写法，任一形态有命中即类未死；
+          # 子形态级 0 命中只列示观察，类级 0 命中才触发计数自证失败）
+          CATEGORY_OF = {
+              'R1.任务号': 'R1任务号', 'R1.看板引用': 'R1任务号',
+              'R1.看板后缀': 'R1任务号', 'R1.看板W号': 'R1任务号',
+              'R2.批次号': 'R2批次v编号', 'R2.批次序': 'R2批次v编号',
+              'R2.v编号': 'R2批次v编号', 'R2.P-S段': 'R2批次v编号',
+              'R2.Batch号': 'R2批次v编号', 'R2.波次': 'R2批次v编号',
+              'R3.run号': 'R3run号',
+              'R4.盘符路径': 'R4仓外路径', 'R4.gitbash路径': 'R4仓外路径',
+              'R4.md章节引用': 'R4仓外路径',
+              'R5.行号引用': 'R5行号引用(棘轮)',
+          }
+
+          # ------------------------------------------------------------- 注释文本抽取
+          # 覆盖形态（启发式，注释与探针均按同一入口）：
+          #   - `//` 行注释与行尾注释（朴素字符串态跳过字面量内 //；
+          #     Rust 不把单引号当定界符——生命周期 &'a str 与字符字面量会破坏朴素扫描）
+          #   - `/* ... */` 块注释（含跨行态）
+          #   - Rust 行首 `--`（SeaSQL/嵌入式 SQL 字符串注释，migration 大量存在）
+          #   - .vue 的 `<!-- ... -->`（含跨行态）
+          # 极端形态（多行模板串内含 //）不在启发式覆盖内；由探针自检+计数自证保证
+          # 探测器非死器。diff-only 面向新增行，宁可误拦不可假绿。
+          def iter_comment_lines(relpath, text):
+              ext = os.path.splitext(relpath)[1]
+              track_single = (ext != '.rs')
+              in_block = None  # (open_tok, close_tok)
+              for i, line in enumerate(text.splitlines(), start=1):
+                  start_pos = 0
+                  if in_block:
+                      close = line.find(in_block[1])
+                      if close < 0:
+                          yield (i, line)
+                          continue
+                      yield (i, line[:close])
+                      start_pos = close + len(in_block[1])
+                      in_block = None
+                  pos = start_pos
+                  n = len(line)
+                  in_str = None
+                  found = None
+                  kind = None
+                  while pos < n:
+                      ch = line[pos]
+                      if in_str:
+                          if ch == '\\':
+                              pos += 2
+                              continue
+                          if ch == in_str:
+                              in_str = None
+                          pos += 1
+                          continue
+                      if ch == '"' or ch == '`' or (ch == "'" and track_single):
+                          in_str = ch
+                          pos += 1
+                          continue
+                      if line[pos:pos + 2] == '//':
+                          found, kind = pos, 'line'
+                          break
+                      if line[pos:pos + 2] == '/*':
+                          found, kind = pos, 'block'
+                          break
+                      if ext == '.vue' and line[pos:pos + 4] == '<!--':
+                          found, kind = pos, 'html'
+                          break
+                      pos += 1
+                  if found is None:
+                      if ext == '.rs':
+                          s = line.lstrip()
+                          if s.startswith('--') and not s.startswith('-->'):
+                              yield (i, line)
+                      continue
+                  if kind == 'line':
+                      yield (i, line[found:])
+                  elif kind == 'block':
+                      end = line.find('*/', found + 2)
+                      if end < 0:
+                          in_block = ('/*', '*/')
+                          yield (i, line[found:])
+                      else:
+                          yield (i, line[found:end + 2])
+                  else:
+                      end = line.find('-->', found + 4)
+                      if end < 0:
+                          in_block = ('<!--', '-->')
+                          yield (i, line[found:])
+                      else:
+                          yield (i, line[found:end + 3])
+
+
+          def migration_domain_names():
+              """仓内真实存在的迁移域目录名（backend/migration/src/domain/*）。"""
+              root = os.path.join(REPO, 'backend', 'migration', 'src', 'domain')
+              try:
+                  return {n for n in os.listdir(root)
+                          if os.path.isdir(os.path.join(root, n))}
+              except OSError:
+                  return set()
+
+
+          def repo_doc_exists(token):
+              """`path/x.md §3` 的路径部分若指向仓内真实文档则为合法证据引用。
+
+              判据是"仓内是否存在"而非静态白名单：文件改名或消失后同一条引用
+              自动重新判红，因此本通道不能用来冻结存量。"""
+              path = token.split('§')[0].strip().replace('\\', '/')
+              path = re.sub(r'^\./', '', path)
+              if not path or path.startswith('/') or re.match(r'^[A-Za-z]:', path):
+                  return False
+              return os.path.isfile(os.path.join(REPO, *path.split('/')))
+
+
+          def scan_text(relpath, text):
+              """生产与探针共用的唯一调用形态：返回 [(规则ID, 行号, 注释文本, 命中token)]。"""
+              domains = None
+              hits = []
+              for lineno, ctext in iter_comment_lines(relpath, text):
+                  for rid, rx in HARD_PATTERNS + RATCHET_PATTERNS:
+                      m = rx.search(ctext)
+                      if not m:
+                          continue
+                      tok = m.group(0)
+                      # 结构名放行：`v15 域`/`domain/v15` 指的是真实存在的迁移域
+                      # 目录（IR 要求注释指向仓内证据），与 `v14 排障史` 同类写法
+                      # 不同物；目录不存在时（v13/v14）本通道不生效。
+                      if rid == 'R2.v编号':
+                          if domains is None:
+                              domains = migration_domain_names()
+                          # 规则已大小写同判（[vV]1\d），放行也按小写比对，否则
+                          # `V15 域` 这类合法结构指认会被自己判红。
+                          if tok.lower() in domains:
+                              continue
+                      elif rid == 'R4.md章节引用' and repo_doc_exists(tok):
+                          continue
+                      hits.append((rid, lineno, ctext.strip(), tok))
+              return hits
+
+          # ------------------------------------------------------------------ 探针自检
+          # 每条 = (规则ID, 伪文件名, 伪源码)。伪样例只存在于本步骤的内存字符串，
+          # 绝不写入仓库（写进去即自己生产禁止形态）。
+          PROBES = [
+              ('R1.任务号', 'probe_r1a.rs', '// 任务 #330 接入注释形态门禁\n'),
+              ('R1.看板引用', 'probe_r1b.rs', '/// 修复见 #941\nfn f() {}\n'),
+              ('R1.看板后缀', 'probe_r1c.rs', '// #323c 站点活体锁（真 PostgreSQL + tower oneshot）\n'),
+              # 裸看板工作项号（W+数字）：与 #N 同族禁令的另一写法
+              ('R1.看板W号', 'probe_r1d.rs', '// 判责 W4 已闭，本轮补锁\n'),
+              ('R2.批次号', 'probe_r2a.rs', '// 批次 213 交付\n'),
+              ('R2.批次序', 'probe_r2d.rs', '//! 行为级活体证明 —— 第 5 批（库存盘点 / 跌价准备）\n'),
+              ('R2.v编号', 'probe_r2b.ts', '// v14 排障史\n'),
+              # 存在性通道必须"目标不存在时照旧判红"，否则它会退化成万能放行：
+              # v16 不是本仓任何迁移域目录名（域目录现仅 v15）。
+              ('R2.v编号', 'probe_r2e.rs', '// v16 排障史：先按此顺序改写再回填\n'),
+              # 大写形态必须与同规则一道被探针覆盖：只测小写会让"加大小写"这条腿
+              # 静默失效（规则里漏 IGNORECASE 之类的错误无人发现）
+              ('R2.v编号', 'probe_r2f.rs', '// V14 排障史：先按此顺序改写再回填\n'),
+              ('R2.Batch号', 'probe_r2g.rs', '// Batch 213 交付后回归\n'),
+              # 中文数词与阿拉伯数字两支都要单独探针：只测一支时另一支写错不会报红
+              ('R2.波次', 'probe_r2h.rs', '// 波次六 交付说明\n'),
+              ('R2.波次', 'probe_r2i.rs', '// 波次 12 交付说明\n'),
+              ('R2.P-S段', 'probe_r2c.rs', '//! P0-S01 波次说明\n'),
+              ('R3.run号', 'probe_r3.rs', '// 实证：CI run #4675\nfn g() {}\n'),
+              ('R4.盘符路径', 'probe_r4a.ts', '// 报告 C:/Users/x/decision.md 结论\n'),
+              ('R4.gitbash路径', 'probe_r4b.js', '// 见 /c/Users/x/decision.md\n'),
+              ('R4.md章节引用', 'probe_r4c.rs', '/* 依据 decision-round4.md §1 裁定 */\n'),
+              # 仓内风格路径但文件不存在（幽灵引用）必须照旧判红：存在性通道
+              # 只放"仓内真实文档"，不是"看着像仓内路径"。
+              ('R4.md章节引用', 'probe_r4d.rs',
+               '// 依据：docs/superpowers/specs/2099-01-01-nonexistent-design.md §1 设计\n'),
+              ('R5.行号引用', 'probe_r5a.ts', '// 见 api_gateway_handler.rs:129-151\n'),
+              ('R5.行号引用', 'probe_r5b.vue',
+               '<!-- 详见 store/fabric.ts:31 -->\n<template><div/></template>\n'),
+          ]
+
+
+          # 反向探针：这些是 IR 要求保留的**合法**引用形态，规则若判红即为过宽
+          # （准确指证据反成违规，会逼注释退化成"不敢写路径/不敢写色值"，与假绿同害）。
+          NEG_PROBES = [
+              ('R2.v编号', 'neg_r2a.rs',
+               '//! 建表 DDL 见 backend/migration/src/domain/v15/mod.rs 的 certificate_of_origin 语句\n'),
+              ('R2.v编号', 'neg_r2b.rs',
+               '// 注册位置：migration/src/domain/v15/ 域链尾，建表先于 CHECK\n'),
+              # 裸域名写法（不带路径）：v15 是本仓真实迁移域目录名，属结构指认非版本史
+              ('R2.v编号', 'neg_r2c.rs',
+               '// 幂等实现细节同 m0069：不用 `ON CONFLICT`——其依赖 v15 域内才创建的目标表\n'),
+              # 指向仓内真实文档的章节引用同属合法证据引用（文件消失则自动重新判红）
+              ('R4.md章节引用', 'neg_r4a.rs',
+               '/// 依据：.monkeycode/docs/research/fabric-industry-research.md §12.4 验布打卷\n'),
+              ('R1.看板引用', 'neg_r1a.ts',
+               "// 前端跳转 /crm/customers#2 定位第二张卡片\n"),
+              ('R1.看板引用', 'neg_r1b.vue',
+               '<!-- 主色 #123456、描边 #fff -->\n<template><div/></template>\n'),
+              ('R1.看板后缀', 'neg_r1c.vue',
+               '<!-- 主色 #1a73e8 用于按钮 hover -->\n<template><div/></template>\n'),
+              # 大写域名指认同属结构指认（v15 是真实迁移域目录），不得因大小写不同而判红
+              ('R2.v编号', 'neg_r2d.rs',
+               '// 幂等实现细节同 m0069：依赖 V15 域内才创建的目标表\n'),
+              # 标准名/字段名/路径里的 W+数字不是看板号：三形态各一条
+              ('R1.看板W号', 'neg_r1d.rs',
+               '// 条码遵循 W3C 规范，重量取 net_weight_w7 字段\n'),
+              ('R1.看板W号', 'neg_r1e.rs', '// 探针走 /api/W12 路径，不断言看板项\n'),
+              # batch 标识符与"波次"作为工厂染色概念（后不接数词）都不该命中
+              ('R2.Batch号', 'neg_r2e.ts', '// batchNo 与 batch_size 由库存批次规则给定\n'),
+              ('R2.波次', 'neg_r2f.rs', '// 按波次划分下发染色任务，此处指工厂染色波次\n'),
+          ]
+
+
+          def probe_selftest():
+              failures = []
+              for rid, fname, content in PROBES:
+                  got = [h for h in scan_text(fname, content) if h[0] == rid]
+                  if not got:
+                      failures.append(
+                          f'探针未命中：{rid} 样例 <{fname}> 内容 {content!r} '
+                          '—— 探测器死器，门禁将成为空操作假绿')
+              # 只测"必须命中"是单向自证：规则宽到无差别开火也照样通过。反向探针
+              # 补上第二条腿，任一合法样例被误判即 exit 1。
+              for rid, fname, content in NEG_PROBES:
+                  got = [h for h in scan_text(fname, content) if h[0] == rid]
+                  if got:
+                      failures.append(
+                          f'反向探针被误判：{rid} 对合法样例 <{fname}> 内容 {content!r} '
+                          f'报了硬红（共 {len(got)} 处）—— 规则过宽，准确引用仓内证据反成违规')
+              return failures
+
+          # ---------------------------------------------------------- git 清单 / diff
+          def git(*args):
+              return subprocess.run(['git', '-C', REPO] + list(args),
+                                    capture_output=True, text=True,
+                                    encoding='utf-8', errors='replace')
+
+
+          def list_tracked_files():
+              listing = git('ls-files').stdout
+              files = []
+              for f in listing.splitlines():
+                  f = f.replace('\\', '/')
+                  if f.startswith(SCAN_PREFIXES) and os.path.splitext(f)[1] in EXTS:
+                      files.append(f)
+              return files
+
+
+          def resolve_base():
+              """返回 (base_rev|None, 说明)。None => 调用方按 fail-closed 判失败。"""
+              event = os.environ.get('GATE_EVENT', '')
+              if event == 'pull_request':
+                  base_ref = os.environ.get('GATE_BASE_REF', '')
+                  if not base_ref:
+                      return None, 'pull_request 事件但 github.base_ref 为空'
+                  mb = git('merge-base', f'origin/{base_ref}', 'HEAD')
+                  if mb.returncode != 0 or not mb.stdout.strip():
+                      return None, (f'merge-base origin/{base_ref}..HEAD 不可得'
+                                    '（base 未 fetch/历史缺失）')
+                  return mb.stdout.strip(), f'PR merge-base(origin/{base_ref})'
+              if event == 'push':
+                  before = (os.environ.get('GATE_BEFORE') or '').strip()
+                  zeros = '0' * 40
+                  if before and before != zeros:
+                      ok = git('cat-file', '-e', before + '^{commit}')
+                      if ok.returncode == 0:
+                          return before, 'push event.before'
+                      return None, (f'event.before={before[:12]}… 对象在本克隆不可达'
+                                    '（force-push/gc）')
+                  ref = os.environ.get('GATE_REF', '')
+                  if ref.startswith('refs/tags/'):
+                      prev = git('describe', '--tags', '--abbrev=0', 'HEAD^')
+                      if prev.returncode == 0 and prev.stdout.strip():
+                          rv = git('rev-parse', prev.stdout.strip() + '^{commit}')
+                          if rv.returncode == 0:
+                              return (rv.stdout.strip(),
+                                      f'tag push，base=上一 tag {prev.stdout.strip()}'
+                                      '（本 tag 净增量）')
+                      return None, 'tag push 且不存在上一 tag，无真实 base'
+                  return None, 'push 新建分支（event.before 全零/缺失），无历史 base'
+              if event == 'workflow_dispatch':
+                  return None, ('workflow_dispatch 无事件 base——fail-closed：调试触发的'
+                                '"无新增行"不能作为通过论据，形态判定请走 PR')
+              return None, f'未知事件 {event!r}'
+
+
+          def parse_added_lines(base):
+              """git diff -U0 base..HEAD => ({file: set(新增行号)}, err|None)。"""
+              d = git('diff', '--no-color', '-U0', base, 'HEAD')
+              if d.returncode != 0:
+                  return None, (f'git diff {base[:12]}..HEAD 执行失败 '
+                                f'rc={d.returncode}: {d.stderr[:300]}')
+              if not d.stdout.strip():
+                  return None, (f'git diff {base[:12]}..HEAD 为空集——base 推导异常或本 run '
+                                '无内容变化，按 fail-closed 判失败（禁止"无 diff 视作无新增"）')
+              added = {}
+              cur = None
+              new_ln = 0
+              hunk_rx = re.compile(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@')
+              for ln in d.stdout.splitlines():
+                  if ln.startswith('+++ b/'):
+                      p = ln[6:].strip().replace('\\', '/')
+                      if p == '/dev/null':
+                          cur = None
+                          continue
+                      cur = (p.startswith(SCAN_PREFIXES)
+                             and os.path.splitext(p)[1] in EXTS) and p or None
+                      if cur:
+                          added.setdefault(cur, set())
+                      continue
+                  if ln.startswith('@@'):
+                      m = hunk_rx.match(ln)
+                      if m:
+                          new_ln = int(m.group(1))
+                      continue
+                  if cur is None:
+                      continue
+                  if ln.startswith('+'):
+                      added[cur].add(new_ln)
+                      new_ln += 1
+                  elif ln.startswith('-'):
+                      continue
+                  else:
+                      new_ln += 1
+              return added, None
+
+          # -------------------------------------------------------------------- 主流程
+          _lines = []
+
+
+          def out(s):
+              _lines.append(s)
+              print(s)
+
+
+          def read_file(rel):
+              p = os.path.join(REPO, rel)
+              try:
+                  with open(p, encoding='utf-8', errors='replace') as fh:
+                      return fh.read()
+              except OSError:
+                  return ''
+
+
+          def flush(status):
+              print(f'\n[comment-format-gate] 结论：{status}')
+              try:
+                  d = os.path.dirname(REPORT_PATH)
+                  if d:
+                      os.makedirs(d, exist_ok=True)
+                  with open(REPORT_PATH, 'w', encoding='utf-8') as fh:
+                      fh.write('\n'.join(_lines) + f'\n结论：{status}\n')
+              except OSError as e:
+                  print(f'::warning::报告写入失败 {REPORT_PATH}: {e}')
+
+
+          def main():
+              failures = []
+
+              # ① 探针自检（一切模式都先跑；死器即 fail，不再往下装样子）
+              pf = probe_selftest()
+              if pf:
+                  for m in pf:
+                      out('::error::PROBE ' + m)
+                  flush('FAIL(探针自检)')
+                  sys.exit(1)
+              out(f'① 探针自检：{len(PROBES)} 条禁止形态样例全部命中（探测器非死器）')
+
+              # ② 全量扫描：计数自证 + R5 棘轮对账
+              files = list_tracked_files()
+              out(f'② 扫描文件数={len(files)}（git ls-files ∩ 前缀 {SCAN_PREFIXES} '
+                  f'∩ 扩展名 {sorted(EXTS)}）')
+              if len(files) < 500:
+                  m = (f'扫描文件数 {len(files)} < 500——检出面异常（checkout/路径过滤失校），'
+                       '按空操作假绿风险判失败')
+                  out('::error::' + m)
+                  failures.append(m)
+
+              hard_all = {}     # rid -> [(file, line, ctext, tok)]
+              ratchet_fp = {}   # 指纹 -> [file:line 样本...]
+              ratchet_occ = 0
+              seen_lines = set()
+              for f in files:
+                  text = read_file(f)
+                  if not text:
+                      continue
+                  for rid, ln, ctext, tok in scan_text(f, text):
+                      if rid in HARD_IDS:
+                          hard_all.setdefault(rid, []).append((f, ln, ctext, tok))
+                      else:
+                          ref = tok.split(':')[0]
+                          fp = f'{f}::{ref}'
+                          ratchet_fp.setdefault(fp, []).append(f'{f}:{ln}')
+                          ratchet_occ += 1
+                      seen_lines.add((f, ln))
+              total_hard = sum(len(v) for v in hard_all.values())
+              out(f'   命中行数（全量，列示口径）={len(seen_lines)}；'
+                  f'硬红档规则命中(重复计)={total_hard}；'
+                  f'行号引用出现={ratchet_occ} 次 / 指纹 {len(ratchet_fp)} 个')
+              for rid, _ in HARD_PATTERNS:
+                  out(f'   {rid}: {len(hard_all.get(rid, []))}')
+              out(f'   R5.行号引用(棘轮): {ratchet_occ}')
+              # 计数自证的失效判据按"类"执行（裁定 4 类禁止形态；类内任一形态有
+              # 命中即探测器活；子形态 0 命中仅列示观察）
+              cat_counts = {}
+              for rid, _ in HARD_PATTERNS + RATCHET_PATTERNS:
+                  cnt = ratchet_occ if rid == 'R5.行号引用' else len(hard_all.get(rid, []))
+                  cat_counts[CATEGORY_OF[rid]] = cat_counts.get(CATEGORY_OF[rid], 0) + cnt
+              for cat, cnt in sorted(cat_counts.items()):
+                  out(f'   类计 {cat}: {cnt}')
+                  if cnt == 0:
+                      m = (f'禁止形态类 {cat} 全量 0 命中——类级恒 0 是探测器/扫描面失效信号，'
+                           '须人工复核（存量清零后应连同基线通道一并正式关闭该规则，'
+                           '而非放任假绿）')
+                      out('::error::' + m)
+                      failures.append(m)
+
+              out(f'   硬红档抽样（每规则前 {SAMPLE_N} 条；存量仅列示，不拦截——'
+                  '拦截走 diff-only）：')
+              for rid, _ in HARD_PATTERNS:
+                  for f, ln, ctext, tok in hard_all.get(rid, [])[:SAMPLE_N]:
+                      out(f'     [{rid}] {f}:{ln}  <{tok}>  {ctext[:120]}')
+
+              if MODE == 'gen-baseline':
+                  # 本地生成器专用：把当前实测指纹写成初版基线（裁定步骤0"基线=
+                  # 当前实测计数"）。CI 恒为 GATE_MODE=ci，本分支不参与门禁判定。
+                  hdr = [
+                      '# #330 棘轮档基线：注释中的行号引用（xxx.rs:123 / file.ts:45 式）',
+                      '# ——本档"不禁但只准降"。',
+                      '# 键 = 去掉行号后的文本指纹：<承载文件>::<被引文件路径>（不带行号：',
+                      '# 行号漂移会把老问题误报成新失配——教训见 api-request-baseline 的 _comment）。',
+                      '# 门禁语义：扫描得到的指纹不在本文件内 => 判红（新增行号引用须显式登记并承担复审）；',
+                      '# 基线条目在代码中消失 => 门禁提示"应删行使棘轮真实缩短"。',
+                      '# 禁止为让 CI 变绿向本文件添加新豁免条目——那是掩盖不是修复。',
+                  ]
+                  target = os.path.join(REPO, BASELINE_PATH)
+                  with open(target, 'w', encoding='utf-8', newline='\n') as fh:
+                      fh.write('\n'.join(hdr) + '\n')
+                      for fp in sorted(ratchet_fp):
+                          fh.write(fp + '\n')
+                  out(f'gen-baseline：已写入 {target}，指纹 {len(ratchet_fp)} 条'
+                      f'（出现 {ratchet_occ} 次）')
+                  flush('gen-baseline 完成（非门禁判定）')
+                  sys.exit(0)
+
+              baseline_file = os.path.join(REPO, BASELINE_PATH)
+              if not os.path.isfile(baseline_file):
+                  m = (f'棘轮基线缺失：{BASELINE_PATH} 不存在——超基线判定无法执行，'
+                       '禁止静默通过')
+                  out('::error::' + m)
+                  failures.append(m)
+              else:
+                  with open(baseline_file, encoding='utf-8', errors='replace') as fh:
+                      baseline = {l.strip() for l in fh if l.strip() and not l.startswith('#')}
+                  new_fp = sorted(set(ratchet_fp) - baseline)
+                  retired = sorted(baseline - set(ratchet_fp))
+                  out(f'   棘轮对账：基线={len(baseline)} 条，当前指纹={len(ratchet_fp)} 个，'
+                      f'新增={len(new_fp)}，已消失待退役={len(retired)}')
+                  if new_fp:
+                      m = (f'棘轮超基线：{len(new_fp)} 个新行号引用指纹'
+                           '（基线只准降不准升，新增即红）')
+                      out('::error::' + m)
+                      failures.append(m)
+                      for fp in new_fp[:SAMPLE_N]:
+                          out(f'     新增指纹 {fp} 首次出现于 {ratchet_fp[fp][0]}')
+                  if retired:
+                      out(f'     提示：{len(retired)} 个基线指纹已不存在，'
+                          '应删行使棘轮真实缩短（只准降）')
+                      # 只报数量等于不给可执行信息：删哪几行必须点名，否则"应删行"
+                      # 永远停在口头提示，基线只会虚高不降。
+                      for fp in retired[:SAMPLE_N]:
+                          out(f'     待退役指纹（基线内可整行删除）：{fp}')
+                      if len(retired) > SAMPLE_N:
+                          out(f'     …其余 {len(retired) - SAMPLE_N} 条同批删除')
+
+              # ③ 硬红档 diff-only（仅 ci 模式）；fail-closed
+              if MODE == 'ci':
+                  base, why = resolve_base()
+                  out(f'③ diff base 解析：{why}')
+                  if base is None:
+                      m = ('fail-closed：无法取得 diff base => 判本步失败'
+                           f'（禁止"拿不到就当作没有新增"）；原因：{why}')
+                      out('::error::' + m)
+                      failures.append(m)
+                  else:
+                      added, err = parse_added_lines(base)
+                      if err:
+                          out('::error::fail-closed：' + err)
+                          failures.append(err)
+                      else:
+                          nfiles = len(added)
+                          nlines = sum(len(v) for v in added.values())
+                          out(f'   diff 覆盖扫描面代码文件={nfiles} 个，新增行数={nlines}')
+                          diff_hits = []
+                          for f, lns in sorted(added.items()):
+                              text = read_file(f)
+                              for rid, ln, ctext, tok in scan_text(f, text):
+                                  if ln in lns and rid in HARD_IDS:
+                                      diff_hits.append((rid, f, ln, tok, ctext))
+                          if diff_hits:
+                              m = (f'硬红档命中：新增/修改行注释中检出 {len(diff_hits)} 处'
+                                   '禁止形态（diff-only，不给存量豁免）')
+                              out('::error::' + m)
+                              failures.append(m)
+                              for rid, f, ln, tok, ctext in diff_hits:
+                                  out(f'     [{rid}] {f}:{ln}  <{tok}>  {ctext[:160]}')
+                          else:
+                              out('   硬红档 diff-only：新增行 0 命中')
+
+              flush('FAIL（失败项 %d）' % len(failures) if failures else 'PASS')
+              if failures:
+                  sys.exit(1)
+
+
+          main()
+          PYEOF
+
       - name: 上传注释报告
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: comment-report-${{ github.run_id }}
-          path: /tmp/comment-report.md
+          path: |
+            /tmp/comment-report.md
+            /tmp/comment-format-report.md
           retention-days: 30
           if-no-files-found: ignore
 
@@ -3563,6 +4702,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [ci-e2e, ci-e2e-setup-wizard, role-permission-matrix]
+    # !cancelled()：默认 success() 语义让本 job 在上游 E2E 红的轮次整体 skip，
+    # 而"防伪全绿"的门禁恰恰最需要在上游红时执行（run #4671 实证盲区；同型修复
+    # 先例 571878e7 给前端静态门禁子步加 !cancelled()）。语义不放宽：动态步对
+    # 上游非 success 依旧自行 exit 1 点名，只是不再被 skip 吞掉。
+    if: ${{ !cancelled() }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -3575,9 +4719,12 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 36 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "✅ 全部 E2E job（ci-e2e 42 分片 / setup-wizard / role-permission-matrix）真实执行成功"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
+        # 步骤级兜底：动态步在上游红时 exit 1，步骤默认 success() 会让本步又被吞——
+        # 恰是同一盲区的步骤级形态。静态扫描与上游结果无关，必须每轮真跑。
+        if: ${{ !cancelled() }}
         run: |
           python3 << 'PYEOF'
           import glob, re, sys
@@ -3773,6 +4920,7 @@ jobs:
       ci-type-check,
       ci-build-test-artifacts,
       ci-test-rust,
+      ci-test-rust-ignored,
       ci-coverage-rust,
       ci-test-fe,
       ci-perf-bench,

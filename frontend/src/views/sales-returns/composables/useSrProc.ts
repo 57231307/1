@@ -5,6 +5,7 @@
  * 列表/表单/CRUD 状态由 useSr 提供
  * 行为完全保持一致（仅结构重构）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -67,7 +68,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
       msg.success('auditSuccess');
       await sr.loadReturns();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('auditFailed'));
       }
@@ -87,7 +88,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
       msg.success('auditSuccess');
       await sr.loadReturns();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('auditFailed'));
       }
@@ -109,7 +110,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
       msg.success('auditSuccess');
       await sr.loadReturns();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('auditFailed'));
       }
@@ -129,7 +130,7 @@ export function useSrProc(sr: ReturnType<typeof import('./useSr').useSr>) {
       msg.success('auditSuccess');
       await sr.loadReturns();
     } catch (error: unknown) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         const errMsg = error instanceof Error ? error.message : String(error);
         ElMessage.error(errMsg || msg.translate('auditFailed'));
       }

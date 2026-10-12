@@ -201,7 +201,7 @@ impl TrackingService {
         query: FunnelQuery,
     ) -> Result<FunnelAnalysis, AppError> {
         if query.steps.is_empty() {
-            return Err(AppError::validation("漏斗步骤不能为空"));
+            return Err(AppError::validation_displayable("漏斗步骤不能为空"));
         }
         let date_from = parse_date(&query.date_from)?;
         let date_to = parse_date(&query.date_to)?;

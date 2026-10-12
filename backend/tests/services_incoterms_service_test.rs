@@ -51,8 +51,9 @@ fn test_calculate_costs_ddp_includes_all() {
 }
 
 #[test]
-fn test_calculate_costs_fob_freight_only() {
-    // FOB 含运费，不含保险/关税
+fn test_calculate_costs_fob_excludes_main_freight() {
+    // Incoterms 2020：FOB 主运费由买方订立并承担，卖方仅负担装船前费用，
+    // 故试算不得把买方运费计入 FOB 成本构成（保险/关税同样不归卖方）。
     let (p, f, i, d) = IncotermsService::calculate_costs_by_incoterm(
         Incoterms2020::Fob,
         Decimal::from(1000),
@@ -61,7 +62,7 @@ fn test_calculate_costs_fob_freight_only() {
         Some(Decimal::from(200)),
     );
     assert_eq!(p, Decimal::from(1000));
-    assert_eq!(f, Some(Decimal::from(100)));
+    assert_eq!(f, None);
     assert_eq!(i, None);
     assert_eq!(d, None);
 }

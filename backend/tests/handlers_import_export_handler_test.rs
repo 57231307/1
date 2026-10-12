@@ -24,7 +24,7 @@ fn test_excel_import_request_rejects_exceeding_10k_rows() {
     let result = req.validate();
     assert!(
         result.is_err(),
-        "漏洞 #8 单测：{} 行的 Excel data 应被 validate() 拒绝",
+        "导入 DTO 校验：{} 行的 Excel data 应被 validate() 拒绝",
         MAX_EXCEL_ROWS + 1
     );
 }

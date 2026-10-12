@@ -116,7 +116,7 @@ pub fn finance_alert_err(e: FinanceAlertError) -> AppError {
             "当前状态 {} 不允许此操作（期望 {}）",
             current, expected
         )),
-        FinanceAlertError::Validation(msg) => AppError::validation(msg),
+        FinanceAlertError::Validation(msg) => AppError::validation_displayable(msg),
         FinanceAlertError::Database(e) => AppError::database(e.to_string()),
         // paginate_with_total 返回的 AppError 直接透传
         FinanceAlertError::App(e) => e,

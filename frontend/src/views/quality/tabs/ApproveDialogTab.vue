@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -144,7 +145,7 @@ const handleReject = async () => {
     emit('submitted', props.currentRow);
     emit('update:modelValue', false);
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('quality.approveDialogTab.messageOperationFailed'));
       logger.error(t('quality.approveDialogTab.messageRejectFailed'), err.message);

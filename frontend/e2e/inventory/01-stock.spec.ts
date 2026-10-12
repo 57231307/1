@@ -16,7 +16,15 @@ test.describe('01 库存调整', () => {
     await expect(page.getByRole('heading', { name: '库存管理' })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('tab', { name: /库存台账/ })).toBeVisible();
     await expect(page.getByRole('tab', { name: /库存预警/ })).toBeVisible();
-    await expect(page.getByRole('tab', { name: /库存调拨/ })).toBeVisible();
+    // 老「库存调拨」Tab 已随源码物理删除，调拨入口改为页头「库存调拨」按钮
+    // （goToTransferPage → router.push({ name:'InventoryTransfer' })）。改测该真实入口及其路由可达性。
+    const transferEntry = page.getByRole('button', { name: /库存调拨/ });
+    await expect(transferEntry, '/inventory 应存在"库存调拨"入口').toBeVisible({ timeout: 30000 });
+    await transferEntry.click();
+    await expect(page, '点击调拨入口应路由到正规页 /inventory-transfer').toHaveURL(
+      /\/inventory-transfer/
+    );
+    await expect(page.getByRole('heading', { name: '库存调拨' })).toBeVisible({ timeout: 30000 });
   });
 
   test('01-02 库存筛选功能可用', async ({ page }) => {

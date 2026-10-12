@@ -204,9 +204,16 @@ pub async fn execute_sales_return(
 pub async fn list_return_items(
     State(state): State<AppState>,
     Path(id): Path<i32>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<SalesReturnItemView>>>, AppError> {
+    // 行级归属门（读口）：sales_return_item 按 return_id 隶属父退货单，越权可读他人
+    // 退货明细。对齐父端点 get_sales_return 范式——先 `get_return(id, Some(&ctx))`：
+    // 不存在走既有 not_found（404），不可见走 permission_denied（403 + FORBIDDEN），
+    // 不得把越权降级成 2xx 空列表。sales_return 归属列为 `created_by`（NOT NULL i32，
+    // 无冗余部门列，Dept 范围在该表退化为 Self 判定，与 get_return 既有实现同一判据）。
     let service = SalesReturnService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_return(id, Some(&data_scope_ctx)).await?;
     let items = service.list_return_items(id).await?;
     Ok(Json(ApiResponse::success(items)))
 }
@@ -227,7 +234,7 @@ pub async fn create_return_item(
         if let Some(v) = pct
             && !(v >= rust_decimal::Decimal::ZERO && v <= rust_decimal::Decimal::from(100))
         {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "{} 必须在 0 到 100 之间（百分比），当前值：{}",
                 name, v
             )));
@@ -267,16 +274,43 @@ pub async fn delete_return_item(
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let service = SalesReturnService::new(state.db.clone());
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // 操作人身份取会话，供 service 落审计日志
     service.delete_return_item(item_id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(())))
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的"键缺席 ≠ 显式 null"语义所需）。
+///
+/// 为何需要：serde_json 对 `Option<Option<T>>` 的默认反序列化在遇到 JSON null 时
+/// 直接调 visit_none()，把"显式 null"塌成外层 `None`，与"键缺席"不可区分。
+/// 本适配器把字段先按内层 `Option<T>` 反序列化再包一层：
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+/// 与 handlers/department_handler.rs 中同名适配器形状一致（跨域合并到共享工具需动
+/// utils，超出本批授权范围，各域 handler 内私有定义）。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 更新退货明细请求
+///
+/// 字段语义 = 显式三态部分更新（对齐 RFC 7386 JSON Merge Patch）：
+/// 键缺席=保持原值、显式 `null`=清空为 NULL（仅 DB 可空列）、有值=覆盖。
+/// NOT NULL 列（quantity/unit_price，sales_return_item，m0011 DDL）不开 null 清空，
+/// 显式 null 由 service 拒绝；reason 映射 DB 可空列 notes，显式 null 清空。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateReturnItemRequest {
-    pub quantity: Option<rust_decimal::Decimal>,
-    pub unit_price: Option<rust_decimal::Decimal>,
-    pub reason: Option<String>,
+    /// 数量：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub quantity: Option<Option<rust_decimal::Decimal>>,
+    /// 单价：NOT NULL 列——显式 null 被 service 拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_price: Option<Option<rust_decimal::Decimal>>,
+    /// 退货原因（落 notes 列，可空）——显式 null 清空
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason: Option<Option<String>>,
 }

@@ -53,6 +53,7 @@ impl BusinessModeConfigService {
     pub async fn create(
         &self,
         req: CreateBusinessModeConfigRequest,
+        user_id: i32,
     ) -> Result<ConfigModel, AppError> {
         validate_mode_code(&req.mode_code)?;
         validate_material_source(&req.material_source)?;
@@ -109,7 +110,8 @@ impl BusinessModeConfigService {
             mode_category: Set(req.mode_category),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };

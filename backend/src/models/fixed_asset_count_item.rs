@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// 明细 ID（主键）
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: i64,
 
-    /// 盘点单 ID（外键）
-    pub count_id: i32,
+    /// 盘点单 ID（外键，DDL 为 BIGINT，跟随主表 fixed_asset_counts.id）
+    pub count_id: i64,
 
     /// 固定资产 ID（外键）
     pub asset_id: i32,

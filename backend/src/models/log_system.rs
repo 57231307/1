@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     /// 日志 ID（主键）
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: i64,
 
     /// 用户 ID
     pub user_id: Option<i32>,

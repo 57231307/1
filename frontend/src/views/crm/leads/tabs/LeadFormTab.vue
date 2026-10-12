@@ -98,17 +98,6 @@
             />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
-          <el-form-item :label="t('crmLeads.leadForm.owner')" prop="owner_id">
-            <el-select
-              v-model="formData.owner_id"
-              :placeholder="t('crmLeads.leadForm.ownerPlaceholder')"
-              filterable
-            >
-              <el-option v-for="u in users" :key="u.id" :label="u.real_name" :value="u.id" />
-            </el-select>
-          </el-form-item>
-        </el-col>
       </el-row>
       <el-form-item :label="t('crmLeads.leadForm.requirementDesc')" prop="requirement_desc">
         <el-input
@@ -116,14 +105,6 @@
           type="textarea"
           :rows="3"
           :placeholder="t('crmLeads.leadForm.requirementDescPlaceholder')"
-        />
-      </el-form-item>
-      <el-form-item :label="t('crmLeads.leadForm.remarks')" prop="remarks">
-        <el-input
-          v-model="formData.remarks"
-          type="textarea"
-          :rows="2"
-          :placeholder="t('crmLeads.leadForm.remarksPlaceholder')"
         />
       </el-form-item>
     </el-form>
@@ -141,8 +122,13 @@ import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import { createLead, updateLead, type Lead } from '@/api/crm';
-import type { User } from '@/api/user';
+import {
+  createLead,
+  updateLead,
+  type Lead,
+  type LeadCreateInput,
+  type LeadUpdateInput,
+} from '@/api/crm';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -151,7 +137,6 @@ interface Props {
   modelValue: boolean;
   title: string;
   rowData: Partial<Lead> | null;
-  users: User[];
 }
 
 interface Emits {
@@ -175,9 +160,7 @@ const formData = reactive({
   mobile_phone: '',
   email: '',
   priority: 'MEDIUM',
-  owner_id: '' as string | number,
   requirement_desc: '',
-  remarks: '',
 });
 
 const formRules: FormRules = {
@@ -195,10 +178,8 @@ const formRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  // owner_id 不再前端强制：后端 create_lead/update 一律以登录用户为负责人
-  // （services/crm/lead.rs::create_lead `let owner_id = user_id;`，入参不含 owner_id 字段），
-  // 前端此前的 required 属虚假必填——用户未选负责人时表单卡在校验、合法建单无法提交。
-  // 负责人下拉保留为可选项（编辑时可显式改派），但不再阻断提交。
+  // 负责人不在本表单采集：后端 create_lead/update 一律以登录用户为负责人，
+  // CreateLeadRequest/UpdateLeadRequest 均无 owner_id 键；改派归属走 /crm/assignments 分配端点。
 };
 
 watch(
@@ -227,9 +208,7 @@ const resetForm = () => {
   formData.mobile_phone = '';
   formData.email = '';
   formData.priority = 'MEDIUM';
-  formData.owner_id = '';
   formData.requirement_desc = '';
-  formData.remarks = '';
 };
 
 const handleSubmit = async () => {
@@ -237,15 +216,25 @@ const handleSubmit = async () => {
   try {
     await formRef.value.validate();
     submitLoading.value = true;
-    // 后端 owner_id 为整数，表单下拉值可能为字符串，提交前归一化；id 空值转为 undefined
-    const payload = {
-      ...formData,
-      id: formData.id ?? undefined,
-      owner_id: formData.owner_id === '' ? undefined : Number(formData.owner_id),
+    // 载荷 = 后端 CreateLeadRequest/UpdateLeadRequest 真实键集（crm_dto.rs:26-47/121-143）。
+    // 负责人不在本表单落库范围：后端创建时以登录用户为 owner（services/crm/lead.rs create_lead
+    // `let owner_id = user_id;`），改派走 /crm/assignments 域端点；空选填项省略（Some("")
+    // 会存入空串脏值）。
+    const fields = {
+      lead_source: formData.lead_source || undefined,
+      company_name: formData.company_name || undefined,
+      contact_name: formData.contact_name || undefined,
+      contact_title: formData.contact_title || undefined,
+      mobile_phone: formData.mobile_phone || undefined,
+      email: formData.email || undefined,
+      priority: formData.priority || undefined,
+      requirement_desc: formData.requirement_desc || undefined,
     };
     if (formData.id) {
+      const payload: LeadUpdateInput = { ...fields };
       await updateLead(formData.id, payload);
     } else {
+      const payload: LeadCreateInput = { ...fields };
       await createLead(payload);
     }
     ElMessage.success(t('crmLeads.leadForm.message.saveSuccess'));

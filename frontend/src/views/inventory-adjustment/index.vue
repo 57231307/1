@@ -54,10 +54,11 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { getProductList, type Product } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   deleteInventoryAdjustment,
   type InventoryAdjustmentEntity,
@@ -96,8 +97,9 @@ const handleDeleteAdjustment = async (row: InventoryAdjustmentEntity) => {
       t('inventoryAdjustment.listTab.titleDeleteConfirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryAdjustment.handleDeleteAdjustment', error);
   }
   try {
     await deleteInventoryAdjustment(row.id as number);
@@ -118,10 +120,7 @@ const fetchWarehouses = async () => {
     const res = await getWarehouseList({ page: 1, page_size: 1000 });
     warehouses.value = (res.data?.items as Warehouse[] | undefined) || [];
   } catch (error) {
-    logger.error(
-      t('inventoryAdjustment.index.messageFetchWarehouseFailed'),
-      (error as Error).message
-    );
+    logAuxLoadFailure(t('inventoryAdjustment.index.messageFetchWarehouseFailed'), error);
   }
 };
 
@@ -130,10 +129,7 @@ const fetchProducts = async () => {
     const res = await getProductList({ page: 1, page_size: 1000 });
     products.value = (res.data?.items as Product[] | undefined) || [];
   } catch (error) {
-    logger.error(
-      t('inventoryAdjustment.index.messageFetchProductFailed'),
-      (error as Error).message
-    );
+    logAuxLoadFailure(t('inventoryAdjustment.index.messageFetchProductFailed'), error);
   }
 };
 

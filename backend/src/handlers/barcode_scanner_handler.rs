@@ -71,7 +71,7 @@ pub async fn scan_to_ship_get(
     // 批次 407 修复：order_id 缺失时不可默认为 0，否则扫码发货可能命中非法订单
     let order_id = query
         .order_id
-        .ok_or_else(|| AppError::validation("扫码发货缺少 order_id 参数"))?;
+        .ok_or_else(|| AppError::validation_displayable("扫码发货缺少 order_id 参数"))?;
     scan_to_ship_impl(state, barcode, order_id).await
 }
 

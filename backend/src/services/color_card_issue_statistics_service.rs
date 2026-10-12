@@ -42,12 +42,12 @@ impl ColorCardIssueStatisticsService {
     ) -> Result<DailyStats, AppError> {
         let start_dt = date
             .and_hms_opt(0, 0, 0)
-            .ok_or_else(|| AppError::validation("日期不合法"))?;
+            .ok_or_else(|| AppError::validation_displayable("日期不合法"))?;
         let start =
             chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(start_dt, chrono::Utc);
         let end_dt = date
             .and_hms_opt(23, 59, 59)
-            .ok_or_else(|| AppError::validation("日期不合法"))?;
+            .ok_or_else(|| AppError::validation_displayable("日期不合法"))?;
         let end = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(end_dt, chrono::Utc);
 
         let rows: Vec<color_card_issue::Model> = IssueEntity::find()

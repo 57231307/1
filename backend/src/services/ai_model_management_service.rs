@@ -53,13 +53,11 @@ pub struct CreateModelVersionRequest {
     pub training_dataset_size: Option<i32>,
     pub accuracy_metrics_json: Option<serde_json::Value>,
     pub change_reason: Option<String>,
-    pub changed_by: Option<i32>,
 }
 
 /// 审批模型版本请求
 #[derive(Debug, Deserialize)]
 pub struct ApproveModelVersionRequest {
-    pub approved_by: i32,
     pub approval_status: String,
 }
 
@@ -67,9 +65,11 @@ pub struct ApproveModelVersionRequest {
 #[derive(Debug, Deserialize)]
 pub struct ChangeModelStatusRequest {
     pub new_status: String,
-    pub changed_by: Option<i32>,
     pub change_reason: Option<String>,
 }
+
+// 模型版本的 approved_by / changed_by 是「谁审批、谁变更」审计列，唯一来源是
+// 服务端会话 AuthContext.user_id，因此这三个请求体都不承载身份字段。
 
 // =====================================================
 // 模型评估 DTO（V15 P1 3.4）
@@ -143,6 +143,7 @@ impl AiModelManagementService {
     pub async fn create_model_version(
         &self,
         req: CreateModelVersionRequest,
+        changed_by: i32,
     ) -> Result<ModelVersionModel, AppError> {
         Self::validate_model_status(master_data::DRAFT)?;
         Self::validate_approval_status(master_data::PENDING)?;
@@ -157,7 +158,7 @@ impl AiModelManagementService {
             training_dataset_size: Set(req.training_dataset_size),
             accuracy_metrics_json: Set(req.accuracy_metrics_json),
             status: Set(master_data::DRAFT.to_string()),
-            changed_by: Set(req.changed_by),
+            changed_by: Set(Some(changed_by)),
             change_reason: Set(req.change_reason),
             approval_status: Set(master_data::PENDING.to_string()),
             approved_by: Set(None),
@@ -201,6 +202,7 @@ impl AiModelManagementService {
         &self,
         version_id: i32,
         req: ApproveModelVersionRequest,
+        approved_by: i32,
     ) -> Result<ModelVersionModel, AppError> {
         Self::validate_approval_status(&req.approval_status)?;
         let model = ModelVersionEntity::find_by_id(version_id)
@@ -217,7 +219,7 @@ impl AiModelManagementService {
         let now = chrono::Utc::now();
         let mut active: ModelVersionActiveModel = model.into();
         active.approval_status = Set(req.approval_status);
-        active.approved_by = Set(Some(req.approved_by));
+        active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
@@ -229,6 +231,7 @@ impl AiModelManagementService {
         &self,
         version_id: i32,
         req: ChangeModelStatusRequest,
+        changed_by: i32,
     ) -> Result<ModelVersionModel, AppError> {
         Self::validate_model_status(&req.new_status)?;
         let model = ModelVersionEntity::find_by_id(version_id)
@@ -251,7 +254,7 @@ impl AiModelManagementService {
         let now = chrono::Utc::now();
         let mut active: ModelVersionActiveModel = model.into();
         active.status = Set(req.new_status);
-        active.changed_by = Set(req.changed_by);
+        active.changed_by = Set(Some(changed_by));
         active.change_reason = Set(req.change_reason);
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
@@ -284,7 +287,7 @@ impl AiModelManagementService {
             master_data::ARCHIVED,
         ];
         if !VALID_MODEL_STATUS.contains(&status) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "模型状态非法：{}，应为 {}",
                 status,
                 VALID_MODEL_STATUS.join("/")
@@ -300,7 +303,7 @@ impl AiModelManagementService {
             master_data::REJECTED,
         ];
         if !VALID_APPROVAL_STATUS.contains(&status) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "审批状态非法：{}，应为 {}",
                 status,
                 VALID_APPROVAL_STATUS.join("/")
@@ -362,7 +365,7 @@ impl AiModelManagementService {
     pub fn validate_metric_range(name: &str, value: Option<Decimal>) -> Result<(), AppError> {
         if let Some(v) = value {
             if v < Decimal::ZERO || v > Decimal::ONE {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "{} 取值范围 [0.0, 1.0]，当前 {}",
                     name, v
                 )));
@@ -478,7 +481,10 @@ impl AiModelManagementService {
                 | "recommendation"
         );
         if !valid {
-            return Err(AppError::validation(format!("decision_type 非法：{}", dt)));
+            return Err(AppError::validation_displayable(format!(
+                "decision_type 非法：{}",
+                dt
+            )));
         }
         Ok(())
     }

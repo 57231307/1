@@ -190,15 +190,11 @@ pub async fn list_audit_logs(
         .order_by_desc(audit_log::Column::CreatedAt)
         .paginate(state.db.as_ref(), page_size);
 
-    let total = paginator
-        .num_items()
-        .await
-        .map_err(|e| AppError::internal(format!("统计审计日志失败: {}", e)))?;
+    let total = paginator.num_items().await?;
     let logs = paginator
         // 批次 98 P2-A 修复（v5 复审）：page clamp 防 DoS
         .fetch_page(page.clamp(1, 1000).saturating_sub(1))
-        .await
-        .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
+        .await?;
 
     let items: Vec<AuditLogListItem> = logs.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(AuditLogListResponse {
@@ -238,8 +234,7 @@ pub async fn get_audit_log(
 
     let log = audit_log::Entity::find_by_id(id)
         .one(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?
+        .await?
         .ok_or_else(|| AppError::not_found("审计日志不存在"))?;
 
     let response = AuditLogDetailResponse {
@@ -376,8 +371,7 @@ pub async fn export_audit_logs(
         .order_by_desc(audit_log::Column::CreatedAt)
         .limit(EXPORT_LIMIT)
         .all(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询审计日志失败: {}", e)))?;
+        .await?;
 
     // V15 P0-S15 修复（Batch 475a）：保存 logs 数量用于水印（logs 后续被 into_iter 消费）
     let logs_count = logs.len();
@@ -526,17 +520,12 @@ pub async fn list_audit_log_export_logs(
         select = select.filter(audit_log_export_log::Column::ExporterUserId.eq(uid));
     }
 
-    let total = select
-        .clone()
-        .count(state.db.as_ref())
-        .await
-        .map_err(|e| AppError::internal(format!("查询导出审计记录总数失败: {}", e)))?;
+    let total = select.clone().count(state.db.as_ref()).await?;
 
     let rows = select
         .paginate(state.db.as_ref(), per_page)
         .fetch_page(page - 1)
-        .await
-        .map_err(|e| AppError::internal(format!("查询导出审计记录失败: {}", e)))?;
+        .await?;
 
     let items = rows
         .into_iter()
@@ -584,19 +573,28 @@ pub async fn record_print_event(
     auth: AuthContext,
     Json(req): Json<RecordPrintEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    // 字段长度校验
-    if req.resource_type.is_empty() || req.resource_type.len() > 64 {
-        return Err(AppError::validation("resource_type 长度必须在 1-64 之间"));
+    // 字段长度校验（上限单位 = 字符数，与 PG VARCHAR(n) 计数口径一致；
+    // 用 String::len() 会按 UTF-8 字节计，中文标题 1 字按 3 计导致上限被隐性收紧 3 倍）
+    let resource_type_chars = req.resource_type.chars().count();
+    if resource_type_chars == 0 || resource_type_chars > 64 {
+        return Err(AppError::validation_displayable(
+            "resource_type 长度必须在 1-64 个字符之间",
+        ));
     }
-    if req.title.is_empty() || req.title.len() > 200 {
-        return Err(AppError::validation("title 长度必须在 1-200 之间"));
+    let title_chars = req.title.chars().count();
+    if title_chars == 0 || title_chars > 200 {
+        return Err(AppError::validation_displayable(
+            "title 长度必须在 1-200 个字符之间",
+        ));
     }
     if req.record_count < 0 {
-        return Err(AppError::validation("record_count 不能为负数"));
+        return Err(AppError::validation_displayable("record_count 不能为负数"));
     }
     if let Some(ref rid) = req.resource_id {
-        if rid.len() > 64 {
-            return Err(AppError::validation("resource_id 长度不能超过 64"));
+        if rid.chars().count() > 64 {
+            return Err(AppError::validation_displayable(
+                "resource_id 长度不能超过 64 个字符",
+            ));
         }
     }
 

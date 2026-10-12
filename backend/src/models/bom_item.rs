@@ -27,7 +27,10 @@ pub struct Model {
     /// 单位
     pub unit: Option<String>,
 
-    /// 损耗率（0-1）
+    /// 损耗率（存储口径：0–1 十进制比率，DECIMAL(5,4)；
+    /// API 入参为百分比数值 10=10%，由 bom_handler 写边界经
+    /// BomService::scrap_percent_to_ratio 换算后落库；API 回显/树端点/打印
+    /// 出参同为百分比口径，读边界经 BomService::scrap_ratio_to_percent 换算）
     pub scrap_rate: Option<Decimal>,
 
     /// 排序号

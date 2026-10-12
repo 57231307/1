@@ -20,7 +20,7 @@ impl CustomerCreditService {
 
         let eval_date = evaluation_date
             .parse::<NaiveDate>()
-            .map_err(|_| AppError::validation("日期格式错误"))?;
+            .map_err(|_| AppError::validation_displayable("日期格式错误"))?;
 
         let (customer, customer_name, credit_history) =
             self.load_customer_credit_and_name(customer_id).await?;

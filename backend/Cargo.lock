@@ -610,6 +610,7 @@ dependencies = [
  "calamine",
  "chrono",
  "clap",
+ "code128",
  "config",
  "criterion",
  "csv",
@@ -621,6 +622,7 @@ dependencies = [
  "futures",
  "hex",
  "hmac 0.12.1",
+ "image",
  "jsonwebtoken",
  "migration",
  "mockall",
@@ -978,6 +980,15 @@ name = "cmov"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
+
+[[package]]
+name = "code128"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e87a9b435b56b628ed3b69f5a3a7233001ae674bf9588e4bb5f40e0b6e4dee9"
+dependencies = [
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "codepage"

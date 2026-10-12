@@ -4,8 +4,8 @@
 
 use chrono::{TimeZone, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    Set,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -15,6 +15,7 @@ use sea_orm::DatabaseConnection;
 use crate::models::assignment_history::{
     ActiveModel, Entity as AssignmentHistoryEntity, Model as AssignmentHistoryModel,
 };
+use crate::utils::data_scope::{DataScope, DataScopeContext};
 use crate::utils::error::AppError;
 
 /// 创建分配历史请求
@@ -119,15 +120,60 @@ impl AssignmentHistoryService {
         Ok(model)
     }
 
-    /// 查询分配历史列表
+    /// 查询分配历史列表（按数据范围收窄可见行）
     pub async fn list(
         &self,
         query: AssignmentHistoryQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<AssignmentHistoryModel>, u64), AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
         let mut select = AssignmentHistoryEntity::find();
+
+        // 行级归属门：历史行可见性按 operated_by/from_user_id/to_user_id 三列取并集，
+        // All 不额外过滤，Dept 限可见部门成员集合，Self_ 限本人。
+        if let Some(ctx) = data_scope {
+            if ctx.scope != DataScope::All {
+                let scope_cond = match ctx.scope {
+                    DataScope::Self_ => Condition::any()
+                        .add(crate::models::assignment_history::Column::OperatedBy.eq(ctx.user_id))
+                        .add(crate::models::assignment_history::Column::FromUserId.eq(ctx.user_id))
+                        .add(crate::models::assignment_history::Column::ToUserId.eq(ctx.user_id)),
+                    DataScope::Dept => {
+                        if ctx.dept_member_user_ids.is_empty() {
+                            Condition::any()
+                                .add(
+                                    crate::models::assignment_history::Column::OperatedBy
+                                        .eq(ctx.user_id),
+                                )
+                                .add(
+                                    crate::models::assignment_history::Column::FromUserId
+                                        .eq(ctx.user_id),
+                                )
+                                .add(
+                                    crate::models::assignment_history::Column::ToUserId
+                                        .eq(ctx.user_id),
+                                )
+                        } else {
+                            let ids = ctx.dept_member_user_ids.clone();
+                            Condition::any()
+                                .add(
+                                    crate::models::assignment_history::Column::OperatedBy
+                                        .is_in(ids.clone()),
+                                )
+                                .add(
+                                    crate::models::assignment_history::Column::FromUserId
+                                        .is_in(ids.clone()),
+                                )
+                                .add(crate::models::assignment_history::Column::ToUserId.is_in(ids))
+                        }
+                    }
+                    DataScope::All => Condition::all(),
+                };
+                select = select.filter(scope_cond);
+            }
+        }
 
         if let Some(lead_id) = query.lead_id {
             select = select.filter(crate::models::assignment_history::Column::LeadId.eq(lead_id));

@@ -176,6 +176,7 @@ fn test_salesquotationmodel_mrzdz() {
         approval_instance_id: None,
         approved_by: None,
         approved_at: None,
+        approval_reason: None,
         rejection_reason: None,
         converted_sales_order_id: None,
         converted_at: None,

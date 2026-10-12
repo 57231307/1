@@ -46,8 +46,18 @@ export function reassignCollectionTask(id: number, data: Record<string, unknown>
   return request.post(`/collection-tasks/${id}/reassign`, data);
 }
 
-export function cancelCollectionTask(id: number) {
-  return request.post(`/collection-tasks/${id}/cancel`);
+/**
+ * POST /collection-tasks/{id}/cancel 请求体，对齐后端 models/collection_task_dto.rs::CancelTaskRequest
+ * （:51-53，cancel_reason 为非 Option 的 String）。handler collection_task_handler.rs:223 以
+ * Json<CancelTaskRequest> 反序列化，服务层 collection_task_service.rs:572 还校验 trim 后非空——
+ * 此前不发任何请求体，后端 serde 缺字段直接 400，取消操作从未成功。
+ */
+export interface CancelCollectionTaskInput {
+  cancel_reason: string;
+}
+
+export function cancelCollectionTask(id: number, data: CancelCollectionTaskInput) {
+  return request.post(`/collection-tasks/${id}/cancel`, data);
 }
 
 export const BAD_DEBT_STATUS_LABEL: Record<string, string> = {

@@ -47,7 +47,7 @@ import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getProductCategoryList, type Product, type ProductCategory } from '@/api/product';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import ProductListTab from './tabs/ProductListTab.vue';
 import ProductFormDialogTab from './tabs/ProductFormDialogTab.vue';
 import ImportDialogTab from './tabs/ImportDialogTab.vue';
@@ -113,7 +113,7 @@ const fetchCategories = async () => {
     categories.value = res.data.items;
     void buildTree(categories.value);
   } catch (error) {
-    logger.error(t('product.index.messageFetchCategoriesFailed'), (error as Error).message);
+    logAuxLoadFailure(t('product.index.messageFetchCategoriesFailed'), error);
   }
 };
 

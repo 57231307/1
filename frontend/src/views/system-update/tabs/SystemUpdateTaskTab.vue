@@ -45,16 +45,13 @@
         width="150"
       >
         <template #default="{ row }">
-          <el-progress
-            :percentage="row.progress"
-            :status="
-              row.status === 'failed'
-                ? 'exception'
-                : row.status === 'completed'
-                  ? 'success'
-                  : undefined
-            "
-          />
+          <!-- 后端进度无真实中间百分比：不显误导性 %，仅显状态标签（进行中/终态）。 -->
+          <el-tag v-if="isInProgress(row.status)" type="warning" size="small">
+            {{ t('systemUpdate.taskTab.progressInProgress') }}
+          </el-tag>
+          <el-tag v-else :type="taskStatusTypeMap[row.status]" size="small">
+            {{ getTaskStatusLabel(row.status) }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column
@@ -139,6 +136,11 @@ const emit = defineEmits<{
   'update:page': [v: number];
   'update:page-size': [v: number];
 }>();
+
+/** 进行中的任务状态（后端无中间百分比，进度列显「进行中」不确定态） */
+const IN_PROGRESS_STATUSES: UpdateTask['status'][] = ['pending', 'downloading', 'installing'];
+const isInProgress = (status: string): boolean =>
+  (IN_PROGRESS_STATUSES as string[]).includes(status);
 
 /** 更新任务状态 → i18n 标签（语言切换响应） */
 const getTaskStatusLabel = (status: string): string => {

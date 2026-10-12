@@ -3,25 +3,30 @@
 // 覆盖范围：检验记录创建 → 合格/不合格判定 → 缺陷处理
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
+import {
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  failureCode,
+  APP_ERROR_CODES,
+  genCode,
+  tryCleanup,
+} from '../flow/helpers';
 import { pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';
 
 /**
- * 缺陷管理（DefectTab）列表数据源是 unqualified_product 表
+ * 缺陷管理（DefectTab）列表数据源是 unqualified_products 表
  * （backend/services/quality_inspection_service.rs::get_defects_list）。
- * 该表没有 defect_type/severity/processed 等前端列名，故 row.processed 恒为 undefined，
- * 「处理」按钮渲染条件 `v-if="!row.processed"`（DefectTab.vue:67）对任何一行都成立。
  *
- * 方法二 + 真缺陷说明：
- * 1) 缺陷行没有可唯一定位的列，无法像方法一那样「按单号定位自己那一行再点行内按钮」；
- * 2) 更关键的是「处理」点击本身是坏的前后端契约——DefectTab.processDefect 只提交
- *    { remark }（quality/tabs/DefectTab.vue:130 → api/quality.ts processDefect），
- *    而后端 process_unqualified 要求 ProcessUnqualifiedRequest 的
- *    unqualified_qty / unqualified_reason / handling_method 三个非 Option 字段
- *    （backend/handlers/quality_inspection_handler.rs ProcessUnqualifiedRequest），
- *    空提交必被 serde 拒绝（400），永远弹不出「处理成功」。
- * 因此本用例改为「先构造一条缺陷（unqualified_product）使处理按钮必然存在，再显式断言其可见」，
- * 不再断言那条必然失败的点击结果（不改断言方向掩盖缺陷）。契约不一致记入 .monkeycode/doto.md。
+ * 动作语义（D1②，本用例按新契约改写）：
+ * - `/defects/{id}/process` = 从**质检记录**开单（{id}=质检记录 id，INSERT 一行台账，
+ *   带同记录非终态行幂等守卫）；
+ * - `/defects/{id}/process-result` = **台账行原地更新**处置结果（{id}=行自身 id，
+ *   不新开行）：仅 handling_status=pending 可行，成功后推进为 approved 并写
+ *   handling_by/handling_at；状态门拒 ⇒ 4xx BUSINESS_ERROR，词表外方式 ⇒ 4xx
+ *   VALIDATION_ERROR（本仓拒绝文案永久脱敏，只断 status + 机器码，不断案文案）。
+ * 台账 UI 的「处理」按钮已改指 process-result + row.id（DefectTab.vue），正例核心判据
+ * =「本行被更新且台账行数不变」。
  */
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -29,8 +34,17 @@ test.afterEach(async ({ page }) => {
   CLEANUP.length = 0;
 });
 
-/** 造一条缺陷：建质检记录 → 处理为不合格品（生成 unqualified_product） */
-async function seedDefect(page: import('@playwright/test').Page): Promise<void> {
+/** 台账行出参（unqualified_product::Model 直出的本用例所需键） */
+interface DefectRow {
+  id: number;
+  unqualified_no: string;
+  handling_status: string;
+}
+
+/** 造一条缺陷：建质检记录 → 开单为不合格品（生成 unqualified_product），回双 id */
+async function seedDefect(
+  page: import('@playwright/test').Page
+): Promise<{ recordId: number; rowId: number }> {
   const products = await apiCallRaw<{ items?: Array<{ id: number }> }>(
     page,
     'GET',
@@ -63,13 +77,21 @@ async function seedDefect(page: import('@playwright/test').Page): Promise<void> 
     label: 'quality_record',
   });
 
-  // 由不合格记录派生 unqualified_product（缺陷列表条目）
-  await apiCall(page, 'POST', `/production/quality-inspection/defects/${record.data.id}/process`, {
-    unqualified_qty: 10,
-    unqualified_reason: 'E2E 缺陷前置',
-    handling_method: 'rework',
-    remark: 'E2E',
-  });
+  // 由不合格记录派生 unqualified_product（缺陷列表条目）；开单响应回整行 Model
+  const defect = await apiCall<DefectRow>(
+    page,
+    'POST',
+    `/production/quality-inspection/defects/${record.data.id}/process`,
+    {
+      unqualified_qty: 10,
+      unqualified_reason: 'E2E 缺陷前置',
+      handling_method: 'rework',
+      remark: 'E2E',
+    }
+  );
+  const rowId = defect.data?.id;
+  if (!rowId) throw new Error(`缺陷开单未返回行 id：${JSON.stringify(defect)}`);
+  return { recordId: record.data.id, rowId };
 }
 
 test.describe('02 检验记录与缺陷处理', () => {
@@ -117,15 +139,72 @@ test.describe('02 检验记录与缺陷处理', () => {
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
   });
 
-  test('02-04 未处理缺陷可处理', async ({ page }) => {
-    // 方法二：先构造一条缺陷（unqualified_product），保证处理按钮必然存在，再显式断言
-    await seedDefect(page);
-    await page.goto('/quality');
-    await page.getByRole('tab', { name: /缺陷/ }).click();
-    const handleBtn = page.getByText('处理', { exact: false }).first();
-    await expect(
-      await handleBtn.isVisible(),
-      '缺少未处理缺陷：前置数据（unqualified_product）未生效'
-    ).toBe(true);
+  test('02-04 台账处理=本行原地更新（process-result）：正例本行更新且行数不变，负例只断 status+机器码', async ({
+    page,
+  }) => {
+    const { recordId, rowId } = await seedDefect(page);
+    // D2 筛选已下推真实生效：record_id 等值命中派生自该质检记录的台账行
+    const listByRecord = () =>
+      apiCallRaw<DefectRow[]>(
+        page,
+        'GET',
+        `/production/quality-inspection/defects?record_id=${recordId}&page=1&page_size=100`
+      );
+
+    const before = await listByRecord();
+    expect(Array.isArray(before), `record_id 筛选应返回数组，实际=${JSON.stringify(before)}`).toBe(
+      true
+    );
+    expect(before, '开单后该质检记录应恰有一条台账行').toHaveLength(1);
+    expect(before[0].id, '筛选命中行须为 seed 行').toBe(rowId);
+    expect(before[0].handling_status, '新开单行初态应为 pending').toBe('pending');
+
+    // 正例：台账行原地更新处置结果（路径 id = 行自身 id，非质检记录 id）
+    const updated = await apiCallRaw<DefectRow & { handling_by: number | null }>(
+      page,
+      'POST',
+      `/production/quality-inspection/defects/${rowId}/process-result`,
+      { handling_method: 'rework', reason: 'E2E 处置结果验证' }
+    );
+    expect(updated.id, '响应应为被更新的同一行').toBe(rowId);
+    expect(updated.handling_status, '处置成功后本行 handling_status 应推进为 approved').toBe(
+      'approved'
+    );
+    expect(updated.handling_by, '操作人应由服务端会话派生落库（非空）').toBeTruthy();
+    const after = await listByRecord();
+    expect(after, '处置后台账行数不变（原地更新，不新开行）').toHaveLength(1);
+    expect(after[0].handling_status, '列表回读与写响应一致（真实落库）').toBe('approved');
+
+    // 负例①（状态门）：approved 终态行再次提处置结果 ⇒ 4xx + BUSINESS_ERROR；
+    // 本仓拒绝文案永久脱敏，只断 status + 机器码，不断案文案
+    const reProcess = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/quality-inspection/defects/${rowId}/process-result`,
+      { handling_method: 'downgrade_sale' }
+    );
+    expect(reProcess.status, '终态行原地更新应被状态门拒绝（400）').toBe(400);
+    expect(
+      failureCode(reProcess),
+      `状态门机器码应为 BUSINESS_ERROR，实际=${JSON.stringify(reProcess.code)}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+
+    // 负例②（词表门）：词表外 handling_method ⇒ 400 + VALIDATION_ERROR
+    const badMethod = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/quality-inspection/defects/${rowId}/process-result`,
+      { handling_method: 'REWORK' }
+    );
+    expect(badMethod.status, '词表外处理方式应被字段校验拒绝（400）').toBe(400);
+    expect(
+      failureCode(badMethod),
+      `词表机器码应为 VALIDATION_ERROR，实际=${JSON.stringify(badMethod.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+
+    // 被拒零半途写入：终态行状态不因两次被拒而漂移
+    const finalRows = await listByRecord();
+    expect(finalRows).toHaveLength(1);
+    expect(finalRows[0].handling_status, '被拒后行状态不得漂移').toBe('approved');
   });
 });

@@ -174,7 +174,7 @@ import {
 } from '@/api/ap-payment';
 import { getAPPaymentRequestList, printAPPaymentDocx, type APPaymentRequest } from '@/api/ap';
 import { getSupplierList, type Supplier } from '@/api/supplier';
-import { isDialogDismissal } from '@/utils/monitor';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -322,8 +322,9 @@ const confirmPayment = async (row: APPayment) => {
       t('apModule.payment.confirmTitle'),
       { type: 'info' }
     );
-  } catch {
-    return; // 用户取消确认弹窗，非错误
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('ap.PaymentTab.confirmPayment', error);
   }
   try {
     // 后端 confirm 强制 transaction_no 非空（ap_payment_service.rs:231-239）：

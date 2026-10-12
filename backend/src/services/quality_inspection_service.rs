@@ -6,15 +6,17 @@ use crate::models::status::purchase_inventory::{
 use crate::models::unqualified_product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::models::status::price_approval;
 use crate::models::status::quality_dyeing::quality_handling;
 use crate::models::status::quality_dyeing::quality_inspection_result;
+use crate::services::sales_price_service::effective_on;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, ExprTrait,
-    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -114,6 +116,10 @@ pub fn validate_handling_method_by_grade(
 pub struct QualityInspectionQueryParams {
     pub inspection_type: Option<String>,
     pub status: Option<String>,
+    /// 不合格品台账（defects）列表专用下推筛选：handler 侧参数名为 `record_id`，
+    /// 锚定的实体列是 `unqualified_products.inspection_id`（派生本行的质检记录 id，
+    /// 非验布记录 id——两条链 id 空间不同）。标准/其他列表不消费本字段
+    pub inspection_id: Option<i32>,
     pub page: i64,
     pub page_size: i64,
 }
@@ -185,6 +191,30 @@ pub struct ProcessUnqualifiedRequest {
     pub handling_result: Option<String>,
 }
 
+/// JSON 三态反序列化适配器（"键缺席 ≠ 显式 null"语义所需）。
+/// 键缺席（配合 `#[serde(default)]`）= `None`、显式 null = `Some(None)`、有值 = `Some(Some(v))`。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
+/// 台账行「处置结果原地更新」（D1②）请求体：只承载处置结果字段。
+/// 身份字段（操作人/审批人/user_id 等）在本 DTO 类型层不存在，serde 无法承载——
+/// 操作人一律取服务端会话身份（purchase_receipt_ops/state.rs concede/rejudge 同构范式）
+#[derive(Debug, Deserialize)]
+pub struct ProcessResultRequest {
+    /// 处理方式：必须与权威词表常量（HANDLING_REWORK/HANDLING_DOWNGRADE_SALE/
+    /// HANDLING_SCRAP）逐字符相同；词表外值 ⇒ VALIDATION
+    pub handling_method: String,
+    /// 处置理由（DB 可空 TEXT 列 handling_reason）。三态语义：键缺席=保持原值、
+    /// 显式 null=清空、有值=覆盖（trim 后落库）；有值时空白串 ⇒ VALIDATION
+    #[serde(default, deserialize_with = "double_option")]
+    pub reason: Option<Option<String>>,
+}
+
 pub struct QualityInspectionService {
     db: Arc<DatabaseConnection>,
 }
@@ -247,14 +277,6 @@ impl QualityInspectionService {
         let result = active_model.insert(&*self.db).await?;
         info!("质量检验标准创建成功：{}", result.standard_code);
         Ok(result)
-    }
-
-    pub async fn get_standard_by_id(&self, id: i32) -> Result<quality_inspection::Model, AppError> {
-        let standard = quality_inspection::Entity::find_by_id(id)
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("质量检验标准不存在：{}", id)))?;
-        Ok(standard)
     }
 
     pub async fn get_record_by_id(
@@ -464,6 +486,22 @@ impl QualityInspectionService {
         });
         validate_handling_method_by_grade(&grade, &req.handling_method)?;
 
+        // D1②：重复开单守卫。unqualified_no 只由 record_id 推出且该列无 UNIQUE，
+        // 同质检记录重复开单会落同号两行（原行无人推进、统计静默翻倍）。同
+        // inspection_id 已有非终态行 ⇒ 拒绝；终态判据取同源词表 quality_handling
+        // （approved/rejected），不引入第二套常量
+        let outstanding = unqualified_product::Entity::find()
+            .filter(unqualified_product::Column::InspectionId.eq(record_id))
+            .filter(unqualified_product::Column::HandlingStatus.ne(quality_handling::APPROVED))
+            .filter(unqualified_product::Column::HandlingStatus.ne(quality_handling::REJECTED))
+            .count(&*self.db)
+            .await?;
+        if outstanding > 0 {
+            return Err(AppError::business_displayable(
+                "该质检记录已存在未处置完的不合格品单，不允许重复开单；如需更新处置结果请在台账行上使用原地更新入口",
+            ));
+        }
+
         let unqualified_no = format!("UQ{:08}", record_id);
 
         // P1 batch-18 缺陷 5.3：报废走二级审批初始状态 pending_fin
@@ -517,6 +555,109 @@ impl QualityInspectionService {
         Ok(result)
     }
 
+    /// D1②：在 `unqualified_products` 行上**原地**更新处置结果（路径参数即本表主键，
+    /// 与报废两级审批同一 id 语义）。不新开行、不改单号。
+    ///
+    /// 门控口径（本仓已锁：状态门=BUSINESS、字段校验=VALIDATION，不许混）：
+    /// - `handling_method` 词表外 ⇒ `validation_displayable`，合法值清单由权威常量
+    ///   拼出（禁手写第二套字面量）；
+    /// - `handling_status != pending` ⇒ `business_displayable`（含 approved/rejected
+    ///   终态与任何词表外现值）；
+    /// - 行处于报废审批流程（pending_fin/pending_gm）⇒ `business_displayable`——
+    ///   报废流程的出口只有两级审批端点；
+    /// - `scrap` 词表内但本端点拒绝（`business_displayable`）：报废终态必须经财务/
+    ///   总经理两级审批达成，结果端点不得旁路直进终态。
+    ///
+    /// 留痕：`handling_by`/`handling_at` 落真实处置操作人与时间（操作人取会话，请求体
+    /// 身份字段在 DTO 层无对应键），`updated_at` 同步推进；`update_with_audit` 同事务
+    /// 写 audit_log 前后全行快照（purchase_receipt_ops/state.rs concede/rejudge 同构
+    /// 范式）。本表无 `updated_by` 列（m0013 建表 + 模型字段逐列核实），处置理由落
+    /// 专用列 `handling_reason`（TEXT NULL），不挪用 remark/handling_result（语义挪列
+    /// 是真缺陷，S-2 教训）。
+    /// 事务内 `lock_exclusive` 串行化并发更新，任一步失败 `?` 上抛整体回滚，不允许半成功。
+    pub async fn process_unqualified_result(
+        &self,
+        unqualified_id: i32,
+        req: ProcessResultRequest,
+        user_id: i32,
+    ) -> Result<unqualified_product::Model, AppError> {
+        // 字段校验归 VALIDATION：处置方式必须逐字符命中权威词表
+        const HANDLING_VOCAB: [&str; 3] =
+            [HANDLING_REWORK, HANDLING_DOWNGRADE_SALE, HANDLING_SCRAP];
+        if !HANDLING_VOCAB.contains(&req.handling_method.as_str()) {
+            return Err(AppError::validation_displayable(format!(
+                "处理方式「{}」不是合法取值，允许值：{}",
+                req.handling_method,
+                HANDLING_VOCAB.join("/")
+            )));
+        }
+        // 理由三态：缺席=保持原值、显式null=清空、有值=校验后落库；有值时不得为空白
+        if let Some(Some(raw)) = &req.reason {
+            if raw.trim().is_empty() {
+                return Err(AppError::validation_displayable(
+                    "处置理由填写后不能为空白，请填写实质理由或留空不提交",
+                ));
+            }
+        }
+
+        let txn = (*self.db).begin().await?;
+        let row = unqualified_product::Entity::find_by_id(unqualified_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("不合格品记录 {}", unqualified_id)))?;
+
+        if row.handling_status != quality_handling::PENDING {
+            return Err(AppError::business_displayable(format!(
+                "仅待处理（{}）的不合格品可原地更新处置结果，当前状态：{}",
+                quality_handling::PENDING,
+                row.handling_status
+            )));
+        }
+        if row.scrap_approval_status == unqualified_product::SCRAP_PENDING_FIN
+            || row.scrap_approval_status == unqualified_product::SCRAP_PENDING_GM
+        {
+            return Err(AppError::business_displayable(
+                "该行正处于报废审批流程中，请沿报废审批端点继续推进，不允许原地改判结果",
+            ));
+        }
+        if req.handling_method == HANDLING_SCRAP {
+            return Err(AppError::business_displayable(
+                "报废处理须经财务与总经理两级审批达成终态，处置结果端点不直进报废",
+            ));
+        }
+        let now = chrono::Utc::now();
+        let mut active: unqualified_product::ActiveModel = row.into();
+        active.handling_method = Set(req.handling_method);
+        active.handling_status = Set(quality_handling::APPROVED.to_string());
+        active.handling_by = Set(Some(user_id));
+        active.handling_at = Set(Some(now));
+        active.updated_at = Set(now);
+        match req.reason {
+            None => {}
+            Some(None) => active.handling_reason = Set(None),
+            Some(Some(val)) => active.handling_reason = Set(Some(val.trim().to_string())),
+        }
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+
+        info!(
+            unqualified_id = updated.id,
+            user_id,
+            handling_method = %updated.handling_method,
+            "不合格品台账行处置结果已原地更新（handling_status 推进至 {}，未新增行）",
+            quality_handling::APPROVED
+        );
+        Ok(updated)
+    }
+
     /// 缺陷 5.1：B 级降级同步库存等级（按 product_id + batch_no + color_no + dye_lot_no 定位库存记录）
     async fn sync_stock_grade_for_downgrade(
         &self,
@@ -568,21 +709,32 @@ impl QualityInspectionService {
 
     /// 缺陷 5.1：B 级降级联动销售价格调整
     /// 策略：查询产品当前生效的 A 级（标准）销售价，按 80% 折扣生成/更新二等品销售价。
-    /// 若已存在二等品价则更新价格；若无标准价则跳过（仅记录 warn，避免误覆盖）。
+    /// 「当前生效」= 命中 `services/sales_price_service::effective_on` 的闭区间窗口
+    /// （到期日当天仍有效、`expiry_date IS NULL` 为长期有效），未来生效或已过期的价目一律不取。
+    /// 若已存在二等品价则更新价格；若无生效标准价则跳过（仅记录 warn，不阻断主流程，避免误覆盖）。
     async fn sync_sales_price_for_downgrade(&self, product_id: i32) -> Result<(), AppError> {
         use crate::models::sales_price::{self as price_model, Entity as PriceEntity};
 
-        // 1. 查询该产品当前生效的 A 级标准价（price_level 为 "一等品" 或 NULL，status=approved）
-        //    取最新一条（按 effective_date 倒序）
+        // 1. 查询该产品**当前生效**的 A 级标准价（price_level 为 "一等品" 或 NULL，status=approved）。
+        //    生效窗口谓词由 `services/sales_price_service::effective_on` 单点定义（闭区间：
+        //    生效日 <= 今天，且到期日为空（长期有效）或到期日 >= 今天（到期日当天仍有效）），
+        //    口径与定价域 `utils/price_calculator.rs::find_customer_special_price` /
+        //    `::find_seasonal_adjustment` 一致；「今天」取 `chrono::Utc::now().date_naive()`，
+        //    与 `utils/price_calculator.rs::calculate_price` 的 calc_date 兜底同源。
+        //    未来生效或已过期的价目一律不取，防止误参与二等品定价（标准价 × 80% 后写回 sales_prices）。
+        let today = chrono::Utc::now().date_naive();
         let standard_price = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
-            .filter(price_model::Column::Status.eq(master_data::APPROVED))
+            .filter(price_model::Column::Status.eq(price_approval::APPROVED))
             .filter(
                 price_model::Column::PriceLevel
                     .eq(STANDARD_PRICE_LEVEL_A)
                     .or(price_model::Column::PriceLevel.is_null()),
             )
+            .filter(effective_on(today))
             .order_by(price_model::Column::EffectiveDate, Order::Desc)
+            // 次级排序仅为消除「窗口内同日多行」取用的不确定性，不改变业务口径
+            .order_by(price_model::Column::Id, Order::Desc)
             .one(&*self.db)
             .await?;
 
@@ -602,7 +754,7 @@ impl QualityInspectionService {
         let existing_b = PriceEntity::find()
             .filter(price_model::Column::ProductId.eq(product_id))
             .filter(price_model::Column::PriceLevel.eq(DOWNGRADE_PRICE_LEVEL_B))
-            .filter(price_model::Column::Status.eq(master_data::APPROVED))
+            .filter(price_model::Column::Status.eq(price_approval::APPROVED))
             .one(&*self.db)
             .await?;
 
@@ -636,7 +788,7 @@ impl QualityInspectionService {
                 effective_date: Set(standard.effective_date),
                 expiry_date: Set(standard.expiry_date),
                 // 二等品价直接 approved（由降级流程触发，避免重复审批延误销售）
-                status: Set(master_data::APPROVED.to_string()),
+                status: Set(price_approval::APPROVED.to_string()),
                 approved_by: Set(None),
                 approved_at: Set(Some(now)),
                 created_by: Set(None),
@@ -749,6 +901,11 @@ impl QualityInspectionService {
 
         if let Some(status) = &params.status {
             query = query.filter(unqualified_product::Column::HandlingStatus.eq(status));
+        }
+        // D2：handler 侧 record_id 参数下推为真实列 unqualified_products.inspection_id
+        // 等值筛选（锚定实体列注释见 QualityInspectionQueryParams.inspection_id 字段文档）
+        if let Some(inspection_id) = params.inspection_id {
+            query = query.filter(unqualified_product::Column::InspectionId.eq(inspection_id));
         }
 
         let total = query.clone().count(&*self.db).await?;

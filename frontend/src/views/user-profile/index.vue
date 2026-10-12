@@ -201,7 +201,12 @@ const profileForm = reactive<UserProfile>({
   updated_at: '',
 });
 
-const passwordForm = reactive<ChangePasswordRequest>({
+// 表单模型 = 后端契约两键 + 纯 UI 校验键 confirm_password：
+// 后端 user_handler.rs::ChangePasswordRequest 只读 old_password/new_password，
+// 确认密码只在表单层 rules 比对，不进提交载荷（见 api/user-profile.ts 类型注释）。
+type PasswordFormModel = ChangePasswordRequest & { confirm_password: string };
+
+const passwordForm = reactive<PasswordFormModel>({
   old_password: '',
   new_password: '',
   confirm_password: '',
@@ -337,7 +342,12 @@ const handleChangePassword = async () => {
 
     passwordLoading.value = true;
     try {
-      await changePassword(passwordForm);
+      // 只提交后端 DTO 真实读取的两键（user_handler.rs:687-692）；
+      // confirm_password 是 UI 校验键，整表单直传会把后端不读的键发出去（契约漂移）
+      await changePassword({
+        old_password: passwordForm.old_password,
+        new_password: passwordForm.new_password,
+      });
       ElMessage.success(t('userProfile.message.passwordChangeSuccess'));
       // 清空表单
       passwordFormRef.value?.resetFields();

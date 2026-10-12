@@ -13,7 +13,9 @@ import { logger } from '@/utils/logger';
  *
  * 2. inspection_status（质检状态，大写）：
  *    来源 backend/src/models/status/purchase_inventory.rs 的 purchase_receipt_inspection
- *    模块（PENDING/PASSED/REJECTED）。建单初始值写 PENDING（service 第 74 行）。
+ *    模块（PENDING/PASSED/REJECTED/CONCESSION_ACCEPTED，与 DB CHECK
+ *    chk_purchase_receipt_inspection_status 逐项相等）。建单初始值写 PENDING；
+ *    CONCESSION_ACCEPTED 由让步接收端点写入（须复检改判后才可入库）。
  *    PENDING 的权威中文显示词取自该模块文档注释「待检验」，与 quality_inspection_result
  *    中文词族（合格/不合格）一致，禁止英文化为 PASSED/REJECTED 原值直显。
  */
@@ -85,6 +87,7 @@ export const PURCHASE_RECEIPT_INSPECTION_STATUS = {
   PENDING: 'PENDING',
   PASSED: 'PASSED',
   REJECTED: 'REJECTED',
+  CONCESSION_ACCEPTED: 'CONCESSION_ACCEPTED',
 } as const;
 
 export type PurchaseReceiptInspectionStatus =
@@ -97,6 +100,7 @@ const RECEIPT_INSPECTION_STATUS_LABEL_KEYS: Record<PurchaseReceiptInspectionStat
   PENDING: 'purchaseReceipt.inspectionLabels.PENDING',
   PASSED: 'purchaseReceipt.inspectionLabels.PASSED',
   REJECTED: 'purchaseReceipt.inspectionLabels.REJECTED',
+  CONCESSION_ACCEPTED: 'purchaseReceipt.inspectionLabels.CONCESSION_ACCEPTED',
 };
 
 const RECEIPT_INSPECTION_STATUS_TAG_TYPES: Record<
@@ -106,6 +110,7 @@ const RECEIPT_INSPECTION_STATUS_TAG_TYPES: Record<
   PENDING: 'warning',
   PASSED: 'success',
   REJECTED: 'danger',
+  CONCESSION_ACCEPTED: '',
 };
 
 /** 归一入库单的质检状态；语义与 normalizePurchaseReceiptStatus 同构。 */

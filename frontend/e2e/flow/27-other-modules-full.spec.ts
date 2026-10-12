@@ -11,6 +11,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyDownloadEndpointHealthy,
   trackPageHealth,
   assertPageHealthy,
 } from './helpers';
@@ -33,7 +34,7 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     // 供应商完整
     await verifyEndpointHealthy(page, '/purchase/suppliers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/purchase/suppliers/abnormal-orders');
-    await verifyEndpointHealthy(page, '/supplier-evaluations?page=1&page_size=5');
+    await verifyEndpointHealthy(page, '/purchase/supplier-evaluations?page=1&page_size=5');
     const supList = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -77,8 +78,8 @@ test.describe('其他模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/inventory/write-downs?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/inventory/batches?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/inventory/logistics?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/inventory/stock/export');
     await verifyEndpointHealthy(page, '/inventory/stock/transactions?page=1&page_size=5');
+    await verifyDownloadEndpointHealthy(page, '/inventory/stock/export');
     await verifyEndpointHealthy(page, '/inventory/stock/summary');
     await verifyEndpointHealthy(page, '/inventory/stock/low-stock');
   });

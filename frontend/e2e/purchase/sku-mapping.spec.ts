@@ -1,5 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import type { Page } from '@playwright/test';
+import * as fs from 'fs';
 import {
   loginAsRole,
   apiCall,
@@ -973,5 +974,206 @@ test.describe('SKU 对照表 - 转采购翻译 hook', () => {
       res.message ?? '',
       `色号不存在出参应脱敏、不含保密词，实际="${res.message}"`
     ).not.toMatch(FORBIDDEN_SECRETS);
+  });
+});
+
+// ===========================================================================
+// E3. 批量导入（真实文件上传链路）
+//     经 UI 上传 csv 走 POST /purchase/sku-mappings/import：服务端按扩展名/magic 解析
+//     文件，列名→字段的权威表在 backend/src/handlers/sku_mapping_handler.rs:88-122，
+//     逐行引用校验与落库复用 service.import_batch。断三件事：合法行落库可读回、
+//     引用不存在编码的行按行拒并点名列、表头缺必需列整文件 400 零落库。
+// ===========================================================================
+
+test.describe('SKU 对照表 - 批量导入（真实文件上传）', () => {
+  test('purchaser 上传 csv：合法行入库可读回、非法产品编码行逐行拒、表头缺列整文件拒', async ({
+    page,
+  }) => {
+    await loginAsRole(page, 'admin');
+    const fx = await discoverDemoFixture(page);
+
+    await loginAsRole(page, 'purchaser');
+    const ts = Date.now().toString().slice(-8);
+    const spCode = `E2E-IMP-SP${ts}`;
+    const scNo = `E2E-IMP-SC${ts}`;
+    const badProductCode = `E2E-IMP-NOPE${ts}`;
+
+    // 前置：导入按「编码」引用供应商商品/色号，故先自建唯一编码（可回读、可清理）
+    const sp = await apiCall<{ id?: number }>(page, 'POST', '/purchase/supplier-products', {
+      supplier_id: fx.sup1Id,
+      product_code: spCode,
+      product_name: `E2E导入供应商品${ts}`,
+      unit: '米',
+    });
+    const spId = Number(sp.data?.id);
+    expect(spId, '前置：创建供应商商品应回 id').toBeGreaterThan(0);
+    const sc = await apiCall<{ id?: number }>(page, 'POST', '/purchase/supplier-product-colors', {
+      supplier_product_id: spId,
+      color_no: scNo,
+      color_name: `E2E导入供应色号${ts}`,
+      extra_cost: '1.00',
+    });
+    const scId = Number(sc.data?.id);
+    expect(scId, '前置：创建供应商色号应回 id').toBeGreaterThan(0);
+
+    let mappingId = 0;
+    try {
+      // 表头逐字取自后端权威映射表；缺列/未知列后端整文件 400，不静默降级成 0 行
+      const COLS = [
+        'product_code',
+        'color_no',
+        'supplier_code',
+        'supplier_product_code',
+        'supplier_color_no',
+        'supplier_price',
+        'min_order_quantity',
+        'lead_time',
+        'is_primary',
+        'priority',
+        'is_enabled',
+        'remarks',
+      ];
+      const goodRow = [
+        fx.productCode,
+        fx.colorNo,
+        'SUP-DEMO-FAB-01',
+        spCode,
+        scNo,
+        '61.25',
+        '100',
+        '7',
+        'true',
+        '1',
+        'true',
+        `E2E导入${ts}`,
+      ].join(',');
+      const badRow = [
+        badProductCode,
+        '',
+        'SUP-DEMO-FAB-01',
+        spCode,
+        scNo,
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ].join(',');
+      const importUrl = '/purchase/sku-mappings/import';
+      const waitImport = () =>
+        page.waitForResponse(r => r.url().includes(importUrl) && r.request().method() === 'POST', {
+          timeout: 30_000,
+        });
+
+      await safeGoto(page, '/purchase/sku-mapping');
+      await page
+        .getByRole('button', { name: /批量导入/ })
+        .first()
+        .click();
+      const dialog = page.locator('.el-dialog:visible').last();
+      await dialog.waitFor({ state: 'visible', timeout: 15_000 });
+      const fileInput = dialog.locator('input[type=file]');
+
+      // 1) 两行混合文件：1 合法 + 1 引用不存在产品编码
+      const csvPath = `/tmp/sku-import-${ts}.csv`;
+      fs.writeFileSync(csvPath, [COLS.join(','), goodRow, badRow].join('\r\n'), 'utf-8');
+      const p1 = waitImport();
+      await fileInput.setInputFiles(csvPath);
+      const resp1 = await p1;
+      expect(resp1.status(), `上传 csv 应 200，实际=${resp1.status()}`).toBe(200);
+      const b1 = (await resp1.json()) as {
+        data?: {
+          total_count?: number;
+          success_count?: number;
+          error_count?: number;
+          errors?: Array<{ row?: number; column?: string; message?: string; value?: string }>;
+        };
+      };
+      const d1 = b1.data ?? {};
+      expect(d1.total_count, 'total_count 应为文件数据行数 2').toBe(2);
+      expect(d1.success_count, '合法行应成功 1 条').toBe(1);
+      expect(d1.error_count, '引用不存在产品编码的行应失败 1 条').toBe(1);
+      expect(d1.errors?.length, '失败明细须逐行返回').toBe(1);
+      expect(String(d1.errors?.[0]?.column), '失败须点名涉事列').toBe('product_code');
+      expect(
+        Number(d1.errors?.[0]?.row),
+        `失败须归属第 2 数据行，实际=${d1.errors?.[0]?.row}`
+      ).toBe(2);
+      expect(
+        String(d1.errors?.[0]?.value),
+        '失败明细须回显被拒的编码值（行级归因，不许含糊成"导入失败"）'
+      ).toBe(badProductCode);
+
+      // 对话框侧同步可见失败明细 1 行（用户看得到，不只有接口返回）
+      await expect(
+        dialog.locator('.import-errors .el-table__body tbody tr'),
+        '导入对话框须列出 1 行失败明细'
+      ).toHaveCount(1);
+
+      // 2) 落库回读：合法行以唯一编码精确命中，且协议价按导入值入库
+      const listed = await apiCallRaw<{
+        items: Array<{ id: number; supplier_product_code?: string; supplier_price?: string }>;
+      }>(
+        page,
+        'GET',
+        `/purchase/sku-mappings?supplier_id=${fx.sup1Id}&product_id=${fx.productId}&page=1&page_size=200`
+      );
+      const hit = (listed?.items ?? []).filter(m => m.supplier_product_code === spCode);
+      expect(
+        hit.length,
+        '导入成功的行必须能经列表读回，且唯一编码只命中一条（非法行不得落库）'
+      ).toBe(1);
+      mappingId = Number(hit[0]?.id);
+      expect(mappingId, '读回行须有主键').toBeGreaterThan(0);
+      expect(
+        String(hit[0]?.supplier_price),
+        `协议价须按导入值 61.25 入库（Decimal 以字符串承载），实际=${hit[0]?.supplier_price}`
+      ).toContain('61.25');
+
+      // 3) 表头缺必需列：整文件 400，族别 VALIDATION_ERROR，且点名缺失列（不静默当 0 行）
+      const missingHeader = COLS.filter(c => c !== 'product_code').join(',');
+      const missingPath = `/tmp/sku-import-missing-${ts}.csv`;
+      fs.writeFileSync(missingPath, [missingHeader, `x,${fx.colorNo}`].join('\r\n'), 'utf-8');
+      const p2 = waitImport();
+      await fileInput.setInputFiles(missingPath);
+      const resp2 = await p2;
+      expect(resp2.status(), `表头缺必需列应 400，实际=${resp2.status()}`).toBe(400);
+      const b2 = (await resp2.json()) as { code?: string; message?: string };
+      expect(b2.code, `文件形态拒绝须归 VALIDATION_ERROR 族，实际=${b2.code}`).toBe(
+        'VALIDATION_ERROR'
+      );
+      expect(
+        String(b2.message ?? ''),
+        '参数校验类拒绝须点名缺失列名（fail-visible），不得含糊成"导入失败"'
+      ).toContain('product_code');
+    } finally {
+      // 清理：对照需 admin 删除；供应商商品/色号无 DELETE 端点，PUT 停用软清理
+      if (scId)
+        await apiCall(page, 'PUT', `/purchase/supplier-product-colors/${scId}`, {
+          supplier_product_id: spId,
+          color_no: scNo,
+          color_name: '停用',
+          is_enabled: false,
+        }).catch(e => console.warn('[清理] 停用导入供应色号失败:', (e as Error).message));
+      if (spId)
+        await apiCall(page, 'PUT', `/purchase/supplier-products/${spId}`, {
+          supplier_id: fx.sup1Id,
+          product_code: spCode,
+          product_name: '停用',
+          unit: '米',
+          is_enabled: false,
+        }).catch(e => console.warn('[清理] 停用导入供应商品失败:', (e as Error).message));
+      if (mappingId) {
+        await loginAsRole(page, 'admin');
+        await tryCleanup(
+          page,
+          'DELETE',
+          `/purchase/sku-mappings/${mappingId}`,
+          'E3清理导入生成的对照(admin)'
+        );
+      }
+    }
   });
 });

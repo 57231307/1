@@ -81,7 +81,9 @@ impl SupplierProductColorService {
         let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
         let supplier_product_id = params.supplier_product_id.ok_or_else(|| {
-            AppError::validation("supplier_product_id 不能为空（色号必须按供应商商品过滤查询）")
+            AppError::validation_displayable(
+                "supplier_product_id 不能为空（色号必须按供应商商品过滤查询）",
+            )
         })?;
 
         let mut query = supplier_product_color::Entity::find()
@@ -214,7 +216,7 @@ impl SupplierProductColorService {
 fn parse_extra_cost(raw: Option<&str>) -> Result<Decimal, AppError> {
     match raw.map(str::trim).filter(|s| !s.is_empty()) {
         Some(s) => Decimal::from_str(s)
-            .map_err(|_| AppError::validation(format!("extra_cost 格式错误: {}", s))),
+            .map_err(|_| AppError::validation_displayable(format!("extra_cost 格式错误: {}", s))),
         None => Ok(Decimal::ZERO),
     }
 }

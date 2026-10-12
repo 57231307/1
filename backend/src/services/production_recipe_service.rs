@@ -34,7 +34,9 @@ use crate::utils::error::AppError;
 // 大货处方 Service struct 定义（impl 块在 production_recipe_ops/recipe_crud、recipe_state 子模块）
 // ============================================================================
 
-/// 创建大货处方请求（真实业务必填字段（依据 §11.2 大货处方）：fabric_weight: 备布重量（用量计算依据）；liquor_ratio: 浴比（如 1:8）；recipe_detail: 处方明细（染料+助剂））
+/// 创建大货处方请求（真实业务必填字段（依据 §11.2 大货处方）：fabric_weight: 备布重量（用量计算依据）；liquor_ratio: 浴比（如 1:8）；recipe_detail: 处方明细（染料+助剂））。
+/// 开单人 issued_by 与建单人 created_by 均不是入参：身份唯一来源是服务端会话
+/// （`AuthContext.user_id`，由 handler 传入 service），请求体不承载身份。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateProductionRecipeRequest {
     pub work_order_id: Option<i32>,
@@ -58,8 +60,6 @@ pub struct CreateProductionRecipeRequest {
     pub total_dye_cost: Option<Decimal>,
     pub total_auxiliary_cost: Option<Decimal>,
     pub remarks: Option<String>,
-    pub issued_by: Option<i32>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新大货处方请求（仅 draft 状态可更新）
@@ -98,12 +98,6 @@ pub struct ProductionRecipeQuery {
     pub page_size: Option<u64>,
 }
 
-/// 审核请求
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApproveRecipeRequest {
-    pub approved_by: i32,
-}
-
 /// 用量计算请求（按浓度+布重+浴比计算各物料用量）
 #[derive(Debug, Clone, Deserialize)]
 pub struct CalculateAmountsRequest {
@@ -127,12 +121,19 @@ impl ProductionRecipeService {
         Self { db }
     }
 
-    /// 生成大货处方单号：PR-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
-    pub fn generate_recipe_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PR-{}-{:03}", timestamp, random)
+    /// 生成大货处方单号（统一生成器：`PR{YYYYMMDD}{3位流水}`，`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
+    pub(crate) async fn generate_recipe_no(&self) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PR",
+            crate::models::production_recipe::Entity,
+            crate::models::production_recipe::Column::RecipeNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "大货处方单号生成失败");
+            AppError::business_displayable("大货处方单号生成失败，请稍后重试")
+        })
     }
 
     /// 解析浴比字符串（如 "1:8"）为浴比数值（8.0）（真实业务：浴比格式为 "1:N"，N 通常为 5-20）
@@ -246,7 +247,9 @@ impl ProductionRecipeService {
 // 加料处方 Service struct 定义（impl 块在 production_recipe_ops/addition 子模块）
 // ============================================================================
 
-/// 创建加料处方请求
+/// 创建加料处方请求。
+/// 开单人 issued_by 与建单人 created_by 均不是入参：身份唯一来源是服务端会话
+/// （`AuthContext.user_id`，由 handler 传入 service），请求体不承载身份。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateProductionRecipeAdditionRequest {
     /// 关联大货处方（必填）
@@ -259,8 +262,6 @@ pub struct CreateProductionRecipeAdditionRequest {
         Option<Vec<crate::models::production_recipe_addition::AdditionMaterialItem>>,
     pub total_cost: Option<Decimal>,
     pub remarks: Option<String>,
-    pub issued_by: Option<i32>,
-    pub created_by: Option<i32>,
 }
 
 /// 加料处方查询参数
@@ -284,12 +285,19 @@ impl ProductionRecipeAdditionService {
         Self { db }
     }
 
-    /// 生成加料处方单号：PA-YYYYMMDDHHMMSS-NNN（`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
-    pub fn generate_addition_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PA-{}-{:03}", timestamp, random)
+    /// 生成加料处方单号（统一生成器：`PA{YYYYMMDD}{3位流水}`，`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
+    pub(crate) async fn generate_addition_no(&self) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+            &*self.db,
+            "PA",
+            crate::models::production_recipe_addition::Entity,
+            crate::models::production_recipe_addition::Column::AdditionNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "加料处方单号生成失败");
+            AppError::business_displayable("加料处方单号生成失败，请稍后重试")
+        })
     }
 
     // ===== 状态流转校验 =====

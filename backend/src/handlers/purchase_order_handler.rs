@@ -11,8 +11,10 @@ use crate::services::po::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdateOrderItemRequest,
     UpdatePurchaseOrderRequest,
 };
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
@@ -53,17 +55,37 @@ pub async fn list_orders(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // 非静默：原 `if let Ok(Some(_))` 把权限查询 Err 与 Ok(None) 静默合并，按
+        // 本仓既有做法（crm_handler::resolve_role_data_permission）对 Err 记 warn 后
+        // 同走 fail-closed 默认处理，出参语义与原实现逐字一致。
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_order")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_order",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             state.data_permission_service.filter_fields_batch(
                 &mut orders_json,
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // admin 判定走本仓唯一权威源
+            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+            // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
+            // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             for order in &mut orders_json {
                 if let Some(obj) = order.as_object_mut() {
@@ -130,17 +152,32 @@ pub async fn get_order(
 
     // 数据权限控制：获取角色数据权限并应用字段过滤
     if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
+        // Err 记 warn 后同走 fail-closed 默认处理（与 list_orders 同款，不静默）
+        let permission = match state
             .data_permission_service
             .get_role_data_permission(role_id, "purchase_order")
             .await
         {
+            Ok(permission) => permission,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    role_id,
+                    resource_type = "purchase_order",
+                    rule = "data_permission_lookup_fail_closed",
+                    "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+                );
+                None
+            }
+        };
+        if let Some(permission) = permission {
             state.data_permission_service.filter_fields(
                 &mut order_json,
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if role_id != 1 {
+        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+            // 与列表同一单源判定（见 list_orders 内 D-4 收口注释），每请求至多一次
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
             if let Some(obj) = order_json.as_object_mut() {
                 obj.remove("total_amount");
@@ -278,15 +315,31 @@ pub async fn submit_order(
 }
 
 /// 审批采购订单
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由选填并落
+// approval_reason 专列；拒绝动作在 /reject（理由落 rejected_reason 专列）。
 pub async fn approve_order(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
+    payload: OptionalJson<ApprovePurchaseOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    let order = service.approve_order(id, user_id).await?;
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 的 OptionalFromRequest for Json 只在完全不带
+    // Content-Type 时才放行，"带 JSON 头 + 空体"仍被解码层判 400。
+    // 缺体/纯空白在此归一为 None ⇒ 列保持 NULL，不得伪造成必填、也不得落空串；
+    // 有体但非法仍走 400 VALIDATION_ERROR。
+    let approval_reason = payload
+        .0
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let order = service
+        .approve_order_with_reason(id, user_id, approval_reason)
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(order)?,
@@ -302,12 +355,23 @@ pub async fn reject_order(
     State(state): State<AppState>,
     Json(req): Json<RejectOrderRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 死注解收口：校验真实执行（此前 #[validate] 从 handler 摘除即死码）；
+    // validator 的 min=1 拦不住纯空白，trim 非空门在后，落库为 trim 后的值
+    // （口径同 quotation_handler.rs / sales_price_handler.rs reject 先例）。
+    req.validate()?;
+    let reason = req.reason.trim().to_string();
+    if reason.is_empty() {
+        tracing::warn!(
+            "用户 {} 拒绝采购订单被拒：单据 ID {id} 拒绝理由为纯空白（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable("审批拒绝理由不能为空"));
+    }
+
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
-    let order = service
-        .reject_order(id, req.reason.clone(), user_id)
-        .await?;
+    let order = service.reject_order(id, reason.clone(), user_id).await?;
 
     // 发送审批拒绝通知
     if state.event_notification_service.is_none() {
@@ -322,7 +386,7 @@ pub async fn reject_order(
                 false,
                 auth.user_id,
                 &auth.username,
-                Some(&req.reason),
+                Some(&reason),
             )
             .await
         {
@@ -344,6 +408,10 @@ pub async fn close_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
+    // 行级归属门（写口）：关闭改订单终态，先证归属（purchase_orders 的 get_order
+    // 内部按 check_resource_owner_by_member_scope 判定）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
 
     let order = service.close_order(id, user_id).await?;
 
@@ -354,7 +422,6 @@ pub async fn close_order(
 }
 
 /// 取消采购订单
-/// 批次 215 P2-1 修复（v12 复审）：实现采购订单取消功能
 pub async fn cancel_order(
     auth: AuthContext,
     Path(id): Path<i32>,
@@ -363,6 +430,9 @@ pub async fn cancel_order(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
+    // 行级归属门（写口）：取消改订单状态并释放预算占用，必须先证归属。
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
 
     let order = service
         .cancel_order(id, req.reason.clone(), user_id)
@@ -376,11 +446,19 @@ pub async fn cancel_order(
 
 /// 获取订单明细列表
 pub async fn list_order_items(
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(order_id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门（读口）：purchase_order_item 按 order_id 隶属父采购订单，越权可读他人
+    // 采购明细。对齐父端点 get_order/update_order/cancel_order 范式——先
+    // `get_order(order_id, Some(&ctx))`：不存在走既有 not_found（404），不可见走
+    // permission_denied（403 + FORBIDDEN），不得把越权降级成 2xx 空列表。
+    // purchase_orders 归属列 `created_by`、部门列 `department_id`（均为 NOT NULL i32，
+    // get_order 内 check_resource_owner 已按此两列判定）。
     let service = PurchaseOrderService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(order_id, Some(&data_scope_ctx)).await?;
     let items = service.list_order_items(order_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
@@ -416,6 +494,11 @@ pub async fn update_order_item(
     State(state): State<AppState>,
     Json(req): Json<UpdateOrderItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级允差等写侧校验：复用创建路径同一 validate_quantity_tolerance_pct，
+    // 拒绝文案（只涉及用户自己提交的数值与公开范围规则）经 validate_write
+    // 以 business_displayable 如实外显，不走脱敏的 VALIDATION_ERROR 信封
+    req.validate_write()?;
+
     let service = PurchaseOrderService::new(state.db.clone());
     let user_id = auth.user_id;
 
@@ -532,12 +615,22 @@ pub struct OrderQueryParams {
     pub keyword: Option<String>,
 }
 
-/// 拒绝订单请求
+/// 拒绝订单请求：长度上限与列型对齐——purchase_orders.rejected_reason 为
+/// VARCHAR(255)（权威 DDL 在 backend/migration 的 system 域 ALTER TABLE "purchase_orders"），
+/// 超 255 在库侧必报错，应用侧先行 400
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct RejectOrderRequest {
-    #[validate(length(min = 1, max = 500, message = "拒绝原因不能为空且最长500字符"))]
+    #[validate(length(min = 1, max = 255, message = "拒绝原因不能为空且最长255字符"))]
     pub reason: String,
+}
+
+/// 审批通过请求体（选填档）：通过理由缺失/空串/纯空白一律按未采集落 NULL。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用与选填语义在同一
+/// 形态下解码通过，不产生解码层裸 400。
+#[derive(Debug, Deserialize)]
+pub struct ApprovePurchaseOrderRequest {
+    pub approval_reason: Option<String>,
 }
 
 /// 取消采购订单请求（批次 215 P2-1）
@@ -661,7 +754,10 @@ pub async fn calculate_order_total(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行级归属门（写口）：重算落库改主表聚合列，须先证归属。
     let service = crate::services::po::order::PurchaseOrderService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_order(id, Some(&data_scope_ctx)).await?;
     service.calculate_order_total(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         serde_json::json!({"order_id": id}),

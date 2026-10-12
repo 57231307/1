@@ -10,16 +10,14 @@ use sea_orm::{ActiveModelTrait, Set};
 
 use crate::models::production_recipe::{ActiveModel as RecipeActiveModel, Model as RecipeModel};
 use crate::models::status::production_recipe as recipe_status;
-use crate::services::production_recipe_service::{ApproveRecipeRequest, ProductionRecipeService};
+use crate::services::production_recipe_service::ProductionRecipeService;
 use crate::utils::error::AppError;
 
 impl ProductionRecipeService {
     /// 审核大货处方（draft → approved）（真实业务：审核后自动建立生产领用单据（领用单据建立由下游模块消费 approved 事件））
-    pub async fn approve(
-        &self,
-        id: i32,
-        req: ApproveRecipeRequest,
-    ) -> Result<RecipeModel, AppError> {
+    /// approved_by 是审批人审计列，由 handler 从服务端会话（AuthContext.user_id）传入，
+    /// 请求体不承载审批身份（身份可伪造的通道一律关闭）。
+    pub async fn approve(&self, id: i32, approved_by: i32) -> Result<RecipeModel, AppError> {
         let model = self.get_by_id(id, None).await?;
         Self::validate_status_transition(&model.status, recipe_status::APPROVED)?;
 
@@ -33,7 +31,7 @@ impl ProductionRecipeService {
 
         let mut active: RecipeActiveModel = model.into();
         active.status = Set(recipe_status::APPROVED.to_string());
-        active.approved_by = Set(Some(req.approved_by));
+        active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;

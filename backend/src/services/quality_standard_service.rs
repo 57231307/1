@@ -1,7 +1,9 @@
+use crate::models::custom_order;
 use crate::models::quality_standard;
 use crate::models::status::master_data;
 use crate::models::status::quality_dyeing::quality_standard as qs_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use chrono::NaiveDate;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
@@ -9,6 +11,12 @@ use sea_orm::{
 };
 use std::sync::Arc;
 use tracing::info;
+
+/// 质量标准代码自动编码前缀（存量数据以 "QS-" 开头，见原 create_standard
+/// `format!("QS-{ts}-{4}")`；列 UNIQUE 证据：
+/// migration/src/domain/system/m0005_add_basic_data_and_system_tables.rs:110
+/// `"standard_code" VARCHAR(50) NOT NULL UNIQUE`）
+const STANDARD_CODE_PREFIX: &str = "QS-";
 
 /// 质量标准查询参数
 #[derive(Debug, Clone, Default)]
@@ -103,21 +111,20 @@ impl QualityStandardService {
         req: CreateQualityStandardRequest,
         user_id: i32,
     ) -> Result<quality_standard::Model, AppError> {
-        // 自动生成标准代码
-        let standard_code = req.standard_code.unwrap_or_else(|| {
-            let timestamp = chrono::Utc::now().format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            format!("QS-{}-{:04}", timestamp, random)
-        });
+        // 自动生成标准代码收口到生成器（原「秒级时间戳+4位随机」同秒并发撞
+        // standard_code UNIQUE 直接 500，见 STANDARD_CODE_PREFIX 注释 DDL 证据）
+        let auto_code = req.standard_code.is_none();
+        let manual_code = req.standard_code.clone().unwrap_or_default();
 
-        info!("用户 {} 正在创建质量标准：{}", user_id, standard_code);
-
-        let active_standard = quality_standard::ActiveModel {
+        let build_active = |standard_code: String| quality_standard::ActiveModel {
             standard_code: Set(standard_code),
-            standard_name: Set(req.standard_name),
-            standard_type: Set(req.standard_type.unwrap_or_else(|| "general".to_string())),
-            version: Set(req.version.unwrap_or_else(|| "1.0".to_string())),
-            content: Set(req.content.unwrap_or_default()),
+            standard_name: Set(req.standard_name.clone()),
+            standard_type: Set(req
+                .standard_type
+                .clone()
+                .unwrap_or_else(|| "general".to_string())),
+            version: Set(req.version.clone().unwrap_or_else(|| "1.0".to_string())),
+            content: Set(req.content.clone().unwrap_or_default()),
             status: Set(qs_status::DRAFT.to_string()),
             effective_date: Set(req
                 .effective_date
@@ -126,8 +133,28 @@ impl QualityStandardService {
             ..Default::default()
         };
 
-        let standard = active_standard.insert(&*self.db).await?;
-        info!("质量标准创建成功：{}", standard.standard_code);
+        let txn = (*self.db).begin().await?;
+        let standard = if auto_code {
+            DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                STANDARD_CODE_PREFIX,
+                quality_standard::Entity,
+                quality_standard::Column::StandardCode,
+                build_active,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "质量标准代码生成失败");
+                AppError::business_displayable("质量标准代码生成失败，请稍后重试")
+            })?
+        } else {
+            build_active(manual_code).insert(&txn).await?
+        };
+        txn.commit().await?;
+        info!(
+            "用户 {} 创建质量标准成功：{}",
+            user_id, standard.standard_code
+        );
         Ok(standard)
     }
 
@@ -162,23 +189,47 @@ impl QualityStandardService {
     }
 
     /// 删除质量标准
+    ///
+    /// 引用预检（真实计数，不是占位）：
+    /// 1. `custom_orders.quality_standard_id`——客户专属质量标准（写入方
+    ///    `services/custom_order_crud_service.rs:368`；列由
+    ///    `migration/src/domain/sales_crm/mod.rs:498` ADD COLUMN 添加且**无 FK**，
+    ///    所以删除后不会被数据库拦住，只会让存量定制品单的质检标准悬空）；
+    /// 2. `quality_standards.previous_version_id`——版本链自引用（写入方本服务
+    ///    `create_version_history`，指向被升级的旧版本行；删掉旧行会让新版本失去前驱）。
+    /// 任一命中 → `business_displayable` 公开规则文案拒绝（不含表名/列名/约束名）；
+    /// 均无引用才执行删除。
     pub async fn delete_standard(&self, id: i32, user_id: i32) -> Result<(), AppError> {
         info!("用户 {} 正在删除质量标准：{}", user_id, id);
 
         let _standard = self.get_standard_by_id(id).await?;
 
-        // 检查是否有引用
-        // 说明: 当前业务模型暂时无需树状结构，跳过 ParentId 检查
-        let referenced_count = 0;
+        let referenced_by_custom_orders = custom_order::Entity::find()
+            .filter(custom_order::Column::QualityStandardId.eq(id))
+            .count(&*self.db)
+            .await?;
+        let referenced_by_version_chain = quality_standard::Entity::find()
+            .filter(quality_standard::Column::PreviousVersionId.eq(id))
+            .count(&*self.db)
+            .await?;
+        info!(
+            "质量标准删除预检：id={}, 定制品单引用 {} 条, 版本链后继引用 {} 条",
+            id, referenced_by_custom_orders, referenced_by_version_chain
+        );
 
-        if referenced_count > 0 {
-            return Err(AppError::validation("质量标准被引用，无法删除".to_string()));
+        if referenced_by_custom_orders > 0 || referenced_by_version_chain > 0 {
+            return Err(AppError::business_displayable(
+                "该质量标准已被定制品单或后续版本引用，无法删除",
+            ));
         }
 
-        quality_standard::Entity::delete_many()
+        let result = quality_standard::Entity::delete_many()
             .filter(quality_standard::Column::Id.eq(id))
             .exec(&*self.db)
             .await?;
+        if result.rows_affected == 0 {
+            return Err(AppError::not_found(format!("质量标准不存在：{}", id)));
+        }
 
         info!("质量标准删除成功：{}", id);
         Ok(())

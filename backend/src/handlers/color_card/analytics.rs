@@ -21,6 +21,7 @@ use crate::services::color_card_inventory_warning_service::{
     ColorCardInventoryWarningService, WarningLevel,
 };
 use crate::services::color_card_issue_report_service::{ColorCardIssueReportService, ReportParams};
+use crate::services::color_card_issue_service::IssueError;
 use crate::services::color_card_issue_statistics_service::{
     ColorCardIssueStatisticsService, DailyStats,
 };
@@ -319,6 +320,51 @@ pub async fn generate_daily_stats(
     Ok(Json(ApiResponse::success(stats)))
 }
 
+/// 从 `Query<serde_json::Value>` 形态的查询串中读取一个必填整数参数。
+///
+/// 拆分两种互相独立的拒绝原因，避免把「类型/格式错」误报成「必填」：
+/// - 键不存在 → `缺少 {key} 参数`；
+/// - 键存在但不是整数 → `{key} 必须为整数`（附用户自己提交的原始值，可外显；
+///   绝不回显服务端查询到的数据）。
+///
+/// 为什么必须做字符串兼容：`Query<serde_json::Value>` 走 urlencoded 反序列化，
+/// 所有值都是 `Value::String`（`serde_json::Value` 是无类型的，不会自动转成数字），
+/// 直接 `as_i64()` 会对任何请求恒失败。故数字字面量与数字字符串两种形态都要接受。
+fn required_query_i64(params: &serde_json::Value, key: &str) -> Result<i64, AppError> {
+    let Some(raw) = params.get(key) else {
+        return Err(AppError::validation_displayable(format!("缺少 {key} 参数")));
+    };
+    let parsed = match raw {
+        serde_json::Value::Number(n) => n.as_i64(),
+        serde_json::Value::String(s) => s.trim().parse::<i64>().ok(),
+        _ => None,
+    };
+    parsed.ok_or_else(|| {
+        AppError::validation_displayable(format!("{key} 必须为整数，当前提交值：{raw}"))
+    })
+}
+
+/// 将发放服务返回的 `IssueError` 翻译为带真实 HTTP status/code 的 `AppError`。
+///
+/// 这些查询端点会因客户/色卡不存在返回 404、因数据不一致返回数据库错误，
+/// 一律重包成 500 会丢失真实语义（前端只见"服务器内部错误"），故在此按族透传。
+/// 携带内部信息的文案走脱敏的 `business`/`validation`，DB 原文只进日志。
+fn map_issue_error(e: IssueError) -> AppError {
+    match e {
+        IssueError::ColorCardNotFound => AppError::not_found("色卡不存在"),
+        IssueError::CustomerNotFound => AppError::not_found("客户不存在"),
+        IssueError::RecordNotFound => AppError::not_found("发放记录不存在"),
+        IssueError::InvalidState(_) => AppError::business("色卡当前状态不允许此操作"),
+        // 与 issue.rs::issue_err 同一分层策略：闸门 1 拒绝依据是纯公开业务规则
+        // （不含内部状态 token/记录 ID/库存数字）⇒ business_displayable 外显；
+        // 其余闸门含记录细节，维持脱敏 business 不变。
+        IssueError::CardNotIssuable => AppError::business_displayable("只有草稿态色卡可以发放"),
+        IssueError::Validation(msg) => AppError::validation(msg),
+        IssueError::GateCheckFailed(_) => AppError::business("发放闸门校验未通过"),
+        IssueError::Database(e) => AppError::database(e.to_string()),
+    }
+}
+
 /// GET /api/v1/erp/color-cards/customer-color-cards - 客户色卡查询
 pub async fn list_customer_color_cards(
     auth: AuthContext,
@@ -326,16 +372,13 @@ pub async fn list_customer_color_cards(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let customer_id = params
-        .get("customer_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("customer_id 必填"))?;
+    let customer_id = required_query_i64(&params, "customer_id")?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
         .list_customer_color_cards(customer_id)
         .await
-        .map_err(|e| AppError::internal(format!("查询客户色卡失败: {}", e)))?;
+        .map_err(map_issue_error)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))
@@ -348,16 +391,13 @@ pub async fn list_by_sales_order(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let sales_order_id = params
-        .get("sales_order_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("sales_order_id 必填"))?;
+    let sales_order_id = required_query_i64(&params, "sales_order_id")?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
         .list_by_sales_order(sales_order_id)
         .await
-        .map_err(|e| AppError::internal(format!("查询订单色卡失败: {}", e)))?;
+        .map_err(map_issue_error)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))
@@ -370,16 +410,13 @@ pub async fn query_reorder_dye_lot(
     Query(params): Query<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     require_issue_permission(&state, &auth, "read").await?;
-    let customer_id = params
-        .get("customer_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("customer_id 必填"))?;
+    let customer_id = required_query_i64(&params, "customer_id")?;
     let svc =
         crate::services::color_card_issue_service::ColorCardIssueService::new(state.db.clone());
     let result = svc
         .query_reorder_dye_lot(customer_id)
         .await
-        .map_err(|e| AppError::internal(format!("查询补染信息失败: {}", e)))?;
+        .map_err(map_issue_error)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "data": result
     }))))

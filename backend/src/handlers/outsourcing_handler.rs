@@ -16,6 +16,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::status::outsourcing_order_status;
 use crate::models::{
     outsourcing_order, outsourcing_order_item, outsourcing_receipt, outsourcing_voucher,
@@ -138,9 +139,11 @@ pub async fn list_outsourcing_orders(
 /// POST /api/v1/erp/outsourcing-orders - 创建委外订单
 pub async fn create_outsourcing_order(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOutsourcingOrderRequest>,
 ) -> Result<Json<ApiResponse<outsourcing_order::Model>>, AppError> {
-    let model = order_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = order_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -185,8 +188,11 @@ pub async fn delete_outsourcing_order(
 pub async fn issue_outsourcing_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<outsourcing_order::Model>>, AppError> {
-    let model = order_service(&state).issue_order(id).await?;
+    let model = order_service(&state)
+        .issue_order(id, Some(auth.user_id))
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -221,8 +227,9 @@ pub async fn close_outsourcing_order(
 pub async fn cancel_outsourcing_order(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<outsourcing_order::Model>>, AppError> {
-    let model = order_service(&state).cancel(id).await?;
+    let model = order_service(&state).cancel(id, Some(auth.user_id)).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -312,12 +319,27 @@ pub async fn get_outsourcing_receipt_by_no(
     Ok(Json(ApiResponse::success(model)))
 }
 
+/// GET /api/v1/erp/outsourcing-receipts/:id - 按主键查询单张委外收回单
+/// 调用方：委外收回单详情/契约链按 ID 读取一张收回记录（routes 挂载 GET /outsourcing-receipts/{id}）。
+/// 入参 id：收回单主键。委托 OutsourcingReceiptService::get_by_id，传回未删除的一张收回单 Model，
+/// 口径与按单号读取一致（同一 service 读出口、同一字段集、同一软删过滤，缺失返回 NOT_FOUND）。
+pub async fn get_outsourcing_receipt(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+) -> Result<Json<ApiResponse<outsourcing_receipt::Model>>, AppError> {
+    let model = receipt_service(&state).get_by_id(id).await?;
+    Ok(Json(ApiResponse::success(model)))
+}
+
 /// POST /api/v1/erp/outsourcing-receipts/:id/confirm - 确认收回单（draft → confirmed）
 pub async fn confirm_outsourcing_receipt(
     State(state): State<AppState>,
     Path(id): Path<i32>,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<outsourcing_receipt::Model>>, AppError> {
-    let model = receipt_service(&state).confirm(id).await?;
+    let model = receipt_service(&state)
+        .confirm(id, Some(auth.user_id))
+        .await?;
     Ok(Json(ApiResponse::success(model)))
 }
 
@@ -369,9 +391,11 @@ pub async fn list_outsourcing_vouchers(
 /// POST /api/v1/erp/outsourcing-vouchers - 创建委外凭证
 pub async fn create_outsourcing_voucher(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateOutsourcingVoucherRequest>,
 ) -> Result<Json<ApiResponse<outsourcing_voucher::Model>>, AppError> {
-    let model = voucher_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let model = voucher_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success(model)))
 }
 

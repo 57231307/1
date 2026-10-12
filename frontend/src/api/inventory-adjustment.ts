@@ -72,14 +72,21 @@ export interface CreateInventoryAdjustmentPayload {
   items: AdjustmentItemPayload[];
 }
 
-/** 更新入参：与后端 `handlers/inventory_adjustment_handler.rs:382 UpdateAdjustmentRequestPayload` 对齐 */
+/**
+ * 更新入参：与后端 `handlers/inventory_adjustment_handler.rs UpdateAdjustmentRequestPayload` 对齐。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - warehouse_id/adjustment_date/adjustment_type/reason_type 映射 NOT NULL 列
+ *   （m0010 DDL）：禁止送 null（后端 400「XX不能清空」）——不改即省略键；
+ * - reason_description/notes 为 DB 可空列（m0010 DDL）：清空须显式送 null，
+ *   禁止塌成 `|| undefined`（省略=保持原值）。
+ */
 export interface UpdateInventoryAdjustmentPayload {
   warehouse_id?: number;
   adjustment_date?: string;
   adjustment_type?: string;
   reason_type?: string;
-  reason_description?: string;
-  notes?: string;
+  reason_description?: string | null;
+  notes?: string | null;
 }
 
 /** 明细行入参：与后端 `handlers/inventory_adjustment_handler.rs:35 AdjustmentItemPayload` 对齐 */

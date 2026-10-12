@@ -25,6 +25,7 @@ use crate::models::lab_dip_sample::{
 };
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_sample as sample_status;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 
 use crate::services::lab_dip_ops::types::{
@@ -34,7 +35,12 @@ use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipSampleService}
 
 impl LabDipSampleService {
     /// 创建打样小样
-    pub async fn create(&self, req: CreateLabDipSampleRequest) -> Result<SampleModel, AppError> {
+    /// 创建打样小样；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateLabDipSampleRequest,
+        user_id: i32,
+    ) -> Result<SampleModel, AppError> {
         // 校验通知单存在且处于 sampling 状态
         let request = self.validate_and_get_request(req.request_id).await?;
 
@@ -48,7 +54,7 @@ impl LabDipSampleService {
             .await?;
 
         // 构建小样 ActiveModel 并入库
-        let active = Self::build_sample_active_model(&req, version_label, version_seq);
+        let active = Self::build_sample_active_model(&req, user_id, version_label, version_seq);
         let result = active
             .insert(&*self.db)
             .await
@@ -118,6 +124,7 @@ impl LabDipSampleService {
     /// 构建小样 ActiveModel（含全部字段）
     fn build_sample_active_model(
         req: &CreateLabDipSampleRequest,
+        user_id: i32,
         version_label: String,
         version_seq: i32,
     ) -> SampleActiveModel {
@@ -149,13 +156,18 @@ impl LabDipSampleService {
             resample_recipe_id: Set(None),
             remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }
     }
 
     /// 更新打样小样（仅 pending 对色状态可更新）
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL、Some(Some(v))=Set(Some(v)) 覆盖。
+    /// 本端点全部请求字段均为 v15 lab_dip_sample DDL 可空列（见 types.rs 注释），
+    /// 无 NOT NULL 清空拒绝项。
     pub async fn update(
         &self,
         id: i32,
@@ -172,49 +184,49 @@ impl LabDipSampleService {
         let mut active: SampleActiveModel = model.into();
 
         if let Some(v) = req.recipe_no {
-            active.recipe_no = Set(Some(v));
+            active.recipe_no = Set(v);
         }
         if let Some(v) = req.dye_recipe_id {
-            active.dye_recipe_id = Set(Some(v));
+            active.dye_recipe_id = Set(v);
         }
         if let Some(v) = req.formula {
-            active.formula = Set(Some(v));
+            active.formula = Set(v);
         }
         if let Some(v) = req.formula_detail {
-            active.formula_detail = Set(Some(v));
+            active.formula_detail = Set(v);
         }
         if let Some(v) = req.temperature {
-            active.temperature = Set(Some(v));
+            active.temperature = Set(v);
         }
         if let Some(v) = req.time_minutes {
-            active.time_minutes = Set(Some(v));
+            active.time_minutes = Set(v);
         }
         if let Some(v) = req.liquor_ratio {
-            active.liquor_ratio = Set(Some(v));
+            active.liquor_ratio = Set(v);
         }
         if let Some(v) = req.ph_value {
-            active.ph_value = Set(Some(v));
+            active.ph_value = Set(v);
         }
         if let Some(v) = req.dyeing_method {
-            active.dyeing_method = Set(Some(v));
+            active.dyeing_method = Set(v);
         }
         if let Some(v) = req.dye_cost {
-            active.dye_cost = Set(Some(v));
+            active.dye_cost = Set(v);
         }
         if let Some(v) = req.auxiliary_cost {
-            active.auxiliary_cost = Set(Some(v));
+            active.auxiliary_cost = Set(v);
         }
         if let Some(v) = req.total_cost {
-            active.total_cost = Set(Some(v));
+            active.total_cost = Set(v);
         }
         if let Some(v) = req.color_difference_grade {
-            active.color_difference_grade = Set(Some(v));
+            active.color_difference_grade = Set(v);
         }
         if let Some(v) = req.color_difference_value {
-            active.color_difference_value = Set(Some(v));
+            active.color_difference_value = Set(v);
         }
         if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
+            active.remarks = Set(v);
         }
 
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
@@ -227,6 +239,7 @@ impl LabDipSampleService {
         &self,
         id: i32,
         req: RecordMatchingResultRequest,
+        approved_by: i32,
     ) -> Result<SampleModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.matching_result != sample_status::PENDING {
@@ -254,7 +267,7 @@ impl LabDipSampleService {
         active.color_difference_grade = Set(Some(req.color_difference_grade));
         active.color_difference_value = Set(req.color_difference_value);
         active.matching_result = Set(result.to_string());
-        active.approved_by = Set(req.approved_by);
+        active.approved_by = Set(Some(approved_by));
         active.approved_at = Set(Some(now));
         active.approval_comment = Set(req.approval_comment);
         active.updated_at = Set(now);
@@ -273,10 +286,26 @@ impl LabDipSampleService {
     }
 
     /// 按通知单 ID 查询所有小样
-    pub async fn list_by_request(&self, request_id: i32) -> Result<Vec<SampleModel>, AppError> {
-        let samples = SampleEntity::find()
+    pub async fn list_by_request(
+        &self,
+        request_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<SampleModel>, AppError> {
+        let mut q = SampleEntity::find()
             .filter(lab_dip_sample::Column::RequestId.eq(request_id))
-            .filter(lab_dip_sample::Column::IsDeleted.eq(false))
+            .filter(lab_dip_sample::Column::IsDeleted.eq(false));
+
+        // 小样无 department_id 列，行级范围按建单人 created_by 下推。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                lab_dip_sample::Column::CreatedBy,
+                lab_dip_sample::Column::CreatedBy,
+            );
+        }
+
+        let samples = q
             .order_by_asc(lab_dip_sample::Column::VersionSeq)
             .all(&*self.db)
             .await?;

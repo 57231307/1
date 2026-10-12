@@ -88,7 +88,7 @@ pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Res
     for (filename, content) in attachments {
         // 高危扩展名检查
         if is_dangerous_extension(filename) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "附件 '{}' 扩展名属于高危类型（.exe/.bat/.cmd 等可执行脚本），禁止上传",
                 filename
             )));
@@ -96,7 +96,7 @@ pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Res
 
         // 单附件大小检查
         if content.len() > MAX_SINGLE_ATTACHMENT_BYTES {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "附件 '{}' 大小 {} 字节超过单附件上限 {} 字节（25 MB）",
                 filename,
                 content.len(),
@@ -106,7 +106,7 @@ pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Res
 
         // 空附件检查
         if content.is_empty() {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "附件 '{}' 内容为空，禁止上传空附件",
                 filename
             )));
@@ -117,7 +117,7 @@ pub async fn validate_attachments(attachments: &HashMap<String, Vec<u8>>) -> Res
 
     // 总附件大小检查
     if total_size > MAX_TOTAL_ATTACHMENT_BYTES {
-        return Err(AppError::validation(format!(
+        return Err(AppError::validation_displayable(format!(
             "附件总大小 {} 字节超过上限 {} 字节（50 MB）",
             total_size, MAX_TOTAL_ATTACHMENT_BYTES
         )));

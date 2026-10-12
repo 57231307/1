@@ -40,16 +40,35 @@ pub struct CreateCategoryDto {
 }
 
 /// 更新请求 DTO
+///
+/// 可空列三态（对齐 RFC 7386）：键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+/// serde_json 会把请求体里的显式 `null` 折叠成外层 `None`，因此必须挂
+/// `deserialize_with = "double_option"`，否则"清空"与"未提供"同物、清空操作被静默丢弃。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct UpdateCategoryDto {
     pub category_name: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
     pub parent_id: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub default_useful_life: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub default_depreciation_method: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub default_salvage_rate: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub description: Option<Option<String>>,
     pub is_active: Option<bool>,
+}
+
+/// 把 JSON 值解成"外层是否存在该键"与"内层是否为 null"两层可辨的形态。
+/// 范式同 `department_handler::double_option`。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 创建资产分类

@@ -10,8 +10,8 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, ExprTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -31,6 +31,12 @@ use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::purchase_inventory::shortage_alert_status;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 缺料预警单号前缀（存量数据形如 `MS-20250920-001`，见 DDL 注释
+/// v15/mod.rs:325「缺料单号：MS-YYYYMMDD-NNN」；统一生成器格式后为
+/// `MS-{YYYYMMDD}{3位流水}`，保留 `MS-` 业务前缀，序号与日期间不再带连字符）
+const MS_ALERT_NO_PREFIX: &str = "MS-";
 
 /// 缺料预警级别
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -698,64 +704,48 @@ impl MaterialShortageService {
                 active.updated_at = Set(now);
                 active.update(&txn).await?;
             } else {
-                // 插入新 alert（生成 alert_no = MS-YYYYMMDD-NNN）
-                let alert_no = self.generate_alert_no(&txn).await?;
-                let active = alert_model::ActiveModel {
-                    alert_no: Set(alert_no),
-                    material_id: Set(item.material_id),
-                    material_name: Set(item.material_name.clone()),
-                    material_code: Set(Some(item.material_code.clone())),
-                    required_quantity: Set(item.required_quantity),
-                    available_quantity: Set(item.available_quantity),
-                    shortage_quantity: Set(item.shortage_quantity),
-                    deficit_rate: Set(item.deficit_rate),
-                    level: Set(level_str),
-                    status: Set(shortage_alert_status::IDENTIFIED.to_string()),
-                    affected_orders_count: Set(affected_orders_count),
-                    purchase_request_id: Set(None),
-                    purchase_order_id: Set(None),
-                    unit: Set(item.unit.clone()),
-                    identified_at: Set(now),
-                    resolved_at: Set(None),
-                    created_at: Set(now),
-                    updated_at: Set(now),
-                    ..Default::default()
-                };
-                active.insert(&txn).await?;
+                // 插入新 alert：alert_no 统一走生成器（`MS-{YYYYMMDD}{3位流水}`）。
+                // 原 generate_alert_no「查当天最大序号+1」在事务内无锁读，并发检测
+                // 会拼出同号撞 alert_no UNIQUE（DDL：v15/mod.rs:326
+                // `"alert_no" VARCHAR(50) NOT NULL UNIQUE`）；生成器在写入事务内
+                // advisory lock 取号，23505 时保存点重取重试。
+                DocumentNumberGenerator::insert_with_no_retry(
+                    &txn,
+                    MS_ALERT_NO_PREFIX,
+                    alert_model::Entity,
+                    alert_model::Column::AlertNo,
+                    |alert_no| alert_model::ActiveModel {
+                        alert_no: Set(alert_no),
+                        material_id: Set(item.material_id),
+                        material_name: Set(item.material_name.clone()),
+                        material_code: Set(Some(item.material_code.clone())),
+                        required_quantity: Set(item.required_quantity),
+                        available_quantity: Set(item.available_quantity),
+                        shortage_quantity: Set(item.shortage_quantity),
+                        deficit_rate: Set(item.deficit_rate),
+                        level: Set(level_str.clone()),
+                        status: Set(shortage_alert_status::IDENTIFIED.to_string()),
+                        affected_orders_count: Set(affected_orders_count),
+                        purchase_request_id: Set(None),
+                        purchase_order_id: Set(None),
+                        unit: Set(item.unit.clone()),
+                        identified_at: Set(now),
+                        resolved_at: Set(None),
+                        created_at: Set(now),
+                        updated_at: Set(now),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, material_id = item.material_id, "缺料预警单号生成失败");
+                    AppError::business_displayable("缺料预警单号生成失败，请稍后重试")
+                })?;
             }
         }
 
         txn.commit().await?;
         Ok(())
-    }
-
-    /// 生成缺料单号：MS-YYYYMMDD-NNN（NNN 为当天序号，从 001 开始）（通过查询当天已有的最大序号 + 1 保证唯一性。；并发场景下可能冲突（UNIQUE 约束会拒绝），调用方需重试。）
-    async fn generate_alert_no<C: ConnectionTrait>(&self, db: &C) -> Result<String, AppError> {
-        let today = Utc::now();
-        let date_str = today.format("%Y%m%d").to_string();
-        let prefix = format!("MS-{}-", date_str);
-
-        // 查询当天已有的最大序号
-        let today_alerts = alert_model::Entity::find()
-            .filter(alert_model::Column::AlertNo.starts_with(&prefix))
-            .order_by_desc(alert_model::Column::AlertNo)
-            .all(db)
-            .await?;
-
-        let next_seq = if let Some(latest) = today_alerts.first() {
-            // 从 "MS-YYYYMMDD-NNN" 提取 NNN
-            latest
-                .alert_no
-                .rsplit('-')
-                .next()
-                .and_then(|s| s.parse::<u32>().ok())
-                .map(|n| n + 1)
-                .unwrap_or(1)
-        } else {
-            1
-        };
-
-        Ok(format!("{}{:03}", prefix, next_seq))
     }
 
     /// 缺料预警列表：实时检测结果 + 该物料未解决预警的持久化状态

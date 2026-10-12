@@ -53,7 +53,7 @@ const props = defineProps<{
   status: QuotationStatus | string;
   approvedAt?: string;
   approvedByName?: string | null;
-  rejectionReason?: string;
+  rejectionReason?: string | null;
   convertedAt?: string;
   convertedOrderId?: number;
 }>();

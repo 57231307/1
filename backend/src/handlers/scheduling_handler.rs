@@ -8,6 +8,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use sea_orm::EntityTrait;
 use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
@@ -15,7 +16,10 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::scheduling_dto::{
     AdjustScheduleRequest, AutoScheduleRequest, ScheduledOrderQuery,
 };
+use crate::models::production_order::Entity as ProductionOrderEntity;
+use crate::models::scheduling_result::Entity as SchedulingResultEntity;
 use crate::services::scheduling_service::SchedulingService;
+use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -194,7 +198,8 @@ pub async fn auto_schedule(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 获取甘特图数据
+/// 甘特图数据查询（全员共享工作面）——`_auth` 仅认证、不构 ctx：跨 owner 可见是排产
+/// 协调的业务前提，行级 data_scope 不适用此端点。
 pub async fn get_gantt_data(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -253,7 +258,8 @@ pub async fn get_gantt_data(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 检测排程冲突
+/// 排程冲突检测（全员共享工作面）——`_auth` 仅认证、不构 ctx：冲突是跨 owner 的产能竞争，
+/// 需全局视角，行级 data_scope 不适用此端点。
 pub async fn detect_conflicts(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -282,10 +288,21 @@ pub async fn detect_conflicts(
 /// 手动调整排程
 pub async fn adjust_schedule(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(payload): Json<AdjustSchedulePayload>,
 ) -> Result<Json<ApiResponse<ScheduleDetailResponse>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let order = ProductionOrderEntity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, Some(order.created_by)) {
+        return Err(AppError::permission_denied(
+            "无权操作该生产订单（数据范围限制）",
+        ));
+    }
+
     let service = SchedulingService::new(state.db.clone());
 
     let req = AdjustScheduleRequest {
@@ -328,10 +345,21 @@ pub struct AdjustScheduleTaskPayload {
 /// 调整排程任务（前端 PUT /scheduling/tasks/:id/adjust）
 pub async fn adjust_schedule_task(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(task_id): Path<i32>,
     Json(payload): Json<AdjustScheduleTaskPayload>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let order = ProductionOrderEntity::find_by_id(task_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("生产订单不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, Some(order.created_by)) {
+        return Err(AppError::permission_denied(
+            "无权操作该生产订单（数据范围限制）",
+        ));
+    }
+
     let service = SchedulingService::new(state.db.clone());
 
     // 解析 start_time / end_time：兼容纯日期 (YYYY-MM-DD) 与 ISO 日期时间字符串
@@ -376,7 +404,8 @@ pub async fn adjust_schedule_task(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 排程工单列表
+/// 待排工单池列表（全员共享工作面）——`_auth` 仅认证、不构 ctx：排产协调需看到所有待排
+/// 工单，跨 owner 不可见则无法编排，行级 data_scope 不适用此端点。
 pub async fn list_scheduled_orders(
     State(state): State<AppState>,
     _auth: AuthContext,
@@ -452,14 +481,16 @@ pub struct ScheduleHistoryResponse {
 /// 获取排程历史记录
 pub async fn get_schedule_history(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ScheduleHistoryQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(state.db.clone());
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let ctx = auth.to_data_scope_context();
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
-    let (items, total) = service.get_schedule_history(page, page_size).await?;
+    let (items, total) = SchedulingService::new(state.db.clone())
+        .get_schedule_history(page, page_size, Some(&ctx))
+        .await?;
 
     let response: Vec<ScheduleHistoryResponse> = items
         .into_iter()
@@ -488,19 +519,27 @@ pub async fn get_schedule_history(
     }))))
 }
 
-/// 获取排程结果详情
+/// 排程结果详情（私有面）——按 created_by 执行行级归属门：
+/// 表无 department_id 列，使用 `check_resource_owner_by_member_scope` 与列表侧 `get_schedule_history`
+/// 的 `apply_data_scope` Dept 分支同源判据，不写 `check_resource_owner(ctx, owner, None)` 形态。
+/// 403 走 `AppError::permission_denied`，用户可见文案禁止含记录 ID。
 pub async fn get_schedule_result(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let service = SchedulingService::new(state.db.clone());
-
-    let result = service.get_schedule_result(id).await?;
-    match result {
-        Some(model) => Ok(Json(ApiResponse::success(serde_json::to_value(model)?))),
-        None => Err(AppError::not_found("排程结果不存在")),
+    let ctx = auth.to_data_scope_context();
+    let model = SchedulingService::new(state.db.clone())
+        .get_schedule_result(id)
+        .await?
+        .ok_or_else(|| AppError::not_found("排程结果不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, Some(model.created_by)) {
+        return Err(AppError::permission_denied(
+            "无权访问该排程结果（数据范围限制）",
+        ));
     }
+
+    Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
 /// 确认排程结果
@@ -509,6 +548,17 @@ pub async fn confirm_schedule_result(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let row = SchedulingResultEntity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("排程结果不存在"))?;
+    if !check_resource_owner_by_member_scope(&ctx, Some(row.created_by)) {
+        return Err(AppError::permission_denied(
+            "无权操作该排程结果（数据范围限制）",
+        ));
+    }
+
     let service = SchedulingService::new(state.db.clone());
 
     let result = service.confirm_schedule_result(id, auth.user_id).await?;

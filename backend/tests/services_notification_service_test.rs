@@ -48,7 +48,8 @@ fn test_build_payload_webhook_leha_zh() {
     assert_eq!(payload.id, 1001_i64);
     assert_eq!(payload.title, "测试通知标题");
     assert_eq!(payload.content, "测试通知内容");
-    assert_eq!(payload.category, "webhook");
+    // category 取自 NotificationType::as_str()（与 #[sea_orm(string_value)] 同源的大写权威词表），Webhook → "WEBHOOK"
+    assert_eq!(payload.category, "WEBHOOK");
     assert_eq!(payload.priority, 10); // Urgent → 10
 }
 

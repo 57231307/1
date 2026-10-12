@@ -1,0 +1,6 @@
+{
+  "role": "quality_manager",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

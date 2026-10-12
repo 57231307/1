@@ -118,7 +118,8 @@ init_token 的数字码 `40101`+`detail` 也并入同一构造器。
 | `inventory_count` | 小写 `pending/in_review/completed`（**没有 in_progress**） | `purchase_inventory.rs:82` |
 | `purchase_return` / `inventory_adjustment` / `inventory_reservation` / `shortage_alert_status` | 小写 | `purchase_inventory.rs:96,...` |
 | `inventory_stock_quality_status` / `_grade` / `_status` | **中文** `合格/待检/不合格`、`一等品/二等品/等外品`、`正常/报废/已删除` | `purchase_inventory.rs:206,227,241` |
-| `master_data` | 小写 `active/inactive/pending/approved/draft/retired/archived/rejected` | `status/general.rs:52` |
+| `master_data` | 小写 `active/inactive/pending/approved/draft/retired/archived/rejected`（**价格域两表不在此列**，权威见下方 `price_approval`） | `status/general.rs:52` |
+| `price_approval`（`sales_prices.status` / `purchase_prices.status`） | 小写 `pending/approved/inactive`；`inactive` 仅采购侧有写入方，销售侧 CHECK 取 `{pending,approved}` | `status/sales.rs:price_approval` + `migration/src/domain/price_vocab_check/mod.rs` |
 | `common` / `payment` / `login_log` / `email_log` / `active_status` / `batch_trace_operation_type` | 大写 | `general.rs:16,37,105,127,177` |
 | `work_center` | 大写 `IDLE/OVERLOADED`（只有负载项两态） | `production.rs:64` |
 | `mrp` / `scheduling` / 顶层 `PRODUCTION_*` | 大写 | `production.rs:16,26,...` |

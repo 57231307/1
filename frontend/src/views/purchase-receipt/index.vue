@@ -25,6 +25,8 @@
       @view="prcProc.openViewDialog"
       @edit="prcProc.openEditDialog"
       @approve="prcProc.handleApprove"
+      @concede="prcProc.handleConcede"
+      @rejudge="prcProc.handleRejudge"
       @delete="prcProc.handleDelete"
     />
 

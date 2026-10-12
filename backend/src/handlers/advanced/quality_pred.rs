@@ -34,7 +34,7 @@ pub async fn quality_prediction(
     // 1. 入参标准化
     let window_days = payload.window_days.unwrap_or(90);
     if !(1..=365).contains(&window_days) {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "时间窗口 window_days 必须在 1-365 之间",
         ));
     }
@@ -47,7 +47,7 @@ pub async fn quality_prediction(
 
     if let Some(ref t) = inspection_type {
         if t.chars().count() > 32 {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "检验类型 inspection_type 长度不能超过 32",
             ));
         }

@@ -40,7 +40,7 @@ use crate::utils::error::AppError;
 impl BomService {
     /// 创建BOM（含明细）
     /// 批次 203 P1-4 修复：原实现存在两个缺陷——整个方法无事务保护（主表插入、；默认取消、明细插入分散执行，若明细插入失败会留下无明细的脏 BOM）；明细采用循环内逐条 `insert(&*self.db)`，N 条明细 = N 次 INSERT（N+1 写）。；现用事务包裹"取消旧默认 + 创建主表 + 批量插入明细"，明细改用 `insert_many`；单次 INSERT，并在事务内回查明细以构造 BomDetail 返回。
-    pub async fn create(&self, req: CreateBomRequest) -> Result<BomDetail, AppError> {
+    pub async fn create(&self, req: CreateBomRequest, user_id: i32) -> Result<BomDetail, AppError> {
         let txn = self.db.begin().await?;
 
         let version = if let Some(v) = req.version {
@@ -64,7 +64,8 @@ impl BomService {
             // SeaORM insert 报 "Missing value for column 'is_deleted'"
             is_deleted: Set(false),
             remarks: Set(req.remarks),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（handler 传入），请求体不承载身份
+            created_by: Set(user_id),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             ..Default::default()
@@ -254,14 +255,16 @@ impl BomService {
             })
             .collect();
 
-        self.create(CreateBomRequest {
-            product_id: source.bom.product_id,
-            version: Some(new_version),
-            is_default: Some(false),
-            remarks: source.bom.remarks,
+        self.create(
+            CreateBomRequest {
+                product_id: source.bom.product_id,
+                version: Some(new_version),
+                is_default: Some(false),
+                remarks: source.bom.remarks,
+                items,
+            },
             created_by,
-            items,
-        })
+        )
         .await
     }
 

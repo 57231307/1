@@ -1,0 +1,6 @@
+{
+  "role": "ap_accountant",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

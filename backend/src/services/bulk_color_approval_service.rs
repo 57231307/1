@@ -24,8 +24,9 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, JoinType,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, Set,
+    TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -42,6 +43,7 @@ use crate::models::production_order;
 use crate::models::status::inventory_piece as piece_status;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -52,12 +54,18 @@ pub enum BulkColorApprovalError {
     SalesOrderNotFound,
     #[error("染色批次不存在")]
     DyeBatchNotFound,
+    #[error("关联生产订单不存在")]
+    ProductionOrderNotFound,
     #[error("客户不存在")]
     CustomerNotFound,
     #[error("当前状态 {0} 不允许此操作")]
     InvalidState(String),
     #[error("参数校验失败: {0}")]
     Validation(String),
+    /// 服务端内部不变量违例（如必填字段缺失、引用数据不一致），非用户输入校验，
+    /// 不得走 Validation 通道出 400。
+    #[error("内部不变量违例: {0}")]
+    Internal(String),
     #[error("数据库错误: {0}")]
     Database(#[from] sea_orm::DbErr),
 }
@@ -283,10 +291,34 @@ impl BulkColorApprovalService {
         Ok(model)
     }
 
-    /// 列表查询（带分页与过滤）
+    /// 批色记录的可见基查询：INNER JOIN 父销售订单（`sales_order_id` 为 FK NOT NULL，父行必
+    /// 存在且一对一，不产生重复行），`data_scope` 为 Some 时按父单 RLS 归属列（`created_by` +
+    /// 冗余部门列 `department_id`，m_rls_dept_domain）下推数据范围。批色表自身无归属列，归属
+    /// 只能经父单继承；各读族共用本函数，避免某条读路径漏下推。
+    fn scoped_base(&self, data_scope: Option<&DataScopeContext>) -> Select<Entity> {
+        let base = Entity::find().join(
+            JoinType::InnerJoin,
+            bulk_color_approval::Relation::SalesOrder.def(),
+        );
+        match data_scope {
+            Some(ctx) => apply_department_scope(
+                base,
+                ctx,
+                crate::models::sales_order::Column::CreatedBy,
+                crate::models::sales_order::Column::DepartmentId,
+            ),
+            None => base,
+        }
+    }
+
+    /// 列表查询（带分页与过滤 + 行级数据权限）
+    ///
+    /// `data_scope` 为 Some 时按 [`Self::scoped_base`] 的父单归属下推，过滤在查询构造处，
+    /// 分页 `total` 与可见集一致。
     pub async fn list(
         &self,
         query: ListBulkColorApprovalQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<bulk_color_approval::Model>, u64), BulkColorApprovalError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -311,7 +343,9 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
         }
 
-        let paginator = Entity::find()
+        // 父单归属下推 + 分页计数同基查询，越权行既不进 items 也不进 total
+        let paginator = self
+            .scoped_base(data_scope)
             .filter(cond)
             .order_by_desc(bulk_color_approval::Column::CreatedAt)
             .paginate(&*self.db, page_size);
@@ -373,14 +407,14 @@ impl BulkColorApprovalService {
             let po = production_order::Entity::find_by_id(po_id)
                 .one(&txn)
                 .await?
-                .ok_or(BulkColorApprovalError::Validation(
-                    "关联生产订单不存在".to_string(),
-                ))?;
+                // 存在性缺失：引用的生产订单不存在 → NOT_FOUND 族（与 DyeBatchNotFound 同构），
+                // 不属状态门也不属输入校验，独立判定为记录不存在
+                .ok_or(BulkColorApprovalError::ProductionOrderNotFound)?;
             if po.status != "COMPLETED" {
-                return Err(BulkColorApprovalError::Validation(format!(
-                    "生产订单状态必须为 COMPLETED，当前为 {}",
-                    po.status
-                )));
+                // 状态门：关联生产订单未完成，剪样前置未满足，归业务族
+                return Err(BulkColorApprovalError::InvalidState(
+                    "关联生产订单尚未完成，不能剪样".to_string(),
+                ));
             }
         }
 
@@ -390,10 +424,10 @@ impl BulkColorApprovalService {
             .await?
             .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
         if dye_batch.status.as_deref() != Some("completed") {
-            return Err(BulkColorApprovalError::Validation(format!(
-                "染色批次状态必须为 completed，当前为 {:?}",
-                dye_batch.status
-            )));
+            // 状态门：关联染色批次未完成，剪样前置未满足，归业务族
+            return Err(BulkColorApprovalError::InvalidState(
+                "关联染色批次尚未完成，不能剪样".to_string(),
+            ));
         }
 
         // 业务规则 3：剪样库存联动
@@ -404,16 +438,17 @@ impl BulkColorApprovalService {
             .filter(inventory_stock::Column::QualityStatus.eq(quality_status::PASS))
             .one(&txn)
             .await?
-            .ok_or(BulkColorApprovalError::Validation(
+            // 资源/额度门：尚无合格大货库存记录可供剪样，属业务前置未满足，归业务族（与库存不足同族）
+            .ok_or(BulkColorApprovalError::InvalidState(
                 "未找到合格的大货库存记录".to_string(),
             ))?;
 
         // 检查库存是否足够
         if stock.quantity_meters < sample_length {
-            return Err(BulkColorApprovalError::Validation(format!(
-                "库存不足，当前库存 {}m，需要 {}m",
-                stock.quantity_meters, sample_length
-            )));
+            // 额度门：库存数量不足，属业务族；文案不回显库存数字，保持脱敏 business 亦满足安全边界
+            return Err(BulkColorApprovalError::InvalidState(
+                "大货库存不足，无法剪样".to_string(),
+            ));
         }
 
         // 扣减大货库存
@@ -439,6 +474,22 @@ impl BulkColorApprovalService {
 
         // 创建样布 inventory_piece 记录
         let now = Utc::now();
+        // 样布匹行的幅宽/克重取自大货库存行（此处无独立录入），而这三列是成品布入库标签的
+        // 直读源 ⇒ 与 m0076 CHECK / 打卷门 fabric_inspection_service.rs:601-617 /
+        // 收回门 outsourcing_ops/receipt.rs:65-87 同口径（非空必须正值）。
+        // 库存行里存在 0/负数属**上游数据问题**：点名要求按实更正库存实测值，
+        // 绝不静默跳过、也不"顺手"改写成 NULL 把责任洗掉（那等于替伪实测值圆场）。
+        if let Err(e) = crate::services::piece_domain_service::validate_piece_measured_triple(
+            "剪大货样",
+            Some(sample_piece_no.as_str()),
+            None,
+            stock.width,
+            stock.gram_weight,
+        ) {
+            // 本域错误类型独立于 AppError（批色有自己的映射链），值域越界按校验族归位；
+            // 取公开消息（只含用户可见单号与列名，不含内部 ID/库存数字）
+            return Err(BulkColorApprovalError::Validation(e.to_response().message));
+        }
         let sample_piece = inventory_piece::ActiveModel {
             id: Default::default(),
             piece_no: Set(sample_piece_no),
@@ -599,16 +650,18 @@ impl BulkColorApprovalService {
         Ok(rejected_records)
     }
 
-    /// P0-F17：获取待提醒的批色记录（审计报告 11.3）
+    /// P0-F17：获取待提醒的批色记录（审计报告 11.3），`data_scope` 为 Some 时按父单归属下推
     pub async fn get_pending_reminders(
         &self,
         config: Option<ApprovalTimeoutConfig>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let config = config.unwrap_or_default();
         let now = Utc::now();
         let reminder_threshold = now - chrono::Duration::days(config.reminder_days);
 
-        let records = Entity::find()
+        let records = self
+            .scoped_base(data_scope)
             .filter(
                 Condition::all()
                     .add(bulk_color_approval::Column::ApprovalStatus.eq("sent_to_customer"))
@@ -758,7 +811,7 @@ impl BulkColorApprovalService {
         use crate::services::production_order_service::ProductionOrderService;
 
         let product_id = model.product_id.ok_or_else(|| {
-            BulkColorApprovalError::Validation(
+            BulkColorApprovalError::Internal(
                 "返工创建生产订单失败：bulk_color_approval.product_id 为空，无法创建返工订单"
                     .to_string(),
             )
@@ -1137,9 +1190,11 @@ impl BulkColorApprovalService {
     pub async fn list_pending_reminders(
         &self,
         threshold_hours: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
-        let rows = Entity::find()
+        let rows = self
+            .scoped_base(data_scope)
             .filter(
                 bulk_color_approval::Column::ApprovalStatus.eq(ApprovalStatus::Pending.as_str()),
             )
@@ -1154,9 +1209,11 @@ impl BulkColorApprovalService {
     pub async fn list_customer_followups(
         &self,
         threshold_hours: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<bulk_color_approval::Model>, BulkColorApprovalError> {
         let threshold = Utc::now() - chrono::Duration::hours(threshold_hours);
-        let rows = Entity::find()
+        let rows = self
+            .scoped_base(data_scope)
             .filter(
                 bulk_color_approval::Column::ApprovalStatus
                     .eq(ApprovalStatus::SentToCustomer.as_str()),
@@ -1177,7 +1234,9 @@ impl BulkColorApprovalService {
         use crate::models::notification::{NotificationPriority, NotificationType};
         use crate::services::notification_service::CreateNotificationRequest;
 
-        let pending_records = self.list_pending_reminders(threshold_hours).await?;
+        // 系统调度广播：提醒对象是各单的 approver 而非调用者，按全库扫描（None=不下推个人可见集）；
+        // 面向用户的同数据列表端点按登录人数据范围下推。
+        let pending_records = self.list_pending_reminders(threshold_hours, None).await?;
         let mut sent_count = 0usize;
         for record in pending_records {
             let title = format!("批色待剪样超时提醒 #{}", record.id);
@@ -1192,7 +1251,7 @@ impl BulkColorApprovalService {
                 content,
                 priority: NotificationPriority::High,
                 business_type: Some("bulk_color_approval".to_string()),
-                business_id: Some(record.id as i32),
+                business_id: Some(record.id),
                 action_url: Some(format!("/bulk-color-approvals/{}", record.id)),
                 sender_id: None,
                 sender_name: Some("系统调度".to_string()),
@@ -1218,7 +1277,9 @@ impl BulkColorApprovalService {
         use crate::models::notification::{NotificationPriority, NotificationType};
         use crate::services::notification_service::CreateNotificationRequest;
 
-        let records = self.list_customer_followups(threshold_hours).await?;
+        // 系统调度广播：提醒对象是各单的 approver 而非调用者，按全库扫描（None=不下推个人可见集）；
+        // 面向用户的同数据列表端点按登录人数据范围下推。
+        let records = self.list_customer_followups(threshold_hours, None).await?;
         let mut sent_count = 0usize;
         for record in records {
             let title = format!("客户批色跟进提醒 #{}", record.id);
@@ -1233,7 +1294,7 @@ impl BulkColorApprovalService {
                 content,
                 priority: NotificationPriority::High,
                 business_type: Some("bulk_color_approval".to_string()),
-                business_id: Some(record.id as i32),
+                business_id: Some(record.id),
                 action_url: Some(format!("/bulk-color-approvals/{}", record.id)),
                 sender_id: None,
                 sender_name: Some("系统调度".to_string()),
@@ -1251,12 +1312,17 @@ impl BulkColorApprovalService {
     }
 
     /// P1-10：批色报表 - 按客户/产品/时间段统计批色通过率（业务规则：按 customer_id + product_id 维度聚合，统计总数/通过/拒绝/返工/降级/报废数量）
+    ///
+    /// 聚合口径随登录人可见集收窄：通过 [`Self::scoped_base`] 在查询构造处 INNER JOIN 父
+    /// 销售订单并按其 RLS 归属列下推，分母仅含本人可见的批色记录（与列表同形，非 handler
+    /// 后置内存过滤）。`data_scope` 为 `None` 时等同全库（仅系统调度内部调用）。
     pub async fn report_by_dimensions(
         &self,
         from_date: Option<chrono::DateTime<Utc>>,
         to_date: Option<chrono::DateTime<Utc>>,
         customer_id: Option<i64>,
         product_id: Option<i32>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<Vec<ApprovalReportRow>, BulkColorApprovalError> {
         let mut cond = Condition::all();
         if let Some(v) = from_date {
@@ -1272,7 +1338,10 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::ProductId.eq(v));
         }
 
-        let rows = Entity::find()
+        // 可见集在查询构造处下推（scoped_base = INNER JOIN sales_orders + RLS 归属列），
+        // 后续内存聚合的分母 = 可见行数，越权行既不参与 total 也不参与各状态计数。
+        let rows = self
+            .scoped_base(data_scope)
             .filter(cond)
             .order_by_desc(bulk_color_approval::Column::CreatedAt)
             .all(&*self.db)
@@ -1316,10 +1385,16 @@ impl BulkColorApprovalService {
     }
 
     /// P1-10：批色统计 - 平均 ΔE/通过率/退回率/降级率（业务规则：聚合所有记录的关键 KPI（不分维度））
+    ///
+    /// 聚合口径随登录人可见集收窄：通过 [`Self::scoped_base`] 在查询构造处 INNER JOIN 父
+    /// 销售订单并按其 RLS 归属列下推，所有分母（total/approved/rejected/downgraded/
+    /// avg_delta_e）仅基于本人可见的批色记录。无可见数据时各率如实返回 0（Decimal::ZERO），
+    /// total 返回 0，不编造/不兜底。
     pub async fn get_statistics(
         &self,
         from_date: Option<chrono::DateTime<Utc>>,
         to_date: Option<chrono::DateTime<Utc>>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<ApprovalStatistics, BulkColorApprovalError> {
         let mut cond = Condition::all();
         if let Some(v) = from_date {
@@ -1329,7 +1404,12 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
         }
 
-        let rows = Entity::find().filter(cond).all(&*self.db).await?;
+        // 可见集在查询构造处下推，total/各计数/delta_e 聚合仅基于 scoped_base 返回的行子集。
+        let rows = self
+            .scoped_base(data_scope)
+            .filter(cond)
+            .all(&*self.db)
+            .await?;
 
         let total = rows.len() as u64;
         let mut approved = 0u64;

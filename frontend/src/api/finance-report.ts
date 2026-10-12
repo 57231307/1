@@ -2,39 +2,41 @@ import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
 // 以下接口逐字段镜像 backend/src/models/dto/finance_report_dto.rs。
-// 金额字段对应 Rust `Decimal`（本仓前端约定统一声明为 number，渲染处按 number 归一处理）。
+// 金额字段对应 Rust `Decimal`（未启 serde-floats，序列化为 JSON 十进制字符串）：
+// 前端声明为 string，展示/求和/图表入参一律走 utils/money.ts 归一，禁止直接 .toFixed 或 +。
 // Option<T> 字段在前端以可选（?）表达；NOT NULL 字段不得标 ?。
+// 非金额整型（level/line_no/customer_id/supplier_id 等对应 i32）保持 number。
 
 /** 报表项目（Rust: finance_report_dto.rs:56 ReportItem） */
 export interface ReportItem {
   name: string;
-  amount: number;
+  amount: string;
   description?: string;
 }
 
 /** 资产负债表（Rust: finance_report_dto.rs:11 BalanceSheet） */
 export interface BalanceSheet {
   assets: ReportItem[];
-  total_assets: number;
+  total_assets: string;
   liabilities: ReportItem[];
-  total_liabilities: number;
+  total_liabilities: string;
   equity: ReportItem[];
-  total_equity: number;
+  total_equity: string;
   report_date: string;
 }
 
 /** 利润表（Rust: finance_report_dto.rs:23 IncomeStatement） */
 export interface IncomeStatement {
   revenue: ReportItem[];
-  total_revenue: number;
-  cost_of_goods_sold: number;
-  gross_profit: number;
+  total_revenue: string;
+  cost_of_goods_sold: string;
+  gross_profit: string;
   operating_expenses: ReportItem[];
-  total_operating_expenses: number;
-  operating_income: number;
-  other_income: number;
-  other_expenses: number;
-  net_income: number;
+  total_operating_expenses: string;
+  operating_income: string;
+  other_income: string;
+  other_expenses: string;
+  net_income: string;
   period_start: string;
   period_end: string;
 }
@@ -42,14 +44,14 @@ export interface IncomeStatement {
 /** 现金流量表（Rust: finance_report_dto.rs:40 CashFlowStatement） */
 export interface CashFlowStatement {
   operating_activities: ReportItem[];
-  net_cash_from_operations: number;
+  net_cash_from_operations: string;
   investing_activities: ReportItem[];
-  net_cash_from_investing: number;
+  net_cash_from_investing: string;
   financing_activities: ReportItem[];
-  net_cash_from_financing: number;
-  net_change_in_cash: number;
-  beginning_cash: number;
-  ending_cash: number;
+  net_cash_from_financing: string;
+  net_change_in_cash: string;
+  beginning_cash: string;
+  ending_cash: string;
   period_start: string;
   period_end: string;
 }
@@ -58,24 +60,25 @@ export interface CashFlowStatement {
 export interface TrialBalanceEntry {
   subject_code: string;
   subject_name: string;
+  /** Rust: i32 */
   level: number;
-  initial_debit: number;
-  initial_credit: number;
-  period_debit: number;
-  period_credit: number;
-  ending_debit: number;
-  ending_credit: number;
+  initial_debit: string;
+  initial_credit: string;
+  period_debit: string;
+  period_credit: string;
+  ending_debit: string;
+  ending_credit: string;
 }
 
 /** 试算平衡表（Rust: finance_report_dto.rs:78 TrialBalance） */
 export interface TrialBalance {
   entries: TrialBalanceEntry[];
-  total_initial_debit: number;
-  total_initial_credit: number;
-  total_period_debit: number;
-  total_period_credit: number;
-  total_ending_debit: number;
-  total_ending_credit: number;
+  total_initial_debit: string;
+  total_initial_credit: string;
+  total_period_debit: string;
+  total_period_credit: string;
+  total_ending_debit: string;
+  total_ending_credit: string;
   period: string;
 }
 
@@ -83,12 +86,13 @@ export interface TrialBalance {
 export interface GeneralLedgerEntry {
   voucher_date: string;
   voucher_no: string;
+  /** Rust: i32 */
   line_no: number;
   summary?: string;
-  debit: number;
-  credit: number;
+  debit: string;
+  credit: string;
   direction: string;
-  balance: number;
+  balance: string;
 }
 
 /** 总账（Rust: finance_report_dto.rs:104 GeneralLedger） */
@@ -96,10 +100,10 @@ export interface GeneralLedger {
   subject_code: string;
   subject_name: string;
   entries: GeneralLedgerEntry[];
-  opening_balance: number;
-  closing_balance: number;
-  total_debit: number;
-  total_credit: number;
+  opening_balance: string;
+  closing_balance: string;
+  total_debit: string;
+  total_credit: string;
   period_start: string;
   period_end: string;
 }
@@ -112,9 +116,11 @@ export interface SubsidiaryLedgerEntry {
   subject_code: string;
   subject_name: string;
   summary?: string;
-  debit: number;
-  credit: number;
+  debit: string;
+  credit: string;
+  /** Rust: Option<i32> */
   customer_id?: number;
+  /** Rust: Option<i32> */
   supplier_id?: number;
 }
 
@@ -123,8 +129,8 @@ export interface SubsidiaryLedger {
   dimension_type: string;
   dimension_value: string;
   entries: SubsidiaryLedgerEntry[];
-  total_debit: number;
-  total_credit: number;
+  total_debit: string;
+  total_credit: string;
   period_start: string;
   period_end: string;
 }

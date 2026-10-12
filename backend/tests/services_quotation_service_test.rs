@@ -1,13 +1,13 @@
-// decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
 use bingxi_backend::models::quotation_create_dto::{CreateQuotationDto, CreateQuotationItemDto};
 use bingxi_backend::models::quotation_update_dto::UpdateQuotationDto;
 use bingxi_backend::models::status::quotation as quotation_status;
 use bingxi_backend::services::quotation_service::{QuotationService, ServiceError};
 use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
-// ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use rust_decimal::Decimal;
+use sea_orm::ConnectionTrait;
 use std::sync::Arc;
 
 /// 构造合法的 CreateQuotationItemDto（单条明细）
@@ -53,6 +53,26 @@ fn sample_dto() -> CreateQuotationDto {
 // ============ ServiceError 枚举值正确性测试 ============
 
 /// test_serviceerror_display_gszq
+/// 族镜像锁：报价域 `ServiceError::InvalidState` 是「前置状态未满足」状态门，
+/// handler 的 `From<ServiceError> for AppError` 装配点必须出 BUSINESS_ERROR 且外显真实文案
+/// （修复前出 VALIDATION_ERROR，前端按 code 分支时把业务拒绝当"我填错了"）。
+/// 断言跟随源码现状：`AppError::business_displayable("当前状态不允许此操作")`。
+#[test]
+fn test_serviceerror_invalidstate_maps_to_displayable_business() {
+    let err = AppError::from(ServiceError::InvalidState);
+    assert!(
+        matches!(err, AppError::BusinessErrorDisplayable(_)),
+        "状态门必须归 business 族且可外显，实际={err:?}"
+    );
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(err.to_response().message, "当前状态不允许此操作");
+
+    // 反向对照：提交字段校验仍归校验族，证明未一刀切
+    let v = AppError::from(ServiceError::Validation("明细至少 1 条".to_string()));
+    assert!(matches!(v, AppError::ValidationErrorDisplayable(_)));
+    assert_eq!(v.error_code(), "VALIDATION_ERROR");
+}
+
 /// 验证 5 个 ServiceError 变体的 Display 实现返回中文错误信息
 #[test]
 fn test_serviceerror_display_gszq() {
@@ -174,7 +194,7 @@ async fn test_calculate_totals_dmxhzzq() {
 }
 
 /// test_calculate_totals_jdgyd2wxs
-/// 批次 87：33.333 * 3 = 99.999 → 100.00（round_dp(2)）
+/// 小数量×单价的尾差口径：33.333 × 3 = 99.999，小计按 round_dp(2) 舍入 ⇒ 100.00。
 #[tokio::test]
 async fn test_calculate_totals_jdgyd2wxs() {
     let db = setup_test_db().await;
@@ -270,43 +290,102 @@ async fn test_quotationservice_new_zqcysjklj() {
         .expect("数据库连接应可用");
 }
 
-/// test_quotationservice_get_by_id_ksjkfherr
+/// test_quotationservice_get_by_id_ksjkfherr —— 钉"已建库空表上 get_by_id 不存在记录
+/// ⇒ Err(ServiceError::NotFound)，而非 panic"。
+///
+/// 契约依据（读函数体）：`src/services/quotation_ops/crud.rs:318-322`
+/// find_by_id().one() 空表 ⇒ None ⇒ `.ok_or(ServiceError::NotFound)`。
+/// 钉 NotFound 变体而非裸 `is_err()`，防把夹具退化的 Query Err 也当作本条命中；
+/// 并同锁装配点出参（`handlers/quotation_handler.rs:598-601`
+/// `ServiceError::NotFound` ⇒ `AppError::not_found`，code=NOT_FOUND）。
 #[tokio::test]
 async fn test_quotationservice_get_by_id_ksjkfherr() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
-    let result = svc.get_by_id(9999).await;
-    assert!(result.is_err());
+    let err = svc
+        .get_by_id(9999)
+        .await
+        .expect_err("已建库空表上 get_by_id 不存在记录必须返回 Err 而非 panic");
+    assert!(
+        matches!(err, ServiceError::NotFound),
+        "空表 get_by_id 必须命中 NotFound 变体（crud.rs:321），实得 {err:?}"
+    );
+    assert_eq!(
+        AppError::from(err).error_code(),
+        "NOT_FOUND",
+        "NotFound 装配点必须出 NOT_FOUND 机器码（quotation_handler.rs:564）"
+    );
 }
 
-/// test_quotationservice_list_ksjkfherr
+/// test_quotationservice_list_ksjkfherr —— 钉"已建库、业务表已清空 ⇒ `list` 不 panic
+/// 且返回**空集**（total=0）"。
+///
+/// 契约依据（读函数体）：`src/services/quotation_ops/crud.rs:228-264` 对空表
+/// 走 `paginate_with_total`（`utils/pagination.rs:17-23` fetch_page=[] /
+/// num_items=0）⇒ `Ok(([], 0))`；`attach_names` 对空入参早退 Ok
+/// （crud.rs:275-276）。缺 schema 的报错形态不属本条职责——负前提交集由
+/// 各域用例经空 schema 库夹具（`connect_empty_schema_db`）另行钉死。
 #[tokio::test]
 async fn test_quotationservice_list_ksjkfherr() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
-    let result = svc.list(1, 20, None, None, None, None).await;
-    assert!(result.is_err());
+    let (items, total) = svc
+        .list(1, 20, None, None, None, None, None)
+        .await
+        .expect("已建库空表上 list 应返回 Ok 空集，而非 Err/panic");
+    assert!(
+        items.is_empty(),
+        "夹具已 TRUNCATE 业务表，列表必须是空集，实得 {} 行",
+        items.len()
+    );
+    assert_eq!(total, 0, "空表的 total 计数应为 0，实得 {total}");
 }
 
-/// test_quotationservice_cancel_bczfhapperror
+/// test_quotationservice_cancel_bczfhapperror —— 钉"已建库空表上 cancel 不存在的单
+/// ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 契约依据：`src/services/quotation_ops/lifecycle.rs:21-26` begin 后
+/// find_by_id + lock_exclusive，空表 ⇒ None ⇒ `AppError::not_found`。
+/// 钉机器码而非裸 `is_err()`：把状态门（converted ⇒ BUSINESS，lifecycle.rs:27-32）
+/// 与夹具退化（DATABASE 族）都排除在外，本条锁的仅是"记录不存在"这一件事。
 #[tokio::test]
 async fn test_quotationservice_cancel_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
-    let result = svc.cancel(9999, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .cancel(9999, 1)
+        .await
+        .expect_err("已建库空表上 cancel 不存在的报价单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 cancel 必须命中 not_found（lifecycle.rs:26），实得 {}",
+        err.error_code()
+    );
 }
 
 // ============ update 状态机校验测试 ============
 
-/// test_quotationservice_update_bczfhapperror
-use sea_orm::ConnectionTrait;
-use std::collections::HashSet;
+/// test_quotationservice_update_bczfhapperror —— 钉"已建库空表上
+/// update 不存在的单 ⇒ NOT_FOUND 机器码，而非 panic"。
+///
+/// 契约依据：`src/services/quotation_ops/update.rs:33-34` begin 后先
+/// `load_for_update`（update.rs:56-74 find_by_id + lock_exclusive，None ⇒
+/// `AppError::not_found` :64）；状态门（仅 draft/rejected 可改 ⇒ BUSINESS）在
+/// 记录存在时才可达，本条夹具下必先在 not_found 处返回。
 #[tokio::test]
 async fn test_quotationservice_update_bczfhapperror() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
     let dto = UpdateQuotationDto::default();
-    let result = svc.update(9999, dto, 1).await;
-    assert!(result.is_err());
+    let err = svc
+        .update(9999, dto, 1)
+        .await
+        .expect_err("已建库空表上 update 不存在的报价单必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "NOT_FOUND",
+        "空表 update 必须命中 not_found（update.rs:64），实得 {}",
+        err.error_code()
+    );
 }

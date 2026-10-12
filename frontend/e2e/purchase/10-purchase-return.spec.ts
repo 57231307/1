@@ -5,13 +5,27 @@
 //
 // 状态机真值（backend/src/models/status/purchase_inventory.rs 的 purchase_return，全小写：
 //   draft/submitted/approved/rejected）：create_return 写 draft（services/purchase_return_service.rs:127）。
+// 审批链（reject 端点仅 submitted 起拒）：submit DRAFT→SUBMITTED；approve SUBMITTED→APPROVED
+//   （approval_reason 选填，落 approval_reason 列，留空省略）；reject SUBMITTED→REJECTED，拒绝理由
+//   必填落 rejected_reason 专列（purchase_return_service.rs::reject_return），reason_detail 回归建单
+//   明细语义不再被覆盖（本轮止毁缺陷回归——旧实现把拒绝理由写进 reason_detail，覆盖退货原因）。
+//   approve 与 reject 互斥出边（APPROVED 不可再 reject），故本波分两条链各自验证。
 // 建单必填（CreatePurchaseReturnRequest）：supplier_id、reason_type、return_date 为非 Option，
 //   order_id/receipt_id/warehouse_id 为 Option；前端表单把“采购订单”作为必填项驱动，
 //   选中订单后供应商由 handleOrderChange 自动派生（usePrRtn.ts:341）。
 // 退货原因取值见 constants/return-reason.ts，value 为中文业务词，落库原值即中文（此处取“色差”）。
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { apiCallRaw, ensureTestEntities, tryCleanup } from '../flow/helpers';
+import {
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  ensureTestEntities,
+  getCtx,
+  failureCode,
+  APP_ERROR_CODES,
+  tryCleanup,
+} from '../flow/helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
@@ -132,5 +146,97 @@ test.describe('10 采购退货', () => {
       list.items.some(r => r.id === created.id),
       `列表按单号 ${created.return_no} 检索未命中新建退货单`
     ).toBe(true);
+  });
+
+  test('10-03 reject 链：submit→拒绝（理由必填落 rejected_reason + reason_detail 未被覆盖 + 空理由负例）', async ({
+    page,
+  }) => {
+    const ctx = getCtx();
+    if (!ctx.supplierId) throw new Error('前置缺失：ctx.supplierId 未就绪');
+    // 建一张 draft 退货单，reason_detail 写入唯一码——reject 后必须逐字不变（双列锁另一列）
+    const reasonDetail = `E2E-PR10-退货明细原因-${Date.now()}`;
+    const created = await apiCall<{ id?: number; return_no?: string; return_status: string }>(
+      page,
+      'POST',
+      '/purchase/returns',
+      {
+        supplier_id: ctx.supplierId,
+        return_date: new Date().toISOString().slice(0, 10),
+        reason_type: '色差',
+        reason_detail: reasonDetail,
+      }
+    );
+    const id = created.data?.id;
+    expect(id, '退货单建单未返回 id').toBeTruthy();
+    expect(created.data.return_status, '新建退货单应为 draft 态').toBe('draft');
+    CLEANUP.push({ path: `/purchase/returns/${id}`, label: 'purchase_return' });
+
+    // draft → submitted（reject 状态门仅接受 submitted）
+    await apiCall(page, 'POST', `/purchase/returns/${id}/submit`);
+
+    // 带理由拒绝 → submitted→rejected + 逐字回读 rejected_reason；reason_detail 不得被覆盖
+    const rejectReason = `E2E-PR10-拒绝理由-${Date.now()}`;
+    await apiCall(page, 'POST', `/purchase/returns/${id}/reject`, { reason: rejectReason });
+    const after = await apiCallRaw<{
+      return_status: string;
+      rejected_reason: string | null;
+      reason_detail: string | null;
+      approval_reason: string | null;
+    }>(page, 'GET', `/purchase/returns/${id}`);
+    expect(after.return_status, '拒绝后状态应为 rejected').toBe('rejected');
+    expect(after.rejected_reason, '拒绝理由应逐字落 rejected_reason 专列').toBe(rejectReason);
+    // 止毁双列锁：reject 不得再覆盖 reason_detail（应保持建单值）
+    expect(after.reason_detail, 'reject 不得覆盖 reason_detail（应保持建单值）').toBe(reasonDetail);
+    expect(after.approval_reason, 'reject 不得写入 approval_reason（两动作两列）').toBeNull();
+
+    // 空/纯空白理由 → 400 VALIDATION_ERROR（reject 服务端必填理由）
+    const c2 = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', {
+      supplier_id: ctx.supplierId,
+      return_date: new Date().toISOString().slice(0, 10),
+      reason_type: '色差',
+    });
+    const id2 = c2.data?.id;
+    expect(id2, '第二张退货单建单未返回 id').toBeTruthy();
+    CLEANUP.push({ path: `/purchase/returns/${id2}`, label: 'purchase_return' });
+    await apiCall(page, 'POST', `/purchase/returns/${id2}/submit`);
+    const emptyReason = await apiCallExpectFail(page, 'POST', `/purchase/returns/${id2}/reject`, {
+      reason: '   ',
+    });
+    expect(emptyReason.status, '纯空白拒绝理由应返回 HTTP 400').toBe(400);
+    expect(failureCode(emptyReason), '纯空白拒绝理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    const stillSubmitted = await apiCallRaw<{ return_status: string }>(
+      page,
+      'GET',
+      `/purchase/returns/${id2}`
+    );
+    expect(stillSubmitted.return_status, '空理由 reject 被拒不得改变状态').toBe('submitted');
+  });
+
+  test('10-04 approve 链（选填理由）：缺 approval_reason 不应触发 400 VALIDATION_ERROR（留空省略档）', async ({
+    page,
+  }) => {
+    const ctx = getCtx();
+    if (!ctx.supplierId) throw new Error('前置缺失：ctx.supplierId 未就绪');
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/returns', {
+      supplier_id: ctx.supplierId,
+      return_date: new Date().toISOString().slice(0, 10),
+      reason_type: '色差',
+    });
+    const id = created.data?.id;
+    expect(id, '退货单建单未返回 id').toBeTruthy();
+    CLEANUP.push({ path: `/purchase/returns/${id}`, label: 'purchase_return' });
+    await apiCall(page, 'POST', `/purchase/returns/${id}/submit`);
+
+    // approve 的 approval_reason 为选填：缺理由不得被必填校验拦成 400 VALIDATION_ERROR。
+    // （本仓 reject 域必填档才有该组合；选填档必须能透传到 service 层，由库存/状态门决定结果。）
+    const approveRes = await apiCallExpectFail(page, 'POST', `/purchase/returns/${id}/approve`);
+    expect(
+      approveRes.status === 400 && failureCode(approveRes) === APP_ERROR_CODES.VALIDATION_ERROR,
+      `采购退货 approve 为选填理由档，缺 approval_reason 不应命中 400 VALIDATION_ERROR，实际 status=${approveRes.status} code=${failureCode(
+        approveRes
+      )}`
+    ).toBe(false);
   });
 });

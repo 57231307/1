@@ -25,7 +25,9 @@ use crate::models::ai_quality_prediction::{
     Model as QualityModel,
 };
 use crate::services::lab_dip_service::{CreateLabDipRequestRequest, LabDipRequestService};
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 use super::ai::AiAnalysisService;
@@ -140,8 +142,7 @@ impl AiExtendService {
 
         // 2. 落库
         let request_id = format!("proc-{}", Uuid::new_v4());
-        let candidates_json = serde_json::to_value(&resp.candidates)
-            .map_err(|e| AppError::internal(format!("序列化 candidates 失败: {}", e)))?;
+        let candidates_json = serde_json::to_value(&resp.candidates)?;
 
         let now = chrono::Utc::now();
         let active = ProcessActiveModel {
@@ -204,8 +205,7 @@ impl AiExtendService {
         let mut ids = Vec::new();
         for (resp, dto) in items {
             let request_id = format!("proc-{}", Uuid::new_v4());
-            let candidates_json = serde_json::to_value(&resp.candidates)
-                .map_err(|e| AppError::internal(format!("序列化 candidates 失败: {}", e)))?;
+            let candidates_json = serde_json::to_value(&resp.candidates)?;
             let now = chrono::Utc::now();
             let active = ProcessActiveModel {
                 request_id: Set(request_id),
@@ -310,9 +310,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属（created_by 与 user_id 同为 i32，直接传入 check_resource_owner）
+        // 归属门：ai_process_optimizations 无 department_id 列，使用成员集合语义
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权访问该工艺优化记录"));
             }
         }
@@ -358,9 +358,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属
+        // 归属门：ai_process_optimizations 无 department_id 列
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权操作该工艺优化记录"));
             }
         }
@@ -372,7 +372,9 @@ impl AiExtendService {
         active.applied_by = Set(dto.operator_id);
         if let Some(score) = dto.feedback_score {
             if !(1..=5).contains(&score) {
-                return Err(AppError::validation("feedback_score 必须在 1-5 范围内"));
+                return Err(AppError::validation_displayable(
+                    "feedback_score 必须在 1-5 范围内",
+                ));
             }
             active.feedback_score = Set(Some(score));
         }
@@ -396,7 +398,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("工艺优化记录不存在: id={}", id)))?;
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权删除该工艺优化记录"));
             }
         }
@@ -428,12 +430,9 @@ impl AiExtendService {
         let latency_ms = infer_start.elapsed().as_millis().min(i32::MAX as u128) as i32;
 
         let request_id = format!("qual-{}", Uuid::new_v4());
-        let top_issues_json = serde_json::to_value(&resp.top_issues)
-            .map_err(|e| AppError::internal(format!("序列化 top_issues 失败: {}", e)))?;
-        let recommendations_json = serde_json::to_value(&resp.recommendations)
-            .map_err(|e| AppError::internal(format!("序列化 recommendations 失败: {}", e)))?;
-        let period_breakdown_json = serde_json::to_value(&resp.period_breakdown)
-            .map_err(|e| AppError::internal(format!("序列化 period_breakdown 失败: {}", e)))?;
+        let top_issues_json = serde_json::to_value(&resp.top_issues)?;
+        let recommendations_json = serde_json::to_value(&resp.recommendations)?;
+        let period_breakdown_json = serde_json::to_value(&resp.period_breakdown)?;
 
         let now = chrono::Utc::now();
         let trend_label = match resp.trend.as_str() {
@@ -561,9 +560,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属
+        // 归属门：ai_quality_predictions 无 department_id 列
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权访问该质量预测记录"));
             }
         }
@@ -608,9 +607,9 @@ impl AiExtendService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
-        // V15 P0-S27：校验归属
+        // 归属门：ai_quality_predictions 无 department_id 列
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权操作该质量预测记录"));
             }
         }
@@ -637,7 +636,7 @@ impl AiExtendService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("质量预测记录不存在: id={}", id)))?;
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, model.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
                 return Err(AppError::permission_denied("无权删除该质量预测记录"));
             }
         }
@@ -833,11 +832,12 @@ impl AiExtendService {
             required_date,
             expected_days: Some(3),
             remarks: Some(remarks),
-            created_by: Some(operator_id as i32),
         };
 
         let svc = LabDipRequestService::new(self.db.clone());
-        let lab_dip = svc.create(create_req).await?;
+        // 建单人沿用本请求的会话操作者（push_to_lab_dip 的 operator_id 即 auth.user_id），
+        // 请求体不承载身份
+        let lab_dip = svc.create(create_req, operator_id as i32).await?;
 
         // 回写 lab_dip_request_id 到 ai_process_optimizations（暂存于 reason 字段末尾便于回溯）
         let mut active: ProcessActiveModel = model.into();

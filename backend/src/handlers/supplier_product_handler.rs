@@ -9,6 +9,7 @@ use crate::services::supplier_product_service::{
     CreateSupplierProductRequest, SupplierProductQueryParams, SupplierProductService,
     UpdateSupplierProductRequest,
 };
+use crate::utils::data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
@@ -95,6 +96,19 @@ pub async fn update_supplier_product(
     req.validate()?;
     info!("用户 {} 正在更新供应商商品 ID: {}", auth.user_id, id);
     let service = SupplierProductService::new(state.db.clone());
+
+    // 行级归属门（写口）：supplier_products 有 created_by 归属列、无 department_id 列，
+    // 判据按 check_resource_owner_by_member_scope；门在 service.update 落库点之前，越权
+    // 零写入。读侧（list/get）为采购共用主数据全员可读，不设门——读宽写窄系有意分家。
+    // 行不存在时 service.get 直接 404（与 update 内部取行同口径）。
+    let ctx = auth.to_data_scope_context();
+    let existing = service.get(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该供应商商品（数据范围限制）",
+        ));
+    }
+
     let model = service.update(id, req, auth.user_id).await?;
     info!("供应商商品更新成功，ID: {}", id);
     Ok(Json(ApiResponse::success_with_message(

@@ -1,15 +1,15 @@
 //! 染化料领用单 Service impl 子模块（chemical_ops/requisition）
 //!
 //! 批次 490 D10-3a 拆分：从原 `chemical_service.rs` L1312-1595 迁移。
-//! 包含 ChemicalRequisitionService 的 11 个方法：
-//! - generate_requisition_no（私有 helper，生成领用单号 CR-YYYYMMDDHHMMSS-NNN）
+//! 包含 ChemicalRequisitionService 的 10 个方法：
 //! - create / update / delete（CRUD）
 //! - approve / issue / close / cancel（状态机）
 //! - get_by_id / get_by_no / list（查询）
 //!
 //! 业务规则：
 //! - 创建时校验类型合法、生产领用必须关联染色缸号、缸号/生产订单存在性、总金额非负
-//! - 领用单号格式：CR-YYYYMMDDHHMMSS-NNN
+//! - 领用单号格式：{CR}{YYYYMMDD}{3位流水}（事务内经 DocumentNumberGenerator 取号，
+//!   前缀常量 CHEMICAL_REQUISITION_NO_PREFIX）
 //! - 状态机：draft → approved → issued → partial_returned → closed；任意非 closed/cancelled → cancelled
 //! - 更新/删除仅 draft 状态可操作
 //! - 审批：draft → approved；发料：approved → issued；关闭：issued/partial_returned → closed
@@ -19,6 +19,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 
 use crate::models::chemical_requisition::{
@@ -28,25 +29,24 @@ use crate::models::chemical_requisition::{
 use crate::models::status::chemical_requisition_status;
 use crate::models::status::chemical_requisition_type;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use crate::services::chemical_ops::types::{
     ChemicalRequisitionQuery, CreateChemicalRequisitionRequest, UpdateChemicalRequisitionRequest,
 };
 use crate::services::chemical_service::{ChemicalRequisitionService, validate_requisition_type};
 
-impl ChemicalRequisitionService {
-    /// 生成领用单号：CR-YYYYMMDDHHMMSS-NNN
-    fn generate_requisition_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("CR-{}-{:03}", timestamp, random)
-    }
+/// 染化料领用单号（chemical_requisition.requisition_no）自动编码前缀：
+/// 沿用原手写格式 "CR-{时间戳}-{随机}" 的业务前缀 CR，
+/// 新格式统一为 {CR}{YYYYMMDD}{3位流水}（前缀集中定义，不散落字面量）。
+pub const CHEMICAL_REQUISITION_NO_PREFIX: &str = "CR";
 
-    /// 创建染化料领用单
+impl ChemicalRequisitionService {
+    /// 创建染化料领用单；建单人取服务端会话身份，请求体不承载身份
     pub async fn create(
         &self,
         req: CreateChemicalRequisitionRequest,
+        user_id: i32,
     ) -> Result<RequisitionModel, AppError> {
         validate_requisition_type(&req.requisition_type)?;
 
@@ -87,7 +87,28 @@ impl ChemicalRequisitionService {
             return Err(AppError::business("总金额不能为负"));
         }
 
-        let requisition_no = Self::generate_requisition_no();
+        // 领用单号取号与 INSERT 同事务：chemical_requisition.requisition_no
+        // NOT NULL 无 UNIQUE（migration/src/domain/v15/mod.rs:2550），旧手写
+        // "CR-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零，且 get_by_no 的 `.one()`
+        // 在重复号上直接报错；改为按 CHEMICAL_REQUISITION_NO_PREFIX 经生成器在事务内
+        // 取号（pg_advisory_xact_lock 持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let requisition_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            CHEMICAL_REQUISITION_NO_PREFIX,
+            RequisitionEntity,
+            chemical_requisition::Column::RequisitionNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = CHEMICAL_REQUISITION_NO_PREFIX,
+                "染化料领用单号取号失败（chemical_ops/requisition.create）"
+            );
+            AppError::business_displayable("领用单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RequisitionActiveModel {
@@ -103,7 +124,7 @@ impl ChemicalRequisitionService {
             total_amount: Set(total_amount),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             approved_by: Set(None),
             issued_by: Set(None),
             created_at: Set(now),
@@ -111,9 +132,10 @@ impl ChemicalRequisitionService {
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("染化料领用单创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -177,11 +199,9 @@ impl ChemicalRequisitionService {
     }
 
     /// 审批领用单（draft → approved）
-    pub async fn approve(
-        &self,
-        id: i32,
-        approved_by: Option<i32>,
-    ) -> Result<RequisitionModel, AppError> {
+    // approved_by 由 handler 从服务端会话取（AuthContext.user_id），不接受请求体身份：
+    // 审批归属可伪造/可缺省落 NULL 的通道已关闭，签名收为必填 i32。
+    pub async fn approve(&self, id: i32, approved_by: i32) -> Result<RequisitionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != chemical_requisition_status::DRAFT {
             return Err(AppError::business(format!(
@@ -191,18 +211,15 @@ impl ChemicalRequisitionService {
         }
         let mut active: RequisitionActiveModel = model.into();
         active.status = Set(chemical_requisition_status::APPROVED.to_string());
-        active.approved_by = Set(approved_by);
+        active.approved_by = Set(Some(approved_by));
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
         Ok(updated)
     }
 
     /// 发料（approved → issued）
-    pub async fn issue(
-        &self,
-        id: i32,
-        issued_by: Option<i32>,
-    ) -> Result<RequisitionModel, AppError> {
+    // 同上：发料人身份取会话，签名收为必填 i32。
+    pub async fn issue(&self, id: i32, issued_by: i32) -> Result<RequisitionModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != chemical_requisition_status::APPROVED {
             return Err(AppError::business(format!(
@@ -212,7 +229,7 @@ impl ChemicalRequisitionService {
         }
         let mut active: RequisitionActiveModel = model.into();
         active.status = Set(chemical_requisition_status::ISSUED.to_string());
-        active.issued_by = Set(issued_by);
+        active.issued_by = Set(Some(issued_by));
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
         Ok(updated)

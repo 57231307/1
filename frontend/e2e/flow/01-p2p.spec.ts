@@ -12,6 +12,7 @@ import {
   genDyeLotNo,
   genPieceNo,
   ensureTestEntities,
+  seedInspectionPass,
 } from './helpers';
 
 test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () => {
@@ -77,18 +78,13 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     await apiCall(page, 'POST', `/purchase/orders/${id}/approve`);
 
     const final = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/orders/${id}`);
-    // 此前列表里的 confirmed/pending_receipt/partially_received/received/completed
-    // 都不是该列的词元（后端从不写），断言因此恒真；改为真实词表（大写）。
-    const finalStatus = final.status;
-    expect([
-      'APPROVED',
-      'CLOSED',
-      'CANCELLED',
-      'REJECTED',
-      'SUBMITTED',
-      'PENDING_APPROVAL',
-      'DRAFT',
-    ]).toContain(finalStatus ?? '(missing-status)');
+    // 收紧恒真白名单：本用例标题即"状态机 DRAFT → SUBMITTED → APPROVED"，submit+approve 后
+    // 唯一正确终态是 APPROVED。旧写法把 DRAFT/SUBMITTED/PENDING_APPROVAL 等 7 个 token 全列进
+    // toContain，即便 approve 静默失败、状态停在 SUBMITTED 也照样绿。改为精确期望值。
+    expect(
+      final.status,
+      `submit+approve 后采购订单 ${id} 应处于 APPROVED（词表 models/status/purchase_inventory.rs），实际 ${final.status}`
+    ).toBe('APPROVED');
   });
 
   test('1-3 验证非法状态转换被拒绝', async ({ page }) => {
@@ -159,6 +155,14 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const receiptId = receipt.data?.id;
     expect(receiptId, '入库单创建失败（响应缺 id）').toBeTruthy();
 
+    // 「质检合格方可入库」门控要求的真实前置：整单质检 complete(pass) 并回读到 PASSED
+    // （helpers.seedInspectionPass；未质检直接 confirm 会被 400 拒）
+    await seedInspectionPass(page, {
+      receiptId: receiptId as number,
+      supplierId: ctx.supplierId!,
+      context: '1-4 P2P 主链收货单',
+    });
+
     // 确认入库事务内按入库明细完成库存收货并推进订单已收数量，入库单直接进 COMPLETED；
     // 仍用轮询而非固定 sleep：断言的是终态可达，不依赖具体时序
     await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
@@ -176,13 +180,15 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       )
       .toBe('COMPLETED');
 
-    // 验证订单状态更新：已收满订单应为 completed（未收货会停在 approved/pending_receipt）
+    // 1-1 定单数量 1000，本用例入库明细两行各 500 合计 1000 = 全额收货。
+    // purchase_receipt_private.rs:119-132：received_quantity >= quantity 即判 is_fully_received →
+    // 订单推进 COMPLETED。旧写法 toContain(['COMPLETED','PARTIAL_RECEIVED']) 把"部分收货"也当过，
+    // 等于放走了"收货量未回写/回写不足"的真实回归。收紧为该步骤精确期望值 COMPLETED。
     const order = await apiCallRaw<{ status: string }>(page, 'GET', `/purchase/orders/${id}`);
-    const status = order.status;
     expect(
-      ['COMPLETED', 'PARTIAL_RECEIVED'],
-      `收货确认后采购订单 ${id} 应进入收货态，实际 ${status}`
-    ).toContain(status);
+      order.status,
+      `全额收货确认后采购订单 ${id} 应为 COMPLETED（词表 purchase_order，models/status/purchase_inventory.rs），实际 ${order.status}`
+    ).toBe('COMPLETED');
   });
 
   test('1-5 验证库存四维聚合（产品→色号→缸号→匹号）', async ({ page }) => {
@@ -532,20 +538,14 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
       `/purchase/orders/${id}`
     );
     expect(order?.id ?? order, '采购订单详情应返回订单对象').toBeTruthy();
-    // confirmed / pending_receipt / partially_received / received 均非该列词表成员，
-    // 旧断言因此对任何真实值都成立或依赖小写归一；改为 models/status 里的真实 token。
-    const status = order.status;
-    expect([
-      'DRAFT',
-      'PENDING_APPROVAL',
-      'SUBMITTED',
-      'APPROVED',
-      'REJECTED',
-      'CLOSED',
-      'CANCELLED',
-      'COMPLETED',
-      'PARTIAL_RECEIVED',
-    ]).toContain(status);
+    // 收紧恒真：旧写法把 purchase_order 的 9 个 token 全列进 toContain——无论后端把状态写成什么
+    // （哪怕停在 DRAFT/APPROVED 表示收货链路断了）都判绿，等于没断"完整状态流转"。
+    // 1-4 已全额收货（received_quantity>=quantity → COMPLETED，purchase_receipt_private.rs:119-132），
+    // 且 PO 状态由收货驱动、不受 1-7/1-8 应付付款影响，故此步骤精确期望值 = COMPLETED。
+    expect(
+      order.status,
+      `全额收货后采购订单 ${id} 应停在 COMPLETED 终态（词表 purchase_order），实际 ${order.status}`
+    ).toBe('COMPLETED');
   });
 
   test('1-10 验证审计日志包含采购操作', async ({ page }) => {

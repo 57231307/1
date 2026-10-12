@@ -31,7 +31,7 @@ impl ImportExportService {
             "products" => self.export_products(query).await,
             "customers" => self.export_customers(query).await,
             "inventory" => self.export_inventory(query).await,
-            _ => Err(AppError::validation(format!(
+            _ => Err(AppError::validation_displayable(format!(
                 "不支持的导出类型: {}",
                 export_type
             ))),

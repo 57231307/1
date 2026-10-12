@@ -29,10 +29,14 @@ pub struct CreateProcessNodeDto {
 }
 
 /// 更新工艺节点 DTO
+///
+/// 本次动作的操作人身份**不由请求体承载**：由 handler 按会话（`AuthContext.user_id`）
+/// 派生后传入 service，落 `process_nodes.operator_id` 留痕（该列语义 = 最近一次动作的
+/// 操作人，与 `advance_node` 写同一列的口径一致；DDL 为 `operator_id INTEGER
+/// REFERENCES users(id)`，m0044:156）。本 DTO 不含"节点负责人/被指派人"类业务引用列。
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct UpdateProcessNodeDto {
     pub status: Option<String>,
-    pub operator_id: Option<i32>,
     pub actual_start_date: Option<chrono::DateTime<chrono::Utc>>,
     pub actual_end_date: Option<chrono::DateTime<chrono::Utc>>,
     pub notes: Option<String>,
@@ -42,7 +46,6 @@ pub struct UpdateProcessNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AdvanceNodeDto {
     pub action: String,
-    pub operator_id: i32,
     pub notes: Option<String>,
     pub attachments: Option<Vec<String>>,
 }
@@ -51,7 +54,6 @@ pub struct AdvanceNodeDto {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AddProcessLogDto {
     pub action: String,
-    pub operator_id: i32,
     pub before_status: Option<String>,
     pub after_status: Option<String>,
     pub log_content: Option<String>,

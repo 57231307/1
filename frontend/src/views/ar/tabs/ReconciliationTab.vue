@@ -174,6 +174,7 @@ import {
   type ARReconciliation,
 } from '@/api/ar';
 import type { Customer } from '@/api/customer';
+import { isDialogDismissal } from '@/utils/monitor';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -283,7 +284,7 @@ const confirmReconciliation = async (row: ARReconciliation) => {
     ElMessage.success(t('arModule.reconciliation.confirmSuccess'));
     fetchReconciliations();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('common.failed'));
     }

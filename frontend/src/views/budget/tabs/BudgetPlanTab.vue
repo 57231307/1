@@ -244,7 +244,9 @@ const handleSubmit = async () => {
       budget_year: form.budget_year,
       budget_type: form.budget_type || undefined,
       department_id: form.department_id as number,
-      total_amount: form.total_amount,
+      // 后端 CreateBudgetPlanRequest.total_amount 为 Option<rust_decimal>（serde-floats 未启用，
+      // JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
+      total_amount: form.total_amount.toFixed(2),
       remark: form.remark || undefined,
     });
     ElMessage.success(t('budget.plan.message.created'));

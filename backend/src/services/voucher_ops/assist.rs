@@ -30,7 +30,7 @@ pub(super) struct AssistRecordContext<'a> {
     /// 业务单号
     business_no: &'a str,
     /// 业务单据 ID
-    business_id: i32,
+    business_id: i64,
     /// 凭证 ID
     voucher_id: i32,
     /// 凭证模型
@@ -56,7 +56,9 @@ impl VoucherService {
 
         let business_type = self.determine_business_type(&voucher_model);
         let business_no = self.determine_business_no(&voucher_model);
-        let business_id = voucher_model.source_bill_id.unwrap_or(voucher_id);
+        let business_id = voucher_model
+            .source_bill_id
+            .unwrap_or(i64::from(voucher_id));
 
         // D08 第三梯队修复：使用 AssistRecordContext 聚合业务上下文参数，
         // 消除 insert_assist_records_for_items / build_assist_record 的 too_many_arguments 警告。

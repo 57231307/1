@@ -4,11 +4,12 @@
 //! 业务：发放 / 归还 / 遗失 / 损坏 / 取消
 //! 状态机：issued → returned / lost / damaged / cancelled（终态不可再转换）
 //! 5 道发放前闸门校验（P0-F08）：
-//!   1. 卡片状态 = active
+//!   1. 卡片状态 ∈ 可发放集合（色卡权威词表内的 draft，见 ISSUABLE_CARD_STATUSES；
+//!      历史死值 'active' 已被词表与 DB CHECK 排除，比较它会让发放链路对所有真实色卡恒失败）
 //!   2. 发放数量 > 0（库存数量 >= 发放数量，色卡单张发放）
 //!   3. 客户信用额度 > 0（未超额）
 //!   4. 客户无未归还超期记录
-//!   5. 客户状态 = active（白名单校验）
+//!   5. 客户状态 = active（master_data 词表，customer.status 真实可达值；白名单校验）
 
 use chrono::Utc;
 use rust_decimal::Decimal;
@@ -26,6 +27,9 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::models::color_card::{self, Entity as ColorCardEntity};
 use crate::models::color_card_issue::{self, ActiveModel as IssueActive, Entity as IssueEntity};
 use crate::models::customer::Entity as CustomerEntity;
+// 色卡列（color_card.status）取值以本词表为唯一来源；历史 legacy 'active' 已不在
+// ALL 与 DB CHECK 内（v15 迁移回填为 draft），禁止再作为比较/写入值。
+use crate::models::status::color_card as card_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 
 /// 业务错误
@@ -39,6 +43,11 @@ pub enum IssueError {
     RecordNotFound,
     #[error("色卡当前状态不允许此操作")]
     InvalidState(String),
+    /// 闸门 1：色卡状态不在可发放集合（见 ISSUABLE_CARD_STATUSES）。
+    /// 拒绝依据是纯公开业务规则（不含内部状态 token/记录 ID/库存数字），
+    /// 由 handler 映射为 business_displayable 外显；本变体不携带任何动态内容。
+    #[error("只有草稿态色卡可以发放")]
+    CardNotIssuable,
     #[error("参数校验失败: {0}")]
     Validation(String),
     #[error("闸门校验失败: {0}")]
@@ -109,6 +118,25 @@ impl FromStr for IssueStatus {
         }
     }
 }
+
+/// 允许发起发放的色卡状态集合（闸门 1 放行依据）。
+///
+/// 定义依据与 `color_card_item_service.rs::EDITABLE_CARD_STATUSES`（提交 98f3bb0b，
+/// 色号创建门）**完全同源**：二者都是"色卡权威词表 `card_status` 内真实可达、
+/// 且会被写入的起始态"，不是各写一套的第二套常量——
+/// - 色卡状态流转权威 `validate_color_card_status_transition`
+///   （`color_card_crud_service.rs:335`）仅允许 `card_status::ISSUED` 由
+///   `card_status::DRAFT` 进入（`card_status::ISSUED => from == card_status::DRAFT`），
+///   即发放语义下的起始态只有 draft；
+/// - 建卡落库即写 draft（`color_card_crud_service.rs:81`）；
+/// - 前端发放页只对 draft 卡开放取数（`views/color-cards/issues.vue` loadCards
+///   `status:'draft'`）；
+/// - 历史死值 `active` 不在 `card_status::ALL` 与 DB CHECK `chk_color_card_status`
+///   （`migration/src/domain/v15/mod.rs:4493-4498`，存量 active 已回填 draft）内，
+///   且没有任何端点能把它写回该列——比较它会让发放链路对所有真实色卡恒失败
+///   （与 98f3bb0b 色号创建门同根因）。
+/// 守卫：本集合每个 token 必须引自色卡权威词表且 ∈ `card_status::ALL`。
+const ISSUABLE_CARD_STATUSES: &[&str] = &[card_status::DRAFT];
 
 /// 发放记录查询参数
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -182,7 +210,7 @@ impl ColorCardIssueService {
         Self::new(state.db.clone())
     }
 
-    /// V15 P0-F08：5 道发放前闸门校验（任一失败即拒绝：active/qty>0/信用未超额/无超期/客户active）
+    /// V15 P0-F08：5 道发放前闸门校验（任一失败即拒绝：可发放态(draft)/qty>0/信用未超额/无超期/客户active）
     async fn validate_issue_gates(
         &self,
         color_card_id: i64,
@@ -198,7 +226,7 @@ impl ColorCardIssueService {
         Ok(())
     }
 
-    /// 闸门 1+2：校验色卡状态为 active 且库存充足
+    /// 闸门 1+2：校验色卡状态在可发放集合（见 ISSUABLE_CARD_STATUSES）内且库存充足
     async fn check_card_status_and_stock(
         &self,
         color_card_id: i64,
@@ -208,11 +236,10 @@ impl ColorCardIssueService {
             .one(&*self.db)
             .await?
             .ok_or(IssueError::ColorCardNotFound)?;
-        if card.status != "active" {
-            return Err(IssueError::GateCheckFailed(format!(
-                "闸门 1 失败：色卡当前状态为 {}，非 active，不允许发放",
-                card.status
-            )));
+        // 门控只能比较"色卡状态真实可达且会被写入"的值（词表 card_status 集合）；
+        // 修复前此处比的是永不出现的死值 "active"，发放链路对所有真实色卡恒失败。
+        if !ISSUABLE_CARD_STATUSES.contains(&card.status.as_str()) {
+            return Err(IssueError::CardNotIssuable);
         }
         if issue_qty <= 0 {
             return Err(IssueError::GateCheckFailed(
@@ -255,7 +282,7 @@ impl ColorCardIssueService {
         let today = Utc::now().date_naive();
         let overdue_count = IssueEntity::find()
             .filter(color_card_issue::Column::CustomerId.eq(customer_id))
-            .filter(color_card_issue::Column::Status.eq("issued"))
+            .filter(color_card_issue::Column::Status.eq(IssueStatus::Issued.as_str()))
             .filter(color_card_issue::Column::IsDeleted.eq(false))
             .filter(
                 Condition::all().add(
@@ -472,7 +499,10 @@ impl ColorCardIssueService {
             .ok_or(IssueError::ColorCardNotFound)?;
         let new_issued = std::cmp::Ord::max(card.issued_quantity - existing.issue_qty, 0);
         let mut card_active: color_card::ActiveModel = card.into();
-        card_active.status = Set(IssueStatus::Lost.as_str().to_string());
+        // 写入的是色卡列（color_card.status）：取值权威 = 色卡词表 card_status
+        // （lost ∈ card_status::ALL），不借用发放记录枚举 IssueStatus 跨表供值——
+        // 两列词表同源不同列，各列写入方各自权威（值本身与原写入一致）。
+        card_active.status = Set(card_status::LOST.to_string());
         card_active.issued_quantity = Set(new_issued);
         card_active.updated_at = Set(now);
         card_active.update(&txn).await?;

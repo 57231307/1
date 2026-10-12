@@ -3,12 +3,13 @@ import type { ApiResponse } from '@/types/api';
 
 /**
  * 染色配方状态词表（唯一真相源：backend/src/models/status/quality_dyeing.rs::dye_recipe，
- * 与迁移 v15 的 CHECK "chk_dye_recipe_status" 取值集逐项相等；中文只出现在 i18n 展示层）
+ * 与 CHECK "chk_dye_recipe_status" 取值集逐项相等；中文只出现在 i18n 展示层）
  */
 export const DYE_RECIPE_STATUS = {
   DRAFT: 'draft',
   PENDING_APPROVAL: 'pending_approval',
   APPROVED: 'approved',
+  REJECTED: 'rejected',
   DISABLED: 'disabled',
 } as const;
 
@@ -32,6 +33,8 @@ export interface DyeRecipe {
   approved_by: number;
   approved_by_name: string;
   approved_at: string;
+  /** 审批拒绝理由（后端 dye_recipe.rejected_reason，TEXT 可空列 ⇒ 键恒存在、无值为 null） */
+  rejected_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,9 +81,41 @@ export function createDyeRecipe(data: Partial<DyeRecipe>): Promise<ApiResponse<D
   return request.post('/production/dye-recipes', data);
 }
 
+/**
+ * 染色配方更新载荷 —— 逐字段对齐后端 UpdateDyeRecipeRequest
+ * （services/dye_recipe_service.rs，三态语义 RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空为 NULL（仅声明 `| null` 的 DB 可空列）、有值=覆盖。
+ * 可空列依据 system 域 DDL（system/mod.rs:113-131 补列全部可空）。
+ * color_code 为建表 NOT NULL（system/m0003_add_dye_tables.rs:30），不声明 null——
+ * 显式 null 会被后端 business_displayable 拒绝。此前用 Partial<DyeRecipe>（出参形状）
+ * 冒充更新契约：含后端更新 DTO 不消费的 recipe_no/recipe_name/recipe_items 等键（serde 丢弃），
+ * 且可空列无法表达显式 null。
+ */
+export interface DyeRecipeAuxiliary {
+  name: string;
+  amount: number;
+  unit: string;
+}
+
+export interface DyeRecipeUpdatePayload {
+  color_no?: string | null;
+  color_code?: string;
+  color_name?: string | null;
+  fabric_type?: string | null;
+  dye_type?: string | null;
+  chemical_formula?: string | null;
+  temperature?: number | null;
+  time_minutes?: number | null;
+  ph_value?: number | null;
+  liquor_ratio?: number | null;
+  auxiliaries?: DyeRecipeAuxiliary[] | null;
+  status?: string | null;
+  remarks?: string | null;
+}
+
 export function updateDyeRecipe(
   id: number,
-  data: Partial<DyeRecipe>
+  data: DyeRecipeUpdatePayload
 ): Promise<ApiResponse<DyeRecipe>> {
   return request.put(`/production/dye-recipes/${id}`, data);
 }
@@ -89,16 +124,17 @@ export function deleteDyeRecipe(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/production/dye-recipes/${id}`);
 }
 
-/// 审批请求体：后端 approve_recipe 要求 approved_by（真实登录用户 ID，禁止伪造/默认值）
-export interface ApproveDyeRecipeRequest {
-  approved_by: number;
+// 审批端点无请求体：审批人身份唯一来源是服务端会话（AuthContext.user_id），
+// 后端 handlers/dye_recipe_handler.rs::approve_recipe 不绑定 body 提取器，
+// 前端不得再声明/发送 approved_by（否则触发 check-api-request 载荷失配）。
+export function approveDyeRecipe(id: number): Promise<ApiResponse<void>> {
+  return request.post(`/production/dye-recipes/${id}/approve`);
 }
 
-export function approveDyeRecipe(
-  id: number,
-  data: ApproveDyeRecipeRequest
-): Promise<ApiResponse<void>> {
-  return request.post(`/production/dye-recipes/${id}/approve`, data);
+// 拒绝端点与审批端点的身份口径相同：操作人取服务端会话，请求体只承载理由；
+// 后端 RejectRecipeRequest 仅有 reason 一个字段，多传键会被 check-api-request 判失配。
+export function rejectDyeRecipe(id: number, reason: string): Promise<ApiResponse<DyeRecipe>> {
+  return request.post(`/production/dye-recipes/${id}/reject`, { reason });
 }
 
 export function submitDyeRecipe(id: number): Promise<ApiResponse<void>> {

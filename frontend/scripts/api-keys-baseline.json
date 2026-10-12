@@ -1,13 +1,12 @@
 {
-  "total": 176,
+  "total": 124,
   "files": {
-    "frontend/src/api/account-subject.ts": {
-      "count": 1,
-      "keys": ["AccountSubjectEntity.balance_type"]
-    },
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
-      "keys": ["ProcessOptCandidate.case_id", "QualityTopIssue.issue"]
+      "keys": [
+        "ProcessOptCandidate.case_id",
+        "QualityTopIssue.issue"
+      ]
     },
     "frontend/src/api/ap.ts": {
       "count": 11,
@@ -26,32 +25,16 @@
       ]
     },
     "frontend/src/api/ar-reconciliation-enhanced.ts": {
-      "count": 6,
+      "count": 3,
       "keys": [
         "CustomerConfirmation.confirm_amount",
         "CustomerConfirmation.confirm_status",
-        "CustomerConfirmation.disputed_amount",
-        "DisputeRecord.confirmation_id",
-        "DisputeRecord.dispute_amount",
-        "DisputeRecord.dispute_type"
+        "CustomerConfirmation.disputed_amount"
       ]
     },
-    "frontend/src/api/ar-reconciliation.ts": {
-      "count": 2,
-      "keys": ["ArReconciliationEntity.total_adjustment", "ReconciliationDetail.source_date"]
-    },
     "frontend/src/api/ar.ts": {
-      "count": 10,
+      "count": 1,
       "keys": [
-        "ARAgingReport.age_0_30",
-        "ARAgingReport.age_180_plus",
-        "ARAgingReport.age_31_60",
-        "ARAgingReport.age_61_90",
-        "ARAgingReport.age_91_180",
-        "ARStatisticsReport.total_received_amount",
-        "ARStatisticsReport.total_unreceived_amount",
-        "ARStatisticsReport.total_unverified_amount",
-        "ARStatisticsReport.total_verified_amount",
         "ARVerification.verification_amount"
       ]
     },
@@ -74,29 +57,31 @@
     },
     "frontend/src/api/bi.ts": {
       "count": 1,
-      "keys": ["PivotResult.cells"]
+      "keys": [
+        "PivotResult.cells"
+      ]
     },
     "frontend/src/api/bpm-enhanced.ts": {
-      "count": 9,
+      "count": 5,
       "keys": [
         "ProcessDefinition.form_schema",
         "ProcessNode.assignee_type",
         "ProcessNode.assignee_value",
         "ProcessNode.next_nodes",
-        "ProcessTemplate.icon",
-        "ProcessTemplate.process_definition",
-        "ProcessTemplate.template_key",
-        "ProcessTemplate.usage_count",
         "ProcessVersion.change_log"
       ]
     },
     "frontend/src/api/budget.ts": {
       "count": 1,
-      "keys": ["Budget.budget_no"]
+      "keys": [
+        "Budget.budget_no"
+      ]
     },
     "frontend/src/api/business-trace.ts": {
       "count": 1,
-      "keys": ["TraceSnapshotCreateDto.snapshot_type"]
+      "keys": [
+        "TraceSnapshotCreateDto.snapshot_type"
+      ]
     },
     "frontend/src/api/capacity.ts": {
       "count": 10,
@@ -113,36 +98,27 @@
         "CapacityTrend.planned_hours"
       ]
     },
-    "frontend/src/api/color-price.ts": {
-      "count": 1,
-      "keys": ["TagType.default"]
-    },
     "frontend/src/api/crm-enhanced.ts": {
-      "count": 9,
+      "count": 4,
       "keys": [
         "AssignmentRecord.assign_type",
         "AssignmentRecord.assigned_from",
         "AssignmentRecord.assigned_from_name",
-        "AssignmentRecord.assigned_to_name",
-        "Customer360Summary.rfm_score",
-        "CustomerWithTags.last_follow_up",
-        "RfmScore.monetary",
-        "RfmScore.recency",
-        "SalesUser.active"
+        "AssignmentRecord.assigned_to_name"
       ]
     },
     "frontend/src/api/crm.ts": {
-      "count": 4,
+      "count": 2,
       "keys": [
-        "CustomerSummary.credit_used",
         "Lead.assigned_to_name",
-        "Lead.company",
-        "Opportunity.probability"
+        "Lead.company"
       ]
     },
     "frontend/src/api/customer-credit.ts": {
       "count": 1,
-      "keys": ["CustomerCredit.valid_to"]
+      "keys": [
+        "CustomerCredit.valid_to"
+      ]
     },
     "frontend/src/api/dashboard.ts": {
       "count": 4,
@@ -173,38 +149,28 @@
     },
     "frontend/src/api/export-approvals.ts": {
       "count": 1,
-      "keys": ["ExportApprovalRequest.approval_context"]
-    },
-    "frontend/src/api/fabric.ts": {
-      "count": 2,
-      "keys": ["Fabric.fabric_code", "Fabric.image_url"]
+      "keys": [
+        "ExportApprovalRequest.approval_context"
+      ]
     },
     "frontend/src/api/finance-report.ts": {
       "count": 1,
-      "keys": ["FinanceReportQueryParams.company_id"]
+      "keys": [
+        "FinanceReportQueryParams.company_id"
+      ]
     },
     "frontend/src/api/fund.ts": {
-      "count": 6,
+      "count": 3,
       "keys": [
         "FundAccount.account_code",
-        "FundAccountStatusType.active",
-        "FundAccountStatusType.frozen",
-        "FundAccountStatusType.inactive",
         "FundTransferRecord.from_account_name",
         "FundTransferRecord.to_account_name"
       ]
     },
     "frontend/src/api/greige-fabric.ts": {
       "count": 1,
-      "keys": ["GreigeFabric.fabric_code"]
-    },
-    "frontend/src/api/inventory.ts": {
-      "count": 4,
       "keys": [
-        "InventoryQueryParams.low_stock",
-        "InventoryReservation.expire_date",
-        "InventoryReservation.reserved_quantity",
-        "ReservationData.expire_date"
+        "GreigeFabric.fabric_code"
       ]
     },
     "frontend/src/api/notification.ts": {
@@ -221,7 +187,9 @@
     },
     "frontend/src/api/oa-announcement.ts": {
       "count": 1,
-      "keys": ["OaAnnouncement.notified_count"]
+      "keys": [
+        "OaAnnouncement.notified_count"
+      ]
     },
     "frontend/src/api/omni-audit.ts": {
       "count": 5,
@@ -233,13 +201,11 @@
         "AuditStats.total_events"
       ]
     },
-    "frontend/src/api/product.ts": {
-      "count": 2,
-      "keys": ["ProductColor.price_adjustment", "ProductColor.rgb"]
-    },
     "frontend/src/api/purchase-contract.ts": {
       "count": 1,
-      "keys": ["PurchaseContract.delivery_terms"]
+      "keys": [
+        "PurchaseContract.delivery_terms"
+      ]
     },
     "frontend/src/api/purchase-inspection.ts": {
       "count": 5,
@@ -259,10 +225,6 @@
         "PurchaseReceiptItem.expected_quantity"
       ]
     },
-    "frontend/src/api/quality.ts": {
-      "count": 2,
-      "keys": ["Defect.processed", "Defect.processed_by"]
-    },
     "frontend/src/api/report-enhanced.ts": {
       "count": 6,
       "keys": [
@@ -275,7 +237,7 @@
       ]
     },
     "frontend/src/api/sales-analysis.ts": {
-      "count": 10,
+      "count": 8,
       "keys": [
         "SalesStats.activeCustomers",
         "SalesStats.amountTrend",
@@ -284,30 +246,14 @@
         "SalesStats.monthAmount",
         "SalesStats.monthOrders",
         "SalesStats.orderTrend",
-        "SalesStats.profitTrend",
-        "SalesTrendResult.growth_rate",
-        "SalesTrendResult.profit"
+        "SalesStats.profitTrend"
       ]
-    },
-    "frontend/src/api/sales-contract.ts": {
-      "count": 3,
-      "keys": [
-        "SalesContract.contract_date",
-        "SalesContract.delivery_terms",
-        "SalesContract.return_items"
-      ]
-    },
-    "frontend/src/api/sales-price.ts": {
-      "count": 1,
-      "keys": ["PricingStrategyRule.strategy_id"]
     },
     "frontend/src/api/sales.ts": {
-      "count": 5,
+      "count": 3,
       "keys": [
         "SalesDeliveryQueryParams.delivery_date_from",
         "SalesDeliveryQueryParams.delivery_date_to",
-        "SalesOrderQueryParams.order_date_from",
-        "SalesOrderQueryParams.order_date_to",
         "SalesStatisticsData.trends"
       ]
     },
@@ -338,26 +284,21 @@
     },
     "frontend/src/api/supplier-evaluation.ts": {
       "count": 1,
-      "keys": ["SupplierScore.rank"]
-    },
-    "frontend/src/api/system-governance.ts": {
-      "count": 2,
       "keys": [
-        "CreatePermissionDelegationPayload.permission_codes",
-        "PermissionDelegation.permission_codes"
+        "SupplierScore.rank"
       ]
     },
     "frontend/src/api/user-profile.ts": {
-      "count": 2,
-      "keys": ["ChangePasswordRequest.confirm_password", "UserProfile.role_names"]
+      "count": 1,
+      "keys": [
+        "UserProfile.role_names"
+      ]
     },
     "frontend/src/api/user.ts": {
       "count": 1,
-      "keys": ["User.role_names"]
-    },
-    "frontend/src/api/voucher.ts": {
-      "count": 1,
-      "keys": ["VoucherEntity.posted_by_name"]
+      "keys": [
+        "User.role_names"
+      ]
     }
   }
 }

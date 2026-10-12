@@ -129,7 +129,7 @@ pub const TYPICAL_PH: f64 = 6.0;
 pub const TYPICAL_LIQUOR_RATIO: f64 = 8.0;
 
 /// 染料-布类配伍性表（V15 P1 1.1：染料配伍性校验）
-/// 依据 fabric-industry-research §11.2，染料与布类不匹配（如分散染料用于棉）；会生成无效配方推荐，工艺员采纳后可能导致染色失败、批次报废。；返回 true 表示配伍；false 表示不配伍。
+/// 依据 .monkeycode/docs/research/fabric-industry-research.md §11.2，染料与布类不匹配（如分散染料用于棉）；会生成无效配方推荐，工艺员采纳后可能导致染色失败、批次报废。；返回 true 表示配伍；false 表示不配伍。
 pub fn is_dye_fabric_compatible(dye_type: &str, fabric_type: &str) -> bool {
     let dye = dye_type.trim().to_lowercase();
     let fabric = fabric_type.trim().to_lowercase();
@@ -162,7 +162,7 @@ pub fn validate_dye_fabric_compatibility(
 ) -> Result<(), AppError> {
     if let Some(dye) = dye_type {
         if !dye.trim().is_empty() && !is_dye_fabric_compatible(dye, fabric_type) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "染料[{}]与布类[{}]不配伍，请检查配方输入",
                 dye, fabric_type
             )));

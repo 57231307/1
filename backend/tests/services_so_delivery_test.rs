@@ -15,11 +15,12 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 
-/// 复现 ship_order 的订单状态校验门（不涉及数据库）
-/// 与 ship_order 中 `if order.status != so_status::APPROVED` 保持一致：仅已审批订单可发货，其余状态返回业务错误。
+/// 复现 ship_order 的订单状态校验门（不涉及数据库）。已审批可建首发，部分发货态可续发，其余状态返回业务错误。
 fn ship_order_status_gate(status: &str) -> Result<(), AppError> {
-    if status != so_status::APPROVED {
-        return Err(AppError::business("只有已审批的订单才能发货"));
+    if status != so_status::APPROVED && status != so_status::PARTIAL_SHIPPED {
+        return Err(AppError::business_displayable(
+            "仅已审批或部分发货的订单可发货，请确认订单状态后重试",
+        ));
     }
     Ok(())
 }
@@ -137,21 +138,21 @@ fn test_kcylztclzzqx() {
 
 // ===== ship_order 状态校验 =====
 
-/// test_fhztjy_jyspddkfh（验证 ship_order 中订单状态校验门：仅 APPROVED 状态可发货，其余状态拒绝。）
+/// test_fhztjy_jyspddkfh（验证 ship_order 中订单状态校验门，APPROVED 建首发、PARTIAL_SHIPPED 续发放行，其余状态拒绝。）
 #[test]
 fn test_fhztjy_jyspddkfh() {
-    // 已审批：放行
+    // 已审批、部分发货：放行（后者支持分批续发）
     assert!(ship_order_status_gate(so_status::APPROVED).is_ok());
+    assert!(ship_order_status_gate(so_status::PARTIAL_SHIPPED).is_ok());
     // 其他状态：拒绝
     assert!(ship_order_status_gate(so_status::DRAFT).is_err());
     assert!(ship_order_status_gate(so_status::PENDING).is_err());
     assert!(ship_order_status_gate(so_status::SHIPPED).is_err());
-    assert!(ship_order_status_gate(so_status::PARTIAL_SHIPPED).is_err());
     assert!(ship_order_status_gate(so_status::CANCELLED).is_err());
 
-    // 错误类型应为 BusinessError
+    // 发货状态门拒绝为可外显业务错误（出参 code 仍为 BUSINESS_ERROR）
     let err = ship_order_status_gate(so_status::DRAFT).unwrap_err();
-    assert!(matches!(err, AppError::BusinessError(_)));
+    assert!(matches!(err, AppError::BusinessErrorDisplayable(_)));
 }
 
 // ===== 全部发货判定 =====
@@ -441,7 +442,7 @@ async fn test_qxfh_xyzssjk() {
 }
 
 // ===== v14 批次 421 T-P1-5：缸号同订单校验 validate_dye_lot_consistency =====
-// 依据：fabric-industry-research.md §2.3 约束 5
+// 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5
 // 业务语义：一个缸号代表一次染色，同色不同缸存在肉眼可见色差，裁床严禁不同缸号面料混铺
 
 /// test_ghtddjy_kfhmxtg（无发货明细时校验通过（边界场景）。）

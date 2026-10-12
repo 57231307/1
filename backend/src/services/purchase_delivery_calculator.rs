@@ -9,6 +9,7 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::models::status::purchase_order;
 use crate::utils::error::AppError;
 
 /// 交期计算请求
@@ -88,6 +89,15 @@ impl PurchaseDeliveryCalculator {
     }
 
     /// 获取供应商平均交货周期
+    ///
+    /// 样本口径：仅统计**有到货记录**的历史订单。采购订单确认入库后按收货程度推进为
+    /// 全部收货 `COMPLETED` / 部分收货 `PARTIAL_RECEIVED`
+    /// （写入方依据：`services/purchase_receipt_ops/crud.rs` 的 `link_receipt_items_to_order_items`）。
+    /// `purchase_order` 词表（`models/status/purchase_inventory.rs`）中**没有** RECEIVED 状态，
+    /// 部分收货的权威拼写是 PARTIAL_RECEIVED；状态取值一律引用词表常量并以 $N 绑定
+    /// （`IN ($2, $3)`），禁止在 SQL 里手写状态字面量。
+    /// 已关闭单（CLOSED，收货后终态，见 `po/order_ops/lifecycle.rs` 的 close_order 门控）
+    /// 是否纳入交货周期样本属业务口径问题，本查询未擅自扩充，待产品拍板。
     async fn get_supplier_avg_lead_time(&self, supplier_id: i32) -> Result<(i32, i64), AppError> {
         let result: Option<sea_orm::QueryResult> = self
             .db
@@ -108,13 +118,16 @@ impl PurchaseDeliveryCalculator {
                     COUNT(*) as order_count
                 FROM purchase_orders
                 WHERE supplier_id = $1
-                AND order_status IN ('COMPLETED', 'RECEIVED', 'PARTIALLY_RECEIVED')
+                AND order_status IN ($2, $3)
                 AND actual_delivery_date IS NOT NULL
                 "#,
-                vec![supplier_id.into()],
+                vec![
+                    supplier_id.into(),
+                    purchase_order::COMPLETED.into(),
+                    purchase_order::PARTIAL_RECEIVED.into(),
+                ],
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("查询供应商交货周期失败: {}", e)))?;
+            .await?;
 
         if let Some(row) = result {
             let avg_days: Option<i32> = row.try_get_by_index::<i32>(0).ok();

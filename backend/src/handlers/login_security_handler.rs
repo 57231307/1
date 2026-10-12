@@ -228,9 +228,7 @@ pub async fn unlock_account(
     require_admin_role(&state, &auth).await?;
 
     // P1-2e 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    params
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    params.validate().map_err(AppError::from)?;
 
     use crate::models::log_login;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};

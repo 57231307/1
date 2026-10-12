@@ -47,6 +47,7 @@
       :total="pp.total"
       @view="ppProc.handleView"
       @edit="onEdit"
+      @approve="ppProc.handleApprove"
       @disable="ppProc.handleDisable"
       @history="ppProc.handleHistory"
     />

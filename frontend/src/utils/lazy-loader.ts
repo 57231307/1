@@ -19,6 +19,8 @@
  * }
  */
 
+import { logAuxLoadFailure } from '@/utils/logger';
+
 export interface LazyLoadState {
   [key: string]: boolean;
 }
@@ -31,7 +33,10 @@ export function createLazyLoader(): LazyLoadState {
 }
 
 /**
- * 如果未加载过则执行加载函数
+ * 如果未加载过则执行加载函数。
+ * loadFn 多为 async 取数、调用方不 await（fire-and-forget），若其内部未 catch（如 try/finally 无 catch），
+ * 一次权限 403 会以未处理 promise rejection 冒泡到页面、被判页面不健康崩溃。此处对返回的 Promise 兜底
+ * catch，权限 403 降 warn、其余仍 error，消除该未捕获 rejection。
  * @param key 加载标识
  * @param loadFn 加载函数
  * @param state 懒加载状态对象
@@ -43,7 +48,12 @@ export function loadIfNot(
 ): void {
   if (!state[key]) {
     state[key] = true;
-    loadFn();
+    const result = loadFn();
+    if (result && typeof (result as Promise<void>).catch === 'function') {
+      (result as Promise<void>).catch((err: unknown) =>
+        logAuxLoadFailure(`[lazy-loader] ${key} 懒加载取数失败`, err)
+      );
+    }
   }
 }
 

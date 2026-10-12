@@ -76,6 +76,12 @@ test.describe('列表交互与状态显示', () => {
     );
     await page.locator('.filter-card button:has-text("查询")').first().click();
     const res = await responsePromise;
+    // 先断状态再看集合：4xx（权限/契约回归）同样会让 waitForResponse 命中，
+    // 此时 body.data 缺失会让下面的 total 断言以"undefined≠0"的形式报出错误原因。
+    expect(
+      res.status(),
+      `GET /inventory/stock 列表读应 200，实际 ${res.status()} ${(await res.text()).slice(0, 200)}`
+    ).toBe(200);
     const body = await res.json();
 
     // 后端真实形态：分页对象 {items,total}，非匹配关键词必须返回 total=0 空集

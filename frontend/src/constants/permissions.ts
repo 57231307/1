@@ -12,7 +12,8 @@
  *
  * 命名规范：
  *   - 资源类型：连字符复数（如 users / sales-prices / sales-returns）
- *   - 动作：read / create / update / delete / approve / cancel / export / print
+ *   - 动作：read / create / update / delete / approve / reject / cancel / export / print
+ *     （取值与后端 middleware/permission.rs:227 PATH_ACTION_KEYWORDS 同源）
  *   - 常量名：大写下划线（如 USER_UPDATE 对应 'users:update'）
  */
 
@@ -65,6 +66,9 @@ export const PERMISSIONS = {
   CUSTOMER_CREATE: 'customers:create',
   CUSTOMER_UPDATE: 'customers:update',
   CUSTOMER_DELETE: 'customers:delete',
+  // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键；
+  // 每次成功揭示服务端强制留痕 pii_reveal_audit）
+  CUSTOMER_PII_REVEAL: 'customers:reveal',
 
   // 供应商管理（后端资源：suppliers）
   SUPPLIER_READ: 'suppliers:read',
@@ -90,7 +94,11 @@ export const PERMISSIONS = {
   SALES_PRICE_CREATE: 'sales-prices:create',
   SALES_PRICE_UPDATE: 'sales-prices:update',
   SALES_PRICE_DELETE: 'sales-prices:delete',
+  // 审批双动作：approve/reject 是两条独立端点（routes/sales.rs:196-203），权限键由 URL 段 +
+  // 末段动作推导（middleware/permission.rs:227 PATH_ACTION_KEYWORDS 含 approve/reject），
+  // 故拒绝入口必须用 reject 键，禁止拿 approve 键兼职放行。
   SALES_PRICE_APPROVE: 'sales-prices:approve',
+  SALES_PRICE_REJECT: 'sales-prices:reject',
 
   // 销售退货（后端资源：sales-returns）
   SALES_RETURN_READ: 'sales-returns:read',
@@ -104,18 +112,38 @@ export const PERMISSIONS = {
   SALES_CONTRACT_CREATE: 'sales-contracts:create',
   SALES_CONTRACT_UPDATE: 'sales-contracts:update',
   SALES_CONTRACT_DELETE: 'sales-contracts:delete',
+  // 审批双动作端点：routes/sales.rs:154-161（approve / reject 各一条），两键不互替
+  SALES_CONTRACT_APPROVE: 'sales-contracts:approve',
+  SALES_CONTRACT_REJECT: 'sales-contracts:reject',
+
+  // 采购收货（后端资源：purchase-receipts）的两个处置动作键：由 URL 末段派生
+  // （POST /purchase/receipts/{id}/concession|rejudge），与建单/审批权互不覆盖；
+  // 受授岗位集合见迁移 business/m0090_grant_purchase_receipt_concession_rejudge.rs
+  PURCHASE_RECEIPT_CONCESSION: 'purchase-receipts:concession',
+  PURCHASE_RECEIPT_REJUDGE: 'purchase-receipts:rejudge',
+
+  // 收货确认键：真实端点是 POST /purchase/receipts/{id}/confirm（URL 末段派生 confirm），
+  // 与建单权 create 分键；原先矩阵授的是 approve——该端点不存在，授权永不命中。
+  // 受授岗位集合见迁移 business/m0091_realign_purchase_receipt_confirm.rs
+  PURCHASE_RECEIPT_CONFIRM: 'purchase-receipts:confirm',
 
   // 采购合同（后端资源：purchase-contracts）
   PURCHASE_CONTRACT_READ: 'purchase-contracts:read',
   PURCHASE_CONTRACT_CREATE: 'purchase-contracts:create',
   PURCHASE_CONTRACT_UPDATE: 'purchase-contracts:update',
   PURCHASE_CONTRACT_DELETE: 'purchase-contracts:delete',
+  // 审批双动作端点：routes/purchase.rs:252-259（approve / reject 各一条），两键不互替
+  PURCHASE_CONTRACT_APPROVE: 'purchase-contracts:approve',
+  PURCHASE_CONTRACT_REJECT: 'purchase-contracts:reject',
 
   // 采购价格（后端资源：purchase-prices）
   PURCHASE_PRICE_READ: 'purchase-prices:read',
   PURCHASE_PRICE_CREATE: 'purchase-prices:create',
   PURCHASE_PRICE_UPDATE: 'purchase-prices:update',
   PURCHASE_PRICE_DELETE: 'purchase-prices:delete',
+  // 审批双动作端点：routes/purchase.rs:298-305（approve / reject 各一条），两键不互替
+  PURCHASE_PRICE_APPROVE: 'purchase-prices:approve',
+  PURCHASE_PRICE_REJECT: 'purchase-prices:reject',
 
   // 采购退货（后端资源：purchase-returns）
   PURCHASE_RETURN_READ: 'purchase-returns:read',
@@ -165,8 +193,16 @@ export const PERMISSIONS = {
   INVENTORY_CREATE: 'inventory:create',
   INVENTORY_UPDATE: 'inventory:update',
   INVENTORY_DELETE: 'inventory:delete',
-  // Batch 468 P0-S28：库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
+  // 库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
   INVENTORY_TRANSFER: 'inventory:transfer',
+  // 成品布入库标签打印（GET /inventory/pieces/{id}/print）。权限键非自造
+  // resource_type 由 URL 段推导——middleware/permission.rs::extract_resource_info 对
+  // 模块前缀 inventory（utils/path_utils.rs::is_business_module_prefix）取 segment4
+  // "pieces"（path_utils.rs:102-117 resolve_module_prefixed_resource 默认分支，
+  // 与 /inventory/transfers 取 "transfers" 同构）；action="print" 来自末段
+  // PATH_ACTION_KEYWORDS（permission.rs:218-221）。登录出参权限码即
+  // "{resource_type}:{action}"（handlers/auth_handler.rs:176）。
+  INVENTORY_PIECE_PRINT: 'pieces:print',
 
   // 销售订单（后端资源：sales-orders）
   SALES_ORDER_READ: 'sales-orders:read',
@@ -223,6 +259,7 @@ export const PERMISSIONS = {
   // SKU 对照表（后端资源：sku-mappings，采购域）
   SKU_MAPPING_READ: 'sku-mappings:read',
   SKU_MAPPING_CREATE: 'sku-mappings:create',
+  SKU_MAPPING_IMPORT: 'sku-mappings:import',
   SKU_MAPPING_UPDATE: 'sku-mappings:update',
   SKU_MAPPING_DELETE: 'sku-mappings:delete',
 

@@ -57,7 +57,7 @@ pub struct VoucherCreateArgs<'a> {
     /// 来源单据号（可选）
     pub source_bill_no: Option<&'a str>,
     /// 来源单据 ID（可选）
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     /// 批次号
     pub batch_no: &'a str,
     /// 色号
@@ -74,7 +74,7 @@ pub struct BridgeVoucherArgs<'a> {
     /// 来源单据号（可选）
     pub source_bill_no: Option<&'a str>,
     /// 来源单据 ID（可选）
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     /// 批次号
     pub batch_no: &'a str,
     /// 色号

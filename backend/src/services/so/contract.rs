@@ -50,7 +50,9 @@ impl SalesService {
         let customer_id_for_event = order.customer_id;
         let mut order_update: sales_order::ActiveModel = order.into();
         order_update.status = Set(so_status::REJECTED.to_string());
-        order_update.notes = Set(Some(reason));
+        // 拒绝理由落 rejected_reason 专列（m0079）；notes 回归订单备注语义，
+        // 此前 reject 覆盖写 notes 属挪用毁数，存量不回填（无标记无法定性）。
+        order_update.rejected_reason = Set(Some(reason));
         order_update.updated_at = Set(chrono::Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,

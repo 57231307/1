@@ -19,6 +19,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr,
 };
 
 use crate::models::chemical_lot::{
@@ -35,8 +36,12 @@ use crate::services::chemical_ops::types::{
 use crate::services::chemical_service::{ChemicalLotService, compute_total_cost};
 
 impl ChemicalLotService {
-    /// 创建染化料批次
-    pub async fn create(&self, req: CreateChemicalLotRequest) -> Result<LotModel, AppError> {
+    /// 创建染化料批次；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateChemicalLotRequest,
+        user_id: i32,
+    ) -> Result<LotModel, AppError> {
         // 校验染化料主数据存在
         if MasterEntity::find_by_id(req.chemical_id)
             .filter(chemical_master::Column::IsDeleted.eq(false))
@@ -50,14 +55,20 @@ impl ChemicalLotService {
             )));
         }
 
-        // 校验批号唯一性
+        // 校验批号唯一性（未删除记录中——本表既定语义：软删后批号可复用，
+        // 与 category/master 同口径；判据"用户改一下批号即可通过"归可外显业务族，
+        // 文案只回显用户自己提交的批号，真因同时落 WARN 日志，不静默）
         if let Some(_existing) = LotEntity::find()
             .filter(chemical_lot::Column::LotNo.eq(&req.lot_no))
             .filter(chemical_lot::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
         {
-            return Err(AppError::business(format!("批号 {} 已存在", req.lot_no)));
+            tracing::warn!("创建染化料批次被拒：批号 {} 在未删除行中已存在", req.lot_no);
+            return Err(AppError::business_displayable(format!(
+                "批号 {} 已存在，请更换批号后重试",
+                req.lot_no
+            )));
         }
 
         // 校验数量非负
@@ -74,6 +85,9 @@ impl ChemicalLotService {
         let total_cost = compute_total_cost(quantity_received, unit_cost);
 
         let now = crate::utils::date_utils::utc_now_fixed();
+
+        // lot_no 随后被移入 ActiveModel，先留一份用于 INSERT 竞态兜底文案
+        let lot_no_for_race = req.lot_no.clone();
 
         let active = LotActiveModel {
             id: Default::default(),
@@ -96,15 +110,30 @@ impl ChemicalLotService {
             status: Set(chemical_lot_status::ACTIVE.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("染化料批次创建失败: {}", e)))?;
+        let result = active.insert(&*self.db).await.map_err(|e| {
+            // 竞态兜底（同 category「预校验 + 竞态兜底」范式）：查重通过后并发
+            // 抢先插入同批号时，DB 层 UNIQUE（chemical_lot.lot_no 部分唯一索引，
+            // 待数据库专家补，见 wave-i 报告）以 23505 显式拒绝；单语句 INSERT
+            // 原子失败不留半行，归类与预检同口径，禁止拍平成 500 DATABASE_ERROR。
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    "染化料批次创建撞批号唯一约束（并发同号，lot_no={}）：行未写入，底层错误={}",
+                    lot_no_for_race,
+                    e
+                );
+                AppError::business_displayable(format!(
+                    "批号 {} 已存在，请更换批号后重试",
+                    lot_no_for_race
+                ))
+            } else {
+                AppError::database(format!("染化料批次创建失败: {}", e))
+            }
+        })?;
         Ok(result)
     }
 

@@ -4424,10 +4424,12 @@ UPDATE "bpm_task" SET "status" = 'pending' WHERE "status" = 'PENDING';
 ALTER TABLE "dye_batch" ALTER COLUMN "status" SET DEFAULT 'pending_schedule';
 UPDATE "dye_batch" SET "status" = 'pending_schedule' WHERE "status" = 'pending';
 
--- 6) sales_prices.status / purchase_prices.status：词表 models/status/general.rs 的
---    master_data = {active, inactive, pending, approved, ...} 小写；建单写
---    master_data::PENDING（sales_price_service.rs:113 / purchase_price_service.rs:101），
---    审批写 approved、列表按 active 过滤，全为小写。m0009:249 / m0011:188 建表写
+-- 6) sales_prices.status / purchase_prices.status：价格域权威词表 = models/status/sales.rs 的
+--    price_approval = {pending, approved, inactive} 小写；建单写 pending、审批写 approved、
+--    采购侧停用写 inactive，读侧比对全小写。general.rs 的 master_data 是给
+--    supplier/customer/fixed_asset 的启用/停用词表，价格域曾借用它作权威属误挂——
+--    值域 CHECK 已由 m_price_vocab_check 按两表各自写入方全集分钉，契约测试锁词表==约束。
+--    m0009:249 / m0011:188 建表写
 --    DEFAULT 'ACTIVE'（大写越界，绕过 service 的价目行既不落入 pending 审批流也不被 active 过滤命中）。
 --    回填 pending（建单显式写值）。
 ALTER TABLE "sales_prices"    ALTER COLUMN "status" SET DEFAULT 'pending';
@@ -4589,10 +4591,65 @@ COMMENT ON COLUMN "purchase_order_item"."supplier_color_no" IS '供应商色号�
         crate::domain::production::m0058_add_delivery_tolerance::Migration
             .up(manager)
             .await?;
+        // m0063 单据号列 UNIQUE 兜底：9 张目标表中 outsourcing_order /
+        // outsourcing_receipt / finance_invoices 在本域内建表（business 六张更早），
+        // 且该迁移带 fail-visible 存量重号检测（发现重复即 RAISE EXCEPTION 中止），
+        // 必须晚于全部建表/回填语句，故照 m0058 先例后置到本域 up 末尾调用。
+        crate::domain::production::m0063_add_document_no_unique_constraints::Migration
+            .up(manager)
+            .await?;
+        // m0065 委外发料匹占用存量回填：目标表 outsourcing_order /
+        // outsourcing_order_item 均在本域内建表（:3227/:671），且带 fail-visible
+        // 存量异常检测（交叉占用/匹号多行/悬空引用命中即 RAISE EXCEPTION），
+        // 照 m0058/m0063 先例后置到本域 up 末尾（晚于 m0063，回填不依赖其约束）。
+        crate::domain::production::m0065_backfill_outsourcing_reserved_pieces::Migration
+            .up(manager)
+            .await?;
+        // m0068 化学品三表编码列部分唯一索引：目标表均在本域内建表（:2457/:2499/:2472），
+        // 且带 fail-closed 存量重复探测（命中即 RAISE 中止，绝不洗数据），
+        // 照 m0058/m0063/m0065 先例后置到本域 up 末尾（晚于 m0065）。
+        crate::domain::production::m0068_add_chemical_code_partial_unique_constraints::Migration
+            .up(manager)
+            .await?;
+        // m0075 委外收回入库单补三列打卷实测值：目标表 outsourcing_receipt 在本域内建表
+        // （:689），且带结构前提 fail-visible（表缺失即 RAISE EXCEPTION）与 up 末尾
+        // information_schema/pg_constraint 复核，必须晚于建表语句，照 m0058/m0063/m0065/m0068
+        // 先例后置到本域 up 末尾（晚于 m0068）。
+        crate::domain::production::m0075_add_outsourcing_receipt_measured_values::Migration
+            .up(manager)
+            .await?;
+        // m0089 其余多态单据 ID 列拓宽：6 张目标表分散在 system / business / v15，
+        // 其中 period_adjustment_record 由本域建表，必须晚于全部建表语句才全部在场，
+        // 照 m0058/m0063/m0068/m0075 先例后置到本域 up 末尾（晚于 m0075）。
+        crate::domain::system::m0089_widen_remaining_polymorphic_bill_id_columns::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 与 up 严格逆序：m0089 最后应用故最先回滚（先做逐列溢出探测，超限即 RAISE 中止）。
+        crate::domain::system::m0089_widen_remaining_polymorphic_bill_id_columns::Migration
+            .down(manager)
+            .await?;
+        // 与 up 严格逆序：m0075 最后应用故最先回滚（撤三条值域 CHECK + 丢弃三列，
+        // 其 down 先点名"已补录实测值行数"再删除，不留静默）。
+        crate::domain::production::m0075_add_outsourcing_receipt_measured_values::Migration
+            .down(manager)
+            .await?;
+        // 与 up 对称：m0068 最后应用故最先回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
+        crate::domain::production::m0068_add_chemical_code_partial_unique_constraints::Migration
+            .down(manager)
+            .await?;
+        // 与 up 对称：m0065 最后应用故最先回滚（回填 RESERVED 与运行时占用不可
+        // 区分，其 down 显式不做任何写操作，见迁移文件内注释）。
+        crate::domain::production::m0065_backfill_outsourcing_reserved_pieces::Migration
+            .down(manager)
+            .await?;
+        // 与 up 对称：m0063 先于 m0065 回滚（仅 DROP INDEX IF EXISTS，不触碰数据行）。
+        crate::domain::production::m0063_add_document_no_unique_constraints::Migration
+            .down(manager)
+            .await?;
         // 回滚 SKU 映射唯一约束、索引和 purchase_order_item 快照列
         let rollback_sql = r#"
 ALTER TABLE "purchase_order_item" DROP COLUMN IF EXISTS "supplier_color_no";

@@ -9,6 +9,7 @@
 //! 业务规则：
 //! - 仅 SHIPPED 状态的发货单可取消（PENDING 是预留态，本系统发货即 SHIPPED）
 //! - 库存恢复（对称反向）：quantity_available += qty，quantity_shipped -= qty
+//! - 匹号恢复（对称反向）：染色布出库明细携带的匹号 CAS SHIPPED→AVAILABLE（未命中 WARN 留痕）
 //! - 预留恢复：将 CONSUMED 状态的预留恢复为 PENDING
 //! - 订单明细回退：sales_order_item.shipped_quantity -= qty
 //! - 订单状态回退：若所有发货单取消，订单 SHIPPED→APPROVED；部分取消 SHIPPED→PARTIAL_SHIPPED
@@ -39,10 +40,39 @@ impl SalesService {
         warehouse_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        // 匹号回退去重：一笔出库按缸拆行时同一匹可能出现在多行出库明细，只回退一次
+        let mut restored_pieces: std::collections::HashSet<(String, i32, String)> =
+            std::collections::HashSet::new();
         for item in delivery_items {
             // 恢复库存（对称反向）：quantity_available += qty，quantity_shipped -= qty；
             // 按出库明细记录的实际扣减落点（stock_id / 四维）精确回位，不做兜底
             self.restore_inventory(item, warehouse_id, txn).await?;
+
+            // 匹号回退（对称反向于发货时的 CAS 消耗）：染色布出库明细携带匹号时，
+            // 该匹状态 SHIPPED→AVAILABLE；未命中（历史数据未走匹号闭环）域服务内 WARN 留痕，
+            // 不阻断取消（取消本身是业务事实），与委外取消释放同先例。
+            if let Some(piece_no) = item
+                .piece_no
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                if !item.color_no.is_empty() {
+                    // 染色布（色号非空）才消耗过匹；白坯出库不携带匹号维度
+                    let key = (piece_no.to_string(), item.product_id, item.batch_no.clone());
+                    if restored_pieces.insert(key) {
+                        crate::services::piece_domain_service::restore_pieces_on_delivery_cancel(
+                            txn,
+                            item.product_id,
+                            warehouse_id,
+                            &item.batch_no,
+                            piece_no,
+                            None,
+                        )
+                        .await?;
+                    }
+                }
+            }
 
             // 回退订单明细已发货数量
             sales_order_item::Entity::update_many()

@@ -73,11 +73,17 @@ export interface SalesReturnItemInput {
   reason?: string;
 }
 
-/** 更新明细的写入契约（UpdateReturnItemRequest）：后端仅接受这三个字段。 */
+/**
+ * 更新明细的写入契约（handlers/sales_return_handler.rs UpdateReturnItemRequest）：
+ * 后端仅接受这三个字段。三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、
+ * 显式 null=清空、有值=覆盖。quantity/unit_price 为 NOT NULL 列（m0011 DDL）：
+ * 禁止送 null（后端 400「退货数量/退货单价不能清空：该字段为必填项」）；
+ * reason 映射 DB 可空列 notes（sales_return_item），清空须显式送 null。
+ */
 export interface SalesReturnItemUpdate {
   quantity?: number;
   unit_price?: number;
-  reason?: string;
+  reason?: string | null;
 }
 
 /**
@@ -95,15 +101,25 @@ export interface CreateSalesReturnRequest {
   notes?: string;
 }
 
-/** 更新退货单表头请求（对齐 backend UpdateSalesReturnRequest，字段全可选）。 */
+/**
+ * 更新退货单表头请求（对齐 backend UpdateSalesReturnRequest）。
+ * 三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖。
+ * - customer_id/return_date/warehouse_id/reason_type 映射 NOT NULL 列（m0011 DDL；
+ *   reason_type 驱动复合列 reason 的 type 部分）：禁止送 null
+ *   （后端 400「XX不能清空：该字段为必填项」）——不改即省略键；
+ * - order_id（sales_order_id）与 notes（remarks）为 DB 可空列：清空须显式送 null；
+ * - reason_detail 是虚拟入参（reason 列为 "type: detail" 复合形态，无独立列）：
+ *   仅随 reason_type 一并提交才有意义；reason_detail 送 null 且同时送 reason_type=只落
+ *   type 段（清空 detail）；单独送 null 不带 reason_type 会被后端显式拒绝。
+ */
 export interface UpdateSalesReturnRequest {
-  order_id?: number;
+  order_id?: number | null;
   customer_id?: number;
   return_date?: string;
   warehouse_id?: number;
   reason_type?: string;
-  reason_detail?: string;
-  notes?: string;
+  reason_detail?: string | null;
+  notes?: string | null;
 }
 
 /** 新增退货明细请求（对齐 backend CreateSalesReturnItemRequest）。 */

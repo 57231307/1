@@ -1,12 +1,12 @@
 /**
  * usePrRtnProc.ts - 采购退货业务流程 composable
- * 任务编号: P14 批 2 I-3 第 2 批（拆分原 purchase-return/index.vue）
  * 提供采购退货提交流程（提交审批/审批/拒绝/删除）操作
- * 行为完全保持一致（仅结构重构）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
+import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import {
   submitPurchaseReturn,
   approvePurchaseReturn,
@@ -36,7 +36,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
       msg.success('submitSuccess');
       await deps.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('提交失败:', error);
       }
     }
@@ -49,26 +49,41 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
     approveDialogVisible.value = true;
   };
 
-  /** 审批通过 */
+  /**
+   * 审批通过（submitted → approved），理由选填：先经 promptApprovalReason(false) 采集，
+   * 取消即中止（非错误，不记错误日志）。留空时省略 approval_reason 键，
+   * purchase_return.approval_reason 列写 NULL（不伪造空串）。
+   */
   const handleApproveConfirm = async () => {
+    const approvalReason = await promptApprovalReason(false);
+    if (approvalReason === null) return;
     try {
-      await approvePurchaseReturn(approveForm.id);
+      await approvePurchaseReturn(approveForm.id, approvalReason);
       msg.success('approveSuccess');
       approveDialogVisible.value = false;
       await deps.fetchData();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('approveFailed'));
       logger.error('审批失败:', error);
     }
   };
 
-  /** 审批拒绝 */
+  /**
+   * 审批拒绝（→ rejected）：拒绝理由后端必填（trim 非空），先经 promptRejectReason() 采集再提交，
+   * 取消即中止；理由落 purchase_return.rejected_reason 专列，服务端定性 400 文案原样透出。
+   */
   const handleReject = async () => {
+    const reason = await promptRejectReason();
+    if (reason === null) return;
     try {
-      await rejectPurchaseReturn(approveForm.id, approveForm.remark);
-      msg.success('rejected');
+      await rejectPurchaseReturn(approveForm.id, reason);
+      msg.success('rejectSuccess');
       approveDialogVisible.value = false;
       await deps.fetchData();
-    } catch (error) {
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      ElMessage.error(errMsg || msg.translate('rejectFailed'));
       logger.error('拒绝失败:', error);
     }
   };
@@ -81,7 +96,7 @@ export function usePrRtnProc(deps: { fetchData: () => Promise<void> }) {
       msg.success('deleteSuccess');
       await deps.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('删除失败:', error);
       }
     }

@@ -11,6 +11,7 @@ import {
   safeGetList,
   safePostAction,
   verifyEndpointHealthy,
+  verifyDownloadEndpointHealthy,
   ensureTestEntities,
 } from './helpers';
 
@@ -63,7 +64,8 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     const inspId = list.items?.[0]?.id;
     if (inspId) {
       await apiCallRaw(page, 'GET', `/production/fabric-inspections/${inspId}`);
-      await verifyEndpointHealthy(page, `/production/fabric-inspections/${inspId}/defects`);
+      // 疵点列表断言统一收敛到下方"真实端点 + 同源 id"一处（seed 有行走 inspId、空库走自建，
+      // 两条分支都被覆盖），不再在此处对同一 URL 重复探测
       await safePostAction(page, `/production/fabric-inspections/${inspId}/start`);
       // grade 需携带 GradeInspectionRequest（fabric_inspection_service.rs:181）：
       // inspected_yards 必填(Decimal>0)。空体 → serde 422 missing field inspected_yards。
@@ -73,12 +75,18 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/fabric-inspections/${inspId}/roll`);
       await safePostAction(page, `/production/fabric-inspections/${inspId}/close`);
     }
-    await verifyEndpointHealthy(page, '/production/fabric-defects?page=1&page_size=5');
-    // 确保有验布记录（CI 库可能为空）：无则先创建一条，物理测试挂在其上
+    // 疵点列表在业务上按验布单归属查询（全局疵点列表无消费方、不注册）：
+    // GET /production/fabric-defects 未注册——route-snapshot.txt :80/:708/:1384 分别只有
+    // by-id DELETE / by-id GET / 创建 POST，且前端 src 无任何消费方；真实契约是
+    // GET /production/fabric-inspections/{id}/defects（snapshot :711，后端
+    // routes/production.rs:287，前端消费方 api/fabric-inspection.ts listFabricDefectsByInspection）。
+    // {id} 与真实行同源：seed 列表首行 inspId 存在则直接用；CI 库为空则按本仓
+    // "自建自流转"范式于用例内 POST 一张验布单再查其疵点。严禁臆造入参（1/TEST001 等）——
+    // 参数命不中真实行会把契约探测变成 404/500 假红或空转假绿。
     // inspId 由 items?.[0]?.id 取值，空列表时为 undefined（noUncheckedIndexedAccess
     // 关闭使编译器把索引结果误判为 number），显式标注可选以匹配真实运行形状
-    let phyInspId: number | undefined = inspId;
-    if (!phyInspId) {
+    let defectInspId: number | undefined = inspId;
+    if (defectInspId == null) {
       const created = await apiCall<{ id?: number }>(
         page,
         'POST',
@@ -89,25 +97,32 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
           color_no: 'E2E-CN',
         }
       );
-      phyInspId = created.data?.id;
+      defectInspId = created.data?.id;
     }
-    if (phyInspId) {
-      // 物理指标仅 inspecting/graded 状态可录入：先把验布记录推进到 inspecting
-      await safePostAction(page, `/production/fabric-inspections/${phyInspId}/start`);
-      await safePostAction(page, '/production/fabric-inspections/physical-tests', {
-        // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
-        inspection_id: phyInspId,
-        test_item: 'tensile_strength',
-        test_value: 500,
-        test_result: 'pass',
-      });
+    if (defectInspId == null) {
+      throw new Error(
+        '[flow/24 疵点] 验布单 seed 列表为空且自建未返回 id，拒绝以臆造 id 探测疵点端点，判红暴露 setup 问题'
+      );
     }
+    await verifyEndpointHealthy(page, `/production/fabric-inspections/${defectInspId}/defects`);
+    // 物理测试挂在同一张真实验布单上（复用上方已解析的 defectInspId，不再二次创建）
+    // 物理指标仅 inspecting/graded 状态可录入：先把验布记录推进到 inspecting
+    await safePostAction(page, `/production/fabric-inspections/${defectInspId}/start`);
+    await safePostAction(page, '/production/fabric-inspections/physical-tests', {
+      // AddPhysicalTestRequestDto: inspection_id/test_item/test_value 必填
+      inspection_id: defectInspId,
+      test_item: 'tensile_strength',
+      test_value: 500,
+      test_result: 'pass',
+    });
   });
 
   test('产量工资：工价+工票+计算+确认+支付', async ({ page }) => {
     await verifyEndpointHealthy(page, '/production/wage-rates?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/wage-records?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/production/wage-records/export');
+    // 工资记录导出 xlsx（production.rs:322 已注册，handler 直出二进制、无 download_token fail-closed 网关）；
+    // 返回非 JSON，故用下载专用严格校验（2xx=健康；404 路由漂移/403 权限/5xx 均判红），不再 optional 吞 404。
+    await verifyDownloadEndpointHealthy(page, '/production/wage-records/export');
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -128,7 +143,42 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
     await verifyEndpointHealthy(page, '/production/energy-consumptions?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/energy-rules?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/energy-allocations?page=1&page_size=5');
-    await verifyEndpointHealthy(page, '/production/energy-rules/effective');
+    // energy-rules/effective 契约：handler energy_handler.rs:380-388 Query<EffectiveRuleQuery>
+    // （结构体 :116-121）workshop(String)/meter_type(String)/date(NaiveDate) 三者皆非 Option、无 serde
+    // 默认 → 缺任一即 serde 400（报告只点了 workshop，代码显示 date/meter_type 同为必填）。
+    // service get_effective_rule(energy_ops/allocation_rule.rs:320-348) 按 workshop+meter_type+
+    // status=ACTIVE(:329)+effective_date<=date 过滤，无命中返回 Ok(None)→200。本 spec 无预置能耗车间
+    // （migration v15/mod.rs:2788 仅 CREATE TABLE，全树无 INSERT 种子），故由本例自建一条带车间的规则
+    // （POST /production/energy-rules，CreateRuleRequest energy_ops/allocation_rule.rs:33-46），再回读其
+    // workshop/meter_type 作 effective 入参——取值来源=本例 POST 响应模型，非臆造。词表取证：
+    // meter_type=electricity（models/energy_meter.rs:24 water/electricity/steam/gas/compressed_air）、
+    // allocation_basis=by_workshop（models/status/wage_energy_chemical_business.rs:102）；再激活
+    // draft→active（energy_ops/allocation_rule.rs:247）使 date 命中真实 ACTIVE 规则。
+    const effToday = new Date().toISOString().slice(0, 10);
+    const effRule = await apiCallRaw<{ id: number; workshop: string | null; meter_type: string }>(
+      page,
+      'POST',
+      '/production/energy-rules',
+      {
+        rule_name: genCode('E2EENR'),
+        meter_type: 'electricity',
+        allocation_basis: 'by_workshop',
+        workshop: `E2E能耗车间${Date.now().toString().slice(-6)}`,
+        effective_date: effToday,
+      }
+    );
+    expect(
+      effRule.id,
+      '自建能耗规则应返回数值 id（CreateRuleRequest→energy_allocation_rule::Model）'
+    ).toBeGreaterThan(0);
+    expect(effRule.workshop, '自建规则应回读出车间（effective 入参取值来源）').toBeTruthy();
+    await safePostAction(page, `/production/energy-rules/${effRule.id}/activate`);
+    await verifyEndpointHealthy(
+      page,
+      `/production/energy-rules/effective?workshop=${encodeURIComponent(
+        effRule.workshop as string
+      )}&meter_type=${effRule.meter_type}&date=${effToday}`
+    );
     const list = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
@@ -166,13 +216,16 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
   });
 
   test('产能分析+排程+质量标准+质量检验+BOM+打样+缺料+缸号状态机+委外', async ({ page }) => {
-    // 产能
+    // 产能（overview/bottlenecks/load-analysis/overload-check 为 BI 统计类增强端点，后端已注册）
     await verifyEndpointHealthy(page, '/production/capacity/overview');
     await verifyEndpointHealthy(page, '/production/capacity/bottlenecks');
     await verifyEndpointHealthy(page, '/production/capacity/work-centers?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/production/capacity/load-analysis');
     await verifyEndpointHealthy(page, '/production/capacity/overload-check');
-    // 排程
+    // 排程（gantt 后端已注册：routes/mod.rs:150 → scheduling_handler::get_gantt_data，
+    // GanttQuery 三字段全 Option（scheduling_handler.rs:134-138），无 query 参也返回
+    // 2xx 结构体（空数据 items 为空数组）→ admin 必 2xx，迁 strict，不再 optional 吞 404；
+    // conflicts 后端已注册须 strict）
     await verifyEndpointHealthy(page, '/scheduling/gantt');
     await verifyEndpointHealthy(page, '/scheduling/conflicts');
     await verifyEndpointHealthy(page, '/scheduling/tasks?page=1&page_size=5');
@@ -192,12 +245,20 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       'GET',
       '/boms?page=1&page_size=1'
     );
-    if (bomList.items?.[0]?.id) {
-      await apiCallRaw(page, 'GET', `/boms/${bomList.items?.[0].id}`);
-      await verifyEndpointHealthy(page, `/boms/${bomList.items?.[0].id}/tree`);
-      await safePostAction(page, `/boms/${bomList.items?.[0].id}/requirements`, { quantity: 100 });
-      await safePostAction(page, `/boms/${bomList.items?.[0].id}/copy`);
+    // 显式前置（D-1 Q3 数据面判据）：seed 来源 id 参与 strict 探针时，空清单不许整段
+    // if 静默跳过（零覆盖假绿），必须 fail-visible 判红点名数据面缺前置。
+    // BOM 行由 beforeEach ensureTestEntities（helpers.ts 第 13 步，createBomUI 造数）保证；
+    // 走到空分支即 seed 真缺陷，归因数据面而非注册面。
+    const bomId = bomList.items?.[0]?.id;
+    if (!bomId) {
+      throw new Error(
+        `GET /boms?page=1&page_size=1 返回 items=${JSON.stringify(bomList.items)}——无一条 BOM 行：数据面缺前置（ensureTestEntities 未真实落 BOM），/boms/{id}/tree 等 strict 探针拒绝空转，禁静默跳过`
+      );
     }
+    await apiCallRaw(page, 'GET', `/boms/${bomId}`);
+    await verifyEndpointHealthy(page, `/boms/${bomId}/tree`);
+    await safePostAction(page, `/boms/${bomId}/requirements`, { quantity: 100 });
+    await safePostAction(page, `/boms/${bomId}/copy`);
     // 打样
     await verifyEndpointHealthy(page, '/production/lab-dip/requests?page=1&page_size=5');
     const ldList = await apiCallRaw<{ items: Array<{ id: number }> }>(
@@ -212,7 +273,7 @@ test.describe('生产模块全量：API 端点 + 真实 UI 交互', () => {
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/start-sampling`);
       await safePostAction(page, `/production/lab-dip/requests/${reqId}/complete`);
     }
-    // 缺料预警
+    // 缺料预警（alerts/threshold/summary 后端均已注册，strict 验证）
     await verifyEndpointHealthy(page, '/material-shortage/alerts?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/material-shortage/summary');
     await verifyEndpointHealthy(page, '/material-shortage/threshold');

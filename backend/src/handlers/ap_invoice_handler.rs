@@ -101,7 +101,7 @@ pub async fn create_ap_invoice(
     // 验证请求
     req.validate().map_err(|e| {
         warn!("用户 {} 创建应付单验证失败：{}", auth.username, e);
-        AppError::validation(e.to_string())
+        AppError::from(e)
     })?;
 
     let service = ApInvoiceService::new(state.db.clone());
@@ -129,8 +129,7 @@ pub async fn update_ap_invoice(
     info!("用户 {} 更新应付单 ID: {}", auth.username, id);
 
     // TS-S-5 安全加固（2026-06-26）：补齐 validate 调用
-    req.validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    req.validate().map_err(AppError::from)?;
 
     let service = ApInvoiceService::new(state.db.clone());
     let invoice = service.update(id, req, auth.user_id).await?;

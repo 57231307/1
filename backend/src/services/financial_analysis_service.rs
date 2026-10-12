@@ -498,7 +498,7 @@ impl FinancialAnalysisService {
     async fn fallback_sales_revenue_from_ar(&self) -> Result<Decimal, AppError> {
         use crate::models::ar_invoice;
         let ar_total: Option<Decimal> = ar_invoice::Entity::find()
-            .filter(ar_invoice::Column::Status.ne("CANCELLED"))
+            .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
             .all(&*self.db)
             .await?
             .iter()
@@ -512,7 +512,10 @@ impl FinancialAnalysisService {
     async fn fallback_purchase_cost_from_ap(&self) -> Result<Decimal, AppError> {
         use crate::models::ap_invoice;
         let ap_total: Option<Decimal> = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::InvoiceStatus.ne("CANCELLED"))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .ne(crate::models::status::common::STATUS_CANCELLED),
+            )
             .all(&*self.db)
             .await?
             .iter()
@@ -1058,16 +1061,16 @@ impl FinancialAnalysisService {
     fn prior_period(period: &str) -> Result<String, AppError> {
         let parts: Vec<&str> = period.split('-').collect();
         if parts.len() != 2 {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "期间格式错误，应为 YYYY-MM".to_string(),
             ));
         }
         let year: i32 = parts[0]
             .parse()
-            .map_err(|_| AppError::validation("年份解析错误"))?;
+            .map_err(|_| AppError::validation_displayable("年份解析错误"))?;
         let month: u32 = parts[1]
             .parse()
-            .map_err(|_| AppError::validation("月份解析错误"))?;
+            .map_err(|_| AppError::validation_displayable("月份解析错误"))?;
         if month == 1 {
             Ok(format!("{:04}-12", year - 1))
         } else {

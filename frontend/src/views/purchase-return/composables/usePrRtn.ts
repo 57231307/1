@@ -31,7 +31,7 @@ import {
 } from '@/api/purchase-inspection';
 import { useTableApi } from '@/composables/useTableApi';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { i18n } from '@/i18n';
 import { PURCHASE_RETURN_STATUS } from '@/utils/purchase-return-status';
 import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
@@ -48,6 +48,13 @@ export interface ReturnFormItem {
   quantity: number;
   unitPrice?: number;
   reason?: string;
+  /**
+   * 面料追溯维度（审批按 产品+色号+缸号+批次 精确扣库存）。undefined=未设定：
+   * 新建时落库为空串（白坯/单库存行语义），编辑时不下发（不覆盖后端原值）。
+   */
+  colorNo?: string;
+  dyeLotNo?: string;
+  batchNo?: string;
 }
 
 /**
@@ -108,7 +115,7 @@ export function usePrRtn() {
       end_date: '',
     },
     onError: (err: unknown) => {
-      logger.error('获取数据失败:', err);
+      logAuxLoadFailure('获取数据失败:', err);
     },
   });
 
@@ -221,36 +228,52 @@ export function usePrRtn() {
 
   /** 加载供应商列表 */
   const fetchSuppliers = async () => {
-    const res = await getSupplierList({ page: 1, page_size: 1000 });
-    suppliers.value = (res.data?.items || []).map((s: { id: number; supplier_name: string }) => ({
-      id: s.id,
-      name: s.supplier_name,
-    }));
+    try {
+      const res = await getSupplierList({ page: 1, page_size: 1000 });
+      suppliers.value = (res.data?.items || []).map((s: { id: number; supplier_name: string }) => ({
+        id: s.id,
+        name: s.supplier_name,
+      }));
+    } catch (error) {
+      logAuxLoadFailure('获取供应商列表失败', error);
+    }
   };
 
   /** 加载采购订单列表 */
   const fetchPurchaseOrders = async () => {
-    const res = await getPurchaseOrderList({ page: 1, page_size: 500 });
-    purchaseOrders.value = (res.data?.items || []) as unknown as PurchaseOrder[];
+    try {
+      const res = await getPurchaseOrderList({ page: 1, page_size: 500 });
+      purchaseOrders.value = (res.data?.items || []) as unknown as PurchaseOrder[];
+    } catch (error) {
+      logAuxLoadFailure('获取采购订单列表失败', error);
+    }
   };
 
   /** 加载产品列表 */
   const fetchProducts = async () => {
-    const res = await getProductList({ page: 1, page_size: 1000 });
-    const items = (res.data?.items ||
-      (res.data as unknown as { list?: Product[] })?.list ||
-      []) as Product[];
-    products.value = items.map(p => ({
-      id: p.id,
-      name: p.product_name,
-      price: 0,
-    }));
+    try {
+      const res = await getProductList({ page: 1, page_size: 1000 });
+      const items = (res.data?.items ||
+        (res.data as unknown as { list?: Product[] })?.list ||
+        []) as Product[];
+      products.value = items.map(p => ({
+        id: p.id,
+        name: p.product_name,
+        price: 0,
+      }));
+    } catch (error) {
+      logAuxLoadFailure('获取产品列表失败', error);
+    }
   };
 
   /** 加载仓库列表（供 warehouse_id 选择，后端 CreatePurchaseReturnRequest 接受该字段） */
   const fetchWarehouses = async () => {
-    const res = await getWarehouseList({ page: 1, page_size: 1000 });
-    warehouses.value = res.data?.items || [];
+    try {
+      const res = await getWarehouseList({ page: 1, page_size: 1000 });
+      warehouses.value = res.data?.items || [];
+    } catch (error) {
+      logAuxLoadFailure('获取仓库列表失败', error);
+    }
   };
 
   /** 查询：先同步日期范围，重置页码，触发加载 */
@@ -305,6 +328,11 @@ export function usePrRtn() {
     quantity: raw.quantity_returned,
     unitPrice: raw.unit_price,
     reason: raw.notes ?? undefined,
+    // 维度回读：后端有值才回填；缺省保持 undefined（编辑提交时不下发，避免误覆盖原维度）。
+    // 依赖后端 PurchaseReturnItemDto 补 SELECT 这三列（见 api 注释），否则编辑态维度为空态需退货员重选。
+    colorNo: raw.color_no ?? undefined,
+    dyeLotNo: raw.dye_lot_no ?? undefined,
+    batchNo: raw.batch_no ?? undefined,
   });
 
   /**
@@ -312,7 +340,8 @@ export function usePrRtn() {
    * 与 quotation copy 同构：加载源单数据 → 以新建态预填 → 保存走 POST 建新单
    *
    * 明细口径（契约以出参为准）：GET /purchase/inspections/{id}/items 直接序列化
-   * `purchase_inspection_item::Model`（backend/src/services/purchase_inspection_service.rs:323），
+   * `purchase_inspection_item::Model`（backend/src/services/purchase_inspection_service
+   * 的 list_inspection_items 直接序列化实体），
    * 业务列只有 product_id / item_name / qualified_quantity / unqualified_quantity / remark，
    * 没有 failed_quantity / passed_quantity / product_name / defect_reason 这些键
    * （历史前端按它们取值，恒 undefined → `undefined > 0` 恒 false → 明细永远预填不出行，
@@ -354,6 +383,8 @@ export function usePrRtn() {
           // 由退货员按实填写（不是用主数据/采购价凑一个假单价）
           unitPrice: 0,
           reason: item.remark ?? undefined,
+          // 质检明细 purchase_inspection_item 不落 色号/缸号/批次（后端无该三列，无来源可带），
+          // 故维度不预填、不写死、不从空兜底：留 undefined 由退货员按实际退的库存行选定。
         }));
       if (formData.items.length === 0) {
         logger.error('[purchase-return] 质检单无不合格明细，退货单无可派生行', { inspectionId });
@@ -467,13 +498,24 @@ export function usePrRtn() {
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
     notes: it.reason || undefined,
+    // 面料追溯维度：有值随 POST 下发；未填（undefined）时 JSON 省略该键，后端 unwrap_or_default 落空串（白坯）。
+    color_no: it.colorNo,
+    dye_lot_no: it.dyeLotNo,
+    batch_no: it.batchNo,
   });
 
-  /** 构造更新明细请求体（对齐 UpdatePurchaseReturnItemPayload，仅发可变字段） */
+  /** 构造更新明细请求体（对齐 UpdateReturnItemRequest 三态契约，RFC 7386）：
+   *  表单已回显原值、恒送当前值=覆盖；NOT NULL 列（含追溯三列 NOT NULL DEFAULT ''）
+   *  禁止送 null——"改回白坯/空值"送空串；notes 为 DB 可空列，UI 清空 ⇒ 送显式 null
+   * （=清空为 NULL），塌成 `|| undefined` 省略会"改了不生效"。 */
   const buildUpdateItemPayload = (it: ReturnFormItem): UpdatePurchaseReturnItemPayload => ({
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
-    notes: it.reason || undefined,
+    notes: it.reason || null,
+    // 追溯维度为 NOT NULL DEFAULT '' 列：恒送当前值（空串=白坯合法值），不得送 null
+    color_no: it.colorNo,
+    dye_lot_no: it.dyeLotNo,
+    batch_no: it.batchNo,
   });
 
   /**
@@ -490,10 +532,13 @@ export function usePrRtn() {
         return false;
       }
       if (isEdit && formData.id) {
+        // 三态语义（后端 UpdatePurchaseReturnRequest DoubleOption，RFC 7386）：
+        // reason_type/reason_detail/notes 均为 DB 可空列，UI 清空 ⇒ 送显式 null（=清空为 NULL）；
+        // reason_type/reason_detail 表单恒回显选择值，未清空时按当前值覆盖。
         await updatePurchaseReturn(formData.id, {
           reason_type: formData.reasonType,
-          reason_detail: formData.reason,
-          notes: formData.remarks || undefined,
+          reason_detail: formData.reason || null,
+          notes: formData.remarks || null,
         });
         let idx = 0;
         for (const it of validItems) {

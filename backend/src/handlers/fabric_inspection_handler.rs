@@ -12,6 +12,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::{fabric_defect_record, fabric_inspection_record};
 use crate::services::fabric_inspection_service::{
     CreateDefectRequest, CreateInspectionRequest, FabricDefectService, FabricInspectionService,
@@ -97,9 +98,11 @@ pub async fn get_by_no(
 /// POST /api/v1/erp/fabric-inspections - 创建验布记录
 pub async fn create_inspection(
     State(state): State<AppState>,
+    auth: AuthContext,
     Json(req): Json<CreateInspectionRequest>,
 ) -> Result<Json<ApiResponse<fabric_inspection_record::Model>>, AppError> {
-    let created = inspection_service(&state).create(req).await?;
+    // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份。
+    let created = inspection_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "验布记录创建成功",

@@ -163,8 +163,13 @@ const handleSubmit = async () => {
   try {
     const count_date = new Date(formData.count_date).toISOString();
     if (formData.id) {
-      // UpdateCountPayload 只有 count_date / notes 两字段
-      await updateInventoryCount(formData.id, { count_date, notes: formData.notes });
+      // UpdateCountPayload 只有 count_date / notes 两字段。三态语义（RFC 7386）：
+      // count_date 映射 NOT NULL 列恒送值（送 null 被后端 400 拒绝）；
+      // notes 为 DB 可空列，UI 清空 ⇒ 送显式 null（=清空为 NULL），塌成省略会"改了不生效"。
+      await updateInventoryCount(formData.id, {
+        count_date,
+        notes: formData.notes || null,
+      });
     } else {
       await createInventoryCount({
         warehouse_id: formData.warehouse_id,

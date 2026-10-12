@@ -95,9 +95,9 @@ const onCreate = () => {
   dialogVisible.value = true;
 };
 
-/** 编辑合同 */
-const onEdit = (row: SalesContract) => {
-  sc.prepareEdit(row);
+/** 编辑合同（P0 修复：prepareEdit 需回源拉取明细，await 后再打开对话框，避免空明细闪现） */
+const onEdit = async (row: SalesContract) => {
+  await sc.prepareEdit(row);
   dialogVisible.value = true;
 };
 

@@ -16,17 +16,20 @@
         />
       </ElCol>
       <ElCol :span="6">
+        <!-- P0 修复：value-format 输出 YYYY-MM-DD（后端 VoucherQuery.start_date/end_date 按 NaiveDate parse，Date 对象序列化后 parse 失败即筛选静默失效） -->
         <ElDatePicker
-          v-model="localQuery.voucher_date_start"
+          v-model="localQuery.start_date"
           type="date"
+          value-format="YYYY-MM-DD"
           :placeholder="t('voucher.voucherListFilter.placeholderStartDate')"
           class="filter-item"
         />
       </ElCol>
       <ElCol :span="6">
         <ElDatePicker
-          v-model="localQuery.voucher_date_end"
+          v-model="localQuery.end_date"
           type="date"
+          value-format="YYYY-MM-DD"
           :placeholder="t('voucher.voucherListFilter.placeholderEndDate')"
           class="filter-item"
         />
@@ -38,8 +41,10 @@
           class="filter-item"
         >
           <ElOption :label="t('voucher.voucherListFilter.optionAll')" value="" />
+          <!-- 状态词表三端同源：后端 status::finance::voucher draft/submitted/reviewed/posted -->
           <ElOption :label="t('voucher.voucherListFilter.optionDraft')" value="draft" />
-          <ElOption :label="t('voucher.voucherListFilter.optionApproved')" value="approved" />
+          <ElOption :label="t('voucher.voucherListFilter.optionSubmitted')" value="submitted" />
+          <ElOption :label="t('voucher.voucherListFilter.optionReviewed')" value="reviewed" />
           <ElOption :label="t('voucher.voucherListFilter.optionPosted')" value="posted" />
         </ElSelect>
       </ElCol>
@@ -93,11 +98,13 @@ const emit = defineEmits<{
 }>();
 
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
+// P0 修复：查询键对齐后端 VoucherQuery（start_date/end_date/voucher_type，
+// 原 voucher_date_start/voucher_date_end/type 后端不识别 ⇒ 日期/类型筛选恒不生效）
 const localQuery = reactive({
   voucher_no: props.queryParams.voucher_no as string,
-  voucher_date_start: props.queryParams.voucher_date_start as string,
-  voucher_date_end: props.queryParams.voucher_date_end as string,
-  type: props.queryParams.type as string,
+  start_date: props.queryParams.start_date as string,
+  end_date: props.queryParams.end_date as string,
+  voucher_type: props.queryParams.voucher_type as string,
   status: props.queryParams.status as string,
 });
 
@@ -110,9 +117,9 @@ const handleSearch = () => {
 /** 重置：清空本地筛选条件，同步后触发 fetch */
 const handleReset = () => {
   localQuery.voucher_no = '';
-  localQuery.voucher_date_start = '';
-  localQuery.voucher_date_end = '';
-  localQuery.type = '';
+  localQuery.start_date = '';
+  localQuery.end_date = '';
+  localQuery.voucher_type = '';
   localQuery.status = '';
   emit('update:queryParams', { ...localQuery });
   emit('fetch');

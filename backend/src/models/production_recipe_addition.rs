@@ -46,6 +46,7 @@ pub struct Model {
     /// 加料原因：色差/助剂不足/工艺调整
     pub addition_reason: Option<String>,
     /// 加料明细 JSON：[{material_code, material_name, amount, unit, category}]
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub addition_detail: Option<Vec<AdditionMaterialItem>>,
     /// 加料成本合计
     #[sea_orm(column_type = "Decimal(Some((12, 4)))")]

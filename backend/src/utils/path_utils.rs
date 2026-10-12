@@ -23,7 +23,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             | "init"
             | "system-update"
             | "audit-logs"
-            | "slow-queries"
             | "user"
             | "data-import"
             // ===== IAM 与组织域 =====
@@ -60,8 +59,9 @@ fn is_business_module_prefix(part: &str) -> bool {
             // ===== 生产域（V15 新增：原缺失导致 30+ 资源共用 production 权限码）=====
             | "production"
             | "production-orders"
-            | "material-shortage"
-            | "scheduling"
+            // material-shortage / scheduling 已由 V15 提升到根级（/material-shortage/*、/scheduling/*），
+            // 其第四段是同一资源下的动作/查询维度而非子资源；留在模块前缀表会让资源名漂到 seg4
+            // （alerts/list/summary/tasks），命中不了注册表权威名。改作直接资源，见 is_misc_direct_resource。
             // ===== 财务域 =====
             | "finance"
             | "ap"
@@ -98,9 +98,54 @@ pub fn is_known_resource_segment(part: &str) -> bool {
     is_direct_resource(part)
 }
 
+/// 真·双层模块前缀组合（seg3 与 seg4 **都**在 [`is_module_prefix`] 表内，且 seg4 确实是
+/// seg3 挂载下的子模块，资源名落在 seg5）。
+///
+/// 为什么需要这张表：`extract_resource_info` 的"两段都是模块前缀就跳段取 seg5"判据
+/// 只看词面，不看挂载关系。同一个词在别的挂载点下是子模块、在本挂载点下却是**资源名**，
+/// 跳段就会把查询维度/动作段当成权限资源名，派生出 `by-time:read`、`kpi:read` 这类
+/// 注册表里根本没有、任何角色都无法被授予的伪键（fail-closed ⇒ 除通配 admin 外全员 403，
+/// 且本域已登记的授权键成为死码）。
+///
+/// 表内容 = 全量挂载逐条实证（`frontend/scripts/route-snapshot.txt` 中 seg3/seg4 同时
+/// 命中模块前缀的全部组合）：未列出的组合一律**不跳段**，资源名取 seg4。
+/// 新增子模块挂载时必须同时在此登记，否则该挂载的资源键会漂到 seg5 的维度名上。
+pub fn is_nested_module_prefix(module_prefix: &str, sub_prefix: &str) -> bool {
+    matches!(
+        (module_prefix, sub_prefix),
+        // advanced 域下挂 ai / reports 两个子模块（资源名在 seg5：
+        // anomaly-detection、recipe-optimization、templates、execute…）
+        ("advanced", "ai")
+            | ("advanced", "reports")
+            // 应付/应收各自的报表子模块（aging/daily/monthly/statistics）
+            | ("ap", "reports")
+            | ("ar", "reports")
+            // 色卡域下的报表子模块（customer-ledger/issue-detail/…）
+            | ("color-cards", "reports")
+            // 财务域下的报表子模块（balance-sheet/cash-flow/…）
+            | ("finance", "reports")
+            // 生产域下的生产工单子模块（f059841b 消歧的那一族，资源名在 seg5="orders"）
+            | ("production", "production-orders")
+            // purchase 挂载下的 purchase 子模块（inspections/returns）
+            | ("purchase", "purchase")
+    )
+}
+
 /// V15 P1-14.4-C：模块前缀资源消歧映射表（同资源段跨模块时对齐权限定义；sales 域 orders 保留原名其余加 sales- 前缀，purchase 域全部加 purchase- 前缀）
 pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> String {
     match (module_prefix, resource) {
+        // ===== BI 分析域：`/erp/bi/sales/*` 的资源段消歧 =====
+        // seg4="sales" 同时是销售域的模块前缀词（`is_module_prefix` 命中），历史上被
+        // 双层前缀规则跳段取了 seg5（by-time/by-customer/trend/kpi/pivot…），而这些是
+        // **查询维度/动作段**、不是资源；派生出的 `by-time:read` 等键在注册表
+        // （`init_service.rs` 资源清单）与角色种子中都不存在 ⇒ BI 销售分析对持
+        // `bi-analysis:read` 授权的角色也恒 403（已登记的键成死码）。
+        // 消歧到注册表权威名 bi-analysis（与同域 `sales-analysis` 的登记方式同构），
+        // 且必须与 `is_nested_module_prefix` 的"bi/sales 不是子模块"判定同时成立才生效。
+        // 方向为纯收窄：BI 端点只认 BI 自己的键，不因 URL 里出现 "sales" 一词
+        // 就让任何持有销售域键的角色顺带读到 BI 面（与 production-orders 那一刀同理，
+        // 不新增任何"角色 × 资源 × 动作"授权）。
+        ("bi", "sales") => "bi-analysis".to_string(),
         // ===== 采购域：权限定义使用 purchase- 前缀 =====
         ("purchase", "orders") => "purchase-orders".to_string(),
         ("purchase", "returns") => "purchase-returns".to_string(),
@@ -111,6 +156,42 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         ("sales", "returns") => "sales-returns".to_string(),
         ("sales", "contracts") => "sales-contracts".to_string(),
         ("sales", "prices") => "sales-prices".to_string(),
+        // ===== CRM 域：`/erp/crm/leads*` 的资源段消歧 =====
+        // "leads" 未登记在 `init_service::PERMISSION_RESOURCES`，注册表权威名是
+        // `crm-leads`。不消歧的后果双向都错：① 矩阵里已登记的 ("crm-leads", *) 授权行
+        // （crm_manager/crm_rep/customer_service 等）对本域列表/详情/写操作是**死码**，
+        // 持权岗位访问自己的线索反而 403；② 运行时要匹配上只能靠库里存在未登记的
+        // ("leads", *) 行，等于把权限键名定在注册表之外。
+        // 消歧到注册表权威名 crm-leads，与 purchase-/sales- 前缀族同构，纯对齐不新增授权。
+        ("crm", "leads") => "crm-leads".to_string(),
+        ("crm", "opportunities") => "crm-opportunities".to_string(),
+        // ===== CRM 域：`/erp/crm/rfm/{distribution,segments}` 的资源段消歧 =====
+        // 走默认分支会派生出注册表外的 `rfm:read`：`PERMISSION_RESOURCES` 里没有 rfm、
+        // 角色种子里没有该键、前端 CRM 页 meta 是 customers:read ⇒ 除超管旁路外全员 403，
+        // 表现为"页面能打开、客户分级 tab 必红"。同一份 RFM 数据的行级端点
+        // `/crm/customers/{id}/rfm` 派生的正是注册表权威名 customers，故把聚合档位面消歧到
+        // 同一个键：聚合面与行级面同源同权，能读单客户档位者即可读档位分布与批量档位。
+        // 方向为纯对齐，不新增任何"角色×资源×动作"授权。
+        ("crm", "rfm") => "customers".to_string(),
+        // ===== 生产域：`/erp/production/production-orders/orders*` 的资源段消歧 =====
+        // 该路由是双层模块前缀（seg3=production、seg4=production-orders 均在
+        // is_module_prefix 表内），extract_resource_info（middleware/permission.rs:274-279）
+        // 取 seg5="orders" 走默认分支 ⇒ 派生成销售订单的 `orders:*` 码。后果双向都错：
+        // ① 持有 ("orders","read") 的销售角色（种子 permission.rs:285 等）能通过
+        //    中间件读到**生产工单**列表与详情（跨域越权面，行级 scope 只是部分缓解）；
+        // ② 生产侧自己的 ("production-orders","*")（:484/:526，注册表
+        //    init_service.rs 亦登记 production-orders）对本域列表/详情是**死码**，
+        //    生产岗访问自己的生产工单反而 403。
+        // 消歧到注册表权威名 production-orders，同时关掉越权面并复活死授权；
+        // 纯收窄，不新增任何"角色×资源×动作"。
+        ("production", "orders") => "production-orders".to_string(),
+        // ===== 生产域：质量检验路由 URL 用单数、注册表与授权用复数 =====
+        // URL 段是 `/production/quality-inspection/{records,defects,...}`（单数，routes/production.rs），
+        // 而 PERMISSION_RESOURCES 与角色种子登记的都是复数 `quality-inspections`（init_service.rs /
+        // init_service_ops/permission.rs）。走默认分支直传单数 ⇒ 运行时键 quality-inspection:*
+        // 恒不等于已授的 quality-inspections:*，quality_inspector 等持权岗访问自己检验/缺陷面反而 403。
+        // 消歧到注册表权威复数名，纯对齐复活死授权，不新增任何"角色×资源×动作"。
+        ("production", "quality-inspection") => "quality-inspections".to_string(),
         // ===== 其他情况：保留 resource 原名 =====
         _ => resource.to_string(),
     }
@@ -131,6 +212,7 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "departments"
             | "permissions"
             | "field-permissions"
+            | "permission-audits"
             // ===== 产品目录直接资源 =====
             | "products"
             | "categories"
@@ -154,10 +236,16 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "ar-reconciliations"
             | "ar-reconciliations-enhanced"
             | "ar-reconciliation-alias"
+            | "period-report-snapshots"
+            | "aging-alert-rules"
+            | "aging-grades"
+            | "asset-categories"
+            | "industry-benchmarks"
             // ===== 生产直接资源 =====
             | "quality-standards"
             | "print-templates"
             | "suppliers"
+            | "supplier-qualifications"
     )
 }
 
@@ -170,6 +258,8 @@ fn is_misc_direct_resource(part: &str) -> bool {
             | "validate"
             | "csv"
             | "excel"
+            | "xlsx"
+            | "stream"
             | "templates"
             | "report-templates"
             | "execute"
@@ -219,8 +309,15 @@ fn is_misc_direct_resource(part: &str) -> bool {
         // 任何角色种子都不含这些名字，非 admin 用户必然 403（fail-closed 静默失效）。
         | "dashboard"
         | "notifications"
+        // ===== 缺料预警与排产：根级挂载，第四段是动作/维度不是子资源（与 dashboard 同型）=====
+        | "material-shortage"
+        | "scheduling"
         // ===== 审计与日志直接资源 =====
         | "logs"
+        // 慢查询 `/slow-queries/stats` 的 stats 是同一资源下的查询维度而非子资源；
+        // 留在模块前缀表会让资源名漂到 stats、派生成注册表外死键，改作直接资源后
+        // 根级与 stats 面统一落到已登记的 slow-queries。
+        | "slow-queries"
         | "health"
         | "system-config"
         // ===== 单据号查重（前端自动生成单据号后确认唯一性）=====
@@ -261,7 +358,13 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "audit"
         | "business-modes"
         | "business-mode-links"
-        | "consents"
+        // ===== 隐私同意域（与真实挂载对齐）=====
+        // 实际挂载 = /api/v1/erp/privacy/{consents,opt-in-all,opt-out-all}（routes/analytics.rs
+        // `.nest("/privacy", privacy())`），seg3=privacy。曾在此登记 "consents"（seg4 误登记为
+        // seg3 的挂载漂移），导致端点对外不可达、admin 也被白名单层 403（未知的资源路径）。
+        // 第四段是同一资源下的动作/查询面（consents/opt-in-all），与上方 dashboard/notifications
+        // 判据同型，故按直接资源登记 privacy（权限资源名=privacy），不得改登记 seg4 伪资源名。
+        | "privacy"
         | "customers"
         | "dye-batches"
         | "dye-batch-lifecycle-logs"

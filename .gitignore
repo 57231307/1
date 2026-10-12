@@ -142,3 +142,7 @@ docs/project-optimization-report.md
 frontend/coverage/
 .audit-reports/*.json.tmp
 frontend/stats.html
+# CI 产物目录（reports/ 在 root、backend、frontend 三处都会被 job 写入，
+# 本地跑一次就会把 backend.log / playwright-output.txt / seed-failures-*.json
+# 之类带进版本库，故按目录名整体忽略）
+reports/

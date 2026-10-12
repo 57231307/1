@@ -173,7 +173,9 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { useI18n } from 'vue-i18n';
 import {
   getSubscriptionList,
@@ -223,6 +225,8 @@ async function loadSubscriptions() {
   try {
     const res = await getSubscriptionList({ page: 1, page_size: 50 });
     subscriptions.value = res.data.items;
+  } catch (e: unknown) {
+    logAuxLoadFailure('加载订阅列表失败', e);
   } finally {
     subLoading.value = false;
   }
@@ -311,8 +315,9 @@ const handleToggle = async (row: ReportSubscription) => {
 const handleSendNow = async (row: ReportSubscription) => {
   try {
     await ElMessageBox.confirm(`立即发送订阅 #${row.id}？`, '确认');
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('SubscriptionPanel.handleSendNow', error);
   }
   try {
     await sendSubscriptionNow(row.id);
@@ -326,15 +331,16 @@ const handleSendNow = async (row: ReportSubscription) => {
 const handleDelete = async (row: ReportSubscription) => {
   try {
     await ElMessageBox.confirm(`确认删除订阅 #${row.id}？`, '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('SubscriptionPanel.handleDelete', error);
   }
   try {
     await deleteSubscription(row.id);
     ElMessage.success('订阅已删除');
     await loadSubscriptions();
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error((e as Error).message || '删除失败');
+    if (!isDialogDismissal(e)) ElMessage.error((e as Error).message || '删除失败');
   }
 };
 

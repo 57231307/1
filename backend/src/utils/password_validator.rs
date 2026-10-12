@@ -470,12 +470,13 @@ pub fn has_repeated_chars(password: &str) -> bool {
 pub fn get_password_feedback(result: &PasswordValidationResult) -> String {
     if result.is_valid {
         format!(
-            "Password strength {} {} points meets requirements",
+            "密码强度{}（{}分），符合要求",
             result.strength.description(),
             result.strength.score()
         )
     } else {
-        let error_msg = result.errors.join("; ");
-        format!("Password validation failed {}", error_msg)
+        // 该文案经 InitError::ValidationError 出参给用户看（本仓密码规则文案一律中文），
+        // 不得夹英文前缀
+        result.errors.join("；")
     }
 }

@@ -15,10 +15,10 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::{lab_dip_request, lab_dip_resample, lab_dip_sample};
 use crate::services::lab_dip_service::{
     CreateLabDipRequestRequest, CreateLabDipSampleRequest, CreateResampleRequest,
-    IssueTechCardRequest, LabDipRequestService, LabDipResampleService, LabDipSampleService,
-    RecordMatchingResultRequest, RecordResampleResultRequest, UpdateLabDipRequestRequest,
-    UpdateLabDipSampleRequest,
+    LabDipRequestService, LabDipResampleService, LabDipSampleService, RecordMatchingResultRequest,
+    RecordResampleResultRequest, UpdateLabDipRequestRequest, UpdateLabDipSampleRequest,
 };
+use crate::utils::data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -59,6 +59,7 @@ pub struct LabDipRequestListQuery {
 /// GET /api/v1/erp/lab-dip/requests - 分页查询打样通知单
 pub async fn list_requests(
     State(state): State<AppState>,
+    auth: AuthContext,
     Query(query): Query<LabDipRequestListQuery>,
 ) -> Result<
     Json<ApiResponse<crate::utils::response::PaginatedResponse<lab_dip_request::Model>>>,
@@ -75,7 +76,8 @@ pub async fn list_requests(
         page_size: Some(page_size),
     };
 
-    let (items, total) = request_service(&state).list(svc_query).await?;
+    let ctx = auth.to_data_scope_context();
+    let (items, total) = request_service(&state).list(svc_query, Some(&ctx)).await?;
     Ok(Json(ApiResponse::success_paginated(
         items, total, page, page_size,
     )))
@@ -84,19 +86,29 @@ pub async fn list_requests(
 /// GET /api/v1/erp/lab-dip/requests/:id - 查询打样通知单详情
 pub async fn get_request(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let req = request_service(&state).get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门，与本资源各写端点同源。
+    let req = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, req.created_by) {
+        return Err(AppError::permission_denied(
+            "无权查看该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(req)))
 }
 
 /// POST /api/v1/erp/lab-dip/requests - 创建打样通知单
 pub async fn create_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateLabDipRequestRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let created = request_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let created = request_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "打样通知单创建成功",
@@ -106,11 +118,24 @@ pub async fn create_request(
 /// PUT /api/v1/erp/lab-dip/requests/:id - 更新打样通知单
 pub async fn update_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateLabDipRequestRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).update(id, req).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门。本表无 department_id 列，
+    // 归属门按「归属人 ∈ 可见部门成员集合」判定，与列表侧 apply_data_scope 的 Dept
+    // 判据同源：All=任意行；Dept=本人行或 created_by∈可见成员集合（集合空退化仅本人）；
+    // Self_=仅本人行；created_by 为 NULL 的历史行一律拒绝。跨 owner 代操作另由写门/权限键
+    // 把关，此处只锁行级可见范围，不放大成可变更权。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "打样通知单更新成功",
@@ -120,10 +145,19 @@ pub async fn update_request(
 /// DELETE /api/v1/erp/lab-dip/requests/:id - 软删除打样通知单
 pub async fn delete_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    request_service(&state).delete(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    service.delete(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "打样通知单删除成功",
@@ -133,10 +167,19 @@ pub async fn delete_request(
 /// POST /api/v1/erp/lab-dip/requests/:id/start-sampling - 开始打样（pending → sampling）
 pub async fn start_sampling(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).start_sampling(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.start_sampling(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已开始打样",
@@ -146,10 +189,19 @@ pub async fn start_sampling(
 /// POST /api/v1/erp/lab-dip/requests/:id/submit - 送客户确认（sampling → submitted）
 pub async fn submit_to_customer(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).submit_to_customer(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.submit_to_customer(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已送客户确认",
@@ -167,11 +219,20 @@ pub struct ApproveOkSampleRequest {
 /// POST /api/v1/erp/lab-dip/requests/:id/approve - 客户确认 OK 样（submitted → approved）
 pub async fn approve_ok_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<ApproveOkSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state)
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service
         .approve_ok_sample(id, req.sample_id, req.comment)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -190,13 +251,20 @@ pub struct RejectRequest {
 /// POST /api/v1/erp/lab-dip/requests/:id/reject - 客户要求重打（submitted → rejected）
 pub async fn reject_and_redo(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state)
-        .reject_and_redo(id, req.comment)
-        .await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.reject_and_redo(id, req.comment).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已标记需重打",
@@ -206,10 +274,19 @@ pub async fn reject_and_redo(
 /// POST /api/v1/erp/lab-dip/requests/:id/restart - 重新打样（rejected → sampling）
 pub async fn restart_sampling(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state).restart_sampling(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.restart_sampling(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已重新开始打样",
@@ -226,13 +303,20 @@ pub struct CompleteRequest {
 /// POST /api/v1/erp/lab-dip/requests/:id/complete - 完成建库（approved → completed）
 pub async fn complete_request(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<CompleteRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_request::Model>>, AppError> {
-    let updated = request_service(&state)
-        .complete(id, req.production_recipe_id)
-        .await?;
+    let ctx = auth.to_data_scope_context();
+    let service = request_service(&state);
+    // 存在性→404 先行，再按 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样通知单（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.complete(id, req.production_recipe_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "已建库完成",
@@ -246,28 +330,42 @@ pub async fn complete_request(
 /// GET /api/v1/erp/lab-dip/samples/by-request/:request_id - 按通知单查询所有小样
 pub async fn list_samples_by_request(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(request_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<lab_dip_sample::Model>>>, AppError> {
-    let samples = sample_service(&state).list_by_request(request_id).await?;
+    let ctx = auth.to_data_scope_context();
+    let samples = sample_service(&state)
+        .list_by_request(request_id, Some(&ctx))
+        .await?;
     Ok(Json(ApiResponse::success(samples)))
 }
 
 /// GET /api/v1/erp/lab-dip/samples/:id - 查询小样详情
 pub async fn get_sample(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let sample = sample_service(&state).get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = sample_service(&state);
+    // 小样无 department_id 列，按建单人 created_by 走行级归属门，与本资源写端点同源。
+    let sample = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, sample.created_by) {
+        return Err(AppError::permission_denied(
+            "无权查看该打样小样（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(sample)))
 }
 
 /// POST /api/v1/erp/lab-dip/samples - 创建打样小样（ABCD 多版样）
 pub async fn create_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateLabDipSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let created = sample_service(&state).create(req).await?;
+    // 建单人取服务端会话，请求体不承载身份
+    let created = sample_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "打样小样创建成功",
@@ -277,11 +375,20 @@ pub async fn create_sample(
 /// PUT /api/v1/erp/lab-dip/samples/:id - 更新打样小样
 pub async fn update_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<UpdateLabDipSampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
-    let updated = sample_service(&state).update(id, req).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = sample_service(&state);
+    // 存在性→404 先行，再按小样 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样小样（数据范围限制）".to_string(),
+        ));
+    }
+    let updated = service.update(id, req).await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "打样小样更新成功",
@@ -291,10 +398,19 @@ pub async fn update_sample(
 /// DELETE /api/v1/erp/lab-dip/samples/:id - 软删除小样
 pub async fn delete_sample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    sample_service(&state).delete(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = sample_service(&state);
+    // 存在性→404 先行，再按小样 created_by 走行级归属门（All 任意/Dept 本人或可见成员/Self_ 仅本人/NULL 拒），越权 403。
+    let existing = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, existing.created_by) {
+        return Err(AppError::permission_denied(
+            "无权操作该打样小样（数据范围限制）".to_string(),
+        ));
+    }
+    service.delete(id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "打样小样删除成功",
@@ -304,12 +420,13 @@ pub async fn delete_sample(
 /// POST /api/v1/erp/lab-dip/samples/:id/matching - 记录对色结果；真实业务：色差 4-5 级为 matched（OK），<4 级为 not_matched（重打）
 pub async fn record_matching_result(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<RecordMatchingResultRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_sample::Model>>, AppError> {
+    // 对色审核人取会话身份（AuthContext.user_id），请求体不承载审批身份。
     let updated = sample_service(&state)
-        .record_matching_result(id, req)
+        .record_matching_result(id, req, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
@@ -324,28 +441,42 @@ pub async fn record_matching_result(
 /// GET /api/v1/erp/lab-dip/resamples/by-request/:request_id - 按通知单查询复样记录
 pub async fn list_resamples_by_request(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(request_id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<lab_dip_resample::Model>>>, AppError> {
-    let items = resample_service(&state).list_by_request(request_id).await?;
+    let ctx = auth.to_data_scope_context();
+    let items = resample_service(&state)
+        .list_by_request(request_id, Some(&ctx))
+        .await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
 /// GET /api/v1/erp/lab-dip/resamples/:id - 查询复样记录详情
 pub async fn get_resample(
     State(state): State<AppState>,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let item = resample_service(&state).get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let service = resample_service(&state);
+    // 复样记录无 department_id 列，按登记人 created_by 走行级归属门。
+    let item = service.get_by_id(id).await?;
+    if !data_scope::check_resource_owner_by_member_scope(&ctx, item.created_by) {
+        return Err(AppError::permission_denied(
+            "无权查看该复样记录（数据范围限制）".to_string(),
+        ));
+    }
     Ok(Json(ApiResponse::success(item)))
 }
 
 /// POST /api/v1/erp/lab-dip/resamples - 创建复样记录；真实业务：OK 样确认后，大货生产前必须复样（用车间半制品布+生产染化料模拟大生产）
 pub async fn create_resample(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateResampleRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let created = resample_service(&state).create(req).await?;
+    // 登记人取服务端会话，请求体不承载身份
+    let created = resample_service(&state).create(req, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         created,
         "复样记录创建成功",
@@ -355,11 +486,14 @@ pub async fn create_resample(
 /// POST /api/v1/erp/lab-dip/resamples/:id/result - 记录复样结果；真实业务：色差 4-5 级方可投产（passed），<4 级为 failed
 pub async fn record_resample_result(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
     Json(req): Json<RecordResampleResultRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let updated = resample_service(&state).record_result(id, req).await?;
+    // 复样复核人取会话身份，请求体不承载复核身份。
+    let updated = resample_service(&state)
+        .record_result(id, req, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "复样结果记录成功",
@@ -369,11 +503,14 @@ pub async fn record_resample_result(
 /// POST /api/v1/erp/lab-dip/resamples/:id/tech-card - 开具染色技术卡；真实业务：复样通过后由研发组长开染色技术卡，附配方表+核可样+复色样
 pub async fn issue_tech_card(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<IssueTechCardRequest>,
 ) -> Result<Json<ApiResponse<lab_dip_resample::Model>>, AppError> {
-    let updated = resample_service(&state).issue_tech_card(id, req).await?;
+    // 开卡人（研发组长）取会话身份；端点无必填报文字段 ⇒ 不绑定 body 提取器，
+    // 复样通过门与重复开卡门都在 service 层。
+    let updated = resample_service(&state)
+        .issue_tech_card(id, auth.user_id)
+        .await?;
     Ok(Json(ApiResponse::success_with_message(
         updated,
         "染色技术卡开具成功",

@@ -539,7 +539,7 @@ V15 审计报告 batch-11 缺陷 10-4：审计日志导出操作仅记录到 `au
   - `Incoterms2020` 枚举增加 6 变体（按任意运输方式/海运分类）
   - `from_code` / `code` / `all` 同步增加 6 种术语支持（双向解析校验）
   - `includes_insurance`：CIF / CIP / DDP 返回 true
-  - `includes_freight`：EXW / FCA / FAS 返回 false，其他 8 种返回 true
+  - `includes_freight`：EXW / FCA / FAS / **FOB** 返回 false（Incoterms 2020：F 组术语主运费由买方订立承担，卖方仅负担装船前费用），其余 7 种返回 true
   - `requires_duty_paid`：仅 DDP 返回 true
   - 新增 `risk_transfer_point()` 返回风险转移点描述（用于报价单 PDF 显示）
   - 新增 `is_sea_only()` 判断是否仅海运（FAS/FOB/CFR/CIF）

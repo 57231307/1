@@ -1,7 +1,7 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::models::status::common;
 use bingxi_backend::models::status::master_data;
-use bingxi_backend::services::test_common::setup_test_db;
+use bingxi_backend::services::test_common::{connect_empty_schema_db, setup_test_db};
 use bingxi_backend::utils::error::AppError;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::decs;
@@ -261,16 +261,21 @@ fn test_bomsljs_jcslwsh() {
 }
 
 /// test_bomsljs_hshl
-/// 验证 explode_bom_recursive 中含损耗率的数量计算：quantity_with_scrap = base * (1 + scrap_rate/100)，再 round_dp(4)
+/// 验证 explode_bom_recursive 中含损耗率的数量计算口径（与
+/// `services/mrp_engine_ops/bom.rs::calculate_quantity_with_scrap` 同源）：
+/// 节点 scrap_rate 为存储口径 0–1 比率（API 百分比入参已在 bom_handler 写边界经
+/// BomService::scrap_percent_to_ratio 换算落库，10% ⇒ 存储 0.1），
+/// quantity_with_scrap = base * (1 + scrap_rate)，再 round_dp(4)。
+/// （旧期望 base * (1 + 百分比值/100) 属"同一字段两种口径"缺陷族的测试侧残留，
+/// 依据 e2e `frontend/e2e/mrp/01-calculation.spec.ts:95` 写入口径改判。）
 #[test]
 fn test_bomsljs_hshl() {
     let parent = decs!("100");
     let item_qty = decs!("2");
-    let scrap_rate = decs!("10"); // 10% 损耗
+    let scrap_rate = decs!("0.1"); // 10% 损耗的存储口径（DECIMAL(5,4)）
 
     let base_quantity = (parent * item_qty).round_dp(4);
-    let quantity_with_scrap =
-        (base_quantity * (Decimal::ONE + (scrap_rate / Decimal::from(100)))).round_dp(4);
+    let quantity_with_scrap = (base_quantity * (Decimal::ONE + scrap_rate)).round_dp(4);
 
     assert_eq!(base_quantity, decs!("200"));
     assert_eq!(quantity_with_scrap, decs!("220"));
@@ -381,23 +386,35 @@ fn test_ddlxzh_sclxzt() {
     assert_eq!(new_status, MRP_STATUS_RELEASED);
 }
 
-/// test_ddlxzh_wxlxjj（验证 convert_to_orders 中非 PURCHASE/PRODUCTION 类型返回校验错误）
+/// test_ddlxzh_wxlxjj（复现 convert_to_orders 中非 PURCHASE/PRODUCTION 订单类型的拒绝）
+///
+/// 装配点 `services/mrp_engine_ops/order.rs:34-39`：提交的 order_type 枚举取值非法属
+/// **字段取值校验**，本轮错误族归一后走 `validation_displayable` →
+/// HTTP 400 / code=VALIDATION_ERROR，且只回显用户自己提交的字段、出参文案外显。
 #[test]
 fn test_ddlxzh_wxlxjj() {
     let order_type = "INVALID";
     let result: Result<&str, AppError> = match order_type {
         "PURCHASE" => Ok(MRP_STATUS_CONFIRMED),
         "PRODUCTION" => Ok(MRP_STATUS_RELEASED),
-        _ => Err(AppError::validation("无效的订单类型")),
+        _ => Err(AppError::validation_displayable("无效的订单类型")),
     };
     assert!(result.is_err());
-    match result {
-        Err(e) => assert!(matches!(e, AppError::ValidationError(_))),
-        _ => panic!("应返回错误"),
-    }
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, AppError::ValidationErrorDisplayable(_)),
+        "无效订单类型必须是可外显校验族，实际: {err:?}"
+    );
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
+    assert_eq!(err.to_response().message, "无效的订单类型");
 }
 
-/// test_ddlxzh_fplannedztjj（验证 convert_to_orders 中 status != PLANNED 时返回校验错误）
+/// test_ddlxzh_fplannedztjj（复现 convert_to_orders 中 status != PLANNED 的状态门拒绝）
+///
+/// 装配点 `services/mrp_engine_ops/order.rs:57-64`：状态前置未满足归**业务族**，
+/// 且文案含内部记录 ID 与状态 token ⇒ 保持脱敏 `AppError::business`
+/// （出参 message 恒为 err_msg::BUSINESS_PUBLIC「业务处理失败」，真实原因只进日志）。
+/// 旧写法用 `AppError::validation` 与本波归一口径相反（状态门≠字段校验），已跟随源码。
 #[test]
 fn test_ddlxzh_fplannedztjj() {
     // 模拟已确认状态的结果，不应允许再次转换
@@ -405,8 +422,12 @@ fn test_ddlxzh_fplannedztjj() {
     let should_reject = current_status != MRP_STATUS_PLANNED;
     assert!(should_reject);
 
-    let err = AppError::validation(format!("MRP结果 {} 状态不是PLANNED，无法转换", 1));
-    assert!(matches!(err, AppError::ValidationError(_)));
+    let err = AppError::business(format!("MRP结果 {} 状态不是PLANNED，无法转换", 1));
+    assert!(matches!(err, AppError::BusinessError(_)));
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    // Display（日志面）保留真实原因，HTTP 出参必须脱敏
+    assert!(err.to_string().contains("状态不是PLANNED"));
+    assert_eq!(err.to_response().message, "业务处理失败");
 
     // PLANNED 状态应允许转换（不拒绝）
     let planned_status = MRP_STATUS_PLANNED;
@@ -452,25 +473,47 @@ async fn test_fwslcj() {
     assert!(Arc::strong_count(&service.db) >= 1);
 }
 
-/// test_hqkcxx_xyzssjk（需要 inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_stock_info 调用路径不 panic。）
+/// test_hqkcxx_xyzssjk —— 依据裁决 R-9 拆前提（判责 §A.1 pI 族 mrp 条）
+/// 本条断言消息自陈钉的是"**无 schema** 时应返回数据库错误"，而 `setup_test_db()`
+/// 现语义 = 已迁移 PG + TRUNCATE 业务表 ⇒ 前提与判据错位，改绑
+/// `connect_empty_schema_db()` 并把裸 `is_err()` **收紧**为钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`src/services/mrp_engine_ops/stock.rs:19-63`
+/// get_stock_info 首步 `InventoryStockEntity::find().all()`（:20-23）；缺表 ⇒
+/// DbErr::Query ⇒ `utils/error.rs:562-565` ⇒ error_code "DATABASE_ERROR"
+/// （error.rs:747）。为什么不能留在真库化夹具上断 Err：空表 ⇒ stocks=[] 聚合全零、
+/// 产品不存在 ⇒ lead_time 兜底 7（stock.rs:49-54）⇒ 恒 `Ok(零库存)`——本文件
+/// :477 旧注释自己就写了"有 schema 无记录时返回零库存"，is_err 在现夹具必红。
 #[tokio::test]
 #[ignore]
 async fn test_hqkcxx_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = MrpEngineService::new(Arc::new(db));
-    // 无 schema 时为 Err；有 schema 无记录时返回零库存 StockInfo
-    let result = service.get_stock_info(99999).await;
-    // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let err = service
+        .get_stock_info(99999)
+        .await
+        .expect_err("schema 缺失（无 inventory_stocks 表）时必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（stock.rs:20 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_bomzk_xyzssjk（需要 bom/bom_item/inventory_stocks 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 explode_bom 调用路径不 panic。）
+/// test_bomzk_xyzssjk —— 同族按 R-9 改绑空 schema 库，钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`src/services/mrp_engine_ops/bom.rs:177-208`
+/// explode_bom → explode_bom_recursive（:105-）首步 `get_default_bom`
+/// （:21-30 `BomEntity::find().one()`）；缺表 ⇒ DATABASE_ERROR（error.rs:562-565）。
+/// 真库化空表上则 bom=None 直接 `return Ok(())`（bom.rs:130-133）⇒ explode_bom
+/// 恒 `Ok(vec![])`，旧 `is_err()` 前提同样过期。
 #[tokio::test]
 #[ignore]
 async fn test_bomzk_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = MrpEngineService::new(Arc::new(db));
-    let result = service
+    let err = service
         .explode_bom(MrpExplodeQuery {
             product_id: 99999,
             parent_quantity: decs!("10"),
@@ -480,18 +523,37 @@ async fn test_bomzk_xyzssjk() {
             consider_safety_stock: false,
             consider_in_transit: false,
         })
-        .await;
-    // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+        .await
+        .expect_err("schema 缺失（无 boms 表）时 explode_bom 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（bom.rs:22 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }
 
-/// test_cxmrpjg_xyzssjk（需要 mrp_results 表 schema，标注 #[ignore] 仅在本地手动运行。；验证 get_results 调用路径不 panic。）
+/// test_cxmrpjg_xyzssjk —— 同族按 R-9 改绑空 schema 库，钉 DATABASE_ERROR。
+///
+/// 真实契约依据（读函数体）：`src/services/mrp_engine_ops/query.rs:22-70`
+/// get_results 对 MrpResultEntity 分页 `paginate_with_total`
+/// （fetch_page 首发 SQL，`utils/pagination.rs:20`）；缺表 ⇒ DATABASE_ERROR。
+/// 真库化空表上返回 `Ok(([], 0))` 才是契约（pagination.rs:17-23），旧 `is_err()`
+/// 前提过期；"有 schema 空表返回空集"这条正向契约已由本文件纯算法族与
+/// contract_wave* 真库用例覆盖，不在本条重复。
 #[tokio::test]
 #[ignore]
 async fn test_cxmrpjg_xyzssjk() {
-    let db = setup_test_db().await;
+    let db = connect_empty_schema_db().await;
     let service = MrpEngineService::new(Arc::new(db));
-    let result = service.get_results(None, None, None, 1, 10).await;
-    // L-18 修复（批次 377 v13 复审）：原 let _ = result 无断言，改为 is_err 断言
-    assert!(result.is_err(), "无 schema 时应返回数据库错误");
+    let err = service
+        .get_results(None, None, None, 1, 10)
+        .await
+        .expect_err("schema 缺失（无 mrp_results 表）时 get_results 必须返回 Err 而非 panic");
+    assert_eq!(
+        err.error_code(),
+        "DATABASE_ERROR",
+        "缺表必须命中数据库错误族（query.rs:65 → error.rs:562-565），实得 {}",
+        err.error_code()
+    );
 }

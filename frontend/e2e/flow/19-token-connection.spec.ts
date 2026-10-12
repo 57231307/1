@@ -269,50 +269,33 @@ test.describe('后端连接状态与 Token 管理', () => {
   });
 
   test('401 拦截器：清除 cookie 后访问跳转登录页', async ({ browser }) => {
-    // 用显式 context（默认 page fixture 的 context 注入了全局 storageState 登录态）
-    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
-    const page = await context.newPage();
+    // 登录必须走 loginInIsolatedContext（:17-53）：空 storageState 新建独立 context，
+    // helper 已含「勾选用户协议 → 提交 → 离开 /login（40s）→ access_token 活体断言」——
+    // 用户协议是 Login.vue 阻断式校验的必填项，未勾选时登录 XHR 根本不发、
+    // URL 永远停在 /login，登录成功信号真实且唯一。
+    const { ctx, page } = await loginInIsolatedContext(browser);
 
-    // 登录一次获得真实会话（UI 登录，模拟用户操作）
-    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1000);
-    await page.evaluate(() => window.localStorage.setItem('bingxi.locale', 'zh-CN'));
-    const userInput = page
-      .locator('input[placeholder="用户名"], input[placeholder="Username"]')
-      .first();
-    await userInput.waitFor({ state: 'visible', timeout: 20_000 });
-    await userInput.fill(process.env.TEST_USERNAME || 'e2e_admin');
-    const pwdInput = page
-      .locator('input[placeholder="密码"], input[placeholder="Password"]')
-      .first();
-    await pwdInput.waitFor({ state: 'visible', timeout: 20_000 });
-    await pwdInput.fill(process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR');
-    const loginBtn = page.locator('form button.el-button--primary').first();
-    await loginBtn.waitFor({ state: 'visible', timeout: 20_000 });
-    await loginBtn.click();
-    // 等待登录成功跳转
-    await page.waitForURL(/dashboard|purchase|\//, { timeout: 20_000 });
-    await page.waitForTimeout(2000);
+    try {
+      // 清除 cookie 模拟 token 过期（httpOnly cookie 一并被清）
+      await ctx.clearCookies();
+      // 同时清除 localStorage 权限缓存（20.11-D：userInfo 会从缓存恢复，导致守卫误判已登录）
+      await page.evaluate(() => {
+        localStorage.removeItem('erp_cached_perms');
+        localStorage.removeItem('erp_cached_perms_ts');
+      });
 
-    // 清除 cookie 模拟 token 过期（httpOnly cookie 一并被清）
-    await context.clearCookies();
-    // 同时清除 localStorage 权限缓存（20.11-D：userInfo 会从缓存恢复，导致守卫误判已登录）
-    await page.evaluate(() => {
-      localStorage.removeItem('erp_cached_perms');
-      localStorage.removeItem('erp_cached_perms_ts');
-    });
+      // 导航到受保护页面（时间戳参数破坏缓存，确保守卫执行）
+      await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
+      // 等待重定向到登录页（CI 慢环境守卫链 /auth/me 401 → refresh 401 → redirect
+      // 首次 JS 执行可达 20s+，60s 留余量；守卫 init/status 失败安全时落 /setup 也接受）
+      await page.waitForURL(/\/(login|setup)/, { timeout: 60_000 });
 
-    // 导航到受保护页面（时间戳参数破坏缓存，确保守卫执行）
-    await page.goto(`${BASE_URL}/purchase?t=${Date.now()}`, { waitUntil: 'domcontentloaded' });
-    // 等待重定向到登录页（CI 慢环境守卫链 /auth/me 401 → refresh 401 → redirect
-    // 首次 JS 执行可达 20s+，60s 留余量；守卫 init/status 失败安全时落 /setup 也接受）
-    await page.waitForURL(/\/(login|setup)/, { timeout: 60_000 });
-
-    // 应被重定向到登录页或初始化页（守卫在 init/status 请求失败时失败安全引导至 /setup，
-    // 截图证实 401 后可能落在 Setup 向导页——两者都算未登录重定向）
-    const url = page.url();
-    expect(url.includes('/login') || url.includes('/setup')).toBe(true);
-
-    await context.close();
+      // 应被重定向到登录页或初始化页（守卫在 init/status 请求失败时失败安全引导至 /setup，
+      // 截图证实 401 后可能落在 Setup 向导页——两者都算未登录重定向）
+      const url = page.url();
+      expect(url.includes('/login') || url.includes('/setup')).toBe(true);
+    } finally {
+      await ctx.close();
+    }
   });
 });

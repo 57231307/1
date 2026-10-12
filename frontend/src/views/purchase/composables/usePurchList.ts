@@ -15,7 +15,7 @@ import { getProductList } from '@/api/product';
 import { getWarehouseList } from '@/api/warehouse';
 import { getDepartmentList } from '@/api/department';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { i18n } from '@/i18n';
 import {
   PURCHASE_ORDER_STATUS,
@@ -172,7 +172,7 @@ export function usePurchList() {
       suppliers.value = extractList<Supplier>(res.data);
       stats.value.supplierCount = suppliers.value.length;
     } catch (error) {
-      logger.error('获取供应商列表失败:', error);
+      logAuxLoadFailure('获取供应商列表失败:', error);
     }
   };
 
@@ -184,7 +184,7 @@ export function usePurchList() {
       const res = await getProductList({ page_size: 1000 });
       products.value = extractList<Product>(res.data);
     } catch (error) {
-      logger.error('获取产品列表失败:', error);
+      logAuxLoadFailure('获取产品列表失败:', error);
     }
   };
 
@@ -196,7 +196,7 @@ export function usePurchList() {
       const res = await getWarehouseList({ page_size: 1000 });
       warehouses.value = extractList<Warehouse>(res.data);
     } catch (error) {
-      logger.error('获取仓库列表失败:', error);
+      logAuxLoadFailure('获取仓库列表失败:', error);
     }
   };
 
@@ -208,7 +208,7 @@ export function usePurchList() {
       const res = await getDepartmentList({ page: 1, page_size: 1000 });
       departments.value = extractList<Department>(res.data);
     } catch (error) {
-      logger.error('获取部门列表失败:', error);
+      logAuxLoadFailure('获取部门列表失败:', error);
     }
   };
 

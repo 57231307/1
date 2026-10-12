@@ -61,34 +61,62 @@
                 <el-descriptions-item :label="t('crmDetail.field.contactPerson')">{{
                   customer.contact_person
                 }}</el-descriptions-item>
-                <el-descriptions-item :label="t('crmDetail.field.phone')">{{
-                  customer.phone
-                }}</el-descriptions-item>
-                <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">{{
-                  customer.email
-                }}</el-descriptions-item>
+                <el-descriptions-item :label="t('crmDetail.field.phone')">
+                  <span>{{ phoneDisplay }}</span>
+                  <el-button
+                    v-if="!revealedPhone.shown"
+                    v-permission="PERMISSIONS.CUSTOMER_PII_REVEAL"
+                    link
+                    type="primary"
+                    class="pii-reveal-btn"
+                    @click="handleRevealPii('phone')"
+                  >
+                    {{ t('crmDetail.reveal.phone') }}
+                  </el-button>
+                </el-descriptions-item>
+                <el-descriptions-item :label="t('crmDetail.field.email')" :span="2">
+                  <span>{{ emailDisplay }}</span>
+                  <el-button
+                    v-if="!revealedEmail.shown"
+                    v-permission="PERMISSIONS.CUSTOMER_PII_REVEAL"
+                    link
+                    type="primary"
+                    class="pii-reveal-btn"
+                    @click="handleRevealPii('email')"
+                  >
+                    {{ t('crmDetail.reveal.email') }}
+                  </el-button>
+                </el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.address')" :span="2">{{
-                  customer.address
+                  customer.address || '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.customerType')">
                   <el-tag :type="getTypeTag(customer.customer_type)" size="small">
                     {{ getTypeLabel(customer.customer_type) }}
                   </el-tag>
                 </el-descriptions-item>
+                <!-- 负责人姓名与最后下单日期：360 出参当前无真实来源键
+                     （owner 仅有 owner_id 内部 ID；订单聚合无 last_order_at；
+                     summary.last_interaction_at 是最后跟进时间，语义不同不可代用），
+                     如实呈现为既有"无数据"占位，待后端出参补齐后恢复 -->
                 <el-descriptions-item :label="t('crmDetail.field.owner')">{{
-                  customer.owner_name
+                  '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.creditLimit')">
                   {{ customer.credit_limit ? formatCurrency(customer.credit_limit) : '-' }}
                 </el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.totalOrders')">{{
-                  customer.total_orders
+                  summary?.total_orders
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.totalAmount')">
-                  {{ customer.total_amount ? formatCurrency(customer.total_amount) : '-' }}
+                  {{
+                    summary && summary.total_order_amount
+                      ? formatCurrency(summary.total_order_amount)
+                      : '-'
+                  }}
                 </el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.lastOrder')">{{
-                  customer.last_order_date || '-'
+                  '-'
                 }}</el-descriptions-item>
               </el-descriptions>
             </el-card>
@@ -102,7 +130,7 @@
 
               <el-descriptions :column="2" border>
                 <el-descriptions-item :label="t('crmDetail.field.taxNumber')" :span="2">{{
-                  customer.tax_number || '-'
+                  customer.tax_id || '-'
                 }}</el-descriptions-item>
                 <el-descriptions-item :label="t('crmDetail.field.bankName')">{{
                   customer.bank_name || '-'
@@ -184,9 +212,8 @@
                 ><div class="card-header">{{ t('crmDetail.rfmScore') }}</div></template
               >
               <div v-if="rfmScore" class="rfm-display">
-                <div class="rfm-level">
-                  <span class="level-badge">{{ rfmScore.level }}</span>
-                  <span class="level-label">{{ rfmScore.label }}</span>
+                <div class="rfm-total">
+                  <span class="total-badge">{{ fmtRfmScore(rfmScore.score) }}</span>
                 </div>
                 <div class="rfm-scores">
                   <div class="rfm-item">
@@ -222,7 +249,13 @@
                   </div>
                   <div class="addr-phone">{{ addr.contact_phone }}</div>
                   <div class="addr-detail">
-                    {{ addr.province }} {{ addr.city }} {{ addr.district }} {{ addr.address }}
+                    {{ addr.province }} {{ addr.city }} {{ addr.district }}
+                    <span v-if="typeof addr.address === 'string'">{{ addr.address }}</span>
+                    <!-- 非 admin 会话 address 整键不下发（真源脱敏），缺键=无权查看，
+                         禁止兜底成空串把"无权限"吞成"地址为空"；库内地址为空时 admin
+                         收到的是空串（typeof 仍为 string），两态据此区分。
+                         本行复用既有通用无权查看文案键（本域暂无对应键）。 -->
+                    <span v-else>{{ t('crmOpportunities.table.amountHidden') }}</span>
                   </div>
                 </div>
                 <el-empty
@@ -309,7 +342,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { isDialogDismissal } from '@/utils/monitor';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -319,15 +353,19 @@ import { formatCurrency } from '@/utils';
 import {
   getCustomer360,
   getCustomerContactList,
+  getCustomerRfmScore,
   deleteCustomerContact,
   createCustomerContact,
   updateCustomerContact,
+  revealCustomerPii,
   type Contact,
   type CustomerEntity,
+  type Customer360Summary,
   type CustomerTag,
   type ShippingAddress,
   type RfmScore,
 } from '@/api/crm-enhanced';
+import { PERMISSIONS } from '@/constants/permissions';
 import { logger } from '@/utils/logger';
 import FollowUpTab from './tabs/FollowUpTab.vue';
 import TagsPanelTab from './tabs/TagsPanelTab.vue';
@@ -339,8 +377,11 @@ const router = useRouter();
 
 const loading = ref(false);
 const customer = ref<CustomerEntity | null>(null);
+const summary = ref<Customer360Summary | null>(null);
 const tags = ref<CustomerTag[]>([]);
 const shippingAddresses = ref<ShippingAddress[]>([]);
+// RFM 评分来源 = 独立端点 /crm/customers/:id/rfm（客户 360 的 summary 不含 RFM，
+// 后端 CustomerRelationSummary 无该键）；null 只代表"尚未取到"（加载/请求失败）。
 const rfmScore = ref<RfmScore | null>(null);
 const customerId = Number(route.params.id);
 const followUpRef = ref<InstanceType<typeof FollowUpTab> | null>(null);
@@ -368,17 +409,28 @@ const contactFormRules: FormRules = {
   email: [{ type: 'email', message: t('crmDetail.validation.emailPattern'), trigger: 'blur' }],
 };
 
+// 详情回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表取文案；
+// 未知/历史脏值不吞不造假名，回落显示原始 token（getTypeLabel 的 `|| type` 分支即此行为）。
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
-    normal: t('crmDetail.customerType.normal'),
-    vip: t('crmDetail.customerType.vip'),
+    retail: t('crmDetail.customerType.retail'),
     wholesale: t('crmDetail.customerType.wholesale'),
+    distributor: t('crmDetail.customerType.distributor'),
+    manufacturer: t('crmDetail.customerType.manufacturer'),
+    other: t('crmDetail.customerType.other'),
   };
   return labels[type] || type;
 };
 
+// tag 颜色仅供视觉区分，不承载状态/层级语义。
 const getTypeTag = (type: string) => {
-  const typeMap: Record<string, string> = { normal: '', vip: 'warning', wholesale: 'success' };
+  const typeMap: Record<string, string> = {
+    retail: '',
+    wholesale: 'success',
+    distributor: 'warning',
+    manufacturer: 'info',
+    other: 'danger',
+  };
   return typeMap[type] || '';
 };
 
@@ -388,9 +440,9 @@ const fetchCustomer360 = async () => {
     const res = await getCustomer360(customerId);
     const d = res.data;
     customer.value = d.customer;
+    summary.value = d.summary;
     tags.value = d.tags;
     shippingAddresses.value = d.shipping_addresses;
-    rfmScore.value = d.summary?.rfm_score ?? null;
   } catch (error) {
     const err = error as Error;
     ElMessage.error(err.message || t('crmDetail.message.loadFailed'));
@@ -412,6 +464,96 @@ const fetchContacts = async () => {
     contactsLoading.value = false;
   }
 };
+
+// RFM 卡取数走独立端点（后端 RFM 唯一出口 = handlers/crm_handler.rs::get_rfm_score；
+// 客户 360 的 summary 结构体不提供 RFM，360 刷新不应重复请求评分）
+const fetchRfmScore = async () => {
+  try {
+    const res = await getCustomerRfmScore(customerId);
+    rfmScore.value = res.data;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.message.loadFailed'));
+  }
+};
+
+// 合成分（后端 (R+F+M)/3 的 f64 均值，线上是 JSON number）保留一位小数展示：
+// 先 Number() 归一再取小数位，与 utils.formatCurrency 同范式——禁对可能为字符串的值直接 .toFixed
+const fmtRfmScore = (score: number): string => Number(score).toFixed(1);
+
+// PII 按需揭示（POST /crm/customers/{id}/pii/reveal，运行时键 customers:reveal）：
+// 默认展示形态恒为后端掩码；原文仅在用户显式点击按钮、填写本次查看用途并
+// 揭示成功后就地出现。shown 与 value 分离：库内该列为空时揭示结果如实为
+// null（shown=true 显示占位符），不回弹成掩码，避免按钮反复可点。
+// 每次成功揭示服务端强制留痕（pii_reveal_audit，不存原文）；expires_at
+// 短 TTL 到期后自动回到掩码形态，页面不驻留原文。
+interface RevealedFieldState {
+  shown: boolean;
+  value: string | null;
+}
+const revealedPhone = ref<RevealedFieldState>({ shown: false, value: null });
+const revealedEmail = ref<RevealedFieldState>({ shown: false, value: null });
+const revealTimers: Partial<Record<'phone' | 'email', number>> = {};
+
+const phoneDisplay = computed(() =>
+  revealedPhone.value.shown
+    ? (revealedPhone.value.value ?? '-')
+    : (customer.value?.contact_phone ?? '-')
+);
+const emailDisplay = computed(() =>
+  revealedEmail.value.shown
+    ? (revealedEmail.value.value ?? '-')
+    : (customer.value?.contact_email ?? '-')
+);
+
+const handleRevealPii = async (field: 'phone' | 'email') => {
+  let reason = '';
+  try {
+    const promptRes = await ElMessageBox.prompt(
+      t('crmDetail.reveal.reasonInput'),
+      t('crmDetail.reveal.reasonTitle'),
+      {
+        inputValidator: (value: string) =>
+          (typeof value === 'string' && value.trim().length > 0) ||
+          t('crmDetail.reveal.reasonRequired'),
+      }
+    );
+    reason = (promptRes.value ?? '').trim();
+  } catch (error) {
+    // 弹窗取消不是错误（仓内统一判据）；非取消异常显式记日志，不静默
+    if (!isDialogDismissal(error)) {
+      logger.error('PII 揭示用途输入异常', error);
+    }
+    return;
+  }
+  try {
+    const res = await revealCustomerPii(customerId, { fields: [field], reason });
+    if (!res.data) {
+      ElMessage.error(t('crmDetail.reveal.failed'));
+      return;
+    }
+    const state = { shown: true, value: res.data.fields[field] ?? null };
+    if (field === 'phone') revealedPhone.value = state;
+    else revealedEmail.value = state;
+    const ttlMs = Math.max(0, new Date(res.data.expires_at).getTime() - Date.now());
+    window.clearTimeout(revealTimers[field]);
+    revealTimers[field] = window.setTimeout(() => {
+      const back = { shown: false, value: null };
+      if (field === 'phone') revealedPhone.value = back;
+      else revealedEmail.value = back;
+    }, ttlMs);
+    ElMessage.success(t('crmDetail.reveal.traced'));
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    ElMessage.error(msg || t('crmDetail.reveal.failed'));
+  }
+};
+
+onUnmounted(() => {
+  for (const id of Object.values(revealTimers)) {
+    if (id !== undefined) window.clearTimeout(id);
+  }
+});
 
 const handleBack = () => {
   router.back();
@@ -453,7 +595,7 @@ const handleDeleteContact = async (row: Contact) => {
     ElMessage.success(t('crmDetail.message.deleteSuccess'));
     fetchContacts();
   } catch (error) {
-    if (error === 'cancel') return;
+    if (isDialogDismissal(error)) return;
     const msg = error instanceof Error ? error.message : String(error);
     ElMessage.error(msg || t('crmDetail.message.deleteFailed'));
   }
@@ -517,6 +659,7 @@ onMounted(() => {
   }
   fetchCustomer360();
   fetchContacts();
+  fetchRfmScore();
   logger.info(t('crmDetail.message.pageLoaded'), { customerId });
 });
 </script>
@@ -562,11 +705,11 @@ onMounted(() => {
 .rfm-display {
   padding: 12px 0;
 }
-.rfm-level {
+.rfm-total {
   text-align: center;
   margin-bottom: 20px;
 }
-.level-badge {
+.total-badge {
   display: inline-block;
   width: 60px;
   height: 60px;
@@ -576,12 +719,6 @@ onMounted(() => {
   color: #fff;
   font-size: 28px;
   font-weight: 700;
-}
-.level-label {
-  display: block;
-  margin-top: 8px;
-  font-size: 14px;
-  color: #606266;
 }
 .rfm-scores {
   display: flex;
@@ -630,6 +767,9 @@ onMounted(() => {
   font-size: 13px;
   color: #606266;
   margin-bottom: 4px;
+}
+.pii-reveal-btn {
+  margin-left: 8px;
 }
 .addr-detail {
   font-size: 13px;

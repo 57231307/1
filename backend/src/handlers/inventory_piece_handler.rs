@@ -1,12 +1,14 @@
 //! 匹号（布卷）查询处理器
 //!
-//! 匹号领域四维追溯的最小查询闭环（设计文档 docs/piece-number-domain-design.md）：
+//! 匹号领域四维追溯的最小查询闭环（设计文档 .monkeycode/docs/piece-number-domain-design.md）：
 //! - 按产品/匹号/匹类型/仓库过滤分页列表
 //! - 供前端追溯页与 E2E 四维追溯断言使用
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::status::purchase_inventory::inventory_piece as piece_status;
 use crate::models::{inventory_piece, warehouse};
+use crate::utils::data_scope::apply_data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
@@ -33,6 +35,10 @@ pub struct ListPieceParams {
     pub batch_no: Option<String>,
     /// 染色批号
     pub dye_lot_no: Option<String>,
+    /// 匹状态过滤（词表唯一来源 models/status/purchase_inventory.rs::inventory_piece，
+    /// 如 AVAILABLE=可出库匹）。出库/调拨对话框的"该缸该批现存可用匹"选择器按此下推查询，
+    /// 不接受前端自行推断——状态集合是后端权威语义，前端只透传词表值。
+    pub status: Option<String>,
 }
 
 /// 匹号列表响应条目（含仓库名便于追溯展示）
@@ -48,6 +54,15 @@ pub struct PieceResponse {
     pub warehouse_in_at: Option<chrono::DateTime<chrono::Utc>>,
     pub length: rust_decimal::Decimal,
     pub weight: Option<rust_decimal::Decimal>,
+    /// 幅宽（cm，实测值；DB 可空列 inventory_piece.width）—— 标签 fail-closed 的
+    /// 点名列之一。职责划分按本仓锁定口径：前端标签选择对话框只**如实回显**该列
+    /// （未录入显示"未补录"），能否打印的**判定权在服务端**
+    /// （`print_service.rs:4999-5009` 逐列 `is_none` 即 400 点名，不做前端灰化替代校验）。
+    pub width: Option<rust_decimal::Decimal>,
+    /// 克重（g/m²，实测值；DB 可空列 inventory_piece.gram_weight）
+    pub gram_weight: Option<rust_decimal::Decimal>,
+    /// 条码（= piece_no 口径由产匹链路写入；可空 = 未生成 ⇒ 标签拒绝）
+    pub barcode: Option<String>,
     pub batch_no: String,
     pub color_no: Option<String>,
     pub product_id: i32,
@@ -62,13 +77,21 @@ pub struct PieceResponse {
 }
 
 /// GET /api/v1/erp/inventory/pieces - 匹号分页列表（四维追溯查询）
+///
+/// 读侧行级数据权限下推：`inventory_piece` 有 `created_by` 归属列（models/
+/// inventory_piece.rs::created_by）而无 `department_id` 列，故用 `apply_data_scope`
+/// 的 owner 列成员集合语义（Dept 分支按「归属人 ∈ 可见部门成员集合」，与
+/// `check_resource_owner_by_member_scope` 单行门同源），owner 与 dept 两列均传
+/// `Column::CreatedBy`（本表无部门列，Dept 分支不使用 dept 列）。过滤在构造处下推，
+/// `total` 取自同一已过滤 paginator，与 items 同口径，不出现「列表比 total 少」的错位。
 pub async fn list_pieces(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListPieceParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<PieceResponse>>>, AppError> {
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    let data_scope_ctx = auth.to_data_scope_context();
 
     let mut condition = Condition::all();
     if let Some(no) = &params.piece_no {
@@ -89,9 +112,32 @@ pub async fn list_pieces(
     if let Some(lot) = &params.dye_lot_no {
         condition = condition.add(inventory_piece::Column::DyeLotNo.eq(lot));
     }
+    // 状态过滤取值域 = models/status/purchase_inventory.rs::inventory_piece 词表（唯一来源），
+    // 词表外取值显式拒绝（400 VALIDATION_ERROR，公开规则文案可外显），不静默返回空集
+    if let Some(st) = &params.status {
+        const PIECE_STATUS_DOMAIN: &[&str] = &[
+            piece_status::AVAILABLE,
+            piece_status::RESERVED,
+            piece_status::SHIPPED,
+            piece_status::DEFECT,
+            piece_status::UNAVAILABLE,
+            piece_status::SAMPLE,
+        ];
+        if !PIECE_STATUS_DOMAIN.contains(&st.as_str()) {
+            return Err(AppError::validation_displayable(format!(
+                "非法匹状态过滤值：{st}（允许值：AVAILABLE/RESERVED/SHIPPED/DEFECT/UNAVAILABLE/SAMPLE）"
+            )));
+        }
+        condition = condition.add(inventory_piece::Column::Status.eq(st));
+    }
 
-    let paginator = inventory_piece::Entity::find()
-        .filter(condition)
+    let query = apply_data_scope(
+        inventory_piece::Entity::find().filter(condition),
+        &data_scope_ctx,
+        inventory_piece::Column::CreatedBy,
+        inventory_piece::Column::CreatedBy,
+    );
+    let paginator = query
         .order_by_desc(inventory_piece::Column::CreatedAt)
         .paginate(state.db.as_ref(), page_size);
     let total = paginator.num_items().await?;
@@ -123,6 +169,13 @@ pub async fn list_pieces(
                 warehouse_in_at: p.warehouse_in_at,
                 length: p.length,
                 weight: p.weight,
+                // 三列实测值 + 条码原样回传（读键与后端输出同为 snake_case、与
+                // models/inventory_piece.rs 列名逐字符同源）：NULL 就是"未补录"，
+                // 不得在此 map_or(Decimal::ZERO) 或 unwrap_or_default 把缺值洗成 0，
+                // 否则前端会误判"该匹可打标签"，与 print_service 的 fail-closed 口径分裂。
+                width: p.width,
+                gram_weight: p.gram_weight,
+                barcode: p.barcode,
                 batch_no: p.batch_no,
                 color_no: Some(p.color_no),
                 product_id: p.product_id,

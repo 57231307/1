@@ -123,6 +123,7 @@
 import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   getInventoryCount,
   recordCountItems,
@@ -248,15 +249,16 @@ const handleDeleteItem = async (row: CountDetailItem) => {
       t('inventoryCount.listTab.titleDeleteConfirm'),
       { type: 'warning' }
     );
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('inventoryCount.handleDeleteItem', error);
   }
   try {
     await deleteCountItem(row.id);
     ElMessage.success(t('inventoryCount.listTab.messageSuccess'));
     await fetchDetail();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
   }

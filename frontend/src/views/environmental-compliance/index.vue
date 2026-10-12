@@ -159,7 +159,9 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   getPollutionPermitList,
   createPollutionPermit,
@@ -194,6 +196,8 @@ async function loadPermits() {
   try {
     const res = await getPollutionPermitList({ page: 1, page_size: 50 });
     permits.value = (res.data?.items ?? []) as Array<Record<string, unknown>>;
+  } catch (e: unknown) {
+    logAuxLoadFailure('排污许可证加载失败', e);
   } finally {
     permitLoading.value = false;
   }
@@ -248,8 +252,9 @@ const handleSavePermit = async () => {
 const handleRevoke = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认撤销许可证 ${row.permit_no}？`, '确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('environmentalCompliance.handleRevoke', error);
   }
   try {
     await revokePollutionPermit(row.id as number);
@@ -284,6 +289,8 @@ async function loadRecords() {
   try {
     const res = await getPollutantMonitoringRecordList({ page: 1, page_size: 50 });
     records.value = res.data?.items ?? [];
+  } catch (e: unknown) {
+    logAuxLoadFailure('污染物监测记录加载失败', e);
   } finally {
     recordLoading.value = false;
   }

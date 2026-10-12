@@ -63,6 +63,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -141,7 +142,7 @@ const handleRename = async (row: ProductCategory) => {
     fetchCategories();
     emit('changed');
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('product.categoryDialogTab.messageAddFailed'));
     }
@@ -160,7 +161,7 @@ const handleDelete = async (row: ProductCategory) => {
     fetchCategories();
     emit('changed');
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       const err = error as Error;
       ElMessage.error(err.message || t('product.categoryDialogTab.messageDeleteFailed'));
     }

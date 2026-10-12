@@ -214,7 +214,8 @@ impl ExportApprovalService {
         if model.status == ApprovalStatus::PendingL2.as_str() {
             // 继续二级审批
         } else if model.status != ApprovalStatus::Pending.as_str() {
-            return Err(AppError::validation(format!(
+            // 状态门：审批请求当前状态不满足审批前置，归业务族；文案含状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "审批请求状态为 {}，仅 pending/pending_l2 状态可审批",
                 model.status
             )));
@@ -297,7 +298,8 @@ impl ExportApprovalService {
         if model.status != ApprovalStatus::Pending.as_str()
             && model.status != ApprovalStatus::PendingL2.as_str()
         {
-            return Err(AppError::validation(format!(
+            // 状态门：审批请求当前状态不满足拒绝前置，归业务族；文案含状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "审批请求状态为 {}，仅 pending/pending_l2 状态可拒绝",
                 model.status
             )));
@@ -346,7 +348,8 @@ impl ExportApprovalService {
         let is_cancellable = model.status == ApprovalStatus::Pending.as_str()
             || model.status == ApprovalStatus::PendingL2.as_str();
         if !is_cancellable {
-            return Err(AppError::validation(format!(
+            // 状态门：审批请求当前状态不满足取消前置，归业务族；文案含状态 token 保持脱敏
+            return Err(AppError::business(format!(
                 "审批请求状态为 {}，仅 pending/pending_l2 状态可取消",
                 model.status
             )));

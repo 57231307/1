@@ -41,7 +41,9 @@ impl ApInvoiceService {
         // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
         if let Some(amount) = req.amount {
             if amount.round_dp(2) != amount {
-                return Err(AppError::validation("应付单金额精度不能超过 2 位小数"));
+                return Err(AppError::validation_displayable(
+                    "应付单金额精度不能超过 2 位小数",
+                ));
             }
         }
 
@@ -54,7 +56,7 @@ impl ApInvoiceService {
             invoice_no: Set(invoice_no),
             supplier_id: Set(req
                 .supplier_id
-                .ok_or_else(|| AppError::validation("应付单缺少供应商ID"))?),
+                .ok_or_else(|| AppError::validation_displayable("应付单缺少供应商ID"))?),
             invoice_type: Set(req.invoice_type.unwrap_or_else(|| "PURCHASE".to_string())),
             source_type: Set(Some("MANUAL".to_string())),
             source_id: Set(None),
@@ -134,7 +136,9 @@ impl ApInvoiceService {
         if let Some(amount) = req.amount {
             // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
             if amount.round_dp(2) != amount {
-                return Err(AppError::validation("应付单金额精度不能超过 2 位小数"));
+                return Err(AppError::validation_displayable(
+                    "应付单金额精度不能超过 2 位小数",
+                ));
             }
             invoice_active.amount = Set(amount);
             invoice_active.unpaid_amount = Set(amount - original_paid_amount);

@@ -11,7 +11,7 @@ use crate::models::dto::PageRequest;
 use crate::models::inventory_transfer;
 use crate::services::inv::{
     CreateInventoryTransferRequest, InventoryTransferItemRequest, InventoryTransferService,
-    UpdateInventoryTransferRequest,
+    UpdateInventoryTransferItemRequest, UpdateInventoryTransferRequest,
 };
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -69,9 +69,7 @@ pub async fn list_transfers(
     let transfers_json: Vec<serde_json::Value> = transfers
         .items
         .into_iter()
-        .map(|t| {
-            serde_json::to_value(t).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-        })
+        .map(serde_json::to_value)
         .collect::<Result<Vec<_>, _>>()?;
 
     // 透传 service 已算出的总数，分页条据此渲染（原实现丢弃 total 致前端分页失效）
@@ -95,8 +93,7 @@ pub async fn get_transfer(
     let transfer = transfer_service
         .get_transfer_detail(id, Some(&data_scope_ctx))
         .await?;
-    let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let transfer_json = serde_json::to_value(transfer)?;
     Ok(Json(ApiResponse::success(transfer_json)))
 }
 
@@ -121,8 +118,7 @@ pub async fn create_transfer(
             sea_orm::DatabaseBackend::Postgres,
             recent_count_sql,
         ))
-        .await
-        .map_err(|e| AppError::internal(format!("查询调拨频率失败: {}", e)))?;
+        .await?;
     let recent_count = count_result
         .map(|r| r.try_get::<i64>("", "count").unwrap_or(0))
         .unwrap_or(0);
@@ -139,8 +135,7 @@ pub async fn create_transfer(
     let transfer = transfer_service
         .create_transfer(request, auth.user_id)
         .await?;
-    let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let transfer_json = serde_json::to_value(transfer)?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单创建成功",
@@ -165,8 +160,7 @@ pub async fn update_transfer(
     let transfer = transfer_service
         .update_transfer(id, request, auth.user_id)
         .await?;
-    let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let transfer_json = serde_json::to_value(transfer)?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单更新成功",
@@ -192,8 +186,7 @@ pub async fn approve_transfer(
             auth.role_id,
         )
         .await?;
-    let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let transfer_json = serde_json::to_value(transfer)?;
     let message = if request.approved {
         "库存调拨单已审核"
     } else {
@@ -212,8 +205,7 @@ pub async fn ship_transfer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.ship_transfer(id).await?;
-    let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let transfer_json = serde_json::to_value(transfer)?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单已发出",
@@ -227,8 +219,7 @@ pub async fn receive_transfer(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
     let transfer = transfer_service.receive_transfer(id).await?;
-    let transfer_json = serde_json::to_value(transfer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let transfer_json = serde_json::to_value(transfer)?;
     Ok(Json(ApiResponse::success_with_message(
         transfer_json,
         "库存调拨单已接收",
@@ -249,10 +240,9 @@ pub async fn delete_transfer(
         .await?;
 
     // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
-    transfer_service
-        .delete_transfer(id, auth.user_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    // 原 map_err(bad_request) 会把 service 的 not_found/业务拒绝等真实错误类型压成 400，
+    // 改为 ? 透传（错误按真正责任模块定性）
+    transfer_service.delete_transfer(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "库存调拨单已删除",
@@ -265,15 +255,10 @@ pub async fn list_items(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<Vec<serde_json::Value>>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    let items = transfer_service
-        .list_items(id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let items = transfer_service.list_items(id).await?;
     let items_json: Vec<serde_json::Value> = items
         .into_iter()
-        .map(|item| {
-            serde_json::to_value(item).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))
-        })
+        .map(serde_json::to_value)
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Json(ApiResponse::success(items_json)))
 }
@@ -285,12 +270,10 @@ pub async fn add_item(
     Json(request): Json<InventoryTransferItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    let item = transfer_service
-        .add_item(id, request)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
-    let item_json =
-        serde_json::to_value(item).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 原 map_err(bad_request) 会把 service 的 not_found/业务拒绝等真实错误类型压成 400，
+    // 改为 ? 透传（错误按真正责任模块定性）
+    let item = transfer_service.add_item(id, request).await?;
+    let item_json = serde_json::to_value(item)?;
     Ok(Json(ApiResponse::success_with_message(
         item_json,
         "调拨明细添加成功",
@@ -298,18 +281,21 @@ pub async fn add_item(
 }
 
 /// 更新调拨单明细
+///
+/// 载荷为三态 DTO（UpdateInventoryTransferItemRequest，服务侧 inv/mod.rs 定义）：
+/// 键缺席=保持、显式 null=清空（可空列 notes/unit_cost/piece_no 置 NULL；缸号列
+/// DDL 为 NOT NULL DEFAULT ''，其"清空"落空串）、有值=覆盖；
+/// NOT NULL 列显式 null 由 service 在任何 DB 访问前拒绝。
 pub async fn update_item(
     State(state): State<AppState>,
     Path(item_id): Path<i32>,
-    Json(request): Json<InventoryTransferItemRequest>,
+    Json(request): Json<UpdateInventoryTransferItemRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    let item = transfer_service
-        .update_item(item_id, request)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
-    let item_json =
-        serde_json::to_value(item).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 原 map_err(bad_request) 会把 service 的 not_found/业务拒绝（如 NOT NULL 拒清）
+    // 压成 400 脱敏文本，改为 ? 透传（错误按真正责任模块定性）
+    let item = transfer_service.update_item(item_id, request).await?;
+    let item_json = serde_json::to_value(item)?;
     Ok(Json(ApiResponse::success_with_message(
         item_json,
         "调拨明细更新成功",
@@ -322,27 +308,27 @@ pub async fn delete_item(
     Path(item_id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     let transfer_service = InventoryTransferService::new(state.db.clone());
-    transfer_service
-        .delete_item(item_id)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+    // 原 map_err(bad_request) 会把 service 的真实错误类型压成 400，改为 ? 透传
+    transfer_service.delete_item(item_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
         "调拨明细已删除",
     )))
 }
 
-/// 生成库存调拨单号 GET /api/v1/erp/inventory/transfers/generate-no；单据号格式：`IT{yyyyMMdd}{4 位流水}`
-/// 例如 `IT202605140001`。 数据库列 `inventory_transfers.transfer_no` 上的 `UNIQUE` 约束负责最终去重。
+/// 生成库存调拨单号 GET /api/v1/erp/inventory/transfers/generate-no；单据号格式：`TRF{yyyyMMdd}{3 位流水}`
+/// 例如 `TRF20260514001`。前缀/位数与落库权威
+/// `generate_transfer_no`（inv/inventory_move.rs，impl_generate_no! "TRF"，默认 3 位）逐字一致，
+/// 修复展示码≠落库码双轨缺陷（原展示 "IT"/4 位）。
+/// 数据库列 `inventory_transfers.transfer_no` 上的 `UNIQUE` 约束负责最终去重。
 pub async fn generate_no(
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let transfer_no = DocumentNumberGenerator::generate_no_with_width(
+    let transfer_no = DocumentNumberGenerator::generate_no(
         &*state.db,
-        "IT",
+        "TRF",
         inventory_transfer::Entity,
         inventory_transfer::Column::TransferNo,
-        4,
     )
     .await?;
     Ok(Json(ApiResponse::success(serde_json::json!({

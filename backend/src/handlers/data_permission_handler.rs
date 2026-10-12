@@ -47,7 +47,7 @@ pub fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError>
                 || field.is_empty()
                 || field.len() > 64
             {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "custom_condition 字段名非法: {}",
                     field
                 )));
@@ -58,20 +58,22 @@ pub fn validate_custom_condition_safe(condition: &Value) -> Result<(), AppError>
                 Value::String(s) => {
                     // 字符串值禁止特殊字符
                     if s.contains('\'') || s.contains('"') || s.contains(';') {
-                        return Err(AppError::validation(
+                        return Err(AppError::validation_displayable(
                             "custom_condition 字符串值禁止特殊字符",
                         ));
                     }
                 }
                 _ => {
-                    return Err(AppError::validation(
+                    return Err(AppError::validation_displayable(
                         "custom_condition 值必须是字面量（数字/字符串/bool/null）",
                     ));
                 }
             }
         }
     } else if !condition.is_null() {
-        return Err(AppError::validation("custom_condition 必须是对象或 null"));
+        return Err(AppError::validation_displayable(
+            "custom_condition 必须是对象或 null",
+        ));
     }
     // 额外深度检查：禁止任何已知危险 SQL 关键字
     // 批次 397 修复：序列化失败时 fail-fast 返回错误，避免跳过安全检查
@@ -140,7 +142,7 @@ pub async fn set_data_permission(
 
     let valid_scope_types = ["ALL", "DEPT", "DEPT_AND_BELOW", "SELF", "CUSTOM"];
     if !valid_scope_types.contains(&req.scope_type.as_str()) {
-        return Err(AppError::validation("无效的数据范围类型"));
+        return Err(AppError::validation_displayable("无效的数据范围类型"));
     }
 
     // C-3 修复：custom_condition 白名单校验（拒绝 SQL 注入）

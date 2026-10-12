@@ -6,6 +6,7 @@
  *
  * 设计说明：通过 callbacks 接收 usePi 的状态引用（Reactive 包装层）
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
@@ -22,6 +23,9 @@ import {
   toInspectionUiRow,
 } from '@/api/purchase-inspection';
 import { logger } from '@/utils/logger';
+// 质检结论词表单一来源（与后端 models/status/purchase_inventory.rs 的
+// purchase_inspection_result 逐字一致）；pattern 由常量构造，禁止手写第二套取值
+import { PURCHASE_INSPECTION_RESULT_INPUT_PATTERN } from '@/utils/purchase-inspection-result';
 
 /** 取已翻译文案（i18n 全局实例，composable 无组件实例，同域 usePcProc 一致做法）。 */
 const t = i18n.global.t.bind(i18n.global);
@@ -234,7 +238,9 @@ export function usePiProc(cb: PiCallbacks) {
           confirmButtonText: t('common.confirm'),
           cancelButtonText: t('common.cancel'),
           inputPlaceholder: t('purchaseInspection.complete.resultPlaceholder'),
-          inputPattern: /^(pass|fail|partial)$/,
+          // 词表强校验的写入方采集点：pattern 由权威常量构造（三端同源），
+          // 提交值原样落 inspection_result（pass/fail/partial）
+          inputPattern: PURCHASE_INSPECTION_RESULT_INPUT_PATTERN,
           inputErrorMessage: t('purchaseInspection.complete.resultError'),
         }
       );
@@ -246,7 +252,7 @@ export function usePiProc(cb: PiCallbacks) {
       msg.success('operationSuccess');
       await cb.fetchData();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('操作失败:', error);
       }
     }

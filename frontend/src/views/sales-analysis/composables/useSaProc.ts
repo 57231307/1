@@ -2,6 +2,7 @@
 // 拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
 // 业务领域：销售分析（编辑目标 + 导出报表 + 排名类型切换）
 // 行为完全保持一致（仅结构重构）
+import { isDialogDismissal } from '@/utils/monitor';
 import { ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
 import {
@@ -39,7 +40,7 @@ export const useSaProc = () => {
       });
       msg.success('updateSuccess');
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         logger.error('编辑目标失败:', error);
         msg.error('editTargetFailed');
       }

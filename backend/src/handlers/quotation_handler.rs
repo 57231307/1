@@ -20,18 +20,19 @@ use crate::models::quotation_response_dto::{
 };
 use crate::models::quotation_update_dto::UpdateQuotationDto;
 use crate::models::status::approval;
-use crate::models::status::quotation as quotation_status;
 use crate::services::quotation_approval_service::QuotationApprovalService;
 use crate::services::quotation_convert_service::QuotationConvertService;
 use crate::services::quotation_pricing_service::{PricingContext, QuotationPricingService};
 use crate::services::quotation_service::{QuotationService, ServiceError};
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
 use axum::{
     Json,
     extract::{Path, Query, State},
 };
+use tracing::warn;
 
 // ----------------------------------------------------------------------
 // 公共 DTO
@@ -64,6 +65,14 @@ pub struct ListQuotationsResponse {
 #[derive(Debug, Deserialize)]
 pub struct RejectRequest {
     pub reason: String,
+}
+
+/// 审批通过请求体：通过理由本域必填（缺失/空串/纯空白一律服务端拒绝）。
+/// 字段保持 `Option<String>` 是为了让"缺键/不带 body"的调用走到统一的 `AppError`
+/// 校验信封，而不是在 axum 解码层退化成无信封裸 400；必填语义在 handler 收口。
+#[derive(Debug, Deserialize)]
+pub struct ApproveQuotationRequest {
+    pub approval_reason: Option<String>,
 }
 
 /// 即将到期 / 已过期查询参数
@@ -104,13 +113,15 @@ impl From<crate::models::sales_order::Model> for SalesOrderResponse {
 
 /// GET /api/v1/erp/quotations
 pub async fn list_quotations(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListQuotationsQuery>,
 ) -> Result<Json<ApiResponse<ListQuotationsResponse>>, AppError> {
     let service = QuotationService::from_state(&state);
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+
+    let ctx = auth.to_data_scope_context();
 
     let (dtos, total) = service
         .list(
@@ -120,6 +131,7 @@ pub async fn list_quotations(
             query.customer_id,
             query.sales_user_id,
             query.keyword,
+            Some(&ctx),
         )
         .await?;
 
@@ -133,12 +145,13 @@ pub async fn list_quotations(
 
 /// GET /api/v1/erp/quotations/:id
 pub async fn get_quotation(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     let service = QuotationService::from_state(&state);
-    let model = service.get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    let model = service.get_by_id_scoped(id, &ctx).await?;
 
     // 明细：LEFT JOIN products，取真实 name/code 别名为 product_name/product_code（单次查询）
     let items: Vec<QuotationItemResponseDto> = crate::models::sales_quotation_item::Entity::find()
@@ -178,7 +191,7 @@ pub async fn create_quotation(
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     use validator::Validate;
     if let Err(e) = dto.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let service = QuotationService::from_state(&state);
@@ -191,7 +204,6 @@ pub async fn create_quotation(
 }
 
 /// PUT /api/v1/erp/quotations/:id
-// 批次 94 P2-13 修复：移除 let _ = auth; 占位，注入 auth.user_id 到 service.update 用于审计日志
 pub async fn update_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
@@ -200,10 +212,14 @@ pub async fn update_quotation(
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
     use validator::Validate;
     if let Err(e) = dto.validate() {
-        return Err(AppError::validation(e.to_string()));
+        return Err(AppError::from(e));
     }
 
     let service = QuotationService::from_state(&state);
+    // 行级归属门（写口）：更新报价单前校验操作人对本行的可见性（sales_quotations 无
+    // department_id 列，归属列 sales_user_id，门口径与 get_by_id_scoped 同源）。
+    let ctx = auth.to_data_scope_context();
+    service.get_by_id_scoped(id, &ctx).await?;
     let model = service.update(id, dto, auth.user_id as i64).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
@@ -221,6 +237,12 @@ pub async fn submit_quotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    // 行级归属门（写口）：提交是创建人推进自身草稿的动作，必须先证归属。
+    // sales_quotations 无 department_id，按 get_by_id_scoped 判定（与列表侧同源）。
+    let ctx = auth.to_data_scope_context();
+    QuotationService::from_state(&state)
+        .get_by_id_scoped(id, &ctx)
+        .await?;
     let service = QuotationApprovalService::from_state(&state);
     let model = service.submit(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -230,13 +252,33 @@ pub async fn submit_quotation(
 }
 
 /// POST /api/v1/erp/quotations/:id/approve
+// 审批拆为「通过 / 拒绝」两条动作：本端点只处理通过，通过理由必填并真实落
+// `approval_reason` 列；拒绝动作在 /reject（理由落既有专列 `rejection_reason`）。
 pub async fn approve_quotation(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    payload: OptionalJson<ApproveQuotationRequest>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    // 入参形态用 `OptionalJson`（utils::optional_json 语义表）：`Option<Json<T>>`
+    // 是假可选——axum 0.8.9 只在完全不带 Content-Type 时才放行，"带 JSON 头 + 空体"
+    // 仍被解码层判 400；缺体在此归一为 None，由下方必填分支给出统一 AppError 信封。
+    let approval_reason = payload
+        .0
+        .and_then(|r| r.approval_reason)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            // 可外显文案只定性规则、不带记录 ID（utils/error.rs 安全边界），ID 只进日志。
+            warn!(
+                "用户 {} 批准报价单被拒：单据 ID {id} 缺少审批通过理由（ID 只进日志不进文案）",
+                auth.user_id
+            );
+            AppError::validation_displayable("审批通过理由不能为空")
+        })?;
+
     let service = QuotationApprovalService::from_state(&state);
-    let model = service.approve(id, auth.user_id).await?;
+    let model = service.approve(id, auth.user_id, approval_reason).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
         "报价单已批准",
@@ -250,11 +292,20 @@ pub async fn reject_quotation(
     Path(id): Path<i64>,
     Json(body): Json<RejectRequest>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
-    if body.reason.trim().is_empty() {
-        return Err(AppError::validation("拒绝原因不能为空".to_string()));
+    // 拒绝理由服务端必填（trim 非空），落库为 trim 后的值——与 approve 的通过理由
+    // 同一收口口径；可外显文案定性、不带记录 ID。
+    let reason = body.reason.trim().to_string();
+    if reason.is_empty() {
+        warn!(
+            "用户 {} 拒绝报价单被拒：单据 ID {id} 拒绝理由为空（ID 只进日志不进文案）",
+            auth.user_id
+        );
+        return Err(AppError::validation_displayable(
+            "拒绝原因不能为空".to_string(),
+        ));
     }
     let service = QuotationApprovalService::from_state(&state);
-    let model = service.reject(id, auth.user_id, body.reason).await?;
+    let model = service.reject(id, auth.user_id, reason).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
         "报价单已拒绝",
@@ -267,7 +318,10 @@ pub async fn cancel_quotation(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<QuotationResponseDto>>, AppError> {
+    // 行级归属门（写口）：取消改报价单状态，必须先证归属再触达 service。
+    let ctx = auth.to_data_scope_context();
     let service = QuotationService::from_state(&state);
+    service.get_by_id_scoped(id, &ctx).await?;
     let model = service.cancel(id, auth.user_id as i64).await?;
     Ok(Json(ApiResponse::success_with_message(
         QuotationResponseDto::from(model),
@@ -285,6 +339,12 @@ pub async fn convert_to_sales_order(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<SalesOrderResponse>>, AppError> {
+    // 行级归属门（写口）：转单在 sales_orders 落新行并将报价单置 converted 终态，
+    // 必须先证报价单归属——否则同 RBAC 键的他人可凭报价 id 转走他人已审批报价。
+    let ctx = auth.to_data_scope_context();
+    QuotationService::from_state(&state)
+        .get_by_id_scoped(id, &ctx)
+        .await?;
     let service = QuotationConvertService::from_state(&state);
     let order = service.convert(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
@@ -299,10 +359,14 @@ pub async fn convert_to_sales_order(
 
 /// GET /api/v1/erp/quotations/:id/terms
 pub async fn get_quotation_terms(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
+    let service = QuotationService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    service.get_by_id_scoped(id, &ctx).await?;
+
     let terms: Vec<QuotationTermResponseDto> = crate::models::sales_quotation_term::Entity::find()
         .filter(crate::models::sales_quotation_term::Column::QuotationId.eq(id))
         .all(&*state.db)
@@ -316,17 +380,19 @@ pub async fn get_quotation_terms(
 /// PUT /api/v1/erp/quotations/:id/terms
 /// 全量替换报价单贸易条款
 pub async fn set_quotation_terms(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(terms): Json<Vec<crate::models::quotation_create_dto::CreateQuotationTermDto>>,
 ) -> Result<Json<ApiResponse<Vec<QuotationTermResponseDto>>>, AppError> {
     use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
 
-    // 校验报价单存在
-    // 批次 113 P1-8：移除 `let _ =` 显式丢弃，直接表达式语句校验存在性
     let service = QuotationService::from_state(&state);
-    service.get_by_id(id).await?;
+    let ctx = auth.to_data_scope_context();
+    // 行级读门：校验报价单存在且操作人可见（不存在 404，不可见 403+FORBIDDEN）。
+    // 跨 owner 写门：报价域尚无等价 *_write_guard（待主编排定夺），此处以读门
+    // 的 scope 可见性约束覆盖 D18 写入口——Self 用户不可改他人报价条款。
+    service.get_by_id_scoped(id, &ctx).await?;
 
     let txn = state.db.begin().await?;
 
@@ -372,7 +438,7 @@ pub async fn set_quotation_terms(
 /// GET /api/v1/erp/quotations/expiring
 /// 即将到期（默认 7 天内）
 pub async fn list_expiring(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ExpiryQuery>,
 ) -> Result<Json<ApiResponse<Vec<QuotationResponseDto>>>, AppError> {
@@ -380,38 +446,23 @@ pub async fn list_expiring(
     let today = Utc::now().date_naive();
     let until = today + chrono::Duration::days(days as i64);
 
-    use crate::models::sales_quotation;
-    let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
-        .filter(sales_quotation::Column::Status.eq(quotation_status::APPROVED))
-        .filter(sales_quotation::Column::ValidUntil.between(today, until))
-        .all(&*state.db)
-        .await?
-        .into_iter()
-        .map(QuotationResponseDto::from)
-        .collect();
+    let service = QuotationService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    let items = service.list_expiring_scoped(today, until, &ctx).await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
 /// GET /api/v1/erp/quotations/expired
 /// 已过期（valid_until < today 且状态非 cancelled/converted）
 pub async fn list_expired(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Vec<QuotationResponseDto>>>, AppError> {
     let today = Utc::now().date_naive();
 
-    use crate::models::sales_quotation;
-    use sea_orm::sea_query::Expr;
-    let items: Vec<QuotationResponseDto> = sales_quotation::Entity::find()
-        .filter(sales_quotation::Column::ValidUntil.lt(today))
-        .filter(Expr::cust(
-            "status NOT IN ('cancelled', 'converted', 'expired')",
-        ))
-        .all(&*state.db)
-        .await?
-        .into_iter()
-        .map(QuotationResponseDto::from)
-        .collect();
+    let service = QuotationService::from_state(&state);
+    let ctx = auth.to_data_scope_context();
+    let items = service.list_expired_scoped(today, &ctx).await?;
     Ok(Json(ApiResponse::success(items)))
 }
 
@@ -553,9 +604,14 @@ impl From<ServiceError> for AppError {
     fn from(e: ServiceError) -> Self {
         match e {
             ServiceError::NotFound => AppError::not_found("报价单不存在"),
-            ServiceError::InvalidState => AppError::validation("当前状态不允许此操作".to_string()),
-            ServiceError::Validation(msg) => AppError::validation(msg),
-            ServiceError::Database(db_err) => AppError::internal(db_err.to_string()),
+            // 状态门装配点：报价域 ServiceError::InvalidState 与 finance/quality/bad_debt
+            // 各域的 *::InvalidState 同属「前置状态未满足」，族必须一致归 business。
+            // 文案「当前状态不允许此操作」只述公开业务规则、不含内部状态 token/ID，可外显。
+            ServiceError::InvalidState => {
+                AppError::business_displayable("当前状态不允许此操作".to_string())
+            }
+            ServiceError::Validation(msg) => AppError::validation_displayable(msg),
+            ServiceError::Database(db_err) => AppError::database(db_err.to_string()),
             // 批次 265：paginate_with_total 返回的 AppError 直接透传
             ServiceError::App(e) => e,
         }

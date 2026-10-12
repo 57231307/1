@@ -5,7 +5,9 @@
 //! `impl SalesService`，handler 仅保留参数提取 + 调用 service。
 //!
 //! 业务规则：
-//! - 订单号生成：`SO{yyyymmddHHMMSS}`（简单时间戳单号，与原 handler 保持一致）
+//! - 订单号生成：统一走 `DocumentNumberGenerator`（`SO{YYYYMMDD}{3位流水}`，
+//!   事务内取号 + 23505 保存点重试；原 `SO{yyyymmddHHMMSS}` 秒级时间戳同秒必撞、
+//!   且与销售订单域标准流水格式不一致，已废弃）
 //! - 明细校验：数量/单价非负，价格精度 2 位小数（P2-11 修复逻辑下沉）
 //! - 总金额 = Σ(quantity_meters × final_price)，主表与明细在同一事务内提交
 //! - 审核流：pending → approved（记录 approved_at）
@@ -13,13 +15,15 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::Deserialize;
 
+use crate::models::status::sales_fabric_order as fabric_status;
 use crate::models::{sales_order, sales_order_item};
 use crate::services::so::order::SalesService;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 /// 创建面料销售订单明细请求（handler DTO 直接透传，字段与原 handler 一致）
 /// 批次说明：product_name / batch_no / dye_lot_no 为前端表单冗余字段，明细落库时
@@ -185,21 +189,23 @@ impl SalesService {
         Self::validate_fabric_order_items(&req.items)?;
 
         let txn = (*self.db).begin().await?;
-        let order_no = format!("SO{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
         let total_amount = Self::calculate_fabric_order_totals(&req.items);
 
-        let order = Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id);
-        let created_order = order
-            .insert(&txn)
-            .await
-            .map_err(|e| AppError::bad_request(format!("创建订单失败：{}", e)))?;
+        // 订单号统一走生成器：在本事务内取号（advisory 锁 + 占用探测），
+        // INSERT 撞 order_no 唯一约束时保存点回滚重新取号重试，
+        // 其余 SQL 错误显式上抛（不再拼时间戳、也不再伪装成 400 掩盖错误）
+        let created_order = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "SO",
+            sales_order::Entity,
+            sales_order::Column::OrderNo,
+            |order_no| Self::build_fabric_order_active_model(&req, order_no, total_amount, user_id),
+        )
+        .await?;
 
         for item in &req.items {
             let order_item = Self::build_fabric_order_item_active_model(item, created_order.id);
-            order_item
-                .insert(&txn)
-                .await
-                .map_err(|e| AppError::bad_request(format!("创建订单明细失败：{}", e)))?;
+            order_item.insert(&txn).await?;
         }
 
         txn.commit().await?;
@@ -219,7 +225,7 @@ impl SalesService {
             .into();
 
         if let Some(date) = req.required_date {
-            order.required_date = Set(date);
+            order.required_date = Set(Some(date));
         }
         if let Some(status) = req.status {
             order.status = Set(status);
@@ -253,22 +259,65 @@ impl SalesService {
     }
 
     /// 面料行业版订单审核（pending → approved）
-    pub async fn approve_fabric_order(&self, id: i32) -> Result<sales_order::Model, AppError> {
+    /// approved_by 存审批人用户 ID，由 handler 从服务端会话取，请求体不承载身份。
+    pub async fn approve_fabric_order(
+        &self,
+        id: i32,
+        approved_by: i32,
+    ) -> Result<sales_order::Model, AppError> {
         let mut order: sales_order::ActiveModel = sales_order::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("订单不存在"))?
             .into();
 
-        order.status = Set("approved".to_string());
-        order.approved_by = Set(None);
+        order.status = Set(fabric_status::APPROVED.to_string());
+        order.approved_by = Set(Some(approved_by));
         order.approved_at = Set(Some(chrono::Utc::now()));
         order.updated_at = Set(chrono::Utc::now());
 
-        let updated = order
-            .update(&*self.db)
-            .await
-            .map_err(|e| AppError::bad_request(format!("审核订单失败：{}", e)))?;
+        let updated = order.update(&*self.db).await?;
+        Ok(updated)
+    }
+
+    /// 面料行业版订单拒绝（pending → rejected）
+    pub async fn reject_fabric_order(
+        &self,
+        id: i32,
+        reason: String,
+        user_id: i32,
+    ) -> Result<sales_order::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        let order = sales_order::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("订单不存在"))?;
+
+        if order.status != fabric_status::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审核状态的订单可以拒绝，当前状态：{}",
+                order.status
+            )));
+        }
+
+        let mut active: sales_order::ActiveModel = order.into();
+        active.status = Set(fabric_status::REJECTED.to_string());
+        active.rejected_reason = Set(Some(reason));
+        active.approved_by = Set(Some(user_id));
+        active.approved_at = Set(Some(chrono::Utc::now()));
+        active.updated_at = Set(chrono::Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -285,25 +334,25 @@ impl SalesService {
     /// 校验单个明细项
     fn validate_fabric_item(item: &FabricOrderItemRequest, idx: usize) -> Result<(), AppError> {
         if item.quantity_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 quantity_meters 不能为负数",
                 idx + 1
             )));
         }
         if item.quantity_kg < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 quantity_kg 不能为负数",
                 idx + 1
             )));
         }
         if item.unit_price_meters < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 unit_price_meters 不能为负数",
                 idx + 1
             )));
         }
         if item.unit_price_meters.round_dp(2) != item.unit_price_meters {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 unit_price_meters 精度不能超过 2 位小数",
                 idx + 1
             )));
@@ -320,14 +369,14 @@ impl SalesService {
     /// 校验可选价格字段的非负与精度（货币精度 2 位小数）
     fn validate_price_precision(p: Decimal, field: &str, idx: usize) -> Result<(), AppError> {
         if p < Decimal::ZERO {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 {} 不能为负数",
                 idx + 1,
                 field
             )));
         }
         if p.round_dp(2) != p {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "第 {} 项 {} 精度不能超过 2 位小数",
                 idx + 1,
                 field
@@ -362,7 +411,7 @@ impl SalesService {
             customer_id: Set(req.customer_id),
             opportunity_id: Set(None),
             order_date: Set(req.order_date),
-            required_date: Set(req.required_date),
+            required_date: Set(Some(req.required_date)),
             ship_date: Set(None),
             status: Set("pending".to_string()),
             subtotal: Set(total_amount),
@@ -380,13 +429,20 @@ impl SalesService {
             batch_no: Set(Some(String::new())),
             color_no: Set(Some(String::new())),
             dye_lot_no: Set(Some(String::new())),
-            grade: Set(None),
-            packaging_requirement: Set(None),
-            quality_standard: Set(None),
+            // 追溯三列的生效 DDL 为 NOT NULL DEFAULT ''（migration system/mod.rs:432/434/436）：
+            // DEFAULT 只在 INSERT 省略该列时生效，显式下传 NULL 会直接撞 23502。面料建单不采集
+            // 这三项，按兄弟列与正常建单路径（services/so/order_crud.rs:293-297 的
+            // `unwrap_or_default()`）同惯例落空串。
+            grade: Set(Some(String::new())),
+            packaging_requirement: Set(Some(String::new())),
+            quality_standard: Set(Some(String::new())),
             created_by: Set(Some(user_id)),
             department_id: Set(None),
             approved_by: Set(None),
             approved_at: Set(None),
+            // 建单路径不采集审批/拒绝理由，专列落 NULL
+            approval_reason: Set(None),
+            rejected_reason: Set(None),
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
         }

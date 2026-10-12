@@ -4,6 +4,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use sea_orm::EntityTrait; // 归属门需按主键取父行：find_by_id 由 EntityTrait 提供
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use tracing::info;
@@ -18,6 +19,7 @@ use crate::services::ar::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use std::sync::Arc;
 
@@ -48,6 +50,8 @@ pub struct ReconciliationResponse {
     pub total_collections: String,
     pub closing_balance: String,
     pub reconciliation_status: Option<String>,
+    pub dispute_reason: Option<String>,
+    pub notes: Option<String>,
     pub created_at: String,
 }
 
@@ -65,16 +69,54 @@ impl From<crate::models::ar_reconciliation::Model> for ReconciliationResponse {
             total_collections: model.total_collections.to_string(),
             closing_balance: model.closing_balance.to_string(),
             reconciliation_status: model.reconciliation_status,
+            dispute_reason: model.dispute_reason,
+            notes: model.notes,
             created_at: model.created_at.to_rfc3339(),
         }
     }
 }
 
+/// 行级归属门（对账单族）：对账单表无自身部门列，归属继承父客户（customers 为
+/// m_rls_dept_domain RLS 表，归属列 `owner_id`、冗余部门列 `department_id`）。读/建/详情前
+/// 取父客户走唯一权威判定 `data_scope::check_resource_owner`（与列表查询构造处下推的
+/// `apply_department_scope` 同源，列表可见 ⇔ 详情可读）。本域无 CRM 域 `crm/cross_owner_write`
+/// 代操作键，不硬套 `crm_write_guard`（其权限键 resource_type 固定为 "crm"）——对齐同域既有
+/// 归属门，仅按 check_resource_owner 堵 Self/Dept 水平越权。客户不存在→404；不可见→403 +
+/// 固定脱敏文案（不含对账单/客户 ID，权限文案永久脱敏）。
+/// 缺口（交主编排）：`All` 范围跨 owner 代操作本域无等价 cross_owner_write 键，须新增 AR 域
+/// 跨 owner 写键并同步权限注册表；本轮不新增权限键、不改 hub。
+async fn ensure_reconciliation_customer_access(
+    db: &sea_orm::DatabaseConnection,
+    ctx: &crate::utils::data_scope::DataScopeContext,
+    customer_id: i32,
+) -> Result<(), AppError> {
+    let parent = crate::models::customer::Entity::find_by_id(customer_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        ctx,
+        Some(parent.owner_id),
+        parent.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问对账单（数据范围限制）".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub async fn create_reconciliation(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<CreateReconciliationApiRequest>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    // 归属门（建单）：req.customer_id 直插 service 会让任意持本 RBAC 键用户对他人客户的
+    // 应收发起对账单。service 落库前先校验父客户存在性与行级归属——不存在→404、不可见→403，
+    // 且不触达 service.create（零落库）。created_by 由会话如实注入（不再因丢会话留 NULL）。
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, req.customer_id).await?;
+
     let service = ArReconciliationService::new(state.db);
     let create_req = CreateReconciliationRequest {
         reconciliation_no: req.reconciliation_no,
@@ -86,16 +128,13 @@ pub async fn create_reconciliation(
         total_invoices: req.total_invoices,
         total_collections: req.total_collections,
         notes: None,
+        created_by: Some(auth.user_id),
     };
 
-    service
-        .create(create_req)
-        .await
-        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
-        .map_err(|e| {
-            tracing::error!("创建对账单失败: {}", e);
-            AppError::internal(format!("创建对账单失败: {}", e))
-        })
+    let model = service.create(create_req).await?;
+    Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+        model,
+    ))))
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -105,16 +144,17 @@ pub struct ListReconciliationsQuery {
     pub customer_id: Option<i32>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
-    // 批次 109 P3：日期范围过滤接入
+    // 日期范围过滤接入
     pub start_date: Option<NaiveDate>,
     pub end_date: Option<NaiveDate>,
 }
 
 pub async fn list_reconciliations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(query): Query<ListReconciliationsQuery>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<ReconciliationResponse>>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = ArReconciliationService::new(state.db);
     let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -123,45 +163,42 @@ pub async fn list_reconciliations(
         customer_id: query.customer_id,
         page,
         page_size,
-        // 批次 109 P3：日期范围过滤接入
+        // 日期范围过滤接入
         start_date: query.start_date,
         end_date: query.end_date,
     };
 
-    service
-        .list(req)
-        .await
-        .map(|(models, total)| {
-            let responses: Vec<ReconciliationResponse> = models
-                .into_iter()
-                .map(ReconciliationResponse::from)
-                .collect();
-            Json(ApiResponse::success(PaginatedResponse::new(
-                responses, total, page, page_size,
-            )))
-        })
-        .map_err(|e| {
-            tracing::error!("获取对账单列表失败: {}", e);
-            AppError::internal(format!("获取对账单列表失败: {}", e))
-        })
+    // 行级归属门（读族）：在查询构造处下推 data_scope（借父客户 RLS 归属列收窄 customer_id 集合），
+    // 不传 customer_id 也不等于全量可见，越权行既不进 items 也不进 total。
+    let (models, total) = service.list(req, Some(&data_scope_ctx)).await?;
+    let responses: Vec<ReconciliationResponse> = models
+        .into_iter()
+        .map(ReconciliationResponse::from)
+        .collect();
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        responses, total, page, page_size,
+    ))))
 }
 
 pub async fn get_reconciliation(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
-    let service = ArReconciliationService::new(state.db);
+    let data_scope_ctx = auth.to_data_scope_context();
+    let service = ArReconciliationService::new(state.db.clone());
 
-    service
+    let model = service
         .get_by_id(id)
-        .await
-        .map_err(|e| {
-            tracing::error!("获取对账单失败: {}", e);
-            AppError::internal(format!("获取对账单失败: {}", e))
-        })?
-        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
-        .ok_or_else(|| AppError::not_found(format!("对账单 {} 不存在", id)))
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    // 行级归属门（读单行 IDOR 防护）：get_by_id(id) 无门会让任意持本 RBAC 键用户读他人财务
+    // 对账单。校验该对账单父客户是否在可见范围——不可见→403 + 固定脱敏文案，不返回任何字段。
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, model.customer_id).await?;
+
+    Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+        model,
+    ))))
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -176,17 +213,20 @@ pub async fn update_reconciliation_status(
     Path(id): Path<i32>,
     Json(req): Json<UpdateStatusRequest>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
-    let service = ArReconciliationService::new(state.db);
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
 
-    // 批次 109 P3：update_status 新增 remark 参数，此 handler 无 remark 字段传 None
-    service
+    let service = ArReconciliationService::new(state.db);
+    let model = service
         .update_status(id, &req.status, auth.user_id, None)
-        .await
-        .map(|model| Json(ApiResponse::success(ReconciliationResponse::from(model))))
-        .map_err(|e| {
-            tracing::error!("更新对账单状态失败: {}", e);
-            AppError::internal(format!("更新对账单状态失败: {}", e))
-        })
+        .await?;
+    Ok(Json(ApiResponse::success(ReconciliationResponse::from(
+        model,
+    ))))
 }
 
 // ============================================================================
@@ -216,9 +256,16 @@ pub async fn update_reconciliation(
     Path(id): Path<i32>,
     Json(req): Json<UpdateReconciliationApiRequest>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 更新对账单 ID: {}", auth.username, id);
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
     let update_req = UpdateReconciliationRequest {
         opening_balance: req.opening_balance,
         total_invoices: req.total_invoices,
@@ -226,19 +273,11 @@ pub async fn update_reconciliation(
         notes: req.notes,
     };
 
-    service
-        .update(id, update_req, auth.user_id)
-        .await
-        .map(|model| {
-            Json(ApiResponse::success_with_message(
-                ReconciliationResponse::from(model),
-                "对账单更新成功",
-            ))
-        })
-        .map_err(|e| {
-            tracing::error!("更新对账单失败: {}", e);
-            AppError::internal(format!("更新对账单失败: {}", e))
-        })
+    let model = service.update(id, update_req, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        ReconciliationResponse::from(model),
+        "对账单更新成功",
+    )))
 }
 
 /// 删除对账单（DELETE /ar-reconciliations/:id）；仅草稿状态可删除（service 内部状态门）
@@ -247,18 +286,22 @@ pub async fn delete_reconciliation(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 删除对账单 ID: {}", auth.username, id);
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
 
-    service
-        .delete(id, auth.user_id)
-        .await
-        .map(|_| Json(ApiResponse::success_with_message((), "对账单删除成功")))
-        .map_err(|e| {
-            tracing::error!("删除对账单失败: {}", e);
-            AppError::internal(format!("删除对账单失败: {}", e))
-        })
+    service.delete(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        (),
+        "对账单删除成功",
+    )))
 }
 
 /// 发送对账单给客户（POST /ar-reconciliations/:id/send）；状态：draft → sent
@@ -267,23 +310,22 @@ pub async fn send_reconciliation(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 发送对账单 ID: {}", auth.username, id);
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
 
-    service
-        .send(id, auth.user_id)
-        .await
-        .map(|model| {
-            Json(ApiResponse::success_with_message(
-                ReconciliationResponse::from(model),
-                "对账单已发送给客户",
-            ))
-        })
-        .map_err(|e| {
-            tracing::error!("发送对账单失败: {}", e);
-            AppError::internal(format!("发送对账单失败: {}", e))
-        })
+    let model = service.send(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        ReconciliationResponse::from(model),
+        "对账单已发送给客户",
+    )))
 }
 
 // 客户确认对账单（POST /ar-reconciliations/:id/confirm）
@@ -300,23 +342,22 @@ pub async fn close_reconciliation(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<ReconciliationResponse>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 关闭对账单 ID: {}", auth.username, id);
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
 
-    service
-        .close(id, auth.user_id)
-        .await
-        .map(|model| {
-            Json(ApiResponse::success_with_message(
-                ReconciliationResponse::from(model),
-                "对账单已关闭",
-            ))
-        })
-        .map_err(|e| {
-            tracing::error!("关闭对账单失败: {}", e);
-            AppError::internal(format!("关闭对账单失败: {}", e))
-        })
+    let model = service.close(id, auth.user_id).await?;
+    Ok(Json(ApiResponse::success_with_message(
+        ReconciliationResponse::from(model),
+        "对账单已关闭",
+    )))
 }
 
 // ============================================================================
@@ -372,7 +413,7 @@ pub struct ListResultsQuery {
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     pub customer_id: Option<i32>,
-    // 批次 109 P3：日期范围过滤接入（原标注 dead_code，现已接入 service.list）
+    // 日期范围过滤，下推接入 service.list
     pub start_date: Option<NaiveDate>,
     pub end_date: Option<NaiveDate>,
 }
@@ -479,9 +520,16 @@ pub async fn get_reconciliation_details(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 查询对账单明细 ID: {}", auth.username, id);
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
     let details = service.get_with_details(id).await?;
 
     info!(
@@ -498,12 +546,22 @@ pub async fn confirm_reconciliation(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    // 批次 199 P1-6：ConfirmRequest 为空结构体，仅用于强制客户端发送 JSON body
-    Json(_): Json<ConfirmRequest>,
+    // 确认动作为纯状态门操作：缺体（无 content-type 或 JSON 头 + 空体）是合法输入，
+    // 经 OptionalJson 归一为 None 后交由服务层 customer_confirm 状态门判定；
+    // 「强制发体」的 ConfirmRequest 空结构体旧设计在 e2e 负例（带 JSON 头 + 空体）
+    // 下被解码层误判 400，故不保留强制空结构体形态。
+    OptionalJson(_): OptionalJson<ConfirmRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 确认对账单 ID: {}", auth.username, id);
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
     let reconciliation = service.customer_confirm(id, auth.user_id).await?;
 
     info!(
@@ -524,12 +582,19 @@ pub async fn dispute_reconciliation(
     Path(id): Path<i32>,
     Json(req): Json<DisputeRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!(
         "用户 {} 对账单 ID: {} 提出争议，原因：{}",
         auth.username, id, req.reason
     );
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
     let reconciliation = service
         .customer_dispute(id, req.reason, auth.user_id)
         .await?;
@@ -585,6 +650,13 @@ pub async fn export_reconciliation_pdf(
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!("用户 {} 导出对账单PDF，ID: {}", auth.username, id);
 
     let service = ArReconciliationService::new(state.db.clone());
@@ -634,9 +706,10 @@ pub async fn export_reconciliation_pdf(
 /// 自动对账结果列表（与前端别名路由对齐，复用对账单列表接口）
 pub async fn list_results(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListResultsQuery>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = ArReconciliationService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
@@ -645,12 +718,12 @@ pub async fn list_results(
         customer_id: params.customer_id,
         page,
         page_size,
-        // 批次 109 P3：日期范围过滤接入
+        // 日期范围过滤接入
         start_date: params.start_date,
         end_date: params.end_date,
     };
 
-    let (items, total) = service.list(query).await?;
+    let (items, total) = service.list(query, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "list": serde_json::to_value(items)?,
@@ -685,9 +758,10 @@ pub async fn send_confirmation(
 /// 客户确认记录列表
 pub async fn list_confirmations(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListResultsQuery>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = ArReconciliationService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
@@ -696,12 +770,12 @@ pub async fn list_confirmations(
         customer_id: params.customer_id,
         page,
         page_size,
-        // 批次 109 P3：日期范围过滤接入
+        // 日期范围过滤接入
         start_date: params.start_date,
         end_date: params.end_date,
     };
 
-    let (items, total) = service.list(query).await?;
+    let (items, total) = service.list(query, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "list": serde_json::to_value(items)?,
@@ -745,13 +819,19 @@ pub async fn update_confirmation_status(
     Path(id): Path<i32>,
     Json(req): Json<UpdateConfirmationStatusRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!(
         "用户 {} 更新确认状态，ID: {}, 新状态: {}, 备注: {:?}",
         auth.username, id, req.status, req.remark
     );
 
-    let service = ArReconciliationService::new(state.db.clone());
-    // 批次 109 P3：remark 透传到 service.update_status，写入 notes 字段
+    let service = ArReconciliationService::new(state.db);
     let reconciliation = service
         .update_status(id, &req.status, auth.user_id, req.remark)
         .await?;
@@ -765,9 +845,10 @@ pub async fn update_confirmation_status(
 /// 争议列表
 pub async fn list_disputes(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<ListResultsQuery>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = ArReconciliationService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100); // v10 P2-4 修复：移除冗余 max(1)（clamp 已保证 >=1）
@@ -776,12 +857,12 @@ pub async fn list_disputes(
         customer_id: params.customer_id,
         page,
         page_size,
-        // 批次 109 P3：日期范围过滤接入
+        // 日期范围过滤接入
         start_date: params.start_date,
         end_date: params.end_date,
     };
 
-    let (items, total) = service.list(query).await?;
+    let (items, total) = service.list(query, Some(&data_scope_ctx)).await?;
 
     Ok(Json(ApiResponse::success(serde_json::json!({
         "list": serde_json::to_value(items)?,
@@ -840,14 +921,18 @@ pub async fn create_dispute(
 /// 获取争议详情（复用对账单详情查询）
 pub async fn get_dispute(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
     let service = ArReconciliationService::new(state.db.clone());
     let model = service
         .get_by_id(id)
         .await?
         .ok_or_else(|| AppError::not_found("争议记录不存在"))?;
+    // 归属门（读族）：路径 id 是争议行 id、无父客户 id 在路径，取行后按父客户过门——
+    // 与对账单详情同口径，持键者不能凭枚举 id 读他人客户的争议。
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, model.customer_id).await?;
 
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
@@ -859,14 +944,20 @@ pub async fn resolve_dispute(
     Path(id): Path<i32>,
     Json(req): Json<ResolveDisputeRequest>,
 ) -> Result<Json<ApiResponse<JsonValue>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let row = crate::models::ar_reconciliation::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("对账单不存在".to_string()))?;
+    ensure_reconciliation_customer_access(&state.db, &data_scope_ctx, row.customer_id).await?;
+
     info!(
         "用户 {} 解决争议 ID: {}, 方案: {}",
         auth.username, id, req.resolution
     );
 
-    let service = ArReconciliationService::new(state.db.clone());
+    let service = ArReconciliationService::new(state.db);
     let target_status = req.status.as_deref().unwrap_or("resolved");
-    // 批次 109 P3：resolution 作为 remark 写入 notes 字段，记录解决方案
     let reconciliation = service
         .update_status(id, target_status, auth.user_id, Some(req.resolution))
         .await?;

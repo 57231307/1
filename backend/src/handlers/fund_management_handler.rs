@@ -74,6 +74,8 @@ pub struct FundTransferQuery {
 }
 
 /// 获取资金账户列表
+/// 调用方：GET `/fund-management/accounts`；handler 从 auth 提取行级数据范围，
+/// 传入 service `get_accounts_list` 完成 SQL 层下推（分页/count 之前）。
 pub async fn list_accounts(
     Query(params): Query<FundAccountQuery>,
     State(state): State<AppState>,
@@ -88,8 +90,11 @@ pub async fn list_accounts(
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
+    let data_scope_ctx = auth.to_data_scope_context();
 
-    let (accounts, _total) = service.get_accounts_list(query_params).await?;
+    let (accounts, _total) = service
+        .get_accounts_list(query_params, Some(&data_scope_ctx))
+        .await?;
     info!("资金账户列表查询成功，共 {} 条记录", accounts.len());
 
     Ok(Json(ApiResponse::success(accounts)))
@@ -130,6 +135,8 @@ pub async fn create_account(
 }
 
 /// 获取资金账户详情
+/// 调用方：GET `/fund-management/accounts/{id}`；handler 提取行级数据范围传入 service，
+/// 由 `get_account_by_id` 走 `check_resource_owner_by_member_scope` 单行归属门（IDOR 防护）。
 pub async fn get_account(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -138,7 +145,8 @@ pub async fn get_account(
     info!("用户 {} 正在查询资金账户详情：{}", auth.username, id);
 
     let service = FundManagementService::new(state.db.clone());
-    let account = service.get_account_by_id(id).await?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let account = service.get_account_by_id(id, Some(&data_scope_ctx)).await?;
 
     info!("资金账户详情查询成功：{}", account.account_no);
     Ok(Json(ApiResponse::success(account)))
@@ -298,13 +306,16 @@ pub async fn transfer(
 }
 
 /// 查询转账记录列表
+/// 调用方：GET `/fund-management/transfers`；handler 提取行级数据范围传入 service，
+/// 由 `list_transfer_records` 在分页之前完成 SQL 层下推。
 pub async fn list_transfer_records(
     Query(params): Query<FundTransferQuery>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<crate::models::fund_transfer_record::Model>>>, AppError> {
-    info!("用户查询资金转账记录列表");
+    info!("用户 {} 正在查询资金转账记录列表", auth.username);
     let service = FundManagementService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let records = service
         .list_transfer_records(
             params.from_account_id,
@@ -312,19 +323,26 @@ pub async fn list_transfer_records(
             params.status,
             params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
             params.page_size.unwrap_or(20).clamp(1, 100),
+            Some(&data_scope_ctx),
         )
         .await?;
     Ok(Json(ApiResponse::success(records)))
 }
 
 /// 查询转账记录详情
+/// 调用方：GET `/fund-management/transfers/{id}`；handler 提取行级数据范围传入 service，
+/// 由 `get_transfer_record` 走 `check_resource_owner_by_member_scope` 单行归属门（IDOR 防护）。
 pub async fn get_transfer_record(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<crate::models::fund_transfer_record::Model>>, AppError> {
+    info!("用户 {} 正在查询转账记录详情：{}", auth.username, id);
     let service = FundManagementService::new(state.db.clone());
-    let record = service.get_transfer_record(id).await?;
+    let data_scope_ctx = auth.to_data_scope_context();
+    let record = service
+        .get_transfer_record(id, Some(&data_scope_ctx))
+        .await?;
     Ok(Json(ApiResponse::success(record)))
 }
 
@@ -355,17 +373,21 @@ pub async fn reject_transfer(
 }
 
 /// V15 P1 17.6-D5：获取待审批转账列表
+/// 调用方：GET `/fund-management/transfers/pending`；handler 提取行级数据范围传入 service，
+/// 由 `get_pending_transfers` 在分页之前完成 SQL 层下推（与 `list_transfer_records` 同族读端点）。
 pub async fn get_pending_transfers(
     Query(params): Query<FundTransferQuery>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<crate::models::fund_transfer_record::Model>>>, AppError> {
-    info!("查询待审批转账列表");
+    info!("用户 {} 查询待审批转账列表", auth.username);
     let service = FundManagementService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
     let records = service
         .get_pending_transfers(
             params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(20).clamp(1, 100),
+            Some(&data_scope_ctx),
         )
         .await?;
     Ok(Json(ApiResponse::success(records)))

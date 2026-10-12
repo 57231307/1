@@ -4,6 +4,8 @@ use sea_orm::{
 };
 use std::sync::Arc;
 
+use crate::models::data_permission;
+use crate::models::field_permission;
 use crate::models::role::{self, Entity as RoleEntity};
 use crate::models::role_permission::{self, Entity as RolePermissionEntity};
 // V15 P0-S06：权限变更审计
@@ -237,6 +239,19 @@ impl RolePermissionService {
     }
 
     /// 删除角色
+    ///
+    /// 引用口径与 DB 约束逐条对齐（CI `DELETE /roles/40` 撞
+    /// `fk_data_permissions_role` 被 `From<DbErr>` 裸映射成 500 之真因）：
+    /// - `users.role_id`（`fk_users_role`）= 外部主体引用 ⇒ 仍有绑定用户即整单拒绝，
+    ///   绝不代为改动用户数据；条数属查询所得实体值，只进日志不外显。
+    /// - `role_permissions`（`fk_role_permissions_role`）/ `data_permissions`
+    ///   （`fk_data_permissions_role`）/ `field_permissions`（`fk_field_permissions_role`）
+    ///   = 该角色自身的授权配置行（角色聚合内从属数据）。原实现只清 role_permissions，
+    ///   且 `delete_data_permission` 是软删（`is_enabled=false`，行仍在）⇒ 配过数据权限的
+    ///   角色永久删不掉并回 500。现与角色删除同事务物理清除三类配置行，逐表条数入日志。
+    /// - 预校验与清理之后仍可能被并发写入命中 FK ⇒ 统一按 `DB_RELATION` 降级为业务错误，
+    ///   失败信封不外泄 500（同族先例 `services/crm/lead.rs::delete_lead`）。
+    /// 严禁把 DDL 改成 `ON DELETE CASCADE`：那会静默删掉引用方数据。
     pub async fn delete_role(&self, role_id: i32, user_id: i32) -> Result<(), AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
@@ -255,33 +270,75 @@ impl RolePermissionService {
             .await?;
 
         if user_count > 0 {
-            return Err(AppError::business(format!(
-                "该角色下有 {} 个用户，请先移除用户的角色关联后再删除",
-                user_count
-            )));
+            tracing::warn!(
+                "角色 {} 删除被拒：仍有 {} 个用户绑定该角色（操作人 {}）",
+                role_id,
+                user_count,
+                user_id
+            );
+            return Err(AppError::business_displayable(
+                "该角色仍有用户在使用，不可删除，请先调整这些用户的角色",
+            ));
         }
 
         // 开启事务
         let txn = (*self.db).begin().await?;
 
         // 删除角色权限
-        RolePermissionEntity::delete_many()
+        let removed_role_permissions = RolePermissionEntity::delete_many()
             .filter(role_permission::Column::RoleId.eq(role_id))
             .exec(&txn)
             .await?;
 
+        // 删除该角色的数据权限与字段权限配置行（含软删残留行）——
+        // 这两张表以 FK 引用 roles，不清理则角色永久无法删除
+        let removed_data_permissions = data_permission::Entity::delete_many()
+            .filter(data_permission::Column::RoleId.eq(role_id))
+            .exec(&txn)
+            .await?;
+        let removed_field_permissions = field_permission::Entity::delete_many()
+            .filter(field_permission::Column::RoleId.eq(role_id))
+            .exec(&txn)
+            .await?;
+        tracing::info!(
+            "角色 {} 删除：随角色清除其授权配置行 role_permissions={}、data_permissions={}、field_permissions={}（操作人 {}）",
+            role_id,
+            removed_role_permissions.rows_affected,
+            removed_data_permissions.rows_affected,
+            removed_field_permissions.rows_affected,
+            user_id
+        );
+
         // 删除角色（P0 8-3 修复：补审计日志）
         // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
-        crate::services::audit_log_service::AuditLogService::delete_with_audit::<RoleEntity, _>(
-            &txn,
-            "role",
-            role_id,
-            Some(user_id),
-        )
-        .await?;
+        let result = crate::services::audit_log_service::AuditLogService::delete_with_audit::<
+            RoleEntity,
+            _,
+        >(&txn, "role", role_id, Some(user_id))
+        .await;
+
+        // 竞态兜底：预校验通过后仍可能被并发写入的引用行命中 FK，
+        // 此时降级为与预校验同口径的业务错误（整事务回滚，不留半删状态）
+        if let Err(e) = result {
+            if matches!(
+                e,
+                AppError::DatabaseError(ref msg) if msg == crate::utils::messages::err_msg::DB_RELATION
+            ) {
+                tracing::warn!(
+                    "角色 {} 删除命中外键约束（并发新增引用行，操作人 {}）：整事务回滚并降级为业务错误",
+                    role_id,
+                    user_id
+                );
+                return Err(AppError::business_displayable(
+                    "该角色正被其他数据引用，删除已取消，请稍后重试或先处理关联数据",
+                ));
+            }
+            return Err(e);
+        }
 
         // 提交事务
         txn.commit().await?;
+        tracing::info!("角色 {} 删除成功（操作人 {}）", role_id, user_id);
 
         Ok(())
     }

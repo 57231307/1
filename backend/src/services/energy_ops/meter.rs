@@ -6,6 +6,7 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -15,9 +16,15 @@ use crate::models::energy_meter::{
 };
 use crate::models::status::energy_meter_status;
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 // 复用 facade 的纯函数校验（保持单一来源，避免逻辑重复）
 use crate::services::energy_service::validate_meter_type;
+
+/// 计量设备编号（energy_meter.meter_no）自动编码前缀：沿用原手写格式
+/// "EM-{时间戳}-{随机}" 的业务前缀 EM，新格式统一为 {EM}{YYYYMMDD}{3位流水}
+///（前缀集中定义，不散落字面量）。
+pub const ENERGY_METER_NO_PREFIX: &str = "EM";
 
 /// 创建计量设备请求
 #[derive(Debug, Clone, Deserialize)]
@@ -34,7 +41,6 @@ pub struct CreateMeterRequest {
     pub previous_reading: Option<Decimal>,
     pub unit_price: Option<Decimal>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新计量设备请求
@@ -73,16 +79,13 @@ impl EnergyMeterService {
         Self { db }
     }
 
-    /// 生成计量设备编号：EM-YYYYMMDDHHMMSS-NNN
-    fn generate_meter_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("EM-{}-{:03}", timestamp, random)
-    }
-
     /// 创建计量设备
-    pub async fn create(&self, req: CreateMeterRequest) -> Result<MeterModel, AppError> {
+    /// 创建计量设备；建单人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateMeterRequest,
+        user_id: i32,
+    ) -> Result<MeterModel, AppError> {
         // 校验能源类型
         validate_meter_type(&req.meter_type)?;
 
@@ -92,7 +95,27 @@ impl EnergyMeterService {
             return Err(AppError::business("单价不能为负"));
         }
 
-        let meter_no = Self::generate_meter_no();
+        // 设备编号取号与 INSERT 同事务：energy_meter.meter_no NOT NULL 无 UNIQUE
+        //（migration/src/domain/v15/mod.rs:2843），旧手写
+        // "EM-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零；改为按
+        // ENERGY_METER_NO_PREFIX 经生成器在事务内取号（pg_advisory_xact_lock
+        // 持有到提交，参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let meter_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            ENERGY_METER_NO_PREFIX,
+            MeterEntity,
+            energy_meter::Column::MeterNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = ENERGY_METER_NO_PREFIX,
+                "计量设备编号取号失败（energy_ops/meter.create）"
+            );
+            AppError::business_displayable("计量设备编号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
         let unit = req.unit.unwrap_or_else(|| "度".to_string());
 
@@ -114,15 +137,16 @@ impl EnergyMeterService {
             status: Set(energy_meter_status::ACTIVE.to_string()),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
 
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("计量设备创建失败: {}", e)))?;
+        txn.commit().await?;
         Ok(result)
     }
 

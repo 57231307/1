@@ -82,7 +82,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_invoice::Model>, AppError> {
         Ok(ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne(common::STATUS_CANCELLED))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(txn)
@@ -95,7 +98,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_payment::Model>, AppError> {
         Ok(ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(supplier_id))
-            .filter(ap_payment::Column::PaymentStatus.eq("CONFIRMED"))
+            .filter(
+                ap_payment::Column::PaymentStatus
+                    .eq(crate::models::status::general::payment::PAYMENT_CONFIRMED),
+            )
             .all(txn)
             .await?)
     }
@@ -273,10 +279,17 @@ impl ApVerificationService {
             invoice.invoice_status =
                 crate::models::status::general::payment::PAYMENT_PAID.to_string();
         } else {
-            invoice.invoice_status = "PARTIAL_PAID".to_string();
+            invoice.invoice_status =
+                crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
         }
 
-        let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+        // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+        // 资金三列必须显式 Set，否则自动核销的金额累加只停留在内存 map，库中 paid_amount 恒 0。
+        let mut invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+        invoice_active.paid_amount = Set(invoice.paid_amount);
+        invoice_active.unpaid_amount = Set(invoice.unpaid_amount);
+        invoice_active.invoice_status = Set(invoice.invoice_status.clone());
+        invoice_active.updated_by = Set(Some(user_id));
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             txn,
             "auto_audit",
@@ -357,7 +370,8 @@ impl ApVerificationService {
                 .get(&item.payment_id)
                 .ok_or_else(|| AppError::not_found(format!("付款单 ID: {}", item.payment_id)))?;
 
-            if payment.payment_status != "CONFIRMED" {
+            if payment.payment_status != crate::models::status::general::payment::PAYMENT_CONFIRMED
+            {
                 return Err(AppError::business(format!(
                     "付款单{}状态为{}，未确认不可核销",
                     payment.payment_no, payment.payment_status
@@ -403,10 +417,17 @@ impl ApVerificationService {
                 invoice.invoice_status =
                     crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else {
-                invoice.invoice_status = "PARTIAL_PAID".to_string();
+                invoice.invoice_status =
+                    crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
             }
 
-            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+            // 手工核销的资金三列必须显式 Set，否则 paid/unpaid/状态不落库（假 200 + 金额恒 0）。
+            let mut invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            invoice_active.paid_amount = Set(invoice.paid_amount);
+            invoice_active.unpaid_amount = Set(invoice.unpaid_amount);
+            invoice_active.invoice_status = Set(invoice.invoice_status.clone());
+            invoice_active.updated_by = Set(Some(user_id));
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 txn,
                 "auto_audit",
@@ -550,11 +571,19 @@ impl ApVerificationService {
                 invoice.invoice_status =
                     crate::models::status::general::payment::PAYMENT_PAID.to_string();
             } else if invoice.paid_amount > Decimal::ZERO {
-                invoice.invoice_status = "PARTIAL_PAID".to_string();
+                invoice.invoice_status =
+                    crate::models::status::general::payment::PAYMENT_PARTIAL_PAID.to_string();
             } else {
-                invoice.invoice_status = "AUDITED".to_string();
+                invoice.invoice_status =
+                    crate::models::status::ap_invoice::INVOICE_AUDITED.to_string();
             }
-            let invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            // sea-orm 2.0.2：From<Model> for ActiveModel 全字段 Unchanged，UPDATE 只写 Set 列；
+            // 回退属资金反向操作，三列必须显式 Set 落库，否则 cancel 只改核销单不回退发票金额。
+            let mut invoice_active: ap_invoice::ActiveModel = invoice.clone().into();
+            invoice_active.paid_amount = Set(invoice.paid_amount);
+            invoice_active.unpaid_amount = Set(invoice.unpaid_amount);
+            invoice_active.invoice_status = Set(invoice.invoice_status.clone());
+            invoice_active.updated_by = Set(Some(user_id));
             crate::services::audit_log_service::AuditLogService::update_with_audit(
                 txn,
                 "auto_audit",
@@ -640,7 +669,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_invoice::Model>, AppError> {
         let invoices = ap_invoice::Entity::find()
             .filter(ap_invoice::Column::SupplierId.eq(supplier_id))
-            .filter(ap_invoice::Column::InvoiceStatus.ne(common::STATUS_CANCELLED))
+            .filter(
+                ap_invoice::Column::InvoiceStatus
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
             .filter(ap_invoice::Column::UnpaidAmount.gt(Decimal::ZERO))
             .order_by(ap_invoice::Column::DueDate, Order::Asc)
             .all(&*self.db)
@@ -656,7 +688,10 @@ impl ApVerificationService {
     ) -> Result<Vec<ap_payment::Model>, AppError> {
         let payments = ap_payment::Entity::find()
             .filter(ap_payment::Column::SupplierId.eq(supplier_id))
-            .filter(ap_payment::Column::PaymentStatus.eq("CONFIRMED"))
+            .filter(
+                ap_payment::Column::PaymentStatus
+                    .eq(crate::models::status::general::payment::PAYMENT_CONFIRMED),
+            )
             .order_by(ap_payment::Column::PaymentDate, Order::Asc)
             .all(&*self.db)
             .await?;

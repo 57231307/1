@@ -125,7 +125,7 @@ async fn validate_refresh_claims(
         .await
         .map_err(|e| {
             tracing::error!("刷新令牌时查询用户失败: {}", e);
-            AppError::internal("服务器内部错误")
+            AppError::database(e.to_string())
         })?;
     match user {
         Some(u) if u.is_active => {}
@@ -147,23 +147,19 @@ fn generate_new_tokens(
     auth_service: &AuthService,
     claims: &crate::services::auth_service::AppClaims,
 ) -> Result<(String, String, String), AppError> {
-    let new_token = auth_service
-        .generate_token(claims.sub, &claims.username, claims.role_id)
-        .map_err(|e| AppError::internal(format!("生成令牌失败：{}", e)))?;
+    let new_token = auth_service.generate_token(claims.sub, &claims.username, claims.role_id)?;
     let new_claims =
         AuthService::validate_token_static(&new_token, &state.jwt_secret).map_err(|e| {
             tracing::error!("Failed to decode new JWT token: {}", e);
-            AppError::internal("Internal server error")
+            AppError::from(e)
         })?;
     let new_session_id = new_claims.session_id;
-    let new_refresh_token = auth_service
-        .generate_refresh_token(
-            claims.sub,
-            &claims.username,
-            claims.role_id,
-            &new_session_id,
-        )
-        .map_err(|e| AppError::internal(format!("生成刷新令牌失败：{}", e)))?;
+    let new_refresh_token = auth_service.generate_refresh_token(
+        claims.sub,
+        &claims.username,
+        claims.role_id,
+        &new_session_id,
+    )?;
     Ok((new_token, new_session_id, new_refresh_token))
 }
 
@@ -295,16 +291,13 @@ pub async fn setup_totp(
 ) -> Result<Json<ApiResponse<TotpSetupResponse>>, AppError> {
     let totp_service = TotpService::new(state.db.clone());
 
-    match totp_service
+    let (secret, qr_code) = totp_service
         .generate_totp_secret(auth.user_id, &auth.username)
-        .await
-    {
-        Ok((secret, qr_code)) => Ok(Json(ApiResponse::success(TotpSetupResponse {
-            secret,
-            qr_code,
-        }))),
-        Err(e) => Err(AppError::internal(e.to_string())),
-    }
+        .await?;
+    Ok(Json(ApiResponse::success(TotpSetupResponse {
+        secret,
+        qr_code,
+    })))
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -341,7 +334,7 @@ pub async fn enable_totp(
             "双因素认证已成功开启",
         ))),
         Ok(false) => Err(AppError::bad_request("验证码不正确")),
-        Err(e) => Err(AppError::internal(e.to_string())),
+        Err(e) => Err(e),
     }
 }
 
@@ -351,10 +344,7 @@ pub async fn generate_recovery_codes(
     Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<ApiResponse<Vec<String>>>, AppError> {
     let totp_service = TotpService::new(state.db.clone());
-    let codes = totp_service
-        .generate_recovery_codes(auth.user_id)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+    let codes = totp_service.generate_recovery_codes(auth.user_id).await?;
     Ok(Json(ApiResponse::success_with_message(
         codes,
         "恢复码已生成，请妥善保存（仅此一次展示）",
@@ -383,7 +373,7 @@ pub async fn get_current_user(
         .await
         .map_err(|e| {
             tracing::error!("Failed to query user: {}", e);
-            AppError::internal("Internal server error")
+            AppError::database(e.to_string())
         })?;
 
     match user {
@@ -435,7 +425,7 @@ pub async fn agree_to_terms(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update terms agreement: {}", e);
-            AppError::internal("更新用户协议同意状态失败")
+            AppError::database(e.to_string())
         })?;
 
     if update_result.rows_affected == 0 {

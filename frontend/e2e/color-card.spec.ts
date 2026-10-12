@@ -21,7 +21,14 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
       { timeout: 30000 }
     );
     await page.goto('/color-cards/list');
-    await listResp;
+    // 「等到一个响应」不等于「列表读成功」：4xx（权限/契约回归）同样会让 waitForResponse 命中，
+    // 而下面的标题/筛选项是静态文案，照样可见 ⇒ 空表也绿。把真实状态码断成显式契约。
+    const listRes = await listResp;
+    const listBody = await listRes.text();
+    expect(
+      listRes.status(),
+      `GET /color-cards 应 200（4xx=权限或契约回归，不得当"已加载"放过），实际 ${listRes.status()} ${listBody.slice(0, 200)}`
+    ).toBe(200);
     // 页面标题为 el-card header 内 <span> 纯文本（colorCards.list.title='色卡列表'），非 heading 角色
     await expect(page.getByText('色卡列表').first()).toBeVisible({ timeout: 30000 });
 
@@ -35,16 +42,25 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
       { timeout: 30000 }
     );
     await page.goto('/color-cards/list');
-    await listResp;
+    // 同 1：列表读必须真 200，4xx 命中不算"加载完成"
+    const listRes = await listResp;
+    expect(
+      listRes.status(),
+      `GET /color-cards 应 200（4xx=权限或契约回归），实际 ${listRes.status()} ${(await listRes.text()).slice(0, 200)}`
+    ).toBe(200);
 
     // 点击第一行的详情入口（不硬编码 id=1）
     const firstDetail = page.locator('a:has-text("详情"), button:has-text("详情")').first();
     await expect(firstDetail, '列表应有可进入详情的入口').toBeVisible({ timeout: 30000 });
     await firstDetail.click();
-    await page.waitForResponse(
+    const detailRes = await page.waitForResponse(
       resp => /\/color-cards\/\d+/.test(resp.url()) && resp.request().method() === 'GET',
       { timeout: 30000 }
     );
+    expect(
+      detailRes.status(),
+      `GET /color-cards/{id} 应 200（404=路由漂移/403=权限拒，均不得当"详情已开"放过），实际 ${detailRes.status()} ${(await detailRes.text()).slice(0, 200)}`
+    ).toBe(200);
 
     // 断言详情区块可见
     await expect(page.getByText('基本信息')).toBeVisible({ timeout: 30000 });
@@ -56,7 +72,12 @@ test.describe('色卡仓储管理 E2E 业务流程', () => {
       { timeout: 30000 }
     );
     await page.goto('/color-cards/issues');
-    await listResp;
+    // 同 1：读请求真 200 才算页面已加载，4xx 命中不算
+    const issuesRes = await listResp;
+    expect(
+      issuesRes.status(),
+      `GET /color-cards（发放页数据源）应 200，实际 ${issuesRes.status()} ${(await issuesRes.text()).slice(0, 200)}`
+    ).toBe(200);
     // 发放页标题为 el-card header 内 <span>（colorCards.issue.title='色卡发放管理'），非 heading 角色；
     // breadcrumb 也渲染 route meta.title='色卡发放管理'，需 .first() 避免 strict 多命中
     await expect(page.getByText('色卡发放管理').first()).toBeVisible({ timeout: 30000 });

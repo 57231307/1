@@ -9,7 +9,13 @@ export function getActiveDelegatedPermissions(delegateeId: number) {
   return request.get(`/permission-delegations/active/${delegateeId}`);
 }
 
-export function checkDelegatedPermission(params: { delegatee_id: number; permission: string }) {
+// 查询键唯一真相：permission_delegation_handler::DelegatedPermissionQuery
+// （delegatee_id: i32 必填、permission_code: String 必填，Query<T> 缺失即 400；
+// 原键名 permission 后端不存在）。
+export function checkDelegatedPermission(params: {
+  delegatee_id: number;
+  permission_code: string;
+}) {
   return request.get('/permission-delegations/check', { params });
 }
 
@@ -140,35 +146,66 @@ export interface RoleChangeApprovalQuery {
   change_type?: RoleChangeType | string;
 }
 
+/**
+ * POST /role-change-approvals 载荷（唯一真相：role_change_approval_service::CreateRoleChangeApprovalRequest）。
+ * change_type/target_role_id/target_role_code 后端非 Option 必填（缺失 → serde 422）；
+ * change_type 取值域为服务层白名单 assign_role|assign_permission|remove_permission（越界 422）。
+ * 后端 DTO 与审批表均无 reason 字段（原载荷 reason 被静默丢弃——变更原因落库属后端缺口，
+ * 已登记串行清单），故不再声明。
+ */
 export interface CreateRoleChangeApprovalPayload {
-  change_type: RoleChangeType | string;
+  change_type: RoleChangeType;
   target_user_id?: number;
   target_role_id: number;
+  target_role_code: string;
   proposed_permission_id?: number;
   proposed_resource_type?: string;
   proposed_action?: string;
   proposed_allowed?: boolean;
-  reason: string;
 }
 
+/**
+ * L1/L2 审批、驳回共用载荷（唯一真相：role_change_approval_service::ApproveRoleChangeRequest，
+ * 三处 handler 均 Json<ApproveRoleChangeRequest>，后端落 approverN_comment 的键为 comments；
+ * 原键名 opinion 后端不存在，被 serde 静默丢弃 → 审批意见恒空）。
+ */
 export interface ApproveRoleChangePayload {
-  opinion?: string;
+  comments?: string;
 }
 
+/** 委托记录行（唯一真相：models/permission_delegation.rs Model 原样序列化，单数 permission_code） */
 export interface PermissionDelegation {
   id: number;
   delegator_id: number;
   delegatee_id: number;
-  permission_codes?: string[];
-  status?: string;
-  [key: string]: unknown;
+  permission_code: string;
+  valid_from: string;
+  valid_until: string;
+  is_chain_allowed: boolean;
+  status: string;
+  reason: string | null;
+  revoked_at: string | null;
+  revoked_by: number | null;
+  revoke_reason: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
+/**
+ * POST /permission-delegations 载荷（唯一真相：permission_delegation_service::CreateDelegationRequest）。
+ * delegator_id/delegatee_id/permission_code/valid_from/valid_until 均为后端非 Option 必填；
+ * 一条委托仅一个 permission_code（后端列为 String，批量多码属后端缺口，已登记串行清单）；
+ * valid_from/valid_until 为 DateTime<Utc> ← 必须发 RFC3339（new Date(...).toISOString()），
+ * 且后端校验 valid_from≥now-5min、valid_until>valid_from、时长≤90 天。
+ */
 export interface CreatePermissionDelegationPayload {
+  delegator_id: number;
   delegatee_id: number;
-  permission_codes: string[];
-  start_date?: string;
-  end_date?: string;
+  permission_code: string;
+  valid_from: string;
+  valid_until: string;
+  is_chain_allowed?: boolean;
   reason?: string;
 }
 

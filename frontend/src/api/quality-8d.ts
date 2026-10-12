@@ -45,8 +45,13 @@ export function advanceQuality8d(id: number, data: AdvanceEightdPayload) {
   return request.post(`/quality-8d-reports/${id}/advance`, data);
 }
 
-export function closeQuality8d(id: number, data?: Record<string, unknown>) {
-  return request.post(`/quality-8d-reports/${id}/close`, data ?? {});
+/**
+ * 关闭 8D（d8_recognize → closed）。
+ * 后端 handlers/quality_8d_handler.rs::close_8d（L221-232）无请求体提取器，
+ * closed_by 取自 AuthContext；此前提交 `data ?? {}` 属契约外多余 body，改为不提交请求体。
+ */
+export function closeQuality8d(id: number) {
+  return request.post(`/quality-8d-reports/${id}/close`);
 }
 
 export function printQuality8d(id: number) {

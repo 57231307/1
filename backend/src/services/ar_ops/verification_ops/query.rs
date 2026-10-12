@@ -3,11 +3,12 @@
 //! D10 拆分自原 `ar_ops/verification.rs`，包含 4 个查询类公开 API：
 //! - `list_verifications`     核销列表（支持 invoice_id / payment_id / status 过滤 + 行级数据权限）
 //! - `get_verification`       核销详情（含明细行 + IDOR 防护）
-//! - `get_unverified_invoices` 未核销发票列表（支持 customer_id 过滤）
+//! - `get_unverified_invoices` 未核销发票列表（支持 customer_id 过滤 + 可见客户集合下推）
 //! - `get_unverified_payments` 未核销收款列表（支持 customer_id 过滤 + 已核销金额排除）
 //!
 //! 业务规则：
-//! - list/get 支持 V15 P0-S01 行级数据权限（ar_reconciliation 表无 department_id，Dept 退化为 Self）
+//! - list/get 支持行级数据权限（ar_reconciliation 表无 department_id，Dept 退化为 Self）
+//! - 候选列表按调用方传入的可见客户集合在 SQL 侧过滤 customer_id，调用方不再二次裁剪载荷
 //! - get_unverified_payments 批量查询已有核销记录，过滤已完全核销的收款
 
 use rust_decimal::Decimal;
@@ -18,7 +19,9 @@ use serde_json::json;
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 
 use super::super::json_helpers::{
@@ -109,14 +112,13 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("核销单 {} 不存在", verification_id)))?;
 
         // V15 P0-S01：行级数据权限校验（IDOR 防护）
-        // ar_reconciliation 表无 department_id，Dept 退化为 Self；
+        // ar_reconciliation 表无 department_id，使用成员归属集合判定；
         // ar_reconciliation.created_by 是 Option<i32>（可能为空，空时按"无主数据"处理）。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, reconciliation.created_by, None) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问核销单 {}（数据范围限制）",
-                    verification_id
-                )));
+            if !check_resource_owner_by_member_scope(ctx, reconciliation.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问核销单（数据范围限制）",
+                ));
             }
         }
 
@@ -141,10 +143,12 @@ impl ArService {
     }
 
     /// 获取未核销发票
-    /// 支持 query.customer_id 过滤
+    /// 支持 query.customer_id 过滤；visible_customer_ids 为会话可见客户集合，
+    /// `None` 表示全可见范围（不过滤），空集合表示无可见客户（返回空）。
     pub async fn get_unverified_invoices(
         &self,
         query: serde_json::Value,
+        visible_customer_ids: Option<&Vec<i32>>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_invoice::Entity::find()
             .filter(ar_invoice::Column::Status.ne(crate::models::status::common::STATUS_CANCELLED))
@@ -152,6 +156,9 @@ impl ArService {
 
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
             q = q.filter(ar_invoice::Column::CustomerId.eq(cid as i32));
+        }
+        if let Some(ids) = visible_customer_ids {
+            q = q.filter(ar_invoice::Column::CustomerId.is_in(ids.clone()));
         }
 
         let invoices = q
@@ -168,10 +175,11 @@ impl ArService {
     }
 
     /// 获取未核销收款
-    /// 支持 query.customer_id 过滤
+    /// 支持 query.customer_id 过滤；visible_customer_ids 语义同 `get_unverified_invoices`。
     pub async fn get_unverified_payments(
         &self,
         query: serde_json::Value,
+        visible_customer_ids: Option<&Vec<i32>>,
     ) -> Result<serde_json::Value, AppError> {
         let mut q = ar_collection::Entity::find().filter(
             ar_collection::Column::Status.eq(crate::models::status::ar::COLLECTION_CONFIRMED),
@@ -180,30 +188,20 @@ impl ArService {
         if let Some(cid) = query.get("customer_id").and_then(|v| v.as_i64()) {
             q = q.filter(ar_collection::Column::CustomerId.eq(cid as i32));
         }
+        if let Some(ids) = visible_customer_ids {
+            q = q.filter(ar_collection::Column::CustomerId.is_in(ids.clone()));
+        }
 
         let payments = q
             .order_by(ar_collection::Column::CollectionDate, Order::Asc)
             .all(&*self.db)
             .await?;
 
-        // 批量查询已有核销记录，过滤已完全核销的收款
+        // 批量汇总各收款单已核销分配额（收款单维度"已核销分配额"的唯一读数
+        // ar_ops/collection.rs::receipt_verify_totals，与手工核销可用余额门、修改收款
+        // 金额下限门、自动核销汇总同源），据此过滤已完全核销的收款
         let payment_ids: Vec<i32> = payments.iter().map(|p| p.id).collect();
-        let verified_items = if payment_ids.is_empty() {
-            Vec::new()
-        } else {
-            ar_reconciliation_item::Entity::find()
-                .filter(ar_reconciliation_item::Column::ItemType.eq("RECEIPT"))
-                .filter(ar_reconciliation_item::Column::DocumentId.is_in(payment_ids))
-                .all(&*self.db)
-                .await?
-        };
-        let mut verified_map: std::collections::HashMap<i32, Decimal> =
-            std::collections::HashMap::new();
-        for item in &verified_items {
-            if let Some(doc_id) = item.document_id {
-                *verified_map.entry(doc_id).or_insert(Decimal::ZERO) += item.amount.abs();
-            }
-        }
+        let verified_map = Self::receipt_verify_totals(&*self.db, &payment_ids).await?;
 
         let result: Vec<serde_json::Value> = payments
             .into_iter()

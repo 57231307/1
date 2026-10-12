@@ -139,6 +139,7 @@ fn test_quotation_response_dto_construction() {
         approval_instance_id: None,
         approved_by: Some(2),
         approved_at: Some(now),
+        approval_reason: None,
         rejection_reason: None,
         converted_sales_order_id: None,
         converted_at: None,

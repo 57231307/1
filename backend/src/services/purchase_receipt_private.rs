@@ -1,7 +1,6 @@
 //! 采购入库服务内部辅助方法（私有：订单数量更新 + 库存事务更新）
 //!
-//! 拆分自 purchase_receipt_service.rs：原 2 个私有 fn 独立成文件，
-//! 与公开方法分离便于测试和维护。
+//! 承载 `PurchaseReceiptService` 的私有辅助方法，与公开方法分离便于测试和维护。
 
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -55,10 +54,9 @@ impl PurchaseReceiptService {
 
     /// 按订单明细行汇总后更新已入库数量（含审计日志）
     ///
-    /// 必须先聚合再写：一个订单明细行通常对应多条入库明细（面料按缸号/批次/匹号分行入库），
-    /// 原实现逐条 `map.remove(order_item_id)`，同一订单行的第二条入库明细就查不到映射，
-    /// 确认入库直接报「订单明细不存在」（CI 1-4 的 NOT_FOUND 之因），
-    /// 而且同一条订单行被写两次也会互相覆盖。
+    /// 必须先聚合再写：一个订单明细行通常对应多条入库明细（面料按缸号/批次/匹号分行入库）。
+    /// 若逐条 `map.remove(order_item_id)`，同一订单行的第二条入库明细就查不到映射而报
+    /// 「订单明细不存在」（NOT_FOUND），且同一条订单行被写两次会互相覆盖。
     async fn update_order_items_received_quantity(
         txn: &sea_orm::DatabaseTransaction,
         items: Vec<purchase_receipt_item::Model>,
@@ -160,17 +158,65 @@ impl PurchaseReceiptService {
         Ok(())
     }
 
-    /// 更新采购订单的已入库数量与状态（事务内调用）
+    /// 回写采购订单实际到货日（确认收货同一事务内调用）
+    ///
+    /// 语义：该 PO **已确认收货中的最大 `receipt_date`**（部分到货也回写；
+    /// 补录的更早收货单不得把更晚日期回退）。`purchase_receipt.receipt_date`
+    /// 为 NOT NULL 列且入口已守显式清空（`purchase_receipt_ops/crud.rs` 的
+    /// `update_receipt` 门控），此处取真实值直写，不得用确认时间/当前时间顶替。
+    ///
+    /// 失败以 `?` 整单上抛随事务回滚，严禁 `let _ =` / `.ok()` 吞错——否则会
+    /// 出现「已收数量进度写了、到货日没写」的半成功，交期绩效统计
+    /// （`purchase_delivery_calculator` 要求 `actual_delivery_date IS NOT NULL`）
+    /// 将再次退化为恒空集。
+    async fn write_back_actual_delivery_date(
+        txn: &sea_orm::DatabaseTransaction,
+        order_id: i32,
+        receipt_date: chrono::NaiveDate,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let order = crate::models::purchase_order::Entity::find_by_id(order_id)
+            .one(txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购订单 {}", order_id)))?;
+        let target = order
+            .actual_delivery_date
+            .map(|existing| existing.max(receipt_date))
+            .unwrap_or(receipt_date);
+        // 值未变化（重复确认/更早补录）则不写不刷审计，语义仍是"已确认为最大值"
+        if order.actual_delivery_date == Some(target) {
+            return Ok(());
+        }
+        let mut active_order: crate::models::purchase_order::ActiveModel = order.into();
+        active_order.actual_delivery_date = Set(Some(target));
+        active_order.updated_at = Set(chrono::Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            txn,
+            "auto_audit",
+            active_order,
+            Some(user_id),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// 更新采购订单的已入库数量、实际到货日与状态（事务内调用）
+    ///
+    /// `receipt_date` 取自被确认的入库单（NOT NULL 列），用于同事务回写
+    /// `purchase_orders.actual_delivery_date`。
     pub async fn update_order_received_quantity(
         &self,
         order_id: i32,
         receipt_id: i32,
+        receipt_date: chrono::NaiveDate,
         txn: &sea_orm::DatabaseTransaction,
         user_id: i32,
     ) -> Result<(), AppError> {
         let (items, order_item_map) =
             Self::fetch_receipt_items_with_order_map(txn, receipt_id).await?;
         Self::update_order_items_received_quantity(txn, items, order_item_map, user_id).await?;
+        // 确认即回写到货日（先于状态判定，与进度同事务原子落库）
+        Self::write_back_actual_delivery_date(txn, order_id, receipt_date, user_id).await?;
         if let Some(new_status) = Self::determine_order_receipt_status(txn, order_id).await? {
             Self::save_order_status_update(txn, order_id, new_status, user_id).await?;
         }
@@ -208,8 +254,8 @@ impl PurchaseReceiptService {
             .await?;
 
         // 整单 fail-closed：任一行批次缺失即在建库前拒绝，事务不落任何库存行。
-        // 色号/缸号的「染色布必填」口径待白坯布共享判定落地后在此追加（见
-        // `upsert_stock_for_item` 内 TODO），本域不自行按色号名称判定白色。
+        // 色号/缸号的「染色布必填」口径当前未在本域强制（统一的白坯布判定函数尚未落地），
+        // 本域不自行按色号名称判定白色。
         for item in &items {
             Self::require_receipt_batch(item, receipt)?;
         }
@@ -319,11 +365,11 @@ impl PurchaseReceiptService {
             Ok((stock.clone(), after))
         } else {
             // 批次在建库前已逐行校验非空（update_inventory_txn），如实落库不再 unwrap 兜底成空串；
-            // 色号：白坯布合法为空（落 ''），染色布是否必填待白坯布共享判定落地后强制（见下 TODO）。
+            // 色号：白坯布合法为空（落 ''），染色布必填口径当前未强制（见下方说明）。
             let batch_no = Self::require_receipt_batch(item, receipt)?;
-            // TODO(共享白坯布判定)：色号非空⇒染色布⇒缸号(lot_no)/批次必填的口径应改调
-            //   采购/库存统一的白坯布判定函数（doto iter31 第 3/5 条，本域外同事落地，尚未存在）。
-            //   落地前保持色号/缸号原样落库，不在此按色号名称嗅探白色。
+            // 白坯布共享判定说明：色号非空⇒染色布⇒缸号(lot_no)/批次必填，本应调用
+            // 采购/库存统一的白坯布判定函数；该函数目前尚未落地，故色号/缸号原样落库，
+            // 不在此按色号名称嗅探白色。
             let color_no = item.color_code.clone().unwrap_or_default();
             let grade = item
                 .grade
@@ -385,7 +431,7 @@ impl PurchaseReceiptService {
                 quantity_kg: item.quantity_alt.unwrap_or(Decimal::ZERO),
                 source_bill_type: Some("PURCHASE_RECEIPT".to_string()),
                 source_bill_no: Some(receipt.receipt_no.clone()),
-                source_bill_id: Some(receipt.id),
+                source_bill_id: Some(i64::from(receipt.id)),
                 quantity_before_meters: Some(stock_model.quantity_meters),
                 quantity_before_kg: Some(stock_model.quantity_kg),
                 quantity_after_meters: Some(stock_model.quantity_meters + item.quantity),

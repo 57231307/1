@@ -14,7 +14,9 @@ use crate::models::status::inventory_count as count_status;
 use crate::models::{inventory_count, inventory_count_item, inventory_stock, user, warehouse};
 use crate::services::audit_log_service::AuditLogService;
 // V15 P0-S01：行级数据权限工具
-use crate::utils::data_scope::{DataScopeContext, apply_data_scope, check_resource_owner};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 // 批次 359 v13 复审 B-P1-2 修复：导入 BusinessEvent 和 EVENT_BUS，
 // 在 approve_count commit 成功后发布 InventoryCountCompleted 事件，
@@ -65,10 +67,16 @@ pub struct CreateCountRequest {
 }
 
 /// 更新盘点单请求
+///
+/// 字段三态语义（对齐 RFC 7386 JSON Merge Patch，与 handlers::inventory_count_handler
+/// 的 UpdateCountPayload 同源）：
+/// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、Some(Some(v))=覆盖。
 #[derive(Debug, Clone, Default)]
 pub struct UpdateCountRequest {
-    pub count_date: Option<DateTime<Utc>>,
-    pub notes: Option<String>,
+    /// NOT NULL 列 count_date（m0001 DDL）——显式 null 由 update_count 拒绝
+    pub count_date: Option<Option<DateTime<Utc>>>,
+    /// DB 可空列 notes TEXT（m0001 DDL）——显式 null 清空
+    pub notes: Option<Option<String>>,
 }
 
 /// 盘点明细录入请求
@@ -285,9 +293,11 @@ impl InventoryCountService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
-        // V15 P0-S01：行级数据权限 IDOR 校验
+        // 行级数据权限 IDOR 校验
+        // inventory_count 表无 department_id 列，归属判定走成员集合语义
+        // （与列表侧 apply_data_scope Dept 分支同源），created_by 为 Option<i32>。
         if let Some(ctx) = data_scope {
-            if !check_resource_owner(ctx, count.created_by, None) {
+            if !check_resource_owner_by_member_scope(ctx, count.created_by) {
                 return Err(AppError::permission_denied(format!(
                     "无权访问盘点单 {}（数据范围限制）",
                     count_id
@@ -309,6 +319,13 @@ impl InventoryCountService {
         req: UpdateCountRequest,
         user_id: Option<i32>,
     ) -> Result<inventory_count::Model, AppError> {
+        // NOT NULL 列门控（count_date，m0001 DDL）：显式 null 是调用方错误而非"保持原值"，
+        // 在任何 DB 访问前拒绝，错误外显不脱敏
+        if matches!(req.count_date, Some(None)) {
+            return Err(AppError::business_displayable(
+                "盘点日期不能清空：该字段为必填项",
+            ));
+        }
         let txn = (*self.db).begin().await?;
         let count_model = inventory_count::Entity::find_by_id(count_id)
             .one(&txn)
@@ -320,11 +337,14 @@ impl InventoryCountService {
             ));
         }
         let mut active: inventory_count::ActiveModel = count_model.into();
-        if let Some(d) = req.count_date {
+        // 三态写入：None=不 Set、Some(None)=Set(None) 置 NULL、Some(Some(v))=Set(v) 覆盖。
+        // count_date 为 NOT NULL 列（Some(None) 已入口拒绝）：仅覆盖/保持
+        if let Some(d) = req.count_date.flatten() {
             active.count_date = Set(d);
         }
+        // notes 为 DB 可空列：显式 null 直落 NULL
         if let Some(n) = req.notes {
-            active.notes = Set(Some(n));
+            active.notes = Set(n);
         }
         active.updated_at = Set(Utc::now());
         let updated = AuditLogService::update_with_audit::<
@@ -398,10 +418,7 @@ impl InventoryCountService {
             // 实盘数量非负校验：允许为 0（表示实际盘点数量为零），仅拒绝严格负数。
             // 位于任何写库之前，且整个录入在一个事务内，负值直接返回错误使事务回滚，不产生半写。
             if input.quantity_actual.is_sign_negative() {
-                return Err(AppError::validation(format!(
-                    "实盘数量不能为负：库存 {}（产品 {}）实盘数量为 {}",
-                    input.stock_id, item_model.product_id, input.quantity_actual
-                )));
+                return Err(AppError::validation_displayable("实盘数量不能为负"));
             }
             let difference = input.quantity_actual - item_model.quantity_before;
             let mut active: inventory_count_item::ActiveModel = item_model.clone().into();
@@ -631,12 +648,23 @@ impl InventoryCountService {
     }
 
     /// 更新单条盘点明细（实盘数量/备注；仅待盘点状态可改）
+    /// 更新单条盘点明细（三态语义，对齐 RFC 7386 JSON Merge Patch）：
+    /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、
+    /// Some(Some(v))=覆盖。NOT NULL 列（quantity_actual，inventory_count_item 模型为
+    /// 非 Option Decimal 列）的显式 null 在任何 DB 访问前被拒绝。
     pub async fn update_count_item(
         &self,
         item_id: i32,
-        quantity_actual: Option<Decimal>,
-        notes: Option<String>,
+        quantity_actual: Option<Option<Decimal>>,
+        notes: Option<Option<String>>,
     ) -> Result<inventory_count_item::Model, AppError> {
+        // NOT NULL 列门控（quantity_actual）：显式 null 是调用方错误而非"保持原值"，
+        // 在任何 DB 访问（含 begin 事务）之前拒绝，错误外显不脱敏
+        if matches!(quantity_actual, Some(None)) {
+            return Err(AppError::business_displayable(
+                "实盘数量不能清空：该字段为必填项",
+            ));
+        }
         let txn = (*self.db).begin().await?;
         let item = inventory_count_item::Entity::find_by_id(item_id)
             .one(&txn)
@@ -654,20 +682,20 @@ impl InventoryCountService {
         }
 
         let mut active: inventory_count_item::ActiveModel = item.clone().into();
-        if let Some(q) = quantity_actual {
+        // 三态写入：None=不 Set、Some(Some(q))=Set(q) 覆盖（quantity_actual 为 NOT NULL
+        // 列，Some(None) 已入口拒绝）
+        if let Some(q) = quantity_actual.flatten() {
             // 与批量录入保持一致：实盘数量非负（允许 0，仅拒严格负数），
             // 校验位于任何写库之前，负值返回错误使整个事务回滚，不产生半写。
             if q.is_sign_negative() {
-                return Err(AppError::validation(format!(
-                    "实盘数量不能为负：库存 {}（产品 {}）实盘数量为 {}",
-                    item.stock_id, item.product_id, q
-                )));
+                return Err(AppError::validation_displayable("实盘数量不能为负"));
             }
             active.quantity_actual = Set(q);
             active.quantity_difference = Set(q - item.quantity_before);
         }
+        // notes 为 DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL（清空）
         if let Some(n) = notes {
-            active.notes = Set(Some(n));
+            active.notes = Set(n);
         }
         active.updated_at = Set(Utc::now());
         let updated = active.update(&txn).await?;

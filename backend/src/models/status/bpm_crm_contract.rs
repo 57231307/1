@@ -2,7 +2,7 @@
 //! BPM/CRM/合同状态常量分组
 //!
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的 BPM/CRM/合同/预算/物流状态常量子模块组。
-//! 包含：approval/budget/contract/logistics_waybill/bpm_instance/bpm_task/crm_lead/crm_opportunity/contract_status
+//! 包含：approval/budget/contract/logistics_waybill/bpm_instance/bpm_task/crm_lead/crm_opportunity
 
 // 通用审批状态（批次 158 v11 真实接入：color_price / budget_adjustment / ar_invoice 业务引用）
 // 注：DRAFT 和 CANCELLED 在当前业务中无使用场景已删除；如未来审批流程扩展需要可重新添加
@@ -30,7 +30,8 @@ pub mod budget {
     pub const ACTIVE: &str = "active";
 }
 
-/// 合同状态常量（小写值，批次 210 P2-5，状态机 draft→active→cancelled）
+/// 合同状态常量（小写值，sales_contract/purchase_contract 两侧共用本词表，禁止另立第二套）
+/// 状态机 draft→active→cancelled；rejected 为审批拒绝终态（拒绝动作落库，与取消 cancelled 语义不同）
 pub mod contract {
     /// 草稿：合同初始状态，可编辑
     pub const DRAFT: &str = "draft";
@@ -40,6 +41,12 @@ pub mod contract {
 
     /// 已取消：合同作废
     pub const CANCELLED: &str = "cancelled";
+
+    /// 已拒绝：合同审批拒绝
+    pub const REJECTED: &str = "rejected";
+
+    /// 全部合法取值（合同 status 入参校验与写入方取值域的唯一同源来源）
+    pub const ALL: &[&str] = &[DRAFT, ACTIVE, CANCELLED, REJECTED];
 }
 
 /// 运单状态常量（大写值，状态机 IN_TRANSIT→DELIVERED→SIGNED，SIGNED 触发 AR 应收确认）
@@ -184,14 +191,4 @@ pub mod crm_opportunity {
 
     /// 全部合法商机状态，DB CHECK（chk_crm_opportunity_status）取值来源
     pub const ALL_STATUSES: &[&str] = &[OPEN, CLOSED_WON, CLOSED_LOST];
-}
-
-/// 合同状态（sales_contract.status / purchase_contract.status，小写值）
-/// 批次 236 v13 真实接入：sales_contract_service.rs、purchase_contract_service.rs 等
-pub mod contract_status {
-    /// 草稿：合同初始状态
-    pub const DRAFT: &str = "draft";
-
-    /// 已取消：合同已取消
-    pub const CANCELLED: &str = "cancelled";
 }

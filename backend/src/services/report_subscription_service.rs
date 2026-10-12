@@ -105,11 +105,11 @@ impl ReportSubscriptionService {
 
         // 缺陷 2.2 修复：校验收件人邮箱格式（防止将敏感报表推送到非法邮箱）
         if req.recipients.is_empty() {
-            return Err(AppError::validation("收件人列表不能为空"));
+            return Err(AppError::validation_displayable("收件人列表不能为空"));
         }
         for email in &req.recipients {
             if !is_valid_email(email) {
-                return Err(AppError::validation(format!(
+                return Err(AppError::validation_displayable(format!(
                     "收件人邮箱格式无效: {}",
                     email
                 )));
@@ -121,7 +121,7 @@ impl ReportSubscriptionService {
             "DAILY" => Some(now + chrono::Duration::days(1)),
             "WEEKLY" => Some(now + chrono::Duration::weeks(1)),
             "MONTHLY" => Some(now + chrono::Duration::days(30)),
-            _ => return Err(AppError::validation("无效的订阅频率")),
+            _ => return Err(AppError::validation_displayable("无效的订阅频率")),
         };
 
         let recipients_json = serde_json::to_value(&req.recipients)
@@ -257,11 +257,12 @@ impl ReportSubscriptionService {
         Ok(updated)
     }
 
-    /// 查询订阅列表
+    /// 查询订阅列表；返回统一分页信封 `PaginatedResponse`（page/page_size 为经默认值与
+    /// clamp 后的实际生效值，与查询行为同源）
     pub async fn list(
         &self,
         query: SubscriptionQuery,
-    ) -> Result<(Vec<ReportSubscriptionModel>, u64), AppError> {
+    ) -> Result<crate::utils::response::PaginatedResponse<ReportSubscriptionModel>, AppError> {
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100); // v10 P1-1 修复：page_size clamp(1,100) 防 DoS
 
@@ -289,9 +290,15 @@ impl ReportSubscriptionService {
             .order_by_desc(crate::models::report_subscription::Column::CreatedAt)
             .paginate(&*self.db, page_size);
 
-        let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
+        let effective_page = page.clamp(1, 1000);
+        let (items, total) = paginate_with_total(paginator, effective_page).await?;
 
-        Ok((items, total))
+        Ok(crate::utils::response::PaginatedResponse::new(
+            items,
+            total,
+            effective_page,
+            page_size,
+        ))
     }
 
     /// 手动触发订阅执行

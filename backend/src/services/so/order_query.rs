@@ -323,6 +323,10 @@ impl SalesService {
             contact_phone: order.contact_phone,
             approved_by: order.approved_by,
             approved_at: order.approved_at,
+            // 两理由列与实体列逐字同名直映（详情手工构造点与列表 into_model 同一形状，
+            // 键集不分叉；NULL=未采集，不伪造空串）
+            approval_reason: order.approval_reason,
+            rejected_reason: order.rejected_reason,
             created_at: order.created_at,
             updated_at: order.updated_at,
             items: item_details,
@@ -342,12 +346,7 @@ impl SalesService {
 
         // 行级数据权限校验（IDOR 防护）：owner=created_by，dept=order.department_id
         //（m_rls_dept_domain，与 RLS 策略口径一致）
-        Self::validate_order_data_scope(
-            data_scope,
-            order.created_by,
-            order.department_id,
-            order_id,
-        )?;
+        Self::validate_order_data_scope(data_scope, order.created_by, order.department_id)?;
 
         let customer = order
             .find_related(crate::models::customer::Entity)
@@ -384,19 +383,42 @@ impl SalesService {
         ))
     }
 
+    /// 写口行级归属门（仅读主表单行）：拒绝/取消等状态推进动作先证归属，
+    /// 归属判定与 `get_order_detail` 同源（复用同一个 `validate_order_data_scope`，
+    /// owner=`created_by`、dept=`department_id`），但不做整详情投影。
+    ///
+    /// 为什么与 `get_order_detail` 分家：写动作的语义只需要「这单存在 + 归我管」，
+    /// 不需要明细/客户/产品关联行。`get_order_detail` 会 `find_related(items).all()`
+    /// 整行解码 `sales_order_item::Model`（其中 discount_percent/tax_amount/color_no
+    /// 等列在模型里声明为非 Option），一旦关联行缺值即 ColumnNull → DbErr → 500，
+    /// 把状态机本应外显的 4xx BUSINESS 拒绝提前压成内部错误通道。故写口走本方法，
+    /// 只解码主表（其非 Option 列均由建表默认值/业务写入保证有值）。
+    /// 订单不存在走既有 not_found（404），越权走 permission_denied（403 + FORBIDDEN）。
+    pub async fn assert_order_ownership(
+        &self,
+        order_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(), AppError> {
+        let order = SalesOrderEntity::find_by_id(order_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("销售订单 {} 未找到", order_id)))?;
+        // 归属判定与 get_order_detail 复用同一私有函数，判定口径全站唯一
+        Self::validate_order_data_scope(data_scope, order.created_by, order.department_id)
+    }
+
     /// 行级数据权限校验（IDOR 防护）
     fn validate_order_data_scope(
         data_scope: Option<&DataScopeContext>,
         created_by: Option<i32>,
         department_id: Option<i32>,
-        order_id: i32,
     ) -> Result<(), AppError> {
         if let Some(ctx) = data_scope {
             if !crate::utils::data_scope::check_resource_owner(ctx, created_by, department_id) {
-                return Err(AppError::permission_denied(format!(
-                    "无权访问销售订单 {}（数据范围限制）",
-                    order_id
-                )));
+                // 权限拒绝走固定脱敏常量：记录 ID 只进内部日志，不进用户可见文案
+                return Err(AppError::permission_denied(
+                    "无权访问销售订单（数据范围限制）".to_string(),
+                ));
             }
         }
         Ok(())
@@ -467,15 +489,26 @@ impl SalesService {
     ) -> Result<serde_json::Value, AppError> {
         use sea_orm::QuerySelect;
 
-        let _start_date = query
+        // 日期区间解析：严格 YYYY-MM-DD。非法格式是用户自己提交的字段、按公开规则拒绝
+        // （可外显），不再静默套用默认值把筛选吞掉。
+        let start_date = query
             .get("start_date")
             .and_then(|v| v.as_str())
-            .unwrap_or("2020-01-01");
+            .map(|s| {
+                chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| {
+                    AppError::validation_displayable("start_date 需为 YYYY-MM-DD 格式")
+                })
+            })
+            .transpose()?;
 
-        let _end_date = query
+        let end_date = query
             .get("end_date")
             .and_then(|v| v.as_str())
-            .unwrap_or("2099-12-31");
+            .map(|s| {
+                chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .map_err(|_| AppError::validation_displayable("end_date 需为 YYYY-MM-DD 格式"))
+            })
+            .transpose()?;
 
         let customer_id = query
             .get("customer_id")
@@ -489,6 +522,25 @@ impl SalesService {
 
         if let Some(cid) = customer_id {
             query = query.filter(sales_order::Column::CustomerId.eq(cid));
+        }
+
+        // 日期范围下推：口径与 build_orders_query（本文件订单列表已生效实现）逐字对齐——
+        // order_date 为 timestamptz，起始取当日 00:00（含，gte），截止取次日 00:00（不含，lt），
+        // 覆盖截止日期当天全部时刻；缺省端不加界。此前 _start_date/_end_date 收下即丢，
+        // 导致统计日期筛选完全不生效。
+        if let Some(sd) = start_date {
+            let start_at = sd
+                .and_hms_opt(0, 0, 0)
+                .map(|t| t.and_utc())
+                .unwrap_or_else(chrono::Utc::now);
+            query = query.filter(sales_order::Column::OrderDate.gte(start_at));
+        }
+        if let Some(ed) = end_date {
+            let end_exclusive = (ed + chrono::Duration::days(1))
+                .and_hms_opt(0, 0, 0)
+                .map(|t| t.and_utc())
+                .unwrap_or_else(chrono::Utc::now);
+            query = query.filter(sales_order::Column::OrderDate.lt(end_exclusive));
         }
 
         let result = query

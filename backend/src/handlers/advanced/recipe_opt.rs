@@ -51,10 +51,12 @@ pub async fn optimize_recipe(
 ) -> Result<Json<ApiResponse<RecipeOptimizationResponse>>, AppError> {
     // 1. 基础校验
     if payload.color_no.trim().is_empty() {
-        return Err(AppError::validation("色号 color_no 不能为空"));
+        return Err(AppError::validation_displayable("色号 color_no 不能为空"));
     }
     if payload.fabric_type.trim().is_empty() {
-        return Err(AppError::validation("布类 fabric_type 不能为空"));
+        return Err(AppError::validation_displayable(
+            "布类 fabric_type 不能为空",
+        ));
     }
 
     // 2. 调用 service

@@ -220,9 +220,12 @@ test.describe('库存盘点完整流程', () => {
       'POST',
       `/inventory/counts/${countId}/submit`
     );
-    expect(illegalSubmit.status).toBeGreaterThanOrEqual(400);
-    // 已审批(completed)不能重复提交：submit_count 抛 AppError::business（service:406-409），
-    // 出参 code 稳定为 BUSINESS_ERROR（utils/error.rs:413；真实文案经 public_message 脱敏不进响应）
+    // 收紧：状态门拒绝必须恰为 HTTP 400（error.rs:356-373 BusinessError→BAD_REQUEST 状态），
+    // 原 `>=400` 连 5xx/403/404 都放行
+    expect(illegalSubmit.status, '应恰为 HTTP 400').toBe(400);
+    // 已审批(completed)不能重复提交：inventory_count_service.rs::submit_for_approval
+    // 抛 AppError::business，出参 code 稳定为 BUSINESS_ERROR（utils/error.rs::error_code；
+    // 真实文案经 public_message 脱敏不进响应，故只判状态+机器码）
     expect(failureCode(illegalSubmit), '应命中业务拒绝码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
   });
 });

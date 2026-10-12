@@ -163,6 +163,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   createChemical,
   deleteChemical,
@@ -215,6 +217,8 @@ async function load() {
   loading.value = true;
   try {
     chemicals.value = unwrapList(await getChemicalList());
+  } catch (e: unknown) {
+    logAuxLoadFailure('染化料列表加载失败', e);
   } finally {
     loading.value = false;
   }
@@ -330,8 +334,9 @@ const onEditLot = (row: Record<string, unknown>) => {
 const onDeleteLot = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认删除批次 ${row.lot_no}？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('chemicals.onDeleteLot', error);
   }
   try {
     await deleteChemicalLot(Number(row.id));
@@ -394,8 +399,9 @@ const onEditCategory = (row: Record<string, unknown>) => {
 const onDeleteCategory = async (row: Record<string, unknown>) => {
   try {
     await ElMessageBox.confirm(`确认删除分类「${row.name}」？`, '删除确认', { type: 'warning' });
-  } catch {
-    return;
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('chemicals.onDeleteCategory', error);
   }
   try {
     await deleteChemicalCategory(Number(row.id));

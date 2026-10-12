@@ -65,6 +65,7 @@ fn make_recipe(fixture: RecipeFixture<'_>) -> DyeRecipeModel {
         parent_recipe_id: None,
         approved_by: None,
         approved_at: None,
+        rejected_reason: None,
         remarks: None,
         created_by: None,
     }
@@ -366,6 +367,7 @@ fn test_sanitize_recipe_masks_pii() {
         parent_recipe_id: None,
         approved_by: None,
         approved_at: None,
+        rejected_reason: None,
         remarks: Some("联系 13812348888 反馈色差".to_string()),
         created_by: None,
     };

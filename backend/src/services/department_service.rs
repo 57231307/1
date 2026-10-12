@@ -58,6 +58,28 @@ impl DepartmentService {
         }
     }
 
+    /// 校验负责人用户存在（P0 契约修复：前端负责人下拉提交 manager_id，
+    /// 后端真实列为 departments.manager_id；此前无任何存在性校验，悬挂 ID 会直接落库/触发 FK 500）。
+    /// manager_id 为 Option：None 表示未指派/清除负责人，不校验。
+    async fn validate_manager_exists(
+        db: &sea_orm::DatabaseConnection,
+        manager_id: Option<i32>,
+    ) -> Result<(), AppError> {
+        if let Some(mid) = manager_id {
+            let exists = crate::models::user::Entity::find_by_id(mid)
+                .one(db)
+                .await?
+                .is_some();
+            if !exists {
+                return Err(AppError::business_displayable(format!(
+                    "负责人用户不存在（manager_id={}）",
+                    mid
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// 获取部门列表（支持分页和过滤）
     pub async fn list(
         &self,
@@ -144,6 +166,9 @@ impl DepartmentService {
                 .ok_or_else(|| AppError::not_found(format!("父部门 ID {} 不存在", pid)))?;
         }
 
+        // P0 契约修复：负责人按 manager_id 校验用户存在（前端负责人下拉提交真实键 manager_id）
+        Self::validate_manager_exists(&self.db, req.manager_id).await?;
+
         let active_model = department::ActiveModel {
             id: NotSet,
             // 契约对齐：前端 DepartmentCreateRequest.code 优先；不传/为空时自动生成
@@ -191,19 +216,51 @@ impl DepartmentService {
     }
 
     /// 更新部门（批次 94 P2-10：补 user_id 参数，将 Some(0) 占位符改为真实操作人 user_id，；保证审计日志能追溯实际更新人。）
+    ///
+    /// 字段三态语义（对齐 RFC 7386 JSON Merge Patch）：
+    /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL、Some(Some(v))=覆盖。
     pub async fn update(
         &self,
         id: i32,
         user_id: i32,
         req: crate::handlers::department_handler::UpdateDepartmentRequest,
     ) -> Result<department::Model, AppError> {
+        // NOT NULL 列门控（departments.name/code NOT NULL，m0001 DDL；sort_order/is_active
+        // 实体 Model 列为非 Option i32/bool，置 NULL 后该行按模型不可读）：
+        // 显式 null 是调用方错误，不是"保持原值"；在任何 DB 访问之前拒绝，错误外显不脱敏。
+        if matches!(req.name, Some(None)) {
+            return Err(AppError::business_displayable(
+                "部门名称不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.code, Some(None)) {
+            return Err(AppError::business_displayable(
+                "部门编码不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.sort_order, Some(None)) {
+            return Err(AppError::business_displayable(
+                "排序号不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.is_active, Some(None)) {
+            return Err(AppError::business_displayable(
+                "启用状态不能清空：该字段为必填项",
+            ));
+        }
+
         let mut dept: department::ActiveModel = DepartmentEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("部门 ID {} 不存在", id)))?
             .into();
 
-        if let Some(n) = req.name {
+        // 三态写入规则：None=不 Set（列保持 Unset，UPDATE 不含该列，原值不动）；
+        // Some(None)=Set(None) 置 NULL；Some(Some(v))=Set(v) 覆盖。
+        // 不得塌成单层 Option<T>：塌层后"清空"与"保持"共用同一表示，
+        // description/parent_id/manager_id 将无法置 NULL（清空请求会被静默丢弃）。
+        // name/code 为 NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(n) = req.name.flatten() {
             // 检查部门名称是否已存在
             let existing = DepartmentEntity::find()
                 .filter(department::Column::Name.eq(&n))
@@ -212,38 +269,77 @@ impl DepartmentService {
                 .await?;
 
             if existing.is_some() {
-                return Err(AppError::business(format!("部门名称 '{}' 已存在", n)));
+                return Err(AppError::business_displayable(format!(
+                    "部门名称 '{}' 已存在",
+                    n
+                )));
             }
             dept.name = Set(n);
         }
 
+        // P0 契约修复：code 原不在 UpdateDepartmentRequest 内，前端编辑编码被静默丢弃
+        // （真实列 departments.code NOT NULL UNIQUE，非空变更时查重排除自身）
+        if let Some(c) = req.code.flatten() {
+            let c = c.trim().to_string();
+            if !c.is_empty() {
+                let existing = DepartmentEntity::find()
+                    .filter(department::Column::Code.eq(&c))
+                    .filter(department::Column::Id.ne(id))
+                    .one(&*self.db)
+                    .await?;
+                if existing.is_some() {
+                    return Err(AppError::business_displayable(format!(
+                        "部门编码 '{}' 已存在",
+                        c
+                    )));
+                }
+                dept.code = Set(c);
+            }
+        }
+
+        // description：DB 可空列（TEXT，m0001 DDL 核实）——显式 null 清空
         if let Some(d) = req.description {
-            dept.description = Set(Some(d));
+            dept.description = Set(d);
         }
 
+        // parent_id：DB 可空列（自引用外键）——Some(None)=脱离父级成为顶级部门
         if let Some(pid) = req.parent_id {
-            // 检查父部门存在（批次 98 P2-C 修复 v5 复审：去掉冗余 let _ = ）
-            DepartmentEntity::find_by_id(pid)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::not_found(format!("父部门 ID {} 不存在", pid)))?;
-            dept.parent_id = Set(Some(pid));
+            match pid {
+                Some(pid) => {
+                    // 检查父部门存在（P2-C 修复 v5 复审：去掉冗余 let _ =）
+                    DepartmentEntity::find_by_id(pid)
+                        .one(&*self.db)
+                        .await?
+                        .ok_or_else(|| AppError::not_found(format!("父部门 ID {} 不存在", pid)))?;
+                    dept.parent_id = Set(Some(pid));
+                }
+                None => {
+                    dept.parent_id = Set(None);
+                }
+            }
         }
 
-        if req.manager_id.is_some() {
-            dept.manager_id = Set(req.manager_id);
+        // manager_id：DB 可空列——Some(None)=清除负责人；Some(Some(mid)) 先校验用户存在再落库
+        if let Some(mid) = req.manager_id {
+            if mid.is_some() {
+                Self::validate_manager_exists(&self.db, mid).await?;
+            }
+            dept.manager_id = Set(mid);
         }
 
-        if let Some(so) = req.sort_order {
+        // sort_order/is_active 对应实体 Model 非 Option 列（NOT NULL 语义）：仅覆盖/保持
+        if let Some(so) = req.sort_order.flatten() {
             dept.sort_order = Set(so);
         }
 
-        if let Some(ia) = req.is_active {
+        if let Some(ia) = req.is_active.flatten() {
             dept.is_active = Set(ia);
         }
 
         dept.updated_at = Set(Utc::now());
 
+        // 审计：update_with_audit 以更新后回读的 Model 生成 after_snapshot，
+        // Set(None) 的列在 UPDATE 真实落 NULL 后进入快照——审计反映变更后真实值，不留假旧值。
         let result = crate::services::audit_log_service::AuditLogService::update_with_audit(
             self.db.as_ref(),
             "departments",
@@ -297,11 +393,10 @@ impl DepartmentService {
         Self::fill_manager_names(&self.db, &mut all_departments).await;
 
         // 构建部门树
-        let mut tree: Vec<DepartmentTreeNode> = Vec::new();
         let mut dept_map: std::collections::HashMap<i32, DepartmentTreeNode> =
             std::collections::HashMap::new();
 
-        // 先创建所有节点
+        // 阶段 1：创建所有节点，children 初始为空
         for dept in all_departments {
             dept_map.insert(
                 dept.id,
@@ -316,19 +411,43 @@ impl DepartmentService {
             );
         }
 
-        // 构建树形结构
-        let dept_ids: Vec<i32> = dept_map.keys().copied().collect();
-        for id in dept_ids {
-            if let Some(node) = dept_map.get(&id).cloned() {
-                if let Some(parent_id) = node.parent_id {
-                    if let Some(parent_node) = dept_map.get_mut(&parent_id) {
-                        parent_node.children.push(node);
-                    }
-                } else {
-                    tree.push(node);
-                }
+        // 阶段 2：收集根节点 id（parent_id 为 None）及父子关系映射
+        let roots: Vec<i32> = dept_map
+            .iter()
+            .filter(|(_, node)| node.parent_id.is_none())
+            .map(|(id, _)| *id)
+            .collect();
+
+        // parent_to_children 记录每个父节点的直接子节点 id 列表
+        let mut parent_to_children: std::collections::HashMap<i32, Vec<i32>> =
+            std::collections::HashMap::new();
+        for (id, node) in dept_map.iter() {
+            if let Some(pid) = node.parent_id {
+                parent_to_children.entry(pid).or_default().push(*id);
             }
         }
+
+        // 阶段 3：从根开始递归组装，将子节点从 dept_map 取出并挂入父 children
+        fn assemble(
+            id: i32,
+            dept_map: &mut std::collections::HashMap<i32, DepartmentTreeNode>,
+            parent_to_children: &std::collections::HashMap<i32, Vec<i32>>,
+        ) -> Option<DepartmentTreeNode> {
+            let mut node = dept_map.remove(&id)?;
+            if let Some(child_ids) = parent_to_children.get(&id) {
+                for &cid in child_ids {
+                    if let Some(child) = assemble(cid, dept_map, parent_to_children) {
+                        node.children.push(child);
+                    }
+                }
+            }
+            Some(node)
+        }
+
+        let tree: Vec<DepartmentTreeNode> = roots
+            .into_iter()
+            .filter_map(|rid| assemble(rid, &mut dept_map, &parent_to_children))
+            .collect();
 
         Ok(tree)
     }

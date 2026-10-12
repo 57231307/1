@@ -99,11 +99,43 @@ impl OutsourcingOrderItemService {
     }
 
     /// 更新委外发料明细
+    ///
+    /// 三态写入（RFC 7386，对齐 department_service::update）：
+    /// None=不 Set、Some(None)=Set(None) 置 NULL（仅 DB 可空列）、Some(Some(v))=Set(v) 覆盖；
+    /// NOT NULL 列（quantity/unit/unit_cost 建表即 NOT NULL，v15:679-681；
+    /// processing_fee/freight_fee ALTER NOT NULL DEFAULT 0，v15:2195-2196）
+    /// 的显式 null 在任何 DB 访问前拒绝（外显不脱敏）。
     pub async fn update(
         &self,
         id: i32,
         req: UpdateOutsourcingOrderItemRequest,
     ) -> Result<ItemModel, AppError> {
+        if matches!(req.quantity, Some(None)) {
+            return Err(AppError::business_displayable(
+                "发出数量不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.unit, Some(None)) {
+            return Err(AppError::business_displayable(
+                "单位不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.unit_cost, Some(None)) {
+            return Err(AppError::business_displayable(
+                "单位成本不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.processing_fee, Some(None)) {
+            return Err(AppError::business_displayable(
+                "加工费不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(req.freight_fee, Some(None)) {
+            return Err(AppError::business_displayable(
+                "运费不能清空：该字段为必填项",
+            ));
+        }
+
         let model = self.get_by_id(id).await?;
 
         // 在 model.into() 之前记录原值，避免 ActiveValue 取值复杂
@@ -115,42 +147,44 @@ impl OutsourcingOrderItemService {
 
         let mut active: ItemActiveModel = model.into();
 
+        // DB 可空列：Some(None)=Set(None) 清空、Some(Some(v))=Set(Some(v)) 覆盖
         if let Some(v) = req.color_no {
-            active.color_no = Set(Some(v));
+            active.color_no = Set(v);
         }
         if let Some(v) = req.dye_lot_no {
-            active.dye_lot_no = Set(Some(v));
+            active.dye_lot_no = Set(v);
         }
         if let Some(v) = req.batch_no {
-            active.batch_no = Set(Some(v));
+            active.batch_no = Set(v);
         }
         if let Some(v) = req.warehouse_id {
-            active.warehouse_id = Set(Some(v));
+            active.warehouse_id = Set(v);
         }
-        if let Some(v) = req.quantity {
+        if let Some(v) = req.remarks {
+            active.remarks = Set(v);
+        }
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(v) = req.quantity.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("发出数量不能为负"));
             }
             new_quantity = v;
             need_recompute_cost = true;
         }
-        if let Some(v) = req.unit {
+        if let Some(v) = req.unit.flatten() {
             active.unit = Set(v);
         }
-        if let Some(v) = req.unit_cost {
+        if let Some(v) = req.unit_cost.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("单位成本不能为负"));
             }
             new_unit_cost = v;
             need_recompute_cost = true;
         }
-        if let Some(v) = req.remarks {
-            active.remarks = Set(Some(v));
-        }
-        if let Some(v) = req.processing_fee {
+        if let Some(v) = req.processing_fee.flatten() {
             active.processing_fee = Set(v);
         }
-        if let Some(v) = req.freight_fee {
+        if let Some(v) = req.freight_fee.flatten() {
             active.freight_fee = Set(v);
         }
 

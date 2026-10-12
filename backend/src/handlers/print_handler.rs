@@ -11,6 +11,7 @@ use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::PrintService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
@@ -56,6 +57,19 @@ fn record_print_audit(state: &AppState, auth: &AuthContext, doc_type: &str, doc_
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
+}
+
+/// 成品布入库打印标签（doc_type inventory_piece_label，路由 /inventory/pieces/{id}/print）
+/// 数据装配与 fail-closed 校验（非 dyed/样布业务族拒绝、缺字段逐列点名 VALIDATION 族）
+/// 全部收敛在 PrintService::get_inventory_piece_label_print_data，本 handler 仅走既有渲染+审计范式
+pub async fn inventory_piece_label_print_docx(
+    Path(piece_id): Path<i32>,
+    State(state): State<AppState>,
+    auth: AuthContext,
+) -> Result<Response, AppError> {
+    let resp = render_print_docx(&state, "inventory_piece_label", piece_id).await?;
+    record_print_audit(&state, &auth, "inventory_piece_label", piece_id);
+    Ok(resp)
 }
 
 pub async fn sales_order_print_docx(
@@ -1504,7 +1518,7 @@ pub async fn preview_print_template(
     Path(id): Path<i32>,
     State(_state): State<AppState>,
     auth: AuthContext,
-    body: Option<Json<serde_json::Value>>,
+    body: OptionalJson<serde_json::Value>,
 ) -> Result<axum::Json<ApiResponse<PrintTemplatePreviewResponse>>, AppError> {
     info!("用户 {} 预览打印模板 ID: {}", auth.username, id);
 
@@ -1517,7 +1531,8 @@ pub async fn preview_print_template(
     drop(records);
 
     let variables = body
-        .and_then(|Json(v)| v.as_object().cloned())
+        .0
+        .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
     let mut html = format!(
         "<html><head><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
@@ -1543,7 +1558,7 @@ pub async fn print_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    _body: Option<Json<serde_json::Value>>,
+    _body: OptionalJson<serde_json::Value>,
 ) -> Result<axum::Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 使用打印模板打印 ID: {}", auth.username, id);
 

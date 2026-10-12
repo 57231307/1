@@ -40,8 +40,15 @@ pub const SHARE_STATUS_REVOKED: &str = "revoked";
 #[sea_orm(table_name = "customer_shares")]
 pub struct Model {
     /// 共享 ID（主键）
+    ///
+    /// 宽度对齐建表 DDL 权威源 `backend/migration/src/domain/v15/mod.rs` 内
+    /// `CREATE TABLE IF NOT EXISTS "customer_shares"` 的 `"id" BIGSERIAL PRIMARY KEY`
+    /// （PG 侧回读 SQL 类型为 INT8）。此前声明为
+    /// `i32`（INT4）时，Postgres 写路径 insert 后的回读解码在 `id` 列上必然
+    /// `mismatched types` 失败、经 `From<DbErr>` 拍平为 500 `DATABASE_ERROR`——
+    /// 模型类型必须跟随 DDL（BIGINT→i64），不得反向改迁移迁就模型。
     #[sea_orm(primary_key)]
-    pub id: i32,
+    pub id: i64,
 
     /// 客户 ID（外键 customers.id）
     pub customer_id: i32,

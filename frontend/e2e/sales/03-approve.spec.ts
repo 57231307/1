@@ -17,7 +17,9 @@
 // - useOlvProc：
 //   handleSubmitOrder → ElMessageBox.confirm('确定提交此订单进入审批流程吗？') → msg.success('submitSuccess')='提交成功'；
 //   handleApprove → ElMessageBox.confirm('确定审批此订单吗？') → msg.success('approveSuccess')='审批成功'；
-//   handleReject → ElMessageBox.prompt('请输入驳回原因') → rejectSalesOrder → msg.success('rejectSuccess')。
+//   handleReject → useActionPrompts.promptRejectReason()（ElMessageBox.prompt，
+//   message=actionForm.rejectReasonTip='请填写审批拒绝理由（必填）'，locales/zh-CN.ts:5801）
+//   → rejectSalesOrder → msg.success('rejectSuccess')。
 //   注：message.rejectSuccess 键在 locales 缺失（真实产品 i18n 缺口），成功 toast 文案不可依赖，
 //   故驳回用例改断言成功提示元素 .el-message--success 出现（仅在成功分支产生），不放宽为"无断言"。
 // - 列表可按「订单号」子串精确筛选（SalesOrderFilter order_no 输入 → 后端 order_no LIKE 下推，
@@ -167,17 +169,41 @@ test.describe('03 销售订单审批', () => {
   test('03-03 待审批订单行内可驳回（原因必填）', async ({ page }) => {
     const { id, order_no: orderNo } = await seedSalesOrder(page, 'pending');
     await locateRowByOrderNo(page, orderNo);
-    // sales.table.reject = '驳回'，触发 ElMessageBox.prompt('请输入驳回原因')
+    // 双列锁前置基线：先回读建单 notes（seed 写入的唯一码），reject 后必须逐字不变
+    //（本轮止毁缺陷回归：销售订单 reject 曾挪用覆写 notes；现 reject 落 rejected_reason 专列，notes 回归备注语义）
+    const before = await apiCallRaw<{ notes: string | null }>(page, 'GET', `/sales/orders/${id}`);
+    expect(before.notes, '建单 notes 基线应已落库（seed 唯一码）').toBeTruthy();
+    // sales.table.reject = '驳回'，触发统一采集器 useActionPrompts.promptRejectReason()
+    //（composables/useActionPrompts.ts:68-87：ElMessageBox.prompt，
+    //  message=actionForm.rejectReasonTip、title=actionForm.rejectReasonTitle、
+    //  inputPlaceholder=actionForm.rejectReasonPlaceholder，zh 值见 locales/zh-CN.ts:5800-5802）
     await orderActionBtn(page, '驳回').click();
     const msgBox = page.locator('.el-message-box');
-    await expect(msgBox.getByText('请输入驳回原因')).toBeVisible();
+    // 弹窗文案断言=同步实现真值（UI 文案允许断言；脱敏红线只禁断后端错误 message）。
+    // tip/标题/输入占位三源齐断，禁止退化成"只断弹窗出现"的弱断言。
+    await expect(msgBox.getByText('请填写审批拒绝理由（必填）')).toBeVisible();
+    await expect(msgBox.getByText('审批拒绝理由', { exact: true })).toBeVisible();
+    await expect(msgBox.getByPlaceholder('请输入审批拒绝理由', { exact: true })).toBeVisible();
     await msgBox.getByRole('textbox').fill('E2E 测试驳回：价格不符合规范');
     await msgBox.getByRole('button', { name: '确定', exact: true }).click();
     // rejectSalesOrder 成功后 refresh + msg.success(...)：因 message.rejectSuccess 缺键，
     // 断言成功提示元素出现（仅成功分支渲染），不依赖缺失的中文文案
     await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 30000 });
     // 后端真实状态字面量：驳回后为 rejected
-    const after = await apiCallRaw<SalesOrderLite>(page, 'GET', `/sales/orders/${id}`);
+    const after = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      notes: string | null;
+    }>(page, 'GET', `/sales/orders/${id}`);
     expect(after.status, `驳回后状态应为 rejected（实际 ${after.status}）`).toBe('rejected');
+    // 理由必须经接口逐字回读 rejected_reason 专列（半级假绿防线：不止断状态）。⚠️ 已知出参缺口
+    //（与报价单 F5 同族）：GET /sales/orders/{id} 出参 SalesOrderDetail
+    //（backend/src/services/so/mod.rs:43-83）尚无 rejected_reason 键——断言保持严格逐字回读
+    // 不放宽，后端补出参前如实判红，禁止改成断键缺失/undefined 蒙绿。
+    expect(after.rejected_reason, '驳回理由应逐字落 rejected_reason 专列').toBe(
+      'E2E 测试驳回：价格不符合规范'
+    );
+    // 双列锁：reject 不得覆写 notes——另一列必须"没被写"（止毁回归的行为级锁）
+    expect(after.notes, 'reject 不得覆写 notes（应逐字保持建单基线）').toBe(before.notes);
   });
 });

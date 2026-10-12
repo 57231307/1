@@ -29,7 +29,7 @@ pub fn build_payload_from_notification(n: &notification::Model) -> NotificationP
         id: n.id as i64,
         title: n.title.clone(),
         content: n.content.clone(),
-        category: format!("{:?}", n.notification_type).to_lowercase(),
+        category: n.notification_type.as_str().to_string(),
         priority: priority_value,
         created_at: n.created_at.to_rfc3339(),
     }
@@ -44,7 +44,7 @@ pub struct CreateNotificationRequest {
     pub content: String,
     pub priority: NotificationPriority,
     pub business_type: Option<String>,
-    pub business_id: Option<i32>,
+    pub business_id: Option<i64>,
     pub action_url: Option<String>,
     pub sender_id: Option<i32>,
     pub sender_name: Option<String>,
@@ -107,7 +107,9 @@ impl NotificationService {
         // 缺陷 5.2 修复：dedup_key 存在时先查 5 分钟窗口，命中则跳过创建
         if let Some(key) = req.dedup_key.as_deref() {
             if self.check_dedup(req.user_id, key).await? {
-                return Err(AppError::validation(
+                // 重复冲突：窗口内已有同键通知，归业务族；文案含内部字段名 dedup_key，
+                // 按 error.rs 安全边界保持脱敏 business。
+                return Err(AppError::business(
                     "通知去重：5 分钟窗口内已存在相同 dedup_key",
                 ));
             }
@@ -161,7 +163,9 @@ impl NotificationService {
                 .check_dedup_window(req.user_id, key, window_secs)
                 .await?
             {
-                return Err(AppError::validation(format!(
+                // 重复冲突：窗口内已有同键通知，归业务族；文案含内部字段名与窗口参数，
+                // 按安全边界保持脱敏 business。
+                return Err(AppError::business(format!(
                     "通知去重：{} 秒窗口内已存在相同 dedup_key",
                     window_secs
                 )));
@@ -249,7 +253,7 @@ impl NotificationService {
             "business_type": notification.business_type,
             "business_id": notification.business_id,
             "action_url": notification.action_url,
-            "priority": format!("{:?}", notification.priority),
+            "priority": notification.priority.as_str(),
             "created_at": notification.created_at.to_rfc3339(),
         });
         let payload_str = payload.to_string();

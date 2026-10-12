@@ -103,8 +103,8 @@ fn test_build_inventory_alert_notification_action_url_y_business_id_yz() {
             "10",
             "20",
         );
-        // business_id 与传入 product_id 一致
-        assert_eq!(req.business_id, Some(pid));
+        // business_id 与传入 product_id 一致（通知业务 ID 随 DDL 为 BIGINT，i32 来源无损加宽）
+        assert_eq!(req.business_id, Some(i64::from(pid)));
         // action_url 中的 ID 字符串与 product_id 一致
         let expected_url = format!("/inventory/stock/{}", pid);
         assert_eq!(req.action_url.as_deref(), Some(expected_url.as_str()));

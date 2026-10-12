@@ -11,6 +11,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
+use sea_orm::EntityTrait;
 use serde::Deserialize;
 
 /// 查询参数：术语使用月报年月
@@ -35,9 +36,22 @@ pub struct CalculateCostsRequest {
 /// 获取报价单价格构成（按 Incoterm 解析）
 pub async fn get_price_composition(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(quotation_id): Path<i64>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    // 行级归属门：报价单属于 sales_quotations（有 created_by 列、无 department_id 列），
+    // 按 check_resource_owner_by_member_scope 判定归属人是否在可见成员集合内。
+    let quotation = crate::models::sales_quotation::Entity::find_by_id(quotation_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("报价单不存在"))?;
+    let owner = Some(quotation.sales_user_id as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该报价单价格信息（数据范围限制）".to_string(),
+        ));
+    }
     let service = IncotermsService::from_state(&state);
     let result = service.get_price_composition(quotation_id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
@@ -67,12 +81,13 @@ pub async fn calculate_costs(
 /// 术语使用月报
 pub async fn monthly_usage_report(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<UsageReportQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = IncotermsService::from_state(&state);
     let report = service
-        .monthly_usage_report(params.year, params.month)
+        .monthly_usage_report(params.year, params.month, Some(&ctx))
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(report)?)))
 }

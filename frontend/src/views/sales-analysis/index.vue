@@ -30,10 +30,10 @@
     <SalesAnalysisStatistics :stats="sa.stats" />
 
     <SalesAnalysisTrend
-      :period="sa.trendPeriod"
+      :granularity="sa.trendGranularity"
       :data="sa.trendData"
       :composition="sa.productRanking"
-      @update:period="(v: string) => (sa.trendPeriod = v)"
+      @update:granularity="(v: SalesTrendGranularity) => (sa.trendGranularity = v)"
     />
 
     <el-row :gutter="20" class="ranking-row">
@@ -61,6 +61,7 @@
 import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Download } from '@element-plus/icons-vue';
+import type { SalesTrendGranularity } from '@/api/sales-analysis';
 import { useSa } from './composables/useSa';
 import { useSaProc } from './composables/useSaProc';
 import SalesAnalysisStatistics from './components/SalesAnalysisStatistics.vue';

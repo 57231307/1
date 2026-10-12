@@ -25,9 +25,13 @@ use crate::utils::error::AppError;
 
 impl DyeBatchLifecycleLogService {
     /// 记录状态流转（含校验）
+    ///
+    /// `operator_id` 是操作人身份的唯一来源，由 handler 按服务端会话
+    /// （`AuthContext.user_id`）传入；请求 DTO 不承载该字段。
     pub async fn record_transition(
         &self,
         req: CreateTransitionRequest,
+        operator_id: i32,
     ) -> Result<LifecycleLogModel, AppError> {
         // 校验 to_status 与 transition_code 合法
         validate_lifecycle_status(&req.to_status)?;
@@ -51,7 +55,8 @@ impl DyeBatchLifecycleLogService {
             to_status: Set(req.to_status),
             transition_code: Set(req.transition_code),
             transition_name: Set(req.transition_name),
-            operator_id: Set(req.operator_id),
+            // 操作人取服务端会话（由 handler 传入），请求体不承载身份
+            operator_id: Set(Some(operator_id)),
             operator_name: Set(req.operator_name),
             equipment_id: Set(req.equipment_id),
             equipment_name: Set(req.equipment_name),

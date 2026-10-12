@@ -308,6 +308,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -326,7 +327,7 @@ import {
   type CreateReportRequest,
 } from '@/api/financial-analysis';
 import { financialStatusLabelKey, financialStatusTagType } from '@/utils/financial-status';
-import { logger } from '@/utils/logger';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -388,7 +389,7 @@ const fetchReports = async () => {
     reports.value = res.data.items;
   } catch (e) {
     const err = e as Error;
-    logger.error(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
+    logAuxLoadFailure(t('financialAnalysis.analysisListTab.logFetchFailed'), err);
     ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageFetchFailed'));
   } finally {
     loading.value = false;
@@ -600,7 +601,7 @@ const deleteReport = async (row: FinancialReport) => {
     ElMessage.success(t('financialAnalysis.analysisListTab.messageDeleteSuccess'));
     fetchReports();
   } catch (e) {
-    if (e !== 'cancel') {
+    if (!isDialogDismissal(e)) {
       const err = e as Error;
       ElMessage.error(err.message || t('financialAnalysis.analysisListTab.messageDeleteFailed'));
     }

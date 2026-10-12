@@ -4,7 +4,7 @@
 //! 包含 ApInvoiceService 的 2 个公开自动生成方法 + 7 个私有 helper：
 //! - auto_generate_from_receipt（从采购入库单自动生成应付单 + 同步生成应付凭证）
 //! - auto_generate_from_return（从采购退货单自动生成红字应付单）
-//! - find_receipt_and_check_exists（查询入库单 + 检查重复 + 校验供应商）
+//! - find_receipt_and_check_exists（查询入库单 + 结算门控 + 检查重复 + 校验供应商）
 //! - build_and_insert_receipt_invoice（构造并插入应付单 ActiveModel）
 //! - build_inventory_voucher_item / build_tax_voucher_item / build_payable_voucher_item（凭证分录构造）
 //! - build_receipt_voucher_items（组装凭证分录列表）
@@ -95,7 +95,7 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 查询采购入库单 + 检查重复生成 + 校验供应商存在
+    /// 查询采购入库单 + 结算门控（质检合格方可结算） + 检查重复生成 + 校验供应商存在
     async fn find_receipt_and_check_exists(
         txn: &DatabaseTransaction,
         receipt_id: i32,
@@ -105,6 +105,15 @@ impl ApInvoiceService {
             .one(txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
+
+        // 1b. 结算门控与确认入库同一口径（词表语义：PASSED=允许后续入库/**结算**流转）：
+        // 本入口可被 HTTP auto_generate 端点直连调用、不经 confirm，未质检合格/不合格的
+        // 收货单同样不得生成应付；判定复用 PurchaseReceiptService 的唯一实现，不另写第二套。
+        // 必须先于重复生成检查与任何应付写入——被拒时事务未落任何行（契约测试锁定顺序）。
+        crate::services::purchase_receipt_service::PurchaseReceiptService::ensure_receipt_inspection_allows_flow(
+            &receipt,
+            "生成应付结算",
+        )?;
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
@@ -319,7 +328,7 @@ impl ApInvoiceService {
             voucher_date: ctx.invoice_date,
             source_type: Some(AP_SOURCE_TYPE_PURCHASE_RECEIPT.to_string()),
             source_module: Some("purchase".to_string()),
-            source_bill_id: Some(ctx.invoice_id),
+            source_bill_id: Some(i64::from(ctx.invoice_id)),
             source_bill_no: Some(ctx.invoice_no.clone()),
             batch_no: None,
             color_no: None,

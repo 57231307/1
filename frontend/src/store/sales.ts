@@ -9,6 +9,8 @@ import {
   approveSalesOrder,
   type SalesOrder,
   type SalesOrderQueryParams,
+  type CreateSalesOrderPayload,
+  type UpdateSalesOrderPayload,
 } from '@/api/sales';
 import { logger } from '@/utils/logger';
 import { msg } from '@/utils/message';
@@ -57,7 +59,10 @@ export const useSalesStore = defineStore('sales', () => {
     }
   };
 
-  const createOrder = async (data: Partial<SalesOrder>) => {
+  // 签名对齐 api 契约载荷（唯一真相 services/so/mod.rs CreateSalesOrderRequest/
+  // UpdateSalesOrderRequest）：响应实体 SalesOrder 含 order_no/customer_name/total_amount
+  // 等生成列，Partial<SalesOrder> 当载荷即把出参键混入请求（原 TS2345 根因）。
+  const createOrder = async (data: CreateSalesOrderPayload) => {
     try {
       const res = await createSalesOrder(data);
       await fetchOrders();
@@ -68,7 +73,7 @@ export const useSalesStore = defineStore('sales', () => {
     }
   };
 
-  const updateOrder = async (id: number, data: Partial<SalesOrder>) => {
+  const updateOrder = async (id: number, data: UpdateSalesOrderPayload) => {
     try {
       const res = await updateSalesOrder(id, data);
       await fetchOrders();

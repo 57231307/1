@@ -36,7 +36,7 @@ impl MrpEngineService {
         let new_status = match order_type.as_str() {
             "PURCHASE" => mrp_status::CONFIRMED,
             "PRODUCTION" => mrp_status::RELEASED,
-            _ => return Err(AppError::validation("无效的订单类型")),
+            _ => return Err(AppError::validation_displayable("无效的订单类型")),
         };
 
         // v11 批次 38 修复：批量查询所有 MRP 结果，避免循环内逐个 find_by_id（N+1 查询）
@@ -55,7 +55,9 @@ impl MrpEngineService {
                 .ok_or_else(|| AppError::not_found(format!("MRP结果 {} 不存在", id)))?;
 
             if result.status != mrp_status::PLANNED {
-                return Err(AppError::validation(format!(
+                // 状态门：MRP 结果当前状态不满足转换前置，归业务族；
+                // 文案含内部记录 ID 与状态 token，按安全边界保持脱敏 business。
+                return Err(AppError::business(format!(
                     "MRP结果 {} 状态不是PLANNED，无法转换",
                     id
                 )));

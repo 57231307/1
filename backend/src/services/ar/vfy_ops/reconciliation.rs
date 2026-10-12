@@ -61,7 +61,9 @@ impl ArReconciliationService {
 
         let total_invoices: Decimal = invoices.iter().map(|inv| inv.invoice_amount).sum();
         let total_collections: Decimal = collections.iter().map(|c| c.collection_amount).sum();
-        let closing_balance = opening_balance + total_invoices - total_collections;
+        // 期末余额判据统一走权威纯函数（match.rs::compute_closing_balance），禁止留内联副本
+        let closing_balance =
+            Self::compute_closing_balance(opening_balance, total_invoices, total_collections);
 
         let reconciliation = Self::build_reconciliation_active_model(
             reconciliation_no,

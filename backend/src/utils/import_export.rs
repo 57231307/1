@@ -147,7 +147,7 @@ impl XlsxImporter {
         use std::io::Cursor;
 
         if !Self::verify_magic(data) {
-            return Err(AppError::validation(
+            return Err(AppError::validation_displayable(
                 "文件内容不是有效的 xlsx 格式（magic bytes 校验失败）".to_string(),
             ));
         }
@@ -159,7 +159,7 @@ impl XlsxImporter {
             .sheet_names()
             .first()
             .cloned()
-            .ok_or_else(|| AppError::validation("xlsx 文件无工作表".to_string()))?;
+            .ok_or_else(|| AppError::validation_displayable("xlsx 文件无工作表".to_string()))?;
         let range = workbook
             .worksheet_range(&sheet_name)
             .map_err(|e| AppError::validation(format!("读取工作表失败: {}", e)))?;
@@ -228,12 +228,6 @@ impl FieldValidator {
         value
             .parse::<rust_decimal::Decimal>()
             .map_err(|_| format!("{} 必须是有效的数字", field_name))
-    }
-
-    /// 验证日期（YYYY-MM-DD 格式）
-    pub fn date(value: &str, field_name: &str) -> Result<chrono::NaiveDate, String> {
-        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
-            .map_err(|_| format!("{} 必须是有效的日期格式（YYYY-MM-DD）", field_name))
     }
 
     /// 验证布尔值

@@ -298,11 +298,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("仓库不存在"))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("产品不存在"))?;
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -619,11 +619,11 @@ impl InventoryStockService {
         let _warehouse = warehouse::Entity::find_by_id(warehouse_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("仓库不存在: {}", warehouse_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("仓库不存在"))?;
         let _product = product::Entity::find_by_id(product_id)
             .one(db)
             .await?
-            .ok_or_else(|| AppError::validation(format!("产品不存在: {}", product_id)))?;
+            .ok_or_else(|| AppError::validation_displayable("产品不存在"))?;
         Ok(())
     }
 
@@ -694,7 +694,7 @@ impl InventoryStockService {
     ) -> Result<inventory_stock::Model, AppError> {
         // 校验 new_grade 合法值（与 inventory_stock.rs Model.grade 注释一致）
         if !inventory_stock_grade::ALL.contains(&new_grade.as_str()) {
-            return Err(AppError::validation(format!(
+            return Err(AppError::validation_displayable(format!(
                 "非法等级值 {}，仅允许 一等品/二等品/等外品",
                 new_grade
             )));
@@ -868,20 +868,53 @@ impl InventoryStockService {
             .map_err(|e| AppError::bad_request(format!("创建批次失败：{}", e)))
     }
 
-    /// 更新批次（部分字段）
+    /// f64 入参 → Decimal 落库值：转换失败（NaN/Inf/溢出）如实报校验错误，
+    /// 不得 `unwrap_or(ZERO)` 硬造 0 假值落库（旧实现即静默兜底形态）。
+    fn to_batch_decimal(v: f64) -> Result<Decimal, AppError> {
+        Decimal::from_f64_retain(v).ok_or_else(|| {
+            AppError::validation_displayable(format!("数值无法转换为十进制（NaN/Inf/溢出）：{v}"))
+        })
+    }
+
+    /// 更新批次可编辑字段（三态语义，对齐 RFC 7386 JSON Merge Patch）：
+    /// None（键缺席）=保持原值、Some(None)（显式 null）=置 NULL（仅 DB 可空列）、
+    /// Some(Some(v))=覆盖。NOT NULL 列（color_no/grade/stock_status/quality_status，
+    /// inventory_stocks 模型为非 Option 列）的显式 null 在任何 DB 访问前被拒绝。
     #[allow(clippy::too_many_arguments)]
     pub async fn update_batch_fields(
         &self,
         id: i32,
-        color_no: Option<String>,
-        dye_lot_no: Option<String>,
-        grade: Option<String>,
-        gram_weight: Option<f64>,
-        width: Option<f64>,
-        expiry_date: Option<chrono::DateTime<Utc>>,
-        stock_status: Option<String>,
-        quality_status: Option<String>,
+        color_no: Option<Option<String>>,
+        dye_lot_no: Option<Option<String>>,
+        grade: Option<Option<String>>,
+        gram_weight: Option<Option<f64>>,
+        width: Option<Option<f64>>,
+        expiry_date: Option<Option<chrono::DateTime<Utc>>>,
+        stock_status: Option<Option<String>>,
+        quality_status: Option<Option<String>>,
     ) -> Result<inventory_stock::Model, AppError> {
+        // NOT NULL 列门控：显式 null 是调用方错误，不是"保持原值"
+        if matches!(color_no, Some(None)) {
+            return Err(AppError::business_displayable(
+                "色号不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(grade, Some(None)) {
+            return Err(AppError::business_displayable(
+                "等级不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(stock_status, Some(None)) {
+            return Err(AppError::business_displayable(
+                "库存状态不能清空：该字段为必填项",
+            ));
+        }
+        if matches!(quality_status, Some(None)) {
+            return Err(AppError::business_displayable(
+                "质量状态不能清空：该字段为必填项",
+            ));
+        }
+
         let existing = inventory_stock::Entity::find_by_id(id)
             .one(&*self.db)
             .await
@@ -889,29 +922,31 @@ impl InventoryStockService {
             .ok_or_else(|| AppError::not_found("批次不存在"))?;
 
         let mut batch: inventory_stock::ActiveModel = existing.into();
-        if let Some(color) = color_no {
+        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        if let Some(color) = color_no.flatten() {
             batch.color_no = Set(color);
         }
+        // DB 可空列：Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(dye_lot) = dye_lot_no {
-            batch.dye_lot_no = Set(Some(dye_lot));
+            batch.dye_lot_no = Set(dye_lot);
         }
-        if let Some(g) = grade {
+        if let Some(g) = grade.flatten() {
             batch.grade = Set(g);
         }
         if let Some(gw) = gram_weight {
-            batch.gram_weight = Set(Some(Decimal::from_f64_retain(gw).unwrap_or(Decimal::ZERO)));
+            batch.gram_weight = Set(gw.map(Self::to_batch_decimal).transpose()?);
         }
         if let Some(w) = width {
-            batch.width = Set(Some(Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO)));
+            batch.width = Set(w.map(Self::to_batch_decimal).transpose()?);
         }
         if let Some(exp) = expiry_date {
-            batch.expiry_date = Set(Some(exp));
+            batch.expiry_date = Set(exp);
         }
-        // 注意：inventory_stock 模型没有 remarks 字段，可以考虑使用其他方式存储
-        if let Some(status) = stock_status {
+        // 注意：inventory_stocks 模型没有 remarks 列，请求中的 remarks 键无落库目标
+        if let Some(status) = stock_status.flatten() {
             batch.stock_status = Set(status);
         }
-        if let Some(quality) = quality_status {
+        if let Some(quality) = quality_status.flatten() {
             batch.quality_status = Set(quality);
         }
         batch.updated_at = Set(Utc::now());

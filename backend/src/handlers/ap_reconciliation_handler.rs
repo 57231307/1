@@ -61,8 +61,7 @@ pub async fn list_reconciliations(
         total,
         params.page.unwrap_or(1).clamp(1, 1000), // 批次 95 P3-3~8：分页 clamp 防 DoS
         params.page_size.unwrap_or(20).clamp(1, 100),
-    ))
-    .map_err(|e| AppError::internal(e.to_string()))?;
+    ))?;
 
     Ok(Json(ApiResponse::success(result)))
 }
@@ -102,7 +101,7 @@ pub async fn generate_reconciliation(
 
     req.validate().map_err(|e| {
         warn!("用户 {} 生成对账单验证失败：{}", auth.username, e);
-        AppError::validation(e.to_string())
+        AppError::from(e)
     })?;
 
     let service = ApReconciliationService::new(state.db.clone());
@@ -216,7 +215,10 @@ pub async fn auto_reconcile_all(
         .auto_reconcile_all(req.start_date, req.end_date, auth.user_id)
         .await?;
 
-    let success_count = results.iter().filter(|r| r.status != "FAILED").count();
+    let success_count = results
+        .iter()
+        .filter(|r| r.status != crate::models::status::general::reconcile_result::FAILED)
+        .count();
     let fail_count = results.len() - success_count;
 
     info!(

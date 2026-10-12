@@ -7,6 +7,7 @@
  * 设计说明：通过 callbacks 接收 usePrd 的状态引用（Reactive 包装层）；
  * 由于 usePrd 返回 reactive({...})，父组件传入 prd.data 等会自动解包为值
  */
+import { isDialogDismissal } from '@/utils/monitor';
 import { reactive } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -57,7 +58,7 @@ export function usePrdProc(cb: PrdCallbacks) {
       msg.success('statusUpdateSuccess');
       await cb.refresh();
     } catch (e: unknown) {
-      if (e !== 'cancel') {
+      if (!isDialogDismissal(e)) {
         const err = e as { message?: string };
         ElMessage.error(err.message || msg.translate('statusUpdateFailed'));
       }
@@ -76,7 +77,7 @@ export function usePrdProc(cb: PrdCallbacks) {
       msg.success('deleteSuccess');
       await cb.refresh();
     } catch (e: unknown) {
-      if (e !== 'cancel') {
+      if (!isDialogDismissal(e)) {
         const err = e as { message?: string };
         ElMessage.error(err.message || msg.translate('deleteFailed'));
       }
@@ -146,7 +147,7 @@ export function usePrdProc(cb: PrdCallbacks) {
       ElMessage.success('已提交审批');
       await cb.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error((error as Error).message || '提交审批失败');
       }
     }
@@ -172,7 +173,7 @@ export function usePrdProc(cb: PrdCallbacks) {
       ElMessage.success(approved ? '审批通过，已排产' : '已驳回');
       await cb.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error((error as Error).message || '审批失败');
       }
     }
@@ -199,7 +200,7 @@ export function usePrdProc(cb: PrdCallbacks) {
       ElMessage.success('进度已汇报');
       await cb.refresh();
     } catch (error) {
-      if (error !== 'cancel') {
+      if (!isDialogDismissal(error)) {
         ElMessage.error((error as Error).message || '进度汇报失败');
       }
     }

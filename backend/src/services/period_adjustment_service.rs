@@ -12,7 +12,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -21,7 +21,17 @@ use crate::models::period_adjustment_record::{
     self, ActiveModel as AdjustmentActiveModel, Entity as AdjustmentEntity,
     Model as AdjustmentModel,
 };
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+
+/// 期末调整单号前缀（历史真实数据形如 `PA-{YYYYMMDDHHMMSS}-{3位随机}`，
+/// 见原 `generate_adjustment_no`；保留 `PA-` 业务前缀，尾部换当日流水）。
+/// 列 UNIQUE 证据：migration/src/domain/v15/mod.rs:2107（adjustment_no NOT NULL）
+/// + `uq_period_adjustment_record_no` 唯一索引（同文件 :2135）。
+const ADJUSTMENT_NO_PREFIX: &str = "PA-";
 
 /// 期末调整状态机常量
 pub mod period_adjustment_status {
@@ -53,10 +63,9 @@ pub struct CreatePeriodAdjustmentRequest {
     pub credit_subject_name: String,
     pub amount: Decimal,
     pub source_type: Option<String>,
-    pub source_bill_id: Option<i32>,
+    pub source_bill_id: Option<i64>,
     pub source_bill_no: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 期末调整查询参数
@@ -79,14 +88,6 @@ impl PeriodAdjustmentService {
         Self { db }
     }
 
-    /// 生成调整单号：PA-YYYYMMDDHHMMSS-NNN
-    fn generate_adjustment_no() -> String {
-        let now = chrono::Utc::now();
-        let timestamp = now.format("%Y%m%d%H%M%S");
-        let random = crate::utils::random::random_6_digit() % 1000;
-        format!("PA-{}-{:03}", timestamp, random)
-    }
-
     /// 校验调整类型合法
     fn validate_adjustment_type(t: &str) -> Result<(), AppError> {
         match t {
@@ -104,6 +105,7 @@ impl PeriodAdjustmentService {
     pub async fn create(
         &self,
         req: CreatePeriodAdjustmentRequest,
+        user_id: i32,
     ) -> Result<AdjustmentModel, AppError> {
         Self::validate_adjustment_type(&req.adjustment_type)?;
         if req.period.trim().is_empty() {
@@ -117,20 +119,24 @@ impl PeriodAdjustmentService {
         }
 
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active = AdjustmentActiveModel {
+        // 取号收口到生成器：原实现「秒级时间戳+3位随机」同秒并发靠运气，
+        // 撞 `uq_period_adjustment_record_no` 直接 500（AppError::database 掩盖根因）。
+        // insert_with_no_retry：写入事务内 advisory lock 取号，23505 在保存点内重取重试。
+        let txn = (*self.db).begin().await?;
+        let build_active = |adjustment_no: String| AdjustmentActiveModel {
             id: Default::default(),
-            adjustment_no: Set(Self::generate_adjustment_no()),
-            adjustment_type: Set(req.adjustment_type),
-            period: Set(req.period),
-            description: Set(req.description),
-            debit_subject_code: Set(req.debit_subject_code),
-            debit_subject_name: Set(req.debit_subject_name),
-            credit_subject_code: Set(req.credit_subject_code),
-            credit_subject_name: Set(req.credit_subject_name),
+            adjustment_no: Set(adjustment_no),
+            adjustment_type: Set(req.adjustment_type.clone()),
+            period: Set(req.period.clone()),
+            description: Set(req.description.clone()),
+            debit_subject_code: Set(req.debit_subject_code.clone()),
+            debit_subject_name: Set(req.debit_subject_name.clone()),
+            credit_subject_code: Set(req.credit_subject_code.clone()),
+            credit_subject_name: Set(req.credit_subject_name.clone()),
             amount: Set(req.amount),
-            source_type: Set(req.source_type),
+            source_type: Set(req.source_type.clone()),
             source_bill_id: Set(req.source_bill_id),
-            source_bill_no: Set(req.source_bill_no),
+            source_bill_no: Set(req.source_bill_no.clone()),
             voucher_id: Set(None),
             reverse_voucher_id: Set(None),
             status: Set(period_adjustment_status::DRAFT.to_string()),
@@ -138,22 +144,45 @@ impl PeriodAdjustmentService {
             confirmed_at: Set(None),
             reversed_by: Set(None),
             reversed_at: Set(None),
-            remarks: Set(req.remarks),
+            remarks: Set(req.remarks.clone()),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            // 建单人取服务端会话（由 handler 传入），请求体不承载身份
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         };
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("期末调整记录创建失败: {}", e)))?;
+        let result = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            ADJUSTMENT_NO_PREFIX,
+            AdjustmentEntity,
+            period_adjustment_record::Column::AdjustmentNo,
+            build_active,
+        )
+        .await
+        .map_err(|e| {
+            // 取号/插入失败的真实原因（DbErr 类型/约束/FK 等）已由生成器按语义归类
+            // （非唯一约束原样转 DatabaseError 并留原文日志）。此处仅补一条带上下文的错误日志，
+            // 再把原始错误不变上抛，绝不降级为“生成失败/请稍后重试”这类伪装可重试的业务文案。
+            tracing::error!(error = %e, period = %req.period, "期末调整单创建失败（取号/插入原始错误上抛）");
+            e
+        })?;
+        txn.commit().await?;
         Ok(result)
     }
 
     /// 确认期末调整（draft → confirmed），生成调整凭证并回写 voucher_id
-    pub async fn confirm(&self, id: i32, user_id: i32) -> Result<AdjustmentModel, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 行级归属门透传给 `get_by_id`（按 created_by 判定），门置于状态校验与凭证生成之前：
+    /// 越权请求在校验归属时即被拒，绝不触达 `active.update` 与 `create_adjustment_voucher`，
+    /// 因此零写入、零状态漂移。`data_scope` 为 None 表示系统批处理路径（如结账前批量确认），
+    /// 不加行级门。
+    pub async fn confirm(
+        &self,
+        id: i64,
+        user_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         if model.status != period_adjustment_status::DRAFT {
             return Err(AppError::business(format!(
                 "仅草稿(draft)状态可确认，当前状态: {}",
@@ -177,8 +206,16 @@ impl PeriodAdjustmentService {
 
     /// 红字冲销（confirmed → reversed），生成红字冲销凭证（借贷对调）并回写 reverse_voucher_id
     /// 典型场景：暂估类调整下月初红字冲销
-    pub async fn reverse(&self, id: i32, user_id: i32) -> Result<AdjustmentModel, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 行级归属门透传给 `get_by_id`，门在状态校验与红字凭证生成之前，越权即拒，零写入零状态漂移；
+    /// `data_scope` 为 None 表示系统批处理路径，不加行级门。
+    pub async fn reverse(
+        &self,
+        id: i64,
+        user_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         if model.status != period_adjustment_status::CONFIRMED {
             return Err(AppError::business(format!(
                 "仅已确认(confirmed)状态可冲销，当前状态: {}",
@@ -201,8 +238,15 @@ impl PeriodAdjustmentService {
     }
 
     /// 取消期末调整（draft → cancelled）
-    pub async fn cancel(&self, id: i32) -> Result<AdjustmentModel, AppError> {
-        let model = self.get_by_id(id).await?;
+    ///
+    /// 行级归属门透传给 `get_by_id`（按 created_by 判定），门在状态校验之前，越权即拒，
+    /// 不触达 `active.update`，零写入零状态漂移；`data_scope` 为 None 表示系统路径，不加行级门。
+    pub async fn cancel(
+        &self,
+        id: i64,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = self.get_by_id(id, data_scope).await?;
         if model.status != period_adjustment_status::DRAFT {
             return Err(AppError::business(format!(
                 "仅草稿(draft)状态可取消，当前状态: {}",
@@ -266,12 +310,15 @@ impl PeriodAdjustmentService {
         let voucher_service =
             crate::services::voucher_service::VoucherService::new(self.db.clone());
         let voucher_date = chrono::Utc::now().date_naive();
+        // 期末调整记录主键为 BIGINT，凭证来源单据列同为 BIGINT：数值关联直接下传，
+        // 不再做窄化检查，也不存在"溢出即丢数值关联"的降级分支。
+        let source_bill_id = Some(model.id);
         let req = CreateVoucherRequest {
             voucher_type: "transfer".to_string(),
             voucher_date,
             source_type: Some("period_adjustment".to_string()),
             source_module: Some(source_module.to_string()),
-            source_bill_id: Some(model.id),
+            source_bill_id,
             source_bill_no: Some(model.adjustment_no.clone()),
             batch_no: None,
             color_no: None,
@@ -358,7 +405,9 @@ impl PeriodAdjustmentService {
         let total = pending.len() as u64;
         let mut confirmed = 0u64;
         for adj in pending {
-            match self.confirm(adj.id, user_id).await {
+            // 结账批处理属系统路径（无 HTTP 鉴权上下文），对 confirm 传 data_scope=None
+            // 即不加行级归属门，等价于系统按期间全量处理本域 draft，与既有行为一致。
+            match self.confirm(adj.id, user_id, None).await {
                 Ok(_) => confirmed += 1,
                 Err(e) => tracing::warn!(
                     adjustment_id = adj.id,
@@ -378,19 +427,44 @@ impl PeriodAdjustmentService {
         Ok(confirmed)
     }
 
-    /// 按 ID 查询
-    pub async fn get_by_id(&self, id: i32) -> Result<AdjustmentModel, AppError> {
-        AdjustmentEntity::find_by_id(id)
+    /// 按 ID 查询（含行级归属校验，IDOR 防护）
+    ///
+    /// period_adjustment_record 无 department_id 列，created_by 是唯一归属列，单行门按
+    /// 「归属人 ∈ 可见部门成员集合」判定（check_resource_owner_by_member_scope），与列表侧
+    /// apply_data_scope 的 Dept 分支同源；data_scope 为 None 时（系统批处理调用）不加行级门。
+    /// 拒绝文案固定脱敏、不带记录 ID，避免越权探测借响应回显枚举有效 ID。
+    pub async fn get_by_id(
+        &self,
+        id: i64,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<AdjustmentModel, AppError> {
+        let model = AdjustmentEntity::find_by_id(id)
             .filter(period_adjustment_record::Column::IsDeleted.eq(false))
             .one(&*self.db)
             .await?
-            .ok_or_else(|| AppError::not_found(format!("期末调整记录 {} 不存在", id)))
+            .ok_or_else(|| AppError::not_found(format!("期末调整记录 {} 不存在", id)))?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, model.created_by) {
+                return Err(AppError::permission_denied(
+                    "无权访问该期末调整记录（数据范围限制）",
+                ));
+            }
+        }
+        Ok(model)
     }
 
-    /// 分页查询
+    /// 分页查询（行级数据权限下推）
+    ///
+    /// 持读键用户不得枚举全库期末调整记录，故 `data_scope` 携带时按 created_by 归属下推行级
+    /// 过滤：period_adjustment_record 无 department_id，owner 与 dept 两列均传 Column::CreatedBy
+    /// （Dept 范围按可见部门成员集合过滤归属人，Self 仅本人，All 不过滤）。过滤必须下推到
+    /// count 与 paginate **之前**、在同一 `q` 上派生，使 `total` 与可见集严格同源——绝不可取回
+    /// 整页后再做后置过滤，否则 total 虚高、越权行仍可被翻页枚举。`data_scope` 为 None 时不加
+    /// 行级门（供系统批处理等无鉴权上下文路径复用）。
     pub async fn list(
         &self,
         query: PeriodAdjustmentQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<AdjustmentModel>, u64), AppError> {
         let mut q =
             AdjustmentEntity::find().filter(period_adjustment_record::Column::IsDeleted.eq(false));
@@ -402,6 +476,14 @@ impl PeriodAdjustmentService {
         }
         if let Some(v) = query.status {
             q = q.filter(period_adjustment_record::Column::Status.eq(v));
+        }
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                period_adjustment_record::Column::CreatedBy,
+                period_adjustment_record::Column::CreatedBy,
+            );
         }
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);

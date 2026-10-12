@@ -16,7 +16,7 @@ use crate::utils::log_config::{self, LogConfig};
 ///
 /// 返回加载成功的 `AppSettings`，供后续启动流程使用。
 pub fn init_env_and_logging() -> Result<AppSettings, Box<dyn std::error::Error>> {
-    // 漏洞 #12 修复：在启动最早期加载 .env 文件，确保后续 is_production() 等
+    // 在启动最早期加载 .env 文件，确保后续 is_production() 等
     // 环境变量判断能正确读到 APP_ENV。dotenvy::dotenv() 在 .env 文件不存在时返回 Err，
     // 这里用 .ok() 静默忽略（生产环境通常通过 systemd EnvironmentFile 注入变量）。
     // 安全说明：dotenvy 仅加载**未设置**的环境变量，不会覆盖系统/CI 中已显式注入的值，
@@ -24,7 +24,7 @@ pub fn init_env_and_logging() -> Result<AppSettings, Box<dyn std::error::Error>>
     dotenvy::dotenv().ok();
 
     // 初始化健康检查的启动时间（OnceLock 首次写入即锁定，确保 uptime 反映真实进程运行时间）
-    // L-9 修复（批次 375 v13 复审）：移除 let _ = 吞错模式，直接调用
+    // 直接调用初始化并处理结果，不用 let _ = 吞错
     // start_time_init 返回 Instant（非 Result），get_or_init 不会失败，无需错误处理
     crate::handlers::health_handler::start_time_init();
 
@@ -52,7 +52,7 @@ pub fn init_env_and_logging() -> Result<AppSettings, Box<dyn std::error::Error>>
     );
     info!("日志目录：{}", settings.log.dir);
 
-    // V15 Batch05-P1-2：面料行业配置启动期提示
+    // 面料行业配置启动期提示
     let fi = &settings.fabric_industry;
     info!(
         vat_count = fi.dyehouse_vat_count,

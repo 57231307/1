@@ -1,6 +1,12 @@
 //! 应付管理统计报表 Service
 //!
 //! 应付管理统计报表服务层，负责各类统计报表的生成
+//!
+//! 统计口径：DRAFT 与 CANCELLED 一律不计入（AP 发票创建即写入 DRAFT，草稿不是
+//! 既成应付），与 AR 报表同口径；状态取值唯一来源为写入方词表常量
+//! `crate::models::status::general::{common, payment}`（ap_invoice_ops/crud.rs 写入
+//! DRAFT/AUDITED/PAID/CANCELLED，ap_verification_service.rs 写入 PARTIAL_PAID），
+//! SQL 中一律 `invoice_status NOT IN ($k, $k+1)` 参数化绑定常量，禁止裸字面量。
 
 use crate::models::status::general::{common, payment};
 use crate::utils::error::AppError;
@@ -55,21 +61,22 @@ impl ApReportService {
         })
     }
 
-    /// 查询应付统计主聚合数据（COUNT/SUM/逾期分桶）
-    async fn fetch_ap_statistics_main_aggregate(
-        &self,
-        supplier_id: Option<i32>,
+    /// 构建统计主聚合 SQL 与参数（排除门 NOT IN 绑定词表常量 $3=CANCELLED、$4=DRAFT，
+    /// CASE WHEN 分桶绑定 $5=PAID、$6=PARTIAL_PAID，supplier/today 参数按占位顺延）
+    pub fn build_main_aggregate_sql_and_params(
         start_date: NaiveDate,
         end_date: NaiveDate,
+        supplier_id: Option<i32>,
         today: NaiveDate,
-    ) -> Result<ApStatisticsMainAggregate, AppError> {
-        use sea_orm::ConnectionTrait;
-
+    ) -> (String, Vec<sea_orm::Value>) {
         // 规则 12 合规：全部参数使用 $N 参数化绑定
         let mut params: Vec<sea_orm::Value> = vec![
             start_date.into(),
             end_date.into(),
             common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
+            payment::PAYMENT_PAID.into(),
+            payment::PAYMENT_PARTIAL_PAID.into(),
         ];
         // supplier_id 为 Copy 类型，可直接 map 后 push
         let supplier_filter = supplier_id
@@ -88,19 +95,34 @@ impl ApReportService {
                 COALESCE(SUM(amount), 0) AS total_invoice_amount,
                 COALESCE(SUM(paid_amount), 0) AS total_paid_amount,
                 COALESCE(SUM(unpaid_amount), 0) AS total_unpaid_amount,
-                COUNT(CASE WHEN invoice_status = 'PAID' THEN 1 END) AS paid_invoice_count,
-                COUNT(CASE WHEN invoice_status = 'PARTIAL_PAID' THEN 1 END) AS partial_paid_count,
-                COUNT(CASE WHEN unpaid_amount > 0 AND invoice_status NOT IN ('PAID', 'CANCELLED') THEN 1 END) AS unpaid_count,
+                COUNT(CASE WHEN invoice_status = $5 THEN 1 END) AS paid_invoice_count,
+                COUNT(CASE WHEN invoice_status = $6 THEN 1 END) AS partial_paid_count,
+                COUNT(CASE WHEN unpaid_amount > 0 AND invoice_status NOT IN ($5, $3) THEN 1 END) AS unpaid_count,
                 COUNT(CASE WHEN due_date < ${today_idx} AND unpaid_amount > 0 THEN 1 END) AS overdue_count,
                 COALESCE(SUM(CASE WHEN due_date < ${today_idx} AND unpaid_amount > 0 THEN unpaid_amount ELSE 0 END), 0) AS overdue_amount
             FROM ap_invoice
             WHERE invoice_date >= $1
               AND invoice_date <= $2
-              AND invoice_status <> $3{supplier_filter}
+              AND invoice_status NOT IN ($3, $4){supplier_filter}
             "#,
             today_idx = today_idx,
             supplier_filter = supplier_filter
         );
+        (main_sql, params)
+    }
+
+    /// 查询应付统计主聚合数据（COUNT/SUM/逾期分桶）
+    async fn fetch_ap_statistics_main_aggregate(
+        &self,
+        supplier_id: Option<i32>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+        today: NaiveDate,
+    ) -> Result<ApStatisticsMainAggregate, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let (main_sql, params) =
+            Self::build_main_aggregate_sql_and_params(start_date, end_date, supplier_id, today);
 
         let row: Option<sea_orm::QueryResult> = self
             .db
@@ -109,8 +131,7 @@ impl ApReportService {
                 main_sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付统计报表主聚合查询失败: {}", e)))?;
+            .await?;
         let row =
             row.ok_or_else(|| AppError::internal("应付统计报表主聚合查询无结果".to_string()))?;
 
@@ -127,19 +148,17 @@ impl ApReportService {
         })
     }
 
-    /// 按状态聚合应付统计（GROUP BY invoice_status）
-    async fn fetch_ap_statistics_by_status(
-        &self,
-        supplier_id: Option<i32>,
+    /// 构建按状态聚合 SQL 与参数（排除门 NOT IN 绑定 $3=CANCELLED、$4=DRAFT）
+    pub fn build_statistics_by_status_sql_and_params(
         start_date: NaiveDate,
         end_date: NaiveDate,
-    ) -> Result<Vec<StatusStatistics>, AppError> {
-        use sea_orm::ConnectionTrait;
-
+        supplier_id: Option<i32>,
+    ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = vec![
             start_date.into(),
             end_date.into(),
             common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
         ];
         let supplier_filter = supplier_id
             .map(|sid| {
@@ -151,11 +170,25 @@ impl ApReportService {
             r#"
             SELECT invoice_status, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
             FROM ap_invoice
-            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status <> $3{sf}
+            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status NOT IN ($3, $4){sf}
             GROUP BY invoice_status
             "#,
             sf = supplier_filter
         );
+        (sql, params)
+    }
+
+    /// 按状态聚合应付统计（GROUP BY invoice_status）
+    async fn fetch_ap_statistics_by_status(
+        &self,
+        supplier_id: Option<i32>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<Vec<StatusStatistics>, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let (sql, params) =
+            Self::build_statistics_by_status_sql_and_params(start_date, end_date, supplier_id);
         let rows: Vec<sea_orm::QueryResult> = self
             .db
             .query_all_raw(sea_orm::Statement::from_sql_and_values(
@@ -163,8 +196,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("按状态聚合查询失败: {}", e)))?;
+            .await?;
         Ok(rows
             .into_iter()
             .map(|r| StatusStatistics {
@@ -175,19 +207,17 @@ impl ApReportService {
             .collect())
     }
 
-    /// 按类型聚合应付统计（GROUP BY invoice_type）
-    async fn fetch_ap_statistics_by_type(
-        &self,
-        supplier_id: Option<i32>,
+    /// 构建按类型聚合 SQL 与参数（排除门 NOT IN 绑定 $3=CANCELLED、$4=DRAFT）
+    pub fn build_statistics_by_type_sql_and_params(
         start_date: NaiveDate,
         end_date: NaiveDate,
-    ) -> Result<Vec<TypeStatistics>, AppError> {
-        use sea_orm::ConnectionTrait;
-
+        supplier_id: Option<i32>,
+    ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = vec![
             start_date.into(),
             end_date.into(),
             common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
         ];
         let supplier_filter = supplier_id
             .map(|sid| {
@@ -199,11 +229,25 @@ impl ApReportService {
             r#"
             SELECT invoice_type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount, COALESCE(SUM(unpaid_amount), 0) AS unpaid_amount
             FROM ap_invoice
-            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status <> $3{sf}
+            WHERE invoice_date >= $1 AND invoice_date <= $2 AND invoice_status NOT IN ($3, $4){sf}
             GROUP BY invoice_type
             "#,
             sf = supplier_filter
         );
+        (sql, params)
+    }
+
+    /// 按类型聚合应付统计（GROUP BY invoice_type）
+    async fn fetch_ap_statistics_by_type(
+        &self,
+        supplier_id: Option<i32>,
+        start_date: NaiveDate,
+        end_date: NaiveDate,
+    ) -> Result<Vec<TypeStatistics>, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let (sql, params) =
+            Self::build_statistics_by_type_sql_and_params(start_date, end_date, supplier_id);
         let rows: Vec<sea_orm::QueryResult> = self
             .db
             .query_all_raw(sea_orm::Statement::from_sql_and_values(
@@ -211,8 +255,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("按类型聚合查询失败: {}", e)))?;
+            .await?;
         Ok(rows
             .into_iter()
             .map(|r| TypeStatistics {
@@ -252,33 +295,65 @@ impl ApReportService {
         })
     }
 
+    /// 构建当日新增应付聚合 SQL 与参数（排除门 NOT IN 绑定 $2=CANCELLED、$3=DRAFT）
+    pub fn build_daily_new_invoice_sql_and_params(
+        report_date: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> (String, Vec<sea_orm::Value>) {
+        let mut params: Vec<sea_orm::Value> = vec![
+            report_date.into(),
+            common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
+        ];
+        let supplier_filter = Self::build_daily_supplier_filter(supplier_id, &mut params);
+        let sql = format!(
+            r#"
+            SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS amt
+            FROM ap_invoice
+            WHERE invoice_date = $1 AND invoice_status NOT IN ($2, $3){sf}
+            "#,
+            sf = supplier_filter
+        );
+        (sql, params)
+    }
+
     /// 当日新增应付单聚合查询（返回 count 与 amount）
     async fn query_daily_new_invoice_aggregate(
         &self,
         report_date: NaiveDate,
         supplier_id: Option<i32>,
     ) -> Result<(i64, Decimal), AppError> {
-        let mut params: Vec<sea_orm::Value> = vec![report_date.into()];
-        let supplier_filter = Self::build_daily_supplier_filter(supplier_id, &mut params);
-        let sql = format!(
-            r#"
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS amt
-            FROM ap_invoice
-            WHERE invoice_date = $1{sf}
-            "#,
-            sf = supplier_filter
-        );
+        let (sql, params) = Self::build_daily_new_invoice_sql_and_params(report_date, supplier_id);
         let row = self
-            .fetch_daily_aggregate_row(
-                &sql,
-                params,
-                "应付日报新增聚合查询失败",
-                "应付日报新增聚合查询无结果",
-            )
+            .fetch_daily_aggregate_row(&sql, params, "应付日报新增聚合查询无结果")
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
         Ok((count, amount))
+    }
+
+    /// 构建当日到期应付聚合 SQL 与参数（排除门 NOT IN 绑定 $2=CANCELLED、$3=DRAFT，
+    /// 未付门槛金额 $4）
+    pub fn build_daily_due_invoice_sql_and_params(
+        report_date: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> (String, Vec<sea_orm::Value>) {
+        let mut params: Vec<sea_orm::Value> = vec![
+            report_date.into(),
+            common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
+            Decimal::new(0, 2).into(),
+        ];
+        let supplier_filter = Self::build_daily_supplier_filter(supplier_id, &mut params);
+        let sql = format!(
+            r#"
+            SELECT COUNT(*) AS cnt, COALESCE(SUM(unpaid_amount), 0) AS amt
+            FROM ap_invoice
+            WHERE due_date = $1 AND invoice_status NOT IN ($2, $3) AND unpaid_amount > $4{sf}
+            "#,
+            sf = supplier_filter
+        );
+        (sql, params)
     }
 
     /// 当日到期应付单聚合查询（返回 count 与未付金额）
@@ -287,36 +362,23 @@ impl ApReportService {
         report_date: NaiveDate,
         supplier_id: Option<i32>,
     ) -> Result<(i64, Decimal), AppError> {
-        let mut params: Vec<sea_orm::Value> = vec![report_date.into(), Decimal::new(0, 2).into()];
-        let supplier_filter = Self::build_daily_supplier_filter(supplier_id, &mut params);
-        let sql = format!(
-            r#"
-            SELECT COUNT(*) AS cnt, COALESCE(SUM(unpaid_amount), 0) AS amt
-            FROM ap_invoice
-            WHERE due_date = $1 AND unpaid_amount > $2{sf}
-            "#,
-            sf = supplier_filter
-        );
+        let (sql, params) = Self::build_daily_due_invoice_sql_and_params(report_date, supplier_id);
         let row = self
-            .fetch_daily_aggregate_row(
-                &sql,
-                params,
-                "应付日报到期聚合查询失败",
-                "应付日报到期聚合查询无结果",
-            )
+            .fetch_daily_aggregate_row(&sql, params, "应付日报到期聚合查询无结果")
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
         Ok((count, amount))
     }
 
-    /// 当日付款聚合查询（返回 count 与付款金额）
-    async fn query_daily_payment_aggregate(
-        &self,
+    /// 构建当日付款聚合 SQL 与参数（$2 绑定付款单写入方常量
+    /// `payment::PAYMENT_CONFIRMED`，禁止裸 "CONFIRMED" 字面量）
+    pub fn build_daily_payment_sql_and_params(
         report_date: NaiveDate,
         supplier_id: Option<i32>,
-    ) -> Result<(i64, Decimal), AppError> {
-        let mut params: Vec<sea_orm::Value> = vec![report_date.into(), "CONFIRMED".into()];
+    ) -> (String, Vec<sea_orm::Value>) {
+        let mut params: Vec<sea_orm::Value> =
+            vec![report_date.into(), payment::PAYMENT_CONFIRMED.into()];
         let supplier_filter = Self::build_daily_supplier_filter(supplier_id, &mut params);
         let sql = format!(
             r#"
@@ -326,13 +388,18 @@ impl ApReportService {
             "#,
             sf = supplier_filter
         );
+        (sql, params)
+    }
+
+    /// 当日付款聚合查询（返回 count 与付款金额）
+    async fn query_daily_payment_aggregate(
+        &self,
+        report_date: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<(i64, Decimal), AppError> {
+        let (sql, params) = Self::build_daily_payment_sql_and_params(report_date, supplier_id);
         let row = self
-            .fetch_daily_aggregate_row(
-                &sql,
-                params,
-                "应付日报付款聚合查询失败",
-                "应付日报付款聚合查询无结果",
-            )
+            .fetch_daily_aggregate_row(&sql, params, "应付日报付款聚合查询无结果")
             .await?;
         let count: i64 = row.try_get_by_index::<i64>(0).unwrap_or(0);
         let amount: Decimal = row.try_get_by_index::<Decimal>(1).unwrap_or(Decimal::ZERO);
@@ -352,12 +419,12 @@ impl ApReportService {
             .unwrap_or_default()
     }
 
-    /// 执行日报聚合 SQL 并返回单行结果（统一错误处理）
+    /// 执行日报聚合 SQL 并返回单行结果（查询失败经 From<DbErr> 归 DATABASE_ERROR，
+    /// 原始 SQL 错误只进 tracing ERROR、不进 HTTP 出参）
     async fn fetch_daily_aggregate_row(
         &self,
         sql: &str,
         params: Vec<sea_orm::Value>,
-        err_msg: &str,
         empty_msg: &str,
     ) -> Result<sea_orm::QueryResult, AppError> {
         use sea_orm::ConnectionTrait;
@@ -368,8 +435,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("{}: {}", err_msg, e)))?;
+            .await?;
         row.ok_or_else(|| AppError::internal(empty_msg.to_string()))
     }
 
@@ -417,18 +483,18 @@ impl ApReportService {
         Ok((start_date, end_date))
     }
 
-    /// 查询应付发票余额聚合（月初/月末复用）
-    /// comparison_op: "<" 用于月初（invoice_date < start_date），"<=" 用于月末（invoice_date <= end_date）
-    async fn query_ap_invoice_balance(
-        &self,
+    /// 构建应付余额聚合 SQL 与参数（排除门 NOT IN 绑定 $1=CANCELLED、$2=DRAFT，
+    /// 边界日 $3，supplier 顺延 $4）
+    pub fn build_balance_sql_and_params(
         supplier_id: Option<i32>,
         boundary_date: NaiveDate,
         comparison_op: &str,
-        label: &str,
-    ) -> Result<Decimal, AppError> {
-        use sea_orm::ConnectionTrait;
-        let mut params: Vec<sea_orm::Value> =
-            vec![common::STATUS_CANCELLED.into(), boundary_date.into()];
+    ) -> (String, Vec<sea_orm::Value>) {
+        let mut params: Vec<sea_orm::Value> = vec![
+            common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
+            boundary_date.into(),
+        ];
         let supplier_filter = supplier_id
             .map(|sid| {
                 params.push(sid.into());
@@ -439,11 +505,26 @@ impl ApReportService {
             r#"
             SELECT COALESCE(SUM(unpaid_amount), 0) AS balance
             FROM ap_invoice
-            WHERE invoice_status <> $1 AND invoice_date {op} $2{sf}
+            WHERE invoice_status NOT IN ($1, $2) AND invoice_date {op} $3{sf}
             "#,
             op = comparison_op,
             sf = supplier_filter
         );
+        (sql, params)
+    }
+
+    /// 查询应付发票余额聚合（月初/月末复用）
+    /// comparison_op: "<" 用于月初（invoice_date < start_date），"<=" 用于月末（invoice_date <= end_date）
+    async fn query_ap_invoice_balance(
+        &self,
+        supplier_id: Option<i32>,
+        boundary_date: NaiveDate,
+        comparison_op: &str,
+        label: &str,
+    ) -> Result<Decimal, AppError> {
+        use sea_orm::ConnectionTrait;
+        let (sql, params) =
+            Self::build_balance_sql_and_params(supplier_id, boundary_date, comparison_op);
         let row: Option<sea_orm::QueryResult> = self
             .db
             .query_one_raw(sea_orm::Statement::from_sql_and_values(
@@ -451,8 +532,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("{}余额聚合查询失败: {}", label, e)))?;
+            .await?;
         let row = row.ok_or_else(|| AppError::internal(format!("{}余额聚合查询无结果", label)))?;
         Ok(row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO))
     }
@@ -482,19 +562,17 @@ impl ApReportService {
         })
     }
 
-    /// 查询账龄逾期分桶聚合数据（5 个区间 + 逾期合计）
-    async fn fetch_aging_overdue_aggregate(
-        &self,
+    /// 构建账龄逾期分桶 SQL 与参数（排除门 NOT IN 绑定 $2=PAID、$3=CANCELLED、$4=DRAFT）
+    pub fn build_aging_overdue_sql_and_params(
         today: NaiveDate,
         supplier_id: Option<i32>,
-    ) -> Result<AgingOverdueAggregate, AppError> {
-        use sea_orm::ConnectionTrait;
-
+    ) -> (String, Vec<sea_orm::Value>) {
         // 规则 12 合规：全部参数使用 $N 参数化绑定
         let mut params: Vec<sea_orm::Value> = vec![
             today.into(),
             payment::PAYMENT_PAID.into(),
             common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
         ];
         let supplier_filter = supplier_id
             .map(|sid| {
@@ -519,12 +597,23 @@ impl ApReportService {
                 COALESCE(SUM(unpaid_amount), 0) AS total_amt
             FROM ap_invoice
             WHERE due_date < $1
-              AND invoice_status <> $2
-              AND invoice_status <> $3
+              AND invoice_status NOT IN ($2, $3, $4)
               AND unpaid_amount > 0{sf}
             "#,
             sf = supplier_filter
         );
+        (sql, params)
+    }
+
+    /// 查询账龄逾期分桶聚合数据（5 个区间 + 逾期合计）
+    async fn fetch_aging_overdue_aggregate(
+        &self,
+        today: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<AgingOverdueAggregate, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let (sql, params) = Self::build_aging_overdue_sql_and_params(today, supplier_id);
 
         let row: Option<sea_orm::QueryResult> = self
             .db
@@ -533,8 +622,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("应付账龄报表聚合查询失败: {}", e)))?;
+            .await?;
         let row =
             row.ok_or_else(|| AppError::internal("应付账龄报表聚合查询无结果".to_string()))?;
 
@@ -553,18 +641,16 @@ impl ApReportService {
         })
     }
 
-    /// 查询未到期聚合数据（due_date >= today）
-    async fn fetch_aging_not_due_aggregate(
-        &self,
+    /// 构建未到期聚合 SQL 与参数（排除门 NOT IN 绑定 $2=PAID、$3=CANCELLED、$4=DRAFT）
+    pub fn build_aging_not_due_sql_and_params(
         today: NaiveDate,
         supplier_id: Option<i32>,
-    ) -> Result<AgingNotDueAggregate, AppError> {
-        use sea_orm::ConnectionTrait;
-
+    ) -> (String, Vec<sea_orm::Value>) {
         let mut params: Vec<sea_orm::Value> = vec![
             today.into(),
             payment::PAYMENT_PAID.into(),
             common::STATUS_CANCELLED.into(),
+            common::STATUS_DRAFT.into(),
         ];
         let supplier_filter = supplier_id
             .map(|sid| {
@@ -576,10 +662,22 @@ impl ApReportService {
             r#"
             SELECT COALESCE(SUM(unpaid_amount), 0) AS amt, COUNT(*) AS cnt
             FROM ap_invoice
-            WHERE due_date >= $1 AND invoice_status <> $2 AND invoice_status <> $3 AND unpaid_amount > 0{sf}
+            WHERE due_date >= $1 AND invoice_status NOT IN ($2, $3, $4) AND unpaid_amount > 0{sf}
             "#,
             sf = supplier_filter
         );
+        (sql, params)
+    }
+
+    /// 查询未到期聚合数据（due_date >= today）
+    async fn fetch_aging_not_due_aggregate(
+        &self,
+        today: NaiveDate,
+        supplier_id: Option<i32>,
+    ) -> Result<AgingNotDueAggregate, AppError> {
+        use sea_orm::ConnectionTrait;
+
+        let (sql, params) = Self::build_aging_not_due_sql_and_params(today, supplier_id);
         let row: Option<sea_orm::QueryResult> = self
             .db
             .query_one_raw(sea_orm::Statement::from_sql_and_values(
@@ -587,8 +685,7 @@ impl ApReportService {
                 sql,
                 params,
             ))
-            .await
-            .map_err(|e| AppError::internal(format!("未到期聚合查询失败: {}", e)))?;
+            .await?;
         let row = row.ok_or_else(|| AppError::internal("未到期聚合查询无结果".to_string()))?;
         Ok(AgingNotDueAggregate {
             amount: row.try_get_by_index::<Decimal>(0).unwrap_or(Decimal::ZERO),

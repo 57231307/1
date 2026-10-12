@@ -718,15 +718,25 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
 
 /** 创建染色批次 */
 export async function createDyeBatchUI(page: Page): Promise<number | undefined> {
-  // uiCreateDialog 内部已有 safeGoto('/dye-batch')，页面挂载会触发 getProductList（GET /products），
-  // 此处不再重复导航（避免与 uiCreateDialog 内 safeGoto 叠加导致耗时接近 120s 测试超时）。
-  // 产品下拉数据在 addBtn/dialog waitFor 期间异步加载，fillField select 时已就绪。
+  // 表单契约（views/dye-batch/index.vue:247-326 + formRules:415-439，如实对齐现状，不改必填口径）：
+  // - 批次号 batch_no：必填（blur）
+  // - 「产品」下拉实为**坯布选择器**（prop=greige_fabric_id，选项源 GET /production/greige-fabrics，
+  //   index.vue:259-271 + 392-393）：必填（change）——列表为空时无选项可选，UI 路径必红；
+  // - 色号 color_no：自由文本；色号非空 ⇒ 缸号 dye_lot_no 必填（index.vue:421-432 validator）；
+  //   且后端创建时强制反查色卡档案（dye_batch_handler.rs:204-254 resolve_dye_color_identity：
+  //   color_no 必须在 color_card_items.color_code 恰好命中一条），任意串必 400；
+  // - 染色日期 / 数量：必填。
+  // 本函数仅供「染色批次表单 UI 创建」专项用例复用；通用种子不再走此 UI 路径
+  //（前置跨实体且慢，见 helpers.ts 步骤 11 的 API 种子说明）。
+  // uiCreateDialog 内部已有 safeGoto('/dye-batch')，页面挂载会触发坯布列表加载，
+  // 此处不再重复导航。
   // 加 120s 超时保护：safeGoto 在页面 504 时最多重试 3 次约 108s，
   // 60s race 会误中断正常创建流程（300s 总超时内 120s 安全）
   const fields: UiField[] = [
     { kind: 'input', label: '批次号', value: _genCode('E2E-DB') },
     { kind: 'select', label: '产品', value: 'E2E' },
     { kind: 'input', label: '色号', value: _genCode('E2E-CN') },
+    { kind: 'input', label: '缸号', value: _genCode('E2E-DL') },
     { kind: 'date', label: '染色日期', value: new Date().toISOString().slice(0, 10) },
     { kind: 'inputNumber', label: '数量', value: 100 },
   ];
@@ -1051,40 +1061,45 @@ export async function ensureAccountingPeriodUI(page: Page): Promise<void> {
 /**
  * UI 驱动删除列表行
  * 1. 导航到列表页
- * 2. 找到目标行的删除按钮（el-button type=danger link）
+ * 2. 找到目标行的删除按钮——按 findRowAction 的"主表序号 ↔ fixed 覆盖层同序号行"对齐定位
+ *    （el-table-v2 把 fixed:'right' 操作列拆层渲染，旧实现直接在被吞进主表行的作用域里
+ *    找按钮恒 0 命中，再被本函数旧版的 try/catch+return false 吸收成系统性假绿——68-03 判责）
  * 3. 点击删除 → 确认弹窗（el-popconfirm/el-message-box）
  * 4. 等待列表刷新，验证该行消失
  *
- * @returns true=删除成功且行消失，false=删除失败或行仍在
+ * 失败语义（收严，2026-10-06）：目标行未找到 / 行内删除按钮未渲染 / 删除后行仍在，
+ * 一律**显式抛错**并附行号与三层行数诊断；不再静默 return false 让调用方的
+ * `typeof x === 'boolean'` 式软断言恒真。
+ * 软删除实体（删除=状态翻转、行不消失，如客户）由调用方显式传 expectRowGone:false，
+ * 此时"行仍在"是预期，成功判据改由调用方按后端权威契约断言。
+ *
+ * @returns true=删除动作真实点击且删除效果成立（其余情形抛错，不会返回 false）
  */
 export async function uiDeleteRow(
   page: Page,
   route: string,
   rowIdentifier: { column: string; value: string | number },
-  options?: { confirmText?: RegExp; listApiPath?: string; listKey?: ListShapeKey }
+  options?: {
+    confirmText?: RegExp;
+    listApiPath?: string;
+    listKey?: ListShapeKey;
+    /** 默认 true=断言删除后行消失；软删除（行保留、状态翻转）实体传 false */
+    expectRowGone?: boolean;
+  }
 ): Promise<boolean> {
   const entityLabel = route.replace(/^\//, '');
   const confirmText = options?.confirmText ?? /确定|确认|是|删除/;
+  const expectRowGone = options?.expectRowGone ?? true;
   try {
     await safeGoto(page, route);
     await page.waitForTimeout(1000);
 
-    // 找目标行
-    const targetRow = await findTableRow(page, rowIdentifier.value);
-    if (!targetRow) {
-      console.warn(
-        `[uiDeleteRow] ${entityLabel} 未找到 ${rowIdentifier.column}=${rowIdentifier.value} 的行`
-      );
-      return false;
-    }
-
-    // 点删除按钮（el-button type=danger link）
-    const deleteBtn = targetRow
-      .locator('button.el-button--danger, button:has-text("删除")')
-      .first();
-    await deleteBtn.waitFor({ state: 'visible', timeout: 5000 });
+    // 跨 fixed 层对齐定位目标行的删除按钮（找不到即抛错，见 findRowAction 判据）
+    const deleteBtn = await findRowAction(page, rowIdentifier.value, row =>
+      row.locator('button.el-button--danger, button:has-text("删除")')
+    );
     await deleteBtn.click();
-    console.log(`[uiDeleteRow] 已点击删除按钮`);
+    console.log(`[uiDeleteRow] 已点击删除按钮（${rowIdentifier.column}=${rowIdentifier.value}）`);
 
     // 确认弹窗
     await page.waitForTimeout(500);
@@ -1112,17 +1127,22 @@ export async function uiDeleteRow(
     // 验证行消失
     const stillExists = await findTableRow(page, rowIdentifier.value);
 
-    if (stillExists) {
-      console.error(
-        `[uiDeleteRow] ❌ ${entityLabel} 删除后行仍存在（${rowIdentifier.column}=${rowIdentifier.value}）`
+    if (stillExists && expectRowGone) {
+      throw new Error(
+        `[uiDeleteRow] ❌ ${entityLabel} 删除后行仍存在（${rowIdentifier.column}=${rowIdentifier.value}）` +
+          '——删除未生效或被后端拒绝，属真实失败，不再以 false 静默上报'
       );
-      return false;
     }
-    console.log(`[uiDeleteRow] ✅ ${entityLabel} 删除成功，行已消失`);
+    console.log(
+      expectRowGone
+        ? `[uiDeleteRow] ✅ ${entityLabel} 删除成功，行已消失`
+        : `[uiDeleteRow] ✅ ${entityLabel} 删除已执行（软删除实体，行保留属预期，效果由调用方契约断言）`
+    );
     return true;
   } catch (e) {
-    console.error(`[uiDeleteRow] ${entityLabel} 删除异常:`, (e as Error).message);
-    return false;
+    const msg = (e as Error).message;
+    // fail-visible：所有失败路径显式上抛（带实体上下文），由用例判红，绝不吞成 false
+    throw new Error(`[uiDeleteRow] ${entityLabel} 删除失败: ${msg}`, { cause: e });
   }
 }
 
@@ -1343,65 +1363,314 @@ export async function uiImportUpload(
 // ---------------------------------------------------------------------------
 
 /**
- * 按列值查找可见表格行
+ * 表格行 DOM 形态：
+ * - 'standard'：Element Plus `<el-table>`，行类名 `.el-table__row`，单元格 `td`
+ *   （如 occupational-health 危害监测表 index.vue:38）。
+ * - 'virtual'：`<el-table-v2>`（本仓 components/V2Table 包装），行类名 `.el-table-v2__row`、
+ *   单元格 `.el-table-v2__row-cell`（如 sales-contract 列表 SalesContractTable.vue 已迁移）。
+ * 两形态行类名互不通用：`.el-table__row` 对虚拟表恒空（N4/S6 直接来源）。
+ */
+export type TableRowShape = 'standard' | 'virtual';
+
+/** findTableRow 匹配方式。 */
+export interface FindTableRowOptions {
+  /** 显式指定表格形态；省略时按页面实际挂载的表格容器唯一确定（见 resolveRowShape）。 */
+  shape?: TableRowShape;
+  /**
+   * 匹配粒度：
+   * - 'row-contains'（默认）：整行 textContent 含目标值（适合唯一业务编码/名称，如合同号）。
+   * - 'first-cell-equals'：仅首列文本严格等于目标值（适合按自增主键 id 精确定位自建行，
+   *   规避数字子串误命中，如 id=1 命中 id=12/101）。
+   */
+  match?: 'row-contains' | 'first-cell-equals';
+}
+
+/** findRowAction 定位参数：与 findTableRow 同口径的关键字过滤/形态/匹配粒度。 */
+export interface FindRowActionOptions extends FindTableRowOptions {
+  /** 最少等待行数（默认 1），列表未渲染时先等 */
+  minRows?: number;
+  /** 可选：先在 .filter-card 搜索框按该关键字过滤再定位目标行（同 findTableRow filterKeyword） */
+  filterKeyword?: string;
+}
+
+/** 关键字过滤（findTableRow / findRowAction 共用口径）：命中当前激活区可见搜索框则过滤并等重渲染。 */
+async function applyKeywordFilter(
+  page: Page,
+  rowSel: string,
+  filterKeyword?: string
+): Promise<void> {
+  if (filterKeyword === undefined) return;
+  const keywordInput = page.locator('.filter-card input:visible').first();
+  const hasSearch = await keywordInput.isVisible({ timeout: 4000 }).catch(() => false);
+  if (hasSearch) {
+    await keywordInput.fill(String(filterKeyword));
+    await keywordInput.press('Enter');
+    // 等 keyword 请求返回 + 表格按当前形态重渲染出结果行
+    await page
+      .locator(`${rowSel}:visible`)
+      .first()
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .catch(() => {});
+    await page.waitForTimeout(500);
+  } else {
+    console.warn(
+      `[findTableRow] 未找到可见搜索框，跳过过滤回退首页扫描（keyword=${filterKeyword}）`
+    );
+  }
+}
+
+/** 在给定行集合内按匹配粒度找目标行的序号；未命中返回 -1。 */
+async function locateRowIndexIn(
+  rows: Locator,
+  target: string,
+  match: 'row-contains' | 'first-cell-equals',
+  firstCellSel: string
+): Promise<number> {
+  const rowCount = await rows.count();
+  for (let i = 0; i < rowCount; i++) {
+    const row = rows.nth(i);
+    if (match === 'first-cell-equals') {
+      const cellText = await row
+        .locator(firstCellSel)
+        .first()
+        .textContent()
+        .catch(() => '');
+      if ((cellText ?? '').trim() === target) return i;
+    } else {
+      const txt = await row.textContent().catch(() => '');
+      if (txt?.includes(target)) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * 按列值查找可见表格行（同源收口，标准表 + 虚拟表两形态）。
  *
- * 替代各 spec 中重复的"遍历 .el-table__row → textContent 匹配 → 返回 target"循环。
- * 仅搜索可见行（:visible），排除隐藏 Tab 渲染的 DOM。
+ * 替代各 spec 里重复/各写一套的"遍历行→匹配→返回"循环，并统一修复此前只认
+ * `.el-table__row` 而对 el-table-v2 虚拟表恒空的缺陷（N4 销售合同 / S6）。
+ * 形态按 resolveRowShape 显式判定；表格容器都不存在时直接抛错（fail-visible），
+ * 目标行在已判定形态下找不到才返回 null（交由调用方按唯一键断言，不放宽）。
+ *
+ * 【虚拟表 + fixed 操作列的重要口径】el-table-v2 把 fixed 列拆到独立覆盖层网格渲染
+ *（主表 `.el-table-v2__main` 的行**不含** fixed 列单元格，见 68-03 判责），本函数返回的
+ * 主表层行只适合做**文本/存在性断言**；要在目标行内点操作按钮，必须改用 findRowAction
+ * 做跨层行序号对齐，禁止 `（await findTableRow(...))!.getByRole('button', ...)` 直接点。
  *
  * @param page          Playwright Page
- * @param value         要匹配的列值（toString 后 includes 匹配）
+ * @param value         目标值（toString 后匹配）
  * @param minRows       最少等待行数（默认 1），列表未渲染时先等
- * @param filterKeyword 可选：先在列表搜索框按该关键字过滤再扫描目标行。并行模式下
- *                      他人用例（如 31b 并发写产品）可能令列表膨胀到目标行不在首页 20 行内，
- *                      仅扫首页会漏找；传关键字走搜索框收敛结果，规避分页/膨胀。
+ * @param filterKeyword 可选：先在 .filter-card 搜索框按该关键字过滤再扫目标行；并行模式下列表
+ *                      膨胀时收敛结果，规避分页。无搜索框则告警回退首页扫描。
+ * @param opts.shape    表格形态；省略时按页面唯一挂载的表格容器判定（并存须点名）。
+ * @param opts.match    'row-contains'（默认，整行含值）| 'first-cell-equals'（首列严格等，按 id 精确）。
  * @returns 目标行 Locator 或 null
  */
 export async function findTableRow(
   page: Page,
   value: string | number,
   minRows = 1,
-  filterKeyword?: string
+  filterKeyword?: string,
+  opts: FindTableRowOptions = {}
 ): Promise<Locator | null> {
-  if (filterKeyword !== undefined) {
-    // 与 31c 用户 Tab 既有写法一致：仅命中当前激活区可见搜索框（隐藏 Tab 的 filter-card 不抢）
-    const keywordInput = page.locator('.filter-card input:visible').first();
-    const hasSearch = await keywordInput.isVisible({ timeout: 4000 }).catch(() => false);
-    if (hasSearch) {
-      await keywordInput.fill(String(filterKeyword));
-      await keywordInput.press('Enter');
-      // 等 keyword 请求返回 + 表格重渲染出结果行
-      await page
-        .locator('.el-table__row')
-        .first()
-        .waitFor({ state: 'visible', timeout: 10_000 })
-        .catch(() => {});
-      await page.waitForTimeout(500);
-    } else {
-      console.warn(
-        `[findTableRow] 未找到可见搜索框，跳过过滤回退首页扫描（keyword=${filterKeyword}）`
-      );
-    }
-  }
-  const rows = page.locator('.el-table__row:visible');
+  const shape = await resolveRowShape(page, opts.shape);
+  const rowSel = rowSelectorFor(shape);
+  const match = opts.match ?? 'row-contains';
+  await applyKeywordFilter(page, rowSel, filterKeyword);
+  const rows = page.locator(`${rowSel}:visible`);
   await rows
     .first()
     .waitFor({ state: 'visible', timeout: 10000 })
     .catch(() => {});
   const rowCount = await rows.count();
   if (rowCount < minRows) {
-    console.warn(`[findTableRow] 列表仅 ${rowCount} 行（期望≥${minRows}），可能未加载`);
+    console.warn(
+      `[findTableRow] ${shape} 表（${rowSel}）仅 ${rowCount} 行（期望≥${minRows}），可能未加载`
+    );
   }
+  const idx = await locateRowIndexIn(rows, String(value), match, firstCellSelectorFor(shape));
+  return idx >= 0 ? rows.nth(idx) : null;
+}
+
+/**
+ * 「目标行 → 该行行内操作元素」跨 fixed 层定位（68-03 根因修复，findTableRow 的点击面对端）。
+ *
+ * 为什么不能直接在 findTableRow 返回的行上找按钮：el-table-v2 对 fixed:'right' 操作列
+ *（如 SalesContractTable.vue:176-183 的 __actions__ 列）**拆层渲染**——主表层行永远不含
+ * 操作单元格，按钮在 `.el-table-v2__right`（或 left）独立覆盖层的同数据行里；行文本命中
+ * 的恰是没按钮的主表行 ⇒ 行内作用域选择器恒 0 命中、30s 超时（68-03），或被 try/catch 吞掉
+ * 成为系统性假绿（uiDeleteRow 旧实现）。
+ *
+ * 判据（对齐判责报告的"双回读"收严口径）：
+ * 1. 目标值先在**主表行**（或数据列被 fixed-left 拆走时的左覆盖层行）按行序号命中——
+ *    即"这一数据行确实存在且内容匹配"的证据不放松；
+ * 2. 操作元素按**同一序号**在主表行 / 右覆盖层行 / 左覆盖层行三层的对齐行内查找，
+ *    覆盖层行数与主表行数不齐（虚拟窗未同步）时不点击、重试到超时后抛错——
+ *    绝不退化为"点第一条"或"点错行的按钮"。
+ *
+ * @param page            Playwright Page
+ * @param value           目标行特征值（同 findTableRow value）
+ * @param locateWithinRow 行内定位函数（作用域=对齐后的候选层行），如
+ *                        row => row.getByRole('button', { name: '编辑' })
+ * @param opts            与 findTableRow 同口径：shape/match/minRows/filterKeyword
+ * @returns 命中的行内元素 Locator（已 .first()）；未命中**抛错**（fail-visible，不返回 null 吞错）
+ */
+export async function findRowAction(
+  page: Page,
+  value: string | number,
+  locateWithinRow: (row: Locator) => Locator,
+  opts: FindRowActionOptions = {}
+): Promise<Locator> {
+  const shape = await resolveRowShape(page, opts.shape);
+  const rowSel = rowSelectorFor(shape);
+  const match = opts.match ?? 'row-contains';
+  const minRows = opts.minRows ?? 1;
+  await applyKeywordFilter(page, rowSel, opts.filterKeyword);
   const target = String(value);
-  for (let i = 0; i < rowCount; i++) {
-    const txt = await rows
-      .nth(i)
-      .textContent()
-      .catch(() => '');
-    if (txt?.includes(target)) {
-      return rows.nth(i);
+
+  if (shape === 'standard') {
+    // 旧 el-table 的 fixed 列在行内重复渲染（覆盖层只是浮层副本），主行内可直接命中按钮
+    const rows = page.locator(`${rowSel}:visible`);
+    await rows
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => {});
+    const rowCount = await rows.count();
+    if (rowCount < minRows) {
+      console.warn(
+        `[findRowAction] standard 表仅 ${rowCount} 行（期望≥${minRows}），可能未加载（URL=${page.url()}）`
+      );
     }
+    const idx = await locateRowIndexIn(rows, target, match, firstCellSelectorFor(shape));
+    if (idx < 0) {
+      throw new Error(
+        `[findRowAction] standard 表未找到含「${target}」的行（共 ${rowCount} 行，URL=${page.url()}）`
+      );
+    }
+    const btn = locateWithinRow(rows.nth(idx)).first();
+    const present = await btn
+      .waitFor({ state: 'visible', timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!present) {
+      throw new Error(
+        `[findRowAction] 目标行「${target}」（standard 表第 ${idx} 行）行内未渲染请求的操作元素，` +
+          `URL=${page.url()}——按钮缺失/文案漂移属真实缺陷，不放宽`
+      );
+    }
+    return btn;
   }
-  return null;
+
+  // virtual：三层网格（主表/左/右）各自渲染同一段虚拟窗，行序号天然对齐（element-plus
+  // use-table 的 onRowsRendered 同步机制）。每轮重扫以覆盖数据到达后的重渲染。
+  const mainRows = page.locator(`.el-table-v2__main ${rowSel}:visible`);
+  const leftRows = page.locator(`.el-table-v2__left ${rowSel}:visible`);
+  const rightRows = page.locator(`.el-table-v2__right ${rowSel}:visible`);
+  await mainRows
+    .first()
+    .waitFor({ state: 'visible', timeout: 10000 })
+    .catch(() => {});
+  const deadline = Date.now() + 15_000;
+  let lastDiag = '';
+  for (;;) {
+    const mainCount = await mainRows.count();
+    const leftCount = await leftRows.count();
+    const rightCount = await rightRows.count();
+    if (mainCount < minRows) {
+      lastDiag = `主表仅 ${mainCount} 行（期望≥${minRows}）`;
+    } else {
+      // 目标值命中的层：优先主表；数据列若被 fixed-left 拆走（主表行无该列文本）则
+      // 左覆盖层行命中同样构成"该行存在且含值"的证据，序号仍用于三层对齐。
+      let dataIdx = await locateRowIndexIn(mainRows, target, match, firstCellSelectorFor(shape));
+      if (dataIdx < 0 && leftCount > 0) {
+        dataIdx = await locateRowIndexIn(leftRows, target, match, firstCellSelectorFor(shape));
+      }
+      if (dataIdx >= 0) {
+        const idx = dataIdx;
+        // 序号对齐守卫：目标序号必须落在每一已渲染覆盖层的行数内，否则说明虚拟窗未同步，
+        // 此时重试到超时抛错——宁红不错点（错点=验证了别的行，制造新假绿）。
+        const aligned =
+          idx < mainCount &&
+          (leftCount === 0 || idx < leftCount) &&
+          (rightCount === 0 || idx < rightCount);
+        if (aligned) {
+          const candidates: Array<[string, Locator]> = [
+            ['main', mainRows.nth(idx)],
+            ['right', rightRows.nth(idx)],
+            ['left', leftRows.nth(idx)],
+          ];
+          for (const [layer, row] of candidates) {
+            if ((layer === 'right' && rightCount === 0) || (layer === 'left' && leftCount === 0)) {
+              continue;
+            }
+            const btn = locateWithinRow(row).first();
+            if ((await btn.count()) > 0 && (await btn.isVisible().catch(() => false))) {
+              console.log(
+                `[findRowAction] 「${target}」主表序号=${idx}，操作元素命中于 ${layer} 层` +
+                  `（main/left/right=${mainCount}/${leftCount}/${rightCount}）`
+              );
+              return btn;
+            }
+          }
+          lastDiag =
+            `序号 ${idx}（main/left/right=${mainCount}/${leftCount}/${rightCount}）` +
+            ' 三层对齐行的行内均未命中请求的操作元素';
+        } else {
+          lastDiag = `覆盖层行序号未对齐（target=${target} idx=${idx} main/left/right=${mainCount}/${leftCount}/${rightCount}）`;
+        }
+      } else {
+        lastDiag = `virtual 表未找到含「${target}」的行（main/left/right=${mainCount}/${leftCount}/${rightCount}）`;
+      }
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `[findRowAction] 15s 内未定位到「${target}」的行内操作元素（${lastDiag}，URL=${page.url()}）` +
+          '——目标行存在性/按钮渲染任一不成立都属真实缺陷，不放宽、不改点首行'
+      );
+    }
+    await page.waitForTimeout(250);
+  }
+}
+
+/** 某形态的行选择器（不含 :visible，由调用方拼接）。 */
+function rowSelectorFor(shape: TableRowShape): string {
+  return shape === 'virtual' ? '.el-table-v2__row' : '.el-table__row';
+}
+
+/** 某形态行内首单元格选择器。 */
+function firstCellSelectorFor(shape: TableRowShape): string {
+  return shape === 'virtual' ? '.el-table-v2__row-cell' : 'td';
+}
+
+/**
+ * 显式确定目标表格形态（禁止跨形态静默兜底探测）：
+ * - 调用方传了 shape → 直接用（并存页必须由调用方点名要操作哪张表）。
+ * - 未传：按页面挂载的表格容器唯一判定——只虚拟→virtual、只普通→standard。
+ * - 两形态并存且未点名 → 抛错（要求调用方传 shape，不猜）。
+ * - 两形态都没有 → 抛错点名两个容器定位器 + 当前 URL + DOM 片段（fail-visible）。
+ */
+async function resolveRowShape(page: Page, shape?: TableRowShape): Promise<TableRowShape> {
+  if (shape) return shape;
+  // 按「可见」容器判定：EP el-dialog 关闭不销毁内部 DOM（display:none 子树不计入 :visible），
+  // 否则列表 V2Table 与隐藏表单里的 el-table 会被误判为「两形态并存」。
+  const virtualCount = await page.locator('.el-table-v2:visible').count();
+  const standardCount = await page.locator('.el-table:visible').count();
+  if (virtualCount > 0 && standardCount > 0) {
+    throw new Error(
+      `[findTableRow] 页面同时可见 .el-table-v2(${virtualCount}) 与 .el-table(${standardCount}) ` +
+        `两种表格形态且调用方未指定 shape，无法自动判定目标表（URL=${page.url()}）——须显式传 opts.shape`
+    );
+  }
+  if (virtualCount > 0) return 'virtual';
+  if (standardCount > 0) return 'standard';
+  const dom = await page
+    .locator('body')
+    .innerText()
+    .catch(() => '<读取失败>');
+  throw new Error(
+    `[findTableRow] 页面无任何可见表格容器（.el-table-v2=${virtualCount}, .el-table=${standardCount}，` +
+      `URL=${page.url()}，body 片段=${JSON.stringify(dom.slice(0, 300))}）——表格未渲染即判红，不返回 null 掩盖`
+  );
 }
 
 /**

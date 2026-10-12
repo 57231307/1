@@ -11,16 +11,20 @@
 //! 业务规则：
 //! - 复样需通知单处于 approved 状态，源样为 selected（OK 样）
 //! - 车间半制品布批号必填（复样必须用车间半制品布，不可用化验室存布）
-//! - 复样单号格式：RS-YYYYMMDDHHMMSS-NNN
+//! - 复样单号格式：{RS}{YYYYMMDD}{3位流水}（事务内经 DocumentNumberGenerator 取号，
+//!   前缀常量 lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX）
 //! - 复样结果：色差 4-5 级为 passed（可投产），<4 级为 failed（不可投产）
 //! - 染色技术卡仅复样通过可开（研发组长开卡），不可重复开卡
 //!
-//! 纯函数 generate_resample_no 与 struct 定义、new 构造函数保留在 facade `lab_dip_service`。
+//! facade 不提供任何手写拼号函数，本模块取号
+//! 走 DocumentNumberGenerator（前缀常量 lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX）；
+//! struct 定义与 new 构造函数保留在 facade `lab_dip_service`。
 
 use std::sync::Arc;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, Set, TransactionTrait,
 };
 
 use crate::models::lab_dip_request::{self, Entity as RequestEntity};
@@ -33,29 +37,57 @@ use crate::models::lab_dip_sample::{
 use crate::models::status::lab_dip_request as req_status;
 use crate::models::status::lab_dip_resample as resample_status;
 use crate::models::status::lab_dip_sample as sample_status;
+use crate::services::lab_dip_service::LAB_DIP_RESAMPLE_NO_PREFIX;
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
-use crate::services::lab_dip_ops::types::{
-    CreateResampleRequest, IssueTechCardRequest, RecordResampleResultRequest,
-};
+use crate::services::lab_dip_ops::types::{CreateResampleRequest, RecordResampleResultRequest};
 use crate::services::lab_dip_service::{COLOR_DIFF_OK_GRADE, LabDipResampleService};
 
 impl LabDipResampleService {
     /// 创建复样记录：OK 样确认后大货生产前必须复样
-    pub async fn create(&self, req: CreateResampleRequest) -> Result<ResampleModel, AppError> {
+    /// 创建复样记录；登记人取服务端会话身份，请求体不承载身份
+    pub async fn create(
+        &self,
+        req: CreateResampleRequest,
+        user_id: i32,
+    ) -> Result<ResampleModel, AppError> {
         Self::validate_resample_request(&self.db, req.request_id).await?;
         let source_sample =
             Self::validate_resample_source_sample(&self.db, req.request_id, req.source_sample_id)
                 .await?;
         Self::validate_workshop_fabric_batch(&req.workshop_fabric_batch)?;
-        let resample_no = Self::generate_resample_no();
+        // 复样单号取号、复样 INSERT 与源样状态回写收口到同一写入事务：
+        // lab_dip_resample.resample_no NOT NULL 无 UNIQUE
+        //（migration/src/domain/v15/mod.rs:3019），旧手写
+        // "RS-{14位时间戳}-{3位随机}" 同秒并发碰撞概率非零；改为按
+        // LAB_DIP_RESAMPLE_NO_PREFIX 经生成器在事务内取号（advisory 锁持有到提交，
+        // 参照 services/quotation_ops/lifecycle.rs:54）。
+        let txn = (*self.db).begin().await?;
+        let resample_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            LAB_DIP_RESAMPLE_NO_PREFIX,
+            ResampleEntity,
+            lab_dip_resample::Column::ResampleNo,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = %e,
+                prefix = LAB_DIP_RESAMPLE_NO_PREFIX,
+                "复样单号取号失败（lab_dip_ops/resample.create）"
+            );
+            AppError::business_displayable("复样单号生成失败，请稍后重试")
+        })?;
         let now = crate::utils::date_utils::utc_now_fixed();
-        let active = Self::build_resample_active_model(req, resample_no, now);
+        let active = Self::build_resample_active_model(req, user_id, resample_no, now);
         let result = active
-            .insert(&*self.db)
+            .insert(&txn)
             .await
             .map_err(|e| AppError::database(format!("复样记录创建失败: {}", e)))?;
-        Self::mark_source_sample_resampling(&self.db, source_sample, now).await?;
+        Self::mark_source_sample_resampling(&txn, source_sample, now).await?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -114,6 +146,7 @@ impl LabDipResampleService {
     /// 构建复样 ActiveModel（含全部字段）
     fn build_resample_active_model(
         req: CreateResampleRequest,
+        user_id: i32,
         resample_no: String,
         now: chrono::DateTime<chrono::FixedOffset>,
     ) -> ResampleActiveModel {
@@ -143,15 +176,16 @@ impl LabDipResampleService {
             tech_card_issued_at: Set(None),
             remarks: Set(req.remarks),
             is_deleted: Set(false),
-            created_by: Set(req.created_by),
+            created_by: Set(Some(user_id)),
             created_at: Set(now),
             updated_at: Set(now),
         }
     }
 
-    /// 更新源样复样状态为 resampling
-    async fn mark_source_sample_resampling(
-        db: &DatabaseConnection,
+    /// 更新源样复样状态为 resampling（与复样 INSERT 同事务调用，故连接类型为泛型：
+    /// DatabaseConnection / DatabaseTransaction 均实现 ConnectionTrait）
+    async fn mark_source_sample_resampling<C: ConnectionTrait>(
+        db: &C,
         source_sample: SampleModel,
         now: chrono::DateTime<chrono::FixedOffset>,
     ) -> Result<(), AppError> {
@@ -167,6 +201,7 @@ impl LabDipResampleService {
         &self,
         id: i32,
         req: RecordResampleResultRequest,
+        reviewed_by: i32,
     ) -> Result<ResampleModel, AppError> {
         let model = self.get_by_id(id).await?;
         if model.result != resample_status::PENDING {
@@ -193,7 +228,7 @@ impl LabDipResampleService {
         active.color_difference_grade = Set(Some(req.color_difference_grade));
         active.color_difference_value = Set(req.color_difference_value);
         active.result = Set(result.to_string());
-        active.reviewed_by = Set(req.reviewed_by);
+        active.reviewed_by = Set(Some(reviewed_by));
         active.reviewed_at = Set(Some(now));
         active.review_comment = Set(req.review_comment);
         active.updated_at = Set(now);
@@ -246,12 +281,17 @@ impl LabDipResampleService {
             let liquor_ratio_decimal = adjusted_liquor_ratio
                 .as_deref()
                 .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+            // UpdateDyeRecipeRequest 为三态 DTO（Option<Option<T>>）：复样调整值存在=Some(Some(v)) 覆盖，
+            // 缺席=键 None 保持原值（内部回写不产生"显式 null 清空"语义）
             let update_req = crate::services::dye_recipe_service::UpdateDyeRecipeRequest {
-                chemical_formula: adjusted_formula,
-                temperature: adjusted_temperature,
-                time_minutes: adjusted_time_minutes,
-                liquor_ratio: liquor_ratio_decimal,
-                remarks: Some(format!("复样通过自动回写（复样单号: {}）", resample_no)),
+                chemical_formula: adjusted_formula.map(Some),
+                temperature: adjusted_temperature.map(Some),
+                time_minutes: adjusted_time_minutes.map(Some),
+                liquor_ratio: liquor_ratio_decimal.map(Some),
+                remarks: Some(Some(format!(
+                    "复样通过自动回写（复样单号: {}）",
+                    resample_no
+                ))),
                 ..Default::default()
             };
             match recipe_service.update(recipe_id, update_req).await {
@@ -278,7 +318,7 @@ impl LabDipResampleService {
     pub async fn issue_tech_card(
         &self,
         id: i32,
-        req: IssueTechCardRequest,
+        issued_by: i32,
     ) -> Result<ResampleModel, AppError> {
         let model = self.get_by_id(id).await?;
 
@@ -303,7 +343,7 @@ impl LabDipResampleService {
 
         let mut active: ResampleActiveModel = model.into();
         active.tech_card_no = Set(Some(tech_card_no));
-        active.tech_card_issued_by = Set(Some(req.issued_by));
+        active.tech_card_issued_by = Set(Some(issued_by));
         active.tech_card_issued_at = Set(Some(now));
         active.updated_at = Set(now);
         let updated = active.update(&*self.db).await?;
@@ -321,10 +361,26 @@ impl LabDipResampleService {
     }
 
     /// 按通知单 ID 查询所有复样记录
-    pub async fn list_by_request(&self, request_id: i32) -> Result<Vec<ResampleModel>, AppError> {
-        let items = ResampleEntity::find()
+    pub async fn list_by_request(
+        &self,
+        request_id: i32,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ResampleModel>, AppError> {
+        let mut q = ResampleEntity::find()
             .filter(lab_dip_resample::Column::RequestId.eq(request_id))
-            .filter(lab_dip_resample::Column::IsDeleted.eq(false))
+            .filter(lab_dip_resample::Column::IsDeleted.eq(false));
+
+        // 复样记录无 department_id 列，行级范围按登记人 created_by 下推。
+        if let Some(ctx) = data_scope {
+            q = apply_data_scope(
+                q,
+                ctx,
+                lab_dip_resample::Column::CreatedBy,
+                lab_dip_resample::Column::CreatedBy,
+            );
+        }
+
+        let items = q
             .order_by_desc(lab_dip_resample::Column::CreatedAt)
             .all(&*self.db)
             .await?;

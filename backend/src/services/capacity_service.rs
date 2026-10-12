@@ -18,6 +18,14 @@ use crate::models::work_center::{
     ActiveModel as WorkCenterActiveModel, Column as WorkCenterColumn, Entity as WorkCenterEntity,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
+use sea_orm::TransactionTrait;
+
+/// 工作中心自动编码前缀（历史真实数据以 "WC-" 开头，见原 create_work_center
+/// `format!("WC-{ts}-{4}")`；列 UNIQUE 证据：
+/// migration/src/domain/business/m0007_add_mrp_production_bom.rs:57
+/// `"code" VARCHAR(50) NOT NULL UNIQUE`）
+const WORK_CENTER_CODE_PREFIX: &str = "WC-";
 
 /// 工作中心 ID → 生产订单列表的映射
 type OrdersByWorkCenter =
@@ -473,25 +481,23 @@ impl CapacityService {
         input: CreateWorkCenterInput,
     ) -> Result<WorkCenterCapacity, AppError> {
         let now = Utc::now();
-        // 自动生成代码
-        let code = input.code.unwrap_or_else(|| {
-            let timestamp = now.format("%Y%m%d%H%M%S");
-            let random = crate::utils::random::random_4_digit();
-            format!("WC-{}-{:04}", timestamp, random)
-        });
-
-        let active_model = WorkCenterActiveModel {
+        // 自动生成代码收口到生成器（原「秒级时间戳+4位随机」同秒并发会撞
+        // work_centers.code UNIQUE，表现为 500）：事务内取号 + 23505 保存点重试；
+        // 用户显式传入 code 的路径不变（人工号撞库仍由 UNIQUE 拒绝，属正常校验失败）。
+        let auto_code = input.code.is_none();
+        let txn = (*self.db).begin().await?;
+        let active_model = |code: String| WorkCenterActiveModel {
             code: Set(code),
-            name: Set(input.name),
-            work_center_type: Set(input.work_center_type),
+            name: Set(input.name.clone()),
+            work_center_type: Set(input.work_center_type.clone()),
             daily_capacity: Set(Some(
                 input
                     .daily_capacity
                     .unwrap_or(rust_decimal::Decimal::new(100, 0)),
             )),
-            capacity_unit: Set(input.capacity_unit),
-            status: Set(input.status.unwrap_or_else(|| "ACTIVE".to_string())),
-            remarks: Set(input.remarks),
+            capacity_unit: Set(input.capacity_unit.clone()),
+            status: Set(input.status.clone().unwrap_or_else(|| "ACTIVE".to_string())),
+            remarks: Set(input.remarks.clone()),
             created_at: Set(now),
             updated_at: Set(now),
             // 调度异常自动重排开关：创建工作中心默认启用（true），与工作中心实体 default_value
@@ -499,8 +505,25 @@ impl CapacityService {
             auto_reschedule_enabled: Set(true),
             ..Default::default()
         };
-
-        let model = active_model.insert(&*self.db).await?;
+        let model = if auto_code {
+            DocumentNumberGenerator::insert_with_no_retry(
+                &txn,
+                WORK_CENTER_CODE_PREFIX,
+                WorkCenterEntity,
+                WorkCenterColumn::Code,
+                active_model,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "工作中心编码生成失败");
+                AppError::business_displayable("工作中心编码生成失败，请稍后重试")
+            })?
+        } else {
+            active_model(input.code.clone().unwrap_or_default())
+                .insert(&txn)
+                .await?
+        };
+        txn.commit().await?;
 
         self.get_work_center(model.id).await
     }

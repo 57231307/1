@@ -5,10 +5,11 @@
 //   01-03 草稿合同可审批      → 08-03
 //   01-04 待执行合同可执行    → 08-04（修正为“已生效合同可执行”，见下）
 //
-// 状态机真值（backend/src/models/status/bpm_crm_contract.rs 的 contract：仅 draft/active/cancelled）：
+// 状态机真值（backend/src/models/status/bpm_crm_contract.rs 的 contract，全小写 draft/active/rejected/cancelled）：
 //   create 写 draft（services/purchase_contract_service.rs:107），
-//   approve 校验 draft→写 active（:320/:328），
-//   execute 校验 active（:242），仅插入 purchase_contract_execution 记录、不改合同状态。
+//   approve 校验 draft→写 active（approval_reason 必填、落 approval_reason 列；缺理由 400 VALIDATION_ERROR），
+//   reject 校验 draft→写 rejected（reason 必填、落 rejected_reason 列），active/cancelled/rejected 起拒被状态门拦（BUSINESS_ERROR），
+//   execute 校验 active，仅插入 purchase_contract_execution 记录、不改合同状态。
 // 原枢纽 ContractTab 把执行按钮门控在 status==='pending' —— 后端从不产生 'pending'，
 // 故该用例在专用页修正为“已生效（active）合同可执行”，并以剩余金额守卫回读执行是否真实落库
 // （后端无执行记录读回端点，第二次超量执行被 purchase_contract_service.rs 的
@@ -16,7 +17,16 @@
 import { test, expect } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { safeGoto, pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
-import { apiCall, apiCallRaw, apiCallExpectFail, genCode, tryCleanup } from '../flow/helpers';
+import {
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  genCode,
+  tryCleanup,
+  failureCode,
+  APP_ERROR_CODES,
+  expectStateGateRejection,
+} from '../flow/helpers';
 import type { Page } from '@playwright/test';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
@@ -156,23 +166,32 @@ test.describe('08 采购合同', () => {
     const row = page.locator('.el-table__row').filter({ hasText: contractNo }).first();
     await expect(row, `列表未定位到草稿合同 ${contractNo}`).toBeVisible({ timeout: 10000 });
     await row.getByRole('button', { name: '审批', exact: true }).click();
-    await page.locator('.el-message-box').getByRole('button', { name: '确定' }).click();
+    // approve 现要求通过理由必填：usePcProc.handleApprove 先经 promptApprovalReason(true) 采集
+    // （ElMessageBox.prompt，textarea），空/纯空白被 inputValidator 拦在提交前 ⇒ 先填理由再确定
+    const msgBox = page.locator('.el-message-box:visible');
+    await msgBox.getByRole('textbox').fill('E2E 采购合同审批通过');
+    await msgBox.getByRole('button', { name: '确定', exact: true }).click();
     await expect(page.getByText('审批成功')).toBeVisible({ timeout: 30000 });
 
-    // 真实回读：审批后合同状态由 draft → active（后端 contract::ACTIVE）
-    const after = await apiCallRaw<{ status: string }>(
+    // 真实回读：审批后合同状态由 draft → active（后端 contract::ACTIVE），通过理由落 approval_reason 列
+    const after = await apiCallRaw<{ status: string; approval_reason: string | null }>(
       page,
       'GET',
       `/purchase/purchase-contracts/${id}`
     );
     expect(after.status, '审批后状态应变为 active').toBe('active');
+    expect(after.approval_reason, '通过理由应逐字落 approval_reason 列').toBe(
+      'E2E 采购合同审批通过'
+    );
   });
 
   test('08-04 已生效合同可执行（执行按钮渲染 + 剩余金额守卫证明执行落库）', async ({ page }) => {
     const supplier = await ensureSupplier(page);
     const { id, contractNo } = await seedDraftContract(page, supplier.id);
-    // draft → active（后端审批端点）
-    await apiCall(page, 'POST', `/purchase/purchase-contracts/${id}/approve`);
+    // draft → active（后端审批端点，approval_reason 必填）
+    await apiCall(page, 'POST', `/purchase/purchase-contracts/${id}/approve`, {
+      approval_reason: 'E2E 采购合同执行前置批准',
+    });
 
     await gotoContractList(page);
     await filterByKeyword(page, contractNo);
@@ -203,5 +222,69 @@ test.describe('08 采购合同', () => {
     // 回读方式：后端无执行记录读回端点，改以剩余金额守卫证伪——
     // 第二次超量执行（999999 > 剩余 50000）必须被拒，说明第一次 50000 已计入已执行额
     expect(over.status, '第二次超量执行应被剩余金额守卫拒绝').toBeGreaterThanOrEqual(400);
+  });
+
+  test('08-05 拒绝草稿采购合同（reject 端点：理由必填落 rejected_reason + 空理由/缺通过理由/状态门负例）', async ({
+    page,
+  }) => {
+    const supplier = await ensureSupplier(page);
+    const { id } = await seedDraftContract(page, supplier.id);
+
+    // 正例：带理由拒绝 → draft→rejected 终态 + 逐字回读 rejected_reason（不止断状态，防理由丢失仍绿）
+    const rejectReason = `E2E-PC-拒绝-${Date.now()}`;
+    await apiCall(page, 'POST', `/purchase/purchase-contracts/${id}/reject`, {
+      reason: rejectReason,
+    });
+    const after = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      approval_reason: string | null;
+    }>(page, 'GET', `/purchase/purchase-contracts/${id}`);
+    expect(after.status, '拒绝后状态应落库为 rejected').toBe('rejected');
+    expect(after.rejected_reason, '拒绝理由应逐字落 rejected_reason 专列').toBe(rejectReason);
+    expect(after.approval_reason, '拒绝不得写入 approval_reason（两动作两列）').toBeNull();
+
+    // 状态门：rejected 终态再拒绝 → 400 BUSINESS_ERROR（reject 仅 draft 起拒）
+    const repeatReject = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/purchase-contracts/${id}/reject`,
+      { reason: 'E2E-PC-重复拒绝' }
+    );
+    expectStateGateRejection(repeatReject, '已拒绝合同再次拒绝应被状态门拦截');
+    expect(failureCode(repeatReject), '重复拒绝机器码应为 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+
+    // 空/纯空白理由 → 400 VALIDATION_ERROR（reason 服务端必填）
+    const c2 = await seedDraftContract(page, supplier.id);
+    const emptyReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/purchase-contracts/${c2.id}/reject`,
+      { reason: '   ' }
+    );
+    expect(emptyReason.status, '纯空白拒绝理由应返回 HTTP 400').toBe(400);
+    expect(failureCode(emptyReason), '纯空白拒绝理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    // 缺理由被拒不得改变状态（仍 draft）
+    const stillDraft = await apiCallRaw<{ status: string }>(
+      page,
+      'GET',
+      `/purchase/purchase-contracts/${c2.id}`
+    );
+    expect(stillDraft.status, '空理由 reject 被拒不得改变状态').toBe('draft');
+
+    // approve 缺通过理由 → 400 VALIDATION_ERROR（必填档）
+    const approveNoReason = await apiCallExpectFail(
+      page,
+      'POST',
+      `/purchase/purchase-contracts/${c2.id}/approve`
+    );
+    expect(approveNoReason.status, 'approve 缺 approval_reason 应返回 HTTP 400').toBe(400);
+    expect(failureCode(approveNoReason), 'approve 缺理由机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
   });
 });

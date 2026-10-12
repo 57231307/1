@@ -62,21 +62,22 @@ export interface MonitorStatsResponse {
 }
 
 /**
- * 监控待办任务查询参数
+ * 监控待办任务查询参数（唯一真相：handlers/bpm_handler.rs MonitorQuery{page,page_size,status}）。
+ * 后端 pending-tasks 服务固定按小写 pending 过滤（bpm_ops/monitor.rs），status 传入不参与、
+ * assignee 键后端不存在——两者被 Axum 静默丢弃，故不再声明（人员维度过滤为后端缺口，已登记串行清单）。
  */
 export interface MonitorPendingTasksParams {
-  assignee?: number;
-  status?: string;
   page?: number;
   page_size?: number;
 }
 
 /**
- * 监控实例列表查询参数
+ * 监控实例列表查询参数（唯一真相：MonitorQuery{page,page_size,status}）。
+ * start_user 键后端不存在（发起人过滤为后端缺口，已登记串行清单），不声明。
+ * status 取值为流程实例状态词表（大写 PROCESSING/COMPLETED/TERMINATED/CANCELLED）。
  */
 export interface MonitorInstancesParams {
   status?: string;
-  start_user?: number;
   page?: number;
   page_size?: number;
 }

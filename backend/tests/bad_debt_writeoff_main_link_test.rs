@@ -52,7 +52,9 @@ async fn seed_customer(db: &sea_orm::DatabaseConnection, owner_id: i32) -> i32 {
         credit_limit: Set(Decimal::ZERO),
         payment_terms: Set(30),
         status: Set("active".to_string()),
-        customer_type: Set("company".to_string()),
+        // 夹具不关心渠道：取唯一词表内值（customers.customer_type 值域由
+        // constants::customer_type::ALLOWED 决定，DB 侧 CHECK 同名收口，越界值会被直接拒插）
+        customer_type: Set(bingxi_backend::constants::customer_type::OTHER.to_string()),
         owner_id: Set(owner_id),
         created_by: Set(Some(owner_id)),
         created_at: Set(now),

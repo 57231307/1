@@ -50,9 +50,8 @@
       @delete="handleDelete"
     />
 
-    <!-- 新增/编辑/查看对话框 -->
+    <!-- 新增/编辑/查看对话框（表单权威源在本父组件；SupplierDialog 打开时向下快照同步） -->
     <SupplierDialog
-      ref="dialogRef"
       v-model:visible="dialogVisible"
       :title="dialogTitle"
       :mode="dialogMode"
@@ -66,8 +65,11 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import SupplierList from './SupplierList.vue';
 import SupplierDialog from './SupplierDialog.vue';
+// 表单模型与空白态的单一定义（与 SupplierDialog 共用，禁止父子两处各写一份默认值）
+import { emptySupplierFormData, type SupplierFormData } from './supplier-form';
 import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -91,7 +93,6 @@ const { t } = useI18n({ useScope: 'global' });
 const submitLoading = ref(false);
 const dialogVisible = ref(false);
 const isEdit = ref(false);
-const dialogRef = ref<InstanceType<typeof SupplierDialog>>();
 // SupplierList 通过 dialog-mode prop 接收的当前模式（add/edit/view）
 const dialogMode = ref<'add' | 'edit' | 'view'>('add');
 
@@ -148,31 +149,10 @@ const handleQueryParamsUpdate = (v: SupplierQueryParams) => {
   if (v.page_size) pageSize.value = v.page_size;
 };
 
-// 表单数据由父组件维护（避免 SupplierDialog 子组件直接 mutation prop）
-// SupplierDialog 接收 formData prop + 通过 ref.resetForm() 同步
-const formData = reactive({
-  id: undefined as number | undefined,
-  supplier_code: '',
-  supplier_name: '',
-  supplier_short_name: '',
-  supplier_type: '',
-  credit_code: '',
-  registered_address: '',
-  business_address: '',
-  legal_representative: '',
-  registered_capital: 0,
-  contact_phone: '',
-  fax: '',
-  website: '',
-  contact_email: '',
-  main_business: '',
-  taxpayer_type: '',
-  bank_name: '',
-  bank_account: '',
-  grade: '',
-  status: 'active',
-  remarks: '',
-});
+// 表单数据由父组件（本文件）唯一持有：打开对话框前在本组件内同步完成
+// 「重置空白 → 回填列表行数据」；SupplierDialog 只在打开时刻向下快照读取 props.formData，
+// 不存在子组件旧快照异步回写覆盖父数据的时间窗（编辑弹窗可选字段不回填的竞态即源于该时间窗）。
+const formData = reactive<SupplierFormData>(emptySupplierFormData());
 
 const dialogTitle = computed(() =>
   isEdit.value ? t('supplier.index.dialog.editTitle') : t('supplier.index.dialog.createTitle')
@@ -188,9 +168,9 @@ const handleReset = () => {
   fetchData();
 };
 
-/** 重置表单（通过 ref 调用 SupplierDialog.resetForm） */
+/** 重置表单数据（权威源在父组件，空白态由 supplier-form 单一定义；子组件打开时向下快照同步） */
 const resetForm = () => {
-  dialogRef.value?.resetForm();
+  Object.assign(formData, emptySupplierFormData());
 };
 
 const handleCreate = () => {
@@ -231,7 +211,7 @@ const handleDelete = async (row: Supplier) => {
     ElMessage.success(t('supplier.index.message.deleteSuccess'));
     fetchData();
   } catch (error: unknown) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       ElMessage.error(
         (error instanceof Error ? error.message : String(error)) ||
           t('supplier.index.message.deleteFailed')
@@ -243,11 +223,20 @@ const handleDelete = async (row: Supplier) => {
 const handleSubmit = async () => {
   submitLoading.value = true;
   try {
+    // 后端 CreateSupplierRequest.supplier_short_name（length min=2/max=100）、credit_code（length equal=18）
+    // 均为 Option，validator 框架对 Some(空串) 判长度失败触发 422、对 None（缺省不携带该键）跳过校验；
+    // 仿 UserTab 条件展开范式，空则省略该键、非空仍提交（edit 语义下不提交=保持原值，而非清空）。
+    const { supplier_short_name, credit_code, ...rest } = formData;
+    const payload = {
+      ...rest,
+      ...(supplier_short_name ? { supplier_short_name } : {}),
+      ...(credit_code ? { credit_code } : {}),
+    };
     if (isEdit.value) {
-      await updateSupplier(formData.id!, formData);
+      await updateSupplier(formData.id!, payload);
       ElMessage.success(t('supplier.index.message.updateSuccess'));
     } else {
-      await createSupplier(formData);
+      await createSupplier(payload);
       ElMessage.success(t('supplier.index.message.createSuccess'));
     }
     dialogVisible.value = false;

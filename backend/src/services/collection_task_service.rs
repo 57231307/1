@@ -28,8 +28,17 @@ use crate::models::collection_task_dto::{
 };
 use crate::models::collection_template;
 use crate::models::status::common;
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
+
+/// 催收任务号前缀（存量数据形如 `CT-{YYYYMMDD}-{3位序号}`，列
+/// `"task_no" VARCHAR(50) NOT NULL UNIQUE`，DDL 证据 v15/mod.rs:119；
+/// 保留 `CT-` 前缀与 3 位流水宽度，与生成器默认宽度一致）
+const COLLECTION_TASK_NO_PREFIX: &str = "CT-";
 
 /// 业务错误
 #[derive(Debug, Error)]
@@ -316,38 +325,57 @@ impl CollectionTaskService {
         &self,
         txn: &sea_orm::DatabaseTransaction,
         customer_aggr: std::collections::HashMap<i64, CustomerOverdueAggr>,
-        today: chrono::NaiveDate,
         due_date: chrono::NaiveDate,
         now: chrono::DateTime<chrono::Utc>,
         assigned_by: i32,
     ) -> Result<Vec<collection_task::Model>, CollectionTaskError> {
         let mut sorted: Vec<CustomerOverdueAggr> = customer_aggr.into_values().collect();
         sorted.sort_by_key(|a| a.customer_id);
-        let mut seq: u32 = 0;
         let mut created: Vec<collection_task::Model> = Vec::new();
         for aggr in sorted {
             if self.customer_has_active_task(txn, aggr.customer_id).await? {
                 continue;
             }
-            seq += 1;
-            let task_no = format!("CT-{}-{:03}", today.format("%Y%m%d"), seq);
-            let mut active =
-                Self::build_new_task_active(&aggr, task_no, due_date, assigned_by, now);
-            // V15 P1 17.3-D5：匹配模板并渲染话术
+            // V15 P1 17.3-D5：匹配模板并渲染话术（读操作放在取号前，避免拉长保存点窗口）
             let task_type = TaskType::from_overdue_days(aggr.max_overdue_days);
-            if let Some(tpl) = self
+            let remark = if let Some(tpl) = self
                 .find_template_for_task(txn, task_type.as_str(), aggr.max_overdue_days as i32)
                 .await?
             {
-                let rendered = Self::render_template(
+                Some(Self::render_template(
                     &tpl.content,
                     aggr.max_overdue_days as i32,
                     aggr.total_overdue,
                     None,
-                );
-                active.remark = Set(Some(rendered));
-            }
-            let model = active.insert(txn).await?;
+                ))
+            } else {
+                None
+            };
+            // 任务号收口到生成器（原「内存 seq 计数」与当日库中已有号段无关，
+            // 第二次批量扫描同日即产生重复 CT 号撞 task_no UNIQUE，整批 500；
+            // 见 COLLECTION_TASK_NO_PREFIX 注释 DDL 证据）
+            let aggr_ref = &aggr;
+            let model = DocumentNumberGenerator::insert_with_no_retry(
+                txn,
+                COLLECTION_TASK_NO_PREFIX,
+                Entity,
+                collection_task::Column::TaskNo,
+                |task_no| {
+                    let mut active =
+                        Self::build_new_task_active(aggr_ref, task_no, due_date, assigned_by, now);
+                    if let Some(r) = &remark {
+                        active.remark = Set(Some(r.clone()));
+                    }
+                    active
+                },
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, customer_id = aggr.customer_id, "催收任务号生成失败");
+                CollectionTaskError::App(AppError::business_displayable(
+                    "催收任务号生成失败，请稍后重试",
+                ))
+            })?;
             created.push(model);
         }
         Ok(created)
@@ -368,7 +396,7 @@ impl CollectionTaskService {
         let today = now.date_naive();
         let due_date = today + Duration::days(7);
         let created = self
-            .generate_tasks_for_customers(&txn, customer_aggr, today, due_date, now, assigned_by)
+            .generate_tasks_for_customers(&txn, customer_aggr, due_date, now, assigned_by)
             .await?;
         txn.commit().await?;
         Ok(created)
@@ -403,15 +431,6 @@ impl CollectionTaskService {
 
         let txn = (*self.db).begin().await?;
 
-        // 生成任务号：CT-YYYYMMDD-NNN（基于当日已有任务数 + 1）
-        let today = Utc::now().date_naive();
-        let prefix = format!("CT-{}-", today.format("%Y%m%d"));
-        let count_today = Entity::find()
-            .filter(collection_task::Column::TaskNo.starts_with(&prefix))
-            .count(&txn)
-            .await?;
-        let task_no = format!("CT-{}-{:03}", today.format("%Y%m%d"), count_today + 1);
-
         let now = Utc::now();
         // V15 P1 17.3-D5：若未提供 remark，则查询匹配的催收模板并渲染话术
         let remark = if req.remark.is_some() {
@@ -424,29 +443,44 @@ impl CollectionTaskService {
                 Self::render_template(&t.content, req.overdue_days, req.overdue_amount, None)
             })
         };
-        let active = ActiveModel {
-            id: Default::default(),
-            task_no: Set(task_no),
-            customer_id: Set(req.customer_id),
-            ar_invoice_id: Set(req.ar_invoice_id),
-            overdue_amount: Set(req.overdue_amount),
-            overdue_days: Set(req.overdue_days),
-            task_type: Set(req.task_type),
-            priority: Set(priority.to_string()),
-            due_date: Set(req.due_date),
-            assigned_to: Set(req.assigned_to),
-            assigned_at: Set(now),
-            assigned_by: Set(Some(assigned_by)),
-            status: Set(TaskStatus::Pending.as_str().to_string()),
-            contact_result: Set(None),
-            contact_at: Set(None),
-            next_action_date: Set(None),
-            next_action_type: Set(None),
-            remark: Set(remark),
-            created_at: Set(now),
-            updated_at: Set(now),
-        };
-        let model = active.insert(&txn).await?;
+        // 任务号收口到生成器（原「事务内 count+1」无锁，并发建任务读同一计数
+        // 拼出同号撞 task_no UNIQUE；生成器在同事务内 advisory lock 取号，
+        // 23505 时保存点重取重试，见 COLLECTION_TASK_NO_PREFIX 注释）
+        let model = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            COLLECTION_TASK_NO_PREFIX,
+            Entity,
+            collection_task::Column::TaskNo,
+            |task_no| ActiveModel {
+                id: Default::default(),
+                task_no: Set(task_no),
+                customer_id: Set(req.customer_id),
+                ar_invoice_id: Set(req.ar_invoice_id),
+                overdue_amount: Set(req.overdue_amount),
+                overdue_days: Set(req.overdue_days),
+                task_type: Set(req.task_type.clone()),
+                priority: Set(priority.to_string()),
+                due_date: Set(req.due_date),
+                assigned_to: Set(req.assigned_to),
+                assigned_at: Set(now),
+                assigned_by: Set(Some(assigned_by)),
+                status: Set(TaskStatus::Pending.as_str().to_string()),
+                contact_result: Set(None),
+                contact_at: Set(None),
+                next_action_date: Set(None),
+                next_action_type: Set(None),
+                remark: Set(remark.clone()),
+                created_at: Set(now),
+                updated_at: Set(now),
+            },
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, customer_id = req.customer_id, "催收任务号生成失败");
+            CollectionTaskError::App(AppError::business_displayable(
+                "催收任务号生成失败，请稍后重试",
+            ))
+        })?;
         txn.commit().await?;
         Ok(model)
     }
@@ -567,21 +601,32 @@ impl CollectionTaskService {
         Ok(updated)
     }
 
-    /// 按 ID 查询任务
+    /// 按 ID 查询任务（含 IDOR 行级归属校验）
     pub async fn get_task(
         &self,
         task_id: i64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<collection_task::Model, CollectionTaskError> {
-        Entity::find_by_id(task_id)
+        let task = Entity::find_by_id(task_id)
             .one(&*self.db)
             .await?
-            .ok_or(CollectionTaskError::NotFound)
+            .ok_or(CollectionTaskError::NotFound)?;
+        if let Some(ctx) = data_scope {
+            if !check_resource_owner_by_member_scope(ctx, Some(task.assigned_to)) {
+                return Err(AppError::permission_denied(
+                    "无权访问该催收任务（数据范围限制）",
+                ))?;
+            }
+        }
+        Ok(task)
     }
 
-    /// 列表查询
+    /// 列表查询（行级数据权限下推：Dept/Self 范围仅可见归属人 ∈ 对应集合的行；
+    /// assigned_to 为 NOT NULL i32，不存在 NULL-owner 公海语义，fail-closed 无需额外放行分支）
     pub async fn list_tasks(
         &self,
         query: ListTaskQuery,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<collection_task::Model>, u64), CollectionTaskError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
@@ -627,6 +672,18 @@ impl CollectionTaskService {
             // due_date < today 视为逾期未处理
             let today = Utc::now().date_naive();
             select = select.filter(collection_task::Column::DueDate.lt(today));
+        }
+
+        // 行级数据权限：collection_task 无 department_id，assigned_to 是唯一归属列。
+        // Dept 范围按可见部门成员集合过滤 assigned_to；Self 范围仅本人；All 不过滤。
+        // assigned_to 列类型为 i32（NOT NULL），故不存在"未指派"NULL 行可见性问题。
+        if let Some(ctx) = data_scope {
+            select = apply_data_scope(
+                select,
+                ctx,
+                collection_task::Column::AssignedTo,
+                collection_task::Column::AssignedTo,
+            );
         }
 
         let paginator = select

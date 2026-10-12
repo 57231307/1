@@ -20,7 +20,9 @@
 //     '采购订单 {orderNo} 已提交'（message 键存在，可断言 '已提交'）；
 //   handleApprove → ElMessageBox.confirm → msg.success('purchaseOrderApproved')=
 //     '采购单 {orderNo} 审批成功'（可断言 '审批成功'）；
-//   handleReject → ElMessageBox.prompt → rejectPurchaseOrder → msg.success('purchaseOrderRejected')=
+//   handleReject → useActionPrompts.promptRejectReason()（ElMessageBox.prompt，
+//     message=actionForm.rejectReasonTip='请填写审批拒绝理由（必填）'，locales/zh-CN.ts:5801）
+//     → rejectPurchaseOrder → msg.success('purchaseOrderRejected')=
 //     '采购订单 {orderNo} 已驳回'（可断言 '已驳回'）。
 // - 列表可按「关键词」输入框（placeholder='订单号/供应商名'）做后端 order_no LIKE 模糊下推，
 //   唯一 order_no 使筛选结果收敛为本例那一行。
@@ -172,10 +174,24 @@ test.describe('02 采购订单审批', () => {
   test('02-03 待审批采购订单行内可驳回（原因必填）', async ({ page }) => {
     const { id, order_no: orderNo } = await seedPurchaseOrder(page, 'PENDING_APPROVAL');
     const row = await locateRowByOrderNo(page, orderNo);
-    // purchase.table.reject = '驳回'，触发 ElMessageBox.prompt('请输入驳回原因')
+    // 双列锁前置基线：reject 前回读 notes（seed 写入唯一码 E2E-P2-*），reject 后必须逐字不变
+    const before = await apiCallRaw<{ notes: string | null }>(
+      page,
+      'GET',
+      `/purchase/orders/${id}`
+    );
+    expect(before.notes, '建单 notes 基线应已落库（seed 唯一码）').toBeTruthy();
+    // purchase.table.reject = '驳回'，触发统一采集器 useActionPrompts.promptRejectReason()
+    //（composables/useActionPrompts.ts:68-87：ElMessageBox.prompt，
+    //  message=actionForm.rejectReasonTip、title=actionForm.rejectReasonTitle、
+    //  inputPlaceholder=actionForm.rejectReasonPlaceholder，zh 值见 locales/zh-CN.ts:5800-5802）
     await row.getByRole('button', { name: '驳回', exact: true }).click();
     const msgBox = page.locator('.el-message-box');
-    await expect(msgBox.getByText('请输入驳回原因')).toBeVisible();
+    // 弹窗文案断言=同步实现真值（UI 文案允许断言；脱敏红线只禁断后端错误 message）。
+    // tip/标题/输入占位三源齐断，禁止退化成"只断弹窗出现"的弱断言。
+    await expect(msgBox.getByText('请填写审批拒绝理由（必填）')).toBeVisible();
+    await expect(msgBox.getByText('审批拒绝理由', { exact: true })).toBeVisible();
+    await expect(msgBox.getByPlaceholder('请输入审批拒绝理由', { exact: true })).toBeVisible();
     await msgBox.getByRole('textbox').fill('E2E 测试驳回：数量超预算');
     await msgBox.getByRole('button', { name: '确定', exact: true }).click();
     // rejectPurchaseOrder 成功 → msg.success('purchaseOrderRejected') = '采购订单 {orderNo} 已驳回'
@@ -187,7 +203,22 @@ test.describe('02 采购订单审批', () => {
     // 该单状态确实变了（双重真证据）：① 专属单行状态标签真实变为「已驳回」；② 后端回查 REJECTED。
     await expect(row.getByText('已驳回')).toBeVisible({ timeout: 30000 });
     // 后端真实状态字面量（大写词表）：驳回后为 REJECTED
-    const after = await apiCallRaw<PurchaseOrderLite>(page, 'GET', `/purchase/orders/${id}`);
+    const after = await apiCallRaw<{
+      status: string;
+      rejected_reason: string | null;
+      notes: string | null;
+    }>(page, 'GET', `/purchase/orders/${id}`);
     expect(after.status, `驳回后状态应为 REJECTED（实际 ${after.status}）`).toBe('REJECTED');
+    // 理由必须经接口逐字回读 rejected_reason 专列（不止断状态=半级假绿防线；写入方证据
+    // backend/src/services/po/contract.rs:245 只 Set rejected_reason）。⚠️ 已知出参缺口
+    //（与报价单 F5 同族）：GET /purchase/orders/{id} 出参 PurchaseOrderDto
+    //（backend/src/services/po/order.rs:19-60）尚无 rejected_reason 键——本断言保持严格逐字
+    // 回读不放宽，后端补出参前如实判红，禁止改成断键缺失/undefined 蒙绿。
+    expect(after.rejected_reason, '驳回理由应逐字落 rejected_reason 专列').toBe(
+      'E2E 测试驳回：数量超预算'
+    );
+    // 双列锁（止毁口径在采购订单域的等价列——本表无 reason_detail 列，该列属
+    // purchase_return/after_sales 域）：reject 不得挪用/污染 notes，须逐字保持建单基线
+    expect(after.notes, 'reject 不得污染 notes（应逐字保持建单基线）').toBe(before.notes);
   });
 });

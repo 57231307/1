@@ -477,18 +477,18 @@ impl AssistAccountingService {
 fn parse_period(period: &str) -> Result<(i32, u32), AppError> {
     let parts: Vec<&str> = period.split('-').collect();
     if parts.len() != 2 {
-        return Err(AppError::validation(
+        return Err(AppError::validation_displayable(
             "期间格式错误，应为 YYYY-MM".to_string(),
         ));
     }
     let year: i32 = parts[0]
         .parse()
-        .map_err(|_| AppError::validation("年份解析错误"))?;
+        .map_err(|_| AppError::validation_displayable("年份解析错误"))?;
     let month: u32 = parts[1]
         .parse()
-        .map_err(|_| AppError::validation("月份解析错误"))?;
+        .map_err(|_| AppError::validation_displayable("月份解析错误"))?;
     if !(1..=12).contains(&month) {
-        return Err(AppError::validation("月份必须在1-12之间"));
+        return Err(AppError::validation_displayable("月份必须在1-12之间"));
     }
     Ok((year, month))
 }
@@ -499,7 +499,9 @@ fn parse_period_range(
 ) -> Result<(chrono::DateTime<Utc>, chrono::DateTime<Utc>), AppError> {
     let (year, month) = parse_period(period)?;
     let start_date = chrono::NaiveDate::from_ymd_opt(year, month, 1)
-        .ok_or_else(|| AppError::validation(format!("无效的起始日期: {}-{:02}-01", year, month)))?
+        .ok_or_else(|| {
+            AppError::validation_displayable(format!("无效的起始日期: {}-{:02}-01", year, month))
+        })?
         .and_time(chrono::NaiveTime::MIN)
         .and_utc();
     let end_date = if month == 12 {
@@ -507,7 +509,9 @@ fn parse_period_range(
     } else {
         chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
     }
-    .ok_or_else(|| AppError::validation(format!("无效的结束日期: {}-{:02}", year, month)))?
+    .ok_or_else(|| {
+        AppError::validation_displayable(format!("无效的结束日期: {}-{:02}", year, month))
+    })?
     .and_time(chrono::NaiveTime::MIN)
     .and_utc()
         - chrono::Duration::seconds(1);

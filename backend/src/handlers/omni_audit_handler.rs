@@ -3,7 +3,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::services::omni_audit_query_service::{AuditQueryFilter, AuditStats};
 use crate::services::omni_audit_service::OmniAuditMessage;
 use crate::utils::admin_checker::is_admin_role;
-use crate::utils::error::AppError;
+use crate::utils::error::{AppError, current_trace_id};
 use crate::utils::response::ApiResponse;
 use crate::utils::sql_escape::safe_like_pattern;
 use axum::{
@@ -59,19 +59,20 @@ pub async fn track_event(
     Json(req): Json<TrackEventRequest>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     // P3 8-19 修复：字段长度校验
-    req.validate()
-        .map_err(|e| AppError::validation(format!("埋点事件字段校验失败: {}", e)))?;
+    req.validate().map_err(AppError::from)?;
     // P3 8-19 修复：payload 上限 10KB
     if let Some(ref payload) = req.payload {
         let payload_size = serde_json::to_string(payload)
             .map(|s| s.len())
             .unwrap_or(usize::MAX);
         if payload_size > 10_240 {
-            return Err(AppError::validation("payload 超过 10KB 上限"));
+            return Err(AppError::validation_displayable("payload 超过 10KB 上限"));
         }
     }
 
-    let trace_id = uuid::Uuid::new_v4().to_string();
+    // 埋点事件也归到本次请求的 trace 上：TRACE_ID task-local 由最外层 trace_context 绑定，
+    // 取到的值与 `X-Trace-Id` 响应头、失败响应体 trace_id 同源（32 位小写 hex）。
+    let trace_id = current_trace_id().0;
 
     state.omni_audit.log(OmniAuditMessage {
         trace_id,
@@ -296,14 +297,14 @@ fn build_select_fields(include_sensitive: bool) -> String {
 // 读取可选字符串字段，失败时返回带字段名的错误
 fn get_opt_string(row: &sea_orm::QueryResult, field: &str) -> Result<String, AppError> {
     row.try_get::<Option<String>>("", field)
-        .map_err(|e| AppError::internal(format!("审计日志读取 {} 失败: {}", field, e)))
+        .map_err(|e| AppError::database(format!("审计日志读取 {field} 失败: {e}")))
         .map(|v| v.unwrap_or_default())
 }
 
 // 读取可选整数字段，失败时返回带字段名的错误
 fn get_opt_int(row: &sea_orm::QueryResult, field: &str) -> Result<i32, AppError> {
     row.try_get::<Option<i32>>("", field)
-        .map_err(|e| AppError::internal(format!("审计日志读取 {} 失败: {}", field, e)))
+        .map_err(|e| AppError::database(format!("审计日志读取 {field} 失败: {e}")))
         .map(|v| v.unwrap_or(0))
 }
 
@@ -314,13 +315,13 @@ fn row_to_json(
 ) -> Result<serde_json::Value, AppError> {
     let id = row
         .try_get_by_index::<i64>(0)
-        .map_err(|e| AppError::internal(format!("审计日志读取 id 失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("审计日志读取 id 失败: {e}")))?;
     let module = row
         .try_get::<String>("", "module")
-        .map_err(|e| AppError::internal(format!("审计日志读取 module 失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("审计日志读取 module 失败: {e}")))?;
     let action = row
         .try_get::<String>("", "action")
-        .map_err(|e| AppError::internal(format!("审计日志读取 action 失败: {}", e)))?;
+        .map_err(|e| AppError::database(format!("审计日志读取 action 失败: {e}")))?;
     // created_at 列为 TIMESTAMP（m0005 建表，后续 ADD COLUMN IF NOT EXISTS 为无操作），
     // 原样 try_get::<String> 与数据库原生类型不匹配会报错 → 接口 500；
     // 先按 NaiveDateTime 读取再序列化，失败时回退 TIMESTAMPTZ 读取（防御迁移变更）
@@ -329,7 +330,7 @@ fn row_to_json(
         Err(_) => row
             .try_get::<chrono::DateTime<chrono::FixedOffset>>("", "created_at")
             .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-            .map_err(|e| AppError::internal(format!("审计日志读取 created_at 失败: {}", e)))?,
+            .map_err(|e| AppError::database(format!("审计日志读取 created_at 失败: {e}")))?,
     };
     let mut item = serde_json::json!({
         "id": id,

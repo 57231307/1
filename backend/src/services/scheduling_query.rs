@@ -21,6 +21,7 @@ use crate::models::status::common;
 use crate::models::status::production;
 use crate::models::status::scheduling as scheduling_status;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use chrono::{NaiveDate, Utc};
@@ -38,6 +39,12 @@ impl SchedulingService {
     // 内容来自原 scheduling_service.rs L387-445 + L583-794 + L862-947
     // 私有 fn: build_gantt_data + get_work_center_name
 
+    /// 排程甘特图数据查询——全员共享工作面，刻意不做行级 data_scope 过滤。
+    ///
+    /// 调用方：handler `get_gantt_data`（`_auth` 仅认证、不构 ctx）。
+    /// 入参：work_center_id/date_from/date_to 为可选过滤条件，数据来源 production_order 表。
+    /// 设计意图：甘特视图是排产员全局协调工具，跨 owner 不可见则产能分配失去意义；
+    /// 与"我的排程运行按 owner 收窄"（history/result）属不同判据族。
     pub async fn get_gantt_data(
         &self,
         work_center_id: Option<i32>,
@@ -138,7 +145,12 @@ impl SchedulingService {
             .await?)
     }
 
-    /// 检测排程冲突
+    /// 待排工单池列表——全员共享工作面，刻意不做行级 data_scope 过滤。
+    ///
+    /// 调用方：handler `list_scheduled_orders`（`_auth` 仅认证、不构 ctx）。
+    /// 入参：ScheduledOrderQuery（work_center_id/status/date_from/date_to），数据来源 production_order 表。
+    /// 设计意图：排产协调需要看到所有待排工单（含他人创建），
+    /// 与"我的排程运行按 owner 收窄"属不同判据族。
     pub async fn list_scheduled_orders(
         &self,
         query: ScheduledOrderQuery,
@@ -221,18 +233,35 @@ impl SchedulingService {
         &self,
         page: u64,
         page_size: u64,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<crate::models::scheduling_result::Model>, u64), AppError> {
-        // 批次 257 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
-        let paginator = SchedulingResultEntity::find()
-            .order_by_desc(crate::models::scheduling_result::Column::CreatedAt)
-            .paginate(&*self.db, page_size);
+        let base = SchedulingResultEntity::find()
+            .order_by_desc(crate::models::scheduling_result::Column::CreatedAt);
+        // 本表无 department_id 列，Dept/Self 一律按建单人 created_by 下推；None 仅用于
+        // 无会话上下文的内部通路，HTTP 列表必须带上下文。
+        let scoped = match data_scope {
+            Some(ctx) => apply_data_scope(
+                base,
+                ctx,
+                crate::models::scheduling_result::Column::CreatedBy,
+                crate::models::scheduling_result::Column::CreatedBy,
+            ),
+            None => base,
+        };
 
+        // paginate_with_total 内部已处理 saturating_sub(1) 偏移，page 在此夹紧
+        let paginator = scoped.paginate(&*self.db, page_size);
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
     }
 
-    /// 获取排程结果详情
+    /// 按主键取排程结果原始行。
+    ///
+    /// 本函数属私有面（单行查询）：行级归属门在调用方 handler（`scheduling_handler::get_schedule_result`），
+    /// 以 `check_resource_owner_by_member_scope` 按 created_by 校验数据范围后决定 403。
+    /// 表无 `department_id` 列，因此判据走成员集合变体，与列表侧 `get_schedule_history` 的
+    /// `apply_data_scope` Dept 分支同源。
     pub async fn get_schedule_result(
         &self,
         id: i32,

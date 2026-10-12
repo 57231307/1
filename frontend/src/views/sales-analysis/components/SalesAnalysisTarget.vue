@@ -48,8 +48,10 @@
         align="center"
       >
         <template #default="{ row }">
+          <!-- completion_rate/variance 为 rust_decimal 出参字符串（"85.00"），
+               el-progress 与数值比较前需 Number() 归一 -->
           <el-progress
-            :percentage="row.completion_rate"
+            :percentage="Number(row.completion_rate)"
             :color="getProgressColor(row.completion_rate)"
           />
         </template>
@@ -61,8 +63,8 @@
         align="right"
       >
         <template #default="{ row }">
-          <span :class="row.variance >= 0 ? 'text-success' : 'text-danger'">
-            {{ row.variance >= 0 ? '+' : '' }}{{ formatCurrency(row.variance) }}
+          <span :class="Number(row.variance) >= 0 ? 'text-success' : 'text-danger'">
+            {{ Number(row.variance) >= 0 ? '+' : '' }}{{ formatCurrency(row.variance) }}
           </span>
         </template>
       </el-table-column>

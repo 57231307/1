@@ -26,7 +26,6 @@ pub struct CreateWageRateRequest {
     pub expiry_date: Option<chrono::NaiveDate>,
     pub workshop: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新工价请求（仅 draft 状态可更新）
@@ -66,7 +65,6 @@ pub struct CreateWageRecordRequest {
     pub period_end: chrono::NaiveDate,
     pub workshop: Option<String>,
     pub remarks: Option<String>,
-    pub created_by: Option<i32>,
 }
 
 /// 更新工资记录请求（仅 draft 状态可更新）

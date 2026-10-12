@@ -1,0 +1,6 @@
+{
+  "role": "ar_accountant",
+  "reachableRoutes": [
+    "/dashboard"
+  ]
+}

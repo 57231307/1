@@ -6,6 +6,7 @@ import {
   BROWSER_NETWORK_NOISE,
 } from '../flow/helpers';
 import { TRAVERSAL_MODULES, type TraversalModule } from './modules.config';
+import { probeListApiIfConfigured } from './list-api-probe';
 
 /**
  * P5.12 全量遍历——purchase/production/quality/bpm/advanced 域
@@ -22,12 +23,9 @@ async function visitModule(
 
   await assertPageHealthy(page, collector, { consoleNoisePatterns: BROWSER_NETWORK_NOISE });
 
-  if (mod.tier === 'A' && mod.listApi) {
-    const resp = await page.request.get(
-      `${process.env.API_BASE || 'http://localhost:8082'}/api/v1/erp${mod.listApi.startsWith('/') ? '' : '/'}${mod.listApi}?page=1&page_size=1`
-    );
-    expect(resp.status()).toBeLessThan(500);
-  }
+  // 列表 API 回读断言：凡配置 listApi 即 strict 真探（判据与根因见 ./list-api-probe.ts；
+  // 原 <500 + tier==='A' 组合 = admin 下 403/404 洗绿 + Tier B 死配置零断言）。
+  await probeListApiIfConfigured(page, mod);
 
   // 有新建入口的模块（读配置判定，不再用运行时 isVisible() 猜测）：
   // Tier A 且未标 noCreate ⇒ 新建按钮必须可见且能点开/跳转（原来 if(isVisible) 静默放过）。

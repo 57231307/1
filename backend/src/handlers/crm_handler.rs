@@ -8,6 +8,10 @@ use crate::models::dto::crm_dto::{
 };
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::crm::cust::CrmService;
+// 导出需复用列表同一判定源/同一字段过滤函数（filter_fields_batch）
+use crate::services::data_permission_service::{DataPermissionResult, DataPermissionService};
+// admin 判定的本仓唯一权威源（roles.code='admin'）
+use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use crate::utils::messages::biz_msg;
@@ -17,13 +21,14 @@ use axum::{
     extract::{Multipart, Path, Query, State},
 };
 use chrono::Datelike;
+// 归属门需按主键取行：find_by_id 由 EntityTrait 提供，不入作用域则方法不可见
+use sea_orm::EntityTrait;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
 use validator::Validate;
 
-/// P1-2g 修复（批次 81 v1 复审）：更新线索状态请求 DTO
-/// 替代 update_lead_status 中的 Json<serde_json::Value>，提供强类型校验
+/// 更新线索状态请求 DTO：强类型校验替代 update_lead_status 的裸 Json<Value>
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateLeadStatusDto {
@@ -32,15 +37,191 @@ pub struct UpdateLeadStatusDto {
     pub status: String,
 }
 
+/// 角色数据权限取数（读路径与导出路径**共用这一份判定**，不再各写一遍
+/// `if let Ok(Some(..))`）：判定源 = `data_permission_service.get_role_data_permission`
+/// （admin 依据 `roles.code='admin'`，`utils/admin_checker.rs:87`）。
+/// 返回 `Some(配置行)` 时调用方走 `filter_fields*`（allowed 白名单 / hidden 移除）；
+/// 返回 `None` 表示"无权限行"或"查询失败"——查询失败必须显式记 warn（不静默），
+/// 并按无权限行让调用方走各自的默认处理（fail-closed）。
+/// admin 例外（放行原文）由各默认处理实现自身保留：读路径
+/// `CrmService::mask_lead_pii_defaults` 对权威源判定入参 `is_admin=true` 原样返回
+/// （`is_admin` 由本文件 `apply_lead_field_permission` 经 `admin_checker::is_admin_role`
+/// 在每请求循环外算出，角色缺失/查询失败 fail-closed=false），
+/// 导出路径由调用方经 `admin_checker::is_admin_role`（单一权威源）门控，
+/// 二者都不因本函数而改变既有原值契约。
+async fn resolve_role_data_permission(
+    state: &AppState,
+    role_id: i32,
+    resource_type: &str,
+) -> Option<DataPermissionResult> {
+    match state
+        .data_permission_service
+        .get_role_data_permission(role_id, resource_type)
+        .await
+    {
+        Ok(permission) => permission,
+        Err(error) => {
+            tracing::warn!(
+                %error,
+                role_id,
+                resource_type,
+                "角色数据权限查询失败，出参按无权限行 fail-closed 走默认处理"
+            );
+            None
+        }
+    }
+}
+
+/// 线索**字段级**数据权限的唯一实现，四个出口共用（本文件 `list_leads`
+/// 列表、`get_lead` 详情，以及 `crm_pool_handler` 的公海列表与领取/回收写响应）。
+/// 判定源与掩码实现都不再各写一份内联分支：
+/// - 配了角色数据权限行 → 与导出同一个 `filter_fields_batch`（allowed_fields 白名单、
+///   hidden_fields 移除，不叠加默认打码；admin 由 `get_role_data_permission` 返回
+///   `Ok(Some{allowed:None,hidden:None})` → 空操作，保持原值契约）；
+/// - 无权限行且非 admin → `CrmService::mask_lead_pii_defaults`（列集合取自
+///   `utils/field_mask` 的权威定义：`mobile_phone`/`tel_phone` 掩码、`email` 掩码、
+///   `address` 整键移除）。
+/// fail-closed：`role_id` 缺失或权限查询 `Err` 都按"无权限行"走默认脱敏（与已提交的
+/// `export_leads` 的 None 分支同口径），不放行原文。本函数只处理出参，不改状态码、
+/// 不外显任何拒绝原因（权限拒绝仍走 `AppError::permission_denied` 的固定脱敏信封）。
+pub(crate) async fn apply_lead_field_permission(
+    state: &AppState,
+    role_id: Option<i32>,
+    leads: &mut [serde_json::Value],
+) {
+    if let Some(rid) = role_id {
+        if let Some(permission) = resolve_role_data_permission(state, rid, "crm_lead").await {
+            state.data_permission_service.filter_fields_batch(
+                leads,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+            return;
+        }
+        // Ok(None) / 查询 Err（已在 resolve 内记 warn）：落到下方默认脱敏；
+        // admin 经下方 is_admin 权威源判定放行原文，原值契约不变。
+    }
+
+    // admin 判定唯一权威源：`admin_checker::is_admin_role`
+    // （roles.code='admin'；role_id 缺失或查询失败 fail-closed=false，与原字面量判定下
+    // "无角色必脱敏"同一 fail-closed 方向）。每请求在循环外算一次并复用，
+    // 禁止下放进逐行循环（admin_checker 内部是 DashMap 缓存，get() 返回的 Ref
+    // 存活期间持分片读锁，循环内反复调用会放大锁竞争）。
+    let is_admin = match role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    for lead in leads.iter_mut() {
+        *lead = CrmService::mask_lead_pii_defaults(std::mem::take(lead), is_admin);
+    }
+}
+
+/// 从分页出参中定位列表数组：兼容既有两种出参键（`services/crm/lead.rs` 手搓 `json!`
+/// 用 `data`，历史列表接口用 `list`）。定位不到意味着字段级权限无处可施
+/// = 原文直通，属形状漂移而非正常分支，显式记 error 不静默。
+/// `pub(crate)`：客户增强入口（`crm_customer_handler::list_customers`）出参同为
+/// `list_leads` 分页形状，必须复用同一数组定位实现，不再各写一份键名分支。
+pub(crate) fn paginated_list_array_mut(
+    value: &mut serde_json::Value,
+) -> Option<&mut Vec<serde_json::Value>> {
+    let key = if value.get("list").and_then(Value::as_array).is_some() {
+        "list"
+    } else {
+        "data"
+    };
+    let list = value.get_mut(key).and_then(Value::as_array_mut);
+    if list.is_none() {
+        tracing::error!(
+            key = %key,
+            "分页出参未定位到列表数组（list/data 均缺失），字段级数据权限未应用"
+        );
+    }
+    list
+}
+
+/// 商机**字段级**数据权限的唯一实现，五个出口共用（本文件 `list_opportunities`
+/// 列表、`get_opportunity` 详情、`create_opportunity` 建单、`update_opportunity`/
+/// `close_opportunity_as_lost` 写响应；`export_opportunities` 亦经行对象转换后走本函数）。
+/// 与线索侧 `apply_lead_field_permission` 同形态：
+/// - 配了角色数据权限行 → 与导出同一个 `filter_fields_batch`（allowed 白名单 / hidden 移除，
+///   不叠加默认处理；admin 由 `get_role_data_permission` 返回
+///   `Ok(Some{allowed:None,hidden:None})` → 空操作，保持原值契约）；
+/// - 无权限行且非 admin → 默认隐藏，范围 = **仅非本人行**：
+///   行 `owner_id` ≠ 当前登录用户时按真实列 `estimated_amount`/`actual_amount` 移除金额；
+///   本人名下商机金额必须可见，否则销售日常功能被做没。
+///
+/// 【默认分支的两处实现要点】
+/// 1. 金额移除只针对真实列（`crm_opportunity` 出参没有 `amount` 单键，真实金额列是
+///    `estimated_amount`/`actual_amount`，见 `EXPORT_AMOUNT_COLUMNS`）——按不存在的键
+///    移除恒不生效（"读不存在键"形态由源码扫描棘轮锁定，不得回潮）；
+/// 2. fail-closed：`role_id` 缺失不对出参"不做任何处理"，而是按无权限行走默认处理
+///    （与线索/客户域同口径）。
+/// 行 `owner_id` 缺失或非数值时同样按"非本人行"处理（宁缺勿泄，不做原文放行兜底）。
+/// 本函数只处理出参，不改状态码、不外显任何拒绝原因（权限拒绝仍走
+/// `AppError::permission_denied` 的固定脱敏信封）。
+pub(crate) async fn apply_opportunity_field_permission(
+    state: &AppState,
+    role_id: Option<i32>,
+    current_user_id: i32,
+    opportunities: &mut [serde_json::Value],
+) {
+    if let Some(rid) = role_id {
+        if let Some(permission) = resolve_role_data_permission(state, rid, "crm_opportunity").await
+        {
+            // 配了角色数据权限行的角色保持既有契约（只走配置，不叠加默认隐藏；
+            // admin 命中 Ok(Some{None,None}) → 空操作原值契约不变）
+            state.data_permission_service.filter_fields_batch(
+                opportunities,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
+            return;
+        }
+        // admin 无权限行时保持既有原值契约，不进默认处理
+        //（查询 Err 已在 resolve 内记 warn；admin 例外与线索侧 mask_lead_pii_defaults 自放行同构）。
+        // admin 判定统一走本仓唯一权威源
+        // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
+        // 禁止角色主键字面量判定——播种漂移时字面量判定要么静默失效（admin 被当
+        // 普通用户剔字段）要么静默扩权（其他角色恰好命中字面量），两头都是缺陷。
+        if admin_checker::is_admin_role(&state.db, rid).await {
+            return;
+        }
+    }
+
+    // 无权限行且非 admin，或 role_id 缺失（fail-closed 收紧，见函数文档）
+    // 默认处理 = 仅剔"非本人行"的真实金额列。
+    for opportunity in opportunities.iter_mut() {
+        let is_own_row = opportunity
+            .get("owner_id")
+            .and_then(Value::as_i64)
+            .is_some_and(|oid| oid == current_user_id as i64);
+        if is_own_row {
+            continue;
+        }
+        if let Some(obj) = opportunity.as_object_mut() {
+            // 列名取 crm_opportunity 真实列（与导出 EXPORT_AMOUNT_COLUMNS 同一单源集合）
+            for column in CrmService::EXPORT_AMOUNT_COLUMNS {
+                obj.remove(*column);
+            }
+        }
+    }
+}
+
 pub async fn create_lead(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_lead(req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 归属人展示名取 `auth.username`（真实登录名，见 services/crm/lead.rs::create_lead 文档）
+    let res = service
+        .create_lead(req, auth.user_id, &auth.username)
+        .await?;
+    let mut value = serde_json::to_value(res)?;
+    // 建单成功响应不再整行原文回传——整行 crm_lead::Model 含 mobile_phone/
+    // tel_phone/email/address 明文，与 GET 详情被打码形成"读打码、写原文"旁路。
+    // 复用读路径唯一实现（公海写响应同款），本处不再内联掩码分支。
+    apply_lead_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -50,78 +231,78 @@ pub async fn list_leads(
     Query(query): Query<LeadQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文
+    // 提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service.list_leads(query, Some(&data_scope_ctx)).await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_lead")
-            .await
-        {
-            let mut list_opt = value.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = value.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                state.data_permission_service.filter_fields_batch(
-                    list,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
-        } else if role_id != 1 {
-            // P1-08-5 修复：默认字段脱敏（保留前 3 后 4 / 首字母 + ***），而非直接 remove
-            // 原 remove 导致业务无法识别客户（如需回拨电话），实际使用中可能被绕过。
-            // 脱敏后业务仍可识别客户身份，同时满足个人信息保护法最小必要原则。
-            let mut list_opt = value.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = value.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                for lead in list {
-                    if let Some(obj) = lead.as_object_mut() {
-                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
-                            obj.insert(
-                                "contact_phone".to_string(),
-                                Value::String(crate::utils::field_mask::mask_phone(phone)),
-                            );
-                        }
-                        if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
-                            obj.insert(
-                                "email".to_string(),
-                                Value::String(crate::utils::field_mask::mask_email(email)),
-                            );
-                        }
-                        obj.remove("address");
-                    }
-                }
-            }
-        }
+    // 字段级数据权限：与 get_lead / 公海列表 / 公海写响应收敛到同一个实现
+    // （apply_lead_field_permission），本处不再内联 mask_phone/mask_email 分支——
+    // 内联分支正是"列表漏 tel_phone、写响应回原文"两处漂移的成因。
+    if let Some(list) = paginated_list_array_mut(&mut value) {
+        apply_lead_field_permission(&state, auth.role_id, list).await;
     }
 
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// GET /api/v1/erp/crm/leads/export - 导出线索为 xlsx；v11 批次 141 新增：前端 exportLeads API 真实接入。 v11 批次 142 升级
-/// 导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+/// GET /api/v1/erp/crm/leads/export - 导出线索为 xlsx（前端 exportLeads API 的实连接入点）。
+/// 导出格式统一为 xlsx（仓内导出规范，禁 CSV）。
+/// 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+///
+/// 数据权限：导出必须与本文件的 list_leads/get_lead 走同一条权限链——
+/// 行级：`auth.to_data_scope_context()` 注入 service，套用同一个
+/// `apply_department_scope_with_pool`（services/crm/lead.rs），使导出的行集合与
+/// 该用户列表可见集严格一致；字段级：同一个判定源
+/// （`data_permission_service.get_role_data_permission`，admin 依据 roles.code='admin'）
+/// 与同一掩码实现（`utils/field_mask::mask_phone/mask_email`）。
+/// 省略任一层都会形成"列表打码、导出原文"的旁路，故两层均为强制，不按查询参数开关。
 pub async fn export_leads(
     auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<LeadQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    // 全局导出并发控制（RAII 守卫，函数退出自动递减）
     let _guard = ExportConcurrencyGuard::acquire()?;
 
     let service = CrmService::new(state.db.clone());
-    let table = service.export_leads(query).await?;
+    // 行级数据权限：与 list_leads（本文件 :53-54）同法构造并注入 ctx；
+    // 省略 ctx 会让 service 层整体跳过行级过滤，self/dept 用户可一次拿到全库线索。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let mut table = service.export_leads(query, Some(&data_scope_ctx)).await?;
+
+    // 字段级数据权限：见上面 doc 注释的判定源；导出为二维表，按
+    // `CrmService::EXPORT_LEAD_COLUMNS` 的列名（= crm_lead 出参键）定位需保留/剔除/
+    // 掩码的列，不新造权限键、不重复列下标。
+    match auth.role_id {
+        Some(role_id) => {
+            if let Some(permission) =
+                resolve_role_data_permission(&state, role_id, "crm_lead").await
+            {
+                // 配置了数据权限行：与列表分支同一函数 filter_fields_batch
+                // （allowed_fields 白名单保留、hidden_fields 移除，不叠加默认打码）
+                apply_export_field_permission(
+                    &state.data_permission_service,
+                    &mut table,
+                    CrmService::EXPORT_LEAD_COLUMNS,
+                    &permission.allowed_fields,
+                    &permission.hidden_fields,
+                )?;
+            } else if !admin_checker::is_admin_role(&state.db, role_id).await {
+                // 无权限行且非 admin（查询 Err 亦走此分支，fail-closed）：默认掩码。
+                // admin 判定与读路径同源 `admin_checker::is_admin_role`
+                //（roles.code='admin'），不再使用角色主键字面量。
+                mask_export_pii_columns(&mut table)?;
+            }
+        }
+        // fail-closed：role_id 缺失（权限中间件正常已在更早处 403，此处仅防"无角色=原文放行"
+        // 的旁路）——按非 admin 处理走默认掩码，而不是像列表那样不处理。
+        None => mask_export_pii_columns(&mut table)?,
+    }
+
     let row_count = table.rows.len();
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    // 导出审计日志写入（best-effort，异步不阻塞响应）
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -148,7 +329,230 @@ pub async fn export_leads(
     crate::utils::xlsx_export::build_xlsx_response(&table, "crm_leads_export")
 }
 
-/// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）；v11 批次 157d-4 新增：接收
+/// 导出链路"行/列形状漂移 = 编程错误"的**唯一**报错构造点。
+/// 入口 `validate_export_row_shape` 已整体拒绝，此后任何取不到都说明校验被绕过：
+/// 必须显式失败、绝不"按空值继续/按下标补位"（那等于放行未经字段处理的列）。
+/// 收敛成单点也让 `AppError::internal` 站点计数只随真实新增变化
+/// （棘轮锁见 `tests/contract_wave4_internal_flatten_g{1,5}_test.rs`）。
+fn export_shape_drift(context: impl std::fmt::Display) -> AppError {
+    AppError::internal(format!("导出链路形状漂移（{context}），拒绝导出"))
+}
+
+/// 导出表形状硬校验（fail-closed，字段处理各分支共用的唯一入口检查）：
+/// 每一行的单元格数必须与列定义表列数**逐行相等**。
+/// - 行长 > 列数：多出的单元格不属于任何列定义 = 不经过任何字段级权限处理即进导出文件
+///   （原文 PII 直通），且无法按列名定位，必须拒绝；
+/// - 行长 < 列数：按列下标处理会整体错位（前一列的值被当后一列掩码/剔除），同样拒绝。
+/// 宁可不生成文件，也不放行未处理列——行构造与列定义漂移属编程错误，显式报错到调用方。
+fn validate_export_row_shape(
+    table: &crate::utils::xlsx_export::XlsxTable,
+    columns: &[(&str, &str)],
+) -> Result<(), AppError> {
+    for (row_idx, row) in table.rows.iter().enumerate() {
+        if row.len() != columns.len() {
+            tracing::error!(
+                row_idx,
+                row_len = row.len(),
+                column_count = columns.len(),
+                "导出行单元格数与列定义表列数不一致，已拒绝生成导出文件（不放行未处理列）"
+            );
+            return Err(export_shape_drift(format!(
+                "第 {row_idx} 行单元格数({})与列定义数({})不一致，需修服务层",
+                row.len(),
+                columns.len()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// 导出表 → 行对象数组（列定义表驱动）
+///
+/// 把导出表按**列定义表**转成行对象数组（键 = crm_* 列名，与列表/详情出参键同源），
+/// 供复用列表/详情同一个判定函数 filter_fields_batch。
+/// 列定义表由调用方传入（线索 `CrmService::EXPORT_LEAD_COLUMNS`、商机
+/// `CrmService::EXPORT_OPP_COLUMNS`），两张导出表共用同一份转换实现。
+/// 行长与列定义不一致属编程错误：入口处 `validate_export_row_shape` 整体拒绝，
+/// 不再有"按空值继续"分支（空值兜底 = 该列内容去向不明，属静默）。
+fn export_row_cells(
+    table: &crate::utils::xlsx_export::XlsxTable,
+    columns: &[(&str, &str)],
+) -> Result<Vec<serde_json::Value>, AppError> {
+    validate_export_row_shape(table, columns)?;
+    table
+        .rows
+        .iter()
+        .map(|row| {
+            let mut obj = serde_json::Map::new();
+            for (idx, (field, _)) in columns.iter().enumerate() {
+                // 形状已在入口硬校验，此处取不到即校验被绕过 = 编程错误，显式失败不兜底
+                let cell = row
+                    .get(idx)
+                    .ok_or_else(|| export_shape_drift(format!("第 {idx} 列 {field} 缺失")))?;
+                obj.insert(
+                    (*field).to_string(),
+                    serde_json::Value::String(cell.clone()),
+                );
+            }
+            Ok(serde_json::Value::Object(obj))
+        })
+        .collect()
+}
+
+/// 把处理后的行对象按列定义表回写导出表（被剔除的列落成空单元格，
+/// 表头保留，避免同一角色不同入口的列结构漂移）。
+/// 行形状由 `validate_export_row_shape` 在字段处理入口保证，此处任何取不到对象的
+/// 分支都属编程错误，显式失败；历史上"记 error 后继续/按下标补位"的兜底属静默放行
+/// 未处理内容，已移除。
+fn write_back_export_rows(
+    table: &mut crate::utils::xlsx_export::XlsxTable,
+    columns: &[(&str, &str)],
+    rows_json: &[serde_json::Value],
+) -> Result<(), AppError> {
+    validate_export_row_shape(table, columns)?;
+    for (row_idx, row) in table.rows.iter_mut().enumerate() {
+        let Some(obj) = rows_json.get(row_idx).and_then(|v| v.as_object()) else {
+            return Err(export_shape_drift(format!(
+                "掩码回写找不到第 {row_idx} 行的行对象（行对象与表行一一对应被破坏）"
+            )));
+        };
+        for (col_idx, (field, _)) in columns.iter().enumerate() {
+            let value = obj
+                .get(*field)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            match row.get_mut(col_idx) {
+                Some(slot) => *slot = value,
+                None => {
+                    return Err(export_shape_drift(format!(
+                        "第 {row_idx} 行缺少列下标 {col_idx}"
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 导出文件的字段级数据权限（有配置数据权限行的分支）。
+///
+/// 复用列表/详情完全相同的判定实现 `filter_fields_batch`（allowed_fields 为白名单：
+/// 未列入的列取值被剔除；hidden_fields 再移除），因此"配了 allowed_fields 的角色"
+/// 天然就是放行原文的受控通道，无需为导出新增权限键。
+fn apply_export_field_permission(
+    dsp: &DataPermissionService,
+    table: &mut crate::utils::xlsx_export::XlsxTable,
+    columns: &[(&str, &str)],
+    allowed_fields: &Option<Vec<String>>,
+    hidden_fields: &Option<Vec<String>>,
+) -> Result<(), AppError> {
+    let mut rows_json = export_row_cells(table, columns)?;
+    dsp.filter_fields_batch(&mut rows_json, allowed_fields, hidden_fields);
+    write_back_export_rows(table, columns, &rows_json)
+}
+
+/// 导出文件默认字段处理的动作类型：
+/// - `MaskPhone` / `MaskEmail`：与列表/详情默认脱敏同一列集合、同一实现
+///   （`utils/field_mask::mask_phone` / `mask_email`）。
+///
+/// 整列剔除（如商机金额）不在本枚举内：导出侧移除走与列表/详情同一实现
+/// `apply_export_field_permission`/`filter_fields`（按 `EXPORT_AMOUNT_COLUMNS` 真实列名移除），
+/// 本函数只承担掩码职责，不设也不使用"空单元格"动作，避免"读不存在键的移除恒不生效"回潮。
+#[derive(Clone, Copy)]
+enum ExportColumnAction {
+    MaskPhone,
+    MaskEmail,
+}
+
+/// 按列定义表把列名定位成导出表下标。
+/// 列名在定义表中找不到属编程错误，且**必须**报错 fail-closed：
+/// 静默跳过该列 = 该列原文直通，属必须堵住的脱敏旁路。
+fn export_column_positions(
+    columns: &[(&str, &str)],
+    fields: &[&str],
+) -> Result<Vec<usize>, AppError> {
+    fields
+        .iter()
+        .map(|field| {
+            CrmService::export_column_index(columns, field).ok_or_else(|| {
+                export_shape_drift(format!("列定义缺少敏感列 {field}，无法按列掩码"))
+            })
+        })
+        .collect()
+}
+
+/// 导出文件的默认字段处理（无数据权限行且非 admin 分支，与列表/详情
+/// `CrmService::mask_lead_pii_defaults` 同一列集合口径）：按列定义表以列名定位，
+/// 逐列执行掩码或剔除。空单元格不掩码（否则空值会变成 `*`，与列表"无值"表现不一致）。
+fn apply_default_export_actions(
+    table: &mut crate::utils::xlsx_export::XlsxTable,
+    columns: &[(&str, &str)],
+    actions: &[(&[&str], ExportColumnAction)],
+) -> Result<(), AppError> {
+    // 形状硬校验先行：行长 > 列数的多余单元格不进任何处理（原文直通），
+    // 行长 < 列数会按下标错位处理——两种漂移都必须整体拒绝生成文件，
+    // 历史分支"记 error 后让敏感列脱管"已移除。
+    validate_export_row_shape(table, columns)?;
+    let mut targets: Vec<(usize, ExportColumnAction)> = Vec::new();
+    for (fields, action) in actions {
+        for col_idx in export_column_positions(columns, fields)? {
+            targets.push((col_idx, *action));
+        }
+    }
+
+    for row in table.rows.iter_mut() {
+        for (col_idx, action) in &targets {
+            // 入口已硬校验行形状，此处取不到即校验被绕过 = 编程错误，显式失败不兜底
+            let Some(cell) = row.get_mut(*col_idx) else {
+                return Err(export_shape_drift(format!(
+                    "单元格下标 {col_idx} 缺失（行长度 {}）",
+                    row.len()
+                )));
+            };
+            match action {
+                ExportColumnAction::MaskPhone | ExportColumnAction::MaskEmail => {
+                    // 空值不掩码：掩码空串会产出 "*" 假数据，与列表"无值"表现不一致
+                    if cell.is_empty() {
+                        continue;
+                    }
+                    *cell = match action {
+                        ExportColumnAction::MaskPhone => {
+                            crate::utils::field_mask::mask_phone(cell.as_str())
+                        }
+                        ExportColumnAction::MaskEmail => {
+                            crate::utils::field_mask::mask_email(cell.as_str())
+                        }
+                    };
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// 线索导出的默认脱敏分支（列集合 = `EXPORT_PII_PHONE_COLUMNS` /
+/// `EXPORT_PII_EMAIL_COLUMNS`，座机 `tel_phone` 与列表/详情同一实现）。
+fn mask_export_pii_columns(
+    table: &mut crate::utils::xlsx_export::XlsxTable,
+) -> Result<(), AppError> {
+    apply_default_export_actions(
+        table,
+        CrmService::EXPORT_LEAD_COLUMNS,
+        &[
+            (
+                CrmService::EXPORT_PII_PHONE_COLUMNS,
+                ExportColumnAction::MaskPhone,
+            ),
+            (
+                CrmService::EXPORT_PII_EMAIL_COLUMNS,
+                ExportColumnAction::MaskEmail,
+            ),
+        ],
+    )
+}
+
+/// POST /api/v1/erp/crm/leads/import - 批量导入线索（xlsx）：接收
 /// Multipart xlsx 文件，后端用 calamine 解析并批量创建线索。 文件大小限制 10MB，列顺序与 export_leads 一致。
 pub async fn import_leads(
     State(state): State<AppState>,
@@ -175,7 +579,7 @@ pub async fn import_leads(
                 MAX_IMPORT_SIZE / 1024 / 1024
             )));
         }
-        // P1-03-5 修复：增加 xlsx magic bytes 校验
+        // 校验 xlsx magic bytes，非 xlsx 文件直接拒绝
         // xlsx 本质为 ZIP 文件，前 4 字节应为 50 4B 03 04。
         // 后缀校验可被绕过（如 .xlsx 实为可执行脚本），magic 校验防 zip 炸弹/XXE/恶意文件。
         if !verify_xlsx_magic(&data) {
@@ -187,20 +591,22 @@ pub async fn import_leads(
     }
 
     let bytes = file_bytes.ok_or_else(|| AppError::bad_request("未收到文件".to_string()))?;
-    // B03-P2-10 修复：xlsx 文件病毒扫描检查点（CLAMAV_ENABLED 控制开关，生产环境应启用）
+    // xlsx 文件病毒扫描检查点（CLAMAV_ENABLED 控制开关，生产环境应启用）
     scan_leads_for_viruses(&bytes).await?;
     let service = CrmService::new(state.db.clone());
-    let result = service.import_leads(bytes, auth.user_id).await?;
+    let result = service
+        .import_leads(bytes, auth.user_id, &auth.username)
+        .await?;
     Ok(Json(ApiResponse::success(result)))
 }
 
-/// P1-03-5 新增：校验 xlsx 文件 magic bytes
+/// 校验 xlsx 文件 magic bytes（前两个字节 `PK`，即 ZIP 容器签名）
 /// xlsx 是 OOXML 格式（实际为 ZIP），前 4 字节应为 50 4B 03 04（PK\x03\x04）。
 fn verify_xlsx_magic(data: &[u8]) -> bool {
     data.starts_with(&[0x50, 0x4B, 0x03, 0x04])
 }
 
-/// B03-P2-10 修复：CRM 线索导入文件病毒扫描检查点
+/// CRM 线索导入文件病毒扫描检查点
 /// 通过 CLAMAV_ENABLED 环境变量控制开关：启用时调用 ClamAV REST API（CLAMAV_URL）扫描，
 /// 未启用时记录 warn 日志并跳过。生产环境应设置 CLAMAV_ENABLED=true 并配置 CLAMAV_URL，
 /// 与 email_service.rs 的附件扫描保持一致的 HTTP API 集成模式。
@@ -217,17 +623,26 @@ async fn scan_leads_for_viruses(data: &[u8]) -> Result<(), AppError> {
         return Ok(());
     }
 
-    let clamav_url = std::env::var("CLAMAV_URL")
-        .map_err(|_| AppError::internal("CLAMAV_ENABLED 已启用但 CLAMAV_URL 未配置".to_string()))?;
-    if clamav_url.is_empty() {
-        return Err(AppError::internal(
-            "CLAMAV_ENABLED 已启用但 CLAMAV_URL 为空".to_string(),
+    // 扫描依赖故障族（未配置/不可达/非 2xx/响应读取失败）不是
+    // 「我方服务器坏了」（500 InternalError），而是外部扫描依赖不可用——统一走
+    // AppError::service_unavailable（HTTP 503 / code=SERVICE_UNAVAILABLE / 公网脱敏文案）。
+    // 真实原因只进 tracing::warn（CLAMAV_SCAN_UNAVAILABLE 事件标签），不外泄 URL/端口/配置键名；
+    // fail-closed 不动摇：以下每一条故障路径都在导入之前 return Err，文件不落盘/不落库。
+    let clamav_url = std::env::var("CLAMAV_URL").unwrap_or_default();
+    if clamav_url.trim().is_empty() {
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_UNAVAILABLE",
+            "CLAMAV_ENABLED 已启用但扫描服务地址未配置或为空，CRM 线索导入已拒绝（fail-closed，未进入导入）"
+        );
+        return Err(AppError::service_unavailable(
+            "病毒扫描依赖不可用：扫描服务地址未配置（CRM 线索导入），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
         ));
     }
 
     let client = reqwest::Client::new();
     let scan_url = format!("{}/scan", clamav_url.trim_end_matches('/'));
-    // V15 P1 20.1-A：注入 traceparent 到 ClamAV 出站请求
+    // 注入 traceparent 到 ClamAV 出站请求，保持链路追踪不断链
     let traceparent = crate::observability::trace_context::traceparent_from_current_span();
     let response = client
         .post(&scan_url)
@@ -236,19 +651,41 @@ async fn scan_leads_for_viruses(data: &[u8]) -> Result<(), AppError> {
         .body(data.to_vec())
         .send()
         .await
-        .map_err(|e| AppError::internal(format!("ClamAV 病毒扫描请求失败: {}", e)))?;
+        .map_err(|e| {
+            tracing::warn!(
+                target: "security_audit",
+                event = "CLAMAV_SCAN_UNAVAILABLE",
+                error = %e,
+                "病毒扫描服务不可达（连接失败/超时），CRM 线索导入已拒绝（fail-closed，未进入导入）"
+            );
+            AppError::service_unavailable(
+                "病毒扫描依赖不可用：扫描服务不可达（CRM 线索导入），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
+            )
+        })?;
 
     if !response.status().is_success() {
-        return Err(AppError::internal(format!(
-            "ClamAV 返回非 2xx 状态: {}",
-            response.status()
-        )));
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_UNAVAILABLE",
+            upstream_status = %response.status(),
+            "病毒扫描服务返回非 2xx，CRM 线索导入已拒绝（fail-closed，未进入导入）"
+        );
+        return Err(AppError::service_unavailable(
+            "病毒扫描依赖不可用：扫描服务返回非 2xx（CRM 线索导入），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
+        ));
     }
 
-    let body = response
-        .text()
-        .await
-        .map_err(|e| AppError::internal(format!("读取 ClamAV 响应失败: {}", e)))?;
+    let body = response.text().await.map_err(|e| {
+        tracing::warn!(
+            target: "security_audit",
+            event = "CLAMAV_SCAN_UNAVAILABLE",
+            error = %e,
+            "读取病毒扫描响应失败，CRM 线索导入已拒绝（fail-closed，未进入导入）"
+        );
+        AppError::service_unavailable(
+            "病毒扫描依赖不可用：扫描响应读取失败（CRM 线索导入），根因见 CLAMAV_SCAN_UNAVAILABLE 事件日志",
+        )
+    })?;
 
     // ClamAV REST 返回 "stream: OK" 表示无病毒
     if body.contains("OK") {
@@ -267,43 +704,13 @@ pub async fn get_lead(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service.get_lead(id, Some(&data_scope_ctx)).await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_lead")
-            .await
-        {
-            state.data_permission_service.filter_fields(
-                &mut value,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // P1-08-5 修复：详情接口脱敏而非 remove
-            if let Some(obj) = value.as_object_mut() {
-                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
-                    obj.insert(
-                        "contact_phone".to_string(),
-                        Value::String(crate::utils::field_mask::mask_phone(phone)),
-                    );
-                }
-                if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
-                    obj.insert(
-                        "email".to_string(),
-                        Value::String(crate::utils::field_mask::mask_email(email)),
-                    );
-                }
-                obj.remove("address");
-            }
-        }
-    }
+    // 字段级数据权限：与列表同一实现（单元素切片复用批量函数，判定与掩码只有一份代码）
+    apply_lead_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
 
     Ok(Json(ApiResponse::success(value)))
 }
@@ -315,13 +722,30 @@ pub async fn update_lead(
     Json(req): Json<UpdateLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_lead + data_scope_ctx）
+    // IDOR 防护：更新前先校验资源归属（复用 get_lead + data_scope_ctx 的行级判定）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_lead(id, Some(&data_scope_ctx)).await?;
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    // 行级口径：读可 All、写须 owner 或显式「管理员代操作」键 + 留痕。
+    // 上面的 get_lead 只保证"看得见"（All 看得见全库）；跨 owner 的**写**另由本门判定
+    // （owner=crm_lead.owner_id、dept=department_id），未授予 crm/cross_owner_write 的
+    // All 范围角色改他人线索即 403（固定脱敏文案，原因只进日志）。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索更新",
+    )
+    .await?;
+    // 注入真实操作人 user_id 用于审计日志
     let res = service.update_lead(id, req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
+    // 更新成功响应不再整行原文回传。update_lead 受行级 check_resource_owner 约束，
+    // 但 Dept 数据范围用户可合法更新他人名下的行，其响应会把他人手机号/邮箱/地址原文
+    // 送出——而同一个人 GET /crm/leads/:id 拿到的是打码值，即"读打码、写原文"旁路。
+    // 复用读路径唯一实现（apply_lead_field_permission），与列表/详情/公海写响应同源。
+    apply_lead_field_permission(&state, auth.role_id, std::slice::from_mut(&mut value)).await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -331,10 +755,22 @@ pub async fn delete_lead(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_lead + data_scope_ctx）
+    // IDOR 防护：删除前先校验资源归属（复用 get_lead + data_scope_ctx 的行级判定）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_lead(id, Some(&data_scope_ctx)).await?;
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    // 删除是跨 owner 写的最强形态，须 owner 本人或持有代操作键（All 范围）。
+    // 门后 service.delete_lead 的 FK 引用预校验/并发兜底逐字保留——
+    // 本门只拒"无权删他人行"，不改"被引用线索删除失败 400 而非裸 500"的既有语义。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索删除",
+    )
+    .await?;
+    // 注入真实操作人 user_id 用于审计日志
     service.delete_lead(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
@@ -345,13 +781,25 @@ pub async fn update_lead_status(
     Path(id): Path<i32>,
     Json(payload): Json<UpdateLeadStatusDto>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
-    // P1-2g 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
-    payload
-        .validate()
-        .map_err(|e| AppError::validation(e.to_string()))?;
+    // 请求体走强类型 DTO（UpdateLeadStatusDto）+ validator 校验
+    payload.validate().map_err(AppError::from)?;
 
     let service = CrmService::new(state.db.clone());
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    // 状态变更同属跨 owner 写：本入口先按 ctx 读行（owner=crm_lead.owner_id、
+    // dept=department_id）再过写门，
+    // 之后 service 的状态词表强校验（ensure_valid_lead_status）逐字保留。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索状态变更",
+    )
+    .await?;
+    // 注入真实操作人 user_id 用于审计日志
     service
         .update_lead_status(id, &payload.status, auth.user_id)
         .await?;
@@ -364,9 +812,20 @@ pub async fn create_opportunity(
     Json(req): Json<CreateOpportunityRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let res = service.create_opportunity(req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    // 归属人展示名取 `auth.username`（真实登录名，见 services/crm/opp.rs::create_opportunity 文档）
+    let res = service
+        .create_opportunity(req, auth.user_id, &auth.username)
+        .await?;
+    let mut value = serde_json::to_value(res)?;
+    // 建单成功响应走商机字段级出参唯一实现（与列表/详情/更新同源），
+    // 不再整行原文直出。本函数默认分支的等价性说明见 apply_opportunity_field_permission。
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -376,66 +835,81 @@ pub async fn list_opportunities(
     Query(query): Query<OpportunityQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文
+    // 提取行级数据权限上下文
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service
         .list_opportunities(query, Some(&data_scope_ctx))
         .await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_opportunity")
-            .await
-        {
-            let mut list_opt = value.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = value.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                state.data_permission_service.filter_fields_batch(
-                    list,
-                    &permission.allowed_fields,
-                    &permission.hidden_fields,
-                );
-            }
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            let mut list_opt = value.get_mut("list");
-            if list_opt.is_none() {
-                list_opt = value.get_mut("data");
-            }
-            if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                for opportunity in list {
-                    if let Some(obj) = opportunity.as_object_mut() {
-                        obj.remove("amount");
-                    }
-                }
-            }
-        }
+    // 字段级数据权限：与 get_opportunity / 建单 / 更新 / 导出收敛到同一个实现
+    // （apply_opportunity_field_permission），本处不再内联分支——内联分支正是"写响应回原文"
+    // 旁路的成因。列表定位 list/data 数组后批量处理（口径详见该函数文档：
+    // 无权限行且非 admin 时仅剔"非本人行"的真实金额列）。
+    if let Some(list) = paginated_list_array_mut(&mut value) {
+        apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, list).await;
     }
 
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// GET /api/v1/erp/crm/opportunities/export - 导出商机为 xlsx；v11 批次 141 新增：前端 exportOpportunities API 真实接入。 v11 批次
-/// 142 升级：导出格式从 CSV 升级为 xlsx（规则 3 强制要求）。 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+/// GET /api/v1/erp/crm/opportunities/export - 导出商机为 xlsx（前端 exportOpportunities API 的实连接入点）。
+/// 导出格式统一为 xlsx（仓内导出规范，禁 CSV）。
+/// 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+///
+/// 数据权限（行级修法与 `export_leads` 同构）：商机导出必须与
+/// 本文件 `list_opportunities` / `get_opportunity` 走同一条权限链——
+/// 行级：`auth.to_data_scope_context()` 注入 service，套用与列表**同一个**
+/// `apply_department_scope`（`services/crm/opp.rs`；商机无公海语义，
+/// **不可**误用带 pool 放行的 `apply_department_scope_with_pool`），使导出的行集合与
+/// 该用户列表可见集严格一致；
+/// 字段级（入口一致）：行对象转换后与列表/详情/写响应共用**同一个**
+/// `apply_opportunity_field_permission`——配置角色走同一个 `filter_fields_batch`、
+/// admin 原值、无权限行且非 admin 时仅剔"非本人行"的 `EXPORT_AMOUNT_COLUMNS`
+/// （`estimated_amount`/`actual_amount` 真实列名）。导出不提供独立的"整列剔除"分支：
+/// 两套判定并存正是"列表打码、导出原文"这类同资源不同入口旁路的成因。
+/// 行级与字段级两层均为强制、不按查询参数开关——省略行级 ctx 会让 service 侧
+/// 整体跳过行过滤（只按 `opportunity_stage` 查询参数收窄），self/dept 用户点一次
+/// "导出"即可拿到全库商机含金额，属越权读 + 商业秘密外泄。
 pub async fn export_opportunities(
     auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<OpportunityQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    // 全局导出并发控制（RAII 守卫，函数退出自动递减）
     let _guard = ExportConcurrencyGuard::acquire()?;
 
     let service = CrmService::new(state.db.clone());
-    let table = service.export_opportunities(query).await?;
+    // 行级数据权限：与 list_opportunities（本文件）同法构造并注入 ctx；
+    // 省略 ctx 会让 service 层整体跳过行级过滤，self/dept 用户可一次拿到全库商机。
+    let data_scope_ctx = auth.to_data_scope_context();
+    // row_owner_ids：导出列定义不含 owner_id（不多出可见列），
+    // 由服务层按行序回传归属人 ID，供"仅非本人行"统一判定定位行归属；
+    // write_back_export_rows 只按列定义表回写，该键不会进入导出文件。
+    let (mut table, row_owner_ids) = service
+        .export_opportunities(query, Some(&data_scope_ctx))
+        .await?;
+
+    // 字段级数据权限（导出与列表/详情统一到同一条规则，
+    // 同样"仅非本人行"）：行对象转换后走与列表/详情/写响应**同一个**
+    // apply_opportunity_field_permission——配置角色走 filter_fields_batch、
+    // admin 原值、无权限行且非 admin 仅剔他人行的真实金额列。
+    // "金额整列剔除"逻辑收敛在 apply_opportunity_field_permission 内（源码扫描棘轮锁其不得回潮）：
+    // 两套分支并存正是"同资源不同入口口径漂移"的成因。
+    let mut rows_json = export_row_cells(&table, CrmService::EXPORT_OPP_COLUMNS)?;
+    for (row_obj, owner_id) in rows_json.iter_mut().zip(row_owner_ids) {
+        // 行对象由 export_row_cells 构造，必为 object；取不到属形状漂移，显式失败不兜底
+        let Some(obj) = row_obj.as_object_mut() else {
+            return Err(export_shape_drift("行对象构造后非 object"));
+        };
+        obj.insert("owner_id".to_string(), Value::from(owner_id));
+    }
+    apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, &mut rows_json).await;
+    write_back_export_rows(&mut table, CrmService::EXPORT_OPP_COLUMNS, &rows_json)?;
+
     let row_count = table.rows.len();
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    // 导出审计日志写入（best-effort，异步不阻塞响应）
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -468,31 +942,19 @@ pub async fn get_opportunity(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
     let res = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
-    let mut value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
-    if let Some(role_id) = auth.role_id {
-        if let Ok(Some(permission)) = state
-            .data_permission_service
-            .get_role_data_permission(role_id, "crm_opportunity")
-            .await
-        {
-            state.data_permission_service.filter_fields(
-                &mut value,
-                &permission.allowed_fields,
-                &permission.hidden_fields,
-            );
-        } else if role_id != 1 {
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = value.as_object_mut() {
-                obj.remove("amount");
-            }
-        }
-    }
+    // 字段级数据权限：与列表/建单/更新同一实现（单元素切片复用批量函数，判定与处理只有一份代码）
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
 
     Ok(Json(ApiResponse::success(value)))
 }
@@ -504,13 +966,32 @@ pub async fn update_opportunity(
     Json(req): Json<UpdateOpportunityRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——更新前先校验资源归属（复用 P0-S01 的 get_opportunity + data_scope_ctx）
+    // IDOR 防护：更新前先校验资源归属（复用 get_opportunity + data_scope_ctx 的行级判定）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    // 行级口径：读可 All、写须 owner 或显式代操作键 + 留痕。
+    // get_opportunity 只保证"看得见"；跨 owner 写另由本门判定（owner=owner_id、
+    // dept=department_id），无 crm/cross_owner_write 键的 All 范围角色改他人商机即 403。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机更新",
+    )
+    .await?;
+    // 注入真实操作人 user_id 用于审计日志
     let res = service.update_opportunity(id, req, auth.user_id).await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
+    // 更新成功响应走商机字段级出参唯一实现（与列表/详情/建单同源），不再整行原文直出。
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -520,30 +1001,64 @@ pub async fn delete_opportunity(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护——删除前先校验资源归属（复用 P0-S01 的 get_opportunity + data_scope_ctx）
+    // IDOR 防护：删除前先校验资源归属（复用 get_opportunity + data_scope_ctx 的行级判定）
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
-    // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    // 删除是跨 owner 写的最强形态，与 update 用同一归属判定
+    // （owner=owner_id、dept=department_id）；service 侧既有引用/FK 语义不受影响。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机删除",
+    )
+    .await?;
+    // 注入真实操作人 user_id 用于审计日志
     service.delete_opportunity(id, auth.user_id).await?;
     Ok(Json(ApiResponse::success(biz_msg::DELETE_OK.to_string())))
 }
 
 /// 将商机转化为销售订单
+///
+/// 转化是**派生落库对象**的写入口（草稿销售订单 +
+/// 商机赢单翻转，订单还携带对方 `estimated_amount`），属跨主写通道：本入口与
+/// update/delete/close 完全同门——先 `get_opportunity(id, Some(&ctx))` 行级读门，
+/// 再 `ensure_cross_owner_write_allowed` 写门（owner=`owner_id`、dept=`department_id`，
+/// 跨主放行只走既有 `crm/cross_owner_write` 显式键通道）。若像 service 内部
+/// `get_opportunity(id, None)` 那样不带 data_scope/归属过滤，任何够得到本端点
+/// RBAC 的人都能把**他人**商机转成订单（同型写法范式见
+/// `crm_pool_handler::recycle_to_pool` 文档与 `update_lead_status`）。
+/// service 侧"商机已赢单不可重复转化"的
+/// 业务状态门逐字保留。拒绝出参走 `permission_denied` 固定脱敏信封（403 + FORBIDDEN），
+/// 不外显资源归属信息，原因只进日志。
 pub async fn convert_opportunity_to_order(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机转销售订单",
+    )
+    .await?;
     let order = service
         .convert_opportunity_to_order(id, auth.user_id)
         .await?;
-    let value = serde_json::to_value(order)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(order)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
-/// 关单（输单流程）— V15 P0-B09（Batch 482）；将商机状态置为 CLOSED_LOST，必须填写流失原因 设计依据：审计报告 §18.2-D2 — 输单原因未记录，销售改进无依据
+/// 关单（输单流程）：将商机状态置为 CLOSED_LOST，必须填写流失原因
+/// （业务口径：输单原因不记录，销售改进无依据）
 pub async fn close_opportunity_as_lost(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -551,14 +1066,33 @@ pub async fn close_opportunity_as_lost(
     Json(req): Json<CloseAsLostRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S02：IDOR 防护 — 关单操作前先校验资源归属
+    // IDOR 防护：关单操作前先校验资源归属
     let data_scope_ctx = auth.to_data_scope_context();
-    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    // 输单关单改他人商机主行同属跨 owner 写，与 update/delete 同门；
+    // service 侧"已赢单/已输单不可重复关单"的业务状态门逐字保留。
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机输单关单",
+    )
+    .await?;
     let res = service
         .close_as_lost(id, req.lost_reason, auth.user_id)
         .await?;
-    let value =
-        serde_json::to_value(res).map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let mut value = serde_json::to_value(res)?;
+    // 关单（输单）同样是整行 crm_opportunity::Model 写响应，走商机字段级出参唯一实现，
+    // 与列表/详情/建单/更新同源，不再整行原文直出。
+    apply_opportunity_field_permission(
+        &state,
+        auth.role_id,
+        auth.user_id,
+        std::slice::from_mut(&mut value),
+    )
+    .await;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -569,8 +1103,7 @@ pub async fn get_lead_relation(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let relation = service.get_lead_relation(lead_id).await?;
-    let value = serde_json::to_value(relation)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(relation)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -581,12 +1114,22 @@ pub async fn convert_lead(
     Path(id): Path<i32>,
     Json(req): Json<ConvertLeadRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // customer_type 显式提供时经唯一词表模块校验，拒绝族别/文案与标准客户入口同源
+    // （400 + VALIDATION_ERROR）。校验先于任何触库。
+    // 缺省（None）**不在这里补值**——由 service 层 `build_customer_active` 统一写
+    // `constants::customer_type::OTHER`（渠道未知），handler 侧不做兜底以免出现第二套缺省口径。
+    if let Some(raw) = req.customer_type.as_deref() {
+        crate::constants::customer_type::validate(Some(raw))?;
+    }
     let service = CrmService::new(state.db.clone());
+    // 出参形状 = 服务层 `convert_lead_to_customer`（services/crm/lead.rs）构造的三键摘要
+    // {customer_id, customer_code, customer_name}：转化所需的稳定标识，不含
+    // contact_phone/contact_email/address 等掩码列（整行 customer 行只落库、不回传），
+    // 因此出参侧无需字段级权限处理，联系方式掩码由各读出口统一实施。
     let customer = service
         .convert_lead_to_customer(id, req, auth.user_id)
         .await?;
-    let value = serde_json::to_value(customer)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(customer)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -597,8 +1140,7 @@ pub async fn get_customer_relation_summary(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
     let summary = service.get_customer_relation_summary(customer_id).await?;
-    let value = serde_json::to_value(summary)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(summary)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -613,15 +1155,94 @@ pub struct FollowUpQuery {
 }
 
 /// GET /api/v1/erp/crm/customers/:id/360 - 客户 360 全景视图
+///
+/// 出参按子集挂与同级列表/详情**同一实现**的权限门，不在本出口复制第二口径：
+/// - `customer`（客户主数据行）：与非 admin 的标准客户列表/详情所见逐列一致——
+///   两层门按既有顺序串联：第一层 `customer_handler::apply_customer_field_config_mask`
+///   （`field_permissions` 配置层），第二层 `crm_customer_handler::apply_customer_field_permission`
+///   （客户域字段级权限唯一实现：`mask_customer_pii_defaults` 默认掩码（非 admin 电话/
+///   邮箱掩码保留键、`address` 整键移除）+ `data_permissions` 行 allowed/hidden 过滤）。
+///   本出口过去整行原文直出：列表/详情看不到的 PII，打开 360 即可读到，属读侧旁路。
+/// - `opportunities`（商机简报子集）：**行级**在服务层复用与列表端点同一个
+///   `apply_department_scope`（`services/crm/opp.rs::list_opportunities`，判据列同为
+///   OwnerId/DepartmentId；商机无公海语义，不接带 pool 放行的口径），无权行不再随
+///   360 出现其存在性/标题/阶段；**字段级**挂与列表同一个
+///   `apply_opportunity_field_permission`（金额隐藏口径单源），owner 判据同源：
+///   简报行对象携带 `owner_id`（投影自 `crm_opportunity.owner_id`，见
+///   `services/crm/mod.rs::OpportunityBrief`）。
+/// - `shipping_addresses`（收货地址子集）：逐行套用与地址列表出口
+///   （`customer_address_handler::list_customer_addresses`）同一默认脱敏——判定源同为
+///   `admin_checker::is_admin_role`，掩码列集合同为 `CrmService::mask_customer_pii_defaults`
+///   （非 admin：`contact_phone` 打码保留键、`address` 整键移除；admin 放行原文）。地址行
+///   只过默认脱敏层、不叠加 `data_permissions` 的 allowed/hidden 过滤：那份配置字段名面向
+///   `customers` 表列，套到 `customer_addresses` 行会删掉 `province`/`is_default` 等非 PII
+///   列，与地址列表出口同口径（该处 `apply_address_pii_mask` 亦只应用默认脱敏层）。
+/// - 任一定位失败（键缺失/形状漂移）= 门无处可施 = 原文直通，显式记 error 不静默。
 pub async fn get_customer_360(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
+    let mut value = service.get_customer_360(id, Some(&data_scope_ctx)).await?;
+    // 客户主数据行：挂与标准列表/详情同一两层字段门（共用实现，本处不内联
+    // 配置处理/掩码分支——内联分支正是"换出口另一口径"的诞生方式）。
+    if let Some(customer) = value.get_mut("customer") {
+        crate::handlers::customer_handler::apply_customer_field_config_mask(
+            &state,
+            auth.role_id,
+            std::slice::from_mut(customer),
+        )
+        .await;
+        crate::handlers::crm_customer_handler::apply_customer_field_permission(
+            &state,
+            auth.role_id,
+            std::slice::from_mut(customer),
+        )
+        .await;
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 customer 对象，客户域字段级数据权限未应用"
+        );
+    }
+    // 商机子集挂与列表同一个字段级门（行级过滤已在服务层与列表同源套用）；
+    // 定位不到数组 = 门无处可施 = 原文直通，属形状漂移而非正常分支，显式记 error
+    // 不静默（与 paginated_list_array_mut 同口径）。
+    if let Some(opps) = value.get_mut("opportunities").and_then(Value::as_array_mut) {
+        apply_opportunity_field_permission(&state, auth.role_id, auth.user_id, opps).await;
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 opportunities 数组，商机字段级数据权限未应用"
+        );
+    }
+    // 收货地址子集：与非 admin 的地址列表出口逐行同一默认脱敏（判定源同为
+    // `admin_checker::is_admin_role`，掩码列集合同为 `CrmService::mask_customer_pii_defaults`：
+    // 非 admin `contact_phone` 打码保留键、`address` 整键移除；admin 放行原文，与既有 admin
+    // 口径一致）。地址行只过默认脱敏层、不叠加 data_permissions 过滤（配置字段名面向
+    // customers 表列，套地址行会删 `province`/`is_default` 等非 PII 列，与地址列表出口同口径）。
+    // admin 判定在行循环外算一次复用（admin_checker 内部 DashMap 缓存，循环内反复调用会
+    // 持分片读锁放大竞争）。定位不到数组 = 脱敏无处可施 = 原文直通，显式记 error 不静默。
+    if let Some(addrs) = value
+        .get_mut("shipping_addresses")
+        .and_then(Value::as_array_mut)
+    {
+        let is_admin = match auth.role_id {
+            Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+            None => false,
+        };
+        for addr in addrs.iter_mut() {
+            *addr = CrmService::mask_customer_pii_defaults(std::mem::take(addr), is_admin);
+        }
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 shipping_addresses 数组，地址字段级默认脱敏未应用"
+        );
+    }
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -635,9 +1256,9 @@ pub async fn list_follow_ups(
     Query(params): Query<FollowUpQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    // V15 P0-S01：提取行级数据权限上下文（IDOR 防护）
+    // 提取行级数据权限上下文（IDOR 防护）
     let data_scope_ctx = auth.to_data_scope_context();
-    let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = params.page.unwrap_or(1).clamp(1, 1000); // 分页 clamp 防深分页 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let page_resp = service
         .list_follow_ups(id, page, page_size, Some(&data_scope_ctx))
@@ -661,27 +1282,116 @@ pub async fn create_follow_up(
 }
 
 /// GET /api/v1/erp/crm/customers/:id/rfm - 获取单个客户 RFM 评分
+/// 出参 = `services::crm::RfmScoreDetail`（R/F/M 三个分项 + 合成分 score），
+/// 形状由 `backend/tests/contract_wave11_rfm_score_shape_test.rs` 钉住。
 pub async fn get_rfm_score(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
     let service = CrmService::new(state.db.clone());
-    let score = service.compute_rfm_score(id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(score)?)))
+    let detail = service.compute_rfm_score(id).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(detail)?)))
 }
 
 /// GET /api/v1/erp/crm/rfm/distribution - 客户群体 RFM 分布
 pub async fn get_rfm_distribution(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CrmService::new(state.db.clone());
-    let dist = service.get_rfm_distribution().await?;
+    let dist = service.get_rfm_distribution(&ctx).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(dist)?)))
 }
 
-// ===== V15 P2 18.1-D4: 渠道 ROI 分析 =====
+/// 批量档位查询单次客户数上限。
+///
+/// 取值依据：对齐本仓既有「按 id 列表批量」端点的同族上界
+/// （`handlers/bulk_product_handler.rs` 的 `ids` `#[validate(length(max = 500))]`），
+/// 不另造新量级。超限属入参规模约束（字段校验），命中即 400 拒绝、不进入聚合查询，
+/// 避免超大数组拖垮 `sales_orders` 分组聚合。
+const RFM_SEGMENTS_MAX_CUSTOMERS: usize = 500;
+
+/// `GET /crm/rfm/segments` 查询入参：逗号分隔的客户 ID 列表（如 `?customer_ids=1,2,3`）。
+/// 解析范式与 `crm_assignment_handler::list_workload` 的 `user_ids` 逐项显式校验一致。
+#[derive(Debug, Deserialize)]
+pub struct RfmSegmentsQuery {
+    /// 逗号分隔的客户主键列表
+    pub customer_ids: String,
+}
+
+/// GET /api/v1/erp/crm/rfm/segments - 批量查询客户 RFM 档位（中文四桶）。
+///
+/// 出参每行 `RfmSegmentItem{customer_id, access, segment}`：前端按 `customer_id` 联显
+/// `segment`（`access=visible` 时为 VIP/重要/一般/低价值 之一，与群体分布词表逐字同源）。
+/// 不存在/越权的 id 不被静默丢弃：各回一行确定 `access`（not_found / no_permission），
+/// 其 `segment` 为 null。权限键由 URL 段派生并经 `resolve_module_prefixed_resource`
+/// 把 `crm/rfm` 消歧到注册表权威名 `customers`（与行级端点 `/crm/customers/{id}/rfm`
+/// 同一枚 `customers:read`，聚合面与行级面同源同权、不新增授权），行级可见性再由 service
+/// 内的部门族归属门约束。
+pub async fn get_rfm_segments(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Query(q): Query<RfmSegmentsQuery>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 逗号分隔列表逐项显式校验：任一空项/非整数项即整体拒绝，绝不静默丢项
+    //（沿用 list_workload 判据，避免调用方误以为覆盖了全部提交的 ID）。
+    if q.customer_ids.trim().is_empty() {
+        return Err(AppError::validation_displayable(
+            "customer_ids 参数不能为空",
+        ));
+    }
+    let tokens: Vec<&str> = q.customer_ids.split(',').collect();
+    // 入参规模上界：超限属字段校验族（VALIDATION），出参走固定脱敏常量、文案绝不带记录 ID。
+    if tokens.len() > RFM_SEGMENTS_MAX_CUSTOMERS {
+        return Err(AppError::validation(format!(
+            "批量档位查询单次客户数 {} 超过上限 {}",
+            tokens.len(),
+            RFM_SEGMENTS_MAX_CUSTOMERS
+        )));
+    }
+    let customer_ids: Vec<i32> = tokens
+        .iter()
+        .enumerate()
+        .map(|(idx, raw)| {
+            let token = raw.trim();
+            if token.is_empty() {
+                return Err(AppError::validation_displayable(format!(
+                    "customer_ids 第 {} 项为空，逗号分隔列表中不允许空项",
+                    idx + 1
+                )));
+            }
+            token.parse::<i32>().map_err(|_| {
+                AppError::validation_displayable(format!(
+                    "customer_ids 第 {} 项不是合法整数，列表中每一项都必须是整数",
+                    idx + 1
+                ))
+            })
+        })
+        .collect::<Result<Vec<i32>, AppError>>()?;
+
+    let ctx = auth.to_data_scope_context();
+    let service = CrmService::new(state.db.clone());
+    let items = service.get_rfm_segments(&customer_ids, &ctx).await?;
+    Ok(Json(ApiResponse::success(serde_json::to_value(items)?)))
+}
+
+// ===== 渠道 ROI 分析 =====
 
 /// GET /api/v1/erp/crm/leads/channel-roi - 渠道 ROI 分析报表
 pub async fn get_channel_roi_report(
@@ -739,10 +1449,23 @@ pub async fn create_allocation_rule(
 pub async fn auto_assign_lead(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<AutoAssignRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 本端点按指定 id 改写线索 owner_id，属分配族（跨 owner 写）：先按 ctx 读行
+    // （service 内 get_lead(id, None) 会跳过行级判定，行级门必须在这里过）再过跨 owner 写门。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索自动分配",
+    )
+    .await?;
     let assigned_user = service
         .auto_assign_lead(id, &req.source, req.industry.as_deref())
         .await?;
@@ -754,12 +1477,20 @@ pub async fn auto_assign_lead(
 /// GET /api/v1/erp/crm/leads/nurture-plans - 获取线索培育计划列表
 pub async fn list_nurture_plans(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<NurturePlanQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    if let Some(lid) = params.lead_id {
+        service.get_lead(lid, Some(&data_scope_ctx)).await?;
+    }
     let plans = service
-        .list_nurture_plans(params.lead_id, params.status.as_deref())
+        .list_nurture_plans(
+            params.lead_id,
+            params.status.as_deref(),
+            Some(&data_scope_ctx),
+        )
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(plans)?)))
 }
@@ -779,24 +1510,47 @@ pub async fn create_nurture_plan(
 pub async fn execute_nurture_plan(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let plan_row = crate::models::lead_nurture_plan::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("培育计划不存在".to_string()))?;
+    let lead = service
+        .get_lead(plan_row.lead_id, Some(&data_scope_ctx))
+        .await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(lead.owner_id),
+        lead.department_id,
+        "培育计划执行",
+    )
+    .await?;
     let plan = service.execute_nurture_plan(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(plan)?)))
 }
 
-// ===== V15 P2 18.2-D5/D6/D7: 商机增强 =====
+// ===== 商机增强 =====
 
 /// GET /api/v1/erp/crm/opportunities/stage-duration - 阶段停留时长分析
 pub async fn get_stage_duration_analysis(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<StageDurationQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    if let Some(opp_id) = params.opportunity_id {
+        service
+            .get_opportunity(opp_id, Some(&data_scope_ctx))
+            .await?;
+    }
     let analysis = service
-        .stage_duration_analysis(params.opportunity_id)
+        .stage_duration_analysis(params.opportunity_id, Some(&data_scope_ctx))
         .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(analysis)?)))
 }
@@ -809,8 +1563,20 @@ pub async fn record_opportunity_stage_change(
     Json(req): Json<StageChangeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机阶段变更",
+    )
+    .await?;
+    let from_stage = existing.opportunity_stage;
     service
-        .record_stage_change(id, req.from_stage, &req.to_stage, auth.user_id)
+        .record_stage_change(id, from_stage, &req.to_stage, auth.user_id)
         .await?;
     Ok(Json(ApiResponse::success(serde_json::Value::Null)))
 }
@@ -819,9 +1585,11 @@ pub async fn record_opportunity_stage_change(
 pub async fn list_opportunity_competitors(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let competitors = service.list_opportunity_competitors(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         competitors,
@@ -832,10 +1600,24 @@ pub async fn list_opportunity_competitors(
 pub async fn add_opportunity_competitor(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(req): Json<crate::services::crm::opp::AddOpportunityCompetitorRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 行级读门：先校验商机存在 + 操作人可见（不存在 = 与既有"资源不存在"同一通道，
+    // 不可见 = 固定脱敏 403，均不拼记录 ID 对外）。竞品隶属该商机，写子资源等同对该
+    // 商机 owner 的写，故读门后再过跨 owner 写门（方案 A）。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_opportunity(id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "商机竞品添加",
+    )
+    .await?;
     let competitor = service.add_opportunity_competitor(id, req).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         competitor,
@@ -846,9 +1628,11 @@ pub async fn add_opportunity_competitor(
 pub async fn list_opportunity_follow_ups(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    service.get_opportunity(id, Some(&data_scope_ctx)).await?;
     let follow_ups = service.list_opportunity_follow_ups(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(
         follow_ups,
@@ -894,7 +1678,7 @@ pub async fn create_competitor(
     )?)))
 }
 
-// ===== V15 P2 18.4-D5/D6: 客户数据权限与操作日志 =====
+// ===== 客户数据权限与操作日志 =====
 
 /// GET /api/v1/erp/crm/customers/field-permissions/:role_id - 获取客户字段权限配置
 pub async fn get_customer_field_permissions(
@@ -926,9 +1710,23 @@ pub async fn set_customer_field_permission(
 pub async fn list_customer_audit_logs(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
     let service = CrmService::new(state.db.clone());
     let logs = service
         .list_customer_audit_logs(id, params.operation.as_deref())
@@ -959,14 +1757,37 @@ pub async fn create_customer_audit_log(
     Ok(Json(ApiResponse::success(serde_json::Value::Null)))
 }
 
-// ===== V15 P2 18.5-D5: 客户全生命周期价值（CLV）=====
+// ===== 客户全生命周期价值（CLV）=====
 
 /// POST /api/v1/erp/crm/customers/:id/clv/calculate - 计算客户 CLV
 pub async fn calculate_customer_clv(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+        "客户CLV计算",
+    )
+    .await?;
     let service = CrmService::new(state.db.clone());
     let clv = service.calculate_customer_clv(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
@@ -976,14 +1797,28 @@ pub async fn calculate_customer_clv(
 pub async fn get_customer_clv(
     Path(id): Path<i32>,
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let customer_row = crate::models::customer::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("客户不存在".to_string()))?;
+    if !crate::utils::data_scope::check_resource_owner(
+        &data_scope_ctx,
+        Some(customer_row.owner_id),
+        customer_row.department_id,
+    ) {
+        return Err(AppError::permission_denied(
+            "无权访问该客户（数据范围限制）".to_string(),
+        ));
+    }
     let service = CrmService::new(state.db.clone());
     let clv = service.get_customer_clv(id).await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(clv)?)))
 }
 
-// ===== V15 P2 18.2-D4/D5: 商机分析与预测 =====
+// ===== 商机分析与预测 =====
 
 /// GET /api/v1/erp/crm/opportunities/forecast-accuracy - 预测准确性分析
 pub async fn get_forecast_accuracy(
@@ -1036,7 +1871,7 @@ pub async fn get_sales_funnel(
     Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
-// ===== V15 P2 请求/查询 DTO =====
+// ===== 请求/查询 DTO =====
 
 /// 渠道 ROI 查询参数
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -1150,6 +1985,19 @@ pub async fn score_lead(
     Path(lead_id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
+    // 评分回写落 crm_lead 行（rating 列），属线索写：与其它线索写入口同门
+    // （先按 ctx 读行，再过跨 owner 写门），否则任意用户可按 id 改写他人线索的评分字段。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = service.get_lead(lead_id, Some(&data_scope_ctx)).await?;
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "线索评分",
+    )
+    .await?;
     let result = service.score_lead(lead_id).await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -1167,8 +2015,7 @@ pub async fn score_lead(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1181,8 +2028,11 @@ pub async fn detect_duplicate_leads(
     let service = CrmService::new(state.db.clone());
     let mobile_phone = req.get("mobile_phone").and_then(|v| v.as_str());
     let company_name = req.get("company_name").and_then(|v| v.as_str());
+    // 行级数据权限：与 list_leads（本文件）同法构造并注入 ctx——出参组内含他人行的
+    // lead_no/公司名，省略 ctx 即允许任意用户用一个手机号枚举他人名下线索（越权读）
+    let data_scope_ctx = auth.to_data_scope_context();
     let result = service
-        .detect_duplicate_leads(mobile_phone, company_name)
+        .detect_duplicate_leads(mobile_phone, company_name, Some(&data_scope_ctx))
         .await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -1200,8 +2050,7 @@ pub async fn detect_duplicate_leads(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1212,19 +2061,60 @@ pub async fn merge_leads(
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = CrmService::new(state.db.clone());
-    let primary_id = req
+    // 请求体是 JSON（带类型），故不做字符串→数字兼容：键缺失与值类型不符分别报不同文案，
+    // 避免用户明明提交了值却被告知「必填」。回显的只是用户自己提交的原始值，不含服务端查得的数据。
+    let raw_primary_id = req
         .get("primary_id")
-        .and_then(|v| v.as_i64())
-        .ok_or_else(|| AppError::validation("primary_id 必填"))? as i32;
-    let duplicate_ids: Vec<i32> = req
+        .ok_or_else(|| AppError::validation_displayable("缺少 primary_id 参数"))?;
+    let primary_id = raw_primary_id.as_i64().ok_or_else(|| {
+        AppError::validation_displayable(format!(
+            "primary_id 必须为整数，当前提交值：{raw_primary_id}"
+        ))
+    })? as i32;
+    let raw_duplicate_ids = req
         .get("duplicate_ids")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::validation("duplicate_ids 必填"))?
+        .ok_or_else(|| AppError::validation_displayable("缺少 duplicate_ids 参数"))?;
+    let duplicate_id_items = raw_duplicate_ids.as_array().ok_or_else(|| {
+        AppError::validation_displayable(format!(
+            "duplicate_ids 必须为整数数组，当前提交值：{raw_duplicate_ids}"
+        ))
+    })?;
+    // 逐元素显式校验：任一元素非整数即整体拒绝，禁止 filter_map 静默丢弃（否则用户以为已合并）
+    let duplicate_ids: Vec<i32> = duplicate_id_items
         .iter()
-        .filter_map(|v| v.as_i64().map(|id| id as i32))
-        .collect();
+        .enumerate()
+        .map(|(idx, item)| {
+            item.as_i64()
+                .ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "duplicate_ids 第 {} 项必须为整数，当前提交值：{item}",
+                        idx + 1
+                    ))
+                })
+                .map(|id| id as i32)
+        })
+        .collect::<Result<Vec<i32>, AppError>>()?;
+    // 行级数据权限：与 update_lead/delete_lead 的 IDOR 预检同法构造 ctx——
+    // 合并不可逆，主/重复线索任一行未过写门即整笔拒绝（403），
+    // 禁止"跳过不可见行继续合并其余"的静默降级。
+    // 合并写他人行须持有 crm/cross_owner_write 代表键——
+    // 待写行集合由 service 在事务内（锁下）确定，故键只在 handler 查一次（N 行共用），
+    // 行级判定回落 service 内唯一判定源 check_resource_write_owner；代操作放行逐行留痕。
+    let data_scope_ctx = auth.to_data_scope_context();
+    let behalf_granted = crate::handlers::crm_write_guard::cross_owner_write_behalf_granted(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+    )
+    .await;
     let result = service
-        .merge_leads(primary_id, duplicate_ids.clone(), auth.user_id)
+        .merge_leads(
+            primary_id,
+            duplicate_ids.clone(),
+            auth.user_id,
+            Some(&data_scope_ctx),
+            behalf_granted,
+        )
         .await?;
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -1242,8 +2132,7 @@ pub async fn merge_leads(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
 }
 
@@ -1273,7 +2162,75 @@ pub async fn lead_funnel_report(
     };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
-    let value = serde_json::to_value(result)
-        .map_err(|e| AppError::internal(format!("序列化失败: {}", e)))?;
+    let value = serde_json::to_value(result)?;
     Ok(Json(ApiResponse::success(value)))
+}
+
+#[cfg(test)]
+mod export_row_shape_guard_tests {
+    //! 负例锁：导出对行长与列定义不一致必须拒绝出文件（宁可不生成，
+    //! 也不放行未经字段处理的列）。行构造与列定义当前同源、HTTP 面不可达，
+    //! 故以内部函数负例锁定硬校验本体，防止"按空值继续/跳过/push 补位"兜底回潮。
+
+    use super::*;
+
+    fn table(rows: Vec<Vec<String>>) -> crate::utils::xlsx_export::XlsxTable {
+        crate::utils::xlsx_export::XlsxTable {
+            sheet_name: "测试".to_string(),
+            headers: vec!["列一".to_string(), "列二".to_string()],
+            rows,
+        }
+    }
+
+    const COLUMNS: [(&str, &str); 2] = [("col_a", "列一"), ("col_b", "列二")];
+
+    #[test]
+    fn longer_row_than_columns_is_rejected() {
+        let t = table(vec![vec![
+            "a".to_string(),
+            "b".to_string(),
+            "raw_pii_extra_cell".to_string(),
+        ]]);
+        validate_export_row_shape(&t, &COLUMNS)
+            .expect_err("行长>列数：多余单元格未经任何字段处理，必须拒绝");
+        // 处理函数本身也必须整体失败，而不是对多余列静默
+        let mut t2 = table(vec![vec![
+            "a".to_string(),
+            "b".to_string(),
+            "extra".to_string(),
+        ]]);
+        let pii_fields: &[&str] = &["col_a"];
+        assert!(
+            apply_default_export_actions(
+                &mut t2,
+                &COLUMNS,
+                &[(pii_fields, ExportColumnAction::MaskPhone)]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn shorter_row_than_columns_is_rejected() {
+        let t = table(vec![vec!["a".to_string()]]);
+        assert!(validate_export_row_shape(&t, &COLUMNS).is_err());
+    }
+
+    #[test]
+    fn mismatch_is_rejected_by_export_row_cells_and_apply_export() {
+        let t = table(vec![vec![
+            "a".to_string(),
+            "b".to_string(),
+            "extra".to_string(),
+        ]]);
+        assert!(export_row_cells(&t, &COLUMNS).is_err());
+    }
+
+    #[test]
+    fn matched_shape_still_passes_and_keeps_cells() {
+        let t = table(vec![vec!["a".to_string(), "b".to_string()]]);
+        let rows = export_row_cells(&t, &COLUMNS).expect("形状一致应通过");
+        assert_eq!(rows[0]["col_a"], serde_json::Value::String("a".to_string()));
+        assert_eq!(rows[0]["col_b"], serde_json::Value::String("b".to_string()));
+    }
 }

@@ -33,7 +33,9 @@ use crate::services::custom_order_process_service::CustomOrderProcessService;
 use crate::services::custom_order_quality_service::CustomOrderQualityService;
 use crate::services::custom_order_state_service::CustomOrderStateService;
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
+use sea_orm::EntityTrait;
 
 // ----------------------------------------------------------------------
 // 公共 DTO
@@ -50,12 +52,15 @@ pub struct ListCustomOrdersQuery {
     pub keyword: Option<String>,
 }
 
-/// 推进请求体
+/// 推进请求体（推进备注选填）
+/// 操作人身份唯一来源是服务端会话 AuthContext.user_id，请求体不承载 operator_id。
+/// `to_status` 选填：省略时按状态机顺序推进到下一相邻阶段；提供时必须是被权威转移表
+/// 允许的合法目标，非法跳跃（如 draft → dyeing）由服务层显式拒绝为 BUSINESS_ERROR。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
 pub struct AdvanceRequest {
-    pub operator_id: i32,
     pub notes: Option<String>,
+    pub to_status: Option<String>,
 }
 
 // ----------------------------------------------------------------------
@@ -66,10 +71,16 @@ fn crud_err(e: crate::services::custom_order_crud_service::CrudError) -> AppErro
     use crate::services::custom_order_crud_service::CrudError::*;
     match e {
         NotFound => AppError::not_found("定制订单不存在"),
+        // 族装配点判定：状态门一律 BUSINESS_ERROR。
+        // - `InvalidState`（无文案/含内部判定依据）→ 脱敏 business
+        // - `InvalidStateDisplayable`（公开业务规则文案）→ business_displayable 外显
+        // - `Validation`（数量/规格等提交字段校验）→ 校验族；文案只述请求字段，
+        //   按 error.rs 规则用 validation_displayable 外显真实原因
         InvalidState => AppError::business("当前状态不允许此操作"),
-        Validation(msg) => AppError::validation(msg),
+        InvalidStateDisplayable(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
-        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        // 服务层已定好错误分类的 AppError 原样透传，handler 内不再二次映射
         App(e) => e,
     }
 }
@@ -78,10 +89,13 @@ fn state_err(e: crate::services::custom_order_state_service::StateError) -> AppE
     use crate::services::custom_order_state_service::StateError::*;
     match e {
         NotFound => AppError::not_found("定制订单不存在"),
-        InvalidTransition(msg) => AppError::business(msg),
+        // 状态机拒绝非法跳跃，文案 `from → to` 仅含公开状态 token（逐字符取自权威词表），
+        // 无记录 ID / 无内部判定依据 → 按安全边界用 business_displayable 外显真实原因。
+        InvalidTransition(msg) => AppError::business_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
         StateMachine(e) => AppError::business(e.to_string()),
-        // V15 P0-B11：状态门校验失败 + 关联单据不存在
+        // 状态门未通过（关联打样单/报价单缺失或未确认），服务层文案含内部记录 ID，
+        // 按 error.rs 安全边界不得外显，走脱敏 business。
         GateValidation(msg) => AppError::business(msg),
         LabDipRequestNotFound(id) => AppError::not_found(format!("打样通知单 {} 不存在", id)),
         QuotationNotFound(id) => AppError::not_found(format!("报价单 {} 不存在", id)),
@@ -101,10 +115,14 @@ fn quality_err(e: crate::services::custom_order_quality_service::QualityError) -
     use crate::services::custom_order_quality_service::QualityError::*;
     match e {
         NotFound => AppError::not_found("质量异常不存在"),
-        InvalidState(msg) => AppError::business(msg),
-        Validation(msg) => AppError::validation(msg),
+        // 族装配点：`Validation(msg)` 承载用户提交字段的取值/范围/必填越界（非法严重度、
+        // 色差 ΔE 为负、色牢度等级越界），属输入校验族 → VALIDATION_ERROR，文案外显真实原因；
+        // `InvalidState(msg)` 承载记录当前状态门 → business。状态门语义不得借用
+        // Validation 通道，字段校验也不得借用 InvalidState 通道。
+        InvalidState(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
-        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        // 服务层已定好错误分类的 AppError 原样透传，handler 内不再二次映射
         App(e) => e,
     }
 }
@@ -115,12 +133,17 @@ fn aftersales_err(
     use crate::services::custom_order_aftersales_service::AfterSalesError::*;
     match e {
         NotFound => AppError::not_found("售后工单不存在"),
-        InvalidState(msg) => AppError::business(msg),
-        Validation(msg) => AppError::validation(msg),
+        // 族装配点：`Validation(msg)` 承载用户提交字段的取值/范围/必填越界（非法售后类型、
+        // 退款类型缺金额、评价分数越界、非法年月、状态取值不在词表内）→ VALIDATION_ERROR。
+        // `InvalidState(msg)` 承载工单当前状态门（含状态回显，属公开业务规则）→ BUSINESS_ERROR；
+        // 触发质量调查与评价的前置状态门都走后者。
+        InvalidState(msg) => AppError::business_displayable(msg),
+        Validation(msg) => AppError::validation_displayable(msg),
         Database(e) => AppError::database(e.to_string()),
-        // 批次 263：paginate_with_total 返回的 AppError 直接透传
+        // 服务层已定好错误分类的 AppError 原样透传，handler 内不再二次映射
         App(e) => e,
-        // V15 P0-B12：重复触发质量调查（已关联 quality_issue_id）
+        // 重复触发质量调查：工单已关联 quality_issue_id。文案含内部记录 ID，
+        // 按 error.rs 安全边界不得外显，走脱敏 business。
         AlreadyLinked(after_sales_id, qi_id) => AppError::business(format!(
             "售后工单 {} 已关联质量异常 {}，禁止重复触发",
             after_sales_id, qi_id
@@ -134,12 +157,13 @@ fn aftersales_err(
 
 /// GET /api/v1/erp/custom-orders - 列表
 pub async fn list_custom_orders(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListCustomOrdersQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<CustomOrderListItem>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 深翻页防护：page 钳位 1..=1000
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service
@@ -149,6 +173,7 @@ pub async fn list_custom_orders(
             query.status,
             query.customer_id,
             query.keyword,
+            Some(&ctx),
         )
         .await
         .map_err(crud_err)?;
@@ -171,7 +196,6 @@ pub async fn list_custom_orders(
             currency: m.currency,
             sales_order_id: m.sales_order_id,
             created_at: m.created_at,
-            // 批次 88 PH-1 占位符实现：透传 notes 字段
             notes: m.notes,
         })
         .collect();
@@ -214,26 +238,34 @@ pub async fn create_custom_order(
         currency: created.currency,
         sales_order_id: created.sales_order_id,
         created_at: created.created_at,
-        // 批次 88 PH-1 占位符实现：透传 notes 字段
         notes: created.notes,
     })))
 }
 
 /// GET /api/v1/erp/custom-orders/:id - 详情
 pub async fn get_custom_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<CustomOrderDetail>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let quality_svc = CustomOrderQualityService::from_state(&state);
     let after_svc = CustomOrderAfterSalesService::from_state(&state);
 
-    // 防御：sqlx 0.9 池在 CI 环境偶发 acquire 死锁（acquire_timeout/statement_timeout
-    // 均不生效，run 34067844812/34073033540 多分片 GET /custom-orders/1 挂死 6 分钟+），
-    // handler 整体 15s 超时兜底，超时返回 503 让调用方重试，避免占死 worker
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
+
+    // 防御：本端点串行发 4 次查询（订单主表 / 工艺节点 / 质量异常 / 售后工单），
+    // sqlx 0.9 连接池在 acquire 环节可能长阻塞且 acquire_timeout/statement_timeout
+    // 不足以覆盖，故 handler 整体 15s 超时兜底；超时按 InternalError（HTTP 500）返回，
+    // 让调用方重试而不是占死 worker
     let detail = tokio::time::timeout(Duration::from_secs(15), async {
-        let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
         let nodes = crud_svc.list_process_nodes(id).await.map_err(crud_err)?;
         let (issues, _) = quality_svc
             .list_by_order(id, 1, 100)
@@ -265,11 +297,12 @@ pub async fn get_custom_order(
             created_by: order.created_by,
             created_at: order.created_at,
             updated_at: order.updated_at,
-            // 批次 88 PH-1 占位符实现：透传 notes 字段
             notes: order.notes,
             process_nodes: map_process_nodes(nodes),
             quality_issues: map_quality_issues(issues),
-            after_sales: map_after_sales(after_sales_list),
+            // after_sales_list 由 service::list_by_order 的 LEFT JOIN 富化查询直接产出，
+            // customer_name 即 JOIN 真值（客户行缺失为 null），此处不再逐字段构造
+            after_sales: after_sales_list,
         })
     })
     .await
@@ -319,31 +352,22 @@ fn map_quality_issues(issues: Vec<crate::models::quality_issue::Model>) -> Vec<Q
         .collect()
 }
 
-/// 转换售后记录列表为响应 DTO
-fn map_after_sales(list: Vec<crate::models::after_sales::Model>) -> Vec<AfterSalesInfo> {
-    list.into_iter()
-        .map(|a| AfterSalesInfo {
-            id: a.id,
-            issue_type: a.issue_type,
-            description: a.description,
-            status: a.status,
-            opened_at: a.opened_at,
-            closed_at: a.closed_at,
-            resolution: a.resolution,
-            refund_amount: a.refund_amount,
-            quality_issue_id: a.quality_issue_id,
-        })
-        .collect()
-}
-
 /// PUT /api/v1/erp/custom-orders/:id - 更新（仅草稿）
 pub async fn update_custom_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
+    let order = service.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let updated = service.update(id, dto).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: updated.id,
@@ -361,7 +385,6 @@ pub async fn update_custom_order(
         currency: updated.currency,
         sales_order_id: updated.sales_order_id,
         created_at: updated.created_at,
-        // 批次 88 PH-1 占位符实现：透传 notes 字段
         notes: updated.notes,
     })))
 }
@@ -373,8 +396,20 @@ pub async fn cancel_custom_order(
     Path(id): Path<i64>,
     Json(dto): Json<CancelCustomOrderDto>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
-    let user_id = auth.user_id as i64;
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderCrudService::from_state(&state);
+    // 行级归属门（写口，先于 service 状态门）：取消是状态转移（→ cancelled），必须先证明
+    // 本行归属；否则同 RBAC 键的他人可凭 order id 取消别人的定制单。本域无 department_id
+    // 列，归属门按 check_resource_owner_by_member_scope 判定（Self_=仅本人、Dept=归属人∈
+    // 可见成员集合、All=任意行），NULL 归属拒绝。门在 service 落库点之前，越权零写入。
+    let order = service.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let user_id = auth.user_id as i64;
     let updated = service.cancel(id, dto, user_id).await.map_err(crud_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
         id: updated.id,
@@ -392,7 +427,6 @@ pub async fn cancel_custom_order(
         currency: updated.currency,
         sales_order_id: updated.sales_order_id,
         created_at: updated.created_at,
-        // 批次 88 PH-1 占位符实现：透传 notes 字段
         notes: updated.notes,
     })))
 }
@@ -403,14 +437,32 @@ pub async fn cancel_custom_order(
 
 /// POST /api/v1/erp/custom-orders/:id/advance - 推进到下一阶段
 pub async fn advance_custom_order(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<AdvanceRequest>,
+    OptionalJson(req): OptionalJson<AdvanceRequest>,
 ) -> Result<Json<ApiResponse<CustomOrderListItem>>, AppError> {
+    // 备注与目标阶段均选填 ⇒ 体本身选填（OptionalJson 语义表：缺体/JSON 头空体都是合法输入），
+    // 状态门与非法跳跃拒绝在 service 事务内经唯一权威转移表判定。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    // 行级归属门（写口，先于 service 状态机门）：推进改主单状态并联动工艺节点，必须先证归属；
+    // 本域无 department_id 列，按 check_resource_owner_by_member_scope 判定（与列表侧
+    // apply_data_scope 的 Dept 判据同源：归属人∈可见成员集合）。
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderStateService::from_state(&state);
+    let (notes, to_status) = match req {
+        Some(r) => (r.notes, r.to_status),
+        None => (None, None),
+    };
     let updated = service
-        .advance(id, req.operator_id, req.notes)
+        .advance(id, auth.user_id, notes, to_status.as_deref())
         .await
         .map_err(state_err)?;
     Ok(Json(ApiResponse::success(CustomOrderListItem {
@@ -429,18 +481,26 @@ pub async fn advance_custom_order(
         currency: updated.currency,
         sales_order_id: updated.sales_order_id,
         created_at: updated.created_at,
-        // 批次 88 PH-1 占位符实现：透传 notes 字段
         notes: updated.notes,
     })))
 }
 
 /// POST /api/v1/erp/custom-orders/:id/nodes - 添加工艺节点
 pub async fn add_process_node(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<CreateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderProcessService::from_state(&state);
     // 激活 CreateProcessNodeDto 的 Validate 注解，校验入参
     dto.validate()?;
@@ -462,13 +522,36 @@ pub async fn add_process_node(
 
 /// PUT /api/v1/erp/custom-orders/:id/nodes/:nid - 更新节点
 pub async fn update_process_node(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
-    Path((_oid, nid)): Path<(i64, i64)>,
+    Path((oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<UpdateProcessNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
+    // 节点更新的动作人取会话身份，写 process_nodes.operator_id 留痕（同 advance_node 范式）。
+    // 归属链校验（同 delete_contact 型）：父单存在→父单归属→节点存在→节点实际归属==路径父 id，
+    // 堵"配对 oid/nid 绕过归属"；本域无 department_id 列，按
+    // check_resource_owner_by_member_scope 拒水平越权，门在 service 落库点之前，越权零写入。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let node_row = crate::models::process_node::Entity::find_by_id(nid)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("工艺节点不存在"))?;
+    if node_row.custom_order_id != oid {
+        return Err(AppError::not_found("工艺节点不存在"));
+    }
     let service = CustomOrderProcessService::from_state(&state);
-    let node = service.update_node(nid, dto).await.map_err(process_err)?;
+    let node = service
+        .update_node(nid, dto, auth.user_id)
+        .await
+        .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
@@ -486,13 +569,35 @@ pub async fn update_process_node(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes/:nid/advance - 推进节点
 pub async fn advance_process_node(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
-    Path((_oid, nid)): Path<(i64, i64)>,
+    Path((oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AdvanceNodeDto>,
 ) -> Result<Json<ApiResponse<ProcessNodeInfo>>, AppError> {
+    // 节点推进的动作人取会话身份，同时写 process_log.operator_id 留痕。
+    // 归属链校验（同 delete_contact 型）：父单存在→父单归属→节点存在→节点实际归属==路径父 id，
+    // 堵"配对 oid/nid 绕过归属"；推进同时落 process_log，越权须整体早退零写入零日志。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let node_row = crate::models::process_node::Entity::find_by_id(nid)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("工艺节点不存在"))?;
+    if node_row.custom_order_id != oid {
+        return Err(AppError::not_found("工艺节点不存在"));
+    }
     let service = CustomOrderProcessService::from_state(&state);
-    let node = service.advance_node(nid, dto).await.map_err(process_err)?;
+    let node = service
+        .advance_node(nid, dto, auth.user_id)
+        .await
+        .map_err(process_err)?;
     Ok(Json(ApiResponse::success(ProcessNodeInfo {
         id: node.id,
         node_type: node.node_type,
@@ -510,14 +615,21 @@ pub async fn advance_process_node(
 
 /// GET /api/v1/erp/custom-orders/:id/timeline - 完整时间线
 pub async fn get_timeline(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<ProcessTimeline>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let crud_svc = CustomOrderCrudService::from_state(&state);
     let process_svc = CustomOrderProcessService::from_state(&state);
 
     let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
     let timeline_data = process_svc.get_timeline(id).await.map_err(process_err)?;
 
     let nodes: Vec<ProcessNodeWithLogs> = timeline_data
@@ -572,16 +684,28 @@ pub async fn get_timeline(
 // ----------------------------------------------------------------------
 
 /// POST /api/v1/erp/custom-orders/:id/issues - 上报异常
+///
+/// 归属 `custom_order_id` 的唯一来源是 path 参数，由 `service.report_issue(id, dto)`
+/// 注入；`models/quality_issue_dto.rs::ReportQualityIssueDto` 无该字段，body 伪造该键
+/// 被 serde 当未知字段忽略——越权防护是结构性排除，不依赖"反序列化后覆盖"。
+/// 同范式先例：`handlers/color_card/items.rs::create_color_item`。
 pub async fn report_quality_issue(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(mut dto): Json<ReportQualityIssueDto>,
+    Path(id): Path<i64>,
+    Json(dto): Json<ReportQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
-    // URL 中的 id 与 body 中 custom_order_id 一致时，使用 URL 的 id 作为权威
-    dto.custom_order_id = _id;
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderQualityService::from_state(&state);
-    let issue = service.report_issue(dto).await.map_err(quality_err)?;
+    let issue = service.report_issue(id, dto).await.map_err(quality_err)?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,
@@ -603,13 +727,22 @@ pub struct ListIssuesQuery {
 }
 
 pub async fn list_quality_issues(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<QualityIssueInfo>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderQualityService::from_state(&state);
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 深翻页防护：page 钳位 1..=1000
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
     let (items, total) = service
         .list_by_order(id, page, page_size)
@@ -640,14 +773,36 @@ pub async fn list_quality_issues(
 
 /// PUT /api/v1/erp/custom-orders/issues/:id/resolve - 解决异常
 pub async fn resolve_quality_issue(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<ResolveQualityIssueDto>,
 ) -> Result<Json<ApiResponse<QualityIssueInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    // 归属链校验（同 update_after_sales 型）：路径 id 是异常行 id（无父单 id 在路径），
+    // 必须先取异常行 → 上溯父定制单 → 过父单归属门，不能只看异常行存在。
+    // service.resolve_issue 按 id 取行、无归属判定，且状态门(closed)+update_with_audit 落库
+    // 都在事务内，门须前置——越权不触达 resolve，异常状态零漂移。
+    let issue_row = crate::models::quality_issue::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("质量异常不存在"))?;
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let parent_order = crud_svc
+        .get_by_id(issue_row.custom_order_id)
+        .await
+        .map_err(crud_err)?;
+    let owner = parent_order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderQualityService::from_state(&state);
-    // 批次 94 P2-15 修复：resolve_issue 返回类型改为 AppError，无需 map_err(quality_err) 转换
-    let issue = service.resolve_issue(id, dto).await?;
+    // 服务层返回的已是 AppError（错误族在 service 内定好），此处 ? 直接透传，
+    // 不经 map_err(quality_err) 二次映射。
+    // 处理人取会话身份（写进 audit_log 的操作人），请求体不承载 operator_id。
+    let issue = service.resolve_issue(id, dto, auth.user_id).await?;
     Ok(Json(ApiResponse::success(QualityIssueInfo {
         id: issue.id,
         issue_type: issue.issue_type,
@@ -665,60 +820,73 @@ pub async fn resolve_quality_issue(
 // ----------------------------------------------------------------------
 
 /// POST /api/v1/erp/custom-orders/:id/after-sales - 创建售后工单
+///
+/// 工单归属 `custom_order_id` 的唯一权威来源是 path 参数 `:id`，由
+/// `service.create(id, dto)` 注入；`CreateAfterSalesDto`
+/// （`services/custom_order_aftersales_service.rs`）不含该字段，客户端伪造发送
+/// 也会被 serde 当未知字段忽略——归属不可能被 body 覆盖，越权防护为结构性排除，
+/// 对齐 `handlers/color_card/items.rs::create_color_item` 的 `service.create(id, dto)` 先例。
 pub async fn create_after_sales(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
-    Path(_id): Path<i64>,
-    Json(mut dto): Json<CreateAfterSalesDto>,
+    Path(id): Path<i64>,
+    Json(dto): Json<CreateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
-    dto.custom_order_id = _id;
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderAfterSalesService::from_state(&state);
-    let after = service.create(dto).await.map_err(aftersales_err)?;
-    Ok(Json(ApiResponse::success(AfterSalesInfo {
-        id: after.id,
-        issue_type: after.issue_type,
-        description: after.description,
-        status: after.status,
-        opened_at: after.opened_at,
-        closed_at: after.closed_at,
-        resolution: after.resolution,
-        refund_amount: after.refund_amount,
-        quality_issue_id: after.quality_issue_id,
-    })))
+    let after = service.create(id, dto).await.map_err(aftersales_err)?;
+    // 出参与列表/详情同源：写入后回读一次带 customers LEFT JOIN 的富化查询，
+    // customer_name 取 JOIN 真值（客户行缺失为 null）；本仓禁止在构造点填 None
+    // 或拼装名，回读不到刚写入的行即数据异常，如实报错
+    let info = service
+        .find_dto_by_id(after.id)
+        .await
+        .map_err(aftersales_err)?
+        .ok_or_else(|| {
+            AppError::InternalError(format!(
+                "售后工单创建成功（id={}）但富化回读未命中，读侧链路与写入不一致",
+                after.id
+            ))
+        })?;
+    Ok(Json(ApiResponse::success(info)))
 }
 
 /// GET /api/v1/erp/custom-orders/:id/after-sales - 售后列表
 pub async fn list_after_sales(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<ListIssuesQuery>,
 ) -> Result<Json<ApiResponse<PagedResponse<AfterSalesInfo>>>, AppError> {
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(id).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权访问该定制订单（数据范围限制）",
+        ));
+    }
     let service = CustomOrderAfterSalesService::from_state(&state);
-    let page = query.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
+    let page = query.page.unwrap_or(1).clamp(1, 1000); // 深翻页防护：page 钳位 1..=1000
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    // service::list_by_order 即带 customers LEFT JOIN + column_as(customer_name) +
+    // into_model::<AfterSalesInfo> 的单次富化查询，items 已是出参 DTO，不得再逐字段构造
     let (items, total) = service
         .list_by_order(id, page, page_size)
         .await
         .map_err(aftersales_err)?;
 
-    let list: Vec<AfterSalesInfo> = items
-        .into_iter()
-        .map(|a| AfterSalesInfo {
-            id: a.id,
-            issue_type: a.issue_type,
-            description: a.description,
-            status: a.status,
-            opened_at: a.opened_at,
-            closed_at: a.closed_at,
-            resolution: a.resolution,
-            refund_amount: a.refund_amount,
-            quality_issue_id: a.quality_issue_id,
-        })
-        .collect();
-
     Ok(Json(ApiResponse::success(PagedResponse {
-        items: list,
+        items,
         total,
         page,
         page_size,
@@ -727,24 +895,38 @@ pub async fn list_after_sales(
 
 /// PUT /api/v1/erp/custom-orders/after-sales/:id - 更新售后
 pub async fn update_after_sales(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(dto): Json<UpdateAfterSalesDto>,
 ) -> Result<Json<ApiResponse<AfterSalesInfo>>, AppError> {
+    let ctx = auth.to_data_scope_context();
     let service = CustomOrderAfterSalesService::from_state(&state);
+    // 归属链校验：售后行 id → custom_order_id → created_by（不能只看售后行存在）
+    let after_row = crate::models::after_sales::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("售后工单不存在"))?;
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let parent_order = crud_svc
+        .get_by_id(after_row.custom_order_id)
+        .await
+        .map_err(crud_err)?;
+    let owner = parent_order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
     let after = service.update(id, dto).await.map_err(aftersales_err)?;
-    Ok(Json(ApiResponse::success(AfterSalesInfo {
-        id: after.id,
-        issue_type: after.issue_type,
-        description: after.description,
-        status: after.status,
-        opened_at: after.opened_at,
-        closed_at: after.closed_at,
-        resolution: after.resolution,
-        refund_amount: after.refund_amount,
-        quality_issue_id: after.quality_issue_id,
-    })))
+    // 与创建端点同口径：更新后回读带 customers LEFT JOIN 的富化查询出参，
+    // customer_name 取 JOIN 真值；回读未命中说明行已被并发移除，如实 404
+    let info = service
+        .find_dto_by_id(after.id)
+        .await
+        .map_err(aftersales_err)?
+        .ok_or_else(|| AppError::not_found("售后工单不存在"))?;
+    Ok(Json(ApiResponse::success(info)))
 }
 
 // ----------------------------------------------------------------------
@@ -753,13 +935,36 @@ pub async fn update_after_sales(
 
 /// POST /api/v1/erp/custom-orders/:id/nodes/:nid/logs - 添加日志
 pub async fn add_node_log(
-    _auth: AuthContext,
+    auth: AuthContext,
     State(state): State<AppState>,
-    Path((_oid, nid)): Path<(i64, i64)>,
+    Path((oid, nid)): Path<(i64, i64)>,
     Json(dto): Json<AddProcessLogDto>,
 ) -> Result<Json<ApiResponse<ProcessLogInfo>>, AppError> {
+    // 日志的 operator_id 是「谁记的这条日志」，取会话身份。
+    // 归属链校验（同 delete_contact 型）：service.add_log 连节点都不查、直接按 nid 落日志，
+    // 故 handler 必须自证「父单存在→父单归属→节点存在→节点实际归属==路径父 id」，
+    // 否则任意持键用户可往他人单任意 nid 塞日志。越权早退，零日志写入。
+    let ctx = auth.to_data_scope_context();
+    let crud_svc = CustomOrderCrudService::from_state(&state);
+    let order = crud_svc.get_by_id(oid).await.map_err(crud_err)?;
+    let owner = order.created_by.map(|v| v as i32);
+    if !crate::utils::data_scope::check_resource_owner_by_member_scope(&ctx, owner) {
+        return Err(AppError::permission_denied(
+            "无权操作该定制订单（数据范围限制）",
+        ));
+    }
+    let node_row = crate::models::process_node::Entity::find_by_id(nid)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("工艺节点不存在"))?;
+    if node_row.custom_order_id != oid {
+        return Err(AppError::not_found("工艺节点不存在"));
+    }
     let service = CustomOrderProcessService::from_state(&state);
-    let log = service.add_log(nid, dto).await.map_err(process_err)?;
+    let log = service
+        .add_log(nid, dto, auth.user_id)
+        .await
+        .map_err(process_err)?;
     let attachments: Vec<String> = log
         .attachments
         .as_array()

@@ -332,6 +332,7 @@
 </template>
 
 <script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus';
@@ -349,7 +350,7 @@ import {
   type SendEmailRequest,
 } from '@/api/email';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 // 批次 280：接入 useTableApi，消除手写 templates/records 分页重复
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -368,7 +369,7 @@ const {
   refresh: fetchTemplates,
 } = useTableApi<EmailTemplate>({
   url: '/email-templates',
-  onError: (err: unknown) => logger.error(t('email.index.messageFetchTemplatesFailed'), err),
+  onError: (err: unknown) => logAuxLoadFailure(t('email.index.messageFetchTemplatesFailed'), err),
 });
 
 const templateDialogVisible = ref(false);
@@ -407,7 +408,7 @@ const {
 } = useTableApi<EmailLog>({
   url: '/email-records',
   listKey: 'list',
-  onError: (err: unknown) => logger.error(t('email.index.messageFetchRecordsFailed'), err),
+  onError: (err: unknown) => logAuxLoadFailure(t('email.index.messageFetchRecordsFailed'), err),
 });
 
 // 批次 280：记录筛选状态 + 日期范围（分页由 useTableApi 管理）
@@ -510,7 +511,7 @@ const handleDeleteTemplate = async (row: EmailTemplate) => {
     ElMessage.success(t('email.index.messageDeleteSuccess'));
     fetchTemplates();
   } catch (error) {
-    if (error !== 'cancel') {
+    if (!isDialogDismissal(error)) {
       logger.error(t('email.index.messageDeleteFailed'), error);
     }
   }

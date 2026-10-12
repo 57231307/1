@@ -9,6 +9,7 @@
 //! - 支持签章验证（重新计算哈希对比）
 
 use crate::models::sales_contract::{self, Entity as ContractEntity, Model as ContractModel};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -134,11 +135,24 @@ impl ContractSignatureService {
     }
 
     /// 查询已签章合同列表
-    pub async fn list_signed_contracts(&self) -> Result<Vec<ContractModel>, AppError> {
-        let contracts = ContractEntity::find()
-            .filter(sales_contract::Column::SignedAt.is_not_null())
-            .all(&*self.db)
-            .await?;
+    pub async fn list_signed_contracts(
+        &self,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<Vec<ContractModel>, AppError> {
+        let mut query =
+            ContractEntity::find().filter(sales_contract::Column::SignedAt.is_not_null());
+
+        // 行级数据权限下推：归属列 created_by（无 department_id 列，两参数同传 owner 列）
+        if let Some(ctx) = data_scope {
+            query = apply_data_scope(
+                query,
+                ctx,
+                sales_contract::Column::CreatedBy,
+                sales_contract::Column::CreatedBy,
+            );
+        }
+
+        let contracts = query.all(&*self.db).await?;
         Ok(contracts)
     }
 

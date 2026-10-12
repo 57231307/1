@@ -54,8 +54,14 @@ pub struct Model {
     pub auxiliaries: Option<Auxiliaries>,
     pub version: Option<i32>,
     pub parent_recipe_id: Option<i32>,
+    /// 审核通过人：仅承载"通过"动作的审批人身份；拒绝动作不写本列（拒绝人无专列，
+    /// 身份取服务端会话日志留痕），与 rejected_reason 两动作两列。
     pub approved_by: Option<i32>,
+    /// 最近一次审批动作时间：审核通过与审核拒绝都写本列（表内唯一可用作审批动作
+    /// 时刻的列，列语义以"动作时间"而非"通过时间"使用）。
     pub approved_at: Option<DateTimeWithTimeZone>,
+    /// 审批拒绝理由：reject 路径写入（服务端 trim 非空强制），历史行为 NULL。
+    pub rejected_reason: Option<String>,
     pub remarks: Option<String>,
     pub created_by: Option<i32>,
 }

@@ -22,10 +22,6 @@
           <el-icon><Plus /></el-icon>
           {{ t('salesPrice.index.buttonCreatePrice') }}
         </el-button>
-        <el-button @click="spProc.handleStrategy">
-          <el-icon><Setting /></el-icon>
-          {{ t('salesPrice.index.buttonPriceStrategy') }}
-        </el-button>
         <el-button v-permission="'sales.price.export'" @click="onExport">
           <el-icon><Download /></el-icon>
           {{ t('salesPrice.index.buttonExport') }}
@@ -41,10 +37,12 @@
       @update:query-params="v => Object.assign(sp.queryParams, v)"
     />
 
+    <!-- 列表行实际形态 = SalesPriceRow（后端 list_prices 出参 SalesPriceView 富化行）；
+         useTableApi 泛型在 useSp.ts 侧仍声明 SalesPrice（该文件本轮冻结），此处边界断言补齐 -->
     <SalesPriceTable
       v-model:page="sp.page"
       v-model:page-size="sp.pageSize"
-      :price-list="sp.priceList"
+      :price-list="sp.priceList as SalesPriceRow[]"
       :loading="sp.loading"
       :total="sp.total"
       @view="spProc.handleView"
@@ -67,72 +65,14 @@
     <SalesPriceView v-model:visible="spProc.viewDialogVisible" :view-data="spProc.viewData" />
 
     <SalesPriceHistory v-model:visible="spProc.historyVisible" :history-list="spProc.historyList" />
-
-    <!-- 价格策略对话框（批次 95 P3-17 修复：展示阶梯/批量/合同策略列表） -->
-    <el-dialog
-      :model-value="spProc.strategyVisible"
-      :title="t('salesPrice.index.strategyDialogTitle')"
-      width="800px"
-      :aria-label="t('salesPrice.index.strategyDialogAriaLabel')"
-      @update:model-value="(v: boolean) => (spProc.strategyVisible = v)"
-    >
-      <el-table
-        v-loading="spProc.strategyLoading"
-        :data="spProc.strategyList"
-        border
-        :aria-label="t('salesPrice.index.strategyTableAriaLabel')"
-      >
-        <el-table-column
-          prop="name"
-          :label="t('salesPrice.index.strategyColumnName')"
-          min-width="120"
-          show-overflow-tooltip
-        />
-        <el-table-column
-          prop="description"
-          :label="t('salesPrice.index.strategyColumnDescription')"
-          min-width="180"
-          show-overflow-tooltip
-        />
-        <el-table-column
-          prop="type"
-          :label="t('salesPrice.index.strategyColumnType')"
-          width="100"
-          align="center"
-        >
-          <template #default="{ row }">
-            {{ getStrategyTypeLabel(row.type) }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="status"
-          :label="t('salesPrice.index.strategyColumnStatus')"
-          width="80"
-          align="center"
-        >
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'">
-              {{ getStrategyStatusLabel(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column
-          :label="t('salesPrice.index.strategyColumnRuleCount')"
-          width="80"
-          align="center"
-        >
-          <template #default="{ row }">{{ row.rules?.length || 0 }}</template>
-        </el-table-column>
-      </el-table>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Plus, Setting, Download } from '@element-plus/icons-vue';
-import type { SalesPrice } from '@/api/sales-price';
+import { Plus, Download } from '@element-plus/icons-vue';
+import type { SalesPrice, SalesPriceRow } from '@/api/sales-price';
 import { useSp } from './composables/useSp';
 import { useSpProc } from './composables/useSpProc';
 import SalesPriceFilter from './components/SalesPriceFilter.vue';
@@ -146,35 +86,20 @@ const { t } = useI18n({ useScope: 'global' });
 const sp = useSp();
 const spProc = useSpProc({
   getList: sp.getList,
-  // V15 P0-S12 修复（Batch 475d）：传入当前筛选条件，用于后端导出
+  // 导出与列表同口径：透传当前筛选全集（product_id/customer_id/keyword/status），
+  // 后端 SalesPriceQuery 八键全部真实接收且 list/export 共用同一结构体；
+  // 空串/undefined 由 request.ts serializeParams 剔除（= 省略键，与列表链路同源）。
   // useTableApi 的 queryParams 为 Ref<Record<string, unknown>>，需类型断言以满足回调返回类型
   getQueryParams: () => ({
     product_id: sp.queryParams.product_id as number | undefined,
+    customer_id: sp.queryParams.customer_id as number | undefined,
+    keyword: sp.queryParams.keyword as string | undefined,
     status: sp.queryParams.status as string | undefined,
   }),
 });
 
 // 对话框可见性本地 ref
 const dialogVisible = ref(false);
-
-/** 获取策略类型标签 */
-const getStrategyTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    tiered: t('salesPrice.index.strategyTypeTiered'),
-    volume: t('salesPrice.index.strategyTypeVolume'),
-    contract: t('salesPrice.index.strategyTypeContract'),
-  };
-  return map[type] || type;
-};
-
-/** 获取策略状态标签 */
-const getStrategyStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    active: t('salesPrice.index.strategyStatusActive'),
-    inactive: t('salesPrice.index.strategyStatusInactive'),
-  };
-  return map[status] || status;
-};
 
 /** 新建价格 */
 const onCreate = () => {

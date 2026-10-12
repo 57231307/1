@@ -185,8 +185,7 @@ pub async fn batch_delete_products(
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行批量删除操作"))?;
     let has_permission = role_permission_service
         .check_permission(role_id, "products", "delete", None)
-        .await
-        .map_err(|e| AppError::internal(e.to_string()))?;
+        .await?;
     if !has_permission {
         return Err(AppError::permission_denied("没有批量删除产品的权限"));
     }
@@ -195,8 +194,7 @@ pub async fn batch_delete_products(
 
     let result = service
         .batch_delete_products(auth.user_id, payload.ids)
-        .await
-        .map_err(|e| AppError::bad_request(e.to_string()))?;
+        .await?;
 
     let errors: Vec<String> = result
         .errors

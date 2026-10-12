@@ -854,6 +854,51 @@ impl ReportEngineService {
         }
     }
 
+    /// 自定义模板的可执行性门：随代码发布的预定义模板本身即公开，直接放行；
+    /// 库内自定义模板沿用列表口径「公开或本人创建」，判据与
+    /// `report_template_service.rs` 的列表过滤同一条（is_public OR created_by）。
+    /// 未登记的模板→404，他人私有模板→403（固定脱敏文案，不含记录 ID）。
+    pub async fn ensure_template_runnable(
+        &self,
+        template_id: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        if self
+            .get_predefined_templates()
+            .iter()
+            .any(|t| t.id == template_id)
+        {
+            return Ok(());
+        }
+
+        let by_template_id = ReportTemplateEntity::find()
+            .filter(report_template::Column::TemplateId.eq(template_id))
+            .one(&*self.db)
+            .await?;
+        let template = match by_template_id {
+            Some(row) => Some(row),
+            None => {
+                ReportTemplateEntity::find()
+                    .filter(report_template::Column::Code.eq(template_id))
+                    .one(&*self.db)
+                    .await?
+            }
+        };
+
+        match template {
+            None => Err(AppError::not_found("报表模板不存在")),
+            Some(row) => {
+                if row.is_public || row.created_by == user_id {
+                    Ok(())
+                } else {
+                    Err(AppError::permission_denied(
+                        "无权执行该报表模板（数据范围限制）".to_string(),
+                    ))
+                }
+            }
+        }
+    }
+
     /// 根据 template_id 获取模板（按 id 优先匹配自定义，fallback 到预定义）
     pub async fn get_template(&self, template_id: &str) -> Result<ReportTemplate, AppError> {
         let predefined = self.get_predefined_templates();

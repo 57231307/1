@@ -43,14 +43,7 @@ pub async fn forecast_sales(
     let service = AiAnalysisService::new(state.db);
     let days = query.days.unwrap_or(30);
 
-    let forecasts = service
-        .forecast_sales(query.product_id, days)
-        .await
-        .map_err(|e| {
-            tracing::error!("销售预测失败: {}", e);
-            // V15 P2 14-9.4：对外不暴露内部异常堆栈
-            AppError::internal("销售预测服务暂不可用，请稍后重试".to_string())
-        })?;
+    let forecasts = service.forecast_sales(query.product_id, days).await?;
 
     let responses: Vec<SalesForecastResponse> = forecasts
         .into_iter()
@@ -97,14 +90,7 @@ pub async fn optimize_inventory(
     );
     let service = AiAnalysisService::new(state.db);
 
-    let suggestions = service
-        .optimize_inventory(query.product_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("库存优化失败: {}", e);
-            // V15 P2 14-9.4：对外不暴露内部异常堆栈
-            AppError::internal("库存优化服务暂不可用，请稍后重试".to_string())
-        })?;
+    let suggestions = service.optimize_inventory(query.product_id).await?;
 
     let responses: Vec<InventorySuggestionResponse> = suggestions
         .into_iter()
@@ -153,10 +139,7 @@ pub async fn detect_anomalies(
     let service = AiAnalysisService::new(state.db);
     let days = query.days.unwrap_or(7);
 
-    let anomalies = service.detect_anomalies(days).await.map_err(|e| {
-        tracing::error!("异常检测失败: {}", e);
-        AppError::internal(format!("异常检测失败: {}", e))
-    })?;
+    let anomalies = service.detect_anomalies(days).await?;
 
     let responses: Vec<AnomalyDetectionResponse> = anomalies
         .into_iter()
@@ -208,13 +191,7 @@ pub async fn get_recommendations(
         .unwrap_or_else(|| "all".to_string());
     let limit = query.limit.unwrap_or(10).clamp(1, 100);
 
-    let recommendations = service
-        .generate_recommendations(rec_type, limit)
-        .await
-        .map_err(|e| {
-            tracing::error!("生成推荐失败: {}", e);
-            AppError::internal(format!("生成推荐失败: {}", e))
-        })?;
+    let recommendations = service.generate_recommendations(rec_type, limit).await?;
 
     let responses: Vec<SmartRecommendationResponse> = recommendations
         .into_iter()

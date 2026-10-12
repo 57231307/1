@@ -8,8 +8,9 @@
 //!
 //! 纯只读方法，无跨模块调用需求。
 
+use sea_orm::sea_query::{Condition, Expr, Query, SelectStatement};
 use sea_orm::{
-    ColumnTrait, EntityTrait, JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder,
+    ColumnTrait, EntityTrait, ExprTrait, JoinType, Order, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait,
 };
 
@@ -18,14 +19,53 @@ use crate::models::{
 };
 use crate::services::purchase_receipt_dto::PurchaseReceiptDto;
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
+use crate::utils::data_scope::{DataScopeContext, apply_department_scope, check_resource_owner};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
+use crate::utils::sql_escape::safe_like_pattern;
+use chrono::NaiveDate;
+
+/// 明细物料名关键字相关子查询（EXISTS，非 JOIN）：`purchase_receipt_item.material_name`
+/// 与主表是一对多，若为凑关键字改 LEFT JOIN 会行倍增、污染分页 total；
+/// 子查询形态先例 = `po/order_ops/crud.rs` 的 `received_amount_subquery`（同构相关列写法）。
+/// 模式串已由 `safe_like_pattern` 转义 `%_\`，走参数化占位，无字符串拼接 SQL。
+fn material_name_exists_subquery(pattern: &str) -> SelectStatement {
+    Query::select()
+        .expr(Expr::col((
+            purchase_receipt_item::Entity,
+            purchase_receipt_item::Column::Id,
+        )))
+        .from(purchase_receipt_item::Entity)
+        .and_where(
+            Expr::col((
+                purchase_receipt_item::Entity,
+                purchase_receipt_item::Column::ReceiptId,
+            ))
+            .equals((purchase_receipt::Entity, purchase_receipt::Column::Id)),
+        )
+        .and_where(
+            Expr::col((
+                purchase_receipt_item::Entity,
+                purchase_receipt_item::Column::MaterialName,
+            ))
+            .like(pattern),
+        )
+        .to_owned()
+}
 
 impl PurchaseReceiptService {
     /// 获取入库单列表（分页）—— 单次 LEFT JOIN 查询富化名称字段，无 N+1。
     ///
     /// 关联关系均为 many-to-one（入库单 -> 供应商/仓库/采购订单/创建人），
     /// LEFT JOIN 不会产生行倍增，分页计数安全。
+    ///
+    /// `total` 由 `paginate_with_total` 对**同一已过滤查询**做 `num_items()` 统计
+    /// （即 `utils::pagination::paginate_with_total`），关键字/仓库/日期条件天然计入过滤后行数。
+    ///
+    /// `data_scope`：行级数据权限上下文，在查询构造处下推（Dept 分支 =
+    /// `created_by = 本人 OR department_id IN 可见部门集合`，与 RLS USING 同形态）；
+    /// `None` 表示内部调度不经 handler 鉴权链路、跳过行级下推（测试直接调用验证筛选逻辑时使用）。
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_receipts(
         &self,
         page: u64,
@@ -33,6 +73,11 @@ impl PurchaseReceiptService {
         status: Option<String>,
         supplier_id: Option<i32>,
         order_id: Option<i32>,
+        keyword: Option<String>,
+        warehouse_id: Option<i32>,
+        receipt_date_from: Option<NaiveDate>,
+        receipt_date_to: Option<NaiveDate>,
+        data_scope: Option<&DataScopeContext>,
     ) -> Result<(Vec<PurchaseReceiptDto>, u64), AppError> {
         let mut query = purchase_receipt::Entity::find()
             .column_as(supplier::Column::SupplierName, "supplier_name")
@@ -53,6 +98,18 @@ impl PurchaseReceiptService {
                 purchase_receipt::Relation::Creator.def(),
             );
 
+        // 行级数据权限下推：purchase_receipt 同时有 department_id 与 created_by 列，
+        // 选 apply_department_scope（Dept 分支 = 本人行 OR 部门∈可见集合，与 RLS 策略 USING
+        // 同形态）；下推在分页构造前，total 由带 scope 的同一查询算出。
+        if let Some(ctx) = data_scope {
+            query = apply_department_scope(
+                query,
+                ctx,
+                purchase_receipt::Column::CreatedBy,
+                purchase_receipt::Column::DepartmentId,
+            );
+        }
+
         if let Some(ref status) = status {
             query = query.filter(purchase_receipt::Column::ReceiptStatus.eq(status));
         }
@@ -61,6 +118,31 @@ impl PurchaseReceiptService {
         }
         if let Some(order_id) = order_id {
             query = query.filter(purchase_receipt::Column::OrderId.eq(order_id));
+        }
+        if let Some(warehouse_id) = warehouse_id {
+            query = query.filter(purchase_receipt::Column::WarehouseId.eq(warehouse_id));
+        }
+        // 日期区间含首尾：receipt_date 是 DATE 列（models/purchase_receipt 里映射为 NaiveDate，
+        // 非时间戳），lte(当日) 即含上界整日，无需销售侧「次日不含」补偿
+        // （so/order_query 那套补偿只适用于 timestamp 列）。
+        if let Some(from) = receipt_date_from {
+            query = query.filter(purchase_receipt::Column::ReceiptDate.gte(from));
+        }
+        if let Some(to) = receipt_date_to {
+            query = query.filter(purchase_receipt::Column::ReceiptDate.lte(to));
+        }
+        // 关键字：入库单号 或 明细物料名（EXISTS 相关子查询，见文件头注释）。
+        // 用 LIKE 而非 ILIKE：ILIKE 是 PG 方言，sea-query 的 sqlite 构建器直接
+        // unimplemented!() panic，无法 sqlite 真跑；采购域列表既有写法即
+        // safe_like_pattern + like（同 po/order_ops/crud 的 keyword 过滤），不另起第二套口径。
+        // 空串在 handler 边界已由 empty_str_as_none 归一为 None，此处 filter 双保险。
+        if let Some(kw) = keyword.as_deref().filter(|s| !s.is_empty()) {
+            let pattern = safe_like_pattern(kw);
+            query = query.filter(
+                Condition::any()
+                    .add(purchase_receipt::Column::ReceiptNo.like(&pattern))
+                    .add(Expr::exists(material_name_exists_subquery(&pattern))),
+            );
         }
 
         let paginator = query
@@ -71,6 +153,26 @@ impl PurchaseReceiptService {
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok((items, total))
+    }
+
+    /// 行级归属门：入库单存在性→404 先行，再按 created_by + department_id 走部门族判定，
+    /// 与列表侧 apply_department_scope 同源。详情/明细/状态流转端点在读写前调用，
+    /// 越权返回 403 且不触达后续事务。
+    pub async fn ensure_receipt_access(
+        &self,
+        receipt_id: i32,
+        ctx: &DataScopeContext,
+    ) -> Result<(), AppError> {
+        let receipt = purchase_receipt::Entity::find_by_id(receipt_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("采购入库单 {}", receipt_id)))?;
+        if !check_resource_owner(ctx, Some(receipt.created_by), receipt.department_id) {
+            return Err(AppError::permission_denied(
+                "无权访问该采购入库单（数据范围限制）".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// 获取入库单详情 —— 同样 LEFT JOIN 富化名称字段。

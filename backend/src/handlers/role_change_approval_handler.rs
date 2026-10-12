@@ -14,6 +14,7 @@ use crate::services::role_change_approval_service::{
     RoleChangeApprovalService,
 };
 use crate::utils::error::AppError;
+use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 
 /// 创建审批请求
@@ -47,7 +48,8 @@ pub async fn approve_l1(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<ApproveRoleChangeRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为「未采集」（等价体 comments:null）
+    OptionalJson(req): OptionalJson<ApproveRoleChangeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     tracing::debug!(user_id = auth.user_id, approval_id = id, "一级审批");
 
@@ -57,7 +59,13 @@ pub async fn approve_l1(
     }
 
     let service = RoleChangeApprovalService::new(state.db.clone());
-    let approval = service.approve_l1(id, auth.user_id, req).await?;
+    let approval = service
+        .approve_l1(
+            id,
+            auth.user_id,
+            req.unwrap_or(ApproveRoleChangeRequest { comments: None }),
+        )
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(approval)?,
@@ -71,7 +79,8 @@ pub async fn approve_l2(
     State(state): State<AppState>,
     auth: AuthContext,
     Path(id): Path<i32>,
-    Json(req): Json<ApproveRoleChangeRequest>,
+    // 审批意见选填：缺体经 OptionalJson 归一为「未采集」（等价体 comments:null）
+    OptionalJson(req): OptionalJson<ApproveRoleChangeRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     tracing::debug!(user_id = auth.user_id, approval_id = id, "二级审批");
 
@@ -81,7 +90,13 @@ pub async fn approve_l2(
     }
 
     let service = RoleChangeApprovalService::new(state.db.clone());
-    let approval = service.approve_l2(id, auth.user_id, req).await?;
+    let approval = service
+        .approve_l2(
+            id,
+            auth.user_id,
+            req.unwrap_or(ApproveRoleChangeRequest { comments: None }),
+        )
+        .await?;
 
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(approval)?,

@@ -211,7 +211,7 @@ impl ArReconciliationService {
             customer_name: Set(Some(cust.customer_name.clone())),
             source_type: Set(Some("SALES_ORDER".to_string())),
             source_module: Set(Some("SO".to_string())),
-            source_bill_id: Set(Some(order_id)),
+            source_bill_id: Set(Some(i64::from(order_id))),
             source_bill_no: Set(Some(order.order_no.clone())),
             invoice_amount: Set(total_amount),
             received_amount: Set(Decimal::ZERO),
