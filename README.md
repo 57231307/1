@@ -40,7 +40,7 @@ Bingxi Management Platform 是**面向纺织行业的全栈式企业资源计划
 - **合规安全**：RBAC 权限矩阵 + 字段级权限 + PostgreSQL RLS 行级安全（dept 数据范围语义）+ 打印导出审计 + 二级审批 + 中国法律合规（劳动法/数据安全法/个人信息保护法）
 - **可观测性**：trace 链路 + Prometheus 指标 + 慢查询审计 + API 网关熔断 + 流复制故障转移
 
-**项目数据（截至 2026-09-20，Round 7-iter21 后端编译阻塞清除与安全豁免清单收敛）**：
+**项目数据（截至 2026-09-20，Round 7-iter21 后端编译阻塞清除与安全豁免清单收敛；此表为当日历史快照，其后 #940～#942 等合入未刷新本表，最新规模以代码与 CI 为准）**：
 
 | 指标              | 数值                                                                                                                               |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -571,6 +571,15 @@ cargo bench --features bench
 | P1 修复（257 项）        | 已完成 | 100%                                |
 | V15 主线八维审计         | 进行中 | P0 + P2 已完成                      |
 | P2 修复（248 项）        | 待启动 | P1 完成后启动                       |
+
+### 契约收尾与 RBAC 角色权限矩阵基线封板（2026-10-11，PR #942）
+
+- **路由粗域门控修复**：前端路由 meta 的粗粒度键（finance/sales/purchases/production:read）改按域内细资源解释（`COARSE_DOMAIN_RESOURCES`，逐 token 与后端权限种子核对、无自造幻影），修复"非 admin 被锁在整个域外、drift 恒 0 却自洽地错"；映射比直接照抄后端分组更精确（排除跨域生产读以免过授）。
+- **页面健康判定误报清零**：`assertPageHealthy` 对后端正确返回的权限 403 崩溃全类消除——共享件 `useTableApi` 分级、60+ 页面/懒加载取数改走 `logAuxLoadFailure`（403 降 warn、5xx 与网络仍 error 不掩盖真实故障）、补齐"try/finally 无 catch"与"裸 async 无守护"两形态的挂载期未捕获 rejection。
+- **凭证导出与日期契约（#407）**：导出走 `get_for_export` 不受列表 `page_size clamp(1,100)` 截断、按 EXPORT_LIMIT 取全；日期解析失败由静默吞 `None` 改为显式 `validation` 报错，不再"筛选凭空消失返回全量"。
+- **29-05 口令夹具 flaky 正修**：六位毫秒尾数拼口令偶发命中后端 `has_keyboard_sequence` 硬拒，插入字母断开为两段各三位，穷举 600 万组零命中。
+- **31 份角色可达基线入库**：经 fresh run #4693 现采候选、逐角色比 policy 标尺人工评审后移入 `e2e/traversal/access-map-baseline/`；关键耦合：入库基线必须同步 `role-matrix-baseline.test.ts` 的 `APPROVED_BASELINES` 白名单，否则前端测试契约锁会把已评审文件判为未评审抢跑而红（#4694 实证、已补至 33）。
+- **CI 全绿封板**：定证 run #4695 completed/success（79 success、3 skipped、0 failure），squash 合入 main。
 
 ### 质量规则
 
