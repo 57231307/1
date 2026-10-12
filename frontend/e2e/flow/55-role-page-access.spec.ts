@@ -24,24 +24,21 @@ import { safeGoto } from './ui-helpers';
  *   返回 403（用 helpers.expectDenied 归因到 FORBIDDEN 权限门机器码，杜绝 CSRF/404/5xx 冒名）。
  *   理想成对钉（守卫 + 端点同时钉）。
  *
- * 事实来源（file:line，非推测）：
- * - 角色有效权限：CI 库业务角色由 backend init 全矩阵播种（见 permission.rs 各 *_role_resources），
- *   再叠加 e2e `SEED_ROLE_EXTRA_PERMISSIONS`（global-setup.ts:450-542）。本 spec 的正/负样本选取
- *   以**两个口径都成立**为目标（见下方矩阵表注释），拿不准的软断言已在报告中标注。
+ * 事实来源（据后端 init 权限矩阵与 e2e 种子口径，非推测）：
+ * - 角色有效权限：CI 库业务角色由后端 init 全矩阵播种，再叠加 e2e 的 SEED_ROLE_EXTRA_PERMISSIONS。
+ *   本 spec 的正/负样本选取以**两个口径都成立**为目标（见下方矩阵表注释），拿不准的软断言已在报告中标注。
  * - 列表是否按 data_scope 过滤（决定"能否看到种子行"）：
- *   · `/products`（product_handler.rs:255 → product_ops/crud.rs:68）**不做行级范围过滤** →
- *     持 products:read 的岗即可见全局种子产品（global-setup.ts:1350-1389 保证 ≥1）。
- *   · `/currencies`（currency_handler.rs:44）**无 auth/无范围过滤** → 全局可见；本位币 CNY 由
- *     global-setup.ts:2805-2850 直连 DB 幂等预置（缺则 globalSetup 判红），故 rows>=1 有据。
- *   · `/crm/customers`（customer_ops/crud.rs:107）**按行级数据范围过滤**（owner/dept/公海），
+ *   · `/products` 不做行级范围过滤 → 持 products:read 的岗即可见全局种子产品（e2e 全局产品种子保证 ≥1）。
+ *   · `/currencies` 无 auth 无范围过滤 → 全局可见；本位币 CNY 由 e2e 直连 DB 幂等预置（缺则 globalSetup 判红），故 rows>=1 有据。
+ *   · `/crm/customers` 按行级数据范围过滤（owner/dept/公海），
  *     非 owner 岗对全局种子不保证可见 → 本 spec 以 sales_manager 自建自见（owner=本人）来钉 rows。
- *   · `/inventory/pieces`（inventory_piece_handler.rs:87 → utils/data_scope.rs:83）按 CreatedBy
+ *   · `/inventory/pieces` 按 CreatedBy
  *     过滤且无 created_by IS NULL 放行分支；warehouse_manager/quality_inspector 只有 pieces:read
  *     无 pieces:create，无法自建，故其正向面只能做到"授权真实生效（200 + 合法分页信封，非 403）"
  *     这一能力级证据，无法保证 rows>=1——此为已知较弱正向，详见交付报告与下方用例内 console.error。
- * - 路由守卫：src/router/index.ts:1712-1768，`hasRoutePermission` 失败 → next({path:'/403'})；
- *   COARSE_DOMAIN_RESOURCES(:1540+) 把粗域键(finance:read 等)解释为"持该域任一细资源读即放行"。
- * - admin 专属 GET /users 越权 403：既有 33-vertical-privilege.spec.ts 已证非 admin 岗 403。
+ * - 路由守卫：hasRoutePermission 失败即 next 到 /403；COARSE_DOMAIN_RESOURCES 把粗域键
+ *   （finance:read 等）解释为"持该域任一细资源读即放行"。
+ * - admin 专属 GET /users 越权 403：既有 33-vertical-privilege 已证非 admin 岗 403。
  */
 
 // ---------------------------------------------------------------------------
@@ -52,8 +49,8 @@ const LIST_UI_WAIT_MS = 30_000;
 const DOM_ROW_WAIT_MS = 12_000;
 
 /** 列表响应行的两种真实信封形态（单一事实来源，不猜第三种）：
- *  - 分页：data = { items:[...], total, page, page_size }（utils/response.rs:34）
- *  - 裸数组：data = [...]（list_currencies/list_vouchers 等 ApiResponse<Vec>）
+ *  - 分页：data 含 items 数组及 total page page_size
+ *  - 裸数组：data 直接是数组（如 ApiResponse<Vec> 的 list_currencies/list_vouchers 等）
  *  形态不符 → 抛错点名，不兜底（兜底会把契约漂移伪装成 0 行绿灯）。 */
 function parseListRows(data: unknown, context: string): unknown[] {
   if (Array.isArray(data)) return data;
@@ -194,9 +191,8 @@ async function assertPageGuardDenied(
 
 test.describe('正向：有权岗位看得到真实数据（非 assertPageHealthy 式假绿）', () => {
   test('purchaser GET /products → 200 且真行 ≥1 + /product 页渲染出表格行', async ({ page }) => {
-    // 依据：product_handler.rs:255 list_products 无行级范围过滤；purchaser 的 products:read 在
-    // 后端矩阵(purchase_clerk) 与 e2e extras(global-setup.ts:470) 两个口径下都存在；
-    // 全局产品种子由 global-setup.ts:1350-1389 保证 ≥1（缺则 globalSetup 已判红）。
+    // 依据：list_products 无行级范围过滤；purchaser 的 products:read 在后端矩阵(purchase_clerk)
+    // 与 e2e extras 两个口径下都存在；全局产品种子由 e2e 保证 ≥1（缺则 globalSetup 已判红）。
     await loginAsRole(page, 'purchaser');
     await assertEndpointRows(page, '/products?page=1&page_size=20', 'purchaser→/products');
     await assertPageRendersRows(page, '/product', '/erp/products', 'purchaser→/product 页');
@@ -205,11 +201,11 @@ test.describe('正向：有权岗位看得到真实数据（非 assertPageHealth
   test('accountant GET /currencies → 200 且真行 ≥1 + /currency 页渲染出表格行', async ({
     page,
   }) => {
-    // 依据：currency_handler.rs:44 list_currencies 无 auth/无范围过滤（全局可见）；accountant 的
-    // currencies:read 见后端矩阵(permission.rs:1081)。**口径风险**：accountant 不在
+    // 依据：list_currencies 无 auth 无范围过滤（全局可见）；accountant 的 currencies:read 见后端
+    // init 权限矩阵。**口径风险**：accountant 不在
     // SEED_ROLE_EXTRA_PERMISSIONS，若 CI 库该岗非 init 全矩阵而是最小 extras(SHELL only)，
     // 会 403——本用例即会把该模型分歧如实判红（不掩盖），详见交付报告。
-    // 数据前置：本位币 CNY 由 global-setup.ts:2805-2850 直连 DB 幂等预置，rows>=1 有据。
+    // 数据前置：本位币 CNY 由 e2e 直连 DB 幂等预置，rows>=1 有据。
     await loginAsRole(page, 'accountant');
     await assertEndpointRows(page, '/currencies', 'accountant→/currencies');
     await assertPageRendersRows(page, '/currency', '/erp/currencies', 'accountant→/currency 页');
@@ -218,7 +214,7 @@ test.describe('正向：有权岗位看得到真实数据（非 assertPageHealth
   test('sales_manager 自建客户后 GET /crm/customers 见该行 + /customer 页渲染该行', async ({
     page,
   }) => {
-    // 依据：sales_manager 持 customers:"*"(permission.rs:604)。crm/customers 按行级范围过滤，
+    // 依据：sales_manager 持 customers:"*"。crm/customers 按行级范围过滤，
     // 故不依赖全局种子，而以"本人自建 → owner=本人 → 必可见"来钉 rows（确定性、自包含）。
     await loginAsRole(page, 'sales_manager');
     const uniqueName = genCode('E2E-RPA-CUS');

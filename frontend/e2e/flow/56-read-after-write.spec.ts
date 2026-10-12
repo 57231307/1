@@ -166,7 +166,7 @@ async function seedActiveProduct(
   const code = genCode('E56P');
   const name = `56号${tag}布_${code}`;
   // status 显式 active：库存预留建单预检 products.status==master_data::ACTIVE（=小写 active），
-  // 缺省 None 会被判「已停用/不存在」而 404（services/inventory_reservation_service.rs:54-62）。
+  // 缺省 None 会被判 已停用/不存在 而 404。
   const res = await apiCall<{ id?: number }>(page, 'POST', '/products', {
     code,
     name,
