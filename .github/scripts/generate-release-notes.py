@@ -11,6 +11,8 @@ import subprocess
 import sys
 import re
 import os
+import json
+import urllib.request
 from collections import OrderedDict
 from datetime import datetime, timezone
 
@@ -37,6 +39,18 @@ SCOPE_OVERRIDE = {
     ("chore", "remove"): "remove",
     ("chore", "delete"): "remove",
 }
+
+# 仓库存在中文式 conventional 前缀（如 修(...)/测试(...)），一并归类，否则误落"其他"。
+CN_TYPE_MAP = {
+    "修": "fix", "修复": "fix", "更正": "fix",
+    "新增": "feat", "加": "feat",
+    "重构": "refactor", "优化": "refactor", "调整": "refactor",
+    "测试": "test",
+    "文档": "docs",
+    "删除": "remove", "移除": "remove", "下线": "remove",
+    "构建": "chore", "清理": "chore", "收口": "chore", "迁移": "chore",
+}
+CN_BREAKING = {"破坏性变更", "不兼容"}
 
 
 def get_commits(prev_tag, head_ref="HEAD"):
@@ -270,6 +284,107 @@ def format_change_categories(prev_tag, matrix):
     return L
 
 
+def extract_pr_numbers(commits):
+    nums, seen = [], set()
+    for c in commits:
+        m = re.search(r'\(#(\d+)\)', c["subject"])
+        if m and m.group(1) not in seen:
+            seen.add(m.group(1))
+            nums.append(m.group(1))
+    return nums
+
+
+def _api_get(url, token):
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "bingxi-release-notes",
+    })
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def collect_pr_commit_subjects(repo, pr_numbers, token):
+    """拉取 squash 关联 PR 的原始提交首行（PR commits 在 squash 后仍由 GitHub 保留）。
+
+    网络失败或权限不足时返回已收集部分，调用方据此降级，绝不阻断发布。"""
+    subjects = []
+    for n in pr_numbers:
+        page = 1
+        while page <= 30:
+            try:
+                arr = _api_get(
+                    f"https://api.github.com/repos/{repo}/pulls/{n}/commits?per_page=100&page={page}",
+                    token)
+            except Exception:
+                break
+            if not arr:
+                break
+            for c in arr:
+                msg = c.get("commit", {}).get("message", "")
+                first = msg.splitlines()[0].strip() if msg else ""
+                if first:
+                    subjects.append(first)
+            if len(arr) < 100:
+                break
+            page += 1
+    return subjects
+
+
+def parse_subject_item(subject):
+    m = re.match(
+        r'^(?P<t>[a-z]+|[一-鿿]+)(?:\((?P<sc>[^)]*)\))?(?P<bang>!)?:\s*(?P<d>.+)$',
+        subject)
+    if not m:
+        return ("other", subject.strip())
+    t = m.group("t")
+    desc = m.group("d").strip()
+    if m.group("bang") or t in CN_BREAKING:
+        return ("breaking", desc)
+    if t.isascii():
+        return (map_type(t, m.group("sc") or ""), desc)
+    return (CN_TYPE_MAP.get(t, "other"), desc)
+
+
+def format_semantic_section(pr_numbers, subjects):
+    L = ["## 📝 语义更新要点（按提交聚合，句子级）", ""]
+    if not pr_numbers:
+        L += ["_未从 squash 提交中解析到 PR 编号，跳过语义聚合。_", ""]
+        return L
+    L.append(f"来源：关联 PR {', '.join('#' + n for n in pr_numbers)}"
+             + (f"，聚合 {len(subjects)} 条提交（PR 提交在 squash 后仍保留，可逐条还原）。"
+                if subjects else "；未能拉取提交（权限或网络），此处降级省略。"))
+    L.append("")
+    if not subjects:
+        return L
+    heads = OrderedDict([
+        ("feat", "🆕 新增功能"), ("fix", "🐛 修复"),
+        ("refactor", "♻️ 优化/重构/调整"), ("remove", "🗑️ 移除"),
+        ("breaking", "⚠️ 破坏性变更"), ("test", "🧪 测试"),
+        ("docs", "📄 文档"), ("chore", "🔧 构建/CI/工具"), ("other", "📌 其他"),
+    ])
+    buckets = OrderedDict((k, []) for k in heads)
+    for s in subjects:
+        k, d = parse_subject_item(s)
+        if k not in buckets:
+            k = "other"
+        if d not in buckets[k]:
+            buckets[k].append(d)
+    counts = {k: len(v) for k, v in buckets.items() if v}
+    L.append("**分类计数**：" + "，".join(f"{heads[k]} {counts[k]}" for k in heads if k in counts))
+    L.append("")
+    for k in heads:
+        items = buckets[k]
+        if not items:
+            continue
+        L += [f"### {heads[k]}（{len(items)}）", "",
+              f"<details><summary>展开 {len(items)} 条</summary>", ""]
+        L += [f"- {d}" for d in items]
+        L += ["", "</details>", ""]
+    return L
+
+
 def parse_bullets(body):
     """解析 commit body 中的 conventional commit bullet points。
 
@@ -401,7 +516,7 @@ def get_commit_type(subject):
     return m.group(1) if m else "other"
 
 
-def format_release_notes(version, tag_name, prev_tag, commits, stats=None, matrix=None):
+def format_release_notes(version, tag_name, prev_tag, commits, stats=None, matrix=None, semantic=None):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
     commit_range = f"{prev_tag}..{tag_name}" if prev_tag else f"初始版本（最近 {len(commits)} 个提交）"
     commit_count = len(commits)
@@ -452,6 +567,12 @@ def format_release_notes(version, tag_name, prev_tag, commits, stats=None, matri
     lines.append("")
     lines.append("---")
     lines.append("")
+
+    if semantic:
+        pr_nums, subjects = semantic
+        lines += format_semantic_section(pr_nums, subjects)
+        lines.append("---")
+        lines.append("")
 
     lines += format_diff_section(prev_tag, stats)
     lines.append("---")
@@ -510,7 +631,19 @@ if __name__ == "__main__":
     commits = get_commits(prev_tag, head_ref)
     stats = get_diff_stats(prev_tag, head_ref)
     matrix = get_change_matrix(prev_tag, head_ref)
-    notes = format_release_notes(version, tag_name, prev_tag, commits, stats, matrix)
+
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
+    pr_numbers = extract_pr_numbers(commits)
+    subjects = []
+    if repo and token and pr_numbers:
+        try:
+            subjects = collect_pr_commit_subjects(repo, pr_numbers, token)
+        except Exception as e:
+            print(f"⚠️ 语义要点拉取失败，降级省略：{e}")
+    semantic = (pr_numbers, subjects) if pr_numbers else None
+
+    notes = format_release_notes(version, tag_name, prev_tag, commits, stats, matrix, semantic)
 
     output_path = os.environ.get("RELEASE_NOTES_PATH", "release_notes.md")
     with open(output_path, "w", encoding="utf-8") as f:
