@@ -111,20 +111,20 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     page,
   }) => {
     const supplierName = `E2E68新建供应商_${genCode('S68A')}`;
-    const supplierCode = genCode('E2E68SA');
 
     await safeGoto(page, '/supplier');
     await page.getByRole('button', { name: '新建供应商' }).first().click();
     const dlg = await waitForDialog(page);
 
-    // 只填前端必填项（SupplierDialog.vue:321-346：编码/名称/联系电话 required）；
-    // 供应商简称、信用代码保持空——本用例的主体形态。
-    await inputOf(dlg, '供应商编码').fill(supplierCode);
+    // 只填前端必填项（供应商名称/联系电话 required）；供应商简称、信用代码保持空——本用例的主体形态。
+    // 供应商编码为后端取号字段，表单只读不可手输，故不填写。
     await inputOf(dlg, '供应商名称').fill(supplierName);
     await inputOf(dlg, '联系电话').fill('13900006801');
     // 显式钉桩：可选项确实是空（未被上次残留预填），否则"省略键"断言失去形态意义
     expect(await inputOf(dlg, '供应商简称').inputValue(), '新建弹窗：简称应为空').toBe('');
     expect(await inputOf(dlg, '信用代码').inputValue(), '新建弹窗：信用代码应为空').toBe('');
+    // 编码不参与手输：只读输入框（可编辑即假可编辑，输入会被后端 serde 丢弃）
+    expect(await inputOf(dlg, '供应商编码').isEditable(), '新建弹窗：供应商编码应只读').toBe(false);
 
     const cap = await captureUiSubmit(
       page,
@@ -145,6 +145,10 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     expect(
       Object.prototype.hasOwnProperty.call(cap.body, 'credit_code'),
       `[68-01] 请求体必须省略 credit_code 键，实际=${cap.bodyRaw}`
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(cap.body, 'supplier_code'),
+      `[68-01] 请求体必须省略后端取号字段 supplier_code（CreateSupplierRequest 无该键，携带即被 serde 丢弃），实际=${cap.bodyRaw}`
     ).toBe(false);
 
     const json = (await cap.resp.json()) as { code?: number; data?: Row };
