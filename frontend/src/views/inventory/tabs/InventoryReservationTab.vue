@@ -1,14 +1,14 @@
 <!--
   InventoryReservationTab.vue - 库存预留管理
-  预留列表 + 新建预留 + 锁定/释放/取消（5 函数全链）
+  预留列表 + 锁定/释放/取消（只读与维护操作）
+  新建预留入口已移除：预留 order_id 有 FK→销售订单且后端预检存在性，必须从销售订单列表
+  「预留库存」操作发起（order_id 由上下文带入）；本页不再提供无订单上下文的创建路径。
   数据源：/inventory/reservations（api/inventory.ts 封装）
 -->
 <template>
   <div class="reservation-tab">
     <div class="tab-toolbar">
-      <el-button type="primary" @click="dialogVisible = true">
-        {{ t('inventory.reservation.create') }}
-      </el-button>
+      <el-alert :title="t('inventory.reservation.createHint')" type="info" :closable="false" />
       <el-button :loading="loading" @click="fetchReservations">
         {{ t('common.refresh') }}
       </el-button>
@@ -69,65 +69,26 @@
         </template>
       </el-table-column>
     </el-table>
-
-    <!-- 新建预留对话框 -->
-    <el-dialog v-model="dialogVisible" :title="t('inventory.reservation.create')" width="480px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
-        <el-form-item :label="t('inventory.reservation.product')" prop="product_id">
-          <el-input-number v-model="form.product_id" :min="1" />
-        </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colWarehouse')" prop="warehouse_id">
-          <el-select v-model="form.warehouse_id" filterable>
-            <el-option
-              v-for="wh in warehouses"
-              :key="wh.id"
-              :label="wh.warehouse_name"
-              :value="wh.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colQuantity')" prop="quantity">
-          <el-input-number v-model="form.quantity" :min="0.01" :precision="2" />
-        </el-form-item>
-        <el-form-item :label="t('inventory.reservation.remark')">
-          <el-input v-model="form.remark" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          {{ t('common.save') }}
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { logAuxLoadFailure } from '@/utils/logger';
+import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
-import type { FormInstance, FormRules } from 'element-plus';
 import {
   getReservationList,
-  createReservation,
   cancelReservation,
   lockReservation,
   releaseReservation,
   type InventoryReservation,
 } from '@/api/inventory';
-import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const reservations = ref<InventoryReservation[]>([]);
-const warehouses = ref<Warehouse[]>([]);
 const loading = ref(false);
-const dialogVisible = ref(false);
-const submitting = ref(false);
-const formRef = ref<FormInstance>();
 
 const statusType = (status: string) => {
   const map: Record<string, string> = {
@@ -150,51 +111,6 @@ const fetchReservations = async () => {
     ElMessage.error(err.message || t('common.failed'));
   } finally {
     loading.value = false;
-  }
-};
-
-const form = reactive({
-  product_id: undefined as number | undefined,
-  warehouse_id: undefined as number | undefined,
-  quantity: 0,
-  remark: '',
-});
-
-const rules: FormRules = {
-  product_id: [
-    { required: true, message: t('inventory.reservation.productRequired'), trigger: 'change' },
-  ],
-  warehouse_id: [
-    { required: true, message: t('inventory.reservation.warehouseRequired'), trigger: 'change' },
-  ],
-  quantity: [
-    { required: true, message: t('inventory.reservation.quantityRequired'), trigger: 'blur' },
-  ],
-};
-
-const handleSubmit = async () => {
-  const valid = await formRef.value?.validate();
-  if (!valid || !form.product_id || !form.warehouse_id) return;
-  submitting.value = true;
-  try {
-    // 按后端 CreateReservationRequest 契约提交：order_no 不是该端点字段（多传=serde 静默丢弃）；
-    // quantity 为 Decimal 入参按字符串传；notes 为 Option——空值省略该键而非传空串。
-    // order_id: 0 为本页无订单上下文的既有占位（后端 order_id 必填），不在本次修复范围。
-    await createReservation({
-      order_id: 0,
-      product_id: form.product_id,
-      warehouse_id: form.warehouse_id,
-      quantity: String(form.quantity),
-      notes: form.remark || undefined,
-    });
-    ElMessage.success(t('common.success'));
-    dialogVisible.value = false;
-    fetchReservations();
-  } catch (e) {
-    const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
-  } finally {
-    submitting.value = false;
   }
 };
 
@@ -230,21 +146,10 @@ const cancelReservationRow = async (row: Record<string, unknown>) => {
   );
 };
 
-const fetchWarehouses = async () => {
-  try {
-    const res = await getWarehouseList({ page: 1, page_size: 1000 });
-    warehouses.value = res.data?.items || [];
-  } catch (error) {
-    logAuxLoadFailure(t('inventory.reservation.loadWarehousesFailed'), error);
-    warehouses.value = [];
-  }
-};
-
 defineExpose({ refresh: fetchReservations });
 
 onMounted(() => {
   fetchReservations();
-  fetchWarehouses();
 });
 </script>
 
