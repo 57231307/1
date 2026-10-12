@@ -226,7 +226,7 @@ const handleSubmit = async () => {
     // 后端 CreateSupplierRequest.supplier_short_name（length min=2/max=100）、credit_code（length equal=18）
     // 均为 Option，validator 框架对 Some(空串) 判长度失败触发 422、对 None（缺省不携带该键）跳过校验；
     // 仿 UserTab 条件展开范式，空则省略该键、非空仍提交（edit 语义下不提交=保持原值，而非清空）。
-    // supplier_code 恒省略：编码由后端取号生成（supplier_service.rs:62-68），
+    // supplier_code 恒省略：编码由后端取号生成，
     // CreateSupplierRequest/UpdateSupplierRequest 均无该字段，携带它只会被 serde 静默丢弃。
     const { supplier_code: _supplier_code, supplier_short_name, credit_code, ...rest } = formData;
     void _supplier_code;

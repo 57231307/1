@@ -88,7 +88,7 @@ export function createDyeRecipe(data: Partial<DyeRecipe>): Promise<ApiResponse<D
  * 可空列依据 system 域 DDL（system/mod.rs:113-131 补列全部可空）。
  * color_code 为建表 NOT NULL（system/m0003_add_dye_tables.rs:30），不声明 null——
  * 显式 null 会被后端 business_displayable 拒绝。
- * recipe_name 同为建表 NOT NULL（system/m0003_add_dye_tables.rs:29），且对话框可编辑
+ * recipe_name 同为建表 NOT NULL，且对话框可编辑
  * （views/dye-recipe/index.vue 配方名输入框 + ruleRecipeNameRequired），按「有值=覆盖」送当前值、
  * 不声明 null；后端 UpdateDyeRecipeRequest 必须消费同名键，否则编辑改名被 serde 静默丢弃。
  * recipe_no 不在载荷内：配方编号由后端取号，不参与编辑提交。

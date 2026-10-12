@@ -631,7 +631,7 @@ const handleSubmitForm = async () => {
       // 三态语义（后端 UpdateDyeRecipeRequest DoubleOption，RFC 7386）：
       // 对话框已回显原值；可空列 UI 清空 ⇒ 送显式 null（=清空为 NULL）、未改动 ⇒ 原值回传；
       // color_code 为 NOT NULL（m0003:30）恒送值（送 null 会被后端拒绝）；
-      // recipe_name 为 DDL NOT NULL（m0003:29）且表单必填（ruleRecipeNameRequired），恒送当前值，
+      // recipe_name 为 DDL NOT NULL 且表单必填（ruleRecipeNameRequired），恒送当前值，
       // 省略该键 = 后端保持原名称，编辑改名因此必须显式携带；
       // 未采集键（fabric_type/dye_type/temperature/time_minutes/ph_value/
       // liquor_ratio/auxiliaries/status）省略 = 保持原值

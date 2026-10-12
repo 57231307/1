@@ -117,7 +117,7 @@ test.describe.serial('68 可选字段留空形态（省略键 + 原值不被覆�
     const dlg = await waitForDialog(page);
 
     // 只填前端必填项（供应商名称/联系电话 required）；供应商简称、信用代码保持空——本用例的主体形态。
-    // 供应商编码为后端取号字段（supplier_service.rs:62-68），表单只读不可手输，故不填写。
+    // 供应商编码为后端取号字段，表单只读不可手输，故不填写。
     await inputOf(dlg, '供应商名称').fill(supplierName);
     await inputOf(dlg, '联系电话').fill('13900006801');
     // 显式钉桩：可选项确实是空（未被上次残留预填），否则"省略键"断言失去形态意义

@@ -420,7 +420,7 @@ impl DyeRecipeService {
             .unwrap_or_else(|| recipe_status::DRAFT.to_string());
         let mut active: ActiveModel = model.into();
 
-        // recipe_name：编辑改名落库（缺陷 D1）。语义区别于下方三态可空列——配方名不允许
+        // recipe_name：编辑改名落库。语义区别于下方三态可空列——配方名不允许
         // 被编辑清空，故沿用"传了非空才 Set"范式：键缺席/显式 null 都是 None，保持原值不
         // Set；仅当携带非空字符串时覆盖。列在 DB 为可空 `Option<String>`，覆盖时按列类型包 `Some(v)`。
         if let Some(v) = req.recipe_name {

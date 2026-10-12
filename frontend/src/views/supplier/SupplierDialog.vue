@@ -31,7 +31,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('supplier.dialog.label.supplierCode')" prop="supplier_code">
-            <!-- 供应商编码由后端取号生成（supplier_service.rs:62-68），
+            <!-- 供应商编码由后端取号生成，
                  CreateSupplierRequest/UpdateSupplierRequest 都不接收该字段：
                  可手输只会把用户输入静默丢弃，故此处只读展示，值单向来自后端返回值。 -->
             <el-input
