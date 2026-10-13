@@ -1,5 +1,5 @@
 {
-  "total": 124,
+  "total": 122,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -286,18 +286,6 @@
       "count": 1,
       "keys": [
         "SupplierScore.rank"
-      ]
-    },
-    "frontend/src/api/user-profile.ts": {
-      "count": 1,
-      "keys": [
-        "UserProfile.role_names"
-      ]
-    },
-    "frontend/src/api/user.ts": {
-      "count": 1,
-      "keys": [
-        "User.role_names"
       ]
     }
   }

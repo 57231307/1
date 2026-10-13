@@ -5,7 +5,7 @@ import { loginViaUI, apiCallRaw, BASE_URL } from './helpers';
 // 字段权限 角色/可读/可写、权限管理 资源类型/操作/状态）在真实数据下逐格出值。
 // 判据以「单元格文本非空」为准，不接受仅断无 5xx 的软断言；种子缺失处以真实接口造数再验。
 
-const PASSWORD = 'E2ePassw0rd!';
+const PASSWORD = 'Xp9#Qr4Lm7!Zt2';
 
 // 在激活 Tab 面板内定位可见表格根节点（未激活面板以 display:none 隐藏，:visible 天然排除）
 function visibleTable(page: Page): Locator {
