@@ -31,15 +31,15 @@
           width="150"
         />
         <el-table-column
-          prop="visible"
-          :label="t('system.fieldPermission.column.visible')"
+          prop="can_read"
+          :label="t('system.fieldPermission.column.canRead')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.visible ? 'success' : 'danger'" size="small">
+            <el-tag :type="row.can_read ? 'success' : 'danger'" size="small">
               {{
-                row.visible
+                row.can_read
                   ? t('system.fieldPermission.common.yes')
                   : t('system.fieldPermission.common.no')
               }}
@@ -47,15 +47,15 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="editable"
-          :label="t('system.fieldPermission.column.editable')"
+          prop="can_write"
+          :label="t('system.fieldPermission.column.canWrite')"
           width="80"
           align="center"
         >
           <template #default="{ row }">
-            <el-tag :type="row.editable ? 'success' : 'info'" size="small">
+            <el-tag :type="row.can_write ? 'success' : 'info'" size="small">
               {{
-                row.editable
+                row.can_write
                   ? t('system.fieldPermission.common.yes')
                   : t('system.fieldPermission.common.no')
               }}
@@ -77,11 +77,12 @@ import type { ApiResponse } from '@/types/api';
 const { t } = useI18n({ useScope: 'global' });
 
 interface FieldPermissionRow {
-  role_name: string;
+  // 后端富化：role_name 来自 LEFT JOIN role（无匹配角色时为 null）
+  role_name: string | null;
   resource_type: string;
   field_name: string;
-  visible: boolean;
-  editable: boolean;
+  can_read: boolean;
+  can_write: boolean;
 }
 
 const fieldPermissionList = ref<FieldPermissionRow[]>([]);

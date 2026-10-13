@@ -8676,7 +8676,6 @@ export default {
       column: {
         role: 'Role',
         scopeType: 'Scope Type',
-        scopeValue: 'Scope Value',
         createdAt: 'Created At',
       },
       loadListFailed: 'Failed to load data permission list',
@@ -8737,8 +8736,8 @@ export default {
         role: 'Role',
         resource: 'Resource',
         fieldName: 'Field Name',
-        visible: 'Visible',
-        editable: 'Editable',
+        canRead: 'Readable',
+        canWrite: 'Writable',
       },
       common: {
         yes: 'Yes',

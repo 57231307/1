@@ -2,7 +2,7 @@ use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
-use crate::models::user;
+use crate::models::{department, role, user};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::auth_service::{self, AuthService};
 use crate::services::role_permission_service::RolePermissionService;
@@ -10,6 +10,7 @@ use crate::services::user_service::UserService;
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::audit::{self, SecurityEvent};
 use crate::utils::error::AppError;
+use crate::utils::pagination::paginate_with_total;
 use crate::utils::password_validator::validate_password;
 // 批次 103 P0-3 修复：接入 PasswordPolicyService 的 is_common_password / contains_username_fragment / strength_feedback_zh
 // 批次 158 v11 真实接入：build_password_blacklist 用于批量黑名单校验
@@ -17,11 +18,15 @@ use crate::services::auth::password_policy_service::{
     build_password_blacklist, contains_username_fragment, is_common_password, strength_feedback_zh,
 };
 use crate::utils::response::ApiResponse;
+use crate::utils::sql_escape::safe_like_pattern;
 use axum::{
     Json,
-    extract::{Extension, Multipart, Path, State},
+    extract::{Extension, Multipart, Path, Query, State},
 };
-use sea_orm::DatabaseConnection;
+use sea_orm::{
+    ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult, JoinType, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -111,6 +116,10 @@ pub struct UserResponse {
     pub department_id: Option<i32>,
     pub is_active: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// 部门名称，来自 departments.name（LEFT JOIN department_id）
+    pub department_name: Option<String>,
+    /// 角色名称列表，来自 roles.name（LEFT JOIN role_id，单角色命中含一个元素）
+    pub role_names: Vec<String>,
 }
 
 impl From<user::Model> for UserResponse {
@@ -126,6 +135,8 @@ impl From<user::Model> for UserResponse {
             department_id: user.department_id,
             is_active: user.is_active,
             created_at: user.created_at,
+            department_name: None,
+            role_names: Vec::new(),
         }
     }
 }
@@ -137,6 +148,23 @@ pub struct UserListResponse {
     pub total: u64,
     pub page: u64,
     pub page_size: u64,
+}
+
+/// 列表查询内部视图行（仅用于 LEFT JOIN 富化，不对外暴露）
+#[derive(Debug, FromQueryResult)]
+struct UserListRow {
+    pub id: i32,
+    pub username: String,
+    pub real_name: Option<String>,
+    pub avatar: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub role_id: Option<i32>,
+    pub department_id: Option<i32>,
+    pub is_active: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub department_name: Option<String>,
+    pub role_name: Option<String>,
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
@@ -377,18 +405,57 @@ pub async fn list_users(
         return Err(AppError::permission_denied("列出用户列表仅限管理员"));
     }
 
-    let user_service = UserService::new(state.db.clone());
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
-    let (users, total) = user_service
-        .list_users(
-            params.page.unwrap_or(1).clamp(1, 1000),
-            params.page_size.unwrap_or(20).clamp(1, 100),
-            params.keyword.clone(),
-            params.status,
-        )
-        .await?;
+    let mut query = user::Entity::find()
+        .column_as(department::Column::Name, "department_name")
+        .column_as(role::Column::Name, "role_name")
+        .join(JoinType::LeftJoin, user::Relation::Department.def())
+        .join(JoinType::LeftJoin, user::Relation::Role.def());
 
-    let user_responses: Vec<UserResponse> = users.into_iter().map(|user| user.into()).collect();
+    if let Some(kw) = params
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+    {
+        let pattern = safe_like_pattern(kw);
+        query = query.filter(
+            Condition::any()
+                .add(user::Column::Username.like(&pattern))
+                .add(user::Column::Email.like(&pattern))
+                .add(user::Column::Phone.like(&pattern)),
+        );
+    }
+    if let Some(s) = params.status {
+        query = query.filter(user::Column::IsActive.eq(s != 0));
+    }
+
+    let paginator = query
+        .order_by(user::Column::CreatedAt, Order::Desc)
+        .into_model::<UserListRow>()
+        .paginate(&*state.db, page_size);
+
+    let (rows, total) = paginate_with_total(paginator, page).await?;
+
+    let user_responses: Vec<UserResponse> = rows
+        .into_iter()
+        .map(|row| UserResponse {
+            id: row.id,
+            username: row.username,
+            real_name: row.real_name,
+            avatar: row.avatar,
+            email: row.email,
+            phone: row.phone,
+            role_id: row.role_id,
+            department_id: row.department_id,
+            is_active: row.is_active,
+            created_at: row.created_at,
+            department_name: row.department_name,
+            role_names: row.role_name.map(|n| vec![n]).unwrap_or_default(),
+        })
+        .collect();
 
     Ok(Json(ApiResponse::success(UserListResponse {
         users: user_responses,
@@ -406,8 +473,6 @@ pub struct ListUsersParams {
     pub keyword: Option<String>,
     pub status: Option<i8>,
 }
-
-use axum::extract::Query;
 
 /// 更新用户信息
 /// 更新用户信息
