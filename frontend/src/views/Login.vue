@@ -297,8 +297,12 @@ async function handleLogin() {
       router.push(redirect);
     } catch (error: unknown) {
       // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-      const message = error instanceof Error ? error.message : String(error);
-      ElMessage.error(message || t('login.failedFallback'));
+      // 登录凭证错误统一呈现为友好中文：后端 401 不泄露用户名是否存在，也绝不显示 axios 裸串。
+      // 其余错误（429 账号锁定 / 网络 / 5xx）已由 request.ts 拦截器按后端文案提示，此处不重复弹窗。
+      const status = (error as { response?: { status?: number } }).response?.status;
+      if (status === 401) {
+        ElMessage.error(t('login.failed'));
+      }
       // 登录瀑布修复：删除 catch 内 refreshLockStatus 调用
       // 原因：login 401 → catch → refreshLockStatus → lock-status 401 → refreshLockStatus 循环
       // lock-status 匿名预检已由后端 P1.2 修复，blur 预检保留即可

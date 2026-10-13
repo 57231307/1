@@ -299,10 +299,15 @@ class Request {
           }
           _networkErrorToastShown = true;
         }
-        showErrorOnce(safeMessage);
-
-        if (error.response?.status === 401) {
-          router.push('/login');
+        // 登录凭证错误（POST /auth/login 返回 401）是登录页要就地友好提示的预期结果：
+        // 不在此弹全局「未授权」、也不跳转（用户本就在登录页），交 Login.vue 用 i18n 文案呈现，
+        // 避免出现英文技术裸串与双提示。其它状态（如 429 账号锁定）仍按后端文案在此提示。
+        const isLoginAttempt = error.config?.url === '/auth/login';
+        if (!(isLoginAttempt && error.response?.status === 401)) {
+          showErrorOnce(safeMessage);
+          if (error.response?.status === 401) {
+            router.push('/login');
+          }
         }
         return Promise.reject(error);
       }

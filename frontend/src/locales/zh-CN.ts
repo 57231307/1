@@ -363,7 +363,6 @@ export default {
     failedAttempts: '连续登录失败 {count} 次，账号已锁定',
     remainingTime: '剩余等待时间：{minutes} 分 {seconds} 秒',
     unlocked: '账号已解除锁定，请重新登录',
-    failedFallback: '登录失败',
     passwordExpiredMessage: '您的密码已超过 90 天未修改，为保障账户安全，请立即修改密码。',
     passwordExpiredTitle: '密码过期提醒',
     passwordExpiredConfirm: '立即修改',

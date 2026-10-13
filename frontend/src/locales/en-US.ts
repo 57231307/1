@@ -363,7 +363,6 @@ export default {
     failedAttempts: 'Login failed {count} times, account locked',
     remainingTime: 'Remaining: {minutes}m {seconds}s',
     unlocked: 'Account unlocked, please log in again',
-    failedFallback: 'Login failed',
     passwordExpiredMessage:
       'Your password has not been changed for over 90 days. For account security, please change it immediately.',
     passwordExpiredTitle: 'Password Expiry Reminder',
