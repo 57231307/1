@@ -23,6 +23,8 @@
 //! - polymorphic_bill_id_widen: 把八列多态单据 ID（各表 `source_bill_id` / `business_id`，
 //!   模型均为 i64）从 INTEGER 统一放宽为 BIGINT，使按 i64 绑定时与列宽一致；置于链尾为新的
 //!   顶层条目，复用库上也必然执行，幂等可重放
+//! - print_subsystem: 打印子系统建表（print_templates 模板主数据 + print_tasks 任务台账，
+//!   任务表外键引用模板表；置于链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -41,3 +43,4 @@ pub mod export_inspection_vocab_check;
 pub mod dye_recipe_reject;
 pub mod ddl_nullability_tighten;
 pub mod polymorphic_bill_id_widen;
+pub mod print_subsystem;
