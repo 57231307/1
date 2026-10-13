@@ -24,7 +24,6 @@
     "/security/change-password",
     "/security/two-factor-setup",
     "/system",
-    "/system-update",
     "/system/audit-log",
     "/system/export-approvals",
     "/system/profile",
