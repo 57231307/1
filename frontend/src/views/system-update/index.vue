@@ -9,11 +9,18 @@
     <div class="page-header">
       <h2 class="page-title">{{ t('systemUpdate.index.title') }}</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="upd.handleCheckUpdate">
+        <el-button
+          v-permission="PERMISSIONS.SYSTEM_UPDATE_CHECK_READ"
+          type="primary"
+          @click="upd.handleCheckUpdate"
+        >
           <el-icon><Refresh /></el-icon>
           {{ t('systemUpdate.index.buttonCheckUpdate') }}
         </el-button>
-        <el-button @click="onOpenBackupDialog">
+        <el-button
+          v-permission="PERMISSIONS.SYSTEM_UPDATE_BACKUPS_CREATE"
+          @click="onOpenBackupDialog"
+        >
           <el-icon><FolderAdd /></el-icon>
           {{ t('systemUpdate.index.buttonCreateBackup') }}
         </el-button>
@@ -25,6 +32,9 @@
       :latest-version="upd.latestVersion"
       :has-update="upd.hasUpdate"
       :is-updating="upd.isUpdating"
+      :apply-message="upd.applyMessage"
+      :applied-version="upd.appliedVersion"
+      :restart-pending="upd.restartPending"
       :format-file-size="formatFileSize"
       @trigger-update="upd.triggerUpdate"
     />
@@ -113,6 +123,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Refresh, FolderAdd } from '@element-plus/icons-vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useSysUpd } from './composables/useSysUpd';
 import { useSysUpdProc } from './composables/useSysUpdProc';
 import * as sysUpdFmts from './composables/sysUpdFmts';

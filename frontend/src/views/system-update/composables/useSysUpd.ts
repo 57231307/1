@@ -1,9 +1,10 @@
 /**
  * useSysUpd.ts - 系统更新核心 composable
- * 任务编号: P14 批 2 I-3 第 1 批（拆分原 system-update/index.vue）
  * 提供当前版本、更新任务、系统备份等业务状态与加载方法
  * 业务流程（确认对话框的回滚/取消等）由 useSysUpdProc 提供
- * 更新应用为后端同步单请求：triggerUpdate 用不确定态轮询 update-status 观测进度，禁伪造百分比
+ * 更新应用为后端同步单请求：POST /update 返回即已落库应用版本；triggerUpdate 随后轮询
+ * update-status 的真实生效字段（applied_version / restart_pending）判定是否已生效，
+ * 并把后端权威重启结论 message 如实呈现，绝不伪造百分比或谎称服务已重启。
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -23,7 +24,7 @@ import {
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
-/** 轮询 update-status 的最大次数与间隔（同步请求下为兜底观测窗口，非进度计时器） */
+/** 轮询 update-status 真实生效态的最大次数与间隔（含重启窗口容错，非进度计时器） */
 const STATUS_POLL_INTERVAL_MS = 1500;
 const STATUS_POLL_MAX_ATTEMPTS = 20;
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -38,6 +39,12 @@ export function useSysUpd() {
   const hasUpdate = ref(false);
   // 更新是否在途（不确定态）：仅由 triggerUpdate/轮询驱动，不驱动任何百分比
   const isUpdating = ref(false);
+  // 应用更新结果（真实生效态，来自 POST /update 响应 + update-status 轮询）：
+  // 后端重启结论 message（权威文本，原样呈现）、已落库应用版本、是否待重启生效。
+  // 未触发过应用时 applyMessage 为空串，卡片不渲染结果区（诚实空态，不兜底假文案）。
+  const applyMessage = ref('');
+  const appliedVersion = ref<string | null>(null);
+  const restartPending = ref(false);
 
   // 更新任务 - 接入 useTableApi（后端返回 ApiResponse<PaginatedResponse<UpdateTask>>，
   // useTableApi 默认探测 items/total 键即可正确解包）
@@ -112,32 +119,59 @@ export function useSysUpd() {
   };
 
   /**
-   * 轮询观测后端 is_updating。
-   * 后端 apply 为同步单请求，请求返回即应用完成，故通常第一拍即观测到 false；
-   * 此函数只负责「观测期间如实反映后端布尔态」，绝不参与任何百分比计算/自增。
+   * 轮询 update-status 观测真实生效态。
+   * 判据（逐条对齐后端 applied_version / restart_pending 语义，不臆测）：
+   * - 目标版本（apply 响应的 new_version）已落库为 applied_version 且 restart_pending 转 false
+   *   → 新编译版本已在运行进程加载，视为已生效，提前结束；
+   * - 若 new_version 为空（后端未能确定目标版本），仅以 restart_pending 转 false 为结束条件；
+   * - 其余情况（含服务正处于重启窗口、轮询请求失败）继续重试直至观测窗口用尽，
+   *   保留最后一次读到的 applied_version / restart_pending 交人工据实判断，绝不静默吞错。
    */
-  const pollUntilIdle = async () => {
+  const pollUntilEffective = async (targetVersion: string | null) => {
     for (let attempt = 0; attempt < STATUS_POLL_MAX_ATTEMPTS; attempt++) {
-      const res = await getUpdateStatus();
-      if (!res.data.is_updating) return;
+      try {
+        const res = await getUpdateStatus();
+        appliedVersion.value = res.data.applied_version;
+        restartPending.value = res.data.restart_pending;
+        const versionMatched = targetVersion === null || res.data.applied_version === targetVersion;
+        if (!res.data.restart_pending && versionMatched) return;
+      } catch (error: unknown) {
+        // 重启窗口内后端可能短暂不可达：这不是业务失败，记录后继续观测，不当作已生效/已失败
+        logAuxLoadFailure('更新生效状态轮询失败（可能处于重启窗口）:', error);
+      }
       await sleep(STATUS_POLL_INTERVAL_MS);
     }
   };
 
   /**
-   * 触发应用更新（不确定态进度）：
-   * 1) 立即置 isUpdating=true → 更新按钮禁用、卡片显 indeterminate「正在更新…」，全程无百分比；
-   * 2) POST /update（后端同步单请求）返回后短暂轮询 /update-status 确认回到空闲态；
-   * 3) 完成后刷新任务/备份列表并重检更新。
-   * 限制说明：因后端无后台化真实进度，isUpdating 的可见时长≈请求在途时长，属诚实不确定态。
+   * 触发应用更新（真实生效判定）：
+   * 1) 置 isUpdating=true → 更新按钮禁用、卡片显 indeterminate「正在更新…」，全程无百分比；
+   * 2) POST /update（后端同步单请求）返回，取 data.message（权威重启结论）与 data.new_version；
+   * 3) 轮询 update-status 直至 applied_version==目标版本且 restart_pending 转 false 或超时；
+   * 4) 依真实 restart_pending 分支给出诚实成功提示，并把后端结论原文与生效字段交给卡片展示；
+   * 5) 刷新任务/备份列表并重检更新。
+   * 说明：后端按配置门控与监督器探测决定是否自退，故生效结果可能是「等待重启」或「已受控重启」，
+   * 前端只如实转述，不替后端断言服务已重启。
    */
   const triggerUpdate = async () => {
     if (isUpdating.value) return; // 防重复触发
     isUpdating.value = true;
+    // 清空上一次结果，避免旧结论与新一次应用混叠（诚实：每次触发都重头采集）
+    applyMessage.value = '';
+    appliedVersion.value = null;
+    restartPending.value = false;
     try {
-      await applyUpdate();
-      await pollUntilIdle();
-      msg.success('updateApplied');
+      const res = await applyUpdate();
+      applyMessage.value = res.data.message;
+      const targetVersion = res.data.new_version;
+      await pollUntilEffective(targetVersion);
+      if (restartPending.value) {
+        // 已应用但新进程尚未加载：等待重启生效（受控自退未拉起或需人工重启）
+        msg.success('updateApplied');
+      } else {
+        // restart_pending 已转 false：新编译版本已在运行进程加载，受控重启并生效
+        msg.success('updateAppliedActive');
+      }
       await Promise.all([fetchTasks(), fetchBackups(), handleCheckUpdate()]);
     } catch (error: unknown) {
       ElMessage.error(
@@ -205,6 +239,9 @@ export function useSysUpd() {
     latestVersion,
     hasUpdate,
     isUpdating,
+    applyMessage,
+    appliedVersion,
+    restartPending,
     fetchCurrentVersion,
     handleCheckUpdate,
     triggerUpdate,

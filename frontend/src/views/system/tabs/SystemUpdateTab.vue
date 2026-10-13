@@ -18,11 +18,17 @@
         }}</el-descriptions-item>
       </el-descriptions>
       <div style="margin-top: 20px">
-        <el-button type="primary" :loading="checkUpdateLoading" @click="checkUpdate">
+        <el-button
+          v-permission="PERMISSIONS.SYSTEM_UPDATE_CHECK_READ"
+          type="primary"
+          :loading="checkUpdateLoading"
+          @click="checkUpdate"
+        >
           {{ t('system.systemUpdate.button.check') }}
         </el-button>
         <el-button
           v-if="hasUpdate"
+          v-permission="PERMISSIONS.SYSTEM_UPDATE_UPDATE_CREATE"
           type="success"
           :loading="applyUpdateLoading"
           @click="applyUpdate"
@@ -47,6 +53,8 @@ import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { request } from '@/api/request';
+import { applyUpdate as applyUpdateApi } from '@/api/system-update';
+import { PERMISSIONS } from '@/constants/permissions';
 import type { ApiResponse } from '@/types/api';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -97,7 +105,10 @@ const checkUpdate = async () => {
 const applyUpdate = async () => {
   applyUpdateLoading.value = true;
   try {
-    await request.post('/system-update/update');
+    // 后端 download_and_update 返回权威重启结论 data.message（是否已自退拉起 / 需人工重启），
+    // 如实转述，不替后端断言"服务已重启"
+    const res = await applyUpdateApi();
+    updateInfo.value = res.data.message;
     ElMessage.success(t('system.systemUpdate.message.updateSubmitted'));
   } catch (e) {
     const err = e as { message?: string };
