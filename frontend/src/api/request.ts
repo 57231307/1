@@ -299,11 +299,20 @@ class Request {
           }
           _networkErrorToastShown = true;
         }
-        // 登录凭证错误（POST /auth/login 返回 401）是登录页要就地友好提示的预期结果：
-        // 不在此弹全局「未授权」、也不跳转（用户本就在登录页），交 Login.vue 用 i18n 文案呈现，
-        // 避免出现英文技术裸串与双提示。其它状态（如 429 账号锁定）仍按后端文案在此提示。
-        const isLoginAttempt = error.config?.url === '/auth/login';
-        if (!(isLoginAttempt && error.response?.status === 401)) {
+        // 会话生命周期端点（login/refresh/me）返回 401 是"尚未登录/刷新失败"的预期结果，
+        // 不是需要全局提示的业务错误：登录页一打开就会探测 /auth/me 并自动尝试 /auth/refresh，
+        // 二者在未登录时必返 401。若在此弹"未授权"裸文案，会在用户还没提交密码前就先污染提示，
+        // 且与 Login.vue 的凭证级文案叠加成双提示。故对这些端点的 401 一律静默、不跳转
+        //（跳转已由刷新失败分支处理，凭证错误由 Login.vue 呈现）。业务 API 的 401 仍照常提示并跳登录。
+        const reqUrl = error.config?.url || '';
+        const isAuthSessionEndpoint =
+          reqUrl === '/auth/login' ||
+          reqUrl === '/auth/refresh' ||
+          reqUrl === '/auth/me' ||
+          reqUrl.startsWith('/auth/refresh/') ||
+          reqUrl.startsWith('/auth/me/');
+        const isSilentAuth401 = isAuthSessionEndpoint && error.response?.status === 401;
+        if (!isSilentAuth401) {
           showErrorOnce(safeMessage);
           if (error.response?.status === 401) {
             router.push('/login');
