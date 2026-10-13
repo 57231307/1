@@ -11,6 +11,8 @@ export interface ExportApprovalRequest {
   file_format: string | null;
   status: string;
   risk_level: string | null;
+  /** 后端 Model.approval_level（i32 必填）：1 一级审批即可，2 需二级审批 */
+  approval_level: number;
   approval_context: unknown;
   download_token: string | null;
   token_expires_at: string | null;
@@ -75,8 +77,13 @@ export function cancelRequest(id: number) {
   return request.post<ApiResponse<ExportApprovalRequest>>(`/export-approvals/${id}/cancel`);
 }
 
+/**
+ * GET /export-approvals/verify-token 出参为完整审批请求 Model（后端 handler 直接
+ * serde_json::to_value(model)，含 status/download_token/token_expires_at/download_count 等），
+ * 并非 valid 布尔信封；令牌失效（过期/次数超限/状态非 approved）走非 2xx 失败信封。
+ */
 export function verifyToken(token: string) {
-  return request.get<
-    ApiResponse<{ valid: boolean; approval_id: number; resource_type: string; expires_at: string }>
-  >('/export-approvals/verify-token', { params: { token } });
+  return request.get<ApiResponse<ExportApprovalRequest>>('/export-approvals/verify-token', {
+    params: { token },
+  });
 }
