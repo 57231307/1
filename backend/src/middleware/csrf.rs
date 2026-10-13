@@ -242,7 +242,7 @@ pub async fn csrf_middleware(
         }
     };
 
-    // 4. 一次性消费 token（Wave 3 #7 含 IP 校验）
+    // 4. 一次性消费 token（含 IP 绑定校验）
     consume_csrf_token(&state, &token, &client_ip, &path, &method).map_err(|e| *e)?;
 
     // 5. 消费成功后轮换：生成新 CSRF Token 存入 cache + Set-Cookie 下发
