@@ -9,6 +9,7 @@
 -->
 <template>
   <div
+    v-loading="loading"
     class="v2-table-wrapper"
     :style="{ height: typeof height === 'number' ? `${height}px` : height || '600px' }"
   >
@@ -20,15 +21,20 @@
           :width="width"
           :height="autoHeight"
           :row-key="rowKey"
-          :loading="loading"
-          :empty-text="resolvedEmptyText"
           :estimated-row-height="estimatedRowHeight"
           :header-height="48"
           :row-event-handlers="rowEventHandlers"
           role="table"
           :aria-label="t('components.v2Table.ariaLabel')"
           fixed
-        />
+        >
+          <template #empty>
+            <!-- el-table-v2 无 loading/empty-text prop，数据为空即渲染本插槽。
+                 加载中(data 尚为空数组且 loading=true)时必须留空，否则"暂无数据"会在
+                 请求返回前先闪现；真正的空态只在加载结束且确无数据时呈现。 -->
+            <div v-if="!loading" class="v2-table-empty">{{ resolvedEmptyText }}</div>
+          </template>
+        </ElTableV2>
       </template>
     </ElAutoResizer>
     <div v-if="total !== undefined" class="v2-table-pagination">
@@ -162,5 +168,9 @@ const handleSizeChange = (newSize: number) => {
   display: flex;
   justify-content: flex-end;
   padding: 16px 0;
+}
+.v2-table-empty {
+  padding: 40px 0;
+  color: var(--el-text-color-secondary);
 }
 </style>
