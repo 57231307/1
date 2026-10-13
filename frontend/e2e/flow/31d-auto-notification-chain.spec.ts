@@ -32,9 +32,6 @@ import {
  * 现统一改用 helpers.listNotifications，并把 A/B/C 的软分支改成真实断言。
  */
 
-/** 通知落库由 commit 后事件驱动，触发后需给监听器留出写入窗口 */
-const NOTIF_SETTLE_MS = 3000;
-
 /** 清理动作：走 helpers 的 CSRF/重试链路，失败仅记录（行为已由用例断言验证） */
 async function markRead(page: import('@playwright/test').Page, id: number): Promise<void> {
   await tryCleanup(page, 'POST', `/notifications/${id}/read`, '[31d] 标记已读');
@@ -75,6 +72,46 @@ async function deleteNotification(
   id: number
 ): Promise<void> {
   await tryCleanup(page, 'DELETE', `/notifications/${id}`, '[31d] 删除通知');
+}
+
+type Notif = Awaited<ReturnType<typeof listNotifications>>[number];
+
+/**
+ * 带截止轮询地等待某条目标标题通知产生（替代原「单次 sleep(3s)+仅 UNREAD 差集」）。
+ * 关键健壮性 同分片共享收件人账号下，别的 spec（如 31e 全局 read-all、GET 详情自动标已读）
+ * 可能在触发与本用例读取之间把本条从 UNREAD 翻成 READ。故每次取 UNREAD 与 READ 的并集来找，
+ * 只放宽「读取它当前处于哪个状态」这一呈现，不放宽「它必须存在」这一断言（找不到即抛错判红）。
+ * 找不到时点名已见的其它新增标题，便于判责；命中返回该通知。
+ */
+async function waitForNotifByTitle(
+  page: import('@playwright/test').Page,
+  beforeIds: Set<number>,
+  title: string,
+  context: string,
+  timeoutMs = 20_000
+): Promise<Notif> {
+  const deadline = Date.now() + timeoutMs;
+  let lastSeen: Notif[] = [];
+  for (;;) {
+    const [unread, read] = await Promise.all([
+      listNotifications(page, 'UNREAD'),
+      listNotifications(page, 'READ'),
+    ]);
+    const merged = new Map<number, Notif>();
+    for (const n of [...unread, ...read]) {
+      if (!beforeIds.has(n.id)) merged.set(n.id, n);
+    }
+    lastSeen = [...merged.values()];
+    const hit = lastSeen.find(n => n.title === title);
+    if (hit) return hit;
+    if (Date.now() >= deadline) break;
+    await page.waitForTimeout(500);
+  }
+  throw new Error(
+    `[31d-${context}] 轮询 ${timeoutMs}ms 未收到「${title}」通知（期间新增：${
+      lastSeen.map(n => n.title).join('|') || '无'
+    }）`
+  );
 }
 
 /**
@@ -150,40 +187,29 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
 
     // 创建即草稿态，应先收到「销售订单已创建」（notify_order_created），
     // 且与后续提交通知用不同 dedup_key，不被 5 分钟窗口折叠
-    await page.waitForTimeout(NOTIF_SETTLE_MS);
-    const afterCreate = await listNotifications(page);
-    const createdNotif = afterCreate
-      .filter(n => !before.some(b => b.id === n.id))
-      .find(n => n.title === '销售订单已创建');
-    expect(
-      createdNotif,
-      `[31d-A] 未收到「销售订单已创建」通知（新增 ${afterCreate.length} 条：${afterCreate
-        .map(n => n.title)
-        .join('|')}）`
-    ).toBeTruthy();
-    console.warn(`[31d-A] 已收到创建通知 id=${createdNotif!.id}`);
+    const createdNotif = await waitForNotifByTitle(
+      page,
+      new Set(before.map(n => n.id)),
+      '销售订单已创建',
+      'A'
+    );
+    console.warn(`[31d-A] 已收到创建通知 id=${createdNotif.id}`);
 
     // submit 端点触发通知
     await apiCall(page, 'POST', `/sales/orders/${orderId}/submit`);
     console.warn(`[31d-A] 订单提交成功`);
 
-    await page.waitForTimeout(NOTIF_SETTLE_MS);
-    const after = await listNotifications(page);
-    console.warn(`[31d-A] 提交后未读通知 ${after.length} 条`);
-    const newOnes = after.filter(n => !afterCreate.some(b => b.id === n.id));
-    // event_notification_service.rs 的 notify_order_submitted 固定标题
-    const orderNotif = newOnes.find(n => n.title === '订单已提交');
-    console.warn(`[31d-A] 提交后新增通知 ${newOnes.length} 条，匹配提交通知: ${!!orderNotif}`);
-    expect(
-      orderNotif,
-      `[31d-A] 未收到「订单已提交」通知（新增 ${newOnes.length} 条：${newOnes
-        .map(n => n.title)
-        .join('|')}）`
-    ).toBeTruthy();
-    await markReadAndAssert(page, orderNotif!.id, 'A');
-    await deleteNotification(page, orderNotif!.id);
-    await markReadAndAssert(page, createdNotif!.id, 'A');
-    await deleteNotification(page, createdNotif!.id);
+    const orderNotif = await waitForNotifByTitle(
+      page,
+      new Set([...before.map(n => n.id), createdNotif.id]),
+      '订单已提交',
+      'A'
+    );
+    console.warn(`[31d-A] 匹配提交通知 id=${orderNotif.id}`);
+    await markReadAndAssert(page, orderNotif.id, 'A');
+    await deleteNotification(page, orderNotif.id);
+    await markReadAndAssert(page, createdNotif.id, 'A');
+    await deleteNotification(page, createdNotif.id);
 
     // 清理订单
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-A]');
@@ -224,20 +250,15 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await apiCall(page, 'POST', `/sales/orders/${orderId}/approve`);
     console.warn(`[31d-B] 订单审批成功`);
 
-    await page.waitForTimeout(NOTIF_SETTLE_MS);
-    const after = await listNotifications(page);
-    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
-    // event_notification_service.rs:192 notify_order_approved 的固定标题
-    const approvalNotif = newOnes.find(n => n.title === '订单审批通过');
-    console.warn(`[31d-B] 新增通知 ${newOnes.length} 条，匹配审批通知: ${!!approvalNotif}`);
-    expect(
-      approvalNotif,
-      `[31d-B] 未收到「订单审批通过」通知（新增 ${newOnes.length} 条：${newOnes
-        .map(n => n.title)
-        .join('|')}）`
-    ).toBeTruthy();
-    await markReadAndAssert(page, approvalNotif!.id, 'B');
-    await deleteNotification(page, approvalNotif!.id);
+    const approvalNotif = await waitForNotifByTitle(
+      page,
+      new Set(before.map(n => n.id)),
+      '订单审批通过',
+      'B'
+    );
+    console.warn(`[31d-B] 匹配审批通知 id=${approvalNotif.id}`);
+    await markReadAndAssert(page, approvalNotif.id, 'B');
+    await deleteNotification(page, approvalNotif.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-B]');
     await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-B] 客户');
@@ -324,20 +345,17 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
       `匹状态应为 SHIPPED（词表 inventory_piece 大写），实际 ${shippedPiece!.status}`
     ).toBe('SHIPPED');
 
-    await page.waitForTimeout(NOTIF_SETTLE_MS);
-    const after = await listNotifications(page);
-    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
-    // event_notification_service.rs:228 notify_order_shipped 的固定标题
-    const shipNotif = newOnes.find(n => n.title === '订单已发货');
-    console.warn(`[31d-C] 新增通知 ${newOnes.length} 条，匹配发货通知: ${!!shipNotif}`);
-    expect(
-      shipNotif,
-      `[31d-C] 未收到「订单已发货」通知（新增 ${newOnes.length} 条：${newOnes
-        .map(n => n.title)
-        .join('|')}）`
-    ).toBeTruthy();
-    await markReadAndAssert(page, shipNotif!.id, 'C');
-    await deleteNotification(page, shipNotif!.id);
+    // 发货通知由 notify_order_shipped 同步写入；用带截止轮询在 UNREAD∪READ 并集里等它出现，
+    // 规避同分片其它 spec 的全局 read-all 把本条翻成 READ 后单次快照漏判的竞态。
+    const shipNotif = await waitForNotifByTitle(
+      page,
+      new Set(before.map(n => n.id)),
+      '订单已发货',
+      'C'
+    );
+    console.warn(`[31d-C] 匹配发货通知 id=${shipNotif.id}`);
+    await markReadAndAssert(page, shipNotif.id, 'C');
+    await deleteNotification(page, shipNotif.id);
 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, '[31d-C]');
     await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, '[31d-C] 客户');
@@ -445,25 +463,19 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/submit`);
     console.warn(`[31d-F] 付款申请提交成功`);
 
-    await page.waitForTimeout(NOTIF_SETTLE_MS);
-    const after = await listNotifications(page);
-    const newOnes = after.filter(n => !before.some(b => b.id === n.id));
-    // ap_payment_request_handler.rs submit_request 的固定标题：付款申请待审批：{request_no}
+    // 付款申请提交通知同步写入；用带截止轮询在 UNREAD∪READ 并集里等它出现，规避共享账号
+    // 被其它 spec 全局 read-all 翻成 READ 后单次快照漏判的竞态。固定标题 付款申请待审批：{request_no}
     const expectedTitle = `付款申请待审批：${requestNo}`;
-    const payNotif = newOnes.find(n => n.title === expectedTitle);
-    console.warn(
-      `[31d-F] 新增通知 ${newOnes.length} 条（${newOnes.map(n => n.title).join('|')}），` +
-        `匹配「${expectedTitle}」: ${!!payNotif}`
+    const payNotif = await waitForNotifByTitle(
+      page,
+      new Set(before.map(n => n.id)),
+      expectedTitle,
+      'F'
     );
-    expect(
-      payNotif,
-      `[31d-F] 未收到付款申请审批人通知「${expectedTitle}」（新增 ${newOnes.length} 条：${newOnes
-        .map(n => n.title)
-        .join('|')}）`
-    ).toBeTruthy();
+    console.warn(`[31d-F] 匹配付款申请审批通知 id=${payNotif.id}`);
 
-    await markReadAndAssert(page, payNotif!.id, 'E');
-    await deleteNotification(page, payNotif!.id);
+    await markReadAndAssert(page, payNotif.id, 'E');
+    await deleteNotification(page, payNotif.id);
 
     await tryCleanup(page, 'DELETE', `/ap/payment-requests/${requestId}`, '[31d-F]');
   });
