@@ -14,6 +14,7 @@ use crate::models::{customer, inventory_stock, product, sales_order, warehouse};
 // 库存台账状态取本列自己的中文主数据值（正常/报废/已删除）。批次 209 曾把
 // 硬编码 "active" 换成 `master_data::ACTIVE`——那是另一张表的状态域，按它过滤
 // `inventory_stocks.stock_status` 恒零命中，仪表盘的库存四张卡因此长期显示 0。
+use crate::models::status::product_type;
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::sales_order as so_status;
 use crate::utils::cache::{AppCache, Cache};
@@ -80,6 +81,9 @@ pub struct DashboardOverview {
     pub customer_count: i64,
     /// 今日订单数（sales_orders 当日创建，与销售类指标同按 created_by 归属过滤）
     pub today_orders: i64,
+    /// 面料总数（products 中 product_type 命中面料集合坯布/成品布的行数，排除辅料；
+    /// 词表与产品写入口径同源，供仪表盘"面料总数"卡片，区别于含辅料的全量 total_products）
+    pub fabric_count: i64,
 }
 
 /// 销售统计数据
@@ -161,6 +165,7 @@ struct OverviewMetrics {
     inventory_total: Decimal,
     customer_count: u64,
     today_orders: u64,
+    fabric_count: u64,
 }
 
 #[derive(Debug)]
@@ -249,6 +254,10 @@ impl DashboardService {
         let mut today_orders_q = sales_order::Entity::find()
             .filter(sales_order::Column::CreatedAt.gte(today_start_utc()));
         let mut customer_count_q = customer::Entity::find();
+        // 面料总数：products 中 product_type 命中面料集合(坯布/成品布)的行数，排除辅料。
+        // product 域与 total_products 同不随行级 scope 过滤（无 created_by 语义归属口径）。
+        let fabric_count_q = product::Entity::find()
+            .filter(product::Column::ProductType.is_in(product_type::FABRIC_TYPES.iter().copied()));
 
         // 缺陷 4.3 修复：Self_/Dept 范围仅统计自己的订单
         if let Some(ctx) = self.data_scope.as_ref() {
@@ -297,6 +306,7 @@ impl DashboardService {
             .one(db);
         let customer_count_fut = customer_count_q.count(db);
         let today_orders_fut = today_orders_q.count(db);
+        let fabric_count_fut = fabric_count_q.count(db);
         // 库存总量：正常状态库存的米数合计，与库存统计端点 total_inventory 同源；
         // inventory_stocks 无归属列，故与同为库存指标的 low_stock_count 一样不做行级 scope 过滤。
         let inventory_total_fut = inventory_stock::Entity::find()
@@ -325,8 +335,12 @@ impl DashboardService {
             monthly_sales_fut,
             total_sales_fut,
         )?;
-        let (customer_count, today_orders, inventory_total_opt) =
-            tokio::try_join!(customer_count_fut, today_orders_fut, inventory_total_fut)?;
+        let (customer_count, today_orders, fabric_count, inventory_total_opt) = tokio::try_join!(
+            customer_count_fut,
+            today_orders_fut,
+            fabric_count_fut,
+            inventory_total_fut
+        )?;
         Ok(OverviewMetrics {
             total_products,
             total_warehouses,
@@ -338,6 +352,7 @@ impl DashboardService {
             inventory_total: inventory_total_opt.flatten().unwrap_or(Decimal::ZERO),
             customer_count,
             today_orders,
+            fabric_count,
         })
     }
 
@@ -354,6 +369,7 @@ impl DashboardService {
             inventory_total: metrics.inventory_total.to_string(),
             customer_count: metrics.customer_count as i64,
             today_orders: metrics.today_orders as i64,
+            fabric_count: metrics.fabric_count as i64,
         }
     }
 

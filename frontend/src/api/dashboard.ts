@@ -10,6 +10,7 @@ export interface DashboardQuery {
  * 概览出参 = `dashboard_service.rs` 的 `DashboardOverview`（计数为 i64、金额为 String）。
  * `inventory_total` 是库存米数合计（Decimal 以 String 承载精度，同 total_sales/monthly_sales），
  * 故类型为 number | string；`customer_count`/`today_orders` 为计数。
+ * `fabric_count` 为面料总数（product_type 属坯布/成品布的产品行计数，排除辅料），供"面料总数"卡片。
  * recent_activities 后端 overview 仍未提供，属活动流数据源缺口，保留可选。
  */
 export interface DashboardOverview {
@@ -23,6 +24,7 @@ export interface DashboardOverview {
   inventory_total?: number | string;
   customer_count?: number;
   today_orders?: number;
+  fabric_count?: number;
   recent_activities?: Activity[];
 }
 

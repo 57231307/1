@@ -13,6 +13,7 @@ use crate::models::product_category;
 use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
@@ -387,7 +388,9 @@ pub async fn create_product(
             status: req
                 .status
                 .unwrap_or_else(|| master_data::ACTIVE.to_string()),
-            product_type: req.product_type.unwrap_or_else(|| "成品".to_string()),
+            product_type: req
+                .product_type
+                .unwrap_or_else(|| product_type::FINISHED.to_string()),
             fabric_composition: req.fabric_composition,
             yarn_count: req.yarn_count,
             density: req.density,

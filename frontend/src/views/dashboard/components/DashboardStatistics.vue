@@ -13,7 +13,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.fabricTotal') }}</div>
-            <div class="stat-value">{{ stats.total_products }}</div>
+            <div class="stat-value">{{ stats.fabric_count ?? 0 }}</div>
           </div>
         </div>
       </el-card>
