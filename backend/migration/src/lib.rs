@@ -38,9 +38,10 @@
 //! 11. dye_recipe_reject: 染色配方拒绝通道（chk_dye_recipe_status 同约束名扩 rejected +
 //!    rejected_reason 专列；必须排全链尾——生效 CHECK 以本域为准，早于 v15 执行会被
 //!    v15 域尾按同名约束重建的四值窄集覆盖回旧集）
-//! 12. print_subsystem: 打印子系统建表（print_templates 模板主数据 + print_tasks 任务台账；
-//!    print_tasks.template_id 外键引用 print_templates，域内先建模板再建任务；置于链尾为新
-//!    的顶层条目，域名在复用库上属 pending 必然执行，不并入既有域以免被整体跳过）
+//! 12. print_subsystem: 打印子系统建表（print_templates 模板主数据 + print_tasks 任务台账
+//!    + print_targets 打印目标登记；print_tasks.template_id 外键引用 print_templates，域内
+//!    先建模板再建任务，print_targets 与两表无外键依赖、域内末位追加；置于链尾为新的
+//!    顶层条目，域名在复用库上属 pending 必然执行，不并入既有域以免被整体跳过）
 
 pub use sea_orm_migration::prelude::*;
 
