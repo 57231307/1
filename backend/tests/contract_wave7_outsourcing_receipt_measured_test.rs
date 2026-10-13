@@ -39,7 +39,7 @@ use bingxi_backend::models::status::{
     purchase_inventory::inventory_piece as piece_status,
 };
 use bingxi_backend::models::{
-    inventory_piece, outsourcing_order, outsourcing_receipt, product, warehouse,
+    inventory_piece, outsourcing_order, outsourcing_receipt, print_template, product, warehouse,
 };
 use bingxi_backend::services::piece_domain_service::PIECE_TYPE_DYED;
 use rust_decimal::Decimal;
@@ -289,6 +289,20 @@ async fn seed_base(db: &Arc<sea_orm::DatabaseConnection>) {
     .insert(db.as_ref())
     .await
     .expect("种子委外订单插入失败");
+
+    // 标签打印要求 inventory_piece_label 存在「启用+默认」模板行（渲染器以模板持久化列驱动，无模板行则 404）。
+    print_template::ActiveModel {
+        id: Default::default(),
+        template_code: Set("TPL-OS220-PIECE-LABEL".to_string()),
+        template_name: Set("成品布入库标签模板".to_string()),
+        module: Set("inventory".to_string()),
+        doc_type: Set("inventory_piece_label".to_string()),
+        is_default: Set(true),
+        ..Default::default()
+    }
+    .insert(db.as_ref())
+    .await
+    .expect("种子打印模板插入失败");
 }
 
 async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {

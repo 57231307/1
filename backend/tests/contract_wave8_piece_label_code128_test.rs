@@ -28,6 +28,7 @@ use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::print_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::inventory_piece;
+use bingxi_backend::models::print_template;
 use bingxi_backend::models::product;
 use bingxi_backend::models::status::purchase_inventory::inventory_piece as piece_status;
 use bingxi_backend::models::warehouse;
@@ -312,6 +313,21 @@ async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
         },
     )
     .await;
+
+    // 打印渲染需该 doc_type 下有「启用+默认」模板行；条码默认开启（建表 barcode_default=true），
+    // 以保留标签内嵌 Code128 PNG 的渲染路径。
+    print_template::ActiveModel {
+        id: Default::default(),
+        template_code: Set("TPL-W221-PIECE-LABEL".to_string()),
+        template_name: Set("成品布入库标签模板".to_string()),
+        module: Set("inventory".to_string()),
+        doc_type: Set("inventory_piece_label".to_string()),
+        is_default: Set(true),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .expect("种子打印模板插入失败");
 
     db
 }

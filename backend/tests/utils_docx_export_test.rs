@@ -73,6 +73,7 @@ fn test_docx_djzdgj() {
             vec!["2".to_string(), "面料B".to_string()],
         ],
         None,
+        &DocxPageLayout::default_a4_export(),
     );
     assert!(result.is_ok(), "带键值对 docx 构建应成功");
     let bytes = result.unwrap();

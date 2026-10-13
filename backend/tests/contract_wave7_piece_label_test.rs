@@ -29,6 +29,7 @@ use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::batch_dye_lot;
 use bingxi_backend::models::fabric_inspection_record;
 use bingxi_backend::models::inventory_piece;
+use bingxi_backend::models::print_template;
 use bingxi_backend::models::product;
 use bingxi_backend::models::status::fabric_inspection as inspection_status;
 use bingxi_backend::models::status::purchase_inventory::inventory_piece as piece_status;
@@ -333,6 +334,21 @@ async fn seeded_db() -> Arc<sea_orm::DatabaseConnection> {
     .insert(&*db)
     .await
     .expect("种子验布记录插入失败");
+
+    // 打印渲染要求该 doc_type 下存在「启用+默认」模板行（渲染器以模板持久化列驱动，无模板行则 404）；
+    // 纸张/方向/边距/条码沿用建表默认（A4 纵向 15mm 边距 启用条码）。
+    print_template::ActiveModel {
+        id: Default::default(),
+        template_code: Set("TPL-W220-PIECE-LABEL".to_string()),
+        template_name: Set("成品布入库标签模板".to_string()),
+        module: Set("inventory".to_string()),
+        doc_type: Set("inventory_piece_label".to_string()),
+        is_default: Set(true),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .expect("种子打印模板插入失败");
 
     db
 }
