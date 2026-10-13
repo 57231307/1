@@ -10,13 +10,15 @@ use serde::Deserialize;
 use validator::Validate;
 
 use crate::container::AppState;
+use crate::handlers::print_task_handler::{
+    CreatePrintTaskRequest, PrintTaskJobRef, submit_print_task,
+};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::models::print_template;
 use crate::models::status::print::print_template_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::PrintService;
-use crate::utils::docx_export::DocxPageLayout;
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
@@ -27,36 +29,9 @@ use axum::{
 };
 use tracing::info;
 
-/// 按单据类型解析渲染所用的页面布局：查 `print_templates` 表中该 doc_type 下
-/// 「启用 + 默认」的模板行，用其持久化的纸张/方向/四边边距/条码开关构造布局。
-/// 查不到可用模板行时返回 fail-visible 404（不以内置默认值代渲染）。
-async fn resolve_print_docx_layout(
-    db: &sea_orm::DatabaseConnection,
-    doc_type: &str,
-) -> Result<DocxPageLayout, AppError> {
-    let template = print_template::Entity::find()
-        .filter(print_template::Column::DocType.eq(doc_type))
-        .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
-        .filter(print_template::Column::IsDefault.eq(true))
-        .order_by(print_template::Column::Id, Order::Asc)
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            AppError::not_found(format!(
-                "单据类型 {doc_type} 没有可用（启用且默认）的打印模板"
-            ))
-        })?;
-    Ok(DocxPageLayout {
-        paper_size: template.paper_size,
-        orientation: template.orientation,
-        margin_top_mm: template.margin_top_mm,
-        margin_bottom_mm: template.margin_bottom_mm,
-        margin_left_mm: template.margin_left_mm,
-        margin_right_mm: template.margin_right_mm,
-        barcode_enabled: template.barcode_default,
-    })
-}
-
+/// 按单据类型渲染打印 docx：先装配打印数据（字段缺失/业务门控以既有 400 形态暴露），
+/// 再取持久化模板布局（经 [`print_task_handler::resolve_print_docx_layout`] 单一来源解析，
+/// 无可用模板行时 404，绝不以内置默认值代渲染），最后生成 docx 响应。
 async fn render_print_docx(
     state: &AppState,
     doc_type: &str,
@@ -65,8 +40,10 @@ async fn render_print_docx(
     let service = PrintService::new(state.db.clone());
     // 先装配打印数据：字段缺失/业务门控在此以既有 400 形态暴露（先于模板存在性判断）。
     let print_data = service.get_print_data(doc_type, doc_id).await?;
-    // 再取持久化模板布局：无可用模板行时 404（绝不以内置默认值代渲染）。
-    let layout = resolve_print_docx_layout(&*state.db, doc_type).await?;
+    // 再取持久化模板布局：与打印任务受理链路共用同一解析入口（单一事实来源）。
+    let layout =
+        crate::handlers::print_task_handler::resolve_print_docx_layout(&*state.db, doc_type)
+            .await?;
     let bytes = service.generate_docx(&print_data, &layout)?;
     let filename = format!("{}_{}", doc_type, doc_id);
     Ok(crate::utils::docx_export::docx_response(bytes, &filename))
@@ -1556,20 +1533,64 @@ pub async fn preview_print_template(
     )))
 }
 
+/// 从可选请求体中读取打印所需的单据实例主键（`doc_id`）。缺失即 `None`，由调用方转 fail-visible 400。
+/// `doc_id` 为多态单据引用（BIGINT），按 i64 读取；非数字/越界一律视为缺失，不臆造样例打印。
+fn extract_doc_id(body: &OptionalJson<serde_json::Value>) -> Option<i64> {
+    body.0
+        .as_ref()
+        .and_then(|v| v.get("doc_id"))
+        .and_then(|v| v.as_i64())
+}
+
+/// 从可选请求体中读取打印目标符号名覆盖（`target_name`），供模板打印时指定设备/池。
+fn extract_target_override(body: &OptionalJson<serde_json::Value>) -> Option<String> {
+    body.0
+        .as_ref()
+        .and_then(|v| v.get("target_name"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// `POST /print-templates/{id}/print`：以某打印模板发起一次真实打印任务（受理 + 后台派发）。
+///
+/// 模板管理页的“打印”按钮无单据实例上下文：本端点必须经请求体显式提供 `doc_id`（打印哪一张单据），
+/// 缺失即 fail-visible 400「打印需指定单据实例」，绝不伪造样例打印或空跑。据模板 id 载入模板取其
+/// doc_type 与缺省参数，复用 [`print_task_handler::submit_print_task`] 走与 `POST /print-tasks`
+/// 完全相同的受理链路（校验→落 pending→后台生成 docx→派发），成功返回 `{ id, job_code }` 供前端轮询。
 pub async fn print_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    _body: OptionalJson<serde_json::Value>,
-) -> Result<axum::Json<ApiResponse<()>>, AppError> {
+    body: OptionalJson<serde_json::Value>,
+) -> Result<axum::Json<ApiResponse<PrintTaskJobRef>>, AppError> {
     info!("用户 {} 使用打印模板打印 ID: {}", auth.username, id);
 
-    load_template(&*state.db, id).await?;
+    let template = load_template(&*state.db, id).await?;
+    let doc_id = extract_doc_id(&body).ok_or_else(|| {
+        AppError::bad_request("打印需指定单据实例（请求体缺少 doc_id，禁止伪造样例打印）")
+    })?;
+
+    let req = CreatePrintTaskRequest {
+        doc_type: template.doc_type.clone(),
+        doc_id,
+        target_name: extract_target_override(&body),
+        template_id: Some(id),
+        copies: None,
+        paper_size: None,
+        orientation: None,
+        margin_top_mm: None,
+        margin_bottom_mm: None,
+        margin_left_mm: None,
+        margin_right_mm: None,
+        barcode_enabled: None,
+    };
+    let job_ref = submit_print_task(&state, &auth, req).await?;
 
     record_print_audit(&state, &auth, "print_template", id);
 
     Ok(axum::Json(ApiResponse::success_with_message(
-        (),
+        job_ref,
         "打印任务已受理",
     )))
 }

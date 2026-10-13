@@ -266,6 +266,11 @@ fn is_core_direct_resource(part: &str) -> bool {
             // ===== 生产直接资源 =====
             | "quality-standards"
             | "print-templates"
+            // 打印任务是 print-templates 同族的根级直接资源：URL 段即权威资源名（无模块前缀、
+            // 末段是记录 ID 而非子资源）。不在白名单则 permission 中间件 validate_route_whitelist
+            // 对全员（含 admin）fail-closed 403；登记后派生键即 print-tasks，与 PERMISSION_RESOURCES
+            // 及授权种子同词表。print-targets 本轮无对应路由/handler，不在此登记（避免注册表漂移）。
+            | "print-tasks"
             | "suppliers"
             | "supplier-qualifications"
     )

@@ -33,8 +33,8 @@ use utoipa::OpenApi;
 
 use crate::container::AppState;
 use crate::handlers::{
-    import_export_handler, material_shortage_handler, print_handler, quality_standard_handler,
-    scheduling_handler, system_update_handler, user_handler,
+    import_export_handler, material_shortage_handler, print_handler, print_task_handler,
+    quality_standard_handler, scheduling_handler, system_update_handler, user_handler,
 };
 use crate::middleware::sql_injection_audit::sql_injection_audit_middleware;
 use crate::services::metrics_service::create_metrics_router;
@@ -322,6 +322,18 @@ fn print_templates_routes() -> Router<AppState> {
         )
 }
 
+/// 打印任务路由（path 前缀 /print-tasks）：受理提交 / 分页列表 / 单任务详情（前端轮询）。
+/// 路由只登记相对路径，`/api/v1/erp` 前缀在 `create_router` 的 `nest` 处唯一装配；
+/// 资源键由 `/api/v1/erp/print-tasks` 的 seg3 派生为 `print-tasks`，与权限注册表同源。
+fn print_tasks_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/print-tasks",
+            get(print_task_handler::list_print_tasks).post(print_task_handler::create_print_task),
+        )
+        .route("/print-tasks/{id}", get(print_task_handler::get_print_task))
+}
+
 /// 数据导入路由（path 前缀 /data-import）
 fn data_import_routes() -> Router<AppState> {
     Router::new()
@@ -427,6 +439,7 @@ fn build_erp_root_router() -> Router<AppState> {
         .merge(user_profile_routes())
         .merge(system_update_extra_routes())
         .merge(print_templates_routes())
+        .merge(print_tasks_routes())
         .merge(data_import_routes())
         .merge(product_categories_alias())
         .merge(suppliers_select_alias())

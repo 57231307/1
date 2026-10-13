@@ -1292,6 +1292,11 @@ impl InitService {
                     ("audit-logs", "*"),
                     ("slow-queries", "*"),
                     ("print-templates", "*"),
+                    // 打印任务提交/查询：系统管理岗需要发起打印并回查任务终态。按最小授权
+                    // 只授 read + create（无 update/delete）；业务岗不授（用户裁定，不自签扩权）。
+                    // print-targets 授权范围本轮未裁，保持不授（仅超管旁路可达），待人工签署。
+                    ("print-tasks", "read"),
+                    ("print-tasks", "create"),
                     ("data-import", "*"),
                     ("permission-audits", "*"),
                     ("business-trace", "read"),

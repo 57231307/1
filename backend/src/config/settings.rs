@@ -41,6 +41,23 @@ fn set_global_env_tax_rate(rate: Option<Decimal>) {
     let _ = GLOBAL_ENV_TAX_RATE.set(rate);
 }
 
+/// 进程级打印派发运行期配置单例：`AppSettings::new` 在 `load_print_from_env` 之后写入，
+/// 打印受理链路（`handlers/print_task_handler.rs`）据此向 `print_dispatch::dispatch_task`
+/// 传入派发超时/临时文件策略，避免在 handler 里出现第二套手写派发常量或重复读环境变量。
+/// 未加载配置时 [`global_print_config`] 回退 [`PrintConfig::default`]（派发超时 30s、失败删除
+/// 临时文件、临时目录回退系统临时目录下的 print 子目录）；**不含任何打印机地址**。
+static GLOBAL_PRINT_CONFIG: OnceLock<PrintConfig> = OnceLock::new();
+
+/// 读取进程级打印派发配置；未初始化时返回 [`PrintConfig::default`]。
+pub fn global_print_config() -> PrintConfig {
+    GLOBAL_PRINT_CONFIG.get().cloned().unwrap_or_default()
+}
+
+/// 将 `load_print_from_env` 处理后的打印配置写入进程级单例（重复调用仅首次生效，幂等）。
+fn set_global_print_config(cfg: PrintConfig) {
+    let _ = GLOBAL_PRINT_CONFIG.set(cfg);
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
     pub server: ServerConfig,
@@ -428,6 +445,8 @@ impl AppSettings {
         // 环保税适用税额（地方可变值）写入进程级单例供计税链路读取；
         // None（未配置）同样是合法部署态——计税端点会显式失败，不在此处报错、不 panic。
         set_global_env_tax_rate(app_settings.env_tax_rate_per_equivalent);
+        // 打印派发运行期配置写入进程级单例供受理链路读取（不含任何设备地址）。
+        set_global_print_config(app_settings.print.clone());
         Ok(app_settings)
     }
 
