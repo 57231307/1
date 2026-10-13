@@ -17,6 +17,20 @@ pub const MANAGER_ROLE_CODE: &str = "manager";
 /// admin 不再持有 audit:read，审计职责独立到 auditor 角色，遵循职责分离原则
 pub const AUDITOR_ROLE_CODE: &str = "auditor";
 
+/// 系统运维角色编码常量
+/// 系统更新加固：新增专责系统更新运维的岗位，与 admin 共同构成系统更新写端点的
+/// handler 层深度防御允许角色集合。角色本体由 role.rs 播种，权限键由 permission.rs 矩阵授予。
+pub const OPS_ROLE_CODE: &str = "ops";
+
+/// 系统更新类高危操作（二进制替换、版本回滚、上传安装）在 handler 层深度防御允许的角色码集合。
+/// admin 全权、ops 系统运维，二者之外的角色一律拒绝，防中间件被绕过。
+pub const SYSTEM_UPDATE_ALLOWED_ROLE_CODES: &[&str] = &[ADMIN_ROLE_CODE, OPS_ROLE_CODE];
+
+/// 纯函数：判定角色 code 是否属于系统更新允许集合（与 admin/ops 常量单一真相源保持一致）。
+pub fn is_system_update_authorized_code(code: &str) -> bool {
+    SYSTEM_UPDATE_ALLOWED_ROLE_CODES.contains(&code)
+}
+
 /// 管理员角色检查缓存条目
 #[derive(Clone)]
 pub struct AdminCacheEntry {

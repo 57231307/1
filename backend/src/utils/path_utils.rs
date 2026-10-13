@@ -192,6 +192,28 @@ pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> 
         // 恒不等于已授的 quality-inspections:*，quality_inspector 等持权岗访问自己检验/缺陷面反而 403。
         // 消歧到注册表权威复数名，纯对齐复活死授权，不新增任何"角色×资源×动作"。
         ("production", "quality-inspection") => "quality-inspections".to_string(),
+        // ===== 系统更新域：system-update 前缀下的各 seg4 统一带 system-update- 前缀 =====
+        // 系统更新整段是高危敏感面（二进制替换、版本回滚、上传安装），权限键必须与其余业务
+        // 资源隔离命名。seg4 若不加前缀，update、check、rollback、upload、tasks、versions 等
+        // 单词与业务域同名，派生出的裸键既无法与注册表逐字符对齐，也会让业务侧同名授权行顺带
+        // 命中系统更新端点（跨域越权）。此处把 system-update 挂载下全部 seg4 逐一消歧到带
+        // system-update- 前缀的权威名，派生、注册、授予三者逐字符一致，与 purchase- 前缀族同构，
+        // 纯命名隔离不新增任何角色跨资源授权。覆盖 update、check、rollback、upload、
+        // local-update、local-check、local-releases、current-version、update-status、tasks、
+        // backups、version、versions 全部资源段。
+        ("system-update", "update") => "system-update-update".to_string(),
+        ("system-update", "check") => "system-update-check".to_string(),
+        ("system-update", "rollback") => "system-update-rollback".to_string(),
+        ("system-update", "upload") => "system-update-upload".to_string(),
+        ("system-update", "version") => "system-update-version".to_string(),
+        ("system-update", "update-status") => "system-update-update-status".to_string(),
+        ("system-update", "local-update") => "system-update-local-update".to_string(),
+        ("system-update", "local-check") => "system-update-local-check".to_string(),
+        ("system-update", "local-releases") => "system-update-local-releases".to_string(),
+        ("system-update", "current-version") => "system-update-current-version".to_string(),
+        ("system-update", "tasks") => "system-update-tasks".to_string(),
+        ("system-update", "backups") => "system-update-backups".to_string(),
+        ("system-update", "versions") => "system-update-versions".to_string(),
         // ===== 其他情况：保留 resource 原名 =====
         _ => resource.to_string(),
     }

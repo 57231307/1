@@ -308,6 +308,11 @@ impl InitService {
             ("审计员", "auditor", "审计与合规只读查询", "all"),
             // IT/数据域
             ("系统管理员", "system_admin", "系统配置与用户管理", "all"),
+            // 系统运维岗：permission.rs 矩阵给 ("ops", system-update 读写键 + dashboard/notifications)
+            // 分组，角色必须同码在册，否则闸门②点名判红；且 utils/admin_checker.rs 的
+            // SYSTEM_UPDATE_ALLOWED_ROLE_CODES 与 handlers/system_update_handler.rs 深度防御
+            // 按该 code 判定。data_scope=all：系统更新为全局运维面，与 system_admin 的 all 口径一致。
+            ("系统运维", "ops", "系统更新与运维管理", "all"),
             ("数据分析师", "data_analyst", "BI报表与数据分析", "all"),
             // 行政
             ("行政助理", "admin_assistant", "用户管理与公告发布", "self"),

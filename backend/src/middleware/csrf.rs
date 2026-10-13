@@ -99,6 +99,48 @@ fn extract_csrf_token(request: &Request<Body>) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// 构造带 CSRF 恢复能力的 403 错误响应：签发一枚一次性恢复 token 存入缓存（绑定当前请求 IP），
+/// 并在响应头 x-new-csrf-token 与 Set-Cookie 双侧下发。前端已有的恢复重放会自动读取并携新 token 重试，
+/// 从而消除并发或轮换竞态下 CSRF 暂缺即被登出的伪登出成因。
+/// 仅用于 NotFound（已消费/过期）与 Missing（头缺失）两种可恢复形态；IpMismatch 属攻击面不在此列。
+/// 恢复 token 走同一一次性消费缓存，不改变失效即登出的整体策略。
+fn build_csrf_recovery_response(
+    state: &AppState,
+    client_ip: &str,
+    user_id: i32,
+    code: &str,
+    message: &str,
+) -> Response {
+    let recovery_token = uuid::Uuid::new_v4().to_string();
+    let session_seed = format!("recovery-{}", uuid::Uuid::new_v4());
+    state.cache.set_csrf_token(
+        recovery_token.clone(),
+        session_seed,
+        client_ip.to_string(),
+        user_id,
+        None,
+    );
+    let mut resp = csrf_error_response(code, message);
+    if let Ok(val) = axum::http::HeaderValue::from_str(&recovery_token) {
+        resp.headers_mut().insert(
+            axum::http::header::HeaderName::from_static("x-new-csrf-token"),
+            val,
+        );
+    }
+    // 同步 Set-Cookie，让前端可从 document.cookie 读到恢复 token（非 httpOnly、非加密）。
+    // 不可写 HttpOnly=false（RFC 6265 只认属性名，写了即等效开启，前端永远读不到）。
+    let cookie_value = format!(
+        "csrf_token={}; Path=/; SameSite=Strict; Max-Age=1800",
+        recovery_token
+    );
+    resp.headers_mut().append(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&cookie_value)
+            .unwrap_or_else(|_| axum::http::HeaderValue::from_static("")),
+    );
+    resp
+}
+
 /// 一次性消费 CSRF Token，含 IP 绑定校验（Wave 3 #7）
 fn consume_csrf_token(
     state: &AppState,
@@ -127,28 +169,17 @@ fn consume_csrf_token(
                 method = %method,
                 "CSRF 验证失败：Token 不存在或已被消费/过期"
             );
-            // 并发竞争缓解（E2E CI 稳定性修复）：
-            // 一次性消费 + 轮换机制下，同一会话的并发 POST 必有一个携带已消费的旧 token。
-            // 消费失败时同步下发新 token（X-New-CSRF-Token 头），让竞败方立即恢复，
-            // 避免前端被误踢出登录态（多标签页场景同样受益）。
-            // 注意：仅 NotFound（已消费/过期）时下发；IpMismatch/Missing 属攻击面，保持原语义。
-            let recovery_token = uuid::Uuid::new_v4().to_string();
-            let session_seed = format!("recovery-{}", uuid::Uuid::new_v4());
-            state.cache.set_csrf_token(
-                recovery_token.clone(),
-                session_seed,
-                client_ip.to_string(),
+            // 并发竞争缓解：一次性消费 + 轮换机制下，同一会话并发 POST 必有一个携带已消费的旧 token。
+            // NotFound（已消费/过期）属可恢复形态，签发恢复 token 并下发 x-new-csrf-token + Set-Cookie，
+            // 让竞败方经前端恢复重放立即恢复，避免被误踢出登录态（多标签页场景同样受益）。
+            // IpMismatch 属攻击面，保持原语义不下发恢复。
+            Err(Box::new(build_csrf_recovery_response(
+                state,
+                client_ip,
                 0,
-                None,
-            );
-            let mut resp = csrf_error_response(CODE_INVAL, CSRF_INVALID_MSG);
-            if let Ok(val) = axum::http::HeaderValue::from_str(&recovery_token) {
-                resp.headers_mut().insert(
-                    axum::http::header::HeaderName::from_static("x-new-csrf-token"),
-                    val,
-                );
-            }
-            Err(Box::new(resp))
+                CODE_INVAL,
+                CSRF_INVALID_MSG,
+            )))
         }
     }
 }
@@ -181,7 +212,10 @@ pub async fn csrf_middleware(
         return Ok(next.run(request).await);
     }
 
-    // 3. 提取并校验 CSRF Token 头
+    // 3. 提取客户端 IP（MISSING 恢复与消费校验共用）
+    let client_ip = extract_client_ip(&request);
+
+    // 3b. 提取并校验 CSRF Token 头
     let token = match extract_csrf_token(&request) {
         Some(t) => t,
         None => {
@@ -190,12 +224,25 @@ pub async fn csrf_middleware(
                 method = %method,
                 "CSRF 验证失败：请求头 X-CSRF-Token 缺失"
             );
-            return Err(csrf_error_response(CODE_MISS, CSRF_MISSING_MSG));
+            // MISSING 恢复：与 NotFound 同模式签发恢复 token，附带 x-new-csrf-token 响应头 + Set-Cookie，
+            // 让前端恢复重放自动携新 token 重试，消除点更新就登出的伪登出成因。
+            // 仍返回 403（不放宽失效即登出的整体策略），只是给可恢复的缺失态一条恢复通道。
+            let user_id = request
+                .extensions()
+                .get::<AuthContext>()
+                .map(|a| a.user_id)
+                .unwrap_or(0);
+            return Err(build_csrf_recovery_response(
+                &state,
+                &client_ip,
+                user_id,
+                CODE_MISS,
+                CSRF_MISSING_MSG,
+            ));
         }
     };
 
-    // 4. 提取客户端 IP + 一次性消费 token（Wave 3 #7 含 IP 校验）
-    let client_ip = extract_client_ip(&request);
+    // 4. 一次性消费 token（Wave 3 #7 含 IP 校验）
     consume_csrf_token(&state, &token, &client_ip, &path, &method).map_err(|e| *e)?;
 
     // 5. 消费成功后轮换：生成新 CSRF Token 存入 cache + Set-Cookie 下发

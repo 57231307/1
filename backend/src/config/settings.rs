@@ -356,6 +356,11 @@ pub struct UpdateConfig {
     pub connect_timeout_secs: u64,
     /// 下载读取（单次 chunk）超时（秒）。
     pub read_timeout_secs: u64,
+    /// 应用更新后是否触发受控自动重启（默认 true）。
+    /// 该开关只是门控的前半段：真正自退还必须同时探测到进程被监督器（systemd 等）拉起，
+    /// 二者同时成立才在响应送达后延迟自退交由监督器重启。无监督器时绝不自退
+    /// （否则进程一去不回、服务下线），由 update-status 如实回报需人工重启。
+    pub restart_on_apply: bool,
 }
 
 impl Default for UpdateConfig {
@@ -367,6 +372,9 @@ impl Default for UpdateConfig {
             verify_digest: true,
             connect_timeout_secs: 15,
             read_timeout_secs: 180,
+            // 门控默认开，但仅在探到监督器时才真正自退（见 restart_on_apply 文档），
+            // 无监督器环境该默认值不会导致进程自杀。
+            restart_on_apply: true,
         }
     }
 }
@@ -595,6 +603,13 @@ impl AppSettings {
             if let Ok(parsed) = v.trim().parse::<u64>() {
                 app_settings.update.read_timeout_secs = parsed;
             }
+        }
+
+        if let Ok(v) = std::env::var("UPDATE__RESTART_ON_APPLY") {
+            let normalized = v.trim().to_lowercase();
+            // 默认 true：仅显式 0/false/no/off 才关闭门控（与 verify_digest 同为安全侧默认）
+            app_settings.update.restart_on_apply =
+                !matches!(normalized.as_str(), "0" | "false" | "no" | "off");
         }
     }
 
