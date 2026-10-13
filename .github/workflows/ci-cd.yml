@@ -2544,6 +2544,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: write
+      pull-requests: read
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -2589,6 +2590,8 @@ jobs:
 
       - name: 生成发布说明（解析 commit body 中的 bullet points）
         id: release-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.package-release.outputs.version }}"
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
