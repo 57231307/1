@@ -118,7 +118,8 @@
           <el-button @click="batchProductVisible = true">
             {{ t('product.productListTab.batchProductTitle') }}
           </el-button>
-          <el-button :loading="exporting" @click="handleExport">
+          <!-- 产品属敏感导出，只能发起审批申请；无申请权限的角色不渲染该入口 -->
+          <el-button v-permission="'export-approvals:create'" @click="openExportDialog">
             <el-icon><Download /></el-icon>{{ t('common.export') }}
           </el-button>
         </el-form-item>
@@ -331,12 +332,104 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 产品导出申请（敏感导出：先申请审批，通过后凭一次性令牌下载） -->
+    <el-dialog
+      v-model="exportDialogVisible"
+      :title="t('product.productListTab.exportRequestTitle')"
+      width="720"
+    >
+      <el-alert
+        :closable="false"
+        type="info"
+        :title="t('product.productListTab.exportSensitiveNotice')"
+      />
+      <el-form
+        class="export-request-form"
+        label-width="110px"
+        :aria-label="t('product.productListTab.exportFormAriaLabel')"
+      >
+        <el-form-item :label="t('product.productListTab.exportFormatLabel')">
+          <el-radio-group v-model="exportForm.file_format">
+            <el-radio value="xlsx">{{ t('product.productListTab.exportFormatXlsx') }}</el-radio>
+            <el-radio value="pdf">{{ t('product.productListTab.exportFormatPdf') }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item :label="t('product.productListTab.exportEstimatedRowsLabel')">
+          <span class="export-estimated-rows">{{ total }}</span>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="exportSubmitting" @click="handleSubmitExportRequest">
+            {{ t('product.productListTab.buttonSubmitRequest') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-divider />
+
+      <div class="export-requests-head">
+        <span class="export-requests-title">
+          {{ t('product.productListTab.exportMyRequestsTitle') }}
+        </span>
+        <el-button text size="small" :loading="exportRequestsLoading" @click="loadMyExportRequests">
+          {{ t('common.refresh') }}
+        </el-button>
+      </div>
+      <el-table
+        v-loading="exportRequestsLoading"
+        :data="myExportRequests"
+        size="small"
+        border
+        max-height="280"
+        :aria-label="t('product.productListTab.exportRequestsTableAriaLabel')"
+      >
+        <el-table-column prop="created_at" :label="t('exportApprovals.colCreatedAt')" width="170" />
+        <el-table-column
+          prop="file_format"
+          :label="t('product.productListTab.exportFormatLabel')"
+          width="90"
+        />
+        <el-table-column :label="t('exportApprovals.colStatus')" width="110">
+          <template #default="{ row }">
+            <el-tag :type="exportApprovalStatusTagType(row.status)" size="small">
+              {{ t(exportApprovalStatusLabelKey(row.status)) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('common.action')" min-width="180">
+          <template #default="{ row }">
+            <el-button
+              v-if="canDownloadRow(row)"
+              type="primary"
+              size="small"
+              :loading="downloadingApprovalId === row.id"
+              @click="handleDownloadWithToken(row)"
+            >
+              {{ t('product.productListTab.buttonDownload') }}
+            </el-button>
+            <span v-else-if="row.status === 'approved'" class="export-token-hint">
+              {{ t('product.productListTab.exportTokenConsumed') }}
+            </span>
+            <span
+              v-else-if="row.status === 'pending' || row.status === 'pending_l2'"
+              class="export-token-hint"
+            >
+              {{ t('product.productListTab.exportDownloadAfterApproved') }}
+            </span>
+            <span v-else class="export-token-hint">
+              {{ t('product.productListTab.exportApplyAgainHint') }}
+            </span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { formatCurrency } from '@/utils';
-import { logAuxLoadFailure } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { msg } from '@/utils/message';
 // 批次 277：迁移到 useTableApi composable，移除手写分页逻辑
 import { ref, reactive, watch, onMounted, defineEmits, defineExpose } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -362,12 +455,19 @@ import {
   updateProductColor,
   deleteProductColor,
   batchCreateProductColors,
+  exportProducts,
+  type ExportProductsQuery,
   type Product,
   type ProductCategory,
   type ProductColor,
   type CreateProductColorPayload,
 } from '@/api/product';
-import { exportFabrics } from '@/api/fabric';
+import { createApproval, listApprovals, type ExportApprovalRequest } from '@/api/export-approvals';
+import {
+  exportApprovalStatusLabelKey,
+  exportApprovalStatusTagType,
+} from '@/constants/export-approval';
+import { useUserStore } from '@/store/user';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -473,27 +573,161 @@ const handleReset = () => {
   handleQuery();
 };
 
-const exporting = ref(false);
-// 产品列表导出：调 /products/export 下载 blob（与 dye-recipe 等页面统一模式）
-const handleExport = async () => {
-  if (exporting.value) return;
-  exporting.value = true;
+// 产品清单属敏感导出：后端 products/export 强制 download_token（fail-closed），
+// 直连导出必 403。这里改为「申请 至 审批 至 凭一次性令牌下载」的申请人侧流程，
+// 申请走 api/export-approvals 的 createApproval，下载走 exportProducts 携带令牌。
+const exportDialogVisible = ref(false);
+const exportSubmitting = ref(false);
+const exportRequestsLoading = ref(false);
+const downloadingApprovalId = ref<number | null>(null);
+const myExportRequests = ref<ExportApprovalRequest[]>([]);
+// 后端 create 校验 file_format 仅接受 xlsx/pdf（export_approval_service validate 分支）
+const exportForm = reactive({ file_format: 'xlsx' as 'xlsx' | 'pdf' });
+
+const userStore = useUserStore();
+
+const openExportDialog = () => {
+  exportDialogVisible.value = true;
+  void loadMyExportRequests();
+};
+
+// 当前筛选映射为后端 ExportProductsQuery 键名（keyword 对应 search，空值不上送）；
+// 同一形状同时作为审批申请的 export_params 落库，下载时按申请时刻的参数复原。
+// queryParams 是 Record<string, unknown>，逐键 typeof 收窄，不整体强转
+const currentExportQuery = (): ExportProductsQuery => {
+  const raw = queryParams.value;
+  const q: ExportProductsQuery = {};
+  if (typeof raw.category_id === 'number') {
+    q.category_id = raw.category_id;
+  }
+  if (typeof raw.status === 'string' && raw.status !== '') {
+    q.status = raw.status;
+  }
+  if (typeof raw.keyword === 'string' && raw.keyword.trim() !== '') {
+    q.search = raw.keyword;
+  }
+  return q;
+};
+
+const handleSubmitExportRequest = async () => {
+  if (exportSubmitting.value) return;
+  exportSubmitting.value = true;
   try {
-    const res = await exportFabrics(queryParams.value as never);
-    const url = window.URL.createObjectURL(new Blob([res]));
+    const res = await createApproval({
+      resource_type: 'product',
+      export_params: { ...currentExportQuery() },
+      estimated_rows: total.value,
+      file_format: exportForm.file_format,
+    });
+    const created = res.data;
+    logger.info(t('product.productListTab.exportRequestCreatedLog', { id: created.id }));
+    msg.success('exportRequestSubmitted', {
+      status: t(exportApprovalStatusLabelKey(created.status)),
+    });
+    await loadMyExportRequests();
+  } catch (error) {
+    // 失败文案由 request 拦截器统一按后端原始 message 外显（不吞不兜底），此处留显式日志
+    logger.error(t('product.productListTab.exportRequestFailedLog'), error);
+  } finally {
+    exportSubmitting.value = false;
+  }
+};
+
+// 我发起的产品导出申请：listApprovals 传本人 applicant_user_id（非 admin 后端本就强制
+// 只看自己，admin 传该参数同样收敛到本人视角）
+const loadMyExportRequests = async () => {
+  exportRequestsLoading.value = true;
+  try {
+    const res = await listApprovals({
+      page: 1,
+      page_size: 20,
+      resource_type: 'product',
+      applicant_user_id: userStore.userInfo?.id,
+    });
+    myExportRequests.value = res.data.items;
+  } catch (error) {
+    logAuxLoadFailure(t('product.productListTab.exportRequestsLoadFailed'), error);
+  } finally {
+    exportRequestsLoading.value = false;
+  }
+};
+
+// 令牌一次性：max_downloads 为 1，download_count 达上限后不可再用（是否过期由后端
+// verify 权威判定，前端不自行比对时间避免时钟偏差造成的误判放行）
+const canDownloadRow = (row: ExportApprovalRequest): boolean =>
+  row.status === 'approved' &&
+  row.download_token !== null &&
+  row.download_count < row.max_downloads;
+
+// 申请落库的 export_params 即 ExportProductsQuery 形状；逐键显式读取，不透传未知键
+const toExportProductsQuery = (raw: Record<string, unknown>): ExportProductsQuery => {
+  const q: ExportProductsQuery = {};
+  if (typeof raw.category_id === 'number') {
+    q.category_id = raw.category_id;
+  }
+  if (typeof raw.status === 'string' && raw.status.trim() !== '') {
+    q.status = raw.status;
+  }
+  if (typeof raw.search === 'string' && raw.search.trim() !== '') {
+    q.search = raw.search;
+  }
+  return q;
+};
+
+// blob 请求失败时后端错误体也是 Blob（request 拦截器无法从中取 message），
+// 这里解析出 message 原文外显，不做静默兜底
+const extractBlobErrorMessage = async (error: unknown): Promise<string | null> => {
+  const data = (error as { response?: { data?: unknown } } | undefined)?.response?.data;
+  if (!(data instanceof Blob)) return null;
+  try {
+    const parsed = JSON.parse(await data.text()) as { message?: unknown };
+    return typeof parsed.message === 'string' && parsed.message.trim() !== ''
+      ? parsed.message
+      : null;
+  } catch (parseError) {
+    logger.warn(t('product.productListTab.exportErrorBodyUnparsable'), parseError);
+    return null;
+  }
+};
+
+const handleDownloadWithToken = async (row: ExportApprovalRequest) => {
+  const token = row.download_token;
+  // 模板已按 canDownloadRow 门控，此处收窄类型并双保险防御直达调用
+  if (!token) return;
+  downloadingApprovalId.value = row.id;
+  try {
+    const res = await exportProducts({
+      ...toExportProductsQuery(row.export_params),
+      download_token: token,
+    });
+    // request 响应拦截器对 blob 响应返回完整 AxiosResponse（真 Blob 在其 data 上），
+    // 归一化两种形态（同 api/ap.ts printAPPaymentDocx 的既定写法）
+    const payload = res as unknown as Blob | { data: Blob };
+    const blob = payload instanceof Blob ? payload : payload.data;
+    // file_format 后端契约仅 xlsx/pdf 二值，扩展名按申请时刻的格式
+    const ext = row.file_format === 'pdf' ? 'pdf' : 'xlsx';
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `products-${Date.now()}.xlsx`);
+    link.setAttribute('download', `products-${Date.now()}.${ext}`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
-    ElMessage.success(t('message.exportSuccess'));
+    logger.info(t('product.productListTab.exportDownloadedLog', { id: row.id }));
+    msg.exportOk();
+    // 令牌用后即失效：回源列表把该行刷新为已使用态，供再次申请
+    await loadMyExportRequests();
   } catch (error) {
-    ElMessage.error(t('message.exportFailed'));
-    console.error('[ProductListTab] 导出失败:', error);
+    logger.error(t('product.productListTab.exportDownloadFailedLog', { id: row.id }), error);
+    const backendMessage = await extractBlobErrorMessage(error);
+    if (backendMessage) {
+      ElMessage.error(backendMessage);
+    }
+    // 失败同样回源刷新令牌真实状态（已用尽或已过期），绝不静默重试掩盖 403
+    await loadMyExportRequests();
   } finally {
-    exporting.value = false;
+    downloadingApprovalId.value = null;
   }
 };
 
@@ -807,5 +1041,19 @@ onMounted(() => {
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+}
+.export-requests-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.export-requests-title,
+.export-estimated-rows {
+  font-weight: 600;
+}
+.export-token-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

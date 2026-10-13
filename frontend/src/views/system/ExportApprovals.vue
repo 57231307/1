@@ -55,11 +55,11 @@
 
       <ElTable v-loading="loading" :data="list" border style="width: 100%">
         <ElTableColumn prop="id" label="ID" width="60" />
-        <ElTableColumn
-          prop="resource_type"
-          :label="$t('exportApprovals.colResource')"
-          width="120"
-        />
+        <ElTableColumn :label="$t('exportApprovals.colResource')" width="120">
+          <template #default="{ row }">{{
+            row.resource_type ? $t(exportApprovalResourceLabelKey(row.resource_type)) : ''
+          }}</template>
+        </ElTableColumn>
         <ElTableColumn
           prop="applicant_username"
           :label="$t('exportApprovals.colApplicant')"
@@ -208,6 +208,7 @@ import {
   cancelRequest,
 } from '@/api/export-approvals';
 import type { ExportApprovalRequest, ListApprovalQuery } from '@/api/export-approvals';
+import { exportApprovalResourceLabelKey } from '@/constants/export-approval';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();

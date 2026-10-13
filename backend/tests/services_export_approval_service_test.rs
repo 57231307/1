@@ -49,6 +49,6 @@ fn test_sensitive_resources() {
     assert!(sensitive_resources::is_sensitive("customer"));
     assert!(sensitive_resources::is_sensitive("dye_recipe"));
     assert!(sensitive_resources::is_sensitive("finance_report"));
-    assert!(!sensitive_resources::is_sensitive("product"));
+    assert!(sensitive_resources::is_sensitive("product"));
     assert!(!sensitive_resources::is_sensitive("inventory"));
 }
