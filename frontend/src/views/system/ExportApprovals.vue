@@ -57,7 +57,7 @@
         <ElTableColumn prop="id" label="ID" width="60" />
         <ElTableColumn :label="$t('exportApprovals.colResource')" width="120">
           <template #default="{ row }">{{
-            $t(exportApprovalResourceLabelKey(row.resource_type))
+            row.resource_type ? $t(exportApprovalResourceLabelKey(row.resource_type)) : ''
           }}</template>
         </ElTableColumn>
         <ElTableColumn
