@@ -77,6 +77,7 @@
           }}</el-button>
           <el-button
             v-if="row.status === 'completed'"
+            v-permission="PERMISSIONS.SYSTEM_UPDATE_ROLLBACK_CREATE"
             type="warning"
             link
             size="small"
@@ -89,6 +90,7 @@
               row.status === 'downloading' ||
               row.status === 'installing'
             "
+            v-permission="PERMISSIONS.SYSTEM_UPDATE_TASKS_CANCEL"
             type="danger"
             link
             size="small"
@@ -116,6 +118,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { PERMISSIONS } from '@/constants/permissions';
 import { type UpdateTask } from '@/api/system-update';
 
 const { t } = useI18n({ useScope: 'global' });

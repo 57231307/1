@@ -1129,7 +1129,12 @@ const routes: RouteRecordRaw[] = [
         path: 'system-update',
         name: 'SystemUpdate',
         component: () => import('@/views/system-update/index.vue'),
-        meta: { title: '系统更新', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
+        meta: {
+          title: '系统更新',
+          icon: 'Setting',
+          permission: 'system-update-check:read',
+          requiresAuth: true,
+        }, // 页面可见性与守卫按系统更新读键门控（ops 岗播种此键、admin 通配覆盖）
       },
       {
         path: 'system/profile',

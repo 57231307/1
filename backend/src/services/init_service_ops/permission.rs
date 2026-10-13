@@ -1297,6 +1297,35 @@ impl InitService {
                     ("business-trace", "read"),
                 ],
             ),
+            // 系统运维岗：系统更新整段高危敏感面（二进制替换、版本回滚、上传安装）。
+            // 授予与 utils/path_utils.rs 消歧、init_service.rs 注册逐字符一致的全部读写键
+            // （读取面用 read，写入面按派生规则用 create 与 tasks 的 cancel），
+            // 并补齐应用外壳 dashboard、notifications 读码（该岗登录后需进主框架）。
+            // 角色 code ops 由 role.rs 同码播种，深度防御判定见 utils/admin_checker.rs
+            // 与 handlers/system_update_handler.rs，与 admin 一样可执行系统更新写操作。
+            (
+                "ops",
+                &[
+                    ("system-update-update", "create"),
+                    ("system-update-check", "read"),
+                    ("system-update-rollback", "create"),
+                    ("system-update-upload", "create"),
+                    ("system-update-version", "read"),
+                    ("system-update-update-status", "read"),
+                    ("system-update-local-update", "create"),
+                    ("system-update-local-check", "read"),
+                    ("system-update-local-releases", "read"),
+                    ("system-update-current-version", "read"),
+                    ("system-update-tasks", "read"),
+                    ("system-update-tasks", "cancel"),
+                    ("system-update-backups", "read"),
+                    ("system-update-backups", "create"),
+                    ("system-update-versions", "read"),
+                    ("system-update-versions", "create"),
+                    ("dashboard", "read"),
+                    ("notifications", "read"),
+                ],
+            ),
             (
                 "data_analyst",
                 &[
@@ -1399,6 +1428,22 @@ impl InitService {
                 "quality_inspector",
                 "sod",
                 "管理员与质检员互斥（管理员不应直接执行质检）",
+            ),
+            // 系统运维与财务、出纳互斥：系统更新可替换运行二进制属最高危特权，
+            // 不得与资金收付、付款审批同人兼岗，避免既掌握系统底座又掌握资金出口。
+            // 与 admin 不互斥（admin 本就同时具备两类能力，通配旁路；互斥只针对 ops 这一
+            // 新设专职运维岗与业务财务岗的兼岗约束）。
+            (
+                "cashier",
+                "ops",
+                "sod",
+                "出纳资金收付与系统更新运维分离，防止既管系统底座又管资金出口",
+            ),
+            (
+                "finance_manager",
+                "ops",
+                "sod",
+                "财务审批与系统更新运维分离，职责互斥",
             ),
         ];
 

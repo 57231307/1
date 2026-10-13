@@ -192,6 +192,23 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "print-templates",
     "data-import",
     "permission-audits",
+    // ===== 系统更新域（高危敏感面，资源键统一带 system-update- 前缀与其余业务隔离）=====
+    // 与 utils/path_utils.rs 的 system-update 消歧映射逐字符对齐：运行时权限键由 URL 段派生，
+    // 这里的资源名必须与派生结果完全一致，否则系统更新授权行运行期永不命中（死码）。
+    // 读取面九枚、写入面按派生规则覆盖 create 与 cancel 两类动作，全部在此登记。
+    "system-update-update",
+    "system-update-check",
+    "system-update-rollback",
+    "system-update-upload",
+    "system-update-version",
+    "system-update-update-status",
+    "system-update-local-update",
+    "system-update-local-check",
+    "system-update-local-releases",
+    "system-update-current-version",
+    "system-update-tasks",
+    "system-update-backups",
+    "system-update-versions",
     // ===== 审批流域 =====
     "export-approvals",
     "role-change-approvals",

@@ -61,11 +61,45 @@
               }}
             </el-tag>
             <div v-if="hasUpdate" class="apply-row">
-              <el-button type="primary" @click="emit('trigger-update')">
+              <el-button
+                v-permission="PERMISSIONS.SYSTEM_UPDATE_UPDATE_CREATE"
+                type="primary"
+                @click="emit('trigger-update')"
+              >
                 {{ t('systemUpdate.infoCards.buttonApply') }}
               </el-button>
             </div>
           </template>
+        </div>
+      </el-card>
+    </el-col>
+  </el-row>
+
+  <!--
+    应用更新结果区：仅在一次应用触发后（applyMessage 非空）渲染，逐条呈现后端权威重启结论
+    与真实生效字段。后端 message 为运行时服务端数据（非源码裸中文），原样转述不臆测；
+    restart_pending 依后端布尔真值切「待重启生效 / 已受控重启并生效」，绝不写死既成事实。
+  -->
+  <el-row v-if="applyMessage" class="apply-result-row">
+    <el-col :span="24">
+      <el-card shadow="hover">
+        <template #header>
+          <span>{{ t('systemUpdate.infoCards.resultTitle') }}</span>
+        </template>
+        <!-- 后端重启结论原文：Vue 插值自动转义（零 v-html、零 XSS） -->
+        <p class="apply-result-message">{{ applyMessage }}</p>
+        <div class="apply-result-fields">
+          <span>
+            {{ t('systemUpdate.infoCards.labelAppliedVersion') }}:
+            {{ appliedVersion || '-' }}
+          </span>
+          <el-tag :type="restartPending ? 'warning' : 'success'" size="small">
+            {{
+              restartPending
+                ? t('systemUpdate.infoCards.restartPendingAwaiting')
+                : t('systemUpdate.infoCards.restartPendingActive')
+            }}
+          </el-tag>
         </div>
       </el-card>
     </el-col>
@@ -125,6 +159,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { PERMISSIONS } from '@/constants/permissions';
 import type { CheckUpdateResult } from '@/api/system-update';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -133,6 +168,7 @@ const { t } = useI18n({ useScope: 'global' });
  * 系统更新顶部信息卡组件
  * 显示当前版本、最新版本（含发布时间）、更新状态；
  * 有更新时并列展示当前/新版本两份更新内容，并给出触发更新入口（不确定态）。
+ * 一次应用触发后渲染真实生效结果区（后端重启结论 + applied_version + restart_pending）。
  */
 const props = defineProps<{
   // 当前版本（GET /system-update/current-version）
@@ -143,6 +179,12 @@ const props = defineProps<{
   hasUpdate: boolean;
   // 是否正在应用更新（不确定态，来自 useSysUpd.isUpdating）
   isUpdating: boolean;
+  // 后端应用更新权威重启结论原文（未触发时为空串，结果区不渲染）
+  applyMessage: string;
+  // 已落库应用版本（update-status.applied_version，string 或 null）
+  appliedVersion: string | null;
+  // 是否存在待重启生效（update-status.restart_pending 真实布尔）
+  restartPending: boolean;
   // 文件大小格式化（复用 sysUpdFmts.formatFileSize）
   formatFileSize: (bytes: number) => string;
 }>();
@@ -206,5 +248,21 @@ void props;
   color: #909399;
   font-size: 14px;
   padding: 12px 0;
+}
+.apply-result-row {
+  margin-bottom: 20px;
+}
+.apply-result-message {
+  margin: 0 0 8px;
+  line-height: 1.6;
+  color: #303133;
+  word-break: break-word;
+}
+.apply-result-fields {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #909399;
+  font-size: 14px;
 }
 </style>

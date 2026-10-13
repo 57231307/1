@@ -130,6 +130,17 @@ impl SystemUpdateService {
         authoritative_current_version()
     }
 
+    /// 读取已落盘的更新包 VERSION 文件获取实际生效版本（app_dir 下的 VERSION）。
+    /// 供 apply 成功后回读真实应用版本落库 system_version 与 update-status 出参使用；
+    /// 与编译期运行版本区分：更新已应用但进程尚未重启时二者不一致，据此判定待重启。
+    /// 读不到（文件缺失或 IO 失败）如实返回 None，不臆测。
+    pub fn applied_version(&self) -> Option<String> {
+        fs::read_to_string(self.app_dir.join("VERSION"))
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    }
+
     pub fn get_status(&self) -> UpdateStatus {
         let current_version = self.get_current_version();
         let is_updating = self.is_updating.load(std::sync::atomic::Ordering::SeqCst);

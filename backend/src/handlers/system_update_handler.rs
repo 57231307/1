@@ -6,37 +6,147 @@ use crate::models::system_update_backup;
 use crate::models::system_update_task;
 use crate::models::system_version;
 use crate::services::system_update_service::{LocalRelease, SystemUpdateService, UpdateError};
-use crate::utils::admin_checker::is_admin_role;
+use crate::utils::admin_checker::{get_role_code, is_system_update_authorized_code};
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Multipart, Path, State},
 };
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde::Deserialize;
 use std::path::PathBuf;
 use tokio::fs;
 use validator::Validate;
 
-/// 要求调用者具备 admin 角色，否则拒绝并记录审计日志。
-/// 系统更新属高危操作（二进制替换/版本回滚可致 RCE），需 handler 层显式校验防中间件被绕过。
+/// 要求调用者具备 admin 或 ops 角色，否则拒绝并记录审计日志。
+/// 系统更新属高危操作（二进制替换、版本回滚可致 RCE），需 handler 层显式校验防中间件被绕过。
+/// 允许角色集合以 utils/admin_checker 的 SYSTEM_UPDATE_ALLOWED_ROLE_CODES 为单一真相源，
+/// 与细粒度权限键授权同源，不在 handler 里另写一份角色词表。
 async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), AppError> {
     let role_id = auth
         .role_id
         .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
-    if !is_admin_role(&state.db, role_id).await {
+    let code = get_role_code(state.db.as_ref(), role_id)
+        .await
+        .ok_or_else(|| AppError::permission_denied("角色信息不可用，无法执行系统更新操作"))?;
+    if !is_system_update_authorized_code(&code) {
         tracing::warn!(
             target: "security_audit",
             event = "AUTHORIZATION_DENIED",
             user_id = auth.user_id,
             username = %auth.username,
-            "[SECURITY] 非 admin 用户调用系统更新敏感接口被拒绝"
+            role_code = %code,
+            "[SECURITY] 非 admin/ops 用户调用系统更新敏感接口被拒绝"
         );
         return Err(AppError::permission_denied(
-            "系统更新操作仅限管理员（code=admin）执行",
+            "系统更新操作仅限管理员或系统运维角色执行",
         ));
     }
     Ok(())
+}
+
+/// 将更新成功后实际生效的版本落库 system_version，并把目标版本置为 is_current、其余置为非当前。
+/// 复用现有表列（version、release_date、changelog、is_current），不加列、不加迁移；
+/// 真实生效态由 update-status 从该出口读出，供前端展示 applied_version 与 restart_pending。
+/// 落库失败必须上抛（不吞异常），由调用方在响应 message 里如实反映。
+async fn persist_applied_version(
+    db: &sea_orm::DatabaseConnection,
+    version: &str,
+) -> Result<(), AppError> {
+    let now = chrono::Utc::now();
+    // 先取消全部当前标记，再写目标版本为当前：保证至多一行 is_current=true（翻转为原子语义，两步同库同连接）。
+    system_version::Entity::update_many()
+        .col_expr(
+            system_version::Column::IsCurrent,
+            sea_orm::sea_query::Expr::value(false),
+        )
+        .filter(system_version::Column::IsCurrent.eq(true))
+        .exec(db)
+        .await?;
+
+    let existing = system_version::Entity::find()
+        .filter(system_version::Column::Version.eq(version))
+        .one(db)
+        .await?;
+    match existing {
+        Some(row) => {
+            let mut active: system_version::ActiveModel = row.into();
+            active.is_current = Set(true);
+            active.updated_at = Set(now.into());
+            active.update(db).await?;
+        }
+        None => {
+            let model = system_version::ActiveModel {
+                version: Set(version.to_string()),
+                release_date: Set(now.into()),
+                changelog: Set(None),
+                is_current: Set(true),
+                created_at: Set(now.into()),
+                updated_at: Set(now.into()),
+                ..Default::default()
+            };
+            model.insert(db).await?;
+        }
+    }
+
+    tracing::info!(
+        event = "SYSTEM_VERSION_PERSISTED",
+        version = %version,
+        "系统更新目标版本已落库并置为当前版本"
+    );
+    Ok(())
+}
+
+/// 探测进程是否运行在具备自动重启能力的监督器之下（systemd 环境标志）。
+/// 判据（任一命中即认定被监督）：环境变量 NOTIFY_SOCKET 或 INVOCATION_ID 存在
+/// （systemd 为每个 service 单元注入），或 systemd 运行目录 /run/systemd/system 存在，
+/// 或显式部署标志 BINGXI_IS_SERVICE 为真值。探不到监督器一律判 false，
+/// 由 apply 链路如实提示需人工重启，绝不无监督自退。
+fn supervisor_detected() -> bool {
+    if std::env::var_os("NOTIFY_SOCKET").is_some() || std::env::var_os("INVOCATION_ID").is_some() {
+        return true;
+    }
+    if let Some(v) = std::env::var_os("BINGXI_IS_SERVICE") {
+        let truthy = matches!(
+            v.to_string_lossy().trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        );
+        if truthy {
+            return true;
+        }
+    }
+    std::path::Path::new("/run/systemd/system").exists()
+}
+
+/// 应用更新成功后的受控重启：门控开（restart_on_apply）且探到监督器才延迟自退交 systemd 拉起，
+/// 复用仓内既有 setup 模式路径A 的延迟自退范式（spawn 睡短程后 process::exit）。
+/// 返回是否已安排自退；false 表示未自退，需人工重启以真实生效。
+/// 若担心监督器侧 StartLimitBurst 反复重启失败循环，那属 supervisor 配置职责，进程侧不自作降级。
+fn maybe_schedule_restart(message: &mut String) {
+    let gated = crate::config::settings::global_update_config().restart_on_apply;
+    if gated && supervisor_detected() {
+        tracing::info!(
+            event = "SYSTEM_UPDATE_RESTART_SCHEDULED",
+            "系统更新成功且处于受监督环境，安排延迟自退交由监督器自动重启"
+        );
+        message.push_str("；更新已应用，进程将延迟自退由监督器自动拉起以完成重启");
+        tokio::spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            tracing::info!("系统更新完成，进程自退以加载新版本（监督器将自动拉起）");
+            std::process::exit(0);
+        });
+    } else if gated {
+        // 门控开但无监督器：绝不自退（否则进程一去不回导致服务下线），如实提示需人工重启。
+        tracing::warn!(
+            event = "SYSTEM_UPDATE_RESTART_MANUAL",
+            "系统更新成功但未探测到监督器，不执行自动重启，需人工重启以生效"
+        );
+        message.push_str("；更新已应用，当前环境未探测到监督器，请人工重启服务以生效");
+    } else {
+        // 门控关闭：保持不自退，提示人工处理。
+        message.push_str("；更新已应用，自动重启门控已关闭，请人工重启服务以生效");
+    }
 }
 
 pub fn verify_zip_magic(data: &[u8]) -> bool {
@@ -58,6 +168,12 @@ pub struct UpdateStatusResponse {
     pub is_updating: bool,
     pub last_update_time: Option<String>,
     pub backup_versions: Vec<String>,
+    /// 已落库标记为当前的应用版本（system_version.is_current=true 的出口）。
+    /// 更新已应用但进程尚未重启时，它可能与编译期 current_version 不一致。
+    pub applied_version: Option<String>,
+    /// 是否存在待重启生效：applied_version 已落库但与当前运行进程编译版本不一致时为 true。
+    /// 供前端展示真实生效态，不臆测。
+    pub restart_pending: bool,
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
@@ -144,7 +260,12 @@ pub async fn download_and_update(
 
     match service.download_and_update().await {
         Ok(message) => {
-            let new_version = service.get_current_version();
+            let new_version = service
+                .applied_version()
+                .unwrap_or_else(|| service.get_current_version());
+            persist_applied_version(state.db.as_ref(), &new_version).await?;
+            let mut message = message;
+            maybe_schedule_restart(&mut message);
             Ok(Json(ApiResponse::success_with_message(
                 UpdateResult {
                     success: true,
@@ -169,16 +290,40 @@ pub async fn get_version() -> Json<ApiResponse<VersionResponse>> {
     }))
 }
 
-pub async fn get_update_status() -> Json<ApiResponse<UpdateStatusResponse>> {
+/// 读取 system_version 中标记为当前的应用版本（is_current=true）；无记录返回 None。
+async fn load_current_applied_version(
+    db: &sea_orm::DatabaseConnection,
+) -> Result<Option<String>, AppError> {
+    let row = system_version::Entity::find()
+        .filter(system_version::Column::IsCurrent.eq(true))
+        .order_by_desc(system_version::Column::Id)
+        .one(db)
+        .await?;
+    Ok(row.map(|v| v.version))
+}
+
+pub async fn get_update_status(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<UpdateStatusResponse>>, AppError> {
     let service = SystemUpdateService::new();
     let status = service.get_status();
+    let running_version = service.get_current_version();
+    let applied_version = load_current_applied_version(state.db.as_ref()).await?;
+    // restart_pending 如实判定：已落库的应用版本存在且与当前运行进程的编译版本不一致，
+    // 说明更新包已换文件但进程尚未重启加载新二进制。二者一致或无落库记录时为 false。
+    let restart_pending = applied_version
+        .as_deref()
+        .map(|v| v != running_version)
+        .unwrap_or(false);
 
-    Json(ApiResponse::success(UpdateStatusResponse {
+    Ok(Json(ApiResponse::success(UpdateStatusResponse {
         current_version: status.current_version,
         is_updating: status.is_updating,
         last_update_time: status.last_update_time,
         backup_versions: status.backup_versions,
-    }))
+        applied_version,
+        restart_pending,
+    })))
 }
 
 pub async fn upload_and_update(
@@ -194,7 +339,12 @@ pub async fn upload_and_update(
     let service = SystemUpdateService::new();
     match service.apply_update(&update_file).await {
         Ok(message) => {
-            let new_version = service.get_current_version();
+            let new_version = service
+                .applied_version()
+                .unwrap_or_else(|| service.get_current_version());
+            persist_applied_version(state.db.as_ref(), &new_version).await?;
+            let mut message = message;
+            maybe_schedule_restart(&mut message);
             Ok(Json(ApiResponse::success_with_message(
                 UpdateResult {
                     success: true,
@@ -399,7 +549,12 @@ pub async fn apply_local_update(
 
     match service.apply_local_update(&release).await {
         Ok(message) => {
-            let new_version = service.get_current_version();
+            let new_version = service
+                .applied_version()
+                .unwrap_or_else(|| service.get_current_version());
+            persist_applied_version(state.db.as_ref(), &new_version).await?;
+            let mut message = message;
+            maybe_schedule_restart(&mut message);
             Ok(Json(ApiResponse::success_with_message(
                 UpdateResult {
                     success: true,
@@ -536,6 +691,10 @@ pub async fn create_backup_task(
     auth: AuthContext,
     Json(req): Json<CreateBackupRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 创建系统备份属更新链前置高危动作（备份是回滚底座），与其余更新写端点保持一致的
+    // admin/ops 深度防御校验；此前该端点仅取 AuthContext 未校验，构成现状不对称，补齐。
+    require_admin_role(&state, &auth).await?;
+
     req.validate().map_err(AppError::from)?;
 
     use sea_orm::{ActiveModelTrait, Set};

@@ -272,6 +272,29 @@ export const PERMISSIONS = {
   SUPPLIER_PRODUCT_COLOR_READ: 'supplier-product-colors:read',
   SUPPLIER_PRODUCT_COLOR_CREATE: 'supplier-product-colors:create',
   SUPPLIER_PRODUCT_COLOR_UPDATE: 'supplier-product-colors:update',
+
+  // 系统更新（高危敏感面：二进制替换 / 版本回滚 / 上传安装 / 备份 / 任务）
+  // 权限键与后端 utils/path_utils.rs 消歧（("system-update", "<seg>") →
+  // "system-update-<seg>"）及 init_service.rs 注册逐字符一致；读取面统一 :read，
+  // 写入面按派生规则取 :create（versions 的 download/install 均落在 versions:create，
+  // 任务取消是末段动作 → tasks:cancel）。后端独立播种角色 code=ops 持本族全部读写键，
+  // admin 经 *:* 通配覆盖。任一常量与后端不同名即令 check-contract 与 v-permission 双失效。
+  SYSTEM_UPDATE_CHECK_READ: 'system-update-check:read',
+  SYSTEM_UPDATE_VERSION_READ: 'system-update-version:read',
+  SYSTEM_UPDATE_CURRENT_VERSION_READ: 'system-update-current-version:read',
+  SYSTEM_UPDATE_UPDATE_STATUS_READ: 'system-update-update-status:read',
+  SYSTEM_UPDATE_LOCAL_CHECK_READ: 'system-update-local-check:read',
+  SYSTEM_UPDATE_LOCAL_RELEASES_READ: 'system-update-local-releases:read',
+  SYSTEM_UPDATE_TASKS_READ: 'system-update-tasks:read',
+  SYSTEM_UPDATE_VERSIONS_READ: 'system-update-versions:read',
+  SYSTEM_UPDATE_BACKUPS_READ: 'system-update-backups:read',
+  SYSTEM_UPDATE_UPDATE_CREATE: 'system-update-update:create',
+  SYSTEM_UPDATE_UPLOAD_CREATE: 'system-update-upload:create',
+  SYSTEM_UPDATE_ROLLBACK_CREATE: 'system-update-rollback:create',
+  SYSTEM_UPDATE_LOCAL_UPDATE_CREATE: 'system-update-local-update:create',
+  SYSTEM_UPDATE_BACKUPS_CREATE: 'system-update-backups:create',
+  SYSTEM_UPDATE_VERSIONS_CREATE: 'system-update-versions:create',
+  SYSTEM_UPDATE_TASKS_CANCEL: 'system-update-tasks:cancel',
 } as const;
 
 // ============================================================================

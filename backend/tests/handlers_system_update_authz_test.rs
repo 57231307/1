@@ -8,9 +8,10 @@
 //!
 //! 设计说明：
 //! - 复用 test_permission_rbac.rs 的 AuthContext 注入中间件模式
-//! - is_admin_role 对 mock DB fail-closed 返回 false → 非 admin 必拒
-//! - admin 对照（真实 roles 表 code=admin 查询）由 E2E 40-system-update-authz
-//!   真实登录链路覆盖（40 spec），本测试聚焦未认证/非 admin 拒绝语义
+//! - require_admin_role 按角色 code 属 admin/ops 集合判定，get_role_code 对 mock DB
+//!   fail-closed 返回 None ⇒ 任何 code 都解析不到 ⇒ 非授权集合一律拒绝（403）
+//! - admin/ops 对照（真实 roles 表 code 命中允许集合）由 E2E 40-system-update-authz
+//!   真实登录链路覆盖（40 spec），本测试聚焦未认证/非授权角色拒绝语义
 
 use axum::{
     Router,
@@ -152,9 +153,12 @@ async fn test_system_update_non_admin_403_download() {
     );
     let json = read_json(resp.into_body()).await;
     let message = json.get("message").and_then(|v| v.as_str()).unwrap_or("");
+    // 拒绝消息按真实责任分支给出：mock DB 无法解析角色 code ⇒ 角色信息不可用（fail-closed），
+    // 真实库中 code 非 admin/ops ⇒ 仅限管理员或系统运维。二者都以"角色"为核心说明授权被拒，
+    // 不再锁旧版单一"管理员"措辞（require_admin_role 现按角色集合判定，拒绝原因随责任分支而不同）。
     assert!(
-        message.contains("管理员") || message.contains("权限"),
-        "拒绝消息应说明 admin 限制，实际: {message}"
+        message.contains("角色") || message.contains("权限"),
+        "拒绝消息应说明授权被拒（角色维度），实际: {message}"
     );
 }
 

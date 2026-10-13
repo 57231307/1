@@ -576,6 +576,8 @@ mod download_candidate_tests {
             verify_digest: true,
             connect_timeout_secs: 15,
             read_timeout_secs: 180,
+            // 下载候选构造与重启门控无关，置 false 保持该测试只镜像逻辑敏感。
+            restart_on_apply: false,
         }
     }
 
