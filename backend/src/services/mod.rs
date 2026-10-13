@@ -259,6 +259,8 @@ pub mod report_subscription_scheduler;
 pub mod export_service;
 // 通用打印服务
 pub mod print_service;
+// 打印派发：传输层（cups/ipp/network/system_command）+ 任务状态机 + 从 print_targets 解析目标
+pub mod print_dispatch;
 // 审计日志清理服务
 pub mod audit_cleanup_service;
 /// P1 20.8-B：日志 90 天保留期清理
