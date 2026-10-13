@@ -189,12 +189,14 @@ pub mod sensitive_resources {
     pub const FINANCE_REPORT: &str = "finance_report";
     /// 审计日志
     pub const AUDIT_LOG: &str = "audit_log";
+    /// 产品清单
+    pub const PRODUCT: &str = "product";
 
     /// 判断资源类型是否为敏感资源（需二级审批）
     pub fn is_sensitive(resource_type: &str) -> bool {
         matches!(
             resource_type,
-            CUSTOMER | SUPPLIER | DYE_RECIPE | PRICE_LIST | FINANCE_REPORT | AUDIT_LOG
+            CUSTOMER | SUPPLIER | DYE_RECIPE | PRICE_LIST | FINANCE_REPORT | AUDIT_LOG | PRODUCT
         )
     }
 
@@ -207,6 +209,7 @@ pub mod sensitive_resources {
             PRICE_LIST,
             FINANCE_REPORT,
             AUDIT_LOG,
+            PRODUCT,
         ]
     }
 }
