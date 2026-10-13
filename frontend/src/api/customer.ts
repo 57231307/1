@@ -13,8 +13,8 @@ export interface Customer {
   province?: string;
   country?: string;
   postal_code?: string;
-  // 后端 models/customer.rs:47 是 NOT NULL `Decimal`，本仓 rust_decimal 未启 serde-float
-  // （backend/Cargo.toml:60 只有 features = ["serde"]）→ 序列化线上恒为 JSON 字符串
+  // 后端 models/customer.rs 是 NOT NULL `Decimal`，本仓 rust_decimal 未启 serde-float
+  // （backend/Cargo.toml 只有 features = ["serde"]）→ 序列化线上恒为 JSON 字符串
   // （"1234.56"）。声明成 number 是类型谎言：运行期 .toFixed() / 数值比较 / 算术全部失真。
   // 列 NOT NULL，故不标 ?（标 ? 会诱导消费点写 `?? 0` 把缺键伪造成 0）。
   credit_limit: string;
@@ -30,7 +30,7 @@ export interface Customer {
   notes?: string;
   customer_industry?: string;
   main_products?: string;
-  // 后端 models/customer.rs:89 是 `Option<Decimal>`（同一未启 serde-float 的 rust_decimal）
+  // 后端 models/customer.rs 是 `Option<Decimal>`（同一未启 serde-float 的 rust_decimal）
   // → 线上是十进制字符串或 null；number 声明会让数值消费点拿到字符串后静默算错。
   annual_purchase: string | null;
   quality_requirement?: string;
@@ -47,7 +47,7 @@ export interface CustomerQueryParams {
   status?: string;
 }
 
-// D14 Batch 5b：原 customerApi.list 与本函数 URL 同为 /crm/customers，判定为重复，移除对象方法，保留本函数
+// 客户列表查询（GET /crm/customers，返回 items/total 分页信封）。
 export function getCustomerList(
   params?: CustomerQueryParams
 ): Promise<ApiResponse<{ items: Customer[]; total: number }>> {
@@ -55,7 +55,7 @@ export function getCustomerList(
 }
 
 /**
- * v11 批次 146 P1-4 修复：客户下拉选项统一封装
+ * 客户下拉选项统一封装。
  *
  * 后端 customer_handler::list_customers（路由 /crm/customers/select）返回
  * ApiResponse<PaginatedResponse<Value>>，data 信封为 { items, total, page, page_size }，
@@ -77,17 +77,15 @@ export async function getCustomerSelectList(): Promise<{ label: string; value: n
   return res.data.items.map(c => ({ label: c.customer_name, value: c.id }));
 }
 
-// D14 Batch 5b：原 customerApi.getById 转为风格 B 函数
 export const getCustomerById = (id: number) =>
   request.get<ApiResponse<Customer>>(`/crm/customers/${id}`);
 
-// D14 Batch 5b：原 customerApi.create 转为风格 B 函数
 /**
- * 创建客户入参 —— 逐键对齐后端 handlers/customer_handler.rs::CreateCustomerRequest（:23-72）。
- * 此前 `extends Partial<Omit<Customer,'credit_limit'>>` 把响应模型 Customer 的只读生成列
- * id/created_at/updated_at 一并冒充为可写入参（后端 DTO 无此三键，serde 静默丢弃=契约漂移）。
- * credit_limit 后端为 Option<String>（:42，JSON number 反序列化即 422），类型只收 string。
- * customer_code 仅创建 DTO 有（:25，Option，未传由服务端按建档规则生成）；更新 DTO 无此键。
+ * 创建客户入参 —— 逐键对齐后端 handlers/customer_handler.rs::CreateCustomerRequest。
+ * 不含响应模型 Customer 的只读生成列 id/created_at/updated_at（后端 DTO 无此三键，
+ * 多发被 serde 静默丢弃）。credit_limit 后端为 Option<String>（JSON number 反序列化
+ * 即 422），类型只收 string。customer_code 仅创建 DTO 有（Option，未传由服务端按建档
+ * 规则生成）；更新 DTO 无此键。
  */
 export interface CustomerCreatePayload {
   customer_code?: string;
@@ -116,7 +114,7 @@ export interface CustomerCreatePayload {
 }
 
 /**
- * 更新客户入参 —— 逐键对齐后端 customer_handler.rs::UpdateCustomerRequest（:93-139）。
+ * 更新客户入参 —— 逐键对齐后端 customer_handler.rs::UpdateCustomerRequest。
  * 全字段 Option（缺键=不改）；DTO 不含 customer_code（编码建档即定，编辑不可改），
  * 也不含 id/created_at/updated_at 只读生成列，故本类型均不接受。
  */
@@ -148,26 +146,19 @@ export interface CustomerUpdatePayload {
 export const createCustomer = (data: CustomerCreatePayload) =>
   request.post<ApiResponse<Customer>>('/crm/customers', data);
 
-// D14 Batch 5b：原 customerApi.update 转为风格 B 函数
 export const updateCustomer = (id: number, data: CustomerUpdatePayload) =>
   request.put<ApiResponse<Customer>>(`/crm/customers/${id}`, data);
 
-// D14 Batch 5b：原 customerApi.delete 转为风格 B 函数
 export const deleteCustomer = (id: number) =>
   request.delete<ApiResponse<null>>(`/crm/customers/${id}`);
 
 /**
  * GET /crm/customers/{id}/credit 的 data 载荷 —— 逐键对齐后端真实出参
- * `handlers/customer_credit_handler.rs:111-133`（`ApiResponse::success(credit)`，
- * credit = `models/customer_credit.rs:10-27` 的 Model 本体序列化，无 DTO 改名）。
- *
- * 此前声明的 `current_balance` / `available` 两个键后端不存在（真实键是 `used_credit` /
- * `available_credit`），属前端自造键：页面"当前占用/可用额度"消费的是 undefined，
- * 与"额度为 0/空"不可区分，是契约谎言而非类型细节，故按实体键集重建而不是把 number 改成 string。
- * credit_limit/used_credit/available_credit 为 NOT NULL Decimal（models/customer_credit.rs:17-19），
- * rust_decimal 未启 serde-float → 线上是 JSON 字符串。
- * 注意：`api/customer-credit.ts::CustomerCredit` 是同一实体的另一处声明（含 credit_rating/
- * valid_from/valid_to/remarks 等后端不存在的键），其收口属另一批契约核查，本类型不复用它。
+ * `handlers/customer_credit_handler`（`ApiResponse::success(credit)`，
+ * credit = `models/customer_credit.rs` 的 Model 本体序列化，无 DTO 改名）。
+ * 额度键为 used_credit / available_credit；credit_limit/used_credit/available_credit
+ * 为 NOT NULL Decimal（rust_decimal 未启 serde-float）→ 线上是 JSON 字符串。
+ * `api/customer-credit.ts::CustomerCredit` 是同一实体的另一处声明，本类型不复用它。
  */
 export interface CustomerCreditInfo {
   id: number;
@@ -187,18 +178,39 @@ export interface CustomerCreditInfo {
   updated_at: string;
 }
 
-// D14 Batch 5b：原 customerApi.getCreditInfo 转为风格 B 函数
 export const getCustomerCreditInfo = (id: number) =>
   request.get<ApiResponse<CustomerCreditInfo>>(`/crm/customers/${id}/credit`);
 
-// D14 Batch 5b：原 customerApi.export 转为风格 B 函数
-// V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出
-// 后端 GET /crm/customers/export 返回 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-// 水印已由后端注入（操作员/IP/时间戳），前端只需下载 Blob
+// 带水印的 xlsx 导出：后端 GET /crm/customers/export 返回
+// application/vnd.openxmlformats-officedocument.spreadsheetml.sheet，水印由后端注入
+// （操作员/IP/时间戳），前端下载 Blob。
 export const exportCustomers = (params?: CustomerQueryParams) =>
   request.get<Blob>('/crm/customers/export', { params, responseType: 'blob' });
 
-// ============== 客户地址簿/CLV/审计日志（Batch 补齐 API 封装）==============
+// ============== 客户地址簿 / CLV / 审计日志 API 封装 ==============
+
+/**
+ * 客户已挂载标签（GET /crm/customers/{id}/tags 出参项）——逐键对齐后端
+ * `services/crm/mod.rs::CustomerTagBrief`（Serialize 无 rename_all）：
+ * {id, name, color, category}，category 为 Option<String>（未分类序列化为 null）。
+ * 唯一数据源：`handlers/crm_customer_handler.rs::list_customer_tags`
+ * （customer_tag JOIN crm_tag 按 customer_id 过滤），属**客户域**；
+ * 与线索域 `crm_lead.tags`（字符串数组、POST /customers/{id}/tags 落 lead 表）不同域，
+ * 客户列表标签列只得经本端点取数，不得复用线索域 tags 键。
+ */
+export interface CustomerTagBrief {
+  id: number;
+  name: string;
+  color: string;
+  category: string | null;
+}
+
+/**
+ * 获取单个客户已挂载的标签对象列表
+ * 后端路由：GET /api/v1/erp/crm/customers/{id}/tags（routes/crm.rs）
+ */
+export const getCustomerTags = (customerId: number) =>
+  request.get<ApiResponse<CustomerTagBrief[]>>(`/crm/customers/${customerId}/tags`);
 
 /**
  * 客户收货地址出参（对应后端 models/customer_address.rs::Model 经

@@ -3909,11 +3909,9 @@ export default {
     filter: {
       ariaLabel: 'Customer list filter form',
       keyword: 'Keyword',
-      keywordPlaceholder: 'Customer code/name/contact',
+      keywordPlaceholder: 'Customer code/name',
       customerType: 'Customer Type',
       customerTypePlaceholder: 'Select type',
-      tag: 'Tag',
-      tagPlaceholder: 'Select tag',
       status: 'Status',
       statusPlaceholder: 'Select status',
       query: 'Query',
@@ -3929,6 +3927,7 @@ export default {
     status: {
       active: 'Active',
       inactive: 'Inactive',
+      blacklist: 'Blacklist',
     },
     table: {
       ariaLabel: 'Customer list',
@@ -3938,7 +3937,12 @@ export default {
       phone: 'Phone',
       type: 'Type',
       tag: 'Tags',
+      tagsLoading: 'Loading tags',
+      tagsLoadFailed: 'Failed to load tags',
       owner: 'Owner',
+      ownerUnassigned: 'Unassigned',
+      ownerLoading: 'Loading owner',
+      ownerLoadFailed: 'Failed to load owner',
       status: 'Status',
       operation: 'Operation',
       detail: 'Detail',
@@ -3986,7 +3990,7 @@ export default {
       createSuccess: 'Created successfully',
       operationFailed: 'Operation failed',
       printWindowFailed: 'Unable to open print window',
-      loadTagsFailed: 'Failed to load tags',
+      loadOwnersFailed: 'Failed to load owner list',
     },
     validation: {
       customerNameRequired: 'Please enter customer name',

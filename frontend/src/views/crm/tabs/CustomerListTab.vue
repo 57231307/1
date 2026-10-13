@@ -1,8 +1,6 @@
 <!--
   CustomerListTab.vue - CRM 客户列表 Tab
-  来源：原 crm/index.vue 中 客户列表 tab 内容
-  拆分日期：2026-06-15 B3-3
-  D05 Batch 4：接入 useI18n，所有硬编码中文迁移到 locales/zh-CN.ts + en-US.ts
+  读写走标准客户域端点（落/读 customers 表），界面文案经 locales 的 crmCustomer.* 命名空间。
 -->
 <template>
   <div class="customer-list-tab">
@@ -72,23 +70,18 @@
             <el-option :label="$t('crmCustomer.customerType.other')" value="other" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('crmCustomer.filter.tag')">
-          <el-select
-            v-model="queryParams.tag_id"
-            :placeholder="$t('crmCustomer.filter.tagPlaceholder')"
-            clearable
-          >
-            <el-option v-for="tag in tags" :key="tag.id" :label="tag.name" :value="tag.id" />
-          </el-select>
-        </el-form-item>
+        <!-- 标准客户列表 /crm/customers 查询参数集不含 tag_id，后端 serde 对未知 query 键
+             静默忽略，保留标签筛选控件即"筛了但没筛"的假筛选，故此处不设该控件。 -->
         <el-form-item :label="$t('crmCustomer.filter.status')">
           <el-select
             v-model="queryParams.status"
             :placeholder="$t('crmCustomer.filter.statusPlaceholder')"
             clearable
           >
+            <!-- active/inactive/blacklist 三态取值与后端写入方状态词表逐字符同源 -->
             <el-option :label="$t('crmCustomer.status.active')" value="active" />
             <el-option :label="$t('crmCustomer.status.inactive')" value="inactive" />
+            <el-option :label="$t('crmCustomer.status.blacklist')" value="blacklist" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -138,23 +131,40 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="tags" :label="$t('crmCustomer.table.tag')" min-width="150">
+        <!-- 标签列不绑行内 tags 键（客户域列表行无该键）；
+             数据源 = GET /crm/customers/{id}/tags 逐行取数，
+             ready+空数组 才显示"-"（真·无标签）；loading/failed 各自显式呈现，
+             不把"取数中/取数失败"伪装成"没有标签"。 -->
+        <el-table-column :label="$t('crmCustomer.table.tag')" min-width="150">
           <template #default="{ row }">
-            <el-tag v-for="tag in row.tags" :key="tag" size="small" class="table-tag">
-              {{ tag }}
-            </el-tag>
-            <span v-if="!row.tags?.length" class="no-tags">-</span>
+            <template v-if="tagsCellView(row.id).state === 'ready'">
+              <el-tag
+                v-for="tag in tagsCellView(row.id).tags"
+                :key="tag.id"
+                size="small"
+                class="table-tag"
+              >
+                {{ tag.name }}
+              </el-tag>
+              <span v-if="tagsCellView(row.id).tags.length === 0" class="no-tags">-</span>
+            </template>
+            <span v-else-if="tagsCellView(row.id).state === 'loading'" class="no-tags">{{
+              $t('crmCustomer.table.tagsLoading')
+            }}</span>
+            <span v-else class="cell-load-failed">{{
+              $t('crmCustomer.table.tagsLoadFailed')
+            }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="owner_name" :label="$t('crmCustomer.table.owner')" width="100" />
+        <!-- 负责人列不绑行内 owner_name 键（客户域列表行无该键）；
+             数据源 = row.owner_id + /crm/sales-users 联显 -->
+        <el-table-column :label="$t('crmCustomer.table.owner')" width="100">
+          <template #default="{ row }">{{ ownerDisplay(row.owner_id) }}</template>
+        </el-table-column>
         <el-table-column prop="status" :label="$t('crmCustomer.table.status')" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{
-                row.status === 'active'
-                  ? $t('crmCustomer.status.active')
-                  : $t('crmCustomer.status.inactive')
-              }}
+            <el-tag :type="getStatusTag(row.status)" size="small">
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -163,7 +173,7 @@
             <el-button type="primary" link size="small" @click="viewDetail(row.id)">{{
               $t('crmCustomer.table.detail')
             }}</el-button>
-            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <!-- 编辑/删除按钮受权限键控制（crm_customer:update / crm_customer:delete） -->
             <el-button
               v-permission="'crm_customer:update'"
               type="primary"
@@ -293,9 +303,11 @@
         </el-form-item>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item :label="$t('crmCustomer.dialog.taxNumber')" prop="tax_number">
+            <!-- prop/v-model 键名 = tax_id，逐字对齐后端 Create/UpdateCustomerRequest；
+                 旧键 tax_number 是线索域 DTO 的键名，标准客户域 serde 无此键会被静默丢弃 -->
+            <el-form-item :label="$t('crmCustomer.dialog.taxNumber')" prop="tax_id">
               <el-input
-                v-model="formData.tax_number"
+                v-model="formData.tax_id"
                 :placeholder="$t('crmCustomer.dialog.taxNumberPlaceholder')"
               />
             </el-form-item>
@@ -348,25 +360,31 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Coin, Share, Download, Printer } from '@element-plus/icons-vue';
-// D14 Batch 5b：原 crmEnhancedApi 对象已转风格 B 函数
+// 客户管理页读写走标准客户域端点（customer_handler，落/读 customers 表），写函数与行类型
+// 从 '@/api/customer' 引入；与线索域（'@/api/crm-enhanced' 的 /crm/customers/enhanced =
+// crm_lead）不同域，不可混用。
 import {
-  getCrmTagList,
-  deleteCustomer,
-  updateCustomer,
   createCustomer,
-  type CustomerTag,
-  type CustomerWithTags,
-  type EnhancedCustomerUpdateInput,
-} from '@/api/crm-enhanced';
+  updateCustomer,
+  deleteCustomer,
+  getCustomerTags,
+  type Customer,
+  type CustomerTagBrief,
+  type CustomerCreatePayload,
+  type CustomerUpdatePayload,
+} from '@/api/customer';
+// 负责人联显数据源：GET /crm/sales-users（客户分配流程的候选人唯一出口，
+// ManualAssignDialogTab/assignment.vue 消费同源）
+import { getSalesUserList, type SalesUser } from '@/api/crm-enhanced';
 import { useTableApi } from '@/composables/useTableApi';
-// V15 P0-S12 修复（Batch 475b）：导出改用后端带水印 xlsx 接口
-// 后端 GET /crm/customers/export 已就绪（Batch 474 注入水印 + 行级数据权限 + 异步审计日志）
+// 导出走后端带水印 xlsx 接口 GET /crm/customers/export（后端注入水印 + 行级数据权限 +
+// 异步审计日志），前端下载 Blob。
 import { exportFromBackend } from '@/utils/export';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
@@ -375,14 +393,15 @@ import { escapeHtml } from '@/utils/print';
 const { t } = useI18n({ useScope: 'global' });
 
 /**
- * 列表行真实形状：GET /crm/customers/enhanced → crm_customer_handler::list_customers
- * → services/crm/lead.rs::list_leads 直接序列化 crm_lead::Model（backend/src/models/crm_lead.rs）。
- * 其中 tags 列为 `Option<Vec<String>>`（标签名数组，非 CustomerTag 对象），
- * JSON 出参为 `null` 或 `["标签名", ...]`。CustomerWithTags 的 `tags: CustomerTag[]` 断言与后端不符，
- * 若沿用会在此列对 `null` 调用 `.length` 触发 TypeError（本 tab 运行期崩溃根因）。
- * 此处按后端契约把 tags 收敛为可空的字符串数组。
+ * 列表行真实形状：GET /crm/customers → customer_handler::list_customers
+ * → services/customer_ops/query.rs::list_customers_with_filter 整行序列化
+ * models/customer.rs::Model（admin 走无字段过滤路径）。
+ * customer_code/customer_name/contact_person/contact_phone/customer_type/status
+ * 为该实体真实键；owner_id 为 NOT NULL 列（0=公海/未分配），不标 `?`。
+ * 行内**没有** tags / owner_name 键：标签经独立端点 getCustomerTags 逐行取数渲染，
+ * 负责人经 /crm/sales-users 联显，均不绑行内不存在的键。
  */
-type CustomerListRow = Omit<CustomerWithTags, 'tags'> & { tags: string[] | null };
+type CustomerListRow = Customer & { owner_id: number };
 
 const hasLoaded = createLazyLoader();
 
@@ -391,18 +410,35 @@ const submitLoading = ref(false);
 const dialogVisible = ref(false);
 const isEdit = ref(false);
 const formRef = ref<FormInstance>();
-const tags = ref<CustomerTag[]>([]);
 
-// 筛选条件（仅筛选字段，分页由 useTableApi 管理）
+// —— 标签列数据源：GET /crm/customers/{id}/tags 逐行取数（客户域唯一标签端点，
+// 无批量出口；行数上限=page_size≤100）。行内 tags 键不存在，不得绑定。
+type TagsCellState =
+  { status: 'loading' } | { status: 'failed' } | { status: 'ready'; tags: CustomerTagBrief[] };
+const tagsStates = ref(new Map<number, TagsCellState>());
+const tagsInFlight = new Set<number>();
+
+// —— 负责人列数据源：/crm/sales-users 单次拉全量后本地联显。
+// owner_id=0=公海/未分配；real_name 后端恒 null，展示名先例 = real_name || username
+// （与 ManualAssignDialogTab 同源口径）。
+const salesUsers = ref<SalesUser[]>([]);
+const ownerLoadState = ref<'loading' | 'ready' | 'failed'>('loading');
+const ownerNameById = computed(
+  () => new Map(salesUsers.value.map(u => [u.id, u.real_name || u.username]))
+);
+
+// 筛选条件（仅筛选字段，分页由 useTableApi 管理）。
+// 不含 tag_id：标准客户列表查询参数集 = page/page_size/status/customer_type/keyword
+// （customer_handler::list_customers），后端对未知 query 键 serde 静默忽略，
+// 保留 tag_id 只会做出"筛了但没筛"的假筛选 ⇒ 移除该控件与参数。
 const queryParams = reactive({
   keyword: '',
   customer_type: '',
   status: '',
-  tag_id: undefined as number | undefined,
 });
 
-// 批次 277：接入 useTableApi，消除手写 customers/total/loading/fetchCustomerList 重复
-// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// 接入 useTableApi 统一消除手写 customers/total/loading/fetchCustomerList 重复：
+// 自动管理分页状态与数据加载，watch page/pageSize 变化触发重载。
 const {
   data: customers,
   loading,
@@ -412,21 +448,21 @@ const {
   refresh: fetchCustomerList,
   setQueryParam,
 } = useTableApi<CustomerListRow>({
-  url: '/crm/customers/enhanced',
-  // 后端 list_leads 返回 json!{data,total,page,page_size}，承载列表的键为 data，显式钉住 listKey。
-  listKey: 'data',
+  url: '/crm/customers',
+  // 后端返回 ApiResponse<PaginatedResponse>，承载列表的键为 items、总数键为 total
+  // （utils/response.rs 的 PaginatedResponse 形状），显式钉住 listKey。
+  listKey: 'items',
   onError: (err: unknown) =>
     ElMessage.error(
       (err instanceof Error ? err.message : String(err)) || t('crmCustomer.message.loadFailed')
     ),
 });
 
-// 批次 277：同步筛选条件到 useTableApi.queryParams 并刷新
+// 同步筛选条件到 useTableApi.queryParams 并刷新
 const syncQueryParams = () => {
   setQueryParam('keyword', queryParams.keyword || undefined);
   setQueryParam('customer_type', queryParams.customer_type || undefined);
   setQueryParam('status', queryParams.status || undefined);
-  setQueryParam('tag_id', queryParams.tag_id);
 };
 
 // 缺省渠道与后端 `constants::customer_type::validate(None)` 同源（详见 formData 处注释）。
@@ -445,12 +481,26 @@ const formData = reactive({
   // 缺省与后端 `constants::customer_type::validate(None)` 同源写 `other`（渠道未知），
   // 不由前端替业务方断言"零售/普通"；后端该字段为 Option 无必填门，此处不额外收紧校验。
   customer_type: DEFAULT_CUSTOMER_TYPE,
-  tax_number: '',
+  // 键名逐字对齐后端 DTO（CreateCustomerRequest/UpdateCustomerRequest 的税号键 = tax_id，
+  // models/customer.rs 列同为 tax_id）。旧表单绑 tax_number 是线索域 EnhancedCustomerUpdateInput
+  // 的键名，标准客户域 serde 无此键 ⇒ 静默丢字段。
+  tax_id: '',
+  // el-input-number 采集为 number；提交时必须转 string（后端 credit_limit=Option<String>，
+  // JSON number 反序列化即 422）。
   credit_limit: 0,
   bank_name: '',
   bank_account: '',
   status: 'active',
 });
+
+/**
+ * 编辑基线快照（handleEdit 时按行**展示值**归一存入，string 形态）：
+ * 更新提交只下发改过的键（后端 UpdateCustomerRequest 缺键=该列不改）。
+ * 这不是可选优化而是数据完整性硬要求：非 admin 会话读回的 contact_phone/contact_email
+ * 是打码值、address 整键不下发，把掩码值原样提交会把 `138****8888` 写进库、
+ * 把"看不见但库里非空"的地址清空——地址簿对同一禁令亦同（见 api/customer.ts 地址更新注释）。
+ */
+const editOriginal = ref<Record<string, string>>({});
 
 const formRules = computed<FormRules>(() => ({
   customer_name: [
@@ -473,10 +523,10 @@ const dialogTitle = computed(() =>
   isEdit.value ? t('crmCustomer.dialog.editTitle') : t('crmCustomer.dialog.createTitle')
 );
 
-// D05 Batch 4：getCustomerTypeLabel 改为函数返回，使 t() 在每次渲染时响应式求值
+// getCustomerTypeLabel 用函数返回，使 t() 在每次渲染时响应式求值。
 // 回读值是后端渠道 token（constants::customer_type::ALLOWED 五值），映射表按同一词表逐值取文案；
 // 未知/历史脏值不吞不造假名，回落显示原始 token。
-// 入参非可选：列表行类型 crm-enhanced.ts 里 customer_type 是必填 string（后端 NOT NULL 列），
+// 入参非可选：列表行里 customer_type 是必填 string（后端 NOT NULL 列），
 // 前端不得用可选/兜底参数掩盖缺键。
 const getCustomerTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
@@ -501,35 +551,107 @@ const getCustomerTypeTag = (type: string) => {
   return typeMap[type] || '';
 };
 
-const fetchTags = async () => {
+// 状态词表按**写入方**全量覆盖（backend models/customer.rs = active/inactive/blacklist 三态）。
+// 比较点必须与写入值逐字符对齐，否则 blacklist 行会被误显为"禁用"；
+// 未知/历史脏值不吞不造假名，回落显示原始 token。
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    active: t('crmCustomer.status.active'),
+    inactive: t('crmCustomer.status.inactive'),
+    blacklist: t('crmCustomer.status.blacklist'),
+  };
+  return labels[status] || status;
+};
+
+const getStatusTag = (status: string) => {
+  const typeMap: Record<string, string> = {
+    active: 'success',
+    inactive: 'info',
+    blacklist: 'danger',
+  };
+  return typeMap[status] || 'info';
+};
+
+// 标签列取数：客户域唯一标签端点为单客户粒度 GET /crm/customers/{id}/tags，
+// 无批量出口 ⇒ 对当前页行逐 id 拉取（行数上限=page_size≤100）。
+// 失败不静默：该行标记 failed 并在单元格显式呈现"标签加载失败"（不把取数失败
+// 伪装成"该客户没有标签"），同时 logAuxLoadFailure 留痕。
+const loadTagsForRow = (id: number) => {
+  if (tagsStates.value.has(id) || tagsInFlight.has(id)) return;
+  tagsInFlight.add(id);
+  tagsStates.value.set(id, { status: 'loading' });
+  getCustomerTags(id)
+    .then(res => {
+      tagsStates.value.set(id, { status: 'ready', tags: res.data });
+    })
+    .catch((error: unknown) => {
+      tagsStates.value.set(id, { status: 'failed' });
+      logAuxLoadFailure(t('crmCustomer.table.tagsLoadFailed'), error);
+    })
+    .finally(() => {
+      tagsInFlight.delete(id);
+    });
+};
+
+// 列表数据每次到达（含翻页/筛选重载）为新出现的客户 id 触发标签取数；已取过的走缓存。
+watch(
+  customers,
+  rows => {
+    rows.forEach(row => loadTagsForRow(row.id));
+  },
+  { immediate: true }
+);
+
+const tagsCellView = (
+  id: number
+): { state: 'loading' | 'failed' | 'ready'; tags: CustomerTagBrief[] } => {
+  const cell = tagsStates.value.get(id);
+  if (!cell || cell.status === 'loading') return { state: 'loading', tags: [] };
+  if (cell.status === 'failed') return { state: 'failed', tags: [] };
+  return { state: 'ready', tags: cell.tags };
+};
+
+// 负责人列取数：sales-users 单次全量（客户分配流程候选人同源出口）。
+// 失败不静默：ownerLoadState=failed，单元格显式呈现"负责人加载失败"。
+const fetchOwners = async () => {
   try {
-    const res = await getCrmTagList();
-    tags.value = res.data || [];
+    const res = await getSalesUserList();
+    salesUsers.value = res.data;
+    ownerLoadState.value = 'ready';
   } catch (error) {
-    logAuxLoadFailure(t('crmCustomer.message.loadTagsFailed'), error);
-    tags.value = [];
+    ownerLoadState.value = 'failed';
+    logAuxLoadFailure(t('crmCustomer.message.loadOwnersFailed'), error);
   }
 };
 
-// 批次 277：查询 - 同步筛选条件并回到首页重载
+// owner_id 语义：0=公海/未分配（models/customer.rs）；
+// 非 0 但不在销售用户集合内 = 数据漂移（如越权指派/历史脏值），显示 `#<id>`
+// 原样暴露不可解析的 id——不臆造姓名、不吞成空，让漂移可见。
+const ownerDisplay = (ownerId: number): string => {
+  if (ownerId === 0) return t('crmCustomer.table.ownerUnassigned');
+  if (ownerLoadState.value === 'loading') return t('crmCustomer.table.ownerLoading');
+  if (ownerLoadState.value === 'failed') return t('crmCustomer.table.ownerLoadFailed');
+  return ownerNameById.value.get(ownerId) ?? `#${ownerId}`;
+};
+
+// 查询 - 同步筛选条件并回到首页重载
 const handleQuery = () => {
   syncQueryParams();
   page.value = 1;
   fetchCustomerList();
 };
 
-// 批次 277：重置 - 清空筛选并回到首页重载
+// 重置 - 清空筛选并回到首页重载
 const handleReset = () => {
   queryParams.keyword = '';
   queryParams.customer_type = '';
   queryParams.status = '';
-  queryParams.tag_id = undefined;
   syncQueryParams();
   page.value = 1;
   fetchCustomerList();
 };
 
-// 批次 277：分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
 const handlePageChange = (p: number) => {
   page.value = p;
 };
@@ -548,11 +670,12 @@ const resetForm = () => {
   formData.contact_email = '';
   formData.address = '';
   formData.customer_type = DEFAULT_CUSTOMER_TYPE;
-  formData.tax_number = '';
+  formData.tax_id = '';
   formData.credit_limit = 0;
   formData.bank_name = '';
   formData.bank_account = '';
   formData.status = 'active';
+  editOriginal.value = {};
   formRef.value?.clearValidate();
 };
 
@@ -562,9 +685,38 @@ const handleCreate = () => {
   dialogVisible.value = true;
 };
 
+// 编辑回填逐键显式赋值：Object.assign 整行会把 tier/owner_id/department_id/created_at
+// 等实体键灌进表单，credit_limit 的 Decimal 字符串也会污染 el-input-number 的 number 绑定。
+// Option 列 null → '' 仅作表单编辑态归一（可编辑文本框的"空"），不参与提交判据；
+// 提交按 editOriginal diff（见其定义处注释）。
 const handleEdit = (row: CustomerListRow) => {
   resetForm();
-  Object.assign(formData, row);
+  formData.id = row.id;
+  formData.customer_code = row.customer_code;
+  formData.customer_name = row.customer_name;
+  formData.contact_person = row.contact_person ?? '';
+  formData.contact_phone = row.contact_phone ?? '';
+  formData.contact_email = row.contact_email ?? '';
+  formData.address = row.address ?? '';
+  formData.customer_type = row.customer_type;
+  formData.tax_id = row.tax_id ?? '';
+  formData.credit_limit = Number(row.credit_limit);
+  formData.bank_name = row.bank_name ?? '';
+  formData.bank_account = row.bank_account ?? '';
+  formData.status = row.status;
+  editOriginal.value = {
+    customer_name: row.customer_name,
+    contact_person: row.contact_person ?? '',
+    contact_phone: row.contact_phone ?? '',
+    contact_email: row.contact_email ?? '',
+    address: row.address ?? '',
+    customer_type: row.customer_type,
+    tax_id: row.tax_id ?? '',
+    credit_limit: row.credit_limit,
+    bank_name: row.bank_name ?? '',
+    bank_account: row.bank_account ?? '',
+    status: row.status,
+  };
   isEdit.value = true;
   dialogVisible.value = true;
 };
@@ -589,6 +741,55 @@ const handleDelete = async (row: CustomerListRow) => {
   }
 };
 
+// 提交载荷构造逐键对齐后端 CreateCustomerRequest/UpdateCustomerRequest：
+// - 不发送 customer_code（创建 DTO 该键由服务端建档生成，编辑 DTO 无此键，多发被 serde 丢弃）；
+// - 空串可选键转 undefined（JSON.stringify 剔除）：contact_email 带 #[validate(email)]，
+//   空串会以"邮箱格式不正确"422，留空=不填=不发键，语义一致；
+// - credit_limit 转 string（后端 Option<String>，number 反序列化即 422）。
+const optionalStr = (v: string): string | undefined => (v === '' ? undefined : v);
+
+const buildCreatePayload = (): CustomerCreatePayload => ({
+  customer_name: formData.customer_name,
+  contact_person: optionalStr(formData.contact_person),
+  contact_phone: optionalStr(formData.contact_phone),
+  contact_email: optionalStr(formData.contact_email),
+  address: optionalStr(formData.address),
+  customer_type: formData.customer_type,
+  tax_id: optionalStr(formData.tax_id),
+  credit_limit: String(formData.credit_limit),
+  bank_name: optionalStr(formData.bank_name),
+  bank_account: optionalStr(formData.bank_account),
+  status: formData.status,
+});
+
+// 更新只下发改过的键（缺键=该列不改；防掩码回写）。
+const UPDATE_STR_FIELDS = [
+  'customer_name',
+  'contact_person',
+  'contact_phone',
+  'contact_email',
+  'address',
+  'customer_type',
+  'tax_id',
+  'bank_name',
+  'bank_account',
+  'status',
+] as const;
+
+const buildUpdatePayload = (): CustomerUpdatePayload => {
+  const payload: CustomerUpdatePayload = {};
+  for (const key of UPDATE_STR_FIELDS) {
+    if (formData[key] !== (editOriginal.value[key] ?? '')) {
+      payload[key] = formData[key];
+    }
+  }
+  // credit_limit 按数值比较（行值 "0.00" 与表单 0 同值，不算改动），改动才转 string 下发
+  if (Number(editOriginal.value.credit_limit ?? '0') !== formData.credit_limit) {
+    payload.credit_limit = String(formData.credit_limit);
+  }
+  return payload;
+};
+
 const handleSubmit = async () => {
   if (!formRef.value) return;
 
@@ -598,27 +799,10 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     try {
       if (isEdit.value) {
-        // 按后端 UpdateEnhancedCustomerRequest 真实键集组下载荷（不含 customer_code/id——
-        // DTO 无此键，多发会被 serde 静默丢弃；customer_code 为建档即定的编码，编辑不修改）
-        const payload: EnhancedCustomerUpdateInput = {
-          customer_name: formData.customer_name,
-          contact_person: formData.contact_person,
-          contact_phone: formData.contact_phone,
-          contact_email: formData.contact_email,
-          address: formData.address,
-          customer_type: formData.customer_type,
-          tax_number: formData.tax_number,
-          credit_limit: formData.credit_limit,
-          bank_name: formData.bank_name,
-          bank_account: formData.bank_account,
-          status: formData.status,
-        };
-        await updateCustomer(formData.id as number, payload);
+        await updateCustomer(formData.id as number, buildUpdatePayload());
         ElMessage.success(t('crmCustomer.message.updateSuccess'));
       } else {
-        // customer_code 不发送：编码由系统建档自动生成（该建档端点不接收此键）
-        const { customer_code, ...createPayload } = formData;
-        await createCustomer(createPayload);
+        await createCustomer(buildCreatePayload());
         ElMessage.success(t('crmCustomer.message.createSuccess'));
       }
       dialogVisible.value = false;
@@ -637,11 +821,10 @@ const viewDetail = (id: number) => {
 };
 
 /**
- * 导出客户列表为 xlsx（V15 P0-S12 修复 Batch 475b）
+ * 导出客户列表为 xlsx。
  *
- * 规则 3：导出统一使用 xlsx 格式
- * 改为调用后端 GET /crm/customers/export，后端注入水印 + 行级数据权限 + 异步审计日志
- * 传入当前列表筛选条件（status/customer_type/keyword），保证导出与列表一致
+ * 走后端 GET /crm/customers/export（后端注入水印 + 行级数据权限 + 异步审计日志）；
+ * 传入当前列表筛选条件（status/customer_type/keyword），保证导出与列表一致。
  */
 const handleExport = async () => {
   const params: Record<string, unknown> = {
@@ -664,11 +847,11 @@ const handlePrint = () => {
     <tr>
       <td>${escapeHtml(item.customer_code)}</td>
       <td>${escapeHtml(item.customer_name)}</td>
-      <td>${escapeHtml(item.contact_person)}</td>
-      <td>${escapeHtml(item.phone)}</td>
+      <td>${escapeHtml(item.contact_person ?? '')}</td>
+      <td>${escapeHtml(item.contact_phone ?? '')}</td>
       <td>${escapeHtml(getCustomerTypeLabel(item.customer_type))}</td>
-      <td>${escapeHtml(item.owner_name || '-')}</td>
-      <td>${escapeHtml(item.status === 'active' ? t('crmCustomer.status.active') : t('crmCustomer.status.inactive'))}</td>
+      <td>${escapeHtml(ownerDisplay(item.owner_id))}</td>
+      <td>${escapeHtml(getStatusLabel(item.status))}</td>
     </tr>
   `
     )
@@ -699,7 +882,8 @@ const handlePrint = () => {
 };
 
 onMounted(() => {
-  loadIfNot('fetchTags', fetchTags, hasLoaded);
-  // 批次 277：客户列表由 useTableApi 在 setup 阶段自动加载，无需在此手动调用
+  // 负责人联显数据源单次加载（标签列由 watch(customers) 按当前页逐行取数）
+  loadIfNot('fetchOwners', fetchOwners, hasLoaded);
+  // 客户列表由 useTableApi 在 setup 阶段自动加载，无需在此手动调用
 });
 </script>
