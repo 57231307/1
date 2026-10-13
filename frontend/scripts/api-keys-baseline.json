@@ -1,5 +1,5 @@
 {
-  "total": 122,
+  "total": 120,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -121,12 +121,10 @@
       ]
     },
     "frontend/src/api/dashboard.ts": {
-      "count": 4,
+      "count": 2,
       "keys": [
         "Activity.time",
-        "DashboardOverview.inventory_total",
-        "DashboardOverview.recent_activities",
-        "DashboardOverview.today_orders"
+        "DashboardOverview.recent_activities"
       ]
     },
     "frontend/src/api/dye-recipe.ts": {

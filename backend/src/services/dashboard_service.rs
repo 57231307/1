@@ -10,13 +10,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::models::{inventory_stock, product, sales_order, warehouse};
+use crate::models::{customer, inventory_stock, product, sales_order, warehouse};
 // 库存台账状态取本列自己的中文主数据值（正常/报废/已删除）。批次 209 曾把
 // 硬编码 "active" 换成 `master_data::ACTIVE`——那是另一张表的状态域，按它过滤
 // `inventory_stocks.stock_status` 恒零命中，仪表盘的库存四张卡因此长期显示 0。
 use crate::models::status::purchase_inventory::inventory_stock_status;
 use crate::models::status::sales_order as so_status;
 use crate::utils::cache::{AppCache, Cache};
+use crate::utils::date_utils::today_start_utc;
 // 缺陷 4.3 修复：仪表板按角色控制可见卡片 + 数据范围过滤
 use crate::utils::data_scope::{DataScopeContext, apply_department_scope, build_data_scope_sql};
 use crate::utils::error::AppError;
@@ -72,6 +73,13 @@ pub struct DashboardOverview {
     pub low_stock_count: i64,
     pub pending_orders: i64,
     pub monthly_sales: String,
+    /// 库存总量（正常状态库存的米数合计，与库存统计端点 total_inventory 同源口径；
+    /// 数量为 Decimal 度量，按项目惯例以字符串承载精度，非行计数）
+    pub inventory_total: String,
+    /// 客户总数（customers 表行数，与销售类指标同按 created_by 归属过滤）
+    pub customer_count: i64,
+    /// 今日订单数（sales_orders 当日创建，与销售类指标同按 created_by 归属过滤）
+    pub today_orders: i64,
 }
 
 /// 销售统计数据
@@ -150,6 +158,9 @@ struct OverviewMetrics {
     low_stock_count: u64,
     monthly_sales: Decimal,
     total_sales: Decimal,
+    inventory_total: Decimal,
+    customer_count: u64,
+    today_orders: u64,
 }
 
 #[derive(Debug)]
@@ -235,6 +246,9 @@ impl DashboardService {
         let mut monthly_sales_q =
             sales_order::Entity::find().filter(sales_order::Column::OrderDate.gte(start_of_month));
         let mut total_sales_q = sales_order::Entity::find();
+        let mut today_orders_q = sales_order::Entity::find()
+            .filter(sales_order::Column::CreatedAt.gte(today_start_utc()));
+        let mut customer_count_q = customer::Entity::find();
 
         // 缺陷 4.3 修复：Self_/Dept 范围仅统计自己的订单
         if let Some(ctx) = self.data_scope.as_ref() {
@@ -249,6 +263,12 @@ impl DashboardService {
                         monthly_sales_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
                     total_sales_q =
                         total_sales_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    // 今日订单/客户计数沿用上方销售类指标同一行级归属口径（created_by），
+                    // 使同一 scope 用户在看板各卡片间看到的过滤口径保持一致。
+                    today_orders_q =
+                        today_orders_q.filter(sales_order::Column::CreatedBy.eq(ctx.user_id));
+                    customer_count_q =
+                        customer_count_q.filter(customer::Column::CreatedBy.eq(ctx.user_id));
                 }
                 DataScope::All => {}
             }
@@ -275,6 +295,19 @@ impl DashboardService {
             .column_as(Expr::col(sales_order::Column::TotalAmount).sum(), "total")
             .into_tuple::<Option<Decimal>>()
             .one(db);
+        let customer_count_fut = customer_count_q.count(db);
+        let today_orders_fut = today_orders_q.count(db);
+        // 库存总量：正常状态库存的米数合计，与库存统计端点 total_inventory 同源；
+        // inventory_stocks 无归属列，故与同为库存指标的 low_stock_count 一样不做行级 scope 过滤。
+        let inventory_total_fut = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
+            .select_only()
+            .column_as(
+                Expr::col(inventory_stock::Column::QuantityMeters).sum(),
+                "total",
+            )
+            .into_tuple::<Option<Decimal>>()
+            .one(db);
         let (
             total_products,
             total_warehouses,
@@ -292,6 +325,8 @@ impl DashboardService {
             monthly_sales_fut,
             total_sales_fut,
         )?;
+        let (customer_count, today_orders, inventory_total_opt) =
+            tokio::try_join!(customer_count_fut, today_orders_fut, inventory_total_fut)?;
         Ok(OverviewMetrics {
             total_products,
             total_warehouses,
@@ -300,6 +335,9 @@ impl DashboardService {
             low_stock_count,
             monthly_sales: monthly_sales_opt.flatten().unwrap_or(Decimal::ZERO),
             total_sales: total_sales_opt.flatten().unwrap_or(Decimal::ZERO),
+            inventory_total: inventory_total_opt.flatten().unwrap_or(Decimal::ZERO),
+            customer_count,
+            today_orders,
         })
     }
 
@@ -313,6 +351,9 @@ impl DashboardService {
             low_stock_count: metrics.low_stock_count as i64,
             pending_orders: metrics.pending_orders as i64,
             monthly_sales: metrics.monthly_sales.to_string(),
+            inventory_total: metrics.inventory_total.to_string(),
+            customer_count: metrics.customer_count as i64,
+            today_orders: metrics.today_orders as i64,
         }
     }
 
