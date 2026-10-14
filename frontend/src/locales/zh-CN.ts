@@ -3891,11 +3891,9 @@ export default {
     filter: {
       ariaLabel: '客户列表筛选表单',
       keyword: '关键词',
-      keywordPlaceholder: '客户编码/名称/联系人',
+      keywordPlaceholder: '客户编码/客户名称',
       customerType: '客户类型',
       customerTypePlaceholder: '选择类型',
-      tag: '标签',
-      tagPlaceholder: '选择标签',
       status: '状态',
       statusPlaceholder: '选择状态',
       query: '查询',
@@ -3911,6 +3909,7 @@ export default {
     status: {
       active: '启用',
       inactive: '禁用',
+      blacklist: '黑名单',
     },
     table: {
       ariaLabel: '客户列表',
@@ -3920,7 +3919,12 @@ export default {
       phone: '电话',
       type: '类型',
       tag: '标签',
+      tagsLoading: '标签加载中',
+      tagsLoadFailed: '标签加载失败',
       owner: '负责人',
+      ownerUnassigned: '未分配',
+      ownerLoading: '负责人加载中',
+      ownerLoadFailed: '负责人加载失败',
       status: '状态',
       operation: '操作',
       detail: '详情',
@@ -3968,7 +3972,7 @@ export default {
       createSuccess: '创建成功',
       operationFailed: '操作失败',
       printWindowFailed: '无法打开打印窗口',
-      loadTagsFailed: '获取标签列表失败',
+      loadOwnersFailed: '获取负责人列表失败',
     },
     validation: {
       customerNameRequired: '请输入客户名称',

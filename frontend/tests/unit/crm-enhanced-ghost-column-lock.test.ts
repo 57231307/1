@@ -203,8 +203,8 @@ describe('增强客户列表幽灵聚合键形状锁（后端载体 ↔ 前端�
     expect(driftMutated.sort()).not.toEqual([...FROZEN_VIEW_DRIFT_KEYS].sort());
     // 正例夹具 C：把金额单元格写回视图，绑定判据必须抓到
     const mutatedView = CUSTOMER_LIST_TAB_SRC.replace(
-      '<el-table-column prop="owner_name"',
-      '{{ row.total_amount }}<el-table-column prop="owner_name"'
+      'prop="customer_name"',
+      'total_amount-placeholder prop="customer_name"'
     );
     expect(mutatedView, '夹具替换本身必须生效').not.toBe(CUSTOMER_LIST_TAB_SRC);
     expect(mutatedView).toContain('total_amount');
