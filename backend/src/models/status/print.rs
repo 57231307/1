@@ -36,6 +36,34 @@ pub mod print_task_status {
     }
 }
 
+/// 打印目标连接种类（print_targets.kind，小写英文闭合四值）
+///
+/// 取值与建表迁移的 `chk_print_targets_kind` 逐项一致；本 mod 是写入方（打印目标管理页
+/// 新建/编辑）与派发侧（按种类选用连接字段）共用的唯一取值来源，禁止在别处再硬编一套。
+/// 种类决定非池行必需携带的连接字段：cups⇒queue_name、network⇒host、ipp⇒endpoint_url、
+/// system_command⇒command_template（与 `chk_print_targets_kind_required` 一致）。
+pub mod print_target_kind {
+    /// CUPS 本地/网络打印队列
+    pub const CUPS: &str = "cups";
+
+    /// IPP 互联网打印协议端点
+    pub const IPP: &str = "ipp";
+
+    /// 网络直连（TCP 9100 等原始 socket）
+    pub const NETWORK: &str = "network";
+
+    /// 系统命令（调用外部命令模板投递）
+    pub const SYSTEM_COMMAND: &str = "system_command";
+
+    /// 本列全部合法取值：入参校验与 DB CHECK 的唯一取值来源
+    pub const ALL: &[&str] = &[CUPS, IPP, NETWORK, SYSTEM_COMMAND];
+
+    /// 白名单判定：逐字符匹配，词表外（含空串/变体）一律 false
+    pub fn is_valid(kind: &str) -> bool {
+        ALL.contains(&kind)
+    }
+}
+
 /// 打印模板状态（print_templates.status，小写英文闭合两值）
 ///
 /// 取值与建表迁移的 `chk_print_templates_status` 逐项一致。
