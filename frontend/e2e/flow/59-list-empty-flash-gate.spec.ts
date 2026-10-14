@@ -27,13 +27,16 @@ test.describe('列表加载空态门', () => {
     await page.goto(`${BASE_URL}/system/audit-log`);
 
     // 进入加载窗口，遮罩必须出现，证明 loading 门已生效
-    await expect(page.locator('.el-loading-mask').first(), '加载期间应显示加载遮罩').toBeVisible({
+    const loadingWrapper = page.locator('.v2-table-wrapper:has(.el-loading-mask)');
+    await expect(loadingWrapper.first(), '加载期间应存在处于 loading 的表格容器').toBeVisible({
       timeout: 8000,
     });
-    // 关键断言，数据尚未到达时不得闪现"暂无数据"空态
-    await expect(page.getByText(/暂无数据|No Data/), '加载窗口内不应出现暂无数据空态').toHaveCount(
-      0
-    );
+    // 关键断言，把范围限定在"当前 loading 的那个表格容器"内，
+    // 避免该页其它无数据副表的合法空态被误计入；加载中该容器内不得闪现空态
+    await expect(
+      loadingWrapper.first().getByText(/暂无数据|No Data/),
+      '加载中的表格容器内不应闪现暂无数据空态'
+    ).toHaveCount(0);
 
     // 放行请求，数据到达后遮罩应消失，表格定稿
     releaseGate!();
