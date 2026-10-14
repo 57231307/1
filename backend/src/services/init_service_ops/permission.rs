@@ -814,6 +814,11 @@ impl InitService {
                     // 授 read 不等于可见他人行。
                     ("orders", "read"),
                     ("custom-orders", "read"),
+                    // 仓管代做坯布建档需新建坯布行并读供应商下拉（建档表单里供应商字段
+                    // 可选），只授读与建，不授改删
+                    ("greige-fabrics", "read"),
+                    ("greige-fabrics", "create"),
+                    ("suppliers", "read"),
                 ],
             ),
             (
@@ -825,10 +830,14 @@ impl InitService {
                     // 本分组与迁移 m0069 的 PRINT_ROLE_CODES/READ_ROLE_CODES、e2e 的
                     // SEED_ROLE_EXTRA_PERMISSIONS 集合一致性由
                     // tests/contract_wave7_piece_permission_grant_test.rs 双向钉。
-                    // 此处仅授 pieces 两键——仓库经理其余库存/仓储操作权的矩阵面
-                    // 维持现状（别岗权限不顺手扩）。
+                    // 除 pieces 两键外，按坯布建档口径补授 greige-fabrics 的 read 与
+                    // create 及 suppliers 的 read（仓管与仓库经理同为坯布建档岗），
+                    // 其余库存/仓储操作权矩阵面维持现状（别岗权限不顺手扩）。
                     ("pieces", "read"),
                     ("pieces", "print"),
+                    ("greige-fabrics", "read"),
+                    ("greige-fabrics", "create"),
+                    ("suppliers", "read"),
                 ],
             ),
         ]
@@ -848,6 +857,10 @@ impl InitService {
                     ("dye-batch-reworks", "*"),
                     ("dye-batch-operations", "*"),
                     ("greige-fabrics", "read"),
+                    // 生产经理是坯布建档岗，需直接新建坯布行并读供应商下拉作来源候选
+                    // （建档表单里供应商字段可选，缺供应商读权时下拉整列被拒）
+                    ("greige-fabrics", "create"),
+                    ("suppliers", "read"),
                     // 生产侧按匹跟踪（委外发料/收回、流转卡报工）需读匹号领域行
                     ("pieces", "read"),
                     ("lab-dip", "read"),
