@@ -15,6 +15,7 @@
 
 use crate::models::product;
 use crate::models::status::master_data;
+use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService};
 use crate::utils::error::AppError;
 use crate::utils::import_export::{CsvImporter, FieldValidator, ImportResult, XlsxImporter};
@@ -310,7 +311,7 @@ impl ProductService {
     ) -> Option<String> {
         let product_type = Self::get_required_field_value(row, "产品类型", row_num, result)?;
         if let Err(e) =
-            FieldValidator::enum_value(product_type, "产品类型", &["坯布", "成品布", "辅料"])
+            FieldValidator::enum_value(product_type, "产品类型", product_type::ALL_TYPES)
         {
             result.add_error(row_num, "产品类型".to_string(), e, product_type.to_string());
             return None;

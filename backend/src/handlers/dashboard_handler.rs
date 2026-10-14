@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use axum::{
     Json,
     extract::{Query, State},
@@ -122,7 +124,15 @@ pub async fn save_dashboard_layout(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 获取仪表板概览数据（500ms 超时保护，避免慢查询阻塞首屏）
+/// 概览聚合查询的整体时间预算。概览为多路并发聚合并落缓存（命中即瞬时返回），此预算仅在极端
+/// 慢查询/连接异常时防止端点被无限挂住，取值须显著高于任何正常聚合的真实耗时，不以截断健康查询
+/// 为目的；一旦真的超时即按 5xx 显式失败回传前端，而不是回落成缺省零值。
+const DASHBOARD_OVERVIEW_QUERY_BUDGET: Duration = Duration::from_secs(30);
+
+/// 获取仪表板概览数据。
+///
+/// 概览聚合的真实耗时可超过亚秒级，故不设紧超时；仅在超出 [`DASHBOARD_OVERVIEW_QUERY_BUDGET`]
+/// 这一宽松安全上限时以 5xx 显式失败，确保前端要么拿到真实数字、要么看到明确错误，绝不静默返回 0。
 pub async fn get_dashboard_overview(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -134,11 +144,13 @@ pub async fn get_dashboard_overview(
     let start_datetime = query.start_date.and_then(naive_date_to_utc);
     let end_datetime = query.end_date.and_then(naive_date_to_utc);
     let overview = tokio::time::timeout(
-        std::time::Duration::from_millis(500),
+        DASHBOARD_OVERVIEW_QUERY_BUDGET,
         dashboard_service.get_overview(start_datetime, end_datetime),
     )
     .await
-    .map_err(|_| AppError::internal("仪表板概览查询超时（500ms）".to_string()))??;
+    .map_err(|_| {
+        AppError::internal("仪表板概览查询超时，请缩小日期范围或稍后重试".to_string())
+    })??;
 
     // 缺陷 4.2 修复：仪表板数据更新触发 WebSocket 实时推送
     crate::websocket::notifications::get_notification_broadcaster().broadcast_dashboard_update(

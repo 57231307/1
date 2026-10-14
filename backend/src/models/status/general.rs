@@ -46,6 +46,25 @@ pub mod payment {
     pub const PAYMENT_PARTIAL_PAID: &str = "PARTIAL_PAID";
 }
 
+/// 产品类型词表（面料域权威，中文值，与 products.product_type 列现状一致）。
+/// 单一定义源，供 CSV 导入枚举校验、产品新建默认、仪表盘面料总数计数共用，禁止各处再硬编中文副本。
+pub mod product_type {
+    /// 坯布：未经染色整理的布
+    pub const GREIGE: &str = "坯布";
+
+    /// 成品布：已染色整理的布
+    pub const FINISHED: &str = "成品布";
+
+    /// 辅料：非面料的辅助物料，不计入面料总数
+    pub const AUXILIARY: &str = "辅料";
+
+    /// 全量产品类型词表，供导入校验等枚举合法性判定
+    pub const ALL_TYPES: &[&str] = &[GREIGE, FINISHED, AUXILIARY];
+
+    /// 面料集合，等于坯布加成品布，仪表盘面料总数与产品面料口径的唯一判定源
+    pub const FABRIC_TYPES: &[&str] = &[GREIGE, FINISHED];
+}
+
 /// 主数据启用/停用状态（小写值，批次 208 P2-5：supplier/customer/fixed_asset 等用小写 active/inactive，与 common::STATUS_ACTIVE 大写区分）
 pub mod master_data {
     /// 启用：主数据可用状态

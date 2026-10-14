@@ -395,6 +395,8 @@ export default {
     stat: {
       fabricTotal: '面料总数',
       inventoryTotal: '库存总量',
+      inventoryWeightUnit: '公斤',
+      inventoryLengthUnit: '米',
       monthOrders: '本月订单',
       customerTotal: '客户总数',
       todayOrders: '今日订单',

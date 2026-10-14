@@ -13,7 +13,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.fabricTotal') }}</div>
-            <div class="stat-value">{{ stats.total_products }}</div>
+            <div class="stat-value">{{ stats.fabric_count ?? 0 }}</div>
           </div>
         </div>
       </el-card>
@@ -26,7 +26,14 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('dashboard.stat.inventoryTotal') }}</div>
-            <div class="stat-value">{{ formatNumber(stats.inventory_total) }}</div>
+            <div class="stat-value">
+              {{ formatNumber(stats.inventory_weight_kg) }}
+              <span class="stat-unit">{{ t('dashboard.stat.inventoryWeightUnit') }}</span>
+            </div>
+            <div class="stat-sub">
+              ≈ {{ formatNumber(stats.inventory_total) }}
+              {{ t('dashboard.stat.inventoryLengthUnit') }}
+            </div>
           </div>
         </div>
       </el-card>
@@ -263,5 +270,15 @@ defineProps<{ stats: DashboardOverview }>();
   font-weight: 700;
   color: #303133;
   line-height: 1.2;
+}
+.stat-unit {
+  font-size: 14px;
+  font-weight: 400;
+  color: #909399;
+}
+.stat-sub {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
 }
 </style>
