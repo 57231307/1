@@ -192,6 +192,12 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
         },
       },
+      // 坯布深链别名，历史误链 /fabric/greige 兼容收敛到权威入口 /greige-fabrics。
+      // 纯别名未在 modules.config 登记，不参与角色矩阵可达性推导，目标为已存在的绝对路由。
+      {
+        path: 'fabric/greige',
+        redirect: '/greige-fabrics',
+      },
       {
         path: 'inventory',
         name: 'Inventory',
