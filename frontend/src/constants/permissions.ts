@@ -188,6 +188,12 @@ export const PERMISSIONS = {
   PRINT_TEMPLATE_UPDATE: 'print-templates:update',
   PRINT_TEMPLATE_DELETE: 'print-templates:delete',
 
+  // 打印目标（后端资源：print-targets）
+  PRINT_TARGET_READ: 'print-targets:read',
+  PRINT_TARGET_CREATE: 'print-targets:create',
+  PRINT_TARGET_UPDATE: 'print-targets:update',
+  PRINT_TARGET_DELETE: 'print-targets:delete',
+
   // 库存（后端资源：inventory）
   INVENTORY_READ: 'inventory:read',
   INVENTORY_CREATE: 'inventory:create',

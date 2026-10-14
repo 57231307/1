@@ -1126,6 +1126,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '打印模板', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
+        path: 'print-targets',
+        name: 'PrintTargets',
+        component: () => import('@/views/print-targets/index.vue'),
+        meta: { title: '打印目标', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
+      },
+      {
         path: 'api-gateway',
         name: 'ApiGateway',
         component: () => import('@/views/api-gateway/index.vue'),

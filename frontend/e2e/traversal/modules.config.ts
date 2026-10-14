@@ -55,6 +55,9 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'report-templates', route: '/report-templates', domain: 'system', tier: 'A', listApi: '/reports/enhanced/templates' },
   // print-templates 为内置模板只读展示（后端无创建端点），新建断言跳过
   { id: 'print-templates', route: '/print-templates', domain: 'system', tier: 'A', listApi: '/print-templates', noCreate: true },
+  // print-targets 为打印机/池配置页：新建须按 kind 携带必需连接字段，通用遍历无法合成合法载荷，
+  // 故 noCreate（列表健康由 strict 探测覆盖，真实增删改由 74-... 打印目标持久化 spec 显式断言）。
+  { id: 'print-targets', route: '/print-targets', domain: 'system', tier: 'A', listApi: '/print-targets', noCreate: true },
   { id: 'api-gateway', route: '/api-gateway', domain: 'system', tier: 'C', noCreate: true },
   { id: 'system-update', route: '/system-update', domain: 'system', tier: 'C', noCreate: true },
   { id: 'system-profile', route: '/system/profile', domain: 'system', tier: 'C', noCreate: true },
