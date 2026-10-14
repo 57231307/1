@@ -77,6 +77,9 @@ pub struct DashboardOverview {
     /// 库存总量（正常状态库存的米数合计，与库存统计端点 total_inventory 同源口径；
     /// 数量为 Decimal 度量，按项目惯例以字符串承载精度，非行计数）
     pub inventory_total: String,
+    /// 库存总重量（正常状态库存的公斤合计，纺织以公斤为常见核算/交易主口径；
+    /// 与 inventory_total(米数) 同源同一批库存行，仅聚合列不同）
+    pub inventory_weight_kg: String,
     /// 客户总数（customers 表行数，与销售类指标同按 created_by 归属过滤）
     pub customer_count: i64,
     /// 今日订单数（sales_orders 当日创建，与销售类指标同按 created_by 归属过滤）
@@ -163,6 +166,7 @@ struct OverviewMetrics {
     monthly_sales: Decimal,
     total_sales: Decimal,
     inventory_total: Decimal,
+    inventory_weight_kg: Decimal,
     customer_count: u64,
     today_orders: u64,
     fabric_count: u64,
@@ -318,6 +322,16 @@ impl DashboardService {
             )
             .into_tuple::<Option<Decimal>>()
             .one(db);
+        // 库存总重量（公斤合计）：与米数同一批 NORMAL 库存行，仅聚合列不同；主口径。
+        let inventory_weight_kg_fut = inventory_stock::Entity::find()
+            .filter(inventory_stock::Column::StockStatus.eq(inventory_stock_status::NORMAL))
+            .select_only()
+            .column_as(
+                Expr::col(inventory_stock::Column::QuantityKg).sum(),
+                "total",
+            )
+            .into_tuple::<Option<Decimal>>()
+            .one(db);
         let (
             total_products,
             total_warehouses,
@@ -335,11 +349,18 @@ impl DashboardService {
             monthly_sales_fut,
             total_sales_fut,
         )?;
-        let (customer_count, today_orders, fabric_count, inventory_total_opt) = tokio::try_join!(
+        let (
+            customer_count,
+            today_orders,
+            fabric_count,
+            inventory_total_opt,
+            inventory_weight_kg_opt,
+        ) = tokio::try_join!(
             customer_count_fut,
             today_orders_fut,
             fabric_count_fut,
-            inventory_total_fut
+            inventory_total_fut,
+            inventory_weight_kg_fut
         )?;
         Ok(OverviewMetrics {
             total_products,
@@ -350,6 +371,7 @@ impl DashboardService {
             monthly_sales: monthly_sales_opt.flatten().unwrap_or(Decimal::ZERO),
             total_sales: total_sales_opt.flatten().unwrap_or(Decimal::ZERO),
             inventory_total: inventory_total_opt.flatten().unwrap_or(Decimal::ZERO),
+            inventory_weight_kg: inventory_weight_kg_opt.flatten().unwrap_or(Decimal::ZERO),
             customer_count,
             today_orders,
             fabric_count,
@@ -367,6 +389,7 @@ impl DashboardService {
             pending_orders: metrics.pending_orders as i64,
             monthly_sales: metrics.monthly_sales.to_string(),
             inventory_total: metrics.inventory_total.to_string(),
+            inventory_weight_kg: metrics.inventory_weight_kg.to_string(),
             customer_count: metrics.customer_count as i64,
             today_orders: metrics.today_orders as i64,
             fabric_count: metrics.fabric_count as i64,

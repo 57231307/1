@@ -670,8 +670,8 @@ fn source_scan_dashboard_inventory_gate_protects_chinese_vocabulary() {
     assert_eq!(
         dash.matches("StockStatus.eq(inventory_stock_status::NORMAL)")
             .count(),
-        7,
-        "SeaORM 侧 7 处库存门（含库存米数合计门）必须全部引用 NORMAL，不得被改写"
+        8,
+        "SeaORM 侧 8 处库存门（含米数与公斤合计门）必须全部引用 NORMAL，不得被改写"
     );
     assert!(
         !dash.contains("StockStatus.eq(master_data") && !dash.contains("stock_status = $2"),

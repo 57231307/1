@@ -20,6 +20,8 @@ test.describe('仪表盘概览统计契约', () => {
     expect(data, '缺 total_products').toHaveProperty('total_products');
     expect(data, '缺 customer_count').toHaveProperty('customer_count');
     expect(data, '缺 inventory_total').toHaveProperty('inventory_total');
+    // 库存主口径改为公斤合计，卡片绑 inventory_weight_kg，须由 overview 产出。
+    expect(data, '缺 inventory_weight_kg').toHaveProperty('inventory_weight_kg');
     expect(data, '缺 today_orders').toHaveProperty('today_orders');
     // 面料总数卡改绑 fabric_count（坯布+成品布，排除辅料），须由 overview 产出。
     expect(data, '缺 fabric_count').toHaveProperty('fabric_count');

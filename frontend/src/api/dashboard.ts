@@ -22,6 +22,7 @@ export interface DashboardOverview {
   pending_orders: number;
   monthly_sales: string;
   inventory_total?: number | string;
+  inventory_weight_kg?: number | string;
   customer_count?: number;
   today_orders?: number;
   fabric_count?: number;

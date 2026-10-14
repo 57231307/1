@@ -397,6 +397,8 @@ export default {
     stat: {
       fabricTotal: 'Fabric Total',
       inventoryTotal: 'Inventory Total',
+      inventoryWeightUnit: 'kg',
+      inventoryLengthUnit: 'm',
       monthOrders: 'Monthly Orders',
       customerTotal: 'Customer Total',
       todayOrders: 'Today Orders',
