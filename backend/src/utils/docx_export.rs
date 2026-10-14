@@ -39,9 +39,15 @@ pub struct DocxPageLayout {
 }
 
 impl DocxPageLayout {
+    // server bin 目标把 lib 源码整棵镜像重编译，pub 可见性在 bin 内不保命，
+    // 本函数在 lib 内被 `ExportService` 真实调用，此抑制仅针对 bin 镜像的死码误报。
     /// 导出（非打印）文档的页面布局：A4 纵向、四边取 docx-rs 默认边距折算值（上 35mm、其余 30mm）。
     /// 仅供 `ExportService` 这类不读取打印模板的调用方使用；打印渲染路径不使用此默认，
     /// 而是用模板持久化列构造布局。
+    #[allow(
+        dead_code,
+        reason = "由 lib 业务代码与集成测试消费，server bin 源镜像不可见，非真死码"
+    )]
     pub fn default_a4_export() -> Self {
         Self {
             paper_size: "A4".to_string(),

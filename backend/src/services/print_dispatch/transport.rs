@@ -112,10 +112,6 @@ pub enum DispatchError {
     /// 传输内部发生 panic（编排层捕获 `JoinError`），避免任务静默停留 in-flight。
     #[error("打印派发过程发生异常: {detail}")]
     Panic { detail: String },
-
-    /// 乐观锁前置状态不满足：任务已被并发实例推进到其它状态，本实例主动让位。
-    #[error("任务状态已被并发更新，本次派发中止以避免重复推进")]
-    ConcurrentAdvance,
 }
 
 /// 打印传输契约：把一个作业投递到其目标，成功返回后端可回查的外部作业号。

@@ -15,21 +15,24 @@
 
 mod test_common;
 
-use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
+#[cfg(unix)]
+use std::path::PathBuf;
 use test_common::setup_test_db;
 
 use bingxi_backend::config::settings::PrintConfig;
-use bingxi_backend::models::print_target::{ActiveModel as TargetActive, Entity as PrintTarget};
+use bingxi_backend::models::print_target::ActiveModel as TargetActive;
 use bingxi_backend::models::print_task::{ActiveModel as TaskActive, Entity as PrintTask};
 use bingxi_backend::models::status::print::print_task_status as status;
 use bingxi_backend::services::print_dispatch::transport::{
     DispatchError, KIND_CUPS, KIND_SYSTEM_COMMAND, PrintJob, PrintTransport, ResolvedTarget,
     build_transport,
 };
+// SystemCommandTransport 仅被下方 #[cfg(unix)] 用例消费（生产派发运行于 Linux）
+#[cfg(unix)]
 use bingxi_backend::services::print_dispatch::transports::system_command::SystemCommandTransport;
 use bingxi_backend::services::print_dispatch::{dispatch_task, dispatch_task_with_transport};
 
@@ -162,6 +165,8 @@ fn build_transport_rejects_network_without_host() {
 // 不需活库：system_command 传输的确定性执行（无硬件/网络）
 // ============================================================================
 
+// 仅被下方 #[cfg(unix)] 的 system_command 用例消费，故与调用侧同门控
+#[cfg(unix)]
 fn job_with_file(job_code: &str, file_path: PathBuf) -> PrintJob {
     PrintJob {
         target: ResolvedTarget {

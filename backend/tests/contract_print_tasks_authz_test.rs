@@ -19,7 +19,7 @@ use axum::{
     http::{Request, StatusCode},
     middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::get,
 };
 use bingxi_backend::container::AppState;
 use bingxi_backend::middleware::auth_context::AuthContext;

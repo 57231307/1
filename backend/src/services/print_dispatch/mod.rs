@@ -104,12 +104,18 @@ pub async fn dispatch_task(
     .await
 }
 
+// server bin 目标把 lib 源码整棵镜像重编译，pub 可见性在 bin 内不保命，
+// 本入口由集成测试（lib 外部 crate）真实调用，必须保持 pub，此抑制仅针对 bin 镜像的死码误报。
 /// 与 [`dispatch_task`] 共享同一状态机/临时文件/超时/panic 处理，但由调用方直接提供
 /// 已构建的传输与已解析的目标（跳过 `print_targets` 解析与 [`build_transport`]）。
 ///
 /// 这是给集成测试注入 `MockTransport` 以确定性验证编排层行为的窄接缝：生产路径经
 /// [`dispatch_task`] 内部构造传输，不经此入口；测试可据此断言成功/失败/超时/panic 各
 /// 终态与 `error_message` 落库、乐观锁不被重复推进，而无需真实硬件或网络。
+#[allow(
+    dead_code,
+    reason = "由集成测试作为注入缝消费（集成测试链接 lib 外部 crate），server bin 源镜像不可见，非真死码"
+)]
 pub async fn dispatch_task_with_transport(
     db: &DatabaseConnection,
     job_id: i32,
