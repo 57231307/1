@@ -15,10 +15,6 @@
 //! - 纸张/方向/四边边距/份数/条码等布局列一律不写，回落 `print_templates` 建表列默认
 //!   （A4 / portrait / 15mm / copies 1 / barcode true），布局单一来源仍归渲染链路。
 //! - `content` / `description` 取内置集合既有正文描述，不新造模板内容。
-//!
-//! 已知缺口（如实说明）：内置集合不含 `inventory_piece_label` 这一 `doc_type` 模板，故本种子不写入
-//! 它（不伪造标签内容）；成品布标签的打印测试由测试夹具自行种子其模板行。生产环境若需打印成品布
-//! 标签，须由管理员经 `POST /print-templates` 建立该 `doc_type` 的模板。
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use tracing::{info, warn};

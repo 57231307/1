@@ -1189,6 +1189,14 @@ pub fn builtin_print_templates() -> Vec<PrintTemplateDto> {
             is_default: true,
             created_at: "2026-01-01T00:00:00Z".to_string(),
         },
+        PrintTemplateDto {
+            id: 64,
+            name: "成品布入库标签打印模板".to_string(),
+            doc_type: "inventory_piece_label".to_string(),
+            template_content: "成品布入库标签打印模板（含款号、品名、缸号、色号、批次、匹号、米数、重量、幅宽、克重、等级、条码）".to_string(),
+            is_default: true,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+        },
     ]
 }
 
