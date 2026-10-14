@@ -61,9 +61,6 @@ mod m0091_realign_purchase_receipt_confirm;
 mod m0092_grant_boms_read_production_manager;
 // 采购两岗补 sku-mappings:import：对照表批量导入端点不再被门层判死（见文件头）。
 mod m0096_grant_sku_mapping_import_purchase_roles;
-// 坯布建档三岗补授 greige-fabrics:read/create 与 suppliers:read（存量库通道，
-// 同 m0072/m0069 范式；roles/role_permissions 属 system 域先建，注册在本域 up 链尾）
-mod m0097_grant_greige_create_and_suppliers_read;
 
 pub struct Migration;
 
@@ -314,12 +311,8 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0092_grant_boms_read_production_manager::Migration
             .up(manager)
             .await?;
-        // 采购两岗 sku-mappings:import 补授：紧随 m0092
+        // 采购两岗 sku-mappings:import 补授：本域 up 链最末
         m0096_grant_sku_mapping_import_purchase_roles::Migration
-            .up(manager)
-            .await?;
-        // 坯布建档三岗补授（本域 up 链尾，晚于 m0096）
-        m0097_grant_greige_create_and_suppliers_read::Migration
             .up(manager)
             .await?;
         Ok(())
@@ -327,11 +320,7 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 坯布建档三岗补授：最后应用者最先回滚
-        m0097_grant_greige_create_and_suppliers_read::Migration
-            .down(manager)
-            .await?;
-        // 采购 sku-mappings:import：回收本迁移授予的行
+        // 采购 sku-mappings:import：最后应用者最先回滚（只按角色码回收本迁移授予的行）
         m0096_grant_sku_mapping_import_purchase_roles::Migration
             .down(manager)
             .await?;
