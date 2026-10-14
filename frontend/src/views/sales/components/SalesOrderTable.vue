@@ -64,6 +64,7 @@ const emit = defineEmits<{
   view: [row: SalesOrder];
   approve: [row: SalesOrder];
   delivery: [row: SalesOrder];
+  reserve: [row: SalesOrder];
   cancel: [row: SalesOrder];
   submitOrder: [row: SalesOrder];
   reject: [row: SalesOrder];
@@ -77,7 +78,10 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
   {
     key: '__actions__',
     title: t('sales.table.operation'),
-    width: 340,
+    // 操作列按钮按状态条件渲染且同行并列：已审批/部分发货态最多 5 个按钮
+    // （查看/详情/发货/预留库存/取消），其中「预留库存」为四字标签；
+    // 原 340 按旧最多按钮行取值，新增入口后需加宽避免 fixed 列内溢出换行
+    width: 430,
     fixed: 'right',
     renderCell: (row: SalesOrder) => {
       const buttons = [
@@ -164,6 +168,22 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               onClick: () => emit('delivery', row),
             },
             { default: () => t('sales.table.deliver') }
+          )
+        );
+      }
+      // 预留库存仅对可履约订单有意义：已审批/部分发货可预留；
+      // 草稿/待审/已发货/完成/取消/驳回均不渲染该入口
+      if (row.status === 'approved' || row.status === 'partial_shipped') {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'primary',
+              onClick: () => emit('reserve', row),
+            },
+            { default: () => t('sales.table.reserve') }
           )
         );
       }
