@@ -15,7 +15,7 @@ test.describe('列表加载空态门', () => {
       releaseGate = resolve;
     });
     await page.route(
-      url => url.pathname.endsWith('/custom-orders'),
+      url => url.pathname.endsWith('/api/v1/erp/custom-orders'),
       async route => {
         await gate;
         await route.fallback();
