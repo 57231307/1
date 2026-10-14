@@ -18,8 +18,9 @@ import {
 
 describe('V2Table', () => {
   it('渲染空数据时显示「暂无数据」', () => {
-    // el-table-v2 虚拟表在零高度 jsdom 视口下不挂载行/空态区，空态经组件的 #empty 插槽渲染，
-    // 故 stub ElAutoResizer 提供非零高度让真实 el-table-v2 渲染空态区，再断言插槽文案。
+    // 空态文案经 V2Table 的 #empty 插槽提供（加载中不渲染，避免闪现）。
+    // el-table-v2 虚拟表在 jsdom 下不挂载行/空态区，故 stub 其渲染 empty 具名插槽，
+    // 直接验证组件向空态插槽注入的文案；加载态门控另由 e2e 在真实浏览器校验。
     const wrapper = mount(V2Table, {
       props: { data: [], columns: [] },
       global: {
@@ -27,6 +28,11 @@ describe('V2Table', () => {
           ElAutoResizer: {
             name: 'ElAutoResizer',
             template: '<div><slot :height="600" :width="800" /></div>',
+          },
+          ElTableV2: {
+            name: 'ElTableV2',
+            inheritAttrs: false,
+            template: '<div class="v2-stub"><slot name="empty" /></div>',
           },
         },
       },
