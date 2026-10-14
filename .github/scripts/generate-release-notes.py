@@ -347,6 +347,90 @@ def parse_subject_item(subject):
     return (CN_TYPE_MAP.get(t, "other"), desc)
 
 
+def format_feature_changes(prev_tag, pr_numbers, subjects, source_note=""):
+    """按功能/内容粒度渲染“相对上一版本”的 新增 / 变更 / 修复 / 移除 差异。
+
+    面向读者的发布说明主体只讲“加了什么功能、改了什么、修了什么、删了什么”，
+    不罗列改动了哪些文件（文件级差异不作为读者内容）。数据来自各 PR 的提交
+    （squash 合并后 GitHub 仍保留），按 conventional 前缀归类为功能级条目。
+    主类别（新增/变更/修复/移除/破坏性）直接展开；测试/文档/构建/其他折叠为附录。"""
+    L = ["## 📋 本版本相对上一版本的功能差异", ""]
+    if not prev_tag:
+        L += ["_首个版本，无对比基线；以下为本次收录的全部更新（按功能分类）。_", ""]
+    else:
+        L += [f"对比基线：`{prev_tag}`。以下按**功能/内容**说明新增、变更、修复与移除了什么（不列具体文件）。", ""]
+    if not pr_numbers or not subjects:
+        L += ["_未能从提交历史聚合到功能级条目（PR 编号或提交缺失）；请查看下方提交列表。_", ""]
+        return L
+    prs = "、".join("#" + n for n in pr_numbers)
+    note = source_note or f"，聚合 {len(subjects)} 条提交要点（PR 提交在 squash 后仍保留，可逐条还原）。"
+    L.append(f"来源：关联 PR {prs}{note}")
+    L.append("")
+
+    primary = OrderedDict([
+        ("added", "🆕 新增功能 / 内容"),
+        ("changed", "🔧 功能变更 / 优化"),
+        ("fixed", "🐛 缺陷修复"),
+        ("removed", "🗑️ 移除 / 下线"),
+        ("breaking", "⚠️ 破坏性变更"),
+    ])
+    secondary = OrderedDict([
+        ("test", "🧪 测试"),
+        ("docs", "📄 文档"),
+        ("chore", "🔧 构建 / CI / 工具"),
+        ("other", "📌 其他"),
+    ])
+    TYPE_TO_BUCKET = {
+        "feat": "added",
+        "refactor": "changed",
+        "fix": "fixed",
+        "remove": "removed",
+        "breaking": "breaking",
+        "test": "test",
+        "docs": "docs",
+        "chore": "chore",
+        "other": "other",
+    }
+    order = list(primary) + list(secondary)
+    buckets = OrderedDict((k, []) for k in order)
+    for s in subjects:
+        k, d = parse_subject_item(s)
+        b = TYPE_TO_BUCKET.get(k, "other")
+        if d and d not in buckets[b]:
+            buckets[b].append(d)
+
+    counts = {b: len(v) for b, v in buckets.items() if v}
+    if counts:
+        parts = []
+        for b in order:
+            if b in counts:
+                label = (primary.get(b) or secondary.get(b)).split(" ", 1)[-1]
+                parts.append(f"{label} {counts[b]} 项")
+        L.append("**变化概览**：" + "，".join(parts) + "。")
+        L.append("")
+
+    for b, head in primary.items():
+        items = buckets[b]
+        if not items:
+            continue
+        L += [f"### {head}（{len(items)}）", ""]
+        L += [f"- {d}" for d in items]
+        L.append("")
+
+    sec_rendered = [(b, head, buckets[b]) for b, head in secondary.items() if buckets[b]]
+    if sec_rendered:
+        total_sec = sum(len(it) for _, _, it in sec_rendered)
+        L += [f"### 次要变更（测试 / 文档 / 构建 / 其他，共 {total_sec} 项）", "",
+              "<details><summary>展开</summary>", ""]
+        for _, head, items in sec_rendered:
+            L += [f"**{head}（{len(items)}）**", ""]
+            L += [f"- {d}" for d in items]
+            L.append("")
+        L += ["</details>", ""]
+
+    return L
+
+
 def format_semantic_section(pr_numbers, subjects, source_note=""):
     L = ["## 📝 语义更新要点（按提交聚合，句子级）", ""]
     if not pr_numbers:
@@ -574,24 +658,18 @@ def format_release_notes(version, tag_name, prev_tag, commits, stats=None, matri
     if semantic:
         pr_nums, subjects, *rest = semantic
         source_note = rest[0] if rest else ""
-        lines += format_semantic_section(pr_nums, subjects, source_note)
-        lines.append("---")
-        lines.append("")
-
-    lines += format_diff_section(prev_tag, stats)
+    else:
+        pr_nums, subjects, source_note = [], [], ""
+    lines += format_feature_changes(prev_tag, pr_nums, subjects, source_note)
     lines.append("---")
     lines.append("")
 
-    lines += format_change_categories(prev_tag, matrix)
-    lines.append("---")
-    lines.append("")
-
-    lines.append("## 📝 完整 Commit 列表")
+    lines.append("<details><summary>📜 完整 Commit 列表（工程追溯附录，非读者主体）</summary>")
     lines.append("")
     for c in commits:
         lines.append(f"- `{c['hash']}` {c['subject']}")
     lines.append("")
-    lines.append("---")
+    lines.append("</details>")
     lines.append("")
 
     lines.append("## 🚀 快速部署")
@@ -618,9 +696,8 @@ def format_release_notes(version, tag_name, prev_tag, commits, stats=None, matri
     lines.append("---")
     lines.append("")
     lines.append("*此发布说明由 CI 自动生成（`generate-release-notes.py`）："
-                 "更新/修复条目解析自 commit 历史，"
-                 "「与上一版本对比」章节由 `git diff PREV_TAG..HEAD` 计算，"
-                 "不受 squash 合并影响。*")
+                 "读者主体以功能/内容粒度描述本版本相对上一版本的新增 / 变更 / 修复 / 移除；"
+                 "条目来源为 squash 后仍保留的 PR 提交，按 conventional 前缀归类。*")
     lines.append("")
 
     return "\n".join(lines)
