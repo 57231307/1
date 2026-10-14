@@ -72,7 +72,7 @@ fn paper_size_dimensions_mm(paper_size: &str) -> Result<(u32, u32), AppError> {
     match paper_size.trim().to_ascii_uppercase().as_str() {
         // A4 = 210mm x 297mm
         "A4" => Ok((210, 297)),
-        other => Err(AppError::internal(format!(
+        other => Err(AppError::validation_displayable(format!(
             "docx-rs 0.4 暂不支持纸张尺寸 {other}，仅支持 A4"
         ))),
     }
