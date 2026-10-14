@@ -80,6 +80,8 @@ pub mod inventory_stock_txn;
 // P9-2 拆分：库存子模块
 pub mod stock_alert;
 pub mod product_category_service;
+// 产品分类默认种子（新库首启补三类，bootstrap 初始化链调用）
+pub mod product_category_seed;
 pub mod product_service;
 // 批次 D10 拆分：product_service.rs facade 的业务实现子模块（sync/crud/color/import_export）
 pub mod product_ops;
