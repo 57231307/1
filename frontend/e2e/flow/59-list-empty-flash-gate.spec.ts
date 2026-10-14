@@ -15,14 +15,16 @@ test.describe('列表加载空态门', () => {
       releaseGate = resolve;
     });
     await page.route(
-      url => url.pathname.endsWith('/api/v1/erp/custom-orders'),
+      url => url.pathname.endsWith('/api/v1/erp/audit-logs'),
       async route => {
         await gate;
         await route.fallback();
       }
     );
 
-    await page.goto(`${BASE_URL}/custom-orders`);
+    // 目标为 V2Table 页（审计日志），其把 useTableApi 的 loading 透传给 V2Table，
+    // 正是本次加载空态门控生效的组件；custom-orders 用的是 el-table 不在此组件覆盖内。
+    await page.goto(`${BASE_URL}/system/audit-log`);
 
     // 进入加载窗口，遮罩必须出现，证明 loading 门已生效
     await expect(page.locator('.el-loading-mask').first(), '加载期间应显示加载遮罩').toBeVisible({
