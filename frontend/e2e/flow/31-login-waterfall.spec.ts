@@ -72,6 +72,34 @@ test.describe('P5.1 登录瀑布', () => {
     expect(refreshCalls.length, `[31-瀑布] refresh 请求数（实际: ${requests.join(',')}）`).toBe(0);
   });
 
+  test('错密码提示为友好中文且单条', async ({ page }) => {
+    // 复用已清空登录态的 describe，避免守卫重定向；表单出现后再操作，规避冷启动重试
+    await safeGoto(page, '/');
+    const userInput = page
+      .locator('input[placeholder*="用户名"], input[name="username"]')
+      .first();
+    await userInput.waitFor({ state: 'visible', timeout: 45000 });
+    await userInput.fill('e2e_admin');
+    await page.locator('input[type="password"]').first().fill('WrongPassword123!');
+    const cbInner = page.locator('.el-checkbox__inner').first();
+    const cbInput = page.locator('.el-checkbox input').first();
+    if ((await cbInner.isVisible()) && !(await cbInput.isChecked())) {
+      await cbInner.click();
+    }
+    await page.click('button[type="submit"], button:has-text("登录")');
+
+    const errToast = page.locator('.el-message--error');
+    await expect(errToast.first(), '[31-文案] 应出现错误提示').toBeVisible({ timeout: 10000 });
+    // 锁定：错误提示只有 1 条（拦截器与视图各弹一次会造成双提示）
+    await expect(errToast, '[31-双弹] 错误提示应仅 1 条').toHaveCount(1);
+    // 显示友好中文文案，而非 axios 英文技术串或后端脱敏「未授权」
+    const toastText = await errToast.innerText();
+    expect(toastText, '[31-文案] 应为「用户名或密码错误」').toContain('用户名或密码错误');
+    expect(toastText, '[31-文案] 不得出现英文技术串或泛化未授权').not.toMatch(
+      /Request failed|status code|Unauthorized|未授权/i
+    );
+  });
+
   test('成功登录仅 1 请求', async ({ page }) => {
     const requests: string[] = [];
     page.on('request', req => {
