@@ -38,10 +38,7 @@ fn remember_gateway(state: tauri::State<GatewayUrl>, url: String) {
 
 /// 跳回 gateway（登录失败自动重填入口）。需先在 gateway 调过 remember_gateway。
 #[tauri::command]
-fn reopen_gateway(
-    app: tauri::AppHandle,
-    state: tauri::State<GatewayUrl>,
-) -> Result<(), String> {
+fn reopen_gateway(app: tauri::AppHandle, state: tauri::State<GatewayUrl>) -> Result<(), String> {
     let url = state
         .0
         .lock()
@@ -49,8 +46,41 @@ fn reopen_gateway(
         .clone()
         .ok_or_else(|| "gateway 地址未记录".to_string())?;
     let parsed: tauri::Url = url.parse().map_err(|e| format!("非法 gateway url: {e}"))?;
+    if !is_safe_gateway_url(&parsed) {
+        return Err("gateway url 非预期 http/https origin".to_string());
+    }
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口不存在".to_string())?;
     window.navigate(parsed).map_err(|e| e.to_string())
+}
+
+/// 仅允许回跳到本地 gateway（tauri 内置 asset origin，http(s) scheme），拒绝被注入的外部目标。
+fn is_safe_gateway_url(url: &tauri::Url) -> bool {
+    let scheme = url.scheme();
+    (scheme == "http" || scheme == "https")
+        && matches!(url.host_str(), Some("tauri.localhost") | Some("localhost"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_safe_gateway_url;
+
+    fn u(s: &str) -> tauri::Url {
+        s.parse().unwrap()
+    }
+
+    #[test]
+    fn accepts_local_tauri_gateway() {
+        assert!(is_safe_gateway_url(&u("http://tauri.localhost/index.html")));
+        assert!(is_safe_gateway_url(&u("http://localhost/")));
+    }
+
+    #[test]
+    fn rejects_external_and_non_http_targets() {
+        // 远端 ERP 站点不应被当作回跳目标（回跳只去本地 gateway）
+        assert!(!is_safe_gateway_url(&u("https://erp.example.com/")));
+        assert!(!is_safe_gateway_url(&u("file:///etc/passwd")));
+        assert!(!is_safe_gateway_url(&u("javascript:alert(1)")));
+    }
 }

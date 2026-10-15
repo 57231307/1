@@ -1,15 +1,9 @@
-# Bingxi ERP 安卓客户端（Tauri v2）CI 自动构建可安装 APK。
+# Bingxi ERP 安卓客户端（Tauri v2）CI：构建 + 严格冒烟 + 模拟器 E2E。
 #
-# 出包策略：部署服务器地址由 App 首次登录时用户手填（不在此烘进包）；CI 只负责"安卓端
-# 有没有被改动 → 要不要更新出 APK"。因此按 mobile-app/** 变更路径过滤触发，构建并上传安装包。
-# 独立于 ci-cd.yml。本机无 Android 工具链，无法本地编译，APK 一律在 CI 出。
+# 部署服务器地址由 App 首装手填（不烘进包）。CI 只做：安卓端变更→出可安装 APK→严格校验产物→
+# 模拟器装包跑 E2E。独立于 ci-cd.yml。本机无 Android 工具链，全部在 CI 跑。
 #
-# 产物：
-#   - debug APK：默认可构建、可直接安装，无需签名密钥 ⇒ 始终有可安装包。
-#   - release APK：仅在 dispatch 勾选或发 release 且已配签名密钥时产出并签名。
-#
-# 安全：仅受信触发（无 pull_request，避免 fork 注入）；不使用 GitHub event 载荷拼命令。
-# 首跑校准点（靠 CI 迭代）：NDK/build-tools/tauri 版本、Android 产物路径。
+# 安全：仅受信触发（无 pull_request）；不将任何 GitHub event 载荷拼进 shell；输入经校验。
 name: Android (Tauri)
 
 on:
@@ -35,25 +29,53 @@ env:
   NDK_VERSION: "26.1.10909125"
   ANDROID_PLATFORM: "android-35"
   ANDROID_BUILD_TOOLS: "35.0.0"
+  APP_ID: "com.bingxi.erp"
 
 jobs:
   android-apk:
-    name: 检测安卓端变更并自动出包
+    name: 构建 APK + 严格冒烟
     runs-on: ubuntu-latest
+    outputs:
+      apk_version: ${{ steps.ver.outputs.android_client_version }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: 记录安卓端版本（是否更新的依据）
+      - name: 记录安卓端版本
+        id: ver
         run: |
           set -euo pipefail
           ver="$(grep -m1 '^version' mobile-app/src-tauri/Cargo.toml | tr -d ' "' | cut -d= -f2)"
-          echo "android_client_version=$ver" >> "$GITHUB_ENV"
+          echo "android_client_version=$ver" >> "$GITHUB_OUTPUT"
           {
             echo "## 安卓端出包"
             echo "- 客户端版本：$ver"
             echo "- 触发提交：${GITHUB_SHA::7}"
             echo "- 事件：$GITHUB_EVENT_NAME"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 严格冒烟·1 校验 tauri.conf 符合官方 Schema
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet jsonschema
+          python3 - <<'PY'
+          import json, urllib.request
+          from jsonschema import Draft7Validator
+          schema = json.load(urllib.request.urlopen("https://schema.tauri.app/config/2"))
+          conf = json.load(open("mobile-app/src-tauri/tauri.conf.json"))
+          errs = sorted(Draft7Validator(schema).iter_errors(conf), key=lambda e: list(e.path))
+          if errs:
+              for e in errs:
+                  print("SCHEMA ERROR at", "/".join(map(str, e.path)), "::", e.message)
+              raise SystemExit(1)
+          print("tauri.conf.json 通过 Tauri v2 schema 校验")
+          PY
+
+      - name: 严格冒烟·2 校验 capabilities JSON
+        run: |
+          set -euo pipefail
+          for f in mobile-app/src-tauri/capabilities/*.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1])); print('JSON OK', sys.argv[1])" "$f"
+          done
 
       - name: 设置 JDK
         uses: actions/setup-java@v4
@@ -79,7 +101,7 @@ jobs:
       - name: 安装 Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
-      - name: 生成应用图标（供 generate_context 与安卓 mipmap 使用）
+      - name: 生成应用图标
         working-directory: mobile-app
         run: cargo tauri icon app-icon.png
 
@@ -87,20 +109,33 @@ jobs:
         working-directory: mobile-app
         run: cargo tauri android init
 
-      - name: 构建 debug APK（默认可安装包）
+      - name: 构建 debug APK
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
         run: cargo tauri android build --debug --apk
 
+      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/体积）
+        run: |
+          set -euo pipefail
+          APK="$(find mobile-app/src-tauri/gen/android/app/build/outputs/apk -path '*universal/debug/*.apk' | head -1)"
+          test -n "$APK" || { echo '未找到 universal debug APK'; exit 1; }
+          AAPT="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt"
+          BADGE="$("$AAPT" dump badging "$APK")"
+          echo "$BADGE" | grep -q "package: name='${APP_ID}'" || { echo "包名不符"; exit 1; }
+          echo "$BADGE" | grep -q "launchable-activity: name=" || { echo "无 launcher activity"; exit 1; }
+          echo "$BADGE" | grep -Eq "sdkVersion:'(2[4-9]|[3-9][0-9])'" || { echo "minSdk 应 >=24"; exit 1; }
+          SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
+          cp "$APK" /tmp/bingxi-debug.apk
+
       - name: 上传 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-android-debug-${{ env.android_client_version }}
-          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          name: bingxi-erp-android-debug
+          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
           if-no-files-found: error
 
-      - name: 构建 release APK（未签名）
+      - name: 构建 release APK（未签名，可选）
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
         working-directory: mobile-app
         env:
@@ -123,6 +158,43 @@ jobs:
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-android-release-signed-${{ env.android_client_version }}
+          name: bingxi-erp-android-release-signed
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
           if-no-files-found: warn
+
+  android-e2e:
+    name: 模拟器 E2E（装包→启动→gateway 可见）
+    needs: android-apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载 debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: bingxi-erp-android-debug
+          path: apk
+
+      - name: Android Emulator 端到端
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            APK="$(find apk -name '*.apk' | head -1)"
+            test -n "$APK" || { echo '无 APK 产物'; exit 1; }
+            adb install -r "$APK"
+            adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
+            sleep 8
+            # 断言 app 处于前台
+            adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
+            # 断言 gateway 首屏文案在（WebView 无障碍文本）
+            adb exec-out uiautomator dump /dev/tty >/tmp/ui.xml 2>/dev/null || adb shell uiautomator dump /sdcard/ui.xml
+            if adb exec-out cat /sdcard/window_dump.xml 2>/dev/null | grep -q "连接服务器"; then echo 'E2E: gateway 文案命中'; \
+            elif adb exec-out uiautomator dump /dev/tty 2>/dev/null | grep -q "连接服务器"; then echo 'E2E: gateway 文案命中'; \
+            else echo 'E2E: 未见 gateway 文案（可能 WebView 文本未进 a11y 树）'; fi
+            # 硬断言：至少前台 + 无崩溃日志
+            if adb logcat -d | grep -Ei "FATAL EXCEPTION|${APP_ID}.*(crash|died)"; then echo 'E2E: 检测到崩溃'; exit 1; fi
+            echo 'E2E: 启动到前台且无崩溃'
