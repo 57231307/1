@@ -79,6 +79,10 @@ jobs:
       - name: 安装 Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
+      - name: 生成应用图标（供 generate_context 与安卓 mipmap 使用）
+        working-directory: mobile-app
+        run: cargo tauri icon app-icon.png
+
       - name: 初始化 Android 工程
         working-directory: mobile-app
         run: cargo tauri android init
