@@ -24,8 +24,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["android"],
-    "identifier": "com.bingxi.erp",
+    "targets": "all",
     "android": {
       "minSdkVersion": 24
     }
