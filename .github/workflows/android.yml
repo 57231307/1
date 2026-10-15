@@ -1,47 +1,58 @@
-# Bingxi ERP 安卓客户端（Tauri v2）CI 出包。
+# Bingxi ERP 安卓客户端（Tauri v2）CI 自动构建可安装 APK。
 #
-# 本机无 Android SDK/NDK/JDK，无法本地编译；APK 一律在此 job 出。
-# 独立于 ci-cd.yml（不参与其 26-job needs 依赖图）。
+# 本机无 Android SDK/NDK/JDK，无法本地编译；APK 一律在 CI 出，打包（打 tag / 发 release /
+# 手动 dispatch / 推本分支）即自动构建并上传安装包。
+# 独立于 ci-cd.yml（不进其 26-job needs 依赖图）。
 #
-# 安全：仅受信触发（workflow_dispatch + 推本分支）；不使用任何 GitHub event 载荷字段拼命令。
-# 仓库变量 BINGXI_WEB_HOST 经字符集白名单校验后才进 shell，防注入。
+# 产物：
+#   - debug APK：默认可构建、可直接安装（允许"未知来源"），无需任何签名密钥 ⇒ 保证有可安装包。
+#   - release APK：仅当仓库配置了签名密钥（secrets.ANDROID_KEYSTORE_BASE64 等）时额外产出并签名。
 #
-# 首跑校准点（无本地工具链，只能靠本 workflow 迭代）：
-#   - NDK / build-tools / platform 版本号（下方为当前稳定值，runner 镜像不含时需调整）。
-#   - 产物为未签名 debug APK；正式发布需另配 keystore 签名步骤。
+# 安全：仅受信触发；不使用任何 GitHub event 载荷拼命令；BINGXI_WEB_HOST 经字符白名单校验后才进 shell。
+#
+# 首跑校准点（无本地工具链，靠本 workflow 迭代）：NDK / build-tools / platform 版本、签名密钥字段名。
 name: Android (Tauri)
 
 on:
   workflow_dispatch:
+    inputs:
+      build_release:
+        description: "同时构建签名 release APK（需已配置签名密钥）"
+        type: boolean
+        default: false
   push:
     branches:
       - "feat/android-tauri-client"
+    tags:
+      - "android-v*"
+  release:
+    types: [published]
 
 env:
   BINGXI_WEB_HOST: ${{ vars.BINGXI_WEB_HOST }}
   JAVA_VERSION: "17"
   NDK_VERSION: "26.1.10909125"
+  ANDROID_PLATFORM: "android-35"
+  ANDROID_BUILD_TOOLS: "35.0.0"
 
 jobs:
   android-apk:
-    name: 构建 debug APK
+    name: 自动构建可安装 APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 校验部署域变量
+      - name: 校验部署域变量（fail-closed）
         run: |
           set -euo pipefail
           host="${BINGXI_WEB_HOST:-}"
           if [ -z "$host" ]; then
-            echo "仓库变量 BINGXI_WEB_HOST 未设置（填真实部署域，不含 scheme）" >&2
+            echo "仓库变量 Settings→Secrets and variables→Actions→Variables 需设 BINGXI_WEB_HOST=真实部署域（不含 scheme）" >&2
             exit 1
           fi
-          # 仅允许域名/端口字符，杜绝把变量当命令注入
           case "$host" in
-            *[!A-Za-z0-9.:-]*) echo "BINGXI_WEB_HOST 含非法字符: $host" >&2; exit 1 ;;
+            ""|*[!A-Za-z0-9.:-]*) echo "BINGXI_WEB_HOST 含非法字符" >&2; exit 1 ;;
           esac
-          echo "HOST_OK"
 
       - name: 设置 JDK
         uses: actions/setup-java@v4
@@ -52,7 +63,7 @@ jobs:
       - name: 设置 Android SDK / NDK / build-tools
         uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;${{ env.NDK_VERSION }}"
+          packages: "platform-tools platforms;${{ env.ANDROID_PLATFORM }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} ndk;${{ env.NDK_VERSION }}"
 
       - name: 设置 Node
         uses: actions/setup-node@v4
@@ -77,18 +88,47 @@ jobs:
             mobile-app/src-tauri/capabilities/default.json
           grep -q "${HOST}" mobile-app/src-tauri/tauri.conf.json
 
-      - name: 初始化并构建 Android（debug APK）
+      - name: 初始化 Android 工程
+        working-directory: mobile-app
+        run: cargo tauri android init
+
+      - name: 构建 debug APK（默认可安装包）
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: |
-          set -euo pipefail
-          cargo tauri android init
-          cargo tauri android build --debug --apk
+        run: cargo tauri android build --debug --apk
 
-      - name: 上传 APK 产物
+      - name: 上传 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-android-debug-apk
+          name: bingxi-erp-android-debug
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
+
+      # ---- 可选：签名 release（仅当配置了密钥且要求时）----
+      - name: 构建 release APK（未签名）
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        working-directory: mobile-app
+        env:
+          NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
+        run: cargo tauri android build --release --apk
+
+      - name: 签名 release APK（需 keystore 密钥）
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: 上传签名 release APK
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingxi-erp-android-release-signed
+          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
+          if-no-files-found: warn
