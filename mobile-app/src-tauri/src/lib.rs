@@ -1,17 +1,25 @@
+use std::sync::Mutex;
+use tauri::Manager;
+
+/// 记住 gateway（服务器地址设置页）自身的加载地址，供登录失败回弹时精确跳回。
+/// 移动端 asset  origins 因平台而异（Android 为 http://tauri.localhost 等），故不硬编码，
+/// 而由 gateway 首次加载时把 `window.location.href` 传进来存住。
+struct GatewayUrl(Mutex<Option<String>>);
+
 /// Tauri v2 Android 客户端 Rust 内核。
 ///
-/// 形态：WebView 载入远端 Bingxi ERP Web（同域复用现有 httpOnly Cookie + CSRF 会话，
-/// 故 Web 端全部业务功能在 App 内零改动继承）。Rust 层只做两件事：
-/// 1) 承载窗口生命周期与安全配置；
-/// 2) 暴露原生能力桥接（扫码/相机、通知、打印机目标、文件导出落盘等），由前端经
-///    `window.__TAURI__` 调用（需 tauri.conf 开 `withGlobalTauri`）。
-///
-/// 当前为最小可构建骨架：仅注册一个 `app_info` 探针命令验证 IPC 通路。
-/// 各原生能力命令按需在本模块追加，并在 capabilities 里放行对应权限。
+/// 形态：WebView 先载入内置 gateway（服务器地址设置页），用户首装手填部署地址 → 持久化 →
+/// 同域跳转进该地址上的现有 ERP Web（复用现有 httpOnly+CSRF，Web 全部功能零改继承）。
+/// 登录失败需重填时，远端 Web（或 gateway）经 `reopen_gateway` 跳回 gateway。
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_info])
+        .manage(GatewayUrl(Mutex::new(None)))
+        .invoke_handler(tauri::generate_handler![
+            app_info,
+            remember_gateway,
+            reopen_gateway
+        ])
         .run(tauri::generate_context!())
         .expect("Bingxi ERP 移动端启动失败");
 }
@@ -19,8 +27,30 @@ pub fn run() {
 /// IPC 探针：确认 WebView↔Rust 通路可用，供前端识别"运行在原生壳内"。
 #[tauri::command]
 fn app_info() -> serde_json::Value {
-    serde_json::json!({
-        "app": "bingxi-erp-mobile",
-        "shell": "tauri-v2",
-    })
+    serde_json::json!({ "app": "bingxi-erp-mobile", "shell": "tauri-v2" })
+}
+
+/// gateway 首次加载时记录自身地址（用于回弹）。
+#[tauri::command]
+fn remember_gateway(state: tauri::State<GatewayUrl>, url: String) {
+    *state.0.lock().unwrap() = Some(url);
+}
+
+/// 跳回 gateway（登录失败自动重填入口）。需先在 gateway 调过 remember_gateway。
+#[tauri::command]
+fn reopen_gateway(
+    app: tauri::AppHandle,
+    state: tauri::State<GatewayUrl>,
+) -> Result<(), String> {
+    let url = state
+        .0
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "gateway 地址未记录".to_string())?;
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("非法 gateway url: {e}"))?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    window.navigate(parsed).map_err(|e| e.to_string())
 }

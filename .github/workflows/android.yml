@@ -1,16 +1,15 @@
 # Bingxi ERP 安卓客户端（Tauri v2）CI 自动构建可安装 APK。
 #
-# 本机无 Android SDK/NDK/JDK，无法本地编译；APK 一律在 CI 出，打包（打 tag / 发 release /
-# 手动 dispatch / 推本分支）即自动构建并上传安装包。
-# 独立于 ci-cd.yml（不进其 26-job needs 依赖图）。
+# 出包策略：部署服务器地址由 App 首次登录时用户手填（不在此烘进包）；CI 只负责"安卓端
+# 有没有被改动 → 要不要更新出 APK"。因此按 mobile-app/** 变更路径过滤触发，构建并上传安装包。
+# 独立于 ci-cd.yml。本机无 Android 工具链，无法本地编译，APK 一律在 CI 出。
 #
 # 产物：
-#   - debug APK：默认可构建、可直接安装（允许"未知来源"），无需任何签名密钥 ⇒ 保证有可安装包。
-#   - release APK：仅当仓库配置了签名密钥（secrets.ANDROID_KEYSTORE_BASE64 等）时额外产出并签名。
+#   - debug APK：默认可构建、可直接安装，无需签名密钥 ⇒ 始终有可安装包。
+#   - release APK：仅在 dispatch 勾选或发 release 且已配签名密钥时产出并签名。
 #
-# 安全：仅受信触发；不使用任何 GitHub event 载荷拼命令；BINGXI_WEB_HOST 经字符白名单校验后才进 shell。
-#
-# 首跑校准点（无本地工具链，靠本 workflow 迭代）：NDK / build-tools / platform 版本、签名密钥字段名。
+# 安全：仅受信触发（无 pull_request，避免 fork 注入）；不使用 GitHub event 载荷拼命令。
+# 首跑校准点（靠 CI 迭代）：NDK/build-tools/tauri 版本、Android 产物路径。
 name: Android (Tauri)
 
 on:
@@ -23,13 +22,15 @@ on:
   push:
     branches:
       - "feat/android-tauri-client"
+    paths:
+      - "mobile-app/**"
+      - ".github/workflows/android.yml"
     tags:
       - "android-v*"
   release:
     types: [published]
 
 env:
-  BINGXI_WEB_HOST: ${{ vars.BINGXI_WEB_HOST }}
   JAVA_VERSION: "17"
   NDK_VERSION: "26.1.10909125"
   ANDROID_PLATFORM: "android-35"
@@ -37,22 +38,22 @@ env:
 
 jobs:
   android-apk:
-    name: 自动构建可安装 APK
+    name: 检测安卓端变更并自动出包
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 校验部署域变量（fail-closed）
+      - name: 记录安卓端版本（是否更新的依据）
         run: |
           set -euo pipefail
-          host="${BINGXI_WEB_HOST:-}"
-          if [ -z "$host" ]; then
-            echo "仓库变量 Settings→Secrets and variables→Actions→Variables 需设 BINGXI_WEB_HOST=真实部署域（不含 scheme）" >&2
-            exit 1
-          fi
-          case "$host" in
-            ""|*[!A-Za-z0-9.:-]*) echo "BINGXI_WEB_HOST 含非法字符" >&2; exit 1 ;;
-          esac
+          ver="$(grep -m1 '^version' mobile-app/src-tauri/Cargo.toml | tr -d ' "' | cut -d= -f2)"
+          echo "android_client_version=$ver" >> "$GITHUB_ENV"
+          {
+            echo "## 安卓端出包"
+            echo "- 客户端版本：$ver"
+            echo "- 触发提交：${GITHUB_SHA::7}"
+            echo "- 事件：$GITHUB_EVENT_NAME"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 设置 JDK
         uses: actions/setup-java@v4
@@ -78,16 +79,6 @@ jobs:
       - name: 安装 Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
-      - name: 注入远端部署域到 Tauri 配置
-        env:
-          HOST: ${{ env.BINGXI_WEB_HOST }}
-        run: |
-          set -euo pipefail
-          sed -i "s/__BINGXI_WEB_HOST__/${HOST}/g" \
-            mobile-app/src-tauri/tauri.conf.json \
-            mobile-app/src-tauri/capabilities/default.json
-          grep -q "${HOST}" mobile-app/src-tauri/tauri.conf.json
-
       - name: 初始化 Android 工程
         working-directory: mobile-app
         run: cargo tauri android init
@@ -101,11 +92,10 @@ jobs:
       - name: 上传 debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-android-debug
+          name: bingxi-erp-android-debug-${{ env.android_client_version }}
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
-      # ---- 可选：签名 release（仅当配置了密钥且要求时）----
       - name: 构建 release APK（未签名）
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
         working-directory: mobile-app
@@ -129,6 +119,6 @@ jobs:
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-android-release-signed
+          name: bingxi-erp-android-release-signed-${{ env.android_client_version }}
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
           if-no-files-found: warn

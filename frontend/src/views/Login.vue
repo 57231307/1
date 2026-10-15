@@ -302,6 +302,17 @@ async function handleLogin() {
       const status = (error as { response?: { status?: number } }).response?.status;
       if (status === 401) {
         ElMessage.error(t('login.failed'));
+      } else if (status === undefined || status === 0) {
+        // 移动端壳内：服务器不可达（地址填错/未部署，无响应或网络错）→ 自动回 gateway 重填。
+        // 仅在 Tauri 壳内生效（Web 无 __TAURI__ 分支不进），401 凭证错与 5xx 不触发、不催扰。
+        const tauri = (
+          window as unknown as {
+            __TAURI__?: { core?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } };
+          }
+        ).__TAURI__;
+        if (tauri?.core?.invoke) {
+          void tauri.core.invoke('reopen_gateway').catch(() => {});
+        }
       }
       // 登录瀑布修复：删除 catch 内 refreshLockStatus 调用
       // 原因：login 401 → catch → refreshLockStatus → lock-status 401 → refreshLockStatus 循环

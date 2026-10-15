@@ -1,10 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "WebView 载入远端 Bingxi ERP Web，授予核心权限并允许该远端域使用 window.__TAURI__（原生桥接用）。CI 会把 __BINGXI_WEB_HOST__ 替换为真实部署域。",
+  "description": "内置 gateway（服务器地址设置页，本地 origin）：可调用核心与 app 命令（remember_gateway/reopen_gateway）。",
   "windows": ["main"],
-  "permissions": ["core:default"],
-  "remote": {
-    "urls": ["https://__BINGXI_WEB_HOST__"]
-  }
+  "permissions": ["core:default"]
 }

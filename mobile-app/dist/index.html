@@ -3,14 +3,162 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bingxi ERP</title>
+    <title>Bingxi ERP · 服务器设置</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f0f2f5;
+      }
+      .card {
+        width: min(92vw, 380px);
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 6px 24px rgba(0, 21, 41, 0.12);
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      p.hint {
+        margin: 0 0 18px;
+        color: #64748b;
+        font-size: 13px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 6px;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 12px;
+        font-size: 15px;
+        border: 1px solid #dcdfe6;
+        border-radius: 8px;
+      }
+      .btn {
+        width: 100%;
+        margin-top: 16px;
+        padding: 12px;
+        font-size: 15px;
+        border: none;
+        border-radius: 8px;
+        background: #409eff;
+        color: #fff;
+      }
+      .btn.secondary {
+        background: #fff;
+        color: #409eff;
+        border: 1px solid #409eff;
+      }
+      .err {
+        color: #d9484b;
+        font-size: 13px;
+        min-height: 18px;
+        margin-top: 8px;
+      }
+    </style>
   </head>
   <body>
-    <!--
-      Tauri 构建需要一个本地 frontendDist 资源目录（用于生成 asset 上下文）；
-      实际运行期窗口 url 指向远端 Bingxi ERP Web（见 tauri.conf.json app.windows.url），
-      此占位页不会被最终用户看到。保持本文件存在即可让 `tauri android build` 通过上下文生成。
-    -->
-    <p>Bingxi ERP 移动端壳占位资源。</p>
+    <div class="card">
+      <h1>连接服务器</h1>
+      <p class="hint">请填写 Bingxi ERP 的部署地址（含 http/https）。登录失败会自动回到此页重填。</p>
+      <div id="saved" style="display: none">
+        <p id="savedText" style="font-size: 14px; color: #334155"></p>
+        <button class="btn" id="enterBtn">进入</button>
+        <button class="btn secondary" id="changeBtn">更改服务器地址</button>
+      </div>
+      <form id="form" style="display: none">
+        <label for="url">服务器地址</label>
+        <input id="url" type="url" inputmode="url" autocomplete="off" placeholder="https://erp.example.com" />
+        <button class="btn" type="submit">保存并进入</button>
+      </form>
+      <div class="err" id="err"></div>
+    </div>
+    <script>
+      (function () {
+        var KEY = 'bingxi_server_url';
+        var err = document.getElementById('err');
+        function rememberSelf() {
+          try {
+            if (window.__TAURI__ && window.__TAURI__.core) {
+              window.__TAURI__.core
+                .invoke('remember_gateway', { url: window.location.href })
+                .catch(function () {});
+            }
+          } catch (e) {}
+        }
+        function normalized(raw) {
+          var v = (raw || '').trim();
+          if (!v) return '';
+          if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+          try {
+            var u = new URL(v);
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+            return u.origin + (u.pathname === '/' ? '' : u.pathname);
+          } catch (e) {
+            return '';
+          }
+        }
+        function go(target) {
+          window.location.replace(target);
+        }
+        function showSaved(saved) {
+          document.getElementById('saved').style.display = '';
+          document.getElementById('savedText').textContent = '上次地址：' + saved;
+          document.getElementById('enterBtn').onclick = function () {
+            go(saved);
+          };
+          document.getElementById('changeBtn').onclick = function () {
+            showForm();
+          };
+        }
+        function showForm(prefill) {
+          document.getElementById('saved').style.display = 'none';
+          var form = document.getElementById('form');
+          form.style.display = '';
+          var input = document.getElementById('url');
+          if (prefill) input.value = prefill;
+          input.focus();
+          form.onsubmit = function (e) {
+            e.preventDefault();
+            var ok = normalized(input.value);
+            if (!ok) {
+              err.textContent = '地址无效，请填写含 http/https 的完整地址';
+              return;
+            }
+            err.textContent = '';
+            try {
+              localStorage.setItem(KEY, ok);
+            } catch (e2) {}
+            go(ok);
+          };
+        }
+        rememberSelf();
+        var reconfigure = /[?&]reconfigure=1(&|$)/.test(window.location.search);
+        var saved = '';
+        try {
+          saved = localStorage.getItem(KEY) || '';
+        } catch (e) {}
+        if (reconfigure) {
+          showForm(saved);
+          if (saved) err.textContent = '登录失败，请确认或更改服务器地址后重试';
+        } else if (saved) {
+          showSaved(saved);
+        } else {
+          showForm('');
+        }
+      })();
+    </script>
   </body>
 </html>
