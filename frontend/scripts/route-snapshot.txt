@@ -1,4 +1,4 @@
-# layers=8 endpoints=1770
+# layers=8 endpoints=1778
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -60,6 +60,7 @@ DELETE	/api/v1/erp/inventory/transfers/*	inventory_transfer_handler::delete_tran
 DELETE	/api/v1/erp/inventory/transfers/items/*	inventory_transfer_handler::delete_item	inventory
 DELETE	/api/v1/erp/notifications/*	notification_handler::delete_notification	analytics
 DELETE	/api/v1/erp/oa-announcements/*	oa_announcement_handler::delete	oa_announcement
+DELETE	/api/v1/erp/print-targets/*	print_target_handler::delete_print_target	mod
 DELETE	/api/v1/erp/print-templates/*	print_handler::delete_print_template	mod
 DELETE	/api/v1/erp/product-categories/*	crate::handlers::product_category_handler::delete	mod
 DELETE	/api/v1/erp/production/business-mode-links/*	business_mode_handler::delete_order_link	production
@@ -631,6 +632,10 @@ GET	/api/v1/erp/pollution-permits/*	pollution_permit_handler::get_by_id	pollutio
 GET	/api/v1/erp/pollution-permits/*/print	crate::handlers::print_handler::pollution_permit_print_docx	pollution_permit
 GET	/api/v1/erp/pollution-permits/expiry-warnings	pollution_permit_handler::scan_expiry_warnings	pollution_permit
 GET	/api/v1/erp/popular-pages	tracking_handler::get_popular_pages	analytics
+GET	/api/v1/erp/print-targets	print_target_handler::list_print_targets	mod
+GET	/api/v1/erp/print-targets/*	print_target_handler::get_print_target	mod
+GET	/api/v1/erp/print-tasks	print_task_handler::list_print_tasks	mod
+GET	/api/v1/erp/print-tasks/*	print_task_handler::get_print_task	mod
 GET	/api/v1/erp/print-templates	print_handler::list_print_templates	mod
 GET	/api/v1/erp/print-templates/*	print_handler::get_print_template	mod
 GET	/api/v1/erp/privacy/consents	privacy_consent_handler::get_consent_status	analytics
@@ -1337,6 +1342,8 @@ POST	/api/v1/erp/pollution-monitoring/records	pollution_monitoring_handler::crea
 POST	/api/v1/erp/pollution-monitoring/solid-waste-disposals	pollution_monitoring_handler::create_solid_waste_disposal	pollution_monitoring
 POST	/api/v1/erp/pollution-permits	pollution_permit_handler::create	pollution_permit
 POST	/api/v1/erp/pollution-permits/*/revoke	pollution_permit_handler::revoke	pollution_permit
+POST	/api/v1/erp/print-targets	print_target_handler::create_print_target	mod
+POST	/api/v1/erp/print-tasks	print_task_handler::create_print_task	mod
 POST	/api/v1/erp/print-templates	print_handler::create_print_template	mod
 POST	/api/v1/erp/print-templates/*/copy	print_handler::copy_print_template	mod
 POST	/api/v1/erp/print-templates/*/preview	print_handler::preview_print_template	mod
@@ -1690,6 +1697,7 @@ PUT	/api/v1/erp/material-shortage/*/status	material_shortage_handler::update_sho
 PUT	/api/v1/erp/notifications/settings	notification_handler::update_setting	analytics
 PUT	/api/v1/erp/oa-announcements/*	oa_announcement_handler::update	oa_announcement
 PUT	/api/v1/erp/pollution-monitoring/solid-waste-disposals/*/status	pollution_monitoring_handler::update_waste_status	pollution_monitoring
+PUT	/api/v1/erp/print-targets/*	print_target_handler::update_print_target	mod
 PUT	/api/v1/erp/print-templates/*	print_handler::update_print_template	mod
 PUT	/api/v1/erp/print-templates/*/set-default	print_handler::set_default_print_template	mod
 PUT	/api/v1/erp/product-categories/*	crate::handlers::product_category_handler::update	mod

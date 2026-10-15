@@ -287,6 +287,10 @@ pub mod report_subscription;
 pub mod report_template;
 // 缺陷 1.1 修复：报表模板历史版本（支持回滚）
 pub mod report_template_version;
+// 打印子系统模板/任务/目标模块
+pub mod print_target;
+pub mod print_template;
+pub mod print_task;
 // 邮件模块
 pub mod email_log;
 pub mod email_template;

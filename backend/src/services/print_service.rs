@@ -5167,7 +5167,11 @@ impl PrintService {
         })
     }
 
-    pub fn generate_docx(&self, print_data: &PrintData) -> Result<Vec<u8>, AppError> {
+    pub fn generate_docx(
+        &self,
+        print_data: &PrintData,
+        layout: &crate::utils::docx_export::DocxPageLayout,
+    ) -> Result<Vec<u8>, AppError> {
         let title = match print_data.template.as_str() {
             "sales_order" => "销售订单",
             "sales_contract" => "销售合同",
@@ -5277,12 +5281,20 @@ impl PrintService {
             })
             .collect();
 
+        // 条码图仅在模板启用条码时嵌入；关闭时其余正文照常渲染，只是不内嵌该图。
+        let image = if layout.barcode_enabled {
+            print_data.image.as_ref()
+        } else {
+            None
+        };
+
         crate::utils::docx_export::build_docx_with_kv_and_image(
             title,
             &kv,
             &detail_headers,
             &detail_rows,
-            print_data.image.as_ref(),
+            image,
+            layout,
         )
     }
 }

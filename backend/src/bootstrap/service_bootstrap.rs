@@ -101,6 +101,10 @@ pub async fn bootstrap_full_mode(
     let db = Arc::new(db);
     let mut shutdown_handles = BootstrapShutdownHandles::default();
 
+    // 打印子系统初始化：迁移完成、对外服务之前幂等种子内置打印模板并收割上一进程遗留的在途任务。
+    // 种子失败（无模板即不可渲染）按致命初始化错误快速失败；收割失败同样上抛（不静默遗留 phantom 行）。
+    init_print_subsystem(&db).await?;
+
     let omni_audit = create_omni_audit_service(&db)?;
     shutdown_handles.omni_audit = Some(omni_audit.clone());
 
@@ -164,6 +168,70 @@ pub async fn bootstrap_full_mode(
     start_audit_cleanup_scheduler(&app_state);
 
     Ok((app_state, shutdown_handles))
+}
+
+/// 打印子系统启动初始化：在迁移完成、开始对外服务之前，用 `AppState` 将使用的同一连接执行两件事：
+/// 1. 幂等种子内置打印模板（缺失才补，绝不覆盖用户既有模板行）；
+/// 2. 收割上一进程遗留的在途打印任务（pending/queued/dispatched）转 failed 并写非空 error_message，
+///    避免进程重启后出现永远不到终态的 phantom 行。
+///
+/// 两步任一数据库错误都以致命初始化错误上抛：打印无模板即不可渲染、遗留在途行即状态不可信，
+/// 均不容忍带病对外服务。
+async fn init_print_subsystem(
+    db: &Arc<DatabaseConnection>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Err(e) = crate::services::print_template_seed::seed_builtin_print_templates(&**db).await
+    {
+        tracing::error!(error = %e, "FATAL: 内置打印模板种子失败，打印子系统不可用");
+        return Err(format!("内置打印模板种子失败: {e}").into());
+    }
+    reap_interrupted_print_tasks(db).await?;
+    Ok(())
+}
+
+/// 重启收割器：把上一进程遗留的在途打印任务（pending/queued/dispatched）转为 failed 并写非空
+/// `error_message`（满足 `chk_print_tasks_failed_has_error`），已完成态（succeeded/failed）不动。
+///
+/// 状态 token 全部取状态词表 [`crate::models::status::print::print_task_status`]，与派发层/前端同源。
+/// 数据库写失败上抛为致命初始化错误（不静默让 phantom 行停留在 in-flight）。
+async fn reap_interrupted_print_tasks(
+    db: &Arc<DatabaseConnection>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::models::print_task::{
+        ActiveModel as PrintTaskActiveModel, Column as PrintTaskColumn, Entity as PrintTask,
+    };
+    use crate::models::status::print::print_task_status as status;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+
+    let now = chrono::Utc::now().fixed_offset();
+    let message = "服务重启中断";
+    let am = PrintTaskActiveModel {
+        status: Set(status::FAILED.to_string()),
+        error_message: Set(Some(message.to_string())),
+        completed_at: Set(Some(now)),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+    let result = PrintTask::update_many()
+        .set(am)
+        .filter(PrintTaskColumn::Status.is_in([
+            status::PENDING,
+            status::QUEUED,
+            status::DISPATCHED,
+        ]))
+        .exec(&**db)
+        .await
+        .map_err(|e| format!("重启收割在途打印任务失败: {e}"))?;
+
+    if result.rows_affected > 0 {
+        tracing::warn!(
+            reaped = result.rows_affected,
+            "重启收割器将上一进程遗留的在途打印任务转为 failed（error_message=服务重启中断）"
+        );
+    } else {
+        tracing::info!("重启收割器：无遗留的在途打印任务");
+    }
+    Ok(())
 }
 
 /// 执行 SeaORM Migration 增加 TOTP 字段及性能优化索引（防御式 IF EXISTS / DO 块）。

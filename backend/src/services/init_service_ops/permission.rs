@@ -1292,6 +1292,14 @@ impl InitService {
                     ("audit-logs", "*"),
                     ("slow-queries", "*"),
                     ("print-templates", "*"),
+                    // 打印任务提交/查询：系统管理岗需要发起打印并回查任务终态。按最小授权
+                    // 只授 read + create（无 update/delete）；业务岗不授（用户裁定，不自签扩权）。
+                    ("print-tasks", "read"),
+                    ("print-tasks", "create"),
+                    // 打印目标管理（配置打印机/打印机池）：与 print-templates 同族的系统配置面，
+                    // 由系统管理岗全权维护；业务岗不授。派发改为真设备后，无目标配置则打印不可达，
+                    // 故该写面对 system_admin 必备。
+                    ("print-targets", "*"),
                     ("data-import", "*"),
                     ("permission-audits", "*"),
                     ("business-trace", "read"),

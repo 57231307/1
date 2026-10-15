@@ -7,12 +7,76 @@
 //! - `build_docx`：从 DocxTable 构建 docx 字节流（标题 + 表头 + 数据行）
 //! - `docx_response`：构造 axum Response（含正确 Content-Type 和 Content-Disposition）
 //! - `build_docx_with_kv_and_image`：键值对形式输出主表数据 + 明细表（适用于合同/对账单），
-//!   另可在主表与明细表之间嵌入一张 PNG 位图（标签条码图）；不需要嵌图时传 `image = None`
+//!   另可在主表与明细表之间嵌入一张 PNG 位图（标签条码图）；不需要嵌图时传 `image = None`。
+//!   页面尺寸与四边边距由入参 `layout: &DocxPageLayout` 驱动（纸张/方向/边距落 docx 页面设置）。
 
 use crate::utils::error::AppError;
 use axum::http::{HeaderValue, header};
 use axum::response::Response;
 use docx_rs::*;
+
+/// docx 页面布局（纸张尺寸 / 打印方向 / 四边边距毫米 / 条码开关）
+///
+/// 由打印模板的持久化列构造，驱动 `build_docx_with_kv_and_image` 的页面设置：
+/// `paper_size` 仅 `A4` 有精确的毫米尺寸模型，其余纸张在渲染时报错（不回落 A4）；
+/// `orientation` 取 `landscape` 时交换宽高；`barcode_enabled` 关闭时调用方不嵌入条码图。
+#[derive(Debug, Clone)]
+pub struct DocxPageLayout {
+    /// 纸张尺寸标识（如 "A4"）
+    pub paper_size: String,
+    /// 打印方向（"portrait" / "landscape"）
+    pub orientation: String,
+    /// 上边距（毫米）
+    pub margin_top_mm: i16,
+    /// 下边距（毫米）
+    pub margin_bottom_mm: i16,
+    /// 左边距（毫米）
+    pub margin_left_mm: i16,
+    /// 右边距（毫米）
+    pub margin_right_mm: i16,
+    /// 是否嵌入条码图
+    pub barcode_enabled: bool,
+}
+
+impl DocxPageLayout {
+    // server bin 目标把 lib 源码整棵镜像重编译，pub 可见性在 bin 内不保命，
+    // 本函数在 lib 内被 `ExportService` 真实调用，此抑制仅针对 bin 镜像的死码误报。
+    /// 导出（非打印）文档的页面布局：A4 纵向、四边取 docx-rs 默认边距折算值（上 35mm、其余 30mm）。
+    /// 仅供 `ExportService` 这类不读取打印模板的调用方使用；打印渲染路径不使用此默认，
+    /// 而是用模板持久化列构造布局。
+    #[allow(
+        dead_code,
+        reason = "由 lib 业务代码与集成测试消费，server bin 源镜像不可见，非真死码"
+    )]
+    pub fn default_a4_export() -> Self {
+        Self {
+            paper_size: "A4".to_string(),
+            orientation: "portrait".to_string(),
+            margin_top_mm: 35,
+            margin_bottom_mm: 30,
+            margin_left_mm: 30,
+            margin_right_mm: 30,
+            barcode_enabled: false,
+        }
+    }
+}
+
+/// 毫米转 twips：1 英寸 = 25.4 毫米 = 1440 twips，故 1 毫米 = 1440 / 25.4 twips。
+fn mm_to_twips(mm: i16) -> u32 {
+    (mm as f64 * (1440.0 / 25.4)).round().max(0.0) as u32
+}
+
+/// 返回纸张在纵向（portrait）下的宽高（毫米）。仅 A4 有精确尺寸模型，
+/// 其余纸张一律以错误点名未支持的尺寸，绝不回落成 A4。
+fn paper_size_dimensions_mm(paper_size: &str) -> Result<(u32, u32), AppError> {
+    match paper_size.trim().to_ascii_uppercase().as_str() {
+        // A4 = 210mm x 297mm
+        "A4" => Ok((210, 297)),
+        other => Err(AppError::validation_displayable(format!(
+            "docx-rs 0.4 暂不支持纸张尺寸 {other}，仅支持 A4"
+        ))),
+    }
+}
 
 /// docx 表格数据（标题 + 表头 + 数据行）
 #[allow(dead_code, reason = "预留：docx 表格数据结构，待接入")]
@@ -129,14 +193,39 @@ pub fn build_docx_response(table: &DocxTable, filename: &str) -> Result<Response
 /// `generate_reconciliation_docx`（不带图，传 `image = None`）与入库标签打印（带条码图）。
 /// `image` 为 Some 时在主表与明细表之间嵌入一张 PNG 位图（docx-rs 0.4 的 image_collector
 /// 按 `word/media/*.png` 打包，宽高为像素值，内部换算 EMU）。
+/// `layout` 驱动页面尺寸与四边边距：纸张仅支持 A4，其余纸张以 `AppError` 点名未支持尺寸；
+/// 方向为 landscape 时交换页面宽高，边距按毫米换算 twips 写入 docx 页面设置。
 pub fn build_docx_with_kv_and_image(
     title: &str,
     kv: &DocxKeyValue,
     detail_headers: &[String],
     detail_rows: &[Vec<String>],
     image: Option<&DocxImage>,
+    layout: &DocxPageLayout,
 ) -> Result<Vec<u8>, AppError> {
-    let mut docx = Docx::new();
+    // 页面设置：由模板持久化布局驱动（纸张尺寸 + 方向 → 宽高 twips；四边边距 mm → twips）
+    let (w_mm, h_mm) = paper_size_dimensions_mm(&layout.paper_size)?;
+    let landscape = layout.orientation.trim().eq_ignore_ascii_case("landscape");
+    let (w_twips, h_twips) = if landscape {
+        (mm_to_twips(h_mm as i16), mm_to_twips(w_mm as i16))
+    } else {
+        (mm_to_twips(w_mm as i16), mm_to_twips(h_mm as i16))
+    };
+    let orient = if landscape {
+        PageOrientationType::Landscape
+    } else {
+        PageOrientationType::Portrait
+    };
+    let margin = PageMargin::new()
+        .top(mm_to_twips(layout.margin_top_mm) as i32)
+        .bottom(mm_to_twips(layout.margin_bottom_mm) as i32)
+        .left(mm_to_twips(layout.margin_left_mm) as i32)
+        .right(mm_to_twips(layout.margin_right_mm) as i32);
+
+    let mut docx = Docx::new()
+        .page_size(w_twips, h_twips)
+        .page_margin(margin)
+        .page_orient(orient);
 
     // 标题段落
     let title_para = Paragraph::new()

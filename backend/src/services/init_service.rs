@@ -190,6 +190,10 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "audit-logs",
     "slow-queries",
     "print-templates",
+    // 打印任务提交/查询、打印目标管理：与 print-templates 同族的根级直接资源，未登记则路由派生键
+    // 命中不了任何授权行、对非超管恒 fail-closed 403。
+    "print-tasks",
+    "print-targets",
     "data-import",
     "permission-audits",
     // ===== 系统更新域（高危敏感面，资源键统一带 system-update- 前缀与其余业务隔离）=====

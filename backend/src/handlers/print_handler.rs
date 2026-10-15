@@ -1,13 +1,22 @@
 //! 通用打印 Handler
 
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::Arc;
 
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
+};
 use serde::Deserialize;
 use validator::Validate;
 
 use crate::container::AppState;
+use crate::handlers::print_task_handler::{
+    CreatePrintTaskRequest, PrintTaskJobRef, submit_print_task,
+};
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::print_template;
+use crate::models::status::print::print_template_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::PrintService;
 use crate::utils::error::AppError;
@@ -20,14 +29,22 @@ use axum::{
 };
 use tracing::info;
 
+/// 按单据类型渲染打印 docx：先装配打印数据（字段缺失/业务门控以既有 400 形态暴露），
+/// 再取持久化模板布局（经 [`print_task_handler::resolve_print_docx_layout`] 单一来源解析，
+/// 无可用模板行时 404，绝不以内置默认值代渲染），最后生成 docx 响应。
 async fn render_print_docx(
     state: &AppState,
     doc_type: &str,
     doc_id: i32,
 ) -> Result<Response, AppError> {
     let service = PrintService::new(state.db.clone());
+    // 先装配打印数据：字段缺失/业务门控在此以既有 400 形态暴露（先于模板存在性判断）。
     let print_data = service.get_print_data(doc_type, doc_id).await?;
-    let bytes = service.generate_docx(&print_data)?;
+    // 再取持久化模板布局：与打印任务受理链路共用同一解析入口（单一事实来源）。
+    let layout =
+        crate::handlers::print_task_handler::resolve_print_docx_layout(&*state.db, doc_type)
+            .await?;
+    let bytes = service.generate_docx(&print_data, &layout)?;
     let filename = format!("{}_{}", doc_type, doc_id);
     Ok(crate::utils::docx_export::docx_response(bytes, &filename))
 }
@@ -661,8 +678,9 @@ pub struct PrintTemplateDto {
     pub created_at: String,
 }
 
-/// 批次 126 v8 复审 P2 修复：系统内置打印模板静态列表；设计说明：打印模板为系统内置（对应 PrintService 支持的 6 种单据类型）， 不需要动态 CRUD 管理
-/// 模板内容字段为简短描述（实际渲染逻辑在 PrintService.generate_docx）。 若未来需支持用户自定义模板，可新增 print_templates 表 + model + service。
+/// 系统内置打印模板种子集合：对应 PrintService 支持的单据类型，是 `print_templates` 表的种子数据源，
+/// 在应用启动时 upsert 落库。正文描述字段仅供展示，渲染逻辑在 PrintService.generate_docx；
+/// 纸张/方向/边距/条码以 print_templates 表列持久化。
 pub fn builtin_print_templates() -> Vec<PrintTemplateDto> {
     vec![
         PrintTemplateDto {
@@ -1171,127 +1189,76 @@ pub fn builtin_print_templates() -> Vec<PrintTemplateDto> {
             is_default: true,
             created_at: "2026-01-01T00:00:00Z".to_string(),
         },
+        PrintTemplateDto {
+            id: 64,
+            name: "成品布入库标签打印模板".to_string(),
+            doc_type: "inventory_piece_label".to_string(),
+            template_content: "成品布入库标签打印模板（含款号、品名、缸号、色号、批次、匹号、米数、重量、幅宽、克重、等级、条码）".to_string(),
+            is_default: true,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+        },
     ]
 }
 
-/// 获取打印模板列表：从模板存储读取（含系统内置模板 + 用户新建的模板）
+/// 获取打印模板列表：读取 `print_templates` 表全部模板行（按 id 升序）
 pub async fn list_print_templates(
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<Vec<PrintTemplateRecord>>>, AppError> {
-    let records = lock_print_templates()?;
-    Ok(axum::Json(ApiResponse::success(records.clone())))
+    let models = print_template::Entity::find()
+        .order_by(print_template::Column::Id, Order::Asc)
+        .all(&*state.db)
+        .await?;
+    let records: Vec<PrintTemplateRecord> = models.into_iter().map(to_record).collect();
+    Ok(axum::Json(ApiResponse::success(records)))
 }
 
 /// 获取单个打印模板详情，找不到时返回 404 not_found
 pub async fn get_print_template(
     Path(id): Path<i32>,
-    State(_): State<AppState>,
+    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
-    let records = lock_print_templates()?;
-    let record = records
-        .iter()
-        .find(|r| r.id == id)
+    let model = print_template::Entity::find_by_id(id)
+        .one(&*state.db)
+        .await?
         .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
-    Ok(axum::Json(ApiResponse::success(record.clone())))
+    Ok(axum::Json(ApiResponse::success(to_record(model))))
 }
 
-// ---------- 打印模板最小 CRUD（内存存储，预填充系统内置模板） ----------
-
-static PRINT_TEMPLATE_STORE: OnceLock<Mutex<Vec<PrintTemplateRecord>>> = OnceLock::new();
-
-fn print_template_store() -> &'static Mutex<Vec<PrintTemplateRecord>> {
-    PRINT_TEMPLATE_STORE.get_or_init(|| {
-        Mutex::new(
-            builtin_print_templates()
-                .into_iter()
-                .map(print_template_record_from_builtin)
-                .collect(),
-        )
-    })
-}
-
-fn lock_print_templates() -> Result<MutexGuard<'static, Vec<PrintTemplateRecord>>, AppError> {
-    print_template_store()
-        .lock()
-        .map_err(|_| AppError::internal("打印模板存储不可用"))
-}
-
-fn print_template_record_from_builtin(dto: PrintTemplateDto) -> PrintTemplateRecord {
-    let module = infer_print_module(&dto.doc_type);
-    let template_type = infer_print_template_type(&dto.doc_type);
+/// 将 print_templates 行映射为出参结构：字段名/序列化键与前端契约保持一致，
+/// 时间列以 RFC3339 字符串输出（created_at/updated_at 仍为 String）。
+fn to_record(m: print_template::Model) -> PrintTemplateRecord {
     PrintTemplateRecord {
-        id: dto.id,
-        template_code: dto.doc_type,
-        template_name: dto.name,
-        description: dto.template_content.clone(),
-        module,
-        template_type,
-        paper_size: "A4".to_string(),
-        orientation: "portrait".to_string(),
-        content: dto.template_content,
-        css_styles: String::new(),
-        variables: serde_json::json!({}),
-        status: "active".to_string(),
-        is_default: dto.is_default,
-        created_by: 0,
-        created_by_name: "system".to_string(),
-        created_at: dto.created_at.clone(),
-        updated_at: dto.created_at,
+        id: m.id,
+        template_code: m.template_code,
+        template_name: m.template_name,
+        description: m.description,
+        module: m.module,
+        template_type: m.template_type,
+        paper_size: m.paper_size,
+        orientation: m.orientation,
+        content: m.content,
+        css_styles: m.css_styles,
+        variables: m.variables,
+        status: m.status,
+        is_default: m.is_default,
+        created_by: m.created_by,
+        created_by_name: m.created_by_name,
+        created_at: m.created_at.to_rfc3339(),
+        updated_at: m.updated_at.to_rfc3339(),
     }
 }
 
-fn infer_print_module(doc_type: &str) -> String {
-    if doc_type.starts_with("sales") || doc_type == "after_sales" || doc_type == "customer_credit" {
-        "sales".to_string()
-    } else if doc_type.starts_with("purchase") {
-        "purchase".to_string()
-    } else if doc_type.starts_with("inventory") {
-        "inventory".to_string()
-    } else if doc_type == "voucher"
-        || doc_type.starts_with("ap_")
-        || doc_type.starts_with("ar_")
-        || doc_type.starts_with("bad_debt")
-        || doc_type.starts_with("fixed_asset")
-        || doc_type.starts_with("foreign_exchange")
-        || doc_type.starts_with("export_refund")
-    {
-        "finance".to_string()
-    } else if doc_type.starts_with("production")
-        || doc_type == "bom"
-        || doc_type.starts_with("dye_")
-        || doc_type.starts_with("process_")
-        || doc_type.starts_with("scheduling_")
-        || doc_type.starts_with("chemical_")
-        || doc_type.starts_with("lab_dip_")
-        || doc_type.starts_with("outsourcing_")
-        || doc_type.starts_with("energy_")
-        || doc_type.starts_with("material_")
-        || doc_type.starts_with("bulk_color_")
-        || doc_type.starts_with("color_card_")
-        || doc_type == "custom_order"
-    {
-        "production".to_string()
-    } else {
-        "logistics".to_string()
-    }
-}
-
-fn infer_print_template_type(doc_type: &str) -> String {
-    if doc_type.contains("invoice") {
-        "invoice".to_string()
-    } else if doc_type.contains("receipt") || doc_type.contains("reconciliation") {
-        "receipt".to_string()
-    } else if doc_type.contains("report")
-        || doc_type.contains("record")
-        || doc_type.contains("issue")
-        || doc_type.contains("inspection")
-    {
-        "report".to_string()
-    } else {
-        "order".to_string()
-    }
+/// 按 id 取模板行，缺失时返回 404（供 set-default / copy / preview / print 复用）
+async fn load_template(
+    db: &sea_orm::DatabaseConnection,
+    id: i32,
+) -> Result<print_template::Model, AppError> {
+    print_template::Entity::find_by_id(id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
@@ -1366,147 +1333,173 @@ pub struct UpdatePrintTemplateRequest {
     pub status: Option<String>,
 }
 
-fn clear_default_in_module(
-    records: &mut [PrintTemplateRecord],
-    module: &str,
-    except_id: Option<i32>,
-) {
-    for r in records.iter_mut() {
-        if r.module == module && Some(r.id) != except_id {
-            r.is_default = false;
-        }
-    }
+fn now_active_value() -> sea_orm::ActiveValue<sea_orm::entity::prelude::DateTimeWithTimeZone> {
+    Set(chrono::Utc::now().into())
 }
 
 pub async fn create_print_template(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreatePrintTemplateRequest>,
 ) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
     info!("用户 {} 创建打印模板：{}", auth.username, req.template_name);
     req.validate()?;
 
-    let now = chrono::Utc::now().to_rfc3339();
-    let mut records = lock_print_templates()?;
-    let next_id = records.iter().map(|r| r.id).max().unwrap_or(0) + 1;
+    let template_code = req.template_code.clone().unwrap_or_else(|| {
+        format!(
+            "TPL_{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        )
+    });
+    let module = req
+        .module
+        .clone()
+        .unwrap_or_else(|| "logistics".to_string());
     let is_default = req.is_default.unwrap_or(false);
+    // doc_type 为“单据→模板”查找键且列 NOT NULL；出参结构不含该列，
+    // 新建时以模板编码兼作 doc_type（与内置种子 template_code 同值口径一致）。
+    let doc_type = template_code.clone();
+
+    let active = print_template::ActiveModel {
+        id: Default::default(),
+        template_code: Set(template_code),
+        template_name: Set(req.template_name),
+        description: req.description.map(Set).unwrap_or_default(),
+        module: Set(module.clone()),
+        template_type: req.template_type.map(Set).unwrap_or_default(),
+        doc_type: Set(doc_type),
+        paper_size: req.paper_size.map(Set).unwrap_or_default(),
+        orientation: req.orientation.map(Set).unwrap_or_default(),
+        content: req.content.map(Set).unwrap_or_default(),
+        css_styles: req.css_styles.map(Set).unwrap_or_default(),
+        variables: req.variables.map(Set).unwrap_or_default(),
+        status: req.status.map(Set).unwrap_or_default(),
+        is_default: Set(is_default),
+        created_by: Set(auth.user_id),
+        created_by_name: Set(auth.username.clone()),
+        ..Default::default()
+    };
 
     if is_default {
-        clear_default_in_module(&mut records, &req.module.clone().unwrap_or_default(), None);
+        // 同模块至多一个默认模板：先清其余、再落新行，置于同一事务内。
+        let txn = state.db.begin().await?;
+        print_template::Entity::update_many()
+            .col_expr(
+                print_template::Column::IsDefault,
+                sea_orm::sea_query::Expr::value(false),
+            )
+            .filter(print_template::Column::Module.eq(module.as_str()))
+            .exec(&txn)
+            .await?;
+        let model = active.insert(&txn).await?;
+        txn.commit().await?;
+        return Ok(axum::Json(ApiResponse::success_with_message(
+            to_record(model),
+            "打印模板创建成功",
+        )));
     }
 
-    let record = PrintTemplateRecord {
-        id: next_id,
-        template_code: req
-            .template_code
-            .unwrap_or_else(|| format!("TPL_{}", next_id)),
-        template_name: req.template_name,
-        description: req.description.unwrap_or_default(),
-        module: req.module.unwrap_or_else(|| "logistics".to_string()),
-        template_type: req.template_type.unwrap_or_else(|| "custom".to_string()),
-        paper_size: req.paper_size.unwrap_or_else(|| "A4".to_string()),
-        orientation: req.orientation.unwrap_or_else(|| "portrait".to_string()),
-        content: req.content.unwrap_or_default(),
-        css_styles: req.css_styles.unwrap_or_default(),
-        variables: req.variables.unwrap_or_else(|| serde_json::json!({})),
-        status: req.status.unwrap_or_else(|| "active".to_string()),
-        is_default,
-        created_by: auth.user_id,
-        created_by_name: auth.username.clone(),
-        created_at: now.clone(),
-        updated_at: now,
-    };
-    records.push(record.clone());
-
+    let model = active.insert(&*state.db).await?;
     Ok(axum::Json(ApiResponse::success_with_message(
-        record,
+        to_record(model),
         "打印模板创建成功",
     )))
 }
 
 pub async fn update_print_template(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdatePrintTemplateRequest>,
 ) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
     info!("用户 {} 更新打印模板 ID: {}", auth.username, id);
     req.validate()?;
 
-    let mut records = lock_print_templates()?;
-    let module = records
-        .iter()
-        .find(|r| r.id == id)
-        .map(|r| r.module.clone())
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
+    let existing = load_template(&*state.db, id).await?;
+    let module_for_default = req
+        .module
+        .clone()
+        .unwrap_or_else(|| existing.module.clone());
 
-    if req.is_default == Some(true) {
-        clear_default_in_module(&mut records, &module, Some(id));
-    }
-
-    let record = records
-        .iter_mut()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
-
+    let mut active: print_template::ActiveModel = existing.into_active_model();
     if let Some(v) = req.template_name {
-        record.template_name = v;
+        active.template_name = Set(v);
     }
     if let Some(v) = req.template_code {
-        record.template_code = v;
+        active.template_code = Set(v);
     }
     if let Some(v) = req.description {
-        record.description = v;
+        active.description = Set(v);
     }
     if let Some(v) = req.module {
-        record.module = v;
+        active.module = Set(v);
     }
     if let Some(v) = req.template_type {
-        record.template_type = v;
+        active.template_type = Set(v);
     }
     if let Some(v) = req.paper_size {
-        record.paper_size = v;
+        active.paper_size = Set(v);
     }
     if let Some(v) = req.orientation {
-        record.orientation = v;
+        active.orientation = Set(v);
     }
     if let Some(v) = req.content {
-        record.content = v;
+        active.content = Set(v);
     }
     if let Some(v) = req.css_styles {
-        record.css_styles = v;
+        active.css_styles = Set(v);
     }
     if let Some(v) = req.variables {
-        record.variables = v;
-    }
-    if let Some(v) = req.is_default {
-        record.is_default = v;
+        active.variables = Set(v);
     }
     if let Some(v) = req.status {
-        record.status = v;
+        active.status = Set(v);
     }
-    record.updated_at = chrono::Utc::now().to_rfc3339();
 
-    let updated = record.clone();
+    if req.is_default == Some(true) {
+        // 同模块至多一个默认模板：清其余、置本行，置于同一事务内。
+        let txn = state.db.begin().await?;
+        print_template::Entity::update_many()
+            .col_expr(
+                print_template::Column::IsDefault,
+                sea_orm::sea_query::Expr::value(false),
+            )
+            .filter(print_template::Column::Module.eq(module_for_default.as_str()))
+            .filter(print_template::Column::Id.ne(id))
+            .exec(&txn)
+            .await?;
+        active.is_default = Set(true);
+        active.updated_at = now_active_value();
+        let model = active.update(&txn).await?;
+        txn.commit().await?;
+        return Ok(axum::Json(ApiResponse::success_with_message(
+            to_record(model),
+            "打印模板更新成功",
+        )));
+    }
+
+    if let Some(v) = req.is_default {
+        active.is_default = Set(v);
+    }
+    active.updated_at = now_active_value();
+    let model = active.update(&*state.db).await?;
     Ok(axum::Json(ApiResponse::success_with_message(
-        updated,
+        to_record(model),
         "打印模板更新成功",
     )))
 }
 
 pub async fn delete_print_template(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 删除打印模板 ID: {}", auth.username, id);
 
-    let mut records = lock_print_templates()?;
-    let before = records.len();
-    records.retain(|r| r.id != id);
-    if records.len() == before {
-        return Err(AppError::not_found(format!("打印模板 {} 不存在", id)));
-    }
+    load_template(&*state.db, id).await?;
+    print_template::Entity::delete_by_id(id)
+        .exec(&*state.db)
+        .await?;
 
     Ok(axum::Json(ApiResponse::success_with_message(
         (),
@@ -1516,19 +1509,13 @@ pub async fn delete_print_template(
 
 pub async fn preview_print_template(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
     body: OptionalJson<serde_json::Value>,
 ) -> Result<axum::Json<ApiResponse<PrintTemplatePreviewResponse>>, AppError> {
     info!("用户 {} 预览打印模板 ID: {}", auth.username, id);
 
-    let records = lock_print_templates()?;
-    let record = records
-        .iter()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?
-        .clone();
-    drop(records);
+    let record = to_record(load_template(&*state.db, id).await?);
 
     let variables = body
         .0
@@ -1554,50 +1541,94 @@ pub async fn preview_print_template(
     )))
 }
 
+/// 从可选请求体中读取打印所需的单据实例主键（`doc_id`）。缺失即 `None`，由调用方转 fail-visible 400。
+/// `doc_id` 为多态单据引用（BIGINT），按 i64 读取；非数字/越界一律视为缺失，不臆造样例打印。
+fn extract_doc_id(body: &OptionalJson<serde_json::Value>) -> Option<i64> {
+    body.0
+        .as_ref()
+        .and_then(|v| v.get("doc_id"))
+        .and_then(|v| v.as_i64())
+}
+
+/// 从可选请求体中读取打印目标符号名覆盖（`target_name`），供模板打印时指定设备/池。
+fn extract_target_override(body: &OptionalJson<serde_json::Value>) -> Option<String> {
+    body.0
+        .as_ref()
+        .and_then(|v| v.get("target_name"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// `POST /print-templates/{id}/print`：以某打印模板发起一次真实打印任务（受理 + 后台派发）。
+///
+/// 模板管理页的“打印”按钮无单据实例上下文：本端点必须经请求体显式提供 `doc_id`（打印哪一张单据），
+/// 缺失即 fail-visible 400「打印需指定单据实例」，绝不伪造样例打印或空跑。据模板 id 载入模板取其
+/// doc_type 与缺省参数，复用 [`print_task_handler::submit_print_task`] 走与 `POST /print-tasks`
+/// 完全相同的受理链路（校验→落 pending→后台生成 docx→派发），成功返回 `{ id, job_code }` 供前端轮询。
 pub async fn print_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-    _body: OptionalJson<serde_json::Value>,
-) -> Result<axum::Json<ApiResponse<()>>, AppError> {
+    body: OptionalJson<serde_json::Value>,
+) -> Result<axum::Json<ApiResponse<PrintTaskJobRef>>, AppError> {
     info!("用户 {} 使用打印模板打印 ID: {}", auth.username, id);
 
-    let records = lock_print_templates()?;
-    records
-        .iter()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
-    drop(records);
+    let template = load_template(&*state.db, id).await?;
+    let doc_id = extract_doc_id(&body).ok_or_else(|| {
+        AppError::bad_request("打印需指定单据实例（请求体缺少 doc_id，禁止伪造样例打印）")
+    })?;
+
+    let req = CreatePrintTaskRequest {
+        doc_type: template.doc_type.clone(),
+        doc_id,
+        target_name: extract_target_override(&body),
+        template_id: Some(id),
+        copies: None,
+        paper_size: None,
+        orientation: None,
+        margin_top_mm: None,
+        margin_bottom_mm: None,
+        margin_left_mm: None,
+        margin_right_mm: None,
+        barcode_enabled: None,
+    };
+    let job_ref = submit_print_task(&state, &auth, req).await?;
 
     record_print_audit(&state, &auth, "print_template", id);
 
     Ok(axum::Json(ApiResponse::success_with_message(
-        (),
+        job_ref,
         "打印任务已受理",
     )))
 }
 
 pub async fn set_default_print_template(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<()>>, AppError> {
     info!("用户 {} 设置打印模板默认 ID: {}", auth.username, id);
 
-    let mut records = lock_print_templates()?;
-    let module = records
-        .iter()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?
-        .module
-        .clone();
-    clear_default_in_module(&mut records, &module, Some(id));
-    let record = records
-        .iter_mut()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?;
-    record.is_default = true;
-    record.updated_at = chrono::Utc::now().to_rfc3339();
+    let existing = load_template(&*state.db, id).await?;
+    let module = existing.module.clone();
+
+    // 同模块至多一个默认模板：先清其余、再置本行，置于同一事务内。
+    let txn = state.db.begin().await?;
+    print_template::Entity::update_many()
+        .col_expr(
+            print_template::Column::IsDefault,
+            sea_orm::sea_query::Expr::value(false),
+        )
+        .filter(print_template::Column::Module.eq(module.as_str()))
+        .filter(print_template::Column::Id.ne(id))
+        .exec(&txn)
+        .await?;
+    let mut active: print_template::ActiveModel = existing.into_active_model();
+    active.is_default = Set(true);
+    active.updated_at = now_active_value();
+    active.update(&txn).await?;
+    txn.commit().await?;
 
     Ok(axum::Json(ApiResponse::success_with_message(
         (),
@@ -1607,34 +1638,49 @@ pub async fn set_default_print_template(
 
 pub async fn copy_print_template(
     Path(id): Path<i32>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
     info!("用户 {} 复制打印模板 ID: {}", auth.username, id);
 
-    let mut records = lock_print_templates()?;
-    let source = records
-        .iter()
-        .find(|r| r.id == id)
-        .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", id)))?
-        .clone();
-    let next_id = records.iter().map(|r| r.id).max().unwrap_or(0) + 1;
+    let source = load_template(&*state.db, id).await?;
+    let new_code = format!(
+        "{}_COPY_{}",
+        source.template_code,
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    );
 
-    let now = chrono::Utc::now().to_rfc3339();
-    let mut record = source;
-    record.id = next_id;
-    record.template_code = format!("{}_COPY_{}", record.template_code, next_id);
-    record.template_name = format!("{}_副本", record.template_name);
-    record.is_default = false;
-    record.status = "active".to_string();
-    record.created_by = auth.user_id;
-    record.created_by_name = auth.username.clone();
-    record.created_at = now.clone();
-    record.updated_at = now;
-    records.push(record.clone());
+    // 复制为新行：逐列沿用来源模板（含纸张/方向/边距/条码布局），仅重置编码/名称/默认/状态/创建人。
+    let active = print_template::ActiveModel {
+        id: Default::default(),
+        template_code: Set(new_code),
+        template_name: Set(format!("{}_副本", source.template_name)),
+        description: Set(source.description.clone()),
+        module: Set(source.module.clone()),
+        template_type: Set(source.template_type.clone()),
+        doc_type: Set(source.doc_type.clone()),
+        paper_size: Set(source.paper_size.clone()),
+        orientation: Set(source.orientation.clone()),
+        copies_default: Set(source.copies_default),
+        margin_top_mm: Set(source.margin_top_mm),
+        margin_bottom_mm: Set(source.margin_bottom_mm),
+        margin_left_mm: Set(source.margin_left_mm),
+        margin_right_mm: Set(source.margin_right_mm),
+        barcode_default: Set(source.barcode_default),
+        default_target_name: Set(source.default_target_name.clone()),
+        content: Set(source.content.clone()),
+        css_styles: Set(source.css_styles.clone()),
+        variables: Set(source.variables.clone()),
+        is_default: Set(false),
+        status: Set(print_template_status::ACTIVE.to_string()),
+        created_by: Set(auth.user_id),
+        created_by_name: Set(auth.username.clone()),
+        ..Default::default()
+    };
+    let model = active.insert(&*state.db).await?;
 
     Ok(axum::Json(ApiResponse::success_with_message(
-        record,
+        to_record(model),
         "打印模板复制成功",
     )))
 }

@@ -9,7 +9,7 @@ use std::collections::HashSet;
 #[test]
 fn test_builtin_print_templatesfh6gmb() {
     let templates = builtin_print_templates();
-    assert_eq!(templates.len(), 63, "应有 6 个内置打印模板");
+    assert_eq!(templates.len(), 64, "应有 64 个内置打印模板");
 }
 
 /// test_builtin_print_templates_idwyqlx；验证所有模板的 id 为 1-N，唯一且连续

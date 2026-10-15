@@ -41,6 +41,23 @@ fn set_global_env_tax_rate(rate: Option<Decimal>) {
     let _ = GLOBAL_ENV_TAX_RATE.set(rate);
 }
 
+/// 进程级打印派发运行期配置单例：`AppSettings::new` 在 `load_print_from_env` 之后写入，
+/// 打印受理链路（`handlers/print_task_handler.rs`）据此向 `print_dispatch::dispatch_task`
+/// 传入派发超时/临时文件策略，避免在 handler 里出现第二套手写派发常量或重复读环境变量。
+/// 未加载配置时 [`global_print_config`] 回退 [`PrintConfig::default`]（派发超时 30s、失败删除
+/// 临时文件、临时目录回退系统临时目录下的 print 子目录）；**不含任何打印机地址**。
+static GLOBAL_PRINT_CONFIG: OnceLock<PrintConfig> = OnceLock::new();
+
+/// 读取进程级打印派发配置；未初始化时返回 [`PrintConfig::default`]。
+pub fn global_print_config() -> PrintConfig {
+    GLOBAL_PRINT_CONFIG.get().cloned().unwrap_or_default()
+}
+
+/// 将 `load_print_from_env` 处理后的打印配置写入进程级单例（重复调用仅首次生效，幂等）。
+fn set_global_print_config(cfg: PrintConfig) {
+    let _ = GLOBAL_PRINT_CONFIG.set(cfg);
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppSettings {
     pub server: ServerConfig,
@@ -73,6 +90,11 @@ pub struct AppSettings {
     /// `use_default_mirrors`（默认 true）开关，二者均只搬 tar 字节、不作校验值信任锚。
     #[serde(default)]
     pub update: UpdateConfig,
+    /// 打印派发运行期旋钮（超时/失败保留临时文件/临时目录根）。`#[serde(default)]`：缺失
+    /// print 段时走 [`PrintConfig::default`]。**不含任何打印机地址**——目标连接参数存
+    /// `print_targets` 表，由派发层按 `target_code` 查询解析。
+    #[serde(default)]
+    pub print: PrintConfig,
     /// 环保税适用税额（元/污染当量；env 覆盖键 `ENV_TAX_RATE_PER_EQUIVALENT`）——
     /// **地方可变值**：《环境保护税法》附表规定法定幅度为每污染当量 **1.2–12 元**，
     /// 具体适用税额由省级人民政府在本行政区域内确定（运维取值须落在该法定幅度内）。
@@ -379,6 +401,33 @@ impl Default for UpdateConfig {
     }
 }
 
+/// 打印派发的运行期旋钮（仅非敏感的时钟/落盘开关，打印机地址不在这里——那些是
+/// `print_targets` 表行）。段或字段缺失走 [`PrintConfig::default`]。
+///
+/// - `dispatch_timeout_secs`：单次 `transport.send` 的等待上限，到点即判「派发超时」并转 failed。
+/// - `keep_failed_temp`：失败时是否保留文档临时文件（默认删除；保留则把路径记 WARN 供排查）。
+/// - `temp_dir_root`：文档临时文件根目录；`None` 时派发层回退到系统临时目录下的 `bingxi_print`。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PrintConfig {
+    /// 派发超时（秒）
+    pub dispatch_timeout_secs: u64,
+    /// 失败是否保留临时文件
+    pub keep_failed_temp: bool,
+    /// 临时目录根（None = 回退系统临时目录下的 print 子目录）
+    pub temp_dir_root: Option<String>,
+}
+
+impl Default for PrintConfig {
+    fn default() -> Self {
+        Self {
+            dispatch_timeout_secs: 30,
+            keep_failed_temp: false,
+            temp_dir_root: None,
+        }
+    }
+}
+
 impl AppSettings {
     pub fn new() -> Result<Self, ConfigError> {
         let mut app_settings = Self::load_from_env()?;
@@ -388,6 +437,7 @@ impl AppSettings {
         Self::load_cors_from_env(&mut app_settings);
         Self::load_database_config(&mut app_settings);
         Self::load_update_from_env(&mut app_settings);
+        Self::load_print_from_env(&mut app_settings);
         // 镜像清单 fail-fast 校验（非法 https/内网/IP 字面量 → 拒绝启动），
         // 校验通过后再写入进程级单例供下载链路读取，避免带病镜像进入运行期。
         Self::validate_update_mirrors(&app_settings)?;
@@ -395,6 +445,8 @@ impl AppSettings {
         // 环保税适用税额（地方可变值）写入进程级单例供计税链路读取；
         // None（未配置）同样是合法部署态——计税端点会显式失败，不在此处报错、不 panic。
         set_global_env_tax_rate(app_settings.env_tax_rate_per_equivalent);
+        // 打印派发运行期配置写入进程级单例供受理链路读取（不含任何设备地址）。
+        set_global_print_config(app_settings.print.clone());
         Ok(app_settings)
     }
 
@@ -610,6 +662,48 @@ impl AppSettings {
             // 默认 true：仅显式 0/false/no/off 才关闭门控（与 verify_digest 同为安全侧默认）
             app_settings.update.restart_on_apply =
                 !matches!(normalized.as_str(), "0" | "false" | "no" | "off");
+        }
+    }
+
+    /// 从环境变量覆盖 `print` 段（仿 `load_update_from_env` 范式，环境变量优先级高于 config.yaml）。
+    /// - `PRINT__DISPATCH_TIMEOUT_SECS`：派发超时（秒），仅接受正整数，越界/非法值保持默认并记 WARN。
+    /// - `PRINT__KEEP_FAILED_TEMP`：`true/1/yes/on`→保留 / `false/0/no/off`→删除；其它值保持默认并记 WARN。
+    /// - `PRINT__TEMP_DIR_ROOT`：临时目录根（空串视为未配置，回退系统临时目录）。
+    /// 打印机地址不在本段——那些是 `print_targets` 表行，此处只有运行期时钟/落盘开关。
+    fn load_print_from_env(app_settings: &mut AppSettings) {
+        if let Ok(v) = std::env::var("PRINT__DISPATCH_TIMEOUT_SECS") {
+            match v.trim().parse::<u64>() {
+                Ok(parsed) if parsed > 0 => app_settings.print.dispatch_timeout_secs = parsed,
+                Ok(_) => warn!(
+                    "PRINT__DISPATCH_TIMEOUT_SECS 取值 '{}' 非正整数，保持默认派发超时 {} 秒",
+                    v, app_settings.print.dispatch_timeout_secs
+                ),
+                Err(_) => warn!(
+                    "PRINT__DISPATCH_TIMEOUT_SECS 取值 '{}' 无法解析为秒数，保持默认派发超时 {} 秒",
+                    v, app_settings.print.dispatch_timeout_secs
+                ),
+            }
+        }
+
+        if let Ok(v) = std::env::var("PRINT__KEEP_FAILED_TEMP") {
+            let normalized = v.trim().to_lowercase();
+            match normalized.as_str() {
+                "1" | "true" | "yes" | "on" => app_settings.print.keep_failed_temp = true,
+                "0" | "false" | "no" | "off" => app_settings.print.keep_failed_temp = false,
+                other => warn!(
+                    "PRINT__KEEP_FAILED_TEMP 取值 '{}' 无法识别，保持默认(失败删除临时文件)",
+                    other
+                ),
+            }
+        }
+
+        if let Ok(v) = std::env::var("PRINT__TEMP_DIR_ROOT") {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                app_settings.print.temp_dir_root = None;
+            } else {
+                app_settings.print.temp_dir_root = Some(trimmed.to_string());
+            }
         }
     }
 

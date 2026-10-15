@@ -592,6 +592,12 @@
             index="/print-templates"
             >{{ t('layout.menu.printTemplates') }}</el-menu-item
           >
+          <el-menu-item
+            v-if="canAccessMenu('/print-targets')"
+            role="menuitem"
+            index="/print-targets"
+            >{{ t('layout.menu.printTargets') }}</el-menu-item
+          >
           <el-menu-item v-if="canAccessMenu('/api-gateway')" role="menuitem" index="/api-gateway">{{
             t('layout.menu.apiGateway')
           }}</el-menu-item>
@@ -1083,6 +1089,7 @@ const visibleSubMenu = computed<Record<string, boolean>>(() => {
       '/report-templates',
       '/data-import',
       '/print-templates',
+      '/print-targets',
       '/api-gateway',
       '/system-update',
       '/advanced',
