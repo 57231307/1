@@ -86,3 +86,32 @@
     max-width: 92vw;
   }
 }
+
+/*
+ * 移动端壳层头部（MainLayout 的 el-header）防横向撑破。
+ * 该头部用 flex 且无换行，竖屏窄屏下"汉堡+面包屑+通知/主题/用户"易超出视口把整页顶宽。
+ * 全局选择器以 .main-layout 限定，只作用主壳头部，命中其 scoped 元素上不冲突的新增属性
+ * （min-width、overflow、text-overflow、flex），让面包屑截断、左右两侧可压缩而非溢出文档。
+ */
+@media (max-width: 768px) {
+  .main-layout .header {
+    flex-wrap: nowrap;
+  }
+
+  .main-layout .header-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .main-layout .header-right {
+    flex: 0 0 auto;
+  }
+
+  .main-layout .header .el-breadcrumb {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
