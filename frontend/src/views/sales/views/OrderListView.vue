@@ -36,6 +36,7 @@
       @approve="olvProc.handleApprove"
       @delivery="onDelivery"
       @reserve="onReserve"
+      @bulk-color="onBulkColor"
       @cancel="olvProc.handleCancel"
       @submit-order="olvProc.handleSubmitOrder"
       @reject="olvProc.handleReject"
@@ -79,6 +80,17 @@
       :submitting="olvReservationSubmitting"
       @submit="onReserveSubmit"
     />
+
+    <BulkColorCreateDialog
+      v-model:visible="bulkColorDialogVisible"
+      :order-id="bulkColorOrder?.id ?? 0"
+      :order-no="bulkColorOrder?.order_no ?? ''"
+      :customer-id="bulkColorOrder?.customer_id ?? 0"
+      :customer-name="bulkColorOrder?.customer_name ?? ''"
+      :items="bulkColorOrder?.items ?? []"
+      :submitting="olvBulkColorSubmitting"
+      @submit="onBulkColorSubmit"
+    />
   </div>
 </template>
 
@@ -90,6 +102,7 @@ import { Plus } from '@element-plus/icons-vue';
 import type { SalesOrder } from '@/api/sales';
 import { getSalesOrderById } from '@/api/sales';
 import { createReservation } from '@/api/inventory';
+import { createBulkColorApproval } from '@/api/bulk-color-approval';
 import { msg } from '@/utils/message';
 import { useOlv, type OrderForm } from '../composables/useOlv';
 import { useOlvProc } from '../composables/useOlvProc';
@@ -100,6 +113,7 @@ import OrderFormDialog from '../OrderFormDialog.vue';
 import OrderViewDialog from '../OrderViewDialog.vue';
 import DeliveryDialog from '../DeliveryDialog.vue';
 import ReservationCreateDialog from '../ReservationCreateDialog.vue';
+import BulkColorCreateDialog from '../BulkColorCreateDialog.vue';
 // Batch 468 P0-S28：引入权限码常量，与后端 sales-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
@@ -173,6 +187,52 @@ const onReserveSubmit = async (payload: {
     ElMessage.error(err.message || t('common.failed'));
   } finally {
     olvReservationSubmitting.value = false;
+  }
+};
+
+/**
+ * 打开发起批色对话框：明细行候选与派生客户须取订单明细 items，列表行（GET /sales/orders 摘要 DTO）
+ * 不保证含 items，故回读 GET /sales/orders/{id} 单详情再开框；失败/缺键如实报错，不降级成空候选。
+ */
+const bulkColorDialogVisible = ref(false);
+const bulkColorOrder = ref<SalesOrder | null>(null);
+const onBulkColor = async (row: SalesOrder) => {
+  try {
+    const res = await getSalesOrderById(row.id);
+    const detail = res.data;
+    if (!detail || !Array.isArray(detail.items)) {
+      throw new Error(`GET /sales/orders/${row.id} 响应缺少 data.items 数组`);
+    }
+    bulkColorOrder.value = detail;
+    bulkColorDialogVisible.value = true;
+  } catch (error) {
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('sales.bulkColor.loadItemsFailed'));
+  }
+};
+
+/** 批色提交：sales_order_item_id 绑定订单明细行，product_id/color_no 由该行带出（后端覆盖回填为准） */
+const olvBulkColorSubmitting = ref(false);
+const onBulkColorSubmit = async (payload: {
+  sales_order_id: number;
+  customer_id: number;
+  sales_order_item_id: number;
+  dye_batch_id: number;
+  product_id: number;
+  color_no?: string;
+  remark?: string;
+}) => {
+  olvBulkColorSubmitting.value = true;
+  try {
+    await createBulkColorApproval(payload);
+    msg.success('bulkColorCreateSuccess');
+    bulkColorDialogVisible.value = false;
+    // 本页列表为销售订单而非批色单（批色列表在批色页），关框即完成，无需刷新订单列表
+  } catch (error) {
+    const err = error as { message?: string };
+    ElMessage.error(err.message || t('common.failed'));
+  } finally {
+    olvBulkColorSubmitting.value = false;
   }
 };
 

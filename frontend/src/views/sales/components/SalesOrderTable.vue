@@ -27,7 +27,8 @@ import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { SalesOrder } from '@/api/sales';
 import { useUserStore } from '@/store/user';
-import { canAccessDetailPermission } from '@/router';
+import { canAccessDetailPermission, hasRoutePermission } from '@/router';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();
@@ -36,6 +37,12 @@ const userStore = useUserStore();
 // 非管理员点了必然 403，故与后端同源判定后隐藏该入口（"查看"用列表已有行，不隐藏）。
 const canAccessOrderDetail = computed(() =>
   canAccessDetailPermission('sales-orders', 'read', userStore.userInfo?.permissions || [])
+);
+
+// 「发起批色」复用批色模块既有建单门（路由 meta.permission = inventory:read），不新增权限键；
+// 与 v-permission 指令同源（列表级宽松匹配 hasRoutePermission），无权限者不渲染该入口。
+const canCreateBulkColor = computed(() =>
+  hasRoutePermission(PERMISSIONS.INVENTORY_READ, userStore.userInfo?.permissions || [])
 );
 
 /**
@@ -65,6 +72,7 @@ const emit = defineEmits<{
   approve: [row: SalesOrder];
   delivery: [row: SalesOrder];
   reserve: [row: SalesOrder];
+  bulkColor: [row: SalesOrder];
   cancel: [row: SalesOrder];
   submitOrder: [row: SalesOrder];
   reject: [row: SalesOrder];
@@ -78,10 +86,10 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
   {
     key: '__actions__',
     title: t('sales.table.operation'),
-    // 操作列按钮按状态条件渲染且同行并列：已审批/部分发货态最多 5 个按钮
-    // （查看/详情/发货/预留库存/取消），其中「预留库存」为四字标签；
-    // 原 340 按旧最多按钮行取值，新增入口后需加宽避免 fixed 列内溢出换行
-    width: 430,
+    // 操作列按钮按状态条件渲染且同行并列：已审批/部分发货态最多 6 个按钮
+    // （查看/详情/发货/预留库存/发起批色/取消），其中「预留库存」「发起批色」为四字标签；
+    // 原 430 按旧最多按钮行取值，新增「发起批色」入口后需再加宽避免 fixed 列内溢出换行
+    width: 510,
     fixed: 'right',
     renderCell: (row: SalesOrder) => {
       const buttons = [
@@ -186,6 +194,21 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
             { default: () => t('sales.table.reserve') }
           )
         );
+        // 发起批色：同属可履约订单动作，且须持有批色建单门（复用 inventory:read，不新增权限键）
+        if (canCreateBulkColor.value) {
+          buttons.push(
+            h(
+              ElButton,
+              {
+                size: 'small',
+                link: true,
+                type: 'primary',
+                onClick: () => emit('bulkColor', row),
+              },
+              { default: () => t('sales.table.bulkColor') }
+            )
+          );
+        }
       }
       if (row.status === 'pending' || row.status === 'approved') {
         buttons.push(
