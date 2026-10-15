@@ -6731,6 +6731,13 @@ export default {
       failed: '领取失败',
     },
   },
+  customerCollab: {
+    contractTypes: {
+      purchaseContract: '采购合同',
+      salesContract: '销售合同',
+      outsourcingContract: '委外合同',
+    },
+  },
   crmCustomerShare: {
     sharedToUserId: '共享用户ID',
     permissionView: '只读',

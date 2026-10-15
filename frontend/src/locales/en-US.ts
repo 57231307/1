@@ -6756,6 +6756,13 @@ export default {
       failed: 'Failed to claim',
     },
   },
+  customerCollab: {
+    contractTypes: {
+      purchaseContract: 'Purchase Contract',
+      salesContract: 'Sales Contract',
+      outsourcingContract: 'Outsourcing Contract',
+    },
+  },
   crmCustomerShare: {
     sharedToUserId: 'Shared User ID',
     permissionView: 'View Only',
