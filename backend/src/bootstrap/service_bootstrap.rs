@@ -149,6 +149,7 @@ pub async fn bootstrap_full_mode(
     start_device_connection_cleanup_task(&app_state);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
+    seed_product_categories(&app_state).await;
     init_es_indices().await;
     // 启动 WebSocket Redis Pub/Sub 多实例广播订阅器
     let ws_pubsub_handle =
@@ -961,6 +962,21 @@ async fn init_assist_dimensions(app_state: &AppState) {
         tracing::info!(
             "辅助核算维度初始化完成（8 个维度：批次/色号/缸号/等级/车间/仓库/客户/供应商）"
         );
+    }
+}
+
+/// 启动时播种产品分类默认数据（仅产品分类表为空时写入三个默认分类，
+/// 幂等重跑不重复，失败仅 warn 不阻塞启动）。
+async fn seed_product_categories(app_state: &AppState) {
+    match crate::services::product_category_seed::seed_default_product_categories(&app_state.db)
+        .await
+    {
+        Ok(0) => info!("产品分类默认种子跳过（表中已有分类数据）"),
+        Ok(count) => info!(count, "产品分类默认种子完成（坯布、成品布、辅料三类）"),
+        Err(e) => warn!(
+            error = %e,
+            "产品分类默认种子失败（不阻塞启动，新建产品表单将无分类候选）"
+        ),
     }
 }
 
