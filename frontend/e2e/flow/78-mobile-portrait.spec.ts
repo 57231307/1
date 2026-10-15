@@ -4,8 +4,9 @@ import { loginViaUI, BASE_URL } from './helpers';
 /**
  * 移动端竖屏布局与操作锁（补 CI 桌面视口测不到移动端的盲区）
  *
- * 视口取国内 2025 中高端手机竖屏代表：360x780（华为/小米/红米等主流 Android 的常见 CSS 逻辑宽，
- * 作最严档）与 393x852（iPhone 15/16 系）。断言列表页族在此两档竖屏下：
+ * 视口取国内 2025 中高端手机竖屏代表（物理像素除以 DPR 得 CSS 逻辑像素）：360x780（华为/小米/
+ * 红米 1080x2340@3，最严档）、393x852（iPhone 15/16 系）、412x915（高端 Android 旗舰 1080x2400
+ * 与 1440x3200@3.5 的常见 CSS 宽）。断言列表页族在此三档竖屏下：
  * - 整页文档不横向溢出撑破（documentElement.scrollWidth 不超过 clientWidth，容差 2px）；
  *   el-table 列多时靠其内部横向滚动（el-main 自带 overflow:auto），不撑大文档宽，故本判定只针对
  *   整页被固定宽元素/头部撑破这一真缺陷，不误伤"表格内部可滑"的正常移动端形态；
@@ -19,6 +20,7 @@ import { loginViaUI, BASE_URL } from './helpers';
 const MOBILE_VIEWPORTS = [
   { name: '360x780', width: 360, height: 780 },
   { name: '393x852', width: 393, height: 852 },
+  { name: '412x915', width: 412, height: 915 },
 ];
 
 const LIST_PAGES = [
