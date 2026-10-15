@@ -12304,6 +12304,7 @@ export default {
       labelOrderNo: 'Order No.',
       placeholderOrderNo: 'Please enter order no',
       labelProductId: 'Product ID',
+      placeholderSelectProduct: 'Select a product (search by code or name)',
       labelPlannedQuantity: 'Planned Quantity',
       labelPriority: 'Priority',
       labelScheduledStart: 'Scheduled Start Date',
