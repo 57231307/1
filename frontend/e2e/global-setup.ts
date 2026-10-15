@@ -533,10 +533,13 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // 双人分离前提（后端 SoD 同样拒绝同角色 create+approve 共存，role_permission_service.rs
   // ::validate_sod_create_approve）。
   manager: ['export-approvals:create'],
-  // 仓管/仓库经理：按四维选匹（发货/调拨）+ 打印成品布入库标签的岗位，
-  // 与 permission.rs 的 warehouse_keeper 及迁移 m0069 同口径。
-  warehouse_keeper: ['pieces:read', 'pieces:print'],
-  warehouse_manager: ['pieces:read', 'pieces:print'],
+  // 仓管/仓库经理：按四维选匹（发货/调拨）+ 打印成品布入库标签 + 坯布建档读写
+  // 与 permission.rs 的 warehouse_keeper 及迁移 m0069/m0097 同口径（三通道锁）。
+  warehouse_keeper: ['pieces:read', 'pieces:print', 'greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
+  warehouse_manager: ['pieces:read', 'pieces:print', 'greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
+  // 生产经理：坯布建档与供应商下拉读，与 permission.rs 的 production_manager
+  // 及迁移 m0097 同口径（三通道锁）。
+  production_manager: ['greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
   // 质检/验布岗：验布打卷页的标签面板需读匹行并可打印（同 m0069 口径）
   quality_inspector: ['pieces:read', 'pieces:print'],
 };
