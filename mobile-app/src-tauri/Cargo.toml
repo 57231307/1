@@ -1,0 +1,21 @@
+[package]
+name = "bingxi-mobile"
+version = "0.1.0"
+description = "Bingxi 纺织 ERP 的 Tauri v2 Android 客户端壳（Rust 内核 + WebView 载入现有 Web 前端）"
+authors = ["Bingxi"]
+edition = "2021"
+rust-version = "1.77.2"
+
+# 移动端以库形式被 Android 宿主（gen/android 里的 Kotlin 薄壳）通过 JNI 调用；
+# desktop 仍可通过 bin 运行，便于本机联调（本机无 Android 工具链时用 desktop 预览）。
+[lib]
+name = "bingxi_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

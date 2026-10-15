@@ -1,0 +1,94 @@
+# Bingxi ERP 安卓客户端（Tauri v2）CI 出包。
+#
+# 本机无 Android SDK/NDK/JDK，无法本地编译；APK 一律在此 job 出。
+# 独立于 ci-cd.yml（不参与其 26-job needs 依赖图）。
+#
+# 安全：仅受信触发（workflow_dispatch + 推本分支）；不使用任何 GitHub event 载荷字段拼命令。
+# 仓库变量 BINGXI_WEB_HOST 经字符集白名单校验后才进 shell，防注入。
+#
+# 首跑校准点（无本地工具链，只能靠本 workflow 迭代）：
+#   - NDK / build-tools / platform 版本号（下方为当前稳定值，runner 镜像不含时需调整）。
+#   - 产物为未签名 debug APK；正式发布需另配 keystore 签名步骤。
+name: Android (Tauri)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "feat/android-tauri-client"
+
+env:
+  BINGXI_WEB_HOST: ${{ vars.BINGXI_WEB_HOST }}
+  JAVA_VERSION: "17"
+  NDK_VERSION: "26.1.10909125"
+
+jobs:
+  android-apk:
+    name: 构建 debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 校验部署域变量
+        run: |
+          set -euo pipefail
+          host="${BINGXI_WEB_HOST:-}"
+          if [ -z "$host" ]; then
+            echo "仓库变量 BINGXI_WEB_HOST 未设置（填真实部署域，不含 scheme）" >&2
+            exit 1
+          fi
+          # 仅允许域名/端口字符，杜绝把变量当命令注入
+          case "$host" in
+            *[!A-Za-z0-9.:-]*) echo "BINGXI_WEB_HOST 含非法字符: $host" >&2; exit 1 ;;
+          esac
+          echo "HOST_OK"
+
+      - name: 设置 JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: 设置 Android SDK / NDK / build-tools
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0 ndk;${{ env.NDK_VERSION }}"
+
+      - name: 设置 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 设置 Rust 与 Android 目标三元组
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: 安装 Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: 注入远端部署域到 Tauri 配置
+        env:
+          HOST: ${{ env.BINGXI_WEB_HOST }}
+        run: |
+          set -euo pipefail
+          sed -i "s/__BINGXI_WEB_HOST__/${HOST}/g" \
+            mobile-app/src-tauri/tauri.conf.json \
+            mobile-app/src-tauri/capabilities/default.json
+          grep -q "${HOST}" mobile-app/src-tauri/tauri.conf.json
+
+      - name: 初始化并构建 Android（debug APK）
+        working-directory: mobile-app
+        env:
+          NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
+        run: |
+          set -euo pipefail
+          cargo tauri android init
+          cargo tauri android build --debug --apk
+
+      - name: 上传 APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingxi-erp-android-debug-apk
+          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
