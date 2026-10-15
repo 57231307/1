@@ -13,6 +13,9 @@ import { i18n, getCurrentLocale } from './i18n';
 import { permission, permissionDetail } from './directives/permission';
 // V15 P1-20-15 全局 CSS 变量主题（支持亮色/暗黑模式切换）
 import './styles/theme.css';
+// 列表页族移动端窄屏响应式补丁：命中各列表页共享 class 约定与 Element Plus 原语，
+// 置于 theme.css 之后以覆盖其默认宽度，桌面视口不触发本层。
+import './styles/mobile-list.css';
 // V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
 import { initMonitor, isDialogDismissal } from './utils/monitor';
 

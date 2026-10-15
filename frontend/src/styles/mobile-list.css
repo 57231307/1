@@ -1,0 +1,88 @@
+/*
+ * 列表页族移动端（竖屏窄屏 ≤768px）响应式补丁层。
+ *
+ * 调用方：main.ts 在 theme.css 之后全局引入，作用于整族列表页共享的 class 约定
+ * （filter-card / filter-form / filter-container / toolbar / header-actions /
+ * page-header / filter-actions / tab-toolbar）与 Element Plus 原语（el-form--inline、
+ * el-dialog、el-drawer、el-pagination、el-table）。
+ *
+ * 为什么集中放这里：项目列表页无共享骨架组件，190 个页面各自 scoped 写样式，
+ * scoped 只限制组件内规则、不遮蔽全局规则，故按 class 约定在全局层一处适配即可覆盖整族，
+ * 无需逐页改动。桌面（含 CI e2e 视口）宽于此断点，本层不生效，回归面为零。
+ */
+
+@media (max-width: 768px) {
+  /* 症状一，横向溢出撑破：内容容器与表格不超出可视宽，表格保留自身横向滚动 */
+  .filter-card,
+  .filter-container {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  .filter-card .el-card__body {
+    padding: 12px;
+  }
+
+  .el-table {
+    max-width: 100%;
+  }
+
+  /* 分页控件项较多，窄屏换行居中而非溢出右缘 */
+  .el-pagination {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    justify-content: center;
+  }
+
+  /* 症状二，筛选栏与工具栏换行错乱：行内表单由一排改为逐条满宽堆叠，控件撑满可用宽 */
+  .el-form--inline .el-form-item {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    margin: 0 0 10px 0;
+  }
+
+  .el-form--inline .el-form-item__label {
+    width: auto;
+    padding-right: 8px;
+    line-height: 1.5;
+  }
+
+  .el-form--inline .el-form-item__content {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .el-form--inline .el-form-item__content .el-input,
+  .el-form--inline .el-form-item__content .el-select,
+  .el-form--inline .el-form-item__content .el-input-number,
+  .el-form--inline .el-form-item__content .el-date-editor.el-input,
+  .el-form--inline .el-form-item__content .el-date-editor .el-input__wrapper {
+    width: 100%;
+  }
+
+  /* 工具栏与页头操作按钮组允许换行，窄屏不再单排溢出 */
+  .page-header,
+  .toolbar,
+  .header-actions,
+  .filter-actions,
+  .tab-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    row-gap: 10px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+  }
+
+  /* 症状三，弹窗与抽屉错位或超屏：弹窗体限高可滚，抽屉宽度不超过视口 */
+  .el-dialog__body {
+    max-height: 68vh;
+    overflow-y: auto;
+  }
+
+  .el-drawer {
+    max-width: 92vw;
+  }
+}
