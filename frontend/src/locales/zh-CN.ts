@@ -4368,6 +4368,14 @@ export default {
     exportFile: {
       filename: '线索列表',
     },
+    scoreDetail: {
+      total: '总分',
+      priority: '优先级',
+      dimSource: '来源维度',
+      dimBehavior: '行为维度',
+      dimDemographics: '画像维度',
+      sourceField: '来源：',
+    },
     leadForm: {
       ariaLabel: '线索表单',
       leadSource: '线索来源',
