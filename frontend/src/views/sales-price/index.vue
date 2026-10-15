@@ -22,7 +22,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('salesPrice.index.buttonCreatePrice') }}
         </el-button>
-        <el-button v-permission="'sales.price.export'" @click="onExport">
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="spProc.exportSubmitting"
+          @click="onExport"
+        >
           <el-icon><Download /></el-icon>
           {{ t('salesPrice.index.buttonExport') }}
         </el-button>
@@ -75,6 +79,7 @@ import { Plus, Download } from '@element-plus/icons-vue';
 import type { SalesPrice, SalesPriceRow } from '@/api/sales-price';
 import { useSp } from './composables/useSp';
 import { useSpProc } from './composables/useSpProc';
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
 import SalesPriceFilter from './components/SalesPriceFilter.vue';
 import SalesPriceTable from './components/SalesPriceTable.vue';
 import SalesPriceForm from './components/SalesPriceForm.vue';

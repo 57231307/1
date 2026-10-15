@@ -1,5 +1,5 @@
 {
-  "total": 120,
+  "total": 119,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -143,12 +143,6 @@
         "EmailStatistics.today_sent",
         "EmailStatistics.total_failed",
         "EmailStatistics.total_sent"
-      ]
-    },
-    "frontend/src/api/export-approvals.ts": {
-      "count": 1,
-      "keys": [
-        "ExportApprovalRequest.approval_context"
       ]
     },
     "frontend/src/api/finance-report.ts": {

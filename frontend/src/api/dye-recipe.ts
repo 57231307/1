@@ -157,7 +157,3 @@ export function getRecipesByColor(colorCode: string): Promise<ApiResponse<DyeRec
 export function getRecipeVersions(id: number): Promise<ApiResponse<DyeRecipe[]>> {
   return request.get(`/production/dye-recipes/${id}/versions`);
 }
-
-export function exportDyeRecipes(params?: DyeRecipeListParams): Promise<Blob> {
-  return request.get('/production/dye-recipes/export', { params, responseType: 'blob' });
-}

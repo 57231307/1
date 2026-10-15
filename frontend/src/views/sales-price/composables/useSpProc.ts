@@ -14,7 +14,7 @@ import {
   type SalesPrice,
   type SalesPriceRow,
 } from '@/api/sales-price';
-import { exportFromBackend } from '@/utils/export';
+import { useExportApproval } from '@/composables/useExportApproval';
 
 /**
  * 刷新回调
@@ -102,23 +102,26 @@ export function useSpProc(refresh: RefreshCallbacks) {
   };
 
   /**
-   * 导出 Excel（统一 xlsx，禁止 CSV 交付）：
-   * 调用后端 GET /sales/sales-prices/export（后端注入水印 + 异步审计日志），
-   * 透传当前列表筛选全集，与列表同口径。
+   * 导出价目表：敏感资源，后端 GET /sales/sales-prices/export 以 download_token 做
+   * fail-closed 审批令牌校验，直连必 403。改为提交导出审批申请（useExportApproval
+   * 统一入口，参数形状由 constants/export-approval 注册表收敛为列表同口径筛选
+   * product_id/customer_id/keyword/status），批准后在「导出审批」页凭一次性令牌下载。
    */
-  const handleExport = async () => {
+  const { exportSubmitting, requestExport } = useExportApproval();
+  const handleExport = () => {
     const filters = refresh.getQueryParams?.() ?? {};
-    const params: Record<string, unknown> = {
+    return requestExport('price_list', {
       product_id: filters.product_id,
       customer_id: filters.customer_id,
-      keyword: filters.keyword || undefined,
-      status: filters.status || undefined,
-    };
-    await exportFromBackend('/sales/sales-prices/export', params, 'sales_prices_export');
+      keyword: filters.keyword,
+      status: filters.status,
+    });
   };
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
+    // 导出审批申请提交状态（供按钮 loading）
+    exportSubmitting,
     // 查看
     viewDialogVisible,
     viewData,
