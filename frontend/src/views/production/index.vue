@@ -86,7 +86,7 @@ import {
 } from '@/api/production';
 import { usePrd } from './composables/usePrd';
 import { usePrdProc } from './composables/usePrdProc';
-import { getProducts, type Product } from '@/api/product';
+import { getProductList, type Product } from '@/api/product';
 import ProductionFilter from './components/ProductionFilter.vue';
 import ProductionTable from './components/ProductionTable.vue';
 import ProductionForm from './components/ProductionForm.vue';
@@ -99,7 +99,7 @@ const { t } = useI18n({ useScope: 'global' });
 const productOptions = ref<Product[]>([]);
 const loadProductOptions = async () => {
   try {
-    const res = await getProducts({ page: 1, page_size: 500 });
+    const res = await getProductList({ page: 1, page_size: 500 });
     productOptions.value = res.data?.items ?? [];
   } catch (error) {
     // 拉取失败仅置空并告警，不阻断列表页主流程
