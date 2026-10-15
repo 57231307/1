@@ -65,6 +65,7 @@
     "/mrp/history",
     "/notification",
     "/omni-audit",
+    "/print-targets",
     "/print-templates",
     "/product",
     "/production",
