@@ -3,11 +3,20 @@
   "reachableRoutes": [
     "/bi/sales-analysis",
     "/dashboard",
+    "/greige-fabrics",
+    "/purchase",
+    "/purchase-contract",
+    "/purchase-inspection",
+    "/purchase-price",
+    "/purchase-receipt",
+    "/purchase-return",
     "/quotations",
     "/quotations/new",
     "/sales",
     "/sales-contract",
     "/sales-price",
-    "/sales-returns"
+    "/sales-returns",
+    "/supplier",
+    "/supplier-evaluation"
   ]
 }

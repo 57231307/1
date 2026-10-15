@@ -15,6 +15,8 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
 use crate::models::status::purchase_inventory::greige_fabric_status;
+use crate::models::supplier;
+use crate::models::warehouse;
 use crate::utils::data_scope;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -251,6 +253,22 @@ pub async fn create_greige_fabric(
         }
         None => greige_fabric_status::IN_STOCK.to_string(),
     };
+
+    // 外键预校验：supplier_id/warehouse_id 是裸 FK（REFERENCES suppliers/warehouses，无 ON DELETE 动作）。
+    // 若不预检，脏 id 会在 insert 时抛 FK 约束被映射成 500 DATABASE_ERROR，调用方无法区分数据错误与系统故障。
+    // 与产品建档 product_ops::crud 同口径，预检为 400 business。
+    if let Some(sid) = req.supplier_id {
+        supplier::Entity::find_by_id(sid)
+            .one(&*state.db)
+            .await?
+            .ok_or_else(|| AppError::business("供应商不存在，请重新选择"))?;
+    }
+    if let Some(wid) = req.warehouse_id {
+        warehouse::Entity::find_by_id(wid)
+            .one(&*state.db)
+            .await?
+            .ok_or_else(|| AppError::business("仓库不存在，请重新选择"))?;
+    }
 
     let fabric = greige_fabric::ActiveModel {
         // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
