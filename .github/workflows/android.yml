@@ -182,7 +182,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             APK="$(find apk -name '*.apk' | head -1)"
             test -n "$APK" || { echo '无 APK 产物'; exit 1; }
             adb install -r "$APK"
