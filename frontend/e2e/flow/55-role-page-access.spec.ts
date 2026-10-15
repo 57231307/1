@@ -385,7 +385,10 @@ test.describe('反向：越权页面/端点看不到且被拒', () => {
     );
     await assertEndpointDenied(page, '/users?page=1&page_size=5', 'warehouse_manager 越权读用户');
     await assertPageGuardDenied(page, '/finance', 'warehouse_manager 越权 /finance');
-    await assertPageGuardDenied(page, '/purchase', 'warehouse_manager 越权 /purchase');
+    // /purchase 页守卫是粗域键 purchases:read，其域成员含 suppliers；坯布建档给该岗补了
+    // suppliers:read，故粗域门会放行其进入 /purchase 页（同 sales_manager 口径乙）。真实安全边界
+    // 由上方 /purchase/orders 细端点 403 钉死，这里只钉"页不渲染采购业务数据行"，不苛求硬跳 /403。
+    await assertNoBusinessDataLeak(page, '/purchase', 'warehouse_manager 越权 /purchase');
     // 已知缺口暴露：warehouse_manager 仅 pieces:read（无 inventory:read），而 /inventory 页守卫键是
     // inventory:read → 该岗能直接打 /inventory/pieces（上面正向已 200）却被页面守卫挡在门外。
     // 若本条红（未被挡），说明守卫键与后端资源键不一致，属真实缺口，交回编排方，不在此放宽。
