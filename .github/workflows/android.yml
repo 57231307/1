@@ -182,19 +182,12 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            set -eu
-            APK="$(find apk -name '*.apk' | head -1)"
-            test -n "$APK" || { echo '无 APK 产物'; exit 1; }
-            adb install -r "$APK"
+            # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
+            APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
             adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
             sleep 8
-            # 断言 app 处于前台
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
-            # 断言 gateway 首屏文案在（WebView 无障碍文本）
             adb exec-out uiautomator dump /dev/tty >/tmp/ui.xml 2>/dev/null || adb shell uiautomator dump /sdcard/ui.xml
-            if adb exec-out cat /sdcard/window_dump.xml 2>/dev/null | grep -q "连接服务器"; then echo 'E2E: gateway 文案命中'; \
-            elif adb exec-out uiautomator dump /dev/tty 2>/dev/null | grep -q "连接服务器"; then echo 'E2E: gateway 文案命中'; \
-            else echo 'E2E: 未见 gateway 文案（可能 WebView 文本未进 a11y 树）'; fi
-            # 硬断言：至少前台 + 无崩溃日志
-            if adb logcat -d | grep -Ei "FATAL EXCEPTION|${APP_ID}.*(crash|died)"; then echo 'E2E: 检测到崩溃'; exit 1; fi
+            adb exec-out cat /sdcard/window_dump.xml 2>/dev/null | grep -q "连接服务器" && echo 'E2E: gateway 文案命中' || echo 'E2E: 未见 gateway 文案'
+            adb logcat -d | grep -Ei "FATAL EXCEPTION|${APP_ID}.*(crash|died)" && { echo 'E2E: 检测到崩溃'; exit 1; } || true
             echo 'E2E: 启动到前台且无崩溃'
