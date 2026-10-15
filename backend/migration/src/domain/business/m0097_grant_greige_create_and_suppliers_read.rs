@@ -2,8 +2,8 @@
 //! warehouse_manager 存量库通道）
 //!
 //! 背景事实：
-//! - `/api/v1/erp/production/greige-fabrics` 由 `routes/production.rs:63-95` 挂载，
-//!   资源段取自路径段（消歧后的顶层 `greige-fabrics`）；运行时权限键为
+//! - `/api/v1/erp/production/greige-fabrics` 路由在生产子路由内以相对路径挂载、于 erp 根域
+//!   nest 一次；资源段取自路径段（消歧后的顶层 `greige-fabrics`）；运行时权限键为
 //!   `greige-fabrics:read` 与 `greige-fabrics:create`；
 //! - `/api/v1/erp/purchase/suppliers` 的派生键为 `suppliers:read`（建档表单的供应商
 //!   下拉走 GET）；

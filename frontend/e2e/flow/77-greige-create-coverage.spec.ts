@@ -69,7 +69,8 @@ test.describe('坯布建档持久化与外键预检', () => {
         `读回应持久化 fabric_type：${JSON.stringify(detail).slice(0, 160)}`
       ).toBe('坯布');
     } finally {
-      await apiCallRaw(page, 'DELETE', `/production/greige-fabrics/${id}`);
+      // 在库坯布按设计不允许直接删除（须先出库），清理失败不判红，仅尽力回收。
+      await apiCallRaw(page, 'DELETE', `/production/greige-fabrics/${id}`).catch(() => undefined);
     }
   });
 
