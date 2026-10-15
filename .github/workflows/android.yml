@@ -58,16 +58,16 @@ jobs:
           set -euo pipefail
           python3 -m pip install --quiet jsonschema
           python3 - <<'PY'
-          import json, urllib.request
+          import json
           from jsonschema import Draft7Validator
-          schema = json.load(urllib.request.urlopen("https://schema.tauri.app/config/2"))
+          schema = json.load(open("mobile-app/src-tauri/tauri-v2.schema.json"))
           conf = json.load(open("mobile-app/src-tauri/tauri.conf.json"))
           errs = sorted(Draft7Validator(schema).iter_errors(conf), key=lambda e: list(e.path))
           if errs:
               for e in errs:
                   print("SCHEMA ERROR at", "/".join(map(str, e.path)), "::", e.message)
               raise SystemExit(1)
-          print("tauri.conf.json 通过 Tauri v2 schema 校验")
+          print("tauri.conf.json 通过 vendored 官方 Tauri v2 schema 校验")
           PY
 
       - name: 严格冒烟·2 校验 capabilities JSON
