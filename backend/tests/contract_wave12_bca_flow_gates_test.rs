@@ -405,6 +405,7 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         bulk_color_approval::ActiveModel {
             id: Set(id),
             sales_order_id: Set(so),
+            sales_order_item_id: Set(None),
             dye_batch_id: Set(DYE_ID),
             customer_id: Set(CUS_ID as i64),
             production_order_id: Set(None),

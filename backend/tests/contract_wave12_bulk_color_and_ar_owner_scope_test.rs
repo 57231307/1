@@ -43,8 +43,10 @@ use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::{ar_reconciliation_handler, bulk_color_approval_handler};
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::{
-    ar_reconciliation, bulk_color_approval, customer, department, dye_batch, sales_order, user,
+    ar_reconciliation, bulk_color_approval, customer, department, dye_batch, product, sales_order,
+    sales_order_item, user,
 };
+use bingxi_backend::services::bulk_color_approval_service::validate_bulk_color_approval;
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -63,6 +65,12 @@ const CUS_CROSS: i32 = 9102;
 const SO_OWN: i32 = 9201;
 const SO_CROSS: i32 = 9202;
 const DYE_ID: i32 = 9301;
+
+// 建单行绑定校验用参照：产品 + 分属 SO_OWN / SO_CROSS 的两条销售订单明细行。
+const PRODUCT_ID: i32 = 9310;
+const SO_ITEM_OWN: i32 = 9320; // order_id=SO_OWN, product_id=PRODUCT_ID, color_no="C-OWN"
+const SO_ITEM_CROSS: i32 = 9321; // order_id=SO_CROSS, product_id=PRODUCT_ID, color_no="C-CROSS"
+const SO_ITEM_MISSING: i32 = 93999; // 故意不播种，用于"不存在明细行"负提交
 
 // 批色记录：均按父销售订单继承归属，SO_OWN→A、SO_CROSS→B。
 const BCA_READ: i64 = 9401; // pending，读/历史目标，父 SO_OWN
@@ -232,6 +240,45 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         .unwrap();
     }
 
+    // 产品参照 + 两条销售订单明细行：用于钉死建单行绑定的 fail-closed 校验
+    // （SO_ITEM_OWN 挂 SO_OWN、SO_ITEM_CROSS 挂 SO_CROSS；SO_ITEM_MISSING 故意不播种）。
+    product::ActiveModel {
+        id: Set(PRODUCT_ID),
+        code: Set("P-SCOPE".to_string()),
+        name: Set("归属门测试面料".to_string()),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("成品布".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+
+    for (item_id, so_id, color_no) in [
+        (SO_ITEM_OWN, SO_OWN, "C-OWN"),
+        (SO_ITEM_CROSS, SO_CROSS, "C-CROSS"),
+    ] {
+        sales_order_item::ActiveModel {
+            id: Set(item_id),
+            order_id: Set(so_id),
+            product_id: Set(PRODUCT_ID),
+            color_no: Set(color_no.to_string()),
+            quantity: Set(Decimal::ONE),
+            unit_price: Set(Decimal::ONE),
+            subtotal: Set(Decimal::ONE),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+    }
+
     dye_batch::ActiveModel {
         id: Set(DYE_ID),
         batch_no: Set("DYE-SCOPE-0001".to_string()),
@@ -258,6 +305,7 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         bulk_color_approval::ActiveModel {
             id: Set(id),
             sales_order_id: Set(so),
+            sales_order_item_id: Set(None),
             dye_batch_id: Set(DYE_ID),
             customer_id: Set(CUS_OWN as i64),
             production_order_id: Set(None),
@@ -474,6 +522,282 @@ async fn bca_create_on_other_sales_order_is_forbidden_and_leaves_no_row() {
         .await
         .unwrap();
     assert_eq!(after_cross, before_cross, "越权建单严禁在他人父单下落行");
+}
+
+// ============ 批色：建单行绑定的 fail-closed 校验（4xx 非 5xx，不留行） ============
+
+#[tokio::test]
+async fn bca_create_with_item_of_another_order_is_rejected_and_leaves_no_row() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    let before = bulk_color_approval::Entity::find()
+        .filter(bulk_color_approval::Column::SalesOrderId.eq(SO_OWN))
+        .count(&*db)
+        .await
+        .unwrap();
+
+    // A(self) 对本人父单 SO_OWN 建单，却挂上属于他人父单 SO_CROSS 的明细行 SO_ITEM_CROSS：
+    // 父单归属门先放行（SO_OWN 归 A），随后 service.create 的行校验发现
+    // item.order_id(SO_CROSS) != sales_order_id(SO_OWN) → Validation → 400（非 5xx），零落库。
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/erp/bulk-color-approvals",
+        Some(json!({
+            "sales_order_id": SO_OWN,
+            "sales_order_item_id": SO_ITEM_CROSS,
+            "dye_batch_id": DYE_ID,
+            "customer_id": CUS_OWN,
+        })),
+    )
+    .await;
+    assert!(
+        status.is_client_error(),
+        "错挂他单明细行应 4xx（拒绝越权/错挂行），实际 {status}: {v}"
+    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "错挂他单明细行应 400: {v}");
+
+    let after = bulk_color_approval::Entity::find()
+        .filter(bulk_color_approval::Column::SalesOrderId.eq(SO_OWN))
+        .count(&*db)
+        .await
+        .unwrap();
+    assert_eq!(after, before, "行绑定校验失败严禁落行");
+}
+
+#[tokio::test]
+async fn bca_create_with_missing_item_is_rejected_4xx() {
+    let (app, _db) = seeded_app(make_self_auth(OWNER_A)).await;
+    // 明细行主键不存在：fail-closed 拒绝，出参走 Validation（400），不得静默忽略、不得 5xx。
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/erp/bulk-color-approvals",
+        Some(json!({
+            "sales_order_id": SO_OWN,
+            "sales_order_item_id": SO_ITEM_MISSING,
+            "dye_batch_id": DYE_ID,
+            "customer_id": CUS_OWN,
+        })),
+    )
+    .await;
+    assert!(
+        status.is_client_error(),
+        "不存在的明细行应 4xx，实际 {status}: {v}"
+    );
+    assert_eq!(status, StatusCode::BAD_REQUEST, "不存在的明细行应 400: {v}");
+}
+
+#[tokio::test]
+async fn bca_create_with_own_item_overrides_product_and_color_from_item() {
+    let (app, db) = seeded_app(make_self_auth(OWNER_A)).await;
+    // 前端故意把 product_id/color_no 填成与所选明细行不一致的值：
+    // 服务端应以 SO_ITEM_OWN 行的 (PRODUCT_ID, "C-OWN") 覆盖回填，绝不信任手填值。
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/erp/bulk-color-approvals",
+        Some(json!({
+            "sales_order_id": SO_OWN,
+            "sales_order_item_id": SO_ITEM_OWN,
+            "dye_batch_id": DYE_ID,
+            "customer_id": CUS_OWN,
+            "product_id": 999999,
+            "color_no": "前端伪造色",
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "挂本人父单下的合法明细行应 2xx: {v}"
+    );
+    assert_eq!(
+        v["data"]["sales_order_item_id"].as_i64(),
+        Some(SO_ITEM_OWN as i64),
+        "响应应回显绑定的明细行: {v}"
+    );
+    assert_eq!(
+        v["data"]["product_id"].as_i64(),
+        Some(PRODUCT_ID as i64),
+        "product_id 应被明细行覆盖回填: {v}"
+    );
+    assert_eq!(
+        v["data"]["color_no"].as_str(),
+        Some("C-OWN"),
+        "color_no 应被明细行覆盖回填、不信任前端手填: {v}"
+    );
+
+    // 回读落库行确认覆盖真实入库（非仅响应回显）。
+    let saved = bulk_color_approval::Entity::find()
+        .filter(bulk_color_approval::Column::SalesOrderItemId.eq(SO_ITEM_OWN))
+        .one(&*db)
+        .await
+        .unwrap()
+        .expect("合法行绑定应落库一行");
+    assert_eq!(saved.product_id, Some(PRODUCT_ID));
+    assert_eq!(saved.color_no.as_deref(), Some("C-OWN"));
+}
+
+// ============ 批色：发货门禁按明细行细化（fail-closed，影响能否发货） ============
+
+// 门禁专用订单：单建、不落入共享 seed 的可见集，避免既有 NULL 绑定行干扰按行判定。
+const SO_GATE: i32 = 9210;
+const SO_GATE_ITEM_A: i32 = 9330; // product_id=PRODUCT_ID, color_no="C-A"
+const SO_GATE_ITEM_B: i32 = 9331; // product_id=PRODUCT_ID, color_no="C-B"
+
+/// 门禁用例的批色记录播种助手：清空 SO_GATE 下既有记录后按 (item 绑定, 状态) 重建一行。
+/// `bound_item` 为 None 表示历史记录（sales_order_item_id IS NULL）。
+async fn seed_gate_approval(
+    db: &sea_orm::DatabaseConnection,
+    bound_item: Option<i32>,
+    status: &str,
+) {
+    let now = Utc::now();
+    bulk_color_approval::Entity::delete_many()
+        .filter(bulk_color_approval::Column::SalesOrderId.eq(SO_GATE))
+        .exec(db)
+        .await
+        .unwrap();
+    bulk_color_approval::ActiveModel {
+        id: Set(9500),
+        sales_order_id: Set(SO_GATE),
+        sales_order_item_id: Set(bound_item),
+        dye_batch_id: Set(DYE_ID),
+        customer_id: Set(CUS_OWN as i64),
+        production_order_id: Set(None),
+        product_id: Set(Some(PRODUCT_ID)),
+        color_no: Set(Some("C-A".to_string())),
+        dye_lot_no: Set(Some("DL-GATE".to_string())),
+        batch_no: Set(Some("B-GATE".to_string())),
+        sample_type: Set("cut_sample".to_string()),
+        sample_piece_id: Set(None),
+        sample_length_m: Set(None),
+        approval_status: Set(status.to_string()),
+        approver_id: Set(None),
+        approval_date: Set(None),
+        sent_to_customer_at: Set(None),
+        customer_feedback: Set(None),
+        delta_e_value: Set(None),
+        reject_reason: Set(None),
+        delivery_blocking: Set(status != "approved"),
+        attachment_url: Set(None),
+        remark: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn bca_ship_gate_blocks_only_involved_nonapproved_row() {
+    let db = Arc::new(test_common::setup_test_db().await);
+    seed(&db).await;
+    let now = Utc::now();
+    // 门禁订单 + 两条明细行（同产品不同色号），发货行按 (product_id, color_no) 归一匹配。
+    sales_order::ActiveModel {
+        id: Set(SO_GATE),
+        order_no: Set("SO-GATE".to_string()),
+        customer_id: Set(CUS_OWN),
+        order_date: Set(now),
+        status: Set("approved".to_string()),
+        subtotal: Set(Decimal::ONE),
+        tax_amount: Set(Decimal::ZERO),
+        discount_amount: Set(Decimal::ZERO),
+        shipping_cost: Set(Decimal::ZERO),
+        total_amount: Set(Decimal::ONE),
+        paid_amount: Set(Decimal::ZERO),
+        balance_amount: Set(Decimal::ONE),
+        created_by: Set(Some(OWNER_A)),
+        department_id: Set(Some(DEPT_ID)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .unwrap();
+    for (item_id, color) in [(SO_GATE_ITEM_A, "C-A"), (SO_GATE_ITEM_B, "C-B")] {
+        sales_order_item::ActiveModel {
+            id: Set(item_id),
+            order_id: Set(SO_GATE),
+            product_id: Set(PRODUCT_ID),
+            color_no: Set(color.to_string()),
+            quantity: Set(Decimal::ONE),
+            unit_price: Set(Decimal::ONE),
+            subtotal: Set(Decimal::ONE),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&*db)
+        .await
+        .unwrap();
+    }
+
+    // 1) 发货只涉及 ITEM_A，ITEM_A 批色未通过 → 阻断（按行判红）。
+    seed_gate_approval(&db, Some(SO_GATE_ITEM_A), "pending").await;
+    let r = validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-A".to_string())]).await;
+    assert!(r.is_err(), "涉及行未通过审批必须阻断发货");
+
+    // 2) 同一行改为 approved → 放行。
+    seed_gate_approval(&db, Some(SO_GATE_ITEM_A), "approved").await;
+    let r = validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-A".to_string())]).await;
+    assert!(r.is_ok(), "涉及行已批准应放行发货: {r:?}");
+
+    // 3) ITEM_A 未通过，但本次发货只涉及 ITEM_B（行不匹配）→ 与本笔发货无关，放行。
+    seed_gate_approval(&db, Some(SO_GATE_ITEM_A), "pending").await;
+    let r = validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-B".to_string())]).await;
+    assert!(
+        r.is_ok(),
+        "未绑定本次发货行的批色状态不应阻断本笔发货: {r:?}"
+    );
+
+    // 4) 未知态视为阻断（fail-closed 不放宽）：绑 ITEM_A 状态非词表值。
+    seed_gate_approval(&db, Some(SO_GATE_ITEM_A), "weird_state").await;
+    let r = validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-A".to_string())]).await;
+    assert!(r.is_err(), "未知审批态必须按阻断处理");
+}
+
+#[tokio::test]
+async fn bca_ship_gate_null_item_row_degrades_to_whole_order_block() {
+    let db = Arc::new(test_common::setup_test_db().await);
+    seed(&db).await;
+    let now = Utc::now();
+    sales_order::ActiveModel {
+        id: Set(SO_GATE),
+        order_no: Set("SO-GATE".to_string()),
+        customer_id: Set(CUS_OWN),
+        order_date: Set(now),
+        status: Set("approved".to_string()),
+        subtotal: Set(Decimal::ONE),
+        tax_amount: Set(Decimal::ZERO),
+        discount_amount: Set(Decimal::ZERO),
+        shipping_cost: Set(Decimal::ZERO),
+        total_amount: Set(Decimal::ONE),
+        paid_amount: Set(Decimal::ZERO),
+        balance_amount: Set(Decimal::ONE),
+        created_by: Set(Some(OWNER_A)),
+        department_id: Set(Some(DEPT_ID)),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&*db)
+    .await
+    .unwrap();
+
+    // 历史记录 sales_order_item_id IS NULL 且未通过：无论发货涉及哪一行，都退化整单阻断。
+    seed_gate_approval(&db, None, "pending").await;
+    let r_any =
+        validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-X".to_string())]).await;
+    assert!(r_any.is_err(), "NULL 绑定行未通过须退化订单级整单阻断");
+
+    // 该 NULL 记录改为 approved：解除门禁，放行。
+    seed_gate_approval(&db, None, "approved").await;
+    let r_ok = validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-X".to_string())]).await;
+    assert!(r_ok.is_ok(), "NULL 记录已批准应放行: {r_ok:?}");
 }
 
 // ============ 批色：列表（查询构造处下推，非空非全量） ============

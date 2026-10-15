@@ -73,12 +73,19 @@ impl SalesService {
         // 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
         // 必须在开启事务前校验，避免无效请求占用数据库事务资源
         super::super::delivery::validate_dye_lot_consistency(&request.items)?;
-        // 发货前校验大货批色门禁
-        // 业务规则：销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态
-        // 否则阻止发货（delivery_blocking=true 阻断）
+        // 发货前校验大货批色门禁（按明细行细化，fail-closed）
+        // 业务规则：本次发货涉及的订单行，其绑定批色记录须全部 approved；未绑定行的历史记录
+        // 退化订单级整单阻断。发货行的 (product_id, color_no) 归一后传入（None 色号 → 空串，
+        // 与订单行 NOT NULL 色号的空串同源匹配）。
+        let ship_color_lines: Vec<(i32, String)> = request
+            .items
+            .iter()
+            .map(|it| (it.product_id, it.color_no.clone().unwrap_or_default()))
+            .collect();
         crate::services::bulk_color_approval_service::validate_bulk_color_approval(
             &self.db,
             request.order_id,
+            &ship_color_lines,
         )
         .await
         .map_err(|e| match e {
