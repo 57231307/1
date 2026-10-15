@@ -12,6 +12,7 @@
     "/custom-orders",
     "/dashboard",
     "/fabric",
+    "/greige-fabrics",
     "/inventory",
     "/inventory-adjustment",
     "/inventory-batch",
@@ -31,6 +32,8 @@
     "/sales-contract",
     "/sales-price",
     "/sales-returns",
+    "/supplier",
+    "/supplier-evaluation",
     "/warehouse"
   ]
 }

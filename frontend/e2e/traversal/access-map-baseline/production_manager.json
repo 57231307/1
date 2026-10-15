@@ -12,6 +12,12 @@
     "/mrp",
     "/mrp/history",
     "/production",
+    "/purchase",
+    "/purchase-contract",
+    "/purchase-inspection",
+    "/purchase-price",
+    "/purchase-receipt",
+    "/purchase-return",
     "/quotations",
     "/quotations/new",
     "/sales",
@@ -19,6 +25,8 @@
     "/sales-price",
     "/sales-returns",
     "/scheduling",
-    "/scheduling/gantt"
+    "/scheduling/gantt",
+    "/supplier",
+    "/supplier-evaluation"
   ]
 }
