@@ -4385,6 +4385,14 @@ export default {
     exportFile: {
       filename: 'Leads List',
     },
+    scoreDetail: {
+      total: 'Total score',
+      priority: 'Priority',
+      dimSource: 'Source dimension',
+      dimBehavior: 'Behavior dimension',
+      dimDemographics: 'Profile dimension',
+      sourceField: 'Source: ',
+    },
     leadForm: {
       ariaLabel: 'Lead form',
       leadSource: 'Lead Source',
