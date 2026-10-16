@@ -3,7 +3,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
-import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
+import { pickSelectIn, fillFieldByLabel, escRe, pickListArray } from '../flow/ui-helpers';
 
 /**
  * 按状态筛选生产订单列表。
@@ -73,19 +73,42 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
   });
 
   test('新建生产工单', async ({ page }) => {
-    // 真实造数：产品为外键，ProductionForm 的「产品ID / 工作中心ID / 计划数量 / 优先级」均为
-    // el-input-number 数字输入（非下拉，按 el-select 点 option 不会命中）；
+    // 真实造数：产品为外键。「产品ID」现为可搜索 el-select（ProductionForm.vue:40-54
+    // el-select filterable，option label = `product_code — product_name`），不再是
+    // el-input-number——按数字 fill id 选不中任何 option，required 校验（usePrd
+    // message=「请选择产品」）拦下 → POST 不发 → 成功 toast 永不出现；
+    // 「计划数量 / 优先级」仍是 el-input-number，照旧 fillFieldByLabel + Tab 失焦提交。
     // 且「订单编号」label 与筛选栏同名（production.form/filter.labelOrderNo='订单编号'）→ getByLabel strict 命中 2。
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
+
+    // 产品下拉数据源契约（production/index.vue:102 getProductList page_size=500，
+    // product_handler.rs:264 将 page_size clamp 到 100，product_ops/crud.rs:112 按
+    // code asc 取窗口）：ctx.productIds[0] 同样取自 GET /products 的 code asc 列表，
+    // 必落在该 100 行窗口内。按同端点回查目标产品的 product_code/product_name
+    //（product_handler.rs:187 append_frontend_aliases 补齐的前端契约键，
+    // api/product.ts:6-7 消费），作为下拉搜索词与点选判据——值判据点选，不 .first() 瞎点。
+    const products = await apiCall<unknown>(page, 'GET', '/products?page=1&page_size=100');
+    const productRows = pickListArray<{
+      id?: number;
+      product_code?: string;
+      product_name?: string;
+    }>(products.data, 'items', '01-create 新建生产工单：产品下拉数据源');
+    const targetProduct = productRows.find(r => r.id === ctx.productIds[0]);
+    if (!targetProduct?.product_code || !targetProduct.product_name) {
+      throw new Error(
+        `目标产品 id=${ctx.productIds[0]} 未命中 GET /products page_size=100 窗口` +
+          `或缺契约键 product_code/product_name：${JSON.stringify(targetProduct).slice(0, 200)}`
+      );
+    }
 
     await page.goto('/production');
     await page.getByRole('button', { name: '新建订单' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     // 限定到可见 .el-dialog 消除与筛选栏「订单编号」同名 strict；提交按钮真实文案「确定」
     // （production.form.buttonConfirm）；成功提示 production.index.messageCreateSuccess=「创建生产订单成功」。
-    // 产品ID/计划数量/优先级均为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
+    // 计划数量/优先级为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
     // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现。
     const dlg = page.locator('.el-dialog:visible').last();
     // 新建对话框「订单编号」是系统自动取号字段：DOM 事实——input 带 disabled 且
@@ -96,8 +119,14 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await expect(orderNoInput, '订单编号应为系统自动取号的禁用态输入').toBeDisabled({
       timeout: 10000,
     });
-    await fillFieldByLabel(dlg, page, '产品ID', String(ctx.productIds[0]));
-    await page.keyboard.press('Tab');
+    // 产品：打开 el-select filterable → 输入 product_code 本地过滤收敛候选 →
+    // 按整串 label（`code — name`，ProductionForm.vue:51）锚定点选目标产品。
+    await pickSelectIn(dlg, page, '产品ID', {
+      query: targetProduct.product_code,
+      optionText: new RegExp(
+        `^\\s*${escRe(targetProduct.product_code)} — ${escRe(targetProduct.product_name)}\\s*$`
+      ),
+    });
     await fillFieldByLabel(dlg, page, '计划数量', '100');
     await page.keyboard.press('Tab');
     await fillFieldByLabel(dlg, page, '优先级', '5');
