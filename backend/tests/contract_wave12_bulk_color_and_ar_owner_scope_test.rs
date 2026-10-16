@@ -788,10 +788,15 @@ async fn bca_ship_gate_blocks_only_involved_nonapproved_row() {
         "未绑定本次发货行的批色状态不应阻断本笔发货: {r:?}"
     );
 
-    // 4) 未知态视为阻断（fail-closed 不放宽）：绑 ITEM_A 状态非词表值。
-    seed_gate_approval(&db, Some(SO_GATE_ITEM_A), "weird_state").await;
+    // 4) 非批准的终态（rejected）同样阻断——发货门只放行 approved。词表外的"未知态"
+    //    无法落库（DB CHECK chk_bca_approval_status 限定枚举），故以合法非批准终态代表
+    //    "未批准即阻断"，验证 fail-closed 不放宽。
+    seed_gate_approval(&db, Some(SO_GATE_ITEM_A), "rejected").await;
     let r = validate_bulk_color_approval(&db, SO_GATE, &[(PRODUCT_ID, "C-A".to_string())]).await;
-    assert!(r.is_err(), "未知审批态必须按阻断处理");
+    assert!(
+        r.is_err(),
+        "非批准终态必须按阻断处理（发货门只放行 approved）"
+    );
 }
 
 #[tokio::test]
