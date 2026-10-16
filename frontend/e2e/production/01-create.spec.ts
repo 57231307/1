@@ -73,22 +73,19 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
   });
 
   test('新建生产工单', async ({ page }) => {
-    // 真实造数：产品为外键。「产品ID」现为可搜索 el-select（ProductionForm.vue:40-54
-    // el-select filterable，option label = `product_code — product_name`），不再是
-    // el-input-number——按数字 fill id 选不中任何 option，required 校验（usePrd
-    // message=「请选择产品」）拦下 → POST 不发 → 成功 toast 永不出现；
-    // 「计划数量 / 优先级」仍是 el-input-number，照旧 fillFieldByLabel + Tab 失焦提交。
-    // 且「订单编号」label 与筛选栏同名（production.form/filter.labelOrderNo='订单编号'）→ getByLabel strict 命中 2。
+    // 真实造数：产品为外键。「产品ID」现为可搜索下拉（filterable，option label 形如
+    // `product_code — product_name`），不再是数字输入——按数字 fill id 选不中任何 option，
+    // required 校验（「请选择产品」）拦下 → POST 不发 → 成功 toast 永不出现；
+    // 「计划数量 / 优先级」仍是数字输入，照旧 fillFieldByLabel + Tab 失焦提交。
+    // 且「订单编号」label 与筛选栏同名（i18n 键 labelOrderNo='订单编号'）→ getByLabel strict 命中 2。
     await ensureTestEntities(page);
     const ctx = getCtx();
     expect(ctx.productIds.length, '前置：需要至少一个产品').toBeGreaterThanOrEqual(1);
 
-    // 产品下拉数据源契约（production/index.vue:102 getProductList page_size=500，
-    // product_handler.rs:264 将 page_size clamp 到 100，product_ops/crud.rs:112 按
-    // code asc 取窗口）：ctx.productIds[0] 同样取自 GET /products 的 code asc 列表，
-    // 必落在该 100 行窗口内。按同端点回查目标产品的 product_code/product_name
-    //（product_handler.rs:187 append_frontend_aliases 补齐的前端契约键，
-    // api/product.ts:6-7 消费），作为下拉搜索词与点选判据——值判据点选，不 .first() 瞎点。
+    // 产品下拉数据源契约：列表接口把 page_size clamp 到 100 并按 code 升序取窗口；
+    // ctx.productIds[0] 同样取自 GET /products 的 code 升序列表，必落在该 100 行窗口内。
+    // 按同端点回查目标产品的 product_code/product_name（后端为前端补齐的契约键），
+    // 作为下拉搜索词与点选判据——值判据点选，不 .first() 瞎点。
     const products = await apiCall<unknown>(page, 'GET', '/products?page=1&page_size=100');
     const productRows = pickListArray<{
       id?: number;
@@ -119,8 +116,8 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await expect(orderNoInput, '订单编号应为系统自动取号的禁用态输入').toBeDisabled({
       timeout: 10000,
     });
-    // 产品：打开 el-select filterable → 输入 product_code 本地过滤收敛候选 →
-    // 按整串 label（`code — name`，ProductionForm.vue:51）锚定点选目标产品。
+    // 产品：打开可搜索下拉 → 输入 product_code 本地过滤收敛候选 →
+    // 按整串 label（`code — name`）锚定点选目标产品。
     await pickSelectIn(dlg, page, '产品ID', {
       query: targetProduct.product_code,
       optionText: new RegExp(
