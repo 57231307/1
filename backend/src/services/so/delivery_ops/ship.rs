@@ -91,7 +91,18 @@ impl SalesService {
         .map_err(|e| match e {
             crate::services::bulk_color_approval_service::BulkColorApprovalError::InvalidState(
                 msg,
-            ) => AppError::business(msg),
+            ) => {
+                // 批色门禁拒绝原因（存在未通过审批的大货批色记录）是用户据以自行处理的可操作规则，
+                // 按兄弟发货前置门同一约定外显真实原因。但 msg 携带批色记录内部 id 与状态，只进日志不出参。
+                tracing::warn!(
+                    "销售订单 {} 发货被大货批色门禁拦截：{}",
+                    request.order_id,
+                    msg
+                );
+                AppError::business_displayable(
+                    "所选发货明细行存在未通过审批的大货批色记录，请先完成批色审批后再发货",
+                )
+            }
             crate::services::bulk_color_approval_service::BulkColorApprovalError::SalesOrderNotFound => {
                 AppError::not_found("销售订单不存在")
             }

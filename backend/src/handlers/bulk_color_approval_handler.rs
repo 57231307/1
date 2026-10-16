@@ -251,7 +251,10 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
         }
         BulkColorApprovalError::CustomerNotFound => AppError::not_found("客户不存在"),
         BulkColorApprovalError::InvalidState(msg) => AppError::business(msg),
-        BulkColorApprovalError::Validation(msg) => AppError::validation(msg),
+        // 校验族文案（如明细行归属或存在性、色差、返工上限）均为用户据以自行修正的可操作原因，
+        // 不含他人数据或内部标识，按本仓约定走可外显变体让出参 message 携带真实拒绝原因，
+        // code 仍为 VALIDATION_ERROR 族不变。
+        BulkColorApprovalError::Validation(msg) => AppError::validation_displayable(msg),
         BulkColorApprovalError::Internal(msg) => AppError::internal(msg),
         BulkColorApprovalError::Database(e) => AppError::database(e.to_string()),
     }
