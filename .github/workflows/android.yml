@@ -185,11 +185,9 @@ jobs:
             # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
             APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
             adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
-            sleep 12
+            sleep 8
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
-            adb shell "run-as ${APP_ID} find . -name gateway_ready -print" > /tmp/gwfind.txt 2>/tmp/gwerr.txt || true
-            echo '===== run-as find gateway_ready ====='; cat /tmp/gwfind.txt; echo '===== find stderr ====='; cat /tmp/gwerr.txt
-            grep -q "gateway_ready" /tmp/gwfind.txt && echo 'E2E: gateway 内置页已渲染 remember_gateway 落标记命中' || { echo 'E2E: WebView 未执行内置 gateway JS 无 gateway_ready 标记'; exit 1; }
+            i=0; FOUND=""; while [ "$i" -lt 10 ]; do i=$((i+1)); adb shell "run-as ${APP_ID} find . -name gateway_ready -print" > /tmp/gwfind.txt 2>/tmp/gwerr.txt; if grep -q gateway_ready /tmp/gwfind.txt; then FOUND=1; break; fi; sleep 4; done; echo 'find stdout:'; cat /tmp/gwfind.txt; echo 'find stderr:'; cat /tmp/gwerr.txt; test -n "$FOUND" && echo 'E2E: gateway 内置页已渲染 remember_gateway 落标记命中' || { echo 'E2E: 40s 内未见 gateway_ready 附 logcat 取证'; adb logcat -d | grep -iE 'tauri|chromium|webview|System.err|Console|apability|enied|emember_gateway|denied' | tail -60; exit 1; }
             echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
             adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见 crash buffer'; exit 1; } || true
             echo 'E2E: 装包-启动-前台-WebView渲染gateway-无崩溃 全部通过'
