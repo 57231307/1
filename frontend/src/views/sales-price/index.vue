@@ -30,6 +30,15 @@
           <el-icon><Download /></el-icon>
           {{ t('salesPrice.index.buttonExport') }}
         </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="spProc.approvedDownloading"
+          @click="spProc.handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ t('exportApprovals.downloadMine') }}
+        </el-button>
       </div>
     </div>
 

@@ -36,6 +36,15 @@
           <el-icon><Download /></el-icon>
           {{ t('supplier.index.button.export') }}
         </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ t('exportApprovals.downloadMine') }}
+        </el-button>
       </div>
     </div>
 
@@ -260,9 +269,11 @@ const handleSubmit = async () => {
 
 // 供应商清单属敏感导出：后端 GET /purchase/suppliers/export 以 download_token 做
 // fail-closed 审批令牌校验，直连必 403。导出按钮改为提交审批申请（useExportApproval
-// 统一入口，参数形状由 constants/export-approval 注册表收敛），批准后在「导出审批」页
-// 凭一次性令牌集中下载；estimated_rows 传当前筛选命中总数。
-const { exportSubmitting, requestExport } = useExportApproval();
+// 统一入口，参数形状由 constants/export-approval 注册表收敛），estimated_rows 传当前
+// 筛选命中总数。批准后由「下载我的导出」按钮在本页就地下载（downloadApprovedExport
+// 拉取本人该资源下可用令牌申请，不再集中到审批页下载）。
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
 const handleExport = () =>
   requestExport(
     'supplier',
@@ -274,6 +285,7 @@ const handleExport = () =>
     },
     total.value
   );
+const handleDownloadMine = () => downloadApprovedExport('supplier');
 
 const handlePrint = () => {
   printData({

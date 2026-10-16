@@ -15,6 +15,14 @@
         >
           <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
         </el-button>
+        <!-- 就地下载本人在 finance_report 资源下已批准的导出（按申请落库 report_type 解析端点） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>{{ t('exportApprovals.downloadMine') }}
+        </el-button>
       </div>
     </div>
 
@@ -803,11 +811,13 @@ const handlePrint = () => {
 /**
  * 财务报表属敏感导出：后端六个报表导出端点均要求 download_token（fail-closed，
  * 无令牌必 403）。导出按钮改为提交导出审批申请（useExportApproval 统一入口），
- * export_params 落 report_type + 该报表端点真实读取的筛选键；审批通过后在
- * 「导出审批」页由 constants/export-approval 注册表把 report_type 解析到对应
- * 报表导出端点，凭一次性令牌下载带水印 xlsx。
+ * export_params 落 report_type + 该报表端点真实读取的筛选键；审批通过后由「下载我的
+ * 导出」按钮在本页就地下载（downloadApprovedExport 拉取本人 finance_report 资源下
+ * 可用令牌申请，由注册表把该申请落库的 report_type 解析到对应报表导出端点，凭一次性
+ * 令牌下载带水印 xlsx，不再集中到审批页下载）。
  */
-const { exportSubmitting, requestExport } = useExportApproval();
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
 const handleExport = () => {
   if (!hasData.value) {
     ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'));
@@ -819,6 +829,7 @@ const handleExport = () => {
     subject_code: queryForm.subject_code,
   });
 };
+const handleDownloadMine = () => downloadApprovedExport('finance_report');
 </script>
 
 <style scoped>

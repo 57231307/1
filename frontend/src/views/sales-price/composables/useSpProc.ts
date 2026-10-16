@@ -105,9 +105,11 @@ export function useSpProc(refresh: RefreshCallbacks) {
    * 导出价目表：敏感资源，后端 GET /sales/sales-prices/export 以 download_token 做
    * fail-closed 审批令牌校验，直连必 403。改为提交导出审批申请（useExportApproval
    * 统一入口，参数形状由 constants/export-approval 注册表收敛为列表同口径筛选
-   * product_id/customer_id/keyword/status），批准后在「导出审批」页凭一次性令牌下载。
+   * product_id/customer_id/keyword/status），审批通过后由「下载我的导出」动作在本页
+   * 就地下载（downloadApprovedExport 拉取本人 price_list 资源下可用令牌申请）。
    */
-  const { exportSubmitting, requestExport } = useExportApproval();
+  const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+    useExportApproval();
   const handleExport = () => {
     const filters = refresh.getQueryParams?.() ?? {};
     return requestExport('price_list', {
@@ -117,11 +119,14 @@ export function useSpProc(refresh: RefreshCallbacks) {
       status: filters.status,
     });
   };
+  const handleDownloadMine = () => downloadApprovedExport('price_list');
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
     // 导出审批申请提交状态（供按钮 loading）
     exportSubmitting,
+    // 就地下载本人已批准导出状态（供按钮 loading）
+    approvedDownloading,
     // 查看
     viewDialogVisible,
     viewData,
@@ -134,5 +139,6 @@ export function useSpProc(refresh: RefreshCallbacks) {
     handleApprove,
     handleReject,
     handleExport,
+    handleDownloadMine,
   });
 }

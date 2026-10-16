@@ -102,6 +102,15 @@
             <el-icon><Download /></el-icon>
             {{ $t('auditLog.filter.exportCsv') }}
           </el-button>
+          <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+          <el-button
+            v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+            :loading="approvedDownloading"
+            @click="handleDownloadMine"
+          >
+            <el-icon><Download /></el-icon>
+            {{ $t('exportApprovals.downloadMine') }}
+          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -450,12 +459,14 @@ const handleViewDetail = async (row: AuditLogItem) => {
 
 /**
  * 导出审计日志：改为提交导出审批申请（useExportApproval 统一入口，参数形状由
- * constants/export-approval 注册表收敛），批准后在「导出审批」页凭一次性令牌集中
- * 下载带水印 xlsx；后端下载端点自带导出行为二次审计闭环。
+ * constants/export-approval 注册表收敛），批准后由「下载我的导出」按钮在本页就地下载
+ * 带水印 xlsx（downloadApprovedExport 拉取本人该资源下可用令牌申请，不再集中到审批页
+ * 下载）；后端下载端点自带导出行为二次审计闭环。
  * 参数与 syncQueryParams 对齐：dateRange → start_time/end_time +
  * operation_type/severity/resource_type/request_id/keyword
  */
-const { exportSubmitting, requestExport } = useExportApproval();
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
 const handleExport = () => {
   const params: Record<string, unknown> = {
     operation_type: filterForm.operation_type,
@@ -470,6 +481,7 @@ const handleExport = () => {
   }
   return requestExport('audit_log', params, total.value);
 };
+const handleDownloadMine = () => downloadApprovedExport('audit_log');
 
 /**
  * 格式化 JSON 字段（无值时显示占位符）

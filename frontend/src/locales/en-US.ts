@@ -1512,7 +1512,7 @@ export default {
     exportFailedReason: 'Export failed: {reason}',
     exportRequestSubmitted: 'Export approval request submitted, current status: {status}',
     exportApprovalSubmittedGuide:
-      'Export request submitted. After approval, download the file with your token on the Export Approvals page',
+      'Export request submitted. After approval, return to this resource list page and click "Download My Export" to get the file',
     docNoGenerateFailed:
       'Failed to generate document no. (prefix {prefix} collided {maxRetry} times), please retry or contact the administrator',
     networkError: 'Network error',
@@ -11164,7 +11164,11 @@ export default {
     pendingApproval: 'Pending My Approval',
     createRequest: 'Create Export Request',
     verifyToken: 'Verify Token',
-    download: 'Download',
+    downloadMine: 'Download My Export',
+    noApprovedExport:
+      'No approved export is available to download; submit a request and wait for approval',
+    tokenExhausted:
+      'The export token has been used up or expired; please submit a new export request',
     detailTitle: 'Approval Detail',
     createTitle: 'Create Export Request',
     verifyTitle: 'Download Token Verification',
@@ -11186,6 +11190,9 @@ export default {
     logEndpointFailed: 'Failed to resolve export download endpoint',
     logDownloaded: 'Export file downloaded (request #{id})',
     logDownloadFailed: 'Failed to download export file (request #{id})',
+    logDownloadNoUser: 'Current user identity is unavailable, inline export download was blocked',
+    logDownloadListFailed: 'Failed to query downloadable approved exports',
+    logDownloadNone: 'The current user has no downloadable inline export for resource {resource}',
     statusPending: 'Pending approval',
     statusPendingL2: 'Pending second-level approval',
     statusExpired: 'Expired',

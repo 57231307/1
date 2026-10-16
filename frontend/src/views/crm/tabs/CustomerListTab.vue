@@ -32,6 +32,15 @@
           <el-icon><Download /></el-icon>
           {{ $t('crmCustomer.export') }}
         </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ $t('exportApprovals.downloadMine') }}
+        </el-button>
         <el-button @click="router.push('/crm/pool')">
           <el-icon><Coin /></el-icon>
           {{ $t('crmCustomer.pool') }}
@@ -829,10 +838,12 @@ const viewDetail = (id: number) => {
  * 导出客户清单：敏感资源，后端 GET /crm/customers/export 以 download_token 做
  * fail-closed 审批令牌校验，直连必 403。改为提交导出审批申请（useExportApproval
  * 统一入口，参数形状由 constants/export-approval 注册表收敛为 status/customer_type/
- * keyword），批准后在「导出审批」页凭一次性令牌集中下载；estimated_rows 传当前
- * 筛选命中总数，决定后端风险等级与审批层级。
+ * keyword），estimated_rows 传当前筛选命中总数，决定后端风险等级与审批层级。批准后
+ * 由「下载我的导出」按钮在本页就地下载（downloadApprovedExport 拉取本人该资源下
+ * 可用令牌申请，不再集中到审批页下载）。
  */
-const { exportSubmitting, requestExport } = useExportApproval();
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
 const handleExport = () =>
   requestExport(
     'customer',
@@ -843,6 +854,7 @@ const handleExport = () =>
     },
     total.value
   );
+const handleDownloadMine = () => downloadApprovedExport('customer');
 
 const handlePrint = () => {
   const printWindow = window.open('', '_blank');

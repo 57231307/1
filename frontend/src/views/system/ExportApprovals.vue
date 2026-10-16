@@ -92,15 +92,10 @@
         <ElTableColumn :label="$t('common.action')" width="320" fixed="right">
           <template #default="{ row }">
             <ElButton size="small" @click="openDetail(row)">{{ $t('common.detail') }}</ElButton>
-            <!-- 集中下载：申请人本人 + 已批准 + 持有一次性令牌且未用尽 -->
-            <ElButton
-              v-if="canDownloadRow(row)"
-              type="success"
-              size="small"
-              :loading="downloadingId === row.id"
-              @click="handleDownload(row)"
-              >{{ $t('exportApprovals.download') }}</ElButton
-            >
+            <!--
+              申请人下载已迁各资源导出页就地进行（composables/useExportApproval.downloadApprovedExport），
+              本页仅保留审批职能（批准/驳回/撤销与待办列表），不再提供集中下载按钮。
+            -->
             <ElButton
               v-if="row.status === 'pending' || row.status === 'pending_l2'"
               v-permission="EXPORT_APPROVAL_APPROVE_PERMISSION_KEY"
@@ -223,12 +218,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { msg } from '@/utils/message';
-import { downloadExportWithToken } from '@/utils/export';
 import {
   listApprovals,
   listPendingForMe,
@@ -240,7 +234,6 @@ import {
   cancelRequest,
 } from '@/api/export-approvals';
 import type { ExportApprovalRequest, ListApprovalQuery } from '@/api/export-approvals';
-import type { ExportDownloadTarget } from '@/constants/export-approval';
 import {
   EXPORT_APPROVAL_STATUSES,
   EXPORT_APPROVAL_STATUS_LABEL_KEYS,
@@ -252,16 +245,10 @@ import {
   exportApprovalResourceLabelKey,
   exportApprovalStatusLabelKey,
   exportApprovalStatusTagType,
-  resolveExportDownloadTarget,
-  pickExportQueryParams,
 } from '@/constants/export-approval';
-import { useUserStore } from '@/store/user';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
-
-const userStore = useUserStore();
-const myUserId = computed(() => userStore.userInfo?.id);
 
 const list = ref<ExportApprovalRequest[]>([]);
 const loading = ref(false);
@@ -387,53 +374,8 @@ const handleVerifyToken = async () => {
   }
 };
 
-// ===== 申请人集中下载（凭一次性令牌调注册表解析出的资源导出端点） =====
-const downloadingId = ref<number | null>(null);
-
-// 令牌一次性：max_downloads 默认 1，download_count 达上限后不可再用；
-// 下载端点校验令牌归属与资源类型由后端权威判定，前端只按出参字段控制按钮可达性，
-// 不自行比对时间（避免客户端时钟偏差误判）
-const canDownloadRow = (row: ExportApprovalRequest): boolean =>
-  row.applicant_user_id === myUserId.value &&
-  row.status === 'approved' &&
-  row.download_token !== null &&
-  row.download_count < row.max_downloads;
-
-const handleDownload = async (row: ExportApprovalRequest) => {
-  const token = row.download_token;
-  // 模板已按 canDownloadRow 门控，此处收窄类型并防御直达调用
-  if (!token) return;
-  downloadingId.value = row.id;
-  try {
-    // 端点解析失败（如 finance_report 申请缺 report_type）单独外显，不进入下载分支
-    let target: ExportDownloadTarget;
-    try {
-      target = resolveExportDownloadTarget(row.resource_type, row.export_params);
-    } catch (error) {
-      logger.error(t('exportApprovals.logEndpointFailed'), error);
-      ElMessage.error(
-        error instanceof Error && error.message
-          ? error.message
-          : t('exportApprovals.logEndpointFailed')
-      );
-      return;
-    }
-    await downloadExportWithToken({
-      apiPath: target.apiPath,
-      params: pickExportQueryParams(row.resource_type, row.export_params),
-      token,
-      filenamePrefix: target.filenamePrefix,
-    });
-    logger.info(t('exportApprovals.logDownloaded', { id: row.id }));
-  } catch (error) {
-    // 失败原因已由 downloadExportWithToken 按后端信封外显，此处留痕
-    logger.error(t('exportApprovals.logDownloadFailed', { id: row.id }), error);
-  } finally {
-    downloadingId.value = null;
-    // 令牌用后即消费（download_count 变化），无论成败都回源刷新真实状态
-    await loadList();
-  }
-};
+// 申请人下载已迁各资源导出页就地（composables/useExportApproval.downloadApprovedExport），
+// 本页仅保留审批职能（批准/驳回/撤销 + 待办列表 + 令牌校验/复制），不再实现集中下载。
 
 const handleApprove = async (row: ExportApprovalRequest) => {
   try {
