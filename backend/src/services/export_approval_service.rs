@@ -21,8 +21,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::export_approval_request::{
-    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus,
-    Column, Entity, ExportParams, Model, RiskLevel,
+    ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus, Column, Entity,
+    ExportParams, Model, RiskLevel, sensitive_resources,
 };
 use crate::utils::error::AppError;
 

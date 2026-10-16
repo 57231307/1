@@ -17,7 +17,7 @@ const mockRequestGet = vi.fn();
 const mockRequestPost = vi.fn();
 const mockGetAuditLog = vi.fn();
 
-// 批次 267：mock @/api/request（useTableApi 内部调用 request.get；
+// mock @/api/request（useTableApi 内部调用 request.get；
 // 敏感导出改走审批申请后，导出按钮经 createApproval 调用 request.post）
 // 返回 ApiResponse 包装结构 { code, message, data: { items, total } }
 vi.mock('@/api/request', () => ({
