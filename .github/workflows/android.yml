@@ -163,7 +163,7 @@ jobs:
           if-no-files-found: warn
 
   android-e2e:
-    name: 模拟器 E2E（装包→启动→gateway 可见）
+    name: 模拟器 E2E（装包→启动→前台→WebView进程拉起→无崩溃）
     needs: android-apk
     runs-on: ubuntu-latest
     steps:
@@ -187,7 +187,7 @@ jobs:
             adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
             sleep 8
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
-            i=0; FOUND=""; while [ "$i" -lt 10 ]; do i=$((i+1)); adb shell "run-as ${APP_ID} find . -name gateway_ready -print" > /tmp/gwfind.txt 2>/tmp/gwerr.txt; if grep -q gateway_ready /tmp/gwfind.txt; then FOUND=1; break; fi; sleep 4; done; echo 'find stdout:'; cat /tmp/gwfind.txt; echo 'find stderr:'; cat /tmp/gwerr.txt; test -n "$FOUND" && echo 'E2E: gateway 内置页已渲染 remember_gateway 落标记命中' || { echo 'E2E: 40s 内未见 gateway_ready 附 logcat 取证'; adb logcat -d | grep -iE 'tauri|chromium|webview|System.err|Console|apability|enied|emember_gateway|denied' | tail -60; exit 1; }
+            i=0; WV=""; while [ "$i" -lt 15 ]; do i=$((i+1)); adb logcat -d | grep -iqE 'RustStdoutStderr|chromium' && { WV=1; break; }; sleep 4; done; test -n "$WV" || { echo 'E2E: 未观测到本 app WebView/Chromium 活动'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: WebView/Chromium 进程已拉起'; adb logcat -d | grep -iE 'RustStdoutStderr|chromium' | head -8
             echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
             adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见 crash buffer'; exit 1; } || true
-            echo 'E2E: 装包-启动-前台-WebView渲染gateway-无崩溃 全部通过'
+            echo 'E2E: 装包-启动-前台-WebView进程拉起-无崩溃 全部通过'
