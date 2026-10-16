@@ -1,4 +1,4 @@
-# layers=8 endpoints=1778
+# layers=8 endpoints=1781
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -343,6 +343,8 @@ GET	/api/v1/erp/color-prices/customer-special	color_price_handler::list_customer
 GET	/api/v1/erp/color-prices/seasonal-rules	color_price_handler::list_seasonal_rules	color_price
 GET	/api/v1/erp/color-prices/seasonal-rules/*	color_price_handler::get_seasonal_rule	color_price
 GET	/api/v1/erp/color-prices/tiers/*	color_price_handler::list_tiers	color_price
+GET	/api/v1/erp/company-profile	company_profile_handler::get_company_profile	system
+GET	/api/v1/erp/company-profile/full	company_profile_handler::get_company_profile_full	system
 GET	/api/v1/erp/contract-signatures	contract_signature_handler::list_signed_contracts	contract_signature
 GET	/api/v1/erp/contract-signatures/*/verify	contract_signature_handler::verify_signature	contract_signature
 GET	/api/v1/erp/crm/assignments	crm_assignment_handler::list_assignments	crm
@@ -1653,6 +1655,7 @@ PUT	/api/v1/erp/color-cards/*	color_card::update_color_card	color_card
 PUT	/api/v1/erp/color-cards/*/items/*	color_card::update_color_item	color_card
 PUT	/api/v1/erp/color-prices/*	color_price_handler::update_color_price	color_price
 PUT	/api/v1/erp/color-prices/seasonal-rules/*	color_price_handler::update_seasonal_rule	color_price
+PUT	/api/v1/erp/company-profile/full	company_profile_handler::update_company_profile_full	system
 PUT	/api/v1/erp/crm/customer-credits/*	customer_credit_handler::update_credit	crm
 PUT	/api/v1/erp/crm/customers/*	customer_handler::update_customer	crm
 PUT	/api/v1/erp/crm/customers/*/addresses/*	customer_address_handler::update_customer_address	crm
