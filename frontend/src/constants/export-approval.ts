@@ -56,6 +56,13 @@ export function normalizeExportApprovalStatus(status: string): ExportApprovalSta
   if ((EXPORT_APPROVAL_STATUSES as readonly string[]).includes(status)) {
     return status as ExportApprovalStatus;
   }
+  // [PROBE 临时诊断·定位后整段删除] 用 console.error 打出真实调用栈，
+  // 让 e2e 采集器在 playwright-output.txt 回传"是谁以非法/缺省 status 调用本函数"。
+  console.error('[PROBE-export-approval-status]', {
+    status,
+    typeofStatus: typeof status,
+    stack: new Error().stack,
+  });
   const message =
     '未识别的导出审批状态 ' +
     status +
