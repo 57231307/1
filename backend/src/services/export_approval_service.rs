@@ -21,8 +21,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::export_approval_request::{
-    ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus, Column, Entity,
-    ExportParams, Model, RiskLevel, sensitive_resources,
+    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus,
+    Column, Entity, ExportParams, Model, RiskLevel,
 };
 use crate::utils::error::AppError;
 
@@ -189,11 +189,18 @@ impl ExportApprovalService {
     }
 
     /// 审批通过（一级或二级）
-    /// V15 主线审计 Critical 修复：拆分“目标层级 target_level”和“当前审批步骤 current_approval_step”。
-    /// - 首次审批后若 target_level == 2，状态进入 pending_l2（仅等二级审批人介入），并把 current_approval_step 置 2；
+    ///
+    /// 是否可执行审批（含申请人自批）由调用方持有的 RBAC 权限键 `export-approvals:approve`
+    /// 决定，路由中间件在到达本方法前已完成校验；service 层不再对”审批人 = 申请人”
+    /// 做无条件硬拒。
+    ///
+    /// 审批流程（V15 主线审计 Critical 修复）：
+    /// - 首次审批后若 target_level == 2，状态进入 pending_l2（仅等二级审批人介入），
+    ///   并把 current_approval_step 置 2；
     /// - 二级审批通过后才生成下载 token；
     /// - 一级审批（target_level == 1）通过即直接生成 token。
-    /// 实现细节：current_approval_step 复用现有 `context` JSON 字段存储（避免在本轮加迁移），
+    ///
+    /// current_approval_step 复用现有 `context` JSON 字段存储（避免在本轮加迁移），
     /// 默认 1；若不存在则视为 1。
     pub async fn approve(
         &self,
@@ -219,13 +226,6 @@ impl ExportApprovalService {
                 "审批请求状态为 {}，仅 pending/pending_l2 状态可审批",
                 model.status
             )));
-        }
-
-        // 校验审批人不能是申请人本人（防自审批）
-        if model.applicant_user_id == approver_user_id {
-            return Err(AppError::permission_denied(
-                "审批人不能是申请人本人（防自审批）",
-            ));
         }
 
         let now = Utc::now();
@@ -280,6 +280,10 @@ impl ExportApprovalService {
     }
 
     /// 审批拒绝
+    ///
+    /// 是否可执行拒绝（含申请人自拒）由调用方持有的 RBAC 权限键 `export-approvals:reject`
+    /// 决定，路由中间件在到达本方法前已完成校验；service 层不再对"审批人 = 申请人"
+    /// 做无条件硬拒。
     pub async fn reject(
         &self,
         approval_id: i64,
@@ -303,12 +307,6 @@ impl ExportApprovalService {
                 "审批请求状态为 {}，仅 pending/pending_l2 状态可拒绝",
                 model.status
             )));
-        }
-
-        if model.applicant_user_id == approver_user_id {
-            return Err(AppError::permission_denied(
-                "审批人不能是申请人本人（防自审批）",
-            ));
         }
 
         let now = Utc::now();
