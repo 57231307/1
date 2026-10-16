@@ -44,7 +44,7 @@ async fn render_print_docx(
     let layout =
         crate::handlers::print_task_handler::resolve_print_docx_layout(&*state.db, doc_type)
             .await?;
-    let bytes = service.generate_docx(&print_data, &layout)?;
+    let bytes = service.generate_docx(&print_data, &layout).await?;
     let filename = format!("{}_{}", doc_type, doc_id);
     Ok(crate::utils::docx_export::docx_response(bytes, &filename))
 }

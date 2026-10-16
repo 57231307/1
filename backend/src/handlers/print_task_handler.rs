@@ -476,7 +476,7 @@ async fn run_print_job(
 
     let service = PrintService::new(db.clone());
     let print_data = service.get_print_data(&doc_type, doc_id as i32).await?;
-    let bytes = service.generate_docx(&print_data, &layout)?;
+    let bytes = service.generate_docx(&print_data, &layout).await?;
 
     let config = global_print_config();
     // dispatch_task 无论成功/失败均驱动到终态并返回 Ok（仅落库失败才 Err）；此处透传其结果。
