@@ -242,6 +242,16 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
 
     // 产品参照 + 两条销售订单明细行：用于钉死建单行绑定的 fail-closed 校验
     // （SO_ITEM_OWN 挂 SO_OWN、SO_ITEM_CROSS 挂 SO_CROSS；SO_ITEM_MISSING 故意不播种）。
+    //
+    // 明细行必须逐列给全 `sales_order_item::Model` 的非 Option 字段（对照生产写入方
+    // `services/so/order_crud.rs:373 build_sales_order_item_active_model` 的口径）：
+    // SeaORM `ActiveModel::insert` 走 `INSERT … RETURNING` 后按整个 Model 解码
+    // （sea-orm-2.0.2 `entity/active_model.rs:232 exec_with_returning`），任一非 Option
+    // 列（discount_percent/tax_percent/tax_amount/discount_amount/total_amount/
+    // shipped_quantity/quantity_meters/quantity_kg/color_extra_cost/grade_price_diff/
+    // shipped_quantity_meters/shipped_quantity_kg）留 NotSet 落 NULL 都会在回解码处
+    // 直接返回 Err——夹具若缺这些列，种子行本身就无法被本文件后续
+    // `sales_order_item::Entity` 读回路径（service 行校验、发货门禁按行匹配）消费。
     product::ActiveModel {
         id: Set(PRODUCT_ID),
         code: Set("P-SCOPE".to_string()),
@@ -269,9 +279,21 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
             color_no: Set(color_no.to_string()),
             quantity: Set(Decimal::ONE),
             unit_price: Set(Decimal::ONE),
+            discount_percent: Set(Decimal::ZERO),
+            tax_percent: Set(Decimal::ZERO),
             subtotal: Set(Decimal::ONE),
+            tax_amount: Set(Decimal::ZERO),
+            discount_amount: Set(Decimal::ZERO),
+            total_amount: Set(Decimal::ONE),
+            shipped_quantity: Set(Decimal::ZERO),
             created_at: Set(now),
             updated_at: Set(now),
+            quantity_meters: Set(Decimal::ZERO),
+            quantity_kg: Set(Decimal::ZERO),
+            color_extra_cost: Set(Decimal::ZERO),
+            grade_price_diff: Set(Decimal::ZERO),
+            shipped_quantity_meters: Set(Decimal::ZERO),
+            shipped_quantity_kg: Set(Decimal::ZERO),
             ..Default::default()
         }
         .insert(db)
@@ -726,9 +748,21 @@ async fn bca_ship_gate_blocks_only_involved_nonapproved_row() {
             color_no: Set(color.to_string()),
             quantity: Set(Decimal::ONE),
             unit_price: Set(Decimal::ONE),
+            discount_percent: Set(Decimal::ZERO),
+            tax_percent: Set(Decimal::ZERO),
             subtotal: Set(Decimal::ONE),
+            tax_amount: Set(Decimal::ZERO),
+            discount_amount: Set(Decimal::ZERO),
+            total_amount: Set(Decimal::ONE),
+            shipped_quantity: Set(Decimal::ZERO),
             created_at: Set(now),
             updated_at: Set(now),
+            quantity_meters: Set(Decimal::ZERO),
+            quantity_kg: Set(Decimal::ZERO),
+            color_extra_cost: Set(Decimal::ZERO),
+            grade_price_diff: Set(Decimal::ZERO),
+            shipped_quantity_meters: Set(Decimal::ZERO),
+            shipped_quantity_kg: Set(Decimal::ZERO),
             ..Default::default()
         }
         .insert(&*db)
