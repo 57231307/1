@@ -20,7 +20,7 @@
         <div class="permission-panel">
           <div class="panel-header">
             <h3>{{ currentRoleName }} - {{ t('dataPermission.index.titlePermission') }}</h3>
-            <el-button type="primary" @click="handleAddPermission">{{
+            <el-button v-if="isAdmin" type="primary" @click="handleAddPermission">{{
               t('dataPermission.index.buttonAddPermission')
             }}</el-button>
           </div>
@@ -67,14 +67,14 @@
             <el-table-column :label="t('dataPermission.index.colOperation')" width="150">
               <template #default="{ row }">
                 <el-button
-                  v-permission="'data_permission:update'"
+                  v-if="isAdmin"
                   link
                   type="primary"
                   @click="handleEditPermission(row as DataPermissionRow)"
                   >{{ t('dataPermission.index.buttonEdit') }}</el-button
                 >
                 <el-button
-                  v-permission="'data_permission:delete'"
+                  v-if="isAdmin"
                   link
                   type="danger"
                   @click="handleDeletePermission(row as DataPermissionRow)"
@@ -111,15 +111,12 @@
             :placeholder="t('dataPermission.index.placeholderSelect')"
             style="width: 100%"
           >
-            <el-option :label="t('dataPermission.index.optionCustomer')" value="customer" />
-            <el-option :label="t('dataPermission.index.optionSupplier')" value="supplier" />
-            <el-option :label="t('dataPermission.index.optionSalesOrder')" value="sales_order" />
             <el-option
-              :label="t('dataPermission.index.optionPurchaseOrder')"
-              value="purchase_order"
+              v-for="resourceType in resourceTypeOptions"
+              :key="resourceType.value"
+              :label="resourceType.label"
+              :value="resourceType.value"
             />
-            <el-option :label="t('dataPermission.index.optionInventory')" value="inventory" />
-            <el-option :label="t('dataPermission.index.optionFinance')" value="finance" />
           </el-select>
         </el-form-item>
         <el-form-item :label="t('dataPermission.index.colScopeType')" prop="scope_type">
@@ -190,11 +187,13 @@ import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
+import { useUserStore } from '@/store/user';
 import {
   getRoleDataPermissionList,
-  getDataPermissionByRole,
+  getDataPermission,
   setDataPermission,
-  deleteDataPermissionByRole,
+  deleteDataPermission,
+  getResourceTypes,
   getScopeTypeList,
   DEFAULT_SCOPE_TYPES,
   type DataPermissionRole,
@@ -204,16 +203,46 @@ import {
   type HiddenFields,
   type DataPermissionRow,
 } from '@/api/data-permission';
+import {
+  FALLBACK_DATA_PERMISSION_RESOURCE_TYPES,
+  dataPermissionResourceTypeLabelKey,
+} from '@/constants/data-permission-resource';
 import { getRoleList } from '@/api/role';
 
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
+
+// 数据权限写操作（列表/编辑/删除/新增）在后端 require_admin_role 门控下仅管理员可用。
+// 前端据后端注入的 `*:*` 超级通配权限（管理员角色专属）判定 admin，与 admin-only 现实对齐，
+// 不再用按角色的死权限键假装可授权；非 admin 隐藏入口，后端 fail-closed 403 时也不再误报为缺陷。
+const isAdmin = computed(() =>
+  (userStore.userInfo?.permissions || []).some(perm => perm === '*:*')
+);
 
 const roleList = ref<Array<{ id: number; name: string }>>([]);
 const selectedRoleId = ref('1');
 const permissionList = ref<DataPermissionRole[]>([]);
 const scopeTypeList = ref<ScopeType[]>([]);
+// resource_type 下拉候选，来自后端资源类型接口（失败时以兜底常量填充）
+const resourceTypes = ref<string[]>([]);
 
-// v11 P1-5 修复：动态加载角色列表，避免硬编码
+const resourceTypeLabel = (value: string): string => {
+  const labelKey = dataPermissionResourceTypeLabelKey(value);
+  return labelKey ? t(labelKey) : value;
+};
+
+const resourceTypeOptions = computed(() =>
+  resourceTypes.value.map(value => ({ value, label: resourceTypeLabel(value) }))
+);
+
+// 后端把自定义条件/字段列表以 JSON（对象或数组）落库，编辑回显需转成缩进 JSON 文本填入 textarea，
+// 空值转空串；提交时再解析回对象/数组类型。
+const fieldTextFromValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === '') return '';
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+};
+
+// 动态加载角色列表，避免硬编码
 const fetchRoles = async () => {
   try {
     const res = await getRoleList();
@@ -267,10 +296,10 @@ const fetchPermissions = async () => {
   try {
     const res = await getRoleDataPermissionList(parseInt(selectedRoleId.value));
     if (res.data) {
-      // 安全检查：防止后端返回 data 为 null 时崩溃
-      permissionList.value = res.data || [];
+      // 后端按角色列表返回裸数组，data 非空时直接使用
+      permissionList.value = res.data;
     }
-  } catch (e) {
+  } catch {
     ElMessage.error(t('dataPermission.index.messageLoadPermissionsFailed'));
   }
 };
@@ -284,12 +313,38 @@ const fetchScopeTypes = async () => {
       scopeTypeList.value = DEFAULT_SCOPE_TYPES;
     }
   } catch (e) {
-    // v11 P1-5 修复：API 失败时使用 API 层常量兜底，并告知用户
+    // 接口不可用时用兜底常量，并告知用户
     scopeTypeList.value = DEFAULT_SCOPE_TYPES;
     const err = e as Error;
     ElMessage.warning(
       `${t('dataPermission.index.messageLoadScopeTypesFailed')}${err.message || t('dataPermission.index.messageUnknownError')}`
     );
+  }
+};
+
+const fetchResourceTypes = async () => {
+  try {
+    const res = await getResourceTypes();
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      resourceTypes.value = res.data;
+    } else {
+      // 接口返回空或非数组属契约异常，不静默当空下拉，用兜底常量并留痕
+      resourceTypes.value = FALLBACK_DATA_PERMISSION_RESOURCE_TYPES;
+      logger.warn(t('dataPermission.index.messageResourceTypesEmpty'));
+    }
+  } catch (e) {
+    // 接口不可用时用兜底常量，避免下拉候选变空导致无法新增权限
+    resourceTypes.value = FALLBACK_DATA_PERMISSION_RESOURCE_TYPES;
+    const err = e as Error;
+    logger.warn(
+      `${t('dataPermission.index.messageLoadResourceTypesFailed')}${err.message || t('dataPermission.index.messageUnknownError')}`
+    );
+  }
+  // 校验词表漂移：接口返回的 token 若不在文案映射内，原样显示并告警，不猜含义
+  for (const value of resourceTypes.value) {
+    if (!dataPermissionResourceTypeLabelKey(value)) {
+      logger.warn(`${t('dataPermission.index.messageUnknownResourceType')}${value}`);
+    }
   }
 };
 
@@ -300,13 +355,15 @@ const handleSelectRole = (roleId: string) => {
 
 const handleAddPermission = () => {
   isEdit.value = false;
+  // 新增复位为 snake_case（与 permissionForm 声明一致），并清空主键避免先编辑后新增时残留上次记录
   Object.assign(permissionForm, {
-    roleId: parseInt(selectedRoleId.value),
-    resourceType: '',
-    scopeType: '',
-    customCondition: '',
-    allowedFields: '',
-    hiddenFields: '',
+    id: undefined,
+    role_id: parseInt(selectedRoleId.value),
+    resource_type: '',
+    scope_type: '',
+    custom_condition: '',
+    allowed_fields: '',
+    hidden_fields: '',
   });
   permissionDialogVisible.value = true;
 };
@@ -315,12 +372,9 @@ const handleEditPermission = async (row: DataPermissionRow) => {
   isEdit.value = true;
   let source: DataPermissionRole = row;
   try {
-    // 编辑前按角色+资源类型回源最新权限配置
-    const res = await getDataPermissionByRole(
-      row.role_id ?? parseInt(selectedRoleId.value),
-      row.resource_type ?? ''
-    );
-    if (res.data) source = res.data as DataPermissionRole;
+    // 编辑前按主键回源最新权限配置（by-id 端点，可见性过滤后可能为 null，保留行数据兜显）
+    const res = await getDataPermission(row.id);
+    if (res.data) source = res.data;
   } catch (error) {
     logger.error(t('dataPermission.index.messageDetailFailed'), error);
   }
@@ -329,9 +383,9 @@ const handleEditPermission = async (row: DataPermissionRow) => {
     role_id: source.role_id,
     resource_type: source.resource_type,
     scope_type: source.scope_type,
-    custom_condition: (source.custom_condition as unknown as string) || '',
-    allowed_fields: (source.allowed_fields as unknown as string) || '',
-    hidden_fields: (source.hidden_fields as unknown as string) || '',
+    custom_condition: fieldTextFromValue(source.custom_condition),
+    allowed_fields: fieldTextFromValue(source.allowed_fields),
+    hidden_fields: fieldTextFromValue(source.hidden_fields),
   });
   permissionDialogVisible.value = true;
 };
@@ -342,24 +396,41 @@ const handleSavePermission = async () => {
   await permissionFormRef.value.validate(async (valid: boolean) => {
     if (!valid) return;
 
-    // 表单字段为 JSON 文本，提交前解析为 API 契约对象类型（解析失败直接暴露错误）
-    const parseCondition = (text: string): CustomCondition | undefined => {
+    // role_id 无对话框内选择器（角色取自左侧菜单），在提交边界强制校验，杜绝空值上送
+    const roleId = Number(selectedRoleId.value);
+    if (!Number.isInteger(roleId) || roleId <= 0) {
+      logger.error(t('dataPermission.index.messageRoleNotSelected'));
+      ElMessage.error(t('dataPermission.index.messageRoleNotSelected'));
+      return;
+    }
+
+    // 表单字段为 JSON 文本，提交前解析为 API 契约类型；仅在解析或类型真不符时报错并留痕
+    const parseJsonObject = (text: string): CustomCondition | undefined => {
       if (!text.trim()) return undefined;
-      return JSON.parse(text) as CustomCondition;
+      const parsed = JSON.parse(text) as unknown;
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error(t('dataPermission.index.messageCustomConditionNotObject'));
+      }
+      return parsed as CustomCondition;
     };
-    const parseFieldList = (text: string): AllowedFields | undefined => {
+    const parseJsonArray = (text: string): AllowedFields | undefined => {
       if (!text.trim()) return undefined;
-      const arr = JSON.parse(text) as string[];
-      return Array.isArray(arr) ? arr : undefined;
+      const parsed = JSON.parse(text) as unknown;
+      if (!Array.isArray(parsed)) {
+        throw new Error(t('dataPermission.index.messageFieldListNotArray'));
+      }
+      return parsed as AllowedFields;
     };
     let customCondition: CustomCondition | undefined;
     let allowedFields: AllowedFields | undefined;
     let hiddenFields: HiddenFields | undefined;
     try {
-      customCondition = parseCondition(permissionForm.custom_condition);
-      allowedFields = parseFieldList(permissionForm.allowed_fields);
-      hiddenFields = parseFieldList(permissionForm.hidden_fields);
-    } catch {
+      customCondition = parseJsonObject(permissionForm.custom_condition);
+      allowedFields = parseJsonArray(permissionForm.allowed_fields);
+      hiddenFields = parseJsonArray(permissionForm.hidden_fields);
+    } catch (error) {
+      const err = error as Error;
+      logger.error(t('dataPermission.index.messageJsonInvalid'), err);
       ElMessage.error(t('dataPermission.index.messageJsonInvalid'));
       return;
     }
@@ -368,7 +439,7 @@ const handleSavePermission = async () => {
     try {
       // set_data_permission 为 upsert（按 role_id + resource_type 幂等），编辑与新增同走 POST
       await setDataPermission({
-        role_id: permissionForm.role_id!,
+        role_id: roleId,
         resource_type: permissionForm.resource_type,
         scope_type: permissionForm.scope_type,
         custom_condition: customCondition,
@@ -383,7 +454,6 @@ const handleSavePermission = async () => {
       permissionDialogVisible.value = false;
       fetchPermissions();
     } catch (e: unknown) {
-      // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) ||
           (isEdit.value
@@ -397,9 +467,11 @@ const handleSavePermission = async () => {
 };
 
 const handleDeletePermission = async (row: DataPermissionRow) => {
-  const roleId = row.role_id ?? parseInt(selectedRoleId.value);
-  const resourceType = row.resource_type ?? '';
-  if (!roleId || !resourceType) return;
+  if (!row.id) {
+    logger.error(t('dataPermission.index.messageDeleteNoId'));
+    ElMessage.error(t('dataPermission.index.messageDeleteNoId'));
+    return;
+  }
 
   try {
     await ElMessageBox.confirm(
@@ -412,13 +484,13 @@ const handleDeletePermission = async (row: DataPermissionRow) => {
       }
     );
 
-    // 按角色+资源类型删除
-    await deleteDataPermissionByRole(roleId, resourceType);
+    // 按主键删除（by-id 端点）
+    await deleteDataPermission(row.id);
     ElMessage.success(t('dataPermission.index.messageDeleteSuccess'));
     fetchPermissions();
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
     if (!isDialogDismissal(e)) {
+      logger.error(t('dataPermission.index.messageDeleteFailed'), e);
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) ||
           t('dataPermission.index.messageDeleteFailed')
@@ -430,10 +502,11 @@ const handleDeletePermission = async (row: DataPermissionRow) => {
 const hasLoaded = createLazyLoader();
 
 onMounted(async () => {
-  // 先加载角色列表（fetchRoles 会更新 selectedRoleId），再加载权限和范围类型
+  // 先加载角色列表（fetchRoles 会更新 selectedRoleId），再加载权限、范围类型与资源类型
   await fetchRoles();
   fetchPermissions();
   loadIfNot('scopeTypes', fetchScopeTypes, hasLoaded);
+  loadIfNot('resourceTypes', fetchResourceTypes, hasLoaded);
 });
 </script>
 
