@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, loginAsRole, apiCall, apiCallExpectFail } from './helpers';
+import { loginViaUI, loginAsRole, apiCall } from './helpers';
 
 /**
  * 敏感数据(customer)导出审批流端到端锁测 — flow/82
@@ -8,8 +8,9 @@ import { loginViaUI, loginAsRole, apiCall, apiCallExpectFail } from './helpers';
  * - 创建申请:POST /export-approvals,敏感清单含 customer;新建落库 status=pending
  *   且 download_token 恒为 null(令牌只在最终 approve 时签发);
  *   estimated_rows 低于 1000 命中 risk_level=low,approval_level=1,一次审批即终结。
- * - 审批分离:approve 服务门禁止申请人==审批人(防自批),违反时 403,
- *   统一失败信封 code=FORBIDDEN(脱敏文案,故只钉 status 与 code,不断 message)。
+ * - 审批权限门:能否审批(含申请人自批)由 RBAC 权限键 export-approvals:approve 决定,
+ *   service 层不再对"审批人=申请人"做无条件硬拒;持键者自批同样 2xx 通过,
+ *   并如实记录 approver_user_id(自批时 approver_user_id 等于 applicant_user_id)。
  * - 令牌下发:低风险一级 approve 后返回 status=approved 且 download_token 形如
  *   exp_ + 32 位小写十六进制;GET /export-approvals/verify-token 可复核同一记录。
  * - 带令牌下载:GET /crm/customers/export?download_token=... 必须 200,
@@ -19,13 +20,13 @@ import { loginViaUI, loginAsRole, apiCall, apiCallExpectFail } from './helpers';
  *
  * 角色安排(复用 39b/39d 已在 CI 验证可用的账号面):
  * - 申请人:manager 角色账号(loginAsRole,凭证由 global-setup 角色账号写入);
- * - 审批人与下载人:分片默认 admin 账号(权限中间件对 admin 短路,
+ * - 他人审批与下载:分片默认 admin 账号(权限中间件对 admin 短路,
  *   因此无令牌/跨资源的 403 必然来自 handler 的审批门,不会与权限层混淆);
- * - 自批负例改用 admin 本人申请 + admin 本人审批:admin 权限全通,
- *   403 只能来自服务层"申请人==审批人"这一道门,判据唯一。
+ * - 自批正向用 admin 本人申请 + admin 本人审批:admin 持 export-approvals:approve,
+ *   当前契约下自批应 2xx 通过、状态转 approved 并签发令牌,审批人如实记为申请人本人。
  *
- * 写请求统一走 helpers.apiCall/apiCallExpectFail(内置 CSRF 有界重放,
- * CSRF 竞败不会被误读成业务拒绝);GET 为安全方法不消费 CSRF,下载直连 page.request。
+ * 写请求统一走 helpers.apiCall(内置 CSRF 有界重放,CSRF 竞败不会被误读成业务拒绝,
+ * 业务 4xx/5xx 会抛出真实原因);GET 为安全方法不消费 CSRF,下载直连 page.request。
  * 注释遵循受限字符集,不引用文件行号与批次历史。
  */
 
@@ -183,37 +184,67 @@ test.describe('customer 敏感导出审批链锁测', () => {
     expect(bytes[1], 'xlsx 为 zip 容器,魔数次字节应为 K(0x4b)').toBe(0x4b);
   });
 
-  test('负例:申请人自批被拒(403 FORBIDDEN,非 5xx)', async ({ page }) => {
-    // 以 admin 本人申请再由本人审批:admin 在权限中间件短路,
-    // 该 403 唯一来源是服务层"审批人不能是申请人本人"门,判据不与其他层混淆
-    const res = await apiCall<ApprovalModel>(page, 'POST', '/export-approvals', {
+  test('正向:持审批权限的申请人自批通过(approve 接受 approver==applicant 并签发令牌)', async ({
+    page,
+  }) => {
+    // admin 权限全通且持 export-approvals:approve。按当前契约,自批由 RBAC 权限键决定、
+    // service 层不再无条件硬拒"审批人=申请人",故 admin 本人申请 + 本人审批应 2xx 成功。
+    // 若后端误恢复旧严格分离门,apiCall 会在业务 403 时抛错、真实暴露判红,不会假绿。
+    const created = await apiCall<ApprovalModel>(page, 'POST', '/export-approvals', {
       resource_type: 'customer',
       export_params: {},
       estimated_rows: 5,
       file_format: 'xlsx',
     });
-    const approvalId = res.data?.id;
+    const approvalId = created.data?.id;
     expect(
       approvalId,
-      `admin 创建导出审批申请应返回有效 id:${JSON.stringify(res.data).slice(0, 200)}`
+      `admin 创建导出审批申请应返回有效 id:${JSON.stringify(created.data).slice(0, 200)}`
     ).toBeGreaterThan(0);
-
-    const fail = await apiCallExpectFail(page, 'POST', `/export-approvals/${approvalId}/approve`, {
-      comments: 'E2E 自批负例',
-    });
-    expect(fail.status, `自批应恰为 403,实际 status=${fail.status}`).toBe(403);
+    expect(created.data?.status, '创建后初始状态应为 pending').toBe('pending');
+    const applicantId = created.data?.applicant_user_id;
     expect(
-      fail.code,
-      `自批拒绝码应为 FORBIDDEN(权限族),实际 code=${fail.code} message=${fail.message}`
-    ).toBe('FORBIDDEN');
-    expect(fail.status, '自批拒绝不得退化为 5xx 裸崩').toBeLessThan(500);
+      applicantId,
+      `创建响应应落 applicant_user_id,实际:${JSON.stringify(created.data).slice(0, 200)}`
+    ).not.toBeNull();
 
-    // 尽力取消该 pending 申请,不留悬挂待办;取消失败仅告警不掩盖(记录日志)
-    await apiCall(page, 'POST', `/export-approvals/${approvalId}/cancel`).catch(e => {
-      console.warn(
-        `[82] 取消自批负例遗留申请 ${approvalId} 失败(不阻断断言): ${(e as Error).message}`
-      );
-    });
+    // 同一身份(admin)审批:apiCall 仅在业务失败时抛错,能正常返回即证明 approve 未被拒
+    const approved = (
+      await apiCall<ApprovalModel>(page, 'POST', `/export-approvals/${approvalId}/approve`, {
+        comments: 'E2E 自批正向锁测',
+      })
+    ).data;
+    expect(
+      approved?.status,
+      `持权自批通过后状态应转 approved,实际:${JSON.stringify(approved).slice(0, 200)}`
+    ).toBe('approved');
+    expect(
+      approved?.approver_user_id,
+      `自批应如实记录 approver_user_id,实际:${JSON.stringify(approved).slice(0, 200)}`
+    ).not.toBeNull();
+    expect(approved?.approver_user_id, '自批时审批人应等于申请人(持权自批被接受且如实记录)').toBe(
+      applicantId
+    );
+
+    const token = approved.download_token;
+    expect(
+      token,
+      `自批通过后应签发 download_token,实际:${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeTruthy();
+    expect(
+      String(token),
+      `download_token 应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
+    ).toMatch(/^exp_[0-9a-f]{32}$/);
+
+    // verify-token 复核,证明自批签发的令牌已真实落库并可解析同一记录
+    const verified = await apiCall<ApprovalModel>(
+      page,
+      'GET',
+      `/export-approvals/verify-token?token=${encodeURIComponent(String(token))}`
+    );
+    expect(verified.data?.id, 'verify-token 应命中同一自批申请记录').toBe(approvalId);
+    expect(verified.data?.status, 'verify-token 对自批已签发令牌应返回 approved').toBe('approved');
+    expect(verified.data?.resource_type, 'verify-token 应回显 customer 资源绑定').toBe('customer');
   });
 
   test('负例:不带令牌直接下载 customer 导出 403(fail-closed)', async ({ page }) => {
