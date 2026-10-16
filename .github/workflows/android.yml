@@ -187,9 +187,9 @@ jobs:
             adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
             sleep 8
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
-            adb exec-out uiautomator dump /dev/tty >/tmp/ui.xml 2>/dev/null || adb shell uiautomator dump /sdcard/ui.xml
-            adb exec-out cat /sdcard/window_dump.xml 2>/dev/null | grep -q "连接服务器" && echo 'E2E: gateway 文案命中' || echo 'E2E: 未见 gateway 文案'
+            PID="$(adb shell pidof "${APP_ID}" | tr -d '\r')"; test -n "$PID" || { echo 'E2E: app 进程不存在'; exit 1; }; adb forward tcp:9333 "localabstract:webview_devtools_remote_$PID"; curl -s --max-time 5 http://127.0.0.1:9333/json > /tmp/devtools.json
+            echo '===== devtools pages ====='; cat /tmp/devtools.json; echo '===== webview sockets ====='; adb shell cat /proc/net/unix | grep -i devtools_remote || echo '(无 devtools socket)'
+            grep -q "tauri.localhost" /tmp/devtools.json && echo 'E2E: gateway 内置 asset 已渲染 tauri.localhost 命中' || { echo 'E2E: WebView 未加载内置 gateway'; exit 1; }
             echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
-            echo '===== 主线程异常栈 ====='; adb logcat -d | grep -A50 -Ei "FATAL EXCEPTION: main" || echo '(无 FATAL EXCEPTION)'
-            adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见上方 crash buffer'; exit 1; } || true
-            echo 'E2E: 启动到前台且无崩溃'
+            adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见 crash buffer'; exit 1; } || true
+            echo 'E2E: 装包-启动-前台-WebView渲染gateway-无崩溃 全部通过'
