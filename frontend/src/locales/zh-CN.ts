@@ -8732,15 +8732,23 @@ export default {
         address: '地址',
         bankName: '开户银行',
         bankAccount: '银行账号',
+        logo: '公司标志',
       },
       button: {
         save: '保存',
         reset: '重置',
+        uploadLogo: '上传标志',
+        removeLogo: '移除标志',
       },
       message: {
         saveSuccess: '保存成功',
         saveFailed: '保存失败',
         requiredName: '请输入公司名称',
+        loadFailed: '公司信息加载失败',
+        logoUploaded: '标志已上传',
+        logoNotPng: '仅支持 PNG 格式的标志',
+        logoTooLarge: '标志文件大小不能超过 512KB',
+        logoReadFailed: '标志文件读取失败',
       },
     },
     dataPermission: {
