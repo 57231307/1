@@ -30,10 +30,15 @@ fn app_info() -> serde_json::Value {
     serde_json::json!({ "app": "bingxi-erp-mobile", "shell": "tauri-v2" })
 }
 
-/// gateway 首次加载时记录自身地址（用于回弹）。
+/// gateway 首次加载时记录自身地址（用于回弹），并落一个就绪标记文件。
+/// 标记文件供无头模拟器 E2E 以 `run-as` 探测：存在即证明 WebView 真渲染并执行了内置 gateway 页的 JS。
 #[tauri::command]
-fn remember_gateway(state: tauri::State<GatewayUrl>, url: String) {
-    *state.0.lock().unwrap() = Some(url);
+fn remember_gateway(app: tauri::AppHandle, state: tauri::State<GatewayUrl>, url: String) -> Result<(), String> {
+    *state.0.lock().unwrap() = Some(url.clone());
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("gateway_ready"), url.as_bytes()).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// 跳回 gateway（登录失败自动重填入口）。需先在 gateway 调过 remember_gateway。
