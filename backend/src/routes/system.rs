@@ -16,8 +16,9 @@ use axum::{
 };
 
 use crate::handlers::{
-    ai_extend_handler, bpm_definition_handler, bpm_handler, dashboard_handler,
-    export_approval_handler, health_handler, init_handler, system_update_handler,
+    ai_extend_handler, bpm_definition_handler, bpm_handler, company_profile_handler,
+    dashboard_handler, export_approval_handler, health_handler, init_handler,
+    system_update_handler,
 };
 use crate::websocket;
 
@@ -465,6 +466,28 @@ pub fn export_approval() -> Router<AppState> {
         )
 }
 
+/// 公司档案路由（path 前缀 /company-profile）
+///
+/// 两硬约束的路由落点：
+/// - 公开面**独占精确路径** `/company-profile` 且只挂 GET：`AUTH_ONLY_PATHS` 的匹配是
+///   精确路径、与方法无关（`is_auth_only_path` 在 RBAC/白名单前 return），若 GET 与 PUT
+///   同精确路径，PUT 会绕过 RBAC 被任意登录者调用。故全量读写走另一精确路径
+///   `/company-profile/full`，正常 RBAC（seg3=`company-profile`，GET→read、PUT→update）。
+/// - 公开 GET 的 handler 返回硬投影结构体 `CompanyProfilePublic`（仅 name/short_name/logo），
+///   敏感列不经该端点出入。
+pub fn company_profile() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/company-profile",
+            get(company_profile_handler::get_company_profile),
+        )
+        .route(
+            "/company-profile/full",
+            get(company_profile_handler::get_company_profile_full)
+                .put(company_profile_handler::update_company_profile_full),
+        )
+}
+
 /// 系统域统一入口（子 router path 已加独立前缀，merge 安全）
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -479,4 +502,5 @@ pub fn routes() -> Router<AppState> {
         .merge(audit_logs())
         .merge(slow_queries())
         .merge(document_no())
+        .merge(company_profile())
 }
