@@ -244,9 +244,9 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
     // （SO_ITEM_OWN 挂 SO_OWN、SO_ITEM_CROSS 挂 SO_CROSS；SO_ITEM_MISSING 故意不播种）。
     //
     // 明细行必须逐列给全 `sales_order_item::Model` 的非 Option 字段（对照生产写入方
-    // `services/so/order_crud.rs:373 build_sales_order_item_active_model` 的口径）：
+    // build_sales_order_item_active_model 的口径）：
     // SeaORM `ActiveModel::insert` 走 `INSERT … RETURNING` 后按整个 Model 解码
-    // （sea-orm-2.0.2 `entity/active_model.rs:232 exec_with_returning`），任一非 Option
+    // （exec_with_returning），任一非 Option
     // 列（discount_percent/tax_percent/tax_amount/discount_amount/total_amount/
     // shipped_quantity/quantity_meters/quantity_kg/color_extra_cost/grade_price_diff/
     // shipped_quantity_meters/shipped_quantity_kg）留 NotSet 落 NULL 都会在回解码处
