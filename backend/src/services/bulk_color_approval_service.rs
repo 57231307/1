@@ -46,6 +46,7 @@ use crate::models::sales_order_item;
 use crate::models::status::inventory_piece as piece_status;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
+use crate::models::status::quality_dyeing::dye_batch_lifecycle_status as batch_status;
 use crate::models::user;
 use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 
@@ -558,8 +559,9 @@ impl BulkColorApprovalService {
             .one(&txn)
             .await?
             .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
-        if dye_batch.status.as_deref() != Some("completed") {
-            // 状态门：关联染色批次未完成，剪样前置未满足，归业务族
+        if dye_batch.status.as_deref() != Some(batch_status::STORED) {
+            // 状态门：染色批次完工登记写入的是生命周期 STORED，非 completed；
+            // 未到这个态即剪样前置未满足，归业务族。
             return Err(BulkColorApprovalError::InvalidState(
                 "关联染色批次尚未完成，不能剪样".to_string(),
             ));
