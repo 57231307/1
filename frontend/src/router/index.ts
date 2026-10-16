@@ -1741,7 +1741,10 @@ function resolveBrandSuffix(): string {
 // 档案晚于首屏导航到达时，重算并回写 document.title 的品牌段（watchEffect 追踪 company 与 currentRoute）。
 watchEffect(() => {
   const brand = resolveBrandSuffix();
-  const routeTitle = (router.currentRoute.value.meta.title as string) || '';
+  // currentRoute 在模块初始化期/无路由解析的测试环境下可能尚未就绪，取值前显式判空，
+  // 不吞后端缺键——导航态标题由 router.beforeEach 负责，本 effect 仅响应档案晚到。
+  const currentRoute = router.currentRoute;
+  const routeTitle = currentRoute ? (currentRoute.value.meta.title as string) || '' : '';
   document.title = routeTitle ? `${routeTitle} - ${brand}` : brand;
 });
 
