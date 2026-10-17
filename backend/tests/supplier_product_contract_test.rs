@@ -10,6 +10,7 @@
 //! - 真库集成用例（#[ignore]）覆盖 create→list 命中→keyword 过滤真实链路。
 
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::utils::path_utils::resolve_module_prefixed_resource;
 
 const SUP_PRODUCT_SERVICE_SRC: &str = include_str!("../src/services/supplier_product_service.rs");
 const SUP_PRODUCT_COLOR_SERVICE_SRC: &str =
@@ -187,25 +188,24 @@ fn handlers_validate_request_bodies() {
 // 权限资源键：与 URL 段派生规则一致 + 授予集合 + 销售保密
 // ---------------------------------------------------------------------------
 
-/// 派生规则锁定：purchase 是模块前缀，且 resolve_module_prefixed_resource 未对
-/// supplier-products / supplier-product-colors 做特殊映射（走 `_` 默认分支）→ 资源键
-/// 就是 URL 第 4 段原名（连字符）。因此权限键必须与 path 段字面一致。
+/// 派生规则锁定，purchase 是模块前缀，且消歧映射表未列 supplier-products 与 supplier-product-colors
+/// 两行，查表未命中即原样返回该段，资源键就是 URL 第 4 段原名（连字符）。
+/// 权限键必须与 path 段字面一致，故此处实测派生结果而非匹配源码写法。
 #[test]
 fn resource_key_derivation_matches_path_segment() {
     assert!(
         PATH_UTILS_SRC.contains("\"purchase\""),
         "purchase 应被识别为模块前缀"
     );
-    // resolve 默认分支保留 segment4 原名（无 supplier-products 专用映射）
-    let resolve_body = extract_fn(PATH_UTILS_SRC, "pub fn resolve_module_prefixed_resource");
-    assert!(
-        !resolve_body.contains("supplier-products")
-            && !resolve_body.contains("supplier-product-colors"),
-        "两键不得被 resolve 特殊映射改写，保持与 path 段一致"
+    assert_eq!(
+        resolve_module_prefixed_resource("purchase", "supplier-products"),
+        "supplier-products",
+        "supplier-products 不得被消歧表改写，须与 path 段字面一致"
     );
-    assert!(
-        resolve_body.contains("_ => resource.to_string()"),
-        "默认分支应原样返回 segment4 作资源键"
+    assert_eq!(
+        resolve_module_prefixed_resource("purchase", "supplier-product-colors"),
+        "supplier-product-colors",
+        "supplier-product-colors 不得被消歧表改写，须与 path 段字面一致"
     );
 }
 

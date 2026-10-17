@@ -46,39 +46,93 @@ fn fn_body(src: &str, sig: &str) -> String {
     src[body_start..=end].to_string()
 }
 
-/// 抽出消歧分支的箭头目标字面量（`=> "xxx".to_string()`），默认分支无字面量故不入选。
-fn resolved_literals(body: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = body;
-    while let Some(idx) = rest.find("=> \"") {
-        let after = &rest[idx + 4..];
+/// 抽出 RESOURCE_NAME_MAP 的每一行（模块前缀，URL 段，注册表权威资源名）。
+/// 定位先越过声明到赋值号，再取其右侧首个方括号，否则会把类型标注的括号当成表体起始。
+/// 表体先剥净空白再按引号对取字面量，故 rustfmt 把长行折成多行元组也不改变判据。
+/// 调用方是本文件两条同源锁。入参为 utils/path_utils.rs 全文，返回三元组向量。
+fn map_rows(src: &str) -> Vec<(String, String, String)> {
+    let decl = src
+        .find("const RESOURCE_NAME_MAP")
+        .expect("映射表声明被改名或移除，须同步本锁的读取真源");
+    let tail = &src[decl..];
+    let rhs = &tail[tail.find('=').expect("映射表声明没有赋值右侧")..];
+    let open = rhs.find('[').expect("映射表右侧不是数组字面量") + 1;
+    let mut depth = 1usize;
+    let mut close = 0usize;
+    for (i, ch) in rhs[open..].char_indices() {
+        match ch {
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = open + i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    assert!(close > open, "映射表数组字面量没有闭合方括号");
+    let flat: String = rhs[open..close]
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    let mut literals = Vec::new();
+    let mut rest = flat.as_str();
+    while let Some(start) = rest.find('"') {
+        let after = &rest[start + 1..];
         match after.find('"') {
             Some(end) => {
-                out.push(after[..end].to_string());
-                rest = &after[end..];
+                literals.push(after[..end].to_string());
+                rest = &after[end + 1..];
             }
             None => break,
         }
     }
-    out
+    assert!(
+        literals.len() % 3 == 0,
+        "映射表字面量数不是 3 的倍数，表形态与本锁读取口径已漂移"
+    );
+    literals
+        .chunks(3)
+        .map(|row| (row[0].clone(), row[1].clone(), row[2].clone()))
+        .collect()
 }
 
 /// 消歧表的每一个目标资源名都必须已登记在注册表内，否则消歧结果仍是死码授权。
+/// 读本表本体（资源名唯一真相）而非查表函数的写法，消歧规则换形态不必回来改口径。
 #[test]
 fn every_disambiguation_target_is_registered() {
     let path_utils = read_src("utils/path_utils.rs");
-    let body = fn_body(&path_utils, "pub fn resolve_module_prefixed_resource");
-    let targets = resolved_literals(&body);
+    let rows = map_rows(&path_utils);
     assert!(
-        !targets.is_empty(),
-        "消歧分支解析结果为空——函数形态改变会让本锁空跑，须同步改解析口径"
+        !rows.is_empty(),
+        "映射表解析结果为空，本锁读取口径与 RESOURCE_NAME_MAP 形态已漂移，须同步改解析口径，禁止让它空跑"
     );
-    for target in &targets {
+    // 同一（模块前缀，URL 段）只许一行，两行不同目标则派生出的资源名不确定
+    let mut seen: Vec<(&str, &str)> = Vec::new();
+    for (prefix, segment, _) in &rows {
+        let key = (prefix.as_str(), segment.as_str());
+        assert!(
+            !seen.contains(&key),
+            "映射表里 ({}, {}) 出现多行，同一 URL 段派生出的资源名不确定",
+            key.0,
+            key.1
+        );
+        seen.push(key);
+    }
+    for (_, _, target) in &rows {
         assert!(
             PERMISSION_RESOURCES.contains(&target.as_str()),
             "消歧目标 `{target}` 未登记在 PERMISSION_RESOURCES，消歧后的授权行仍永不生效"
         );
     }
+    // 锚住检测力，函数若不引用本表则表成死码，派生键静默退回 URL 段原名
+    let body = fn_body(&path_utils, "pub fn resolve_module_prefixed_resource");
+    assert!(
+        body.contains("RESOURCE_NAME_MAP"),
+        "resolve_module_prefixed_resource 不再引用 RESOURCE_NAME_MAP，消歧永不生效"
+    );
 }
 
 /// `/crm/leads` 的资源键消歧到规范码 crm-leads：注册表权威名是 crm-leads，
@@ -86,9 +140,15 @@ fn every_disambiguation_target_is_registered() {
 #[test]
 fn crm_leads_derives_to_registered_canonical_code() {
     let path_utils = read_src("utils/path_utils.rs");
-    let body = fn_body(&path_utils, "pub fn resolve_module_prefixed_resource");
-    assert!(
-        body.contains(r#"("crm", "leads") => "crm-leads".to_string(),"#),
+    let rows = map_rows(&path_utils);
+    let leads = rows
+        .iter()
+        .find(|row| row.0.as_str() == "crm" && row.1.as_str() == "leads")
+        .unwrap_or_else(|| {
+            panic!("映射表缺少 crm 前缀下 leads 这一行，线索的资源键退回注册表外的裸段名")
+        });
+    assert_eq!(
+        leads.2, "crm-leads",
         "/crm/leads 必须消歧到 crm-leads，否则矩阵里已登记的线索授权行是死码"
     );
     assert!(
