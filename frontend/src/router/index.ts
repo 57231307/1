@@ -228,6 +228,7 @@ const routes: RouteRecordRaw[] = [
           title: '销售订单详情',
           permission: 'sales:read',
           requiresAuth: true,
+          hidden: true,
         },
       },
       {
@@ -675,7 +676,6 @@ const routes: RouteRecordRaw[] = [
           icon: 'Cpu',
           permission: ['mrp:read'],
           requiresAuth: true,
-          hidden: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
@@ -813,7 +813,6 @@ const routes: RouteRecordRaw[] = [
           icon: 'Cpu',
           permission: ['scheduling:read'],
           requiresAuth: true,
-          hidden: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
@@ -882,7 +881,6 @@ const routes: RouteRecordRaw[] = [
           icon: 'List',
           permission: 'audit-logs:read',
           requiresAuth: true,
-          hidden: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - BPM流程模板
@@ -895,7 +893,6 @@ const routes: RouteRecordRaw[] = [
           icon: 'List',
           permission: 'audit-logs:read',
           requiresAuth: true,
-          hidden: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       // 新增路由 - BPM审批中心
