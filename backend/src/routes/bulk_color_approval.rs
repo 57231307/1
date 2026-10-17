@@ -1,9 +1,10 @@
 //! 大货批色审批路由（V15 P0-F15/F16/F17，P1-10 扩展）
 //!
-//! 16 端点：
+//! 17 端点：
 //!   GET    /                                 列表
 //!   POST   /                                 创建批色记录
 //!   GET    /:id                              详情
+//!   DELETE /:id                              删除批色记录（清理通道）
 //!   POST   /:id/cut-sample                   剪大货样（P0-F16）
 //!   POST   /:id/send-to-customer             发送客户批色
 //!   POST   /:id/approve                      客户批色确认通过（P0-F17）
@@ -24,7 +25,7 @@
 
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{delete, get, post},
 };
 
 use crate::container::AppState;
@@ -74,7 +75,8 @@ pub fn routes() -> Router<AppState> {
         // 动态路径：/:id 及其子路径
         .route(
             "/{id}",
-            get(bulk_color_approval_handler::get_bulk_color_approval),
+            get(bulk_color_approval_handler::get_bulk_color_approval)
+                .delete(bulk_color_approval_handler::delete_bulk_color_approval),
         )
         .route(
             "/{id}/cut-sample",

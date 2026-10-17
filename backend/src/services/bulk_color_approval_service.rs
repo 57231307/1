@@ -484,6 +484,16 @@ impl BulkColorApprovalService {
             .ok_or(BulkColorApprovalError::NotFound)
     }
 
+    /// 删除单条批色记录（清理通道，供 DELETE 端点用）。
+    /// 入参：批色记录 id。先按 id 取行确认存在（不存在→NotFound→404，不误报删除成功），
+    /// 再删本行；数据库层失败（含被其它表以 RESTRICT 外键引用）经 Database 变体如实上抛 500，
+    /// 不静默吞掉、不把"删不掉"当成功。归属校验由 handler 按父销售订单口径先行把关。
+    pub async fn delete(&self, id: i64) -> Result<(), BulkColorApprovalError> {
+        self.get(id).await?;
+        Entity::delete_by_id(id).exec(&*self.db).await?;
+        Ok(())
+    }
+
     /// 获取详情（富化视图，供 GET 详情端点用）：与 [`Self::list`] 同一条 LEFT JOIN 富化查询，
     /// 按主键取单行。归属门由 handler 读返回值里的 `sales_order_id` 判定，故本方法不下推
     /// data_scope（单行不存在或其父销售订单不存在时经 INNER JOIN 收敛为 NotFound→404）。
