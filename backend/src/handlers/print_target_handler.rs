@@ -29,11 +29,11 @@ use axum::{
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::print_template;
 use crate::models::print_target::{
     ActiveModel as PrintTargetActiveModel, Column as PrintTargetColumn,
     Entity as PrintTargetEntity, Model as PrintTargetModel,
 };
+use crate::models::print_template;
 use crate::models::status::print::print_template_status;
 use crate::models::status::print_target_kind;
 use crate::utils::error::AppError;
