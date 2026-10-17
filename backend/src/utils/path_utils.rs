@@ -349,6 +349,13 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "slow-queries"
         | "health"
         | "system-config"
+        // 公司档案根级直接资源：URL 段即权威资源名（无模块前缀；`/company-profile` 与
+        // `/company-profile/full` 的 seg3 均派生 company-profile，full 是同一单例资源下的
+        // 读面维度而非子资源）。不在白名单则 permission 中间件 validate_route_whitelist
+        // 对全员（含 admin）fail-closed 403；登记后派生键与 PERMISSION_RESOURCES 及
+        // system_admin 授权种子同词表。公开投影 GET /company-profile 走 AUTH_ONLY 精确
+        // 豁免（不经 RBAC），全量读写在 /company-profile/full 过本资源权限码。
+        | "company-profile"
         // ===== 单据号查重（前端自动生成单据号后确认唯一性）=====
         | "document-no"
         // V16 P0：审批流与 AI 模型直接资源（traversal 全量对照补齐，admin 被拒修复）
