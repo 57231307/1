@@ -24,8 +24,8 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, Set,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, FromQueryResult,
+    JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Select, Set,
     TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
@@ -36,13 +36,18 @@ use thiserror::Error;
 use crate::container::AppState;
 use crate::models::bulk_color_approval::{self, ActiveModel, Entity};
 use crate::models::bulk_color_approval_history;
+use crate::models::customer;
 use crate::models::dye_batch;
 use crate::models::inventory_piece;
 use crate::models::inventory_stock;
 use crate::models::production_order;
+use crate::models::sales_order;
+use crate::models::sales_order_item;
 use crate::models::status::inventory_piece as piece_status;
 use crate::models::status::purchase_inventory::inventory_stock_grade;
 use crate::models::status::purchase_inventory::inventory_stock_quality_status as quality_status;
+use crate::models::status::quality_dyeing::dye_batch_lifecycle_status as batch_status;
+use crate::models::user;
 use crate::utils::data_scope::{DataScopeContext, apply_department_scope};
 
 /// 业务错误
@@ -162,10 +167,75 @@ pub struct ListBulkColorApprovalQuery {
     pub to_date: Option<chrono::DateTime<Utc>>,
 }
 
+/// 发货门禁行匹配用的明细行键投影（仅取 id/product_id/color_no 三列，配合 select_only 精准
+/// 读列，规避 sales_order_items 上模型非 Option 而 DDL 可空漂移列的全行读类型错）。
+/// color_no 以 `Option<String>` 承接，NULL 与空串在门禁处同归一为空串参与匹配。
+#[derive(Debug, Clone, FromQueryResult)]
+struct SalesOrderItemKey {
+    id: i32,
+    product_id: i32,
+    color_no: Option<String>,
+}
+
+/// 建单行校验用的明细行键投影：仅取 id/order_id/product_id/color_no 四列。
+/// 用途：create 校验 sales_order_item_id 行存在且 order_id 与入参一致、并据其 product_id/color_no
+/// 覆盖回填反范式列。以 select_only 精准取列，规避 sales_order_items 上模型非 Option 而 DDL 可空
+/// 漂移列的全行读类型错。color_no 以 `Option<String>` 承接，NULL 原样回填为 None。
+#[derive(Debug, Clone, FromQueryResult)]
+struct SalesOrderItemCreateKey {
+    order_id: i32,
+    product_id: i32,
+    color_no: Option<String>,
+}
+
+/// 列表/详情富化视图对象：批色记录全列 + 明细行绑定列 + 三列关联名称。
+///
+/// 由单次 LEFT JOIN 富化查询 `into_model` 直映（本仓读取富化唯一范式，参照
+/// `services/po/order.rs` 的 `PurchaseOrderDto` + `order_ops/crud.rs` 的 `column_as +
+/// LeftJoin + into_model`）：`sales_order→order_no`、`customer→customer_name`、
+/// `user(approver)→approver_name`。禁止逐行再查（N+1）、禁止 `format!` 造假名。
+/// 键恒存在（无 `skip_serializing_if`）：关联取不到时对应名称为 null，前端据此区分
+/// 「无关联」与「字段缺失」。不含 `approval_no`/`applicant_name`（后端无来源列，不新建、不造值）。
+#[derive(Debug, Clone, FromQueryResult, Serialize)]
+pub struct BulkColorApprovalListItem {
+    pub id: i64,
+    pub sales_order_id: i32,
+    pub sales_order_item_id: Option<i32>,
+    pub dye_batch_id: i32,
+    pub customer_id: i64,
+    pub production_order_id: Option<i32>,
+    pub product_id: Option<i32>,
+    pub color_no: Option<String>,
+    pub dye_lot_no: Option<String>,
+    pub batch_no: Option<String>,
+    pub sample_type: String,
+    pub sample_piece_id: Option<i64>,
+    pub sample_length_m: Option<Decimal>,
+    pub approval_status: String,
+    pub approver_id: Option<i32>,
+    pub approval_date: Option<chrono::DateTime<Utc>>,
+    pub sent_to_customer_at: Option<chrono::DateTime<Utc>>,
+    pub customer_feedback: Option<String>,
+    pub delta_e_value: Option<Decimal>,
+    pub reject_reason: Option<String>,
+    pub delivery_blocking: bool,
+    pub attachment_url: Option<String>,
+    pub remark: Option<String>,
+    pub created_at: chrono::DateTime<Utc>,
+    pub updated_at: chrono::DateTime<Utc>,
+    /// 关联销售订单号：sales_orders.order_no（LEFT JOIN，父单 FK 必存在故恒非空）
+    pub order_no: Option<String>,
+    /// 关联客户名称：customers.customer_name（LEFT JOIN，customer_id FK 必存在故恒非空）
+    pub customer_name: Option<String>,
+    /// 审批人姓名：users.real_name（LEFT JOIN，approver_id 可空 → 未审批时恒 null）
+    pub approver_name: Option<String>,
+}
+
 /// 创建参数（封装以避免 clippy::too_many_arguments）
 #[derive(Debug, Clone)]
 pub struct CreateBulkColorApprovalParams {
     pub sales_order_id: i32,
+    pub sales_order_item_id: Option<i32>,
     pub dye_batch_id: i32,
     pub customer_id: i64,
     pub production_order_id: Option<i32>,
@@ -258,15 +328,43 @@ impl BulkColorApprovalService {
             )));
         }
 
+        // 明细行绑定校验（fail-closed）：sales_order_item_id 非空时，该行必须存在且属于本次
+        // 入参 sales_order_id，否则拒绝（拦截越权/错挂行，绝不静默忽略）。有行时以该行的
+        // product_id/color_no 覆盖回填反范式列——不信任前端手填值，杜绝"选了行却挂别的产品"。
+        let mut product_id = params.product_id;
+        let mut color_no = params.color_no;
+        if let Some(item_id) = params.sales_order_item_id {
+            let item = sales_order_item::Entity::find()
+                .select_only()
+                .column(sales_order_item::Column::OrderId)
+                .column(sales_order_item::Column::ProductId)
+                .column(sales_order_item::Column::ColorNo)
+                .filter(sales_order_item::Column::Id.eq(item_id))
+                .into_model::<SalesOrderItemCreateKey>()
+                .one(&*self.db)
+                .await?
+                .ok_or_else(|| {
+                    BulkColorApprovalError::Validation(format!("销售订单明细行 {} 不存在", item_id))
+                })?;
+            if item.order_id != params.sales_order_id {
+                return Err(BulkColorApprovalError::Validation(
+                    "销售订单明细行不属于所选销售订单".to_string(),
+                ));
+            }
+            product_id = Some(item.product_id);
+            color_no = item.color_no;
+        }
+
         let now = Utc::now();
         let active = ActiveModel {
             id: Default::default(),
             sales_order_id: Set(params.sales_order_id),
+            sales_order_item_id: Set(params.sales_order_item_id),
             dye_batch_id: Set(params.dye_batch_id),
             customer_id: Set(params.customer_id),
             production_order_id: Set(params.production_order_id),
-            product_id: Set(params.product_id),
-            color_no: Set(params.color_no),
+            product_id: Set(product_id),
+            color_no: Set(color_no),
             dye_lot_no: Set(params.dye_lot_no),
             batch_no: Set(params.batch_no),
             sample_type: Set(sample_type.to_string()),
@@ -311,15 +409,36 @@ impl BulkColorApprovalService {
         }
     }
 
-    /// 列表查询（带分页与过滤 + 行级数据权限）
+    /// 列表/详情富化查询：在 [`Self::scoped_base`]（INNER JOIN 父销售订单 + 归属下推）之上，
+    /// 单次 LEFT JOIN 关联 `customer`（→ customer_name）与审批人 `user`（→ approver_name），
+    /// 并从已 JOIN 的 sales_order 取 order_no。三处关联均为「指向单一父行」的外键（NOT NULL 或
+    /// 可空但最多一行），不产生行倍增，分页 `total` 与可见集一致。配合 `into_model::<_>` 一次
+    /// 取全，杜绝逐行再查（N+1）。这是本仓列表显示名称的唯一正确范式（对照
+    /// `services/po/order.rs` + `services/po/order_ops/crud.rs`）。
+    fn enriched_select(&self, data_scope: Option<&DataScopeContext>) -> Select<Entity> {
+        self.scoped_base(data_scope)
+            .column_as(sales_order::Column::OrderNo, "order_no")
+            .column_as(customer::Column::CustomerName, "customer_name")
+            .column_as(user::Column::RealName, "approver_name")
+            .join(
+                JoinType::LeftJoin,
+                bulk_color_approval::Relation::Customer.def(),
+            )
+            .join(
+                JoinType::LeftJoin,
+                bulk_color_approval::Relation::Approver.def(),
+            )
+    }
+
+    /// 列表查询（带分页与过滤 + 行级数据权限 + 关联名称富化）
     ///
     /// `data_scope` 为 Some 时按 [`Self::scoped_base`] 的父单归属下推，过滤在查询构造处，
-    /// 分页 `total` 与可见集一致。
+    /// 分页 `total` 与可见集一致；富化名称在同一次查询取回，无二次查询。
     pub async fn list(
         &self,
         query: ListBulkColorApprovalQuery,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<bulk_color_approval::Model>, u64), BulkColorApprovalError> {
+    ) -> Result<(Vec<BulkColorApprovalListItem>, u64), BulkColorApprovalError> {
         let page = query.page.unwrap_or(1).max(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 200);
 
@@ -343,11 +462,13 @@ impl BulkColorApprovalService {
             cond = cond.add(bulk_color_approval::Column::CreatedAt.lte(v));
         }
 
-        // 父单归属下推 + 分页计数同基查询，越权行既不进 items 也不进 total
+        // 父单归属下推 + 富化同基查询，越权行既不进 items 也不进 total；
+        // 分页计数与 fetch 同一条 join 查询，可见集不因后置过滤而改变。
         let paginator = self
-            .scoped_base(data_scope)
+            .enriched_select(data_scope)
             .filter(cond)
             .order_by_desc(bulk_color_approval::Column::CreatedAt)
+            .into_model::<BulkColorApprovalListItem>()
             .paginate(&*self.db, page_size);
 
         let total = paginator.num_items().await?;
@@ -355,9 +476,24 @@ impl BulkColorApprovalService {
         Ok((rows, total))
     }
 
-    /// 获取详情
+    /// 获取详情（原始 Model，供各写 handler 取父单归属判门、写事务内锁定回写用；不改其签名）
     pub async fn get(&self, id: i64) -> Result<bulk_color_approval::Model, BulkColorApprovalError> {
         Entity::find_by_id(id)
+            .one(&*self.db)
+            .await?
+            .ok_or(BulkColorApprovalError::NotFound)
+    }
+
+    /// 获取详情（富化视图，供 GET 详情端点用）：与 [`Self::list`] 同一条 LEFT JOIN 富化查询，
+    /// 按主键取单行。归属门由 handler 读返回值里的 `sales_order_id` 判定，故本方法不下推
+    /// data_scope（单行不存在或其父销售订单不存在时经 INNER JOIN 收敛为 NotFound→404）。
+    pub async fn get_detail(
+        &self,
+        id: i64,
+    ) -> Result<BulkColorApprovalListItem, BulkColorApprovalError> {
+        self.enriched_select(None)
+            .filter(bulk_color_approval::Column::Id.eq(id))
+            .into_model::<BulkColorApprovalListItem>()
             .one(&*self.db)
             .await?
             .ok_or(BulkColorApprovalError::NotFound)
@@ -423,8 +559,9 @@ impl BulkColorApprovalService {
             .one(&txn)
             .await?
             .ok_or(BulkColorApprovalError::DyeBatchNotFound)?;
-        if dye_batch.status.as_deref() != Some("completed") {
-            // 状态门：关联染色批次未完成，剪样前置未满足，归业务族
+        if dye_batch.status.as_deref() != Some(batch_status::STORED) {
+            // 状态门：染色批次完工登记写入的是生命周期 STORED，非 completed；
+            // 未到这个态即剪样前置未满足，归业务族。
             return Err(BulkColorApprovalError::InvalidState(
                 "关联染色批次尚未完成，不能剪样".to_string(),
             ));
@@ -1508,11 +1645,23 @@ pub struct ApprovalStatistics {
     pub avg_delta_e: Decimal,
 }
 
-/// P0-F19：发货前校验大货批色门禁
-/// 业务规则：发货销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态；否则阻止发货（delivery_blocking=true 阻断）；调用位置：services/so/delivery.rs ship_order 方法，事务开启前；参数 db 接受 `&Arc<DatabaseConnection>` 以避免调用方 `&*arc` 显式 deref（clippy::deref_arg）
+/// P0-F19：发货前校验大货批色门禁（按销售订单明细行细化，fail-closed）
+///
+/// 业务规则：
+/// - 记录已绑定明细行（`sales_order_item_id` 非空）：仅当该行的 `(product_id, color_no)` 落在
+///   本次发货涉及行内时按审批态判定——非 approved（含未知态）阻断本次发货；未涉及本次发货的
+///   其他行批色状态与本笔发货无关，不阻断。
+/// - 历史记录（`sales_order_item_id` IS NULL，无法定位到行）：退化订单级整单门禁——任一非
+///   approved 记录即整单阻断，与收紧前的旧行为逐字一致（只严不宽）。
+/// - 未知状态一律视为阻断（不放宽）。
+///
+/// 参数 `ship_lines` 为本次发货涉及的 `(product_id, color_no 归一)` 归一集合（空串按空串）。
+/// 调用位置：`services/so/delivery_ops/ship.rs` 事务开启前；`db` 取 `&Arc<DatabaseConnection>`
+/// 以免调用方显式 deref（clippy::deref_arg）。
 pub async fn validate_bulk_color_approval(
     db: &std::sync::Arc<DatabaseConnection>,
     sales_order_id: i32,
+    ship_lines: &[(i32, String)],
 ) -> Result<(), BulkColorApprovalError> {
     use crate::models::sales_order::Entity as SalesOrderEntity;
     let conn: &DatabaseConnection = db.as_ref();
@@ -1523,19 +1672,58 @@ pub async fn validate_bulk_color_approval(
         .await?
         .ok_or(BulkColorApprovalError::SalesOrderNotFound)?;
 
-    // 2. 查询该订单关联的所有批色记录
+    // 2. 载入该订单全部明细行的 (id, product_id, color_no) 三列投影（select_only 精准取列，
+    //    不读全行——sales_order_items 存在模型非 Option 而 DDL 可空的漂移列，全行读会因 NULL
+    //    触发类型错；此处只需这三列做行匹配）。据 (product_id, color_no) 归一匹配出本次发货
+    //    涉及的行 ID 集合。色号两侧都归一（订单行 color_no 按 NULL/空串归一为空串，发货行
+    //    color_no None → 空串），与出库四维扣减同款归一，避免"NULL vs 空串"错配漏判。
+    let order_items = sales_order_item::Entity::find()
+        .select_only()
+        .column(sales_order_item::Column::Id)
+        .column(sales_order_item::Column::ProductId)
+        .column(sales_order_item::Column::ColorNo)
+        .filter(sales_order_item::Column::OrderId.eq(sales_order_id))
+        .into_model::<SalesOrderItemKey>()
+        .all(conn)
+        .await?;
+    let norm = |s: &str| s.trim().to_string();
+    let involved_item_ids: std::collections::HashSet<i32> = order_items
+        .iter()
+        .filter(|oi| {
+            let item_color = oi.color_no.clone().unwrap_or_default();
+            ship_lines
+                .iter()
+                .any(|(pid, cn)| *pid == oi.product_id && norm(cn) == norm(&item_color))
+        })
+        .map(|oi| oi.id)
+        .collect();
+
+    // 3. 查询该订单关联的所有批色记录
     let approvals = Entity::find()
         .filter(bulk_color_approval::Column::SalesOrderId.eq(sales_order_id))
         .all(conn)
         .await?;
 
-    // 3. 校验所有记录必须为 approved 状态（解除发货门禁）
+    // 4. 按行判定阻断项：
+    //    - 记录状态非 approved（或未知态）视为潜在阻断；
+    //    - 绑定行且在本次发货范围内 → 阻断；
+    //    - 未绑定行（NULL，历史单）→ 整单阻断（退化旧行为）；
+    //    - 绑定行但不在本次发货范围 → 与本笔发货无关，不阻断。
+    let is_blocking = |a: &bulk_color_approval::Model| {
+        ApprovalStatus::from_str(&a.approval_status)
+            .map(|s| !s.unblocks_delivery())
+            .unwrap_or(true)
+    };
     let blockers: Vec<&bulk_color_approval::Model> = approvals
         .iter()
         .filter(|a| {
-            ApprovalStatus::from_str(&a.approval_status)
-                .map(|s| !s.unblocks_delivery())
-                .unwrap_or(true)
+            if !is_blocking(a) {
+                return false;
+            }
+            match a.sales_order_item_id {
+                Some(iid) => involved_item_ids.contains(&iid),
+                None => true,
+            }
         })
         .collect();
 

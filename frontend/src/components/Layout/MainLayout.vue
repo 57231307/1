@@ -139,6 +139,12 @@
             t('layout.menu.salesOrder')
           }}</el-menu-item>
           <el-menu-item
+            v-if="canAccessMenu('/bulk-color-approval')"
+            role="menuitem"
+            index="/bulk-color-approval"
+            >{{ t('layout.menu.bulkColorApproval') }}</el-menu-item
+          >
+          <el-menu-item
             v-if="canAccessMenu('/sales-returns')"
             role="menuitem"
             index="/sales-returns"
@@ -354,12 +360,6 @@
           <el-menu-item v-if="canAccessMenu('/lab-dip')" role="menuitem" index="/lab-dip">{{
             t('layout.menu.labDip')
           }}</el-menu-item>
-          <el-menu-item
-            v-if="canAccessMenu('/bulk-color-approval')"
-            role="menuitem"
-            index="/bulk-color-approval"
-            >{{ t('layout.menu.bulkColorApproval') }}</el-menu-item
-          >
           <el-menu-item
             v-if="canAccessMenu('/production-recipes')"
             role="menuitem"

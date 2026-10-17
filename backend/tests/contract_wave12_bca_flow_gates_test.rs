@@ -293,14 +293,14 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
     .await
     .unwrap();
 
-    // 染色批次（状态 "completed" 满足剪样前置）
+    // 染色批次（生命周期 STORED 才满足剪样前置；完工登记写的就是 stored，非 completed）
     dye_batch::ActiveModel {
         id: Set(DYE_ID),
         batch_no: Set("DYE-BCAFLOW".to_string()),
         color_code: Set("C99".to_string()),
         color_name: Set("流程门测试色".to_string()),
         dye_lot_no: Set("DL-BCAFLOW".to_string()),
-        status: Set(Some("completed".to_string())),
+        status: Set(Some("stored".to_string())),
         created_at: Set(now.into()),
         updated_at: Set(now.into()),
         ..Default::default()
@@ -405,6 +405,7 @@ async fn seed(db: &sea_orm::DatabaseConnection) {
         bulk_color_approval::ActiveModel {
             id: Set(id),
             sales_order_id: Set(so),
+            sales_order_item_id: Set(None),
             dye_batch_id: Set(DYE_ID),
             customer_id: Set(CUS_ID as i64),
             production_order_id: Set(None),

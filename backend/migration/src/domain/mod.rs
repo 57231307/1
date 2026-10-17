@@ -27,6 +27,8 @@
 //!   任务表外键引用模板表；置于链尾为新的顶层条目，复用库上也必然执行）
 //! - company_profile: 公司档案单例表（company_profile，id 恒 1 的抬头主数据，建表即播种；
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
+//! - bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
+//!   sales_order_item_id 外键 + 检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -47,3 +49,4 @@ pub mod ddl_nullability_tighten;
 pub mod polymorphic_bill_id_widen;
 pub mod print_subsystem;
 pub mod company_profile;
+pub mod bulk_color_item_link;

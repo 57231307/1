@@ -13,6 +13,7 @@
 //!         / m_export_inspection_vocab_check / m0091_widen_dye_recipe_status_for_reject
 //!         / m_ddl_nullability_tighten / m_polymorphic_bill_id_widen_ar_invoice_txn / m_print_subsystem
 //!         / m_company_profile
+//!         / m_bulk_color_item_link
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -46,6 +47,9 @@
 //! 13. company_profile: 公司档案单例建表（company_profile，id 恒 1 的抬头主数据，建表即
 //!    播种空名行；置于链尾为新的顶层条目，复用库上也必然执行；打印 letterhead 与
 //!    公司档案端点都依赖此表存在）
+//! 14. bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
+//!    sales_order_item_id 外键指向 sales_order_items + 检索索引；置于链尾为新的顶层条目，
+//!    复用库上属 pending 必然执行，依赖 v15 建的 bulk_color_approval 与 sales_order_items）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -76,6 +80,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::polymorphic_bill_id_widen::Migration),
             Box::new(domain::print_subsystem::Migration),
             Box::new(domain::company_profile::Migration),
+            Box::new(domain::bulk_color_item_link::Migration),
         ]
     }
 }

@@ -37,6 +37,16 @@ export interface BulkColorApproval {
   delivery_blocking: boolean;
   attachment_url: string | null;
   remark: string | null;
+  /**
+   * 后端列表/详情出参并行补齐的富化键（sales_order_item LEFT JOIN sales_orders /
+   * customers / users 派生）：键恒存在、无值即 null，禁止在前端标 `?` 或用 `?? ` 掩盖缺键。
+   * order_no/customer_name 来自关联销售订单；approver_name 来自审批人用户；
+   * sales_order_item_id 为可选 FK（NULL=订单级批色、未绑定具体明细行）。
+   */
+  order_no: string | null;
+  customer_name: string | null;
+  approver_name: string | null;
+  sales_order_item_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +59,11 @@ export interface CreateBulkColorApprovalPayload {
   sales_order_id: number;
   dye_batch_id: number;
   customer_id: number;
+  /**
+   * 可选绑定销售订单明细行：传入时后端以该行的 product_id/color_no 覆盖回填
+   * （前端所传 product_id/color_no 仅作展示派生，最终以后端按明细行派生结果为准）。
+   */
+  sales_order_item_id?: number;
   production_order_id?: number;
   product_id?: number;
   color_no?: string;
