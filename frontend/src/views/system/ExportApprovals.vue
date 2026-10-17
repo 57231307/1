@@ -71,7 +71,10 @@
         />
         <ElTableColumn prop="status" :label="$t('exportApprovals.colStatus')" width="100">
           <template #default="{ row }">
-            <ElTag :type="exportApprovalStatusTagType(row.status)">{{
+            <!-- 与资源类型列同款空值门：真实记录 status 恒非空（后端 NOT NULL），
+                 仅空表占位行会带无 status 的对象；缺 status 时不渲染标签，
+                 避免把「空表渲染」误判成「词表外取值」触发 normalize 显式抛错。 -->
+            <ElTag v-if="row.status" :type="exportApprovalStatusTagType(row.status)">{{
               $t(exportApprovalStatusLabelKey(row.status))
             }}</ElTag>
           </template>
