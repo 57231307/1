@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -15,10 +15,11 @@ use crate::handlers::print_task_handler::{
 };
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::print_task;
 use crate::models::print_template;
 use crate::models::status::print::print_template_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-use crate::services::print_service::PrintService;
+use crate::services::print_service::{PrintService, SUPPORTED_DOC_TYPES};
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
@@ -1236,8 +1237,11 @@ fn to_record(m: print_template::Model) -> PrintTemplateRecord {
         description: m.description,
         module: m.module,
         template_type: m.template_type,
+        doc_type: m.doc_type,
         paper_size: m.paper_size,
         orientation: m.orientation,
+        copies_default: m.copies_default,
+        default_target_name: m.default_target_name,
         content: m.content,
         css_styles: m.css_styles,
         variables: m.variables,
@@ -1271,8 +1275,15 @@ pub struct PrintTemplateRecord {
     pub module: String,
     #[serde(rename = "type")]
     pub template_type: String,
+    /// 渲染链路查找键（列 NOT NULL）：打印任务按本列取「启用且默认」模板，必须在出参里可见，
+    /// 否则前端既看不到模板对应哪种单据，也无法在编辑时保留它。
+    pub doc_type: String,
     pub paper_size: String,
     pub orientation: String,
+    /// 缺省打印份数（受理请求未覆盖份数时取本列）
+    pub copies_default: i16,
+    /// 缺省打印目标符号名（可空列）：为空时发起打印必须显式指定 target_name
+    pub default_target_name: Option<String>,
     pub content: String,
     pub css_styles: String,
     pub variables: serde_json::Value,
@@ -1296,6 +1307,9 @@ pub struct PrintTemplatePreviewResponse {
 pub struct CreatePrintTemplateRequest {
     #[validate(length(min = 1, max = 100, message = "模板名称长度须为 1-100 字符"))]
     pub template_name: String,
+    /// 渲染链路查找键，必填且须属 [`SUPPORTED_DOC_TYPES`]：缺它或写错它的模板永远不会被
+    /// `load_active_default_template(doc_type)` 命中，等于建出一张打不出字的模板。
+    pub doc_type: String,
     #[validate(length(max = 100, message = "模板编码长度不得超过 100 字符"))]
     pub template_code: Option<String>,
     #[validate(length(max = 500, message = "描述长度不得超过 500 字符"))]
@@ -1305,6 +1319,9 @@ pub struct CreatePrintTemplateRequest {
     pub template_type: Option<String>,
     pub paper_size: Option<String>,
     pub orientation: Option<String>,
+    pub copies_default: Option<i16>,
+    #[validate(length(max = 100, message = "默认打印目标编码长度不得超过 100 字符"))]
+    pub default_target_name: Option<String>,
     pub content: Option<String>,
     pub css_styles: Option<String>,
     pub variables: Option<serde_json::Value>,
@@ -1317,6 +1334,7 @@ pub struct CreatePrintTemplateRequest {
 pub struct UpdatePrintTemplateRequest {
     #[validate(length(min = 1, max = 100, message = "模板名称长度须为 1-100 字符"))]
     pub template_name: Option<String>,
+    pub doc_type: Option<String>,
     #[validate(length(max = 100, message = "模板编码长度不得超过 100 字符"))]
     pub template_code: Option<String>,
     #[validate(length(max = 500, message = "描述长度不得超过 500 字符"))]
@@ -1326,11 +1344,59 @@ pub struct UpdatePrintTemplateRequest {
     pub template_type: Option<String>,
     pub paper_size: Option<String>,
     pub orientation: Option<String>,
+    pub copies_default: Option<i16>,
+    /// 可空列三态：键缺席=保持原值、显式 `null`=清空、有值=覆盖。显式 `null` 会被 serde_json
+    /// 折叠成外层 `None`，必须挂 `deserialize_with = "double_option"` 才能区分（范式同
+    /// `aging_alert_rule_handler`）。
+    #[serde(default, deserialize_with = "double_option")]
+    pub default_target_name: Option<Option<String>>,
     pub content: Option<String>,
     pub css_styles: Option<String>,
     pub variables: Option<serde_json::Value>,
     pub is_default: Option<bool>,
     pub status: Option<String>,
+}
+
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
+/// 校验模板的单据类型查找键：非空且逐字符属于 [`SUPPORTED_DOC_TYPES`]，否则 fail-visible 400
+/// 点名非法值。词表外取值会让模板成为"存得进、打不出"的影子配置，绝不静默放行。
+fn validate_template_doc_type(doc_type: &str) -> Result<(), AppError> {
+    if doc_type.trim().is_empty() {
+        return Err(AppError::bad_request(
+            "打印模板必须指定单据类型（doc_type），否则渲染链路无法命中该模板",
+        ));
+    }
+    if !SUPPORTED_DOC_TYPES.contains(&doc_type) {
+        return Err(AppError::bad_request(format!(
+            "打印模板单据类型非法（须为打印链路支持的单据类型）：{doc_type}"
+        )));
+    }
+    Ok(())
+}
+
+/// 校验模板缺省份数：列 `SMALLINT NOT NULL DEFAULT 1` 带 `BETWEEN 1 AND 99` CHECK，
+/// 越界必须先转 400 点名，否则落库时撞 CHECK 变 500。
+fn validate_copies_default(copies: Option<i16>) -> Result<Option<i16>, AppError> {
+    match copies {
+        Some(v) if (1..=99).contains(&v) => Ok(Some(v)),
+        Some(v) => Err(AppError::bad_request(format!(
+            "打印模板缺省份数须在 1-99 之间：{v}"
+        ))),
+        None => Ok(None),
+    }
+}
+
+/// 归一模板缺省打印目标：去空白后空串视为"未配置"（存 NULL），避免以空串冒充目标符号名
+/// 让受理侧 `find_enabled_target("")` 报"目标未配置"这种误导性失败。
+fn normalize_target_override(raw: Option<String>) -> Option<String> {
+    raw.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
 fn now_active_value() -> sea_orm::ActiveValue<sea_orm::entity::prelude::DateTimeWithTimeZone> {
@@ -1344,6 +1410,8 @@ pub async fn create_print_template(
 ) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
     info!("用户 {} 创建打印模板：{}", auth.username, req.template_name);
     req.validate()?;
+    validate_template_doc_type(&req.doc_type)?;
+    let copies_default = validate_copies_default(req.copies_default)?;
 
     let template_code = req.template_code.clone().unwrap_or_else(|| {
         format!(
@@ -1356,9 +1424,10 @@ pub async fn create_print_template(
         .clone()
         .unwrap_or_else(|| "logistics".to_string());
     let is_default = req.is_default.unwrap_or(false);
-    // doc_type 为“单据→模板”查找键且列 NOT NULL；出参结构不含该列，
-    // 新建时以模板编码兼作 doc_type（与内置种子 template_code 同值口径一致）。
-    let doc_type = template_code.clone();
+    // doc_type 由请求显式提供并已通过 SUPPORTED_DOC_TYPES 校验：它才是"单据→模板"的查找键，
+    // 早先以 template_code 冒充会让新建模板永远命中不到渲染链路（存得进、打不出）。
+    let doc_type = req.doc_type.clone();
+    let default_target_name = normalize_target_override(req.default_target_name);
 
     let active = print_template::ActiveModel {
         id: Default::default(),
@@ -1370,6 +1439,9 @@ pub async fn create_print_template(
         doc_type: Set(doc_type),
         paper_size: req.paper_size.map(Set).unwrap_or_default(),
         orientation: req.orientation.map(Set).unwrap_or_default(),
+        copies_default: copies_default.map(Set).unwrap_or_default(),
+        // 可空列：未配置即落 NULL（列 DEFAULT NULL），不用 unwrap_or_default 造出空串目标
+        default_target_name: Set(default_target_name),
         content: req.content.map(Set).unwrap_or_default(),
         css_styles: req.css_styles.map(Set).unwrap_or_default(),
         variables: req.variables.map(Set).unwrap_or_default(),
@@ -1414,6 +1486,10 @@ pub async fn update_print_template(
 ) -> Result<axum::Json<ApiResponse<PrintTemplateRecord>>, AppError> {
     info!("用户 {} 更新打印模板 ID: {}", auth.username, id);
     req.validate()?;
+    if let Some(v) = req.doc_type.as_deref() {
+        validate_template_doc_type(v)?;
+    }
+    let copies_default = validate_copies_default(req.copies_default)?;
 
     let existing = load_template(&*state.db, id).await?;
     let module_for_default = req
@@ -1442,6 +1518,16 @@ pub async fn update_print_template(
     }
     if let Some(v) = req.orientation {
         active.orientation = Set(v);
+    }
+    if let Some(v) = req.doc_type {
+        active.doc_type = Set(v);
+    }
+    if let Some(v) = copies_default {
+        active.copies_default = Set(v);
+    }
+    // 可空列三态：键缺席不动、显式 null 清空、有值覆盖
+    if let Some(v) = req.default_target_name {
+        active.default_target_name = Set(normalize_target_override(v));
     }
     if let Some(v) = req.content {
         active.content = Set(v);
@@ -1489,6 +1575,8 @@ pub async fn update_print_template(
     )))
 }
 
+/// 删除打印模板。`print_tasks` 以 template_id 外键指向本行，直接删会被数据库拒绝，
+/// 故先数引用：有台账即拒绝删除并点名条数，下线模板改用停用（status=inactive）。
 pub async fn delete_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -1497,6 +1585,18 @@ pub async fn delete_print_template(
     info!("用户 {} 删除打印模板 ID: {}", auth.username, id);
 
     load_template(&*state.db, id).await?;
+
+    let referenced_by_tasks = print_task::Entity::find()
+        .filter(print_task::Column::TemplateId.eq(id))
+        .count(&*state.db)
+        .await?;
+    if referenced_by_tasks > 0 {
+        return Err(AppError::business_displayable(format!(
+            "该打印模板已有 {} 条打印任务台账，删除会抹掉打印历史，请改为停用",
+            referenced_by_tasks
+        )));
+    }
+
     print_template::Entity::delete_by_id(id)
         .exec(&*state.db)
         .await?;
