@@ -71,6 +71,8 @@ impl BpmService {
         let txn = self.db.begin().await?;
         // P0 5-3 修复：事务内仅收集待发事件，commit 成功后再 publish，避免 commit 失败产生幻事件
         let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
+        // 本次审批推进新产生的工单 id：commit 成功后才通知新处理人（未提交就通知会发幽灵待办）
+        let mut advanced_task_ids: Vec<i32> = vec![];
 
         // 审批处理人必须取「已认证操作人」，禁止信任前端传入的 req.handler_id / req.handler_name
         // （否则代审/伪造会污染 actual_handler_* 与审计追溯）。`user_id` 由 handler 层从
@@ -89,8 +91,14 @@ impl BpmService {
             self.handle_task_reject(&ctx.instance, Some(actor_id), &txn, &mut pending_event)
                 .await?;
         } else {
-            self.handle_task_approve(&ctx, Some(actor_id), &txn, &mut pending_event)
-                .await?;
+            self.handle_task_approve(
+                &ctx,
+                Some(actor_id),
+                &txn,
+                &mut pending_event,
+                &mut advanced_task_ids,
+            )
+            .await?;
         }
 
         txn.commit().await?;
@@ -98,6 +106,19 @@ impl BpmService {
         // P0 5-3 修复：commit 成功后发布 BPM 流程结束事件
         if let Some(ev) = pending_event {
             crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
+
+        // 推进出的下一节点工单：通知其处理人，审批链不再靠人工翻列表接力
+        for task_id in advanced_task_ids {
+            if let Ok(Some(task)) = bpm_task::Entity::find_by_id(task_id).one(&*self.db).await {
+                super::notify_task_pending(
+                    &self.db,
+                    &task,
+                    &ctx.instance,
+                    "上一节点已通过，待您处理",
+                )
+                .await;
+            }
         }
         Ok(())
     }
@@ -258,8 +279,11 @@ impl BpmService {
         user_id: Option<i32>,
         txn: &sea_orm::DatabaseTransaction,
         pending_event: &mut Option<crate::services::event_bus::BusinessEvent>,
+        advanced_task_ids: &mut Vec<i32>,
     ) -> Result<(), AppError> {
-        let advanced = self.try_advance_to_next_node(ctx, txn).await?;
+        let advanced = self
+            .try_advance_to_next_node(ctx, txn, advanced_task_ids)
+            .await?;
         if !advanced {
             self.complete_process_instance(&ctx.instance, user_id, txn, pending_event)
                 .await?;
@@ -272,6 +296,7 @@ impl BpmService {
         &self,
         ctx: &ApproveContext,
         txn: &sea_orm::DatabaseTransaction,
+        advanced_task_ids: &mut Vec<i32>,
     ) -> Result<bool, AppError> {
         // Approve -> Find next node
         if let Some(flow_def) = &ctx.definition.config {
@@ -305,7 +330,8 @@ impl BpmService {
                         let node_type =
                             next_node.get("type").and_then(|t| t.as_str()).unwrap_or("");
                         if node_type == "user_task" {
-                            self.create_next_user_task(ctx, next_node, txn).await?;
+                            self.create_next_user_task(ctx, next_node, txn, advanced_task_ids)
+                                .await?;
                             return Ok(true);
                         } else if node_type == "end_event" {
                             // 结束事件，在下面处理
@@ -323,6 +349,7 @@ impl BpmService {
         ctx: &ApproveContext,
         next_node: &serde_json::Value,
         txn: &sea_orm::DatabaseTransaction,
+        advanced_task_ids: &mut Vec<i32>,
     ) -> Result<(), AppError> {
         let new_task = bpm_task::ActiveModel {
             instance_id: Set(ctx.instance.id),
@@ -349,16 +376,14 @@ impl BpmService {
                 .to_string()),
             node_type: Set("user_task".to_string()),
             task_type: Set(Some("user_task".to_string())),
-            actual_handler_id: Set(next_node
-                .get("assignee_value")
-                .and_then(|a| a.as_str())
-                .and_then(|s| s.parse::<i32>().ok())),
+            actual_handler_id: Set(super::resolve_node_assignee(next_node)?),
             status: Set(Some(task_status::PENDING.to_string())),
             created_at: Set(Some(chrono::Utc::now())),
             updated_at: Set(Some(chrono::Utc::now())),
             ..Default::default()
         };
-        new_task.insert(txn).await?;
+        let created = new_task.insert(txn).await?;
+        advanced_task_ids.push(created.id);
         Ok(())
     }
 
@@ -445,6 +470,7 @@ impl BpmService {
             return Err(AppError::business_displayable("只能转办待处理任务"));
         }
 
+        let instance_id = task.instance_id;
         let mut task_active: bpm_task::ActiveModel = task.into();
         task_active.actual_handler_id = Set(Some(new_assignee_id));
         task_active.approval_opinion = Set(Some(format!("[转办] {}", transfer_reason)));
@@ -452,6 +478,26 @@ impl BpmService {
         task_active.update(&txn).await?;
 
         txn.commit().await?;
+
+        // 转办成功后叫醒新处理人：否则被转办的人根本不知道自己多了一张工单，
+        // 只能靠人工口头传达（通知失败不回滚转办本身，但必须留日志）
+        match (
+            bpm_task::Entity::find_by_id(task_id).one(&*self.db).await,
+            bpm_process_instance::Entity::find_by_id(instance_id)
+                .one(&*self.db)
+                .await,
+        ) {
+            (Ok(Some(task)), Ok(Some(instance))) => {
+                super::notify_task_pending(&self.db, &task, &instance, "工单已转办给您").await;
+            }
+            _ => {
+                tracing::warn!(
+                    task_id = task_id,
+                    instance_id = instance_id,
+                    "工单转办通知未能装载任务或实例，跳过通知（转办已生效）"
+                );
+            }
+        }
         Ok(())
     }
 
@@ -496,7 +542,7 @@ impl BpmService {
                         priority: crate::models::notification::NotificationPriority::High,
                         business_type: Some("BPM".to_string()),
                         business_id: Some(i64::from(task.instance_id)),
-                        action_url: Some(format!("/bpm/tasks/{}", task_id)),
+                        action_url: Some("/bpm/approval".to_string()),
                         sender_id: None,
                         sender_name: Some("系统".to_string()),
                         dedup_key: None,
