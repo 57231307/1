@@ -24,9 +24,22 @@
           <el-icon><Printer /></el-icon>
           {{ $t('crmCustomer.print') }}
         </el-button>
-        <el-button v-permission="'crm_customer.export'" @click="handleExport">
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="exportSubmitting"
+          @click="handleExport"
+        >
           <el-icon><Download /></el-icon>
           {{ $t('crmCustomer.export') }}
+        </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ $t('exportApprovals.downloadMine') }}
         </el-button>
         <el-button @click="router.push('/crm/pool')">
           <el-icon><Coin /></el-icon>
@@ -385,7 +398,8 @@ import { getSalesUserList, type SalesUser } from '@/api/crm-enhanced';
 import { useTableApi } from '@/composables/useTableApi';
 // 导出走后端带水印 xlsx 接口 GET /crm/customers/export（后端注入水印 + 行级数据权限 +
 // 异步审计日志），前端下载 Blob。
-import { exportFromBackend } from '@/utils/export';
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { useExportApproval } from '@/composables/useExportApproval';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { escapeHtml } from '@/utils/print';
@@ -821,19 +835,26 @@ const viewDetail = (id: number) => {
 };
 
 /**
- * 导出客户列表为 xlsx。
- *
- * 走后端 GET /crm/customers/export（后端注入水印 + 行级数据权限 + 异步审计日志）；
- * 传入当前列表筛选条件（status/customer_type/keyword），保证导出与列表一致。
+ * 导出客户清单：敏感资源，后端 GET /crm/customers/export 以 download_token 做
+ * fail-closed 审批令牌校验，直连必 403。改为提交导出审批申请（useExportApproval
+ * 统一入口，参数形状由 constants/export-approval 注册表收敛为 status/customer_type/
+ * keyword），estimated_rows 传当前筛选命中总数，决定后端风险等级与审批层级。批准后
+ * 由「下载我的导出」按钮在本页就地下载（downloadApprovedExport 拉取本人该资源下
+ * 可用令牌申请，不再集中到审批页下载）。
  */
-const handleExport = async () => {
-  const params: Record<string, unknown> = {
-    status: queryParams.status || undefined,
-    customer_type: queryParams.customer_type || undefined,
-    keyword: queryParams.keyword.trim() || undefined,
-  };
-  await exportFromBackend('/crm/customers/export', params, 'crm_customers_export');
-};
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
+const handleExport = () =>
+  requestExport(
+    'customer',
+    {
+      status: queryParams.status,
+      customer_type: queryParams.customer_type,
+      keyword: queryParams.keyword.trim(),
+    },
+    total.value
+  );
+const handleDownloadMine = () => downloadApprovedExport('customer');
 
 const handlePrint = () => {
   const printWindow = window.open('', '_blank');

@@ -28,9 +28,22 @@
           <el-icon><Printer /></el-icon>
           {{ t('supplier.index.button.print') }}
         </el-button>
-        <el-button v-permission="'supplier.export'" @click="handleExport">
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="exportSubmitting"
+          @click="handleExport"
+        >
           <el-icon><Download /></el-icon>
           {{ t('supplier.index.button.export') }}
+        </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ t('exportApprovals.downloadMine') }}
         </el-button>
       </div>
     </div>
@@ -81,8 +94,8 @@ import {
   type Supplier,
   type SupplierQueryParams,
 } from '@/api/supplier';
-// V15 P0-S12 + P0-S15 修复（Batch 474）：供应商导出改用后端带水印 xlsx 接口
-import { exportFromBackend } from '@/utils/export';
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { useExportApproval } from '@/composables/useExportApproval';
 import { printData } from '@/utils/print';
 import { useTableApi } from '@/composables/useTableApi';
 // Batch 468 P0-S28：引入权限码常量，与后端 suppliers 资源对齐
@@ -254,19 +267,25 @@ const handleSubmit = async () => {
   }
 };
 
-const handleExport = async () => {
-  // V15 P0-S12 + P0-S15 修复（Batch 474）：改用后端带水印 xlsx 接口
-  // - 后端 GET /purchase/suppliers/export 已注入水印（操作员/导出时间/导出条数）
-  // - 行级数据权限与 list 一致
-  // - 异步记录审计日志（OperationType::Export）
-  // queryParams 字段与 SupplierQueryParams 对齐（keyword/grade/status）
-  const params: Record<string, unknown> = {
-    keyword: queryParams.keyword || undefined,
-    grade: queryParams.grade || undefined,
-    status: queryParams.status || undefined,
-  };
-  await exportFromBackend('/purchase/suppliers/export', params, 'suppliers_export');
-};
+// 供应商清单属敏感导出：后端 GET /purchase/suppliers/export 以 download_token 做
+// fail-closed 审批令牌校验，直连必 403。导出按钮改为提交审批申请（useExportApproval
+// 统一入口，参数形状由 constants/export-approval 注册表收敛），estimated_rows 传当前
+// 筛选命中总数。批准后由「下载我的导出」按钮在本页就地下载（downloadApprovedExport
+// 拉取本人该资源下可用令牌申请，不再集中到审批页下载）。
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
+const handleExport = () =>
+  requestExport(
+    'supplier',
+    {
+      keyword: queryParams.keyword,
+      grade: queryParams.grade,
+      status: queryParams.status,
+      is_processor: queryParams.is_processor,
+    },
+    total.value
+  );
+const handleDownloadMine = () => downloadApprovedExport('supplier');
 
 const handlePrint = () => {
   printData({

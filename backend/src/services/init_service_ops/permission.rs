@@ -450,6 +450,7 @@ impl InitService {
                     ("reports", "read"),
                     ("dashboard", "read"),
                     ("export-approvals", "create"),
+                    ("export-approvals", "read"),
                 ],
             ),
             // operator：操作员，全业务域只读

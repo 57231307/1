@@ -13,10 +13,14 @@
             <ElButton
               :type="viewMode === 'pending_me' ? 'primary' : 'default'"
               @click="switchMode('pending_me')"
-              >待我审批</ElButton
+              >{{ $t('exportApprovals.pendingApproval') }}</ElButton
             >
-            <ElButton type="success" @click="createVisible = true">发起审批</ElButton>
-            <ElButton text @click="openVerifyToken">校验令牌</ElButton>
+            <ElButton type="success" @click="createVisible = true">{{
+              $t('exportApprovals.createRequest')
+            }}</ElButton>
+            <ElButton text @click="openVerifyToken">{{
+              $t('exportApprovals.verifyToken')
+            }}</ElButton>
             <ElButton text @click="loadList">{{ $t('common.refresh') }}</ElButton>
           </div>
         </div>
@@ -30,11 +34,12 @@
           style="width: 160px"
           @change="loadList"
         >
-          <ElOption label="Pending" value="pending" />
-          <ElOption label="Approved" value="approved" />
-          <ElOption label="Rejected" value="rejected" />
-          <ElOption label="Expired" value="expired" />
-          <ElOption label="Cancelled" value="cancelled" />
+          <ElOption
+            v-for="status in EXPORT_APPROVAL_STATUSES"
+            :key="status"
+            :label="$t(EXPORT_APPROVAL_STATUS_LABEL_KEYS[status])"
+            :value="status"
+          />
         </ElSelect>
         <ElSelect
           v-model="searchForm.resource_type"
@@ -43,13 +48,12 @@
           style="width: 200px"
           @change="loadList"
         >
-          <ElOption label="Customer" value="customer" />
-          <ElOption label="Product" value="product" />
-          <ElOption label="Supplier" value="supplier" />
-          <ElOption label="Dye Recipe" value="dye_recipe" />
-          <ElOption label="Price List" value="price_list" />
-          <ElOption label="Finance Report" value="finance_report" />
-          <ElOption label="Audit Log" value="audit_log" />
+          <ElOption
+            v-for="rt in EXPORT_APPROVAL_RESOURCE_TYPES"
+            :key="rt"
+            :label="$t(EXPORT_APPROVAL_RESOURCE_LABEL_KEYS[rt])"
+            :value="rt"
+          />
         </ElSelect>
       </div>
 
@@ -67,7 +71,12 @@
         />
         <ElTableColumn prop="status" :label="$t('exportApprovals.colStatus')" width="100">
           <template #default="{ row }">
-            <ElTag :type="statusTagType(row.status)">{{ row.status }}</ElTag>
+            <!-- 与资源类型列同款空值门：真实记录 status 恒非空（后端 NOT NULL），
+                 仅空表占位行会带无 status 的对象；缺 status 时不渲染标签，
+                 避免把「空表渲染」误判成「词表外取值」触发 normalize 显式抛错。 -->
+            <ElTag v-if="row.status" :type="exportApprovalStatusTagType(row.status)">{{
+              $t(exportApprovalStatusLabelKey(row.status))
+            }}</ElTag>
           </template>
         </ElTableColumn>
         <ElTableColumn prop="estimated_rows" :label="$t('exportApprovals.colRows')" width="100" />
@@ -83,11 +92,16 @@
             <span v-else>-</span>
           </template>
         </ElTableColumn>
-        <ElTableColumn :label="$t('common.action')" width="260" fixed="right">
+        <ElTableColumn :label="$t('common.action')" width="320" fixed="right">
           <template #default="{ row }">
-            <ElButton size="small" @click="openDetail(row)">详情</ElButton>
+            <ElButton size="small" @click="openDetail(row)">{{ $t('common.detail') }}</ElButton>
+            <!--
+              申请人下载已迁各资源导出页就地进行（composables/useExportApproval.downloadApprovedExport），
+              本页仅保留审批职能（批准/驳回/撤销与待办列表），不再提供集中下载按钮。
+            -->
             <ElButton
               v-if="row.status === 'pending' || row.status === 'pending_l2'"
+              v-permission="EXPORT_APPROVAL_APPROVE_PERMISSION_KEY"
               type="primary"
               size="small"
               @click="handleApprove(row)"
@@ -95,6 +109,7 @@
             >
             <ElButton
               v-if="row.status === 'pending' || row.status === 'pending_l2'"
+              v-permission="EXPORT_APPROVAL_REJECT_PERMISSION_KEY"
               type="danger"
               size="small"
               @click="handleReject(row)"
@@ -102,6 +117,7 @@
             >
             <ElButton
               v-if="row.status === 'pending'"
+              v-permission="EXPORT_APPROVAL_CANCEL_PERMISSION_KEY"
               text
               size="small"
               @click="handleCancel(row)"
@@ -123,70 +139,82 @@
     </ElCard>
 
     <!-- 审批详情对话框（getApprovalDetail 回源） -->
-    <ElDialog v-model="detailVisible" title="审批详情" width="640">
+    <ElDialog v-model="detailVisible" :title="$t('exportApprovals.detailTitle')" width="640">
       <ElDescriptions v-if="detailRow" :column="2" border>
         <ElDescriptionsItem label="ID">{{ detailRow.id }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="资源类型">{{ detailRow.resource_type }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="申请人">{{
-          detailRow.applicant_username || '-'
+        <ElDescriptionsItem :label="$t('exportApprovals.colResource')">{{
+          $t(exportApprovalResourceLabelKey(detailRow.resource_type))
         }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="状态">
-          <ElTag :type="statusTagType(String(detailRow.status))">{{ detailRow.status }}</ElTag>
+        <ElDescriptionsItem :label="$t('exportApprovals.colApplicant')">{{
+          detailRow.applicant_username
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem :label="$t('exportApprovals.colStatus')">
+          <ElTag :type="exportApprovalStatusTagType(detailRow.status)">{{
+            $t(exportApprovalStatusLabelKey(detailRow.status))
+          }}</ElTag>
         </ElDescriptionsItem>
-        <ElDescriptionsItem label="预计行数">{{
+        <ElDescriptionsItem :label="$t('exportApprovals.colRows')">{{
           detailRow.estimated_rows ?? '-'
         }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="文件格式">{{ detailRow.file_format || '-' }}</ElDescriptionsItem>
-        <ElDescriptionsItem label="导出参数" :span="2">
-          <pre class="detail-json">{{ JSON.stringify(detailRow.export_params, null, 2) }}</pre>
+        <ElDescriptionsItem :label="$t('exportApprovals.fileFormatLabel')">{{
+          detailRow.file_format
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem :label="$t('exportApprovals.paramsLabel')" :span="2">
+          <pre class="detail-json">{{
+            detailRow.export_params ? JSON.stringify(detailRow.export_params, null, 2) : '-'
+          }}</pre>
         </ElDescriptionsItem>
       </ElDescriptions>
     </ElDialog>
 
     <!-- 发起审批（createApproval） -->
-    <ElDialog v-model="createVisible" title="发起审批" width="520">
+    <ElDialog v-model="createVisible" :title="$t('exportApprovals.createTitle')" width="520">
       <ElForm :model="createForm" label-width="110px">
-        <ElFormItem label="资源类型" required>
+        <ElFormItem :label="$t('exportApprovals.colResource')" required>
           <ElSelect v-model="createForm.resource_type" style="width: 100%">
-            <ElOption label="客户数据" value="customer" />
-            <ElOption label="产品数据" value="product" />
-            <ElOption label="供应商数据" value="supplier" />
-            <ElOption label="染色配方" value="dye_recipe" />
-            <ElOption label="价目表" value="price_list" />
-            <ElOption label="财务报表" value="finance_report" />
-            <ElOption label="审计日志" value="audit_log" />
+            <ElOption
+              v-for="rt in EXPORT_APPROVAL_RESOURCE_TYPES"
+              :key="rt"
+              :label="$t(EXPORT_APPROVAL_RESOURCE_LABEL_KEYS[rt])"
+              :value="rt"
+            />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="导出参数" required>
+        <ElFormItem :label="$t('exportApprovals.paramsLabel')" required>
           <ElInput
             v-model="createForm.paramsText"
             type="textarea"
             :rows="4"
-            placeholder='JSON，如 {"date_range":["2026-01-01","2026-12-31"]}'
+            :placeholder="$t('exportApprovals.paramsPlaceholder')"
           />
         </ElFormItem>
-        <ElFormItem label="预计行数">
+        <ElFormItem :label="$t('exportApprovals.estimatedRowsLabel')">
           <ElInputNumber v-model="createForm.estimated_rows" :min="0" />
         </ElFormItem>
-        <ElFormItem label="文件格式">
+        <ElFormItem :label="$t('exportApprovals.fileFormatLabel')">
+          <!-- 后端 create 校验 file_format 仅接受 xlsx/pdf（export_approval_service） -->
           <ElSelect v-model="createForm.file_format" style="width: 100%">
-            <ElOption label="Excel" value="excel" />
-            <ElOption label="PDF" value="pdf" />
+            <ElOption label="xlsx" value="xlsx" />
+            <ElOption label="pdf" value="pdf" />
           </ElSelect>
         </ElFormItem>
       </ElForm>
       <template #footer>
-        <ElButton @click="createVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="createSaving" @click="handleCreate">提交</ElButton>
+        <ElButton @click="createVisible = false">{{ $t('common.cancel') }}</ElButton>
+        <ElButton type="primary" :loading="createSaving" @click="handleCreate">{{
+          $t('common.submit')
+        }}</ElButton>
       </template>
     </ElDialog>
 
     <!-- 下载令牌校验（verifyToken） -->
-    <ElDialog v-model="tokenVisible" title="下载令牌校验" width="440">
-      <ElInput v-model="tokenText" placeholder="粘贴下载令牌" />
+    <ElDialog v-model="tokenVisible" :title="$t('exportApprovals.verifyTitle')" width="440">
+      <ElInput v-model="tokenText" :placeholder="$t('exportApprovals.verifyTokenPlaceholder')" />
       <template #footer>
-        <ElButton @click="tokenVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="tokenChecking" @click="handleVerifyToken">校验</ElButton>
+        <ElButton @click="tokenVisible = false">{{ $t('common.cancel') }}</ElButton>
+        <ElButton type="primary" :loading="tokenChecking" @click="handleVerifyToken">{{
+          $t('exportApprovals.verifyAction')
+        }}</ElButton>
       </template>
     </ElDialog>
   </div>
@@ -194,9 +222,10 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { msg } from '@/utils/message';
 import {
   listApprovals,
   listPendingForMe,
@@ -208,10 +237,21 @@ import {
   cancelRequest,
 } from '@/api/export-approvals';
 import type { ExportApprovalRequest, ListApprovalQuery } from '@/api/export-approvals';
-import { exportApprovalResourceLabelKey } from '@/constants/export-approval';
+import {
+  EXPORT_APPROVAL_STATUSES,
+  EXPORT_APPROVAL_STATUS_LABEL_KEYS,
+  EXPORT_APPROVAL_RESOURCE_TYPES,
+  EXPORT_APPROVAL_RESOURCE_LABEL_KEYS,
+  EXPORT_APPROVAL_APPROVE_PERMISSION_KEY,
+  EXPORT_APPROVAL_REJECT_PERMISSION_KEY,
+  EXPORT_APPROVAL_CANCEL_PERMISSION_KEY,
+  exportApprovalResourceLabelKey,
+  exportApprovalStatusLabelKey,
+  exportApprovalStatusTagType,
+} from '@/constants/export-approval';
 import { useI18n } from 'vue-i18n';
 
-const { t } = useI18n();
+const { t } = useI18n({ useScope: 'global' });
 
 const list = ref<ExportApprovalRequest[]>([]);
 const loading = ref(false);
@@ -224,18 +264,6 @@ const searchForm = reactive<ListApprovalQuery>({
   resource_type: '',
 });
 
-const statusTagType = (status: string) => {
-  const map: Record<string, string> = {
-    pending: 'warning',
-    pending_l2: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-    expired: 'info',
-    cancelled: 'info',
-  };
-  return map[status] || 'info';
-};
-
 const loadList = async () => {
   loading.value = true;
   try {
@@ -243,10 +271,11 @@ const loadList = async () => {
     if (viewMode.value === 'pending_me') delete query.status;
     const res =
       viewMode.value === 'pending_me' ? await listPendingForMe(query) : await listApprovals(query);
-    list.value = res.data?.items || [];
-    total.value = res.data?.total || 0;
-  } catch {
-    ElMessage.error(t('exportApprovals.loadFailed'));
+    list.value = res.data.items;
+    total.value = res.data.total;
+  } catch (error) {
+    // 后端失败信封文案由 request 拦截器外显，此处按辅助加载分级留痕
+    logAuxLoadFailure(t('exportApprovals.loadFailed'), error);
   } finally {
     loading.value = false;
   }
@@ -257,29 +286,26 @@ const viewMode = ref<'all' | 'pending_me'>('all');
 
 const switchMode = (mode: 'all' | 'pending_me') => {
   viewMode.value = mode;
-  page_reset_and_load();
+  pageResetAndLoad();
 };
 
-const page_reset_and_load = () => {
+const pageResetAndLoad = () => {
   searchForm.page = 1;
   void loadList();
 };
 
 // ===== 详情回源（getApprovalDetail） =====
 const detailVisible = ref(false);
-const detailRow = ref<Record<string, unknown> | null>(null);
+const detailRow = ref<ExportApprovalRequest | null>(null);
 
 const openDetail = async (row: ExportApprovalRequest) => {
-  detailRow.value = row as unknown as Record<string, unknown>;
+  detailRow.value = row;
   detailVisible.value = true;
   try {
     const res = await getApprovalDetail(row.id);
-    if (res.data) {
-      detailRow.value = res.data as unknown as Record<string, unknown>;
-      detailVisible.value = true;
-    }
+    detailRow.value = res.data;
   } catch (error) {
-    logger.error(t('exportApprovals.detailFailed'), error);
+    logAuxLoadFailure(t('exportApprovals.detailFailed'), error);
   }
 };
 
@@ -290,19 +316,19 @@ const createForm = reactive({
   resource_type: 'customer',
   paramsText: '{}',
   estimated_rows: undefined as number | undefined,
-  file_format: 'excel',
+  file_format: 'xlsx',
 });
 
 const handleCreate = async () => {
   let exportParams: unknown;
   try {
-    exportParams = JSON.parse(createForm.paramsText || '{}');
+    exportParams = JSON.parse(createForm.paramsText);
   } catch {
-    ElMessage.warning('导出参数 JSON 格式有误');
+    ElMessage.warning(t('exportApprovals.jsonInvalid'));
     return;
   }
   if (typeof exportParams !== 'object' || exportParams === null || Array.isArray(exportParams)) {
-    ElMessage.warning('导出参数需为 JSON 对象');
+    ElMessage.warning(t('exportApprovals.jsonMustBeObject'));
     return;
   }
   createSaving.value = true;
@@ -310,15 +336,16 @@ const handleCreate = async () => {
     await createApproval({
       resource_type: createForm.resource_type,
       export_params: exportParams as Record<string, unknown>,
-      estimated_rows: createForm.estimated_rows ?? undefined,
-      file_format: createForm.file_format || undefined,
+      estimated_rows: createForm.estimated_rows,
+      file_format: createForm.file_format,
     });
-    ElMessage.success('审批申请已提交');
+    msg.success('exportApprovalSubmittedGuide');
     createVisible.value = false;
     viewMode.value = 'all';
-    page_reset_and_load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e));
+    pageResetAndLoad();
+  } catch (error) {
+    // 失败文案由 request 拦截器按后端失败信封外显，此处留显式日志
+    logger.error(t('exportApprovals.logRequestFailed'), error);
   } finally {
     createSaving.value = false;
   }
@@ -335,19 +362,23 @@ const openVerifyToken = () => {
 
 const handleVerifyToken = async () => {
   if (!tokenText.value.trim()) {
-    ElMessage.warning('请粘贴令牌');
+    ElMessage.warning(t('exportApprovals.tokenRequired'));
     return;
   }
   tokenChecking.value = true;
   try {
     const res = await verifyToken(tokenText.value.trim());
-    ElMessageBox.alert(JSON.stringify(res.data ?? res, null, 2), '校验结果');
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e));
+    ElMessageBox.alert(JSON.stringify(res.data, null, 2), t('exportApprovals.verifyResultTitle'));
+  } catch (error) {
+    // 令牌无效/过期等失败文案由 request 拦截器按后端失败信封外显
+    logger.error(t('exportApprovals.logVerifyFailed'), error);
   } finally {
     tokenChecking.value = false;
   }
 };
+
+// 申请人下载已迁各资源导出页就地（composables/useExportApproval.downloadApprovedExport），
+// 本页仅保留审批职能（批准/驳回/撤销 + 待办列表 + 令牌校验/复制），不再实现集中下载。
 
 const handleApprove = async (row: ExportApprovalRequest) => {
   try {
@@ -355,7 +386,7 @@ const handleApprove = async (row: ExportApprovalRequest) => {
       type: 'warning',
     });
     await approveRequest(row.id);
-    ElMessage.success(t('exportApprovals.approved'));
+    msg.approveOk();
     loadList();
   } catch (error: unknown) {
     if (isDialogDismissal(error)) return; // 仅用户取消/关闭才静默中断

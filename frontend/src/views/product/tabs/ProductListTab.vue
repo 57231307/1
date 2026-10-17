@@ -659,9 +659,12 @@ const canDownloadRow = (row: ExportApprovalRequest): boolean =>
   row.download_token !== null &&
   row.download_count < row.max_downloads;
 
-// 申请落库的 export_params 即 ExportProductsQuery 形状；逐键显式读取，不透传未知键
-const toExportProductsQuery = (raw: Record<string, unknown>): ExportProductsQuery => {
+// 申请落库的 export_params 即 ExportProductsQuery 形状；逐键显式读取，不透传未知键。
+// 入参可空对应后端 Model.export_params 的 Option 列：null 表示该申请未携带任何
+// 筛选参数，下载即按无筛选执行（与申请时刻的参数集合一致，非兜底默认值）。
+const toExportProductsQuery = (raw: Record<string, unknown> | null): ExportProductsQuery => {
   const q: ExportProductsQuery = {};
+  if (!raw) return q;
   if (typeof raw.category_id === 'number') {
     q.category_id = raw.category_id;
   }

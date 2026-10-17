@@ -8,8 +8,20 @@
     <div class="page-header">
       <h2 class="page-title">{{ t('financeReport.reportListTab.pageTitle') }}</h2>
       <div>
-        <el-button v-permission="'finance_report.export'" @click="handleExport">
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="exportSubmitting"
+          @click="handleExport"
+        >
           <el-icon><Download /></el-icon>{{ t('financeReport.reportListTab.buttonExport') }}
+        </el-button>
+        <!-- 就地下载本人在 finance_report 资源下已批准的导出（按申请落库 report_type 解析端点） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>{{ t('exportApprovals.downloadMine') }}
         </el-button>
       </div>
     </div>
@@ -93,7 +105,8 @@
               <el-icon><Printer /></el-icon>{{ t('financeReport.reportListTab.buttonPrint') }}
             </el-button>
             <el-button
-              v-permission="'finance_report.export'"
+              v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+              :loading="exportSubmitting"
               type="primary"
               link
               @click="handleExport"
@@ -653,7 +666,8 @@ import {
   type SubsidiaryLedger,
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
-import { exportFromBackend } from '@/utils/export';
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { useExportApproval } from '@/composables/useExportApproval';
 import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -794,37 +808,28 @@ const handlePrint = () => {
   window.print();
 };
 
+/**
+ * 财务报表属敏感导出：后端六个报表导出端点均要求 download_token（fail-closed，
+ * 无令牌必 403）。导出按钮改为提交导出审批申请（useExportApproval 统一入口），
+ * export_params 落 report_type + 该报表端点真实读取的筛选键；审批通过后由「下载我的
+ * 导出」按钮在本页就地下载（downloadApprovedExport 拉取本人 finance_report 资源下
+ * 可用令牌申请，由注册表把该申请落库的 report_type 解析到对应报表导出端点，凭一次性
+ * 令牌下载带水印 xlsx，不再集中到审批页下载）。
+ */
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
 const handleExport = () => {
   if (!hasData.value) {
     ElMessage.warning(t('financeReport.reportListTab.messageGenerateFirst'));
     return;
   }
-  const reportType = queryForm.report_type;
-  const filename = `${getReportTypeLabel(reportType)}_${queryForm.period}`;
-
-  // 所有报表类型统一使用后端导出
-  const exportApiMap: Record<string, string> = {
-    trial_balance: '/finance/reports/trial-balance/export',
-    balance_sheet: '/finance/reports/balance-sheet/export',
-    income_statement: '/finance/reports/income-statement/export',
-    cash_flow: '/finance/reports/cash-flow/export',
-    general_ledger: '/finance/reports/general-ledger/export',
-    subsidiary_ledger: '/finance/reports/subsidiary-ledger/export',
-  };
-
-  const apiPath = exportApiMap[reportType];
-  if (apiPath) {
-    const params: Record<string, string> = {};
-    if (queryForm.period) params.period = queryForm.period;
-    if (reportType === 'general_ledger' || reportType === 'subsidiary_ledger') {
-      // 总账和明细账需要额外参数
-      if (queryForm.subject_code) params.subject_code = queryForm.subject_code;
-    }
-    exportFromBackend(apiPath, params, filename);
-  } else {
-    ElMessage.warning(t('financeReport.reportListTab.unsupportedExportType'));
-  }
+  return requestExport('finance_report', {
+    report_type: queryForm.report_type,
+    period: queryForm.period,
+    subject_code: queryForm.subject_code,
+  });
 };
+const handleDownloadMine = () => downloadApprovedExport('finance_report');
 </script>
 
 <style scoped>

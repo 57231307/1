@@ -1,19 +1,26 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+/**
+ * 出参键与 backend/src/models/export_approval_request.rs 的 Model 序列化逐字段对齐
+ * （snake_case；Option→可空、非 Option→必存在，NOT NULL 列不得标可空）。
+ * export_params 为后端 Option<ExportParams> 新类型透传 JSON 值。
+ */
 export interface ExportApprovalRequest {
   id: number;
   applicant_user_id: number;
   applicant_username: string;
+  approver_user_id: number | null;
+  approver_username: string | null;
   resource_type: string;
-  export_params: Record<string, unknown>;
+  export_params: Record<string, unknown> | null;
   estimated_rows: number | null;
-  file_format: string | null;
+  file_format: string;
   status: string;
-  risk_level: string | null;
-  /** 后端 Model.approval_level（i32 必填）：1 一级审批即可，2 需二级审批 */
   approval_level: number;
-  approval_context: unknown;
+  approver_comments: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
   download_token: string | null;
   token_expires_at: string | null;
   download_count: number;
@@ -21,6 +28,13 @@ export interface ExportApprovalRequest {
   file_path: string | null;
   file_size_bytes: number | null;
   file_checksum: string | null;
+  applicant_ip: string | null;
+  approver_ip: string | null;
+  applicant_user_agent: string | null;
+  /** 风险等级（后端 Model.risk_level，String NOT NULL） */
+  risk_level: string;
+  /** 审批上下文（后端 Model.context，含 current_approval_step） */
+  context: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;

@@ -34,9 +34,22 @@
           <el-icon><Printer /></el-icon>
           {{ $t('customer.index.button.print') }}
         </el-button>
-        <el-button v-permission="'customer.export'" @click="handleExport">
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="exportSubmitting"
+          @click="handleExport"
+        >
           <el-icon><Download /></el-icon>
           {{ $t('customer.index.button.export') }}
+        </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ $t('exportApprovals.downloadMine') }}
         </el-button>
       </div>
     </div>
@@ -270,7 +283,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import { deleteCustomer, getCustomerById, type Customer } from '@/api/customer';
 import { formatCurrency } from '@/utils';
-import { exportFromBackend } from '@/utils/export';
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { useExportApproval } from '@/composables/useExportApproval';
 import { printData } from '@/utils/print';
 import { logger } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
@@ -424,21 +438,24 @@ const handleDelete = async (row: Customer) => {
   }
 };
 
-const handleExport = async () => {
-  // V15 P0-S12 + P0-S15 修复（Batch 474）：改用后端带水印 xlsx 接口
-  // - 后端 GET /crm/customers/export 已注入水印（操作员/导出时间/导出条数）
-  // - 水印在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
-  // - 行级数据权限与 list 一致（后端复用 list_customers_with_filter + to_data_scope_context）
-  // - 异步记录审计日志（OperationType::Export）
-  // queryParams 字段与 CustomerQueryParams 对齐（keyword/customer_type/status）
-  // 空字符串改为 undefined 避免后端按空字符串过滤
-  const params: Record<string, unknown> = {
-    keyword: queryParams.keyword || undefined,
-    customer_type: queryParams.customer_type || undefined,
-    status: queryParams.status || undefined,
-  };
-  await exportFromBackend('/crm/customers/export', params, 'customers_export');
-};
+// 客户清单属敏感导出：后端 GET /crm/customers/export 以 download_token 做 fail-closed
+// 审批令牌校验，直连必 403。导出按钮改为提交审批申请（useExportApproval 统一入口，
+// 参数形状由 constants/export-approval 注册表收敛），estimated_rows 传当前筛选命中总数，
+// 决定后端风险等级与审批层级。批准后由「下载我的导出」按钮在本页就地下载（走
+// downloadApprovedExport 拉取本人该资源下可用令牌申请，不再集中到审批页下载）。
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
+const handleExport = () =>
+  requestExport(
+    'customer',
+    {
+      keyword: queryParams.keyword,
+      customer_type: queryParams.customer_type,
+      status: queryParams.status,
+    },
+    total.value
+  );
+const handleDownloadMine = () => downloadApprovedExport('customer');
 
 const handlePrint = () => {
   printData({

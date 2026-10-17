@@ -93,9 +93,23 @@
             <el-icon><Refresh /></el-icon>
             {{ $t('auditLog.filter.reset') }}
           </el-button>
-          <el-button v-permission="'audit.log.export'" type="success" @click="handleExport">
+          <el-button
+            v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+            :loading="exportSubmitting"
+            type="success"
+            @click="handleExport"
+          >
             <el-icon><Download /></el-icon>
             {{ $t('auditLog.filter.exportCsv') }}
+          </el-button>
+          <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+          <el-button
+            v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+            :loading="approvedDownloading"
+            @click="handleDownloadMine"
+          >
+            <el-icon><Download /></el-icon>
+            {{ $t('exportApprovals.downloadMine') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -205,10 +219,10 @@ import {
   type OperationType,
   type Severity,
 } from '@/api/audit';
-// V15 P0-S13 修复（Batch 475a）：审计日志导出改用后端带水印 xlsx 接口
-// 后端 GET /audit-logs/export 已就绪（admin 权限 + xlsx + 自审计 + 11 列）
-// 后端会注入水印（操作员/导出时间/导出条数），前端只需下载 Blob
-import { exportFromBackend } from '@/utils/export';
+// 审计日志属敏感导出：后端 GET /audit-logs/export 以 download_token 做 fail-closed
+// 审批令牌校验（admin 权限 + xlsx + 自审计 + 水印），导出入口改为提交审批申请
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { useExportApproval } from '@/composables/useExportApproval';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -444,28 +458,30 @@ const handleViewDetail = async (row: AuditLogItem) => {
 };
 
 /**
- * 导出 Excel：调用后端 /audit-logs/export 接口下载带水印 xlsx
- *
- * 后端导出动作本身会写入审计日志（OperationType::Export），形成"导出审计日志"自身的审计闭环。
- * 后端水印：操作员/导出时间/导出条数（在 xlsx 第 0 行合并所有列）。
- *
- * 参数与 syncQueryParams 对齐：dateRange → start_time/end_time + operation_type/severity/resource_type/request_id/keyword
- * 空字符串改为 undefined 避免后端按空字符串过滤。
+ * 导出审计日志：改为提交导出审批申请（useExportApproval 统一入口，参数形状由
+ * constants/export-approval 注册表收敛），批准后由「下载我的导出」按钮在本页就地下载
+ * 带水印 xlsx（downloadApprovedExport 拉取本人该资源下可用令牌申请，不再集中到审批页
+ * 下载）；后端下载端点自带导出行为二次审计闭环。
+ * 参数与 syncQueryParams 对齐：dateRange → start_time/end_time +
+ * operation_type/severity/resource_type/request_id/keyword
  */
-const handleExport = async () => {
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
+const handleExport = () => {
   const params: Record<string, unknown> = {
-    operation_type: filterForm.operation_type || undefined,
-    severity: filterForm.severity || undefined,
-    resource_type: filterForm.resource_type.trim() || undefined,
-    request_id: filterForm.request_id.trim() || undefined,
-    keyword: filterForm.keyword.trim() || undefined,
+    operation_type: filterForm.operation_type,
+    severity: filterForm.severity,
+    resource_type: filterForm.resource_type.trim(),
+    request_id: filterForm.request_id.trim(),
+    keyword: filterForm.keyword.trim(),
   };
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
     params.start_time = filterForm.dateRange[0];
     params.end_time = filterForm.dateRange[1];
   }
-  await exportFromBackend('/audit-logs/export', params, 'audit_logs_export');
+  return requestExport('audit_log', params, total.value);
 };
+const handleDownloadMine = () => downloadApprovedExport('audit_log');
 
 /**
  * 格式化 JSON 字段（无值时显示占位符）

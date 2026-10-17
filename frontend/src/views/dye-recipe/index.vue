@@ -16,9 +16,22 @@
           <el-icon><Plus /></el-icon>
           {{ t('dyeRecipe.index.buttonCreate') }}
         </el-button>
-        <el-button @click="handleExport">
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="exportSubmitting"
+          @click="handleExport"
+        >
           <el-icon><Download /></el-icon>
           {{ t('dyeRecipe.index.buttonExport') }}
+        </el-button>
+        <!-- 就地下载本人在本资源下已批准的导出（令牌随申请落库，批准后回到本页下载） -->
+        <el-button
+          v-permission="EXPORT_APPROVAL_REQUEST_PERMISSION_KEY"
+          :loading="approvedDownloading"
+          @click="handleDownloadMine"
+        >
+          <el-icon><Download /></el-icon>
+          {{ t('exportApprovals.downloadMine') }}
         </el-button>
       </div>
     </div>
@@ -376,12 +389,13 @@ import {
   submitDyeRecipe,
   deleteDyeRecipe,
   getRecipeVersions,
-  exportDyeRecipes,
 } from '@/api/dye-recipe';
 import { DYE_RECIPE_STATUS } from '@/api/dye-recipe';
 import type { DyeRecipe, DyeRecipeStatus, DyeRecipeUpdatePayload } from '@/api/dye-recipe';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { isDialogDismissal } from '@/utils/monitor';
+import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { useExportApproval } from '@/composables/useExportApproval';
 import { useTableApi } from '@/composables/useTableApi';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -601,23 +615,15 @@ const handleViewVersion = (row: DyeRecipe) => {
   dialogVisible.value = true;
 };
 
-// 导出
-const handleExport = async () => {
-  try {
-    const res = await exportDyeRecipes(queryParams);
-    const url = window.URL.createObjectURL(new Blob([res]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', t('dyeRecipe.index.exportFileName'));
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    ElMessage.success(t('dyeRecipe.index.messageExportSuccess'));
-  } catch (error) {
-    logger.error(t('dyeRecipe.index.messageExportFailed'), error);
-  }
-};
+// 染色配方属敏感导出：后端 GET /production/dye-recipes/export 以 download_token 做
+// fail-closed 审批令牌校验，直连必 403。导出按钮改为提交审批申请（useExportApproval
+// 统一入口，参数形状由 constants/export-approval 注册表收敛），estimated_rows 传当前
+// 筛选命中总数。批准后由「下载我的导出」按钮在本页就地下载（downloadApprovedExport
+// 拉取本人该资源下可用令牌申请，不再集中到审批页下载）。
+const { exportSubmitting, requestExport, approvedDownloading, downloadApprovedExport } =
+  useExportApproval();
+const handleExport = () => requestExport('dye_recipe', { ...queryParams }, total.value);
+const handleDownloadMine = () => downloadApprovedExport('dye_recipe');
 
 // 提交表单
 const handleSubmitForm = async () => {
