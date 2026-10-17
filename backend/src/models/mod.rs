@@ -291,6 +291,8 @@ pub mod report_template_version;
 pub mod print_target;
 pub mod print_template;
 pub mod print_task;
+// 公司档案单例(抬头主数据,打印 letterhead 与公司档案端点共用)
+pub mod company_profile;
 // 邮件模块
 pub mod email_log;
 pub mod email_template;

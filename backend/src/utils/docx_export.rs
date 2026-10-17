@@ -188,11 +188,16 @@ pub fn build_docx_response(table: &DocxTable, filename: &str) -> Result<Response
     Ok(docx_response(bytes, filename))
 }
 
-/// 构建带键值对主表 + 明细表格的 docx（适用于合同/对账单；布局：标题→键值对表格(2列)
-/// →[可选嵌图段落]→明细表格）。调用方：`ExportService::export_docx`、
-/// `generate_reconciliation_docx`（不带图，传 `image = None`）与入库标签打印（带条码图）。
+/// 构建带键值对主表 + 明细表格的 docx（适用于合同/对账单；布局：
+/// [可选 letterhead 抬头段]→标题→键值对表格(2列)→[可选嵌图段落]→明细表格）。
+/// 调用方：`ExportService::export_docx`、`generate_reconciliation_docx`（不带图/抬头，
+/// `image`、`letterhead` 均传 `None`）、入库标签打印（带条码图）与打印渲染路径
+/// （带公司档案 letterhead）。
 /// `image` 为 Some 时在主表与明细表之间嵌入一张 PNG 位图（docx-rs 0.4 的 image_collector
 /// 按 `word/media/*.png` 打包，宽高为像素值，内部换算 EMU）。
+/// `letterhead` 为 Some 时在**标题之前**渲染一段左对齐的公司抬头：PNG logo（可为 None，
+/// 此时仅名字文本）+ 公司名文本；与居中 `image` 条码槽逻辑互不影响——`image` 唯一消费方
+/// 仍是入库标签的居中条码槽，抬头只走 `letterhead` 这一新增独立入参。
 /// `layout` 驱动页面尺寸与四边边距：纸张仅支持 A4，其余纸张以 `AppError` 点名未支持尺寸；
 /// 方向为 landscape 时交换页面宽高，边距按毫米换算 twips 写入 docx 页面设置。
 pub fn build_docx_with_kv_and_image(
@@ -202,6 +207,7 @@ pub fn build_docx_with_kv_and_image(
     detail_rows: &[Vec<String>],
     image: Option<&DocxImage>,
     layout: &DocxPageLayout,
+    letterhead: Option<(Option<&DocxImage>, &str)>,
 ) -> Result<Vec<u8>, AppError> {
     // 页面设置：由模板持久化布局驱动（纸张尺寸 + 方向 → 宽高 twips；四边边距 mm → twips）
     let (w_mm, h_mm) = paper_size_dimensions_mm(&layout.paper_size)?;
@@ -226,6 +232,20 @@ pub fn build_docx_with_kv_and_image(
         .page_size(w_twips, h_twips)
         .page_margin(margin)
         .page_orient(orient);
+
+    // 公司抬头段（letterhead）：主表之前、左对齐——logo(Pic，可缺席) + 公司名文本同段。
+    // 与下方居中 `image`（入库标签条码槽）互不影响：抬头只读本入参，条码只读 image。
+    if let Some((logo, company_name)) = letterhead {
+        let mut head_para = Paragraph::new();
+        if let Some(img) = logo {
+            let pic = Pic::new_with_dimensions(img.png.clone(), img.width_px, img.height_px);
+            head_para = head_para.add_run(Run::new().add_image(pic));
+        }
+        if !company_name.trim().is_empty() {
+            head_para = head_para.add_run(Run::new().add_text(company_name).size(24));
+        }
+        docx = docx.add_paragraph(head_para.align(AlignmentType::Left));
+    }
 
     // 标题段落
     let title_para = Paragraph::new()

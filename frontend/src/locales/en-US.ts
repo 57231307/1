@@ -8831,15 +8831,23 @@ export default {
         address: 'Address',
         bankName: 'Bank Name',
         bankAccount: 'Bank Account',
+        logo: 'Logo',
       },
       button: {
         save: 'Save',
         reset: 'Reset',
+        uploadLogo: 'Upload Logo',
+        removeLogo: 'Remove Logo',
       },
       message: {
         saveSuccess: 'Saved successfully',
         saveFailed: 'Save failed',
         requiredName: 'Please enter company name',
+        loadFailed: 'Failed to load company information',
+        logoUploaded: 'Logo uploaded',
+        logoNotPng: 'Only PNG format logos are supported',
+        logoTooLarge: 'Logo file size must not exceed 512KB',
+        logoReadFailed: 'Failed to read logo file',
       },
     },
     dataPermission: {
@@ -13374,6 +13382,8 @@ export default {
   outsourcing: {
     form: {
       materialCost: 'Material Cost',
+      supplier: 'Supplier / Processor',
+      placeholderSelectSupplier: 'Filter suppliers by name or code',
     },
     gate: {
       zeroFeeSettleTip:

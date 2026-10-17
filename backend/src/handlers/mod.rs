@@ -178,6 +178,8 @@ pub mod field_permission_handler;
 pub mod print_handler;
 pub mod print_target_handler;
 pub mod print_task_handler;
+// 公司档案(单例抬头主数据,打印 letterhead 的数据源)
+pub mod company_profile_handler;
 // 缺失的 handler 补充
 pub mod missing_handlers;
 // P0-2 主备隔离 handler
