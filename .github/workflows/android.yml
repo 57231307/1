@@ -1,0 +1,193 @@
+# Bingxi ERP 安卓客户端（Tauri v2）CI：构建 + 严格冒烟 + 模拟器 E2E。
+#
+# 部署服务器地址由 App 首装手填（不烘进包）。CI 只做：安卓端变更→出可安装 APK→严格校验产物→
+# 模拟器装包跑 E2E。独立于 ci-cd.yml。本机无 Android 工具链，全部在 CI 跑。
+#
+# 安全：仅受信触发（无 pull_request）；不将任何 GitHub event 载荷拼进 shell；输入经校验。
+name: Android (Tauri)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: "同时构建签名 release APK（需已配置签名密钥）"
+        type: boolean
+        default: false
+  push:
+    branches:
+      - "feat/android-tauri-client"
+    paths:
+      - "mobile-app/**"
+      - ".github/workflows/android.yml"
+    tags:
+      - "android-v*"
+  release:
+    types: [published]
+
+env:
+  JAVA_VERSION: "17"
+  NDK_VERSION: "26.1.10909125"
+  ANDROID_PLATFORM: "android-35"
+  ANDROID_BUILD_TOOLS: "35.0.0"
+  APP_ID: "com.bingxi.erp"
+
+jobs:
+  android-apk:
+    name: 构建 APK + 严格冒烟
+    runs-on: ubuntu-latest
+    outputs:
+      apk_version: ${{ steps.ver.outputs.android_client_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 记录安卓端版本
+        id: ver
+        run: |
+          set -euo pipefail
+          ver="$(grep -m1 '^version' mobile-app/src-tauri/Cargo.toml | tr -d ' "' | cut -d= -f2)"
+          echo "android_client_version=$ver" >> "$GITHUB_OUTPUT"
+          {
+            echo "## 安卓端出包"
+            echo "- 客户端版本：$ver"
+            echo "- 触发提交：${GITHUB_SHA::7}"
+            echo "- 事件：$GITHUB_EVENT_NAME"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 严格冒烟·1 校验 tauri.conf 符合官方 Schema
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet jsonschema
+          python3 - <<'PY'
+          import json
+          from jsonschema import Draft7Validator
+          schema = json.load(open("mobile-app/src-tauri/tauri-v2.schema.json"))
+          conf = json.load(open("mobile-app/src-tauri/tauri.conf.json"))
+          errs = sorted(Draft7Validator(schema).iter_errors(conf), key=lambda e: list(e.path))
+          if errs:
+              for e in errs:
+                  print("SCHEMA ERROR at", "/".join(map(str, e.path)), "::", e.message)
+              raise SystemExit(1)
+          print("tauri.conf.json 通过 vendored 官方 Tauri v2 schema 校验")
+          PY
+
+      - name: 严格冒烟·2 校验 capabilities JSON
+        run: |
+          set -euo pipefail
+          for f in mobile-app/src-tauri/capabilities/*.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1])); print('JSON OK', sys.argv[1])" "$f"
+          done
+
+      - name: 设置 JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: 设置 Android SDK / NDK / build-tools
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;${{ env.ANDROID_PLATFORM }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} ndk;${{ env.NDK_VERSION }}"
+
+      - name: 设置 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 设置 Rust 与 Android 目标三元组
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: 安装 Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: 生成应用图标
+        working-directory: mobile-app
+        run: cargo tauri icon app-icon.png
+
+      - name: 初始化 Android 工程
+        working-directory: mobile-app
+        run: cargo tauri android init
+
+      - name: 构建 debug APK
+        working-directory: mobile-app
+        env:
+          NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
+        run: cargo tauri android build --debug --apk
+
+      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/体积）
+        run: |
+          set -euo pipefail
+          APK="$(find mobile-app/src-tauri/gen/android/app/build/outputs/apk -path '*universal/debug/*.apk' | head -1)"
+          test -n "$APK" || { echo '未找到 universal debug APK'; exit 1; }
+          AAPT="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt"
+          BADGE="$("$AAPT" dump badging "$APK")"
+          echo "$BADGE" | grep -q "package: name='${APP_ID}'" || { echo "包名不符"; exit 1; }
+          echo "$BADGE" | grep -q "launchable-activity: name=" || { echo "无 launcher activity"; exit 1; }
+          echo "$BADGE" | grep -Eq "sdkVersion:'(2[4-9]|[3-9][0-9])'" || { echo "minSdk 应 >=24"; exit 1; }
+          SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
+          cp "$APK" /tmp/bingxi-debug.apk
+
+      - name: 上传 debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingxi-erp-android-debug
+          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
+          if-no-files-found: error
+
+      - name: 构建 release APK（未签名，可选）
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        working-directory: mobile-app
+        env:
+          NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
+        run: cargo tauri android build --release --apk
+
+      - name: 签名 release APK（需 keystore 密钥）
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release
+          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          alias: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: 上传签名 release APK
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingxi-erp-android-release-signed
+          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
+          if-no-files-found: warn
+
+  android-e2e:
+    name: 模拟器 E2E（装包→启动→前台→WebView进程拉起→无崩溃）
+    needs: android-apk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载 debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: bingxi-erp-android-debug
+          path: apk
+
+      - name: Android Emulator 端到端
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          disable-animations: true
+          script: |
+            # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
+            APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
+            adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
+            sleep 8
+            adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
+            i=0; WV=""; while [ "$i" -lt 15 ]; do i=$((i+1)); adb logcat -d | grep -iqE 'RustStdoutStderr|chromium' && { WV=1; break; }; sleep 4; done; test -n "$WV" || { echo 'E2E: 未观测到本 app WebView/Chromium 活动'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: WebView/Chromium 进程已拉起'; adb logcat -d | grep -iE 'RustStdoutStderr|chromium' | head -8
+            echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
+            adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见 crash buffer'; exit 1; } || true
+            echo 'E2E: 装包-启动-前台-WebView进程拉起-无崩溃 全部通过'

@@ -1,0 +1,4 @@
+# 生成物：tauri android init 产出 Android 工程；cargo 构建产物。均不入库。
+src-tauri/gen/
+src-tauri/target/
+target/

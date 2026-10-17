@@ -37,14 +37,35 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelProductId')" prop="product_id">
-            <el-input-number v-model="localForm.product_id" :min="1" style="width: 100%" />
+            <el-select
+              :model-value="localForm.product_id"
+              filterable
+              clearable
+              :placeholder="t('production.form.placeholderSelectProduct')"
+              style="width: 100%"
+              @update:model-value="onProductChange"
+            >
+              <el-option
+                v-for="p in productOptions"
+                :key="p.id"
+                :label="`${p.product_code} — ${p.product_name ?? ''}`"
+                :value="p.id"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelPlannedQuantity')" prop="planned_quantity">
-            <el-input-number v-model="localForm.planned_quantity" :min="0" style="width: 100%" />
+            <div class="planned-qty-row">
+              <el-input-number
+                v-model="localForm.planned_quantity"
+                :min="0"
+                class="planned-qty-input"
+              />
+              <span v-if="selectedUnit" class="planned-qty-unit">{{ selectedUnit }}</span>
+            </div>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -101,11 +122,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 产品下拉选项（父组件按编号拉取产品清单传入；unit 用于计划数量旁只读展示，不落库）
+interface ProductOption {
+  id: number;
+  product_code: string;
+  product_name?: string;
+  unit?: string;
+}
 
 // 订单表单字段类型
 interface OrderForm {
@@ -126,6 +155,7 @@ const props = defineProps<{
   form: OrderForm;
   loading: boolean;
   rules: FormRules;
+  productOptions: ProductOption[];
 }>();
 
 const emit = defineEmits<{
@@ -170,6 +200,18 @@ watch(
   { deep: true }
 );
 
+// 选中产品的单位：计划数量旁只读展示，仅取产品主数据 unit，不落生产订单表
+const selectedUnit = computed(() => {
+  const pid = localForm.value.product_id;
+  if (pid == null) return '';
+  return props.productOptions.find(p => p.id === pid)?.unit ?? '';
+});
+
+/** 产品下拉变更：把选中的 product.id 写回表单（清空为 undefined） */
+const onProductChange = (v: number | undefined | null) => {
+  localForm.value.product_id = v ?? undefined;
+};
+
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
   if (!formRef.value) return;
@@ -179,3 +221,20 @@ const onSubmit = async () => {
   });
 };
 </script>
+
+<style scoped>
+.planned-qty-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.planned-qty-input {
+  flex: 1;
+}
+.planned-qty-unit {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+</style>

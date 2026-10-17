@@ -5,7 +5,7 @@
 //! - create / create_and_post（公开 API）
 //! - validate_voucher_create_req / precheck_subjects_exist_txn / insert_voucher_items_txn（create 的私有拆分）
 //! - get_list / get_by_id / update / delete（公开 API）
-//! - generate_voucher_no / available_voucher_types
+//! - available_voucher_types
 //!
 //! 业务规则：
 //! - 创建凭证：期间锁定校验 + 借贷平衡 + 生成凭证编号 + 事务内批量校验科目 + 批量插入分录
@@ -52,13 +52,25 @@ impl VoucherService {
             req.voucher_type, req.voucher_date
         );
 
-        // 2. 生成凭证编号
-        let voucher_no = self
-            .generate_voucher_no(&req.voucher_type, req.voucher_date)
-            .await?;
-
-        // 3. 开启事务
+        // 2. 开启事务：取号与主表 INSERT 必须同事务，使 `pg_advisory_xact_lock` 持有到
+        //    提交；否则并发两笔各按 max+1 探到同一未插入号，第二笔撞 vouchers_voucher_no_key。
         let txn = self.db.begin().await?;
+
+        // 3. 事务内生成凭证编号
+        let prefix = match req.voucher_type.as_str() {
+            "记" => "JZ",
+            "收" => "SK",
+            "付" => "FK",
+            "转" => "ZZ",
+            _ => "JZ",
+        };
+        let voucher_no = DocumentNumberGenerator::generate_no_with_txn(
+            &txn,
+            prefix,
+            voucher::Entity,
+            voucher::Column::VoucherNo,
+        )
+        .await?;
 
         // 4. 创建凭证主表
         let active_model = voucher::ActiveModel {
@@ -612,29 +624,6 @@ impl VoucherService {
 
         info!("凭证删除成功：no={}", voucher_no);
         Ok(())
-    }
-
-    /// 生成凭证编号
-    async fn generate_voucher_no(
-        &self,
-        voucher_type: &str,
-        _voucher_date: chrono::NaiveDate,
-    ) -> Result<String, AppError> {
-        let prefix = match voucher_type {
-            "记" => "JZ",
-            "收" => "SK",
-            "付" => "FK",
-            "转" => "ZZ",
-            _ => "JZ",
-        };
-
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            prefix,
-            voucher::Entity,
-            voucher::Column::VoucherNo,
-        )
-        .await
     }
 
     /// 返回系统支持的凭证类型列表（v11 批次 155 P2-C：从 handler 下沉到 service 静态配置化）

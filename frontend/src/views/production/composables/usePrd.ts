@@ -70,7 +70,7 @@ export function usePrd() {
   // （backend/src/utils/number_generator.rs，PO{YYYYMMDD}{3位流水}），
   // 前端"必填+手输"违背"单据号系统生成禁手打"红线，且手输值会绕过取号器造成双源格式。
   const orderRules = {
-    product_id: [{ required: true, message: '请输入产品ID', trigger: 'blur' }],
+    product_id: [{ required: true, message: '请选择产品', trigger: 'change' }],
     planned_quantity: [{ required: true, message: '请输入计划数量', trigger: 'blur' }],
     priority: [{ required: true, message: '请选择优先级', trigger: 'change' }],
   };
