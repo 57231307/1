@@ -1,4 +1,4 @@
-# layers=8 endpoints=1778
+# layers=8 endpoints=1781
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -448,6 +448,7 @@ GET	/api/v1/erp/data-import/templates/*	import_export_handler::get_import_templa
 GET	/api/v1/erp/data-import/templates/*/download	import_export_handler::download_import_template_by_id	mod
 GET	/api/v1/erp/data-permissions	data_permission_handler::list_data_permissions	analytics
 GET	/api/v1/erp/data-permissions/*	data_permission_handler::get_data_permission	analytics
+GET	/api/v1/erp/data-permissions/resource-types	data_permission_handler::get_resource_types	analytics
 GET	/api/v1/erp/data-permissions/roles/*	data_permission_handler::list_role_data_permissions	analytics
 GET	/api/v1/erp/data-permissions/scope-types	data_permission_handler::list_scope_types	analytics
 GET	/api/v1/erp/departments	department_handler::list	iam
@@ -971,6 +972,7 @@ GET	/api/v1/erp/xlsx/*	import_export_handler::export_xlsx	analytics
 GET	/health	crate::handlers::health_handler::health_check	mod
 GET	/health/liveness	crate::handlers::health_handler::liveness_check	mod
 GET	/health/readiness	crate::handlers::health_handler::readiness_check	mod
+PATCH	/api/v1/erp/roles/*/data-scope	role_handler::update_role_data_scope	iam
 POST	/api/v1/erp/admin/failover/failback	post_failback	failover
 POST	/api/v1/erp/admin/failover/test/switch	post_test_switch	failover
 POST	/api/v1/erp/advanced/ai/anomaly-detection	advanced::anomaly_detection	analytics
@@ -1758,6 +1760,7 @@ PUT	/api/v1/erp/quotations/*/terms	quotation_handler::set_quotation_terms	quotat
 PUT	/api/v1/erp/reports/enhanced/subscriptions/*	report_enhanced_handler::subscriptions::update	analytics
 PUT	/api/v1/erp/reports/enhanced/templates/*	report_enhanced_handler::update_report_template	analytics
 PUT	/api/v1/erp/roles/*	role_handler::update_role	iam
+PUT	/api/v1/erp/roles/*/permissions	role_handler::replace_role_permissions	iam
 PUT	/api/v1/erp/sales/fabric-orders/*	sales_fabric_order_handler::update_fabric_order	sales
 PUT	/api/v1/erp/sales/orders/*	sales_order_handler::update_order	sales
 PUT	/api/v1/erp/sales/sales-contracts/*	sales_contract_handler::update_contract	sales
