@@ -229,7 +229,9 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "ai-recipe-opt",
     "ai-quality-pred",
     "ai-process-opt",
-    "ai-summary",
+    "ai-summary", // 大货批色审批：URL 段 bulk-color-approvals 即派生资源名（含 DELETE 清理通道），
+    // 此前未登记 ⇒ 目录勾不到、种子授不了，非超管对该面只有超管通配可达。
+    "bulk-color-approvals",
 ];
 
 /// 初始化任务状态（L-24 修复：补充终态与恢复路径文档）
