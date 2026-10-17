@@ -17,6 +17,7 @@ use futures::FutureExt;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use tokio::sync::broadcast::error::RecvError;
 use tracing::{error, info};
 
 /// L-29 修复（批次 373 v13 复审）：库存财务桥接监听器 spawn 句柄
@@ -31,7 +32,26 @@ impl InventoryFinanceBridgeService {
 
         // L-29 修复（批次 373 v13 复审）：保存 spawn 句柄供 shutdown abort
         let listener_handle = tokio::spawn(async move {
-            while let Ok(event) = receiver.recv().await {
+            // 广播通道的 Lagged 只说明本消费者落后、若干条被丢弃，接收器本身仍可用。
+            // 原先写作 `while let Ok(event) = receiver.recv().await` 把 Lagged 当成终止条件，
+            // 一次积压就让库存交易的会计凭证生成永久停摆且不留任何日志。
+            loop {
+                let event = match receiver.recv().await {
+                    Ok(event) => event,
+                    Err(RecvError::Lagged(missed)) => {
+                        error!(
+                            missed_events = missed,
+                            "库存财务桥接监听器消费落后，部分事件被丢弃，继续接收后续事件（不退出循环）"
+                        );
+                        continue;
+                    }
+                    Err(RecvError::Closed) => {
+                        error!(
+                            "事件总线已关闭，库存财务桥接监听器退出（此后不再自动生成会计凭证）"
+                        );
+                        break;
+                    }
+                };
                 // 批次 8（2026-06-28）：单次事件处理 panic 隔离
                 // 库存财务桥接监听器 panic 会导致库存交易不再生成会计凭证，
                 // 财务报表与库存数据不一致。
