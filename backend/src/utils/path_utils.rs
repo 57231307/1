@@ -232,6 +232,46 @@ const RESOURCE_NAME_MAP: &[(&str, &str, &str)] = &[
     ("system-update", "tasks", "system-update-tasks"),
     ("system-update", "backups", "system-update-backups"),
     ("system-update", "versions", "system-update-versions"),
+    (
+        "system-update",
+        "update-status",
+        "system-update-update-status",
+    ),
+    (
+        "system-update",
+        "local-update",
+        "system-update-local-update",
+    ),
+    (
+        "system-update",
+        "local-releases",
+        "system-update-local-releases",
+    ),
+    (
+        "system-update",
+        "current-version",
+        "system-update-current-version",
+    ),
+    (
+        "system-update",
+        "update-status",
+        "system-update-update-status",
+    ),
+    (
+        "system-update",
+        "local-update",
+        "system-update-local-update",
+    ),
+    (
+        "system-update",
+        "local-releases",
+        "system-update-local-releases",
+    ),
+    (
+        "system-update",
+        "current-version",
+        "system-update-current-version",
+    ),
 ];
 
 /// 按映射表把模块前缀下的 URL 段对齐到注册表权威资源名；未命中保留原名。
