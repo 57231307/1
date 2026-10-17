@@ -303,66 +303,47 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   } catch (e) {
     throw new Error(`[ensureTestEntities] 产品分类检查/创建失败: ${(e as Error).message}`);
   }
+  // 读现有产品 id 仅作参考：跨分片共库下这些 id（含全局种子产品）可能被别的 worker 的清理删除，
+  // 绝不能占据消费方依赖的前位。故本片恒自建 3 个唯一名产品占满前 3 位，贯穿 worker 全生命周期存活。
+  let existingProductIds: number[] = [];
   try {
-    ctx.productIds = await readEntityIds(
-      page,
-      '/product',
-      `${API_PREFIX}/products`,
-      // product_handler.rs:247 list_products → ApiResponse::success(PaginatedResponse) → {items}
-      'items'
-    );
+    existingProductIds = await readEntityIds(page, '/product', `${API_PREFIX}/products`, 'items');
   } catch (e) {
     console.warn('[ensureTestEntities] 产品列表查询失败（可能空库）:', (e as Error).message);
-    ctx.productIds = [];
   }
-  // 夹具基数假设：消费用例要求 ctx.productIds 至少 3 个——
-  // 03-production「3-8 创建 BOM」用 items: productIds.slice(1)（需 ≥2 才非空，
-  // 否则后端 bom_handler.rs:33 items min=1 合法 400）；
-  // 01-p2p「1-6b」用 ctx.productIds[1] 作「产品对不上」负例（需 ≥2 才不 undefined）。
-  // 跨分片共库下 readEntityIds 可能读到 1~2 个现有产品（含 global-setup 全局种子先建的），
-  // 故无条件补齐到至少 3：读到的现有 id（含 seed 产品）全部保留并计入基数，
-  // 不足 3 才补建，补建走与本函数既有建产品一致的字段口径（含克重/幅宽）。
-  if (ctx.productIds.length < 3) {
-    const catId = ctx.productCategoryIds[0];
-    expect(catId, '[ensureTestEntities] 产品分类 id 缺失').toBeTruthy();
-    while (ctx.productIds.length < 3) {
-      const seq = ctx.productIds.length;
-      try {
-        // CreateProductRequest：code/name/category_id 必填；
-        // Q1 报价转订单按产品克重×幅宽做米↔公斤真实换算，缺则后端拒绝——通用产品也需带。
-        // 编码/名称带「末6位毫秒时间戳 + 当前基数 seq」唯一后缀，保证幂等：
-        // 与 seed 产品及历史数据不重名，重跑/并发分片各建各的，不制造冲突。
-        const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
-          code: `E2E-P${Date.now().toString().slice(-6)}${seq}`,
-          name: `E2E产品${Date.now().toString().slice(-6)}${seq}`,
-          unit: '米',
-          category_id: catId,
-          gram_weight: 180,
-          width: 150,
-          meters_per_piece: 50,
-          meters_per_roll: 100,
-        });
-        if (result.data?.id) {
-          ctx.productIds.push(result.data.id);
-          console.log(
-            `[ensureTestEntities] 产品补齐创建成功 id=${result.data.id}（当前基数=${ctx.productIds.length}）`
-          );
-        } else if (seq === 0) {
-          // 空库首轮一个产品都拿不到属真实环境缺陷，直接抛错暴露，不做假兜底
-          throw new Error(`[ensureTestEntities] 产品创建失败: ${JSON.stringify(result)}`);
-        } else {
-          console.error('[ensureTestEntities] 产品补齐未返回 id:', JSON.stringify(result));
-          break;
-        }
-      } catch (e) {
-        if (seq === 0) {
-          throw new Error(`[ensureTestEntities] 产品创建失败: ${(e as Error).message}`);
-        }
-        console.error('[ensureTestEntities] 产品补齐创建失败:', (e as Error).message);
-        break;
-      }
+  // 夹具基数假设：消费用例要求 ctx.productIds 至少 3 个——创建 BOM 的用例用 productIds.slice(1)
+  //（需 ≥2 才非空，否则分录为空被后端合法拒绝）；报价转订单「产品对不上」负例用 productIds[1]（需 ≥2）。
+  // 前 3 位恒为本片自建产品，编码/名称带「末6位毫秒时间戳 + 序号」唯一后缀，与种子及他片产品不重名，
+  // 不被任何跨片清理命中，故 [0]/[1]/[2] 整个 worker 期间始终存在，色号也建在这稳定的 [0] 上。
+  const ownedProductIds: number[] = [];
+  const catId = ctx.productCategoryIds[0];
+  expect(catId, '[ensureTestEntities] 产品分类 id 缺失').toBeTruthy();
+  const ownedStamp = Date.now().toString().slice(-6);
+  for (let seq = 0; seq < 3; seq++) {
+    // CreateProductRequest：code/name/category_id 必填；报价转订单按产品克重×幅宽做米↔公斤换算，
+    // 缺字段则后端拒绝，故自建产品字段与消费方对产品的真实假设保持一致。
+    const result = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+      code: `E2E-P${ownedStamp}${seq}`,
+      name: `E2E产品${ownedStamp}${seq}`,
+      unit: '米',
+      category_id: catId,
+      gram_weight: 180,
+      width: 150,
+      meters_per_piece: 50,
+      meters_per_roll: 100,
+    });
+    if (!result.data?.id) {
+      // 自建夹具产品建不出来属真实环境缺陷，直接抛错暴露，不做假兜底
+      throw new Error(
+        `[ensureTestEntities] 自建夹具产品创建失败(第${seq}个): ${JSON.stringify(result)}`
+      );
     }
+    ownedProductIds.push(result.data.id);
+    console.log(
+      `[ensureTestEntities] 自建产品 id=${result.data.id}（前3位基数=${ownedProductIds.length}）`
+    );
   }
+  ctx.productIds = [...ownedProductIds, ...existingProductIds];
 
   // ---- 3. 产品色号（仍用 API，因为色号在详情页创建且依赖 product_id）----
   try {
