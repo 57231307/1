@@ -36,79 +36,122 @@ impl BpmService {
         definition: &bpm_process_definition::Model,
         instance: &bpm_process_instance::Model,
         req: &StartProcessRequest,
-    ) -> Result<(Vec<i32>, Option<crate::services::event_bus::BusinessEvent>), AppError> {
+    ) -> Result<
+        (
+            Vec<i32>,
+            Option<crate::services::event_bus::BusinessEvent>,
+            Option<bpm_task::Model>,
+        ),
+        AppError,
+    > {
         let mut task_ids = vec![];
         let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
+        let mut first_task: Option<bpm_task::Model> = None;
 
-        if let Some(flow_def) = &definition.config {
-            let first_task_node = Self::resolve_first_task_node(flow_def);
+        // 流程定义没配节点时，原先整个分支被跳过：实例落库却没有任何任务、也不自动完成，
+        // 永久停在 PROCESSING（提交方以为已进审批，实际无人知晓）。现 fail-visible 拒绝发起。
+        let flow_def = definition.config.as_ref().ok_or_else(|| {
+            AppError::validation_displayable(format!(
+                "流程定义 {} 未配置审批节点，无法发起审批，请先在流程定义中配置节点与审批人",
+                definition.code
+            ))
+        })?;
 
-            if let Some(first_task) = first_task_node {
-                // 创建首个用户任务
-                let task_model = bpm_task::ActiveModel {
-                    instance_id: Set(instance.id),
-                    process_definition_id: Set(definition.id),
-                    // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
-                    task_no: Set(
-                        crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
-                            txn,
-                            "TSK",
-                            bpm_task::Entity,
-                            bpm_task::Column::TaskNo,
-                        )
-                        .await?
-                    ),
-                    node_id: Set(first_task
-                        .get("id")
-                        .and_then(|i| i.as_str())
-                        .unwrap_or("unknown")
-                        .to_string()),
-                    node_name: Set(first_task
-                        .get("name")
-                        .and_then(|n| n.as_str())
-                        .unwrap_or("Task")
-                        .to_string()),
-                    node_type: Set("user_task".to_string()),
-                    task_type: Set(Some("user_task".to_string())),
-                    actual_handler_id: Set(first_task
-                        .get("assignee_value")
-                        .and_then(|a| a.as_str())
-                        .and_then(|s| s.parse::<i32>().ok())),
-                    status: Set(Some(task_status::PENDING.to_string())),
-                    created_at: Set(Some(chrono::Utc::now())),
-                    updated_at: Set(Some(chrono::Utc::now())),
-                    ..Default::default()
-                };
-                let task = task_model.insert(txn).await?;
-                task_ids.push(task.id);
-            } else {
-                // 无任务节点，自动完成流程
-                let mut instance_active: bpm_process_instance::ActiveModel =
-                    instance.clone().into();
-                instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
-                instance_active.completed_at = Set(Some(chrono::Utc::now()));
-                instance_active.update(txn).await?;
+        let first_task_node = Self::resolve_first_task_node(flow_def);
 
-                // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
-                // P2 5-18 修复：携带 initiator_id 作为 approver_id（start_process 自动完成时审批人=发起人）
-                pending_event = Some(
-                    crate::services::event_bus::BusinessEvent::BpmProcessFinished {
-                        business_type: req.business_type.clone(),
-                        business_id: req.business_id,
-                        approved: true,
-                        approver_id: req.initiator_id,
-                    },
-                );
-            }
+        if let Some(first_task_node) = first_task_node {
+            // 创建首个用户任务。审批人必须解析得出，否则工单落库后在按人过滤的待办里永不可见。
+            let assignee_id = super::resolve_node_assignee(first_task_node)?;
+            let task_model = bpm_task::ActiveModel {
+                instance_id: Set(instance.id),
+                process_definition_id: Set(definition.id),
+                // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
+                task_no: Set(
+                    crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                        txn,
+                        "TSK",
+                        bpm_task::Entity,
+                        bpm_task::Column::TaskNo,
+                    )
+                    .await?,
+                ),
+                node_id: Set(first_task_node
+                    .get("id")
+                    .and_then(|i| i.as_str())
+                    .unwrap_or("unknown")
+                    .to_string()),
+                node_name: Set(first_task_node
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("Task")
+                    .to_string()),
+                node_type: Set("user_task".to_string()),
+                task_type: Set(Some("user_task".to_string())),
+                actual_handler_id: Set(assignee_id),
+                status: Set(Some(task_status::PENDING.to_string())),
+                created_at: Set(Some(chrono::Utc::now())),
+                updated_at: Set(Some(chrono::Utc::now())),
+                ..Default::default()
+            };
+            let task = task_model.insert(txn).await?;
+            task_ids.push(task.id);
+            first_task = Some(task);
+        } else {
+            // 无任务节点，自动完成流程
+            let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
+            instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
+            instance_active.completed_at = Set(Some(chrono::Utc::now()));
+            instance_active.update(txn).await?;
+
+            // P0 5-3 修复：事务内仅收集事件，commit 后再 publish
+            // P2 5-18 修复：携带 initiator_id 作为 approver_id（start_process 自动完成时审批人=发起人）
+            pending_event = Some(
+                crate::services::event_bus::BusinessEvent::BpmProcessFinished {
+                    business_type: req.business_type.clone(),
+                    business_id: req.business_id,
+                    approved: true,
+                    approver_id: req.initiator_id,
+                },
+            );
         }
 
-        Ok((task_ids, pending_event))
+        Ok((task_ids, pending_event, first_task))
     }
 
     pub async fn start_process(
         &self,
         req: StartProcessRequest,
     ) -> Result<StartProcessResponse, AppError> {
+        // 幂等预检：同一 (business_type, business_id) 已有在途实例时复用之，不再叠第二张工单。
+        // 历史缺陷：无此检查，重复提交会产生并行实例，各实例独立审批 → 单据与工单进入分裂态。
+        if let Some(existing) = bpm_process_instance::Entity::find()
+            .filter(bpm_process_instance::Column::BusinessType.eq(&req.business_type))
+            .filter(bpm_process_instance::Column::BusinessId.eq(req.business_id))
+            .filter(bpm_process_instance::Column::Status.eq(instance_status::PROCESSING))
+            .order_by_desc(bpm_process_instance::Column::Id)
+            .one(&*self.db)
+            .await?
+        {
+            let task_ids = bpm_task::Entity::find()
+                .filter(bpm_task::Column::InstanceId.eq(existing.id))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|t| t.id)
+                .collect();
+            tracing::info!(
+                instance_id = existing.id,
+                business_type = %req.business_type,
+                business_id = req.business_id,
+                "该单据已有在途审批实例，复用既有实例而不重复建单"
+            );
+            return Ok(StartProcessResponse {
+                instance_id: existing.id,
+                instance_no: existing.instance_no,
+                task_ids,
+            });
+        }
+
         let txn = self.db.begin().await?;
 
         let definition = bpm_process_definition::Entity::find()
@@ -147,7 +190,7 @@ impl BpmService {
         let instance = instance_model.insert(&txn).await?;
 
         // 创建首个任务或自动完成流程
-        let (task_ids, pending_event) = self
+        let (task_ids, pending_event, first_task) = self
             .create_first_task_or_complete(&txn, &definition, &instance, &req)
             .await?;
 
@@ -156,6 +199,11 @@ impl BpmService {
         // P0 5-3 修复：commit 成功后发布 BPM 流程结束事件
         if let Some(ev) = pending_event {
             crate::services::event_bus::EVENT_BUS.publish(ev);
+        }
+
+        // 工单已真实落库才通知处理人：审批任务生成即"有人被叫醒"，不再靠人工翻待办列表
+        if let Some(task) = first_task {
+            super::notify_task_pending(&self.db, &task, &instance, "新工单已生成").await;
         }
 
         Ok(StartProcessResponse {
