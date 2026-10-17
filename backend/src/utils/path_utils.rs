@@ -143,91 +143,64 @@ pub fn is_nested_module_prefix(module_prefix: &str, sub_prefix: &str) -> bool {
 }
 
 /// V15 P1-14.4-C：模块前缀资源消歧映射表（同资源段跨模块时对齐权限定义；sales 域 orders 保留原名其余加 sales- 前缀，purchase 域全部加 purchase- 前缀）
+/// 「URL 段 → 权限资源名」唯一映射表：(模块前缀 seg3, 该前缀下取到的段, PERMISSION_RESOURCES 权威名)。
+/// 未列出的组合保留 URL 段原名，与旧 match 的默认分支逐字节同语义；本表只做对齐，不新增任何"角色 × 资源 × 动作"授权。
+/// 挂载统一波次改名时，改动只落在「路由注册 + 本表」两处，不得再往查表函数里加分支特例。
+const RESOURCE_NAME_MAP: &[(&str, &str, &str)] = &[
+    ("bi", "sales", "bi-analysis"),
+    ("purchase", "orders", "purchase-orders"),
+    ("purchase", "returns", "purchase-returns"),
+    ("purchase", "receipts", "purchase-receipts"),
+    ("purchase", "contracts", "purchase-contracts"),
+    ("purchase", "prices", "purchase-prices"),
+    ("sales", "returns", "sales-returns"),
+    ("sales", "contracts", "sales-contracts"),
+    ("sales", "prices", "sales-prices"),
+    ("crm", "leads", "crm-leads"),
+    ("crm", "opportunities", "crm-opportunities"),
+    ("crm", "rfm", "customers"),
+    ("production", "orders", "production-orders"),
+    ("production", "quality-inspection", "quality-inspections"),
+    ("system-update", "update", "system-update-update"),
+    ("system-update", "check", "system-update-check"),
+    ("system-update", "rollback", "system-update-rollback"),
+    ("system-update", "upload", "system-update-upload"),
+    ("system-update", "version", "system-update-version"),
+    (
+        "system-update",
+        "update-status",
+        "system-update-update-status",
+    ),
+    (
+        "system-update",
+        "local-update",
+        "system-update-local-update",
+    ),
+    ("system-update", "local-check", "system-update-local-check"),
+    (
+        "system-update",
+        "local-releases",
+        "system-update-local-releases",
+    ),
+    (
+        "system-update",
+        "current-version",
+        "system-update-current-version",
+    ),
+    ("system-update", "tasks", "system-update-tasks"),
+    ("system-update", "backups", "system-update-backups"),
+    ("system-update", "versions", "system-update-versions"),
+];
+
+/// 按映射表把模块前缀下的 URL 段对齐到注册表权威资源名；未命中保留原名。
+/// 调用方：`middleware/permission.rs::extract_resource_info`（运行时键派生）与权限目录/种子侧同源校验。
 pub fn resolve_module_prefixed_resource(module_prefix: &str, resource: &str) -> String {
-    match (module_prefix, resource) {
-        // ===== BI 分析域：`/erp/bi/sales/*` 的资源段消歧 =====
-        // seg4="sales" 同时是销售域的模块前缀词（`is_module_prefix` 命中），历史上被
-        // 双层前缀规则跳段取了 seg5（by-time/by-customer/trend/kpi/pivot…），而这些是
-        // **查询维度/动作段**、不是资源；派生出的 `by-time:read` 等键在注册表
-        // （`init_service.rs` 资源清单）与角色种子中都不存在 ⇒ BI 销售分析对持
-        // `bi-analysis:read` 授权的角色也恒 403（已登记的键成死码）。
-        // 消歧到注册表权威名 bi-analysis（与同域 `sales-analysis` 的登记方式同构），
-        // 且必须与 `is_nested_module_prefix` 的"bi/sales 不是子模块"判定同时成立才生效。
-        // 方向为纯收窄：BI 端点只认 BI 自己的键，不因 URL 里出现 "sales" 一词
-        // 就让任何持有销售域键的角色顺带读到 BI 面（与 production-orders 那一刀同理，
-        // 不新增任何"角色 × 资源 × 动作"授权）。
-        ("bi", "sales") => "bi-analysis".to_string(),
-        // ===== 采购域：权限定义使用 purchase- 前缀 =====
-        ("purchase", "orders") => "purchase-orders".to_string(),
-        ("purchase", "returns") => "purchase-returns".to_string(),
-        ("purchase", "receipts") => "purchase-receipts".to_string(),
-        ("purchase", "contracts") => "purchase-contracts".to_string(),
-        ("purchase", "prices") => "purchase-prices".to_string(),
-        // ===== 销售域：orders 保留原名，其余加 sales- 前缀 =====
-        ("sales", "returns") => "sales-returns".to_string(),
-        ("sales", "contracts") => "sales-contracts".to_string(),
-        ("sales", "prices") => "sales-prices".to_string(),
-        // ===== CRM 域：`/erp/crm/leads*` 的资源段消歧 =====
-        // "leads" 未登记在 `init_service::PERMISSION_RESOURCES`，注册表权威名是
-        // `crm-leads`。不消歧的后果双向都错：① 矩阵里已登记的 ("crm-leads", *) 授权行
-        // （crm_manager/crm_rep/customer_service 等）对本域列表/详情/写操作是**死码**，
-        // 持权岗位访问自己的线索反而 403；② 运行时要匹配上只能靠库里存在未登记的
-        // ("leads", *) 行，等于把权限键名定在注册表之外。
-        // 消歧到注册表权威名 crm-leads，与 purchase-/sales- 前缀族同构，纯对齐不新增授权。
-        ("crm", "leads") => "crm-leads".to_string(),
-        ("crm", "opportunities") => "crm-opportunities".to_string(),
-        // ===== CRM 域：`/erp/crm/rfm/{distribution,segments}` 的资源段消歧 =====
-        // 走默认分支会派生出注册表外的 `rfm:read`：`PERMISSION_RESOURCES` 里没有 rfm、
-        // 角色种子里没有该键、前端 CRM 页 meta 是 customers:read ⇒ 除超管旁路外全员 403，
-        // 表现为"页面能打开、客户分级 tab 必红"。同一份 RFM 数据的行级端点
-        // `/crm/customers/{id}/rfm` 派生的正是注册表权威名 customers，故把聚合档位面消歧到
-        // 同一个键：聚合面与行级面同源同权，能读单客户档位者即可读档位分布与批量档位。
-        // 方向为纯对齐，不新增任何"角色×资源×动作"授权。
-        ("crm", "rfm") => "customers".to_string(),
-        // ===== 生产域：`/erp/production/production-orders/orders*` 的资源段消歧 =====
-        // 该路由是双层模块前缀（seg3=production、seg4=production-orders 均在
-        // is_module_prefix 表内），extract_resource_info（middleware/permission.rs:274-279）
-        // 取 seg5="orders" 走默认分支 ⇒ 派生成销售订单的 `orders:*` 码。后果双向都错：
-        // ① 持有 ("orders","read") 的销售角色（种子 permission.rs:285 等）能通过
-        //    中间件读到**生产工单**列表与详情（跨域越权面，行级 scope 只是部分缓解）；
-        // ② 生产侧自己的 ("production-orders","*")（:484/:526，注册表
-        //    init_service.rs 亦登记 production-orders）对本域列表/详情是**死码**，
-        //    生产岗访问自己的生产工单反而 403。
-        // 消歧到注册表权威名 production-orders，同时关掉越权面并复活死授权；
-        // 纯收窄，不新增任何"角色×资源×动作"。
-        ("production", "orders") => "production-orders".to_string(),
-        // ===== 生产域：质量检验路由 URL 用单数、注册表与授权用复数 =====
-        // URL 段是 `/production/quality-inspection/{records,defects,...}`（单数，routes/production.rs），
-        // 而 PERMISSION_RESOURCES 与角色种子登记的都是复数 `quality-inspections`（init_service.rs /
-        // init_service_ops/permission.rs）。走默认分支直传单数 ⇒ 运行时键 quality-inspection:*
-        // 恒不等于已授的 quality-inspections:*，quality_inspector 等持权岗访问自己检验/缺陷面反而 403。
-        // 消歧到注册表权威复数名，纯对齐复活死授权，不新增任何"角色×资源×动作"。
-        ("production", "quality-inspection") => "quality-inspections".to_string(),
-        // ===== 系统更新域：system-update 前缀下的各 seg4 统一带 system-update- 前缀 =====
-        // 系统更新整段是高危敏感面（二进制替换、版本回滚、上传安装），权限键必须与其余业务
-        // 资源隔离命名。seg4 若不加前缀，update、check、rollback、upload、tasks、versions 等
-        // 单词与业务域同名，派生出的裸键既无法与注册表逐字符对齐，也会让业务侧同名授权行顺带
-        // 命中系统更新端点（跨域越权）。此处把 system-update 挂载下全部 seg4 逐一消歧到带
-        // system-update- 前缀的权威名，派生、注册、授予三者逐字符一致，与 purchase- 前缀族同构，
-        // 纯命名隔离不新增任何角色跨资源授权。覆盖 update、check、rollback、upload、
-        // local-update、local-check、local-releases、current-version、update-status、tasks、
-        // backups、version、versions 全部资源段。
-        ("system-update", "update") => "system-update-update".to_string(),
-        ("system-update", "check") => "system-update-check".to_string(),
-        ("system-update", "rollback") => "system-update-rollback".to_string(),
-        ("system-update", "upload") => "system-update-upload".to_string(),
-        ("system-update", "version") => "system-update-version".to_string(),
-        ("system-update", "update-status") => "system-update-update-status".to_string(),
-        ("system-update", "local-update") => "system-update-local-update".to_string(),
-        ("system-update", "local-check") => "system-update-local-check".to_string(),
-        ("system-update", "local-releases") => "system-update-local-releases".to_string(),
-        ("system-update", "current-version") => "system-update-current-version".to_string(),
-        ("system-update", "tasks") => "system-update-tasks".to_string(),
-        ("system-update", "backups") => "system-update-backups".to_string(),
-        ("system-update", "versions") => "system-update-versions".to_string(),
-        // ===== 其他情况：保留 resource 原名 =====
-        _ => resource.to_string(),
+    for (mp, seg, canonical) in RESOURCE_NAME_MAP {
+        if mp == &module_prefix && seg == &resource {
+            return (*canonical).to_string();
+        }
     }
+    resource.to_string()
 }
 
 /// 判断是否为直接资源（非模块前缀的 segment3 合法值）
