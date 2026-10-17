@@ -25,7 +25,7 @@
 
 use axum::{
     Router,
-    routing::{delete, get, post},
+    routing::{get, post},
 };
 
 use crate::container::AppState;
