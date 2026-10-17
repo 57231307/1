@@ -73,11 +73,7 @@ pub async fn cancel_instance(
 
 /// 待办读取范围：非「全部数据范围」的调用方只能读自己的工单，
 /// 且忽略其传入的他人 `user_id`（登录身份才是唯一事实来源）。
-fn scope_task_query(
-    query: TaskQuery,
-    auth: &AuthContext,
-    endpoint: &str,
-) -> TaskQuery {
+fn scope_task_query(query: TaskQuery, auth: &AuthContext, endpoint: &str) -> TaskQuery {
     // 与全站同源：data_scope 是无 CHECK 约束的原始串（大小写混存），未加载时按最小权限处理，
     // 直接比对字面 "all" 会把 All/ALL 的超管误判成普通范围、连本该可见的待办都收窄掉。
     if DataScope::parse_scope(auth.data_scope.as_deref().unwrap_or_default()) == DataScope::All {
