@@ -2817,7 +2817,8 @@ export default {
     jobCode: 'Job Code',
     status: 'Status',
     errorMessage: 'Failure Reason',
-    stillInFlight: 'The job is still queued with no receipt from the print target; check the print task list later',
+    stillInFlight:
+      'The job is still queued with no receipt from the print target; check the print task list later',
     missingDocument: 'No document instance selected, printing is impossible',
     noActiveTemplate: 'No active template for this document type; configure one in Print Templates',
     noEnabledTarget: 'No enabled print target; configure a printer in Print Targets',
