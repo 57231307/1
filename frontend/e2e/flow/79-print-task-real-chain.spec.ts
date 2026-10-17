@@ -18,7 +18,8 @@ import {
  * - 无打印目标（请求未带且模板未配缺省目标）→ 400，不静默丢单；
  * - 单据实例不存在 → 受理即拒（不静默接受无效 doc_id）；
  * - 模板的 default_target_name 真实生效（不带 target_name 也能受理，取模板配置）；
- * - 受理成功后任务号唯一、台账可读回，失败必带 error_message。
+ * - 受理成功后任务号唯一、台账可读回，失败必带 error_message；
+ * - 已有任务台账的模板删除被拒 400 并点名条数（外键裸 500 会让用户看不到原因）。
  * 派发终态依赖真实设备可达性：CI 无打印机时网络目标必然失败，这正是"失败可见"的断言对象，
  * 故此处只锁定"终态可回读 + 失败原因非空"，不假装打印成功。
  */
@@ -164,7 +165,68 @@ test.describe('打印任务真实受理链路', () => {
         });
       }
     } finally {
-      if (templateId) await apiCallRaw(page, 'DELETE', `/print-templates/${templateId}`);
+      // 该模板已被上面的任务台账引用，删除会被拒（由"被引用即拒删"用例锁定），
+      // 这里改用停用下线，避免留下 active 的自建模板去干扰真实打印链路的模板解析。
+      if (templateId) {
+        await apiCallRaw(page, 'PUT', `/print-templates/${templateId}`, { status: 'inactive' });
+      }
+      if (targetId) await apiCallRaw(page, 'DELETE', `/print-targets/${targetId}`);
+    }
+  });
+
+  test('模板已被打印任务引用 → 删除被拒 400 并点名条数，不再裸 500', async ({ page }) => {
+    await ensureTestEntities(page);
+    const orderId = getCtx().salesOrderId;
+    expect(orderId, '夹具应确保存在可打印的销售订单').toBeTruthy();
+
+    const targetCode = genCode('E2E-PRN');
+    let targetId = 0;
+    let templateId = 0;
+    try {
+      const target = await apiCallRaw<{ id?: number }>(page, 'POST', '/print-targets', {
+        target_code: targetCode,
+        display_name: `e2e删模板目标${targetCode}`,
+        kind: 'network',
+        host: '127.0.0.1',
+        port: 9100,
+        enabled: true,
+      });
+      targetId = Number(target?.id);
+
+      const tplCode = genCode('TPL-E2E-DEL');
+      const tpl = await apiCallRaw<PrintTemplateRow>(page, 'POST', '/print-templates', {
+        template_name: `e2e被引用模板${tplCode}`,
+        template_code: tplCode,
+        doc_type: 'sales_order',
+        module: 'sales',
+        type: 'order',
+        default_target_name: targetCode,
+        content: '<div>{order_no}</div>',
+        is_default: false,
+        status: 'active',
+      });
+      templateId = Number(tpl?.id);
+
+      const accepted = await apiCallRaw<PrintTaskRow>(page, 'POST', '/print-tasks', {
+        doc_type: 'sales_order',
+        doc_id: orderId,
+        template_id: templateId,
+      });
+      expect(Number(accepted?.id), `任务应受理成功：${JSON.stringify(accepted)}`).toBeGreaterThan(0);
+
+      const fail = await apiCallExpectFail(page, 'DELETE', `/print-templates/${templateId}`);
+      expect(
+        fail.status,
+        `有台账的模板删除必须可见拒绝而非数据库裸错，实得：${JSON.stringify(fail)}`
+      ).toBe(400);
+      expect(
+        String(fail.message ?? ''),
+        '拒绝文案须说明被打印任务引用，否则用户不知道该改用停用'
+      ).toContain('打印任务');
+    } finally {
+      if (templateId) {
+        await apiCallRaw(page, 'PUT', `/print-templates/${templateId}`, { status: 'inactive' });
+      }
       if (targetId) await apiCallRaw(page, 'DELETE', `/print-targets/${targetId}`);
     }
   });

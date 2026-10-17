@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
-    Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::Deserialize;
 use validator::Validate;
@@ -15,6 +15,7 @@ use crate::handlers::print_task_handler::{
 };
 use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log::{OperationType, Severity};
+use crate::models::print_task;
 use crate::models::print_template;
 use crate::models::status::print::print_template_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
@@ -1574,6 +1575,8 @@ pub async fn update_print_template(
     )))
 }
 
+/// 删除打印模板。`print_tasks` 以 template_id 外键指向本行，直接删会被数据库拒绝，
+/// 故先数引用：有台账即拒绝删除并点名条数，下线模板改用停用（status=inactive）。
 pub async fn delete_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -1582,6 +1585,18 @@ pub async fn delete_print_template(
     info!("用户 {} 删除打印模板 ID: {}", auth.username, id);
 
     load_template(&*state.db, id).await?;
+
+    let referenced_by_tasks = print_task::Entity::find()
+        .filter(print_task::Column::TemplateId.eq(id))
+        .count(&*state.db)
+        .await?;
+    if referenced_by_tasks > 0 {
+        return Err(AppError::business_displayable(format!(
+            "该打印模板已有 {} 条打印任务台账，删除会抹掉打印历史，请改为停用",
+            referenced_by_tasks
+        )));
+    }
+
     print_template::Entity::delete_by_id(id)
         .exec(&*state.db)
         .await?;

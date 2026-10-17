@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCallRaw, BASE_URL } from './helpers';
+import { loginViaUI, apiCallRaw, apiCallExpectFail, BASE_URL } from './helpers';
 
 /**
  * P5.8 print-templates API 全链路
@@ -89,45 +89,45 @@ test.describe('P5.8 print-templates API 链路', () => {
   test('模板打印端点缺 doc_id → 400（禁止伪造样例打印，fail-closed）', async ({ page }) => {
     const list = await apiCallRaw<Array<Record<string, unknown>>>(page, 'GET', '/print-templates');
     const templateId = Number(list[0].id);
-    const resp = await page.request.post(
-      `${API_BASE}${API_PREFIX}/print-templates/${templateId}/print`,
-      {
-        data: {},
-      }
-    );
+    // 走 apiCallExpectFail 而非裸 page.request：写方法必须带 CSRF Token，
+    // 否则先被中间件 403 拦下，断言到的就不是被测契约本身。
+    const fail = await apiCallExpectFail(page, 'POST', `/print-templates/${templateId}/print`, {});
     expect(
-      resp.status(),
-      '无单据实例的打印请求必须被拒（历史缺陷：模板页打印按钮恒发空体，用户点即 400）'
+      fail.status,
+      `无单据实例的打印请求必须被拒（历史缺陷：模板页打印按钮恒发空体，用户点即 400），实得：${JSON.stringify(fail)}`
     ).toBe(400);
   });
 
-  test('新建模板缺 doc_type → 422/400（不再以 template_code 冒充查找键）', async ({ page }) => {
-    const resp = await page.request.post(`${API_BASE}${API_PREFIX}/print-templates`, {
-      data: {
-        template_name: 'e2e-缺单据类型模板',
-        template_code: `TPL-E2E-NODOC-${Date.now()}`,
-        module: 'logistics',
-        type: 'custom',
-      },
+  test('新建模板缺 doc_type → 400 点名必填（不再以 template_code 冒充查找键）', async ({ page }) => {
+    const fail = await apiCallExpectFail(page, 'POST', '/print-templates', {
+      template_name: 'e2e-缺单据类型模板',
+      template_code: `TPL-E2E-NODOC-${Date.now()}`,
+      module: 'logistics',
+      type: 'custom',
     });
     expect(
-      resp.status(),
-      '缺查找键的模板永不会被渲染链路命中，必须拒绝受理'
-    ).toBeGreaterThanOrEqual(400);
-    expect(resp.status()).toBeLessThan(500);
+      fail.status,
+      `缺查找键的模板永不会被渲染链路命中，必须拒绝受理，实得：${JSON.stringify(fail)}`
+    ).toBe(400);
+    expect(
+      String(fail.code),
+      `应为入参校验拒绝而非中间件拦截，实得：${JSON.stringify(fail)}`
+    ).toBe('VALIDATION_ERROR');
   });
 
   test('新建模板 doc_type 词表外 → 400 点名（不静默存下打不出的模板）', async ({ page }) => {
-    const resp = await page.request.post(`${API_BASE}${API_PREFIX}/print-templates`, {
-      data: {
-        template_name: 'e2e-非法单据类型模板',
-        template_code: `TPL-E2E-BADDOC-${Date.now()}`,
-        doc_type: 'not_a_real_doc_type',
-        module: 'logistics',
-        type: 'custom',
-      },
+    const fail = await apiCallExpectFail(page, 'POST', '/print-templates', {
+      template_name: 'e2e-非法单据类型模板',
+      template_code: `TPL-E2E-BADDOC-${Date.now()}`,
+      doc_type: 'not_a_real_doc_type',
+      module: 'logistics',
+      type: 'custom',
     });
-    expect(resp.status()).toBe(400);
+    expect(fail.status, `词表外单据类型应被拒受理，实得：${JSON.stringify(fail)}`).toBe(400);
+    expect(
+      String(fail.message ?? ''),
+      '拒绝文案须点名非法取值，否则用户不知道该改成什么'
+    ).toContain('not_a_real_doc_type');
   });
 
   test('模板预览对话框不暴露无单据上下文的打印入口', async ({ page }) => {
