@@ -6,7 +6,7 @@ use crate::models::role_permission;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::admin_checker;
 use crate::utils::path_utils::{
-    is_known_resource_segment, is_module_prefix, is_nested_module_prefix,
+    is_id_like_segment, is_known_resource_segment, is_module_prefix, is_nested_module_prefix,
     resolve_module_prefixed_resource,
 };
 use crate::utils::request_ext::PublicPathCache;
@@ -296,27 +296,28 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
         // 处理双层嵌套模块前缀（如 /advanced/ai/recipe-optimization）
         // 当 segment3 与 segment4 均为模块前缀时，使用 segment5 作为资源类型
         // 对模块前缀下的资源进行消歧（如 purchase/orders → purchase-orders）
-        let resource_type = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
-            if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
-                resolve_module_prefixed_resource(path_parts[3], path_parts[5])
+        // 资源名候选段与 ID 搜索起点同源：叶子型模块前缀（custom-orders、quotations、
+        // color-cards、color-prices、audit-logs、oa-announcements 等既是模块前缀又是资源本身）
+        // 直接在前面挂记录 ID 时，该段是 ID 而非子资源，资源名必须回落到模块前缀本身，
+        // 且 ID 从同一段取回。否则会派生出 `123:read` 这类 PERMISSION_RESOURCES 里不存在、
+        // 任何角色都授予不了的死键，非超管打开详情面必 403，同域已登记的授权行同时成死码。
+        let candidate: Option<(&str, usize)> =
+            if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
+                if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
+                    Some((path_parts[5], 6))
+                } else {
+                    Some((path_parts[4], 5))
+                }
             } else {
-                resolve_module_prefixed_resource(path_parts[3], path_parts[4])
-            }
-        } else {
-            path_parts[3].to_string()
-        };
-
-        // 尝试提取资源ID（跳过模块前缀）
-        // 跳过路径中的动作段（如 approve/export/print），
-        // 避免动作关键字被误认为资源ID
-        let start_idx = if path_parts.len() >= 5 && is_module_prefix(path_parts[3]) {
-            if is_nested_module_prefix(path_parts[3], path_parts[4]) && path_parts.len() >= 6 {
-                6
-            } else {
-                5
-            }
-        } else {
-            4
+                None
+            };
+        let (resource_type, start_idx) = match candidate {
+            Some((seg, _)) if is_id_like_segment(seg) => (path_parts[3].to_string(), 4),
+            Some((seg, id_start)) => (
+                resolve_module_prefixed_resource(path_parts[3], seg),
+                id_start,
+            ),
+            None => (path_parts[3].to_string(), 4),
         };
         for part in path_parts.iter().skip(start_idx) {
             // 跳过动作关键字，避免误判
