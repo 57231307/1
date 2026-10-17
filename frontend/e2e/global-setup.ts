@@ -1620,24 +1620,33 @@ async function ensureGlobalBusinessSeed(
   }
 
   // ---- 10. BPM 流程定义（幂等：先查后建）----
+  // 提交送审在 BPM 启动失败时会回滚并拒绝（不再有"停在审批中却无工单"的死单），
+  // 因此凡后续要做 submit/approve 的种子，都必须先有对应 process_key 的 ACTIVE 定义。
   try {
     const bpmResp = await ctx.get(`${API_PREFIX}/bpm/definitions?page=1&page_size=50`, { headers });
     const bpmBody = await safeJson(bpmResp);
-    const bpms = extractItems<{ code?: string }>(bpmBody);
-    if (!bpms.some(d => d.code === 'sales_order_approval')) {
-      const approverId = currentUserId;
+    const existing = extractItems<{ code?: string }>(bpmBody);
+    const approverId = currentUserId;
+    const approvalDefinitions: Array<{ code: string; name: string; category: string }> = [
+      { code: 'sales_order_approval', name: '销售订单审批流程', category: 'sales' },
+      { code: 'purchase_order_approval', name: '采购订单审批流程', category: 'purchase' },
+      { code: 'production_order_approval', name: '生产订单审批流程', category: 'production' },
+      { code: 'quotation_approval', name: '报价单审批流程', category: 'sales' },
+    ];
+    for (const def of approvalDefinitions) {
+      if (existing.some(d => d.code === def.code)) continue;
       const bpmCreate = await seedPost(`${API_PREFIX}/bpm/definitions`, {
-        name: '销售订单审批流程',
-        code: 'sales_order_approval',
-        description: 'E2E 测试用销售订单审批流程定义',
-        category: 'sales',
+        name: def.name,
+        code: def.code,
+        description: `E2E 测试用${def.name}定义`,
+        category: def.category,
         version: '1.0',
         config: {
           nodes: [
             { id: 'start', name: '提交审批', type: 'start_event' },
             {
               id: 'approve_task',
-              name: '销售订单审批',
+              name: def.name,
               type: 'user_task',
               assignee_value: String(approverId),
             },
@@ -1650,8 +1659,8 @@ async function ensureGlobalBusinessSeed(
         },
         status: 'ACTIVE',
       });
-      if (!bpmCreate.ok()) await reportSeedWrite(bpmCreate, 'BPM 定义创建 sales_order_approval');
-      else console.log('[globalSeed] 创建 BPM sales_order_approval');
+      if (!bpmCreate.ok()) await reportSeedWrite(bpmCreate, `BPM 定义创建 ${def.code}`);
+      else console.log(`[globalSeed] 创建 BPM ${def.code}`);
     }
   } catch (e) {
     recordSeedFailure('BPM 定义检查/创建', (e as Error).message);

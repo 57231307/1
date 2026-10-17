@@ -207,20 +207,22 @@ impl QuotationApprovalService {
             variables: None,
         };
 
-        // 1. 启动 BPM 流程（事务外，容错：启动失败时 instance_id=None，业务提交仍生效）
-        // 失败必须点名：静默降级为 None 会让后续「业务侧审批→回写 BPM 任务」整链
-        // 无实例可查而空转，运维无从发现报价单已脱离 BPM 审批轨道。
+        // 1. 启动 BPM 流程（状态更新之前，失败即拒绝提交，报价单不落"审批中"）
+        // 原先失败只 warn 并降级为 instance_id=None 继续提交：报价单从此脱离 BPM 审批轨道，
+        // 待办里没有它、业务侧审批也无实例可回写，只能人工对账。现把原因如实返回给提交人。
         let bpm_instance_id: Option<i32> = match bpm_service.start_process(req).await {
             Ok(resp) => Some(resp.instance_id),
             Err(e) => {
-                tracing::warn!(
+                // 引擎失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显
+                tracing::error!(
                     error = %e,
                     business_type = "quotation",
                     business_id = quotation.id,
-                    "报价提交启动 BPM 流程失败：该报价单将没有 BPM 实例与待办任务，\
-                     后续业务侧审批只落业务表（BPM 侧留痕缺失，需人工对账）"
+                    "报价提交启动 BPM 流程失败，已拒绝提交（未改动报价单状态），根因如上"
                 );
-                None
+                return Err(AppError::business_displayable(
+                    "审批流程启动失败，报价单未提交，请稍后重试；若持续失败请联系管理员检查审批流程定义",
+                ));
             }
         };
 

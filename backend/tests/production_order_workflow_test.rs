@@ -261,6 +261,18 @@ async fn test_scddqlc_cjdwc() {
              VALUES (1, 'WH-WF-1', '生产全流程测试成品仓', 'finished', true)",
             "warehouses 默认成品仓库行（完工库存联动判据：is_active=true 的唯一仓库）",
         ),
+        (
+            r#"INSERT INTO bpm_process_definition (name, code, category, config, status)
+               VALUES ('生产订单审批流程', 'production_order_approval', 'production',
+                       '{"nodes":[{"id":"start","type":"start_event","name":"提交审批"},
+                                 {"id":"approve_task","type":"user_task","name":"生产订单审批","assignee_value":"1"},
+                                 {"id":"end","type":"end_event","name":"完成"}],
+                        "edges":[{"source":"start","target":"approve_task"},
+                                 {"source":"approve_task","target":"end"}]}'::jsonb,
+                       'ACTIVE')"#,
+            "bpm_process_definition 的 production_order_approval ACTIVE 定义（提交送审时 \
+             BPM 启动失败会回滚状态并拒绝提交，缺定义即无法走审批链）",
+        ),
     ] {
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
