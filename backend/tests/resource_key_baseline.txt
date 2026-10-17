@@ -21,7 +21,6 @@ balance
 balance-sheet
 batch-adjust
 behavior
-bulk-color-approvals
 business-relation
 by-issue
 by-sales-order
