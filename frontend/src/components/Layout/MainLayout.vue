@@ -7,7 +7,7 @@
       :class="isMobile ? 'mobile-sidebar' : 'aside'"
     >
       <div class="logo">
-        <h2>{{ t('layout.brand') }}</h2>
+        <h2>{{ brandName }}</h2>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -138,6 +138,12 @@
           <el-menu-item v-if="canAccessMenu('/sales')" role="menuitem" index="/sales">{{
             t('layout.menu.salesOrder')
           }}</el-menu-item>
+          <el-menu-item
+            v-if="canAccessMenu('/bulk-color-approval')"
+            role="menuitem"
+            index="/bulk-color-approval"
+            >{{ t('layout.menu.bulkColorApproval') }}</el-menu-item
+          >
           <el-menu-item
             v-if="canAccessMenu('/sales-returns')"
             role="menuitem"
@@ -354,12 +360,6 @@
           <el-menu-item v-if="canAccessMenu('/lab-dip')" role="menuitem" index="/lab-dip">{{
             t('layout.menu.labDip')
           }}</el-menu-item>
-          <el-menu-item
-            v-if="canAccessMenu('/bulk-color-approval')"
-            role="menuitem"
-            index="/bulk-color-approval"
-            >{{ t('layout.menu.bulkColorApproval') }}</el-menu-item
-          >
           <el-menu-item
             v-if="canAccessMenu('/production-recipes')"
             role="menuitem"
@@ -801,7 +801,7 @@ import { ref as vueRef, onBeforeUnmount } from 'vue';
 import { Bell } from '@element-plus/icons-vue';
 
 import GlobalSearch from './GlobalSearch.vue';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 // V15 P1-20-2 响应式侧边栏：动态组件切换需要显式导入 ElDrawer/ElAside
@@ -833,6 +833,8 @@ import { useBreakpoint } from '@/composables/useBreakpoint';
 import { useTheme } from '@/composables/useTheme';
 // V15 P1-20-8 键盘导航焦点管理（Tab/Shift+Tab/Esc 焦点陷阱 + 路由切换后重置焦点）
 import { useKeyboardNavigation } from '@/composables/useKeyboardNavigation';
+// 公司档案服务端化：头部品牌名读共享档案（空/未加载回退 i18n 字面量）
+import { useCompanyProfile } from '@/composables/useCompanyProfile';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
@@ -845,6 +847,11 @@ const { isMobile } = useBreakpoint();
 const { isDark, toggleTheme } = useTheme();
 // V15 P1-20-8 键盘导航：路由切换后重置焦点到主内容区，模态框内 Tab 焦点陷阱
 useKeyboardNavigation();
+// 公司档案服务端化：读取模块级共享的对外硬投影，头部品牌优先显示公司名。
+const { company, load: loadCompanyProfile } = useCompanyProfile();
+// 展示层回退（非兜底掩盖）：档案为空或未加载时显示 i18n 品牌字面量；
+// 档案加载失败由 composable 显式 logger.error 留痕，此处仅按 null 走展示回退。
+const brandName = computed(() => company.value?.name || t('layout.brand'));
 // 移动端抽屉可见性状态
 const drawerVisible = ref(false);
 
@@ -965,6 +972,11 @@ if (userStore.userInfo) {
   refreshUnread();
   startNotificationWs();
 }
+
+onMounted(() => {
+  // MainLayout 挂载于已鉴权外壳内，此时登录态成立：拉取共享公司档案一次并缓存。
+  void loadCompanyProfile();
+});
 
 onBeforeUnmount(() => {
   stopNotificationWs();

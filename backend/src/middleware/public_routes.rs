@@ -96,11 +96,22 @@ pub fn is_public_path(path: &str) -> bool {
 ///   拒绝出参仍为固定脱敏常量（权限文案永久脱敏是硬令，不因本条目松动）。
 ///   ⚠️ 同前缀的 `/users/reset-password`（`init_handler::reset_admin_password`，管理员
 ///   重置他人密码）**不在**本清单：它有跨用户写面，必须继续过 RBAC 与 CSRF。
+/// - `/company-profile`：公司档案公开投影（`handlers/company_profile_handler.rs::
+///   get_company_profile`）。逐条论证"无业务写副作用"：handler 只读 `company_profile`
+///   单例行并出**硬投影** `CompanyProfilePublic{name, short_name, logo}` 三键，
+///   敏感列（信用代码/法人/税务登记号/开户行/账号/纳税人类型）在类型层即不存在、
+///   不经本端点出入；GET 无写面、无 CSRF 消费面，logo 本身即抬头公开物料。
+///   ⚠️ 路径形态是安全边界：本清单为**精确路径、方法无关**匹配（`is_auth_only_path`
+///   在 RBAC/白名单前 return），故全量读写面**必须**另占精确路径 `/company-profile/full`
+///   （正常 RBAC：GET→company-profile:read、PUT→company-profile:update）——若 GET 与
+///   PUT 同挂 `/company-profile`，PUT 会连同本豁免被任意登录者调用。同前缀的
+///   `/company-profile/full` **不在**本清单。
 pub const AUTH_ONLY_PATHS: &[&str] = &[
     "/api/v1/erp/audit-logs/record-print",
     "/api/v1/erp/ws/ticket",
     "/api/v1/erp/auth/me",
     "/api/v1/erp/users/change-password",
+    "/api/v1/erp/company-profile",
 ];
 
 /// 路径是否仅需认证（严格精确匹配，语义与 [`is_public_path`] 一致，不做子路径前缀放行）

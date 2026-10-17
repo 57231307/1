@@ -339,16 +339,49 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
     }
 }
 
+/// 方法派生动作码（GET→read / POST→create / PUT、PATCH→update / DELETE→delete）。
+/// `method_to_action` 与权限目录端点的可授予动作均由这组常量单一派生，
+/// 任何消费方不得另写第二套动作字面量（目录与鉴权键漂移=勾得出的键运行时永不命中）。
+pub(crate) const ACTION_READ: &str = "read";
+pub(crate) const ACTION_CREATE: &str = "create";
+pub(crate) const ACTION_UPDATE: &str = "update";
+pub(crate) const ACTION_DELETE: &str = "delete";
+
+/// 方法派生动作全集（目录/播种等消费方用；顺序即 read/create/update/delete）。
+pub(crate) const METHOD_DERIVED_ACTIONS: &[&str] =
+    &[ACTION_READ, ACTION_CREATE, ACTION_UPDATE, ACTION_DELETE];
+
 pub fn method_to_action(method: &Method) -> String {
     match *method {
-        Method::GET => "read",
-        Method::POST => "create",
-        Method::PUT => "update",
-        Method::PATCH => "update",
-        Method::DELETE => "delete",
-        _ => "read",
+        Method::GET => ACTION_READ,
+        Method::POST => ACTION_CREATE,
+        Method::PUT => ACTION_UPDATE,
+        Method::PATCH => ACTION_UPDATE,
+        Method::DELETE => ACTION_DELETE,
+        _ => ACTION_READ,
     }
     .to_string()
+}
+
+/// 可授予动作全集（权限目录端点的动作侧权威来源）：方法派生动作 ∪ 路径末段动作
+/// 关键字（`PATH_ACTION_KEYWORDS`）∪ `?action=` 查询白名单动作
+/// （`QUERY_ACTION_KEYWORDS`），按首次出现顺序去重。
+///
+/// 权限中间件的键派生只可能产出这三组动作，目录与派生同源 ⇒ 目录里勾不出来的
+/// 键运行时也派生不出来，反之亦然，杜绝"目录/鉴权两套动作词表"漂移。
+pub(crate) fn assignable_actions() -> Vec<&'static str> {
+    let mut actions: Vec<&'static str> = Vec::new();
+    for action in METHOD_DERIVED_ACTIONS
+        .iter()
+        .chain(PATH_ACTION_KEYWORDS.iter())
+        .chain(QUERY_ACTION_KEYWORDS.iter())
+    {
+        let action: &'static str = *action;
+        if !actions.contains(&action) {
+            actions.push(action);
+        }
+    }
+    actions
 }
 
 use dashmap::DashMap;

@@ -405,6 +405,10 @@ pub fn data_permissions() -> Router<AppState> {
             get(data_permission_handler::list_scope_types),
         )
         .route(
+            "/resource-types",
+            get(data_permission_handler::get_resource_types),
+        )
+        .route(
             "/roles/{role_id}",
             get(data_permission_handler::list_role_data_permissions),
         )

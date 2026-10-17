@@ -1313,6 +1313,13 @@ impl InitService {
                     // 由系统管理岗全权维护；业务岗不授。派发改为真设备后，无目标配置则打印不可达，
                     // 故该写面对 system_admin 必备。
                     ("print-targets", "*"),
+                    // 公司档案（单例抬头主数据）：全量读 `GET /company-profile/full` 派生
+                    // company-profile:read，全量替换 `PUT /company-profile/full` 派生
+                    // company-profile:update。本波只授 system_admin（最小权限）；含敏感工商/
+                    // 税务/银行列与 logo 写面，是否再授财务/审计属后续待裁，不在本波自签扩权。
+                    // 公开投影 `GET /company-profile` 走 AUTH_ONLY 豁免、不需要权限码，不在授权面。
+                    ("company-profile", "read"),
+                    ("company-profile", "update"),
                     ("data-import", "*"),
                     ("permission-audits", "*"),
                     ("business-trace", "read"),
