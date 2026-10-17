@@ -450,6 +450,36 @@ pub async fn get_bulk_color_approval(
     Ok(Json(ApiResponse::success(record)))
 }
 
+/// DELETE /api/v1/erp/bulk-color-approvals/{id} - 删除批色记录（清理通道）
+///
+/// 调用方：e2e 分片收尾与运维清理；此前该路径无 DELETE 方法，收尾删审批返回 405，
+/// 残留的审批行又以 `bulk_color_approval_sales_order_id_fkey` 阻塞销售订单删除（500）。
+/// 入参：路径 id 与认证上下文。归属门沿用详情同一条判据（按父销售订单，行级 IDOR 防护），
+/// 不因走清理通道就跳过。成功返回被删 id；失败由 service 上抛，不静默。
+pub async fn delete_bulk_color_approval(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let service = BulkColorApprovalService::from_state(&state);
+    let record = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        record.sales_order_id,
+    )
+    .await?;
+    service.delete(id).await.map_err(bca_err)?;
+    tracing::info!(
+        actor = auth.user_id,
+        approval_id = id,
+        "批色记录删除成功（清理通道）"
+    );
+    Ok(Json(ApiResponse::success(serde_json::json!({ "id": id }))))
+}
+
 /// POST /api/v1/erp/bulk-color-approvals/:id/cut-sample - 剪大货样（P0-F16）
 pub async fn cut_sample(
     auth: AuthContext,

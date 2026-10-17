@@ -1,4 +1,4 @@
-# layers=8 endpoints=1784
+# layers=8 endpoints=1785
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -14,6 +14,7 @@ DELETE	/api/v1/erp/bpm/definitions/*	bpm_definition_handler::delete_process_defi
 DELETE	/api/v1/erp/bpm/templates/*	bpm_definition_handler::delete_template	system
 DELETE	/api/v1/erp/budgets/*	budget_management_handler::delete_budget	finance
 DELETE	/api/v1/erp/budgets/items/*	budget_management_handler::delete_budget_item	finance
+DELETE	/api/v1/erp/bulk-color-approvals/*	bulk_color_approval_handler::delete_bulk_color_approval	bulk_color_approval
 DELETE	/api/v1/erp/categories/*	product_category_handler::delete	catalog
 DELETE	/api/v1/erp/chemical-categories/*	chemical_handler::delete_chemical_category	catalog
 DELETE	/api/v1/erp/chemical-lots/*	chemical_handler::delete_chemical_lot	catalog

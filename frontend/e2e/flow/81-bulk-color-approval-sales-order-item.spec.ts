@@ -33,6 +33,7 @@
 //   要求关联染色批次已完成、存在质检合格且数量充足的大货库存、关联生产订单已完成，夹具过重，
 //   本 spec 不伪造该成功断言，仅按行作用域真实覆盖“命中行点名批色拦截 / 未命中行不被该门禁拦”两个方向。
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   APP_ERROR_CODES,
@@ -150,6 +151,33 @@ async function createTwoLineSalesOrder(
   return readBack.data;
 }
 
+/**
+ * 自建唯一命名产品并返回 id。
+ * 调用方：本文件各用例的夹具准备。入参：page、唯一后缀 tag、来自 ensureTestEntities 的产品分类 id。
+ * 传给谁：id 进销售订单明细行的 product_id。
+ * 为什么不复用共享快照：ctx.productIds 是现读的全库产品列表，并发分片的收尾清理会删掉这些行，
+ * 于是 POST /sales/orders 以 `产品 ID N 不存在` 400 被业务校验拒绝（用例被别人的清理打断）。
+ * 用例自身依赖的数据一律自建自清。
+ */
+async function createOwnProduct(page: Page, tag: string, categoryId: number): Promise<number> {
+  const resp = await apiCall<{ id?: number }>(page, 'POST', '/products', {
+    name: `E2E81产品${tag}`,
+    code: `E2E81${tag}`,
+    category_id: categoryId,
+    unit: 'm',
+  });
+  const id = Number(resp.data?.id);
+  expect(id, `自建产品失败：${JSON.stringify(resp.data)}`).toBeGreaterThan(0);
+  return id;
+}
+
+/** 取本用例可用的产品分类 id（ensureTestEntities 已保证"面料"分类存在并写入 ctx） */
+function ownCategoryId(): number {
+  const categoryId = getCtx().productCategoryIds[0];
+  expect(categoryId, '前置：批色用例需产品分类 id 以自建产品').toBeTruthy();
+  return categoryId!;
+}
+
 test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
   test.beforeEach(async ({ page, context }) => {
     await applyAuthMocks(context);
@@ -159,9 +187,11 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
   test('带出持久：建单带明细行后反范式列由后端覆盖回填，GET 回读逐字符相等', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const productX = ctx.productIds[0];
+    const categoryId = ownCategoryId();
+    const productX = await createOwnProduct(page, genCode('81X'), categoryId);
+    const productY = await createOwnProduct(page, genCode('81Y'), categoryId);
     const dyeBatchId = ctx.dyeBatchId;
-    expect(productX, '前置：批色发起需至少一个产品').toBeTruthy();
+
     expect(dyeBatchId, '前置：批色建单需真实染色批次 id（外键 NOT NULL）').toBeTruthy();
 
     const custName = `E2E批色带出客户 ${genCode('BCA-A')}`;
@@ -178,7 +208,7 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       customerId!,
       productX,
       colorX,
-      ctx.productIds[1],
+      productY,
       colorY
     );
     const orderId = order.id!;
@@ -222,15 +252,19 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       await tryCleanup(page, 'DELETE', `/bulk-color-approvals/${bulkId}`, 'bulk_color_approval');
       await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, 'sales_order');
       await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, 'customer');
+      await tryCleanup(page, 'DELETE', `/products/${productX}`, 'product');
+      await tryCleanup(page, 'DELETE', `/products/${productY}`, 'product');
     }
   });
 
   test('列表富化：GET 回读 order_no/customer_name 为关联真实值（非恒空列）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const productX = ctx.productIds[0];
+    const categoryId = ownCategoryId();
+    const productX = await createOwnProduct(page, genCode('81X'), categoryId);
+    const productY = await createOwnProduct(page, genCode('81Y'), categoryId);
     const dyeBatchId = ctx.dyeBatchId;
-    expect(productX, '前置：批色发起需至少一个产品').toBeTruthy();
+
     expect(dyeBatchId, '前置：批色建单需真实染色批次 id（外键 NOT NULL）').toBeTruthy();
 
     const custName = `E2E批色富化客户 ${genCode('BCA-B')}`;
@@ -246,7 +280,7 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       customerId!,
       productX,
       colorX,
-      ctx.productIds[1],
+      productY,
       `E2E-CY-${genCode('BCBC')}`
     );
     const orderId = order.id!;
@@ -286,15 +320,19 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       await tryCleanup(page, 'DELETE', `/bulk-color-approvals/${bulkId}`, 'bulk_color_approval');
       await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, 'sales_order');
       await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, 'customer');
+      await tryCleanup(page, 'DELETE', `/products/${productX}`, 'product');
+      await tryCleanup(page, 'DELETE', `/products/${productY}`, 'product');
     }
   });
 
   test('越权拒绝：明细行取他单或不存在均被校验拒绝，且列表不新增行', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const productX = ctx.productIds[0];
+    const categoryId = ownCategoryId();
+    const productX = await createOwnProduct(page, genCode('81X'), categoryId);
+    const productY = await createOwnProduct(page, genCode('81Y'), categoryId);
     const dyeBatchId = ctx.dyeBatchId;
-    expect(productX, '前置：批色发起需至少一个产品').toBeTruthy();
+
     expect(dyeBatchId, '前置：批色建单需真实染色批次 id（外键 NOT NULL）').toBeTruthy();
 
     const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
@@ -309,7 +347,7 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       customerId!,
       productX,
       `E2E-CX-${genCode('BCX')}`,
-      ctx.productIds[1],
+      productY,
       `E2E-CY-${genCode('BCX')}`
     );
     const orderAId = orderA.id!;
@@ -320,7 +358,7 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       customerId!,
       productX,
       `E2E-CX-${genCode('BCB')}`,
-      ctx.productIds[1],
+      productY,
       `E2E-CY-${genCode('BCB')}`
     );
     const orderBId = orderB.id!;
@@ -376,17 +414,18 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       await tryCleanup(page, 'DELETE', `/sales/orders/${orderAId}`, 'sales_order');
       await tryCleanup(page, 'DELETE', `/sales/orders/${orderBId}`, 'sales_order');
       await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, 'customer');
+      await tryCleanup(page, 'DELETE', `/products/${productX}`, 'product');
+      await tryCleanup(page, 'DELETE', `/products/${productY}`, 'product');
     }
   });
 
   test('按行发货门禁作用域：命中未批行点名批色拦截，未命中行不被该门禁拦', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
-    const productX = ctx.productIds[0];
-    const productY = ctx.productIds[1];
+    const categoryId = ownCategoryId();
+    const productX = await createOwnProduct(page, genCode('81X'), categoryId);
+    const productY = await createOwnProduct(page, genCode('81Y'), categoryId);
     const dyeBatchId = ctx.dyeBatchId;
-    expect(productX, '前置：需产品 X').toBeTruthy();
-    expect(productY, '前置：需产品 Y（与 X 不同，构成两行）').toBeTruthy();
     expect(dyeBatchId, '前置：批色建单需真实染色批次 id（外键 NOT NULL）').toBeTruthy();
 
     const cust = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
@@ -462,6 +501,8 @@ test.describe('大货批色审批 - 81 由销售订单明细行发起', () => {
       await tryCleanup(page, 'DELETE', `/bulk-color-approvals/${bulkId}`, 'bulk_color_approval');
       await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, 'sales_order');
       await tryCleanup(page, 'DELETE', `/crm/customers/${customerId}`, 'customer');
+      await tryCleanup(page, 'DELETE', `/products/${productX}`, 'product');
+      await tryCleanup(page, 'DELETE', `/products/${productY}`, 'product');
     }
   });
 });
