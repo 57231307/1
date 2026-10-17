@@ -1365,11 +1365,18 @@ async function probeCsrfLiveness(page: Page): Promise<void> {
   }
 }
 
+/**
+ * helper 可携带的请求体形态：对象端点收 `Json<T>`，整批替换类端点收 `Json<Vec<T>>`
+ * （裸数组，例如 PUT /roles/{id}/permissions），两者都是合法 JSON 请求体，
+ * 走同一条带 CSRF 头的发送链路，不因形态不同而绕过 CSRF。
+ */
+export type ApiRequestBody = Record<string, unknown> | unknown[];
+
 export async function apiCall<T = unknown>(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: Record<string, unknown>
+  body?: ApiRequestBody
 ): Promise<ApiResponse<T>> {
   const csrfToken =
     (await getCsrfToken(page).catch(e => {
@@ -1489,7 +1496,7 @@ export async function apiCallRaw<T = unknown>(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: Record<string, unknown>
+  body?: ApiRequestBody
 ): Promise<T> {
   const res = await apiCall<T>(page, method, path, body);
   return res.data;
@@ -1499,7 +1506,7 @@ export async function apiCallExpectFail(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: Record<string, unknown>
+  body?: ApiRequestBody
 ): Promise<ApiFailureResult> {
   const url = `${API_BASE}${API_PREFIX}${path}`;
   const csrfToken =
