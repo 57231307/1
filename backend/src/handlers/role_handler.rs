@@ -6,7 +6,7 @@ use crate::models::role_conflict;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::role_permission_service::RolePermissionService;
 use crate::services::role_permission_service::{
-    AssignPermissionRequest, CreateRoleRequest, UpdateRoleRequest,
+    AssignPermissionRequest, BatchPermissionEntry, CreateRoleRequest, UpdateRoleRequest,
 };
 use crate::utils::admin_checker::{ADMIN_ROLE_CODE, clear_admin_role_cache, is_admin_role};
 use crate::utils::error::AppError;
@@ -56,6 +56,9 @@ pub struct RoleDetailResponse {
     pub code: String,
     pub description: Option<String>,
     pub is_system: bool,
+    /// 行级数据范围（roles.data_scope 真值，词表 all/dept/self，
+    /// 由 PATCH /roles/{id}/data-scope 写入）
+    pub data_scope: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub permissions: Option<Vec<PermissionResponse>>,
@@ -107,6 +110,14 @@ pub struct AssignPermissionPayload {
     pub resource_id: Option<i32>,
     pub action: String,
     pub allowed: bool,
+}
+
+/// 更新行级数据范围请求（PATCH /roles/{id}/data-scope）。
+/// 取值词表由服务端用 `DataScope` 往返校验（all/dept/self，小写），未知值 400。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct UpdateDataScopePayload {
+    pub data_scope: String,
 }
 
 /// 获取角色列表
@@ -171,6 +182,7 @@ pub async fn get_role(
         code: role.code,
         description: role.description,
         is_system: role.is_system,
+        data_scope: role.data_scope,
         created_at: role.created_at,
         updated_at: role.updated_at,
         permissions,
@@ -242,6 +254,7 @@ pub async fn create_role(
         code: role.code,
         description: role.description,
         is_system: role.is_system,
+        data_scope: role.data_scope,
         created_at: role.created_at,
         updated_at: role.updated_at,
         permissions,
@@ -283,6 +296,62 @@ pub async fn update_role(
 
     // P1 8-3 修复：update_role 补审计日志
     let event = build_role_audit_event(&auth, id, &before_snapshot, &role);
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
+
+    Ok(Json(ApiResponse::success(build_role_detail_response(role))))
+}
+
+/// 更新角色行级数据范围（PATCH /roles/{id}/data-scope，D4 行级真相落 roles.data_scope）
+///
+/// `roles.data_scope` 是权限链路真正被读取的行级开关（auth 中间件每请求加载注入
+/// AuthContext，service 层 apply_data_scope 据此过滤），本端点是该列唯一 API 写入口。
+/// 派生权限键 = `roles:update`（seg3=roles；末段 data-scope 非动作关键字，PATCH→update，
+/// 与既有 roles:* 同键空间，未新增跨资源键）。词表往返校验在 service 层
+/// （仅 all/dept/self 小写三值，未知值显式 400，不静默回退）。
+/// 系统角色不允许修改（与 `update_role` 同口径）；data_scope 由 auth 中间件每请求
+/// 现读库，无缓存需失效。
+pub async fn update_role_data_scope(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
+    Path(id): Path<i32>,
+    Json(payload): Json<UpdateDataScopePayload>,
+) -> Result<Json<ApiResponse<RoleDetailResponse>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+    let service = RolePermissionService::new(state.db.clone());
+
+    // 更新前回读旧值，作为审计 before_snapshot（角色不存在=404 由 service 透传）
+    let old_role = service.get_role_detail(id).await?;
+    let before_snapshot = serde_json::json!({
+        "role_id": old_role.id,
+        "data_scope": old_role.data_scope,
+    });
+
+    let role = service
+        .update_role_data_scope(id, &payload.data_scope, auth.user_id)
+        .await?;
+
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("role".to_string()),
+        resource_id: Some(id.to_string()),
+        resource_name: Some(role.name.clone()),
+        description: Some(format!(
+            "管理员 {} 更新角色 {} 的行级数据范围 {} → {}（id={}）",
+            auth.username, role.name, old_role.data_scope, role.data_scope, id
+        )),
+        request_method: Some("PATCH".to_string()),
+        request_path: Some(format!("/api/v1/erp/roles/{}/data-scope", id)),
+        before_snapshot: Some(before_snapshot),
+        after_snapshot: Some(serde_json::json!({
+            "role_id": role.id,
+            "data_scope": role.data_scope,
+        })),
+    };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, audit_ctx.map(|e| e.0));
 
@@ -344,6 +413,7 @@ fn build_role_detail_response(
         code: role.code,
         description: role.description,
         is_system: role.is_system,
+        data_scope: role.data_scope,
         created_at: role.created_at,
         updated_at: role.updated_at,
         permissions,
@@ -471,6 +541,64 @@ pub async fn assign_permission(
     })))
 }
 
+/// 批量整批替换角色级授予（PUT /roles/{id}/permissions）
+///
+/// B 页提速 + SoD 竞态根治：body 是期望的完整**角色级**授予集
+/// `[{resource_type, action, allowed}]`，服务端单事务 diff（新增/仅 allowed 翻转的
+/// 更新/期望集外的删除），一次批量审计（before/after 各一份全量快照），SoD 在
+/// 写入后的最终集合上复算（并发 create+approve 双双落库的旧路径整体回滚）。
+/// 记录级授权行（resource_id=Some）不在替换作用面，仍由单条 POST/DELETE 维护。
+/// 派生权限键 = `roles:update`（与单条 POST/DELETE 同键空间，未新增权限键）。
+/// 出参为替换后的角色级授予全集（裸数组，与 GET /roles/{id}/permissions 同形状）。
+pub async fn replace_role_permissions(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    audit_ctx: Option<Extension<AuditContext>>,
+    Path(role_id): Path<i32>,
+    Json(payload): Json<Vec<BatchPermissionEntry>>,
+) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
+    require_admin_role(&state, &auth).await?;
+    let service = RolePermissionService::new(state.db.clone());
+
+    let result = service
+        .replace_role_permissions(role_id, payload, auth.user_id)
+        .await?;
+
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Warn,
+        resource_type: Some("role_permission".to_string()),
+        resource_id: Some(role_id.to_string()),
+        resource_name: Some(format!("role_id={role_id} 批量整批替换角色级授予")),
+        description: Some(format!(
+            "管理员 {} 对角色 id={role_id} 批量整批替换角色级授予：新增 {}、更新 {}、删除 {}",
+            auth.username, result.inserted, result.updated, result.deleted
+        )),
+        request_method: Some("PUT".to_string()),
+        request_path: Some(format!("/api/v1/erp/roles/{}/permissions", role_id)),
+        before_snapshot: Some(result.before_snapshot),
+        after_snapshot: Some(result.after_snapshot),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, audit_ctx.map(|e| e.0));
+
+    let perm_responses: Vec<PermissionResponse> = result
+        .after
+        .into_iter()
+        .map(|perm| PermissionResponse {
+            id: perm.id,
+            resource_type: perm.resource_type,
+            resource_id: perm.resource_id,
+            action: perm.action,
+            allowed: perm.allowed,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(perm_responses)))
+}
+
 /// 移除权限
 pub async fn remove_permission(
     State(state): State<AppState>,
@@ -531,37 +659,49 @@ pub async fn get_role_permissions(
     Ok(Json(ApiResponse::success(perm_responses)))
 }
 
-/// 获取所有权限列表（用于前端权限选择器，P2 2-8 修复）。
-/// 从 role_permission 表 distinct 查询，替代原 24 项硬编码，与 DB/middleware 保持一致。
+/// 获取可授予权限目录（GET /roles/permissions、GET /permissions 同一实现）。
+///
+/// 目录 = 后端权威注册表 `PERMISSION_RESOURCES`（init_service.rs，权限中间件键派生的
+/// 资源侧同源）× `assignable_actions()`（键派生动作侧全集：方法派生动作 ∪ 路径末段
+/// 动作关键字 ∪ `?action=` 查询白名单，permission.rs 内单一事实源，不另写第二套动作字面量）。
+/// 原实现由 role_permission「已授权行 distinct」派生且过滤 Allowed=true：从未被任何角色
+/// 授予的资源×动作在 UI 永远勾不出（缺键正解在后端注册表、不在前端清单——既有判例）。
+/// 现在 role_permission 只贡献「已勾选态」（GET /roles/{id}/permissions），目录本身后端供。
+///
+/// 出参边界（消费方影响）：
+/// - `id` 是目录序号（1..n，仅排序用途），**不是 role_permission 关联行主键**；
+///   DELETE /roles/permissions/{id} 必须使用 GET /roles/{id}/permissions 返回的关联 id；
+/// - `resource_id` 恒 null：目录是角色级「资源×动作」可选面，记录级授权仍走单条 POST；
+/// - `allowed` 恒 true，表示「该项可授予」，不代表已授予态；
+/// - 目录行是派生键的笛卡尔积，个别组合（如 `users:print`）可能没有对应路由面——
+///   勾了不生效但不构成越权面（键派生与目录同源）；按需收敛需先建「资源×动作」
+///   路由级注册表，不在本轮。
 pub async fn list_permissions(
-    State(state): State<AppState>,
     _auth: AuthContext,
 ) -> Result<Json<ApiResponse<Vec<PermissionResponse>>>, AppError> {
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-
-    let all_perms = crate::models::role_permission::Entity::find()
-        .filter(crate::models::role_permission::Column::Allowed.eq(true))
-        .all(state.db.as_ref())
-        .await?;
-
-    // 按 (resource_type, action) 去重，resource_id 取首条记录值
-    let mut seen = std::collections::HashSet::new();
-    let mut permissions = Vec::new();
+    let actions = crate::middleware::permission::assignable_actions();
+    let resources = crate::services::init_service::PERMISSION_RESOURCES;
+    let mut permissions = Vec::with_capacity(resources.len() * actions.len());
     let mut id_counter = 1i32;
-    for perm in all_perms {
-        let key = (perm.resource_type.clone(), perm.action.clone());
-        if seen.insert(key) {
+    for resource_type in resources {
+        for action in &actions {
             permissions.push(PermissionResponse {
                 id: id_counter,
-                resource_type: perm.resource_type,
-                resource_id: perm.resource_id,
-                action: perm.action,
+                resource_type: (*resource_type).to_string(),
+                resource_id: None,
+                action: (*action).to_string(),
                 allowed: true,
             });
             id_counter += 1;
         }
     }
 
+    tracing::debug!(
+        resources = resources.len(),
+        actions = actions.len(),
+        entries = permissions.len(),
+        "权限目录由 PERMISSION_RESOURCES × assignable_actions 派生（不再取 role_permission distinct）"
+    );
     Ok(Json(ApiResponse::success(permissions)))
 }
 

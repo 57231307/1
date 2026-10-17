@@ -194,6 +194,10 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // 命中不了任何授权行、对非超管恒 fail-closed 403。
     "print-tasks",
     "print-targets",
+    // 公司档案：`GET/PUT /company-profile/full` 的 seg3 派生资源键 company-profile
+    // （GET→read、PUT→update）；公开投影 `GET /company-profile` 走 AUTH_ONLY 精确豁免、
+    // 不经业务权限码，但全量面必须在本注册表登记，否则 fail-closed 403。
+    "company-profile",
     "data-import",
     "permission-audits",
     // ===== 系统更新域（高危敏感面，资源键统一带 system-update- 前缀与其余业务隔离）=====
@@ -225,7 +229,9 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "ai-recipe-opt",
     "ai-quality-pred",
     "ai-process-opt",
-    "ai-summary",
+    "ai-summary", // 大货批色审批：URL 段 bulk-color-approvals 即派生资源名（含 DELETE 清理通道），
+    // 此前未登记 ⇒ 目录勾不到、种子授不了，非超管对该面只有超管通配可达。
+    "bulk-color-approvals",
 ];
 
 /// 初始化任务状态（L-24 修复：补充终态与恢复路径文档）

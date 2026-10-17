@@ -265,6 +265,8 @@ pub mod print_service;
 pub mod print_dispatch;
 // 内置打印模板幂等种子（迁移后、服务前落库，仅补不覆盖）
 pub mod print_template_seed;
+// 公司档案单例服务（抬头主数据读写 + logo PNG 校验解码；打印 letterhead 的数据源）
+pub mod company_profile_service;
 // 审计日志清理服务
 pub mod audit_cleanup_service;
 /// P1 20.8-B：日志 90 天保留期清理

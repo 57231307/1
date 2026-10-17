@@ -65,16 +65,16 @@ export const setDataPermission = (data: SetDataPermissionRequest) =>
 export const getRoleDataPermissionList = (roleId: number) =>
   request.get<ApiResponse<DataPermissionRole[]>>(`/data-permissions/roles/${roleId}`);
 
-export const getDataPermissionByRole = (roleId: number, resourceType: string) =>
-  request.get<ApiResponse<DataPermissionRole>>(`/data-permissions/roles/${roleId}/${resourceType}`);
-
-export const deleteDataPermissionByRole = (roleId: number, resourceType: string) =>
-  request.delete<ApiResponse<void>>(`/data-permissions/roles/${roleId}/${resourceType}`);
+// GET /data-permissions/resource-types：后端 handlers/data_permission_handler.rs::get_resource_types
+// 返回合法 resource_type token 数组（ApiResponse<Vec<&str>>，裸数组载荷）。
+// 下拉候选由此接口提供，前端不再硬编码资源类型。
+export const getResourceTypes = () =>
+  request.get<ApiResponse<string[]>>('/data-permissions/resource-types');
 
 export const getScopeTypeList = () =>
   request.get<ApiResponse<ScopeType[]>>('/data-permissions/scope-types');
 
-/// 数据权限范围类型默认值（v11 P1-5：API 失败时的兜底常量，避免 view 层硬编码）
+// 数据权限范围类型默认值：接口不可用时的兜底候选，避免视图层硬编码
 export const DEFAULT_SCOPE_TYPES: ScopeType[] = [
   { value: 'ALL', label: '全部数据', description: '可以查看所有数据' },
   { value: 'DEPT', label: '本部门数据', description: '只能查看本部门的数据' },

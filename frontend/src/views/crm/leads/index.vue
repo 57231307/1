@@ -466,11 +466,35 @@ const handleLost = async (row: LeadRow) => {
 };
 
 // 线索评分：调用后端评分引擎，弹窗展示评分结果
+// 后端 LeadScoreResult = { lead_id, score, priority, breakdown }，breakdown 是各维度
+// { source:{score,lead_source}, behavior:{score}, demographics:{score} } 的对象，必须按结构
+// 逐项本地化渲染；早期用 Object.entries 把整个对象 `${v}` 直插，breakdown 会显示成 [object Object]。
 const handleScore = async (row: LeadRow) => {
   try {
     const res = await scoreLead(row.id);
-    const d = (res.data ?? {}) as unknown as Record<string, unknown>;
-    const lines = Object.entries(d).map(([k, v]) => `${k}: ${v}`);
+    const d = (res.data ?? {}) as unknown as {
+      score?: number;
+      priority?: string;
+      breakdown?: Record<string, { score?: number; lead_source?: string }>;
+    };
+    const b = d.breakdown ?? {};
+    const lines: string[] = [];
+    lines.push(`${t('crmLeads.scoreDetail.total')}: ${d.score ?? 0}`);
+    lines.push(`${t('crmLeads.scoreDetail.priority')}: ${getPriorityLabel(d.priority || '')}`);
+    const dims: Array<[string, string]> = [
+      ['source', t('crmLeads.scoreDetail.dimSource')],
+      ['behavior', t('crmLeads.scoreDetail.dimBehavior')],
+      ['demographics', t('crmLeads.scoreDetail.dimDemographics')],
+    ];
+    for (const [key, label] of dims) {
+      const item = b[key];
+      if (!item) continue;
+      let line = `${label}: ${item.score ?? 0}`;
+      if (key === 'source' && item.lead_source) {
+        line += `（${t('crmLeads.scoreDetail.sourceField')}${getSourceLabel(item.lead_source)}）`;
+      }
+      lines.push(line);
+    }
     ElMessageBox.alert(
       lines.join('\n') || t('crmLeads.message.scoreEmpty'),
       `${t('crmLeads.table.score')} - ${row.contact_name}`,
@@ -591,7 +615,7 @@ const getPriorityType = (priority: string) => {
     HIGH: 'warning',
     URGENT: 'danger',
   };
-  return typeMap[priority] || '';
+  return typeMap[(priority || '').toUpperCase()] || '';
 };
 
 const getPriorityLabel = (priority: string) => {
@@ -601,7 +625,7 @@ const getPriorityLabel = (priority: string) => {
     HIGH: t('crmLeads.priority.high'),
     URGENT: t('crmLeads.priority.urgent'),
   };
-  return labelMap[priority] || priority;
+  return labelMap[(priority || '').toUpperCase()] || priority;
 };
 </script>
 

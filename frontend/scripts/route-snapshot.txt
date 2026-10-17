@@ -1,4 +1,4 @@
-# layers=8 endpoints=1778
+# layers=8 endpoints=1785
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -14,6 +14,7 @@ DELETE	/api/v1/erp/bpm/definitions/*	bpm_definition_handler::delete_process_defi
 DELETE	/api/v1/erp/bpm/templates/*	bpm_definition_handler::delete_template	system
 DELETE	/api/v1/erp/budgets/*	budget_management_handler::delete_budget	finance
 DELETE	/api/v1/erp/budgets/items/*	budget_management_handler::delete_budget_item	finance
+DELETE	/api/v1/erp/bulk-color-approvals/*	bulk_color_approval_handler::delete_bulk_color_approval	bulk_color_approval
 DELETE	/api/v1/erp/categories/*	product_category_handler::delete	catalog
 DELETE	/api/v1/erp/chemical-categories/*	chemical_handler::delete_chemical_category	catalog
 DELETE	/api/v1/erp/chemical-lots/*	chemical_handler::delete_chemical_lot	catalog
@@ -343,6 +344,8 @@ GET	/api/v1/erp/color-prices/customer-special	color_price_handler::list_customer
 GET	/api/v1/erp/color-prices/seasonal-rules	color_price_handler::list_seasonal_rules	color_price
 GET	/api/v1/erp/color-prices/seasonal-rules/*	color_price_handler::get_seasonal_rule	color_price
 GET	/api/v1/erp/color-prices/tiers/*	color_price_handler::list_tiers	color_price
+GET	/api/v1/erp/company-profile	company_profile_handler::get_company_profile	system
+GET	/api/v1/erp/company-profile/full	company_profile_handler::get_company_profile_full	system
 GET	/api/v1/erp/contract-signatures	contract_signature_handler::list_signed_contracts	contract_signature
 GET	/api/v1/erp/contract-signatures/*/verify	contract_signature_handler::verify_signature	contract_signature
 GET	/api/v1/erp/crm/assignments	crm_assignment_handler::list_assignments	crm
@@ -448,6 +451,7 @@ GET	/api/v1/erp/data-import/templates/*	import_export_handler::get_import_templa
 GET	/api/v1/erp/data-import/templates/*/download	import_export_handler::download_import_template_by_id	mod
 GET	/api/v1/erp/data-permissions	data_permission_handler::list_data_permissions	analytics
 GET	/api/v1/erp/data-permissions/*	data_permission_handler::get_data_permission	analytics
+GET	/api/v1/erp/data-permissions/resource-types	data_permission_handler::get_resource_types	analytics
 GET	/api/v1/erp/data-permissions/roles/*	data_permission_handler::list_role_data_permissions	analytics
 GET	/api/v1/erp/data-permissions/scope-types	data_permission_handler::list_scope_types	analytics
 GET	/api/v1/erp/departments	department_handler::list	iam
@@ -971,6 +975,7 @@ GET	/api/v1/erp/xlsx/*	import_export_handler::export_xlsx	analytics
 GET	/health	crate::handlers::health_handler::health_check	mod
 GET	/health/liveness	crate::handlers::health_handler::liveness_check	mod
 GET	/health/readiness	crate::handlers::health_handler::readiness_check	mod
+PATCH	/api/v1/erp/roles/*/data-scope	role_handler::update_role_data_scope	iam
 POST	/api/v1/erp/admin/failover/failback	post_failback	failover
 POST	/api/v1/erp/admin/failover/test/switch	post_test_switch	failover
 POST	/api/v1/erp/advanced/ai/anomaly-detection	advanced::anomaly_detection	analytics
@@ -1653,6 +1658,7 @@ PUT	/api/v1/erp/color-cards/*	color_card::update_color_card	color_card
 PUT	/api/v1/erp/color-cards/*/items/*	color_card::update_color_item	color_card
 PUT	/api/v1/erp/color-prices/*	color_price_handler::update_color_price	color_price
 PUT	/api/v1/erp/color-prices/seasonal-rules/*	color_price_handler::update_seasonal_rule	color_price
+PUT	/api/v1/erp/company-profile/full	company_profile_handler::update_company_profile_full	system
 PUT	/api/v1/erp/crm/customer-credits/*	customer_credit_handler::update_credit	crm
 PUT	/api/v1/erp/crm/customers/*	customer_handler::update_customer	crm
 PUT	/api/v1/erp/crm/customers/*/addresses/*	customer_address_handler::update_customer_address	crm
@@ -1758,6 +1764,7 @@ PUT	/api/v1/erp/quotations/*/terms	quotation_handler::set_quotation_terms	quotat
 PUT	/api/v1/erp/reports/enhanced/subscriptions/*	report_enhanced_handler::subscriptions::update	analytics
 PUT	/api/v1/erp/reports/enhanced/templates/*	report_enhanced_handler::update_report_template	analytics
 PUT	/api/v1/erp/roles/*	role_handler::update_role	iam
+PUT	/api/v1/erp/roles/*/permissions	role_handler::replace_role_permissions	iam
 PUT	/api/v1/erp/sales/fabric-orders/*	sales_fabric_order_handler::update_fabric_order	sales
 PUT	/api/v1/erp/sales/orders/*	sales_order_handler::update_order	sales
 PUT	/api/v1/erp/sales/sales-contracts/*	sales_contract_handler::update_contract	sales
