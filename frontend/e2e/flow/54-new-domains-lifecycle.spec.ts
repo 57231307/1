@@ -9,7 +9,13 @@ import {
   genCode,
   genName,
 } from './helpers';
-import { findTableRow, pickSelect, fillFieldByLabel, pickListArray } from './ui-helpers';
+import {
+  findTableRow,
+  pickSelect,
+  pickSelectIn,
+  fillFieldByLabel,
+  pickListArray,
+} from './ui-helpers';
 
 /**
  * 新增域业务流转链防线（flow/54-new-domains-lifecycle）
@@ -327,9 +333,33 @@ test.describe.serial('新域业务流转链', () => {
     await expect(dialog).toBeVisible();
 
     // 委外单号由 openCreate() 客户端自动生成（generateUniqueDocNo），readonly 不可 fill。
-    // 选类型 el-select（dialog 内唯一 el-select）、填供应商ID/发出数量/发出日期。
+    // 建单对话框内有两个 el-select：第一个「类型」（染色加工/后整理/其他），第二个
+    // 「供应商/加工商」——本次源码改动把供应商由裸手输 supplier_id 的 el-input-number 改为
+    // filterable 可搜索下拉（option 文案为「supplier_name（supplier_code）」）。
+    // 类型下拉仍是 dialog 内首个 .el-select，按位置选即可；供应商下拉必须按精确 label 锚定
+    // （pickSelectIn 内部走 formItemByExactLabel），否则 .el-select first 会误点到类型下拉。
     await pickSelect(page, dialog.locator('.el-select').first(), '染色加工');
-    await dialog.locator('.el-input-number input').first().fill(String(ctx.supplierId)); // 供应商ID
+    // 供应商：按 ctx.supplierId 取真实名称/编码作为搜索词与点选判据；取不到名称即显式抛错，
+    // 不兜底、不退回手填数字主键（旧 el-input-number 契约已失效）。
+    const supplier = await apiCallRaw<{ supplier_name?: string; supplier_code?: string }>(
+      page,
+      'GET',
+      `/purchase/suppliers/${ctx.supplierId}`
+    );
+    const supplierName = supplier?.supplier_name;
+    if (!supplierName) {
+      throw new Error(
+        `[54-委外] 按 supplierId=${ctx.supplierId} 取不到供应商名称，无法在可搜索下拉中定位候选——` +
+          '显式判红，不兜底填数字主键'
+      );
+    }
+    const supplierCode = supplier.supplier_code ?? '';
+    // option 文案与源码 supplierLabel 完全一致：有编码取「名称（编码）」，无编码取名称。
+    const supplierOptionText = supplierCode ? `${supplierName}（${supplierCode}）` : supplierName;
+    await pickSelectIn(dialog, page, '供应商/加工商', {
+      query: supplierName,
+      optionText: supplierOptionText,
+    });
     const today = new Date().toISOString().slice(0, 10);
     const dateInput = dialog
       .locator('.el-form-item')
@@ -339,7 +369,11 @@ test.describe.serial('新域业务流转链', () => {
     await dateInput.click();
     await dateInput.fill(today);
     await page.keyboard.press('Enter');
-    await dialog.locator('.el-input-number input').nth(1).fill('100'); // 发出数量
+    // 发出数量：供应商改为 el-select 后不再是 el-input-number，dialog 内 .el-input-number
+    // 顺序整体前移，原按位置的 `.nth(1)` 会错落到「材料成本」（材料成本/三费另由下方
+    // fillFieldByLabel 覆盖填写），发出数量将恒空触发 onCreate 必填守卫（index.vue:865）
+    // 复现同一「POST 不发 → waitForResponse 超时」假红。改为按精确 label 锚定，与源码变更解耦。
+    await fillFieldByLabel(dialog, page, '发出数量', '100');
     // 材料成本 + 三费均为后端 outsourcing_order NOT NULL 列（v15:3247-3249）对应的建单必填，
     // 前端 onCreate 守卫（views/outsourcing/index.vue:499-513）对 材料成本/加工费/运费/税额
     // 逐项 ==null 判空，缺任一项即 warning 拦截、不发 POST——判责 J-4

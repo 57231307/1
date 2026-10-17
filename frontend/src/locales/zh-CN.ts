@@ -13304,6 +13304,8 @@ export default {
   outsourcing: {
     form: {
       materialCost: '材料成本',
+      supplier: '供应商/加工商',
+      placeholderSelectSupplier: '输入名称或编码筛选供应商',
     },
     gate: {
       zeroFeeSettleTip: '加工费与运费合计需大于 0 才能结算，请先补录委外加工成本',

@@ -13343,6 +13343,8 @@ export default {
   outsourcing: {
     form: {
       materialCost: 'Material Cost',
+      supplier: 'Supplier / Processor',
+      placeholderSelectSupplier: 'Filter suppliers by name or code',
     },
     gate: {
       zeroFeeSettleTip:

@@ -238,8 +238,21 @@
             <el-option :label="$t('outsourcing.orderTypes.other')" value="other" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.supplierId')" required>
-          <el-input-number v-model="form.supplier_id" :min="1" class="w-full" />
+        <el-form-item :label="$t('outsourcing.form.supplier')" required>
+          <el-select
+            v-model="form.supplier_id"
+            filterable
+            :filter-method="filterSupplierOptions"
+            :placeholder="$t('outsourcing.form.placeholderSelectSupplier')"
+            class="w-full"
+          >
+            <el-option
+              v-for="s in visibleSupplierOptions"
+              :key="s.id"
+              :label="supplierLabel(s)"
+              :value="s.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.issueDate')" required>
           <el-date-picker
@@ -676,6 +689,7 @@ import {
   PIECE_TYPE,
   type InventoryPieceRow,
 } from '@/api/inventory-transfer';
+import { getSupplierList, type Supplier } from '@/api/supplier';
 
 const { t } = useI18n();
 
@@ -733,6 +747,38 @@ const form = reactive({
   freight_fee: undefined as number | undefined,
   tax_amount: undefined as number | undefined,
 });
+
+// 供应商/加工商候选：新建与编辑共用同一表单，选中项按 supplier_id 落库；
+// 输入名称或编码即时筛选，避免只能手填数字主键。
+const supplierOptions = ref<Supplier[]>([]);
+const supplierQuery = ref('');
+
+const visibleSupplierOptions = computed(() => {
+  const q = supplierQuery.value.trim().toLowerCase();
+  if (!q) return supplierOptions.value;
+  return supplierOptions.value.filter(
+    s =>
+      s.supplier_name.toLowerCase().includes(q) ||
+      s.supplier_code.toLowerCase().includes(q) ||
+      String(s.id).startsWith(q)
+  );
+});
+
+const supplierLabel = (s: Supplier): string =>
+  s.supplier_code ? `${s.supplier_name}（${s.supplier_code}）` : s.supplier_name;
+
+const filterSupplierOptions = (query: string) => {
+  supplierQuery.value = query;
+};
+
+const loadSupplierOptions = async () => {
+  try {
+    const res = await getSupplierList({ page: 1, page_size: 500 });
+    supplierOptions.value = res.data.items;
+  } catch (e: unknown) {
+    logAuxLoadFailure('委外供应商候选加载失败', e);
+  }
+};
 
 async function load() {
   loading.value = true;
@@ -1309,6 +1355,7 @@ const onCancel = (row: OutsourcingOrder) =>
 onMounted(() => {
   load();
   loadReceipts();
+  loadSupplierOptions();
 });
 </script>
 
