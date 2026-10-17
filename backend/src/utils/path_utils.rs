@@ -88,6 +88,17 @@ fn is_business_module_prefix(part: &str) -> bool {
     )
 }
 
+/// 判断路径段是否为记录 ID（全为 ASCII 数字）。
+///
+/// 调用方：`middleware/permission.rs::extract_resource_info` 选资源名候选段时。
+/// 为什么需要：`custom-orders`、`quotations`、`color-cards` 这类段既是模块前缀、本身又是资源，
+/// 其 `/x/{id}` 面在运行时把数字 ID 交到"取 seg4 当资源名"的分支上，派生出 `123:read` 这种
+/// `PERMISSION_RESOURCES` 里不存在、任何角色都授予不了的键（非超管打开详情面必 403）。
+/// 命中本判据时资源名回落到模块前缀自身，ID 从同一段取回。
+pub fn is_id_like_segment(part: &str) -> bool {
+    !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit())
+}
+
 /// 判断是否为已知资源段（模块前缀 + 直接资源，用于权限中间件拒绝未知路由）
 pub fn is_known_resource_segment(part: &str) -> bool {
     // 先检查是否为模块前缀
