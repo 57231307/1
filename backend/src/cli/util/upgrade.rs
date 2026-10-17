@@ -75,7 +75,7 @@ fn verify_sha256(release_url: &str, download_path: &str) -> bool {
 
     let sha256_url = format!("{}.sha256", release_url);
 
-    // 校验值 URL 必须 https + 官方域（github.com / objects.githubusercontent.com）；否则直接拒绝。
+    // 校验值 URL 必须 https + 官方域（github.com / objects.githubusercontent.com / release-assets.githubusercontent.com）；否则直接拒绝。
     if let Err(e) = validate_official_digest_url(&sha256_url) {
         println!(
             "[ERROR] 校验值 URL 未通过官方域校验，拒绝升级（严禁从镜像取校验基准）: {}",
