@@ -56,6 +56,7 @@ impl ProductionOrderService {
         )?;
 
         // 更新状态为审批中
+        let previous_status = model.status.clone();
         let mut active_model: ActiveModel = model.into();
         active_model.status =
             Set(crate::models::status::production::PRODUCTION_PENDING_APPROVAL.to_string());
@@ -85,18 +86,57 @@ impl ProductionOrderService {
             variables: None,
         };
 
-        // P0 修复（批次 4，2026-06-27）：原 `let _ = ...` 静默吞掉 BPM 启动错误，
-        // 导致模板缺失/DB 异常时无任何日志可追溯。改为 warn 日志记录，保留兼容性
-        // （不向上传播错误，避免阻断主流程），但确保运维可观测。
+        // BPM 启动失败必须向上传播并补偿回滚：只记 warn 会让工单停在"审批中"而系统里
+        // 根本没有待办任务，单据与流程进入分裂态且再提交被状态门拒，只能人工改库修数。
         if let Err(e) = bpm_service.start_process(req).await {
-            tracing::warn!(
+            if let Err(rb_err) = self.rollback_status_to(id, &previous_status, user_id).await {
+                tracing::error!(
+                    error = %rb_err,
+                    order_id = id,
+                    "BPM 启动失败后的补偿回滚也失败，生产订单停留在审批中且无工单，需人工介入"
+                );
+                return Err(rb_err);
+            }
+            // 引擎失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显
+            tracing::error!(
                 error = %e,
                 order_id = id,
-                "BPM 启动生产订单审批流程失败（兼容旧数据，不阻断主流程）"
+                user_id = user_id,
+                "BPM 启动生产订单审批流程失败，订单已补偿回滚为提交前状态，根因如上"
             );
+            return Err(AppError::business_displayable(
+                "审批流程启动失败，生产订单已退回提交前状态，请稍后重新提交；若持续失败请联系管理员检查审批流程定义",
+            ));
         }
 
         Ok(updated)
+    }
+
+    /// 补偿回滚：把生产订单状态写回提交前的取值，加行锁避免与并发审批互踩
+    async fn rollback_status_to(
+        &self,
+        id: i32,
+        previous_status: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let model = ProductionOrderEntity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("补偿回滚时生产订单 {} 不存在", id)))?;
+        let mut active: ActiveModel = model.into();
+        active.status = Set(previous_status.to_string());
+        active.updated_at = Set(Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "production_order",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(())
     }
 
     /// 审批生产订单
