@@ -144,6 +144,8 @@ impl ExportService {
             &data.rows,
             None,
             &DocxPageLayout::default_a4_export(),
+            // 导出面是否加公司抬头待裁,本波不动观感:显式传 None。
+            None,
         )
     }
 
@@ -251,6 +253,8 @@ impl ExportService {
             &detail_rows,
             None,
             &DocxPageLayout::default_a4_export(),
+            // 导出面不加公司抬头（是否加抬头属后续待裁，本波不动观感）。
+            None,
         )
     }
 }

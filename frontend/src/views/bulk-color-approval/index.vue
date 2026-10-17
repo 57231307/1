@@ -15,11 +15,6 @@
 
       <el-table v-loading="loading" :data="list" border>
         <el-table-column
-          :label="t('bulkColorApproval.index.colApprovalNo')"
-          prop="approval_no"
-          min-width="160"
-        />
-        <el-table-column
           :label="t('bulkColorApproval.index.colOrderNo')"
           prop="order_no"
           min-width="140"
@@ -40,16 +35,25 @@
         >
           <template #default="{ row }">{{ row.dye_lot_no || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="status" :label="t('common.status')" width="120" align="center">
+        <el-table-column
+          prop="approval_status"
+          :label="t('common.status')"
+          width="120"
+          align="center"
+        >
           <template #default="{ row }">
-            <el-tag :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
+            <el-tag :type="statusTag(row.approval_status)">{{
+              statusText(row.approval_status)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column
-          prop="applicant_name"
-          :label="t('bulkColorApproval.index.colApplicant')"
-          width="100"
-        />
+          prop="approver_name"
+          :label="t('bulkColorApproval.index.colApprover')"
+          width="110"
+        >
+          <template #default="{ row }">{{ row.approver_name || '-' }}</template>
+        </el-table-column>
         <el-table-column :label="t('common.operation')" width="360" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click="openDetail(row)">
@@ -71,7 +75,7 @@
               {{ t('bulkColorApproval.index.buttonReject') }}
             </el-button>
             <el-button
-              v-if="row.status === 'approved'"
+              v-if="row.approval_status === 'approved'"
               size="small"
               link
               type="warning"
@@ -80,7 +84,7 @@
               {{ t('bulkColorApproval.index.buttonDowngrade') }}
             </el-button>
             <el-button
-              v-if="['approved', 'pending', 'sampled'].includes(row.status)"
+              v-if="['approved', 'pending', 'sampled'].includes(row.approval_status)"
               size="small"
               link
               type="danger"
@@ -100,37 +104,63 @@
     >
       <el-form :model="form" label-width="90px">
         <el-form-item :label="t('bulkColorApproval.index.labelSalesOrder')" required>
-          <el-input-number
+          <el-select
             v-model="form.sales_order_id"
-            :min="1"
-            :precision="0"
+            filterable
+            :loading="salesOrderLoading"
+            :placeholder="t('bulkColorApproval.index.placeholderSelectSalesOrder')"
             style="width: 100%"
-            :placeholder="t('bulkColorApproval.index.placeholderSalesOrderId')"
-          />
+            @change="onSalesOrderChange"
+          >
+            <el-option
+              v-for="o in salesOrderOptions"
+              :key="o.id"
+              :label="o.order_no"
+              :value="o.id"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item :label="t('bulkColorApproval.index.labelDyeBatch')" required>
-          <el-input-number
-            v-model="form.dye_batch_id"
-            :min="1"
-            :precision="0"
-            style="width: 100%"
-            :placeholder="t('bulkColorApproval.index.placeholderDyeBatchId')"
-          />
+        <el-form-item :label="t('bulkColorApproval.index.labelCustomer')">
+          <el-input :model-value="customerNameDisplay" readonly />
         </el-form-item>
-        <el-form-item :label="t('bulkColorApproval.index.labelCustomer')" required>
-          <el-input-number
-            v-model="form.customer_id"
-            :min="1"
-            :precision="0"
+        <el-form-item :label="t('bulkColorApproval.index.labelOrderItem')">
+          <el-select
+            v-model="form.sales_order_item_id"
+            filterable
+            :disabled="!form.sales_order_id"
+            :loading="orderItemLoading"
+            :placeholder="t('bulkColorApproval.index.placeholderSelectOrderItem')"
             style="width: 100%"
-            :placeholder="t('bulkColorApproval.index.placeholderCustomerId')"
-          />
+          >
+            <el-option
+              v-for="it in orderItemOptions"
+              :key="it.id"
+              :label="orderItemLabel(it)"
+              :value="it.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('bulkColorApproval.index.labelProduct')">
+          <el-input :model-value="productNameDisplay" readonly />
         </el-form-item>
         <el-form-item :label="t('bulkColorApproval.index.colColorNo')">
-          <el-input
-            v-model="form.color_no"
-            :placeholder="t('bulkColorApproval.index.placeholderOptional')"
-          />
+          <el-input :model-value="colorNoDisplay" readonly />
+        </el-form-item>
+        <el-form-item :label="t('bulkColorApproval.index.labelDyeBatch')" required>
+          <el-select
+            v-model="form.dye_batch_id"
+            filterable
+            :loading="dyeBatchLoading"
+            :placeholder="t('bulkColorApproval.index.placeholderSelectDyeBatch')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="d in dyeBatchOptions"
+              :key="d.id"
+              :label="dyeBatchLabel(d)"
+              :value="d.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('bulkColorApproval.index.colDyeLotNo')">
           <el-input
@@ -173,14 +203,14 @@
         <el-descriptions-item :label="t('bulkColorApproval.index.colDyeLotNo')">{{
           detailRow.dye_lot_no
         }}</el-descriptions-item>
-        <el-descriptions-item :label="t('bulkColorApproval.index.colApplicant')">{{
-          detailRow.applicant_name || '-'
+        <el-descriptions-item :label="t('bulkColorApproval.index.colApprover')">{{
+          detailRow.approver_name || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('common.status')">{{
-          statusText(String(detailRow.status ?? ''))
+          statusText(String(detailRow.approval_status ?? ''))
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('bulkColorApproval.index.labelRemarks')" :span="2">{{
-          detailRow.notes || '-'
+          detailRow.remark || '-'
         }}</el-descriptions-item>
       </el-descriptions>
 
@@ -244,8 +274,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { logger } from '@/utils/logger';
+import { ref, reactive, computed, onMounted } from 'vue';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import {
@@ -264,6 +294,13 @@ import {
   type BulkColorApproval,
   type BulkColorApprovalStatus,
 } from '@/api/bulk-color-approval';
+import {
+  getSalesOrderList,
+  getSalesOrderById,
+  type SalesOrder,
+  type SalesOrderItem,
+} from '@/api/sales';
+import { getDyeBatchList, type DyeBatch } from '@/api/dye-batch';
 
 const { t } = useI18n({ useScope: 'global' });
 const loading = ref(false);
@@ -273,47 +310,70 @@ const list = ref<BulkColorApproval[]>([]);
 
 const form = reactive<{
   sales_order_id: number | undefined;
+  sales_order_item_id: number | undefined;
   dye_batch_id: number | undefined;
-  customer_id: number | undefined;
-  color_no: string;
   dye_lot_no: string;
   batch_no: string;
   remark: string;
 }>({
   sales_order_id: undefined,
+  sales_order_item_id: undefined,
   dye_batch_id: undefined,
-  customer_id: undefined,
-  color_no: '',
   dye_lot_no: '',
   batch_no: '',
   remark: '',
 });
 
+// 新建对话框的可搜索选择器数据源与由所选订单/明细行带出的只读派生值
+const salesOrderOptions = ref<SalesOrder[]>([]);
+const salesOrderLoading = ref(false);
+const orderItemOptions = ref<SalesOrderItem[]>([]);
+const orderItemLoading = ref(false);
+const dyeBatchOptions = ref<DyeBatch[]>([]);
+const dyeBatchLoading = ref(false);
+/** 选定销售订单带出的客户 ID（提交必填 customer_id 的来源，不再手输） */
+const derivedCustomerId = ref<number | undefined>(undefined);
+
+const selectedOrder = computed(
+  () => salesOrderOptions.value.find(o => o.id === form.sales_order_id) ?? null
+);
+const selectedItem = computed(
+  () => orderItemOptions.value.find(it => it.id === form.sales_order_item_id) ?? null
+);
+const customerNameDisplay = computed(() => selectedOrder.value?.customer_name ?? '');
+const productNameDisplay = computed(() => selectedItem.value?.product_name ?? '');
+const colorNoDisplay = computed(() => selectedItem.value?.color_no ?? '');
+
+const orderItemLabel = (it: SalesOrderItem) =>
+  it.color_no ? `${it.product_name}（${it.color_no}）` : it.product_name;
+const dyeBatchLabel = (d: DyeBatch) => {
+  const parts = [d.batch_no, d.dye_lot_no, d.color_no].filter(v => !!v);
+  return parts.join(' / ');
+};
+
 const statusText = (s: string) =>
-  ({
-    draft: t('bulkColorApproval.index.statusDraft'),
-    pending: t('bulkColorApproval.index.statusPending'),
-    cut: t('bulkColorApproval.index.statusCut'),
-    sent_to_customer: t('bulkColorApproval.index.statusSentToCustomer'),
-    customer_approved: t('bulkColorApproval.index.statusCustomerApproved'),
-    customer_rejected: t('bulkColorApproval.index.statusCustomerRejected'),
-    approved: t('bulkColorApproval.index.statusApproved'),
-    rejected: t('bulkColorApproval.index.statusRejected'),
-    rework: t('bulkColorApproval.index.statusRework'),
-    downgraded: t('bulkColorApproval.index.statusDowngraded'),
-    scrapped: t('bulkColorApproval.index.statusScrapped'),
-    cancelled: t('bulkColorApproval.index.statusCancelled'),
-  })[s] ?? s;
+  (
+    ({
+      pending: t('bulkColorApproval.index.statusPending'),
+      sampled: t('bulkColorApproval.index.statusSampled'),
+      sent_to_customer: t('bulkColorApproval.index.statusSentToCustomer'),
+      approved: t('bulkColorApproval.index.statusApproved'),
+      rejected: t('bulkColorApproval.index.statusRejected'),
+      rework: t('bulkColorApproval.index.statusRework'),
+      downgraded: t('bulkColorApproval.index.statusDowngraded'),
+      scrapped: t('bulkColorApproval.index.statusScrapped'),
+    }) as Record<BulkColorApprovalStatus, string>
+  )[s as BulkColorApprovalStatus] ?? s;
 const statusTag = (s: BulkColorApprovalStatus | string) =>
   (
     ({
       approved: 'success',
-      customer_approved: 'success',
       rejected: 'danger',
-      customer_rejected: 'danger',
       scrapped: 'danger',
-      rework: 'warning',
       downgraded: 'warning',
+      rework: 'warning',
+      sampled: 'primary',
+      sent_to_customer: 'primary',
     }) as Record<string, string>
   )[s] ?? 'info';
 
@@ -339,18 +399,81 @@ const loadList = async () => {
 const handleCreate = () => {
   Object.assign(form, {
     sales_order_id: undefined,
+    sales_order_item_id: undefined,
     dye_batch_id: undefined,
-    customer_id: undefined,
-    color_no: '',
     dye_lot_no: '',
     batch_no: '',
     remark: '',
   });
+  orderItemOptions.value = [];
+  derivedCustomerId.value = undefined;
   dialogVisible.value = true;
+  void loadSalesOrderOptions();
+  void loadDyeBatchOptions();
 };
 
+/** 销售订单候选：GET /sales/orders（label=order_no，选定后带出客户与明细行） */
+const loadSalesOrderOptions = async () => {
+  salesOrderLoading.value = true;
+  try {
+    const res = await getSalesOrderList({ page: 1, page_size: 200 });
+    const items = res.data.items;
+    if (!Array.isArray(items)) {
+      throw new Error('GET /sales/orders 响应缺少 data.items 数组');
+    }
+    salesOrderOptions.value = items;
+  } catch (error) {
+    salesOrderOptions.value = [];
+    logAuxLoadFailure(t('bulkColorApproval.index.messageLoadSalesOrdersFailed'), error);
+  } finally {
+    salesOrderLoading.value = false;
+  }
+};
+
+/** 染缸批次候选：GET /production/dye-batches（label=批次号 / 缸号 / 色号） */
+const loadDyeBatchOptions = async () => {
+  dyeBatchLoading.value = true;
+  try {
+    const res = await getDyeBatchList({ page: 1, page_size: 200 });
+    const items = res.data.items;
+    if (!Array.isArray(items)) {
+      throw new Error('GET /production/dye-batches 响应缺少 data.items 数组');
+    }
+    dyeBatchOptions.value = items;
+  } catch (error) {
+    dyeBatchOptions.value = [];
+    logAuxLoadFailure(t('bulkColorApproval.index.messageLoadDyeBatchesFailed'), error);
+  } finally {
+    dyeBatchLoading.value = false;
+  }
+};
+
+/** 选定销售订单：带出只读客户，并按订单 id 回读明细行供二级选择 */
+const onSalesOrderChange = async (orderId?: number) => {
+  form.sales_order_item_id = undefined;
+  orderItemOptions.value = [];
+  const order = salesOrderOptions.value.find(o => o.id === orderId) ?? null;
+  derivedCustomerId.value = order?.customer_id;
+  if (!orderId) return;
+  orderItemLoading.value = true;
+  try {
+    const res = await getSalesOrderById(orderId);
+    const items = res.data?.items;
+    if (!Array.isArray(items)) {
+      throw new Error(`GET /sales/orders/${orderId} 响应缺少 data.items 数组`);
+    }
+    orderItemOptions.value = items;
+  } catch (error) {
+    orderItemOptions.value = [];
+    logAuxLoadFailure(t('bulkColorApproval.index.messageLoadOrderItemsFailed'), error);
+  } finally {
+    orderItemLoading.value = false;
+  }
+};
+
+/** 选定明细行后，产品/色号由该行经 selectedItem 计算属性只读带出，提交时随 sales_order_item_id 上送 */
 const submitCreate = async () => {
-  if (!form.sales_order_id || !form.dye_batch_id || !form.customer_id) {
+  if (!form.sales_order_id || !form.dye_batch_id || !derivedCustomerId.value) {
     ElMessage.warning(t('bulkColorApproval.index.messageRequiredFields'));
     return;
   }
@@ -359,8 +482,10 @@ const submitCreate = async () => {
     await createBulkColorApproval({
       sales_order_id: form.sales_order_id,
       dye_batch_id: form.dye_batch_id,
-      customer_id: form.customer_id,
-      color_no: form.color_no || undefined,
+      customer_id: derivedCustomerId.value,
+      sales_order_item_id: form.sales_order_item_id,
+      product_id: selectedItem.value?.product_id,
+      color_no: selectedItem.value?.color_no,
       dye_lot_no: form.dye_lot_no || undefined,
       batch_no: form.batch_no || undefined,
       remark: form.remark || undefined,
@@ -400,11 +525,11 @@ const handleSend = (row: BulkColorApproval) =>
   runAction(row, t('bulkColorApproval.index.buttonSend'), () => sendBulkColorToCustomer(row.id));
 const handleApprove = (row: BulkColorApproval) =>
   runAction(row, t('bulkColorApproval.index.buttonApprove'), () =>
-    approveBulkColor(row.id, { feedback: '客户确认批色通过' })
+    approveBulkColor(row.id, { feedback: t('bulkColorApproval.index.defaultApproveFeedback') })
   );
 const handleRework = (row: BulkColorApproval) =>
   runAction(row, t('bulkColorApproval.index.buttonRework'), () =>
-    reworkBulkColor(row.id, { reject_reason: '批色回修' })
+    reworkBulkColor(row.id, { reject_reason: t('bulkColorApproval.index.defaultReworkReason') })
   );
 const handleReject = (row: BulkColorApproval) =>
   runAction(row, t('bulkColorApproval.index.buttonReject'), async () => {
@@ -413,7 +538,9 @@ const handleReject = (row: BulkColorApproval) =>
       t('bulkColorApproval.index.titleReject'),
       { inputValue: '' }
     );
-    await rejectBulkColor(row.id, { reject_reason: value || '客户拒绝' });
+    await rejectBulkColor(row.id, {
+      reject_reason: value || t('bulkColorApproval.index.defaultRejectReason'),
+    });
   });
 
 // ===== 降级（downgradeBulkColor：仅 approved 态） =====

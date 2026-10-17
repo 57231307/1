@@ -542,14 +542,6 @@ const KNOWN_GAPS = new Map([
     'D: 删标签后端为 /crm/tags/{id}（delete_tag），非 /crm/customers/{id}/tags/{tagId}',
   ],
   [
-    `${BASE_URL}/data-permissions/roles/*/* GET`,
-    'G: 后端 data_permissions 仅有 /roles/{role_id}，无 /roles/{roleId}/{resourceType} 两段查询',
-  ],
-  [
-    `${BASE_URL}/data-permissions/roles/*/* DELETE`,
-    'G: 后端无 /roles/{roleId}/{resourceType} 两段删除端点',
-  ],
-  [
     `${BASE_URL}/purchase/purchase-contracts/export GET`,
     'G: 采购合同后端无 /purchase-contracts/export 导出端点（其它域导出惯例不涵盖此资源）',
   ],

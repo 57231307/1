@@ -1,8 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
+import { watchEffect } from 'vue';
 import MainLayout from '@/components/Layout/MainLayout.vue';
 import { useUserStore } from '@/store/user';
 import { logger } from '@/utils/logger';
+// 公司档案服务端化：document.title 品牌段读共享档案（无则回退 i18n 字面量）。
+// 与既有 store→api→request→router 同构：request 仅在运行时惰性用 router，模块求值期不触达，循环安全。
+import { i18n } from '@/i18n';
+import { useCompanyProfile } from '@/composables/useCompanyProfile';
 
 /**
  * 路由元信息类型扩展（批次 3：前端路由 meta 补齐）
@@ -1726,10 +1731,27 @@ export function hasRoutePermission(
   });
 }
 
+// 品牌后缀：读模块级共享公司档案的 short_name||name，档案为空/未加载时回退 i18n 品牌字面量。
+// 回退发生在展示层（构造 title 字符串），非用 `?? / ||` 掩盖后端缺键；档案读失败由 composable 显式留痕。
+const { company } = useCompanyProfile();
+function resolveBrandSuffix(): string {
+  return company.value?.short_name || company.value?.name || i18n.global.t('layout.brand');
+}
+
+// 档案晚于首屏导航到达时，重算并回写 document.title 的品牌段（watchEffect 追踪 company 与 currentRoute）。
+watchEffect(() => {
+  const brand = resolveBrandSuffix();
+  // currentRoute 在模块初始化期/无路由解析的测试环境下可能尚未就绪，取值前显式判空，
+  // 不吞后端缺键——导航态标题由 router.beforeEach 负责，本 effect 仅响应档案晚到。
+  const currentRoute = router.currentRoute;
+  const routeTitle = currentRoute ? (currentRoute.value.meta.title as string) || '' : '';
+  document.title = routeTitle ? `${routeTitle} - ${brand}` : brand;
+});
+
 router.beforeEach(async (to, _from, next) => {
   const title = to.meta.title as string;
   if (title) {
-    document.title = `${title} - Bingxi Management Platform`;
+    document.title = `${title} - ${resolveBrandSuffix()}`;
   }
 
   if (to.path === '/setup') {

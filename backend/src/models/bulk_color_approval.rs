@@ -24,6 +24,8 @@ pub struct Model {
     pub id: i64,
     /// 关联销售订单
     pub sales_order_id: i32,
+    /// 关联销售订单明细行（可由明细行发起、按行做发货门禁；历史/订单级发起时为 NULL）
+    pub sales_order_item_id: Option<i32>,
     /// 关联染色批次（缸号）
     pub dye_batch_id: i32,
     /// 客户 ID
@@ -92,6 +94,13 @@ pub enum Relation {
         to = "super::customer::Column::Id"
     )]
     Customer,
+    /// 批色记录 - 审批人（多对一，approver_id 可空；富化取 users.real_name）
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::ApproverId",
+        to = "super::user::Column::Id"
+    )]
+    Approver,
 }
 
 impl Related<super::sales_order::Entity> for Entity {

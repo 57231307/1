@@ -1,7 +1,8 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::models::data_permission;
@@ -11,6 +12,7 @@ use crate::models::role_permission::{self, Entity as RolePermissionEntity};
 // V15 P0-S06：权限变更审计
 use crate::models::permission_change_audit;
 use crate::utils::admin_checker;
+use crate::utils::data_scope::DataScope;
 use crate::utils::error::AppError;
 // V15 P0-S07：权限变更时失效缓存
 use crate::middleware::permission::invalidate_permission_cache;
@@ -38,6 +40,9 @@ pub struct RoleDetail {
     pub description: Option<String>,
     pub permissions: Option<String>,
     pub is_system: bool,
+    /// 行级数据范围（词表唯一来源 `utils/data_scope::DataScope`：all/dept/self，
+    /// 落库列 roles.data_scope，由 PATCH /roles/{id}/data-scope 写入）
+    pub data_scope: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub permission_list: Option<Vec<RolePermissionDetail>>,
@@ -70,6 +75,32 @@ pub struct AssignPermissionRequest {
     pub allowed: bool,
 }
 
+/// 批量整批替换（PUT /roles/{id}/permissions）中的单条期望授予。
+/// 角色级语义：本结构刻意不含 resource_id —— 批量端点只维护
+/// `resource_id IS NULL` 的角色级授予行，记录级授权仍走单条 POST。
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BatchPermissionEntry {
+    pub resource_type: String,
+    pub action: String,
+    pub allowed: bool,
+}
+
+/// 批量整批替换的执行结果（供 handler 写一条批量审计 + 返回最终角色级授予集）。
+pub struct ReplacePermissionsResult {
+    /// 事务内最终角色级授予行全集（审计 after，同时作为接口出参）
+    pub after: Vec<RolePermissionDetail>,
+    /// before 快照的 JSON 形态（service 已序列化，handler 直接放入泛化审计，避免二次序列化）
+    pub before_snapshot: serde_json::Value,
+    /// after 快照的 JSON 形态（同上，兼作批量审计 new_value 与接口出参快照）
+    pub after_snapshot: serde_json::Value,
+    /// 新增行数
+    pub inserted: u64,
+    /// 仅 allowed 翻转的更新行数
+    pub updated: u64,
+    /// 删除行数（期望集未包含的既有角色级行）
+    pub deleted: u64,
+}
+
 /// 角色权限服务
 pub struct RolePermissionService {
     db: Arc<DatabaseConnection>,
@@ -96,6 +127,7 @@ impl RolePermissionService {
                 description: role.description,
                 permissions: role.permissions,
                 is_system: role.is_system,
+                data_scope: role.data_scope,
                 created_at: role.created_at,
                 updated_at: role.updated_at,
                 permission_list: None,
@@ -140,6 +172,7 @@ impl RolePermissionService {
             description: role.description,
             permissions: role.permissions,
             is_system: role.is_system,
+            data_scope: role.data_scope,
             created_at: role.created_at,
             updated_at: role.updated_at,
             permission_list: Some(permission_list),
@@ -231,6 +264,56 @@ impl RolePermissionService {
             "auto_audit",
             role_update,
             // 批次 94 P2-10：原 Some(0) 占位改为真实操作人 user_id，便于审计追踪
+            Some(user_id),
+        )
+        .await?;
+
+        self.get_role_detail(role_entity.id).await
+    }
+
+    /// 更新角色行级数据范围（PATCH /roles/{id}/data-scope，roles.data_scope 唯一写入口）。
+    ///
+    /// 词表校验走 `DataScope` 往返（`utils/data_scope.rs`，all/dept/self 三值小写）：
+    /// `parse_scope` 对未知值静默回退 Self_，因此判据是**往返后逐字符相等**
+    /// （`parse_scope(s).as_str() == s`）——只接受三枚规范小写值，未知值显式 400，
+    /// 不沿用解析器的静默回退（兜底即掩盖错误）。
+    /// DEPT_AND_BELOW/CUSTOM 本轮刻意不开放：列宽 VARCHAR(10) 存不下、且无对应执行器。
+    /// 系统角色不允许修改（与 `update_role`/`validate_assignable_role` 同口径）。
+    pub async fn update_role_data_scope(
+        &self,
+        role_id: i32,
+        data_scope: &str,
+        user_id: i32,
+    ) -> Result<RoleDetail, AppError> {
+        let parsed = DataScope::parse_scope(data_scope);
+        if parsed.as_str() != data_scope {
+            tracing::warn!(
+                role_id,
+                input = data_scope,
+                "data_scope 取值不在词表（all/dept/self 小写）内，拒绝写入"
+            );
+            return Err(AppError::validation_displayable(format!(
+                "data_scope 取值非法：仅支持 all/dept/self（收到 {data_scope}）"
+            )));
+        }
+
+        let role = RoleEntity::find_by_id(role_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
+
+        if role.is_system {
+            return Err(AppError::business("系统角色不允许修改"));
+        }
+
+        let mut role_update: role::ActiveModel = role.into();
+        role_update.data_scope = sea_orm::ActiveValue::Set(parsed.as_str().to_string());
+        role_update.updated_at = sea_orm::ActiveValue::Set(chrono::Utc::now());
+
+        let role_entity = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &*self.db,
+            "auto_audit",
+            role_update,
             Some(user_id),
         )
         .await?;
@@ -605,6 +688,234 @@ impl RolePermissionService {
         Ok(Self::build_permission_detail(perm_entity))
     }
 
+    /// SoD 终集合校验（批量整批替换专用，纯函数）：在**写入后的最终授予集**上复算
+    /// create/approve 互斥，判据与逐条路径 `validate_sod_create_approve` 同源——
+    /// 同一 resource_type 下（仅 allowed=true 行参与判定）：
+    /// - 字面 `create` 与字面 `approve` 不可共存；
+    /// - `*` 通配与字面 `create`/`approve` 不可共存（防通配符绕过）；
+    /// - 单独一枚 `*` 不算冲突（与逐条规则"新增 * 时库里无 create/approve 则放行"等价，
+    ///   故通配符不计入 create/approve 本身，只看是否另有字面行）。
+    ///
+    /// 为什么逐条校验挡不住并发：`validate_sod_create_approve` 读的是**请求各自时刻**
+    /// 的 DB 快照，两个并发请求（一个授 create、一个授 approve）能双双通过再双双落库。
+    /// 批量路径把校验挪到"事务内写完后的终集合"上，配合 roles 行 `lock_exclusive`
+    /// 串行化同角色的并发替换，终集合要么整体成立、要么整体回滚，不再存在中间态。
+    fn find_sod_conflict_in_final_set(allowed_rows: &[role_permission::Model]) -> Option<String> {
+        let mut by_resource: HashMap<&str, (bool, bool, bool)> = HashMap::new();
+        for row in allowed_rows {
+            let entry = by_resource
+                .entry(row.resource_type.as_str())
+                .or_insert((false, false, false));
+            match row.action.as_str() {
+                "create" => entry.0 = true,
+                "approve" => entry.1 = true,
+                "*" => entry.2 = true,
+                _ => {}
+            }
+        }
+        by_resource
+            .iter()
+            .find_map(|(resource, (has_create, has_approve, has_wild))| {
+                if (*has_create && *has_approve) || (*has_wild && (*has_create || *has_approve)) {
+                    Some((*resource).to_string())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// 批量整批替换角色的**角色级**授予（PUT /roles/{id}/permissions）。
+    ///
+    /// 语义与边界：
+    /// - body 是期望的完整角色级授予集；`resource_id IS NULL` 的角色级行是替换对象，
+    ///   记录级行（`resource_id = Some(..)`）不在本端点作用面——既不覆盖也不删除，
+    ///   仍由单条 POST/DELETE 维护（与 `matches_permission` 的记录级授权语义配套：
+    ///   记录级行本就不能放行整集合请求，混进替换集只会造成删错行/顶错 id）。
+    /// - 全流程单事务：锁角色行（`lock_exclusive` 串行化同角色并发写）→ 读现状 →
+    ///   diff 写（新增/仅 allowed 翻转的更新/期望集外的删除）→ **终集合 SoD 复算** →
+    ///   一条批量审计（before/after 各一份全量快照）→ 提交；任一环节 Err 即整体回滚。
+    /// - 审计从"逐条 2 行 permission_change_audit × N"收敛为整批 1 行，泛化 audit_logs
+    ///   由 handler 的单个 AuditEvent（before/after 快照）承载。
+    /// - 缓存失效只在提交成功后（与单条路径同口径）。
+    pub async fn replace_role_permissions(
+        &self,
+        role_id: i32,
+        entries: Vec<BatchPermissionEntry>,
+        user_id: i32,
+    ) -> Result<ReplacePermissionsResult, AppError> {
+        // 入参去重闸门：同一 (resource_type, action) 出现多次属调用方错误，
+        // 显式拒绝而非静默 last-wins（静默合并会掩盖前端 diff bug）。
+        let mut desired: HashMap<(String, String), bool> = HashMap::with_capacity(entries.len());
+        let mut duplicated: Vec<String> = Vec::new();
+        for entry in entries {
+            if entry.resource_type.trim().is_empty() || entry.action.trim().is_empty() {
+                return Err(AppError::validation_displayable(
+                    "批量授予项的 resource_type/action 不能为空",
+                ));
+            }
+            let key = (entry.resource_type.clone(), entry.action.clone());
+            if desired.insert(key.clone(), entry.allowed).is_some() {
+                duplicated.push(format!("{}:{}", key.0, key.1));
+            }
+        }
+        if !duplicated.is_empty() {
+            return Err(AppError::validation_displayable(format!(
+                "批量授予集合存在重复项：{}",
+                duplicated.join(", ")
+            )));
+        }
+
+        let txn = (*self.db).begin().await?;
+
+        // 锁角色行：与并发替换/其它 lock_exclusive 写点互斥；角色不存在 404。
+        let role = RoleEntity::find_by_id(role_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
+        if role.is_system {
+            return Err(AppError::business("系统角色不允许修改权限".to_string()));
+        }
+
+        // 现状（角色级行；(resource_type, action) → allowed）
+        let existing_rows = RolePermissionEntity::find()
+            .filter(role_permission::Column::RoleId.eq(role_id))
+            .filter(role_permission::Column::ResourceId.is_null())
+            .all(&txn)
+            .await?;
+        let existing_map: HashMap<(String, String), role_permission::Model> = existing_rows
+            .into_iter()
+            .map(|row| ((row.resource_type.clone(), row.action.clone()), row))
+            .collect();
+        let mut before: Vec<RolePermissionDetail> = existing_map
+            .values()
+            .map(|row| Self::build_permission_detail(row.clone()))
+            .collect();
+        // 快照按 (resource_type, action) 稳定排序，审计 diff 与人工比对不受哈希序影响
+        before.sort_by(|a, b| (&a.resource_type, &a.action).cmp(&(&b.resource_type, &b.action)));
+
+        let now = chrono::Utc::now();
+        let mut inserted = 0u64;
+        let mut updated = 0u64;
+        let mut deleted = 0u64;
+
+        for ((resource_type, action), allowed) in &desired {
+            match existing_map.get(&(resource_type.clone(), action.clone())) {
+                Some(row) if row.allowed == *allowed => {}
+                Some(row) => {
+                    let mut active: role_permission::ActiveModel = row.clone().into();
+                    active.allowed = sea_orm::ActiveValue::Set(*allowed);
+                    active.updated_at = sea_orm::ActiveValue::Set(now);
+                    active.update(&txn).await?;
+                    updated += 1;
+                }
+                None => {
+                    let permission_code = Self::generate_permission_code(resource_type, action);
+                    role_permission::ActiveModel {
+                        id: Default::default(),
+                        role_id: sea_orm::ActiveValue::Set(role_id),
+                        resource_type: sea_orm::ActiveValue::Set(resource_type.clone()),
+                        resource_id: sea_orm::ActiveValue::Set(None),
+                        action: sea_orm::ActiveValue::Set(action.clone()),
+                        allowed: sea_orm::ActiveValue::Set(*allowed),
+                        permission_code: sea_orm::ActiveValue::Set(Some(permission_code)),
+                        created_at: sea_orm::ActiveValue::Set(now),
+                        updated_at: sea_orm::ActiveValue::Set(now),
+                    }
+                    .insert(&txn)
+                    .await?;
+                    inserted += 1;
+                }
+            }
+        }
+        for ((resource_type, action), row) in &existing_map {
+            if !desired.contains_key(&(resource_type.clone(), action.clone())) {
+                RolePermissionEntity::delete_many()
+                    .filter(role_permission::Column::Id.eq(row.id))
+                    .exec(&txn)
+                    .await?;
+                deleted += 1;
+            }
+        }
+
+        // SoD 在写入后的最终集合上复算（含记录级 allowed=true 行，与逐条路径
+        // "按 resource_type 看全部已授权行"的口径同源）。违规则 Err 上抛，
+        // 事务随 drop 回滚，不留下半截授权。
+        let final_allowed_rows = RolePermissionEntity::find()
+            .filter(role_permission::Column::RoleId.eq(role_id))
+            .filter(role_permission::Column::Allowed.eq(true))
+            .all(&txn)
+            .await?;
+        if let Some(resource) = Self::find_sod_conflict_in_final_set(&final_allowed_rows) {
+            tracing::warn!(
+                role_id,
+                resource_type = %resource,
+                operator_id = user_id,
+                "批量整批替换命中 SoD 终集合冲突：create/approve 共存，整事务回滚"
+            );
+            return Err(AppError::business(format!(
+                "SoD 职责分离冲突：角色 {role_id} 在最终授予集合上对资源 {resource} 同时持有 create 与 approve，写入已整体回滚"
+            )));
+        }
+
+        // 最终角色级集合（after 快照 + 接口出参）
+        let after_rows = RolePermissionEntity::find()
+            .filter(role_permission::Column::RoleId.eq(role_id))
+            .filter(role_permission::Column::ResourceId.is_null())
+            .order_by(role_permission::Column::ResourceType, Order::Asc)
+            .order_by(role_permission::Column::Action, Order::Asc)
+            .all(&txn)
+            .await?;
+        let after: Vec<RolePermissionDetail> = after_rows
+            .into_iter()
+            .map(Self::build_permission_detail)
+            .collect();
+
+        // 一条批量审计：before/after 各一份全量快照（替代逐条 permission_change_audit）
+        let before_json = serde_json::to_value(&before)
+            .map_err(|e| AppError::internal(format!("序列化批量审计 before 快照失败: {e}")))?;
+        let after_json = serde_json::to_value(&after)
+            .map_err(|e| AppError::internal(format!("序列化批量审计 after 快照失败: {e}")))?;
+        permission_change_audit::ActiveModel {
+            id: Default::default(),
+            change_type: sea_orm::ActiveValue::Set("role_permission_batch_replace".to_string()),
+            operator_id: sea_orm::ActiveValue::Set(user_id),
+            role_id: sea_orm::ActiveValue::Set(Some(role_id)),
+            user_id: sea_orm::ActiveValue::Set(None),
+            resource_type: sea_orm::ActiveValue::Set(None),
+            action: sea_orm::ActiveValue::Set(None),
+            old_value: sea_orm::ActiveValue::Set(Some(before_json.to_string())),
+            new_value: sea_orm::ActiveValue::Set(Some(after_json.to_string())),
+            changed_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
+            client_ip: sea_orm::ActiveValue::Set(None),
+            remark: sea_orm::ActiveValue::Set(Some(format!(
+                "批量整批替换角色级授予：新增 {inserted}、更新 {updated}、删除 {deleted}"
+            ))),
+        }
+        .insert(&txn)
+        .await?;
+
+        txn.commit().await?;
+        invalidate_permission_cache(role_id);
+        tracing::info!(
+            role_id,
+            inserted,
+            updated,
+            deleted,
+            operator_id = user_id,
+            "角色级授予批量整批替换完成（SoD 已按终集合复算）"
+        );
+
+        Ok(ReplacePermissionsResult {
+            after,
+            before_snapshot: before_json,
+            after_snapshot: after_json,
+            inserted,
+            updated,
+            deleted,
+        })
+    }
+
     /// 移除权限
     pub async fn remove_permission(
         &self,
@@ -705,14 +1016,30 @@ impl RolePermissionService {
         Ok(admin_checker::is_admin_role(&self.db, role_id).await)
     }
 
-    /// 获取角色的所有权限
+    /// 获取角色的全部**角色级**权限行（GET /roles/{id}/permissions）。
+    ///
+    /// 角色级授予语义（本轮修正的原缺陷）：只返回 `resource_id IS NULL` 的角色级行，
+    /// 且 allowed 两桶都返回（授予行 + 显式拒绝行，靠 `allowed` 字段区分）。
+    /// 原实现不过滤 resource_id，前端 RoleTab 以 `${resource_type}::${action}` 为键
+    /// 做后写覆盖去重：同键的记录级行会顶掉角色级行的关联 id，取消勾选时
+    /// DELETE /roles/permissions/{id} 删错行（删到记录级行、角色级行残留）。
+    ///
+    /// 边界与消费方影响：
+    /// - 记录级授权行（`resource_id = Some(..)`）**不再从本端点返回**：它们在权限
+    ///   中间件 `matches_permission` 里照常生效（仅放行同实例），照常由单条
+    ///   POST /roles/{id}/permissions 写入、GET /roles/{id} 详情的 permission_list 全量可见；
+    ///   本端点服务的是"角色 × 资源 × 动作"勾选矩阵，记录级行不属于该矩阵的键空间。
+    /// - 出参行的 `resource_id` 恒为 null；`id` 即角色级关联行主键，是前端 DELETE
+    ///   唯一应操作的 id，不再有记录级行混入顶替。
     pub async fn get_role_permissions(
         &self,
         role_id: i32,
     ) -> Result<Vec<RolePermissionDetail>, AppError> {
         let permissions = RolePermissionEntity::find()
             .filter(role_permission::Column::RoleId.eq(role_id))
+            .filter(role_permission::Column::ResourceId.is_null())
             .order_by(role_permission::Column::ResourceType, Order::Asc)
+            .order_by(role_permission::Column::Action, Order::Asc)
             .all(&*self.db)
             .await?;
 

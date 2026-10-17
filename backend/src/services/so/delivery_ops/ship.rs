@@ -73,18 +73,36 @@ impl SalesService {
         // 依据：.monkeycode/docs/research/fabric-industry-research.md §2.3 约束 5 - 同一订单同面料必须使用相同缸号
         // 必须在开启事务前校验，避免无效请求占用数据库事务资源
         super::super::delivery::validate_dye_lot_consistency(&request.items)?;
-        // 发货前校验大货批色门禁
-        // 业务规则：销售订单关联的所有 bulk_color_approval 记录必须全部为 approved 状态
-        // 否则阻止发货（delivery_blocking=true 阻断）
+        // 发货前校验大货批色门禁（按明细行细化，fail-closed）
+        // 业务规则：本次发货涉及的订单行，其绑定批色记录须全部 approved；未绑定行的历史记录
+        // 退化订单级整单阻断。发货行的 (product_id, color_no) 归一后传入（None 色号 → 空串，
+        // 与订单行 NOT NULL 色号的空串同源匹配）。
+        let ship_color_lines: Vec<(i32, String)> = request
+            .items
+            .iter()
+            .map(|it| (it.product_id, it.color_no.clone().unwrap_or_default()))
+            .collect();
         crate::services::bulk_color_approval_service::validate_bulk_color_approval(
             &self.db,
             request.order_id,
+            &ship_color_lines,
         )
         .await
         .map_err(|e| match e {
             crate::services::bulk_color_approval_service::BulkColorApprovalError::InvalidState(
                 msg,
-            ) => AppError::business(msg),
+            ) => {
+                // 批色门禁拒绝原因（存在未通过审批的大货批色记录）是用户据以自行处理的可操作规则，
+                // 按兄弟发货前置门同一约定外显真实原因。但 msg 携带批色记录内部 id 与状态，只进日志不出参。
+                tracing::warn!(
+                    "销售订单 {} 发货被大货批色门禁拦截：{}",
+                    request.order_id,
+                    msg
+                );
+                AppError::business_displayable(
+                    "所选发货明细行存在未通过审批的大货批色记录，请先完成批色审批后再发货",
+                )
+            }
             crate::services::bulk_color_approval_service::BulkColorApprovalError::SalesOrderNotFound => {
                 AppError::not_found("销售订单不存在")
             }

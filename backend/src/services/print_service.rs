@@ -5167,7 +5167,13 @@ impl PrintService {
         })
     }
 
-    pub fn generate_docx(
+    /// 渲染 docx 字节流（打印域唯一渲染汇聚点）。
+    ///
+    /// 页眉 letterhead 在此单点装配:读 `company_profile` 单例行 → name + logo base64
+    /// 解码为 PNG `DocxImage`(固定缩放宽 ≤120px)→ 传 `build_docx_with_kv_and_image`
+    /// 的新增 `letterhead` 入参;无 logo 则仅名字文本,name/logo 皆无则不渲染抬头。
+    /// 敏感列只读 name/short_name/logo 三列,其余列不进入渲染路径。
+    pub async fn generate_docx(
         &self,
         print_data: &PrintData,
         layout: &crate::utils::docx_export::DocxPageLayout,
@@ -5288,6 +5294,12 @@ impl PrintService {
             None
         };
 
+        // 页眉 letterhead 单点装配:公司档案缺席/损坏按 AppError 外显，不静默降级为无抬头。
+        let letterhead = self.load_letterhead().await?;
+        let letterhead_arg = letterhead
+            .as_ref()
+            .map(|(img, name)| (img.as_ref(), name.as_str()));
+
         crate::utils::docx_export::build_docx_with_kv_and_image(
             title,
             &kv,
@@ -5295,6 +5307,63 @@ impl PrintService {
             &detail_rows,
             image,
             layout,
+            letterhead_arg,
         )
+    }
+
+    /// 从 `company_profile` 单例行装配打印页眉 `(可选 logo DocxImage, 公司名)`。
+    ///
+    /// - 行缺席:迁移播种行必然存在，缺席即数据完整性事故，点名报错（不回落"无抬头"假绿）。
+    /// - `name` 为空且 `logo` 为空:从未配置档案，返回 `None` 不渲染抬头（合法初始态，
+    ///   非异常——播种行的空名占位就是"未配置"的真实表达）。
+    /// - `logo` 存在:base64+PNG 校验解码（与写入口同一 [`decode_logo_png`] 判据），
+    ///     IHDR 取原尺寸并按固定上限宽 120px 等比缩放，坏数据点名报错。
+    async fn load_letterhead(
+        &self,
+    ) -> Result<Option<(Option<crate::utils::docx_export::DocxImage>, String)>, AppError> {
+        use crate::services::company_profile_service::{
+            COMPANY_PROFILE_ID, LETTERHEAD_LOGO_WIDTH_PX, decode_logo_png, png_dimensions,
+        };
+
+        let profile = crate::models::company_profile::Entity::find_by_id(COMPANY_PROFILE_ID)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::internal(
+                    "公司档案数据缺失(company_profile 单例行不存在,迁移播种异常或被误删)",
+                )
+            })?;
+
+        if profile.name.trim().is_empty() && profile.logo.is_none() {
+            return Ok(None);
+        }
+
+        let logo_img = match profile.logo.as_deref() {
+            None => None,
+            Some(raw) => {
+                let png = decode_logo_png(raw).map_err(|e| {
+                    tracing::warn!(error = %e, "打印页眉 logo 解码失败");
+                    e
+                })?;
+                let (w, h) = png_dimensions(&png).ok_or_else(|| {
+                    tracing::warn!("打印页眉 logo PNG IHDR 尺寸缺失或非法");
+                    AppError::internal("公司档案 logo PNG 缺少合法 IHDR 尺寸头")
+                })?;
+                let (disp_w, disp_h) = if w > LETTERHEAD_LOGO_WIDTH_PX {
+                    let scaled =
+                        ((h as u64 * LETTERHEAD_LOGO_WIDTH_PX as u64) / w as u64).max(1) as u32;
+                    (LETTERHEAD_LOGO_WIDTH_PX, scaled)
+                } else {
+                    (w, h)
+                };
+                Some(crate::utils::docx_export::DocxImage {
+                    png,
+                    width_px: disp_w,
+                    height_px: disp_h,
+                })
+            }
+        };
+
+        Ok(Some((logo_img, profile.name)))
     }
 }

@@ -6,7 +6,7 @@
 use crate::container::AppState;
 use axum::{
     Router,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 
 use crate::handlers::{
@@ -42,6 +42,11 @@ pub fn roles() -> Router<AppState> {
         .route("/roles/{id}", get(role_handler::get_role))
         .route("/roles/{id}", put(role_handler::update_role))
         .route("/roles/{id}", delete(role_handler::delete_role))
+        // D4 行级真相：roles.data_scope 唯一写入口（派生键 roles:update，PATCH→update）
+        .route(
+            "/roles/{id}/data-scope",
+            patch(role_handler::update_role_data_scope),
+        )
         .route(
             "/roles/{id}/permissions",
             get(role_handler::get_role_permissions),
@@ -49,6 +54,12 @@ pub fn roles() -> Router<AppState> {
         .route(
             "/roles/{id}/permissions",
             post(role_handler::assign_permission),
+        )
+        // 批量整批替换角色级授予（单事务 diff + 终集合 SoD 复算；派生键 roles:update，
+        // 与单条 POST/DELETE 同键空间）
+        .route(
+            "/roles/{id}/permissions",
+            put(role_handler::replace_role_permissions),
         )
         .route(
             "/roles/permissions/{id}",

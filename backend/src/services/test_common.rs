@@ -43,6 +43,7 @@ const SEALED_REFERENCE_TABLES: &[&str] = &[
     "budget_plans",
     "business_mode_config",
     "collection_templates",
+    "company_profile",
     "crm_recycle_rules",
     "crm_tag",
     "departments",

@@ -232,44 +232,63 @@ pub async fn delete_data_permission(
     )))
 }
 
-/// 获取数据权限详情
+/// 合法资源类型 token 词表（数据权限 A 页下拉候选的真相源）
+///
+/// 功能：定义 resource_type 字段的合法取值集合，与消费端业务字面量同源
+/// 调用方：前端 A 页下拉取合法资源 token
+/// 入参：无（静态常量）
+/// 传给谁：GET /data-permissions/resource-types handler
+/// 存什么：不存（只读常量）
+/// 存哪里：不存（代码级真相源）
+pub const RESOURCE_TYPES: &[&str] = &[
+    "customer",
+    "supplier",
+    "sales_order",
+    "purchase_order",
+    "purchase_receipt",
+    "purchase_receipt_item",
+    "inventory_stock",
+    "product",
+    "ap_payment_request",
+    "crm_lead",
+    "crm_opportunity",
+];
+
+/// 获取数据权限详情（by-id 编辑回显）
+///
+/// 功能：按主键读取记录本身字段回显，供 A 页编辑表单加载当前持久化真值
+/// 调用方：routes/analytics.rs data_permissions() 注册 GET /{id}
+/// 入参：Path(id) 主键
+/// 传给谁：前端 data-permission 编辑弹窗
+/// 存什么：不存（只读端点）
+/// 存哪里：不存（只读端点）
 pub async fn get_data_permission(
     Path(id): Path<i32>,
     State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<Option<DataPermissionResponse>>>, AppError> {
-    // 按主键定位记录，复用 service 的可见性过滤（仅 is_enabled=true）与 admin 短路，详情语义保持不变
     let record = data_permission::Entity::find_by_id(id)
         .one(&*state.db)
         .await?
         .ok_or_else(|| AppError::not_found("数据权限不存在"))?;
-    let role_id = record.role_id;
-    let resource_type = record.resource_type;
-    let service = DataPermissionService::new(state.db.clone());
-    let permission = service
-        .get_role_data_permission(role_id, &resource_type)
-        .await?;
 
-    Ok(Json(ApiResponse::success(permission.map(|p| {
-        DataPermissionResponse {
-            id,
-            role_id,
-            resource_type: resource_type.clone(),
-            scope_type: p.scope_type,
-            custom_condition: p.custom_condition,
-            allowed_fields: p.allowed_fields.map(|fields| {
-                serde_json::Value::Array(
-                    fields.into_iter().map(serde_json::Value::String).collect(),
-                )
-            }),
-            hidden_fields: p.hidden_fields.map(|fields| {
-                serde_json::Value::Array(
-                    fields.into_iter().map(serde_json::Value::String).collect(),
-                )
-            }),
-            is_enabled: true,
-            role_name: None,
-            created_at: record.created_at,
-        }
+    // 可见性判定：记录所属角色非 admin 且被禁用时不可见（与既有 service 过滤语义对齐）
+    let role_is_admin = is_admin_role(&state.db, record.role_id).await;
+    if !role_is_admin && !record.is_enabled {
+        return Ok(Json(ApiResponse::success(None)));
+    }
+
+    // 直接用记录本身字段回显，不经 get_role_data_permission（该方法对 admin 角色短路返回固定值会抹掉真值）
+    Ok(Json(ApiResponse::success(Some(DataPermissionResponse {
+        id: record.id,
+        role_id: record.role_id,
+        resource_type: record.resource_type,
+        scope_type: record.scope_type,
+        custom_condition: record.custom_condition,
+        allowed_fields: record.allowed_fields,
+        hidden_fields: record.hidden_fields,
+        is_enabled: record.is_enabled,
+        role_name: None,
+        created_at: record.created_at,
     }))))
 }
 
@@ -306,6 +325,20 @@ pub async fn list_scope_types(
     ];
 
     Ok(Json(ApiResponse::success(types)))
+}
+
+/// 数据权限资源类型列表端点
+///
+/// 功能：返回合法 resource_type token 列表，供前端 A 页下拉取合法资源 token，真相源在此，与消费端业务字面量同源
+/// 调用方：routes/analytics.rs data_permissions() 注册 GET /resource-types
+/// 入参：无（不依赖请求参数或认证上下文，admin 通配短路下即可访问）
+/// 传给谁：前端 data-permission A 页资源类型选择器
+/// 存什么：不存（只读端点）
+/// 存哪里：不存（只读端点）
+pub async fn get_resource_types(
+    State(_state): State<AppState>,
+) -> Result<Json<ApiResponse<Vec<&'static str>>>, AppError> {
+    Ok(Json(ApiResponse::success(RESOURCE_TYPES.to_vec())))
 }
 
 /// 获取所有数据权限列表

@@ -112,26 +112,37 @@
           :label="t('flowCards.index.labelProductionOrderId')"
           prop="production_order_id"
         >
-          <el-input-number
+          <el-select
             v-model="formData.production_order_id"
-            :min="1"
-            :precision="0"
+            filterable
+            clearable
+            :filter-method="filterOrderOptions"
+            :placeholder="t('flowCards.index.placeholderSelectOrder')"
             style="width: 100%"
-            :placeholder="t('flowCards.index.placeholderRequired')"
-          />
+            @change="onProductionOrderChange"
+          >
+            <el-option
+              v-for="o in visibleOrderOptions"
+              :key="o.id"
+              :label="orderLabel(o)"
+              :value="o.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="t('flowCards.index.labelProductId')" prop="product_id">
           <el-input-number
             v-model="formData.product_id"
             :min="1"
             :precision="0"
+            :disabled="true"
             style="width: 100%"
           />
         </el-form-item>
         <el-form-item :label="t('flowCards.index.labelProductName')" prop="product_name">
           <el-input
             v-model="formData.product_name"
-            :placeholder="t('flowCards.index.placeholderOptional')"
+            :placeholder="t('flowCards.index.placeholderProductAuto')"
+            readonly
           />
         </el-form-item>
         <el-form-item :label="t('flowCards.index.colColorNo')" prop="color_no">
@@ -216,10 +227,12 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { useI18n } from 'vue-i18n';
+import { getProductionOrderList, type ProductionOrder } from '@/api/production';
+import { logAuxLoadFailure } from '@/utils/logger';
 import {
   getFlowCardList,
   createFlowCard,
@@ -340,9 +353,51 @@ const formRules: FormRules = {
     {
       required: true,
       message: t('flowCards.index.ruleProductionOrderIdRequired'),
-      trigger: 'blur',
+      trigger: 'change',
     },
   ],
+};
+
+// 新建流转卡必须挂在真实生产订单上，选择订单即带出它的产品，避免手填对不上的 ID。
+const orderOptions = ref<ProductionOrder[]>([]);
+const orderQuery = ref('');
+
+const visibleOrderOptions = computed(() => {
+  const q = orderQuery.value.trim().toLowerCase();
+  if (!q) return orderOptions.value;
+  return orderOptions.value.filter(o => {
+    const name = (o.product_name ?? '').toLowerCase();
+    return o.order_no.toLowerCase().includes(q) || String(o.id).startsWith(q) || name.includes(q);
+  });
+});
+
+const orderLabel = (o: ProductionOrder): string =>
+  o.product_name ? `${o.order_no}（${o.product_name}）` : o.order_no;
+
+const filterOrderOptions = (query: string) => {
+  orderQuery.value = query;
+};
+
+const onProductionOrderChange = (id: number | undefined) => {
+  if (!id) {
+    formData.product_id = undefined;
+    formData.product_name = '';
+    return;
+  }
+  const order = orderOptions.value.find(o => o.id === id);
+  if (order) {
+    formData.product_id = order.product_id;
+    formData.product_name = order.product_name ?? '';
+  }
+};
+
+const loadOrderOptions = async () => {
+  try {
+    const res = await getProductionOrderList({ page: 1, page_size: 500 });
+    orderOptions.value = res.data.items;
+  } catch (error) {
+    logAuxLoadFailure(t('flowCards.index.messageFetchOrdersFailed'), error);
+  }
 };
 
 /** 响应解包防御：兼容数组 / { items } 分页包装，避免 el-table "r is not iterable" */
@@ -425,6 +480,7 @@ const runAction = async (action: StatusAction, row: FlowCard) => {
 };
 
 const handleCreate = () => {
+  loadOrderOptions();
   createVisible.value = true;
 };
 
@@ -435,6 +491,7 @@ const resetForm = () => {
   formData.color_no = '';
   formData.planned_fabric_weight = undefined;
   formData.dyeing_requirements = '';
+  orderQuery.value = '';
   formRef.value?.resetFields();
 };
 

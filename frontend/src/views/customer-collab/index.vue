@@ -102,10 +102,16 @@
         <el-form-item label="合同类型" required>
           <el-select v-model="signForm.contract_type" class="w-full">
             <el-option
-              v-for="t in ['purchase_contract', 'sales_contract', 'outsourcing_contract']"
-              :key="t"
-              :label="t"
-              :value="t"
+              :label="t('customerCollab.contractTypes.purchaseContract')"
+              value="purchase_contract"
+            />
+            <el-option
+              :label="t('customerCollab.contractTypes.salesContract')"
+              value="sales_contract"
+            />
+            <el-option
+              :label="t('customerCollab.contractTypes.outsourcingContract')"
+              value="outsourcing_contract"
             />
           </el-select>
         </el-form-item>

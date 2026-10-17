@@ -31,8 +31,8 @@ use crate::models::bulk_color_approval;
 use crate::models::bulk_color_approval_history;
 use crate::services::bulk_color_approval_service::{
     ApprovalReportRow, ApprovalStatistics, ApprovalTimeoutConfig, BulkColorApprovalError,
-    BulkColorApprovalService, CreateBulkColorApprovalParams, CutSampleParams,
-    ListBulkColorApprovalQuery,
+    BulkColorApprovalListItem, BulkColorApprovalService, CreateBulkColorApprovalParams,
+    CutSampleParams, ListBulkColorApprovalQuery,
 };
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
@@ -45,6 +45,9 @@ use crate::utils::response::ApiResponse;
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct CreateBulkColorApprovalDto {
     pub sales_order_id: i32,
+    /// 发起批色的销售订单明细行（可选）：非空时 service 校验该行存在且属于 sales_order_id，
+    /// 并以该行的 product_id/color_no 覆盖回填反范式列。
+    pub sales_order_item_id: Option<i32>,
     pub dye_batch_id: i32,
     pub customer_id: i64,
     pub production_order_id: Option<i32>,
@@ -106,6 +109,7 @@ pub struct ScrapDto {
 pub struct BulkColorApprovalInfo {
     pub id: i64,
     pub sales_order_id: i32,
+    pub sales_order_item_id: Option<i32>,
     pub dye_batch_id: i32,
     pub customer_id: i64,
     pub production_order_id: Option<i32>,
@@ -135,6 +139,7 @@ impl From<bulk_color_approval::Model> for BulkColorApprovalInfo {
         Self {
             id: m.id,
             sales_order_id: m.sales_order_id,
+            sales_order_item_id: m.sales_order_item_id,
             dye_batch_id: m.dye_batch_id,
             customer_id: m.customer_id,
             production_order_id: m.production_order_id,
@@ -246,7 +251,10 @@ pub fn bca_err(e: BulkColorApprovalError) -> AppError {
         }
         BulkColorApprovalError::CustomerNotFound => AppError::not_found("客户不存在"),
         BulkColorApprovalError::InvalidState(msg) => AppError::business(msg),
-        BulkColorApprovalError::Validation(msg) => AppError::validation(msg),
+        // 校验族文案（如明细行归属或存在性、色差、返工上限）均为用户据以自行修正的可操作原因，
+        // 不含他人数据或内部标识，按本仓约定走可外显变体让出参 message 携带真实拒绝原因，
+        // code 仍为 VALIDATION_ERROR 族不变。
+        BulkColorApprovalError::Validation(msg) => AppError::validation_displayable(msg),
         BulkColorApprovalError::Internal(msg) => AppError::internal(msg),
         BulkColorApprovalError::Database(e) => AppError::database(e.to_string()),
     }
@@ -377,6 +385,7 @@ pub async fn create_bulk_color_approval(
 
     let params = CreateBulkColorApprovalParams {
         sales_order_id: dto.sales_order_id,
+        sales_order_item_id: dto.sales_order_item_id,
         dye_batch_id: dto.dye_batch_id,
         customer_id: dto.customer_id,
         production_order_id: dto.production_order_id,
@@ -397,7 +406,8 @@ pub async fn list_bulk_color_approvals(
     auth: AuthContext,
     State(state): State<AppState>,
     Query(query): Query<ListBulkColorApprovalQuery>,
-) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalInfo>>>, AppError> {
+) -> Result<Json<ApiResponse<BulkColorApprovalPagedResponse<BulkColorApprovalListItem>>>, AppError>
+{
     let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
     let page = query.page.unwrap_or(1).clamp(1, 1000);
@@ -405,15 +415,14 @@ pub async fn list_bulk_color_approvals(
 
     // 行级归属门（读族）：在 service 查询构造处下推 data_scope（INNER JOIN 父销售订单按其
     // RLS 归属列过滤），越权行既不进 items 也不进 total，杜绝"全量越权可见"，且分页 total
-    // 与可见集一致（非 handler 后置过滤）。
+    // 与可见集一致（非 handler 后置过滤）。关联名称在同一次 LEFT JOIN 富化取回（无 N+1）。
     let (items, total) = service
         .list(query, Some(&data_scope_ctx))
         .await
         .map_err(bca_err)?;
-    let infos: Vec<BulkColorApprovalInfo> = items.into_iter().map(Into::into).collect();
 
     Ok(Json(ApiResponse::success(BulkColorApprovalPagedResponse {
-        items: infos,
+        items,
         total,
         page,
         page_size,
@@ -425,11 +434,12 @@ pub async fn get_bulk_color_approval(
     auth: AuthContext,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<Json<ApiResponse<BulkColorApprovalInfo>>, AppError> {
+) -> Result<Json<ApiResponse<BulkColorApprovalListItem>>, AppError> {
     let data_scope_ctx = auth.to_data_scope_context();
     let service = BulkColorApprovalService::from_state(&state);
-    let record = service.get(id).await.map_err(bca_err)?;
-    // 行级归属门（读单行 IDOR 防护）：详情按 approval id 取，校验其父销售订单是否在可见范围。
+    let record = service.get_detail(id).await.map_err(bca_err)?;
+    // 行级归属门（读单行 IDOR 防护）：详情按 approval id 取，富化视图保留 sales_order_id 键，
+    // 仍按父销售订单判归属（不因富化改走别的归属口径）。
     ensure_parent_sales_order_access(
         state.db.clone(),
         &auth,
@@ -437,7 +447,37 @@ pub async fn get_bulk_color_approval(
         record.sales_order_id,
     )
     .await?;
-    Ok(Json(ApiResponse::success(record.into())))
+    Ok(Json(ApiResponse::success(record)))
+}
+
+/// DELETE /api/v1/erp/bulk-color-approvals/{id} - 删除批色记录（清理通道）
+///
+/// 调用方：e2e 分片收尾与运维清理；此前该路径无 DELETE 方法，收尾删审批返回 405，
+/// 残留的审批行又以 `bulk_color_approval_sales_order_id_fkey` 阻塞销售订单删除（500）。
+/// 入参：路径 id 与认证上下文。归属门沿用详情同一条判据（按父销售订单，行级 IDOR 防护），
+/// 不因走清理通道就跳过。成功返回被删 id；失败由 service 上抛，不静默。
+pub async fn delete_bulk_color_approval(
+    auth: AuthContext,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let data_scope_ctx = auth.to_data_scope_context();
+    let service = BulkColorApprovalService::from_state(&state);
+    let record = service.get(id).await.map_err(bca_err)?;
+    ensure_parent_sales_order_access(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        record.sales_order_id,
+    )
+    .await?;
+    service.delete(id).await.map_err(bca_err)?;
+    tracing::info!(
+        actor = auth.user_id,
+        approval_id = id,
+        "批色记录删除成功（清理通道）"
+    );
+    Ok(Json(ApiResponse::success(serde_json::json!({ "id": id }))))
 }
 
 /// POST /api/v1/erp/bulk-color-approvals/:id/cut-sample - 剪大货样（P0-F16）
