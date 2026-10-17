@@ -91,6 +91,11 @@
             {{ getTypeLabel(row.type) }}
           </template>
         </el-table-column>
+        <el-table-column prop="doc_type" :label="$t('printTemplates.table.docType')" width="160">
+          <template #default="{ row }">
+            {{ getDocTypeLabel(row.doc_type) }}
+          </template>
+        </el-table-column>
         <el-table-column
           prop="paper_size"
           :label="$t('printTemplates.table.paperSize')"
@@ -146,7 +151,7 @@
               $t('printTemplates.table.copy')
             }}</el-button>
             <el-button
-              v-permission="'print_template:update'"
+              v-permission="PERMISSIONS.PRINT_TEMPLATE_UPDATE"
               type="primary"
               link
               size="small"
@@ -162,7 +167,7 @@
               >{{ $t('printTemplates.table.setDefault') }}</el-button
             >
             <el-button
-              v-permission="'print_template:delete'"
+              v-permission="PERMISSIONS.PRINT_TEMPLATE_DELETE"
               type="danger"
               link
               size="small"
@@ -282,6 +287,52 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <el-form-item :label="$t('printTemplates.dialog.docType')" prop="doc_type">
+              <el-select
+                v-model="form.doc_type"
+                :placeholder="$t('printTemplates.dialog.docTypePlaceholder')"
+                style="width: 100%"
+                filterable
+              >
+                <el-option
+                  v-for="opt in docTypeOptions"
+                  :key="opt.value"
+                  :label="opt.name"
+                  :value="opt.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item :label="$t('printTemplates.dialog.copiesDefault')" prop="copies_default">
+              <el-input-number v-model="form.copies_default" :min="1" :max="99" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item
+              :label="$t('printTemplates.dialog.defaultTarget')"
+              prop="default_target_name"
+            >
+              <el-select
+                v-model="form.default_target_name"
+                :placeholder="$t('printTemplates.dialog.defaultTargetPlaceholder')"
+                :loading="targetsLoading"
+                style="width: 100%"
+                filterable
+                clearable
+              >
+                <el-option
+                  v-for="opt in targetOptions"
+                  :key="opt.value"
+                  :label="opt.name"
+                  :value="opt.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item :label="$t('printTemplates.dialog.description')" prop="description">
           <el-input
             v-model="form.description"
@@ -341,9 +392,6 @@
         <el-button @click="previewVisible = false">{{
           $t('printTemplates.previewDialog.close')
         }}</el-button>
-        <el-button type="primary" @click="handlePrint">{{
-          $t('printTemplates.previewDialog.print')
-        }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -351,7 +399,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Search } from '@element-plus/icons-vue';
@@ -364,13 +412,15 @@ import {
   previewPrintTemplate,
   setDefaultPrintTemplate,
   copyPrintTemplate,
-  printTemplate,
   type PrintTemplate,
   type CreatePrintTemplateRequest,
   type UpdatePrintTemplateRequest,
 } from '@/api/print-templates';
+import { getPrintTargetList } from '@/api/print-targets';
+import { PERMISSIONS } from '@/constants/permissions';
 // 批次 277：接入 useTableApi，消除手写 list/total/listLoading/fetchData 重复
 import { useTableApi } from '@/composables/useTableApi';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -427,7 +477,46 @@ const getTypeLabel = (type: string) => {
   return map[type] || type;
 };
 
+/**
+ * 单据类型候选：由现有模板行的 doc_type 去重派生（渲染链路支持的类型集与内置模板种子一一对应，
+ * 由后端集成测试 print_doc_type_catalog_consistency_test 锁定）。
+ * 显示名沿用该 doc_type 现有模板的中文名，词表外值原样显示并交由后端 400 点名，不在前端造名。
+ */
+const docTypeOptions = computed(() => {
+  const byValue = new Map<string, string>();
+  for (const row of list.value) {
+    if (row.doc_type && !byValue.has(row.doc_type)) {
+      byValue.set(row.doc_type, row.template_name || row.doc_type);
+    }
+  }
+  return [...byValue.entries()].map(([value, name]) => ({ value, name }));
+});
+
+/** 列表/表单显示的单据类型名：候选由模板行自身派生，故每个 row.doc_type 必能在表内命中 */
+const getDocTypeLabel = (docType: string) =>
+  docTypeOptions.value.find(item => item.value === docType)?.name ?? docType;
+
+/** 打印目标候选（启用中的行）：模板可绑定缺省目标，未绑定的模板发起打印时需现场选择目标 */
+const targetOptions = ref<{ value: string; name: string }[]>([]);
+const targetsLoading = ref(false);
+
+const loadTargets = async () => {
+  targetsLoading.value = true;
+  try {
+    const res = await getPrintTargetList();
+    targetOptions.value = res.data
+      .filter(target => target.enabled)
+      .map(target => ({ value: target.target_code, name: target.display_name }));
+  } catch (error: unknown) {
+    logAuxLoadFailure('获取打印目标列表失败:', error);
+    targetOptions.value = [];
+  } finally {
+    targetsLoading.value = false;
+  }
+};
+
 const dialogVisible = ref(false);
+onMounted(loadTargets);
 const formRef = ref<FormInstance>();
 const submitLoading = ref(false);
 const variablesText = ref('');
@@ -438,8 +527,11 @@ const form = reactive<Partial<PrintTemplate>>({
   description: '',
   module: 'sales',
   type: 'order',
+  doc_type: '',
   paper_size: 'A4',
   orientation: 'portrait',
+  copies_default: 1,
+  default_target_name: null,
   content: '',
   css_styles: '',
   variables: {},
@@ -467,6 +559,13 @@ const rules: FormRules = {
   ],
   type: [
     { required: true, message: t('printTemplates.validation.typeRequired'), trigger: 'change' },
+  ],
+  doc_type: [
+    {
+      required: true,
+      message: t('printTemplates.validation.docTypeRequired'),
+      trigger: 'change',
+    },
   ],
   paper_size: [
     {
@@ -499,8 +598,11 @@ const openDialog = (row?: PrintTemplate) => {
       description: '',
       module: 'sales',
       type: 'order',
+      doc_type: '',
       paper_size: 'A4',
       orientation: 'portrait',
+      copies_default: 1,
+      default_target_name: null,
       content: '',
       css_styles: '',
       variables: {},
@@ -535,8 +637,12 @@ const handleSubmit = async () => {
           template_code: form.template_code,
           module: form.module,
           type: form.type,
+          doc_type: form.doc_type,
           paper_size: form.paper_size,
           orientation: form.orientation,
+          copies_default: form.copies_default,
+          // 可空列三态：选择器清空即显式 null（后端据此清空缺省目标），不发空串
+          default_target_name: form.default_target_name || null,
           content: form.content,
           css_styles: form.css_styles,
           variables: form.variables,
@@ -550,11 +656,13 @@ const handleSubmit = async () => {
         // CreatePrintTemplateRequest：template_name 必填非 Option（表单 rules 已保证非空）
         const payload: CreatePrintTemplateRequest = {
           template_name: form.template_name ?? '',
+          doc_type: form.doc_type ?? '',
           template_code: form.template_code,
           module: form.module,
           type: form.type,
           paper_size: form.paper_size,
           orientation: form.orientation,
+          copies_default: form.copies_default,
           content: form.content,
           css_styles: form.css_styles,
           variables: form.variables,
@@ -563,6 +671,8 @@ const handleSubmit = async () => {
         };
         // Option<String> 描述空值省略该键，不落库空串（范式见 views/system UserTab）
         if (form.description) payload.description = form.description;
+        // 缺省打印目标只在真配置时发送键（空串会被后端归一为未配置，但键应缺席而非空值）
+        if (form.default_target_name) payload.default_target_name = form.default_target_name;
         await createPrintTemplate(payload);
       }
       ElMessage.success(t('printTemplates.message.operationSuccess'));
@@ -639,20 +749,6 @@ const handlePreview = async (row: PrintTemplate) => {
     previewData.value = '';
   } finally {
     previewLoading.value = false;
-  }
-};
-
-const handlePrint = async () => {
-  if (!currentPreviewTemplate.value) return;
-  try {
-    await printTemplate(currentPreviewTemplate.value.id, {});
-    ElMessage.success(t('printTemplates.message.printSent'));
-  } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
-    ElMessage.error(
-      (error instanceof Error ? error.message : String(error)) ||
-        t('printTemplates.message.printFailed')
-    );
   }
 };
 
