@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCallRaw } from './helpers';
+import { loginViaUI, apiCallRaw, BASE_URL } from './helpers';
 
 /**
  * P5.8 print-templates API 全链路
@@ -73,5 +73,72 @@ test.describe('P5.8 print-templates API 链路', () => {
     const status = resp.status();
     expect(status).toBeLessThan(500);
     expect(status === 404 || status === 400).toBe(true);
+  });
+
+  test('列表出参每行都带非空 doc_type（打印链路查找键必须可见）', async ({ page }) => {
+    const list = await apiCallRaw<Array<Record<string, unknown>>>(page, 'GET', '/print-templates');
+    expect(list.length, '内置模板种子为空属环境缺陷').toBeGreaterThan(0);
+    for (const row of list) {
+      expect(
+        typeof row.doc_type === 'string' && row.doc_type !== '',
+        `模板 ${JSON.stringify(row).slice(0, 160)} 出参缺 doc_type：前端无法得知该模板服务于哪种单据`
+      ).toBe(true);
+    }
+  });
+
+  test('模板打印端点缺 doc_id → 400（禁止伪造样例打印，fail-closed）', async ({ page }) => {
+    const list = await apiCallRaw<Array<Record<string, unknown>>>(page, 'GET', '/print-templates');
+    const templateId = Number(list[0].id);
+    const resp = await page.request.post(
+      `${API_BASE}${API_PREFIX}/print-templates/${templateId}/print`,
+      {
+        data: {},
+      }
+    );
+    expect(
+      resp.status(),
+      '无单据实例的打印请求必须被拒（历史缺陷：模板页打印按钮恒发空体，用户点即 400）'
+    ).toBe(400);
+  });
+
+  test('新建模板缺 doc_type → 422/400（不再以 template_code 冒充查找键）', async ({ page }) => {
+    const resp = await page.request.post(`${API_BASE}${API_PREFIX}/print-templates`, {
+      data: {
+        template_name: 'e2e-缺单据类型模板',
+        template_code: `TPL-E2E-NODOC-${Date.now()}`,
+        module: 'logistics',
+        type: 'custom',
+      },
+    });
+    expect(
+      resp.status(),
+      '缺查找键的模板永不会被渲染链路命中，必须拒绝受理'
+    ).toBeGreaterThanOrEqual(400);
+    expect(resp.status()).toBeLessThan(500);
+  });
+
+  test('新建模板 doc_type 词表外 → 400 点名（不静默存下打不出的模板）', async ({ page }) => {
+    const resp = await page.request.post(`${API_BASE}${API_PREFIX}/print-templates`, {
+      data: {
+        template_name: 'e2e-非法单据类型模板',
+        template_code: `TPL-E2E-BADDOC-${Date.now()}`,
+        doc_type: 'not_a_real_doc_type',
+        module: 'logistics',
+        type: 'custom',
+      },
+    });
+    expect(resp.status()).toBe(400);
+  });
+
+  test('模板预览对话框不暴露无单据上下文的打印入口', async ({ page }) => {
+    await page.goto(`${BASE_URL}/print-templates`);
+    await page.waitForSelector('.el-table__row', { timeout: 20000 });
+    await page.locator('.el-table__row').first().getByRole('button', { name: '预览' }).click();
+    const dialog = page.locator('[aria-label="模板预览对话框"]');
+    await expect(dialog).toBeVisible();
+    expect(
+      await dialog.getByRole('button', { name: '打印' }).count(),
+      '预览对话框不得保留一个必然 400 的打印按钮（打印入口在业务单据侧，由源单带出 doc_id）'
+    ).toBe(0);
   });
 });

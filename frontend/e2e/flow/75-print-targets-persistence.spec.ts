@@ -130,17 +130,26 @@ test.describe('打印目标持久化与校验', () => {
       const created = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/print-templates', {
         template_name: `e2e-tpl-${suffix}`,
         template_code: tcode,
+        // doc_type 是"单据→模板"查找键，后端已改为必填并校验取值集：
+        // 缺它或写错它的模板永远不会被打印链路命中，故新建必须显式带上
+        doc_type: 'sales_order',
         module: 'logistics',
         type: 'custom',
       });
       tid = Number(created?.id);
       expect(tid, `模板新建应返回主键：${JSON.stringify(created)}`).toBeGreaterThan(0);
+      expect(
+        String(created?.doc_type ?? ''),
+        `模板出参应回显单据类型查找键，实得：${JSON.stringify(created).slice(0, 200)}`
+      ).toBe('sales_order');
 
       const list = await apiCallRaw<Array<Record<string, unknown>>>(page, 'GET', '/print-templates');
+      const mine = list.find(r => r.template_code === tcode);
+      expect(mine, `刷新读回列表应含模板 ${tcode}，证明落库非内存影子存储`).toBeTruthy();
       expect(
-        list.some(r => r.template_code === tcode),
-        `刷新读回列表应含模板 ${tcode}，证明落库非内存影子存储`
-      ).toBe(true);
+        String(mine?.doc_type ?? ''),
+        '读回的模板必须保留 doc_type（列表与详情同口径）'
+      ).toBe('sales_order');
     } finally {
       if (tid) await apiCallRaw(page, 'DELETE', `/print-templates/${tid}`);
     }
