@@ -12362,6 +12362,7 @@ export default {
       labelOrderNo: '订单编号',
       placeholderOrderNo: '请输入订单编号',
       labelProductId: '产品ID',
+      placeholderSelectProduct: '请选择产品（按编号或名称搜索）',
       labelPlannedQuantity: '计划数量',
       labelPriority: '优先级',
       labelScheduledStart: '计划开始日期',

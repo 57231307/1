@@ -62,6 +62,7 @@
       :form="prd.orderForm"
       :loading="prd.submitLoading"
       :rules="prd.orderRules"
+      :product-options="productOptions"
       @update:form="v => Object.assign(prd.orderForm, v)"
       @submit="onSubmitForm"
     />
@@ -74,6 +75,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
+import { logger } from '@/utils/logger';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
 import {
   createProductionOrder,
@@ -84,12 +86,26 @@ import {
 } from '@/api/production';
 import { usePrd } from './composables/usePrd';
 import { usePrdProc } from './composables/usePrdProc';
+import { getProductList, type Product } from '@/api/product';
 import ProductionFilter from './components/ProductionFilter.vue';
 import ProductionTable from './components/ProductionTable.vue';
 import ProductionForm from './components/ProductionForm.vue';
 import ProductionDetail from './components/ProductionDetail.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 生产订单表单的产品下拉清单（编号→选产品、带出只读单位）；一次性拉取近期产品，
+// 生产订单表单为本地可搜索下拉，数据量受 page_size 上限约束。
+const productOptions = ref<Product[]>([]);
+const loadProductOptions = async () => {
+  try {
+    const res = await getProductList({ page: 1, page_size: 500 });
+    productOptions.value = res.data?.items ?? [];
+  } catch (error) {
+    // 拉取失败仅置空并告警，不阻断列表页主流程
+    logger.warn('load production form product options failed', error);
+  }
+};
 
 // 业务状态
 const prd = usePrd();
@@ -177,6 +193,7 @@ const onSubmitForm = async () => {
 
 onMounted(() => {
   prd.refresh();
+  loadProductOptions();
 });
 </script>
 
