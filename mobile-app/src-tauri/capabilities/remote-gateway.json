@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "remote-gateway",
+  "description": "允许用户所填的任意部署站点 origin 使用 window.__TAURI__ 以调用 reopen_gateway（登录失败自动回弹到 gateway）。首装时部署域未知，故按 http/https 通配；仅暴露回弹所需的入口，不开放文件/网络等敏感能力。若真机上远端无法 invoke app 命令，需在此追加对应 app 命令的权限 ID 校准。",
+  "remote": {
+    "urls": ["http://*", "https://*"]
+  },
+  "permissions": ["core:default"]
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "内置 gateway（服务器地址设置页，本地 origin）：可调用核心与 app 命令（remember_gateway/reopen_gateway）。",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
