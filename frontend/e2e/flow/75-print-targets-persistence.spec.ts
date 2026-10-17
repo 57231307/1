@@ -155,6 +155,60 @@ test.describe('打印目标持久化与校验', () => {
     }
   });
 
+  test('目标仍被启用模板列为缺省目标 → 删除被拒 400 并点名编码，停用后方可删', async ({ page }) => {
+    const tcode = `E2E-REF-${suffix}`;
+    const tplCode = `TPL-E2E-REF-${suffix}`;
+    let targetId = 0;
+    let templateId = 0;
+    try {
+      const target = await apiCallRaw<{ id?: number }>(page, 'POST', '/print-targets', {
+        target_code: tcode,
+        display_name: `e2e被引用目标${tcode}`,
+        kind: 'network',
+        host: '127.0.0.1',
+        port: 9100,
+        enabled: true,
+      });
+      targetId = Number(target?.id);
+      expect(targetId, `打印目标应真实落库：${JSON.stringify(target)}`).toBeGreaterThan(0);
+
+      const tpl = await apiCallRaw<{ id?: number }>(page, 'POST', '/print-templates', {
+        template_name: `e2e引用目标模板${tplCode}`,
+        template_code: tplCode,
+        doc_type: 'sales_order',
+        module: 'sales',
+        type: 'order',
+        default_target_name: tcode,
+        content: '<div>{order_no}</div>',
+        is_default: false,
+        status: 'active',
+      });
+      templateId = Number(tpl?.id);
+      expect(templateId, `模板应真实落库：${JSON.stringify(tpl)}`).toBeGreaterThan(0);
+
+      const fail = await apiCallExpectFail(page, 'DELETE', `/print-targets/${targetId}`);
+      expect(
+        fail.status,
+        `被启用模板引用的目标删除必须可见拒绝，实得：${JSON.stringify(fail)}`
+      ).toBe(400);
+      expect(
+        String(fail.message ?? ''),
+        `拒绝文案须点名被引用的目标编码，实得：${JSON.stringify(fail)}`
+      ).toContain(tcode);
+
+      // 引用门只拦"启用中"的模板：停用同一模板后目标才允许删除
+      await apiCallRaw(page, 'PUT', `/print-templates/${templateId}`, { status: 'inactive' });
+      const deletedId = targetId;
+      await apiCallRaw(page, 'DELETE', `/print-targets/${deletedId}`);
+      targetId = 0;
+      const gone = await apiCallExpectFail(page, 'GET', `/print-targets/${deletedId}`);
+      expect(gone.status, `删除后详情应读不到，实得：${JSON.stringify(gone)}`).toBe(404);
+    } finally {
+      if (templateId) await apiCallRaw(page, 'DELETE', `/print-templates/${templateId}`);
+      if (targetId) await apiCallRaw(page, 'DELETE', `/print-targets/${targetId}`);
+    }
+  });
+
   test('打印目标页可达且健康', async ({ page }) => {
     await page.goto(`${BASE_URL}/print-targets`);
     expect(page.url(), '超管应能进入打印目标页，不应被重定向到登录').not.toContain('/login');

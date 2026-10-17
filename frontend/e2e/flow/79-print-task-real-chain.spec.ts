@@ -84,14 +84,20 @@ test.describe('打印任务真实受理链路', () => {
     ).toBe(400);
   });
 
-  test('单据实例不存在 → 受理即拒（不静默接受无效 doc_id）', async ({ page }) => {
+  test('单据实例不存在 → 受理即拒 400（不静默接受无效 doc_id）', async ({ page }) => {
     const fail = await apiCallExpectFail(page, 'POST', '/print-tasks', {
       doc_type: 'sales_order',
       doc_id: 99999999,
       target_name: 'E2E-NOT-EXISTENT-TARGET',
     });
-    expect(fail.status, '无效单据或无效目标应被拒').toBeGreaterThanOrEqual(400);
-    expect(fail.status, `受理失败不得升级成 5xx：${JSON.stringify(fail)}`).toBeLessThan(500);
+    expect(
+      fail.status,
+      `无效单据应被拒受理而非 5xx 或静默接受，实得：${JSON.stringify(fail)}`
+    ).toBe(400);
+    expect(
+      String(fail.code),
+      `应为入参/实例校验拒绝而非中间件拦截，实得：${JSON.stringify(fail)}`
+    ).toBe('BAD_REQUEST');
   });
 
   test('受理成功后任务号唯一可读回；目标不可达时失败原因必非空', async ({ page }) => {

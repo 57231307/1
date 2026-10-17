@@ -15,8 +15,8 @@
 //! 目标数据无归属列、无创建人列，故本 handler 不做行级 scope 过滤，仅记录审计日志。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, QueryFilter, QueryOrder,
-    Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, Order, PaginatorTrait,
+    QueryFilter, QueryOrder, Set,
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -29,10 +29,12 @@ use axum::{
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::print_template;
 use crate::models::print_target::{
     ActiveModel as PrintTargetActiveModel, Column as PrintTargetColumn,
     Entity as PrintTargetEntity, Model as PrintTargetModel,
 };
+use crate::models::status::print::print_template_status;
 use crate::models::status::print_target_kind;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -452,13 +454,30 @@ pub async fn update_print_target(
 }
 
 /// `DELETE /print-targets/{id}`：删除目标行；不存在返回 404。
+///
+/// 仍被启用模板列为缺省目标的目标不许删：删掉后该符号在模板里悬挂，下一次打印只会得到
+/// "打印目标未配置或未启用"，用户在模板页看不出成因。已归档任务里的目标符号是历史快照，
+/// 不参与本判断。
 pub async fn delete_print_target(
     Path(id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
     info!(user = %auth.username, target_id = id, "删除打印目标");
-    load_target(&*state.db, id).await?;
+    let target = load_target(&*state.db, id).await?;
+
+    let referenced_by_templates = print_template::Entity::find()
+        .filter(print_template::Column::DefaultTargetName.eq(target.target_code.clone()))
+        .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
+        .count(&*state.db)
+        .await?;
+    if referenced_by_templates > 0 {
+        return Err(AppError::business_displayable(format!(
+            "打印目标 {} 仍是 {} 个启用中打印模板的缺省目标，请先改模板缺省目标或停用模板",
+            target.target_code, referenced_by_templates
+        )));
+    }
+
     PrintTargetEntity::delete_by_id(id).exec(&*state.db).await?;
     Ok(Json(ApiResponse::success_with_message(
         (),
