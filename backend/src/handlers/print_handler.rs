@@ -1369,12 +1369,12 @@ where
 /// 点名非法值。词表外取值会让模板成为"存得进、打不出"的影子配置，绝不静默放行。
 fn validate_template_doc_type(doc_type: &str) -> Result<(), AppError> {
     if doc_type.trim().is_empty() {
-        return Err(AppError::bad_request(
+        return Err(AppError::validation_displayable(
             "打印模板必须指定单据类型（doc_type），否则渲染链路无法命中该模板",
         ));
     }
     if !SUPPORTED_DOC_TYPES.contains(&doc_type) {
-        return Err(AppError::bad_request(format!(
+        return Err(AppError::validation_displayable(format!(
             "打印模板单据类型非法（须为打印链路支持的单据类型）：{doc_type}"
         )));
     }
@@ -1386,7 +1386,7 @@ fn validate_template_doc_type(doc_type: &str) -> Result<(), AppError> {
 fn validate_copies_default(copies: Option<i16>) -> Result<Option<i16>, AppError> {
     match copies {
         Some(v) if (1..=99).contains(&v) => Ok(Some(v)),
-        Some(v) => Err(AppError::bad_request(format!(
+        Some(v) => Err(AppError::validation_displayable(format!(
             "打印模板缺省份数须在 1-99 之间：{v}"
         ))),
         None => Ok(None),
@@ -1676,7 +1676,9 @@ pub async fn print_print_template(
 
     let template = load_template(&*state.db, id).await?;
     let doc_id = extract_doc_id(&body).ok_or_else(|| {
-        AppError::bad_request("打印需指定单据实例（请求体缺少 doc_id，禁止伪造样例打印）")
+        AppError::validation_displayable(
+            "打印需指定单据实例（请求体缺少 doc_id，禁止伪造样例打印）",
+        )
     })?;
 
     let req = CreatePrintTaskRequest {
