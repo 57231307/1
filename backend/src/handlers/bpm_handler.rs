@@ -1,9 +1,11 @@
 use crate::container::AppState;
+use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::bpm_dto::{
     ApproveTaskRequest, CancelInstanceRequest, StartProcessRequest, TaskQuery,
 };
 use crate::models::status::bpm_task as task_status;
 use crate::services::bpm_service::BpmService;
+use crate::utils::data_scope::DataScope;
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
@@ -15,7 +17,7 @@ use serde::Deserialize;
 
 pub async fn start_process(
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Json(req): Json<StartProcessRequest>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     // 发起人身份一律取已认证登录用户：历史实现直接采信请求体 initiator_id，
@@ -39,7 +41,7 @@ pub async fn start_process(
 
 pub async fn approve_task(
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Json(req): Json<ApproveTaskRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());
@@ -54,7 +56,7 @@ pub async fn approve_task(
 pub async fn cancel_instance(
     Path(instance_id): Path<i32>,
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     // 撤回理由选填：缺体经 OptionalJson 归一为 None，交由服务层状态门判定
     OptionalJson(req): OptionalJson<CancelInstanceRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
@@ -73,10 +75,12 @@ pub async fn cancel_instance(
 /// 且忽略其传入的他人 `user_id`（登录身份才是唯一事实来源）。
 fn scope_task_query(
     query: TaskQuery,
-    auth: &crate::middleware::auth_context::AuthContext,
+    auth: &AuthContext,
     endpoint: &str,
 ) -> TaskQuery {
-    if auth.data_scope.as_deref() == Some("all") {
+    // 与全站同源：data_scope 是无 CHECK 约束的原始串（大小写混存），未加载时按最小权限处理，
+    // 直接比对字面 "all" 会把 All/ALL 的超管误判成普通范围、连本该可见的待办都收窄掉。
+    if DataScope::parse_scope(auth.data_scope.as_deref().unwrap_or_default()) == DataScope::All {
         return query;
     }
     if let Some(claimed) = query.user_id
@@ -97,7 +101,7 @@ fn scope_task_query(
 
 pub async fn query_tasks(
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
@@ -308,7 +312,7 @@ pub async fn urge_task(
 /// 所用的 `status::bpm_task` 词表常量为唯一来源，两侧大小写不同源会让待办恒空。
 pub async fn get_pending_tasks(
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
@@ -326,7 +330,7 @@ pub async fn get_pending_tasks(
 /// 同上：过滤值取 `status::bpm_task::COMPLETED`，与 `bpm_ops/task.rs` 的审批完成写入点同源。
 pub async fn get_completed_tasks(
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = BpmService::new(state.db.clone());
@@ -353,7 +357,7 @@ pub struct ExecuteApprovalRequest {
 /// 执行审批
 pub async fn execute_approval(
     State(state): State<AppState>,
-    auth: crate::middleware::auth_context::AuthContext,
+    auth: AuthContext,
     Json(req): Json<ExecuteApprovalRequest>,
 ) -> Result<Json<ApiResponse<String>>, AppError> {
     let service = BpmService::new(state.db.clone());

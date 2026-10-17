@@ -17,8 +17,10 @@ use super::order::PurchaseOrderService;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 
 impl PurchaseOrderService {
-    /// 提交采购订单
-    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id；原 `submit_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，；并发提交同一订单可能基于过期快照导致状态覆盖；同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。；改为：begin txn + lock_exclusive 查询 + 状态/权限/明细校验 + update_with_audit(&txn, Some(user_id)) + commit；BPM 启动保留事务外（与批次 12 一致：失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
+    /// 提交采购订单：事务内加行锁校验状态与权限后置为待审批，提交后再在事务外启动 BPM 工单。
+    ///
+    /// BPM 启动失败向上传播并补偿回滚到提交前状态，避免订单停在待审批却系统里没有工单可审；
+    /// 启动放在事务外，是为了不让外部流程引擎持有数据库行锁。
     pub async fn submit_order(
         &self,
         order_id: i32,
@@ -158,7 +160,8 @@ impl PurchaseOrderService {
         Ok(())
     }
 
-    /// 补偿回滚：把订单状态写回提交前的取值（DRAFT 或 REJECTED），加行锁避免与并发审批互踩
+    /// 补偿回滚：把订单状态写回提交前的取值。只回滚本路径刚写入的 PENDING_APPROVAL——
+    /// 窗口内若已被并发审批改走，覆盖会把已生效的审批静默抹掉，此时报冲突让调用方重试。
     async fn rollback_order_status(
         &self,
         order_id: i32,
@@ -173,6 +176,12 @@ impl PurchaseOrderService {
             .ok_or_else(|| {
                 AppError::not_found(format!("补偿回滚时采购订单 {} 不存在", order_id))
             })?;
+        if order.order_status != status::purchase_order::PENDING_APPROVAL {
+            return Err(AppError::business_displayable(format!(
+                "采购订单 {} 的状态已被其他操作改为 {}，本次提交不再回退状态，请按当前状态处理",
+                order_id, order.order_status
+            )));
+        }
         let mut active: purchase_order::ActiveModel = order.into();
         active.order_status = Set(previous_status.to_string());
         active.updated_at = Set(Utc::now());

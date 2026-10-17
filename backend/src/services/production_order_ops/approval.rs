@@ -33,8 +33,10 @@ use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
 use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
-    /// 提交生产订单审批
-    /// 批次 15（2026-06-28）：事务包裹"查询 + 状态校验 + update"，；加 lock_exclusive 防止并发提交同一订单导致状态不一致；BPM 启动保留事务外（失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
+    /// 提交生产订单审批：事务内加行锁校验状态后置为待审批，提交后再在事务外启动 BPM 工单。
+    ///
+    /// BPM 启动失败向上传播并补偿回滚到提交前状态，避免订单停在待审批却系统里没有工单可审；
+    /// 启动放在事务外，是为了不让外部流程引擎持有数据库行锁。
     pub async fn submit_for_approval(
         &self,
         id: i32,
@@ -112,7 +114,8 @@ impl ProductionOrderService {
         Ok(updated)
     }
 
-    /// 补偿回滚：把生产订单状态写回提交前的取值，加行锁避免与并发审批互踩
+    /// 补偿回滚：把生产订单状态写回提交前的取值。只回滚本路径刚写入的待审批态——
+    /// 窗口内若已被并发审批改走，覆盖会静默抹掉已生效的审批，此时报冲突交调用方处理。
     async fn rollback_status_to(
         &self,
         id: i32,
@@ -125,6 +128,12 @@ impl ProductionOrderService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("补偿回滚时生产订单 {} 不存在", id)))?;
+        if model.status != crate::models::status::production::PRODUCTION_PENDING_APPROVAL {
+            return Err(AppError::business_displayable(format!(
+                "生产订单 {} 的状态已被其他操作改为 {}，本次提交不再回退状态，请按当前状态处理",
+                id, model.status
+            )));
+        }
         let mut active: ActiveModel = model.into();
         active.status = Set(previous_status.to_string());
         active.updated_at = Set(Utc::now());
