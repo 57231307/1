@@ -16,8 +16,10 @@
 //!
 //! # 关于 `api.github.com` 的重要事实校正
 //! 任务描述假设"官方域 github.com / objects.githubusercontent.com / api.github.com 均放行"。
-//! 但源码 `OFFICIAL_DOWNLOAD_HOSTS = ["github.com", "objects.githubusercontent.com"]` 仅收
-//! **资产下载官方域**（源码内注释：API `assets[].digest` 走 JSON 字段，不经此 host 判定）。
+//! 但源码 `OFFICIAL_DOWNLOAD_HOSTS` 仅收**资产下载官方域**
+//! （`github.com` / `objects.githubusercontent.com` / `release-assets.githubusercontent.com`，
+//! 后者为 GitHub 2025 起 release 资产 302 跳转的新主机；源码内注释：API `assets[].digest`
+//! 走 JSON 字段，不经此 host 判定）。
 //! 因此 `is_official_digest_host("api.github.com")` 的真实返回是 `false`，本测试**按真实行为断言**，
 //! 若按任务假设写成 `true` 将造成反向假失败。
 
@@ -42,6 +44,10 @@ fn official_digest_host_accepts_official_asset_hosts_case_insensitive() {
     assert!(
         is_official_digest_host("objects.githubusercontent.com"),
         "objects.githubusercontent.com 必须为官方域"
+    );
+    assert!(
+        is_official_digest_host("release-assets.githubusercontent.com"),
+        "release-assets.githubusercontent.com（GitHub 新 release 资产跳转主机）必须为官方域"
     );
     // eq_ignore_ascii_case：大小写变体同样放行（防止 host 大小写不一致绕过判定）
     assert!(
@@ -102,6 +108,11 @@ fn validate_official_digest_url_accepts_official_https() {
     assert!(
         validate_official_digest_url("https://objects.githubusercontent.com/x.sha256").is_ok(),
         "官方 objects.githubusercontent.com https 应放行"
+    );
+    assert!(
+        validate_official_digest_url("https://release-assets.githubusercontent.com/x.sha256")
+            .is_ok(),
+        "官方 release-assets.githubusercontent.com（新跳转主机）https 应放行"
     );
 }
 
@@ -172,6 +183,13 @@ fn validate_download_url_official_https_ok_in_default_config() {
     assert!(
         validate_download_url("https://objects.githubusercontent.com/assets/123").is_ok(),
         "官方 objects.githubusercontent.com https 下载应放行（默认配置）"
+    );
+    assert!(
+        validate_download_url(
+            "https://release-assets.githubusercontent.com/github-production-release-asset/x"
+        )
+        .is_ok(),
+        "官方 release-assets.githubusercontent.com（GitHub 新 release 资产跳转主机）https 下载应放行（默认配置）"
     );
 }
 

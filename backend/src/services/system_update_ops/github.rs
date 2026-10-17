@@ -472,7 +472,7 @@ impl SystemUpdateService {
     /// host 必须过 `validate_official_digest_url`（收窄官方域，严禁从镜像取校验基准）+ SSRF；
     /// 重定向终点二次复核仍在官方域，否则拒绝。
     async fn fetch_official_digest_content(url: &str) -> Result<String, UpdateError> {
-        // 校验值 URL 必须 https + 官方域（github.com / objects.githubusercontent.com）
+        // 校验值 URL 必须 https + 官方域（github.com / objects.githubusercontent.com / release-assets.githubusercontent.com）
         validate_official_digest_url(url)?;
 
         let (host, safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(url)

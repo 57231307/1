@@ -309,7 +309,7 @@ impl Default for FabricIndustryConfig {
 }
 
 /// 更新下载镜像优先策略。
-/// 无论选择哪种顺序，官方域（github.com / objects.githubusercontent.com）永远列入候选并作为最终兜底。
+/// 无论选择哪种顺序，官方域（github.com / objects.githubusercontent.com / release-assets.githubusercontent.com）永远列入候选并作为最终兜底。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MirrorOrder {

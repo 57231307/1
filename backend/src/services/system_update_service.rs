@@ -391,8 +391,13 @@ pub fn set_safe_permissions(path: &Path, mode: u32, is_dir: bool) {
 }
 
 /// 官方 GitHub 域白名单（信任模型：校验基准**只**从这些域取；镜像仅搬 tar 字节）。
-pub(crate) const OFFICIAL_DOWNLOAD_HOSTS: &[&str] =
-    &["github.com", "objects.githubusercontent.com"];
+/// `release-assets.githubusercontent.com` 是 GitHub 2025 年起 release 资产 302 跳转的新主机
+/// （`objects.githubusercontent.com` 为旧主机，两者都保留以覆盖不同资产的跳转终点）。
+pub(crate) const OFFICIAL_DOWNLOAD_HOSTS: &[&str] = &[
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+];
 
 /// 下载/重定向链允许的 host：官方域 ∪ `config.update.mirrors` 派生 host ∪（默认档）内置默认镜像派生 host。
 /// 仅用于**字节下载** URL 与重定向终点复核；校验值取源走 `is_official_digest_host`（官方域收窄）。
@@ -723,7 +728,11 @@ mod integrity_tests {
     fn is_official_digest_host_narrows_to_official() {
         assert!(is_official_digest_host("github.com"));
         assert!(is_official_digest_host("objects.githubusercontent.com"));
-        // 校验值文件（.sha256 资产）恒从 github.com / objects.githubusercontent.com 下载；
+        assert!(is_official_digest_host(
+            "release-assets.githubusercontent.com"
+        ));
+        // 校验值文件（.sha256 资产）恒从官方资产域（含 GitHub 新跳转主机
+        // release-assets.githubusercontent.com）下载；
         // API assets[].digest 走 JSON 字段不经此 host 判定，故 host 白名单只收资产下载官方域。
         assert!(!is_official_digest_host("ghproxy.net"), "镜像 host 必须拒");
         assert!(
