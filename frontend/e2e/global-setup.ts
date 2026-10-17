@@ -522,30 +522,21 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
     'pieces:read',
     'pieces:print',
   ],
-  // manager —— 导出审批链申请侧（15-05 finance_report 创建 + 82-customer 申请人回读）。
-  // 权限键口径：
-  //   export-approvals:create —— POST /export-approvals 创建申请；
-  //   export-approvals:read   —— GET /export-approvals/{id} 申请人回读自身申请状态
-  //                             （82-customer spec 正向全链 step-1 的申请人身份验令牌未下发）。
-  // 不授 export-approvals:approve——审批属 admin，授了破坏双人分离前提（后端 SoD 同样拒绝
-  // 同角色 create+approve 共存，role_permission_service.rs::validate_sod_create_approve）。
-  manager: ['export-approvals:create', 'export-approvals:read'],
+  // manager —— fullflow/15-report-export.spec.ts 15-05「finance_report 导出审批链」的申请侧。
+  // 该用例里 manager 只打一个端点：POST /export-approvals（创建导出审批申请），随后切回分片
+  // admin 审批。权限键与后端 init 同名角色矩阵逐字符同口径（init_service_ops/permission.rs
+  // ::management_role_resources 的 ("export-approvals","create")；注册表权威名
+  // init_service.rs::PERMISSION_RESOURCES；运行时键由 URL 段直接取得，
+  // path_utils.rs::is_misc_direct_resource 已把 export-approvals 登记为顶层资源段）。
+  // 刻意**不**补 permission.rs 里 manager 的其余只读码：15-05 不经受那些端点，多授会稀释
+  // "缺码即 RBAC 拦"的判据；也不授 export-approvals:approve——审批属 admin，授了会破坏
+  // 双人分离前提（后端 SoD 同样拒绝同角色 create+approve 共存，role_permission_service.rs
+  // ::validate_sod_create_approve）。
+  manager: ['export-approvals:create'],
   // 仓管/仓库经理：按四维选匹（发货/调拨）+ 打印成品布入库标签 + 坯布建档读写
   // 与 permission.rs 的 warehouse_keeper 及迁移 m0069/m0097 同口径（三通道锁）。
-  warehouse_keeper: [
-    'pieces:read',
-    'pieces:print',
-    'greige-fabrics:read',
-    'greige-fabrics:create',
-    'suppliers:read',
-  ],
-  warehouse_manager: [
-    'pieces:read',
-    'pieces:print',
-    'greige-fabrics:read',
-    'greige-fabrics:create',
-    'suppliers:read',
-  ],
+  warehouse_keeper: ['pieces:read', 'pieces:print', 'greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
+  warehouse_manager: ['pieces:read', 'pieces:print', 'greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
   // 生产经理：坯布建档与供应商下拉读，与 permission.rs 的 production_manager
   // 及迁移 m0097 同口径（三通道锁）。
   production_manager: ['greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
