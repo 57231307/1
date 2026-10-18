@@ -25,7 +25,10 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderName, HeaderValue, StatusCode, header::CONTENT_TYPE},
+    http::{
+        HeaderName, HeaderValue, StatusCode,
+        header::{CONTENT_TYPE, SET_COOKIE},
+    },
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -256,6 +259,12 @@ const MAX_REJECTION_BODY_BYTES: usize = 64 * 1024;
 /// + 固定公开规则文案 [`crate::utils::error::REQUEST_DECODING_PUBLIC`]），
 /// trace_id/timestamp 复用 `AppError::into_response` 的既有同源路径。
 /// 响应体读取失败（断链等）时不静默放行残破响应：记 ERROR 后同样转信封。
+///
+/// CSRF 凭据头必须活过信封替换：`middleware/csrf.rs` 在消费成功后把轮换出的
+/// `Set-Cookie` append 到内层响应上（403 恢复通道另附 `x-new-csrf-token`），而本
+/// 函数新建响应对象。提取器拒绝点位于 csrf 内层，若不搬运这两枚头，客户端会在一
+/// 次"请求体不合法"之后白丢一次一次性 token，下一次写请求必吃 CSRF 403。
+/// 只搬这两枚，其余头（含 text/plain 的 content-type/content-length）随旧响应丢弃。
 async fn normalize_extractor_rejection(
     response: Response,
     method: &str,
@@ -282,7 +291,7 @@ async fn normalize_extractor_rejection(
         return response;
     }
 
-    let (_parts, body) = response.into_parts();
+    let (parts, body) = response.into_parts();
     let raw = match axum::body::to_bytes(body, MAX_REJECTION_BODY_BYTES).await {
         Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
         Err(e) => {
@@ -295,6 +304,19 @@ async fn normalize_extractor_rejection(
             String::from("<响应体读取失败>")
         }
     };
+    // 先摘出 csrf 层的凭据头（可能多枚 Set-Cookie），再落日志、再建信封。
+    let credential_headers: Vec<(HeaderName, HeaderValue)> =
+        [SET_COOKIE, HeaderName::from_static("x-new-csrf-token")]
+            .into_iter()
+            .flat_map(|name| {
+                parts
+                    .headers
+                    .get_all(name.clone())
+                    .iter()
+                    .cloned()
+                    .map(move |value| (name.clone(), value))
+            })
+            .collect();
     // 不吞原因：serde 原文逐条进日志（warn 级，属客户端可修正的 LOW 族），
     // 只不外进 HTTP 出参——原文可能含结构体名/类型路径/行列号，属内部详情。
     tracing::warn!(
@@ -303,9 +325,14 @@ async fn normalize_extractor_rejection(
         query = %query,
         original_status = %status,
         raw_rejection = %raw,
+        credential_headers_carried = credential_headers.len(),
         "extractor.rejection_normalized：axum 提取器拒绝（纯文本、无机器码）已转统一 AppError 信封（400 + code=VALIDATION_ERROR），serde 原文只进本日志不外显"
     );
-    AppError::request_decoding_failed().into_response()
+    let mut envelope = AppError::request_decoding_failed().into_response();
+    for (name, value) in credential_headers {
+        envelope.headers_mut().append(name, value);
+    }
+    envelope
 }
 
 /// panic 捕获层：把请求处理链任意内层抛出的 panic 转成**完整的 `AppError` 信封**。

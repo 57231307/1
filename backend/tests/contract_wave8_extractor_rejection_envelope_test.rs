@@ -43,8 +43,8 @@ use axum::{
     Json, Router,
     body::Body,
     extract::Request,
-    http::StatusCode,
-    middleware::from_fn,
+    http::{HeaderName, HeaderValue, StatusCode},
+    middleware::{Next, from_fn},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -660,5 +660,103 @@ async fn json_envelope_responses_do_not_log_normalize_hit() {
     assert!(
         !text.contains("extractor.rejection_normalized"),
         "JSON 信封响应绝不该被记成提取器归一事件，实际日志:\n{text}"
+    );
+}
+
+// ============================================================================
+// 锁 9：归一替换响应体时必须搬运 CSRF 一次性凭据头
+//
+// 调用链事实：csrf 层在 `next.run` 返回的内层响应上 append 轮换 `Set-Cookie`
+// （403 恢复通道另附 `x-new-csrf-token`），而 `normalize_extractor_rejection`
+// 用 `AppError::into_response()` 新建响应。提取器拒绝点比 csrf 更内层，因此不搬运
+// 即等于让客户端在一次"请求体不合法"后白丢一枚一次性 token。
+// ============================================================================
+
+/// 模拟 csrf 层的凭据下发（内层），与 [`catch_panic_middleware`]（外层）组合成
+/// 生产洋葱的真实相对次序：handler 到内层再到外层。
+async fn credential_issuing_layer(request: Request, next: Next) -> Response {
+    let mut resp = next.run(request).await;
+    resp.headers_mut().append(
+        axum::http::header::SET_COOKIE,
+        HeaderValue::from_static("csrf_token=rotated-by-csrf-layer; Path=/; HttpOnly"),
+    );
+    resp.headers_mut().insert(
+        HeaderName::from_static("x-new-csrf-token"),
+        HeaderValue::from_static("rotated-by-csrf-layer"),
+    );
+    resp
+}
+
+fn build_app_with_csrf_layer() -> Router {
+    Router::new()
+        .route("/probe/lock-json", post(probe_lock_json))
+        .layer(from_fn(credential_issuing_layer))
+        .layer(from_fn(catch_panic_middleware))
+}
+
+/// 正向钉：畸形 JSON 被归一成 400 信封后，两枚 CSRF 凭据头仍在，且信封四键形状不变。
+#[tokio::test]
+async fn normalized_envelope_keeps_csrf_credential_headers() {
+    let resp = build_app_with_csrf_layer()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/probe/lock-json")
+                .header("content-type", "application/json")
+                .body(Body::from("{\"order_no\": \"SO-1\"}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let cookies = resp
+        .headers()
+        .get_all(axum::http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter(|v| v.contains("csrf_token=rotated-by-csrf-layer"))
+        .count();
+    assert_eq!(
+        cookies, 1,
+        "归一后必须保留 csrf 层下发的轮换 Set-Cookie，实际命中 {cookies} 条"
+    );
+    assert_eq!(
+        resp.headers()
+            .get(HeaderName::from_static("x-new-csrf-token"))
+            .and_then(|v| v.to_str().ok()),
+        Some("rotated-by-csrf-layer"),
+        "归一后必须保留 csrf 层的 x-new-csrf-token 恢复头"
+    );
+
+    let (status, content_type, text, json) = read_response(resp).await;
+    let v = json.expect("凭据搬运不得破坏归一封面的 JSON 形状");
+    assert_normalized_envelope(status, &content_type, &text, &v);
+}
+
+/// 负向对照：没有凭据层时归一响应本就不该凭空多出这两枚头（证明上一条钉的是搬运，
+/// 而不是 `AppError::into_response` 自己会签发 token）。
+#[tokio::test]
+async fn normalized_envelope_without_csrf_layer_has_no_credential_headers() {
+    let resp = build_app()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/probe/lock-json")
+                .header("content-type", "application/json")
+                .body(Body::from("{\"order_no\": \"SO-1\"}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        !resp.headers().contains_key(axum::http::header::SET_COOKIE),
+        "无 csrf 层时不应凭空出现 Set-Cookie"
+    );
+    assert!(
+        !resp
+            .headers()
+            .contains_key(HeaderName::from_static("x-new-csrf-token")),
+        "无 csrf 层时不应凭空出现 x-new-csrf-token"
     );
 }
