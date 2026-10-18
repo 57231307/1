@@ -51,7 +51,10 @@ function annotate(msg) {
 }
 
 // ---------------------------------------------------------------- 1. 解析 workflow
-const wf = readFileSync(WORKFLOW_PATH, 'utf8');
+// 行尾归一：本地工作区（autocrlf）是 CRLF、CI 检出是 LF，解析锚点（"run: |\n" 等）
+// 对 \r 敏感。先统一成 LF，本地复演与 CI 执行看到同一份文本，避免本地恒报
+// "提不到 step 体"的假红把真实漂移（如 step 结构改写）淹没在噪声里。
+const wf = readFileSync(WORKFLOW_PATH, 'utf8').replace(/\r\n/g, '\n');
 
 // ci-e2e job 文本块：从 "  ci-e2e:" 到下一个顶层 job key（两空格缩进的 "  <id>:"）
 const ciE2eStart = wf.indexOf('\n  ci-e2e:');
@@ -70,15 +73,48 @@ if (matrixShards.length === 0) {
   process.exit(1);
 }
 
-// 跑测 step 的 bash 体：从 "name: 运行 E2E 测试" 的 run: | 到下一个 "- name:"
-const stepM = ciE2eBlock.match(
-  /- name: 运行 E2E 测试[^\n]*\n(?:[^\n]*\n)*?\s+run: \|\n([\s\S]*?)\n\s*- name: /
-);
-if (!stepM) {
-  annotate('无法提取「运行 E2E 测试」step 的 bash 体（step 名或 run: | 结构漂移）');
+// 跑测 step 的 bash 体定位：不依赖 step 显示名（显示名带矩阵后缀、随编排改写漂移，
+// 按固定名匹配会随矩阵演进静默失配），改按 run 内容特征在 ci-e2e 块内逐个 step
+// 段落里找"矩阵分片调度"体（含 SHARD=${{ matrix.shard }} 赋值行的 run: | 块）。
+// fail-closed：命中数必须恰好为 1。0 = 分片编排中找不到执行事实（结构漂移/锚点被删），
+// >1 = 分片调度出现两处事实来源、无法保证校验的就是真实执行的那份；两种情况都判红，
+// 绝不"取第一个匹配"或"提不到就跳过校验"。
+const FEATURE = 'SHARD=${{ matrix.shard }}';
+const stepStarts = [...ciE2eBlock.matchAll(/^ {6}- name: ([^\n]*)$/gm)];
+const shardRunBodies = [];
+for (let i = 0; i < stepStarts.length; i++) {
+  const seg = ciE2eBlock.slice(
+    stepStarts[i].index,
+    i + 1 < stepStarts.length ? stepStarts[i + 1].index : ciE2eBlock.length
+  );
+  const runM = seg.match(/^ {8}run: \|\n/m);
+  if (!runM) continue;
+  let body = seg.slice(runM.index + runM[0].length);
+  // block scalar 内容缩进深于 step 键（8 空格）；首个 ≤8 空格缩进的非空行即键区结束
+  const dedent = body.match(/^ {0,8}\S/m);
+  if (dedent) body = body.slice(0, dedent.index);
+  if (body.includes(FEATURE)) {
+    if (body.trim().length === 0) {
+      annotate('step「' + stepStarts[i][1] + '」的 run 体命中分片特征但内容为空，判为解析异常');
+      process.exit(1);
+    }
+    shardRunBodies.push({ name: stepStarts[i][1], body });
+  }
+}
+if (shardRunBodies.length !== 1) {
+  if (shardRunBodies.length === 0)
+    annotate(
+      '在 ci-e2e 块内按内容特征（' + FEATURE + '）未定位到任何跑测 step 的 bash 体：分片编排解析锚点漂移，拒绝把"看不见"当作无覆盖问题'
+    );
+  else
+    annotate(
+      `ci-e2e 块内分片调度特征命中 ${shardRunBodies.length} 个 run 体（${shardRunBodies
+        .map(b => b.name)
+        .join(' / ')}）：分片编排出现多处事实来源，必须先收敛为一处再自检，拒绝择一核算`
+    );
   process.exit(1);
 }
-const bash = stepM[1];
+const bash = shardRunBodies[0].body.replace(/\n+$/, '');
 
 // 三类目录分支：if/elif 的 "$SHARD" -le 阈值按出现顺序 = flow / smoke / traversal
 const conds = [...bash.matchAll(/\[ "\$SHARD" -le (\d+) \]; then/g)].map(m => ({
