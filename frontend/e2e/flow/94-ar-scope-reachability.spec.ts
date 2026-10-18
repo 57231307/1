@@ -6,7 +6,8 @@
 // （行级门脱敏文案与 RBAC 直出文案只用于归因分类，禁止拿中文整串相等当判据）；
 // 被拒写动作之后一律回到 owner 会话读回，证明状态与数据零漂移。
 // 角色账号一律取 global-setup 角色矩阵真实凭证在隔离 context 独立登录（不允许同账号自测
-// 的假越权）；角色数据范围取值先经 /roles 回读坐实，种子口径漂移时显式判红而非静默改判。
+// 的假越权）；角色数据范围取值先经角色详情端点回读坐实（列表端点不下发该列），
+// 种子口径漂移时显式判红而非静默改判。
 import { type Browser } from '@playwright/test';
 import { test, expect } from '../diagnose-fixture';
 import {
@@ -55,6 +56,22 @@ test.afterEach(async ({ page }) => {
 function requireNum(v: unknown, label: string): number {
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
+  return n;
+}
+
+/** 读取会话出参里的 department_id：键必须存在（缺键=契约漂移判红），null 表示未分配部门 */
+function readDeptId(session: Row, label: string): number | null {
+  if (!Object.prototype.hasOwnProperty.call(session, 'department_id')) {
+    throw new Error(
+      `${label} 会话出参缺 department_id 键，实际键=${Object.keys(session).join(',')}`
+    );
+  }
+  const v = session.department_id;
+  if (v === null) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`${label} department_id 非有效数值：${JSON.stringify(v)}`);
+  }
   return n;
 }
 
@@ -222,8 +239,8 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
   }) => {
     const owner = await seedOrderAsOwner(page);
 
-    // 角色 data_scope 经 /roles 真实回读（新建角色默认 self；口径漂移时显式抛错交种子判责）。
-    // GET /roles 出参契约是 {roles,total}，该列表端点不接收分页参数，拼 page/page_size 会被静默忽略。
+    // 回读通道按契约选择：/roles 列表项只下发 id/name/code 等基础列、不含 data_scope，
+    // 该列由角色详情端点逐角色下发；先用列表定位角色 id，再经详情回读真实口径。
     const roles = await apiCallRaw<Row>(page, 'GET', '/roles');
     if (!Array.isArray(roles.roles)) {
       throw new Error(
@@ -233,35 +250,64 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
     const managerRole = (roles.roles as Row[]).find(r => r.code === 'sales_manager');
     expect(
       managerRole,
-      '前置：sales_manager 角色必须由 setup 种入（global-setup SEED_ROLES 清单内，缺即种子缺陷）'
+      '前置：sales_manager 角色必须由种子建立（后端初始化补建或 setup 补建，缺即种子缺陷）'
     ).toBeTruthy();
+    const managerRoleId = requireNum(managerRole!.id, 'sales_manager 角色 id');
+    const managerDetail = await apiCallRaw<Row>(page, 'GET', `/roles/${managerRoleId}`);
+    const scopeRaw = managerDetail.data_scope;
+    if (typeof scopeRaw !== 'string') {
+      throw new Error(
+        `角色详情必须下发 data_scope 字符串，实际类型=${typeof scopeRaw} ` +
+          `值=${JSON.stringify(scopeRaw)}，实际键=${Object.keys(managerDetail).join(',')}`
+      );
+    }
+    const scope = scopeRaw;
+    // 写入侧口径：初始化种子为该角色写 dept，经接口补建的新角色后端默认 self——
+    // 比较点与写入值逐字符相同；落在两者之外=口径漂移，显式判红点名当前值，先改种子再改判据。
     expect(
-      String(managerRole!.data_scope),
-      `sales_manager data_scope 预期 self（种子口径漂移需先改种子再改判据），实际=${JSON.stringify(managerRole!.data_scope)}`
-    ).toBe('self');
+      scope === 'dept' || scope === 'self',
+      `sales_manager data_scope 必须落在写入侧口径（dept=初始化种子值，self=接口新建默认值），当前值=${JSON.stringify(scope)}`
+    ).toBe(true);
 
     const mgr = await openRoleSession(browser, 'sales_manager');
     try {
       const list = await apiCallRaw<Row>(mgr.page, 'GET', '/sales/orders?page=1&page_size=200');
       expect(
         Array.isArray((list as Row).items),
-        'sales_manager 订单列表应 2xx 且含 items（RBAC 过门正证明）'
+        'sales_manager 订单列表应 2xx 且含 items（RBAC orders:read 过门正证明，后续 403 只可能来自行级门）'
       ).toBe(true);
       const rows = (list as Row).items as Row[];
-      expect(
-        rows.some(r => Number(r.id) === owner.id),
-        `self 范围下他人订单 id=${owner.id} 必须不可见`
-      ).toBe(false);
       const me = await apiCallRaw<Row>(mgr.page, 'GET', '/auth/me');
       const mgrId = requireNum(me.id, 'manager 会话 id');
+      const mgrDept = readDeptId(me, 'sales_manager 会话');
+      // 可见集按语义验：self 口径仅本人行；dept 口径在账号未分配部门时无可见成员集合、
+      // 后端过滤构造器退化为仅本人，两口径在本夹具形态下判据等价。
+      // 若账号已分配部门，dept 可见集须按部门成员集合逐行归属坐实，
+      // 本套件角色账号无部门分配通道、成员读通道未提供——如实判红交夹具判责，禁止放宽。
+      if (scope === 'dept' && mgrDept !== null) {
+        throw new Error(
+          `sales_manager 账号已分配部门（department_id=${mgrDept}）：dept 可见集需按部门成员集合逐行归属，` +
+            '本套件未提供成员读通道，该形态不可判——如实判红交夹具判责，禁止放宽成只断字段存在'
+        );
+      }
+      expect(
+        rows.some(r => Number(r.id) === owner.id),
+        `${scope} 口径（无可见成员退化仅本人）下他人订单 id=${owner.id} 必须不可见`
+      ).toBe(false);
       for (const r of rows) {
         if (Object.prototype.hasOwnProperty.call(r, 'created_by') && r.created_by !== null) {
-          expect(Number(r.created_by), `self 可见行必须归属自己（行 ${r.id}）`).toBe(mgrId);
+          expect(
+            Number(r.created_by),
+            `${scope} 口径退化仅本人时可见行必须归属自己（行 ${r.id}）`
+          ).toBe(mgrId);
         }
       }
       const fDetail = await apiCallExpectFail(mgr.page, 'GET', `/sales/orders/${owner.id}`);
       expectDenied(fDetail, 'sales_manager 读他人订单详情');
-      expect(String(fDetail.message ?? '')).toBe(DATA_SCOPE_403_MESSAGE);
+      expect(
+        classifyDenialLayer(fDetail.message),
+        `sales_manager 越权 403 必须归因到行级数据范围门（读码已过门为列表 200 所证），实际 message=${JSON.stringify(fDetail.message)}`
+      ).toBe('data-scope');
     } finally {
       await mgr.close();
     }
