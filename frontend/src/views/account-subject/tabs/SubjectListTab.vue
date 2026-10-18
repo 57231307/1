@@ -11,7 +11,8 @@
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>{{ $t('accountSubject.create') }}
         </el-button>
-        <el-button v-permission="'account_subject.export'" @click="handleExport">
+        <!-- 科目面资源段是 subjects（根级直接挂载），导出面键按 GET /subjects/export 末段派生 -->
+        <el-button v-permission="PERMISSIONS.SUBJECT_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>{{ $t('accountSubject.export') }}
         </el-button>
       </div>
@@ -101,8 +102,9 @@
         </el-table-column>
         <el-table-column :label="$t('accountSubject.table.operation')" width="160" fixed="right">
           <template #default="{ row }">
+            <!-- 编辑/删除面的权限键按 PUT 与 DELETE /subjects/{id} 的路径段派生为 subjects 资源 -->
             <el-button
-              v-permission="'account_subject:update'"
+              v-permission="PERMISSIONS.SUBJECT_UPDATE"
               type="primary"
               link
               size="small"
@@ -110,7 +112,7 @@
               >{{ $t('accountSubject.table.edit') }}</el-button
             >
             <el-button
-              v-permission="'account_subject:delete'"
+              v-permission="PERMISSIONS.SUBJECT_DELETE"
               type="danger"
               link
               size="small"
@@ -215,6 +217,7 @@ import {
 } from '@/api/account-subject';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 

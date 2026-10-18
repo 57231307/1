@@ -174,7 +174,12 @@ export const PERMISSIONS = {
   COST_COLLECTION_CREATE: 'cost-collections:create',
   COST_COLLECTION_UPDATE: 'cost-collections:update',
   COST_COLLECTION_DELETE: 'cost-collections:delete',
-  COST_COLLECTION_APPROVE: 'cost-collections:approve',
+  // 审核面的动作键由端点末段派生：挂载是 POST /production/cost-collections/{id}/audit，
+  // 末段 audit 属后端 PATH_ACTION_KEYWORDS，通过或拒绝由请求体 approved 承载，
+  // 因此两个入口共用 audit 键（没有 approve 端点，也就不存在 approve 键）。
+  COST_COLLECTION_AUDIT: 'cost-collections:audit',
+  // 导出面键由端点路径末段派生（GET /production/cost-collections/export），与读权限分键
+  COST_COLLECTION_EXPORT: 'cost-collections:export',
 
   // 质量标准（后端资源：quality-standards）
   QUALITY_STANDARD_READ: 'quality-standards:read',
@@ -232,6 +237,9 @@ export const PERMISSIONS = {
   VOUCHER_UPDATE: 'vouchers:update',
   VOUCHER_DELETE: 'vouchers:delete',
   VOUCHER_APPROVE: 'vouchers:approve',
+  // 导出面键由端点路径末段派生（GET /vouchers/export）；列表页的打印入口只把已读到的行交给
+  // 浏览器本地打印，不落后端打印端点，故该入口的门控取读面键 VOUCHER_READ。
+  VOUCHER_EXPORT: 'vouchers:export',
 
   // 预算（后端资源：budgets）
   BUDGET_READ: 'budgets:read',
@@ -246,11 +254,45 @@ export const PERMISSIONS = {
   // 审计日志（后端资源：audit-logs）
   AUDIT_READ: 'audit-logs:read',
 
-  // 财务（后端资源：finance）
+  // 财务域粗域键：后端没有名为 finance 的 resource 段（finance 只是 URL 模块前缀），
+  // finance:read 的可放行集合由 router 的 COARSE_DOMAIN_RESOURCES.finance 细资源并集解释，
+  // 供财务各功能页的页面级门控使用；页面内按钮一律用下面各资源的派生真名键，不得用本粗键兼职。
   FINANCE_READ: 'finance:read',
-  FINANCE_CREATE: 'finance:create',
-  FINANCE_UPDATE: 'finance:update',
-  FINANCE_DELETE: 'finance:delete',
+
+  // 应付发票（后端资源：ap-invoices；URL 段 ap/invoices 经 path_utils 的 RESOURCE_NAME_MAP
+  // 消歧后与 PERMISSION_RESOURCES 在册名同词）。列表页打印入口只做浏览器本地打印、
+  // 不落后端打印端点，故门控取读面键 AP_INVOICE_READ。
+  AP_INVOICE_READ: 'ap-invoices:read',
+  AP_INVOICE_EXPORT: 'ap-invoices:export',
+
+  // 应收发票（后端资源：ar-invoices，与应付同型随域改名）
+  AR_INVOICE_READ: 'ar-invoices:read',
+  AR_INVOICE_EXPORT: 'ar-invoices:export',
+
+  // 财务报表（后端资源：finance 前缀加报表段；URL 形如 /finance/reports/<报表段>，
+  // 跳段后仍由 RESOURCE_NAME_MAP 消歧，六个报表面各自一个资源名，互不代偿）
+  FINANCE_BALANCE_SHEET_READ: 'finance-balance-sheet:read',
+  FINANCE_INCOME_STATEMENT_READ: 'finance-income-statement:read',
+  FINANCE_CASH_FLOW_READ: 'finance-cash-flow:read',
+  FINANCE_TRIAL_BALANCE_READ: 'finance-trial-balance:read',
+  FINANCE_GENERAL_LEDGER_READ: 'finance-general-ledger:read',
+  FINANCE_SUBSIDIARY_LEDGER_READ: 'finance-subsidiary-ledger:read',
+
+  // 会计科目（后端资源：subjects，根级直接资源；导出面 GET /subjects/export 末段派生）
+  SUBJECT_READ: 'subjects:read',
+  SUBJECT_UPDATE: 'subjects:update',
+  SUBJECT_DELETE: 'subjects:delete',
+  SUBJECT_EXPORT: 'subjects:export',
+
+  // 财务分析（后端资源：financial-analysis，根级直接资源；读写面走 /financial-analysis/reports）
+  FINANCIAL_ANALYSIS_UPDATE: 'financial-analysis:update',
+  FINANCIAL_ANALYSIS_DELETE: 'financial-analysis:delete',
+
+  // 资金管理（后端资源：fund-management，根级直接资源；建户面 POST /fund-management/accounts）
+  FUND_MANAGEMENT_CREATE: 'fund-management:create',
+
+  // 固定资产（后端资源：fixed-assets，根级直接资源；导出面 GET /fixed-assets/export）
+  FIXED_ASSET_EXPORT: 'fixed-assets:export',
 
   // 消息通知（后端资源：notifications）
   NOTIFICATION_READ: 'notifications:read',
