@@ -54,9 +54,14 @@ function toScaled(v: unknown, scale: number, label: string): bigint {
   if (frac.length > scale && frac.slice(scale).replace(/0+$/, '') !== '') {
     throw new Error(`${label}：出参标度 ${frac.length} 位超出断言精度 ${scale} 位且非零，raw="${s}"`);
   }
-  const padded = (intPart + frac).padEnd(intPart.length + scale, '0');
-  const value = BigInt(padded);
-  return sign === '-' ? -value : value;
+  // 按字符串实际小数位定标：小数位多于目标标度时整除降位（降位尾数已由上面的非零检查拦下），
+  // 少于目标标度时补零升位；全程 BigInt 十进制定点，不经过 JS number/parseFloat。
+  const digits = BigInt(`${intPart}${frac}`);
+  const shifted =
+    scale >= frac.length
+      ? digits * 10n ** BigInt(scale - frac.length)
+      : digits / 10n ** BigInt(frac.length - scale);
+  return sign === '-' ? -shifted : shifted;
 }
 
 /** 金额断言（2 位小数=分位） */
@@ -80,6 +85,54 @@ function requireNum(v: unknown, label: string): number {
   if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
 }
+
+// 分位换算自证表：toScaled 必须按字符串实际小数位定标（值×10^scale），
+// 覆盖标度 0 到 6、整数出参、2 位与 4 位小数出参、负数与纯小数、非法形态与截尾守卫。
+test('90-00 工具自证：toScaled 按实际小数位定标（scale 0 到 6 逐值）', () => {
+  const exactCases: Array<readonly [string | number, number, bigint]> = [
+    ['120', 0, 120n],
+    ['120', 1, 1200n],
+    ['120', 2, 12000n],
+    ['120', 3, 120000n],
+    ['120', 4, 1200000n],
+    ['120', 5, 12000000n],
+    ['120', 6, 120000000n],
+    ['220.00', 0, 220n],
+    ['220.00', 1, 2200n],
+    ['220.00', 2, 22000n],
+    ['220.00', 3, 220000n],
+    ['220.00', 4, 2200000n],
+    ['220.00', 6, 220000000n],
+    ['200.0000', 2, 20000n],
+    ['200.0000', 4, 2000000n],
+    ['120.0000', 2, 12000n],
+    ['-1.5', 1, -15n],
+    ['-1.5', 2, -150n],
+    ['-1.5', 4, -15000n],
+    ['-1.5', 6, -1500000n],
+    ['0.000123', 6, 123n],
+    [200, 2, 20000n],
+    [200.5, 2, 20050n],
+  ];
+  for (const [input, scale, expected] of exactCases) {
+    expect(
+      toScaled(input, scale, `自证 ${JSON.stringify(input)}@${scale}`),
+      `换算 ${JSON.stringify(input)} scale=${scale}：期望=${expected}`
+    ).toBe(expected);
+  }
+  // 降位尾数非零必须抛错（静默截断=掩盖标度异常）
+  const truncationCases: Array<readonly [string, number]> = [
+    ['1.2345', 2],
+    ['0.000123', 4],
+    ['-1.5', 0],
+  ];
+  for (const [input, scale] of truncationCases) {
+    expect(() => toScaled(input, scale, `自证截尾 ${input}@${scale}`)).toThrow(/非零/);
+  }
+  // 出参形态守卫：非十进制字符串与非 string|number 一律抛错
+  expect(() => toScaled('1e3', 2, '自证形态')).toThrow(/形态非法/);
+  expect(() => toScaled({ v: '1' }, 2, '自证形态')).toThrow(/非 string\|number/);
+});
 
 /** 按四维元组回读库存行（缺行即红，不做兜底空对象） */
 async function readStockRow(
