@@ -1,8 +1,7 @@
 //! 角色权限矩阵与互斥规则子模块（init_service_ops/permission）
 //!
-//! 从原 `init_service.rs` 迁移 2 个方法：
+//! 从原 `init_service.rs` 迁移 1 个方法：
 //! - create_default_role_permissions：为全部角色创建 role_permission 权限矩阵（覆盖 60+ 资源 × 11 操作码）
-//! - create_default_role_conflicts：初始化默认角色互斥规则（SoD 职责分离）
 //!
 //! 授权落库口径（E6 根修，本模块唯一判据）：矩阵的幂等按**角色 × (resource,action)
 //! 逐条对账**，不再用"role_permissions 表整体有行就跳过"；三类缺口一律 fail-visible 点名报错，
@@ -20,7 +19,7 @@
 //! （①②③ 各钉一条：真库回读授权行确实存在、重放逐条等价、缺角色时点名判红且零写入）。
 use std::collections::{HashMap, HashSet};
 
-use crate::models::{role, role_conflict, role_permission};
+use crate::models::{role, role_permission};
 use crate::services::init_service::{InitError, InitService, PERMISSION_RESOURCES};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use tracing::warn;
@@ -1387,116 +1386,5 @@ impl InitService {
                 ],
             ),
         ]
-    }
-
-    /// 初始化默认角色互斥规则（SoD 职责分离，幂等）
-    pub(crate) async fn create_default_role_conflicts(&self) -> Result<(), InitError> {
-        // 幂等检查：表已有记录则跳过
-        let existing_count = role_conflict::Entity::find()
-            .count(self.db.as_ref())
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("查询 role_conflicts 失败: {}", e)))?;
-        if existing_count > 0 {
-            return Ok(());
-        }
-
-        // 默认互斥角色对（role_a_code < role_b_code 字典序约定）
-        // 来源：经典 SoD 职责分离 + 面料行业业务场景
-        let conflicts: &[(&str, &str, &str, &str)] = &[
-            // (role_a_code, role_b_code, conflict_type, description)
-            (
-                "accounting_clerk",
-                "financial_manager",
-                "sod",
-                "制单与审核分离：会计员不可兼任财务经理",
-            ),
-            (
-                "purchase_clerk",
-                "purchase_manager",
-                "sod",
-                "采购制单与采购审批分离",
-            ),
-            (
-                "purchase_manager",
-                "finance_manager",
-                "sod",
-                "采购审批与付款审批分离",
-            ),
-            (
-                "sales_clerk",
-                "sales_manager",
-                "sod",
-                "销售制单与销售审批分离",
-            ),
-            (
-                "production_worker",
-                "quality_inspector",
-                "sod",
-                "生产执行与质量检验分离",
-            ),
-            (
-                "production_manager",
-                "quality_manager",
-                "sod",
-                "生产管理与质量管理分离",
-            ),
-            (
-                "warehouse_keeper",
-                "purchase_clerk",
-                "sod",
-                "入库与采购分离，防止自采自收",
-            ),
-            (
-                "warehouse_keeper",
-                "sales_clerk",
-                "sod",
-                "出库与销售分离，防止自销自发",
-            ),
-            (
-                "admin",
-                "quality_inspector",
-                "sod",
-                "管理员与质检员互斥（管理员不应直接执行质检）",
-            ),
-            // 系统运维与财务、出纳互斥：系统更新可替换运行二进制属最高危特权，
-            // 不得与资金收付、付款审批同人兼岗，避免既掌握系统底座又掌握资金出口。
-            // 与 admin 不互斥（admin 本就同时具备两类能力，通配旁路；互斥只针对 ops 这一
-            // 新设专职运维岗与业务财务岗的兼岗约束）。
-            (
-                "cashier",
-                "ops",
-                "sod",
-                "出纳资金收付与系统更新运维分离，防止既管系统底座又管资金出口",
-            ),
-            (
-                "finance_manager",
-                "ops",
-                "sod",
-                "财务审批与系统更新运维分离，职责互斥",
-            ),
-        ];
-
-        let now = chrono::Utc::now();
-        let models: Vec<role_conflict::ActiveModel> = conflicts
-            .iter()
-            .map(|(a, b, ctype, desc)| role_conflict::ActiveModel {
-                id: Default::default(),
-                role_a_code: Set(a.to_string()),
-                role_b_code: Set(b.to_string()),
-                conflict_type: Set(ctype.to_string()),
-                description: Set(Some(desc.to_string())),
-                created_at: Set(now),
-                updated_at: Set(now),
-            })
-            .collect();
-
-        if let Err(e) = role_conflict::Entity::insert_many(models)
-            .exec(self.db.as_ref())
-            .await
-        {
-            warn!("批量创建角色互斥规则失败: {}, 可能部分已存在", e);
-        }
-
-        Ok(())
     }
 }

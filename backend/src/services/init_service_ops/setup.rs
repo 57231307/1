@@ -123,9 +123,6 @@ impl InitService {
         // V15 P0-S03 修复：为 manager/operator 创建基本 role_permission 记录
         self.create_default_role_permissions().await?;
 
-        // V15 P0-S23 修复：初始化默认角色互斥规则（SoD 职责分离）
-        self.create_default_role_conflicts().await?;
-
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
 
