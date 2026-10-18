@@ -1202,12 +1202,30 @@ async function getCsrfToken(page: Page): Promise<string> {
 }
 
 /**
- * 把一个 csrf_token 写入浏览器上下文 Cookie（非 httpOnly，前端 document.cookie 可读）。
- * 域取 url 的 hostname；域名不匹配等异常静默降级（交由各请求的 403 恢复路径兜底）。
+ * csrf token 指纹：只暴露长度与非可逆哈希（djb2），不落 token 原文，
+ * 供自证失败时区分"读到哪一条"而不泄露凭证。
  */
-async function writeCsrfCookie(page: Page, url: string, value: string): Promise<void> {
+function csrfFingerprint(value: string): string {
+  let h = 5381;
+  for (let i = 0; i < value.length; i++) h = ((h << 5) + h + value.charCodeAt(i)) >>> 0;
+  return `len=${value.length}#djb2=${h.toString(16)}`;
+}
+
+/**
+ * 把一个 csrf_token 写入浏览器上下文 Cookie（非 httpOnly，前端 document.cookie 可读）。
+ *
+ * 后端 csrf.rs 下发的 csrf_token 是 host-only cookie（无 Domain 属性）；带 domain 属性的
+ * addCookies 落库的是另一条记录——同名同 path 在浏览器 jar 里与 host-only 记录并存，
+ * 页面 document.cookie 与 context.cookies() 按各自顺序取到先落库的已消费旧值，
+ * 于是"探测回写了存活 token、页面随后仍带旧 token 吃 403"。因此这里先按名字清除 jar 内
+ * 全部 csrf_token（host-only 与域记录一并清掉），再写入唯一一条，保证回写后同名只有一条
+ * 且它是存活值；返回写入的值供调用方做页面可见性自证。域名不匹配等异常仍静默降级
+ * （交由各请求的 403 恢复路径兜底），返回 null 表示未写入。
+ */
+async function writeCsrfCookie(page: Page, url: string, value: string): Promise<string | null> {
   try {
     const urlObj = new URL(url);
+    await page.context().clearCookies({ name: 'csrf_token' });
     await page.context().addCookies([
       {
         name: 'csrf_token',
@@ -1220,8 +1238,10 @@ async function writeCsrfCookie(page: Page, url: string, value: string): Promise<
         expires: Math.floor(Date.now() / 1000) + 1800,
       },
     ]);
+    return value;
   } catch {
     // addCookies 异常（如域名不匹配）不阻塞——降级到下一次 403 恢复路径
+    return null;
   }
 }
 
@@ -1233,7 +1253,11 @@ async function writeCsrfCookie(page: Page, url: string, value: string): Promise<
  * 合并行为变化（Playwright >= 1.40 的 headers() 不保证返回 set-cookie），下一次 getCsrfToken
  * 也一定能读到最新轮换后的 token，杜绝因使用已消费 token 导致的不必要 403。
  */
-async function syncCsrfFromResponse(page: Page, response: APIResponse, url: string): Promise<void> {
+async function syncCsrfFromResponse(
+  page: Page,
+  response: APIResponse,
+  url: string
+): Promise<string | null> {
   let csrfValue: string | undefined;
 
   // 优先从 headersArray 中逐项匹配 Set-Cookie（Playwright 文档明确 headersArray 保留
@@ -1264,8 +1288,8 @@ async function syncCsrfFromResponse(page: Page, response: APIResponse, url: stri
     if (recovery) csrfValue = recovery;
   }
 
-  if (!csrfValue) return;
-  await writeCsrfCookie(page, url, csrfValue);
+  if (!csrfValue) return null;
+  return writeCsrfCookie(page, url, csrfValue);
 }
 
 async function refreshCsrfToken(page: Page): Promise<string> {
@@ -1342,8 +1366,10 @@ async function replayAfterCsrfRejection(
  *   · 传入 token 存活 → 被消费并轮换，响应 Set-Cookie 带新活 token → syncCsrfFromResponse 取回；
  *   · 传入 token 已死 → 403 CSRF_* + x-new-csrf-token 恢复头（服务端已登记）→ 采用恢复 token。
  * 无论哪种，探测结束后会话上下文都持有一个存活 csrf，短路返回后不再撞首轮 403。
+ * 返回本次探测写回的存活 token 值，供 ensureLiveCsrfForUI 做页面可见性自证；
+ * 探测请求异常未能取得时返回 null（由调用方决定是否判红）。
  */
-async function probeCsrfLiveness(page: Page): Promise<void> {
+async function probeCsrfLiveness(page: Page): Promise<string | null> {
   const url = `${API_BASE}${API_PREFIX}/webhooks`;
   const token = await getCsrfToken(page).catch(e => {
     console.warn(`[loginViaUI] csrf 活性探测：读取当前 csrf_token 失败: ${(e as Error).message}`);
@@ -1364,23 +1390,81 @@ async function probeCsrfLiveness(page: Page): Promise<void> {
   } catch (e) {
     // 探测请求本身网络异常：不阻塞登录（交由后续 apiCall / 前端的 403 恢复兜底），仅告警
     console.warn(`[loginViaUI] csrf 活性探测请求异常（跳过探测）: ${(e as Error).message}`);
-    return;
+    return null;
   }
   const recovery = resp.headers()['x-new-csrf-token'];
   if (recovery) {
-    await writeCsrfCookie(page, url, recovery);
     console.log('[loginViaUI] csrf 活性探测：原 token 已失效，已采用后端下发的恢复 token');
-  } else {
-    await syncCsrfFromResponse(page, resp, url);
-    console.log('[loginViaUI] csrf 活性探测：token 存活并已轮换回写');
+    return writeCsrfCookie(page, url, recovery);
+  }
+  console.log('[loginViaUI] csrf 活性探测：token 存活并已轮换回写');
+  return syncCsrfFromResponse(page, resp, url);
+}
+
+/**
+ * 在「UI 将发起本次会话的首个写请求」之前，把浏览器上下文的 csrf_token 归一为存活 token。
+ *
+ * 适用判据：用例先用 apiCall/apiCallRaw/apiCallExpectFail 发过写请求（helper 会把后端轮换出的
+ * token 回写 cookie 序列），随后由页面交互触发 UI 写请求。CSRF token 一次性消费且每次写请求
+ * 轮换，UI 发出的若是已被前序消费链打死的旧 token，首个 UI 写请求必 403 CSRF_TOKEN_INVALID，
+ * 而 axios 的恢复重放会把真正要断言的响应推到第二次请求上——断言面与请求面错位。
+ * 本函数复用 probeCsrfLiveness 的零业务副作用探测（POST /webhooks 空体 422，早于 handler
+ * 反序列化失败、绝不触库；消费+轮换在后端中间件完成），返回后上下文持有的必是存活 token，
+ * 紧接着的 UI 写请求即该 token 的真实第一消费者。
+ * 禁止用它做"再点一次直到成功"式重试：它只理顺 token 序列，不吞任何失败。
+ *
+ * 自证判据：探测回写完成后，必须从页面上下文现读 document.cookie，断言页面看到的 csrf_token
+ * 恰好一条、且就是探测刚拿到的那个存活值。缺这道自证时探测器可能是"死器"——回写未生效或
+ * jar 里仍并存已消费旧值，页面首个写请求照旧 403，而探测自身却"看起来成功"。不一致即显式判红，
+ * 只报两侧指纹（长度 + 哈希），不外泄 token 原文。
+ */
+export async function ensureLiveCsrfForUI(page: Page): Promise<void> {
+  const liveToken = await probeCsrfLiveness(page);
+  if (!liveToken) {
+    throw new Error('csrf 归一失败：活性探测未取得存活 token（探测请求异常或响应无轮换头）');
+  }
+  const seen = await page.evaluate(() => {
+    const found: string[] = [];
+    for (const raw of document.cookie.split(';')) {
+      const cookie = raw.trim();
+      if (cookie.startsWith('csrf_token=')) {
+        const v = cookie.substring('csrf_token='.length);
+        try {
+          found.push(decodeURIComponent(v));
+        } catch {
+          found.push(v);
+        }
+      }
+    }
+    return found;
+  });
+  if (seen.length !== 1) {
+    throw new Error(
+      `csrf 归一自证失败：页面 document.cookie 中 csrf_token 应为唯一一条，实际 ${seen.length} 条` +
+        `（各条指纹：${seen.map(csrfFingerprint).join(' | ') || '无'}；` +
+        `探测存活值指纹：${csrfFingerprint(liveToken)}）`
+    );
+  }
+  if (seen[0] !== liveToken) {
+    throw new Error(
+      `csrf 归一自证失败：页面看到的 token（${csrfFingerprint(seen[0])}）` +
+        `与探测取得的存活 token（${csrfFingerprint(liveToken)}）不是同一条——回写未命中页面实际读取的记录`
+    );
   }
 }
+
+/**
+ * helper 可携带的请求体形态：对象端点收 `Json<T>`，整批替换类端点收 `Json<Vec<T>>`
+ * （裸数组，例如 PUT /roles/{id}/permissions），两者都是合法 JSON 请求体，
+ * 走同一条带 CSRF 头的发送链路，不因形态不同而绕过 CSRF。
+ */
+export type ApiRequestBody = Record<string, unknown> | unknown[];
 
 export async function apiCall<T = unknown>(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: Record<string, unknown>
+  body?: ApiRequestBody
 ): Promise<ApiResponse<T>> {
   const csrfToken =
     (await getCsrfToken(page).catch(e => {
@@ -1500,7 +1584,7 @@ export async function apiCallRaw<T = unknown>(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: Record<string, unknown>
+  body?: ApiRequestBody
 ): Promise<T> {
   const res = await apiCall<T>(page, method, path, body);
   return res.data;
@@ -1510,7 +1594,7 @@ export async function apiCallExpectFail(
   page: Page,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  body?: Record<string, unknown>
+  body?: ApiRequestBody
 ): Promise<ApiFailureResult> {
   const url = `${API_BASE}${API_PREFIX}${path}`;
   const csrfToken =
