@@ -1627,7 +1627,6 @@ export default {
     markLostFailed: 'Failed to record loss',
     markDamagedFailed: 'Failed to mark damage',
     purchaseOrderDeleted: 'Purchase order {orderNo} deleted',
-    purchaseOrderReceived: 'Purchase order {orderNo} received',
     dashboard: {
       fetchFailed: 'Failed to load dashboard data',
       fetchSalesFailed: 'Failed to load sales overview',

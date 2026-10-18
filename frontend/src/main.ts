@@ -50,7 +50,7 @@ app.use(i18n);
  * Vue 静默忽略 v-permission，按钮永远显示。
  * V15 P2 B10-P2-6：删除 v-role 指令注册，统一使用 v-permission 权限码 */
 app.directive('permission', permission);
-/* 注册 v-permission-detail：隐藏后端对 resource_id=NULL 行必然 403 的 `/{id}` 详情/编辑入口 */
+/* 注册 v-permission-detail：移除 canAccessDetailPermission 判为不可访问的 `/{id}` 详情/编辑入口 */
 app.directive('permission-detail', permissionDetail);
 
 /* 根据当前语言切换 ElementPlus locale */

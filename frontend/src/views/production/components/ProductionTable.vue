@@ -45,8 +45,9 @@ const can = (required: string): boolean => {
   return hasRoutePermission(required, permissions);
 };
 
-// 详情/编辑入口回源/提交 `/production/.../orders/{id}`，后端对 resource_id=NULL 行拒绝 `/{id}`，
-// 非管理员点了必然 403。与后端同源判定（canAccessDetailPermission）决定是否隐藏。
+// 详情/编辑入口回源 `/production/production-orders/orders/{id}`，该 URL 派生的权限资源段是
+// production-orders（双层模块前缀跳段取 seg5="orders"，再按消歧映射对齐权威名）。
+// 用 canAccessDetailPermission 与后端 matches_permission 同源判定，判为不可访问时移除入口。
 const canViewDetail = computed(() => {
   const userStore = useUserStore();
   return canAccessDetailPermission(
