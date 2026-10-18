@@ -214,7 +214,7 @@ async fn seed_products(db: &sea_orm::DatabaseConnection) {
 /// 不带明细是刻意的：带明细时删除该销售订单会先撞明细行 FK，归因就不再唯一指向本列 FK。
 async fn seed_sales_order_without_items(db: &sea_orm::DatabaseConnection, order_no: &str) -> i32 {
     let row = db
-        .query_one(Statement::from_sql_and_values(
+        .query_one_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_orders (order_no, customer_id, order_date, subtotal,
                                         tax_amount, discount_amount, shipping_cost,
@@ -354,8 +354,8 @@ async fn valid_source_is_persisted_and_absent_key_stays_null() {
         "出参必须带 fulfillment_source 键（无 skip_serializing_if），否则前端无法区分「未定档」与「字段缺失」"
     );
     assert_eq!(
-        raw_source.copied(),
-        Some(&json!(fulfillment_source::STOCK)),
+        raw_source.cloned(),
+        Some(json!(fulfillment_source::STOCK)),
         "出参链来源必须等于落库值，实得: {raw_source:?}"
     );
 }
