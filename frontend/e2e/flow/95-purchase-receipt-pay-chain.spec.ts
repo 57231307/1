@@ -47,17 +47,28 @@ interface Dec {
   s: number;
 }
 
+/**
+ * 供日志/报错模板安全序列化：定标十进制值的整数部分是 BigInt，
+ * 直接 JSON.stringify 会抛 TypeError: Do not know how to serialize a BigInt，
+ * 把真实断言原因盖掉。这里统一把 BigInt 转成字符串再交给 JSON.stringify。
+ */
+function jsonText(raw: unknown): string {
+  return JSON.stringify(raw, (_key, value: unknown) =>
+    typeof value === 'bigint' ? value.toString() : value
+  );
+}
+
 function decFromRaw(raw: unknown, label: string): Dec {
   const text = typeof raw === 'string' ? raw.trim() : typeof raw === 'number' ? String(raw) : null;
   if (text === null) {
     throw new Error(
       `${label}：后端 Decimal 出参必须是字符串（rust_decimal 默认序列化口径），` +
-        `实际类型=${typeof raw} 值=${JSON.stringify(raw)}`
+        `实际类型=${typeof raw} 值=${jsonText(raw)}`
     );
   }
   const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
   if (!m) {
-    throw new Error(`${label}：无法按十进制解析，raw=${JSON.stringify(raw)}`);
+    throw new Error(`${label}：无法按十进制解析，raw=${jsonText(raw)}`);
   }
   const sign = m[1] === '-' ? -1n : 1n;
   return { v: sign * BigInt(`${m[2]}${m[3] ?? ''}`), s: (m[3] ?? '').length };
@@ -88,12 +99,17 @@ function decText(d: Dec): string {
   return d.s === 0 ? `${sign}${digits}` : `${sign}${digits.slice(0, -d.s)}.${digits.slice(-d.s)}`;
 }
 
-/** 十进制值逐值相等（定标对齐后比整数，无浮点误差） */
+/** 十进制值逐值相等（定标对齐后比整数，无浮点误差）；actual 必须是后端原始出参 */
 function expectDecEquals(actual: unknown, expected: Dec, label: string): void {
   const a = decFromRaw(actual, label);
+  expectDecMatch(a, expected, label);
+}
+
+/** 两侧都已解析为定标十进制值时的逐值相等（派生量比对走这里，不得回喂原始出参解析口） */
+function expectDecMatch(actual: Dec, expected: Dec, label: string): void {
   expect(
-    decCmp(a, expected) === 0,
-    `${label}：十进制期望=${decText(expected)} 实际=${decText(a)}（raw=${JSON.stringify(actual)}）`
+    decCmp(actual, expected) === 0,
+    `${label}：十进制期望=${decText(expected)} 实际=${decText(actual)}`
   ).toBe(true);
 }
 
@@ -101,7 +117,7 @@ function expectDecEquals(actual: unknown, expected: Dec, label: string): void {
 function expectDecimalString(raw: unknown, label: string): Dec {
   expect(
     typeof raw,
-    `${label}：Decimal 出参应为 JSON 字符串，实际类型=${typeof raw} 值=${JSON.stringify(raw)}`
+    `${label}：Decimal 出参应为 JSON 字符串，实际类型=${typeof raw} 值=${jsonText(raw)}`
   ).toBe('string');
   return decFromRaw(raw, label);
 }
@@ -141,6 +157,55 @@ function pickEntries(detail: Record<string, unknown>, context: string): Array<Re
     );
   }
   return rows as Array<Record<string, unknown>>;
+}
+
+/**
+ * 按来源单据号定位凭证。GET /vouchers 是服务端分页（page_size 默认 20、上限 clamp 100）且出参
+ * 为当页裸数组，同一凭证类型在全库维度可能跨多页；凭证的 source_bill_no 也不是该列表的可信
+ * 过滤维度（不同来源类型的凭证号命名规则各异）。故逐页拉全（每页取后端允许的上界 100），
+ * 在完整集合上按单据号定位，禁止只读第一页就判定凭证不存在后再整条判红。
+ * 翻页设硬上限防越界：达到上限仍未取完即显式抛错交判责，不静默截断。
+ */
+async function findVoucherBySourceBillNo(
+  page: Page,
+  sourceBillNo: string,
+  context: string
+): Promise<Record<string, unknown> | undefined> {
+  const pageSize = 100;
+  const maxPages = 50;
+  const seen = new Set<number>();
+  const hits: Array<Record<string, unknown>> = [];
+  let sawShortPage = false;
+  for (let pageNo = 1; pageNo <= maxPages; pageNo += 1) {
+    const rows = pickListArray<Record<string, unknown>>(
+      await apiCallRaw<unknown>(page, 'GET', `/vouchers?page=${pageNo}&page_size=${pageSize}`),
+      'bare',
+      `${context} 凭证全量翻页第 ${pageNo} 页`
+    );
+    for (const r of rows) {
+      const id = Number(r.id);
+      // 同页内按 id 去重：翻页间隙若有新凭证落库可能造成窗口漂移，重复行不构成多命中
+      if (Number.isFinite(id) && !seen.has(id)) {
+        seen.add(id);
+        if (String(r.source_bill_no ?? '') === sourceBillNo) hits.push(r);
+      }
+    }
+    if (rows.length < pageSize) {
+      sawShortPage = true;
+      break;
+    }
+  }
+  if (!sawShortPage) {
+    throw new Error(
+      `${context}：凭证列表翻页达上限 ${maxPages} 页（${maxPages * pageSize} 行）仍未到尾，判为取数异常`
+    );
+  }
+  if (hits.length > 1) {
+    throw new Error(
+      `${context}：来源单据号 ${sourceBillNo} 命中 ${hits.length} 张凭证，跨环锚点不唯一，需判责`
+    );
+  }
+  return hits[0];
 }
 
 // ───────────────────────────── 本链自建夹具 ─────────────────────────────
@@ -433,7 +498,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const before = decFromRaw(stock1!.quantity_on_hand, '第一批后现存量');
     const after = decFromRaw(stock2!.quantity_on_hand, '第二批后现存量');
     const delta = { v: after.v - before.v, s: after.s };
-    expectDecEquals(delta, decLiteral('7', '第二批收货量'), '第二批库存增量精确等于本行收货量');
+    expectDecMatch(delta, decLiteral('7', '第二批收货量'), '第二批库存增量精确等于本行收货量');
 
     const lineAfter2 = await readOrderLine(page, poId, 1);
     expectDecEquals(
@@ -801,7 +866,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       const price = decFromRaw(row.unit_price, `收货明细${i + 1} 单价`);
       const amount = decFromRaw(row.amount, `收货明细${i + 1} 行金额`);
       const expected = { v: qty.v * price.v, s: qty.s + price.s };
-      expectDecEquals(amount, expected, `收货明细${i + 1} 行金额=数量×单价`);
+      expectDecMatch(amount, expected, `收货明细${i + 1} 行金额=数量×单价`);
     }
     const lineAmountSum = decSumOf(linesBeforeConfirm, 'amount', '收货行金额合计');
 
@@ -848,16 +913,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     if (!invoiceNo) throw new Error(`应付单缺 invoice_no，实际键=${Object.keys(invoice!).join(',')}`);
     const invHead = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
     const invTax = decFromRaw(invHead.tax_amount, '应付单税额');
-    const apVouchers = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/vouchers?source_type=PURCHASE_RECEIPT`),
-      'bare',
-      '采购入库应付凭证列表'
-    );
-    const apVoucher = apVouchers.find(v => String(v.source_bill_no) === invoiceNo);
+    // GET /vouchers 列表不服务端过滤 source_type、且分页返回，按来源单据号翻页全量定位
+    const apVoucher = await findVoucherBySourceBillNo(page, invoiceNo, '采购入库应付凭证');
     expect(
       apVoucher,
-      `应付单 ${invoiceNo} 必须已生成应付凭证（凭证缺失=跨环金额无人对账的缺陷族）；` +
-        `实际 source_bill_no 集=${apVouchers.map(v => v.source_bill_no).join(',')}`
+      `应付单 ${invoiceNo} 必须已生成应付凭证（凭证缺失=跨环金额无人对账的缺陷族）`
     ).toBeTruthy();
     const apVoucherId = requireId(apVoucher!, '应付凭证 id');
     const apVoucherDetail = await apiCallRaw<Record<string, unknown>>(
@@ -1006,17 +1066,10 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     // 付款凭证：借应付账款、贷银行存款，两行金额都等于本次付款额且平衡
     const pay1No = String(pay1After.payment_no ?? '');
     if (!pay1No) throw new Error(`付款单缺 payment_no，实际键=${Object.keys(pay1After).join(',')}`);
-    const payVouchers = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/vouchers?source_type=AP_PAYMENT`),
-      'bare',
-      '付款凭证列表'
-    );
-    const payVoucher = payVouchers.find(v => String(v.source_bill_no) === pay1No);
+    const payVoucher = await findVoucherBySourceBillNo(page, pay1No, '付款凭证');
     expect(
       payVoucher,
-      `付款单 ${pay1No} 确认后必须生成付款凭证；实际 source_bill_no 集=${payVouchers
-        .map(v => v.source_bill_no)
-        .join(',')}`
+      `付款单 ${pay1No} 确认后必须生成付款凭证`
     ).toBeTruthy();
     const payVoucherId = requireId(payVoucher!, '付款凭证 id');
     const payVoucherDetail = await apiCallRaw<Record<string, unknown>>(
@@ -1088,12 +1141,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const gross = decAdd(netAmount, taxAmount);
 
     // 应付凭证（价税合计挂应付账款贷方）
-    const apVouchers = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/vouchers?source_type=PURCHASE_RECEIPT`),
-      'bare',
-      '含税应付凭证列表'
-    );
-    const apVoucher = apVouchers.find(v => String(v.source_bill_no) === invoiceNo);
+    const apVoucher = await findVoucherBySourceBillNo(page, invoiceNo, '含税应付凭证');
     expect(apVoucher, `应付单 ${invoiceNo} 必须有应付凭证`).toBeTruthy();
     const apDetail = await apiCallRaw<Record<string, unknown>>(
       page,
@@ -1140,12 +1188,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const payNo = String(
       (await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/payments/${payId}`)).payment_no ?? ''
     );
-    const payVouchers = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/vouchers?source_type=AP_PAYMENT`),
-      'bare',
-      '含税付款凭证列表'
-    );
-    const payVoucher = payVouchers.find(v => String(v.source_bill_no) === payNo);
+    const payVoucher = await findVoucherBySourceBillNo(page, payNo, '含税付款凭证');
     expect(payVoucher, `付款单 ${payNo} 确认后必须生成付款凭证`).toBeTruthy();
     const payDetail = await apiCallRaw<Record<string, unknown>>(
       page,

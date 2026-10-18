@@ -303,13 +303,12 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(wc.code, '工作中心编码回显').toBe(wcCode);
     expect(wc.status, '工作中心状态词值').toBe('ACTIVE');
 
-    const orderNo = genCode('E96PO');
+    // 工单号由后端流水自动取号（PO{YYYYMMDD}{3位流水}），创建入参不提供注入口：用例只回读跟随
     const order = await apiCallRaw<Record<string, unknown>>(
       page,
       'POST',
       '/production/production-orders/orders',
       {
-        order_no: orderNo,
         product_id: prod.id,
         planned_quantity: '80',
         priority: 1,
@@ -326,7 +325,13 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       'GET',
       `/production/production-orders/orders/${orderId}`
     );
-    expect(orderBefore.order_no, '工单号回读').toBe(orderNo);
+    // 工单号回读跟随后端号：必须是 PO{YYYYMMDD}{3位流水} 形态且建单回显与详情读回同源
+    const backendOrderNo = String(orderBefore.order_no ?? '');
+    expect(
+      /^PO\d{11}$/.test(backendOrderNo),
+      `工单号应由后端流水取号（PO+8位日期+3位流水），实际=${backendOrderNo}`
+    ).toBe(true);
+    expect(order.order_no, '建单回显工单号必须与详情读回同源').toBe(backendOrderNo);
     expect(orderBefore.status, '新建工单初始态（大写词表）').toBe('DRAFT');
 
     const scheduledDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -520,9 +525,11 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     );
     expect(rollNoWeight.status, `缺重量打卷应 400，实际=${rollNoWeight.status}`).toBe(400);
     expect(failureCode(rollNoWeight), '缺重量打卷机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
-    expect(rollNoWeight.message, '缺重量打卷可外显文案').toBe(
-      '打卷入库必须填写重量(kg)，成品布标签重量取该实测值'
-    );
+    // 后端一次点名全部缺项（分号拼接）：判据只钉本次提交确实缺失的重量子句，不锁整串拼装顺序
+    expect(
+      String(rollNoWeight.message ?? ''),
+      '缺重量打卷可外显文案必须点名重量(kg)缺项'
+    ).toContain('打卷入库必须填写重量(kg)，成品布标签重量取该实测值');
     const rollZeroLength = await apiCallExpectFail(
       page,
       'POST',

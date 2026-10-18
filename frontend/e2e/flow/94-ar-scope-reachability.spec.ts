@@ -162,11 +162,19 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
   }) => {
     const owner = await seedOrderAsOwner(page);
 
-    // 角色 data_scope 经 /roles 真实回读（新建角色默认 self；口径漂移时显式抛错交种子判责）
-    const roles = await apiCallRaw<Row>(page, 'GET', '/roles?page=1&page_size=200');
-    const roleRows = Array.isArray((roles as Row).items) ? ((roles as Row).items as Row[]) : [];
-    const managerRole = roleRows.find(r => r.code === 'sales_manager');
-    expect(managerRole, '前置：sales_manager 角色必须由 setup 种入').toBeTruthy();
+    // 角色 data_scope 经 /roles 真实回读（新建角色默认 self；口径漂移时显式抛错交种子判责）。
+    // GET /roles 出参契约是 {roles,total}，该列表端点不接收分页参数，拼 page/page_size 会被静默忽略。
+    const roles = await apiCallRaw<Row>(page, 'GET', '/roles');
+    if (!Array.isArray(roles.roles)) {
+      throw new Error(
+        `角色清单契约失配：GET /roles 应出参 data.roles 数组，实际键=${Object.keys(roles).join(',')}`
+      );
+    }
+    const managerRole = (roles.roles as Row[]).find(r => r.code === 'sales_manager');
+    expect(
+      managerRole,
+      '前置：sales_manager 角色必须由 setup 种入（global-setup SEED_ROLES 清单内，缺即种子缺陷）'
+    ).toBeTruthy();
     expect(
       String(managerRole!.data_scope),
       `sales_manager data_scope 预期 self（种子口径漂移需先改种子再改判据），实际=${JSON.stringify(managerRole!.data_scope)}`

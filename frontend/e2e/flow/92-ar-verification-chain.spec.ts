@@ -52,8 +52,9 @@ function eqAmount(actual: unknown, expectedCents: bigint, label: string): void {
 
 /** 发票恒等式：invoice_amount = received_amount + unpaid_amount（分位） */
 function expectInvoiceIdentity(inv: Row, label: string): void {
+  // eqAmount 内部会对出参做一次折分位换算，这里必须传原始 Decimal 串，禁止预折导致重复换算
   eqAmount(
-    String(toScaled(inv.invoice_amount, 2, `${label} 恒等式-发票额`)),
+    inv.invoice_amount,
     toScaled(inv.received_amount, 2, `${label} 恒等式-已收`) +
       toScaled(inv.unpaid_amount, 2, `${label} 恒等式-未收`),
     `${label}：发票额=已收+未收（分位恒等）`
@@ -351,7 +352,9 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     });
     expect(fZero.status, '0 元收款应 400').toBe(400);
     expect(failureCode(fZero), '0 元收款机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
-    expect(String(fZero.message ?? ''), '0 元拒绝应点名「大于零」').toContain('大于零');
+    // 校验白名单如实外显：点名被拒字段 amount 与金额必须为正的语义，不锁整句措辞
+    expect(String(fZero.message ?? ''), '0 元拒绝应点名校验字段 amount').toContain('amount');
+    expect(String(fZero.message ?? ''), '0 元拒绝应给出金额须为正的语义').toContain('金额必须为正');
     const fPrec = await apiCallExpectFail(page, 'POST', '/ar/payments', {
       customer_id: ctx.customerId,
       amount: '1.999',
