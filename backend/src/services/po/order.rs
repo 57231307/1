@@ -62,6 +62,14 @@ pub struct PurchaseOrderDto {
     /// models/purchase_order.rs:114）。写入方 `services/po/contract.rs` cancel 路径；
     /// cancel 不得挪用 rejected_reason（该列回归只承载 reject 拒绝结论）。
     pub cancel_reason: Option<String>,
+    /// 转采来源销售订单 ID：purchase_orders.source_sales_order_id 真实列（可空，
+    /// 外键指向 sales_orders.id，ON DELETE SET NULL）。NULL=普通采购单，非空=由该
+    /// 销售订单转出。写入方 `order_ops/crud.rs` 建单，取请求体同名字段。
+    /// 可见面口径：只给 ID、不给销售订单号与客户名——采购岗据此可反查来源单，
+    /// 但出参本身不宣称该单是调货还是自制（转采措辞须中性的既有纪律见
+    /// `order_ops/crud.rs` 的 resolve_supplier_sku_snapshot 注释）。
+    /// 键恒存在（无 skip_serializing_if），无来源出参为 null。
+    pub source_sales_order_id: Option<i32>,
     pub created_by: i32,
     /// 创建人姓名：created_by -> users.real_name（LEFT JOIN，可空）
     pub creator_name: Option<String>,

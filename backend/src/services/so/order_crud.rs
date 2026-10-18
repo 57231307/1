@@ -408,6 +408,8 @@ impl SalesService {
             paper_tube_weight: sea_orm::ActiveValue::Set(item_req.paper_tube_weight),
             is_net_weight: sea_orm::ActiveValue::Set(item_req.is_net_weight),
             quantity_tolerance_pct: sea_orm::ActiveValue::Set(item_req.quantity_tolerance_pct),
+            // 链来源：None 如实落 NULL（未定档），Some 已过词表校验才走到这里
+            fulfillment_source: sea_orm::ActiveValue::Set(item_req.fulfillment_source.clone()),
         }
     }
 
@@ -424,6 +426,9 @@ impl SalesService {
         let mut total_amount = rust_decimal::Decimal::ZERO;
         let mut item_models = Vec::new();
         for item_req in items {
+            // 建单与改单都从这一个漏斗写明细行，链来源的词表门控因此只有一处：
+            // 词表外取值整笔中止（事务回滚），不落库、不静默归一、不代填默认值。
+            item_req.validate_fulfillment_source()?;
             let amounts = Self::calculate_sales_item_amounts(&item_req);
             subtotal += &amounts.item_subtotal;
             discount_amount += &amounts.item_discount;
