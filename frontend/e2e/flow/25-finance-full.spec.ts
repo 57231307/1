@@ -69,9 +69,10 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
     // 应收对账
     await verifyEndpointHealthy(page, '/ar-reconciliations?page=1&page_size=5');
     await verifyEndpointHealthy(page, '/ar-reconciliations-enhanced/aging-report');
-    // 自动对账结果（finance.rs:1027 已注册）：list_results 的 Query 字段全 Option、page 默认 1，
-    // admin 上下文应 2xx → 迁回严格。
-    await verifyEndpointHealthy(page, '/ar-reconciliation-alias/auto-reconcile/results');
+    // 自动对账结果：该面原以 /ar-reconciliation-alias 别名挂载，本波并入
+    // /ar-reconciliations-enhanced 真实挂载（别名组端点已摘除）。list_results 的 Query
+    // 字段全 Option、page 默认 1，admin 上下文应 2xx → 迁回严格。
+    await verifyEndpointHealthy(page, '/ar-reconciliations-enhanced/auto-reconcile/results');
     // 财务分析
     // financial-analysis/reports（finance.rs:497，Query<Value> 空参默认分页）与
     // indicators（finance.rs:515，Query 的 page/page_size 为必填非 Option，缺参 400，故补合法分页）：迁回严格。

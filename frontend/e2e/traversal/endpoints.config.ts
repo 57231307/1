@@ -23,7 +23,7 @@ export const PRINT_ENDPOINTS: string[] = [
   '/ap/invoices/{id}/print',
   '/ap/payment-requests/{id}/print',
   '/ap/payments/{id}/print',
-  '/ap/reconciliation/{id}/print',
+  '/ap/reconciliations/{id}/print',
   '/ar-reconciliations/{id}/print',
   '/ar/collections/{id}/print',
   '/boms/{id}/print',

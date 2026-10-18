@@ -294,6 +294,36 @@ export const PERMISSIONS = {
   // 固定资产（后端资源：fixed-assets，根级直接资源；导出面 GET /fixed-assets/export）
   FIXED_ASSET_EXPORT: 'fixed-assets:export',
 
+  // BPM 工作流（后端资源：bpm-*，`bpm` 是 URL 模块前缀，第四段经 path_utils 的
+  // RESOURCE_NAME_MAP 消歧为 bpm-tasks/bpm-approvals/… 后与 PERMISSION_RESOURCES 同词）。
+  // 动作段派生依据：GET→read、POST→create、PUT→update、DELETE→delete，末段命中
+  // 路径动作关键字（approve/cancel…）时以该关键字为动作。
+  BPM_TASK_READ: 'bpm-tasks:read',
+  // 审批提交端点是 POST /bpm/tasks/approve，末段 approve 属路径动作关键字
+  BPM_TASK_APPROVE: 'bpm-tasks:approve',
+  // 转办与催办（POST /bpm/tasks/{id}/transfer、/urge）末段不是动作关键字，按方法派生落 create
+  BPM_TASK_CREATE: 'bpm-tasks:create',
+  // 审批中心执行入口只有 POST /bpm/approval/execute，execute 不是动作关键字，
+  // 因此该面不存在 read/approve 形态的派生键，只有 create
+  BPM_APPROVAL_EXECUTE: 'bpm-approvals:create',
+  // 实例详情与审批链（GET /bpm/instances/{id}/detail、/approval-chain）走同一资源段
+  BPM_INSTANCE_READ: 'bpm-instances:read',
+  // 撤销实例端点是 POST /bpm/instances/{id}/cancel，末段 cancel 属路径动作关键字
+  BPM_INSTANCE_CANCEL: 'bpm-instances:cancel',
+  // 全局流程监控面（GET /bpm/monitor/*）未按发起人收窄，持该键可读全系统实例与待办
+  BPM_MONITOR_READ: 'bpm-monitor:read',
+  // 发起流程端点是 POST /bpm/process/start，start 不是动作关键字，按方法派生落 create
+  BPM_PROCESS_CREATE: 'bpm-process:create',
+  // 业务关联查询（GET /bpm/business-relation）与流程图（GET /bpm/visualization/{id}）
+  BPM_BUSINESS_RELATION_READ: 'bpm-business-relation:read',
+  BPM_VISUALIZATION_READ: 'bpm-visualization:read',
+  // 流程定义面（GET/POST /bpm/definitions、PUT/DELETE /bpm/definitions/{id}）
+  BPM_DEFINITION_READ: 'bpm-definitions:read',
+  BPM_DEFINITION_UPDATE: 'bpm-definitions:update',
+  BPM_DEFINITION_DELETE: 'bpm-definitions:delete',
+  // 流程模板面（GET /bpm/templates）
+  BPM_TEMPLATE_READ: 'bpm-templates:read',
+
   // 消息通知（后端资源：notifications）
   NOTIFICATION_READ: 'notifications:read',
   NOTIFICATION_CREATE: 'notifications:create',
