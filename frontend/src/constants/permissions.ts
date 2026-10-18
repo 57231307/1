@@ -199,6 +199,10 @@ export const PERMISSIONS = {
   PRINT_TARGET_UPDATE: 'print-targets:update',
   PRINT_TARGET_DELETE: 'print-targets:delete',
 
+  // 打印任务（后端资源：print-tasks）：发起一次真实打印与回查任务终态
+  PRINT_TASK_READ: 'print-tasks:read',
+  PRINT_TASK_CREATE: 'print-tasks:create',
+
   // 库存（后端资源：inventory）
   INVENTORY_READ: 'inventory:read',
   INVENTORY_CREATE: 'inventory:create',
