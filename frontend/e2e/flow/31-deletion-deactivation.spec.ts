@@ -650,6 +650,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       {
         template_name: `P0待删模板${EXT_TS}`,
         template_type: 'order',
+        doc_type: 'sales_order',
         description: 'P0打印模板',
         content: '<p>P0</p>',
       },

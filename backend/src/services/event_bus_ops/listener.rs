@@ -20,6 +20,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use tokio::sync::broadcast::error::RecvError;
 
 // ============================================================================
 // 旧 API：`start_event_listener`（保持完全兼容）
@@ -44,12 +45,30 @@ fn start_bridge_listeners(db: Arc<DatabaseConnection>) {
 }
 
 /// 事件循环：接收事件并分发，单次事件 panic 隔离保证分发不中断
+///
+/// 广播通道的 `Lagged` 只表示本消费者落后、若干条被丢弃，接收器本身仍可用；
+/// 把它当终止条件会让整条自动流转链（审批回写、财务桥接、预警通知）在无人察觉的情况下永久停摆，
+/// 故 Lagged 记错误日志后继续，仅 `Closed`（发送端已关闭）才退出。
 async fn run_event_loop(
     db: Arc<DatabaseConnection>,
     search_client: Arc<dyn SearchClient>,
     mut receiver: tokio::sync::broadcast::Receiver<BusinessEvent>,
 ) {
-    while let Ok(event) = receiver.recv().await {
+    loop {
+        let event = match receiver.recv().await {
+            Ok(event) => event,
+            Err(RecvError::Lagged(missed)) => {
+                tracing::error!(
+                    missed_events = missed,
+                    "主事件监听器消费落后，部分事件被丢弃，继续接收后续事件（不退出循环）"
+                );
+                continue;
+            }
+            Err(RecvError::Closed) => {
+                tracing::error!("事件总线已关闭，主事件监听器退出（业务事件不再自动分发）");
+                break;
+            }
+        };
         let result = AssertUnwindSafe(async {
             dispatch_business_event(db.clone(), search_client.clone(), event).await;
         })

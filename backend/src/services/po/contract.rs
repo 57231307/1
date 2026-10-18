@@ -17,8 +17,10 @@ use super::order::PurchaseOrderService;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 
 impl PurchaseOrderService {
-    /// 提交采购订单
-    /// 批次 22（2026-06-28 v5 P0-5）：补全事务边界 + lock_exclusive + 真实 user_id；原 `submit_order` 在 `&*self.db` 上裸查询 + 裸更新，无事务边界也无行锁，；并发提交同一订单可能基于过期快照导致状态覆盖；同时 `update_with_audit` 的 user_id 传入 `Some(0)` 导致审计日志用户缺失。；改为：begin txn + lock_exclusive 查询 + 状态/权限/明细校验 + update_with_audit(&txn, Some(user_id)) + commit；BPM 启动保留事务外（与批次 12 一致：失败 warn 不阻断已提交状态），避免 BPM 调用持有数据库锁。
+    /// 提交采购订单：事务内加行锁校验状态与权限后置为待审批，提交后再在事务外启动 BPM 工单。
+    ///
+    /// BPM 启动失败向上传播并补偿回滚到提交前状态，避免订单停在待审批却系统里没有工单可审；
+    /// 启动放在事务外，是为了不让外部流程引擎持有数据库行锁。
     pub async fn submit_order(
         &self,
         order_id: i32,
@@ -31,6 +33,8 @@ impl PurchaseOrderService {
             .lock_and_validate_order_for_submit_txn(order_id, user_id, &txn)
             .await?;
 
+        let previous_status = order.order_status.clone();
+
         // 事务内：更新状态为 PENDING_APPROVAL（走 update_with_audit 保留审计追溯）
         let updated_order = self
             .build_and_update_order_status_txn(order, user_id, &txn)
@@ -38,9 +42,9 @@ impl PurchaseOrderService {
 
         txn.commit().await?;
 
-        // 事务外：启动 BPM 审批流程，失败仅 warn 不阻断已提交状态
-        self.start_purchase_order_bpm(order_id, &updated_order.order_no, user_id)
-            .await;
+        // 事务外：启动 BPM 审批流程；失败即补偿回滚提交前状态并把原因如实返回调用方
+        self.start_purchase_order_bpm(order_id, &updated_order.order_no, user_id, previous_status)
+            .await?;
 
         Ok(updated_order)
     }
@@ -115,8 +119,16 @@ impl PurchaseOrderService {
     }
 
     /// 事务外启动 BPM 采购订单审批流程
-    /// 失败仅 warn 不阻断已提交状态（兼容旧数据，确保运维可观测）
-    async fn start_purchase_order_bpm(&self, order_id: i32, order_no: &str, user_id: i32) {
+    ///
+    /// 失败必须向上传播并补偿回滚：只 warn 会让订单停在 PENDING_APPROVAL 而系统里根本没有
+    /// 对应工单（再提交又被状态门拒），成为永远无人可审的死单。
+    async fn start_purchase_order_bpm(
+        &self,
+        order_id: i32,
+        order_no: &str,
+        user_id: i32,
+        previous_status: String,
+    ) -> Result<(), AppError> {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
             process_key: "purchase_order_approval".to_string(),
@@ -132,12 +144,57 @@ impl PurchaseOrderService {
         };
 
         if let Err(e) = bpm_service.start_process(req).await {
-            tracing::warn!(
+            self.rollback_order_status(order_id, &previous_status, user_id)
+                .await?;
+            // 引擎真实失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显
+            tracing::error!(
                 error = %e,
                 order_id = order_id,
-                "BPM 启动采购订单审批流程失败（兼容旧数据，不阻断主流程）"
+                user_id = user_id,
+                "BPM 启动采购订单审批流程失败，订单已补偿回滚为提交前状态，根因如上"
             );
+            return Err(AppError::business_displayable(
+                "审批流程启动失败，采购订单已退回提交前状态，请稍后重新提交；若持续失败请联系管理员检查审批流程定义",
+            ));
         }
+        Ok(())
+    }
+
+    /// 补偿回滚：把订单状态写回提交前的取值。只回滚本路径刚写入的 PENDING_APPROVAL——
+    /// 窗口内若已被并发审批改走，覆盖会把已生效的审批静默抹掉，此时报冲突让调用方重试。
+    async fn rollback_order_status(
+        &self,
+        order_id: i32,
+        previous_status: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let order = purchase_order::Entity::find_by_id(order_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("补偿回滚时采购订单 {} 不存在", order_id))
+            })?;
+        if order.order_status != status::purchase_order::PENDING_APPROVAL {
+            return Err(AppError::business_displayable(format!(
+                "采购订单 {} 的状态已被其他操作改为 {}，本次提交不再回退状态，请按当前状态处理",
+                order_id, order.order_status
+            )));
+        }
+        let mut active: purchase_order::ActiveModel = order.into();
+        active.order_status = Set(previous_status.to_string());
+        active.updated_at = Set(Utc::now());
+        active.updated_by = Set(Some(user_id));
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "purchase_order",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(())
     }
 
     /// 审批采购订单

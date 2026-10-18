@@ -983,7 +983,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
 
   // ---- 23. 用户 ID 已在步骤 1.5 中确保（ctx.userIds[0] = 当前登录用户）----
 
-  // ---- 24. BPM 销售订单审批流程定义（幂等：先查后建）----
+  // ---- 24. BPM 流程定义（四个走审批的域，幂等：先查后建）----
   // 节点 schema 必须匹配后端 bpm_service.rs::resolve_first_task_node：
   // 键为 nodes[].id / nodes[].name / nodes[].type，取值为 start_event / user_task / end_event，
   // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
@@ -991,27 +991,40 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 走 bpm_ops/instance.rs 的「无任务节点，自动完成流程」分支：submit 即异步回写
   // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
   // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
+  //
+  // 四个域都要建：提交侧现在会在审批流程启动失败时如实报错并补偿回滚（不再假成功），
+  // 因此缺定义会让 p2p/o2c/生产提交用例直接失败——测试环境必须真的能走通审批。
+  const bpmApprovalDefinitions: Array<{ code: string; name: string; category: string }> = [
+    { code: 'sales_order_approval', name: '销售订单审批流程', category: 'sales' },
+    { code: 'purchase_order_approval', name: '采购订单审批流程', category: 'purchase' },
+    { code: 'production_order_approval', name: '生产工单审批流程', category: 'production' },
+    { code: 'quotation_approval', name: '报价单审批流程', category: 'sales' },
+  ];
   try {
     const existingDefs = await apiCallRaw<{ items?: Array<{ code?: string }> }>(
       page,
       'GET',
       '/bpm/definitions?page=1&page_size=100'
     );
-    const alreadyExists = existingDefs?.items?.some(d => d.code === 'sales_order_approval');
-    if (!alreadyExists) {
-      const approverId = ctx.userIds[0];
+    const existingCodes = new Set((existingDefs?.items ?? []).map(d => d.code));
+    const approverId = ctx.userIds[0];
+    for (const def of bpmApprovalDefinitions) {
+      if (existingCodes.has(def.code)) {
+        console.log(`[ensureTestEntities] BPM ${def.code} 已存在，跳过创建`);
+        continue;
+      }
       const res = await apiCall<{ id?: number }>(page, 'POST', '/bpm/definitions', {
-        name: '销售订单审批流程',
-        code: 'sales_order_approval',
-        description: 'E2E 测试用销售订单审批流程定义',
-        category: 'sales',
+        name: `E2E ${def.name}`,
+        code: def.code,
+        description: `E2E 测试用 ${def.name}`,
+        category: def.category,
         version: '1.0',
         config: {
           nodes: [
             { id: 'start', name: '提交审批', type: 'start_event' },
             {
               id: 'approve_task',
-              name: '销售订单审批',
+              name: `${def.name}节点`,
               type: 'user_task',
               assignee_value: String(approverId),
             },
@@ -1024,9 +1037,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         },
         status: 'ACTIVE',
       });
-      console.log(`[ensureTestEntities] BPM sales_order_approval 定义已创建 id=${res?.data?.id}`);
-    } else {
-      console.log('[ensureTestEntities] BPM sales_order_approval 已存在，跳过创建');
+      console.log(`[ensureTestEntities] BPM ${def.code} 定义已创建 id=${res?.data?.id}`);
     }
   } catch (e) {
     // 同 code 已存在时后端拒绝重复创建，属预期；真实是否可用由消费方用例断言兜住
