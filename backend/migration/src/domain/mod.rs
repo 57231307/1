@@ -29,6 +29,10 @@
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
 //! - bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
 //!   sales_order_item_id 外键 + 检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
+//! - role_conflicts_drop_production_sod: 撤掉 role_conflicts 里 2 对内置「生产↔质量」SoD
+//!   默认（一人多岗为纺织厂常态），财务钱账分管 6 对保持内置默认；按精确三元组删除并
+//!   在删除前后各做一次财务 6 对在场自检；置于链尾为新的顶层条目，复用库上也必然执行
+//!   （并入已应用的 finance 域会在复用库上被整体跳过，删种永不生效）
 //! - finance_resource_rename: 财务域权限资源键改名波（role_permissions.resource_type 旧 URL 段名
 //!   逐对改写到随域改名新资源名，唯一索引冲突预检 + 一对多按裸值无法判域的失败可见闸门；
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
@@ -57,5 +61,6 @@ pub mod polymorphic_bill_id_widen;
 pub mod print_subsystem;
 pub mod company_profile;
 pub mod bulk_color_item_link;
+pub mod role_conflicts_drop_production_sod;
 pub mod finance_resource_rename;
 pub mod bpm_approver_grant;

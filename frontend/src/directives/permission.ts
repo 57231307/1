@@ -49,12 +49,13 @@ export const permission: Directive = {
 };
 
 /**
- * 详情/编辑入口可访问性指令
- * 后端对 resource_id=NULL 的权限行拒绝 `/{id}` 详情/编辑请求（故意严格策略），
- * 非管理员角色点了必然 403。本指令按与后端 canAccessDetailPermission 同源的条件，
- * 直接移除（隐藏）用户无权限访问的"详情/编辑"入口，而不是让按钮存在并抛错。
+ * 详情/编辑（`/{id}`）入口可访问性指令
+ * 入参 resource 为后端派生的权威资源段、action 为详情 read 或编辑 update，交给
+ * router 导出的 canAccessDetailPermission 判定（与后端 matches_permission 同源）：
+ * 角色级授权码（如 orders:read）覆盖该资源全部实例，含按 ID 的详情与编辑请求；
+ * 判定为假时移除该元素，避免留下点了必然 403 的入口。
  * 使用方式：
- * <el-button v-permission-detail="{ resource: 'sales-orders', action: 'read' }">详情</el-button>
+ * <el-button v-permission-detail="{ resource: 'orders', action: 'read' }">详情</el-button>
  */
 export const permissionDetail: Directive = {
   mounted(el: HTMLElement, binding: DirectiveBinding<PermissionDetailBinding>) {

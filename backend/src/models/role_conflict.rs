@@ -3,9 +3,14 @@ use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
-// V15 P0-S05/P0-S23：SoD 职责分离互斥角色对 model
-// 记录互斥角色对，防止用户同时持有冲突角色
-// P0-S23 已真实接入业务：user_service.check_role_conflict_for_user + init_service.create_default_role_conflicts
+// SoD 职责分离互斥角色对 model
+// 记录互斥角色对，防止用户同时持有冲突角色。
+// 内置默认只覆盖财务侧钱账分管：建表种子写在 migration/src/domain/finance/，
+// 其中 2 对「生产↔质量」默认已由 migration/src/domain/role_conflicts_drop_production_sod/
+// 撤除（纺织厂一人多岗为常态，生产与质量不得由系统内置硬互斥）；企业自配互斥走管理面，
+// 初始化链不再写本表。
+// 真实消费方：user_service::check_role_conflict_for_user（换角色写口校验）
+// 与 GET /roles/conflicts 列表端点（handlers/role_handler.rs）。
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
 #[sea_orm(table_name = "role_conflicts")]
