@@ -51,6 +51,16 @@ export interface AssignPermissionRequest {
   allowed: boolean;
 }
 
+// 整批替换端点的单条期望授予，字段与后端 BatchPermissionEntry
+// （backend/src/services/role_permission_service.rs）逐字一致：三项均必填、snake_case。
+// 该结构刻意不含 resource_id：整批替换的作用面只有 resource_id IS NULL 的角色级授予行，
+// 记录级授权行仍由单条 POST/DELETE 维护。
+export interface RolePermissionBatchEntry {
+  resource_type: string;
+  action: string;
+  allowed: boolean;
+}
+
 // 后端 role_handler::list_roles 返回 ApiResponse<RoleListResponse>，
 // RoleListResponse { roles: Vec<RoleResponse>; total: u64 }（信封键为 roles，非 items）。
 // 后端 role_handler::list_roles 无 Query<T> 提取器（一次性返回全部角色），
@@ -79,6 +89,8 @@ export function getRolePermissions(id: number): Promise<ApiResponse<Permission[]
   return request.get(`/roles/${id}/permissions`);
 }
 
+// 单条赋权：作用面是记录级授权行（可带 resource_id）。角色级授予的批量维护走
+// replaceRolePermissions（整批替换），不要把逐条 POST 当成角色级保存路径。
 export function assignPermission(
   id: number,
   data: AssignPermissionRequest
@@ -86,11 +98,25 @@ export function assignPermission(
   return request.post(`/roles/${id}/permissions`, data);
 }
 
+// 按关联行主键删除单条授予记录（记录级授权行用）；角色级授予的删除由整批替换按
+// 「期望集外的既有行」处理，不需要逐条 DELETE。
 export function deletePermission(
   _roleId: number,
   permissionId: number
 ): Promise<ApiResponse<void>> {
   return request.delete(`/roles/permissions/${permissionId}`);
+}
+
+// 整批替换角色的角色级权限授予：一次请求提交期望的完整终集合（裸数组，非对象包装），
+// 服务端在同一事务内做新增/仅 allowed 翻转的更新/期望集外的删除三态复算并写一条批量审计。
+// 入参：角色 id + 目标终集合；出参：替换后的角色级授予全集（与 GET /roles/{id}/permissions 同形状）。
+// 权限门：后端 handler 首行 require_admin_role，非管理员角色调用必返 403 + FORBIDDEN，
+// 调用方的入口/按钮可见性必须与该门一致，不得留下点下去必然失败的入口。
+export function replaceRolePermissions(
+  id: number,
+  entries: RolePermissionBatchEntry[]
+): Promise<ApiResponse<Permission[]>> {
+  return request.put(`/roles/${id}/permissions`, entries);
 }
 
 export function getPermissionList(): Promise<ApiResponse<Permission[]>> {

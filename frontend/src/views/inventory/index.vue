@@ -27,7 +27,7 @@
           <el-icon><Edit /></el-icon>
           {{ t('inventory.page.adjustment') }}
         </el-button>
-        <el-button v-permission="PERMISSIONS.INVENTORY_TRANSFER" @click="goToTransferPage">
+        <el-button v-permission="PERMISSIONS.INVENTORY_TRANSFER_READ" @click="goToTransferPage">
           <el-icon><RefreshRight /></el-icon>
           {{ t('inventory.page.transfer') }}
         </el-button>

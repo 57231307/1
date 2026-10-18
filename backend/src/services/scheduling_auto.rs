@@ -20,6 +20,8 @@ use crate::models::scheduling_result::{
     ActiveModel as SchedulingActiveModel, Column as SchedulingResultColumn,
     Entity as SchedulingResultEntity,
 };
+use crate::models::status::common;
+use crate::models::status::scheduling as scheduling_status;
 use crate::models::work_center::{Entity as WorkCenterEntity, Model as WorkCenterModel};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -722,7 +724,7 @@ impl SchedulingService {
             id: Default::default(),
             batch_no: Set(batch_no),
             strategy: Set(strategy.to_string()),
-            status: Set("DRAFT".to_string()),
+            status: Set(scheduling_status::DRAFT.to_string()),
             total_orders: Set(result.total_orders.unwrap_or(0)),
             scheduled_orders: Set(result.scheduled_count),
             unscheduled_orders: Set(result
@@ -781,7 +783,7 @@ impl SchedulingService {
     /// 加载待排程工单
     async fn load_pending_orders(&self) -> Result<Vec<ProductionOrderModel>, AppError> {
         ProductionOrderEntity::find()
-            .filter(crate::models::production_order::Column::Status.eq("DRAFT"))
+            .filter(crate::models::production_order::Column::Status.eq(common::STATUS_DRAFT))
             .order_by_asc(crate::models::production_order::Column::Priority)
             .all(&*self.db)
             .await

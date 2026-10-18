@@ -102,7 +102,7 @@
               row.status === PURCHASE_ORDER_STATUS.APPROVED ||
               row.status === PURCHASE_ORDER_STATUS.PARTIAL_RECEIVED
             "
-            v-permission="PERMISSIONS.PURCHASE_ORDER_RECEIVE"
+            v-permission="PERMISSIONS.PURCHASE_RECEIPT_CREATE"
             type="warning"
             link
             size="small"

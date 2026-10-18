@@ -203,8 +203,12 @@ export const PERMISSIONS = {
   INVENTORY_CREATE: 'inventory:create',
   INVENTORY_UPDATE: 'inventory:update',
   INVENTORY_DELETE: 'inventory:delete',
-  // 库存调拨动作（后端 PATH_ACTION_KEYWORDS 含 transfer）
-  INVENTORY_TRANSFER: 'inventory:transfer',
+  // 库存调拨页入口（打开调拨页即 GET /inventory/transfers 取列表）。
+  // inventory 是模块前缀，调拨自身资源段是 URL 第四段 transfers（后端注册表在册名）。
+  // transfer 不在后端 PATH_ACTION_KEYWORDS 动作关键字内，该域端点动作只由方法派生
+  // （GET→read、POST→create、PUT/PATCH→update、DELETE→delete），故 inventory:transfer
+  // 是后端永远派生不出来的幻影键。
+  INVENTORY_TRANSFER_READ: 'transfers:read',
   // 成品布入库标签打印（GET /inventory/pieces/{id}/print）。权限键非自造
   // resource_type 由 URL 段推导——middleware/permission.rs::extract_resource_info 对
   // 模块前缀 inventory（utils/path_utils.rs::is_business_module_prefix）取 segment4
@@ -214,13 +218,9 @@ export const PERMISSIONS = {
   // "{resource_type}:{action}"（handlers/auth_handler.rs:176）。
   INVENTORY_PIECE_PRINT: 'pieces:print',
 
-  // 销售订单（后端资源：sales-orders）
-  SALES_ORDER_READ: 'sales-orders:read',
-  SALES_ORDER_CREATE: 'sales-orders:create',
-  SALES_ORDER_UPDATE: 'sales-orders:update',
-  SALES_ORDER_DELETE: 'sales-orders:delete',
-  SALES_ORDER_APPROVE: 'sales-orders:approve',
-  SALES_ORDER_CANCEL: 'sales-orders:cancel',
+  // 销售订单（后端资源：orders——`/sales/orders` 的 sales 是模块前缀，消歧映射未登记
+  // sales+orders 组合，资源段保留 URL 第四段原名 orders；sales-orders 不是后端派生名）
+  SALES_ORDER_CREATE: 'orders:create',
 
   // 采购订单（后端资源：purchase-orders）
   PURCHASE_ORDER_READ: 'purchase-orders:read',
@@ -228,7 +228,11 @@ export const PERMISSIONS = {
   PURCHASE_ORDER_UPDATE: 'purchase-orders:update',
   PURCHASE_ORDER_DELETE: 'purchase-orders:delete',
   PURCHASE_ORDER_APPROVE: 'purchase-orders:approve',
-  PURCHASE_ORDER_RECEIVE: 'purchase-orders:receive',
+  // "收货"入口的真实动作是建入库单：对话框提交 POST /purchase/receipts
+  // （purchase 是模块前缀，消歧映射把 receipts 对齐到注册表权威名 purchase-receipts，
+  // 动作由方法派生为 create）。后端既无 receive 这个动作词，也没有 /purchase/orders/{id}/receive
+  // 或 /purchase/receipts/{id}/receive 路由，故不存在 purchase-orders:receive 这个可授予键。
+  PURCHASE_RECEIPT_CREATE: 'purchase-receipts:create',
 
   // 凭证（后端资源：vouchers）
   VOUCHER_READ: 'vouchers:read',
