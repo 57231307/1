@@ -243,9 +243,6 @@ export const getPurchaseReceiptList = (params?: PurchaseReceiptQueryParams) =>
 export const createPurchaseReceipt = (data: CreatePurchaseReceiptRequest) =>
   request.post<ApiResponse<PurchaseReceipt>>('/purchase/receipts', data);
 
-export const receivePurchaseItems = (receiptId: number, data: Partial<PurchaseReceiptItem>[]) =>
-  request.post<ApiResponse<PurchaseReceipt>>(`/purchase/receipts/${receiptId}/receive`, data);
-
 /**
  * 生成采购订单号（创建表单预填用）
  * 后端: GET /api/v1/erp/purchase/orders/generate-no

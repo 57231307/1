@@ -33,10 +33,11 @@ import { PERMISSIONS } from '@/constants/permissions';
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();
 
-// 后端对 resource_id=NULL 权限行拒绝 /{id} 详情请求；"详情"会回源 /sales/orders/{id}，
-// 非管理员点了必然 403，故与后端同源判定后隐藏该入口（"查看"用列表已有行，不隐藏）。
+// "详情"回源 GET `/sales/orders/{id}`，该 URL 派生的权限资源段是 orders（sales 只是模块前缀，
+// 消歧映射未登记 sales+orders，保留 URL 段原名）。用 canAccessDetailPermission 与后端
+// matches_permission 同源判定，判为不可访问时移除入口；"查看"用列表已有行，不隐藏。
 const canAccessOrderDetail = computed(() =>
-  canAccessDetailPermission('sales-orders', 'read', userStore.userInfo?.permissions || [])
+  canAccessDetailPermission('orders', 'read', userStore.userInfo?.permissions || [])
 );
 
 // 「发起批色」复用批色模块既有建单门（路由 meta.permission = inventory:read），不新增权限键；

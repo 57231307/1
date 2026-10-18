@@ -16,10 +16,8 @@ import {
   rejectPurchaseOrder,
   updatePurchaseOrder,
   deletePurchaseOrder,
-  receivePurchaseItems,
   generatePurchaseOrderNo,
   type PurchaseOrder,
-  type PurchaseOrderItem,
 } from '@/api/purchase';
 // 导出走后端带水印 xlsx 接口（资源前缀为单数 /purchase，复数 /purchases 无挂载）
 import { exportFromBackend } from '@/utils/export';
@@ -196,23 +194,6 @@ export function usePurchAct(
   };
 
   /**
-   * 收货登记（跳转收货对话框的前置数据加载）
-   */
-  const handleReceive = async (row: PurchaseOrder) => {
-    try {
-      const detail = await getPurchaseOrderById(row.id);
-      const items =
-        (detail.data as unknown as { items?: Partial<PurchaseOrderItem>[] })?.items || [];
-      await receivePurchaseItems(row.id, items as never);
-      msg.success('purchaseOrderReceived', { orderNo: row.order_no });
-      onRefresh();
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      ElMessage.error(errMsg || msg.translate('operationFailed'));
-    }
-  };
-
-  /**
    * 生成采购单号（创建表单预填用）
    */
   const handleGenerateOrderNo = async (): Promise<string> => {
@@ -232,7 +213,6 @@ export function usePurchAct(
     handleReject,
     handleEdit,
     handleDeleteOrder,
-    handleReceive,
     handleGenerateOrderNo,
   };
 }

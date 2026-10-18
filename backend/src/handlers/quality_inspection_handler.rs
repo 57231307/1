@@ -193,6 +193,7 @@ pub async fn create_record(
     Json(req): Json<CreateInspectionRecordRequest>,
 ) -> Result<Json<ApiResponse<quality_inspection_record::Model>>, AppError> {
     info!("用户 {} 正在创建质量检验记录", auth.user_id);
+    validate_inspection_type(&req.inspection_type)?;
     validate_inspection_result(&req.inspection_result)?;
 
     let service = QualityInspectionService::new(state.db.clone());
@@ -329,6 +330,9 @@ pub async fn update_record(
     }
 
     // 词表校验仅对覆盖值执行（借用检查，不移动字段——后续写入仍需消费 req）
+    if let Some(Some(v)) = req.inspection_type.as_ref() {
+        validate_inspection_type(v)?;
+    }
     if let Some(Some(v)) = req.inspection_result.as_ref() {
         validate_inspection_result(v)?;
     }

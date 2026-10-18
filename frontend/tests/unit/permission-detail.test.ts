@@ -8,30 +8,32 @@ vi.mock('@/components/Layout/MainLayout.vue', () => ({
 
 import { canAccessDetailPermission, hasRoutePermission } from '@/router';
 
-// 后端事实基准（backend/src/middleware/permission.rs + handlers/auth_handler.rs:176）：
-// - 登录/me 把每行权限序列化为 "{resource}:{action}"，丢弃 resource_id；
-// - matches_permission 对 resource_id=Some(id) 的 /{id} 详情/编辑请求，普通 NULL 行被拒，
-//   仅 resource_type=="*"（admin 注入的 *:*）放行。
-// 因此：非管理员权限码资源段永不为 "*" → 详情/编辑一律 false；管理员 "*" 通配 → true。
+// 后端事实基准（matches_permission 与 /auth/me 出参序列化）：
+// - 角色级授权行（resource_id 为 NULL）覆盖该资源类型的全部实例，列表请求与按 ID 请求都放行；
+//   记录级授权行只放行同一实例；resource_type == "*" 豁免 ID 维度判定。
+// - 登录/me 把每行权限序列化为 "{resource}:{action}"，不携带 resource_id，
+//   所以前端可见的权限码一律对应角色级授权，其 /{id} 可达性只取决于资源段与动作段。
+// 资源段判据：相等，或任一侧为 "*"（admin 的 *:* 即此形态）。
+// 销售订单的权限资源段是 orders：sales 只是模块前缀，派生名保留 URL 第四段原名。
 describe('canAccessDetailPermission（/{id} 详情/编辑同源判定）', () => {
   it('管理员（*:*）对任意资源/动作的详情与编辑均可访问', () => {
     const admin = ['*:*'];
-    expect(canAccessDetailPermission('sales-orders', 'read', admin)).toBe(true);
+    expect(canAccessDetailPermission('orders', 'read', admin)).toBe(true);
     expect(canAccessDetailPermission('purchase-orders', 'update', admin)).toBe(true);
     expect(canAccessDetailPermission('vouchers', 'delete', admin)).toBe(true);
   });
 
-  it('非管理员持有 resource_id=NULL 派生的普通权限码时，详情/编辑均不可访问（点了必然 403）', () => {
-    const salesRole = [
-      'sales-orders:read',
-      'sales-orders:create',
-      'sales-orders:update',
-      'sales-orders:delete',
-    ];
-    // 关键：列表级 hasRoutePermission 为 true，但 /{id} 详情必须为 false（严格策略）
-    expect(hasRoutePermission('sales-orders:read', salesRole)).toBe(true);
-    expect(canAccessDetailPermission('sales-orders', 'read', salesRole)).toBe(false);
-    expect(canAccessDetailPermission('sales-orders', 'update', salesRole)).toBe(false);
+  it('角色级授权码（resource_id 为 NULL 派生）覆盖该资源的 /{id} 详情与编辑', () => {
+    const salesRole = ['orders:read', 'orders:create', 'orders:update', 'orders:delete'];
+    expect(hasRoutePermission('orders:read', salesRole)).toBe(true);
+    expect(canAccessDetailPermission('orders', 'read', salesRole)).toBe(true);
+    expect(canAccessDetailPermission('orders', 'update', salesRole)).toBe(true);
+  });
+
+  it('资源段相等但动作未覆盖时不放行（只授 read 的角色打不开编辑入口）', () => {
+    const readOnly = ['orders:read'];
+    expect(canAccessDetailPermission('orders', 'read', readOnly)).toBe(true);
+    expect(canAccessDetailPermission('orders', 'update', readOnly)).toBe(false);
   });
 
   it('资源段为 * 但动作受限的通配码：仅覆盖对应动作的详情', () => {
@@ -47,22 +49,27 @@ describe('canAccessDetailPermission（/{id} 详情/编辑同源判定）', () =>
     expect(canAccessDetailPermission('customers', 'edit', ['*:update'])).toBe(true);
   });
 
-  it('资源级动作通配（resource:*，源自 NULL 行）不放行 /{id} 详情——它只能放行列表', () => {
-    const manager = ['sales-orders:*', 'sales-orders:read'];
-    // hasRoutePermission 宽松匹配会放行
-    expect(hasRoutePermission('sales-orders:read', manager)).toBe(true);
-    // 但 /{id} 详情：资源段是 "sales-orders" 不是 "*"，后端 matches_permission 对 Some(id) 拒绝
-    expect(canAccessDetailPermission('sales-orders', 'read', manager)).toBe(false);
+  it('资源动作通配码（resource:*）覆盖该资源全部动作的详情/编辑', () => {
+    const manager = ['orders:*', 'orders:read'];
+    expect(hasRoutePermission('orders:read', manager)).toBe(true);
+    expect(canAccessDetailPermission('orders', 'read', manager)).toBe(true);
+    expect(canAccessDetailPermission('orders', 'delete', manager)).toBe(true);
+  });
+
+  it('资源段不参与通配时跨资源不放行（持 orders 授权打不开 purchase-orders 详情）', () => {
+    const manager = ['orders:*'];
+    expect(canAccessDetailPermission('purchase-orders', 'read', manager)).toBe(false);
+    expect(canAccessDetailPermission('vouchers', 'read', manager)).toBe(false);
   });
 
   it('空权限用户：详情/编辑不可访问（与守卫"无权限不放行"一致，无兜底放行）', () => {
-    expect(canAccessDetailPermission('sales-orders', 'read', [])).toBe(false);
-    expect(canAccessDetailPermission('sales-orders', 'update', [])).toBe(false);
+    expect(canAccessDetailPermission('orders', 'read', [])).toBe(false);
+    expect(canAccessDetailPermission('orders', 'update', [])).toBe(false);
   });
 
   it('无冒号或缺段权限码不会误判为详情可访问', () => {
-    expect(canAccessDetailPermission('sales-orders', 'read', ['salesorders'])).toBe(false);
-    expect(canAccessDetailPermission('sales-orders', 'read', ['*:'])).toBe(false);
+    expect(canAccessDetailPermission('orders', 'read', ['orders'])).toBe(false);
+    expect(canAccessDetailPermission('orders', 'read', ['*:'])).toBe(false);
   });
 });
 

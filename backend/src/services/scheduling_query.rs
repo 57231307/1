@@ -273,36 +273,68 @@ impl SchedulingService {
         Ok(model)
     }
 
-    /// 确认排程结果并应用到生产订单
+    /// 确认排程结果并应用到生产订单。
+    ///
+    /// 返回 `(更新后的排程结果, 实际应用的生产订单数)`。
+    /// 明细来源为列 NULL、JSON null 或空数组时属自动排程在待排池为空时的合法产出，
+    /// 允许确认但如实返回 0 张并显式留 warn 日志，由调用方在响应消息与审计中呈现；
+    /// 明细 JSON 解析失败属数据损坏，拒绝确认并 fail-visible 报错，
+    /// 禁止出现"已置 CONFIRMED 却一条明细都未应用"的假成功。
+    ///
+    /// # Errors
+    ///
+    /// - 记录不存在：`not_found`
+    /// - 非草稿状态：`business_displayable`（文案点名当前状态值）
+    /// - 明细解析失败：`validation_displayable`（点名请求侧排程结果 ID，serde 原文只进 error 日志）
+    /// - 事务/数据库错误：原样传播
     pub async fn confirm_schedule_result(
         &self,
         id: i32,
-        _user_id: i32,
-    ) -> Result<crate::models::scheduling_result::Model, AppError> {
+        user_id: i32,
+    ) -> Result<(crate::models::scheduling_result::Model, usize), AppError> {
         let model = SchedulingResultEntity::find_by_id(id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found("排程结果不存在"))?;
 
         if model.status != scheduling_status::DRAFT {
-            return Err(AppError::business(
-                "只有草稿状态的排程结果可以确认".to_string(),
-            ));
+            return Err(AppError::business_displayable(format!(
+                "只有草稿状态的排程结果可以确认，当前状态：{}",
+                model.status
+            )));
         }
+
+        let details: Vec<ScheduleDetail> = match &model.schedule_details {
+            Some(details_json) if !details_json.is_null() => {
+                serde_json::from_value(details_json.clone()).map_err(|e| {
+                    tracing::error!(
+                        schedule_result_id = id,
+                        user_id,
+                        error = %e,
+                        "排程明细 JSON 解析失败，拒绝确认"
+                    );
+                    AppError::validation_displayable(format!(
+                        "排程结果（ID {id}）的明细数据格式异常无法解析，确认已中止，请重新执行排程后再确认"
+                    ))
+                })?
+            }
+            _ => Vec::new(),
+        };
 
         // 使用事务保护批量更新生产订单
         let txn = self.db.begin().await?;
 
-        // 解析排程明细并应用到生产订单
-        if let Some(details_json) = &model.schedule_details {
-            if let Ok(details) = serde_json::from_value::<Vec<ScheduleDetail>>(details_json.clone())
-            {
-                if !details.is_empty() {
-                    self.apply_schedule_details_to_orders(&txn, &details)
-                        .await?;
-                }
-            }
-        }
+        let applied_orders = if details.is_empty() {
+            tracing::warn!(
+                schedule_result_id = id,
+                user_id,
+                "排程明细为空，确认不会更新任何生产订单"
+            );
+            0
+        } else {
+            self.apply_schedule_details_to_orders(&txn, &details)
+                .await?
+        };
 
         let mut active_model: SchedulingActiveModel = model.into();
         active_model.status = Set(scheduling_status::CONFIRMED.to_string());
@@ -312,16 +344,16 @@ impl SchedulingService {
 
         txn.commit().await?;
 
-        Ok(updated)
+        Ok((updated, applied_orders))
     }
 
-    /// 解析排程明细并批量更新生产订单
+    /// 解析排程明细并批量更新生产订单，返回实际应用（更新成功）的订单数
     /// batch-18 P2-5 修复：添加行锁、状态校验、日期保护
     async fn apply_schedule_details_to_orders(
         &self,
         txn: &sea_orm::DatabaseTransaction,
         details: &[ScheduleDetail],
-    ) -> Result<(), AppError> {
+    ) -> Result<usize, AppError> {
         let order_ids: Vec<i32> = details.iter().map(|d| d.order_id).collect();
         // 批量查询所有相关生产订单
         let orders = ProductionOrderEntity::find()
@@ -332,38 +364,45 @@ impl SchedulingService {
         let order_map: std::collections::HashMap<i32, crate::models::production_order::Model> =
             orders.into_iter().map(|o| (o.id, o)).collect();
 
+        let mut updated_count = 0usize;
         for detail in details {
-            if let Some(order) = order_map.get(&detail.order_id) {
-                // batch-18 P2-5：只允许 DRAFT 或 SCHEDULED 状态的订单被排程覆盖
-                if !matches!(
-                    order.status.as_str(),
-                    common::STATUS_DRAFT | production::PRODUCTION_SCHEDULED
-                ) {
-                    tracing::warn!(
-                        order_id = detail.order_id,
-                        status = %order.status,
-                        "跳过：订单状态不允许被排程覆盖"
-                    );
-                    continue;
-                }
-
-                // batch-18 P2-5：None 日期不覆盖已有值
-                let start = detail.start_date.or(order.planned_start_date);
-                let end = detail.end_date.or(order.planned_end_date);
-
-                use crate::models::production_order::ActiveModel;
-                let mut active: ActiveModel = order.clone().into();
-                active.planned_start_date = Set(start);
-                active.planned_end_date = Set(end);
-                active.work_center_id = Set(Some(detail.work_center_id));
-                if order.status == common::STATUS_DRAFT {
-                    active.status = Set(production::PRODUCTION_SCHEDULED.to_string());
-                }
-                active.updated_at = Set(Utc::now());
-                active.update(txn).await?;
+            let Some(order) = order_map.get(&detail.order_id) else {
+                tracing::warn!(
+                    order_id = detail.order_id,
+                    "跳过：排程明细引用的生产订单不存在"
+                );
+                continue;
+            };
+            // batch-18 P2-5：只允许 DRAFT 或 SCHEDULED 状态的订单被排程覆盖
+            if !matches!(
+                order.status.as_str(),
+                common::STATUS_DRAFT | production::PRODUCTION_SCHEDULED
+            ) {
+                tracing::warn!(
+                    order_id = detail.order_id,
+                    status = %order.status,
+                    "跳过：订单状态不允许被排程覆盖"
+                );
+                continue;
             }
+
+            // batch-18 P2-5：None 日期不覆盖已有值
+            let start = detail.start_date.or(order.planned_start_date);
+            let end = detail.end_date.or(order.planned_end_date);
+
+            use crate::models::production_order::ActiveModel;
+            let mut active: ActiveModel = order.clone().into();
+            active.planned_start_date = Set(start);
+            active.planned_end_date = Set(end);
+            active.work_center_id = Set(Some(detail.work_center_id));
+            if order.status == common::STATUS_DRAFT {
+                active.status = Set(production::PRODUCTION_SCHEDULED.to_string());
+            }
+            active.updated_at = Set(Utc::now());
+            active.update(txn).await?;
+            updated_count += 1;
         }
-        Ok(())
+        Ok(updated_count)
     }
 
     pub(crate) fn build_gantt_data(
