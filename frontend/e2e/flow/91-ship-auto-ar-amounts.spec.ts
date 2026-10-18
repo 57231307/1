@@ -1,7 +1,10 @@
 // 本文件守的缺陷族：出库后应收未自动生成（提示成功未落库）、应收金额与订单行金额
 // 在链路各环不一致却无人报错、源单关联键丢失导致发票与订单对不上账、应收状态门被绕过。
 // 金额一律断到分位：Decimal 走字符串出参，折算整数分后精确比较，不经 JS number 相加，
-// 期望值从订单行出参实时推导（行 subtotal+tax_amount），不写死会随造数漂移的业务数值。
+// 期望值从订单行出参逐行实时推导（行 subtotal − 行 discount_amount + 行 tax_amount 后求和，
+// 与后端行金额写入口径完全同式），不写死会随造数漂移的业务数值。
+// 出参标度按列而异：行 subtotal 落库列是 2 位，行 tax_amount/discount_amount/total_amount 是 4 位，
+// 因此分位换算必须按出参字符串的实际小数位定标，不能一律按目标标度补零（补零会把 4 位值放大 100 倍）。
 // 状态比较值与写入方逐字符同源：ar_invoice 大写 DRAFT/APPROVED/PARTIAL_PAID/PAID/CANCELLED，
 // approval_status 大写 PENDING/APPROVED；销售订单小写 shipped。
 // 出参形状：/ar/invoices 列表为 PaginatedResponse{items,...}；详情为裸 Model（snake_case 键）。
@@ -62,6 +65,31 @@ function requireNum(v: unknown, label: string): number {
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
+}
+
+/**
+ * 单行含税金额（整数分）——与后端写入方行金额口径完全同式：
+ * 行 subtotal − 行 discount_amount + 行 tax_amount。
+ * 三个出参各自都是后端落库前已定到 2 位的值（行 subtotal=数量×单价、
+ * 行 discount=subtotal×折扣率、行 tax=(subtotal−discount)×税率），
+ * 相减相加不会再产生第 3 位小数，故此处无需二次舍入。
+ * 缺任一键（列改名/被脱敏摘掉）toScaled 直接抛错暴露，不做 ?? 0 兜底。
+ */
+function lineNetCents(line: Row, idx: number): bigint {
+  return (
+    toScaled(line.subtotal, 2, `订单行[${idx}] subtotal`) -
+    toScaled(line.discount_amount, 2, `订单行[${idx}] discount_amount`) +
+    toScaled(line.tax_amount, 2, `订单行[${idx}] tax_amount`)
+  );
+}
+
+/** 订单头 total_amount 的期望值：逐行含税金额求和（写入方就是把行 total_amount 累加落到头） */
+function sumLineNetCents(items: Row[]): bigint {
+  let total = 0n;
+  for (const [idx, line] of items.entries()) {
+    total += lineNetCents(line, idx);
+  }
+  return total;
 }
 
 async function findInvoiceBySource(
@@ -139,12 +167,21 @@ test.describe('91 出库→开票（应收自动生成与金额一致性）', ()
     });
     const order = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${orderId}`);
     expect(order.status, '全额发货后订单词值 shipped（应收生成的状态前提）').toBe('shipped');
-    const line = (order.items as Row[])[0];
-    // 期望金额从订单行出参实时推导：含税合计 = 行 subtotal + 行 tax_amount（均为分位落库值），
-    // 不写死业务数值，避免造数漂移；分位相加走 BigInt，杜绝 JS number 浮点误差。
-    const lineSubtotalCents = toScaled(line.subtotal, 2, '订单行 subtotal');
-    const lineTaxCents = toScaled(line.tax_amount, 2, '订单行 tax_amount');
-    const expectedTotalCents = lineSubtotalCents + lineTaxCents;
+    const lines = order.items as Row[];
+    expect(
+      Array.isArray(lines) && lines.length > 0,
+      `订单详情必须回读到至少一条明细行，实际 items=${JSON.stringify(order.items)}`
+    ).toBe(true);
+    // 先逐行锁死「行 total_amount = 行 subtotal − 行 discount_amount + 行 tax_amount」这一写入侧恒等式：
+    // 若行落库口径漂移（漏减折扣、税基错位），这里先炸，而不是让下面的头对头比较空转。
+    for (const [idx, line] of lines.entries()) {
+      eqAmount(
+        line.total_amount,
+        lineNetCents(line, idx),
+        `订单行[${idx}] total_amount=行 subtotal−discount+tax`
+      );
+    }
+    const expectedTotalCents = sumLineNetCents(lines);
     // 订单头总额与行合计的账内自洽（发票金额一致性以此为锚）
     eqAmount(order.total_amount, expectedTotalCents, '订单头 total_amount=行含税合计');
 
