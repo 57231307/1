@@ -1662,33 +1662,40 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
 /**
  * 详情/编辑（`/{id}`）可访问性判定——与后端 `matches_permission` 同源（唯一真相）。
  *
- * 后端事实（backend/src/middleware/permission.rs）：
+ * 后端事实：
  * - `extract_resource_info` 对形如 `/api/v1/erp/<resource>/<int:id>` 的详情/编辑请求
- *   返回 `resource_id = Some(id)`；列表请求返回 `None`（permission.rs:259-315）。
- * - `matches_permission` 对 `resource_id = Some(id)` 的请求：普通权限行 `resource_id = NULL`
- *   走 `(None, Some) => false` 分支被拒；仅当权限行 `resource_type == "*"`（超级通配）时
- *   `id_match` 短路为真（permission.rs:612）。
- * - 登录/`/auth/me` 只把每行权限序列化为 `"{resource}:{action}"`，**不携带 resource_id**
- *   （backend/src/handlers/auth_handler.rs:176）；非管理员角色的权限行 resource_id 均为 NULL
- *   （产品既定严格策略），因此其权限码的资源段永远不是 `*`。
+ *   返回 `resource_id = Some(id)`；列表请求返回 `None`。
+ * - `matches_permission` 的资源段判据：权限行资源段 == 请求资源段，或任一侧为 `*`。
+ * - `matches_permission` 的 ID 维度判据：角色级授权行（resource_id 为 NULL）覆盖该资源
+ *   类型的全部实例，列表请求与按 ID 请求都放行；记录级授权行（resource_id 为 Some）只放行
+ *   同一实例；`resource_type == "*"`（超级通配）豁免 ID 维度判定。
+ * - 登录/`/auth/me` 只把每行权限序列化为 `"{resource}:{action}"`，**不携带 resource_id**。
+ *   所以前端可见的权限码一律对应角色级授权，其对 `/{id}` 的可达性只取决于资源段与动作段。
  *
  * 结论（同源判定，非角色白名单、非兜底）：
- * 用户对某资源的详情/编辑（`/{id}`）可访问 ⟺ 用户持有一条资源段为 `*` 且动作可覆盖
- * 目标动作的权限码（管理员的 `*:*` 即此形态）。否则该入口点了必然 403，应隐藏。
+ * 用户对某资源的详情/编辑（`/{id}`）可访问 ⟺ 用户持有一条权限码，其资源段与目标资源相等
+ * 或任一侧为 `*`，且动作段可覆盖目标动作（管理员注入的 `*:*` 即此形态）。否则该入口点了
+ * 必然 403，应隐藏。
  *
- * @param _resourceType 目标资源类型（保留参数以贴合调用语义；`*` 通配对任意资源均放行）
- * @param action 目标动作（详情用 read / 编辑用 update；view↔read、edit↔update 等价）
+ * 调用方：`v-permission-detail` 指令，以及销售/采购/生产/库存/凭证列表组件的详情与编辑入口。
+ *
+ * @param resourceType 目标资源段（后端派生的权威资源名，如 orders、purchase-orders、stock）
+ * @param action 目标动作（详情用 read / 编辑用 update；view 与 read、edit 与 update 等价）
  * @param userPermissions 用户持有的权限码列表
+ * @returns 该资源 `/{id}` 详情或编辑入口是否应展示
  */
 export function canAccessDetailPermission(
-  _resourceType: string,
+  resourceType: string,
   action: string,
   userPermissions: readonly string[]
 ): boolean {
   return userPermissions.some(up => {
     const { resource, action: userAction } = splitPermissionCode(up);
-    // 仅"资源段为 *"的超级通配行可放行 resource_id=Some 的详情/编辑请求（见函数注释）
-    return resource === '*' && actionEquivalent(userAction, action);
+    // 资源段与后端 resource_match 同式：相等，或任一侧为 `*` 通配
+    const resourceMatch = resource === resourceType || resource === '*' || resourceType === '*';
+    if (!resourceMatch) return false;
+    // 动作段复用既有 actionEquivalent（含 `*` 动作通配与 view/read、edit/update 等价）
+    return actionEquivalent(userAction, action);
   });
 }
 
@@ -1700,8 +1707,9 @@ export function canAccessDetailPermission(
  * 2. 通配符：用户持有 "resource:*" 可匹配该 resource 下的任意 action
  * 3. read/view 等价、update/edit 等价（后端两套 action 命名兼容）
  *
- * 注意：本函数是"列表级/路由级"宽松匹配，不能用于判定 `/{id}` 详情/编辑是否放行
- * （后端对 resource_id=NULL 行拒绝 `/{id}` 请求），详情/编辑请使用 canAccessDetailPermission。
+ * 分工：本函数用于路由 meta.permission 与列表级入口的匹配（粗域键在此解释为"持该域任一
+ * 细资源命中即放行"）。`/{id}` 详情/编辑入口用 canAccessDetailPermission，它按后端
+ * matches_permission 的资源段等值与 `*` 通配同源判定，角色级授权码同样覆盖 `/{id}`。
  *
  * @param required 路由 meta.permission（单个权限码或数组，任一匹配即通过）
  * @param userPermissions 用户实际持有的权限码列表

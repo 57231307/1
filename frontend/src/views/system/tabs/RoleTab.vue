@@ -121,9 +121,14 @@
         <el-button @click="permissionDialogVisible = false">{{
           t('system.role.permissionDialog.button.cancel')
         }}</el-button>
-        <el-button type="primary" :loading="permissionSubmitLoading" @click="submitPermissions">{{
-          t('system.role.permissionDialog.button.save')
-        }}</el-button>
+        <!-- 整批替换端点仅管理员可用：非管理员不渲染保存按钮，避免留下必然被拒的入口 -->
+        <el-button
+          v-if="canManageGrants"
+          type="primary"
+          :loading="permissionSubmitLoading"
+          @click="submitPermissions"
+          >{{ t('system.role.permissionDialog.button.save') }}</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -131,22 +136,24 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
+import { logger } from '@/utils/logger';
+import { useUserStore } from '@/store/user';
 import {
   getRoleList,
   createRole,
   updateRole,
   deleteRole as deleteRoleApi,
   getRolePermissions,
-  assignPermission,
-  deletePermission,
   getPermissionList,
+  replaceRolePermissions,
   type Role,
   type Permission,
+  type RolePermissionBatchEntry,
 } from '@/api/role';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -258,29 +265,62 @@ const deleteRole = async (row: Role) => {
 };
 
 // 权限配置。
-// 后端契约（iam.rs roles 路由 + role_handler）：
-// - GET  /permissions            → 权限目录 [{id,resource_type,action,allowed}]（id 为目录合成 id，非关联行 id）
-// - GET  /roles/{id}/permissions → 角色权限关联行 [{id(关联行主键),resource_type,resource_id,action,allowed}]
-// - POST /roles/{id}/permissions → 单条赋权 {resource_type,action,allowed}（幂等 upsert，admin 专用）
-// - DELETE /roles/permissions/{id} → 按关联行 id 删除（系统内置角色拒绝）
-// 因此树节点以 `${resource_type}::${action}` 为主键，提交时做增量 diff：
-// 新增勾选项逐条 POST 赋权；取消勾选的既有授予逐条 DELETE 关联行。
+// 后端契约（routes/iam.rs 的 roles 挂载 + handlers/role_handler.rs）：
+// - GET  /permissions            → 权限目录（资源注册表 × 可授予动作派生的裸数组）
+// - GET  /roles/{id}/permissions → 角色级授予行（resource_id IS NULL）裸数组
+//                                  [{id(关联行主键),resource_type,resource_id,action,allowed}]
+// - PUT  /roles/{id}/permissions → 整批替换角色级授予：请求体是期望的完整终集合
+//                                  [{resource_type,action,allowed}] 裸数组（非对象包装），
+//                                  服务端单事务做新增/更新/删除三态复算并在最终集合上复算
+//                                  职责分离校验，出参为替换后的角色级授予全集
+// - POST /roles/{id}/permissions、DELETE /roles/permissions/{id} 只服务记录级授权行，
+//                                  不在角色级配置面内
+// 树节点以 `${resource_type}::${action}` 为主键，保存时由「勾选集合 + 既有授予」算出目标
+// 终集合，一次 PUT 提交，随后 GET 读回终集合并据实提示。
 const permissionDialogVisible = ref(false);
 const currentRoleId = ref(0);
 const currentRoleName = ref('');
 const permissionTree = ref<PermissionTreeNode[]>([]);
-// 勾选的树节点 key（`${rt}::${action}`），提交时与既有授予做 diff
+// 勾选的树节点 key（`${rt}::${action}`），与既有授予一起算出整批替换的目标终集合
 const checkedKeys = ref<string[]>([]);
-// 角色当前权限关联行（key → {id: 关联行主键, allowed}），用于 diff 与取消勾选时删除
-const existingGrantRows = ref<Map<string, { id: number; allowed: boolean }>>(new Map());
+// 角色当前的角色级授予（key → allowed）；GET 返回的每一行都在替换作用面内
+const existingGrants = ref<Map<string, boolean>>(new Map());
 const permissionLoading = ref(false);
 const permissionSubmitLoading = ref(false);
+// 角色级授予是否已读取成功：没读到现状就禁止提交，否则目标终集合会凭残缺状态算出，
+// 整批替换会把未加载到的授予当"期望集外的行"删掉。
+const grantsLoaded = ref(false);
+
+const userStore = useUserStore();
+// 整批替换端点在后端首行 require_admin_role，非管理员调用必返 403，因此按管理员身份决定
+// 保存按钮是否渲染。判定口径与同域数据权限页一致：读后端为管理员角色注入的 `*:*` 超级
+// 通配权限，不自造权限键。查看授予（GET 端点）不受该门限制，入口对本页可见的角色保持可用。
+const canManageGrants = computed(() =>
+  (userStore.userInfo?.permissions || []).some(perm => perm === '*:*')
+);
 
 const permKey = (rt: string, action: string): string => `${rt}::${action}`;
+
+/**
+ * 解析树节点主键为资源与动作。
+ * 入参：`${resource_type}::${action}` 形态的键。
+ * 出参：{resourceType, action}；缺分隔符或任一侧为空时返回 null，由调用方跳过该键。
+ */
+const splitPermKey = (key: string): { resourceType: string; action: string } | null => {
+  const sep = key.indexOf('::');
+  if (sep <= 0 || sep + 2 >= key.length) return null;
+  return { resourceType: key.slice(0, sep), action: key.slice(sep + 2) };
+};
 
 const openPermissionDialog = (row: Role) => {
   currentRoleId.value = row.id;
   currentRoleName.value = row.name;
+  // 每次打开都从空态开始：上一个角色的勾选/授予若残留，整批替换会把别的角色的授予
+  // 当作本角色的现状提交（读回失败时终集合还会退化成空集，等于清空本角色权限）。
+  permissionTree.value = [];
+  checkedKeys.value = [];
+  existingGrants.value = new Map();
+  grantsLoaded.value = false;
   fetchRolePermissions(row.id);
   permissionDialogVisible.value = true;
 };
@@ -290,18 +330,22 @@ const fetchRolePermissions = async (roleId: number) => {
   try {
     const [treeRes, roleRes] = await Promise.all([getPermissionList(), getRolePermissions(roleId)]);
     permissionTree.value = buildPermissionTree(treeRes.data || []);
-    const grantRows = (roleRes.data || []) as Permission[];
-    const map = new Map<string, { id: number; allowed: boolean }>();
+    const grantRows = roleRes.data;
+    if (!Array.isArray(grantRows)) {
+      // 后端出参是裸数组，取不到数组即契约异常，显式失败而不是当空集合继续渲染
+      throw new Error(t('system.role.message.permissionReadBackInvalid'));
+    }
+    const map = new Map<string, boolean>();
     const keys: string[] = [];
     grantRows.forEach(p => {
       const k = permKey(p.resource_type, p.action);
-      map.set(k, { id: p.id, allowed: p.allowed });
+      map.set(k, p.allowed);
       if (p.allowed) keys.push(k);
     });
-    existingGrantRows.value = map;
+    existingGrants.value = map;
     checkedKeys.value = keys;
+    grantsLoaded.value = true;
   } catch (e) {
-    const { logger } = await import('@/utils/logger');
     logger.error(`${t('system.role.message.fetchPermissionFailed')}:`, e);
   } finally {
     permissionLoading.value = false;
@@ -337,46 +381,143 @@ const handlePermissionCheck = (_: unknown, { checkedKeys: keys }: { checkedKeys:
   checkedKeys.value = keys.map(k => String(k)).filter(k => !k.startsWith('group::'));
 };
 
+/**
+ * 由勾选集合与既有角色级授予算出整批替换的目标终集合（后端批量授予项数组）。
+ * 规则：勾选中的键一律以 allowed=true 入集；未勾选的既有行只在 allowed=false 时原样保留
+ * （显式拒绝行不因取消勾选而消失）；未勾选且 allowed=true 的既有行不入集，由服务端按
+ * 「期望集外的既有行」删除。同一键只出现一次，出参按 resource_type、action 稳定排序。
+ */
+const buildDesiredEntries = (
+  checked: ReadonlySet<string>,
+  existing: ReadonlyMap<string, boolean>
+): RolePermissionBatchEntry[] => {
+  const entries: RolePermissionBatchEntry[] = [];
+  checked.forEach(key => {
+    const parsed = splitPermKey(key);
+    if (parsed)
+      entries.push({ resource_type: parsed.resourceType, action: parsed.action, allowed: true });
+  });
+  existing.forEach((allowed, key) => {
+    if (allowed || checked.has(key)) return;
+    const parsed = splitPermKey(key);
+    if (parsed)
+      entries.push({ resource_type: parsed.resourceType, action: parsed.action, allowed: false });
+  });
+  return entries.sort(
+    (a, b) => a.resource_type.localeCompare(b.resource_type) || a.action.localeCompare(b.action)
+  );
+};
+
+/**
+ * 按目标终集合找出同时持有「新建 + 审批」（或通配动作 * 与其中任一）的资源 token。
+ * 与后端终集合职责分离校验同口径，只用于提交前把冲突点名给用户；服务端仍是权威：
+ * 记录级授权行不在本对话框可见范围内，预检通过也必须照常提交并按读回结果提示。
+ */
+const findDutyConflicts = (entries: readonly RolePermissionBatchEntry[]): string[] => {
+  const flags = new Map<string, { create: boolean; approve: boolean; wildcard: boolean }>();
+  entries.forEach(entry => {
+    if (!entry.allowed) return;
+    const current = flags.get(entry.resource_type) ?? {
+      create: false,
+      approve: false,
+      wildcard: false,
+    };
+    if (entry.action === 'create') current.create = true;
+    if (entry.action === 'approve') current.approve = true;
+    if (entry.action === '*') current.wildcard = true;
+    flags.set(entry.resource_type, current);
+  });
+  return [...flags.entries()]
+    .filter(([, f]) => (f.create && f.approve) || (f.wildcard && (f.create || f.approve)))
+    .map(([resourceType]) => resourceType)
+    .sort();
+};
+
+interface GrantSetDiff {
+  missing: string[];
+  extra: string[];
+  mismatched: string[];
+}
+
+/**
+ * 读回比对：把提交的目标终集合与 GET /roles/{id}/permissions 返回的授予行逐元素比对。
+ * 出参：missing（期望有而库里没有）、extra（库里有而期望没有）、mismatched（allowed 不一致）
+ * 三个键列表；三者皆空即两侧不多不少、逐项相同。
+ */
+const diffDesiredAgainstReadBack = (
+  desired: readonly RolePermissionBatchEntry[],
+  readBack: readonly Permission[]
+): GrantSetDiff => {
+  const expected = new Map<string, boolean>();
+  desired.forEach(entry => expected.set(permKey(entry.resource_type, entry.action), entry.allowed));
+  const actual = new Map<string, boolean>();
+  readBack.forEach(row => actual.set(permKey(row.resource_type, row.action), row.allowed));
+  const diff: GrantSetDiff = { missing: [], extra: [], mismatched: [] };
+  expected.forEach((allowed, key) => {
+    if (!actual.has(key)) diff.missing.push(key);
+    else if (actual.get(key) !== allowed) diff.mismatched.push(key);
+  });
+  actual.forEach((_, key) => {
+    if (!expected.has(key)) diff.extra.push(key);
+  });
+  return diff;
+};
+
+/**
+ * 取后端失败信封的 message（失败体形状 `{code,message,trace_id,timestamp}`）。
+ * 后端出参默认给脱敏常量、仅显式声明可外显时才是真实拒绝原因，这里原样透出，
+ * 不用前端自造文案替换它。出参：字符串；响应体缺失或 message 非字符串时为空串。
+ */
+const backendMessageOf = (error: unknown): string => {
+  const data = (error as { response?: { data?: { message?: unknown } } })?.response?.data;
+  return typeof data?.message === 'string' ? data.message : '';
+};
+
 const submitPermissions = async () => {
+  if (!grantsLoaded.value) {
+    logger.warn(`[角色授权] 授予现状未读取成功，拒绝整批替换，role_id=${currentRoleId.value}`);
+    ElMessage.error(t('system.role.message.permissionNotLoaded'));
+    return;
+  }
+  const desired = buildDesiredEntries(new Set(checkedKeys.value), existingGrants.value);
+  const conflicts = findDutyConflicts(desired);
+  if (conflicts.length > 0) {
+    ElMessage.warning(
+      t('system.role.message.permissionDutyConflict', { resources: conflicts.join(', ') })
+    );
+    logger.warn(
+      `[角色授权] 终集合职责预检拦截，role_id=${currentRoleId.value}: ${conflicts.join(',')}`
+    );
+    return;
+  }
   permissionSubmitLoading.value = true;
-  const wanted = new Set(checkedKeys.value);
-  const assignTasks: Array<Promise<unknown>> = [];
-  const removeTasks: Array<Promise<unknown>> = [];
-  // 勾选项：无关联行或既有行 allowed=false → 逐条 POST 单条赋权（幂等）
-  checkedKeys.value.forEach(k => {
-    const existing = existingGrantRows.value.get(k);
-    if (existing === undefined || !existing.allowed) {
-      const sep = k.indexOf('::');
-      const resourceType = k.slice(0, sep);
-      const act = k.slice(sep + 2);
-      assignTasks.push(
-        assignPermission(currentRoleId.value, {
-          resource_type: resourceType,
-          action: act,
-          allowed: true,
-        })
-      );
-    }
-  });
-  // 取消勾选的既有授予行：逐条 DELETE
-  existingGrantRows.value.forEach((row, k) => {
-    if (!wanted.has(k) && row.allowed) {
-      removeTasks.push(deletePermission(currentRoleId.value, row.id));
-    }
-  });
   try {
-    const results = await Promise.allSettled([...assignTasks, ...removeTasks]);
-    const failed = results.filter(r => r.status === 'rejected');
-    if (failed.length > 0) {
-      const first = failed[0] as PromiseRejectedResult;
-      ElMessage.error(
-        `${t('system.role.message.permissionFailed')}（${failed.length}/${results.length} ${t('system.role.message.permissionPartialFailed')}）: ` +
-          (first.reason instanceof Error ? first.reason.message : String(first.reason))
-      );
-    } else {
-      ElMessage.success(t('system.role.message.permissionSuccess'));
-      permissionDialogVisible.value = false;
+    await replaceRolePermissions(currentRoleId.value, desired);
+    const readBack = await getRolePermissions(currentRoleId.value);
+    if (!Array.isArray(readBack.data)) {
+      throw new Error(t('system.role.message.permissionReadBackInvalid'));
     }
+    const diff = diffDesiredAgainstReadBack(desired, readBack.data);
+    if (diff.missing.length > 0 || diff.extra.length > 0 || diff.mismatched.length > 0) {
+      logger.error(
+        `[角色授权] 读回与提交不一致，role_id=${currentRoleId.value}`,
+        `missing=${diff.missing.join('|')}`,
+        `extra=${diff.extra.join('|')}`,
+        `mismatched=${diff.mismatched.join('|')}`
+      );
+      ElMessage.error(t('system.role.message.permissionVerifyFailed'));
+      return;
+    }
+    ElMessage.success(t('system.role.message.permissionSuccess'));
+    permissionDialogVisible.value = false;
+  } catch (e: unknown) {
+    logger.error(`[角色授权] 整批替换授予失败，role_id=${currentRoleId.value}`, e);
+    const detail = backendMessageOf(e);
+    ElMessage.error(
+      detail
+        ? `${t('system.role.message.permissionSaveFailed')}: ${detail}`
+        : t('system.role.message.permissionSaveFailed')
+    );
   } finally {
     permissionSubmitLoading.value = false;
   }
