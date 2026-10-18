@@ -1620,7 +1620,6 @@ export default {
     markLostFailed: '遗失登记失败',
     markDamagedFailed: '损坏标记失败',
     purchaseOrderDeleted: '采购订单 {orderNo} 已删除',
-    purchaseOrderReceived: '采购订单 {orderNo} 已收货',
     dashboard: {
       fetchFailed: '获取概览数据失败',
       fetchSalesFailed: '获取销售概览失败',
