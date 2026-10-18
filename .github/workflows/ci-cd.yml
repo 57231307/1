@@ -3254,15 +3254,15 @@ jobs:
           - "admin:admin,system_admin,auditor"
           - "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst"
           - "sales:sales_manager,salesperson,after_sales_manager,customer_service,report_viewer"
-          - "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper"
-          - "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector"
+          - "supply:purchase_manager,purchase_clerk,sourcing_specialist,supplier_manager,warehouse_manager,warehouse_keeper"
+          - "production:production_manager,production_worker,dyeing_technician,color_card_manager,qc_manager,quality_inspector"
           - "boundary:e2e_readonly,e2e_noperm,department_manager"
         include:
           - { role_group: "admin:admin,system_admin,auditor", group_name: "admin" }
           - { role_group: "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst", group_name: "finance" }
           - { role_group: "sales:sales_manager,salesperson,after_sales_manager,customer_service,report_viewer", group_name: "sales" }
-          - { role_group: "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper", group_name: "supply" }
-          - { role_group: "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector", group_name: "production" }
+          - { role_group: "supply:purchase_manager,purchase_clerk,sourcing_specialist,supplier_manager,warehouse_manager,warehouse_keeper", group_name: "supply" }
+          - { role_group: "production:production_manager,production_worker,dyeing_technician,color_card_manager,qc_manager,quality_inspector", group_name: "production" }
           - { role_group: "boundary:e2e_readonly,e2e_noperm,department_manager", group_name: "boundary" }
     services:
       postgres:
