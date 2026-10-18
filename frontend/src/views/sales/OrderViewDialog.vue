@@ -106,12 +106,34 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <template #footer>
+      <el-button @click="emit('update:visible', false)">{{ t('common.cancel') }}</el-button>
+      <el-button
+        v-permission="PERMISSIONS.PRINT_TASK_CREATE"
+        type="primary"
+        :disabled="!order?.id"
+        @click="printVisible = true"
+      >
+        {{ t('printDialog.submit') }}
+      </el-button>
+    </template>
+
+    <PrintDocumentDialog
+      v-model:visible="printVisible"
+      doc-type="sales_order"
+      :doc-id="order?.id ?? null"
+      :doc-label="order?.order_no ?? ''"
+    />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { SalesOrder } from '@/api/sales';
+import PrintDocumentDialog from '@/components/Print/PrintDocumentDialog.vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -124,6 +146,9 @@ defineProps<{
 const emit = defineEmits<{
   'update:visible': [value: boolean];
 }>();
+
+/** 打印对话框开关：doc_id 由本对话框查看的订单行带出，不在打印面手输主键 */
+const printVisible = ref(false);
 
 const getStatusType = (status: string | undefined) => salesStatusTagType(status);
 
