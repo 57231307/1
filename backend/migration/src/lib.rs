@@ -4,7 +4,8 @@
 //! system → business → sales_crm → production → finance → v15 → rls_dept
 //!   → rls_dept_user_sync → crm_lead_claim_record → crm_vocab_check → price_vocab_check
 //!   → price_vocab_extend → price_fk → export_inspection_vocab_check → dye_recipe_reject
-//!   → ddl_nullability_tighten
+//!   → ddl_nullability_tighten → polymorphic_bill_id_widen → print_subsystem
+//!   → company_profile → bulk_color_item_link → finance_resource_rename → bpm_approver_grant
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -14,6 +15,7 @@
 //!         / m_ddl_nullability_tighten / m_polymorphic_bill_id_widen_ar_invoice_txn / m_print_subsystem
 //!         / m_company_profile
 //!         / m_bulk_color_item_link
+//!         / m_finance_resource_rename / m_bpm_approver_grant
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -50,6 +52,13 @@
 //! 14. bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
 //!    sales_order_item_id 外键指向 sales_order_items + 检索索引；置于链尾为新的顶层条目，
 //!    复用库上属 pending 必然执行，依赖 v15 建的 bulk_color_approval 与 sales_order_items）
+//! 15. finance_resource_rename: 财务域权限资源键改名波的存量库通道（role_permissions.
+//!    resource_type 旧 URL 段名逐对改写到随域改名的新资源名；改名前按同 (role_id, action)
+//!    做唯一索引冲突预检、一对多旧段设失败可见闸门待人工裁定；置于链尾为新的顶层条目）
+//! 16. bpm_approver_grant: BPM 审批岗补授的存量库通道（按 roles.code 反查 id，为
+//!    sales_manager/purchase_manager/production_manager 补授与 init 矩阵同源的六枚派生键；
+//!    依赖 v15 建的 uq_role_permissions_role_resource_action 唯一索引，故必须排在其后的链尾，
+//!    作为新的顶层条目，复用库上也必然执行）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -82,6 +91,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::company_profile::Migration),
             Box::new(domain::bulk_color_item_link::Migration),
             Box::new(domain::finance_resource_rename::Migration),
+            Box::new(domain::bpm_approver_grant::Migration),
         ]
     }
 }

@@ -32,6 +32,10 @@
 //! - finance_resource_rename: 财务域权限资源键改名波（role_permissions.resource_type 旧 URL 段名
 //!   逐对改写到随域改名新资源名，唯一索引冲突预检 + 一对多按裸值无法判域的失败可见闸门；
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
+//! - bpm_approver_grant: BPM 审批岗补授（sales_manager / purchase_manager / production_manager
+//!   各六枚派生键）的存量库通道——按 roles.code 反查 id、ON CONFLICT 用真实唯一索引的列集合
+//!   保证幂等，逐键打印实写行数与跳过成因，同键显式拒绝行只点名不覆盖；置于链尾为新的顶层
+//!   条目，复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -54,3 +58,4 @@ pub mod print_subsystem;
 pub mod company_profile;
 pub mod bulk_color_item_link;
 pub mod finance_resource_rename;
+pub mod bpm_approver_grant;
