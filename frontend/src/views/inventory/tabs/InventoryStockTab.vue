@@ -150,14 +150,15 @@ watch(
 // 状态标签映射：与详情页、打印共用同一份取值→文案映射（见 composables/invFmts）
 const getStatusText = (status: string) => getStockStatusLabel(status, t);
 
-// 后端对 resource_id=NULL 权限行拒绝 `/inventory/stock/{id}` 的 GET(查看)/PUT(编辑)，
-// 非管理员点了必然 403。与后端同源判定（canAccessDetailPermission）决定是否隐藏入口。
+// 查看/编辑入口回源 GET 与 PUT `/inventory/stock/{id}`，该 URL 派生的权限资源段是 stock
+// （inventory 只是模块前缀）。用 canAccessDetailPermission 与后端 matches_permission 同源判定，
+// 判为不可访问时移除入口，避免留下点了必然 403 的按钮。
 const userStore = useUserStore();
 const canViewStockDetail = computed(() =>
-  canAccessDetailPermission('inventory', 'read', userStore.userInfo?.permissions || [])
+  canAccessDetailPermission('stock', 'read', userStore.userInfo?.permissions || [])
 );
 const canEditStockDetail = computed(() =>
-  canAccessDetailPermission('inventory', 'update', userStore.userInfo?.permissions || [])
+  canAccessDetailPermission('stock', 'update', userStore.userInfo?.permissions || [])
 );
 // 行点击进入详情：无 /{id} 读权限时不触发（详情数据无法加载，避免必然 403）
 const handleRowView = (row: InventoryStock) => {
