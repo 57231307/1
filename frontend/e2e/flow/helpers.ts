@@ -2838,30 +2838,41 @@ export async function getEntityField<T = unknown>(
   return entity[field] as T;
 }
 
+/**
+ * 角色互斥（SoD）写口是否**真的以业务拒绝生效**（返回布尔，由调用方断言）。
+ *
+ * 后端契约：`user_service::update_user` 在写入 role_id 之前调
+ * `check_role_conflict_for_user`，命中 `role_conflicts` 表里的互斥对时返回
+ * `AppError::business` → `utils/error.rs` 的 `(BAD_REQUEST, "BusinessError")`，
+ * 出参机器码 `BUSINESS_ERROR`；HTTP 出参 message 是脱敏常量（真实文案只在
+ * `security_audit` 日志里），所以判据只能是 status + 机器码，不是文案措辞。
+ *
+ * 旧实现把角色**编码字符串**当 `role_id` 提交（handler 要 i32，必为参数类型错误），
+ * 并用 `catch → return true` 把任何异常都算成"存在冲突约束"——那是恒真的假绿机器，
+ * 已废除。现口径：
+ * - 第一步 PUT 是前提（把用户挂到 roleA 上），非 200 直接抛错点名前提不成立；
+ * - 第二步 PUT 才是被测的互斥拦截：拒绝必须是 HTTP 恰 400 且 code 恰为
+ *   `BUSINESS_ERROR`；CSRF 竞败 403、裸 5xx、404 都不算互斥生效；
+ * - 放行（第二步 200）返回 false，让调用方看得见"互斥没生效"这个真实结论。
+ */
 export async function verifySoDConflict(
   page: Page,
   userId: number,
-  roleA: string,
-  roleB: string
+  roleAId: number,
+  roleBId: number
 ): Promise<boolean> {
-  // 后端无 /users/assign-role 端点；用户角色通过 PUT /users/{id} 的 role_id 字段分配（单角色）。
-  // SoD 冲突由角色互斥规则（/roles/conflicts）在角色管理侧校验，此处模拟双角色分配必然失败 → 返回 true（存在冲突约束）。
+  // 前提：先把用户挂到 A 岗（这一步不该被互斥拦，A 与用户当前岗无内置冲突）
+  await apiCall(page, 'PUT', `/users/${userId}`, { role_id: roleAId });
+
+  const second = await apiCallExpectFail(page, 'PUT', `/users/${userId}`, {
+    role_id: roleBId,
+  });
+  const blocked = second.status === 400 && failureCode(second) === APP_ERROR_CODES.BUSINESS_ERROR;
   console.log(
-    `[verifySoDConflict] userId=${userId} 模拟双角色 ${roleA}+${roleB}（后端单角色模型，按存在冲突约束处理）`
+    `[verifySoDConflict] userId=${userId} ${roleAId}->${roleBId} 换岗：` +
+      `status=${second.status} code=${second.code} => ${blocked ? '互斥已拦住' : '未拦住（放行或拒绝形态不符）'}`
   );
-  try {
-    await apiCall(page, 'PUT', `/users/${userId}`, {
-      role_id: roleA,
-    });
-    // 单角色分配成功不代表无 SoD 约束；继续尝试把用户改为 roleB，两次分配都成功说明互斥未生效
-    const second = await apiCall(page, 'PUT', `/users/${userId}`, {
-      role_id: roleB,
-    });
-    return !(second.code === 200 || second.code === 0);
-  } catch (e) {
-    console.warn(`[E2E] catch: ${(e as Error).message}`);
-    return true;
-  }
+  return blocked;
 }
 
 /**
