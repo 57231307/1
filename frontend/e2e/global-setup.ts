@@ -406,7 +406,11 @@ const SEED_ROLES = [
   'qc_manager',
   'quality_inspector',
   'production_manager',
-  'production_worker',
+  // 执行侧按三档设岗（染整执行 / 后整执行 / 验布包装），不设泛化工人岗：
+  // 泛化码在后端既无定义也无授权，建出来的账号只有一层外壳权限，矩阵覆盖不到任何真实工序。
+  'dyeing_master',
+  'finishing_master',
+  'fabric_inspector',
   'dyeing_technician',
   'color_card_manager',
   'after_sales_manager',
@@ -556,6 +560,41 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   production_manager: ['greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
   // 质检/验布岗：验布打卷页的标签面板需读匹行并可打印（同 m0069 口径）
   quality_inspector: ['pieces:read', 'pieces:print'],
+  // 执行侧三档岗的补授面逐行抄自后端默认授权矩阵同名角色分组，含通配行按矩阵原文写作
+  // resource:*，不自创键、不为用例转绿扩授。三岗均由后端初始化建角且为系统角色
+  // （API 拒改权限），此面的作用是以回读逐键钉住三通道口径一致，缺键即点名判红。
+  dyeing_master: [
+    'dye-batches:*',
+    'dye-batch-lifecycle-logs:read',
+    'dye-batch-operations:*',
+    'dye-batch-reworks:*',
+    'dye-recipes:read',
+    'dye-recipes:create',
+    'production-recipes:read',
+    'chemicals:read',
+    'chemical-lots:read',
+    'flow-cards:read',
+    'flow-cards:update',
+  ],
+  finishing_master: [
+    'production-orders:read',
+    'production-orders:create',
+    'production-orders:update',
+    'dye-batches:read',
+    'dye-batch-operations:create',
+    'flow-cards:read',
+    'flow-cards:update',
+    'fabric-inspections:read',
+  ],
+  fabric_inspector: [
+    'fabric-inspections:*',
+    'fabric-defects:*',
+    'dye-batches:read',
+    'products:read',
+    'quality-standards:read',
+    'pieces:read',
+    'pieces:print',
+  ],
 };
 
 // 边界测试角色
