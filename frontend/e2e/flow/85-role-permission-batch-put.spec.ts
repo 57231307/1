@@ -25,6 +25,7 @@ import {
   BASE_URL,
   apiCallExpectFail,
   apiCallRaw,
+  ensureLiveCsrfForUI,
   failureCode,
   loginViaUI,
   tryCleanup,
@@ -152,15 +153,26 @@ async function openPermissionDialog(page: Page, roleName: string): Promise<Locat
   return dialog;
 }
 
-/** 定位某个资源+动作的叶子节点行（分组行文本只有资源名，不会与 `资源:动作` 相混） */
+// 树节点定位一律走 el-tree 渲染在节点元素上的 data-key 属性（值 = 组件的 node-key，
+// 叶子为 `${resource_type}::${action}`、分组为 `group::${resource_type}`），
+// 不依赖可见文本：叶子标签受词表/本地化影响会变，data-key 由同一组件契约产生、与后端
+// 授予项字段同源，是稳定定位。直接子代选择器（>）保证只命中该节点自身的行，
+// 分组行不会误匹配到其子节点。
+const treeRowByKey = (dialog: Locator, key: string): Locator =>
+  dialog.locator(`.el-tree-node[data-key="${key}"] > .el-tree-node__content`).first();
+
+const leafKey = (resourceType: string, action: string): string => `${resourceType}::${action}`;
+
+/** 定位某个资源+动作的叶子节点行（按 data-key，不依赖标签文本） */
 function leafRow(dialog: Locator, resourceType: string, action: string): Locator {
-  return dialog
-    .locator('.el-tree-node__content')
-    .filter({ hasText: new RegExp(`^${resourceType}:${action}$`) })
-    .first();
+  return treeRowByKey(dialog, leafKey(resourceType, action));
 }
 
-/** 读取叶子节点勾选态：el-tree 的复选框状态在原生 input 上 */
+/**
+ * 读取叶子节点勾选态：el-tree 的复选框状态在原生 input 上。
+ * 前置：所属分组必须已展开——el-tree 默认不渲染未展开分组的子节点 DOM，
+ * 未展开时这里会等超时（调用方先 expandGroup）。
+ */
 async function leafChecked(
   dialog: Locator,
   resourceType: string,
@@ -171,31 +183,46 @@ async function leafChecked(
   return await leaf.locator('.el-checkbox input').first().isChecked();
 }
 
-/** 展开资源分组（el-tree 展开后才渲染子节点），再点叶子复选框切换勾选 */
+/**
+ * 展开资源分组（el-tree 的 children 默认 render-after-expand：未展开前子节点不在 DOM 里，
+ * 一切叶子级断言/点击都必须先展开）。已展开时幂等返回，不重复点击收起。
+ */
+async function expandGroup(page: Page, dialog: Locator, resourceType: string): Promise<void> {
+  const groupRow = treeRowByKey(dialog, `group::${resourceType}`);
+  await groupRow.waitFor({ state: 'visible', timeout: 30_000 });
+  const node = dialog.locator(`.el-tree-node[data-key="group::${resourceType}"]`).first();
+  if ((await node.getAttribute('aria-expanded')) === 'true') {
+    return;
+  }
+  await groupRow.locator('.el-tree-node__expand-icon').first().click();
+  await page.waitForTimeout(300);
+}
+
+/** 展开资源分组，再点叶子复选框切换勾选 */
 async function toggleLeaf(
   page: Page,
   dialog: Locator,
   resourceType: string,
   action: string
 ): Promise<void> {
-  const groupRow = dialog
-    .locator('.el-tree-node__content')
-    .filter({ hasText: new RegExp(`^${resourceType}$`) })
-    .first();
-  await groupRow.waitFor({ state: 'visible', timeout: 30_000 });
-  const expandIcon = groupRow.locator('.el-tree-node__expand-icon').first();
-  const iconClass = (await expandIcon.getAttribute('class')) ?? '';
-  if (!iconClass.includes('is-expanded')) {
-    await expandIcon.click();
-    await page.waitForTimeout(300);
-  }
+  await expandGroup(page, dialog, resourceType);
   const leaf = leafRow(dialog, resourceType, action);
   await leaf.waitFor({ state: 'visible', timeout: 30_000 });
   await leaf.locator('.el-checkbox__inner').first().click();
 }
 
-/** 点保存并等 PUT 落定，返回该 PUT 的 HTTP 状态码 */
-async function clickSaveAndWaitPut(page: Page, dialog: Locator): Promise<number> {
+/** 保存这一次 PUT 的真实响应：状态码 + 统一信封里的机器码与文案 */
+interface PutOutcome {
+  status: number;
+  code: string;
+  message: string;
+}
+
+/**
+ * 点保存并等 PUT 落定，读该响应的真实出参。
+ * 只监听、不拦截：响应体一律来自后端，任何"被拒"路径都必须由后端真实规则产生。
+ */
+async function clickSaveAndWaitPut(page: Page, dialog: Locator): Promise<PutOutcome> {
   const putResponse = page.waitForResponse(
     res => ROLE_PERM_URL.test(res.url()) && res.request().method() === 'PUT',
     { timeout: 60_000 }
@@ -206,7 +233,18 @@ async function clickSaveAndWaitPut(page: Page, dialog: Locator): Promise<number>
     .first()
     .click();
   const res = await putResponse;
-  return res.status();
+  const envelope = await res
+    .json()
+    .then(
+      (body: { code?: unknown; message?: unknown }) =>
+        ({ code: body?.code, message: body?.message }) as { code?: unknown; message?: unknown }
+    )
+    .catch(() => ({}) as { code?: unknown; message?: unknown });
+  return {
+    status: res.status(),
+    code: String(envelope.code ?? ''),
+    message: String(envelope.message ?? ''),
+  };
 }
 
 /** 对话框底部的按钮计数（按按钮文案），用于断言保存入口是否渲染 */
@@ -239,7 +277,14 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
           'departments:read 应被勾选'
         ).toBe(true);
 
-        expect(await clickSaveAndWaitPut(page, dialog), '整批替换应返回 200').toBe(200);
+        // UI 保存前把会话里的 csrf_token 归一为存活 token：本用例此前所有写请求（建角色）
+        // 都由 helper 发出并触发后端轮换，CSRF token 一次性消费，不归一则页面首个 PUT
+        // 必带已消费旧 token 吃 403 CSRF_TOKEN_INVALID，真正被测的响应面被 axios
+        // 恢复重放推到第二次请求上。判据：归一后由 UI 的 PUT 成为存活 token 的第一
+        // 消费者；这里不做任何“重点一次直到成功”的容错，状态断言保持精确 200。
+        await ensureLiveCsrfForUI(page);
+        const saved = await clickSaveAndWaitPut(page, dialog);
+        expect(saved.status, '整批替换应返回 200').toBe(200);
         expect(tracker.count('PUT'), '保存一次授权应恰好发出一次 PUT').toBe(1);
         expect(tracker.count('POST'), '不应再出现逐点 POST 赋权').toBe(0);
         expect(tracker.count('DELETE'), '不应再出现逐点 DELETE 关联行').toBe(0);
@@ -302,6 +347,8 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
       const tracker = trackGrantRequests(page);
       try {
         const dialog = await openPermissionDialog(page, role.name);
+        // el-tree 未展开的分组不渲染子节点 DOM，勾选态断言前必须先展开所属分组
+        await expandGroup(page, dialog, READ_DEPARTMENTS.resource_type);
         expect(
           await leafChecked(dialog, READ_DEPARTMENTS.resource_type, READ_DEPARTMENTS.action),
           '已落库的授予应在对话框中呈勾选态'
@@ -312,7 +359,11 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
           'departments:read 应被取消勾选'
         ).toBe(false);
 
-        expect(await clickSaveAndWaitPut(page, dialog), '整批替换应返回 200').toBe(200);
+        // UI 保存前归一 csrf_token（同 85-01 判据：本用例前置用 API 写入了两条授予，
+        // token 已轮换；页面首个 PUT 必须是存活 token 的第一消费者），断言保持精确 200。
+        await ensureLiveCsrfForUI(page);
+        const saved = await clickSaveAndWaitPut(page, dialog);
+        expect(saved.status, '整批替换应返回 200').toBe(200);
         expect(tracker.count('PUT'), '删除态同样由一次 PUT 表达').toBe(1);
         expect(tracker.count('DELETE'), '不应再出现逐点 DELETE 关联行').toBe(0);
         expect(tracker.count('POST'), '不应再出现逐点 POST 赋权').toBe(0);
@@ -331,61 +382,65 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
     }
   });
 
-  test('85-03 授权被拒时失败可见：无成功提示、对话框不关闭、库里零漂移', async ({ page }) => {
+  test('85-03 授权被真实拒绝时失败可见：拒绝文案上屏、无成功提示、对话框不关闭、库里零漂移', async ({
+    page,
+  }) => {
     await loginViaUI(page);
-    const role = await createScratchRole(page, 'A3');
-    const rejectedMessage = 'E2E 注入的授权拒绝文案';
-    const putPattern = '**/api/v1/erp/roles/*/permissions';
+    // 内置角色是后端会真实拒绝整批替换的对象：service 在角色行锁内按 is_system 拒绝，
+    // 并把拒绝原因按可外显文案返回。用例不改动任何内置角色的数据（请求必被拒），
+    // 拒绝面因此来自后端规则而不是任何被拦截或改写的响应。
+    const roleList = await apiCallRaw<{ roles: RoleRow[]; total: number }>(page, 'GET', '/roles');
+    const target = roleList.roles.find(row => row.code === 'auditor');
+    expect(
+      target,
+      `审计员内置角色应存在于本库（内置角色拒绝面的判据角色），实际 code 清单：${roleList.roles
+        .map(row => row.code)
+        .join(',')}`
+    ).toBeTruthy();
+    const systemRole = target as RoleRow;
+    expect(
+      systemRole.is_system,
+      '审计员必须是内置角色，否则本用例的拒绝判据不成立'
+    ).toBe(true);
+
+    const before = await readRoleGrants(page, systemRole.id);
+    const tracker = trackGrantRequests(page);
     try {
-      await seedRoleGrant(page, role.id, READ_USERS);
-      const before = await readRoleGrants(page, role.id);
+      const dialog = await openPermissionDialog(page, systemRole.name);
+      // 归一 csrf_token 后直接保存：不改勾选也能提交，整批替换不依赖集合是否变化。
+      await ensureLiveCsrfForUI(page);
+      const rejected = await clickSaveAndWaitPut(page, dialog);
 
-      const tracker = trackGrantRequests(page);
-      // 用统一失败信封的真实形状（403 + FORBIDDEN）替换 PUT 响应，专测前端对拒绝的处理；
-      // 非管理员在权限门下的真实拒绝由 85-04 直接断言。
-      await page.route(putPattern, async route => {
-        if (route.request().method() !== 'PUT') {
-          await route.continue();
-          return;
-        }
-        await route.fulfill({
-          status: 403,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            code: APP_ERROR_CODES.FORBIDDEN,
-            message: rejectedMessage,
-            trace_id: 'e2e-injected',
-            timestamp: 0,
-          }),
-        });
+      expect(
+        rejected.status,
+        `内置角色的整批替换应被拒绝为 400，实际响应：${JSON.stringify(rejected)}`
+      ).toBe(400);
+      expect(
+        rejected.code,
+        `拒绝机器码应为 BUSINESS_ERROR，实际响应：${JSON.stringify(rejected)}`
+      ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+      expect(
+        rejected.message,
+        `拒绝原因须如实携带在出参 message 里，实际响应：${JSON.stringify(rejected)}`
+      ).toContain('系统角色不允许修改权限');
+
+      expect(tracker.count('PUT'), '被拒的保存同样只应发一次 PUT').toBe(1);
+      expect(tracker.count('POST'), '被拒路径上不得出现逐点 POST 赋权').toBe(0);
+      expect(tracker.count('DELETE'), '被拒路径上不得出现逐点 DELETE 关联行').toBe(0);
+
+      await expect(page.getByText('系统角色不允许修改权限').first()).toBeVisible({
+        timeout: 10_000,
       });
-      try {
-        const dialog = await openPermissionDialog(page, role.name);
-        await toggleLeaf(page, dialog, READ_DEPARTMENTS.resource_type, READ_DEPARTMENTS.action);
-        await clickSaveAndWaitPut(page, dialog);
+      expect(await page.locator('.el-message--success').count(), '被拒后不得出现成功提示').toBe(0);
+      expect(dialog, '被拒后对话框不应按成功关闭').toBeVisible();
 
-        expect(tracker.count('PUT'), '被拒的保存同样只应发一次 PUT').toBe(1);
-        expect(tracker.count('POST'), '被拒路径上不得出现逐点 POST').toBe(0);
-        expect(tracker.count('DELETE'), '被拒路径上不得出现逐点 DELETE').toBe(0);
-
-        await expect(page.getByText(rejectedMessage).first()).toBeVisible({ timeout: 10_000 });
-        expect(await page.locator('.el-message--success').count(), '被拒后不得出现成功提示').toBe(
-          0
-        );
-        await expect(dialog, '失败时对话框不应按成功关闭').toBeVisible();
-
-        const after = await readRoleGrants(page, role.id);
-        expect(after.map(grantKey).sort(), '被拒后库里集合不应发生半截漂移').toEqual(
-          before.map(grantKey).sort()
-        );
-      } finally {
-        tracker.stop();
-        await page.unroute(putPattern).catch(e => {
-          console.warn(`[85-03] 取消路由拦截失败: ${(e as Error).message}`);
-        });
-      }
+      const after = await readRoleGrants(page, systemRole.id);
+      expect(
+        after.map(row => `${grantKey(row)}=${row.allowed}`).sort(),
+        '被拒后内置角色的授予集合与 allowed 取值都应零漂移'
+      ).toEqual(before.map(row => `${grantKey(row)}=${row.allowed}`).sort());
     } finally {
-      await tryCleanup(page, 'DELETE', `/roles/${role.id}`, `role#${role.id}`);
+      tracker.stop();
     }
   });
 

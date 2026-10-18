@@ -1366,6 +1366,22 @@ async function probeCsrfLiveness(page: Page): Promise<void> {
 }
 
 /**
+ * 在「UI 将发起本次会话的首个写请求」之前，把浏览器上下文的 csrf_token 归一为存活 token。
+ *
+ * 适用判据：用例先用 apiCall/apiCallRaw/apiCallExpectFail 发过写请求（helper 会把后端轮换出的
+ * token 回写 cookie 序列），随后由页面交互触发 UI 写请求。CSRF token 一次性消费且每次写请求
+ * 轮换，UI 发出的若是已被前序消费链打死的旧 token，首个 UI 写请求必 403 CSRF_TOKEN_INVALID，
+ * 而 axios 的恢复重放会把真正要断言的响应推到第二次请求上——断言面与请求面错位。
+ * 本函数复用 probeCsrfLiveness 的零业务副作用探测（POST /webhooks 空体 422，早于 handler
+ * 反序列化失败、绝不触库；消费+轮换在后端中间件完成），返回后上下文持有的必是存活 token，
+ * 紧接着的 UI 写请求即该 token 的真实第一消费者。
+ * 禁止用它做"再点一次直到成功"式重试：它只理顺 token 序列，不吞任何失败。
+ */
+export async function ensureLiveCsrfForUI(page: Page): Promise<void> {
+  await probeCsrfLiveness(page);
+}
+
+/**
  * helper 可携带的请求体形态：对象端点收 `Json<T>`，整批替换类端点收 `Json<Vec<T>>`
  * （裸数组，例如 PUT /roles/{id}/permissions），两者都是合法 JSON 请求体，
  * 走同一条带 CSRF 头的发送链路，不因形态不同而绕过 CSRF。
