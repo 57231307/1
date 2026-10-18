@@ -29,6 +29,9 @@
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
 //! - bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
 //!   sales_order_item_id 外键 + 检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
+//! - finance_resource_rename: 财务域权限资源键改名波（role_permissions.resource_type 旧 URL 段名
+//!   逐对改写到随域改名新资源名，唯一索引冲突预检 + 一对多按裸值无法判域的失败可见闸门；
+//!   置于链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -50,3 +53,4 @@ pub mod polymorphic_bill_id_widen;
 pub mod print_subsystem;
 pub mod company_profile;
 pub mod bulk_color_item_link;
+pub mod finance_resource_rename;

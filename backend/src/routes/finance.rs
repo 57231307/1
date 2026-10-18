@@ -9,7 +9,7 @@
 //! 短期保留 POST 动作端点以兼容前端；长期计划重构为 PATCH 统一状态变更语义。
 //!（`/fixed-assets`、`/budgets`、`/financial-analysis`、
 //!  `/fund-management`、`/ar-reconciliations`、`/ar-reconciliations-enhanced`、
-//!  `/ar-reconciliation-alias`、`/currencies`、`/exchange-rates` 等），
+//!  `/currencies`、`/exchange-rates` 等），
 //! 这样 `routes()` 入口用 `merge` 组合时不会出现 path+method 重叠，
 //! 避免 axum 0.7 `Overlapping method route` panic。
 //!
@@ -815,7 +815,7 @@ fn ap_reconciliation_routes() -> Router<AppState> {
             get(ap_reconciliation_handler::get_invoice_relations),
         )
         .route(
-            "/ap/reconciliation/{id}/print",
+            "/ap/reconciliations/{id}/print",
             get(print_handler::ap_reconciliation_print_docx),
         )
 }
@@ -994,8 +994,17 @@ pub fn ar_reconciliations_enhanced() -> Router<AppState> {
             post(ar_reconciliation_enhanced_handler::generate_reconciliation),
         )
         .route(
+            "/ar-reconciliations-enhanced/auto-reconcile/results",
+            get(ar_reconciliation_enhanced_handler::list_results),
+        )
+        .route(
+            "/ar-reconciliations-enhanced/{id}/confirm/send",
+            post(ar_reconciliation_enhanced_handler::send_confirmation),
+        )
+        .route(
             "/ar-reconciliations-enhanced/confirmations",
-            get(ar_reconciliation_enhanced_handler::list_confirmations),
+            get(ar_reconciliation_enhanced_handler::list_confirmations)
+                .post(ar_reconciliation_enhanced_handler::create_confirmation),
         )
         .route(
             "/ar-reconciliations-enhanced/confirmations/{id}/status",
@@ -1012,53 +1021,6 @@ pub fn ar_reconciliations_enhanced() -> Router<AppState> {
         )
         .route(
             "/ar-reconciliations-enhanced/disputes/{id}/resolve",
-            put(ar_reconciliation_enhanced_handler::resolve_dispute),
-        )
-}
-
-/// 应收对账别名路由（path 前缀 /ar-reconciliation-alias）
-pub fn ar_reconciliation_alias() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/ar-reconciliation-alias/auto-reconcile",
-            post(ar_reconciliation_enhanced_handler::auto_match),
-        )
-        .route(
-            "/ar-reconciliation-alias/auto-reconcile/results",
-            get(ar_reconciliation_enhanced_handler::list_results),
-        )
-        .route(
-            "/ar-reconciliation-alias/aging-analysis",
-            get(ar_reconciliation_enhanced_handler::aging_report),
-        )
-        .route(
-            "/ar-reconciliation-alias/{id}/details",
-            get(ar_reconciliation_enhanced_handler::get_reconciliation_details),
-        )
-        .route(
-            "/ar-reconciliation-alias/{id}/confirm/send",
-            post(ar_reconciliation_enhanced_handler::send_confirmation),
-        )
-        .route(
-            "/ar-reconciliation-alias/confirmations",
-            get(ar_reconciliation_enhanced_handler::list_confirmations)
-                .post(ar_reconciliation_enhanced_handler::create_confirmation),
-        )
-        .route(
-            "/ar-reconciliation-alias/confirmations/{id}/status",
-            put(ar_reconciliation_enhanced_handler::update_confirmation_status),
-        )
-        .route(
-            "/ar-reconciliation-alias/disputes",
-            get(ar_reconciliation_enhanced_handler::list_disputes)
-                .post(ar_reconciliation_enhanced_handler::create_dispute),
-        )
-        .route(
-            "/ar-reconciliation-alias/disputes/{id}",
-            get(ar_reconciliation_enhanced_handler::get_dispute),
-        )
-        .route(
-            "/ar-reconciliation-alias/disputes/{id}/resolve",
             put(ar_reconciliation_enhanced_handler::resolve_dispute),
         )
 }
@@ -1170,7 +1132,6 @@ pub fn sub_routes() -> Router<AppState> {
         .merge(ap())
         .merge(ar())
         .merge(ar_reconciliations_enhanced())
-        .merge(ar_reconciliation_alias())
         .merge(ar_reconciliations())
         .merge(currencies())
         .merge(exchange_rates())

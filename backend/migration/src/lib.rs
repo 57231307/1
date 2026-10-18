@@ -81,6 +81,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::print_subsystem::Migration),
             Box::new(domain::company_profile::Migration),
             Box::new(domain::bulk_color_item_link::Migration),
+            Box::new(domain::finance_resource_rename::Migration),
         ]
     }
 }
