@@ -1382,4 +1382,5 @@ impl InitService {
             ("purchase_manager", APPROVER_KEYS),
             ("production_manager", APPROVER_KEYS),
         ]
-    }}
+    }
+}
