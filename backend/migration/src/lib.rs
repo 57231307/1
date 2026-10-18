@@ -14,6 +14,7 @@
 //!         / m_ddl_nullability_tighten / m_polymorphic_bill_id_widen_ar_invoice_txn / m_print_subsystem
 //!         / m_company_profile
 //!         / m_bulk_color_item_link
+//!         / m_fulfillment_source_and_po_origin
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -50,6 +51,11 @@
 //! 14. bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
 //!    sales_order_item_id 外键指向 sales_order_items + 检索索引；置于链尾为新的顶层条目，
 //!    复用库上属 pending 必然执行，依赖 v15 建的 bulk_color_approval 与 sales_order_items）
+//! 15. fulfillment_source_and_po_origin: 流转链地基两列（sales_order_items 补可空
+//!    fulfillment_source TEXT 带三值 CHECK chk_sales_order_item_fulfillment_source，
+//!    purchase_orders 补可空 source_sales_order_id INTEGER 外键指向 sales_orders + 检索索引；
+//!    置于链尾为新的顶层条目，复用库上属 pending 必然执行，依赖 system 建的两表，
+//!    两列均不回填存量行）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -81,6 +87,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::print_subsystem::Migration),
             Box::new(domain::company_profile::Migration),
             Box::new(domain::bulk_color_item_link::Migration),
+            Box::new(domain::fulfillment_source_and_po_origin::Migration),
         ]
     }
 }

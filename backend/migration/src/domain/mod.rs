@@ -29,6 +29,9 @@
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
 //! - bulk_color_item_link: 批色记录挂销售订单明细行（bulk_color_approval 补可空列
 //!   sales_order_item_id 外键 + 检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
+//! - fulfillment_source_and_po_origin: 流转链地基两列（sales_order_items 补可空链来源列
+//!   fulfillment_source 带三值 CHECK + purchase_orders 补可空转采来源销售订单列
+//!   source_sales_order_id 外键与检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -50,3 +53,4 @@ pub mod polymorphic_bill_id_widen;
 pub mod print_subsystem;
 pub mod company_profile;
 pub mod bulk_color_item_link;
+pub mod fulfillment_source_and_po_origin;
