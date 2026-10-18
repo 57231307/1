@@ -928,6 +928,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     expect(apVoucherDetail.status, '凭证过账态（小写词表）').toBe('posted');
     const apEntries = pickEntries(apVoucherDetail, `凭证 ${apVoucherId} 分录`);
     expect(apEntries.length >= 2, `应付凭证分录至少 2 行，实际=${apEntries.length}`).toBe(true);
+    // 出参形态锁：凭证分录借贷列必须逐行是十进制字符串，退化成 JSON number 即判红
+    for (const [i, row] of apEntries.entries()) {
+      expectDecimalString(row.debit, `应付凭证 ${apVoucherId} 第 ${i + 1} 行 debit`);
+      expectDecimalString(row.credit, `应付凭证 ${apVoucherId} 第 ${i + 1} 行 credit`);
+    }
     const apDebit = decSumOf(apEntries, 'debit', '应付凭证借方合计');
     const apCredit = decSumOf(apEntries, 'credit', '应付凭证贷方合计');
     expect(
@@ -943,7 +948,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       expectedPayable,
       '应付账款贷方发生额=应付单价税合计'
     );
-    expectDecEquals(apCredit, expectedPayable, '应付凭证贷方合计=应付单价税合计');
+    expectDecMatch(apCredit, expectedPayable, '应付凭证贷方合计=应付单价税合计');
 
     // 审核应付 → 付款申请（先只申请 60%，走部分付款分支）
     await apiCall(page, 'POST', `/ap/invoices/${invoiceId}/approve`);
@@ -1149,12 +1154,17 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       `/vouchers/${requireId(apVoucher!, '应付凭证')}`
     );
     const apEntries = pickEntries(apDetail, '含税应付凭证分录');
+    // 出参形态锁：凭证分录借贷列必须逐行是十进制字符串，退化成 JSON number 即判红
+    for (const [i, row] of apEntries.entries()) {
+      expectDecimalString(row.debit, `含税应付凭证第 ${i + 1} 行 debit`);
+      expectDecimalString(row.credit, `含税应付凭证第 ${i + 1} 行 credit`);
+    }
     const payableCredit = decSumOf(
       apEntries.filter(r => String(r.subject_code) === '2202'),
       'credit',
       '应付账款贷方合计'
     );
-    expectDecEquals(payableCredit, gross, '应付账款贷方发生额=价税合计');
+    expectDecMatch(payableCredit, gross, '应付账款贷方发生额=价税合计');
 
     // 付清路径：申请额=账面未付额（不含税口径），确认后应付结清
     await apiCall(page, 'POST', `/ap/invoices/${invoiceId}/approve`);
