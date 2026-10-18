@@ -67,14 +67,18 @@ impl BpmService {
             .count(&*self.db)
             .await?;
 
-        // 计算平均流程处理时长（分钟）
+        // 平均流程处理时长（分钟）。PostgreSQL 的 AVG 作用于 numeric 表达式（EXTRACT
+        // 在 PG14+ 返回 numeric）产出列即 numeric，故 SQL 侧显式 ::float8，与解码类型
+        // `Option<f64>` 逐字符对齐。本字段是时长度量统计而非金额/比率：前端按 JSON number
+        // 消费（types/bpm.ts 声明 `number | null`，页面以 Math.round 取整展示），
+        // 不适用 "金额/比率类 Decimal 走字符串出参" 的口径。
         let avg_duration = bpm_process_instance::Entity::find()
             .filter(bpm_process_instance::Column::Status.eq(instance_status::COMPLETED))
             .filter(bpm_process_instance::Column::CompletedAt.is_not_null())
             .select_only()
             .column_as(
                 sea_orm::sea_query::Expr::cust(
-                    "AVG(EXTRACT(EPOCH FROM (completed_at - started_at)) / 60)",
+                    "AVG(EXTRACT(EPOCH FROM (completed_at - started_at)) / 60)::float8",
                 ),
                 "avg_duration",
             )
