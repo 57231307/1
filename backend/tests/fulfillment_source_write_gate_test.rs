@@ -196,11 +196,13 @@ async fn seed_products(db: &sea_orm::DatabaseConnection) {
     for id in [PRODUCT_STOCK, PRODUCT_NULL_SOURCE] {
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            "INSERT INTO products (id, code, name) VALUES ($1, $2, $3)",
+            "INSERT INTO products (id, code, name, unit, product_type) VALUES ($1, $2, $3, $4, $5)",
             vec![
                 id.into(),
                 format!("P-{id}").into(),
                 format!("流转链地基锁产品{id}").into(),
+                "米".into(),
+                "fabric".into(),
             ],
         ))
         .await
@@ -212,20 +214,24 @@ async fn seed_products(db: &sea_orm::DatabaseConnection) {
 /// 表头金额列写全：`sales_order::Model` 声明 subtotal/tax_amount/.../balance_amount 为
 /// 非 Option，缺列即整行解码失败（活库夹具既有教训，照 wave4 种子列集）。
 /// 不带明细是刻意的：带明细时删除该销售订单会先撞明细行 FK，归因就不再唯一指向本列 FK。
-async fn seed_sales_order_without_items(db: &sea_orm::DatabaseConnection, order_no: &str) -> i32 {
+async fn seed_sales_order_without_items(
+    db: &sea_orm::DatabaseConnection,
+    order_no: &str,
+    customer_id: i32,
+) -> i32 {
     let row = db
         .query_one_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
             r#"INSERT INTO sales_orders (order_no, customer_id, order_date, subtotal,
                                         tax_amount, discount_amount, shipping_cost,
                                         total_amount, paid_amount, balance_amount, created_by)
-               VALUES ($1, (SELECT id FROM customers ORDER BY id LIMIT 1),
-                       $2::timestamptz, 0, 0, 0, 0, 0, 0, 0, $3)
+               VALUES ($1, $4, $2::timestamptz, 0, 0, 0, 0, 0, 0, 0, $3)
                RETURNING id"#,
             vec![
                 order_no.to_string().into(),
                 now().to_rfc3339().into(),
                 OPERATOR_ID.into(),
+                customer_id.into(),
             ],
         ))
         .await
@@ -466,9 +472,9 @@ fn gate_admits_vocab_and_null_and_refuses_drift_forms() {
 async fn db_check_refuses_bypass_write_but_admits_null_and_vocab_tokens() {
     let db = setup_test_db().await;
     seed_operator(&db).await;
-    seed_customer(&db).await;
+    let customer_id = seed_customer(&db).await;
     seed_products(&db).await;
-    let order_id = seed_sales_order_without_items(&db, "SO-CHECK-PROBE").await;
+    let order_id = seed_sales_order_without_items(&db, "SO-CHECK-PROBE", customer_id).await;
 
     let mut admitted: Vec<Option<&str>> =
         fulfillment_source::ALL.iter().copied().map(Some).collect();
@@ -525,7 +531,8 @@ async fn po_source_sales_order_id_is_persisted_and_read_back() {
     seed_operator(&db).await;
     let supplier_id = seed_supplier(&db, "LINK").await;
     let warehouse_id = seed_warehouse(&db).await;
-    let source_id = seed_sales_order_without_items(&db, "SO-PO-ORIGIN").await;
+    let customer_id = seed_customer(&db).await;
+    let source_id = seed_sales_order_without_items(&db, "SO-PO-ORIGIN", customer_id).await;
 
     let linked = match insert_purchase_order(
         &db,
@@ -608,7 +615,8 @@ async fn po_source_fk_refuses_orphan_and_survives_source_deletion_as_null() {
         constraint_of(&err)
     );
 
-    let source_id = seed_sales_order_without_items(&db, "SO-ONDELETE-PROBE").await;
+    let customer_id = seed_customer(&db).await;
+    let source_id = seed_sales_order_without_items(&db, "SO-ONDELETE-PROBE", customer_id).await;
     let po =
         match insert_purchase_order(&db, supplier_id, warehouse_id, Some(source_id), "DEL").await {
             Ok(model) => model,
