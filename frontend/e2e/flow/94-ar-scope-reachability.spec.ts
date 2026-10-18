@@ -2,9 +2,9 @@
 // 误读为「无数据」的假绿）、越权写触发后状态/数据半漂移、RBAC 层 403 与行级数据范围层
 // 403 混为一谈（判据错位掩盖真实门失效）。
 // 归属可见性用「可达内容」断言：列表逐行按行内 created_by 验归属、他人单据必须缺席；
-// 详情越权必须 403 且按 message 钉死来源层（行级门脱敏文案「无权限」 vs RBAC 直出文案
-// 「权限不足，无法访问该资源」，两族禁止互换）；被拒写动作之后一律回到 owner 会话读回，
-// 证明状态与数据零漂移。
+// 详情越权必须 403 且机器码 FORBIDDEN，来源层按授权码面与固定文案的归因分类钉
+// （行级门脱敏文案与 RBAC 直出文案只用于归因分类，禁止拿中文整串相等当判据）；
+// 被拒写动作之后一律回到 owner 会话读回，证明状态与数据零漂移。
 // 角色账号一律取 global-setup 角色矩阵真实凭证在隔离 context 独立登录（不允许同账号自测
 // 的假越权）；角色数据范围取值先经 /roles 回读坐实，种子口径漂移时显式判红而非静默改判。
 import { type Browser } from '@playwright/test';
@@ -30,6 +30,21 @@ type Row = Record<string, unknown>;
 /** 行级数据范围门的脱敏固定文案（权限中间件 RBAC 直出文案不同，禁止混用判据） */
 const DATA_SCOPE_403_MESSAGE = '无权限';
 const RBAC_403_MESSAGE = '权限不足，无法访问该资源';
+
+/**
+ * 403 来源层归因：两枚固定文案分别来自后端行级门（AppError 脱敏常量）与权限中间件
+ * 直出字面量，这里只做「message → 来源层类别」的分类映射，再用类别相等下判据；
+ * 禁止再新增对任一中文整串的相等断言（文案属出参脱敏面，可改，判定不可靠）。
+ */
+type DenialLayer = 'data-scope' | 'rbac';
+const DENIAL_LAYER_BY_MESSAGE: ReadonlyMap<string, DenialLayer> = new Map([
+  [DATA_SCOPE_403_MESSAGE, 'data-scope'],
+  [RBAC_403_MESSAGE, 'rbac'],
+]);
+
+function classifyDenialLayer(message: unknown): DenialLayer | 'unknown' {
+  return DENIAL_LAYER_BY_MESSAGE.get(String(message ?? '')) ?? 'unknown';
+}
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -93,6 +108,15 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
       const intruderId = requireNum(me.id, '入侵者会话用户 id');
       expect(intruderId === ownerId, '越权前提：必须是两个不同身份的账号').toBe(false);
 
+      // 授权码面回读：403 的来源层判据由「该角色是否持有对应权限键」推出，不靠猜文案
+      const permsRaw = me.permissions;
+      if (!Array.isArray(permsRaw)) {
+        throw new Error(
+          `入侵者 /auth/me 出参缺 permissions 数组（授码面判据来源），实际键=${Object.keys(me).join(',')}`
+        );
+      }
+      const perms = new Set(permsRaw.map(String));
+
       // 正向门：先以 200 读到自己的列表——证明 RBAC orders:read 已过门，
       // 后续对他人单据的 403 只可能来自行级数据范围，而不是路径不可达。
       const list = await apiCallRaw<Row>(intruder.page, 'GET', '/sales/orders?page=1&page_size=200');
@@ -113,33 +137,69 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
         }
       }
 
-      // 详情越权：403 + FORBIDDEN + 数据范围层文案（不得被降级为 2xx 空对象/404）
+      // 详情越权：403 + 机器码 FORBIDDEN，来源层归因到行级数据范围门
+      // （归因判据：本角色持 orders:read 且 RBAC 判定与具体行无关，列表同键已 200 过门，
+      // 他人行上的 403 只可能来自处理器内的行级归属校验；不得被降级为 2xx 空对象/404）
       const fDetail = await apiCallExpectFail(intruder.page, 'GET', `/sales/orders/${owner.id}`);
       expectDenied(fDetail, 'Self 角色读他人订单详情');
       expect(
-        String(fDetail.message ?? ''),
-        `403 必须来自行级数据范围门（文案「${DATA_SCOPE_403_MESSAGE}」），实际=${JSON.stringify(fDetail.message)}`
-      ).toBe(DATA_SCOPE_403_MESSAGE);
+        failureCode(fDetail),
+        `详情越权机器码必须为 ${APP_ERROR_CODES.FORBIDDEN}，实际 code=${JSON.stringify(fDetail.code)}`
+      ).toBe(APP_ERROR_CODES.FORBIDDEN);
+      expect(
+        perms.has('orders:read'),
+        `行级门归因前提：入侵者角色必须持 orders:read，否则越权 403 来自 RBAC 层、行级门不可达。实际授码面=${JSON.stringify([...perms])}`
+      ).toBe(true);
+      expect(
+        classifyDenialLayer(fDetail.message),
+        `详情越权 403 必须归因到行级数据范围门，实际 message=${JSON.stringify(fDetail.message)}`
+      ).toBe('data-scope');
 
-      // 写面四连拒：更新/提交/发货/取消全部 403 同层同码
+      // 写面四连拒：来源层必须与授权码面一致——该写键未授时 403 归因 RBAC 层、
+      // 已授时归因行级数据范围门；矩阵补授销售写码后同一判据自动切到行级门，无需改用例。
       const fUpdate = await apiCallExpectFail(intruder.page, 'PUT', `/sales/orders/${owner.id}`, {
         notes: 'E2E-越权改写',
       });
       expectDenied(fUpdate, 'Self 角色改他人订单');
-      expect(String(fUpdate.message ?? '')).toBe(DATA_SCOPE_403_MESSAGE);
+      expect(
+        classifyDenialLayer(fUpdate.message),
+        `改他人订单 403 的来源层必须与 orders:update 授码状态一致，实际 message=${JSON.stringify(fUpdate.message)}`
+      ).toBe(perms.has('orders:update') ? 'data-scope' : 'rbac');
+
       const fSubmit = await apiCallExpectFail(intruder.page, 'POST', `/sales/orders/${owner.id}/submit`);
       expectDenied(fSubmit, 'Self 角色提交他人订单');
+      expect(
+        classifyDenialLayer(fSubmit.message),
+        `提交他人订单 403 的来源层必须与 orders:submit 授码状态一致，实际 message=${JSON.stringify(fSubmit.message)}`
+      ).toBe(perms.has('orders:submit') ? 'data-scope' : 'rbac');
+
       const fShip = await apiCallExpectFail(intruder.page, 'POST', `/sales/orders/${owner.id}/ship`, {
         order_id: owner.id,
         warehouse_code: 'WH-X',
         items: [],
       });
       expectDenied(fShip, 'Self 角色发他人订单货');
+      // 发货动作末段不在路径动作关键字表内，对应派生权限键无法在用例侧静态坐实，
+      // 此处只钉 403 可归因到两道门之一（归因不明即判红），不硬猜键名。
+      expect(
+        classifyDenialLayer(fShip.message) !== 'unknown',
+        `发货被拒 403 必须能归因到行级门或 RBAC 门之一，实际 message=${JSON.stringify(fShip.message)}`
+      ).toBe(true);
+
       const fCancel = await apiCallExpectFail(intruder.page, 'POST', `/sales/orders/${owner.id}/cancel`);
       expectDenied(fCancel, 'Self 角色取消他人订单');
-      // 发货记录读口同门（越权不得读他人出库痕迹）
+      expect(
+        classifyDenialLayer(fCancel.message),
+        `取消他人订单 403 的来源层必须与 orders:cancel 授码状态一致，实际 message=${JSON.stringify(fCancel.message)}`
+      ).toBe(perms.has('orders:cancel') ? 'data-scope' : 'rbac');
+
+      // 发货记录读口同门（读码已过门且与详情同派生键，越权不得读他人出库痕迹）
       const fDlv = await apiCallExpectFail(intruder.page, 'GET', `/sales/orders/${owner.id}/deliveries`);
       expectDenied(fDlv, 'Self 角色读他人发货记录');
+      expect(
+        classifyDenialLayer(fDlv.message),
+        `读他人发货记录 403 必须归因到行级数据范围门，实际 message=${JSON.stringify(fDlv.message)}`
+      ).toBe('data-scope');
     } finally {
       await intruder.close();
     }
