@@ -220,6 +220,16 @@ const RESOURCE_NAME_MAP: &[(&str, &str, &str)] = &[
     ("finance", "subsidiary-ledger", "finance-subsidiary-ledger"),
     ("finance", "trial-balance", "finance-trial-balance"),
     ("finance", "drill-down", "finance-drill-down"),
+    ("bpm", "tasks", "bpm-tasks"),
+    ("bpm", "approval", "bpm-approvals"),
+    ("bpm", "instances", "bpm-instances"),
+    ("bpm", "process", "bpm-process"),
+    ("bpm", "definitions", "bpm-definitions"),
+    ("bpm", "versions", "bpm-versions"),
+    ("bpm", "templates", "bpm-templates"),
+    ("bpm", "monitor", "bpm-monitor"),
+    ("bpm", "business-relation", "bpm-business-relation"),
+    ("bpm", "visualization", "bpm-visualization"),
 ];
 
 /// 按映射表把模块前缀下的 URL 段对齐到注册表权威资源名；未命中保留原名。

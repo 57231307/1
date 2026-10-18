@@ -257,6 +257,20 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 审批流域 =====
     "export-approvals",
     "role-change-approvals",
+    // BPM 工作流面：`bpm` 是模块前缀，URL 第四段派生出的裸名 tasks/approval/templates 等与
+    // 数据导入域的同名段冲突，故一律按 RESOURCE_NAME_MAP 消歧成 bpm-* 后再登记。
+    // bpm-approvals 面只有 POST /bpm/approval/execute 一个端点，execute 不是路径动作关键字，
+    // 其运行期键因此是 bpm-approvals:create（审批中心的执行入口），不存在 approve 形态的派生键。
+    "bpm-tasks",
+    "bpm-approvals",
+    "bpm-instances",
+    "bpm-process",
+    "bpm-definitions",
+    "bpm-versions",
+    "bpm-templates",
+    "bpm-monitor",
+    "bpm-business-relation",
+    "bpm-visualization",
     // ===== AI 智能域（V15 P0-S26 新增）=====
     // 对应 routes/analytics.rs ai() + advanced() AI 端点 + routes/system.rs ai_extend 端点
     "ai-forecast",
