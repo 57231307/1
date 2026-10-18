@@ -39,8 +39,14 @@ function toScaled(v: unknown, scale: number, label: string): bigint {
   if (frac.length > scale && frac.slice(scale).replace(/0+$/, '') !== '') {
     throw new Error(`${label}：出参标度超出断言精度且非零，raw="${s}"`);
   }
-  const padded = (intPart + frac).padEnd(intPart.length + scale, '0');
-  const value = BigInt(padded);
+  // 按字符串实际小数位定标：多于目标标度时整除降位（降位尾数已由上面的非零检查拦下），
+  // 少于目标标度时补零升位；全程 BigInt 十进制定标，不经过 JS number。
+  // 例："200.0000" 在 2 位标度下的分位值是 20000，按目标标度补零会得到 2000000。
+  const digits = BigInt(`${intPart}${frac}`);
+  const value =
+    scale >= frac.length
+      ? digits * 10n ** BigInt(scale - frac.length)
+      : digits / 10n ** BigInt(frac.length - scale);
   return sign === '-' ? -value : value;
 }
 
