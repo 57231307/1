@@ -1390,26 +1390,40 @@ impl InitService {
     }
 
     /// 初始化默认角色互斥规则（SoD 职责分离，幂等）
+    ///
+    /// 调用方：`init_service_ops/setup.rs::initialize`（系统初始化链，跑在建表迁移之后）。
+    /// 入参：无，取 `self.db`。存哪里：`role_conflicts` 表的
+    /// (role_a_code, role_b_code, conflict_type, description)。消费方：
+    /// `user_service::check_role_conflict_for_user`（PUT /users/{id} 改角色时按两侧 code
+    /// 双向匹配，命中即 business 拒绝）与 GET /roles/conflicts。
+    ///
+    /// 幂等口径按 (role_a_code, role_b_code) **逐对对账**，只补插库里还没有的对，
+    /// 不按"表非空即整体早退"：建表迁移（`migration/src/domain/finance`）在 CREATE TABLE
+    /// 同域内就先种了财务三权分立若干对，init 必然面对一张非空表；按表整体早退会让本定义表
+    /// 的规则一条也不会落库，相应岗位对的互斥校验恒不命中（既不报错也不生效）。
+    /// 写入按 uniq_role_pair 走 ON CONFLICT DO NOTHING（并发重入不炸），但**失败必须上抛**：
+    /// 写不进去就是 SoD 约束不存在，只告警后照常返回成功会把断链伪装成初始化完成。
+    ///
+    /// 角色码判据：两侧 code 一律取 `init_service_ops/role.rs::create_default_roles`
+    /// 的在册种子码，岗位对应关系按种子角色名与持权集合选定。`role_conflicts` 没有指向
+    /// `roles.code` 的外键，引用不存在的码既不报错也永不命中，因此"码必须在册"由静态锁
+    /// `tests/contract_role_conflict_seed_code_lock_test.rs` 钉住，不靠运行期容错。
+    ///
+    /// 对序判据：建表 CHECK (role_a_code < role_b_code) 要求字典序（互斥语义与左右无关，
+    /// `find_conflict_pair` 双向匹配），违例不是丢一行而是整条 INSERT 失败，故每对按 a < b 书写。
     pub(crate) async fn create_default_role_conflicts(&self) -> Result<(), InitError> {
-        // 幂等检查：表已有记录则跳过
-        let existing_count = role_conflict::Entity::find()
-            .count(self.db.as_ref())
-            .await
-            .map_err(|e| InitError::DatabaseError(format!("查询 role_conflicts 失败: {}", e)))?;
-        if existing_count > 0 {
-            return Ok(());
-        }
-
         // 默认互斥角色对（role_a_code < role_b_code 字典序约定）
         // 来源：经典 SoD 职责分离 + 面料行业业务场景
         let conflicts: &[(&str, &str, &str, &str)] = &[
             // (role_a_code, role_b_code, conflict_type, description)
+            // 会计=凭证录入与对账（制单侧），财务经理=凭证审批（审核侧），兼岗即自审自账
             (
-                "accounting_clerk",
-                "financial_manager",
+                "accountant",
+                "finance_manager",
                 "sod",
-                "制单与审核分离：会计员不可兼任财务经理",
+                "制单与审核分离：会计不可兼任财务经理",
             ),
+            // 采购员=采购订单录入，采购经理=采购审批
             (
                 "purchase_clerk",
                 "purchase_manager",
@@ -1417,38 +1431,41 @@ impl InitService {
                 "采购制单与采购审批分离",
             ),
             (
-                "purchase_manager",
                 "finance_manager",
+                "purchase_manager",
                 "sod",
                 "采购审批与付款审批分离",
             ),
+            // 销售代表=销售订单录入与客户跟进，销售经理=销售业务管理与审批
             (
-                "sales_clerk",
                 "sales_manager",
+                "sales_rep",
                 "sod",
                 "销售制单与销售审批分离",
             ),
+            // 本系统不存在"生产工人"岗：真正把产出交给质检的是染色主管（染色批次全权 +
+            // 流转卡报工），operator 是只读岗、不构成执行侧，故按真实在岗重写本条语义
             (
-                "production_worker",
+                "dyeing_master",
                 "quality_inspector",
                 "sod",
                 "生产执行与质量检验分离",
             ),
             (
                 "production_manager",
-                "quality_manager",
+                "qc_manager",
                 "sod",
                 "生产管理与质量管理分离",
             ),
             (
-                "warehouse_keeper",
                 "purchase_clerk",
+                "warehouse_keeper",
                 "sod",
                 "入库与采购分离，防止自采自收",
             ),
             (
+                "sales_rep",
                 "warehouse_keeper",
-                "sales_clerk",
                 "sod",
                 "出库与销售分离，防止自销自发",
             ),
@@ -1476,10 +1493,26 @@ impl InitService {
             ),
         ];
 
+        let existing_pairs: Vec<(String, String)> = role_conflict::Entity::find()
+            .all(self.db.as_ref())
+            .await
+            .map_err(|e| {
+                InitError::DatabaseError(format!("查询 role_conflicts 在册互斥对失败: {}", e))
+            })?
+            .into_iter()
+            .map(|row| (row.role_a_code, row.role_b_code))
+            .collect();
+
         let now = chrono::Utc::now();
-        let models: Vec<role_conflict::ActiveModel> = conflicts
-            .iter()
-            .map(|(a, b, ctype, desc)| role_conflict::ActiveModel {
+        let mut missing: Vec<role_conflict::ActiveModel> = Vec::new();
+        for &(a, b, ctype, desc) in conflicts {
+            if existing_pairs
+                .iter()
+                .any(|(ea, eb)| ea.as_str() == a && eb.as_str() == b)
+            {
+                continue;
+            }
+            missing.push(role_conflict::ActiveModel {
                 id: Default::default(),
                 role_a_code: Set(a.to_string()),
                 role_b_code: Set(b.to_string()),
@@ -1487,15 +1520,44 @@ impl InitService {
                 description: Set(Some(desc.to_string())),
                 created_at: Set(now),
                 updated_at: Set(now),
-            })
-            .collect();
+            });
+        }
 
-        if let Err(e) = role_conflict::Entity::insert_many(models)
+        if missing.is_empty() {
+            tracing::info!(
+                target: "init",
+                defined = conflicts.len(),
+                in_db = existing_pairs.len(),
+                "角色互斥规则逐对对账无缺口，本次不写入"
+            );
+            return Ok(());
+        }
+
+        let to_insert = missing.len();
+        role_conflict::Entity::insert_many(missing)
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::columns([
+                    role_conflict::Column::RoleACode,
+                    role_conflict::Column::RoleBCode,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
             .exec(self.db.as_ref())
             .await
-        {
-            warn!("批量创建角色互斥规则失败: {}, 可能部分已存在", e);
-        }
+            .map_err(|e| {
+                InitError::DatabaseError(format!(
+                    "批量创建角色互斥规则失败（待写 {to_insert} 对），SoD 职责分离约束不会生效: {e}"
+                ))
+            })?;
+
+        tracing::info!(
+            target: "init",
+            defined = conflicts.len(),
+            inserted = to_insert,
+            in_db = existing_pairs.len(),
+            "角色互斥规则（SoD）逐对对账补插完成"
+        );
 
         Ok(())
     }
