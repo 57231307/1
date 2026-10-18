@@ -2,6 +2,8 @@
 //!
 //! 生产排程API端点，提供自动排程、甘特图数据、冲突检测和手动调整功能
 
+use std::sync::Arc;
+
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -13,11 +15,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::audit_log::{OperationType, Severity};
 use crate::models::dto::scheduling_dto::{
     AdjustScheduleRequest, AutoScheduleRequest, ScheduledOrderQuery,
 };
 use crate::models::production_order::Entity as ProductionOrderEntity;
 use crate::models::scheduling_result::Entity as SchedulingResultEntity;
+use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::scheduling_service::SchedulingService;
 use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
@@ -542,7 +546,11 @@ pub async fn get_schedule_result(
     Ok(Json(ApiResponse::success(serde_json::to_value(model)?)))
 }
 
-/// 确认排程结果
+/// 确认排程结果。
+///
+/// 确认人唯一事实来源为登录身份（`AuthContext`），请求体不参与身份判定；
+/// 确认后写审计事件留痕（谁在何时确认了哪条排程结果、实际应用几张生产订单），
+/// 响应消息如实携带应用订单数，空明细时明确告知"未更新任何生产订单"。
 pub async fn confirm_schedule_result(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -558,12 +566,44 @@ pub async fn confirm_schedule_result(
             "无权操作该排程结果（数据范围限制）",
         ));
     }
+    let before_status = row.status.clone();
 
     let service = SchedulingService::new(state.db.clone());
 
-    let result = service.confirm_schedule_result(id, auth.user_id).await?;
+    let (result, applied_orders) = service.confirm_schedule_result(id, auth.user_id).await?;
+
+    let batch_no = result.batch_no.clone();
+    let after_status = result.status.clone();
+    let event = AuditEvent {
+        user_id: Some(auth.user_id),
+        username: Some(auth.username.clone()),
+        operation_type: OperationType::Update,
+        severity: Severity::Info,
+        resource_type: Some("scheduling_result".to_string()),
+        resource_id: Some(result.id.to_string()),
+        resource_name: Some(batch_no.clone()),
+        description: Some(format!(
+            "用户 {} 确认排程结果 {batch_no}，应用 {applied_orders} 张生产订单",
+            auth.username
+        )),
+        request_method: Some("POST".to_string()),
+        request_path: Some(format!("/api/v1/erp/scheduling/results/{id}/confirm")),
+        before_snapshot: Some(serde_json::json!({ "status": before_status })),
+        after_snapshot: Some(serde_json::json!({
+            "status": after_status,
+            "applied_orders": applied_orders,
+        })),
+    };
+    let svc = Arc::new(AuditLogService::new(state.db.clone()));
+    svc.record_async(event, None);
+
+    let message = if applied_orders > 0 {
+        format!("排程结果已确认，应用 {applied_orders} 张生产订单")
+    } else {
+        "排程结果已确认（本次排程无明细，未更新任何生产订单）".to_string()
+    };
     Ok(Json(ApiResponse::success_with_message(
         serde_json::to_value(result)?,
-        "排程结果已确认",
+        &message,
     )))
 }
