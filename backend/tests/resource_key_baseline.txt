@@ -7,13 +7,11 @@ agree-terms
 ai-models
 alerts
 anomaly-detection
-approval
 assignments
 avatar
 backward
 batch-adjust
 behavior
-business-relation
 by-issue
 by-sales-order
 cache
@@ -29,7 +27,6 @@ customer-shares
 customer-special
 customer-team-members
 data-permissions
-definitions
 detect-anomalies
 device-connections
 doc-types
@@ -55,7 +52,6 @@ initialize
 initialize-with-db
 initialize-with-db-async
 inspections
-instances
 integrations
 inventory-optimization
 issue-detail
@@ -71,7 +67,6 @@ logistics-tracking
 logout
 logs
 me
-monitor
 occupational-health
 optimize-inventory
 order-related
@@ -82,7 +77,6 @@ pollution-permits
 pool
 popular-pages
 privacy
-process
 process-optimizations
 profile
 quality
@@ -133,8 +127,6 @@ unlock
 user-notification-settings
 user-path
 validate
-versions
-visualization
 wage-details
 warnings
 webhooks
