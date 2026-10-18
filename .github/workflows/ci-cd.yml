@@ -554,7 +554,10 @@ jobs:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: ci-info
+    needs: ci-build-test-artifacts
+    # 必须等中枢 job：阶段 1 的 clippy-output.json 由 ci-build-test-artifacts 产出并上传。
+    # run 4875（PR #996 首推）实测本 job 与中枢并行起跑，下载步直接报
+    # 「Artifact not found for name: clippy-raw」——拆分输入后这条边漏改了，不是判定阈值问题。
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # baseline 机制：首次跑自动建立基线，后续 PR 仅"新增警告"阻塞 CI
     permissions:
