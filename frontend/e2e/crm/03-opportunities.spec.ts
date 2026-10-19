@@ -1,7 +1,7 @@
 // CRM 客户关系管理 E2E 套件 — 03 商机管理
 // 创建时间: 2026-08-19
 // 覆盖范围：商机创建 → 跟进 → 推进阶段 → 赢单/输单
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';

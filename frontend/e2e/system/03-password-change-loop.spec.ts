@@ -31,7 +31,7 @@
 // - 新密码可登录：断 200 + 信封 code=200 + data.user.username 等于本用例自建用户名
 //   （防「登录了共享 admin 账号」冒充闭环成功）。
 // - 用例自建自流转：一次性用户 + 一次性密码，finally 恢复管理员会话并清理用户。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import {
   apiCall,
   ensureTestEntities,

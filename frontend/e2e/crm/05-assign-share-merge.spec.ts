@@ -11,7 +11,7 @@
 //   - 客户合并后 GET /crm/customers/{target}/summary 的 total_orders/total_order_amount
 //     等于用例内自建 seed 订单的真实汇总，且源客户 summary total_orders 归零、status='merged'；
 //   - 线索合并后回读副线索 lead_status='lost'（lost_reason 落库）。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup, verifyEndpointHealthy } from '../flow/helpers';
 

@@ -528,6 +528,18 @@ jobs:
         working-directory: frontend
         run: node scripts/check-e2e-types.mjs
 
+      # 每 worker 独立账号与会话态门禁（行为/结构/收口三层，纯 Node）：后端 CSRF 凭据按
+      # user_id 单命名空间且一次性消费，多并发 worker 共用同一账号或同一份 storageState 会
+      # 互踢凭据、成片确定性 403。本步断言配置里无全 run 静态 storageState、globalSetup 按
+      # 解析后的 workers 数建会话池、统一 fixture 按并行槽覆盖会话态、且每个 spec 都经该
+      # fixture 取 test（漏接线的文件会静默共享账号=假绿）。判负口径与其它门禁一致：任一层
+      # 失配退出码 1 即阻断。setup-wizard 用独立配置（单 worker、无 globalSetup、无登录态），
+      # 由该脚本按目录名整体跳过，不参与本机制。
+      - name: 每 worker 独立账号与独立会话态门禁（禁共享账号/静态会话态，spec 收口到统一 fixture）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-e2e-worker-account.mjs
+
       - name: 上传报告
         if: always()
         uses: actions/upload-artifact@v4

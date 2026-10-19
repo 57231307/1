@@ -1,7 +1,7 @@
 // CRM 客户关系管理 E2E 套件 — 01 客户管理
 // 创建时间: 2026-08-19
 // 覆盖范围：客户创建 → 编辑 → 删除 + 客户 360 详情
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 test.describe('01 客户管理', () => {

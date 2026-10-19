@@ -2,7 +2,7 @@
 // 创建时间: 2026-06-17
 // 覆盖范围：采购订单创建全流程（5 用例）
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn, pickSelect } from '../flow/ui-helpers';
 

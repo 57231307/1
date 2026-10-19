@@ -8,8 +8,6 @@ import {
   getCtx,
   API_BASE,
   API_PREFIX,
-  TEST_USERNAME,
-  TEST_PASSWORD,
   ensureTestEntities,
   pickDyeableWarehouse,
   seedDyedOutboundBundle,

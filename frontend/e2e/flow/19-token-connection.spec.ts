@@ -5,14 +5,15 @@ import {
   BASE_URL,
   API_BASE,
   API_PREFIX,
-  TEST_USERNAME,
-  TEST_PASSWORD,
+  testPassword,
+  testUsername,
 } from './helpers';
 
 /**
  * 在独立 context 中完成 UI 登录，返回该 context。
  * 用于 refresh/logout 测试——这些操作会吊销会话（后端 revoke_jti 即时拉黑），
- * 若在分片共享 storageState 播种的默认 context 上执行，会导致后续同分片所有 spec 401。
+ * 若在本 worker 默认 context（globalSetup 按并行槽写出的那份会话态）上执行，
+ * 会把这个账号后续用例的登录态一起打掉，故必须另起一个不共享 cookie jar 的 context。
  */
 async function loginInIsolatedContext(browser: import('@playwright/test').Browser) {
   const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
@@ -23,11 +24,11 @@ async function loginInIsolatedContext(browser: import('@playwright/test').Browse
 
   const userInput = p.locator('input[placeholder="用户名"], input[placeholder="Username"]').first();
   await userInput.waitFor({ state: 'visible', timeout: 20_000 });
-  await userInput.fill(TEST_USERNAME);
+  await userInput.fill(testUsername());
 
   const pwdInput = p.locator('input[placeholder="密码"], input[placeholder="Password"]').first();
   await pwdInput.waitFor({ state: 'visible', timeout: 20_000 });
-  await pwdInput.fill(TEST_PASSWORD);
+  await pwdInput.fill(testPassword());
 
   // 勾选用户协议（表单要求 agreedToTerms=true）
   const checkboxInput = p.locator('.el-checkbox input').first();

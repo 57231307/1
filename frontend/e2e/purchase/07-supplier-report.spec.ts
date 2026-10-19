@@ -1,7 +1,7 @@
 // P9-4 采购 E2E 套件 — 07 供应商评估（真实视图）
 // 覆盖范围：/supplier-evaluation 供应商评估管理页 tab 切换 / 排名 / 指标渲染
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 /**

@@ -16,7 +16,7 @@
 //   另：confirm 无状态门（对已 confirmed 记录重复 confirm 仍 2xx）、create 无
 //   original_cost ≥ net_realizable_value 边界校验（负跌价额可落库），均为已知
 //   未覆盖风险点，见交付报告；不在本 spec 断言，避免把缺陷行为钉成正契约。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

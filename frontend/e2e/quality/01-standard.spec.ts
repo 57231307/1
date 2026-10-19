@@ -1,7 +1,7 @@
 // 质量管理 E2E 套件 — 01 质量标准
 // 创建时间: 2026-08-19
 // 覆盖范围：质量标准创建 → 审批 → 发布（完整状态流转）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';

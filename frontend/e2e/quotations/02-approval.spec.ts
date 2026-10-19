@@ -11,7 +11,7 @@
 //   draft →（submit，金额 < 10 万自批）→ approved；
 //   draft →（submit，金额 ≥ 10 万走 BPM）→ pending_approval →（approve）→ approved →（convert）→ converted；
 //   draft →（cancel）→ cancelled。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import {
   loginViaUI,
   ensureTestEntities,

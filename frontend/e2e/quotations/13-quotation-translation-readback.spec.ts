@@ -26,7 +26,7 @@
 // 会话：默认 admin（loginViaUI/applyAuthMocks 走 TEST_USERNAME=admin，ensureTestEntities 亦 admin）。
 // 销售订单明细经 GET /sales/orders/{id} 回读：admin(role_id=1) 不触发 sales_order_handler 的非管理员金额字段脱敏分支，
 // unit_price/subtotal/total_amount 原值可取（否则会是真实契约问题，不予放宽掩盖）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   loginViaUI,

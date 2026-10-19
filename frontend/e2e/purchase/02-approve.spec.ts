@@ -27,7 +27,7 @@
 // - 列表可按「关键词」输入框（placeholder='订单号/供应商名'）做后端 order_no LIKE 模糊下推，
 //   唯一 order_no 使筛选结果收敛为本例那一行。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

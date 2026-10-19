@@ -34,7 +34,7 @@
 //   **不是** 原用例臆造的 `QI-\d{8}-\d{4}`，故本文件不写死单号正则，只断言非空。
 // - 本页无「退货/不合格处理」按钮（退货是独立 purchase-return 单据），原 `/退货|不合格处理/` 断言删除。
 
-import { test, expect, type Locator } from '@playwright/test';
+import { test, expect, type Locator } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn, formItemByExactLabel, pickListArray } from '../flow/ui-helpers';
 import { apiCall, apiCallRaw, seedInspectionPass } from '../flow/helpers';

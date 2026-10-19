@@ -1,7 +1,7 @@
 // 财务管理 E2E 套件 — 02 凭证审批工作流
 // 创建时间: 2026-08-19
 // 覆盖范围：凭证提交（draft → submitted） → 审核（submitted → reviewed） → 过账（reviewed → posted）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, tryCleanup } from '../flow/helpers';
 

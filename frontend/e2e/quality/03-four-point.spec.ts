@@ -4,7 +4,7 @@
 //   疵点长度 ≤3寸=1分, 3-6寸=2分, 6-9寸=3分, >9寸=4分, 破洞/连续性=4分（不论长度）
 // 等级公式：每百平方码分数 = (总扣分 * 36 * 100) / (受检码数 * 幅宽英寸)
 //   ≤40 → first（首级），>40 → second（次级）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
 
