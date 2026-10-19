@@ -106,6 +106,93 @@ pub struct RolePermissionService {
     db: Arc<DatabaseConnection>,
 }
 
+/// `permission_change_audits.old_value/new_value` 的列宽（VARCHAR(200)，建表 DDL 在
+/// 迁移 finance 域）。这两列是**字符串摘要列**，不是快照容器：批量整批替换的
+/// before/after 全量 JSON 快照由 audit_logs 的 JSONB 快照列
+/// （before_snapshot/after_snapshot/old_value/new_value，DDL 同为 finance 域迁移）
+/// 承载，专表行只落按列宽截断的可读摘要。PostgreSQL VARCHAR(n) 按**字符**计长，
+/// 因此截断判据用 `chars().count()`，不用字节数。
+const PCA_AUDIT_VALUE_COL_CHARS: usize = 200;
+
+/// `role_permissions.resource_type` 列宽（VARCHAR(100)，建表 DDL 在迁移 system 域
+/// m0005）。批量端点在入库前按此宽度显式校验，超长直接 400 点名字段，
+/// 不允许落到数据库层再变裸 500。
+const ROLE_PERMISSION_RESOURCE_TYPE_MAX_CHARS: usize = 100;
+
+/// `role_permissions.action` 列宽（VARCHAR(50)，同上建表 DDL）。
+/// permission_code 是派生列（`<module>.<resource>.<action>`，VARCHAR(255)）：
+/// module 取值要么是三~十字符的词表常量、要么回退为 resource_type 本身，
+/// 故在 resource_type≤100、action≤50 的前置校验成立时派生串最长约 252 字符，
+/// 不会超 255，无需再单独校验。
+const ROLE_PERMISSION_ACTION_MAX_CHARS: usize = 50;
+
+/// 生成批量授予集的审计摘要（写入 VARCHAR(200) 列前的收敛形态）：
+/// `共 N 项：resource:action=allow，…`。逐项累积，预留截断标记的宽度；
+/// 集合大到列宽装不下时按项截断，并**必须**留一条 warn 点名角色、列名、
+/// 总项数与列出项数（截断可见，不静默丢字）。全量内容不丢：同事务的
+/// audit_logs JSONB 快照（handler 侧 AuditEvent）始终带完整 before/after。
+/// 兜底再做一次按字符硬截断，从构造上保证返回值恒 ≤ 列宽，杜绝该列再产生 22001。
+fn grant_set_audit_summary(rows: &[RolePermissionDetail], column: &str, role_id: i32) -> String {
+    // 截断标记 "...(+K 项未列)" 的最坏长度预留（K 按 10 位数字算），保证拼装结果不越界
+    const TRUNCATION_RESERVE_CHARS: usize = 20;
+    let total = rows.len();
+    let head = format!("共 {total} 项：");
+    let head_chars = head.chars().count();
+    let budget = PCA_AUDIT_VALUE_COL_CHARS.saturating_sub(TRUNCATION_RESERVE_CHARS);
+
+    let mut body = String::new();
+    let mut body_chars = 0usize;
+    let mut shown = 0usize;
+    for row in rows {
+        let item = format!(
+            "{}:{}={}",
+            row.resource_type,
+            row.action,
+            if row.allowed { "allow" } else { "deny" }
+        );
+        let item_chars = item.chars().count();
+        let sep_chars = usize::from(!body.is_empty());
+        if head_chars + body_chars + sep_chars + item_chars > budget {
+            break;
+        }
+        if !body.is_empty() {
+            body.push('，');
+        }
+        body.push_str(&item);
+        body_chars += sep_chars + item_chars;
+        shown += 1;
+    }
+
+    let summary = if shown < total {
+        tracing::warn!(
+            role_id,
+            column,
+            total,
+            shown,
+            col_max_chars = PCA_AUDIT_VALUE_COL_CHARS,
+            "权限变更审计摘要按列宽截断（截断可见）：完整授予集合见 audit_logs 的 JSONB 快照列"
+        );
+        format!("{head}{body}...(+{} 项未列)", total - shown)
+    } else {
+        format!("{head}{body}")
+    };
+
+    // 硬兜底：任何路径下都不返回超过列宽的串（理论上到不了这里，到达即说明上面预算有误）
+    if summary.chars().count() > PCA_AUDIT_VALUE_COL_CHARS {
+        tracing::warn!(
+            role_id,
+            column,
+            "权限变更审计摘要拼装超出列宽预算，执行按字符硬截断（不应发生，出现需排查预算逻辑）"
+        );
+        let kept: String = summary
+            .chars()
+            .take(PCA_AUDIT_VALUE_COL_CHARS - 1)
+            .collect();
+        return format!("{kept}…");
+    }
+    summary
+}
+
 impl RolePermissionService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -753,6 +840,22 @@ impl RolePermissionService {
                     "批量授予项的 resource_type/action 不能为空",
                 ));
             }
+            // 入库前置宽度校验：与 role_permissions 列宽逐字对齐（见上面两个常量），
+            // 超长直接 400 点名字段与实收字符数，不让它走到 SQL 层炸成裸 500。
+            let resource_chars = entry.resource_type.chars().count();
+            if resource_chars > ROLE_PERMISSION_RESOURCE_TYPE_MAX_CHARS {
+                return Err(AppError::validation_displayable(format!(
+                    "批量授予项超长：resource_type「{}」实收 {resource_chars} 字符，超过列宽上限 {ROLE_PERMISSION_RESOURCE_TYPE_MAX_CHARS}",
+                    entry.resource_type
+                )));
+            }
+            let action_chars = entry.action.chars().count();
+            if action_chars > ROLE_PERMISSION_ACTION_MAX_CHARS {
+                return Err(AppError::validation_displayable(format!(
+                    "批量授予项超长：action「{}」实收 {action_chars} 字符，超过列宽上限 {ROLE_PERMISSION_ACTION_MAX_CHARS}",
+                    entry.action
+                )));
+            }
             let key = (entry.resource_type.clone(), entry.action.clone());
             if desired.insert(key.clone(), entry.allowed).is_some() {
                 duplicated.push(format!("{}:{}", key.0, key.1));
@@ -774,7 +877,9 @@ impl RolePermissionService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
         if role.is_system {
-            return Err(AppError::business("系统角色不允许修改权限".to_string()));
+            return Err(AppError::business_displayable(
+                "系统角色不允许修改权限，请改用自定义角色授权".to_string(),
+            ));
         }
 
         // 现状（角色级行；(resource_type, action) → allowed）
@@ -871,11 +976,15 @@ impl RolePermissionService {
             .map(Self::build_permission_detail)
             .collect();
 
-        // 一条批量审计：before/after 各一份全量快照（替代逐条 permission_change_audit）
+        // 全量 before/after 快照序列化：随 ReplacePermissionsResult 返回给 handler，
+        // 由 AuditEvent 写入 audit_logs 的 JSONB 快照列（宽度无上限）。
         let before_json = serde_json::to_value(&before)
             .map_err(|e| AppError::internal(format!("序列化批量审计 before 快照失败: {e}")))?;
         let after_json = serde_json::to_value(&after)
             .map_err(|e| AppError::internal(format!("序列化批量审计 after 快照失败: {e}")))?;
+        // 专表一行批量审计：old_value/new_value 是 VARCHAR(200) 字符串列，
+        // 只落按列宽收敛的摘要（截断可见：grant_set_audit_summary 内部对超限集合
+        // 记 warn 点名角色与列），全量内容不丢——上面两枚 JSONB 快照始终完整。
         permission_change_audit::ActiveModel {
             id: Default::default(),
             change_type: sea_orm::ActiveValue::Set("role_permission_batch_replace".to_string()),
@@ -884,8 +993,16 @@ impl RolePermissionService {
             user_id: sea_orm::ActiveValue::Set(None),
             resource_type: sea_orm::ActiveValue::Set(None),
             action: sea_orm::ActiveValue::Set(None),
-            old_value: sea_orm::ActiveValue::Set(Some(before_json.to_string())),
-            new_value: sea_orm::ActiveValue::Set(Some(after_json.to_string())),
+            old_value: sea_orm::ActiveValue::Set(Some(grant_set_audit_summary(
+                &before,
+                "old_value",
+                role_id,
+            ))),
+            new_value: sea_orm::ActiveValue::Set(Some(grant_set_audit_summary(
+                &after,
+                "new_value",
+                role_id,
+            ))),
             changed_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
             client_ip: sea_orm::ActiveValue::Set(None),
             remark: sea_orm::ActiveValue::Set(Some(format!(
