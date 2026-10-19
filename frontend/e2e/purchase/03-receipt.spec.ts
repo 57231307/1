@@ -26,7 +26,7 @@
 //   → msg.warning('receiptItemAltQtyRequired') = '第 {line} 行未录入辅助数量…'。
 // - 成功：createPurchaseReceipt → msg.success('receiveSuccess') = '收货成功'。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

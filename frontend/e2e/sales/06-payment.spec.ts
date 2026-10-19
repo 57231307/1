@@ -1,7 +1,7 @@
 // P9-3 销售 E2E 套件 — 06 销售收款
 // 覆盖范围：销售收款全流程（4 用例）
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCallRaw } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';

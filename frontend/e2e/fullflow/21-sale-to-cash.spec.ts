@@ -41,7 +41,7 @@
 // 诚实标注：AR 收款**不含核销端点联动**（received 累加发生在 create_payment 的 invoice_ids 分摊，
 //   非 confirm 时），测试按该真实时序断言；发货走 API 动作端点（UI DeliveryDialog 已由
 //   sales/04、sales/13 覆盖），本文件不重复脆弱 UI，专注权威状态回读。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

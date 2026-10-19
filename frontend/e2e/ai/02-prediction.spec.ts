@@ -1,7 +1,7 @@
 // AI 分析 E2E 套件 — 02 质量预测
 // 创建时间: 2026-08-19
 // 覆盖范围：AI 质量预测创建 → 确认处理
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks, getAiTestUsername } from '../smoke/_helpers';
 import { apiCall, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';

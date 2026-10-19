@@ -1,7 +1,7 @@
 // MRP 计算 E2E 测试
 // 创建时间: 2026-08-19
 // 覆盖范围：MRP 计算执行 → 结果查看 → 建议采购 → BOM 多级展开净需求数值正确性
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, ensureTestEntities, getCtx, tryCleanup } from '../flow/helpers';
 import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';

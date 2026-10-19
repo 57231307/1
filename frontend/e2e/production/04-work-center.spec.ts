@@ -1,6 +1,6 @@
 // 生产资源管理 E2E — 04 工作中心独立 CRUD 闭环 + 回读
 // 覆盖范围：创建 → GET 回读 → PUT 更新 → GET 回读新值 → DELETE → 列表不再出现
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, genCode } from '../flow/helpers';
 

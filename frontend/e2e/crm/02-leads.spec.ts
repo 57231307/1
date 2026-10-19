@@ -1,7 +1,7 @@
 // CRM 客户关系管理 E2E 套件 — 02 线索管理
 // 创建时间: 2026-08-19
 // 覆盖范围：线索创建 → 联系 → 转化 → 丢失（完整线索生命周期）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';

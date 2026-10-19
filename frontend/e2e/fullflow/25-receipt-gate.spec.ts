@@ -28,7 +28,7 @@
 //    PASSED 真能生成）——该入口可绕过 confirm 直连，与 confirm 共用同一判定；
 // 6) 正向镜像：质检合格 → 确认成功 → 应付单确由本收货单派生落库（source_id 回读）。
 // afterEach 尽力清理（被拒收货单仍 DRAFT 可删；已确认单删除会失败，属既有 DRAFT-only 门，忽略）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

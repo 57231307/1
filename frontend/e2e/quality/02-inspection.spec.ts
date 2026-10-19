@@ -1,7 +1,7 @@
 // 质量管理 E2E 套件 — 02 检验记录与缺陷处理
 // 创建时间: 2026-08-19
 // 覆盖范围：检验记录创建 → 合格/不合格判定 → 缺陷处理
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

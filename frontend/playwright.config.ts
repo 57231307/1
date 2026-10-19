@@ -33,7 +33,10 @@ export default defineConfig({
   // 从而消除 flow 分片的串行长尾（见 .github/workflows/ci-cd.yml ci-e2e）。
   // 这里保持 fullyParallel:false 是有意的：开它会打散文件内 serial 链、引入假失败。
   workers: 1,
-  // 真实登录一次，保存 cookie storageState 供所有 spec 复用（避免每 spec 独立登录触发 429）
+  // 真实登录一次，按并行 worker 各存一份 cookie storageState 供该 worker 的 spec 复用：
+  // 既避免每 spec 独立登录触发 429，也避免多 worker 共用同一份会话态互相打死 CSRF 凭据。
+  // 会话态进入 spec 的通道是 e2e/diagnose-fixture 里按并行槽覆盖的 storageState fixture，
+  // 本配置不再静态指定任何一份会话态文件（静态值在主进程求值一次，全 run 只有一份）。
   globalSetup: './e2e/global-setup.ts',
   // 同时生成 HTML 报告（可下载的 artifact）和命令行输出
   reporter: [['html'], ['line']],
@@ -62,8 +65,9 @@ export default defineConfig({
     actionTimeout: 30_000,
     // CI 环境导航超时 30s
     navigationTimeout: 30_000,
-    // 所有 spec 默认复用 globalSetup 保存的真实登录态（httpOnly cookie）
-    storageState: 'e2e/.auth/storage-state.json',
+    // 会话态（httpOnly cookie）不在此静态指定：全 run 共用一份文件会让并发 worker 带同一枚
+    // CSRF 凭据并互相打死。逐 worker 的会话态由 e2e/diagnose-fixture 覆盖内置 storageState
+    // fixture 提供，会话池由 e2e/global-setup.ts 按解析后的 workers 数建立。
   },
   // webServer 数组：同时启动前端 dev server + 后端二进制
   webServer: [

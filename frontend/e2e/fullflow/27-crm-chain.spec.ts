@@ -41,7 +41,7 @@
 //     无第二领取人上下文，由后端契约测试覆盖（services_crm_pool_claim_rules_test.rs A 组）；
 //   - 线索评分/RFM/CLV/漏斗等只读分析端点（纯聚合，无落库流转可钉）；
 //   - 商机阶段停留记录 stage-change（独立表追加写，与主状态机正交）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

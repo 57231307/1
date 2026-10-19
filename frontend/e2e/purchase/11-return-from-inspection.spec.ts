@@ -22,7 +22,7 @@
 //   inspection_status: pending/completed（全小写）
 //   inspection_result: 自由文本，本用例写 pass/fail/partial（piFmts 映射已知取值）
 //   purchase_return.return_status 写入方原值 draft（create_return）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, tryCleanup } from '../flow/helpers';
 import { pickListArray } from '../flow/ui-helpers';

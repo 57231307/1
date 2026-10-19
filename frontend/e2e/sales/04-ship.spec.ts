@@ -32,7 +32,7 @@
 //   染色布未选匹号 → '染色布发货必须选定匹号（缸号/色号/批次/匹号 四维齐才可出库）'。
 // - 成功：handleDeliverySubmit → shipSalesOrder → msg.success('shipSuccess') = '发货成功'。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 import {

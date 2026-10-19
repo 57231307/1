@@ -26,7 +26,7 @@
 // 状态词表事实来源 = 写入方 backend/src/models/status/bpm_crm_contract.rs：
 //   bpm_task（:100-112，小写）: pending / completed / rejected / cancelled
 //   bpm_instance（:84-96，大写）: PROCESSING / COMPLETED / TERMINATED / CANCELLED
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

@@ -241,16 +241,22 @@ if (setupSource !== null) {
   if (!/WORKER_SESSIONS_MANIFEST_PATH/.test(setupSource))
     fail(`${SETUP_TS} 未写出 worker 会话池清单（worker 侧无从读取，只能回落共享账号）`);
   const writes = [
-    'workerAdminUsername',
-    'workerStorageStatePath',
     'buildWorkerSessions',
-  ].filter(fn => !new RegExp(`${fn}\\s*\\(`).test(setupSource));
+    'WORKER_SESSIONS_MANIFEST_PATH',
+    'session.storageStatePath',
+  ].filter(fn => !new RegExp(fn.replace('.', '\\.')).test(setupSource));
   if (writes.length)
-    fail(`${SETUP_TS} 未调用会话派生函数：${writes.join(', ')} —— 建号数与 worker 数脱钩`);
-  // 分片主账号仍要存在（种子/建号主体），但它不得再作为 worker 会话态写出
-  if (!/STORAGE_STATE_PATH/.test(setupSource) && !/workerStorageStatePath/.test(setupSource))
-    fail(`${SETUP_TS} 既未写分片主账号会话态也未写逐 worker 会话态`);
-  if (!errors.some(e => e.startsWith(SETUP_TS))) note(`[B] ${SETUP_TS} 已按 worker 数建号并写会话池`);
+    fail(
+      `${SETUP_TS} 缺会话池写出环节：${writes.join(', ')} —— ` +
+        '会话池必须由建号主体按 workers 数构造、逐槽写自己的会话态、并写出清单'
+    );
+  // 全 run 一份会话态文件的旧形态不得残留（含常量与写盘目标）
+  if (/storage-state\.json/.test(setupSource))
+    fail(
+      `${SETUP_TS} 仍写全 run 共用的 storage-state.json —— 静态单文件正是并发 worker 互踢凭据的载体`
+    );
+  if (!errors.some(e => e.startsWith(SETUP_TS)))
+    note(`[B] ${SETUP_TS} 已按 workers 数建会话池并逐槽写独立会话态`);
 }
 
 const FIXTURE_TS = 'e2e/diagnose-fixture.ts';

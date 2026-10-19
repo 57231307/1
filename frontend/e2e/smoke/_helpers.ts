@@ -4,6 +4,7 @@
 
 import type { BrowserContext } from '@playwright/test';
 import { applyAuthMocks as applyAuthMocksShared } from '../fixtures/auth';
+import { workerUsernameFromEnv } from '../worker-auth';
 
 export {
   generateFakeJwt,
@@ -20,19 +21,15 @@ export {
  *
  * 根因链（制品实证，非推断）
  * - 角色测试账号由 global-setup ensureRoleUsers 创建，初始密码是
- *   DEFAULT_ROLE_PASSWORD='E2eRole#2026'（global-setup.ts:484、:746-751），
- *   与分片主账号密码（env TEST_PASSWORD）不同；
- * - fixtures/auth.ts:173-175 的 applyAuthMocks 只接收 opts.username，密码恒取
- *   TEST_PASSWORD ⇒ 传角色账号用户名登录必为密码错误 401。
- *   backend.log（rs31 分片）17482 行 security_audit_detail：
- *   LOGIN_FAILURE user=e2e_salesperson reason="未授权：无效的密码: 密码错误"；
- *   同片 17602 行 22:58:16 loginInIsolatedContext（带 cred.password）同账号 LOGIN_SUCCESS
- *   ⇒ 账号与密码本体均正确，纯 helper 契约缺陷（有 username 入口却无 password 入口）。
+ *   DEFAULT_ROLE_PASSWORD，与建号主体密码（会话池里那份 worker 密码）不同；
+ * - 共享实现只接收 opts.username，密码若恒取建号主体密码 ⇒ 传角色账号用户名登录必为
+ *   密码错误 401。backend.log 里同一角色账号 LOGIN_FAILURE 与带 cred.password 的
+ *   LOGIN_SUCCESS 并存 ⇒ 账号与密码本体均正确，纯 helper 契约缺陷
+ *   （有 username 入口却无 password 入口）。
  *
  * 本包装的纪律：
  * - 显式传 opts.password（角色凭证来自 role-credentials.json）→ 用该密码真实登录；
- * - 不传 password → 原样委托共享实现，55+ spec 既有的 e2e_admin_s{n}+TEST_PASSWORD
- *   路径行为逐字节不变（零回归面）；
+ * - 不传 password → 原样委托共享实现，由共享实现取本 worker 的会话账号与密码；
  * - 登录失败仍抛与共享实现同式的原样错误（HTTP 状态 + 响应体），不吞、不降级断言。
  */
 export async function applyAuthMocks(
@@ -46,9 +43,9 @@ export async function applyAuthMocks(
   const { request } = await import('@playwright/test');
   const apiBase = process.env.API_BASE || 'http://localhost:8082';
   const apiPrefix = '/api/v1/erp';
-  const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
-  const baseUsername = process.env.E2E_BASE_USERNAME || 'e2e_admin';
-  const username = opts.username ?? (shardIndex !== '' ? `e2e_admin_s${shardIndex}` : baseUsername);
+  // 显式传了 password 却没传 username：身份仍必须是本 worker 的会话账号，
+  // 不能回落到整片共用账号（共用账号 + 多并发 worker 即 CSRF 凭据互踢的根因）。
+  const username = opts.username ?? workerUsernameFromEnv();
 
   const ctx = await request.newContext({
     baseURL: apiBase,

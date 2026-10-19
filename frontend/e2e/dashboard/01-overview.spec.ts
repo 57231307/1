@@ -1,7 +1,7 @@
 // 仪表盘 E2E 测试
 // 创建时间: 2026-08-19
 // 覆盖范围：KPI 卡片加载 → 趋势图 → 库存分布饼图 → 动态活动表
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 test.describe('仪表盘', () => {

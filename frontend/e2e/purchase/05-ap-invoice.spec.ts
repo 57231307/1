@@ -1,7 +1,7 @@
 // P9-4 采购 E2E 套件 — 05 应付（AP）发票与付款
 // 覆盖范围：/ap 应付发票 Tab 访问 + 新建发票；/ap 付款管理 Tab 新建付款
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';

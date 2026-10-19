@@ -1,6 +1,6 @@
 // 库存管理 E2E 套件 — 01 库存台账
 // 覆盖范围：库存台账列表加载、筛选、统计卡片
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 
