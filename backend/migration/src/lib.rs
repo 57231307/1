@@ -15,6 +15,7 @@
 //!         / m_company_profile
 //!         / m_bulk_color_item_link
 //!         / m_role_conflicts_drop_production_sod
+//!         / m_fulfillment_source_and_po_origin
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -58,6 +59,11 @@
 //!    删种动作永不执行。up 按精确三元组逐对删除并在删除前后各数一次财务 6 对在场行数
 //!    （不等即 RAISE EXCEPTION，误伤不静默）；互斥机制（表 / GET /roles/conflicts 端点 /
 //!    user_service 写口校验）与 role_relations 的 inherit+mutual_exclusive 全套均不触碰。
+//! 16. fulfillment_source_and_po_origin: 流转链地基两列（sales_order_items 补可空
+//!    fulfillment_source TEXT 带三值 CHECK chk_sales_order_item_fulfillment_source，
+//!    purchase_orders 补可空 source_sales_order_id INTEGER 外键指向 sales_orders + 检索索引；
+//!    置于链尾为新的顶层条目，复用库上属 pending 必然执行，依赖 system 建的两表，
+//!    两列均不回填存量行）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -90,6 +96,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::company_profile::Migration),
             Box::new(domain::bulk_color_item_link::Migration),
             Box::new(domain::role_conflicts_drop_production_sod::Migration),
+            Box::new(domain::fulfillment_source_and_po_origin::Migration),
         ]
     }
 }

@@ -265,6 +265,9 @@ impl QuotationConvertService {
                 // 订单行 NULL = 交付时按 delivery_tolerance 既有链路解析（品类 > 全局），
                 // 此处保持 NULL 不是吞值，而是「未显式指定」的既定语义。
                 quantity_tolerance_pct: Set(None),
+                // 报价行不承载流转链来源（已核 sales_quotation_item 全字段无该语义列），
+                // 转出的订单行如实落 NULL =「未定档」，不得替客户在报价阶段编一个来源。
+                fulfillment_source: Set(None),
             };
             new_item.insert(txn).await?;
         }

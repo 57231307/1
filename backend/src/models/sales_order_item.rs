@@ -47,6 +47,11 @@ pub struct Model {
     /// 交货数量允收容差（百分比，可空）：NULL = 走默认解析（品类 > 全局），
     /// 非空 = 行级覆盖（含「约」订单写 10.00）。
     pub quantity_tolerance_pct: Option<Decimal>,
+    /// 流转链来源（行级，可空）：NULL = 未定档，非空取值见
+    /// `models/status/sales.rs::fulfillment_source`（production/stock/purchase），
+    /// 与 DB CHECK `chk_sales_order_item_fulfillment_source` 逐项相等。
+    /// 写入方 `services/so/order_crud.rs`（建单与改单），入参按词表强校验后透传。
+    pub fulfillment_source: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

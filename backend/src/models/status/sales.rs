@@ -4,7 +4,7 @@
 //! A.18.3 状态大小写规范：销售状态统一小写（draft/pending/approved 等），
 //! 与 DB CHECK 约束一致。新增代码必须引用本模块常量，禁止字面量（A.19 逐步替换存量）。
 //! 批次 490 D10-3b 拆分：从 models/status.rs 抽取的销售/报价/定制订单状态常量子模块组。
-//! 包含：sales_order/sales_delivery/sales_return/quotation/custom_order/quotation_ext/price_approval/custom_order_ext/sales_fabric_order
+//! 包含：sales_order/sales_delivery/sales_return/quotation/custom_order/quotation_ext/price_approval/custom_order_ext/sales_fabric_order/fulfillment_source
 
 // 销售订单状态
 // 批次 14（2026-06-28）：修正常量值为小写，与业务代码（order_workflow.rs/order_crud.rs/delivery.rs）一致；
@@ -255,4 +255,40 @@ pub mod sales_fabric_order {
 
     /// 已拒绝（与 sales_order::REJECTED 同值，reject 动作写入方）
     pub const REJECTED: &str = "rejected";
+}
+
+/// 销售订单明细行的流转链来源（sales_order_items.fulfillment_source，全小写闭合三值）
+///
+/// 三条链的行级真相源（粒度是明细行，不是订单头——同一张订单允许既有自产行又有调货行）：
+/// - `production` 订货链：销售→生产→流转卡→领料→染色→验布→成品入库→出库；
+/// - `stock` 现货链：生产→…→成品入库→销售→开销售单→出库；
+/// - `purchase` 调货链：销售→采购（按销售订单产品翻成对应供应商商品）→入库→开销售单→出库。
+///
+/// 词表唯一事实来源是写入方（本 mod）：入参校验与落库值都只认这里的常量，
+/// 比较点与门控值必须逐字符相同。NULL 是合法取值之一，语义是「未定档」，
+/// 不在 `ALL` 内（`ALL` 只列非 NULL 的三值），也不得被读成任何一个非空 token。
+///
+/// DB 侧 CHECK `chk_sales_order_item_fulfillment_source`（建在迁移
+/// `migration/src/domain/fulfillment_source_and_po_origin/`）与本 `ALL` 逐元素相等，
+/// 由 `tests/fulfillment_source_vocab_check_parity_test.rs` 双向锁定：
+/// 词表加值而 CHECK 未加 ⇒ 写入撞 23514 冒裸 500；CHECK 比词表宽 ⇒ 旁路脚本能写出
+/// 业务永不产生的脏 token。两侧任一侧单独增删值都判红。
+pub mod fulfillment_source {
+    /// 订货：按销售订单组织生产，货由本厂生产链产出
+    pub const PRODUCTION: &str = "production";
+
+    /// 现货：出库的货来自成品库存，销售单挂在既有库存上
+    pub const STOCK: &str = "stock";
+
+    /// 调货：本厂不产出该行，由销售订单转出采购单向供应商拿货
+    pub const PURCHASE: &str = "purchase";
+
+    /// 本列全部非 NULL 合法取值：入参校验与 DB CHECK 的唯一取值来源
+    pub const ALL: &[&str] = &[PRODUCTION, STOCK, PURCHASE];
+
+    /// 白名单判定：逐字符匹配，不做大小写/中英转换，词表外（含空串与变体）一律 false。
+    /// NULL（即 `None`）不走本函数——它由调用方在 `Option` 层单独放行。
+    pub fn is_valid(token: &str) -> bool {
+        ALL.contains(&token)
+    }
 }

@@ -268,6 +268,10 @@ impl PurchaseOrderService {
             shipping_terms: Set(req.shipping_terms.clone()),
             notes: Set(req.notes.clone()),
             attachment_urls: Set(req.attachment_urls.clone()),
+            // 转采来源真正落库：此前该值只存在于请求体、仅用于触发 SKU 对照翻译，
+            // 库里查不到「这张采购单由哪张销售订单转出」。None = 普通采购单，
+            // 如实落 NULL（不代填、不猜测来源）。
+            source_sales_order_id: Set(req.source_sales_order_id),
             created_by: Set(user_id),
             // 显式初始化金额/数量字段：迁移 ADD COLUMN 未声明 DEFAULT，
             // 依赖 ..Default::default() 的 NotSet 会导致 SeaORM insert 报
