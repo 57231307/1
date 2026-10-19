@@ -26,6 +26,20 @@ on:
 permissions:
   contents: read
 
+env:
+  # 与 ci-cd.yml 的 workflow 级 env 同源。缺这块就是 run 1/2 的失败原文：
+  # dtolnay/rust-toolchain 报 "'toolchain' is a required input"，因为 composite action
+  # 取的是 env.RUST_VERSION，而它此前只定义在 ci-cd.yml 顶层。
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RUST_VERSION: "1.94.1"
+  RUST_BACKTRACE: full
+  CARGO_TERM_COLOR: always
+  CARGO_TERM_PROGRESS_WHEN: never
+
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: coverage-${{ github.ref }}
   cancel-in-progress: false
