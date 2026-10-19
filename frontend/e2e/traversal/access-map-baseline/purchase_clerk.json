@@ -1,0 +1,30 @@
+{
+  "role": "purchase_clerk",
+  "reachableRoutes": [
+    "/ai-extend",
+    "/ai-extend/process-optimization",
+    "/ai-extend/quality-prediction",
+    "/barcode-scanner",
+    "/color-cards/list",
+    "/color-prices/batch-adjust",
+    "/color-prices/list",
+    "/custom-orders",
+    "/dashboard",
+    "/fabric",
+    "/inventory",
+    "/inventory-adjustment",
+    "/inventory-batch",
+    "/inventory-count",
+    "/inventory-transfer",
+    "/logistics",
+    "/product",
+    "/purchase",
+    "/purchase-contract",
+    "/purchase-inspection",
+    "/purchase-price",
+    "/purchase-receipt",
+    "/purchase-return",
+    "/supplier",
+    "/supplier-evaluation"
+  ]
+}

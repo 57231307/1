@@ -9,10 +9,6 @@
     "/ar-reconciliation/enhanced",
     "/assist-accounting",
     "/bi/sales-analysis",
-    "/bpm",
-    "/bpm/approval",
-    "/bpm/definitions",
-    "/bpm/templates",
     "/budget",
     "/business-trace",
     "/cost",
@@ -40,7 +36,6 @@
     "/system/audit-log",
     "/system/export-approvals",
     "/system/slow-query",
-    "/voucher",
-    "/workflow"
+    "/voucher"
   ]
 }
