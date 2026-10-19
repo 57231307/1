@@ -196,12 +196,16 @@ async fn seed_products(db: &sea_orm::DatabaseConnection) {
     for id in [PRODUCT_STOCK, PRODUCT_NULL_SOURCE] {
         db.execute_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            "INSERT INTO products (id, code, name, unit, product_type) VALUES ($1, $2, $3, $4, $5)",
+            // products.status 列可空且无默认值，但 product::Model.status 是非 Option，
+            // 省略它会让建单的存在性回读抛 Missing value 而报成数据库错误。
+            "INSERT INTO products (id, code, name, unit, status, product_type) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
             vec![
                 id.into(),
                 format!("P-{id}").into(),
                 format!("流转链地基锁产品{id}").into(),
                 "米".into(),
+                "active".into(),
                 "fabric".into(),
             ],
         ))
