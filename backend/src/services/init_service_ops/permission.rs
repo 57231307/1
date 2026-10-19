@@ -1321,6 +1321,14 @@ impl InitService {
                     ("data-import", "*"),
                     ("permission-audits", "*"),
                     ("business-trace", "read"),
+                    // BPM 流程定义与流程模板的读面。两页路由门控分别是 bpm-definitions:read
+                    // 与 bpm-templates:read，键由 `/api/v1/erp/bpm` 的第四段经消歧派生，两枚
+                    // 资源名都已登记在 utils/path_utils.rs 的映射与 init_service.rs 的
+                    // PERMISSION_RESOURCES，此处只授已可派生的在册键。系统管理岗负责流程配置，
+                    // 缺键时两个入口对其隐去；审批执行面（bpm-tasks 与 bpm-approvals）刻意不授，
+                    // 保持"配置流程的人不是执行审批的人"这一拆岗口径。
+                    ("bpm-definitions", "read"),
+                    ("bpm-templates", "read"),
                 ],
             ),
             // 系统运维岗：系统更新整段高危敏感面（二进制替换、版本回滚、上传安装）。

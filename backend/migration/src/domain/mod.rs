@@ -40,6 +40,9 @@
 //!   各六枚派生键）的存量库通道——按 roles.code 反查 id、ON CONFLICT 用真实唯一索引的列集合
 //!   保证幂等，逐键打印实写行数与跳过成因，同键显式拒绝行只点名不覆盖；置于链尾为新的顶层
 //!   条目，复用库上也必然执行
+//! - system_admin_bpm_config_grant: 系统管理岗补授 BPM 流程配置读面（bpm-definitions 与
+//!   bpm-templates 各一枚 read 键）的存量库通道——同一套按码反查、幂等补授与逐键打印口径；
+//!   置于链尾为新的顶层条目，复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -64,3 +67,4 @@ pub mod bulk_color_item_link;
 pub mod role_conflicts_drop_production_sod;
 pub mod finance_resource_rename;
 pub mod bpm_approver_grant;
+pub mod system_admin_bpm_config_grant;
