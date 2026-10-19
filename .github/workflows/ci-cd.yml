@@ -2337,13 +2337,58 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ==============================================================================
+  # 仅验证分支：探针。证明"可复用工作流里 upload-artifact 的产物，在同一个 run 的
+  # 后续 job 里能被 gh run download 取到"——这是 github-release 附 APK 那一步的前提。
+  # 只下载与校验，不创建、不修改任何 Release（Release 是共享产物，不在 PR 上碰）。
+  # ==============================================================================
+  ci-android-apk-probe:
+    name: 🔎 APK 产物可达性探针
+    runs-on: ubuntu-latest
+    needs: ci-android-apk
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: 下载产物（签名优先，缺则退到 debug）
+        run: |
+          mkdir -p probe
+          if gh run download "${{ github.run_id }}" --repo ${{ github.repository }} -n bingxi-erp-android-release-signed -D probe; then
+            echo "SOURCE=signed"
+          else
+            echo "::warning::签名产物 bingxi-erp-android-release-signed 不存在（keystore 未配置或签名步跳过），改探 debug 产物"
+            echo "SOURCE=debug" >> "$GITHUB_ENV"
+            gh run download "${{ github.run_id }}" --repo ${{ github.repository }} -n bingxi-erp-android-debug -D probe
+          fi
+      - name: 校验探针结果
+        run: |
+          echo "downloaded tree:"
+          ls -laR probe
+          APK=$(find probe -name "*.apk" | head -1)
+          if [ -z "$APK" ] || [ ! -s "$APK" ]; then
+            echo "::error::探针取不到可用 APK：github-release 那一步在发布轮也会取不到"
+            exit 1
+          fi
+          SIZE=$(stat -c %s "$APK")
+          echo "APK=$APK SIZE=$SIZE"
+          if [ "$SIZE" -lt 1048576 ]; then
+            echo "::error::APK 小于 1MiB，疑似空壳产物"
+            exit 1
+          fi
+          unzip -l "$APK" | grep -E "AndroidManifest.xml|classes" | head -3
+          echo "PROBE_OK: 可复用工作流的 APK 产物在同 run 后续 job 中可取用（本次来源=${SOURCE:-signed}）"
+          if [ "${SOURCE:-signed}" != "signed" ]; then
+            echo "::warning::可达性已证，但发布轮要附的是签名包；签名产物缺失时 github-release 那一步会走 warning 分支、不附 APK"
+          fi
+
+  # ==============================================================================
   # 安卓客户端 APK：以可复用工作流方式调用 android.yml（脚本只有一份，不复制第二套）
   # 只在发布事件上跑（main push / v* tag），PR 轮不占并发额度。
   # ==============================================================================
   ci-android-apk:
     name: 📱 安卓客户端 APK
     needs: ci-info
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    # 仅验证分支：把 pull_request 也放进来，好在一轮真 run 上验 workflow_call 与产物可达性。
+    # 本分支不进 main（正式车道里这一行只认 push main / v* tag）。
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
     with:
       build_release: true
       run_e2e: false
