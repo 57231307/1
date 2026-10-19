@@ -7,6 +7,18 @@
 name: Android (Tauri)
 
 on:
+  # workflow_call：供 ci-cd.yml 的 📱 安卓客户端 APK job 以"可复用工作流"方式调用（甲路线）。
+  # 目的是不复制第二套构建脚本：安卓链只有一份，main 发布轮和这条独立车道调的是同一段。
+  workflow_call:
+    inputs:
+      build_release:
+        description: '是否构建并签名 release APK（keystore 未配置时该步跳过，Release 只附 debug 之外的判定见调用方）'
+        type: boolean
+        default: false
+      run_e2e:
+        description: '是否跑 Android 模拟器端到端（发布轮传 false，避免把发布卡在模拟器上）'
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       build_release:
@@ -33,6 +45,9 @@ env:
 
 jobs:
   android-apk:
+    env:
+      # 两种入口合一：手工 dispatch 读 github.event.inputs，被调用时读 inputs。
+      BUILD_RELEASE: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.build_release == 'true') || (github.event_name == 'workflow_call' && inputs.build_release) }}
     name: 构建 APK + 严格冒烟
     runs-on: ubuntu-latest
     outputs:
@@ -136,14 +151,14 @@ jobs:
           if-no-files-found: error
 
       - name: 构建 release APK（未签名，可选）
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        if: env.BUILD_RELEASE == 'true'
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
         run: cargo tauri android build --release --apk
 
       - name: 签名 release APK（需 keystore 密钥）
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        if: env.BUILD_RELEASE == 'true'
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release
@@ -155,7 +170,7 @@ jobs:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS }}
 
       - name: 上传签名 release APK
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.build_release) || github.event_name == 'release' }}
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: bingxi-erp-android-release-signed
@@ -163,6 +178,8 @@ jobs:
           if-no-files-found: warn
 
   android-e2e:
+    # 被发布轮调用时默认不起模拟器；手工 dispatch 与 push 触发照旧跑。
+    if: ${{ github.event_name != 'workflow_call' || inputs.run_e2e }}
     name: 模拟器 E2E（装包→启动→前台→WebView进程拉起→无崩溃）
     needs: android-apk
     runs-on: ubuntu-latest

@@ -2336,6 +2336,20 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # ==============================================================================
+  # 安卓客户端 APK：以可复用工作流方式调用 android.yml（脚本只有一份，不复制第二套）
+  # 只在发布事件上跑（main push / v* tag），PR 轮不占并发额度。
+  # ==============================================================================
+  ci-android-apk:
+    name: 📱 安卓客户端 APK
+    needs: ci-info
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    with:
+      build_release: true
+      run_e2e: false
+    secrets: inherit
+    uses: ./.github/workflows/android.yml
+
 # ==============================================================================
 # Job 13: 打包发布
 # ==============================================================================
@@ -2443,7 +2457,10 @@ jobs:
 # ==============================================================================
   github-release:
     name: 🚀 GitHub Release
-    needs: package-release
+    # 必须等 APK job：本 job 末尾要把已签名 APK 附到同一个 Release，不等就会出现
+    # "Release 先建好、APK 还没产"的竞态。代价是安卓构建失败会连带把整条发布挡住
+    # （宁可不发，也不发一个少资产的 Release）。
+    needs: [package-release, ci-android-apk]
     runs-on: ubuntu-latest
     timeout-minutes: 360
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
@@ -2590,6 +2607,36 @@ jobs:
             exit 1
           fi
           echo "✅ 官方校验资产已上传: $SHA_FILE, $MD_FILE"
+
+      - name: 附加安卓客户端 APK 资产
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 把已签名 release APK 及其校验文件附到本轮刚建的同一个 Release。
+          # 只认签名产物：debug 包挂到正式 Release 会误导使用者，宁可不附。
+          TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
+          VERSION="${{ needs.package-release.outputs.version }}"
+          mkdir -p apk-in
+          if ! gh run download "${{ github.run_id }}" --repo ${{ github.repository }} \
+              -n bingxi-erp-android-release-signed -D apk-in; then
+            echo "::warning::未取到 bingxi-erp-android-release-signed 产物（keystore 未配置或签名步被跳过）"
+            echo "本轮 Release 只发服务端包、不附 APK：少了一个资产不是成功，日志已显式点名。"
+            exit 0
+          fi
+          APK=$(find apk-in -name "*.apk" | head -1)
+          if [ -z "$APK" ] || [ ! -s "$APK" ]; then
+            echo "::warning::产物目录里没有可用 APK，Release 不附安卓资产"
+            ls -laR apk-in || true
+            exit 0
+          fi
+          NAME="bingxi-erp-${VERSION}-android.apk"
+          cp "$APK" "$NAME"
+          sha256sum "$NAME" > "$NAME.sha256"
+          md5sum "$NAME" > "$NAME.md5"
+          gh release upload "$TAG_NAME" "$NAME" "$NAME.sha256" "$NAME.md5" \
+            --repo ${{ github.repository }} --clobber
+          gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets \
+            -q '.assets[].name' | sed 's/^/Release 资产: /'
 
       - name: 清理旧 Release（保留最近 10 个）
         env:
@@ -4829,6 +4876,7 @@ jobs:
       ci-build-test-artifacts,
       ci-test-rust,
       ci-test-rust-ignored,
+      ci-android-apk,
       # ci-coverage-rust 已从本门摘除：它自陈"信息性收集（不阻塞 CI）"，却在这份 needs
       # 里把 PR 的收尾门压在一条 52.8min 的第二次全量测试执行后面。摘除后覆盖率仍在
       # main push 上产出（数字进 Codecov 与 artifact），只是不再决定 PR 能否合并。
