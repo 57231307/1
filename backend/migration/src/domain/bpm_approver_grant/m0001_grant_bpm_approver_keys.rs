@@ -6,12 +6,12 @@
 //! BPM 四页与工单/审批执行入口的派生键为 `bpm-tasks`、`bpm-approvals`、`bpm-instances`、
 //! `bpm-business-relation`、`bpm-visualization`（资源名均已登记在 `utils/path_utils.rs`
 //! 的消歧映射与 `init_service.rs` 的 `PERMISSION_RESOURCES`，本迁移不新增键、不改写既有条目）。
-//! 三岗在 `init_service_ops/permission.rs::bpm_approval_role_resources` 已入授权矩阵，但
+//! 三岗在 `init_service_ops/permission.rs` 的三个既有分组里各含这六枚条目，但
 //! **存量库不会重跑 init**：缺本通道则升级后三岗打开待办/审批执行/流程实例/单据关联/流程图
 //! 视图恒 403，且旧行也补不出来。
 //!
 //! ## 三条授予通道必须同口径（本迁移是「存量库」通道）
-//! - 通道① 新装库：`init_service_ops/permission.rs` 的 APPROVER_KEYS × 三岗矩阵（已到位，不动）；
+//! - 通道① 新装库：`init_service_ops/permission.rs` 中三岗分组各自的六枚 BPM 条目（已到位，不动）；
 //! - 通道② 存量库：本迁移（按 roles.code 反查 id，幂等补授，可重复执行）；
 //! - 通道③ CI 角色：`frontend/e2e/global-setup.ts` 的 SEED_ROLE_EXTRA_PERMISSIONS
 //!   （键面须与通道① 逐字符相同；角色建号面与可达集基线的当前状态另见交付回报）。
