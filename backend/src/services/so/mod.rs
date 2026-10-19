@@ -20,6 +20,9 @@ use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
+use crate::models::status::sales::fulfillment_source;
+use crate::utils::error::AppError;
+
 pub mod contract;
 pub mod delivery;
 // 批次 488 D10-3 拆分：delivery 的业务实现子模块（ship/inventory/cancel/export/types）
@@ -133,6 +136,10 @@ pub struct SalesOrderItemDetail {
     pub shipped_quantity_kg: rust_decimal::Decimal,
     /// 行级交付容差百分比（NULL = 走默认解析，非空 = 行级覆盖）
     pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
+    /// 流转链来源（行级）：NULL = 未定档，非空取值只认权威词表
+    /// `models/status/sales.rs::fulfillment_source`（production/stock/purchase）。
+    /// 键恒存在（无 skip_serializing_if），未采集出参为 null。
+    pub fulfillment_source: Option<String>,
 }
 
 /// 创建销售订单请求
@@ -216,6 +223,41 @@ pub struct SalesOrderItemRequest {
     /// None 合法（不覆盖，走默认解析）。
     #[validate(custom(function = "validate_quantity_tolerance_pct"))]
     pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
+    /// 流转链来源（行级，可空）：只接受权威词表
+    /// `models/status/sales.rs::fulfillment_source` 的 production/stock/purchase；
+    /// 不填 = 保持 NULL（未定档），服务端不替调用方填默认值。
+    /// 词表外取值由建单与改单的共同漏斗入口点名拒绝（见
+    /// [`SalesOrderItemRequest::validate_fulfillment_source`]），不落库。
+    pub fulfillment_source: Option<String>,
+}
+
+impl SalesOrderItemRequest {
+    /// 写侧入口校验：链来源只认闭合三值词表，词表外一律拒并点名允许清单。
+    ///
+    /// 调用方：`services/so/order_crud.rs` 建单与改单共用的明细行漏斗
+    /// `create_order_items_and_calculate_totals`（两条写链都在它上面，落库前必过本函数）。
+    /// `None`（未提交）是合法语义 = 未定档，直接放行、不填默认值；
+    /// `Some(词表外 token)` 走 `AppError::validation_displayable` 如实外显
+    /// 「提交的值 + 允许清单」，文案不含记录 ID、不含 serde/驱动原文。
+    pub fn validate_fulfillment_source(&self) -> Result<(), AppError> {
+        match self.fulfillment_source.as_deref() {
+            None => Ok(()),
+            Some(token) if fulfillment_source::is_valid(token) => Ok(()),
+            Some(token) => {
+                // 失败必留痕：违规 token 与产品 ID 只进日志，出参文案不带记录 ID。
+                tracing::warn!(
+                    product_id = self.product_id,
+                    rejected_token = token,
+                    allowed = fulfillment_source::ALL.join("/"),
+                    "sales_order_item.fulfillment_source 词表外取值被拒：整笔明细写入中止"
+                );
+                Err(AppError::validation_displayable(format!(
+                    "明细行链来源 {token} 不是合法取值，只能填 {} 之一；未定档请留空不传（留空即 NULL，服务端不代填默认值）",
+                    fulfillment_source::ALL.join("/")
+                )))
+            }
+        }
+    }
 }
 
 /// 行级交付容差百分比范围校验 [0, 100]。

@@ -5,7 +5,7 @@
 //   - 漂移检测端点返回真实结构（has_drift / expected_accuracy / actual_accuracy / drift_score）
 //   - 准确率报告 GET 列表可达且结构正确
 //   - 非法评估指标（accuracy > 1.0）→ 400 VALIDATION_ERROR
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

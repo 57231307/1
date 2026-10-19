@@ -17,7 +17,7 @@
 //   正确公式应为 unwrap_or(parent.length)（原始长度=拆分前现长）。
 //   本用例按**契约意图**（成功拆分+守恒）断言，预期在源码修复前为红——
 //   红即暴露真实缺陷；不得改为断言"拆匹必 400"来钉死缺陷行为当绿灯。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

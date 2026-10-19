@@ -1,7 +1,7 @@
 // P9-3 销售 E2E 套件 — 07 销售分析（真实 BI 视图）
 // 覆盖范围：/sales-analysis 销售分析页统计/排名/目标渲染 + 导出报表
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 /**

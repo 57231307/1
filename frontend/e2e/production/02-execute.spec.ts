@@ -1,6 +1,6 @@
 // 生产计划 E2E 套件 — 02 生产执行（已排产 → 生产中 → 已完成）
 // 覆盖范围：开始生产、完成生产、状态标签验证
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
 import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';

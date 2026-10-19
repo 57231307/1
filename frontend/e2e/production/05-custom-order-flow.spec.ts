@@ -4,7 +4,7 @@
 // 状态机（7阶段）：draft→lab_dip→quotation→yarn_purchasing→dyeing→finishing→delivery→after_sales→completed
 // 门控：lab_dip→quotation 需 lab_dip_request_id 且 approved_sample_id 非空；
 //       quotation→yarn_purchasing 需 quotation_id 且报价单 status=approved
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

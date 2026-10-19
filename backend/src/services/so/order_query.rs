@@ -282,6 +282,7 @@ impl SalesService {
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
             quantity_tolerance_pct: item.quantity_tolerance_pct,
+            fulfillment_source: item.fulfillment_source.clone(),
         }
     }
 
@@ -479,6 +480,7 @@ impl SalesService {
             shipped_quantity_meters: item.shipped_quantity_meters,
             shipped_quantity_kg: item.shipped_quantity_kg,
             quantity_tolerance_pct: item.quantity_tolerance_pct,
+            fulfillment_source: item.fulfillment_source,
         }
     }
 

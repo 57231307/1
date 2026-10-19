@@ -14,7 +14,7 @@
 //     services/crm/lead.rs:943 lead_funnel_report）——跨全库计数，仅严格健康 + 结构健全性断言
 //     （不做 seed 真值：全局计数受并行分片共享库影响，钉死等值会造成假红/假绿，故如实标注覆盖边界）。
 //   已注册端点统一走 verifyEndpointHealthy(strict)；xlsx 导出走 verifyDownloadEndpointHealthy（JSON helper 会对 200 xlsx 误抛假红）。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

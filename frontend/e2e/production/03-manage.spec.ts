@@ -1,6 +1,6 @@
 // 生产计划 E2E 套件 — 03 工单管理（查看、删除、按状态筛选）
 // 覆盖范围：查看详情、删除草稿、按状态筛选
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
 import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';

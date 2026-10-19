@@ -14,7 +14,7 @@
 //   order_id/receipt_id/warehouse_id 为 Option；前端表单把“采购订单”作为必填项驱动，
 //   选中订单后供应商由 handleOrderChange 自动派生（usePrRtn.ts:341）。
 // 退货原因取值见 constants/return-reason.ts，value 为中文业务词，落库原值即中文（此处取“色差”）。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

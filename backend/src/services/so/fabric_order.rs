@@ -497,6 +497,9 @@ impl SalesService {
             paper_tube_weight: Set(item.paper_tube_weight),
             is_net_weight: Set(item.is_net_weight),
             quantity_tolerance_pct: Set(None),
+            // 面料行业版订单的建单入口不采集流转链来源，如实落 NULL（=未定档），
+            // 禁止填默认值替没做过的决定表态。
+            fulfillment_source: Set(None),
         }
     }
 }

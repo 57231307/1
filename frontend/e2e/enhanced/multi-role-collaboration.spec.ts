@@ -13,7 +13,7 @@
  * - 通过 fixtures/multi-context.ts 创建隔离会话
  * - 验证 cookie/localStorage 互不干扰
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { mockBusinessApi } from '../fixtures/auth';
 import {
   createCollaborationContext,

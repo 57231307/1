@@ -12,7 +12,7 @@
 //   → message=「权限不足，无法访问该资源」）。⇒ 断 message === '无权限' 仍能钉住
 //   "已过 RBAC、拒于 handler 行级数据范围层"，且与本例 owner 同路径 2xx 正向对照互证。
 //   旧写法 `.toContain('数据范围限制')` 断的是被脱敏掉、根本不出参的内部文案（必然红），已跟随源码改。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

@@ -35,7 +35,7 @@
 //   inspection_result 后端为**自由文本**（service:199 直接 Set(req.inspection_result)），
 //   词表 pass/fail/partial 仅前端 prompt pattern 把关——API 直送任意词会照单全收，
 //   该缺口只报告不加宽松断言掩盖。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

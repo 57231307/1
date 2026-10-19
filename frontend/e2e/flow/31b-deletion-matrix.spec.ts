@@ -7,6 +7,7 @@ import {
   ensureTestEntities,
   getCtx,
   loginViaUI,
+  testStorageStatePath,
   tryCleanup,
 } from './helpers';
 import { pickListArray, type ListShapeKey } from './ui-helpers';
@@ -175,10 +176,11 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
   // 它把 test.setTimeout 抬到 300s（伪全绿红线），后端实体写入实测仅 2ms，根本不是慢在源码。
   // ensure 建立的是全 worker 共享的真实库实体，结果落在 helpers 的模块级 ctx 单例，只需
   // 初始化一次供本 worker 全部用例复用。beforeAll 为 worker 作用域：parallel 模式下每个
-  // worker 只跑一次（而非每例一次）。beforeAll 不注入 page，这里用 storageState 独立建
-  // context 完成"登录 + ensure"，随后关闭；各用例 beforeEach 仅复用登录态、不再重复 ensure。
+  // worker 只跑一次（而非每例一次）。beforeAll 不注入 page，这里用本 worker 自己的会话态
+  // 独立建 context 完成"登录 + ensure"，随后关闭；各用例 beforeEach 仅复用登录态、不再重复
+  // ensure。会话态必须按并行槽取：并发 worker 各带同一枚一次性 CSRF 凭据会互相打死。
   test.beforeAll(async ({ browser }) => {
-    const seedContext = await browser.newContext({ storageState: 'e2e/.auth/storage-state.json' });
+    const seedContext = await browser.newContext({ storageState: testStorageStatePath() });
     const seedPage = await seedContext.newPage();
     try {
       await loginViaUI(seedPage);

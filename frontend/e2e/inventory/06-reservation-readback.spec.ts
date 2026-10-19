@@ -27,7 +27,7 @@
 // 仍判红的真实缺陷（本 spec 不放宽、不掩盖，详见交付报告）：
 // create_reservation(service.rs:24-50) 无 order/product/warehouse 存在性前置校验，
 // 直接 insert 由 DB FK 抛错 → From<DbErr> 归 DATABASE_ERROR（500），FK 负例因此红。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

@@ -1,7 +1,7 @@
 // 财务管理 E2E 套件 — 01 凭证管理
 // 创建时间: 2026-08-19
 // 覆盖范围：凭证创建（含借贷平衡） → 提交 → 审核 → 过账
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page, type Locator } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 import { apiCall, tryCleanup } from '../flow/helpers';

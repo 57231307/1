@@ -10,7 +10,7 @@
 //    build_login_success_audit → OperationType::Login），故列表必然有行；02-01/02-02/02-04
 //    对筛选下发用 waitForRequest 断言真实 query 参数，而非"表格始终可见"的空断言。
 //    关键字标签为「关键字」（auditLog.filter.keyword），原用例写 /关键词/ 不匹配。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 

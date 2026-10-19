@@ -1649,6 +1649,7 @@ mod tests {
             paper_tube_weight: None,
             is_net_weight: None,
             quantity_tolerance_pct: None,
+            fulfillment_source: None,
         }
     }
 

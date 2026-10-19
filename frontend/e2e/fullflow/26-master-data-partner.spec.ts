@@ -34,7 +34,7 @@
 //   - 非管理员 PII 脱敏分支（mask_contact_fields_for_role 依赖 role_id!=1 判定，本链只用
 //     admin 会话断言非 PII 字段，脱敏契约由 29 权限链专测）；
 //   - 客户信用与订单占用的事务内 TOCTOU 联动（P2 3-20 属后端集成测试范畴）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

@@ -12,6 +12,11 @@ import {
 import { existsSync, readFileSync } from 'fs';
 import * as nodeCrypto from 'crypto';
 import {
+  workerPasswordFromEnv,
+  workerStorageStatePathFromEnv,
+  workerUsernameFromEnv,
+} from '../worker-auth';
+import {
   createColorCardUI,
   createDyeRecipeUI,
   createBomUI,
@@ -24,13 +29,45 @@ import {
 export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 export const API_PREFIX = '/api/v1/erp';
 export const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-// 分片专属账号：优先级 E2E_SHARD_INDEX（派生 e2e_admin_s{n}）> TEST_USERNAME > 默认。
-// 注意 TEST_USERNAME 的 job 级 env（e2e_admin）会短路 || 链，故 E2E_SHARD_INDEX 必须前置判断
-export const TEST_USERNAME =
-  process.env.E2E_SHARD_INDEX !== undefined && process.env.E2E_SHARD_INDEX !== ''
-    ? `e2e_admin_s${process.env.E2E_SHARD_INDEX}`
-    : process.env.TEST_USERNAME || 'e2e_admin';
-export const TEST_PASSWORD = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
+// 本 worker 的会话身份：账号名与会话态路径由 e2e/diagnose-fixture 的 worker 作用域
+// fixture 注入本进程 env（每个并行槽一个独立 admin 账号 + 一份独立会话态文件）。
+// 必须是"用时现取"的函数而不是模块加载期求值的常量：spec 模块早于 fixture 被 require，
+// 常量只会读到未注入的 env，或读到与本 worker 无关的静态值；而共用同一份会话身份的
+// 多个并发 worker 会互相打死一次性消费的 CSRF 凭据（同分片同用例确定性 403 的根因）。
+// 缺会话身份即显式抛错点名注入来源，绝不回落到分片主账号或基础管理员账号。
+export function testUsername(): string {
+  return workerUsernameFromEnv();
+}
+
+export function testPassword(): string {
+  return workerPasswordFromEnv();
+}
+
+/** 本 worker 的会话态文件路径：需要另建 context 复用本 worker 登录态时用它，不得用共享文件 */
+export function testStorageStatePath(): string {
+  return workerStorageStatePathFromEnv();
+}
+
+/**
+ * 系统初始化用的基础管理员账号：/init/initialize 创建的是整套系统的管理员，
+ * 与跑测期的 worker 会话账号无关（worker 账号由 globalSetup 建号，init 只能发生在这之前）。
+ * 入参：无，取 env E2E_BASE_USERNAME，缺省按 globalSetup 同一约定用固定基础账号名。
+ * 传给谁：initSystem 的 admin_username 字段。存什么/存哪里：不持久化。
+ */
+export function baseAdminUsername(): string {
+  return process.env.E2E_BASE_USERNAME || 'e2e_admin';
+}
+
+/**
+ * 基础管理员密码：与建号主体（globalSetup 的分片主账号、角色账号、worker 账号）同一条
+ * env 约定 TEST_PASSWORD，缺省同一固定串。
+ * 入参：无。传给谁：initSystem 的 admin_password 字段。存什么/存哪里：不持久化。
+ * 注意：跑测期取本 worker 密码一律用 testPassword()（会话池清单里的建号密码），
+ * 二者来源不同，混用会把"凭证文件写出的密码"与"env 里的密码"漂移掩盖成下游 401。
+ */
+export function baseAdminPassword(): string {
+  return process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
+}
 
 export interface ApiResponse<T = unknown> {
   code: number;
@@ -1299,8 +1336,10 @@ async function syncCsrfFromResponse(
 async function refreshCsrfToken(page: Page): Promise<string> {
   // CSRF token 过期时，重新登录获取全新的 access_token + csrf_token
   // 不用 /auth/refresh（会吊销旧 access_token 导致后续 GET 请求 401）
+  // 登录身份必须是本 worker 自己的账号：登成别的账号会把该账号的一次性凭据集清掉，
+  // 而那个账号可能正是另一个并发 worker 的会话账号。
   const loginResp = await page.request.post(`${API_BASE}${API_PREFIX}/auth/login`, {
-    data: { username: TEST_USERNAME, password: TEST_PASSWORD },
+    data: { username: testUsername(), password: testPassword() },
     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
   });
   if (!loginResp.ok()) {
@@ -1749,8 +1788,10 @@ export async function loginViaUI(
     }
   }
 
-  const u = username || TEST_USERNAME;
-  const p = password || TEST_PASSWORD;
+  // 缺省身份 = 本 worker 的会话账号（与 context 初始会话态同源）；显式传参的用例
+  // （角色矩阵、越权前提等）按传入身份登录，不受影响。
+  const u = username || testUsername();
+  const p = password || testPassword();
 
   // 最多重试 3 次（处理 Vite 504 + page 被关闭）
   let lastError: Error | null = null;
@@ -2022,8 +2063,10 @@ export async function initSystem(): Promise<void> {
       'X-Requested-With': 'XMLHttpRequest',
     },
     body: JSON.stringify({
-      admin_username: TEST_USERNAME,
-      admin_password: TEST_PASSWORD,
+      // 系统初始化只能落在基础管理员账号上（此刻还没有 worker 会话账号）：
+      // 账号名与密码沿用 globalSetup 的同一条 env 约定，不从会话池取。
+      admin_username: baseAdminUsername(),
+      admin_password: baseAdminPassword(),
     }),
   });
 
@@ -3587,13 +3630,14 @@ export async function loginInIsolatedContext(
 }
 
 /**
- * 取一个与默认分片账号（TEST_USERNAME，即"用户 A"）不同的"用户 B"凭证。
- * 从 role-credentials.json 中选一个 username 明确不等于 TEST_USERNAME 的角色账号，
+ * 取一个与本 worker 会话账号（testUsername()，即"用户 A"）不同的"用户 B"凭证。
+ * 从 role-credentials.json 中选一个 username 明确不等于本 worker 会话账号的角色账号，
  * 保证 B 是独立身份的账号（水平越权前提：两个不同 owner）。找不到即判红，
  * 不允许退化成"用同一账号自己测自己"的假越权。
  */
 export function pickDifferentUserCredential(): { username: string; password: string } {
   try {
+    const workerUsername = testUsername();
     if (!existsSync(ROLE_CREDENTIALS_PATH)) {
       throw new Error(
         `凭证文件不存在: ${ROLE_CREDENTIALS_PATH}（global-setup ensureRoleUsers 未运行？）`
@@ -3603,12 +3647,10 @@ export function pickDifferentUserCredential(): { username: string; password: str
       string,
       RoleCredential
     >;
-    const candidate = Object.values(data).find(
-      c => c && c.username && c.username !== TEST_USERNAME
-    );
+    const candidate = Object.values(data).find(c => c && c.username && c.username !== workerUsername);
     if (!candidate) {
       throw new Error(
-        `role-credentials.json 中找不到与分片账号 ${TEST_USERNAME} 不同的第二个账号，无法构造水平越权前提`
+        `role-credentials.json 中找不到与本 worker 会话账号 ${workerUsername} 不同的第二个账号，无法构造水平越权前提`
       );
     }
     return { username: candidate.username, password: candidate.password };

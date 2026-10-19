@@ -1,12 +1,14 @@
-import { request } from '@playwright/test';
+import { request, type FullConfig } from '@playwright/test';
 import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync } from 'fs';
+import { WORKER_SESSIONS_MANIFEST_PATH, buildWorkerSessions } from './worker-auth';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp'; // 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
-// 分片账号通过真实 UI（用户管理页面）创建，属于测试前置数据准备（ensureTestEntities 同级，
-// 不属于测试验证手段），UI 测试本身仍全部走真实用户操作。
-// 基础管理员（init 步骤创建的固定账号，用于创建分片账号）：
+// 分片账号是「建号与种子的主体账号」，不再直接承载用例会话：CI 分片内以多 worker 并发跑测，
+// 而后端 CSRF 凭据按 user_id 单命名空间且一次性消费，同账号共用会话态会互相打死凭据。
+// 用例会话一律落在按并行槽派生的 worker 账号池上（见 ensureWorkerSessionPool）。
+// 基础管理员（init 步骤创建的固定账号，用于创建分片账号与 worker 账号）：
 // CI step 级会把 TEST_USERNAME 覆盖为分片账号，故这里显式用 E2E_BASE_USERNAME
 // 或固定 'e2e_admin'，与分片账号变量彻底解耦
 const BASE_USERNAME = process.env.E2E_BASE_USERNAME || 'e2e_admin';
@@ -17,7 +19,6 @@ const SHARD_PASSWORD = BASE_PASSWORD;
 // AI 限流隔离专用第二用户：ai/02 使用此用户登录，与 ai/01 的 SHARD_USERNAME 不同 user_id，
 // 后端 rate_limit_ai_endpoint 按 user_id 维度限流（rate_limit.rs:330）→ 两文件独立 10/min 桶。
 const AI_USERNAME = SHARD_INDEX !== '' ? `e2e_ai_s${SHARD_INDEX}` : 'e2e_ai';
-const STORAGE_STATE_PATH = 'e2e/.auth/storage-state.json';
 
 /**
  * requestWithCsrfRecovery / assignPermissionList 的响应契约（单一声明点）。
@@ -101,8 +102,24 @@ async function loginWithRetry(
   return lastResp;
 }
 
-export default async function globalSetup() {
-  // ---- 1. 分片账号不存在时，通过真实 UI 创建（e2e_admin 登录 → 用户管理页 → 新建用户）----
+export default async function globalSetup(config: FullConfig) {
+  // ---- 0. 会话池规模 = 解析后的 Playwright workers 数 ----
+  // 配置文件只在主进程求值一次，CLI 的 --workers 覆盖在传给 globalSetup 的 config 上已生效；
+  // worker 侧只会按并行槽 0..workers-1 取会话，规模取错就是「缺会话槽位」或「建了没人用的账号」。
+  const workerCount = config.workers;
+  if (!Number.isInteger(workerCount) || workerCount < 1) {
+    throw new Error(
+      `globalSetup 需要解析后的 Playwright workers 数（config.workers），实际=${JSON.stringify(
+        workerCount
+      )}：每个并发 worker 必须有独立账号与独立会话态，规模不明即拒绝运行`
+    );
+  }
+  console.log(
+    `[globalSetup] worker 会话池规模 = workers=${workerCount}` +
+      `（分片序号=${SHARD_INDEX === '' ? '本地无分片' : SHARD_INDEX}，每槽位一个独立 admin 账号）`
+  );
+
+  // ---- 1. 分片账号不存在时创建（e2e_admin 登录 → 建号通道）----
   if (SHARD_USERNAME !== BASE_USERNAME) {
     await ensureShardUserViaUI();
   }
@@ -113,7 +130,7 @@ export default async function globalSetup() {
   // ---- 1.5 全量角色账号 setup（P3.1）----
   await ensureRoleUsers();
 
-  // ---- 2. 分片账号登录（API），保存 storageState 供全部 spec 复用 ----
+  // ---- 2. 分片主账号登录（API）：本轮只作为「建号 + 种子」的主体会话，不再持久化为用例会话态 ----
   const ctx = await request.newContext({
     baseURL: API_BASE,
     extraHTTPHeaders: {
@@ -143,29 +160,13 @@ export default async function globalSetup() {
   // 本步骤用纯 API 建最小前置集，使 GET 列表非空。幂等：先查后建。
   await ensureGlobalBusinessSeed(ctx);
 
-  // ---- 2.9 seed 之后回写 storage-state（保证磁盘上携带存活 CSRF token）----
-  // 后端 CSRF Token 为服务端一次性消费（middleware/csrf.rs:199 consume → :216 Set-Cookie
-  // 轮换）。上面 :118 登录拿到的 csrf=T0；ensureGlobalBusinessSeed 内的连续写请求会逐次
-  // 消费并轮换 T0（seed 走 requestWithCsrfRecovery，从 ctx cookie jar 读回轮换后的新 token），
-  // 至 seed 结束时 T0 已死亡。若把 T0 写入 storage-state，之后每条 playwright 用例
-  // 从磁盘 storageState 恢复上下文都带回已死的 T0，
-  // 任何需 CSRF 的写请求首轮即 403 CSRF_TOKEN_INVALID（表现为成片 403）。
-  // 因此在 seed 完成后重新读取当前 ctx 的 cookie jar（含仍然存活的 access_token 与
-  // 轮换链末端的 csrf_token），覆盖写回磁盘，保证持久化的 storage-state 携带存活 token。
-  const postSeedState = await ctx.storageState();
-  const postSeedAccess = postSeedState.cookies.find(c => c.name === 'access_token');
-  const postSeedCsrf = postSeedState.cookies.find(c => c.name === 'csrf_token');
-  if (!postSeedAccess || !postSeedCsrf) {
-    throw new Error(
-      `globalSetup seed 后 storage-state 缺关键 cookie（access=${!!postSeedAccess} csrf=${!!postSeedCsrf}），` +
-        `持久化登录态将不可用`
-    );
-  }
-  writeFileSync(STORAGE_STATE_PATH, JSON.stringify(postSeedState, null, 2));
-  console.log(
-    `[globalSetup] storage-state 于 seed 后回写完成：csrf_token=${postSeedCsrf.value.slice(0, 8)}…` +
-      `（携带存活 token，非 seed 前已消费的旧值）`
-  );
+  // ---- 2.9 worker 会话池：按并行槽建号、逐槽登录、逐槽写独立会话态与清单 ----
+  // 必须排在种子之后：后端 CSRF Token 一次性消费，seed 期间的连续写请求会把建号主体会话
+  // 自己的 token 逐次消费并轮换；每个 worker 账号在这之后各自真实登录，写出的会话态里
+  // 携带的都是"本账号此刻仍存活"的 token，且该 token 字符串只存在于这一个 worker 的文件里。
+  // 若把会话态放在 seed 之前写、或让多个 worker 共用一份，就会出现"第一个消费者之外的
+  // worker 带已消费凭据"，任何需 CSRF 的写请求首轮即 403 CSRF_TOKEN_INVALID（成片 403 的根因）。
+  await ensureWorkerSessionPool(ctx, workerCount);
 
   await ctx.dispose();
 }
@@ -288,6 +289,181 @@ async function ensureShardUserViaUI(): Promise<void> {
     );
   }
   console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 就绪（登录验证通过）`);
+}
+
+/**
+ * 取某已登录请求上下文当前存活的 CSRF 请求头。
+ * 入参：ctx（已登录、cookie jar 里有 csrf_token 的请求上下文）。
+ * 传给谁：fetchAdminRoleId 的读请求、ensureWorkerSessionPool 的建号写请求
+ * （requestWithCsrfRecovery 会在每次写后把 jar 里轮换出的新值刷回该 headers）。
+ * 存什么/存哪里：不持久化，仅返回两个头（X-CSRF-Token + X-Requested-With）。
+ * 失败口径：jar 里没有 csrf_token 即抛错点名上下文身份，绝不带空头去发写请求。
+ */
+async function csrfHeadersOf(
+  ctx: Awaited<ReturnType<typeof request.newContext>>,
+  who: string
+): Promise<Record<string, string>> {
+  const cookies = (await ctx.storageState()).cookies;
+  const csrf = cookies.find(c => c.name === 'csrf_token');
+  if (!csrf) {
+    throw new Error(`${who}: 请求上下文 cookie jar 缺 csrf_token，无法发起带 CSRF 的请求`);
+  }
+  return { 'X-CSRF-Token': csrf.value, 'X-Requested-With': 'XMLHttpRequest' };
+}
+
+/**
+ * 拉取 admin 角色 id。
+ * 入参：ctx（已登录的分片主账号上下文）。
+ * 传给谁：ensureWorkerSessionPool 建 worker 账号时填 role_id。
+ * 存什么/存哪里：不持久化，返回角色 id；出参形状按后端角色列表契约取 data.roles
+ * （既非裸数组也非分页 items），取不到即抛错点名实际响应片段，绝不猜一个 id 继续建号。
+ */
+async function fetchAdminRoleId(
+  ctx: Awaited<ReturnType<typeof request.newContext>>
+): Promise<number> {
+  interface RoleRow {
+    id: number;
+    name?: string;
+    code?: string;
+  }
+  const headers = await csrfHeadersOf(ctx, 'fetchAdminRoleId');
+  const resp = await (ctx as unknown as CsrfCapableRequestContext).get(
+    `${API_PREFIX}/roles?page=1&page_size=50`,
+    { headers }
+  );
+  if (!resp.ok()) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(
+      `fetchAdminRoleId: 角色清单拉取失败 HTTP ${resp.status()} ${body.slice(0, 200)}`
+    );
+  }
+  const parsed = (await resp.json().catch(() => null)) as {
+    data?: { roles?: RoleRow[] };
+  } | null;
+  const roles = parsed?.data?.roles;
+  if (!Array.isArray(roles)) {
+    throw new Error(
+      `fetchAdminRoleId: 角色清单响应缺 data.roles（后端契约未变即本函数取错键），` +
+        `实际片段=${JSON.stringify(parsed).slice(0, 200)}`
+    );
+  }
+  const admin = roles.find(r => r.code === 'admin' || r.name === 'admin');
+  if (!admin || !Number.isInteger(admin.id)) {
+    throw new Error(
+      `fetchAdminRoleId: 未找到 admin 角色（roles=${JSON.stringify(roles).slice(0, 300)}）`
+    );
+  }
+  return admin.id;
+}
+
+/**
+ * 建立 worker 会话池：逐并行槽「建号 → 该账号真实登录 → 写该账号独占会话态」，最后写清单。
+ *
+ * 入参：seedCtx（已登录的分片主账号上下文，建号请求由它发出）、workerCount（解析后的
+ *      Playwright workers 数 = 会话池规模 = 并行槽上界）、账号名与会话态路径由
+ *      e2e/worker-auth.ts 按分片序号 + 槽位序号派生，密码沿用建号主体密码。
+ * 传给谁：worker 作用域 fixture 按 testInfo.parallelIndex 读清单取本 worker 会话；
+ *      需要显式登录本 worker 账号的 helpers/fixtures 调用点经 env 读同一份会话。
+ * 存什么：每槽位一份会话态文件（该账号自己的 access_token 与 csrf_token，字符串只出现在
+ *      这一个文件里）+ 一份会话池清单（shardIndex / workerCount / seedUsername / sessions[]）。
+ * 存哪里：e2e/.auth/ 下（gitignore 覆盖，随 CI job 的独立数据库一同消亡）。
+ * 权限面：worker 账号与分片主账号映射同一个 admin 角色 id，不额外授任何权限键。
+ * 失败口径：建号被非 400/409 拒绝、槽位登录不成功、会话态缺 access_token 或缺 csrf_token、
+ *      槽位序号与清单条目错位一律显式抛错点名槽位与账号——缺会话宁可整片红，
+ *      绝不回落到共享账号（回落等于把并发互踢重新藏成偶发）。
+ */
+async function ensureWorkerSessionPool(
+  seedCtx: Awaited<ReturnType<typeof request.newContext>>,
+  workerCount: number
+): Promise<void> {
+  const sessions = buildWorkerSessions(SHARD_INDEX, workerCount, SHARD_PASSWORD);
+  mkdirSync('e2e/.auth', { recursive: true });
+  const adminRoleId = await fetchAdminRoleId(seedCtx);
+
+  // 1) 逐槽位建号。400/409 视为已存在（重跑同一分片时重复 POST 即此形态），
+  //    账号是否真的可用由下面的真实登录收口，不在这里凭状态码下结论。
+  const headers = await csrfHeadersOf(seedCtx, 'ensureWorkerSessionPool');
+  for (const session of sessions) {
+    const createResp = await requestWithCsrfRecovery(
+      seedCtx as unknown as CsrfCapableRequestContext,
+      'post',
+      `${API_PREFIX}/users`,
+      headers,
+      {
+        username: session.username,
+        password: session.password,
+        role_id: adminRoleId,
+        real_name: `E2E 并行槽账号 ${session.parallelIndex}`,
+      }
+    );
+    if (createResp.ok()) {
+      console.log(
+        `[globalSetup] worker 账号 ${session.username}（槽位 ${session.parallelIndex}）创建成功`
+      );
+    } else if (createResp.status() === 400 || createResp.status() === 409) {
+      console.log(
+        `[globalSetup] worker 账号 ${session.username} 已存在（HTTP ${createResp.status()}），` +
+          `跳过创建；可用性由该账号的真实登录收口`
+      );
+    } else {
+      const body = await createResp.text().catch(() => '');
+      throw new Error(
+        `ensureWorkerSessionPool: 槽位 ${session.parallelIndex} 的账号 ${session.username} ` +
+          `创建失败 HTTP ${createResp.status()} body=${body.slice(0, 300)}——` +
+          `会话池缺槽位即拒绝运行，禁止回落共享账号`
+      );
+    }
+  }
+
+  // 2) 逐槽位真实登录并写出该槽位独占的会话态。这一步同时是账号可用性与凭据存活的终验。
+  for (const session of sessions) {
+    const workerCtx = await request.newContext({
+      baseURL: API_BASE,
+      extraHTTPHeaders: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    const loginResp = await loginWithRetry(workerCtx, session.username, session.password);
+    if (!loginResp.ok()) {
+      const body = await loginResp.text().catch(() => '');
+      await workerCtx.dispose();
+      throw new Error(
+        `ensureWorkerSessionPool: 槽位 ${session.parallelIndex} 的账号 ${session.username} ` +
+          `登录失败 HTTP ${loginResp.status()} ${body.slice(0, 300)}——` +
+          `该槽位的用例将无处取会话态，属 setup 缺陷判红（禁止回落共享账号）`
+      );
+    }
+    const state = await workerCtx.storageState();
+    const access = state.cookies.find(c => c.name === 'access_token');
+    const csrf = state.cookies.find(c => c.name === 'csrf_token');
+    await workerCtx.dispose();
+    if (!access || !csrf) {
+      throw new Error(
+        `ensureWorkerSessionPool: 槽位 ${session.parallelIndex} 的账号 ${session.username} ` +
+          `登录后会话态缺关键 cookie（access=${!!access} csrf=${!!csrf}），` +
+          `写出的会话态不可用，属 setup 缺陷判红`
+      );
+    }
+    writeFileSync(session.storageStatePath, JSON.stringify(state, null, 2));
+    console.log(
+      `[globalSetup] 槽位 ${session.parallelIndex} 会话态写出 ${session.storageStatePath}` +
+        `（账号 ${session.username} 独占，csrf=${csrf.value.slice(0, 8)}…）`
+    );
+  }
+
+  // 3) 写会话池清单：worker 侧按槽位对账的唯一依据，规模与实际写出条数必须一致。
+  const manifest = {
+    shardIndex: SHARD_INDEX,
+    workerCount,
+    seedUsername: SHARD_USERNAME,
+    sessions,
+  };
+  writeFileSync(WORKER_SESSIONS_MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+  console.log(
+    `[globalSetup] worker 会话池清单写出 ${WORKER_SESSIONS_MANIFEST_PATH}` +
+      `（${sessions.length} 槽位 / workers=${workerCount}，建号主体 ${SHARD_USERNAME} 不参与会话）`
+  );
 }
 
 /**

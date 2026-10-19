@@ -9,7 +9,7 @@
 //   4. User A 列表 GET → 能看到自己的行
 //   5. admin (data_scope=all) 能看到所有行
 //   6. 按 ID GET 越权 → 403 permission_denied（IDOR 防护验证）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

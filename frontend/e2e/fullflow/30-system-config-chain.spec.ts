@@ -27,7 +27,7 @@
 //   - 部门负责人 manager_name 的 JOIN 富化正确性（依赖 users.real_name 种子，分片账号常为空串）；
 //   - 用户 Argon2 哈希/登录锁定策略（login_security 域另链）；
 //   - document-no 并发取号 advisory lock 的真实防重（并发时序属压测范畴，此处只钉查重语义）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

@@ -1,7 +1,7 @@
 // 面料管理 E2E 套件 — 02 染色批次
 // 创建时间: 2026-08-19
 // 覆盖范围：染色批次创建 → 完成（pending → in_progress → completed）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, genDyeLotNo, tryCleanup } from '../flow/helpers';
 

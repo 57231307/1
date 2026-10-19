@@ -1,7 +1,7 @@
 // 质量管理 E2E 套件 — 04 不合格质检 → 采购退货联动：退货明细字段真实回读
 // 覆盖范围：建质检单+明细(unqualified_quantity) → 回读明细字段持久化 →
 //           创建退货单 → 按不合格数量添加退货明细 → 回读退货明细 quantity_returned = unqualified_quantity
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, ensureTestEntities, getCtx, tryCleanup } from '../flow/helpers';
 

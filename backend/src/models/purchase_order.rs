@@ -112,6 +112,12 @@ pub struct Model {
 
     /// 取消（cancel）动作理由专列（m0079 加列，TEXT 可空；不得再挪用 rejected_reason）
     pub cancel_reason: Option<String>,
+
+    /// 转采来源销售订单 ID（可空）：NULL = 普通采购单，非空 = 由该销售订单转出。
+    /// 外键 `fk_purchase_orders_source_sales_order` 指向 sales_orders.id，
+    /// ON DELETE SET NULL（销售单被删后本行退化为普通采购单）。
+    /// 写入方 `services/po/order_ops/crud.rs` 建单，取请求体的同名字段。
+    pub source_sales_order_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

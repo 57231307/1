@@ -23,7 +23,7 @@
 // 隔离策略：用 ctx.productIds[1]（专用产品，globalSeed 不为其备货）而非 productIds[0]，
 // 仓库经 pickDyeableWarehouse 确定性选定并按名称在对话框选中（不再依赖下拉首项顺序）。
 // seed 走 helpers.seedDyedOutboundBundle：batch=缸号 的四维库存行 + 委外染色真实链同维造匹。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 import {

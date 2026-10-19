@@ -1,7 +1,7 @@
 // 面料管理 E2E 套件 — 01 坯布管理
 // 创建时间: 2026-08-19
 // 覆盖范围：坯布创建 → 入库 → 出库
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';

@@ -11,7 +11,7 @@
 //   停用写 inactive（::update_price 按 price_approval::ALL 白名单透传）。前端比较对象见 views/purchase-price/composables/ppFmts.ts。
 // 后端 list_prices 仅支持 product_id / supplier_id / status 过滤（无 keyword），
 // 故回读按建单返回的 product_id 检索列表 + 按 id 回读详情，二者结合确认真实落库。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   APP_ERROR_CODES,
