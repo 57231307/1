@@ -1468,6 +1468,9 @@ jobs:
         with:
           components: llvm-tools-preview
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          # 本 job 只从 archive 跑测试、不编译任何 crate：backend/target 与 cargo registry 的
+          # 多 GB 恢复纯属白等（10 分区 × 每次几分钟），故关断编译目录缓存。
+          target-cache: 'false'
 
       - name: 安装 cargo-nextest
         uses: taiki-e/install-action@v2
@@ -1701,6 +1704,9 @@ jobs:
         uses: ./.github/actions/setup-rust
         with:
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
+          # 本 job 只从 archive 跑测试、不编译任何 crate：backend/target 与 cargo registry 的
+          # 多 GB 恢复纯属白等（10 分区 × 每次几分钟），故关断编译目录缓存。
+          target-cache: 'false'
 
       - name: 安装 cargo-nextest
         uses: taiki-e/install-action@v2
@@ -1870,8 +1876,16 @@ jobs:
     name: 📊 Rust 覆盖率
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    needs: ci-test-rust
-    if: success()
+    # 改为只在 main push 收集，且不再挂在 PR 合并门上，两处理由各不同：
+    #   1) 它是整套 nextest 的第二次执行（10 分区已在 ci-test-rust 跑完同一用例集），
+    #      自身还要做一次插桩编译，实测 52.8min，是 PR 轮里最长的尾巴；
+    #   2) 步骤名自陈"信息性收集（不阻塞 CI）"，却被列进 ci-cleanup-retry 的 needs，
+    #      于是一个不判定的观测项实际在卡合并门。收尾门把 skipped 计为可接受，
+    #      所以 PR 上跳过它不会造成假绿（缺的是覆盖率数字，不是判定结果）。
+    # needs 从 ci-test-rust 换成 ci-info：ci-test-rust 是 pull_request 专属，
+    # 沿用旧 needs 会让本 job 在 push 上恒 skipped，等于把覆盖率彻底关掉。
+    needs: ci-info
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     services:
       postgres:
         image: postgres:16-alpine
@@ -4924,7 +4938,9 @@ jobs:
       ci-build-test-artifacts,
       ci-test-rust,
       ci-test-rust-ignored,
-      ci-coverage-rust,
+      # ci-coverage-rust 已从本门摘除：它自陈"信息性收集（不阻塞 CI）"，却在这份 needs
+      # 里把 PR 的收尾门压在一条 52.8min 的第二次全量测试执行后面。摘除后覆盖率仍在
+      # main push 上产出（数字进 Codecov 与 artifact），只是不再决定 PR 能否合并。
       ci-test-fe,
       ci-perf-bench,
       ci-build-rust,

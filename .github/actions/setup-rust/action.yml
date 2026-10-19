@@ -13,6 +13,10 @@ inputs:
     description: '是否安装 sccache 编译缓存（预编译 job 应关闭以节省内存）'
     required: false
     default: 'true'
+  target-cache:
+    description: '是否恢复/保存 backend/target 编译目录（只跑测试不编译的 job 传 false：多 GB 恢复纯浪费）'
+    required: false
+    default: 'true'
   mem_per_unit_gb:
     description: '每个并行编译单元的内存峰值估值(GB)。测试编译峰值高于普通构建：预编译 job 传 7（16GB→1 安全），普通 job 默认 5（16GB→2）'
     required: false
@@ -33,6 +37,7 @@ runs:
         components: ${{ inputs.components }}
 
     - name: 缓存 Cargo
+      if: inputs.target-cache == 'true'
       uses: actions/cache@v5
       with:
         path: |
