@@ -554,7 +554,10 @@ jobs:
     name: 🔍 Rust Clippy
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: ci-info
+    needs: ci-build-test-artifacts
+    # 必须等中枢 job：阶段 1 的 clippy-output.json 由 ci-build-test-artifacts 产出并上传。
+    # run 4875（PR #996 首推）实测本 job 与中枢并行起跑，下载步直接报
+    # 「Artifact not found for name: clippy-raw」——拆分输入后这条边漏改了，不是判定阈值问题。
     # 启用 contents: write 以便"提交 baseline 文件"步骤能 push 自动建立的基线
     # baseline 机制：首次跑自动建立基线，后续 PR 仅"新增警告"阻塞 CI
     permissions:
@@ -565,6 +568,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 下载中枢 clippy 原始输出
+        uses: actions/download-artifact@v4
+        with:
+          name: clippy-raw
+          path: backend/reports
+
       - name: Setup Rust（clippy + 系统依赖）
         uses: ./.github/actions/setup-rust
         with:
@@ -573,6 +582,8 @@ jobs:
           # Clippy 编译 --all-targets 内存峰值高，禁用 sccache + 7GB/单元避免 OOM（exit 143）
           sccache: 'false'
           mem_per_unit_gb: '7'
+          # 本 job 不再编译 crate（阶段 1 已在中枢跑完），恢复多 GB 编译目录纯属白等
+          target-cache: 'false'
 
       - name: 运行 clippy（baseline 机制）
         working-directory: backend
@@ -582,34 +593,15 @@ jobs:
           mkdir -p reports
           set +e
 
-          # ============================================================================
-          # 阶段 1：主 clippy 运行（JSON 格式，带 retry）
-          # ============================================================================
-          # 不加 -- -D warnings（避免 JSON 截断），由 NEW_COUNT > 0 判定阻塞
-          # 不加 --all-features（与 build/test 一致用默认 features；--all-features 产生 1773 个误报）
-          echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出，带 retry）"
-          CLIPPY_MAIN_EXIT=143
-          MAX_ATTEMPTS=3
-          ATTEMPT=1
-          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
-            echo "  尝试 $ATTEMPT/$MAX_ATTEMPTS..."
-            cargo clippy --all-targets --keep-going --message-format=json \
-              --color=always 2>reports/clippy-stderr.txt \
-              | tee reports/clippy-output.json > /dev/null
-            CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
-            echo "  主 clippy 退出码: $CLIPPY_MAIN_EXIT"
-            # 0 = 成功；101 = 编译错误（真正的代码问题，不重试）；其他（143/137/1）= 基础设施问题，重试
-            if [ "$CLIPPY_MAIN_EXIT" -eq "0" ] || [ "$CLIPPY_MAIN_EXIT" -eq "101" ]; then
-              break
-            fi
-            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
-              echo "  ⚠️  clippy 异常退出（exit $CLIPPY_MAIN_EXIT，疑似基础设施问题），$((ATTEMPT * 10))s 后重试..."
-              sleep $((ATTEMPT * 10))
-            fi
-            ATTEMPT=$((ATTEMPT + 1))
-          done
-          # 合并 stderr 中可能的警告
-          cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true
+          # 阶段 1（真正跑 cargo clippy 的那次 dev profile 编译）已上移到 ci-build-test-artifacts：
+          # 那个 job 为 nextest 已经编过一遍 dev，clippy 再编一遍是第三份重复编译。本 job 只对
+          # 中枢产出的 JSON 做渲染、多维统计与 baseline 判定，自身不编译任何 crate。
+          if [ ! -s reports/clippy-output.json ]; then
+            echo "❌ 未取得中枢 job 上传的 reports/clippy-output.json（产物缺失或路径漂移）"
+            echo "   采集链断了必须红：这不等于没有警告，绝不静默放行成假绿。"
+            exit 1
+          fi
+          echo "✅ 已取得中枢 clippy 原始输出：$(wc -l < reports/clippy-output.json) 行 JSON"
 
           # ============================================================================
           # 阶段 2：人类可读详细输出（基于 JSON rendered 字段重渲染）+ 短格式定位日志
@@ -1358,7 +1350,9 @@ jobs:
     timeout-minutes: 360
     needs: ci-info
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
-    if: github.event_name == 'pull_request'
+    # 本 job 是 dev profile 的编译中枢：nextest archive 与 clippy 阶段 1 共用同一份
+    # warm backend/target，所以它在 push 上也要跑（clippy 判定链在 PR 与 push 都要有输入）；
+    # 真正只在 PR 跑的是 archive 两步，已下移到步骤级 if。
     services:
       postgres:
         image: postgres:16-alpine
@@ -1384,6 +1378,7 @@ jobs:
       - name: Setup Rust（系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
         with:
+          components: clippy
           system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
           sccache: 'false'
           # 测试二进制编译峰值高于普通构建：16GB runner 7GB/单元→1路(安全)，
@@ -1396,16 +1391,67 @@ jobs:
           tool: nextest
 
       - name: 编译所有测试并打包为 archive
+        if: github.event_name == 'pull_request'
         working-directory: backend
         run: |
           cargo nextest archive --archive-file nextest-archive.tar.zst
 
       - name: 上传 archive
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: nextest-archive
           path: backend/nextest-archive.tar.zst
           retention-days: 7
+      - name: 运行 clippy 阶段 1（主运行采集 JSON，判定在 🔍 Rust Clippy job）
+        working-directory: backend
+        # 与瘦身后的 ci-lint-rust 分段：这里只负责"跑一次 cargo clippy 并把原始 JSON 落盘"，
+        # 渲染/多维统计/NEW_COUNT 判定与 baseline 提交仍在 🔍 Rust Clippy job 里做，
+        # 判据与阻塞语义逐字不变（见那个 job 的阶段 2/3 原文）。
+        # 不加 -- -D warnings（避免 JSON 截断），由 NEW_COUNT > 0 判定阻塞
+        # 不加 --all-features（与 build/test 一致用默认 features；--all-features 产生 1773 个误报）
+        # 并行度沿用本 job 的 setup-rust 探测值（sccache 关断、mem_per_unit_gb 7GB/单元防 OOM）
+        run: |
+          mkdir -p reports
+          set +e
+
+          # ============================================================================
+          # 阶段 1：主 clippy 运行（JSON 格式，带 retry）
+          # ============================================================================
+          # 不加 -- -D warnings（避免 JSON 截断），由 NEW_COUNT > 0 判定阻塞
+          # 不加 --all-features（与 build/test 一致用默认 features；--all-features 产生 1773 个误报）
+          echo "▶ 阶段 1/3：主 clippy 运行（JSON 输出，带 retry）"
+          CLIPPY_MAIN_EXIT=143
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "  尝试 $ATTEMPT/$MAX_ATTEMPTS..."
+            cargo clippy --all-targets --keep-going --message-format=json \
+              --color=always 2>reports/clippy-stderr.txt \
+              | tee reports/clippy-output.json > /dev/null
+            CLIPPY_MAIN_EXIT=${PIPESTATUS[0]}
+            echo "  主 clippy 退出码: $CLIPPY_MAIN_EXIT"
+            # 0 = 成功；101 = 编译错误（真正的代码问题，不重试）；其他（143/137/1）= 基础设施问题，重试
+            if [ "$CLIPPY_MAIN_EXIT" -eq "0" ] || [ "$CLIPPY_MAIN_EXIT" -eq "101" ]; then
+              break
+            fi
+            if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+              echo "  ⚠️  clippy 异常退出（exit $CLIPPY_MAIN_EXIT，疑似基础设施问题），$((ATTEMPT * 10))s 后重试..."
+              sleep $((ATTEMPT * 10))
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          # 合并 stderr 中可能的警告
+          cat reports/clippy-stderr.txt >> reports/clippy-output.json 2>/dev/null || true
+
+      - name: 上传 clippy 原始输出（供 🔍 Rust Clippy job 判定）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-raw
+          path: backend/reports/
+          retention-days: 7
+
 
 # ==============================================================================
   # Job 8: Rust 单元测试分片（从 archive 运行，不重复编译）
@@ -1849,161 +1895,6 @@ jobs:
           name: test-report-ignored
           path: backend/reports/
           retention-days: 90
-
-  # ==============================================================================
-  # Rust 覆盖率（信息性，不阻塞 CI；10 个分片全部结束后跑）
-  #
-  # 2026-09-22 结论：本 job 的插桩编译【不能】复用 ci-build-test-artifacts 的产物，
-  # 已核对两侧产出与需求，不是"没优化"：
-  #   · ci-build-test-artifacts 上传的唯一产物是 `nextest-archive`
-  #     （backend/nextest-archive.tar.zst，见该 job 的"上传 archive"步），里面装的是
-  #     `cargo nextest archive` 打出的**普通（未插桩）**测试可执行文件 + 元数据。
-  #   · 覆盖率数据只在 `-C instrument-coverage` 编译出的二进制运行时才会产出 .profraw
-  #     （cargo llvm-cov 再把它 merge 成 .profdata/cobertura.xml）。未插桩的二进制跑一百遍
-  #     也不会写出任何 profraw ⇒ 没有"事后补插桩/从 archive 反推覆盖率"的路径。
-  #   · 因此插桩编译是第二次全量编译，无法靠下载产物省掉。真要省，只能反过来让
-  #     ci-build-test-artifacts 产出插桩 archive 并让 ci-test-rust 的 10 个分片直接跑插桩
-  #     二进制（测试变慢、内存峰值更高，且 ci-test-rust 从门禁 job 变成插桩 job），
-  #     收益不成立 —— 保留现状，只消除"工具链/缓存层"的重复（见下）。
-  # 已消除的重复：
-  #   · 工具链与缓存统一走 ./.github/actions/setup-rust（rustup-/cargo- 与主 CI 同 key，
-  #     registry 依赖与 ~/.rustup 不再各自维护一套缓存）；
-  #   · sccache: 'false' —— 插桩编译的 RUSTFLAGS 与普通编译不同，sccache 命中不了，
-  #     开着只会白装白占内存（插桩编译内存峰值更高，配 mem_per_unit_gb: '7'）；
-  #   · taiki-e/install-action 固定到与 setup-rust 同一版本 v2.56.0（原来是浮动 @v2）。
-  # ==============================================================================
-  ci-coverage-rust:
-    name: 📊 Rust 覆盖率
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-    # 改为只在 main push 收集，且不再挂在 PR 合并门上，两处理由各不同：
-    #   1) 它是整套 nextest 的第二次执行（10 分区已在 ci-test-rust 跑完同一用例集），
-    #      自身还要做一次插桩编译，实测 52.8min，是 PR 轮里最长的尾巴；
-    #   2) 步骤名自陈"信息性收集（不阻塞 CI）"，却被列进 ci-cleanup-retry 的 needs，
-    #      于是一个不判定的观测项实际在卡合并门。收尾门把 skipped 计为可接受，
-    #      所以 PR 上跳过它不会造成假绿（缺的是覆盖率数字，不是判定结果）。
-    # needs 从 ci-test-rust 换成 ci-info：ci-test-rust 是 pull_request 专属，
-    # 沿用旧 needs 会让本 job 在 push 上恒 skipped，等于把覆盖率彻底关掉。
-    needs: ci-info
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: bingxi
-          POSTGRES_PASSWORD: bingxi_test
-          POSTGRES_DB: bingxi_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_URL: postgres://bingxi:bingxi_test@localhost:5432/bingxi_test
-      AUDIT_SECRET_KEY: ci-only-audit-signing-key-do-not-use-in-prod-32b
-      # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v5
-
-      - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
-        uses: ./.github/actions/setup-rust
-        with:
-          components: llvm-tools-preview
-          system-deps: pkg-config libssl-dev postgresql-client protobuf-compiler
-          sccache: 'false'
-          # 覆盖率跑 cargo llvm-cov nextest 重编译+插桩，内存峰值高，用 7GB/单元（16GB→1 安全）
-          mem_per_unit_gb: '7'
-
-      - name: 安装 cargo-llvm-cov 与 cargo-nextest
-        # 固定到与 ./.github/actions/setup-rust 内 sccache 安装同一版本（原为浮动 @v2）
-        uses: taiki-e/install-action@v2.56.0
-        with:
-          tool: cargo-llvm-cov,nextest
-
-      - name: 收集覆盖率（cargo llvm-cov nextest，信息性）
-        working-directory: backend
-        # cargo llvm-cov nextest 一条命令完成"插桩编译 + 跑全部测试 + 收集 profraw +
-        # 合并出 cobertura"；编译走 setup-rust 恢复的 registry/工具链缓存，但插桩产物
-        # 落在独立的插桩 target 目录，不会污染其它 job 复用的普通 target 缓存。
-        # --no-fail-fast 确保全部跑完，信息性收集覆盖率，不阻塞 CI
-        run: |
-          mkdir -p reports coverage
-          set +e
-          cargo llvm-cov nextest \
-            --cobertura --output-path coverage/cobertura.xml \
-            --no-clean \
-            --test-threads=1 \
-            --no-fail-fast \
-            > reports/llvm-cov-output.txt 2>&1
-          EXIT_CODE=$?
-          set -e
-
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
-          TOTAL=$((PASSED + FAILED))
-
-          COVERAGE_SUMMARY="N/A"
-          if [ -f coverage/cobertura.xml ]; then
-            LINE_RATE=$(grep -o 'line-rate="[^"]*"' coverage/cobertura.xml | head -1 | cut -d'"' -f2 || true)
-            if [ -n "$LINE_RATE" ]; then
-              COVERAGE_PCT=$(awk -v r="$LINE_RATE" 'BEGIN{printf "%.2f", r*100}')
-              COVERAGE_SUMMARY="${COVERAGE_PCT}%"
-            fi
-          fi
-
-          {
-            echo "# Rust 覆盖率报告"
-            echo ""
-            echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**通过**: $PASSED  "
-            echo "**失败**: $FAILED  "
-            echo "**总计**: $TOTAL  "
-            echo "**行覆盖率**: $COVERAGE_SUMMARY  "
-            echo "**EXIT_CODE**: $EXIT_CODE  "
-            echo "**模式**: 信息性收集（不阻塞 CI）"
-            echo ""
-            if [ "$FAILED" -gt "0" ]; then
-              echo "## ⚠️ 发现 $FAILED 个测试失败（信息性，不阻塞）"
-              echo ""
-              { grep -E "^ FAIL " reports/llvm-cov-output.txt 2>/dev/null || true; } | head -30
-            fi
-            echo ""
-            echo "**覆盖率**: $COVERAGE_SUMMARY"
-          } > reports/coverage-report.md
-
-          {
-            echo "## 📊 Rust 覆盖率"
-            echo ""
-            echo "📊 行覆盖率：$COVERAGE_SUMMARY"
-            if [ "$FAILED" -gt "0" ]; then
-              echo "⚠️  $FAILED 个测试失败（信息性）"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          exit 0
-
-      - name: 上传覆盖率到 Codecov
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: backend/coverage/cobertura.xml
-          fail_ci_if_error: false
-          flags: rust
-          name: rust-coverage
-
-      - name: 上传覆盖率报告 artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust-coverage-report
-          path: |
-            backend/reports/
-            backend/coverage/
-          retention-days: 30
 
 # ==============================================================================
 # Job 8: 前端测试
