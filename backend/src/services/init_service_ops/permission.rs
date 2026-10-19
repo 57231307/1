@@ -250,7 +250,7 @@ impl InitService {
         Ok(ExistingRoleGrants { granted, denied })
     }
 
-    /// 汇总全部域的角色权限定义分组（管理/高管/销售/采购/库存/生产/质量/财务/CRM物流HR/其他/BPM审批）。
+    /// 汇总全部域的角色权限定义分组（管理/高管/销售/采购/库存/生产/质量/财务/CRM物流HR/其他）。
     ///
     /// 可见性 `pub` 的必要性：approve/reject 成对性锁（tests/contract_wave11_approve_reject_pairing_test.rs）
     /// 要判的就是**这一份**定义表；放开入口让测试直接驱动生产同一份数据，
@@ -268,7 +268,6 @@ impl InitService {
             Self::finance_role_resources(),
             Self::crm_logistics_hr_role_resources(),
             Self::misc_role_resources(),
-            Self::bpm_approval_role_resources(),
         ]
     }
 
@@ -597,6 +596,18 @@ impl InitService {
                     ("customer-credits", "read"),
                     ("reports", "read"),
                     ("sales-analysis", "read"),
+                    // BPM 审批面：键由 `/api/v1/erp/bpm/{第四段}` 经消歧派生。审批提交端点是
+                    // POST /bpm/tasks/approve（末段 approve 属路径动作关键字）；审批中心执行入口是
+                    // POST /bpm/approval/execute，execute 不是关键字，故该面只有 create 形态键。
+                    // 不授 bpm-tasks:create（转办与催办）、不授 bpm-process:create（发起由业务单据
+                    // 提交端点在服务层内部调用）、不授定义/版本/模板/监控面（流程配置权等于给自己
+                    // 开审批权，与本仓 create 与 approve 拆岗口径冲突）。
+                    ("bpm-tasks", "read"),
+                    ("bpm-tasks", "approve"),
+                    ("bpm-approvals", "create"),
+                    ("bpm-instances", "read"),
+                    ("bpm-business-relation", "read"),
+                    ("bpm-visualization", "read"),
                 ],
             ),
             (
@@ -686,6 +697,13 @@ impl InitService {
                     // 矩阵 purchaser 真缺口，裁定 R-6：补真实种子而非前端降级隐藏）
                     ("product-categories", "read"),
                     ("reports", "read"),
+                    // BPM 审批面，键派生判据同 sales_manager 分组。
+                    ("bpm-tasks", "read"),
+                    ("bpm-tasks", "approve"),
+                    ("bpm-approvals", "create"),
+                    ("bpm-instances", "read"),
+                    ("bpm-business-relation", "read"),
+                    ("bpm-visualization", "read"),
                 ],
             ),
             (
@@ -867,6 +885,13 @@ impl InitService {
                     ("capacity", "*"),
                     ("scheduling", "*"),
                     ("material-shortage", "read"),
+                    // BPM 审批面，键派生判据同 sales_manager 分组。
+                    ("bpm-tasks", "read"),
+                    ("bpm-tasks", "approve"),
+                    ("bpm-approvals", "create"),
+                    ("bpm-instances", "read"),
+                    ("bpm-business-relation", "read"),
+                    ("bpm-visualization", "read"),
                 ],
             ),
             (
@@ -1359,28 +1384,4 @@ impl InitService {
         ]
     }
 
-    /// BPM 审批岗权限定义（sales_manager / purchase_manager / production_manager 三个域经理岗）。
-    ///
-    /// 键均为 `/api/v1/erp/bpm/{第四段}` 消歧后的真实派生键，逐个对应存在的端点：
-    /// `bpm-tasks:read` 是待办与已办列表，`bpm-tasks:approve` 是审批提交端点，
-    /// `bpm-approvals:create` 是审批中心的执行入口（该面只有 POST，无 approve 形态派生键），
-    /// 其余三枚 read 是审批人看清流程所必需的实例详情、业务关联与流程可视化。
-    /// 不授 `bpm-tasks:create`（转办与催办按方法派生落在此键上）、不授 `bpm-process:create`
-    /// （发起审批由业务单据的提交端点在服务层内部调用，不经该键）、不授定义/版本/模板/监控面
-    /// （流程配置权等于给自己开审批权，与本仓 create 与 approve 拆岗口径冲突）。
-    fn bpm_approval_role_resources() -> RoleResourceSlice {
-        const APPROVER_KEYS: &[PermPair] = &[
-            ("bpm-tasks", "read"),
-            ("bpm-tasks", "approve"),
-            ("bpm-approvals", "create"),
-            ("bpm-instances", "read"),
-            ("bpm-business-relation", "read"),
-            ("bpm-visualization", "read"),
-        ];
-        &[
-            ("sales_manager", APPROVER_KEYS),
-            ("purchase_manager", APPROVER_KEYS),
-            ("production_manager", APPROVER_KEYS),
-        ]
-    }
 }
