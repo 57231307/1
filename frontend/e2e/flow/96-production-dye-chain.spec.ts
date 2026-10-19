@@ -778,6 +778,22 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       `UQ${String(recCId).padStart(8, '0')}`
     );
 
+    // 重复开单守卫：同一质检记录上已有未处置完（pending）的不合格品单时不得再开一张。
+    // 判据窗口必须落在台账行仍为 pending 期间——处置进终态后再开单属允许的追加处置，
+    // 不是该守卫的拦截面
+    const dupOpen = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/quality-inspection/defects/${recCId}/process`,
+      {
+        unqualified_qty: '40',
+        unqualified_reason: `E2E-F96-DUP-${batch}`,
+        handling_method: 'scrap',
+      }
+    );
+    expect(dupOpen.status, `pending 期重复开单应 400，实际=${dupOpen.status}`).toBe(400);
+    expect(failureCode(dupOpen), 'pending 期重复开单机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+
     // 跳级：财务未批直接总经理审批必须被拒，且台账行状态不得动
     const gmTooEarly = await apiCallExpectFail(
       page,
@@ -875,20 +891,6 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(gmDone.handling_status, '报废终态联动处置主状态').toBe('approved');
     expect(Number(gmDone.approver_id_gm), '总经理审批人落库').toBeGreaterThan(0);
     expectDecEquals(gmDone.scrap_loss_amount, decLiteral(lossAmount, '报废损失金额'), '报废损失金额落库');
-
-    // 重复开单守卫：同一质检记录不得再开一张未处置完的不合格品单（假成功/统计翻倍防线）
-    const dupOpen = await apiCallExpectFail(
-      page,
-      'POST',
-      `/production/quality-inspection/defects/${recCId}/process`,
-      {
-        unqualified_qty: '40',
-        unqualified_reason: `E2E-F96-DUP-${batch}`,
-        handling_method: 'scrap',
-      }
-    );
-    expect(dupOpen.status, `重复开单应 400，实际=${dupOpen.status}`).toBe(400);
-    expect(failureCode(dupOpen), '重复开单机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
 
     // 非报废处理方式不得进报废审批流
     const recC2 = await mkRecord('RB', '不合格', '70');
