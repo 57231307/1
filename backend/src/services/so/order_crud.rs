@@ -160,13 +160,17 @@ impl SalesService {
         let customer = customer::Entity::find_by_id(request.customer_id)
             .one(txn)
             .await?
-            .ok_or_else(|| AppError::business(format!("客户 {} 不存在", request.customer_id)))?;
-        // 业务逻辑验证：日期合理性检查（缺省即如实落 NULL，禁止替用户编造交期）
+            .ok_or_else(|| AppError::business_displayable("客户不存在，请重新选择客户"))?;
+        // 业务逻辑验证：交付日期按日粒度比较，允许等于今天（用户选当天必然合法）
         if let Some(required_date) = request.required_date {
-            if required_date < chrono::Utc::now() {
-                tracing::error!("Transaction rolled back: 交付日期不能早于当前时间");
-                return Err(AppError::business(
-                    "创建面料订单失败: 交付日期不能早于当前时间".to_string(),
+            if required_date.date_naive() < chrono::Utc::now().date_naive() {
+                tracing::warn!(
+                    required_date = %required_date.date_naive(),
+                    today = %chrono::Utc::now().date_naive(),
+                    "交付日期早于今天，拒绝创建订单"
+                );
+                return Err(AppError::business_displayable(
+                    "交付日期不能早于今天，请选择今天或之后的日期",
                 ));
             }
         }
@@ -232,11 +236,14 @@ impl SalesService {
             .await
             .map_err(|err| AppError::business(format!("信用检查失败: {}", err)))?;
         if !credit_available {
-            tracing::error!("Transaction rolled back: 信用额度不足");
-            return Err(AppError::business(format!(
-                "信用额度不足：订单金额 {} 超出可用信用额度",
-                order_amount
-            )));
+            tracing::warn!(
+                customer_id = customer_id,
+                order_amount = %order_amount,
+                "信用额度不足，拒绝创建订单"
+            );
+            return Err(AppError::business_displayable(
+                "信用额度不足，请调整订单金额或联系管理员调整额度",
+            ));
         }
         Ok(())
     }
@@ -333,8 +340,10 @@ impl SalesService {
             existing_products.into_iter().map(|p| p.id).collect();
         for product_id in product_ids {
             if !existing_product_ids.contains(&product_id) {
-                tracing::error!("Transaction rolled back: 产品 ID {} 不存在", product_id);
-                return Err(AppError::business(format!("产品 ID {} 不存在", product_id)));
+                tracing::warn!(product_id = product_id, "订单明细中的产品不存在，拒绝创建");
+                return Err(AppError::business_displayable(
+                    "订单明细中的产品不存在，请检查后重新提交",
+                ));
             }
         }
         Ok(())
