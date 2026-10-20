@@ -565,14 +565,44 @@ impl OutsourcingReceiptService {
                 tracing::error!(error = %e, "委外损耗凭证号生成失败");
                 AppError::business_displayable("委外损耗凭证号生成失败，请稍后重试")
             })?;
-            let vat_rate = Decimal::new(13, 2);
-            let total_cost_basis = order.material_cost + order.processing_fee + order.freight_fee;
+            // 进项税率只从本单据已记录的进项税额与对应费基反推（百分数口径），
+            // 不引入任何税率档位字面量；费基口径与 processing_ratio 的分子同源。
+            let fee_base = order.processing_fee + order.freight_fee;
+            let vat_percent = match crate::utils::tax::derive_tax_percent(
+                order.tax_amount,
+                fee_base,
+            ) {
+                Some(percent) => percent,
+                None => {
+                    if order.tax_amount > Decimal::ZERO {
+                        tracing::error!(
+                            order_no = %order.order_no,
+                            tax_amount = %order.tax_amount,
+                            "委外损耗进项税转出失败：已记进项税额但加工费/运费基为 0，单据口径自相矛盾"
+                        );
+                        return Err(AppError::business_displayable(format!(
+                            "委外订单 {} 进项税转出无法计算：已记进项税额 {} 但加工费与运费之和为 0，无法反推适用税率，请核对单据税额",
+                            order.order_no, order.tax_amount
+                        )));
+                    }
+                    // 费基为 0 且未记进项税额：无可转出的进项税，转出额按算术事实为 0（非默认档位）
+                    tracing::warn!(
+                        order_no = %order.order_no,
+                        "委外损耗进项税转出按 0 计：该单加工费/运费基为 0 且未记进项税额"
+                    );
+                    Decimal::ZERO
+                }
+            };
+            let total_cost_basis = order.material_cost + fee_base;
             let processing_ratio = if total_cost_basis > Decimal::ZERO {
-                (order.processing_fee + order.freight_fee) / total_cost_basis
+                fee_base / total_cost_basis
             } else {
                 Decimal::ZERO
             };
-            let tax_transfer_amount = calc.abnormal_loss_amount * processing_ratio * vat_rate;
+            let tax_transfer_amount = crate::utils::tax::percent_of(
+                calc.abnormal_loss_amount * processing_ratio,
+                vat_percent,
+            );
 
             let loss_voucher = VoucherActiveModel {
                 id: Default::default(),

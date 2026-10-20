@@ -57,6 +57,11 @@ pub struct PricingContext {
     pub quantity: Decimal,
     pub currency: String,
     pub quotation_date: chrono::NaiveDate,
+    /// 本张报价单的适用税率，**百分数口径**（`13` 即 13%，免税行传 `0`）：
+    /// 由调用方从报价单自身的税率（人工录入或上游单据派生）带入，与服务端
+    /// `sales_quotations.tax_rate` 同单位。必填、无默认档位——缺字段由入参反序列化
+    /// 直接拒绝，服务端不会用任何税率补算。
+    pub tax_rate: Decimal,
 }
 
 /// 单档阶梯价
@@ -171,10 +176,9 @@ impl QuotationPricingService {
         let discount_amount = (tier.unit_price * discount_rate).round_dp(2);
         let unit_price = (tier.unit_price - discount_amount).round_dp(2);
 
-        // 4. 含税计算（默认 13% 增值税）
-        let tax_rate = Decimal::new(13, 2);
-        let unit_price_with_tax =
-            (unit_price * (Decimal::ONE + tax_rate / Decimal::from(100))).round_dp(2);
+        // 4. 含税换算：税率取本张报价单自身的 tax_rate（百分数口径），
+        //    经税额内核换算；本服务不持有、也不回落任何税率档位。
+        let unit_price_with_tax = crate::utils::tax::unit_price_with_tax(unit_price, ctx.tax_rate);
 
         // 5. 最终金额
         let final_amount = (unit_price * ctx.quantity).round_dp(2);

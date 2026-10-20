@@ -11,7 +11,7 @@
 //!   **无硬编码默认值**：未配置时计税显式返回业务错误并记 warn，服务启动不受影响；
 //!   旧的 `Decimal::new(24, 1)` 固定 2.4 元"简化口径"由本锁钉死禁回潮。
 //!
-//! 断言点（四类，缺一即锁失效）：
+//! 断言点（六类，缺一即锁失效）：
 //! ① 未登记污染物名 → 400（VALIDATION_ERROR）+ 真实文案外显 + 失败信封内**无任何税额字段**、
 //!    不留任何"按 1kg 算出来的数"、表内无痕；
 //! ② 已登记 COD/氨氮/VOCs/污泥（含别名）→ 法定当量值逐值断言（防搬运过程改数）；
@@ -19,7 +19,11 @@
 //!    注入配置值后 → 当量数与税额=当量数×配置值 逐值断具体数字（不只断状态码）；
 //! ④ 禁回潮源码扫描（include_str!）：服务源码内不得再出现任何 `Decimal::new(`/
 //!    `Decimal::from_parts(` 裸字面量（含旧硬编码税额 `Decimal::new(24, 1)` 与 `_ => 1kg`
-//!    兜底残留），且必须引用常量模块；常量模块内法定值逐项在场（防"删常量当迁移"）。
+//!    兜底残留），且必须引用常量模块；常量模块内法定值逐项在场（防"删常量当迁移"）；
+//! ⑤ 增值税税率同型锁：五处价税服务源码与税额内核不得出现税率档位字面量
+//!    （`Decimal::new(13`/`0.13`/`1.13`），内核只换算不取值；税额一律按**百分数**口径
+//!    逐值断言（1000×13÷100=130、100 含税=113、130/1000 反推=13、费基非正→None）；
+//! ⑥ 自动补货链路缺税率来源 → 4xx 点名失败且在写入前返回，采购订单表内无痕。
 //!
 //! 覆盖策略：纯函数注入 + 真 PostgreSQL（test_common::setup_test_db；
 //! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）
@@ -33,10 +37,14 @@ use bingxi_backend::constants::environmental_tax::statutory_pollution_equivalent
 use bingxi_backend::models::pollutant_discharge_record::{
     Column as DischargeColumn, Entity as DischargeEntity,
 };
+use bingxi_backend::models::purchase_order::Entity as PurchaseOrderEntity;
 use bingxi_backend::services::environmental_tax_service::{
     CreateDischargeRecordRequest, EnvironmentalTaxService,
 };
+use bingxi_backend::services::po::order::PurchaseOrderService;
+use bingxi_backend::services::po::price::ShortageAlertParams;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::utils::tax;
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::str::FromStr;
@@ -312,5 +320,116 @@ fn no_hardcoded_equivalents_or_tax_rate_can_return_to_service_source() {
     assert!(
         const_src.contains("_ => None"),
         "常量模块未登记污染物必须返回 None，禁止默认当量值回潮"
+    );
+}
+
+// =========================================================
+// ⑤ 增值税税率：单位口径内核 + 禁档位字面量回潮（同型锁扩展，不另造判据）
+// =========================================================
+
+/// 禁回潮扫描对象：五处价税计算服务源码 + 税额内核
+const VAT_TIER_SCAN_SOURCES: &[(&str, &str)] = &[
+    (
+        "src/services/quotation_pricing_service.rs",
+        include_str!("../src/services/quotation_pricing_service.rs"),
+    ),
+    (
+        "src/services/po/order_ops/crud.rs",
+        include_str!("../src/services/po/order_ops/crud.rs"),
+    ),
+    (
+        "src/services/po/price.rs",
+        include_str!("../src/services/po/price.rs"),
+    ),
+    (
+        "src/services/outsourcing_ops/receipt.rs",
+        include_str!("../src/services/outsourcing_ops/receipt.rs"),
+    ),
+];
+
+#[test]
+fn no_vat_rate_tier_literal_can_return_to_service_sources() {
+    for (path, raw) in VAT_TIER_SCAN_SOURCES {
+        let src = raw.replace('\r', "");
+        assert!(
+            !src.contains("Decimal::new(13") && !src.contains("0.13") && !src.contains("1.13"),
+            "{path}: 不得出现增值税税率档位字面量（`Decimal::new(13`/`0.13`/`1.13`）——\
+             档位只能来自人工录入值、上游单据已存税率或部署配置；\
+             `Decimal::new(13, 2)` 实际是 0.13，按百分数口径列存储会把税额算错 100 倍。"
+        );
+        assert!(
+            !src.contains("unwrap_or(Decimal::new(13"),
+            "{path}: 缺税率时禁止用档位字面量兜底，必须点名报错"
+        );
+    }
+    // 内核自身不得持有任何税率档位（只换算、不取值）
+    let kernel = include_str!("../src/utils/tax.rs").replace('\r', "");
+    assert!(
+        !kernel.contains("Decimal::new(13") && !kernel.contains("Decimal::from_parts(13"),
+        "utils::tax 内核禁止持有税率档位：税率一律由调用方从真实来源传入"
+    );
+}
+
+#[test]
+fn vat_tax_kernel_computes_in_percent_unit() {
+    // 百分数口径：13 表示 13%；1000 × 13 ÷ 100 = 130
+    assert_eq!(tax::tax_amount(dec("1000"), dec("13")), dec("130"));
+    // 免税行传 0 得 0（入参口径，不是缺省兜底）
+    assert_eq!(
+        tax::tax_amount(dec("1000"), Decimal::ZERO),
+        Decimal::ZERO,
+        "税率 0（免税）税额必须为 0"
+    );
+    // 含税单价 100 × (1 + 13%) = 113
+    assert_eq!(tax::unit_price_with_tax(dec("100"), dec("13")), dec("113"));
+    // 凭证口径不舍入：100 × 13 ÷ 100 = 13
+    assert_eq!(tax::percent_of(dec("100"), dec("13")), dec("13"));
+    // 由单据已记税额与费基反推税率（百分数）：130 / 1000 → 13
+    assert_eq!(
+        tax::derive_tax_percent(dec("130"), dec("1000")),
+        Some(dec("13"))
+    );
+    // 费基非正无法反推 → None，由调用方点名处理（内核绝不回落档位）
+    assert_eq!(tax::derive_tax_percent(dec("13"), Decimal::ZERO), None);
+    assert_eq!(tax::derive_tax_percent(dec("13"), dec("-1")), None);
+}
+
+/// 自动补货链路（缺料预警）无人工录入、无可取税率的上游单据：
+/// 必须在任何写入之前显式失败并在错误文案里点名缺来源，表内不得留痕。
+#[tokio::test]
+async fn shortage_auto_purchase_suggestion_fails_before_any_write_without_tax_source() {
+    let db = setup_test_db().await;
+    let svc = PurchaseOrderService::new(Arc::new(db.clone()));
+    let err = svc
+        .create_purchase_suggestion_from_shortage(ShortageAlertParams {
+            material_id: 1,
+            material_name: "税率来源缺口验证用物料".to_string(),
+            material_code: "TAX-SOURCE-GAP".to_string(),
+            required_quantity: dec("100"),
+            available_quantity: dec("10"),
+            shortage_quantity: dec("90"),
+            shortage_level: "Critical".to_string(),
+            affected_orders_count: 1,
+        })
+        .await
+        .expect_err("自动补货链路没有税率来源时必须显式失败，不得按默认档位落账");
+    assert!(
+        matches!(&err, AppError::BusinessErrorDisplayable(m) if m.contains("缺少税率来源")),
+        "必须外显点名缺税率来源的真实业务文案，实际: {err:?}"
+    );
+    let resp: Response = err.into_response();
+    assert_eq!(
+        resp.status(),
+        StatusCode::BAD_REQUEST,
+        "缺税率来源必须 4xx 显式失败"
+    );
+    assert_eq!(
+        PurchaseOrderEntity::find()
+            .all(&db)
+            .await
+            .expect("回查采购订单表失败")
+            .len(),
+        0,
+        "缺税率来源的失败路径不得落任何采购订单"
     );
 }

@@ -6,6 +6,7 @@ use bingxi_backend::utils::error::AppError;
 use bingxi_backend::ymd;
 // ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
 use bingxi_backend::services::po::order::PurchaseOrderService;
+use bingxi_backend::utils::tax;
 use rust_decimal::Decimal;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -66,15 +67,23 @@ fn test_jejs_ljhllcj() {
 
 // ---------- 税额计算 ----------
 
-/// test_sejs_mrslcj（验证未指定税率时使用默认值 Decimal::new(13, 2) = 0.13，；税额公式：amount * tax_percent / 100）
+/// 税率单位口径锁：tax_percent 是**百分数**（13 即 13%），1000 × 13 ÷ 100 = 130。
+/// 直接调服务端税额内核（与 purchase_order_item 金额权威口径同一条公式）。
+/// 缺税率时由 `calculate_item_amounts` 点名拒绝，系统不存在默认档位，故此处
+/// 不再设"未指定税率用默认值"的断言。
 #[test]
-fn test_sejs_mrslcj() {
-    // 默认税率常量与 create_order_items 中 unwrap_or(Decimal::new(13, 2)) 一致
-    let default_tax_percent = Decimal::new(13, 2);
-    // 1000 * 0.13 / 100 = 1.30
+fn test_sejs_bfskw() {
     assert_eq!(
-        calc_tax_amount(decs!("1000"), default_tax_percent),
-        decs!("1.30")
+        tax::tax_amount(decs!("1000"), decs!("13")),
+        decs!("130"),
+        "百分数口径税率 13 的税额必须是 130（不是 1.30）"
+    );
+    // 误把小数 0.13 当税率传进来，内核按字面百分数算得 1.30——正是被修掉的错量级，
+    // 据此钉死调用方只能传百分数口径
+    assert_eq!(
+        tax::tax_amount(decs!("1000"), decs!("0.13")),
+        decs!("1.30"),
+        "小数口径误传必须复现出 1.30 的量级错，作为禁止依据"
     );
 }
 

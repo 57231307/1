@@ -94,6 +94,9 @@ impl PurchaseOrderService {
         &self,
         params: ShortageAlertParams,
     ) -> Result<purchase_order::Model, AppError> {
+        // 税率来源在任何写入之前解析：取不到就整单失败，订单头与明细都不落库
+        let tax_percent =
+            Self::resolve_auto_item_tax_percent(params.material_id, &params.material_name)?;
         let txn = (*self.db).begin().await?;
         let (product, supplier) =
             Self::fetch_shortage_product_and_supplier(&txn, params.material_id).await?;
@@ -109,6 +112,7 @@ impl PurchaseOrderService {
             &product,
             &params,
             suggested_quantity,
+            tax_percent,
             priority,
         )
         .await?;
@@ -185,19 +189,39 @@ impl PurchaseOrderService {
         }
     }
 
+    /// 解析自动补货链路（缺料预警 / 库存预警）单据行的税率，百分数口径（13 表示 13%）。
+    ///
+    /// 该链路没有人工录入环节，也没有可取税率的上游单据，当前不存在任何真实税率来源，
+    /// 因此一律点名失败：禁止用税率档位字面量把税额算成量级错误却看似正常的单据。
+    /// 入参 material_id / material_name 只用于错误文案定位到具体物料；税率来源
+    /// （部署配置或税率主数据）接入后本函数改为返回解析到的百分数税率，调用方不改。
+    fn resolve_auto_item_tax_percent(
+        material_id: i32,
+        material_name: &str,
+    ) -> Result<Decimal, AppError> {
+        Err(AppError::business_displayable(format!(
+            "自动生成采购订单缺少税率来源（物料 {} {}）：该链路无人工录入、上游单据亦无已存税率，且系统未配置税率来源，拒绝按默认档位落账",
+            material_id, material_name
+        )))
+    }
+
     /// 创建采购订单明细（金额补 round_dp(2) 精度归一化）
+    ///
+    /// `tax_percent` 为百分数口径税率（13 表示 13%），由调用方经
+    /// `resolve_auto_item_tax_percent` 解析后传入；税额经 `utils::tax` 内核算出，
+    /// 落库列 tax_percent 与 tax_amount 同源于该入参。
     async fn create_shortage_order_item(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
         product: &product::Model,
         params: &ShortageAlertParams,
         suggested_quantity: Decimal,
+        tax_percent: Decimal,
         priority: &str,
     ) -> Result<(), AppError> {
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
         let amount = (suggested_quantity * unit_price).round_dp(2);
-        let tax_rate = Decimal::new(13, 2);
-        let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
+        let tax_amount = crate::utils::tax::tax_amount(amount, tax_percent);
         purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
@@ -207,7 +231,7 @@ impl PurchaseOrderService {
             unit_price: Set(unit_price),
             unit_price_foreign: Set(unit_price),
             discount_percent: Set(Decimal::ZERO),
-            tax_percent: Set(tax_rate),
+            tax_percent: Set(tax_percent),
             subtotal: Set(amount),
             tax_amount: Set(tax_amount),
             discount_amount: Set(Decimal::ZERO),
@@ -281,16 +305,19 @@ impl PurchaseOrderService {
     }
 
     /// 创建库存预警订单明细(金额补 round_dp(2) 精度归一化)
+    ///
+    /// `tax_percent` 为百分数口径税率（13 表示 13%），由调用方经
+    /// `resolve_auto_item_tax_percent` 解析后传入；税额走 `utils::tax` 内核。
     async fn create_replenishment_order_item(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
         product: &product::Model,
         reorder_quantity: Decimal,
+        tax_percent: Decimal,
     ) -> Result<(), AppError> {
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
         let amount = (reorder_quantity * unit_price).round_dp(2);
-        let tax_rate = Decimal::new(13, 2);
-        let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
+        let tax_amount = crate::utils::tax::tax_amount(amount, tax_percent);
         purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
@@ -300,7 +327,7 @@ impl PurchaseOrderService {
             unit_price: Set(unit_price),
             unit_price_foreign: Set(unit_price),
             discount_percent: Set(Decimal::ZERO),
-            tax_percent: Set(tax_rate),
+            tax_percent: Set(tax_percent),
             subtotal: Set(amount),
             tax_amount: Set(tax_amount),
             discount_amount: Set(Decimal::ZERO),
@@ -329,6 +356,8 @@ impl PurchaseOrderService {
         let txn = (*self.db).begin().await?;
         let (product, warehouse, supplier) =
             Self::fetch_replenishment_entities(&txn, product_id, warehouse_id).await?;
+        // 税率来源解析在写入前完成：取不到即点名失败，订单头与明细都不落库
+        let tax_percent = Self::resolve_auto_item_tax_percent(product_id, &product.name)?;
         let order_no = self.generate_order_no_with_txn(&txn).await?;
         let order = Self::build_replenishment_order(
             order_no,
@@ -340,7 +369,14 @@ impl PurchaseOrderService {
         )
         .insert(&txn)
         .await?;
-        Self::create_replenishment_order_item(&txn, order.id, &product, reorder_quantity).await?;
+        Self::create_replenishment_order_item(
+            &txn,
+            order.id,
+            &product,
+            reorder_quantity,
+            tax_percent,
+        )
+        .await?;
         txn.commit().await?;
         tracing::info!(
             "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",

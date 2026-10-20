@@ -322,18 +322,27 @@ impl PurchaseOrderService {
     /// **唯一权威实现**：创建路径（`create_order_items`）与更新明细路径
     /// （`receipt::update_order_item` 重算 subtotal/discount_amount/tax_amount/
     /// total_amount 派生列）共用，禁止另写第二套公式。
+    ///
+    /// 税率入参口径为**百分数**（`13` 即 13%），与落库列 tax_percent 同单位；
+    /// 税额经 `utils::tax` 内核换算。请求未提交 tax_rate 时不做任何档位回落，
+    /// 直接点名返回业务错误——税率必须由人工录入或取自上游单据已存值。
     pub(crate) fn calculate_item_amounts(
         item: &crate::services::po::CreateOrderItemRequest,
-    ) -> ItemAmounts {
+    ) -> Result<ItemAmounts, AppError> {
         let quantity_ordered = item.quantity_ordered.unwrap_or(Decimal::ZERO);
         let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
         let amount = (quantity_ordered * unit_price).round_dp(2);
-        let tax_percent = item.tax_rate.unwrap_or(Decimal::new(13, 2));
-        let tax_amount = (amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+        let tax_percent = item.tax_rate.ok_or_else(|| {
+            AppError::business_displayable(format!(
+                "采购订单行（line_no={:?}, 物料ID={:?}）缺少税率 tax_rate：须按百分数提交（13 表示 13%），取不到来源时拒绝计算，系统不设默认税率档位",
+                item.line_no, item.material_id
+            ))
+        })?;
+        let tax_amount = crate::utils::tax::tax_amount(amount, tax_percent);
         let discount_percent = item.discount_percent.unwrap_or(Decimal::ZERO);
         let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
         let quantity_alt_ordered = item.quantity_alt_ordered.unwrap_or(Decimal::ZERO);
-        ItemAmounts {
+        Ok(ItemAmounts {
             quantity_ordered,
             unit_price,
             quantity_alt_ordered,
@@ -342,7 +351,7 @@ impl PurchaseOrderService {
             amount,
             tax_amount,
             discount_amount,
-        }
+        })
     }
 
     /// 构造订单明细 ActiveModel（material_id 缺失拒绝创建）
@@ -461,7 +470,7 @@ impl PurchaseOrderService {
         };
 
         for (index, item) in items.iter().enumerate() {
-            let mut amounts = Self::calculate_item_amounts(item);
+            let mut amounts = Self::calculate_item_amounts(item)?;
 
             let resolved = Self::resolve_supplier_sku_snapshot(
                 txn,
