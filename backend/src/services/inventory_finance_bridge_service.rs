@@ -4,7 +4,8 @@
 //! 本文件作为 facade，保留 Service struct + new 构造函数 + 参数对象 DTOs。
 //! 业务 impl 块迁移至 inventory_finance_bridge_ops 子模块：
 //! - listener：事件监听器启动/关闭 + 事件分发处理
-//! - voucher：7 类库存交易凭证生成（采购入库/销售出库/库存调整/生产入库/生产领料/采购退货/销售退货）
+//! - voucher：5 类库存交易凭证生成（销售出库/销售退货/库存调整/生产入库/生产领料）
+//!   与采购入库移动加权成本维护；采购收货/采购退货的记账凭证统一由应付侧生成
 //!
 //! db 字段为 pub(crate) 供 ops 子模块访问，外部引用路径不变。
 
@@ -42,7 +43,9 @@ pub struct VoucherItemArgs<'a> {
 }
 
 /// 库存事件生成凭证参数对象
-/// 批次 337 v10 复审 P3 修复：引入参数对象消除 5 个 create_*_voucher 私有函数的 too_many_arguments 警告。；5 个函数（create_purchase_receipt_voucher / create_sales_delivery_voucher /；create_inventory_adjustment_voucher / create_production_receipt_voucher /；create_production_issue_voucher）参数完全一致，统一聚合为单一参数对象。；使用生命周期 `'_` 借用 source_bill_type / source_bill_no / batch_no / color_no，；避免调用方不必要的 to_string()。
+/// 凭证生成与成本维护方法所需字段完全一致，统一聚合为单一参数对象；
+/// 使用生命周期 `'_` 借用 source_bill_type / source_bill_no / batch_no / color_no，
+/// 避免调用方不必要的 to_string()。
 pub struct VoucherCreateArgs<'a> {
     /// 产品 ID
     pub product_id: i32,
