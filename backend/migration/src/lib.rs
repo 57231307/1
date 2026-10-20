@@ -78,6 +78,9 @@
 //! 19. system_admin_bpm_config_grant: 系统管理岗补授 BPM 流程配置读面的存量库通道
 //!    （按 roles.code 反查 id，为 system_admin 补授与 init 矩阵同源的 bpm-definitions 与
 //!    bpm-templates 两枚 read 键；同样依赖 v15 的唯一索引，置于链尾为新的顶层条目）
+//! 20. ap_family_grant: 应付族授权面补授的存量库通道（按 roles.code 反查 id，为
+//!    finance_manager 补授审核与报表面 11 枚、为 accountant 补授制单与记账面 13 枚，全部与
+//!    init 矩阵逐字符同源；同样依赖 v15 的唯一索引，置于链尾为新的顶层条目）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -114,6 +117,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::finance_resource_rename::Migration),
             Box::new(domain::bpm_approver_grant::Migration),
             Box::new(domain::system_admin_bpm_config_grant::Migration),
+            Box::new(domain::ap_family_grant::Migration),
         ]
     }
 }
