@@ -178,6 +178,8 @@ import {
   type FundAccount,
   type FundTransferRecord,
 } from '@/api/fund';
+import { LARGE_TRANSFER_THRESHOLD } from '@/constants/large-transfer';
+import { isDialogDismissal } from '@/utils/monitor';
 // 批次 280：接入 useTableApi，消除手写 transferList/transferLoading/transferTotal/fetchTransfers 重复
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -295,13 +297,41 @@ const handleTransferSubmit = async () => {
   if (!transferFormRef.value) return;
   await transferFormRef.value.validate(async valid => {
     if (!valid) return;
+    // 大额调拨先走显式二次确认；取消或关闭弹窗属用户放弃，不是错误，静默返回
+    const isLarge = transferForm.amount > LARGE_TRANSFER_THRESHOLD;
+    if (isLarge) {
+      try {
+        await ElMessageBox.confirm(
+          t('fund.transferTab.largeConfirmMessage', {
+            amount: transferForm.amount.toFixed(2),
+            threshold: LARGE_TRANSFER_THRESHOLD.toFixed(2),
+          }),
+          t('fund.transferTab.largeConfirmTitle'),
+          {
+            type: 'warning',
+            confirmButtonText: t('fund.transferTab.buttonConfirmTransfer'),
+            cancelButtonText: t('fund.transferTab.buttonCancel'),
+          }
+        );
+      } catch (reason: unknown) {
+        if (!isDialogDismissal(reason)) {
+          ElMessage.error(
+            reason instanceof Error
+              ? reason.message
+              : String(reason) || t('fund.transferTab.messageTransferFailed')
+          );
+        }
+        return;
+      }
+    }
     transferSubmitLoading.value = true;
     try {
       await transferFund({
         from_account_id: transferForm.from_account_id!,
         to_account_id: transferForm.to_account_id!,
         amount: transferForm.amount,
-        remark: transferForm.remark,
+        reason: transferForm.remark || undefined,
+        ...(isLarge ? { confirm_large: true } : {}),
       });
       ElMessage.success(t('fund.transferTab.messageTransferSuccess'));
       transferVisible.value = false;
