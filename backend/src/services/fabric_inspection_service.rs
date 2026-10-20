@@ -504,7 +504,21 @@ impl FabricInspectionService {
             .filter(fabric_defect_record::Column::InspectionId.eq(id))
             .all(&*self.db)
             .await?;
-        let total_points: i32 = defects.iter().map(|d| d.points).sum();
+        // 总扣分口径，四分制按同码封顶后合计（分码判据与封顶语义见
+        // sum_four_point_points_capped_per_yard），十分制是否同构封顶尚未裁定、维持线性合计。
+        // 封顶只发生在本次评级聚合处，历史已评级记录不回算（与本仓历史不追算裁定一致）。
+        // 卷唛打印与前端明细读的都是本表 total_defect_points 库存列（print_service.rs 的
+        // get_fabric_inspection_print_data 直读 record.total_defect_points，不自算合计），
+        // 本列写入封顶后合计即全链路单点口径，下游无需二次改动。
+        let total_points: i32 = if model.scoring_system == fabric_scoring::FOUR_POINT {
+            let yard_points: Vec<(Decimal, i32)> = defects
+                .iter()
+                .map(|d| (d.position_yards, d.points))
+                .collect();
+            sum_four_point_points_capped_per_yard(&yard_points)
+        } else {
+            defects.iter().map(|d| d.points).sum()
+        };
 
         // 根据评分制式判定等级
         let (grade, points_per_100_sq_yards) = if model.scoring_system == fabric_scoring::FOUR_POINT
@@ -518,6 +532,8 @@ impl FabricInspectionService {
                 );
                 AppError::validation_displayable("四分制评级需要幅宽，请先在该验布单填写门幅(英寸)")
             })?;
+            // 判定输入 total_points 已是同码封顶后合计，评级与 p100 共用它。判定阈值本身本支不动
+            // （40 分线改挂质量标准快照默认 20 与十分制码数截断均属另一工单，本支只换输入不动判定线）
             let p100 = calculate_points_per_100_sq_yards(total_points, req.inspected_yards, width)?;
             let g = determine_grade_by_four_point(p100);
             (g, Some(p100))
