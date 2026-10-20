@@ -184,6 +184,8 @@ $$;
             r#"
 -- 只回收「本域角色码 × 本域逐枚 (resource_type, action) 配对」的授权行：按三元组配对匹配，
 -- 因此 accountant 的建单键不会被从 finance_manager 名下删掉；其它角色与其它动作一律不动。
+-- 且只删 allowed=true 的本域授予行：同键的人工显式拒绝行（allowed=false）不是本域写的，
+-- 回退不许把它一并抹掉（up 侧对它只点名不覆盖，两侧口径必须一致）。
 DO $$
 DECLARE
     v_rows INTEGER;
@@ -192,6 +194,7 @@ BEGIN
      USING "roles" r
      WHERE r."id" = rp."role_id"
        AND r."code" = ANY({arr})
+       AND rp."allowed" = true
        AND (r."code", rp."resource_type", rp."action") IN (
                 {triples}
        );
