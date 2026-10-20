@@ -4,7 +4,7 @@
 //! - start_listener：启动 EVENT_BUS 订阅 spawn（含 panic 隔离 catch_unwind）
 //! - shutdown_listener：优雅关闭监听器 task（abort detached spawn，幂等）
 //! - handle_inventory_event_safe：单事件处理（panic 隔离由调用方 catch_unwind 包裹）
-//! - handle_inventory_transaction：交易类型分发到 voucher 子模块的 create_*_voucher
+//! - handle_inventory_transaction：交易类型分发到 voucher 子模块的凭证生成/成本维护方法
 //!
 //! BRIDGE_LISTENER_HANDLE 静态句柄仅在本模块使用，随 impl 块一并迁入。
 
@@ -14,7 +14,7 @@ use crate::services::inventory_finance_bridge_service::{
 };
 use crate::utils::error::AppError;
 use futures::FutureExt;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
@@ -143,12 +143,13 @@ impl InventoryFinanceBridgeService {
         }
     }
 
-    /// 处理库存交易事件，生成相应的会计凭证
-    /// 批次 337 v10 复审 P3 修复：签名从 12 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。transaction_type 改为 args 内嵌字段处理；不再单独传递，通过 match 分发到 5 个 create_*_voucher 私有函数。
+    /// 处理库存交易事件：按交易类型分发到凭证生成或成本维护
     ///
-    /// V15 主线审计 P0 修复：原实现先单独提交 processed_events，业务失败后事件被“吃掉”。
-    /// 这里先做幂等查重，再在事务内执行凭证生成；任一步失败回滚事务并清除幂等记录，
-    /// 保证事件可重放；同时在最终失败时尝试写入死信表以便运维兜底。
+    /// 幂等：先查重，命中即跳过；业务失败清除幂等记录让事件可重放，
+    /// 清除也失败则写入死信表兜底。
+    /// 不套外层业务事务：凭证创建在 VoucherService 内部以独立事务提交，
+    /// 外层事务回滚撤不回已提交的凭证，伪装原子性只会掩盖失败；
+    /// 业务失败统一以 Err 向上传播，由监听器显式记日志。
     async fn handle_inventory_transaction(
         &self,
         transaction_id: i32,
@@ -176,50 +177,39 @@ impl InventoryFinanceBridgeService {
             return Ok(());
         }
 
-        // 阶段 2：业务事务内执行凭证生成；
-        // 业务失败时回滚事务并清除幂等记录，让事件可重放；
-        // 幂等清除也失败则把事件推入死信表。
-        let txn = self.db.begin().await?;
-        let result: Result<(), AppError> = async {
-            match transaction_type {
-                "PURCHASE_RECEIPT" => {
-                    self.create_purchase_receipt_voucher(args).await?;
-                }
-                "PURCHASE_RETURN" => {
-                    self.create_purchase_return_voucher(args).await?;
-                }
-                "SALES_DELIVERY" => {
-                    self.create_sales_delivery_voucher(args).await?;
-                }
-                "SALES_RETURN" => {
-                    self.create_sales_return_voucher(args).await?;
-                }
-                "INVENTORY_ADJUSTMENT" => {
-                    self.create_inventory_adjustment_voucher(args).await?;
-                }
-                "PRODUCTION_RECEIPT" | "PRODUCTION_OUTPUT" => {
-                    self.create_production_receipt_voucher(args).await?;
-                }
-                "PRODUCTION_ISSUE" | "PRODUCTION_CONSUMPTION" => {
-                    self.create_production_issue_voucher(args).await?;
-                }
-                _ => {
-                    info!("未处理的库存交易类型: {}", transaction_type);
-                }
+        // 阶段 2：执行业务动作（凭证创建自带事务并提交）
+        let result: Result<(), AppError> = match transaction_type {
+            "PURCHASE_RECEIPT" => self.maintain_purchase_receipt_cost(args).await,
+            "PURCHASE_RETURN" => {
+                info!(
+                    transaction_id = transaction_id,
+                    source_bill_no = args.source_bill_no.unwrap_or("-"),
+                    "采购退货记账凭证已由应付侧红字凭证唯一承载，桥接臂不重复入账"
+                );
+                Ok(())
             }
-            Ok(())
-        }
-        .await;
+            "SALES_DELIVERY" => self.create_sales_delivery_voucher(args).await,
+            "SALES_RETURN" => self.create_sales_return_voucher(args).await,
+            "INVENTORY_ADJUSTMENT" => self.create_inventory_adjustment_voucher(args).await,
+            "PRODUCTION_RECEIPT" | "PRODUCTION_OUTPUT" => {
+                self.create_production_receipt_voucher(args).await
+            }
+            "PRODUCTION_ISSUE" | "PRODUCTION_CONSUMPTION" => {
+                self.create_production_issue_voucher(args).await
+            }
+            _ => {
+                info!("未处理的库存交易类型: {}", transaction_type);
+                Ok(())
+            }
+        };
 
         if let Err(err) = result {
-            // 回滚业务事务，并删除幂等记录，允许重放。
-            let _ = txn.rollback().await;
+            // 业务失败：删除幂等记录，允许事件重放；清除失败则推死信表由后台补偿兜底。
             let unmark_ok = idempotency_service
                 .unmark_processed(consumer_id, &event_key)
                 .await
                 .is_ok();
             if !unmark_ok {
-                // 兜底：写入死信表，由后台任务补偿。
                 let _ =
                     crate::services::event_retry_service::EventRetryService::new(self.db.clone())
                         .handle_failure(
@@ -228,15 +218,20 @@ impl InventoryFinanceBridgeService {
                                 "consumer_id": consumer_id,
                                 "event_key": event_key,
                             }),
-                            "业务事务回滚后幂等清除失败",
+                            "业务失败后幂等清除失败",
                             &err.to_string(),
                             3,
                         )
                         .await;
             }
+            error!(
+                transaction_id = transaction_id,
+                transaction_type = transaction_type,
+                error = %err,
+                "库存交易事件处理失败，已清除幂等记录等待重放（凭证/成本未落地）"
+            );
             return Err(err);
         }
-        txn.commit().await?;
         Ok(())
     }
 }

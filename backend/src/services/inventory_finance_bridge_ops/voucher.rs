@@ -1,8 +1,12 @@
 //! 库存财务桥接凭证生成 impl 子模块（inventory_finance_bridge_ops/voucher）
 //!
 //! 拆分：从原 inventory_finance_bridge_service.rs 迁移 InventoryFinanceBridgeService 的凭证生成逻辑。
-//! 包含 7 类库存交易凭证 create_*_voucher 方法（被 listener::handle_inventory_transaction 分发调用，
-//! 故声明为 pub(crate)）+ build/validate/fetch/get 辅助私有方法 + 3 个凭证构造上下文结构体。
+//! 包含 5 类库存交易凭证 create_*_voucher 方法 + 采购入库移动加权成本维护方法
+//! （被 listener::handle_inventory_transaction 分发调用，故声明为 pub(crate)）
+//! + build/validate/fetch/get 辅助私有方法 + 2 个凭证构造上下文结构体。
+//! 采购收货与采购退货的记账凭证统一由应付侧生成（应付单自身携带含税口径与供应商辅助核算）：
+//! 收货曾同时存在应付凭证与桥接凭证各贷一次应付账款，科目余额虚增；
+//! 故本模块收货臂只保留成本核算，退货臂不再建凭证。其余交易类型的凭证臂维持原职责。
 //!
 //! 凭证分录参数对象 DTOs（VoucherItemArgs / VoucherCreateArgs / BridgeVoucherArgs）保留在 facade，
 //! 本模块通过 use 复用。
@@ -14,13 +18,6 @@ use crate::services::voucher_service::{CreateVoucherRequest, VoucherItemRequest,
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use tracing::info;
-
-/// 采购退货凭证构造上下文（拆分 create_purchase_return_voucher 时引入，避免元组返回）
-struct PurchaseReturnVoucherContext {
-    product_name: String,
-    warehouse_name: String,
-    cost_price: Decimal,
-}
 
 /// 生产领料凭证构造上下文（拆分 create_production_issue_voucher 时引入，避免元组返回）
 struct ProductionIssueVoucherContext {
@@ -63,156 +60,47 @@ impl InventoryFinanceBridgeService {
         }
     }
 
-    /// 创建采购入库凭证
-    /// 借：库存商品；贷：应付账款；批次 337 v10 复审 P3 修复：签名从 10 参数改为单一参数对象 `VoucherCreateArgs`，；消除 `clippy::too_many_arguments` 警告。
-    pub(crate) async fn create_purchase_receipt_voucher(
+    /// 维护采购入库后的移动加权平均成本
+    /// 记账凭证已由应付侧（auto_generate_from_receipt 同步生成的应付凭证）唯一承载，
+    /// 本方法只保留成本核算：以实际采购单价为加权依据更新 product.cost_price，
+    /// 此后销售出库凭证的主营业务成本按该移动加权平均成本计算。
+    /// 失败以 Err 向上传播（不再有半成功态），由监听器清除幂等记录后允许事件重放。
+    pub(crate) async fn maintain_purchase_receipt_cost(
         &self,
         args: VoucherCreateArgs<'_>,
     ) -> Result<(), AppError> {
         let VoucherCreateArgs {
             product_id,
-            warehouse_id,
             quantity_meters,
-            quantity_kg,
-            source_bill_type,
-            source_bill_no,
             source_bill_id,
-            batch_no,
-            color_no,
-            created_by,
+            ..
         } = args;
-        // P0 5-4 修复：除零保护；created_by 缺失拒绝生成凭证
         self.validate_quantity_meters(quantity_meters)?;
-        let user_id = self.validate_created_by(created_by)?;
-        // P2 5-12 修复：合并产品名称+成本价为单次查询（原为 2 次 product 查询）
-        let (product_name, cost_price) = self
+        // 取产品成本价作加权公式的旧成本基数；产品名不参与计算，仅随降级元组占位
+        let (_product_name, cost_price) = self
             .get_product_info(product_id)
             .await
             .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
-        let warehouse_name = self
-            .get_warehouse_name(warehouse_id)
-            .await
-            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
-        let summary = self.build_purchase_receipt_summary(
-            &product_name,
-            quantity_meters,
-            quantity_kg,
-            batch_no,
-            color_no,
-            &warehouse_name,
-        );
-        // V15 Batch05-P1-5：采购入库使用实际采购单价计算金额（移动加权平均法依据）
-        // 优先从 purchase_order_item 获取实际单价，获取失败时降级为 product.cost_price
+        // 优先取采购订单明细实际单价；取不到时沿用原口径降级为 product.cost_price（该路径下加权结果等于旧成本，不改变计价）
         let purchase_unit_price = self
             .fetch_purchase_unit_price(source_bill_id, product_id)
             .await
             .unwrap_or(cost_price);
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
-        let amount = (purchase_unit_price * quantity_meters).round_dp(2);
-        let voucher_request = self.build_purchase_receipt_voucher_request(BridgeVoucherArgs {
-            source_bill_type,
-            source_bill_no,
-            source_bill_id,
-            batch_no,
-            color_no,
-            summary: &summary,
-            amount,
-            quantity_meters,
-            quantity_kg,
-        });
-        let voucher_service = VoucherService::new(self.db.clone());
-        // 批次 356 v13 复审 F-P0-2 修复：create → create_and_post 自动过账，触发科目余额回写
-        let voucher = voucher_service
-            .create_and_post(voucher_request, user_id)
-            .await?;
-
-        // V15 Batch05-P1-5：采购入库后更新 product.cost_price 为移动加权平均成本
-        // 此后销售出库凭证将使用更新后的 cost_price（即移动加权平均成本）计算主营业务成本
-        // 失败时仅 warn 不阻断（凭证已生成，cost_price 未更新可由运维人工修正）
         if purchase_unit_price > Decimal::ZERO {
-            if let Err(e) = self
-                .update_moving_average_cost(
-                    product_id,
-                    quantity_meters,
-                    purchase_unit_price,
-                    cost_price,
-                )
-                .await
-            {
-                tracing::warn!(
-                    product_id,
-                    error = %e,
-                    "移动加权平均成本更新失败，凭证已生成但 cost_price 未更新"
-                );
-            }
+            self.update_moving_average_cost(
+                product_id,
+                quantity_meters,
+                purchase_unit_price,
+                cost_price,
+            )
+            .await?;
+        } else {
+            info!(
+                product_id,
+                "采购入库单价为 0 或不可得，跳过移动加权平均成本更新（凭证记账由应付侧独立承载）"
+            );
         }
-
-        info!(
-            "自动生成采购入库凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
-            voucher.voucher_no, batch_no, color_no
-        );
         Ok(())
-    }
-
-    /// 构建采购入库凭证摘要
-    fn build_purchase_receipt_summary(
-        &self,
-        product_name: &str,
-        quantity_meters: Decimal,
-        quantity_kg: Decimal,
-        batch_no: &str,
-        color_no: &str,
-        warehouse_name: &str,
-    ) -> String {
-        format!(
-            "采购入库：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            product_name, quantity_meters, quantity_kg, batch_no, color_no, warehouse_name
-        )
-    }
-
-    /// 构建采购入库凭证请求体（借：库存商品 / 贷：应付账款），复用 BridgeVoucherArgs 避免新增参数对象
-    fn build_purchase_receipt_voucher_request(
-        &self,
-        args: BridgeVoucherArgs<'_>,
-    ) -> CreateVoucherRequest {
-        // P3 维度 4 修复（批次 87）：单价计算补 round_dp(2)
-        let unit_price = (args.amount / args.quantity_meters).round_dp(2);
-        CreateVoucherRequest {
-            voucher_type: "记".to_string(),
-            voucher_date: chrono::Utc::now().date_naive(),
-            source_type: args.source_bill_type.map(|s| s.to_string()),
-            source_module: Some("inventory".to_string()),
-            source_bill_id: args.source_bill_id,
-            source_bill_no: args.source_bill_no.map(|s| s.to_string()),
-            batch_no: Some(args.batch_no.to_string()),
-            color_no: Some(args.color_no.to_string()),
-            items: vec![
-                // 借：库存商品
-                Self::make_voucher_item(VoucherItemArgs {
-                    line_no: 1,
-                    subject_code: "1405",
-                    subject_name: "库存商品",
-                    debit: args.amount,
-                    credit: Decimal::ZERO,
-                    summary: Some(args.summary.to_string()),
-                    quantity_meters: Some(args.quantity_meters),
-                    quantity_kg: Some(args.quantity_kg),
-                    unit_price: Some(unit_price),
-                }),
-                // 贷：应付账款
-                Self::make_voucher_item(VoucherItemArgs {
-                    line_no: 2,
-                    subject_code: "2202",
-                    subject_name: "应付账款",
-                    debit: Decimal::ZERO,
-                    credit: args.amount,
-                    summary: Some(args.summary.to_string()),
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                }),
-            ],
-        }
     }
 
     /// 创建销售出库凭证
@@ -229,7 +117,7 @@ impl InventoryFinanceBridgeService {
         }
         // P2 5-12 修复：合并产品名称+成本价为单次查询
         // V15 Batch05-P1-5：cost_price 为采购入库时维护的移动加权平均成本
-        // （由 create_purchase_receipt_voucher 调用 update_moving_average_cost 持续更新）
+        // （由 maintain_purchase_receipt_cost 调用 update_moving_average_cost 持续更新）
         let (product_name, cost_price) = self
             .get_product_info(args.product_id)
             .await
@@ -727,109 +615,6 @@ impl InventoryFinanceBridgeService {
             .await?;
         info!(
             "自动生成生产领料凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
-            voucher.voucher_no, args.batch_no, args.color_no
-        );
-        Ok(())
-    }
-
-    /// 获取采购退货凭证构造上下文：产品名+成本价+仓库名
-    async fn fetch_purchase_return_context(
-        &self,
-        product_id: i32,
-        warehouse_id: i32,
-    ) -> PurchaseReturnVoucherContext {
-        let (product_name, cost_price) = self
-            .get_product_info(product_id)
-            .await
-            .unwrap_or_else(|_| (format!("产品{}", product_id), Decimal::ZERO));
-        let warehouse_name = self
-            .get_warehouse_name(warehouse_id)
-            .await
-            .unwrap_or_else(|_| format!("仓库{}", warehouse_id));
-        PurchaseReturnVoucherContext {
-            product_name,
-            warehouse_name,
-            cost_price,
-        }
-    }
-
-    /// 构造采购退货凭证请求：借应付账款（红字）/贷库存商品（红字）
-    fn build_purchase_return_voucher_request(
-        args: &VoucherCreateArgs<'_>,
-        ctx: &PurchaseReturnVoucherContext,
-    ) -> CreateVoucherRequest {
-        let summary = format!(
-            "采购退货：{} {}米 {}公斤 批次:{} 色号:{} 仓库:{}",
-            ctx.product_name,
-            args.quantity_meters,
-            args.quantity_kg,
-            args.batch_no,
-            args.color_no,
-            ctx.warehouse_name
-        );
-        let amount = (ctx.cost_price * args.quantity_meters.abs()).round_dp(2);
-        CreateVoucherRequest {
-            voucher_type: "记".to_string(),
-            voucher_date: chrono::Utc::now().date_naive(),
-            source_type: args.source_bill_type.map(|s| s.to_string()),
-            source_module: Some("inventory".to_string()),
-            source_bill_id: args.source_bill_id,
-            source_bill_no: args.source_bill_no.map(|s| s.to_string()),
-            batch_no: Some(args.batch_no.to_string()),
-            color_no: Some(args.color_no.to_string()),
-            items: vec![
-                // 借：应付账款（红字）
-                Self::make_voucher_item(VoucherItemArgs {
-                    line_no: 1,
-                    subject_code: "2202",
-                    subject_name: "应付账款",
-                    debit: amount,
-                    credit: Decimal::ZERO,
-                    summary: Some(summary.clone()),
-                    quantity_meters: None,
-                    quantity_kg: None,
-                    unit_price: None,
-                }),
-                // 贷：库存商品（红字）
-                Self::make_voucher_item(VoucherItemArgs {
-                    line_no: 2,
-                    subject_code: "1405",
-                    subject_name: "库存商品",
-                    debit: Decimal::ZERO,
-                    credit: amount,
-                    summary: Some(summary.clone()),
-                    quantity_meters: Some(args.quantity_meters),
-                    quantity_kg: Some(args.quantity_kg),
-                    unit_price: Some((amount / args.quantity_meters).round_dp(2)),
-                }),
-            ],
-        }
-    }
-
-    /// 创建采购退货凭证
-    /// 借：应付账款（红字）；贷：库存商品（红字）；批次 356 v13 复审 B-P0-5 修复：采购退货财务凭证未生成；采购退货业务流闭环：purchase_return_service → 发布 PURCHASE_RETURN 事件 →；inventory_finance_bridge_service 生成红字凭证
-    pub(crate) async fn create_purchase_return_voucher(
-        &self,
-        args: VoucherCreateArgs<'_>,
-    ) -> Result<(), AppError> {
-        if args.quantity_meters.is_zero() {
-            return Err(AppError::validation_displayable(
-                "quantity_meters 不能为 0，无法计算单价",
-            ));
-        }
-        let ctx = self
-            .fetch_purchase_return_context(args.product_id, args.warehouse_id)
-            .await;
-        let voucher_request = Self::build_purchase_return_voucher_request(&args, &ctx);
-        let voucher_service = VoucherService::new(self.db.clone());
-        let user_id = args
-            .created_by
-            .ok_or_else(|| AppError::validation("缺少创建用户ID，无法生成财务凭证"))?;
-        let voucher = voucher_service
-            .create_and_post(voucher_request, user_id)
-            .await?;
-        info!(
-            "自动生成采购退货凭证: 凭证号={}, 交易关联: 批次={}, 色号={}",
             voucher.voucher_no, args.batch_no, args.color_no
         );
         Ok(())
