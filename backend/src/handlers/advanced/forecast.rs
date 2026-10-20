@@ -104,9 +104,11 @@ pub async fn inventory_optimization(
 
     let suggestions = service.optimize_inventory(product_id).await?;
 
-    let (low_count, overstock_count) = count_inventory_alerts(&suggestions);
-    let product_name_map = build_product_name_map(&db, &suggestions).await;
-    let items = build_inventory_suggestions(suggestions, &product_name_map);
+    let product_name_map = build_product_name_map(&db, &suggestions).await?;
+    // 产品名称只取产品主数据真值；取不到真值的建议行整体剔除，预警计数与列表行同源
+    let named = attach_product_names(suggestions, &product_name_map);
+    let (low_count, overstock_count) = count_inventory_alerts(&named);
+    let items = build_inventory_suggestions(named);
 
     let summary = format!(
         "检测到 {} 个产品需要补货，{} 个产品库存积压",
@@ -118,21 +120,19 @@ pub async fn inventory_optimization(
 }
 
 /// 统计库存预警数量（需补货/积压）
-fn count_inventory_alerts(
-    suggestions: &[crate::services::ai::InventorySuggestion],
-) -> (usize, usize) {
-    let low_count = suggestions
+fn count_inventory_alerts(named: &[NamedSuggestion]) -> (usize, usize) {
+    let low_count = named
         .iter()
-        .filter(|s| {
-            let current = s.current_stock.to_f64().unwrap_or(0.0);
-            current < s.reorder_point.to_f64().unwrap_or(0.0)
+        .filter(|n| {
+            let current = n.suggestion.current_stock.to_f64().unwrap_or(0.0);
+            current < n.suggestion.reorder_point.to_f64().unwrap_or(0.0)
         })
         .count();
-    let overstock_count = suggestions
+    let overstock_count = named
         .iter()
-        .filter(|s| {
-            let current = s.current_stock.to_f64().unwrap_or(0.0);
-            let suggested = s.suggested_stock.to_f64().unwrap_or(0.0);
+        .filter(|n| {
+            let current = n.suggestion.current_stock.to_f64().unwrap_or(0.0);
+            let suggested = n.suggestion.suggested_stock.to_f64().unwrap_or(0.0);
             current > suggested * 2.0
         })
         .count();
@@ -140,33 +140,62 @@ fn count_inventory_alerts(
 }
 
 /// 批量查询产品名称映射（避免 N+1 查询）
+///
+/// 入参：建议行集合（取其 product_id）；返回：product_id → 产品主数据名称。
+/// 查询失败按 `AppError` 上抛——吞成空表会让整列建议失去真实名称来源。
 async fn build_product_name_map(
     db: &sea_orm::DatabaseConnection,
     suggestions: &[crate::services::ai::InventorySuggestion],
-) -> std::collections::HashMap<i32, String> {
-    // v16 批次 44 修复：循环外批量查询所有产品名称，避免循环内逐个查询（N+1）
+) -> Result<std::collections::HashMap<i32, String>, AppError> {
     let product_ids: Vec<i32> = suggestions.iter().map(|s| s.product_id).collect();
     if product_ids.is_empty() {
-        return std::collections::HashMap::new();
+        return Ok(std::collections::HashMap::new());
     }
     use sea_orm::{ColumnTrait, QueryFilter};
-    ProductEntity::find()
+    let products = ProductEntity::find()
         .filter(crate::models::product::Column::Id.is_in(product_ids))
         .all(db)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|p| (p.id, p.name))
-        .collect()
+        .await?;
+    Ok(products.into_iter().map(|p| (p.id, p.name)).collect())
+}
+
+/// 建议行配上真实产品名称后的形态（名称与后续预警计数、列表行同源）
+struct NamedSuggestion {
+    product_name: String,
+    suggestion: crate::services::ai::InventorySuggestion,
+}
+
+/// 逐行配产品主数据名称；主数据无对应行的建议剔除并 warn 点名。
+///
+/// 传给 `count_inventory_alerts` 与 `build_inventory_suggestions`，使汇总口径与
+/// 响应列表都只覆盖能如实展示的行；禁止用占位字符串把无真实名称的行留在响应里。
+fn attach_product_names(
+    suggestions: Vec<crate::services::ai::InventorySuggestion>,
+    product_name_map: &std::collections::HashMap<i32, String>,
+) -> Vec<NamedSuggestion> {
+    let mut named = Vec::with_capacity(suggestions.len());
+    for s in suggestions {
+        match product_name_map.get(&s.product_id) {
+            Some(product_name) => named.push(NamedSuggestion {
+                product_name: product_name.clone(),
+                suggestion: s,
+            }),
+            None => {
+                tracing::warn!(
+                    product_id = s.product_id,
+                    "库存优化建议剔除：产品主数据无对应行，无法提供真实产品名称"
+                );
+            }
+        }
+    }
+    named
 }
 
 /// 构建库存优化建议项列表（过滤正常库存，分级优先级）
-fn build_inventory_suggestions(
-    suggestions: Vec<crate::services::ai::InventorySuggestion>,
-    product_name_map: &std::collections::HashMap<i32, String>,
-) -> Vec<InventorySuggestion> {
+fn build_inventory_suggestions(named: Vec<NamedSuggestion>) -> Vec<InventorySuggestion> {
     let mut items = Vec::new();
-    for s in suggestions {
+    for n in named {
+        let s = n.suggestion;
         let current = s.current_stock.to_f64().unwrap_or(0.0);
         let reorder_point = s.reorder_point.to_f64().unwrap_or(0.0);
         let suggested = s.suggested_stock.to_f64().unwrap_or(0.0);
@@ -183,14 +212,8 @@ fn build_inventory_suggestions(
             "low"
         };
 
-        // v16 批次 44 修复：从批量查询结果获取产品名称（O(1) 查找）
-        let product_name = product_name_map
-            .get(&s.product_id)
-            .cloned()
-            .unwrap_or_else(|| format!("产品 {}", s.product_id));
-
         items.push(InventorySuggestion {
-            product_name,
+            product_name: n.product_name,
             suggestion: format!(
                 "{} (当前库存: {:.0}, 再订货点: {:.0}, 建议订货: {:.0})",
                 s.reason,
