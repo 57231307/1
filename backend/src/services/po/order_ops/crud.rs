@@ -36,7 +36,7 @@ use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::services::supplier_qualification_gate::SupplierQualificationGate;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+    apply_data_scope, check_resource_owner_by_member_scope, DataScopeContext,
 };
 use crate::utils::error::AppError;
 // 单号取号+插入的唯一入口（事务内取号 + 23505 保存点重试），见 `create_order_header`
@@ -86,6 +86,11 @@ impl PurchaseOrderService {
         req: CreatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
+        // 币种码取值域门（进事务前先拒）：权威白名单在 services/currency_service
+        // 的 validate_currency_code，词表外一律 400 点名，不允许任意字符串入 currency 列
+        if let Some(currency) = req.currency.as_deref() {
+            crate::services::currency_service::validate_currency_code(currency)?;
+        }
         let txn = (*self.db).begin().await?;
 
         // 1. 验证请求参数
@@ -517,6 +522,10 @@ impl PurchaseOrderService {
         req: UpdatePurchaseOrderRequest,
         user_id: i32,
     ) -> Result<purchase_order::Model, AppError> {
+        // 改单携带币种时同样过权威白名单门，词表外 400 点名，不落事务
+        if let Some(currency) = req.currency.as_deref() {
+            crate::services::currency_service::validate_currency_code(currency)?;
+        }
         let txn = (*self.db).begin().await?;
         let order = purchase_order::Entity::find_by_id(order_id)
             .lock_exclusive()
