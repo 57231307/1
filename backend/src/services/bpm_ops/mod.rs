@@ -25,6 +25,45 @@ use crate::utils::error::AppError;
 /// 通知的 `action_url` 必须指向真实存在的路由，否则用户点开通知会落空。
 const BPM_APPROVAL_PATH: &str = "/bpm/approval";
 
+/// 流程标识（process_key，即 `bpm_process_definition.code`）取值的唯一事实来源。
+///
+/// 四个业务发起点（报价 / 销售订单 / 采购订单 / 生产订单）构造
+/// `StartProcessRequest` 与拼装 BPM 启动失败文案都必须取本模块常量，禁止再复制
+/// 字面量；流程定义种子的 `code` 落库值同样须与本模块逐字符一致，否则
+/// `start_process` 的 `Code.eq(process_key)` 查询恒不命中，表现为每次提交都
+/// "审批流程启动失败"（与 `bpm_task` 状态词表大小写不同源的静默空转同一机理）。
+pub mod process_key {
+    /// 销售报价单审批
+    pub const QUOTATION_APPROVAL: &str = "quotation_approval";
+    /// 销售订单审批
+    pub const SALES_ORDER_APPROVAL: &str = "sales_order_approval";
+    /// 采购订单审批
+    pub const PURCHASE_ORDER_APPROVAL: &str = "purchase_order_approval";
+    /// 生产订单审批
+    pub const PRODUCTION_ORDER_APPROVAL: &str = "production_order_approval";
+}
+
+/// BPM 启动失败对外文案的单源拼装（流程定义缺失/未启用族）。
+///
+/// 调用方：`bpm_ops::instance::start_process` 的缺定义分支（经
+/// `AppError::not_found_displayable` 出参，404）与四个业务发起点的 catch 分支
+/// （经 `AppError::business_displayable` 出参，400）。HTTP 出参 message 只准由
+/// 本函数产出，禁止各点各写拼接变体（防文案漂移，契约锁按本函数句式的子串断言）。
+///
+/// 安全边界：process_key 是"系统设置-审批流程定义"页上管理员维护的公开配置标识，
+/// 点名它正是文案目的（用户裁定），满足 `utils/error.rs` 的可外显条件；本函数
+/// **不接收内部错误原文**，SQL / 引擎细节由调用方记 tracing 日志，绝不传入此处。
+///
+/// `document_state` 为发起点对单据处置结果的如实陈述（如"报价单未提交"、
+/// "订单已退回草稿状态"）：调用方只准在**确认**对应处置真实发生后传入对应语句；
+/// 补偿回滚失败或结果未知时必须传中性描述（如"单据当前状态请人工核对"），
+/// 不得虚报单据已回退。
+pub fn bpm_start_failure_message(process_key: &str, document_state: &str) -> String {
+    format!(
+        "审批流程启动失败：流程标识 {process_key} 未配置或未启用。{document_state}。请先在 系统设置-审批流程定义 中新建流程标识为 {process_key} 的流程并启用，然后重新提交"
+    )
+}
+
 /// 解析流程节点配置的审批人。
 ///
 /// 引擎当前只认「具体用户 ID」这一种审批人。历史上 `assignee_value` 非数字或节点属于

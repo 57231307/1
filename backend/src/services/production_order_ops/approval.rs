@@ -30,6 +30,7 @@ use crate::models::status::bpm_task as task_status;
 use crate::utils::error::AppError;
 
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
+use crate::services::bpm_ops::{bpm_start_failure_message, process_key};
 use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
@@ -71,7 +72,7 @@ impl ProductionOrderService {
         // 启动BPM审批流程（事务外，失败不阻断已提交状态）
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
-            process_key: "production_order_approval".to_string(),
+            process_key: process_key::PRODUCTION_ORDER_APPROVAL.to_string(),
             business_type: "production_order".to_string(),
             business_id: i64::from(id),
             title: format!("生产订单审批 - {}", updated.order_no),
@@ -104,11 +105,15 @@ impl ProductionOrderService {
                 error = %e,
                 order_id = id,
                 user_id = user_id,
+                process_key = process_key::PRODUCTION_ORDER_APPROVAL,
+                business_type = "production_order",
+                business_id = id,
                 "BPM 启动生产订单审批流程失败，订单已补偿回滚为提交前状态，根因如上"
             );
-            return Err(AppError::business_displayable(
-                "审批流程启动失败，生产订单已退回提交前状态，请稍后重新提交；若持续失败请联系管理员检查审批流程定义",
-            ));
+            return Err(AppError::business_displayable(bpm_start_failure_message(
+                process_key::PRODUCTION_ORDER_APPROVAL,
+                "生产订单已退回提交前状态",
+            )));
         }
 
         Ok(updated)

@@ -4,6 +4,7 @@
 //! 拆分自原 `purchase_order_service.rs`。
 
 use crate::models::{purchase_order, purchase_order_item, status};
+use crate::services::bpm_ops::{bpm_start_failure_message, process_key};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -131,7 +132,7 @@ impl PurchaseOrderService {
     ) -> Result<(), AppError> {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
-            process_key: "purchase_order_approval".to_string(),
+            process_key: process_key::PURCHASE_ORDER_APPROVAL.to_string(),
             business_type: "purchase_order".to_string(),
             business_id: i64::from(order_id),
             title: format!("采购订单审批 - {}", order_no),
@@ -151,11 +152,15 @@ impl PurchaseOrderService {
                 error = %e,
                 order_id = order_id,
                 user_id = user_id,
+                process_key = process_key::PURCHASE_ORDER_APPROVAL,
+                business_type = "purchase_order",
+                business_id = order_id,
                 "BPM 启动采购订单审批流程失败，订单已补偿回滚为提交前状态，根因如上"
             );
-            return Err(AppError::business_displayable(
-                "审批流程启动失败，采购订单已退回提交前状态，请稍后重新提交；若持续失败请联系管理员检查审批流程定义",
-            ));
+            return Err(AppError::business_displayable(bpm_start_failure_message(
+                process_key::PURCHASE_ORDER_APPROVAL,
+                "采购订单已退回提交前状态",
+            )));
         }
         Ok(())
     }

@@ -35,6 +35,7 @@ use crate::models::status::bpm_task as task_status;
 use crate::models::status::quotation as quotation_status;
 use crate::models::status::quotation_ext as quotation_ext_status;
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
+use crate::services::bpm_ops::{bpm_start_failure_message, process_key};
 use crate::services::bpm_service::BpmService;
 use crate::utils::error::AppError;
 
@@ -191,7 +192,7 @@ impl QuotationApprovalService {
         // 若事务回滚，BPM 实例成为孤儿（容错设计，BPM 失败也不阻断主流程）。
         let bpm_service = BpmService::new(self.db.clone());
         let req = StartProcessRequest {
-            process_key: "quotation_approval".to_string(),
+            process_key: process_key::QUOTATION_APPROVAL.to_string(),
             business_type: "quotation".to_string(),
             business_id: quotation.id,
             title: format!("报价单审批 - {}", quotation.quotation_no),
@@ -213,16 +214,21 @@ impl QuotationApprovalService {
         let bpm_instance_id: Option<i32> = match bpm_service.start_process(req).await {
             Ok(resp) => Some(resp.instance_id),
             Err(e) => {
-                // 引擎失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显
+                // 引擎失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显；
+                // 全量根因字段（process_key/business_type/business_id）逐条落齐，便于按 trace 定位。
                 tracing::error!(
                     error = %e,
+                    process_key = process_key::QUOTATION_APPROVAL,
                     business_type = "quotation",
                     business_id = quotation.id,
                     "报价提交启动 BPM 流程失败，已拒绝提交（未改动报价单状态），根因如上"
                 );
-                return Err(AppError::business_displayable(
-                    "审批流程启动失败，报价单未提交，请稍后重试；若持续失败请联系管理员检查审批流程定义",
-                ));
+                // 文案单源点名流程标识；本发起点 BPM 启动先于状态更新、失败即拒绝提交，
+                // "报价单未提交"是已确认的真实处置结果。
+                return Err(AppError::business_displayable(bpm_start_failure_message(
+                    process_key::QUOTATION_APPROVAL,
+                    "报价单未提交",
+                )));
             }
         };
 
