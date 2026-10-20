@@ -134,7 +134,38 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
 
     let config = build_single_node_approval_config(approver.id);
     let now = chrono::Utc::now();
-    let models: Vec<bpm_process_definition::ActiveModel> = BUILTIN_APPROVAL_DEFINITIONS
+    let total = BUILTIN_APPROVAL_DEFINITIONS.len();
+    let codes: Vec<String> = BUILTIN_APPROVAL_DEFINITIONS
+        .iter()
+        .map(|def| def.code.to_string())
+        .collect();
+
+    // 先查已在册编码，只为缺失者构造插入行——实写数与跳过数必须是查出来的事实，
+    // 不能取自写库返回值（sea-orm 的 InsertManyResult 不携带受影响行数，拿它计数会得到错数）。
+    let existing: Vec<String> = bpm_process_definition::Entity::find()
+        .filter(bpm_process_definition::Column::Code.is_in(codes.clone()))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|row| row.code)
+        .collect();
+    let missing: Vec<&BuiltinApprovalDefinition> = BUILTIN_APPROVAL_DEFINITIONS
+        .iter()
+        .filter(|def| !existing.iter().any(|row| row.as_str() == def.code))
+        .collect();
+
+    if missing.is_empty() {
+        info!(
+            total,
+            inserted = 0usize,
+            skipped = total,
+            assignee_user_id = approver.id,
+            "BPM 出厂审批流程定义种子无需写入（四枚编码均已在册，既有定义与用户调整不覆盖）"
+        );
+        return Ok(());
+    }
+
+    let models: Vec<bpm_process_definition::ActiveModel> = missing
         .iter()
         .map(|def| bpm_process_definition::ActiveModel {
             id: Default::default(),
@@ -150,9 +181,9 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
             ..Default::default()
         })
         .collect();
-    let total = models.len();
+    let to_write = models.len();
 
-    let result = bpm_process_definition::Entity::insert_many(models)
+    bpm_process_definition::Entity::insert_many(models)
         .on_conflict(
             sea_orm::sea_query::OnConflict::column(bpm_process_definition::Column::Code)
                 .do_nothing()
@@ -162,17 +193,38 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
         .await
         .map_err(|e| AppError::database(format!("BPM 出厂审批流程定义种子写库失败: {e}")))?;
 
-    let inserted = result.rows_affected as usize;
+    // 写后复核 出厂清单里的每一枚编码都必须真实在册。ON CONFLICT DO NOTHING 在并发下可能一行也没写进去，
+    // 也可能别的进程刚插好——两种都算达成，所以复核按集合而不是按自写计数判。
+    let after: Vec<String> = bpm_process_definition::Entity::find()
+        .filter(bpm_process_definition::Column::Code.is_in(codes))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|row| row.code)
+        .collect();
+    let still_missing: Vec<&str> = BUILTIN_APPROVAL_DEFINITIONS
+        .iter()
+        .map(|def| def.code)
+        .filter(|code| !after.iter().any(|row| row.as_str() == *code))
+        .collect();
+    if !still_missing.is_empty() {
+        return Err(AppError::database(format!(
+            "BPM 出厂审批流程定义种子复核未通过，仍缺编码 {:?}",
+            still_missing
+        )));
+    }
+
     info!(
         total,
-        inserted,
-        skipped = total - inserted,
+        inserted = to_write,
+        skipped = existing.len(),
         assignee_user_id = approver.id,
         "BPM 出厂审批流程定义种子完成（幂等：仅补 code 缺失者，既有定义不覆盖）"
     );
-    if total != inserted {
+    if !existing.is_empty() {
         info!(
-            skipped = total - inserted,
+            skipped = existing.len(),
+            codes = ?existing,
             "部分出厂流程定义因同编码已存在而跳过（保留既有定义与用户调整，未覆盖）"
         );
     }
