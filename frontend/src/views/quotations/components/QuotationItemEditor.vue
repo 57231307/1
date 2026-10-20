@@ -2,7 +2,7 @@
   报价单明细编辑器
   - 通过 v-model 双向绑定 items 数组
   - 支持添加/删除明细行
-  - 自动计算含税单价（按 13% 增值税）
+  - 按单据税率（父组件传入的百分数税率）换算含税单价，组件不持有税率档位
   - 加载产品下拉与色号下拉（按产品过滤）
 -->
 <template>
@@ -131,7 +131,7 @@
 // 报价单明细编辑器脚本
 // - v-model 双向绑定
 // - 加载产品/色号
-// - 含税单价 = 单价 × 1.13
+// - 含税单价 = 单价 × (1 + 单据税率% ÷ 100)，税率由父组件（单据）传入
 import { onMounted, ref, watch } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -155,6 +155,8 @@ const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{
   modelValue: QuotationItemRow[];
   currency: string;
+  /** 单据税率（百分数口径，13 表示 13%）；未填写时不换算含税单价，组件不持有档位 */
+  taxRate?: number;
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', value: QuotationItemRow[]): void;
@@ -220,11 +222,12 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
   }
 }
 
-/** 单价变化时自动重算含税单价（13%） */
+/** 单价变化时按单据税率（百分数）重算含税单价；税率未填写则不造含税价 */
 function recalcTax(row: QuotationItemRow, unitPrice: number | undefined) {
   if (unitPrice === undefined) return;
   row.unit_price = unitPrice;
-  row.unit_price_with_tax = +(unitPrice * 1.13).toFixed(2);
+  row.unit_price_with_tax =
+    props.taxRate === undefined ? 0 : +(unitPrice * (1 + props.taxRate / 100)).toFixed(2);
   // 触发金额更新
   emit('update:modelValue', [...props.modelValue]);
 }
@@ -238,6 +241,18 @@ watch(
     });
   },
   { deep: true }
+);
+
+/** 单据税率变化后重算所有已填单价行的含税单价（先填价后填税率是常见顺序） */
+watch(
+  () => props.taxRate,
+  () => {
+    props.modelValue.forEach((i: QuotationItemRow) => {
+      if (i.unit_price) {
+        recalcTax(i, i.unit_price);
+      }
+    });
+  }
 );
 
 /** 金额格式化：编辑态本地行内 amount 为 number（由 quantity×unit_price 计算），显示统一走 utils/money */

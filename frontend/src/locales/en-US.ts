@@ -8033,6 +8033,8 @@ export default {
       currencyEur: 'EUR Euro',
       labelExchangeRate: 'Exchange Rate',
       labelTaxInclusive: 'Tax Inclusive',
+      labelTaxRate: 'Tax Rate (%)',
+      taxRatePlaceholder: 'Percent value, e.g. 13 means 13%',
       labelCustomerLevel: 'Customer Level',
       customerLevelNormal: 'NORMAL Normal',
       labelLeadTime: 'Lead Time (Days)',
@@ -8052,6 +8054,7 @@ export default {
       validatePriceTerms: 'Please select price terms',
       validateCurrency: 'Please select currency',
       validateExchangeRate: 'Please enter exchange rate',
+      validateTaxRateRequired: 'Please enter the tax rate (percent value; no default tier)',
       validateItemsRequired: 'Please add at least 1 product item',
       validateItemsInvalid:
         'Each item must have a product, a unit derived from the product, and quantity > 0',
