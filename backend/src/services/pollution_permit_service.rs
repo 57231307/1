@@ -225,12 +225,20 @@ impl PollutionPermitService {
             let level = Self::classify_expiry_level(days_until_expiry);
 
             if level.needs_warning() {
-                // 已过期的许可证自动更新状态
+                // 已过期的许可证把 status 落一份冗余标记，便于列表按状态筛选；
+                // 写失败不推翻本次扫描（预警等级由 expiry_date 与今日之差判定，与本列无关），
+                // 但必须点名报错，否则库里仍是 active、预警面已是 Expired，两处口径分裂无人知晓。
                 if level == ExpiryWarningLevel::Expired {
                     let mut active: PermitActiveModel = permit.clone().into();
                     active.status = Set("expired".to_string());
                     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-                    let _ = active.update(&*self.db).await;
+                    if let Err(e) = active.update(&*self.db).await {
+                        tracing::error!(
+                            permit_id = permit.id,
+                            error = ?e,
+                            "排污许可证过期标记写入失败，该证在库里仍为 active，预警等级不受影响"
+                        );
+                    }
                 }
 
                 warnings.push(PermitExpiryWarning {

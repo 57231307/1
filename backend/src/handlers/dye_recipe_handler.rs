@@ -296,14 +296,14 @@ pub async fn export_dye_recipes(
     record_dye_recipes_export_audit(&state, &auth, row_count, &query);
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "dye_recipes_export".to_string(),
             row_count as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     build_xlsx_response(&table, "dye_recipes_export")
