@@ -20,6 +20,7 @@ use sea_orm::{
     TransactionTrait,
 };
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use validator::Validate;
 
@@ -53,6 +54,12 @@ const INSPECTION_NO_PREFIX: &str = "FIR-";
 // 评分计算纯函数（四分制 / 十分制）
 // ============================================================================
 
+/// 四分制同码封顶上限，即单个码位内计入总扣分的疵点扣分合计不超该值。
+/// 取值依据为 ASTM D5430 单疵点最高扣分 4 分，同码多疵点合计按 4 分封顶后不再线性推高
+/// 评级输入。改动该值会同时改变 total_defect_points 与 points_per_100_sq_yards 及等级
+/// 判定口径，并与疵点明细前端展示联动，须与前端同口径评审后再动，禁止两处各写一套。
+const FOUR_POINT_PER_YARD_CAP: i32 = 4;
+
 /// 四分制扣分计算
 /// 业务规则（AATCC/ASTM D5430）：疵点长度 ≤3寸 → 1 分；3寸 < 疵点长度 ≤6寸 → 2 分；6寸 < 疵点长度 ≤9寸 → 3 分；疵点长度 >9寸 → 4 分；破洞/连续性疵点 → 4 分（不论长度）
 pub fn calculate_four_point_points(
@@ -72,6 +79,29 @@ pub fn calculate_four_point_points(
     } else {
         4
     }
+}
+
+/// 四分制总扣分聚合（同码封顶口径），入参为疵点明细的（position_yards，points）序列。
+///
+/// 跨码归属判据，疵点所属码位按 position_yards 向下取整判定，0.00 至 0.99 归第 0 码，1.00 至 1.99 归第 1 码，跨码边界疵点归入其读数整数码所在码位。
+/// position_yards 是验布机码表记录的单点读数，前端疵点明细展示的就是该读数本身，分码与
+/// 展示取同一个值即同源同判据，前端不得另算一套分桶。判据句与
+/// models/fabric_defect_record.rs 的模型注释同字一致，改动必须两处同步。
+///
+/// 封顶语义，先按码位求桶内扣分合计，合计超过 FOUR_POINT_PER_YARD_CAP 的码位只计上限值，
+/// 未超过的码位按实际合计计入（不是逐疵点封顶，也不是每码无条件记满上限），各码位
+/// 封顶后合计之和即总扣分。
+///
+/// 仅作用于四分制，十分制是否同构封顶尚未裁定，不在本函数职责内。
+pub fn sum_four_point_points_capped_per_yard(defects: &[(Decimal, i32)]) -> i32 {
+    let mut per_yard_totals: BTreeMap<Decimal, i32> = BTreeMap::new();
+    for (position_yards, points) in defects {
+        *per_yard_totals.entry(position_yards.floor()).or_insert(0) += points;
+    }
+    per_yard_totals
+        .values()
+        .map(|yard_total| (*yard_total).min(FOUR_POINT_PER_YARD_CAP))
+        .sum()
 }
 
 /// 十分制扣分计算

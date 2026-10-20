@@ -4,6 +4,7 @@ use bingxi_backend::services::fabric_inspection_service::calculate_points_per_10
 use bingxi_backend::services::fabric_inspection_service::calculate_ten_point_points;
 use bingxi_backend::services::fabric_inspection_service::determine_grade_by_four_point;
 use bingxi_backend::services::fabric_inspection_service::determine_grade_by_ten_point;
+use bingxi_backend::services::fabric_inspection_service::sum_four_point_points_capped_per_yard;
 use rust_decimal::Decimal;
 
 // ===== 四分制扣分计算测试 =====
@@ -241,4 +242,62 @@ fn test_validate_defect_type_valid() {
 fn test_validate_defect_type_invalid() {
     assert!(FabricDefectService::validate_defect_type("invalid_type").is_err());
     assert!(FabricDefectService::validate_defect_type("").is_err());
+}
+
+// ===== 四分制同码封顶聚合测试 =====
+
+#[test]
+fn test_per_yard_cap_multiple_defects_in_one_yard() {
+    // 同一码位（读数 1.20 1.50 1.99 都归第 1 码）三枚 4 分疵点，线性合计 12，封顶后计 4
+    let defects = [
+        (Decimal::new(120, 2), 4),
+        (Decimal::new(150, 2), 4),
+        (Decimal::new(199, 2), 4),
+    ];
+    assert_eq!(sum_four_point_points_capped_per_yard(&defects), 4);
+}
+
+#[test]
+fn test_per_yard_cap_bucket_boundary_is_floor() {
+    // 分码判据是 position_yards 向下取整，0.99 归第 0 码，1.00 归第 1 码，
+    // 两码各 4 分分别封顶，合计 8（若误把 0.99 与 1.00 归同码会得到 4）
+    let defects = [(Decimal::new(99, 2), 4), (Decimal::new(100, 2), 4)];
+    assert_eq!(sum_four_point_points_capped_per_yard(&defects), 8);
+}
+
+#[test]
+fn test_per_yard_cap_bucket_sum_below_cap_kept() {
+    // 同一码位扣分合计 2+1 未超 4 时按实际计入，排除每码无条件记满 4 的错误语义
+    let defects = [(Decimal::new(500, 2), 2), (Decimal::new(520, 2), 1)];
+    assert_eq!(sum_four_point_points_capped_per_yard(&defects), 3);
+}
+
+#[test]
+fn test_per_yard_cap_mixed_buckets() {
+    // 第 5 码桶内 2+2+3 合计 7 封顶计 4，第 6 码 1 分照计，总 5
+    // （线性合计 8，每码只取最大扣分误法得 4，每码无条件记满误法得 8，断言 5 同时钉死错误语义）
+    let defects = [
+        (Decimal::new(520, 2), 2),
+        (Decimal::new(580, 2), 2),
+        (Decimal::new(590, 2), 3),
+        (Decimal::new(620, 2), 1),
+    ];
+    assert_eq!(sum_four_point_points_capped_per_yard(&defects), 5);
+}
+
+#[test]
+fn test_per_yard_cap_scattered_across_yards_unaffected() {
+    // 10 枚 4 分疵点散布第 3 码至第 30 码各一枚，封顶不改变总数 40
+    let defects: Vec<(Decimal, i32)> = (3..=30)
+        .step_by(3)
+        .map(|yard| (Decimal::new(yard, 0), 4))
+        .collect();
+    assert_eq!(defects.len(), 10);
+    assert_eq!(sum_four_point_points_capped_per_yard(&defects), 40);
+}
+
+#[test]
+fn test_per_yard_cap_empty_defects() {
+    let defects: Vec<(Decimal, i32)> = Vec::new();
+    assert_eq!(sum_four_point_points_capped_per_yard(&defects), 0);
 }
