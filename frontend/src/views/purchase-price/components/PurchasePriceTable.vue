@@ -103,7 +103,7 @@
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
           <el-button
             v-if="row.status === PURCHASE_PRICE_STATUS.APPROVED"
-            v-permission="'purchase_price:update'"
+            v-permission="PERMISSIONS.PURCHASE_PRICE_UPDATE"
             type="primary"
             link
             size="small"
@@ -159,6 +159,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { PERMISSIONS } from '@/constants/permissions';
 import type { PurchasePrice } from '@/api/purchase-price';
 import {
   formatCurrency,

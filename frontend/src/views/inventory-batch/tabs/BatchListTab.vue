@@ -56,7 +56,7 @@
         </el-form>
         <div class="actions">
           <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-          <el-button v-permission="'inventory:create'" type="primary" @click="handleCreate">{{
+          <el-button v-permission="PERMISSIONS.BATCH_CREATE" type="primary" @click="handleCreate">{{
             t('inventoryBatch.batchListTab.buttonCreate')
           }}</el-button>
         </div>
@@ -156,21 +156,21 @@
               t('inventoryBatch.batchListTab.buttonView')
             }}</el-button>
             <el-button
-              v-permission="'inventory:update'"
+              v-permission="PERMISSIONS.BATCH_UPDATE"
               link
               type="primary"
               @click="handleEdit(row)"
               >{{ t('inventoryBatch.batchListTab.buttonEdit') }}</el-button
             >
             <el-button
-              v-permission="'inventory:transfer'"
+              v-permission="PERMISSIONS.BATCH_CREATE"
               link
               type="primary"
               @click="handleTransfer(row)"
               >{{ t('inventoryBatch.batchListTab.buttonTransfer') }}</el-button
             >
             <el-button
-              v-permission="'inventory:delete'"
+              v-permission="PERMISSIONS.BATCH_DELETE"
               link
               type="danger"
               @click="handleDelete(row)"
@@ -258,6 +258,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { logAuxLoadFailure, logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';

@@ -16,11 +16,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('warehouse.index.buttonCreate') }}
         </el-button>
-        <el-button v-permission="'warehouse.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.WAREHOUSE_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('warehouse.index.buttonPrint') }}
         </el-button>
-        <el-button v-permission="'warehouse.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.WAREHOUSE_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('warehouse.index.buttonExport') }}
         </el-button>

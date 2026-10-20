@@ -24,7 +24,7 @@
           <el-icon><Plus /></el-icon>
           {{ t('supplier.index.button.create') }}
         </el-button>
-        <el-button v-permission="'supplier.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.SUPPLIER_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('supplier.index.button.print') }}
         </el-button>

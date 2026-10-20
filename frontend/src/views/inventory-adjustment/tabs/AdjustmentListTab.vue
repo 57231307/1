@@ -98,7 +98,7 @@
             t('inventoryAdjustment.listTab.buttonReset')
           }}</el-button>
           <el-button
-            v-permission="'inventory:create'"
+            v-permission="PERMISSIONS.ADJUSTMENT_CREATE"
             type="primary"
             @click="emit('openForm', 'create', null)"
           >
@@ -218,6 +218,7 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';

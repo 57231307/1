@@ -21,7 +21,11 @@
               <el-icon><Money /></el-icon>{{ t('fund.accountTab.buttonTransfer') }}
             </el-button>
             <!-- P2-10 修复（批次 82 v1 复审）：补齐 v-permission 按钮权限 -->
-            <el-button v-permission="'finance:create'" type="primary" @click="openDialog('create')">
+            <el-button
+              v-permission="PERMISSIONS.FUND_MANAGEMENT_CREATE"
+              type="primary"
+              @click="openDialog('create')"
+            >
               <el-icon><Plus /></el-icon>{{ t('fund.accountTab.buttonCreateAccount') }}
             </el-button>
           </div>
@@ -330,6 +334,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';

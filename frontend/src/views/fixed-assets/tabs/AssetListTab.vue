@@ -15,7 +15,7 @@
         <el-button @click="handleDepreciateAll">
           <el-icon><Refresh /></el-icon>{{ $t('fixedAssets.depreciate') }}
         </el-button>
-        <el-button v-permission="'fixed_assets.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.FIXED_ASSET_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>{{ $t('fixedAssets.export') }}
         </el-button>
       </div>
@@ -375,6 +375,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';

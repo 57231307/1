@@ -20,7 +20,7 @@
           <el-icon><Plus /></el-icon>
           {{ $t('crmCustomer.create') }}
         </el-button>
-        <el-button v-permission="'crm_customer.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.CUSTOMER_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ $t('crmCustomer.print') }}
         </el-button>
@@ -186,9 +186,9 @@
             <el-button type="primary" link size="small" @click="viewDetail(row.id)">{{
               $t('crmCustomer.table.detail')
             }}</el-button>
-            <!-- 编辑/删除按钮受权限键控制（crm_customer:update / crm_customer:delete） -->
+            <!-- 编辑/删除按钮受权限键控制（customers:update / customers:delete） -->
             <el-button
-              v-permission="'crm_customer:update'"
+              v-permission="PERMISSIONS.CUSTOMER_UPDATE"
               type="primary"
               link
               size="small"
@@ -196,7 +196,7 @@
               >{{ $t('crmCustomer.table.edit') }}</el-button
             >
             <el-button
-              v-permission="'crm_customer:delete'"
+              v-permission="PERMISSIONS.CUSTOMER_DELETE"
               type="danger"
               link
               size="small"
@@ -373,6 +373,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';

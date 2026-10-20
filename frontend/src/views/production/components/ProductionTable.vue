@@ -22,6 +22,7 @@
 
 <script setup lang="ts">
 import { h, computed } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { ElTag, ElButton } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
@@ -156,7 +157,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
   // 目标状态取后端 PUT /status 白名单里的值（SCHEDULED/IN_PROGRESS/COMPLETED）
   if (status === 'DRAFT') {
     // 编辑入口提交 PUT /orders/{id}，后端对 resource_id=NULL 行拒绝；与后端同源判定后隐藏
-    if (can('production_order:update') && canEditDetail.value) {
+    if (can(PERMISSIONS.PRODUCTION_ORDER_UPDATE) && canEditDetail.value) {
       buttons.push(
         h(
           ElButton,
@@ -165,7 +166,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
         )
       );
     }
-    if (can('production_order:delete')) {
+    if (can(PERMISSIONS.PRODUCTION_ORDER_DELETE)) {
       buttons.push(
         h(
           ElButton,

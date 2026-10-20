@@ -211,7 +211,7 @@
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.lead_status !== LEAD_STATUS.CONVERTED"
-              v-permission="'crm_lead:update'"
+              v-permission="PERMISSIONS.CRM_LEAD_UPDATE"
               type="primary"
               link
               size="small"
@@ -279,6 +279,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
