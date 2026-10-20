@@ -223,8 +223,8 @@ impl QuotationApprovalService {
                     business_id = quotation.id,
                     "报价提交启动 BPM 流程失败，已拒绝提交（未改动报价单状态），根因如上"
                 );
-                // 文案单源按内层族别如实分支（缺定义→点名流程标识；已可外显→转发
-                // 真实原因；系统族→固定引导）。本发起点 BPM 启动先于状态更新、失败
+                // 文案单源按内层族别如实分支（缺定义时点名流程标识；已可外显时转发
+                // 真实原因；系统族给固定引导）。本发起点 BPM 启动先于状态更新、失败
                 // 即拒绝提交，报价单从未被改动，"报价单未提交"是已确认的真实处置结果。
                 return Err(bpm_start_failure_error(
                     process_key::QUOTATION_APPROVAL,

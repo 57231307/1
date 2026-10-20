@@ -85,11 +85,11 @@ fn bpm_start_failure_system(process_key: &str, document_state: &str) -> String {
 /// 调用方：报价 / 销售订单 / 采购订单 / 生产订单四个发起点的 catch 分支。
 /// 判责口径：出参责任在引擎真实失败的那一族，本函数不吞内层、也不把内层原文
 /// 整串外推：
-/// - 内层 NotFoundDisplayable（缺 ACTIVE 定义，出厂主因）→ 点名流程标识的
+/// - 内层 NotFoundDisplayable（缺 ACTIVE 定义，出厂主因）时，出参点名流程标识的
 ///   行动指引文案（bpm_start_failure_message）；
-/// - 内层已是 Displayable 族（如节点配置错误的 validation_displayable）→
+/// - 内层已是 Displayable 族（如节点配置错误的 validation_displayable）时，
 ///   转发内层已声明安全的真实原因，补流程标识与单据处置上下文；
-/// - 其余（数据库/内部错误等脱敏族）→ 不猜原因的外显形态，给固定引导句；
+/// - 其余（数据库/内部错误等脱敏族）给固定引导句，不猜原因也不外透原文；
 ///   根因原文必须由调用方以 error 级日志全量落盘后方可返回。
 ///
 /// 出参恒为 `business_displayable`：HTTP 400 与 code BUSINESS_ERROR 与四个

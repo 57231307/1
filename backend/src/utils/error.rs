@@ -192,7 +192,7 @@ impl AppError {
     /// 构造**可外显**的"未找到"错误：HTTP 出参 `message` 携带真实文案。
     ///
     /// 仅当文案点名的是用户/管理员可据此直接行动的**公开配置标识**
-    /// （如「流程标识 quotation_approval 未配置」中的流程标识）时使用，
+    /// （如 "流程标识 quotation_approval 未配置" 中的流程标识）时使用，
     /// 且必须满足模块文档的安全边界（不含记录 ID、他人数据、表名、SQL、
     /// 引擎内部细节）；不满足就改用 [`AppError::not_found`]（默认脱敏）。
     pub fn not_found_displayable(msg: impl Into<String>) -> Self {
