@@ -3,6 +3,8 @@
   "reachableRoutes": [
     "/bi/sales-analysis",
     "/bom",
+    "/bpm",
+    "/bpm/approval",
     "/capacity",
     "/dashboard",
     "/dye-batch",
@@ -27,6 +29,7 @@
     "/scheduling",
     "/scheduling/gantt",
     "/supplier",
-    "/supplier-evaluation"
+    "/supplier-evaluation",
+    "/workflow"
   ]
 }

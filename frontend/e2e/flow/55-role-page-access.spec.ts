@@ -210,12 +210,14 @@ async function assertNoBusinessDataLeak(
 // ===========================================================================
 
 test.describe('正向：有权岗位看得到真实数据（非 assertPageHealthy 式假绿）', () => {
-  test('purchaser GET /products → 200 且真行 ≥1 + /product 页渲染出表格行', async ({ page }) => {
-    // 依据：list_products 无行级范围过滤；purchaser 的 products:read 在后端矩阵(purchase_clerk)
+  test('purchase_clerk GET /products → 200 且真行 ≥1 + /product 页渲染出表格行', async ({
+    page,
+  }) => {
+    // 依据：list_products 无行级范围过滤；本岗 products:read 在后端 init 矩阵同名角色分组
     // 与 e2e extras 两个口径下都存在；全局产品种子由 e2e 保证 ≥1（缺则 globalSetup 已判红）。
-    await loginAsRole(page, 'purchaser');
-    await assertEndpointRows(page, '/products?page=1&page_size=20', 'purchaser→/products');
-    await assertPageRendersRows(page, '/product', '/erp/products', 'purchaser→/product 页');
+    await loginAsRole(page, 'purchase_clerk');
+    await assertEndpointRows(page, '/products?page=1&page_size=20', 'purchase_clerk→/products');
+    await assertPageRendersRows(page, '/product', '/erp/products', 'purchase_clerk→/product 页');
   });
 
   test('accountant GET /currencies → 200 且真行 ≥1 + /currency 页渲染出表格行', async ({
@@ -325,22 +327,30 @@ test.describe('正向：有权岗位看得到真实数据（非 assertPageHealth
 // ===========================================================================
 
 test.describe('反向：越权页面/端点看不到且被拒', () => {
-  test('purchaser：越权读客户/销售订单/凭证 → 守卫 /403 + 端点 403；本域产品仍 200（区分端点缺失）', async ({
+  test('purchase_clerk：越权读客户/销售订单/凭证 → 守卫 /403 + 端点 403；本域产品仍 200（区分端点缺失）', async ({
     page,
   }) => {
-    await loginAsRole(page, 'purchaser');
-    // purchaser(purchase_clerk 集 + extras) 不含 customers / orders(销售) / vouchers
-    await assertPageGuardDenied(page, '/customer', 'purchaser 越权 /customer');
-    await assertEndpointDenied(page, '/crm/customers?page=1&page_size=5', 'purchaser 越权读客户');
+    await loginAsRole(page, 'purchase_clerk');
+    // 本岗后端矩阵授权集 + e2e extras 均不含 customers / orders(销售) / vouchers
+    await assertPageGuardDenied(page, '/customer', 'purchase_clerk 越权 /customer');
+    await assertEndpointDenied(
+      page,
+      '/crm/customers?page=1&page_size=5',
+      'purchase_clerk 越权读客户'
+    );
     await assertEndpointDenied(
       page,
       '/sales/orders?page=1&page_size=5',
-      'purchaser 越权读销售订单'
+      'purchase_clerk 越权读销售订单'
     );
-    await assertEndpointDenied(page, '/vouchers?page=1&page_size=5', 'purchaser 越权读凭证');
-    await assertEndpointDenied(page, '/users?page=1&page_size=5', 'purchaser 越权读用户(admin面)');
-    // 对照：purchaser 有权的 /products 可达 200 → 证明上一条 403 是权限拒而非端点整体缺失
-    await assertEndpointRows(page, '/products?page=1&page_size=5', 'purchaser→/products 对照');
+    await assertEndpointDenied(page, '/vouchers?page=1&page_size=5', 'purchase_clerk 越权读凭证');
+    await assertEndpointDenied(
+      page,
+      '/users?page=1&page_size=5',
+      'purchase_clerk 越权读用户(admin面)'
+    );
+    // 对照：purchase_clerk 有权的 /products 可达 200 → 证明上一条 403 是权限拒而非端点整体缺失
+    await assertEndpointRows(page, '/products?page=1&page_size=5', 'purchase_clerk→/products 对照');
   });
 
   test('sales_manager：越权读采购单/凭证/用户 → 端点 403 + 守卫 /403', async ({ page }) => {

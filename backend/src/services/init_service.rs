@@ -121,19 +121,56 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "fixed-assets",
     "budgets",
     "cost-collections",
-    "ar",
-    "ap",
-    "gl",
     "financial-analysis",
     "fund-management",
-    "fund-transfers",
     "currencies",
     "exchange-rates",
     "ar-reconciliations",
+    // 应收对账增强面：根级直接资源，第四段是同一资源下的动作/维度；此前 URL 段可派生却从未进本表
+    // （命中不了注册表即对非超管 fail-closed 403），补登记与 path_utils 的白名单条目同词。
+    "ar-reconciliations-enhanced",
     "accounting-periods",
     "wages",
     "wage-rates",
     "wage-records",
+    // 应付/应收/财务三域发票·付款·核销等资源随域改名（乙波 finance）：与
+    // utils/path_utils.rs::RESOURCE_NAME_MAP 的消歧目标逐字符对齐，缺任一枚该面授权即成死码。
+    "ap-invoices",
+    "ap-payments",
+    "ap-verifications",
+    "ap-payment-requests",
+    "ap-reconciliations",
+    "ap-aging",
+    "ap-daily",
+    "ap-monthly",
+    "ap-statistics",
+    "ar-invoices",
+    "ar-payments",
+    "ar-verifications",
+    "ar-collections",
+    "ar-aging",
+    "ar-daily",
+    "ar-monthly",
+    "ar-statistics",
+    "finance-invoices",
+    "finance-payments",
+    "finance-audit",
+    "finance-balance-sheet",
+    "finance-cash-flow",
+    "finance-general-ledger",
+    "finance-income-statement",
+    "finance-subsidiary-ledger",
+    "finance-trial-balance",
+    "finance-drill-down",
+    // 财务族根级直接资源（第四段是维度/动作，非子资源；从模块前缀降级，与 slow-queries 同型）。
+    "bad-debts",
+    "collection-tasks",
+    "finance-alerts",
+    "assist-accounting",
+    // 路由早已注册、资源段却从未进本表的收编（仅补登记，不改名、不扩权）。
+    "environmental-tax",
+    "export-refunds",
+    "period-adjustments",
     // ===== 能耗域 =====
     "energy-meters",
     "energy-consumptions",
@@ -220,6 +257,20 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // ===== 审批流域 =====
     "export-approvals",
     "role-change-approvals",
+    // BPM 工作流面：`bpm` 是模块前缀，URL 第四段派生出的裸名 tasks/approval/templates 等与
+    // 数据导入域的同名段冲突，故一律按 RESOURCE_NAME_MAP 消歧成 bpm-* 后再登记。
+    // bpm-approvals 面只有 POST /bpm/approval/execute 一个端点，execute 不是路径动作关键字，
+    // 其运行期键因此是 bpm-approvals:create（审批中心的执行入口），不存在 approve 形态的派生键。
+    "bpm-tasks",
+    "bpm-approvals",
+    "bpm-instances",
+    "bpm-process",
+    "bpm-definitions",
+    "bpm-versions",
+    "bpm-templates",
+    "bpm-monitor",
+    "bpm-business-relation",
+    "bpm-visualization",
     // ===== AI 智能域（V15 P0-S26 新增）=====
     // 对应 routes/analytics.rs ai() + advanced() AI 端点 + routes/system.rs ai_extend 端点
     "ai-forecast",

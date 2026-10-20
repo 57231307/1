@@ -66,11 +66,10 @@ fn is_business_module_prefix(part: &str) -> bool {
             | "finance"
             | "ap"
             | "ar"
-            | "assist-accounting"
-            // V15 P1-14.4-D/14.12-B：补齐财务子模块前缀
-            | "bad-debts"
-            | "collection-tasks"
-            | "finance-alerts"
+            // assist-accounting / bad-debts / collection-tasks / finance-alerts 是根级挂载的财务族
+            // 直接资源（与上方 material-shortage/scheduling 同型）：其第四段是同一资源下的查询维度
+            // 或动作（balance/records/writeoffs/auto-generate/trigger-scan…），不是子资源；留在模块前缀
+            // 表会让资源名漂到 seg4、派生注册表外死键。改作直接资源，见 is_core_direct_resource。
             // ===== CRM 域 =====
             | "crm"
             // ===== 质量与追溯域 =====
@@ -190,6 +189,47 @@ const RESOURCE_NAME_MAP: &[(&str, &str, &str)] = &[
     ("system-update", "tasks", "system-update-tasks"),
     ("system-update", "backups", "system-update-backups"),
     ("system-update", "versions", "system-update-versions"),
+    // ===== 财务域资源随域改名（乙波 finance）=====
+    // ap/ar/finance 三个模块前缀下同名 URL 段（invoices/payments/verifications…）必须各归各域，
+    // 否则一名两键、跨域越权或派生注册表外死键。报表子模块（ap/ar/finance 的 reports）资源名在
+    // seg5，走 is_nested_module_prefix 跳段后仍由本表按 (前缀, seg5段) 消歧，跳段判据不动。
+    ("ap", "invoices", "ap-invoices"),
+    ("ap", "payments", "ap-payments"),
+    ("ap", "verifications", "ap-verifications"),
+    ("ap", "payment-requests", "ap-payment-requests"),
+    ("ap", "reconciliations", "ap-reconciliations"),
+    ("ap", "aging", "ap-aging"),
+    ("ap", "daily", "ap-daily"),
+    ("ap", "monthly", "ap-monthly"),
+    ("ap", "statistics", "ap-statistics"),
+    ("ar", "invoices", "ar-invoices"),
+    ("ar", "payments", "ar-payments"),
+    ("ar", "verifications", "ar-verifications"),
+    ("ar", "collections", "ar-collections"),
+    ("ar", "aging", "ar-aging"),
+    ("ar", "daily", "ar-daily"),
+    ("ar", "monthly", "ar-monthly"),
+    ("ar", "statistics", "ar-statistics"),
+    ("finance", "invoices", "finance-invoices"),
+    ("finance", "payments", "finance-payments"),
+    ("finance", "audit", "finance-audit"),
+    ("finance", "balance-sheet", "finance-balance-sheet"),
+    ("finance", "cash-flow", "finance-cash-flow"),
+    ("finance", "general-ledger", "finance-general-ledger"),
+    ("finance", "income-statement", "finance-income-statement"),
+    ("finance", "subsidiary-ledger", "finance-subsidiary-ledger"),
+    ("finance", "trial-balance", "finance-trial-balance"),
+    ("finance", "drill-down", "finance-drill-down"),
+    ("bpm", "tasks", "bpm-tasks"),
+    ("bpm", "approval", "bpm-approvals"),
+    ("bpm", "instances", "bpm-instances"),
+    ("bpm", "process", "bpm-process"),
+    ("bpm", "definitions", "bpm-definitions"),
+    ("bpm", "versions", "bpm-versions"),
+    ("bpm", "templates", "bpm-templates"),
+    ("bpm", "monitor", "bpm-monitor"),
+    ("bpm", "business-relation", "bpm-business-relation"),
+    ("bpm", "visualization", "bpm-visualization"),
 ];
 
 /// 按映射表把模块前缀下的 URL 段对齐到注册表权威资源名；未命中保留原名。
@@ -241,12 +281,17 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "exchange-rates"
             | "ar-reconciliations"
             | "ar-reconciliations-enhanced"
-            | "ar-reconciliation-alias"
             | "period-report-snapshots"
             | "aging-alert-rules"
             | "aging-grades"
             | "asset-categories"
             | "industry-benchmarks"
+            // 财务族根级直接资源（第四段是维度/动作，非子资源；从模块前缀表迁入，与 slow-queries/
+            // material-shortage 同型）：URL 段即权威资源名，登记后派生键与 PERMISSION_RESOURCES 同词。
+            | "bad-debts"
+            | "collection-tasks"
+            | "finance-alerts"
+            | "assist-accounting"
             // ===== 生产直接资源 =====
             | "quality-standards"
             | "print-templates"

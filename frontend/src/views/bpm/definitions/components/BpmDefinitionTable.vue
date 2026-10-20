@@ -59,7 +59,7 @@
       <el-table-column :label="$t('bpm.definitions.table.operation')" width="320" fixed="right">
         <template #default="{ row }">
           <el-button
-            v-permission="'bpm_definition:update'"
+            v-permission="PERMISSIONS.BPM_DEFINITION_UPDATE"
             size="small"
             @click="emit('edit', row)"
             >{{ $t('bpm.definitions.table.edit') }}</el-button
@@ -71,7 +71,7 @@
             {{ $t('bpm.definitions.table.saveAsTemplate') }}
           </el-button>
           <el-button
-            v-permission="'bpm_definition:delete'"
+            v-permission="PERMISSIONS.BPM_DEFINITION_DELETE"
             size="small"
             type="danger"
             @click="emit('delete', row)"
@@ -98,6 +98,7 @@
 import { useI18n } from 'vue-i18n';
 import { getCategoryText, getStatusType, getStatusText } from '../composables/bpmDfFmts';
 import type { ProcessDefinition } from '@/api/bpm-enhanced';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 

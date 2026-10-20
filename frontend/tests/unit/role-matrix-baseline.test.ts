@@ -50,8 +50,8 @@ const SPEC_PATH = resolve('e2e/traversal/44-role-matrix.spec.ts');
  * 已评审入库基线全集（人工审阅后的唯一权威清单）。
  * 扩充条件：某角色候选基线经人工逐条核对权限策略后另行入库，本锁必须同步改为
  * 显式评审结果，禁止为转绿把生成器候选直接塞进这里。
- * 现全集为矩阵六个分组的 33 个角色码。admin 与 e2e_noperm 为初始甲类，
- * 其余 31 个角色基线为逐角色核对权限策略后人工评审入库的结果。
+ * 现全集为矩阵六个分组的 40 个角色码。admin 与 e2e_noperm 为初始甲类，
+ * 其余 38 个角色基线为逐角色核对权限策略后人工评审入库的结果。
  */
 const APPROVED_BASELINES = [
   'admin.json',
@@ -80,6 +80,9 @@ const APPROVED_BASELINES = [
   'purchasing_manager.json',
   'purchaser.json',
   'procurement_specialist.json',
+  'purchase_manager.json',
+  'purchase_clerk.json',
+  'sourcing_specialist.json',
   'supplier_manager.json',
   'warehouse_manager.json',
   'warehouse_keeper.json',
@@ -93,6 +96,10 @@ const APPROVED_BASELINES = [
   'color_card_manager.json',
   'quality_manager.json',
   'quality_inspector.json',
+  'qc_manager.json',
+  'dyeing_master.json',
+  'finishing_master.json',
+  'fabric_inspector.json',
 ];
 
 function syntheticMap(role: string, reachableRoutes: string[]): RoleAccessMap {

@@ -56,6 +56,21 @@ const DISAMBIGUATION_CASES: &[(&str, &str, &str)] = &[
     ("production", "quality-inspection", "quality-inspections"),
     // BI 分析域
     ("bi", "sales", "bi-analysis"),
+    // BPM 工作流域。`bpm` 是模块前缀，第四段若不消歧就派生出裸 tasks/approval/templates 等名：
+    // 其中 tasks 与 templates 同时是数据导入域 /data-import 的第四段（运行时派生同名裸键），
+    // 把裸名登记进注册表会把导入面的建单/取消/重试一并算进审批岗，等于跨域误授。
+    // approval 面只有 POST /bpm/approval/execute，execute 不是路径动作关键字，
+    // 其运行期键因此是 bpm-approvals:create。
+    ("bpm", "tasks", "bpm-tasks"),
+    ("bpm", "approval", "bpm-approvals"),
+    ("bpm", "instances", "bpm-instances"),
+    ("bpm", "process", "bpm-process"),
+    ("bpm", "definitions", "bpm-definitions"),
+    ("bpm", "versions", "bpm-versions"),
+    ("bpm", "templates", "bpm-templates"),
+    ("bpm", "monitor", "bpm-monitor"),
+    ("bpm", "business-relation", "bpm-business-relation"),
+    ("bpm", "visualization", "bpm-visualization"),
 ];
 
 /// 反旁路裸段名清单：这些 segment 绝不得出现在 `PERMISSION_RESOURCES` 中，
@@ -71,6 +86,19 @@ const MUST_NOT_BE_RAW_REGISTERED: &[&str] = &[
     // RFM 档位面的权威键是它行级同族端点所用的 customers；若把裸段名 rfm 登记进注册表，
     // 等于承认"派生名可以由 URL 段直接决定"，上面那条消歧就成了死分支。
     "rfm",
+    // BPM 族十枚裸段名。tasks 与 templates 另被数据导入域派生，approval/instances 等曾被
+    // 存量豁免表整族遮住：登记裸名会让"键看起来已入册"而运行时永远命中不到授权行，
+    // 除超管短路外全员 403。
+    "tasks",
+    "approval",
+    "templates",
+    "instances",
+    "definitions",
+    "versions",
+    "monitor",
+    "process",
+    "visualization",
+    "business-relation",
 ];
 
 /// 默认分支对照表：(module_prefix, resource_segment, expected_passthrough)。

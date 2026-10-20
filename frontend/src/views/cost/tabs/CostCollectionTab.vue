@@ -11,7 +11,7 @@
         <el-button type="primary" @click="openDialog()">
           <el-icon><Plus /></el-icon>{{ t('cost.collectionList.button.create') }}
         </el-button>
-        <el-button v-permission="'cost.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.COST_COLLECTION_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>{{ t('cost.collectionList.button.exportBtn') }}
         </el-button>
       </div>
@@ -135,7 +135,7 @@
         >
           <template #default="{ row }">
             <el-button
-              v-permission="'cost_collection:update'"
+              v-permission="PERMISSIONS.COST_COLLECTION_UPDATE"
               type="primary"
               link
               size="small"
@@ -144,16 +144,17 @@
             >
             <el-button
               v-if="row.status === 'draft' || row.status === 'pending'"
-              v-permission="'cost_collection:approve'"
+              v-permission="PERMISSIONS.COST_COLLECTION_AUDIT"
               type="success"
               link
               size="small"
               @click="auditCollection(row, true)"
               >{{ t('cost.collectionList.button.audit') }}</el-button
             >
+            <!-- 拒绝与通过是同一个审核端点（末段 audit），两入口共用审核键 -->
             <el-button
               v-if="row.status === 'pending'"
-              v-permission="'cost_collection:approve'"
+              v-permission="PERMISSIONS.COST_COLLECTION_AUDIT"
               type="warning"
               link
               size="small"
@@ -161,7 +162,7 @@
               >{{ t('cost.collectionList.button.reject') }}</el-button
             >
             <el-button
-              v-permission="'cost_collection:delete'"
+              v-permission="PERMISSIONS.COST_COLLECTION_DELETE"
               type="danger"
               link
               size="small"
@@ -349,6 +350,7 @@ import {
 } from '@/api/cost';
 import { logger } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
+import { PERMISSIONS } from '@/constants/permissions';
 // 批次 278：迁移到 useTableApi composable，自动管理分页与 loading
 import { useTableApi } from '@/composables/useTableApi';
 

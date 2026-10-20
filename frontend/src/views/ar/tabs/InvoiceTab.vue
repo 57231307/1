@@ -12,11 +12,13 @@
           <el-icon><Plus /></el-icon>
           {{ $t('arModule.invoice.create') }}
         </el-button>
-        <el-button v-permission="'ar.invoice.print'" @click="handlePrintInvoices">
+        <!-- 打印入口只把本页已读到的发票行交给浏览器本地打印，不落后端打印端点，门控取读面键；
+             导出走 GET /ar/invoices/export，权限键按该路径段派生为 ar-invoices:export -->
+        <el-button v-permission="PERMISSIONS.AR_INVOICE_READ" @click="handlePrintInvoices">
           <el-icon><Printer /></el-icon>
           {{ $t('common.print') }}
         </el-button>
-        <el-button v-permission="'ar.invoice.export'" @click="handleExportInvoices">
+        <el-button v-permission="PERMISSIONS.AR_INVOICE_EXPORT" @click="handleExportInvoices">
           <el-icon><Download /></el-icon>
           {{ $t('common.export') }}
         </el-button>
@@ -254,6 +256,7 @@ import { getCustomerList } from '@/api/customer';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { exportFromBackend } from '@/utils/export';
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 

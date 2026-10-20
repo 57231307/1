@@ -4,8 +4,6 @@
     "/admin/failover",
     "/advanced",
     "/api-gateway",
-    "/bpm",
-    "/bpm/approval",
     "/bpm/definitions",
     "/bpm/templates",
     "/business-trace",
@@ -28,7 +26,6 @@
     "/system/audit-log",
     "/system/export-approvals",
     "/system/profile",
-    "/system/slow-query",
-    "/workflow"
+    "/system/slow-query"
   ]
 }

@@ -569,8 +569,8 @@ const SEED_ROLES = [
   'admin',
   'system_admin',
   'department_manager',
-  'purchasing_manager',
-  'purchaser',
+  'purchase_manager',
+  'purchase_clerk',
   'sales_manager',
   'salesperson',
   'warehouse_manager',
@@ -579,17 +579,21 @@ const SEED_ROLES = [
   'accountant',
   'cashier',
   'cost_accountant',
-  'quality_manager',
+  'qc_manager',
   'quality_inspector',
   'production_manager',
-  'production_worker',
+  // 执行侧按三档设岗（染整执行 / 后整执行 / 验布包装），不设泛化工人岗：
+  // 泛化码在后端既无定义也无授权，建出来的账号只有一层外壳权限，矩阵覆盖不到任何真实工序。
+  'dyeing_master',
+  'finishing_master',
+  'fabric_inspector',
   'dyeing_technician',
   'color_card_manager',
   'after_sales_manager',
   'customer_service',
   'report_viewer',
   'auditor',
-  'procurement_specialist',
+  'sourcing_specialist',
   'supplier_manager',
   'inventory_accountant',
   'tax_accountant',
@@ -624,15 +628,17 @@ const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
 // 不越界、不虚构。保密矩阵所需的**不授**purchase/sku-mappings 等对销售角色的保密面，
 // 保持负向断言（403 FORBIDDEN）真实成立。
 const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
-  // purchaser 对齐后端 purchase_clerk 权限集（read、create、update、import，不含 delete）。
+  // purchase_clerk 取后端矩阵同名角色的权限集子面（read、create、update、import，不含 delete）。
   // 覆盖 sku-mapping 用例 A、C、D1、D2b、E1、E3，即产品与供应商只读、目录、对照 CRUD、批量导入。
   // import 是与建单同授本岗的成批建单通路，purchase_clerk 亦有，缺则 E3 批量导入按钮被
   // v-permission 删、用例无法打开导入对话框。
   // product-categories:read —— /product 页挂载即拉产品分类树（api/product.ts GET
-  // /product-categories、/product-categories/tree），缺码则该页对 purchaser 恒 403 噪声，
-  // 权限矩阵用例随之判红。本项目口径为 purchaser 应见产品分类树、补真实种子
+  // /product-categories、/product-categories/tree），缺码则该页对本岗恒 403 噪声，
+  // 权限矩阵用例随之判红。本项目口径为采购员应见产品分类树、补真实种子
   // （非前端降级隐藏）；init 矩阵/迁移通道①②须与此同口径落地（三通道同口径锁）。
-  purchaser: [
+  // 下列每一键都在后端矩阵本岗分组在册：本岗由 init 建角且 is_system=true，API 拒改，
+  // 此面的作用是以回读逐键钉住"三通道确实同口径"，而非由 e2e 侧扩授。
+  purchase_clerk: [
     'sku-mappings:read',
     'sku-mappings:create',
     'sku-mappings:update',
@@ -711,13 +717,60 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   manager: ['export-approvals:create'],
   // 仓管/仓库经理：按四维选匹（发货/调拨）+ 打印成品布入库标签 + 坯布建档读写
   // 与 permission.rs 的 warehouse_keeper 及迁移 m0069/m0097 同口径（三通道锁）。
-  warehouse_keeper: ['pieces:read', 'pieces:print', 'greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
-  warehouse_manager: ['pieces:read', 'pieces:print', 'greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
+  warehouse_keeper: [
+    'pieces:read',
+    'pieces:print',
+    'greige-fabrics:read',
+    'greige-fabrics:create',
+    'suppliers:read',
+  ],
+  warehouse_manager: [
+    'pieces:read',
+    'pieces:print',
+    'greige-fabrics:read',
+    'greige-fabrics:create',
+    'suppliers:read',
+  ],
   // 生产经理：坯布建档与供应商下拉读，与 permission.rs 的 production_manager
   // 及迁移 m0097 同口径（三通道锁）。
   production_manager: ['greige-fabrics:read', 'greige-fabrics:create', 'suppliers:read'],
   // 质检/验布岗：验布打卷页的标签面板需读匹行并可打印（同 m0069 口径）
   quality_inspector: ['pieces:read', 'pieces:print'],
+  // 执行侧三档岗的补授面逐行抄自后端默认授权矩阵同名角色分组，含通配行按矩阵原文写作
+  // resource:*，不自创键、不为用例转绿扩授。三岗均由后端初始化建角且为系统角色
+  // （API 拒改权限），此面的作用是以回读逐键钉住三通道口径一致，缺键即点名判红。
+  dyeing_master: [
+    'dye-batches:*',
+    'dye-batch-lifecycle-logs:read',
+    'dye-batch-operations:*',
+    'dye-batch-reworks:*',
+    'dye-recipes:read',
+    'dye-recipes:create',
+    'production-recipes:read',
+    'chemicals:read',
+    'chemical-lots:read',
+    'flow-cards:read',
+    'flow-cards:update',
+  ],
+  finishing_master: [
+    'production-orders:read',
+    'production-orders:create',
+    'production-orders:update',
+    'dye-batches:read',
+    'dye-batch-operations:create',
+    'flow-cards:read',
+    'flow-cards:update',
+    'fabric-inspections:read',
+  ],
+  fabric_inspector: [
+    'fabric-inspections:*',
+    'fabric-defects:*',
+    'dye-batches:read',
+    'products:read',
+    'quality-standards:read',
+    'pieces:read',
+    'pieces:print',
+  ],
 };
 
 // 边界测试角色

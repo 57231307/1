@@ -1,0 +1,8 @@
+{
+  "role": "dyeing_master",
+  "reachableRoutes": [
+    "/dashboard",
+    "/dye-batch",
+    "/dye-recipe"
+  ]
+}
