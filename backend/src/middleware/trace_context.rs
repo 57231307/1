@@ -3,7 +3,9 @@
 //! 职责：
 //! 1. 从请求的 `traceparent` header 解析或生成新的 `TraceContext`
 //! 2. 把 `TraceContext` 存入 `Request::extensions()` 供 handler / service 读取
-//! 3. 创建 root `tracing::Span`，把 trace_id / span_id 等写入 span 字段
+//! 3. 创建 root `tracing::Span`，把 trace_id / span_id 等写入 span 字段，并用
+//!    `Instrument` 把它绑定到「下游执行加响应收尾」整段 future（异步路径绝不允许
+//!    把同步 enter 守卫持有跨 await，否则线程本地 span 栈会残留已关闭 span 的 id）
 //! 4. 把本次请求的 trace_id 绑定到 `utils::error::TRACE_ID` task-local，使
 //!    **`X-Trace-Id` 响应头与失败响应体里的 `trace_id` 严格同源**
 //! 5. 在响应头回写 `X-Trace-Id`，便于客户端关联日志
@@ -38,6 +40,7 @@ use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::task::Poll;
 use std::time::Instant;
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::observability::span::root_span;
@@ -117,7 +120,7 @@ pub async fn trace_context_middleware(mut request: Request<Body>, next: Next) ->
     // 2. 把 ctx 放入 request extensions，供下游 handler/service 读取
     request.extensions_mut().insert(ctx.clone());
 
-    // 3. 创建 root span 并在 span 内执行下游
+    // 3. 创建 root span，作为本次请求下游全部日志与子 span 的父上下文
     let method = request.method().clone();
     let uri_path = request.uri().path().to_string();
     let span = root_span(&ctx, method.as_str(), &uri_path);
@@ -128,66 +131,84 @@ pub async fn trace_context_middleware(mut request: Request<Body>, next: Next) ->
     //    超时 / 熔断短路、auth/permission/handler 等所有内层）构造的 `AppError`
     //    都能读到同一个 trace_id，从而保证响应体 `trace_id` == `X-Trace-Id` 响应头。
     //
-    //    注意：**这里不承诺「panic 也能回写头」**。panic 的回写能力来自内层的
-    //    `catch_panic_middleware`（它把 panic 变成正常的 500 响应，本函数之后的代码
-    //    因此得以继续执行）；若 panic 穿透到本函数之上，下面第 5/6 步不会运行。
-    //    见模块文档「panic 捕获层」。
-    let _guard = span.enter();
-    let mut response = TRACE_ID.scope(trace_uuid, next.run(request)).await;
-
-    // 5. V15 P2 20.1-C：tail-based sampling — 5xx / 慢请求强制采样
-    let elapsed_ms = start.elapsed().as_millis() as u64;
-    let status = response.status();
-    let is_5xx = status.is_server_error();
-    let is_slow = elapsed_ms > slow_request_threshold_ms();
-
-    if is_5xx || is_slow {
-        // 强制采样：在响应头中标记 `X-Trace-Sampled: forced`
-        // OTel Collector 可据此决定保留此 trace
-        let v = HeaderValue::from_static("forced");
-        response
-            .headers_mut()
-            .insert(HeaderName::from_static("x-trace-sampled"), v);
-        tracing::warn!(
-            trace_id = %ctx.trace_id,
-            span_id = %ctx.span_id,
-            method = %method,
-            path = %uri_path,
-            status = %status,
-            elapsed_ms = %elapsed_ms,
-            is_5xx = is_5xx,
-            is_slow = is_slow,
-            "trace.tail_sampled"
-        );
-    }
-
-    // 6. 把 trace_id 写入响应头（X-Trace-Id）
+    //    span 上下文由 instrument 交给被 poll 的 future 承载。instrumented future 在
+    //    单次 poll 内成对进出该 span，让出（Pending）时守卫已随该次 poll 的栈帧退出，
+    //    线程本地 span 栈上不会留下跨 await 的条目。异步代码绝不允许把同步 enter 守卫
+    //    持有跨过 await 点。Entered 只借出 Span 的引用，因此是 Send，编译器不会拦，
+    //    但它的 push 发生在让出前的 worker、exit 发生在恢复后的 worker，后者的栈上
+    //    找不回该 id 即空转，前者的栈上永久残留这个 id；该 span 关闭后，下一个被调度到
+    //    同一 worker 的请求创建子 span 时会把这个已失效 id 当父级去 clone_span，命中
+    //    tracing-subscriber 分片注册表的引用计数断言并 panic，再由内层
+    //    `catch_panic_middleware` 转成偶发 500。本函数第 5/6 步与被兜住的日志同处一个
+    //    span 上下文，出参字段形态不变。
     //
-    //    与失败响应体的 trace_id 同源：两者都来自第 4 步绑定的 `trace_uuid`
-    //    （`AppError::into_response` 读 `TRACE_ID` task-local）。这里用 `or_insert`
-    //    语义仅在缺失时写入，已写入时保持同值、不产生第二种形态。
-    let header_value = trace_uuid.simple().to_string();
-    let expected = HeaderValue::from_str(&header_value).unwrap_or_else(|e| {
-        // trace_uuid 来自 Uuid，必定是可进 header 的 ASCII hex；不可达仍需显式记录
-        tracing::error!(trace_id = %header_value, error = %e, "X-Trace-Id 头值构造失败");
-        HeaderValue::from_static("")
-    });
-    response
-        .headers_mut()
-        .entry(HeaderName::from_static(X_TRACE_ID_HEADER))
-        .or_insert(expected);
+    //    注：**这里不承诺「panic 也能回写头」**。panic 的回写能力来自内层的
+    //    `catch_panic_middleware`（它把 panic 变成正常的 500 响应，第 5/6 步因此得以
+    //    继续执行）；若 panic 穿透到本函数之上，第 5/6 步不会运行。见模块文档
+    //    「panic 捕获层」。
+    TRACE_ID
+        .scope(
+            trace_uuid,
+            async move {
+                let mut response = next.run(request).await;
 
-    tracing::info!(
-        trace_id = %ctx.trace_id,
-        span_id = %ctx.span_id,
-        method = %method,
-        path = %uri_path,
-        status = %status,
-        elapsed_ms = %elapsed_ms,
-        "trace.complete"
-    );
+                // 5. tail-based sampling，5xx 与慢请求强制采样
+                let elapsed_ms = start.elapsed().as_millis() as u64;
+                let status = response.status();
+                let is_5xx = status.is_server_error();
+                let is_slow = elapsed_ms > slow_request_threshold_ms();
 
-    response
+                if is_5xx || is_slow {
+                    // 强制采样，在响应头中标记 `X-Trace-Sampled: forced`
+                    // OTel Collector 可据此决定保留此 trace
+                    let v = HeaderValue::from_static("forced");
+                    response
+                        .headers_mut()
+                        .insert(HeaderName::from_static("x-trace-sampled"), v);
+                    tracing::warn!(
+                        trace_id = %ctx.trace_id,
+                        span_id = %ctx.span_id,
+                        method = %method,
+                        path = %uri_path,
+                        status = %status,
+                        elapsed_ms = %elapsed_ms,
+                        is_5xx = is_5xx,
+                        is_slow = is_slow,
+                        "trace.tail_sampled"
+                    );
+                }
+
+                // 6. 把 trace_id 写入响应头（X-Trace-Id）
+                //
+                //    与失败响应体的 trace_id 同源，两者都来自第 4 步绑定的 `trace_uuid`
+                //    （`AppError::into_response` 读 `TRACE_ID` task-local）。这里用
+                //    `or_insert` 语义仅在缺失时写入，已写入时保持同值、不产生第二种形态。
+                let header_value = trace_uuid.simple().to_string();
+                let expected = HeaderValue::from_str(&header_value).unwrap_or_else(|e| {
+                    // trace_uuid 来自 Uuid，必定是可进 header 的 ASCII hex；不可达仍需显式记录
+                    tracing::error!(trace_id = %header_value, error = %e, "X-Trace-Id 头值构造失败");
+                    HeaderValue::from_static("")
+                });
+                response
+                    .headers_mut()
+                    .entry(HeaderName::from_static(X_TRACE_ID_HEADER))
+                    .or_insert(expected);
+
+                tracing::info!(
+                    trace_id = %ctx.trace_id,
+                    span_id = %ctx.span_id,
+                    method = %method,
+                    path = %uri_path,
+                    status = %status,
+                    elapsed_ms = %elapsed_ms,
+                    "trace.complete"
+                );
+
+                response
+            }
+            .instrument(span),
+        )
+        .await
 }
 
 /// 把 panic 载荷转成人可读的原因字符串。
