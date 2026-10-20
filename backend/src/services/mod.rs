@@ -147,6 +147,8 @@ pub mod bpm_service_dto;
 pub mod bpm_ops;
 // 批次 95 P3-15：bpm_service_stub.rs 重命名为 bpm_process_definition_service.rs（消除 stub 误导）
 pub mod bpm_process_definition_service;
+// 出厂内置 BPM 审批流程定义幂等种子（启动链与初始化完成处调用，见 bootstrap/service_bootstrap.rs）
+pub mod bpm_definition_seed;
 pub mod budget_management_service;
 pub mod cost_collection_service;
 pub mod customer_credit_evaluate;

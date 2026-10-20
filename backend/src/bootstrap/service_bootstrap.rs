@@ -158,6 +158,8 @@ pub async fn bootstrap_full_mode(
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     seed_product_categories(&app_state).await;
+    // BPM 出厂审批流程定义种子（幂等补种四类提交审批链路的流程定义，失败仅告警不阻塞启动）
+    seed_bpm_builtin_definitions(&app_state).await;
     init_es_indices().await;
     // 启动 WebSocket Redis Pub/Sub 多实例广播订阅器
     let ws_pubsub_handle =
@@ -1110,6 +1112,21 @@ async fn seed_product_categories(app_state: &AppState) {
         Err(e) => warn!(
             error = %e,
             "产品分类默认种子失败（不阻塞启动，新建产品表单将无分类候选）"
+        ),
+    }
+}
+
+/// 启动时幂等补种出厂内置 BPM 审批流程定义（报价单/销售订单/采购订单/生产订单四类提交审批链路）。
+///
+/// 只补 code 缺失者、绝不覆盖既有定义（用户调整永不受影响）；admin 角色尚无启用用户时（未初始化）
+/// 内部记 warn 跳过，不阻塞启动。审批发起链路是 fail-closed 的——缺定义会让报价/销售订单提交审批报
+/// 400，本种子保证出厂即可用。失败仅 warn，与产品/打印种子一致的启动期容错口径。
+async fn seed_bpm_builtin_definitions(app_state: &AppState) {
+    match crate::services::bpm_definition_seed::seed_builtin_bpm_definitions(&app_state.db).await {
+        Ok(()) => {}
+        Err(e) => warn!(
+            error = %e,
+            "BPM 出厂审批流程定义种子失败（不阻塞启动，但缺定义将令提交审批报 400，需人工在流程定义页补建）"
         ),
     }
 }
