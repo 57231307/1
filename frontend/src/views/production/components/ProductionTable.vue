@@ -156,7 +156,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
   // 目标状态取后端 PUT /status 白名单里的值（SCHEDULED/IN_PROGRESS/COMPLETED）
   if (status === 'DRAFT') {
     // 编辑入口提交 PUT /orders/{id}，后端对 resource_id=NULL 行拒绝；与后端同源判定后隐藏
-    if (can('production_order:update') && canEditDetail.value) {
+    if (can('production-orders:update') && canEditDetail.value) {
       buttons.push(
         h(
           ElButton,
@@ -165,7 +165,7 @@ const renderActionButtons = (row: ProductionOrder): ReturnType<typeof h>[] => {
         )
       );
     }
-    if (can('production_order:delete')) {
+    if (can('production-orders:delete')) {
       buttons.push(
         h(
           ElButton,
