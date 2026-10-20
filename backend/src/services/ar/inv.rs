@@ -50,17 +50,34 @@ impl ArReconciliationService {
             .all(&*self.db)
             .await?;
 
+        // 客户名称取主数据真值：对账单 PDF 是对外交付物，主数据缺行即点名失败，
+        // 禁止用"客户#<id>"这类占位串出具（查库错误按 ? 上抛，不吞成缺行）
+        let customer_name = customer::Entity::find_by_id(model.customer_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!(
+                    "客户 {} 主数据不存在，无法生成对账单 {}",
+                    model.customer_id, model.reconciliation_no
+                ))
+            })?
+            .customer_name;
+
         // 生成PDF内容
-        let pdf_content = self.generate_reconciliation_pdf(&model, &items)?;
+        let pdf_content = self.generate_reconciliation_pdf(&model, &items, &customer_name)?;
 
         Ok(pdf_content)
     }
 
     /// 生成对账单PDF
+    ///
+    /// 入参：对账单主记录、其明细行，以及调用方从客户主数据取到的真实客户名称
+    /// （本方法不做查询，也不得自行造名）；产出 PDF 字节流交给上层导出通道。
     fn generate_reconciliation_pdf(
         &self,
         reconciliation: &ReconciliationModel,
         items: &[ReconciliationItemModel],
+        customer_name: &str,
     ) -> Result<Vec<u8>, AppError> {
         use crate::services::export_service::{ExportService, ReconciliationPdfItem};
 
@@ -78,13 +95,10 @@ impl ArReconciliationService {
             })
             .collect();
 
-        // 获取客户名称
-        let customer_name = format!("客户#{}", reconciliation.customer_id);
-
         // 生成PDF
         ExportService::generate_reconciliation_pdf(
             &reconciliation.reconciliation_no,
-            &customer_name,
+            customer_name,
             &reconciliation.period_start.format("%Y-%m-%d").to_string(),
             &reconciliation.period_end.format("%Y-%m-%d").to_string(),
             reconciliation
