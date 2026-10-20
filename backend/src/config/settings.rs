@@ -79,6 +79,11 @@ pub struct AppSettings {
     /// 扩展未安装时静默 warn 失败不阻断启动；CI/单机环境可在配置中关闭。
     #[serde(default)]
     pub slow_query: SlowQuerySettings,
+    /// 后台周期扫描/补偿任务组配置（service_bootstrap 启动链按本段挂载调度循环）。
+    /// 段或字段缺失时逐 job 走各自 `Default` impl 显式声明的默认值；
+    /// 环境变量覆盖键形如 `BACKGROUND_JOBS__ES_RECONCILE__INTERVAL_SECS`（config crate `__` 分隔符约定）。
+    #[serde(default)]
+    pub background_jobs: BackgroundJobsConfig,
     /// 面料行业配置（6 个核心配置项，支持环境变量覆盖）
     /// 缺失时走 [`FabricIndustryConfig::default()`]，关键配置（如 dyehouse_vat_count）由 main.rs fail-fast 校验。
     #[serde(default)]
@@ -221,6 +226,132 @@ impl Default for SlowQuerySettings {
             interval_secs: 300,
             threshold_ms: 100.0,
             limit_rows: 100,
+        }
+    }
+}
+
+/// 后台周期扫描/补偿任务组配置（`background_jobs` 段）。
+///
+/// 每个 job 的开关/周期/首轮延迟/批量上限都在本层显式声明默认值（Default impl），
+/// bootstrap 调度链只读配置、不在源码写魔法数字。优先级：
+/// 环境变量 `BACKGROUND_JOBS__<job>__<字段>` > config.yaml `background_jobs` 段 > Default 默认值。
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct BackgroundJobsConfig {
+    /// 财务预警扫描调度（定时调用财务预警服务全量扫描，生成应收逾期/库存积压/现金缺口/预算超支四类预警）
+    pub finance_alert_scan: FinanceAlertScanJob,
+    /// 催收任务自动生成调度（按应收账龄定时扫描逾期发票并幂等生成催收任务）
+    pub collection_task_auto_generate: CollectionTaskAutoGenerateJob,
+    /// 劳动合同到期扫描调度（定时执行到期档位扫描，并把已到期合同自动流转为过期态）
+    pub labor_contract_expiry_scan: LaborContractExpiryScanJob,
+    /// ES 搜索索引对账补偿调度（以 PG 为权威源周期重建 customers/products/sales_orders 三个已同步索引）
+    pub es_reconcile: EsReconcileJob,
+}
+
+/// 财务预警扫描 job 配置。默认值口径：扫描周期 6 小时与库存告警通知调度同档
+/// （预警候选按天粒度变化，更密周期只增空转）；首轮延迟 180 秒避开启动初始化争抢 DB。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct FinanceAlertScanJob {
+    /// 是否启用财务预警扫描调度
+    pub enabled: bool,
+    /// 扫描间隔（秒）
+    pub interval_secs: u64,
+    /// 进程启动后的首轮延迟（秒）
+    pub initial_delay_secs: u64,
+}
+
+impl Default for FinanceAlertScanJob {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: 21_600,
+            initial_delay_secs: 180,
+        }
+    }
+}
+
+/// 催收任务自动生成 job 配置。
+///
+/// `assign_user_id` 为自动任务默认受派人（users.id）：催收任务表 assigned_to 列是
+/// NOT NULL 外键，业务上"自动生成后先由谁催收"属部署口径，**无安全代码默认值**，
+/// 必须由部署方显式配置；未配置时启动链记 warn 并跳过挂载（禁止把任务派给任意写死的用户）。
+/// `min_overdue_days` 保持 None = 交由服务层按其自身声明的业务默认（1 天）执行，避免两处默认漂移。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct CollectionTaskAutoGenerateJob {
+    /// 是否启用催收任务自动生成调度
+    pub enabled: bool,
+    /// 扫描间隔（秒）
+    pub interval_secs: u64,
+    /// 进程启动后的首轮延迟（秒）
+    pub initial_delay_secs: u64,
+    /// 逾期天数下限（None = 使用催收服务 auto_generate_tasks 声明的业务默认）
+    pub min_overdue_days: Option<i32>,
+    /// 自动任务默认受派人用户 ID（collection_tasks.assigned_to 外键目标）
+    pub assign_user_id: Option<i32>,
+}
+
+impl Default for CollectionTaskAutoGenerateJob {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: 86_400,
+            initial_delay_secs: 300,
+            min_overdue_days: None,
+            assign_user_id: None,
+        }
+    }
+}
+
+/// 劳动合同到期扫描 job 配置。默认值口径：合同到期档位以"天"变化，每日扫描一次即可
+/// 保证已到期合同在 24 小时内自动流转过期态；首轮延迟 240 秒避开启动初始化争抢 DB。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct LaborContractExpiryScanJob {
+    /// 是否启用劳动合同到期扫描调度
+    pub enabled: bool,
+    /// 扫描间隔（秒）
+    pub interval_secs: u64,
+    /// 进程启动后的首轮延迟（秒）
+    pub initial_delay_secs: u64,
+}
+
+impl Default for LaborContractExpiryScanJob {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: 86_400,
+            initial_delay_secs: 240,
+        }
+    }
+}
+
+/// ES 对账补偿 job 配置。
+///
+/// `batch_size` 一值两用：PG→ES 分页重推的每批文档数，以及 sales_orders 域
+/// 单轮"整单明细重建"补偿的封顶条数（超出部分显式记入顺延下一轮的日志）。
+/// 默认每小时对账一轮；`ELASTICSEARCH_URL` 未配置（进程内 mock 存储）时启动链不挂载本任务。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct EsReconcileJob {
+    /// 是否启用 ES 对账补偿调度
+    pub enabled: bool,
+    /// 对账间隔（秒）
+    pub interval_secs: u64,
+    /// 进程启动后的首轮延迟（秒）
+    pub initial_delay_secs: u64,
+    /// 单批文档数 / sales_orders 域单轮重建补偿封顶
+    pub batch_size: u64,
+}
+
+impl Default for EsReconcileJob {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: 3_600,
+            initial_delay_secs: 300,
+            batch_size: 500,
         }
     }
 }
