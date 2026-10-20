@@ -18,9 +18,6 @@ on:
       run_e2e:
         description: '是否跑 Android 模拟器端到端（发布轮传字符串 false，避免把发布卡在模拟器上；布尔 false 会被类型检查拒绝）'
         type: string
-        options:
-          - 'true'
-          - 'false'
         default: 'false'
   workflow_dispatch:
     inputs:
