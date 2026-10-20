@@ -43,6 +43,7 @@
             <el-date-picker
               v-model="localData.order_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('sales.orderForm.datePlaceholder')"
               style="width: 100%"
             />
@@ -55,6 +56,7 @@
             <el-date-picker
               v-model="localData.required_date"
               type="date"
+              value-format="YYYY-MM-DD"
               :placeholder="t('sales.orderForm.datePlaceholder')"
               style="width: 100%"
             />
@@ -254,7 +256,7 @@ interface OrderForm {
   id?: number;
   customer_id: number | undefined;
   customer_name: string;
-  order_date: Date | string;
+  order_date: string;
   required_date: string;
   contact_person: string;
   contact_phone: string;
@@ -286,7 +288,10 @@ const localData = reactive<OrderForm>({
   id: 0,
   customer_id: undefined,
   customer_name: '',
-  order_date: new Date(),
+  order_date: (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })(),
   required_date: '',
   contact_person: '',
   contact_phone: '',
