@@ -159,7 +159,14 @@ impl BpmService {
             .filter(bpm_process_definition::Column::Status.eq("ACTIVE"))
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::not_found("Process definition not found or inactive"))?;
+            .ok_or_else(|| {
+                // 根因可外显且点名流程编码：缺的是哪个流程、该去配什么，提交人/运维直接可行动，
+                // 不再是一句无键名的英文 not_found（上层按安全边界重裹后根因就丢了）。
+                AppError::not_found(format!(
+                    "审批流程定义不存在或未激活：{}，请先在流程定义中创建该编码的流程并置为 ACTIVE",
+                    req.process_key
+                ))
+            })?;
 
         // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
         // 原实现基于时间戳 + business_id，同秒并发 + 同 business_id 会产生重复单号
