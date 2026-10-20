@@ -32,7 +32,7 @@
 //     服务端取号，不会互相冲突；定义删除会因实例外键失败，tryCleanup 仅告警）；
 //   - BpmProcessFinished 事件总线的下游订阅联动（各业务单据"审批完成回写"由各业务域链自证）；
 //   - 边条件表达式 ${amount}>N 的路由分支（evaluate_bpm_condition 有后端单测锁，本链用无条件直线流程）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

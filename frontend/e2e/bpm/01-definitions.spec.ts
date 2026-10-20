@@ -1,7 +1,7 @@
 // BPM 审批管理 E2E 套件 — 01 流程定义
 // 创建时间: 2026-08-19
 // 覆盖范围：流程定义创建 → 编辑 → 版本管理
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';

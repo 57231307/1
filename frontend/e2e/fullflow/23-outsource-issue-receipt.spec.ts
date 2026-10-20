@@ -43,7 +43,7 @@
 //   e2e 活体覆盖：23-05 建单落值+回读+三态（键缺席保持/显式 null 清空/有值覆盖）+confirm 出参透传；
 //   23-06 值域负例（0/负数建单与更新口一律 400+VALIDATION_ERROR，拒绝零变化）。
 //   权限/校验类拒绝文案永久脱敏 ⇒ 只断 status+信封 code，不断任何中文文案（与 23-02 D2 同口径）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

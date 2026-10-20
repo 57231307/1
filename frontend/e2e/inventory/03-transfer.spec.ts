@@ -3,7 +3,7 @@
 // 说明：库存页 /inventory 上不存在「库存调拨」Tab（也无 TransferDialog 组件），
 // 调拨入口统一为 /inventory 页头「库存调拨」按钮（router.push InventoryTransfer）。
 // 本套件测正规页 views/inventory-transfer 的真实交互路径。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

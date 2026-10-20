@@ -22,7 +22,7 @@
 //     维度值取自本用例自建入库后回读的真实库存行（不硬编码、不塞 TEST 假值）。
 //     四维口径核对：本退货链路后端定位键 = 产品+色号+缸号+批次（三维追溯 + 产品），
 //     不含匹号——出库销售侧的「缸号/色号/批次/匹号」四维强制不适用于采购退货，不擅自扩维。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

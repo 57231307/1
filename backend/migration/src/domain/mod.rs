@@ -33,6 +33,9 @@
 //!   默认（一人多岗为纺织厂常态），财务钱账分管 6 对保持内置默认；按精确三元组删除并
 //!   在删除前后各做一次财务 6 对在场自检；置于链尾为新的顶层条目，复用库上也必然执行
 //!   （并入已应用的 finance 域会在复用库上被整体跳过，删种永不生效）
+//! - fulfillment_source_and_po_origin: 流转链地基两列（sales_order_items 补可空链来源列
+//!   fulfillment_source 带三值 CHECK + purchase_orders 补可空转采来源销售订单列
+//!   source_sales_order_id 外键与检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
 //! - finance_resource_rename: 财务域权限资源键改名波（role_permissions.resource_type 旧 URL 段名
 //!   逐对改写到随域改名新资源名，唯一索引冲突预检 + 一对多按裸值无法判域的失败可见闸门；
 //!   置于链尾为新的顶层条目，复用库上也必然执行）
@@ -65,6 +68,7 @@ pub mod print_subsystem;
 pub mod company_profile;
 pub mod bulk_color_item_link;
 pub mod role_conflicts_drop_production_sod;
+pub mod fulfillment_source_and_po_origin;
 pub mod finance_resource_rename;
 pub mod bpm_approver_grant;
 pub mod system_admin_bpm_config_grant;

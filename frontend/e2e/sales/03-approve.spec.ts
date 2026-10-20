@@ -25,7 +25,7 @@
 // - 列表可按「订单号」子串精确筛选（SalesOrderFilter order_no 输入 → 后端 order_no LIKE 下推，
 //   order_query.rs:164 contains），唯一 order_no 使筛选结果收敛为本例那一行。
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

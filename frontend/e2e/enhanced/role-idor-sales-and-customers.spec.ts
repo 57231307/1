@@ -28,7 +28,7 @@
 //   当前角色种子里没有任何**非 admin** 角色持有 customers:read 权限码，
 //   因此「客户详情/360 数据范围层 403」（customer_ops/crud.rs:88-94、crm/cust.rs:159-165）
 //   在现有授权面下不可达——第 3 节用例只能如实钉 RBAC 层 403，钉不了 data-scope 层。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import {
   apiCall,
   apiCallRaw,

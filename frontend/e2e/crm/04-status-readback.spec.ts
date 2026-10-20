@@ -5,7 +5,7 @@
 //   - 非法 lead_status → 400 VALIDATION_ERROR（取值域校验，displayable 外显真实原因；负例）
 //   - 非法商机阶段流转 → 400 BUSINESS_ERROR（阶段流转门，脱敏出参「业务处理失败」；负例）
 // 真实后端 + 回读，不依赖 UI toast。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

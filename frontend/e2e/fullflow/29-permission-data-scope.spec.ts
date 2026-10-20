@@ -41,7 +41,7 @@
 //   - RLS 策略层（PostgreSQL app.user_id 会话变量）与应用层过滤的双保险一致性——需 DBA 侧验证；
 //   - 权限缓存跨实例失效（Redis pub/sub，permission.rs:400-461）单实例 CI 下不可测；
 //   - print/export 角色黑名单（permission.rs:463-478）与字段级写权限（field-permissions）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

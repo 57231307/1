@@ -1,6 +1,6 @@
 // 生产计划 E2E 套件 — 01 生产工单创建与排产（draft → approved → 排产）
 // 覆盖范围：新建生产订单、草稿编辑、已审批工单计划排产（APPROVED → 已排产）
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
 import { pickSelectIn, fillFieldByLabel, escRe, pickListArray } from '../flow/ui-helpers';

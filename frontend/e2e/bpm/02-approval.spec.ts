@@ -1,7 +1,7 @@
 // BPM 审批管理 E2E 套件 — 02 审批中心
 // 创建时间: 2026-08-19
 // 覆盖范围：待办审批（同意/拒绝/转交） → 已办查看 → 审批链追溯
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 /**

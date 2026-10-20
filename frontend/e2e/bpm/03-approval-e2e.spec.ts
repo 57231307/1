@@ -6,7 +6,7 @@
 //   - 建流程定义 → 发起流程实例 → 待办出现 → 审批同意 → 已办出现
 //   - 审批拒绝 → 任务状态变为 rejected
 //   - 非法审批动作 → 400
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   apiCall,

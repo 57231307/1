@@ -1,7 +1,7 @@
 // 系统管理 E2E 套件 — 01 用户与角色
 // 创建时间: 2026-08-19
 // 覆盖范围：用户管理（创建/编辑） + 角色管理（创建/权限配置）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 

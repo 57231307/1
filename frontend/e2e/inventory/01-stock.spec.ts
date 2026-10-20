@@ -1,7 +1,7 @@
 // 库存管理 E2E 套件 — 01 库存调整
 // 创建时间: 2026-08-19
 // 覆盖范围：库存调整完整流程（盘盈/盘亏创建与提交）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 

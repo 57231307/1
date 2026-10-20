@@ -14,7 +14,7 @@
 // 故该用例在专用页修正为“已生效（active）合同可执行”，并以剩余金额守卫回读执行是否真实落库
 // （后端无执行记录读回端点，第二次超量执行被 purchase_contract_service.rs 的
 //   check_remaining_amount_txn 拒绝即证明第一次执行已持久化）。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { safeGoto, pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';
 import {

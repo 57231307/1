@@ -13,6 +13,7 @@
  * - 业务流程测试严禁调用 mockBusinessApi（违反规则 5）
  */
 import type { BrowserContext, Page } from '@playwright/test';
+import { workerPasswordFromEnv, workerUsernameFromEnv } from '../worker-auth';
 
 /** 测试用户信息（mock，仅 smoke 测试用） */
 const MOCK_USER = {
@@ -142,11 +143,13 @@ export function getAiTestUsername(): string {
  * 实现从 mock 换为真实 API 登录，根除 55 spec 的 mock 依赖。
  * 保持函数名与签名不变，55 个 spec 的 import 与调用点零改动。
  *
- * 登录账号使用与 global-setup 一致的分片账号（TEST_USERNAME/TEST_PASSWORD env），
+ * 登录账号默认取「本 worker 的会话账号」——与 context 的初始会话态同源（由 worker 作用域
+ * fixture 注入本进程 env）。若缺省仍登成整片共用账号，后端"登录即清除该用户既有 CSRF 凭据"
+ * 会把其他并发 worker 的会话打死，正是同分片同用例确定性 403 的成因。
  * 登录后 addCookies 注入 Set-Cookie 全量，后续请求自动携带认证态。
  * injectAuthToken/mockAuthMe/mockInitStatus 三个 mock 函数体保留但不再调用。
  *
- * opts.username：显式指定登录账号（AI 限流隔离场景），缺省按分片派生 e2e_admin_s{n}。
+ * opts.username：显式指定登录账号（AI 限流隔离、角色协作场景），缺省取本 worker 会话账号。
  */
 export async function applyAuthMocks(
   context: BrowserContext,
@@ -156,11 +159,8 @@ export async function applyAuthMocks(
 
   const apiBase = process.env.API_BASE || 'http://localhost:8082';
   const apiPrefix = '/api/v1/erp';
-  const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
-  const baseUsername = process.env.E2E_BASE_USERNAME || 'e2e_admin';
-  const basePassword = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
-  const username =
-    opts?.username ?? (shardIndex !== '' ? `e2e_admin_s${shardIndex}` : baseUsername);
+  const username = opts?.username ?? workerUsernameFromEnv();
+  const password = workerPasswordFromEnv();
 
   const ctx = await request.newContext({
     baseURL: apiBase,
@@ -171,7 +171,7 @@ export async function applyAuthMocks(
   });
 
   const resp = await ctx.post(`${apiPrefix}/auth/login`, {
-    data: { username, password: basePassword },
+    data: { username, password },
   });
 
   if (!resp.ok()) {

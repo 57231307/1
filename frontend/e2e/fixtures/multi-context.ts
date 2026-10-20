@@ -14,6 +14,7 @@
  */
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { injectAuthToken, mockInitStatus } from './auth';
+import { workerPasswordFromEnv, workerUsernameFromEnv } from '../worker-auth';
 
 /**
  * 角色凭据配置
@@ -49,21 +50,21 @@ export interface IsolatedSession {
  * - E2E_MANAGER_USERNAME / E2E_MANAGER_PASSWORD
  * - E2E_OPERATOR_USERNAME / E2E_OPERATOR_PASSWORD
  *
- * 缺失时回退到 TEST_USERNAME / TEST_PASSWORD（admin 角色）
+ * 缺失时的取身份口径：
+ * - admin 角色 → 本 worker 的会话账号（由 worker 作用域 fixture 注入本进程 env）。
+ *   绝不回落到分片主账号或基础管理员账号：整片共用一个账号 + 多并发 worker 会互相打死
+ *   一次性消费的 CSRF 凭据；会话未绑定时由 worker-auth 显式抛错点名注入来源。
+ * - 其它角色 → 必须显式给 env，否则抛错（fail-secure，禁止硬编码凭据）。
  */
 export function loadRoleCredentials(role: string): RoleCredentials {
   const envPrefix = `E2E_${role.toUpperCase()}`;
   const username = process.env[`${envPrefix}_USERNAME`];
   const password = process.env[`${envPrefix}_PASSWORD`];
 
-  // 回退：admin 角色使用 TEST_USERNAME / TEST_PASSWORD
+  // 回退：admin 角色用本 worker 的会话身份（与 context 初始会话态同源）
   if (!username || !password) {
     if (role === 'admin') {
-      const fallbackUser = process.env.TEST_USERNAME;
-      const fallbackPass = process.env.TEST_PASSWORD;
-      if (fallbackUser && fallbackPass) {
-        return { role, username: fallbackUser, password: fallbackPass };
-      }
+      return { role, username: workerUsernameFromEnv(), password: workerPasswordFromEnv() };
     }
     throw new Error(
       `E2E 多角色测试需要环境变量 ${envPrefix}_USERNAME / ${envPrefix}_PASSWORD` +

@@ -16,7 +16,7 @@
  *   原先这里写着"使用 mock 模式（不依赖真实后端数据）"，属误导性的过时注释。
  * - 通过 fixtures/rpa.ts 与 fixtures/network.ts 的工具函数
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { observeRequests } from '../fixtures/network';
 import {

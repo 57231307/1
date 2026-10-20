@@ -7,7 +7,7 @@
 // `getByLabel(/客户/)` 命中的形式）。真实数据下这些条件可能不成立即 0 断言 → 假绿。
 // 现改为：真实造一张草稿报价单 → 进详情页硬断言渲染内容（标题/报价单号/状态标签）→
 // 从详情页点「编辑」→ 硬断言进入编辑页且表单渲染。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import {
   loginViaUI,
   ensureTestEntities,

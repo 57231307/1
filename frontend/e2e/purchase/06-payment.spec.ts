@@ -1,7 +1,7 @@
 // P9-4 采购 E2E 套件 — 06 采购付款
 // 覆盖范围：采购付款全流程（4 用例）
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw } from '../flow/helpers';
 import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';

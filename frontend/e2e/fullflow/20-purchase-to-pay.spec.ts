@@ -37,7 +37,7 @@
 //   收货，并断言由此产生的库存行四维默认口径（color/lot 空串、grade 一等品，
 //   purchase_receipt_private.rs receipt_item_stock_key）。辅量已接入真实采集：
 //   20-01 逐批录入非零辅量并回读 received_quantity_alt 累加，20-02 录显式 0（合法实收值）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

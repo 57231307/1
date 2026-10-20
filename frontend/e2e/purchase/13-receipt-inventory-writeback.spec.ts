@@ -20,7 +20,7 @@
 //       并回读订单行 received_quantity 增加、订单状态离开 APPROVED、入库单转 COMPLETED。
 //  13-02 纯 UI「收货」对话框（批次+辅量维度）建单 + 确认 → 按 款号+批次 回读 quantity_on_hand 增加（白坯空色号/缸号合法）。
 //  13-02b 确认入库幂等防御：重复 confirm 被业务拒（4xx），库存 quantity_on_hand 不被二次累加（边界/非法值）。
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
   ensureTestEntities,

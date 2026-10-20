@@ -1,7 +1,7 @@
 // 面料管理 E2E 套件 — 03 染色配方
 // 创建时间: 2026-08-19
 // 覆盖范围：染色配方创建 → 审批（draft → approved，端到端点击 + 断真实 toast）
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
 import { fillFieldByLabel } from '../flow/ui-helpers';

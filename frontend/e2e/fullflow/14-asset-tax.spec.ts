@@ -42,7 +42,7 @@ import {
   genCode,
   tryCleanup,
   loginInIsolatedContext,
-  TEST_PASSWORD,
+  baseAdminPassword,
   APP_ERROR_CODES,
 } from '../flow/helpers';
 
@@ -418,10 +418,11 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
     // 后端按职责分离拒绝「申请人审批自己提交的核销」：一级、二级审批人 user_id 都不得等于建单人，
     // 否则判权限拒绝。因此两级审批必须由与建单人不同 user_id 的身份执行，审批链才能真正推进到
     // approved，触发应收未付额按核销额递减（下方 unpaid 3000→2000 的断言依赖链路走通，不能只断 4xx）。
-    // 身份取自全局种子预置的第二个管理员（admin 角色、与分片账号不同 user_id），在独立浏览器上下文
-    // 内以该账号真实登录，得到与本会话互不干扰的审批人页面；一级、二级审批人同用此独立身份即可满足
-    // 「审批人≠申请人」这一约束（后端不要求一二级审批人互异）。
-    const approver = await loginInIsolatedContext(browser, getAiTestUsername(), TEST_PASSWORD);
+    // 身份取自 globalSetup 预置的第二个管理员（admin 角色、与本 worker 会话账号不同 user_id），
+    // 在独立浏览器上下文内以该账号真实登录，得到与本会话互不干扰的审批人页面；一级、二级审批人
+    // 同用此独立身份即可满足「审批人≠申请人」这一约束（后端不要求一二级审批人互异）。
+    // 该账号的密码沿用建号主体密码（会话池里的 worker 密码与之同源同值，此处按建号约定取）。
+    const approver = await loginInIsolatedContext(browser, getAiTestUsername(), baseAdminPassword());
     try {
       await apiCall(approver.page, 'POST', `/bad-debts/writeoffs/${woId}/finance-approve`, {
         comment: 'E2E 财务通过',

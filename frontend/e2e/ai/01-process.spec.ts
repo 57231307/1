@@ -1,7 +1,7 @@
 // AI 分析 E2E 套件 — 01 工艺优化
 // 创建时间: 2026-08-19
 // 覆盖范围：AI 工艺优化推荐创建 → 查看结果
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 
 // AI 推理端点有真实的按用户限流（backend middleware/rate_limit.rs::rate_limit_ai_endpoint，

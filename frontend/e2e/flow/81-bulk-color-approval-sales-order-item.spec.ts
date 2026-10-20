@@ -32,7 +32,7 @@
 //   子项 4 的“approved 后整单放行”成功路径需要跑完剪样/发送客户/客户确认的完整状态机，而剪样门
 //   要求关联染色批次已完成、存在质检合格且数量充足的大货库存、关联生产订单已完成，夹具过重，
 //   本 spec 不伪造该成功断言，仅按行作用域真实覆盖“命中行点名批色拦截 / 未命中行不被该门禁拦”两个方向。
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import type { Page } from '@playwright/test';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {

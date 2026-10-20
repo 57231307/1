@@ -6,7 +6,8 @@
 //!   → price_vocab_extend → price_fk → export_inspection_vocab_check → dye_recipe_reject
 //!   → ddl_nullability_tighten → polymorphic_bill_id_widen → print_subsystem
 //!   → company_profile → bulk_color_item_link → role_conflicts_drop_production_sod
-//!   → finance_resource_rename → bpm_approver_grant → system_admin_bpm_config_grant
+//!   → fulfillment_source_and_po_origin → finance_resource_rename → bpm_approver_grant
+//!   → system_admin_bpm_config_grant
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -17,7 +18,8 @@
 //!         / m_company_profile
 //!         / m_bulk_color_item_link
 //!         / m_role_conflicts_drop_production_sod
-//!         / m_finance_resource_rename / m_bpm_approver_grant
+//!         / m_fulfillment_source_and_po_origin
+//!         / m_finance_resource_rename / m_bpm_approver_grant / m_system_admin_bpm_config_grant
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -61,14 +63,19 @@
 //!    删种动作永不执行。up 按精确三元组逐对删除并在删除前后各数一次财务 6 对在场行数
 //!    （不等即 RAISE EXCEPTION，误伤不静默）；互斥机制（表 / GET /roles/conflicts 端点 /
 //!    user_service 写口校验）与 role_relations 的 inherit+mutual_exclusive 全套均不触碰。
-//! 16. finance_resource_rename: 财务域权限资源键改名波的存量库通道（role_permissions.
+//! 16. fulfillment_source_and_po_origin: 流转链地基两列（sales_order_items 补可空
+//!    fulfillment_source TEXT 带三值 CHECK chk_sales_order_item_fulfillment_source，
+//!    purchase_orders 补可空 source_sales_order_id INTEGER 外键指向 sales_orders + 检索索引；
+//!    置于链尾为新的顶层条目，复用库上属 pending 必然执行，依赖 system 建的两表，
+//!    两列均不回填存量行）
+//! 17. finance_resource_rename: 财务域权限资源键改名波的存量库通道（role_permissions.
 //!    resource_type 旧 URL 段名逐对改写到随域改名的新资源名；改名前按同 (role_id, action)
 //!    做唯一索引冲突预检、一对多旧段设失败可见闸门待人工裁定；置于链尾为新的顶层条目）
-//! 17. bpm_approver_grant: BPM 审批岗补授的存量库通道（按 roles.code 反查 id，为
+//! 18. bpm_approver_grant: BPM 审批岗补授的存量库通道（按 roles.code 反查 id，为
 //!    sales_manager/purchase_manager/production_manager 补授与 init 矩阵同源的六枚派生键；
 //!    依赖 v15 建的 uq_role_permissions_role_resource_action 唯一索引，故必须排在其后的链尾，
 //!    作为新的顶层条目，复用库上也必然执行）
-//! 18. system_admin_bpm_config_grant: 系统管理岗补授 BPM 流程配置读面的存量库通道
+//! 19. system_admin_bpm_config_grant: 系统管理岗补授 BPM 流程配置读面的存量库通道
 //!    （按 roles.code 反查 id，为 system_admin 补授与 init 矩阵同源的 bpm-definitions 与
 //!    bpm-templates 两枚 read 键；同样依赖 v15 的唯一索引，置于链尾为新的顶层条目）
 
@@ -103,6 +110,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::company_profile::Migration),
             Box::new(domain::bulk_color_item_link::Migration),
             Box::new(domain::role_conflicts_drop_production_sod::Migration),
+            Box::new(domain::fulfillment_source_and_po_origin::Migration),
             Box::new(domain::finance_resource_rename::Migration),
             Box::new(domain::bpm_approver_grant::Migration),
             Box::new(domain::system_admin_bpm_config_grant::Migration),

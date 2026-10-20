@@ -1,7 +1,7 @@
 // P9-3 销售 E2E 套件 — 05 应收（AR）发票与收款
 // 覆盖范围：/ar 应收发票 Tab 列表访问 + 新建发票；/ar 收款管理 Tab 新建收款并确认
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
 import { apiCallRaw } from '../flow/helpers';
