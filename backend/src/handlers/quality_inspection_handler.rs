@@ -8,17 +8,17 @@ use crate::services::quality_inspection_service::{
     CreateInspectionRecordRequest, CreateQualityInspectionStandardRequest, ProcessResultRequest,
     ProcessUnqualifiedRequest, QualityInspectionService,
 };
-use crate::utils::ApiResponse;
-use crate::utils::data_scope::{DataScope, DataScopeContext, check_resource_owner};
+use crate::utils::data_scope::{check_resource_owner, DataScope, DataScopeContext};
 use crate::utils::error::AppError;
+use crate::utils::ApiResponse;
 // V15 P0-S12/P0-S15 修复（Batch 475d）：导出端点使用水印版 xlsx 工具
-use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
+use crate::utils::xlsx_export::{build_xlsx_response_with_watermark, WatermarkConfig, XlsxTable};
 // V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -154,6 +154,9 @@ pub async fn create_standard(
     Json(req): Json<CreateQualityInspectionStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_inspection::Model>>, AppError> {
     info!("用户 {} 正在创建质量检验标准", auth.user_id);
+    // 检验类型与质检记录共用同一权威词表（models/status/quality_inspection_type），
+    // 建标准入口必须过同一取值域门，词表外一律 400 点名允许值，不落库。
+    validate_inspection_type(&req.inspection_type)?;
 
     let service = QualityInspectionService::new(state.db.clone());
     let standard = service.create_standard(req, auth.user_id).await?;

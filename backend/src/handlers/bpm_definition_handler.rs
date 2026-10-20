@@ -19,10 +19,10 @@ use crate::utils::error::AppError;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
-    Json,
     extract::{Path, Query, State},
+    Json,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 /// 将 Model 转换为前端期望的 JSON 格式；字段映射： - `code` → `process_key` - `name` →
 /// `process_name` - `config` → 保留原字段，同时提取 `config.nodes` 为顶层 `nodes`
@@ -151,7 +151,7 @@ pub async fn create_version(
         category: source.category,
         version: Some(version),
         config: req.config.or(source.config),
-        status: Some("DRAFT".to_string()),
+        status: Some(crate::models::status::bpm_process_definition_status::DRAFT.to_string()),
     };
     let res = service.create_process_definition(new_req).await?;
     Ok(Json(ApiResponse::success(model_to_frontend_json(res))))
