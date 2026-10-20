@@ -4,7 +4,7 @@
 //! 拆分自原 `purchase_order_service.rs`。
 
 use crate::models::{purchase_order, purchase_order_item, status};
-use crate::services::bpm_ops::{bpm_start_failure_message, process_key};
+use crate::services::bpm_ops::{bpm_start_failure_error, process_key};
 use crate::utils::error::AppError;
 use chrono::Utc;
 use sea_orm::{
@@ -145,8 +145,27 @@ impl PurchaseOrderService {
         };
 
         if let Err(e) = bpm_service.start_process(req).await {
-            self.rollback_order_status(order_id, &previous_status, user_id)
-                .await?;
+            // 补偿回滚失败不得顶替 BPM 启动失败的出参文案：回滚自身的冲突/脱敏
+            // 错误上抛会让用户既看不到根因指引也看不到单据真实状态。两条根因分别
+            // 全量落 error 日志；出参只陈述可确认的事实（回滚是否完成）。
+            let document_state = match self
+                .rollback_order_status(order_id, &previous_status, user_id)
+                .await
+            {
+                Ok(()) => "采购订单已退回提交前状态",
+                Err(rb_err) => {
+                    tracing::error!(
+                        error = %rb_err,
+                        order_id = order_id,
+                        user_id = user_id,
+                        process_key = process_key::PURCHASE_ORDER_APPROVAL,
+                        business_type = "purchase_order",
+                        business_id = order_id,
+                        "采购订单审批 BPM 启动失败后的补偿回滚未完成，订单状态需人工核对"
+                    );
+                    "采购订单状态回退未完成，请按订单当前状态核对处理"
+                }
+            };
             // 引擎真实失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显
             tracing::error!(
                 error = %e,
@@ -155,12 +174,13 @@ impl PurchaseOrderService {
                 process_key = process_key::PURCHASE_ORDER_APPROVAL,
                 business_type = "purchase_order",
                 business_id = order_id,
-                "BPM 启动采购订单审批流程失败，订单已补偿回滚为提交前状态，根因如上"
+                "BPM 启动采购订单审批流程失败，根因如上"
             );
-            return Err(AppError::business_displayable(bpm_start_failure_message(
+            return Err(bpm_start_failure_error(
                 process_key::PURCHASE_ORDER_APPROVAL,
-                "采购订单已退回提交前状态",
-            )));
+                document_state,
+                &e,
+            ));
         }
         Ok(())
     }

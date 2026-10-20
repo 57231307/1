@@ -64,6 +64,56 @@ pub fn bpm_start_failure_message(process_key: &str, document_state: &str) -> Str
     )
 }
 
+/// 内层失败文案已可外显（Displayable 族）时的转发拼装：保留真实原因，补流程标识
+/// 上下文与单据处置语句，不重复"未配置或未启用"定性（原因各异，转发即如实）。
+fn bpm_start_failure_relay(process_key: &str, document_state: &str, inner_reason: &str) -> String {
+    format!(
+        "审批流程启动失败（流程标识 {process_key}）：{inner_reason}。{document_state}。请管理员按原因项处理后重新提交"
+    )
+}
+
+/// 内层为脱敏族（数据库/内部错误等）时的兜底引导：真实原文只进日志（调用方负责），
+/// 出参不猜原因、不透原文，给 trace 定位指引与单据当前处置的如实陈述。
+fn bpm_start_failure_system(process_key: &str, document_state: &str) -> String {
+    format!(
+        "审批流程启动失败：流程标识 {process_key} 的流程处理发生系统错误。{document_state}。请联系管理员结合响应中的 trace 号定位日志根因后重新提交"
+    )
+}
+
+/// 业务发起点对 `start_process` 失败的统一出参构造（单源，按内层族别如实分支）。
+///
+/// 调用方：报价 / 销售订单 / 采购订单 / 生产订单四个发起点的 catch 分支。
+/// 判责口径：出参责任在引擎真实失败的那一族，本函数不吞内层、也不把内层原文
+/// 整串外推：
+/// - 内层 NotFoundDisplayable（缺 ACTIVE 定义，出厂主因）→ 点名流程标识的
+///   行动指引文案（bpm_start_failure_message）；
+/// - 内层已是 Displayable 族（如节点配置错误的 validation_displayable）→
+///   转发内层已声明安全的真实原因，补流程标识与单据处置上下文；
+/// - 其余（数据库/内部错误等脱敏族）→ 不猜原因的外显形态，给固定引导句；
+///   根因原文必须由调用方以 error 级日志全量落盘后方可返回。
+///
+/// 出参恒为 `business_displayable`：HTTP 400 与 code BUSINESS_ERROR 与四个
+/// 发起点既有契约一致（状态码语义不变），唯一变化是 message 由固定句式
+/// 换成分支后的如实文案。
+///
+/// `document_state` 约束同 [`bpm_start_failure_message`]：只准陈述已确认的
+/// 真实处置结果，回滚失败或结果未知时用中性描述，不得虚报已回退。
+pub fn bpm_start_failure_error(
+    process_key: &str,
+    document_state: &str,
+    inner: &AppError,
+) -> AppError {
+    let message = match inner {
+        AppError::NotFoundDisplayable(_) => bpm_start_failure_message(process_key, document_state),
+        AppError::ValidationErrorDisplayable(reason)
+        | AppError::BusinessErrorDisplayable(reason) => {
+            bpm_start_failure_relay(process_key, document_state, reason)
+        }
+        _ => bpm_start_failure_system(process_key, document_state),
+    };
+    AppError::business_displayable(message)
+}
+
 /// 解析流程节点配置的审批人。
 ///
 /// 引擎当前只认「具体用户 ID」这一种审批人。历史上 `assignee_value` 非数字或节点属于
