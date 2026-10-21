@@ -175,7 +175,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="onCancel">{{ t('purchase.createDlg.cancel') }}</el-button>
-        <el-button type="primary" @click="onSubmit">{{
+        <el-button type="primary" :loading="creating" :disabled="creating" @click="onSubmit">{{
           t('purchase.createDlg.confirm')
         }}</el-button>
       </span>
@@ -205,6 +205,8 @@ const props = defineProps<{
   products: Product[];
   warehouses: Warehouse[];
   departments: Department[];
+  // 建单在途（父组件管理）：为真时确认按钮转圈并禁用，避免连点重复建单
+  creating: boolean;
   onSubmit: () => void;
   onCancel: () => void;
   onAddItem: () => void;

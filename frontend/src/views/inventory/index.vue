@@ -85,6 +85,7 @@
       :initial-form="adjustmentForm"
       :warehouses="warehouses"
       :products="products"
+      :submitting="adjustmentSubmitting"
       @submit="onSubmitAdjustment"
     />
 
@@ -297,6 +298,8 @@ const handleTabChange = (tabName: string) => {
 };
 
 const adjustmentDialogVisible = ref(false);
+// 调整提交在途：先查库存定位行再建调整单，两次往返期间必须锁住确认按钮
+const adjustmentSubmitting = ref(false);
 const adjustmentForm = ref<AdjustmentForm>({
   stock_id: null,
   product_id: null,
@@ -325,6 +328,7 @@ const handleAdjustment = () => {
 };
 
 const onSubmitAdjustment = async (form: AdjustmentForm) => {
+  if (adjustmentSubmitting.value) return;
   if (form.product_id === null || form.warehouse_id === null) {
     ElMessage.warning(t('inventory.message.adjustmentProductWarehouseRequired'));
     return;
@@ -337,6 +341,7 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
     ElMessage.warning(t('inventory.message.reasonRequired'));
     return;
   }
+  adjustmentSubmitting.value = true;
   try {
     const { createStockAdjustment, getStockList } = await import('@/api/inventory');
     const stockRes = await getStockList({
@@ -366,6 +371,8 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
       (error instanceof Error ? error.message : String(error)) ||
         t('inventory.message.adjustmentFailed')
     );
+  } finally {
+    adjustmentSubmitting.value = false;
   }
 };
 

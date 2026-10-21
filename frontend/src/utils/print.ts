@@ -1,6 +1,13 @@
+import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
 import { recordPrintAudit } from '@/api/audit';
 import { useUserStore } from '@/store/user';
+import {
+  isAndroidClient,
+  printReceiptToBluetooth,
+  type ReceiptColumn,
+  type ReceiptContent,
+} from '@/utils/bluetooth-print';
 
 /**
  * 打印列定义接口
@@ -28,6 +35,152 @@ export interface PrintOptions<T extends Record<string, unknown> = Record<string,
   resourceType?: string;
   /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
   resourceId?: string;
+}
+
+/**
+ * 当前打印人名称，供桌面打印页与蓝牙小票共用。
+ * 优先取用户信息，Pinia 未初始化时回退到 localStorage 记下的用户名。
+ */
+function resolvePrintUser(): string {
+  try {
+    const userStore = useUserStore();
+    if (userStore.userInfo?.username) {
+      return userStore.userInfo.username;
+    }
+  } catch {
+    const stored = localStorage.getItem('username');
+    if (stored) {
+      return stored;
+    }
+  }
+  return '未知用户';
+}
+
+function formatPrintTimestamp(now: Date): string {
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return `${date} ${time}`;
+}
+
+/** 蓝牙小票头部的打印人与时间信息，字段之间用两个空格分隔。 */
+function describeBluetoothMeta(): string {
+  return `打印人 ${resolvePrintUser()}  打印时间 ${formatPrintTimestamp(new Date())}  IP ${window.location.hostname}`;
+}
+
+function recordPrintAuditBestEffort(options: {
+  resourceType?: string;
+  resourceId?: string;
+  title: string;
+  recordCount: number;
+}): void {
+  if (!options.resourceType) return;
+  recordPrintAudit({
+    resourceType: options.resourceType,
+    recordCount: options.recordCount,
+    title: options.title,
+    resourceId: options.resourceId,
+  }).catch(err => {
+    console.warn('[打印] 审计埋点失败', err);
+  });
+}
+
+function buildListReceiptContent<T extends Record<string, unknown>>(
+  options: PrintOptions<T>
+): ReceiptContent {
+  const columns: ReceiptColumn[] = options.columns.map(column => ({
+    title: column.title,
+    align: column.align,
+  }));
+  const rows = options.data.map(row =>
+    options.columns.map(column => {
+      const value = row[column.key];
+      const formatted = column.formatter ? column.formatter(value, row) : (value ?? '');
+      return String(formatted ?? '');
+    })
+  );
+  return {
+    title: options.title,
+    meta: [
+      ...(options.extraInfo ?? []).map(info => `${info.label} ${info.value}`),
+      describeBluetoothMeta(),
+    ],
+    columns,
+    rows,
+    footer: [`共 ${options.data.length} 条记录`],
+  };
+}
+
+function buildDocumentReceiptContent<T extends Record<string, unknown>>(options: {
+  title: string;
+  info: Record<string, string>;
+  items: T[];
+  itemColumns: PrintColumn<T>[];
+  footer?: Record<string, string>;
+}): ReceiptContent {
+  const columns: ReceiptColumn[] = options.itemColumns.map(column => ({
+    title: column.title,
+    align: column.align,
+  }));
+  const rows = options.items.map(row =>
+    options.itemColumns.map(column => {
+      const value = row[column.key];
+      const formatted = column.formatter ? column.formatter(value, row) : (value ?? '');
+      return String(formatted ?? '');
+    })
+  );
+  return {
+    title: options.title,
+    meta: [
+      ...Object.entries(options.info).map(([label, value]) => `${label} ${value}`),
+      describeBluetoothMeta(),
+    ],
+    columns,
+    rows,
+    footer: [
+      ...Object.entries(options.footer ?? {}).map(([label, value]) => `${label} ${value}`),
+      `共 ${options.items.length} 条明细`,
+    ],
+  };
+}
+
+async function printListByBluetooth<T extends Record<string, unknown>>(
+  options: PrintOptions<T>
+): Promise<void> {
+  recordPrintAuditBestEffort({
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    title: options.title,
+    recordCount: options.data.length,
+  });
+  try {
+    await printReceiptToBluetooth(buildListReceiptContent(options));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    ElMessage.error(`${msg.translate('printBluetoothFailed')}，${detail}`);
+  }
+}
+
+async function printDocumentByBluetooth<T extends Record<string, unknown>>(options: {
+  title: string;
+  info: Record<string, string>;
+  items: T[];
+  itemColumns: PrintColumn<T>[];
+  footer?: Record<string, string>;
+  resourceType?: string;
+  resourceId?: string;
+}): Promise<void> {
+  recordPrintAuditBestEffort({
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    title: options.title,
+    recordCount: options.items.length,
+  });
+  try {
+    await printReceiptToBluetooth(buildDocumentReceiptContent(options));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    ElMessage.error(`${msg.translate('printBluetoothFailed')}，${detail}`);
+  }
 }
 
 /**
@@ -65,20 +218,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
   const now = new Date();
   const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  // V15 P2 B11-P2-6：用户水印 - 从 userStore 获取当前用户名，失败时回退到 localStorage，再回退到 '未知用户'
-  let printUser = '未知用户';
-  try {
-    const userStore = useUserStore();
-    if (userStore.userInfo?.username) {
-      printUser = userStore.userInfo.username;
-    }
-  } catch {
-    // Pinia 未初始化时回退到 localStorage
-    const stored = localStorage.getItem('username');
-    if (stored) {
-      printUser = stored;
-    }
-  }
+  const printUser = resolvePrintUser();
   const printContent = `打印人: ${printUser}  打印时间: ${printDate}  IP: ${window.location.hostname}`;
 
   return `
@@ -127,17 +267,17 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
     return;
   }
 
-  // V15 P1-5-3：前端打印审计埋点（best-effort，不阻塞打印流程）
-  if (options.resourceType) {
-    recordPrintAudit({
-      resourceType: options.resourceType,
-      recordCount: options.data.length,
-      title: options.title,
-      resourceId: options.resourceId,
-    }).catch(err => {
-      console.warn('[P1-5-3] 打印审计埋点失败:', err);
-    });
+  if (isAndroidClient()) {
+    void printListByBluetooth(options);
+    return;
   }
+
+  recordPrintAuditBestEffort({
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    title: options.title,
+    recordCount: options.data.length,
+  });
 
   const html = generatePrintHTML(options);
   const printWindow = window.open('', '_blank');
@@ -169,17 +309,17 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
 }) {
   const { title, info, items, itemColumns, footer } = options;
 
-  // V15 P1-5-3：前端打印审计埋点（best-effort，不阻塞打印流程）
-  if (options.resourceType) {
-    recordPrintAudit({
-      resourceType: options.resourceType,
-      recordCount: items.length,
-      title,
-      resourceId: options.resourceId,
-    }).catch(err => {
-      console.warn('[P1-5-3] 单据打印审计埋点失败:', err);
-    });
+  if (isAndroidClient()) {
+    void printDocumentByBluetooth(options);
+    return;
   }
+
+  recordPrintAuditBestEffort({
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    title,
+    recordCount: items.length,
+  });
 
   const infoHTML = Object.entries(info)
     .map(
@@ -222,19 +362,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
   const now = new Date();
   const printDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  // batch-11 P2-6：用户水印 - 从 userStore 获取当前用户名，失败时回退到 localStorage，再回退到 '未知用户'
-  let printUser = '未知用户';
-  try {
-    const userStore = useUserStore();
-    if (userStore.userInfo?.username) {
-      printUser = userStore.userInfo.username;
-    }
-  } catch {
-    const stored = localStorage.getItem('username');
-    if (stored) {
-      printUser = stored;
-    }
-  }
+  const printUser = resolvePrintUser();
   const watermarkText = `打印人: ${printUser}  打印时间: ${printDate}  IP: ${window.location.hostname}`;
 
   const html = `

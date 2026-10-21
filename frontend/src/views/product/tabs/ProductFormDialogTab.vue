@@ -184,9 +184,13 @@
       <el-button @click="emit('update:modelValue', false)">{{
         t('product.productFormDialogTab.buttonCancel')
       }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
-        t('product.productFormDialogTab.buttonSave')
-      }}</el-button>
+      <el-button
+        type="primary"
+        :loading="submitLoading"
+        :disabled="submitLoading"
+        @click="handleSubmit"
+        >{{ t('product.productFormDialogTab.buttonSave') }}</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -327,28 +331,33 @@ watch(visible, val => {
 });
 
 const handleSubmit = async () => {
+  if (submitLoading.value) return;
   if (!formRef.value) return;
-  await formRef.value.validate(async valid => {
-    if (!valid) return;
-    submitLoading.value = true;
-    try {
-      if (props.mode === 'create') {
-        await createProduct(formData);
-        ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'));
-      } else {
-        await updateProduct(formData.id as number, formData);
-        ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'));
-      }
-      emit('update:modelValue', false);
-      emit('submitted');
-    } catch (error) {
-      const err = error as Error;
-      ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'));
-      logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message);
-    } finally {
-      submitLoading.value = false;
+  // 锁先于异步校验落下，避免连点两次各自通过校验后重复建档
+  submitLoading.value = true;
+  try {
+    await formRef.value.validate();
+  } catch {
+    submitLoading.value = false;
+    return;
+  }
+  try {
+    if (props.mode === 'create') {
+      await createProduct(formData);
+      ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'));
+    } else {
+      await updateProduct(formData.id as number, formData);
+      ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'));
     }
-  });
+    emit('update:modelValue', false);
+    emit('submitted');
+  } catch (error) {
+    const err = error as Error;
+    ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'));
+    logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message);
+  } finally {
+    submitLoading.value = false;
+  }
 };
 </script>
 

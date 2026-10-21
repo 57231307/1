@@ -1,0 +1,114 @@
+/*
+ * 内容层移动端适配层，仅窄屏竖屏生效。
+ *
+ * 与 mobile-list.css 分工：那一层按列表页共享 class 约定处理筛选栏与表格容器，
+ * 本层处理 Element Plus 弹窗、表单、确认框、描述列表等原语的窄屏排版，
+ * 并收敛页面根容器内边距。桌面视口不触发本层，回归面为零。
+ *
+ * 带 !important 的宽度项对应 Element Plus 写在元素内联样式上的值，常规级联压不过内联值。
+ */
+
+@media (max-width: 768px) {
+  /* 弹窗宽度收到视口内，覆盖各页面硬编码的 640 到 1000 像素宽度 */
+  .el-dialog {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-top: 8vh !important;
+  }
+
+  .el-dialog__header {
+    padding: 14px 16px 10px;
+  }
+
+  .el-dialog__body {
+    padding: 12px 16px;
+  }
+
+  .el-dialog__footer {
+    padding: 10px 16px 14px;
+  }
+
+  /* 表单标签改为顶部堆叠，释放输入框横向空间 */
+  .el-form-item {
+    display: block;
+  }
+
+  .el-form-item__label {
+    display: block;
+    width: auto !important;
+    max-width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 0 0 4px !important;
+    line-height: 1.5;
+  }
+
+  .el-form-item__content {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  .el-form-item__content > .el-input,
+  .el-form-item__content > .el-select,
+  .el-form-item__content > .el-input-number,
+  .el-form-item__content > .el-date-editor,
+  .el-form-item__content > .el-textarea,
+  .el-form-item__content > .el-cascader,
+  .el-form-item__content > .el-autocomplete {
+    width: 100%;
+  }
+
+  /* 表单内的栅格改为单列，避免列宽被压到无法输入 */
+  .el-form .el-row {
+    display: block;
+  }
+
+  .el-form .el-row > [class*='el-col-'] {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 确认框不超出视口 */
+  .el-message-box {
+    width: calc(100vw - 32px) !important;
+    max-width: 420px;
+  }
+
+  .el-drawer__body {
+    padding: 12px;
+  }
+
+  /* 描述列表保留完整内容，超出部分在表体内部横向滚动 */
+  .el-descriptions__body {
+    overflow-x: auto;
+  }
+
+  .el-descriptions__cell {
+    white-space: nowrap;
+  }
+
+  /* 页面根容器内边距收敛，避免与主内容区叠加挤占内容宽 */
+  .main-content [class$='-page'] {
+    padding: 8px !important;
+  }
+
+  .main-content .el-card__body {
+    padding: 12px;
+  }
+
+  .main-content .el-table {
+    font-size: 13px;
+  }
+
+  .main-content .el-table .cell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .main-content .el-table .el-button {
+    min-height: 32px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+}

@@ -188,7 +188,7 @@
       <el-button @click="emit('update:visible', false)">{{
         t('purchaseReceipt.form.button.cancel')
       }}</el-button>
-      <el-button type="primary" @click="onSubmit">{{
+      <el-button type="primary" :loading="submitting" :disabled="submitting" @click="onSubmit">{{
         t('purchaseReceipt.form.button.submit')
       }}</el-button>
     </template>
@@ -240,6 +240,8 @@ const props = defineProps<{
   warehouses: OptItem[];
   // 产品选项
   products: OptItem[];
+  // 提交在途（父组件管理）：为真时提交按钮转圈并禁用，避免重复建单
+  submitting: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -306,6 +308,7 @@ const onProductChange = (item: ReceiptItem, productId: number) => {
 
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
+  if (props.submitting) return;
   if (!formRef.value) return;
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return;

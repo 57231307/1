@@ -173,6 +173,8 @@
               type="success"
               link
               size="small"
+              :loading="rowActing(row, 'submit')"
+              :disabled="actingKey !== null"
               @click="handleSubmit(row)"
               >{{ t('inventoryCount.listTab.buttonComplete') }}</el-button
             >
@@ -181,6 +183,8 @@
               type="success"
               link
               size="small"
+              :loading="rowActing(row, 'approve')"
+              :disabled="actingKey !== null"
               @click="handleApprove(row)"
               >{{ t('inventoryCount.listTab.buttonApprove') }}</el-button
             >
@@ -189,6 +193,8 @@
               type="warning"
               link
               size="small"
+              :loading="rowActing(row, 'reject')"
+              :disabled="actingKey !== null"
               @click="handleReject(row)"
               >{{ t('inventoryCount.listTab.buttonReject') }}</el-button
             >
@@ -197,6 +203,8 @@
               type="danger"
               link
               size="small"
+              :loading="rowActing(row, 'delete')"
+              :disabled="actingKey !== null"
               @click="handleDelete(row)"
               >{{ t('inventoryCount.listTab.buttonDelete') }}</el-button
             >
@@ -220,7 +228,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { reactive, watch, defineEmits } from 'vue';
+import { reactive, ref, watch, defineEmits } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Clock, CircleCheck, DataAnalysis, Plus } from '@element-plus/icons-vue';
@@ -303,6 +311,21 @@ const handleQuery = () => {
   page.value = 1;
   fetchCounts();
 };
+
+// 行级动作在途标记（形如 `批次 id:动作`）：确认框与请求期间锁住整行按钮，
+// 避免连点同一动作重复提交审核、或重复发出删除请求。
+type RowAction = 'submit' | 'approve' | 'reject' | 'delete';
+const actingKey = ref<string | null>(null);
+const rowActing = (row: InventoryCountEntity, action: RowAction) =>
+  actingKey.value === `${row.id}:${action}`;
+const beginRowAction = (row: InventoryCountEntity, action: RowAction): boolean => {
+  if (actingKey.value !== null) return false;
+  actingKey.value = `${row.id}:${action}`;
+  return true;
+};
+const endRowAction = () => {
+  actingKey.value = null;
+};
 const handleReset = () => {
   filterForm.count_no = '';
   filterForm.status = '';
@@ -310,6 +333,7 @@ const handleReset = () => {
 };
 
 const handleSubmit = async (row: InventoryCountEntity) => {
+  if (!beginRowAction(row, 'submit')) return;
   try {
     await ElMessageBox.confirm(
       t('inventoryCount.listTab.messageCompleteConfirm'),
@@ -323,10 +347,13 @@ const handleSubmit = async (row: InventoryCountEntity) => {
     if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
+  } finally {
+    endRowAction();
   }
 };
 
 const handleApprove = async (row: InventoryCountEntity) => {
+  if (!beginRowAction(row, 'approve')) return;
   try {
     await ElMessageBox.confirm(
       t('inventoryCount.listTab.messageApproveConfirm'),
@@ -340,10 +367,13 @@ const handleApprove = async (row: InventoryCountEntity) => {
     if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
+  } finally {
+    endRowAction();
   }
 };
 
 const handleReject = async (row: InventoryCountEntity) => {
+  if (!beginRowAction(row, 'reject')) return;
   try {
     await ElMessageBox.confirm(
       t('inventoryCount.listTab.messageRejectConfirm'),
@@ -357,10 +387,13 @@ const handleReject = async (row: InventoryCountEntity) => {
     if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
+  } finally {
+    endRowAction();
   }
 };
 
 const handleDelete = async (row: InventoryCountEntity) => {
+  if (!beginRowAction(row, 'delete')) return;
   try {
     await ElMessageBox.confirm(
       t('inventoryCount.listTab.messageDeleteConfirm'),
@@ -374,6 +407,8 @@ const handleDelete = async (row: InventoryCountEntity) => {
     if (!isDialogDismissal(error)) {
       ElMessage.error((error as Error).message || t('inventoryCount.listTab.messageFailure'));
     }
+  } finally {
+    endRowAction();
   }
 };
 
