@@ -3,7 +3,8 @@
 # 部署服务器地址由 App 首装手填（不烘进包）。CI 只做：安卓端变更→出可安装 APK→严格校验产物→
 # 模拟器装包跑 E2E。独立于 ci-cd.yml。本机无 Android 工具链，全部在 CI 跑。
 #
-# 安全：仅受信触发（无 pull_request）；不将任何 GitHub event 载荷拼进 shell；输入经校验。
+# 安全：仅受信触发或同仓 PR；不将任何 GitHub event 载荷拼进 shell；输入经校验。
+# PR 触发只跑 debug 构建与模拟器 E2E，签名与发布步骤由 BUILD_RELEASE 输入控制，PR 下恒为 false，不接触签名 secret。
 name: Android (Tauri)
 
 on:
@@ -32,6 +33,12 @@ on:
           - 'true'
           - 'false'
         default: 'true'
+  # PR 触发：安卓端改动过去只在本分支 push 时跑，导致权限与插件注入等步骤在 PR 里完全没有曝光。
+  # 只跑 debug 构建与模拟器 E2E；签名与发布步骤由 BUILD_RELEASE 输入控制，PR 下恒 false。
+  pull_request:
+    paths:
+      - "mobile-app/**"
+      - ".github/workflows/android.yml"
   push:
     branches:
       - "feat/android-tauri-client"
@@ -112,6 +119,32 @@ jobs:
             python3 -c "import json,sys; json.load(open(sys.argv[1])); print('JSON OK', sys.argv[1])" "$f"
           done
 
+      - name: 严格冒烟·2.1 校验 app 命令 ACL 覆盖
+        # 一旦存在 app 权限清单，远端与本地页面调用 app 命令都要 capabilities 逐条授权；
+        # 漏一条不会在构建期报错，只会在运行期被 ACL 拒绝（例如 gateway 的 remember_gateway），
+        # 故按 build.rs 的命令清单对两份 capabilities 逐条比对。
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          build = pathlib.Path("mobile-app/src-tauri/build.rs").read_text(encoding="utf-8")
+          commands = re.findall(r'"([a-z][a-z0-9_]*)"', build)
+          if len(commands) != 9:
+              raise SystemExit(f"build.rs 命令清单解析异常，期望 9 条，实际 {commands}")
+          required = ["allow-" + c.replace("_", "-") for c in commands]
+          for name in ("default.json", "remote-gateway.json"):
+              path = pathlib.Path("mobile-app/src-tauri/capabilities") / name
+              data = json.loads(path.read_text(encoding="utf-8"))
+              perms = set(data.get("permissions", []))
+              missing = sorted(set(required) - perms)
+              if missing:
+                  raise SystemExit(f"{name} 缺 app 命令权限 {missing}")
+              print(f"{name} 覆盖 {len(required)} 条 app 命令权限")
+          PY
+
       - name: 设置 JDK
         uses: actions/setup-java@v4
         with:
@@ -144,6 +177,14 @@ jobs:
         working-directory: mobile-app
         run: cargo tauri android init
 
+      - name: 注入安卓权限与蓝牙打印插件
+        # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
+        # 做什么 向 gen/android 清单补联网/相机/经典蓝牙权限，并把 BluetoothPrintPlugin.kt
+        #        复制进 com.bingxi.erp 包；模板锚点或包名变化时脚本直接判红，不静默跳过。
+        # 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库模板。
+        working-directory: mobile-app
+        run: python3 scripts/patch-android.py
+
       - name: 放开 release 明文流量（部署地址允许 http）
         # 调用方 后续 debug 与 release 构建。入参 无。
         # 为什么 Tauri 模板只在 debug 构建类型把 usesCleartextTraffic 置 true，release 继承 defaultConfig 的 false，
@@ -165,7 +206,7 @@ jobs:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
         run: cargo tauri android build --debug --apk
 
-      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/联网权限/明文流量/体积）
+      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/权限/明文流量/插件类/体积）
         run: |
           set -euo pipefail
           APK="$(find mobile-app/src-tauri/gen/android/app/build/outputs/apk -path '*universal/debug/*.apk' | head -1)"
@@ -180,6 +221,11 @@ jobs:
           TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
           echo "$TREE" | grep -q 'usesCleartextTraffic' || { echo "APK 未声明明文流量开关"; exit 1; }
           echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "debug APK 未允许明文流量"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.CAMERA' || { echo "APK 缺 CAMERA 相机权限"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.BLUETOOTH"' || { echo "APK 缺经典蓝牙权限 BLUETOOTH"; exit 1; }
+          echo "$TREE" | grep -Eq 'maxSdkVersion.*0x1e' || { echo "经典蓝牙权限缺 maxSdkVersion=30"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo "APK 缺 BLUETOOTH_CONNECT 运行时权限"; exit 1; }
+          unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/BluetoothPrintPlugin;' || { echo "APK 未打包蓝牙打印插件类，注入或编译未生效"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
 
@@ -208,6 +254,8 @@ jobs:
           AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
           TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
           echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "release APK 未允许明文流量"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo "release APK 缺 BLUETOOTH_CONNECT 运行时权限"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.CAMERA' || { echo "release APK 缺 CAMERA 相机权限"; exit 1; }
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
@@ -338,6 +386,8 @@ jobs:
             # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
             APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
             adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
             sleep 8
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
