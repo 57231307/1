@@ -515,7 +515,7 @@ impl PurchaseOrderService {
                         amounts.unit_price = price;
                         amounts.amount = (amounts.quantity_ordered * price).round_dp(2);
                         // 税额走 utils tax 内核，与本函数开头的行税额同一公式，
-                        // 禁止在此再写一套 ÷100
+                        // 禁止在此再写一套除 100
                         amounts.tax_amount =
                             crate::utils::tax::tax_amount(amounts.amount, amounts.tax_percent);
                         amounts.discount_amount = (amounts.amount * amounts.discount_percent
