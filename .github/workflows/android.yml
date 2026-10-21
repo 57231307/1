@@ -364,7 +364,9 @@ jobs:
     # 手工 dispatch 读手填 run_e2e（默认 true，保持旧行为恒跑）。
     # push 与 release 直接触发无输入通道，判空不等于 false，恒运行，行为不变。
     if: ${{ inputs.run_e2e != 'false' && github.event.inputs.run_e2e != 'false' }}
-    name: 模拟器 E2E（装包→启动→前台→WebView进程拉起→无崩溃）
+    # CI 模拟器无 GPU，本 job 只验证装包，权限生效，前台，窗口，WebView 初始化与无崩溃，
+    # 不做像素与点击断言，真机渲染与业务交互留真机验收。
+    name: 模拟器 E2E（装包，启动，前台，WebView 初始化，无 ANR 与崩溃）
     needs: android-apk
     runs-on: ubuntu-latest
     steps:
@@ -383,19 +385,25 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
+            # runner 逐行以独立 sh 执行，跨行变量与续行均不保留。赋值守卫使用须同处一行。
+            # 设备侧只核对 API 34 上仍生效的权限。maxSdkVersion 低于平台 SDK 的 uses-permission
+            # 由 PackageParser 在解析期丢弃（BLUETOOTH 与 BLUETOOTH_ADMIN 为 30，READ_EXTERNAL_STORAGE 为 32，
+            # WRITE_EXTERNAL_STORAGE 为 28），这四条声明的完整性由 APK 静态断言 assert-apk-permissions.py 负责。
             APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
-            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
-            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_ADMIN' || { echo 'E2E: 安装包未声明 BLUETOOTH_ADMIN 低版本蓝牙权限'; exit 1; }
-            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH' || { echo 'E2E: 安装包未声明 BLUETOOTH 低版本蓝牙权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
-            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.READ_EXTERNAL_STORAGE' || { echo 'E2E: 安装包未声明 READ_EXTERNAL_STORAGE 文件读取权限'; exit 1; }
-            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.WRITE_EXTERNAL_STORAGE' || { echo 'E2E: 安装包未声明 WRITE_EXTERNAL_STORAGE 文件写入权限'; exit 1; }
-            adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
+            adb logcat -c; adb logcat -b crash -c; adb logcat -b events -c
+            COMP="$(adb shell cmd package resolve-activity --brief "${APP_ID}" | tail -1 | tr -d '\r')"; case "$COMP" in "${APP_ID}"/*) echo "E2E: launcher 组件 $COMP" ;; *) echo "E2E: launcher 组件异常 $COMP"; exit 1 ;; esac; adb shell am start -W -n "$COMP" || { echo 'E2E: 启动 launcher 组件失败'; exit 1; }
             sleep 8
-            adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
-            i=0; WV=""; while [ "$i" -lt 15 ]; do i=$((i+1)); adb logcat -d | grep -iqE 'RustStdoutStderr|chromium' && { WV=1; break; }; sleep 4; done; test -n "$WV" || { echo 'E2E: 未观测到本 app WebView/Chromium 活动'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: WebView/Chromium 进程已拉起'; adb logcat -d | grep -iE 'RustStdoutStderr|chromium' | head -8
+            adb shell pidof "${APP_ID}" | tr -d '\r' | grep -q . || { echo 'E2E: 应用进程未存活'; exit 1; }
+            adb shell dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity' | grep -q "${APP_ID}/" || { echo 'E2E: 目标 Activity 未处于前台'; adb shell dumpsys activity activities | tail -40; exit 1; }
+            adb shell dumpsys window windows | grep -q "${APP_ID}/" || { echo 'E2E: 应用窗口未创建'; exit 1; }
+            adb shell run-as "${APP_ID}" true || { echo 'E2E: run-as 不可用，debug 包应可调试'; exit 1; }
+            i=0; WV=""; while [ "$i" -lt 30 ]; do i=$((i+1)); adb shell run-as "${APP_ID}" ls shared_prefs 2>/dev/null | grep -qi webview && { WV=1; break; }; sleep 3; done; test -n "$WV" || { echo 'E2E: 本应用 WebView 未初始化（shared_prefs 内无 WebView 首选项）'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: 本应用 WebView 已初始化'
+            adb logcat -d --pid="$(adb shell pidof -s "${APP_ID}" | tr -d '\r')" | tail -20
             echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
-            adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见 crash buffer'; exit 1; } || true
-            echo 'E2E: 装包-启动-前台-WebView进程拉起-无崩溃 全部通过'
+            adb logcat -d -b crash | grep -qE 'FATAL EXCEPTION|Fatal signal' && { echo 'E2E: 本次启动发生崩溃见 crash buffer'; exit 1; } || true
+            adb logcat -d -b events | grep -q "am_anr.*${APP_ID}" && { echo 'E2E: 应用发生 ANR'; exit 1; } || true
+            adb logcat -d -b events | grep -q "am_crash.*${APP_ID}" && { echo 'E2E: 应用发生进程崩溃事件'; exit 1; } || true
+            echo 'E2E: 装包，启动，前台，WebView 初始化，无 ANR 与崩溃 全部通过'
