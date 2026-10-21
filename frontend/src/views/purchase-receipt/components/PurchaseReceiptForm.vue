@@ -377,4 +377,54 @@ const onSubmit = async () => {
 .col-action {
   width: 60px;
 }
+
+@media (max-width: 768px) {
+  /* 明细行与追溯维度在竖屏逐项堆叠，固定列宽会撑破弹窗内容区 */
+  .items-header {
+    display: none;
+  }
+
+  .items-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0 4px;
+  }
+
+  .items-row > * {
+    margin-right: 0;
+  }
+
+  .col-product,
+  .col-qty,
+  .col-price,
+  .col-amount,
+  .col-unit {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .col-unit {
+    line-height: 1.5;
+  }
+
+  .items-row > .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .items-trace {
+    gap: 8px;
+    padding: 4px 0 10px;
+  }
+
+  .trace-field {
+    width: 100%;
+  }
+
+  .trace-field :deep(.el-input) {
+    flex: 1;
+    width: 100%;
+  }
+}
 </style>

@@ -337,6 +337,44 @@ watch(
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  /* 明细行在竖屏改为逐字段堆叠，固定列宽会撑破弹窗内容区 */
+  .items-header {
+    display: none;
+  }
+
+  .items-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .items-row > * {
+    margin-right: 0;
+  }
+
+  .col-product,
+  .col-color,
+  .col-qty,
+  .col-price,
+  .col-amount,
+  .col-supplier-info {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .col-supplier-info {
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .items-row > .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
 .resolved-text {
   color: #409eff;
 }

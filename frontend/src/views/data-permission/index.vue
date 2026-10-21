@@ -552,4 +552,21 @@ onMounted(async () => {
   font-size: 16px;
   margin: 0;
 }
+
+@media (max-width: 768px) {
+  /* 固定 240 像素的角色栏在竖屏把权限表格压到无法阅读，改为上下堆叠 */
+  .data-permission .layout {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-permission .layout .role-panel {
+    width: auto;
+  }
+
+  .data-permission .layout .permission-panel .panel-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
 </style>

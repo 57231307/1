@@ -69,6 +69,57 @@
     max-width: 100% !important;
   }
 
+  /* 非表单区域的栅格重排，四分之一列改为两列，其余多列改为单列 */
+  .el-row > .el-col-3,
+  .el-row > .el-col-4,
+  .el-row > .el-col-6 {
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+
+  .el-row > .el-col-8,
+  .el-row > .el-col-9,
+  .el-row > .el-col-10,
+  .el-row > .el-col-12,
+  .el-row > .el-col-14,
+  .el-row > .el-col-15,
+  .el-row > .el-col-16,
+  .el-row > .el-col-18,
+  .el-row > .el-col-20,
+  .el-row > .el-col-24 {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 页面内联写死的控件宽度在竖屏一律铺满内容区 */
+  .main-content .el-form .el-form-item__content > [style*='width'],
+  .main-content .el-form .el-form-item__content > .el-input-number,
+  .main-content .el-form .el-form-item__content > .el-date-editor {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 主内容区及其直接子块不得撑破视口，横向滚动只允许发生在表格内部 */
+  .main-content,
+  .main-content > * {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .main-content .el-card {
+    min-width: 0;
+  }
+
+  .main-content .el-card__header {
+    padding: 12px;
+    line-height: 1.5;
+  }
+
+  .main-content .el-tabs__item {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
   /* 确认框不超出视口 */
   .el-message-box {
     width: calc(100vw - 32px) !important;
@@ -84,8 +135,10 @@
     overflow-x: auto;
   }
 
+  /* 描述项允许换行，避免长文本把整块表体撑出屏幕 */
   .el-descriptions__cell {
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
   }
 
   /* 页面根容器内边距收敛，避免与主内容区叠加挤占内容宽 */

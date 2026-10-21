@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n';
 import { ElDialog, ElButton, ElAlert, ElSelect, ElOption } from 'element-plus';
 import { Html5Qrcode, Html5QrcodeSupportedFormats, type CameraDevice } from 'html5-qrcode';
 import { logger } from '@/utils/logger';
+import { isAndroidClient } from '@/utils/bluetooth-print';
+import { requestCameraPermission } from '@/utils/android-permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -107,6 +109,16 @@ async function initScanner() {
   }
 
   try {
+    // 安卓壳内先走原生权限申请，系统授权完成后再建立相机流，
+    // 避免授权对话框与 getUserMedia 并发启动导致相机启动失败。
+    if (isAndroidClient()) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) {
+        errorMessage.value = t('barcodeScanner.camera.permissionDenied');
+        logger.warn('[BarcodeScanner] android camera permission denied');
+        return;
+      }
+    }
     // getCameras() 本身即触发权限弹窗（两端通用），随后枚举可用视频输入设备
     const devices = await Html5Qrcode.getCameras();
     cameras.value = devices;
