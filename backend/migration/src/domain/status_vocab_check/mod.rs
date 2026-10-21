@@ -17,13 +17,27 @@
 //! - logistics_waybills.status ← logistics_waybill::ALL（大写三值，列可空无默认）
 //! - quality_inspection_standards.inspection_type ← quality_inspection_type::ALL
 //! - quality_inspection_records.inspection_type ← quality_inspection_type::ALL
-//! - quality_inspection_records.result ← quality_inspection_result::ALL（中文三值）
+//! - quality_inspection_records.inspection_result ← quality_inspection_result::ALL
+//!   （中文三值，列可空：权威词表 models/status/quality_dyeing.rs 声明的定义域就是本列；
+//!   m0005 遗留的 result 列实体不映射、无任何写入方，不钉）
 //! - bpm_process_definition.status ← bpm_process_definition_status::ALL（大写三值）
 //!
 //! 存量守卫（fail-visible，严禁 UPDATE 造值洗数据）：加约束前逐列统计词表外残留行数，
 //! 非 0 即点名样例值并中止迁移；可空列的 NULL 属既有合法形态（收窄可空性另有专域
 //! ddl_nullability_tighten，不在本迁移职责内），守卫与 CHECK 都对 NULL 放行、
 //! 只拦词表外非空值。NOT NULL 列的 CHECK 不留 NULL 放行。
+//!
+//! 列默认值与词表同源：加 CHECK 前必须把「建表遗留的越界 DEFAULT」收敛到权威词表值，
+//! 否则任何省略该列的写入（含 SeaORM ActiveModel 未显式赋值的默认建单路径）都会落
+//! DEFAULT 越界值撞 CHECK 冒裸 23514——这是 CHECK 自身的写口责任，不属存量洗数据。
+//! 本迁移唯一命中此形的是 `greige_fabric.status`：建表 system/m0002:26 遗留
+//! `DEFAULT 'available'`，而权威词表 `greige_fabric_status::ALL` 是中文 `在库/已出库`，
+//! 应用建单默认写 `在库`（见 handlers/greige_fabric_handler.rs create 的
+//! `None => greige_fabric_status::IN_STOCK`）。故在施加 CHECK 前幂等重申
+//! `SET DEFAULT '在库'`，使 DB 默认值与权威词表、应用建单默认三者同源（口径同
+//! price_vocab_check 的 `SET DEFAULT 'pending'`；这是 DEFAULT 子句收敛，非 UPDATE 造值，
+//! 不触碰本文件契约测试锁定的「禁止 UPDATE 清洗」接线形态）。存量库遗留的
+//! `available` 行不在此洗，交由存量守卫 fail-visible 点名，业务核实后更正再重跑。
 //!
 //! 幂等：每列先 DROP CONSTRAINT IF EXISTS 再施加，可安全重跑。注册在全链尾：
 //! 所有建表/加列/默认值收敛域（system→business→sales_crm→production→finance→v15→…）
@@ -147,10 +161,15 @@ const COLUMN_CHECKS: &[ColumnCheck] = &[
     },
     ColumnCheck {
         table: "quality_inspection_records",
-        column: "result",
-        constraint: "chk_quality_inspection_records_result",
+        column: "inspection_result",
+        constraint: "chk_quality_inspection_records_inspection_result",
         allowed: QI_RECORD_RESULT_ALLOWED,
-        not_null: true,
+        // 结论列真实形态：v15 追加时即可空且无默认（v15/mod.rs:3844），历史行存在
+        // NULL；权威词表 models/status/quality_dyeing.rs::quality_inspection_result
+        // 声明的定义域就是本列（不是 m0005 遗留、实体不映射的 result 列）。守卫与
+        // CHECK 放行 NULL、只拦词表外非空值——写入口径以本列为准，钉错列等于真实
+        // 旁路门未关、正常写入反被死列的 NOT NULL 语义判死。
+        not_null: false,
     },
     ColumnCheck {
         table: "bpm_process_definition",
@@ -164,6 +183,19 @@ const COLUMN_CHECKS: &[ColumnCheck] = &[
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 0) 列默认值收敛：加 CHECK 前先把建表遗留的越界 DEFAULT 改为权威词表值，
+        //    令「省略该列的写入」不再落 DEFAULT 撞新 CHECK。唯一命中的是
+        //    greige_fabric.status（m0002 遗留 DEFAULT 'available'，权威词表为中文，
+        //    应用建单默认写「在库」）。此句只改 DEFAULT 子句、不动任何数据行，
+        //    与「禁止 UPDATE 造值」接线锁不冲突；幂等可重跑。
+        let normalize_defaults = r#"
+ALTER TABLE "greige_fabric" ALTER COLUMN "status" SET DEFAULT '在库';
+"#;
+        manager
+            .get_connection()
+            .execute_unprepared(normalize_defaults)
+            .await?;
+
         for spec in COLUMN_CHECKS {
             // 1) 幂等前置：删旧约束（重跑/半态库不报错）。
             let drop_old = format!(

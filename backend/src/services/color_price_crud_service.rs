@@ -22,7 +22,7 @@ use crate::models::product_color_price::{
     self, ActiveModel as ColorPriceActive, Entity as ColorPriceEntity,
 };
 use crate::models::status::approval;
-use crate::utils::data_scope::{apply_data_scope, DataScopeContext};
+use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 

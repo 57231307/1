@@ -214,8 +214,8 @@ fn lock_db_check_equals_authoritative_vocabularies_exactly() {
         "QI_RECORD_RESULT_ALLOWED",
         &to_set(quality_inspection_result::ALL),
         "quality_inspection_records",
-        "result",
-        "chk_quality_inspection_records_result",
+        "inspection_result",
+        "chk_quality_inspection_records_inspection_result",
     );
     lock_column(
         &mig,
