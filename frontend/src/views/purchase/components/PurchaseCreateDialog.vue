@@ -302,6 +302,7 @@ watch(
 <style scoped>
 .items-table {
   width: 100%;
+  overflow-x: auto;
 }
 
 .items-header {
@@ -322,8 +323,18 @@ watch(
 }
 
 .col-product {
-  flex: 1;
-  min-width: 150px;
+  flex: 1 0 150px;
+}
+
+/* 定宽列一律不参与收缩，对话框宽度不足时改由 items-table 横向滚动承接。
+   允许收缩会把 el-input-number 的输入框压到零宽，数量与税率在界面上填不进去 */
+.col-color,
+.col-qty,
+.col-price,
+.col-tax,
+.col-supplier-info,
+.col-amount {
+  flex: none;
 }
 
 .col-color {
