@@ -170,12 +170,15 @@ jobs:
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
           if-no-files-found: error
 
-      - name: 构建 release APK（未签名，可选）
+      - name: 构建 release APK（未签名，发布轮必需产物）
+        # 调用方 本文件的 准备签名证书 与 签名 release APK 两步，产物再进 上传签名 release APK。
+        # 入参 无。tauri v2 的 `android build` 默认即 release 档，只 --debug 是选项、--release 不是，
+        # 多传会被 CLI 判为 unexpected argument 并以退出码 2 终止。
         if: env.BUILD_RELEASE == 'true'
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: cargo tauri android build --release --apk
+        run: cargo tauri android build --apk
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
