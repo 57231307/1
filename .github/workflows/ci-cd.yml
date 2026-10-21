@@ -3105,10 +3105,19 @@ jobs:
         run: |
           echo "## E2E UI 操作失败统计（${{ matrix.label }}）" > reports/ui-failures.md
           echo "" >> reports/ui-failures.md
-          # 扫描 Playwright 输出中的 "[E2E] 操作失败" 日志（catch 清理后的显式日志）
-          FAIL_COUNT=$(grep -c "\[E2E\] 操作失败" reports/playwright-output.txt 2>/dev/null || echo 0)
-          LOGIN_FAIL=$(grep -c "UI 登录失败" reports/playwright-output.txt 2>/dev/null || echo 0)
-          TIMEOUT_FAIL=$(grep -cE "Timeout|超时" reports/playwright-output.txt 2>/dev/null || echo 0)
+          # 统计本分片的三类 UI 失败（操作失败、登录失败、等待响应超时），把明细写进
+          # reports/ui-failures.md。数据源缺失无从判定，按未验证判红而不是当 0 放过。
+          if [ ! -f reports/playwright-output.txt ]; then
+            echo "::error::E2E ${{ matrix.label }} 输出文件缺失，UI 操作失败无法统计，按未验证判红"
+            exit 1
+          fi
+          # grep -c 零命中时打印单个 0 并以退出码 1 结束；或号后必须接 true 而不是 echo 0，
+          # 否则变量变成两行文本，下一行算术展开报错并使通过分支永不执行。
+          FAIL_COUNT=$(grep -c "\[E2E\] 操作失败" reports/playwright-output.txt || true)
+          LOGIN_FAIL=$(grep -c "UI 登录失败" reports/playwright-output.txt || true)
+          # 超时口径只取 waitForResponse 超时：page.waitForTimeout 是脚本主动等待，
+          # 其 pw:api 轨迹同样含 Timeout 字样，按宽正则计数会使任何分片都判不出通过。
+          TIMEOUT_FAIL=$(grep -c "waitForResponse: Timeout" reports/playwright-output.txt || true)
           TOTAL_FAIL=$((FAIL_COUNT + LOGIN_FAIL + TIMEOUT_FAIL))
           if [ "$TOTAL_FAIL" -eq "0" ]; then
             echo "✅ 无 UI 操作失败" >> reports/ui-failures.md
@@ -3122,7 +3131,7 @@ jobs:
             echo "" >> reports/ui-failures.md
             echo "### 失败明细" >> reports/ui-failures.md
             echo '```' >> reports/ui-failures.md
-            grep "\[E2E\] 操作失败\|UI 登录失败" reports/playwright-output.txt 2>/dev/null | head -30 >> reports/ui-failures.md || true
+            grep "\[E2E\] 操作失败\|UI 登录失败\|waitForResponse: Timeout" reports/playwright-output.txt 2>/dev/null | head -30 >> reports/ui-failures.md || true
             echo '```' >> reports/ui-failures.md
             # 有操作失败记失败（但不阻塞 CI，仅记录统计）
             echo "::warning::E2E ${{ matrix.label }} 有 $TOTAL_FAIL 处 UI 操作失败（操作失败 $FAIL_COUNT + 登录失败 $LOGIN_FAIL + 超时 $TIMEOUT_FAIL）"
