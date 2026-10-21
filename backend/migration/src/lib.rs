@@ -8,6 +8,7 @@
 //!   → company_profile → bulk_color_item_link → role_conflicts_drop_production_sod
 //!   → fulfillment_source_and_po_origin → finance_resource_rename → bpm_approver_grant
 //!   → system_admin_bpm_config_grant
+//!   → ap_family_grant
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -20,6 +21,7 @@
 //!         / m_role_conflicts_drop_production_sod
 //!         / m_fulfillment_source_and_po_origin
 //!         / m_finance_resource_rename / m_bpm_approver_grant / m_system_admin_bpm_config_grant
+//!         / m_ap_family_grant
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
