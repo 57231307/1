@@ -211,7 +211,7 @@
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.lead_status !== LEAD_STATUS.CONVERTED"
-              v-permission="'crm_lead:update'"
+              v-permission="'crm-leads:update'"
               type="primary"
               link
               size="small"

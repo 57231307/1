@@ -64,20 +64,20 @@
           <el-table-column :label="t('email.index.colOperation')" width="260" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-permission="'email_template:read'"
+                v-permission="'email-templates:read'"
                 size="small"
                 link
                 @click="handleViewTemplate(row)"
                 >{{ t('email.index.buttonView') }}</el-button
               >
               <el-button
-                v-permission="'email_template:update'"
+                v-permission="'email-templates:update'"
                 size="small"
                 @click="handleEditTemplate(row)"
                 >{{ t('email.index.buttonEdit') }}</el-button
               >
               <el-button
-                v-permission="'email_template:delete'"
+                v-permission="'email-templates:delete'"
                 size="small"
                 type="danger"
                 @click="handleDeleteTemplate(row)"

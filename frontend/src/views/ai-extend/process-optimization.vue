@@ -347,7 +347,7 @@ const appliedOptions = computed(() => [
               $t('aiExtend.process.detail')
             }}</el-button>
             <el-button
-              v-permission="'ai_process_optimization:delete'"
+              v-permission="'ai-process-opt:delete'"
               type="danger"
               size="small"
               @click="handleDelete(row)"

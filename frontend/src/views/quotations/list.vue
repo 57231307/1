@@ -126,7 +126,7 @@
             </el-button>
             <el-button
               v-if="row.status === 'draft' || row.status === 'rejected'"
-              v-permission="'quotation:update'"
+              v-permission="'quotations:update'"
               link
               type="primary"
               @click="goEdit(row)"
@@ -143,7 +143,7 @@
             </el-button>
             <el-button
               v-if="row.status === 'draft'"
-              v-permission="'quotation:cancel'"
+              v-permission="'quotations:cancel'"
               link
               type="danger"
               @click="handleCancel(row)"
