@@ -98,7 +98,7 @@
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
-              v-permission="'quality_standard:update'"
+              v-permission="'quality-standards:update'"
               type="primary"
               link
               size="small"

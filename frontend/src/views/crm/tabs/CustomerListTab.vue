@@ -186,9 +186,9 @@
             <el-button type="primary" link size="small" @click="viewDetail(row.id)">{{
               $t('crmCustomer.table.detail')
             }}</el-button>
-            <!-- 编辑/删除按钮受权限键控制（crm_customer:update / crm_customer:delete） -->
+            <!-- 编辑/删除按钮受权限键控制（customers:update / customers:delete） -->
             <el-button
-              v-permission="'crm_customer:update'"
+              v-permission="'customers:update'"
               type="primary"
               link
               size="small"
@@ -196,7 +196,7 @@
               >{{ $t('crmCustomer.table.edit') }}</el-button
             >
             <el-button
-              v-permission="'crm_customer:delete'"
+              v-permission="'customers:delete'"
               type="danger"
               link
               size="small"

@@ -103,7 +103,7 @@
           <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
           <el-button
             v-if="row.status === PURCHASE_PRICE_STATUS.APPROVED"
-            v-permission="'purchase_price:update'"
+            v-permission="'purchase-prices:update'"
             type="primary"
             link
             size="small"

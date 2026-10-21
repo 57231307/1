@@ -1,4 +1,4 @@
-# layers=8 endpoints=1776
+# layers=8 endpoints=1772
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -585,7 +585,6 @@ GET	/api/v1/erp/lock-status	login_security_handler::check_lock_status	analytics
 GET	/api/v1/erp/locked-accounts	login_security_handler::get_locked_accounts	analytics
 GET	/api/v1/erp/login-logs	login_security_handler::list_login_logs	analytics
 GET	/api/v1/erp/login-logs/export	login_security_handler::export_login_logs	analytics
-GET	/api/v1/erp/login-statistics	login_security_handler::get_login_statistics	analytics
 GET	/api/v1/erp/logistics-tracking/waybills/*/print	print_handler::logistics_waybill_print_docx	logistics_tracking
 GET	/api/v1/erp/logistics-tracking/waybills/*/tracking-events	logistics_tracking_handler::list_tracking_events	logistics_tracking
 GET	/api/v1/erp/logs	audit_enhanced_handler::list_audit_logs	analytics
@@ -912,12 +911,10 @@ GET	/api/v1/erp/scheduling/history	scheduling_handler::get_schedule_history	mod
 GET	/api/v1/erp/scheduling/results/*	scheduling_handler::get_schedule_result	mod
 GET	/api/v1/erp/scheduling/results/*/print	print_handler::scheduling_result_print_docx	mod
 GET	/api/v1/erp/scheduling/tasks	scheduling_handler::list_scheduled_orders	mod
-GET	/api/v1/erp/scheduling/work-orders	scheduling_handler::list_scheduled_orders	mod
 GET	/api/v1/erp/search/customers	search_api::search_customers	mod
 GET	/api/v1/erp/search/doc-types	search_api::list_doc_types	mod
 GET	/api/v1/erp/search/products	search_api::search_products	mod
 GET	/api/v1/erp/search/sales-orders	search_api::search_sales_orders	mod
-GET	/api/v1/erp/security-alerts	login_security_handler::get_security_alerts	analytics
 GET	/api/v1/erp/slow-queries	slow_query_handler::list_slow_queries	system
 GET	/api/v1/erp/slow-queries/report/weekly	slow_query_handler::get_weekly_report	system
 GET	/api/v1/erp/slow-queries/stats	slow_query_handler::get_slow_query_stats	system
@@ -1449,7 +1446,6 @@ POST	/api/v1/erp/production/production-recipes/*/close	production_recipe_handler
 POST	/api/v1/erp/production/production-recipes/additions/*/approve	production_recipe_handler::approve_addition	production
 POST	/api/v1/erp/production/production-recipes/additions/*/close	production_recipe_handler::close_addition	production
 POST	/api/v1/erp/production/production-recipes/calculate	production_recipe_handler::calculate	production
-POST	/api/v1/erp/production/quality-inspection/defects/*/handle	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process-result	quality_inspection_handler::process_defect_result	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/financial	quality_inspection_handler::approve_scrap_financial	production

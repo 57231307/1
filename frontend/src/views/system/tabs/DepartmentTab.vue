@@ -30,14 +30,14 @@
           <template #default="{ row }">
             <!-- 编辑/删除按钮权限门控；行载体为树节点（六键），行上不可得的字段由编辑时详情端点补齐 -->
             <el-button
-              v-permission="'department:update'"
+              v-permission="'departments:update'"
               size="small"
               link
               @click="openDeptDialog(row as DepartmentTreeNode)"
               >{{ t('system.department.button.edit') }}</el-button
             >
             <el-button
-              v-permission="'department:delete'"
+              v-permission="'departments:delete'"
               size="small"
               link
               type="danger"
