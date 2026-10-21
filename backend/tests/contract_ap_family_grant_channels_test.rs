@@ -47,6 +47,17 @@ const MATRIX: &str = "src/services/init_service_ops/permission.rs";
 const GRANT_MIGRATION: &str = "migration/src/domain/ap_family_grant/m0001_grant_ap_family_keys.rs";
 const REGISTRY: &str = "src/services/init_service.rs";
 
+/// 取一行元组字面量里的各字段，行首不是 (" 的返回 None。
+/// 字段一律对整行配对取双引号字面量：先把 (" 前缀剥掉会让资源名的右引号被当成开引号，
+/// 其后配对整体错位，元数永远对不上，两面取字面量必须走这一条路。
+fn tuple_fields(line: &str) -> Option<Vec<String>> {
+    let t = line.trim();
+    if !t.starts_with("(\"") {
+        return None;
+    }
+    Some(quoted(t))
+}
+
 /// 通道① 解析结果：角色码 → 该岗持有的 ap-* (资源, 动作) 集合。
 fn matrix_ap_keys(matrix_src: &str) -> BTreeMap<String, BTreeSet<(String, String)>> {
     let lines: Vec<&str> = matrix_src.lines().collect();
@@ -73,9 +84,13 @@ fn matrix_ap_keys(matrix_src: &str) -> BTreeMap<String, BTreeSet<(String, String
             if g.starts_with(']') {
                 break;
             }
-            if let Some(q) = g.strip_prefix("(\"") {
-                let fields = quoted(q);
-                if fields.len() == 2 && fields[0].starts_with("ap-") {
+            if let Some(fields) = tuple_fields(lines[j]) {
+                assert_eq!(
+                    fields.len(),
+                    2,
+                    "通道① {role} 分组的授权行必须是资源与动作两枚字面量: {g}"
+                );
+                if fields[0].starts_with("ap-") {
                     keys.insert((fields[0].clone(), fields[1].clone()));
                 }
             }
@@ -98,11 +113,10 @@ fn migration_ap_keys(grant_src: &str) -> BTreeMap<String, BTreeSet<(String, Stri
     let body = &grant_src[start..];
     let end = body.find("];").expect("GRANTS 常量未闭合，通道② 判据失效");
     for line in body[..end].lines() {
-        let t = line.trim();
-        if !t.starts_with("(\"") {
+        let Some(fields) = tuple_fields(line) else {
             continue;
-        }
-        let fields = quoted(t);
+        };
+        let t = line.trim();
         let (code, res, act) = match fields.as_slice() {
             [a, b, c] => (a.clone(), b.clone(), c.clone()),
             _ => panic!("GRANTS 行必须是三枚引号字面量: {t}"),
