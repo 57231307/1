@@ -534,7 +534,9 @@ fn crud_source_scan_no_bad_request_left_for_subject_and_balance() {
     // create 与 update 分量替换都经 validate_voucher_items_shape 进内核，内核只保留
     // 一处 balance_error 装配点，禁止各调用点各自装配。
     assert_eq!(
-        CRUD_SRC.matches("Self::validate_voucher_items_shape(").count(),
+        CRUD_SRC
+            .matches("Self::validate_voucher_items_shape(")
+            .count(),
         2,
         "create 与 update 换分录路径两处应各调一次 validate_voucher_items_shape"
     );
