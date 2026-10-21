@@ -218,7 +218,7 @@ async fn required_date_yesterday_must_be_rejected_with_displayable_message() {
     // 验证文案指向用户可执行的修正动作（提到"今天"）
     assert!(
         public_msg.contains("今天"),
-        "拒绝文案必须包含"今天"让用户知道如何修正，实际: {public_msg}"
+        "拒绝文案必须包含\"今天\"让用户知道如何修正，实际: {public_msg}"
     );
 
     // 验证文案不含内部 ID（不泄露实现细节）

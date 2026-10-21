@@ -224,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { deepClone } from '@/utils';
+import { deepClone, toLocalDateString } from '@/utils';
 import { ref, reactive, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
@@ -288,10 +288,7 @@ const localData = reactive<OrderForm>({
   id: 0,
   customer_id: undefined,
   customer_name: '',
-  order_date: (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  })(),
+  order_date: toLocalDateString(),
   required_date: '',
   contact_person: '',
   contact_phone: '',
