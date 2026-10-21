@@ -230,6 +230,7 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
           quantity_ordered: '10.00',
           unit_price: '5.00',
           quantity_tolerance_pct: '150',
+          tax_rate: 13,
         },
       ],
     };
@@ -269,6 +270,7 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
           quantity_ordered: '300.00',
           unit_price: '20.00',
           quantity_tolerance_pct: '8.00',
+          tax_rate: 13,
         },
       ],
     });

@@ -1269,6 +1269,10 @@ export default {
       colProduct: 'Product',
       colQuantity: 'Quantity',
       colUnitPrice: 'Unit Price',
+      colTaxRate: 'Tax Rate (%)',
+      taxRatePlaceholder: 'Percent value, e.g. 13 means 13%',
+      taxRateRequired:
+        'Enter a tax rate for each item (percent value, e.g. 13 means 13%; enter 0 if no input VAT)',
       colTolerance: 'Tolerance %',
       colAmount: 'Amount',
       colOperation: 'Action',

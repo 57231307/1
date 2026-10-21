@@ -876,7 +876,14 @@ test.describe('SKU 对照表 - 转采购翻译 hook', () => {
         warehouse_id: warehouseId,
         department_id: departmentId,
         source_sales_order_id: salesOrderId || 1,
-        items: [{ material_id: fx.productId, quantity_ordered: '10', color_no: fx.colorNo }],
+        items: [
+          {
+            material_id: fx.productId,
+            quantity_ordered: '10',
+            color_no: fx.colorNo,
+            tax_rate: 13,
+          },
+        ],
       });
       poId = Number(po.data?.id);
       expect(poId, '有对照时转采购应成功建单').toBeGreaterThan(0);
@@ -934,7 +941,14 @@ test.describe('SKU 对照表 - 转采购翻译 hook', () => {
       warehouse_id: warehouseId,
       department_id: departmentId,
       source_sales_order_id: salesOrderId || 1,
-      items: [{ material_id: fx.productId, quantity_ordered: '10', color_no: fx.colorNo }],
+      items: [
+        {
+          material_id: fx.productId,
+          quantity_ordered: '10',
+          color_no: fx.colorNo,
+          tax_rate: 13,
+        },
+      ],
     });
     expect(res.status, `无对照转采购应 4xx，实际 ${res.status}`).toBeGreaterThanOrEqual(400);
     expect(res.status).toBeLessThan(500);
@@ -967,6 +981,7 @@ test.describe('SKU 对照表 - 转采购翻译 hook', () => {
           material_id: fx.productId,
           quantity_ordered: '10',
           color_no: `__E2E_NO_SUCH_${Date.now()}__`,
+          tax_rate: 13,
         },
       ],
     });

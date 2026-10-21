@@ -46,16 +46,18 @@ use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 单行明细金额计算结果（`calculate_item_amounts` 权威口径的数据载体；
-/// 创建与明细更新两条链路共用，故 pub(crate)）
-pub(crate) struct ItemAmounts {
-    pub(crate) quantity_ordered: Decimal,
-    pub(crate) unit_price: Decimal,
-    pub(crate) quantity_alt_ordered: Decimal,
-    pub(crate) tax_percent: Decimal,
-    pub(crate) discount_percent: Decimal,
-    pub(crate) amount: Decimal,
-    pub(crate) tax_amount: Decimal,
-    pub(crate) discount_amount: Decimal,
+/// 创建与明细更新两条链路共用，集成测试直调本函数并按本结构逐值断言税额口径，
+/// 故结构与字段公开）
+#[derive(Debug)]
+pub struct ItemAmounts {
+    pub quantity_ordered: Decimal,
+    pub unit_price: Decimal,
+    pub quantity_alt_ordered: Decimal,
+    pub tax_percent: Decimal,
+    pub discount_percent: Decimal,
+    pub amount: Decimal,
+    pub tax_amount: Decimal,
+    pub discount_amount: Decimal,
 }
 
 impl PurchaseOrderService {
@@ -323,21 +325,45 @@ impl PurchaseOrderService {
     /// （`receipt::update_order_item` 重算 subtotal/discount_amount/tax_amount/
     /// total_amount 派生列）共用，禁止另写第二套公式。
     ///
-    /// 税率入参口径为**百分数**（`13` 即 13%），与落库列 tax_percent 同单位；
-    /// 税额经 `utils::tax` 内核换算。请求未提交 tax_rate 时不做任何档位回落，
-    /// 直接点名返回业务错误——税率必须由人工录入或取自上游单据已存值。
-    pub(crate) fn calculate_item_amounts(
+    /// 入参 item 是采购订单行请求，税率取 item 的 tax_rate，口径为百分数（13 即 13%），
+    /// 与落库列 tax_percent 同单位，税额经 utils tax 内核换算，产出 ItemAmounts 供
+    /// build_order_item_active_model 与 receipt 更新路径写入 purchase_order_item 的
+    /// subtotal、tax_percent、tax_amount、discount_amount、total_amount 列。
+    ///
+    /// 税率口径是**分层**的，两条链路各有一条且只有一条合法路径，系统不设任何默认档位。
+    /// - 人工建单与人工改行（本函数的调用方）必须提交 tax_rate，缺值一律点名拒绝。
+    ///   0 是业务声明值（免税、出口零税率、无进项票），不能当"没录"的缺省，
+    ///   否则漏录与免税在进项台账里无法区分。
+    /// - 自动补货链路（`services/po/price.rs` 的缺料预警与库存预警两条建单入口）无人工录入
+    ///   环节、也无税率来源，由该侧显式取 utils tax 的无进项税口径常量落账并留 info 日志，
+    ///   不经过本函数，也不得在本函数里补一条缺省分支。
+    ///
+    /// 提交了 tax_rate 则必须落在落库列域 0 到 999.9999 内（上界取自 purchase_order_item
+    /// 的 tax_percent 列 DECIMAL(7,4) 口径，与 utils tax 的 TAX_PERCENT_MAX 同源），
+    /// 越界在算金额之前点名拒绝，避免把非法入参留到 insert 阶段炸成列溢出。
+    pub fn calculate_item_amounts(
         item: &crate::services::po::CreateOrderItemRequest,
     ) -> Result<ItemAmounts, AppError> {
         let quantity_ordered = item.quantity_ordered.unwrap_or(Decimal::ZERO);
         let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
         let amount = (quantity_ordered * unit_price).round_dp(2);
-        let tax_percent = item.tax_rate.ok_or_else(|| {
-            AppError::business_displayable(format!(
-                "采购订单行（line_no={:?}, 物料ID={:?}）缺少税率 tax_rate：须按百分数提交（13 表示 13%），取不到来源时拒绝计算，系统不设默认税率档位",
-                item.line_no, item.material_id
-            ))
-        })?;
+        let tax_percent = match item.tax_rate {
+            Some(percent) => {
+                if percent < Decimal::ZERO || percent > crate::utils::tax::TAX_PERCENT_MAX {
+                    return Err(AppError::business_displayable(format!(
+                        "采购订单行税率 {} 非法：须为百分数口径且落在 0 到 {} 之间（13 表示 13%，0 表示无进项税），系统不设默认税率档位",
+                        percent,
+                        crate::utils::tax::TAX_PERCENT_MAX
+                    )));
+                }
+                percent
+            }
+            None => {
+                return Err(AppError::business_displayable(
+                    "采购订单行缺少税率 tax_rate，须按百分数提交（13 表示 13%，0 表示无进项税），系统不设默认税率档位，请录入税率后重试",
+                ));
+            }
+        };
         let tax_amount = crate::utils::tax::tax_amount(amount, tax_percent);
         let discount_percent = item.discount_percent.unwrap_or(Decimal::ZERO);
         let discount_amount = (amount * discount_percent / Decimal::new(100, 0)).round_dp(2);
@@ -488,9 +514,10 @@ impl PurchaseOrderService {
                     if let Some(price) = resolved.supplier_price {
                         amounts.unit_price = price;
                         amounts.amount = (amounts.quantity_ordered * price).round_dp(2);
-                        amounts.tax_amount = (amounts.amount * amounts.tax_percent
-                            / Decimal::new(100, 0))
-                        .round_dp(2);
+                        // 税额走 utils tax 内核，与本函数开头的行税额同一公式，
+                        // 禁止在此再写一套 ÷100
+                        amounts.tax_amount =
+                            crate::utils::tax::tax_amount(amounts.amount, amounts.tax_percent);
                         amounts.discount_amount = (amounts.amount * amounts.discount_percent
                             / Decimal::new(100, 0))
                         .round_dp(2);
@@ -768,5 +795,88 @@ impl PurchaseOrderService {
         }
 
         Ok(order)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::po::CreateOrderItemRequest;
+    use std::str::FromStr;
+
+    /// 构造只关心数量与税率的采购订单行请求，其余字段一律 None（表示前端未提交该字段）。
+    /// 入参 tax_rate 原样写入请求的 tax_rate，供 calculate_item_amounts 的提交分支与
+    /// 缺值分支各自取用，数量固定 20、单价固定 15.00，因此不含税金额恒为 300.00，
+    /// 税额可按手算核对。
+    fn item_with_tax_rate(tax_rate: Option<Decimal>) -> CreateOrderItemRequest {
+        CreateOrderItemRequest {
+            line_no: Some(1),
+            material_id: Some(7),
+            unit_price: Some(Decimal::from_str("15.00").unwrap()),
+            quantity_ordered: Some(Decimal::from(20)),
+            quantity_alt_ordered: None,
+            tax_rate,
+            discount_percent: None,
+            quantity_tolerance_pct: None,
+            color_no: None,
+            notes: None,
+        }
+    }
+
+    /// 人工建单缺 tax_rate 一律点名拒绝，不按 0 落账，0 是业务声明值（免税、无进项票），
+    /// 代填会让漏录与免税在进项台账里无法区分。拒绝必须走 business_displayable
+    /// （错误码 BUSINESS_ERROR、出参携带真实文案），且文案不得内插行号/物料 ID
+    /// 这类记录标识（本仓出参脱敏族）。
+    #[test]
+    fn tax_rate_absent_is_rejected_not_defaulted() {
+        let item = item_with_tax_rate(None);
+        let error = PurchaseOrderService::calculate_item_amounts(&item)
+            .expect_err("人工建单缺 tax_rate 必须拒绝计算，不得按任何值代填税率");
+        assert_eq!(error.error_code(), "BUSINESS_ERROR");
+        let message = error.public_message();
+        assert!(
+            message.contains("缺少税率 tax_rate") && message.contains("请录入税率后重试"),
+            "拒绝文案必须说明该怎么填，实际: {message}"
+        );
+        assert!(
+            !message.contains("line_no") && !message.contains("物料"),
+            "拒绝文案不得内插记录标识，实际: {message}"
+        );
+    }
+
+    /// 提交的 tax_rate 是百分数口径（13 即 13%），税额必须是 300 乘 13 除 100 得 39.00。
+    /// 第二样本取 0.26，内核按字面百分数处理，300 乘 0.26 除 100 得 0.78，
+    /// 若调用方把它当小数率 26% 传进来，期望应为 78，两者相差 100 倍，
+    /// 据此钉死调用方只能传百分数口径。
+    #[test]
+    fn tax_rate_is_percent_unit_not_fraction() {
+        let item = item_with_tax_rate(Some(Decimal::from(13)));
+        let amounts = PurchaseOrderService::calculate_item_amounts(&item).unwrap();
+        assert_eq!(amounts.tax_percent, Decimal::from(13));
+        assert_eq!(amounts.tax_amount, Decimal::from_str("39.00").unwrap());
+
+        let misread_item = item_with_tax_rate(Some(Decimal::from_str("0.26").unwrap()));
+        let misread = PurchaseOrderService::calculate_item_amounts(&misread_item).unwrap();
+        assert_eq!(misread.tax_amount, Decimal::from_str("0.78").unwrap());
+    }
+
+    /// 显式提交的税率越出落库列域（负数，或超过 tax_percent 列 DECIMAL(7,4) 的 999.9999）
+    /// 时在算金额之前点名拒绝，错误码 BUSINESS_ERROR，不允许留到 insert 阶段炸成列溢出。
+    /// 列域上界本身仍属合法载荷，单独一样本防止边界被判死。
+    #[test]
+    fn tax_rate_outside_column_domain_is_rejected() {
+        let illegal_values = [
+            Decimal::from_str("-1").unwrap(),
+            Decimal::from_str("1000").unwrap(),
+        ];
+        for illegal in illegal_values {
+            let item = item_with_tax_rate(Some(illegal));
+            let error = PurchaseOrderService::calculate_item_amounts(&item).unwrap_err();
+            assert_eq!(error.error_code(), "BUSINESS_ERROR");
+        }
+
+        let max_item = item_with_tax_rate(Some(crate::utils::tax::TAX_PERCENT_MAX));
+        let amounts = PurchaseOrderService::calculate_item_amounts(&max_item).unwrap();
+        assert_eq!(amounts.tax_percent, crate::utils::tax::TAX_PERCENT_MAX);
     }
 }

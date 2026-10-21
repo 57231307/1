@@ -478,6 +478,7 @@ test.describe.serial('66 提交契约族正向回归（提交必失败路径 →
             unit_price: '20.00',
             quantity_tolerance_pct: '8.00',
             notes: 'E2E66 采购行',
+            tax_rate: 13,
           },
         ],
       },

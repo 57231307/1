@@ -567,6 +567,9 @@ impl OutsourcingReceiptService {
             })?;
             // 进项税率只从本单据已记录的进项税额与对应费基反推（百分数口径），
             // 不引入任何税率档位字面量；费基口径与 processing_ratio 的分子同源。
+            // 转出额只随单据已落库的 order.tax_amount 反推，不按任何假定档位计算，
+            // 税额为 0 的单据（免税或未按票入账）反推出 0，转出额随之为 0，
+            // 税额与费基不自洽（费基 0 而税额非 0）的单据在下方点名拒绝。
             let fee_base = order.processing_fee + order.freight_fee;
             let vat_percent = match crate::utils::tax::derive_tax_percent(
                 order.tax_amount,

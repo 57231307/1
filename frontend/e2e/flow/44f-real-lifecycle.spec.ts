@@ -266,7 +266,14 @@ test.describe.serial('44f 真实实体全流转链', () => {
         department_id: ctx.departmentIds[0],
         order_date: new Date().toISOString().slice(0, 10),
         expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-        items: [{ material_id: ctx.productIds[0], quantity_ordered: 10, unit_price: '2.50' }],
+        items: [
+          {
+            material_id: ctx.productIds[0],
+            quantity_ordered: 10,
+            unit_price: '2.50',
+            tax_rate: 13,
+          },
+        ],
       }
     );
     const poId = po?.data?.id;

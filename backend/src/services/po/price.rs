@@ -94,9 +94,16 @@ impl PurchaseOrderService {
         &self,
         params: ShortageAlertParams,
     ) -> Result<purchase_order::Model, AppError> {
-        // 税率来源在任何写入之前解析：取不到就整单失败，订单头与明细都不落库
-        let tax_percent =
-            Self::resolve_auto_item_tax_percent(params.material_id, &params.material_name)?;
+        // 该链路既无人工录入环节、又无可取税率的上游单据（预警事件直接建单），故在此
+        // **显式声明无进项税**，口径值取自 utils tax 内核常量，写入 tax_percent 列并作为
+        // 税额内核入参。人工建单侧缺 tax_rate 是点名拒绝、不走本常量，本链路也不得改成
+        // 拒绝（自动补货无人可问），更禁止在此填 13 之类的税率档位。
+        let tax_percent = crate::utils::tax::NO_INPUT_TAX_PERCENT;
+        tracing::info!(
+            "缺料预警采购建议按无进项税落账: 物料={} ({})，原因=自动补货链路无税率来源，系统不设默认税率档位",
+            params.material_name,
+            params.material_code
+        );
         let txn = (*self.db).begin().await?;
         let (product, supplier) =
             Self::fetch_shortage_product_and_supplier(&txn, params.material_id).await?;
@@ -189,27 +196,11 @@ impl PurchaseOrderService {
         }
     }
 
-    /// 解析自动补货链路（缺料预警 / 库存预警）单据行的税率，百分数口径（13 表示 13%）。
-    ///
-    /// 该链路没有人工录入环节，也没有可取税率的上游单据，当前不存在任何真实税率来源，
-    /// 因此一律点名失败：禁止用税率档位字面量把税额算成量级错误却看似正常的单据。
-    /// 入参 material_id / material_name 只用于错误文案定位到具体物料；税率来源
-    /// （部署配置或税率主数据）接入后本函数改为返回解析到的百分数税率，调用方不改。
-    fn resolve_auto_item_tax_percent(
-        material_id: i32,
-        material_name: &str,
-    ) -> Result<Decimal, AppError> {
-        Err(AppError::business_displayable(format!(
-            "自动生成采购订单缺少税率来源（物料 {} {}）：该链路无人工录入、上游单据亦无已存税率，且系统未配置税率来源，拒绝按默认档位落账",
-            material_id, material_name
-        )))
-    }
-
     /// 创建采购订单明细（金额补 round_dp(2) 精度归一化）
     ///
-    /// `tax_percent` 为百分数口径税率（13 表示 13%），由调用方经
-    /// `resolve_auto_item_tax_percent` 解析后传入；税额经 `utils::tax` 内核算出，
-    /// 落库列 tax_percent 与 tax_amount 同源于该入参。
+    /// 入参 tax_percent 为百分数口径税率（13 表示 13%，0 表示无进项税），由调用方
+    /// （create_purchase_suggestion_from_shortage）给出，税额经 utils tax 内核算出，
+    /// 与落库列 purchase_order_item 的 tax_percent、tax_amount 同源于该入参。
     async fn create_shortage_order_item(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
@@ -225,6 +216,9 @@ impl PurchaseOrderService {
         purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
+            // 自动补货单恒为一行建议，行号落 1，purchase_order_item.line_no 是 NOT NULL
+            // 且无 DB 默认值的列，不显式写值会让整张建议单在 insert 阶段失败
+            line_no: Set(1),
             product_id: Set(params.material_id),
             quantity: Set(suggested_quantity),
             quantity_alt: Set(Decimal::ZERO),
@@ -306,8 +300,9 @@ impl PurchaseOrderService {
 
     /// 创建库存预警订单明细(金额补 round_dp(2) 精度归一化)
     ///
-    /// `tax_percent` 为百分数口径税率（13 表示 13%），由调用方经
-    /// `resolve_auto_item_tax_percent` 解析后传入；税额走 `utils::tax` 内核。
+    /// 入参 tax_percent 为百分数口径税率（13 表示 13%，0 表示无进项税），由调用方
+    /// （create_purchase_suggestion）给出，税额经 utils tax 内核算出，与落库列
+    /// purchase_order_item 的 tax_percent、tax_amount 同源于该入参。
     async fn create_replenishment_order_item(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
@@ -321,6 +316,9 @@ impl PurchaseOrderService {
         purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
+            // 同上，purchase_order_item.line_no 为 NOT NULL 且无 DB 默认值，
+            // 库存预警补货建议恒一行，行号落 1
+            line_no: Set(1),
             product_id: Set(product.id),
             quantity: Set(reorder_quantity),
             quantity_alt: Set(Decimal::ZERO),
@@ -356,8 +354,13 @@ impl PurchaseOrderService {
         let txn = (*self.db).begin().await?;
         let (product, warehouse, supplier) =
             Self::fetch_replenishment_entities(&txn, product_id, warehouse_id).await?;
-        // 税率来源解析在写入前完成：取不到即点名失败，订单头与明细都不落库
-        let tax_percent = Self::resolve_auto_item_tax_percent(product_id, &product.name)?;
+        // 同缺料预警链路，无税率来源即按无进项税落账（口径值来自 utils tax 内核），
+        // 不填任何税率档位
+        let tax_percent = crate::utils::tax::NO_INPUT_TAX_PERCENT;
+        tracing::info!(
+            "库存预警采购建议按无进项税落账: 产品={}，原因=该链路无税率来源且系统不设默认税率档位",
+            product.name
+        );
         let order_no = self.generate_order_no_with_txn(&txn).await?;
         let order = Self::build_replenishment_order(
             order_no,

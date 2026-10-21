@@ -101,7 +101,9 @@ async function seedApprovedPO(page: Page): Promise<PurchaseOrderLite> {
     order_date: new Date().toISOString().slice(0, 10),
     warehouse_id: ctx.warehouseIds[0],
     department_id: ctx.departmentIds[0],
-    items: [{ material_id: ctx.productIds[0], quantity_ordered: '20', unit_price: '15.00' }],
+    items: [
+      { material_id: ctx.productIds[0], quantity_ordered: '20', unit_price: '15.00', tax_rate: 13 },
+    ],
     notes: `E2E-P3-${marker}`,
   });
   const orderNo = created.data?.order_no;

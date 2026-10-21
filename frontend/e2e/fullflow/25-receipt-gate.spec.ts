@@ -109,7 +109,7 @@ async function seedReceipt(
     warehouse_id: ctx.warehouseIds[0],
     department_id: ctx.departmentIds[0],
     notes: `E2E-F25-PO-${ts}`,
-    items: [{ material_id: productId, quantity_ordered: '200', unit_price: '10.00' }],
+    items: [{ material_id: productId, quantity_ordered: '200', unit_price: '10.00', tax_rate: 13 }],
   });
   const poId = requireNum(po.id, '建 PO');
   CLEANUP.push({ path: `/purchase/orders/${poId}`, label: `purchase_order#${poId}` });
