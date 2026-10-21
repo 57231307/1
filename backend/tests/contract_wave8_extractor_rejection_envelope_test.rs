@@ -454,6 +454,7 @@ fn all_app_error_variants() -> Vec<AppError> {
         AppError::ValidationError("探针".to_string()),
         AppError::ValidationErrorDisplayable("探针".to_string()),
         AppError::NotFound("探针".to_string()),
+        AppError::NotFoundDisplayable("探针".to_string()),
         AppError::BusinessError("探针".to_string()),
         AppError::BusinessErrorDisplayable("探针".to_string()),
         AppError::Unauthorized("探针".to_string()),
@@ -475,10 +476,10 @@ fn app_error_variant_status_never_produces_415_or_422() {
     let variants = all_app_error_variants();
     // 条数棘轮：describe_variant 的 exhaustive match 只防"加变体不改映射"；
     // 新增变体的人补完 match 分支后若忘了把变体放进本构造集，闭合前提照样漏钉。
-    // 数量硬钉 14（= utils/error.rs:144-177 变体全集），加变体不补构造=当场红。
+    // 数量硬钉 15（= utils/error.rs 变体全集），加变体不补构造=当场红。
     assert_eq!(
         variants.len(),
-        14,
+        15,
         "AppError 构造集与变体全集脱钩：新增变体必须先补进 all_app_error_variants()，\
          再确认其状态码不落入 415/422（否则 trace_context 收口判据被静默打开）"
     );
