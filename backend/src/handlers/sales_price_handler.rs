@@ -427,14 +427,14 @@ pub async fn export_prices(
     record_prices_export_audit(&state, &auth, row_count, &filename);
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             filename.clone(),
             row_count as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
     let watermark = WatermarkConfig {

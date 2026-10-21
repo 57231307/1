@@ -2,9 +2,9 @@
 // E2E 分片登记 + ci-cd.yml 分片编排解析（单一事实来源模块，被两个 CI 门禁脚本共用）
 //
 // 为什么需要这个模块：
-//   ci-cd.yml 的 ci-e2e 原来把"有哪些分片"写两遍——strategy.matrix.include 的 42 条
+//   ci-cd.yml 的 ci-e2e 原来把"有哪些分片"写两遍——strategy.matrix.include 的 45 条
 //   "- shard: N / label: ..."（给 Actions 展开 job 用）与跑测 step 里的 `case "$SHARD"`
-//   表（给 bash 决定 SPEC_TARGETS 用），文件自己在 :3041 注释里写着"两处表达必须同步演进"。
+//   表（给 bash 决定 SPEC_TARGETS 用），workflow 自己在 extras 注释里写着两处表达必须同步演进。
 //   现在 main push 轮也要跑 e2e（只跑核心链子集），矩阵必须由程序按事件发射，静态
 //   include 块不再是矩阵来源；把它继续留在 YAML 里就变成第三处会漂移的副本，因此
 //   分片清单（shard + label）迁到本模块，执行语义（目录/序号/分母）仍以 ci-cd.yml 的
@@ -78,8 +78,11 @@ export const E2E_SHARD_MATRIX = [
   { shard: 37, label: 'extras: bpm+fabric+mrp' },
   { shard: 38, label: 'extras: ai+quotations+system' },
   { shard: 39, label: 'extras: dashboard+e2e 根级 3 spec' },
-  { shard: 40, label: 'extras: fullflow 1/2（--shard hash 分片）' },
-  { shard: 41, label: 'extras: fullflow 2/2（--shard hash 分片）' },
+  { shard: 40, label: 'extras: fullflow 1/5（按实测时长分组）' },
+  { shard: 41, label: 'extras: fullflow 2/5（按实测时长分组）' },
+  { shard: 42, label: 'extras: fullflow 3/5（按实测时长分组）' },
+  { shard: 43, label: 'extras: fullflow 4/5（按实测时长分组）' },
+  { shard: 44, label: 'extras: fullflow 5/5（按实测时长分组）' },
 ];
 
 // 读取 workflow 文本并归一行尾：本地工作区（core.autocrlf）是 CRLF、CI 检出是 LF，

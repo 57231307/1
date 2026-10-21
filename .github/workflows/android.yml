@@ -27,7 +27,9 @@ on:
         default: false
       run_e2e:
         description: "是否跑模拟器端到端（push 与 release 直接触发不受此输入控制，恒跑）"
-        type: string
+        # options 只与 type: choice 搭配合法（GitHub 模式与 actionlint 同源判定），
+        # 挂在 type: string 上是解析期风险；选值仍是字符串 'true'/'false'，判据不变。
+        type: choice
         options:
           - 'true'
           - 'false'
@@ -170,18 +172,22 @@ jobs:
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
           if-no-files-found: error
 
-      - name: 构建 release APK（未签名，可选）
+      - name: 构建 release APK（未签名，发布轮必需产物）
+        # 调用方 本文件的 准备签名证书 与 签名 release APK 两步，产物再进 上传签名 release APK。
+        # 入参 无。tauri v2 的 `android build` 默认即 release 档，只 --debug 是选项、--release 不是，
+        # 多传会被 CLI 判为 unexpected argument 并以退出码 2 终止。
         if: env.BUILD_RELEASE == 'true'
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: cargo tauri android build --release --apk
+        run: cargo tauri android build --apk
 
       - name: 准备签名证书
-        # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
+        # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
         # secret 四项齐备走固定证书，全缺走 keytool 按版权方固定 DN 生成临时自签，半配判红。
         # 存什么存哪里 生成物落 RUNNER_TEMP 下 bingxi-signing 目录（keystore 与口令文件与证书），
-        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志。
+        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志；
+        # 临时自签的 keystore 与口令只留在 RUNNER_TEMP，随 job 结束销毁，不作为产物外发。
         id: signing
         if: env.BUILD_RELEASE == 'true'
         env:
@@ -217,20 +223,14 @@ jobs:
             printf '%s' "$APP_ID" > "$KS_DIR/alias.txt"
             SOURCE=selfsigned
             echo "签名证书来源 临时生成（keytool 按版权方固定 DN 自签）"
-            echo "本轮为临时自签，跨轮指纹变化即说明尚未固定"
-            echo "固定出路 下载本 run 产物 bingxi-erp-android-selfsigned-keystore，把其中 keystore 文件转 base64 与口令两枚与别名共四项，写入 ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD 四个 secret，下一轮即走固定证书路且指纹不变"
-            mkdir -p "$KS_DIR/selfsigned-bundle"
-            cp "$KS_DIR/release.jks" "$KS_DIR/selfsigned-bundle/bingxi-erp-android-signing.jks"
-            cp "$KS_DIR/storepass.txt" "$KS_DIR/selfsigned-bundle/storepass.txt"
-            cp "$KS_DIR/keypass.txt" "$KS_DIR/selfsigned-bundle/keypass.txt"
-            cp "$KS_DIR/alias.txt" "$KS_DIR/selfsigned-bundle/alias.txt"
-            echo "bundle 含临时 keystore 与口令与别名，产物访问权限即其保护边界，日志不落口令与 base64"
+            echo "本轮为临时自签，跨轮指纹变化即说明尚未固定；临时 keystore 与其口令只留在 runner 临时目录，随作业结束销毁，不作为产物外发"
+            echo "固定出路 在本地用同一版权方 DN 自行生成一份长期 keystore（keytool -genkeypair -alias $APP_ID -keyalg RSA -keysize 2048 -validity 10950），把 keystore 文件转 base64 连同别名与两枚口令写入 ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD 四个 secret，下一轮起即走固定证书路且指纹恒定"
+            echo "本轮临时自签包只能装在同设备上覆盖安装，不能作为跨版本升级或应用商店上架的签名"
           fi
           keytool -exportcert -keystore "$KS_DIR/release.jks" \
             -storepass "$(cat "$KS_DIR/storepass.txt")" -alias "$(cat "$KS_DIR/alias.txt")" \
             -file "$KS_DIR/release.cer"
           test -s "$KS_DIR/release.cer" || { echo "::error::导出签名证书失败，无法核对指纹"; exit 1; }
-          [ "$SOURCE" != "selfsigned" ] || cp "$KS_DIR/release.cer" "$KS_DIR/selfsigned-bundle/release.cer"
           FP="$(sha256sum "$KS_DIR/release.cer" | cut -d' ' -f1)"
           echo "本轮 Release 用证书指纹 sha256 $FP"
           {
@@ -267,16 +267,23 @@ jobs:
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
           if-no-files-found: error
 
-      - name: 上传临时自签证书 bundle
-        # 仅准备签名证书步判为临时生成时执行。存 keystore 与口令与别名与证书原件，
-        # 存到本 run 的产物 bingxi-erp-android-selfsigned-keystore，供转正式 secret 后跨轮固定。
-        if: steps.signing.outputs.signing_source == 'selfsigned'
+      - name: 上传签名证书（公钥）
+        # 两条证书路都执行：外发的只有 X.509 公钥证书本体，私钥与其口令一律不外发。
+        # 用途是让任何人能独立核对本轮 APK 的签名指纹，并与下一轮比对是否已固定。
+        # 入参为准备签名证书步产出的 release.cer；存到产物 bingxi-erp-android-signing-certificate。
+        if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: bingxi-erp-android-selfsigned-keystore
-          path: ${{ runner.temp }}/bingxi-signing/selfsigned-bundle/
+          name: bingxi-erp-android-signing-certificate
+          path: ${{ runner.temp }}/bingxi-signing/release.cer
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
+
+      - name: 销毁临时签名材料
+        # 私钥与两枚口令的明文文件只存在于 runner 临时目录，失败轮也要销毁，缩短暴露窗口。
+        # 不入产物、不入日志；签名步已经通过 env 取走所需材料，删除不影响后续步骤。
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/bingxi-signing"
 
   android-e2e:
     # E2E 开关只认输入值，不再用 event_name 猜是否被调用（可复用工作流里 event_name 是调用方事件，旧写法恒真导致被传 false 也照跑）。

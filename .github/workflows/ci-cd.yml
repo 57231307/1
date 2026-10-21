@@ -11,7 +11,7 @@
 #              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
 #              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
 #            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（42 分片并行端到端）],
+#                         [ci-e2e（45 分片并行端到端）],
 #                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
 #            → [package-release] → [github-release]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
@@ -23,7 +23,7 @@
 #   frontend/scripts/check-e2e-main-push-shards.mjs）。本条改动是否已在真实 run 上生效
 #   需由下一次 main push 的 run 自证，自证判据写在 e2e-authenticity-guard 的
 #   "main push 轮 ci-e2e 不得为 skipped"步骤里，不在此处替 run 下结论。
-#   所有 job timeout 统一 360 分钟（6 小时），E2E 42 分片并行加速。
+#   所有 job timeout 统一 360 分钟（6 小时），E2E 45 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
 
@@ -2270,7 +2270,7 @@ jobs:
     needs: ci-info
     outputs:
       # ci-e2e 的 strategy.matrix 消费本值。矩阵由下方"E2E 分片矩阵发射"步骤
-      # 按事件生成（pull_request 全量 42 片 / push 到 main-master 核心链子集），
+      # 按事件生成（pull_request 全量 45 片 / push 到 main-master 核心链子集），
       # 判据与 fail-closed 语义见 frontend/scripts/check-e2e-main-push-shards.mjs 头注释。
       e2e_shard_matrix: ${{ steps.e2e-shard-matrix.outputs.matrix }}
     steps:
@@ -2742,7 +2742,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
-    # pull_request 全量 42 片；push 到 main/master 只跑核心链子集（片数与选片判据
+    # pull_request 全量 45 片；push 到 main/master 只跑核心链子集（片数与选片判据
     # 由 ci-build-fe 的"E2E 分片矩阵发射"步骤按事件决定，见
     # frontend/scripts/check-e2e-main-push-shards.mjs）。选片发生在矩阵层：未选中的
     # 分片根本不生成 job，而不是生成后靠步骤级 if 空跑成 success（那是新的假绿形态）。
@@ -2751,11 +2751,12 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 8
-      # 42 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
-      #            / 30-41 extras（12 片，按目录域重排，见下方 extras 分支说明。
+      # 45 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+      #            / 30-44 extras（15 片，按目录域重排，见下方 extras 分支说明。
       #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑；
-      #            shard 40/41（e2e/fullflow/，96 条契约链用例）是 #306 补上的
-      #            "testMatch 全集内但从未被分片命令传入"的漏登记目录，
+      #            shard 40-44（e2e/fullflow/，96 条契约链用例）是 #306 补上的
+      #            "testMatch 全集内但从未被分片命令传入"的漏登记目录：原 2 片 hash 实测
+      #            一片 1.3 分钟、另一片 28.5 分钟，现按实测用例时长显式分 5 组，
       #            由 ci-build-fe 的 check-e2e-shard-coverage.mjs 自检强制并集==全集）
       # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
       # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
@@ -2765,7 +2766,7 @@ jobs:
       # flow 由 15 片增至 20 片的原因：15 片时 7 个分片在 1500s 上限内跑不完
       # （分片 2 被杀时已到 41/42 用例，全程无挂起），详见 iter30 台账。
       # 分片清单与 label 的唯一事实来源：frontend/scripts/e2e-shard-registry.mjs 的
-      # E2E_SHARD_MATRIX（42 条）。这里不再写静态 include：
+      # E2E_SHARD_MATRIX（45 条）。这里不再写静态 include：
       #   1. 静态 include 与下方 case 表是同一份切分的两处表达（原注释自陈
       #      "必须同步演进"），改矩阵时漏同步就静默少跑目录；
       #   2. main push 轮需要按事件选片，选片只能是矩阵层的事，而 job 级 if 看不到
@@ -2964,7 +2965,7 @@ jobs:
             SHARD_NO=$((SHARD - 24))
             SHARD_LIMIT=1800
           else
-            # 分片 30-41: testMatch 内、但分片命令从不传的全部目录 ——
+            # 分片 30-44，testMatch 内、但分片命令从不传的全部目录 ——
             # enhanced/purchase/sales/quality/finance/crm/bpm
             # + e2e/ 根级 3 spec + ai/dashboard/fabric/inventory/mrp/production/
             # quotations/system/fullflow。
@@ -2984,10 +2985,10 @@ jobs:
             # ②extras SHARD_LIMIT=1800 只有 flow 的一半，而 :2906 注释自己写着
             #   "收紧上限只会把真实性能回归伪装成超时"——18:25:25 起跑 1800s 整被
             #   kill（exit 124），兜底传导正确，但 13 条用例根本没跑（覆盖丢失）。
-            # 正解：按域显式分组切 12 片（#306 补 fullflow 2 片后），慢域（purchase/finance/
-            # fullflow）各自 2 片，
-            # 其余按实测条数配平到 ≤48 条/片；上限对齐 flow 基线 3600；并行度
-            # 对齐 flow 取 3。禁止用减用例/拆断言/跳慢用例的方式凑窗口。
+            # 正解：按域显式分组切 15 片，purchase 与 finance 各 2 片，fullflow
+            # 按实测用例时长显式分 5 组，其余按实测条数配平到不超过 48 条每片，
+            # 上限对齐 flow 基线 3600，并行度对齐 flow 取 3。
+            # 禁止用减用例、拆断言、跳慢用例的方式凑窗口。
             # "分组清单是否覆盖 testMatch 全集"不再靠人肉对账：ci-build-fe 的
             # check-e2e-shard-coverage.mjs 每轮用真实 --list 断言 分配并集==全集。
             SHARD_LIMIT=3600
@@ -3003,13 +3004,19 @@ jobs:
               37) SPEC_TARGETS="e2e/bpm/ e2e/fabric/ e2e/mrp/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
               38) SPEC_TARGETS="e2e/ai/ e2e/quotations/ e2e/system/"; SHARD_NO=1; SHARD_TOTAL=1 ;;
               39) SPEC_TARGETS="e2e/dashboard/ e2e/color-card.spec.ts e2e/color-price.spec.ts e2e/custom-order.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
-              # fullflow（96 条契约链用例，此前从未被任何分片传入 → 任务 #306 静默丢覆盖）：
-              # 按 extras 注释自己定的 ≤48 条/片 配平切 2 片，慢域对齐基线（3600s / 3 workers）。
-              40) SPEC_TARGETS="e2e/fullflow/"; SHARD_NO=1; SHARD_TOTAL=2 ;;
-              41) SPEC_TARGETS="e2e/fullflow/"; SHARD_NO=2; SHARD_TOTAL=2 ;;
+              # fullflow（96 条契约链用例，此前从未被任何分片传入，任务 #306 静默丢覆盖）。
+              # 原 2 片 hash 分片实测一片只跑 6 个轻文件共 1.3 分钟，另一片挤进 10 个
+              # 重链路文件共 28.5 分钟。hash 按文件散列分配，无法保证时长配平，改为按
+              # 实测用例时长显式分组，每组两个重链路文件搭配轻文件，上限 3600s 与
+              # 3 workers 不变。时长取自前一轮两片产物中逐用例 dur 的合计。
+              40) SPEC_TARGETS="e2e/fullflow/23-outsource-issue-receipt.spec.ts e2e/fullflow/25-receipt-gate.spec.ts e2e/fullflow/10-ap.spec.ts e2e/fullflow/13-budget-fund.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              41) SPEC_TARGETS="e2e/fullflow/27-crm-chain.spec.ts e2e/fullflow/26-master-data-partner.spec.ts e2e/fullflow/11-ar.spec.ts e2e/fullflow/14-asset-tax.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              42) SPEC_TARGETS="e2e/fullflow/28-bpm-approval-chain.spec.ts e2e/fullflow/30-system-config-chain.spec.ts e2e/fullflow/12-voucher-period.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              43) SPEC_TARGETS="e2e/fullflow/29-permission-data-scope.spec.ts e2e/fullflow/20-purchase-to-pay.spec.ts e2e/fullflow/15-report-export.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
+              44) SPEC_TARGETS="e2e/fullflow/21-sale-to-cash.spec.ts e2e/fullflow/22-inspection-to-return.spec.ts"; SHARD_NO=1; SHARD_TOTAL=1 ;;
               # 矩阵 extras 段与这里的 case 是同一份切分的两处表达，必须同步演进；
               # 漏同步时宁可整步红，不能静默少跑目录。
-              *) echo "::error::extras 分片 $SHARD 未在按域重排清单中登记（应为 30-41），拒绝以空目标集静默通过"; exit 1 ;;
+              *) echo "::error::extras 分片 $SHARD 未在按域重排清单中登记（应为 30-44），拒绝以空目标集静默通过"; exit 1 ;;
             esac
           fi
           if [ -n "$SPEC_TARGETS" ]; then
@@ -3673,7 +3680,7 @@ jobs:
 # - 初始化完全通过 Setup 向导 UI 真实点击完成（test-database → initialize-with-db
 #   → 真实迁移 60+ 个 + 种子数据 + Argon2id 管理员 → 后端自退）
 # - 后端重启完整模式 → 真实登录验证（Argon2id 校验 + Cookie 会话 + *:* 权限）
-# - 不污染 ci-e2e 的 42 分片共享库（bingxi_test 由 CI init step 初始化）
+# - 不污染 ci-e2e 的 45 分片共享库（bingxi_test 由 CI init step 初始化）
   ci-e2e-setup-wizard:
     name: 🧭 Setup 向导真实链路 E2E
     runs-on: ubuntu-latest

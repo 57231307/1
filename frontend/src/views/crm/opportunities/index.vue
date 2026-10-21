@@ -182,7 +182,7 @@
                 row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
                 row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
               "
-              v-permission="'crm_opportunity:update'"
+              v-permission="'crm-opportunities:update'"
               type="primary"
               link
               size="small"

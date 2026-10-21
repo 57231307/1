@@ -106,13 +106,13 @@ const buildActionButtons = (row: SalesContract): ReturnType<typeof h>[] => {
   ];
   // 草稿状态：编辑 / 提交 / 删除（编辑/删除受权限控制）
   if (row.status === 'draft') {
-    if (can('sales_contract:update')) {
+    if (can('sales-contracts:update')) {
       buttons.push(mkBtn('primary', 'salesContract.table.buttonEdit', () => emit('edit', row)));
     }
     buttons.push(
       mkBtn('success', 'salesContract.table.buttonSubmit', () => emit('submit-approval', row))
     );
-    if (can('sales_contract:delete')) {
+    if (can('sales-contracts:delete')) {
       buttons.push(mkBtn('danger', 'salesContract.table.buttonDelete', () => emit('delete', row)));
     }
   }

@@ -298,14 +298,14 @@ pub async fn export_trial_balance(
     };
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "trial_balance_export".to_string(),
             table.rows.len() as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     build_xlsx_response(&table, "trial_balance_export")
 }
@@ -368,14 +368,14 @@ pub async fn export_balance_sheet(
     };
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "balance_sheet_export".to_string(),
             table.rows.len() as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     build_xlsx_response(&table, "balance_sheet_export")
 }
@@ -443,14 +443,14 @@ pub async fn export_income_statement(
     };
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "income_statement_export".to_string(),
             table.rows.len() as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     build_xlsx_response(&table, "income_statement_export")
 }
@@ -525,14 +525,14 @@ pub async fn export_cash_flow_statement(
     };
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "cash_flow_statement_export".to_string(),
             table.rows.len() as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     build_xlsx_response(&table, "cash_flow_statement_export")
 }
@@ -600,14 +600,14 @@ pub async fn export_general_ledger(
     };
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "general_ledger_export".to_string(),
             table.rows.len() as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     build_xlsx_response(&table, "general_ledger_export")
 }
@@ -680,14 +680,14 @@ pub async fn export_subsidiary_ledger(
     };
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             "subsidiary_ledger_export".to_string(),
             table.rows.len() as i64,
             String::new(),
         )
-        .await;
+        .await?;
 
     build_xlsx_response(&table, "subsidiary_ledger_export")
 }

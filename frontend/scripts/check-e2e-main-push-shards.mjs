@@ -137,7 +137,7 @@ if (jobIfs.length !== 1) {
 } else {
   const cond = jobIfs[0][1];
   if (!cond.includes("github.event_name == 'pull_request'")) {
-    fail(`W. ci-e2e 的 job 级 if 未放行 pull_request，PR 轮 42 片全量会被摘掉：${cond}`);
+    fail(`W. ci-e2e 的 job 级 if 未放行 pull_request，PR 轮 45 片全量会被摘掉：${cond}`);
   }
   if (!MAIN_PUSH_REFS.some(r => cond.includes(`'${r}'`))) {
     fail(`W. ci-e2e 的 job 级 if 未放行 main/master push（本门禁的目的本身），main 轮仍会整族 skipped：${cond}`);

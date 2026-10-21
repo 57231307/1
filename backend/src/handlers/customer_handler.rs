@@ -696,14 +696,14 @@ pub async fn export_customers(
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
     // 敏感导出 fail-closed：记录令牌消费（流式导出用 filename + row_count 作逻辑标识）
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(
             approval.id,
             filename.clone(),
             row_count as i64,
             String::new(),
         )
-        .await;
+        .await?;
     record_customers_export_audit(&state, &auth, row_count);
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
