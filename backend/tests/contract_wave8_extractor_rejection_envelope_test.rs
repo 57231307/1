@@ -432,6 +432,7 @@ fn describe_variant(err: &AppError) -> (&'static str, StatusCode) {
             ("ValidationErrorDisplayable", StatusCode::BAD_REQUEST)
         }
         AppError::NotFound(_) => ("NotFound", StatusCode::NOT_FOUND),
+        AppError::NotFoundDisplayable(_) => ("NotFoundDisplayable", StatusCode::NOT_FOUND),
         AppError::BusinessError(_) => ("BusinessError", StatusCode::BAD_REQUEST),
         AppError::BusinessErrorDisplayable(_) => {
             ("BusinessErrorDisplayable", StatusCode::BAD_REQUEST)
