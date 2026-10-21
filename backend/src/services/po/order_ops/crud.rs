@@ -46,8 +46,8 @@ use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
 
 /// 单行明细金额计算结果（`calculate_item_amounts` 权威口径的数据载体；
-/// 创建与明细更新两条链路共用，集成测试直调本函数并按本结构逐值断言税额口径，
-/// 故结构与字段公开）
+/// 创建与明细更新两条链路共用，自动补货两条链路按同一公式复用本结构承载单行金额，
+/// 集成测试直调本函数并按本结构逐值断言税额口径，故结构与字段公开）
 #[derive(Debug)]
 pub struct ItemAmounts {
     pub quantity_ordered: Decimal,
