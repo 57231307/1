@@ -165,10 +165,6 @@ fn scheduling_routes() -> Router<AppState> {
         )
         .route("/scheduling/{id}", put(scheduling_handler::adjust_schedule))
         .route(
-            "/scheduling/work-orders",
-            get(scheduling_handler::list_scheduled_orders),
-        )
-        .route(
             "/scheduling/history",
             get(scheduling_handler::get_schedule_history),
         )
