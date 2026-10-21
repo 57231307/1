@@ -14,73 +14,12 @@
  * 传给谁：断言结果只进 vitest 报告。
  * 存什么/存哪里：不落库。
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { NAV_TREE } from '@/config/navigation';
 import type { NavGroup, NavLeaf, NavNode } from '@/config/navigation';
+import { ROUTER_SRC, collectShellLeaves, readFrontendSource } from './route-source';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FRONTEND_ROOT = path.resolve(HERE, '../..');
-
-const readSource = (absPath: string): string =>
-  readFileSync(absPath, 'utf8').replace(/\r\n/g, '\n');
-
-const ROUTER_SRC = readSource(path.join(FRONTEND_ROOT, 'src/router/index.ts'));
-const MAIN_LAYOUT_SRC = readSource(
-  path.join(FRONTEND_ROOT, 'src/components/Layout/MainLayout.vue')
-);
-
-/**
- * router 叶子路由集合：取 `component: MainLayout` 路由的 children 数组（应用外壳内），
- * 逐个对象做括号配对解析，排除 `hidden: true` 与无 component 的项。
- * 外壳外的 /login、/setup、/terms、/privacy 属免登录页，本就不进侧边栏。
- */
-function collectShellLeaves(src: string): Set<string> {
-  const anchor = src.indexOf('component: MainLayout,');
-  if (anchor < 0) throw new Error('router 未找到 MainLayout 容器路由');
-  const open = src.indexOf('[', src.indexOf('children:', anchor));
-  if (open < 0) throw new Error('MainLayout 路由缺少 children 数组');
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < src.length; i += 1) {
-    if (src[i] === '[') depth += 1;
-    else if (src[i] === ']') {
-      depth -= 1;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
-  if (close < 0) throw new Error('MainLayout children 数组未闭合');
-
-  const leaves = new Set<string>();
-  let objDepth = 0;
-  let buf = '';
-  const objects: string[] = [];
-  for (const ch of src.slice(open + 1, close)) {
-    if (ch === '{') objDepth += 1;
-    if (objDepth > 0) buf += ch;
-    if (ch === '}') {
-      objDepth -= 1;
-      if (objDepth === 0) {
-        objects.push(buf);
-        buf = '';
-      }
-    }
-  }
-  for (const obj of objects) {
-    const pathMatch = obj.match(/path:\s*['"]([^'"]+)['"]/);
-    if (!pathMatch || !obj.includes('component:')) continue;
-    if (/hidden:\s*true/.test(obj) || /public:\s*true/.test(obj)) continue;
-    const raw = pathMatch[1];
-    const full = raw.startsWith('/') ? raw : `/${raw}`;
-    leaves.add(full);
-  }
-  return leaves;
-}
+const MAIN_LAYOUT_SRC = readFrontendSource('src/components/Layout/MainLayout.vue');
 
 const isLeaf = (node: NavNode): node is NavLeaf => node.kind === 'leaf';
 const isGroup = (node: NavNode): node is NavGroup => node.kind === 'group';
