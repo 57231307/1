@@ -185,9 +185,9 @@ pub async fn export_audit_logs(
     svc.record_async(event, None);
 
     // 敏感导出 fail-closed：记录令牌消费
-    let _ = crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
+    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
         .record_download(approval.id, file_name.clone(), count as i64, String::new())
-        .await;
+        .await?;
 
     Ok(Json(ApiResponse::success(ExportResult {
         download_url: format!("/api/v1/erp/downloads/{}", file_name),
