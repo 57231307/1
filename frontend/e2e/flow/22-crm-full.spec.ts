@@ -927,12 +927,14 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     ).toBeGreaterThan(0);
     let trendOrderId = 0;
     try {
-      // 有效销售单：10 日正午 UTC（|会话偏移|≤12 时日/月桶不落邻日邻月）；
-      // 状态 pending 属聚合排除门（cancelled/draft）之外的如实计入值
+      // 有效销售单。10 日正午 UTC（|会话偏移|≤12 时日/月桶不落邻日邻月）。
+      // 状态推进口径。建单口只接受服务端定初值 draft（services/so/order_crud.rs::
+      // validate_create_initial_status 按词表 sales_order::CREATE_INITIAL 拦截直传），
+      // 聚合排除门（cancelled/draft）之外的 pending 只能由提交这一权威操作产生，
+      // 故种单走两步。建单不传 status，再 POST /sales/orders/{id}/submit
       const trendOrder = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
         customer_id: trendCustomerId,
         order_date: `${trendMonth}-10T12:00:00Z`,
-        status: 'pending',
         items: [{ product_id: trendProductId, quantity: '3', unit_price: '500.25' }],
       });
       trendOrderId = Number(trendOrder.data?.id);
@@ -940,6 +942,17 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
         trendOrderId,
         `[22] 趋势种子订单创建应回 id：${JSON.stringify(trendOrder)}`
       ).toBeGreaterThan(0);
+      await apiCall(page, 'POST', `/sales/orders/${trendOrderId}/submit`);
+      // 提交后回读钉住前置。若仍停在 draft，后面会被读成排除门失守而非前置没成
+      const trendOrderAfterSubmit = await apiCallRaw<{ status?: string }>(
+        page,
+        'GET',
+        `/sales/orders/${trendOrderId}`
+      );
+      expect(
+        trendOrderAfterSubmit.status,
+        `[22] 趋势种子订单提交后状态应为 pending，实际 ${JSON.stringify(trendOrderAfterSubmit)}`
+      ).toBe('pending');
 
       // ① 正向内容级：桶数组真的回读到，金额/数量字符串与订单数逐一对应种单单据
       const trendEnv = await apiCall<unknown>(
