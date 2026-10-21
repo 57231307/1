@@ -132,8 +132,20 @@ jobs:
 
           build = pathlib.Path("mobile-app/src-tauri/build.rs").read_text(encoding="utf-8")
           commands = re.findall(r'"([a-z][a-z0-9_]*)"', build)
-          if len(commands) != 9:
-              raise SystemExit(f"build.rs 命令清单解析异常，期望 9 条，实际 {commands}")
+          expected = {
+              "app_info",
+              "remember_gateway",
+              "reopen_gateway",
+              "bluetooth_request_permission",
+              "app_request_camera_permission",
+              "bluetooth_open_settings",
+              "bluetooth_list_printers",
+              "bluetooth_connect",
+              "bluetooth_print_text",
+              "bluetooth_disconnect",
+          }
+          if set(commands) != expected:
+              raise SystemExit(f"build.rs 命令清单与预期不一致，缺失 {sorted(expected - set(commands))}，多出 {sorted(set(commands) - expected)}")
           required = ["allow-" + c.replace("_", "-") for c in commands]
           for name in ("default.json", "remote-gateway.json"):
               path = pathlib.Path("mobile-app/src-tauri/capabilities") / name
@@ -179,8 +191,9 @@ jobs:
 
       - name: 注入安卓权限与蓝牙打印插件
         # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
-        # 做什么 向 gen/android 清单补联网/相机/经典蓝牙权限，并把 BluetoothPrintPlugin.kt
-        #        复制进 com.bingxi.erp 包；模板锚点或包名变化时脚本直接判红，不静默跳过。
+        # 做什么 向 gen/android 清单补联网/相机/经典蓝牙/文件读写权限与可选硬件声明，并把
+        #        BluetoothPrintPlugin.kt（含相机权限申请命令）复制进 com.bingxi.erp 包；
+        #        模板锚点或包名变化时脚本直接判红，不静默跳过。
         # 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库模板。
         working-directory: mobile-app
         run: python3 scripts/patch-android.py
@@ -216,15 +229,66 @@ jobs:
           echo "$BADGE" | grep -q "package: name='${APP_ID}'" || { echo "包名不符"; exit 1; }
           echo "$BADGE" | grep -q "launchable-activity: name=" || { echo "无 launcher activity"; exit 1; }
           echo "$BADGE" | grep -Eq "sdkVersion:'(2[4-9]|[3-9][0-9])'" || { echo "minSdk 应 >=24"; exit 1; }
-          echo "$BADGE" | grep -q "uses-permission: name='android.permission.INTERNET'" || { echo "APK 缺 INTERNET 联网权限"; exit 1; }
           AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
           TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
+          echo "$TREE" > /tmp/manifest-tree.txt
+          python3 - <<'PY'
+          import re
+
+          tree = open("/tmp/manifest-tree.txt", encoding="utf-8").read()
+          blocks = re.split(r"\n(?=E: )", tree)
+
+          def elements(tag):
+              return [b for b in blocks if b.startswith("E: " + tag + " ")]
+
+          def name_of(block):
+              matched = re.search(r':name\(0x[0-9a-f]+\)="([^"]+)"', block)
+              return matched.group(1) if matched else None
+
+          permissions = {}
+          for block in elements("uses-permission"):
+              name = name_of(block)
+              if not name:
+                  continue
+              max_sdk = re.search(
+                  r':maxSdkVersion\(0x[0-9a-f]+\)=\(type 0x10\)(0x[0-9a-f]+)', block
+              )
+              permissions[name] = int(max_sdk.group(1), 16) if max_sdk else None
+
+          required = {
+              "android.permission.INTERNET": None,
+              "android.permission.CAMERA": None,
+              "android.permission.BLUETOOTH": 30,
+              "android.permission.BLUETOOTH_ADMIN": 30,
+              "android.permission.BLUETOOTH_CONNECT": None,
+              "android.permission.READ_EXTERNAL_STORAGE": 32,
+              "android.permission.WRITE_EXTERNAL_STORAGE": 28,
+          }
+          missing = sorted(set(required) - set(permissions))
+          if missing:
+              raise SystemExit("APK 缺权限 " + ", ".join(missing))
+          for name, max_sdk in required.items():
+              actual = permissions[name]
+              if actual != max_sdk:
+                  raise SystemExit(f"{name} 的 maxSdkVersion 应为 {max_sdk}，实际 {actual}")
+              print(f"权限通过 {name} maxSdkVersion={actual}")
+
+          features = {}
+          for block in elements("uses-feature"):
+              name = name_of(block)
+              if not name:
+                  continue
+              required_attr = re.search(
+                  r':required\(0x[0-9a-f]+\)=\(type 0x12\)(0x[0-9a-f]+)', block
+              )
+              features[name] = int(required_attr.group(1), 16) if required_attr else 1
+          for name in ("android.hardware.bluetooth", "android.hardware.camera"):
+              if features.get(name) != 0:
+                  raise SystemExit(f"硬件声明 {name} 应存在且 required=false，实际 {features.get(name)}")
+              print(f"硬件声明通过 {name} required=false")
+          PY
           echo "$TREE" | grep -q 'usesCleartextTraffic' || { echo "APK 未声明明文流量开关"; exit 1; }
           echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "debug APK 未允许明文流量"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.CAMERA' || { echo "APK 缺 CAMERA 相机权限"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.BLUETOOTH"' || { echo "APK 缺经典蓝牙权限 BLUETOOTH"; exit 1; }
-          echo "$TREE" | grep -Eq 'maxSdkVersion.*0x1e' || { echo "经典蓝牙权限缺 maxSdkVersion=30"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo "APK 缺 BLUETOOTH_CONNECT 运行时权限"; exit 1; }
           unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/BluetoothPrintPlugin;' || { echo "APK 未打包蓝牙打印插件类，注入或编译未生效"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
@@ -255,7 +319,10 @@ jobs:
           TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
           echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "release APK 未允许明文流量"; exit 1; }
           echo "$TREE" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo "release APK 缺 BLUETOOTH_CONNECT 运行时权限"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.BLUETOOTH_ADMIN' || { echo "release APK 缺 BLUETOOTH_ADMIN 低版本蓝牙管理权限"; exit 1; }
           echo "$TREE" | grep -q 'android.permission.CAMERA' || { echo "release APK 缺 CAMERA 相机权限"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.READ_EXTERNAL_STORAGE' || { echo "release APK 缺 READ_EXTERNAL_STORAGE 文件读取权限"; exit 1; }
+          echo "$TREE" | grep -q 'android.permission.WRITE_EXTERNAL_STORAGE' || { echo "release APK 缺 WRITE_EXTERNAL_STORAGE 文件写入权限"; exit 1; }
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
@@ -387,7 +454,10 @@ jobs:
             APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_ADMIN' || { echo 'E2E: 安装包未声明 BLUETOOTH_ADMIN 低版本蓝牙权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.READ_EXTERNAL_STORAGE' || { echo 'E2E: 安装包未声明 READ_EXTERNAL_STORAGE 文件读取权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.WRITE_EXTERNAL_STORAGE' || { echo 'E2E: 安装包未声明 WRITE_EXTERNAL_STORAGE 文件写入权限'; exit 1; }
             adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
             sleep 8
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }

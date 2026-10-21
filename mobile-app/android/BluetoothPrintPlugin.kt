@@ -50,7 +50,7 @@ class BluetoothPrintTextArgs {
  * 经典蓝牙 SPP 热敏打印桥。
  *
  * 调用方 安卓壳内的远端 ERP 页面经 window.__TAURI__.core.invoke 调 Rust 命令，
- * Rust 再经 run_mobile_plugin_async 派发到本插件的 listPrinters / connect / printText / disconnect。
+ * Rust 再经 run_mobile_plugin_async 派发到本插件的权限命令 listPrinters / connect / printText / disconnect。
  * 入参见 BluetoothConnectArgs 与 BluetoothPrintTextArgs。
  * 传给谁 扫描结果与连接状态回给 Rust 命令调用方；打印字节直接写 SPP socket。
  * 存什么 只在内存存当前 socket 与已连接地址，进程退出即失效；打印机地址由前端存本地偏好。
@@ -58,7 +58,8 @@ class BluetoothPrintTextArgs {
  */
 @TauriPlugin(
   permissions = [
-    Permission(strings = [Manifest.permission.BLUETOOTH_CONNECT], alias = "bluetoothConnect")
+    Permission(strings = [Manifest.permission.BLUETOOTH_CONNECT], alias = "bluetoothConnect"),
+    Permission(strings = [Manifest.permission.CAMERA], alias = "camera")
   ]
 )
 class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
@@ -85,6 +86,21 @@ class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
   @PermissionCallback
   fun onConnectPermissionResult(invoke: Invoke) {
     resolvePermission(invoke, getPermissionState("bluetoothConnect") == PermissionState.GRANTED)
+  }
+
+  /** 扫码前显式申请相机权限，避免 getUserMedia 与系统授权对话框并发启动而报启动失败。 */
+  @Command
+  fun requestCameraPermission(invoke: Invoke) {
+    if (hasPermission(Manifest.permission.CAMERA)) {
+      resolvePermission(invoke, true)
+      return
+    }
+    requestPermissionForAlias("camera", invoke, "onCameraPermissionResult")
+  }
+
+  @PermissionCallback
+  fun onCameraPermissionResult(invoke: Invoke) {
+    resolvePermission(invoke, hasPermission(Manifest.permission.CAMERA))
   }
 
   @Command
@@ -235,9 +251,13 @@ class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
       return true
     }
+    return hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+  }
+
+  private fun hasPermission(permission: String): Boolean {
     return ActivityCompat.checkSelfPermission(
       activity,
-      Manifest.permission.BLUETOOTH_CONNECT
+      permission
     ) == PackageManager.PERMISSION_GRANTED
   }
 

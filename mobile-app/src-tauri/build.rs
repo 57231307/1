@@ -7,6 +7,7 @@ fn main() {
             "remember_gateway",
             "reopen_gateway",
             "bluetooth_request_permission",
+            "app_request_camera_permission",
             "bluetooth_open_settings",
             "bluetooth_list_printers",
             "bluetooth_connect",

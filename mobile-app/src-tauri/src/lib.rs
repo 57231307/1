@@ -44,6 +44,7 @@ pub fn run() {
             remember_gateway,
             reopen_gateway,
             bluetooth_request_permission,
+            app_request_camera_permission,
             bluetooth_open_settings,
             bluetooth_list_printers,
             bluetooth_connect,
@@ -120,6 +121,16 @@ async fn bluetooth_request_permission(app: tauri::AppHandle) -> Result<serde_jso
     bluetooth_backend(&app)?
         .handle
         .run_mobile_plugin_async("requestPermission", ())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 申请相机运行时权限，供扫码对话框启动 getUserMedia 前显式授权。
+#[tauri::command]
+async fn app_request_camera_permission(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    bluetooth_backend(&app)?
+        .handle
+        .run_mobile_plugin_async("requestCameraPermission", ())
         .await
         .map_err(|e| e.to_string())
 }
