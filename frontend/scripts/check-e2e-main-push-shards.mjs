@@ -16,9 +16,9 @@
  *   不得单独选入 main push：要么整组全选（会突破片数上界），要么不选。
  *   本仓库三条重灾区链路的实际归属：
  *     报价审批  frontend/e2e/quotations/02-approval.spec.ts 落在分片 38，total 1
- *     验布四分制 frontend/e2e/quality/03-four-point.spec.ts:39 落在分片 34，total 1
+ *     验布四分制 frontend/e2e/quality/03-four-point.spec.ts 落在分片 34，total 1
  *     验布码单与染色 frontend/e2e/fabric/05-piece-label-print.spec.ts 落在分片 37，total 1
- *   报废审批链只存在于 frontend/e2e/flow/44e-state-machines-extended.spec.ts:227，
+ *   报废审批链只存在于 frontend/e2e/flow/44e-state-machines-extended.spec.ts，
  *   属 flow 分组（total 20），按上面的判据不可单片选入，因此不在本清单内，
  *   该链在 main push 轮仍无覆盖，需另立改造工单（把该 spec 登记成独立 total 1 分组）。
  *
@@ -66,7 +66,7 @@ import {
 const MAIN_PUSH_CORE_TARGETS = [
   // 报价审批链：frontend/e2e/quotations/02-approval.spec.ts（21 处报价审批断言）
   'e2e/quotations/',
-  // 验布四分制链：frontend/e2e/quality/03-four-point.spec.ts:39 四分制评分数值断言
+  // 验布四分制链：frontend/e2e/quality/03-four-point.spec.ts 四分制评分数值断言
   'e2e/quality/',
   // 验布码单与染色链：frontend/e2e/fabric/05-piece-label-print.spec.ts（14 处验布）
   // 与 frontend/e2e/fabric/02-dye.spec.ts
@@ -372,7 +372,7 @@ if (MATRIX_FILE) {
         known_uncovered_chains: [
           {
             chain: '报废审批两级审批链',
-            location: 'frontend/e2e/flow/44e-state-machines-extended.spec.ts:227',
+            location: 'frontend/e2e/flow/44e-state-machines-extended.spec.ts',
             reason:
               '属 flow 分组（--shard=?.20 按 hash 分配），单片选入只跑约 1/20 用例而 job 仍报 success，违反 S 层判据',
           },
