@@ -36,7 +36,18 @@ fn test_is_module_prefix_cwy() {
     assert!(is_module_prefix("finance"));
     assert!(is_module_prefix("ap"));
     assert!(is_module_prefix("ar"));
-    assert!(is_module_prefix("assist-accounting"));
+    // assist-accounting / bad-debts / collection-tasks / finance-alerts 是根级挂载的财务族直接
+    // 资源：其子段（balance/records/writeoffs/auto-generate/trigger-scan…）是同一注册资源下的
+    // 查询维度或动作。留作模块前缀会让资源名漂到该子段、派生成注册表外死键，持已授键的角色
+    // 访问恒 403；改直接资源后统一派生这四枚本身登记的资源名。
+    assert!(!is_module_prefix("assist-accounting"));
+    assert!(!is_module_prefix("bad-debts"));
+    assert!(!is_module_prefix("collection-tasks"));
+    assert!(!is_module_prefix("finance-alerts"));
+    assert!(is_known_resource_segment("assist-accounting"));
+    assert!(is_known_resource_segment("bad-debts"));
+    assert!(is_known_resource_segment("collection-tasks"));
+    assert!(is_known_resource_segment("finance-alerts"));
 }
 
 #[test]

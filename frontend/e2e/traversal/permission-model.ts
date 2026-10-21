@@ -90,13 +90,18 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   purchase: 'purchases:read',
   quality: ['quality-standards:read', 'quality-inspections:read'],
   production: ['production-orders:read'],
-  bpm: 'audit-logs:read',
+  // BPM 四页门控取后端真实派生键（bpm 是 URL 模块前缀，第四段经 RESOURCE_NAME_MAP 消歧）：
+  // /bpm 开页需要待办列表或全局监控面之一，/bpm/approval 需要待办列表或审批执行入口之一。
+  bpm: ['bpm-tasks:read', 'bpm-monitor:read'],
+  'bpm-definitions': 'bpm-definitions:read',
+  'bpm-templates': 'bpm-templates:read',
+  'bpm-approval': ['bpm-tasks:read', 'bpm-approvals:create'],
   crm: 'customers:read',
-  // /workflow 是纯别名（router/index.ts:1422-1423 `redirect: '/bpm'`），门控事实来源是
+  // /workflow 是纯别名（router 里 `redirect: '/bpm'`），门控事实来源是
   // 目标路由 /bpm 的 meta——登记本条不是为了参与派生（派生走 redirect 链继承，见
   // parseRouterPermissions），而是把"workflow→bpm 的对应关系"钉进人工评审锚：
   // /bpm 或 /workflow 任一侧被改动（如 redirect 换目标、bpm 换权限码）都会触发防漂移判红。
-  workflow: 'audit-logs:read',
+  workflow: ['bpm-tasks:read', 'bpm-monitor:read'],
 };
 
 // ==================== 派生侧：权限码 × 路由 meta（均为真实来源） ====================
@@ -306,6 +311,11 @@ function actionEquivalent(userAction: string, requiredAction: string): boolean {
 
 /**
  * 粗域键到细资源段集，必须与 router 里 index 文件的 COARSE_DOMAIN_RESOURCES 逐字一致（同源镜像），否则派生侧与实际守卫分叉会推高 drift。仅 4 个无对应后端 resource 段的粗键需展开。
+ *
+ * 细名唯一名源是后端 utils/path_utils.rs 的 RESOURCE_NAME_MAP 消歧目标与
+ * init_service.rs 的 PERMISSION_RESOURCES 在册资源名：财务域随域改名后 ap/ar/gl/
+ * fund-transfers 这些旧段名既不在册也不可被 URL 段派生，留在本表会让派生侧把
+ * "只有死码授权的角色"误判为可达，与实际守卫分叉。
  */
 const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
   finance: [
@@ -314,16 +324,14 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'fixed-assets',
     'budgets',
     'cost-collections',
-    'ar',
-    'ap',
-    'gl',
     'financial-analysis',
     'fund-management',
-    'fund-transfers',
     'currencies',
     'exchange-rates',
     'ar-reconciliations',
+    'ar-reconciliations-enhanced',
     'accounting-periods',
+    'period-adjustments',
     'period-report-snapshots',
     'aging-alert-rules',
     'aging-grades',
@@ -331,6 +339,41 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'industry-benchmarks',
     'wages',
     'reports',
+    // 应付域细资源：URL 段在 ap 前缀下随域改名（发票/付款/核销/请款/对账/账龄与报表维度）
+    'ap-invoices',
+    'ap-payments',
+    'ap-verifications',
+    'ap-payment-requests',
+    'ap-reconciliations',
+    'ap-aging',
+    'ap-daily',
+    'ap-monthly',
+    'ap-statistics',
+    // 应收域细资源：URL 段在 ar 前缀下随域改名（收款/催收同族）
+    'ar-invoices',
+    'ar-payments',
+    'ar-verifications',
+    'ar-collections',
+    'ar-aging',
+    'ar-daily',
+    'ar-monthly',
+    'ar-statistics',
+    // 总账与财务报表域细资源：URL 段在 finance 前缀下随域改名
+    'finance-invoices',
+    'finance-payments',
+    'finance-audit',
+    'finance-balance-sheet',
+    'finance-cash-flow',
+    'finance-general-ledger',
+    'finance-income-statement',
+    'finance-subsidiary-ledger',
+    'finance-trial-balance',
+    'finance-drill-down',
+    // 根级挂载的财务族直接资源：第四段是同一资源下的查询维度或动作，URL 段即权威资源名
+    'bad-debts',
+    'collection-tasks',
+    'finance-alerts',
+    'assist-accounting',
   ],
   sales: [
     'orders',
@@ -347,7 +390,6 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'color-prices',
     'export-inspections',
     'pieces',
-    'ar',
     'reports',
   ],
   purchases: [
@@ -365,7 +407,6 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'products',
     'product-categories',
     'inventory',
-    'ap',
     'reports',
   ],
   production: [

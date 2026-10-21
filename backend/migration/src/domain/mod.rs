@@ -36,6 +36,16 @@
 //! - fulfillment_source_and_po_origin: 流转链地基两列（sales_order_items 补可空链来源列
 //!   fulfillment_source 带三值 CHECK + purchase_orders 补可空转采来源销售订单列
 //!   source_sales_order_id 外键与检索索引；置于链尾为新的顶层条目，复用库上也必然执行）
+//! - finance_resource_rename: 财务域权限资源键改名波（role_permissions.resource_type 旧 URL 段名
+//!   逐对改写到随域改名新资源名，唯一索引冲突预检 + 一对多按裸值无法判域的失败可见闸门；
+//!   置于链尾为新的顶层条目，复用库上也必然执行）
+//! - bpm_approver_grant: BPM 审批岗补授（sales_manager / purchase_manager / production_manager
+//!   各六枚派生键）的存量库通道——按 roles.code 反查 id、ON CONFLICT 用真实唯一索引的列集合
+//!   保证幂等，逐键打印实写行数与跳过成因，同键显式拒绝行只点名不覆盖；置于链尾为新的顶层
+//!   条目，复用库上也必然执行
+//! - system_admin_bpm_config_grant: 系统管理岗补授 BPM 流程配置读面（bpm-definitions 与
+//!   bpm-templates 各一枚 read 键）的存量库通道——同一套按码反查、幂等补授与逐键打印口径；
+//!   置于链尾为新的顶层条目，复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -59,3 +69,6 @@ pub mod company_profile;
 pub mod bulk_color_item_link;
 pub mod role_conflicts_drop_production_sod;
 pub mod fulfillment_source_and_po_origin;
+pub mod finance_resource_rename;
+pub mod bpm_approver_grant;
+pub mod system_admin_bpm_config_grant;

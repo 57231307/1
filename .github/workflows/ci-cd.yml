@@ -2358,7 +2358,8 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     with:
       build_release: true
-      run_e2e: false
+      # run_e2e 为字符串输入（false 字符串即跳过模拟器，直接触发判空不等于 false 恒跑）
+      run_e2e: 'false'
     secrets: inherit
     uses: ./.github/workflows/android.yml
 
@@ -2626,20 +2627,20 @@ jobs:
         run: |
           # 把已签名 release APK 及其校验文件附到本轮刚建的同一个 Release。
           # 只认签名产物：debug 包挂到正式 Release 会误导使用者，宁可不附。
+          # 发布轮要求签名安卓包，取不到即判红，不再 warning 后退 0（少资产不是成功）。
           TAG_NAME="${{ needs.package-release.outputs.tag_name }}"
           VERSION="${{ needs.package-release.outputs.version }}"
           mkdir -p apk-in
           if ! gh run download "${{ github.run_id }}" --repo ${{ github.repository }} \
               -n bingxi-erp-android-release-signed -D apk-in; then
-            echo "::warning::未取到 bingxi-erp-android-release-signed 产物（keystore 未配置或签名步被跳过）"
-            echo "本轮 Release 只发服务端包、不附 APK：少了一个资产不是成功，日志已显式点名。"
-            exit 0
+            echo "::error::未取到 bingxi-erp-android-release-signed 产物（签名步未执行或产物缺失），发布轮少签名 APK 即失败"
+            exit 1
           fi
           APK=$(find apk-in -name "*.apk" | head -1)
           if [ -z "$APK" ] || [ ! -s "$APK" ]; then
-            echo "::warning::产物目录里没有可用 APK，Release 不附安卓资产"
+            echo "::error::bingxi-erp-android-release-signed 产物内无可用 APK，发布轮少签名 APK 即失败"
             ls -laR apk-in || true
-            exit 0
+            exit 1
           fi
           NAME="bingxi-erp-${VERSION}-android.apk"
           cp "$APK" "$NAME"
@@ -2647,8 +2648,15 @@ jobs:
           md5sum "$NAME" > "$NAME.md5"
           gh release upload "$TAG_NAME" "$NAME" "$NAME.sha256" "$NAME.md5" \
             --repo ${{ github.repository }} --clobber
-          gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets \
-            -q '.assets[].name' | sed 's/^/Release 资产: /'
+          # 断言三件安卓资产真实挂在 Release 上，缺席即判红，防上传步绿而资产少的假绿
+          ASSET_NAMES=$(gh release view "$TAG_NAME" --repo ${{ github.repository }} --json assets -q '.assets[].name')
+          for f in "$NAME" "$NAME.sha256" "$NAME.md5"; do
+            if ! printf '%s\n' "$ASSET_NAMES" | grep -qxF "$f"; then
+              echo "::error::安卓签名资产未随 Release 上传: $f"
+              exit 1
+            fi
+          done
+          printf '%s\n' "$ASSET_NAMES" | sed 's/^/Release 资产: /'
 
       - name: 清理旧 Release（保留最近 10 个）
         env:
@@ -3218,15 +3226,15 @@ jobs:
           - "admin:admin,system_admin,auditor"
           - "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst"
           - "sales:sales_manager,salesperson,after_sales_manager,customer_service,report_viewer"
-          - "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper"
-          - "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector"
+          - "supply:purchase_manager,purchase_clerk,sourcing_specialist,supplier_manager,warehouse_manager,warehouse_keeper"
+          - "production:production_manager,dyeing_master,finishing_master,fabric_inspector,dyeing_technician,color_card_manager,qc_manager,quality_inspector"
           - "boundary:e2e_readonly,e2e_noperm,department_manager"
         include:
           - { role_group: "admin:admin,system_admin,auditor", group_name: "admin" }
           - { role_group: "finance:finance_manager,accountant,cashier,cost_accountant,inventory_accountant,tax_accountant,ap_accountant,ar_accountant,fixed_assets_accountant,budget_analyst", group_name: "finance" }
           - { role_group: "sales:sales_manager,salesperson,after_sales_manager,customer_service,report_viewer", group_name: "sales" }
-          - { role_group: "supply:purchasing_manager,purchaser,procurement_specialist,supplier_manager,warehouse_manager,warehouse_keeper", group_name: "supply" }
-          - { role_group: "production:production_manager,production_worker,dyeing_technician,color_card_manager,quality_manager,quality_inspector", group_name: "production" }
+          - { role_group: "supply:purchase_manager,purchase_clerk,sourcing_specialist,supplier_manager,warehouse_manager,warehouse_keeper", group_name: "supply" }
+          - { role_group: "production:production_manager,dyeing_master,finishing_master,fabric_inspector,dyeing_technician,color_card_manager,qc_manager,quality_inspector", group_name: "production" }
           - { role_group: "boundary:e2e_readonly,e2e_noperm,department_manager", group_name: "boundary" }
     services:
       postgres:

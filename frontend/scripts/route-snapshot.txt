@@ -1,4 +1,4 @@
-# layers=8 endpoints=1785
+# layers=8 endpoints=1772
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -166,9 +166,9 @@ GET	/api/v1/erp/ap/payments	ap_payment_handler::list_payments	finance
 GET	/api/v1/erp/ap/payments/*	ap_payment_handler::get_payment	finance
 GET	/api/v1/erp/ap/payments/*/print	print_handler::ap_payment_print_docx	finance
 GET	/api/v1/erp/ap/payments/schedule	ap_payment_handler::get_payment_schedule	finance
-GET	/api/v1/erp/ap/reconciliation/*/print	print_handler::ap_reconciliation_print_docx	finance
 GET	/api/v1/erp/ap/reconciliations	ap_reconciliation_handler::list_reconciliations	finance
 GET	/api/v1/erp/ap/reconciliations/*	ap_reconciliation_handler::get_reconciliation	finance
+GET	/api/v1/erp/ap/reconciliations/*/print	print_handler::ap_reconciliation_print_docx	finance
 GET	/api/v1/erp/ap/reconciliations/summary	ap_reconciliation_handler::get_supplier_summary	finance
 GET	/api/v1/erp/ap/reports/aging	ap_report_handler::get_aging_report	finance
 GET	/api/v1/erp/ap/reports/daily	ap_report_handler::get_daily_report	finance
@@ -181,16 +181,11 @@ GET	/api/v1/erp/ap/verifications/unverified/payments	ap_verification_handler::ge
 GET	/api/v1/erp/api-gateway/endpoints	api_gateway_handler::list_api_endpoints	analytics
 GET	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::get_api_endpoint	analytics
 GET	/api/v1/erp/api-gateway/stats	api_gateway_handler::get_api_stats	analytics
-GET	/api/v1/erp/ar-reconciliation-alias/*/details	ar_reconciliation_enhanced_handler::get_reconciliation_details	finance
-GET	/api/v1/erp/ar-reconciliation-alias/aging-analysis	ar_reconciliation_enhanced_handler::aging_report	finance
-GET	/api/v1/erp/ar-reconciliation-alias/auto-reconcile/results	ar_reconciliation_enhanced_handler::list_results	finance
-GET	/api/v1/erp/ar-reconciliation-alias/confirmations	ar_reconciliation_enhanced_handler::list_confirmations	finance
-GET	/api/v1/erp/ar-reconciliation-alias/disputes	ar_reconciliation_enhanced_handler::list_disputes	finance
-GET	/api/v1/erp/ar-reconciliation-alias/disputes/*	ar_reconciliation_enhanced_handler::get_dispute	finance
 GET	/api/v1/erp/ar-reconciliations	ar_reconciliation_handler::list_reconciliations	finance
 GET	/api/v1/erp/ar-reconciliations-enhanced/*/details	ar_reconciliation_enhanced_handler::get_reconciliation_details	finance
 GET	/api/v1/erp/ar-reconciliations-enhanced/*/pdf	ar_reconciliation_enhanced_handler::export_reconciliation_pdf	finance
 GET	/api/v1/erp/ar-reconciliations-enhanced/aging-report	ar_reconciliation_enhanced_handler::aging_report	finance
+GET	/api/v1/erp/ar-reconciliations-enhanced/auto-reconcile/results	ar_reconciliation_enhanced_handler::list_results	finance
 GET	/api/v1/erp/ar-reconciliations-enhanced/confirmations	ar_reconciliation_enhanced_handler::list_confirmations	finance
 GET	/api/v1/erp/ar-reconciliations-enhanced/disputes	ar_reconciliation_enhanced_handler::list_disputes	finance
 GET	/api/v1/erp/ar-reconciliations-enhanced/disputes/*	ar_reconciliation_enhanced_handler::get_dispute	finance
@@ -590,7 +585,6 @@ GET	/api/v1/erp/lock-status	login_security_handler::check_lock_status	analytics
 GET	/api/v1/erp/locked-accounts	login_security_handler::get_locked_accounts	analytics
 GET	/api/v1/erp/login-logs	login_security_handler::list_login_logs	analytics
 GET	/api/v1/erp/login-logs/export	login_security_handler::export_login_logs	analytics
-GET	/api/v1/erp/login-statistics	login_security_handler::get_login_statistics	analytics
 GET	/api/v1/erp/logistics-tracking/waybills/*/print	print_handler::logistics_waybill_print_docx	logistics_tracking
 GET	/api/v1/erp/logistics-tracking/waybills/*/tracking-events	logistics_tracking_handler::list_tracking_events	logistics_tracking
 GET	/api/v1/erp/logs	audit_enhanced_handler::list_audit_logs	analytics
@@ -917,12 +911,10 @@ GET	/api/v1/erp/scheduling/history	scheduling_handler::get_schedule_history	mod
 GET	/api/v1/erp/scheduling/results/*	scheduling_handler::get_schedule_result	mod
 GET	/api/v1/erp/scheduling/results/*/print	print_handler::scheduling_result_print_docx	mod
 GET	/api/v1/erp/scheduling/tasks	scheduling_handler::list_scheduled_orders	mod
-GET	/api/v1/erp/scheduling/work-orders	scheduling_handler::list_scheduled_orders	mod
 GET	/api/v1/erp/search/customers	search_api::search_customers	mod
 GET	/api/v1/erp/search/doc-types	search_api::list_doc_types	mod
 GET	/api/v1/erp/search/products	search_api::search_products	mod
 GET	/api/v1/erp/search/sales-orders	search_api::search_sales_orders	mod
-GET	/api/v1/erp/security-alerts	login_security_handler::get_security_alerts	analytics
 GET	/api/v1/erp/slow-queries	slow_query_handler::list_slow_queries	system
 GET	/api/v1/erp/slow-queries/report/weekly	slow_query_handler::get_weekly_report	system
 GET	/api/v1/erp/slow-queries/stats	slow_query_handler::get_slow_query_stats	system
@@ -1025,14 +1017,12 @@ POST	/api/v1/erp/ap/verifications/*/cancel	ap_verification_handler::cancel_verif
 POST	/api/v1/erp/ap/verifications/auto	ap_verification_handler::auto_verify	finance
 POST	/api/v1/erp/ap/verifications/manual	ap_verification_handler::manual_verify	finance
 POST	/api/v1/erp/api-gateway/endpoints	api_gateway_handler::create_api_endpoint	analytics
-POST	/api/v1/erp/ar-reconciliation-alias/*/confirm/send	ar_reconciliation_enhanced_handler::send_confirmation	finance
-POST	/api/v1/erp/ar-reconciliation-alias/auto-reconcile	ar_reconciliation_enhanced_handler::auto_match	finance
-POST	/api/v1/erp/ar-reconciliation-alias/confirmations	ar_reconciliation_enhanced_handler::create_confirmation	finance
-POST	/api/v1/erp/ar-reconciliation-alias/disputes	ar_reconciliation_enhanced_handler::create_dispute	finance
 POST	/api/v1/erp/ar-reconciliations	ar_reconciliation_handler::create_reconciliation	finance
 POST	/api/v1/erp/ar-reconciliations-enhanced/*/confirm	ar_reconciliation_enhanced_handler::confirm_reconciliation	finance
+POST	/api/v1/erp/ar-reconciliations-enhanced/*/confirm/send	ar_reconciliation_enhanced_handler::send_confirmation	finance
 POST	/api/v1/erp/ar-reconciliations-enhanced/*/dispute	ar_reconciliation_enhanced_handler::dispute_reconciliation	finance
 POST	/api/v1/erp/ar-reconciliations-enhanced/auto-match	ar_reconciliation_enhanced_handler::auto_match	finance
+POST	/api/v1/erp/ar-reconciliations-enhanced/confirmations	ar_reconciliation_enhanced_handler::create_confirmation	finance
 POST	/api/v1/erp/ar-reconciliations-enhanced/disputes	ar_reconciliation_enhanced_handler::create_dispute	finance
 POST	/api/v1/erp/ar-reconciliations-enhanced/generate	ar_reconciliation_enhanced_handler::generate_reconciliation	finance
 POST	/api/v1/erp/ar-reconciliations/*/close	ar_reconciliation_handler::close_reconciliation	finance
@@ -1456,7 +1446,6 @@ POST	/api/v1/erp/production/production-recipes/*/close	production_recipe_handler
 POST	/api/v1/erp/production/production-recipes/additions/*/approve	production_recipe_handler::approve_addition	production
 POST	/api/v1/erp/production/production-recipes/additions/*/close	production_recipe_handler::close_addition	production
 POST	/api/v1/erp/production/production-recipes/calculate	production_recipe_handler::calculate	production
-POST	/api/v1/erp/production/quality-inspection/defects/*/handle	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process	quality_inspection_handler::process_defect	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/process-result	quality_inspection_handler::process_defect_result	production
 POST	/api/v1/erp/production/quality-inspection/defects/*/scrap-approval/financial	quality_inspection_handler::approve_scrap_financial	production
@@ -1632,8 +1621,6 @@ PUT	/api/v1/erp/ap/invoices/*	ap_invoice_handler::update_ap_invoice	finance
 PUT	/api/v1/erp/ap/payment-requests/*	ap_payment_request_handler::update_request	finance
 PUT	/api/v1/erp/ap/payments/*	ap_payment_handler::update_payment	finance
 PUT	/api/v1/erp/api-gateway/endpoints/*	api_gateway_handler::update_api_endpoint	analytics
-PUT	/api/v1/erp/ar-reconciliation-alias/confirmations/*/status	ar_reconciliation_enhanced_handler::update_confirmation_status	finance
-PUT	/api/v1/erp/ar-reconciliation-alias/disputes/*/resolve	ar_reconciliation_enhanced_handler::resolve_dispute	finance
 PUT	/api/v1/erp/ar-reconciliations-enhanced/confirmations/*/status	ar_reconciliation_enhanced_handler::update_confirmation_status	finance
 PUT	/api/v1/erp/ar-reconciliations-enhanced/disputes/*/resolve	ar_reconciliation_enhanced_handler::resolve_dispute	finance
 PUT	/api/v1/erp/ar-reconciliations/*	ar_reconciliation_handler::update_reconciliation	finance

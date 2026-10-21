@@ -1,0 +1,8 @@
+{
+  "role": "finishing_master",
+  "reachableRoutes": [
+    "/dashboard",
+    "/dye-batch",
+    "/production"
+  ]
+}

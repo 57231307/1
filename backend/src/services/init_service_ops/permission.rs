@@ -443,9 +443,6 @@ impl InitService {
                     ("dye-batches", "read"),
                     ("quality-inspections", "read"),
                     ("vouchers", "read"),
-                    ("ar", "read"),
-                    ("ap", "read"),
-                    ("gl", "read"),
                     ("reports", "read"),
                     ("dashboard", "read"),
                     ("export-approvals", "create"),
@@ -497,9 +494,6 @@ impl InitService {
                     ("quality-inspections", "read"),
                     ("fabric-inspections", "read"),
                     ("vouchers", "read"),
-                    ("ar", "read"),
-                    ("ap", "read"),
-                    ("gl", "read"),
                     ("budgets", "read"),
                     ("cost-collections", "read"),
                     ("crm-leads", "read"),
@@ -541,9 +535,6 @@ impl InitService {
                     ("quality-inspections", "read"),
                     ("fabric-inspections", "read"),
                     ("vouchers", "read"),
-                    ("ar", "read"),
-                    ("ap", "read"),
-                    ("gl", "read"),
                     ("budgets", "read"),
                     ("cost-collections", "read"),
                     ("crm-leads", "read"),
@@ -603,9 +594,20 @@ impl InitService {
                     ("color-prices", "*"),
                     ("customers", "*"),
                     ("customer-credits", "read"),
-                    ("ar", "read"),
                     ("reports", "read"),
                     ("sales-analysis", "read"),
+                    // BPM 审批面：键由 `/api/v1/erp/bpm/{第四段}` 经消歧派生。审批提交端点是
+                    // POST /bpm/tasks/approve（末段 approve 属路径动作关键字）；审批中心执行入口是
+                    // POST /bpm/approval/execute，execute 不是关键字，故该面只有 create 形态键。
+                    // 不授 bpm-tasks:create（转办与催办）、不授 bpm-process:create（发起由业务单据
+                    // 提交端点在服务层内部调用）、不授定义/版本/模板/监控面（流程配置权等于给自己
+                    // 开审批权，与本仓 create 与 approve 拆岗口径冲突）。
+                    ("bpm-tasks", "read"),
+                    ("bpm-tasks", "approve"),
+                    ("bpm-approvals", "create"),
+                    ("bpm-instances", "read"),
+                    ("bpm-business-relation", "read"),
+                    ("bpm-visualization", "read"),
                 ],
             ),
             (
@@ -687,7 +689,6 @@ impl InitService {
                     ("supplier-product-colors", "update"),
                     ("suppliers", "*"),
                     ("supplier-evaluations", "*"),
-                    ("ap", "read"),
                     ("inventory", "read"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
@@ -696,6 +697,13 @@ impl InitService {
                     // 矩阵 purchaser 真缺口，裁定 R-6：补真实种子而非前端降级隐藏）
                     ("product-categories", "read"),
                     ("reports", "read"),
+                    // BPM 审批面，键派生判据同 sales_manager 分组。
+                    ("bpm-tasks", "read"),
+                    ("bpm-tasks", "approve"),
+                    ("bpm-approvals", "create"),
+                    ("bpm-instances", "read"),
+                    ("bpm-business-relation", "read"),
+                    ("bpm-visualization", "read"),
                 ],
             ),
             (
@@ -877,6 +885,13 @@ impl InitService {
                     ("capacity", "*"),
                     ("scheduling", "*"),
                     ("material-shortage", "read"),
+                    // BPM 审批面，键派生判据同 sales_manager 分组。
+                    ("bpm-tasks", "read"),
+                    ("bpm-tasks", "approve"),
+                    ("bpm-approvals", "create"),
+                    ("bpm-instances", "read"),
+                    ("bpm-business-relation", "read"),
+                    ("bpm-visualization", "read"),
                 ],
             ),
             (
@@ -1056,12 +1071,8 @@ impl InitService {
                     ("fixed-assets", "*"),
                     ("budgets", "*"),
                     ("cost-collections", "*"),
-                    ("ar", "*"),
-                    ("ap", "*"),
-                    ("gl", "*"),
                     ("financial-analysis", "*"),
                     ("fund-management", "*"),
-                    ("fund-transfers", "*"),
                     ("currencies", "*"),
                     ("exchange-rates", "*"),
                     ("ar-reconciliations", "*"),
@@ -1082,13 +1093,6 @@ impl InitService {
                     ("industry-benchmarks", "read"),
                     ("vouchers", "*"),
                     ("subjects", "read"),
-                    ("gl", "read"),
-                    ("gl", "create"),
-                    ("gl", "update"),
-                    ("ar", "read"),
-                    ("ar", "create"),
-                    ("ap", "read"),
-                    ("ap", "create"),
                     ("fixed-assets", "read"),
                     ("fixed-assets", "create"),
                     ("currencies", "read"),
@@ -1100,13 +1104,8 @@ impl InitService {
             (
                 "cashier",
                 &[
-                    ("fund-transfers", "read"),
-                    ("fund-transfers", "create"),
-                    ("fund-transfers", "update"),
                     ("fund-management", "read"),
                     ("fund-management", "create"),
-                    ("ar", "read"),
-                    ("ap", "read"),
                     ("vouchers", "read"),
                     ("vouchers", "create"),
                 ],
@@ -1123,7 +1122,6 @@ impl InitService {
                     ("outsourcing-receipts", "read"),
                     ("wages", "read"),
                     ("energy-allocations", "read"),
-                    ("gl", "read"),
                     // 单位成本分母要坯布入库量：`/production/greige-fabrics` 派生
                     // `greige-fabrics`（消歧默认分支保留段名），只授 read。
                     ("greige-fabrics", "read"),
@@ -1323,6 +1321,14 @@ impl InitService {
                     ("data-import", "*"),
                     ("permission-audits", "*"),
                     ("business-trace", "read"),
+                    // BPM 流程定义与流程模板的读面。两页路由门控分别是 bpm-definitions:read
+                    // 与 bpm-templates:read，键由 `/api/v1/erp/bpm` 的第四段经消歧派生，两枚
+                    // 资源名都已登记在 utils/path_utils.rs 的映射与 init_service.rs 的
+                    // PERMISSION_RESOURCES，此处只授已可派生的在册键。系统管理岗负责流程配置，
+                    // 缺键时两个入口对其隐去；审批执行面（bpm-tasks 与 bpm-approvals）刻意不授，
+                    // 保持"配置流程的人不是执行审批的人"这一拆岗口径。
+                    ("bpm-definitions", "read"),
+                    ("bpm-templates", "read"),
                 ],
             ),
             // 系统运维岗：系统更新整段高危敏感面（二进制替换、版本回滚、上传安装）。
@@ -1369,8 +1375,6 @@ impl InitService {
                     ("customers", "read"),
                     ("inventory", "read"),
                     ("vouchers", "read"),
-                    ("ar", "read"),
-                    ("ap", "read"),
                 ],
             ),
             (

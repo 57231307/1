@@ -96,8 +96,18 @@
         <div class="card-header">
           <span>{{ getReportTypeLabel(queryForm.report_type) }} - {{ queryForm.period }}</span>
           <div>
+            <!-- 打印入口只把本页已生成的报表交给浏览器本地打印，不落后端端点；
+                 门控取本页六种报表面各自的读面键并集（任一可读即可打印所见报表），
+                 六枚键按 /finance/reports/<报表段> 的 URL 段消歧派生 -->
             <el-button
-              v-permission="'finance_report.print'"
+              v-permission="[
+                PERMISSIONS.FINANCE_BALANCE_SHEET_READ,
+                PERMISSIONS.FINANCE_INCOME_STATEMENT_READ,
+                PERMISSIONS.FINANCE_CASH_FLOW_READ,
+                PERMISSIONS.FINANCE_TRIAL_BALANCE_READ,
+                PERMISSIONS.FINANCE_GENERAL_LEDGER_READ,
+                PERMISSIONS.FINANCE_SUBSIDIARY_LEDGER_READ,
+              ]"
               type="success"
               link
               @click="handlePrint"
@@ -667,6 +677,7 @@ import {
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
 import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useExportApproval } from '@/composables/useExportApproval';
 import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
 

@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <el-row :gutter="20" class="stats-row">
+    <el-row v-if="canReadMonitorFace" :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :lg="6">
         <el-card shadow="hover" class="stat-card warning">
           <div class="stat-content">
@@ -115,7 +115,7 @@
             <el-table-column :label="$t('bpm.pendingTable.operation')" width="180" fixed="right">
               <template #default="{ row }">
                 <el-button
-                  v-permission="'bpm_task:approve'"
+                  v-permission="PERMISSIONS.BPM_TASK_APPROVE"
                   type="primary"
                   link
                   size="small"
@@ -125,8 +125,10 @@
                 <el-button type="warning" link size="small" @click="handleDetail(row as BPMTask)">{{
                   $t('bpm.pendingTable.detail')
                 }}</el-button>
+                <!-- 转办与催办（POST /bpm/tasks/{id}/transfer、/urge）末段不是路径动作关键字，
+                     按方法派生同落 bpm-tasks:create；后端审批岗种子刻意不含该键，故两入口对审批人隐藏 -->
                 <el-button
-                  v-permission="'bpm_task:transfer'"
+                  v-permission="PERMISSIONS.BPM_TASK_CREATE"
                   type="info"
                   link
                   size="small"
@@ -134,7 +136,7 @@
                   >{{ $t('bpm.pendingTable.transfer') }}</el-button
                 >
                 <el-button
-                  v-permission="'bpm_task:urge'"
+                  v-permission="PERMISSIONS.BPM_TASK_CREATE"
                   type="danger"
                   link
                   size="small"
@@ -179,14 +181,22 @@
         </el-card>
       </el-tab-pane>
 
-      <el-tab-pane :label="$t('bpm.tab.monitor')" name="monitor">
+      <el-tab-pane v-if="canReadMonitorFace" :label="$t('bpm.tab.monitor')" name="monitor">
         <div class="monitor-toolbar">
-          <el-button type="primary" @click="openStartProcessDialog">{{
-            $t('bpm.monitorTable.startProcess')
-          }}</el-button>
-          <el-button @click="openBusinessRelationDialog">{{
-            $t('bpm.monitorTable.businessRelation')
-          }}</el-button>
+          <!-- 发起流程是 POST /bpm/process/start，按方法派生键 bpm-process:create；
+               后端刻意不把这个键授给审批岗（发起审批由业务单据提交端点在服务层内部调用） -->
+          <el-button
+            v-permission="PERMISSIONS.BPM_PROCESS_CREATE"
+            type="primary"
+            @click="openStartProcessDialog"
+            >{{ $t('bpm.monitorTable.startProcess') }}</el-button
+          >
+          <!-- 业务关联查询是 GET /bpm/business-relation → bpm-business-relation:read -->
+          <el-button
+            v-permission="PERMISSIONS.BPM_BUSINESS_RELATION_READ"
+            @click="openBusinessRelationDialog"
+            >{{ $t('bpm.monitorTable.businessRelation') }}</el-button
+          >
         </div>
         <el-card shadow="hover" class="table-card">
           <template #header>{{ $t('bpm.monitorTable.instancesTitle') }}</template>
@@ -245,7 +255,7 @@
                   >{{ $t('bpm.initiatedTable.trace') }}</el-button
                 >
                 <el-button
-                  v-permission="'bpm_process:cancel'"
+                  v-permission="PERMISSIONS.BPM_INSTANCE_CANCEL"
                   type="info"
                   link
                   size="small"
@@ -436,9 +446,18 @@ import type {
 import { useUserStore } from '@/store/user';
 import { getUserList, type User } from '@/api/user';
 import { logger } from '@/utils/logger';
+import { hasRoutePermission } from '@/router';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();
+
+// 全局流程监控面（/bpm/monitor/*）未按发起人收窄，只有持 bpm-monitor:read 的角色可读；
+// 与 v-permission 指令同源判定（列表级宽松匹配 hasRoutePermission），无该键的角色不渲染
+// 统计卡区与流程实例页签，也不发该面查询（否则开页即 403）。
+const canReadMonitorFace = computed(() =>
+  hasRoutePermission(PERMISSIONS.BPM_MONITOR_READ, userStore.userInfo?.permissions || [])
+);
 
 // v11 批次 162 P2-1 修复：el-tag type 联合字面量类型，替代 Record<string, any>
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
@@ -671,8 +690,12 @@ const handleStartProcess = async () => {
     startProcessDialog.businessType = '';
     startProcessDialog.businessId = null;
     startProcessDialog.processTitle = '';
-    fetchMonitorStats();
-    fetchProcessInstances();
+    // 该页的实例列表与统计卡都取自监控面，无该面键的角色不刷新（发起入口本身已按
+    // bpm-process:create 隐藏，走到这里的只有持监控键或通配权限的角色）
+    if (canReadMonitorFace.value) {
+      fetchMonitorStats();
+      fetchProcessInstances();
+    }
   } catch (error: unknown) {
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
@@ -974,7 +997,9 @@ const handleProcessImage = async (row: BPMInstance) => {
 
 onMounted(() => {
   fetchPendingTasks();
-  fetchMonitorStats();
+  // 顶部统计卡取自全局流程监控面（GET /bpm/monitor/stats，未按发起人收窄）：
+  // 无 bpm-monitor:read 的角色（如仅持审批岗键的域经理）开页不发该查询，否则必 403。
+  if (canReadMonitorFace.value) fetchMonitorStats();
 });
 </script>
 

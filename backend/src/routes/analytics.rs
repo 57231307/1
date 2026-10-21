@@ -227,15 +227,7 @@ pub fn security() -> Router<AppState> {
             get(login_security_handler::check_lock_status),
         )
         .route("/unlock", post(login_security_handler::unlock_account))
-        .route(
-            "/login-statistics",
-            get(login_security_handler::get_login_statistics),
-        )
         .route("/stats", get(login_security_handler::get_login_statistics))
-        .route(
-            "/security-alerts",
-            get(login_security_handler::get_security_alerts),
-        )
         .route("/alerts", get(login_security_handler::get_security_alerts))
         .route(
             "/alerts/{id}/resolve",

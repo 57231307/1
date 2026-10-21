@@ -8,7 +8,6 @@
     "/ar-reconciliation",
     "/ar-reconciliation/enhanced",
     "/assist-accounting",
-    "/bi/sales-analysis",
     "/budget",
     "/cost",
     "/currency",
@@ -18,18 +17,6 @@
     "/financial-analysis",
     "/fixed-assets",
     "/fund",
-    "/purchase",
-    "/purchase-contract",
-    "/purchase-inspection",
-    "/purchase-price",
-    "/purchase-receipt",
-    "/purchase-return",
-    "/quotations",
-    "/quotations/new",
-    "/sales",
-    "/sales-contract",
-    "/sales-price",
-    "/sales-returns",
     "/voucher"
   ]
 }

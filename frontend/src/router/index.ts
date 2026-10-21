@@ -402,7 +402,10 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '审批管理',
           icon: 'List',
-          permission: 'audit-logs:read',
+          // 本页两个数据面：待办/已办列表（GET /bpm/tasks → bpm-tasks:read）与
+          // 顶部统计卡+流程实例页签（GET /bpm/monitor/* → bpm-monitor:read，全局未收窄面）。
+          // 任一可读即可进页面，页面内监控面按 bpm-monitor:read 显隐，避免无该键的角色开页即 403。
+          permission: ['bpm-tasks:read', 'bpm-monitor:read'],
           requiresAuth: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
@@ -879,7 +882,8 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '流程定义管理',
           icon: 'List',
-          permission: 'audit-logs:read',
+          // 页面数据面是 GET /bpm/definitions，资源段消歧后为 bpm-definitions
+          permission: 'bpm-definitions:read',
           requiresAuth: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
@@ -891,7 +895,8 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '流程模板管理',
           icon: 'List',
-          permission: 'audit-logs:read',
+          // 页面数据面是 GET /bpm/templates，资源段消歧后为 bpm-templates
+          permission: 'bpm-templates:read',
           requiresAuth: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
@@ -903,7 +908,10 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '审批中心',
           icon: 'List',
-          permission: 'audit-logs:read',
+          // 本页两个数据面：待办/已办列表（GET /bpm/tasks/pending、/completed →
+          // bpm-tasks:read）与审批执行入口（POST /bpm/approval/execute → bpm-approvals:create，
+          // 该面只有 POST，没有 read 形态的派生键）
+          permission: ['bpm-tasks:read', 'bpm-approvals:create'],
           requiresAuth: true,
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
@@ -1554,7 +1562,20 @@ function actionEquivalent(userAction: string, requiredAction: string): boolean {
 }
 
 /**
- * 粗域键到该域后端细资源段集的映射，逐字取自后端权限种子 init_service_ops 里 permission 文件的各 role resources 域分组函数。仅 finance、sales、purchases、production 这 4 个域在后端无同名 resource 段（实测种子零命中），需据此把粗键解释为细资源集任一读命中即放行。customers、users、inventory 等本身是真实资源段，不列入，走原等值匹配。
+ * 粗域键到该域后端细资源段集的映射。
+ *
+ * 名源（两处同词，逐字对齐，不得自造）：
+ * - 后端权限种子 init_service_ops 里 permission 文件的各 role resources 域分组函数；
+ * - 后端 utils/path_utils.rs 的 RESOURCE_NAME_MAP 消歧目标与 init_service.rs 的
+ *   PERMISSION_RESOURCES 在册资源名。
+ *
+ * 仅 finance、sales、purchases、production 这 4 个域在后端无同名 resource 段（实测种子零命中），
+ * 需据此把粗键解释为细资源集任一读命中即放行。customers、users、inventory 等本身是真实资源段，
+ * 不列入，走原等值匹配。
+ *
+ * 财务域随域改名后，ap、ar、gl、fund-transfers 这些旧段名既不在注册表也不可被 URL 段派生，
+ * 留在本表只会成为永不命中的死名；应付/应收/总账报表三族的细名一律取消歧目标原名逐字登记，
+ * 尚未播种的细名同样在册（种子补授后即按并集放行，无需再改本表）。
  */
 const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
   finance: [
@@ -1563,16 +1584,14 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'fixed-assets',
     'budgets',
     'cost-collections',
-    'ar',
-    'ap',
-    'gl',
     'financial-analysis',
     'fund-management',
-    'fund-transfers',
     'currencies',
     'exchange-rates',
     'ar-reconciliations',
+    'ar-reconciliations-enhanced',
     'accounting-periods',
+    'period-adjustments',
     'period-report-snapshots',
     'aging-alert-rules',
     'aging-grades',
@@ -1580,6 +1599,41 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'industry-benchmarks',
     'wages',
     'reports',
+    // 应付域细资源：URL 段在 ap 前缀下随域改名（发票/付款/核销/请款/对账/账龄与报表维度）
+    'ap-invoices',
+    'ap-payments',
+    'ap-verifications',
+    'ap-payment-requests',
+    'ap-reconciliations',
+    'ap-aging',
+    'ap-daily',
+    'ap-monthly',
+    'ap-statistics',
+    // 应收域细资源：URL 段在 ar 前缀下随域改名（收款/催收同族）
+    'ar-invoices',
+    'ar-payments',
+    'ar-verifications',
+    'ar-collections',
+    'ar-aging',
+    'ar-daily',
+    'ar-monthly',
+    'ar-statistics',
+    // 总账与财务报表域细资源：URL 段在 finance 前缀下随域改名
+    'finance-invoices',
+    'finance-payments',
+    'finance-audit',
+    'finance-balance-sheet',
+    'finance-cash-flow',
+    'finance-general-ledger',
+    'finance-income-statement',
+    'finance-subsidiary-ledger',
+    'finance-trial-balance',
+    'finance-drill-down',
+    // 根级挂载的财务族直接资源：第四段是同一资源下的查询维度或动作，URL 段即权威资源名
+    'bad-debts',
+    'collection-tasks',
+    'finance-alerts',
+    'assist-accounting',
   ],
   sales: [
     'orders',
@@ -1596,7 +1650,6 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'color-prices',
     'export-inspections',
     'pieces',
-    'ar',
     'reports',
   ],
   purchases: [
@@ -1614,7 +1667,6 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'products',
     'product-categories',
     'inventory',
-    'ap',
     'reports',
   ],
   production: [

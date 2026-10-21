@@ -9,6 +9,8 @@
     "/ar-reconciliation/enhanced",
     "/assist-accounting",
     "/bi/sales-analysis",
+    "/bpm",
+    "/bpm/approval",
     "/budget",
     "/cost",
     "/crm",
@@ -37,6 +39,7 @@
     "/sales-contract",
     "/sales-price",
     "/sales-returns",
-    "/voucher"
+    "/voucher",
+    "/workflow"
   ]
 }

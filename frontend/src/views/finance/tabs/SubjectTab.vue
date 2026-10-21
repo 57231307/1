@@ -12,11 +12,13 @@
           <el-icon><Plus /></el-icon>
           {{ t('finance.subjectTab.buttonNewSubject') }}
         </el-button>
-        <el-button v-permission="'finance.subject.print'" @click="handlePrintSubjects">
+        <!-- 打印入口只把本页已读到的科目行交给浏览器本地打印，不落后端打印端点，门控取读面键；
+             导出走 GET /subjects/export，权限键按该路径段派生为 subjects:export -->
+        <el-button v-permission="PERMISSIONS.SUBJECT_READ" @click="handlePrintSubjects">
           <el-icon><Printer /></el-icon>
           {{ t('finance.subjectTab.buttonPrint') }}
         </el-button>
-        <el-button v-permission="'finance.subject.export'" @click="handleExportSubjects">
+        <el-button v-permission="PERMISSIONS.SUBJECT_EXPORT" @click="handleExportSubjects">
           <el-icon><Download /></el-icon>
           {{ t('finance.subjectTab.buttonExport') }}
         </el-button>
@@ -92,9 +94,9 @@
         </el-table-column>
         <el-table-column :label="t('finance.subjectTab.columnAction')" width="150" fixed="right">
           <template #default="{ row }">
-            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <!-- 编辑/删除面的权限键按 PUT 与 DELETE /subjects/{id} 的路径段派生为 subjects 资源 -->
             <el-button
-              v-permission="'finance_subject:update'"
+              v-permission="PERMISSIONS.SUBJECT_UPDATE"
               type="primary"
               link
               size="small"
@@ -102,7 +104,7 @@
               >{{ t('finance.subjectTab.buttonEdit') }}</el-button
             >
             <el-button
-              v-permission="'finance_subject:delete'"
+              v-permission="PERMISSIONS.SUBJECT_DELETE"
               type="danger"
               link
               size="small"
@@ -219,6 +221,7 @@ import {
   type AccountSubject,
 } from '@/api/finance';
 import { exportFromBackend } from '@/utils/export';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 

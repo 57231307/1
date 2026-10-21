@@ -139,8 +139,10 @@
             <el-button type="success" link size="small" @click="viewReport(row)">{{
               t('financialAnalysis.analysisListTab.buttonView')
             }}</el-button>
+            <!-- 报表定义面的资源段取 URL 第三段 financial-analysis（根级直接资源），
+                 编辑与删除键按 PUT、DELETE /financial-analysis/reports/{id} 的方法派生 -->
             <el-button
-              v-permission="'financial_report:update'"
+              v-permission="PERMISSIONS.FINANCIAL_ANALYSIS_UPDATE"
               type="warning"
               link
               size="small"
@@ -148,7 +150,7 @@
               >{{ t('financialAnalysis.analysisListTab.buttonEdit') }}</el-button
             >
             <el-button
-              v-permission="'financial_report:delete'"
+              v-permission="PERMISSIONS.FINANCIAL_ANALYSIS_DELETE"
               type="danger"
               link
               size="small"
@@ -328,6 +330,7 @@ import {
 } from '@/api/financial-analysis';
 import { financialStatusLabelKey, financialStatusTagType } from '@/utils/financial-status';
 import { logAuxLoadFailure } from '@/utils/logger';
+import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 

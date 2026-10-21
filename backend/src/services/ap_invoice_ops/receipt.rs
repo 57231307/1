@@ -1,14 +1,16 @@
 //! 采购入库/退货自动生成应付单 impl 子模块（ap_invoice_ops/receipt）
 //!
 //! 批次 490 D10-4b 拆分：从原 `ap_invoice_service.rs` L90-425 迁移。
-//! 包含 ApInvoiceService 的 2 个公开自动生成方法 + 7 个私有 helper：
+//! 包含 ApInvoiceService 的 2 个公开自动生成方法 + 9 个私有 helper：
 //! - auto_generate_from_receipt（从采购入库单自动生成应付单 + 同步生成应付凭证）
-//! - auto_generate_from_return（从采购退货单自动生成红字应付单）
+//! - auto_generate_from_return（从采购退货单自动生成红字应付单 + 同步生成红字冲销凭证）
 //! - find_receipt_and_check_exists（查询入库单 + 结算门控 + 检查重复 + 校验供应商）
 //! - build_and_insert_receipt_invoice（构造并插入应付单 ActiveModel）
 //! - build_inventory_voucher_item / build_tax_voucher_item / build_payable_voucher_item（凭证分录构造）
 //! - build_receipt_voucher_items（组装凭证分录列表）
 //! - try_generate_receipt_voucher（commit 后生成应付凭证，失败仅 warn）
+//! - build_return_voucher_items（组装退货红字凭证分录列表）
+//! - try_generate_return_voucher（commit 后生成红字冲销凭证，按来源单据查重保证幂等）
 //!
 //! ReceiptVoucherContext 仅在本模块使用，随方法一同迁移至此（保持私有）。
 //!
@@ -20,11 +22,12 @@ use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    QueryFilter, Set, TransactionTrait,
+    QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 
 use crate::models::{
     ap_invoice, purchase_order_item, purchase_receipt, purchase_receipt_item, purchase_return,
+    voucher,
 };
 use crate::services::po::CreateOrderItemRequest;
 use crate::services::po::order::PurchaseOrderService;
@@ -55,8 +58,10 @@ impl ApTaxBasis {
     }
 }
 
-/// 采购入库应付单凭证上下文（D08-1 第二梯队拆分辅助结构）
-/// F-P0-7 修复（批次 382 v13 复审）：commit 前保存生成应付凭证所需字段，；invoice 在 Ok 返回时被 move，提前捕获避免后续 voucher 生成无法访问。
+/// 采购应付/退货红字应付共用的凭证上下文：commit 前从应付单捕获生成凭证所需字段，
+/// invoice 在 Ok 返回时被 move，提前捕获避免 commit 后凭证生成无法访问。
+/// 金额语义随单据方向：收货单为正数、退货单为红字负数，两者 amount 均存含税价税合计，
+/// tax_amount 为其中进项税额（退货为负），库存商品借方由 amount 扣税推定。
 struct ReceiptVoucherContext {
     invoice_no: String,
     invoice_id: i32,
@@ -68,6 +73,9 @@ struct ReceiptVoucherContext {
 
 /// 应付单的来源单据类型：采购入库（ap_invoice.source_type 取值）
 const AP_SOURCE_TYPE_PURCHASE_RECEIPT: &str = "PURCHASE_RECEIPT";
+
+/// 应付单的来源单据类型：采购退货（ap_invoice.source_type 取值）
+const AP_SOURCE_TYPE_PURCHASE_RETURN: &str = "PURCHASE_RETURN";
 
 impl ReceiptVoucherContext {
     fn from_invoice(invoice: &ap_invoice::Model) -> Self {
@@ -303,9 +311,9 @@ impl ApInvoiceService {
         Ok(rows.into_iter().map(|row| (row.id, row)).collect())
     }
 
-    /// 采购入库应付确认 - 库存商品分录（借：1405，不含税金额）
+    /// 库存商品分录（借方科目码 1405；收货传正数不含税额，退货传红字负数）
     fn build_inventory_voucher_item(
-        invoice_no: &str,
+        summary: &str,
         supplier_id: i32,
         amount: Decimal,
     ) -> VoucherItemRequest {
@@ -316,7 +324,7 @@ impl ApInvoiceService {
             subject_name: Some("库存商品".to_string()),
             debit: amount,
             credit: Decimal::ZERO,
-            summary: Some(format!("采购入库应付确认-{}", invoice_no)),
+            summary: Some(summary.to_string()),
             assist_customer_id: None,
             assist_supplier_id: Some(supplier_id),
             assist_department_id: None,
@@ -333,9 +341,9 @@ impl ApInvoiceService {
         }
     }
 
-    /// 采购入库应付确认 - 进项税额分录（借：222101，仅 tax_amount > 0 时插入）
+    /// 进项税额分录（借方科目码 222101，仅税额非零时插入；收货传正数，退货传红字负数）
     fn build_tax_voucher_item(
-        invoice_no: &str,
+        summary: &str,
         supplier_id: i32,
         tax_amount: Decimal,
     ) -> VoucherItemRequest {
@@ -346,7 +354,7 @@ impl ApInvoiceService {
             subject_name: Some("应交税费-应交增值税-进项税额".to_string()),
             debit: tax_amount,
             credit: Decimal::ZERO,
-            summary: Some(format!("采购入库应付确认-{}", invoice_no)),
+            summary: Some(summary.to_string()),
             assist_customer_id: None,
             assist_supplier_id: Some(supplier_id),
             assist_department_id: None,
@@ -363,9 +371,9 @@ impl ApInvoiceService {
         }
     }
 
-    /// 采购入库应付确认 - 应付账款分录（贷：2202，取应付单账面额即含税确认额，挂供应商辅助核算）
+    /// 应付账款分录（贷方，挂供应商辅助核算；收货传含税正数，退货传含税红字负数）
     fn build_payable_voucher_item(
-        invoice_no: &str,
+        summary: &str,
         supplier_id: i32,
         payable_amount: Decimal,
     ) -> VoucherItemRequest {
@@ -376,7 +384,7 @@ impl ApInvoiceService {
             subject_name: Some("应付账款".to_string()),
             debit: Decimal::ZERO,
             credit: payable_amount,
-            summary: Some(format!("采购入库应付确认-{}", invoice_no)),
+            summary: Some(summary.to_string()),
             assist_customer_id: None,
             assist_supplier_id: Some(supplier_id),
             assist_department_id: None,
@@ -399,16 +407,44 @@ impl ApInvoiceService {
     /// 贷方应付账款直接取应付单账面额（含税），库存商品借方取账面额扣掉税额后的不含段，
     /// 使借方两行之和恒等于贷方一行，与付款核销基准同源
     fn build_receipt_voucher_items(ctx: &ReceiptVoucherContext) -> Vec<VoucherItemRequest> {
+        let summary = format!("采购入库应付确认-{}", ctx.invoice_no);
         let mut voucher_items = vec![
-            Self::build_inventory_voucher_item(&ctx.invoice_no, ctx.supplier_id, ctx.net_amount()),
-            Self::build_payable_voucher_item(&ctx.invoice_no, ctx.supplier_id, ctx.amount),
+            Self::build_inventory_voucher_item(&summary, ctx.supplier_id, ctx.net_amount()),
+            Self::build_payable_voucher_item(&summary, ctx.supplier_id, ctx.amount),
         ];
 
         // 进项税额仅在 tax_amount > 0 时插入，避免零额凭证分录引起校验告警
         if ctx.tax_amount > Decimal::ZERO {
             voucher_items.insert(
                 1,
-                Self::build_tax_voucher_item(&ctx.invoice_no, ctx.supplier_id, ctx.tax_amount),
+                Self::build_tax_voucher_item(&summary, ctx.supplier_id, ctx.tax_amount),
+            );
+            // 重排行号：1=库存商品 / 2=进项税额 / 3=应付账款
+            voucher_items[2].line_no = Some(3);
+        }
+
+        voucher_items
+    }
+
+    /// 组装采购退货红字冲销凭证分录列表，行结构与收货凭证镜像（负数红字）
+    ///
+    /// 口径来源：红字应付单落库时 amount 已存含税负总额、tax_amount 存负税额（见
+    /// auto_generate_from_return），故不含税红字段按 amount - tax_amount 推导；
+    /// 本方法只按应付单存值红冲，不改动账面额自身的含税/不含税判定口径。
+    /// 借贷自平：(amount - tax) + tax = amount。
+    fn build_return_voucher_items(ctx: &ReceiptVoucherContext) -> Vec<VoucherItemRequest> {
+        let net_amount = ctx.amount - ctx.tax_amount;
+        let summary = format!("采购退货红字冲销-{}", ctx.invoice_no);
+        let mut voucher_items = vec![
+            Self::build_inventory_voucher_item(&summary, ctx.supplier_id, net_amount),
+            Self::build_payable_voucher_item(&summary, ctx.supplier_id, ctx.amount),
+        ];
+
+        // 税额为零时不插行，避免零额凭证分录引起校验告警（与收货侧同一处理）
+        if ctx.tax_amount != Decimal::ZERO {
+            voucher_items.insert(
+                1,
+                Self::build_tax_voucher_item(&summary, ctx.supplier_id, ctx.tax_amount),
             );
             // 重排行号：1=库存商品 / 2=进项税额 / 3=应付账款
             voucher_items[2].line_no = Some(3);
@@ -461,7 +497,72 @@ impl ApInvoiceService {
         }
     }
 
-    /// 从采购退货单自动生成应付单（红字）
+    /// 生成采购退货红字冲销凭证（收货应付凭证的镜像负数分录，唯一承载退货记账）
+    ///
+    /// 幂等：按 source_type + 应付单 ID 查重，已存在即跳过，重复调用不会二次入账；
+    /// 失败：显式 error 日志并以 Err 向上传播（凭证已无可回滚上下文，交由调用方告警，
+    /// 需人工补生成时凭日志中的应付单号定位）。红字单零金额（amount 与税额均为 0）不入账。
+    async fn try_generate_return_voucher(
+        db: &Arc<DatabaseConnection>,
+        ctx: ReceiptVoucherContext,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        if ctx.amount.is_zero() && ctx.tax_amount.is_zero() {
+            tracing::info!(
+                "退货应付单 {} 金额与税额均为 0，无需生成红字冲销凭证",
+                ctx.invoice_no
+            );
+            return Ok(());
+        }
+
+        let existing = voucher::Entity::find()
+            .filter(voucher::Column::SourceType.eq(AP_SOURCE_TYPE_PURCHASE_RETURN))
+            .filter(voucher::Column::SourceBillId.eq(i64::from(ctx.invoice_id)))
+            .limit(1)
+            .all(&**db)
+            .await?;
+        if !existing.is_empty() {
+            tracing::info!(
+                "退货应付单 {} 的红字冲销凭证已存在，幂等跳过重复生成",
+                ctx.invoice_no
+            );
+            return Ok(());
+        }
+
+        let voucher_items = Self::build_return_voucher_items(&ctx);
+        let voucher_req = CreateVoucherRequest {
+            voucher_type: "转".to_string(),
+            voucher_date: ctx.invoice_date,
+            source_type: Some(AP_SOURCE_TYPE_PURCHASE_RETURN.to_string()),
+            source_module: Some("purchase".to_string()),
+            source_bill_id: Some(i64::from(ctx.invoice_id)),
+            source_bill_no: Some(ctx.invoice_no.clone()),
+            batch_no: None,
+            color_no: None,
+            items: voucher_items,
+        };
+        let voucher_service = VoucherService::new(db.clone());
+        match voucher_service.create_and_post(voucher_req, user_id).await {
+            Ok(posted) => {
+                tracing::info!(
+                    "退货应付单 {} 红字冲销凭证生成成功：凭证号 {}",
+                    ctx.invoice_no,
+                    posted.voucher_no
+                );
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!(
+                    "⚠ 退货应付单 {} 红字冲销凭证生成失败，需人工补生成：{}",
+                    ctx.invoice_no,
+                    e
+                );
+                Err(e)
+            }
+        }
+    }
+
+    /// 从采购退货单自动生成应付单（红字）并同步生成红字冲销凭证
     pub async fn auto_generate_from_return(
         &self,
         return_id: i32,
@@ -477,7 +578,7 @@ impl ApInvoiceService {
 
         // 2. 检查是否已生成应付
         let exists = ap_invoice::Entity::find()
-            .filter(ap_invoice::Column::SourceType.eq("PURCHASE_RETURN"))
+            .filter(ap_invoice::Column::SourceType.eq(AP_SOURCE_TYPE_PURCHASE_RETURN))
             .filter(ap_invoice::Column::SourceId.eq(return_id))
             .one(&txn)
             .await?;
@@ -512,7 +613,7 @@ impl ApInvoiceService {
             invoice_no: Set(invoice_no),
             supplier_id: Set(return_doc.supplier_id),
             invoice_type: Set("PURCHASE".to_string()),
-            source_type: Set(Some("PURCHASE_RETURN".to_string())),
+            source_type: Set(Some(AP_SOURCE_TYPE_PURCHASE_RETURN.to_string())),
             source_id: Set(Some(return_id)),
             invoice_date: Set(invoice_date),
             due_date: Set(due_date),
@@ -535,7 +636,15 @@ impl ApInvoiceService {
         .insert(&txn)
         .await?;
 
+        // commit 前捕获红字凭证所需字段（invoice 在 Ok 返回时被 move）
+        let voucher_ctx = ReceiptVoucherContext::from_invoice(&invoice);
+
         txn.commit().await?;
+
+        // 凭证生成在应付单事务 commit 之后：create_and_post 自带独立事务，
+        // 此处已无可回滚的上下文，失败以 Err 返回交调用方显式告警（不静默），
+        // 幂等由 try_generate_return_voucher 内的来源单据查重保证。
+        Self::try_generate_return_voucher(&self.db, voucher_ctx, user_id).await?;
 
         Ok(invoice)
     }

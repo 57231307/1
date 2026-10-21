@@ -12,19 +12,26 @@ on:
   workflow_call:
     inputs:
       build_release:
-        description: '是否构建并签名 release APK（keystore 未配置时该步跳过，Release 只附 debug 之外的判定见调用方）'
+        description: '是否构建并签名 release APK（签名 secret 未配置时按版权方固定 DN 临时自签）'
         type: boolean
         default: false
       run_e2e:
-        description: '是否跑 Android 模拟器端到端（发布轮传 false，避免把发布卡在模拟器上）'
-        type: boolean
-        default: false
+        description: '是否跑 Android 模拟器端到端（发布轮传字符串 false，避免把发布卡在模拟器上；布尔 false 会被类型检查拒绝）'
+        type: string
+        default: 'false'
   workflow_dispatch:
     inputs:
       build_release:
-        description: "同时构建签名 release APK（需已配置签名密钥）"
+        description: "同时构建签名 release APK（签名 secret 未配置时按版权方固定 DN 临时自签）"
         type: boolean
         default: false
+      run_e2e:
+        description: "是否跑模拟器端到端（push 与 release 直接触发不受此输入控制，恒跑）"
+        type: string
+        options:
+          - 'true'
+          - 'false'
+        default: 'true'
   push:
     branches:
       - "feat/android-tauri-client"
@@ -46,8 +53,21 @@ env:
 jobs:
   android-apk:
     env:
-      # 两种入口合一：手工 dispatch 读 github.event.inputs，被调用时读 inputs。
-      BUILD_RELEASE: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.build_release == 'true') || (github.event_name == 'workflow_call' && inputs.build_release) }}
+      # 签名判定只认输入，不再用 event_name 猜是否被调用（可复用工作流里
+      # github.event_name 是调用方触发的事件名，与是否被调用无关，旧写法的
+      # workflow_call 分支恒假，导致被调用时传 true 也被静默打成 false）。
+      # 被调用时读输入上下文，手工 dispatch 回退读事件输入（仅 dispatch 下有值），
+      # push 或 release 直接触发两者皆无值，即 false。
+      # 三种入口下 BUILD_RELEASE 与模拟器 E2E 的期望取值（run_e2e 为 dispatch 新增输入，默认 true 以保持旧行为）
+      # - push 直接触发，BUILD_RELEASE 为 false，E2E 恒运行（行为不变）
+      # - release 发布事件触发，BUILD_RELEASE 为 false，E2E 恒运行（行为不变）
+      # - dispatch 手填 build_release true，BUILD_RELEASE 为 true，E2E 随手填 run_e2e（默认 true 即运行）
+      # - dispatch 手填 build_release false，BUILD_RELEASE 为 false，E2E 随手填 run_e2e
+      # - 被调用传 build_release true，BUILD_RELEASE 为 true（原缺陷即此格被静默跳过）
+      # - 被调用传 run_e2e false，E2E 跳过（原缺陷即此格照跑）
+      # - 被调用未传 build_release，按声明默认 false（与原生效值一致）
+      # - 被调用未传 run_e2e，按声明默认 false 跳过（原缺陷此格照跑，现无此类调用方）
+      BUILD_RELEASE: ${{ inputs.build_release || github.event.inputs.build_release == 'true' }}
     name: 构建 APK + 严格冒烟
     runs-on: ubuntu-latest
     outputs:
@@ -150,36 +170,123 @@ jobs:
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
           if-no-files-found: error
 
-      - name: 构建 release APK（未签名，可选）
+      - name: 构建 release APK（未签名，发布轮必需产物）
+        # 调用方 本文件的 准备签名证书 与 签名 release APK 两步，产物再进 上传签名 release APK。
+        # 入参 无。tauri v2 的 `android build` 默认即 release 档，只 --debug 是选项、--release 不是，
+        # 多传会被 CLI 判为 unexpected argument 并以退出码 2 终止。
         if: env.BUILD_RELEASE == 'true'
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: cargo tauri android build --release --apk
+        run: cargo tauri android build --apk
 
-      - name: 签名 release APK（需 keystore 密钥）
+      - name: 准备签名证书
+        # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
+        # secret 四项齐备走固定证书，全缺走 keytool 按版权方固定 DN 生成临时自签，半配判红。
+        # 存什么存哪里 生成物落 RUNNER_TEMP 下 bingxi-signing 目录（keystore 与口令文件与证书），
+        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志。
+        id: signing
+        if: env.BUILD_RELEASE == 'true'
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          KS_STOREPASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KS_KEYPASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KS_DIR="$RUNNER_TEMP/bingxi-signing"
+          rm -rf "$KS_DIR"
+          mkdir -p "$KS_DIR"
+          # 版权方名称与 LICENSE 一致，别名与包名同源，DN 全程固定不随轮次变
+          DN='CN=Chengdu Bingxi Fabric Trading Co.,O=Chengdu Bingxi Fabric Trading Co.,C=CN'
+          if [ -n "$KS_B64" ] && [ -n "$KS_ALIAS" ] && [ -n "$KS_STOREPASS" ] && [ -n "$KS_KEYPASS" ]; then
+            printf '%s' "$KS_B64" | base64 -d > "$KS_DIR/release.jks"
+            printf '%s' "$KS_STOREPASS" > "$KS_DIR/storepass.txt"
+            printf '%s' "$KS_KEYPASS" > "$KS_DIR/keypass.txt"
+            printf '%s' "$KS_ALIAS" > "$KS_DIR/alias.txt"
+            SOURCE=fixed
+            echo "签名证书来源 固定证书（仓库 secret 配置齐全）"
+          elif [ -n "$KS_B64" ] || [ -n "$KS_ALIAS" ] || [ -n "$KS_STOREPASS" ] || [ -n "$KS_KEYPASS" ]; then
+            echo "::error::签名 secret 半配（ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与两枚口令必须四项齐备或全缺），拒绝回退临时自签"
+            exit 1
+          else
+            STOREPASS="$(openssl rand -hex 16)"
+            KEYPASS="$(openssl rand -hex 16)"
+            keytool -genkeypair -keystore "$KS_DIR/release.jks" -storetype JKS \
+              -alias "$APP_ID" -keyalg RSA -keysize 2048 -validity 10950 \
+              -dname "$DN" -storepass "$STOREPASS" -keypass "$KEYPASS"
+            printf '%s' "$STOREPASS" > "$KS_DIR/storepass.txt"
+            printf '%s' "$KEYPASS" > "$KS_DIR/keypass.txt"
+            printf '%s' "$APP_ID" > "$KS_DIR/alias.txt"
+            SOURCE=selfsigned
+            echo "签名证书来源 临时生成（keytool 按版权方固定 DN 自签）"
+            echo "本轮为临时自签，跨轮指纹变化即说明尚未固定"
+            echo "固定出路 下载本 run 产物 bingxi-erp-android-selfsigned-keystore，把其中 keystore 文件转 base64 与口令两枚与别名共四项，写入 ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD 四个 secret，下一轮即走固定证书路且指纹不变"
+            mkdir -p "$KS_DIR/selfsigned-bundle"
+            cp "$KS_DIR/release.jks" "$KS_DIR/selfsigned-bundle/bingxi-erp-android-signing.jks"
+            cp "$KS_DIR/storepass.txt" "$KS_DIR/selfsigned-bundle/storepass.txt"
+            cp "$KS_DIR/keypass.txt" "$KS_DIR/selfsigned-bundle/keypass.txt"
+            cp "$KS_DIR/alias.txt" "$KS_DIR/selfsigned-bundle/alias.txt"
+            echo "bundle 含临时 keystore 与口令与别名，产物访问权限即其保护边界，日志不落口令与 base64"
+          fi
+          keytool -exportcert -keystore "$KS_DIR/release.jks" \
+            -storepass "$(cat "$KS_DIR/storepass.txt")" -alias "$(cat "$KS_DIR/alias.txt")" \
+            -file "$KS_DIR/release.cer"
+          test -s "$KS_DIR/release.cer" || { echo "::error::导出签名证书失败，无法核对指纹"; exit 1; }
+          [ "$SOURCE" != "selfsigned" ] || cp "$KS_DIR/release.cer" "$KS_DIR/selfsigned-bundle/release.cer"
+          FP="$(sha256sum "$KS_DIR/release.cer" | cut -d' ' -f1)"
+          echo "本轮 Release 用证书指纹 sha256 $FP"
+          {
+            echo "signing_source=$SOURCE"
+            echo "signing_fingerprint=$FP"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "SIGNING_KEY_ALIAS=$(cat "$KS_DIR/alias.txt")"
+            echo "SIGNING_KEYSTORE_BASE64=$(base64 -w0 "$KS_DIR/release.jks")"
+            echo "SIGNING_STORE_PASSWORD=$(cat "$KS_DIR/storepass.txt")"
+            echo "SIGNING_KEY_PASSWORD=$(cat "$KS_DIR/keypass.txt")"
+          } >> "$GITHUB_ENV"
+
+      - name: 签名 release APK
+        # 供上传签名 APK 步产文件。入参来自准备签名证书步写入的 env，两条证书路在此合流，
+        # 口令与 base64 只经 env 传递不进日志；BUILD_TOOLS_VERSION 供动作内 zipalign 与 apksigner。
         if: env.BUILD_RELEASE == 'true'
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release
-          signingKeyBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          alias: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          signingKeyBase64: ${{ env.SIGNING_KEYSTORE_BASE64 }}
+          alias: ${{ env.SIGNING_KEY_ALIAS }}
+          keyStorePassword: ${{ env.SIGNING_STORE_PASSWORD }}
+          keyPassword: ${{ env.SIGNING_KEY_PASSWORD }}
         env:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS }}
 
       - name: 上传签名 release APK
+        # 传给调用方与 GitHub Release 附资产步。发布轮必须见到签名产物，缺文件即判红，不再 warn 放行。
         if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: bingxi-erp-android-release-signed
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
-          if-no-files-found: warn
+          if-no-files-found: error
+
+      - name: 上传临时自签证书 bundle
+        # 仅准备签名证书步判为临时生成时执行。存 keystore 与口令与别名与证书原件，
+        # 存到本 run 的产物 bingxi-erp-android-selfsigned-keystore，供转正式 secret 后跨轮固定。
+        if: steps.signing.outputs.signing_source == 'selfsigned'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingxi-erp-android-selfsigned-keystore
+          path: ${{ runner.temp }}/bingxi-signing/selfsigned-bundle/
+          if-no-files-found: error
+          retention-days: 7
 
   android-e2e:
-    # 被发布轮调用时默认不起模拟器；手工 dispatch 与 push 触发照旧跑。
-    if: ${{ github.event_name != 'workflow_call' || inputs.run_e2e }}
+    # E2E 开关只认输入值，不再用 event_name 猜是否被调用（可复用工作流里 event_name 是调用方事件，旧写法恒真导致被传 false 也照跑）。
+    # 被调用时读输入 run_e2e，调用方显式传字符串 false 即跳过，未传按声明默认 false 跳过。
+    # 手工 dispatch 读手填 run_e2e（默认 true，保持旧行为恒跑）。
+    # push 与 release 直接触发无输入通道，判空不等于 false，恒运行，行为不变。
+    if: ${{ inputs.run_e2e != 'false' && github.event.inputs.run_e2e != 'false' }}
     name: 模拟器 E2E（装包→启动→前台→WebView进程拉起→无崩溃）
     needs: android-apk
     runs-on: ubuntu-latest

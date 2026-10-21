@@ -1,0 +1,23 @@
+{
+  "role": "fabric_inspector",
+  "reachableRoutes": [
+    "/bi/sales-analysis",
+    "/dashboard",
+    "/dye-batch",
+    "/product",
+    "/purchase",
+    "/purchase-contract",
+    "/purchase-inspection",
+    "/purchase-price",
+    "/purchase-receipt",
+    "/purchase-return",
+    "/quality",
+    "/quality-standards",
+    "/quotations",
+    "/quotations/new",
+    "/sales",
+    "/sales-contract",
+    "/sales-price",
+    "/sales-returns"
+  ]
+}
