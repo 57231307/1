@@ -110,10 +110,11 @@ fn test_validate_working_hours_system_invalid() {
 }
 
 /// 契约锁 D2：working_hours_system 与 sign_date 为创建请求非 Option 必填，
-/// 缺失时反序列化必须失败（前端缺键即 422 的事实来源，不许改成 Option 掩盖）。
+/// 各自缺失时反序列化必须失败并点名该键（前端缺键即 422 的事实来源，不许改成 Option 掩盖）。
+/// 两键分两次单独缺失，因为 serde 只报首个缺失字段，一次缺两键无法同时断言两个键名。
 #[test]
 fn create_request_requires_working_hours_system_and_sign_date() {
-    let missing = serde_json::json!({
+    let base = serde_json::json!({
         "worker_id": 1,
         "contract_no": "LC-0001",
         "contract_type": "fixed_term",
@@ -122,13 +123,22 @@ fn create_request_requires_working_hours_system_and_sign_date() {
         "probation_salary": "4000.00",
         "regular_salary": "5000.00"
     });
-    let err = serde_json::from_value::<CreateLaborContractRequest>(missing)
-        .expect_err("缺 working_hours_system 与 sign_date 必须反序列化失败");
+
+    let mut missing_working_hours = base.clone();
+    missing_working_hours["sign_date"] = serde_json::json!("2025-12-20");
+    let err = serde_json::from_value::<CreateLaborContractRequest>(missing_working_hours)
+        .expect_err("缺 working_hours_system 必须反序列化失败");
     let msg = err.to_string();
     assert!(
         msg.contains("working_hours_system"),
         "报错应点名缺失键: {msg}"
     );
+
+    let mut missing_sign_date = base;
+    missing_sign_date["working_hours_system"] = serde_json::json!("standard");
+    let err = serde_json::from_value::<CreateLaborContractRequest>(missing_sign_date)
+        .expect_err("缺 sign_date 必须反序列化失败");
+    let msg = err.to_string();
     assert!(msg.contains("sign_date"), "报错应点名缺失键: {msg}");
 
     let complete = serde_json::json!({
