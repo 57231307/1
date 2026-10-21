@@ -55,7 +55,6 @@ impl MigrationName for Migration {
 
 /// 词表 SQL 字面量清单（与各自权威词表 ALL/常量组逐字符一致；守卫、CHECK、列注释三处
 /// 共用同一份，禁止另写第二套）。
-
 const SALES_ORDER_STATUS_ALLOWED: &str =
     "'draft','pending','approved','partial_shipped','shipped','completed','cancelled','rejected'";
 const PURCHASE_ORDER_STATUS_ALLOWED: &str = "'DRAFT','PENDING_APPROVAL','SUBMITTED','APPROVED','REJECTED','CLOSED','CANCELLED','COMPLETED','PARTIAL_RECEIVED'";
@@ -164,7 +163,7 @@ const COLUMN_CHECKS: &[ColumnCheck] = &[
         column: "inspection_result",
         constraint: "chk_quality_inspection_records_inspection_result",
         allowed: QI_RECORD_RESULT_ALLOWED,
-        // 结论列真实形态：v15 追加时即可空且无默认（v15/mod.rs:3844），历史行存在
+        // 结论列真实形态：v15 追加时即可空且无默认，历史行存在
         // NULL；权威词表 models/status/quality_dyeing.rs::quality_inspection_result
         // 声明的定义域就是本列（不是 m0005 遗留、实体不映射的 result 列）。守卫与
         // CHECK 放行 NULL、只拦词表外非空值——写入口径以本列为准，钉错列等于真实
