@@ -276,7 +276,7 @@ const form = reactive<QuotationEditForm>({
   incoterms_version: '2020',
   incoterm_location: '',
   tax_inclusive: true,
-  // 税率不预填任何档位：新建时留空由人工填写（编辑态由后端单据已存值带出），
+  // 税率不预填任何档位，新建时留空由人工填写（编辑态由后端单据已存值带出），
   // 系统税率来源接入后改由后端派生带出，前端不持有档位字面量
   tax_rate: undefined,
   moq: undefined,
@@ -346,7 +346,7 @@ const subtotal = computed(
       0
     ) || 0
 );
-/** 税额展示：含税价口径下税额为 0；不含税时按单据税率（百分数）算；税率未填不出数（不做数字兜底） */
+/** 税额展示，含税价口径下税额为 0，不含税时按单据税率（百分数）算，税率未填不出数（不做数字兜底） */
 const taxAmount = computed(() => {
   if (form.tax_inclusive || form.tax_rate === undefined) return 0;
   return (subtotal.value * form.tax_rate) / 100;

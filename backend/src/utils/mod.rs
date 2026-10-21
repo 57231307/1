@@ -72,5 +72,5 @@ pub mod state_machine_trait;
 pub mod scheduler_framework;
 // 选填 JSON 请求体提取器：把「缺体=未采集」的裁决权收回本仓（语义表见模块文档）
 pub mod optional_json;
-// 增值税税额计算内核：税率单位口径（百分数）与税额公式的唯一真源
+// 增值税税额计算内核，税率单位口径（百分数）与税额公式的唯一真源
 pub mod tax;

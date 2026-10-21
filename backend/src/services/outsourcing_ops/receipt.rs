@@ -566,7 +566,7 @@ impl OutsourcingReceiptService {
                 AppError::business_displayable("委外损耗凭证号生成失败，请稍后重试")
             })?;
             // 进项税率只从本单据已记录的进项税额与对应费基反推（百分数口径），
-            // 不引入任何税率档位字面量；费基口径与 processing_ratio 的分子同源。
+            // 不引入任何税率档位字面量，费基口径与 processing_ratio 的分子同源。
             // 转出额只随单据已落库的 order.tax_amount 反推，不按任何假定档位计算，
             // 税额为 0 的单据（免税或未按票入账）反推出 0，转出额随之为 0，
             // 税额与费基不自洽（费基 0 而税额非 0）的单据在下方点名拒绝。
@@ -588,7 +588,7 @@ impl OutsourcingReceiptService {
                             order.order_no, order.tax_amount
                         )));
                     }
-                    // 费基为 0 且未记进项税额：无可转出的进项税，转出额按算术事实为 0（非默认档位）
+                    // 费基为 0 且未记进项税额，无可转出的进项税，转出额按算术事实为 0（非默认档位）
                     tracing::warn!(
                         order_no = %order.order_no,
                         "委外损耗进项税转出按 0 计：该单加工费/运费基为 0 且未记进项税额"

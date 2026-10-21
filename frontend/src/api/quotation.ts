@@ -225,7 +225,7 @@ export interface CalculatePriceRequest {
   quotation_date: string;
   /**
    * Rust: Decimal —— 本张报价单的适用税率，**百分数口径**（13 表示 13%，免税传 '0'）。
-   * 必填入参：服务端不持有税率档位、缺字段直接 4xx，前端从单据编辑态带入，不得写死。
+   * 必填入参，服务端不持有税率档位、缺字段直接 4xx，前端从单据编辑态带入，不得写死。
    */
   tax_rate: string;
 }
@@ -512,8 +512,8 @@ export interface QuotationEditForm {
   incoterm_location?: string;
   tax_inclusive: boolean;
   /**
-   * 税率（**百分数口径**，13 表示 13%，免税行填 0）。编辑态可空，用于表达"尚未填写"：
-   * 系统不设默认档位，空值不得被补成任何数字；提交前由表单必填校验拦截，
+   * 税率（**百分数口径**，13 表示 13%，免税行填 0）。编辑态可空，用于表达"尚未填写"，
+   * 系统不设默认档位，空值不得被补成任何数字，提交前由表单必填校验拦截，
    * 绕过 UI 的调用由 quotationToWire 直接拒绝出线。后端落库列 NOT NULL。
    */
   tax_rate?: number;
@@ -558,7 +558,7 @@ export function quotationItemToWire(row: QuotationItemEditForm): CreateQuotation
 
 /** 报价主表编辑态 → 后端 CreateQuotationDto（写线 string；可选字段缺值省略键） */
 export function quotationToWire(form: QuotationEditForm): CreateQuotationDto {
-  // 税率无默认档位：编辑态未填写就不出线（表单必填校验在先，此处兜住绕过 UI 的调用），
+  // 税率无默认档位，编辑态未填写就不出线（表单必填校验在先，此处兜住绕过 UI 的调用），
   // 禁止在这里补任何数字，否则后端派生值会被前端字面量永久盖掉
   if (form.tax_rate === undefined) {
     throw new Error('quotationToWire: tax_rate is required (no default VAT tier is applied)');

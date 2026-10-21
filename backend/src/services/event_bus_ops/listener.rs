@@ -1559,7 +1559,7 @@ async fn notify_low_stock_users(
 
 /// 取产品名称（供低库存预警通知使用），只认产品主数据真值。
 ///
-/// 查询失败或主数据无对应行都返回 `None` 并 error 留痕：调用方必须放弃本次通知，
+/// 查询失败或主数据无对应行都返回 None 并 error 留痕，调用方必须放弃本次通知，
 /// 禁止把 "产品{id}" 这类占位串发进用户通知。
 async fn fetch_product_name(db: &DatabaseConnection, product_id: i32) -> Option<String> {
     match crate::models::product::Entity::find_by_id(product_id)

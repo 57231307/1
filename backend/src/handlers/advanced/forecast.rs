@@ -105,7 +105,7 @@ pub async fn inventory_optimization(
     let suggestions = service.optimize_inventory(product_id).await?;
 
     let product_name_map = build_product_name_map(&db, &suggestions).await?;
-    // 产品名称只取产品主数据真值；取不到真值的建议行整体剔除，预警计数与列表行同源
+    // 产品名称只取产品主数据真值，取不到真值的建议行整体剔除，预警计数与列表行同源
     let named = attach_product_names(suggestions, &product_name_map);
     let (low_count, overstock_count) = count_inventory_alerts(&named);
     let items = build_inventory_suggestions(named);
@@ -141,8 +141,8 @@ fn count_inventory_alerts(named: &[NamedSuggestion]) -> (usize, usize) {
 
 /// 批量查询产品名称映射（避免 N+1 查询）
 ///
-/// 入参：建议行集合（取其 product_id）；返回：product_id → 产品主数据名称。
-/// 查询失败按 `AppError` 上抛——吞成空表会让整列建议失去真实名称来源。
+/// 入参 建议行集合（取其 product_id），返回 product_id 到产品主数据名称的映射。
+/// 查询失败按 AppError 上抛，吞成空表会让整列建议失去真实名称来源。
 async fn build_product_name_map(
     db: &sea_orm::DatabaseConnection,
     suggestions: &[crate::services::ai::InventorySuggestion],
@@ -165,10 +165,10 @@ struct NamedSuggestion {
     suggestion: crate::services::ai::InventorySuggestion,
 }
 
-/// 逐行配产品主数据名称；主数据无对应行的建议剔除并 warn 点名。
+/// 逐行配产品主数据名称，主数据无对应行的建议剔除并 warn 点名。
 ///
-/// 传给 `count_inventory_alerts` 与 `build_inventory_suggestions`，使汇总口径与
-/// 响应列表都只覆盖能如实展示的行；禁止用占位字符串把无真实名称的行留在响应里。
+/// 传给 count_inventory_alerts 与 build_inventory_suggestions，使汇总口径与
+/// 响应列表都只覆盖能如实展示的行，禁止用占位字符串把无真实名称的行留在响应里。
 fn attach_product_names(
     suggestions: Vec<crate::services::ai::InventorySuggestion>,
     product_name_map: &std::collections::HashMap<i32, String>,

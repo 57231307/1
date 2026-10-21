@@ -11,7 +11,7 @@
 //!   **无硬编码默认值**：未配置时计税显式返回业务错误并记 warn，服务启动不受影响；
 //!   旧的 `Decimal::new(24, 1)` 固定 2.4 元"简化口径"由本锁钉死禁回潮。
 //!
-//! 断言点（六类，缺一即锁失效）：
+//! 断言点（六类，缺一即锁失效）
 //! ① 未登记污染物名 → 400（VALIDATION_ERROR）+ 真实文案外显 + 失败信封内**无任何税额字段**、
 //!    不留任何"按 1kg 算出来的数"、表内无痕；
 //! ② 已登记 COD/氨氮/VOCs/污泥（含别名）→ 法定当量值逐值断言（防搬运过程改数）；
@@ -19,10 +19,10 @@
 //!    注入配置值后 → 当量数与税额=当量数×配置值 逐值断具体数字（不只断状态码）；
 //! ④ 禁回潮源码扫描（include_str!）：服务源码内不得再出现任何 `Decimal::new(`/
 //!    `Decimal::from_parts(` 裸字面量（含旧硬编码税额 `Decimal::new(24, 1)` 与 `_ => 1kg`
-//!    兜底残留），且必须引用常量模块；常量模块内法定值逐项在场（防"删常量当迁移"）；
-//! ⑤ 增值税税率同型锁：五处价税服务源码与税额内核不得出现税率档位字面量
-//!    （`Decimal::new(13`/`0.13`/`1.13`），内核只换算不取值；税额一律按**百分数**口径
-//!    逐值断言（1000×13÷100=130、100 含税=113、130/1000 反推=13、费基非正→None）；
+//!    兜底残留），且必须引用常量模块，常量模块内法定值逐项在场（防"删常量当迁移"）。
+//! ⑤ 增值税税率同型锁，五处价税服务源码与税额内核不得出现税率档位字面量
+//!    （Decimal::new(13、0.13、1.13），内核只换算不取值，税额一律按**百分数**口径
+//!    逐值断言（1000 乘 13 除 100 得 130、100 含税得 113、130 除 1000 反推得 13、费基非正返回 None）。
 //! ⑥ 税率来源分层口径的行为锁（真调生产建单路径，不用源码字符串冒充断言）。
 //!    人工建单缺 tax_rate 必须得 400 BUSINESS_ERROR 且订单表与明细表双双无痕，
 //!    自动补货链路无税率来源，由 price.rs 显式声明无进项税，落库有痕且
@@ -336,10 +336,10 @@ fn no_hardcoded_equivalents_or_tax_rate_can_return_to_service_source() {
 }
 
 // =========================================================
-// ⑤ 增值税税率：单位口径内核 + 禁档位字面量回潮（同型锁扩展，不另造判据）
+// ⑤ 增值税税率，单位口径内核 + 禁档位字面量回潮（同型锁扩展，不另造判据）
 // =========================================================
 
-/// 禁回潮扫描对象：五处价税计算服务源码 + 税额内核
+/// 禁回潮扫描对象，五处价税计算服务源码 + 税额内核
 const VAT_TIER_SCAN_SOURCES: &[(&str, &str)] = &[
     (
         "src/services/quotation_pricing_service.rs",
@@ -384,7 +384,7 @@ fn no_vat_rate_tier_literal_can_return_to_service_sources() {
 
 #[test]
 fn vat_tax_kernel_computes_in_percent_unit() {
-    // 百分数口径：13 表示 13%；1000 × 13 ÷ 100 = 130
+    // 百分数口径，13 表示 13%，1000 乘 13 除 100 得 130
     assert_eq!(tax::tax_amount(dec("1000"), dec("13")), dec("130"));
     // 免税行传 0 得 0（入参口径，不是缺省兜底）
     assert_eq!(
@@ -392,16 +392,16 @@ fn vat_tax_kernel_computes_in_percent_unit() {
         Decimal::ZERO,
         "税率 0（免税）税额必须为 0"
     );
-    // 含税单价 100 × (1 + 13%) = 113
+    // 含税单价 100 乘 (1 + 13%) 得 113
     assert_eq!(tax::unit_price_with_tax(dec("100"), dec("13")), dec("113"));
-    // 凭证口径不舍入：100 × 13 ÷ 100 = 13
+    // 凭证口径不舍入，100 乘 13 除 100 得 13
     assert_eq!(tax::percent_of(dec("100"), dec("13")), dec("13"));
-    // 由单据已记税额与费基反推税率（百分数）：130 / 1000 → 13
+    // 由单据已记税额与费基反推税率（百分数），130 除 1000 得 13
     assert_eq!(
         tax::derive_tax_percent(dec("130"), dec("1000")),
         Some(dec("13"))
     );
-    // 费基非正无法反推 → None，由调用方点名处理（内核绝不回落档位）
+    // 费基非正无法反推，返回 None，由调用方点名处理（内核绝不回落档位）
     assert_eq!(tax::derive_tax_percent(dec("13"), Decimal::ZERO), None);
     assert_eq!(tax::derive_tax_percent(dec("13"), dec("-1")), None);
 }
@@ -507,7 +507,7 @@ fn po_create_request(
     }
 }
 
-/// 人工建单缺 tax_rate 的行为锁，真调生产建单入口 `PurchaseOrderService::create_order`，
+/// 人工建单缺 tax_rate 的行为锁，真调生产建单入口 PurchaseOrderService::create_order，
 /// 必须是 400 BUSINESS_ERROR（文案外显"该怎么填"、不含记录标识），且订单表与明细表
 /// 双双无痕——税率拒绝发生在算金额之前，事务整体回滚，不允许留下半张单。
 #[tokio::test]
@@ -553,7 +553,7 @@ async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
     );
 
     // 同一条链路的反面判据，合法百分数税率必须能建单落库（13 得 tax_percent 13、
-    // 税额 1000×13÷100=130），防止把"拒缺值"实现成"拒一切"。
+    // 税额 1000 乘 13 除 100 得 130），防止把"拒缺值"实现成"拒一切"。
     let order = PurchaseOrderService::new(Arc::new(db.clone()))
         .create_order(
             po_create_request(supplier_id, warehouse_id, product_id, Some(dec("13"))),
@@ -571,7 +571,7 @@ async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
     assert_eq!(item.tax_amount, dec("130"), "1000×13÷100 必须是 130");
 }
 
-/// 自动补货链路的行为锁，真调生产入口 `create_purchase_suggestion_from_shortage`
+/// 自动补货链路的行为锁，真调生产入口 create_purchase_suggestion_from_shortage
 /// （无人工录入环节、无税率来源），必须由 price.rs 显式声明无进项税并**落库有痕**，
 /// tax_percent 与 tax_amount 都是 0，而 subtotal（不含税基数）非 0——
 /// 证明 0 税额是声明值，不是空行或没算出来的巧合，也绝不出现 13 之类的档位。

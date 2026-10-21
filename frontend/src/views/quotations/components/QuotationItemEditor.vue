@@ -131,7 +131,7 @@
 // 报价单明细编辑器脚本
 // - v-model 双向绑定
 // - 加载产品/色号
-// - 含税单价 = 单价 × (1 + 单据税率% ÷ 100)，税率由父组件（单据）传入
+// - 含税单价 = 单价 乘 (1 + 单据税率% 除 100)，税率由父组件（单据）传入
 import { onMounted, ref, watch } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -155,7 +155,7 @@ const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{
   modelValue: QuotationItemRow[];
   currency: string;
-  /** 单据税率（百分数口径，13 表示 13%）；未填写时不换算含税单价，组件不持有档位 */
+  /** 单据税率（百分数口径，13 表示 13%），未填写时不换算含税单价，组件不持有档位 */
   taxRate?: number;
 }>();
 const emit = defineEmits<{
@@ -222,7 +222,7 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
   }
 }
 
-/** 单价变化时按单据税率（百分数）重算含税单价；税率未填写则不造含税价 */
+/** 单价变化时按单据税率（百分数）重算含税单价，税率未填写则不造含税价 */
 function recalcTax(row: QuotationItemRow, unitPrice: number | undefined) {
   if (unitPrice === undefined) return;
   row.unit_price = unitPrice;

@@ -25,7 +25,7 @@ fn calc_amount(quantity: Decimal, unit_price: Decimal) -> Decimal {
     (quantity * unit_price).round_dp(2)
 }
 
-/// 真调生产路径的单行金额权威函数 `PurchaseOrderService::calculate_item_amounts`
+/// 真调生产路径的单行金额权威函数 PurchaseOrderService::calculate_item_amounts
 /// （创建路径与明细更新路径共用那一份实现）。税额不在本文件另算一套，
 /// 复制出来的第二套公式对生产改口径恒绿，属假锁。
 /// 入参 tax_rate 是百分数口径（13 表示 13%，0 表示无进项税），None 表示未提交。
@@ -92,7 +92,7 @@ fn test_jejs_ljhllcj() {
 
 // ---------- 税额计算（真调生产权威口径，不复制公式） ----------
 
-/// 税率单位口径基线，tax_percent 是**百分数**（13 即 13%），1000 × 13 ÷ 100 = 130。
+/// 税率单位口径基线，tax_percent 是**百分数**（13 即 13%），1000 乘 13 除 100 得 130。
 /// 本条直调 utils tax 内核，下方各条真调生产权威函数，二者同一条公式。
 #[test]
 fn test_sejs_bfskw() {
@@ -144,7 +144,7 @@ fn test_sejs_lslcj() {
 /// test_sejs_jdgyh（真调 calculate_item_amounts，税额结果经 round_dp(2) 归一化）
 #[test]
 fn test_sejs_jdgyh() {
-    // 333.33 × 1 × 13 ÷ 100 = 43.3329 得 round_dp(2) = 43.33
+    // 333.33 乘 1 乘 13 除 100 得 43.3329，round_dp(2) 得 43.33
     let amounts = authoritative_amounts(decs!("333.33"), decs!("1"), Some(decs!("13")))
         .expect("小数数量必须能算出税额");
     assert_eq!(amounts.amount, decs!("333.33"));
@@ -512,7 +512,7 @@ async fn seed_auto_replenishment_master(db: &DatabaseConnection) -> i32 {
     prod.id
 }
 
-/// 落库形态锁，真调自动补货生产入口 `create_purchase_suggestion_from_shortage`，
+/// 落库形态锁，真调自动补货生产入口 create_purchase_suggestion_from_shortage，
 /// 回读 purchase_order_item 真表确认 tax_percent 落的是 0——既不是小数口径的 0.13，
 /// 也不是档位值 13，tax_amount 同为 0 而 subtotal 非 0，证明 0 是显式声明的
 /// 无进项税，不是没算出来的巧合。

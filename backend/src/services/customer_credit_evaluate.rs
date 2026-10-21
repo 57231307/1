@@ -51,7 +51,7 @@ impl CustomerCreditService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
-        // 客户名取主数据真值：查库错误按 ? 上抛、缺行点名失败，
+        // 客户名取主数据真值，查库错误按 ? 上抛、缺行点名失败，
         // 信用评估结论里不得出现"客户#<id>"这类占位假名
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
             .one(&*self.db)
