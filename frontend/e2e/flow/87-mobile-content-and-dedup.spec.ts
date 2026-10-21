@@ -10,14 +10,15 @@ import { loginViaUI, BASE_URL } from './helpers';
  * 二 重复提交，提交锁必须在异步校验之前落下，否则连点两下会并发建出两条记录。
  * 三 重复入口，旧会计期间页已由新页取代，旧路径只保留重定向，侧栏不得再出现第二条入口。
  * 四 明细行与面板，采购新建弹窗的明细行在竖屏必须逐项堆叠，数据权限页的角色栏必须改为上下
- *   堆叠，销售统计卡片必须两列排布，这三处此前都用固定列宽把内容压出屏幕或压到不可读。
+ *   堆叠，销售统计卡片与审计统计卡都必须在竖屏改为两列，这些此前都用固定列宽把内容压出屏幕
+ *   或压到不可读。
  *
  * 调用方，frontend e2e flow 分片。入参，页面与登录态由 fixture 提供。
  * 传给谁，断言结果只进 Playwright 报告。
  * 存什么，不落库。重复提交用路由拦截伪造成功响应，不向真实接口写数据。
  */
 
-const MOBILE_PORTRAIT = { width: 393, height: 852 };
+const MOBILE_PORTRAIT = { width: 360, height: 780 };
 
 async function gotoRoute(page: Page, route: string): Promise<void> {
   await page.goto(`${BASE_URL}${route}`, { waitUntil: 'domcontentloaded' });
@@ -100,6 +101,7 @@ test.describe('移动端内容层适配', () => {
     const bodyOverflow = await body.evaluate(el => el.scrollWidth - el.clientWidth);
     expect(bodyOverflow, `采购弹窗内容区横向溢出 ${bodyOverflow} 像素`).toBeLessThanOrEqual(2);
 
+    await expect(dialog.locator('.items-header'), '明细表头应存在且只有一个').toHaveCount(1);
     await expect(dialog.locator('.items-header'), '竖屏应隐藏固定列宽的明细表头').toBeHidden();
 
     const rows = dialog.locator('.items-row');
@@ -164,6 +166,23 @@ test.describe('移动端内容层适配', () => {
     expect(Math.abs(first.y - second.y), '前两张卡片应并排在同一行').toBeLessThanOrEqual(2);
     expect(third.y, '第三张卡片应换到下一行').toBeGreaterThanOrEqual(first.y + first.height - 2);
     expect(first.width, '每张统计卡宽度应接近半屏，不得挤成四列').toBeGreaterThanOrEqual(140);
+  });
+
+  test('审计统计卡在竖屏按两列排布', async ({ page }) => {
+    await gotoRoute(page, '/omni-audit');
+    const grid = page.locator('.stats-grid');
+    await expect(grid).toBeVisible();
+
+    const columns = await grid.evaluate(el => {
+      const template = window.getComputedStyle(el).gridTemplateColumns;
+      return template.split(/\s+/).filter(part => part.length > 0).length;
+    });
+    expect(columns, `四张审计统计卡应排成两列，实测 ${columns} 列`).toBe(2);
+
+    const first = await grid.locator('.stat-card').nth(0).boundingBox();
+    const third = await grid.locator('.stat-card').nth(2).boundingBox();
+    if (!first || !third) throw new Error('审计统计卡未渲染出可测量区域');
+    expect(third.y, '第三张卡片应换到第二行').toBeGreaterThanOrEqual(first.y + first.height - 2);
   });
 });
 

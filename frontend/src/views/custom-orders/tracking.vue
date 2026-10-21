@@ -265,4 +265,18 @@ onMounted(loadData);
   font-size: 12px;
   color: #606266;
 }
+@media (max-width: 768px) {
+  .custom-order-tracking {
+    padding: 8px;
+  }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* 三栏甘特行在竖屏改为单列，否则两侧固定列把中间进度条压没 */
+  .gantt-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
 </style>

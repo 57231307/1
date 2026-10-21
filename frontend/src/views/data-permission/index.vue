@@ -391,9 +391,12 @@ const handleEditPermission = async (row: DataPermissionRow) => {
 };
 
 const handleSavePermission = async () => {
-  if (!permissionFormRef.value) return;
+  if (!permissionFormRef.value || submitLoading.value) return;
 
-  await permissionFormRef.value.validate(async (valid: boolean) => {
+  // 锁必须先于异步校验：校验本身要等一拍，连点时第二次调用会绕过回调内的状态位
+  submitLoading.value = true;
+  try {
+    const valid = await permissionFormRef.value.validate().catch(() => false);
     if (!valid) return;
 
     // role_id 无对话框内选择器（角色取自左侧菜单），在提交边界强制校验，杜绝空值上送
@@ -435,35 +438,32 @@ const handleSavePermission = async () => {
       return;
     }
 
-    submitLoading.value = true;
-    try {
-      // set_data_permission 为 upsert（按 role_id + resource_type 幂等），编辑与新增同走 POST
-      await setDataPermission({
-        role_id: roleId,
-        resource_type: permissionForm.resource_type,
-        scope_type: permissionForm.scope_type,
-        custom_condition: customCondition,
-        allowed_fields: allowedFields,
-        hidden_fields: hiddenFields,
-      });
-      ElMessage.success(
-        isEdit.value
-          ? t('dataPermission.index.messageUpdateSuccess')
-          : t('dataPermission.index.messageSaveSuccess')
-      );
-      permissionDialogVisible.value = false;
-      fetchPermissions();
-    } catch (e: unknown) {
-      ElMessage.error(
-        (e instanceof Error ? e.message : String(e)) ||
-          (isEdit.value
-            ? t('dataPermission.index.messageUpdateFailed')
-            : t('dataPermission.index.messageSaveFailed'))
-      );
-    } finally {
-      submitLoading.value = false;
-    }
-  });
+    // set_data_permission 为 upsert（按 role_id + resource_type 幂等），编辑与新增同走 POST
+    await setDataPermission({
+      role_id: roleId,
+      resource_type: permissionForm.resource_type,
+      scope_type: permissionForm.scope_type,
+      custom_condition: customCondition,
+      allowed_fields: allowedFields,
+      hidden_fields: hiddenFields,
+    });
+    ElMessage.success(
+      isEdit.value
+        ? t('dataPermission.index.messageUpdateSuccess')
+        : t('dataPermission.index.messageSaveSuccess')
+    );
+    permissionDialogVisible.value = false;
+    fetchPermissions();
+  } catch (e: unknown) {
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) ||
+        (isEdit.value
+          ? t('dataPermission.index.messageUpdateFailed')
+          : t('dataPermission.index.messageSaveFailed'))
+    );
+  } finally {
+    submitLoading.value = false;
+  }
 };
 
 const handleDeletePermission = async (row: DataPermissionRow) => {

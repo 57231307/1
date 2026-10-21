@@ -166,6 +166,9 @@ export function usePiProc(cb: PiCallbacks) {
    *       仅可更新 sample_size/defect_description/notes
    */
   const handleSubmit = async () => {
+    // 入口锁先于任何 await：仅靠按钮 loading 无法阻止同一帧内的连续点击
+    if (cb.submitLoading) return;
+    cb.submitLoading = true;
     try {
       if (cb.isEdit && cb.formData.id) {
         const updatePayload: UpdatePurchaseInspectionPayload = {
@@ -199,11 +202,6 @@ export function usePiProc(cb: PiCallbacks) {
     } finally {
       cb.submitLoading = false;
     }
-  };
-
-  /** 提交前的加载状态开启（父组件调用） */
-  const handleBeforeSubmit = () => {
-    cb.submitLoading = true;
   };
 
   /** 完成检验 */
@@ -266,7 +264,6 @@ export function usePiProc(cb: PiCallbacks) {
     handleEdit,
     handleView,
     handleSubmit,
-    handleBeforeSubmit,
     handleComplete,
   };
 }
