@@ -900,7 +900,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const invoiceId = requireId(invoice!, '应付单 id');
     expect(invoice!.source_type, '应付来源类型锚定').toBe('PURCHASE_RECEIPT');
     expectDecimalString(invoice!.amount, '应付单金额');
-    expectDecEquals(invoice!.amount, lineAmountSum, '应付金额=收货行金额合计');
+    expectDecEquals(invoice!.amount, lineAmountSum, '应付账面额=收货行金额合计（税率 0，价税同额）');
     expectDecEquals(
       invoice!.unpaid_amount,
       lineAmountSum,
@@ -913,6 +913,12 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     if (!invoiceNo) throw new Error(`应付单缺 invoice_no，实际键=${Object.keys(invoice!).join(',')}`);
     const invHead = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
     const invTax = decFromRaw(invHead.tax_amount, '应付单税额');
+    // 价税两段之和等于账面额（本用例税率 0，进项税额段为 0，故账面额看不出含税差）
+    expectDecMatch(
+      decFromRaw(invHead.amount, '应付单账面额'),
+      decAdd(lineAmountSum, invTax),
+      '应付账面额=收货行金额合计加进项税额'
+    );
     // GET /vouchers 列表不服务端过滤 source_type、且分页返回，按来源单据号翻页全量定位
     const apVoucher = await findVoucherBySourceBillNo(page, invoiceNo, '采购入库应付凭证');
     expect(
@@ -941,14 +947,15 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     ).toBe(true);
     const payableEntry = apEntries.find(r => String(r.subject_code) === '2202');
     expect(payableEntry, '应付凭证必须有应付账款（2202）贷方分录').toBeTruthy();
-    const payableHead = invHead.amount as unknown;
-    const expectedPayable = decAdd(decFromRaw(payableHead, '应付单金额'), invTax);
+    // 账面额已含进项税，贷方直接取它；再乘一次税率就是重复计税（本用例税率 0，
+    // 价税同额，故此处与不含税基看不出差别，税率非 0 的 95-04 才暴露该口径）
+    const expectedPayable = decFromRaw(invHead.amount, '应付单账面额（价税合计）');
     expectDecEquals(
       payableEntry!.credit,
       expectedPayable,
-      '应付账款贷方发生额=应付单价税合计'
+      '应付账款贷方发生额=应付单账面价税合计'
     );
-    expectDecMatch(apCredit, expectedPayable, '应付凭证贷方合计=应付单价税合计');
+    expectDecMatch(apCredit, expectedPayable, '应付凭证贷方合计=应付单账面价税合计');
 
     // 审核应付 → 付款申请（先只申请 60%，走部分付款分支）
     await apiCall(page, 'POST', `/ap/invoices/${invoiceId}/approve`);
@@ -1141,9 +1148,21 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const invoiceId = requireId(invoice!, '含税应付单 id');
     const invoiceNo = String(invoice!.invoice_no ?? '');
     const invHead = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
-    const netAmount = decFromRaw(invHead.amount, '应付不含税额');
-    const taxAmount = decFromRaw(invHead.tax_amount, '应付税额');
-    const gross = decAdd(netAmount, taxAmount);
+    // 应付单账面额 amount 存的就是价税合计（含进项税额），tax_amount 只是其中归属
+    // 「应交税费—进项税额」的那一段；把它当不含税基再加一次税额会重复计一轮税。
+    const bookGross = decFromRaw(invHead.amount, '应付账面额（价税合计）');
+    const inputTax = decFromRaw(invHead.tax_amount, '应付进项税额');
+    const receiptHead = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/receipts/${receiptId}`
+    );
+    const receiptNet = decFromRaw(receiptHead.total_amount, '收货单不含税合计');
+    expectDecMatch(
+      bookGross,
+      decAdd(receiptNet, inputTax),
+      '应付账面额=收货不含税基加进项税额'
+    );
 
     // 应付凭证（价税合计挂应付账款贷方）
     const apVoucher = await findVoucherBySourceBillNo(page, invoiceNo, '含税应付凭证');
@@ -1164,20 +1183,20 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       'credit',
       '应付账款贷方合计'
     );
-    expectDecMatch(payableCredit, gross, '应付账款贷方发生额=价税合计');
+    expectDecMatch(payableCredit, bookGross, '应付账款贷方发生额=应付单账面价税合计');
 
-    // 付清路径：申请额=账面未付额（不含税口径），确认后应付结清
+    // 付清路径：申请额=账面未付额（价税合计口径），确认后应付结清
     await apiCall(page, 'POST', `/ap/invoices/${invoiceId}/approve`);
     const req = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/payment-requests', {
       supplier_id: ctx.supplierId,
       request_date: todayStr(),
       payment_type: '货款',
       payment_method: '银行转账',
-      request_amount: decText(netAmount),
+      request_amount: decText(bookGross),
       currency: 'USD',
       exchange_rate: '1',
       notes: `E2E-F95-TAXREQ-${batch}`,
-      items: [{ invoice_id: invoiceId, apply_amount: decText(netAmount) }],
+      items: [{ invoice_id: invoiceId, apply_amount: decText(bookGross) }],
     });
     const reqId = requireId(req, '含税付清申请');
     CLEANUP.push({ path: `/ap/payment-requests/${reqId}`, label: `ap_request#${reqId}` });
@@ -1212,17 +1231,14 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       '应付账款借方合计'
     );
 
-    // 业务闭合：同一张应付发票付清后，应付账款科目发生额必须轧平（贷-借=0）。
-    // 当前实现里收货凭证按「价税合计」贷 2202、付款凭证按账面未付额（不含税）借 2202，
-    // 两者相差整笔进项税额 → 科目永久挂账。这是跨环金额口径不一致的真实缺陷，
-    // 保持判红并交回源码判责，禁止把本断言改成"两边各断各的"来换绿。
+    // 业务闭合：同一张应付付清后，应付账款科目发生额必须轧平（贷=借=账面价税合计）。
+    // 收货侧贷方与付款侧借方都取自应付单同一账面额；任一侧改按不含税基挂账或另加一次
+    // 进项税额，本断言即判红（差额恰为整笔进项税额时说明两侧价税口径分叉）。
     const residue = { v: payableCredit.v - payableDebit.v, s: payableCredit.s };
     expect(
       decCmp(payableDebit, payableCredit) === 0,
       `应付账款科目未随付清轧平：贷方 ${decText(payableCredit)} − 借方 ${decText(payableDebit)} = ` +
-        `${decText(residue)}（差额恰为进项税额 ${decText(taxAmount)}）。` +
-        '根因：应付单 amount 按不含税落库、收货凭证按价税合计贷记、付款凭证只按账面未付额借记，' +
-        '三处价税口径不同源，需源码统一口径后本用例才会转绿'
+        `${decText(residue)}（若差额等于进项税额 ${decText(inputTax)}，即两侧价税口径不同源）`
     ).toBe(true);
 
     const invPaid = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);

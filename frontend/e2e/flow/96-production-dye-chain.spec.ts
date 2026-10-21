@@ -610,12 +610,53 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       '米数与公斤数两列若相等即被同一数值顶替（三口径混用的判据）'
     ).toBe(true);
 
-    // 同一缸再打第二卷：序号必须继续递增、不得与既有匹号撞车（跨环锚点唯一性）
-    await apiCall(page, 'POST', `/production/fabric-inspections/${inspId}/grade`, {
+    // 一单一卷的状态门。评级只放行 inspecting、打卷只放行 graded，且每次打卷都把单据
+    // 推进到 rolled，故已打卷的单再评级必须被拒；评级事件下游按 inspection_id 幂等，
+    // 同单二次评级会被直接吞掉，第二卷不存在"回头再评级"这条路。
+    const gradeAgain = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/fabric-inspections/${inspId}/grade`,
+      { inspected_yards: '50', qualification_rate: '97' }
+    );
+    expect(gradeAgain.status, `已打卷再评级应 400，实际=${gradeAgain.status}`).toBe(400);
+    expect(failureCode(gradeAgain), '已打卷再评级机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    const afterRejectedGrade = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/production/fabric-inspections/${inspId}`
+    );
+    expect(afterRejectedGrade.status, '被拒后仍是已打卷态').toBe('rolled');
+    expect(Number(afterRejectedGrade.total_rolls), '被拒的评级不得推进打卷计数').toBe(1);
+
+    // 同一缸的第二卷另起一张验布单（卷级评级与卷级疵点即后端口径）；跨卷只锁缸号内
+    // 匹号继续递增且不得撞车
+    const insp2 = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      '/production/fabric-inspections',
+      {
+        dye_lot_no: dyeLotNo,
+        color_no: colorNo,
+        product_id: prod.id,
+        product_name: prod.name,
+        inspection_date: todayStr(),
+        scoring_system: 'four_point',
+        fabric_width_inches: '62',
+        remarks: `E2E-F96-2-${dyeLotNo}`,
+      }
+    );
+    const insp2Id = requireId(insp2, '建造同缸第二张验布记录');
+    CLEANUP.push({
+      path: `/production/fabric-inspections/${insp2Id}`,
+      label: `fabric_inspection#${insp2Id}`,
+    });
+    await apiCall(page, 'POST', `/production/fabric-inspections/${insp2Id}/start`);
+    await apiCall(page, 'POST', `/production/fabric-inspections/${insp2Id}/grade`, {
       inspected_yards: '50',
       qualification_rate: '97',
     });
-    await apiCall(page, 'POST', `/production/fabric-inspections/${inspId}/roll`, {
+    await apiCall(page, 'POST', `/production/fabric-inspections/${insp2Id}/roll`, {
       warehouse_id: wh.id,
       roll_length: '80',
       roll_weight: '20',
@@ -637,18 +678,34 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     const rolled2 = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
-      `/production/fabric-inspections/${inspId}`
+      `/production/fabric-inspections/${insp2Id}`
     );
-    expect(Number(rolled2.total_rolls), '两卷计数').toBe(2);
+    expect(Number(rolled2.total_rolls), '第二张单本卷打卷计数').toBe(1);
     expectDecEquals(
       rolled2.total_roll_length,
-      decLiteral('200.5', '两卷米数合计'),
-      '累计米数必须逐卷累加（120.5+80）'
+      decLiteral('80', '第二卷米数'),
+      '第二张单累计米数只含本卷'
     );
     expectDecEquals(
       rolled2.total_roll_weight,
-      decLiteral('50.25', '两卷公斤数合计'),
-      '累计公斤数必须逐卷累加（30.25+20）'
+      decLiteral('20', '第二卷公斤数'),
+      '第二张单累计公斤数只含本卷'
+    );
+    const firstIntact = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/production/fabric-inspections/${inspId}`
+    );
+    expect(Number(firstIntact.total_rolls), '首单计数不得被同缸第二卷串改').toBe(1);
+    expectDecEquals(
+      firstIntact.total_roll_length,
+      decLiteral(rollLength, '首单米数'),
+      '首单累计米数仍等于其自身打卷米数'
+    );
+    expectDecEquals(
+      firstIntact.total_roll_weight,
+      decLiteral(rollWeight, '首单公斤数'),
+      '首单累计公斤数仍等于其自身打卷公斤数'
     );
   });
 
