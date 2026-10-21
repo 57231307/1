@@ -18,7 +18,7 @@
 //!   不断任何原因文案；
 //! ③ 5xx 不被吞：AppError 内部错与 handler panic 仍分别回 500 + INTERNAL_ERROR，
 //!   不经 normalize（收口层若被扩到 5xx 立即红）；
-//! ④ **构造点不变量**（本文件最有价值的一条）：穷举 `AppError` 全部 14 个变体经
+//! ④ **构造点不变量**（本文件最有价值的一条）：穷举 `AppError` 全部 15 个变体经
 //!   `into_response()` 观测到的状态码集合，显式排除 415/422，并以**无通配 exhaustive
 //!   match** 作为编译期棘轮——normalize 的"纯文本 422 必为提取器拒绝"闭合判据
 //!   （trace_context.rs:246-247 目前只写在注释里）依赖"AppError 体系不存在 415/422
