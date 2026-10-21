@@ -15,12 +15,10 @@
 //!    这一条断言同时钉死四种错误语义，检测力自证不得简化成只断一个期望值）。
 //!
 //! 除零与分母非正路径本轮零改动的依据（既有三层拦截，勿再报除零风险）：
-//! backend/src/services/fabric_inspection_service.rs:154-156 受检码数 <= 0 显式业务失败并
-//! 点名缺项，backend/src/services/fabric_inspection_service.rs:157-159 幅宽 <= 0 同样显式
-//! 失败；调用侧前置校验在 backend/src/services/fabric_inspection_service.rs:498-500，
-//! 幅宽 NULL 拒评在 backend/src/services/fabric_inspection_service.rs:528-534；
-//! 既有单测锁 backend/tests/services_fabric_inspection_service_test.rs:168-176。
-//! 上述行号为本支实况，后续如被他支挪位按函数名重取。
+//! fabric_inspection_service 的评级入口对受检码数不大于 0 与幅宽不大于 0 均显式业务
+//! 失败并点名缺项，调用侧前置校验同样拦下非法输入，幅宽为 NULL 则拒评；
+//! 既有单测在 services_fabric_inspection_service_test 内锁住上述分支。
+//! 依据以函数名为准，后续如被他支挪位按函数名重取。
 //!
 //! 夹具形态：真 PostgreSQL setup_test_db（已迁移库 + TRUNCATE 业务表），照抄
 //! contract_wave11_defect_row_process_action_test 范式；同测试二进制由 CI 以
