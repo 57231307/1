@@ -230,65 +230,7 @@ jobs:
           echo "$BADGE" | grep -q "launchable-activity: name=" || { echo "无 launcher activity"; exit 1; }
           echo "$BADGE" | grep -Eq "sdkVersion:'(2[4-9]|[3-9][0-9])'" || { echo "minSdk 应 >=24"; exit 1; }
           AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
-          TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
-          echo "$TREE" > /tmp/manifest-tree.txt
-          python3 - <<'PY'
-          import re
-
-          tree = open("/tmp/manifest-tree.txt", encoding="utf-8").read()
-          blocks = re.split(r"\n(?=E: )", tree)
-
-          def elements(tag):
-              return [b for b in blocks if b.startswith("E: " + tag + " ")]
-
-          def name_of(block):
-              matched = re.search(r':name\(0x[0-9a-f]+\)="([^"]+)"', block)
-              return matched.group(1) if matched else None
-
-          permissions = {}
-          for block in elements("uses-permission"):
-              name = name_of(block)
-              if not name:
-                  continue
-              max_sdk = re.search(
-                  r':maxSdkVersion\(0x[0-9a-f]+\)=\(type 0x10\)(0x[0-9a-f]+)', block
-              )
-              permissions[name] = int(max_sdk.group(1), 16) if max_sdk else None
-
-          required = {
-              "android.permission.INTERNET": None,
-              "android.permission.CAMERA": None,
-              "android.permission.BLUETOOTH": 30,
-              "android.permission.BLUETOOTH_ADMIN": 30,
-              "android.permission.BLUETOOTH_CONNECT": None,
-              "android.permission.READ_EXTERNAL_STORAGE": 32,
-              "android.permission.WRITE_EXTERNAL_STORAGE": 28,
-          }
-          missing = sorted(set(required) - set(permissions))
-          if missing:
-              raise SystemExit("APK 缺权限 " + ", ".join(missing))
-          for name, max_sdk in required.items():
-              actual = permissions[name]
-              if actual != max_sdk:
-                  raise SystemExit(f"{name} 的 maxSdkVersion 应为 {max_sdk}，实际 {actual}")
-              print(f"权限通过 {name} maxSdkVersion={actual}")
-
-          features = {}
-          for block in elements("uses-feature"):
-              name = name_of(block)
-              if not name:
-                  continue
-              required_attr = re.search(
-                  r':required\(0x[0-9a-f]+\)=\(type 0x12\)(0x[0-9a-f]+)', block
-              )
-              features[name] = int(required_attr.group(1), 16) if required_attr else 1
-          for name in ("android.hardware.bluetooth", "android.hardware.camera"):
-              if features.get(name) != 0:
-                  raise SystemExit(f"硬件声明 {name} 应存在且 required=false，实际 {features.get(name)}")
-              print(f"硬件声明通过 {name} required=false")
-          PY
-          echo "$TREE" | grep -q 'usesCleartextTraffic' || { echo "APK 未声明明文流量开关"; exit 1; }
-          echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "debug APK 未允许明文流量"; exit 1; }
+          python3 mobile-app/scripts/assert-apk-permissions.py "$APK" "$AAPT2"
           unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/BluetoothPrintPlugin;' || { echo "APK 未打包蓝牙打印插件类，注入或编译未生效"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
@@ -312,17 +254,8 @@ jobs:
           cargo tauri android build --apk
           APK="$(find src-tauri/gen/android/app/build/outputs/apk -path '*universal/release/*.apk' | head -1)"
           test -n "$APK" || { echo '未找到 universal release APK'; exit 1; }
-          AAPT="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt"
-          BADGE="$("$AAPT" dump badging "$APK")"
-          echo "$BADGE" | grep -q "uses-permission: name='android.permission.INTERNET'" || { echo "release APK 缺 INTERNET 联网权限"; exit 1; }
           AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
-          TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
-          echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "release APK 未允许明文流量"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo "release APK 缺 BLUETOOTH_CONNECT 运行时权限"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.BLUETOOTH_ADMIN' || { echo "release APK 缺 BLUETOOTH_ADMIN 低版本蓝牙管理权限"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.CAMERA' || { echo "release APK 缺 CAMERA 相机权限"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.READ_EXTERNAL_STORAGE' || { echo "release APK 缺 READ_EXTERNAL_STORAGE 文件读取权限"; exit 1; }
-          echo "$TREE" | grep -q 'android.permission.WRITE_EXTERNAL_STORAGE' || { echo "release APK 缺 WRITE_EXTERNAL_STORAGE 文件写入权限"; exit 1; }
+          python3 scripts/assert-apk-permissions.py "$APK" "$AAPT2"
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
@@ -455,6 +388,7 @@ jobs:
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_ADMIN' || { echo 'E2E: 安装包未声明 BLUETOOTH_ADMIN 低版本蓝牙权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH' || { echo 'E2E: 安装包未声明 BLUETOOTH 低版本蓝牙权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.READ_EXTERNAL_STORAGE' || { echo 'E2E: 安装包未声明 READ_EXTERNAL_STORAGE 文件读取权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.WRITE_EXTERNAL_STORAGE' || { echo 'E2E: 安装包未声明 WRITE_EXTERNAL_STORAGE 文件写入权限'; exit 1; }

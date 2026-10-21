@@ -111,12 +111,15 @@ class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun listPrinters(invoke: Invoke) {
+    val granted = hasConnectPermission()
     val result = JSObject()
     result.put("sdkInt", Build.VERSION.SDK_INT)
-    result.put("granted", hasConnectPermission())
+    result.put("granted", granted)
     val adapter = bluetoothAdapter()
     result.put("supported", adapter != null)
-    result.put("enabled", adapter?.isEnabled == true)
+    // Android 12 起 BluetoothAdapter.isEnabled 需要 BLUETOOTH_CONNECT，
+    // 未授权时调用会抛 SecurityException，只能在已授权分支读取。
+    result.put("enabled", if (granted && adapter != null) adapter.isEnabled else false)
     connectedAddress?.let { result.put("connectedAddress", it) }
 
     val printers = JSArray()
