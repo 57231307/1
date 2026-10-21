@@ -36,13 +36,13 @@
       <el-table-column :label="t('departments.index.colOperation')" width="200">
         <template #default="{ row }">
           <el-button
-            v-permission="'department:update'"
+            v-permission="'departments:update'"
             size="small"
             @click="handleEdit(row as Department)"
             >{{ t('departments.index.buttonEdit') }}</el-button
           >
           <el-button
-            v-permission="'department:delete'"
+            v-permission="'departments:delete'"
             size="small"
             type="danger"
             @click="handleDelete(row as Department)"

@@ -44,7 +44,7 @@
           <template #default="{ row }">
             <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
             <el-button
-              v-permission="'role:update'"
+              v-permission="'roles:update'"
               size="small"
               link
               @click="openRoleDialog(row as Role)"
@@ -54,7 +54,7 @@
               t('system.role.button.permission')
             }}</el-button>
             <el-button
-              v-permission="'role:delete'"
+              v-permission="'roles:delete'"
               size="small"
               link
               type="danger"

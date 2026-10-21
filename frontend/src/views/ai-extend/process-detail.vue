@@ -134,7 +134,7 @@ onMounted(load);
         <el-button v-if="model" plain @click="handleHistoryQuery">按色号查历史</el-button>
         <el-button
           v-if="model"
-          v-permission="'ai_process_optimization:delete'"
+          v-permission="'ai-process-opt:delete'"
           type="danger"
           @click="handleDelete"
           >{{ $t('aiExtend.process.deleteRecord') }}</el-button
