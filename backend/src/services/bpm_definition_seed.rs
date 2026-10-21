@@ -178,7 +178,6 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
             status: Set(DEFINITION_STATUS_ACTIVE.to_string()),
             created_at: Set(now),
             updated_at: Set(now),
-            ..Default::default()
         })
         .collect();
     let to_write = models.len();
