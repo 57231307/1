@@ -144,13 +144,28 @@ jobs:
         working-directory: mobile-app
         run: cargo tauri android init
 
+      - name: 放开 release 明文流量（部署地址允许 http）
+        # 调用方 后续 debug 与 release 构建。入参 无。
+        # 为什么 Tauri 模板只在 debug 构建类型把 usesCleartextTraffic 置 true，release 继承 defaultConfig 的 false，
+        # 而服务器设置页允许用户填 http 局域网地址，release 包会以 ERR_CLEARTEXT_NOT_PERMITTED 断网。
+        # 做什么 把生成工程 defaultConfig 的占位符改为 true，两种构建类型一致允许明文。
+        # 存哪里 只改 CI 现场生成的 src-tauri/gen/android/app/build.gradle.kts，不进版本库。
+        # 模板文本变化导致未命中时直接判红，避免补丁静默失效。
+        working-directory: mobile-app
+        run: |
+          set -euo pipefail
+          GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          grep -q 'manifestPlaceholders\["usesCleartextTraffic"\] = "false"' "$GRADLE" || { echo '未找到明文流量占位符默认值，Tauri 模板已变，需人工校准'; exit 1; }
+          sed -i 's/manifestPlaceholders\["usesCleartextTraffic"\] = "false"/manifestPlaceholders["usesCleartextTraffic"] = "true"/' "$GRADLE"
+          grep -q 'manifestPlaceholders\["usesCleartextTraffic"\] = "true"' "$GRADLE" || { echo '明文流量占位符改写未生效'; exit 1; }
+
       - name: 构建 debug APK
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
         run: cargo tauri android build --debug --apk
 
-      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/体积）
+      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/联网权限/明文流量/体积）
         run: |
           set -euo pipefail
           APK="$(find mobile-app/src-tauri/gen/android/app/build/outputs/apk -path '*universal/debug/*.apk' | head -1)"
@@ -160,6 +175,11 @@ jobs:
           echo "$BADGE" | grep -q "package: name='${APP_ID}'" || { echo "包名不符"; exit 1; }
           echo "$BADGE" | grep -q "launchable-activity: name=" || { echo "无 launcher activity"; exit 1; }
           echo "$BADGE" | grep -Eq "sdkVersion:'(2[4-9]|[3-9][0-9])'" || { echo "minSdk 应 >=24"; exit 1; }
+          echo "$BADGE" | grep -q "uses-permission: name='android.permission.INTERNET'" || { echo "APK 缺 INTERNET 联网权限"; exit 1; }
+          AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
+          TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
+          echo "$TREE" | grep -q 'usesCleartextTraffic' || { echo "APK 未声明明文流量开关"; exit 1; }
+          echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "debug APK 未允许明文流量"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
 
@@ -172,13 +192,22 @@ jobs:
 
       - name: 构建 release APK（未签名，发布轮必需产物）
         # 调用方 本文件的 准备签名证书 与 签名 release APK 两步，产物再进 上传签名 release APK。
-        # 入参 无。tauri v2 的 `android build` 默认即 release 档，只 --debug 是选项、--release 不是，
-        # 多传会被 CLI 判为 unexpected argument 并以退出码 2 终止。
+        # 入参 无。tauri v2 的 android build 默认即 release 档，只 --debug 是选项，多传 --release 会被 CLI 判为 unexpected argument 并以退出码 2 终止。
         if: env.BUILD_RELEASE == 'true'
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: cargo tauri android build --apk
+        run: |
+          set -euo pipefail
+          cargo tauri android build --apk
+          APK="$(find src-tauri/gen/android/app/build/outputs/apk -path '*universal/release/*.apk' | head -1)"
+          test -n "$APK" || { echo '未找到 universal release APK'; exit 1; }
+          AAPT="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt"
+          BADGE="$("$AAPT" dump badging "$APK")"
+          echo "$BADGE" | grep -q "uses-permission: name='android.permission.INTERNET'" || { echo "release APK 缺 INTERNET 联网权限"; exit 1; }
+          AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
+          TREE="$("$AAPT2" dump xmltree --file AndroidManifest.xml "$APK")"
+          echo "$TREE" | grep -Eq 'usesCleartextTraffic.*(=true|0xffffffff)' || { echo "release APK 未允许明文流量"; exit 1; }
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传临时自签证书 bundle 步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
@@ -308,6 +337,7 @@ jobs:
           script: |
             # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
             APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
             adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
             sleep 8
             adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
