@@ -30,6 +30,7 @@ use crate::models::status::bpm_task as task_status;
 use crate::utils::error::AppError;
 
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
+use crate::services::bpm_ops::{bpm_start_failure_error, process_key};
 use crate::services::production_order_service::ProductionOrderService;
 
 impl ProductionOrderService {
@@ -71,7 +72,7 @@ impl ProductionOrderService {
         // 启动BPM审批流程（事务外，失败不阻断已提交状态）
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         let req = crate::models::dto::bpm_dto::StartProcessRequest {
-            process_key: "production_order_approval".to_string(),
+            process_key: process_key::PRODUCTION_ORDER_APPROVAL.to_string(),
             business_type: "production_order".to_string(),
             business_id: i64::from(id),
             title: format!("生产订单审批 - {}", updated.order_no),
@@ -91,23 +92,39 @@ impl ProductionOrderService {
         // BPM 启动失败必须向上传播并补偿回滚：只记 warn 会让工单停在"审批中"而系统里
         // 根本没有待办任务，单据与流程进入分裂态且再提交被状态门拒，只能人工改库修数。
         if let Err(e) = bpm_service.start_process(req).await {
-            if let Err(rb_err) = self.rollback_status_to(id, &previous_status, user_id).await {
-                tracing::error!(
-                    error = %rb_err,
-                    order_id = id,
-                    "BPM 启动失败后的补偿回滚也失败，生产订单停留在审批中且无工单，需人工介入"
-                );
-                return Err(rb_err);
-            }
+            // 补偿回滚失败不得顶替 BPM 启动失败的出参文案（回滚冲突/脱敏错误直接
+            // 上抛会让用户看不到根因指引与单据真实状态）；两条根因分别全量落
+            // error 日志，出参只陈述可确认的事实。
+            let document_state = match self.rollback_status_to(id, &previous_status, user_id).await
+            {
+                Ok(()) => "生产订单已退回提交前状态",
+                Err(rb_err) => {
+                    tracing::error!(
+                        error = %rb_err,
+                        order_id = id,
+                        user_id = user_id,
+                        process_key = process_key::PRODUCTION_ORDER_APPROVAL,
+                        business_type = "production_order",
+                        business_id = id,
+                        "BPM 启动失败后的补偿回滚未完成，生产订单状态需人工核对"
+                    );
+                    "生产订单状态回退未完成，请按订单当前状态核对处理"
+                }
+            };
             // 引擎失败原文可能含流程定义/SQL 细节，按 utils/error.rs 安全边界只进日志不外显
             tracing::error!(
                 error = %e,
                 order_id = id,
                 user_id = user_id,
-                "BPM 启动生产订单审批流程失败，订单已补偿回滚为提交前状态，根因如上"
+                process_key = process_key::PRODUCTION_ORDER_APPROVAL,
+                business_type = "production_order",
+                business_id = id,
+                "BPM 启动生产订单审批流程失败，根因如上"
             );
-            return Err(AppError::business_displayable(
-                "审批流程启动失败，生产订单已退回提交前状态，请稍后重新提交；若持续失败请联系管理员检查审批流程定义",
+            return Err(bpm_start_failure_error(
+                process_key::PRODUCTION_ORDER_APPROVAL,
+                document_state,
+                &e,
             ));
         }
 

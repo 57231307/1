@@ -159,7 +159,17 @@ impl BpmService {
             .filter(bpm_process_definition::Column::Status.eq("ACTIVE"))
             .one(&txn)
             .await?
-            .ok_or_else(|| AppError::not_found("Process definition not found or inactive"))?;
+            .ok_or_else(|| {
+                // 缺定义是"无法发起审批"的根因，点名 process_key 供管理员直接行动
+                // （用户裁定）；文案经 bpm_ops 单源拼装，404/NOT_FOUND 族映射不变，
+                // SQL/引擎细节仍只随 Display 进 tracing 日志（utils/error.rs 安全边界）。
+                AppError::not_found_displayable(
+                    crate::services::bpm_ops::bpm_start_failure_message(
+                        &req.process_key,
+                        "流程实例未创建，单据未进入审批",
+                    ),
+                )
+            })?;
 
         // P1 3-6 修复（批次 60）：改用 DocumentNumberGenerator 保证并发唯一性
         // 原实现基于时间戳 + business_id，同秒并发 + 同 business_id 会产生重复单号
