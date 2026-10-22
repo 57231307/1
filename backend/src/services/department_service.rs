@@ -90,6 +90,62 @@ impl DepartmentService {
         Ok(())
     }
 
+    /// 校验把部门的 parent_id 写成 new_parent_id 不会让层级成环（拒绝指向自身或自身的后代）
+    ///
+    /// 功能：部门更新的父级判环门。从待写入的上级沿祖先链上溯，链上出现被更新部门自身，
+    /// 说明该上级是本部门的后代，写入后父级关系成环，部门可见域展开与层级组装都会失稳，
+    /// 故在落库前拒绝。上溯带已访问集合，库内存量数据若已含成环行，判重使上溯在有限步数
+    /// 内终止，不会死循环；该脏环不含本部门时本次写入不构成新环，放行。
+    /// 调用方：DepartmentService::update 的 parent_id 写入分支（仅显式指定新上级的请求）。
+    /// 入参：数据库连接、被更新部门的主键、待写入的上级部门主键（上级行存在性由调用方先行校验）。
+    /// 传给谁：判定结果返回给 update；拒绝时携带可外显的校验错误经端点回给用户，
+    /// 主键只进日志不进文案，通过与拒绝都有显式日志。
+    /// 存什么：只读 departments 表全部行的主键 id 与 parent_id 两列，按 parent_id 逐级上溯。
+    /// 存哪里：不写任何表；上溯在内存完成，结果只进日志与错误返回。
+    async fn validate_parent_no_cycle(
+        db: &sea_orm::DatabaseConnection,
+        id: i32,
+        new_parent_id: i32,
+    ) -> Result<(), AppError> {
+        // 一次读全表建父级映射后内存上溯，代价与层级深度成正比，部门为主数据量级有限
+        let parent_of: std::collections::HashMap<i32, Option<i32>> = DepartmentEntity::find()
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|d| (d.id, d.parent_id))
+            .collect();
+
+        let mut cursor = new_parent_id;
+        let mut visited: std::collections::HashSet<i32> = std::collections::HashSet::new();
+        loop {
+            if cursor == id {
+                tracing::warn!(
+                    dept_id = id,
+                    new_parent_id,
+                    "部门层级判环拒绝：待写入上级沿祖先链可回到本部门自身"
+                );
+                return Err(AppError::validation_displayable(
+                    "上级部门不能选择本部门或本部门的下级部门，请重新选择父部门",
+                ));
+            }
+            if !visited.insert(cursor) {
+                // 回到已访问节点：上溯进入存量脏环且环不含本部门，终止上溯并放行
+                break;
+            }
+            match parent_of.get(&cursor).copied().flatten() {
+                Some(parent) => cursor = parent,
+                None => break, // 上溯到顶级，链路无环
+            }
+        }
+
+        tracing::info!(
+            dept_id = id,
+            new_parent_id,
+            "部门层级判环通过：待写入上级不在本部门的后代链上"
+        );
+        Ok(())
+    }
+
     /// 获取部门列表（支持分页和过滤）
     pub async fn list(
         &self,
@@ -325,6 +381,8 @@ impl DepartmentService {
                         .one(&*self.db)
                         .await?
                         .ok_or_else(|| AppError::not_found(format!("父部门 ID {} 不存在", pid)))?;
+                    // 判环：新上级不得是本部门自身或本部门后代，防父级链成环
+                    Self::validate_parent_no_cycle(&self.db, id, pid).await?;
                     dept.parent_id = Set(Some(pid));
                 }
                 None => {
