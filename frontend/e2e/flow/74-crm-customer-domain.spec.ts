@@ -160,7 +160,7 @@ test.describe('74 CRM 客户域改接（BUG-005/004 回归护栏）', () => {
     // el-form-item label 绑 customer.form.label.*（customerName=客户名称、contactPerson=联系人、
     // contactPhone=**联系电话**）。fillFieldByLabel 走 formItemByExactLabel 的行首尾锚定精确匹配，
     // 少一个字都不命中，故弹窗内只能用「联系电话」。
-    // 列表列头是另一套键（customer/index.vue:153-157 绑 customer.index.table.column.phone=电话），
+    // 列表列头是另一套键（customer/index.vue 的 column.phone 绑 customer.index.table.column.phone=电话），
     // 下方按列头读单元格仍用「电话」——两套文案不可互换。
     await fillFieldByLabel(dialog, page, '客户名称', tag);
     await fillFieldByLabel(dialog, page, '联系人', contactPerson);
@@ -226,9 +226,9 @@ test.describe('74 CRM 客户域改接（BUG-005/004 回归护栏）', () => {
 
     // reload 强制重新拉取后端（模拟用户刷新，清空 SPA 内存态）→ 关键字过滤 → 逐列断真值
     // 关键字必须点「查询」按钮（customer.index.button.query）才生效：本页关键词输入框
-    // （customer/index.vue:72-78）没绑 @keyup.enter/@change，回车不发带 keyword 的请求；
+    // （customer/index.vue 的关键词输入项）没绑 @keyup.enter/@change，回车不发带 keyword 的请求；
     // 后端 keyword 对 customer_name/customer_code contains 过滤
-    // （services/customer_ops/query.rs:84-90），过滤后目标行必落在第 1 页，不靠分页碰运气。
+    // （services/customer_ops/query.rs 的关键词分支），过滤后目标行必落在第 1 页，不靠分页碰运气。
     await page.reload();
     await page.locator('.filter-card').first().waitFor({ state: 'visible', timeout: 15_000 });
     await fillFieldByLabel(page, page, '关键词', tag);
