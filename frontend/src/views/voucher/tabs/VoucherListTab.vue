@@ -41,6 +41,7 @@
       :form="vchr.form"
       :voucher-types="vchr.voucherTypes"
       :account-subject-options="vchr.accountSubjectOptions"
+      :saving="vchr.submitting"
       @add-entry="vchr.addEntry"
       @remove-entry="vchr.removeEntry"
       @submit="onSubmitForm"
