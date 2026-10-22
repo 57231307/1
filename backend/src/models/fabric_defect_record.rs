@@ -11,6 +11,11 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 疵点明细模型（12 种疵点类型标准编码；四分制 ≤3寸=1/3-6寸=2/6-9寸=3/>9寸=4 破洞连续=4；十分制经纬向分档 1-10 破洞=10；同码内扣分不超制式上限）
+///
+/// 跨码归属判据，疵点所属码位按 position_yards 向下取整判定，0.00 至 0.99 归第 0 码，1.00 至 1.99 归第 1 码，跨码边界疵点归入其读数整数码所在码位。
+/// 同码内扣分不超制式上限即按本判据分码后每码合计封顶 4 分执行（聚合实现见
+/// services/fabric_inspection_service.rs 的 sum_four_point_points_capped_per_yard，判据句
+/// 与该校验函数注释同字一致，改动必须两处同步）。
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, Default)]
 #[sea_orm(table_name = "fabric_defect_record")]
 pub struct Model {

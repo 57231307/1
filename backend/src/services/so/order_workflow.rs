@@ -19,6 +19,7 @@ use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::status::sales_order as so_status;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
+use crate::services::bpm_ops::{bpm_start_failure_error, process_key};
 use crate::utils::error::AppError;
 use sea_orm::{EntityTrait, QuerySelect, TransactionTrait};
 
@@ -234,7 +235,7 @@ impl SalesService {
         let bpm_service = crate::services::bpm_service::BpmService::new(self.db.clone());
         if let Err(e) = bpm_service
             .start_process(crate::models::dto::bpm_dto::StartProcessRequest {
-                process_key: "sales_order_approval".to_string(),
+                process_key: process_key::SALES_ORDER_APPROVAL.to_string(),
                 business_type: "sales_order".to_string(),
                 // 来源主键 sales_order.id 为 i32，bpm business_id 已拓宽为 i64，无损加宽
                 business_id: i64::from(order_id),
@@ -248,17 +249,39 @@ impl SalesService {
             })
             .await
         {
-            self.rollback_order_to_draft(order_id, user_id).await?;
+            // 补偿回滚失败不得顶替 BPM 启动失败的出参文案（回滚错误多为脱敏族，
+            // 直接上抛会让用户看不到根因指引、也看不到单据真实状态）；两条根因
+            // 分别全量落 error 日志，出参陈述已确认的处置结果。
+            let document_state = match self.rollback_order_to_draft(order_id, user_id).await {
+                Ok(()) => "订单已退回草稿状态",
+                Err(rb_err) => {
+                    tracing::error!(
+                        error = %rb_err,
+                        order_id = order_id,
+                        user_id = user_id,
+                        process_key = process_key::SALES_ORDER_APPROVAL,
+                        business_type = "sales_order",
+                        business_id = order_id,
+                        "销售订单审批 BPM 启动失败后的补偿回滚也失败，订单可能仍停留在待审批状态，需人工核对"
+                    );
+                    "订单状态回退失败，可能仍为待审批，请按订单当前状态核对处理"
+                }
+            };
             // 审批流引擎的真实失败原文可能含流程定义/SQL/内部路径细节，按
             // utils/error.rs 安全边界只进日志，不得拼进出参文案。
             tracing::error!(
                 order_id = order_id,
                 user_id = user_id,
                 error = %e,
-                "销售订单审批流程启动失败（订单已补偿回滚为草稿状态），根因如上，仅进日志不外显"
+                process_key = process_key::SALES_ORDER_APPROVAL,
+                business_type = "sales_order",
+                business_id = order_id,
+                "销售订单审批流程启动失败，根因如上，仅进日志不外显"
             );
-            return Err(AppError::business_displayable(
-                "审批流程启动失败，订单已退回草稿状态，请稍后重新提交；若持续失败请联系管理员检查审批流程",
+            return Err(bpm_start_failure_error(
+                process_key::SALES_ORDER_APPROVAL,
+                document_state,
+                &e,
             ));
         }
         Ok(())

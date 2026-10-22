@@ -454,14 +454,14 @@ const detailRecommendations = computed(() => {
             }}</el-button>
             <el-button
               v-if="!row.is_acknowledged"
-              v-permission="'ai_quality_prediction:approve'"
+              v-permission="'ai-quality-pred:approve'"
               type="success"
               size="small"
               @click="handleAck(row)"
               >{{ $t('aiExtend.qualityPrediction.ack') }}</el-button
             >
             <el-button
-              v-permission="'ai_quality_prediction:delete'"
+              v-permission="'ai-quality-pred:delete'"
               type="danger"
               size="small"
               @click="handleDelete(row)"

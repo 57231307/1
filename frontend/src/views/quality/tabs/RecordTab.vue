@@ -20,11 +20,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('quality.recordTab.createButton') }}
         </el-button>
-        <el-button v-permission="'quality.record.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.QUALITY_INSPECTION_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('quality.recordTab.printButton') }}
         </el-button>
-        <el-button v-permission="'quality.record.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.QUALITY_INSPECTION_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('quality.recordTab.exportButton') }}
         </el-button>
@@ -98,6 +98,7 @@
  *           defineExpose({ fetchRecords }) / logger
  */
 import { computed, h, inject, onMounted, reactive } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElTag, ElButton } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';

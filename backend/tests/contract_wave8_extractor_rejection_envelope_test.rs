@@ -18,7 +18,7 @@
 //!   不断任何原因文案；
 //! ③ 5xx 不被吞：AppError 内部错与 handler panic 仍分别回 500 + INTERNAL_ERROR，
 //!   不经 normalize（收口层若被扩到 5xx 立即红）；
-//! ④ **构造点不变量**（本文件最有价值的一条）：穷举 `AppError` 全部 14 个变体经
+//! ④ **构造点不变量**（本文件最有价值的一条）：穷举 `AppError` 全部 15 个变体经
 //!   `into_response()` 观测到的状态码集合，显式排除 415/422，并以**无通配 exhaustive
 //!   match** 作为编译期棘轮——normalize 的"纯文本 422 必为提取器拒绝"闭合判据
 //!   （trace_context.rs:246-247 目前只写在注释里）依赖"AppError 体系不存在 415/422
@@ -432,6 +432,7 @@ fn describe_variant(err: &AppError) -> (&'static str, StatusCode) {
             ("ValidationErrorDisplayable", StatusCode::BAD_REQUEST)
         }
         AppError::NotFound(_) => ("NotFound", StatusCode::NOT_FOUND),
+        AppError::NotFoundDisplayable(_) => ("NotFoundDisplayable", StatusCode::NOT_FOUND),
         AppError::BusinessError(_) => ("BusinessError", StatusCode::BAD_REQUEST),
         AppError::BusinessErrorDisplayable(_) => {
             ("BusinessErrorDisplayable", StatusCode::BAD_REQUEST)
@@ -453,6 +454,7 @@ fn all_app_error_variants() -> Vec<AppError> {
         AppError::ValidationError("探针".to_string()),
         AppError::ValidationErrorDisplayable("探针".to_string()),
         AppError::NotFound("探针".to_string()),
+        AppError::NotFoundDisplayable("探针".to_string()),
         AppError::BusinessError("探针".to_string()),
         AppError::BusinessErrorDisplayable("探针".to_string()),
         AppError::Unauthorized("探针".to_string()),
@@ -474,10 +476,10 @@ fn app_error_variant_status_never_produces_415_or_422() {
     let variants = all_app_error_variants();
     // 条数棘轮：describe_variant 的 exhaustive match 只防"加变体不改映射"；
     // 新增变体的人补完 match 分支后若忘了把变体放进本构造集，闭合前提照样漏钉。
-    // 数量硬钉 14（= utils/error.rs:144-177 变体全集），加变体不补构造=当场红。
+    // 数量硬钉 15（= utils/error.rs 变体全集），加变体不补构造=当场红。
     assert_eq!(
         variants.len(),
-        14,
+        15,
         "AppError 构造集与变体全集脱钩：新增变体必须先补进 all_app_error_variants()，\
          再确认其状态码不落入 415/422（否则 trace_context 收口判据被静默打开）"
     );

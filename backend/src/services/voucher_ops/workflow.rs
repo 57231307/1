@@ -17,7 +17,7 @@ use chrono::Datelike;
 use sea_orm::{
     ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, QuerySelect, TransactionTrait,
 };
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::models::{voucher, voucher_item};
 use crate::utils::error::AppError;
@@ -251,33 +251,28 @@ impl VoucherService {
         Ok(updated)
     }
 
-    /// 验证凭证（借贷平衡）
+    /// 验证凭证（提交与审核前置门）
     ///
-    /// 拒绝装配复用 crud.rs 的**唯一**装配点 `balance_error`（VALIDATION 族 + 脱敏），
-    /// 与 create/update 路径同族同措辞——同一语义在两文件出不同 code 会让前端按
-    /// code 分支必然不一致；真实金额只进 WARN 日志（Display 侧仍含"借贷不平衡"），
-    /// 出参恒为脱敏常量「请求参数验证失败」。
+    /// 按库内真实分录行走形态门（行数与借贷平衡与非零金额），装配点与创建侧同为
+    /// `crud.rs` 的 `validate_entry_shape_core`（内部复用 `balance_error` 唯一出口）。
+    /// 0 行凭证与全零金额凭证在过账链上游即被点名拒绝，不再因 0 等于 0 恒平衡而放行。
     async fn validate_voucher(&self, id: i32) -> Result<(), AppError> {
         let items = voucher_item::Entity::find()
             .filter(voucher_item::Column::VoucherId.eq(id))
             .all(&*self.db)
             .await?;
 
-        let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
-        let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
-
-        if total_debit != total_credit {
-            warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-            return Err(Self::balance_error(total_debit, total_credit));
-        }
-
-        Ok(())
+        let rows: Vec<(i32, Decimal, Decimal)> = items
+            .iter()
+            .map(|item| (item.line_no, item.debit, item.credit))
+            .collect();
+        Self::validate_entry_shape_core(&rows)
     }
 
-    /// 验证凭证（事务内）
+    /// 验证凭证（事务内，过账前置门）
     ///
-    /// 族口径同 [`Self::validate_voucher`]：复用 `balance_error` 唯一装配点，
-    /// 金额明细只进 WARN 日志，出参脱敏。
+    /// 形态门与 [`Self::validate_voucher`] 同一内核，读的是 txn 内当前分录行，
+    /// 保证过账瞬间的余额回写对象与门校验对象是同一批行。
     async fn validate_voucher_in_transaction(
         &self,
         id: i32,
@@ -288,17 +283,10 @@ impl VoucherService {
             .all(txn)
             .await?;
 
-        let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
-        let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
-
-        if total_debit != total_credit {
-            warn!(
-                "凭证借贷不平衡（事务内校验）：借={}, 贷={}",
-                total_debit, total_credit
-            );
-            return Err(Self::balance_error(total_debit, total_credit));
-        }
-
-        Ok(())
+        let rows: Vec<(i32, Decimal, Decimal)> = items
+            .iter()
+            .map(|item| (item.line_no, item.debit, item.credit))
+            .collect();
+        Self::validate_entry_shape_core(&rows)
     }
 }

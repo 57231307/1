@@ -112,6 +112,8 @@ impl SalesService {
         request: CreateSalesOrderRequest,
         user_id: i32,
     ) -> Result<SalesOrderDetail, AppError> {
+        // 建单状态门先于开事务：被拒请求零落库、不取号、不占信用
+        Self::validate_create_initial_status(request.status.as_deref())?;
         let customer_id = request.customer_id;
         let opportunity_id = request.opportunity_id;
         let txn = (*self.db).begin().await?;
@@ -268,12 +270,8 @@ impl SalesService {
             contact_phone: sea_orm::ActiveValue::Set(request.contact_phone.clone()),
             required_date: sea_orm::ActiveValue::Set(required_date),
             ship_date: sea_orm::ActiveValue::NotSet,
-            status: sea_orm::ActiveValue::Set(
-                request
-                    .status
-                    .clone()
-                    .unwrap_or_else(|| so_status::DRAFT.to_string()),
-            ),
+            // 初始状态由服务端定初值常量决定（建单状态门已在事务前拦住其余取值）
+            status: sea_orm::ActiveValue::Set(so_status::CREATE_INITIAL.to_string()),
             subtotal: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             tax_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
             discount_amount: sea_orm::ActiveValue::Set(rust_decimal::Decimal::ZERO),
@@ -615,6 +613,81 @@ impl SalesService {
         Ok(())
     }
 
+    /// 销售订单状态取值域门，目标取值必须是词表 sales_order::ALL 的元素（大小写敏感）。
+    ///
+    /// 功能：只判取值域不判流转，越界报可外显的取值校验错误并点名允许清单。
+    /// 调用方：同文件 validate_create_initial_status 与 validate_status_edit_write。
+    /// 入参：target，即请求携带的待写状态取值。
+    /// 传给谁：错误返回两个写口门，经各自调用链透传出参。
+    /// 存什么·存哪里：纯判定，不落数据。取值域唯一事实来源是词表 sales_order::ALL。
+    fn validate_so_status_token(target: &str) -> Result<(), AppError> {
+        if !so_status::ALL.contains(&target) {
+            // 越界原值只进日志（可能是任意用户输入），响应文案点名取值与公开清单
+            tracing::warn!(
+                raw_status = target,
+                "销售订单状态取值不在权威词表内，拒绝写入"
+            );
+            return Err(AppError::validation_displayable(format!(
+                "订单状态 {} 不是合法取值，允许值：{}",
+                target,
+                so_status::ALL.join("/")
+            )));
+        }
+        Ok(())
+    }
+
+    /// 建单口状态门，客户端状态键只允许缺省，或与服务端定初值逐字符相同。
+    ///
+    /// 功能：词表外取值报取值域错误，词表内但非初值报建单门错误，
+    /// 拦住以 POST 直传任意状态绕过 BPM 审批起点与信用门的通道。
+    /// 调用方：同文件 create_order（开事务之前调用，拒绝路径零落库）。
+    /// 入参：request.status，即建单请求的状态键。
+    /// 传给谁：VALIDATION_ERROR 或 BUSINESS_ERROR（均 400 可外显）经 create_order 透传 handler 出参。
+    /// 存什么·存哪里：只读校验，不落数据。初值由 build_order_active_model 写 CREATE_INITIAL。
+    pub fn validate_create_initial_status(raw: Option<&str>) -> Result<(), AppError> {
+        let Some(status) = raw else {
+            return Ok(());
+        };
+        Self::validate_so_status_token(status)?;
+        if status != so_status::CREATE_INITIAL {
+            tracing::warn!(
+                requested_status = status,
+                "销售订单建单口收到非初值状态直传，拒绝"
+            );
+            return Err(AppError::business_displayable(format!(
+                "销售订单初始状态只能是 {}（服务端定初值），状态推进请使用提交、审批等权威操作",
+                so_status::CREATE_INITIAL
+            )));
+        }
+        Ok(())
+    }
+
+    /// 编辑保存口（PUT）状态门，先判取值域、再判流转出边。
+    ///
+    /// 功能：目标越界报取值域错误，界内按词表 sales_order::EDIT_OUT_EDGES 判定
+    /// "当前态到目标态"的合法出边，任何跳级或改态企图一律拒绝并点名当前态、目标态、允许清单。
+    /// 调用方：同文件 apply_order_header_updates（写状态列之前调用）。
+    /// 入参：current，事务内行锁读出的当前态。target，PUT 携带的目标态。
+    /// 传给谁：VALIDATION_ERROR 或 BUSINESS_ERROR（均 400 可外显）经 update_order 透传 handler 出参。
+    /// 存什么·存哪里：只读校验，不落数据。出边定义唯一事实来源是词表 sales_order 模块。
+    pub fn validate_status_edit_write(current: &str, target: &str) -> Result<(), AppError> {
+        Self::validate_so_status_token(target)?;
+        if !so_status::edit_transition_allowed(current, target) {
+            tracing::warn!(
+                current_status = current,
+                target_status = target,
+                "销售订单编辑保存口试图驱动状态流转，拒绝（流转走提交、审批、拒绝、取消、发货、完成权威操作）"
+            );
+            return Err(AppError::business_displayable(format!(
+                "销售订单状态不允许由 {} 改为 {}：编辑保存不改变状态，请使用提交、审批、拒绝、取消、发货、完成操作流转（允许的状态取值：{}）",
+                current,
+                target,
+                so_status::ALL.join("/")
+            )));
+        }
+        Ok(())
+    }
+
     /// 应用订单头字段更新并写审计日志（批次 94 P2-10 补 user_id）
     async fn apply_order_header_updates(
         order: sales_order::Model,
@@ -622,20 +695,16 @@ impl SalesService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
+        // 流转门必须在转 ActiveModel 前拿行锁读到的当前态做比较基准
+        let current_status = order.status.clone();
         // 更新订单主表
         let mut order_update: sales_order::ActiveModel = order.into();
         if let Some(required_date) = request.required_date {
             order_update.required_date = sea_orm::ActiveValue::Set(Some(required_date));
         }
         if let Some(status) = &request.status {
-            // 状态列只允许写状态机内的取值：越界写入会让工作流判断与列表筛选双双失真
-            if !so_status::ALL.contains(&status.as_str()) {
-                return Err(AppError::validation_displayable(format!(
-                    "订单状态 {} 不是合法取值，允许值：{}",
-                    status,
-                    so_status::ALL.join("/")
-                )));
-            }
+            // 状态列只允许写状态机内的取值且不得经编辑口驱动流转（取值域与出边同词表）
+            Self::validate_status_edit_write(&current_status, status)?;
             order_update.status = sea_orm::ActiveValue::Set(status.clone());
         }
         if let Some(shipping_address) = &request.shipping_address {

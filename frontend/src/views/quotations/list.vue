@@ -126,7 +126,7 @@
             </el-button>
             <el-button
               v-if="row.status === 'draft' || row.status === 'rejected'"
-              v-permission="'quotation:update'"
+              v-permission="PERMISSIONS.QUOTATION_UPDATE"
               link
               type="primary"
               @click="goEdit(row)"
@@ -143,7 +143,7 @@
             </el-button>
             <el-button
               v-if="row.status === 'draft'"
-              v-permission="'quotation:cancel'"
+              v-permission="PERMISSIONS.QUOTATION_CANCEL"
               link
               type="danger"
               @click="handleCancel(row)"
@@ -212,6 +212,7 @@
 // - 列表加载
 // - 行操作：查看/复制为新单/编辑/转订单/取消
 import { ref, reactive, onMounted } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';

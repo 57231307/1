@@ -534,24 +534,8 @@ const KNOWN_GAPS = new Map([
     'D: 客户下拉后端在 /crm/customers/select，customer.ts 走的是不存在的 /customers/select',
   ],
   [
-    `${BASE_URL}/crm/customers/*/tags/* POST`,
-    'D: 给客户加标签后端为 /crm/customers/{id}/tags（add_tags，无 tagId 段），前端多带 /{tagId}',
-  ],
-  [
-    `${BASE_URL}/crm/customers/*/tags/* DELETE`,
-    'D: 删标签后端为 /crm/tags/{id}（delete_tag），非 /crm/customers/{id}/tags/{tagId}',
-  ],
-  [
-    `${BASE_URL}/purchase/purchase-contracts/export GET`,
-    'G: 采购合同后端无 /purchase-contracts/export 导出端点（其它域导出惯例不涵盖此资源）',
-  ],
-  [
     `${BASE_URL}/purchase/receipts/*/receive POST`,
     'D: 收货确认后端在 /purchase/receipts/{id}/confirm（confirm_receipt），receive 与 confirm 是否同义需业务确认',
-  ],
-  [
-    `${BASE_URL}/ar-reconciliations-enhanced/*/confirm/send POST`,
-    'D: 发送客户对账确认后端为 /ar-reconciliations/{id}/send（base 域），增强域无 confirm/send',
   ],
 ]);
 

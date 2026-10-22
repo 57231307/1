@@ -39,6 +39,45 @@ pub mod sales_order {
         CANCELLED,
         REJECTED,
     ];
+
+    /// 建单口唯一合法初态（服务端定初值）。
+    ///
+    /// 存在理由：建单状态门与主表缺省写入共用同一常量，门内不手写取值。
+    /// 客户端建单只允许缺席状态键或逐字符等于本常量，其余取值一律由
+    /// EDIT_OUT_EDGES 所列的权威操作产生，建单侧不得直写。
+    pub const CREATE_INITIAL: &str = DRAFT;
+
+    /// 编辑保存口（PUT）的"当前态到目标态"合法出边集合。
+    ///
+    /// 存在理由：编辑保存口状态流转门的唯一事实来源是本表，门内不得手写第二套取值
+    /// （取值域同源口径见 inventory_transfer::ALL 注释）。
+    /// 判定依据：本域全部真实流转都绑在只有权威操作才能履行的必要副作用上，
+    /// 编辑保存口只写一列状态、一条都无法履行，故本表当前不登记任何出边，
+    /// 仅放行与当前态逐字符相同的幂等写入（语义是"没改状态"），没有第三种形态。
+    /// - 提交动作写 pending，同时起 BPM 流程、过信用门、发提交事件。
+    /// - 审批动作写 approved，同时落 approved_by、approved_at、展开 MRP、发审批事件。
+    /// - 拒绝动作写 rejected，同时落拒绝理由、释放预留、发拒绝事件。
+    /// - 取消动作写 cancelled，并发取消事件。
+    /// - 发货动作写 partial_shipped 或 shipped，同时扣减库存并落出库流水。
+    /// - 完成动作写 completed，并发完成事件。
+    /// 将来若确需放行合法出边，必须在本表以引用本 mod 常量的方式登记，
+    /// 并同步修订上方权威操作清单，禁止只在门里放行。
+    pub const EDIT_OUT_EDGES: &[(&str, &[&str])] = &[];
+
+    /// 判定编辑保存口的状态写入是否合法（当前态到目标态的流转判定）。
+    ///
+    /// 功能：与当前态逐字符相同的幂等写放行，其余一律按 EDIT_OUT_EDGES 判定。
+    /// 调用方：销售订单建单与编辑保存写口所在子模块（services/so 的 order_crud）的状态门。
+    /// 入参：current 为事务内行锁读出的当前态，target 为请求携带的目标态。
+    /// 传给谁：返回布尔判定，拒绝文案由调用方点名当前态与允许清单。
+    /// 存什么·存哪里：纯判定，不落数据。
+    pub fn edit_transition_allowed(current: &str, target: &str) -> bool {
+        target == current
+            || EDIT_OUT_EDGES
+                .iter()
+                .find(|(from, _)| *from == current)
+                .is_some_and(|(_, targets)| targets.contains(&target))
+    }
 }
 
 // 销售发货状态（sales_delivery.status，小写值）

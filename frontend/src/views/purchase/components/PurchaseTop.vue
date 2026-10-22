@@ -4,6 +4,7 @@
  * 任务编号: P13 批 1 B3 I-1（拆分 purchase/index.vue 页头）
  */
 import { useI18n } from 'vue-i18n';
+import { PERMISSIONS } from '@/constants/permissions';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 
 // 接入 i18n，替换硬编码中文文案
@@ -35,11 +36,11 @@ defineProps<Props>();
         <el-icon><Plus /></el-icon>
         {{ t('purchase.top.create') }}
       </el-button>
-      <el-button v-permission="'purchase.order.print'" @click="onPrint">
+      <el-button v-permission="PERMISSIONS.PURCHASE_ORDER_READ" @click="onPrint">
         <el-icon><Printer /></el-icon>
         {{ t('purchase.top.print') }}
       </el-button>
-      <el-button v-permission="'purchase.order.export'" @click="onExport">
+      <el-button v-permission="PERMISSIONS.PURCHASE_ORDER_EXPORT" @click="onExport">
         <el-icon><Download /></el-icon>
         {{ t('purchase.top.export') }}
       </el-button>

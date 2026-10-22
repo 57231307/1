@@ -60,6 +60,8 @@ export const PERMISSIONS = {
   WAREHOUSE_CREATE: 'warehouses:create',
   WAREHOUSE_UPDATE: 'warehouses:update',
   WAREHOUSE_DELETE: 'warehouses:delete',
+  // 仓库导表面键由端点路径末段派生（GET /warehouses/export），与读权限分键
+  WAREHOUSE_EXPORT: 'warehouses:export',
 
   // 客户管理（后端资源：customers）
   CUSTOMER_READ: 'customers:read',
@@ -115,6 +117,15 @@ export const PERMISSIONS = {
   // 审批双动作端点：routes/sales.rs:154-161（approve / reject 各一条），两键不互替
   SALES_CONTRACT_APPROVE: 'sales-contracts:approve',
   SALES_CONTRACT_REJECT: 'sales-contracts:reject',
+  // 导表面键由端点路径末段派生（GET /sales/sales-contracts/export），与读权限分键；
+  // 列表页打印入口只做浏览器本地打印、不落后端端点，门控取读面键 SALES_CONTRACT_READ
+  SALES_CONTRACT_EXPORT: 'sales-contracts:export',
+
+  // 生产工单（后端资源：production-orders；URL /production/production-orders/orders/{id}，
+  // production 与 production-orders 是双层模块前缀、资源名落第五段 orders 再经消歧映射
+  // 回权威名 production-orders，动作按方法派生）
+  PRODUCTION_ORDER_UPDATE: 'production-orders:update',
+  PRODUCTION_ORDER_DELETE: 'production-orders:delete',
 
   // 采购收货（后端资源：purchase-receipts）的两个处置动作键：由 URL 末段派生
   // （POST /purchase/receipts/{id}/concession|rejudge），与建单/审批权互不覆盖；
@@ -186,6 +197,21 @@ export const PERMISSIONS = {
   QUALITY_STANDARD_CREATE: 'quality-standards:create',
   QUALITY_STANDARD_UPDATE: 'quality-standards:update',
   QUALITY_STANDARD_DELETE: 'quality-standards:delete',
+  // 质量标准导表面键由端点路径末段派生（GET /quality-standards/export），与读权限分键；
+  // 列表页打印入口只做浏览器本地打印、不落后端端点，门控取读面键 QUALITY_STANDARD_READ
+  QUALITY_STANDARD_EXPORT: 'quality-standards:export',
+
+  // 质检记录面（后端资源：quality-inspections；URL /production/quality-inspection/records，
+  // production 是模块前缀、第四段 quality-inspection 经消歧映射为权威名 quality-inspections）。
+  // 导表面 GET /production/quality-inspection/records/export 末段派生 export；
+  // 列表打印入口只做浏览器本地打印，门控取读面键 QUALITY_INSPECTION_READ
+  QUALITY_INSPECTION_READ: 'quality-inspections:read',
+  QUALITY_INSPECTION_EXPORT: 'quality-inspections:export',
+
+  // 邮件模板（后端资源：email-templates，根级直接资源；读写删面 /email-templates 与 /email-templates/{id}）
+  EMAIL_TEMPLATE_READ: 'email-templates:read',
+  EMAIL_TEMPLATE_UPDATE: 'email-templates:update',
+  EMAIL_TEMPLATE_DELETE: 'email-templates:delete',
 
   // 打印模板（后端资源：print-templates）
   PRINT_TEMPLATE_READ: 'print-templates:read',
@@ -214,6 +240,22 @@ export const PERMISSIONS = {
   // （GET→read、POST→create、PUT/PATCH→update、DELETE→delete），故 inventory:transfer
   // 是后端永远派生不出来的幻影键。
   INVENTORY_TRANSFER_READ: 'transfers:read',
+  // 库存子资源各自的建/改/删面键（inventory 是模块前缀，权威资源名落 URL 第四段）：
+  // 台账面 GET /inventory/stock（列表打印入口只做浏览器本地打印，门控取读面键 STOCK_READ）；
+  // 导表面 GET /inventory/stock/export 末段派生 export
+  STOCK_READ: 'stock:read',
+  STOCK_EXPORT: 'stock:export',
+  // 调整单建单面 POST /inventory/adjustments，与库存台账读写互不代偿
+  ADJUSTMENT_CREATE: 'adjustments:create',
+  // 批次面（/inventory/batches）：批次调拨提交 POST /inventory/batches/{id}/transfer，
+  // transfer 不是路径动作关键字，按方法派生落 create，与建单面同键
+  BATCH_CREATE: 'batches:create',
+  BATCH_UPDATE: 'batches:update',
+  BATCH_DELETE: 'batches:delete',
+  // 盘点单建单面 POST /inventory/counts
+  COUNT_CREATE: 'counts:create',
+  // 调拨单建单面 POST /inventory/transfers（读面见 INVENTORY_TRANSFER_READ）
+  TRANSFER_CREATE: 'transfers:create',
   // 成品布入库标签打印（GET /inventory/pieces/{id}/print）。权限键非自造
   // resource_type 由 URL 段推导——middleware/permission.rs::extract_resource_info 对
   // 模块前缀 inventory（utils/path_utils.rs::is_business_module_prefix）取 segment4
@@ -233,6 +275,9 @@ export const PERMISSIONS = {
   PURCHASE_ORDER_UPDATE: 'purchase-orders:update',
   PURCHASE_ORDER_DELETE: 'purchase-orders:delete',
   PURCHASE_ORDER_APPROVE: 'purchase-orders:approve',
+  // 采购订单导表面键由端点路径末段派生（GET /purchase/orders/export，purchase 是模块
+  // 前缀、资源名落消歧后的第四段 orders→purchase-orders），与读权限分键
+  PURCHASE_ORDER_EXPORT: 'purchase-orders:export',
   // "收货"入口的真实动作是建入库单：对话框提交 POST /purchase/receipts
   // （purchase 是模块前缀，消歧映射把 receipts 对齐到注册表权威名 purchase-receipts，
   // 动作由方法派生为 create）。后端既无 receive 这个动作词，也没有 /purchase/orders/{id}/receive

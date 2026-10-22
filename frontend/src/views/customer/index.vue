@@ -30,7 +30,7 @@
           <el-icon><Plus /></el-icon>
           {{ $t('customer.index.button.create') }}
         </el-button>
-        <el-button v-permission="'customer.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.CUSTOMER_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ $t('customer.index.button.print') }}
         </el-button>

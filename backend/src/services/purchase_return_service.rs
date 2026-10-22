@@ -810,7 +810,7 @@ impl PurchaseReturnService {
         Ok(())
     }
 
-    /// 后置：自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
+    /// 后置：自动生成应付红字账单与红字冲销凭证（冲销）- 在事务外执行，失败不影响库存扣减
     async fn try_generate_ap_invoice_from_return(
         &self,
         return_id: i32,
@@ -823,10 +823,14 @@ impl PurchaseReturnService {
             .auto_generate_from_return(return_id, user_id)
             .await
         {
-            tracing::error!("自动生成应付账单失败 (退货单 {}): {}", return_no, e);
+            tracing::error!(
+                "自动生成应付红字账单/冲销凭证失败 (退货单 {}): {}",
+                return_no,
+                e
+            );
             // 记录失败但不阻断流程，可以后续手动重试
         } else {
-            tracing::info!("成功自动生成应付账单 (退货单 {})", return_no);
+            tracing::info!("成功自动生成应付红字账单与冲销凭证 (退货单 {})", return_no);
         }
     }
 

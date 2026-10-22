@@ -57,10 +57,10 @@
       <ElButton type="success" @click="emit('add')">
         <Plus /> {{ t('voucher.voucherListFilter.buttonAdd') }}</ElButton
       >
-      <ElButton v-permission="'voucher.print'" @click="emit('print')">
+      <ElButton v-permission="PERMISSIONS.VOUCHER_READ" @click="emit('print')">
         <Printer /> {{ t('voucher.voucherListFilter.buttonPrint') }}</ElButton
       >
-      <ElButton v-permission="'voucher.export'" @click="emit('export')">
+      <ElButton v-permission="PERMISSIONS.VOUCHER_EXPORT" @click="emit('export')">
         <Download /> {{ t('voucher.voucherListFilter.buttonExport') }}</ElButton
       >
     </div>
@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 

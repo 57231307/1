@@ -13,11 +13,11 @@
           <el-icon><Plus /></el-icon>
           {{ t('quality.standardTab.createButton') }}
         </el-button>
-        <el-button v-permission="'quality.standard.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.QUALITY_STANDARD_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('quality.standardTab.printButton') }}
         </el-button>
-        <el-button v-permission="'quality.standard.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.QUALITY_STANDARD_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('quality.standardTab.exportButton') }}
         </el-button>
@@ -98,7 +98,7 @@
             <!-- P2-17 修复（批次 86 v2 复审）：编辑按钮补齐 v-permission -->
             <el-button
               v-if="row.status === 'draft'"
-              v-permission="'quality_standard:update'"
+              v-permission="PERMISSIONS.QUALITY_STANDARD_UPDATE"
               type="primary"
               link
               size="small"
@@ -130,6 +130,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, onMounted, defineEmits, inject } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';

@@ -6,8 +6,9 @@
 //! （如 `AppError::business` → "业务处理失败"），真实文案只进 tracing 日志。
 //!
 //! 唯一例外：构造点显式使用 [`AppError::business_displayable`]（新变体
-//! `BusinessErrorDisplayable`）或 [`AppError::validation_displayable`]（变体
-//! `ValidationErrorDisplayable`）时，出参 `message` 携带真实文案。
+//! `BusinessErrorDisplayable`）、[`AppError::validation_displayable`]（变体
+//! `ValidationErrorDisplayable`）或 [`AppError::not_found_displayable`]（变体
+//! `NotFoundDisplayable`）时，出参 `message` 携带真实文案。
 //! **不存在任何全局开关/环境变量**，是否外显由每个构造点逐条显式声明。
 //!
 //! ## 输入校验文案的外显规则（`ValidationError` 族）
@@ -149,6 +150,13 @@ pub enum AppError {
     /// 响应的 `message` 携带真实拒绝原因。使用条件见模块文档。
     ValidationErrorDisplayable(String),
     NotFound(String),
+    /// 可外显的"未找到"错误：仅允许由 [`AppError::not_found_displayable`] 构造。
+    /// 出参 `code` 与 HTTP 状态和 `NotFound` 完全一致（`NOT_FOUND` / 404），
+    /// 唯一区别是 HTTP 响应的 `message` 携带真实文案。
+    /// 使用条件同模块文档的安全边界：只准点名用户可据此行动的**公开配置标识**
+    /// （如 BPM 流程标识 process_key），不得含记录 ID、他人数据、表名、SQL、
+    /// 引擎内部细节；不确定时始终使用 [`AppError::not_found`]（脱敏）。
+    NotFoundDisplayable(String),
     BusinessError(String),
     /// 可外显的业务错误：仅允许由 [`AppError::business_displayable`] 构造。
     /// 出参 `code` 与 `BusinessError` 完全一致（`BUSINESS_ERROR`），
@@ -180,6 +188,15 @@ pub enum AppError {
 impl AppError {
     pub fn not_found(msg: impl Into<String>) -> Self {
         Self::NotFound(msg.into())
+    }
+    /// 构造**可外显**的"未找到"错误：HTTP 出参 `message` 携带真实文案。
+    ///
+    /// 仅当文案点名的是用户/管理员可据此直接行动的**公开配置标识**
+    /// （如 "流程标识 quotation_approval 未配置" 中的流程标识）时使用，
+    /// 且必须满足模块文档的安全边界（不含记录 ID、他人数据、表名、SQL、
+    /// 引擎内部细节）；不满足就改用 [`AppError::not_found`]（默认脱敏）。
+    pub fn not_found_displayable(msg: impl Into<String>) -> Self {
+        Self::NotFoundDisplayable(msg.into())
     }
     pub fn business(msg: impl Into<String>) -> Self {
         Self::BusinessError(msg.into())
@@ -250,6 +267,9 @@ impl fmt::Display for AppError {
                 write!(f, "{}{}", err_msg::VALIDATION_PREFIX, msg)
             }
             AppError::NotFound(msg) => write!(f, "{}{}", err_msg::NOT_FOUND_PREFIX, msg),
+            AppError::NotFoundDisplayable(msg) => {
+                write!(f, "{}{}", err_msg::NOT_FOUND_PREFIX, msg)
+            }
             AppError::BusinessError(msg) => write!(f, "{}{}", err_msg::BUSINESS_PREFIX, msg),
             AppError::BusinessErrorDisplayable(msg) => {
                 write!(f, "{}{}", err_msg::BUSINESS_PREFIX, msg)
@@ -358,6 +378,8 @@ impl AppError {
             AppError::ValidationError(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
             AppError::ValidationErrorDisplayable(_) => (StatusCode::BAD_REQUEST, "ValidationError"),
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, "NotFound"),
+            // 可外显变体与 NotFound 同状态、同日志分类（族映射不变得纪律）
+            AppError::NotFoundDisplayable(_) => (StatusCode::NOT_FOUND, "NotFound"),
             AppError::BusinessError(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
             AppError::BusinessErrorDisplayable(_) => (StatusCode::BAD_REQUEST, "BusinessError"),
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized"),
@@ -380,6 +402,7 @@ impl AppError {
             AppError::ValidationError(_) => ("LOW", err_msg::ACTION_VALIDATION),
             AppError::ValidationErrorDisplayable(_) => ("LOW", err_msg::ACTION_VALIDATION),
             AppError::NotFound(_) => ("MEDIUM", err_msg::ACTION_NOT_FOUND),
+            AppError::NotFoundDisplayable(_) => ("MEDIUM", err_msg::ACTION_NOT_FOUND),
             AppError::BusinessError(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
             AppError::BusinessErrorDisplayable(_) => ("MEDIUM", err_msg::ACTION_BUSINESS),
             AppError::Unauthorized(_) => ("HIGH", err_msg::ACTION_UNAUTHORIZED),
@@ -401,6 +424,7 @@ impl AppError {
             | AppError::ValidationError(m)
             | AppError::ValidationErrorDisplayable(m)
             | AppError::NotFound(m)
+            | AppError::NotFoundDisplayable(m)
             | AppError::BusinessError(m)
             | AppError::BusinessErrorDisplayable(m)
             | AppError::Unauthorized(m)
@@ -451,6 +475,9 @@ impl AppError {
                 err_msg::HINT_VALIDATION.to_string(),
             ),
             AppError::NotFound(_) => (err_msg::LOG_NOT_FOUND, err_msg::HINT_NOT_FOUND.to_string()),
+            AppError::NotFoundDisplayable(_) => {
+                (err_msg::LOG_NOT_FOUND, err_msg::HINT_NOT_FOUND.to_string())
+            }
             AppError::BusinessError(_) => {
                 (err_msg::LOG_BUSINESS, err_msg::HINT_BUSINESS.to_string())
             }
@@ -788,6 +815,7 @@ impl AppError {
     pub fn error_code(&self) -> String {
         match self {
             AppError::NotFound(_) => "NOT_FOUND",
+            AppError::NotFoundDisplayable(_) => "NOT_FOUND",
             AppError::BadRequest(_) => "BAD_REQUEST",
             AppError::Unauthorized(_) => CODE_UNAUTHORIZED,
             AppError::PermissionDenied(_) => CODE_FORBIDDEN,
@@ -807,15 +835,18 @@ impl AppError {
 
     /// 生产环境对外暴露的脱敏文案。
     ///
-    /// 例外：`BusinessErrorDisplayable` 由构造点（`AppError::business_displayable`）
+    /// 例外：三个 Displayable 变体（`BusinessErrorDisplayable` /
+    /// `ValidationErrorDisplayable` / `NotFoundDisplayable`）由构造点
+    /// （`business_displayable` / `validation_displayable` / `not_found_displayable`）
     /// 显式声明文案安全，直接返回真实文案；其余一律返回固定脱敏常量。
-    /// 出参文案：默认脱敏，仅 `BusinessErrorDisplayable` 变体返回真实文案。
+    /// 出参文案：默认脱敏，仅 Displayable 变体返回真实文案。
     pub(crate) fn public_message(&self) -> String {
         match self {
             AppError::DatabaseError(_) => err_msg::DB_ERROR_PUBLIC.to_string(),
             AppError::ValidationError(_) => err_msg::VALIDATION_PUBLIC.to_string(),
             AppError::ValidationErrorDisplayable(msg) => msg.clone(),
             AppError::NotFound(_) => err_msg::NOT_FOUND_PUBLIC.to_string(),
+            AppError::NotFoundDisplayable(msg) => msg.clone(),
             AppError::BusinessError(_) => err_msg::BUSINESS_PUBLIC.to_string(),
             AppError::BusinessErrorDisplayable(msg) => msg.clone(),
             AppError::Unauthorized(_) => err_msg::UNAUTHORIZED_PUBLIC.to_string(),
@@ -924,6 +955,48 @@ mod displayable_message_tests {
             AppError::business_displayable("审批人不能是申请人")
                 .to_string()
                 .contains("审批人不能是申请人")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // NotFound 族（NotFound / NotFoundDisplayable）对称断言
+    // ------------------------------------------------------------------
+
+    /// ① 映射锁：可外显形态与脱敏形态的 HTTP 状态码与 code **必须**完全一致
+    /// （404 / NOT_FOUND），唯一差别是 message——新增变体没有移动任何既有契约。
+    #[test]
+    fn not_found_displayable_shares_status_and_code_with_sanitized() {
+        use axum::response::IntoResponse as _;
+        let a = AppError::not_found("内部查询细节ABC");
+        let b = AppError::not_found_displayable("流程标识 quotation_approval 未配置");
+        assert_eq!(
+            a.error_code(),
+            b.error_code(),
+            "两变体 code 必须同源 NOT_FOUND"
+        );
+        assert_eq!(b.error_code(), "NOT_FOUND");
+        assert_eq!(
+            a.clone().into_response().status(),
+            StatusCode::NOT_FOUND,
+            "脱敏形态状态码不得被移动"
+        );
+        assert_eq!(
+            b.clone().into_response().status(),
+            a.into_response().status(),
+            "可外显形态 HTTP 状态必须与脱敏形态一致（不得因外显改状态码语义）"
+        );
+    }
+
+    /// ② 文案面：可外显形态出参携带真实文案，脱敏形态仍恒为固定常量
+    #[test]
+    fn not_found_displayable_exposes_real_message() {
+        let err = AppError::not_found_displayable("流程标识 sales_order_approval 未配置");
+        let resp = err.to_response();
+        assert_eq!(resp.message, "流程标识 sales_order_approval 未配置");
+        assert_eq!(
+            AppError::not_found("x").to_response().message,
+            err_msg::NOT_FOUND_PUBLIC,
+            "脱敏形态出参不得受新变体影响"
         );
     }
 

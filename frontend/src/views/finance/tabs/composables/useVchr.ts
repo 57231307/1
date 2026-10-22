@@ -184,19 +184,27 @@ export function useVchr() {
       return false;
     }
 
+    // 分录科目显式校验，未选科目的行点名行号并阻止提交，
+    // 禁止静默丢行造成落库凭证与用户所见不一致
+    const missingSubjectLines = voucherForm.entries
+      .map((entry, index) => (entry.subject_id === undefined ? index + 1 : 0))
+      .filter(line => line > 0);
+    if (missingSubjectLines.length > 0) {
+      msg.warning('entryMissingSubject', { lines: missingSubjectLines.join('、') });
+      return false;
+    }
+
     voucherSubmitLoading.value = true;
     try {
       await createVoucher({
         voucher_date: voucherForm.voucher_date,
         voucher_type: voucherForm.voucher_type,
-        items: voucherForm.entries
-          .filter(e => e.subject_id)
-          .map(e => ({
-            subject_id: e.subject_id!,
-            debit: e.debit || 0,
-            credit: e.credit || 0,
-            summary: e.summary,
-          })),
+        items: voucherForm.entries.map(e => ({
+          subject_id: e.subject_id!,
+          debit: e.debit || 0,
+          credit: e.credit || 0,
+          summary: e.summary,
+        })),
       });
       msg.success('createSuccess');
       await fetchVouchers();

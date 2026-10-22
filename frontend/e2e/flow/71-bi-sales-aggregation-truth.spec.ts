@@ -32,21 +32,25 @@ import {
  *   出参 PaginatedResponse{items,total,page,page_size}（order_query.rs:103-118），行内金额=SalesOrderDetail
  *   rust_decimal 字符串（services/so/mod.rs:43-72）。
  * - POST /sales/orders                                                sales_order_crud 链：
- *   CreateSalesOrderRequest（services/so/mod.rs:128-165）status/order_date 透传落库
- *   （order_crud.rs:265-277 build_order_active_model——status 缺省 draft，显式提交按提交值）；
+ *   CreateSalesOrderRequest（services/so/mod.rs:128-165）的 order_date 透传落库，
+ *   status 不再透传。建单状态门只放行缺省或服务端定初值 draft
+ *   （order_crud.rs:116 validate_create_initial_status 拦下直传，主表恒写
+ *   order_crud.rs:274 CREATE_INITIAL），pending/cancelled 等只能由权威操作产生。
  *   行金额=round_dp(2)(qty×price)（order_crud.rs:342-364），订单 total_amount=Σ行（:419-444）。
- * - DELETE /sales/orders/{id}                                         非 shipped/completed 可硬删（order_crud.rs:706-711）。
+ * - DELETE /sales/orders/{id}                                         非 shipped/completed 可硬删（order_crud.rs:765-787）。
  *
  * 聚合口径契约（判据 3 的钉桩对象）：bi_analysis_ops/sales.rs:57-95 by-time SQL——
  * 数据源 sales_orders.total_amount / sales_order_items.quantity，业务规则注释（sales.rs:10-13）
  * 明言"排除 CANCELLED 和 DRAFT 状态的订单"。
  *
- * ⚠️ 预置判红点（71-03，断言按**契约**写死不迁就现状）：写入方词表 so_status 为小写
- * （models/status/sales.rs:16/28 DRAFT='draft'、CANCELLED='cancelled'），而 BI/钻取全部 SQL 用
- * 大写比较（sales.rs:74/165/188/251/306/355、drilldown.rs:64/156/243/296）——Postgres 字符串
- * 比较大小写敏感，排除门恒不命中 → draft/cancelled 订单会被计入聚合。该缺陷属"源码缺陷"，
- * 已按纪律进交付报告"待主编排立案"（不自行修改 backend）；71-03 在修复前判红是**功能**，
- * 禁止通过放宽断言/改期望值洗绿。
+ * ⚠️ 71-03 的性质（口径已按现状更正，勿照旧注释判责）。写入方词表 so_status 为小写
+ * （models/status/sales.rs:16/28 DRAFT='draft'、CANCELLED='cancelled'）。历史上 BI/钻取 SQL
+ * 用大写 `'CANCELLED'`/`'DRAFT'` 字面量比较，Postgres 大小写敏感，排除门恒不命中，
+ * 当时本例按契约写死、判红即缺陷实证。该缺陷已在 main 修复。sales.rs、drilldown.rs、
+ * olap.rs、profit.rs 的排除条件全部改为以绑定参数引用小写词表常量
+ * （如 bi_analysis_ops/sales.rs:78/90-91），故 71-03 现在是**回归锁**而不是预置判红。
+ * 它判红即排除门重新失守（大写回归或词表漂移），不得按"预期失败"忽略，
+ * 也不得通过放宽断言/改期望值洗绿。
  *
  * 防缓存假绿/假红设计（bi_analysis_service.rs:32-48 5min TTL 缓存，键=scope+参数）：
  * - 专属年份 2096（全仓 e2e grep 无占用；61 号占 2098/2099、70 号占 2097），窗口参数天然唯一；
@@ -120,6 +124,18 @@ interface OrderSpec {
   items: Array<{ qty: string; price: string }>;
   total: number;
 }
+
+/** 目标状态到权威操作的映射（null 表示建单初值即目标态，无需推进）。
+ *  存在理由。建单口按词表 sales_order::CREATE_INITIAL 拦截状态直传
+ *  （services/so/order_crud.rs::validate_create_initial_status），本用例三种状态只能由
+ *  提交（draft 到 pending，so/order_workflow.rs::submit_order）与取消
+ *  （draft 到 cancelled，so/order_workflow.rs::cancel_order）产生。新增状态必须在此登记
+ *  产生它的权威操作，未登记即显式抛错，不放过隐式默认。 */
+const STATUS_ADVANCING_ACTION: Record<string, 'submit' | 'cancel' | null> = {
+  draft: null,
+  pending: 'submit',
+  cancelled: 'cancel',
+};
 const ORDERS_SPEC: OrderSpec[] = [
   {
     day: '2096-11-05',
@@ -163,11 +179,19 @@ async function seedOrder(page: Page, customerId: number, spec: OrderSpec): Promi
   const ctx = getCtx();
   const productId = ctx.productIds[0];
   if (!productId) throw new Error('前置缺失：ctx.productIds[0] 未就绪');
+  const action = STATUS_ADVANCING_ACTION[spec.status];
+  if (action === undefined) {
+    throw new Error(
+      `[71] 前置未登记状态推进动作：status=${spec.status}——建单口只接受初值 draft，` +
+        `其余状态必须在此表点名产生它的权威操作，否则种单链路会静默留下错误前置`
+    );
+  }
+  // 建单不传 status。状态门只放行服务端定初值 draft
+  // （services/so/order_crud.rs::validate_create_initial_status）
   const res = await apiCall<Row>(page, 'POST', '/sales/orders', {
     customer_id: customerId,
     // 日期取正午 UTC：任何 |时区偏移|≤12 的会话时区下 to_char 日桶不落邻日
     order_date: `${spec.day}T12:00:00Z`,
-    status: spec.status,
     items: spec.items.map((it, i) => ({
       product_id: productId,
       quantity: it.qty,
@@ -179,6 +203,16 @@ async function seedOrder(page: Page, customerId: number, spec: OrderSpec): Promi
   expect(id, `[71] 订单创建应回 id：${JSON.stringify(res)}`).toBeGreaterThan(0);
   const orderNo = String(res.data?.order_no);
   expect(orderNo, `订单应回 order_no：${JSON.stringify(res.data)}`).toBeTruthy();
+  if (action) {
+    await apiCall(page, 'POST', `/sales/orders/${id}/${action}`);
+  }
+  // 回读钉住前置状态。推进失败与"排除门失守"是两种病，必须在此处分开，
+  // 否则 71-01/02/03 会把前置没成读成聚合口径错，把对的缺陷信号换成错的
+  const readback = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${id}`);
+  expect(
+    String(readback.status),
+    `[71] 种子订单 ${id} 经 ${action ?? '免推进'} 后状态应为 ${spec.status}，实际 ${JSON.stringify(readback)}`
+  ).toBe(spec.status);
   // total 取 spec 权威值（后端 Decimal 精确和），不在 JS 里现算乘加，杜绝伪误差
   return { id, orderNo, day: spec.day, total: spec.total, status: spec.status };
 }
@@ -365,12 +399,13 @@ test.describe.serial('71 BI 销售聚合数值真伪（聚合==明细求和，�
     });
   });
 
-  test('71-03 状态排除契约：draft/cancelled 不得进聚合与钻取（预置判红——大小写门失守缺陷钉桩）', async ({
+  test('71-03 状态排除契约：draft/cancelled 不得进聚合与钻取（回归锁）', async ({
     page,
   }) => {
     // 契约来源：sales.rs:10-11 业务规则注释 + SQL 意图 NOT IN ('CANCELLED','DRAFT')。
-    // 现状缺陷：写入方 so_status 是小写（models/status/sales.rs:16/28），大写比较恒不命中
-    // → 若本例判红且窗口聚合值=6556.25（三桶全进），即为该缺陷实证；禁止把期望改成"含脏状态"来洗绿。
+    // 本例性质是回归锁（历史缺陷已修，详见文件头 71-03 性质段）。排除条件现按小写词表常量
+    // 以绑定参数下发（bi_analysis_ops/sales.rs:78/90-91），一旦判红即为排除门重新失守
+    // （大写回归或词表漂移），禁止把期望改成"含脏状态"来洗绿，也不得按预期失败忽略。
     const specs: OrderSpec[] = [
       {
         day: '2096-12-05',
