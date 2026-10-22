@@ -5,7 +5,7 @@
 -->
 <template>
   <el-row :gutter="20" class="stats-cards">
-    <el-col :span="6">
+    <el-col :xs="12" :sm="12" :lg="6">
       <el-card shadow="hover">
         <div class="stats-item">
           <div class="stats-label">{{ t('sales.stat.totalCount') }}</div>
@@ -13,7 +13,7 @@
         </div>
       </el-card>
     </el-col>
-    <el-col :span="6">
+    <el-col :xs="12" :sm="12" :lg="6">
       <el-card shadow="hover">
         <div class="stats-item">
           <div class="stats-label">{{ t('sales.stat.pending') }}</div>
@@ -21,7 +21,7 @@
         </div>
       </el-card>
     </el-col>
-    <el-col :span="6">
+    <el-col :xs="12" :sm="12" :lg="6">
       <el-card shadow="hover">
         <div class="stats-item">
           <div class="stats-label">{{ t('sales.stat.approved') }}</div>
@@ -29,7 +29,7 @@
         </div>
       </el-card>
     </el-col>
-    <el-col :span="6">
+    <el-col :xs="12" :sm="12" :lg="6">
       <el-card shadow="hover">
         <div class="stats-item">
           <div class="stats-label">{{ t('sales.stat.totalAmount') }}</div>

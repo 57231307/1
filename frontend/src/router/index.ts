@@ -164,14 +164,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // 旧会计期间页已由 /accounting-period 取代，保留路径做书签与旧链接重定向。
         path: 'periods',
         name: 'AccountingPeriods',
-        component: () => import('@/views/periods/index.vue'),
+        redirect: '/accounting-period',
         meta: {
           title: '会计期间',
           icon: 'Calendar',
           permission: 'finance:read',
           requiresAuth: true,
+          hidden: true,
         },
       },
       {
