@@ -5,13 +5,13 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{purchase_order, purchase_receipt, warehouse};
+use crate::services::amount_visibility::{DefaultAmountResource, apply_default_amount_hiding};
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::purchase_receipt_dto::{
     ConcedeReceiptRequest, CreatePurchaseReceiptRequest, CreateReceiptItemRequest,
     RejudgeReceiptRequest, UpdatePurchaseReceiptRequest, UpdateReceiptItemRequest,
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
-use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -80,19 +80,18 @@ pub async fn list_receipts(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // admin 判定走本仓唯一权威源
-            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
-            // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
-            // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            for receipt in &mut items_json {
-                if let Some(obj) = receipt.as_object_mut() {
-                    obj.remove("total_amount");
-                    obj.remove("tax_amount");
-                    obj.remove("discount_amount");
-                }
-            }
+        } else {
+            // 分工：进入本分支即该角色对 purchase_receipt 无数据权限配置行。
+            // 金额隐藏门（admin 例外与隐藏哪些列）的判定与移除都在
+            // services::amount_visibility 单源内完成，每请求判定一次、命中与不命中都记日志。
+            // 采购入库出参不含联系方式列，故调用侧无后续处理，忽略返回值。
+            apply_default_amount_hiding(
+                &state.db,
+                role_id,
+                DefaultAmountResource::PurchaseReceipt,
+                &mut items_json,
+            )
+            .await;
         }
     }
 
@@ -145,14 +144,16 @@ pub async fn get_receipt(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与列表同一单源判定（见 list_receipts 内 admin 判定注释），每请求至多一次
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = receipt_json.as_object_mut() {
-                obj.remove("total_amount");
-                obj.remove("tax_amount");
-                obj.remove("discount_amount");
-            }
+        } else {
+            // 分工与列表同款：无数据权限配置行才进默认隐藏，金额隐藏门与列集合
+            // 都在 services::amount_visibility 单源内判定，详情出口传单元素切片。
+            apply_default_amount_hiding(
+                &state.db,
+                role_id,
+                DefaultAmountResource::PurchaseReceipt,
+                std::slice::from_mut(&mut receipt_json),
+            )
+            .await;
         }
     }
 
@@ -370,17 +371,18 @@ pub async fn list_receipt_items(
                     &permission.hidden_fields,
                 );
             }
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与单头同一单源判定（见 list_receipts 内 admin 判定注释），每请求至多一次
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+        } else {
+            // 分工与单头同款：无数据权限配置行才进默认隐藏，金额隐藏门与列集合
+            // 都在 services::amount_visibility 单源内判定。入库明细行的行金额键实名
+            // 是 amount，收编前写的行总价与税额两键在该出参不存在，已由单源按真实列补齐。
             if let Some(list) = items_json.as_array_mut() {
-                for item in list {
-                    if let Some(obj) = item.as_object_mut() {
-                        obj.remove("unit_price");
-                        obj.remove("total_price");
-                        obj.remove("tax_amount");
-                    }
-                }
+                apply_default_amount_hiding(
+                    &state.db,
+                    role_id,
+                    DefaultAmountResource::PurchaseReceiptItem,
+                    list,
+                )
+                .await;
             }
         }
     }
