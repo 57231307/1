@@ -1,8 +1,7 @@
 <!--
-  UserTab.vue - 用户管理 Tab
-  来源：原 system/index.vue 第 10-84 行（template）+ 732-869 行（script）
-  拆分日期：2026-06-05
-  说明：本文件由 system/index.vue 拆分而来，逻辑完整可独立运行
+  用户管理页（路由 /users，门控 users:read）
+  调用方：MainLayout 侧栏 组织与身份 分组下的 用户管理 菜单项
+  职责：用户分页查询与新建/编辑对话框，角色候选取自角色列表接口
 -->
 <template>
   <div class="user-tab">
@@ -295,10 +294,8 @@ const validatePassword = (_rule: unknown, v: string, cb: (error?: Error) => void
 const userRules: FormRules = {
   username: [
     { required: true, message: t('system.user.validation.usernameRequired'), trigger: 'blur' },
-    // 与后端 CreateUserRequest.username validator 对齐：min=3, max=50（user_handler.rs:77）。
-    // 旧前端上限 20 严于后端 50，会拦截一个后端合法（≤50）的用户名，在 ElForm.validate()
-    // 阶段即判失败 → 短路不发请求 → 「创建成功」永不出现（e2e 01-03 红根因）。属前端校验与
-    // 后端契约不符，非断言问题；以前端契约（后端为准）修正上限，不放宽测试断言。
+    // 长度与后端建单入参 username 校验一致（min 3, max 50）；前端更严会拦下后端合法的用户名，
+    // 更松则把校验错误推迟到提交后才暴露。
     { min: 3, max: 50, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
   ],
   password: [{ required: true, validator: validatePassword, trigger: 'blur' }],

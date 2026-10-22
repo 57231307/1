@@ -67,8 +67,8 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     const visible = await tab.isVisible();
     expect(visible).toBe(true);
   });
-  test('应收对账增强 /ar-reconciliation/enhanced', async ({ page }) => {
-    await visitPage(page, '/ar-reconciliation/enhanced');
+  test('应收对账增强页签 /ar-reconciliation?tab=enhanced', async ({ page }) => {
+    await visitPage(page, '/ar-reconciliation?tab=enhanced');
     await verifyTable(page);
   });
   test('辅助核算 /assist-accounting', async ({ page }) => {
@@ -95,14 +95,90 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   // api/i18n/后端 /trading 垫片均已删除；这些存活正规页由 29a-route-coverage-purchase-sales
   // 覆盖。此处不再有可访问的 /trading 路由，故无对应 UI 覆盖用例。
 
-  // ===== 系统域剩余路由 =====
-  test('系统总页 /system', async ({ page }) => {
-    await visitPage(page, '/system');
-    const tab = page.locator('.el-tabs, .el-table').first();
-    await tab.waitFor({ state: 'visible', timeout: 15_000 });
-    const visible = await tab.isVisible();
-    expect(visible).toBe(true);
+  // ===== 系统管理域各功能页（用户/角色/公司信息/权限管理/字段权限/Webhook 各自成页） =====
+  test('用户管理 /users', async ({ page }) => {
+    await page.goto(`${BASE_URL}/users`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '用户管理' }),
+      `未渲染用户管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: '新建用户' })).toBeVisible();
+    const headers = page.locator(
+      '.el-table[aria-label="用户列表"] .el-table__header-wrapper thead th.el-table__cell'
+    );
+    await expect(headers.filter({ hasText: /^用户名$/ }).first()).toBeVisible();
+    await expect(headers.filter({ hasText: /^部门$/ }).first()).toBeVisible();
   });
+
+  test('角色管理 /roles', async ({ page }) => {
+    await page.goto(`${BASE_URL}/roles`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '角色管理' }),
+      `未渲染角色管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: '新建角色' })).toBeVisible();
+    const headers = page.locator(
+      '.el-table[aria-label="角色列表"] .el-table__header-wrapper thead th.el-table__cell'
+    );
+    await expect(headers.filter({ hasText: /^角色名称$/ }).first()).toBeVisible();
+    await expect(headers.filter({ hasText: /^角色编码$/ }).first()).toBeVisible();
+  });
+
+  test('公司信息 /company', async ({ page }) => {
+    await page.goto(`${BASE_URL}/company`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '公司信息设置' }),
+      `未渲染公司信息页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    const form = page.locator('[aria-label="公司信息表单"]');
+    await expect(form).toBeVisible();
+    await expect(
+      form.locator('.el-form-item__label', { hasText: /^公司名称$/ }).first()
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: '保存' }).first()).toBeVisible();
+  });
+
+  test('权限管理 /permissions', async ({ page }) => {
+    await page.goto(`${BASE_URL}/permissions`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '权限管理' }),
+      `未渲染权限管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    const headers = page.locator(
+      '.el-table[aria-label="权限列表"] .el-table__header-wrapper thead th.el-table__cell'
+    );
+    await expect(headers.filter({ hasText: /^资源类型$/ }).first()).toBeVisible();
+    await expect(headers.filter({ hasText: /^操作$/ }).first()).toBeVisible();
+  });
+
+  test('字段权限 /field-permissions', async ({ page }) => {
+    await page.goto(`${BASE_URL}/field-permissions`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '字段权限' }),
+      `未渲染字段权限页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    const headers = page.locator(
+      '.el-table[aria-label="字段权限列表"] .el-table__header-wrapper thead th.el-table__cell'
+    );
+    await expect(headers.filter({ hasText: /^角色$/ }).first()).toBeVisible();
+    await expect(headers.filter({ hasText: /^可读$/ }).first()).toBeVisible();
+    await expect(headers.filter({ hasText: /^可写$/ }).first()).toBeVisible();
+  });
+
+  test('Webhook 配置 /webhooks', async ({ page }) => {
+    await page.goto(`${BASE_URL}/webhooks`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Webhook 配置' }),
+      `未渲染 Webhook 配置页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: '新建' }).first()).toBeVisible();
+    const headers = page.locator(
+      '.el-table[aria-label="Webhook 列表"] .el-table__header-wrapper thead th.el-table__cell'
+    );
+    await expect(headers.filter({ hasText: /^名称$/ }).first()).toBeVisible();
+  });
+
+  // ===== 系统域其它路由 =====
   test('系统更新 /system-update', async ({ page }) => {
     await visitPage(page, '/system-update');
     const card = page.locator('.el-card, .el-form, body').first();

@@ -795,7 +795,7 @@ const handleSaveLocation = async () => {
     if (editingLocId.value) {
       await updateWarehouseLocation(editingLocId.value, {
         location_code: locForm.location_code,
-        // 可选字符串空值省略键（范式同 UserTab）；数值未填不传（None=不改）
+        // 可选字符串空值省略键（范式同 用户管理页）；数值未填不传（None=不改）
         ...(locForm.location_type ? { location_type: locForm.location_type } : {}),
         ...(locForm.max_weight !== undefined ? { max_weight: locForm.max_weight } : {}),
         ...(locForm.max_height !== undefined ? { max_height: locForm.max_height } : {}),

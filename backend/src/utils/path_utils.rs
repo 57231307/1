@@ -26,7 +26,6 @@ fn is_system_module_prefix(part: &str) -> bool {
             | "user"
             | "data-import"
             // ===== IAM 与组织域 =====
-            | "data-permissions"
             | "user-notification-settings"
             // ===== 集成与网关域 =====
             | "webhooks"
@@ -259,6 +258,13 @@ fn is_core_direct_resource(part: &str) -> bool {
             | "permissions"
             | "field-permissions"
             | "permission-audits"
+            // 数据权限配置面：根级直接资源（与 print-tasks、company-profile 同判据）。其下第四段是
+            // 记录 ID、按角色查询的维度段或资源类型/范围类型两个下拉取数面，均非子资源；留在模块
+            // 前缀表会让资源名漂到第四段，派生出 resource-types、scope-types 这类注册表外、任何
+            // 角色都授予不了的伪键，按角色面还会被错认成角色域的 roles 键（持 roles:read 的岗位
+            // 越能进本面、授 data-permissions:read 的岗位反而进不来）。登记为直接资源后列表、详情、
+            // 按角色、两个下拉与写删各面统一派生 data-permissions，与注册表逐字符一致。
+            | "data-permissions"
             // ===== 产品目录直接资源 =====
             | "products"
             | "categories"

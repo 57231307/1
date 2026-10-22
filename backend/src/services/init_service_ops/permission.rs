@@ -690,6 +690,8 @@ impl InitService {
                     ("suppliers", "*"),
                     ("supplier-evaluations", "*"),
                     ("inventory", "read"),
+                    // 坯布采购与到货核对需读坯布档案；只授读，建档与改删仍归生产与仓储岗
+                    ("greige-fabrics", "read"),
                     // 对照表/转采购需读我方产品目录（我方内部主数据，非供应商保密信息）
                     ("products", "read"),
                     // 产品分类树（同为我方内部主数据；对照表维护页挂载即拉
@@ -719,6 +721,8 @@ impl InitService {
                     ("purchase-receipts", "confirm"),
                     ("suppliers", "read"),
                     ("inventory", "read"),
+                    // 坯布采购与到货核对需读坯布档案；只授读，建档与改删仍归生产与仓储岗
+                    ("greige-fabrics", "read"),
                     ("purchase-prices", "read"),
                     ("sku-mappings", "read"),
                     ("sku-mappings", "create"),
@@ -1076,6 +1080,38 @@ impl InitService {
                     ("currencies", "*"),
                     ("exchange-rates", "*"),
                     ("ar-reconciliations", "*"),
+                    // ===== 应付族 AP 审核与报表面 =====
+                    // 业务面只授“读加审核动作”，制单面（建单、改单、提交、核销）留在
+                    // accountant 分组。role_conflicts 内置默认把 accountant 与 finance_manager
+                    // 设为“财务制单与审核互斥”，两岗各持半程才成立。审核动作只取真实派生键，
+                    // ap-invoices 的 approve 由 AP 前缀下 invoices 段的 approve 末段派生
+                    // （末段命中 PATH_ACTION_KEYWORDS），ap-reconciliations 的 confirm 由
+                    // reconciliations 段的 confirm 末段派生，它是 PENDING 转 CONFIRMED 并生成
+                    // 对账确认凭证，属确认面而非制单面。
+                    // ap-payment-requests 刻意只授读，该资源的 approve 与 reject 端点都在册，
+                    // 但请款服务的 check_approval_permission 另按角色表 code 字面值（admin 与
+                    // manager）分级硬门，本岗码不在其列，矩阵授审核键也放行不了，入口判责留在
+                    // 真正的责任模块，不靠扩授权掩盖。
+                    // ap-payments 同样刻意只授读，付款执行面（建单、改单、确认）本轮未定岗
+                    // （出纳按口径不持任何 AP 族键），不擅自改挂到管理岗。
+                    ("ap-invoices", "read"),
+                    ("ap-invoices", "approve"),
+                    ("ap-payments", "read"),
+                    ("ap-verifications", "read"),
+                    ("ap-payment-requests", "read"),
+                    ("ap-reconciliations", "read"),
+                    ("ap-reconciliations", "confirm"),
+                    // 账龄与报表面四枚只授读：四本账只有 AP 前缀下 reports 段的 aging、daily、
+                    // monthly、statistics 四条 GET 端点在册，seg3 为 ap 且 reports 是其嵌套
+                    // 子模块，资源名落在 seg5 并经 RESOURCE_NAME_MAP 消歧为本表四个权威名，
+                    // 可派生动作仅 read 一种。
+                    // 同族 ar-reconciliations 用通配是因为它具备真实的增删改面（GET、POST、PUT、
+                    // DELETE 端点齐全），报表四本没有写端点，给通配只会造出看着全权、实则只有读
+                    // 的悬空授权，故按“只授可被真实派生的键”逐枚写 read。
+                    ("ap-aging", "read"),
+                    ("ap-daily", "read"),
+                    ("ap-monthly", "read"),
+                    ("ap-statistics", "read"),
                     ("accounting-periods", "*"),
                     ("wages", "read"),
                     ("reports", "read"),
@@ -1099,6 +1135,45 @@ impl InitService {
                     ("exchange-rates", "read"),
                     ("ar-reconciliations", "read"),
                     ("ar-reconciliations", "create"),
+                    // ===== 应付族（AP）·制单与记账面 =====
+                    // 口径为“会计有 AP 读，出纳不要”，故五枚业务面全给读，报表四本不给本岗
+                    // （ap-aging、ap-daily、ap-monthly、ap-statistics 归 finance_manager）。
+                    // 写面按“没有该写就没有对应记账职责的合法入口”逐条判定，一律不放大。
+                    // ap-invoices 的建单是手工录入应付单的唯一入口（应付单服务的
+                    // create_manual），同键还捆绑 auto-generate 那条 POST（从收货单自动生成
+                    // 应付单），两者末段都不是动作关键字，派生不出第二个键。
+                    // ap-invoices 的改单必需，自动生成的应付单落 DRAFT 状态，而应付单服务
+                    // update 的状态门只放 DRAFT 通过，不给改单则本岗无法修正金额、发票日期与
+                    // 付款条件，只能退回超管代改。不给删单（草稿可用改单修正，删单属管理面，
+                    // 同族 ar-reconciliations 本岗也只有读与建单），不给审核（与 finance_manager
+                    // 制单审核互斥），不给导出与打印（展示面，非记账必需）。
+                    // ap-verifications 的建单是核销本身（manual_verify 与 auto_verify 两条 POST
+                    // 均派生建单键），它写核销单并回写应付单余额，属记账职责。撤核必需，错核
+                    // 只能靠 restore_invoices_on_cancel 回滚余额，不给则错核永久污染应付余额，
+                    // 且应用内无任何更正入口。
+                    // ap-payment-requests 的建单与改单是请款单制单。提交必需，submit 末段派生
+                    // 同名动作键，不提交则单据永远停在草稿、付款流程无入口，而提交是制单岗
+                    // 动作而非审核动作。不给审核与拒绝（审核面，且该资源审核另受 service 层
+                    // 角色码硬门，见上），不给删单与打印。
+                    // ap-reconciliations 的建单是生成对账单与自动对账（generate_reconciliation
+                    // 与 auto_reconcile_all 两条 POST 均派生建单键），与本岗既有的
+                    // ar-reconciliations 读与建单同族同权，对账本就是本岗职责原文所列。
+                    // 已知捆绑，dispute 末段不在 PATH_ACTION_KEYWORDS 内，同样派生建单键，
+                    // 故授建单即同时放出差异标记面，拆开需先改中间件动作词表，本轮不靠少授掩盖。
+                    // ap-payments 只授读，付款执行面不属制单岗，判责见 finance_manager 分组。
+                    ("ap-invoices", "read"),
+                    ("ap-invoices", "create"),
+                    ("ap-invoices", "update"),
+                    ("ap-payments", "read"),
+                    ("ap-verifications", "read"),
+                    ("ap-verifications", "create"),
+                    ("ap-verifications", "cancel"),
+                    ("ap-payment-requests", "read"),
+                    ("ap-payment-requests", "create"),
+                    ("ap-payment-requests", "update"),
+                    ("ap-payment-requests", "submit"),
+                    ("ap-reconciliations", "read"),
+                    ("ap-reconciliations", "create"),
                 ],
             ),
             (

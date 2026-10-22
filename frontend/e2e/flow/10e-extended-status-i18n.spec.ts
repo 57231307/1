@@ -127,9 +127,14 @@ test.describe.serial('扩展: 状态显示映射/国际化', () => {
     expect(new URL(page.url()).pathname, '页面被重定向出 /finance 路由').toBe('/finance');
   });
 
-  test('S1-8 验证系统管理页面加载', async ({ page }) => {
+  test('S1-8 验证系统管理旧地址可达并落在用户管理页', async ({ page }) => {
     await page.goto(`${BASE_URL}/system`);
     await page.waitForTimeout(3000);
-    expect(new URL(page.url()).pathname, '页面被重定向出 /system 路由').toBe('/system');
+    // 入口 /system 为重定向地址：验旧地址仍可访问、不停在 404，实际落点是用户管理页
+    expect(new URL(page.url()).pathname, '旧 /system 地址未落在用户管理页').toBe('/users');
+    await expect(
+      page.getByRole('heading', { level: 2, name: '用户管理' }),
+      '落点页未渲染用户管理页标题'
+    ).toBeVisible({ timeout: 30_000 });
   });
 });

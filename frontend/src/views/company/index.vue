@@ -1,6 +1,7 @@
 <!--
-  CompanyTab.vue - 公司信息 Tab
-  来源：原 system/index.vue 中 公司信息 tab 内容
+  公司信息页（路由 /company，门控 users:read）
+  调用方：MainLayout 侧栏 组织与身份 分组下的 公司信息 菜单项
+  职责：读写公司档案主体字段并维护标志图片
 -->
 <template>
   <div class="company-tab">
@@ -151,14 +152,36 @@ const companyRules: FormRules = {
 
 const companyFormRef = ref<FormInstance>();
 const companySubmitLoading = ref(false);
+// 档案是否已读取成功：没读到现状就禁止提交。保存端点是全量替换（提交字段即档案终态、
+// 未提交的可空列一律清空为 NULL），单例表只有一行无回退，若在读档失败（表单停在全 null
+// 初值）后放行保存，会把信用代码、法定代表人、税务登记号、开户行与账号、电话、地址、
+// 注册资本、成立日期、logo、备注全部清成 NULL，属毁数据的静默降级。
+const profileLoaded = ref(false);
 
 // logo 文件输入 DOM 引用（label 包裹隐藏 input，点击 label 触发原生文件选择）
 const logoFileInputRef = ref<HTMLInputElement>();
 
 const fetchCompanyInfo = async () => {
+  // 每次拉取先撤回已加载标记：失败或出参契约异常时不得保留上一轮的 true，
+  // 否则保存门闸会被陈旧的成功状态误放行
+  profileLoaded.value = false;
   try {
     const res = await getCompanyProfileFull();
     const f = res.data;
+    // 出参校验（不能仅凭 HTTP 200 就判定已加载）：单例档案的 NOT NULL 列 id/name/updated_at/
+    // updated_by 恒有真实类型值，任一缺失或类型不符即契约异常，抛错交下方 catch 显式提示，
+    // 绝不带残缺表单置 loaded（一旦放行保存，全量替换会把可空列清成 NULL）
+    const isRealProfile =
+      !!f &&
+      typeof f === 'object' &&
+      !Array.isArray(f) &&
+      typeof f.id === 'number' &&
+      typeof f.name === 'string' &&
+      typeof f.updated_at === 'string' &&
+      typeof f.updated_by === 'number';
+    if (!isRealProfile) {
+      throw new Error(t('system.company.message.loadFailed'));
+    }
     // 全量回填：可空列原样赋值（可能为 null），不做 ?? 默认掩盖缺键。
     companyForm.name = f.name;
     companyForm.short_name = f.short_name;
@@ -177,6 +200,7 @@ const fetchCompanyInfo = async () => {
     companyForm.establishment_date = f.establishment_date;
     companyForm.logo = f.logo;
     companyForm.description = f.description;
+    profileLoaded.value = true;
   } catch (error) {
     logger.error(t('system.company.message.loadFailed'), error);
     ElMessage.error(t('system.company.message.loadFailed'));
@@ -221,6 +245,14 @@ const removeLogo = () => {
 
 const saveCompanyInfo = async () => {
   if (!companyFormRef.value) return;
+  // 保存门闸（对齐同型全量替换端点的角色授权页范式）：档案未读取成功即拒绝提交，
+  // 不能仅凭 name 必填拦下——读档失败时表单停在除 name 外全 null 的初值，
+  // 一旦放行 PUT 会按全量替换把其余可空列静默清空
+  if (!profileLoaded.value) {
+    logger.warn(t('system.company.message.notLoadedSaveBlocked'));
+    ElMessage.error(t('system.company.message.notLoadedSaveBlocked'));
+    return;
+  }
   try {
     const valid = await companyFormRef.value.validate();
     if (!valid) return;

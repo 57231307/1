@@ -1,5 +1,5 @@
 {
-  "total": 119,
+  "total": 117,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -159,16 +159,9 @@
         "FundTransferRecord.to_account_name"
       ]
     },
-    "frontend/src/api/greige-fabric.ts": {
-      "count": 1,
-      "keys": [
-        "GreigeFabric.fabric_code"
-      ]
-    },
     "frontend/src/api/notification.ts": {
-      "count": 7,
+      "count": 6,
       "keys": [
-        "AnnouncementResult.deliveredCount",
         "CreateAnnouncementRequest.userIds",
         "Notification.businessId",
         "Notification.businessType",

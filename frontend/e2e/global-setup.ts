@@ -121,7 +121,7 @@ export default async function globalSetup(config: FullConfig) {
 
   // ---- 1. 分片账号不存在时创建（e2e_admin 登录 → 建号通道）----
   if (SHARD_USERNAME !== BASE_USERNAME) {
-    await ensureShardUserViaUI();
+    await ensureShardUserViaApi();
   }
 
   // ---- 1.2 AI 限流隔离第二用户（admin 角色，与分片主用户不同 user_id → 独立 AI 限流桶）----
@@ -172,13 +172,12 @@ export default async function globalSetup(config: FullConfig) {
 }
 
 /**
- * 通过真实 UI 创建分片专属账号（不使用 API 直接创建）：
- * e2e_admin 登录 → /system 用户管理 → 新建用户 → 填用户名/密码/姓名/角色(admin) → 提交
- * 账号已存在（唯一约束冲突）时视为成功跳过。
+ * 创建分片专属账号：e2e_admin API 登录取 cookie → GET /roles 查 admin 角色 id →
+ * POST /users 建号。全程走接口，不经 UI；账号已存在（唯一约束冲突）时视为成功跳过。
  */
-async function ensureShardUserViaUI(): Promise<void> {
+async function ensureShardUserViaApi(): Promise<void> {
   // 分片账号创建属测试前置数据准备（与 ensureTestEntities 的 API 兜底同级，
-  // 不属于测试验证手段——用户管理 UI 本身由 26-system-full 的 UI 测试验证）。
+  // 不属于测试验证手段——用户管理 UI 本身由 /users 页的 UI 用例验证）。
   // 1) 基础管理员 API 登录拿 cookie
   const loginCtx = await request.newContext({
     baseURL: API_BASE,
@@ -252,7 +251,7 @@ async function ensureShardUserViaUI(): Promise<void> {
     console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 创建成功 (HTTP ${createResp.status()})`);
   } else {
     const body = await createResp.text().catch(e => {
-      console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`);
+      console.warn(`[ensureShardUserViaApi] 创建响应体读取失败: ${(e as Error).message}`);
       return '';
     });
     // 幂等：400/409 或文案含"已存在"都视为账号已建——watchdog 重跑同一分片时
@@ -281,7 +280,7 @@ async function ensureShardUserViaUI(): Promise<void> {
   await checkCtx.dispose();
   if (!loginCheck.ok()) {
     const body = await loginCheck.text().catch(e => {
-      console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`);
+      console.warn(`[ensureShardUserViaApi] 创建响应体读取失败: ${(e as Error).message}`);
       return '';
     });
     throw new Error(
@@ -652,7 +651,12 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
     'products:read',
     'product-categories:read',
     'suppliers:read',
+    // 坯布采购与到货核对读坯布档案（与后端矩阵本岗分组、迁移 m0102 同口径；
+    // 只读，建档与改删属生产与仓储岗，本 SEED 面不扩写权）
+    'greige-fabrics:read',
   ],
+  // 采购经理：坯布档案只读，与后端矩阵 purchase_manager、迁移 m0102 同口径
+  purchase_manager: ['greige-fabrics:read'],
   // salesperson 对齐 permission.rs 的 sales_rep 权限集：可读销售订单（保密扫描用例
   // "响应体不含 supplier_ 键"要求 200 才有效），但绝不授任何 purchase/supplier 侧权限，
   // 保证 sku-mappings/supplier-products/supplier-product-colors 三端点 403 负向真实成立。

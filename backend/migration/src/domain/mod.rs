@@ -46,6 +46,9 @@
 //! - system_admin_bpm_config_grant: 系统管理岗补授 BPM 流程配置读面（bpm-definitions 与
 //!   bpm-templates 各一枚 read 键）的存量库通道——同一套按码反查、幂等补授与逐键打印口径；
 //!   置于链尾为新的顶层条目，复用库上也必然执行
+//! - ap_family_grant: 应付族授权面补授（finance_manager 的审核与报表面 11 枚、accountant 的
+//!   制单与记账面 13 枚）的存量库通道——同一套按码反查、幂等补授与逐键打印口径，回退按
+//!   角色码与键的三元组配对收窄；置于链尾为新的顶层条目，复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -73,3 +76,4 @@ pub mod finance_resource_rename;
 pub mod bpm_approver_grant;
 pub mod system_admin_bpm_config_grant;
 pub mod ap_input_tax_subject;
+pub mod ap_family_grant;

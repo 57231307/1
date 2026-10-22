@@ -73,7 +73,13 @@ const CANDIDATE_DIR = 'e2e/.auth/access-map';
  */
 export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   dashboard: 'dashboard:read',
-  system: 'users:read',
+  // 原 /system 聚合页拆成六个功能页，门控值沿用拆分前该入口的 users:read，不扩权限面
+  users: 'users:read',
+  roles: 'users:read',
+  company: 'users:read',
+  permissions: 'users:read',
+  'field-permissions': 'users:read',
+  webhooks: 'users:read',
   'system-audit-log': 'audit-logs:read',
   'system-export-approvals': 'audit-logs:read',
   'system-slow-query': 'audit-logs:read',
@@ -96,7 +102,9 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   'bpm-definitions': 'bpm-definitions:read',
   'bpm-templates': 'bpm-templates:read',
   'bpm-approval': ['bpm-tasks:read', 'bpm-approvals:create'],
-  crm: 'customers:read',
+  // 原 /crm 列表已并入 /customer，客户分级页签迁入 /crm-enhanced（同一 customers:read 门控）
+  'crm-enhanced': 'customers:read',
+  'sales-analysis': 'sales:read',
   // /workflow 是纯别名（router 里 `redirect: '/bpm'`），门控事实来源是
   // 目标路由 /bpm 的 meta——登记本条不是为了参与派生（派生走 redirect 链继承，见
   // parseRouterPermissions），而是把"workflow→bpm 的对应关系"钉进人工评审锚：
@@ -235,6 +243,15 @@ function extractBlockRedirectAlias(block: string, fullPath: string): string | un
 }
 
 /**
+ * 去掉 redirect 目标上的 query/hash：query 属目标页面的页签状态（如 ?tab=bi），
+ * 不参与路由表键匹配；门控始终继承目标路径本身的 meta.permission。
+ */
+function stripQueryAndHash(target: string): string {
+  const sep = target.search(/[?#]/);
+  return sep === -1 ? target : target.slice(0, sep);
+}
+
+/**
  * redirect 链继承：别名路由的有效门控 = 链尾真实路由的 meta.permission。
  * 目标缺失 / 成环 / 链上自指一律抛错（静默按 null 派生会复现"期望可达、实测被拒"的伪红族）。
  */
@@ -245,7 +262,7 @@ function inheritRedirectPermissions(
   const effective: Record<string, RoutePermValue> = { ...map };
   for (const [startPath, firstTarget] of Object.entries(aliases)) {
     const seen = new Set<string>([startPath]);
-    let current = firstTarget;
+    let current = stripQueryAndHash(firstTarget);
     for (;;) {
       if (seen.has(current)) {
         throw new Error(
@@ -262,7 +279,7 @@ function inheritRedirectPermissions(
       }
       const next = aliases[current];
       if (next) {
-        current = next;
+        current = stripQueryAndHash(next);
         continue;
       }
       effective[startPath] = map[current];

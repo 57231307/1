@@ -1,7 +1,7 @@
 <!--
-  PermissionTab.vue - 权限管理 Tab
-  来源：原 system/index.vue 中 权限管理 tab 内容
-  拆分日期：2026-06-15 B3-1
+  权限管理页（路由 /permissions，门控 users:read）
+  调用方：MainLayout 侧栏 权限治理 分组下的 权限管理 菜单项
+  职责：按角色只读展示已授予的权限清单
 -->
 <template>
   <div class="permission-tab">

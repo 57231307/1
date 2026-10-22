@@ -53,7 +53,6 @@ export const NAV_TREE: NavNode[] = [
       S('crm', 'layout.section.crm', [
         L('/customer', 'layout.menu.customer'),
         L('/customer-credit', 'layout.menu.customerCredit'),
-        L('/crm', 'layout.menu.crmManagement'),
         L('/crm/pool', 'layout.menu.crmPool'),
         L('/crm/assignment', 'layout.menu.crmAssignment'),
         L('/crm/leads', 'layout.menu.crmLeads'),
@@ -75,10 +74,7 @@ export const NAV_TREE: NavNode[] = [
         L('/color-prices/list', 'layout.menu.colorPricesList'),
         L('/color-prices/batch-adjust', 'layout.menu.colorPricesBatchAdjust'),
       ]),
-      S('analysis', 'layout.section.analysis', [
-        L('/sales-analysis', 'layout.menu.salesAnalysis'),
-        L('/bi/sales-analysis', 'layout.menu.biSalesAnalysis'),
-      ]),
+      S('analysis', 'layout.section.analysis', [L('/sales-analysis', 'layout.menu.salesAnalysis')]),
     ],
     'ShoppingCart'
   ),
@@ -105,7 +101,6 @@ export const NAV_TREE: NavNode[] = [
         L('/product', 'layout.menu.product'),
         L('/purchase/sku-mapping', 'layout.menu.skuMapping'),
         L('/purchase/supplier-product', 'layout.menu.supplierProduct'),
-        L('/fabric', 'layout.menu.fabricList'),
         L('/greige-fabrics', 'layout.menu.greigeFabrics'),
       ]),
     ],
@@ -179,7 +174,6 @@ export const NAV_TREE: NavNode[] = [
         L('/ar', 'layout.menu.ar'),
         L('/ap', 'layout.menu.ap'),
         L('/ar-reconciliation', 'layout.menu.arReconciliation'),
-        L('/ar-reconciliation/enhanced', 'layout.menu.arReconciliationEnhanced'),
         L('/bad-debts', 'layout.menu.badDebts'),
         L('/invoice-details', 'layout.menu.invoiceDetails'),
       ]),
@@ -245,11 +239,15 @@ export const NAV_TREE: NavNode[] = [
     'layout.group.system',
     [
       S('organization', 'layout.section.organization', [
-        L('/system', 'layout.menu.systemSettings'),
+        L('/users', 'layout.menu.users'),
+        L('/roles', 'layout.menu.roles'),
         L('/departments', 'layout.menu.departments'),
+        L('/company', 'layout.menu.companyProfile'),
         L('/security', 'layout.menu.security'),
       ]),
       S('governance', 'layout.section.governance', [
+        L('/permissions', 'layout.menu.rolePermissions'),
+        L('/field-permissions', 'layout.menu.fieldPermissions'),
         L('/data-permission', 'layout.menu.dataPermission'),
         L('/system-governance', 'layout.menu.systemGovernance'),
       ]),
@@ -260,6 +258,7 @@ export const NAV_TREE: NavNode[] = [
       ]),
       S('integration', 'layout.section.integration', [
         L('/api-gateway', 'layout.menu.apiGateway'),
+        L('/webhooks', 'layout.menu.webhooks'),
         L('/data-import', 'layout.menu.dataImport'),
         L('/notification', 'layout.menu.notification'),
         L('/system/oa-announcements', 'layout.menu.oaAnnouncements'),

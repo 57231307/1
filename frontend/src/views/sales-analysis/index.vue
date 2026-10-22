@@ -27,41 +27,52 @@
       </div>
     </div>
 
-    <SalesAnalysisStatistics :stats="sa.stats" />
+    <!-- 经营分析（原 /sales-analysis）与多维分析（原 /bi/sales-analysis）合并为单入口双页签；
+         旧地址由路由重定向到 ?tab=bi，页面以 query 为页签唯一状态源。 -->
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <el-tab-pane :label="t('salesAnalysis.index.tabOverview')" name="overview">
+        <SalesAnalysisStatistics :stats="sa.stats" />
 
-    <SalesAnalysisTrend
-      :granularity="sa.trendGranularity"
-      :data="sa.trendData"
-      :composition="sa.productRanking"
-      @update:granularity="(v: SalesTrendGranularity) => (sa.trendGranularity = v)"
-    />
-
-    <el-row :gutter="20" class="ranking-row">
-      <el-col :xs="24" :lg="12">
-        <SalesAnalysisProductRank
-          :data="sa.productRanking"
-          :type="sa.productRankType"
-          @update:type="(v: string) => saProc.handleProductRankTypeChange(v, sa)"
+        <SalesAnalysisTrend
+          :granularity="sa.trendGranularity"
+          :data="sa.trendData"
+          :composition="sa.productRanking"
+          @update:granularity="(v: SalesTrendGranularity) => (sa.trendGranularity = v)"
         />
-      </el-col>
-      <el-col :xs="24" :lg="12">
-        <SalesAnalysisCustomerRank
-          :data="sa.customerRanking"
-          :type="sa.customerRankType"
-          @update:type="(v: string) => saProc.handleCustomerRankTypeChange(v, sa)"
-        />
-      </el-col>
-    </el-row>
 
-    <SalesAnalysisTarget :data="sa.salesTargets" @edit-target="saProc.handleEditTarget" />
+        <el-row :gutter="20" class="ranking-row">
+          <el-col :xs="24" :lg="12">
+            <SalesAnalysisProductRank
+              :data="sa.productRanking"
+              :type="sa.productRankType"
+              @update:type="(v: string) => saProc.handleProductRankTypeChange(v, sa)"
+            />
+          </el-col>
+          <el-col :xs="24" :lg="12">
+            <SalesAnalysisCustomerRank
+              :data="sa.customerRanking"
+              :type="sa.customerRankType"
+              @update:type="(v: string) => saProc.handleCustomerRankTypeChange(v, sa)"
+            />
+          </el-col>
+        </el-row>
+
+        <SalesAnalysisTarget :data="sa.salesTargets" @edit-target="saProc.handleEditTarget" />
+      </el-tab-pane>
+      <el-tab-pane :label="t('salesAnalysis.index.tabBi')" name="bi" lazy>
+        <BiSalesAnalysis />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import { Download } from '@element-plus/icons-vue';
 import type { SalesTrendGranularity } from '@/api/sales-analysis';
+import BiSalesAnalysis from '@/views/bi/SalesAnalysis.vue';
 import { useSa } from './composables/useSa';
 import { useSaProc } from './composables/useSaProc';
 import SalesAnalysisStatistics from './components/SalesAnalysisStatistics.vue';
@@ -71,6 +82,21 @@ import SalesAnalysisCustomerRank from './components/SalesAnalysisCustomerRank.vu
 import SalesAnalysisTarget from './components/SalesAnalysisTarget.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const route = useRoute();
+const router = useRouter();
+const activeTab = ref(route.query.tab === 'bi' ? 'bi' : 'overview');
+
+watch(
+  () => route.query.tab,
+  tab => {
+    activeTab.value = tab === 'bi' ? 'bi' : 'overview';
+  }
+);
+
+const handleTabChange = (tab: string | number) => {
+  router.replace({ query: { ...route.query, tab: String(tab) } });
+};
 
 // 业务状态
 const sa = useSa();

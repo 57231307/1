@@ -60,8 +60,10 @@ export interface CreateAnnouncementRequest {
   content: string;
 }
 
+// 公告发送结果：出参键对齐后端投递结果结构体的 delivered_count（snake_case，无 rename，
+// 且该字段恒出键，故为非可选 number，不标问号那属掩盖缺键）
 export interface AnnouncementResult {
-  deliveredCount: number;
+  delivered_count: number;
 }
 
 // 后端 notification_handler::list_notifications 返回 ApiResponse<serde_json::Value>，

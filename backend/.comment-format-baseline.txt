@@ -663,8 +663,6 @@ frontend/e2e/bpm/04-task-gate-negative.spec.ts::bpm_handler.rs
 frontend/e2e/bpm/04-task-gate-negative.spec.ts::helpers.ts
 frontend/e2e/bpm/04-task-gate-negative.spec.ts::instance.rs
 frontend/e2e/bpm/04-task-gate-negative.spec.ts::task.rs
-frontend/e2e/crm/01-customers.spec.ts::CustomerListTab.vue
-frontend/e2e/crm/01-customers.spec.ts::zh-CN.ts
 frontend/e2e/crm/02-leads.spec.ts::LeadFormTab.vue
 frontend/e2e/crm/02-leads.spec.ts::index.vue
 frontend/e2e/crm/02-leads.spec.ts::src/views/crm/leads/index.vue
@@ -699,7 +697,6 @@ frontend/e2e/fabric/01-greige.spec.ts::backend/src/handlers/greige_fabric_handle
 frontend/e2e/fabric/01-greige.spec.ts::backend/src/models/greige_fabric.rs
 frontend/e2e/fabric/01-greige.spec.ts::models/greige_fabric.rs
 frontend/e2e/fabric/01-greige.spec.ts::routes/production.rs
-frontend/e2e/fabric/02-dye.spec.ts::DyeFormDialogTab.vue
 frontend/e2e/fabric/02-dye.spec.ts::DyeTab.vue
 frontend/e2e/fabric/02-dye.spec.ts::color_card_item_service.rs
 frontend/e2e/fabric/02-dye.spec.ts::dye_batch_handler.rs
@@ -707,7 +704,6 @@ frontend/e2e/fabric/02-dye.spec.ts::global-setup.ts
 frontend/e2e/fabric/02-dye.spec.ts::handlers/color_card_item_dto.rs
 frontend/e2e/fabric/02-dye.spec.ts::routes/production.rs
 frontend/e2e/fabric/02-dye.spec.ts::services/inv/fabric_class.rs
-frontend/e2e/fabric/03-recipe.spec.ts::RecipeTab.vue
 frontend/e2e/fabric/05-piece-label-print.spec.ts::backend/src/handlers/piece_split_handler.rs
 frontend/e2e/fabric/05-piece-label-print.spec.ts::backend/src/services/bulk_color_approval_service.rs
 frontend/e2e/fabric/05-piece-label-print.spec.ts::backend/src/services/fabric_inspection_service.rs
@@ -1563,7 +1559,6 @@ frontend/e2e/sales/13-ship-inventory-deduction.spec.ts::inventory.rs
 frontend/e2e/sales/13-ship-inventory-deduction.spec.ts::piece_domain_service.rs
 frontend/e2e/smoke/_helpers.ts::fixtures/auth.ts
 frontend/e2e/smoke/_helpers.ts::global-setup.ts
-frontend/e2e/system/01-users.spec.ts::UserTab.vue
 frontend/e2e/system/03-password-change-loop.spec.ts::flow/setup-wizard/00-setup-wizard.spec.ts
 frontend/e2e/system/03-password-change-loop.spec.ts::helpers.ts
 frontend/e2e/system/03-password-change-loop.spec.ts::middleware/csrf.rs
@@ -1599,7 +1594,6 @@ frontend/scripts/check-api-request.mjs::print_handler.rs
 frontend/scripts/check-api-request.mjs::supplier_handler.rs
 frontend/scripts/check-api-request.mjs::system_update_handler.rs
 frontend/scripts/check-api-request.mjs::user-profile.ts
-frontend/scripts/check-contract.mjs::greige_fabric_handler.rs
 frontend/src/api/ap.ts::ap_payment_service.rs
 frontend/src/api/ap.ts::ap_report_service.rs
 frontend/src/api/ap.ts::ap_verification_service.rs
@@ -1686,15 +1680,12 @@ frontend/src/api/dye-recipe.ts::system/mod.rs
 frontend/src/api/export-compliance.ts::environmental_tax_handler.rs
 frontend/src/api/export-compliance.ts::services/environmental_tax_service.rs
 frontend/src/api/fabric-inspection.ts::backend/src/services/fabric_inspection_service.rs
-frontend/src/api/fabric.ts::handlers/product_handler.rs
-frontend/src/api/fabric.ts::product_handler.rs
 frontend/src/api/finance-report.ts::finance_report_dto.rs
 frontend/src/api/finance.ts::account_subject_service.rs
 frontend/src/api/finance.ts::m0006_add_general_ledger_and_finance_base.rs
 frontend/src/api/finance.ts::models/account_subject.rs
 frontend/src/api/flow-card.ts::flow_card_dto.rs
 frontend/src/api/flow-card.ts::flow_card_handler.rs
-frontend/src/api/greige-fabric.ts::backend/src/handlers/greige_fabric_handler.rs
 frontend/src/api/inventory-adjustment.ts::backend/src/handlers/inventory_adjustment_handler.rs
 frontend/src/api/inventory-adjustment.ts::handlers/inventory_adjustment_handler.rs
 frontend/src/api/inventory-adjustment.ts::models/inventory_adjustment.rs
@@ -1767,7 +1758,6 @@ frontend/src/api/voucher.ts::handlers/voucher_handler.rs
 frontend/src/api/voucher.ts::routes/finance.rs
 frontend/src/components/AfterSalesPanel.vue::custom_order_aftersales_service.rs
 frontend/src/components/AfterSalesPanel.vue::v15/mod.rs
-frontend/src/components/AfterSalesPanel.vue::views/system/tabs/UserTab.vue
 frontend/src/constants/permissions.ts::handlers/auth_handler.rs
 frontend/src/constants/permissions.ts::middleware/permission.rs
 frontend/src/constants/permissions.ts::path_utils.rs
@@ -1776,7 +1766,6 @@ frontend/src/constants/permissions.ts::routes/purchase.rs
 frontend/src/constants/permissions.ts::routes/sales.rs
 frontend/src/router/index.ts::backend/src/handlers/auth_handler.rs
 frontend/src/router/index.ts::permission.rs
-frontend/src/store/fabric.ts::utils/response.rs
 frontend/src/utils/financial-status.ts::backend/src/models/status/general.rs
 frontend/src/utils/inventory-adjustment-status.ts::models/status/purchase_inventory.rs
 frontend/src/utils/inventory-count-status.ts::inventory_count_service.rs
@@ -1829,8 +1818,6 @@ frontend/src/views/export-compliance/index.vue::backend/src/services/environment
 frontend/src/views/export-compliance/index.vue::environmental_tax_handler.rs
 frontend/src/views/fabric-inspections/index.vue::fabric_inspection_service.rs
 frontend/src/views/fabric-inspections/index.vue::piece_domain_service.rs
-frontend/src/views/fabric/index.vue::handler.rs
-frontend/src/views/fabric/tabs/RecipeTab.vue::dye_recipe_handler.rs
 frontend/src/views/finance/tabs/composables/useVchrProc.ts::useVchr.ts
 frontend/src/views/inventory-adjustment/tabs/AdjustmentFormDialogTab.vue::handlers/inventory_adjustment_handler.rs
 frontend/src/views/inventory-adjustment/tabs/AdjustmentFormDialogTab.vue::models/inventory_adjustment.rs
@@ -1870,6 +1857,5 @@ frontend/src/views/sales/OrderViewDialog.vue::quotations/approval.vue
 frontend/src/views/sales/composables/useOlv.ts::customer_handler.rs
 frontend/src/views/sales/composables/useOlv.ts::product_handler.rs
 frontend/src/views/sales/composables/useOlv.ts::warehouse_service.rs
-frontend/src/views/system/tabs/UserTab.vue::user_handler.rs
 frontend/src/views/user-profile/index.vue::user_handler.rs
 frontend/tests/unit/permission-detail.test.ts::handlers/auth_handler.rs

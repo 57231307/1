@@ -39,6 +39,8 @@ export function useSysUpd() {
   const hasUpdate = ref(false);
   // 更新是否在途（不确定态）：仅由 triggerUpdate/轮询驱动，不驱动任何百分比
   const isUpdating = ref(false);
+  // 检查更新是否在途：驱动头部按钮的 loading（Element Plus 在 loading 时即禁用，防重复提交）
+  const isChecking = ref(false);
   // 应用更新结果（真实生效态，来自 POST /update 响应 + update-status 轮询）：
   // 后端重启结论 message（权威文本，原样呈现）、已落库应用版本、是否待重启生效。
   // 未触发过应用时 applyMessage 为空串，卡片不渲染结果区（诚实空态，不兜底假文案）。
@@ -101,6 +103,7 @@ export function useSysUpd() {
 
   /** 检查更新 */
   const handleCheckUpdate = async () => {
+    isChecking.value = true;
     try {
       const res = await checkForUpdates();
       latestVersion.value = res.data;
@@ -115,6 +118,8 @@ export function useSysUpd() {
         (error instanceof Error ? error.message : String(error)) ||
           msg.translate('checkUpdateFailed')
       );
+    } finally {
+      isChecking.value = false;
     }
   };
 
@@ -239,6 +244,7 @@ export function useSysUpd() {
     latestVersion,
     hasUpdate,
     isUpdating,
+    isChecking,
     applyMessage,
     appliedVersion,
     restartPending,

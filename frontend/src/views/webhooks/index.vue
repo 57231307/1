@@ -1,7 +1,7 @@
 <!--
-  WebhookTab.vue - Webhook 配置 Tab
-  来源：原 system/index.vue 中 Webhook tab 内容
-  拆分日期：2026-06-15 B3-1
+  Webhook 配置页（路由 /webhooks，门控 users:read）
+  调用方：MainLayout 侧栏 集成与通知 分组下的 Webhook 配置 菜单项
+  职责：Webhook 回调地址列表与新建/编辑保存
 -->
 <template>
   <div class="webhook-tab">

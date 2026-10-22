@@ -1,8 +1,7 @@
 <!--
-  RoleTab.vue - 角色管理 Tab
-  来源：原 system/index.vue 第 115-148 行（template）+ 900-1026 行（script）
-  拆分日期：2026-06-05
-  说明：本文件由 system/index.vue 拆分而来，逻辑完整可独立运行
+  角色管理页（路由 /roles，门控 users:read）
+  调用方：MainLayout 侧栏 组织与身份 分组下的 角色管理 菜单项
+  职责：角色增改删，并按角色勾选提交权限集
 -->
 <template>
   <div class="role-tab">

@@ -75,10 +75,62 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        // 旧聚合入口只留重定向：系统管理域的功能已各自成页并挂在导航树对应二级段下
         path: 'system',
-        name: 'System',
-        component: () => import('@/views/system/index.vue'),
-        meta: { title: '系统管理', icon: 'Setting', permission: 'users:read', requiresAuth: true }, // 该入口要求下方 meta.permission 列出的模块读权限键
+        name: 'SystemLegacy',
+        redirect: '/users',
+        meta: { title: '系统管理', requiresAuth: true, hidden: true },
+      },
+      {
+        path: 'users',
+        name: 'Users',
+        component: () => import('@/views/users/index.vue'),
+        meta: { title: '用户管理', icon: 'User', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'roles',
+        name: 'Roles',
+        component: () => import('@/views/roles/index.vue'),
+        meta: {
+          title: '角色管理',
+          icon: 'UserFilled',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'company',
+        name: 'CompanyProfile',
+        component: () => import('@/views/company/index.vue'),
+        meta: {
+          title: '公司信息',
+          icon: 'OfficeBuilding',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'permissions',
+        name: 'RolePermissions',
+        component: () => import('@/views/permissions/index.vue'),
+        meta: { title: '权限管理', icon: 'Key', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'field-permissions',
+        name: 'FieldPermissions',
+        component: () => import('@/views/field-permissions/index.vue'),
+        meta: { title: '字段权限', icon: 'Lock', permission: 'users:read', requiresAuth: true },
+      },
+      {
+        path: 'webhooks',
+        name: 'Webhooks',
+        component: () => import('@/views/webhooks/index.vue'),
+        meta: {
+          title: 'Webhook 配置',
+          icon: 'Connection',
+          permission: 'users:read',
+          requiresAuth: true,
+        },
       },
       {
         path: 'system/oa-announcements',
@@ -186,19 +238,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/ar/index.vue'),
         meta: { title: '应收管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
       },
+      // 面料三域各自以独立页为权威入口（坯布/染色批次/染色配方），旧容器 /fabric 与
+      // 深链 /fabric/greige 一律收敛到坯布页；坯布页同时承接原容器的入库出库操作。
       {
         path: 'fabric',
-        name: 'Fabric',
-        component: () => import('@/views/fabric/index.vue'),
-        meta: {
-          title: '面料管理',
-          icon: 'Goods',
-          permission: 'inventory:read',
-          requiresAuth: true,
-        },
+        redirect: '/greige-fabrics',
       },
-      // 坯布深链别名，历史误链 /fabric/greige 兼容收敛到权威入口 /greige-fabrics。
-      // 纯别名未在 modules.config 登记，不参与角色矩阵可达性推导，目标为已存在的绝对路由。
       {
         path: 'fabric/greige',
         redirect: '/greige-fabrics',
@@ -421,15 +466,10 @@ const routes: RouteRecordRaw[] = [
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
+        // 客户列表唯一入口为 /customer（标签与负责人列已并入）；旧 /crm 保留字面量重定向，
+        // 不 404 也不保留第二份列表实现。原客户分级页签迁入 /crm-enhanced?tab=rfm。
         path: 'crm',
-        name: 'CRM',
-        component: () => import('@/views/crm/index.vue'),
-        meta: {
-          title: '客户关系管理',
-          icon: 'User',
-          permission: 'customers:read',
-          requiresAuth: true,
-        }, // 该入口要求下方 meta.permission 列出的模块读权限键
+        redirect: '/customer',
       },
       {
         path: 'crm/pool',
@@ -917,15 +957,9 @@ const routes: RouteRecordRaw[] = [
       },
       // 新增路由 - 增强版应收对账
       {
+        // 增强对账并入 /ar-reconciliation 的第二页签（?tab=enhanced），旧地址保留重定向
         path: 'ar-reconciliation/enhanced',
-        name: 'ArReconciliationEnhanced',
-        component: () => import('@/views/ar-reconciliation/enhanced.vue'),
-        meta: {
-          title: '增强版应收对账',
-          icon: 'Money',
-          permission: 'finance:read',
-          requiresAuth: true,
-        },
+        redirect: '/ar-reconciliation?tab=enhanced',
       },
       // 新增路由 - CRM 高级分析
       {
@@ -1432,16 +1466,9 @@ const routes: RouteRecordRaw[] = [
         }, // 该入口要求下方 meta.permission 列出的模块读权限键
       },
       {
-        // P3-4 BI 销售多维分析
+        // BI 多维分析并入 /sales-analysis 的第二页签（?tab=bi），旧地址保留重定向
         path: 'bi/sales-analysis',
-        name: 'BiSalesAnalysis',
-        component: () => import('@/views/bi/SalesAnalysis.vue'),
-        meta: {
-          title: 'BI 销售多维分析',
-          icon: 'Money',
-          permission: 'sales:read',
-          requiresAuth: true,
-        }, // 该入口要求下方 meta.permission 列出的模块读权限键
+        redirect: '/sales-analysis?tab=bi',
       },
     ],
   },

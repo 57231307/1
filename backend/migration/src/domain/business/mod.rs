@@ -64,6 +64,9 @@ mod m0096_grant_sku_mapping_import_purchase_roles;
 // 坯布建档三岗补授 greige-fabrics:read/create 与 suppliers:read（存量库通道，
 // 同 m0072/m0069 范式；roles/role_permissions 属 system 域先建，注册在本域 up 链尾）
 mod m0097_grant_greige_create_and_suppliers_read;
+// 采购两岗补授 greige-fabrics:read（坯布采购与到货核对只读，写面仍归生产与仓储岗，
+// 同 m0097 范式；注册在本域 up 链尾、down 链首）
+mod m0102_grant_purchase_greige_read;
 
 pub struct Migration;
 
@@ -322,12 +325,20 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
         m0097_grant_greige_create_and_suppliers_read::Migration
             .up(manager)
             .await?;
+        // 采购两岗补授（本域 up 链尾，晚于 m0097）
+        m0102_grant_purchase_greige_read::Migration
+            .up(manager)
+            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 坯布建档三岗补授：最后应用者最先回滚
+        // 采购两岗补授：最后应用者最先回滚
+        m0102_grant_purchase_greige_read::Migration
+            .down(manager)
+            .await?;
+        // 坯布建档三岗补授
         m0097_grant_greige_create_and_suppliers_read::Migration
             .down(manager)
             .await?;

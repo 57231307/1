@@ -1,7 +1,7 @@
 <!--
-  FieldPermissionTab.vue - 字段权限 Tab
-  来源：原 system/index.vue 中 字段权限 tab 内容
-  拆分日期：2026-06-15 B3-1
+  字段权限页（路由 /field-permissions，门控 users:read）
+  调用方：MainLayout 侧栏 权限治理 分组下的 字段权限 菜单项
+  职责：只读展示各角色的字段级可读与可写配置
 -->
 <template>
   <div class="field-permission-tab">
