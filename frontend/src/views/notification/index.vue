@@ -46,18 +46,18 @@
           <div class="item-header">
             <el-checkbox :model-value="isSelected(item.id)" @change="toggleSelect(item.id)" />
             <div class="item-type">
-              <el-tag v-if="item.notificationType === 'SYSTEM'" type="danger">{{
+              <el-tag v-if="item.notification_type === 'SYSTEM'" type="danger">{{
                 t('notification.index.typeSystem')
               }}</el-tag>
-              <el-tag v-else-if="item.notificationType === 'INTERNAL'" type="primary">{{
+              <el-tag v-else-if="item.notification_type === 'INTERNAL'" type="primary">{{
                 t('notification.index.typeInternal')
               }}</el-tag>
-              <el-tag v-else-if="item.notificationType === 'EMAIL'" type="success">{{
+              <el-tag v-else-if="item.notification_type === 'EMAIL'" type="success">{{
                 t('notification.index.typeEmail')
               }}</el-tag>
-              <el-tag v-else type="warning">{{ item.notificationType }}</el-tag>
+              <el-tag v-else type="warning">{{ item.notification_type }}</el-tag>
             </div>
-            <div class="item-time">{{ item.createdAt }}</div>
+            <div class="item-time">{{ item.created_at }}</div>
           </div>
           <div class="item-title" @click="handleView(item)">
             <span v-if="item.status === 'UNREAD'" class="unread-dot"></span>
@@ -114,22 +114,22 @@
           </div>
           <div class="info-item">
             <span class="label">{{ t('notification.index.labelType') }}</span>
-            <el-tag v-if="currentNotification.notificationType === 'SYSTEM'" type="danger">{{
+            <el-tag v-if="currentNotification.notification_type === 'SYSTEM'" type="danger">{{
               t('notification.index.typeSystem')
             }}</el-tag>
             <el-tag
-              v-else-if="currentNotification.notificationType === 'INTERNAL'"
+              v-else-if="currentNotification.notification_type === 'INTERNAL'"
               type="primary"
               >{{ t('notification.index.typeInternal') }}</el-tag
             >
-            <el-tag v-else-if="currentNotification.notificationType === 'EMAIL'" type="success">{{
+            <el-tag v-else-if="currentNotification.notification_type === 'EMAIL'" type="success">{{
               t('notification.index.typeEmail')
             }}</el-tag>
-            <el-tag v-else type="warning">{{ currentNotification.notificationType }}</el-tag>
+            <el-tag v-else type="warning">{{ currentNotification.notification_type }}</el-tag>
           </div>
           <div class="info-item">
             <span class="label">{{ t('notification.index.labelCreatedAt') }}</span>
-            <span class="value">{{ currentNotification.createdAt }}</span>
+            <span class="value">{{ currentNotification.created_at }}</span>
           </div>
         </div>
         <div class="detail-content">
