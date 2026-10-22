@@ -41,7 +41,7 @@ use bingxi_backend::services::amount_visibility::{
 use bingxi_backend::services::data_permission_service::DataPermissionService;
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, Statement};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, Set, Statement};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -165,18 +165,17 @@ fn purchase_order_shape_hides_received_amount_and_keeps_phantom_keys_untouched()
 
     let removed = hide_default_amount_columns(DefaultAmountResource::PurchaseOrder, &mut row);
 
-    for column in [
-        "total_amount",
-        "total_amount_foreign",
-        "total_quantity",
-        "total_quantity_alt",
-        "received_amount",
-    ] {
+    for column in ["total_amount", "total_amount_foreign", "received_amount"] {
         assert!(
             row.get(column).is_none(),
             "采购订单主行金额列 {column} 应被整键移除: {row}"
         );
     }
+    // 数量列按裁定不属金额，不再列入隐藏集合（收编前它们被一并移除）
+    assert!(
+        row.get("total_quantity").is_some() && row.get("total_quantity_alt").is_some(),
+        "数量列不属金额，不得再被隐藏: {row}"
+    );
     // 幻影键：出参不存在，收编后不再列入移除集合（键留着也不该被动到）
     assert_eq!(
         row["paid_amount"],
@@ -212,8 +211,8 @@ fn purchase_order_shape_hides_received_amount_and_keeps_phantom_keys_untouched()
         json!("5.00"),
         "数量容差不属金额"
     );
-    // 主行 5 列（不含两个幻影键）+ 明细 8 列
-    assert_eq!(removed, 13, "采购订单本行实际移除列数应为 13: {row}");
+    // 主行 3 列（不含两个幻影键与两个数量列）+ 明细 8 列
+    assert_eq!(removed, 11, "采购订单本行实际移除列数应为 11: {row}");
 }
 
 /// 采购入库出参：单头唯一的真实金额列是 total_amount；
