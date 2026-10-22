@@ -50,6 +50,12 @@ async fn require_admin_role(state: &AppState, auth: &AuthContext) -> Result<(), 
 /// 复用现有表列（version、release_date、changelog、is_current），不加列、不加迁移；
 /// 真实生效态由 update-status 从该出口读出，供前端展示 applied_version 与 restart_pending。
 /// 落库失败必须上抛（不吞异常），由调用方在响应 message 里如实反映。
+/// release_date 列语义说明：本列是 NOT NULL，且当前系统内没有可靠的上游发布日期来源
+/// （下载链不回传该版本的上游发布时间），故新行以落库动作时刻记录，含义是这台机器应用该版本的
+/// 时间，不是上游发布日期；已在库的旧行保留其原 release_date 不被改写。上游发布日期口径与
+/// 是否把该列改为可空以表达未知，属需用户裁定的事项，本轮不擅改列定义。
+/// changelog 列语义说明：写入路径当前无更新说明来源，新行落 NULL 是忠实的，NULL 代表未知
+/// 而非空串；消费方需把未知与有值区分渲染，不要把未知当无内容。
 async fn persist_applied_version(
     db: &sea_orm::DatabaseConnection,
     version: &str,
@@ -157,7 +163,9 @@ pub fn verify_zip_magic(data: &[u8]) -> bool {
 #[derive(Debug, serde::Serialize)]
 pub struct VersionResponse {
     pub version: String,
-    pub release_date: String,
+    // 发布日期取自 system_version 当前行的 release_date；无对应行时如实为 None（未知），
+    // 不回落请求时刻。前端遇 null 显式渲染未知态，禁止用默认值掩盖缺键。
+    pub release_date: Option<String>,
     pub changelog: Option<String>,
 }
 
@@ -279,15 +287,36 @@ pub async fn download_and_update(
     }
 }
 
-pub async fn get_version() -> Json<ApiResponse<VersionResponse>> {
+/// 输出版本信息：运行版本号取自编译期权威版本常量，发布日期与更新说明取自 system_version 表。
+/// 调用方为系统更新版本信息面。入参 State 提供库连接。
+/// 取数链：按 is_current=true 读 system_version 当前行（order_by_desc Id 作稳定次级键），
+/// 命中则取该行 release_date 按 %Y-%m-%d 格式化、changelog 原样给出；
+/// 未命中（该运行版本从未落库）则二者均为 None，如实表达未知，绝不回落请求当前时刻。
+/// 传给前端当前版本卡片渲染，避免把查询时刻冒充发布日期。
+pub async fn get_version(
+    State(state): State<AppState>,
+) -> Result<Json<ApiResponse<VersionResponse>>, AppError> {
     let service = SystemUpdateService::new();
     let version = service.get_current_version();
 
-    Json(ApiResponse::success(VersionResponse {
+    let row = system_version::Entity::find()
+        .filter(system_version::Column::IsCurrent.eq(true))
+        .order_by_desc(system_version::Column::Id)
+        .one(state.db.as_ref())
+        .await?;
+    let (release_date, changelog) = match row {
+        Some(v) => (
+            Some(v.release_date.format("%Y-%m-%d").to_string()),
+            v.changelog,
+        ),
+        None => (None, None),
+    };
+
+    Ok(Json(ApiResponse::success(VersionResponse {
         version,
-        release_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
-        changelog: None,
-    }))
+        release_date,
+        changelog,
+    })))
 }
 
 /// 读取 system_version 中标记为当前的应用版本（is_current=true）；无记录返回 None。
@@ -672,7 +701,8 @@ fn system_version_to_frontend_json(v: &system_version::Model) -> serde_json::Val
         "id": v.id,
         "version": v.version,
         "release_date": v.release_date.format("%Y-%m-%d").to_string(),
-        "release_notes": v.changelog.clone().unwrap_or_default(),
+        // changelog 为 NULL 代表未知，原样输出 null；不折叠成空串冒充有内容。
+        "release_notes": v.changelog.clone(),
         "features": [],
         "bug_fixes": [],
         "breaking_changes": [],

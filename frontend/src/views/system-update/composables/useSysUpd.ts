@@ -31,8 +31,12 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** 系统更新 composable（集中管理 2 个 tab + 表单 + 详情的业务状态） */
 export function useSysUpd() {
-  // 当前/最新版本
-  const currentVersion = ref<{ version: string; release_date: string } | null>(null);
+  // 当前/最新版本（release_date 与 changelog 来自后端真列值，未知为 null，不以默认值掩盖缺键）
+  const currentVersion = ref<{
+    version: string;
+    release_date: string | null;
+    changelog: string | null;
+  } | null>(null);
   // 最新检查结果：直接承载后端 check 响应（含两份 release_notes 供卡片渲染）
   const latestVersion = ref<CheckUpdateResult | null>(null);
   // 是否有更新以后端权威 has_update 为准；未检查时保持 false（诚实显示"无更新"，不自算）
