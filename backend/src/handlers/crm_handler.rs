@@ -14,6 +14,7 @@ use crate::services::data_permission_service::{DataPermissionResult, DataPermiss
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
+use crate::utils::field_mask;
 use crate::utils::messages::biz_msg;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -1177,6 +1178,13 @@ pub struct FollowUpQuery {
 ///   只过默认脱敏层、不叠加 `data_permissions` 的 allowed/hidden 过滤：那份配置字段名面向
 ///   `customers` 表列，套到 `customer_addresses` 行会删掉 `province`/`is_default` 等非 PII
 ///   列，与地址列表出口同口径（该处 `apply_address_pii_mask` 亦只应用默认脱敏层）。
+/// - recent_orders（最近订单子集）：逐行套用与非 admin 销售订单列表/详情**同一实现**的
+///   联系方式脱敏（utils/field_mask::mask_contact_fields_for_role：掩码键集合为电话族
+///   （本表命中 contact_phone）与邮箱族，打码保留键、不整键移除），判定源同为
+///   admin_checker::is_admin_role（role_id 缺失视为非 admin，fail-closed），admin 放行
+///   原文；判定在行循环外算一次复用。本门只锁联系方式列，订单金额口径仍由销售订单域
+///   自己的出口承载，本出口不复制第二套。过去整行 SalesOrder 原文直出，非 admin 经此
+///   出口可读到订单快照里的客户联系电话明文，属读侧旁路。
 /// - 任一定位失败（键缺失/形状漂移）= 门无处可施 = 原文直通，显式记 error 不静默。
 pub async fn get_customer_360(
     Path(id): Path<i32>,
@@ -1241,6 +1249,24 @@ pub async fn get_customer_360(
         tracing::error!(
             customer_id = id,
             "客户 360 出参未定位到 shipping_addresses 数组，地址字段级默认脱敏未应用"
+        );
+    }
+    // 最近订单子集：逐行套用与非 admin 销售订单列表/详情同一真源（判定源与掩码实现
+    // 均同源，口径见函数文档）。admin 判定在行循环外算一次复用（admin_checker 内部
+    // DashMap 缓存，循环内反复调用会持分片读锁放大竞争，与地址子集块同形）。
+    // 定位不到数组 = 脱敏无处可施 = 原文直通，显式记 error 不静默（其余子集同口径）。
+    if let Some(orders) = value.get_mut("recent_orders").and_then(Value::as_array_mut) {
+        let is_admin = match auth.role_id {
+            Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+            None => false,
+        };
+        for order in orders.iter_mut() {
+            *order = field_mask::mask_contact_fields_for_role(std::mem::take(order), is_admin);
+        }
+    } else {
+        tracing::error!(
+            customer_id = id,
+            "客户 360 出参未定位到 recent_orders 数组，销售订单联系方式默认脱敏未应用"
         );
     }
     Ok(Json(ApiResponse::success(value)))
