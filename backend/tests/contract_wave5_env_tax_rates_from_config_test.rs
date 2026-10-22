@@ -11,7 +11,7 @@
 //!   **无硬编码默认值**：未配置时计税显式返回业务错误并记 warn，服务启动不受影响；
 //!   旧的 `Decimal::new(24, 1)` 固定 2.4 元"简化口径"由本锁钉死禁回潮。
 //!
-//! 断言点（四类，缺一即锁失效）：
+//! 断言点（六类，缺一即锁失效）
 //! ① 未登记污染物名 → 400（VALIDATION_ERROR）+ 真实文案外显 + 失败信封内**无任何税额字段**、
 //!    不留任何"按 1kg 算出来的数"、表内无痕；
 //! ② 已登记 COD/氨氮/VOCs/污泥（含别名）→ 法定当量值逐值断言（防搬运过程改数）；
@@ -19,7 +19,15 @@
 //!    注入配置值后 → 当量数与税额=当量数×配置值 逐值断具体数字（不只断状态码）；
 //! ④ 禁回潮源码扫描（include_str!）：服务源码内不得再出现任何 `Decimal::new(`/
 //!    `Decimal::from_parts(` 裸字面量（含旧硬编码税额 `Decimal::new(24, 1)` 与 `_ => 1kg`
-//!    兜底残留），且必须引用常量模块；常量模块内法定值逐项在场（防"删常量当迁移"）。
+//!    兜底残留），且必须引用常量模块，常量模块内法定值逐项在场（防"删常量当迁移"）。
+//! ⑤ 增值税税率同型锁，五处价税服务源码与税额内核不得出现税率档位字面量
+//!    （Decimal::new(13、0.13、1.13），内核只换算不取值，税额一律按**百分数**口径
+//!    逐值断言（1000 乘 13 除 100 得 130、100 含税得 113、130 除 1000 反推得 13、费基非正返回 None）。
+//! ⑥ 税率来源分层口径的行为锁（真调生产建单路径，不用源码字符串冒充断言）。
+//!    人工建单缺 tax_rate 必须得 400 BUSINESS_ERROR 且订单表与明细表双双无痕，
+//!    自动补货链路无税率来源，由 price.rs 显式声明无进项税，落库有痕且
+//!    tax_percent/tax_amount 逐值为 0（基数非 0，证明 0 是声明值而非空行巧合）。
+//!    两侧都禁止回落 13 之类的税率档位。
 //!
 //! 覆盖策略：纯函数注入 + 真 PostgreSQL（test_common::setup_test_db；
 //! 表结构唯一来源 = backend/migration，不再自建 sqlite 同构表）
@@ -33,12 +41,24 @@ use bingxi_backend::constants::environmental_tax::statutory_pollution_equivalent
 use bingxi_backend::models::pollutant_discharge_record::{
     Column as DischargeColumn, Entity as DischargeEntity,
 };
+use bingxi_backend::models::purchase_order_item::{Column as PoItemColumn, Entity as PoItemEntity};
+use bingxi_backend::models::status::master_data;
+use bingxi_backend::models::{product, purchase_order, supplier, warehouse};
 use bingxi_backend::services::environmental_tax_service::{
     CreateDischargeRecordRequest, EnvironmentalTaxService,
 };
+use bingxi_backend::services::po::CreateOrderItemRequest;
+use bingxi_backend::services::po::CreatePurchaseOrderRequest;
+use bingxi_backend::services::po::order::PurchaseOrderService;
+use bingxi_backend::services::po::price::ShortageAlertParams;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::utils::tax;
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::setup_test_db;
@@ -313,4 +333,282 @@ fn no_hardcoded_equivalents_or_tax_rate_can_return_to_service_source() {
         const_src.contains("_ => None"),
         "常量模块未登记污染物必须返回 None，禁止默认当量值回潮"
     );
+}
+
+// =========================================================
+// ⑤ 增值税税率，单位口径内核 + 禁档位字面量回潮（同型锁扩展，不另造判据）
+// =========================================================
+
+/// 禁回潮扫描对象，五处价税计算服务源码 + 税额内核
+const VAT_TIER_SCAN_SOURCES: &[(&str, &str)] = &[
+    (
+        "src/services/quotation_pricing_service.rs",
+        include_str!("../src/services/quotation_pricing_service.rs"),
+    ),
+    (
+        "src/services/po/order_ops/crud.rs",
+        include_str!("../src/services/po/order_ops/crud.rs"),
+    ),
+    (
+        "src/services/po/price.rs",
+        include_str!("../src/services/po/price.rs"),
+    ),
+    (
+        "src/services/outsourcing_ops/receipt.rs",
+        include_str!("../src/services/outsourcing_ops/receipt.rs"),
+    ),
+];
+
+#[test]
+fn no_vat_rate_tier_literal_can_return_to_service_sources() {
+    for (path, raw) in VAT_TIER_SCAN_SOURCES {
+        let src = raw.replace('\r', "");
+        assert!(
+            !src.contains("Decimal::new(13") && !src.contains("0.13") && !src.contains("1.13"),
+            "{path}: 不得出现增值税税率档位字面量（`Decimal::new(13`/`0.13`/`1.13`）——\
+             档位只能来自人工录入值、上游单据已存税率或部署配置；\
+             `Decimal::new(13, 2)` 实际是 0.13，按百分数口径列存储会把税额算错 100 倍。"
+        );
+        assert!(
+            !src.contains("unwrap_or(Decimal::new(13"),
+            "{path}: 缺税率时禁止用档位字面量兜底（人工链路点名拒绝、自动链路显式声明无进项税）"
+        );
+    }
+    // 内核自身不得持有任何税率档位（只换算、不取值）
+    let kernel = include_str!("../src/utils/tax.rs").replace('\r', "");
+    assert!(
+        !kernel.contains("Decimal::new(13") && !kernel.contains("Decimal::from_parts(13"),
+        "utils::tax 内核禁止持有税率档位：税率一律由调用方从真实来源传入"
+    );
+}
+
+#[test]
+fn vat_tax_kernel_computes_in_percent_unit() {
+    // 百分数口径，13 表示 13%，1000 乘 13 除 100 得 130
+    assert_eq!(tax::tax_amount(dec("1000"), dec("13")), dec("130"));
+    // 免税行传 0 得 0（入参口径，不是缺省兜底）
+    assert_eq!(
+        tax::tax_amount(dec("1000"), Decimal::ZERO),
+        Decimal::ZERO,
+        "税率 0（免税）税额必须为 0"
+    );
+    // 含税单价 100 乘 (1 + 13%) 得 113
+    assert_eq!(tax::unit_price_with_tax(dec("100"), dec("13")), dec("113"));
+    // 凭证口径不舍入，100 乘 13 除 100 得 13
+    assert_eq!(tax::percent_of(dec("100"), dec("13")), dec("13"));
+    // 由单据已记税额与费基反推税率（百分数），130 除 1000 得 13
+    assert_eq!(
+        tax::derive_tax_percent(dec("130"), dec("1000")),
+        Some(dec("13"))
+    );
+    // 费基非正无法反推，返回 None，由调用方点名处理（内核绝不回落档位）
+    assert_eq!(tax::derive_tax_percent(dec("13"), Decimal::ZERO), None);
+    assert_eq!(tax::derive_tax_percent(dec("13"), dec("-1")), None);
+}
+
+/// 自动补货/人工建单两条链路的税率行为锁共用的主数据前置，
+/// 启用状态供应商（price.rs 取活跃供应商的唯一条件）+ 带成本价的产品
+/// （成本价是自动补货行的单价来源，必须非 0，否则税额 0 只是空行巧合）+ 仓库。
+/// suppliers/departments 属迁移播种参照表（夹具不清空），故供应商用时间戳后缀
+/// 自建专属行，避免与种子行及并发用例互撞。
+async fn seed_po_master_data(db: &DatabaseConnection) -> (i32, i32, i32) {
+    let suffix = Utc::now().timestamp_nanos_opt().expect("系统时钟不可用");
+    let now = Utc::now();
+
+    let prod = product::ActiveModel {
+        name: Set(format!("税率锁物料-{suffix}")),
+        code: Set(format!("TAXLOCK-{suffix}")),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        cost_price: Set(Some(dec("100"))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed product 失败");
+
+    let wh = warehouse::ActiveModel {
+        warehouse_code: Set(format!("WH-TAXLOCK-{suffix}")),
+        name: Set("税率锁测试仓".to_string()),
+        is_default: Set(false),
+        is_active: Set(true),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed warehouse 失败");
+
+    let sup = supplier::ActiveModel {
+        supplier_code: Set(format!("SUP-TAXLOCK-{suffix}")),
+        supplier_name: Set(format!("税率锁测试供应商-{suffix}")),
+        supplier_short_name: Set(String::new()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set(String::new()),
+        registered_address: Set(String::new()),
+        legal_representative: Set(String::new()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(NaiveDate::from_ymd_opt(2020, 1, 1).expect("固定日期不可构造")),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set(String::new()),
+        bank_account: Set(String::new()),
+        contact_phone: Set(String::new()),
+        status: Set(Some(master_data::ACTIVE.to_string())),
+        is_processor: Set(false),
+        created_at: Set(now.into()),
+        updated_at: Set(now.into()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed supplier 失败");
+
+    (sup.id, wh.id, prod.id)
+}
+
+/// 人工建单请求，只锁定税率这一个变量（tax_rate = None 即"没录"）。
+fn po_create_request(
+    supplier_id: i32,
+    warehouse_id: i32,
+    product_id: i32,
+    tax_rate: Option<Decimal>,
+) -> CreatePurchaseOrderRequest {
+    CreatePurchaseOrderRequest {
+        supplier_id,
+        order_date: NaiveDate::from_ymd_opt(2026, 9, 20).expect("固定日期不可构造"),
+        expected_delivery_date: None,
+        warehouse_id: Some(warehouse_id),
+        department_id: Some(1),
+        currency: None,
+        exchange_rate: None,
+        payment_terms: None,
+        shipping_terms: None,
+        notes: None,
+        attachment_urls: None,
+        source_sales_order_id: None,
+        qualification_waiver_reason: None,
+        items: Some(vec![CreateOrderItemRequest {
+            line_no: Some(1),
+            material_id: Some(product_id),
+            unit_price: Some(dec("100")),
+            quantity_ordered: Some(dec("10")),
+            quantity_alt_ordered: None,
+            tax_rate,
+            discount_percent: None,
+            quantity_tolerance_pct: None,
+            color_no: None,
+            notes: None,
+        }]),
+    }
+}
+
+/// 人工建单缺 tax_rate 的行为锁，真调生产建单入口 PurchaseOrderService::create_order，
+/// 必须是 400 BUSINESS_ERROR（文案外显"该怎么填"、不含记录标识），且订单表与明细表
+/// 双双无痕——税率拒绝发生在算金额之前，事务整体回滚，不允许留下半张单。
+#[tokio::test]
+async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
+    let db = setup_test_db().await;
+    let (supplier_id, warehouse_id, product_id) = seed_po_master_data(&db).await;
+
+    let err = PurchaseOrderService::new(Arc::new(db.clone()))
+        .create_order(
+            po_create_request(supplier_id, warehouse_id, product_id, None),
+            100,
+        )
+        .await
+        .expect_err("人工建单缺 tax_rate 必须被拒，按 0 代填会把漏录洗成免税");
+
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    let message = err.to_response().message;
+    let resp: Response = err.into_response();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "缺税率必须 4xx");
+    assert!(
+        message.contains("缺少税率 tax_rate") && message.contains("请录入税率后重试"),
+        "拒绝文案必须点名该怎么填，实际: {message}"
+    );
+    assert!(
+        !message.contains("line_no") && !message.contains("物料"),
+        "拒绝文案不得内插记录标识，实际: {message}"
+    );
+    assert_eq!(
+        purchase_order::Entity::find()
+            .count(&db)
+            .await
+            .expect("统计订单行数失败"),
+        0,
+        "被拒的建单不得留下订单主表行"
+    );
+    assert_eq!(
+        PoItemEntity::find()
+            .count(&db)
+            .await
+            .expect("统计明细行数失败"),
+        0,
+        "被拒的建单不得留下明细行"
+    );
+
+    // 同一条链路的反面判据，合法百分数税率必须能建单落库（13 得 tax_percent 13、
+    // 税额 1000 乘 13 除 100 得 130），防止把"拒缺值"实现成"拒一切"。
+    let order = PurchaseOrderService::new(Arc::new(db.clone()))
+        .create_order(
+            po_create_request(supplier_id, warehouse_id, product_id, Some(dec("13"))),
+            100,
+        )
+        .await
+        .expect("提交合法百分数税率 13 的建单必须成功");
+    let item = PoItemEntity::find()
+        .filter(PoItemColumn::OrderId.eq(order.id))
+        .one(&db)
+        .await
+        .expect("回查明细失败")
+        .expect("合法建单应已落明细行");
+    assert_eq!(item.tax_percent, dec("13"), "百分数口径必须原样落库");
+    assert_eq!(item.tax_amount, dec("130"), "1000×13÷100 必须是 130");
+}
+
+/// 自动补货链路的行为锁，真调生产入口 create_purchase_suggestion_from_shortage
+/// （无人工录入环节、无税率来源），必须由 price.rs 显式声明无进项税并**落库有痕**，
+/// tax_percent 与 tax_amount 都是 0，而 subtotal（不含税基数）非 0——
+/// 证明 0 税额是声明值，不是空行或没算出来的巧合，也绝不出现 13 之类的档位。
+#[tokio::test]
+async fn auto_replenishment_suggestion_persists_declared_no_input_tax() {
+    let db = setup_test_db().await;
+    let (_supplier_id, _warehouse_id, product_id) = seed_po_master_data(&db).await;
+
+    let order = PurchaseOrderService::new(Arc::new(db.clone()))
+        .create_purchase_suggestion_from_shortage(ShortageAlertParams {
+            material_id: product_id,
+            material_name: "税率锁物料".to_string(),
+            material_code: "TAXLOCK-AUTO".to_string(),
+            required_quantity: dec("100"),
+            available_quantity: dec("40"),
+            shortage_quantity: dec("60"),
+            shortage_level: "Critical".to_string(),
+            affected_orders_count: 1,
+        })
+        .await
+        .expect("自动补货链路不得因缺税率来源被关掉");
+
+    let item = PoItemEntity::find()
+        .filter(PoItemColumn::OrderId.eq(order.id))
+        .one(&db)
+        .await
+        .expect("回查自动补货明细失败")
+        .expect("自动补货建议必须已落库（有痕）");
+    assert!(
+        item.subtotal > Decimal::ZERO,
+        "基数必须非 0，否则税额 0 只是空行巧合，实际 subtotal={}",
+        item.subtotal
+    );
+    assert_eq!(
+        item.tax_percent,
+        tax::NO_INPUT_TAX_PERCENT,
+        "自动链路落库税率必须是显式声明的无进项税 0，既不是 13 也不是任何档位"
+    );
+    assert_eq!(item.tax_amount, Decimal::ZERO, "无进项税行的税额必须为 0");
 }

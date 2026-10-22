@@ -12,6 +12,7 @@ use rust_decimal::Decimal;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
 
 use super::order::PurchaseOrderService;
+use super::order_ops::crud::ItemAmounts;
 
 /// 缺料预警参数对象
 /// 批次 333 v10 复审 P3 修复：引入参数对象消除 create_purchase_suggestion_from_shortage；的 too_many_arguments 警告。聚合缺料预警所需的全部字段，避免函数签名携带 8 个参数。
@@ -34,6 +35,13 @@ pub struct ShortageAlertParams {
     /// 受影响订单数
     pub affected_orders_count: i32,
 }
+
+/// 自动补货两条链路（缺料预警与库存预警）写 purchase_orders 表头的汇率，恒取 1。
+///
+/// 两条链路都只按默认币种建单、只按物料成本价计价，本常量既写 exchange_rate 列，
+/// 也用于折算 total_amount_foreign，两处同一来源。改成非 1 会让外币总额与本位币
+/// 总额按该倍率脱钩，而这两条链路并不产生外币采购。
+const AUTO_REPLENISHMENT_EXCHANGE_RATE: Decimal = Decimal::from_parts(1, 0, 0, false, 0);
 
 impl PurchaseOrderService {
     /// 检查并占用预算（V15 P0-B06 强制拦截版本）
@@ -94,24 +102,28 @@ impl PurchaseOrderService {
         &self,
         params: ShortageAlertParams,
     ) -> Result<purchase_order::Model, AppError> {
+        // 该链路既无人工录入环节、又无可取税率的上游单据（预警事件直接建单），故在此
+        // **显式声明无进项税**，口径值取自 utils tax 内核常量，写入 tax_percent 列并作为
+        // 税额内核入参。人工建单侧缺 tax_rate 是点名拒绝、不走本常量，本链路也不得改成
+        // 拒绝（自动补货无人可问），更禁止在此填 13 之类的税率档位。
+        let tax_percent = crate::utils::tax::NO_INPUT_TAX_PERCENT;
+        tracing::info!(
+            "缺料预警采购建议按无进项税落账: 物料={} ({})，原因=自动补货链路无税率来源，系统不设默认税率档位",
+            params.material_name,
+            params.material_code
+        );
         let txn = (*self.db).begin().await?;
         let (product, supplier) =
             Self::fetch_shortage_product_and_supplier(&txn, params.material_id).await?;
         let suggested_quantity = params.shortage_quantity * Decimal::new(12, 1);
+        // 单行金额只算一次，表头四个总额列与明细行共用这一份，避免两处各写一套公式
+        let amounts = Self::suggestion_line_amounts(&product, suggested_quantity, tax_percent);
         let order_no = self.generate_order_no_with_txn(&txn).await?;
         let priority = Self::shortage_priority(&params.shortage_level);
-        let order = Self::build_shortage_order(&order_no, supplier.id, &params)
+        let order = Self::build_shortage_order(&order_no, supplier.id, &params, &amounts)
             .insert(&txn)
             .await?;
-        Self::create_shortage_order_item(
-            &txn,
-            order.id,
-            &product,
-            &params,
-            suggested_quantity,
-            priority,
-        )
-        .await?;
+        Self::create_shortage_order_item(&txn, order.id, &params, priority, &amounts).await?;
         txn.commit().await?;
         tracing::info!(
             "创建缺料预警采购建议: 订单号={}, 物料={} ({})，建议采购量={}, 优先级={}",
@@ -151,12 +163,57 @@ impl PurchaseOrderService {
         }
     }
 
+    /// 计算自动补货建议的单行金额（缺料预警与库存预警两条建单链路共用，此处是唯一实现）
+    ///
+    /// 入参 product 为建议采购的物料（单价取其成本价 cost_price）、quantity 为建议数量、
+    /// tax_percent 为调用方显式声明的百分数口径税率，税额经 utils tax 内核算出。产出
+    /// ItemAmounts 同时喂给表头构造器汇总 purchase_orders 的四个总额列与明细构造器写
+    /// purchase_order_item 的数量、单价、税额、金额列，保证表头与明细同源。辅助数量与
+    /// 折扣在这两条自动链路没有来源，如实落 0，不引入任何折扣或辅量口径。
+    fn suggestion_line_amounts(
+        product: &product::Model,
+        quantity: Decimal,
+        tax_percent: Decimal,
+    ) -> ItemAmounts {
+        let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
+        let amount = (quantity * unit_price).round_dp(2);
+        let tax_amount = crate::utils::tax::tax_amount(amount, tax_percent);
+        ItemAmounts {
+            quantity_ordered: quantity,
+            unit_price,
+            quantity_alt_ordered: Decimal::ZERO,
+            tax_percent,
+            discount_percent: Decimal::ZERO,
+            amount,
+            tax_amount,
+            discount_amount: Decimal::ZERO,
+        }
+    }
+
+    /// 单行含税合计，表头四个总额列与明细 total_amount 列共用同一公式
+    ///
+    /// 与人工建单链路汇总明细行金额的表达式同一口径（采购订单建单与入库重算表头总额
+    /// 时都按明细行的含税合计累加），入参 amounts 为 suggestion_line_amounts 的产出，
+    /// 产出值写 purchase_orders 的 total_amount 与折算前的基数、以及
+    /// purchase_order_item 的 total_amount 列。
+    fn suggestion_line_total(amounts: &ItemAmounts) -> Decimal {
+        amounts.amount + amounts.tax_amount - amounts.discount_amount
+    }
+
     /// 构建缺料预警采购订单 ActiveModel
+    ///
+    /// 入参 amounts 是本链路已经算好的单行金额，与 create_shortage_order_item 写
+    /// purchase_order_item 的是同一份；由它汇总出的 total_amount、total_amount_foreign、
+    /// total_quantity、total_quantity_alt 落 purchase_orders 同名列。这四列必须显式写值：
+    /// 后三列是迁移脚本 ADD COLUMN 追加的既可空又无默认值的列，依赖 Default 会让插入
+    /// 落 NULL 后读不回非 Option 的 Model，total_amount 则依赖表默认值掩盖真实金额。
     fn build_shortage_order(
         order_no: &str,
         supplier_id: i32,
         params: &ShortageAlertParams,
+        amounts: &ItemAmounts,
     ) -> purchase_order::ActiveModel {
+        let line_total = Self::suggestion_line_total(amounts);
         purchase_order::ActiveModel {
             order_no: Set(order_no.to_string()),
             supplier_id: Set(supplier_id),
@@ -168,7 +225,7 @@ impl PurchaseOrderService {
             department_id: Set(crate::constants::DEFAULT_DEPARTMENT_ID),
             purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
-            exchange_rate: Set(Decimal::new(1, 0)),
+            exchange_rate: Set(AUTO_REPLENISHMENT_EXCHANGE_RATE),
             order_status: Set(po_status::DRAFT.to_string()),
             notes: Set(Some(format!(
                 "缺料预警自动生成 | 物料: {} ({}) | 需求量: {} | 可用量: {} | 缺口: {} | 级别: {} | 受影响订单: {}",
@@ -181,37 +238,45 @@ impl PurchaseOrderService {
                 params.affected_orders_count
             ))),
             created_by: Set(1),
+            total_amount: Set(line_total),
+            total_amount_foreign: Set(line_total * AUTO_REPLENISHMENT_EXCHANGE_RATE),
+            total_quantity: Set(amounts.quantity_ordered),
+            total_quantity_alt: Set(amounts.quantity_alt_ordered),
             ..Default::default()
         }
     }
 
-    /// 创建采购订单明细（金额补 round_dp(2) 精度归一化）
+    /// 创建采购订单明细（金额与表头同源，均取自 amounts 这一份单行计算结果）
+    ///
+    /// 入参 amounts 为 suggestion_line_amounts 的产出，其中 tax_percent 是调用方
+    /// （create_purchase_suggestion_from_shortage）显式声明的百分数口径税率（13 表示
+    /// 13%，0 表示无进项税），税额经 utils tax 内核算出；本函数把它写进
+    /// purchase_order_item 的 quantity、unit_price、subtotal、tax_percent、tax_amount、
+    /// total_amount 列。
     async fn create_shortage_order_item(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
-        product: &product::Model,
         params: &ShortageAlertParams,
-        suggested_quantity: Decimal,
         priority: &str,
+        amounts: &ItemAmounts,
     ) -> Result<(), AppError> {
-        let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
-        let amount = (suggested_quantity * unit_price).round_dp(2);
-        let tax_rate = Decimal::new(13, 2);
-        let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
         purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
+            // 自动补货单恒为一行建议，行号落 1，purchase_order_item.line_no 是 NOT NULL
+            // 且无 DB 默认值的列，不显式写值会让整张建议单在 insert 阶段失败
+            line_no: Set(1),
             product_id: Set(params.material_id),
-            quantity: Set(suggested_quantity),
-            quantity_alt: Set(Decimal::ZERO),
-            unit_price: Set(unit_price),
-            unit_price_foreign: Set(unit_price),
-            discount_percent: Set(Decimal::ZERO),
-            tax_percent: Set(tax_rate),
-            subtotal: Set(amount),
-            tax_amount: Set(tax_amount),
-            discount_amount: Set(Decimal::ZERO),
-            total_amount: Set(amount + tax_amount),
+            quantity: Set(amounts.quantity_ordered),
+            quantity_alt: Set(amounts.quantity_alt_ordered),
+            unit_price: Set(amounts.unit_price),
+            unit_price_foreign: Set(amounts.unit_price),
+            discount_percent: Set(amounts.discount_percent),
+            tax_percent: Set(amounts.tax_percent),
+            subtotal: Set(amounts.amount),
+            tax_amount: Set(amounts.tax_amount),
+            discount_amount: Set(amounts.discount_amount),
+            total_amount: Set(Self::suggestion_line_total(amounts)),
             received_quantity: Set(Decimal::ZERO),
             received_quantity_alt: Set(Decimal::ZERO),
             notes: Set(Some(format!(
@@ -250,6 +315,11 @@ impl PurchaseOrderService {
     }
 
     /// 构建库存预警采购订单 ActiveModel
+    ///
+    /// 入参 amounts 是本链路已经算好的单行金额，与 create_replenishment_order_item 写
+    /// purchase_order_item 的是同一份；由它汇总出的 total_amount、total_amount_foreign、
+    /// total_quantity、total_quantity_alt 落 purchase_orders 同名列，四列必须显式写值的
+    /// 理由与 build_shortage_order 相同。
     fn build_replenishment_order(
         order_no: String,
         supplier_id: i32,
@@ -257,7 +327,9 @@ impl PurchaseOrderService {
         current_quantity: Decimal,
         reorder_point: Decimal,
         reorder_quantity: Decimal,
+        amounts: &ItemAmounts,
     ) -> purchase_order::ActiveModel {
+        let line_total = Self::suggestion_line_total(amounts);
         purchase_order::ActiveModel {
             order_no: Set(order_no),
             supplier_id: Set(supplier_id),
@@ -269,42 +341,50 @@ impl PurchaseOrderService {
             department_id: Set(crate::constants::DEFAULT_DEPARTMENT_ID),
             purchaser_id: Set(crate::constants::DEFAULT_PURCHASER_ID),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
-            exchange_rate: Set(Decimal::new(1, 0)),
+            exchange_rate: Set(AUTO_REPLENISHMENT_EXCHANGE_RATE),
             order_status: Set(po_status::DRAFT.to_string()),
             notes: Set(Some(format!(
                 "库存预警自动生成，当前库存: {}, 补货点: {}, 建议补货量: {}",
                 current_quantity, reorder_point, reorder_quantity
             ))),
             created_by: Set(1),
+            total_amount: Set(line_total),
+            total_amount_foreign: Set(line_total * AUTO_REPLENISHMENT_EXCHANGE_RATE),
+            total_quantity: Set(amounts.quantity_ordered),
+            total_quantity_alt: Set(amounts.quantity_alt_ordered),
             ..Default::default()
         }
     }
 
-    /// 创建库存预警订单明细(金额补 round_dp(2) 精度归一化)
+    /// 创建库存预警订单明细(金额与表头同源，均取自 amounts 这一份单行计算结果)
+    ///
+    /// 入参 amounts 为 suggestion_line_amounts 的产出，其中 tax_percent 是调用方
+    /// （create_purchase_suggestion）显式声明的百分数口径税率（13 表示 13%，0 表示
+    /// 无进项税），税额经 utils tax 内核算出；本函数把它写进 purchase_order_item 的
+    /// quantity、unit_price、subtotal、tax_percent、tax_amount、total_amount 列。
     async fn create_replenishment_order_item(
         txn: &sea_orm::DatabaseTransaction,
         order_id: i32,
         product: &product::Model,
-        reorder_quantity: Decimal,
+        amounts: &ItemAmounts,
     ) -> Result<(), AppError> {
-        let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
-        let amount = (reorder_quantity * unit_price).round_dp(2);
-        let tax_rate = Decimal::new(13, 2);
-        let tax_amount = (amount * tax_rate / Decimal::new(100, 0)).round_dp(2);
         purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
+            // 同上，purchase_order_item.line_no 为 NOT NULL 且无 DB 默认值，
+            // 库存预警补货建议恒一行，行号落 1
+            line_no: Set(1),
             product_id: Set(product.id),
-            quantity: Set(reorder_quantity),
-            quantity_alt: Set(Decimal::ZERO),
-            unit_price: Set(unit_price),
-            unit_price_foreign: Set(unit_price),
-            discount_percent: Set(Decimal::ZERO),
-            tax_percent: Set(tax_rate),
-            subtotal: Set(amount),
-            tax_amount: Set(tax_amount),
-            discount_amount: Set(Decimal::ZERO),
-            total_amount: Set(amount + tax_amount),
+            quantity: Set(amounts.quantity_ordered),
+            quantity_alt: Set(amounts.quantity_alt_ordered),
+            unit_price: Set(amounts.unit_price),
+            unit_price_foreign: Set(amounts.unit_price),
+            discount_percent: Set(amounts.discount_percent),
+            tax_percent: Set(amounts.tax_percent),
+            subtotal: Set(amounts.amount),
+            tax_amount: Set(amounts.tax_amount),
+            discount_amount: Set(amounts.discount_amount),
+            total_amount: Set(Self::suggestion_line_total(amounts)),
             received_quantity: Set(Decimal::ZERO),
             received_quantity_alt: Set(Decimal::ZERO),
             notes: Set(Some(format!("库存预警自动生成，产品: {}", product.name))),
@@ -329,7 +409,16 @@ impl PurchaseOrderService {
         let txn = (*self.db).begin().await?;
         let (product, warehouse, supplier) =
             Self::fetch_replenishment_entities(&txn, product_id, warehouse_id).await?;
+        // 同缺料预警链路，无税率来源即按无进项税落账（口径值来自 utils tax 内核），
+        // 不填任何税率档位
+        let tax_percent = crate::utils::tax::NO_INPUT_TAX_PERCENT;
+        tracing::info!(
+            "库存预警采购建议按无进项税落账: 产品={}，原因=该链路无税率来源且系统不设默认税率档位",
+            product.name
+        );
         let order_no = self.generate_order_no_with_txn(&txn).await?;
+        // 单行金额只算一次，表头四个总额列与明细行共用这一份，避免两处各写一套公式
+        let amounts = Self::suggestion_line_amounts(&product, reorder_quantity, tax_percent);
         let order = Self::build_replenishment_order(
             order_no,
             supplier.id,
@@ -337,10 +426,11 @@ impl PurchaseOrderService {
             current_quantity,
             reorder_point,
             reorder_quantity,
+            &amounts,
         )
         .insert(&txn)
         .await?;
-        Self::create_replenishment_order_item(&txn, order.id, &product, reorder_quantity).await?;
+        Self::create_replenishment_order_item(&txn, order.id, &product, &amounts).await?;
         txn.commit().await?;
         tracing::info!(
             "创建库存预警采购建议: 订单号={}, 产品={}, 仓库={}, 建议采购量={}",

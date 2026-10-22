@@ -83,7 +83,9 @@ async function seedPurchaseOrder(
     warehouse_id: ctx.warehouseIds[0],
     department_id: ctx.departmentIds[0],
     // quantity_ordered / unit_price 后端为 Decimal，字符串入参避免 serde 类型不匹配
-    items: [{ material_id: ctx.productIds[0], quantity_ordered: '20', unit_price: '15.00' }],
+    items: [
+      { material_id: ctx.productIds[0], quantity_ordered: '20', unit_price: '15.00', tax_rate: 13 },
+    ],
     notes: `E2E-P2-${marker}`,
   });
   const orderNo = created.data?.order_no;

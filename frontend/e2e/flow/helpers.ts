@@ -547,7 +547,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         warehouse_id: ctx.warehouseIds[0],
         department_id: ctx.departmentIds[0],
         order_date: new Date().toISOString().slice(0, 10),
-        items: [{ material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1' }],
+        items: [
+          { material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1', tax_rate: 13 },
+        ],
       });
       ctx.purchaseOrderId = result.data?.id;
     } catch (e) {

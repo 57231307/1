@@ -22,6 +22,7 @@ use sea_orm::{
 };
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::info;
 
 /// 创建劳动合同请求
 #[derive(Debug, Clone, Deserialize)]
@@ -47,8 +48,20 @@ pub struct CreateLaborContractRequest {
 }
 
 /// 更新劳动合同请求
+///
+/// 《劳动合同法》第35条允许协商一致后以书面形式变更合同内容，界面「编辑/续签」
+/// 展示可编辑的条款（合同类型、起止日期、试用期止期、试用期与转正工资、岗位、
+/// 部门、工作地点、工时制度、备注）均可更新；worker_id、contract_no、sign_date
+/// 属身份与缔约事实列，不开放。全字段可选，缺省即不变更。
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateLaborContractRequest {
+    pub contract_type: Option<String>,
+    pub start_date: Option<NaiveDate>,
+    /// 合同结束日期（无固定期限为 None）
+    pub end_date: Option<NaiveDate>,
+    pub probation_end_date: Option<NaiveDate>,
+    pub probation_salary: Option<Decimal>,
+    pub regular_salary: Option<Decimal>,
     pub position: Option<String>,
     pub department: Option<String>,
     pub work_location: Option<String>,
@@ -212,7 +225,8 @@ impl LaborContractService {
         Ok(contract)
     }
 
-    /// 更新劳动合同（仅 active 状态可更新，不可修改核心条款）
+    /// 更新劳动合同（仅 active 状态可更新；日期与工资条款变更按变更后生效值
+    /// 重新执行与创建同源的合规校验，禁止写入非法组合）
     pub async fn update(
         &self,
         id: i32,
@@ -226,7 +240,73 @@ impl LaborContractService {
             )));
         }
 
+        // 生效值 = 本次提交覆盖库内现值，校验与落库共用同一组结果
+        let contract_type = req
+            .contract_type
+            .clone()
+            .unwrap_or_else(|| model.contract_type.clone());
+        Self::validate_contract_type(&contract_type)?;
+        if let Some(v) = &req.working_hours_system {
+            Self::validate_working_hours_system(v)?;
+        }
+
+        let start_date = req.start_date.unwrap_or(model.start_date);
+        let end_date = if req.end_date.is_some() {
+            req.end_date
+        } else {
+            model.end_date
+        };
+        let probation_end_date = if req.probation_end_date.is_some() {
+            req.probation_end_date
+        } else {
+            model.probation_end_date
+        };
+        let probation_salary = req.probation_salary.unwrap_or(model.probation_salary);
+        let regular_salary = req.regular_salary.unwrap_or(model.regular_salary);
+
+        if probation_salary < Decimal::ZERO || regular_salary < Decimal::ZERO {
+            return Err(AppError::bad_request("工资不能为负"));
+        }
+        if contract_type == "fixed_term" && end_date.is_none() {
+            return Err(AppError::bad_request("固定期限合同必须填写结束日期"));
+        }
+        if let Some(end) = end_date {
+            if end <= start_date {
+                return Err(AppError::bad_request("合同结束日期必须晚于开始日期"));
+            }
+        }
+        if let Some(probation_end) = probation_end_date {
+            let validation = Self::validate_probation(
+                start_date,
+                end_date,
+                probation_end,
+                probation_salary,
+                regular_salary,
+            );
+            if !validation.is_valid {
+                return Err(AppError::business(validation.errors.join("; ")));
+            }
+        }
+
         let mut active: ContractActiveModel = model.into();
+        if req.contract_type.is_some() {
+            active.contract_type = Set(contract_type);
+        }
+        if req.start_date.is_some() {
+            active.start_date = Set(start_date);
+        }
+        if req.end_date.is_some() {
+            active.end_date = Set(end_date);
+        }
+        if req.probation_end_date.is_some() {
+            active.probation_end_date = Set(probation_end_date);
+        }
+        if req.probation_salary.is_some() {
+            active.probation_salary = Set(probation_salary);
+        }
+        if req.regular_salary.is_some() {
+            active.regular_salary = Set(regular_salary);
+        }
         if let Some(v) = req.position {
             active.position = Set(Some(v));
         }
@@ -237,7 +317,6 @@ impl LaborContractService {
             active.work_location = Set(Some(v));
         }
         if let Some(v) = req.working_hours_system {
-            Self::validate_working_hours_system(&v)?;
             active.working_hours_system = Set(v);
         }
         if let Some(v) = req.remarks {
@@ -348,12 +427,19 @@ impl LaborContractService {
             let level = Self::classify_expiry_level(days_until_expiry);
 
             if level.needs_warning() {
-                // 已过期的合同自动更新状态
+                // 已过期的合同自动更新状态；回写失败必须可见（整体报错，调用方可修正后重扫）
                 if level == ContractExpiryLevel::Expired {
+                    let contract_id = contract.id;
                     let mut active: ContractActiveModel = contract.clone().into();
                     active.status = Set("expired".to_string());
                     active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
-                    let _ = active.update(&*self.db).await;
+                    active.update(&*self.db).await.map_err(|e| {
+                        AppError::database(format!(
+                            "劳动合同 {} 过期状态回写失败: {}",
+                            contract_id, e
+                        ))
+                    })?;
+                    info!("劳动合同 {} 已过期，状态更新为 expired", contract_id);
                 }
 
                 warnings.push(ContractExpiryWarning {

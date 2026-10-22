@@ -362,8 +362,18 @@ impl FinanceAlertService {
 
         let mut candidates = Vec::new();
         for (customer_id, (total_unpaid, max_days, customer_name)) in customer_map {
+            // 客户名只取应收查询带回的主数据真值，缺行即跳过并 warn 点名，
+            // 预警标题与正文不得使用"客户#<id>"占位假名
+            let Some(name) = customer_name else {
+                tracing::warn!(
+                    customer_id,
+                    overdue_days = max_days,
+                    unpaid_amount = %total_unpaid,
+                    "应收逾期预警跳过：客户主数据名称缺失，不用占位假名出预警"
+                );
+                continue;
+            };
             let level = ar_overdue_level(max_days);
-            let name = customer_name.unwrap_or_else(|| format!("客户#{}", customer_id));
             candidates.push(AlertCandidate {
                 alert_type: AlertType::ArOverdue,
                 alert_level: level.to_string(),

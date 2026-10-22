@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import type { CreateEvaluationRequest, EvaluationRecord } from './supplier-evaluation';
 
 export interface Supplier {
   id: number;
@@ -66,26 +67,29 @@ export interface SupplierQueryParams {
   download_token?: string;
 }
 
-export interface SupplierEvaluationData {
-  score: number;
-  rating: string;
-  indicators?: Array<{
-    indicator_id: number;
-    score: number;
-    remark?: string;
-  }>;
-  remark?: string;
-}
+// 后端 SupplierEvaluationRequest（services/supplier_evaluation_service.rs）为
+// 「单指标一次打分」：supplier_id/evaluation_period/indicator_id/score 必填、
+// remark 可选，wire 为 snake_case。评级 rating 由后端按加权平均分派生，
+// 不存在于任何写入请求，前端不得提交。类型直接复用 supplier-evaluation.ts
+// 的同源声明，避免两处各写一套漂移。
+export type SupplierEvaluationData = CreateEvaluationRequest;
 
-export interface SupplierEvaluationResult {
+/**
+ * POST /purchase/suppliers/{id}/evaluate 出参 = `supplier_evaluation_record::Model`
+ * （backend/src/models/supplier_evaluation_record.rs，handler 直接序列化实体，
+ * 无 JOIN 名列；score/weighted_score 为 rust_decimal 序列化的 JSON 字符串）
+ */
+export interface SupplierEvaluationRecordResult {
   id: number;
   supplier_id: number;
-  score: number;
-  rating: string;
-  evaluation_date: string;
-  evaluator_id?: number;
-  evaluator_name?: string;
-  remark?: string;
+  evaluation_period: string;
+  indicator_id: number;
+  score: string;
+  max_score: number | null;
+  weighted_score: string | null;
+  evaluator_id: number | null;
+  evaluation_date: string | null;
+  remark: string | null;
   created_at: string;
 }
 
@@ -107,11 +111,14 @@ export const deleteSupplier = (id: number) =>
 
 // D14 Batch 5b：原 supplierApi.evaluate 转为风格 B 函数
 export const evaluateSupplier = (id: number, data: SupplierEvaluationData) =>
-  request.post<ApiResponse<SupplierEvaluationResult>>(`/purchase/suppliers/${id}/evaluate`, data);
+  request.post<ApiResponse<SupplierEvaluationRecordResult>>(
+    `/purchase/suppliers/${id}/evaluate`,
+    data
+  );
 
 // D14 Batch 5b：原 supplierApi.getEvaluationHistory 转为风格 B 函数
 export const getSupplierEvaluationHistory = (id: number) =>
-  request.get<ApiResponse<SupplierEvaluationResult[]>>(`/purchase/suppliers/${id}/evaluations`);
+  request.get<ApiResponse<EvaluationRecord[]>>(`/purchase/suppliers/${id}/evaluations`);
 
 // D14 Batch 5b：原 supplierApi.export 转为风格 B 函数
 // V15 P0-S12 + P0-S15 新增（Batch 474）：带水印的 xlsx 导出

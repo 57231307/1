@@ -88,7 +88,7 @@ impl PurchaseOrderService {
         req: CreateOrderItemRequest,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<purchase_order_item::Model, AppError> {
-        let amounts = Self::calculate_item_amounts(&req);
+        let amounts = Self::calculate_item_amounts(&req)?;
         let item = purchase_order_item::ActiveModel {
             id: Default::default(),
             order_id: Set(order_id),
@@ -193,7 +193,7 @@ impl PurchaseOrderService {
         };
         // 未提交色号且原值也为空时，merged.color_no 会是空串占位；快照解析仅由
         // req.color_no 是否显式提交触发（见下），此处只为金额权威函数提供生效值。
-        let amounts = Self::calculate_item_amounts(&merged);
+        let amounts = Self::calculate_item_amounts(&merged)?;
 
         let mut item_active: purchase_order_item::ActiveModel = item.into();
 

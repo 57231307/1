@@ -39,11 +39,14 @@ fn test_pricing_context_serialize() {
         quantity: Decimal::from(150),
         currency: "CNY".to_string(),
         quotation_date: chrono::NaiveDate::from_ymd_opt(2026, 6, 16).unwrap(),
+        // 税率按百分数口径带入（13 即 13%），与服务端 sales_quotations.tax_rate 同单位
+        tax_rate: Decimal::from(13),
     };
     let json = serde_json::to_string(&ctx).unwrap();
     assert!(json.contains("\"customer_id\":1"));
     assert!(json.contains("\"VIP\""));
     assert!(json.contains("\"CNY\""));
+    assert!(json.contains("\"tax_rate\":\"13\""));
 }
 
 #[test]
