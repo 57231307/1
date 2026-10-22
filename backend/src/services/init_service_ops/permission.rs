@@ -951,7 +951,6 @@ impl InitService {
                 &[
                     ("dye-recipes", "*"),
                     ("dye-recipes", "approve"),
-                    ("dye-recipes", "audit"),
                     ("lab-dip", "*"),
                     ("dye-batches", "read"),
                     ("dye-batches", "update"),
@@ -991,8 +990,6 @@ impl InitService {
             (
                 "maintenance_supervisor",
                 &[
-                    ("equipment", "*"),
-                    ("maintenance-records", "*"),
                     ("production-orders", "read"),
                     ("energy-meters", "read"),
                     ("energy-consumptions", "read"),
@@ -1334,8 +1331,6 @@ impl InitService {
                 &[
                     ("safety-records", "*"),
                     ("environmental-records", "*"),
-                    ("equipment", "read"),
-                    ("maintenance-records", "read"),
                     ("chemicals", "read"),
                     ("chemical-lots", "read"),
                     ("reports", "read"),
