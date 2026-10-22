@@ -143,8 +143,10 @@ pub async fn list_mappings(
         page_size: params.page_size,
     };
 
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(20);
+    // 回显必须是取数侧真实生效值：与 service 的分页口径同界（页码 1 基、上界 1000；
+    // 页大小上界 100）。回显未截断的入参会让分页条显示的行数虚高于实际返回行数。
+    let page = query.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
     let (items, total) = service.list(query).await?;
 
