@@ -244,13 +244,11 @@ impl ColorPriceCrudService {
     // ----------------------------------------------------------------------
 
     fn validate_currency(c: &str) -> Result<(), CrudError> {
-        match c {
-            "CNY" | "USD" | "EUR" => Ok(()),
-            _ => Err(CrudError::Validation(format!(
-                "无效的币种: {}（允许: CNY / USD / EUR）",
-                c
-            ))),
-        }
+        // 取值域唯一来源是 services/currency_service 的 ISO 4217 白名单门，
+        // 本域不再自写第二套币种清单；拒绝原因由权威门给出，这里只做错误形态转换
+        crate::services::currency_service::validate_currency_code(c).map_err(|_| {
+            CrudError::Validation(format!("无效的币种 {c}（非受支持的 ISO 4217 币种码）"))
+        })
     }
 
     fn validate_season(s: Option<&str>) -> Result<(), CrudError> {

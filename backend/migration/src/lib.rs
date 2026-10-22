@@ -115,6 +115,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::bpm_approver_grant::Migration),
             Box::new(domain::system_admin_bpm_config_grant::Migration),
             Box::new(domain::ap_input_tax_subject::Migration),
+            Box::new(domain::status_vocab_check::Migration),
         ]
     }
 }

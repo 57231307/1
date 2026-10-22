@@ -154,6 +154,9 @@ pub async fn create_standard(
     Json(req): Json<CreateQualityInspectionStandardRequest>,
 ) -> Result<Json<ApiResponse<quality_inspection::Model>>, AppError> {
     info!("用户 {} 正在创建质量检验标准", auth.user_id);
+    // 检验类型与质检记录共用同一权威词表（models/status/quality_inspection_type），
+    // 建标准入口必须过同一取值域门，词表外一律 400 点名允许值，不落库。
+    validate_inspection_type(&req.inspection_type)?;
 
     let service = QualityInspectionService::new(state.db.clone());
     let standard = service.create_standard(req, auth.user_id).await?;

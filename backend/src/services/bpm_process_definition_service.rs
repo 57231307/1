@@ -20,6 +20,7 @@ use crate::models::dto::bpm_dto::{
     CreateProcessDefinitionRequest, ProcessDefinitionQuery, TemplateQuery,
     UpdateProcessDefinitionRequest,
 };
+use crate::models::status::bpm_process_definition_status;
 use crate::models::{bpm_process_definition, bpm_process_instance};
 use crate::utils::error::AppError;
 use crate::utils::response::PaginatedResponse;
@@ -29,6 +30,19 @@ use sea_orm::*;
 
 /// 模板标识：`category` 字段使用此值标记模板记录
 const TEMPLATE_CATEGORY: &str = "__TEMPLATE__";
+
+/// 请求携带的流程定义状态取值域门：与权威词表 `bpm_process_definition_status::ALL`
+/// 逐字符相等才放行，词表外（含大小写变体、空串）一律 400 点名允许值清单。
+/// 调用方：create_process_definition / update_process_definition / create_from_template。
+fn ensure_definition_status_allowed(raw: &str) -> Result<(), AppError> {
+    if bpm_process_definition_status::is_valid(raw) {
+        return Ok(());
+    }
+    Err(AppError::validation_displayable(format!(
+        "流程定义状态 {raw} 不是合法取值，允许值：{}",
+        bpm_process_definition_status::ALL.join("/")
+    )))
+}
 
 impl BpmService {
     /// 创建流程定义（插入一条新的流程定义记录，状态默认为 DRAFT（除非请求显式指定））
@@ -55,7 +69,13 @@ impl BpmService {
         }
 
         let now = chrono::Utc::now();
-        let status = req.status.unwrap_or_else(|| "DRAFT".to_string());
+        let status = match req.status {
+            Some(raw) => {
+                ensure_definition_status_allowed(&raw)?;
+                raw
+            }
+            None => bpm_process_definition_status::DRAFT.to_string(),
+        };
         let active_model = bpm_process_definition::ActiveModel {
             name: Set(req.name),
             code: Set(req.code),
@@ -108,6 +128,7 @@ impl BpmService {
             active.config = Set(Some(config));
         }
         if let Some(status) = req.status {
+            ensure_definition_status_allowed(&status)?;
             active.status = Set(status);
         }
         active.updated_at = Set(chrono::Utc::now());
@@ -261,14 +282,16 @@ impl BpmService {
                     .add(bpm_process_definition::Column::Category.is_null())
                     .add(bpm_process_definition::Column::Category.ne(TEMPLATE_CATEGORY)),
             )
-            .filter(bpm_process_definition::Column::Status.eq("ACTIVE"))
+            .filter(
+                bpm_process_definition::Column::Status.eq(bpm_process_definition_status::ACTIVE),
+            )
             .all(&txn)
             .await?;
 
         for sibling in siblings {
             if sibling.id != id {
                 let mut active: bpm_process_definition::ActiveModel = sibling.into();
-                active.status = Set("INACTIVE".to_string());
+                active.status = Set(bpm_process_definition_status::INACTIVE.to_string());
                 active.updated_at = Set(chrono::Utc::now());
                 active.update(&txn).await?;
             }
@@ -276,7 +299,7 @@ impl BpmService {
 
         // 激活目标记录
         let mut target_active: bpm_process_definition::ActiveModel = target.into();
-        target_active.status = Set("ACTIVE".to_string());
+        target_active.status = Set(bpm_process_definition_status::ACTIVE.to_string());
         target_active.updated_at = Set(chrono::Utc::now());
         let updated = target_active.update(&txn).await?;
 
@@ -302,7 +325,7 @@ impl BpmService {
             category: Set(Some(TEMPLATE_CATEGORY.to_string())),
             version: Set(source.version),
             config: Set(source.config),
-            status: Set("ACTIVE".to_string()),
+            status: Set(bpm_process_definition_status::ACTIVE.to_string()),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
@@ -367,6 +390,15 @@ impl BpmService {
         }
 
         let now = chrono::Utc::now();
+        // 客户端未提供状态时默认 DRAFT；显式提供的状态先过取值域门再入模型，
+        // 避免直接激活未审阅的流程或把词表外 token 写进定义表
+        let from_template_status = match req.status {
+            Some(raw) => {
+                ensure_definition_status_allowed(&raw)?;
+                raw
+            }
+            None => bpm_process_definition_status::DRAFT.to_string(),
+        };
         let active_model = bpm_process_definition::ActiveModel {
             // 客户端提供的 name 直接使用，避免丢失语义
             name: Set(req.name),
@@ -380,8 +412,8 @@ impl BpmService {
             version: Set(Some(req.version.unwrap_or_else(|| "v1".to_string()))),
             // 客户端未提供时回退到模板 config（保留流程节点定义）
             config: Set(req.config.or(template.config)),
-            // 客户端未提供时默认 DRAFT，避免直接激活未审阅的流程
-            status: Set(req.status.unwrap_or_else(|| "DRAFT".to_string())),
+            // 状态已在模型构造前过取值域门（缺省 DRAFT，避免直接激活未审阅的流程）
+            status: Set(from_template_status),
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()

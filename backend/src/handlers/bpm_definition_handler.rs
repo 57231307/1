@@ -151,7 +151,7 @@ pub async fn create_version(
         category: source.category,
         version: Some(version),
         config: req.config.or(source.config),
-        status: Some("DRAFT".to_string()),
+        status: Some(crate::models::status::bpm_process_definition_status::DRAFT.to_string()),
     };
     let res = service.create_process_definition(new_req).await?;
     Ok(Json(ApiResponse::success(model_to_frontend_json(res))))
