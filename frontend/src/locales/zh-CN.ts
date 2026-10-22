@@ -8744,6 +8744,9 @@ export default {
         currentVersion: '当前版本',
         lastUpdate: '最后更新',
       },
+      value: {
+        lastUpdateUnknown: '未提供',
+      },
       button: {
         check: '检查更新',
         apply: '应用更新',
@@ -10073,6 +10076,7 @@ export default {
       headerLatestVersion: '最新版本',
       headerUpdateStatus: '更新状态',
       labelReleaseDate: '发布日期',
+      valueReleaseDateUnknown: '未提供',
       statusHasUpdate: '有可用更新',
       statusUpToDate: '已是最新版本',
       statusUpdating: '正在更新…',

@@ -14,7 +14,7 @@
           systemVersion
         }}</el-descriptions-item>
         <el-descriptions-item :label="t('system.systemUpdate.label.lastUpdate')">{{
-          lastUpdate
+          lastUpdate !== null ? lastUpdate : t('system.systemUpdate.value.lastUpdateUnknown')
         }}</el-descriptions-item>
       </el-descriptions>
       <div style="margin-top: 20px">
@@ -62,7 +62,7 @@ const { t } = useI18n({ useScope: 'global' });
 // 对应 backend/src/handlers/system_update_handler.rs get_version → VersionResponse
 interface VersionResponse {
   version: string;
-  release_date: string;
+  release_date: string | null;
   changelog: string | null;
 }
 
@@ -80,7 +80,7 @@ interface CheckUpdateResponse {
 }
 
 const systemVersion = ref('-');
-const lastUpdate = ref('-');
+const lastUpdate = ref<string | null>(null);
 const hasUpdate = ref(false);
 const updateInfo = ref('');
 const checkUpdateLoading = ref(false);

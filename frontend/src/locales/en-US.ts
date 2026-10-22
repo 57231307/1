@@ -8783,6 +8783,9 @@ export default {
         currentVersion: 'Current Version',
         lastUpdate: 'Last Update',
       },
+      value: {
+        lastUpdateUnknown: 'Not provided',
+      },
       button: {
         check: 'Check for Updates',
         apply: 'Apply Update',
@@ -10111,6 +10114,7 @@ export default {
       headerLatestVersion: 'Latest Version',
       headerUpdateStatus: 'Update Status',
       labelReleaseDate: 'Release Date',
+      valueReleaseDateUnknown: 'Not provided',
       statusHasUpdate: 'Update Available',
       statusUpToDate: 'Up to Date',
       statusUpdating: 'Updating...',
