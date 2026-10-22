@@ -2,8 +2,10 @@
 //!
 //! ## 六要素
 //! - **功能**：给 `role_permissions` 补 `(采购经理/采购员角色码 × greige-fabrics × read)` 行。
-//! - **调用方**：SeaORM 迁移链，注册在 `domain/business/mod.rs` 的 up 链末尾、down 链首位
-//!   （`roles`/`role_permissions` 由 system 域先建，早于本域）。
+//! - **调用方**：顶层域 purchase_greige_read_grant（台账名 m_purchase_greige_read_grant）
+//!   的链尾聚合迁移调用；roles/role_permissions 由 system 域先建，早于本域。升为顶层域
+//!   而非并入 business 域：business 域在复用库上已记账会被整体跳过，嵌入其中的本迁移
+//!   在存量库永远不执行。
 //! - **入参**：无。角色码是本文件的编译期常量。
 //! - **传给谁**：`SchemaManager` 的裸 SQL 连接。运行时判权键由
 //!   `backend/src/middleware/permission.rs::extract_resource_info` 从

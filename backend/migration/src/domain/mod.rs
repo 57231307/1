@@ -49,6 +49,9 @@
 //! - ap_family_grant: 应付族授权面补授（finance_manager 的审核与报表面 11 枚、accountant 的
 //!   制单与记账面 13 枚）的存量库通道——同一套按码反查、幂等补授与逐键打印口径，回退按
 //!   角色码与键的三元组配对收窄；置于链尾为新的顶层条目，复用库上也必然执行
+//! - purchase_greige_read_grant: 采购两岗补授 greige-fabrics 只读键的存量库通道——原嵌在
+//!   business 域 up 链尾，复用库上被整域跳过，升为顶层条目后必然执行；回退只按本域角色码
+//!   回收该键，不动 m0097 授给生产与仓储岗的同名键
 
 pub mod system;
 pub mod business;
@@ -77,3 +80,4 @@ pub mod bpm_approver_grant;
 pub mod system_admin_bpm_config_grant;
 pub mod ap_input_tax_subject;
 pub mod ap_family_grant;
+pub mod purchase_greige_read_grant;

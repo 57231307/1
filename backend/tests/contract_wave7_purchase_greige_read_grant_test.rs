@@ -7,7 +7,8 @@
 //!
 //! 三条授予通道必须同口径，本测逐条双向钉死，防止一边改一边忘：
 //! ① 新装库角色矩阵 `backend/src/services/init_service_ops/permission.rs`（purchase 域分组）
-//! ② 存量库迁移 `backend/migration/src/domain/business/m0102_grant_purchase_greige_read.rs`
+//! ② 存量库迁移 `backend/migration/src/domain/purchase_greige_read_grant/m0102_grant_purchase_greige_read.rs`
+//!    （顶层域 m_purchase_greige_read_grant，链尾登记在 lib.rs）
 //! ③ e2e 角色补建 `frontend/e2e/global-setup.ts` 的 SEED_ROLE_EXTRA_PERMISSIONS
 //!
 //! 锁强度：①②③ 对两岗的同一条授予做存在性判定（迁移常量以源文件解析为准，防止改测试
@@ -22,8 +23,10 @@ fn matrix_src() -> String {
 }
 
 fn migration_src() -> String {
-    include_str!("../migration/src/domain/business/m0102_grant_purchase_greige_read.rs")
-        .replace('\r', "")
+    include_str!(
+        "../migration/src/domain/purchase_greige_read_grant/m0102_grant_purchase_greige_read.rs"
+    )
+    .replace('\r', "")
 }
 
 fn prior_migration_src() -> String {
@@ -37,6 +40,14 @@ fn e2e_seed_src() -> String {
 
 fn business_chain_src() -> String {
     include_str!("../migration/src/domain/business/mod.rs").replace('\r', "")
+}
+
+fn top_domain_src() -> String {
+    include_str!("../migration/src/domain/purchase_greige_read_grant/mod.rs").replace('\r', "")
+}
+
+fn lib_chain_src() -> String {
+    include_str!("../migration/src/lib.rs").replace('\r', "")
 }
 
 /// 只保留"代码 + 字符串字面量"：逐行剔除以 `//` / `///` / `//!` 起始的注释行。
@@ -305,34 +316,51 @@ fn migration_role_codes_are_disjoint_from_prior_greige_grant() {
     }
 }
 
-/// 通道②：注册位置必须在 business 域 up 链尾 / down 链首（晚于 system 域的角色与权限表）。
+/// 通道②：注册位置必须是链尾顶层域 m_purchase_greige_read_grant。
+/// 嵌入已应用的 business 域会在复用库上随整域跳过而永不执行（本仓既有家族缺陷），
+/// 故三向钉死：域文件内真实调用 m0102、lib.rs 登记在所有既有域之后、business 链不残留双注册。
 #[test]
-fn migration_is_registered_at_business_chain_tail_and_down_head() {
-    let src = code_only(&business_chain_src());
-    let flat = canon(&src);
+fn migration_is_registered_as_chain_tail_top_domain() {
+    let domain = code_only(&top_domain_src());
+    let flat_domain = canon(&domain);
     assert!(
-        src.contains("mod m0102_grant_purchase_greige_read;"),
-        "m0102 必须在本域 mod.rs 声明，否则不参与迁移链（写了文件不等于跑了迁移）"
+        domain.contains("mod m0102_grant_purchase_greige_read;"),
+        "m0102 必须在新顶层域 mod.rs 声明，否则不参与迁移链（写了文件不等于跑了迁移）"
     );
-    let prior_up = flat
-        .find("m0097_grant_greige_create_and_suppliers_read::Migration.up(manager).await?;")
-        .expect("business up 链必须有 m0097 调用符号");
-    let this_up = flat
-        .find("m0102_grant_purchase_greige_read::Migration.up(manager).await?;")
-        .expect("business up 链必须调用 m0102");
     assert!(
-        this_up > prior_up,
-        "m0102 必须排在 business 域 up 链尾（m0097 之后）"
+        flat_domain.contains("fnname(&self)->&'staticstr{\"m_purchase_greige_read_grant\"}"),
+        "新顶层域的台账名必须是 m_purchase_greige_read_grant，链尾登记与账本核对靠它唯一认定"
     );
-    let this_down = flat
-        .find("m0102_grant_purchase_greige_read::Migration.down(manager).await?;")
-        .expect("business down 链必须调用 m0102");
-    let prior_down = flat
-        .find("m0097_grant_greige_create_and_suppliers_read::Migration.down(manager).await?;")
-        .expect("business down 链必须有 m0097 调用符号");
     assert!(
-        this_down < prior_down,
-        "down 必须逆序：最后应用者（m0102）最先回滚"
+        flat_domain.contains("m0102_grant_purchase_greige_read::Migration.up(manager).await?;"),
+        "新顶层域 up 必须真实调用 m0102，只声明不调用等于没注册"
+    );
+    assert!(
+        flat_domain.contains("m0102_grant_purchase_greige_read::Migration.down(manager).await?;"),
+        "新顶层域 down 必须真实调用 m0102 的回滚，否则该域不可独立回退"
+    );
+
+    let lib = code_only(&lib_chain_src());
+    let prior_reg = lib
+        .find("Box::new(domain::ap_family_grant::Migration)")
+        .expect("lib.rs 链必须有前链尾 ap_family_grant 登记");
+    let this_reg = lib
+        .find("Box::new(domain::purchase_greige_read_grant::Migration)")
+        .expect("lib.rs 链必须登记新顶层域 purchase_greige_read_grant");
+    assert!(
+        this_reg > prior_reg,
+        "m0102 顶层域必须排在既有链尾 ap_family_grant 之后（升域前它已是最后应用的域）"
+    );
+    assert!(
+        !lib[this_reg + "Box::new(domain::purchase_greige_read_grant::Migration)".len()..]
+            .contains("Box::new(domain::"),
+        "purchase_greige_read_grant 必须是 ALL 清单末位：链尾登记才保证 down 逆序时它最先回滚"
+    );
+
+    let business = code_only(&business_chain_src());
+    assert!(
+        !business.contains("m0102_grant_purchase_greige_read"),
+        "business 域不得再残留 m0102 声明或调用，双注册会在部分库上重复执行回收"
     );
 }
 
