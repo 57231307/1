@@ -53,7 +53,7 @@ pub struct Model {
     #[sea_orm(column_type = "Decimal(Some((8, 2)))")]
     pub fabric_width_inches: Option<Decimal>,
 
-    /// 总扣分（所有疵点扣分之和）
+    /// 总扣分（四分制为同码封顶后的各码合计，十分制为疵点扣分线性之和，写入点见 grade_inspection）
     pub total_defect_points: i32,
 
     /// 每百平方码分数（四分制等级判定依据，计算字段）
