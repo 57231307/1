@@ -64,20 +64,20 @@
           <el-table-column :label="t('email.index.colOperation')" width="260" fixed="right">
             <template #default="{ row }">
               <el-button
-                v-permission="'email-templates:read'"
+                v-permission="PERMISSIONS.EMAIL_TEMPLATE_READ"
                 size="small"
                 link
                 @click="handleViewTemplate(row)"
                 >{{ t('email.index.buttonView') }}</el-button
               >
               <el-button
-                v-permission="'email-templates:update'"
+                v-permission="PERMISSIONS.EMAIL_TEMPLATE_UPDATE"
                 size="small"
                 @click="handleEditTemplate(row)"
                 >{{ t('email.index.buttonEdit') }}</el-button
               >
               <el-button
-                v-permission="'email-templates:delete'"
+                v-permission="PERMISSIONS.EMAIL_TEMPLATE_DELETE"
                 size="small"
                 type="danger"
                 @click="handleDeleteTemplate(row)"
@@ -333,6 +333,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus';

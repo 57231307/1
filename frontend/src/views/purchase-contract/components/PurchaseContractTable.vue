@@ -91,7 +91,7 @@
           <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
           <el-button
             v-if="row.status === 'draft'"
-            v-permission="'purchase-contracts:update'"
+            v-permission="PERMISSIONS.PURCHASE_CONTRACT_UPDATE"
             type="primary"
             link
             size="small"
@@ -124,7 +124,7 @@
           >
           <el-button
             v-if="row.status === 'draft'"
-            v-permission="'purchase-contracts:delete'"
+            v-permission="PERMISSIONS.PURCHASE_CONTRACT_DELETE"
             type="danger"
             link
             size="small"
@@ -152,6 +152,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { PERMISSIONS } from '@/constants/permissions';
 import type { PurchaseContract } from '@/api/purchase-contract';
 import { formatCurrency, getStatusType, getStatusLabel } from '../composables/pcFmts';
 

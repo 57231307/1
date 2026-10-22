@@ -182,7 +182,7 @@
                 row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_WON &&
                 row.opportunity_stage !== OPPORTUNITY_STAGE.CLOSED_LOST
               "
-              v-permission="'crm-opportunities:update'"
+              v-permission="PERMISSIONS.CRM_OPPORTUNITY_UPDATE"
               type="primary"
               link
               size="small"
@@ -329,6 +329,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';

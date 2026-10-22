@@ -36,13 +36,13 @@
       <el-table-column :label="t('departments.index.colOperation')" width="200">
         <template #default="{ row }">
           <el-button
-            v-permission="'departments:update'"
+            v-permission="PERMISSIONS.DEPARTMENT_UPDATE"
             size="small"
             @click="handleEdit(row as Department)"
             >{{ t('departments.index.buttonEdit') }}</el-button
           >
           <el-button
-            v-permission="'departments:delete'"
+            v-permission="PERMISSIONS.DEPARTMENT_DELETE"
             size="small"
             type="danger"
             @click="handleDelete(row as Department)"
@@ -125,6 +125,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, onMounted, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';

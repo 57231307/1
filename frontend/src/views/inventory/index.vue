@@ -20,7 +20,7 @@
       </div>
       <div class="header-actions">
         <el-button
-          v-permission="PERMISSIONS.INVENTORY_UPDATE"
+          v-permission="PERMISSIONS.ADJUSTMENT_CREATE"
           type="primary"
           @click="handleAdjustment"
         >
@@ -31,11 +31,11 @@
           <el-icon><RefreshRight /></el-icon>
           {{ t('inventory.page.transfer') }}
         </el-button>
-        <el-button v-permission="'inventory.print'" @click="handlePrint">
+        <el-button v-permission="PERMISSIONS.STOCK_READ" @click="handlePrint">
           <el-icon><Printer /></el-icon>
           {{ t('inventory.page.print') }}
         </el-button>
-        <el-button v-permission="'inventory.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.STOCK_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ t('inventory.page.export') }}
         </el-button>

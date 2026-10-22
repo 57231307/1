@@ -11,7 +11,7 @@
           <el-icon><Plus /></el-icon>
           {{ $t('qualityStandards.create') }}
         </el-button>
-        <el-button v-permission="'quality.standard.export'" @click="handleExport">
+        <el-button v-permission="PERMISSIONS.QUALITY_STANDARD_EXPORT" @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ $t('qualityStandards.export') }}
         </el-button>
@@ -256,6 +256,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';

@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { h } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { ElButton, ElTag } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
@@ -106,13 +107,13 @@ const buildActionButtons = (row: SalesContract): ReturnType<typeof h>[] => {
   ];
   // 草稿状态：编辑 / 提交 / 删除（编辑/删除受权限控制）
   if (row.status === 'draft') {
-    if (can('sales-contracts:update')) {
+    if (can(PERMISSIONS.SALES_CONTRACT_UPDATE)) {
       buttons.push(mkBtn('primary', 'salesContract.table.buttonEdit', () => emit('edit', row)));
     }
     buttons.push(
       mkBtn('success', 'salesContract.table.buttonSubmit', () => emit('submit-approval', row))
     );
-    if (can('sales-contracts:delete')) {
+    if (can(PERMISSIONS.SALES_CONTRACT_DELETE)) {
       buttons.push(mkBtn('danger', 'salesContract.table.buttonDelete', () => emit('delete', row)));
     }
   }

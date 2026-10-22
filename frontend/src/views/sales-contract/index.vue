@@ -14,13 +14,13 @@
           {{ t('salesContract.index.buttonCreate') }}
         </el-button>
         <el-button
-          v-permission="'sales.contract.print'"
+          v-permission="PERMISSIONS.SALES_CONTRACT_READ"
           @click="scProc.handlePrint(sc.contractList)"
         >
           <el-icon><Printer /></el-icon>
           {{ t('salesContract.index.buttonPrint') }}
         </el-button>
-        <el-button v-permission="'sales.contract.export'" @click="scProc.handleExport()">
+        <el-button v-permission="PERMISSIONS.SALES_CONTRACT_EXPORT" @click="scProc.handleExport()">
           <el-icon><Download /></el-icon>
           {{ t('salesContract.index.buttonExport') }}
         </el-button>
@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import type { SalesContract } from '@/api/sales-contract';
