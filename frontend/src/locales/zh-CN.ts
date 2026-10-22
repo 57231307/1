@@ -7055,6 +7055,7 @@ export default {
         creditScoreRequired: '请输入信用分',
         creditLimitRequired: '请输入信用额度',
         creditDaysRequired: '请输入账期',
+        incompleteForm: '请完整填写评分项',
       },
       message: {
         success: '评级更新成功',
@@ -7062,6 +7063,7 @@ export default {
       },
       log: {
         failed: '设置信用评级失败',
+        submissionBlocked: '设置信用评级提交被拦截：存在未填项',
       },
     },
     index: {
@@ -7094,15 +7096,16 @@ export default {
         active: '正常',
         inactive: '停用',
       },
+      creditLevel: {
+        none: '未评',
+      },
       detail: {
         title: '信用详情',
-        validFrom: '生效日期',
-        validTo: '失效日期',
-        remarks: '备注',
       },
       edit: {
         title: '编辑信用',
         ariaLabel: '编辑信用表单',
+        creditLimitRequired: '请输入信用额度',
       },
       message: {
         fetchListFailed: '获取信用列表失败',
@@ -7115,11 +7118,14 @@ export default {
         updateFailed: '更新失败',
         deleteSuccess: '删除成功',
         deleteFailed: '删除失败',
+        missingCustomerId: '该信用记录没有客户标识，无法定位客户',
       },
       log: {
         fetchListFailed: '获取信用列表失败',
         fetchDetailFailed: '获取信用详情失败',
         fetchCustomersFailed: '获取客户下拉列表失败',
+        missingCustomerId: '客户信用行缺少 customer_id，操作被拒绝',
+        submitEditBlocked: '编辑信用提交被拦截：信用额度未填',
       },
       dialog: {
         deactivateConfirmMessage: '确认停用该客户信用？',

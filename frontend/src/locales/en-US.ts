@@ -7082,6 +7082,7 @@ export default {
         creditScoreRequired: 'Please enter credit score',
         creditLimitRequired: 'Please enter credit limit',
         creditDaysRequired: 'Please enter payment terms',
+        incompleteForm: 'Please complete all rating fields',
       },
       message: {
         success: 'Rating Update Success',
@@ -7089,6 +7090,7 @@ export default {
       },
       log: {
         failed: 'Set credit rating failed',
+        submissionBlocked: 'Credit rating submission blocked: unfilled fields remain',
       },
     },
     index: {
@@ -7121,15 +7123,16 @@ export default {
         active: 'Normal',
         inactive: 'Inactive',
       },
+      creditLevel: {
+        none: 'Not rated',
+      },
       detail: {
         title: 'Credit Detail',
-        validFrom: 'Valid From',
-        validTo: 'Valid To',
-        remarks: 'Remarks',
       },
       edit: {
         title: 'Edit Credit',
         ariaLabel: 'Edit Credit Form',
+        creditLimitRequired: 'Please enter credit limit',
       },
       message: {
         fetchListFailed: 'Failed to fetch credit list',
@@ -7142,11 +7145,15 @@ export default {
         updateFailed: 'Update Failed',
         deleteSuccess: 'Delete Success',
         deleteFailed: 'Delete Failed',
+        missingCustomerId:
+          'This credit record has no customer identifier, customer cannot be located',
       },
       log: {
         fetchListFailed: 'Failed to fetch credit list',
         fetchDetailFailed: 'Failed to fetch credit detail',
         fetchCustomersFailed: 'Failed to fetch customer options',
+        missingCustomerId: 'Customer credit row has no customer_id, operation rejected',
+        submitEditBlocked: 'Credit edit submission blocked: credit limit not filled in',
       },
       dialog: {
         deactivateConfirmMessage: 'Are you sure you want to deactivate this customer credit?',

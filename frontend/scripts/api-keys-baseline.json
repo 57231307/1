@@ -1,12 +1,9 @@
 {
-  "total": 119,
+  "total": 118,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
-      "keys": [
-        "ProcessOptCandidate.case_id",
-        "QualityTopIssue.issue"
-      ]
+      "keys": ["ProcessOptCandidate.case_id", "QualityTopIssue.issue"]
     },
     "frontend/src/api/ap.ts": {
       "count": 11,
@@ -34,9 +31,7 @@
     },
     "frontend/src/api/ar.ts": {
       "count": 1,
-      "keys": [
-        "ARVerification.verification_amount"
-      ]
+      "keys": ["ARVerification.verification_amount"]
     },
     "frontend/src/api/asset.ts": {
       "count": 4,
@@ -57,9 +52,7 @@
     },
     "frontend/src/api/bi.ts": {
       "count": 1,
-      "keys": [
-        "PivotResult.cells"
-      ]
+      "keys": ["PivotResult.cells"]
     },
     "frontend/src/api/bpm-enhanced.ts": {
       "count": 5,
@@ -73,15 +66,11 @@
     },
     "frontend/src/api/budget.ts": {
       "count": 1,
-      "keys": [
-        "Budget.budget_no"
-      ]
+      "keys": ["Budget.budget_no"]
     },
     "frontend/src/api/business-trace.ts": {
       "count": 1,
-      "keys": [
-        "TraceSnapshotCreateDto.snapshot_type"
-      ]
+      "keys": ["TraceSnapshotCreateDto.snapshot_type"]
     },
     "frontend/src/api/capacity.ts": {
       "count": 10,
@@ -109,23 +98,11 @@
     },
     "frontend/src/api/crm.ts": {
       "count": 2,
-      "keys": [
-        "Lead.assigned_to_name",
-        "Lead.company"
-      ]
-    },
-    "frontend/src/api/customer-credit.ts": {
-      "count": 1,
-      "keys": [
-        "CustomerCredit.valid_to"
-      ]
+      "keys": ["Lead.assigned_to_name", "Lead.company"]
     },
     "frontend/src/api/dashboard.ts": {
       "count": 2,
-      "keys": [
-        "Activity.time",
-        "DashboardOverview.recent_activities"
-      ]
+      "keys": ["Activity.time", "DashboardOverview.recent_activities"]
     },
     "frontend/src/api/dye-recipe.ts": {
       "count": 5,
@@ -147,9 +124,7 @@
     },
     "frontend/src/api/finance-report.ts": {
       "count": 1,
-      "keys": [
-        "FinanceReportQueryParams.company_id"
-      ]
+      "keys": ["FinanceReportQueryParams.company_id"]
     },
     "frontend/src/api/fund.ts": {
       "count": 3,
@@ -161,9 +136,7 @@
     },
     "frontend/src/api/greige-fabric.ts": {
       "count": 1,
-      "keys": [
-        "GreigeFabric.fabric_code"
-      ]
+      "keys": ["GreigeFabric.fabric_code"]
     },
     "frontend/src/api/notification.ts": {
       "count": 7,
@@ -179,9 +152,7 @@
     },
     "frontend/src/api/oa-announcement.ts": {
       "count": 1,
-      "keys": [
-        "OaAnnouncement.notified_count"
-      ]
+      "keys": ["OaAnnouncement.notified_count"]
     },
     "frontend/src/api/omni-audit.ts": {
       "count": 5,
@@ -195,9 +166,7 @@
     },
     "frontend/src/api/purchase-contract.ts": {
       "count": 1,
-      "keys": [
-        "PurchaseContract.delivery_terms"
-      ]
+      "keys": ["PurchaseContract.delivery_terms"]
     },
     "frontend/src/api/purchase-inspection.ts": {
       "count": 5,
@@ -276,9 +245,7 @@
     },
     "frontend/src/api/supplier-evaluation.ts": {
       "count": 1,
-      "keys": [
-        "SupplierScore.rank"
-      ]
+      "keys": ["SupplierScore.rank"]
     }
   }
 }
