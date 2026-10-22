@@ -71,6 +71,10 @@
 
       <!-- 节点配置 -->
       <el-divider content-position="left">{{ t('bpm.definitions.form.nodeConfig') }}</el-divider>
+      <!-- 本表单无连线交互，edges 按节点顺序线性生成，界面顺序即审批顺序 -->
+      <p class="node-order-hint">{{ t('bpm.definitions.form.nodeOrderHint') }}</p>
+      <!-- 审批人候选按关键字远程检索，未搜索时仅第一页，界面如实声明非全集 -->
+      <p class="node-order-hint">{{ t('bpm.definitions.form.assigneeHint') }}</p>
       <div class="node-actions">
         <el-button type="primary" size="small" @click="handleAddNode">
           <el-icon><Plus /></el-icon>
@@ -84,12 +88,12 @@
       >
         <el-table-column :label="t('bpm.definitions.form.nodeType')" width="120">
           <template #default="{ row }">
-            <el-select v-model="row.type" size="small">
-              <el-option :label="t('bpm.definitions.nodeType.start')" value="start" />
-              <el-option :label="t('bpm.definitions.nodeType.approval')" value="approval" />
-              <el-option :label="t('bpm.definitions.nodeType.condition')" value="condition" />
-              <el-option :label="t('bpm.definitions.nodeType.notify')" value="notify" />
-              <el-option :label="t('bpm.definitions.nodeType.end')" value="end" />
+            <!-- value 为审批引擎逐字符识别的节点类型 token（后端 resolve_first_task_node
+                 与 try_advance_to_next_node 只识别这三个值）；界面中文名走 i18n，不外泄为提交值 -->
+            <el-select v-model="row.type" size="small" @change="handleNodeTypeChange(row)">
+              <el-option :label="t('bpm.definitions.nodeType.startEvent')" value="start_event" />
+              <el-option :label="t('bpm.definitions.nodeType.userTask')" value="user_task" />
+              <el-option :label="t('bpm.definitions.nodeType.endEvent')" value="end_event" />
             </el-select>
           </template>
         </el-table-column>
@@ -98,32 +102,35 @@
             <el-input v-model="row.name" size="small" />
           </template>
         </el-table-column>
-        <el-table-column :label="t('bpm.definitions.form.assigneeType')" width="140">
+        <el-table-column :label="t('bpm.definitions.form.assignee')" min-width="220">
           <template #default="{ row }">
-            <el-select v-model="row.assignee_type" size="small" clearable>
-              <el-option :label="t('bpm.definitions.assigneeType.user')" value="user" />
-              <el-option :label="t('bpm.definitions.assigneeType.role')" value="role" />
-              <el-option :label="t('bpm.definitions.assigneeType.department')" value="department" />
-              <el-option :label="t('bpm.definitions.assigneeType.dynamic')" value="dynamic" />
+            <!-- 引擎只支持指定具体用户，且 assignee_value 须解析为正整数用户 ID
+                 （后端 resolve_node_assignee），因此不提供审批人类型选项、不允许手填 ID：
+                 用户 ID 由可搜索选择带出。候选按 keyword 远程搜索——后端列出用户的
+                 page_size 有 clamp(1,100)，大 page_size 会被静默截断，
+                 靠 keyword 收窄而非凑全量（见 composables/useAssigneeSearch.ts）。
+                 候选数组按行 id 各自持有，避免多行下拉互相串数据。 -->
+            <el-select
+              v-model="row.assignee_value"
+              size="small"
+              filterable
+              clearable
+              remote
+              :remote-method="(q: string) => searchAssignees(row, q)"
+              :loading="rowLoading[row.id] === true"
+              :disabled="row.type !== 'user_task'"
+              :placeholder="t('bpm.definitions.form.assigneePlaceholder')"
+              @visible-change="
+                (v: boolean) => v && rowCandidates[row.id] === undefined && searchAssignees(row, '')
+              "
+            >
+              <el-option
+                v-for="u in rowCandidates[row.id] ?? []"
+                :key="u.id"
+                :label="u.real_name ? `${u.real_name}（${u.username}）` : u.username"
+                :value="u.id"
+              />
             </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('bpm.definitions.form.assigneeValue')" width="140">
-          <template #default="{ row }">
-            <el-input
-              :model-value="String(row.assignee_value ?? '')"
-              size="small"
-              @update:model-value="(v: string) => (row.assignee_value = v)"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('bpm.definitions.form.condition')" min-width="160">
-          <template #default="{ row }">
-            <el-input
-              v-model="row.condition"
-              size="small"
-              :placeholder="t('bpm.definitions.form.conditionPlaceholder')"
-            />
           </template>
         </el-table-column>
         <el-table-column
@@ -154,10 +161,13 @@
 <script setup lang="ts">
 import { deepClone } from '@/utils';
 import { ref, watch, nextTick } from 'vue';
-import { type FormInstance, type FormRules } from 'element-plus';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import type { ProcessNode } from '@/api/bpm-enhanced';
+import type { User } from '@/api/user';
+import { fetchUserCandidates } from '../composables/useAssigneeSearch';
+import { logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -240,9 +250,51 @@ watch(
 // 暴露给父组件
 defineExpose({ formRef });
 
+/**
+ * 审批人候选按行独立持有（键 = 节点 id）。多行下拉若共享同一候选数组，
+ * 某一行的搜索会改写另一行的可见项（串数据），因此每行各自检索、各自存放。
+ */
+const rowCandidates = ref<Record<string, User[]>>({});
+const rowLoading = ref<Record<string, boolean>>({});
+
+/**
+ * 按 keyword 远程检索该行的审批人候选。上限由后端列出用户的 page_size
+ * clamp(1, 100) 决定，靠 keyword 收窄而不是
+ * 靠大 page_size 凑全量；空 keyword 返回第一页（未搜索态，界面如实提示非全集）。
+ * 失败清空该行列表并显式报错——不兜底成"空列表也能提交"，
+ * 缺审批人的 user_task 会被提交边界的 validateLinearChain 拦下。
+ */
+const searchAssignees = async (node: ProcessNode, keyword: string): Promise<void> => {
+  rowLoading.value[node.id] = true;
+  try {
+    rowCandidates.value[node.id] = await fetchUserCandidates(keyword);
+  } catch (error) {
+    rowCandidates.value[node.id] = [];
+    const text = error instanceof Error ? error.message : String(error);
+    logAuxLoadFailure(text, error);
+    ElMessage.error(text);
+  } finally {
+    rowLoading.value[node.id] = false;
+  }
+};
+
 /** 添加节点（父组件处理节点对象） */
 const handleAddNode = () => {
   emit('add-node');
+};
+
+/**
+ * 节点类型切换：非 user_task 节点引擎不读取审批人（后端 resolve_node_assignee 只对建了工单的
+ * user_task 节点解析 assignee），清掉残留值，避免用户误以为填了会生效
+ */
+const handleNodeTypeChange = (row: ProcessNode) => {
+  if (row.type !== 'user_task') {
+    row.assignee_value = undefined;
+    row.assignee_type = undefined;
+  } else if (row.assignee_type === undefined) {
+    // 引擎仅 user 有执行路径（后端 resolve_node_assignee），显式写入而非依赖后端默认
+    row.assignee_type = 'user';
+  }
 };
 
 /** 删除节点 */
@@ -265,5 +317,10 @@ const handleSubmit = async () => {
 <style scoped>
 .node-actions {
   margin-bottom: 12px;
+}
+.node-order-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

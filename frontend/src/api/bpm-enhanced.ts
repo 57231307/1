@@ -16,23 +16,65 @@ export interface ProcessDefinition {
   // 动态 JSON Schema 字段：类型用 Record<string, unknown>，不用 any
   form_schema?: Record<string, unknown>;
   nodes?: ProcessNode[];
-  // 后端持久化真源：节点存于 config.nodes（bpm_service.rs:141 resolve_first_task_node），
-  // GET 出参亦回传 config（bpm_definition_handler model_to_frontend_json）。建单/更新须把
-  // nodes 包进 config 提交，否则流程节点被后端静默丢弃（顶层 nodes 非契约字段）。
-  config?: { nodes?: ProcessNode[] } & Record<string, unknown>;
+  // 后端持久化真源：节点与边存于 config.nodes / config.edges
+  // （解析首任务节点见 bpm_service.rs 的 resolve_first_task_node，推进见 bpm_ops/task.rs 的
+  // try_advance_to_next_node，两者均从 config 读取）。GET 出参亦回传 config
+  // （bpm_definition_handler 的 model_to_frontend_json）。建单/更新须把
+  // nodes+edges 包进 config 提交，否则流程节点被后端静默丢弃（顶层 nodes 非契约字段）、
+  // 审批推进因缺 edges 而跳过后续节点。
+  config?: ProcessConfig & Record<string, unknown>;
   created_at: string;
   updated_at: string;
   created_by?: string;
 }
 
+/**
+ * 流程节点类型词表：与审批引擎判定值逐字符一致
+ * （bpm_service.rs 的 resolve_first_task_node、bpm_ops/task.rs 的 try_advance_to_next_node
+ * 只识别 start_event / user_task / end_event）。
+ * 引擎对其余 token（历史词 start/approval/condition/notify/end）无任何执行路径
+ * （推进命中未知类型会被 fail-closed 拒绝，见 try_advance_to_next_node 的拒绝分支）。
+ */
+export type BpmNodeType = 'start_event' | 'user_task' | 'end_event';
+
+/**
+ * 流程节点。引擎实际读取的键：id / type / name（resolve_first_task_node 与
+ * bpm_ops/mod.rs 的 resolve_node_assignee 读 node 的 id / name）与
+ * assignee_type / assignee_value（均见 resolve_node_assignee）。
+ * assignee_type 仅 user 有执行路径（resolve_node_assignee 对其余值直接拒绝发起），
+ * assignee_value 为用户 ID（resolve_node_assignee 须解析为正整数，否则拒绝发起）。
+ * 节点级 condition / next_nodes 引擎从不读取（条件表达式挂在 edge.condition 上），
+ * 故不声明——留着即是让用户填写不生效的虚假能力。
+ */
 export interface ProcessNode {
   id: string;
-  type: 'start' | 'end' | 'approval' | 'condition' | 'notify';
+  type: BpmNodeType;
   name: string;
-  assignee_type?: 'user' | 'role' | 'department' | 'dynamic';
-  assignee_value?: string | number;
+  assignee_type?: 'user';
+  assignee_value?: number;
+}
+
+/**
+ * 流程图边。引擎逐字符读取的键：source / target（resolve_first_task_node 按 source
+ * 找 start 出边、try_advance_to_next_node 按 source 匹配出边并取 target）、
+ * condition（try_advance_to_next_node 经 evaluate_bpm_condition 求值）。
+ * condition 仅在为可解析表达式时有语义：解析失败引擎按 fail-closed 判不匹配
+ * （见 bpm_service.rs 的 evaluate_bpm_condition），空串是 poison 值，因此无条件边必须省略该键。
+ */
+export interface ProcessEdge {
+  source: string;
+  target: string;
   condition?: string;
-  next_nodes?: string[];
+}
+
+/**
+ * 流程定义 config 持久化形状：nodes + edges 均在 config 内
+ * （resolve_first_task_node 与 try_advance_to_next_node 均从 config 读取；缺 edges 时
+ * try_advance_to_next_node 匹配不到推进边，首节点批准后流程直接完成 = 后续审批被绕过）。
+ */
+export interface ProcessConfig {
+  nodes?: ProcessNode[];
+  edges?: ProcessEdge[];
 }
 
 export interface ProcessVersion {
@@ -58,7 +100,8 @@ export type ProcessTemplate = ProcessDefinition;
 /**
  * POST /bpm/definitions 载荷（唯一真相：models/dto/bpm_dto.rs CreateProcessDefinitionRequest）。
  * name/code 为非 Option 必填（缺失 → serde 400/422，禁止用 Partial<ProcessDefinition> 掩盖）；
- * 流程节点必须包在 config.nodes（后端从 config 提取，顶层 nodes 非 DTO 字段）。
+ * 流程节点与边必须包在 config.nodes / config.edges 提交（后端只从 config 提取，
+ * 顶层 nodes 非 DTO 字段；缺 edges 会绕过后续审批推进）。
  */
 export interface CreateProcessDefinitionPayload {
   name: string;
@@ -66,7 +109,7 @@ export interface CreateProcessDefinitionPayload {
   description?: string;
   category?: string;
   version?: string;
-  config?: { nodes?: ProcessNode[] } & Record<string, unknown>;
+  config?: ProcessConfig & Record<string, unknown>;
   status?: ProcessDefinition['status'];
 }
 
@@ -78,7 +121,7 @@ export interface UpdateProcessDefinitionPayload {
   name?: string;
   description?: string;
   category?: string;
-  config?: { nodes?: ProcessNode[] } & Record<string, unknown>;
+  config?: ProcessConfig & Record<string, unknown>;
   status?: ProcessDefinition['status'];
 }
 
