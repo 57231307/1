@@ -9,7 +9,7 @@ import {
   genDyeLotNo,
   ensureTestEntities,
 } from './helpers';
-import { uiCreateDialog, pickListArray } from './ui-helpers';
+import { pickListArray } from './ui-helpers';
 
 // 匹号/缸号领域真实链路测试（.monkeycode/docs/piece-number-domain-design.md）
 // 编号语义（用户 2026-09-05 二次确认）：
@@ -47,6 +47,53 @@ async function fetchPieces(
   return pickListArray<PieceItem>(res, 'items', '7 匹号四维列表 /inventory/pieces');
 }
 
+/** 按仓型取可用仓库。命中已有仓则复用，缺失就用 API 显式带 warehouse_type 建，建完读回校验
+ *
+ *  为何必须按类型读回校验。仓型是本链路全部仓型约束的门控依据
+ *  （services/piece_domain_service.rs::validate_warehouse_for_piece_type 拿
+ *  warehouses.warehouse_type 与匹类型逐字符比对，值为 NULL 时整条约束直接放行），
+ *  而 e2e 全局 seed 建的仓不带 warehouse_type（e2e/global-setup.ts 只送 name/code），
+ *  列表首项 ctx.warehouseIds 正是这种无类型仓。原先写成
+ *  uiCreateDialog(...) 再 || ctx.warehouseIds 首项兜底，UI 建单响应捕获失败时会静默换仓，
+ *  匹落进无类型仓后 7-4 读到的 warehouse_type 就是 NULL，
+ *  报错点与被破坏的前提之间没有因果关系，属兜底掩盖。 */
+async function ensureWarehouseOfType(
+  page: import('@playwright/test').Page,
+  type: 'greige' | 'finished'
+): Promise<number> {
+  const listed = await apiCallRaw<{ items: Array<{ id: number; warehouse_type: string | null }> }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const hit = listed.items.find(w => w.warehouse_type === type);
+  if (hit) {
+    console.log(`[7-1] 复用已有 ${type} 仓 id=`, hit.id);
+    return hit.id;
+  }
+  const created = await apiCallRaw<{ id?: number }>(page, 'POST', '/warehouses', {
+    warehouse_name: genName(type === 'greige' ? 'E2E胚布仓' : 'E2E成品仓'),
+    warehouse_type: type,
+  });
+  const id = Number(created?.id);
+  if (!id) {
+    throw new Error(`[7-1] 前置失败：创建 ${type} 仓未回 id，实际 ${JSON.stringify(created)}`);
+  }
+  // 读回校验落库仓型。建单成功不等于门控前提成立，必须逐字符确认本仓确实是该类型
+  const after = await apiCallRaw<{ items: Array<{ id: number; warehouse_type: string | null }> }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const row = after.items.find(w => w.id === id);
+  expect(
+    row?.warehouse_type,
+    `[7-1] 仓库 ${id} 落库仓型应为 ${type}，实际 ${JSON.stringify(row)}`
+  ).toBe(type);
+  console.log(`[7-1] 新建 ${type} 仓 id=`, id);
+  return id;
+}
+
 test.describe
   .serial('Shard 7: 匹号领域真实链路（报工逐匹→染色外发回仓→净布例外→仓库约束→四维追溯）', () => {
   const dyeLotNo = genDyeLotNo();
@@ -67,34 +114,10 @@ test.describe
 
   test('7-1 前置：创建胚布仓 + 成品仓（仓库类型约束基础）', async ({ page }) => {
     await ensureTestEntities(page);
-    const ctx = getCtx();
-    // 复用已有仓库，缺失则补建；优先用 API 查询
-    const existing = await apiCallRaw<{
-      items: Array<{ id: number; warehouse_type: string | null }>;
-    }>(page, 'GET', '/warehouses?page=1&page_size=200');
-    const greige = existing.items.find(w => w.warehouse_type === 'greige');
-    const finished = existing.items.find(w => w.warehouse_type === 'finished');
-    greigeWarehouseId = greige?.id || 0;
-    finishedWarehouseId = finished?.id || 0;
-    // 缺失则 UI 创建（i18n 中文标签）
-    if (!greigeWarehouseId) {
-      console.log('[7-1] 胚布仓缺失，UI 创建');
-      greigeWarehouseId =
-        (await uiCreateDialog(page, '/warehouse', '/warehouses', /新建仓库/, /保存|确定/, [
-          // 仓库编码只读、后端自动取号（提交省略 warehouse_code 键），UI 不填写
-          { kind: 'input', label: '仓库名称', value: genName('E2E胚布仓') },
-          { kind: 'select', label: '类型', value: '胚布仓' },
-        ])) || ctx.warehouseIds[0];
-    }
-    if (!finishedWarehouseId) {
-      console.log('[7-1] 成品仓缺失，UI 创建');
-      finishedWarehouseId =
-        (await uiCreateDialog(page, '/warehouse', '/warehouses', /新建仓库/, /保存|确定/, [
-          // 仓库编码只读、后端自动取号（提交省略 warehouse_code 键），UI 不填写
-          { kind: 'input', label: '仓库名称', value: genName('E2E成品仓') },
-          { kind: 'select', label: '类型', value: '成品仓' },
-        ])) || ctx.warehouseIds[1];
-    }
+    // 仓型是 7-4/7-5 的门控前提，必须按类型取仓并在缺失时显式建 typed 仓，
+    // 禁止回落到 ctx.warehouseIds（全局 seed 仓无 warehouse_type，回落会让约束静默放行）
+    greigeWarehouseId = await ensureWarehouseOfType(page, 'greige');
+    finishedWarehouseId = await ensureWarehouseOfType(page, 'finished');
     console.log('[7-1] 胚布仓 ID=', greigeWarehouseId, '成品仓 ID=', finishedWarehouseId);
     expect(greigeWarehouseId).toBeGreaterThan(0);
     expect(finishedWarehouseId).toBeGreaterThan(0);

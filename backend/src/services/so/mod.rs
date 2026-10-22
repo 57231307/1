@@ -155,6 +155,8 @@ pub struct CreateSalesOrderRequest {
     /// 收货联系电话快照
     pub contact_phone: Option<String>,
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// 订单初始状态：只允许缺省（服务端定初值落 sales_order::CREATE_INITIAL）或与之
+    /// 逐字符相同的取值，其余状态由提交、审批等权威操作产生，建单直传一律拒绝
     #[validate(length(max = 50, message = "状态长度不能超过50个字符"))]
     pub status: Option<String>,
     #[validate(length(max = 500, message = "收货地址长度不能超过500个字符"))]
@@ -277,6 +279,8 @@ fn validate_quantity_tolerance_pct(v: &rust_decimal::Decimal) -> Result<(), Vali
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateSalesOrderRequest {
     pub required_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// 订单状态：只允许与该行当前态逐字符相同的写入（幂等，语义是不改状态）。
+    /// 任何改态企图由编辑保存口状态门拒绝，状态推进走提交、审批、拒绝、取消、发货、完成权威操作
     pub status: Option<String>,
     pub shipping_address: Option<String>,
     pub billing_address: Option<String>,

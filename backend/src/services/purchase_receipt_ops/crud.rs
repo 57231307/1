@@ -16,8 +16,9 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 
+use crate::models::status::purchase_inventory::purchase_order as po_status;
 use crate::models::{
-    product, purchase_order_item, purchase_receipt, purchase_receipt_item, status,
+    product, purchase_order, purchase_order_item, purchase_receipt, purchase_receipt_item, status,
 };
 use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
@@ -41,6 +42,20 @@ impl PurchaseReceiptService {
         }
 
         let txn = (*self.db).begin().await?;
+
+        // 来源订单状态门，事务内行锁读来源采购订单，未批准或已终止的状态一律拒绝建单，
+        // 被拒路径不落任何入库行（防 DRAFT、REJECTED 订单借入库单直接入账并回写订单状态）
+        if let Some(order_id) = req.order_id {
+            let source_order = purchase_order::Entity::find_by_id(order_id)
+                .lock_exclusive()
+                .one(&txn)
+                .await?
+                .ok_or_else(|| AppError::not_found(format!("来源采购订单 {} 不存在", order_id)))?;
+            Self::validate_order_status_for_receipt(
+                &source_order.order_no,
+                &source_order.order_status,
+            )?;
+        }
 
         // 采购门控：校验供应商是否在有效黑名单中（事务内执行，消除 TOCTOU）
         SupplierBlacklistService::new(self.db.clone())
@@ -97,6 +112,34 @@ impl PurchaseReceiptService {
             .await;
 
         Ok(receipt)
+    }
+
+    /// 入库建单口的来源采购订单状态门（只放行可继续收货态）。
+    ///
+    /// 功能：判定来源订单当前态是否属于词表 purchase_order::RECEIPT_ELIGIBLE
+    /// （已审批、部分收货），未批准与已终止、已收满状态一律拒绝，文案点名单号、当前态与允许清单。
+    /// 调用方：同文件 create_receipt（事务内行锁读出来源订单后、写任何行之前调用）。
+    /// 入参：order_no，来源订单号（仅用于拒绝文案点名）。current，来源订单当前状态。
+    /// 传给谁：BUSINESS_ERROR（400，可外显）经 create_receipt 透传 handler 出参。
+    /// 存什么·存哪里：只读校验，不落数据。允许清单唯一事实来源是词表 RECEIPT_ELIGIBLE。
+    pub fn validate_order_status_for_receipt(
+        order_no: &str,
+        current: &str,
+    ) -> Result<(), AppError> {
+        if po_status::RECEIPT_ELIGIBLE.contains(&current) {
+            return Ok(());
+        }
+        tracing::warn!(
+            order_no = order_no,
+            current_status = current,
+            "采购入库建单口来源订单状态门：不可继续收货，拒绝建单"
+        );
+        Err(AppError::business_displayable(format!(
+            "采购订单 {} 当前状态 {} 不可继续收货，拒绝创建入库单（允许的来源状态：{}），未批准的订单请先完成审批",
+            order_no,
+            current,
+            po_status::RECEIPT_ELIGIBLE.join("/")
+        )))
     }
 
     /// 入库明细四维准入校验（建单/追加明细期即拒绝）。

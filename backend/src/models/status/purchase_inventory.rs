@@ -29,6 +29,16 @@ pub mod purchase_order {
     pub const COMPLETED: &str = "COMPLETED";
     /// 部分收货
     pub const PARTIAL_RECEIVED: &str = "PARTIAL_RECEIVED";
+
+    /// 可继续收货的采购订单状态集合（采购入库建单口的来源状态门清单）。
+    ///
+    /// 存在理由：入库建单前对来源采购订单的状态门只认这份清单，门内不得手写取值
+    /// （状态词表唯一事实来源是本模块，取值域口径同 inventory_transfer::ALL）。
+    /// 判定依据：APPROVED 是审批通过后进入可收货环节的初始态。PARTIAL_RECEIVED 表示仍有
+    /// 未收余量可继续收货。DRAFT、PENDING_APPROVAL、SUBMITTED 未获批不可收货。
+    /// REJECTED、CANCELLED、CLOSED 已终止，不再有收货履约义务。COMPLETED 已收满无余量，
+    /// 再收货会造成重复入账。比较值与本 mod 常量逐字符相同（大写词表，大小写敏感）。
+    pub const RECEIPT_ELIGIBLE: &[&str] = &[APPROVED, PARTIAL_RECEIVED];
 }
 
 /// 采购收货单状态常量（purchase_receipt.receipt_status 大写，批次 214 P2-1，状态机 DRAFT→CONFIRMED→COMPLETED）
