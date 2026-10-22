@@ -2266,6 +2266,79 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
+  // ---- 14.5 确保覆盖当前日期的会计期间存在（必须早于任何触发凭证生成/期间校验的种子）----
+  // 后端按业务日期查 accounting_periods 是否存在覆盖该日的期间（start<=date<=end），
+  // 缺失则凭证生成失败（收货确认链路 fail-soft 只 WARN，留待人工补生成）。因此期间种子
+  // 必须先于采购收货确认与 AR/AP 收付种子执行，否则种子期单据天生缺凭证。
+  // 端点：POST /finance/accounting-periods，Payload { year, period }（period=1-12），
+  // 后端自动取当月首日至末日为 start/end_date。
+  // 幂等口径：靠错误文案判"已存在"不可行（业务错误出参永久脱敏），正解是用读端点做
+  // 存在性前置（GET /finance/accounting-periods 返回含 year/period 的数组）：已存在即跳过；
+  // 不存在才 POST；POST 仍失败 = 真实缺陷，经 reportSeedWrite 计入汇总判红（禁止反向放松）。
+  {
+    const now = new Date();
+    const periodYear = now.getFullYear();
+    const periodMonth = now.getMonth() + 1;
+    const periodLabel = `会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')}`;
+    try {
+      const listResp = await ctx.get(`${API_PREFIX}/finance/accounting-periods`, { headers });
+      const listBody = await safeJson(listResp);
+      const periods =
+        (listBody?.data as Array<{ year?: number; period?: number }> | undefined) ?? null;
+      if (!listResp.ok() || !Array.isArray(periods)) {
+        await reportSeedWrite(listResp, `${periodLabel} 存在性回读`);
+      } else if (periods.some(p => p.year === periodYear && p.period === periodMonth)) {
+        console.log(`[globalSeed] ${periodLabel} 已存在（读端点确认），跳过创建`);
+      } else {
+        const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
+          year: periodYear,
+          period: periodMonth,
+        });
+        if (periodResp.ok()) {
+          console.log(`[globalSeed] 创建${periodLabel} 成功`);
+        } else {
+          await reportSeedWrite(periodResp, `${periodLabel} 创建`);
+        }
+      }
+    } catch (e) {
+      recordSeedFailure(`${periodLabel} 检查/创建异常`, (e as Error).message);
+    }
+  }
+
+  // ---- 14.6 固定日期全流程用例所需的会计期间前置（族B 11-ar payments 2026-05-06/07）----
+  // 期间校验按 payment_date 以闭区间 start<=date<=end 命中，缺失即业务拒绝。
+  // fullflow/11-ar.spec.ts 用固定 payment_date '2026-05-06'/'2026-05-07'（非当前月），
+  // 14.5 的当前月种子不覆盖，故补一条确定性 2026-05 OPEN 期间，与用例日期对齐。
+  // 幂等口径与 14.5 同源：读端点确认已存在即跳过，缺失才 POST；POST 失败计入汇总判红。
+  {
+    const fixedPeriodYear = 2026;
+    const fixedPeriodMonth = 5;
+    const periodLabel = `会计期间 ${fixedPeriodYear}-${String(fixedPeriodMonth).padStart(2, '0')}`;
+    try {
+      const listResp = await ctx.get(`${API_PREFIX}/finance/accounting-periods`, { headers });
+      const listBody = await safeJson(listResp);
+      const periods =
+        (listBody?.data as Array<{ year?: number; period?: number }> | undefined) ?? null;
+      if (!listResp.ok() || !Array.isArray(periods)) {
+        await reportSeedWrite(listResp, `${periodLabel} 存在性回读`);
+      } else if (periods.some(p => p.year === fixedPeriodYear && p.period === fixedPeriodMonth)) {
+        console.log(`[globalSeed] ${periodLabel} 已存在（读端点确认），跳过创建`);
+      } else {
+        const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
+          year: fixedPeriodYear,
+          period: fixedPeriodMonth,
+        });
+        if (periodResp.ok()) {
+          console.log(`[globalSeed] 创建${periodLabel} 成功`);
+        } else {
+          await reportSeedWrite(periodResp, `${periodLabel} 创建`);
+        }
+      }
+    } catch (e) {
+      recordSeedFailure(`${periodLabel} 检查/创建异常`, (e as Error).message);
+    }
+  }
+
   // ---- 15. 库存种子（sales/04 发货、purchase/04 质检等链路的前置库存）----
   // 独立建库存行的原因：步骤5只建了仓库、步骤2只建了产品，没有库存行时
   //   sales/04-04 打开发货对话框的 loadDeliveryStockRows（GET /inventory/stock?
@@ -2775,87 +2848,12 @@ async function ensureGlobalBusinessSeed(
     }
   }
 
-  // ---- 17.5 确保覆盖当前日期的会计期间存在（AR 收款/凭证的期间校验前置）----
-  // 后端 check_date_locked_txn（accounting_period_service.rs:645）按 payment_date 查询
-  // accounting_periods 表 start_date<=date AND end_date>=date，不存在则拒绝。
-  // 端点：POST /api/v1/erp/finance/accounting-periods（routes/finance.rs:70-73，missing_handlers.rs:110）
-  // Payload：{ year, period }（period=1-12），后端自动计算当月首日至末日为 start/end_date。
-  // 幂等口径：靠「400 body 文案含"已存在"」判幂等不可行——后端 missing_handlers.rs:125
-  // 走 AppError::business（出参永久脱敏为「业务处理失败」），文案匹配永不成立，
-  // 早已存在的期间会被误判成创建失败。正解=用**读端点做存在性前置**（GET /finance/accounting-periods
-  // 返回 Vec<Dto>，missing_handlers.rs:72-83，含 year/period 列）：已存在即跳过写；不存在才 POST；
-  // POST 仍失败 = 真实缺陷，经 reportSeedWrite 计入汇总判红（禁止反向放松）。
-  {
-    const now = new Date();
-    const periodYear = now.getFullYear();
-    const periodMonth = now.getMonth() + 1;
-    const periodLabel = `会计期间 ${periodYear}-${String(periodMonth).padStart(2, '0')}`;
-    try {
-      const listResp = await ctx.get(`${API_PREFIX}/finance/accounting-periods`, { headers });
-      const listBody = await safeJson(listResp);
-      const periods =
-        (listBody?.data as Array<{ year?: number; period?: number }> | undefined) ?? null;
-      if (!listResp.ok() || !Array.isArray(periods)) {
-        await reportSeedWrite(listResp, `${periodLabel} 存在性回读`);
-      } else if (periods.some(p => p.year === periodYear && p.period === periodMonth)) {
-        console.log(`[globalSeed] ${periodLabel} 已存在（读端点确认），跳过创建`);
-      } else {
-        const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
-          year: periodYear,
-          period: periodMonth,
-        });
-        if (periodResp.ok()) {
-          console.log(`[globalSeed] 创建${periodLabel} 成功`);
-        } else {
-          await reportSeedWrite(periodResp, `${periodLabel} 创建`);
-        }
-      }
-    } catch (e) {
-      recordSeedFailure(`${periodLabel} 检查/创建异常`, (e as Error).message);
-    }
-  }
-
-  // ---- 17.6 固定日期全流程用例所需的会计期间前置（族B 11-ar payments 2026-05-06/07）----
-  // 后端 check_payment_period_locked（ar_ops/collection.rs 转 accounting_period_service.rs 做期间闭区间校验）
-  // 按 payment_date 以闭区间 start<=date<=end 命中 accounting_periods，缺失即业务拒绝。
-  // fullflow/11-ar.spec.ts 用固定 payment_date '2026-05-06'/'2026-05-07'（非"当前月"），
-  // 17.5 的当前月种子不覆盖 ⇒ 补一条确定性 2026-05 OPEN 期间，与用例日期对齐。
-  // 幂等口径与 17.5 同源：读端点确认已存在即跳过，缺失才 POST；POST 失败计入汇总判红（禁止反向放松）。
-  {
-    const fixedPeriodYear = 2026;
-    const fixedPeriodMonth = 5;
-    const periodLabel = `会计期间 ${fixedPeriodYear}-${String(fixedPeriodMonth).padStart(2, '0')}`;
-    try {
-      const listResp = await ctx.get(`${API_PREFIX}/finance/accounting-periods`, { headers });
-      const listBody = await safeJson(listResp);
-      const periods =
-        (listBody?.data as Array<{ year?: number; period?: number }> | undefined) ?? null;
-      if (!listResp.ok() || !Array.isArray(periods)) {
-        await reportSeedWrite(listResp, `${periodLabel} 存在性回读`);
-      } else if (periods.some(p => p.year === fixedPeriodYear && p.period === fixedPeriodMonth)) {
-        console.log(`[globalSeed] ${periodLabel} 已存在（读端点确认），跳过创建`);
-      } else {
-        const periodResp = await seedPost(`${API_PREFIX}/finance/accounting-periods`, {
-          year: fixedPeriodYear,
-          period: fixedPeriodMonth,
-        });
-        if (periodResp.ok()) {
-          console.log(`[globalSeed] 创建${periodLabel} 成功`);
-        } else {
-          await reportSeedWrite(periodResp, `${periodLabel} 创建`);
-        }
-      }
-    } catch (e) {
-      recordSeedFailure(`${periodLabel} 检查/创建异常`, (e as Error).message);
-    }
-  }
-
   // ---- 18. AR 收款单种子（族B sales/06-04 收款管理 tab 需有记录）----
   // 端点：POST /api/v1/erp/ar/payments
   // CreateArPaymentRequest（handlers/ar_payment_handler.rs:31）必填：
   //   customer_id:i32, amount:Decimal, payment_method:String(min1,max50), payment_date:NaiveDate。
   // 业务校验：check_payment_period_locked 要求 payment_date 落在已设置的 OPEN 会计期间内
-  //   （步骤 17.5 已确保当前年月期间存在）。
+  //   （步骤 14.5 已确保当前年月期间存在）。
   if (currentUserId) {
     try {
       const AR_PAY_MIN = 2;

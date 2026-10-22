@@ -13,6 +13,10 @@
 //! - try_generate_return_voucher（commit 后生成红字冲销凭证，按来源单据查重保证幂等）
 //!
 //! ReceiptVoucherContext 仅在本模块使用，随方法一同迁移至此（保持私有）。
+//!
+//! 价税取值：`ApTaxBasis` 是同一笔应付业务含税/不含税的唯一取值点，收货实收基数上的
+//! 进项税额由 `resolve_receipt_input_tax` 逐行解析（税率取所回指采购订单行、金额派生
+//! 复用采购订单行金额口径的权威实现），应付单账面额、应付凭证贷方与付款核销都从它取数。
 
 use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
@@ -25,15 +29,39 @@ use crate::models::{
     ap_invoice, purchase_order_item, purchase_receipt, purchase_receipt_item, purchase_return,
     voucher,
 };
+use crate::services::po::CreateOrderItemRequest;
+use crate::services::po::order::PurchaseOrderService;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::services::ap_invoice_service::{ApInvoiceService, DEFAULT_BASE_CURRENCY_EXCHANGE_RATE};
 use crate::services::voucher_service::{CreateVoucherRequest, VoucherItemRequest, VoucherService};
 use crate::utils::error::AppError;
 
+/// 采购入库应付的价税取值点（本仓同一笔应付业务含税/不含税的唯一来源）
+///
+/// 不含税基与税额基都取本张收货单的实收量：`net` 为收货行金额合计，`tax` 为同一实收基数
+/// 上按采购订单行税率解析的进项税额。应付单账面额（amount 与 unpaid_amount）、应付凭证
+/// 2202 贷方、付款核销基准三处一律取 `gross`，凭证库存商品借方取 `net`，
+/// 禁止任何一处再自行拼一次价税。
+struct ApTaxBasis {
+    /// 不含税额（收货行金额合计）
+    net: Decimal,
+    /// 进项税额（属应交税费—进项税额，不并入应付账款的成本段）
+    tax: Decimal,
+}
+
+impl ApTaxBasis {
+    /// 含税确认额（价税合计）：应付账款的确认额，也是付清时的核销基准
+    fn gross(&self) -> Decimal {
+        self.net + self.tax
+    }
+}
+
 /// 采购应付/退货红字应付共用的凭证上下文：commit 前从应付单捕获生成凭证所需字段，
 /// invoice 在 Ok 返回时被 move，提前捕获避免 commit 后凭证生成无法访问。
-/// 金额语义随单据方向：收货单为正数（amount 不含税），退货单为红字负数（amount 含税）。
+/// 金额语义随单据方向：收货单为正数、退货单为红字负数，两者 amount 均存含税价税合计，
+/// tax_amount 为其中进项税额（退货为负），库存商品借方由 amount 扣税推定。
 struct ReceiptVoucherContext {
     invoice_no: String,
     invoice_id: i32,
@@ -59,6 +87,12 @@ impl ReceiptVoucherContext {
             tax_amount: invoice.tax_amount,
             invoice_date: invoice.invoice_date,
         }
+    }
+
+    /// 凭证库存商品借方取不含税额：账面额（含税）扣掉归属进项税额的那一段，
+    /// 与应付单落库时的价税取值同式，不在分录侧另算
+    fn net_amount(&self) -> Decimal {
+        self.amount - self.tax_amount
     }
 }
 
@@ -143,7 +177,10 @@ impl ApInvoiceService {
     }
 
     /// 构造并插入应付单 ActiveModel（账期 30 天 / 初始 DRAFT）
-    /// P1-3 修复：从采购入库明细获取税额
+    ///
+    /// 入参 receipt 的 total_amount 是收货行金额合计（不含税基），税额按同一实收基数逐行
+    /// 解析；落库 amount 与 unpaid_amount 存价税合计（含税应付义务），tax_amount 存其中
+    /// 归属「应交税费—进项税额」的那一段。应付凭证 2202 贷方与付款核销都从本账面额取数。
     async fn build_and_insert_receipt_invoice(
         txn: &DatabaseTransaction,
         receipt: &purchase_receipt::Model,
@@ -157,24 +194,25 @@ impl ApInvoiceService {
         let invoice_date = receipt.receipt_date;
         let due_date = invoice_date + Duration::days(payment_terms as i64);
 
-        // P1-3 修复：从采购入库明细获取税额
-        // 通过 order_item_id 关联 purchase_order_item 获取 tax_amount
         let receipt_items = purchase_receipt_item::Entity::find()
             .filter(purchase_receipt_item::Column::ReceiptId.eq(receipt.id))
             .all(txn)
             .await?;
 
-        let mut tax_amount = Decimal::ZERO;
-        for item in &receipt_items {
-            if let Some(order_item_id) = item.order_item_id {
-                if let Some(order_item) = purchase_order_item::Entity::find_by_id(order_item_id)
-                    .one(txn)
-                    .await?
-                {
-                    tax_amount += order_item.tax_amount;
-                }
-            }
-        }
+        // 5. 价税取值：不含税基与税额基同落在本张收货单的实收量上，含税确认额由两者相加
+        let tax_basis = ApTaxBasis {
+            net: receipt.total_amount,
+            tax: Self::resolve_receipt_input_tax(txn, &receipt_items).await?,
+        };
+        let payable_amount = tax_basis.gross();
+        tracing::info!(
+            receipt_id = receipt.id,
+            invoice_no = %invoice_no,
+            net = %tax_basis.net,
+            input_tax = %tax_basis.tax,
+            payable = %payable_amount,
+            "应付单价税取值：按实收基数解析进项税额，账面额取价税合计"
+        );
 
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
@@ -185,9 +223,9 @@ impl ApInvoiceService {
             invoice_date: Set(invoice_date),
             due_date: Set(due_date),
             payment_terms: Set(payment_terms),
-            amount: Set(receipt.total_amount),
+            amount: Set(payable_amount),
             paid_amount: Set(Decimal::ZERO),
-            unpaid_amount: Set(receipt.total_amount),
+            unpaid_amount: Set(payable_amount),
             // P0 3-1 修复（2026-07-01 八维度审计）：自动生成 AP 发票初始为 DRAFT，
             // 经 approve 流程审核后转 AUDITED 才能进入付款环节。
             // 原 PENDING 状态不在 approve 状态机枚举内（仅 DRAFT→AUDITED），
@@ -195,8 +233,7 @@ impl ApInvoiceService {
             invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(crate::constants::DEFAULT_CURRENCY.to_string()),
             exchange_rate: Set(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE),
-            // P1-3 修复：从采购入库明细获取税额
-            tax_amount: Set(tax_amount),
+            tax_amount: Set(tax_basis.tax),
             created_by: Set(user_id),
             ..Default::default()
         }
@@ -204,6 +241,74 @@ impl ApInvoiceService {
         .await?;
 
         Ok(invoice)
+    }
+
+    /// 汇总本张收货单在实收基数上的进项税额（传给应付单 tax_amount 与应付凭证借方行）
+    ///
+    /// 逐行以「本行实收量 × 本行实录单价」为计税基，税率与折扣率取所回指采购订单行的值，
+    /// 派生金额复用采购订单行金额口径的唯一权威实现
+    /// `PurchaseOrderService::calculate_item_amounts`，本处不另写第二套公式。
+    /// 未回指订单行的收货行（无来源订单的入库）无从解析税率，按不计税入账并显式告警，
+    /// 与不含税基保持同基，不臆造税率、不静默丢行；回指行查不到则拒绝生成，避免少计税款。
+    async fn resolve_receipt_input_tax(
+        txn: &DatabaseTransaction,
+        items: &[purchase_receipt_item::Model],
+    ) -> Result<Decimal, AppError> {
+        let order_item_ids: Vec<i32> = items.iter().filter_map(|item| item.order_item_id).collect();
+        let order_item_map = Self::load_source_order_items(txn, order_item_ids).await?;
+
+        let mut tax_total = Decimal::ZERO;
+        for item in items {
+            let Some(order_item_id) = item.order_item_id else {
+                tracing::warn!(
+                    receipt_item_id = item.id,
+                    receipt_id = item.receipt_id,
+                    "收货行未回指采购订单行，税率无从解析，本行按不计税计入应付单进项税额"
+                );
+                continue;
+            };
+            let order_item = order_item_map.get(&order_item_id).ok_or_else(|| {
+                AppError::business(format!("收货行 {} 回指的采购订单行不存在", item.id))
+            })?;
+            if item.unit_price.is_none() {
+                tracing::warn!(
+                    receipt_item_id = item.id,
+                    order_item_id,
+                    "收货行未记录单价，计税基与不含税基同为 0，本行不计进项税"
+                );
+            }
+            // 只取权威实现的税额列：不含税基已由收货主表合计给出，折扣不参与本处取值
+            let amounts = PurchaseOrderService::calculate_item_amounts(&CreateOrderItemRequest {
+                line_no: Some(item.line_no),
+                material_id: Some(item.product_id),
+                unit_price: item.unit_price,
+                quantity_ordered: Some(item.quantity),
+                quantity_alt_ordered: item.quantity_alt,
+                tax_rate: Some(order_item.tax_percent),
+                discount_percent: Some(order_item.discount_percent),
+                quantity_tolerance_pct: order_item.quantity_tolerance_pct,
+                color_no: item.color_code.clone(),
+                notes: item.notes.clone(),
+            });
+            tax_total += amounts.tax_amount;
+        }
+
+        Ok(tax_total)
+    }
+
+    /// 批量加载收货行回指的采购订单行（循环外单次查询，避免逐行回查的 N+1）
+    async fn load_source_order_items(
+        txn: &DatabaseTransaction,
+        order_item_ids: Vec<i32>,
+    ) -> Result<HashMap<i32, purchase_order_item::Model>, AppError> {
+        if order_item_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let rows = purchase_order_item::Entity::find()
+            .filter(purchase_order_item::Column::Id.is_in(order_item_ids))
+            .all(txn)
+            .await?;
+        Ok(rows.into_iter().map(|row| (row.id, row)).collect())
     }
 
     /// 库存商品分录（借方科目码 1405；收货传正数不含税额，退货传红字负数）
@@ -270,7 +375,7 @@ impl ApInvoiceService {
     fn build_payable_voucher_item(
         summary: &str,
         supplier_id: i32,
-        total: Decimal,
+        payable_amount: Decimal,
     ) -> VoucherItemRequest {
         VoucherItemRequest {
             line_no: Some(2),
@@ -278,7 +383,7 @@ impl ApInvoiceService {
             subject_code: Some("2202".to_string()),
             subject_name: Some("应付账款".to_string()),
             debit: Decimal::ZERO,
-            credit: total,
+            credit: payable_amount,
             summary: Some(summary.to_string()),
             assist_customer_id: None,
             assist_supplier_id: Some(supplier_id),
@@ -296,13 +401,16 @@ impl ApInvoiceService {
         }
     }
 
-    /// 组装采购入库应付确认凭证分录列表（默认 2 行（库存商品 / 应付账款），tax_amount > 0 时插入进项税额，；重排为 3 行：1=库存商品 / 2=进项税额 / 3=应付账款。）
+    /// 组装采购入库应付确认凭证分录（默认 2 行：1=库存商品 / 2=应付账款，tax_amount > 0 时
+    /// 在中间插入 222101 进项税额并重排行号为 1=库存商品 / 2=进项税额 / 3=应付账款）
+    ///
+    /// 贷方应付账款直接取应付单账面额（含税），库存商品借方取账面额扣掉税额后的不含段，
+    /// 使借方两行之和恒等于贷方一行，与付款核销基准同源
     fn build_receipt_voucher_items(ctx: &ReceiptVoucherContext) -> Vec<VoucherItemRequest> {
-        let voucher_total = ctx.amount + ctx.tax_amount;
         let summary = format!("采购入库应付确认-{}", ctx.invoice_no);
         let mut voucher_items = vec![
-            Self::build_inventory_voucher_item(&summary, ctx.supplier_id, ctx.amount),
-            Self::build_payable_voucher_item(&summary, ctx.supplier_id, voucher_total),
+            Self::build_inventory_voucher_item(&summary, ctx.supplier_id, ctx.net_amount()),
+            Self::build_payable_voucher_item(&summary, ctx.supplier_id, ctx.amount),
         ];
 
         // 进项税额仅在 tax_amount > 0 时插入，避免零额凭证分录引起校验告警
@@ -346,14 +454,24 @@ impl ApInvoiceService {
     }
 
     /// 采购入库生成应付单后同步生成应付凭证（失败仅 warn 不阻断主流程）
-    /// F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证；借：1405 库存商品（不含税金额）；借：222101 应交税费-进项税额（tax_amount > 0 时）；贷：2202 应付账款（含税总额，挂供应商辅助核算）；失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），；避免凭证生成失败影响主业务流程，便于人工补偿。
+    ///
+    /// 借：1405 库存商品（账面额扣掉进项税额的不含段）；借：222101 应交税费-应交增值税-
+    /// 进项税额（tax_amount > 0 时）；贷：2202 应付账款（应付单账面额，含税，挂供应商辅助
+    /// 核算）；失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），
+    /// 避免凭证生成失败影响主业务流程，便于人工补偿。
     async fn try_generate_receipt_voucher(
         db: &Arc<DatabaseConnection>,
         ctx: ReceiptVoucherContext,
         user_id: i32,
     ) {
-        let voucher_total = ctx.amount + ctx.tax_amount;
-        if voucher_total <= Decimal::ZERO {
+        // 应付单账面额（含税）就是本凭证应付账款贷方额：为零说明收货未计出任何应付义务，
+        // 货已入库却无凭证属账实脱节，跳过必须显式告警、不静默
+        if ctx.amount <= Decimal::ZERO {
+            tracing::warn!(
+                invoice_id = ctx.invoice_id,
+                invoice_no = %ctx.invoice_no,
+                "应付单账面含税额为 0，跳过应付凭证生成：请核对收货行单价是否维护"
+            );
             return;
         }
 
