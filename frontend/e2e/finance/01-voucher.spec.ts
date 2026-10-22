@@ -4,7 +4,7 @@
 import { test, expect, type Page, type Locator } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
-import { apiCall, tryCleanup } from '../flow/helpers';
+import { apiCall, apiCallRaw, tryCleanup } from '../flow/helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -12,15 +12,83 @@ test.afterEach(async ({ page }) => {
   CLEANUP.length = 0;
 });
 
+/** 凭证详情回读的精确形状：voucher 字段 flatten 至顶层，分录在 entries（GET /vouchers/{id}） */
+interface VoucherDetailLite {
+  id: number;
+  voucher_no: string;
+  voucher_date: string;
+  status: string | null;
+  entries: Array<{
+    line_no: number;
+    subject_id: number | null;
+    debit: unknown;
+    credit: unknown;
+    summary: string | null;
+  }>;
+}
+
+/** 金额按两位小数标度对齐（分录列为 DECIMAL(15,2)，序列化常以字符串回喂），非数值形态立即抛错不放宽 */
+function amountAtScale(value: unknown, label: string): string {
+  const n = typeof value === 'string' || typeof value === 'number' ? Number(value) : NaN;
+  if (!Number.isFinite(n)) {
+    throw new Error(`${label} 金额形态非数值（契约漂移？）：${JSON.stringify(value)}`);
+  }
+  return n.toFixed(2);
+}
+
 /**
- * 保证存在两枚可识别的叶子会计科目，返回其唯一名称。
- * 凭证分录科目为 el-tree-select，须真实存在的科目外键（voucher_ops/crud.rs precheck_subjects_exist_txn）。
+ * 按本例自建科目的 id 集合唯一锁定 UI 刚创建的凭证并返回其详情。
+ * 列表端点 GET /vouchers 的 data 为裸数组且支持 status/start_date/end_date 过滤；
+ * 列表行不含分录科目，故逐候选取 GET /vouchers/{id} 详情，以 entries 的 subject_id
+ * 集合与本例两枚唯一科目精确相等为判据——其他分片/其他用例的凭证引用的是各自科目，
+ * 天然免疫并发串扰。命中数不等于 1 时由调用方断言判红，不静默取第一条。
+ */
+async function findVoucherBySubjectIds(
+  page: Page,
+  subjectIds: [number, number],
+  voucherDate: string
+): Promise<VoucherDetailLite[]> {
+  const list = await apiCallRaw<unknown>(
+    page,
+    'GET',
+    `/vouchers?status=draft&start_date=${voucherDate}&end_date=${voucherDate}&page=1&page_size=100`
+  );
+  if (!Array.isArray(list)) {
+    throw new Error(
+      `GET /vouchers 未返回数组（列表契约漂移）：${JSON.stringify(list).slice(0, 200)}`
+    );
+  }
+  const wanted = new Set(subjectIds);
+  const hits: VoucherDetailLite[] = [];
+  for (const row of list) {
+    const id = (row as { id?: unknown }).id;
+    if (typeof id !== 'number') {
+      throw new Error(`凭证列表行缺少数值 id：${JSON.stringify(row).slice(0, 200)}`);
+    }
+    const detail = await apiCallRaw<VoucherDetailLite>(page, 'GET', `/vouchers/${id}`);
+    if (!Array.isArray(detail.entries)) {
+      throw new Error(
+        `GET /vouchers/${id} 未返回 entries 数组（详情契约漂移）：${JSON.stringify(detail).slice(0, 200)}`
+      );
+    }
+    const got = new Set(
+      detail.entries.map(e => e.subject_id).filter((x): x is number => typeof x === 'number')
+    );
+    if (got.size === wanted.size && [...wanted].every(x => got.has(x))) hits.push(detail);
+  }
+  return hits;
+}
+
+/**
+ * 保证存在两枚可识别的叶子会计科目，返回其 id 与唯一名称。
+ * 凭证分录科目为外键，须真实存在（voucher_ops/crud.rs 科目预检）。
  * 用例不依赖环境既有科目：直接经真实 API 建两枚并登记清理；VoucherTab onMounted 会重拉
  * /subjects/tree，故随后打开的凭证对话框科目树即含这两枚（按名称精确定位节点）。
+ * id 用于建单后按分录科目集合回读定位凭证，名称用于 UI 树节点定位。
  */
-async function ensureLeafSubjects(page: Page): Promise<[string, string]> {
+async function ensureLeafSubjects(page: Page): Promise<Array<{ id: number; name: string }>> {
   const ts = Date.now();
-  const names: string[] = [];
+  const subjects: Array<{ id: number; name: string }> = [];
   let i = 0;
   for (const role of ['借', '贷']) {
     const name = `E2E 科目${role}${ts}`;
@@ -33,10 +101,10 @@ async function ensureLeafSubjects(page: Page): Promise<[string, string]> {
     const id = created.data?.id;
     if (!id) throw new Error(`建科目失败：${JSON.stringify(created).slice(0, 200)}`);
     CLEANUP.push({ path: `/subjects/${id}`, label: 'account_subject' });
-    names.push(name);
+    subjects.push({ id, name });
     i++;
   }
-  return [names[0], names[1]];
+  return subjects;
 }
 
 /**
@@ -98,7 +166,9 @@ test.describe('01 凭证管理', () => {
 
   test('01-02 新建凭证（含借贷分录）', async ({ page }) => {
     // 先真实准备两枚叶子科目（分录科目为外键，须存在），再走 UI 建凭证。
-    const [debitSubjectName, creditSubjectName] = await ensureLeafSubjects(page);
+    const [debitSubject, creditSubject] = await ensureLeafSubjects(page);
+    const debitSubjectName = debitSubject.name;
+    const creditSubjectName = creditSubject.name;
 
     await page.goto('/finance');
     // 原缺陷：/finance 默认停在「科目管理」Tab（finance/index.vue activeTab='subject'），
@@ -162,6 +232,44 @@ test.describe('01 凭证管理', () => {
     // 提交按钮真实文案「确定」（finance.voucherForm.buttonConfirm='确定'），旧 /确认|提交/ 命不中。
     await dlg.getByRole('button', { name: '确定' }).last().click();
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({ timeout: 30000 });
+
+    // 丙档回读：toast 只证明前端收到成功响应，不证明落库真值。
+    // 以本例唯一科目对为锚定位 UI 建出的凭证（GET /vouchers 列表 + GET /vouchers/{id} 详情），
+    // 命中数不等于 1 一律判红，不静默取第一条；随后断言状态、日期、分录行数与借贷金额真值。
+    const hits = await findVoucherBySubjectIds(
+      page,
+      [debitSubject.id, creditSubject.id],
+      '2026-08-19'
+    );
+    expect(hits.length, 'UI 建出的凭证应按本例唯一科目对精确命中一条').toBe(1);
+    const createdVoucher = hits[0];
+    CLEANUP.push({ path: `/vouchers/${createdVoucher.id}`, label: 'voucher' });
+
+    expect(createdVoucher.status, '新建凭证应落库为 draft').toBe('draft');
+    expect(createdVoucher.voucher_date, '凭证日期应落库为 UI 录入值').toBe('2026-08-19');
+    expect(
+      createdVoucher.entries.length,
+      `分录行数应为 UI 实际录入的 2 行，实际 ${createdVoucher.entries.length}`
+    ).toBe(2);
+
+    const debitEntry = createdVoucher.entries.find(e => e.subject_id === debitSubject.id);
+    const creditEntry = createdVoucher.entries.find(e => e.subject_id === creditSubject.id);
+    if (!debitEntry || !creditEntry) {
+      throw new Error(
+        `回读分录缺少借/贷科目行（debit=${JSON.stringify(debitEntry)} credit=${JSON.stringify(creditEntry)}）`
+      );
+    }
+    // 金额按两位小数同一标度比较（分录列为 DECIMAL(15,2)，序列化常以字符串回喂）
+    expect(amountAtScale(debitEntry.debit, '借方行借额'), '借方行借额应为 UI 录入的 100').toBe(
+      '100.00'
+    );
+    expect(amountAtScale(debitEntry.credit, '借方行贷额'), '借方行贷额应为 0').toBe('0.00');
+    expect(amountAtScale(creditEntry.debit, '贷方行借额'), '贷方行借额应为 0').toBe('0.00');
+    expect(amountAtScale(creditEntry.credit, '贷方行贷额'), '贷方行贷额应为 UI 录入的 100').toBe(
+      '100.00'
+    );
+    expect(debitEntry.summary, '借方行摘要应落库为 UI 录入原文').toBe('E2E 借方分录');
+    expect(creditEntry.summary, '贷方行摘要应落库为 UI 录入原文').toBe('E2E 贷方分录');
   });
 
   test('01-03 凭证筛选功能可用', async ({ page }) => {
