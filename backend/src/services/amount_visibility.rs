@@ -24,8 +24,8 @@
 //! 二是出参里不存在的键一律不收进来，对不存在的键做移除是恒不生效的空操作，
 //! 留着只会让人误判该列已被保护。
 //! 数量、重量、幅宽、规格、单号、状态、时间类列不属金额，保持原样外发。
-//! 收编前某出口已在本列集合之外的数量列上做移除的，该动作继续保留，
-//! 因为把它撤掉会让原本被隐的列重新外发，属放宽而非等价。
+//! 收编前个别出口把数量列一并移除了，按裁定这类列不属金额，撤销该动作；
+//! 撤销会让这些数量列从被隐变为可见，属裁定明确批准的可见性变化，不是本模块自取。
 
 use crate::utils::admin_checker;
 use sea_orm::DatabaseConnection;
@@ -79,14 +79,8 @@ impl DefaultAmountResource {
             ],
             // 权威源 PurchaseOrderDto：已付与未付两键在该出参不存在（收编前是空转，
             // 故不收），已到货金额实名 received_amount 且此前漏隐，按真实列补入。
-            // 两个数量列在收编前已被移除，继续保留：撤掉会让原本被隐的列重新外发。
-            Self::PurchaseOrder => &[
-                "total_amount",
-                "total_amount_foreign",
-                "total_quantity",
-                "total_quantity_alt",
-                "received_amount",
-            ],
+            // 两个数量列按裁定不属金额，不再列入隐藏集合。
+            Self::PurchaseOrder => &["total_amount", "total_amount_foreign", "received_amount"],
             Self::PurchaseReceipt => &["total_amount"],
             // 权威源 purchase_receipt_item 模型：行金额键实名 amount，
             // 收编前写的 total_price 与 tax_amount 两键在该出参不存在（空转），不收。
