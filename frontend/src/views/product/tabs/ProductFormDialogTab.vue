@@ -143,6 +143,7 @@
               :precision="4"
               :controls="false"
               style="width: 100%"
+              readonly
             />
           </el-form-item>
         </el-col>
@@ -252,6 +253,23 @@ const formData = reactive({
   is_active: true,
 });
 
+// 每卷米数是每匹米数的派生只读项：一卷即一匹，两者米数同源，界面只留每匹米数一个入口。
+// 读：用户在每匹米数输入框里改动的值。写给：每卷米数的只读展示值，随提交载荷一并发给后端。
+// 存：不单独落库，由后端按同值写入 products 的每匹米数与每卷米数两列。
+// 回显时两列各按后端真实值展示，历史产品若两值不等如实可见；只有用户真正改动每匹米数才带出同值，
+// 因此打开编辑再保存不会改写历史每卷米数。echoing 抑制回显赋值误触发带出。
+// 调用方：本组件的每匹米数输入框；同步执行是因为回显与带出处在同一次赋值栈内。
+const echoing = ref(false);
+
+watch(
+  () => formData.meters_per_piece,
+  val => {
+    if (echoing.value) return;
+    formData.meters_per_roll = val;
+  },
+  { flush: 'sync' }
+);
+
 const formRules: FormRules = {
   product_code: [
     {
@@ -311,16 +329,24 @@ watch(
   val => {
     visible.value = val;
     if (val) {
-      resetForm();
-      if (props.rowData) {
-        Object.assign(formData, props.rowData);
-        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
-        formData.meters_per_piece =
-          props.rowData.meters_per_piece != null
-            ? Number(props.rowData.meters_per_piece)
-            : undefined;
-        formData.meters_per_roll =
-          props.rowData.meters_per_roll != null ? Number(props.rowData.meters_per_roll) : undefined;
+      // 回显区间内抑制带出：resetForm 与两列归一都写每匹米数，那属于回填而非用户改动
+      echoing.value = true;
+      try {
+        resetForm();
+        if (props.rowData) {
+          Object.assign(formData, props.rowData);
+          // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+          formData.meters_per_piece =
+            props.rowData.meters_per_piece != null
+              ? Number(props.rowData.meters_per_piece)
+              : undefined;
+          formData.meters_per_roll =
+            props.rowData.meters_per_roll != null
+              ? Number(props.rowData.meters_per_roll)
+              : undefined;
+        }
+      } finally {
+        echoing.value = false;
       }
     }
   }
