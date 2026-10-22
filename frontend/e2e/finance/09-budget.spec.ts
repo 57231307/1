@@ -105,10 +105,18 @@ test.describe('09 预算端到端与一致性', () => {
       throw new Error(`明细详情缺少 periods 数组，实际键=${Object.keys(detail).join(',')}`);
     }
     expect(detail.periods.length, '期间分解应有 2 条').toBe(2);
-    const sum = detail.periods.reduce(
-      (acc, p) => acc + num(p as Record<string, unknown>, 'planned_amount'),
-      0
-    );
+    // 逐期间对齐：2031-01 应存 400、2031-02 应存 600（只断 Σ 会掩盖期间错位）。
+    const byPeriod = new Map<string, number>();
+    for (const p of detail.periods as Array<Record<string, unknown>>) {
+      const key = String(p.period);
+      if (byPeriod.has(key)) {
+        throw new Error(`期间分解出现重复期间 ${key}`);
+      }
+      byPeriod.set(key, num(p, 'planned_amount'));
+    }
+    expect(byPeriod.get('2031-01'), '2031-01 期间计划金额应为 400').toBe(400);
+    expect(byPeriod.get('2031-02'), '2031-02 期间计划金额应为 600').toBe(600);
+    const sum = [...byPeriod.values()].reduce((acc, v) => acc + v, 0);
     expect(sum, 'Σ期间分解应等于年度计划金额').toBe(1000);
     // 会计口径恒等：Σ期间 == planned_amount。
     expect(Math.abs(sum - num(detail, 'planned_amount')), '期间分解恒等').toBeLessThan(0.01);
@@ -170,8 +178,19 @@ test.describe('09 预算端到端与一致性', () => {
     expect(failureCode(fail), `机器码应为 BUSINESS_ERROR，实际=${fail.code}`).toBe(
       APP_ERROR_CODES.BUSINESS_ERROR
     );
-    expect(fail.message, `状态门应回显规则文案，实际=${JSON.stringify(fail.message)}`).toContain(
-      '无法审批'
+    // 状态门文案逐字符钉死（validate_plan_items_consistency 的 business_displayable 原文；
+    // 方案 ID/方案号/两侧金额只进服务端日志，不在此文案内）。
+    expect(fail.message, `状态门应回显规则文案原文，实际=${JSON.stringify(fail.message)}`).toBe(
+      '预算明细合计与方案总额不一致，无法审批，请先调整明细金额使合计等于方案总额'
     );
+
+    // 零变化回读：审批被拒后方案状态不得迁移（budget 词表小写 draft，见 models/status/bpm_crm_contract.rs）。
+    const planAfter = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/budgets/plans/${planId}`
+    );
+    expect(String(planAfter.status), '审批被拒后方案应仍为 draft').toBe('draft');
+    expect(num(planAfter, 'total_amount'), '审批被拒不得改动方案总额').toBe(1000);
   });
 });
