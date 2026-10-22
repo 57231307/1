@@ -4,7 +4,7 @@
  *
  * 门禁用途（对应缺陷：ci-e2e 的 job 级 if 只认 pull_request，main push 轮全部
  * "🎭 E2E" job 结论为 skipped，而收尾门把 skipped 计为通过，于是主线轮次零 E2E 覆盖
- * 却全绿；实测证据 main run 4915 与 4916）：
+ * 却全绿；判据来自 main push 轮的 job 结论本身，本步把它做成硬断言而非注释承诺）：
  *   本脚本是"main push 跑哪几片"的唯一决定者，并把决定做成硬断言。它同时被
  *   ci-build-fe 调用两件事：判红（任一判据不成立就 exit 1）与发射（把本轮矩阵
  *   写成 JSON 交给 ci-e2e 的 strategy.matrix 消费）。
