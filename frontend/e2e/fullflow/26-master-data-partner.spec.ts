@@ -88,7 +88,9 @@ async function seedDraftPo(page: Page, supplierId: number): Promise<number> {
     department_id: ctx.departmentIds[0],
     order_date: todayStr(),
     notes: `E2E-F26-REF-${genCode('PO')}`,
-    items: [{ material_id: ctx.productIds[0], quantity_ordered: '10', unit_price: '1.00' }],
+    items: [
+      { material_id: ctx.productIds[0], quantity_ordered: '10', unit_price: '1.00', tax_rate: 13 },
+    ],
   });
   const poId = requireNum(po.id, '建 DRAFT PO');
   CLEANUP.push({ path: `/purchase/orders/${poId}`, label: `purchase_order#${poId}` });

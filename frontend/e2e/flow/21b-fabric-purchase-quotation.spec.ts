@@ -38,7 +38,12 @@ test.describe('面料单据专用字段全链路验证', () => {
       department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
-        { material_id: ctx.productIds[0], quantity_ordered: receiptQty, unit_price: '20.00' },
+        {
+          material_id: ctx.productIds[0],
+          quantity_ordered: receiptQty,
+          unit_price: '20.00',
+          tax_rate: 13,
+        },
       ],
     });
     const poId = po.data?.id;

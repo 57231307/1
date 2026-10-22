@@ -110,7 +110,7 @@ async function seedConfirmedReceipt(page: import('@playwright/test').Page): Prom
     warehouse_id: warehouseId,
     department_id: departmentId,
     notes: `E2E-INSP-PO-${ts}`,
-    items: [{ material_id: productId, quantity_ordered: '500', unit_price: '15.00' }],
+    items: [{ material_id: productId, quantity_ordered: '500', unit_price: '15.00', tax_rate: 13 }],
   });
   const poId = po.data?.id;
   expect(poId, `种子采购订单未返回 id：${JSON.stringify(po)}`).toBeTruthy();

@@ -80,7 +80,7 @@ async function seedApprovedPOForProduct(page: Page, productId: number): Promise<
     warehouse_id: ctx.warehouseIds[0],
     department_id: ctx.departmentIds[0],
     notes: `E2E-P14-${genCode('PO')}`,
-    items: [{ material_id: productId, quantity_ordered: '100', unit_price: '12.00' }],
+    items: [{ material_id: productId, quantity_ordered: '100', unit_price: '12.00', tax_rate: 13 }],
   });
   const id = created.data?.id;
   if (!id) throw new Error(`建 PO 未返回 id：${JSON.stringify(created)}`);

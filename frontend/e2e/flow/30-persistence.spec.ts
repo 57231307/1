@@ -545,7 +545,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       payment_terms: 'P0付款条件30天',
       shipping_terms: 'P0运输条款FOB',
       notes: 'P0采购订单备注——非必填项也全部填写',
-      items: [{ line_no: 1, material_id: matId, unit_price: 10, quantity: 5 }],
+      items: [{ line_no: 1, material_id: matId, unit_price: 10, quantity: 5, tax_rate: 13 }],
     };
 
     const createResp = await apiCall<{ id?: number; order_no?: string }>(

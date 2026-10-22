@@ -107,6 +107,7 @@ test.describe('前端状态显示与业务逻辑验证', () => {
             material_id: ctx.productIds[0] || 1,
             quantity_ordered: '10',
             unit_price: '9.90',
+            tax_rate: 13,
           },
         ],
         notes: 'E2E 日期格式显示验证',

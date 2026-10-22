@@ -1520,7 +1520,15 @@ async fn notify_low_stock_users(
     current_quantity: rust_decimal::Decimal,
     reorder_point: rust_decimal::Decimal,
 ) {
-    let product_name = fetch_product_name(&*db, product_id).await;
+    // 产品真名取不到即放弃本次通知（不发送假名占位），失败原因已在上游 error 留痕
+    let Some(product_name) = fetch_product_name(&*db, product_id).await else {
+        tracing::error!(
+            product_id,
+            warehouse_id,
+            "低库存预警通知未发送：产品主数据无法提供真实名称"
+        );
+        return;
+    };
     let notify_user_ids = fetch_admin_manager_user_ids(&*db).await;
     let notify_count = notify_user_ids.len();
     let notification_service =
@@ -1549,15 +1557,28 @@ async fn notify_low_stock_users(
     );
 }
 
-/// 获取产品名称（缺失则回退为"产品{id}"）
-async fn fetch_product_name(db: &DatabaseConnection, product_id: i32) -> String {
-    crate::models::product::Entity::find_by_id(product_id)
+/// 取产品名称（供低库存预警通知使用），只认产品主数据真值。
+///
+/// 查询失败或主数据无对应行都返回 None 并 error 留痕，调用方必须放弃本次通知，
+/// 禁止把 "产品{id}" 这类占位串发进用户通知。
+async fn fetch_product_name(db: &DatabaseConnection, product_id: i32) -> Option<String> {
+    match crate::models::product::Entity::find_by_id(product_id)
         .one(db)
         .await
-        .ok()
-        .flatten()
-        .map(|p| p.name)
-        .unwrap_or_else(|| format!("产品{}", product_id))
+    {
+        Ok(Some(p)) => Some(p.name),
+        Ok(None) => {
+            tracing::error!(
+                product_id,
+                "低库存预警取产品名失败：产品主数据无对应行，无法提供真实名称"
+            );
+            None
+        }
+        Err(e) => {
+            tracing::error!(product_id, error = %e, "低库存预警取产品名失败：查询报错");
+            None
+        }
+    }
 }
 
 /// 获取 admin/manager 角色的活跃用户 ID 列表

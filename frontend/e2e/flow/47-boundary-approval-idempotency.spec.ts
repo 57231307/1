@@ -87,7 +87,7 @@ test.describe.serial('47 边界值/审批纵深/幂等/审计完整性', () => {
       department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
+      items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00', tax_rate: 13 }],
     });
     const id = po?.data?.id;
     expect(id, 'PO 创建失败').toBeTruthy();

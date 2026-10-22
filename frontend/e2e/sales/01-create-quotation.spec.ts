@@ -54,6 +54,8 @@ test.describe('01 创建报价单', () => {
     // 数量/单价（el-input-number → spinbutton 在明细行内）
     await itemsTable.getByRole('spinbutton').first().fill('100');
     await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 税率必录（落 sales_quotations.tax_rate NOT NULL，系统不设默认档位），13 是本例录入样本值
+    await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     // 提交（quotations.create.saveDraft = '保存草稿'）
     await page.getByRole('button', { name: '保存草稿' }).click();
     // 真实成功提示 quotations.create.draftSaved = '草稿保存成功'
@@ -76,6 +78,8 @@ test.describe('01 创建报价单', () => {
     await pickSelect(page, itemsTable.locator('.el-select').first());
     await itemsTable.getByRole('spinbutton').first().fill('100');
     await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 税率必录，同 01-03，否则表单校验先拦住保存草稿
+    await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     // 保存草稿 → 专属草稿落库，真实提示 quotations.create.draftSaved = '草稿保存成功'
     await page.getByRole('button', { name: '保存草稿' }).click();
     await expect(page.getByText('草稿保存成功')).toBeVisible({ timeout: 30000 });

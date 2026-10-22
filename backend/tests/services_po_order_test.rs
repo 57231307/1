@@ -1,25 +1,51 @@
 // decs 宏在测试中不可用，使用 Decimal::from_str 替代
 use bingxi_backend::decs;
+use bingxi_backend::models::purchase_order_item::{Column as PoItemColumn, Entity as PoItemEntity};
 use bingxi_backend::models::status;
+use bingxi_backend::models::status::master_data;
+use bingxi_backend::models::{product, supplier};
+use bingxi_backend::services::po::CreateOrderItemRequest;
+use bingxi_backend::services::po::order::PurchaseOrderService;
+use bingxi_backend::services::po::order_ops::crud::ItemAmounts;
+use bingxi_backend::services::po::price::ShortageAlertParams;
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::utils::tax;
 use bingxi_backend::ymd;
-// ymd 函数在测试中不可用，使用 NaiveDate::from_ymd_opt 替代
-use bingxi_backend::services::po::order::PurchaseOrderService;
+use chrono::Utc;
 use rust_decimal::Decimal;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::str::FromStr;
 use std::sync::Arc;
 
-// ---------- 纯算法复现夹具（与 create_order_items / create_order_header 保持一致） ----------
+// ---------- 金额计算夹具（一律真调生产唯一权威实现，禁止在本文件复制公式） ----------
 
 /// 复现 create_order_items 的金额计算纯算法
 fn calc_amount(quantity: Decimal, unit_price: Decimal) -> Decimal {
     (quantity * unit_price).round_dp(2)
 }
 
-/// 复现 create_order_items 的税额计算纯算法
-fn calc_tax_amount(amount: Decimal, tax_percent: Decimal) -> Decimal {
-    (amount * tax_percent / Decimal::new(100, 0)).round_dp(2)
+/// 真调生产路径的单行金额权威函数 PurchaseOrderService::calculate_item_amounts
+/// （创建路径与明细更新路径共用那一份实现）。税额不在本文件另算一套，
+/// 复制出来的第二套公式对生产改口径恒绿，属假锁。
+/// 入参 tax_rate 是百分数口径（13 表示 13%，0 表示无进项税），None 表示未提交。
+fn authoritative_amounts(
+    quantity: Decimal,
+    unit_price: Decimal,
+    tax_rate: Option<Decimal>,
+) -> Result<ItemAmounts, AppError> {
+    PurchaseOrderService::calculate_item_amounts(&CreateOrderItemRequest {
+        line_no: Some(1),
+        material_id: Some(1),
+        unit_price: Some(unit_price),
+        quantity_ordered: Some(quantity),
+        quantity_alt_ordered: None,
+        tax_rate,
+        discount_percent: None,
+        quantity_tolerance_pct: None,
+        color_no: None,
+        notes: None,
+    })
 }
 
 /// 复现 create_order_items 的折扣计算纯算法
@@ -64,41 +90,74 @@ fn test_jejs_ljhllcj() {
     assert_eq!(calc_amount(decs!("10"), Decimal::ZERO), Decimal::ZERO);
 }
 
-// ---------- 税额计算 ----------
+// ---------- 税额计算（真调生产权威口径，不复制公式） ----------
 
-/// test_sejs_mrslcj（验证未指定税率时使用默认值 Decimal::new(13, 2) = 0.13，；税额公式：amount * tax_percent / 100）
+/// 税率单位口径基线，tax_percent 是**百分数**（13 即 13%），1000 乘 13 除 100 得 130。
+/// 本条直调 utils tax 内核，下方各条真调生产权威函数，二者同一条公式。
 #[test]
-fn test_sejs_mrslcj() {
-    // 默认税率常量与 create_order_items 中 unwrap_or(Decimal::new(13, 2)) 一致
-    let default_tax_percent = Decimal::new(13, 2);
-    // 1000 * 0.13 / 100 = 1.30
+fn test_sejs_bfskw() {
     assert_eq!(
-        calc_tax_amount(decs!("1000"), default_tax_percent),
-        decs!("1.30")
+        tax::tax_amount(decs!("1000"), decs!("13")),
+        decs!("130"),
+        "百分数口径税率 13 的税额必须是 130（不是 1.30）"
     );
 }
 
-/// test_sejs_zdyslcj（验证用户传入税率（百分比值 13）时税额计算正确）
+/// test_sejs_zdyslcj（真调 calculate_item_amounts，提交百分数税率 13 时行税额 130）
 #[test]
 fn test_sejs_zdyslcj() {
-    // 用户传 13 作为百分比：1000 * 13 / 100 = 130.00
-    assert_eq!(calc_tax_amount(decs!("1000"), decs!("13")), decs!("130"));
+    let amounts = authoritative_amounts(decs!("10"), decs!("100"), Some(decs!("13")))
+        .expect("提交合法百分数税率必须算得出行金额");
+    assert_eq!(amounts.amount, decs!("1000"), "不含税金额 = 数量 × 单价");
+    assert_eq!(amounts.tax_percent, decs!("13"), "税率按提交的百分数原样落");
+    assert_eq!(
+        amounts.tax_amount,
+        decs!("130"),
+        "1000 × 13 ÷ 100 必须是 130"
+    );
 }
 
-/// test_sejs_lslcj（验证税率为 0 时税额为 0）
+/// test_sejs_lslcj（真调 calculate_item_amounts，显式提交无进项税 0 时税额为 0）
+/// 0 是自动补货链路显式声明的口径值（取内核常量），不是缺省代填，基数非 0
+/// 才能证明 0 税额是声明值而非空行巧合。
 #[test]
 fn test_sejs_lslcj() {
-    assert_eq!(calc_tax_amount(decs!("1000"), Decimal::ZERO), Decimal::ZERO);
+    let amounts = authoritative_amounts(decs!("10"), decs!("100"), Some(tax::NO_INPUT_TAX_PERCENT))
+        .expect("显式提交无进项税 0 必须算得出行金额");
+    assert_eq!(
+        amounts.tax_percent,
+        Decimal::ZERO,
+        "无进项税行的税率必须是 0"
+    );
+    assert_eq!(
+        amounts.tax_amount,
+        Decimal::ZERO,
+        "无进项税行的税额必须是 0"
+    );
+    assert!(
+        amounts.amount > Decimal::ZERO,
+        "基数非 0 才证明 0 税额是声明值，实际: {}",
+        amounts.amount
+    );
 }
 
-/// test_sejs_jdgyh（验证税额计算结果经 round_dp(2) 归一化到两位小数）
+/// test_sejs_jdgyh（真调 calculate_item_amounts，税额结果经 round_dp(2) 归一化）
 #[test]
 fn test_sejs_jdgyh() {
-    // 333.33 * 13 / 100 = 43.3329 → round_dp(2) = 43.33
-    assert_eq!(
-        calc_tax_amount(decs!("333.33"), decs!("13")),
-        decs!("43.33")
-    );
+    // 333.33 乘 1 乘 13 除 100 得 43.3329，round_dp(2) 得 43.33
+    let amounts = authoritative_amounts(decs!("333.33"), decs!("1"), Some(decs!("13")))
+        .expect("小数数量必须能算出税额");
+    assert_eq!(amounts.amount, decs!("333.33"));
+    assert_eq!(amounts.tax_amount, decs!("43.33"));
+}
+
+/// test_sejs_quezslj（真调 calculate_item_amounts，人工建单缺 tax_rate 一律拒）
+/// 0 是业务声明值（免税、无进项票），代填会让漏录与免税在进项台账里无法区分。
+#[test]
+fn test_sejs_quezslj() {
+    let err = authoritative_amounts(decs!("10"), decs!("100"), None)
+        .expect_err("缺税率必须返回业务错误，不得代填任何税率");
+    assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
 
 // ---------- 折扣计算 ----------
@@ -399,4 +458,102 @@ fn test_close_orderztjym_jzdzt() {
         assert!(msg.contains(s), "错误消息应包含当前状态 {}", s);
         assert!(msg.contains("关闭"), "错误消息应包含操作类型");
     }
+}
+
+// ---------- 自动补货链路的落库形态锁（真调生产入口 + 回读真表） ----------
+
+/// 造自动补货建单所需的主数据，带成本价的产品（补货行的单价来源，必须非 0，
+/// 否则税额 0 只是空行巧合）+ 启用状态供应商（price.rs 取活跃供应商的唯一条件）。
+/// suppliers 属迁移播种参照表（夹具不清空），用时间戳后缀自建专属行避免互撞。
+async fn seed_auto_replenishment_master(db: &DatabaseConnection) -> i32 {
+    let suffix = Utc::now().timestamp_nanos_opt().expect("系统时钟不可用");
+    let now = Utc::now();
+
+    let prod = product::ActiveModel {
+        name: Set(format!("补货形态锁物料-{suffix}")),
+        code: Set(format!("TAXFORM-{suffix}")),
+        unit: Set("米".to_string()),
+        status: Set("active".to_string()),
+        is_deleted: Set(false),
+        product_type: Set("fabric".to_string()),
+        cost_price: Set(Some(decs!("100"))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed product 失败");
+
+    supplier::ActiveModel {
+        supplier_code: Set(format!("SUP-TAXFORM-{suffix}")),
+        supplier_name: Set(format!("补货形态锁供应商-{suffix}")),
+        supplier_short_name: Set(String::new()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set(String::new()),
+        registered_address: Set(String::new()),
+        legal_representative: Set(String::new()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(ymd!(2020, 1, 1)),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set(String::new()),
+        bank_account: Set(String::new()),
+        contact_phone: Set(String::new()),
+        status: Set(Some(master_data::ACTIVE.to_string())),
+        is_processor: Set(false),
+        created_at: Set(now.into()),
+        updated_at: Set(now.into()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed supplier 失败");
+
+    prod.id
+}
+
+/// 落库形态锁，真调自动补货生产入口 create_purchase_suggestion_from_shortage，
+/// 回读 purchase_order_item 真表确认 tax_percent 落的是 0——既不是小数口径的 0.13，
+/// 也不是档位值 13，tax_amount 同为 0 而 subtotal 非 0，证明 0 是显式声明的
+/// 无进项税，不是没算出来的巧合。
+#[tokio::test]
+async fn test_auto_suggestion_row_tax_percent_lands_zero() {
+    let db = setup_test_db().await;
+    let product_id = seed_auto_replenishment_master(&db).await;
+
+    let order = PurchaseOrderService::new(Arc::new(db.clone()))
+        .create_purchase_suggestion_from_shortage(ShortageAlertParams {
+            material_id: product_id,
+            material_name: "补货形态锁物料".to_string(),
+            material_code: "TAXFORM-AUTO".to_string(),
+            required_quantity: decs!("100"),
+            available_quantity: decs!("40"),
+            shortage_quantity: decs!("60"),
+            shortage_level: "Critical".to_string(),
+            affected_orders_count: 1,
+        })
+        .await
+        .expect("自动补货建单必须成功（无税率来源即显式声明无进项税，不关掉链路）");
+
+    let item = PoItemEntity::find()
+        .filter(PoItemColumn::OrderId.eq(order.id))
+        .one(&db)
+        .await
+        .expect("回查自动补货明细失败")
+        .expect("自动补货建议必须已落明细行（有痕）");
+
+    assert_eq!(
+        item.tax_percent,
+        Decimal::ZERO,
+        "自动链路落库税率必须是 0，既不是 0.13 也不是 13，实得: {}",
+        item.tax_percent
+    );
+    assert_ne!(item.tax_percent, decs!("0.13"), "不得写成小数口径形态");
+    assert_ne!(item.tax_percent, decs!("13"), "不得写成任何税率档位");
+    assert_eq!(item.tax_amount, Decimal::ZERO, "无进项税行的税额必须是 0");
+    assert!(
+        item.subtotal > Decimal::ZERO,
+        "基数必须非 0，实际 subtotal: {}",
+        item.subtotal
+    );
 }

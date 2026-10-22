@@ -109,6 +109,18 @@
               <el-switch v-model="form.tax_inclusive" />
             </el-form-item>
           </el-col>
+          <el-col :span="8">
+            <el-form-item :label="t('quotations.create.labelTaxRate')" prop="tax_rate">
+              <el-input-number
+                v-model="form.tax_rate"
+                :min="0"
+                :max="100"
+                :precision="2"
+                :placeholder="t('quotations.create.taxRatePlaceholder')"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
         </el-row>
 
         <el-row :gutter="20">
@@ -133,7 +145,11 @@
         </el-row>
 
         <h3 class="section-title">{{ t('quotations.create.sectionItems') }}</h3>
-        <QuotationItemEditor v-model="form.items" :currency="form.currency" />
+        <QuotationItemEditor
+          v-model="form.items"
+          :currency="form.currency"
+          :tax-rate="form.tax_rate"
+        />
 
         <h3 class="section-title">{{ t('quotations.create.sectionTerms') }}</h3>
         <TermEditor :model-value="form.terms || []" @update:model-value="onTermsChange" />
@@ -260,7 +276,9 @@ const form = reactive<QuotationEditForm>({
   incoterms_version: '2020',
   incoterm_location: '',
   tax_inclusive: true,
-  tax_rate: 13.0,
+  // 税率不预填任何档位，新建时留空由人工填写（编辑态由后端单据已存值带出），
+  // 系统税率来源接入后改由后端派生带出，前端不持有档位字面量
+  tax_rate: undefined,
   moq: undefined,
   lead_time_days: undefined,
   customer_level: 'NORMAL',
@@ -288,6 +306,13 @@ const rules: FormRules = {
   ],
   exchange_rate: [
     { required: true, message: t('quotations.create.validateExchangeRate'), trigger: 'blur' },
+  ],
+  tax_rate: [
+    {
+      required: true,
+      message: t('quotations.create.validateTaxRateRequired'),
+      trigger: 'change',
+    },
   ],
   items: [
     {
@@ -321,9 +346,11 @@ const subtotal = computed(
       0
     ) || 0
 );
-const taxAmount = computed(
-  () => (form.tax_inclusive ? 0 : (subtotal.value * form.tax_rate) / 100) || 0
-);
+/** 税额展示，含税价口径下税额为 0，不含税时按单据税率（百分数）算，税率未填不出数（不做数字兜底） */
+const taxAmount = computed(() => {
+  if (form.tax_inclusive || form.tax_rate === undefined) return 0;
+  return (subtotal.value * form.tax_rate) / 100;
+});
 const totalAmount = computed(() => subtotal.value + taxAmount.value);
 
 /** 加载客户下拉 */
