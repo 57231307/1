@@ -122,31 +122,14 @@ impl VoucherService {
         req: &CreateVoucherRequest,
         db: Arc<DatabaseConnection>,
     ) -> Result<(), AppError> {
+        // 分录形态门先行，行数与借贷平衡与非零金额三查都在 validate_entry_shape_core
+        Self::validate_voucher_items_shape(&req.items)?;
+
         // 非生产环境跳过期间锁定检查（CI 测试环境可能无会计期间数据）
-        if !crate::utils::config::is_production() {
-            // 验证借贷平衡
-            let total_debit: Decimal = req.items.iter().map(|i| i.debit).sum();
-            let total_credit: Decimal = req.items.iter().map(|i| i.credit).sum();
-
-            if total_debit != total_credit {
-                warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-                return Err(Self::balance_error(total_debit, total_credit));
-            }
-            return Ok(());
-        }
-
-        // 校验期间锁定
-        let period_svc =
-            crate::services::accounting_period_service::AccountingPeriodService::new(db);
-        period_svc.check_date_locked(req.voucher_date).await?;
-
-        // 验证借贷平衡
-        let total_debit: Decimal = req.items.iter().map(|i| i.debit).sum();
-        let total_credit: Decimal = req.items.iter().map(|i| i.credit).sum();
-
-        if total_debit != total_credit {
-            warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
-            return Err(Self::balance_error(total_debit, total_credit));
+        if crate::utils::config::is_production() {
+            let period_svc =
+                crate::services::accounting_period_service::AccountingPeriodService::new(db);
+            period_svc.check_date_locked(req.voucher_date).await?;
         }
 
         Ok(())
@@ -165,6 +148,64 @@ impl VoucherService {
             "凭证借贷不平衡：借方 {} != 贷方 {}",
             total_debit, total_credit
         ))
+    }
+
+    /// 提交侧分录形态门，调用方为 create 与 update 的分量替换路径，入参是请求里的分录行
+    /// 形态门内核是 [`Self::validate_entry_shape_core`]，本函数只负责把请求行映射成
+    /// （行号，借方，贷方）三元组，行号取用户提交的 line_no，缺省按位置补号。
+    pub(super) fn validate_voucher_items_shape(
+        items: &[VoucherItemRequest],
+    ) -> Result<(), AppError> {
+        let rows: Vec<(i32, Decimal, Decimal)> = items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                (
+                    item.line_no.unwrap_or((index + 1) as i32),
+                    item.debit,
+                    item.credit,
+                )
+            })
+            .collect();
+        Self::validate_entry_shape_core(&rows)
+    }
+
+    /// 分录形态门内核，创建与更新与提交审核过账全部共用，禁止另起炉灶再写一套。
+    ///
+    /// 三道门按顺序点名缺什么。
+    /// 一，分录行数至少 1 行，0 行凭证不是合法账务对象，此前 0 行因 0 等于 0 恒平衡而畅通。
+    /// 二，借方合计与贷方合计必须相等，装配点仍是 balance_error 唯一出口，族口径不变。
+    /// 三，借贷平衡之后合计金额不得同时为 0，拦住全零金额的空壳凭证。
+    ///
+    /// 保密分层：行数门与非零门文案只述用户自己提交的行数与金额规则，走可外显的
+    /// [`AppError::validation_displayable`]；平衡门文案含借贷合计数额，沿用既有脱敏
+    /// [`AppError::validation`] 口径，真实金额只进 WARN 日志。
+    pub(super) fn validate_entry_shape_core(
+        rows: &[(i32, Decimal, Decimal)],
+    ) -> Result<(), AppError> {
+        if rows.is_empty() {
+            warn!("凭证分录形态门拒绝：分录行数为 0");
+            return Err(AppError::validation_displayable(
+                "凭证至少需要 1 条分录，当前为 0 条",
+            ));
+        }
+
+        let total_debit: Decimal = rows.iter().map(|(_, debit, _)| *debit).sum();
+        let total_credit: Decimal = rows.iter().map(|(_, _, credit)| *credit).sum();
+
+        if total_debit != total_credit {
+            warn!("凭证借贷不平衡：借={}, 贷={}", total_debit, total_credit);
+            return Err(Self::balance_error(total_debit, total_credit));
+        }
+
+        if total_debit == Decimal::ZERO && total_credit == Decimal::ZERO {
+            warn!("凭证分录形态门拒绝：借贷合计金额均为 0");
+            return Err(AppError::validation_displayable(
+                "凭证借贷合计金额不得全部为 0，请填写有效金额",
+            ));
+        }
+
+        Ok(())
     }
 
     /// P2 1-6 修复：批量校验凭证分录引用的科目（从 create 抽取）
@@ -450,6 +491,25 @@ impl VoucherService {
         let txn = self.db.begin().await?;
 
         let voucher_model = Self::load_voucher_for_update(id, &txn).await?;
+        let original_date = voucher_model.voucher_date;
+        let target_date = req.voucher_date.unwrap_or(original_date);
+
+        // 期间锁门，凭证原日期所在期间与改期后的目标期间都已关账则拒绝改写，
+        // 事务内走 check_date_locked_txn 避免检查与写入之间期间被并发关闭。
+        // 非生产环境跳过口径与创建侧一致（CI 测试环境可能无会计期间数据）。
+        if crate::utils::config::is_production() {
+            let period_svc =
+                crate::services::accounting_period_service::AccountingPeriodService::new(
+                    self.db.clone(),
+                );
+            period_svc
+                .check_date_locked_txn(&txn, original_date)
+                .await?;
+            if target_date != original_date {
+                period_svc.check_date_locked_txn(&txn, target_date).await?;
+            }
+        }
+
         let mut active_model: voucher::ActiveModel = voucher_model.into_active_model();
 
         if let Some(voucher_type) = req.voucher_type {
@@ -500,13 +560,13 @@ impl VoucherService {
         Ok(voucher_model)
     }
 
-    /// 替换凭证分录：校验借贷平衡 + 删除旧分录 + 插入新分录
+    /// 替换凭证分录：分录形态门 + 删除旧分录 + 插入新分录
     async fn replace_voucher_items(
         voucher_id: i32,
         items: &[VoucherItemRequest],
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<(), AppError> {
-        Self::validate_voucher_items_balance(items)?;
+        Self::validate_voucher_items_shape(items)?;
 
         vi::Entity::delete_many()
             .filter(vi::Column::VoucherId.eq(voucher_id))
@@ -514,20 +574,6 @@ impl VoucherService {
             .await?;
 
         Self::insert_voucher_items_for_update(voucher_id, items, txn).await
-    }
-
-    /// 校验凭证分录借贷平衡
-    fn validate_voucher_items_balance(items: &[VoucherItemRequest]) -> Result<(), AppError> {
-        let total_debit: Decimal = items.iter().map(|i| i.debit).sum();
-        let total_credit: Decimal = items.iter().map(|i| i.credit).sum();
-        if total_debit != total_credit {
-            warn!(
-                "凭证借贷不平衡（更新分录路径）：借={}, 贷={}",
-                total_debit, total_credit
-            );
-            return Err(Self::balance_error(total_debit, total_credit));
-        }
-        Ok(())
     }
 
     /// 插入凭证分录（update 路径，含 created_at）
@@ -599,6 +645,18 @@ impl VoucherService {
             return Err(AppError::business_displayable(
                 "只有草稿状态的凭证可以删除".to_string(),
             ));
+        }
+
+        // 期间锁门，凭证日期所在期间已关账则拒绝删除，与更新侧同一 _txn 构件与同一
+        // 非生产跳过口径，事务内校验避免检查与删除之间期间被并发关闭
+        if crate::utils::config::is_production() {
+            let period_svc =
+                crate::services::accounting_period_service::AccountingPeriodService::new(
+                    self.db.clone(),
+                );
+            period_svc
+                .check_date_locked_txn(&txn, voucher.voucher_date)
+                .await?;
         }
 
         // 保留凭证号用于日志

@@ -531,11 +531,19 @@ fn crud_source_scan_no_bad_request_left_for_subject_and_balance() {
             && !balance_window.contains("business_displayable("),
         "含借/贷金额数字的文案不得外显"
     );
-    // 三处平衡校验不得各自装配、绕开单一装配点。
+    // create 与 update 分量替换都经 validate_voucher_items_shape 进内核，内核只保留
+    // 一处 balance_error 装配点，禁止各调用点各自装配。
+    assert_eq!(
+        CRUD_SRC
+            .matches("Self::validate_voucher_items_shape(")
+            .count(),
+        2,
+        "create 与 update 换分录路径两处应各调一次 validate_voucher_items_shape"
+    );
     assert_eq!(
         CRUD_SRC.matches("Self::balance_error(").count(),
-        3,
-        "create 两分支 + update 换分录路径应共 3 处调用 balance_error"
+        1,
+        "balance_error 在本文件必须只有内核一处装配点"
     );
 }
 

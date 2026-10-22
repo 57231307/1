@@ -551,8 +551,17 @@ impl AccountingPeriodService {
         Ok(())
     }
 
-    /// 结转单条余额到下期：已存在则更新期初余额，不存在则插入新记录
-    /// 返回 true=inserted, false=updated；期末余额 = 期初 + 本期发生额，若本期发生额为零则期末 = 期初。；这里不重置 current_period_*，因为下期可能已有业务发生。
+    /// 结转单条余额到下期，写口形态为 INSERT ON CONFLICT DO NOTHING 占位后锁内读改写
+    ///
+    /// account_balances 上 (subject_id, period) 的唯一索引是并发写入口的仲裁点。
+    /// 若先查再插，相邻两期并发结账或结转与凭证过账同写一条余额行时会撞索引使整单结账失败，
+    /// 故先以占位插入消除查插窗口（冲突方等待对方落定后跳过插入，不产生约束冲突错误），
+    /// 再对该行 lock_exclusive 读改写覆盖期初与期末，等待方串行读到的是已提交终值。
+    /// 入参 balance 是本期期末行，写入 next_period 对应行，落在 account_balances 表。
+    /// 返回 true 表示本次占位新增了行，false 表示行已存在被更新。
+    /// 期末余额等于结转期初加下期已有发生额，不重置本期发生额列，因为下期可能已有业务发生。
+    /// 真实数据库错误沿 `?` 上抛为可见的 DATABASE_ERROR，结账事务整体回滚，
+    /// 期间随之回到 OPEN（CLOSING 标记与结转同事务），操作员可原样重试结账。
     async fn upsert_next_period_balance_txn(
         txn: &sea_orm::DatabaseTransaction,
         balance: &crate::models::account_balance::Model,
@@ -561,42 +570,69 @@ impl AccountingPeriodService {
     ) -> Result<bool, AppError> {
         use crate::models::account_balance;
 
+        let placeholder = account_balance::ActiveModel {
+            subject_id: Set(balance.subject_id),
+            period: Set(next_period.to_string()),
+            initial_balance_debit: Set(balance.ending_balance_debit),
+            initial_balance_credit: Set(balance.ending_balance_credit),
+            current_period_debit: Set(Decimal::ZERO),
+            current_period_credit: Set(Decimal::ZERO),
+            ending_balance_debit: Set(balance.ending_balance_debit),
+            ending_balance_credit: Set(balance.ending_balance_credit),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        // ON CONFLICT DO NOTHING 在 Postgres 冲突时没有 RETURNING 行，sea-orm 普通
+        // Insert::exec 会把"没插进去"报成 DbErr::RecordNotInserted，故走 try_insert，
+        // Conflicted 恰好等价于"行已由并发方落定"，转入锁内读改写，不当失败处理。
+        let insert_outcome = account_balance::Entity::insert(placeholder)
+            .on_conflict(
+                sea_orm::sea_query::OnConflict::columns([
+                    account_balance::Column::SubjectId,
+                    account_balance::Column::Period,
+                ])
+                .do_nothing()
+                .to_owned(),
+            )
+            .try_insert()
+            .exec(txn)
+            .await?;
+
+        // 占位成功即整行就是结转终值（发生额列为零），无需再写一遍
+        if matches!(insert_outcome, sea_orm::TryInsertResult::Inserted(_)) {
+            return Ok(true);
+        }
+        if matches!(insert_outcome, sea_orm::TryInsertResult::Empty) {
+            // 单模型插入恒有语句可执行，Empty 属驱动契约违背，显式报错不静默放行
+            return Err(AppError::internal(
+                "期末结转占位插入未执行任何 SQL，TryInsertResult::Empty 不应出现",
+            ));
+        }
+
+        // 行已存在（另一结账或过账先占位并提交），锁内读改写为终值
         let existing = account_balance::Entity::find()
             .filter(account_balance::Column::SubjectId.eq(balance.subject_id))
             .filter(account_balance::Column::Period.eq(next_period))
+            .lock_exclusive()
             .one(txn)
-            .await?;
-
-        if let Some(existing) = existing {
-            // 下期记录已存在，更新期初余额
-            let next_period_debit = existing.current_period_debit;
-            let next_period_credit = existing.current_period_credit;
-            let mut active: account_balance::ActiveModel = existing.into();
-            active.initial_balance_debit = Set(balance.ending_balance_debit);
-            active.initial_balance_credit = Set(balance.ending_balance_credit);
-            active.ending_balance_debit = Set(balance.ending_balance_debit + next_period_debit);
-            active.ending_balance_credit = Set(balance.ending_balance_credit + next_period_credit);
-            active.updated_at = Set(now);
-            active.update(txn).await?;
-            Ok(false)
-        } else {
-            // 下期记录不存在，插入新记录
-            let new_balance = account_balance::ActiveModel {
-                subject_id: Set(balance.subject_id),
-                period: Set(next_period.to_string()),
-                initial_balance_debit: Set(balance.ending_balance_debit),
-                initial_balance_credit: Set(balance.ending_balance_credit),
-                current_period_debit: Set(Decimal::ZERO),
-                current_period_credit: Set(Decimal::ZERO),
-                ending_balance_debit: Set(balance.ending_balance_debit),
-                ending_balance_credit: Set(balance.ending_balance_credit),
-                created_at: Set(now),
-                updated_at: Set(now),
-                ..Default::default()
-            };
-            new_balance.insert(txn).await?;
-            Ok(true)
-        }
+            .await?
+            .ok_or_else(|| {
+                AppError::internal(format!(
+                    "期末结转冲突后仍读不到余额行，subject_id={}, period={}",
+                    balance.subject_id, next_period
+                ))
+            })?;
+        let next_period_debit = existing.current_period_debit;
+        let next_period_credit = existing.current_period_credit;
+        let mut active: account_balance::ActiveModel = existing.into();
+        active.initial_balance_debit = Set(balance.ending_balance_debit);
+        active.initial_balance_credit = Set(balance.ending_balance_credit);
+        active.ending_balance_debit = Set(balance.ending_balance_debit + next_period_debit);
+        active.ending_balance_credit = Set(balance.ending_balance_credit + next_period_credit);
+        active.updated_at = Set(now);
+        active.update(txn).await?;
+        Ok(false)
     }
 
     /// 校验指定日期是否在已结账的期间内（防止篡改历史数据）

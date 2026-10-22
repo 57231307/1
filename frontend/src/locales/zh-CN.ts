@@ -1398,6 +1398,7 @@ export default {
     requiredFieldsMissing: '请填写必填字段',
     entriesUnbalanced: '借贷不平衡，请检查分录金额',
     keepAtLeastTwoEntries: '至少保留两条分录',
+    entryMissingSubject: '第 {lines} 行未选择科目，请补全后再提交',
     pleaseAddEntry: '请至少添加一条有效的分录',
     // V15 批次 07 P1：补充业务高频短语
     issueSuccess: '发放成功',

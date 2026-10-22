@@ -1405,6 +1405,7 @@ export default {
     requiredFieldsMissing: 'Please fill in required fields',
     entriesUnbalanced: 'Debits and credits are unbalanced, please check entry amounts',
     keepAtLeastTwoEntries: 'Keep at least two entries',
+    entryMissingSubject: 'Subject is not selected on line {lines}, complete it before submitting',
     pleaseAddEntry: 'Please add at least one valid entry',
     // V15 batch 07 P1: business high-frequency phrases
     issueSuccess: 'Issue successful',

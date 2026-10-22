@@ -548,12 +548,17 @@ fn source_scan_balance_error_single_validation_family_across_files() {
         );
     }
 
-    // workflow：两个校验函数都经 Self::balance_error 复用同族同措辞，
-    // 全文件不得再出现 bad_request（出现即 BAD_REQUEST 族回潮）
+    // workflow：两个借贷不平衡站点都经内核 validate_entry_shape_core 进唯一装配点，
+    // 全文件不得自行装配 balance_error，也不得再出现 bad_request（出现即 BAD_REQUEST 族回潮）
+    assert_eq!(
+        workflow.matches("Self::validate_entry_shape_core(").count(),
+        2,
+        "workflow.rs 的 validate_voucher / validate_voucher_in_transaction 两处必须复用内核 validate_entry_shape_core"
+    );
     assert_eq!(
         workflow.matches("Self::balance_error(").count(),
-        2,
-        "workflow.rs 的 validate_voucher / validate_voucher_in_transaction 两处必须复用 balance_error 唯一装配点"
+        0,
+        "workflow.rs 不得绕过内核自行装配 balance_error（唯一装配点在 crud.rs 内核内）"
     );
     assert!(
         !workflow.contains("AppError::bad_request("),
