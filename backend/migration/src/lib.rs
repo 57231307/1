@@ -127,6 +127,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::ap_input_tax_subject::Migration),
             Box::new(domain::ap_family_grant::Migration),
             Box::new(domain::purchase_greige_read_grant::Migration),
+            Box::new(domain::role_alias_withdrawal::Migration),
         ]
     }
 }
