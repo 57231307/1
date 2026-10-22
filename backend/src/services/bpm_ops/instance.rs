@@ -1,8 +1,8 @@
 //! 流程实例生命周期子模块（bpm_ops/instance）
 //!
 //! 从原 `bpm_service.rs` 迁移 7 个方法：
-//! - `start_process`：发起流程（创建实例 + 首任务/自动完成 + 事务提交后发布事件）
-//! - `create_first_task_or_complete`：创建首个任务或自动完成流程（私有，仅 start_process 调用）
+//! - start_process：发起流程（创建实例 + 创建首个任务 + 事务提交后通知处理人）
+//! - create_first_task：创建首个任务（私有，仅 start_process 调用；解析不到可执行审批节点即拒绝发起）
 //! - `cancel_instance`：撤回流程实例（终止实例 + 取消待处理任务 + 发布拒绝事件）
 //! - `get_process_by_business`：按业务类型 + 业务 ID 查询流程实例
 //! - `get_instance_detail`：获取流程实例详情（含审批链）
@@ -10,7 +10,7 @@
 //! - `get_business_relation`：获取 BPM 业务关联信息
 //!
 //! 跨 facade 依赖：
-//! - `create_first_task_or_complete` 调用 facade 的 `BpmService::resolve_first_task_node`（`pub(crate)`）
+//! - create_first_task 调用 facade 的 BpmService::resolve_first_task_node（pub(crate)）
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -29,27 +29,19 @@ use crate::services::bpm_service_dto::{
 use crate::utils::error::AppError;
 
 impl BpmService {
-    /// 创建首个任务或自动完成流程
-    async fn create_first_task_or_complete(
+    /// 创建首个任务：发起流程必须解析出可执行的审批节点并落到真实审批人。
+    ///
+    /// 全部路径 fail-closed，三类形状都拒绝发起并由调用方回滚事务：
+    /// ① 解析不到首个任务节点；② 解析到的节点类型不是审批节点（起始连线指向的
+    /// 目标不经类型校验，可能带回引擎不建单的词表项）；③ 审批人解析不出。
+    /// 拒绝时绝不把实例置成已完成、不建工单、不发布批准事件——
+    /// 未经人工审批的单据不得进入已批准状态。
+    async fn create_first_task(
         &self,
         txn: &sea_orm::DatabaseTransaction,
         definition: &bpm_process_definition::Model,
         instance: &bpm_process_instance::Model,
-        req: &StartProcessRequest,
-    ) -> Result<
-        (
-            Vec<i32>,
-            Option<crate::services::event_bus::BusinessEvent>,
-            Option<bpm_task::Model>,
-        ),
-        AppError,
-    > {
-        let mut task_ids = vec![];
-        let mut pending_event: Option<crate::services::event_bus::BusinessEvent> = None;
-        let mut first_task: Option<bpm_task::Model> = None;
-
-        // 流程定义没配节点时，原先整个分支被跳过：实例落库却没有任何任务、也不自动完成，
-        // 永久停在 PROCESSING（提交方以为已进审批，实际无人知晓）。现 fail-visible 拒绝发起。
+    ) -> Result<bpm_task::Model, AppError> {
         let flow_def = definition.config.as_ref().ok_or_else(|| {
             AppError::validation_displayable(format!(
                 "流程定义 {} 未配置审批节点，无法发起审批，请先在流程定义中配置节点与审批人",
@@ -57,65 +49,83 @@ impl BpmService {
             ))
         })?;
 
-        let first_task_node = Self::resolve_first_task_node(flow_def);
-
-        if let Some(first_task_node) = first_task_node {
-            // 创建首个用户任务。审批人必须解析得出，否则工单落库后在按人过滤的待办里永不可见。
-            let assignee_id = super::resolve_node_assignee(first_task_node)?;
-            let task_model = bpm_task::ActiveModel {
-                instance_id: Set(instance.id),
-                process_definition_id: Set(definition.id),
-                // 任务号在同一事务内向取号器申请，保证并发下唯一
-                task_no: Set(
-                    crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
-                        txn,
-                        "TSK",
-                        bpm_task::Entity,
-                        bpm_task::Column::TaskNo,
-                    )
-                    .await?,
-                ),
-                node_id: Set(first_task_node
-                    .get("id")
-                    .and_then(|i| i.as_str())
-                    .unwrap_or("unknown")
-                    .to_string()),
-                node_name: Set(first_task_node
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or("Task")
-                    .to_string()),
-                node_type: Set("user_task".to_string()),
-                task_type: Set(Some("user_task".to_string())),
-                actual_handler_id: Set(assignee_id),
-                status: Set(Some(task_status::PENDING.to_string())),
-                created_at: Set(Some(chrono::Utc::now())),
-                updated_at: Set(Some(chrono::Utc::now())),
-                ..Default::default()
-            };
-            let task = task_model.insert(txn).await?;
-            task_ids.push(task.id);
-            first_task = Some(task);
-        } else {
-            // 无任务节点，自动完成流程
-            let mut instance_active: bpm_process_instance::ActiveModel = instance.clone().into();
-            instance_active.status = Set(Some(instance_status::COMPLETED.to_string()));
-            instance_active.completed_at = Set(Some(chrono::Utc::now()));
-            instance_active.update(txn).await?;
-
-            // 事务内只收集事件，提交成功后再发布，避免回滚时产生幻事件。
-            // 自动完成场景没有审批人，事件 approver_id 取发起人。
-            pending_event = Some(
-                crate::services::event_bus::BusinessEvent::BpmProcessFinished {
-                    business_type: req.business_type.clone(),
-                    business_id: req.business_id,
-                    approved: true,
-                    approver_id: req.initiator_id,
-                },
+        let first_task_node = Self::resolve_first_task_node(flow_def).ok_or_else(|| {
+            tracing::warn!(
+                definition_id = definition.id,
+                instance_id = instance.id,
+                process_key = %definition.code,
+                "流程定义解析不到可执行的审批任务节点，已拒绝发起审批（内部标识仅随本条日志落盘）"
             );
+            AppError::validation_displayable(format!(
+                "流程定义 {} 没有可执行的审批节点，已拒绝发起审批。请在流程定义中配置审批节点与审批人，并确认节点类型与连线可被执行，然后重新提交",
+                definition.code
+            ))
+        })?;
+
+        // 起始连线指向的目标节点在解析时不经类型校验，可能带回通知、条件、结束事件等
+        // 引擎不建单的词表项；这类形状若照常建单会产生无人可审或错挂处理人的孤儿工单，
+        // 故首任务节点必须显式为审批节点（user_task），否则同样拒绝发起。
+        let node_type = first_task_node
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("未配置");
+        if node_type != "user_task" {
+            let node_id = first_task_node
+                .get("id")
+                .and_then(|i| i.as_str())
+                .unwrap_or("unknown");
+            let node_name = first_task_node
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("");
+            tracing::warn!(
+                definition_id = definition.id,
+                instance_id = instance.id,
+                process_key = %definition.code,
+                node_id = %node_id,
+                node_type = %node_type,
+                "首个任务节点类型不是审批节点，已拒绝发起审批（内部标识仅随本条日志落盘）"
+            );
+            return Err(AppError::validation_displayable(format!(
+                "流程定义 {} 的起始流程节点 {node_name}({node_id}) 类型为「{node_type}」，不是可执行的审批节点，审批引擎只对 user_task 节点建审批工单，已拒绝发起审批。请在流程定义中把起始连线指向配置了审批人的 user_task 节点，然后重新提交",
+                definition.code
+            )));
         }
 
-        Ok((task_ids, pending_event, first_task))
+        // 创建首个用户任务。审批人必须解析得出，否则工单落库后在按人过滤的待办里永不可见。
+        let assignee_id = super::resolve_node_assignee(first_task_node)?;
+        let task_model = bpm_task::ActiveModel {
+            instance_id: Set(instance.id),
+            process_definition_id: Set(definition.id),
+            // 任务号在同一事务内向取号器申请，保证并发下唯一
+            task_no: Set(
+                crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+                    txn,
+                    "TSK",
+                    bpm_task::Entity,
+                    bpm_task::Column::TaskNo,
+                )
+                .await?,
+            ),
+            node_id: Set(first_task_node
+                .get("id")
+                .and_then(|i| i.as_str())
+                .unwrap_or("unknown")
+                .to_string()),
+            node_name: Set(first_task_node
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("Task")
+                .to_string()),
+            node_type: Set("user_task".to_string()),
+            task_type: Set(Some("user_task".to_string())),
+            actual_handler_id: Set(assignee_id),
+            status: Set(Some(task_status::PENDING.to_string())),
+            created_at: Set(Some(chrono::Utc::now())),
+            updated_at: Set(Some(chrono::Utc::now())),
+            ..Default::default()
+        };
+        Ok(task_model.insert(txn).await?)
     }
 
     pub async fn start_process(
@@ -199,27 +209,19 @@ impl BpmService {
 
         let instance = instance_model.insert(&txn).await?;
 
-        // 创建首个任务或自动完成流程
-        let (task_ids, pending_event, first_task) = self
-            .create_first_task_or_complete(&txn, &definition, &instance, &req)
-            .await?;
+        // 创建首个任务：解析/落库失败在此直接返回错误，事务整体回滚，
+        // 实例与任务都不落库，也不会产生任何流程结束事件。
+        let first_task = self.create_first_task(&txn, &definition, &instance).await?;
 
         txn.commit().await?;
 
-        // P0 5-3 修复：commit 成功后发布 BPM 流程结束事件
-        if let Some(ev) = pending_event {
-            crate::services::event_bus::EVENT_BUS.publish(ev);
-        }
-
         // 工单已真实落库才通知处理人：审批任务生成即"有人被叫醒"，不再靠人工翻待办列表
-        if let Some(task) = first_task {
-            super::notify_task_pending(&self.db, &task, &instance, "新工单已生成").await;
-        }
+        super::notify_task_pending(&self.db, &first_task, &instance, "新工单已生成").await;
 
         Ok(StartProcessResponse {
             instance_id: instance.id,
             instance_no,
-            task_ids,
+            task_ids: vec![first_task.id],
         })
     }
 

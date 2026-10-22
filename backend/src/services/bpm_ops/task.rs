@@ -6,7 +6,7 @@
 //! - `update_task_status`：更新任务状态 + 审计
 //! - `handle_task_reject`：拒绝任务（终止 instance + 收集事件）
 //! - `handle_task_approve`：批准任务（推进下一节点或完成 instance）
-//! - `try_advance_to_next_node`：尝试推进下一节点（条件评估 + 创建下一 user_task）
+//! - try_advance_to_next_node：尝试推进下一节点（条件评估 + 创建下一 user_task + 定义配置错误时拒绝审批）
 //! - `create_next_user_task`：创建下一 user_task 节点
 //! - `complete_process_instance`：完成 instance + 收集事件
 //! - `query_user_tasks`：分页查询用户任务
@@ -291,7 +291,9 @@ impl BpmService {
         Ok(())
     }
 
-    /// 尝试推进下一节点：查找匹配边 + 创建下一 user_task
+    /// 尝试推进下一节点：查找匹配边 + 创建下一 user_task；
+    /// 匹配边的目标节点类型不受支持或指向不存在的节点时拒绝本次审批（fail-closed），
+    /// 无出边/命中 end_event 则返回 false 交由调用方按正常完成收尾。
     async fn try_advance_to_next_node(
         &self,
         ctx: &ApproveContext,
@@ -335,7 +337,28 @@ impl BpmService {
                             return Ok(true);
                         } else if node_type == "end_event" {
                             // 结束事件，在下面处理
+                        } else {
+                            // 目标节点类型不在引擎词表内属流程定义配置错误：拒绝本次审批
+                            // （事务由调用方回滚），不得把无法识别的节点当作"流程正常结束
+                            // 且已批准"放行。
+                            let node_id = next_node
+                                .get("id")
+                                .and_then(|i| i.as_str())
+                                .unwrap_or("unknown");
+                            let node_name =
+                                next_node.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                            return Err(AppError::validation_displayable(format!(
+                                "流程定义 {} 的审批节点 {node_name}({node_id}) 类型「{node_type}」不受支持，推进流程只识别 user_task 与 end_event，已拒绝本次审批，请修正流程定义后重新审批",
+                                ctx.definition.code
+                            )));
                         }
+                    } else {
+                        // 连线指向 nodes 中不存在的节点 id 同属流程定义配置错误，
+                        // 同样拒绝本次审批，不得按"流程正常结束"批准。
+                        return Err(AppError::validation_displayable(format!(
+                            "流程定义 {} 中从节点 {} 出发的连线指向不存在的节点 {target_id}，无法推进，已拒绝本次审批，请修正流程定义的节点连线",
+                            ctx.definition.code, ctx.task.node_id
+                        )));
                     }
                 }
             }
