@@ -7,11 +7,13 @@
 # 拉长。搬出后覆盖率只在 main push、每日定时与手工触发时收集：PR 轮不再为它付机时，
 # 合并门也不再被一个观测项卡住。
 #
-# 入参：无（直接读工作区源码）。传给谁：cargo llvm-cov 的结果写 backend/coverage/cobertura.xml，
-# 一份上传 Codecov，一份作为 workflow artifact 留存。存什么：行覆盖率报告。
-# 存哪里：runner 临时目录 + artifact（保留 30 天）。
-#
-# 判据与阈值随搬移逐字保留（下方 run 体未改）：FAILED>0 时报告里点明失败数，但本 job 不阻塞。
+# 判据来源：通过/失败/跳过/总计四个计数一律取 nextest 自己输出的 Summary 行，判定器复用
+# `scripts/ci/nextest-summary.sh`（与 ci-cd.yml 各测试 job 同一个脚本，避免副本过期）。
+# 真实测试失败仍是信息性、不阻塞；但拿不到 Summary 行（编译失败或进程中途崩溃，本轮根本没跑成）
+# 判红退出，因为那时有 0/0/0 会被下游读成"全部通过"。
+# 调用方：main push、每日定时与手工触发。入参：无（直接读工作区源码）。
+# 存什么：行覆盖率（cargo llvm-cov 写 backend/coverage/cobertura.xml）与上述四项计数。
+# 存哪里：runner 临时目录 + artifact（保留 30 天）+ Codecov + step summary。
 # ==============================================================================
 name: 📊 Rust 覆盖率（单独收集）
 
@@ -129,9 +131,26 @@ jobs:
           EXIT_CODE=$?
           set -e
 
-          PASSED=$(awk '/^ PASS /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
-          FAILED=$(awk '/^ FAIL /{c++} END{print c+0}' reports/llvm-cov-output.txt 2>/dev/null)
-          TOTAL=$((PASSED + FAILED))
+          # 计数取 nextest 的 Summary 行（权威），判定器与 ci-cd.yml 各测试 job 共用同一脚本。
+          # 旧写法 `awk '/^ PASS /'` 与 `/^ FAIL /` 锚在行首，而 nextest 状态行带缩进
+          # （`        FAIL [ … ]`），两个计数器恒为 0，真实失败被报成"通过 0 / 失败 0 / 总计 0"。
+          sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' reports/llvm-cov-output.txt \
+            > reports/llvm-cov-output.clean.txt
+          read -r PASSED FAILED SKIPPED TOTAL HAS_SUMMARY < <(
+            bash "$GITHUB_WORKSPACE/scripts/ci/nextest-summary.sh" reports/llvm-cov-output.txt
+          ) || {
+            echo "::error::判定器 scripts/ci/nextest-summary.sh 没有产出计数行，本轮不可判，判未验证"
+            exit 1
+          }
+
+          if [ "$HAS_SUMMARY" != "1" ]; then
+            echo "::error::覆盖率轮次没拿到 nextest 的 Summary 行（EXIT_CODE=$EXIT_CODE），" \
+              "四项计数只是状态行粗估，不得判为全通过；按未验证处理"
+          elif [ "$FAILED" -gt "0" ]; then
+            echo "::warning::覆盖率轮次发现 $FAILED 个测试失败（信息性收集，不阻塞）"
+          else
+            echo "::notice::覆盖率轮次 nextest 全通过（$PASSED 通过，$SKIPPED 跳过，$TOTAL 总计）"
+          fi
 
           COVERAGE_SUMMARY="N/A"
           if [ -f coverage/cobertura.xml ]; then
@@ -148,15 +167,24 @@ jobs:
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**通过**: $PASSED  "
             echo "**失败**: $FAILED  "
+            echo "**跳过**: $SKIPPED  "
             echo "**总计**: $TOTAL  "
+            echo "**计数来源**: $( [ "$HAS_SUMMARY" = "1" ] && echo 'nextest Summary 行（权威）' || echo '状态行粗估（没拿到 Summary，不可信）' )  "
             echo "**行覆盖率**: $COVERAGE_SUMMARY  "
             echo "**EXIT_CODE**: $EXIT_CODE  "
-            echo "**模式**: 信息性收集（不阻塞 CI）"
+            echo "**模式**: 信息性收集（真实失败不阻塞 CI；没拿到 Summary 行判未验证并退出非零）"
             echo ""
-            if [ "$FAILED" -gt "0" ]; then
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "## ❌ 本轮未验证：nextest 没输出 Summary 行"
+              echo ""
+              echo "多为插桩编译失败或进程中途崩溃，测试根本没跑完，上面的计数不可当作"
+              echo '"全通过"。失败清单退化为按状态行的粗估：'
+              echo ""
+              { grep -E "^[[:space:]]+(EXECUTION )?FAIL" reports/llvm-cov-output.clean.txt 2>/dev/null || true; } | head -30
+            elif [ "$FAILED" -gt "0" ]; then
               echo "## ⚠️ 发现 $FAILED 个测试失败（信息性，不阻塞）"
               echo ""
-              { grep -E "^ FAIL " reports/llvm-cov-output.txt 2>/dev/null || true; } | head -30
+              { grep -E "^[[:space:]]+FAIL \[" reports/llvm-cov-output.clean.txt 2>/dev/null || true; } | head -30
             fi
             echo ""
             echo "**覆盖率**: $COVERAGE_SUMMARY"
@@ -166,11 +194,20 @@ jobs:
             echo "## 📊 Rust 覆盖率"
             echo ""
             echo "📊 行覆盖率：$COVERAGE_SUMMARY"
-            if [ "$FAILED" -gt "0" ]; then
-              echo "⚠️  $FAILED 个测试失败（信息性）"
+            if [ "$HAS_SUMMARY" != "1" ]; then
+              echo "❌ 本轮未验证：没拿到 nextest 的 Summary 行，计数不可信（EXIT_CODE=$EXIT_CODE）"
+            elif [ "$FAILED" -gt "0" ]; then
+              echo "⚠️  $FAILED 个测试失败（信息性，不阻塞）"
+            else
+              echo "✅ $PASSED 通过，$SKIPPED 跳过，$TOTAL 总计"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+          # 真实测试失败按本 job 既有裁定只记录不阻塞；但"判定器没拿到 Summary 行"不是观测
+          # 结果而是这一轮没跑成，必须判红，否则 0/0/0 会被 Codecov 与报告页当全通过发布。
+          if [ "$HAS_SUMMARY" != "1" ]; then
+            exit 1
+          fi
           exit 0
 
       - name: 上传覆盖率到 Codecov

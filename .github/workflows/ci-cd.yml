@@ -17,7 +17,12 @@
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
 # 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
-#   主线 push 不重复跑测试（已在 PR 阶段验证），只做构建/格式/审计/发布。
+#   主线 push 不重复跑 Rust/前端测试（已在 PR 阶段验证），只做构建/格式/审计/发布；
+#   但主线 push 会跑 ci-e2e 的"核心链子集"分片（本文件的配置事实：job 级 if 放行
+#   push 到 main/master，选片由 ci-build-fe 的发射步骤按事件决定，判据见
+#   frontend/scripts/check-e2e-main-push-shards.mjs）。本条改动是否已在真实 run 上生效
+#   需由下一次 main push 的 run 自证，自证判据写在 e2e-authenticity-guard 的
+#   "main push 轮 ci-e2e 不得为 skipped"步骤里，不在此处替 run 下结论。
 #   所有 job timeout 统一 360 分钟（6 小时），E2E 45 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
@@ -2263,6 +2268,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: ci-info
+    outputs:
+      # ci-e2e 的 strategy.matrix 消费本值。矩阵由下方"E2E 分片矩阵发射"步骤
+      # 按事件生成（pull_request 全量 45 片 / push 到 main-master 核心链子集），
+      # 判据与 fail-closed 语义见 frontend/scripts/check-e2e-main-push-shards.mjs 头注释。
+      e2e_shard_matrix: ${{ steps.e2e-shard-matrix.outputs.matrix }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -2279,6 +2289,28 @@ jobs:
           # 每分组 --shard 序号 1..N 无缺口、分组并集==chromium 全集。
           # 失败即 ci-build-fe 红 → ci-e2e（needs ci-build-fe）不启动，假绿不可能发生。
           node scripts/check-e2e-shard-coverage.mjs
+
+      - name: E2E 分片矩阵发射（pull_request 全量 / main push 核心链子集）
+        id: e2e-shard-matrix
+        working-directory: frontend
+        env:
+          # 事件与 ref 由 Actions 表达式经环境变量注入：脚本不猜模式，也不把
+          # 事件字段直接内插进 shell 命令（GitHub 对 workflow 事件字段的注入告警）。
+          GATE_EVENT_NAME: ${{ github.event_name }}
+          GATE_REF: ${{ github.ref }}
+        run: |
+          # 选片不是注释里的手工对账：本步从 ci-cd.yml 的分片编排（case 表）反查目录
+          # 归属，任一判据不成立即 exit 1 —— 目录不存在或无 spec / 归属分片所在 hash
+          # 分组多于一片（单选等于只跑约 1/N 用例却报 success）/ 命中片数越界 /
+          # 分片登记与 case 表不同源 / ci-e2e 的矩阵接线漂移。
+          # ci-build-fe 红则 ci-e2e（needs ci-build-fe）不启动，不存在"矩阵为空仍报绿"：
+          # 脚本自身也拒绝发射空矩阵（空矩阵会被 GitHub 判成 skipped，正是本门禁要消灭的形态）。
+          # reports/e2e-shard-matrix.json 随 frontend-build-log 产物上传，供离线取证。
+          node scripts/check-e2e-main-push-shards.mjs \
+            --event "$GATE_EVENT_NAME" \
+            --ref "$GATE_REF" \
+            --matrix-file reports/e2e-shard-matrix.json \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: 构建前端
         working-directory: frontend
@@ -2321,7 +2353,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-log
-          path: reports/
+          # reports/ 是本步骤工作目录（仓库根）下的报告；frontend/reports/ 才是
+          # working-directory: frontend 的构建步骤（vite-build.log）与 E2E 分片矩阵发射
+          # 步骤（e2e-shard-matrix.json）实际落盘的位置。此前只上传前者，导致
+          # "构建日志产物里没有构建日志、也没有本轮矩阵取证依据"。
+          path: |
+            reports/
+            frontend/reports/
           retention-days: 90
 
       - name: 上传前端产物
@@ -2704,115 +2742,41 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-build-fe, ci-build-rust]
-    if: github.event_name == 'pull_request'
+    # pull_request 全量 45 片；push 到 main/master 只跑核心链子集（片数与选片判据
+    # 由 ci-build-fe 的"E2E 分片矩阵发射"步骤按事件决定，见
+    # frontend/scripts/check-e2e-main-push-shards.mjs）。选片发生在矩阵层：未选中的
+    # 分片根本不生成 job，而不是生成后靠步骤级 if 空跑成 success（那是新的假绿形态）。
+    # tag push（refs/tags/v*）与 workflow_dispatch 不在放行范围内，维持 skipped。
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
     strategy:
       fail-fast: false
       max-parallel: 8
-      matrix:
-        # 45 分片，0-19 flow 20 片，20-24 smoke 5 片，25-29 traversal 5 片，
-        #            30-44 extras 15 片，按目录域重排，见下方 extras 分支说明。
-        #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑；
-        #            shard 40-44（e2e/fullflow/，96 条契约链用例）是 #306 补上的
-        #            testMatch 全集内但从未被分片命令传入的漏登记目录。原 2 片 hash
-        #            实测一片 1.3 分钟，另一片 28.5 分钟，现按实测用例时长显式分 5 组，
-        #            由 ci-build-fe 的 check-e2e-shard-coverage.mjs 自检强制并集==全集）
-        # label 只标跑的是哪个目录的第几片。hash 分片组里 Playwright --shard 按用例
-        # 散列分配，分片与 spec 文件之间没有对应关系，按 spec 号段命名会把排查引向
-        # 无关文件，历史上已经发生过。extras 的显式文件组不受此限，分片清单即执行
-        # 清单，标签写的就是该片真实执行的文件。
-        # flow 由 15 片增至 20 片的原因：15 片时 7 个分片在 1500s 上限内跑不完
-        # （分片 2 被杀时已到 41/42 用例，全程无挂起），详见 iter30 台账。
-        include:
-          - shard: 0
-            label: "flow: e2e/flow(1/20)"
-          - shard: 1
-            label: "flow: e2e/flow(2/20)"
-          - shard: 2
-            label: "flow: e2e/flow(3/20)"
-          - shard: 3
-            label: "flow: e2e/flow(4/20)"
-          - shard: 4
-            label: "flow: e2e/flow(5/20)"
-          - shard: 5
-            label: "flow: e2e/flow(6/20)"
-          - shard: 6
-            label: "flow: e2e/flow(7/20)"
-          - shard: 7
-            label: "flow: e2e/flow(8/20)"
-          - shard: 8
-            label: "flow: e2e/flow(9/20)"
-          - shard: 9
-            label: "flow: e2e/flow(10/20)"
-          - shard: 10
-            label: "flow: e2e/flow(11/20)"
-          - shard: 11
-            label: "flow: e2e/flow(12/20)"
-          - shard: 12
-            label: "flow: e2e/flow(13/20)"
-          - shard: 13
-            label: "flow: e2e/flow(14/20)"
-          - shard: 14
-            label: "flow: e2e/flow(15/20)"
-          - shard: 15
-            label: "flow: e2e/flow(16/20)"
-          - shard: 16
-            label: "flow: e2e/flow(17/20)"
-          - shard: 17
-            label: "flow: e2e/flow(18/20)"
-          - shard: 18
-            label: "flow: e2e/flow(19/20)"
-          - shard: 19
-            label: "flow: e2e/flow(20/20)"
-          - shard: 20
-            label: "smoke: e2e/smoke(1/5)"
-          - shard: 21
-            label: "smoke: e2e/smoke(2/5)"
-          - shard: 22
-            label: "smoke: e2e/smoke(3/5)"
-          - shard: 23
-            label: "smoke: e2e/smoke(4/5)"
-          - shard: 24
-            label: "smoke: e2e/smoke(5/5)"
-          - shard: 25
-            label: "traversal: e2e/traversal(1/5)"
-          - shard: 26
-            label: "traversal: e2e/traversal(2/5)"
-          - shard: 27
-            label: "traversal: e2e/traversal(3/5)"
-          - shard: 28
-            label: "traversal: e2e/traversal(4/5)"
-          - shard: 29
-            label: "traversal: e2e/traversal(5/5)"
-          - shard: 30
-            label: "extras: purchase 1/2（--shard hash 分片）"
-          - shard: 31
-            label: "extras: purchase 2/2（--shard hash 分片）"
-          - shard: 32
-            label: "extras: finance 1/2（--shard hash 分片）"
-          - shard: 33
-            label: "extras: finance 2/2（--shard hash 分片）"
-          - shard: 34
-            label: "extras: sales+quality"
-          - shard: 35
-            label: "extras: crm+inventory"
-          - shard: 36
-            label: "extras: enhanced+production"
-          - shard: 37
-            label: "extras: bpm+fabric+mrp"
-          - shard: 38
-            label: "extras: ai+quotations+system"
-          - shard: 39
-            label: "extras: dashboard+e2e 根级 3 spec"
-          - shard: 40
-            label: "extras: fullflow 1/5（按实测时长分组）"
-          - shard: 41
-            label: "extras: fullflow 2/5（按实测时长分组）"
-          - shard: 42
-            label: "extras: fullflow 3/5（按实测时长分组）"
-          - shard: 43
-            label: "extras: fullflow 4/5（按实测时长分组）"
-          - shard: 44
-            label: "extras: fullflow 5/5（按实测时长分组）"
+      # 45 分片：0-19 flow（20 片）/ 20-24 smoke（5 片）/ 25-29 traversal（5 片）
+      #            / 30-44 extras（15 片，按目录域重排，见下方 extras 分支说明。
+      #            原 6 片在 run #4671 把 1800s 窗口撞穿、13 条用例根本没跑；
+      #            shard 40-44（e2e/fullflow/，96 条契约链用例）是 #306 补上的
+      #            "testMatch 全集内但从未被分片命令传入"的漏登记目录：原 2 片 hash 实测
+      #            一片 1.3 分钟、另一片 28.5 分钟，现按实测用例时长显式分 5 组，
+      #            由 ci-build-fe 的 check-e2e-shard-coverage.mjs 自检强制并集==全集）
+      # label 只标"跑的是哪个目录的第几片"：Playwright --shard 按用例 hash 分配，
+      # 分片与 spec 文件之间没有对应关系。原先按 spec 号段命名（如
+      # "flow: 11~22-returns/inventory/crm"）是错的——run 35722450943 该分片实际
+      # 跑的是 05-system/06-collaboration/07-fabric-four-dim/08-business-modes，
+      # 按错误标签排查会把人引向完全无关的 spec。
+      # flow 由 15 片增至 20 片的原因：15 片时 7 个分片在 1500s 上限内跑不完
+      # （分片 2 被杀时已到 41/42 用例，全程无挂起），详见 iter30 台账。
+      # 分片清单与 label 的唯一事实来源：frontend/scripts/e2e-shard-registry.mjs 的
+      # E2E_SHARD_MATRIX（45 条）。这里不再写静态 include：
+      #   1. 静态 include 与下方 case 表是同一份切分的两处表达（原注释自陈
+      #      "必须同步演进"），改矩阵时漏同步就静默少跑目录；
+      #   2. main push 轮需要按事件选片，选片只能是矩阵层的事，而 job 级 if 看不到
+      #      matrix、step 级 if 空跑又把 skipped 伪装成 success，两条路都不通。
+      # 现在由 ci-build-fe 的"E2E 分片矩阵发射"步骤同源校验（登记集合与 case 表
+      # 双向相等、目录真实存在、选片安全判据）后发射矩阵，整个 matrix 值由 fromJSON
+      # 给出（GitHub 文档的 dynamic matrix 写法），载荷形如
+      # {"include":[{"shard":34,"label":"extras: sales+quality"}, ...]}；
+      # 任一判据不成立即 ci-build-fe 红，ci-e2e 不启动，不存在"矩阵为空但仍报绿"的路径。
+      matrix: ${{ fromJSON(needs.ci-build-fe.outputs.e2e_shard_matrix) }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -3148,10 +3112,19 @@ jobs:
         run: |
           echo "## E2E UI 操作失败统计（${{ matrix.label }}）" > reports/ui-failures.md
           echo "" >> reports/ui-failures.md
-          # 扫描 Playwright 输出中的 "[E2E] 操作失败" 日志（catch 清理后的显式日志）
-          FAIL_COUNT=$(grep -c "\[E2E\] 操作失败" reports/playwright-output.txt 2>/dev/null || echo 0)
-          LOGIN_FAIL=$(grep -c "UI 登录失败" reports/playwright-output.txt 2>/dev/null || echo 0)
-          TIMEOUT_FAIL=$(grep -cE "Timeout|超时" reports/playwright-output.txt 2>/dev/null || echo 0)
+          # 统计本分片的三类 UI 失败（操作失败、登录失败、等待响应超时），把明细写进
+          # reports/ui-failures.md。数据源缺失无从判定，按未验证判红而不是当 0 放过。
+          if [ ! -f reports/playwright-output.txt ]; then
+            echo "::error::E2E ${{ matrix.label }} 输出文件缺失，UI 操作失败无法统计，按未验证判红"
+            exit 1
+          fi
+          # grep -c 零命中时打印单个 0 并以退出码 1 结束；或号后必须接 true 而不是 echo 0，
+          # 否则变量变成两行文本，下一行算术展开报错并使通过分支永不执行。
+          FAIL_COUNT=$(grep -c "\[E2E\] 操作失败" reports/playwright-output.txt || true)
+          LOGIN_FAIL=$(grep -c "UI 登录失败" reports/playwright-output.txt || true)
+          # 超时口径只取 waitForResponse 超时：page.waitForTimeout 是脚本主动等待，
+          # 其 pw:api 轨迹同样含 Timeout 字样，按宽正则计数会使任何分片都判不出通过。
+          TIMEOUT_FAIL=$(grep -c "waitForResponse: Timeout" reports/playwright-output.txt || true)
           TOTAL_FAIL=$((FAIL_COUNT + LOGIN_FAIL + TIMEOUT_FAIL))
           if [ "$TOTAL_FAIL" -eq "0" ]; then
             echo "✅ 无 UI 操作失败" >> reports/ui-failures.md
@@ -3165,7 +3138,7 @@ jobs:
             echo "" >> reports/ui-failures.md
             echo "### 失败明细" >> reports/ui-failures.md
             echo '```' >> reports/ui-failures.md
-            grep "\[E2E\] 操作失败\|UI 登录失败" reports/playwright-output.txt 2>/dev/null | head -30 >> reports/ui-failures.md || true
+            grep "\[E2E\] 操作失败\|UI 登录失败\|waitForResponse: Timeout" reports/playwright-output.txt 2>/dev/null | head -30 >> reports/ui-failures.md || true
             echo '```' >> reports/ui-failures.md
             # 有操作失败记失败（但不阻塞 CI，仅记录统计）
             echo "::warning::E2E ${{ matrix.label }} 有 $TOTAL_FAIL 处 UI 操作失败（操作失败 $FAIL_COUNT + 登录失败 $LOGIN_FAIL + 超时 $TIMEOUT_FAIL）"
@@ -4706,7 +4679,30 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ 全部 E2E job（ci-e2e 45 分片 / setup-wizard / role-permission-matrix）真实执行成功"
+          echo "上游 E2E job（ci-e2e / setup-wizard / role-permission-matrix）本轮结论均为 success 或 skipped"
+          echo "本轮事件=${{ github.event_name }} ref=${{ github.ref }}，ci-e2e 结论=${{ needs.ci-e2e.result }}（分片数不在本步断言，见下一步与 e2e-report-shard-* 产物）"
+
+      - name: main push 轮 ci-e2e 不得为 skipped
+        # 上一条动态步把 skipped 与 success 同计入通过，于是"ci-e2e 的 job 级 if 只放行
+        # pull_request"这种主线零 E2E 覆盖的形态在本门禁里不留任何红痕——实测证据
+        # main 的 run 4915 与 4916：整族 "🎭 E2E" job 结论为 skipped，本 job 仍 success。
+        # 这里按事件补一条判据：push 到 main/master 时 ci-e2e 必须 success，skipped 即判红。
+        # 语义只加不减：PR 轮与 tag push / workflow_dispatch 轮不受本步约束。
+        if: ${{ !cancelled() }}
+        env:
+          GATE_EVENT_NAME: ${{ github.event_name }}
+          GATE_REF: ${{ github.ref }}
+          CI_E2E_RESULT: ${{ needs.ci-e2e.result }}
+        run: |
+          if [ "$GATE_EVENT_NAME" = "push" ] && { [ "$GATE_REF" = "refs/heads/main" ] || [ "$GATE_REF" = "refs/heads/master" ]; }; then
+            if [ "$CI_E2E_RESULT" != "success" ]; then
+              echo "::error::main push 轮 ci-e2e 结论=$CI_E2E_RESULT（应为 success）：核心链分片未真实执行，门禁退回 run 4915/4916 的 skipped 形态"
+              exit 1
+            fi
+            echo "main push 轮 ci-e2e 结论=success：核心链分片真实执行（分片与用例数取证看 e2e-report-shard-*/frontend-build-log 产物）"
+          else
+            echo "本轮事件=$GATE_EVENT_NAME ref=$GATE_REF，不属 main push 判据范围（tag push 与 workflow_dispatch 仍按 job 级 if 走 skipped）"
+          fi
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
         # 步骤级兜底：动态步在上游红时 exit 1，步骤默认 success() 会让本步又被吞——
