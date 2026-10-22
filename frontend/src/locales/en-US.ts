@@ -3742,8 +3742,7 @@ export default {
       tipMetersPerPiece:
         'Meters per piece, used for the piece↔meter conversion view; not counted in inventory',
       labelMetersPerRoll: 'Meters per Roll',
-      tipMetersPerRoll:
-        'Meters per roll, used for the roll↔meter conversion view; not counted in inventory',
+      tipMetersPerRoll: 'Follows meters per piece; change that to adjust.',
       labelBarcode: 'Barcode',
       placeholderBarcode: 'Enter barcode',
       labelPrice: 'Price',

@@ -3725,7 +3725,7 @@ export default {
       labelMetersPerPiece: '每匹米数',
       tipMetersPerPiece: '每匹米数，用于按匹↔米换算视图，不参与库存计量',
       labelMetersPerRoll: '每卷米数',
-      tipMetersPerRoll: '每卷米数，用于按卷↔米换算视图，不参与库存计量',
+      tipMetersPerRoll: '每卷米数随每匹米数自动带出，需调整请修改每匹米数',
       labelBarcode: '条形码',
       placeholderBarcode: '请输入条形码',
       labelPrice: '售价',

@@ -353,6 +353,30 @@ pub async fn get_product(
     Ok(Json(ApiResponse::success(product_json)))
 }
 
+/// 匹与卷的每单位米数同源补齐。
+///
+/// 读什么：请求反序列化后的 meters_per_piece 与 meters_per_roll 两值，缺席即 None，
+/// 本函数只看这两个 Option 的存在性，不猜测、不填默认值。
+/// 写给谁：create_product 与 update_product，结果原样交给 CreateProductArgs 与
+/// UpdateProductArgs 的同名两字段，再由 product_ops 的 crud 落库。
+/// 存什么：products 表的 meters_per_piece 与 meters_per_roll 两列，DECIMAL(12,4) 可空，
+/// NULL 表示未录入。
+/// 存哪里：products 表被创建或被更新的那一行；更新侧 None 由 crud 层的条件 Set 保持原值。
+/// 为什么：一卷即一匹，业务上两列米数同源；产品表单只留每匹米数一个输入入口，
+/// 请求只带其中一个值时必须把另一列补成同值，按卷换算才不会因缺元数据被拒。
+/// 边界：两值都带时各自原样写入，含不等，沿用既有允许不等的语义，不覆写调用方显式取值；
+/// 两值都不带时不做补齐，创建侧落 NULL、更新侧两列都不动。
+pub fn pair_piece_roll_meters(
+    meters_per_piece: Option<Decimal>,
+    meters_per_roll: Option<Decimal>,
+) -> (Option<Decimal>, Option<Decimal>) {
+    match (meters_per_piece, meters_per_roll) {
+        (Some(piece), None) => (Some(piece), Some(piece)),
+        (None, Some(roll)) => (Some(roll), Some(roll)),
+        (piece, roll) => (piece, roll),
+    }
+}
+
 /// 创建产品
 pub async fn create_product(
     State(state): State<AppState>,
@@ -371,6 +395,9 @@ pub async fn create_product(
         Some(c) if !c.is_empty() => c,
         _ => product_service.generate_product_code().await?,
     };
+
+    let (meters_per_piece, meters_per_roll) =
+        pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
 
     let product = product_service
         .create_product(CreateProductArgs {
@@ -404,8 +431,8 @@ pub async fn create_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
-            meters_per_piece: req.meters_per_piece,
-            meters_per_roll: req.meters_per_roll,
+            meters_per_piece,
+            meters_per_roll,
         })
         .await?;
 
@@ -428,6 +455,9 @@ pub async fn update_product(
     }
 
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
+
+    let (meters_per_piece, meters_per_roll) =
+        pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
 
     let product = product_service
         .update_product(UpdateProductArgs {
@@ -454,8 +484,8 @@ pub async fn update_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
-            meters_per_piece: req.meters_per_piece,
-            meters_per_roll: req.meters_per_roll,
+            meters_per_piece,
+            meters_per_roll,
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             user_id: auth.user_id,
         })
