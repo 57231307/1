@@ -114,8 +114,11 @@ pub async fn list_rules(
     info!("用户 {} 正在查询账龄预警规则列表", auth.user_id);
 
     let service = AgingAlertRuleService::new(state.db.clone());
-    let page = params.page.unwrap_or(0);
-    let page_size = params.page_size.unwrap_or(20);
+    // 分页上限对齐全仓主流口径：页大小最多 100、页码最多 1000，防直连 API 打满全表。
+    // 本链页码基数为 0（取数偏移由页码乘页大小得出），下界必须保持 0，
+    // 抬到 1 会让缺省请求跳到第二页并少返回首页数据。
+    let page = params.page.unwrap_or(0).clamp(0, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (rules, total) = service
         .list(AlertRuleQueryParams {
             aging_bucket: params.aging_bucket,
