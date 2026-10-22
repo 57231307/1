@@ -251,22 +251,29 @@
 
           <h3 class="section-title">{{ t('supplier.enhanced.history.evalTitle') }}</h3>
           <div class="toolbar" style="margin-bottom: 8px">
+            <el-select
+              v-model="evalForm.indicator_id"
+              style="width: 180px"
+              :placeholder="t('supplier.enhanced.history.indicatorPlaceholder')"
+            >
+              <el-option
+                v-for="ind in evaluationIndicators"
+                :key="ind.id"
+                :label="`${ind.indicator_name} (${t('supplier.enhanced.history.maxScore')}: ${ind.max_score})`"
+                :value="ind.id"
+              />
+            </el-select>
+            <el-input
+              v-model="evalForm.evaluation_period"
+              style="width: 130px"
+              :placeholder="t('supplier.enhanced.history.periodPlaceholder')"
+            />
             <el-input-number
               v-model="evalForm.score"
               :min="0"
-              :max="100"
+              :max="selectedIndicatorMaxScore"
               :placeholder="t('supplier.enhanced.history.scorePlaceholder')"
             />
-            <el-select
-              v-model="evalForm.rating"
-              style="width: 120px"
-              :placeholder="t('supplier.enhanced.history.ratingPlaceholder')"
-            >
-              <el-option label="A" value="A" />
-              <el-option label="B" value="B" />
-              <el-option label="C" value="C" />
-              <el-option label="D" value="D" />
-            </el-select>
             <el-input
               v-model="evalForm.remark"
               :placeholder="t('supplier.enhanced.history.remarkPlaceholder')"
@@ -282,13 +289,18 @@
           <el-table v-if="evaluationHistory.length" :data="evaluationHistory" border size="small">
             <el-table-column prop="id" label="ID" width="70" />
             <el-table-column
-              prop="score"
-              :label="t('supplier.enhanced.history.score')"
-              width="90"
+              prop="indicator_name"
+              :label="t('supplier.enhanced.history.indicatorName')"
+              min-width="140"
             />
             <el-table-column
-              prop="rating"
-              :label="t('supplier.enhanced.history.rating')"
+              prop="evaluation_period"
+              :label="t('supplier.enhanced.history.period')"
+              width="110"
+            />
+            <el-table-column
+              prop="score"
+              :label="t('supplier.enhanced.history.score')"
               width="90"
             />
             <el-table-column
@@ -300,12 +312,12 @@
               <template #default="{ row }">{{ row.remark || '-' }}</template>
             </el-table-column>
             <el-table-column
-              prop="evaluated_at"
+              prop="evaluation_date"
               :label="t('supplier.enhanced.history.evaluatedAt')"
               min-width="160"
             >
               <template #default="{ row }">{{
-                row.evaluated_at || row.created_at || '-'
+                row.evaluation_date || row.created_at || '-'
               }}</template>
             </el-table-column>
           </el-table>
@@ -528,6 +540,7 @@ import {
   type SupplierQualification,
   type SupplierQualificationInput,
 } from '@/api/supplier';
+import { getEvaluationIndicatorList, type EvaluationIndicator } from '@/api/supplier-evaluation';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -636,6 +649,7 @@ const loadAll = async () => {
     loadQualifications(),
     loadBalance(),
     loadHistory(),
+    loadEvaluationIndicators(),
   ];
   await Promise.all(tasks);
   pageLoading.value = false;
@@ -1054,10 +1068,38 @@ const viewQualificationAttachment = async (supplier?: number, qualificationId?: 
 };
 
 // ============== 供应商评估 ==============
-const evalForm = reactive({ score: 80, rating: 'A', remark: '' });
+/** 默认评估周期 = 当前季度（格式 YYYY-Qn，与后端调度器生成的周期格式一致） */
+const currentQuarterPeriod = (): string => {
+  const now = new Date();
+  return `${now.getFullYear()}-Q${Math.floor(now.getMonth() / 3) + 1}`;
+};
+
+const evaluationIndicators = ref<EvaluationIndicator[]>([]);
+const evalForm = reactive({
+  indicator_id: undefined as number | undefined,
+  evaluation_period: currentQuarterPeriod(),
+  score: 0,
+  remark: '',
+});
 const evalSubmitting = ref(false);
 const evalHistoryLoading = ref(false);
 const evaluationHistory = ref<Array<Record<string, unknown>>>([]);
+
+/** 评分上限取所选指标满分（后端 create_evaluation_record 按 max_score 校验得分范围） */
+const selectedIndicatorMaxScore = computed(() => {
+  const ind = evaluationIndicators.value.find(i => i.id === evalForm.indicator_id);
+  return ind?.max_score ?? 100;
+});
+
+const loadEvaluationIndicators = async () => {
+  try {
+    const res = await getEvaluationIndicatorList({ page_size: 100 });
+    evaluationIndicators.value = unwrapList<EvaluationIndicator>(res.data);
+  } catch {
+    evaluationIndicators.value = [];
+    ElMessage.error(t('supplier.enhanced.message.loadIndicatorsFailed'));
+  }
+};
 
 const handleEvaluate = async () => {
   const id = supplierId.value;
@@ -1065,18 +1107,29 @@ const handleEvaluate = async () => {
     ElMessage.warning(t('supplier.enhanced.message.queryFirst'));
     return;
   }
+  if (!evalForm.indicator_id) {
+    ElMessage.warning(t('supplier.enhanced.message.evalIndicatorRequired'));
+    return;
+  }
+  if (!evalForm.evaluation_period) {
+    ElMessage.warning(t('supplier.enhanced.message.evalPeriodRequired'));
+    return;
+  }
   evalSubmitting.value = true;
   try {
     await evaluateSupplier(id, {
+      supplier_id: id,
+      evaluation_period: evalForm.evaluation_period,
+      indicator_id: evalForm.indicator_id,
       score: evalForm.score,
-      rating: evalForm.rating,
       // 空则省略该键（条件展开范式）
       ...(evalForm.remark ? { remark: evalForm.remark } : {}),
     });
     ElMessage.success(t('supplier.enhanced.message.evalSubmitted'));
     await loadEvaluationHistory();
-  } catch {
-    ElMessage.error(t('supplier.enhanced.message.evalFailed'));
+  } catch (error: unknown) {
+    const reason = await extractBackendErrorReason(error);
+    ElMessage.error(t('supplier.enhanced.message.evalFailed', { reason }));
   } finally {
     evalSubmitting.value = false;
   }
