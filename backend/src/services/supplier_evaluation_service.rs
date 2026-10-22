@@ -50,11 +50,17 @@ pub struct SupplierEvaluationRequest {
     pub remark: Option<String>,
 }
 
-/// 供应商评分响应结构
+/// 供应商评分响应结构（score/rankings 两个出口共用）
+///
+/// supplier_name 由出口处按 supplier_id 实查 suppliers 表回填：外键指向不存在的供应商行时
+/// 如实为 None（键仍序列化输出，值为 JSON null），禁止用编码/id 冒充名称。
+/// average_score 为 rust_decimal 序列化（仅 serde 特性 → JSON 字符串）。
 #[derive(Debug, Clone, Serialize)]
 pub struct SupplierScoreResponse {
     /// 供应商ID
     pub supplier_id: i32,
+    /// 供应商名称（来自 suppliers.supplier_name，缺失为 null）
+    pub supplier_name: Option<String>,
     /// 平均评分
     pub average_score: Decimal,
     /// 评估记录总数
@@ -240,12 +246,44 @@ impl SupplierEvaluationService {
         }
 
         let weight_map = Self::fetch_indicator_weights(&self.db, &records).await?;
-        let response = Self::build_score_response(supplier_id, &records, &weight_map);
+        let mut response = Self::build_score_response(supplier_id, &records, &weight_map);
+        // 名称单点回填：一次 suppliers 主键查询，外键行缺失时如实 None（不伪造名称）
+        let names = Self::fetch_supplier_names(&self.db, [supplier_id]).await?;
+        response.supplier_name = names.get(&supplier_id).cloned();
+        if response.supplier_name.is_none() {
+            warn!(
+                supplier_id,
+                "供应商评分查询：suppliers 表无对应行，supplier_name 出参为 null"
+            );
+        }
         info!(
             "供应商 {} 评分查询完成，平均分：{}，等级：{}",
             supplier_id, response.average_score, response.rating
         );
         Ok(response)
+    }
+
+    /// 批量查询供应商名称：单次 is_in 查询返回 id→supplier_name 映射。
+    ///
+    /// suppliers 中不存在的 id 不进映射（调用方取不到即保持 None），严禁逐行再查（N+1）
+    /// 或以编码/id 拼装名称。
+    async fn fetch_supplier_names(
+        db: &DatabaseConnection,
+        supplier_ids: impl IntoIterator<Item = i32>,
+    ) -> Result<HashMap<i32, String>, AppError> {
+        use crate::models::supplier;
+        let ids: Vec<i32> = supplier_ids.into_iter().collect();
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let names = supplier::Entity::find()
+            .filter(supplier::Column::Id.is_in(ids))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|s| (s.id, s.supplier_name))
+            .collect();
+        Ok(names)
     }
 
     /// 查询供应商的所有评估记录
@@ -318,6 +356,8 @@ impl SupplierEvaluationService {
 
         SupplierScoreResponse {
             supplier_id,
+            // 名称由出口 get_supplier_score 按 supplier_id 实查 suppliers 回填
+            supplier_name: None,
             average_score,
             total_records: records.len() as i64,
             rating: rating_label,
@@ -418,6 +458,8 @@ impl SupplierEvaluationService {
                     });
             rankings.push(SupplierScoreResponse {
                 supplier_id: *supplier_id,
+                // 名称由出口 get_supplier_rankings 在排序截断后批量实查 suppliers 回填
+                supplier_name: None,
                 average_score,
                 total_records,
                 rating: rating_label,
@@ -444,6 +486,23 @@ impl SupplierEvaluationService {
         let mut rankings = Self::build_supplier_rankings(&supplier_records, &indicator_weight_map);
         rankings.sort_by_key(|b| std::cmp::Reverse(b.average_score));
         rankings.truncate(limit as usize);
+        // 先排序/截断、再回填：只对最终留榜的 supplier_id 做一次 is_in 批量查询（无 N+1）
+        let ids: Vec<i32> = rankings.iter().map(|r| r.supplier_id).collect();
+        let names = Self::fetch_supplier_names(&self.db, ids).await?;
+        let mut missing_names = 0usize;
+        for row in &mut rankings {
+            row.supplier_name = names.get(&row.supplier_id).cloned();
+            if row.supplier_name.is_none() {
+                missing_names += 1;
+            }
+        }
+        if missing_names > 0 {
+            warn!(
+                missing_names,
+                "供应商排名榜：{} 个 supplier_id 在 suppliers 表无对应行，supplier_name 出参为 null",
+                missing_names
+            );
+        }
         info!("查询到 {} 个供应商排名", rankings.len());
         Ok(rankings)
     }
