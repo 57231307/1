@@ -19,6 +19,26 @@ test.afterEach(async ({ page }) => {
   CLEANUP.length = 0;
 });
 
+/**
+ * 节点行内第一个 el-select（节点类型列）按可见下拉的文本选项。
+ * 调用方：01-02 走 UI 建定义时把首行设为「开始」、末行设为「结束」。
+ * 选项文本来自 i18n bpm.definitions.nodeType（zh-CN 值 开始/审批/结束），
+ * 提交值才是引擎 token，界面不裸露英文常量。
+ */
+async function pickRowOption(
+  page: import('@playwright/test').Page,
+  row: import('@playwright/test').Locator,
+  text: string
+) {
+  await row.locator('.el-select').first().click();
+  const option = page
+    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
+    .filter({ hasText: text })
+    .first();
+  await expect(option, `节点类型下拉未找到可见选项 ${text}`).toBeVisible({ timeout: 15000 });
+  await option.click();
+}
+
 /** 建一条流程定义，返回 { id, processKey } */
 async function seedDefinition(
   page: import('@playwright/test').Page
@@ -78,6 +98,34 @@ test.describe('01 流程定义', () => {
     // label 精确匹配限定在弹窗作用域内，不直接点 readonly combobox input。
     await pickSelectIn(dlg, page, '分类');
     await dlg.getByLabel('描述').fill('E2E 测试流程定义');
+
+    // 负向：不配任何节点直接提交必须被拒。引擎解析不到可执行审批节点的定义，
+    // 过去会被后端自动完成并判批准（审批绕过），故前端提交边界先拦下并点名节点顺序要求，
+    // 不放行一个"保存成功但发起即绕过审批"的定义。
+    await dlg.getByRole('button', { name: '确定' }).click();
+    await expect(
+      page
+        .locator('.el-message')
+        .filter({ hasText: '节点顺序必须为：开始 → 一个或多个审批 → 结束' })
+    ).toBeVisible({ timeout: 15000 });
+
+    // 正向：按界面顺序补出 开始 → 审批 → 结束 三节点，审批节点选出真实审批人后提交成功。
+    for (let i = 0; i < 3; i++) {
+      await dlg.getByRole('button', { name: '添加节点' }).click();
+    }
+    const nodeRows = dlg.locator('table[aria-label="流程节点列表"] tbody tr');
+    await expect(nodeRows, '添加三次应得到三行节点').toHaveCount(3);
+    // 首行改「开始」、末行改「结束」，中间行保持默认的审批节点
+    await pickRowOption(page, nodeRows.nth(0), '开始');
+    await pickRowOption(page, nodeRows.nth(2), '结束');
+    // 审批人列是 remote el-select：点开即以空关键字拉第一页候选，选第一项（真实用户 ID）
+    await nodeRows.nth(1).locator('.el-select').first().click();
+    const assigneeOption = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
+    await expect(assigneeOption.first(), '审批人候选必须真实拉取到用户').toBeVisible({
+      timeout: 30000,
+    });
+    await assigneeOption.first().click();
+
     await dlg.getByRole('button', { name: '确定' }).click();
     // 真实成功提示走 ElMessage.success(i18n.global.t('common.message.createSuccess'))
     // （useBpmDfProc.ts:199-202）→ 实际中文为「新增成功」（zh-CN.ts:68），
