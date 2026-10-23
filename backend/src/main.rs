@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = crate::bootstrap::middleware_bootstrap::apply_hsts_if_production(app);
 
     start_http_server(app, &settings.server.host, &settings.server.port).await?;
-    shutdown_resources(&mut shutdown_handles);
+    shutdown_resources(&mut shutdown_handles).await;
 
     Ok(())
 }
@@ -134,12 +134,15 @@ async fn start_http_server(
     Ok(())
 }
 
-/// 按依赖顺序关闭后台任务与服务（事件总线/审计/定时任务/AppState）。
-fn shutdown_resources(shutdown_handles: &mut BootstrapShutdownHandles) {
+/// 按依赖顺序关闭后台任务与服务（事件总线、审计引擎、定时任务、AppState、审计总线排空）。
+///
+/// 审计事件由后台消费者按队列逐条落库，消费者不设取消入口。关停时先停掉全部生产者，
+/// 再排空队列，最后才让进程退出。排空到点未完成时由计数如实上报，不允许当作成功。
+async fn shutdown_resources(shutdown_handles: &mut BootstrapShutdownHandles) {
     // L-27+L-28+L-29 修复：关闭事件总线所有 spawn task，防止 detached task 泄漏
     crate::services::event_bus::shutdown_event_bus();
 
-    // L-30/L-32 修复：关闭 OmniAuditEngine + AuditLogService（mpsc channel + handle abort）
+    // L-30/L-32 修复：关闭 OmniAuditEngine
     shutdown_handles.shutdown();
 
     // L-26 修复：关闭所有 main.rs 后台定时任务
@@ -147,4 +150,24 @@ fn shutdown_resources(shutdown_handles: &mut BootstrapShutdownHandles) {
 
     // L-26 修复：关闭 AppState 后台任务（审计清理 + 用户吊销清理）
     crate::container::shutdown_app_state_background_tasks();
+
+    // 生产者全部停止后再排空审计总线，此时不会再有新事件入队，排空目标即最终积压。
+    // 排空结果连同未落库条数一起写进关停日志，完整与不完整都要留痕。
+    let timeout = crate::services::audit_log_service::SHUTDOWN_FLUSH_TIMEOUT;
+    let counts = crate::services::audit_log_service::flush(timeout).await;
+    if counts.pending == 0 && counts.failed == 0 && counts.panicked == 0 {
+        info!(
+            inserted = counts.inserted,
+            "审计总线关停排空完成，积压事件已全部落库"
+        );
+    } else {
+        warn!(
+            inserted = counts.inserted,
+            failed = counts.failed,
+            panicked = counts.panicked,
+            pending = counts.pending,
+            timeout_secs = timeout.as_secs(),
+            "审计总线关停排空不完整：仍有事件未落库或落库失败"
+        );
+    }
 }

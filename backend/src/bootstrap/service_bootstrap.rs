@@ -16,18 +16,14 @@ use crate::container::{AppState, AppStateParams};
 /// 启动过程中创建的需要在 graceful shutdown 时关闭的服务句柄。
 ///
 /// 保留 OmniAuditEngine clone，shutdown 时调用其 shutdown()，避免审计引擎 detached task 泄漏。
-/// 保留 AuditLogService clone，shutdown 时调用其 shutdown()，避免审计日志 detached task 泄漏。
+/// 审计日志服务的消费者不设取消入口，其积压由关停链调用总线 flush 排空。
 pub struct BootstrapShutdownHandles {
     omni_audit: Option<Arc<crate::services::omni_audit_service::OmniAuditEngine>>,
-    audit_log: Option<Arc<crate::services::audit_log_service::AuditLogService>>,
 }
 
 impl Default for BootstrapShutdownHandles {
     fn default() -> Self {
-        Self {
-            omni_audit: None,
-            audit_log: None,
-        }
+        Self { omni_audit: None }
     }
 }
 
@@ -39,9 +35,6 @@ impl BootstrapShutdownHandles {
     pub fn shutdown(&mut self) {
         if let Some(omni_audit) = self.omni_audit.take() {
             omni_audit.shutdown();
-        }
-        if let Some(audit_log) = self.audit_log.take() {
-            audit_log.shutdown();
         }
     }
 }
@@ -85,7 +78,7 @@ pub fn shutdown_main_background_tasks() {
 /// 完整模式启动：数据库已连接后执行迁移、创建服务、启动后台任务、组装 AppState。
 ///
 /// 返回 `(AppState, BootstrapShutdownHandles)`，后者用于 graceful shutdown 时
-/// 关闭审计引擎和审计日志服务。
+/// 关闭审计引擎。
 pub async fn bootstrap_full_mode(
     db: DatabaseConnection,
     settings: &AppSettings,
@@ -109,7 +102,6 @@ pub async fn bootstrap_full_mode(
     shutdown_handles.omni_audit = Some(omni_audit.clone());
 
     let audit_log = create_audit_log_service(&db);
-    shutdown_handles.audit_log = Some(audit_log.clone());
 
     let retention_days = resolve_audit_retention_days();
     let audit_cleanup = create_audit_cleanup_service(&db, retention_days);
