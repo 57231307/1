@@ -280,23 +280,39 @@ fn migration_up_is_idempotent_and_single_grant() {
     }
 }
 
-/// 通道②：down 逐条按角色码收窄回收授予、不出现通配、不空实现。
+/// 通道②：down 的回收面按 GRANTS 常量的 (resource, action) 对圈定。
+/// 回收 SQL 由迭代 GRANTS 经 format! 插值生成，资源与动作字面量存在于常量源、
+/// 不在函数体内，故判据同源解析：GRANTS 集合恰为 {(greige-fabrics, read)} 一枚，
+/// 且函数体同时带 resource_type 与 action 两个谓词并按角色码 ANY 圈定；
+/// 多一枚少一枚、或任一拍缺失即红。
 #[test]
 fn migration_down_revokes_only_this_grant() {
     let code = code_only(&migration_src());
     let down = down_execution(&code);
     let flat = canon(&down);
+
+    let grants = const_tokens(&code, "GRANTS");
+    assert_eq!(
+        grants,
+        vec!["greige-fabrics".to_string(), "read".to_string()],
+        "m0102 GRANTS 回收面必须恰为 greige-fabrics 的 read 一对 (resource, action)，多一枚少一枚都红"
+    );
+
     assert!(
         flat.contains("DELETEFROM\"role_permissions\""),
         "m0102 down 必须有真实回收，禁止空实现"
     );
     assert!(
-        flat.contains("'greige-fabrics'") && flat.contains("'read'"),
-        "m0102 down 必须按 greige-fabrics 的 read 圈定回收面"
+        down.contains("GRANTS") && down.contains(".iter()") && down.contains(".map("),
+        "m0102 down 必须由迭代 GRANTS 生成 DELETE，禁止把回收面写死在函数体或干脆不迭代"
     );
     assert!(
-        down.contains("ANY(") && down.contains("roles"),
-        "m0102 down 必须按本迁移的角色码精确圈定，人工另授不动"
+        flat.contains("rp.\"resource_type\"='{res}'") && flat.contains("rp.\"action\"='{act}'"),
+        "m0102 down 必须带 resource_type 与 action 双谓词，逐对插值 GRANTS 的解构变量"
+    );
+    assert!(
+        down.contains("ANY(") && down.contains("sql_array(ROLE_CODES)"),
+        "m0102 down 必须按本迁移的角色码数组精确圈定，人工另授不动"
     );
     assert!(!down.contains("\"*\""), "m0102 down 不得删除通配授予");
 }
