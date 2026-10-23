@@ -12,6 +12,8 @@
 //!   → purchase_greige_read_grant
 //!   → customer_credit_name_backfill → customer_credit_remark_column
 //!   → customer_credit_family_grant
+//!   → system_admin_bpm_config_grant → ap_input_tax_subject
+//!   → customers_nullable_columns_norm
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -108,6 +110,12 @@
 //!   accountant 补授 read 与 create 与 update 三枚，与 init 矩阵同源；ON CONFLICT 用真实唯一索引
 //!   列集合保证幂等，逐键打印实写行数与跳过成因，同键显式拒绝行只点名不覆盖；down 只按三元组配对
 //!   回收 allowed=true 的授权行，不抹人工显式拒绝行，也不碰 crm_manager 名下的通配授权行）。
+//! 22. customers_nullable_columns_norm: customers 的 status/payment_terms 两列归一——
+//!    system/finance 域当年以「可空、无默认」加列，而模型 `customer.rs` 声明非 Option，
+//!    NULL 行整行解码失败；按既有同族收敛惯例（UPDATE 清 NULL → SET DEFAULT → SET NOT NULL，
+//!    见 batch_no 与 owner_id/m0070）回填成文缺省（status 'active'，payment_terms 30，
+//!    词表与默认值证据全量写在域文件头），置于链尾为新的顶层条目（并域会被台账跳过），
+//!    依赖 system 建的两列，down 恢复可空无默认（数据无损论证见域文件头）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -151,6 +159,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customer_credit_name_backfill::Migration),
             Box::new(domain::customer_credit_remark_column::Migration),
             Box::new(domain::customer_credit_family_grant::Migration),
+            Box::new(domain::customers_nullable_columns_norm::Migration),
         ]
     }
 }

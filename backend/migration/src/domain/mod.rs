@@ -65,6 +65,9 @@
 //!   实写行数与跳过成因、同键显式拒绝行只点名不覆盖；down 按三元组配对且只删 allowed=true 行；
 //!   依赖 domain/v15 建的 uq_role_permissions_role_resource_action 唯一索引，置于链尾为新的
 //!   顶层条目，复用库上也必然执行
+//! - customers_nullable_columns_norm: customers 的 status/payment_terms 两列可空无默认 →
+//!   回填成文缺省（'active' / 30）+ SET DEFAULT + SET NOT NULL，与模型非 Option 对齐；
+//!   置于链尾为新的顶层条目，复用库上也必然执行（并入已应用的 system 域会被台账跳过）
 
 pub mod system;
 pub mod business;
@@ -98,3 +101,4 @@ pub mod role_alias_withdrawal;
 pub mod customer_credit_name_backfill;
 pub mod customer_credit_remark_column;
 pub mod customer_credit_family_grant;
+pub mod customers_nullable_columns_norm;
