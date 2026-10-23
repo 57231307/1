@@ -51,20 +51,19 @@ fn model_to_frontend_json(model: bpm_process_definition::Model) -> Value {
     })
 }
 
-/// 将 PaginatedResponse 转换为前端期望的分页格式：逐条经 `model_to_frontend_json`
-/// 映射字段，列表承载键与统一分页信封一致为 `items`（total/page/page_size 原样透传）
-fn page_to_frontend_json(page_resp: PaginatedResponse<bpm_process_definition::Model>) -> Value {
+/// 把服务层分页结果逐条经 `model_to_frontend_json` 映射字段后，仍用统一分页信封
+/// `PaginatedResponse` 承载（total/page/page_size 原样透传）。
+/// 返回强类型而不是手拼 JSON 对象：分页形状由 `utils/response.rs` 的单一定义决定，
+/// 本处不可能再漂移出第二种列表承载键。
+fn page_to_frontend_json(
+    page_resp: PaginatedResponse<bpm_process_definition::Model>,
+) -> PaginatedResponse<Value> {
     let items: Vec<Value> = page_resp
         .items
         .into_iter()
         .map(model_to_frontend_json)
         .collect();
-    json!({
-        "items": items,
-        "total": page_resp.total,
-        "page": page_resp.page,
-        "page_size": page_resp.page_size,
-    })
+    PaginatedResponse::new(items, page_resp.total, page_resp.page, page_resp.page_size)
 }
 
 /// 创建流程定义
@@ -81,7 +80,7 @@ pub async fn create_process_definition(
 pub async fn list_process_definitions(
     State(state): State<AppState>,
     Query(query): Query<ProcessDefinitionQuery>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<Value>>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let res = service.list_process_definitions(query).await?;
     Ok(Json(ApiResponse::success(page_to_frontend_json(res))))
@@ -206,7 +205,7 @@ pub async fn save_as_template(
 pub async fn list_templates(
     State(state): State<AppState>,
     Query(query): Query<TemplateQuery>,
-) -> Result<Json<ApiResponse<Value>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<Value>>>, AppError> {
     let service = BpmService::new(state.db.clone());
     let res = service.list_templates(query).await?;
     Ok(Json(ApiResponse::success(page_to_frontend_json(res))))
