@@ -148,8 +148,15 @@ test.describe('11 AR 应收全流程契约链', () => {
       `/ar/invoices?customer_id=${custId}&page=1&page_size=50`
     );
     for (const k of ['items', 'total', 'page', 'page_size']) {
-      expect(Object.prototype.hasOwnProperty.call(list, k), `AR列表缺 PaginatedResponse 键 ${k}`);
+      expect(
+        Object.prototype.hasOwnProperty.call(list, k),
+        `AR列表缺 PaginatedResponse 键 ${k}`
+      ).toBe(true);
     }
+    expect(
+      Array.isArray(list['items']),
+      `AR列表 items 应为数组，实得=${JSON.stringify(list['items'])}`
+    ).toBe(true);
     const items = list.items as Array<Record<string, unknown>>;
     const row = items.find(r => Number(r.id) === id);
     if (!row) throw new Error(`AR列表未含自建 id=${id}`);
@@ -291,8 +298,12 @@ test.describe('11 AR 应收全流程契约链', () => {
       `/ar/payments?customer_id=${custId}&page=1&page_size=20`
     );
     for (const k of ['list', 'total', 'page', 'page_size']) {
-      expect(Object.prototype.hasOwnProperty.call(list, k), `AR收款列表缺键 ${k}`);
+      expect(Object.prototype.hasOwnProperty.call(list, k), `AR收款列表缺键 ${k}`).toBe(true);
     }
+    expect(
+      Array.isArray(list['list']),
+      `AR收款列表 list 应为数组，实得=${JSON.stringify(list['list'])}`
+    ).toBe(true);
     const rows = list.list as Array<Record<string, unknown>>;
     const row = rows.find(r => Number(r.id) === id);
     if (!row) throw new Error(`AR收款列表未含自建 id=${id}`);
