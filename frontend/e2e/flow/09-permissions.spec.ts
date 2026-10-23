@@ -24,7 +24,7 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     await loginViaUI(page);
   });
 
-  test('P1-1 内置 SoD 互斥默认恰好 6 对且全为财务侧钱账分管', async ({ page }) => {
+  test('内置 SoD 互斥默认恰好 6 对且全为财务侧钱账分管', async ({ page }) => {
     // 后端 GET /roles/conflicts 返回 role_conflicts 整表（handler 出参
     // ApiResponse::success(Vec) → data 本身就是数组，分页参数不参与裁剪）。
     // 内置默认的落定路径：建表播种在 migration/src/domain/finance/ 域（8 对），其中 2 对
