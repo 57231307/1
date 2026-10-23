@@ -721,7 +721,8 @@ pub async fn export_orders(
             auth.username, row_count, server_total, completeness_text
         )),
         request_method: Some("GET".to_string()),
-        request_path: Some("/api/v1/erp/purchases/orders/export".to_string()),
+        // 与真实挂载逐字一致，挂载前缀是单数 purchase，写成复数会让留痕路径恒不等于任何真实请求
+        request_path: Some("/api/v1/erp/purchase/orders/export".to_string()),
         before_snapshot: None,
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
