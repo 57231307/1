@@ -140,16 +140,18 @@ test.describe('05 AP 付款方案B内控负向', () => {
     ).toHaveLength(0);
   });
 
-  test('05-02 缺失 request_id 的手工付款请求被拒（钉死 422 缺字段拒绝）', async ({ page }) => {
+  test('05-02 缺失 request_id 的手工付款请求被拒（统一信封 400 校验失败）', async ({ page }) => {
     const today = new Date().toISOString().slice(0, 10);
     // 不带 request_id（后端 CreateApPaymentRequest.request_id 为必填 i32）。
     const fail = await apiCallExpectFail(page, 'POST', '/ap/payments', { payment_date: today });
-    // 必填字段缺失为 serde 类型错误 → axum Json 抽取器固定回 422（本仓既有先例：
-    // flow/08 与 flow/12 对缺失必填均钉 422）。钉死单值而非 4xx 集合：
-    // 403（权限拒）与 400/422 语义不同，把集合当健康即静默吞错。
+    // 请求解码拒绝由统一中间件归一为 400 与 VALIDATION_ERROR，不再露出 axum 原生 422 纯文本，
+    // 因此这里钉死 400 与机器码，排除被当成成功付款与服务器崩溃两类退化。
     // 本例无 request_id 也无 supplier 锚点，被拒请求不产生任何可定位行，零变化无从回查，
     // 可锚定的零变化由 05-01 覆盖。
-    expect(fail.status, `缺 request_id 应被拒为 422，实际 status=${fail.status}`).toBe(422);
+    expect(fail.status, `缺 request_id 应被拒为 400，实际 status=${fail.status}`).toBe(400);
+    expect(failureCode(fail), `业务码应为 VALIDATION_ERROR，实际=${fail.code}`).toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
   });
 
   test('05-03 试图手工注入付款金额被结构忽略：实付金额恒等于已审批申请金额', async ({ page }) => {
