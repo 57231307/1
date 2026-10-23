@@ -167,9 +167,9 @@ fn shutdown_path_drains_audit_bus_after_producers_stop() {
     );
 
     // 一，关停路径确实排空总线，而不是只在本测试里调用
-    let flush_at = body.find("audit_log_service::flush(").expect(
-        "关停路径未调用 audit_log_service::flush，审计总线积压会随进程退出丢失",
-    );
+    let flush_at = body
+        .find("audit_log_service::flush(")
+        .expect("关停路径未调用 audit_log_service::flush，审计总线积压会随进程退出丢失");
 
     // 二，排空必须在全部生产者停止之后：生产者还在入队时排空只能排到中途，
     // 之后新入队的事件仍会随进程退出丢失
