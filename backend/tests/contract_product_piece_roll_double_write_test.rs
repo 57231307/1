@@ -130,7 +130,7 @@ fn absent_pair_stays_absent() {
 
 #[test]
 fn update_side_only_piece_clear_declares_clear_on_both() {
-    let (piece, roll) = pair_piece_roll_meters(Some(None), None);
+    let (piece, roll) = pair_piece_roll_meters::<Option<Decimal>>(Some(None), None);
     assert_eq!(piece, Some(None), "清空每匹米数的声明应原样保留");
     assert_eq!(
         roll,
