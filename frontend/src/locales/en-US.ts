@@ -7364,10 +7364,15 @@ export default {
     },
     enhanced: {
       title: 'Supplier 360',
-      idPlaceholder: 'Supplier ID',
       query: 'Query',
-      emptyHint: 'Enter a supplier ID and click Query',
+      emptyHint: 'Select a supplier first, then click Query',
+      picker: {
+        placeholder: 'Search by supplier name or code',
+        optionLabel: '{name} ({code})',
+        noData: 'No matching supplier; try a longer keyword',
+      },
       descriptions: {
+        id: 'Supplier ID',
         code: 'Supplier Code',
         name: 'Supplier Name',
         grade: 'Grade',
@@ -7466,8 +7471,8 @@ export default {
         loadQualificationsFailed: 'Failed to load qualifications',
         loadBalanceFailed: 'Failed to load supplier balance',
         loadHistoryFailed: 'Failed to load purchase history',
-        inputSupplierId: 'Please enter a supplier ID',
-        queryFirst: 'Please enter a supplier ID and query first',
+        selectSupplierFirst: 'Please select a supplier',
+        queryFirst: 'Please select a supplier and query first',
         contactDeleteSuccess: 'Contact deleted',
         contactDeleteFailed: 'Failed to delete contact',
         contactUpdateSuccess: 'Contact updated',
