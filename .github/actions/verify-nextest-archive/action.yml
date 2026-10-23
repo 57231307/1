@@ -1,0 +1,63 @@
+name: 校验 nextest 归档完整性
+description: 对下载到的 nextest-archive.tar.zst 做 zstd 帧校验，坏了一次性按 run id 重取制品；仍坏则点名是制品本身坏
+inputs:
+  artifact-name:
+    description: 要校验的制品名
+    required: false
+    default: nextest-archive
+  archive-file:
+    description: 制品内的归档文件名（相对 backend 目录）
+    required: false
+    default: nextest-archive.tar.zst
+runs:
+  using: composite
+  steps:
+    - name: zstd 校验并按需重取
+      # 分片红面里有一族不是测试失败：nextest 解包时报 error extracting archive 与 incomplete
+      # frame（EXIT_CODE=96，通过 0 失败 0 总计 0），说明拿到的 tar.zst 被截断。校验先于解包，
+      # 坏就重取一次；重取后仍坏则判红并写明"制品本身坏"，让这一族红与真实测试失败一眼分开，
+      # 不必把它当成本支代码问题去改源码或改测试。
+      shell: bash
+      working-directory: backend
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        ART: ${{ inputs.archive-file }}
+      run: |
+        set -uo pipefail
+        verify() { zstd -t "$ART" >/dev/null 2>&1; }
+        if verify; then
+          echo "ARCHIVE_OK size=$(stat -c%s "$ART")"
+          exit 0
+        fi
+        echo "::warning::nextest 归档 zstd 校验失败（多为下载或上传截断），按 run id 重取一次"
+        AID=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+          "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
+          | python3 -c "import sys,json;a=json.load(sys.stdin).get('artifacts',[]);print(next((x['id'] for x in a if x['name']=='$ARTIFACT_NAME'),''))")
+        if [ -z "$AID" ]; then
+          echo "::error::制品缺失：本 run 找不到 $ARTIFACT_NAME（上游 ci-build-test-artifacts 未产出）"
+          exit 1
+        fi
+        LOC=$(curl -sS -o /dev/null -w '%{redirect_url}' -H "Authorization: Bearer $GH_TOKEN" \
+          "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip")
+        if [ -z "$LOC" ]; then
+          echo "::error::制品下载地址解析失败（artifact $AID 无重定向）"
+          exit 1
+        fi
+        STAGE=/tmp/nxa-$$
+        rm -rf "$STAGE" && mkdir -p "$STAGE"
+        curl -sSL "$LOC" -o "$STAGE/art.zip"
+        python3 -c "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$STAGE/art.zip" "$STAGE"
+        if [ ! -f "$STAGE/$ART" ]; then
+          echo "::error::重取的 zip 里没有 $ART，实际内容: $(ls "$STAGE")"
+          rm -rf "$STAGE"
+          exit 1
+        fi
+        mv -f "$STAGE/$ART" "$ART"
+        rm -rf "$STAGE"
+        if verify; then
+          echo "ARCHIVE_RETRY_OK size=$(stat -c%s "$ART")"
+        else
+          echo "::error::nextest 归档重取后仍损坏（制品本身坏，不是下载截断），请查 ci-build-test-artifacts 的打包步"
+          exit 1
+        fi
