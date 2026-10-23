@@ -133,7 +133,8 @@ fn update_side_only_piece_clear_declares_clear_on_both() {
     let (piece, roll) = pair_piece_roll_meters(Some(None), None);
     assert_eq!(piece, Some(None), "清空每匹米数的声明应原样保留");
     assert_eq!(
-        roll, Some(None),
+        roll,
+        Some(None),
         "只声明清空每匹米数时，每卷米数必须按同源补成同样的清空声明，否则两列再次分叉"
     );
 }
@@ -230,14 +231,17 @@ fn update_side_dto_declares_tristate_meters() {
             "更新 DTO 的 {field} 必须是双层 Option 三态，单层就没有清空通道"
         );
     }
-    let decls = src.match_indices("deserialize_with = \"double_option\"").count();
+    let decls = src
+        .match_indices("deserialize_with = \"double_option\"")
+        .count();
     assert_eq!(
         decls, 2,
         "更新 DTO 两字段都应挂三态反序列化适配器，实际命中 {decls} 处"
     );
     // 创建侧仍是单层两态（插入时 null 与缺席等价，都是落 NULL）
-    let create_decls =
-        src.match_indices("pub meters_per_piece: Option<Decimal>").count();
+    let create_decls = src
+        .match_indices("pub meters_per_piece: Option<Decimal>")
+        .count();
     assert_eq!(create_decls, 1, "创建 DTO 的每匹米数应保持单层两态");
 }
 
@@ -460,7 +464,10 @@ async fn update_clear_declared_only_on_piece_copies_clear_to_roll() {
 
     let (piece, roll) = reload_meters(&db, created.id).await;
     assert_eq!(piece, None, "声明清空的每匹米数应落 NULL");
-    assert_eq!(roll, None, "只声明一边清空时另一列必须同步清空，不得残留旧值");
+    assert_eq!(
+        roll, None,
+        "只声明一边清空时另一列必须同步清空，不得残留旧值"
+    );
 }
 
 #[tokio::test]
