@@ -21,8 +21,11 @@ use sea_orm::*;
 use serde::Serialize;
 use serde_json::Value;
 use std::panic::AssertUnwindSafe;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio::sync::Notify;
 
 /// 审计日志服务（L-32 修复：不使用 define_service! 宏，添加 handle 字段）
 #[derive(Debug)]
@@ -40,6 +43,73 @@ static AUDIT_SENDER: std::sync::OnceLock<
     mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
 > = std::sync::OnceLock::new();
 
+/// 总线原子计数器，与 channel 同生命周期。
+/// 消费者每处理完一条（无论成失）递增对应计数并唤醒 flush 等待者。
+pub struct BusMetrics {
+    pub sent: AtomicU64,
+    pub inserted: AtomicU64,
+    pub failed: AtomicU64,
+    pub panicked: AtomicU64,
+}
+
+static BUS_METRICS: BusMetrics = BusMetrics {
+    sent: AtomicU64::new(0),
+    inserted: AtomicU64::new(0),
+    failed: AtomicU64::new(0),
+    panicked: AtomicU64::new(0),
+};
+
+/// 消费者处理完一条后唤醒 flush 等待者，避免忙等。
+static BUS_NOTIFY: std::sync::OnceLock<Notify> = std::sync::OnceLock::new();
+
+fn bus_notify() -> &'static Notify {
+    BUS_NOTIFY.get_or_init(Notify::new)
+}
+
+/// flush 返回值：截至等待结束时三类计数的累计快照。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlushCounts {
+    pub inserted: u64,
+    pub failed: u64,
+    pub panicked: u64,
+}
+
+/// 有界等待总线把截至调用时刻的全部事件处理完毕。
+/// 完成语义：inserted + failed + panicked >= 调用时刻的 sent。
+/// 超时后仍返回已观测到的计数，由调用方判定是否达标。
+pub async fn flush(timeout: Duration) -> FlushCounts {
+    let target = BUS_METRICS.sent.load(Ordering::Acquire);
+    let deadline = tokio::time::Instant::now() + timeout;
+
+    let (ins, fail, panick) = loop {
+        let ins = BUS_METRICS.inserted.load(Ordering::Acquire);
+        let fail = BUS_METRICS.failed.load(Ordering::Acquire);
+        let panick = BUS_METRICS.panicked.load(Ordering::Acquire);
+        if ins + fail + panick >= target {
+            break (ins, fail, panick);
+        }
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break (ins, fail, panick);
+        }
+        tokio::select! {
+            _ = bus_notify().notified() => {}
+            _ = tokio::time::sleep(remaining) => {
+                let ins = BUS_METRICS.inserted.load(Ordering::Acquire);
+                let fail = BUS_METRICS.failed.load(Ordering::Acquire);
+                let panick = BUS_METRICS.panicked.load(Ordering::Acquire);
+                break (ins, fail, panick);
+            }
+        }
+    };
+
+    FlushCounts {
+        inserted: ins,
+        failed: fail,
+        panicked: panick,
+    }
+}
+
 impl AuditLogService {
     /// 创建审计日志服务（全局单例 channel，消费者只启动一次）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -51,11 +121,10 @@ impl AuditLogService {
             let db_clone = db.clone();
             tokio::spawn(async move {
                 while let Some((event, ctx)) = receiver.recv().await {
-                    // 批次 8（2026-06-28）：一次性 spawn panic 隔离
                     let result = AssertUnwindSafe(async {
                         let log = build_active_model(&event, ctx.as_ref());
                         match log.insert(db_clone.as_ref()).await {
-                            Ok(_) => {}
+                            Ok(_) => true,
                             Err(e) => {
                                 tracing::error!(
                                     user_id = ?event.user_id,
@@ -63,22 +132,34 @@ impl AuditLogService {
                                     error = %e,
                                     "异步审计日志落库失败"
                                 );
+                                false
                             }
                         }
                     })
                     .catch_unwind()
                     .await;
-                    if let Err(panic_payload) = result {
-                        let panic_msg = panic_payload
-                            .downcast_ref::<String>()
-                            .map(|s| s.as_str())
-                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                            .unwrap_or("<非字符串 panic payload>");
-                        tracing::error!(
-                            panic = %panic_msg,
-                            "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
-                        );
+
+                    match &result {
+                        Ok(true) => {
+                            BUS_METRICS.inserted.fetch_add(1, Ordering::Release);
+                        }
+                        Ok(false) => {
+                            BUS_METRICS.failed.fetch_add(1, Ordering::Release);
+                        }
+                        Err(panic_payload) => {
+                            BUS_METRICS.panicked.fetch_add(1, Ordering::Release);
+                            let panic_msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(|s| s.as_str())
+                                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                .unwrap_or("<非字符串 panic payload>");
+                            tracing::error!(
+                                panic = %panic_msg,
+                                "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
+                            );
+                        }
                     }
+                    bus_notify().notify_one();
                 }
                 tracing::info!("AuditLogService 后台消费者 task 已退出");
             });
@@ -403,6 +484,8 @@ impl AuditLogService {
                 error = %e,
                 "AuditLogService channel 已关闭，审计事件丢弃（服务已 shutdown？）"
             );
+        } else {
+            BUS_METRICS.sent.fetch_add(1, Ordering::Release);
         }
     }
 }
