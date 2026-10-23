@@ -695,16 +695,18 @@ impl PurchaseOrderService {
             .to_owned()
     }
 
-    /// 获取订单列表（分页）
-    pub async fn list_orders(
-        &self,
-        page: u64,
-        page_size: u64,
+    /// 列表与导出共用的唯一筛选条件构造器（行级数据权限、状态、供应商与关键字）。
+    ///
+    /// 两条取数腿必须走本函数，各自再写一遍条件时，任一侧漏一个筛选项就会出现
+    /// 界面与导出取的是不同行集而无人报错。返回未排序的查询，排序与取数形态由调用方
+    /// 按自身语义施加，列表加分页与排序，导出取全量。
+    /// 行级数据权限在此施加，与列表同源，导出腿当前传 None，该面单独登记。
+    pub(crate) fn build_orders_query(
         status: Option<String>,
         supplier_id: Option<i32>,
         keyword: Option<String>,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
+    ) -> sea_orm::Select<purchase_order::Entity> {
         let mut query = purchase_order::Entity::find()
             .column_as(supplier::Column::SupplierName, "supplier_name")
             .column_as(warehouse::Column::Name, "warehouse_name")
@@ -725,7 +727,7 @@ impl PurchaseOrderService {
             )
             .join(JoinType::LeftJoin, purchase_order::Relation::Creator.def());
 
-        // V15 P0-S01：行级数据权限过滤（purchase_order 表有 created_by + department_id，支持完整 Dept）
+        // 行级数据权限过滤（purchase_order 表有 created_by + department_id，支持完整 Dept）
         if let Some(ctx) = data_scope {
             query = apply_data_scope(
                 query,
@@ -752,12 +754,25 @@ impl PurchaseOrderService {
             );
         }
 
-        // 批次 260 修复：接入 paginate_with_total 统一分页逻辑（内部已处理 saturating_sub(1) 偏移）
-        let paginator = query
+        query
+    }
+
+    /// 获取订单列表（分页）
+    pub async fn list_orders(
+        &self,
+        page: u64,
+        page_size: u64,
+        status: Option<String>,
+        supplier_id: Option<i32>,
+        keyword: Option<String>,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(Vec<PurchaseOrderDto>, u64), AppError> {
+        let paginator = Self::build_orders_query(status, supplier_id, keyword, data_scope)
             .order_by(purchase_order::Column::CreatedAt, sea_orm::Order::Desc)
             .into_model::<PurchaseOrderDto>()
             .paginate(&*self.db, page_size);
 
+        // paginate_with_total 内部已处理 saturating_sub(1) 偏移
         let (items, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
         Ok((items, total))
     }
