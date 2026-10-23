@@ -31,7 +31,8 @@ test.afterEach(async ({ page }) => {
 
 function requireNum(v: unknown, label: string): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
 }
 
@@ -100,7 +101,11 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
     // A) 草稿跳步审批（draft→approve）：被拒且仍 draft
     const orderA = await seedOrder(page, productId, '10');
     expect(orderA.status, '新订单起点词值 draft').toBe('draft');
-    const fApproveDraft = await apiCallExpectFail(page, 'POST', `/sales/orders/${orderA.id}/approve`);
+    const fApproveDraft = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/orders/${orderA.id}/approve`
+    );
     expect(fApproveDraft.status, '草稿直接审批应 400').toBe(400);
     expect(failureCode(fApproveDraft), '草稿审批机器码 BUSINESS_ERROR').toBe(
       APP_ERROR_CODES.BUSINESS_ERROR
@@ -109,7 +114,11 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
     expect(aStill.status, '被拒后不得漂出 draft').toBe('draft');
 
     // B) 草稿直接完成（跳 submit/approve/ship）：被拒
-    const fCompleteDraft = await apiCallExpectFail(page, 'POST', `/sales/orders/${orderA.id}/complete`);
+    const fCompleteDraft = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/orders/${orderA.id}/complete`
+    );
     expect(fCompleteDraft.status, '草稿直接完成应 400').toBe(400);
     expect(failureCode(fCompleteDraft), '草稿完成机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
 
@@ -120,18 +129,24 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
     const fShipPending = await apiCallExpectFail(page, 'POST', `/sales/orders/${orderA.id}/ship`, {
       order_id: orderA.id,
       warehouse_code: 'WH-NOT-USED',
-      items: [{ product_id: productId, quantity: '1', batch_no: 'B', color_no: 'C', dye_lot_no: 'D' }],
+      items: [
+        { product_id: productId, quantity: '1', batch_no: 'B', color_no: 'C', dye_lot_no: 'D' },
+      ],
     });
     expect(fShipPending.status, 'pending 发货应 400').toBe(400);
     expect(failureCode(fShipPending), 'pending 发货机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     const shipMsg = String(fShipPending.message ?? '');
-    expect(shipMsg, '发货门文案必须点名可发货前置态，不得是脱敏常量').toContain('仅已审批或部分发货');
+    expect(shipMsg, '发货门文案必须点名可发货前置态，不得是脱敏常量').toContain(
+      '仅已审批或部分发货'
+    );
     // D) pending 重复提交：拒绝文案点名当前态 pending（回显自单据本身，属可外显族）
     const fResubmit = await apiCallExpectFail(page, 'POST', `/sales/orders/${orderA.id}/submit`);
     expect(fResubmit.status, '重复提交应 400').toBe(400);
     expect(failureCode(fResubmit), '重复提交机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     const resubmitMsg = String(fResubmit.message ?? '');
-    expect(resubmitMsg, `提交门文案应点名当前状态 pending，实际=${resubmitMsg}`).toContain('pending');
+    expect(resubmitMsg, `提交门文案应点名当前状态 pending，实际=${resubmitMsg}`).toContain(
+      'pending'
+    );
     const pStill = await readOrder(page, orderA.id);
     expect(pStill.status, '被拒重复提交后仍 pending').toBe('pending');
 
@@ -188,7 +203,9 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
           : undefined
       );
       expect(f.status, `completed 终态执行 ${action} 应 400`).toBe(400);
-      expect(failureCode(f), `completed 终态 ${action} 机器码`).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+      expect(failureCode(f), `completed 终态 ${action} 机器码`).toBe(
+        APP_ERROR_CODES.BUSINESS_ERROR
+      );
     }
     const tStill = await readOrder(page, orderA.id);
     expect(tStill.status, '三连拒后终态 completed 纹丝不动').toBe('completed');
@@ -262,7 +279,9 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
     expect(failureCode(fForeign), '订单外产品机器码 BUSINESS_ERROR').toBe(
       APP_ERROR_CODES.BUSINESS_ERROR
     );
-    expect(String(fForeign.message ?? ''), '拒绝文案必须点名订单未包含产品').toContain('未包含的产品');
+    expect(String(fForeign.message ?? ''), '拒绝文案必须点名订单未包含产品').toContain(
+      '未包含的产品'
+    );
 
     // C) 染色布缺批次/缸号维 → VALIDATION_ERROR 且文案点名缺失维度（缺维属必填字段族）
     const fDim = await apiCallExpectFail(page, 'POST', `/sales/orders/${order.id}/ship`, {
@@ -290,10 +309,15 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
     );
     const stockRow = stockRows.find(r => r.dye_lot_no === bundle.dyeLotNo);
     expect(stockRow, '四维库存行必须仍可回读').toBeTruthy();
-    expect(toScaled(stockRow!.quantity_available, 4, '被拒后可用量')).toBe(toScaled('50', 4, '备货量'));
+    expect(toScaled(stockRow!.quantity_available, 4, '被拒后可用量')).toBe(
+      toScaled('50', 4, '备货量')
+    );
     expect(toScaled(stockRow!.quantity_shipped, 4, '被拒后已发量')).toBe(0n);
     const dlv = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order.id}/deliveries`);
-    expect(pickListArray<Row>(dlv, 'list', '被拒后发货单列表').length, '被拒发货不得产生发货单').toBe(0);
+    expect(
+      pickListArray<Row>(dlv, 'list', '被拒后发货单列表').length,
+      '被拒发货不得产生发货单'
+    ).toBe(0);
   });
 
   test('93-03 取消发货全账本反向回滚：库存/行已发量/订单状态/发货单状态四处同时回位，二次取消被拒', async ({
@@ -340,10 +364,10 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
       reason: 'E2E 反向回滚验证',
     });
     const reverted = await readOrder(page, order.id);
-    expect(reverted.status, '全部发货被取消后订单回退 approved（不是 shipped 残留）').toBe('approved');
-    expect(toScaled(orderLine(reverted, productId).shipped_quantity, 4, '取消后行已发量')).toBe(
-      0n
+    expect(reverted.status, '全部发货被取消后订单回退 approved（不是 shipped 残留）').toBe(
+      'approved'
     );
+    expect(toScaled(orderLine(reverted, productId).shipped_quantity, 4, '取消后行已发量')).toBe(0n);
     const dlvAfter = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order.id}/deliveries`);
     const dlvRowAfter = pickListArray<Row>(dlvAfter, 'list', '取消后发货单列表').find(
       r => Number(r.id) === deliveryId
@@ -387,17 +411,16 @@ test.describe('93 销售链路非法流转与取消发货回滚', () => {
       { reason: '再取消一次' }
     );
     expect(fRecancel.status, 'cancelled 发货单再取消应 400').toBe(400);
-    expect(failureCode(fRecancel), '再取消机器码 BUSINESS_ERROR').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(failureCode(fRecancel), '再取消机器码 BUSINESS_ERROR').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     const finalOrder = await readOrder(page, order.id);
     expect(finalOrder.status, '被拒二次取消后订单仍 approved').toBe('approved');
 
     // 手动创建的 pending 发货单不可取消（同门：仅 shipped 可取消，pending 是未出库预留态）
-    const pendingDlv = await apiCallRaw<Row>(
-      page,
-      'POST',
-      `/sales/orders/${order.id}/deliveries`,
-      { warehouse_id: target.id }
-    );
+    const pendingDlv = await apiCallRaw<Row>(page, 'POST', `/sales/orders/${order.id}/deliveries`, {
+      warehouse_id: target.id,
+    });
     const pendingId = requireNum(pendingDlv.id, '建 pending 发货单');
     expect(pendingDlv.status, '手动创建发货单词值 pending').toBe('pending');
     const fPendingCancel = await apiCallExpectFail(

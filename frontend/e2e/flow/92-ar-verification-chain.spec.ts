@@ -63,7 +63,8 @@ function expectInvoiceIdentity(inv: Row, label: string): void {
 
 function requireNum(v: unknown, label: string): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
 }
 
@@ -139,10 +140,9 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     expect(String(pay0.payment_no), 'payment_no 与 collection_no 必须同源同值').toBe(
       String(pay0.collection_no)
     );
-    expect(
-      toScaled(pay0.amount, 2, 'amount'),
-      'amount 与 collection_amount 必须同源同值'
-    ).toBe(toScaled(pay0.collection_amount, 2, 'collection_amount'));
+    expect(toScaled(pay0.amount, 2, 'amount'), 'amount 与 collection_amount 必须同源同值').toBe(
+      toScaled(pay0.collection_amount, 2, 'collection_amount')
+    );
     eqAmount(pay0.amount, cents('1000.00'), '收款头金额落库');
     // 收款建单未核销不动发票：假落库在这里现形
     const invAtCreate = await readInvoice(page, inv.id);
@@ -211,7 +211,11 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     const payAfterV1 = await readPayment(page, payId);
     eqAmount(payAfterV1.amount, cents('1000.00'), '核销后收款头金额不变');
     // 候选列表（裸数组契约）：余额未清的发票与有余量收款都在列
-    const candInv = await apiCallRaw<unknown>(page, 'GET', `/ar/verifications/unverified/invoices?customer_id=${ctx.customerId}`);
+    const candInv = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      `/ar/verifications/unverified/invoices?customer_id=${ctx.customerId}`
+    );
     expect(Array.isArray(candInv), '未核销发票候选必须为裸数组').toBe(true);
     expect(
       (candInv as Row[]).some(r => Number(r.id) === inv.id),
@@ -257,7 +261,11 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     expect(invV2.status, '仍有余额时保持 PARTIAL_PAID').toBe('PARTIAL_PAID');
     expectInvoiceIdentity(invV2, '二次核销后');
     // 收款分配用尽 → 从候选收款列表消失；发票仍有余额 → 留在候选发票列表
-    const candPay2 = await apiCallRaw<unknown>(page, 'GET', `/ar/verifications/unverified/payments?customer_id=${ctx.customerId}`);
+    const candPay2 = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      `/ar/verifications/unverified/payments?customer_id=${ctx.customerId}`
+    );
     expect(
       (candPay2 as Row[]).some(r => Number(r.id) === payId),
       '已足额分配的收款单不得再出现在可核销收款候选'
@@ -277,7 +285,11 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     eqAmount(invPaid.unpaid_amount, 0n, '结清后未收=0');
     eqAmount(invPaid.received_amount, cents('1234.56'), '结清后已收=发票全额');
     expectInvoiceIdentity(invPaid, '结清后');
-    const candInv3 = await apiCallRaw<unknown>(page, 'GET', `/ar/verifications/unverified/invoices?customer_id=${ctx.customerId}`);
+    const candInv3 = await apiCallRaw<unknown>(
+      page,
+      'GET',
+      `/ar/verifications/unverified/invoices?customer_id=${ctx.customerId}`
+    );
     expect(
       (candInv3 as Row[]).some(r => Number(r.id) === inv.id),
       '已结清发票必须退出可核销发票候选'
@@ -302,7 +314,9 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     expect(invC1.status, '回补后仍部分收款 PARTIAL_PAID').toBe('PARTIAL_PAID');
     expectInvoiceIdentity(invC1, '取消核销1后');
     const v1After = await readVerification(page, v1Id);
-    expect(String(v1After.reconciliation_status), '核销单1取消后小写词值 cancelled').toBe('cancelled');
+    expect(String(v1After.reconciliation_status), '核销单1取消后小写词值 cancelled').toBe(
+      'cancelled'
+    );
 
     // 重复取消被拒（状态门仅 closed 可取消）
     const fRecancel = await apiCallExpectFail(page, 'POST', `/ar/verifications/${v1Id}/cancel`);
@@ -322,7 +336,9 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     const invC3 = await readInvoice(page, inv.id);
     eqAmount(invC3.received_amount, 0n, '全部取消后已收清零');
     eqAmount(invC3.unpaid_amount, cents('1234.56'), '全部取消后余额回全额');
-    expect(invC3.status, '清零回滚后状态词值 APPROVED（不得停留 PAID/PARTIAL_PAID）').toBe('APPROVED');
+    expect(invC3.status, '清零回滚后状态词值 APPROVED（不得停留 PAID/PARTIAL_PAID）').toBe(
+      'APPROVED'
+    );
     expectInvoiceIdentity(invC3, '全部取消后');
 
     // 列表侧账本可读：三笔核销单同现列表（取消不删行，留痕语义）
@@ -433,7 +449,11 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     // confirmed 收款不可直接取消（须先回收核销），状态门拒绝
     const payConfirmed = await createPayment(page, ctx.customerId, '20.00', 'E2E-CONFIRMED-CANCEL');
     await apiCall(page, 'POST', `/ar/payments/${payConfirmed}/confirm`);
-    const fConfirmedCancel = await apiCallExpectFail(page, 'POST', `/ar/payments/${payConfirmed}/cancel`);
+    const fConfirmedCancel = await apiCallExpectFail(
+      page,
+      'POST',
+      `/ar/payments/${payConfirmed}/cancel`
+    );
     expect(fConfirmedCancel.status, 'confirmed 直接取消应 400').toBe(400);
     expect(failureCode(fConfirmedCancel), 'confirmed 取消机器码 BAD_REQUEST').toBe(
       APP_ERROR_CODES.BAD_REQUEST
@@ -442,7 +462,9 @@ test.describe('92 收款→核销→应收余额 资金链路', () => {
     expect(payCStill.status, '被拒取消后仍 confirmed').toBe('confirmed');
   });
 
-  test('92-03 跨客户核销与非法金额：客户不一致点名拒绝、负数与精度金额拒于门外', async ({ page }) => {
+  test('92-03 跨客户核销与非法金额：客户不一致点名拒绝、负数与精度金额拒于门外', async ({
+    page,
+  }) => {
     const ctx = getCtx();
     if (!ctx.customerId) throw new Error('前置缺失：ctx.customerId 未就绪');
 

@@ -149,7 +149,10 @@ function requireId(row: Record<string, unknown>, label: string): number {
  * 该端点出参是「凭证主表字段 flatten + entries 数组」，entries 不是分页信封的 items，
  * 因此不走通用列表择形工具，直接按真实键名取并判形：缺键或非数组即判红并列出实际键集。
  */
-function pickEntries(detail: Record<string, unknown>, context: string): Array<Record<string, unknown>> {
+function pickEntries(
+  detail: Record<string, unknown>,
+  context: string
+): Array<Record<string, unknown>> {
   const rows = detail.entries;
   if (!Array.isArray(rows)) {
     throw new Error(
@@ -227,7 +230,12 @@ interface SeedLine {
  */
 async function seedApprovedOrder(
   page: Page,
-  lines: Array<{ product: { id: number; code: string; name: string; unit: string }; qty: string; price: string; taxRate: string }>
+  lines: Array<{
+    product: { id: number; code: string; name: string; unit: string };
+    qty: string;
+    price: string;
+    taxRate: string;
+  }>
 ): Promise<{ poId: number; orderNo: string; seeded: SeedLine[] }> {
   const ctx = getCtx();
   if (!ctx.supplierId) throw new Error('前置缺失：ctx.supplierId 未就绪');
@@ -293,7 +301,10 @@ async function seedApprovedOrder(
 }
 
 /** 取一个本用例专属产品（自建，避免引用库中 unit/编码未知的历史产品） */
-async function ownProduct(page: Page, tag: string): Promise<{
+async function ownProduct(
+  page: Page,
+  tag: string
+): Promise<{
   id: number;
   code: string;
   name: string;
@@ -367,13 +378,15 @@ async function findStockRow(
     '&page=1&page_size=50';
   const data = await apiCallRaw<Record<string, unknown>>(page, 'GET', path);
   const rows = pickListArray<Record<string, unknown>>(data, 'items', `库存行查询 ${path}`);
-  const hit = rows.find(
-    r => String(r.batch_no) === opts.batchNo && String(r.grade) === opts.grade
-  );
+  const hit = rows.find(r => String(r.batch_no) === opts.batchNo && String(r.grade) === opts.grade);
   return hit ? (hit as Record<string, unknown>) : null;
 }
 
-async function readOrderLine(page: Page, poId: number, lineNo: number): Promise<Record<string, unknown>> {
+async function readOrderLine(
+  page: Page,
+  poId: number,
+  lineNo: number
+): Promise<Record<string, unknown>> {
   const detail = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/orders/${poId}`);
   const items = pickListArray<Record<string, unknown>>(
     { items: detail.items },
@@ -381,7 +394,10 @@ async function readOrderLine(page: Page, poId: number, lineNo: number): Promise<
     `PO ${poId} 明细`
   );
   const row = items.find(r => Number(r.line_no) === lineNo);
-  if (!row) throw new Error(`PO ${poId} 明细未找到行号 ${lineNo}，实际行号=${items.map(r => r.line_no).join(',')}`);
+  if (!row)
+    throw new Error(
+      `PO ${poId} 明细未找到行号 ${lineNo}，实际行号=${items.map(r => r.line_no).join(',')}`
+    );
   return row;
 }
 
@@ -463,8 +479,16 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     ).toBe(true);
 
     const lineAfter1 = await readOrderLine(page, poId, 1);
-    expectDecEquals(lineAfter1.received_quantity, decLiteral('12', '第一批后已收'), '第一批后订单行已收量');
-    const poAfter1 = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/orders/${poId}`);
+    expectDecEquals(
+      lineAfter1.received_quantity,
+      decLiteral('12', '第一批后已收'),
+      '第一批后订单行已收量'
+    );
+    const poAfter1 = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/orders/${poId}`
+    );
     expect(poAfter1.status, '部分收货状态词值（分批续收前提）').toBe('PARTIAL_RECEIVED');
 
     // ── 第二批同批次号续收 7：库存必须在既有行上累加，增量精确等于 7 ──
@@ -590,7 +614,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     });
     const lineFinal = await readOrderLine(page, poId, 1);
     expectDecEquals(lineFinal.received_quantity, orderLine.orderedQty, '收满后已收量=订购量');
-    const poFinal = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/orders/${poId}`);
+    const poFinal = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/orders/${poId}`
+    );
     expect(poFinal.status, '全收状态词值').toBe('COMPLETED');
     const stockFinal = await findStockRow(page, {
       productId: orderLine.productId,
@@ -626,7 +654,10 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       noteTag: `BAD-${batch}`,
     });
     const receiptId = requireId(receipt, '不合格场景收货单');
-    CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: `purchase_receipt#${receiptId}` });
+    CLEANUP.push({
+      path: `/purchase/receipts/${receiptId}`,
+      label: `purchase_receipt#${receiptId}`,
+    });
 
     // 待检初值：新建收货单检验状态恒 PENDING（词表 purchase_receipt_inspection 大写）
     const head0 = await apiCallRaw<Record<string, unknown>>(
@@ -643,7 +674,10 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       inspection_date: todayStr(),
     });
     const inspId = requireId(insp, '建质检单');
-    CLEANUP.push({ path: `/purchase/inspections/${inspId}`, label: `purchase_inspection#${inspId}` });
+    CLEANUP.push({
+      path: `/purchase/inspections/${inspId}`,
+      label: `purchase_inspection#${inspId}`,
+    });
     await apiCall(page, 'POST', `/purchase/inspections/${inspId}/complete`, {
       pass_quantity: '0',
       reject_quantity: '20',
@@ -675,10 +709,9 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     );
     expect(confirmFail.status, `不合格收货单确认入库应 400，实际=${confirmFail.status}`).toBe(400);
     expect(failureCode(confirmFail), '不合格拦截机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
-    expect(
-      confirmFail.message,
-      '不合格拦截的可外显文案必须逐字符命中门控实现'
-    ).toBe('质检不合格的收货单不能确认入库，请先处理不合格品');
+    expect(confirmFail.message, '不合格拦截的可外显文案必须逐字符命中门控实现').toBe(
+      '质检不合格的收货单不能确认入库，请先处理不合格品'
+    );
 
     // 拦截必须无痕：库存零行、订单已收零、收货单仍 DRAFT
     const stockAfterReject = await findStockRow(page, {
@@ -793,7 +826,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       decCmp(returnedQty, inspReject) === 0,
       `退货数量必须与质检不合格数量逐值相等：退货=${decText(returnedQty)} 不合格=${decText(inspReject)}`
     ).toBe(true);
-    const rtnHead = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/returns/${rtnId}`);
+    const rtnHead = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/returns/${rtnId}`
+    );
     expect(rtnHead.return_status, '退货初始状态词值（小写词表）').toBe('draft');
     expect(rtnHead.receipt_id, '退货必须回指被判不合格的收货单').toBe(receiptId);
     expectDecEquals(
@@ -851,7 +888,10 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       ],
     });
     const receiptId = requireId(receipt, '多行收货单');
-    CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: `purchase_receipt#${receiptId}` });
+    CLEANUP.push({
+      path: `/purchase/receipts/${receiptId}`,
+      label: `purchase_receipt#${receiptId}`,
+    });
     expect(seeded.length, '前置：PO 应为 2 行').toBe(2);
 
     const linesBeforeConfirm = pickListArray<Record<string, unknown>>(
@@ -877,7 +917,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     });
     await apiCall(page, 'POST', `/purchase/receipts/${receiptId}/confirm`);
 
-    const rcpt = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/receipts/${receiptId}`);
+    const rcpt = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/purchase/receipts/${receiptId}`
+    );
     expect(rcpt.receipt_status, '确认后收货单状态').toBe('COMPLETED');
     expectDecEquals(
       rcpt.total_amount,
@@ -900,18 +944,23 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const invoiceId = requireId(invoice!, '应付单 id');
     expect(invoice!.source_type, '应付来源类型锚定').toBe('PURCHASE_RECEIPT');
     expectDecimalString(invoice!.amount, '应付单金额');
-    expectDecEquals(invoice!.amount, lineAmountSum, '应付账面额=收货行金额合计（税率 0，价税同额）');
     expectDecEquals(
-      invoice!.unpaid_amount,
+      invoice!.amount,
       lineAmountSum,
-      '未付余额初值=应付金额（全额未付）'
+      '应付账面额=收货行金额合计（税率 0，价税同额）'
     );
+    expectDecEquals(invoice!.unpaid_amount, lineAmountSum, '未付余额初值=应付金额（全额未付）');
     expect(invoice!.invoice_status, '自动应付初始态').toBe('DRAFT');
 
     // 应付凭证：入库确认链路必须真生成，且借贷平衡、金额与应付单同口径
     const invoiceNo = String(invoice!.invoice_no ?? '');
-    if (!invoiceNo) throw new Error(`应付单缺 invoice_no，实际键=${Object.keys(invoice!).join(',')}`);
-    const invHead = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
+    if (!invoiceNo)
+      throw new Error(`应付单缺 invoice_no，实际键=${Object.keys(invoice!).join(',')}`);
+    const invHead = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/invoices/${invoiceId}`
+    );
     const invTax = decFromRaw(invHead.tax_amount, '应付单税额');
     // 价税两段之和等于账面额（本用例税率 0，进项税额段为 0，故账面额看不出含税差）
     expectDecMatch(
@@ -950,26 +999,23 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     // 账面额已含进项税，贷方直接取它；再乘一次税率就是重复计税（本用例税率 0，
     // 价税同额，故此处与不含税基看不出差别，税率非 0 的 95-04 才暴露该口径）
     const expectedPayable = decFromRaw(invHead.amount, '应付单账面额（价税合计）');
-    expectDecEquals(
-      payableEntry!.credit,
-      expectedPayable,
-      '应付账款贷方发生额=应付单账面价税合计'
-    );
+    expectDecEquals(payableEntry!.credit, expectedPayable, '应付账款贷方发生额=应付单账面价税合计');
     expectDecMatch(apCredit, expectedPayable, '应付凭证贷方合计=应付单账面价税合计');
 
     // 审核应付 → 付款申请（先只申请 60%，走部分付款分支）
     await apiCall(page, 'POST', `/ap/invoices/${invoiceId}/approve`);
-    const audited = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
+    const audited = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/invoices/${invoiceId}`
+    );
     expect(audited.invoice_status, '审核后的应付状态词值（大写词表）').toBe('AUDITED');
     const invoiceAmount = decFromRaw(audited.amount, '应付单金额（审核后回读）');
     const firstApply = decAdd(invoiceAmount, { v: 0n, s: 0 });
     // 部分付款额：按十进制取整到元级再减，避免浮点
     const partialPay = { v: firstApply.v / 2n, s: firstApply.s };
     const applyText = decText(partialPay);
-    const restPay = decAdd(
-      { v: -partialPay.v, s: partialPay.s },
-      firstApply
-    );
+    const restPay = decAdd({ v: -partialPay.v, s: partialPay.s }, firstApply);
     const restText = decText(restPay);
 
     const req1 = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/payment-requests', {
@@ -989,17 +1035,22 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     await apiCall(page, 'POST', `/ap/payment-requests/${req1Id}/approve`);
 
     // 非法流转：未审批通过的申请不得直接生成付款单 —— 可外显站点必须点名原因
-    const req2Raw = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/payment-requests', {
-      supplier_id: ctx.supplierId,
-      request_date: todayStr(),
-      payment_type: '货款',
-      payment_method: '银行转账',
-      request_amount: restText,
-      currency: 'USD',
-      exchange_rate: '1',
-      notes: `E2E-F95-REQ2-${batch}`,
-      items: [{ invoice_id: invoiceId, apply_amount: restText }],
-    });
+    const req2Raw = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      '/ap/payment-requests',
+      {
+        supplier_id: ctx.supplierId,
+        request_date: todayStr(),
+        payment_type: '货款',
+        payment_method: '银行转账',
+        request_amount: restText,
+        currency: 'USD',
+        exchange_rate: '1',
+        notes: `E2E-F95-REQ2-${batch}`,
+        items: [{ invoice_id: invoiceId, apply_amount: restText }],
+      }
+    );
     const req2Id = requireId(req2Raw, '建第二笔付款申请');
     CLEANUP.push({ path: `/ap/payment-requests/${req2Id}`, label: `ap_request#${req2Id}` });
     const payTooEarly = await apiCallExpectFail(page, 'POST', '/ap/payments', {
@@ -1035,7 +1086,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     });
     const pay1Id = requireId(pay1, '建第一笔付款单');
     CLEANUP.push({ path: `/ap/payments/${pay1Id}`, label: `ap_payment#${pay1Id}` });
-    const pay1Head = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/payments/${pay1Id}`);
+    const pay1Head = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/payments/${pay1Id}`
+    );
     expect(pay1Head.payment_status, '付款单登记态').toBe('REGISTERED');
     expectDecEquals(pay1Head.payment_amount, partialPay, '付款金额取申请额');
 
@@ -1055,7 +1110,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       transaction_no: `E2E-F95-TXN1-${batch}`,
     });
     await apiCall(page, 'POST', `/ap/payments/${pay1Id}/confirm`);
-    const pay1After = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/payments/${pay1Id}`);
+    const pay1After = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/payments/${pay1Id}`
+    );
     expect(pay1After.payment_status, '确认后付款单态').toBe('CONFIRMED');
 
     // 部分付款分支对账：已付+未付=应付金额，状态 PARTIAL_PAID
@@ -1079,10 +1138,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     const pay1No = String(pay1After.payment_no ?? '');
     if (!pay1No) throw new Error(`付款单缺 payment_no，实际键=${Object.keys(pay1After).join(',')}`);
     const payVoucher = await findVoucherBySourceBillNo(page, pay1No, '付款凭证');
-    expect(
-      payVoucher,
-      `付款单 ${pay1No} 确认后必须生成付款凭证`
-    ).toBeTruthy();
+    expect(payVoucher, `付款单 ${pay1No} 确认后必须生成付款凭证`).toBeTruthy();
     const payVoucherId = requireId(payVoucher!, '付款凭证 id');
     const payVoucherDetail = await apiCallRaw<Record<string, unknown>>(
       page,
@@ -1124,7 +1180,10 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       noteTag: `TAX-${batch}`,
     });
     const receiptId = requireId(receipt, '含税收货单');
-    CLEANUP.push({ path: `/purchase/receipts/${receiptId}`, label: `purchase_receipt#${receiptId}` });
+    CLEANUP.push({
+      path: `/purchase/receipts/${receiptId}`,
+      label: `purchase_receipt#${receiptId}`,
+    });
 
     await seedInspectionPass(page, {
       receiptId,
@@ -1147,7 +1206,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     expect(invoice, '含税收货确认后应自动生成应付单').toBeTruthy();
     const invoiceId = requireId(invoice!, '含税应付单 id');
     const invoiceNo = String(invoice!.invoice_no ?? '');
-    const invHead = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
+    const invHead = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/invoices/${invoiceId}`
+    );
     // 应付单账面额 amount 存的就是价税合计（含进项税额），tax_amount 只是其中归属
     // 「应交税费—进项税额」的那一段；把它当不含税基再加一次税额会重复计一轮税。
     const bookGross = decFromRaw(invHead.amount, '应付账面额（价税合计）');
@@ -1158,11 +1221,7 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
       `/purchase/receipts/${receiptId}`
     );
     const receiptNet = decFromRaw(receiptHead.total_amount, '收货单不含税合计');
-    expectDecMatch(
-      bookGross,
-      decAdd(receiptNet, inputTax),
-      '应付账面额=收货不含税基加进项税额'
-    );
+    expectDecMatch(bookGross, decAdd(receiptNet, inputTax), '应付账面额=收货不含税基加进项税额');
 
     // 应付凭证（价税合计挂应付账款贷方）
     const apVoucher = await findVoucherBySourceBillNo(page, invoiceNo, '含税应付凭证');
@@ -1215,7 +1274,8 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
     await apiCall(page, 'POST', `/ap/payments/${payId}/confirm`);
 
     const payNo = String(
-      (await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/payments/${payId}`)).payment_no ?? ''
+      (await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/payments/${payId}`))
+        .payment_no ?? ''
     );
     const payVoucher = await findVoucherBySourceBillNo(page, payNo, '含税付款凭证');
     expect(payVoucher, `付款单 ${payNo} 确认后必须生成付款凭证`).toBeTruthy();
@@ -1241,7 +1301,11 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
         `${decText(residue)}（若差额等于进项税额 ${decText(inputTax)}，即两侧价税口径不同源）`
     ).toBe(true);
 
-    const invPaid = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${invoiceId}`);
+    const invPaid = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/ap/invoices/${invoiceId}`
+    );
     expect(invPaid.invoice_status, '付清后应付状态词值').toBe('PAID');
     expectDecEquals(invPaid.unpaid_amount, { v: 0n, s: 0 }, '付清后账面未付额归零');
   });

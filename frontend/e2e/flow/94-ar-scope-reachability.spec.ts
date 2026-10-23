@@ -55,7 +55,8 @@ test.afterEach(async ({ page }) => {
 
 function requireNum(v: unknown, label: string): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
 }
 
@@ -136,7 +137,11 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
 
       // 正向门：先以 200 读到自己的列表——证明 RBAC orders:read 已过门，
       // 后续对他人单据的 403 只可能来自行级数据范围，而不是路径不可达。
-      const list = await apiCallRaw<Row>(intruder.page, 'GET', '/sales/orders?page=1&page_size=200');
+      const list = await apiCallRaw<Row>(
+        intruder.page,
+        'GET',
+        '/sales/orders?page=1&page_size=200'
+      );
       const rows = Array.isArray((list as Row).items) ? ((list as Row).items as Row[]) : null;
       expect(rows, 'Self 角色订单列表出参必须含 items 数组（PaginatedResponse）').toBeTruthy();
       // 可达内容断言一：owner 的单据不得出现在其列表（空列表也满足，但必须证明是过滤而非全量泄漏）
@@ -183,18 +188,27 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
         `改他人订单 403 的来源层必须与 orders:update 授码状态一致，实际 message=${JSON.stringify(fUpdate.message)}`
       ).toBe(perms.has('orders:update') ? 'data-scope' : 'rbac');
 
-      const fSubmit = await apiCallExpectFail(intruder.page, 'POST', `/sales/orders/${owner.id}/submit`);
+      const fSubmit = await apiCallExpectFail(
+        intruder.page,
+        'POST',
+        `/sales/orders/${owner.id}/submit`
+      );
       expectDenied(fSubmit, 'Self 角色提交他人订单');
       expect(
         classifyDenialLayer(fSubmit.message),
         `提交他人订单 403 的来源层必须与 orders:submit 授码状态一致，实际 message=${JSON.stringify(fSubmit.message)}`
       ).toBe(perms.has('orders:submit') ? 'data-scope' : 'rbac');
 
-      const fShip = await apiCallExpectFail(intruder.page, 'POST', `/sales/orders/${owner.id}/ship`, {
-        order_id: owner.id,
-        warehouse_code: 'WH-X',
-        items: [],
-      });
+      const fShip = await apiCallExpectFail(
+        intruder.page,
+        'POST',
+        `/sales/orders/${owner.id}/ship`,
+        {
+          order_id: owner.id,
+          warehouse_code: 'WH-X',
+          items: [],
+        }
+      );
       expectDenied(fShip, 'Self 角色发他人订单货');
       // 发货动作末段不在路径动作关键字表内，对应派生权限键无法在用例侧静态坐实，
       // 此处只钉 403 可归因到两道门之一（归因不明即判红），不硬猜键名。
@@ -203,7 +217,11 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
         `发货被拒 403 必须能归因到行级门或 RBAC 门之一，实际 message=${JSON.stringify(fShip.message)}`
       ).toBe(true);
 
-      const fCancel = await apiCallExpectFail(intruder.page, 'POST', `/sales/orders/${owner.id}/cancel`);
+      const fCancel = await apiCallExpectFail(
+        intruder.page,
+        'POST',
+        `/sales/orders/${owner.id}/cancel`
+      );
       expectDenied(fCancel, 'Self 角色取消他人订单');
       expect(
         classifyDenialLayer(fCancel.message),
@@ -211,7 +229,11 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
       ).toBe(perms.has('orders:cancel') ? 'data-scope' : 'rbac');
 
       // 发货记录读口同门（读码已过门且与详情同派生键，越权不得读他人出库痕迹）
-      const fDlv = await apiCallExpectFail(intruder.page, 'GET', `/sales/orders/${owner.id}/deliveries`);
+      const fDlv = await apiCallExpectFail(
+        intruder.page,
+        'GET',
+        `/sales/orders/${owner.id}/deliveries`
+      );
       expectDenied(fDlv, 'Self 角色读他人发货记录');
       expect(
         classifyDenialLayer(fDlv.message),
@@ -227,10 +249,7 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
     expect(String(after.notes), '越权改写不得落库').toBe(owner.notes);
     expect(String(after.order_no), '单号不因越权尝试漂移').toBe(owner.order_no);
     const dlv = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${owner.id}/deliveries`);
-    expect(
-      ((dlv as Row).list as Row[]).length,
-      '越权发货被拒后不得产生发货单'
-    ).toBe(0);
+    expect(((dlv as Row).list as Row[]).length, '越权发货被拒后不得产生发货单').toBe(0);
   });
 
   test('94-02 角色数据范围口径坐实：sales_manager 先回读真实 data_scope 再按语义验可见集；department_manager 未持销售读码时如实钉 RBAC 层', async ({
@@ -318,7 +337,9 @@ test.describe('94 销售单据数据范围纵深（可达内容 + 被拒零漂�
     try {
       const fDept = await apiCallExpectFail(dept.page, 'GET', `/sales/orders/${owner.id}`);
       expect(fDept.status, 'department_manager 读销售订单应 403').toBe(403);
-      expect(failureCode(fDept), 'department_manager 机器码 FORBIDDEN').toBe(APP_ERROR_CODES.FORBIDDEN);
+      expect(failureCode(fDept), 'department_manager 机器码 FORBIDDEN').toBe(
+        APP_ERROR_CODES.FORBIDDEN
+      );
       const deptMsg = String(fDept.message ?? '');
       expect(
         deptMsg === RBAC_403_MESSAGE || deptMsg === DATA_SCOPE_403_MESSAGE,

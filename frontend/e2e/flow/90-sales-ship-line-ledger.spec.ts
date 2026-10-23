@@ -45,14 +45,16 @@ async function tryCleanupRow(page: import('@playwright/test').Page, path: string
  */
 function toScaled(v: unknown, scale: number, label: string): bigint {
   const s = typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '';
-  if (s === '' ) {
+  if (s === '') {
     throw new Error(`${label}：Decimal 出参非 string|number，raw=${JSON.stringify(v)}`);
   }
   const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(s);
   if (!m) throw new Error(`${label}：Decimal 出参形态非法，raw="${s}"`);
   const [, sign, intPart, frac = ''] = m;
   if (frac.length > scale && frac.slice(scale).replace(/0+$/, '') !== '') {
-    throw new Error(`${label}：出参标度 ${frac.length} 位超出断言精度 ${scale} 位且非零，raw="${s}"`);
+    throw new Error(
+      `${label}：出参标度 ${frac.length} 位超出断言精度 ${scale} 位且非零，raw="${s}"`
+    );
   }
   // 按字符串实际小数位定标：小数位多于目标标度时整除降位（降位尾数已由上面的非零检查拦下），
   // 少于目标标度时补零升位；全程 BigInt 十进制定点，不经过 JS number/parseFloat。
@@ -82,7 +84,8 @@ function expectQty(actual: unknown, expected: string, label: string): void {
 
 function requireNum(v: unknown, label: string): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
 }
 
@@ -146,9 +149,11 @@ async function readStockRow(
   const res = await apiCallRaw<Row>(page, 'GET', `/inventory/stock?${qs}`);
   const rows = pickListArray<Row>(res, 'items', `产品 ${dims.productId} 四维库存行`);
   const row = rows.find(
-    r => r.color_no === dims.colorNo && r.dye_lot_no === dims.dyeLotNo && r.batch_no === dims.dyeLotNo
+    r =>
+      r.color_no === dims.colorNo && r.dye_lot_no === dims.dyeLotNo && r.batch_no === dims.dyeLotNo
   );
-  if (!row) throw new Error(`四维库存行缺失：dims=${JSON.stringify(dims)} 实际行=${JSON.stringify(rows)}`);
+  if (!row)
+    throw new Error(`四维库存行缺失：dims=${JSON.stringify(dims)} 实际行=${JSON.stringify(rows)}`);
   return row;
 }
 
@@ -169,7 +174,13 @@ async function readSalesDeliveryTxns(
 
 async function seedApprovedOrder(
   page: import('@playwright/test').Page,
-  items: Array<{ product_id: number; quantity: string; unit_price: string; tax_percent: string; quantity_tolerance_pct: string }>
+  items: Array<{
+    product_id: number;
+    quantity: string;
+    unit_price: string;
+    tax_percent: string;
+    quantity_tolerance_pct: string;
+  }>
 ): Promise<{ id: number; order_no: string }> {
   const ctx = getCtx();
   if (!ctx.customerId) throw new Error('前置缺失：ctx.customerId 未就绪');
@@ -212,8 +223,20 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
 
     // 行级容差显式写 0：上下界=行数量，杜绝产品单位默认容差引入的不确定区间
     const order = await seedApprovedOrder(page, [
-      { product_id: pA, quantity: '100', unit_price: '37.50', tax_percent: '13', quantity_tolerance_pct: '0' },
-      { product_id: pB, quantity: '50', unit_price: '210.00', tax_percent: '6', quantity_tolerance_pct: '0' },
+      {
+        product_id: pA,
+        quantity: '100',
+        unit_price: '37.50',
+        tax_percent: '13',
+        quantity_tolerance_pct: '0',
+      },
+      {
+        product_id: pB,
+        quantity: '50',
+        unit_price: '210.00',
+        tax_percent: '6',
+        quantity_tolerance_pct: '0',
+      },
     ]);
 
     const target = await pickDyeableWarehouse(page);
@@ -278,7 +301,12 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     });
 
     // ── 第一笔：A 发 60、B 发 20 ──
-    await apiCall(page, 'POST', `/sales/orders/${order.id}/ship`, shipItems('60', bundleA.pieces[0], '20', bundleB.pieces[0]));
+    await apiCall(
+      page,
+      'POST',
+      `/sales/orders/${order.id}/ship`,
+      shipItems('60', bundleA.pieces[0], '20', bundleB.pieces[0])
+    );
 
     const d1 = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order.id}`);
     expect(d1.status, '部分发货订单状态词值（写入方小写 partial_shipped）').toBe('partial_shipped');
@@ -299,7 +327,11 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     });
     expectCents(stockA1.quantity_available, '140', 'A 库存行可用量=200-60');
     expectCents(stockA1.quantity_shipped, '60', 'A 库存行已发量+=60');
-    expectQty(stockA1.quantity_on_hand, String(stockA0.quantity_on_hand), 'A 库存行现存量守恒（出库只动可用/已发）');
+    expectQty(
+      stockA1.quantity_on_hand,
+      String(stockA0.quantity_on_hand),
+      'A 库存行现存量守恒（出库只动可用/已发）'
+    );
     const stockB1 = await readStockRow(page, {
       productId: pB,
       warehouseId: target.id,
@@ -314,8 +346,10 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     expect(txA1.length, '第一笔后 A 出库流水应恰 1 行（本订单名下）').toBe(1);
     expectQty(txA1[0].quantity_meters, '60', 'A 出库流水行出库量');
     expectQty(txA1[0].quantity_before_meters, '200', 'A 出库流水行扣前量');
-    expect(toScaled(txA1[0].quantity_after_meters, 4, 'A 流水扣后量'), '流水前后差=出库量')
-      .toBe(toScaled(txA1[0].quantity_before_meters, 4, 'before') - toScaled(txA1[0].quantity_meters, 4, 'qty'));
+    expect(toScaled(txA1[0].quantity_after_meters, 4, 'A 流水扣后量'), '流水前后差=出库量').toBe(
+      toScaled(txA1[0].quantity_before_meters, 4, 'before') -
+        toScaled(txA1[0].quantity_meters, 4, 'qty')
+    );
     const txB1 = await readSalesDeliveryTxns(page, pB, bundleB.dyeLotNo, order.order_no);
     expect(txB1.length, '第一笔后 B 出库流水应恰 1 行').toBe(1);
     expectQty(txB1[0].quantity_meters, '20', 'B 出库流水行出库量');
@@ -323,7 +357,9 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     // 发货单回读：信封键 {list,total}（缺键即红，不得 ?? [] 吞掉）
     const dlv1 = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order.id}/deliveries`);
     for (const k of ['list', 'total']) {
-      expect(Object.prototype.hasOwnProperty.call(dlv1, k), `发货记录回读应含信封键 ${k}`).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(dlv1, k), `发货记录回读应含信封键 ${k}`).toBe(
+        true
+      );
     }
     const dlvRows1 = pickListArray<Row>(dlv1, 'list', '发货单列表');
     expect(dlvRows1.length, '第一笔发货后应恰 1 张发货单').toBe(1);
@@ -331,7 +367,9 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     expect(dlv1Row.status, '发货单状态词值（写入方小写 shipped）').toBe('shipped');
     // 出库头归属来自源单：customer_id/warehouse_id 逐值相等（不是断非空）
     expect(dlv1Row.customer_id, '发货单 customer_id 必须等于订单客户').toBe(d1.customer_id);
-    expect(Number(dlv1Row.warehouse_id), '发货单 warehouse_id 必须等于实际出库仓库').toBe(target.id);
+    expect(Number(dlv1Row.warehouse_id), '发货单 warehouse_id 必须等于实际出库仓库').toBe(
+      target.id
+    );
     expect(Number(dlv1Row.order_id), '发货单 order_id 必须等于源订单').toBe(order.id);
     expectQty(dlv1Row.total_quantity, '80', '发货单头 total_quantity=60+20（请求量合计如实回写）');
     expect(String(dlv1Row.delivery_no), '发货单号应由后端生成且带 DN 前缀').toMatch(/^DN/);
@@ -350,7 +388,12 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     expect(String(pieceAHit!.status), '被出库的匹必须 AVAILABLE→SHIPPED').toBe('SHIPPED');
 
     // ── 第二笔：A 补发 40、B 补发 30 → 全额发货 ──
-    await apiCall(page, 'POST', `/sales/orders/${order.id}/ship`, shipItems('40', bundleA.pieces[1], '30', bundleB.pieces[1]));
+    await apiCall(
+      page,
+      'POST',
+      `/sales/orders/${order.id}/ship`,
+      shipItems('40', bundleA.pieces[1], '30', bundleB.pieces[1])
+    );
     const d2 = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order.id}`);
     expect(d2.status, '全部行发满后订单词值 shipped（不是 partial_shipped）').toBe('shipped');
     expectQty(orderLine(d2, pA).shipped_quantity, '100', '全额后 A 行 shipped_quantity=行数量');
@@ -395,7 +438,13 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
 
     // 订单一：行数量 100、容差 0 —— 上界恰为 100
     const order0 = await seedApprovedOrder(page, [
-      { product_id: pA, quantity: '100', unit_price: '12.00', tax_percent: '0', quantity_tolerance_pct: '0' },
+      {
+        product_id: pA,
+        quantity: '100',
+        unit_price: '12.00',
+        tax_percent: '0',
+        quantity_tolerance_pct: '0',
+      },
     ]);
     const bundle0 = await seedDyedOutboundBundle(page, {
       productId: pA,
@@ -418,7 +467,12 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
         },
       ],
     });
-    const f0 = await apiCallExpectFail(page, 'POST', `/sales/orders/${order0.id}/ship`, ship0('101', bundle0.pieces[0].piece_no));
+    const f0 = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/orders/${order0.id}/ship`,
+      ship0('101', bundle0.pieces[0].piece_no)
+    );
     expect(f0.status, '容差 0 超发 1 米应 400').toBe(400);
     expect(failureCode(f0), '超发机器码 BUSINESS_ERROR').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
     // 被拒零副作用（fail-closed，不允许半扣库存/半回写）
@@ -434,11 +488,20 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     expectCents(stock0.quantity_available, '120', '超发被拒后可用量分毫未动');
     expectCents(stock0.quantity_shipped, '0', '超发被拒后已发量不得预埋');
     const dlv0 = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order0.id}/deliveries`);
-    expect(pickListArray<Row>(dlv0, 'list', '被拒后的发货单列表').length, '被拒发货不得留下发货单').toBe(0);
+    expect(
+      pickListArray<Row>(dlv0, 'list', '被拒后的发货单列表').length,
+      '被拒发货不得留下发货单'
+    ).toBe(0);
 
     // 订单二：行数量 100、容差 5 —— 上界 105；发 105 恰好及界放行
     const order5 = await seedApprovedOrder(page, [
-      { product_id: pB, quantity: '100', unit_price: '12.00', tax_percent: '0', quantity_tolerance_pct: '5' },
+      {
+        product_id: pB,
+        quantity: '100',
+        unit_price: '12.00',
+        tax_percent: '0',
+        quantity_tolerance_pct: '5',
+      },
     ]);
     const bundle5 = await seedDyedOutboundBundle(page, {
       productId: pB,
@@ -464,7 +527,11 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     await apiCall(page, 'POST', `/sales/orders/${order5.id}/ship`, ship5('105'));
     const d5 = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order5.id}`);
     expect(d5.status, '及界发货 105 应放行并推进 shipped（行已发满）').toBe('shipped');
-    expectQty(orderLine(d5, pB).shipped_quantity, '105', '及界发货行回写实发 105（不是行数量 100）');
+    expectQty(
+      orderLine(d5, pB).shipped_quantity,
+      '105',
+      '及界发货行回写实发 105（不是行数量 100）'
+    );
 
     // 累计越界：105 + 1 > 105 → 拒，且此前实发 105 无痕保留
     const f5 = await apiCallExpectFail(page, 'POST', `/sales/orders/${order5.id}/ship`, ship5('1'));
@@ -482,7 +549,12 @@ test.describe('90 销售订单→出库 逐行账实链', () => {
     expectCents(stock5.quantity_available, '15', '被拒续发后可用量仍为 120-105');
 
     // 订单一（容差 0）此刻精确发满 100 → 放行，证明上一拒绝不是"永远发不出"的假门
-    await apiCall(page, 'POST', `/sales/orders/${order0.id}/ship`, ship0('100', bundle0.pieces[0].piece_no));
+    await apiCall(
+      page,
+      'POST',
+      `/sales/orders/${order0.id}/ship`,
+      ship0('100', bundle0.pieces[0].piece_no)
+    );
     const d0b = await apiCallRaw<Row>(page, 'GET', `/sales/orders/${order0.id}`);
     expect(d0b.status, '精确按行数量发货应放行至 shipped').toBe('shipped');
     expectQty(orderLine(d0b, pA).shipped_quantity, '100', '行精确发满回写 100');

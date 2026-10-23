@@ -110,7 +110,11 @@ function requireId(row: Record<string, unknown>, label: string): number {
 }
 
 /** 取本用例专属产品（自建 + 回读，不引用库中 unit 未知的历史产品） */
-async function ownProduct(page: Page, tag: string, unit = '米'): Promise<{
+async function ownProduct(
+  page: Page,
+  tag: string,
+  unit = '米'
+): Promise<{
   id: number;
   code: string;
   name: string;
@@ -299,7 +303,10 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       }
     );
     const wcId = requireId(wc, '建工作中心');
-    CLEANUP.push({ path: `/production/capacity/work-centers/${wcId}`, label: `work_center#${wcId}` });
+    CLEANUP.push({
+      path: `/production/capacity/work-centers/${wcId}`,
+      label: `work_center#${wcId}`,
+    });
     expect(wc.code, '工作中心编码回显').toBe(wcCode);
     expect(wc.status, '工作中心状态词值').toBe('ACTIVE');
 
@@ -335,11 +342,16 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(orderBefore.status, '新建工单初始态（大写词表）').toBe('DRAFT');
 
     const scheduledDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const run = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/scheduling/auto-schedule', {
-      start_date: scheduledDate,
-      work_center_ids: [wcId],
-      strategy: 'priority',
-    });
+    const run = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      '/scheduling/auto-schedule',
+      {
+        start_date: scheduledDate,
+        work_center_ids: [wcId],
+        strategy: 'priority',
+      }
+    );
     // 后端权威键集：确认排程结果所需的 id 必须由响应给出（前端接口按另一套键名取值即恒空，
     // 是"排程结果永不确认、工单恒待排程"这条断链的起点）
     for (const key of [
@@ -362,9 +374,7 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     if (!batchNo) throw new Error('排程响应 batch_no 为空，批次锚点缺失');
 
     const detailsRaw = run.schedule_details;
-    const details = Array.isArray(detailsRaw)
-      ? (detailsRaw as Array<Record<string, unknown>>)
-      : [];
+    const details = Array.isArray(detailsRaw) ? (detailsRaw as Array<Record<string, unknown>>) : [];
     const mine = details.find(d => Number(d.order_id) === orderId);
     expect(
       mine,
@@ -453,21 +463,31 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       lengthPerPieceMeters: lengthPerPiece,
       context: 'E96',
     });
-    expect(seeded.length, '前置：委外回仓必须真实生成 2 匹染色匹').toBeGreaterThanOrEqual(seedPieces);
+    expect(seeded.length, '前置：委外回仓必须真实生成 2 匹染色匹').toBeGreaterThanOrEqual(
+      seedPieces
+    );
 
     // 验布记录：缸号/色号从染色档案带入，落库必须逐字符不变（跨环第一道维度校验）
-    const insp = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/production/fabric-inspections', {
-      dye_lot_no: dyeLotNo,
-      color_no: colorNo,
-      product_id: prod.id,
-      product_name: prod.name,
-      inspection_date: todayStr(),
-      scoring_system: 'four_point',
-      fabric_width_inches: '62',
-      remarks: `E2E-F96-${dyeLotNo}`,
-    });
+    const insp = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      '/production/fabric-inspections',
+      {
+        dye_lot_no: dyeLotNo,
+        color_no: colorNo,
+        product_id: prod.id,
+        product_name: prod.name,
+        inspection_date: todayStr(),
+        scoring_system: 'four_point',
+        fabric_width_inches: '62',
+        remarks: `E2E-F96-${dyeLotNo}`,
+      }
+    );
     const inspId = requireId(insp, '建造验布记录');
-    CLEANUP.push({ path: `/production/fabric-inspections/${inspId}`, label: `fabric_inspection#${inspId}` });
+    CLEANUP.push({
+      path: `/production/fabric-inspections/${inspId}`,
+      label: `fabric_inspection#${inspId}`,
+    });
     const inspHead = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
@@ -479,12 +499,19 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(inspHead.inspection_no, '验布单号必须由后端生成且非空').toBeTruthy();
 
     // 状态门：未开始验布直接评级必须被拒，且评级不产生任何写入
-    const gradeTooEarly = await apiCallExpectFail(page, 'POST', `/production/fabric-inspections/${inspId}/grade`, {
-      inspected_yards: '100',
-      qualification_rate: '97',
-    });
+    const gradeTooEarly = await apiCallExpectFail(
+      page,
+      'POST',
+      `/production/fabric-inspections/${inspId}/grade`,
+      {
+        inspected_yards: '100',
+        qualification_rate: '97',
+      }
+    );
     expect(gradeTooEarly.status, `pending 直接评级应 400，实际=${gradeTooEarly.status}`).toBe(400);
-    expect(failureCode(gradeTooEarly), 'pending 直接评级机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(failureCode(gradeTooEarly), 'pending 直接评级机器码').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     const stillPending = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',
@@ -562,8 +589,16 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(rolled.status, '打卷后验布态').toBe('rolled');
     // 三口径各归各位：匹数是计数、米数与公斤数是两条独立实测列，不得互相顶替
     expect(Number(rolled.total_rolls), '打卷计数（匹数口径）').toBe(1);
-    expectDecEquals(rolled.total_roll_length, decLiteral(rollLength, '提交米数'), '累计米数=本次打卷米数');
-    expectDecEquals(rolled.total_roll_weight, decLiteral(rollWeight, '提交公斤数'), '累计公斤数=本次打卷公斤数');
+    expectDecEquals(
+      rolled.total_roll_length,
+      decLiteral(rollLength, '提交米数'),
+      '累计米数=本次打卷米数'
+    );
+    expectDecEquals(
+      rolled.total_roll_weight,
+      decLiteral(rollWeight, '提交公斤数'),
+      '累计公斤数=本次打卷公斤数'
+    );
 
     const pieces = pickListArray<Record<string, unknown>>(
       await apiCallRaw<Record<string, unknown>>(
@@ -584,18 +619,16 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     ).toBeTruthy();
     expect(rolledPiece!.piece_type, '打卷产出的是染色匹（类型门）').toBe('dyed');
     expect(rolledPiece!.status, '新匹入可用态（大写词表）').toBe('AVAILABLE');
-    expect(
-      String(rolledPiece!.dye_lot_no),
-      '实物匹缸号必须与验布记录/染色档案逐字符相同'
-    ).toBe(dyeLotNo);
+    expect(String(rolledPiece!.dye_lot_no), '实物匹缸号必须与验布记录/染色档案逐字符相同').toBe(
+      dyeLotNo
+    );
     expect(
       String(rolledPiece!.batch_no),
       '实物匹批次必须与缸号同源（写入方口径：批次=缸号），不得各写一套'
     ).toBe(dyeLotNo);
-    expect(
-      String(rolledPiece!.color_no),
-      '实物匹色号必须与验布记录/染色档案逐字符相同'
-    ).toBe(colorNo);
+    expect(String(rolledPiece!.color_no), '实物匹色号必须与验布记录/染色档案逐字符相同').toBe(
+      colorNo
+    );
     const nextSeq = seedPieces + 1;
     expect(
       String(rolledPiece!.piece_no),
@@ -603,10 +636,21 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     ).toBe(`${dyeLotNo}-${String(nextSeq).padStart(3, '0')}`);
     expect(Number(rolledPiece!.piece_seq), '匹序号字段与匹号后缀一致').toBe(nextSeq);
     expectDecimalString(rolledPiece!.length, '实物匹米数');
-    expectDecEquals(rolledPiece!.length, decLiteral(rollLength, '提交米数'), '实物匹米数=打卷录入米数');
-    expectDecEquals(rolledPiece!.weight, decLiteral(rollWeight, '提交公斤数'), '实物匹公斤数=打卷录入公斤数');
+    expectDecEquals(
+      rolledPiece!.length,
+      decLiteral(rollLength, '提交米数'),
+      '实物匹米数=打卷录入米数'
+    );
+    expectDecEquals(
+      rolledPiece!.weight,
+      decLiteral(rollWeight, '提交公斤数'),
+      '实物匹公斤数=打卷录入公斤数'
+    );
     expect(
-      decCmp(decFromRaw(rolledPiece!.length, '匹米数'), decFromRaw(rolledPiece!.weight, '匹公斤数')) !== 0,
+      decCmp(
+        decFromRaw(rolledPiece!.length, '匹米数'),
+        decFromRaw(rolledPiece!.weight, '匹公斤数')
+      ) !== 0,
       '米数与公斤数两列若相等即被同一数值顶替（三口径混用的判据）'
     ).toBe(true);
 
@@ -717,19 +761,24 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     const batch = `E96QC${genCode('B')}`;
 
     const mkRecord = async (tag: string, result: string, rate: string) =>
-      await apiCallRaw<Record<string, unknown>>(page, 'POST', '/production/quality-inspection/records', {
-        inspection_no: genCode(`E96${tag}`),
-        inspection_type: 'process',
-        product_id: prod.id,
-        batch_no: batch,
-        inspection_date: todayStr(),
-        total_qty: '100',
-        inspected_qty: '100',
-        qualified_qty: rate,
-        unqualified_qty: '100',
-        qualification_rate: rate,
-        inspection_result: result,
-      });
+      await apiCallRaw<Record<string, unknown>>(
+        page,
+        'POST',
+        '/production/quality-inspection/records',
+        {
+          inspection_no: genCode(`E96${tag}`),
+          inspection_type: 'process',
+          product_id: prod.id,
+          batch_no: batch,
+          inspection_date: todayStr(),
+          total_qty: '100',
+          inspected_qty: '100',
+          qualified_qty: rate,
+          unqualified_qty: '100',
+          qualification_rate: rate,
+          inspection_result: result,
+        }
+      );
 
     // 中文结论原样落库（禁止被转写为英文码）
     const recC = await mkRecord('RC', '不合格', '60');
@@ -762,15 +811,20 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(enFail.message, '越界结论必须点名允许清单').toBe(
       '检验结果 pass 不是合法取值，允许值：待检/合格/不合格'
     );
-    const typeFail = await apiCallExpectFail(page, 'POST', '/production/quality-inspection/records', {
-      inspection_no: genCode('E96TY'),
-      inspection_type: 'incoming_check',
-      product_id: prod.id,
-      inspection_date: todayStr(),
-      total_qty: '1',
-      inspected_qty: '1',
-      inspection_result: '待检',
-    });
+    const typeFail = await apiCallExpectFail(
+      page,
+      'POST',
+      '/production/quality-inspection/records',
+      {
+        inspection_no: genCode('E96TY'),
+        inspection_type: 'incoming_check',
+        product_id: prod.id,
+        inspection_date: todayStr(),
+        total_qty: '1',
+        inspected_qty: '1',
+        inspection_result: '待检',
+      }
+    );
     expect(typeFail.status, `检验类型越界应 400，实际=${typeFail.status}`).toBe(400);
     expect(failureCode(typeFail), '检验类型越界机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
     expect(typeFail.message, '检验类型越界必须点名允许清单').toBe(
@@ -881,7 +935,9 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       recordId: recCId,
       label: '财务通过后回读',
     });
-    expect(Number(finReadBack.approver_id_fin), '财务审批人取服务端会话身份并落库').toBeGreaterThan(0);
+    expect(Number(finReadBack.approver_id_fin), '财务审批人取服务端会话身份并落库').toBeGreaterThan(
+      0
+    );
     expect(finReadBack.approved_at_fin, '财务审批时间必须落库').toBeTruthy();
     expect(finReadBack.scrap_approval_status, '读回一致').toBe('pending_gm');
 
@@ -899,10 +955,9 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       recordId: recCId,
       label: '重复财务审批后回读',
     });
-    expect(
-      finNoOverride.approver_id_fin,
-      '重复审批被拒后财务审批人不得被改写'
-    ).toBe(finReadBack.approver_id_fin);
+    expect(finNoOverride.approver_id_fin, '重复审批被拒后财务审批人不得被改写').toBe(
+      finReadBack.approver_id_fin
+    );
     expect(finNoOverride.scrap_approval_status, '重复审批被拒后审批态不动').toBe('pending_gm');
 
     // 二级审批入参值门：拒绝态不得携带损失金额、金额不得为负（可外显点名）
@@ -913,7 +968,9 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       { approved: false, scrap_loss_amount: '10' }
     );
     expect(lossWithReject.status, `拒绝态携带金额应 400，实际=${lossWithReject.status}`).toBe(400);
-    expect(failureCode(lossWithReject), '拒绝态携带金额机器码').toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(failureCode(lossWithReject), '拒绝态携带金额机器码').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
     expect(lossWithReject.message, '拒绝态携带金额可外显文案').toBe(
       '仅同意的报废审批可携带报废损失金额'
     );
@@ -935,10 +992,15 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(stillPendingGm.scrap_loss_amount ?? null, '非法提交不得写入损失金额').toBeNull();
 
     const lossAmount = '1234.56';
-    await apiCall(page, 'POST', `/production/quality-inspection/defects/${scrapId}/scrap-approval/gm`, {
-      approved: true,
-      scrap_loss_amount: lossAmount,
-    });
+    await apiCall(
+      page,
+      'POST',
+      `/production/quality-inspection/defects/${scrapId}/scrap-approval/gm`,
+      {
+        approved: true,
+        scrap_loss_amount: lossAmount,
+      }
+    );
     const gmDone = await readDefectRow(page, {
       defectId: scrapId,
       recordId: recCId,
@@ -947,7 +1009,11 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(gmDone.scrap_approval_status, '二级通过后报废审批终态').toBe('approved');
     expect(gmDone.handling_status, '报废终态联动处置主状态').toBe('approved');
     expect(Number(gmDone.approver_id_gm), '总经理审批人落库').toBeGreaterThan(0);
-    expectDecEquals(gmDone.scrap_loss_amount, decLiteral(lossAmount, '报废损失金额'), '报废损失金额落库');
+    expectDecEquals(
+      gmDone.scrap_loss_amount,
+      decLiteral(lossAmount, '报废损失金额'),
+      '报废损失金额落库'
+    );
 
     // 非报废处理方式不得进报废审批流
     const recC2 = await mkRecord('RB', '不合格', '70');

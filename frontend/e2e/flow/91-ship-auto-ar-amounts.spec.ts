@@ -63,7 +63,8 @@ function eqAmount(actual: unknown, expectedCents: bigint, label: string): void {
 
 function requireNum(v: unknown, label: string): number {
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`${label}：无有效数值，raw=${JSON.stringify(v)}`);
   return n;
 }
 
@@ -188,13 +189,19 @@ test.describe('91 出库→开票（应收自动生成与金额一致性）', ()
     const inv = await findInvoiceBySource(page, ctx.customerId, orderId);
     expect(inv, '全额发货必须自动生成销售来源应收单（提示成功未落库在这里现形）').toBeTruthy();
     const invRow = inv as Row;
-    eqAmount(invRow.invoice_amount, expectedTotalCents, '应收金额=订单行含税合计（出库→开票金额一致）');
+    eqAmount(
+      invRow.invoice_amount,
+      expectedTotalCents,
+      '应收金额=订单行含税合计（出库→开票金额一致）'
+    );
     eqAmount(invRow.unpaid_amount, expectedTotalCents, '初值未收=发票全额');
     eqAmount(invRow.received_amount, 0n, '初值已收=0');
     expect(invRow.source_type, '源单类型').toBe('SALES_ORDER');
     expect(Number(invRow.source_bill_id), '源单 ID 关联键必须可回读且等于订单 id').toBe(orderId);
     expect(String(invRow.source_bill_no), '源单单号逐字符等于订单号').toBe(String(order.order_no));
-    expect(String(invRow.sales_order_no), '销售单号冗余列逐字符等于订单号').toBe(String(order.order_no));
+    expect(String(invRow.sales_order_no), '销售单号冗余列逐字符等于订单号').toBe(
+      String(order.order_no)
+    );
     expect(invRow.status, '自动应收初始大写词值 DRAFT').toBe('DRAFT');
     expect(invRow.approval_status, '自动应收审批初始大写词值 PENDING').toBe('PENDING');
     // 客户名从客户主档带出（不是 #id 假名、不是空占位）
@@ -295,7 +302,9 @@ test.describe('91 出库→开票（应收自动生成与金额一致性）', ()
       invoice_amount: '1',
     });
     expect(fAfterApprove.status, 'APPROVED 后修改应 400').toBe(400);
-    expect(failureCode(fAfterApprove), 'APPROVED 后修改机器码').toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    expect(failureCode(fAfterApprove), 'APPROVED 后修改机器码').toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
     expect(String(fAfterApprove.message ?? ''), '拒绝文案应点名草稿门').toContain('草稿');
     const frozen = await apiCallRaw<Row>(page, 'GET', `/ar/invoices/${invId}`);
     eqAmount(frozen.invoice_amount, 7777n, '审批后改被拒金额不得半途写入');
@@ -339,7 +348,9 @@ test.describe('91 出库→开票（应收自动生成与金额一致性）', ()
       reason: '再取消一次',
     });
     expect(fRecancel.status, '已取消再取消应 400').toBe(400);
-    expect(failureCode(fRecancel), '已取消再取消机器码 BAD_REQUEST').toBe(APP_ERROR_CODES.BAD_REQUEST);
+    expect(failureCode(fRecancel), '已取消再取消机器码 BAD_REQUEST').toBe(
+      APP_ERROR_CODES.BAD_REQUEST
+    );
     const stillCancelled = await apiCallRaw<Row>(page, 'GET', `/ar/invoices/${invId}`);
     expect(stillCancelled.status, '重复取消被拒后仍是 CANCELLED，不得漂到别的态').toBe('CANCELLED');
 
