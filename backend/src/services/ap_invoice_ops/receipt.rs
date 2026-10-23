@@ -236,7 +236,9 @@ impl ApInvoiceService {
         }
     }
 
-    /// 进项税额分录（借方科目码 222101，仅税额非零时插入；收货传正数，退货传红字负数）
+    /// 进项税额分录（借方科目码 222102，仅税额非零时插入；收货传正数，退货传红字负数）。
+    /// 销项税额走 222101（见销售发货开票链路），两码分挂同一父科目 2221：
+    /// 同用一枚科目会让采购进项与销售销项在明细账里同码互抵，进税额被销项吃掉。
     fn build_tax_voucher_item(
         summary: &str,
         supplier_id: i32,
@@ -245,7 +247,7 @@ impl ApInvoiceService {
         VoucherItemRequest {
             line_no: Some(2),
             subject_id: None,
-            subject_code: Some("222101".to_string()),
+            subject_code: Some("222102".to_string()),
             subject_name: Some("应交税费-应交增值税-进项税额".to_string()),
             debit: tax_amount,
             credit: Decimal::ZERO,
@@ -345,8 +347,12 @@ impl ApInvoiceService {
         voucher_items
     }
 
-    /// 采购入库生成应付单后同步生成应付凭证（失败仅 warn 不阻断主流程）
-    /// F-P0-7 修复（批次 382 v13 复审）：采购入库生成应付单后同步生成应付凭证；借：1405 库存商品（不含税金额）；借：222101 应交税费-进项税额（tax_amount > 0 时）；贷：2202 应付账款（含税总额，挂供应商辅助核算）；失败时仅 warn 不阻断主流程（与采购入库 confirm_receipt 容错模式一致），；避免凭证生成失败影响主业务流程，便于人工补偿。
+    /// 采购入库应付凭证生成：借 1405 库存商品（不含税金额）、借 222102 应交税费-进项税额
+    /// （仅 tax_amount 大于 0 时插入）、贷 2202 应付账款（含税总额，挂供应商辅助核算）。
+    /// 调用方为采购入库确认链路；入参 ctx 携带金额、税额与供应商；产出发票凭证并回写
+    /// 应付单的 voucher_id，落 account_voucher 与 voucher_items。
+    /// 生成失败只 warn 不阻断主流程（与 confirm_receipt 的容错口径一致），避免因凭证
+    /// 侧异常回滚已完成的收货业务，缺失凭证由留痕日志指向人工补偿。
     async fn try_generate_receipt_voucher(
         db: &Arc<DatabaseConnection>,
         ctx: ReceiptVoucherContext,

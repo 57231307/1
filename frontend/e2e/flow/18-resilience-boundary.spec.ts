@@ -41,7 +41,14 @@ test.describe('异常处理与边界条件', () => {
       warehouse_id: ctx.warehouseIds[0],
       department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1' }],
+      items: [
+        {
+          material_id: ctx.productIds[0],
+          quantity_ordered: '1',
+          unit_price: '1',
+          tax_rate: 13,
+        },
+      ],
     });
     const poId = created.data?.id;
     expect(poId, '自建草稿采购单应返回 id，否则无法验证并发编辑').toBeTruthy();
@@ -119,6 +126,7 @@ test.describe('异常处理与边界条件', () => {
           product_id: ctx.productIds[0],
           quantity: 0,
           unit_price: 10,
+          tax_rate: 13,
         },
       ],
     });
@@ -150,6 +158,7 @@ test.describe('异常处理与边界条件', () => {
           product_id: ctx.productIds[0],
           quantity: 1,
           unit_price: 123.4567,
+          tax_rate: 13,
         },
       ],
     });

@@ -27,13 +27,35 @@ fn test_pricing_context_deserialize() {
         "color_id": 5,
         "quantity": 100,
         "currency": "CNY",
-        "quotation_date": "2026-06-16"
+        "quotation_date": "2026-06-16",
+        "tax_rate": 13
     }"#;
     let ctx: PricingContext = serde_json::from_str(json).unwrap();
     assert_eq!(ctx.customer_id, 1);
     assert_eq!(ctx.customer_level, CustomerLevel::Vip);
     assert_eq!(ctx.quantity.to_string(), "100");
     assert_eq!(ctx.currency, "CNY");
+    // 税率是必填入参（百分数口径），缺字段直接反序列化失败，服务端不补默认档位
+    assert_eq!(ctx.tax_rate.to_string(), "13");
+}
+
+#[test]
+fn test_pricing_context_rejects_missing_tax_rate() {
+    let json = r#"{
+        "customer_id": 1,
+        "customer_level": "VIP",
+        "product_id": 10,
+        "color_id": 5,
+        "quantity": 100,
+        "currency": "CNY",
+        "quotation_date": "2026-06-16"
+    }"#;
+    let err = serde_json::from_str::<PricingContext>(json)
+        .expect_err("缺 tax_rate 必须拒绝解析，不得用任何默认档位补算");
+    assert!(
+        err.to_string().contains("tax_rate"),
+        "错误必须点名缺失字段，实际: {err}"
+    );
 }
 
 #[test]

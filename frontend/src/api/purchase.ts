@@ -156,7 +156,12 @@ export interface CreatePurchaseOrderItemPayload {
   quantity_ordered?: number;
   quantity_alt_ordered?: number;
   unit_price?: number;
-  tax_rate?: number;
+  /**
+   * 行级税率（**百分数口径**，13 表示 13%，无进项票显式提交 0），必填入参、系统不设默认档位，
+   * 缺值后端直接拒绝建单，落库列 purchase_order_item.tax_percent 为 NOT NULL DECIMAL(7,4)，
+   * 上界 999.9999，前端由建单表单必填校验保证提交前已是数值。
+   */
+  tax_rate: number;
   discount_percent?: number;
   quantity_tolerance_pct?: number;
   color_no?: string;
@@ -192,6 +197,11 @@ export interface UpdatePurchaseOrderItemPayload {
   unit_price?: number;
   quantity_ordered?: number;
   quantity_alt_ordered?: number;
+  /**
+   * 行级税率（百分数口径，0 为合法值），更新侧与创建侧口径不同——本端点为"缺省即不改"
+   * 语义（后端 UpdateOrderItemRequest 全字段 Option，None=保持库中原值），故保持可选，
+   * 显式提交时同样落 purchase_order_item.tax_percent NOT NULL 列。
+   */
   tax_rate?: number;
   discount_percent?: number;
   /** 行级交货允差 %：后端复用 validate_quantity_tolerance_pct 校验 0~100，越界以 BUSINESS_ERROR 外显拒绝 */

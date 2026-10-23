@@ -96,7 +96,7 @@ async function seedCompletedFailInspection(page: import('@playwright/test').Page
     warehouse_id: warehouseId,
     department_id: departmentId,
     notes: `E2E-RTN-PO-${ts}`,
-    items: [{ material_id: productId, quantity_ordered: '200', unit_price: '10.00' }],
+    items: [{ material_id: productId, quantity_ordered: '200', unit_price: '10.00', tax_rate: 13 }],
   });
   const poId = po.data?.id;
   expect(poId, `建 PO 未返回 id`).toBeTruthy();

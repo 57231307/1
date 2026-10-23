@@ -21,6 +21,7 @@ import {
 } from '@/api/inventory-transfer';
 import { getWarehouseList } from '@/api/warehouse';
 import { msg } from '@/utils/message';
+import { toLocalDateString } from '@/utils';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 import { getStatusType, getStatusText, formatAmount } from './olvFmts';
@@ -83,7 +84,7 @@ export interface OrderForm {
   id?: number;
   customer_id: number | undefined;
   customer_name: string;
-  order_date: Date | string;
+  order_date: string;
   required_date: string;
   contact_person: string;
   contact_phone: string;
@@ -142,7 +143,7 @@ export function useOlv() {
     id: 0,
     customer_id: undefined,
     customer_name: '',
-    order_date: new Date(),
+    order_date: toLocalDateString(),
     required_date: '',
     contact_person: '',
     contact_phone: '',
@@ -330,7 +331,7 @@ export function useOlv() {
       id: 0,
       customer_id: undefined,
       customer_name: '',
-      order_date: new Date(),
+      order_date: toLocalDateString(),
       required_date: '',
       contact_person: '',
       contact_phone: '',

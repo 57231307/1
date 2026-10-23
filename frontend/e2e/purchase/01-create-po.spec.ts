@@ -66,6 +66,9 @@ test.describe('01 创建采购订单', () => {
     const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
     await spinbuttons.first().fill('200');
     await spinbuttons.nth(1).fill('30');
+    // 税率已改为人工建单必录，按 placeholder 文案定位输入框，不按下标，
+    // 以免明细行字段顺序变化时错填到数量或单价。13 是人工录入样本税率，非系统默认档位。
+    await dlg.locator('.items-row').first().getByPlaceholder('百分数，如 13 表示 13%').fill('13');
     // 提交（确认按钮 purchase.createDlg.confirm = '确定'）
     await dlg.getByRole('button', { name: '确定', exact: true }).click();
     // 真实成功提示 purchase.message.purchaseOrderCreated = '采购单创建成功'
@@ -95,6 +98,8 @@ test.describe('01 创建采购订单', () => {
     const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
     await spinbuttons.first().fill('100');
     await spinbuttons.nth(1).fill('25.5');
+    // 税率必填，同 01-03，按 placeholder 定位，不按下标。
+    await dlg.locator('.items-row').first().getByPlaceholder('百分数，如 13 表示 13%').fill('13');
     await dlg.getByRole('button', { name: '确定', exact: true }).click();
     await expect(page.getByText('采购单创建成功')).toBeVisible({ timeout: 30000 });
   });

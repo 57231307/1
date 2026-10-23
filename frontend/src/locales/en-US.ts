@@ -1106,6 +1106,10 @@ export default {
       colProduct: 'Product',
       colQuantity: 'Quantity',
       colUnitPrice: 'Unit Price',
+      colTaxRate: 'Tax Rate (%)',
+      taxRatePlaceholder: 'Percent value, e.g. 13 means 13%',
+      taxRateRequired:
+        'Enter a tax rate for each item (percent value, e.g. 13 means 13%; enter 0 if no input VAT)',
 
       colAmount: 'Amount',
       colOperation: 'Action',
@@ -7398,12 +7402,15 @@ export default {
         itemCount: 'Items',
         evalTitle: 'Supplier Evaluation',
         scorePlaceholder: 'Score',
-        ratingPlaceholder: 'Rating',
         remarkPlaceholder: 'Evaluation remark (optional)',
+        indicatorPlaceholder: 'Select indicator',
+        indicatorName: 'Indicator',
+        maxScore: 'Max score',
+        period: 'Period',
+        periodPlaceholder: 'Period (e.g. 2026-Q1)',
         submitEval: 'Submit Evaluation',
         evalHistoryBtn: 'Query Evaluation History',
         score: 'Score',
-        rating: 'Rating',
         evaluatedAt: 'Evaluated At',
       },
       message: {
@@ -7432,9 +7439,34 @@ export default {
         qualSavedButAttachmentFailed:
           'The qualification was saved, but the attachment failed to upload; please re-upload it via Edit',
         evalSubmitted: 'Evaluation submitted',
-        evalFailed: 'Failed to submit evaluation',
+        evalFailed: 'Failed to submit evaluation: {reason}',
         evalHistoryFailed: 'Failed to query evaluation history',
+        evalIndicatorRequired: 'Please select an evaluation indicator',
+        evalPeriodRequired: 'Please fill in the evaluation period',
+        loadIndicatorsFailed: 'Failed to load evaluation indicators',
       },
+    },
+  },
+  laborContract: {
+    form: {
+      workingHoursSystem: 'Working Hours System',
+      workingHoursPlaceholder: 'Select working hours system',
+      signDate: 'Signing Date',
+      signDatePlaceholder: 'Select signing date',
+    },
+    contractType: {
+      fixedTerm: 'Fixed term',
+      permanent: 'Open term',
+      taskBased: 'Task based',
+    },
+    workingHours: {
+      standard: 'Standard hours',
+      comprehensive: 'Comprehensive hours',
+      flexible: 'Flexible hours',
+    },
+    message: {
+      validateRequired:
+        'Please fill in worker, contract no, start date, signing date and working hours system',
     },
   },
   supplierEvaluation: {
@@ -7655,6 +7687,8 @@ export default {
       currencyEur: 'EUR Euro',
       labelExchangeRate: 'Exchange Rate',
       labelTaxInclusive: 'Tax Inclusive',
+      labelTaxRate: 'Tax Rate (%)',
+      taxRatePlaceholder: 'Percent value, e.g. 13 means 13%',
       labelCustomerLevel: 'Customer Level',
       customerLevelNormal: 'NORMAL Normal',
       labelLeadTime: 'Lead Time (Days)',
@@ -7674,6 +7708,7 @@ export default {
       validatePriceTerms: 'Please select price terms',
       validateCurrency: 'Please select currency',
       validateExchangeRate: 'Please enter exchange rate',
+      validateTaxRateRequired: 'Please enter the tax rate (percent value; no default tier)',
       validateItemsRequired: 'Please add at least 1 product item',
       validateItemsInvalid:
         'Each item must have a product, a unit derived from the product, and quantity > 0',
@@ -10730,6 +10765,9 @@ export default {
       validateAmountExceed: 'Amount cannot exceed available balance',
       messageTransferSuccess: 'Transfer successful',
       messageTransferFailed: 'Transfer failed',
+      largeConfirmTitle: 'Large Transfer Confirmation',
+      largeConfirmMessage:
+        'This transfer amount {amount} exceeds the large-transfer threshold {threshold}. It will proceed after confirmation.',
       detailTransferNo: 'Transfer No.: {value}',
       detailFromAccount: 'From Account: {value}',
       detailToAccount: 'To Account: {value}',

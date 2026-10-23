@@ -25,6 +25,11 @@ export interface CreateItem {
   color_id: number | null;
   quantity: number;
   unit_price: number;
+  /**
+   * 行级税率（百分数口径，13 表示 13%），undefined/null=未填写，0=显式"无进项票"为合法提交值，
+   * 提交前由 items 必填规则拦截未填写行，落库列 purchase_order_item.tax_percent（NOT NULL）。
+   */
+  tax_rate: number | undefined;
   subtotal: number;
   /** 交货容差百分比（undefined=未填，提交时转为 null） */
   quantity_tolerance_pct: number | undefined;
@@ -55,6 +60,8 @@ const defaultItem = (): CreateItem => ({
   color_id: null,
   quantity: 1,
   unit_price: 0,
+  // 税率不预填任何档位，新建时留空由人工填写（无默认 13 之类硬编）
+  tax_rate: undefined,
   subtotal: 0,
   quantity_tolerance_pct: undefined,
   resolved: null,
@@ -90,6 +97,23 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
       {
         required: true,
         message: i18n.global.t('purchase.createDlg.departmentRequired'),
+        trigger: 'change',
+      },
+    ],
+    items: [
+      {
+        // 行级税率就地必填校验（不靠后端 400 兜回），口径与 submitCreate 的 validItems 一致，
+        // 仅对已选产品且有数量的行要求税率，0 是合法值，只有 undefined/null 才算未填
+        validator: (_rule: unknown, value: CreateItem[], cb: (error?: Error) => void) => {
+          const missingTaxRate = value.find(
+            i => i.product_id && i.quantity > 0 && i.tax_rate == null
+          );
+          if (missingTaxRate) {
+            cb(new Error(i18n.global.t('purchase.createDlg.taxRateRequired')));
+            return;
+          }
+          cb();
+        },
         trigger: 'change',
       },
     ],
@@ -254,6 +278,8 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
           material_id: item.product_id!,
           quantity_ordered: item.quantity,
           unit_price: item.unit_price,
+          // tax_rate 已由上方 items 必填校验保证为数值（0 为合法提交值），! 仅收敛类型不设默认
+          tax_rate: item.tax_rate!,
           ...(item.quantity_tolerance_pct != null
             ? { quantity_tolerance_pct: item.quantity_tolerance_pct }
             : {}),

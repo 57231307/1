@@ -51,13 +51,18 @@ impl CustomerCreditService {
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
+        // 客户名取主数据真值，查库错误按 ? 上抛、缺行点名失败，
+        // 信用评估结论里不得出现"客户#<id>"这类占位假名
         let customer_name = crate::models::customer::Entity::find_by_id(customer_id)
             .one(&*self.db)
-            .await
-            .ok()
-            .flatten()
-            .map(|c| c.customer_name)
-            .unwrap_or_else(|| format!("客户#{}", customer_id));
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!(
+                    "客户 {} 主数据不存在，无法出具信用评估",
+                    customer_id
+                ))
+            })?
+            .customer_name;
         let credit_history = customer_credit::Entity::find()
             .filter(customer_credit::Column::CustomerId.eq(customer_id))
             .all(&*self.db)

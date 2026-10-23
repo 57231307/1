@@ -78,15 +78,36 @@ async function createDraftRequest(
   });
   const id = Number(req.id);
   if (!id) throw new Error(`建付款申请失败：${JSON.stringify(req)}`);
+  CLEANUP.push({ path: `/ap/payment-requests/${id}`, label: 'ap_payment_request' });
   return id;
+}
+
+/** 查询指定供应商名下引用某付款申请的付款单 id 列表（零变化回查用）。
+ * 列表端点 GET /ap/payments 的 data 为 PaginatedResponse{items,total,page,page_size}。 */
+async function paymentIdsReferencingRequest(
+  page: import('@playwright/test').Page,
+  supplierId: number,
+  requestId: number
+): Promise<number[]> {
+  const list = await apiCallRaw<{ items?: Array<{ id?: unknown; request_id?: unknown }> }>(
+    page,
+    'GET',
+    `/ap/payments?supplier_id=${supplierId}&page=1&page_size=100`
+  );
+  if (!Array.isArray(list?.items)) {
+    throw new Error(
+      `GET /ap/payments 未返回 items 数组（分页契约漂移）：${JSON.stringify(list).slice(0, 200)}`
+    );
+  }
+  return list.items.filter(p => Number(p.request_id) === requestId).map(p => Number(p.id));
 }
 
 test.describe('05 AP 付款方案B内控负向', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
-    await apiCall(page, 'POST', '/finance/accounting-periods/init', {}).catch(e =>
-      console.warn('[05] 会计期间初始化失败:', (e as Error).message)
-    );
+    // 前置条件失败判红：init_first_period 幂等（已有 OPEN 期直接返回），
+    // 非 2xx 即真实环境缺陷，不允许 console.warn 后带病继续。
+    await apiCall(page, 'POST', '/finance/accounting-periods/init', {});
   });
 
   test('05-01 未经审批的付款申请直接建付款被拒（400 BUSINESS_ERROR，非 5xx）', async ({ page }) => {
@@ -106,20 +127,29 @@ test.describe('05 AP 付款方案B内控负向', () => {
     expect(failureCode(fail), `业务码应为 BUSINESS_ERROR，实际=${fail.code}`).toBe(
       APP_ERROR_CODES.BUSINESS_ERROR
     );
-    expect(fail.message ?? '', '错误文案应指明未审批不可付款').toContain('审批');
+    // 状态门为 business_displayable（ap_payment_service.rs create），文案逐字符外显原文。
+    expect(fail.message, `期望逐字符外显审批门文案，实际「${fail.message}」`).toBe(
+      '付款申请尚未审批通过，请先完成审批后再创建付款单'
+    );
+
+    // 零变化回查：被拒的建单不得留下引用本例申请的付款单。
+    const leaked = await paymentIdsReferencingRequest(page, supplierId, requestId);
+    expect(
+      leaked,
+      `未审批拒绝后不应存在引用申请 ${requestId} 的付款单，实际命中 id：${leaked.join(',')}`
+    ).toHaveLength(0);
   });
 
-  test('05-02 缺失 request_id 的手工付款请求被拒（4xx 客户端错误，非 2xx/5xx）', async ({
-    page,
-  }) => {
+  test('05-02 缺失 request_id 的手工付款请求被拒（钉死 422 缺字段拒绝）', async ({ page }) => {
     const today = new Date().toISOString().slice(0, 10);
     // 不带 request_id（后端 CreateApPaymentRequest.request_id 为必填 i32）。
     const fail = await apiCallExpectFail(page, 'POST', '/ap/payments', { payment_date: today });
-    // 必填字段缺失 → axum Json 抽取器结构化拒绝；只允许 4xx（缺字段为 422/400），
-    // 明确排除被当成"成功付款"(2xx) 与"服务器崩溃"(5xx)。这是结构性"不可绕过"，非放宽断言。
-    expect([400, 403, 422], `缺 request_id 应被拒为 4xx，实际 status=${fail.status}`).toContain(
-      fail.status
-    );
+    // 必填字段缺失为 serde 类型错误 → axum Json 抽取器固定回 422（本仓既有先例：
+    // flow/08 与 flow/12 对缺失必填均钉 422）。钉死单值而非 4xx 集合：
+    // 403（权限拒）与 400/422 语义不同，把集合当健康即静默吞错。
+    // 本例无 request_id 也无 supplier 锚点，被拒请求不产生任何可定位行，零变化无从回查，
+    // 可锚定的零变化由 05-01 覆盖。
+    expect(fail.status, `缺 request_id 应被拒为 422，实际 status=${fail.status}`).toBe(422);
   });
 
   test('05-03 试图手工注入付款金额被结构忽略：实付金额恒等于已审批申请金额', async ({ page }) => {
@@ -142,8 +172,13 @@ test.describe('05 AP 付款方案B内控负向', () => {
     if (!paymentId) throw new Error(`建付款单失败：${JSON.stringify(pay)}`);
     CLEANUP.push({ path: `/ap/payments/${paymentId}`, label: 'ap_payment' });
 
-    // 回读付款单：金额取申请派生值 777，而非注入的 999999 → 证明"手填金额"被内控消灭。
+    // 回读付款单：金额取申请派生值 777，而非注入的 999999 → 证明"手填金额"被内控消灭；
+    // request_id 应逐字段回指本例审批通过的申请，证明付款确由申请派生而非凭空建单。
     const got = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/payments/${paymentId}`);
     expect(num(got, 'payment_amount'), '实付金额必须等于申请金额 777（注入值应被忽略）').toBe(777);
+    expect(
+      Number(got.request_id),
+      `付款单应回指本例申请 ${requestId}，实际 request_id=${JSON.stringify(got.request_id)}`
+    ).toBe(requestId);
   });
 });

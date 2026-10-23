@@ -84,7 +84,14 @@ async function seedApprovedPO(page: Page, qtyOrdered = '20'): Promise<PurchaseOr
     order_date: new Date().toISOString().slice(0, 10),
     warehouse_id: ctx.warehouseIds[0],
     department_id: ctx.departmentIds[0],
-    items: [{ material_id: ctx.productIds[0], quantity_ordered: qtyOrdered, unit_price: '15.00' }],
+    items: [
+      {
+        material_id: ctx.productIds[0],
+        quantity_ordered: qtyOrdered,
+        unit_price: '15.00',
+        tax_rate: 13,
+      },
+    ],
     notes: `E2E-P13-${marker}`,
   });
   const id = created.data?.id;

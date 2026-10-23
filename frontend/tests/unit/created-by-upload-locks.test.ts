@@ -76,14 +76,10 @@ function literalKeys(literalBody: string): string[] {
 
 /**
  * 抓取 `fn({ ... })` 直传字面量块（每块必须非空，防正则空转）。
- * kind='call' 匹配 createX({..})；kind='payload-var' 匹配 `const payload = {..}`
- * （labor-contracts 视图先组装 payload 变量再传入 create/update 两个分支）。
+ * 全部视图提交点都按直传字面量列举，本锁只认这一形态。
  */
-function payloadLiteralBodies(src: string, name: string, kind: 'call' | 'payload-var'): string[] {
-  const pattern =
-    kind === 'call'
-      ? new RegExp(`${name}\\(\\{([^{}]*)\\}\\)`, 'g')
-      : /const payload = \{([^{}]*)\};/g;
+function payloadLiteralBodies(src: string, name: string): string[] {
+  const pattern = new RegExp(`${name}\\(\\{([^{}]*)\\}\\)`, 'g');
   const bodies = [...src.matchAll(pattern)].map(m => m[1]);
   if (bodies.length === 0) {
     throw new Error(`未找到 ${name} 的提交字面量——调用点被重写或改名，身份锁失效`);
@@ -103,17 +99,17 @@ const PAYLOAD_INTERFACES: Array<{ file: string; iface: string }> = [
   { file: 'api/social-insurance.ts', iface: 'CreateSocialInsurancePayload' },
 ];
 
-/** 视图提交点：文件 ↔ 被调创建函数 ↔ 提交形态（直传字面量 / 组装 payload 变量） */
-const VIEW_CALL_SITES: Array<{ file: string; fn: string; kind: 'call' | 'payload-var' }> = [
-  { file: 'views/export-compliance/index.vue', fn: 'createDischargeRecord', kind: 'call' },
-  { file: 'views/export-compliance/index.vue', fn: 'createCustomsDeclaration', kind: 'call' },
-  { file: 'views/tax-rebates/index.vue', fn: 'createCustomsDeclaration', kind: 'call' },
-  { file: 'views/period-adjustments/index.vue', fn: 'createPeriodAdjustment', kind: 'call' },
-  { file: 'views/labor-contracts/index.vue', fn: 'createLaborContract', kind: 'payload-var' },
-  { file: 'views/occupational-health/index.vue', fn: 'createHealthExam', kind: 'call' },
-  { file: 'views/occupational-health/index.vue', fn: 'createHazardMonitoring', kind: 'call' },
-  { file: 'views/occupational-health/index.vue', fn: 'createPpeDistribution', kind: 'call' },
-  { file: 'views/social-insurance/index.vue', fn: 'createSocialInsurance', kind: 'call' },
+/** 视图提交点：文件 ↔ 被调创建函数，提交形态一律是 `fn({ ... })` 直传字面量 */
+const VIEW_CALL_SITES: Array<{ file: string; fn: string }> = [
+  { file: 'views/export-compliance/index.vue', fn: 'createDischargeRecord' },
+  { file: 'views/export-compliance/index.vue', fn: 'createCustomsDeclaration' },
+  { file: 'views/tax-rebates/index.vue', fn: 'createCustomsDeclaration' },
+  { file: 'views/period-adjustments/index.vue', fn: 'createPeriodAdjustment' },
+  { file: 'views/labor-contracts/index.vue', fn: 'createLaborContract' },
+  { file: 'views/occupational-health/index.vue', fn: 'createHealthExam' },
+  { file: 'views/occupational-health/index.vue', fn: 'createHazardMonitoring' },
+  { file: 'views/occupational-health/index.vue', fn: 'createPpeDistribution' },
+  { file: 'views/social-insurance/index.vue', fn: 'createSocialInsurance' },
 ];
 
 /** 递归列出 src/api 与 src/views 下全部 .ts/.vue 源文件（绝对路径） */
@@ -161,9 +157,9 @@ describe('9 创建端点请求侧身份键锁', () => {
   });
 
   it('视图提交字面量逐键显式列举，不含身份键', () => {
-    for (const { file, fn, kind } of VIEW_CALL_SITES) {
+    for (const { file, fn } of VIEW_CALL_SITES) {
       const src = frontendSrc(file);
-      const bodies = payloadLiteralBodies(src, fn, kind);
+      const bodies = payloadLiteralBodies(src, fn);
       for (const body of bodies) {
         const keys = literalKeys(body);
         expect(keys.length, `${file} 中 ${fn} 的提交字面量未解析出键`).toBeGreaterThan(0);
@@ -196,9 +192,7 @@ describe('9 创建端点请求侧身份键锁', () => {
     // 夹具 2：往提交字面量里塞身份键，字面量判据必须点名
     const callFixture =
       'await createSocialInsurance({\n  worker_id: 1,\n  created_by_name: form.realName,\n});';
-    const fixtureKeys = literalKeys(
-      payloadLiteralBodies(callFixture, 'createSocialInsurance', 'call')[0]
-    );
+    const fixtureKeys = literalKeys(payloadLiteralBodies(callFixture, 'createSocialInsurance')[0]);
     expect(fixtureKeys.filter(k => IDENTITY_KEYS.includes(k))).toEqual(['created_by_name']);
 
     // 夹具 3：尚未接入端点的正向扫描同样有检测力

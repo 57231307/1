@@ -64,9 +64,9 @@ test.describe('04 AP/AR 核销金额级回读', () => {
     // 真实 admin 会话（apiCall 携带 CSRF 一次性消费）。
     await loginViaUI(page);
     // 保证当期会计期间开放：AR 收款与 AP 付款确认生成的付款凭证过账都要 check_date_locked。
-    await apiCall(page, 'POST', '/finance/accounting-periods/init', {}).catch(e =>
-      console.warn('[04] 会计期间初始化失败:', (e as Error).message)
-    );
+    // 前置条件失败判红：init_first_period 幂等（已有 OPEN 期直接返回），
+    // 非 2xx 即真实环境缺陷，不允许 console.warn 后带病继续。
+    await apiCall(page, 'POST', '/finance/accounting-periods/init', {});
   });
 
   test('04-01 AR 应收：收款后回读 received_amount/unpaid_amount 数值变化（部分→结清）', async ({
@@ -169,6 +169,9 @@ test.describe('04 AP/AR 核销金额级回读', () => {
     });
     const requestId = Number(req.id);
     if (!requestId) throw new Error(`建付款申请失败：${JSON.stringify(req)}`);
+    // 申请登记清理（已审批且已被付款引用的申请可能被状态门拒绝删除，
+    // tryCleanup 尽力而为，失败仅告警不判红）
+    CLEANUP.push({ path: `/ap/payment-requests/${requestId}`, label: 'ap_payment_request' });
 
     // 方案B内控链：提交 → 审批（admin，400<10万可审）。
     await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/submit`);
