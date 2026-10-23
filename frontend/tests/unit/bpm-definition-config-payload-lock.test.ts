@@ -10,11 +10,12 @@
  *
  * 本用例对 composable 真实产出的 payload 做结构断言：
  *   正向：节点类型序列与引擎 token 严格相等；edges 非空、相邻线性配对、
- *         source/target 引用真实节点 id、无条件边不携带 condition 键；
+ *         source/target 引用真实节点 id、无条件边不携带 condition 键、
+ *         条件只挂边不挂节点（节点级条件键被 toPersistedNodes 剥离）；
  *         start_event 恰一个且其首条出边 target 为 user_task（引擎不校验边
  *         target 类型，见 resolve_first_task_node 直接取首出边目标，首位错位会把非审批节点当首任务）；
- *         user_task 的 assignee_type 为 user 且 assignee_value 为数字用户 ID
- *         （后端 resolve_node_assignee 只认这种形状）；
+ *         user_task 的审批人类型限引擎词表 user / dept_superior：user 须 assignee_value
+ *         为数字用户 ID，dept_superior 运行期按部门上级解析、不需选人（后端 resolve_node_assignee）。
  *   反向：payload 中不得出现引擎不认的旧裸词（approval/condition/notify/start/end），
  *         节点上不得出现引擎从不读取的 condition / next_nodes 键——
  *         任何一处把代码改回旧词表或删掉 edges，对应断言立即失败（检测力由
@@ -38,6 +39,7 @@ import {
   useBpmDfProc,
   buildLinearEdges,
   validateLinearChain,
+  toPersistedNodes,
 } from '@/views/bpm/definitions/composables/useBpmDfProc';
 
 vi.mock('@/api/bpm-enhanced', () => ({
@@ -183,12 +185,14 @@ describe('handleSubmit：提交 payload 的 config 词表与 edges 形状锁定'
       for (const banned of ENGINE_UNKNOWN_TOKENS) {
         expect(node.type).not.toBe(banned);
       }
-      // 反向：引擎从不读取节点级 condition/next_nodes（条件挂在 edge.condition）
+      // 反向：引擎从不读取节点级 condition/next_nodes（条件挂在 edge.condition），
+      // 表单编辑态的 edge_condition 也必须被 toPersistedNodes 剥离后才进 config.nodes
       expect(node).not.toHaveProperty('condition');
       expect(node).not.toHaveProperty('next_nodes');
-      // 反向：审批人类型只有 user 有执行路径（后端 resolve_node_assignee）
+      expect(node).not.toHaveProperty('edge_condition');
+      // 反向：审批人类型只允许引擎词表 user / dept_superior（后端 resolve_node_assignee）
       if (node.assignee_type !== undefined) {
-        expect(node.assignee_type).toBe('user');
+        expect(['user', 'dept_superior']).toContain(node.assignee_type);
       }
     }
 
@@ -332,6 +336,85 @@ describe('validateLinearChain：引擎可执行不变量的提交前拦截', () 
   });
 });
 
+describe('审批人按部门上级解析（dept_superior）契约', () => {
+  it('validateLinearChain 接受 dept_superior 节点无 assignee_value（运行期取人）', () => {
+    expect(
+      validateLinearChain([
+        { id: 's', type: 'start_event', name: 's' },
+        { id: 'a', type: 'user_task', name: 'a', assignee_type: 'dept_superior' },
+        { id: 'e', type: 'end_event', name: 'e' },
+      ])
+    ).toBeNull();
+  });
+
+  it('validateLinearChain 仍拦截 user 类型缺数字审批人（词表两值各有约束）', () => {
+    expect(
+      validateLinearChain([
+        { id: 's', type: 'start_event', name: 's' },
+        { id: 'a', type: 'user_task', name: 'a', assignee_type: 'user' },
+        { id: 'e', type: 'end_event', name: 'e' },
+      ])
+    ).toBe('bpm.definitions.formErrors.assigneeRequired');
+  });
+
+  it('sensitive 标记随节点持久化（引擎读取节点级 sensitive 判定再上一级）', () => {
+    const persisted = toPersistedNodes([
+      {
+        id: 'a',
+        type: 'user_task',
+        name: 'a',
+        assignee_type: 'dept_superior',
+        sensitive: true,
+        edge_condition: '${amount} > 1',
+      },
+    ]);
+    expect(persisted[0]).toEqual({
+      id: 'a',
+      type: 'user_task',
+      name: 'a',
+      assignee_type: 'dept_superior',
+      sensitive: true,
+    });
+    // edge_condition 属编辑态，剥离后才进 config.nodes（节点级条件非引擎读取键）
+    expect(persisted[0]).not.toHaveProperty('edge_condition');
+  });
+});
+
+describe('buildLinearEdges 条件分支（挂在边、非节点）', () => {
+  it('节点带非空 edge_condition 时该出边携带 condition 键', () => {
+    const edges = buildLinearEdges([
+      { id: 's', type: 'start_event', name: 's' },
+      {
+        id: 'a',
+        type: 'user_task',
+        name: 'a',
+        assignee_type: 'dept_superior',
+        edge_condition: '${amount} > 10000',
+      },
+      { id: 'e', type: 'end_event', name: 'e' },
+    ]);
+    expect(edges).toEqual([
+      { source: 's', target: 'a' },
+      { source: 'a', target: 'e', condition: '${amount} > 10000' },
+    ]);
+  });
+
+  it('空/空白 edge_condition 省略 condition 键（空串是 poison 值而非无条件）', () => {
+    const edges = buildLinearEdges([
+      {
+        id: 'a',
+        type: 'user_task',
+        name: 'a',
+        assignee_type: 'dept_superior',
+        edge_condition: '   ',
+      },
+      { id: 'e', type: 'end_event', name: 'e' },
+    ]);
+    expect(Object.keys(edges[0]).sort()).toEqual(['source', 'target']);
+    expect(edges[0]).not.toHaveProperty('condition');
+  });
+});
+
 describe('表单源码静态锁：节点类型选项与审批人输入形态', () => {
   const formPath = join(SRC, 'views/bpm/definitions/components/BpmDefinitionForm.vue');
   const formSrc = readFileSync(formPath, 'utf-8');
@@ -343,10 +426,29 @@ describe('表单源码静态锁：节点类型选项与审批人输入形态', (
     expect(optionValues).toEqual(['start_event', 'user_task', 'end_event']);
   });
 
-  it('源码中不得残留引擎不认的旧 option value（含已撤掉的审批人类型选项）', () => {
-    expect(formSrc).not.toMatch(/value="(start|end|approval|condition|notify)"/);
+  it('源码中不得残留引擎不认的旧审批人类型 option value（role/department/dynamic 无执行路径）', () => {
     expect(formSrc).not.toMatch(/value="(role|department|dynamic)"/);
-    expect(formSrc).not.toMatch(/assigneeType/);
+    expect(formSrc).not.toMatch(/value="(start|end|approval|condition|notify)"/);
+  });
+
+  it('审批人类型下拉的提交值必须且仅是引擎词表 dept_superior 与 user', () => {
+    const block = formSrc.match(/<el-select\s+v-model="row\.assignee_type"[\s\S]*?<\/el-select>/);
+    expect(block).not.toBeNull();
+    const optionValues = [...block![0].matchAll(/value="([^"]+)"/g)].map(m => m[1]);
+    expect(optionValues).toEqual(['dept_superior', 'user']);
+  });
+
+  it('条件分支与敏感操作列折叠在高级区内且默认收起（用户裁定：列保留但折叠为高级）', () => {
+    // 检测力：把 advancedOpen 默认改 true 或把两列的 v-if 摘掉（改回常显），本锁红
+    expect(formSrc).toMatch(/const advancedOpen = ref\(false\)/);
+    const conditionCol = formSrc.match(
+      /<el-table-column\s+v-if="advancedOpen"[\s\S]*?form\.condition[\s\S]*?<\/el-table-column>/
+    );
+    expect(conditionCol).not.toBeNull();
+    const sensitiveCol = formSrc.match(
+      /<el-table-column\s+v-if="advancedOpen"[\s\S]*?form\.sensitive[\s\S]*?<\/el-table-column>/
+    );
+    expect(sensitiveCol).not.toBeNull();
   });
 
   it('审批人列是按 keyword 远程检索的用户选择，不是手填 ID 的输入框', () => {
