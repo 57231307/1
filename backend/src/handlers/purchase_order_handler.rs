@@ -643,42 +643,57 @@ pub struct CancelOrderRequest {
 
 // ========== 数据导出接口 ==========
 
-// V15 P0-S15 修复（Batch 475b）：导出注入水印（操作员/导出时间/导出条数）
 use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
-// V15 P0-S11：导出审计日志写入所需依赖
+// 导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use std::sync::Arc;
 
-/// 导出采购订单
+/// 导出采购订单。
+///
+/// 取数走导出专用全量腿，不设行数阀。单次导出的自我保护由并发守卫与调用方筛选承担，
+/// 行数上限是人为阈值，把它做成真生效的报错属于未授权的用户可见行为变更。
+/// 交付行数与服务端全量总数不等时如实标记不完整并同时留痕，既不截断也不静默吞差值。
 pub async fn export_orders(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<OrderQueryParams>,
 ) -> Result<axum::response::Response, AppError> {
-    // V15 P1-9-1：全局导出并发控制（RAII 守卫，函数退出自动递减）
+    // 全局导出并发控制（RAII 守卫，函数退出自动递减）
     let _guard = ExportConcurrencyGuard::acquire()?;
 
     let service = PurchaseOrderService::new(state.db.clone());
 
-    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+    // 提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
     let audit_status = query.status.clone();
 
-    // T2: 直接获取结构化数据，去除 CSV 中转
-    let (headers, rows) = service
+    let (headers, rows, server_total) = service
         .export_orders_to_xlsx(query.status, query.supplier_id)
         .await?;
 
     let row_count = rows.len();
+    let export_complete = PurchaseOrderService::export_rows_complete(row_count, server_total);
+    let completeness_text = if export_complete {
+        "完整"
+    } else {
+        "不完整"
+    };
 
-    // V15 P1-9-3：采购订单导出条数上限（计划 13.9.1 要求单次 ≤ 10000 条）
-    const MAX_PURCHASE_ORDER_EXPORT_ROWS: usize = 10_000;
-    if row_count > MAX_PURCHASE_ORDER_EXPORT_ROWS {
-        return Err(AppError::bad_request(format!(
-            "采购订单导出条数 {} 超过上限 {}，请缩小筛选范围后重试",
-            row_count, MAX_PURCHASE_ORDER_EXPORT_ROWS
-        )));
+    tracing::info!(
+        username = %auth.username,
+        exported_rows = row_count,
+        server_total,
+        export_complete,
+        "采购订单导出取数完成"
+    );
+    if !export_complete {
+        tracing::warn!(
+            username = %auth.username,
+            exported_rows = row_count,
+            server_total,
+            "采购订单导出交付行数与服务端全量总数不等，文件不是全量（取数期间发生并发写入，或取数腿被重新加上行数上限）"
+        );
     }
 
     let table = XlsxTable {
@@ -692,7 +707,7 @@ pub async fn export_orders(
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
+    // 导出审计日志写入（best-effort，异步不阻塞响应）
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -702,15 +717,17 @@ pub async fn export_orders(
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
         description: Some(format!(
-            "用户 {} 导出采购订单（共 {} 条）",
-            auth.username, row_count
+            "用户 {} 导出采购订单（交付 {} 条，服务端全量 {} 条，{}）",
+            auth.username, row_count, server_total, completeness_text
         )),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/erp/purchases/orders/export".to_string()),
         before_snapshot: None,
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
-            "total": row_count,
+            "total": server_total,
+            "exported_rows": row_count,
+            "export_complete": export_complete,
             "status_filter": audit_status,
             "supplier_id_filter": query.supplier_id,
         })),
@@ -718,13 +735,16 @@ pub async fn export_orders(
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
 
-    // V15 P0-S15 修复（Batch 475b）：注入水印（操作员/导出时间/导出条数）
+    // 水印注入（操作员、导出时间与导出条数）
     // 水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("采购订单导出（共 {} 条）", row_count)),
+        extra: Some(format!(
+            "采购订单导出（交付 {} 条，服务端全量 {} 条，{}）",
+            row_count, server_total, completeness_text
+        )),
     };
 
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
