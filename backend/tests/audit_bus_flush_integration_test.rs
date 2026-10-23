@@ -180,9 +180,7 @@ fn shutdown_path_drains_audit_bus_after_producers_stop() {
         "shutdown_app_state_background_tasks()",
     ] {
         let stop_at = body.find(producer_stop).unwrap_or_else(|| {
-            panic!(
-                "关停路径未调用 {producer_stop}：生产者停止点已改名或被删除，本锁的前提失效"
-            )
+            panic!("关停路径未调用 {producer_stop}：生产者停止点已改名或被删除，本锁的前提失效")
         });
         assert!(
             stop_at < flush_at,
