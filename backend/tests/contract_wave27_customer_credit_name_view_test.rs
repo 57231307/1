@@ -100,7 +100,7 @@ async fn query_i64(db: &DatabaseConnection, sql: &str, alias: &str) -> i64 {
 async fn seed_customer(db: &DatabaseConnection, id: i32, code: &str, name: &str) {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
-        &format!(
+        format!(
             "INSERT INTO customers (id, customer_code, customer_name, customer_type) \
              VALUES ($1, $2, $3, '{}')",
             bingxi_backend::constants::customer_type::RETAIL
@@ -518,9 +518,9 @@ fn view_serializes_identically_to_entity_model() {
         customer_name: Some("落库值不参与出参".to_string()),
         credit_level: Some("A".to_string()),
         credit_score: Some(80),
-        credit_limit: rust_decimal::Decimal::new(5_000_00, 2),
-        used_credit: rust_decimal::Decimal::new(1_00_00, 2),
-        available_credit: rust_decimal::Decimal::new(4_900_00, 2),
+        credit_limit: rust_decimal::Decimal::new(5_000_000, 2),
+        used_credit: rust_decimal::Decimal::new(1_000_000, 2),
+        available_credit: rust_decimal::Decimal::new(49_000_000, 2),
         credit_days: Some(30),
         last_assessment_date: Some(ymd!(2026, 1, 1)),
         next_assessment_date: Some(ymd!(2026, 12, 31)),
