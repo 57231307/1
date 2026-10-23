@@ -113,13 +113,15 @@ test.describe('01 流程定义', () => {
     for (let i = 0; i < 3; i++) {
       await dlg.getByRole('button', { name: '添加节点' }).click();
     }
-    const nodeRows = dlg.locator('table[aria-label="流程节点列表"] tbody tr');
+    // el-table 把 aria-label 透传到外层容器而非内层 table 元素，命中范围取容器再下钻表体行
+    const nodeRows = dlg.locator('[aria-label="流程节点列表"] tbody tr');
     await expect(nodeRows, '添加三次应得到三行节点').toHaveCount(3);
     // 首行改「开始」、末行改「结束」，中间行保持默认的审批节点
     await pickRowOption(page, nodeRows.nth(0), '开始');
     await pickRowOption(page, nodeRows.nth(2), '结束');
-    // 审批人列是 remote el-select：点开即以空关键字拉第一页候选，选第一项（真实用户 ID）
-    await nodeRows.nth(1).locator('.el-select').first().click();
+    // 审批人列是行内第二个 el-select（第一个是节点类型列），是 remote 检索：
+    // 点开即以空关键字拉第一页候选，选第一项（真实用户 ID）
+    await nodeRows.nth(1).locator('.el-select').nth(1).click();
     const assigneeOption = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
     await expect(assigneeOption.first(), '审批人候选必须真实拉取到用户').toBeVisible({
       timeout: 30000,
