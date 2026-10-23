@@ -7289,10 +7289,15 @@ export default {
     },
     enhanced: {
       title: '供应商 360',
-      idPlaceholder: '供应商 ID',
       query: '查询',
-      emptyHint: '请输入供应商 ID 后点击查询',
+      emptyHint: '请先选择供应商，再点击查询',
+      picker: {
+        placeholder: '输入供应商名称或编码搜索',
+        optionLabel: '{name}（{code}）',
+        noData: '没有匹配的供应商，可输入更完整的关键字再试',
+      },
       descriptions: {
+        id: '供应商 ID',
         code: '供应商编码',
         name: '供应商名称',
         grade: '等级',
@@ -7389,8 +7394,8 @@ export default {
         loadQualificationsFailed: '加载资质失败',
         loadBalanceFailed: '加载供应商余额失败',
         loadHistoryFailed: '加载采购历史失败',
-        inputSupplierId: '请输入供应商 ID',
-        queryFirst: '请先输入供应商 ID 并查询',
+        selectSupplierFirst: '请先选择供应商',
+        queryFirst: '请先选择供应商并点击查询',
         contactDeleteSuccess: '联系人删除成功',
         contactDeleteFailed: '联系人删除失败',
         contactUpdateSuccess: '联系人更新成功',
