@@ -363,8 +363,8 @@ async fn dept_superior_resolves_to_parent_dept_manager_stepwise() {
 #[tokio::test]
 async fn dept_superior_rejects_when_no_parent_department() {
     let db = Arc::new(test_common::setup_test_db().await);
-    let leader = seed_user(db, "leader").await;
-    let lonely = seed_dept(db, "lonely", None, Some(leader)).await;
+    let leader = seed_user(&db, "leader").await;
+    let lonely = seed_dept(&db, "lonely", None, Some(leader)).await;
     let applicant = seed_user_in_dept(&db, "applicant", lonely).await;
     let code = format!("bpm_dept_no_parent_{}", unique_tag());
     let definition_id = seed_definition(&db, &code, dept_chain_config()).await;
@@ -390,8 +390,8 @@ async fn dept_superior_rejects_when_no_parent_department() {
 #[tokio::test]
 async fn dept_superior_rejects_when_parent_has_no_manager() {
     let db = Arc::new(test_common::setup_test_db().await);
-    let no_manager_parent = seed_dept(db, "noparentmgr", None, None).await;
-    let leaf = seed_dept(db, "leaf", Some(no_manager_parent), None).await;
+    let no_manager_parent = seed_dept(&db, "noparentmgr", None, None).await;
+    let leaf = seed_dept(&db, "leaf", Some(no_manager_parent), None).await;
     let applicant = seed_user_in_dept(&db, "applicant", leaf).await;
     let code = format!("bpm_dept_no_manager_{}", unique_tag());
     let definition_id = seed_definition(&db, &code, dept_chain_config()).await;
@@ -418,8 +418,8 @@ async fn dept_superior_rejects_when_parent_has_no_manager() {
 async fn dept_superior_rejects_ambiguous_departments() {
     let db = Arc::new(test_common::setup_test_db().await);
     let org = seed_org_tree(&db).await;
-    let other = seed_dept(db, "other", Some(org.mid), None).await;
-    let applicant = seed_user(db, "applicant").await;
+    let other = seed_dept(&db, "other", Some(org.mid), None).await;
+    let applicant = seed_user(&db, "applicant").await;
     seed_user_dept(&db, applicant, org.leaf, false).await;
     seed_user_dept(&db, applicant, other, false).await;
     let code = format!("bpm_dept_ambiguous_{}", unique_tag());
