@@ -7454,6 +7454,7 @@ export default {
         rankings: '供应商排名',
         indicators: '评估指标',
         evaluations: '评估管理',
+        compare: '供应商对比',
       },
       button: {
         create: '新建评估',
@@ -7490,6 +7491,24 @@ export default {
         totalScore: '总分',
         rating: '评级',
         rank: '排名',
+      },
+      compare: {
+        pickerPlaceholder: '输入供应商名称或编码搜索，可多选',
+        button: '开始对比',
+        emptyHint: '选择要对比的供应商后点击开始对比',
+        tableAriaLabel: '供应商对比结果列表',
+        pickFirst: '请先选择要对比的供应商',
+        partialFailed: '部分供应商评分取数失败，详见对应行的取数结论',
+        column: {
+          outcome: '取数结论',
+          recordCount: '评估记录数',
+          latestDate: '最近评估日期',
+        },
+        outcome: {
+          loaded: '有评分',
+          noRecord: '暂无评估记录',
+          failed: '取数失败',
+        },
       },
       column: {
         supplierName: '供应商名称',
