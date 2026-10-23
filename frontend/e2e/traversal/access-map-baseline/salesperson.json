@@ -9,5 +9,6 @@
     "/sales-contract",
     "/sales-price",
     "/sales-returns"
-  ]
+  ],
+  "provenance": "ci-mirrored"
 }

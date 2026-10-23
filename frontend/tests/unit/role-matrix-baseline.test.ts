@@ -3,7 +3,7 @@
  *
  * 功能：
  *   1. 契约锁：已评审基线目录 e2e/traversal/access-map-baseline/ 的内容**恰好**为
- *      人工已审阅入库的两份甲类基线（admin.json、e2e_noperm.json），用文件名集合相等
+ *      APPROVED_BASELINES 全集，用文件名集合相等
  *      （双向）断言，任何未评审角色基线被抢跑塞入、或已评审基线被移除，本锁判红。
  *   2. 基线文件 schema 与内容不变量：与 permission-model.ts 的 RoleBaseline 定义一致
  *      （role 与文件名同源；reachableRoutes 为字符串数组；admin 全集已排序去重；
@@ -14,6 +14,10 @@
  *        且候选快照如实记录该角色现场实测可达集（差异如实报告，不静默跳过、
  *        不因"没有基线"判绿）。
  *   4. 负向断言：schema 不符的基线文件必须抛错拒收，不得被当作"无条目"放行或自动重建。
+ *   5. 来源标注对账：CI 自造镜像岗位（花名册 CI_MIRRORED_ROLES，即后端既未建角也未授权、
+ *      权限码由 e2e 前端手写镜像清单补建的那批）的基线必须在文件里自证
+ *      provenance='ci-mirrored'；非镜像岗位不得自称镜像。缺标或谎标都判红——
+ *      目的是让"这份基线证明不了后端授权面"成为读一份基线就能得到的事实。
  *
  * 调用方：frontend vitest 单测轨（tests/unit 下按 vitest.config.ts 的 include  glob 收），
  * CI 的 ci-frontend-test job 执行。
@@ -36,7 +40,12 @@ import {
 } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
-import { resolveRoleBaseline, type RoleAccessMap } from '../../e2e/traversal/permission-model';
+import {
+  CI_MIRRORED_ROLES,
+  baselineProvenanceOf,
+  resolveRoleBaseline,
+  type RoleAccessMap,
+} from '../../e2e/traversal/permission-model';
 
 /**
  * 基线目录绝对路径（与 permission-model.ts 的 BASELINE_DIR 相对口径同源：
@@ -273,5 +282,102 @@ describe('判红传导：spec 基线轨无静默跳过通道（源码文本锁�
     expect(missingBlock.slice(0, 1200).includes('throw new Error')).toBe(true);
     // 现场一致性主断言必须仍被硬判（drift 非 0 即红），不得被基线轨的存在稀释
     expect(source.includes('accessMap.summary.drift')).toBe(true);
+  });
+});
+
+describe('基线来源标注（provenance）锁：镜像岗位必须自证证明不了后端授权面', () => {
+  it('逐份对账：标注必须等于花名册判定结果，且花名册角色全部有基线文件', () => {
+    const approvedRoles = APPROVED_BASELINES.map(f => f.replace(/\.json$/, ''));
+    const unbaselined = CI_MIRRORED_ROLES.filter(r => !approvedRoles.includes(r));
+    expect(unbaselined, `花名册角色没有基线文件，标注无从落点：${unbaselined.join(', ')}`).toEqual(
+      []
+    );
+
+    for (const role of approvedRoles) {
+      const parsed = JSON.parse(readFileSync(join(BASELINE_DIR, `${role}.json`), 'utf-8')) as {
+        provenance?: unknown;
+      };
+      const expected = baselineProvenanceOf(role);
+      if (expected === 'ci-mirrored') {
+        expect(
+          parsed.provenance,
+          `${role} 是 CI 自造镜像岗位却未自证（缺标即可能被当成后端授权面证据）`
+        ).toBe('ci-mirrored');
+      } else {
+        // 非镜像岗位允许不带该字段（来源由花名册判定），但绝不能自称镜像
+        expect(
+          parsed.provenance === undefined || parsed.provenance === 'backend-seeded',
+          `${role} 不在花名册内却标注为 ${String(parsed.provenance)}——花名册与后端授权面已漂移`
+        ).toBe(true);
+      }
+    }
+    // 标注只落在镜像那批文件上：后端授权面在册的基线本批不加，避免把 35 份内容全改一遍
+    const annotated = approvedRoles.filter(
+      role =>
+        JSON.parse(readFileSync(join(BASELINE_DIR, `${role}.json`), 'utf-8')).provenance ===
+        'ci-mirrored'
+    );
+    expect(annotated.sort()).toEqual([...CI_MIRRORED_ROLES].sort());
+  });
+
+  let sandbox: string;
+  let cwdBackup: string;
+
+  beforeAll(() => {
+    cwdBackup = process.cwd();
+    sandbox = mkdtempSync(join(tmpdir(), 'role-baseline-provenance-'));
+    mkdirSync(resolve(sandbox, 'e2e/traversal/access-map-baseline'), { recursive: true });
+    for (const file of APPROVED_BASELINES) {
+      cpSync(
+        join(BASELINE_DIR, file),
+        resolve(sandbox, `e2e/traversal/access-map-baseline/${file}`)
+      );
+    }
+    process.chdir(sandbox);
+  });
+
+  afterAll(() => {
+    process.chdir(cwdBackup);
+    rmSync(sandbox, { recursive: true, force: true });
+  });
+
+  function rewriteBaseline(role: string, body: Record<string, unknown>): void {
+    writeFileSync(
+      resolve(sandbox, `e2e/traversal/access-map-baseline/${role}.json`),
+      JSON.stringify(body, null, 2) + '\n',
+      'utf-8'
+    );
+  }
+
+  const probeMap = (role: string): RoleAccessMap => ({
+    role,
+    entries: [{ route: '/dashboard', derived: 'reachable', actual: 'reachable', match: true }],
+    menuDiff: { unexpected: [], missing: [] },
+    routerMissingRoutes: [],
+    summary: { total: 1, match: 1, drift: 0 },
+  });
+
+  it('检测力自证：镜像基线摘掉标注、或非镜像基线谎称镜像，都必须被拒收', async () => {
+    // 摘标注入：镜像岗位少了自证，读基线必须点名判红而不是照常 compare
+    rewriteBaseline('ap_accountant', { role: 'ap_accountant', reachableRoutes: ['/dashboard'] });
+    await expect(resolveRoleBaseline(probeMap('ap_accountant'))).rejects.toThrow(/来源标注/);
+
+    // 谎标注入：后端授权面在册的岗位自称镜像，同样拒收（花名册与真实授权面漂移的信号）
+    rewriteBaseline('accountant', {
+      role: 'accountant',
+      reachableRoutes: ['/dashboard'],
+      provenance: 'ci-mirrored',
+    });
+    await expect(resolveRoleBaseline(probeMap('accountant'))).rejects.toThrow(/花名册/);
+
+    // 非法值注入：标注写成别的词也必须拒收，不能被当成"没标"放行
+    rewriteBaseline('tax_accountant', {
+      role: 'tax_accountant',
+      reachableRoutes: ['/dashboard'],
+      provenance: 'maybe',
+    });
+    await expect(resolveRoleBaseline(probeMap('tax_accountant'))).rejects.toThrow(
+      /provenance 取值非法/
+    );
   });
 });

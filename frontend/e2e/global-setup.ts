@@ -2,6 +2,9 @@ import { request, type FullConfig } from '@playwright/test';
 import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync } from 'fs';
 import { WORKER_SESSIONS_MANIFEST_PATH, buildWorkerSessions } from './worker-auth';
+// 镜像岗位花名册（唯一名源）：本文件补建角色时用它点名权限码来源，
+// 与角色权限矩阵基线轨的 provenance 判据同源，禁止在本文件另列一份岗位名单。
+import { CI_MIRRORED_ROLES } from './traversal/permission-model';
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp'; // 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
@@ -626,6 +629,10 @@ const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
 // 的业务权限码——严格对齐后端 init_service_ops/permission.rs 中同名角色的权限集，
 // 不越界、不虚构。保密矩阵所需的**不授**purchase/sku-mappings 等对销售角色的保密面，
 // 保持负向断言（403 FORBIDDEN）真实成立。
+// 注意：本清单与 CI_MIRRORED_ROLES 花名册的交集岗位，后端既无建角也无授权分组，
+// "对齐后端同名角色"那句对它们不成立——它们是前端单方面镜像出来的读面；未在本清单列出的
+// 镜像岗位只有 SHELL 两枚键。这类岗位的角色权限矩阵基线证明不了后端授权面（基线文件的
+// provenance 字段已机读标注），不得据以判断"后端已授权"。交集内容由建角日志逐角色点名。
 const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // purchase_clerk 取后端矩阵同名角色的权限集子面（read、create、update、import，不含 delete）。
   // 覆盖 sku-mapping 用例 A、C、D1、D2b、E1、E3，即产品与供应商只读、目录、对照 CRUD、批量导入。
@@ -1088,6 +1095,17 @@ export async function ensureRoleUsers(): Promise<void> {
   const seedFailures: string[] = [];
 
   for (const role of allRolesToEnsure) {
+    // 逐角色点名权限码来源（判据取 CI_MIRRORED_ROLES 花名册，本文件不另列岗位名单）：
+    // ci-mirrored 的岗位后端既无建角也无授权分组，其权限码全数来自本文件的手写镜像清单，
+    // 由这类岗位产出的角色权限矩阵基线只证明前端镜像与前端守卫自洽，不证明后端授权面。
+    const mirrorKeys = SEED_ROLE_EXTRA_PERMISSIONS[role.code] ?? [];
+    const isMirroredRole = CI_MIRRORED_ROLES.includes(role.code);
+    console.log(
+      `[globalSetup] 待补建角色 ${role.code} 权限码来源=` +
+        (isMirroredRole
+          ? `ci-mirrored（前端手写镜像 ${mirrorKeys.length} 枚 + SHELL ${SHELL_PERMISSIONS.length} 枚；后端无此岗，其基线不证明后端授权面）`
+          : `backend-seeded（期望由后端 init 角色矩阵授权，本次按清单补授 ${role.permissions.length} 枚）`)
+    );
     const createRoleResp = await requestWithCsrfRecovery(
       loginCtx,
       'post',

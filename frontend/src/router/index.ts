@@ -230,7 +230,29 @@ const routes: RouteRecordRaw[] = [
         path: 'ap',
         name: 'AP',
         component: () => import('@/views/ap/index.vue'),
-        meta: { title: '应付管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
+        // 应付域壳页门控：只认后端 PERMISSION_RESOURCES 在册的应付族细键（九枚 = 六个页签
+        // 各自入口判据的并集），不再用粗域键 finance:read——后者经 COARSE_DOMAIN_RESOURCES
+        // 展开为整个财务域 51 枚细资源的并集，只持凭证/工资/汇率/成本读权的岗位（含出纳）
+        // 也能打开应付壳页，属跨域越权入口。
+        // 本数组与 constants/permissions.ts 的 AP_SHELL_ENTRY_PERMISSIONS 由静态锁
+        // tests/unit/ap-shell-permission-lock.test.ts 逐字互锁；router 侧只能写单引号字面量，
+        // 因为 e2e 权限模型的文本解析口径只认字面量、不解析标识符。
+        meta: {
+          title: '应付管理',
+          icon: 'Money',
+          permission: [
+            'ap-invoices:read',
+            'ap-payments:read',
+            'ap-payment-requests:read',
+            'ap-verifications:read',
+            'ap-reconciliations:read',
+            'ap-aging:read',
+            'ap-daily:read',
+            'ap-monthly:read',
+            'ap-statistics:read',
+          ],
+          requiresAuth: true,
+        },
       },
       {
         path: 'ar',
