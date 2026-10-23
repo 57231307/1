@@ -1,5 +1,5 @@
 {
-  "total": 117,
+  "total": 116,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -62,10 +62,9 @@
       ]
     },
     "frontend/src/api/bpm-enhanced.ts": {
-      "count": 3,
+      "count": 2,
       "keys": [
         "ProcessDefinition.form_schema",
-        "ProcessNode.next_nodes",
         "ProcessVersion.change_log"
       ]
     },
