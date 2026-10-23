@@ -15,6 +15,9 @@ use crate::models::product_color;
 use crate::models::status::master_data;
 use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
+// 同源补齐函数的真源在服务层（批量链路与本链路共用一份语义），这里再导出，
+// 保持既有引用路径 handlers 下 product_handler 下的 pair_piece_roll_meters 仍可用。
+pub use crate::services::product_service::pair_piece_roll_meters;
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -83,6 +86,8 @@ pub struct CreateProductRequest {
 }
 
 /// 更新产品请求（面料行业版）
+/// 每匹米数与每卷米数为三态部分更新，键缺席保持原值、显式 null 清空为 NULL、有值覆盖。
+/// 其余字段维持单层 Option 的条件 Set 语义，键缺席即不更新该列。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductRequest {
@@ -126,9 +131,12 @@ pub struct UpdateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
-    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
-    pub meters_per_piece: Option<Decimal>,
-    pub meters_per_roll: Option<Decimal>,
+    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）。
+    // 三态部分更新：键缺席保持原值、显式 null 清空为 NULL、有值覆盖（清空通道即本形态存在的理由）。
+    #[serde(default, deserialize_with = "double_option")]
+    pub meters_per_piece: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub meters_per_roll: Option<Option<Decimal>>,
 }
 
 // ========== 色号管理相关结构体 ==========
@@ -353,28 +361,19 @@ pub async fn get_product(
     Ok(Json(ApiResponse::success(product_json)))
 }
 
-/// 匹与卷的每单位米数同源补齐。
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的键缺席不等于显式 null 语义所需）。
 ///
-/// 读什么：请求反序列化后的 meters_per_piece 与 meters_per_roll 两值，缺席即 None，
-/// 本函数只看这两个 Option 的存在性，不猜测、不填默认值。
-/// 写给谁：create_product 与 update_product，结果原样交给 CreateProductArgs 与
-/// UpdateProductArgs 的同名两字段，再由 product_ops 的 crud 落库。
-/// 存什么：products 表的 meters_per_piece 与 meters_per_roll 两列，DECIMAL(12,4) 可空，
-/// NULL 表示未录入。
-/// 存哪里：products 表被创建或被更新的那一行；更新侧 None 由 crud 层的条件 Set 保持原值。
-/// 为什么：一卷即一匹，业务上两列米数同源；产品表单只留每匹米数一个输入入口，
-/// 请求只带其中一个值时必须把另一列补成同值，按卷换算才不会因缺元数据被拒。
-/// 边界：两值都带时各自原样写入，含不等，沿用既有允许不等的语义，不覆写调用方显式取值；
-/// 两值都不带时不做补齐，创建侧落 NULL、更新侧两列都不动。
-pub fn pair_piece_roll_meters(
-    meters_per_piece: Option<Decimal>,
-    meters_per_roll: Option<Decimal>,
-) -> (Option<Decimal>, Option<Decimal>) {
-    match (meters_per_piece, meters_per_roll) {
-        (Some(piece), None) => (Some(piece), Some(piece)),
-        (None, Some(roll)) => (Some(roll), Some(roll)),
-        (piece, roll) => (piece, roll),
-    }
+/// 为何需要。serde_json 对双层 Option 的默认反序列化在遇到 JSON null 时将外层塌成 None，
+/// 与键缺席不可区分，用户清空每匹米数就无法送达后端。本适配器把字段先按内层 Option
+/// 反序列化再包一层。键缺席（配合 serde default）为 None 即保持原值，显式 null 为
+/// Some(None) 即清空该列，有值为 Some(Some(v)) 即覆盖。
+/// 与 ar_payment_handler 及 department_handler 等处的同型私有适配器一致。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 创建产品

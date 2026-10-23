@@ -8,9 +8,12 @@
  * 锁定的契约面：
  * 1. 表单里米数输入只有两枚，且只有每匹米数可编辑，每卷米数带只读标记；
  * 2. 只读项的带出由用户改动触发，回显赋值被抑制，避免打开编辑再保存就改写历史每卷米数；
- * 3. 提交载荷的两键名与后端创建与更新 DTO 的字段名逐字对齐，且请求边界不改名、不并入；
+ * 3. 提交载荷的两键名与后端创建与更新 DTO 的字段名逐字对齐（创建单层两态、更新双层三态），
+ *    且请求边界不改名、不并入；
  * 4. 单位词表里匹与卷仍是并列 token，两列仍是实体与建表迁移的在册列；
- * 5. 只读项的用户可见文案只说该做什么，不泄漏表名、列名与实现细节。
+ * 5. 只读项的用户可见文案只说该做什么，不泄漏表名、列名与实现细节；
+ * 6. 表单提交显式收集载荷（不回传整行），清空米数送显式 null（省略键在后端是保持原值）；
+ * 7. 批量提交的顶层信封按后端批量 DTO 包 products，不发裸数组。
  *
  * 判据：读源码文本比对，不启动 Vue、不发网络请求、不连库。
  * 调用方：vitest（tests/unit，CI vitest job）。
@@ -86,14 +89,22 @@ describe('产品米数单入口形状锁', () => {
   });
 
   it('提交载荷的米数键名与后端创建与更新 DTO 逐字对齐', () => {
-    // 后端两个请求结构都声明这两键，且仍是可空十进制
+    // 创建侧 DTO 为单层两态（带值或缺值），更新侧 DTO 为双层三态（覆盖、清空、不动），
+    // 清空通道依赖显式 null 与键缺席可区分，单层形态没有清空通道
     for (const field of ['meters_per_piece', 'meters_per_roll']) {
-      const decls = handlerSrc.match(new RegExp(`pub ${field}: Option<Decimal>`, 'g')) || [];
       expect(
-        decls.length,
-        `后端创建与更新 DTO 都应声明 ${field}，实际命中 ${decls.length} 处`
-      ).toBe(2);
+        handlerSrc.includes(`pub ${field}: Option<Decimal>`),
+        `后端创建 DTO 应声明 ${field} 为单层两态`
+      ).toBe(true);
+      expect(
+        handlerSrc.includes(`pub ${field}: Option<Option<Decimal>>`),
+        `后端更新 DTO 的 ${field} 应为双层三态，塌回单层即清空通道复发`
+      ).toBe(true);
     }
+    const tristate = handlerSrc.match(/deserialize_with = "double_option"/g) || [];
+    expect(tristate.length, `更新 DTO 两字段都应挂三态反序列化适配器，实际 ${tristate.length} 处`).toBe(
+      2
+    );
 
     // 请求边界不得把这两键改名或并进别的键：toProductPayload 只映射四个别名
     const mapper = apiSrc.match(/function toProductPayload[\s\S]*?\n}/);
@@ -112,6 +123,32 @@ describe('产品米数单入口形状锁', () => {
         `Product 接口里 ${field} 应保持可选与可空形态`
       ).toBe(true);
     }
+  });
+
+  it('表单提交显式收集载荷，不回传整行，清空米数送显式 null', () => {
+    expect(
+      formSrc.includes('createProduct(formData)'),
+      '新建不得再把整个 formData（含回显带入的行内服务端列）原样提交'
+    ).toBe(false);
+    expect(
+      formSrc.includes('updateProduct(formData.id as number, formData)'),
+      '编辑不得再把整个 formData 原样提交'
+    ).toBe(false);
+    for (const field of ['meters_per_piece', 'meters_per_roll']) {
+      expect(
+        formSrc.includes(`${field}: formData.${field} ?? null`),
+        `提交载荷里 ${field} 应把空值显式序列化为 null（省略键在后端是保持原值，清空会失效）`
+      ).toBe(true);
+    }
+    expect(
+      formSrc.includes('buildSubmitPayload'),
+      '提交前应经显式载荷构造，字段清单即表单采集面'
+    ).toBe(true);
+  });
+
+  it('批量提交的顶层信封与后端批量 DTO 对齐（products 包装，不发裸数组）', () => {
+    const wrapped = apiSrc.match(/\{ products: data\.map\(toProductPayload\) \}/g) || [];
+    expect(wrapped.length, '批量创建与批量更新都应按后端顶层 DTO 包一层 products').toBe(2);
   });
 
   it('硬边界：单位词表未改，匹与卷仍是并列单位 token', () => {

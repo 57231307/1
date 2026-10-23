@@ -120,6 +120,7 @@
               :min="0"
               :precision="4"
               :controls="false"
+              :value-on-clear="null"
               style="width: 100%"
             />
           </el-form-item>
@@ -247,8 +248,9 @@ const formData = reactive({
   barcode: '',
   price: 0,
   cost_price: 0,
-  meters_per_piece: undefined as number | undefined,
-  meters_per_roll: undefined as number | undefined,
+  // 清空经 value-on-clear 归一为 null，与未触碰的 undefined 同属空值，提交前统一显式序列化为 null
+  meters_per_piece: undefined as number | null | undefined,
+  meters_per_roll: undefined as number | null | undefined,
   description: '',
   is_active: true,
 });
@@ -356,6 +358,25 @@ watch(visible, val => {
   emit('update:modelValue', val);
 });
 
+// 提交载荷只收本表单采集的字段，不把回显进来的整行原样回传（行里的 id、分类名称、
+// 时间戳等由服务端掌管，客户端发了也会被反序列化丢弃，留着只会掩盖契约漂移）。
+// 米数两键把空值显式序列化为 null，走后端三态更新里的清空通道；键缺席的语义是
+// 保持原值，不能把用户的清空做成省略键。
+const buildSubmitPayload = (): Partial<Product> => ({
+  product_code: formData.product_code,
+  product_name: formData.product_name,
+  category_id: formData.category_id,
+  specification: formData.specification,
+  unit: formData.unit,
+  barcode: formData.barcode,
+  price: formData.price,
+  cost_price: formData.cost_price,
+  meters_per_piece: formData.meters_per_piece ?? null,
+  meters_per_roll: formData.meters_per_roll ?? null,
+  description: formData.description,
+  is_active: formData.is_active,
+});
+
 const handleSubmit = async () => {
   if (submitLoading.value) return;
   if (!formRef.value) return;
@@ -369,10 +390,10 @@ const handleSubmit = async () => {
   }
   try {
     if (props.mode === 'create') {
-      await createProduct(formData);
+      await createProduct(buildSubmitPayload());
       ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'));
     } else {
-      await updateProduct(formData.id as number, formData);
+      await updateProduct(formData.id as number, buildSubmitPayload());
       ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'));
     }
     emit('update:modelValue', false);
