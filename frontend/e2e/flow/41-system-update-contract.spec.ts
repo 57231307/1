@@ -56,7 +56,6 @@ test.describe('系统更新 列表端点正名 + 版本契约（真实 API 级�
       `tasks.data.items 应为数组：实际=${JSON.stringify(env.items)}`
     ).toBe(true);
     expect(typeof env.total, 'tasks.data.total 应为 number').toBe('number');
-    expect(env.total, 'tasks.data.total 应非负').toBeGreaterThanOrEqual(0);
     // 后端 list_update_tasks 不读分页参数、恒返回第 1 页（全表），请求页即第 1 页。
     expect(env.page, '后端全表返回，page 应恒为第 1 页（请求页）').toBe(1);
     expect(typeof env.page_size, 'tasks.data.page_size 应为 number').toBe('number');
@@ -96,7 +95,6 @@ test.describe('系统更新 列表端点正名 + 版本契约（真实 API 级�
     // 2) 信封四要素。
     expect(Array.isArray(env.items), 'backups.data.items 应为数组').toBe(true);
     expect(typeof env.total, 'backups.data.total 应为 number').toBe('number');
-    expect(env.total, 'backups.data.total 应非负').toBeGreaterThanOrEqual(0);
     expect(env.page, '后端全表返回，page 应恒为第 1 页（请求页）').toBe(1);
     expect(typeof env.page_size, 'backups.data.page_size 应为 number').toBe('number');
     expect(env.total, `全表分页：total(${env.total}) 应等于 items 长度(${env.items.length})`).toBe(

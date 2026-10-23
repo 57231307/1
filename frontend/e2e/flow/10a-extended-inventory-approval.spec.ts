@@ -255,10 +255,12 @@ test.describe.serial('扩展: 库存预留/发货门禁/三单匹配/双计量',
         row.product_name,
         `预警行应带出产品名（只有 ID 无法处置）：告警 ${row.id}`
       ).toBeTruthy();
+      const q = Number(row.quantity_on_hand);
       expect(
-        Number(row.quantity_on_hand),
-        `在库量应为可解析数字：${row.quantity_on_hand}`
-      ).toBeGreaterThanOrEqual(0);
+        Number.isFinite(q),
+        `在库量必须可解析为有限数（缺键/非数字串在此现形）：${JSON.stringify(row.quantity_on_hand)}`
+      ).toBe(true);
+      expect(q < 0, `在库量不得为负（负数=库存台账失真）：${q}`).toBe(false);
     }
   });
 });

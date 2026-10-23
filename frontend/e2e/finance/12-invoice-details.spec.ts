@@ -403,10 +403,8 @@ test.describe('12 发票管理建→审批→核销全链回读', () => {
       ['价税合计', idxTotal],
       ['关联订单', idxOrder],
     ] as const) {
-      expect(
-        idx,
-        `表头应含列 ${name}，实际表头=${JSON.stringify(headerTexts)}`
-      ).toBeGreaterThanOrEqual(0);
+      // indexOf 以逐字符相等定位，未命中即 -1：判负一列不存在（改名或缺列）在此现形
+      expect(idx, `表头应含列 ${name}，实际表头=${JSON.stringify(headerTexts)}`).not.toBe(-1);
     }
 
     const row = page.getByRole('row').filter({ has: page.getByText(invoiceNo, { exact: true }) });
