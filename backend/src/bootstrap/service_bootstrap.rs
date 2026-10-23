@@ -16,7 +16,9 @@ use crate::container::{AppState, AppStateParams};
 /// 启动过程中创建的需要在 graceful shutdown 时关闭的服务句柄。
 ///
 /// 保留 OmniAuditEngine clone，shutdown 时调用其 shutdown()，避免审计引擎 detached task 泄漏。
-/// 审计日志服务的消费者不设取消入口，其积压由关停链调用总线 flush 排空。
+/// 审计日志服务的积压由关停链调用总线 flush 排空，随后关停链经全局单句柄 abort
+/// 消费者 task 并 await 确认终止，本结构不为其保留实例句柄（消费者是进程级全局单例，
+/// 实例字段装不进它）。
 pub struct BootstrapShutdownHandles {
     omni_audit: Option<Arc<crate::services::omni_audit_service::OmniAuditEngine>>,
 }

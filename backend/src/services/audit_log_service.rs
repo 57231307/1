@@ -9,8 +9,10 @@
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
 //!
 //! 异步落库使用 mpsc channel 加单消费者模式，避免每次调用 record_async 都创建
-//! detached spawn task。通道与消费者由全局单例持有，与进程同生命周期，不设取消入口。
-//! 关停时由关停链调用 flush 等待积压事件全部落库，进程退出时消费者随 runtime 一起回收。
+//! detached spawn task。通道与消费者由全局单例持有，与进程同生命周期。
+//! 关停分两步：关停链先调用 flush 等待积压事件全部落库（未排空条数如实上报），
+//! 再经 shutdown 从全局单例取出消费者 JoinHandle 真实 abort（take 后置空，天然防二次
+//! abort），并返回句柄供调用方 await 确认消费者已终止，不靠 sleep 猜时序。
 
 use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{self, OperationType, Severity};
@@ -129,6 +131,13 @@ pub async fn flush(timeout: Duration) -> FlushCounts {
     }
 }
 
+/// 全局单例：消费者 task 的 JoinHandle，spawn 成功后真实保存，供 shutdown 取出并 abort。
+/// 消费者是进程级唯一的，因此句柄必须与 AUDIT_SENDER 一样是全局单例，
+/// 而不是实例字段（实例随请求 handler 反复创建，实例字段永远装不进这个唯一的消费者）。
+static AUDIT_CONSUMER_HANDLE: std::sync::OnceLock<
+    std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+> = std::sync::OnceLock::new();
+
 impl AuditLogService {
     /// 创建审计日志服务（全局单例 channel，消费者只启动一次）
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -138,7 +147,7 @@ impl AuditLogService {
 
             // 启动后台消费者 task（全局唯一，不会被 drop 关闭）
             let db_clone = db.clone();
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 while let Some((event, ctx)) = receiver.recv().await {
                     let result = AssertUnwindSafe(async {
                         let log = build_active_model(&event, ctx.as_ref());
@@ -183,11 +192,52 @@ impl AuditLogService {
                 tracing::info!("AuditLogService 后台消费者 task 已退出");
             });
 
+            // 真实保存消费者句柄（与全局 channel 同生命周期），shutdown 从这里取出 abort。
+            // AUDIT_CONSUMER_HANDLE 与 AUDIT_SENDER 在同一次 get_or_init 闭包内初始化，
+            // OnceLock 保证闭包只执行一次，set 必然成功。
+            if AUDIT_CONSUMER_HANDLE
+                .set(std::sync::Mutex::new(Some(handle)))
+                .is_err()
+            {
+                tracing::error!(
+                    "AuditLogService 消费者句柄重复注册（理论上不可达：闭包仅执行一次）"
+                );
+            }
+
             sender
         });
 
         Self { db, sender }
     }
+
+    /// 优雅关闭异步审计服务：abort 全局后台消费者 task，防止 detached task 泄漏。
+    ///
+    /// 幂等：首次调用从全局单例 `take()` 出句柄并实际 abort，句柄置空后
+    /// 后续调用返回 `None`，不会再触发第二次 abort。
+    /// 注：tokio mpsc UnboundedSender 没有 close 方法；abort 消费者 task 后
+    /// 其 future 被 drop，receiver 随之释放，后续 `record_async` 的 send() 将返回 Err（走告警日志分支）。
+    /// shutdown 路径禁止 panic：锁中毒时用 `unwrap_or_else(|e| e.into_inner())` 安全取出内部数据。
+    ///
+    /// 返回被 abort 的 JoinHandle（仅首次调用为 `Some`），供调用方 await 确定性验证
+    /// 消费者已取消（await 返回 `JoinError::is_cancelled()`），不靠 sleep 猜时序。
+    /// 调用方为进程关停链：必须先 flush 排空积压，再经本方法终止消费者。
+    pub fn shutdown(&self) -> Option<tokio::task::JoinHandle<()>> {
+        shutdown_consumer()
+    }
+}
+
+/// 取出全局消费者 JoinHandle 并 abort 的单点实现（实例方法 shutdown 与关停链共用）。
+///
+/// 消费者句柄是进程级全局单例，关停链（main.rs shutdown_resources）在没有服务实例
+/// 引用的位置也需要终止消费者，故逻辑落在自由函数，方法侧只做转发。
+/// 幂等与返回值语义同 `AuditLogService::shutdown`。
+pub fn shutdown_consumer() -> Option<tokio::task::JoinHandle<()>> {
+    let handle = AUDIT_CONSUMER_HANDLE
+        .get()
+        .and_then(|slot| slot.lock().unwrap_or_else(|e| e.into_inner()).take())?;
+    handle.abort();
+    tracing::info!("AuditLogService 异步记录引擎已关闭（消费者 task 已 abort）");
+    Some(handle)
 }
 
 /// 通用审计事件（P13 批 1 P3-2 新增）（调用方只需填充业务相关字段，service 内部自动从 `AuditContext` 补充请求上下文。）

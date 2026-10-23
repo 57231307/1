@@ -91,3 +91,43 @@ fn test_severity_serialization() {
     assert_eq!(Severity::Error.to_string(), "ERROR");
     assert_eq!(Severity::Critical.to_string(), "CRITICAL");
 }
+
+/// shutdown 真实生效的确定性断言：
+/// 首次 shutdown 必须取出全局消费者 JoinHandle；abort 后 await 该句柄得到
+/// `JoinError::is_cancelled()`，即消费者 task 确已被运行时终止——
+/// await 只有在 task 真正结束后才返回，不靠 sleep 猜时序。
+/// 幂等：句柄被 take 后置空，第二次 shutdown 返回 None，不会再触发 abort。
+/// 注意：本用例会初始化/消费本测试二进制内的全局单例（AUDIT_SENDER 与
+/// AUDIT_CONSUMER_HANDLE）；同文件其余用例只测纯函数，不依赖活跃消费者，不受影响。
+#[tokio::test]
+async fn test_shutdown_aborts_consumer_and_is_idempotent() {
+    use bingxi_backend::services::audit_log_service::AuditLogService;
+    use std::sync::Arc;
+
+    // 惰性连接池（ConnectOptions::connect_lazy(true)，走 sqlx connect_lazy_with）：
+    // 只解析 URL 建池、不实际拨号；消费者全程空转 recv，不会触发任何落库查询。
+    let mut opt = sea_orm::ConnectOptions::new("postgres://127.0.0.1:1/audit_lifecycle_unused");
+    opt.connect_lazy(true);
+    let db = Arc::new(
+        sea_orm::Database::connect(opt)
+            .await
+            .expect("惰性池构建只解析 URL，不应发起真实连接"),
+    );
+    let svc = AuditLogService::new(db);
+
+    let handle = svc
+        .shutdown()
+        .expect("首次 shutdown 必须取出全局消费者 JoinHandle（真实 abort 的前提）");
+    let err = handle
+        .await
+        .expect_err("abort 后消费者 task 必须以 JoinError 结束，而非正常返回");
+    assert!(
+        err.is_cancelled(),
+        "消费者 task 在 abort 后应处于 cancelled 状态，实际: {err}"
+    );
+
+    assert!(
+        svc.shutdown().is_none(),
+        "第二次 shutdown 句柄已置空，必须返回 None（防二次 abort，幂等）"
+    );
+}
