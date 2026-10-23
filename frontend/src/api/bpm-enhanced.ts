@@ -38,20 +38,33 @@ export interface ProcessDefinition {
 export type BpmNodeType = 'start_event' | 'user_task' | 'end_event';
 
 /**
+ * 流程审批人类型词表：与审批引擎判定值逐字符一致
+ * （bpm_ops/mod.rs 的 resolve_node_assignee 只识别 user 与 dept_superior）。
+ * - user：assignee_value 为具体用户 ID（须解析为正整数，否则拒绝发起）；
+ * - dept_superior：按申请人所在部门的上一级部门负责人解析；节点带 sensitive=true
+ *   时再上一级（该领导所在部门的上级负责人）。此类型不需要 assignee_value。
+ * 引擎对其余取值（历史词 role/department/dynamic）直接拒绝发起，无执行路径。
+ */
+export type BpmAssigneeType = 'user' | 'dept_superior';
+
+/**
  * 流程节点。引擎实际读取的键：id / type / name（resolve_first_task_node 与
- * bpm_ops/mod.rs 的 resolve_node_assignee 读 node 的 id / name）与
- * assignee_type / assignee_value（均见 resolve_node_assignee）。
- * assignee_type 仅 user 有执行路径（resolve_node_assignee 对其余值直接拒绝发起），
- * assignee_value 为用户 ID（resolve_node_assignee 须解析为正整数，否则拒绝发起）。
- * 节点级 condition / next_nodes 引擎从不读取（条件表达式挂在 edge.condition 上），
- * 故不声明——留着即是让用户填写不生效的虚假能力。
+ * bpm_ops/mod.rs 的 resolve_node_assignee 读 node 的 id / name）、
+ * assignee_type / assignee_value（resolve_node_assignee）与 sensitive
+ * （resolve_node_assignee 判定是否取再上一级，缺省即非敏感，存量定义无需迁移）。
+ * edge_condition 为表单编辑态字段，承载该节点出边的条件表达式；提交时由
+ * buildLinearEdges 写入 edges[].condition（引擎只在 edge.condition 上求值），
+ * 不随节点持久化（handleSubmit 提交前剥离该键），因此不是引擎读取的节点键。
+ * 节点级 condition / next_nodes 引擎从不读取，仍不声明。
  */
 export interface ProcessNode {
   id: string;
   type: BpmNodeType;
   name: string;
-  assignee_type?: 'user';
+  assignee_type?: BpmAssigneeType;
   assignee_value?: number;
+  sensitive?: boolean;
+  edge_condition?: string;
 }
 
 /**

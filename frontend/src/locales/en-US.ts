@@ -2977,6 +2977,16 @@ export default {
         assigneePlaceholder: 'Search by username / email / phone',
         assigneeHint:
           'Assignee candidates are searched by keyword; only the first 50 are listed before searching, not all users.',
+        assigneeType: 'Assignee Type',
+        assigneeTypeUser: 'Specified User',
+        assigneeTypeDeptSuperior: 'Parent-Dept Manager of Applicant',
+        advanced: 'Advanced',
+        condition: 'Condition Branch',
+        conditionPlaceholder: 'e.g. ${amount} > 10000; empty means unconditional',
+        conditionHint:
+          'The condition binds the connection from this node to the next; the branch is chosen by condition after approval.',
+        sensitive: 'Sensitive Operation',
+        sensitiveHint: 'When checked, the manager one level above approves',
         nodeOrderHint: 'Nodes are approved sequentially in list order (Start → Approval … → End).',
         operation: 'Operation',
         delete: 'Delete',

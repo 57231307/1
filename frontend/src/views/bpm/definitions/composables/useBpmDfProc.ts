@@ -26,27 +26,30 @@ import {
 import { logger } from '@/utils/logger';
 
 /**
- * 按节点数组顺序线性生成边（相邻两节点两两相连）。
+ * 按节点数组顺序线性生成边（相邻两节点两两相连），并携带各节点出边的条件表达式。
  *
  * 界面节点列表顺序即审批顺序：引擎按"当前节点的出边"逐级推进，且解析首个任务时
  * 不校验 start 出边 target 的节点类型（后端 resolve_first_task_node 直接取边指向的目标），
- * 因此边的顺序必须
- * 与界面展示顺序显式一致——本函数按数组序生成，表格按数组序渲染，两者同源。
- * 当前表单没有"连线"交互，条件分支/多出口不在本表单能力内；提交前由
- * validateLinearChain 钉住 start_event 位于首位、其唯一出边指向第一个 user_task。
+ * 因此边的顺序必须与界面展示顺序显式一致——本函数按数组序生成，表格按数组序渲染，两者同源。
+ * 当前表单没有"连线"交互，每个节点至多一条出边；条件表达式挂在**边**上（edge.condition），
+ * 由节点行编辑态字段 edge_condition 带出：非空才写入 condition 键，空则省略该键。
+ * 提交前由 validateLinearChain 钉住 start_event 位于首位、其唯一出边指向第一个 user_task。
  * 键名与引擎实际读取逐字符一致（source / target 见后端 resolve_first_task_node 与
- * try_advance_to_next_node 的取键）。
- * 无条件边刻意不携带 condition 键：引擎只在 edge.condition 上求值
- * （try_advance_to_next_node 经 evaluate_bpm_condition），
- * 表达式解析失败按 fail-closed 判不匹配，空串 condition 是
- * poison 值而非"无条件"；且带病 condition 的边匹配不到时，线性链会退化成
- * "无出边则流程直接完成"（try_advance_to_next_node 返回 false 后走完成收尾），等于绕过后续审批。
+ * try_advance_to_next_node 的取键；condition 见 try_advance_to_next_node 经 evaluate_bpm_condition）。
+ * 无条件边刻意不携带 condition 键：表达式解析失败按 fail-closed 判不匹配，
+ * 空串 condition 是 poison 值而非"无条件"；且带病 condition 的边匹配不到时，
+ * 线性链会退化成"无匹配出边"——发起期 validate_forward_path 会当场拒绝该定义
+ * （第三处 fail-open 已由裁定消灭），因此这里绝不能把空的 edge_condition 落成空串 condition。
  */
 export function buildLinearEdges(nodes: ProcessNode[]): ProcessEdge[] {
-  return nodes.slice(0, -1).map((node, index) => ({
-    source: node.id,
-    target: nodes[index + 1].id,
-  }));
+  return nodes.slice(0, -1).map((node, index) => {
+    const condition = node.edge_condition?.trim();
+    const edge: ProcessEdge = { source: node.id, target: nodes[index + 1].id };
+    if (condition) {
+      edge.condition = condition;
+    }
+    return edge;
+  });
 }
 
 /**
@@ -59,8 +62,10 @@ export function buildLinearEdges(nodes: ProcessNode[]): ProcessEdge[] {
  * - 恰一个 start_event 在首位、恰一个 end_event 在末位、中间全为 user_task，
  *   保证 start 的唯一出边指向第一个审批节点（否则边 target 不做类型校验，
  *   非审批节点会被当首任务建单，见 resolve_first_task_node 取首出边的逻辑）；
- * - 每个 user_task 的审批人必须是 user 类型 + 数字用户 ID
- *   （后端 resolve_node_assignee：非 user 拒绝发起，ID 须解析为正整数）。
+ * - 每个 user_task 的审批人类型必须是 user 或 dept_superior
+ *   （后端 resolve_node_assignee：其余取值拒绝发起）；
+ *   选 user 时 assignee_value 必须是数字用户 ID（须解析为正整数），
+ *   选 dept_superior 时不需 assignee_value（按部门上级运行期解析）。
  */
 export function validateLinearChain(nodes: ProcessNode[]): string | null {
   const engineTokens: string[] = ['start_event', 'user_task', 'end_event'];
@@ -81,17 +86,57 @@ export function validateLinearChain(nodes: ProcessNode[]): string | null {
     return 'bpm.definitions.formErrors.chainOrder';
   }
   if (
-    approvals.some(
-      node =>
-        node.assignee_type !== 'user' ||
+    approvals.some(node => {
+      const assigneeType = node.assignee_type ?? 'user';
+      if (assigneeType === 'dept_superior') {
+        return false;
+      }
+      if (assigneeType !== 'user') {
+        return true;
+      }
+      return (
         typeof node.assignee_value !== 'number' ||
         !Number.isInteger(node.assignee_value) ||
         node.assignee_value <= 0
-    )
+      );
+    })
   ) {
     return 'bpm.definitions.formErrors.assigneeRequired';
   }
   return null;
+}
+
+/**
+ * 提交用的持久化节点：剥离表单编辑态字段 edge_condition。
+ * 引擎从不读取节点级条件（条件权威位置是 config.edges[].condition，由 buildLinearEdges 落），
+ * 留在 config.nodes 里即是可被误当生效项的虚假能力，故按后端实际消费的键集裁剪。
+ */
+export function toPersistedNodes(nodes: ProcessNode[]): ProcessNode[] {
+  return nodes.map(node => {
+    const { edge_condition: _edgeCondition, ...rest } = node;
+    return rest;
+  });
+}
+
+/**
+ * 编辑回填：把持久化的 config.edges[].condition 映回源节点的编辑态字段 edge_condition。
+ * 表单按节点行编辑条件、提交时再写回边，因此回填必须以边为真相源还原到对应 source 节点，
+ * 否则编辑存量带条件的定义会静默丢掉条件（第二件事 #82 的判据即 edge.condition）。
+ */
+export function attachEdgeConditions(nodes: ProcessNode[], edges?: ProcessEdge[]): ProcessNode[] {
+  if (!edges || edges.length === 0) {
+    return nodes.map(node => ({ ...node }));
+  }
+  const conditionBySource = new Map<string, string>();
+  for (const edge of edges) {
+    if (edge.condition) {
+      conditionBySource.set(edge.source, edge.condition);
+    }
+  }
+  return nodes.map(node => ({
+    ...node,
+    edge_condition: conditionBySource.get(node.id),
+  }));
 }
 
 /**
@@ -180,7 +225,9 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       process_name: source.process_name,
       description: source.description || '',
       category: source.category || 'finance',
-      nodes: source.nodes || [],
+      // 条件真源在 config.edges[].condition，回填映到节点行编辑态（attachEdgeConditions），
+      // 否则编辑存量带条件定义会静默丢条件
+      nodes: attachEdgeConditions(source.nodes || [], source.config?.edges),
     });
     cb.dialogVisible = true;
   };
@@ -219,14 +266,15 @@ export function useBpmDfProc(cb: BpmDfCallbacks) {
       // 后端契约：流程节点与边持久化在 config.nodes / config.edges（后端
       // resolve_first_task_node 与 try_advance_to_next_node 均只从 config 取 nodes/edges），
       // 顶层 nodes 非契约字段会被 serde 忽略 → 节点静默丢失；
-      // 缺 edges 时审批推进匹配不到边（try_advance_to_next_node 找不到出边即返回 false），
-      // 首节点批准后流程直接完成 = 绕过后续审批。
-      // 本表单无连线交互，edges 按节点顺序线性生成（buildLinearEdges 注释注明能力边界）。
+      // 缺 edges 时审批推进匹配不到边，发起期 validate_forward_path 直接拒绝该定义，
+      // 不建无法闭合的实例（第三处 fail-open 的完成收尾旁路已被消灭）。
+      // 本表单无连线交互，edges 按节点顺序线性生成并携带节点行的条件（buildLinearEdges）。
+      // config.nodes 只留引擎读取的键，edge_condition 属表单编辑态，提交前剥离（toPersistedNodes）。
       // 载荷键名按 DTO 真实字段名构造（name/code 为 CreateProcessDefinitionRequest/
       // UpdateProcessDefinitionRequest 的 Rust 字段名；serde alias process_name/process_key
       // 门禁不识别且视图内部键与 UI 表单解耦，统一按真实字段名提交）。
       const config = {
-        nodes: cb.formData.nodes,
+        nodes: toPersistedNodes(cb.formData.nodes),
         edges: buildLinearEdges(cb.formData.nodes),
       };
       if (cb.isEdit && cb.formData.id) {

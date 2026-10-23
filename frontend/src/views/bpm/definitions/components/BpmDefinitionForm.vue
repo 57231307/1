@@ -80,6 +80,17 @@
           <el-icon><Plus /></el-icon>
           {{ t('bpm.definitions.form.addNode') }}
         </el-button>
+        <!-- 条件分支与敏感标记折叠为高级：默认收起（advancedOpen=false），
+             常规审批定义不需要它们；列本身保留，编辑存量带条件定义时条件仍可回显 -->
+        <el-button
+          link
+          type="primary"
+          size="small"
+          :aria-expanded="String(advancedOpen)"
+          @click="advancedOpen = !advancedOpen"
+        >
+          {{ t('bpm.definitions.form.advanced') }}
+        </el-button>
       </div>
       <el-table
         :data="localFormData.nodes"
@@ -102,13 +113,32 @@
             <el-input v-model="row.name" size="small" />
           </template>
         </el-table-column>
+        <el-table-column :label="t('bpm.definitions.form.assigneeType')" width="220">
+          <template #default="{ row }">
+            <!-- value 为审批引擎 resolve_node_assignee 逐字符识别的审批人类型 token；
+                 缺省即 user（引擎 unwrap_or("user")），存量定义语义保持不变；
+                 新建审批节点默认 dept_superior（用户裁定：审批人默认按申请人部门上一级负责人解析） -->
+            <el-select
+              v-model="row.assignee_type"
+              size="small"
+              :disabled="row.type !== 'user_task'"
+              :aria-label="t('bpm.definitions.form.assigneeType')"
+              @change="handleAssigneeTypeChange(row)"
+            >
+              <el-option
+                :label="t('bpm.definitions.form.assigneeTypeDeptSuperior')"
+                value="dept_superior"
+              />
+              <el-option :label="t('bpm.definitions.form.assigneeTypeUser')" value="user" />
+            </el-select>
+          </template>
+        </el-table-column>
         <el-table-column :label="t('bpm.definitions.form.assignee')" min-width="220">
           <template #default="{ row }">
-            <!-- 引擎只支持指定具体用户，且 assignee_value 须解析为正整数用户 ID
-                 （后端 resolve_node_assignee），因此不提供审批人类型选项、不允许手填 ID：
-                 用户 ID 由可搜索选择带出。候选按 keyword 远程搜索——后端列出用户的
-                 page_size 有 clamp(1,100)，大 page_size 会被静默截断，
-                 靠 keyword 收窄而非凑全量（见 composables/useAssigneeSearch.ts）。
+            <!-- 仅"指定用户"类型需要选定具体用户；按部门上级解析运行期取人，无需选人。
+                 assignee_value 不允许手填 ID：用户 ID 由可搜索选择带出。候选按 keyword
+                 远程搜索——后端列出用户的 page_size 有 clamp(1,100)，大 page_size 会被
+                 静默截断，靠 keyword 收窄而非凑全量（见 composables/useAssigneeSearch.ts）。
                  候选数组按行 id 各自持有，避免多行下拉互相串数据。 -->
             <el-select
               v-model="row.assignee_value"
@@ -118,7 +148,7 @@
               remote
               :remote-method="(q: string) => searchAssignees(row, q)"
               :loading="rowLoading[row.id] === true"
-              :disabled="row.type !== 'user_task'"
+              :disabled="row.type !== 'user_task' || row.assignee_type !== 'user'"
               :placeholder="t('bpm.definitions.form.assigneePlaceholder')"
               @visible-change="
                 (v: boolean) => v && rowCandidates[row.id] === undefined && searchAssignees(row, '')
@@ -134,6 +164,39 @@
           </template>
         </el-table-column>
         <el-table-column
+          v-if="advancedOpen"
+          :label="t('bpm.definitions.form.condition')"
+          min-width="180"
+        >
+          <template #default="{ row }">
+            <!-- 编辑态字段 edge_condition：提交时由 buildLinearEdges 写入该节点出边的
+                 condition 键（引擎只在 edge.condition 上求值），不随节点持久化 -->
+            <el-input
+              v-model="row.edge_condition"
+              size="small"
+              :disabled="row.type !== 'user_task'"
+              :placeholder="t('bpm.definitions.form.conditionPlaceholder')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="advancedOpen"
+          :label="t('bpm.definitions.form.sensitive')"
+          width="110"
+          align="center"
+        >
+          <template #default="{ row }">
+            <!-- 节点级 sensitive 标记由引擎 resolve_node_assignee 读取：勾选后
+                 dept_superior 解析取该领导所在部门的再上一级负责人；缺省 false -->
+            <el-switch
+              v-model="row.sensitive"
+              size="small"
+              :disabled="row.type !== 'user_task'"
+              :aria-label="t('bpm.definitions.form.sensitive')"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
           :label="t('bpm.definitions.form.operation')"
           width="80"
           align="center"
@@ -146,6 +209,12 @@
           </template>
         </el-table-column>
       </el-table>
+      <p v-if="advancedOpen" class="node-order-hint">
+        {{ t('bpm.definitions.form.conditionHint') }}
+      </p>
+      <p v-if="advancedOpen" class="node-order-hint">
+        {{ t('bpm.definitions.form.sensitiveHint') }}
+      </p>
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{
@@ -212,9 +281,30 @@ const emit = defineEmits<{
 // 表单 ref
 const formRef = ref<FormInstance>();
 
+/**
+ * 高级区可见性（条件分支列与敏感操作列）。默认收起：常规线性审批定义用不到
+ * 它们，按用户裁定"条件分支列保留但折叠为高级"，展开前不占界面。
+ */
+const advancedOpen = ref(false);
+
+/**
+ * 存量行审批人类型归一：user_task 行缺失 assignee_type 时补 'user'。
+ * 依据是引擎的缺省语义（resolve_node_assignee 对缺省值按 user 解析），
+ * 不是新造缺省——归一后界面显示与引擎行为逐条一致，存量定义语义不变。
+ */
+const normalizeRows = (nodes: ProcessNode[]): ProcessNode[] =>
+  nodes.map(node =>
+    node.type === 'user_task' && node.assignee_type === undefined
+      ? { ...node, assignee_type: 'user' as const }
+      : node
+  );
+
 // 本地镜像：避免直接修改 prop 触发 vue/no-mutating-props
 // 注意：formData 含 nodes 数组，需要深拷贝以保证本地修改与父组件解耦
-const localFormData = ref<BpmDefinitionFormData>(deepClone(props.formData));
+const localFormData = ref<BpmDefinitionFormData>({
+  ...deepClone(props.formData),
+  nodes: normalizeRows(props.formData.nodes),
+});
 
 // 同步标志位：防止 prop → local 与 local → emit 形成循环
 let syncing = false;
@@ -225,7 +315,7 @@ watch(
   newData => {
     if (syncing) return;
     syncing = true;
-    localFormData.value = deepClone(newData);
+    localFormData.value = { ...deepClone(newData), nodes: normalizeRows(newData.nodes) };
     nextTick(() => {
       syncing = false;
     });
@@ -284,16 +374,29 @@ const handleAddNode = () => {
 };
 
 /**
- * 节点类型切换：非 user_task 节点引擎不读取审批人（后端 resolve_node_assignee 只对建了工单的
- * user_task 节点解析 assignee），清掉残留值，避免用户误以为填了会生效
+ * 节点类型切换：非 user_task 节点引擎不读取审批人与敏感标记（后端 resolve_node_assignee
+ * 只对建了工单的 user_task 节点解析 assignee_type / sensitive），清掉残留值，
+ * 避免用户误以为填了会生效；改回 user_task 时按裁定默认"申请人部门上一级负责人"。
  */
 const handleNodeTypeChange = (row: ProcessNode) => {
   if (row.type !== 'user_task') {
     row.assignee_value = undefined;
     row.assignee_type = undefined;
+    row.sensitive = undefined;
+    row.edge_condition = undefined;
   } else if (row.assignee_type === undefined) {
-    // 引擎仅 user 有执行路径（后端 resolve_node_assignee），显式写入而非依赖后端默认
-    row.assignee_type = 'user';
+    // 引擎词表两值均可执行（resolve_node_assignee）；新建/改回的审批节点默认按部门上级解析
+    row.assignee_type = 'dept_superior';
+  }
+};
+
+/**
+ * 审批人类型切换：dept_superior 运行期取人，assignee_value 不生效，切换时清空残留；
+ * 切回 user 时必须重新选定具体用户（提交边界 validateLinearChain 钉住数字 ID 必填）。
+ */
+const handleAssigneeTypeChange = (row: ProcessNode) => {
+  if (row.assignee_type !== 'user') {
+    row.assignee_value = undefined;
   }
 };
 
