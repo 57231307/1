@@ -41,7 +41,7 @@
         <el-table-column prop="created_at" :label="t('system.role.column.createdAt')" width="160" />
         <el-table-column :label="t('system.role.column.action')" width="200" fixed="right">
           <template #default="{ row }">
-            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <!-- 编辑与删除按钮由 users 域的 update 与 delete 权限键控可见性 -->
             <el-button
               v-permission="PERMISSIONS.ROLE_UPDATE"
               size="small"
@@ -168,7 +168,7 @@ const fetchRoles = async () => {
     // 后端 list_roles 真实结构为 data.roles[]（RoleListResponse { roles, total }）
     roles.value = res.data.roles;
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('system.role.message.fetchFailed')
     );
@@ -236,7 +236,7 @@ const submitRole = async () => {
     roleDialogVisible.value = false;
     fetchRoles();
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('system.role.message.operationFailed')
     );
@@ -256,7 +256,7 @@ const deleteRole = async (row: Role) => {
     ElMessage.success(t('system.role.message.deleteSuccess'));
     fetchRoles();
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
     if (!isDialogDismissal(e))
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('system.role.message.deleteFailed')

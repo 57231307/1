@@ -82,8 +82,8 @@
         <el-table-column prop="created_at" :label="t('system.user.table.createdAt')" width="160" />
         <el-table-column :label="t('system.user.table.operation')" width="150" fixed="right">
           <template #default="{ row }">
-            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
-            <!-- v11 批次 166 P2-1 修复：row as any 改为 row as User -->
+            <!-- 编辑与删除按钮由 users 域的 update 与 delete 权限键控可见性 -->
+            <!-- 表格行按 User 类型取用，不用 any 绕开形状校验 -->
             <el-button
               v-permission="PERMISSIONS.USER_UPDATE"
               size="small"
@@ -180,7 +180,7 @@ import { useTableApi } from '@/composables/useTableApi';
 // Batch 462 P0-S24：引入权限码常量，与后端 users 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
-// 批次 32 v7 P0-2：接入 i18n，替换硬编码中文 ElMessage
+// 提示文案走 i18n 键，不写硬编码中文
 const { t } = useI18n({ useScope: 'global' });
 
 const userQuery = reactive({
@@ -188,7 +188,7 @@ const userQuery = reactive({
   status: undefined as number | undefined,
 });
 
-// 批次 276：接入 useTableApi，消除手写 users/userTotal/userLoading/fetchUsers 重复
+// 列表数据统一走 useTableApi，避免重复维护 users 与 userTotal 与 userLoading 与 fetchUsers
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
 const {
   data: users,
@@ -209,7 +209,7 @@ const {
     ),
 });
 
-// 批次 276：同步筛选条件到 useTableApi.queryParams 并刷新
+// 筛选条件同步进 useTableApi.queryParams 后刷新
 const syncQueryParams = () => {
   setQueryParam('keyword', userQuery.keyword || undefined);
   setQueryParam('status', userQuery.status);
@@ -270,7 +270,7 @@ const fetchRoles = async () => {
 };
 onMounted(fetchRoles);
 
-// v11 批次 166 P2-1 修复：validator 参数类型化（FormItemRule validator 签名）
+// validator 参数按 FormItemRule 的签名类型化
 const validateEmail = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
   v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
     ? cb(new Error(t('system.user.validation.emailFormat')))
@@ -377,7 +377,7 @@ const submitUser = async () => {
     userDialogVisible.value = false;
     fetchUsers();
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
     ElMessage.error(
       (e instanceof Error ? e.message : String(e)) || t('system.user.message.operationFailed')
     );
@@ -397,7 +397,7 @@ const deleteUser = async (row: User) => {
     ElMessage.success(t('settings.user.deleteSuccess'));
     fetchUsers();
   } catch (e: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (e: any) 改为 unknown + 类型守卫
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
     if (!isDialogDismissal(e))
       ElMessage.error(
         (e instanceof Error ? e.message : String(e)) || t('system.user.message.deleteFailed')

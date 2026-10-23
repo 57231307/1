@@ -35,7 +35,7 @@
         </el-table-column>
         <el-table-column :label="t('system.webhook.column.action')" width="200" fixed="right">
           <template #default="{ row }">
-            <!-- P2-17 修复（批次 86 v2 复审）：编辑/删除按钮补齐 v-permission -->
+            <!-- 编辑与删除按钮由 users 域的 update 与 delete 权限键控可见性 -->
             <el-button
               v-permission="'webhook:update'"
               size="small"
