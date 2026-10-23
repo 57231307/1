@@ -183,9 +183,9 @@ test.describe('11 AP/AR 核销闭环 + AP 对账 + 付款申请提交门控', ()
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
     // 会计期间初始化：AP 付款确认生成付款凭证、AR 收款确认都要过 check_date_locked。
-    await apiCall(page, 'POST', '/finance/accounting-periods/init', {}).catch(e =>
-      console.warn('[11] 会计期间初始化失败:', (e as Error).message)
-    );
+    // 前置条件失败判红：init_first_period 幂等（已有 OPEN 期直接返回），
+    // 非 2xx 即真实环境缺陷，不允许 console.warn 后带病继续。
+    await apiCall(page, 'POST', '/finance/accounting-periods/init', {});
   });
 
   test('11-01 AP 手工核销闭环：manual 后回读发票 paid 增 unpaid 减，cancel 后精确回退', async ({
