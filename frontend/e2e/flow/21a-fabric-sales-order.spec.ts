@@ -165,8 +165,14 @@ test.describe('面料单据专用字段全链路验证', () => {
         // 面料信息可能在详情中显示
         const fabricKeywords = ['色号', '缸号', '克重', '幅宽', '等级', '批次'];
         const hasFabricInfo = fabricKeywords.some(kw => detailText?.includes(kw));
-        // 记录是否有面料信息（当前可能缺失）
-        expect(true).toBe(true); // 不强制，记录现状
+        // 详情面板必须真渲染出文本；面料字段是否露出属改进点，显式记录而不是写成恒真或反向锁死。
+        expect(
+          (detailText ?? '').trim().length,
+          '销售订单详情面板应渲染出可见文本'
+        ).toBeGreaterThan(0);
+        console.log(
+          `[21a][UI 现状] 详情面料关键词命中=${hasFabricInfo} 关键词=${fabricKeywords.join('/')}`
+        );
       }
     }
   });
@@ -180,7 +186,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     const colorNo = ctx.colorNos[0];
     const productName = (await apiCallRaw<{ name: string }>(page, 'GET', `/products/${productId}`))
       .name;
-    console.log(
+    console.warn(
       `[21a] 目标明细行：product_id=${productId} name=${productName} color_no=${colorNo}`
     );
 
