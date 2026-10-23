@@ -289,7 +289,7 @@ impl ApInvoiceService {
                 quantity_tolerance_pct: order_item.quantity_tolerance_pct,
                 color_no: item.color_code.clone(),
                 notes: item.notes.clone(),
-            });
+            })?;
             tax_total += amounts.tax_amount;
         }
 
