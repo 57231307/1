@@ -241,8 +241,16 @@ impl ApPaymentService {
             .as_deref()
             .is_none_or(|t| t.is_empty())
         {
-            return Err(AppError::business(
-                "付款单必须填写交易流水号才能确认".to_string(),
+            // 确认门前置校验拒绝归 BUSINESS_ERROR（HTTP 400 不变）；缺失字段是操作者自己
+            // 提交的 transaction_no，点名它属于公开业务规则、不含记录 ID 与他人数据，
+            // 用可外显变体让「必须填写交易流水号」到达用户；付款单 ID 只进日志不外显。
+            tracing::warn!(
+                payment_id = payment.id,
+                payment_status = %payment.payment_status,
+                "付款单缺少交易流水号，拒绝确认"
+            );
+            return Err(AppError::business_displayable(
+                "付款单必须填写交易流水号才能确认",
             ));
         }
 
