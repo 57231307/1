@@ -4956,6 +4956,9 @@ jobs:
       ci-test-rust,
       ci-test-rust-ignored,
       ci-android-apk,
+      # 探针 job 也要登记进本门 needs，否则收尾聚合按 needs 动态遍历时漏掉它，探针红着
+      # 聚合门仍报绿。本分支就是用来验探针结论的车道，漏登记等于自废验证。
+      ci-android-apk-probe,
       # ci-coverage-rust 已从本门摘除：它自陈"信息性收集（不阻塞 CI）"，却在这份 needs
       # 里把 PR 的收尾门压在一条 52.8min 的第二次全量测试执行后面。摘除后覆盖率仍在
       # main push 上产出（数字进 Codecov 与 artifact），只是不再决定 PR 能否合并。
