@@ -24,21 +24,31 @@ crate::define_service!(WarehouseService);
 /// 对齐 fixed_asset_service / quality_standard_service 分支形态）。
 pub const WAREHOUSE_CODE_NO_PREFIX: &str = "WH";
 
+/// 导出分批取数的单批行数，取本服务对外分页的既有上限，
+/// 使导出期间的每条查询与列表页同构
+const EXPORT_BATCH_SIZE: u64 = 100;
+
 impl WarehouseService {
-    /// 获取仓库列表（支持分页和过滤）
-    pub async fn list(
+    /// 构造仓库列表查询：状态、关键字与仓库类型三段筛选的唯一组装点
+    ///
+    /// 功能：产出尚未执行、筛选条件已下推的仓库查询
+    /// 调用方：分页列表与导出取数两个入口
+    /// 入参：列表查询参数，含筛选字段与分页字段
+    /// 传给谁：筛选在本函数内下推到查询，排序与分页由调用方施加
+    /// 存什么：不写库，只读 warehouses 表
+    /// 存哪里：不适用
+    fn build_warehouse_query(
         &self,
-        query: crate::handlers::warehouse_handler::WarehouseListQuery,
-    ) -> Result<crate::utils::response::PaginatedResponse<warehouse::Model>, AppError> {
+        query: &crate::handlers::warehouse_handler::WarehouseListQuery,
+    ) -> sea_orm::Select<WarehouseEntity> {
         let mut q = WarehouseEntity::find();
 
-        // 应用过滤条件
-        if let Some(s) = query.status {
-            q = q.filter(warehouse::Column::IsActive.eq(s == master_data::ACTIVE));
+        if let Some(s) = &query.status {
+            q = q.filter(warehouse::Column::IsActive.eq(s.as_str() == master_data::ACTIVE));
         }
 
-        if let Some(keyword) = query.search {
-            let pattern = safe_like_pattern(&keyword);
+        if let Some(keyword) = &query.search {
+            let pattern = safe_like_pattern(keyword.as_str());
             q = q.filter(
                 warehouse::Column::Name
                     .like(&pattern)
@@ -46,10 +56,20 @@ impl WarehouseService {
             );
         }
 
-        // 列表页「类型」下拉的取值来自该列的真实码，空串按未筛选处理
-        if let Some(warehouse_type) = query.warehouse_type.filter(|s| !s.is_empty()) {
-            q = q.filter(warehouse::Column::WarehouseType.eq(warehouse_type));
+        // 列表页类型下拉的取值来自该列的真实码，空串按未筛选处理
+        if let Some(warehouse_type) = query.warehouse_type.as_ref().filter(|s| !s.is_empty()) {
+            q = q.filter(warehouse::Column::WarehouseType.eq(warehouse_type.as_str()));
         }
+
+        q
+    }
+
+    /// 获取仓库列表（支持分页和过滤）
+    pub async fn list(
+        &self,
+        query: crate::handlers::warehouse_handler::WarehouseListQuery,
+    ) -> Result<crate::utils::response::PaginatedResponse<warehouse::Model>, AppError> {
+        let q = self.build_warehouse_query(&query);
 
         // 获取总数
         let total = q.clone().count(&*self.db).await?;
@@ -69,6 +89,58 @@ impl WarehouseService {
         Ok(crate::utils::response::PaginatedResponse::new(
             warehouses, total, page, page_size,
         ))
+    }
+
+    /// 导出取数：按当前筛选分批取满全部行
+    ///
+    /// 功能：为导出提供全量行，同时让每条查询与列表页同构，不绕过任何筛选条件
+    /// 调用方：仓库列表导出端点
+    /// 入参：列表查询参数的引用，只用其筛选字段，分页字段不参与
+    /// 传给谁：查询构造转交 build_warehouse_query，再按单批上限逐批读取
+    /// 存什么：不写库，只读 warehouses 表
+    /// 存哪里：不适用
+    pub async fn list_warehouses_for_export(
+        &self,
+        query: &crate::handlers::warehouse_handler::WarehouseListQuery,
+    ) -> Result<(Vec<warehouse::Model>, u64), AppError> {
+        // 排序键为仓库编码，该列带唯一约束因而天然全序，批次边界不会漂移，
+        // 与列表页排序保持一致
+        let q = self
+            .build_warehouse_query(query)
+            .order_by(warehouse::Column::WarehouseCode, Order::Asc);
+
+        let total = q.clone().count(&*self.db).await?;
+
+        // 不按总数预分配：总数只是取数瞬间的估计值，按它一次吃满会把分批控峰值的意义抵消
+        let mut rows: Vec<warehouse::Model> = Vec::new();
+        // 批次上界由服务端总数推导并留出自增余量，并发写入造成漂移时在此停止而非无限循环
+        let max_batches = total / EXPORT_BATCH_SIZE + 2;
+        let mut batches = 0u64;
+        for batch_index in 0..max_batches {
+            let batch = q
+                .clone()
+                .offset(batch_index * EXPORT_BATCH_SIZE)
+                .limit(EXPORT_BATCH_SIZE)
+                .into_model::<warehouse::Model>()
+                .all(&*self.db)
+                .await?;
+            let fetched = batch.len() as u64;
+            rows.extend(batch);
+            batches += 1;
+            if fetched < EXPORT_BATCH_SIZE {
+                break;
+            }
+        }
+
+        tracing::info!(
+            "仓库导出取数完成: 单批上限 {}, 批次 {}, 实际行数 {}, 服务端总数 {}",
+            EXPORT_BATCH_SIZE,
+            batches,
+            rows.len(),
+            total
+        );
+
+        Ok((rows, total))
     }
 
     /// 获取仓库详情
