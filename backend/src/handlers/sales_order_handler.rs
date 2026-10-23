@@ -608,14 +608,18 @@ pub async fn get_order_history(
 
 // ========== 数据导出接口 ==========
 
-use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 // 导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::utils::export_concurrency::ExportConcurrencyGuard;
 use std::sync::Arc;
 
-/// 导出销售订单
+/// 导出销售订单。
+///
+/// 取数走导出专用全量腿，不设行数阀。单次导出的自我保护由并发守卫与调用方筛选承担，
+/// 行数上限是人为阈值，把它做成真生效的报错属于未授权的用户可见行为变更。
+/// 交付行数与服务端全量总数不等时如实标记不完整并同时留痕，既不截断也不静默吞差值。
 pub async fn export_orders(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -630,8 +634,7 @@ pub async fn export_orders(
     let audit_status = query.status.clone();
     let audit_order_no = query.order_no.clone();
 
-    // 直接获取结构化数据生成表格
-    let (headers, rows) = sales_service
+    let (headers, rows, server_total) = sales_service
         .export_orders_to_xlsx(crate::services::so::order_query::SalesOrderFilter {
             status: query.status,
             customer_id: query.customer_id,
@@ -643,14 +646,27 @@ pub async fn export_orders(
         .await?;
 
     let row_count = rows.len();
+    let export_complete = SalesService::export_rows_complete(row_count, server_total);
+    let completeness_text = if export_complete {
+        "完整"
+    } else {
+        "不完整"
+    };
 
-    // 销售订单导出条数上限：单次 ≤ 10000 条
-    const MAX_SALES_ORDER_EXPORT_ROWS: usize = 10_000;
-    if row_count > MAX_SALES_ORDER_EXPORT_ROWS {
-        return Err(AppError::bad_request(format!(
-            "销售订单导出条数 {} 超过上限 {}，请缩小筛选范围后重试",
-            row_count, MAX_SALES_ORDER_EXPORT_ROWS
-        )));
+    tracing::info!(
+        username = %auth.username,
+        exported_rows = row_count,
+        server_total,
+        export_complete,
+        "销售订单导出取数完成"
+    );
+    if !export_complete {
+        tracing::warn!(
+            username = %auth.username,
+            exported_rows = row_count,
+            server_total,
+            "销售订单导出交付行数与服务端全量总数不等，文件不是全量（取数期间发生并发写入，或取数腿被重新加上行数上限）"
+        );
     }
 
     let table = XlsxTable {
@@ -674,15 +690,18 @@ pub async fn export_orders(
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
         description: Some(format!(
-            "用户 {} 导出销售订单（共 {} 条）",
-            auth.username, row_count
+            "用户 {} 导出销售订单（交付 {} 条，服务端全量 {} 条，{}）",
+            auth.username, row_count, server_total, completeness_text
         )),
         request_method: Some("GET".to_string()),
+        // 与真实挂载逐字一致，挂载前缀是单数 sales，与 route-snapshot 记录同形
         request_path: Some("/api/v1/erp/sales/orders/export".to_string()),
         before_snapshot: None,
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
-            "total": row_count,
+            "total": server_total,
+            "exported_rows": row_count,
+            "export_complete": export_complete,
             "status_filter": audit_status,
             "customer_id_filter": query.customer_id,
             "order_no_filter": audit_order_no,
@@ -691,7 +710,19 @@ pub async fn export_orders(
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
 
-    build_xlsx_response(&table, &filename)
+    // 水印注入（操作员、导出时间与导出条数），与采购导出同型，也是条款页已公示的导出条数水印
+    // 水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!(
+            "销售订单导出（交付 {} 条，服务端全量 {} 条，{}）",
+            row_count, server_total, completeness_text
+        )),
+    };
+
+    build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
 /// 生成销售订单号 GET /api/v1/erp/sales/orders/generate-no；返回格式: `{ prefix: "SO", order_no: "SO20260617001" }`
