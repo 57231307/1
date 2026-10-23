@@ -2765,24 +2765,36 @@ export async function verifyAuditLog(
   // 2. handler 显式写入（导出/打印等）→ audit_logs 表，查询端点 GET /audit-logs
   //    （system.rs 挂 /api/v1/erp 根下，无 /system 前缀）
   // pathIncludes：可选，按 request_path 子串精确匹配动作端点
+  //
+  // 分页下翻：每个并发请求都会写一条审计行，单页固定条数时本用例刚产生的行
+  // 会被其它 worker 的请求挤出首页而误判未命中。按服务端真实筛选逐页下翻
+  // （每页取服务端上限 100 条，至多三页），命中即通过，翻到不足一页即停止；
+  // 判定口径不变，仍要求库里真实存在同时匹配动作与资源的行。
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 3;
   try {
-    const omniPath = `/finance/audit/search?event_type=${encodeURIComponent(action)}&page=1&page_size=50`;
-    const omni = await apiCallRaw<{
-      items: Array<{ module?: string; resource_type?: string; request_path?: string }>;
-    }>(page, 'GET', omniPath);
-    const omniHit =
-      omni.items?.some(
-        l =>
-          l.module === action &&
-          (!resourceType || l.resource_type === resourceType) &&
-          (!pathIncludes || (l.request_path ?? '').includes(pathIncludes))
-      ) || false;
-    if (omniHit) {
-      console.log(
-        `[verifyAuditLog] omni 管道命中: action=${action} resource_type=${resourceType} ` +
-          `pathIncludes=${pathIncludes ?? '-'}`
-      );
-      return true;
+    for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo++) {
+      const omniPath =
+        `/finance/audit/search?event_type=${encodeURIComponent(action)}` +
+        `&page=${pageNo}&page_size=${PAGE_SIZE}`;
+      const omni = await apiCallRaw<{
+        items: Array<{ module?: string; resource_type?: string; request_path?: string }>;
+      }>(page, 'GET', omniPath);
+      const omniHit =
+        omni.items?.some(
+          l =>
+            l.module === action &&
+            (!resourceType || l.resource_type === resourceType) &&
+            (!pathIncludes || (l.request_path ?? '').includes(pathIncludes))
+        ) || false;
+      if (omniHit) {
+        console.log(
+          `[verifyAuditLog] omni 管道命中: action=${action} resource_type=${resourceType} ` +
+            `pathIncludes=${pathIncludes ?? '-'} page=${pageNo}`
+        );
+        return true;
+      }
+      if ((omni.items?.length ?? 0) < PAGE_SIZE) break;
     }
   } catch (e) {
     // omni 查询失败（如非 admin 角色无权限）不阻塞，继续查 audit-logs 管道
@@ -2790,24 +2802,30 @@ export async function verifyAuditLog(
   }
 
   try {
-    let path = `/audit-logs?page=1&page_size=50`;
-    if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
-    const logs = await apiCallRaw<{
-      items: Array<{ operation_type?: string; action?: string; resource_type?: string }>;
-    }>(page, 'GET', path);
-    const hit =
-      logs.items?.some(
-        l =>
-          (l.operation_type ?? l.action) === action &&
-          (!resourceType || l.resource_type === resourceType)
-      ) || false;
-    if (!hit && resourceType) {
+    let lastCount = 0;
+    for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo++) {
+      let path = `/audit-logs?page=${pageNo}&page_size=${PAGE_SIZE}`;
+      if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
+      const logs = await apiCallRaw<{
+        items: Array<{ operation_type?: string; action?: string; resource_type?: string }>;
+      }>(page, 'GET', path);
+      lastCount = logs.items?.length ?? 0;
+      const hit =
+        logs.items?.some(
+          l =>
+            (l.operation_type ?? l.action) === action &&
+            (!resourceType || l.resource_type === resourceType)
+        ) || false;
+      if (hit) return true;
+      if (lastCount < PAGE_SIZE) break;
+    }
+    if (resourceType) {
       console.warn(
         `[verifyAuditLog] 两管道均未命中: action=${action} resource_type=${resourceType} ` +
-          `audit-logs 返回 ${logs.items?.length ?? 0} 条`
+          `audit-logs 末页返回 ${lastCount} 条`
       );
     }
-    return hit;
+    return false;
   } catch (e) {
     console.error(`[verifyAuditLog] audit-logs 管道查询失败: ${(e as Error).message}`);
     return false;
