@@ -7,12 +7,8 @@
  */
 import { ref, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-import {
-  getBpmVersionList,
-  type ProcessDefinition,
-  type ProcessNode,
-  type ProcessVersion,
-} from '@/api/bpm-enhanced';
+import { getBpmVersionList, type ProcessDefinition, type ProcessVersion } from '@/api/bpm-enhanced';
+import type { ProcessNodeRow } from './useBpmDfProc';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
@@ -51,7 +47,7 @@ export function useBpmDf() {
     process_name: string;
     description: string;
     category: string;
-    nodes: ProcessNode[];
+    nodes: ProcessNodeRow[];
   }>({
     id: undefined,
     process_key: '',

@@ -41,7 +41,17 @@ import { logger } from '@/utils/logger';
  * 线性链会退化成"无匹配出边"——发起期 validate_forward_path 会当场拒绝该定义
  * （第三处 fail-open 已由裁定消灭），因此这里绝不能把空的 edge_condition 落成空串 condition。
  */
-export function buildLinearEdges(nodes: ProcessNode[]): ProcessEdge[] {
+/**
+ * 表单编辑态的节点行：在引擎真实消费的节点键之外多带一个 edge_condition，
+ * 承载该节点出边的条件表达式。提交时由 buildLinearEdges 写进 config.edges[].condition
+ * （引擎只在 edge.condition 上求值），并由 toPersistedNodes 从节点上剥离，
+ * 因此它不是后端承载的节点键，只存在于视图层，不进 api 层的传输类型。
+ */
+export interface ProcessNodeRow extends ProcessNode {
+  edge_condition?: string;
+}
+
+export function buildLinearEdges(nodes: ProcessNodeRow[]): ProcessEdge[] {
   return nodes.slice(0, -1).map((node, index) => {
     const condition = node.edge_condition?.trim();
     const edge: ProcessEdge = { source: node.id, target: nodes[index + 1].id };
@@ -111,7 +121,7 @@ export function validateLinearChain(nodes: ProcessNode[]): string | null {
  * 引擎从不读取节点级条件（条件权威位置是 config.edges[].condition，由 buildLinearEdges 落），
  * 留在 config.nodes 里即是可被误当生效项的虚假能力，故按后端实际消费的键集裁剪。
  */
-export function toPersistedNodes(nodes: ProcessNode[]): ProcessNode[] {
+export function toPersistedNodes(nodes: ProcessNodeRow[]): ProcessNode[] {
   return nodes.map(node => {
     const { edge_condition: _edgeCondition, ...rest } = node;
     return rest;
@@ -123,7 +133,10 @@ export function toPersistedNodes(nodes: ProcessNode[]): ProcessNode[] {
  * 表单按节点行编辑条件、提交时再写回边，因此回填必须以边为真相源还原到对应 source 节点，
  * 否则编辑存量带条件的定义会静默丢掉条件（第二件事 #82 的判据即 edge.condition）。
  */
-export function attachEdgeConditions(nodes: ProcessNode[], edges?: ProcessEdge[]): ProcessNode[] {
+export function attachEdgeConditions(
+  nodes: ProcessNode[],
+  edges?: ProcessEdge[]
+): ProcessNodeRow[] {
   if (!edges || edges.length === 0) {
     return nodes.map(node => ({ ...node }));
   }

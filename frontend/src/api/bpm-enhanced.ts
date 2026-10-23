@@ -52,9 +52,6 @@ export type BpmAssigneeType = 'user' | 'dept_superior';
  * bpm_ops/mod.rs 的 resolve_node_assignee 读 node 的 id / name）、
  * assignee_type / assignee_value（resolve_node_assignee）与 sensitive
  * （resolve_node_assignee 判定是否取再上一级，缺省即非敏感，存量定义无需迁移）。
- * edge_condition 为表单编辑态字段，承载该节点出边的条件表达式；提交时由
- * buildLinearEdges 写入 edges[].condition（引擎只在 edge.condition 上求值），
- * 不随节点持久化（handleSubmit 提交前剥离该键），因此不是引擎读取的节点键。
  * 节点级 condition / next_nodes 引擎从不读取，仍不声明。
  */
 export interface ProcessNode {
@@ -64,7 +61,6 @@ export interface ProcessNode {
   assignee_type?: BpmAssigneeType;
   assignee_value?: number;
   sensitive?: boolean;
-  edge_condition?: string;
 }
 
 /**

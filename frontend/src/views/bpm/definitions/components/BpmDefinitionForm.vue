@@ -233,7 +233,7 @@ import { ref, watch, nextTick } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
-import type { ProcessNode } from '@/api/bpm-enhanced';
+import type { ProcessNodeRow } from '../composables/useBpmDfProc';
 import type { User } from '@/api/user';
 import { fetchUserCandidates } from '../composables/useAssigneeSearch';
 import { logAuxLoadFailure } from '@/utils/logger';
@@ -247,7 +247,7 @@ interface BpmDefinitionFormData {
   process_name: string;
   description: string;
   category: string;
-  nodes: ProcessNode[];
+  nodes: ProcessNodeRow[];
 }
 
 /**
@@ -292,7 +292,7 @@ const advancedOpen = ref(false);
  * 依据是引擎的缺省语义（resolve_node_assignee 对缺省值按 user 解析），
  * 不是新造缺省——归一后界面显示与引擎行为逐条一致，存量定义语义不变。
  */
-const normalizeRows = (nodes: ProcessNode[]): ProcessNode[] =>
+const normalizeRows = (nodes: ProcessNodeRow[]): ProcessNodeRow[] =>
   nodes.map(node =>
     node.type === 'user_task' && node.assignee_type === undefined
       ? { ...node, assignee_type: 'user' as const }
@@ -354,7 +354,7 @@ const rowLoading = ref<Record<string, boolean>>({});
  * 失败清空该行列表并显式报错——不兜底成"空列表也能提交"，
  * 缺审批人的 user_task 会被提交边界的 validateLinearChain 拦下。
  */
-const searchAssignees = async (node: ProcessNode, keyword: string): Promise<void> => {
+const searchAssignees = async (node: ProcessNodeRow, keyword: string): Promise<void> => {
   rowLoading.value[node.id] = true;
   try {
     rowCandidates.value[node.id] = await fetchUserCandidates(keyword);
@@ -378,7 +378,7 @@ const handleAddNode = () => {
  * 只对建了工单的 user_task 节点解析 assignee_type / sensitive），清掉残留值，
  * 避免用户误以为填了会生效；改回 user_task 时按裁定默认"申请人部门上一级负责人"。
  */
-const handleNodeTypeChange = (row: ProcessNode) => {
+const handleNodeTypeChange = (row: ProcessNodeRow) => {
   if (row.type !== 'user_task') {
     row.assignee_value = undefined;
     row.assignee_type = undefined;
@@ -394,7 +394,7 @@ const handleNodeTypeChange = (row: ProcessNode) => {
  * 审批人类型切换：dept_superior 运行期取人，assignee_value 不生效，切换时清空残留；
  * 切回 user 时必须重新选定具体用户（提交边界 validateLinearChain 钉住数字 ID 必填）。
  */
-const handleAssigneeTypeChange = (row: ProcessNode) => {
+const handleAssigneeTypeChange = (row: ProcessNodeRow) => {
   if (row.assignee_type !== 'user') {
     row.assignee_value = undefined;
   }
