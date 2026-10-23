@@ -458,11 +458,14 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   );
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
+  // 口径钉死为启用态：销售提交门要求客户 status=active，而 list_customers 默认不过滤
+  // 软删除/inactive 行（仅显式传入 status 才过滤），首条可能是其他用例停用或软删除的残留；
+  // 新建客户后端默认虽为 active（customer_ops 写入方口径），此处仍显式传 status 防口径漂移。
   try {
     const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
-      '/crm/customers?page=1&page_size=1'
+      '/crm/customers?page=1&page_size=1&status=active'
     );
     ctx.customerId = customers.items?.[0]?.id;
   } catch (e) {
@@ -472,6 +475,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
         customer_name: 'E2E 客户 ' + Date.now(),
+        status: 'active',
       });
       ctx.customerId = result.data?.id;
     } catch (e) {
