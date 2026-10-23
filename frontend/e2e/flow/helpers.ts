@@ -3645,7 +3645,9 @@ export function pickDifferentUserCredential(): { username: string; password: str
       string,
       RoleCredential
     >;
-    const candidate = Object.values(data).find(c => c && c.username && c.username !== workerUsername);
+    const candidate = Object.values(data).find(
+      c => c && c.username && c.username !== workerUsername
+    );
     if (!candidate) {
       throw new Error(
         `role-credentials.json 中找不到与本 worker 会话账号 ${workerUsername} 不同的第二个账号，无法构造水平越权前提`
