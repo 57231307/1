@@ -67,7 +67,7 @@ fn fn_body(src: &str, name: &str) -> String {
 }
 
 /// 切片内命中的禁词清单（逐字子串匹配，不做大小写归一与模糊比对）
-fn banned_hits(body: &str, banned: &[&str]) -> Vec<&'static str> {
+fn banned_hits<'a>(body: &str, banned: &'a [&'a str]) -> Vec<&'a str> {
     banned
         .iter()
         .copied()

@@ -69,7 +69,7 @@ fn now() -> DateTime<Utc> {
 
 /// 取全函数定义段：从全量取数函数签名到完整性判据函数签名之间。
 /// 锚点缺失直接判红，因为那意味着导出专用腿整体不在位。
-fn full_fetch_segment(source: &str, file_name: &str) -> &str {
+fn full_fetch_segment<'a>(source: &'a str, file_name: &str) -> &'a str {
     let start = source
         .find("pub async fn list_all_orders_for_export")
         .unwrap_or_else(|| panic!("导出专用全量取数函数缺失，取数腿退回分页形态：{file_name}"));
@@ -151,12 +151,9 @@ fn order_export_leg_never_enters_paging_entry() {
     let so_complete = &so_query[so_query
         .find("pub fn export_rows_complete")
         .unwrap_or_else(|| panic!("销售完整性判据缺失"))..];
-    let so_complete_body = &so_complete[..so_complete.find('{).expect("判据体起点").unwrap_or(0)
-        + so_complete.find('{).expect("判据体起点")
-        + so_complete[so_complete.find('{).expect("判据体起点")..]
-            .find('}')
-            .expect("判据体终点")
-        + 1];
+    let body_open = so_complete.find('{').expect("判据体起点");
+    let body_close = so_complete[body_open..].find('}').expect("判据体终点");
+    let so_complete_body = &so_complete[body_open..body_open + body_close + 1];
     assert!(
         so_complete_body.contains("returned_rows as u64 == server_total"),
         "完整性判据必须是行集与全量总数的全等式：{so_complete_body}"

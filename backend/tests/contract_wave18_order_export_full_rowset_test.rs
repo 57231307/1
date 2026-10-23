@@ -36,7 +36,7 @@ use bingxi_backend::services::so::order::SalesService;
 use bingxi_backend::services::so::order_query::SalesOrderFilter;
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveValue::Set, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -103,7 +103,7 @@ const SO_ID_BASE: i32 = 9_300_000; // sales_orders 播种基址
 async fn supplier_at(db: &sea_orm::DatabaseConnection, offset: i32) -> i32 {
     use sea_orm::{ConnectionTrait, Statement};
     let row = db
-        .query_one(Statement::from_string(
+        .query_one_raw(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
             format!("SELECT id FROM suppliers ORDER BY id LIMIT 1 OFFSET {offset}"),
         ))
@@ -259,7 +259,7 @@ fn assert_headers_byte_equal(headers: &[String], expected: &[&str; 21]) {
 }
 
 /// 按列名取单元格；列名不在表头即判红
-fn cell(headers: &[&str; 21], row: &[String], name: &str) -> String {
+fn cell(headers: &[&str], row: &[String], name: &str) -> String {
     let idx = headers
         .iter()
         .position(|h| *h == name)
@@ -408,8 +408,9 @@ async fn purchase_export_beyond_ten_thousand_keeps_every_row() {
         "交付行数必须等于服务端总数（旧封顶形态在此判红）"
     );
     let last = format!("EXPLOCK-PO-{}", PO_ID_BASE + 10_000);
+    let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
     assert!(
-        rows.iter().any(|r| cell(&headers, r, "订单编号") == last),
+        rows.iter().any(|r| cell(&header_refs, r, "订单编号") == last),
         "末位订单号必须出现在导出里"
     );
 }
@@ -434,8 +435,9 @@ async fn sales_export_beyond_ten_thousand_keeps_every_row() {
     assert_eq!(server_total, 10_001);
     assert_eq!(rows.len(), 10_001, "交付行数必须等于服务端总数");
     let last = format!("EXPLOCK-SO-{}", SO_ID_BASE + 10_000);
+    let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
     assert!(
-        rows.iter().any(|r| cell(&headers, r, "订单编号") == last),
+        rows.iter().any(|r| cell(&header_refs, r, "订单编号") == last),
         "末位订单号必须出现在导出里"
     );
 }
