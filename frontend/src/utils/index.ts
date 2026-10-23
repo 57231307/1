@@ -28,6 +28,18 @@ export function formatDate(date: Date): string {
 }
 
 /**
+ * 取本地日期的 YYYY-MM-DD 出线形态，供 el-date-picker 的 value-format 与后端日粒度字段使用
+ * @param date 日期对象，缺省取当前时刻
+ * @returns 形如 2026-10-21 的本地日期字符串，不含时区与时间部分
+ */
+export function toLocalDateString(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * 创建防抖函数：在延迟时间内多次调用仅执行最后一次
  * @param fn 需要防抖的函数
  * @param delay 延迟毫秒数

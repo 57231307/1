@@ -2073,6 +2073,8 @@ async function ensureGlobalBusinessSeed(
               material_id: productId,
               quantity_ordered: '20',
               unit_price: '15.00',
+              // 13 是人工录入样本税率（13%），不是系统默认档位。后端不设默认税率，建单必须显式提交
+              tax_rate: 13,
             },
           ],
         });
@@ -2426,6 +2428,7 @@ async function ensureGlobalBusinessSeed(
                 material_id: productId,
                 quantity_ordered: '10000',
                 unit_price: '15.00',
+                tax_rate: 13,
               },
             ],
           });
@@ -2584,6 +2587,7 @@ async function ensureGlobalBusinessSeed(
                   material_id: productId,
                   quantity_ordered: quantity,
                   unit_price: '15.00',
+                  tax_rate: 13,
                 },
               ],
             });

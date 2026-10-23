@@ -99,13 +99,14 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item :label="t('purchase.createDlg.detail')">
+      <el-form-item :label="t('purchase.createDlg.detail')" prop="items">
         <div class="items-table">
           <div class="items-header">
             <span class="col-product">{{ t('purchase.createDlg.colProduct') }}</span>
             <span class="col-color">{{ t('purchase.createDlg.colColor') }}</span>
             <span class="col-qty">{{ t('purchase.createDlg.colQuantity') }}</span>
             <span class="col-price">{{ t('purchase.createDlg.colUnitPrice') }}</span>
+            <span class="col-tax">{{ t('purchase.createDlg.colTaxRate') }}</span>
             <span class="col-supplier-info">{{ t('purchase.createDlg.colSupplierInfo') }}</span>
             <span class="col-amount">{{ t('purchase.createDlg.colAmount') }}</span>
             <span class="col-action">{{ t('purchase.createDlg.colOperation') }}</span>
@@ -142,6 +143,14 @@
               :precision="2"
               class="col-price"
               @change="onCalculateSubtotal(item)"
+            />
+            <el-input-number
+              v-model="item.tax_rate"
+              :min="0"
+              :max="999.9999"
+              :precision="4"
+              :placeholder="t('purchase.createDlg.taxRatePlaceholder')"
+              class="col-tax"
             />
             <div class="col-supplier-info">
               <template v-if="item.resolved">
@@ -293,6 +302,7 @@ watch(
 <style scoped>
 .items-table {
   width: 100%;
+  overflow-x: auto;
 }
 
 .items-header {
@@ -313,8 +323,18 @@ watch(
 }
 
 .col-product {
-  flex: 1;
-  min-width: 150px;
+  flex: 1 0 150px;
+}
+
+/* 定宽列一律不参与收缩，对话框宽度不足时改由 items-table 横向滚动承接。
+   允许收缩会把 el-input-number 的输入框压到零宽，数量与税率在界面上填不进去 */
+.col-color,
+.col-qty,
+.col-price,
+.col-tax,
+.col-supplier-info,
+.col-amount {
+  flex: none;
 }
 
 .col-color {
@@ -323,6 +343,7 @@ watch(
 
 .col-qty,
 .col-price,
+.col-tax,
 .col-amount {
   width: 100px;
 }

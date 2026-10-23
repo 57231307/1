@@ -114,6 +114,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::finance_resource_rename::Migration),
             Box::new(domain::bpm_approver_grant::Migration),
             Box::new(domain::system_admin_bpm_config_grant::Migration),
+            Box::new(domain::ap_input_tax_subject::Migration),
         ]
     }
 }

@@ -97,12 +97,20 @@ export function deleteFundAccount(id: number): Promise<ApiResponse<void>> {
   return request.delete(`/fund-management/accounts/${id}`);
 }
 
-export function transferFund(data: {
+// 资金调拨请求：字段集严格对齐后端 TransferFundRequest（models/dto/fund_dto.rs），
+// wire 为 snake_case。大额门控：amount 超过后端 large_transfer_threshold 时
+// confirm_large 必须为 true 才放行，确认交互由视图发起（阈值取 constants/large-transfer.ts
+// 单一来源），备注落后端 reason 键（此前发 remark 键被静默丢弃）。
+export interface FundTransferPayload {
   from_account_id: number;
   to_account_id: number;
   amount: number;
-  remark?: string;
-}): Promise<ApiResponse<void>> {
+  fee?: number;
+  reason?: string;
+  confirm_large?: boolean;
+}
+
+export function transferFund(data: FundTransferPayload): Promise<ApiResponse<void>> {
   return request.post('/fund-management/transfer', data);
 }
 

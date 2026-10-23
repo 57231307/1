@@ -249,16 +249,19 @@ fn build_new_piece(
         package_no: sea_orm::ActiveValue::NotSet,
         production_date: sea_orm::ActiveValue::NotSet,
         shelf_life: sea_orm::ActiveValue::NotSet,
-        quality_status: sea_orm::ActiveValue::NotSet,
+        // 验布判定结论与回指同理由子卷继承：横向剪裁不改变这段布被验过的事实，
+        // 母卷已判定则子卷同一判定，否则同一匹布会出现母卷"合格"、子卷"待检"两个结论。
+        // 母卷未验（NULL）时子卷同为 NULL，不写死"待检"也不回落默认值。
+        quality_status: Set(parent.quality_status.clone()),
         inventory_status: sea_orm::ActiveValue::NotSet,
         created_by: sea_orm::ActiveValue::NotSet,
         updated_by: sea_orm::ActiveValue::NotSet,
-        // 缺陷 3.1 修复：拆匹后子匹必须继承母卷的 color_no/dye_lot_no 字符串字段
+        // 拆匹后子匹必须继承母卷的 color_no/dye_lot_no 字符串字段
         // 禁止 NotSet 导致子卷 dye_lot_no 为 NULL，破坏缸号字符串维度追溯
         color_no: Set(parent.color_no.clone()),
         dye_lot_no: Set(parent.dye_lot_no.clone()),
-        // v14 批次 426：新增的 nullable 字段，拆分产生的新布卷不设置验布关联字段
-        inspection_id: sea_orm::ActiveValue::NotSet,
+        // 验布单回指同属物理同源：子卷仍由母卷那次验布覆盖，不重新分配验布记录
+        inspection_id: Set(parent.inspection_id),
         piece_seq: sea_orm::ActiveValue::NotSet,
         // V15 P2 缺陷 3.2：子卷继承母卷的原始长度/重量
         original_length: Set(Some(original_length)),

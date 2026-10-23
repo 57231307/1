@@ -59,10 +59,10 @@
         <el-form-item label="类型" required>
           <el-select v-model="form.contract_type" class="w-full">
             <el-option
-              v-for="t in ['fixed_term', 'open_term', 'probation', 'intern']"
-              :key="t"
-              :label="t"
-              :value="t"
+              v-for="opt in CONTRACT_TYPES"
+              :key="opt.value"
+              :label="t(opt.labelKey)"
+              :value="opt.value"
             />
           </el-select>
         </el-form-item>
@@ -94,6 +94,30 @@
           ><el-input-number v-model="form.regular_salary" :min="0" :precision="2" class="w-full"
         /></el-form-item>
         <el-form-item label="岗位"><el-input v-model="form.position" /></el-form-item>
+        <el-form-item :label="t('laborContract.form.workingHoursSystem')" required>
+          <el-select
+            v-model="form.working_hours_system"
+            class="w-full"
+            :placeholder="t('laborContract.form.workingHoursPlaceholder')"
+          >
+            <el-option
+              v-for="opt in WORKING_HOURS_SYSTEMS"
+              :key="opt.value"
+              :label="t(opt.labelKey)"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('laborContract.form.signDate')" required>
+          <el-date-picker
+            v-model="form.sign_date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            class="w-full"
+            :disabled="!!editingId"
+            :placeholder="t('laborContract.form.signDatePlaceholder')"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -105,6 +129,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logAuxLoadFailure } from '@/utils/logger';
@@ -116,6 +141,21 @@ import {
   updateLaborContract,
   type LaborContract,
 } from '@/api/labor-contract';
+
+const { t } = useI18n({ useScope: 'global' });
+
+// 词表事实来源为后端 labor_contract_service 的 validate_contract_type 与
+// validate_working_hours_system，取值逐字符一致，前端不得自造或扩充。
+const CONTRACT_TYPES = [
+  { value: 'fixed_term', labelKey: 'laborContract.contractType.fixedTerm' },
+  { value: 'permanent', labelKey: 'laborContract.contractType.permanent' },
+  { value: 'task_based', labelKey: 'laborContract.contractType.taskBased' },
+] as const;
+const WORKING_HOURS_SYSTEMS = [
+  { value: 'standard', labelKey: 'laborContract.workingHours.standard' },
+  { value: 'comprehensive', labelKey: 'laborContract.workingHours.comprehensive' },
+  { value: 'flexible', labelKey: 'laborContract.workingHours.flexible' },
+] as const;
 
 const contracts = ref<LaborContract[]>([]);
 const warnings = ref('');
@@ -140,6 +180,8 @@ const form = reactive({
   probation_salary: 0,
   regular_salary: 0,
   position: '',
+  working_hours_system: '',
+  sign_date: '',
 });
 
 const unwrapList = <T,>(p: unknown): T[] => (p as { data: { list: T[] } }).data.list;
@@ -165,28 +207,46 @@ async function onScanWarnings() {
 }
 
 async function onSave() {
-  if (!form.worker_id || !form.contract_no || !form.start_date) {
-    ElMessage.warning('请填写员工/合同号/起始日期');
+  if (
+    !form.worker_id ||
+    !form.contract_no ||
+    !form.start_date ||
+    !form.sign_date ||
+    !form.working_hours_system
+  ) {
+    ElMessage.warning(t('laborContract.message.validateRequired'));
     return;
   }
   saving.value = true;
   try {
-    const payload = {
-      worker_id: form.worker_id,
-      contract_no: form.contract_no,
-      contract_type: form.contract_type,
-      start_date: form.start_date,
-      end_date: form.end_date || undefined,
-      probation_end_date: form.probation_end_date || undefined,
-      probation_salary: form.probation_salary,
-      regular_salary: form.regular_salary,
-      position: form.position || undefined,
-    };
     if (editingId.value) {
-      await updateLaborContract(editingId.value, payload);
+      // 更新走 UpdateLaborContractPayload：worker_id/contract_no/sign_date 属身份列，
+      // 后端更新端点不接收，编辑提交不得回喂
+      await updateLaborContract(editingId.value, {
+        contract_type: form.contract_type,
+        start_date: form.start_date,
+        end_date: form.end_date || undefined,
+        probation_end_date: form.probation_end_date || undefined,
+        probation_salary: form.probation_salary,
+        regular_salary: form.regular_salary,
+        position: form.position || undefined,
+        working_hours_system: form.working_hours_system,
+      });
       ElMessage.success('已更新');
     } else {
-      await createLaborContract(payload);
+      await createLaborContract({
+        worker_id: form.worker_id,
+        contract_no: form.contract_no,
+        contract_type: form.contract_type,
+        start_date: form.start_date,
+        end_date: form.end_date || undefined,
+        probation_end_date: form.probation_end_date || undefined,
+        probation_salary: form.probation_salary,
+        regular_salary: form.regular_salary,
+        position: form.position || undefined,
+        working_hours_system: form.working_hours_system,
+        sign_date: form.sign_date,
+      });
       ElMessage.success('合同已创建');
     }
     dialogVisible.value = false;
@@ -209,6 +269,8 @@ function onEdit(row: LaborContract) {
     probation_salary: Number(row.probation_salary ?? 0),
     regular_salary: Number(row.regular_salary ?? 0),
     position: (row.position as string) ?? '',
+    working_hours_system: (row.working_hours_system as string) ?? '',
+    sign_date: (row.sign_date as string) ?? '',
   });
   dialogVisible.value = true;
 }

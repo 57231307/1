@@ -404,6 +404,8 @@ async fn split_rejects_zero_cut_weight_and_whole_roll_split() {
         weight: Set(Some(dec("50.00"))),
         width: Set(Some(dec("185.00"))),
         gram_weight: Set(Some(dec("200.00"))),
+        // 母卷带验布判定结论：子卷必须同源继承，否则同一匹布母卷"合格"、子卷空值两结论并存
+        quality_status: Set(Some("合格".to_string())),
         barcode: Set(Some("W8-PARENT".to_string())),
         created_at: Set(now()),
         updated_at: Set(now()),
@@ -514,5 +516,10 @@ async fn split_rejects_zero_cut_weight_and_whole_roll_split() {
         .expect("子卷应落库");
     assert_eq!(child.weight, Some(dec("5.00")));
     assert_eq!(child.width, Some(dec("185.00")), "子卷幅宽继承母卷实测值");
+    assert_eq!(
+        child.quality_status.as_deref(),
+        Some("合格"),
+        "子卷必须继承母卷验布判定，留空会让同一匹布出现母卷合格、子卷未判两个结论"
+    );
     assert!(child.weight.unwrap() > Decimal::ZERO);
 }

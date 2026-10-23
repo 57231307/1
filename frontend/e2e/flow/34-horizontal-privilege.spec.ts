@@ -153,6 +153,7 @@ test.describe('P5.4 水平越权（以 B 账号真实改/删 A 账号资源）',
           material_id: ctx.productIds[0],
           quantity_ordered: '1',
           unit_price: '1',
+          tax_rate: 13,
         },
       ],
     });

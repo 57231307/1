@@ -310,7 +310,14 @@ test.describe('库存调拨完整流程', () => {
       warehouse_id: warehouseId,
       department_id: departmentId,
       order_date: new Date().toISOString().slice(0, 10),
-      items: [{ material_id: productId, quantity_ordered: String(inboundQty), unit_price: '1' }],
+      items: [
+        {
+          material_id: productId,
+          quantity_ordered: String(inboundQty),
+          unit_price: '1',
+          tax_rate: 13,
+        },
+      ],
     });
     const poId = po.data?.id;
     expect(poId, `采购单创建应返回 id，实际：${JSON.stringify(po).slice(0, 200)}`).toBeTruthy();

@@ -11,8 +11,9 @@
 //      结构漂移（改写法、删分支、改了目录名格式）→ 报错，绝不按"解析不出=没这问题"处理。
 //   B. hash 分片完整性：同一目录分组内，矩阵分配到的 --shard 序号必须恰好是 1..TOTAL
 //      无缺口（缺 1/2 意味着该组一半用例被 Playwright 哈希分到无人执行的片上 → 静默丢）。
-//      矩阵 shard 编号集合与 case 登记集合必须双向相等（登记了但矩阵没有 = 不执行；
-//      矩阵有但没登记 = workflow 自身的 ::error 守卫，这里同样判红）。
+//      分片登记集合（e2e-shard-registry.mjs 的 E2E_SHARD_MATRIX）与 workflow 分片编排
+//      的 case 登记集合必须双向相等（登记了但编排没跑 = 不执行；编排登记了但矩阵
+//      没有 = workflow 自身的 ::error 守卫，这里同样判红）。
 //   C. 全集并集校验：对每个分组用真实 `playwright test --list`（只收集、不执行任何用例）
 //      取"该片会跑什么"，各组并集与 chromium 项目全集做差集；missing 非空即丢覆盖，
 //      extra（分组里写了不存在的目标/空匹配）同样判红。
@@ -21,13 +22,16 @@
 //   node scripts/check-e2e-shard-coverage.mjs [--workflow <path>] [--min-shard-list <n>]
 // 退出码：0=全覆盖通过；1=任一层校验失败。
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(SCRIPT_DIR, '..', '..');
-const FRONTEND_DIR = path.join(REPO_ROOT, 'frontend');
+import {
+  DEFAULT_WORKFLOW_PATH,
+  E2E_SHARD_MATRIX,
+  FRONTEND_DIR,
+  groupAssignments,
+  locateCiE2eBlock,
+  parseShardAssignments,
+  readWorkflowText,
+} from './e2e-shard-registry.mjs';
 
 function arg(name, dflt) {
   const i = process.argv.indexOf(`--${name}`);
@@ -35,9 +39,7 @@ function arg(name, dflt) {
     return process.argv[i + 1];
   return dflt;
 }
-const WORKFLOW_PATH = path.resolve(
-  arg('workflow', path.join(REPO_ROOT, '.github', 'workflows', 'ci-cd.yml'))
-);
+const WORKFLOW_PATH = path.resolve(arg('workflow', DEFAULT_WORKFLOW_PATH));
 
 const errors = [];
 function fail(msg) {
@@ -51,159 +53,33 @@ function annotate(msg) {
 }
 
 // ---------------------------------------------------------------- 1. 解析 workflow
-// 行尾归一：本地工作区（autocrlf）是 CRLF、CI 检出是 LF，解析锚点（"run: |\n" 等）
-// 对 \r 敏感。先统一成 LF，本地复演与 CI 执行看到同一份文本，避免本地恒报
-// "提不到 step 体"的假红把真实漂移（如 step 结构改写）淹没在噪声里。
-const wf = readFileSync(WORKFLOW_PATH, 'utf8').replace(/\r\n/g, '\n');
-
-// ci-e2e job 文本块：从 "  ci-e2e:" 到下一个顶层 job key（两空格缩进的 "  <id>:"）
-const ciE2eStart = wf.indexOf('\n  ci-e2e:');
-if (ciE2eStart === -1) {
+// 行尾归一与 job 块定位、分片编排解析全部走 e2e-shard-registry.mjs：本脚本与
+// check-e2e-main-push-shards.mjs（main push 选片锁 + 矩阵发射）共用同一份解析器，
+// 避免"两份副本对同一份 workflow 得出不同结论"（本仓库已发生过内嵌脚本副本过期）。
+const wf = readWorkflowText(WORKFLOW_PATH);
+const ciE2eBlock = locateCiE2eBlock(wf);
+if (!ciE2eBlock) {
   annotate('无法在 workflow 中定位 ci-e2e job（解析锚点 "  ci-e2e:" 失配）');
   process.exit(1);
 }
-const rest = wf.slice(ciE2eStart + 1);
-const nextJob = rest.slice(1).match(/^  [a-zA-Z0-9_-]+:/m);
-const ciE2eBlock = nextJob ? rest.slice(0, rest.indexOf(nextJob[0], 1)) : rest;
 
-// 矩阵 shard 编号（strategy.matrix.include 下的 "- shard: N" 行）
-const matrixShards = [...ciE2eBlock.matchAll(/^\s+- shard: (\d+)$/gm)].map(m => Number(m[1]));
+// 矩阵分片集合的当前事实来源：e2e-shard-registry.mjs 的 E2E_SHARD_MATRIX。
+// ci-e2e 的 strategy.matrix.include 已改为按事件 fromJSON 发射（见 ci-cd.yml），
+// 静态 include 块不再是可比对的对象；登记集合与 workflow 分片编排的双向相等
+// 校验语义原样保留（改一边忘了改另一边仍然在这里判红）。
+const matrixShards = E2E_SHARD_MATRIX.map(m => m.shard);
 if (matrixShards.length === 0) {
-  annotate('ci-e2e 矩阵未解析出任何 shard（解析锚点 "- shard: N" 失配）');
+  annotate('E2E_SHARD_MATRIX 为空：矩阵没有任何事实来源，自检失去对象');
   process.exit(1);
 }
 
-// 跑测 step 的 bash 体定位：不依赖 step 显示名（显示名带矩阵后缀、随编排改写漂移，
-// 按固定名匹配会随矩阵演进静默失配），改按 run 内容特征在 ci-e2e 块内逐个 step
-// 段落里找"矩阵分片调度"体（含 SHARD=${{ matrix.shard }} 赋值行的 run: | 块）。
-// fail-closed：命中数必须恰好为 1。0 = 分片编排中找不到执行事实（结构漂移/锚点被删），
-// >1 = 分片调度出现两处事实来源、无法保证校验的就是真实执行的那份；两种情况都判红，
-// 绝不"取第一个匹配"或"提不到就跳过校验"。
-const FEATURE = 'SHARD=${{ matrix.shard }}';
-const stepStarts = [...ciE2eBlock.matchAll(/^ {6}- name: ([^\n]*)$/gm)];
-const shardRunBodies = [];
-for (let i = 0; i < stepStarts.length; i++) {
-  const seg = ciE2eBlock.slice(
-    stepStarts[i].index,
-    i + 1 < stepStarts.length ? stepStarts[i + 1].index : ciE2eBlock.length
-  );
-  const runM = seg.match(/^ {8}run: \|\n/m);
-  if (!runM) continue;
-  let body = seg.slice(runM.index + runM[0].length);
-  // block scalar 内容缩进深于 step 键（8 空格）；首个 ≤8 空格缩进的非空行即键区结束
-  const dedent = body.match(/^ {0,8}\S/m);
-  if (dedent) body = body.slice(0, dedent.index);
-  if (body.includes(FEATURE)) {
-    if (body.trim().length === 0) {
-      annotate('step「' + stepStarts[i][1] + '」的 run 体命中分片特征但内容为空，判为解析异常');
-      process.exit(1);
-    }
-    shardRunBodies.push({ name: stepStarts[i][1], body });
-  }
-}
-if (shardRunBodies.length !== 1) {
-  if (shardRunBodies.length === 0)
-    annotate(
-      '在 ci-e2e 块内按内容特征（' + FEATURE + '）未定位到任何跑测 step 的 bash 体：分片编排解析锚点漂移，拒绝把"看不见"当作无覆盖问题'
-    );
-  else
-    annotate(
-      `ci-e2e 块内分片调度特征命中 ${shardRunBodies.length} 个 run 体（${shardRunBodies
-        .map(b => b.name)
-        .join(' / ')}）：分片编排出现多处事实来源，必须先收敛为一处再自检，拒绝择一核算`
-    );
+const parsed = parseShardAssignments(ciE2eBlock);
+if (parsed.fatal) {
+  annotate('分片编排解析失败：' + parsed.fatalReason);
   process.exit(1);
 }
-const bash = shardRunBodies[0].body.replace(/\n+$/, '');
-
-// 三类目录分支：if/elif 的 "$SHARD" -le 阈值按出现顺序 = flow / smoke / traversal
-const conds = [...bash.matchAll(/\[ "\$SHARD" -le (\d+) \]; then/g)].map(m => ({
-  threshold: Number(m[1]),
-  at: m.index,
-}));
-if (conds.length !== 3) {
-  annotate(
-    `分片分支结构漂移：期望 3 个 "[ "$SHARD" -le N ]" 条件（flow/smoke/traversal），实得 ${conds.length} 个`
-  );
-}
-const branchBodies = [];
-for (let i = 0; i < conds.length; i++) {
-  const end = i + 1 < conds.length ? conds[i + 1].at : bash.indexOf('else', conds[i].at);
-  branchBodies.push(bash.slice(conds[i].at, end));
-}
-
-// 分支内派生量：SPEC_TARGETS=<dir>/、SHARD_TOTAL=N、SHARD_NO=$((SHARD ± K))
-function parseDerivedBranch(body, kind) {
-  const t = body.match(/^\s*SPEC_TARGETS=(e2e\/\S+?)\s*$/m);
-  const total = body.match(/^\s*SHARD_TOTAL=(\d+)\s*$/m);
-  const no = body.match(/^\s*SHARD_NO=\$\(\(SHARD (\+|-) (\d+)\)\)\s*$/m);
-  if (!t || !total || !no) {
-    fail(`A. ${kind} 分支解析失败（SPEC_TARGETS/SHARD_TOTAL/SHARD_NO 锚点失配），拒绝猜测分片语义`);
-    return null;
-  }
-  // 捕获组：no[1]=±、no[2]=偏移量
-  return {
-    targets: [t[1]],
-    total: Number(total[1]),
-    noFor: s => s + (no[1] === '+' ? 1 : -1) * Number(no[2]),
-  };
-}
-
-let assignments = []; // { shard, targets: string[], total, no }
-if (conds.length === 3) {
-  const flow = parseDerivedBranch(branchBodies[0], 'flow');
-  // smoke 分支不套 run_shard，是内联命令：--shard=$((SHARD - K))/N <dir>
-  const smokeM = branchBodies[1].match(/--shard=\$\(\(SHARD (\+|-) (\d+)\)\)\/(\d+) (e2e\/\S+\/)/);
-  const traversal = parseDerivedBranch(branchBodies[2], 'traversal');
-  if (flow) {
-    for (let s = 0; s <= conds[0].threshold; s++) {
-      assignments.push({ shard: s, targets: flow.targets, total: flow.total, no: flow.noFor(s) });
-    }
-  }
-  if (!smokeM) fail('A. smoke 分支解析失败（内联 --shard=$((SHARD - N))/5 e2e/smoke/ 锚点失配）');
-  else {
-    const off = Number(smokeM[2]),
-      total = Number(smokeM[3]);
-    for (let s = conds[0].threshold + 1; s <= conds[1].threshold; s++) {
-      assignments.push({
-        shard: s,
-        targets: [smokeM[4]],
-        total,
-        no: s + (smokeM[1] === '+' ? off : -off),
-      });
-    }
-  }
-  if (traversal) {
-    for (let s = conds[1].threshold + 1; s <= conds[2].threshold; s++) {
-      assignments.push({
-        shard: s,
-        targets: traversal.targets,
-        total: traversal.total,
-        no: traversal.noFor(s),
-      });
-    }
-  }
-}
-
-// extras：else 分支里的 case 登记行（与 workflow :2012 的 ::error 守卫同一事实来源）
-const extrasRe =
-  /^\s+(\d+)\)\s*SPEC_TARGETS="([^"]+)"\s*;\s*SHARD_NO=(\d+)\s*;\s*SHARD_TOTAL=(\d+)\s*;;/gm;
-const extrasCases = new Map();
-for (const m of bash.matchAll(extrasRe)) {
-  extrasCases.set(Number(m[1]), {
-    targets: m[2].trim().split(/\s+/),
-    no: Number(m[3]),
-    total: Number(m[4]),
-  });
-}
-if (extrasCases.size === 0)
-  fail(
-    'A. extras case 登记行解析为 0 条（锚点 `N) SPEC_TARGETS="..."; SHARD_NO=..; SHARD_TOTAL=.. ;;` 失配）'
-  );
-for (const [s, c] of extrasCases) {
-  if (s <= conds.at(-1)?.threshold) fail(`A. extras case ${s} 落在目录分支阈值范围内，会永不执行`);
-  else assignments.push({ shard: s, targets: c.targets, total: c.total, no: c.no });
-}
+for (const e of parsed.errors) fail(e);
+const assignments = parsed.assignments;
 
 // ---------------------------------------------------------------- 2. 校验 A/B 结构层
 const matrixSet = new Set(matrixShards);
@@ -216,19 +92,14 @@ for (const s of matrixSet)
 for (const s of assignByShard.keys())
   if (!matrixSet.has(s))
     fail(
-      `B. 分片编排登记了 shard ${s}，但 ci-e2e 矩阵 include 缺失 → 该切分永远不会被任何 job 执行（静默丢覆盖）`
+      `B. 分片编排登记了 shard ${s}，但 E2E_SHARD_MATRIX 登记缺失，该切分永远不会被任何 job 执行（静默丢覆盖）`
     );
 
 // 同一 (targets,total) 分组内的 hash 序号必须恰好 1..total
-const groups = new Map(); // key -> {targets, total, nos: [{shard,no}]}
-for (const a of assignByShard.values()) {
-  const key = [...a.targets].sort().join(' ') + `|total=${a.total}`;
-  if (!groups.has(key)) groups.set(key, { targets: a.targets, total: a.total, nos: [] });
-  groups.get(key).nos.push({ shard: a.shard, no: a.no });
-}
+const groups = groupAssignments(assignments); // key -> {targets, total, members: [{shard,no}]}
 for (const [key, g] of groups) {
   const seen = new Set();
-  for (const { shard, no } of g.nos) {
+  for (const { shard, no } of g.members) {
     if (no < 1 || no > g.total)
       fail(
         `B. 分组 ${key}：shard ${shard} 的 --shard=${no}/${g.total} 越界（Playwright 会直接报错或空转）`
