@@ -1112,6 +1112,21 @@ impl InitService {
                     ("accounting-periods", "*"),
                     ("wages", "read"),
                     ("reports", "read"),
+                    // 客户信用面（资源段 customer-credits 由 /api/v1/erp/crm/customer-credits
+                    // 的第四段派生，已在 init_service.rs 的 PERMISSION_RESOURCES 在册）：
+                    // 授信、调整、占用释放与停用都归财务审核处置岗，故五枚动作全授。
+                    // 评级设置/占用/调整/停用/评估这些 POST 端点的末段（rating/occupy/adjust/
+                    // deactivate/evaluate）都不在路径动作关键字表内，一律按方法派生成 create，
+                    // 因此 create 与 release 必须同岗，只给 release 会出现能释放不能占用的半截授权。
+                    // print 不授：客户信用打印在前端零调用方，授了等于给无人使用的口子扩面。
+                    // 键集与存量库通道 migration/src/domain/customer_credit_family_grant 逐字符
+                    // 同源，一致性由 tests/contract_customer_credit_family_grant_channels_test.rs
+                    // 双向钉住。
+                    ("customer-credits", "read"),
+                    ("customer-credits", "create"),
+                    ("customer-credits", "update"),
+                    ("customer-credits", "delete"),
+                    ("customer-credits", "release"),
                 ],
             ),
             (
@@ -1171,6 +1186,13 @@ impl InitService {
                     ("ap-payment-requests", "submit"),
                     ("ap-reconciliations", "read"),
                     ("ap-reconciliations", "create"),
+                    // 客户信用面：记账岗可查看信用评级、建评级、改额度与账期。停用（delete）
+                    // 与额度释放（release）属审核处置面，按内置的财务制单与审核互斥留在
+                    // finance_manager，本岗不授；print 同理不授（前端零调用方）。键集与存量库
+                    // 通道 migration/src/domain/customer_credit_family_grant 逐字符同源。
+                    ("customer-credits", "read"),
+                    ("customer-credits", "create"),
+                    ("customer-credits", "update"),
                 ],
             ),
             (

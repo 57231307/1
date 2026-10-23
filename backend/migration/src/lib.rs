@@ -10,6 +10,8 @@
 //!   → system_admin_bpm_config_grant
 //!   → ap_family_grant
 //!   → purchase_greige_read_grant
+//!   → customer_credit_name_backfill → customer_credit_remark_column
+//!   → customer_credit_family_grant
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -24,6 +26,8 @@
 //!         / m_finance_resource_rename / m_bpm_approver_grant / m_system_admin_bpm_config_grant
 //!         / m_ap_family_grant
 //!         / m_purchase_greige_read_grant
+//!         / m_customer_credit_name_backfill / m_customer_credit_remark_column
+//!         / m_customer_credit_family_grant
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -88,6 +92,22 @@
 //! 21. purchase_greige_read_grant: 采购两岗补授 greige-fabrics:read 的存量库通道（与
 //!    init 矩阵同源；原嵌在 business 域 up 链尾，复用库上随整域跳过而永不执行，故升为
 //!    链尾顶层条目；roles/role_permissions 由 system 域先建，早于本域）
+//!
+//! 以下三域（客户信用族抢救域）追加在既有链尾之后，均满足三件事：已注册进本链、可重放、幂等。
+//! 本支不主张自身为链尾末位——合并次序以先合者为尾，后合者须把各自域重挂在本三域之上；依赖
+//! domain/v15 建的 uq_role_permissions_role_resource_action 唯一索引与 system、business 建的
+//! customers、role_permissions、customer_credit_ratings 表，全部早于本三域：
+//! - customer_credit_name_backfill: 客户信用评级冗余列 customer_name 的存量回填通道（按
+//!   customer_id 关联 customers 取真名写入，取不到真名的行保持 NULL 并点名计数；备份将被改写的
+//!   行的原值以支持精确回退）。
+//! - customer_credit_remark_column: 客户信用评级备注兑现为真列（customer_credit_ratings 补可空
+//!   列 remark VARCHAR(500)，与请求 DTO 的字段校验同宽；加列前先查 information_schema 走已存在
+//!   则跳过的幂等路径）。
+//! - customer_credit_family_grant: 客户信用族动作键补授财务两岗的存量库通道（按 roles.code 反查
+//!   id，为 finance_manager 补授 read 与 create 与 update 与 delete 与 release 五枚、为
+//!   accountant 补授 read 与 create 与 update 三枚，与 init 矩阵同源；ON CONFLICT 用真实唯一索引
+//!   列集合保证幂等，逐键打印实写行数与跳过成因，同键显式拒绝行只点名不覆盖；down 只按三元组配对
+//!   回收 allowed=true 的授权行，不抹人工显式拒绝行，也不碰 crm_manager 名下的通配授权行）。
 
 pub use sea_orm_migration::prelude::*;
 
@@ -128,6 +148,9 @@ impl MigratorTrait for Migrator {
             Box::new(domain::ap_family_grant::Migration),
             Box::new(domain::purchase_greige_read_grant::Migration),
             Box::new(domain::role_alias_withdrawal::Migration),
+            Box::new(domain::customer_credit_name_backfill::Migration),
+            Box::new(domain::customer_credit_remark_column::Migration),
+            Box::new(domain::customer_credit_family_grant::Migration),
         ]
     }
 }

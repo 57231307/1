@@ -52,6 +52,19 @@
 //! - purchase_greige_read_grant: 采购两岗补授 greige-fabrics 只读键的存量库通道——原嵌在
 //!   business 域 up 链尾，复用库上被整域跳过，升为顶层条目后必然执行；回退只按本域角色码
 //!   回收该键，不动 m0097 授给生产与仓储岗的同名键
+//! - customer_credit_name_backfill: 客户信用评级冗余列 customer_name 的存量回填通道——按
+//!   customer_id 关联 customers 取真名写入，取不到真名的行保持 NULL 并点名计数（拒绝造名）；
+//!   备份将被改写的行 的原值以支持精确回退；置于链尾为新的顶层条目，复用库上也必然执行
+//! - customer_credit_remark_column: 客户信用评级备注兑现为真列（customer_credit_ratings 补
+//!   可空列 remark VARCHAR(500)，宽度与请求 DTO 的字段校验同值）；加列前先查
+//!   information_schema 走已存在则跳过的幂等路径并打印两条路径；置于链尾为新的顶层条目，
+//!   复用库上也必然执行
+//! - customer_credit_family_grant: 客户信用族动作键补授财务两岗（finance_manager 五枚
+//!   read、create、update、delete、release，accountant 三枚 read、create、update）的存量库
+//!   通道——同一套按 roles.code 反查 id、ON CONFLICT 用真实唯一索引列集合保证幂等、逐键打印
+//!   实写行数与跳过成因、同键显式拒绝行只点名不覆盖；down 按三元组配对且只删 allowed=true 行；
+//!   依赖 domain/v15 建的 uq_role_permissions_role_resource_action 唯一索引，置于链尾为新的
+//!   顶层条目，复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -82,3 +95,6 @@ pub mod ap_input_tax_subject;
 pub mod ap_family_grant;
 pub mod purchase_greige_read_grant;
 pub mod role_alias_withdrawal;
+pub mod customer_credit_name_backfill;
+pub mod customer_credit_remark_column;
+pub mod customer_credit_family_grant;
