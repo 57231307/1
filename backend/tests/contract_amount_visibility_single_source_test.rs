@@ -291,10 +291,7 @@ fn same_resource_hides_identical_columns_on_list_and_detail_paths() {
         hide_default_amount_columns(DefaultAmountResource::PurchaseOrder, item);
     }
     let mut detail_row = row();
-    hide_default_amount_columns(
-        DefaultAmountResource::PurchaseOrder,
-        std::slice::from_mut(&mut detail_row),
-    );
+    hide_default_amount_columns(DefaultAmountResource::PurchaseOrder, &mut detail_row);
 
     assert_eq!(
         list_rows[0], detail_row,
@@ -699,8 +696,7 @@ async fn configured_role_keeps_amounts_without_overlaying_default_hiding() {
          (9312,2,'purchase_receipt_item','SELF',NULL,NULL,TRUE,\
          '2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')",
     )
-    .await
-    .expect("夹具：数据权限配置行写入失败");
+    .await;
     let app = build_app(&db, make_auth(50, Some(2)));
 
     let (status, detail) = get_json(&app, &format!("/erp/purchase/receipts/{receipt_id}")).await;
