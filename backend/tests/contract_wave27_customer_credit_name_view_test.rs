@@ -95,14 +95,17 @@ async fn query_i64(db: &DatabaseConnection, sql: &str, alias: &str) -> i64 {
         .unwrap_or_else(|e| panic!("{alias} 解码失败: {e}"))
 }
 
-/// 种真实客户行（列形态取已验证写法：contract_wave3_after_sales_customer_name_test.rs；
-/// customer_type 受 CHECK 词表约束，取权威常量）
+/// 种真实客户行。customers.status 与 customers.payment_terms 在 DDL 里可空且无默认，
+/// 实体却声明为非 Option，而新建信用行路径含整行解码，种子必须显式给足这两列真实值，
+/// 否则整行解码撞 NULL 报数据库错误。credit_limit 与 owner_id 按 DDL 默认语义写实
+/// （零额度、公海归属）。customer_type 受 CHECK 词表约束，取权威常量。
+/// status 取主数据词表 active。
 async fn seed_customer(db: &DatabaseConnection, id: i32, code: &str, name: &str) {
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         format!(
-            "INSERT INTO customers (id, customer_code, customer_name, customer_type) \
-             VALUES ($1, $2, $3, '{}')",
+            "INSERT INTO customers (id, customer_code, customer_name, customer_type, credit_limit, \
+             owner_id, status, payment_terms) VALUES ($1, $2, $3, '{}', 0, 0, 'active', 30)",
             bingxi_backend::constants::customer_type::RETAIL
         ),
         vec![id.into(), code.to_string().into(), name.to_string().into()],
