@@ -435,21 +435,12 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.colorNos = [`E2E-C${Date.now().toString().slice(-6)}`];
   }
 
-  // ---- 4. 供应商（UI 创建）----
-  try {
-    ctx.supplierId = await readFirstEntityId(
-      page,
-      '/supplier',
-      `${API_PREFIX}/purchase/suppliers`,
-      // supplier_handler.rs:20 list_suppliers → supplier_service PaginatedResponse → {items}
-      'items'
-    );
-  } catch (e) {
-    console.error('[ensureTestEntities] supplierId 查找失败:', (e as Error).message);
-    ctx.supplierId = undefined;
-  }
+  // ---- 4. 供应商（本 worker 自建并复用）----
+  // 复读列表首条会与并行 worker 的清理竞态：读到之后被其它用例删除，
+  // 下游建单引用该 ID 即报加工厂不存在。自建供应商归属本 worker，
+  // 其它用例只清理自己创建的记录，不会删到它。失败即抛错，不兜底假 ID。
   if (!ctx.supplierId) {
-    // API 创建（CreateSupplierRequest：supplier_short_name min=2、contact_phone）；失败即抛错
+    // API 创建（CreateSupplierRequest：supplier_short_name min=2、contact_phone）
     const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
       supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
       supplier_short_name: 'E2E供',
