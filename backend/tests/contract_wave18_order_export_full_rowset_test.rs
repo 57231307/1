@@ -18,8 +18,14 @@
 //! 判据边界（如实声明）：250 行量级判别不了「超一万即丢」——旧封顶形态在 250 行同样
 //! 全量返回，本文件的大行级 #[ignore] 用例（一万零一行）才是该形态的行为判别；
 //! 常规量级两例判别的是「行集隔离下等式成立、订单号集合逐项相等、列形状 21 列」。
-#![allow(clippy::unwrap_used, reason = "测试夹具：播种与断言取不到真实值即应判红")]
-#![allow(clippy::too_many_lines, reason = "集成测试按场景分段，拆分会打散判据与夹具的同处可读性")]
+#![allow(
+    clippy::unwrap_used,
+    reason = "测试夹具：播种与断言取不到真实值即应判红"
+)]
+#![allow(
+    clippy::too_many_lines,
+    reason = "集成测试按场景分段，拆分会打散判据与夹具的同处可读性"
+)]
 
 mod test_common;
 
@@ -36,16 +42,52 @@ use std::sync::Arc;
 
 /// 采购导出表头（与 query.rs 的 csv_headers 逐字同序同值，改动任何一侧本锁即红）
 const PO_HEADERS: [&str; 21] = [
-    "订单编号", "供应商ID", "供应商名称", "订单日期", "预计交货日期", "实际交货日期",
-    "仓库ID", "仓库名称", "部门ID", "部门名称", "采购员ID", "币种", "汇率", "总金额",
-    "总金额外币", "总数量", "总数量辅助", "状态", "付款条件", "运输条款", "备注",
+    "订单编号",
+    "供应商ID",
+    "供应商名称",
+    "订单日期",
+    "预计交货日期",
+    "实际交货日期",
+    "仓库ID",
+    "仓库名称",
+    "部门ID",
+    "部门名称",
+    "采购员ID",
+    "币种",
+    "汇率",
+    "总金额",
+    "总金额外币",
+    "总数量",
+    "总数量辅助",
+    "状态",
+    "付款条件",
+    "运输条款",
+    "备注",
 ];
 
 /// 销售导出表头（与 delivery_ops/export.rs 的 build_order_csv_headers 逐字一致）
 const SO_HEADERS: [&str; 21] = [
-    "订单编号", "客户ID", "客户名称", "商机ID", "订单日期", "要求交货日期", "发货日期",
-    "状态", "小计金额", "税额", "折扣金额", "运费", "总金额", "已付金额", "余额",
-    "送货地址", "账单地址", "备注", "创建人ID", "审批人ID", "审批时间",
+    "订单编号",
+    "客户ID",
+    "客户名称",
+    "商机ID",
+    "订单日期",
+    "要求交货日期",
+    "发货日期",
+    "状态",
+    "小计金额",
+    "税额",
+    "折扣金额",
+    "运费",
+    "总金额",
+    "已付金额",
+    "余额",
+    "送货地址",
+    "账单地址",
+    "备注",
+    "创建人ID",
+    "审批人ID",
+    "审批时间",
 ];
 
 // ---- 本用例私有 id 段（见文件头存哪里）----
@@ -127,7 +169,13 @@ fn ts(k: i32) -> chrono::DateTime<Utc> {
 
 /// 采购单头播种：Entity::insert_many 按 500 分块（Postgres 单语句 65535 参数上限，
 /// 一万行必须分块；全仓 tests 无 insert_many 先例，src 侧见 bom_ops/crud.rs）
-async fn seed_po(db: &sea_orm::DatabaseConnection, supplier_id: i32, seq_from: i32, count: i32, order_status: &str) {
+async fn seed_po(
+    db: &sea_orm::DatabaseConnection,
+    supplier_id: i32,
+    seq_from: i32,
+    count: i32,
+    order_status: &str,
+) {
     let models: Vec<purchase_order::ActiveModel> = (0..count)
         .map(|k| {
             let id = PO_ID_BASE + seq_from + k;
@@ -162,7 +210,13 @@ async fn seed_po(db: &sea_orm::DatabaseConnection, supplier_id: i32, seq_from: i
 }
 
 /// 销售单头播种：同样 500 分块；status 词表小写（写入方 models/status 销售订单节）
-async fn seed_so(db: &sea_orm::DatabaseConnection, customer_id: i32, seq_from: i32, count: i32, order_status: &str) {
+async fn seed_so(
+    db: &sea_orm::DatabaseConnection,
+    customer_id: i32,
+    seq_from: i32,
+    count: i32,
+    order_status: &str,
+) {
     let models: Vec<sales_order::ActiveModel> = (0..count)
         .map(|k| {
             let id = SO_ID_BASE + seq_from + k;
@@ -197,7 +251,11 @@ async fn seed_so(db: &sea_orm::DatabaseConnection, customer_id: i32, seq_from: i
 /// 表头逐字节比对（列名与列序任何一侧漂移即红）
 fn assert_headers_byte_equal(headers: &[String], expected: &[&str; 21]) {
     let got: Vec<&str> = headers.iter().map(String::as_str).collect();
-    assert_eq!(got, expected.to_vec(), "导出表头与逐字节基线不一致（列名或列序漂移）");
+    assert_eq!(
+        got,
+        expected.to_vec(),
+        "导出表头与逐字节基线不一致（列名或列序漂移）"
+    );
 }
 
 /// 按列名取单元格；列名不在表头即判红
@@ -226,19 +284,32 @@ async fn purchase_export_rowset_equals_server_total() {
     let (headers, rows, server_total) = svc.export_orders_to_xlsx(None, Some(sup_a)).await.unwrap();
 
     assert_eq!(server_total, 250, "服务端全量总数应为供应商甲播种 250 行");
-    assert_eq!(rows.len() as u64, server_total, "交付行数与服务端全量总数不等：等式即根判据");
+    assert_eq!(
+        rows.len() as u64,
+        server_total,
+        "交付行数与服务端全量总数不等：等式即根判据"
+    );
     assert!(
         PurchaseOrderService::export_rows_complete(rows.len(), server_total),
         "等式成立时完整性判据必须为真"
     );
     assert_headers_byte_equal(&headers, &PO_HEADERS);
-    assert!(rows.iter().all(|r| r.len() == 21), "每行必须 21 列，缺列即形状漂移");
+    assert!(
+        rows.iter().all(|r| r.len() == 21),
+        "每行必须 21 列，缺列即形状漂移"
+    );
 
-    let seeded: BTreeSet<String> =
-        (0..250_i32).map(|k| format!("EXPLOCK-PO-{}", PO_ID_BASE + k)).collect();
-    let delivered: BTreeSet<String> =
-        rows.iter().map(|r| cell(&PO_HEADERS, r, "订单编号")).collect();
-    assert_eq!(delivered, seeded, "订单号集合必须与播种集合逐项相等（尾部行不得缺失）");
+    let seeded: BTreeSet<String> = (0..250_i32)
+        .map(|k| format!("EXPLOCK-PO-{}", PO_ID_BASE + k))
+        .collect();
+    let delivered: BTreeSet<String> = rows
+        .iter()
+        .map(|r| cell(&PO_HEADERS, r, "订单编号"))
+        .collect();
+    assert_eq!(
+        delivered, seeded,
+        "订单号集合必须与播种集合逐项相等（尾部行不得缺失）"
+    );
 }
 
 /// 常规量级（销售腿）：等式成立 + 列形状 + 不装配明细仍带出客户名称
@@ -262,7 +333,11 @@ async fn sales_export_rowset_equals_server_total() {
         .unwrap();
 
     assert_eq!(server_total, 250, "服务端全量总数应为客户甲 250 行");
-    assert_eq!(rows.len() as u64, server_total, "交付行数与服务端全量总数不等");
+    assert_eq!(
+        rows.len() as u64,
+        server_total,
+        "交付行数与服务端全量总数不等"
+    );
     assert!(
         SalesService::export_rows_complete(rows.len(), server_total),
         "等式成立时完整性判据必须为真"
@@ -270,14 +345,20 @@ async fn sales_export_rowset_equals_server_total() {
     assert_headers_byte_equal(&headers, &SO_HEADERS);
     assert!(rows.iter().all(|r| r.len() == 21), "每行必须 21 列");
 
-    let seeded: BTreeSet<String> =
-        (0..250_i32).map(|k| format!("EXPLOCK-SO-{}", SO_ID_BASE + k)).collect();
-    let delivered: BTreeSet<String> =
-        rows.iter().map(|r| cell(&SO_HEADERS, r, "订单编号")).collect();
+    let seeded: BTreeSet<String> = (0..250_i32)
+        .map(|k| format!("EXPLOCK-SO-{}", SO_ID_BASE + k))
+        .collect();
+    let delivered: BTreeSet<String> = rows
+        .iter()
+        .map(|r| cell(&SO_HEADERS, r, "订单编号"))
+        .collect();
     assert_eq!(delivered, seeded, "订单号集合必须逐项相等");
 
     // 导出腿不调明细装配：客户名称必须来自共用条件构造器的左连接且逐行等于播种名
-    let names: Vec<String> = rows.iter().map(|r| cell(&SO_HEADERS, r, "客户名称")).collect();
+    let names: Vec<String> = rows
+        .iter()
+        .map(|r| cell(&SO_HEADERS, r, "客户名称"))
+        .collect();
     assert!(
         names.iter().all(|n| n == "导出锁客户甲"),
         "跳过装配后客户名称仍须由共用查询带出，不得变空或变错客户"
@@ -321,7 +402,11 @@ async fn purchase_export_beyond_ten_thousand_keeps_every_row() {
     let svc = PurchaseOrderService::new(Arc::clone(&db));
     let (headers, rows, server_total) = svc.export_orders_to_xlsx(None, Some(sup_a)).await.unwrap();
     assert_eq!(server_total, 10_001, "服务端总数应为一万零一行");
-    assert_eq!(rows.len(), 10_001, "交付行数必须等于服务端总数（旧封顶形态在此判红）");
+    assert_eq!(
+        rows.len(),
+        10_001,
+        "交付行数必须等于服务端总数（旧封顶形态在此判红）"
+    );
     let last = format!("EXPLOCK-PO-{}", PO_ID_BASE + 10_000);
     assert!(
         rows.iter().any(|r| cell(&headers, r, "订单编号") == last),

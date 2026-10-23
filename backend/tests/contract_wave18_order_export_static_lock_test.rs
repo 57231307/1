@@ -12,7 +12,10 @@
 //! `backend/src/services/so/delivery_ops/export.rs`、两个 handler 与
 //! `frontend/scripts/route-snapshot.txt`；旧形态夹具三件放仓库外交接目录（见文末），
 //! 不落 backend/tests。
-#![allow(clippy::too_many_lines, reason = "静态锁按判据分段，拆分会打散禁词表与探针的同处可读性")]
+#![allow(
+    clippy::too_many_lines,
+    reason = "静态锁按判据分段，拆分会打散禁词表与探针的同处可读性"
+)]
 
 /// 导出腿函数体禁词：分页形态、固定一万页大小、旧调用点与丢弃服务端总数的旧变量名
 const LEG_BANNED: &[&str] = &[
@@ -65,7 +68,11 @@ fn fn_body(src: &str, name: &str) -> String {
 
 /// 切片内命中的禁词清单（逐字子串匹配，不做大小写归一与模糊比对）
 fn banned_hits(body: &str, banned: &[&str]) -> Vec<&'static str> {
-    banned.iter().copied().filter(|b| body.contains(b)).collect()
+    banned
+        .iter()
+        .copied()
+        .filter(|b| body.contains(b))
+        .collect()
 }
 
 /// 判据①（两腿同形）：四条导出取数函数体内禁词零命中
@@ -146,7 +153,9 @@ fn audit_trace_columns_match_route_snapshot_verbatim() {
         );
 
         assert!(
-            body.contains(&format!("resource_type: Some(\"{want_restype}\".to_string())")),
+            body.contains(&format!(
+                "resource_type: Some(\"{want_restype}\".to_string())"
+            )),
             "{handler_key} 的 resource_type 必须逐字为 {want_restype}（写侧快照形态，禁大写变体与兜底）"
         );
         assert!(
@@ -192,7 +201,9 @@ fn insert_keys(body: &str) -> Vec<String> {
     while let Some(rel) = body[idx..].find(".insert(") {
         let mut p = idx + rel + ".insert(".len();
         let bytes = body.as_bytes();
-        while p < bytes.len() && (bytes[p] as char).is_whitespace() || p < bytes.len() && bytes[p] == b'(' {
+        while p < bytes.len() && (bytes[p] as char).is_whitespace()
+            || p < bytes.len() && bytes[p] == b'('
+        {
             p += 1;
         }
         if p < bytes.len() && bytes[p] == b'"' {
@@ -273,6 +284,12 @@ fn fixture_plural_path_is_rejected_against_snapshot() {
 fn fixture_compliant_shape_has_zero_hits() {
     let compliant = "let (orders, server_total) = self.list_all_orders_for_export(status, supplier_id, None, None).await?;\n\
                      let export_complete = PurchaseOrderService::export_rows_complete(orders.len(), server_total);";
-    assert!(banned_hits(compliant, LEG_BANNED).is_empty(), "合规夹具被判红：禁词表过宽");
-    assert!(banned_hits(compliant, HANDLER_BANNED).is_empty(), "合规夹具被判红：handler 禁词表过宽");
+    assert!(
+        banned_hits(compliant, LEG_BANNED).is_empty(),
+        "合规夹具被判红：禁词表过宽"
+    );
+    assert!(
+        banned_hits(compliant, HANDLER_BANNED).is_empty(),
+        "合规夹具被判红：handler 禁词表过宽"
+    );
 }
