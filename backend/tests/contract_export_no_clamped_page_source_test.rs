@@ -260,10 +260,7 @@ fn scan_export_fn(path: &Path, fn_name: &str, forbidden_calls: &[&str]) -> Vec<S
         path.display()
     );
     // 函数体在原文中的起点，用于把违规定位回文件行号
-    let body_start = match find_sub(bytes, body.as_bytes()) {
-        Some(p) => p,
-        None => 0,
-    };
+    let body_start = find_sub(bytes, body.as_bytes()).unwrap_or_default();
     let line_of = |offset: usize| raw[..offset].matches('\n').count() + 1;
 
     let clean_body = String::from_utf8(blank_out_noise(body.as_bytes())).expect("体内容必为 utf8");
