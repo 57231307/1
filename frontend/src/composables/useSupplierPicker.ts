@@ -105,5 +105,12 @@ export function useSupplierPicker() {
     pinned.value = next;
   };
 
-  return { options, loading, search, syncPinned, optionLabel };
+  /**
+   * 当前已选的供应商对象集合，取自钉住表。
+   * 对比页按这一份主数据出参给每行定名称（后端 supplier 表的 supplier_name 列，NOT NULL），
+   * 这样即使某个供应商的评分聚合取数失败，行身份与名称依然成立，不需要用主键或编码拼占位名。
+   */
+  const picked = computed<Supplier[]>(() => pinned.value);
+
+  return { options, picked, loading, search, syncPinned, optionLabel };
 }

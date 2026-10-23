@@ -7533,6 +7533,7 @@ export default {
         rankings: 'Supplier Rankings',
         indicators: 'Indicators',
         evaluations: 'Evaluations',
+        compare: 'Supplier Comparison',
       },
       button: {
         create: 'Create Evaluation',
@@ -7569,6 +7570,24 @@ export default {
         totalScore: 'Total Score',
         rating: 'Rating',
         rank: 'Rank',
+      },
+      compare: {
+        pickerPlaceholder: 'Search by supplier name or code, multiple selectable',
+        button: 'Compare',
+        emptyHint: 'Select the suppliers to compare, then click Compare',
+        tableAriaLabel: 'Supplier Comparison Result List',
+        pickFirst: 'Please select the suppliers to compare first',
+        partialFailed: 'Some supplier scores failed to load; see the outcome column',
+        column: {
+          outcome: 'Outcome',
+          recordCount: 'Evaluation Records',
+          latestDate: 'Latest Evaluation Date',
+        },
+        outcome: {
+          loaded: 'Has score',
+          noRecord: 'No evaluation record',
+          failed: 'Load failed',
+        },
       },
       column: {
         supplierName: 'Supplier Name',
