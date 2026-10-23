@@ -201,20 +201,18 @@ export const deleteProduct = (id: number) => request.delete<ApiResponse<null>>(`
 // 裸数组反序列化必失败，这里按 DTO 包一层 products，元素载荷与单条创建同源经
 // toProductPayload 映射，米数两键原样透传给后端做同源补齐与落库。
 export const batchCreateProducts = (data: Partial<Product>[]) =>
-  request.post<ApiResponse<{ success: number; failed: number }>>(
-    '/products/batch/create',
-    { products: data.map(toProductPayload) }
-  );
+  request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/create', {
+    products: data.map(toProductPayload),
+  });
 
 // D14 Batch 5b：原 productApi.batchUpdate 转为风格 B 函数
 // 后端批量更新的顶层 DTO 同样是 products 包装（bulk_product_handler 内定义）。
 // 元素的米数两键走三态更新，键缺席保持原值、显式 null 清空、有值覆盖，
 // 只声明一边时由同源补齐复制到另一边。
 export const batchUpdateProducts = (data: Partial<Product>[]) =>
-  request.post<ApiResponse<{ success: number; failed: number }>>(
-    '/products/batch/update',
-    { products: data.map(toProductPayload) }
-  );
+  request.post<ApiResponse<{ success: number; failed: number }>>('/products/batch/update', {
+    products: data.map(toProductPayload),
+  });
 
 // D14 Batch 5b：原 productApi.batchDelete 转为风格 B 函数
 export const batchDeleteProducts = (ids: number[]) =>
