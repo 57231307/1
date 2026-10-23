@@ -8,9 +8,9 @@
 //! - 列名兼容：`old_value` / `new_value` 与 `before_snapshot` / `after_snapshot` 双写
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
 //!
-//! L-32 修复（批次 380 v13 复审）：使用 mpsc channel + 单消费者模式，
-//! 避免每次 record_async 都创建 detached spawn task；
-//! handle 保存供 shutdown 时 abort，优雅关闭。
+//! 异步落库使用 mpsc channel 加单消费者模式，避免每次调用 record_async 都创建
+//! detached spawn task。通道与消费者由全局单例持有，与进程同生命周期，不设取消入口。
+//! 关停时由关停链调用 flush 等待积压事件全部落库，进程退出时消费者随 runtime 一起回收。
 
 use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{self, OperationType, Severity};
@@ -27,13 +27,13 @@ use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::sync::mpsc;
 
-/// 审计日志服务（L-32 修复：不使用 define_service! 宏，添加 handle 字段）
+/// 审计日志服务。
+///
+/// 持库连接供同步写路径使用，持全局发送端供异步落库路径使用。
 #[derive(Debug)]
 pub struct AuditLogService {
     db: Arc<DatabaseConnection>,
-    /// L-32 修复：后台消费者 task handle，供 shutdown abort
-    handle: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
-    /// L-32 修复：事件发送端（全局单例，避免每次 new() 创建新 channel 后旧消费者退出）
+    /// 事件发送端（全局单例，避免每次 new() 创建新 channel 后旧消费者退出）
     sender: &'static mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
 }
 
@@ -66,17 +66,35 @@ fn bus_notify() -> &'static Notify {
     BUS_NOTIFY.get_or_init(Notify::new)
 }
 
+/// 进程关停时等待审计总线落库的最长时间上限。
+///
+/// 一，约束对象。从关停链调用 flush 起最多允许等待这么久，到点立即返回已观测到的
+/// 计数。通道是无界的，积压深度没有上限，所以该值只约束等待时长，不构成排空承诺。
+/// 二，调用方。main.rs 的关停函数 shutdown_resources 在全部审计事件生产者停止之后、
+/// 释放服务句柄之前读取本常量。
+/// 三，取值依据。部署侧 systemd 服务单元把整条优雅关停的总预算 TimeoutStopSec 配为
+/// 30 秒，其说明写明这 30 秒要覆盖在途请求排空、数据库连接池关闭与审计日志落库，
+/// 超时后由 FinalKillSignal 发 SIGKILL 强杀进程。本常量取总预算的三分之一，为后续
+/// 释放服务句柄与 runtime 自身退出留出 20 秒。
+/// 四，未确证部分。三分之一这一比例没有实测排空耗时分布支撑，属保守取值。
+/// 五，失效后果。撞满 30 秒时排空与后续关停步骤一起被 SIGKILL 砍掉；等待到点但未
+/// 排空时，未处理条数由 FlushCounts 的 pending 如实上报，调用方不得把它当成功。
+pub const SHUTDOWN_FLUSH_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// flush 返回值：截至等待结束时三类计数的累计快照。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FlushCounts {
     pub inserted: u64,
     pub failed: u64,
     pub panicked: u64,
+    /// 调用时刻已入队、到等待结束仍未被消费者处理完的条数。取 0 表示本次等待已排空。
+    pub pending: u64,
 }
 
 /// 有界等待总线把截至调用时刻的全部事件处理完毕。
 /// 完成语义：inserted + failed + panicked >= 调用时刻的 sent。
-/// 超时后仍返回已观测到的计数，由调用方判定是否达标。
+/// 超时后仍返回已观测到的计数，由调用方判定是否达标。未排空条数由 pending 给出，
+/// 调用方据此区分确实排空与超时未排空，不得把后者当成功。
 pub async fn flush(timeout: Duration) -> FlushCounts {
     let target = BUS_METRICS.sent.load(Ordering::Acquire);
     let deadline = tokio::time::Instant::now() + timeout;
@@ -107,6 +125,7 @@ pub async fn flush(timeout: Duration) -> FlushCounts {
         inserted: ins,
         failed: fail,
         panicked: panick,
+        pending: target.saturating_sub(ins.saturating_add(fail).saturating_add(panick)),
     }
 }
 
@@ -167,21 +186,7 @@ impl AuditLogService {
             sender
         });
 
-        Self {
-            db,
-            handle: std::sync::Mutex::new(None),
-            sender,
-        }
-    }
-
-    /// L-32 修复（批次 380 v13 复审）：优雅关闭异步审计服务
-    /// abort 后台消费者 task，防止 detached task 泄漏。；幂等：多次调用安全，仅首次调用实际 abort。；注：tokio mpsc UnboundedSender 没有 close 方法，abort 消费者 task 后；channel 会自动被 drop，后续 send() 调用会返回 Err。；批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex；poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。；改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
-    pub fn shutdown(&self) {
-        // abort 后台 task
-        if let Some(handle) = self.handle.lock().unwrap_or_else(|e| e.into_inner()).take() {
-            handle.abort();
-            tracing::info!("AuditLogService 异步记录引擎已关闭");
-        }
+        Self { db, sender }
     }
 }
 

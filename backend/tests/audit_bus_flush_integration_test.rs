@@ -8,6 +8,9 @@
 //! 源码普查锁：断言 record_export_audit 构造事件时使用的资源名与路径字面量
 //! 与测试中的常量一致，防止影子实现家族再次出现。
 //!
+//! 关停链路锁：断言优雅关停确实排空审计总线，且排空排在全部生产者停止之后，
+//! 防止 flush 退化回"只有测试会调用"的影子实现形态。
+//!
 //! 设计陷阱：全局消费者由 OnceLock 绑定首次 AuditLogService::new 传入的库连接，
 //! nextest 每测试独立进程所以成立；裸 cargo test 同进程多线程可能绑到别的测试
 //! 库连接导致假绿，本地跑此测试无效，判绿只认 CI nextest。
@@ -147,4 +150,80 @@ fn record_export_audit_source_literals_locked() {
         "record_export_audit 内 operation_type 不再是 OperationType::Export，\
          本测试的事件形状前提失效"
     );
+}
+
+/// 关停链路源码锁：优雅关停必须真实排空审计总线，且排空排在全部生产者停止之后。
+///
+/// 生产路径一旦不排空，队列里积压的审计事件就随进程退出永久丢失，而这种丢失
+/// 不会让任何现有用例变红（事件是在退出那一刻才丢的）。因此把前提钉在源码上：
+/// 删掉关停路径里的 flush 调用、或把它挪到生产者停止之前，本锁必红。
+#[test]
+fn shutdown_path_drains_audit_bus_after_producers_stop() {
+    let source = include_str!("../src/main.rs");
+
+    let body = fn_body(source, "async fn shutdown_resources").expect(
+        "main.rs 里找不到 async fn shutdown_resources：关停函数已改名或去掉 async，\
+         本锁的前提失效，需同步调整本测试与关停链路",
+    );
+
+    // 一，关停路径确实排空总线，而不是只在本测试里调用
+    let flush_at = body.find("audit_log_service::flush(").expect(
+        "关停路径未调用 audit_log_service::flush，审计总线积压会随进程退出丢失",
+    );
+
+    // 二，排空必须在全部生产者停止之后：生产者还在入队时排空只能排到中途，
+    // 之后新入队的事件仍会随进程退出丢失
+    for producer_stop in [
+        "shutdown_event_bus()",
+        "shutdown_handles.shutdown()",
+        "shutdown_main_background_tasks()",
+        "shutdown_app_state_background_tasks()",
+    ] {
+        let stop_at = body.find(producer_stop).unwrap_or_else(|| {
+            panic!(
+                "关停路径未调用 {producer_stop}：生产者停止点已改名或被删除，本锁的前提失效"
+            )
+        });
+        assert!(
+            stop_at < flush_at,
+            "{producer_stop} 被挪到了 audit_log_service::flush 之后：\
+             排空时生产者仍在入队，积压事件仍会丢失"
+        );
+    }
+
+    // 三，等待必须有界：必须用关停专用超时常量，不允许无界等待阻塞进程退出
+    assert!(
+        body.contains("SHUTDOWN_FLUSH_TIMEOUT"),
+        "关停排空未使用 SHUTDOWN_FLUSH_TIMEOUT 有界超时，可能无界阻塞进程退出"
+    );
+
+    // 四，排空结果必须进关停日志：不允许把未排空与落库失败静默吞掉
+    assert!(
+        body.contains("counts.failed") && body.contains("counts.pending"),
+        "关停日志未记录 flush 返回的 failed/pending 计数，排空不完整时会静默无痕迹"
+    );
+}
+
+/// 按花括号配平从源码里取出指定函数签名的函数体（返回 `{` 与配对 `}` 之间的内容）。
+///
+/// 仅供源码普查锁使用：不做词法分析，字符串或注释里出现花括号会造成偏差，
+/// 所以调用方的判据只取"标记是否存在"与"两个标记的先后"，不依赖精确行号或体边界。
+fn fn_body<'a>(source: &'a str, signature: &str) -> Option<&'a str> {
+    let head = source.find(signature)?;
+    let start = head + source[head..].find('{')?;
+    let mut depth = 0usize;
+    let bytes = source.as_bytes();
+    for idx in start..bytes.len() {
+        match bytes[idx] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&source[start + 1..idx]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
