@@ -24,33 +24,42 @@ test.describe.serial('扩展: 权限深度测试（SoD/字段级/黑名单/缓�
     await loginViaUI(page);
   });
 
-  test('P1-1 验证角色互斥规则（9 对 SoD）', async ({ page }) => {
-    // 后端 GET /roles/conflicts（role_conflicts 表，初始化时写入 9 对 SoD）
-    // handler 返回 ApiResponse::success(Vec) → data 本身就是数组
-    const conflicts = await apiCallRaw<Array<{ role_a_code: string; role_b_code: string }>>(
-      page,
-      'GET',
-      '/roles/conflicts?page=1&page_size=20'
-    );
-    expect(Array.isArray(conflicts)).toBe(true);
+  test('P1-1 内置 SoD 互斥默认恰好 6 对且全为财务侧钱账分管', async ({ page }) => {
+    // 后端 GET /roles/conflicts 返回 role_conflicts 整表（handler 出参
+    // ApiResponse::success(Vec) → data 本身就是数组，分页参数不参与裁剪）。
+    // 内置默认的落定路径：建表播种在 migration/src/domain/finance/ 域（8 对），其中 2 对
+    // 「生产↔质量」由链尾域 role_conflicts_drop_production_sod 撤除，剩 6 对财务侧默认。
+    // 判据是整表集合相等而非"命中其中一条"：多一条=撤除没生效，少一条=财务默认被误删。
+    const conflicts = await apiCallRaw<
+      Array<{ role_a_code: string; role_b_code: string; conflict_type: string }>
+    >(page, 'GET', '/roles/conflicts');
+    expect(
+      Array.isArray(conflicts),
+      `互斥规则列表应返回数组，实际：${JSON.stringify(conflicts).slice(0, 200)}`
+    ).toBe(true);
 
-    const pairs = conflicts.map(c => `${c.role_a_code}↔${c.role_b_code}`);
-    if (pairs.length > 0) {
-      // 对齐 migration/src/domain/finance/mod.rs 预置的财务三权分立互斥种子
-      const expectedPairs = [
-        'accountant↔finance_manager',
-        'accountant↔cashier',
-        'cashier↔finance_manager',
-        'cashier↔purchase_manager',
-        'cashier↔purchase_clerk',
-        'cashier↔sales_manager',
-        'production_manager↔qc_manager',
-        'dyeing_master↔quality_inspector',
-      ];
-      const hasAny = pairs.some(p =>
-        expectedPairs.some(e => p.includes(e.split('↔')[0]) && p.includes(e.split('↔')[1]))
-      );
-      expect(hasAny).toBe(true);
+    const got = conflicts
+      .map(c => `${c.role_a_code}<->${c.role_b_code}(${c.conflict_type})`)
+      .sort();
+    const builtin = [
+      'accountant<->cashier(sod)',
+      'accountant<->finance_manager(sod)',
+      'cashier<->finance_manager(sod)',
+      'cashier<->purchase_clerk(sod)',
+      'cashier<->purchase_manager(sod)',
+      'cashier<->sales_manager(sod)',
+    ].sort();
+    expect(got, `内置默认互斥必须恰好是财务侧 6 对，实得：${JSON.stringify(got)}`).toEqual(builtin);
+
+    // 显式点名已撤除的 2 对：失败信息直接指向判据，而不只给集合差
+    for (const dropped of [
+      'production_manager<->qc_manager',
+      'dyeing_master<->quality_inspector',
+    ]) {
+      expect(
+        got.filter(p => p.startsWith(`${dropped}(`)).length,
+        `生产↔质量互斥对 ${dropped} 不得再作为内置默认出现（一人多岗为纺织厂常态），实得：${JSON.stringify(got)}`
+      ).toBe(0);
     }
   });
 
