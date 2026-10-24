@@ -435,31 +435,27 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     ctx.colorNos = [`E2E-C${Date.now().toString().slice(-6)}`];
   }
 
-  // ---- 4. 供应商（UI 创建）----
-  try {
-    ctx.supplierId = await readFirstEntityId(
-      page,
-      '/supplier',
-      `${API_PREFIX}/purchase/suppliers`,
-      // supplier_handler.rs:20 list_suppliers → supplier_service PaginatedResponse → {items}
-      'items'
-    );
-  } catch (e) {
-    console.error('[ensureTestEntities] supplierId 查找失败:', (e as Error).message);
-    ctx.supplierId = undefined;
+  // ---- 4. 供应商（本 worker 自建自持，不复用库里的共享行）----
+  // 委外建单与各应付链按 supplier_id 引用供应商，而后端 suppliers 的删除守门只在被应付发票或
+  // 付款申请引用时拦住，其余情况并行 worker 的收尾会把该行软删；一旦复用"列表第一条"，拿到的
+  // id 可能在本 worker 用时已不存在，表现为 POST /production/outsourcing-orders 回
+  // BUSINESS_ERROR 与"委外加工厂 N 不存在"，红面看着像后端缺陷实为夹具共享态竞态。
+  // 故一律新建本 worker 专属供应商并在创建失败时抛错，不退回共享行、不兜底假 id。
+  const supplierSuffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, '0')}`;
+  const createdSupplier = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
+    supplier_name: `E2E供应商${supplierSuffix}`,
+    supplier_short_name: `E2E供${supplierSuffix.slice(-3)}`,
+    contact_phone: '13800000001',
+  });
+  if (!createdSupplier.data?.id) {
+    throw new Error(`[ensureTestEntities] 供应商创建失败: ${JSON.stringify(createdSupplier)}`);
   }
-  if (!ctx.supplierId) {
-    // API 创建（CreateSupplierRequest：supplier_short_name min=2、contact_phone）；失败即抛错
-    const result = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
-      supplier_name: `E2E供应商${Date.now().toString().slice(-6)}`,
-      supplier_short_name: 'E2E供',
-      contact_phone: '13800000001',
-    });
-    if (!result.data?.id) {
-      throw new Error(`[ensureTestEntities] 供应商创建失败: ${JSON.stringify(result)}`);
-    }
-    ctx.supplierId = result.data.id;
-  }
+  ctx.supplierId = createdSupplier.data.id;
+  console.log(
+    `[ensureTestEntities] 本 worker 专属供应商已建 id=${ctx.supplierId} name=E2E供应商${supplierSuffix}`
+  );
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
   try {
@@ -1174,12 +1170,16 @@ export async function listNotifications(
 export async function ensureTestEntities(page: Page): Promise<void> {
   const GUARD_MS = 300_000;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const guard = new Promise<void>(resolve => {
+  // 超时不再"跳过剩余实体创建继续测试"：半准备好的 ctx 会让下游用例拿着不存在的 id 建单，
+  // 报出来的红是后端业务校验文案（例如"委外加工厂 10 不存在"），把前置挂起伪装成缺陷。
+  // 现在超时就抛错点名挂起阶段，红面直指根因。
+  const guard = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
-      console.error(
-        '[ensureTestEntities] ⚠️ 整体超时 5 分钟（内部某步骤在 Node 侧永久挂起），跳过剩余实体创建继续测试'
+      reject(
+        new Error(
+          `[ensureTestEntities] 前置准备整体超时 ${GUARD_MS / 1000}s（内部某步骤在 Node 侧永久挂起），已中止而不是带半成品 ctx 继续`
+        )
       );
-      resolve();
     }, GUARD_MS);
   });
   await Promise.race([ensureTestEntitiesInner(page), guard]).finally(() => {
@@ -3645,7 +3645,9 @@ export function pickDifferentUserCredential(): { username: string; password: str
       string,
       RoleCredential
     >;
-    const candidate = Object.values(data).find(c => c && c.username && c.username !== workerUsername);
+    const candidate = Object.values(data).find(
+      c => c && c.username && c.username !== workerUsername
+    );
     if (!candidate) {
       throw new Error(
         `role-credentials.json 中找不到与本 worker 会话账号 ${workerUsername} 不同的第二个账号，无法构造水平越权前提`

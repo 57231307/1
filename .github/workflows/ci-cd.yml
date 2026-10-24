@@ -1546,6 +1546,9 @@ jobs:
           name: nextest-archive
           path: backend/
 
+      - name: 校验 nextest 归档完整性（截断即重取一次，仍坏则点名制品判红）
+        uses: ./.github/actions/verify-nextest-archive
+
       - name: 下载后端 CLI 二进制（migrate 用，复用 ci-build-rust release 产物，分片不重编）
         uses: actions/download-artifact@v4
         with:
@@ -1781,6 +1784,9 @@ jobs:
         with:
           name: nextest-archive
           path: backend/
+
+      - name: 校验 nextest 归档完整性（与分片同一判据）
+        uses: ./.github/actions/verify-nextest-archive
 
       - name: 下载后端 CLI 二进制（migrate 用）
         uses: actions/download-artifact@v4
