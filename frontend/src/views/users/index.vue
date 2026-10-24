@@ -177,7 +177,7 @@ import { createUser, updateUser, deleteUser as deleteUserApi, type User } from '
 import { getRoleList, type Role } from '@/api/role';
 import { onMounted } from 'vue';
 import { useTableApi } from '@/composables/useTableApi';
-// Batch 462 P0-S24：引入权限码常量，与后端 users 资源对齐
+// 权限码统一取 PERMISSIONS 常量，与后端 users 资源键对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
 // 提示文案走 i18n 键，不写硬编码中文

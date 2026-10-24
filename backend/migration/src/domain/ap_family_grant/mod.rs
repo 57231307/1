@@ -9,7 +9,7 @@
 //!   跳过成因，同键显式拒绝行只点名不覆盖。
 //!
 //! 依赖关系：`roles` 与 `role_permissions` 建表（system 域）以及
-//! `uq_role_permissions_role_resource_action` 唯一索引（v15 域）均早于本域，故本域可安全
+//! `uq_role_permissions_role_resource_action` 唯一索引（m_v15_domain）均早于本域，故本域可安全
 //! 使用 `ON CONFLICT`；九枚资源名（ap-invoices、ap-payments、ap-verifications、
 //! ap-payment-requests、ap-reconciliations、ap-aging、ap-daily、ap-monthly、
 //! ap-statistics）在 `utils/path_utils.rs` 的消歧映射与 `init_service.rs` 的

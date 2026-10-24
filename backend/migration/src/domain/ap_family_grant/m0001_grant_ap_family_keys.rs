@@ -30,7 +30,7 @@
 //! ## 角色定位与幂等
 //! 角色码以 `init_service_ops/role.rs` 的种子码为唯一真相，只按 code 反查、绝不硬编 id；
 //! 库里解析不到时 RAISE NOTICE 点名而非静默丢弃。唯一索引
-//! `uq_role_permissions_role_resource_action`（列集合 role_id, resource_type, action）由 v15 域
+//! `uq_role_permissions_role_resource_action`（列集合 role_id, resource_type, action）由 m_v15_domain
 //! 创建，本域注册在全链尾必然晚于它，故 `ON CONFLICT` 可直接用该列集合。未插入时分辨两种
 //! 成因并分别打印：同键已有 allowed=true（幂等跳过）与同键存在显式拒绝行 allowed=false
 //! （按不覆盖人工裁定口径保留、只 RAISE WARNING 点名）。新装库上命中 0 行属正常时序。
