@@ -84,7 +84,21 @@
             <el-descriptions-item :label="$t('colorCards.detail.info.description')" :span="2">{{
               card?.description || '-'
             }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorCards.detail.info.stockQuantity')">{{
+              card?.stock_quantity ?? '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorCards.detail.info.issuedQuantity')">{{
+              card?.issued_quantity ?? '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('colorCards.detail.info.availableQuantity')">{{
+              availableStock
+            }}</el-descriptions-item>
           </el-descriptions>
+          <div class="stock-actions">
+            <el-button type="primary" plain @click="openStockDialog">{{
+              $t('colorCards.detail.stockDialog.entry')
+            }}</el-button>
+          </div>
         </el-tab-pane>
 
         <!-- 色号列表 -->
@@ -116,6 +130,42 @@
         }}</el-button>
         <el-button type="primary" :loading="adding" @click="handleAddItem">{{
           $t('colorCards.detail.addItemDialog.add')
+        }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 库存登记对话框 -->
+    <el-dialog
+      v-model="showStockDialog"
+      :title="$t('colorCards.detail.stockDialog.title')"
+      width="420px"
+      :aria-label="$t('colorCards.detail.stockDialog.ariaLabel')"
+    >
+      <el-form label-width="96px" @submit.prevent>
+        <el-form-item :label="$t('colorCards.detail.stockDialog.field')">
+          <el-input-number
+            v-model="stockInput"
+            :min="0"
+            :step="1"
+            :precision="0"
+            :placeholder="$t('colorCards.detail.stockDialog.placeholder')"
+          />
+        </el-form-item>
+        <el-form-item>
+          <span class="stock-hint">{{
+            $t('colorCards.detail.stockDialog.hint', {
+              issued: card?.issued_quantity ?? 0,
+              available: availableStock,
+            })
+          }}</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showStockDialog = false">{{
+          $t('colorCards.detail.stockDialog.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="stockSubmitting" @click="handleRegisterStock">{{
+          $t('colorCards.detail.stockDialog.save')
         }}</el-button>
       </template>
     </el-dialog>
@@ -221,6 +271,7 @@ import {
   batchImportItems,
   scanColorCode,
   exportColorCardUrl,
+  updateColorCard,
   COLOR_CARD_STATUS,
   COLOR_CARD_STATUS_COLORS,
   type ColorCardDetail,
@@ -275,6 +326,13 @@ const DRAFT: ColorCardStatusToken = 'draft';
 // 判据与 color-cards/list.vue 归档按钮（row.status === 'draft'）同源
 const isDraftCard = computed(() => card.value?.status === DRAFT);
 
+// 可用量按后端同一口径算（stock_quantity - issued_quantity），仅用于展示，
+// 真正的发放守门仍在服务端，前端不做第二套判定
+const availableStock = computed(() => {
+  if (!card.value) return '-';
+  return (card.value.stock_quantity ?? 0) - (card.value.issued_quantity ?? 0);
+});
+
 // 非草稿态禁用解释文案：全部由既有条目词表动态组装（卡状态标签、入口名），不硬编码文案。
 const draftOnlyTip = (actionLabel: string) =>
   t('colorCards.detail.draftOnlyTip', {
@@ -298,6 +356,47 @@ const newItem = ref<Partial<ColorItemInfo>>({
 
 const showImportDialog = ref(false);
 const importing = ref(false);
+
+// ===== 色卡实物库存登记 =====
+// 库存不是卡面属性，而是"这批色卡印了多少张"的离散记账动作，因此不套草稿态门控：
+// 归档或停用后仍可能补登印制数量，而发放守门读的始终是库里的 stock_quantity。
+// 初值取库里现值而不是 0：0 会让"没印够"被读成一次合法的低库存声明。
+const showStockDialog = ref(false);
+const stockSubmitting = ref(false);
+const stockInput = ref<number | undefined>(undefined);
+
+const openStockDialog = () => {
+  stockInput.value = card.value?.stock_quantity;
+  showStockDialog.value = true;
+};
+
+const handleRegisterStock = async () => {
+  if (stockInput.value == null) {
+    ElMessage.warning(t('colorCards.detail.stockDialog.required'));
+    return;
+  }
+  stockSubmitting.value = true;
+  try {
+    await updateColorCard(cardId.value, { stock_quantity: stockInput.value });
+    // 不信任 PUT 响应体形状：提交后整卡重读，页面上三个数量都以库里的值呈现
+    await loadData();
+    ElMessage.success(t('colorCards.detail.stockDialog.saved'));
+    showStockDialog.value = false;
+  } catch (e: unknown) {
+    const errObj = e as { response?: { data?: { message?: string } } };
+    const reason = errObj?.response?.data?.message;
+    // 库存不得低于已发放量这类拒绝是后端点名的成文口径，原文要外显给用户，
+    // 只报"保存失败"会让人以为是不受控的前端问题
+    if (reason) {
+      ElMessage.error(reason);
+    } else {
+      logAuxLoadFailure('色卡库存登记失败', e);
+      ElMessage.error(t('colorCards.detail.stockDialog.saveFailed'));
+    }
+  } finally {
+    stockSubmitting.value = false;
+  }
+};
 const importText = ref('');
 
 const showScanDialog = ref(false);
