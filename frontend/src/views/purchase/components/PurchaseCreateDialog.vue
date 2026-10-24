@@ -142,6 +142,7 @@
               :min="0"
               :precision="2"
               class="col-price"
+              :placeholder="t('purchase.createDlg.unitPricePlaceholder')"
               @change="onCalculateSubtotal(item)"
             />
             <el-input-number

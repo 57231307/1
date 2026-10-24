@@ -1104,6 +1104,8 @@ export default {
       colQuantity: '数量',
       colUnitPrice: '单价',
       colTaxRate: '税率(%)',
+      unitPricePlaceholder: '请输入单价',
+      unitPriceRequired: '请为每个产品行填写单价（样布 赠品 寄售行填 0）',
       taxRatePlaceholder: '百分数，如 13 表示 13%',
       taxRateRequired: '请为每个产品行填写税率（百分数，如 13 表示 13%，无进项票填 0）',
 

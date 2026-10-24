@@ -1108,6 +1108,9 @@ export default {
       colQuantity: 'Quantity',
       colUnitPrice: 'Unit Price',
       colTaxRate: 'Tax Rate (%)',
+      unitPricePlaceholder: 'Enter unit price',
+      unitPriceRequired:
+        'Enter a unit price for each item (enter 0 for samples, free gifts or consignment lines)',
       taxRatePlaceholder: 'Percent value, e.g. 13 means 13%',
       taxRateRequired:
         'Enter a tax rate for each item (percent value, e.g. 13 means 13%; enter 0 if no input VAT)',
