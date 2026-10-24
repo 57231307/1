@@ -95,7 +95,9 @@ pub async fn get_five_dimension_stats(
     _auth: AuthContext,
     Query(params): Query<FiveDimensionStatsParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<FiveDimensionStats>>>, AppError> {
-    Ok(Json(ApiResponse::success(stats_page(&state, params).await?)))
+    Ok(Json(ApiResponse::success(
+        stats_page(&state, params).await?,
+    )))
 }
 
 /// GET /api/v1/erp/five-dimension/stats/:id - 按五维ID查询统计
@@ -143,7 +145,9 @@ pub async fn list_five_dimension_stats(
     _auth: AuthContext,
     Query(params): Query<FiveDimensionStatsParams>,
 ) -> Result<Json<ApiResponse<PaginatedResponse<FiveDimensionStats>>>, AppError> {
-    Ok(Json(ApiResponse::success(stats_page(&state, params).await?)))
+    Ok(Json(ApiResponse::success(
+        stats_page(&state, params).await?,
+    )))
 }
 
 /// GET /api/v1/erp/five-dimension/summary - 五维统计汇总
