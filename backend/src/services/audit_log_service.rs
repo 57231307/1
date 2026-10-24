@@ -148,7 +148,7 @@ impl AuditLogService {
             // 启动后台消费者 task（全局唯一，不会被 drop 关闭）
             let db_clone = db.clone();
             let handle = tokio::spawn(async move {
-                while let Some((event, ctx)) = receiver.recv().await {
+                while let Some((mut event, ctx)) = receiver.recv().await {
                     let result = AssertUnwindSafe(async {
                         Self::resolve_username(db_clone.as_ref(), &mut event).await;
                         let log = build_active_model(&event, ctx.as_ref());
