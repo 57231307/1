@@ -16,7 +16,8 @@ use crate::services::product_service::ProductService;
 impl ProductService {
     /// 将 product::Model 转换为 ProductDoc 用于 ES 索引
     /// 批次 125 v8 复审 P1 修复：字段映射规则；category: join product_category 表取 name（category_id 索引意义不大）；color_no/pantone_code: 暂设 None（一对多关联复杂，后续迭代优化）；price: standard_price Decimal → f64；spec: specification 字段
-    fn build_product_doc(&self, model: &product::Model) -> ProductDoc {
+    /// `pub(crate)`：ES 对账补偿调度（es_reconcile_scheduler）以本方法为文档唯一派生源，禁止第二套手写构建。
+    pub(crate) fn build_product_doc(&self, model: &product::Model) -> ProductDoc {
         ProductDoc {
             id: model.id,
             code: model.code.clone(),

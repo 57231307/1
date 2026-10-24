@@ -120,14 +120,15 @@ const templateRules = reactive<FormRules>({
   ],
 });
 
-/** 添加节点 */
+/** 添加节点（默认审批任务节点；type 为引擎逐字符识别的 token；assignee_type 按裁定默认部门上级解析，引擎词表见 resolve_node_assignee） */
 const handleAddNode = () => {
   bpmDf.formData.nodes.push({
-    id: `node_${Date.now()}`,
-    type: 'approval',
+    // 节点 id 是边 source/target 的引用键（后端按 id 匹配出边与目标节点），必须唯一；
+    // 纯时间戳在同毫秒连点时会撞键，追加随机后缀消除碰撞
+    id: `node_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type: 'user_task',
     name: t('bpm.definitions.nodePrefix', { index: bpmDf.formData.nodes.length + 1 }),
-    assignee_type: 'user',
-    assignee_value: '',
+    assignee_type: 'dept_superior',
   });
 };
 

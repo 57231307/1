@@ -68,16 +68,22 @@ export interface EvaluationRecord {
 /**
  * 供应商评分出参 = `SupplierScoreResponse`
  * （`backend/src/services/supplier_evaluation_service.rs`，score/rankings 端点返回）。
- * 真实字段为 average_score / total_records / rating / latest_evaluation_date；
+ * 后端出参键恒为 supplier_id / supplier_name / average_score / total_records / rating /
+ * latest_evaluation_date（null 也显式出键）。
+ * supplier_name 由后端按 supplier_id 实查 suppliers 表回填（外键行缺失时为 null），
+ * 禁止用编码或 id 冒充名称。
+ * average_score 为 rust_decimal 序列化的 JSON 字符串（后端只开 serde 特性，与
+ * EvaluationRecord.score 同形态），不得建模为 number；当前页面仅原样展示，
+ * 如需参与运算必须在明确边界处 Number() 转换并注释。
  * `rank` 为排名榜前端按返回顺序本地计算（index+1），非后端字段。
  */
 export interface SupplierScore {
   supplier_id: number;
-  average_score: number;
+  average_score: string;
   total_records: number;
   rating: string;
-  latest_evaluation_date?: string | null;
-  supplier_name?: string | null;
+  latest_evaluation_date: string | null;
+  supplier_name: string | null;
   rank?: number;
 }
 

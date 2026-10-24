@@ -92,6 +92,36 @@ slow_query:
   threshold_ms: 100.0      # 慢查询阈值（毫秒），超过此值的 SQL 才会被记录
   limit_rows: 100          # 单次采集最大行数
 
+# 后台周期扫描/补偿任务组配置（service_bootstrap 启动链按本段挂载调度循环）
+# 优先级：环境变量 BACKGROUND_JOBS__<job>__<字段> > 本段 > 代码层 Default 默认值
+# 每个开关默认值都在 settings.rs 对应 job 的 Default impl 中显式声明，源码不写魔法数字
+background_jobs:
+  # 财务预警扫描（应收逾期/库存积压/现金缺口/预算超支四类预警周期生成）
+  finance_alert_scan:
+    enabled: true
+    interval_secs: 21600   # 扫描间隔（秒），默认 6 小时
+    initial_delay_secs: 180
+  # 催收任务自动生成（按应收账龄扫描逾期发票幂等建单）
+  collection_task_auto_generate:
+    enabled: true
+    interval_secs: 86400   # 扫描间隔（秒），默认每日
+    initial_delay_secs: 300
+    # min_overdue_days 留空 = 使用催收服务声明的业务默认（1 天）
+    # assign_user_id 必填：催收任务 assigned_to 是 NOT NULL 外键，未配置则调度不挂载（业务口径由部署方定）
+    # assign_user_id: 1
+  # 劳动合同到期扫描（到期合同状态自动流转 expired）
+  labor_contract_expiry_scan:
+    enabled: true
+    interval_secs: 86400
+    initial_delay_secs: 240
+  # ES 搜索索引对账补偿（以 PG 为权威源重建 customers/products/sales_orders 已同步索引）
+  # ELASTICSEARCH_URL 未配置时（进程内 mock 存储）本任务不挂载
+  es_reconcile:
+    enabled: true
+    interval_secs: 3600    # 对账间隔（秒）
+    initial_delay_secs: 300
+    batch_size: 500        # 单批文档数 / sales_orders 域单轮重建补偿封顶
+
 # 面料行业配置（V15 Batch05-P1-2：6 个核心配置项）
 # 依据：V15 审计报告 类五 P1（batch-05 维度 5.5：配置依赖闭环 缺陷项 1）
 # 优先级：环境变量 > config.yaml fabric_industry 段 > 默认值

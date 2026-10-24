@@ -36,10 +36,9 @@ pub const P92_CRUD_MODULE: &str = "sales_order_crud";
 
 /// Decimal → f64 转换工具函数
 /// 批次 125 v8 复审 P1 修复：ES 索引字段为 f64，PG Decimal 需转换。；使用 to_string().parse() 避免精度损失（Decimal::to_f64 在某些边界值会丢精度）。
-fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
+pub(crate) fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
     d.to_string().parse::<f64>().unwrap_or(0.0)
 }
-
 /// 订单金额累计：用于 create_order 拆分时在 helper 间传递总额
 struct OrderTotals {
     subtotal: rust_decimal::Decimal,
@@ -64,7 +63,8 @@ impl SalesService {
 
     /// 将 SalesOrderDetail 转换为 SalesOrderDoc 用于 ES 索引
     /// 批次 125 v8 复审 P1 修复：字段映射规则；total_amount: Decimal → f64（decimal.to_string().parse::<f64>().unwrap_or(0.0)）；items: 从 SalesOrderItemDetail 构建 SalesOrderItemDoc（quantity/unit_price Decimal→f64）；items.color_no: String → Option<String>（空字符串转 None）
-    fn build_sales_order_doc(detail: &SalesOrderDetail) -> SalesOrderDoc {
+    /// `pub(crate)`：ES 对账补偿调度（es_reconcile_scheduler）以本方法为文档唯一派生源，禁止第二套手写构建。
+    pub(crate) fn build_sales_order_doc(detail: &SalesOrderDetail) -> SalesOrderDoc {
         let items: Vec<SalesOrderItemDoc> = detail
             .items
             .iter()

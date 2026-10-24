@@ -230,6 +230,10 @@ const createForm = reactive({ process_key: '', process_name: '' });
 
 const getNodeTypeName = (type: string) => {
   const map: Record<string, string> = {
+    start_event: t('bpm.templates.nodeType.startEvent'),
+    user_task: t('bpm.templates.nodeType.userTask'),
+    end_event: t('bpm.templates.nodeType.endEvent'),
+    // 存量模板兼容：词表修正（对齐引擎判定值）前保存的模板节点仍是旧 token，只读展示用
     start: t('bpm.templates.nodeType.start'),
     end: t('bpm.templates.nodeType.end'),
     approval: t('bpm.templates.nodeType.approval'),

@@ -137,12 +137,16 @@ async fn get(app: &axum::Router, uri: &str) -> (StatusCode, Value) {
 /// 逐列对照 migration：NOT NULL = inspection_no/product_id/inspection_type/inspection_date
 /// （m0005:158-176；result 列 v15/mod.rs 已 DROP NOT NULL）；实体非 Option 列
 /// total_qty/inspected_qty/inspection_result 一并给值，保证 Model 可读。
+/// inspection_type 取权威词表 quality_inspection_type::FINISHED（finished，成品检验）；
+/// 历史写法 `final` 是 ai_quality_predictions 那套词表的 token，与本列词表分属两套、
+/// 不可互抄，且入口门契约锁（contract_quality_inspection_type_gate_test）明确把
+/// `final` 列为拒绝值，词表 CHECK 同样拒绝。
 async fn seed_inspection(db: &sea_orm::DatabaseConnection, id: i64) {
     let sql = format!(
         r#"INSERT INTO quality_inspection_records
                (id, inspection_no, product_id, inspection_type, inspection_date,
                 inspector_id, total_qty, inspected_qty, inspection_result)
-           VALUES ({id},'W7SC-QIR-{id}',1,'final','2026-01-01',100,100,100,'不合格')"#
+           VALUES ({id},'W7SC-QIR-{id}',1,'finished','2026-01-01',100,100,100,'不合格')"#
     );
     db.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,

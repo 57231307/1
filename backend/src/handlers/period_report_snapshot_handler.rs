@@ -69,8 +69,10 @@ pub async fn list_snapshots(
     info!("用户 {} 正在查询报表快照列表", auth.user_id);
 
     let service = PeriodReportSnapshotService::new(state.db.clone());
-    let page = params.page.unwrap_or(0);
-    let page_size = params.page_size.unwrap_or(20);
+    // 分页上限对齐全仓主流口径：页大小最多 100、页码最多 1000，防直连 API 打满全表。
+    // 本链页码基数为 1（取数偏移由页码减一再乘页大小得出），下界取 1 与首页算法一致。
+    let page = params.page.unwrap_or(1).clamp(1, 1000);
+    let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
     let (snapshots, total) = service
         .list(SnapshotQueryParams {
             period_id: params.period_id,

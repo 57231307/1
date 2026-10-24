@@ -16,18 +16,16 @@ use crate::container::{AppState, AppStateParams};
 /// 启动过程中创建的需要在 graceful shutdown 时关闭的服务句柄。
 ///
 /// 保留 OmniAuditEngine clone，shutdown 时调用其 shutdown()，避免审计引擎 detached task 泄漏。
-/// 保留 AuditLogService clone，shutdown 时调用其 shutdown()，避免审计日志 detached task 泄漏。
+/// 审计日志服务的积压由关停链调用总线 flush 排空，随后关停链经全局单句柄 abort
+/// 消费者 task 并 await 确认终止，本结构不为其保留实例句柄（消费者是进程级全局单例，
+/// 实例字段装不进它）。
 pub struct BootstrapShutdownHandles {
     omni_audit: Option<Arc<crate::services::omni_audit_service::OmniAuditEngine>>,
-    audit_log: Option<Arc<crate::services::audit_log_service::AuditLogService>>,
 }
 
 impl Default for BootstrapShutdownHandles {
     fn default() -> Self {
-        Self {
-            omni_audit: None,
-            audit_log: None,
-        }
+        Self { omni_audit: None }
     }
 }
 
@@ -39,9 +37,6 @@ impl BootstrapShutdownHandles {
     pub fn shutdown(&mut self) {
         if let Some(omni_audit) = self.omni_audit.take() {
             omni_audit.shutdown();
-        }
-        if let Some(audit_log) = self.audit_log.take() {
-            audit_log.shutdown();
         }
     }
 }
@@ -85,7 +80,7 @@ pub fn shutdown_main_background_tasks() {
 /// 完整模式启动：数据库已连接后执行迁移、创建服务、启动后台任务、组装 AppState。
 ///
 /// 返回 `(AppState, BootstrapShutdownHandles)`，后者用于 graceful shutdown 时
-/// 关闭审计引擎和审计日志服务。
+/// 关闭审计引擎。
 pub async fn bootstrap_full_mode(
     db: DatabaseConnection,
     settings: &AppSettings,
@@ -109,7 +104,6 @@ pub async fn bootstrap_full_mode(
     shutdown_handles.omni_audit = Some(omni_audit.clone());
 
     let audit_log = create_audit_log_service(&db);
-    shutdown_handles.audit_log = Some(audit_log.clone());
 
     let retention_days = resolve_audit_retention_days();
     let audit_cleanup = create_audit_cleanup_service(&db, retention_days);
@@ -147,9 +141,19 @@ pub async fn bootstrap_full_mode(
     start_notification_push_scheduler(&app_state);
     // PDA/工控终端心跳超时清理任务（默认每 60 秒扫描一次超时设备）
     start_device_connection_cleanup_task(&app_state);
+    // 财务预警扫描调度（四类预警按 background_jobs.finance_alert_scan 周期生成）
+    start_finance_alert_scan_scheduler(&app_state, settings);
+    // 催收任务自动生成调度（按应收账龄周期建单，受派人来自配置）
+    start_collection_task_auto_generate_scheduler(&app_state, settings);
+    // 劳动合同到期扫描调度（到期合同状态自动流转）
+    start_labor_contract_expiry_scheduler(&app_state, settings);
+    // ES 搜索索引对账补偿调度（以 PG 为权威源重建已同步索引）
+    start_es_reconcile_scheduler(&app_state, settings);
     init_event_bus(&app_state, settings).await;
     init_assist_dimensions(&app_state).await;
     seed_product_categories(&app_state).await;
+    // BPM 出厂审批流程定义种子（幂等补种四类提交审批链路的流程定义，失败仅告警不阻塞启动）
+    seed_bpm_builtin_definitions(&app_state).await;
     init_es_indices().await;
     // 启动 WebSocket Redis Pub/Sub 多实例广播订阅器
     let ws_pubsub_handle =
@@ -903,6 +907,132 @@ fn start_device_connection_cleanup_task(app_state: &AppState) {
     }
 }
 
+/// 启动财务预警扫描调度（应收逾期/库存积压/现金缺口/预算超支四类预警的周期生成入口）。
+/// 开关与周期来自配置段 background_jobs.finance_alert_scan；句柄注册进 MAIN_BACKGROUND_TASKS，
+/// 循环受 MAIN_CANCELLATION_TOKEN 控制优雅退出。
+fn start_finance_alert_scan_scheduler(app_state: &AppState, settings: &AppSettings) {
+    let job = settings.background_jobs.finance_alert_scan.clone();
+    if !job.enabled {
+        info!("财务预警扫描调度已禁用（background_jobs.finance_alert_scan.enabled=false）");
+        return;
+    }
+    let scheduler = std::sync::Arc::new(
+        crate::services::finance_alert_scheduler::FinanceAlertScanScheduler::new(
+            app_state.db.clone(),
+            job.clone(),
+        ),
+    );
+    let handle = scheduler.start_background_task(MAIN_CANCELLATION_TOKEN.clone());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!(
+        interval_secs = job.interval_secs,
+        "财务预警扫描调度已启动（每 {} 秒全量幂等扫描四类预警候选）", job.interval_secs
+    );
+}
+
+/// 启动催收任务自动生成调度（按应收账龄扫描逾期发票并幂等生成催收任务）。
+/// 受派人（assigned_to 为 NOT NULL 外键）取自配置 assign_user_id：未配置时记 warn 并跳过挂载，
+/// 绝不写死任何用户；轮内仍存在性预检（见 CollectionTaskAutoGenerateScheduler::scan_once）。
+fn start_collection_task_auto_generate_scheduler(app_state: &AppState, settings: &AppSettings) {
+    let job = settings
+        .background_jobs
+        .collection_task_auto_generate
+        .clone();
+    if !job.enabled {
+        info!(
+            "催收任务自动生成调度已禁用（background_jobs.collection_task_auto_generate.enabled=false）"
+        );
+        return;
+    }
+    let Some(assign_user_id) = job.assign_user_id else {
+        warn!(
+            "催收任务自动生成调度已启用但未配置受派人（background_jobs.collection_task_auto_generate.assign_user_id），跳过挂载：\
+             催收任务 assigned_to 为 NOT NULL 外键，自动生成必须先由部署方指定默认受派用户"
+        );
+        return;
+    };
+    let scheduler = std::sync::Arc::new(
+        crate::services::collection_task_scheduler::CollectionTaskAutoGenerateScheduler::new(
+            app_state.db.clone(),
+            job.clone(),
+            assign_user_id,
+        ),
+    );
+    let handle = scheduler.start_background_task(MAIN_CANCELLATION_TOKEN.clone());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!(
+        interval_secs = job.interval_secs,
+        assign_user_id,
+        "催收任务自动生成调度已启动（每 {} 秒扫描逾期发票并按客户聚合建单）",
+        job.interval_secs
+    );
+}
+
+/// 启动劳动合同到期扫描调度（到期档位预警 + 已过期合同状态自动流转）。
+/// 扫描方法本身即含"已过期合同自动流转 expired"的真实写库副作用，周期触发使状态机闭环不再依赖人工调用。
+fn start_labor_contract_expiry_scheduler(app_state: &AppState, settings: &AppSettings) {
+    let job = settings.background_jobs.labor_contract_expiry_scan.clone();
+    if !job.enabled {
+        info!(
+            "劳动合同到期扫描调度已禁用（background_jobs.labor_contract_expiry_scan.enabled=false）"
+        );
+        return;
+    }
+    let scheduler = std::sync::Arc::new(
+        crate::services::labor_contract_expiry_scheduler::LaborContractExpiryScheduler::new(
+            app_state.db.clone(),
+            job.clone(),
+        ),
+    );
+    let handle = scheduler.start_background_task(MAIN_CANCELLATION_TOKEN.clone());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!(
+        interval_secs = job.interval_secs,
+        "劳动合同到期扫描调度已启动（每 {} 秒全量扫描到期/临近到期合同）", job.interval_secs
+    );
+}
+
+/// 启动 ES 搜索索引对账补偿调度（以 PG 为权威源重建 customers/products/sales_orders 索引，
+/// 兑现客户/产品/销售订单同步失败路径 warn 文案中"靠补偿任务修复"的承诺）。
+/// ELASTICSEARCH_URL 未配置时搜索客户端为进程内 mock 存储（无跨进程最终一致性需求），跳过挂载。
+fn start_es_reconcile_scheduler(app_state: &AppState, settings: &AppSettings) {
+    let job = settings.background_jobs.es_reconcile.clone();
+    if !job.enabled {
+        info!("ES 对账补偿调度已禁用（background_jobs.es_reconcile.enabled=false）");
+        return;
+    }
+    if std::env::var("ELASTICSEARCH_URL")
+        .unwrap_or_default()
+        .is_empty()
+    {
+        info!("ES 对账补偿调度跳过挂载：ELASTICSEARCH_URL 未配置，搜索客户端为进程内 mock 存储");
+        return;
+    }
+    let scheduler = std::sync::Arc::new(
+        crate::services::es_reconcile_scheduler::EsReconcileScheduler::new(
+            app_state.db.clone(),
+            app_state.search_client.clone(),
+            job.clone(),
+        ),
+    );
+    let handle = scheduler.start_background_task(MAIN_CANCELLATION_TOKEN.clone());
+    if let Ok(mut tasks) = MAIN_BACKGROUND_TASKS.lock() {
+        tasks.push(handle);
+    }
+    info!(
+        interval_secs = job.interval_secs,
+        batch_size = job.batch_size,
+        "ES 对账补偿调度已启动（每 {} 秒以 PG 为权威源重建已同步索引）",
+        job.interval_secs
+    );
+}
+
 /// 启动事件总线监听器并按 Kafka 配置初始化事件总线。
 async fn init_event_bus(app_state: &AppState, settings: &AppSettings) {
     crate::services::event_bus::start_event_listener(
@@ -976,6 +1106,21 @@ async fn seed_product_categories(app_state: &AppState) {
         Err(e) => warn!(
             error = %e,
             "产品分类默认种子失败（不阻塞启动，新建产品表单将无分类候选）"
+        ),
+    }
+}
+
+/// 启动时幂等补种出厂内置 BPM 审批流程定义（报价单/销售订单/采购订单/生产订单四类提交审批链路）。
+///
+/// 只补 code 缺失者、绝不覆盖既有定义（用户调整永不受影响）；admin 角色尚无启用用户时（未初始化）
+/// 内部记 warn 跳过，不阻塞启动。审批发起链路是 fail-closed 的——缺定义会让报价/销售订单提交审批报
+/// 400，本种子保证出厂即可用。失败仅 warn，与产品/打印种子一致的启动期容错口径。
+async fn seed_bpm_builtin_definitions(app_state: &AppState) {
+    match crate::services::bpm_definition_seed::seed_builtin_bpm_definitions(&app_state.db).await {
+        Ok(()) => {}
+        Err(e) => warn!(
+            error = %e,
+            "BPM 出厂审批流程定义种子失败（不阻塞启动，但缺定义将令提交审批报 400，需人工在流程定义页补建）"
         ),
     }
 }

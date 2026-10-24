@@ -86,6 +86,32 @@ pub mod logistics_event_type {
     pub const ALL: &[&str] = &[PICKUP, IN_TRANSIT, ARRIVED, DELIVERED];
 }
 
+/// BPM 流程定义状态（bpm_process_definition.status，大写值）
+///
+/// 写入方（services/bpm_process_definition_service.rs）：create 缺省落 DRAFT、
+/// activate_process_version 把同 code 兄弟置 INACTIVE 并把目标置 ACTIVE、
+/// save_as_template 建的模板记录落 ACTIVE；读取方为定义列表筛选与流程发起前置检查。
+/// DDL 列默认值也是 DRAFT（system 域建表原文），入参校验与 DB CHECK
+/// chk_bpm_process_definition_status 的取值来源一律以本 ALL 为准，禁止另写一套。
+pub mod bpm_process_definition_status {
+    /// 草稿：新建未启用的流程定义
+    pub const DRAFT: &str = "DRAFT";
+
+    /// 已激活：当前生效版本，同 code 同时至多一条
+    pub const ACTIVE: &str = "ACTIVE";
+
+    /// 已停用：被同 code 更新版本顶替的历史定义
+    pub const INACTIVE: &str = "INACTIVE";
+
+    /// 本列全部合法取值：入参校验与 DB CHECK 的唯一取值来源
+    pub const ALL: &[&str] = &[DRAFT, ACTIVE, INACTIVE];
+
+    /// 白名单判定：逐字符匹配，词表外（含大小写变体）一律 false
+    pub fn is_valid(status: &str) -> bool {
+        ALL.contains(&status)
+    }
+}
+
 /// BPM 流程实例状态（bpm_process_instance.status，大写值）
 /// 批次 235 v13 真实接入：bpm_service.rs 中流程实例状态字符串字面量统一引用此模块（规则 0）
 pub mod bpm_instance {

@@ -126,6 +126,18 @@ impl InitService {
         self.create_admin_user(admin_username, &password_hash, admin_role.id, department_id)
             .await?;
 
+        // 管理员刚创建完成，审批人锚点（admin 角色首个启用用户）即刻可用：当场补种出厂审批
+        // 流程定义，使报价单/销售订单/采购订单/生产订单提交审批在初始化后立即可用，
+        // 无需等待服务重启。幂等只补不覆盖；失败仅告警不阻断初始化（完整模式启动链会再次尝试）。
+        if let Err(e) =
+            crate::services::bpm_definition_seed::seed_builtin_bpm_definitions(&self.db).await
+        {
+            tracing::warn!(
+                error = %e,
+                "BPM 出厂审批流程定义当场补种失败（不影响初始化结果，服务以完整模式启动时将自动重试）"
+            );
+        }
+
         // 27.8 迁移后置校验：初始化完成后校验关键表存在性 + 主数据行数
         // 失败仅告警，不阻塞启动
         self.verify_migration().await;

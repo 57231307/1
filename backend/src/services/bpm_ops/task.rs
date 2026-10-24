@@ -6,7 +6,7 @@
 //! - `update_task_status`：更新任务状态 + 审计
 //! - `handle_task_reject`：拒绝任务（终止 instance + 收集事件）
 //! - `handle_task_approve`：批准任务（推进下一节点或完成 instance）
-//! - `try_advance_to_next_node`：尝试推进下一节点（条件评估 + 创建下一 user_task）
+//! - try_advance_to_next_node：尝试推进下一节点（条件评估 + 创建下一 user_task + 定义配置错误时拒绝审批）
 //! - `create_next_user_task`：创建下一 user_task 节点
 //! - `complete_process_instance`：完成 instance + 收集事件
 //! - `query_user_tasks`：分页查询用户任务
@@ -291,7 +291,13 @@ impl BpmService {
         Ok(())
     }
 
-    /// 尝试推进下一节点：查找匹配边 + 创建下一 user_task
+    /// 尝试推进下一节点：查找匹配边 + 创建下一 user_task；
+    /// 当前节点有出边但条件分支全部不匹配时拒绝本次审批（fail-closed，
+    /// 裁定口径：不得按"流程正常结束且已批准"收尾）；匹配边的目标节点类型
+    /// 不受支持或指向不存在的节点时同样拒绝审批；仅当节点完全没有出边时
+    /// 返回 false 交由调用方按正常完成收尾（该形状已被发起期链干跑
+    /// validate_forward_path 拦截，只服务于此规则生效前的历史在途实例，
+    /// 不是保留的自动批准口子）。
     async fn try_advance_to_next_node(
         &self,
         ctx: &ApproveContext,
@@ -304,15 +310,17 @@ impl BpmService {
                 flow_def.get("nodes").and_then(|n| n.as_array()),
                 flow_def.get("edges").and_then(|e| e.as_array()),
             ) {
-                // 查找从当前任务节点出发的边，支持条件评估
-                let matching_edge = edges.iter().find(|e| {
-                    let source_match =
-                        e.get("source").and_then(|s| s.as_str()) == Some(&ctx.task.node_id);
-                    if !source_match {
-                        return false;
-                    }
-
-                    // 检查边条件
+                // 当前任务节点的全部出边；条件求值与发起期干跑同源（evaluate_bpm_condition），
+                // 无 condition 键或键值非字符串按无边界处理，与历史匹配语义逐字符一致。
+                let outgoing: Vec<&serde_json::Value> = edges
+                    .iter()
+                    .filter(|e| e.get("source").and_then(|s| s.as_str()) == Some(&ctx.task.node_id))
+                    .collect();
+                if outgoing.is_empty() {
+                    // 完全没有出边：保留现行完成收尾（见函数头注释的历史在途实例口径）。
+                    return Ok(false);
+                }
+                let matching_edge = outgoing.iter().find(|e| {
                     if let Some(condition) = e.get("condition").and_then(|c| c.as_str()) {
                         evaluate_bpm_condition(condition, &ctx.instance.variables)
                     } else {
@@ -320,23 +328,55 @@ impl BpmService {
                     }
                 });
 
-                if let Some(edge) = matching_edge {
-                    let target_id = edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
-                    let target_node = nodes
-                        .iter()
-                        .find(|n| n.get("id").and_then(|i| i.as_str()) == Some(target_id));
+                // 走到这里出边必非空；匹配不到即条件分支与发起数据全部不匹配，
+                // 显式拒绝本次审批（事务由调用方回滚），绝不落到完成收尾等于自动批准。
+                let edge = matching_edge.ok_or_else(|| {
+                    tracing::warn!(
+                        instance_id = ctx.instance.id,
+                        node_id = %ctx.task.node_id,
+                        outgoing_count = outgoing.len(),
+                        "审批节点出边的条件分支全部不匹配，已拒绝本次审批（内部标识仅随本条日志落盘）"
+                    );
+                    AppError::validation_displayable(format!(
+                        "流程定义 {} 的审批节点 {} 出发的条件分支与发起数据全部不匹配，没有可执行的分支，已拒绝本次审批。请在流程定义中补全条件覆盖，或为该节点增加一条不带条件的默认分支连线后重新审批",
+                        ctx.definition.code, ctx.task.node_name
+                    ))
+                })?;
+                let target_id = edge.get("target").and_then(|t| t.as_str()).unwrap_or("");
+                let target_node = nodes
+                    .iter()
+                    .find(|n| n.get("id").and_then(|i| i.as_str()) == Some(target_id));
 
-                    if let Some(next_node) = target_node {
-                        let node_type =
-                            next_node.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                        if node_type == "user_task" {
-                            self.create_next_user_task(ctx, next_node, txn, advanced_task_ids)
-                                .await?;
-                            return Ok(true);
-                        } else if node_type == "end_event" {
-                            // 结束事件，在下面处理
-                        }
+                if let Some(next_node) = target_node {
+                    let node_type = next_node.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                    if node_type == "user_task" {
+                        self.create_next_user_task(ctx, next_node, txn, advanced_task_ids)
+                            .await?;
+                        return Ok(true);
+                    } else if node_type == "end_event" {
+                        // 结束事件，在下面处理
+                    } else {
+                        // 目标节点类型不在引擎词表内属流程定义配置错误：拒绝本次审批
+                        // （事务由调用方回滚），不得把无法识别的节点当作"流程正常结束
+                        // 且已批准"放行。
+                        let node_id = next_node
+                            .get("id")
+                            .and_then(|i| i.as_str())
+                            .unwrap_or("unknown");
+                        let node_name =
+                            next_node.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                        return Err(AppError::validation_displayable(format!(
+                            "流程定义 {} 的审批节点 {node_name}({node_id}) 类型「{node_type}」不受支持，推进流程只识别 user_task 与 end_event，已拒绝本次审批，请修正流程定义后重新审批",
+                            ctx.definition.code
+                        )));
                     }
+                } else {
+                    // 连线指向 nodes 中不存在的节点 id 同属流程定义配置错误，
+                    // 同样拒绝本次审批，不得按"流程正常结束"批准。
+                    return Err(AppError::validation_displayable(format!(
+                        "流程定义 {} 中从节点 {} 出发的连线指向不存在的节点 {target_id}，无法推进，已拒绝本次审批，请修正流程定义的节点连线",
+                        ctx.definition.code, ctx.task.node_id
+                    )));
                 }
             }
         }
@@ -376,7 +416,9 @@ impl BpmService {
                 .to_string()),
             node_type: Set("user_task".to_string()),
             task_type: Set(Some("user_task".to_string())),
-            actual_handler_id: Set(super::resolve_node_assignee(next_node)?),
+            actual_handler_id: Set(
+                super::resolve_node_assignee(next_node, &ctx.instance, txn).await?
+            ),
             status: Set(Some(task_status::PENDING.to_string())),
             created_at: Set(Some(chrono::Utc::now())),
             updated_at: Set(Some(chrono::Utc::now())),
