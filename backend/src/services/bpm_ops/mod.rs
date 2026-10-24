@@ -167,7 +167,59 @@ pub(crate) async fn applicant_department(
     })
 }
 
+/// 审批人解析这条链上引擎实际读取的流程节点配置键（`config.nodes[]` 的强类型视图）。
+///
+/// 字段名与节点 JSON 键逐字对齐，是本模块"读哪几个键、键缺失按什么算"的唯一事实来源；
+/// 前端 `frontend/src/api/bpm-enhanced.ts` 的 `ProcessNode` 以此声明，契约门禁
+/// `frontend/scripts/check-api-keys.mjs` 也把它当作后端真源。
+///
+/// 调用方：[`resolve_node_assignee`] 在入口经 [`NodeConfig::from_node`] 解析一次，
+/// 解析结果交给 `resolve_user_assignee` 与 `resolve_dept_superior_assignee` 消费。
+/// 存什么：`id` / `name` / `assignee_type` 存已按引擎缺省口径归一的文本；
+/// `assignee_value` / `sensitive` 存 JSON 原文，因为"键缺失"与"键存在但类型不符"是两回事，
+/// 类型判定必须留给调用方按 fail-closed 处理，本结构不做任何静默兜底。
+pub(crate) struct NodeConfig {
+    /// 节点标识，只用于拒绝文案括号内与日志落盘；非字符串或键缺失按 `unknown`
+    pub(crate) id: String,
+    /// 节点名称，拒绝文案里点名给用户看的业务名；非字符串或键缺失按空串
+    pub(crate) name: String,
+    /// 审批人类型，词表见 [`resolve_node_assignee`]；键缺失按 `user`（兼容存量定义）
+    pub(crate) assignee_type: String,
+    /// `assignee_value` 原文：`user` 类型须由它解析出正整数用户 ID
+    pub(crate) assignee_value: Option<serde_json::Value>,
+    /// `sensitive` 原文：`dept_superior` 类型据此决定是否再上溯一级部门
+    pub(crate) sensitive: Option<serde_json::Value>,
+}
+
+impl NodeConfig {
+    /// 从节点 JSON 取键。节点不是对象（历史脏数据）时每个键都读不到，
+    /// 于是各自走缺失缺省值，与逐处字面量读取时代的判定完全一致。
+    pub(crate) fn from_node(node: &serde_json::Value) -> Self {
+        Self {
+            id: node
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            name: node
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            assignee_type: node
+                .get("assignee_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("user")
+                .to_string(),
+            assignee_value: node.get("assignee_value").cloned(),
+            sensitive: node.get("sensitive").cloned(),
+        }
+    }
+}
+
 /// 解析流程节点配置的审批人。
+///
+/// 节点键的读取与缺省口径集中在 [`NodeConfig`]，本函数只在入口解析一次再分派。
 ///
 /// 引擎支持两种审批人类型（词表唯一事实来源）：
 /// - `user`：节点 `assignee_value` 为具体用户 ID（缺省类型，兼容存量定义），须解析为正整数；
@@ -184,17 +236,11 @@ pub(crate) async fn resolve_node_assignee(
     instance: &bpm_process_instance::Model,
     txn: &DatabaseTransaction,
 ) -> Result<Option<i32>, AppError> {
-    let node_id = node.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-    let node_name = node.get("name").and_then(|v| v.as_str()).unwrap_or("");
-    let assignee_type = node
-        .get("assignee_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("user");
-    match assignee_type {
-        "user" => resolve_user_assignee(node, node_name, node_id),
-        "dept_superior" => {
-            resolve_dept_superior_assignee(node, instance, txn, node_id, node_name).await
-        }
+    let cfg = NodeConfig::from_node(node);
+    let (node_id, node_name) = (cfg.id.as_str(), cfg.name.as_str());
+    match cfg.assignee_type.as_str() {
+        "user" => resolve_user_assignee(&cfg),
+        "dept_superior" => resolve_dept_superior_assignee(&cfg, instance, txn).await,
         other => {
             tracing::warn!(
                 instance_id = instance.id,
@@ -210,14 +256,10 @@ pub(crate) async fn resolve_node_assignee(
 }
 
 /// `user` 类型分支：审批人取节点 `assignee_value` 里的数字用户 ID。
-fn resolve_user_assignee(
-    node: &serde_json::Value,
-    node_name: &str,
-    node_id: &str,
-) -> Result<Option<i32>, AppError> {
+fn resolve_user_assignee(cfg: &NodeConfig) -> Result<Option<i32>, AppError> {
+    let (node_name, node_id) = (cfg.name.as_str(), cfg.id.as_str());
     let label = format!("审批流程节点 {node_name}({node_id})");
-    let raw = node.get("assignee_value");
-    let parsed = match raw {
+    let parsed = match &cfg.assignee_value {
         Some(serde_json::Value::String(s)) => s.trim().parse::<i32>().ok(),
         Some(v) => v.as_i64().and_then(|n| i32::try_from(n).ok()),
         None => None,
@@ -236,12 +278,11 @@ fn resolve_user_assignee(
 /// 读取节点敏感操作标记：缺省即非敏感（存量定义无需迁移）；值存在但非布尔属定义错误，
 /// 按 fail-closed 拒绝，绝不静默当 false 吞掉配置笔误。
 fn read_sensitive_flag(
-    node: &serde_json::Value,
+    cfg: &NodeConfig,
     instance: &bpm_process_instance::Model,
-    node_id: &str,
-    node_name: &str,
 ) -> Result<bool, AppError> {
-    match node.get("sensitive") {
+    let (node_id, node_name) = (cfg.id.as_str(), cfg.name.as_str());
+    match &cfg.sensitive {
         None | Some(serde_json::Value::Bool(false)) => Ok(false),
         Some(serde_json::Value::Bool(true)) => Ok(true),
         Some(value) => {
@@ -264,13 +305,12 @@ fn read_sensitive_flag(
 /// → 上一级部门的 `manager_id`；敏感操作节点（`sensitive: true`）再上溯一级，
 /// 取该领导所在部门的上一级部门负责人。任一环缺失都以可外显校验错误指明去哪里配置。
 async fn resolve_dept_superior_assignee(
-    node: &serde_json::Value,
+    cfg: &NodeConfig,
     instance: &bpm_process_instance::Model,
     txn: &DatabaseTransaction,
-    node_id: &str,
-    node_name: &str,
 ) -> Result<Option<i32>, AppError> {
-    let sensitive = read_sensitive_flag(node, instance, node_id, node_name)?;
+    let (node_id, node_name) = (cfg.id.as_str(), cfg.name.as_str());
+    let sensitive = read_sensitive_flag(cfg, instance)?;
     let base_dept = match instance.initiator_department_id {
         Some(d) => d,
         None => match applicant_department(txn, instance.initiator_id).await? {
