@@ -73,9 +73,15 @@
     </el-form>
     <template #footer>
       <el-button @click="visible = false">{{ t('customerCredit.rating.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
-        t('customerCredit.rating.button.save')
-      }}</el-button>
+      <!-- 提交打的是设置评级写端点，路径末段 rating 不在后端动作关键字表内，
+           按方法派生成 create 键，与列表页设置评级入口同键。 -->
+      <el-button
+        v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
+        type="primary"
+        :loading="submitLoading"
+        @click="handleSubmit"
+        >{{ t('customerCredit.rating.button.save') }}</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -86,6 +92,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { setCreditRating, type SetCreditRatingInput } from '@/api/customer-credit';
+import { PERMISSIONS } from '@/constants/permissions';
 import type { Customer } from '@/api/customer';
 import { logger } from '@/utils/logger';
 import { CREDIT_LEVEL_VALUES } from '@/constants/credit-level';

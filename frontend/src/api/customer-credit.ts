@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /**
  * 客户信用出参载体：逐键 = backend/src/services/customer_credit_service.rs
@@ -173,15 +173,25 @@ export interface CustomerCreditQueryParams {
 }
 
 /**
- * 后端 list_credits 出参是 ApiResponse<Vec<CustomerCreditView>>
- * （handlers/customer_credit_handler.rs），裸数组、无 items 包装，
- * 也不返回 total（服务层算了 total 却没装进信封，以 _total 丢弃）；
- * 按 {items,total} 形状声明会让按该形状取数的消费方拿到 undefined（恒空不报错）。
- * 分页器总数因此只能退化成"当前页行数"，属后端契约缺口，前端不自行造总数。
+ * 客户信用列表出参声明，分页信封形态。
+ * 功能，声明该列表端点的返回载荷是 items total page page_size 四键的分页信封；
+ * items 的行载体是本文件顶部的 CustomerCredit（= 后端 CustomerCreditView 富化视图），
+ * 信封只包裹分页元数据，不改变行键集。
+ * 调用方，客户信用列表页与一切按分页消费该端点的视图。
+ * 入参，可选的 page page_size credit_level status customer_id 查询参数
+ * （后端 CreditQuery 没有 keyword 键，筛等级用 credit_level）。
+ * 传给谁，后端 CRM 域 customer-credits 资源的 list_credits handler。
+ * 存什么，只描述出参形状，不写库。
+ * 存哪里，无。
+ * 依据，后端 list_credits 的返回类型是 ApiResponse 包 PaginatedResponse，
+ * 信封四键在前端类型 api-response 与后端 utils response 两侧同源，
+ * 由 check-api-envelope 门禁与客户信用动作权限与信封锁共同钉住；
+ * 此前该端点出参是裸数组、服务层算出的 total 以 _total 丢弃，属契约缺口，本形态已补齐。
  */
 export const getCustomerCreditList = (
   params?: CustomerCreditQueryParams
-): Promise<ApiResponse<CustomerCredit[]>> => request.get('/crm/customer-credits', { params });
+): Promise<ApiResponse<PaginatedResponse<CustomerCredit>>> =>
+  request.get('/crm/customer-credits', { params });
 
 /**
  * 详情：路由写的是 {id}，但后端 get_credit(Path(customer_id)) 与

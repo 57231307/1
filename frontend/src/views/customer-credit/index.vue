@@ -19,9 +19,12 @@
       </template>
 
       <div class="toolbar">
-        <el-button type="primary" @click="openRatingDialog">{{
-          t('customerCredit.index.button.setRating')
-        }}</el-button>
+        <el-button
+          v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
+          type="primary"
+          @click="openRatingDialog"
+          >{{ t('customerCredit.index.button.setRating') }}</el-button
+        >
       </div>
 
       <el-table
@@ -70,7 +73,9 @@
           <template #default="{ row }">
             <span
               :style="{
-                color: decimalWireToNumber(row.available_credit) > 0 ? '#67c23a' : '#f56c6c',
+                // 先经 isAvailableCreditPositive 按 Decimal 线形态归一再比较，
+                // 不在模板里对字符串做裸比较（缺键与脏串两态见该函数注释）。
+                color: isAvailableCreditPositive(row.available_credit) ? '#67c23a' : '#f56c6c',
               }"
             >
               {{ row.available_credit }}
@@ -91,34 +96,63 @@
           width="520"
         >
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleViewDetail(row)">{{
-              t('customerCredit.index.button.view')
-            }}</el-button>
-            <el-button link type="warning" @click="handleEdit(row)">{{
-              t('customerCredit.index.button.edit')
-            }}</el-button>
-            <el-button link type="primary" @click="openAdjustDialog(row)">{{
-              t('customerCredit.index.button.adjust')
-            }}</el-button>
-            <el-button link type="primary" @click="openOccupyDialog(row)">{{
-              t('customerCredit.index.button.occupy')
-            }}</el-button>
-            <el-button link type="primary" @click="openReleaseDialog(row)">{{
-              t('customerCredit.index.button.release')
-            }}</el-button>
-            <el-button link type="primary" @click="handleEvaluate(row)">{{
-              t('customerCredit.index.button.evaluate')
-            }}</el-button>
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_READ"
+              link
+              type="primary"
+              @click="handleViewDetail(row)"
+              >{{ t('customerCredit.index.button.view') }}</el-button
+            >
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_UPDATE"
+              link
+              type="warning"
+              @click="handleEdit(row)"
+              >{{ t('customerCredit.index.button.edit') }}</el-button
+            >
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
+              link
+              type="primary"
+              @click="openAdjustDialog(row)"
+              >{{ t('customerCredit.index.button.adjust') }}</el-button
+            >
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
+              link
+              type="primary"
+              @click="openOccupyDialog(row)"
+              >{{ t('customerCredit.index.button.occupy') }}</el-button
+            >
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_RELEASE"
+              link
+              type="primary"
+              @click="openReleaseDialog(row)"
+              >{{ t('customerCredit.index.button.release') }}</el-button
+            >
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
+              link
+              type="primary"
+              @click="handleEvaluate(row)"
+              >{{ t('customerCredit.index.button.evaluate') }}</el-button
+            >
             <el-button
               v-if="row.status === 'active'"
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
               link
               type="danger"
               @click="handleDeactivate(row)"
               >{{ t('customerCredit.index.button.deactivate') }}</el-button
             >
-            <el-button link type="danger" @click="handleDelete(row)">{{
-              t('customerCredit.index.button.delete')
-            }}</el-button>
+            <el-button
+              v-permission="PERMISSIONS.CUSTOMER_CREDIT_DELETE"
+              link
+              type="danger"
+              @click="handleDelete(row)"
+              >{{ t('customerCredit.index.button.delete') }}</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -231,9 +265,13 @@
         <el-button @click="editDialogVisible = false">{{
           t('customerCredit.index.dialog.cancel')
         }}</el-button>
-        <el-button type="primary" :loading="editSubmitting" @click="submitEdit">{{
-          t('customerCredit.index.dialog.confirm')
-        }}</el-button>
+        <el-button
+          v-permission="PERMISSIONS.CUSTOMER_CREDIT_UPDATE"
+          type="primary"
+          :loading="editSubmitting"
+          @click="submitEdit"
+          >{{ t('customerCredit.index.dialog.confirm') }}</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -255,6 +293,7 @@ import {
   type UpdateCustomerCreditInput,
 } from '@/api/customer-credit';
 import { getCustomerList, type Customer } from '@/api/customer';
+import { PERMISSIONS } from '@/constants/permissions';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { decimalWireToNumber } from '@/utils/money';
@@ -280,6 +319,9 @@ const {
   refresh: fetchCredits,
 } = useTableApi<CustomerCredit>({
   url: '/crm/customer-credits',
+  // 列表载荷是后端分页信封，行数组在 items 键，总数在 total 键，
+  // 此处显式点明 listKey，取数键与 api 层声明的信封字段同词，不靠后备键序猜形。
+  listKey: 'items',
   onError: (e: unknown) => {
     ElMessage.error(t('customerCredit.index.message.fetchListFailed'));
     logger.warn(t('customerCredit.index.log.fetchListFailed'), String(e));
@@ -322,6 +364,21 @@ const editRules: FormRules = {
       trigger: 'blur',
     },
   ],
+};
+
+/**
+ * 判定可用额度是否为正，供列表该列着色。
+ * 功能是先按后端 Decimal 的线形态归一再比较，归一只发生在这一个真正要算的地方。
+ * 调用方是列表可用额度列的颜色三元表达式。
+ * 入参是后端 available_credit 的线形态。
+ * 传给谁把布尔结果交给同一行的样式表达式，不写库也不上送。
+ * 存什么不存内容。存哪里无。
+ * 未填一律显式判为非正向，空串与缺键都走这一支，绝不让 NaN 进渲染；
+ * 不可解析的脏串由归一函数显式抛出，不静默按 0 处理。
+ */
+const isAvailableCreditPositive = (value: string | undefined | null): boolean => {
+  if (value === undefined || value === null || value === '') return false;
+  return decimalWireToNumber(value) > 0;
 };
 
 // fetchCredits 由 useTableApi 的 refresh 提供（批次 272）

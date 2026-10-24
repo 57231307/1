@@ -78,6 +78,21 @@ export const PERMISSIONS = {
   SUPPLIER_UPDATE: 'suppliers:update',
   SUPPLIER_DELETE: 'suppliers:delete',
 
+  // 客户信用管理（后端资源段 customer-credits，路由挂在模块前缀 crm 下，
+  // 不在 path_utils 的消歧映射表内，故资源名保留 URL 段原名）。
+  // 动作段取值逐条取自后端权限中间件的键派生规则，路径末段命中
+  // PATH_ACTION_KEYWORDS 时取末段，否则按方法派生，GET 走 read，POST 走 create，
+  // PUT 走 update，DELETE 走 delete。
+  // rating occupy adjust evaluate deactivate 五个末段都不在该关键字表内，
+  // 全部派生成 create 一枚键；release 命中关键字表，是独立键；
+  // 详情面走同资源 read 键。这四枚键与该页按钮的取值由 tests unit 下的
+  // 客户信用动作权限与信封锁三向互锁。
+  CUSTOMER_CREDIT_READ: 'customer-credits:read',
+  CUSTOMER_CREDIT_CREATE: 'customer-credits:create',
+  CUSTOMER_CREDIT_UPDATE: 'customer-credits:update',
+  CUSTOMER_CREDIT_DELETE: 'customer-credits:delete',
+  CUSTOMER_CREDIT_RELEASE: 'customer-credits:release',
+
   // 产品管理（后端资源：products）
   PRODUCT_READ: 'products:read',
   PRODUCT_CREATE: 'products:create',

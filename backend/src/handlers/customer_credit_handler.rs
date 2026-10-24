@@ -4,8 +4,8 @@ use crate::services::customer_credit_service::{
     CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest,
     CustomerCreditService, CustomerCreditView,
 };
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -100,28 +100,42 @@ async fn read_back_view(
 
 /// 获取客户信用列表
 ///
-/// 出参是裸数组（ApiResponse<Vec<...>>，非分页信封），customer_name 为按
-/// customer_id LEFT JOIN customers 得到的真实客户名。
+/// 调用方为前端客户信用列表页，入参为查询条件与分页键 page 与 page_size；
+/// 出参为分页信封 PaginatedResponse，字段 items 与 total 与 page 与 page_size 四键齐全，
+/// 供前端分页器读取总数。items 的行载体与详情同一条 LEFT JOIN 富化链路
+/// （CustomerCreditView，customer_name 唯一来源是 customers 真值），信封不改变行形状。
 pub async fn list_credits(
     Query(params): Query<CreditQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<CustomerCreditView>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<CustomerCreditView>>>, AppError> {
     info!("用户 {} 正在查询客户信用列表", auth.user_id);
+
+    let page = CustomerCreditService::clamp_page(params.page.unwrap_or(1));
+    let page_size = params.page_size.unwrap_or(10).clamp(1, 100);
 
     let service = CustomerCreditService::new(state.db.clone());
     let query_params = CreditQueryParams {
         customer_id: params.customer_id,
         credit_level: params.credit_level,
         status: params.status,
-        page: params.page.unwrap_or(1).clamp(1, 1000),
-        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
+        page,
+        page_size,
     };
 
-    let (credits, _total) = service.get_list(query_params).await?;
-    info!("客户信用列表查询成功，共 {} 条记录", credits.len());
+    let (credits, total) = service.get_list(query_params).await?;
+    info!(
+        "客户信用列表查询成功，共 {} 条记录，当前页 {} 条",
+        total,
+        credits.len()
+    );
 
-    Ok(Json(ApiResponse::success(credits)))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        credits,
+        total,
+        page as u64,
+        page_size as u64,
+    ))))
 }
 
 /// 获取客户信用详情
