@@ -1,5 +1,5 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
+import type { ApiResponse, PaginatedResponse } from '@/types/api';
 
 /** 仓库库存分布项 = `five_dimension_service.rs` 的 `WarehouseStock`（数量为字符串/Decimal） */
 export interface WarehouseDistributionItem {
@@ -51,13 +51,14 @@ export interface SearchQueryParams {
   page_size?: number;
 }
 
-interface PagedStats {
-  items: FiveDimensionStats[];
-  total: number;
-}
-
+/**
+ * stats/list 与 search 的载荷就是全仓唯一分页信封 `PaginatedResponse`
+ * （items/total/page/page_size），不再在本模块另写一份局部形状。
+ */
 export const getFiveDimensionStatsList = (params?: StatsQueryParams) =>
-  request.get<ApiResponse<PagedStats>>('/crm/five-dimension/stats', { params });
+  request.get<ApiResponse<PaginatedResponse<FiveDimensionStats>>>('/crm/five-dimension/stats', {
+    params,
+  });
 
 // 后端真实路由：GET /five-dimension/{five_dimension_id}（Path<String>，五维编码）
 export const getStatsByFiveDimensionId = (fiveDimensionId: string) =>
@@ -71,7 +72,9 @@ export const parseFiveDimensionId = (id: string) =>
   );
 
 export const searchFiveDimension = (params: SearchQueryParams) =>
-  request.get<ApiResponse<PagedStats>>('/crm/five-dimension/search', { params });
+  request.get<ApiResponse<PaginatedResponse<FiveDimensionStats>>>('/crm/five-dimension/search', {
+    params,
+  });
 
 export const getFiveDimensionById = (fiveDimensionId: string) =>
   request.get<ApiResponse<FiveDimensionStats>>(`/crm/five-dimension/${fiveDimensionId}`);

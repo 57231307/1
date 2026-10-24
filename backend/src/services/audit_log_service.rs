@@ -8,9 +8,11 @@
 //! - 列名兼容：`old_value` / `new_value` 与 `before_snapshot` / `after_snapshot` 双写
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
 //!
-//! L-32 修复（批次 380 v13 复审）：使用 mpsc channel + 单消费者模式，
-//! 避免每次 record_async 都创建 detached spawn task；
-//! handle 保存供 shutdown 时 abort，优雅关闭。
+//! 异步落库使用 mpsc channel 加单消费者模式，避免每次调用 record_async 都创建
+//! detached spawn task。通道与消费者由全局单例持有，与进程同生命周期。
+//! 关停分两步：关停链先调用 flush 等待积压事件全部落库（未排空条数如实上报），
+//! 再经 shutdown 从全局单例取出消费者 JoinHandle 真实 abort（take 后置空，天然防二次
+//! abort），并返回句柄供调用方 await 确认消费者已终止，不靠 sleep 猜时序。
 
 use crate::middleware::audit_context::AuditContext;
 use crate::models::audit_log::{self, OperationType, Severity};
@@ -22,15 +24,18 @@ use serde::Serialize;
 use serde_json::Value;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+use tokio::sync::Notify;
 use tokio::sync::mpsc;
 
-/// 审计日志服务（L-32 修复：不使用 define_service! 宏，添加 handle 字段）
+/// 审计日志服务。
+///
+/// 持库连接供同步写路径使用，持全局发送端供异步落库路径使用。
 #[derive(Debug)]
 pub struct AuditLogService {
     db: Arc<DatabaseConnection>,
-    /// L-32 修复：后台消费者 task handle，供 shutdown abort
-    handle: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
-    /// L-32 修复：事件发送端（全局单例，避免每次 new() 创建新 channel 后旧消费者退出）
+    /// 事件发送端（全局单例，避免每次 new() 创建新 channel 后旧消费者退出）
     sender: &'static mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
 }
 
@@ -38,6 +43,99 @@ pub struct AuditLogService {
 /// 导致旧消费者退出（sender drop → receiver None → 消费者退出 → 审计日志丢失）
 static AUDIT_SENDER: std::sync::OnceLock<
     mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
+> = std::sync::OnceLock::new();
+
+/// 总线原子计数器，与 channel 同生命周期。
+/// 消费者每处理完一条（无论成失）递增对应计数并唤醒 flush 等待者。
+pub struct BusMetrics {
+    pub sent: AtomicU64,
+    pub inserted: AtomicU64,
+    pub failed: AtomicU64,
+    pub panicked: AtomicU64,
+}
+
+static BUS_METRICS: BusMetrics = BusMetrics {
+    sent: AtomicU64::new(0),
+    inserted: AtomicU64::new(0),
+    failed: AtomicU64::new(0),
+    panicked: AtomicU64::new(0),
+};
+
+/// 消费者处理完一条后唤醒 flush 等待者，避免忙等。
+static BUS_NOTIFY: std::sync::OnceLock<Notify> = std::sync::OnceLock::new();
+
+fn bus_notify() -> &'static Notify {
+    BUS_NOTIFY.get_or_init(Notify::new)
+}
+
+/// 进程关停时等待审计总线落库的最长时间上限。
+///
+/// 一，约束对象。从关停链调用 flush 起最多允许等待这么久，到点立即返回已观测到的
+/// 计数。通道是无界的，积压深度没有上限，所以该值只约束等待时长，不构成排空承诺。
+/// 二，调用方。main.rs 的关停函数 shutdown_resources 在全部审计事件生产者停止之后、
+/// 释放服务句柄之前读取本常量。
+/// 三，取值依据。部署侧 systemd 服务单元把整条优雅关停的总预算 TimeoutStopSec 配为
+/// 30 秒，其说明写明这 30 秒要覆盖在途请求排空、数据库连接池关闭与审计日志落库，
+/// 超时后由 FinalKillSignal 发 SIGKILL 强杀进程。本常量取总预算的三分之一，为后续
+/// 释放服务句柄与 runtime 自身退出留出 20 秒。
+/// 四，未确证部分。三分之一这一比例没有实测排空耗时分布支撑，属保守取值。
+/// 五，失效后果。撞满 30 秒时排空与后续关停步骤一起被 SIGKILL 砍掉；等待到点但未
+/// 排空时，未处理条数由 FlushCounts 的 pending 如实上报，调用方不得把它当成功。
+pub const SHUTDOWN_FLUSH_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// flush 返回值：截至等待结束时三类计数的累计快照。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FlushCounts {
+    pub inserted: u64,
+    pub failed: u64,
+    pub panicked: u64,
+    /// 调用时刻已入队、到等待结束仍未被消费者处理完的条数。取 0 表示本次等待已排空。
+    pub pending: u64,
+}
+
+/// 有界等待总线把截至调用时刻的全部事件处理完毕。
+/// 完成语义：inserted + failed + panicked >= 调用时刻的 sent。
+/// 超时后仍返回已观测到的计数，由调用方判定是否达标。未排空条数由 pending 给出，
+/// 调用方据此区分确实排空与超时未排空，不得把后者当成功。
+pub async fn flush(timeout: Duration) -> FlushCounts {
+    let target = BUS_METRICS.sent.load(Ordering::Acquire);
+    let deadline = tokio::time::Instant::now() + timeout;
+
+    let (ins, fail, panick) = loop {
+        let ins = BUS_METRICS.inserted.load(Ordering::Acquire);
+        let fail = BUS_METRICS.failed.load(Ordering::Acquire);
+        let panick = BUS_METRICS.panicked.load(Ordering::Acquire);
+        if ins + fail + panick >= target {
+            break (ins, fail, panick);
+        }
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break (ins, fail, panick);
+        }
+        tokio::select! {
+            _ = bus_notify().notified() => {}
+            _ = tokio::time::sleep(remaining) => {
+                let ins = BUS_METRICS.inserted.load(Ordering::Acquire);
+                let fail = BUS_METRICS.failed.load(Ordering::Acquire);
+                let panick = BUS_METRICS.panicked.load(Ordering::Acquire);
+                break (ins, fail, panick);
+            }
+        }
+    };
+
+    FlushCounts {
+        inserted: ins,
+        failed: fail,
+        panicked: panick,
+        pending: target.saturating_sub(ins.saturating_add(fail).saturating_add(panick)),
+    }
+}
+
+/// 全局单例：消费者 task 的 JoinHandle，spawn 成功后真实保存，供 shutdown 取出并 abort。
+/// 消费者是进程级唯一的，因此句柄必须与 AUDIT_SENDER 一样是全局单例，
+/// 而不是实例字段（实例随请求 handler 反复创建，实例字段永远装不进这个唯一的消费者）。
+static AUDIT_CONSUMER_HANDLE: std::sync::OnceLock<
+    std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 > = std::sync::OnceLock::new();
 
 impl AuditLogService {
@@ -49,14 +147,13 @@ impl AuditLogService {
 
             // 启动后台消费者 task（全局唯一，不会被 drop 关闭）
             let db_clone = db.clone();
-            tokio::spawn(async move {
-                while let Some((mut event, ctx)) = receiver.recv().await {
-                    // 批次 8（2026-06-28）：一次性 spawn panic 隔离
+            let handle = tokio::spawn(async move {
+                while let Some((event, ctx)) = receiver.recv().await {
                     let result = AssertUnwindSafe(async {
                         Self::resolve_username(db_clone.as_ref(), &mut event).await;
                         let log = build_active_model(&event, ctx.as_ref());
                         match log.insert(db_clone.as_ref()).await {
-                            Ok(_) => {}
+                            Ok(_) => true,
                             Err(e) => {
                                 tracing::error!(
                                     user_id = ?event.user_id,
@@ -64,45 +161,84 @@ impl AuditLogService {
                                     error = %e,
                                     "异步审计日志落库失败"
                                 );
+                                false
                             }
                         }
                     })
                     .catch_unwind()
                     .await;
-                    if let Err(panic_payload) = result {
-                        let panic_msg = panic_payload
-                            .downcast_ref::<String>()
-                            .map(|s| s.as_str())
-                            .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-                            .unwrap_or("<非字符串 panic payload>");
-                        tracing::error!(
-                            panic = %panic_msg,
-                            "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
-                        );
+
+                    match &result {
+                        Ok(true) => {
+                            BUS_METRICS.inserted.fetch_add(1, Ordering::Release);
+                        }
+                        Ok(false) => {
+                            BUS_METRICS.failed.fetch_add(1, Ordering::Release);
+                        }
+                        Err(panic_payload) => {
+                            BUS_METRICS.panicked.fetch_add(1, Ordering::Release);
+                            let panic_msg = panic_payload
+                                .downcast_ref::<String>()
+                                .map(|s| s.as_str())
+                                .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
+                                .unwrap_or("<非字符串 panic payload>");
+                            tracing::error!(
+                                panic = %panic_msg,
+                                "⚠ 异步审计日志落库 spawn panic 已被隔离（单条日志丢失）"
+                            );
+                        }
                     }
+                    bus_notify().notify_one();
                 }
                 tracing::info!("AuditLogService 后台消费者 task 已退出");
             });
 
+            // 真实保存消费者句柄（与全局 channel 同生命周期），shutdown 从这里取出 abort。
+            // AUDIT_CONSUMER_HANDLE 与 AUDIT_SENDER 在同一次 get_or_init 闭包内初始化，
+            // OnceLock 保证闭包只执行一次，set 必然成功。
+            if AUDIT_CONSUMER_HANDLE
+                .set(std::sync::Mutex::new(Some(handle)))
+                .is_err()
+            {
+                tracing::error!(
+                    "AuditLogService 消费者句柄重复注册（理论上不可达：闭包仅执行一次）"
+                );
+            }
+
             sender
         });
 
-        Self {
-            db,
-            handle: std::sync::Mutex::new(None),
-            sender,
-        }
+        Self { db, sender }
     }
 
-    /// L-32 修复（批次 380 v13 复审）：优雅关闭异步审计服务
-    /// abort 后台消费者 task，防止 detached task 泄漏。；幂等：多次调用安全，仅首次调用实际 abort。；注：tokio mpsc UnboundedSender 没有 close 方法，abort 消费者 task 后；channel 会自动被 drop，后续 send() 调用会返回 Err。；批次 403 修复：shutdown 路径禁止 panic。原 `lock().unwrap()` 在 Mutex；poisoned（持有锁的线程 panic）时会再次 panic，导致进程无法优雅退出。；改用 `unwrap_or_else(|e| e.into_inner())` 安全访问 poisoned lock 的内部数据。
-    pub fn shutdown(&self) {
-        // abort 后台 task
-        if let Some(handle) = self.handle.lock().unwrap_or_else(|e| e.into_inner()).take() {
-            handle.abort();
-            tracing::info!("AuditLogService 异步记录引擎已关闭");
-        }
+    /// 优雅关闭异步审计服务：abort 全局后台消费者 task，防止 detached task 泄漏。
+    ///
+    /// 幂等：首次调用从全局单例 `take()` 出句柄并实际 abort，句柄置空后
+    /// 后续调用返回 `None`，不会再触发第二次 abort。
+    /// 注：tokio mpsc UnboundedSender 没有 close 方法；abort 消费者 task 后
+    /// 其 future 被 drop，receiver 随之释放，后续 `record_async` 的 send() 将返回 Err（走告警日志分支）。
+    /// shutdown 路径禁止 panic：锁中毒时用 `unwrap_or_else(|e| e.into_inner())` 安全取出内部数据。
+    ///
+    /// 返回被 abort 的 JoinHandle（仅首次调用为 `Some`），供调用方 await 确定性验证
+    /// 消费者已取消（await 返回 `JoinError::is_cancelled()`），不靠 sleep 猜时序。
+    /// 调用方为进程关停链：必须先 flush 排空积压，再经本方法终止消费者。
+    pub fn shutdown(&self) -> Option<tokio::task::JoinHandle<()>> {
+        shutdown_consumer()
     }
+}
+
+/// 取出全局消费者 JoinHandle 并 abort 的单点实现（实例方法 shutdown 与关停链共用）。
+///
+/// 消费者句柄是进程级全局单例，关停链（main.rs shutdown_resources）在没有服务实例
+/// 引用的位置也需要终止消费者，故逻辑落在自由函数，方法侧只做转发。
+/// 幂等与返回值语义同 `AuditLogService::shutdown`。
+pub fn shutdown_consumer() -> Option<tokio::task::JoinHandle<()>> {
+    let handle = AUDIT_CONSUMER_HANDLE
+        .get()
+        .and_then(|slot| slot.lock().unwrap_or_else(|e| e.into_inner()).take())?;
+    handle.abort();
+    tracing::info!("AuditLogService 异步记录引擎已关闭（消费者 task 已 abort）");
+    Some(handle)
 }
 
 /// 通用审计事件（P13 批 1 P3-2 新增）（调用方只需填充业务相关字段，service 内部自动从 `AuditContext` 补充请求上下文。）
@@ -424,6 +560,8 @@ impl AuditLogService {
                 error = %e,
                 "AuditLogService channel 已关闭，审计事件丢弃（服务已 shutdown？）"
             );
+        } else {
+            BUS_METRICS.sent.fetch_add(1, Ordering::Release);
         }
     }
 }

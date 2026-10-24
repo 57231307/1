@@ -102,3 +102,4 @@ pub mod customer_credit_name_backfill;
 pub mod customer_credit_remark_column;
 pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
+pub mod status_vocab_check;

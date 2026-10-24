@@ -134,7 +134,7 @@ impl BpmService {
         Self { db }
     }
 
-    /// 从流程定义配置中解析首个任务节点（`pub(crate)`：bpm_ops::instance 子模块的 `create_first_task_or_complete` 调用。）
+    /// 从流程定义配置中解析首个任务节点（pub(crate)：bpm_ops::instance 子模块的 create_first_task 调用。）
     pub(crate) fn resolve_first_task_node(
         flow_def: &serde_json::Value,
     ) -> Option<&serde_json::Value> {

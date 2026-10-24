@@ -160,6 +160,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customer_credit_remark_column::Migration),
             Box::new(domain::customer_credit_family_grant::Migration),
             Box::new(domain::customers_nullable_columns_norm::Migration),
+            Box::new(domain::status_vocab_check::Migration),
         ]
     }
 }

@@ -2155,18 +2155,6 @@ function readdirSyncLocal(dir) {
 // 条目即过期，滞留清单会让同一端点将来再退化时被静默放行，故过期即判红并点名删除。
 const EXEMPTIONS = new Map([
   [
-    `${BASE_URL}/crm/five-dimension/stats GET`,
-    'five_dimension_handler.rs:78-79 Ok(ApiResponse::success(json!({"items": stats.0, …})))：顶层 items 由 json! 手拼，前端 {items} 与之相符',
-  ],
-  [
-    `${BASE_URL}/bpm/definitions GET`,
-    'bpm_definition_handler.rs:48-63 page_to_frontend_json 手拼 json!({"list",...})，返回类型是未定型的 serde_json::Value 故静态判不出；已读码确认承载键为 list，前端 ProcessDefinitionPage{list} 与之一致。根治：helper 改返回强类型分页结构',
-  ],
-  [
-    `${BASE_URL}/bpm/templates GET`,
-    'bpm_definition_handler.rs:190-197 复用同一 page_to_frontend_json（{list,...}）；同上，前端已钉 list',
-  ],
-  [
     `${BASE_URL}/products/import POST`,
     '返回 utils/import_export.rs:37 ImportResult{total_count,success_count,error_count,errors}：errors 是详情对象内嵌数组而非列表信封，前端按 {errors} 读正确；struct 未被索引故判未分类',
   ],

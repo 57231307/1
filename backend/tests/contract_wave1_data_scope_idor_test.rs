@@ -661,7 +661,7 @@ async fn live_sales_ship_owner_gate_matrix() {
         customer_id: Set(cust.id),
         order_date: Set(Utc::now()),
         required_date: Set(Some(Utc::now())),
-        status: Set("PENDING".to_string()),
+        status: Set("pending".to_string()),
         subtotal: Set(Decimal::ZERO),
         tax_amount: Set(Decimal::ZERO),
         discount_amount: Set(Decimal::ZERO),

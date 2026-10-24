@@ -147,6 +147,8 @@ pub mod bpm_service_dto;
 pub mod bpm_ops;
 // 批次 95 P3-15：bpm_service_stub.rs 重命名为 bpm_process_definition_service.rs（消除 stub 误导）
 pub mod bpm_process_definition_service;
+// 出厂内置 BPM 审批流程定义幂等种子（启动链与初始化完成处调用，见 bootstrap/service_bootstrap.rs）
+pub mod bpm_definition_seed;
 pub mod budget_management_service;
 pub mod cost_collection_service;
 pub mod customer_credit_evaluate;
@@ -333,6 +335,11 @@ pub mod quality_8d_state_machine_adapter;
 pub mod bad_debt_service;
 pub mod collection_task_service;
 pub mod finance_alert_service;
+// 后台周期扫描/补偿调度器（由启动链按 background_jobs 配置挂载，见 bootstrap/service_bootstrap.rs）
+pub mod collection_task_scheduler;
+pub mod es_reconcile_scheduler;
+pub mod finance_alert_scheduler;
+pub mod labor_contract_expiry_scheduler;
 // P0-D17（Batch 488）：OA 公告 service（CRUD + 发布/归档状态转换）
 pub mod oa_announcement_service;
 // V15 P1 batch-16 缺陷 7.3：用户隐私同意服务（记录/查询/opt-in/opt-out）
