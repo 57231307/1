@@ -57,9 +57,32 @@ async function createUniqueSupplier(
   return { id: row!.id!, code: row!.supplier_code ?? '', name };
 }
 
-/** 页头选择器：占位文案即它的可访问名，直接按 placeholder 定位内部输入框 */
+/**
+ * 页头选择器外壳。Element Plus 2.14 的 el-select 把占位文案渲染成 `.el-select__placeholder`
+ * 独立文本节点，不再写到内部 input 的 placeholder 属性上，
+ * 因此 getByPlaceholder 恒取不到（CI 上就是这个原因判红），改按页头操作区里的下拉定位，
+ * 并用占位文案节点确认它确实是供应商选择器而不是别的下拉。
+ */
+function pickerShell(page: Page) {
+  return page.locator('.header-actions .el-select').first();
+}
+
+/** 选择器的可输入节点：filterable 与 remote 都挂在它身上 */
 function pickerInput(page: Page) {
-  return page.getByPlaceholder(PLACEHOLDER_PICKER);
+  return pickerShell(page).locator('input').first();
+}
+
+/** 占位文案锁：写到 input 属性或以独立文本节点呈现都算，两种 Element Plus 形态都能过 */
+async function assertPickerPlaceholder(page: Page): Promise<void> {
+  const shell = pickerShell(page);
+  const viaAttr = await shell.locator(`input[placeholder="${PLACEHOLDER_PICKER}"]`).count();
+  const viaNode = await shell
+    .locator('.el-select__placeholder', { hasText: PLACEHOLDER_PICKER })
+    .count();
+  expect(
+    viaAttr + viaNode,
+    `页头下拉应显示供应商搜索占位文案 ${PLACEHOLDER_PICKER}`
+  ).toBeGreaterThan(0);
 }
 
 async function openAndSearch(page: Page, keyword: string): Promise<void> {
@@ -111,6 +134,7 @@ test.describe('供应商 360 名称选择器端到端', () => {
       '页头不应再有要求手填供应商数字主键的输入项'
     ).toHaveCount(0);
     await expect(pickerInput(page), '页头应存在按名称搜索的选择器').toBeVisible();
+    await assertPickerPlaceholder(page);
 
     // 2) 输入唯一名称的部分字符，断言候选真的由服务端返回
     const partial = supplierA.name.slice(4);

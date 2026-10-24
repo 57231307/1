@@ -147,8 +147,21 @@ describe('产品米数单入口形状锁', () => {
   });
 
   it('批量提交的顶层信封与后端批量 DTO 对齐（products 包装，不发裸数组）', () => {
-    const wrapped = apiSrc.match(/\{ products: data\.map\(toProductPayload\) \}/g) || [];
-    expect(wrapped.length, '批量创建与批量更新都应按后端顶层 DTO 包一层 products').toBe(2);
+    // 源码面判定按语义匹配而不是按排版匹配：Prettier 会按行宽把对象字面量折行，
+    // 逐字单行正则在排版变化后恒零命中，会把"包装其实还在"误报成契约破了。
+    // 先把连续空白归一成一个空格，包装真被删掉时归一后的串不再命中。
+    const flat = apiSrc.replace(/\s+/g, ' ');
+    const wrapped = flat.match(/\{ products: data\.map\(toProductPayload\),? \}/g) || [];
+    expect(
+      wrapped.length,
+      `批量创建与批量更新都应按后端顶层 DTO 包一层 products，实际命中 ${wrapped.length} 处`
+    ).toBe(2);
+    // 同一条锁的反面：直发裸数组在后端顶层 DTO 下必反序列化失败，出现即判红
+    const bareArray = flat.match(/\/products\/batch\/(?:create|update)', data\)/g) || [];
+    expect(
+      bareArray.length,
+      `批量创建与更新不得直发裸数组（后端顶层 DTO 是带 products 键的结构体），实际命中 ${bareArray.length} 处`
+    ).toBe(0);
   });
 
   it('硬边界：单位词表未改，匹与卷仍是并列单位 token', () => {

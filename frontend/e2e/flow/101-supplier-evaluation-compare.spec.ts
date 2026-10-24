@@ -32,7 +32,7 @@ const COLUMN_RECORD_COUNT = '评估记录数';
 const COLUMN_LATEST_DATE = '最近评估日期';
 
 type SupplierRow = { id?: number; supplier_name?: string };
-type IndicatorRow = { id?: number; max_score?: number };
+type IndicatorRow = { id?: number; indicator_code?: string; max_score?: number };
 type RecordRow = { id?: number };
 
 async function createUniqueSupplier(page: Page, tag: string): Promise<number> {
@@ -69,17 +69,62 @@ async function readSupplierName(page: Page, supplierId: number): Promise<string>
   return detail.data!.supplier_name!;
 }
 
-/** 取一个在册评估指标作为打分对象：指标没有删除端点，因此绝不新建指标，只复用既有的 */
-async function pickExistingIndicator(page: Page): Promise<IndicatorRow> {
+/**
+ * 取一条可用的评估指标：库里没有就按固定编码自建一条，再按编码回读为准。
+ * 指标编码重复时后端回业务错「已存在」（并行分片可能先建了同一条），这不致命，
+ * 回读能拿到即可；用固定编码而不是随机编码是为了不让每次 CI 都往主数据里堆一条新指标。
+ */
+const INDICATOR_CODE = 'E2E-CMP-IND-001';
+
+async function readIndicator(page: Page): Promise<IndicatorRow | undefined> {
   const res = await apiCall<IndicatorRow[]>(page, 'GET', `${indicatorPath}?page_size=100`);
   const list = Array.isArray(res.data) ? res.data : [];
-  expect(list.length, '在册评估指标应至少有一个可用，否则无法造评分').toBeGreaterThan(0);
-  expect(list[0].id, '回读指标应含主键 id').toBeTruthy();
-  return list[0];
+  return list.find(i => i.indicator_code === INDICATOR_CODE) ?? list[0];
+}
+
+async function ensureIndicator(page: Page): Promise<IndicatorRow> {
+  let found = await readIndicator(page);
+  if (!found?.id) {
+    const created = await apiCall<IndicatorRow>(page, 'POST', indicatorPath, {
+      indicator_name: 'E2E 对比稳定性指标',
+      indicator_code: INDICATOR_CODE,
+      category: 'quality',
+      weight: '0.50',
+      max_score: 100,
+      evaluation_method: 'score',
+    });
+    if (!created.data?.id && !String(created.message ?? '').includes('已存在')) {
+      throw new Error(`[101] 评估指标前置创建失败：${JSON.stringify(created).slice(0, 300)}`);
+    }
+    found = await readIndicator(page);
+  }
+  expect(
+    found?.id,
+    `评估指标前置未就绪（既读不到也建不出编码 ${INDICATOR_CODE}），无法造评分`
+  ).toBeTruthy();
+  return found!;
+}
+
+/** 对比页签的多选下拉外壳：Element Plus 2.14 把占位文案渲染成独立文本节点，getByPlaceholder 取不到 */
+function comparePickerShell(page: Page) {
+  return page.locator('.toolbar .el-select:visible').first();
+}
+
+/** 下拉内部的可输入节点，filterable 与 remote 挂在它身上 */
+function comparePickerInput(page: Page) {
+  return comparePickerShell(page).locator('input').first();
+}
+
+/** 占位文案锁：写到 input 属性或以独立节点呈现都算，缺文案才是选择器不对 */
+async function assertPickerPlaceholder(page: Page, text: string): Promise<void> {
+  const shell = comparePickerShell(page);
+  const viaAttr = await shell.locator(`input[placeholder="${text}"]`).count();
+  const viaNode = await shell.locator('.el-select__placeholder', { hasText: text }).count();
+  expect(viaAttr + viaNode, `对比下拉应显示占位文案「${text}」`).toBeGreaterThan(0);
 }
 
 async function searchAndPick(page: Page, keyword: string): Promise<void> {
-  const input = page.getByPlaceholder(PLACEHOLDER_COMPARE_PICKER);
+  const input = comparePickerInput(page);
   await input.click();
   await input.fill(keyword);
   const dropdown = page.locator('.el-select-dropdown:visible').last();
@@ -126,7 +171,7 @@ test.describe('供应商对比页签端到端', () => {
     const idB = await createUniqueSupplier(page, '乙');
     supplierIds = [idA, idB];
 
-    const indicator = await pickExistingIndicator(page);
+    const indicator = await ensureIndicator(page);
 
     for (const supplierId of supplierIds) {
       await apiCall(page, 'POST', recordPath, {
@@ -150,8 +195,9 @@ test.describe('供应商对比页签端到端', () => {
     await page.getByRole('tab', { name: TAB_COMPARE, exact: true }).click();
 
     // 4) 对比入口是按关键字远程搜索的多选下拉：页签内不应有数字主键输入项
-    const picker = page.getByPlaceholder(PLACEHOLDER_COMPARE_PICKER);
+    const picker = comparePickerShell(page);
     await expect(picker, '对比页签应存在按名称搜索的多选下拉').toBeVisible();
+    await assertPickerPlaceholder(page, PLACEHOLDER_COMPARE_PICKER);
     // 对比工具区里不应再有手填数字主键的输入项（按承载搜索框的那一条工具行作用域判）
     await expect(
       page.locator('.toolbar').filter({ has: picker }).locator('.el-input-number'),
