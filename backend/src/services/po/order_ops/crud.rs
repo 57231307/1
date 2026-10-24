@@ -36,7 +36,7 @@ use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::services::supplier_qualification_gate::SupplierQualificationGate;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+    apply_data_scope, check_resource_owner_by_member_scope, DataScopeContext,
 };
 use crate::utils::error::AppError;
 // 单号取号+插入的唯一入口（事务内取号 + 23505 保存点重试），见 `create_order_header`
@@ -346,13 +346,13 @@ impl PurchaseOrderService {
     /// 提交了 tax_rate 则必须落在落库列域 0 到 999.9999 内（上界取自 purchase_order_item
     /// 的 tax_percent 列 DECIMAL(7,4) 口径，与 utils tax 的 TAX_PERCENT_MAX 同源），
     /// 越界在算金额之前点名拒绝，避免把非法入参留到 insert 阶段炸成列溢出。
-    /// 人工建单的数量口径：明细必须显式提交 quantity_ordered 且大于 0。
+    /// 人工建单与添加明细的数量口径：明细必须显式提交 quantity_ordered 且大于 0。
     /// 为什么单独设门：本函数之前，未提交数量在金额计算里按 0 落库，0 数量行既没有
     /// 金额也没有收货依据，采购单看起来"建成功了"却是一张空量单，前端与台账都无从分辨；
     /// 系统不设缺省数量，未提交与 0 一律点名拒绝（出参原文外显，供调用方与用例断言）。
-    /// 只作用于人工建单路径；自动补货（services/po/price.rs）与收货行项另有各自口径，
-    /// 不经本函数，也不得在此为其补缺省。
-    fn validate_line_quantity(
+    /// 只作用于人工建单与添加明细路径；自动补货（services/po/price.rs）与更新明细
+    /// 另有各自口径，不经本函数，也不得在此为其补缺省。
+    pub(crate) fn validate_line_quantity(
         quantity_ordered: Option<Decimal>,
         line_no: usize,
     ) -> Result<(), AppError> {
@@ -369,11 +369,46 @@ impl PurchaseOrderService {
         }
     }
 
+    /// 更新明细的数量口径，与新建与添加明细的 [`Self::validate_line_quantity`] 不同档，
+    /// 调用方是 services/po/receipt.rs 的 update_order_item。
+    /// 为什么不套正数门：既有历史行可能是 0 量行，本端点是"缺省即不改"，生效数量取
+    /// 提交值与现值的合流，套正数门会把"改个单价"这类正常编辑一起挡在门外；
+    /// 但显式提交的负数是非法载荷，必须点名拒绝（VALIDATION_ERROR，出参文案外显），
+    /// 不得经合流落进金额计算。
+    pub(crate) fn validate_updated_quantity(
+        quantity_ordered: Option<Decimal>,
+    ) -> Result<(), AppError> {
+        match quantity_ordered {
+            Some(quantity) if quantity < Decimal::ZERO => {
+                Err(AppError::validation_displayable(format!(
+                    "提交的订单行数量 quantity_ordered 不得为负，实际 {}",
+                    quantity
+                )))
+            }
+            _ => Ok(()),
+        }
+    }
+
     pub fn calculate_item_amounts(
         item: &crate::services::po::CreateOrderItemRequest,
     ) -> Result<ItemAmounts, AppError> {
-        let quantity_ordered = item.quantity_ordered.unwrap_or(Decimal::ZERO);
-        let unit_price = item.unit_price.unwrap_or(Decimal::ZERO);
+        // 进本函数的人工写端口两列都必须带值，系统不在这里替任何一列缺省。
+        // 数量由调用方先过正数门（新建走 validate_line_quantity、更新走合流后的生效值），
+        // 本处只把 None 拦下，防止"没录"被静默折算成金额 0。
+        let quantity_ordered = item.quantity_ordered.ok_or_else(|| {
+            AppError::validation_displayable(
+                "采购订单行缺少数量 quantity_ordered，系统不设缺省数量，请录入数量后重试",
+            )
+        })?;
+        // 单价允许显式提交 0（纺织业务里的样布、赠品、寄售行是真实形态），缺键才拒绝：
+        // 按 0 代填会把"漏录单价"与"声明 0 价"混成同一台账，进项与成本无从分辨。
+        // 转采购链路的价目带出发生在调用方进入本函数之前（见 create_order 的行循环），
+        // 不得在本处再补一条缺省分支。
+        let unit_price = item.unit_price.ok_or_else(|| {
+            AppError::validation_displayable(
+                "采购订单行缺少单价 unit_price，须显式提交单价（0 价行请显式提交 0），系统不设缺省单价",
+            )
+        })?;
         let amount = (quantity_ordered * unit_price).round_dp(2);
         let tax_percent = match item.tax_rate {
             Some(percent) => {
@@ -526,7 +561,6 @@ impl PurchaseOrderService {
         for (index, item) in items.iter().enumerate() {
             // 数量先于金额判定：0 或空缺的明细进不了金额计算，避免建出一张"成功"的空量单
             Self::validate_line_quantity(item.quantity_ordered, index + 1)?;
-            let mut amounts = Self::calculate_item_amounts(item)?;
 
             let resolved = Self::resolve_supplier_sku_snapshot(
                 txn,
@@ -538,25 +572,17 @@ impl PurchaseOrderService {
             )
             .await?;
 
-            // 若请求未显式指定单价，用 supplier_price 作为默认
-            if let Some(resolved) = &resolved {
-                if item.unit_price.is_none() || item.unit_price == Some(Decimal::ZERO) {
-                    if let Some(price) = resolved.supplier_price {
-                        amounts.unit_price = price;
-                        amounts.amount = (amounts.quantity_ordered * price).round_dp(2);
-                        // 税额走 utils tax 内核，与本函数开头的行税额同一公式，
-                        // 禁止在此再写一套除 100
-                        amounts.tax_amount =
-                            crate::utils::tax::tax_amount(amounts.amount, amounts.tax_percent);
-                        amounts.discount_amount = (amounts.amount * amounts.discount_percent
-                            / Decimal::new(100, 0))
-                        .round_dp(2);
-                    }
-                }
+            // 单价的缺省口径：只有"未提交 unit_price"这一种形态允许由转采购价目带出，
+            // 显式提交的 0 是业务声明值（样布、赠品、寄售行），不得被价目静默覆盖；
+            // 无来源销售订单时价目不参与，未提交单价直接落到下面的缺失拒绝。
+            let mut priced = item.clone();
+            if priced.unit_price.is_none() {
+                priced.unit_price = resolved.as_ref().and_then(|r| r.supplier_price);
             }
+            let amounts = Self::calculate_item_amounts(&priced)?;
 
             let mut order_item =
-                Self::build_order_item_active_model(item, order_id, index, &amounts)?;
+                Self::build_order_item_active_model(&priced, order_id, index, &amounts)?;
 
             // 设置转采购快照列（唯一来源：resolve_supplier_sku_snapshot 权威解析）
             if let Some(resolved) = &resolved {
@@ -919,7 +945,11 @@ mod tests {
     /// 空量采购单；正数放行。
     #[test]
     fn line_quantity_must_be_present_and_positive() {
-        for quantity in [None, Some(Decimal::ZERO), Some(Decimal::from_str("-1").unwrap())] {
+        for quantity in [
+            None,
+            Some(Decimal::ZERO),
+            Some(Decimal::from_str("-1").unwrap()),
+        ] {
             let error = PurchaseOrderService::validate_line_quantity(quantity, 1)
                 .expect_err("未提交数量或数量不大于 0 必须拒绝建单，不得按缺省值落库");
             assert_eq!(error.error_code(), "VALIDATION_ERROR");
@@ -932,5 +962,57 @@ mod tests {
 
         PurchaseOrderService::validate_line_quantity(Some(Decimal::from(20)), 1)
             .expect("正数数量应放行");
+    }
+
+    /// 单价的缺省口径钉死在金额函数入口：未提交 unit_price 点名拒绝（VALIDATION_ERROR，
+    /// 文案说明"0 价行请显式提交 0"），显式提交 0 放行且金额按 0 计算。
+    /// 为什么允许 0：纺织采购里的样布、赠品、寄售行是真实业务形态；为什么拒绝缺省：
+    /// 替 0 会让"漏录单价"与"声明 0 价"在进项与成本台账里混成同一行。
+    #[test]
+    fn unit_price_must_be_present_and_zero_is_a_declared_value() {
+        let mut missing = item_with_tax_rate(Some(Decimal::from(13)));
+        missing.unit_price = None;
+        let error = PurchaseOrderService::calculate_item_amounts(&missing)
+            .expect_err("未提交单价必须拒绝计算，不得按 0 代填");
+        assert_eq!(error.error_code(), "VALIDATION_ERROR");
+        let message = error.public_message();
+        assert!(
+            message.contains("缺少单价 unit_price") && message.contains("显式提交 0"),
+            "拒绝文案必须点名是哪个字段并给出填法，实际: {message}"
+        );
+
+        let mut declared_zero = item_with_tax_rate(Some(Decimal::from(13)));
+        declared_zero.unit_price = Some(Decimal::ZERO);
+        let amounts = PurchaseOrderService::calculate_item_amounts(&declared_zero).unwrap();
+        assert_eq!(amounts.unit_price, Decimal::ZERO);
+        assert_eq!(amounts.amount, Decimal::ZERO);
+        assert_eq!(amounts.tax_amount, Decimal::ZERO);
+    }
+
+    /// 数量同样不许以 None 进金额函数：新建与添加明细路径的正数门在此之前已拦过一轮，
+    /// 本条锁的是"任何人工写端口都不得把空数量交给金额计算"这一入口契约。
+    #[test]
+    fn quantity_must_be_present_when_entering_amount_calculation() {
+        let mut missing = item_with_tax_rate(Some(Decimal::from(13)));
+        missing.quantity_ordered = None;
+        let error = PurchaseOrderService::calculate_item_amounts(&missing)
+            .expect_err("未提交数量不得进入金额计算，不得按 0 折算");
+        assert_eq!(error.error_code(), "VALIDATION_ERROR");
+        assert!(error.public_message().contains("缺少数量 quantity_ordered"));
+    }
+
+    /// 更新明细的数量门只拦负数：未提交（保持原值）与 0（历史 0 量行仍可编辑单价）放行，
+    /// 与新建与添加明细路径的 [`PurchaseOrderService::validate_line_quantity`] 正数门分档。
+    #[test]
+    fn updated_quantity_rejects_only_negative_values() {
+        for quantity in [None, Some(Decimal::ZERO), Some(Decimal::from(20))] {
+            PurchaseOrderService::validate_updated_quantity(quantity)
+                .expect("更新明细不套正数门，未提交与 0 量行都应放行");
+        }
+        let error =
+            PurchaseOrderService::validate_updated_quantity(Some(Decimal::from_str("-1").unwrap()))
+                .expect_err("显式提交的负数数量必须点名拒绝");
+        assert_eq!(error.error_code(), "VALIDATION_ERROR");
+        assert!(error.public_message().contains("不得为负"));
     }
 }
