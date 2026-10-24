@@ -26,13 +26,18 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
   test('3-1 创建染色配方（小样处方）', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
+    const recipeNo = genCode('DR');
+    const recipeName = genName('E2E染色配方');
+    // 配方正文的后端入参键是 chemical_formula（CreateDyeRecipeRequest 的字段名），
+    // formula 不在该 DTO 里，提交它不会落库
+    const chemicalFormula = 'reactive red 3%, sodium sulfate 20g/L';
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-recipes', {
-      recipe_no: genCode('DR'),
-      recipe_name: genName('E2E染色配方'),
+      recipe_no: recipeNo,
+      recipe_name: recipeName,
       color_no: 'RED-001',
       color_code: 'RED-001',
       color_name: '大红',
-      formula: ' reactive red 3%, sodium sulfate 20g/L',
+      chemical_formula: chemicalFormula,
       temperature: 80,
       time_minutes: 45,
       ph_value: 7,
@@ -48,7 +53,33 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       status: 'draft',
     });
     ctx.dyeRecipeId = result.data?.id;
-    expect(ctx.dyeRecipeId).toBeDefined();
+    expect(
+      ctx.dyeRecipeId,
+      `配方创建应返回 data.id（建单响应回 id 为后端契约），实际响应：${JSON.stringify(result).slice(0, 300)}`
+    ).toBeDefined();
+    // 写后读回真值：建单只回 id 不算落库成功，逐字段核对配方主体确实按入参存进 dye_recipe
+    const saved = await apiCallRaw<{
+      recipe_no?: string;
+      recipe_name?: string;
+      color_code?: string;
+      chemical_formula?: string | null;
+      formula?: string | null;
+      temperature?: string | number | null;
+      time_minutes?: number | null;
+      status?: string;
+    }>(page, 'GET', `/production/dye-recipes/${ctx.dyeRecipeId}`);
+    expect(saved.recipe_no, `回读的配方编号应等于提交值 ${recipeNo}`).toBe(recipeNo);
+    expect(saved.recipe_name, `回读的配方名称应等于提交值 ${recipeName}`).toBe(recipeName);
+    expect(saved.color_code, '回读的颜色代号应与提交值一致').toBe('RED-001');
+    expect(saved.chemical_formula, '回读的配方正文应等于提交值').toBe(chemicalFormula);
+    expect(saved.formula, '建单把正文同写入 formula 列，两列应保持一致').toBe(chemicalFormula);
+    // temperature 是 Decimal 列，JSON 回读形态是字符串，取数值比较（键缺失时得 NaN 即判失败）
+    expect(
+      Number(saved.temperature),
+      `回读的染色温度应等于提交值 80，实际 ${JSON.stringify(saved.temperature)}`
+    ).toBe(80);
+    expect(saved.time_minutes, '回读的保温时间应等于提交值 45').toBe(45);
+    expect(saved.status, '新建配方的初始状态应落为 draft').toBe('draft');
   });
 
   test('3-2 审批染色配方（草稿 → 已审核）', async ({ page }) => {
@@ -92,8 +123,9 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
     // 原写死的 'RED-001' 属测试缺前置：本用例自建专属色卡+唯一色号（seedColorCardArchive，
     // 与 fabric/02-dye 先例同型），用入档后的唯一色号替代硬编码。
     const archive = await seedColorCardArchive(page, { context: '03-production 3-3' });
+    const batchNo = genCode('缸');
     const result = await apiCall<{ id?: number }>(page, 'POST', '/production/dye-batches', {
-      batch_no: genCode('缸'),
+      batch_no: batchNo,
       dye_lot_no: dyeLotNo,
       greige_fabric_id: ctx.greigeFabricId,
       color_no: archive.colorCode,
@@ -106,6 +138,35 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       ctx.dyeBatchId,
       `染色批次创建应返回 data.id（建单响应回 id 为后端契约），实际响应：${JSON.stringify(result).slice(0, 300)}`
     ).toBeDefined();
+    // 写后读回真值：建单只回 id 不算落库成功，逐字段核对缸号确实按入参存进 dye_batch，
+    // 其中 color_code 与 color_name 由色卡档案反查派生，不是提交值的复制
+    const saved = await apiCallRaw<{
+      batch_no?: string;
+      dye_lot_no?: string;
+      color_no?: string | null;
+      color_code?: string;
+      color_name?: string;
+      planned_quantity?: string | number | null;
+      actual_output_kg?: string | number | null;
+      actual_output_m?: string | number | null;
+      greige_input_kg?: string | number | null;
+      status?: string;
+    }>(page, 'GET', `/production/dye-batches/${ctx.dyeBatchId}`);
+    expect(saved.batch_no, `回读的缸号应等于提交值 ${batchNo}`).toBe(batchNo);
+    expect(saved.dye_lot_no, `回读的染色批号应等于提交值 ${dyeLotNo}`).toBe(dyeLotNo);
+    expect(saved.color_no, '回读的色号应等于提交的档案色号').toBe(archive.colorCode);
+    expect(saved.color_code, '色码由色卡档案反查得到，应等于入档色号').toBe(archive.colorCode);
+    expect(saved.color_name, '色名由色卡档案反查得到，应取档案里的色名').toBe(archive.colorName);
+    // planned_quantity 是 Decimal 列，JSON 回读形态是字符串，取数值比较（键缺失时得 NaN 即判失败）
+    expect(
+      Number(saved.planned_quantity),
+      `回读的计划产量应等于提交值 1000，实际 ${JSON.stringify(saved.planned_quantity)}`
+    ).toBe(1000);
+    expect(saved.status, '新建缸号的初始状态应落为 pending_schedule').toBe('pending_schedule');
+    expect(
+      [saved.actual_output_kg, saved.actual_output_m, saved.greige_input_kg],
+      '完工登记三列只由 complete 端点写入，新建后应全为 NULL'
+    ).toEqual([null, null, null]);
   });
 
   test('3-4 缸号状态机流转（14 态：pending_schedule→scheduled→preparing→dyeing→stored）', async ({

@@ -4057,14 +4057,16 @@ export async function withEntity(
  * 色卡档案不做清理：DELETE 端点是**归档**语义（crud.rs archive，非物理删除），物理删档会
  * 破坏历史染色批次的派生链；每次运行新建专属卡+唯一色号，跨分片互不干扰。
  *
- * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；itemId 色号明细 id
+ * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；
+ *          colorName 该色号在档案里的色名（用于校验下游按主数据派生的结果）；itemId 色号明细 id
  */
 export async function seedColorCardArchive(
   page: Page,
   opts?: { context?: string }
-): Promise<{ cardId: number; colorCode: string; itemId: number }> {
+): Promise<{ cardId: number; colorCode: string; colorName: string; itemId: number }> {
   const tag = opts?.context ?? 'seedColorCardArchive';
   const colorCode = genCode('E2E-ARCH');
+  const colorName = 'E2E 档案前置色号';
   const card = await apiCall<{ id?: number; card_no?: string }>(page, 'POST', '/color-cards', {
     card_no: genCode('E2E-ARCHCC'),
     card_name: `E2E 档案前置色卡 ${colorCode}`,
@@ -4084,7 +4086,7 @@ export async function seedColorCardArchive(
     `/color-cards/${cardId}/items`,
     {
       color_code: colorCode,
-      color_name: 'E2E 档案前置色号',
+      color_name: colorName,
       rgb_r: 220,
       rgb_g: 20,
       rgb_b: 60,
@@ -4104,5 +4106,5 @@ export async function seedColorCardArchive(
     );
   }
   console.log(`[${tag}] 色卡档案前置就绪：card=${cardId} item=${itemId} color_code=${colorCode}`);
-  return { cardId, colorCode, itemId };
+  return { cardId, colorCode, colorName, itemId };
 }
