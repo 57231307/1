@@ -36,7 +36,7 @@ use crate::services::supplier_blacklist_service::SupplierBlacklistService;
 use crate::services::supplier_qualification_gate::SupplierQualificationGate;
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
-    apply_data_scope, check_resource_owner_by_member_scope, DataScopeContext,
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
 };
 use crate::utils::error::AppError;
 // 单号取号+插入的唯一入口（事务内取号 + 23505 保存点重试），见 `create_order_header`

@@ -35,10 +35,13 @@ async function seedApprovedInvoice(
   supplierId: number
 ): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
+  // tax_amount 显式提交 0：后端对税额缺键点名拒绝，0 是建单方的声明值（本票无进项税），
+  // 本夹具只服务付款内控断言，票面税额不涉及进项税。
   const inv = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/invoices', {
     supplier_id: supplierId,
     invoice_type: 'PURCHASE',
     amount: 1000,
+    tax_amount: 0,
     invoice_date: today,
     due_date: today,
   });
@@ -46,6 +49,14 @@ async function seedApprovedInvoice(
   if (!id) throw new Error(`建应付单失败：${JSON.stringify(inv)}`);
   CLEANUP.push({ path: `/ap/invoices/${id}`, label: 'ap_invoice' });
   await apiCall(page, 'POST', `/ap/invoices/${id}/approve`);
+  // 建单终态回读库里值：税额=显式提交的 0（缺键会被后端拒绝，不存在"洗出来的 0"），
+  // 未付额由 amount 派生（付款前 unpaid=amount）
+  const persisted = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/ap/invoices/${id}`);
+  expect(num(persisted, 'tax_amount'), 'tax_amount 落库值应等于显式提交的 0').toBe(0);
+  expect(
+    num(persisted, 'unpaid_amount'),
+    'unpaid_amount 应由 amount 派生（建单未付款时等于 amount）'
+  ).toBe(num(persisted, 'amount'));
   return id;
 }
 
