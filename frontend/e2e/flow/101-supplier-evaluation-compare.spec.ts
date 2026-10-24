@@ -124,8 +124,9 @@ async function assertPickerPlaceholder(page: Page, text: string): Promise<void> 
  * 多选形态下占位文案渲染成盖在 input 上的独立节点，点 input 会被它拦截 pointer events。
  * 输入用键盘逐字触发 remote-method 的服务端搜索，候选只能来自服务端回包，
  * 断言候选含关键字即证明按名称或编码搜索真实发生，选中由 v-model 带出主键 id。
- * 多选面板选中后不自动关闭，选完按 Escape 收起并确认面板确不可见，
- * 避免 teleport 到 body 的面板盖住后续操作，时序与既有 remote 多选范式一致。
+ * 多选面板选中后不自动关闭，且组件默认保留搜索关键字，收面板需要两段 Escape，
+ * 第一段只清空关键字，第二段关键字为空才收起面板，
+ * 收完确认面板确不可见，避免 teleport 到 body 的面板盖住后续操作。
  */
 async function searchAndPick(page: Page, keyword: string): Promise<void> {
   const wrapper = comparePickerShell(page).locator('.el-select__wrapper').first();
@@ -136,6 +137,9 @@ async function searchAndPick(page: Page, keyword: string): Promise<void> {
   const option = dropdown.locator('.el-select-dropdown__item').filter({ hasText: keyword }).first();
   await expect(option, `应搜到含「${keyword}」的供应商候选`).toBeVisible({ timeout: 15_000 });
   await option.click();
+  // 组件契约（element-plus useSelect 的 handleEsc 与 reserveKeyword 默认 true），点选后关键字仍在，
+  // 第一段 Escape 清空关键字不收面板，第二段才收，与本仓 remote 多选既有用例的两段收法一致。
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0);
 }
