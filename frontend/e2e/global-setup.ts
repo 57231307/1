@@ -2263,6 +2263,8 @@ async function ensureGlobalBusinessSeed(
               supplier_id: apSupplierId,
               invoice_type: 'PURCHASE',
               amount: '8000',
+              // 税额是写口必填声明值，无进项税显式提交 0，缺键被点名拒绝 400
+              tax_amount: '0',
               invoice_date: now.toISOString().slice(0, 10),
               due_date: due.toISOString().slice(0, 10),
             });

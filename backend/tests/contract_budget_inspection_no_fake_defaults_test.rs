@@ -334,8 +334,10 @@ async fn roll_with_product_persists_declared_product_and_measured_values() {
         assert_eq!(status, StatusCode::OK, "显式合法值打卷应 200, 实际: {v}");
     }
     let expect_color = ["C-RED-1", ""];
-    for (seq, id) in (1..=2).enumerate() {
-        let piece_no = format!("DL-NFAKE-2-{seq:03}");
+    // 匹号由 generate_next_piece_no 按缸号内既有最大 piece_seq 加一生出，两次打卷
+    // 落 001 与 002；期望序号与打卷次序同号（从 1 起），逐列对照声明值
+    for id in 1..=2usize {
+        let piece_no = format!("DL-NFAKE-2-{id:03}");
         let (product_id, color_no, dye_lot_no, length, weight) =
             fetch_piece_row(&db, &piece_no).await;
         assert_eq!(product_id, 5, "布卷产品必须等于验布记录声明的产品");

@@ -332,9 +332,12 @@ fn migration_role_codes_are_disjoint_from_prior_greige_grant() {
     }
 }
 
-/// 通道②：注册位置必须是链尾顶层域 m_purchase_greige_read_grant。
+/// 通道②：注册形态必须是顶层域 m_purchase_greige_read_grant，位置以依赖锚点判定。
 /// 嵌入已应用的 business 域会在复用库上随整域跳过而永不执行（本仓既有家族缺陷），
-/// 故三向钉死：域文件内真实调用 m0102、lib.rs 登记在所有既有域之后、business 链不残留双注册。
+/// 故钉死四点：域文件内真实调用 m0102、lib.rs 顶层清单恰登记一次、登记位置排在
+/// 升域锚 ap_family_grant 与依赖域 v15 之后、business 链不残留双注册。
+/// 数组末位不是判据：后续合并合法追加的新域只会排在本域之后，不许因此顶红本锁；
+/// 反向同理，本域被重排到依赖之前或被内嵌回聚合域，两形都必红。
 #[test]
 fn migration_is_registered_as_chain_tail_top_domain() {
     let domain = code_only(&top_domain_src());
@@ -357,26 +360,42 @@ fn migration_is_registered_as_chain_tail_top_domain() {
     );
 
     let lib = code_only(&lib_chain_src());
-    let prior_reg = lib
+    let mig_at = lib
+        .find("fn migrations() -> Vec<Box<dyn MigrationTrait>>")
+        .expect("lib.rs 缺顶层迁移清单函数 migrations");
+    let body = &lib[mig_at..];
+    let reg_needle = "Box::new(domain::purchase_greige_read_grant::Migration)";
+    assert_eq!(
+        body.matches(reg_needle).count(),
+        1,
+        "purchase_greige_read_grant 在顶层清单必须恰登记一次（重复登记会在部分库上重复执行回收）"
+    );
+    let prior_reg = body
         .find("Box::new(domain::ap_family_grant::Migration)")
         .expect("lib.rs 链必须有前链尾 ap_family_grant 登记");
-    let this_reg = lib
-        .find("Box::new(domain::purchase_greige_read_grant::Migration)")
+    let this_reg = body
+        .find(reg_needle)
         .expect("lib.rs 链必须登记新顶层域 purchase_greige_read_grant");
     assert!(
         this_reg > prior_reg,
-        "m0102 顶层域必须排在既有链尾 ap_family_grant 之后（升域前它已是最后应用的域）"
+        "m0102 顶层域必须保持在既有链尾 ap_family_grant 之后（升域前它已是最后应用的域）"
     );
+    let v15_reg = body
+        .find("Box::new(domain::v15::Migration)")
+        .expect("lib.rs 必须有 v15 顶层域登记");
     assert!(
-        !lib[this_reg + "Box::new(domain::purchase_greige_read_grant::Migration)".len()..]
-            .contains("Box::new(domain::"),
-        "purchase_greige_read_grant 必须是 ALL 清单末位：链尾登记才保证 down 逆序时它最先回滚"
+        this_reg > v15_reg,
+        "本域补授依赖 v15 建的 uq_role_permissions 唯一索引，登记必须始终排在其后（前置即回退时序失真）"
     );
 
     let business = code_only(&business_chain_src());
     assert!(
         !business.contains("m0102_grant_purchase_greige_read"),
         "business 域不得再残留 m0102 声明或调用，双注册会在部分库上重复执行回收"
+    );
+    assert!(
+        !business.contains("purchase_greige_read_grant::Migration"),
+        "business 域不得把本顶层域内嵌回自己的清单（内嵌即随整域跳过而永不执行，防退化反向钉）"
     );
 }
 

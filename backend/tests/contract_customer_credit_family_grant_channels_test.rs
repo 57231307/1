@@ -1,12 +1,16 @@
 //! 客户信用族（customer-credits）授权面的通道一致性契约锁（不连库，纯静态测试）。
 //!
-//! 锁定契约：客户信用动作键在两个写入面必须逐字符同集合。
+//! 锁定契约：客户信用动作键在两个写入面的裁定岗位集内必须逐字符同集合。
 //! - 通道一 新装库播种面：services/init_service_ops/permission.rs 里按角色码分组的
 //!   (resource_type, action) 列表中 resource_type 恰为 customer-credits 的那些条目；
 //! - 通道二 存量库补授面：migration/src/domain/customer_credit_family_grant/
 //!   m0001_grant_customer_credit_family_keys.rs 的 GRANTS 三元组 (roles.code, resource_type, action)。
 //! 两面一旦漂移，存量库就会出现 新装库能开、老库 403 的隐口，或反过来把未定岗的键授进存量库，
 //! 而两侧各自都能编译通过，只有本锁能在提交前点名差集。
+//!
+//! 比对范围以裁定岗位集为界，通道一 在面外的存量持有（crm_manager 的通配与 sales_manager 的
+//! 单枚读）不是通道二 的补授义务，由面外存量台账锁单独钉住在场性，
+//! 扩面须同步改裁定岗位集与台账两处，逐键比对不许静默放行面外键。
 //!
 //! 另锁四件事：
 //! 一，通道二 出现的角色码必须正好是本次裁定的两岗（finance_manager 与 accountant），新增第三岗
@@ -45,6 +49,9 @@ const FAMILY_GRANT_DOMAIN_MOD: &str = "migration/src/domain/customer_credit_fami
 
 /// 本域唯一涉及的资源名（URL 第四段原名，未经消歧映射改写）
 const CREDIT_RESOURCE: &str = "customer-credits";
+
+/// 本域补授的裁定角色集（岗位码来自裁定口径，通道二 角色集锁与通道一 比对收窄共用同源）
+const ARBITRATION_ROLES: [&str; 2] = ["accountant", "finance_manager"];
 
 fn read_repo(rel: &str) -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel);
@@ -185,7 +192,19 @@ fn diff_report(
     problems
 }
 
+/// 把通道一 解析结果收窄到裁定角色集，面外持有交存量台账锁单独钉住。
+fn restrict_to_arbitration(
+    matrix: &BTreeMap<String, BTreeSet<(String, String)>>,
+) -> BTreeMap<String, BTreeSet<(String, String)>> {
+    matrix
+        .iter()
+        .filter(|(role, _)| ARBITRATION_ROLES.contains(&role.as_str()))
+        .map(|(role, keys)| (role.clone(), keys.clone()))
+        .collect()
+}
+
 /// 从 middleware/permission.rs 现读 PATH_ACTION_KEYWORDS 的字面量清单（同源，不抄第二套）。
+/// 数组体定位必须先跳过声明等号，否则会命中类型标注里的切片方括号，把类型片段当成员解析。
 fn path_action_keywords(mw_src: &str) -> BTreeSet<String> {
     let code = code_only(mw_src);
     let marker = "const PATH_ACTION_KEYWORDS";
@@ -193,14 +212,18 @@ fn path_action_keywords(mw_src: &str) -> BTreeSet<String> {
         .find(marker)
         .expect("PATH_ACTION_KEYWORDS 常量缺失，动作派生判据失效");
     let rest = &code[at..];
-    let open = rest
+    let eq = rest
+        .find('=')
+        .expect("PATH_ACTION_KEYWORDS 声明缺等号，解析锁前提失效");
+    let after_eq = &rest[eq..];
+    let open = after_eq
         .find("&[")
-        .expect("PATH_ACTION_KEYWORDS 未以数组字面量初始化");
+        .expect("PATH_ACTION_KEYWORDS 数组值未以切片字面量初始化");
     let close = open
-        + rest[open..]
+        + after_eq[open..]
             .find(']')
             .expect("PATH_ACTION_KEYWORDS 数组未闭合");
-    let inner = &rest[open + 2..close];
+    let inner = &after_eq[open + 2..close];
     let mut out = BTreeSet::new();
     for token in inner.split(',') {
         let t = token.trim();
@@ -269,8 +292,7 @@ fn route_derived_actions(routes_src: &str, keywords: &BTreeSet<String>) -> BTree
         let method = &cap[2];
         let last = path
             .split('/')
-            .filter(|s| !s.is_empty())
-            .last()
+            .rfind(|seg| !seg.is_empty())
             .unwrap_or_default();
         let action = if keywords.contains(last) {
             last.to_string()
@@ -325,24 +347,53 @@ fn half_grant_report(migration: &BTreeMap<String, BTreeSet<(String, String)>>) -
 fn credit_family_grant_channels_agree_key_by_key() {
     let matrix = matrix_credit_keys(&read_repo(MATRIX));
     let migration = migration_credit_keys(&read_repo(GRANT_MIGRATION));
+    let in_scope = restrict_to_arbitration(&matrix);
     assert!(
-        !matrix.is_empty(),
-        "通道一 未解析出任何 customer-credits 授权"
+        !in_scope.is_empty(),
+        "通道一 未解析出裁定角色集内的任何 customer-credits 授权"
     );
-    let problems = diff_report(&matrix, &migration);
+    let problems = diff_report(&in_scope, &migration);
     assert!(
         problems.is_empty(),
-        "客户信用族两通道漂移（按岗位逐键双向点名）: {problems:?}"
+        "客户信用族两通道漂移（按裁定岗位逐键双向点名）: {problems:?}"
+    );
+}
+
+/// 面外存量台账锁：通道一 里裁定角色集之外的岗位持有的 customer-credits 键必须恰为
+/// 存量两枚，一枚不多一枚不少。crm_manager 的通配授权与 sales_manager 的单枚读都是
+/// init 播种时代的存量事实，两枚都不在通道二 的补授义务内（补授面按裁定只覆盖财务两岗）。
+/// 新岗位在通道一 拿到本域键、或面外动作形态变化时本锁即红，逼人同步改裁定面与本台账，
+/// 而不是让逐键比对把面外键静默排除后失去在场性。
+#[test]
+fn credit_family_out_of_arbitration_holders_match_legacy_ledger() {
+    let matrix = matrix_credit_keys(&read_repo(MATRIX));
+    let mut legacy: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
+    legacy.insert(
+        "crm_manager".to_string(),
+        [(CREDIT_RESOURCE.to_string(), "*".to_string())]
+            .into_iter()
+            .collect(),
+    );
+    legacy.insert(
+        "sales_manager".to_string(),
+        [(CREDIT_RESOURCE.to_string(), "read".to_string())]
+            .into_iter()
+            .collect(),
+    );
+    let observed: BTreeMap<String, BTreeSet<(String, String)>> = matrix
+        .into_iter()
+        .filter(|(role, _)| !ARBITRATION_ROLES.contains(&role.as_str()))
+        .collect();
+    assert_eq!(
+        observed, legacy,
+        "通道一 非裁定角色持有的 customer-credits 键必须与存量台账一致（要扩授予面须同步改裁定岗位集与本台账，两通道比对不许静默放行面外键）"
     );
 }
 
 #[test]
 fn credit_family_grant_role_set_is_exactly_the_two_finance_posts() {
     let migration = migration_credit_keys(&read_repo(GRANT_MIGRATION));
-    let expect: BTreeSet<String> = ["accountant", "finance_manager"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let expect: BTreeSet<String> = ARBITRATION_ROLES.iter().map(|s| s.to_string()).collect();
     let roles: BTreeSet<String> = migration.keys().cloned().collect();
     assert_eq!(
         roles, expect,
@@ -402,20 +453,23 @@ fn credit_family_resource_is_registered_in_permission_resources() {
 #[test]
 fn domain_customer_credit_three_domains_are_registered() {
     let migrator = read_repo(MIGRATOR);
-    for (domain, box_line, name_line) in [
+    for (domain, box_line, name_file, name_lit) in [
         (
             "customer_credit_name_backfill",
             "Box::new(domain::customer_credit_name_backfill::Migration)",
+            NAME_BACKFILL_MIGRATION,
             "\"m_customer_credit_name_backfill\"",
         ),
         (
             "customer_credit_remark_column",
             "Box::new(domain::customer_credit_remark_column::Migration)",
+            REMARK_COLUMN_MIGRATION,
             "\"m_customer_credit_remark_column\"",
         ),
         (
             "customer_credit_family_grant",
             "Box::new(domain::customer_credit_family_grant::Migration)",
+            FAMILY_GRANT_DOMAIN_MOD,
             "\"m_customer_credit_family_grant\"",
         ),
     ] {
@@ -423,23 +477,15 @@ fn domain_customer_credit_three_domains_are_registered() {
             migrator.contains(box_line),
             "域 {domain} 未登记进 migration/src/lib.rs 的 migrations 列表（注册缺失即该域永不执行）"
         );
+        // 各域台账名与登记文件在场，构成可重放的稳定标识
+        assert!(
+            read_repo(name_file).contains(name_lit),
+            "域 {domain} 缺 MigrationName 聚合台账名 {name_lit}"
+        );
     }
-    // 各域 name() 台账名与注册文件在场，构成可重放的稳定标识
-    assert!(
-        read_repo(NAME_BACKFILL_MIGRATION).contains("\"m_customer_credit_name_backfill\""),
-        "customer_credit_name_backfill 缺 MigrationName 台账名"
-    );
-    assert!(
-        read_repo(REMARK_COLUMN_MIGRATION).contains("\"m_customer_credit_remark_column\""),
-        "customer_credit_remark_column 缺 MigrationName 台账名"
-    );
     assert!(
         read_repo(GRANT_MIGRATION).contains("m0001_grant_customer_credit_family_keys"),
         "customer_credit_family_grant 子迁移台账名缺失"
-    );
-    assert!(
-        read_repo(FAMILY_GRANT_DOMAIN_MOD).contains("\"m_customer_credit_family_grant\""),
-        "customer_credit_family_grant 聚合域台账名缺失"
     );
 }
 
@@ -477,9 +523,16 @@ fn credit_family_grant_migration_up_down_shape_is_fail_visible() {
         down.contains("GET DIAGNOSTICS") && down.contains("RAISE NOTICE"),
         "down 必须打印实删行数，回退结果不许静默"
     );
+    // 字面量判据只作用于可执行 SQL：说明性注释（以 -- 起始的行）允许点名 crm_manager
+    // 解释"不动它的通配行"，可执行体里出现该字面量才说明回退面被越界写死。
+    let down_exec: String = down
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect::<Vec<_>>()
+        .join("\n");
     assert!(
-        !down.contains("crm_manager"),
-        "down 不许按字面量碰 crm_manager 名下的通配授权行（本域角色码来自 GRANTS）"
+        !down_exec.contains("crm_manager"),
+        "down 的可执行 SQL 不许按字面量圈 crm_manager 名下的行（回退角色面只能来自 GRANTS 派生）"
     );
 }
 
