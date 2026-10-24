@@ -1,21 +1,25 @@
 /**
  * 客户信用列表页的动作权限门与列表信封静态锁。
- * 功能，钉三件事。一，该页每个会打后端端点的动作按钮都必须带 v-permission，
+ * 功能，钉三件事。一，该页每个会打后端端点的动作入口，含 el-button 与 el-link
+ * 与 el-dropdown-item 三类点击形态，都必须带 v-permission，
  * 所用键必须是权限常量表已声明的 customer-credits 族键，且键的动作段取值
  * 由后端权限中间件的键派生规则在本锁内现场算出，不写死字面量，
- * 反向钉为出现没有权限指令的动作按钮或未登记的按钮动作入口即判红，
+ * 反向钉为出现没有权限指令的动作入口或未登记的入口即判红，
  * 并钉每个入口声明调用的 api 函数确在其请求载体里，防钉死清单与页面代码脱钩。
  * 二，列表函数的返回声明必须是 ApiResponse 包 PaginatedResponse 的 items total
- * page page_size 信封形态，不得再声明裸数组，列表页按 items 键取数，
- * 且不得用空数组兜底把契约漂移伪装成无数据。
+ * page page_size 信封形态，不得再声明裸数组；空数组兜底的 ?? 与 || 两种形态
+ * 在被钉为信封形态的源里一律判红，既有既成兜底只准登记进显式挂账清单，
+ * 清单只准缩短不准增长，真修掉后条目必须删除。
  * 三，出参三个金额键的声明必须与后端 rust_decimal 的线形态同词，
  * 未启浮点化特性即 string，不得写成 number 也不得写成两者联合，
- * 消费侧的归一只允许发生在真正要算的地方。
+ * 消费侧的归一只允许发生在真正要算的地方，全部归一调用点逐点核验显式判缺值，
+ * 裸比较判据不限接收者变量名，任何接收者取金额键跟数值比较都判红。
  * 调用方，vitest，tests unit 目录，CI 的 vitest job。
  * 入参，仅 fs 读取仓库内源码文本，不执行后端代码，不发网络请求。
  * 传给谁，纯断言，无下游。存什么，不写库。存哪里，无。
- * 检测力自证，见末尾夹具段，把无权限指令的裸按钮与裸数组声明两种缺陷形态
- * 喂给同一判据，断言判据确实抓到，防判据静默失效。
+ * 检测力自证，见末尾夹具段，把无权限指令的裸按钮与裸数组声明与清单外兜底
+ * 与改名接收者的裸比较与后续无守卫归一调用与 el-link 上的裸动作入口
+ * 等缺陷形态喂给同一判据，断言判据确实抓到，防判据静默失效。
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -255,12 +259,16 @@ interface ButtonTag {
   permission: string;
 }
 
-/** 切出一个 vue 模板段里的全部 el-button 开标签及其 @click 与 v-permission */
+/**
+ * 切出一个 vue 模板段里的全部可点击动作入口开标签及其 @click 与 v-permission。
+ * 扫描面覆盖 el-button 与 el-link 与 el-dropdown-item 三类点击形态，
+ * 不变量是每个会打后端写端点的入口都必须带权限指令，入口换标签形态不逃逸。
+ */
 function extractButtons(source: string): ButtonTag[] {
   const scriptAt = source.indexOf('<script');
   const template = scriptAt === -1 ? source : source.slice(0, scriptAt);
   const buttons: ButtonTag[] = [];
-  for (const match of template.matchAll(/<el-button\b[\s\S]*?>/g)) {
+  for (const match of template.matchAll(/<(?:el-button|el-link|el-dropdown-item)\b[\s\S]*?>/g)) {
     const tag = match[0];
     const click = tag.match(/@click="([^"]*)"/)?.[1] ?? '';
     const permission = tag.match(/v-permission="([^"]*)"/)?.[1] ?? '';
@@ -268,7 +276,9 @@ function extractButtons(source: string): ButtonTag[] {
     buttons.push({ click, handler, permission });
   }
   if (buttons.length === 0) {
-    throw new Error('模板里一个 el-button 都没切到，切分判据已失效，本锁不可信');
+    throw new Error(
+      '模板里一个 el-button 与 el-link 与 el-dropdown-item 开标签都没切到，切分判据已失效，本锁不可信'
+    );
   }
   return buttons;
 }
@@ -280,9 +290,9 @@ function expectedPermissionExpr(grants: readonly { perm: string }[]): string {
 }
 
 /**
- * 动作按钮权限门的判据主体，输入一段源文本与所属文件标签，输出违规清单。
+ * 动作入口权限门的判据主体，输入一段源文本与所属文件标签，输出违规清单。
  * 正向钉，钉死清单里每个动作入口都必须带期望的那枚权限指令。
- * 反向钉，出现无权限指令的动作按钮、清单外的按钮动作入口、
+ * 反向钉，出现无权限指令的动作入口、清单外的动作入口、
  * 关窗形态以外的赋值形态点击，都判红；钉死清单里的入口在页面消失同样判红。
  */
 function judgeActionButtons(source: string, fileLabel: string): string[] {
@@ -341,7 +351,7 @@ function exportedConstBody(source: string, name: string, fileLabel: string): str
 
 /**
  * 列表声明的形态判据，正向钉必须是 ApiResponse 包 PaginatedResponse 的信封，
- * 反向钉出现 ApiResponse 包模型数组的裸数组形态与空数组兜底即判红。
+ * 反向钉出现 ApiResponse 包模型数组的裸数组形态与 ?? 与 || 两种空数组兜底即判红。
  */
 function judgeListDeclaration(
   apiSource: string,
@@ -358,8 +368,56 @@ function judgeListDeclaration(
   if (flat.includes(`ApiResponse<${model}[]>`)) {
     errors.push(`${fnName} 仍在声明裸数组载荷 ApiResponse<${model}[]>`);
   }
-  if (/data\?\?\[\]/.test(flat)) {
+  if (/\?\?\[\]|\|\|\[\]/.test(flat)) {
     errors.push(`${fnName} 用空数组兜底掩盖信封漂移`);
+  }
+  return errors;
+}
+
+/**
+ * 已知挂账清单，只登记被钉为信封形态的源里既成的空数组兜底，
+ * 本轮不要求改动客户列表端点的既有写法，故把该处逐字登记在此。
+ * 清单只准缩短不准增长。新增同类兜底一律判红而不是加条目，
+ * 兜底被真修掉后对应条目必须同批删除，否则挂账条目消失判据同样判红。
+ */
+const KNOWN_EMPTY_ARRAY_FALLBACKS: ReadonlyArray<{ file: string; snippet: string }> = [
+  {
+    file: 'index.vue',
+    snippet: 'customerOptions.value = res.data?.items || [];',
+  },
+];
+
+/**
+ * 空数组兜底的整源判据，输入被钉为信封形态的源文本与文件标签，输出违规清单。
+ * ?? 与 || 两种形态全部扫描，命中挂账清单登记片段的豁免，
+ * 清单外的任何一处判红，登记片段在源码里已找不到时判红要求删除条目。
+ * 比较在剥掉全部空白的文本上进行，防换行折行造成豁免失配或扫描漏点。
+ */
+function judgeEmptyArrayFallback(source: string, fileLabel: string): string[] {
+  const errors: string[] = [];
+  const flat = source.replace(/\s+/g, '');
+  const exemptRanges: Array<{ begin: number; end: number }> = [];
+  for (const entry of KNOWN_EMPTY_ARRAY_FALLBACKS) {
+    if (entry.file !== fileLabel) continue;
+    const flatSnippet = entry.snippet.replace(/\s+/g, '');
+    const at = flat.indexOf(flatSnippet);
+    if (at === -1) {
+      errors.push(
+        `${fileLabel} 的挂账兜底条目 ${entry.snippet.replace(/;$/, '')} 已在源码消失，清单只准缩短，必须删除该条目`
+      );
+      continue;
+    }
+    exemptRanges.push({ begin: at, end: at + flatSnippet.length });
+  }
+  let ordinal = 0;
+  for (const match of flat.matchAll(/\?\?\[\]|\|\|\[\]/g)) {
+    const at = match.index;
+    if (exemptRanges.some(range => at >= range.begin && at < range.end)) continue;
+    ordinal += 1;
+    const context = flat.slice(Math.max(0, at - 30), at + 8);
+    errors.push(
+      `${fileLabel} 出现挂账清单外的空数组兜底第 ${ordinal} 处，上下文 ${context}，会把信封漂移伪装成无数据`
+    );
   }
   return errors;
 }
@@ -520,11 +578,76 @@ function judgeMoneyKeyDeclarations(
   return errors;
 }
 
+/** 比较运算符到中文说明的映射，失败消息不带运算符原文，保持可读与可定位 */
+const COMPARISON_OPERATOR_WORDS: Readonly<Record<string, string>> = {
+  '>=': '大于等于',
+  '<=': '小于等于',
+  '!==': '严格不等于',
+  '>': '大于',
+  '<': '小于',
+};
+
+/**
+ * 裸比较判据，任意接收者取三个金额键之一再跟比较运算符比数值一律判红，
+ * 运算符覆盖大于 小于 大于等于 小于等于 与严格不等于，不限接收者变量名，
+ * 换名逃逸不允许存在。唯一合法形态是与 undefined 与 null 与空串显式判缺，
+ * 判据对该三种右值放行，其余右值全部点名到接收者与键名与行号。
+ * 入参是页面源文本，输出违规清单。
+ */
+function judgeBareMoneyComparisons(pageSrc: string): string[] {
+  const errors: string[] = [];
+  const pattern =
+    /([A-Za-z_$][\w$]*)\??\.(credit_limit|used_credit|available_credit)\s*(>=|<=|!==|>|<)\s*([^\s)}\],;:?'"`]+)/g;
+  for (const match of pageSrc.matchAll(pattern)) {
+    const [, receiver, key, operator, rhs] = match;
+    if (operator === '!==' && (rhs === 'undefined' || rhs === 'null')) continue;
+    const line = pageSrc.slice(0, match.index).split('\n').length;
+    errors.push(
+      `金额键被裸比较，${receiver}.${key} ${COMPARISON_OPERATOR_WORDS[operator]} ${rhs}，位于第 ${line} 行，后端线形态是字符串，必须先归一再比`
+    );
+  }
+  return errors;
+}
+
+/**
+ * 归一调用点守卫判据，遍历源文本里全部 decimalWireToNumber 调用点，
+ * 逐点切出所在函数体并检查显式判未填与空串，一处判不到即判红，
+ * 只核验首处会被第二处无守卫调用静默放过，故不做取首个的短路。
+ * 函数体切不出来时响亮点名是第几处并附上下文片段，不许默认放过。
+ * 入参是页面源文本，输出违规清单，每条带第几处与所在函数名。
+ */
+function judgeDecimalCallGuards(pageSrc: string): string[] {
+  const errors: string[] = [];
+  let ordinal = 0;
+  for (const callMatch of pageSrc.matchAll(/decimalWireToNumber\(/g)) {
+    ordinal += 1;
+    const callAt = callMatch.index;
+    const start = pageSrc.lastIndexOf('\nconst ', callAt);
+    const end = pageSrc.indexOf('\n};', callAt);
+    if (start === -1 || end === -1) {
+      const context = pageSrc.slice(Math.max(0, callAt - 40), callAt + 20).replace(/\s+/g, ' ');
+      errors.push(
+        `第 ${ordinal} 处 decimalWireToNumber 调用取不到归一调用所在的函数体，判据对该调用失去覆盖，上下文 ${context}`
+      );
+      continue;
+    }
+    const body = pageSrc.slice(start, end);
+    const fnName = body.match(/^\n?const ([A-Za-z_$][\w$]*)/)?.[1] ?? '未命名函数';
+    if (!/===\s*(undefined|null)/.test(body) || !/===\s*''/.test(body)) {
+      errors.push(
+        `第 ${ordinal} 处（函数 ${fnName}）的归一调用点没把未填与空串显式判掉，缺值会静默算成 0 进渲染`
+      );
+    }
+  }
+  return errors;
+}
+
 /**
  * 金额键消费侧的判据，归一只允许发生在真正要算的地方。
- * 正向钉列表页的比较走归一函数、编辑回填在控件边界归一、提交前转回写线形态；
- * 反向钉裸比较、把线形态直接喂给数值控件、整个表单直发与在类型层把表单声明回
- * 实体部分形态都判红，NaN 一律不许静默进渲染。
+ * 正向钉列表页的比较走归一函数、编辑回填在控件边界归一、提交前转回写线形态，
+ * 且全部归一调用点逐点核验显式判缺值；
+ * 反向钉任意接收者的裸比较、把线形态直接喂给数值控件、整个表单直发与在类型层
+ * 把表单声明回实体部分形态都判红，NaN 一律不许静默进渲染。
  */
 function judgeMoneyKeyConsumers(pageSrc: string): string[] {
   const errors: string[] = [];
@@ -534,11 +657,7 @@ function judgeMoneyKeyConsumers(pageSrc: string): string[] {
   if (!/numberToDecimalWire\(/.test(pageSrc)) {
     errors.push('编辑提交没把数值控件的取值转回后端线形态');
   }
-  if (
-    /\b(?:row|detailRecord)\.(?:credit_limit|used_credit|available_credit)\s*[<>]/.test(pageSrc)
-  ) {
-    errors.push('金额键被裸比较，后端线形态是字符串，必须先归一再比');
-  }
+  errors.push(...judgeBareMoneyComparisons(pageSrc));
   if (/credit_limit:\s*row\.credit_limit/.test(pageSrc)) {
     errors.push('金额键的线形态被直接回填进数值控件，缺值与脏串无法区分');
   }
@@ -555,34 +674,31 @@ function judgeMoneyKeyConsumers(pageSrc: string): string[] {
   ) {
     errors.push('金额键被就地 Number 转换，缺值与不可解析没显式判');
   }
-  const callAt = pageSrc.indexOf('decimalWireToNumber(');
-  if (callAt !== -1) {
-    const start = pageSrc.lastIndexOf('\nconst ', callAt);
-    const end = pageSrc.indexOf('\n};', callAt);
-    if (start === -1 || end === -1) {
-      errors.push('取不到归一调用所在的函数体，判据对该调用失去覆盖');
-    } else {
-      const body = pageSrc.slice(start, end);
-      if (!/===\s*(undefined|null)/.test(body) || !/===\s*''/.test(body)) {
-        errors.push('归一调用点没把未填与空串显式判掉，缺值会静默算成 0 进渲染');
-      }
-    }
-  }
+  errors.push(...judgeDecimalCallGuards(pageSrc));
   return errors;
 }
 
 describe('客户信用列表页动作权限门与列表信封静态锁', () => {
-  it('该页四个源文件里每个动作按钮都带钉死的权限指令，反向钉裸按钮与未登记入口', () => {
+  it('该页四个源文件里每个动作入口都带钉死的权限指令，反向钉裸入口与未登记入口', () => {
     const files: Array<{ label: string; src: string }> = [
       { label: 'index.vue', src: PAGE_INDEX_SRC },
       { label: 'RatingDialogTab.vue', src: RATING_TAB_SRC },
       { label: 'AdjustDialogTab.vue', src: ADJUST_TAB_SRC },
       { label: 'AmountDialogTab.vue', src: AMOUNT_TAB_SRC },
     ];
-    // 按钮数量地板，防切分判据退化成切不到也算过。该页现有 11 个按钮
-    expect(extractButtons(PAGE_INDEX_SRC).length, '列表页按钮数量地板').toBeGreaterThanOrEqual(11);
+    // 动作入口总数地板，防切分判据退化成切不到也算过。列表页现有 11 个入口
+    expect(extractButtons(PAGE_INDEX_SRC).length, '列表页动作入口数量地板').toBeGreaterThanOrEqual(
+      11
+    );
+    // 扩面后按实际钉计数。列表页的 el-link 与 el-dropdown-item 点击形态入口
+    // 当前为零，出现新形态入口时必须进钉死清单登记并接受同一权限门，
+    // 计数变动即点亮本断言，强制登记而不是绕过判据
+    const newFormEntryCount =
+      (PAGE_INDEX_SRC.match(/<el-link\b/g) ?? []).length +
+      (PAGE_INDEX_SRC.match(/<el-dropdown-item\b/g) ?? []).length;
+    expect(newFormEntryCount, '列表页 el-link 与 el-dropdown-item 入口计数须按实际钉住').toBe(0);
     const errors = files.flatMap(entry => judgeActionButtons(entry.src, entry.label));
-    expect(errors, `动作按钮权限门违规\n${errors.join('\n')}`).toEqual([]);
+    expect(errors, `动作入口权限门违规\n${errors.join('\n')}`).toEqual([]);
   });
 
   it('用到的每枚 customer-credits 键都在权限常量表在册且由后端派生规则算出', () => {
@@ -655,12 +771,25 @@ describe('客户信用列表页动作权限门与列表信封静态锁', () => {
     );
   });
 
-  it('列表页按 items 键取数且没有空数组兜底', () => {
+  it('列表页按 items 键取数且没有清单外的空数组兜底', () => {
     expect(PAGE_INDEX_SRC, '列表页未按 items 键点明取数字段，与 api 层信封声明脱钩').toMatch(
       /listKey:\s*'items'/
     );
     expect(PAGE_INDEX_SRC, '列表页不得用空数组兜底掩盖信封漂移').not.toMatch(/data\s*\?\?\s*\[\]/);
     expect(CREDIT_API_SRC, 'api 层不得用空数组兜底掩盖信封漂移').not.toMatch(/data\s*\?\?\s*\[\]/);
+    // ?? 与 || 两种形态并集扫描，作用面限定在被钉必须是信封形态的列表页与 api 层，
+    // 既成兜底只认挂账清单登记的片段，其余任何一处判红
+    const fallbackErrors = judgeEmptyArrayFallback(PAGE_INDEX_SRC, 'index.vue').concat(
+      judgeEmptyArrayFallback(CREDIT_API_SRC, 'api 层')
+    );
+    expect(
+      fallbackErrors,
+      `空数组兜底违规，两种形态与挂账清单核对结果如下\n${fallbackErrors.join('\n')}`
+    ).toEqual([]);
+    expect(
+      KNOWN_EMPTY_ARRAY_FALLBACKS.length,
+      '挂账清单只准缩短不准增长，新增同类兜底必须真修而不是加条目'
+    ).toBeLessThanOrEqual(1);
     const declared = creditEndpoints.get('getCustomerCreditList');
     expect(declared?.method).toBe('GET');
     expect(declared?.path).toBe('/crm/customer-credits');
@@ -684,7 +813,7 @@ describe('客户信用列表页动作权限门与列表信封静态锁', () => {
     ).toEqual([]);
   });
 
-  it('判据自身的检测力，裸按钮与裸数组与金额声明漂移三类缺陷形态必须都被抓到', () => {
+  it('判据自身的检测力，裸按钮与裸数组与金额声明漂移与改名裸比较与清单外兜底与无守卫归一调用与新形态裸入口都必须被抓到', () => {
     // 夹具一，缺陷形态的裸按钮，动作入口没有权限指令
     const bareButtonSrc = [
       '<template>',
@@ -847,9 +976,12 @@ describe('客户信用列表页动作权限门与列表信封静态锁', () => {
       '</script>',
       '',
     ].join('\n');
-    expect(judgeMoneyKeyConsumers(noGuardConsumerSrc), '判据没抓到归一调用点缺显式判').toContain(
-      '归一调用点没把未填与空串显式判掉，缺值会静默算成 0 进渲染'
+    const noGuardErrors = judgeMoneyKeyConsumers(noGuardConsumerSrc).filter(message =>
+      message.includes('归一调用点没把未填与空串显式判掉')
     );
+    expect(noGuardErrors, '判据没抓到归一调用点缺显式判').toHaveLength(1);
+    expect(noGuardErrors[0], '守卫缺失的失败消息必须点名是第几处与所在函数名').toContain('第 1 处');
+    expect(noGuardErrors[0]).toContain('函数 isPositive');
 
     // 夹具八之三，就地 Number 转换金额键，缺值与不可解析没显式判
     const inlineNumberConsumerSrc = [
@@ -874,10 +1006,139 @@ describe('客户信用列表页动作权限门与列表信封静态锁', () => {
       '</script>',
       '',
     ].join('\n');
+    const unlocatableErrors = judgeMoneyKeyConsumers(unlocatableConsumerSrc).filter(message =>
+      message.includes('取不到归一调用所在的函数体')
+    );
+    expect(unlocatableErrors, '判据切不出归一调用所在函数体时必须点名').toHaveLength(1);
+    expect(unlocatableErrors[0], '点名消息必须带是第几处').toContain('第 1 处');
+    expect(unlocatableErrors[0]).toContain('判据对该调用失去覆盖');
+
+    // 夹具十一，S3 升级自证，首个调用点有守卫不能替后面无守卫的调用点背书，
+    // 全量遍历必须把第 2 处与第 3 处逐一点名到所在函数名
+    const multiCallConsumerSrc = [
+      '<script setup lang="ts">',
+      'const guarded = (value: string | undefined): number => {',
+      "  if (value === undefined || value === null || value === '') return 0;",
+      '  return decimalWireToNumber(value);',
+      '};',
+      'const unguarded = (record: CustomerCredit): number => {',
+      '  return decimalWireToNumber(record.credit_limit) + decimalWireToNumber(record.used_credit);',
+      '};',
+      'const submitEdit = async () => {',
+      '  await updateCustomerCredit(1, { credit_limit: numberToDecimalWire(1) });',
+      '};',
+      '</script>',
+      '',
+    ].join('\n');
+    const multiCallErrors = judgeMoneyKeyConsumers(multiCallConsumerSrc).filter(message =>
+      message.includes('归一调用点没把未填与空串显式判掉')
+    );
+    expect(multiCallErrors, '判据只核验了首个调用点，后续无守卫调用被静默放过').toHaveLength(2);
+    expect(multiCallErrors[0], '第二处无守卫调用必须点名第几处与函数名').toContain('第 2 处');
+    expect(multiCallErrors[0]).toContain('函数 unguarded');
+    expect(multiCallErrors[1], '同一函数内第三个无守卫调用也必须单独点名').toContain('第 3 处');
+    expect(multiCallErrors[1]).toContain('函数 unguarded');
     expect(
-      judgeMoneyKeyConsumers(unlocatableConsumerSrc),
-      '判据切不出归一调用所在函数体时必须点名'
-    ).toContain('取不到归一调用所在的函数体，判据对该调用失去覆盖');
+      multiCallErrors.some(message => message.includes('函数 guarded')),
+      '有守卫的调用点被误报'
+    ).toBe(false);
+
+    // 夹具十二，S4 之一升级自证，裸比较判据不限接收者变量名，
+    // 换名与新增的比较运算符都要抓住，而显式判未填的合法写法不得误伤
+    const otherReceiverConsumerSrc = [
+      '<script setup lang="ts">',
+      'const check = (summary: CustomerCreditSummary): boolean => {',
+      '  if (summary.credit_limit !== undefined) return false;',
+      '  if (summary.credit_limit !== null) return false;',
+      "  if (summary.credit_limit !== '') return false;",
+      '  if (totals.used_credit >= 1000) return true;',
+      '  return detailRecord.available_credit < 0;',
+      '};',
+      'const ratio = decimalWireToNumber(loadResult.credit_limit);',
+      'const submitEdit = async () => {',
+      '  await updateCustomerCredit(1, { credit_limit: numberToDecimalWire(1) });',
+      '};',
+      '</script>',
+      '',
+    ].join('\n');
+    const otherReceiverErrors = judgeMoneyKeyConsumers(otherReceiverConsumerSrc).filter(message =>
+      message.includes('金额键被裸比较')
+    );
+    expect(otherReceiverErrors, '换接收者变量名的裸比较被静默放过').toHaveLength(2);
+    expect(otherReceiverErrors[0], '大于等于形态必须抓住且点名接收者与键名').toContain(
+      'totals.used_credit'
+    );
+    expect(otherReceiverErrors[0]).toContain('大于等于');
+    expect(otherReceiverErrors[1], '小于形态必须抓住且点名接收者与键名').toContain(
+      'detailRecord.available_credit'
+    );
+    expect(otherReceiverErrors[1]).toContain('小于');
+    expect(
+      otherReceiverErrors.some(message => message.includes('summary.credit_limit')),
+      '与未填和空串显式判的合法写法被误伤'
+    ).toBe(false);
+
+    // 夹具十三，S4 之二升级自证，挂账清单外的新增兜底两种形态都要抓住，
+    // 已登记的既有兜底不得误报，登记片段被真修掉后清单必须同步缩短
+    const freshFallbackFixtureSrc = [
+      'const loadList = async () => {',
+      '  const res = await getCustomerCreditList();',
+      '  tableData.value = res.data?.items || [];',
+      '};',
+      'const loadOptions = async () => {',
+      '  options.value = (await getCustomerList()).data ?? [];',
+      '};',
+    ].join('\n');
+    const freshFallbackErrors = judgeEmptyArrayFallback(freshFallbackFixtureSrc, '夹具页');
+    expect(freshFallbackErrors, '判据没抓到挂账清单外的新增空数组兜底').toHaveLength(2);
+    expect(freshFallbackErrors[0], '竖线竖线形态的新增兜底必须点名第几处').toContain('第 1 处');
+    expect(freshFallbackErrors[1], '问号问号形态的新增兜底必须点名第几处').toContain('第 2 处');
+    expect(
+      judgeEmptyArrayFallback(PAGE_INDEX_SRC, 'index.vue'),
+      '已登记的既有兜底被误报，挂账机制失效'
+    ).toEqual([]);
+    const fixedPageSrc = PAGE_INDEX_SRC.replace(
+      'customerOptions.value = res.data?.items || [];',
+      'customerOptions.value = res.data?.items;'
+    );
+    const staleDebtErrors = judgeEmptyArrayFallback(fixedPageSrc, 'index.vue');
+    expect(staleDebtErrors, '兜底已被真修但挂账条目未删除时判据必须点名').toHaveLength(1);
+    expect(staleDebtErrors[0]).toContain('已在源码消失');
+    expect(
+      judgeListDeclaration(
+        [
+          'export const getCustomerCreditList = (params?: CustomerCreditQueryParams) => {',
+          '  return request.get(`/crm/customer-credits`, { params }).then(res => res.data || []);',
+          '};',
+          '',
+        ].join('\n'),
+        'getCustomerCreditList',
+        'CustomerCredit',
+        '夹具'
+      ),
+      '列表函数体内的竖线竖线兜底没被抓到'
+    ).toContain('getCustomerCreditList 用空数组兜底掩盖信封漂移');
+
+    // 夹具十四，S4 之三升级自证，el-link 与 el-dropdown-item 上的点击动作
+    // 同样落在动作入口扫描面内，缺权限指令与未登记都要判红
+    const linkEntrySrc = [
+      '<template>',
+      '  <el-link type="primary" @click="handleEdit(row)">编辑</el-link>',
+      '  <el-dropdown-item divided @click="handleExport(row)">导出</el-dropdown-item>',
+      '</template>',
+      '',
+    ].join('\n');
+    const linkEntryErrors = judgeActionButtons(linkEntrySrc, 'index.vue');
+    expect(
+      linkEntryErrors.filter(message =>
+        message.includes('动作入口 handleEdit 缺 v-permission 权限指令')
+      ),
+      '判据没抓到 el-link 上无权限指令的动作入口'
+    ).toHaveLength(1);
+    expect(
+      linkEntryErrors.filter(message => message.includes('handleExport 未在钉死清单登记')),
+      '判据没抓到 el-dropdown-item 上未登记的动作入口'
+    ).toHaveLength(1);
 
     // 夹具九，期望形态由后端特性集推出而非写死，启了浮点化特性后 string 反而判红
     const floatFormingCargo =
