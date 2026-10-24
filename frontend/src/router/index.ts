@@ -1694,7 +1694,6 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'sales-analysis',
     'custom-orders',
     'fabric-orders',
-    'customer-credits',
     'customers',
     'color-cards',
     'color-prices',
