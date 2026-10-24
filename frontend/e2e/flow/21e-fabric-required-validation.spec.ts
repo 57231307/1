@@ -214,9 +214,11 @@ test.describe('面料单据专用字段全链路验证', () => {
   // ============================================================
   test('UI 缺失记录：销售订单列表无面料列', async ({ page }) => {
     await page.goto(`${BASE_URL}/sales`);
-    await page.waitForTimeout(3000);
 
     const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
+    // 列表表头是真渲染出来的，不是固定等待几秒就能撞上：CI 上 workers=3 并发时
+    // 首屏渲染常慢过 3 秒，固定 sleep 会让下面的计数拿到 0 而误报"表头没渲染"。
+    await headers.first().waitFor({ state: 'visible', timeout: 30_000 });
     const headerCount = await headers.count();
     const headerTexts: string[] = [];
     for (let i = 0; i < headerCount; i++) {

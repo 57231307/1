@@ -134,11 +134,13 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
         `/production/flow-cards/${cardId}/${t.action}`
       );
       expectBusinessRejection(r, `pending 流转卡调 ${t.action}（目标态 ${t.to}）应被状态门拒绝`);
+      // 流转卡状态门走 AppError::business，对外文案按本仓脱敏口径恒为固定常量「业务处理失败」，
+      // 越界动作与真实当前态只进 backend.log 的 detail（与 31b 与 44f 同口径）。
+      // 这里锁"文案不得把内部转换表外显"，真因由下面的状态零漂移回读证明。
       expect(
         r.message ?? '',
-        `拒绝文案应点名越界动作与真实当前态，实际 message=${r.message ?? '(none)'}`
-      ).toContain('不允许从');
-      expect(r.message ?? '', '拒绝文案应点名越界前的状态 pending').toContain('pending');
+        `流转卡状态门出参须走脱敏常量，实际 message=${r.message ?? '(none)'}`
+      ).toBe('业务处理失败');
       const after = await apiCallRaw<{ status?: string }>(
         page,
         'GET',
