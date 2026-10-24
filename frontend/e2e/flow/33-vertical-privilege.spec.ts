@@ -46,14 +46,16 @@ const ADMIN_READONLY_ENDPOINTS = [
 const ADMIN_WRITE_ENDPOINTS: Array<{
   method: string;
   path: string;
-  body?: Record<string, unknown>;
+  // 允许惰性构造请求体：口令取 env，若在用例收集期就求值，
+  // 会让 `playwright test --list`（分片覆盖自检用的就是它）因缺 env 直接炸收集
+  body?: Record<string, unknown> | (() => Record<string, unknown>);
 }> = [
   {
     method: 'POST',
     path: '/users',
     // 被测用户只是越权矩阵的客体，口令取 env 的 e2e 建号口令（与 globalSetup 同源），
     // 缺失即由 baseAdminPassword 点名失败，不再写死字面量
-    body: { username: 'e2e_vpriv_user', password: baseAdminPassword(), role_id: 1 },
+    body: () => ({ username: 'e2e_vpriv_user', password: baseAdminPassword(), role_id: 1 }),
   },
   { method: 'POST', path: '/roles', body: { code: 'e2e_vpriv_role', name: 'VPriv 测试角色' } },
   { method: 'POST', path: '/data-permissions', body: { scope_type: 'self' } },
@@ -84,7 +86,7 @@ test.describe('P5.3 垂直越权矩阵', () => {
             page,
             ep.method as 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
             ep.path,
-            ep.body
+            typeof ep.body === 'function' ? ep.body() : ep.body
           );
           expectDenied(result, `${role} 写操作 ${ep.path} 应 403`);
         });
