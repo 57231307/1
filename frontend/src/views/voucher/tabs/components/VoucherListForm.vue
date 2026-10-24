@@ -112,7 +112,7 @@
       <ElButton @click="emit('update:visible', false)">{{
         t('voucher.voucherListForm.buttonCancel')
       }}</ElButton>
-      <ElButton type="primary" @click="emit('submit')">{{
+      <ElButton type="primary" :loading="saving" @click="emit('submit')">{{
         t('voucher.voucherListForm.buttonConfirm')
       }}</ElButton>
     </template>
@@ -171,6 +171,8 @@ const props = defineProps<{
   voucherTypes: { label: string; value: string }[];
   // 科目下拉选项
   accountSubjectOptions: SubjectOption[];
+  // 提交在途标记：为真时确认按钮进 loading 并禁用，挡住连点
+  saving: boolean;
 }>();
 
 const emit = defineEmits<{

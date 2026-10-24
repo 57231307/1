@@ -31,6 +31,18 @@ function afterEachCleanupHook() {
   });
 }
 
+/**
+ * GET /vouchers/{id} 出参里本锁要读的字段。后端把 voucher::Model 用 serde flatten 直接
+ * 摊到响应顶层（另带 entries 分录），所以这里按实体列名取，不猜别名。
+ */
+type VoucherState = {
+  status?: string;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  posted_by?: number | null;
+  posted_at?: string | null;
+};
+
 test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则表）', () => {
   let voucherId: number | undefined;
 
@@ -90,6 +102,19 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     return id;
   }
 
+  /**
+   * 回读凭证终态（GET /vouchers/{id}，出参是扁平化的 voucher::Model 加 entries）。
+   * 调用方：本 describe 的三条状态门负例。入参：已登录 page 与凭证 id。
+   * 传给谁：断言层。存什么：状态机四态取值与审核、过账两类留痕字段。
+   * 用途：状态门必须"既不回应成功、也不写库"，只断 HTTP 400 挡不住先写后抛的实现。
+   */
+  async function readVoucher(
+    page: import('@playwright/test').Page,
+    id: number
+  ): Promise<VoucherState> {
+    return apiCallRaw<VoucherState>(page, 'GET', `/vouchers/${id}`);
+  }
+
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
@@ -113,6 +138,14 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     expect(id, '平衡凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/post`);
     expectBusinessRejection(r, 'draft 凭证直接过账应被拒（仅 reviewed 可过账）');
+    expect(
+      r.message ?? '',
+      `过账负例的拒绝原因必须是过账门本身，实际 message=${JSON.stringify(r.message)}`
+    ).toContain('只有已审核的凭证可以过账');
+    const after = await readVoucher(page, id as number);
+    expect(after.status, '过账被拒后状态不得漂移，应仍停在 draft').toBe('draft');
+    expect(after.posted_by ?? null, '过账被拒后不得写过账人留痕').toBeNull();
+    expect(after.posted_at ?? null, '过账被拒后不得写过账时间留痕').toBeNull();
   });
 
   test('44d-3 状态不可逆：draft 直接审核被拒（需先 submit）', async ({ page }) => {
@@ -120,15 +153,31 @@ test.describe.serial('44d 凭证状态门负例（voucher_ops/workflow.rs 规则
     expect(id, '凭证创建失败').toBeTruthy();
     const r = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/review`);
     expectBusinessRejection(r, 'draft 凭证直接审核应被拒（需先 submit → reviewed）');
+    expect(
+      r.message ?? '',
+      `审核负例的拒绝原因必须是审核门本身，实际 message=${JSON.stringify(r.message)}`
+    ).toContain('只有已提交的凭证可以审核');
+    const after = await readVoucher(page, id as number);
+    expect(after.status, '审核被拒后状态不得漂移，应仍停在 draft').toBe('draft');
+    expect(after.reviewed_by ?? null, '审核被拒后不得写审核人留痕').toBeNull();
+    expect(after.reviewed_at ?? null, '审核被拒后不得写审核时间留痕').toBeNull();
   });
 
   test('44d-4 状态机不可逆：提交→提交重复被拒（防重复提交）', async ({ page }) => {
     const id = await createVoucher(page, '100.00', '100.00');
     expect(id, '凭证创建失败').toBeTruthy();
     const r1 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
-    expect(r1.status, '平衡凭证首次提交应成功').toBeLessThan(300);
+    expect(r1.status, '平衡凭证首次提交应返回 200（成功不走错误信封）').toBe(200);
+    const mid = await readVoucher(page, id as number);
+    expect(mid.status, '首次提交后状态应推进到 submitted').toBe('submitted');
     const r2 = await apiCallExpectFail(page, 'POST', `/vouchers/${id}/submit`);
     expectBusinessRejection(r2, '已提交凭证再次提交应被拒（draft→submitted 不可逆）');
+    expect(
+      r2.message ?? '',
+      `重复提交的拒绝原因必须是提交门本身，实际 message=${JSON.stringify(r2.message)}`
+    ).toContain('只有草稿状态的凭证可以提交');
+    const after = await readVoucher(page, id as number);
+    expect(after.status, '重复提交被拒后状态不得二次推进，应停在 submitted').toBe('submitted');
   });
 });
 

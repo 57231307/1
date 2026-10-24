@@ -281,6 +281,13 @@ export interface InventoryPieceRow {
   warehouse_name: string | null;
   warehouse_type: string | null;
   parent_piece_id: number | null;
+  /**
+   * 来源验布记录 ID，打卷产匹回指验布单的跨环追溯锚点（后端 PieceResponse 同名键，
+   * 对应可空列 inventory_piece.inspection_id）。值是验布记录主键，生产报工与委外回仓产的匹
+   * 无验布单来源为 null。调用方是匹号追溯页与成品布标签清单，列表端点无该维过滤参数，
+   * 因此本键如实透传，不参与前端筛选推断。
+   */
+  inspection_id: number | null;
   piece_seq: number | null;
   status: string;
   quality_status: string | null;

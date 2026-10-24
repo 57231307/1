@@ -1,7 +1,9 @@
 import { test, expect } from '../diagnose-fixture';
+import type { Page } from '@playwright/test';
 import {
   loginViaUI,
   apiCall,
+  apiCallRaw,
   apiCallExpectFail,
   tryCleanup,
   genCode,
@@ -39,6 +41,26 @@ function expectRejected(r: ApiFailureResult, what: string, expectedCode: string)
     `${what}：机器码应为 ${expectedCode}，实际 ${failureCode(r)}（${JSON.stringify(r)}）`
   ).toBe(expectedCode);
 }
+
+/**
+ * 负例的落库侧证据：建单被拒不能只在响应面上判红，还要证明库里没留下这一行。
+ * 读回走按编码查询端点（get_by_code 过滤未删除行，取不到即 AppError::not_found），
+ * 被拒的建单不应有任何写入，因此期望恰为 404 加机器码 NOT_FOUND。
+ */
+async function expectChemicalNotCreated(page: Page, code: string, what: string): Promise<void> {
+  const back = await apiCallExpectFail(page, 'GET', `/chemicals/by-code/${code}`);
+  expect(
+    back.status,
+    `${what}：被拒后库里不应留下化料行，按 code=${code} 读回实际 status=${
+      back.status
+    } message=${back.message ?? '(none)'}`
+  ).toBe(404);
+  expect(
+    failureCode(back),
+    `${what}：读回应报 NOT_FOUND 机器码，实际 raw code=${JSON.stringify(back.code)}`
+  ).toBe('NOT_FOUND');
+}
+
 test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
@@ -67,6 +89,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     });
     // chemical_ops/master.rs 标准价门 → AppError::business
     expectRejected(r, '标准价负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
+    await expectChemicalNotCreated(page, code, '标准价负数建单');
   });
 
   test('52-B2 化料成本价为负拒绝', async ({ page }) => {
@@ -77,6 +100,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     });
     // chemical_ops/master.rs 成本价门 → AppError::business
     expectRejected(r, '成本价负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
+    await expectChemicalNotCreated(page, code, '成本价负数建单');
   });
 
   test('52-B3 化料安全库存为负拒绝', async ({ page }) => {
@@ -88,6 +112,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     // chemical_ops/master.rs 安全库存门 → AppError::business（后端脱敏出参，只判状态+机器码；
     // dye_category 由 chemBase 提供，确保命中的是库存校验分支）
     expectRejected(r, '安全库存负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
+    await expectChemicalNotCreated(page, code, '安全库存负数建单');
   });
 
   test('52-B4 化料再订货点为负拒绝', async ({ page }) => {
@@ -98,6 +123,7 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     });
     // chemical_ops/master.rs 再订货点门 → AppError::business
     expectRejected(r, '再订货点负数必须拒绝', APP_ERROR_CODES.BUSINESS_ERROR);
+    await expectChemicalNotCreated(page, code, '再订货点负数建单');
   });
 
   test('52-B5 化料正常创建正例（对照负例防规则过紧）', async ({ page }) => {
@@ -110,6 +136,50 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     const id = r?.data?.id;
     expect(id, '合法化料创建应成功').toBeTruthy();
     if (id) CLEANUP.push({ path: `/chemicals/${id}`, label: '[52-B5] 化料' });
+    // 写后读回真值：详情出参是未裁剪的主数据模型，四个数值列都是 Decimal，
+    // JSON 回读为字符串形态，取数值比较；未提交的列必须保持 NULL，不得被填占位值
+    const saved = await apiCallRaw<{
+      chemical_code?: string;
+      chemical_name?: string;
+      chemical_type?: string;
+      unit?: string | null;
+      standard_price?: string | number | null;
+      cost_price?: string | number | null;
+      safety_stock?: string | number | null;
+      reorder_point?: string | number | null;
+    }>(page, 'GET', `/chemicals/${id}`);
+    expect(saved.chemical_code, `回读的化料编码应等于提交值 ${code}`).toBe(code);
+    expect(saved.chemical_type, '化料类别应等于提交值').toBe('dye');
+    expect(saved.unit, '计量单位应等于提交值').toBe('kg');
+    expect(Number(saved.standard_price), '回读的标准价应等于提交值 10.50').toBe(10.5);
+    expect(Number(saved.safety_stock), '回读的安全库存应等于提交值 5').toBe(5);
+    // cost_price 与 reorder_point 在实体里是非 Option 的 Decimal 字段，依据 chemical_master 建表 DDL
+    // 的 cost_price 与 reorder_point 两列 NOT NULL 且无默认值，实体侧对应字段不带 Option，
+    // 列没有"未设"存身空间，未提交时由 validate_chemical_create_input 按 0 落账，因此这里如实锁 0。
+    // "没录成本价"与"声明成本价 0"在库里不可分是本仓静默缺省族的在册欠账，
+    // 收口方向是缺键点名拒绝（与采购明细行同一口径），那要动建单校验与全部化料建单载荷，另行立项，
+    // 不在本用例里替未来行为写期望。
+    expect(Number(saved.cost_price), '未提交成本价当前按 0 落库（缺键不拒绝的既有口径）').toBe(0);
+    expect(Number(saved.reorder_point), '未提交再订货点当前按 0 落库（同上）').toBe(0);
+
+    // 显式提交金额列要能逐列回读，防"提交被丢"与"落库被改写"两类真回归
+    const pricedCode = `52F${genCode('C').slice(-5)}`;
+    const priced = await apiCall<{ id?: number }>(page, 'POST', '/chemicals', {
+      ...chemBase(pricedCode),
+      cost_price: '3.25',
+      reorder_point: '12',
+    });
+    const pricedId = priced?.data?.id;
+    expect(pricedId, '显式提交成本价与再订货点的化料应创建成功').toBeTruthy();
+    if (pricedId) CLEANUP.push({ path: `/chemicals/${pricedId}`, label: '[52-B5] 带价化料' });
+    const pricedSaved = await apiCallRaw<{
+      chemical_code?: string;
+      cost_price?: string | number | null;
+      reorder_point?: string | number | null;
+    }>(page, 'GET', `/chemicals/${pricedId}`);
+    expect(pricedSaved.chemical_code, '带价样本回读的编码应等于提交值').toBe(pricedCode);
+    expect(Number(pricedSaved.cost_price), '回读成本价应等于提交值 3.25').toBe(3.25);
+    expect(Number(pricedSaved.reorder_point), '回读再订货点应等于提交值 12').toBe(12);
   });
 
   test('52-B6 信用额度为负拒绝', async ({ page }) => {

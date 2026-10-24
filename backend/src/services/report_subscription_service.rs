@@ -231,24 +231,18 @@ impl ReportSubscriptionService {
             .await?
             .ok_or_else(|| AppError::not_found("订阅不存在"))?;
 
+        // 重新启用时按订阅频率重算下次执行时间，频率到间隔的映射复用模型单源实现；
+        // 频率在读出的实体上取，不读 ActiveModel 的字段状态（它的未改字段不是 Set）
+        let next_run = if enabled {
+            model.calculate_next_run()
+        } else {
+            None
+        };
+
         let mut active_model: ActiveModel = model.into();
         active_model.is_enabled = Set(enabled);
         active_model.updated_at = Set(Utc::now());
-
         if enabled {
-            // 重新计算下次执行时间
-            let now = Utc::now();
-            let frequency = if let sea_orm::ActiveValue::Set(ref v) = active_model.frequency {
-                v.clone()
-            } else {
-                return Err(AppError::bad_request("frequency is required"));
-            };
-            let next_run = match frequency.as_str() {
-                "DAILY" => Some(now + chrono::Duration::days(1)),
-                "WEEKLY" => Some(now + chrono::Duration::weeks(1)),
-                "MONTHLY" => Some(now + chrono::Duration::days(30)),
-                _ => None,
-            };
             active_model.next_run_at = Set(next_run);
         }
 

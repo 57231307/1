@@ -180,7 +180,10 @@ test.describe('10 AP 应付全流程契约链', () => {
       `/ap/invoices?supplier_id=${supplierId}&page=1&page_size=100`
     );
     for (const k of ['items', 'total', 'page', 'page_size']) {
-      expect(Object.prototype.hasOwnProperty.call(list, k), `AP列表应含 PaginatedResponse 键 ${k}`);
+      expect(
+        Object.prototype.hasOwnProperty.call(list, k),
+        `AP列表应含 PaginatedResponse 键 ${k}`
+      ).toBe(true);
     }
     const items = list.items as Array<Record<string, unknown>>;
     expect(Array.isArray(items), 'AP列表 items 应为数组').toBe(true);

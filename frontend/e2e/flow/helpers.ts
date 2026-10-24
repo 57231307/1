@@ -60,13 +60,20 @@ export function baseAdminUsername(): string {
 
 /**
  * 基础管理员密码：与建号主体（globalSetup 的分片主账号、角色账号、worker 账号）同一条
- * env 约定 TEST_PASSWORD，缺省同一固定串。
+ * env 约定 TEST_PASSWORD，只读该变量，缺失即抛错点名变量名与后果，不提供默认值。
  * 入参：无。传给谁：initSystem 的 admin_password 字段。存什么/存哪里：不持久化。
  * 注意：跑测期取本 worker 密码一律用 testPassword()（会话池清单里的建号密码），
- * 二者来源不同，混用会把"凭证文件写出的密码"与"env 里的密码"漂移掩盖成下游 401。
+ * 二者来源不同，混用会把凭证文件写出的密码与 env 里的密码漂移掩盖成下游 401。
  */
 export function baseAdminPassword(): string {
-  return process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
+  const value = process.env.TEST_PASSWORD;
+  if (!value) {
+    throw new Error(
+      '缺少 TEST_PASSWORD 环境变量，系统初始化与基础管理员登录无法进行（initSystem 的 admin_password 取该变量，且必须与 globalSetup 建号口令同源，回落默认值只会把口令漂移掩盖成下游 401）。' +
+        '该变量与 TEST_USERNAME 成对由 CI 的 e2e job env 注入，本地跑 e2e 需先设置同名环境变量'
+    );
+  }
+  return value;
 }
 
 export interface ApiResponse<T = unknown> {
@@ -458,11 +465,14 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   );
 
   // ---- 5. 客户（仍用 API，表单字段较多且下拉依赖复杂）----
+  // 口径钉死为启用态：销售提交门要求客户 status=active，而 list_customers 默认不过滤
+  // 软删除/inactive 行（仅显式传入 status 才过滤），首条可能是其他用例停用或软删除的残留；
+  // 新建客户后端默认虽为 active（customer_ops 写入方口径），此处仍显式传 status 防口径漂移。
   try {
     const customers = await apiCallRaw<{ items: Array<{ id: number }> }>(
       page,
       'GET',
-      '/crm/customers?page=1&page_size=1'
+      '/crm/customers?page=1&page_size=1&status=active'
     );
     ctx.customerId = customers.items?.[0]?.id;
   } catch (e) {
@@ -472,6 +482,7 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
     try {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
         customer_name: 'E2E 客户 ' + Date.now(),
+        status: 'active',
       });
       ctx.customerId = result.data?.id;
     } catch (e) {
@@ -2765,24 +2776,36 @@ export async function verifyAuditLog(
   // 2. handler 显式写入（导出/打印等）→ audit_logs 表，查询端点 GET /audit-logs
   //    （system.rs 挂 /api/v1/erp 根下，无 /system 前缀）
   // pathIncludes：可选，按 request_path 子串精确匹配动作端点
+  //
+  // 分页下翻：每个并发请求都会写一条审计行，单页固定条数时本用例刚产生的行
+  // 会被其它 worker 的请求挤出首页而误判未命中。按服务端真实筛选逐页下翻
+  // （每页取服务端上限 100 条，至多三页），命中即通过，翻到不足一页即停止；
+  // 判定口径不变，仍要求库里真实存在同时匹配动作与资源的行。
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 3;
   try {
-    const omniPath = `/finance/audit/search?event_type=${encodeURIComponent(action)}&page=1&page_size=50`;
-    const omni = await apiCallRaw<{
-      items: Array<{ module?: string; resource_type?: string; request_path?: string }>;
-    }>(page, 'GET', omniPath);
-    const omniHit =
-      omni.items?.some(
-        l =>
-          l.module === action &&
-          (!resourceType || l.resource_type === resourceType) &&
-          (!pathIncludes || (l.request_path ?? '').includes(pathIncludes))
-      ) || false;
-    if (omniHit) {
-      console.log(
-        `[verifyAuditLog] omni 管道命中: action=${action} resource_type=${resourceType} ` +
-          `pathIncludes=${pathIncludes ?? '-'}`
-      );
-      return true;
+    for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo++) {
+      const omniPath =
+        `/finance/audit/search?event_type=${encodeURIComponent(action)}` +
+        `&page=${pageNo}&page_size=${PAGE_SIZE}`;
+      const omni = await apiCallRaw<{
+        items: Array<{ module?: string; resource_type?: string; request_path?: string }>;
+      }>(page, 'GET', omniPath);
+      const omniHit =
+        omni.items?.some(
+          l =>
+            l.module === action &&
+            (!resourceType || l.resource_type === resourceType) &&
+            (!pathIncludes || (l.request_path ?? '').includes(pathIncludes))
+        ) || false;
+      if (omniHit) {
+        console.log(
+          `[verifyAuditLog] omni 管道命中: action=${action} resource_type=${resourceType} ` +
+            `pathIncludes=${pathIncludes ?? '-'} page=${pageNo}`
+        );
+        return true;
+      }
+      if ((omni.items?.length ?? 0) < PAGE_SIZE) break;
     }
   } catch (e) {
     // omni 查询失败（如非 admin 角色无权限）不阻塞，继续查 audit-logs 管道
@@ -2790,24 +2813,30 @@ export async function verifyAuditLog(
   }
 
   try {
-    let path = `/audit-logs?page=1&page_size=50`;
-    if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
-    const logs = await apiCallRaw<{
-      items: Array<{ operation_type?: string; action?: string; resource_type?: string }>;
-    }>(page, 'GET', path);
-    const hit =
-      logs.items?.some(
-        l =>
-          (l.operation_type ?? l.action) === action &&
-          (!resourceType || l.resource_type === resourceType)
-      ) || false;
-    if (!hit && resourceType) {
+    let lastCount = 0;
+    for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo++) {
+      let path = `/audit-logs?page=${pageNo}&page_size=${PAGE_SIZE}`;
+      if (resourceType) path += `&resource_type=${encodeURIComponent(resourceType)}`;
+      const logs = await apiCallRaw<{
+        items: Array<{ operation_type?: string; action?: string; resource_type?: string }>;
+      }>(page, 'GET', path);
+      lastCount = logs.items?.length ?? 0;
+      const hit =
+        logs.items?.some(
+          l =>
+            (l.operation_type ?? l.action) === action &&
+            (!resourceType || l.resource_type === resourceType)
+        ) || false;
+      if (hit) return true;
+      if (lastCount < PAGE_SIZE) break;
+    }
+    if (resourceType) {
       console.warn(
         `[verifyAuditLog] 两管道均未命中: action=${action} resource_type=${resourceType} ` +
-          `audit-logs 返回 ${logs.items?.length ?? 0} 条`
+          `audit-logs 末页返回 ${lastCount} 条`
       );
     }
-    return hit;
+    return false;
   } catch (e) {
     console.error(`[verifyAuditLog] audit-logs 管道查询失败: ${(e as Error).message}`);
     return false;
@@ -4035,14 +4064,16 @@ export async function withEntity(
  * 色卡档案不做清理：DELETE 端点是**归档**语义（crud.rs archive，非物理删除），物理删档会
  * 破坏历史染色批次的派生链；每次运行新建专属卡+唯一色号，跨分片互不干扰。
  *
- * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；itemId 色号明细 id
+ * @returns cardId 专属色卡 id；colorCode 已入档的唯一色号（喂给 dye-batch 的 color_no）；
+ *          colorName 该色号在档案里的色名（用于校验下游按主数据派生的结果）；itemId 色号明细 id
  */
 export async function seedColorCardArchive(
   page: Page,
   opts?: { context?: string }
-): Promise<{ cardId: number; colorCode: string; itemId: number }> {
+): Promise<{ cardId: number; colorCode: string; colorName: string; itemId: number }> {
   const tag = opts?.context ?? 'seedColorCardArchive';
   const colorCode = genCode('E2E-ARCH');
+  const colorName = 'E2E 档案前置色号';
   const card = await apiCall<{ id?: number; card_no?: string }>(page, 'POST', '/color-cards', {
     card_no: genCode('E2E-ARCHCC'),
     card_name: `E2E 档案前置色卡 ${colorCode}`,
@@ -4062,7 +4093,7 @@ export async function seedColorCardArchive(
     `/color-cards/${cardId}/items`,
     {
       color_code: colorCode,
-      color_name: 'E2E 档案前置色号',
+      color_name: colorName,
       rgb_r: 220,
       rgb_g: 20,
       rgb_b: 60,
@@ -4082,5 +4113,5 @@ export async function seedColorCardArchive(
     );
   }
   console.log(`[${tag}] 色卡档案前置就绪：card=${cardId} item=${itemId} color_code=${colorCode}`);
-  return { cardId, colorCode, itemId };
+  return { cardId, colorCode, colorName, itemId };
 }

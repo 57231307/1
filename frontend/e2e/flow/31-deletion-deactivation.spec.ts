@@ -1,5 +1,12 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw, tryCleanup } from './helpers';
+import {
+  loginViaUI,
+  apiCall,
+  apiCallRaw,
+  apiCallExpectFail,
+  failureCode,
+  tryCleanup,
+} from './helpers';
 import {
   findRowAction,
   findTableRow,
@@ -75,6 +82,22 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     const deleted = await uiDeleteRow(page, '/product', { column: 'name', value: productName });
     console.log(`[P0-删除-产品] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
     expect(deleted, `[P0-删除-产品] 自建且无引用的产品 ${productName} UI 删除应成功`).toBe(true);
+
+    // 页面行消失只是视图效果，落库真值要单独读回：产品删除走 delete_with_audit 的物理删，
+    // 详情端点不过滤任何软删列，删成功后再读必须 404 且机器码 NOT_FOUND
+    const afterDelete = await apiCallExpectFail(page, 'GET', `/products/${created.data?.id}`);
+    expect(
+      afterDelete.status,
+      `[P0-删除-产品] 物理删后读回应 404，实际 status=${afterDelete.status} message=${
+        afterDelete.message ?? '(none)'
+      }`
+    ).toBe(404);
+    expect(
+      failureCode(afterDelete),
+      `[P0-删除-产品] 404 出参机器码应为 NOT_FOUND，实际 code=${
+        JSON.stringify(afterDelete.code) ?? '(none)'
+      }`
+    ).toBe('NOT_FOUND');
   });
 
   // ===== 2. 客户删除 =====
@@ -159,6 +182,26 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     expect(deleted, `[P0-删除-供应商] 自建且无引用的供应商 ${supplierName} UI 删除应成功`).toBe(
       true
     );
+
+    // 供应商删除同样是物理删（delete_with_audit），读回必须 404；
+    // 若引用门生效（该供应商已被业务单据引用）删除不会成功，deleted 断言先一步判红
+    const afterDelete = await apiCallExpectFail(
+      page,
+      'GET',
+      `/purchase/suppliers/${created.data?.id}`
+    );
+    expect(
+      afterDelete.status,
+      `[P0-删除-供应商] 物理删后读回应 404，实际 status=${afterDelete.status} message=${
+        afterDelete.message ?? '(none)'
+      }`
+    ).toBe(404);
+    expect(
+      failureCode(afterDelete),
+      `[P0-删除-供应商] 404 出参机器码应为 NOT_FOUND，实际 raw code=${JSON.stringify(
+        afterDelete.code
+      )}`
+    ).toBe('NOT_FOUND');
   });
 
   // ===== 4. 仓库删除 =====
@@ -186,9 +229,28 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     const targetRow = await findTableRow(page, warehouseName);
     expect(targetRow, `[P0-删除-仓库] 列表未找到自建仓库 ${warehouseName}`).toBeTruthy();
 
-    const deleted = await uiDeleteRow(page, '/warehouse', { column: 'name', value: warehouseName });
+    const deleted = await uiDeleteRow(page, '/warehouse', {
+      column: 'name',
+      value: warehouseName,
+    });
     console.log(`[P0-删除-仓库] 删除结果: ${deleted ? '✅成功' : '❌失败'}`);
     expect(deleted, `[P0-删除-仓库] 自建且无引用的仓库 ${warehouseName} UI 删除应成功`).toBe(true);
+
+    // 仓库删除也是物理删；仓库详情出参没有 status 键（is_active 由列派生），
+    // 因此判定口径只能取"读不到"这一条：404 加 NOT_FOUND
+    const afterDelete = await apiCallExpectFail(page, 'GET', `/warehouses/${created.data?.id}`);
+    expect(
+      afterDelete.status,
+      `[P0-删除-仓库] 物理删后读回应 404，实际 status=${afterDelete.status} message=${
+        afterDelete.message ?? '(none)'
+      }`
+    ).toBe(404);
+    expect(
+      failureCode(afterDelete),
+      `[P0-删除-仓库] 404 出参机器码应为 NOT_FOUND，实际 raw code=${JSON.stringify(
+        afterDelete.code
+      )}`
+    ).toBe('NOT_FOUND');
   });
 
   // ===== 5. 客户停用/启用 =====
@@ -289,6 +351,22 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
     expect(afterTag, `[P0-停用-客户] UI 停用后状态列应变更为"禁用"，实际="${afterTag}"`).toBe(
       '禁用'
     );
+
+    // 状态列文本只是前端渲染结果，库里真值另读一次：客户停用把 status 置为 inactive 并刷新
+    // updated_at，行不会消失（详情端点不过滤 inactive），页面标签与后端状态词表必须同口径
+    const detailAfter = await apiCallRaw<{ status?: string; updated_at?: string }>(
+      page,
+      'GET',
+      `/crm/customers/${created.data?.id}`
+    );
+    expect(
+      detailAfter.status,
+      `[P0-停用-客户] UI 停用后后端 status 应为 inactive，实际 ${JSON.stringify(detailAfter.status)}`
+    ).toBe('inactive');
+    expect(
+      detailAfter.updated_at,
+      '[P0-停用-客户] 停用应刷新 updated_at，实际缺席即说明没走更新语句'
+    ).toBeTruthy();
   });
 
   // ===== 6. 产品停用/启用 =====
