@@ -387,12 +387,22 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))
     }
 
+    /// 审核前的订单状态门。
+    ///
+    /// 功能：仅待审批状态允许审核，其余状态拒绝并说明单据要处于什么状态才能审核。
+    /// 调用方：同文件 approve_order_with_reason。
+    /// 入参：order——事务内行锁读出的销售订单行。
+    /// 传给谁：拒绝错误经 approve_order_with_reason 透传给 handlers/sales_order_handler.rs 出参。
+    /// 存什么·存哪里：只读校验，不落数据。
     fn validate_order_for_approval(&self, order: &sales_order::Model) -> Result<(), AppError> {
         if order.status != so_status::PENDING {
-            return Err(AppError::business(format!(
-                "订单状态为 {}，无法审核",
-                order.status
-            )));
+            // 拒绝原因可外显：只点名业务动作与允许审核的订单状态（公开业务规则），
+            // 回显的是前端状态文案词表里的中文名，不含状态机英文取值、订单号、金额与
+            // 任何记录 ID，满足 utils/error.rs 安全边界；口径与同文件提交门与取消门一致，
+            // 操作员需要知道为什么不能审核、以及单据要处于什么状态才能审核。
+            return Err(AppError::business_displayable(
+                "当前状态不允许审核，只有待审批状态的订单可以审核",
+            ));
         }
         Ok(())
     }
@@ -499,10 +509,13 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found(format!("销售订单 {} 不存在", order_id)))?;
 
         if ![so_status::SHIPPED, so_status::PARTIAL_SHIPPED].contains(&order.status.as_str()) {
-            return Err(AppError::business(format!(
-                "订单状态为 {}，无法完成",
-                order.status
-            )));
+            // 拒绝原因可外显：只点名业务动作与允许完成的订单状态（公开业务规则），
+            // 回显的是前端状态文案词表里的中文名，不含状态机英文取值、订单号、金额与
+            // 任何记录 ID，满足 utils/error.rs 安全边界；口径与同文件提交门与取消门一致，
+            // 操作员需要知道为什么不能完成、以及单据要处于什么状态才能完成。
+            return Err(AppError::business_displayable(
+                "当前状态不允许完成订单，只有已发货或部分发货状态的订单可以完成",
+            ));
         }
 
         let mut order_update: sales_order::ActiveModel = order.into();

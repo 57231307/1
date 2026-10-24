@@ -500,17 +500,84 @@ fn test_shdd_jdshztyx() {
     }
 }
 
-/// test_shdd_fdshztcwxxgs（验证 approve_order 的错误消息包含状态值与中文说明"无法审核"，；格式为 "订单状态为 {}，无法审核"。）
-#[test]
-fn test_shdd_fdshztcwxxgs() {
-    let result = approve_order_status_gate(so_status::DRAFT);
-    match result.unwrap_err() {
-        AppError::BusinessError(msg) => {
-            assert!(msg.contains(so_status::DRAFT));
-            assert!(msg.contains("无法审核"));
-            assert_eq!(msg, format!("订单状态为 {}，无法审核", so_status::DRAFT));
-        }
-        other => panic!("审核订单应返回 BusinessError，实际：{:?}", other),
+/// 销售订单审核状态门拒绝的状态集合（本文件断言侧的期望值；放行侧只有待审批一态）。
+/// 调用方：走生产链路的审核门用例。生产门一变本锁即红，不在测试内复写门判。
+const APPROVE_GATE_FORBIDDEN: &[&str] = &[
+    so_status::DRAFT,
+    so_status::APPROVED,
+    so_status::PARTIAL_SHIPPED,
+    so_status::SHIPPED,
+    so_status::COMPLETED,
+    so_status::CANCELLED,
+    so_status::REJECTED,
+];
+
+/// 销售订单完成状态门拒绝的状态集合（本文件断言侧的期望值；放行侧为已发货与部分发货两态）。
+const COMPLETE_GATE_FORBIDDEN: &[&str] = &[
+    so_status::DRAFT,
+    so_status::PENDING,
+    so_status::APPROVED,
+    so_status::COMPLETED,
+    so_status::CANCELLED,
+    so_status::REJECTED,
+];
+
+/// test_shdd_fdshztcwxxgs
+/// 审核状态门拒绝侧（走生产链路）：真库按拒绝集合逐态播种订单，调用
+/// SalesService::approve_order，生产门必须拒绝。本轮裁定审核门与完成门改走可外显通道，
+/// 判据=拒绝落在 BusinessErrorDisplayable 族 + 文案含业务动作词「审核」+ 文案定性
+/// （不含数字、不含状态机英文取值）+ 订单状态零推进；不再锁文案措辞，也不再锁
+/// 影子构造的脱敏变体（零生产覆盖=假绿）。
+/// 入参：播种夹具客户与订单行。传给谁：判定落在生产 approve_order 的返回变体与回读状态。
+/// 存什么·存哪里：拒绝在门处返回，不写库；回读核对 sales_orders.status 未被改动。
+#[tokio::test]
+async fn test_shdd_fdshztcwxxgs() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-SHNO-1", master_data::ACTIVE).await;
+    assert_eq!(
+        APPROVE_GATE_FORBIDDEN.len() + 1,
+        so_status::ALL.len(),
+        "审核门拒绝集合加唯一放行态必须正好覆盖词表 ALL 全取值"
+    );
+
+    let mut seeded = Vec::new();
+    for status in APPROVE_GATE_FORBIDDEN.iter().copied() {
+        let oid = seed_order(
+            &db,
+            cid,
+            status,
+            decs!("1000"),
+            &format!("SO-WF-SHNO-{status}"),
+        )
+        .await;
+        seeded.push((status, oid));
+    }
+
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+
+    for (status, oid) in seeded {
+        let scene = format!("状态 {status} 审核");
+        let err = match service.approve_order(oid, 1).await {
+            Ok(_) => panic!("{scene}必须被生产状态门拒绝，实得放行"),
+            Err(e) => e,
+        };
+        let msg = assert_business_displayable(err, &scene);
+        assert!(
+            msg.contains("审核"),
+            "审核门拒绝文案必须点名业务动作，实得: {msg}"
+        );
+        assert_message_has_no_digits(&msg, &scene);
+        assert!(
+            !msg.chars().any(|c| c.is_ascii_alphabetic()),
+            "审核门拒绝文案不得回显状态机英文取值，实得: {msg}"
+        );
+        assert_eq!(
+            reload_order_status(&read_db, oid).await,
+            status,
+            "审核门拒绝后订单状态不得被改动"
+        );
     }
 }
 
@@ -526,27 +593,62 @@ fn test_wcdd_yxdyztjh() {
     }
 }
 
-/// test_wcdd_jzdyztjhjcwxx（验证 complete_order 对草稿/待审/已审/已完成/已取消/已拒绝状态拒绝，；错误消息格式为 "订单状态为 {}，无法完成"。）
-#[test]
-fn test_wcdd_jzdyztjhjcwxx() {
-    for forbidden in [
-        so_status::DRAFT,
-        so_status::PENDING,
-        so_status::APPROVED,
-        so_status::COMPLETED,
-        so_status::CANCELLED,
-        so_status::REJECTED,
-    ] {
-        let result = complete_order_status_gate(forbidden);
-        assert!(result.is_err(), "状态 {} 应禁止完成", forbidden);
-        match result.unwrap_err() {
-            AppError::BusinessError(msg) => {
-                assert!(msg.contains(forbidden), "错误消息应包含状态值");
-                assert!(msg.contains("无法完成"), "错误消息应包含中文说明");
-                assert_eq!(msg, format!("订单状态为 {}，无法完成", forbidden));
-            }
-            other => panic!("完成订单应返回 BusinessError，实际：{:?}", other),
-        }
+/// test_wcdd_jzdyztjhjcwxx
+/// 完成状态门拒绝侧（走生产链路）：真库按拒绝集合逐态播种订单，调用
+/// SalesService::complete_order，生产门必须拒绝。本轮裁定审核门与完成门改走可外显通道，
+/// 判据=拒绝落在 BusinessErrorDisplayable 族 + 文案含业务动作词「完成」+ 文案定性
+/// （不含数字、不含状态机英文取值）+ 订单状态零推进；不再锁文案措辞，也不再锁
+/// 影子构造的脱敏变体（零生产覆盖=假绿）。
+/// 入参：播种夹具客户与订单行。传给谁：判定落在生产 complete_order 的返回变体与回读状态。
+/// 存什么·存哪里：拒绝在门处返回，不写库；回读核对 sales_orders.status 未被改动。
+#[tokio::test]
+async fn test_wcdd_jzdyztjhjcwxx() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-WCNO-1", master_data::ACTIVE).await;
+    assert_eq!(
+        COMPLETE_GATE_FORBIDDEN.len() + 2,
+        so_status::ALL.len(),
+        "完成门拒绝集合加放行两态必须正好覆盖词表 ALL 全取值"
+    );
+
+    let mut seeded = Vec::new();
+    for status in COMPLETE_GATE_FORBIDDEN.iter().copied() {
+        let oid = seed_order(
+            &db,
+            cid,
+            status,
+            decs!("1000"),
+            &format!("SO-WF-WCNO-{status}"),
+        )
+        .await;
+        seeded.push((status, oid));
+    }
+
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+
+    for (status, oid) in seeded {
+        let scene = format!("状态 {status} 完成");
+        let err = match service.complete_order(oid, 1).await {
+            Ok(_) => panic!("{scene}必须被生产状态门拒绝，实得放行"),
+            Err(e) => e,
+        };
+        let msg = assert_business_displayable(err, &scene);
+        assert!(
+            msg.contains("完成"),
+            "完成门拒绝文案必须点名业务动作，实得: {msg}"
+        );
+        assert_message_has_no_digits(&msg, &scene);
+        assert!(
+            !msg.chars().any(|c| c.is_ascii_alphabetic()),
+            "完成门拒绝文案不得回显状态机英文取值，实得: {msg}"
+        );
+        assert_eq!(
+            reload_order_status(&read_db, oid).await,
+            status,
+            "完成门拒绝后订单状态不得被改动"
+        );
     }
 }
 

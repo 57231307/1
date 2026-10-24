@@ -1024,7 +1024,8 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
   // 且首任务需由 edges 从 start_event 串出（无 edges 时回退查找第一个 user_task）。
   // 若键写成 node_id / node_name / node_type 或缺 edges，后端解析不到任务节点，会
   // 走 bpm_ops/instance.rs 的「无任务节点，自动完成流程」分支：submit 即异步回写
-  // approved，用例随后显式 approve 撞「订单状态为 approved，无法审核」。
+  // approved，用例随后显式 approve 撞审核状态门（对外文案「当前状态不允许审核，只有
+  // 待审批状态的订单可以审核」）。
   // assignee_value 需为字符串（后端 as_str() 后 parse::<i32>），故用 String(approverId)。
   //
   // 四个域都要建：提交侧现在会在审批流程启动失败时如实报错并补偿回滚（不再假成功），
