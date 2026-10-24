@@ -34,6 +34,10 @@ mod no_prefix {
     pub const COUNT_NO: &str = "FAC";
 }
 
+/// 导出分批取数的单批行数，取本服务对外分页的既有上限，
+/// 使导出期间的每条查询与列表页同构
+const EXPORT_BATCH_SIZE: u64 = 100;
+
 /// 固定资产查询参数
 #[derive(Debug, Clone, Default)]
 pub struct AssetQueryParams {
@@ -171,11 +175,15 @@ impl FixedAssetService {
         Ok(asset)
     }
 
-    /// 获取资产列表（分页）
-    pub async fn get_list(
-        &self,
-        params: AssetQueryParams,
-    ) -> Result<(Vec<fixed_asset::Model>, u64), AppError> {
+    /// 构造资产列表查询：关键词、状态与类别三段筛选的唯一组装点
+    ///
+    /// 功能：产出尚未执行、筛选条件已下推的资产查询
+    /// 调用方：分页列表与导出取数两个入口
+    /// 入参：查询参数的引用，含筛选字段与分页字段
+    /// 传给谁：筛选在本函数内下推到查询，排序与分页由调用方施加
+    /// 存什么：不写库，只读 fixed_assets 表
+    /// 存哪里：不适用
+    fn build_asset_query(&self, params: &AssetQueryParams) -> sea_orm::Select<fixed_asset::Entity> {
         let mut query = fixed_asset::Entity::find();
 
         // 关键词筛选
@@ -198,6 +206,16 @@ impl FixedAssetService {
             query = query.filter(fixed_asset::Column::AssetCategory.eq(category));
         }
 
+        query
+    }
+
+    /// 获取资产列表（分页）
+    pub async fn get_list(
+        &self,
+        params: AssetQueryParams,
+    ) -> Result<(Vec<fixed_asset::Model>, u64), AppError> {
+        let query = self.build_asset_query(&params);
+
         // 分页统一走 paginate_with_total（count 与取页共用一套口径）
         // page_size.clamp(1, 100) 防超大页宽 DoS，page 另设 clamp(1, 1000) 上限
         let paginator = query
@@ -207,6 +225,51 @@ impl FixedAssetService {
             paginate_with_total(paginator, params.page.clamp(1, 1000) as u64).await?;
 
         Ok((assets, total))
+    }
+
+    /// 导出取数：按当前筛选分批取满全部行
+    ///
+    /// 功能：为导出提供全量行，同时让每条查询与列表页同构，不绕过任何筛选条件
+    /// 调用方：固定资产列表导出端点
+    /// 入参：查询参数的引用，只用其筛选字段，分页字段不参与
+    /// 传给谁：查询构造转交 build_asset_query，再按单批上限用分页器循环取满
+    /// 存什么：不写库，只读 fixed_assets 表
+    /// 存哪里：不适用
+    pub async fn list_assets_for_export(
+        &self,
+        params: &AssetQueryParams,
+    ) -> Result<(Vec<fixed_asset::Model>, u64), AppError> {
+        // 排序键为主键，天然全序，批次边界不会漂移，与列表页排序保持一致
+        let paginator = self
+            .build_asset_query(params)
+            .order_by(fixed_asset::Column::Id, Order::Desc)
+            .paginate(&*self.db, EXPORT_BATCH_SIZE);
+        let total = paginator.num_items().await?;
+
+        // 不按总数预分配：总数只是取数瞬间的估计值，按它一次吃满会把分批控峰值的意义抵消
+        let mut rows: Vec<fixed_asset::Model> = Vec::new();
+        // 批次上界由服务端总数推导并留出自增余量，并发写入造成漂移时在此停止而非无限循环
+        let max_batches = total / EXPORT_BATCH_SIZE + 2;
+        let mut batches = 0u64;
+        for page_index in 0..max_batches {
+            let batch = paginator.fetch_page(page_index).await?;
+            let fetched = batch.len() as u64;
+            rows.extend(batch);
+            batches += 1;
+            if fetched < EXPORT_BATCH_SIZE {
+                break;
+            }
+        }
+
+        info!(
+            "固定资产导出取数完成: 单批上限 {}, 批次 {}, 实际行数 {}, 服务端总数 {}",
+            EXPORT_BATCH_SIZE,
+            batches,
+            rows.len(),
+            total
+        );
+
+        Ok((rows, total))
     }
 
     /// 获取资产详情

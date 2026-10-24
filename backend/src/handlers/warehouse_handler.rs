@@ -427,13 +427,27 @@ fn build_warehouses_table(warehouses_json: Vec<serde_json::Value>) -> Result<Xls
 }
 
 /// 异步记录仓库导出操作（审计自身）
+///
+/// 功能：把一次仓库导出记为导出类审计事件
+/// 调用方：本文件的仓库导出端点
+/// 入参：应用状态、会话上下文、实际导出行数、服务端总数、是否取全、当次筛选与文件名
+/// 传给谁：转交 AuditLogService::record_async 异步落库
+/// 存什么：存操作人、导出条数、服务端总数、是否取全与当次筛选条件
+/// 存哪里：审计日志表
 fn record_warehouses_export_audit(
     state: &AppState,
     auth: &AuthContext,
     row_count: usize,
+    total: u64,
+    export_complete: bool,
     query: &WarehouseListQuery,
     filename: &str,
 ) {
+    let completeness = if export_complete {
+        "已取全"
+    } else {
+        "未取全"
+    };
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -443,8 +457,8 @@ fn record_warehouses_export_audit(
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
         description: Some(format!(
-            "用户 {} 导出仓库列表（共 {} 条）",
-            auth.username, row_count
+            "用户 {} 导出仓库列表（共 {} 条），服务端总数 {} 条，{}",
+            auth.username, row_count, total, completeness
         )),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/erp/warehouses/export".to_string()),
@@ -452,6 +466,8 @@ fn record_warehouses_export_audit(
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
             "total": row_count,
+            "server_total": total,
+            "complete": export_complete,
             "status_filter": query.status,
             "search_filter": query.search,
             "warehouse_type_filter": query.warehouse_type,
@@ -461,8 +477,18 @@ fn record_warehouses_export_audit(
     svc.record_async(event, None);
 }
 
-/// 导出仓库列表；V15 P0-S12/P0-S15 修复（Batch 475c）：导出注入水印 + 异步审计日志；规则 3：导出统一使用 xlsx 格式 V15 P0-S11：导出审计日志写入（best-effort
-/// 异步不阻塞响应） V15 P0-S15：水印行在 xlsx 第 0 行（合并所有列），标题行下移到第 1 行，数据行从第 2 行起；重要：warehouse 表无行级数据权限，直接调 `service.list` 复用筛选条件
+/// 导出仓库列表为带水印的 xlsx，端点为 GET /api/v1/erp/warehouses/export
+///
+/// 功能：按当前筛选分批取满全部仓库并落成文件
+/// 调用方：仓库路由的导出端点
+/// 入参：应用状态、会话上下文、列表查询参数
+/// 传给谁：取数交 WarehouseService::list_warehouses_for_export，表格构造交
+/// build_warehouses_table，审计交 record_warehouses_export_audit
+/// 存什么：不写库；水印行写进导出文件，审计行写审计日志表
+/// 存哪里：不适用
+///
+/// 仓库表无行级数据权限列，导出与列表同口径不做归属过滤。
+/// 未取全时把用户下一步该做什么写进水印行，因为水印行是导出文件里用户直接看得到的通道。
 pub async fn export_warehouses(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -470,18 +496,14 @@ pub async fn export_warehouses(
 ) -> Result<axum::response::Response, AppError> {
     let service = WarehouseService::new(state.db.clone());
 
-    // V15 P0-S12 修复（Batch 475c）：导出全量数据
-    // service.list 内部已处理 status/search 筛选，传 page=1/page_size=10000 取全部
-    let mut export_query = query.clone();
-    export_query.page = Some(1);
-    export_query.page_size = Some(10000);
-
-    let result = service.list(export_query).await?;
-    let row_count = result.items.len();
+    // 分批取满当前筛选下的全部行，不受对外分页上限约束
+    let (warehouses, total) = service.list_warehouses_for_export(&query).await?;
+    let row_count = warehouses.len();
+    let export_complete = row_count as u64 == total;
+    log_warehouses_export_completeness(row_count, total, export_complete);
 
     // 序列化为 JSON 以统一字段处理
-    let warehouses_json: Vec<serde_json::Value> = result
-        .items
+    let warehouses_json: Vec<serde_json::Value> = warehouses
         .into_iter()
         .map(|w| serde_json::to_value(w).map_err(AppError::from))
         .collect::<Result<Vec<_>, _>>()?;
@@ -491,15 +513,55 @@ pub async fn export_warehouses(
         "warehouses_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
-    record_warehouses_export_audit(&state, &auth, row_count, &query, &filename);
+    record_warehouses_export_audit(
+        &state,
+        &auth,
+        row_count,
+        total,
+        export_complete,
+        &query,
+        &filename,
+    );
 
-    // V15 P0-S15 修复（Batch 475c）：注入水印（操作员/导出时间/导出条数）
+    // 注入水印（操作员/导出时间/导出条数），未取全时追加下一步动作
+    let completeness_note = if export_complete {
+        String::new()
+    } else {
+        "；本次未取全，请缩小筛选范围后重新导出".to_string()
+    };
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("仓库导出（共 {} 条）", row_count)),
+        extra: Some(format!(
+            "仓库导出（共 {} 条）{}",
+            row_count, completeness_note
+        )),
     };
 
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
+}
+
+/// 记录仓库导出取数是否取全，结论与实际行数一并落日志
+///
+/// 功能：把实际导出行数与服务端总数并列记录，取全与未取全分别走不同级别
+/// 调用方：本文件的仓库导出端点
+/// 入参：实际导出行数、服务端总数、是否取全
+/// 传给谁：日志层
+/// 存什么：不落库
+/// 存哪里：不适用
+fn log_warehouses_export_completeness(row_count: usize, total: u64, export_complete: bool) {
+    if export_complete {
+        tracing::info!(
+            "仓库导出已取全: 实际 {} 条, 服务端总数 {} 条",
+            row_count,
+            total
+        );
+    } else {
+        tracing::warn!(
+            "仓库导出未取全: 实际 {} 条, 服务端总数 {} 条（取数期间数据发生变动，或达到分批上界）",
+            row_count,
+            total
+        );
+    }
 }

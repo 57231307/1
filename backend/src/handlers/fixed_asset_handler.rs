@@ -384,12 +384,26 @@ fn build_assets_table(assets_json: &[serde_json::Value]) -> XlsxTable {
 }
 
 /// 异步记录固定资产导出操作（审计自身，best-effort 不阻塞响应）
+///
+/// 功能：把一次资产导出记为导出类审计事件
+/// 调用方：本文件的固定资产列表导出端点
+/// 入参：应用状态、会话上下文、实际导出行数、服务端总数、是否取全与文件名
+/// 传给谁：转交 AuditLogService::record_async 异步落库
+/// 存什么：存操作人、导出条数、服务端总数与是否取全的结论
+/// 存哪里：审计日志表
 fn record_assets_export_audit(
     state: &AppState,
     auth: &AuthContext,
     row_count: usize,
+    total: u64,
+    export_complete: bool,
     filename: &str,
 ) {
+    let completeness = if export_complete {
+        "已取全"
+    } else {
+        "未取全"
+    };
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     let event = AuditEvent {
         user_id: Some(auth.user_id),
@@ -400,8 +414,8 @@ fn record_assets_export_audit(
         resource_id: None,
         resource_name: Some(format!("{}.xlsx", filename)),
         description: Some(format!(
-            "用户 {} 导出固定资产列表（共 {} 条）",
-            auth.username, row_count
+            "用户 {} 导出固定资产列表（共 {} 条），服务端总数 {} 条，{}",
+            auth.username, row_count, total, completeness
         )),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/erp/fixed-assets/export".to_string()),
@@ -409,13 +423,24 @@ fn record_assets_export_audit(
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
             "total": row_count,
+            "server_total": total,
+            "complete": export_complete,
         })),
     };
     svc.record_async(event, None);
 }
 
-/// GET /api/v1/erp/fixed-assets/export - 导出固定资产列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
-/// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据
+/// GET /api/v1/erp/fixed-assets/export - 导出固定资产列表为带水印的 xlsx
+///
+/// 功能：按当前筛选分批取满全部资产并落成文件，同时注入水印与异步审计日志
+/// 调用方：固定资产路由的导出端点
+/// 入参：应用状态、会话上下文、列表查询参数
+/// 传给谁：取数交 FixedAssetService::list_assets_for_export，表格构造交 build_assets_table，
+/// 审计交 record_assets_export_audit
+/// 存什么：不写库；水印行写进导出文件，审计行写审计日志表
+/// 存哪里：不适用
+///
+/// 未取全时把用户下一步该做什么写进水印行，因为水印行是导出文件里用户直接看得到的通道。
 pub async fn export_assets(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -426,11 +451,13 @@ pub async fn export_assets(
         keyword: query.keyword,
         status: query.status,
         asset_category: query.asset_category,
-        page: 1,
-        page_size: 10000,
+        ..Default::default()
     };
-    let (assets, _total) = service.get_list(query_params).await?;
+    // 分批取满当前筛选下的全部行，不受对外分页上限约束
+    let (assets, total) = service.list_assets_for_export(&query_params).await?;
     let row_count = assets.len();
+    let export_complete = row_count as u64 == total;
+    log_assets_export_completeness(row_count, total, export_complete);
     let assets_json: Vec<serde_json::Value> = assets
         .into_iter()
         .map(|i| serde_json::to_value(i).map_err(AppError::from))
@@ -440,14 +467,45 @@ pub async fn export_assets(
         "fixed_assets_export_{}",
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
-    record_assets_export_audit(&state, &auth, row_count, &filename);
+    record_assets_export_audit(&state, &auth, row_count, total, export_complete, &filename);
+    let completeness_note = if export_complete {
+        String::new()
+    } else {
+        "；本次未取全，请缩小筛选范围后重新导出".to_string()
+    };
     let watermark = WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("固定资产导出（共 {} 条）", row_count)),
+        extra: Some(format!(
+            "固定资产导出（共 {} 条）{}",
+            row_count, completeness_note
+        )),
     };
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
+}
+
+/// 记录固定资产导出取数是否取全，结论与实际行数一并落日志
+///
+/// 功能：把实际导出行数与服务端总数并列记录，取全与未取全分别走不同级别
+/// 调用方：本文件的固定资产列表导出端点
+/// 入参：实际导出行数、服务端总数、是否取全
+/// 传给谁：日志层
+/// 存什么：不落库
+/// 存哪里：不适用
+fn log_assets_export_completeness(row_count: usize, total: u64, export_complete: bool) {
+    if export_complete {
+        info!(
+            "固定资产导出已取全: 实际 {} 条, 服务端总数 {} 条",
+            row_count, total
+        );
+    } else {
+        tracing::warn!(
+            "固定资产导出未取全: 实际 {} 条, 服务端总数 {} 条（取数期间数据发生变动，或达到分批上界）",
+            row_count,
+            total
+        );
+    }
 }
 
 /// V15 P1 17.8-D5：创建资产减值测试请求 DTO
