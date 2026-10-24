@@ -5,6 +5,8 @@
 //! 不允许以丢弃绑定或重新绑定遮蔽的方式静默漏掉。该层按真实形态判定，
 //! 正向钉元组绑定与钳制绑定与信封实参，反向钉 total 的重新赋值与遮蔽，
 //! 单纯的字样存在性不单独作为通过依据。
+//! 形态比较一律对本侧文本与钉定形态同时施加同一归一口径（剥掉全部空白）后再比，
+//! 不允许一侧归一另一侧直接比字面常量，钉定形态因此按可读者的带空格写法书写。
 //! 二，Cargo.toml 中 rust_decimal 只启用 serde 特性，即 Decimal 的 JSON 出参形态是字符串。
 //! 三，不连库直接用 serde_json 序列化 Decimal 复核第二层的实际行为，特性一旦被改成浮点形态本用例立刻变红。
 //! 四，前端 customer_credit 出参接口的金额键声明必须与第二层与第三层判定的真实出参形态一致，
@@ -34,8 +36,9 @@ const FLOAT_FORMING_FEATURES: [&str; 4] = [
 /// 前端 customer_credit 出参接口里由后端 Decimal 承载的金额键。
 const MONEY_KEYS: [&str; 3] = ["credit_limit", "used_credit", "available_credit"];
 
-/// PaginatedResponse::new 四个实参的钉定形态，按声明次序排列，
+/// 分页信封构造调用的四个实参钉定形态，按声明次序排列，
 /// 前两个必须是服务层元组绑定出的标识符本身，不接受字面量与长度表达式与兜底写法。
+/// 比较时本常量与从源码取出的实参文本都先按同一归一口径剥掉全部空白，两侧口径始终一致。
 const ENVELOPE_ARG_FORMS: [&str; 4] = ["credits", "total", "page as u64", "page_size as u64"];
 
 /// 正确形态夹具，函数体与真实 handler 的 list_credits 一致，供判据自证不误报。
@@ -284,9 +287,7 @@ fn sanitize_preserving_layout(src: &str) -> String {
                 j += 1;
             }
             if b.get(j) == Some(&b'"') && (hashes > 0 || b[i + 1] == b'"') {
-                for _ in i..=j {
-                    out.push(b' ');
-                }
+                out.resize(out.len() + (j - i + 1), b' ');
                 i = j + 1;
                 loop {
                     if i >= b.len() {
@@ -304,9 +305,7 @@ fn sanitize_preserving_layout(src: &str) -> String {
                             }
                         }
                         if matched {
-                            for _ in i..k {
-                                out.push(b' ');
-                            }
+                            out.resize(out.len() + (k - i), b' ');
                             i = k;
                             break;
                         }
@@ -407,11 +406,7 @@ fn split_statements(san: &str, body: (usize, usize)) -> Vec<(usize, usize)> {
     while idx < body.1 {
         match bytes[idx] {
             b'(' | b'[' | b'{' => depth += 1,
-            b')' | b']' | b'}' => {
-                if depth > 0 {
-                    depth -= 1;
-                }
-            }
+            b')' | b']' | b'}' => depth = depth.saturating_sub(1),
             b';' if depth == 0 => {
                 stmts.push((start, idx));
                 start = idx + 1;
@@ -490,9 +485,37 @@ fn enclosing_stmt(stmts: &[(usize, usize)], abs: usize) -> Option<(usize, usize)
     stmts.iter().copied().find(|&(a, b)| a <= abs && abs < b)
 }
 
-/// 归一化语句文本，去掉全部空白，供与钉定的形态串做前后缀比较。
+/// 归一化语句文本，去掉全部空白。形态串与钉定形态两侧都先过本函数再比对，
+/// 保证比对双方处于同一归一口径，空白与换行差异不参与判定。
 fn norm_stmt(s: &str) -> String {
     s.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// 形态相等判定，实际文本与钉定形态都先过 norm_stmt 再比，钉定形态可按可读者书写。
+/// 入参为源码取出的文本片段与钉定形态串，返回是否逐字符相等。
+fn norm_eq(actual: &str, pinned: &str) -> bool {
+    norm_stmt(actual) == norm_stmt(pinned)
+}
+
+/// 形态前缀判定，实际文本与钉定前缀都先过 norm_stmt 再比，口径与 norm_eq 一致。
+fn norm_starts_with(actual: &str, pinned: &str) -> bool {
+    norm_stmt(actual).starts_with(&norm_stmt(pinned))
+}
+
+/// 形态后缀判定，实际文本与钉定后缀都先过 norm_stmt 再比，口径与 norm_eq 一致。
+fn norm_ends_with(actual: &str, pinned: &str) -> bool {
+    norm_stmt(actual).ends_with(&norm_stmt(pinned))
+}
+
+/// 形态包含判定，实际文本与钉定子串都先过 norm_stmt 再比，口径与 norm_eq 一致。
+fn norm_contains(actual: &str, pinned: &str) -> bool {
+    norm_stmt(actual).contains(&norm_stmt(pinned))
+}
+
+/// 把文本压成一行且内部空白收敛为单空格，供失败消息按可读者原样呈现被钉句。
+/// 入参为净化文本上的区间切片，只用于展示，不作为判据。
+fn collapse_ws(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// 把命中下标区间切回原文并压成一行，供失败消息带出被钉句的原文。
@@ -538,11 +561,7 @@ fn split_top_level_commas(san: &str, inner: (usize, usize)) -> Vec<(usize, usize
     while idx < inner.1 {
         match bytes[idx] {
             b'(' | b'[' | b'{' => depth += 1,
-            b')' | b']' | b'}' => {
-                if depth > 0 {
-                    depth -= 1;
-                }
-            }
+            b')' | b']' | b'}' => depth = depth.saturating_sub(1),
             b',' if depth == 0 => {
                 if !san[start..idx].trim().is_empty() {
                     parts.push((start, idx));
@@ -582,8 +601,9 @@ fn lock_verdict(src: &str) -> Vec<String> {
     let canonical: Vec<(usize, usize)> = stmts
         .iter()
         .filter(|&&(a, b)| {
-            let n = norm_stmt(&san[a..b]);
-            n.starts_with("let(credits,total)=service.get_list(") && n.ends_with(".await?")
+            let stmt = &san[a..b];
+            norm_starts_with(stmt, "let (credits, total) = service.get_list(")
+                && norm_ends_with(stmt, ".await?")
         })
         .copied()
         .collect();
@@ -596,8 +616,9 @@ fn lock_verdict(src: &str) -> Vec<String> {
     }
 
     let page_bound = stmts.iter().any(|&(a, b)| {
-        let n = norm_stmt(&san[a..b]);
-        n.starts_with("letpage=CustomerCreditService::clamp_page(") && n.ends_with(')')
+        let stmt = &san[a..b];
+        norm_starts_with(stmt, "let page = CustomerCreditService::clamp_page(")
+            && norm_ends_with(stmt, ")")
     });
     if !page_bound {
         violations.push(
@@ -607,8 +628,8 @@ fn lock_verdict(src: &str) -> Vec<String> {
     }
 
     let page_size_bound = stmts.iter().any(|&(a, b)| {
-        let n = norm_stmt(&san[a..b]);
-        n.starts_with("letpage_size=") && n.ends_with(".clamp(1,100)")
+        let stmt = &san[a..b];
+        norm_starts_with(stmt, "let page_size = ") && norm_ends_with(stmt, ".clamp(1, 100)")
     });
     if !page_size_bound {
         violations.push("函数体内应存在 let page_size 同型绑定且保留上下界钳制的语句".to_string());
@@ -627,14 +648,14 @@ fn lock_verdict(src: &str) -> Vec<String> {
         let assigned_directly = follows_assign_op(&san, after);
         let stmt = enclosing_stmt(&stmts, abs);
         let shadow_destructure = follows_destructure_assign(&san, after)
-            && stmt.map_or(false, |r| Some(r) != canonical_first);
+            && stmt.is_some_and(|r| Some(r) != canonical_first);
         if assigned_directly || shadow_destructure {
             let range = stmt.unwrap_or(body);
             let mut msg = format!(
                 "total 在函数体内被重新绑定或遮蔽，服务层算出的总数可能已在该句丢失，原文，{}",
                 quote_src(src, range)
             );
-            if san[range.0..range.1].contains("credits.len()") {
+            if norm_contains(&san[range.0..range.1], "credits.len()") {
                 msg.push_str("。该句让 credits.len() 参与 total 的计算，属于用当前页长度顶替服务层总数的形态");
             }
             violations.push(msg);
@@ -648,12 +669,11 @@ fn lock_verdict(src: &str) -> Vec<String> {
     while let Some(pos) = san[search..].find(marker) {
         call_count += 1;
         let open = skip_ws(&san, search + pos + marker.len());
-        if san.as_bytes().get(open) == Some(&b'(') {
-            if let Some(inner) = balanced_paren(&san, open) {
-                if call_args_range.is_none() {
-                    call_args_range = Some(inner);
-                }
-            }
+        if san.as_bytes().get(open) == Some(&b'(')
+            && let Some(inner) = balanced_paren(&san, open)
+            && call_args_range.is_none()
+        {
+            call_args_range = Some(inner);
         }
         search += pos + marker.len();
     }
@@ -665,22 +685,22 @@ fn lock_verdict(src: &str) -> Vec<String> {
     }
     if let Some(inner) = call_args_range {
         let args = split_top_level_commas(&san, inner);
-        let norms: Vec<String> = args.iter().map(|&(a, b)| norm_stmt(&san[a..b])).collect();
-        if norms.len() != ENVELOPE_ARG_FORMS.len() {
+        if args.len() != ENVELOPE_ARG_FORMS.len() {
             violations.push(format!(
                 "PaginatedResponse::new 实参个数应为 {} 个，实际 {} 个，原文，{}",
                 ENVELOPE_ARG_FORMS.len(),
-                norms.len(),
+                args.len(),
                 quote_src(src, inner)
             ));
         } else {
-            for (idx, (actual, expected)) in norms.iter().zip(ENVELOPE_ARG_FORMS.iter()).enumerate()
-            {
-                if actual != expected {
+            for (idx, (range, expected)) in args.iter().zip(ENVELOPE_ARG_FORMS.iter()).enumerate() {
+                let actual_raw = &san[range.0..range.1];
+                if !norm_eq(actual_raw, expected) {
                     violations.push(format!(
-                        "PaginatedResponse::new 第 {} 个实参应恰好是钉定形态 {} 本身，不接受字面量与长度表达式与兜底写法，实际为 {actual}，原文，{}",
+                        "PaginatedResponse::new 第 {} 个实参应恰好是钉定形态 {} 本身，不接受字面量与长度表达式与兜底写法，实际为 {}，原文，{}",
                         idx + 1,
                         expected,
+                        collapse_ws(actual_raw),
                         quote_src(src, inner)
                     ));
                 }
@@ -704,9 +724,11 @@ fn list_credits_returns_paginated_envelope_and_carries_total() {
         fn_text.contains("PaginatedResponse::new"),
         "list_credits 应通过 PaginatedResponse::new 把 items 与 total 与 page 与 page_size 一并返回，实际函数体：{fn_text}"
     );
-    let nows: String = fn_text.chars().filter(|c| !c.is_whitespace()).collect();
     assert!(
-        nows.contains("PaginatedResponse::new(credits,total,pageasu64,page_sizeasu64,)"),
+        norm_contains(
+            fn_text,
+            "PaginatedResponse::new(credits, total, page as u64, page_size as u64,)"
+        ),
         "list_credits 构造分页信封的实参次序应为 credits 与 total 与 page 与 page_size，\
          服务层算出的总数必须进信封，实际函数体：{fn_text}"
     );
