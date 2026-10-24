@@ -427,14 +427,14 @@ async fn get_bytes(app: &Router, uri: &str) -> (StatusCode, Vec<u8>) {
     (status, bytes.to_vec())
 }
 
-/// 审计走生产同源的异步通道，回读按 100 毫秒步进轮询至多 10 秒；
-/// 同一路径出现多行即夹具异常，直接判红不取首行掩盖。
+/// 审计走生产同源的异步通道，回读轮询 100 排，每排先排空至多 200 毫秒再步进 100 毫秒，
+/// 上界约 30 秒；同一路径出现多行即夹具异常，直接判红不取首行掩盖。
 async fn wait_export_audit(db: &Arc<DatabaseConnection>, path: &str) -> audit_log::Model {
     for tick in 0..100 {
         // 导出留痕走异步总线：先把截至此刻已入队的事件排空再查表。
-        // 不排空就直接查会在真实 CI 上稳定假红——消费者落库要一次连接，
-        // 而用例的连接池在断言之后的收尾里就被关掉，消费者拿到 Disconnected，
-        // 留痕永远进不了表，轮询到超时才炸，看着像"导出没留痕"其实是没等总线。
+        // 不排空就先查表时，消费者的落库要另取一次连接，用例的连接池可能在断言之前
+        // 就被收尾关掉，消费者拿到 Disconnected，留痕进不了表，轮询到超时才炸，
+        // 表象像"导出没留痕"，实质是没等总线。
         let drained =
             bingxi_backend::services::audit_log_service::flush(Duration::from_millis(200)).await;
         assert_eq!(
@@ -459,7 +459,7 @@ async fn wait_export_audit(db: &Arc<DatabaseConnection>, path: &str) -> audit_lo
         }
     }
     panic!(
-        "10 秒内未读到 {path} 的导出留痕（已逐轮排空审计总线仍无行：留痕路径与真实挂载不同源，或该导出腿未接留痕）"
+        "轮询 100 排（每排排空至多 200 毫秒加步进 100 毫秒）仍未读到 {path} 的导出留痕（留痕路径与真实挂载不同源，或该导出腿未接留痕）"
     );
 }
 

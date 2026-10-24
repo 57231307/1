@@ -10,8 +10,8 @@
 //! 存哪里：读 `backend/src/services/po/order_ops/query.rs`、
 //! `backend/src/services/so/order_query.rs`、
 //! `backend/src/services/so/delivery_ops/export.rs`、两个 handler 与
-//! `frontend/scripts/route-snapshot.txt`；旧形态夹具三件放仓库外交接目录（见文末），
-//! 不落 backend/tests。
+//! `frontend/scripts/route-snapshot.txt`；缺陷形态夹具与检测力探针全部内联本文件
+//! 的夹具自证节，不落 backend/tests 之外的目录。
 #![allow(
     clippy::too_many_lines,
     reason = "静态锁按判据分段，拆分会打散禁词表与探针的同处可读性"
