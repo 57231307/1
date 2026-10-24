@@ -153,8 +153,9 @@ test.describe.serial('52 L3 化料/信用负值 + L5 通知去重', () => {
     expect(saved.unit, '计量单位应等于提交值').toBe('kg');
     expect(Number(saved.standard_price), '回读的标准价应等于提交值 10.50').toBe(10.5);
     expect(Number(saved.safety_stock), '回读的安全库存应等于提交值 5').toBe(5);
-    // cost_price 与 reorder_point 在实体里是非 Option 的 Decimal（models/chemical_master.rs:53 与 :81），
-    // 列 NOT NULL 无"未设"存身空间，未提交时由创建校验按 0 落账，因此这里如实锁 0。
+    // cost_price 与 reorder_point 在实体里是非 Option 的 Decimal 字段，依据 chemical_master 建表 DDL
+    // 的 cost_price 与 reorder_point 两列 NOT NULL 且无默认值，实体侧对应字段不带 Option，
+    // 列没有"未设"存身空间，未提交时由 validate_chemical_create_input 按 0 落账，因此这里如实锁 0。
     // "没录成本价"与"声明成本价 0"在库里不可分是本仓静默缺省族的在册欠账，
     // 收口方向是缺键点名拒绝（与采购明细行同一口径），那要动建单校验与全部化料建单载荷，另行立项，
     // 不在本用例里替未来行为写期望。
