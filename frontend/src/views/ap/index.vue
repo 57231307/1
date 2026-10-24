@@ -101,11 +101,11 @@ const AP_TABS = [
  * 支持 *:* 与 resource:* 通配、read↔view 等价），不在此另写一套字符串比较。
  */
 function canReach(entry: string | readonly string[]): boolean {
-  // hasRoutePermission 的入参是可变的 string | string[]，常量集合按只读类型导出，取副本传入
-  return hasRoutePermission(
-    Array.isArray(entry) ? [...entry] : entry,
-    userStore.userInfo?.permissions || []
-  );
+  // hasRoutePermission 的入参是可变的 string | string[]，常量集合按只读类型导出，取副本传入。
+  // 判据先用 typeof 收窄：Array.isArray 不能把 readonly string[] 从并集里摘出去，
+  // 那样传给形参会留下 readonly 分支的类型错误。
+  const code: string | string[] = typeof entry === 'string' ? entry : [...entry];
+  return hasRoutePermission(code, userStore.userInfo?.permissions || []);
 }
 
 const visibleTabNames = computed(() =>
