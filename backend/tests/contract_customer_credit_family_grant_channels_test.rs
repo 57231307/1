@@ -81,7 +81,8 @@ fn code_only(src: &str) -> String {
 /// 通道一 解析结果：角色码 到 该岗持有的 customer-credits (资源, 动作) 集合。
 /// 判据形态：角色码行形如 "xxx", 且紧邻下一行以 &[ 开头，随后到 ] 之前是权限元组。
 fn matrix_credit_keys(matrix_src: &str) -> BTreeMap<String, BTreeSet<(String, String)>> {
-    let lines: Vec<&str> = code_only(matrix_src).lines().collect();
+    let stripped = code_only(matrix_src);
+    let lines: Vec<&str> = stripped.lines().collect();
     let mut out: BTreeMap<String, BTreeSet<(String, String)>> = BTreeMap::new();
     let mut i = 0usize;
     while i < lines.len() {
