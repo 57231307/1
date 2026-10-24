@@ -1623,7 +1623,6 @@ frontend/src/api/bad-debt.ts::collection_task_handler.rs
 frontend/src/api/bad-debt.ts::collection_task_service.rs
 frontend/src/api/bom.ts::bom_handler.rs
 frontend/src/api/bom.ts::models/bom.rs
-frontend/src/api/bpm-enhanced.ts::bpm_service.rs
 frontend/src/api/bpm-enhanced.ts::utils/response.rs
 frontend/src/api/bpm.ts::handlers/bpm_handler.rs
 frontend/src/api/bpm.ts::services/bpm_service_dto.rs
@@ -1763,7 +1762,6 @@ frontend/src/views/ap/tabs/VerificationTab.vue::handlers/ap_verification_handler
 frontend/src/views/ar/tabs/InvoiceTab.vue::api/customer.ts
 frontend/src/views/ar/tabs/InvoiceTab.vue::handlers/ar_invoice_handler.rs
 frontend/src/views/ar/tabs/ReconciliationTab.vue::backend/src/models/status/finance.rs
-frontend/src/views/bpm/definitions/composables/useBpmDfProc.ts::bpm_service.rs
 frontend/src/views/bpm/index.vue::handlers/bpm_handler.rs
 frontend/src/views/bpm/index.vue::models/bpm_process_instance.rs
 frontend/src/views/bpm/index.vue::models/bpm_task.rs
