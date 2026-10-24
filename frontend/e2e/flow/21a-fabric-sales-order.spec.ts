@@ -11,6 +11,24 @@ import {
   tryCleanup,
 } from './helpers';
 
+/**
+ * 销售订单列表页声明的列集合，该页表头判据的唯一基准面。
+ * useOlv.ts 的 columns 给出 订单号 客户 订单日期 交货日期 订单金额 状态 创建人 七列，
+ * SalesOrderTable.vue 的 fullColumns 在其后追加操作列（zh-CN 语料渲染为 操作，
+ * en-US 语料渲染为 Operation，e2e 由 loginViaUI 固定写入 zh-CN）。
+ * 消费方是本文件列表用例的表头断言，不被组件反向引用。
+ */
+const SALES_LIST_COLUMNS = [
+  '订单号',
+  '客户',
+  '订单日期',
+  '交货日期',
+  '订单金额',
+  '状态',
+  '创建人',
+  '操作',
+];
+
 test.describe('面料单据专用字段全链路验证', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
@@ -118,57 +136,54 @@ test.describe('面料单据专用字段全链路验证', () => {
 
   test('销售订单 UI：列表显示+详情查看面料信息', async ({ page }) => {
     await page.goto(`${BASE_URL}/sales`);
-    await page.waitForTimeout(3000);
 
-    await page
-      .locator(
-        '.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-table-v2, [role="table"], .v2-table-wrapper'
-      )
+    // 表头判据不挂在数据行数守卫里。V2Table 无论有无数据都渲染表头，取不到即缺陷，直接判红。
+    // 原实现把整段包在 rowCount 大于 0 的守卫内，而 rowCount 取的是本页并不存在的
+    // .el-table__body tr（旧 el-table 形态）与 .el-table__header th，两项恒为 0，
+    // 于是表头与详情两段一起静默跳过，用例外壳绿但内部零断言，属假绿面。
+    const headerCells = page.locator('.el-table-v2__header-cell');
+    await expect(headerCells.first(), '销售订单列表未渲染出 el-table-v2 表头单元格').toBeVisible({
+      timeout: 30_000,
+    });
+    const headerTexts = (await headerCells.allTextContents())
+      .map(text => text.trim())
+      .filter(text => text.length > 0);
+    expect(
+      [...headerTexts].sort(),
+      `销售订单列表表头列名集合与页面声明不一致 声明=${SALES_LIST_COLUMNS.join(' ')} 实得=${headerTexts.join(' ')}`
+    ).toEqual([...SALES_LIST_COLUMNS].sort());
+
+    // 数据行按主表网格计数。el-table-v2 把 fixed 列拆到左右覆盖层单独渲染，
+    // 主表网格里一行恰好对应一条订单，跨层计数会把同一订单重复计入。
+    const mainRows = page.locator('.el-table-v2__main .el-table-v2__row');
+    await expect(mainRows.first(), '销售订单列表未渲染出任何数据行').toBeVisible({
+      timeout: 30_000,
+    });
+    expect(await mainRows.count(), '销售订单列表主表网格数据行数应大于 0').toBeGreaterThan(0);
+
+    // 操作列被 fixed right 拆进右覆盖层，主表行内取不到按钮，按同序号行在右层点（与
+    // ui-helpers findRowAction 的跨层对齐口径一致）。无守卫，取不到入口即判红。
+    const detailBtn = page
+      .locator('.el-table-v2__right .el-table-v2__row')
       .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
+      .locator('button:has-text("查看")')
+      .first();
+    await expect(detailBtn, '销售订单列表首行未渲染出查看入口').toBeVisible({ timeout: 10_000 });
+    await detailBtn.click();
 
-    // 验证表格有数据行
-    const rows = page.locator('.el-table__body tr');
-    const rowCount = await rows.count();
+    // 详情面板只认弹窗本身。原选择器把 .el-main（页面布局容器，恒存在）并列进来，
+    // 弹窗根本没打开也能取到非空文本，判据退化成恒真。
+    const detailPanel = page.locator('.el-dialog:visible, .el-drawer:visible').first();
+    await expect(detailPanel, '点击查看后销售订单详情弹窗未出现').toBeVisible({ timeout: 10_000 });
+    const detailText = (await detailPanel.textContent()) ?? '';
 
-    if (rowCount > 0) {
-      // 获取所有表头
-      const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
-      const headerCount = await headers.count();
-      const headerTexts: string[] = [];
-      for (let i = 0; i < headerCount; i++) {
-        headerTexts.push((await headers.nth(i).textContent())?.trim() || '');
-      }
-
-      // 验证基本列存在
-      const hasOrderNo = headerTexts.some(h => h.includes('订单'));
-      const hasCustomer = headerTexts.some(h => h.includes('客户'));
-      const hasStatus = headerTexts.some(h => h.includes('状态'));
-      expect(hasOrderNo || hasCustomer).toBe(true);
-
-      // 点击详情查看
-      const detailBtn = rows
-        .first()
-        .locator('button:has-text("查看"), .el-link:has-text("详情"), button:has-text("详情")')
-        .first();
-      await detailBtn.waitFor({ state: 'visible', timeout: 3000 });
-      const detailVisible = await detailBtn.isVisible();
-      if (detailVisible) {
-        await detailBtn.click();
-        await page.waitForTimeout(2000);
-
-        const detailPanel = page.locator('.el-dialog, .el-drawer, .el-main').first();
-        await detailPanel.waitFor({ state: 'visible', timeout: 10_000 });
-
-        // 验证详情中有面料相关文本
-        const detailText = await detailPanel.textContent();
-        // 面料信息可能在详情中显示
-        const fabricKeywords = ['色号', '缸号', '克重', '幅宽', '等级', '批次'];
-        const hasFabricInfo = fabricKeywords.some(kw => detailText?.includes(kw));
-        // 记录是否有面料信息（当前可能缺失）
-        expect(true).toBe(true); // 不强制，记录现状
-      }
-    }
+    // 面料字段是否在详情露出属改进点，显式记录现状，既不写成恒真也不反向锁死。
+    const fabricKeywords = ['色号', '缸号', '克重', '幅宽', '等级', '批次'];
+    const hasFabricInfo = fabricKeywords.some(kw => detailText.includes(kw));
+    expect(detailText.trim().length, '销售订单详情面板应渲染出可见文本').toBeGreaterThan(0);
+    console.log(
+      `[21a][UI 现状] 详情面料关键词命中=${hasFabricInfo} 关键词=${fabricKeywords.join(' ')}`
+    );
   });
 
   test('销售订单 UI：创建表单选择产品→色号→填量→提交，色号真实落库并回读一致', async ({ page }) => {
@@ -185,8 +200,9 @@ test.describe('面料单据专用字段全链路验证', () => {
     );
 
     await page.goto(`${BASE_URL}/sales`);
-    // 销售订单列表用 V2Table（SalesOrderTable.vue:8 <V2Table>，渲染 el-table-v2/.v2-table-wrapper，
-    // 非 .el-table），窄选择器 .el-table 匹配不到列表 → 30s 超时。与本文件 line 123 的用例同一宽选择器。
+    // 销售订单列表用 V2Table（SalesOrderTable.vue 的 el-card 内挂 V2Table，渲染 el-table-v2 与
+    // .v2-table-wrapper），只钉旧 el-table 的窄选择器 .el-table 匹配不到该容器，会等满超时。
+    // 这里等的是列表容器在场，表头与数据行的真值判据在「列表显示+详情查看面料信息」用例里。
     await page
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper')
       .first()
