@@ -629,12 +629,35 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
     expect(String(rolledPiece!.color_no), '实物匹色号必须与验布记录/染色档案逐字符相同').toBe(
       colorNo
     );
-    const nextSeq = seedPieces + 1;
+    // 缸内序号是服务端按缸号全局分配的（fabric_inspection_service.rs generate_next_piece_no），
+    // 缸号后三位为随机值，同日并行用例可能撞缸号——seed 匹自身拿到的序号也只能回读，
+    // 因此不得假设"seed 条数+1"。跨环锚点改钉三条不变量：
+    // 一 匹号形如 缸号-三位序号；二 序号与 piece_seq 字段自洽；三 打卷序号严格大于全部 seed 序号。
+    const pieceSeqOf = (no: unknown): number => {
+      const m = new RegExp(`^${dyeLotNo}-(\\d{3})$`).exec(String(no ?? ''));
+      return m ? Number(m[1]) : Number.NaN;
+    };
+    const seededSeqs = seeded.map(p => pieceSeqOf(p.piece_no));
+    for (const [i, s] of seededSeqs.entries()) {
+      expect(
+        Number.isInteger(s),
+        `seed 第${i + 1}匹匹号必须形如 缸号-三位序号（实际 ${seeded[i].piece_no}），` +
+          `缸号=${dyeLotNo}，否则回指锚无从成立`
+      ).toBe(true);
+    }
+    const maxSeededSeq = Math.max(...seededSeqs);
+    const rolledSeq = pieceSeqOf(rolledPiece!.piece_no);
     expect(
-      String(rolledPiece!.piece_no),
-      '匹号必须由同缸序号递增生成（{缸号}-{三位序号}），跨环可追溯的锚点'
-    ).toBe(`${dyeLotNo}-${String(nextSeq).padStart(3, '0')}`);
-    expect(Number(rolledPiece!.piece_seq), '匹序号字段与匹号后缀一致').toBe(nextSeq);
+      Number.isInteger(rolledSeq),
+      `打卷新增匹号必须形如 缸号-三位序号（实际 ${String(rolledPiece!.piece_no)}），` +
+        `缸号=${dyeLotNo}，跨环可追溯的锚点`
+    ).toBe(true);
+    expect(
+      rolledSeq,
+      `打卷匹序号必须严格大于同缸全部 seed 匹序号（最大 ${maxSeededSeq}，` +
+        `实际打卷匹 ${String(rolledPiece!.piece_no)}），同缸递增且不得撞车`
+    ).toBeGreaterThan(maxSeededSeq);
+    expect(Number(rolledPiece!.piece_seq), '匹号末段与 piece_seq 字段自洽').toBe(rolledSeq);
     expectDecimalString(rolledPiece!.length, '实物匹米数');
     expectDecEquals(
       rolledPiece!.length,
@@ -713,12 +736,40 @@ test.describe('96 生产链深度契约：BOM 用量 / 排程确认 / 验布跨�
       dyeLotNo,
       batchNo: dyeLotNo,
     });
-    const nos = piecesAfter2.map(p => p.piece_no);
+    // 第二卷同钉档案锚：从回指第二张验布单的实物匹读取该卷真实缸内序号，
+    // 缸内序号由服务端全局分配（fabric_inspection_service.rs generate_next_piece_no），
+    // 不得写死"上一卷序号+1"；跨卷锚点是 回指本单＋序号自洽＋严格大于首卷 三条不变量。
+    const rowsForAnchor2 = pickListArray<Record<string, unknown>>(
+      await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/inventory/pieces?product_id=${prod.id}&warehouse_id=${wh.id}&dye_lot_no=${encodeURIComponent(
+          dyeLotNo
+        )}&page=1&page_size=50`
+      ),
+      'items',
+      `第二卷回读 缸号 ${dyeLotNo}`
+    );
+    const rolledPiece2 = rowsForAnchor2.find(
+      p => String(p.inspection_id ?? '') === String(insp2Id)
+    );
     expect(
-      nos.includes(`${dyeLotNo}-${String(nextSeq + 1).padStart(3, '0')}`),
-      `第二卷应生成匹号 ${dyeLotNo}-${String(nextSeq + 1).padStart(3, '0')}，实际匹号集=${nos.join(',')}`
+      rolledPiece2,
+      `第二卷必须生成一张回指本验布单（inspection_id=${insp2Id}）的实物匹；` +
+        `实际匹号与回指=${rowsForAnchor2.map(p => `${p.piece_no}/${p.inspection_id}`).join(',') || '(无)'}`
+    ).toBeTruthy();
+    const rolledSeq2 = pieceSeqOf(rolledPiece2!.piece_no);
+    expect(
+      Number.isInteger(rolledSeq2),
+      `第二卷匹号必须形如 缸号-三位序号（实际 ${String(rolledPiece2!.piece_no)}），缸号=${dyeLotNo}`
     ).toBe(true);
-    expect(new Set(nos).size, '同一缸号内匹号不得重复').toBe(nos.length);
+    expect(
+      rolledSeq2,
+      `第二卷缸内序号必须严格大于首卷的 ${rolledSeq}（跨卷继续递增且不得撞车）`
+    ).toBeGreaterThan(rolledSeq);
+    expect(Number(rolledPiece2!.piece_seq), '第二卷匹号末段与 piece_seq 字段自洽').toBe(rolledSeq2);
+    const nosAfter2 = piecesAfter2.map(p => p.piece_no);
+    expect(new Set(nosAfter2).size, '同一缸号内匹号不得重复').toBe(nosAfter2.length);
     const rolled2 = await apiCallRaw<Record<string, unknown>>(
       page,
       'GET',

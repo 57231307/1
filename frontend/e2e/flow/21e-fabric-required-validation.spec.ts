@@ -215,7 +215,10 @@ test.describe('面料单据专用字段全链路验证', () => {
   test('UI 缺失记录：销售订单列表无面料列', async ({ page }) => {
     await page.goto(`${BASE_URL}/sales`);
 
-    const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
+    // 销售订单列表由 V2Table（el-table-v2 虚拟表格）渲染：表头单元格落在
+    // .el-table-v2__header-cell（无障碍角色 columnheader），旧 el-table 的
+    // .el-table__header th 在本页恒不存在，等它等于必超时。
+    const headers = page.locator('.el-table-v2__header-cell');
     // 列表表头是真渲染出来的，不是固定等待几秒就能撞上：CI 上 workers=3 并发时
     // 首屏渲染常慢过 3 秒，固定 sleep 会让下面的计数拿到 0 而误报"表头没渲染"。
     await headers.first().waitFor({ state: 'visible', timeout: 30_000 });
