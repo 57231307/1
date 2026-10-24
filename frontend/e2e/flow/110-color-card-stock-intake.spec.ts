@@ -23,6 +23,7 @@ import {
  */
 const CARD_PATH = '/color-cards';
 const ISSUES_PATH = '/color-cards/issues';
+const CARD_LIST_PATH = '/color-cards/list';
 
 const uniq = () => `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 1000)}`;
 
@@ -31,6 +32,8 @@ interface CardReadback {
   status?: string;
   stock_quantity?: number;
   issued_quantity?: number;
+  card_no?: string;
+  card_name?: string;
 }
 
 async function createCardWithColor(page: Page): Promise<number> {
@@ -74,6 +77,34 @@ async function createCustomer(page: Page): Promise<number> {
 async function readCard(page: Page, cardId: number): Promise<CardReadback> {
   return apiCallRaw<CardReadback>(page, 'GET', `${CARD_PATH}/${cardId}`);
 }
+
+/**
+ * 列表页按卡号定位到该色卡那一行。
+ * 入参是已登录的 page 与卡号，返回行定位器，交给调用方用例点行内入口，不持久化。
+ * 先用关键词筛选把表压到一行，不依赖新建行落在第几页第几行，避开翻页与排序漂移带来的偶发失败。
+ */
+async function locateCardRow(page: Page, cardNo: string) {
+  await page.goto(CARD_LIST_PATH);
+  await expect(
+    page.getByText('色卡列表').first(),
+    `色卡列表页应渲染，准备定位卡号 ${cardNo}`
+  ).toBeVisible({ timeout: 30000 });
+  await page.getByPlaceholder('卡号 / 卡名').fill(cardNo);
+  await page.getByRole('button', { name: '查询' }).click();
+  const row = page.getByRole('row').filter({ hasText: cardNo }).first();
+  await expect(row, `列表按关键词筛出的色卡行应可见，卡号 ${cardNo}`).toBeVisible({
+    timeout: 30000,
+  });
+  return row;
+}
+
+/**
+ * 详情页基本信息页签里的可写卡面信息表单。
+ * 入参是 page，返回表单定位器，交给编辑入口相关用例判编辑态是否真打开，不持久化。
+ * 只读查看态不渲染该表单，因此它的有无正好区分"编辑"与"查看"两个入口，
+ * 历史缺陷的形态正是两个入口产出完全一样的页面。
+ */
+const cardEditForm = (page: Page) => page.locator('form[aria-label="基本信息"]');
 
 test.describe('色卡库存登记与发放', () => {
   test.beforeEach(async ({ page }) => {
@@ -152,5 +183,85 @@ test.describe('色卡库存登记与发放', () => {
         `[110] 色卡归档未回数据，实际 code=${archived.code} message=${archived.message}`
       );
     }
+  });
+});
+
+test.describe('色卡卡面信息编辑入口', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+  });
+
+  test('编辑入口进编辑态并真写库，详情入口不进编辑态', async ({ page }) => {
+    const cardId = await createCardWithColor(page);
+    const created = await readCard(page, cardId);
+    const cardNo = created.card_no;
+    const originalName = created.card_name;
+    if (!cardNo || !originalName) {
+      throw new Error(`[110] 色卡回读缺卡号或卡名，实际 ${JSON.stringify(created).slice(0, 300)}`);
+    }
+
+    // 反向判据，详情入口只给只读查看，页面上不该出现可写的卡面信息表单
+    const viewRow = await locateCardRow(page, cardNo);
+    await viewRow.getByRole('button', { name: '详情' }).click();
+    await expect(page, '详情入口应进色卡详情页').toHaveURL(/\/color-cards\/detail\/\d+$/);
+    await expect(cardEditForm(page), '详情入口不应打开编辑态').toHaveCount(0);
+
+    // 正向判据，编辑入口打开同一页签的可写表单，且回填的是库里现值
+    const editRow = await locateCardRow(page, cardNo);
+    await editRow.getByRole('button', { name: '编辑' }).click();
+    await expect(page, '编辑入口应把编辑意图带进地址栏').toHaveURL(
+      /\/color-cards\/detail\/\d+\?edit=1$/
+    );
+    const form = cardEditForm(page);
+    await expect(form, '编辑入口应打开可写的卡面信息表单').toBeVisible({ timeout: 30000 });
+    const nameInput = form.getByPlaceholder('请输入卡名');
+    await expect(nameInput, '编辑表单应回填库里的卡名').toHaveValue(originalName);
+
+    const newName = `${originalName} 已改${uniq()}`;
+    await nameInput.fill(newName);
+    // waitForResponse 注册在点击之前，保存请求随点击立即发出，点后注册会漏接
+    const putResp = page.waitForResponse(
+      resp => resp.request().method() === 'PUT' && /\/color-cards\/\d+$/.test(resp.url()),
+      { timeout: 30000 }
+    );
+    await form.getByRole('button', { name: '保存' }).click();
+    const putRes = await putResp;
+    expect(
+      putRes.status(),
+      `编辑保存应 200（4xx=权限或契约回归），实际 ${putRes.status()} ${(await putRes.text()).slice(0, 200)}`
+    ).toBe(200);
+
+    // 成败以库里真值为准，不看 PUT 响应体形状
+    const afterSave = await readCard(page, cardId);
+    expect(afterSave.card_name, '保存后回读的卡名应是提交的新值').toBe(newName);
+    await expect(cardEditForm(page), '保存后应退出编辑态回到只读展示').toHaveCount(0);
+    await expect(page, '保存后地址栏不该再留编辑意图').not.toHaveURL(/edit=1/);
+    await expect(page.getByText(newName).first(), '只读展示应回显新卡名').toBeVisible({
+      timeout: 30000,
+    });
+
+    await apiCall(page, 'DELETE', `${CARD_PATH}/${cardId}`, {});
+  });
+
+  test('非草稿态色卡在列表里没有编辑入口', async ({ page }) => {
+    const cardId = await createCardWithColor(page);
+    const created = await readCard(page, cardId);
+    if (!created.card_no) {
+      throw new Error(`[110] 色卡回读缺卡号，实际 ${JSON.stringify(created).slice(0, 300)}`);
+    }
+
+    // 卡面信息更新端点对非草稿态一律拒，入口就不该留着给用户点成一次必然的失败
+    await apiCall(page, 'DELETE', `${CARD_PATH}/${cardId}`, {});
+    const archivedCard = await readCard(page, cardId);
+    expect(
+      archivedCard.status,
+      `归档回读状态应为 archived，实际 ${archivedCard.status ?? '(none)'}`
+    ).toBe('archived');
+
+    const row = await locateCardRow(page, created.card_no);
+    await expect(row.getByRole('button', { name: '编辑' }), '非草稿态不应渲染编辑入口').toHaveCount(
+      0
+    );
+    await expect(row.getByRole('button', { name: '详情' }), '查看入口应仍在').toBeVisible();
   });
 });
