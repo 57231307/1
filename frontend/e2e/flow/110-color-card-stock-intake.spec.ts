@@ -64,7 +64,7 @@ async function createCardWithColor(page: Page): Promise<number> {
 async function createCustomer(page: Page): Promise<number> {
   const res = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
     customer_name: `E2E 库存登记客户${uniq()}`,
-    customer_type: '企业',
+    customer_type: 'wholesale',
     status: 'active',
   });
   const id = res.data?.id;
