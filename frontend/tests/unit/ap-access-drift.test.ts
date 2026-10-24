@@ -2,9 +2,10 @@
  * 应付壳页 /ap 门控收细键的可达集复算（纯函数，不连浏览器、不连后端）。
  *
  * 用途：这条改动改变"角色可达集"，角色权限矩阵基线轨据此判漂移，漂移由人工重采签署。
- * 本用例把"谁失去 /ap、谁保留、由哪一枚键解释"从手抄数字变成可复算判据，并与**已签署基线**
- * 对账：按旧口径（粗域键 finance:read）复算出的可达性必须逐角色等于基线现值，
- * 不等即说明本用例的解析口径或权限模型已与真实守卫分叉，先停下交人工而不是改期望值。
+ * 本用例把"谁失去 /ap、谁保留、由哪一枚键解释"从手抄数字变成可复算判据，并与**已重采的基线**
+ * 双向对账：按新口径（九枚应付细键）复算出的可达性必须逐角色等于基线现值；按旧口径（粗域键
+ * finance:read）复算时，与基线的差异集必须恰好等于本次点名的六个收权岗。任一方向不成立，都说明
+ * 本用例的解析口径或权限模型已与真实守卫分叉，先停下交人工而不是改期望值。
  *
  * 输入（三件事，来源各不相同）：
  *   1. 角色现有权限码：解析后端 init_service_ops 的角色授权矩阵源文本；
@@ -224,19 +225,37 @@ describe('复算输入自洽：前置授予集与门控本身必须成立', () =
   });
 });
 
-describe('复算与已签署基线对账（旧口径复算结果必须等于基线现值）', () => {
-  it('可复算角色逐角色一致：旧口径复算 = 基线是否含 /ap', () => {
+describe('复算与已重采基线对账（新口径复算等于基线现值，旧口径差异集恰为收权岗）', () => {
+  it('可复算角色逐角色一致：新口径复算 = 基线是否含 /ap', () => {
     const mismatches: string[] = [];
     for (const role of RECOMPUTABLE_ROLES) {
-      const derivedOld = hasRoutePermission(OLD_SHELL_GATE, permissionsOf(role));
+      const derivedNew = hasRoutePermission(NEW_SHELL_GATE, permissionsOf(role));
       const observed = BASELINE_REACHES_AP.get(role);
-      if (observed !== derivedOld) mismatches.push(`${role} 基线=${observed} 复算=${derivedOld}`);
+      if (observed !== derivedNew) mismatches.push(`${role} 基线=${observed} 复算=${derivedNew}`);
     }
     expect(
       mismatches,
-      `复算模型与已签署基线分叉（解析口径或权限模型已漂）：\n${mismatches.join('\n')}`
+      `复算模型与已重采基线分叉（解析口径或权限模型已漂）：\n${mismatches.join('\n')}`
     ).toEqual([]);
     expect(RECOMPUTABLE_ROLES.length).toBeGreaterThanOrEqual(20);
+  });
+
+  // 旧口径仍是口径自证的一环：它与重采后基线的差异只允许出现在本次点名的六个收权岗上，
+  // 多一个岗位或少一个岗位都说明复算模型与真实守卫已经分叉，而不是基线采错。
+  it('旧口径与重采基线的差异集恰为六个收权岗，其余岗位未被牵动', () => {
+    const diverged: string[] = [];
+    for (const role of RECOMPUTABLE_ROLES) {
+      const derivedOld = hasRoutePermission(OLD_SHELL_GATE, permissionsOf(role));
+      if (derivedOld !== BASELINE_REACHES_AP.get(role)) diverged.push(role);
+    }
+    expect(diverged.sort(), `差异集漂了：${diverged.join(', ')}`).toEqual([
+      'auditor',
+      'cashier',
+      'cost_accountant',
+      'purchase_manager',
+      'qc_manager',
+      'sales_manager',
+    ]);
   });
 
   it('不可复算角色（前端镜像岗位与边界岗位）今天都进不来 /ap ⇒ 本次改动不会牵动它们的基线', () => {
