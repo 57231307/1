@@ -40,7 +40,7 @@
 //! `available` 行不在此洗，交由存量守卫 fail-visible 点名，业务核实后更正再重跑。
 //!
 //! 幂等：每列先 DROP CONSTRAINT IF EXISTS 再施加，可安全重跑。注册在全链尾：
-//! 所有建表/加列/默认值收敛域（system→business→sales_crm→production→finance→v15→…）
+//! 所有建表/加列/默认值收敛域（system→business→sales_crm→production→finance→m_v15_domain→…）
 //! 先行完成后才施加 CHECK，全新库与存量库均不违反 CHECK。
 
 use sea_orm_migration::prelude::*;
@@ -163,7 +163,7 @@ const COLUMN_CHECKS: &[ColumnCheck] = &[
         column: "inspection_result",
         constraint: "chk_quality_inspection_records_inspection_result",
         allowed: QI_RECORD_RESULT_ALLOWED,
-        // 结论列真实形态：v15 追加时即可空且无默认，历史行存在
+        // 结论列真实形态：m_v15_domain 追加时即可空且无默认，历史行存在
         // NULL；权威词表 models/status/quality_dyeing.rs::quality_inspection_result
         // 声明的定义域就是本列（不是 m0005 遗留、实体不映射的 result 列）。守卫与
         // CHECK 放行 NULL、只拦词表外非空值——写入口径以本列为准，钉错列等于真实

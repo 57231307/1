@@ -131,7 +131,7 @@ export function toPersistedNodes(nodes: ProcessNodeRow[]): ProcessNode[] {
 /**
  * 编辑回填：把持久化的 config.edges[].condition 映回源节点的编辑态字段 edge_condition。
  * 表单按节点行编辑条件、提交时再写回边，因此回填必须以边为真相源还原到对应 source 节点，
- * 否则编辑存量带条件的定义会静默丢掉条件（第二件事 #82 的判据即 edge.condition）。
+ * 否则编辑存量带条件的定义会静默丢掉条件（判据即边上的 condition 字段）。
  */
 export function attachEdgeConditions(
   nodes: ProcessNode[],
