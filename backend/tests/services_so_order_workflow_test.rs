@@ -62,21 +62,6 @@ fn make_order_model(
     }
 }
 
-/// 复现 cancel_order 的状态校验门（不涉及数据库）（与 cancel_order 中状态校验逻辑保持一致，便于纯算法测试。）
-fn cancel_order_status_gate(status: &str) -> Result<(), AppError> {
-    if ![
-        so_status::DRAFT,
-        so_status::PENDING,
-        so_status::APPROVED,
-        so_status::PARTIAL_SHIPPED,
-    ]
-    .contains(&status)
-    {
-        return Err(AppError::business("当前状态不允许取消".to_string()));
-    }
-    Ok(())
-}
-
 /// 复现 submit_order 的状态校验门（不涉及数据库）
 fn submit_order_status_gate(status: &str) -> Result<(), AppError> {
     if status != so_status::DRAFT {
@@ -256,41 +241,125 @@ fn test_zsjztclzzqx() {
     assert_ne!(master_data::ACTIVE, master_data::INACTIVE);
 }
 
-/// test_qxdd_yxdyztjh
-/// 验证 cancel_order 的状态校验门对 DRAFT/PENDING/APPROVED/PARTIAL_SHIPPED 均放行。；其中 PARTIAL_SHIPPED 是批次 13 补全，防止部分发货订单无法取消（死锁）。
+/// 销售订单取消状态门放行的状态集合（本文件断言侧的期望值）。
+/// 调用方：走生产链路的取消门用例；不在测试内复写门判，生产门一变本锁即红。
+const CANCEL_GATE_ALLOWED: &[&str] = &[
+    so_status::DRAFT,
+    so_status::PENDING,
+    so_status::APPROVED,
+    so_status::PARTIAL_SHIPPED,
+];
+
+/// 销售订单取消状态门拒绝的状态集合（本文件断言侧的期望值，与放行集合互补）。
+const CANCEL_GATE_FORBIDDEN: &[&str] = &[
+    so_status::SHIPPED,
+    so_status::COMPLETED,
+    so_status::CANCELLED,
+    so_status::REJECTED,
+];
+
+/// test_qxdd_ztjihegailan
+/// 取消门两侧集合的前提自证：互不相交且并起来正好等于销售订单状态词表全取值。
+/// 入参：无（只读常量）。传给谁：为两个生产链路用例兜住"两侧都非空且无空洞"的前提，
+/// 任一侧被掏空或与另一侧重叠，那两个用例就会出现零条订单被真正断言的空转。
+/// 存什么·存哪里：纯判定，不落数据。
 #[test]
-fn test_qxdd_yxdyztjh() {
-    for allowed in [
-        so_status::DRAFT,
-        so_status::PENDING,
-        so_status::APPROVED,
-        so_status::PARTIAL_SHIPPED,
-    ] {
-        assert!(
-            cancel_order_status_gate(allowed).is_ok(),
-            "状态 {} 应允许取消",
-            allowed
+fn test_qxdd_ztjihegailan() {
+    let both: HashSet<&str> = CANCEL_GATE_ALLOWED
+        .iter()
+        .chain(CANCEL_GATE_FORBIDDEN.iter())
+        .copied()
+        .collect();
+    assert_eq!(
+        both.len(),
+        CANCEL_GATE_ALLOWED.len() + CANCEL_GATE_FORBIDDEN.len(),
+        "取消门放行集合与拒绝集合不得重叠"
+    );
+    let vocab: HashSet<&str> = so_status::ALL.iter().copied().collect();
+    assert_eq!(both, vocab, "取消门两侧集合必须正好覆盖词表 ALL 全取值");
+}
+
+/// test_qxdd_yxdyztjh
+/// 取消状态门放行侧（走生产链路）：真库按放行集合逐态播种订单，调用
+/// SalesService::cancel_order，生产门必须放行并把状态列推进为 cancelled。
+/// 入参：播种夹具客户与订单行。传给谁：判定落在生产 cancel_order 的返回值与回读状态。
+/// 存什么·存哪里：订单行经真库事务写入 sales_orders.status，回读由 reload_order_status 核对。
+#[tokio::test]
+async fn test_qxdd_yxdyztjh() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-CXOK-1", master_data::ACTIVE).await;
+
+    let mut seeded = Vec::new();
+    for status in CANCEL_GATE_ALLOWED.iter().copied() {
+        let oid = seed_order(
+            &db,
+            cid,
+            status,
+            decs!("1000"),
+            &format!("SO-WF-CXOK-{status}"),
+        )
+        .await;
+        seeded.push((status, oid));
+    }
+
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+
+    for (status, oid) in seeded {
+        service.cancel_order(oid, 1).await.unwrap_or_else(|e| {
+            panic!("状态 {status} 的取消必须被生产状态门放行，实得拒绝: {e:?}");
+        });
+        assert_eq!(
+            reload_order_status(&read_db, oid).await,
+            so_status::CANCELLED,
+            "状态 {status} 放行取消后订单状态必须推进为 cancelled"
         );
     }
 }
 
-/// test_qxdd_jzdyztjhjcwxx（验证 cancel_order 对已发货/已完成/已取消/已拒绝状态拒绝，；且错误类型为 BusinessError，错误消息为中文"当前状态不允许取消"。）
-#[test]
-fn test_qxdd_jzdyztjhjcwxx() {
-    for forbidden in [
-        so_status::SHIPPED,
-        so_status::COMPLETED,
-        so_status::CANCELLED,
-        so_status::REJECTED,
-    ] {
-        let result = cancel_order_status_gate(forbidden);
-        assert!(result.is_err(), "状态 {} 应禁止取消", forbidden);
-        match result.unwrap_err() {
-            AppError::BusinessError(msg) => {
-                assert_eq!(msg, "当前状态不允许取消");
-            }
-            other => panic!("取消订单应返回 BusinessError，实际：{:?}", other),
-        }
+/// test_qxdd_jzdyztjhjcwxx
+/// 取消状态门拒绝侧（走生产链路）：真库按拒绝集合逐态播种订单，调用
+/// SalesService::cancel_order，生产门必须拒绝。判据=拒绝落在可外显业务族
+/// （BusinessErrorDisplayable，回退成脱敏 BusinessError 即族回归）+ 文案定性不含数字 +
+/// 订单状态零推进；不锁文案措辞。
+/// 入参：播种夹具客户与订单行。传给谁：判定落在生产 cancel_order 的返回变体与回读状态。
+/// 存什么·存哪里：拒绝路径不写库，回读核对 sales_orders.status 未被改动。
+#[tokio::test]
+async fn test_qxdd_jzdyztjhjcwxx() {
+    let db = setup_test_db().await;
+    let read_db = db.clone();
+    let cid = seed_customer(&db, "SO-WF-CXNO-1", master_data::ACTIVE).await;
+
+    let mut seeded = Vec::new();
+    for status in CANCEL_GATE_FORBIDDEN.iter().copied() {
+        let oid = seed_order(
+            &db,
+            cid,
+            status,
+            decs!("1000"),
+            &format!("SO-WF-CXNO-{status}"),
+        )
+        .await;
+        seeded.push((status, oid));
+    }
+
+    let search_client: Arc<dyn SearchClient> = Arc::new(ElasticClient::mock());
+    let service = SalesService::new(Arc::new(db), search_client);
+
+    for (status, oid) in seeded {
+        let scene = format!("状态 {status} 取消");
+        let err = match service.cancel_order(oid, 1).await {
+            Ok(_) => panic!("{scene}必须被生产状态门拒绝，实得放行"),
+            Err(e) => e,
+        };
+        let msg = assert_business_displayable(err, &scene);
+        assert_message_has_no_digits(&msg, &scene);
+        assert_eq!(
+            reload_order_status(&read_db, oid).await,
+            status,
+            "取消门拒绝后订单状态不得被改动"
+        );
     }
 }
 
