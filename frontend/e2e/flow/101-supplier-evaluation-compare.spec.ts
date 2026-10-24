@@ -110,11 +110,6 @@ function comparePickerShell(page: Page) {
   return page.locator('.toolbar .el-select:visible').first();
 }
 
-/** 下拉内部的可输入节点，filterable 与 remote 挂在它身上 */
-function comparePickerInput(page: Page) {
-  return comparePickerShell(page).locator('input').first();
-}
-
 /** 占位文案锁：写到 input 属性或以独立节点呈现都算，缺文案才是选择器不对 */
 async function assertPickerPlaceholder(page: Page, text: string): Promise<void> {
   const shell = comparePickerShell(page);
@@ -123,15 +118,26 @@ async function assertPickerPlaceholder(page: Page, text: string): Promise<void> 
   expect(viaAttr + viaNode, `对比下拉应显示占位文案「${text}」`).toBeGreaterThan(0);
 }
 
+/**
+ * 打开多选下拉并按关键字远程搜索后选中一项。
+ * 点击面取外壳 el-select__wrapper（组件真正接事件的触发区），不点内层 input。
+ * 多选形态下占位文案渲染成盖在 input 上的独立节点，点 input 会被它拦截 pointer events。
+ * 输入用键盘逐字触发 remote-method 的服务端搜索，候选只能来自服务端回包，
+ * 断言候选含关键字即证明按名称或编码搜索真实发生，选中由 v-model 带出主键 id。
+ * 多选面板选中后不自动关闭，选完按 Escape 收起并确认面板确不可见，
+ * 避免 teleport 到 body 的面板盖住后续操作，时序与既有 remote 多选范式一致。
+ */
 async function searchAndPick(page: Page, keyword: string): Promise<void> {
-  const input = comparePickerInput(page);
-  await input.click();
-  await input.fill(keyword);
+  const wrapper = comparePickerShell(page).locator('.el-select__wrapper').first();
+  await wrapper.click();
+  await page.keyboard.type(keyword, { delay: 50 });
   const dropdown = page.locator('.el-select-dropdown:visible').last();
   await expect(dropdown, `输入「${keyword}」后候选面板应可见`).toBeVisible();
   const option = dropdown.locator('.el-select-dropdown__item').filter({ hasText: keyword }).first();
   await expect(option, `应搜到含「${keyword}」的供应商候选`).toBeVisible({ timeout: 15_000 });
   await option.click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0);
 }
 
 test.describe('供应商对比页签端到端', () => {
