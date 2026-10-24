@@ -18,6 +18,102 @@
       </div>
     </div>
 
+    <el-card v-if="androidClient" class="bluetooth-card" shadow="hover">
+      <template #header>
+        <div class="bluetooth-header">
+          <span class="bluetooth-title">{{ t('printTargets.bluetooth.title') }}</span>
+          <el-tag :type="btConnectedAddress ? 'success' : 'info'" size="small">
+            {{
+              btConnectedAddress
+                ? t('printTargets.bluetooth.connected')
+                : t('printTargets.bluetooth.notConnected')
+            }}
+          </el-tag>
+        </div>
+      </template>
+      <p class="bluetooth-description">{{ t('printTargets.bluetooth.description') }}</p>
+      <div class="bluetooth-actions">
+        <el-button :loading="btLoading" @click="handleBluetoothPermission">
+          <el-icon><Key /></el-icon>
+          {{ t('printTargets.bluetooth.requestPermission') }}
+        </el-button>
+        <el-button :disabled="btLoading" @click="handleBluetoothSettings">
+          <el-icon><Setting /></el-icon>
+          {{ t('printTargets.bluetooth.openSettings') }}
+        </el-button>
+        <el-button :loading="btLoading" @click="refreshBluetoothState">
+          <el-icon><Refresh /></el-icon>
+          {{ t('printTargets.bluetooth.refresh') }}
+        </el-button>
+      </div>
+
+      <el-alert
+        v-if="btState && !btState.supported"
+        :title="t('printTargets.bluetooth.adapterUnsupported')"
+        type="error"
+        :closable="false"
+        show-icon
+      />
+      <el-alert
+        v-else-if="btState && !btState.enabled"
+        :title="t('printTargets.bluetooth.adapterDisabled')"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <el-alert
+        v-else-if="btState && !btState.granted"
+        :title="t('printTargets.bluetooth.permissionDenied')"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <el-alert
+        v-else-if="btState && btState.printers.length === 0"
+        :title="t('printTargets.bluetooth.noPrinters')"
+        type="info"
+        :closable="false"
+        show-icon
+      />
+
+      <el-form class="bluetooth-form" label-width="auto">
+        <el-form-item :label="t('printTargets.bluetooth.printer')">
+          <el-select
+            v-model="btSelectedAddress"
+            :placeholder="t('printTargets.bluetooth.printerPlaceholder')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="printer in btState?.printers || []"
+              :key="printer.address"
+              :label="printer.name ? `${printer.name} (${printer.address})` : printer.address"
+              :value="printer.address"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('printTargets.bluetooth.paperWidth')">
+          <el-radio-group v-model="paperWidth">
+            <el-radio-button value="58">{{ t('printTargets.bluetooth.paper58') }}</el-radio-button>
+            <el-radio-button value="80">{{ t('printTargets.bluetooth.paper80') }}</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+
+      <div class="bluetooth-actions">
+        <el-button
+          type="primary"
+          :loading="btLoading"
+          :disabled="!btSelectedAddress || !btState?.granted"
+          @click="handleBluetoothConnect"
+        >
+          {{ t('printTargets.bluetooth.connect') }}
+        </el-button>
+        <el-button :disabled="!btConnectedAddress || btLoading" @click="handleBluetoothDisconnect">
+          {{ t('printTargets.bluetooth.disconnect') }}
+        </el-button>
+      </div>
+    </el-card>
+
     <el-card shadow="hover">
       <el-table
         v-loading="loading"
@@ -87,6 +183,8 @@
               type="danger"
               link
               size="small"
+              :loading="deletingId === row.id"
+              :disabled="deletingId !== null"
               @click="handleDelete(row)"
               >{{ t('printTargets.table.delete') }}</el-button
             >
@@ -232,11 +330,25 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { Plus, Refresh } from '@element-plus/icons-vue';
+import { Plus, Refresh, Key, Setting } from '@element-plus/icons-vue';
 import { isDialogDismissal } from '@/utils/monitor';
 import { msg } from '@/utils/message';
 import { logger } from '@/utils/logger';
 import { PERMISSIONS } from '@/constants/permissions';
+import {
+  connectBluetoothPrinter,
+  disconnectBluetoothPrinter,
+  isAndroidClient,
+  listBluetoothPrinters,
+  loadPaperWidth,
+  loadPrinterPreference,
+  openBluetoothSettings,
+  requestBluetoothPermission,
+  savePaperWidth,
+  savePrinterPreference,
+  type BluetoothAdapterState,
+  type ReceiptPaperWidth,
+} from '@/utils/bluetooth-print';
 import {
   getPrintTargetList,
   createPrintTarget,
@@ -288,6 +400,8 @@ const list = ref<PrintTarget[]>([]);
 const loading = ref(true);
 const dialogVisible = ref(false);
 const submitLoading = ref(false);
+// 行级删除在途：确认框弹出与网络请求期间锁定该行，避免连点重复发起 DELETE
+const deletingId = ref<number | null>(null);
 const formRef = ref<FormInstance>();
 const form = reactive<TargetForm>(emptyForm());
 const original = ref<PrintTarget | null>(null);
@@ -526,35 +640,39 @@ const buildUpdatePayload = (): UpdatePrintTargetRequest => {
 };
 
 const handleSubmit = async (): Promise<void> => {
+  if (submitLoading.value) return;
   if (!formRef.value) return;
-  await formRef.value.validate(async valid => {
+  // 锁必须在异步校验之前落下：validate 的回调要下一拍才执行，若等到回调里再置位，
+  // 连续两次点击会同时通过守卫并各自建出一条打印目标。
+  submitLoading.value = true;
+  try {
+    const valid = await formRef.value.validate().catch(() => false);
     if (!valid) return;
-    submitLoading.value = true;
-    try {
-      if (form.id) {
-        await updatePrintTarget(form.id, buildUpdatePayload());
-        msg.updateOk();
-        logger.info('[print-targets] updated id=%d', form.id);
-      } else {
-        await createPrintTarget(buildCreatePayload());
-        msg.createOk();
-        logger.info('[print-targets] created code=%s', form.target_code);
-      }
-      dialogVisible.value = false;
-      await fetchList();
-    } catch (error: unknown) {
-      logger.error('[print-targets] submit failed', error);
-      ElMessage.error(
-        (error instanceof Error ? error.message : String(error)) ||
-          t('printTargets.message.operationFailed')
-      );
-    } finally {
-      submitLoading.value = false;
+    if (form.id) {
+      await updatePrintTarget(form.id, buildUpdatePayload());
+      msg.updateOk();
+      logger.info('[print-targets] updated id=%d', form.id);
+    } else {
+      await createPrintTarget(buildCreatePayload());
+      msg.createOk();
+      logger.info('[print-targets] created code=%s', form.target_code);
     }
-  });
+    dialogVisible.value = false;
+    await fetchList();
+  } catch (error: unknown) {
+    logger.error('[print-targets] submit failed', error);
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('printTargets.message.operationFailed')
+    );
+  } finally {
+    submitLoading.value = false;
+  }
 };
 
 const handleDelete = async (row: PrintTarget): Promise<void> => {
+  if (deletingId.value !== null) return;
+  deletingId.value = row.id;
   try {
     await ElMessageBox.confirm(
       t('printTargets.message.deleteConfirm'),
@@ -577,10 +695,128 @@ const handleDelete = async (row: PrintTarget): Promise<void> => {
           t('printTargets.message.deleteFailed')
       );
     }
+  } finally {
+    deletingId.value = null;
   }
 };
 
-onMounted(fetchList);
+const androidClient = isAndroidClient();
+const btLoading = ref(false);
+const btState = ref<BluetoothAdapterState | null>(null);
+const btSelectedAddress = ref('');
+const btConnectedAddress = ref<string | null>(null);
+const paperWidth = ref<ReceiptPaperWidth>(loadPaperWidth());
+
+watch(paperWidth, value => savePaperWidth(value));
+
+function bluetoothErrorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function refreshBluetoothState(): Promise<void> {
+  if (!androidClient) return;
+  btLoading.value = true;
+  try {
+    const state = await listBluetoothPrinters();
+    btState.value = state;
+    btConnectedAddress.value = state.connectedAddress ?? null;
+    const saved = loadPrinterPreference();
+    if (saved && state.printers.some(printer => printer.address === saved.address)) {
+      btSelectedAddress.value = saved.address;
+    } else if (!btSelectedAddress.value && state.printers.length === 1) {
+      btSelectedAddress.value = state.printers[0].address;
+    }
+  } catch (error) {
+    logger.error('[print-targets] 读取已配对蓝牙设备失败', error);
+    ElMessage.error(bluetoothErrorDetail(error) || t('printTargets.bluetooth.message.listFailed'));
+  } finally {
+    btLoading.value = false;
+  }
+}
+
+async function handleBluetoothPermission(): Promise<void> {
+  btLoading.value = true;
+  try {
+    const result = await requestBluetoothPermission();
+    if (result.granted) {
+      ElMessage.success(t('printTargets.bluetooth.message.permissionGranted'));
+    } else {
+      ElMessage.warning(t('printTargets.bluetooth.message.permissionDenied'));
+    }
+    await refreshBluetoothState();
+  } catch (error) {
+    logger.error('[print-targets] 申请蓝牙权限失败', error);
+    ElMessage.error(
+      bluetoothErrorDetail(error) || t('printTargets.bluetooth.message.permissionFailed')
+    );
+  } finally {
+    btLoading.value = false;
+  }
+}
+
+async function handleBluetoothSettings(): Promise<void> {
+  try {
+    await openBluetoothSettings();
+    ElMessage.success(t('printTargets.bluetooth.message.settingsOpened'));
+  } catch (error) {
+    logger.error('[print-targets] 打开系统蓝牙设置失败', error);
+    ElMessage.error(
+      bluetoothErrorDetail(error) || t('printTargets.bluetooth.message.settingsFailed')
+    );
+  }
+}
+
+async function handleBluetoothConnect(): Promise<void> {
+  const address = btSelectedAddress.value;
+  if (!address) {
+    ElMessage.warning(t('printTargets.bluetooth.message.printerRequired'));
+    return;
+  }
+  btLoading.value = true;
+  try {
+    if (btState.value && !btState.value.granted) {
+      const permission = await requestBluetoothPermission();
+      if (!permission.granted) {
+        ElMessage.warning(t('printTargets.bluetooth.message.permissionDenied'));
+        return;
+      }
+    }
+    const connection = await connectBluetoothPrinter(address);
+    btConnectedAddress.value = connection.address;
+    savePrinterPreference({ name: connection.name, address: connection.address });
+    ElMessage.success(t('printTargets.bluetooth.message.connectSuccess'));
+  } catch (error) {
+    logger.error('[print-targets] 连接蓝牙打印机失败', error);
+    ElMessage.error(
+      bluetoothErrorDetail(error) || t('printTargets.bluetooth.message.connectFailed')
+    );
+  } finally {
+    btLoading.value = false;
+  }
+}
+
+async function handleBluetoothDisconnect(): Promise<void> {
+  btLoading.value = true;
+  try {
+    await disconnectBluetoothPrinter();
+    btConnectedAddress.value = null;
+    ElMessage.success(t('printTargets.bluetooth.message.disconnectSuccess'));
+  } catch (error) {
+    logger.error('[print-targets] 断开蓝牙打印机失败', error);
+    ElMessage.error(
+      bluetoothErrorDetail(error) || t('printTargets.bluetooth.message.disconnectFailed')
+    );
+  } finally {
+    btLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void fetchList();
+  if (androidClient) {
+    void refreshBluetoothState();
+  }
+});
 </script>
 
 <style scoped>
@@ -604,5 +840,40 @@ onMounted(fetchList);
 .header-actions {
   display: flex;
   gap: 12px;
+}
+.bluetooth-card {
+  margin-bottom: 20px;
+}
+.bluetooth-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.bluetooth-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+.bluetooth-description {
+  margin: 0 0 12px;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.bluetooth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bluetooth-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+.bluetooth-form {
+  margin-top: 12px;
+}
+.bluetooth-card :deep(.el-alert) {
+  margin-bottom: 12px;
 }
 </style>

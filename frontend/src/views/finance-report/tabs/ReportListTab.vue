@@ -276,7 +276,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <el-descriptions :column="2" border class="metrics">
+        <el-descriptions :column="isNarrow ? 1 : 2" border class="metrics">
           <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalRevenue')">{{
             formatAmount(incomeStatement.total_revenue)
           }}</el-descriptions-item>
@@ -388,7 +388,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <el-descriptions :column="2" border class="metrics">
+        <el-descriptions :column="isNarrow ? 1 : 2" border class="metrics">
           <el-descriptions-item :label="t('financeReport.reportListTab.labelNetCashOperations')">{{
             formatAmount(cashFlow.net_cash_from_operations)
           }}</el-descriptions-item>
@@ -483,7 +483,7 @@
             <template #default="{ row }">{{ formatAmount(row.ending_credit) }}</template>
           </el-table-column>
         </el-table>
-        <el-descriptions :column="3" border class="metrics">
+        <el-descriptions :column="isNarrow ? 1 : 3" border class="metrics">
           <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalInitialDebit')">{{
             formatAmount(trialBalance.total_initial_debit)
           }}</el-descriptions-item>
@@ -563,7 +563,7 @@
             <template #default="{ row }">{{ formatAmount(row.balance) }}</template>
           </el-table-column>
         </el-table>
-        <el-descriptions :column="2" border class="metrics">
+        <el-descriptions :column="isNarrow ? 1 : 2" border class="metrics">
           <el-descriptions-item :label="t('financeReport.reportListTab.labelOpeningBalance')">{{
             formatAmount(generalLedger.opening_balance)
           }}</el-descriptions-item>
@@ -643,7 +643,7 @@
             <template #default="{ row }">{{ formatAmount(row.credit) }}</template>
           </el-table-column>
         </el-table>
-        <el-descriptions :column="2" border class="metrics">
+        <el-descriptions :column="isNarrow ? 1 : 2" border class="metrics">
           <el-descriptions-item :label="t('financeReport.reportListTab.labelTotalDebit')">{{
             formatAmount(subsidiaryLedger.total_debit)
           }}</el-descriptions-item>
@@ -679,9 +679,15 @@ import { logger } from '@/utils/logger';
 import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useExportApproval } from '@/composables/useExportApproval';
+import useBreakpoint from '@/composables/useBreakpoint';
 import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const { width } = useBreakpoint();
+
+// 报表金额块在竖屏改为单列，避免每列被压到只剩几位数字
+const isNarrow = computed(() => width.value < 768);
 
 const loading = ref(false);
 

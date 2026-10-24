@@ -75,6 +75,7 @@
     <PurchaseReturnForm
       v-model:visible="dialogVisible"
       :is-edit="isEdit"
+      :submitting="submitting"
       :form-data="prRtn.formData"
       :form-rules="prRtn.formRules"
       :purchase-orders="prRtn.purchaseOrders"
@@ -128,6 +129,7 @@ const prRtnProc = usePrRtnProc({
 const dialogVisible = ref(false);
 const isEdit = ref(false);
 const detailDialogVisible = ref(false);
+const submitting = ref(false);
 
 /** 新建 */
 const onCreate = () => {
@@ -156,8 +158,15 @@ const onEdit = async (row: PurchaseReturn) => {
 
 /** 提交表单 */
 const onSubmitForm = async () => {
-  const ok = await prRtn.handleFormSubmit(isEdit.value);
-  if (ok) dialogVisible.value = false;
+  // 入口锁置于请求之前：编辑态会串行发多个明细请求，仅靠按钮 loading 挡不住连点
+  if (submitting.value) return;
+  submitting.value = true;
+  try {
+    const ok = await prRtn.handleFormSubmit(isEdit.value);
+    if (ok) dialogVisible.value = false;
+  } finally {
+    submitting.value = false;
+  }
 };
 
 /** 查看详情 */

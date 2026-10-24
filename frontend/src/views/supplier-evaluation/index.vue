@@ -262,6 +262,95 @@
             </el-descriptions>
           </div>
         </el-tab-pane>
+
+        <!-- 供应商对比：行身份取供应商主数据，四项关键指标取各供应商既有评分聚合端点出参，逐行并排 -->
+        <el-tab-pane :label="t('supplierEvaluation.index.tab.compare')" name="compare">
+          <div class="toolbar">
+            <el-select
+              v-model="compareIds"
+              multiple
+              filterable
+              remote
+              :remote-method="searchCompareSuppliers"
+              :loading="comparePickerLoading"
+              :no-data-text="t('supplier.enhanced.picker.noData')"
+              :placeholder="t('supplierEvaluation.index.compare.pickerPlaceholder')"
+              style="width: 320px"
+              @change="syncComparePicked"
+            >
+              <el-option
+                v-for="s in compareSupplierOptions"
+                :key="s.id"
+                :label="compareOptionLabel(s)"
+                :value="s.id"
+              />
+            </el-select>
+            <el-button type="primary" :loading="compareLoading" @click="runCompare">
+              {{ t('supplierEvaluation.index.compare.button') }}
+            </el-button>
+          </div>
+
+          <el-empty
+            v-if="compareRows.length === 0"
+            :description="t('supplierEvaluation.index.compare.emptyHint')"
+          />
+          <el-table
+            v-else
+            v-loading="compareLoading"
+            :data="compareRows"
+            border
+            stripe
+            :aria-label="t('supplierEvaluation.index.compare.tableAriaLabel')"
+          >
+            <el-table-column
+              :label="t('supplierEvaluation.index.column.supplierName')"
+              min-width="180"
+            >
+              <template #default="{ row }">{{ row.supplierName ?? '-' }}</template>
+            </el-table-column>
+            <el-table-column
+              :label="t('supplierEvaluation.index.compare.column.outcome')"
+              width="120"
+              align="center"
+            >
+              <template #default="{ row }">
+                <el-tag
+                  :type="COMPARE_OUTCOME_META[row.outcome as CompareOutcome].tagType"
+                  size="small"
+                >
+                  {{ t(COMPARE_OUTCOME_META[row.outcome as CompareOutcome].labelKey) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              :label="t('supplierEvaluation.index.column.rating')"
+              width="90"
+              align="center"
+            >
+              <template #default="{ row }">{{ row.score?.rating ?? '-' }}</template>
+            </el-table-column>
+            <el-table-column
+              :label="t('supplierEvaluation.index.column.totalScore')"
+              width="110"
+              align="right"
+            >
+              <template #default="{ row }">{{ row.score?.average_score ?? '-' }}</template>
+            </el-table-column>
+            <el-table-column
+              :label="t('supplierEvaluation.index.compare.column.recordCount')"
+              width="110"
+              align="right"
+            >
+              <template #default="{ row }">{{ row.score?.total_records ?? '-' }}</template>
+            </el-table-column>
+            <el-table-column
+              :label="t('supplierEvaluation.index.compare.column.latestDate')"
+              width="170"
+            >
+              <template #default="{ row }">{{ row.score?.latest_evaluation_date ?? '-' }}</template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -445,6 +534,7 @@ import {
   type CreateEvaluationIndicatorRequest,
 } from '@/api/supplier-evaluation';
 import { getSupplierList, type Supplier } from '@/api/supplier';
+import { useSupplierPicker } from '@/composables/useSupplierPicker';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -697,6 +787,101 @@ const handleQueryScore = async () => {
     }
   } catch {
     ElMessage.error(t('supplierEvaluation.index.message.fetchScoreFailed'));
+  }
+};
+
+// ============== 供应商对比 ==============
+
+/** 对比行的取数结论：有聚合结果、后端明确无评估记录、其它失败 */
+type CompareOutcome = 'loaded' | 'noRecord' | 'failed';
+
+/**
+ * 对比行。名称取供应商主数据列表出参的 supplier_name（后端 NOT NULL 列），四项关键指标取该供应商
+ * 评分聚合端点 GET /purchase/supplier-evaluations/suppliers/{id}/score 的出参，不新增端点、
+ * 不在前端自行跨指标聚合。取数结论单独成列：无评估记录与真实失败都如实标注，
+ * 不用 0 或空串把缺数据伪装成有数据。
+ */
+interface SupplierCompareRow {
+  supplierId: number;
+  /** 主数据候选里取不到该供应商时为 null（正常路径不可达：控件的值只可能来自候选） */
+  supplierName: string | null;
+  /** 该供应商的评分聚合出参；可空的最近评估日期按 null 直显占位，不补当天、不折算成 0 */
+  score: SupplierScore | null;
+  outcome: CompareOutcome;
+}
+
+/** 取数结论词表：界面文案与标签色同源，labelKey 一律写完整键路径 */
+const COMPARE_OUTCOME_META: Record<
+  CompareOutcome,
+  { labelKey: string; tagType: 'success' | 'info' | 'danger' }
+> = {
+  loaded: { labelKey: 'supplierEvaluation.index.compare.outcome.loaded', tagType: 'success' },
+  noRecord: { labelKey: 'supplierEvaluation.index.compare.outcome.noRecord', tagType: 'info' },
+  failed: { labelKey: 'supplierEvaluation.index.compare.outcome.failed', tagType: 'danger' },
+};
+
+const compareIds = ref<number[]>([]);
+const compareRows = ref<SupplierCompareRow[]>([]);
+const compareLoading = ref(false);
+
+// 候选数据源与供应商 360 共用同一组合式：关键字远程搜索、加载中标志与竞态序号单点持有
+const {
+  options: compareSupplierOptions,
+  picked: comparePickedSuppliers,
+  loading: comparePickerLoading,
+  search: searchCompareSuppliers,
+  syncPinned: syncComparePicked,
+  optionLabel: compareOptionLabel,
+} = useSupplierPicker();
+
+/** 后端对该供应商无任何评估记录时按 not_found 返回（supplier_evaluation_service.rs 的 get_supplier_score），属业务态不是缺陷 */
+const isNoEvaluationRecord = (error: unknown): boolean =>
+  (error as { response?: { status?: number } })?.response?.status === 404;
+
+const fetchCompareRow = async (
+  supplierId: number,
+  supplierName: string | null
+): Promise<SupplierCompareRow> => {
+  try {
+    const res = await getSupplierScore(supplierId);
+    return { supplierId, supplierName, score: res.data, outcome: 'loaded' };
+  } catch (error: unknown) {
+    if (isNoEvaluationRecord(error)) {
+      return { supplierId, supplierName, score: null, outcome: 'noRecord' };
+    }
+    logAuxLoadFailure('[supplier-evaluation] 供应商评分聚合取数失败', error);
+    return { supplierId, supplierName, score: null, outcome: 'failed' };
+  }
+};
+
+const runCompare = async (): Promise<void> => {
+  if (compareIds.value.length === 0) {
+    ElMessage.warning(t('supplierEvaluation.index.compare.pickFirst'));
+    return;
+  }
+  compareLoading.value = true;
+  const nameById = new Map(comparePickedSuppliers.value.map(s => [s.id, s.supplier_name]));
+  try {
+    compareRows.value = await Promise.all(
+      compareIds.value.map(id => {
+        const supplierName = nameById.get(id);
+        if (supplierName === undefined) {
+          logger.error('[supplier-evaluation] 对比选中项不在主数据候选中，行名称留空', { id });
+          return Promise.resolve<SupplierCompareRow>({
+            supplierId: id,
+            supplierName: null,
+            score: null,
+            outcome: 'failed',
+          });
+        }
+        return fetchCompareRow(id, supplierName);
+      })
+    );
+    if (compareRows.value.some(row => row.outcome === 'failed')) {
+      ElMessage.error(t('supplierEvaluation.index.compare.partialFailed'));
+    }
+  } finally {
+    compareLoading.value = false;
   }
 };
 

@@ -482,12 +482,15 @@ impl ProductService {
         if let Some(pg) = args.product_grade.take() {
             product.product_grade = Set(Some(pg));
         }
-        // 匹/卷换算元数据：仅当传入 Some 才覆盖，None 保持原值（遵循可选数值字段条件 Set 惯例）
-        if let Some(mpp) = args.meters_per_piece.take() {
-            product.meters_per_piece = Set(Some(mpp));
+        // 每匹米数与每卷米数三态部分更新。外层 None 即键缺席、本列保持原值（遵循可选数值
+        // 字段条件 Set 惯例）。外层 Some 即本次带了这个键，内层 Option 的取值原样落 Set，
+        // 内层 None 即显式 null、把该列清空为 NULL，内层 Some(v) 即覆盖为该值。
+        // 清空通道走的是显式置空，不取旧值兜底，也不把缺键当成清空。
+        if let Some(piece) = args.meters_per_piece.take() {
+            product.meters_per_piece = Set(piece);
         }
-        if let Some(mpr) = args.meters_per_roll.take() {
-            product.meters_per_roll = Set(Some(mpr));
+        if let Some(roll) = args.meters_per_roll.take() {
+            product.meters_per_roll = Set(roll);
         }
     }
 

@@ -1,13 +1,15 @@
 /**
  * 侧边栏导航树闭合锁（vitest，无浏览器、无后端依赖）
  *
- * 功能：断言"导航树单一真相"三条不变量——
+ * 功能：断言"导航树单一真相"四条不变量——
  *   1. 集合全等：`src/config/navigation.ts` 的叶子 path 集必须与 router 里"有组件、非 hidden、
  *      非 public、非容器"的叶子路由集**双向相等**。缺项即"功能有页面却无入口"，多项即"菜单指向
  *      不存在或被标 hidden 的路由"（后者会让 canAccessMenu 恒 false，页面对所有角色不可达）。
  *   2. 唯一归属：同一 path 在树中出现且仅出现一次（杜绝同一功能挂在两个一级域下的重复入口）。
  *   3. 无第二清单：`MainLayout.vue` 源码内不得再出现逐条 `canAccessMenu('/...')` 字面清单或
  *      `visibleSubMenu` 硬编码 path 表——分组可见性必须由导航树派生，否则两份清单会漂移。
+ *   4. 组件唯一：同一页面组件不得同时挂在两个可见路由上，否则同一功能会出现两条入口，
+ *      且其中一条的菜单权限与另一条不一致时会出现进得去却看不到的错觉。
  *
  * 调用方：frontend vitest 单测轨（vitest.config.ts include `tests/**`），CI ci-frontend-test job 执行。
  * 入参：只读仓库内 3 个源文件，不读写后端、不起浏览器。
@@ -32,12 +34,18 @@ const MAIN_LAYOUT_SRC = readSource(
   path.join(FRONTEND_ROOT, 'src/components/Layout/MainLayout.vue')
 );
 
+interface ShellRouteEntry {
+  path: string;
+  component: string;
+}
+
 /**
  * router 叶子路由集合：取 `component: MainLayout` 路由的 children 数组（应用外壳内），
  * 逐个对象做括号配对解析，排除 `hidden: true` 与无 component 的项。
  * 外壳外的 /login、/setup、/terms、/privacy 属免登录页，本就不进侧边栏。
+ * 返回项附带组件标识，供组件唯一性断言使用。
  */
-function collectShellLeaves(src: string): Set<string> {
+function collectShellRouteEntries(src: string): ShellRouteEntry[] {
   const anchor = src.indexOf('component: MainLayout,');
   if (anchor < 0) throw new Error('router 未找到 MainLayout 容器路由');
   const open = src.indexOf('[', src.indexOf('children:', anchor));
@@ -56,7 +64,7 @@ function collectShellLeaves(src: string): Set<string> {
   }
   if (close < 0) throw new Error('MainLayout children 数组未闭合');
 
-  const leaves = new Set<string>();
+  const leaves: ShellRouteEntry[] = [];
   let objDepth = 0;
   let buf = '';
   const objects: string[] = [];
@@ -77,9 +85,16 @@ function collectShellLeaves(src: string): Set<string> {
     if (/hidden:\s*true/.test(obj) || /public:\s*true/.test(obj)) continue;
     const raw = pathMatch[1];
     const full = raw.startsWith('/') ? raw : `/${raw}`;
-    leaves.add(full);
+    const componentMatch = obj.match(
+      /component:\s*(?:\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]\s*\)|([\w$.]+))/
+    );
+    leaves.push({ path: full, component: componentMatch?.[1] ?? componentMatch?.[2] ?? full });
   }
   return leaves;
+}
+
+function collectShellLeaves(src: string): Set<string> {
+  return new Set(collectShellRouteEntries(src).map(entry => entry.path));
 }
 
 const isLeaf = (node: NavNode): node is NavLeaf => node.kind === 'leaf';
@@ -94,6 +109,7 @@ function flatten(nodes: NavNode[]): NavLeaf[] {
 describe('导航树与路由表闭合', () => {
   const navLeaves = flatten(NAV_TREE);
   const navPaths = navLeaves.map(leaf => leaf.path);
+  const shellEntries = collectShellRouteEntries(ROUTER_SRC);
   const routable = collectShellLeaves(ROUTER_SRC);
 
   it('解析器本身有效（外壳叶子数量落在合理区间，防解析塌缩成空集）', () => {
@@ -111,6 +127,19 @@ describe('导航树与路由表闭合', () => {
   it('同一 path 不得出现两个菜单入口', () => {
     const duplicated = navPaths.filter((p, i) => navPaths.indexOf(p) !== i);
     expect(duplicated.sort()).toEqual([]);
+  });
+
+  it('同一页面组件不得挂到两个可见路由', () => {
+    const byComponent = new Map<string, string[]>();
+    for (const entry of shellEntries) {
+      const paths = byComponent.get(entry.component) ?? [];
+      paths.push(entry.path);
+      byComponent.set(entry.component, paths);
+    }
+    const duplicated = [...byComponent.entries()]
+      .filter(([, paths]) => paths.length > 1)
+      .map(([component, paths]) => `${component} 同时出现在 ${paths.sort().join(' 与 ')}`);
+    expect(duplicated).toEqual([]);
   });
 
   it('每个节点都持完整字面 i18n 键（供 check-i18n 静态判定）', () => {

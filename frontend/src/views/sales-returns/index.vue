@@ -118,6 +118,7 @@ const onEdit = (row: SalesReturn) => {
 };
 
 const onSubmit = async (form: ReturnForm) => {
+  if (submitLoading.value) return;
   Object.assign(sr.formData, form);
   submitLoading.value = true;
   try {

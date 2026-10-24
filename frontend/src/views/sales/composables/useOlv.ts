@@ -138,7 +138,6 @@ export function useOlv() {
 
   // 订单表单对话框
   const formDialogTitle = ref('新建销售订单');
-  const submitting = ref(false);
   const formData = reactive<OrderForm>({
     id: 0,
     customer_id: undefined,
@@ -528,7 +527,6 @@ export function useOlv() {
     stats,
     // 表单
     formDialogTitle,
-    submitting,
     formData,
     // 详情对话框
     viewDialogVisible,

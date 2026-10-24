@@ -473,7 +473,7 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
       余下部分要一次成体系做（否则改一个文件没意义），并且**不能直接把门禁加上**——
       门禁上线当日即 55 文件全红，需要按 Clippy baseline 那套「存量挂账 + 增量阻塞」的机制先行。
 
-- [ ] **`playwright.config.ts` 的 testMatch 未覆盖的业务目录 = 死用例集**：testMatch 白名单里
+- [x] **`playwright.config.ts` 的 testMatch 未覆盖的业务目录 = 死用例集**：testMatch 白名单里
       没有 `logistics/inventory/mrp/production/ai/dashboard/fabric/quotations/sales-ext/system`
       等目录，落在其中的 spec 永不执行（且 CI 分片命令是按目录显式传参，改 testMatch 也不生效）。
       本轮已把 `e2e/logistics/` 下两个「整文件 if(isVisible) 空转 + 假词表」的 spec 删掉并按真实
@@ -482,6 +482,10 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
       测量陷阱（本轮实证）：Windows 上 `playwright test --list` 不带路径参数时会把这些目录
       也收进来（`^[^/]*\.spec\.ts$` 分支因反斜杠路径误匹配，本地多计 80 个用例），
       所以「本地 --list 数字」与「CI 实跑数字」不等价，README 已改为按 CI 口径分目录实测。
+      （2026-10-24 本支实测已闭：playwright.config.ts:99-112 已废除锚定正则白名单，
+      testMatch 只认扩展名、目录排除走 testIgnore，注释自证新目录无需登记；
+      CI 侧不再按目录显式传参漏片，check-e2e-shard-coverage 判定分配并集等于 --list 全集
+      1725 条、missing=0、extra=0，任何未认领用例当场判红，死用例集机制上不成立）
 
 
 - [x] **库存台账状态字面量全仓收敛**：`models/status::inventory_stock_status` 落地后仍有 8 处
@@ -722,12 +726,14 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
       （`c2a6de1e`），并核对四组资源名均已在 PERMISSION_RESOURCES/path_utils 已知资源表内，
       补前缀不改变权限推导结果。
 
-- [ ] **前端调用路径与后端 nest 前缀的一致性缺静态门禁**：本轮靠 CI 失败才暴露 47 个 404，
+- [x] **前端调用路径与后端 nest 前缀的一致性缺静态门禁**：本轮靠 CI 失败才暴露 47 个 404，
       同类问题（尤其 inventory/sales 两域的子 router 前缀）仍可能潜伏。doto 既有的
       「路由-返回结构审计脚本」需扩展为同时校验 nest 组合后的完整路径，
       把「FE 调用路径 ∈ 后端注册路径全集」做成 CI 静态门禁；
       脚本需处理 `.nest("/", …)` 与多级 nest 组合，不能按文件内首段路径近似判断
       （本轮试写的近似版本对 `/ap/*` 一类"前缀即资源名"路径大量误报，未采信）。
+      （2026-10-24 本支实测已闭：frontend/scripts/check-api-paths.mjs 已做成判定器并接入
+      ci-cd.yml:463，light 门禁 STEP api-paths EXIT=0，route-snapshot 同源逐字一致）
 
 - [ ] **处方/染整配方审核人身份取自请求体，可由调用方任意指定**：
       `POST /production-recipes/{id}/approve` 与染整配方的同名端点都是
@@ -808,8 +814,11 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
 - [ ] 收敛项：`AppState.event_notification_service` 由 `Option<…>` 改非 Option；
       `bpm_task.process_instance_id/name` 旧列删除；18 个 `json!({"list":…})` handler
       统一到 PaginatedResponse
-- [ ] 待授权：ci-cd.yml 接入 check-i18n.mjs、把 20 个从未执行的 E2E 目录（218 测试）纳入 testMatch；
+- [x] 待授权：ci-cd.yml 接入 check-i18n.mjs、把 20 个从未执行的 E2E 目录（218 测试）纳入 testMatch；
       eslint 开 `no-unused-expressions` 并解除对 e2e/ 的忽略
+      （2026-10-24 本支实测已闭：ci-cd.yml:450 与 455 跑 check-i18n 自测与本体；
+      playwright.config.ts:112 testMatch 改只认扩展名，全部目录自动纳入；
+      eslint.config.js:8 解除 e2e 全局 ignore，:35 启用 no-unused-expressions 为 error）
 - [x] `views/purchase-receipt/composables/usePrcProc.ts` 对话框标题内联中文：预生成单号那条
       标题是模板串 `新增入库（预生成单号 ${no}）`，改用文案键 `addReceiptTitleWithNo`（带 {no}
       插值，中英双备）；`usePrc.ts` 里 `dialogTitle` 的初始值 `'新增入库'` 也改成
@@ -1012,8 +1021,11 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
   在生产库上不落地）。
 - [ ] run 35547989952（head `586a0850`）为新验证轮：需复核 02-o2c/44e/48/31d 是否随
   BPM 修复转绿，以及 53-1（登录超时）、54-new-domains（质量 8D）两条未判责项。
-- [ ] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
+- [x] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
   `check-i18n.mjs` 未接入 CI（两项均需用户授权改 `ci-cd.yml`）。
+  （2026-10-24 本支实测已闭：ci-cd.yml case 表 30 至 44 改按域分片，purchase/finance/sales/
+  crm/inventory/production/bpm/fabric/mrp/ai/quotations/system/dashboard/fullflow 全部有片；
+  check-e2e-shard-coverage 实测全集 1725 等于分组并集，missing=0；check-i18n 见 811 项证据）
 - [ ] **CI 工作流剩余可继续合并项（2026-09-22 本轮只做低风险部分）**：本轮已把
   `ci-fmt-fe`+`ci-contract-align`+`ci-i18n-check` 合并为 `ci-static-checks`，并新增
   `.github/actions/e2e-runtime` 让 32 个 E2E 族 job 实例改为下载 `frontend-dist` 而非各自重建前端。
@@ -1043,8 +1055,11 @@ Decimal `DECIMAL(18,4)` 出参被按 `"200"` 字面量比较、CSRF 一次性消
   `catch { products.value = [] }` 静默吞错（不静默日志违规，属前端视图批量项）。
 - [ ] run 35524492654 的 `20~26`、`44f~54` 两个失败分片待 job 结束后取
   `reports/playwright-output.txt` 判责。
-- [ ] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
+- [x] 沿 iter22：CI 只跑 `e2e/flow|smoke|traversal`，另有 20 个目录 218 个用例从不执行；
   `check-i18n.mjs` 未接入 CI（两项均需用户授权改 `ci-cd.yml`）。
+  （2026-10-24 本支实测已闭：ci-cd.yml case 表 30 至 44 改按域分片，purchase/finance/sales/
+  crm/inventory/production/bpm/fabric/mrp/ai/quotations/system/dashboard/fullflow 全部有片；
+  check-e2e-shard-coverage 实测全集 1725 等于分组并集，missing=0；check-i18n 见 811 项证据）
 
 ### Round 7-iter22（2026-09-20/21，首个真实 E2E 全量信号判责）
 

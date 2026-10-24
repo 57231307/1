@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   ElTable,
@@ -28,8 +28,14 @@ import {
   type FullTraceChainResponse,
   type TraceChainResponse,
 } from '@/api/business-trace';
+import useBreakpoint from '@/composables/useBreakpoint';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const { width } = useBreakpoint();
+
+// 竖屏下三列描述挤压换行、横向步骤条溢出，统一切单列与纵向步骤
+const isNarrow = computed(() => width.value < 768);
 
 const traceMode = ref<'five_dimension' | 'forward' | 'backward'>('five_dimension');
 const fiveDimensionId = ref('');
@@ -183,7 +189,7 @@ const handleCreateSnapshot = async () => {
 
         <div v-if="traceResult" class="trace-result">
           <ElCard :title="$t('businessTrace.card.traceChainDetail')" class="detail-card">
-            <ElDescriptions :column="3" border>
+            <ElDescriptions :column="isNarrow ? 1 : 3" border>
               <ElDescriptionsItem :label="$t('businessTrace.field.traceChainId')">{{
                 traceResult.trace_chain_id
               }}</ElDescriptionsItem>
@@ -215,7 +221,11 @@ const handleCreateSnapshot = async () => {
           </ElCard>
 
           <ElCard :title="$t('businessTrace.card.traceFlow')" class="flow-card">
-            <ElSteps :space="80" align-center>
+            <ElSteps
+              :space="isNarrow ? 0 : 80"
+              :direction="isNarrow ? 'vertical' : 'horizontal'"
+              :align-center="!isNarrow"
+            >
               <ElStep
                 v-for="(stage, index) in traceResult.stages"
                 :key="stage.stage_id"
