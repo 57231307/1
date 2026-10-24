@@ -183,7 +183,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/dye-recipes?page=1&page_size=1'
     );
     if (recipeList.items?.length > 0) {
-      const recipe = recipeList.items?.[0];
+      const recipe = recipeList.items[0];
       // 染色配方用 color_code
       expect(recipe.color_code !== undefined || recipe.color_no !== undefined).toBe(true);
     }
@@ -197,7 +197,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     if (transferList.items?.length > 0) {
       // 调拨列表响应形状是真断言面：items 必须是数组且每行主键可解析；面料列是否露出记为现状。
       expect(Array.isArray(transferList.items), '库存调拨列表应返回 items 数组').toBe(true);
-      for (const row of transferList.items ?? []) {
+      for (const row of transferList.items) {
         expect(
           Number.isFinite(Number(row.id)),
           `调拨行主键应为有限数值: ${JSON.stringify(row.id)}`
