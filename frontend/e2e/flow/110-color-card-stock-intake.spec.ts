@@ -1,7 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../diagnose-fixture';
 import type { Page } from '@playwright/test';
 
 import {
+  loginViaUI,
   apiCall,
   apiCallRaw,
   apiCallExpectFail,
@@ -17,6 +18,8 @@ import {
  * 登记之后 POST /color-cards/issues 才可能过发放守门（可用 = 库存 - 已发放），
  * 发放只累加已发放量不动库存列，库存低于已发放量或为负都点名拒绝且库里零漂移。
  * 造数全部本用例自建自持（色卡 色号 客户各一条），不复用库里的共享行。
+ * 会话形态：test 取自 diagnose-fixture 的 worker 级会话夹具，beforeEach 经 loginViaUI
+ * 以本 worker 专属账号建立登录态后所有请求才带认证凭据与 CSRF 头。
  */
 const CARD_PATH = '/color-cards';
 const ISSUES_PATH = '/color-cards/issues';
@@ -73,6 +76,10 @@ async function readCard(page: Page, cardId: number): Promise<CardReadback> {
 }
 
 test.describe('色卡库存登记与发放', () => {
+  test.beforeEach(async ({ page }) => {
+    await loginViaUI(page);
+  });
+
   test('建卡库存为 0，登记后可发放且发放只动已发放量，两个下限各拒一次且零漂移', async ({
     page,
   }) => {
@@ -141,7 +148,9 @@ test.describe('色卡库存登记与发放', () => {
     // 收尾：色卡无物理删除端点，归档该行；失败只记日志，不影响已完成的断言
     const archived = await apiCall(page, 'DELETE', `${CARD_PATH}/${cardId}`, {});
     if (!archived.data) {
-      console.warn(`[110] 色卡归档未回数据，实际 code=${archived.code} message=${archived.message}`);
+      console.warn(
+        `[110] 色卡归档未回数据，实际 code=${archived.code} message=${archived.message}`
+      );
     }
   });
 });
