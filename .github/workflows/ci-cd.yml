@@ -3626,6 +3626,11 @@ jobs:
           PY
 
       - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
+        # 前序漏洞审计步 fail-closed 判红时，本步与 npm ls 步默认被跳过，
+        # 于是"上传依赖图记录"（if: always 且缺文件即错）跟着报一道假象红：
+        # 看着像两个缺陷，实则同一成因，且恰好在最需要依赖图时把它抹掉。
+        # 与 gitleaks 与 semgrep 同策：!cancelled() 让记录照出，本步自身失败照样判负。
+        if: ${{ !cancelled() }}
         run: |
           D="$GITHUB_WORKSPACE/reports/deps"
           cd backend
@@ -3635,6 +3640,7 @@ jobs:
           echo "cargo tree 行数: $(wc -l < "$D/cargo-tree.txt")"
 
       - name: 生成 npm ls（依赖图记录，非关键，允许失败）
+        if: ${{ !cancelled() }}
         continue-on-error: true
         run: |
           D="$GITHUB_WORKSPACE/reports/deps"

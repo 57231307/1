@@ -2,6 +2,7 @@ import { test, expect } from '../diagnose-fixture';
 import type { Page } from '@playwright/test';
 import {
   loginViaUI,
+  apiCall,
   apiCallRaw,
   apiCallExpectFail,
   ensureTestEntities,
@@ -64,15 +65,44 @@ function isTerminal(status: unknown): boolean {
   return status === 'succeeded' || status === 'failed';
 }
 
+/**
+ * 打印链路的载体单据由本用例自建，不取夹具复用的 salesOrderId。
+ * 为什么：夹具把 salesOrderId 取成列表首行，而同库其他分片的用例会新建并删除销售订单，
+ * 复用值可能已被删或被行级数据范围挡在可见集外，受理时后端按渲染路径同步校验单据存在性，
+ * 直接回 销售订单 N 未找到（NOT_FOUND 404），把外部分组的清理动作误报成本链路失败。
+ */
+async function ensureOwnSalesOrder(page: Page): Promise<number> {
+  await ensureTestEntities(page);
+  const ctx = getCtx();
+  const productId = ctx.productIds[0];
+  if (!ctx.customerId || !productId) {
+    throw new Error(
+      `打印链路前置失败：夹具缺客户或产品（customerId=${JSON.stringify(
+        ctx.customerId
+      )}，productIds 长度=${ctx.productIds.length}）`
+    );
+  }
+  const created = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
+    customer_id: ctx.customerId,
+    order_date: new Date().toISOString(),
+    items: [{ product_id: productId, quantity: 1, unit_price: '1.00' }],
+  });
+  const orderId = Number(created?.data?.id);
+  if (!(orderId > 0)) {
+    throw new Error(
+      `打印链路前置失败：自建销售订单未返回主键，响应=${JSON.stringify(created).slice(0, 200)}`
+    );
+  }
+  return orderId;
+}
+
 test.describe('打印任务真实受理链路', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
 
   test('既未指定目标、模板也未配缺省目标 → 受理被拒 400（不静默丢单）', async ({ page }) => {
-    await ensureTestEntities(page);
-    const orderId = getCtx().salesOrderId;
-    expect(orderId, '夹具应确保存在可打印的销售订单').toBeTruthy();
+    const orderId = await ensureOwnSalesOrder(page);
 
     const fail = await apiCallExpectFail(page, 'POST', '/print-tasks', {
       doc_type: 'sales_order',
@@ -101,9 +131,7 @@ test.describe('打印任务真实受理链路', () => {
   });
 
   test('受理成功后任务号唯一可读回；目标不可达时失败原因必非空', async ({ page }) => {
-    await ensureTestEntities(page);
-    const orderId = getCtx().salesOrderId;
-    expect(orderId, '夹具应确保存在可打印的销售订单').toBeTruthy();
+    const orderId = await ensureOwnSalesOrder(page);
 
     const targetCode = genCode('E2E-PRN');
     let targetId = 0;
@@ -181,9 +209,7 @@ test.describe('打印任务真实受理链路', () => {
   });
 
   test('模板已被打印任务引用 → 删除被拒 400 并点名条数，不再裸 500', async ({ page }) => {
-    await ensureTestEntities(page);
-    const orderId = getCtx().salesOrderId;
-    expect(orderId, '夹具应确保存在可打印的销售订单').toBeTruthy();
+    const orderId = await ensureOwnSalesOrder(page);
 
     const targetCode = genCode('E2E-PRN');
     let targetId = 0;
