@@ -82,8 +82,7 @@ fn full_fetch_segment<'a>(source: &'a str, file_name: &str) -> &'a str {
 
 #[test]
 fn order_export_leg_never_enters_paging_entry() {
-    let so_export =
-        include_str!("../src/services/so/delivery_ops/export.rs").replace('\r', "");
+    let so_export = include_str!("../src/services/so/delivery_ops/export.rs").replace('\r', "");
     let so_query = include_str!("../src/services/so/order_query.rs").replace('\r', "");
     let po_query = include_str!("../src/services/po/order_ops/query.rs").replace('\r', "");
 
@@ -225,7 +224,8 @@ fn order_export_handlers_keep_no_row_gate_and_truthful_traces() {
         "采购留痕路径必须与挂载逐字一致（前缀单数）"
     );
     assert_eq!(
-        po.matches(format!("\"{PURCHASE_EXPORT_PATH_WRONG_PLURAL}\"").as_str()).count(),
+        po.matches(format!("\"{PURCHASE_EXPORT_PATH_WRONG_PLURAL}\"").as_str())
+            .count(),
         0,
         "采购留痕路径回潮复数形态（审计面与访问面不同源）"
     );
@@ -282,9 +282,7 @@ async fn seed_supplier(db: &Arc<DatabaseConnection>) -> i32 {
         registered_address: Set("测试注册地址".to_string()),
         legal_representative: Set("测试法人".to_string()),
         registered_capital: Set(Decimal::ZERO),
-        establishment_date: Set(
-            chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("夹具日期常量"),
-        ),
+        establishment_date: Set(chrono::NaiveDate::from_ymd_opt(2020, 1, 1).expect("夹具日期常量")),
         taxpayer_type: Set("一般纳税人".to_string()),
         bank_name: Set("测试银行".to_string()),
         bank_account: Set("6222000000000001".to_string()),
@@ -398,7 +396,10 @@ fn build_app(db: &Arc<DatabaseConnection>) -> Router {
         dept_member_user_ids: None,
     };
     Router::new()
-        .route("/sales/orders/export", get(sales_order_handler::export_orders))
+        .route(
+            "/sales/orders/export",
+            get(sales_order_handler::export_orders),
+        )
         .route(
             "/purchase/orders/export",
             get(purchase_order_handler::export_orders),
@@ -475,9 +476,9 @@ fn assert_rowset_equality(label: &str, log: &audit_log::Model, sql_count: u64, e
         Some("xlsx"),
         "{label} 留痕格式键必须是 xlsx: {snap}"
     );
-    let exported_rows = snap["exported_rows"]
-        .as_u64()
-        .unwrap_or_else(|| panic!("{label} 留痕缺 exported_rows 键（退回以行数冒充全量的旧形态）: {snap}"));
+    let exported_rows = snap["exported_rows"].as_u64().unwrap_or_else(|| {
+        panic!("{label} 留痕缺 exported_rows 键（退回以行数冒充全量的旧形态）: {snap}")
+    });
     let snapshot_total = snap["total"]
         .as_u64()
         .unwrap_or_else(|| panic!("{label} 留痕缺 total 键: {snap}"));

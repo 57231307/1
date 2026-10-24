@@ -410,7 +410,8 @@ async fn purchase_export_beyond_ten_thousand_keeps_every_row() {
     let last = format!("EXPLOCK-PO-{}", PO_ID_BASE + 10_000);
     let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
     assert!(
-        rows.iter().any(|r| cell(&header_refs, r, "订单编号") == last),
+        rows.iter()
+            .any(|r| cell(&header_refs, r, "订单编号") == last),
         "末位订单号必须出现在导出里"
     );
 }
@@ -437,7 +438,8 @@ async fn sales_export_beyond_ten_thousand_keeps_every_row() {
     let last = format!("EXPLOCK-SO-{}", SO_ID_BASE + 10_000);
     let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
     assert!(
-        rows.iter().any(|r| cell(&header_refs, r, "订单编号") == last),
+        rows.iter()
+            .any(|r| cell(&header_refs, r, "订单编号") == last),
         "末位订单号必须出现在导出里"
     );
 }
