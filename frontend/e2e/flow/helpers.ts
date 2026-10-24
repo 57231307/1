@@ -60,13 +60,20 @@ export function baseAdminUsername(): string {
 
 /**
  * 基础管理员密码：与建号主体（globalSetup 的分片主账号、角色账号、worker 账号）同一条
- * env 约定 TEST_PASSWORD，缺省同一固定串。
+ * env 约定 TEST_PASSWORD，只读该变量，缺失即抛错点名变量名与后果，不提供默认值。
  * 入参：无。传给谁：initSystem 的 admin_password 字段。存什么/存哪里：不持久化。
  * 注意：跑测期取本 worker 密码一律用 testPassword()（会话池清单里的建号密码），
- * 二者来源不同，混用会把"凭证文件写出的密码"与"env 里的密码"漂移掩盖成下游 401。
+ * 二者来源不同，混用会把凭证文件写出的密码与 env 里的密码漂移掩盖成下游 401。
  */
 export function baseAdminPassword(): string {
-  return process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
+  const value = process.env.TEST_PASSWORD;
+  if (!value) {
+    throw new Error(
+      '缺少 TEST_PASSWORD 环境变量，系统初始化与基础管理员登录无法进行（initSystem 的 admin_password 取该变量，且必须与 globalSetup 建号口令同源，回落默认值只会把口令漂移掩盖成下游 401）。' +
+        '该变量与 TEST_USERNAME 成对由 CI 的 e2e job env 注入，本地跑 e2e 需先设置同名环境变量'
+    );
+  }
+  return value;
 }
 
 export interface ApiResponse<T = unknown> {

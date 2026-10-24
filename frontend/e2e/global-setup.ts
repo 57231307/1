@@ -3,6 +3,21 @@ import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync } from 'fs';
 import { WORKER_SESSIONS_MANIFEST_PATH, buildWorkerSessions } from './worker-auth';
 
+/**
+ * 取 e2e 建号与登录使用的口令，只读环境变量 TEST_PASSWORD，缺失即抛错点名该变量与后果，不提供默认值。
+ * 入参为无。传给谁，BASE_PASSWORD 与由它派生的 SHARD_PASSWORD 求值。存什么与存哪里，不持久化，只在本次 setup 进程内使用。
+ */
+function requireTestPassword(): string {
+  const value = process.env.TEST_PASSWORD;
+  if (!value) {
+    throw new Error(
+      '缺少 TEST_PASSWORD 环境变量，e2e 登录与建号无法进行（globalSetup 用它登录基础管理员，并以同一口令创建分片账号、worker 会话账号与 AI 隔离账号）。' +
+        '该变量与 TEST_USERNAME 成对由 CI 的 e2e job env 注入，本地跑 e2e 需先设置同名环境变量，禁止回落默认口令'
+    );
+  }
+  return value;
+}
+
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp'; // 分片专属账号：每个 CI runner（matrix.shard）独享，根除跨分片并发登录的 CSRF 互踢。
 // 分片账号是「建号与种子的主体账号」，不再直接承载用例会话：CI 分片内以多 worker 并发跑测，
@@ -12,7 +27,7 @@ const API_PREFIX = '/api/v1/erp'; // 分片专属账号：每个 CI runner（mat
 // CI step 级会把 TEST_USERNAME 覆盖为分片账号，故这里显式用 E2E_BASE_USERNAME
 // 或固定 'e2e_admin'，与分片账号变量彻底解耦
 const BASE_USERNAME = process.env.E2E_BASE_USERNAME || 'e2e_admin';
-const BASE_PASSWORD = process.env.TEST_PASSWORD || 'Xk9#mQ2$vL8pW4nR';
+const BASE_PASSWORD = requireTestPassword();
 const SHARD_INDEX = process.env.E2E_SHARD_INDEX ?? '';
 const SHARD_USERNAME = SHARD_INDEX !== '' ? `e2e_admin_s${SHARD_INDEX}` : BASE_USERNAME;
 const SHARD_PASSWORD = BASE_PASSWORD;

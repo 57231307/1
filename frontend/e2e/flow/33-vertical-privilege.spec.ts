@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import type { Page } from '@playwright/test';
-import { loginAsRole, apiCallExpectFail, expectDenied, failureCode } from './helpers';
+import { loginAsRole, apiCallExpectFail, expectDenied, failureCode, baseAdminPassword } from './helpers';
 
 /**
  * P5.3 垂直越权端点矩阵
@@ -51,7 +51,9 @@ const ADMIN_WRITE_ENDPOINTS: Array<{
   {
     method: 'POST',
     path: '/users',
-    body: { username: 'e2e_vpriv_user', password: 'Xk9#mQ2$vL8pW4nR', role_id: 1 },
+    // 被测用户只是越权矩阵的客体，口令取 env 的 e2e 建号口令（与 globalSetup 同源），
+    // 缺失即由 baseAdminPassword 点名失败，不再写死字面量
+    body: { username: 'e2e_vpriv_user', password: baseAdminPassword(), role_id: 1 },
   },
   { method: 'POST', path: '/roles', body: { code: 'e2e_vpriv_role', name: 'VPriv 测试角色' } },
   { method: 'POST', path: '/data-permissions', body: { scope_type: 'self' } },
