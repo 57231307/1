@@ -143,7 +143,7 @@ const handleCreateSnapshot = async () => {
   <div class="app-container">
     <ElTabs v-model="traceMode" type="card">
       <ElTabPane :label="$t('businessTrace.tab.fiveDimension')" name="five_dimension">
-        <ElCard :title="$t('businessTrace.fiveDimensionCardTitle')" class="trace-card">
+        <ElCard :header="$t('businessTrace.fiveDimensionCardTitle')" class="trace-card">
           <ElRow :gutter="20">
             <ElCol :span="16">
               <ElInput
@@ -182,7 +182,7 @@ const handleCreateSnapshot = async () => {
         </ElCard>
 
         <div v-if="traceResult" class="trace-result">
-          <ElCard :title="$t('businessTrace.card.traceChainDetail')" class="detail-card">
+          <ElCard :header="$t('businessTrace.card.traceChainDetail')" class="detail-card">
             <ElDescriptions :column="3" border>
               <ElDescriptionsItem :label="$t('businessTrace.field.traceChainId')">{{
                 traceResult.trace_chain_id
@@ -214,7 +214,7 @@ const handleCreateSnapshot = async () => {
             </ElDescriptions>
           </ElCard>
 
-          <ElCard :title="$t('businessTrace.card.traceFlow')" class="flow-card">
+          <ElCard :header="$t('businessTrace.card.traceFlow')" class="flow-card">
             <ElSteps :space="80" align-center>
               <ElStep
                 v-for="(stage, index) in traceResult.stages"
@@ -301,7 +301,7 @@ const handleCreateSnapshot = async () => {
       </ElTabPane>
 
       <ElTabPane :label="$t('businessTrace.tab.forward')" name="forward">
-        <ElCard :title="$t('businessTrace.card.supplierToCustomer')" class="trace-card">
+        <ElCard :header="$t('businessTrace.card.supplierToCustomer')" class="trace-card">
           <ElForm
             :model="forwardForm"
             label-width="100px"
@@ -387,7 +387,7 @@ const handleCreateSnapshot = async () => {
       </ElTabPane>
 
       <ElTabPane :label="$t('businessTrace.tab.backward')" name="backward">
-        <ElCard :title="$t('businessTrace.card.customerToSupplier')" class="trace-card">
+        <ElCard :header="$t('businessTrace.card.customerToSupplier')" class="trace-card">
           <ElForm
             :model="backwardForm"
             label-width="100px"

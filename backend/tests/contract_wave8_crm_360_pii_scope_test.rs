@@ -943,10 +943,38 @@ fn w9_360_exit_shares_same_gates_source_ratchet() {
         ),
         "D-1 回潮棘轮镜像：360 商机字段门与列表共用实现的接线被拆"
     );
+    // recent_orders 子集对销单域真源 field_mask::mask_contact_fields_for_role 的调用
+    // 是本出口的合法组成部分（掩码实现与销单列表/详情单源），故不再进全文禁令；
+    // 棘轮从"禁串"升级成"禁串＋钉真源"：该真源调用在体内出现且只出现一次，调用形状
+    // 逐字符锁定，想改成第二套内联掩码/挪进行循环即在此变红。
+    assert_eq!(
+        c.matches("field_mask::mask_contact_fields_for_role(std::mem::take(order),is_admin)")
+            .count(),
+        1,
+        "回潮棘轮：360 出口对销单域联系方式真源的调用必须恰好一处且形状不变\
+         （缺位=recent_orders 原文直通复活；多处/变形=第二口径复制复活）"
+    );
+    // 同次升级：recent_orders 门区段内禁一切自造掩码分支——联系方式掩码唯一真源即上方
+    // 钉死的 mask_contact_fields_for_role，内联 mask_phone/mask_email/format! 造掩码、
+    // 或把字段整键删掉冒充脱敏（"remove(" 与 "unwrap_or(" 兜底由全文禁令覆盖）出现即红。
+    let so_gate_start = body
+        .find("if let Some(orders)")
+        .expect("recent_orders 门区段起点缺失（写法漂移须同步本棘轮，禁令不得空转）");
+    let so_err_msg = "销售订单联系方式默认脱敏未应用";
+    let so_err_pos = so_gate_start
+        + body[so_gate_start..]
+            .find(so_err_msg)
+            .expect("recent_orders 门 error 文案缺失（error 口径漂移须同步本棘轮）");
+    let so_gate = &body[so_gate_start..so_err_pos + so_err_msg.len()];
+    for banned in ["mask_phone(", "mask_email(", "format!"] {
+        assert!(
+            !so_gate.contains(banned),
+            "回潮棘轮：360 recent_orders 门区段出现自造掩码分支（第二口径）→ {banned}"
+        );
+    }
     for banned in [
         "remove(",
         "filter_fields_batch",
-        "mask_contact_fields_for_role",
         "DEFAULT_HIDDEN_FIELDS",
         "EXPORT_AMOUNT_COLUMNS",
         "\"***\"",
@@ -958,11 +986,21 @@ fn w9_360_exit_shares_same_gates_source_ratchet() {
             "G-A 回潮棘轮：360 出口出现复制的第二套判定/字面量掩码/回落兜底 → {banned}"
         );
     }
-    assert_eq!(
-        body.matches("tracing::error!").count(),
-        3,
-        "customer/opportunities/shipping_addresses 三处门定位失败都必须显式记 error（静默跳过形状漂移即缺陷）"
-    );
+    // 各子集"定位失败显式 error"锁按子集语义逐个断言"有且仅有一处"（非裸总数——
+    // 将来新增子集只需在此清单追加该子集的 error 文案，不必手改一个全局数字）。
+    for gate_err in [
+        "客户 360 出参未定位到 customer 对象，客户域字段级数据权限未应用",
+        "客户 360 出参未定位到 opportunities 数组，商机字段级数据权限未应用",
+        "客户 360 出参未定位到 shipping_addresses 数组，地址字段级默认脱敏未应用",
+        "客户 360 出参未定位到 recent_orders 数组，销售订单联系方式默认脱敏未应用",
+    ] {
+        assert_eq!(
+            body.matches(gate_err).count(),
+            1,
+            "各子集定位失败必须有且仅有一处显式 error（静默跳过=原文直通无人知晓；\
+             文案重复出现=形状漂移）：{gate_err}"
+        );
+    }
 
     // 2) 服务层：360 商机子集必须复用列表同一个 apply_department_scope（同判据列），
     //    且不得把字段级金额门/客户门复制进服务层（字段门归 handler，行门归查询）。

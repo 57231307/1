@@ -149,7 +149,9 @@ test.describe.serial('45 删除约束矩阵（每条对应后端删除前置校�
       department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      items: [{ material_id: ctx.productIds[0], quantity: 1, unit_price: '1.00', tax_rate: 13 }],
+      items: [
+        { material_id: ctx.productIds[0], quantity_ordered: '1', unit_price: '1.00', tax_rate: 13 },
+      ],
     });
     const poId = po?.data?.id;
     expect(poId, 'PO 创建失败').toBeTruthy();

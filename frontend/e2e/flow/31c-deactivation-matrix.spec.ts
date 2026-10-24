@@ -20,12 +20,11 @@ import { safeGoto, findTableRow } from './ui-helpers';
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 const TS = Date.now().toString().slice(-8);
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 /** openEditDialog 失败原因（模块级，供测试诊断链引用） */
 let editFailReason = '';
 
-/** 在列表中按唯一文本找行 → 点编辑 → 等弹窗可见；skipNavigation=true 时跳过 goto（已在目标页且已切 Tab） */
+/** 在列表中按唯一文本找行 → 点编辑 → 等弹窗可见；skipNavigation=true 时跳过 goto（调用方已进页并完成搜索） */
 async function openEditDialog(
   page: import('@playwright/test').Page,
   route: string,
@@ -247,23 +246,18 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     expect(id, '[31c-用户] 自建用户未返回 id，POST /users 前置失败').toBeTruthy();
     console.log(`[31c-用户] 创建成功 id=${id}`);
 
-    // /system 页用户 Tab；已切 Tab 后跳过重新导航（safeGoto 会重置回默认 Tab）
-    await page.goto(`${BASE_URL}/system`);
-    await page.waitForTimeout(2500);
-    const userTab = page.locator('.el-tabs__item:has-text("用户")').first();
-    expect(
-      await userTab.isVisible({ timeout: 5000 }),
-      '[31c-用户] /system 页未渲染「用户」Tab（Tab 入口结构变更？不可见时应硬失败，不再走 else 静默）'
-    ).toBe(true);
-    await userTab.click();
-    await page.waitForTimeout(2000);
-    console.log('[31c-用户] 已切到用户 Tab');
-    // keyword 搜索过滤：用户列表可能分页，按新建账号搜索确保第一页可见
-    // 只匹配当前激活 Tab 内可见的搜索框（隐藏 Tab 的 filter-card input 会先被 first() 命中）
+    // 用户管理页 /users（原 /system 聚合页的「用户」Tab 已拆成独立路由，页内不再有 Tab）
+    await safeGoto(page, '/users');
+    await expect(
+      page.getByRole('heading', { name: '用户管理' }).first(),
+      '[31c-用户] /users 页未渲染 用户管理 标题（页面入口变更？不可见时应硬失败，不再静默走 else）'
+    ).toBeVisible({ timeout: 20_000 });
+    console.log('[31c-用户] 已进入用户管理页');
+    // keyword 搜索过滤：用户列表可能分页，按新建账号搜索确保目标行在首页
     const keywordInput = page.locator('.filter-card input:visible').first();
     expect(
       await keywordInput.isVisible({ timeout: 4000 }),
-      '[31c-用户] 用户 Tab 内未渲染可见搜索框'
+      '[31c-用户] 用户管理页未渲染可见搜索框'
     ).toBe(true);
     await keywordInput.fill(username);
     await keywordInput.press('Enter');
@@ -273,7 +267,7 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
     await page.waitForTimeout(500);
     console.log('[31c-用户] 已按用户名过滤列表');
 
-    const opened = await openEditDialog(page, '/system', username, true);
+    const opened = await openEditDialog(page, '/users', username, true);
     expect(opened, `[31c-用户] 无法打开自建用户 ${username} 编辑弹窗：${editFailReason}`).toBe(
       true
     );

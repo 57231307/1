@@ -2,7 +2,7 @@
 //!
 //! 批次 490 D10-4b 拆分：从原 `ap_invoice_service.rs` L428-791 迁移。
 //! 包含 ApInvoiceService 的 8 个方法（手工 CRUD + 状态机流转 + 查询）：
-//! - create_manual（手工创建应付单，金额精度校验）
+//! - create_manual（手工创建应付单，六要素入参必填 + 金额精度校验）
 //! - update / delete（仅 DRAFT 状态可改/删，lock_exclusive 串行化）
 //! - approve（DRAFT → AUDITED）
 //! - mark_as_paid（AUDITED/PARTIAL_PAID → PAID，白名单状态门 P0 3-3 修复）
@@ -10,6 +10,7 @@
 //! - get_by_id / get_list（查询 + 分页筛选）
 //!
 //! 业务规则：
+//! - 手工建单入参缺键即点名拒绝，不代填日期/类型/金额/税额（显式 0 才是合法声明值）
 //! - 仅 DRAFT 状态可修改/删除
 //! - 状态机：DRAFT → AUDITED → PAID；AUDITED/PARTIAL_PAID → CANCELLED
 //! - 并发状态变更通过 lock_exclusive 串行化（批次 26 v6 P1 修复）
@@ -31,6 +32,12 @@ use crate::utils::pagination::paginate_with_total;
 
 impl ApInvoiceService {
     /// 手工创建应付单
+    ///
+    /// 入参口径：`supplier_id`、`invoice_type`、`invoice_date`、`due_date`、`amount`、
+    /// `tax_amount` 六项全部必填，缺任一项即点名拒绝并零落库，不做任何代填兜底。
+    /// `tax_amount` 与 `amount` 的 0 只接受人工显式提交：0 是一条业务声明（例如无进项税），
+    /// 缺键是"没录"，两者语义互斥，代填会让库里彻底无法区分。
+    /// `unpaid_amount` 不是入参，由已校验的 `amount` 减去本入口恒为 0 的 `paid_amount` 派生。
     pub async fn create_manual(
         &self,
         req: CreateApInvoiceRequest,
@@ -39,6 +46,7 @@ impl ApInvoiceService {
         let txn = (*self.db).begin().await?;
 
         // P2-4 修复（批次 84 v1 复审）：金额精度校验，最多 2 位小数（货币精度）
+        // 位置保持在必填检查之前：金额已提交但精度违规时，拒绝原因应当是精度而不是缺键。
         if let Some(amount) = req.amount {
             if amount.round_dp(2) != amount {
                 return Err(AppError::validation_displayable(
@@ -47,31 +55,56 @@ impl ApInvoiceService {
             }
         }
 
+        // 手工建单入参一律"缺键即点名拒绝"，不代填：代填替用户做了他没做的声明，
+        // 落库后无法与人工声明区分（显式 0 才是合法声明值，缺键代表"未录"）。
+        // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
+        let supplier_id = req
+            .supplier_id
+            .ok_or_else(|| AppError::validation_displayable("应付单缺少供应商ID"))?;
+        // 应付类型 invoice_type 为 NOT NULL 无默认列：代填 "PURCHASE" 会把费用类/其他类
+        // 手工票冒充成采购应付，按类型聚合的应付报表与后续成本归属随之错位
+        let invoice_type = req
+            .invoice_type
+            .ok_or_else(|| AppError::validation_displayable("应付单缺少应付类型"))?;
+        // 日期代填"今天"会造出"建单即到期"的应付行，账龄分析与到期提醒从建单那一刻就失真
+        let invoice_date = req
+            .invoice_date
+            .ok_or_else(|| AppError::validation_displayable("应付单缺少发票日期"))?;
+        let due_date = req
+            .due_date
+            .ok_or_else(|| AppError::validation_displayable("应付单缺少到期日期"))?;
+        // 应付金额 amount 为 NOT NULL 无默认列：缺键洗 0 等于凭空造一张零元应付票
+        let amount = req
+            .amount
+            .ok_or_else(|| AppError::validation_displayable("应付单缺少发票金额"))?;
+        // 税额列虽带 DEFAULT 0，但 ap_invoice 既无 tax_percent 也无免税标志，
+        // 缺键洗 0 之后"没录"与"免税 / 法定 0% 税率 / 取得普票不得抵扣 / 无票暂估"
+        // 四种互斥来源在库里彻底不可分，因此缺失即拒，0 必须由人工显式提交
+        let tax_amount = req.tax_amount.ok_or_else(|| {
+            AppError::validation_displayable("应付单缺少税额，无进项税请显式提交 0")
+        })?;
+        // 本入口不接收付款（付款走付款申请与付款单），手工建单时 paid_amount 恒为 0；
+        // unpaid_amount 不是入参，由已校验的 amount 减去 paid_amount 派生
+        let paid_amount = Decimal::ZERO;
+
         // 1. 生成应付单号
         let invoice_no = self.generate_invoice_no().await?;
 
         // 2. 创建应付单
-        // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
         let invoice = ap_invoice::ActiveModel {
             invoice_no: Set(invoice_no),
-            supplier_id: Set(req
-                .supplier_id
-                .ok_or_else(|| AppError::validation_displayable("应付单缺少供应商ID"))?),
-            invoice_type: Set(req.invoice_type.unwrap_or_else(|| "PURCHASE".to_string())),
+            supplier_id: Set(supplier_id),
+            invoice_type: Set(invoice_type),
             source_type: Set(Some("MANUAL".to_string())),
             source_id: Set(None),
-            invoice_date: Set(req
-                .invoice_date
-                .unwrap_or_else(|| chrono::Utc::now().date_naive())),
-            due_date: Set(req
-                .due_date
-                .unwrap_or_else(|| chrono::Utc::now().date_naive())),
+            invoice_date: Set(invoice_date),
+            due_date: Set(due_date),
             payment_terms: Set(req
                 .payment_terms
                 .unwrap_or(crate::constants::DEFAULT_PAYMENT_TERMS_DAYS)),
-            amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
-            paid_amount: Set(Decimal::ZERO),
-            unpaid_amount: Set(req.amount.unwrap_or(Decimal::ZERO)),
+            amount: Set(amount),
+            paid_amount: Set(paid_amount),
+            unpaid_amount: Set(amount - paid_amount),
             invoice_status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
             currency: Set(req
                 .currency
@@ -79,7 +112,7 @@ impl ApInvoiceService {
             exchange_rate: Set(req
                 .exchange_rate
                 .unwrap_or(DEFAULT_BASE_CURRENCY_EXCHANGE_RATE)),
-            tax_amount: Set(req.tax_amount.unwrap_or(Decimal::ZERO)),
+            tax_amount: Set(tax_amount),
             notes: Set(req.notes),
             attachment_urls: Set(req.attachment_urls),
             created_by: Set(user_id),

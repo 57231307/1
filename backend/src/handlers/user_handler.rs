@@ -380,31 +380,19 @@ pub async fn create_user(
 }
 
 /// 获取用户列表（分页）
+///
+/// 授权判定唯一来源是鉴权中间件：本路由按 URL 段派生权限键 users:read，由
+/// middleware/permission.rs 的匹配谓词判定一次，该谓词同时支持动作通配与角色级、
+/// 记录级两态授权，超管角色由中间件的管理员短路放行。本入口不叠加第二道判定：
+/// 叠加等于另写一套与权限键不同源的判据，会把已持该键的角色（部门经理、高管、
+/// 人事、系统管理员、行政助理）在取数入口二次拒成 403，也使通配授权形同死码。
+/// 缺该键的请求由中间件拒绝并落 permission_denied 审计，本入口无需重复留痕。
 #[utoipa::path(get, path = "/api/v1/erp/users", responses((status = 200, description = "用户列表", body = UserListResponse)), tags = ["User"])]
 pub async fn list_users(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(params): Query<ListUsersParams>,
 ) -> Result<Json<ApiResponse<UserListResponse>>, AppError> {
-    // 安全漏洞 #3 修复：仅 admin 角色可列出所有用户（防止用户枚举攻击）
-    let role_id = auth
-        .role_id
-        .ok_or_else(|| AppError::permission_denied("用户未分配角色，无法执行该操作"))?;
-    if !is_admin_role(&state.db, role_id).await {
-        // 记录鉴权失败审计日志（best-effort，无 audit_ctx 时传 None）
-        audit::log_security_event(
-            SecurityEvent::AuthorizationDenied,
-            auth.user_id,
-            &auth.username,
-            auth.role_id,
-            Some("list_users"),
-            Some("非 admin 越权调用用户列表"),
-            None,
-        )
-        .await;
-        return Err(AppError::permission_denied("列出用户列表仅限管理员"));
-    }
-
     let page = params.page.unwrap_or(1).clamp(1, 1000);
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -456,6 +444,16 @@ pub async fn list_users(
             role_names: row.role_name.map(|n| vec![n]).unwrap_or_default(),
         })
         .collect();
+
+    tracing::info!(
+        user_id = auth.user_id,
+        role_id = ?auth.role_id,
+        page,
+        page_size,
+        total,
+        returned = user_responses.len(),
+        "用户列表取数成功"
+    );
 
     Ok(Json(ApiResponse::success(UserListResponse {
         users: user_responses,

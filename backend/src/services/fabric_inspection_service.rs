@@ -569,31 +569,40 @@ impl FabricInspectionService {
         active.points_per_100_sq_yards = Set(points_per_100_sq_yards);
         active.grade = Set(Some(grade));
         active.qualification_rate = Set(req.qualification_rate);
-        active.abc_grade = Set(Some(abc_grade));
+        active.abc_grade = Set(Some(abc_grade.clone()));
         active.status = Set(inspection_status::GRADED.to_string());
         active.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
         let updated = active.update(&*self.db).await?;
 
-        // 评级完成发布 QualityInspectionCompleted 事件（event_bus_ops/listener.rs 主监听消费）
-        crate::services::event_bus::EVENT_BUS.publish(
-            crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
-                inspection_id: updated.id,
-                batch_id: None,
-                product_id: updated.product_id.unwrap_or(0),
-                result: updated.abc_grade.clone().unwrap_or_default(),
-                inspector_id: updated.inspector_id,
-            },
-        );
+        // 评级完成发布 QualityInspectionCompleted 事件（event_bus_ops/listener.rs 主监听消费，
+        // 并经 event_kafka 外发）。产品取不到即拒绝发布该事件、不压成假 0。验布记录的
+        // product_id 是可空列，事件契约的 product_id 为非空整型且会出仓，代填 0 在下游
+        // 台账与真实产品行不可分辨。abc_grade 本处必为 Some（上一句刚写入），
+        // result 直接取本次评级的本地值，不再对更新回读行做缺省链。
+        if let Some(product_id) = updated.product_id {
+            crate::services::event_bus::EVENT_BUS.publish(
+                crate::services::event_bus::BusinessEvent::QualityInspectionCompleted {
+                    inspection_id: updated.id,
+                    batch_id: None,
+                    product_id,
+                    result: abc_grade.clone(),
+                    inspector_id: updated.inspector_id,
+                },
+            );
+        } else {
+            tracing::warn!(
+                "验布记录 {} 评级完成但无产品标识，拒绝发布 QualityInspectionCompleted 外发事件",
+                updated.id
+            );
+        }
 
         // 发布 FabricInspectionGraded 事件（A/B/C 级流向：入库/降级/返工）
+        // grade 载荷取本次评级写入的 abc 判定值（原回读链在该值恒为 Some 下只会取到它）
         crate::services::event_bus::EVENT_BUS.publish(
             crate::services::event_bus::BusinessEvent::FabricInspectionGraded {
                 inspection_id: updated.id,
                 batch_id: None,
-                grade: updated
-                    .abc_grade
-                    .clone()
-                    .unwrap_or_else(|| updated.grade.clone().unwrap_or_default()),
+                grade: abc_grade,
                 handling_method: None,
                 inspector_id: updated.inspector_id,
             },
@@ -616,6 +625,16 @@ impl FabricInspectionService {
         let dye_lot_no = model.dye_lot_no.clone().ok_or_else(|| {
             AppError::business("打卷入库需要缸号(dye_lot_no)，请先在验布记录中设置缸号")
         })?;
+        // 产品缺失时拒绝打卷，与缺缸号门同一落点并列。inventory_piece.product_id 是
+        // NOT NULL 且外键指向 products 的列，取不到产品即无合法落库载体，代填 0 只会
+        // 撞外键整单 500。属字段必填族，归 VALIDATION_ERROR 且可外显，文案点名去哪补
+        // （同本文件四分制评级幅宽门的错误族。缺缸号门用的 business 出参脱敏，不满足
+        // 点名外显要求，本门不照抄其错误族、只照抄其落点与补法表述）。
+        let product_id = model.product_id.ok_or_else(|| {
+            AppError::validation_displayable(
+                "打卷入库需要产品(product_id)，请先在验布记录中设置产品",
+            )
+        })?;
         let dye_lot = self.fetch_dye_lot(&dye_lot_no).await?;
         let dye_lot_id = dye_lot.id;
         let (piece_no, next_seq) = self.generate_next_piece_no(dye_lot_id, &dye_lot_no).await?;
@@ -624,6 +643,7 @@ impl FabricInspectionService {
             dye_lot_id,
             &dye_lot_no,
             &model,
+            product_id,
             &piece_no,
             next_seq,
             id,
@@ -709,11 +729,17 @@ impl FabricInspectionService {
     }
 
     /// 构建 inventory_piece ActiveModel
+    ///
+    /// 入参 product_id 由 roll_fabric 的产品缺失门先行保证（取不到产品到不了本函数），
+    /// 写值处不设任何兜底。dye_lot_no 直取 roll_fabric 已验证的缸号入参。
+    /// color_no 列 NOT NULL 且列默认空串（business 域 inventory_piece 补列脚本），
+    /// 验布记录无色号时置 NotSet 交由列默认落库，不在应用层代填。
     fn build_piece_active_model(
         req: &RollFabricRequest,
         dye_lot_id: i32,
         dye_lot_no: &str,
         model: &InspectionModel,
+        product_id: i32,
         piece_no: &str,
         next_seq: i32,
         inspection_id: i32,
@@ -729,7 +755,7 @@ impl FabricInspectionService {
             warehouse_in_at: Set(Some(now_piece)),
             dye_lot_id: Set(Some(dye_lot_id)),
             batch_no: Set(dye_lot_no.to_string()),
-            product_id: Set(model.product_id.unwrap_or(0)),
+            product_id: Set(product_id),
             warehouse_id: Set(req.warehouse_id),
             location_id: Set(None),
             piece_no: Set(piece_no.to_string()),
@@ -756,8 +782,12 @@ impl FabricInspectionService {
             inventory_status: Set(Some("available".to_string())),
             created_by: Default::default(),
             updated_by: Default::default(),
-            color_no: Set(model.color_no.clone().unwrap_or_default()),
-            dye_lot_no: Set(model.dye_lot_no.clone().unwrap_or_default()),
+            color_no: match model.color_no.clone() {
+                Some(color_no) => Set(color_no),
+                None => sea_orm::ActiveValue::NotSet,
+            },
+            // 缸号缺失在 roll_fabric 已点名拒绝，这里直取调用方保证的入参值
+            dye_lot_no: Set(dye_lot_no.to_string()),
             inspection_id: Set(Some(inspection_id)),
             piece_seq: Set(Some(next_seq)),
             // 验布打卷产生的新匹无需拆匹原始字段

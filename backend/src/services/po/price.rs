@@ -170,6 +170,11 @@ impl PurchaseOrderService {
     /// ItemAmounts 同时喂给表头构造器汇总 purchase_orders 的四个总额列与明细构造器写
     /// purchase_order_item 的数量、单价、税额、金额列，保证表头与明细同源。辅助数量与
     /// 折扣在这两条自动链路没有来源，如实落 0，不引入任何折扣或辅量口径。
+    ///
+    /// 本函数不经人工建单的入参门（services/po/order_ops/crud.rs 的
+    /// calculate_item_amounts 与 validate_line_quantity）：自动链路既没有人工录入环节，
+    /// 单价与数量的来源就是物料成本价与预警建议量，两条链路各有一条且只有一条合法路径，
+    /// 不得在本处补一条缺省分支，也不得把人工路径的门搬过来。
     fn suggestion_line_amounts(
         product: &product::Model,
         quantity: Decimal,

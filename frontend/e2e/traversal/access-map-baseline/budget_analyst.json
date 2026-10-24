@@ -2,5 +2,6 @@
   "role": "budget_analyst",
   "reachableRoutes": [
     "/dashboard"
-  ]
+  ],
+  "provenance": "ci-mirrored"
 }

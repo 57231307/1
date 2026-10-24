@@ -8,7 +8,9 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 通知类型
+// serde 大写重命名使出参取值与各变体入库 string_value 词表逐字一致，禁止变体名形态直接出参
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum NotificationType {
     /// 站内信
@@ -44,6 +46,7 @@ impl NotificationType {
 
 /// 通知优先级
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(10))")]
 pub enum NotificationPriority {
     /// 低
@@ -75,6 +78,7 @@ impl NotificationPriority {
 
 /// 通知状态
 #[derive(Clone, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(20))")]
 pub enum NotificationStatus {
     /// 未读

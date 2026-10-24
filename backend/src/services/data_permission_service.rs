@@ -356,8 +356,15 @@ impl DataPermissionService {
         }
 
         let mut dept_ids: Vec<i32> = Vec::new();
+        // 已访问集合：库内存量行可能已含父级成环的部门，判重保证每个节点至多访问一次，
+        // 环上成员只收录一次，展开在有限步数内终止（认证链每请求调用此路径，不可挂死）；
+        // 返回集合仍是各根可达子树的成员集合，语义不变
+        let mut visited: std::collections::HashSet<i32> = std::collections::HashSet::new();
         let mut stack: Vec<i32> = root_dept_ids;
         while let Some(id) = stack.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
             dept_ids.push(id);
             if let Some(children) = children_map.get(&id) {
                 stack.extend(children.iter().copied());

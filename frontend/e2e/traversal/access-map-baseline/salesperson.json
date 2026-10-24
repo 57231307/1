@@ -1,13 +1,14 @@
 {
   "role": "salesperson",
   "reachableRoutes": [
-    "/bi/sales-analysis",
     "/dashboard",
     "/quotations",
     "/quotations/new",
     "/sales",
+    "/sales-analysis",
     "/sales-contract",
     "/sales-price",
     "/sales-returns"
-  ]
+  ],
+  "provenance": "ci-mirrored"
 }

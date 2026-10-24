@@ -154,7 +154,11 @@ export function createSystemBackup(
 }
 
 export function getCurrentVersion(): Promise<
-  ApiResponse<{ version: string; release_date: string }>
+  ApiResponse<{
+    version: string;
+    release_date: string | null;
+    changelog: string | null;
+  }>
 > {
   return request.get('/system-update/current-version');
 }

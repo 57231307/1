@@ -432,13 +432,11 @@ test.describe('面料单据专用字段全链路验证', () => {
   // 本用例通过真实 UI 对话框操作填写 fabric_type，成功建单后从列表回读该行。
   // ============================================================
   test('坯布新建 UI：通过对话框填 fabric_type 建单并回读列表', async ({ page }) => {
-    const fabricNo = genCode('GF-UI');
     const fabricName = `E2E坯布UI${Date.now().toString().slice(-6)}`;
     const fabricType = '针织';
 
-    // 导航到面料管理页坯布 Tab
-    await page.goto(`${BASE_URL}/fabric`);
-    await page.getByRole('tab', { name: '坯布管理', exact: true }).click();
+    // 坯布管理已是独立页面，编码由后端自动生成（前端只读）
+    await page.goto(`${BASE_URL}/greige-fabrics`);
     await expect(page.getByLabel('坯布列表')).toBeVisible({ timeout: 30000 });
 
     // 点击"新建坯布"按钮
@@ -448,27 +446,18 @@ test.describe('面料单据专用字段全链路验证', () => {
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 10000 });
 
-    // 填写编号
-    const codeInput = dialog
-      .locator('.el-form-item')
-      .filter({ has: page.locator('.el-form-item__label', { hasText: '编号' }) })
-      .locator('input')
-      .first();
-    await codeInput.waitFor({ state: 'visible', timeout: 10000 });
-    await codeInput.fill(fabricNo);
-
-    // 填写名称
+    // 填写坯布名称
     const nameInput = dialog
       .locator('.el-form-item')
-      .filter({ has: page.locator('.el-form-item__label', { hasText: '名称' }) })
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '坯布名称' }) })
       .locator('input')
       .first();
     await nameInput.fill(fabricName);
 
-    // 填写布类（fabric_type）—— 这是本轮新增的必填字段
+    // 填写坯布类型（fabric_type）—— 后端 NOT NULL，前端必填校验
     const typeInput = dialog
       .locator('.el-form-item')
-      .filter({ has: page.locator('.el-form-item__label', { hasText: '布类' }) })
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '坯布类型' }) })
       .locator('input')
       .first();
     await typeInput.waitFor({ state: 'visible', timeout: 10000 });

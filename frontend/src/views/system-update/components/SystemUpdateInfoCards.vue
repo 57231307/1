@@ -16,7 +16,11 @@
           <div class="version">{{ currentVersion?.version || '-' }}</div>
           <div class="date">
             {{ t('systemUpdate.infoCards.labelReleaseDate') }}:
-            {{ currentVersion?.release_date || '-' }}
+            {{
+              currentVersion?.release_date
+                ? currentVersion.release_date
+                : t('systemUpdate.infoCards.valueReleaseDateUnknown')
+            }}
           </div>
         </div>
       </el-card>
@@ -171,8 +175,13 @@ const { t } = useI18n({ useScope: 'global' });
  * 一次应用触发后渲染真实生效结果区（后端重启结论 + applied_version + restart_pending）。
  */
 const props = defineProps<{
-  // 当前版本（GET /system-update/current-version）
-  currentVersion: { version: string; release_date: string } | null;
+  // 当前版本（GET /system-update/current-version）：release_date 与 changelog 来自后端真列值，
+  // 未知时为 null，渲染未知态，不以默认值掩盖缺键。
+  currentVersion: {
+    version: string;
+    release_date: string | null;
+    changelog: string | null;
+  } | null;
   // 最新检查结果（GET /system-update/check，含两份 release_notes）
   latestVersion: CheckUpdateResult | null;
   // 是否有可用更新（后端权威 has_update）

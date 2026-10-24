@@ -20,23 +20,20 @@ test.describe('P5.13 重复提示', () => {
     await loginViaUI(page);
     const collector = trackPageHealth(page);
 
-    // 原实现 goto('/system/users') —— 该路由不存在（router 无 users 子路由，快照直接 404
-    // 「页面不存在」），后续找不到「新增」按钮。用户管理是 /system 页的「用户」Tab
-    // （views/system/index.vue：el-tab-pane name="user"，默认激活；UserTab 头部按钮
-    //  i18n system.user.button.create = 「新建用户」）。改为导航到 /system 并进入用户 Tab。
-    await page.goto(`${BASE_URL}/system`);
+    // 入口：用户管理页 /users，从其"新建用户"弹窗取真实带提交按钮的表单。
+    // 本用例验：同一提交按钮被连点 5 次时，同一条提示只出现一个 toast 实例。
+    await page.goto(`${BASE_URL}/users`);
     await page.waitForLoadState('networkidle');
-    const userTab = page.locator('.el-tabs__item:has-text("用户")').first();
-    await userTab.click();
-    await page.waitForTimeout(2000);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '用户管理' }),
+      `[P5.13] 未渲染用户管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
 
-    // 原实现 `if (await submitBtn.isVisible()) { ...5 次点击... }`：列表页找不到提交按钮时
-    // 一次点击都不执行，toastCount=0 仍 ≤1 → 假绿。改为进入真实含提交按钮的表单弹窗
-    // （新增用户），对弹窗提交按钮连续点击；提交入口缺失即硬失败。
+    // 提交入口缺失即硬失败：不允许整段跳过后再断 toast 数量为 0（那是假绿）。
     const createBtn = page.getByRole('button', { name: /新增|新建|添加/ }).first();
     expect(
       await createBtn.isVisible({ timeout: 5000 }),
-      '[P5.13] /system 用户 Tab 未渲染「新建用户」按钮，无法进入含提交按钮的表单弹窗'
+      '[P5.13] 用户管理页未渲染「新建用户」按钮，无法进入含提交按钮的表单弹窗'
     ).toBe(true);
     await createBtn.click();
     const dialog = page.locator('.el-dialog:visible').first();

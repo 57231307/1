@@ -37,7 +37,14 @@ export interface TraversalModule {
 export const TRAVERSAL_MODULES: TraversalModule[] = [
   // ===== 核心域（router 根级）=====
   { id: 'dashboard', route: '/dashboard', domain: 'core', tier: 'C', noCreate: true },
-  { id: 'system', route: '/system', domain: 'core', tier: 'C', noCreate: true },
+  // 系统管理域的功能页：原 /system 聚合 Tab 已拆成独立路由，遍历面按页面逐条登记。
+  // 一律 tier C 且 noCreate：与拆分前唯一的 /system 条目保持同等遍历强度，不新增写侧断言。
+  { id: 'users', route: '/users', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'roles', route: '/roles', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'company', route: '/company', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'permissions', route: '/permissions', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'field-permissions', route: '/field-permissions', domain: 'core', tier: 'C', noCreate: true },
+  { id: 'webhooks', route: '/webhooks', domain: 'core', tier: 'C', noCreate: true },
   { id: 'departments', route: '/departments', domain: 'core', tier: 'A', listApi: '/departments' },
   { id: 'notification', route: '/notification', domain: 'core', tier: 'C', noCreate: true },
   { id: 'data-permission', route: '/data-permission', domain: 'core', tier: 'C', noCreate: true },
@@ -78,8 +85,9 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   // route-snapshot.txt:494 `GET /api/v1/erp/finance/accounting-periods`（账期挂在 /finance 前缀下）
   { id: 'accounting-period', route: '/accounting-period', domain: 'finance', tier: 'A', listApi: '/finance/accounting-periods' },
   { id: 'finance-report', route: '/finance-report', domain: 'finance', tier: 'C', noCreate: true },
+  // 增强对账已并入本页第二页签（?tab=enhanced），旧 /ar-reconciliation/enhanced 仅为重定向，
+  // 重定向路由无组件不再登记为独立可达模块
   { id: 'ar-reconciliation', route: '/ar-reconciliation', domain: 'finance', tier: 'B', listApi: '/ar-reconciliations' },
-  { id: 'ar-reconciliation-enhanced', route: '/ar-reconciliation/enhanced', domain: 'finance', tier: 'C', noCreate: true },
   { id: 'fixed-assets', route: '/fixed-assets', domain: 'finance', tier: 'B', listApi: '/fixed-assets' },
   { id: 'cost', route: '/cost', domain: 'finance', tier: 'C', noCreate: true },
   { id: 'budget', route: '/budget', domain: 'finance', tier: 'B', listApi: '/budgets' },
@@ -98,7 +106,8 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   { id: 'sales-returns', route: '/sales-returns', domain: 'sales', tier: 'B', listApi: '/sales/sales-returns' },
   { id: 'sales-contract', route: '/sales-contract', domain: 'sales', tier: 'B', listApi: '/sales/sales-contracts' },
   { id: 'sales-price', route: '/sales-price', domain: 'sales', tier: 'A', listApi: '/sales/sales-prices' },
-  { id: 'sales-analysis-bi', route: '/bi/sales-analysis', domain: 'sales', tier: 'C', noCreate: true },
+  // 经营分析与 BI 多维分析合并为单入口双页签，登记唯一入口（旧 /bi/sales-analysis 为重定向）
+  { id: 'sales-analysis', route: '/sales-analysis', domain: 'sales', tier: 'C', noCreate: true },
   { id: 'quotations', route: '/quotations', domain: 'sales', tier: 'B', listApi: '/quotations' },
   { id: 'quotations-new', route: '/quotations/new', domain: 'sales', tier: 'B', noCreate: true },
   { id: 'custom-orders', route: '/custom-orders', domain: 'sales', tier: 'B', listApi: '/custom-orders' },
@@ -133,7 +142,9 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   },
 
   // ===== crm 域 =====
-  { id: 'crm', route: '/crm', domain: 'crm', tier: 'C', noCreate: true },
+  // 客户列表唯一入口为 /customer；原 /crm 页签并入 /crm-enhanced（含客户分级页签），
+  // 旧 /crm 仅为重定向不再登记
+  { id: 'crm-enhanced', route: '/crm-enhanced', domain: 'crm', tier: 'C', noCreate: true },
   { id: 'crm-pool', route: '/crm/pool', domain: 'crm', tier: 'C', noCreate: true },
   { id: 'crm-assignment', route: '/crm/assignment', domain: 'crm', tier: 'C', noCreate: true },
   { id: 'crm-leads', route: '/crm/leads', domain: 'crm', tier: 'A', listApi: '/crm/leads' },
@@ -150,7 +161,6 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
 
   // ===== product/fabric 域 =====
   { id: 'product', route: '/product', domain: 'product', tier: 'A', listApi: '/products', uniqueKey: 'name' },
-  { id: 'fabric', route: '/fabric', domain: 'fabric', tier: 'C', noCreate: true },
   // 坯布/染整三资源集合 GET 在 /production 组下（mod.rs:514 nest；route-snapshot.txt:722
   // /production/greige-fabrics、:687 /production/dye-recipes、:681 /production/dye-batches）
   { id: 'greige-fabrics', route: '/greige-fabrics', domain: 'fabric', tier: 'A', listApi: '/production/greige-fabrics' },
