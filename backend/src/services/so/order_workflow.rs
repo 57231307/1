@@ -55,7 +55,13 @@ impl SalesService {
         ]
         .contains(&order.status.as_str())
         {
-            return Err(AppError::business("当前状态不允许取消".to_string()));
+            // 拒绝原因可外显：只点名业务动作与允许取消的订单状态集合（公开业务规则），
+            // 不含订单号、金额与任何记录 ID，满足 utils/error.rs 安全边界；
+            // 口径与同文件提交状态门的 business_displayable 先例一致，操作员需要知道
+            // 为什么不能取消、以及单据要处于什么状态才能取消。
+            return Err(AppError::business_displayable(
+                "当前状态不允许取消，只有草稿、待审批、已审批或部分发货状态的订单可以取消",
+            ));
         }
 
         // 更新订单状态（改用 update_with_audit 写入审计日志，传 &txn 纳入事务保证原子性）
