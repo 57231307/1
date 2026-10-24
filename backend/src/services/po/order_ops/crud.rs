@@ -346,6 +346,29 @@ impl PurchaseOrderService {
     /// 提交了 tax_rate 则必须落在落库列域 0 到 999.9999 内（上界取自 purchase_order_item
     /// 的 tax_percent 列 DECIMAL(7,4) 口径，与 utils tax 的 TAX_PERCENT_MAX 同源），
     /// 越界在算金额之前点名拒绝，避免把非法入参留到 insert 阶段炸成列溢出。
+    /// 人工建单的数量口径：明细必须显式提交 quantity_ordered 且大于 0。
+    /// 为什么单独设门：本函数之前，未提交数量在金额计算里按 0 落库，0 数量行既没有
+    /// 金额也没有收货依据，采购单看起来"建成功了"却是一张空量单，前端与台账都无从分辨；
+    /// 系统不设缺省数量，未提交与 0 一律点名拒绝（出参原文外显，供调用方与用例断言）。
+    /// 只作用于人工建单路径；自动补货（services/po/price.rs）与收货行项另有各自口径，
+    /// 不经本函数，也不得在此为其补缺省。
+    fn validate_line_quantity(
+        quantity_ordered: Option<Decimal>,
+        line_no: usize,
+    ) -> Result<(), AppError> {
+        match quantity_ordered {
+            Some(quantity) if quantity > Decimal::ZERO => Ok(()),
+            Some(quantity) => Err(AppError::validation_displayable(format!(
+                "订单行 {} 的数量 quantity_ordered 必须大于 0，实际 {}，空值与 0 都不落库",
+                line_no, quantity
+            ))),
+            None => Err(AppError::validation_displayable(format!(
+                "订单行 {} 缺少数量 quantity_ordered，须提交大于 0 的数量，系统不设缺省数量",
+                line_no
+            ))),
+        }
+    }
+
     pub fn calculate_item_amounts(
         item: &crate::services::po::CreateOrderItemRequest,
     ) -> Result<ItemAmounts, AppError> {
@@ -501,6 +524,8 @@ impl PurchaseOrderService {
         };
 
         for (index, item) in items.iter().enumerate() {
+            // 数量先于金额判定：0 或空缺的明细进不了金额计算，避免建出一张"成功"的空量单
+            Self::validate_line_quantity(item.quantity_ordered, index + 1)?;
             let mut amounts = Self::calculate_item_amounts(item)?;
 
             let resolved = Self::resolve_supplier_sku_snapshot(
@@ -887,5 +912,25 @@ mod tests {
         let max_item = item_with_tax_rate(Some(crate::utils::tax::TAX_PERCENT_MAX));
         let amounts = PurchaseOrderService::calculate_item_amounts(&max_item).unwrap();
         assert_eq!(amounts.tax_percent, crate::utils::tax::TAX_PERCENT_MAX);
+    }
+
+    /// 人工建单的明细数量必须显式提交且大于 0：未提交、0、负数三种形态都在进入金额计算
+    /// 之前点名拒绝（VALIDATION_ERROR，出参文案外显），不再按 0 落库成一张"建单成功"的
+    /// 空量采购单；正数放行。
+    #[test]
+    fn line_quantity_must_be_present_and_positive() {
+        for quantity in [None, Some(Decimal::ZERO), Some(Decimal::from_str("-1").unwrap())] {
+            let error = PurchaseOrderService::validate_line_quantity(quantity, 1)
+                .expect_err("未提交数量或数量不大于 0 必须拒绝建单，不得按缺省值落库");
+            assert_eq!(error.error_code(), "VALIDATION_ERROR");
+            let message = error.public_message();
+            assert!(
+                message.contains("数量 quantity_ordered"),
+                "拒绝文案必须点名是哪个字段，实际: {message}"
+            );
+        }
+
+        PurchaseOrderService::validate_line_quantity(Some(Decimal::from(20)), 1)
+            .expect("正数数量应放行");
     }
 }
