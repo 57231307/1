@@ -118,7 +118,11 @@ const ABSENT_RECORD_ID = 2_000_000_000;
 
 /** 读发放表总行数。入参 page。传给谁：每个拒绝分支前后的零漂移对账。存什么与存哪里：不落盘 */
 async function issueTotal(page: Page): Promise<number> {
-  const list = await apiCallRaw<Paged<IssueRow>>(page, 'GET', '/color-cards/issues?page=1&page_size=1');
+  const list = await apiCallRaw<Paged<IssueRow>>(
+    page,
+    'GET',
+    '/color-cards/issues?page=1&page_size=1'
+  );
   expect(
     Array.isArray(list.items) && typeof list.total === 'number',
     `发放列表信封必须含 items 数组与数值 total，实际 ${JSON.stringify(list)}`
@@ -184,10 +188,9 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
     // 被拒后两口径零推进：发放表不增行，靶卡已发放数不动（事务未半途写库）
     expect(await issueTotal(page), '被拒的发放不许产生发放行').toBe(totalBefore);
     const cardAfterStockReject = await apiCallRaw<CardRow>(page, 'GET', `/color-cards/${cardId}`);
-    expect(
-      toNum(cardAfterStockReject.issued_quantity),
-      '被拒的发放不许动已发放数'
-    ).toBe(toNum(cardAfterStockReject.stock_quantity));
+    expect(toNum(cardAfterStockReject.issued_quantity), '被拒的发放不许动已发放数').toBe(
+      toNum(cardAfterStockReject.stock_quantity)
+    );
     expect(toNum(cardAfterStockReject.issued_quantity), '被拒的发放后已发放数必须仍是 0').toBe(0);
     expect(str(cardAfterStockReject.status), '被拒的发放不许动色卡状态').toBe('draft');
 
@@ -241,9 +244,10 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       '/color-cards/issues?page=0&page_size=500'
     );
     expect(toNum(clamped.page), `page=0 必须归一到 1，实际 ${str(clamped.page)}`).toBe(1);
-    expect(toNum(clamped.page_size), `page_size=500 必须归一到 100，实际 ${str(clamped.page_size)}`).toBe(
-      100
-    );
+    expect(
+      toNum(clamped.page_size),
+      `page_size=500 必须归一到 100，实际 ${str(clamped.page_size)}`
+    ).toBe(100);
     expect(toNum(clamped.total), '归一分页不许改变总数口径').toBe(totalBefore);
 
     // 7) 按客户与状态两枚过滤键各读一次，空态必须与总口径自洽（过滤键不许放大结果集）
@@ -259,9 +263,10 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       'GET',
       '/color-cards/issues?status=issued&page=1&page_size=20'
     );
-    expect(toNum(byStatus.total), `status=issued 过滤结果不得超过总行数 ${totalBefore}`).toBeLessThanOrEqual(
-      totalBefore
-    );
+    expect(
+      toNum(byStatus.total),
+      `status=issued 过滤结果不得超过总行数 ${totalBefore}`
+    ).toBeLessThanOrEqual(totalBefore);
 
     // 清理。色卡无物理删口（DELETE 即归档），靶卡已归档；客户走延迟删通道
     await apiCall(page, 'DELETE', `/crm/customers/${customerId}`);
@@ -296,7 +301,9 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       `/color-cards/issues/${ABSENT_RECORD_ID}/return`,
       { actual_return_date: ymd(0), remark: `114归还探针${tag}` }
     );
-    expect(returnWithBody.status, `带体无记录归还必须 404，实际 ${returnWithBody.status}`).toBe(404);
+    expect(returnWithBody.status, `带体无记录归还必须 404，实际 ${returnWithBody.status}`).toBe(
+      404
+    );
 
     // 3) 取消口缺体合法（OptionalJson 归一），无记录必须 404
     const cancelMissing = await apiCallExpectFail(
@@ -369,9 +376,10 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       'POST',
       `/color-cards/issues/${ABSENT_RECORD_ID}/damaged`
     );
-    expect(damagedNoBody.status, `损坏缺体必须 404（OptionalJson 归一后走取记录），实际 ${damagedNoBody.status}`).toBe(
-      404
-    );
+    expect(
+      damagedNoBody.status,
+      `损坏缺体必须 404（OptionalJson 归一后走取记录），实际 ${damagedNoBody.status}`
+    ).toBe(404);
 
     // 9) 十次拒绝之后发放表仍 0 行，一张改判记录都没被"写出来"
     expect(await issueTotal(page), '全部拒绝分支之后发放表必须仍为 0 行').toBe(totalBefore);
@@ -495,7 +503,9 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       'GET',
       `/color-cards/cost/production/${ABSENT_RECORD_ID}`
     );
-    expect(missingCost.status, `不存在色卡的成本归集必须 404，实际 ${missingCost.status}`).toBe(404);
+    expect(missingCost.status, `不存在色卡的成本归集必须 404，实际 ${missingCost.status}`).toBe(
+      404
+    );
     expect(failureCode(missingCost)).toBe(APP_ERROR_CODES.NOT_FOUND);
 
     // 5) 发放记录导出口（A 档）。0 行也产出带表头的合法工作簿，真取字节验容器头
@@ -507,7 +517,9 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       `发放记录导出 content-type 必须是 xlsx 流，实际 ${ieType}`
     ).toBe(true);
     expect(
-      (issueExport.headers()['content-disposition'] ?? '').includes('color_card_issues_export.xlsx'),
+      (issueExport.headers()['content-disposition'] ?? '').includes(
+        'color_card_issues_export.xlsx'
+      ),
       `发放记录导出下载名必须为 color_card_issues_export.xlsx，实际 ${issueExport.headers()['content-disposition']}`
     ).toBe(true);
     const ieBytes = await issueExport.body();
@@ -516,14 +528,17 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
     expect(ieBytes[1], `xlsx 次字节必须是 0x4b，实际 ${ieBytes[1]}`).toBe(0x4b);
 
     // 6) 发放明细报表导出口（A 档），与明细口同一份 rows，两通道必须同为空态
-    const detailList = await apiCallRaw<Row[]>(page, 'GET', '/color-cards/reports/issue-detail?page=1&page_size=20');
-    expect(Array.isArray(detailList), `发放明细报表口必须回数组，实际 ${JSON.stringify(detailList)}`).toBe(
-      true
+    const detailList = await apiCallRaw<Row[]>(
+      page,
+      'GET',
+      '/color-cards/reports/issue-detail?page=1&page_size=20'
     );
+    expect(
+      Array.isArray(detailList),
+      `发放明细报表口必须回数组，实际 ${JSON.stringify(detailList)}`
+    ).toBe(true);
     expect(detailList.length, '发放明细在无发放行时必须为 0 行').toBe(0);
-    const detailExport = await page.request.get(
-      apiUrl('/color-cards/reports/issue-detail/export')
-    );
+    const detailExport = await page.request.get(apiUrl('/color-cards/reports/issue-detail/export'));
     expect(detailExport.status(), `明细导出应 200，实际 ${detailExport.status()}`).toBe(200);
     const deBytes = await detailExport.body();
     expect(deBytes.byteLength, '明细导出体必须非空').toBeGreaterThan(0);
@@ -572,10 +587,9 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       'GET',
       `/color-cards/issues?sales_order_id=${ABSENT_RECORD_ID}&page=1&page_size=20`
     );
-    expect(
-      toNum(relatedByFilter.total),
-      '订单关联口与发放列表口按同一订单键必须同为空'
-    ).toBe(orderRelated.length);
+    expect(toNum(relatedByFilter.total), '订单关联口与发放列表口按同一订单键必须同为空').toBe(
+      orderRelated.length
+    );
 
     // 8) 不存在的色卡与不存在的客户走台账与预警面都必须点名拒绝，不许静默回空对象
     const ledgerMissingCustomer = await apiCallRaw<Row[]>(
@@ -588,8 +602,9 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       `无行客户的台账口必须仍是 0 行数组，实际 ${JSON.stringify(ledgerMissingCustomer)}`
     ).toBe(0);
 
-    // 清理。两张自建卡归档收口，客户删除
-    await apiCall(page, 'DELETE', `/color-cards/${cardId}`, { reason: `114成本卡收口${tag}` });
+    // 清理。本用例自建的三张卡（双色卡、单色卡、空卡）逐张删除收口，再删客户
+    await apiCall(page, 'DELETE', `/color-cards/${card2Id}`, { reason: `114双色卡收口${tag}` });
+    await apiCall(page, 'DELETE', `/color-cards/${card1Id}`, { reason: `114单色卡收口${tag}` });
     await apiCall(page, 'DELETE', `/color-cards/${Number(emptyCard.id)}`, {
       reason: `114空卡收口${tag}`,
     });
