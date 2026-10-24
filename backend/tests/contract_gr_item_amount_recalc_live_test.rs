@@ -86,7 +86,8 @@ async fn seed_receipt_with_items(db: &DatabaseConnection, svc: &PurchaseReceiptS
              ({WAREHOUSE_ID}, '收货金额重算锁仓', 'AMT-W1', true)"
         ),
         "warehouses 父行",
-    );
+    )
+    .await;
     exec_raw(
         db,
         &format!(
@@ -94,7 +95,8 @@ async fn seed_receipt_with_items(db: &DatabaseConnection, svc: &PurchaseReceiptS
              ({PRODUCT_ID}, 'PT-AMT-R1', '收货金额重算锁面料', '米', 'active', '成品布')"
         ),
         "products 父行",
-    );
+    )
+    .await;
 
     purchase_receipt::ActiveModel {
         id: Set(RECEIPT_ID),
@@ -303,7 +305,8 @@ async fn mutation_recomputing_only_aggregate_diverges_from_line_derivation() {
             line_one.id
         ),
         "变异注入改数量不动行金额",
-    );
+    )
+    .await;
     svc.calculate_receipt_total(RECEIPT_ID, OPERATOR_ID)
         .await
         .expect("变异后重算汇总失败");
