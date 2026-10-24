@@ -166,6 +166,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   'bpm-approval': ['bpm-tasks:read', 'bpm-approvals:create'],
   // 原 /crm 列表已并入 /customer，客户分级页签迁入 /crm-enhanced（同一 customers:read 门控）
   'crm-enhanced': 'customers:read',
+  // 客户信用管理页的门控与其列表请求派生键同源，钉住现值防被改回粗键后派生侧跟着一起错
+  'customer-credit': 'customer-credits:read',
   'sales-analysis': 'sales:read',
   // /workflow 是纯别名（router 里 `redirect: '/bpm'`），门控事实来源是
   // 目标路由 /bpm 的 meta——登记本条不是为了参与派生（派生走 redirect 链继承，见

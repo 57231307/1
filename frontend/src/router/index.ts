@@ -406,7 +406,8 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '客户信用管理',
           icon: 'User',
-          permission: 'customers:read',
+          // 进入键与本列表请求派生键同源，防止持粗键进页而列表被后端按细键拒绝
+          permission: 'customer-credits:read',
           requiresAuth: true,
         },
       },
