@@ -332,13 +332,20 @@ async function handleLogout() {
   --layout-header-shadow: rgba(0, 21, 41, 0.08);
   --layout-text-light: #ffffff;
   --layout-shadow-blur: 4px;
+  /* dvh 跟随可视区收展动态取值，沉浸式布局下 vh 会把底部顶出屏幕，vh 行在前，
+     留给不认识 dvh 的旧内核兜底，安全区变量的口径见 theme.css */
   height: 100vh;
+  height: 100dvh;
 }
 .aside {
   background-color: var(--layout-aside-bg);
+  /* 侧栏滚到底的最后一项要避开系统导航条 */
+  padding-bottom: var(--bx-safe-bottom);
 }
 .logo {
-  height: 60px;
+  /* 高度与安全区相加而不是覆盖，沉浸布局下 logo 文字才不被状态栏压住 */
+  height: calc(60px + var(--bx-safe-top));
+  padding-top: var(--bx-safe-top);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -353,6 +360,12 @@ async function handleLogout() {
   border-right: none;
 }
 .header {
+  /* 顶栏总高为内容高 60 像素加安全区，避让量落在 padding 上，
+     沉浸布局下面包屑与按钮整体下移到状态栏之下仍可点，桌面取 0 无变化 */
+  --el-header-height: calc(60px + var(--bx-safe-top));
+  padding-top: var(--bx-safe-top);
+  padding-left: calc(20px + var(--bx-safe-left));
+  padding-right: calc(20px + var(--bx-safe-right));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -373,6 +386,10 @@ async function handleLogout() {
 .main-content {
   background: var(--layout-content-bg);
   padding: 20px;
+  /* 底部与左右避让系统条带与切口，中间内容滚动到底不被导航条盖住 */
+  padding-left: calc(20px + var(--bx-safe-left));
+  padding-right: calc(20px + var(--bx-safe-right));
+  padding-bottom: calc(20px + var(--bx-safe-bottom));
 }
 
 /* V15 P1-20-2 移动端汉堡按钮：触屏目标尺寸 ≥ 44x44px（WCAG 2.5.5 Target Size） */
@@ -386,17 +403,34 @@ async function handleLogout() {
 }
 
 /* V15 P1-20-2 移动端抽屉内部样式：与桌面 aside 背景色保持一致 */
+/* 抽屉是铺满整屏的固定层，左右与底部要避让切口与导航条，顶部避让由抽屉内 logo 条自带 */
 .mobile-sidebar :deep(.el-drawer__body) {
-  padding: 0;
+  padding: 0 var(--bx-safe-left) var(--bx-safe-bottom) var(--bx-safe-right);
   background-color: var(--layout-aside-bg);
   overflow-y: auto;
 }
 
 /* V15 P1-20-2 移动端响应式适配（max-width: 991px，与 md 断点一致） */
 @media (max-width: 991px) {
-  /* 移动端主内容区减小内边距，释放更多内容空间 */
+  /* 窄屏顶栏降档，52 像素内容高加安全区，触控目标仍靠下方 44 像素规则保证 */
+  .header {
+    --el-header-height: calc(52px + var(--bx-safe-top));
+    padding-left: calc(8px + var(--bx-safe-left));
+    padding-right: calc(8px + var(--bx-safe-right));
+  }
+
+  /* 窄屏 logo 条同步降档，品牌字从 18 像素收到 15 像素，与 14 像素面包屑保持一档层级差 */
+  .logo {
+    height: calc(52px + var(--bx-safe-top));
+  }
+  .logo h2 {
+    font-size: 15px;
+  }
+
+  /* 移动端主内容区减小内边距，释放更多内容空间，底部与左右仍要加安全区 */
   .main-content {
-    padding: 12px;
+    padding: 12px calc(12px + var(--bx-safe-right)) calc(12px + var(--bx-safe-bottom))
+      calc(12px + var(--bx-safe-left));
   }
 
   /* 移动端头部用户菜单触屏尺寸 ≥ 44px */

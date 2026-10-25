@@ -87,8 +87,12 @@ impl ApInvoiceService {
         // unpaid_amount 不是入参，由已校验的 amount 减去 paid_amount 派生
         let paid_amount = Decimal::ZERO;
 
-        // 1. 生成应付单号
-        let invoice_no = self.generate_invoice_no().await?;
+        // 1. 生成应付单号（在本事务内取号）
+        // 前缀级 advisory 锁随本事务存活，号段占用到本事务提交才释放；
+        // 若改用自开事务形态取号，锁在内层事务提交时就消失，与下面的 INSERT 之间
+        // 存在并发窗口，两次并发建单会取到同一单号并撞 invoice_no 唯一约束。
+        // 位置保持在必填检查之后：入参缺键的拒绝路径不必取号，不占号段。
+        let invoice_no = self.generate_invoice_no(&txn).await?;
 
         // 2. 创建应付单
         let invoice = ap_invoice::ActiveModel {

@@ -52,12 +52,21 @@ impl ApPaymentRequestService {
     }
 
     // 生成付款申请单号
-    // 格式：PR + 年月日 + 三位序号（PR20260315001）
+    // 格式：PRQ + 年月日 + 三位序号（PRQ20260315001）
+    //
+    // 只保留「调用方事务内取号」这一种形态：`DocumentNumberGenerator::generate_no` 自开事务，
+    // 前缀 advisory 锁随那个内层事务提交即释放，与建单事务的 INSERT 之间存在并发窗口，
+    // 两次并发建单会取到同一单号并撞 ap_payment_request.request_no 唯一约束；txn 形态把取号
+    // 并进调用方事务，锁持有到建单事务提交，号段占用与插入落在同一事务。
+    // 调用方：本 service 的 create 以 self.generate_request_no(&txn) 在建单事务内取号；
+    // 存入 ap_payment_request.request_no（VARCHAR(50) NOT NULL UNIQUE）。
+    // 取号锁的作用域由 tests/contract_docno_ap_lock_scope_test.rs 活体钉住。
     crate::impl_generate_no!(
         generate_request_no,
         "PRQ",
         ap_payment_request::Entity,
-        ap_payment_request::Column::RequestNo
+        ap_payment_request::Column::RequestNo,
+        txn
     );
 
     /// 创建付款申请
@@ -74,8 +83,11 @@ impl ApPaymentRequestService {
 
         let txn = (*self.db).begin().await?;
 
-        // 生成付款申请单号
-        let request_no = self.generate_request_no().await?;
+        // 生成付款申请单号（在本事务内取号）
+        // 前缀级 advisory 锁随本事务存活，号段占用到本事务提交才释放；
+        // 若改用自开事务形态取号，锁在内层事务提交时就消失，与下面的 INSERT 之间存在
+        // 并发窗口，两次并发建单会取到同一单号并撞 request_no 唯一约束。
+        let request_no = self.generate_request_no(&txn).await?;
 
         // 校验明细关联的应付单（items 可选：缺省时按空切片处理，不伪造默认明细，
         // 因明细 invoice_id 为 NOT NULL 外键且表头无应付单来源，凭空生成会产生脏引用）
