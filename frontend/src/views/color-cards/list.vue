@@ -131,16 +131,21 @@
             <el-button link type="primary" @click="handleView(row)">{{
               $t('colorCards.table.detail')
             }}</el-button>
-            <el-button link type="primary" @click="handleEdit(row)">{{
-              $t('colorCards.table.edit')
-            }}</el-button>
+            <!-- 编辑入口与后端更新端点的状态门同源，只有草稿态色卡可改卡面信息，
+                 非草稿态不渲染入口，避免留下点了必被"当前状态不允许此操作"拒掉的假可用。
+                 权限键取后端按 URL 派生且已在资源册内登记的 color-cards 更新键，
+                 由 v-permission-detail 判定，未持该键的角色不渲染本入口 -->
             <el-button
-              v-if="row.status === 'draft'"
+              v-if="row.status === DRAFT"
+              v-permission-detail="{ resource: 'color-cards', action: 'update' }"
               link
-              type="danger"
-              @click="handleArchive(row)"
-              >{{ $t('colorCards.table.archive') }}</el-button
+              type="primary"
+              @click="handleEdit(row)"
+              >{{ $t('colorCards.table.edit') }}</el-button
             >
+            <el-button v-if="row.status === DRAFT" link type="danger" @click="handleArchive(row)">{{
+              $t('colorCards.table.archive')
+            }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -192,6 +197,11 @@ const seasonKeys = Object.keys(SEASON_LABELS);
 const getCardTypeLabel = (key: string) => t(`colorCards.cardType.${key}`);
 const getSeasonLabel = (key: string) => t(`colorCards.season.${key}`);
 const getStatusLabel = (key: string) => t(`colorCards.cardStatus.${key}`);
+
+// 行内入口的状态门 token 锁定在色卡权威状态表的键上（键集与后端色卡状态
+// CHECK 约束全集同源，值为标签），拼错即编译期红，不再往模板里散写第二套状态字面量
+type ColorCardStatusToken = keyof typeof COLOR_CARD_STATUS;
+const DRAFT: ColorCardStatusToken = 'draft';
 
 // 批次 274：接入 useTableApi，消除手写 tableData/total/loading/filterForm.page/page_size + loadData 重复
 // useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
@@ -255,6 +265,8 @@ const handleView = (row: ColorCardListItem) => {
   router.push(`/color-cards/detail/${row.id}`);
 };
 
+// 编辑入口把编辑意图交给详情页的 edit 参数，详情页读到该参数才进编辑态，
+// 与 handleView 的差别只在这一个参数，进入编辑态后详情页回显库里真值并可改卡面信息
 const handleEdit = (row: ColorCardListItem) => {
   router.push(`/color-cards/detail/${row.id}?edit=1`);
 };
