@@ -70,20 +70,20 @@ async function seedDefinition(
 test.describe('01 流程定义', () => {
   test.beforeEach(async ({ page, context }) => {
     await applyAuthMocks(context);
-    await page.goto('/');
+    // 直达目标路由，避免测试体内再 goto 引发整页重载竞态
+    await page.goto('/bpm/definitions');
   });
 
   test('01-01 进入流程定义页面', async ({ page }) => {
     // 真实新建按钮文案为「新建流程」（src/views/bpm/definitions.vue:13 → i18n bpm.definitions.create='新建流程'），
     // 非臆测的「新增」
-    await page.goto('/bpm/definitions');
     await expect(page.getByRole('heading', { name: '流程定义' })).toBeVisible({ timeout: 30000 });
     await expect(page.getByRole('button', { name: '新建流程' })).toBeVisible();
   });
 
   test('01-02 创建新流程定义', async ({ page }) => {
-    await page.goto('/bpm/definitions');
-    // 点击前先等待「新建流程」按钮进入稳定可见态，避免首屏列表加载中/重绘导致的瞬时点击超时
+    // beforeEach 已直达 /bpm/definitions，无需二次 goto；
+    // 只等按钮进入稳定态后执行 click 序列，消除整页重载与点击的竞态窗口。
     await expect(page.getByRole('button', { name: '新建流程' })).toBeVisible({ timeout: 15000 });
     await page.getByRole('button', { name: '新建流程' }).click();
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
@@ -142,7 +142,7 @@ test.describe('01 流程定义', () => {
     // 筛选表单的真实控件：流程分类 combobox + 查询/重置按钮。
     // 本用例对真实控件验证"筛选功能可用"：选分类 → 查询请求真实携带
     // category=finance（waitForRequest 注册在点击前；不发请求/不带条件即自然超时判红，不吞）。
-    await page.goto('/bpm/definitions');
+    // beforeEach 已直达 /bpm/definitions，无需二次 goto。
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
     const filterForm = page.getByLabel('流程定义筛选表单');
     await pickSelectIn(filterForm, page, '流程分类', { optionText: '财务' });

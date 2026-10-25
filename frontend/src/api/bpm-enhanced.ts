@@ -311,10 +311,18 @@ export const getBpmPendingTaskList = (params?: { page?: number; page_size?: numb
 export const getBpmCompletedTaskList = (params?: { page?: number; page_size?: number }) =>
   request.get<ApiResponse<ApprovalTaskPage>>('/bpm/tasks/completed', { params });
 
+// 执行审批响应（含回跳导航所需的单据定位信息）
+export interface ExecuteApprovalResponse {
+  message: string;
+  business_type: string;
+  business_id: number;
+  instance_id: number;
+}
+
 // 执行审批（POST /bpm/approval/execute，action 取值域 approve/reject）
 // 请求体字段与后端 ExecuteApprovalRequest 逐字一致（缺 handler_id/handler_name 会 422）
 export const executeBpmApproval = (data: ApprovalAction) =>
-  request.post<ApiResponse<string>>('/bpm/approval/execute', data);
+  request.post<ApiResponse<ExecuteApprovalResponse>>('/bpm/approval/execute', data);
 
 // 转办任务（后端独立端点，不走 approval/execute：approval/execute 的 action 取值域仅 approve/reject）
 export const transferBpmEnhancedTask = (taskId: number, data: TransferTaskAction) =>

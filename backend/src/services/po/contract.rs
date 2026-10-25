@@ -292,6 +292,18 @@ impl PurchaseOrderService {
             supplier_id: order.supplier_id,
         });
 
+        // 快捷审批回写 BPM 待办：关闭该单据对应的 BPM pending 任务，
+        // 使 BPM 审批中心与单据快捷审批状态一致。
+        let bpm = crate::services::bpm_service::BpmService::new(self.db.clone());
+        bpm.close_pending_tasks_for_business(
+            "purchase_order",
+            i64::from(order_id),
+            crate::services::bpm_ops::task::APPROVE_ACTION,
+            None,
+            user_id,
+        )
+        .await;
+
         Ok(order)
     }
 
@@ -337,6 +349,17 @@ impl PurchaseOrderService {
         .await?;
 
         txn.commit().await?;
+
+        // 快捷审批回写 BPM 待办：拒绝时关闭该单据对应的 BPM pending 任务
+        let bpm = crate::services::bpm_service::BpmService::new(self.db.clone());
+        bpm.close_pending_tasks_for_business(
+            "purchase_order",
+            i64::from(order_id),
+            crate::services::bpm_ops::task::REJECT_ACTION,
+            Some(order.rejected_reason.clone().unwrap_or_default()),
+            user_id,
+        )
+        .await;
 
         Ok(order)
     }

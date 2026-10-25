@@ -13,6 +13,7 @@
  * - /bpm/instances/{id}/chain → services/bpm_service_dto.rs ApprovalChainNode
  */
 import { ref, reactive } from 'vue';
+import { useRouter } from 'vue-router';
 import { type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
 import { useUserStore } from '@/store/user';
@@ -24,8 +25,30 @@ import {
   transferBpmEnhancedTask,
   type ApprovalTask,
   type ApprovalChainNode,
+  type ExecuteApprovalResponse,
 } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
+
+/**
+ * 单据类型到前端路由路径的映射（BPM 审批完成后回跳来源单据）。
+ * 未收录的类型回退到审批中心本身（不做无效跳转）。
+ */
+const BUSINESS_ROUTE_MAP: Record<string, (id: number) => string> = {
+  purchase_order: () => '/purchase',
+  sales_order: (id) => `/sales/orders/${id}`,
+  production_order: () => '/production',
+  quotation: (id) => `/quotations/${id}`,
+  inventory_transfer: () => '/inventory-transfer',
+  inventory_adjustment: () => '/inventory',
+  inventory_count: () => '/inventory',
+  budget: () => '/budget',
+  ap_invoice: () => '/ap',
+  ap_payment_request: () => '/ap',
+  purchase_return: () => '/purchase-return',
+  sales_return: () => '/sales-returns',
+  color_price: () => '/color-price',
+  bom: () => '/bom',
+};
 
 /**
  * 刷新回调
@@ -39,6 +62,7 @@ interface RefreshCallbacks {
  * 审批流程操作方法集合
  */
 export function useBpmApProc(refresh: RefreshCallbacks) {
+  const router = useRouter();
   const userStore = useUserStore();
 
   // 当前任务
@@ -95,7 +119,7 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
     if (!currentTask.value) return;
     submitLoading.value = true;
     try {
-      await executeBpmApproval({
+      const res = await executeBpmApproval({
         task_id: currentTask.value.id,
         handler_id: userStore.userInfo?.id ?? 0,
         handler_name: userStore.userInfo?.real_name || userStore.userInfo?.username || '',
@@ -104,9 +128,16 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
       });
       msg.success(approveAction.value === 'approve' ? 'approvePassed' : 'approveRejected');
       approveDialogVisible.value = false;
-      // 审批后任务从待办迁入已办，两个列表都要刷新，否则已办 Tab 停留在旧数据
       refresh.fetchPendingTasks();
       refresh.fetchCompletedTasks();
+      // 审批完成后回跳来源单据（响应体携带 business_type/business_id 用于导航）
+      const data = res.data;
+      if (data && 'business_type' in data) {
+        const navFn = BUSINESS_ROUTE_MAP[data.business_type];
+        if (navFn && data.business_id) {
+          router.push(navFn(data.business_id));
+        }
+      }
     } catch (e) {
       logger.error(String(e));
     } finally {

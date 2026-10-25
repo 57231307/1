@@ -41,6 +41,26 @@ pub mod process_key {
     pub const PURCHASE_ORDER_APPROVAL: &str = "purchase_order_approval";
     /// 生产订单审批
     pub const PRODUCTION_ORDER_APPROVAL: &str = "production_order_approval";
+    /// 库存调拨审批
+    pub const INVENTORY_TRANSFER_APPROVAL: &str = "inventory_transfer_approval";
+    /// 库存调整审批
+    pub const INVENTORY_ADJUSTMENT_APPROVAL: &str = "inventory_adjustment_approval";
+    /// 库存盘点审批
+    pub const INVENTORY_COUNT_APPROVAL: &str = "inventory_count_approval";
+    /// 预算管理审批
+    pub const BUDGET_APPROVAL: &str = "budget_approval";
+    /// 应付发票审批
+    pub const AP_INVOICE_APPROVAL: &str = "ap_invoice_approval";
+    /// 付款申请审批
+    pub const AP_PAYMENT_REQUEST_APPROVAL: &str = "ap_payment_request_approval";
+    /// 采购退货审批
+    pub const PURCHASE_RETURN_APPROVAL: &str = "purchase_return_approval";
+    /// 销售退货审批
+    pub const SALES_RETURN_APPROVAL: &str = "sales_return_approval";
+    /// 色价审批
+    pub const COLOR_PRICE_APPROVAL: &str = "color_price_approval";
+    /// BOM 审批
+    pub const BOM_APPROVAL: &str = "bom_approval";
 }
 
 /// BPM 启动失败对外文案的单源拼装（流程定义缺失/未启用族）。

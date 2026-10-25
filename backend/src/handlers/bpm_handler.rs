@@ -350,12 +350,34 @@ pub struct ExecuteApprovalRequest {
     pub approval_opinion: Option<String>,
 }
 
+/// 执行审批响应（含导航所需的单据定位信息）
+#[derive(serde::Serialize)]
+struct ExecuteApprovalResponse {
+    message: String,
+    business_type: String,
+    business_id: i64,
+    instance_id: i32,
+}
+
 /// 执行审批
 pub async fn execute_approval(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<ExecuteApprovalRequest>,
-) -> Result<Json<ApiResponse<String>>, AppError> {
+) -> Result<Json<ApiResponse<ExecuteApprovalResponse>>, AppError> {
+    use crate::models::{bpm_process_instance, bpm_task};
+    use sea_orm::EntityTrait;
+
+    // 先查任务对应的实例，取 business_type/business_id 作为回跳导航数据
+    let task = bpm_task::Entity::find_by_id(req.task_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("任务不存在"))?;
+    let instance = bpm_process_instance::Entity::find_by_id(task.instance_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::not_found("流程实例不存在"))?;
+
     let service = BpmService::new(state.db.clone());
     let approve_req = crate::models::dto::bpm_dto::ApproveTaskRequest {
         task_id: req.task_id,
@@ -365,9 +387,13 @@ pub async fn execute_approval(
         approval_opinion: req.approval_opinion,
         attachment_urls: None,
     };
-    // P0 8-4 修复：传入真实认证用户 user_id 用于审计追溯（防止代审追溯丢失）
     service
         .approve_task(approve_req, Some(auth.user_id))
         .await?;
-    Ok(Json(ApiResponse::success("审批执行成功".to_string())))
+    Ok(Json(ApiResponse::success(ExecuteApprovalResponse {
+        message: "审批执行成功".to_string(),
+        business_type: instance.business_type,
+        business_id: instance.business_id.unwrap_or(0),
+        instance_id: instance.id,
+    })))
 }

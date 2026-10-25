@@ -605,4 +605,53 @@ impl QuotationApprovalService {
             }
         }
     }
+
+    /// BPM 回写专用审批通过（不回调 BPM，避免 BPM → 事件 → approve → BPM 死循环）
+    ///
+    /// 调用方：event_bus_ops/listener.rs handle_bpm_quotation。
+    /// 入参：quotation_id 报价单主键，approver_id 审批人用户 ID。
+    /// 存什么·存哪里：sales_quotation.status=APPROVED, approved_by, approved_at, updated_at。
+    pub async fn approve_via_bpm(
+        &self,
+        quotation_id: i64,
+        approver_id: i32,
+    ) -> Result<sales_quotation::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+        let quotation = self
+            .lock_and_validate_quotation_for_approval_txn(quotation_id, &txn)
+            .await?;
+        let active = Self::build_approved_quotation_active_model(
+            quotation,
+            approver_id,
+            "BPM审批通过".to_string(),
+        );
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(approver_id),
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
+
+    /// BPM 回写专用审批拒绝（不回调 BPM，避免死循环）
+    ///
+    /// 调用方：event_bus_ops/listener.rs handle_bpm_quotation。
+    /// 入参：quotation_id 报价单主键，reason 拒绝理由，approver_id 审批人用户 ID。
+    /// 存什么·存哪里：sales_quotation.status=REJECTED, rejection_reason, approved_by, approved_at, updated_at。
+    pub async fn reject_via_bpm(
+        &self,
+        quotation_id: i64,
+        reason: String,
+        approver_id: i32,
+    ) -> Result<sales_quotation::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+        let updated = self
+            .reject_quotation_txn(quotation_id, approver_id, &reason, &txn)
+            .await?;
+        txn.commit().await?;
+        Ok(updated)
+    }
 }

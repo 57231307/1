@@ -17,7 +17,7 @@ use crate::services::event_bus::{
 use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, ExprTrait, QueryFilter, Statement};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
@@ -1289,6 +1289,39 @@ async fn handle_bpm_process_finished(
         "production_order" => {
             handle_bpm_production_order(db, business_id, approved, approver_id).await;
         }
+        "quotation" => {
+            handle_bpm_quotation(db, business_id, approved, approver_id).await;
+        }
+        "inventory_transfer" => {
+            handle_bpm_generic_status_update(db, "inventory_transfer", business_id, approved, approver_id).await;
+        }
+        "inventory_adjustment" => {
+            handle_bpm_generic_status_update(db, "inventory_adjustment", business_id, approved, approver_id).await;
+        }
+        "budget" => {
+            handle_bpm_generic_status_update(db, "budget", business_id, approved, approver_id).await;
+        }
+        "ap_invoice" => {
+            handle_bpm_generic_status_update(db, "ap_invoice", business_id, approved, approver_id).await;
+        }
+        "ap_payment_request" => {
+            handle_bpm_generic_status_update(db, "ap_payment_request", business_id, approved, approver_id).await;
+        }
+        "purchase_return" => {
+            handle_bpm_generic_status_update(db, "purchase_return", business_id, approved, approver_id).await;
+        }
+        "sales_return" => {
+            handle_bpm_generic_status_update(db, "sales_return", business_id, approved, approver_id).await;
+        }
+        "color_price" => {
+            handle_bpm_generic_status_update(db, "color_price", business_id, approved, approver_id).await;
+        }
+        "bom" => {
+            handle_bpm_generic_status_update(db, "bom", business_id, approved, approver_id).await;
+        }
+        "inventory_count" => {
+            handle_bpm_generic_status_update(db, "inventory_count", business_id, approved, approver_id).await;
+        }
         other => tracing::warn!("未识别的 BPM business_type: {}", other),
     }
 }
@@ -1412,6 +1445,90 @@ async fn handle_bpm_production_order(
             tracing::info!(
                 "Successfully rejected production_order {} via BPM",
                 order_id
+            );
+        }
+    }
+}
+
+/// 处理报价单 BPM 审批结果回写（approve_via_bpm / reject_via_bpm，不回调 BPM 避免循环）
+async fn handle_bpm_quotation(
+    db: Arc<DatabaseConnection>,
+    business_id: i64,
+    approved: bool,
+    approver_id: i32,
+) {
+    let svc = crate::services::quotation_approval_service::QuotationApprovalService::new(db);
+    if approved {
+        if let Err(e) = svc.approve_via_bpm(business_id, approver_id).await {
+            tracing::error!("Failed to approve quotation {} via BPM: {}", business_id, e);
+        } else {
+            tracing::info!("Successfully approved quotation {} via BPM", business_id);
+        }
+    } else {
+        if let Err(e) = svc
+            .reject_via_bpm(business_id, "BPM审批拒绝".to_string(), approver_id)
+            .await
+        {
+            tracing::error!("Failed to reject quotation {} via BPM: {}", business_id, e);
+        } else {
+            tracing::info!("Successfully rejected quotation {} via BPM", business_id);
+        }
+    }
+}
+
+/// BPM 回写通用状态更新：按 business_type 定位表与状态列，
+/// 将 pending/pending_approval 更新为 approved/rejected（容错，失败只记日志）。
+///
+/// 调用方：handle_bpm_process_finished 各新增 business_type 分支。
+/// 入参：db、business_type（单据类型串）、business_id（单据主键）、
+/// approved（是否通过）、approver_id（审批人）。
+async fn handle_bpm_generic_status_update(
+    db: Arc<DatabaseConnection>,
+    business_type: &str,
+    business_id: i64,
+    approved: bool,
+    _approver_id: i32,
+) {
+    // 每个 business_type 映射到真实表名、状态列名与审批前状态取值
+    let (table, status_col, pending_val, approved_val, rejected_val) = match business_type {
+        "inventory_transfer" => ("inventory_transfers", "status", "pending", "approved", "rejected"),
+        "inventory_adjustment" => ("inventory_adjustments", "status", "pending", "approved", "rejected"),
+        "inventory_count" => ("inventory_counts", "status", "pending", "approved", "rejected"),
+        "budget" => ("budgets", "status", "pending_approval", "approved", "rejected"),
+        "ap_invoice" => ("ap_invoices", "status", "pending_approval", "approved", "rejected"),
+        "ap_payment_request" => ("ap_payment_requests", "status", "pending_approval", "approved", "rejected"),
+        "purchase_return" => ("purchase_returns", "status", "pending_approval", "approved", "rejected"),
+        "sales_return" => ("sales_returns", "status", "pending_approval", "approved", "rejected"),
+        "color_price" => ("color_prices", "status", "pending_approval", "approved", "rejected"),
+        "bom" => ("boms", "status", "pending_approval", "approved", "rejected"),
+        _ => {
+            tracing::warn!("BPM 通用回写：未映射的 business_type: {}", business_type);
+            return;
+        }
+    };
+    let target = if approved { approved_val } else { rejected_val };
+    let sql = format!(
+        "UPDATE {table} SET {status_col} = '{target}' WHERE id = $1 AND {status_col} = '{pending_val}'"
+    );
+    let stmt = Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        &sql,
+        vec![business_id.into()],
+    );
+    match db.execute(stmt).await {
+        Ok(res) if res.rows_affected() > 0 => {
+            tracing::info!(
+                "BPM 通用回写成功：{business_type} id={business_id} {pending_val} -> {target}"
+            );
+        }
+        Ok(_) => {
+            tracing::debug!(
+                "BPM 通用回写跳过：{business_type} id={business_id} 不处于 {pending_val} 状态（可能已被快捷审批回写）"
+            );
+        }
+        Err(e) => {
+            tracing::error!(
+                "BPM 通用回写失败：{business_type} id={business_id}: {e}"
             );
         }
     }

@@ -603,4 +603,88 @@ impl BpmService {
 
         Ok(())
     }
+
+    /// 快捷审批回写 BPM 待办任务：按 business_type+business_id 定位实例，
+    /// 把该实例下所有 pending 任务批量完成（容错，失败只记日志不阻断业务侧）。
+    ///
+    /// 调用方：PurchaseOrderService / SalesService / ProductionOrderService 的
+    /// approve/reject 路径在事务 commit 后调用。
+    /// 入参：business_type 业务类型串，business_id 业务主键，action 审批动作
+    /// （approve 或 reject），reason 可选理由，user_id 已认证操作人。
+    /// 存什么·存哪里：更新 bpm_task 状态与 approval_opinion 并推进 bpm_process_instance。
+    pub async fn close_pending_tasks_for_business(
+        &self,
+        business_type: &str,
+        business_id: i64,
+        action: &str,
+        reason: Option<String>,
+        user_id: i32,
+    ) {
+        let instance = match self.get_process_by_business(business_type, business_id).await {
+            Ok(Some(inst)) => inst,
+            Ok(None) => {
+                tracing::debug!(
+                    business_type,
+                    business_id,
+                    "快捷审批回写 BPM 跳过：未找到该单据的流程实例（可能未启动 BPM 或已关闭）"
+                );
+                return;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    business_type,
+                    business_id,
+                    "快捷审批回写 BPM：查询流程实例失败"
+                );
+                return;
+            }
+        };
+        let tasks = match bpm_task::Entity::find()
+            .filter(bpm_task::Column::InstanceId.eq(instance.id))
+            .filter(bpm_task::Column::Status.eq(task_status::PENDING))
+            .all(&*self.db)
+            .await
+        {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    business_type,
+                    business_id,
+                    instance_id = instance.id,
+                    "快捷审批回写 BPM：查询待办任务失败"
+                );
+                return;
+            }
+        };
+        if tasks.is_empty() {
+            tracing::debug!(
+                business_type,
+                business_id,
+                instance_id = instance.id,
+                "快捷审批回写 BPM：该实例下无待办任务（已由 BPM 中心办理或已关闭）"
+            );
+            return;
+        }
+        for task in tasks {
+            let req = ApproveTaskRequest {
+                task_id: task.id,
+                handler_id: user_id,
+                handler_name: String::new(),
+                action: action.to_string(),
+                approval_opinion: reason.clone(),
+                attachment_urls: None,
+            };
+            if let Err(e) = self.approve_task(req, Some(user_id)).await {
+                tracing::warn!(
+                    error = %e,
+                    task_id = task.id,
+                    business_type,
+                    business_id,
+                    "快捷审批回写 BPM 任务失败（不阻断业务状态）"
+                );
+            }
+        }
+    }
 }

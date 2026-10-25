@@ -372,6 +372,17 @@ impl SalesService {
         // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderApproved 事件
         self.publish_approval_event(order_id, order.customer_id, user_id);
 
+        // 快捷审批回写 BPM 待办：关闭该销售订单对应的 BPM pending 任务
+        let bpm = crate::services::bpm_service::BpmService::new(self.db.clone());
+        bpm.close_pending_tasks_for_business(
+            "sales_order",
+            i64::from(order_id),
+            crate::services::bpm_ops::task::APPROVE_ACTION,
+            None,
+            user_id,
+        )
+        .await;
+
         // 批次 356 v13 复审 B-P0-1 + A5 决策：审批后不再创建库存预留（可用量门控仅在发货时生效）
         let order_items = self.fetch_order_items_for_approval(order_id).await?;
 

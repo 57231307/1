@@ -74,6 +74,17 @@ impl SalesService {
             },
         );
 
+        // 快捷审批回写 BPM 待办：拒绝时关闭该销售订单对应的 BPM pending 任务
+        let bpm = crate::services::bpm_service::BpmService::new(self.db.clone());
+        bpm.close_pending_tasks_for_business(
+            "sales_order",
+            i64::from(order_id),
+            crate::services::bpm_ops::task::REJECT_ACTION,
+            Some("销售订单拒绝".to_string()),
+            user_id,
+        )
+        .await;
+
         Ok(())
     }
 }
