@@ -31,7 +31,8 @@ import {
  * 业务门按固定顺序执行且全部走脱敏 business 出参（HTTP 400 加 BUSINESS_ERROR，
  * 文案不外显）：委托人与被同一人即拒；失效时间不晚于生效时间即拒；生效时间早于
  * 服务端当前时间五分钟容差即拒（防回溯委托）；委托时长超过九十天即拒。
- * 服务层注释宣称的"委托人必须拥有该权限"当前实现未做校验，本 spec 不为其编造断言。
+ * 服务层注释宣称的"委托人必须拥有该权限"当前实现未做校验，本 spec 不为其编造
+ * 断言；该缺门属现状登记，判责与登记归调度，不在用例里表态"应当放行"。
  * 服务端写死初值 status 为小写 active、is_chain_allowed 缺省补 false、
  * revoked_at revoked_by revoke_reason 三列置空、created_by 取会话用户而非请求体。
  * 委托人不存在的提交会穿过全部业务门撞数据库外键，收口为 500 加 DATABASE_ERROR，
@@ -50,7 +51,9 @@ import {
  * 撤销 POST 对象段 revoke 入参 revoke_reason 选填。门只有两道：主键不存在 404
  * 加 NOT_FOUND；当前状态不是 active 也不是 pending 即 400 加 BUSINESS_ERROR。
  * 服务层注释宣称的"仅委托人或管理员可撤销"当前实现未做操作人身份校验，
- * 会话用户即可撤销，本 spec 如实钉当前行为而不据注释改判。
+ * 会话用户即可撤销。该缺门属现状登记而非契约认可，判责与登记归调度；
+ * 本 spec 只钉当前真实可达的行为，不反向锁死，后端补门后相关步骤转红
+ * 即预期内的返工信号。
  * 成功撤销写 status 为 revoked、revoked_at 为服务端当前时间、revoked_by 为会话用户、
  * revoke_reason 为提交值，其余列不动。
  *
