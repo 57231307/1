@@ -215,7 +215,7 @@ test.describe.serial('Shard 5: 系统管理 + 权限 + 合规', () => {
       '/bulk-color-approvals?page=1&page_size=5'
     );
     expect(Array.isArray(list.items), `list.items 应为后端返回的 items 数组`).toBe(true);
-    if (list?.items?.length ?? 0 > 0) {
+    if ((list?.items?.length ?? 0) > 0) {
       const status = (list.items?.[0].status || '').toLowerCase();
       expect([
         'pending',

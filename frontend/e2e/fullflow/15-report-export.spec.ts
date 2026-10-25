@@ -308,7 +308,7 @@ test.describe('15 财务报表/导出/快照契约链', () => {
       expect(
         Object.prototype.hasOwnProperty.call(cf, k),
         `现金流量表缺键 ${k}，实际=${Object.keys(cf).join(',')}`
-      );
+      ).toBe(true);
     }
     const sum =
       num(cf, 'net_cash_from_operations', 'CF') +
@@ -444,8 +444,15 @@ test.describe('15 财务报表/导出/快照契约链', () => {
       `/period-report-snapshots?period_id=${periodId}&page=1&page_size=20`
     );
     for (const k of ['items', 'total', 'page', 'page_size']) {
-      expect(Object.prototype.hasOwnProperty.call(list, k), `快照列表缺 PaginatedResponse 键 ${k}`);
+      expect(
+        Object.prototype.hasOwnProperty.call(list, k),
+        `快照列表缺 PaginatedResponse 键 ${k}`
+      ).toBe(true);
     }
+    expect(
+      Array.isArray(list['items']),
+      `快照列表 items 应为数组，实得=${JSON.stringify(list['items'])}`
+    ).toBe(true);
     const hit = (list.items as Array<Record<string, unknown>>).find(r => Number(r.id) === sid);
     if (!hit) throw new Error('快照列表未含自建快照');
 

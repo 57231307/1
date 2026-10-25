@@ -233,10 +233,13 @@ test.describe('RPA：流程录制（性能基准）', () => {
     expect(report[0].label).toBe('页面加载完成');
     expect(report[1].label).toBe('表格加载完成');
     // report() 的 elapsed 语义（见 fixtures/rpa.ts）：首项为绝对偏移，其余为相邻标记差值。
-    // 断言每个耗时是有限非负数，而非仅 >=0（NaN/Infinity 也能骗过 toBeGreaterThanOrEqual）。
+    // 时钟为 Date.now() 毫秒整数，同毫秒标记差值为 0 属正常，故下界钉 0；判负即缺陷
+    // （相邻时间戳倒挂或差值计算错位），NaN/Infinity 由前一条有限性断言先拦住。
     for (const row of report) {
       expect(Number.isFinite(row.elapsed), `elapsed 应为有限数：${row.elapsed}`).toBe(true);
-      expect(row.elapsed).toBeGreaterThanOrEqual(0);
+      expect(row.elapsed < 0, `elapsed 不得为负（时间戳倒挂或分段计算错位）：${row.elapsed}`).toBe(
+        false
+      );
     }
     // 分段耗时累加 = 末个标记的墙钟偏移，必然 ≤ 在其之后测得的 total()，
     // 该一致性可暴露 elapsed 计算错位/重复计数；total 为正数说明确有耗时。

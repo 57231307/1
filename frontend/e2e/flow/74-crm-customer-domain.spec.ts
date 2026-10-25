@@ -50,11 +50,12 @@ async function columnCell(page: Page, row: Locator, columnLabel: string): Promis
       break;
     }
   }
+  // 定位循环以 label===columnLabel 逐字符相等取列，未命中时 idx 保持 -1：判负即列缺失或文案漂移
   expect(
     idx,
     `表格中未渲染出表头列「${columnLabel}」（当前可见表头 ${headerCount} 个，URL=${page.url()}）` +
       `——列缺失或表头文案漂移属真实缺陷，非用例问题，不放宽为整行 hasText`
-  ).toBeGreaterThanOrEqual(0);
+  ).not.toBe(-1);
 
   const cells = row.getByRole('cell');
   const cellCount = await cells.count();

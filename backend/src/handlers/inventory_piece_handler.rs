@@ -70,6 +70,11 @@ pub struct PieceResponse {
     pub warehouse_name: Option<String>,
     pub warehouse_type: Option<String>,
     pub parent_piece_id: Option<i32>,
+    /// 来源验布记录 ID，打卷产匹回指验布单的跨环追溯锚点。调用方是本 handler 的 list_pieces
+    /// 行投影，入参是 inventory_piece 表 inspection_id 列原值（该列 INTEGER 可空且无外键约束，
+    /// 空性以建表 DDL 为准），传给匹号追溯页与成品布标签清单按同名字段消费。存的是验布记录主键，
+    /// 生产报工与委外回仓产的匹没有验布单来源，如实投影 null，不省略键、不兜底成别的 id。
+    pub inspection_id: Option<i32>,
     pub piece_seq: Option<i32>,
     pub status: String,
     pub quality_status: Option<String>,
@@ -183,6 +188,9 @@ pub async fn list_pieces(
                 warehouse_name: w.map(|w| w.name.clone()),
                 warehouse_type: w.and_then(|w| w.warehouse_type.clone()),
                 parent_piece_id: p.parent_piece_id,
+                // 回指验布单：列原值直传，打卷产匹是验布记录 id，其余来源匹是 null，
+                // 不 map 不 unwrap_or_default（省略该键会让调用方拿到 undefined 而非 null）
+                inspection_id: p.inspection_id,
                 piece_seq: p.piece_seq,
                 status: p.status,
                 quality_status: p.quality_status,
