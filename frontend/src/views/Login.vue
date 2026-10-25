@@ -106,6 +106,13 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { useUserStore } from '@/store/user';
 import { checkLockStatus } from '@/api/security';
 import { logger } from '@/utils/logger';
+// 移动端首装免配置，连续凭证失败计数与壳内回弹判定单点收在 utils/login-failure.ts
+import {
+  clearLoginFailure,
+  invokeReopenGateway,
+  recordLoginFailure,
+  shouldReopenGateway,
+} from '@/utils/login-failure';
 
 const router = useRouter();
 const route = useRoute();
@@ -269,8 +276,9 @@ async function handleLogin() {
       // v-permission 指令直接从 userStore.userInfo.permissions 读取字符串数组判断。
       // 原 permissionStore 写入路径是死代码（无读取方），已移除。
 
-      // 登录成功清空锁定提示
+      // 登录成功清空锁定提示与连续失败计数（计数口径见 utils/login-failure.ts）
       clearLockInfo();
+      clearLoginFailure();
       ElMessage.success(t('login.success'));
 
       // 批次 198 P0-2：密码过期引导改密（后端 password_expired=true 表示超过 90 天未修改）
@@ -300,18 +308,17 @@ async function handleLogin() {
       // 登录凭证错误统一呈现为友好中文：后端 401 不泄露用户名是否存在，也绝不显示 axios 裸串。
       // 其余错误（429 账号锁定 / 网络 / 5xx）已由 request.ts 拦截器按后端文案提示，此处不重复弹窗。
       const status = (error as { response?: { status?: number } }).response?.status;
-      if (status === 401) {
-        ElMessage.error(t('login.failed'));
-      } else if (status === undefined || status === 0) {
-        // 移动端壳内：服务器不可达（地址填错/未部署，无响应或网络错）→ 自动回 gateway 重填。
-        // 仅在 Tauri 壳内生效（Web 无 __TAURI__ 分支不进），401 凭证错与 5xx 不触发、不催扰。
-        const tauri = (
-          window as unknown as {
-            __TAURI__?: { core?: { invoke?: (cmd: string, args?: unknown) => Promise<unknown> } };
-          }
-        ).__TAURI__;
-        if (tauri?.core?.invoke) {
-          void tauri.core.invoke('reopen_gateway').catch(() => {});
+      if (status === 401 || status === undefined || status === 0) {
+        // 凭证不对与服务器不可达都算一次连接失败，同 host 计满 5 次才回卡页重填地址，
+        // 一次失败不催用户重配。401 在此给友好文案，无响应与网络错的提示由请求层统一给，
+        // 此处不重复弹窗。Web 端无壳桥时只计数不跳转。
+        if (status === 401) {
+          ElMessage.error(t('login.failed'));
+        }
+        const record = recordLoginFailure(window.location.origin);
+        if (shouldReopenGateway(record)) {
+          clearLoginFailure();
+          invokeReopenGateway();
         }
       }
       // 登录瀑布修复：删除 catch 内 refreshLockStatus 调用
@@ -334,7 +341,12 @@ onUnmounted(() => {
 
 <style scoped>
 .login-container {
+  /* 整屏容器按安全区避让，沉浸布局下登录卡不被状态栏与导航条压住，
+     vh 行在前兜底旧内核，dvh 行在后在认识它的内核上生效，变量口径见 theme.css */
+  box-sizing: border-box;
   height: 100vh;
+  height: 100dvh;
+  padding: var(--bx-safe-top) var(--bx-safe-right) var(--bx-safe-bottom) var(--bx-safe-left);
   display: flex;
   align-items: center;
   justify-content: center;
