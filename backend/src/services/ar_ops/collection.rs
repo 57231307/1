@@ -21,8 +21,8 @@
 use chrono::{Datelike, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, JoinType, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    ColumnTrait, ConnectionTrait, EntityTrait, JoinType, Order, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 // 批次 389 P2-2：补充 warn/error 日志宏，关键操作失败场景补审计日志
 use tracing::{info, warn};
