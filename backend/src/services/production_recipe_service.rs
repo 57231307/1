@@ -121,17 +121,20 @@ impl ProductionRecipeService {
         Self { db }
     }
 
-    /// 生成大货处方单号（统一生成器带事务臂：`PR{YYYYMMDD}{3位流水}`，前缀级 advisory
+    /// 生成大货处方单号（统一生成器带事务臂：`RP{YYYYMMDD}{3位流水}`，前缀级 advisory
     /// 锁占用在传入事务上、持到该事务提交；`pub(crate)`：production_recipe_ops::recipe_crud
     /// 的 create 在自开建单事务内调用并同事务插入。取号失败原样上抛真实 AppError，
-    /// 不再拍平为可直接外显的业务文案。）
+    /// 不再拍平为可直接外显的业务文案。
+    /// 前缀取 RP 而非 PR：咨询锁按前缀加日期取键，PR 与采购入库单同键会造成
+    /// 跨域无谓串行且两族单号外形全同；应付族 ap_payment_request 让位 PR 改 PRQ
+    /// 为同形先例。历史已落库的 PR 号不迁移、不回收。）
     pub(crate) async fn generate_recipe_no(
         &self,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<String, AppError> {
         crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
             txn,
-            "PR",
+            "RP",
             crate::models::production_recipe::Entity,
             crate::models::production_recipe::Column::RecipeNo,
         )

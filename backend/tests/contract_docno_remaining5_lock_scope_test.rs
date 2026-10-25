@@ -6,7 +6,8 @@
 //! 立即释放，建单事务的 INSERT 之前重新出现并发窗口，两次并发建单会取到同一
 //! 单号。覆盖五站点。cost_collections.collection_no（前缀 COST，经
 //! CostCollectionService.generate_collection_no 服务级方法直接钉）、
-//! production_recipe.recipe_no（PR）、production_recipe_addition.addition_no（PA）、
+//! production_recipe.recipe_no（RP，与采购入库 PR 分键，避免咨询锁跨域串行）、
+//! production_recipe_addition.addition_no（PA）、
 //! process_wage_rate.rate_no（PWR）、wage_record.record_no（WR）。
 //! 后四者的服务侧取号函数对集成测试 crate 不可见，正向锁改在生成器
 //! DocumentNumberGenerator::generate_no_with_txn 上以同一前缀、同一实体列钉
@@ -162,7 +163,7 @@ macro_rules! lock_scope_pair_tests {
 lock_scope_pair_tests!(
     recipe_no_with_txn_lock_holds_until_txn_end,
     recipe_mutation_self_opening_releases_lock_early,
-    "PR",
+    "RP",
     production_recipe::Entity,
     production_recipe::Column::RecipeNo
 );
