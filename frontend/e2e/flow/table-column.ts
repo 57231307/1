@@ -46,13 +46,16 @@ export async function columnIndex(table: Locator, headerText: string): Promise<n
   return index;
 }
 
-/** 主表体某列全部单元格文本（td 与列头 th 一一对应，下标同源） */
+/**
+ * 主表体某列全部单元格文本（td 与列头 th 一一对应，下标同源）。
+ * 取数方式：整列一次性批量读（按行内第 index 加 1 个 td 的选择器一次查询全部命中节点，
+ * 再整体取文本），不做逐格往返。为什么这样取：权限目录一类上千行的表若逐格串行读，
+ * 每格一次跨进程往返，行数乘列数直接把用例拖过全局时限；批量读一次往返拿回整列，
+ * 断言仍在调用方对每格逐一执行，强度不变。出参下标与表体行序一致，供调用方逐格比对。
+ */
 export async function columnCellTexts(table: Locator, index: number): Promise<string[]> {
-  const rows = table.locator(BODY_ROW);
-  const count = await rows.count();
-  const texts: string[] = [];
-  for (let i = 0; i < count; i++) texts.push(await rowCellText(rows.nth(i), index));
-  return texts;
+  const cells = table.locator(`${BODY_ROW} > td:nth-child(${index + 1})`);
+  return (await cells.allInnerTexts()).map(text => text.trim());
 }
 
 /** 指定数据行某列单元格文本 */

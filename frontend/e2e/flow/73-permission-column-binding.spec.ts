@@ -16,6 +16,10 @@ import {
 // 下逐格出值。判据以单元格文本按后端字段出值为准，不接受仅断无 5xx 的软断言；种子缺失处以
 // 真实接口造数再验。入口为各功能页自身路由：/users、/data-permission、/field-permissions、
 // /permissions、/roles。
+// 【取数口径】列值一律经列原语整列批量读取（一次查询取回整列全部单元格文本），再在断言侧
+// 逐格比对真实列值与期望映射；不采用逐格串行往返，因权限目录为资源与动作的全量叉乘、
+// 行数千级，逐格往返在该规模下必然拖爆用例时限。批量读不缩水断言：权限管理页对全部行
+// 逐格断言非空与状态词表命中，且先断整列单元格数与行数对齐。
 
 const PASSWORD = 'Xp9#Qr4Lm7!Zt2';
 
@@ -201,7 +205,13 @@ test.describe.serial('权限域列绑定回归：真实数据逐格出值（防�
     const actions = await columnCellTexts(table, actionIdx);
     const statuses = await columnCellTexts(table, statusIdx);
 
-    for (let i = 0; i < Math.min(n, 10); i++) {
+    // 整列单元格数与行数对齐：批量读若因行模板错位少取或多取，先在这里显式判红
+    expect(types.length, `资源类型列单元格数应与行数 ${n} 对齐`).toBe(n);
+    expect(actions.length, `操作列单元格数应与行数 ${n} 对齐`).toBe(n);
+    expect(statuses.length, `状态列单元格数应与行数 ${n} 对齐`).toBe(n);
+
+    // 全行逐格断言，不按比例采样：本端点无分页、目录为全量叉乘，DOM 行数即数据全量
+    for (let i = 0; i < n; i++) {
       expect(types[i], `资源类型第 ${i} 行为空`).not.toBe('');
       expect(actions[i], `操作第 ${i} 行为空`).not.toBe('');
       // allowed 布尔经 el-tag 渲染为 允许/禁止，不应出现空白单元格
