@@ -178,10 +178,37 @@ pub struct UpdateProductArgs {
     pub factory_address: Option<String>,
     /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
-    /// 每匹米数（匹↔米换算元数据，None 表示本次不更新/未录入）
-    pub meters_per_piece: Option<Decimal>,
-    /// 每卷米数（卷↔米换算元数据，None 表示本次不更新/未录入）
-    pub meters_per_roll: Option<Decimal>,
+    /// 每匹米数（匹↔米换算元数据，三态部分更新）。外层 None 即键缺席、本列保持原值，
+    /// Some(None) 即显式 null、清空为 NULL，Some(Some(v)) 即覆盖为该值。
+    pub meters_per_piece: Option<Option<Decimal>>,
+    /// 每卷米数（卷↔米换算元数据，三态部分更新），形态与语义同上。
+    pub meters_per_roll: Option<Option<Decimal>>,
     /// 操作人 ID
     pub user_id: i32,
+}
+
+/// 匹与卷的每单位米数同源补齐。
+///
+/// 读的是请求携带的每匹米数与每卷米数两值的存在性。只带其中一个时把另一列补成同值，
+/// 两个都带时各自原样返回（含不等也不取其一、不互相覆写），两个都不带时不补齐、
+/// 不引入默认值掩盖缺键。
+/// 写给产品单条创建与单条更新两条链路（handler 层），以及批量创建与批量更新
+/// （batch_service 层），结果交给 CreateProductArgs 与 UpdateProductArgs 的同名两字段，
+/// 再由 product_ops 的 crud 与 batch_service 的 ActiveModel 落库。
+/// 存的是 products 表的每匹米数与每卷米数两列，DECIMAL 可空，NULL 表示未录入。
+/// 为什么泛型。创建侧 T 为 Decimal、单层 Option 即两态（带值或缺值）。更新侧 T 为
+/// Option<Decimal>、双层 Option 即三态（覆盖、清空、不动）。补齐只判断外层存在性，
+/// 单层 Some(x) 与双层 Some(显式声明值) 都被视为本次带了这个键，复制到另一键。
+/// 为什么放服务层而不是只留在 handler。批量链路在 batch_service 也需要同一份补齐语义，
+/// 服务与处理器共用一个真源，避免两处各写一套导致语义漂移。
+/// 边界。更新侧只声明清空每匹米数时，每卷米数按同源补成同样的清空声明。
+pub fn pair_piece_roll_meters<T: Clone>(
+    meters_per_piece: Option<T>,
+    meters_per_roll: Option<T>,
+) -> (Option<T>, Option<T>) {
+    match (meters_per_piece, meters_per_roll) {
+        (Some(piece), None) => (Some(piece.clone()), Some(piece)),
+        (None, Some(roll)) => (Some(roll.clone()), Some(roll)),
+        (piece, roll) => (piece, roll),
+    }
 }

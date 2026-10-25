@@ -38,6 +38,7 @@
       :suppliers="prc.supplierOptions"
       :warehouses="prc.warehouseOptions"
       :products="prc.productOptions"
+      :submitting="prcProc.submitting"
       @add-item="prcProc.addItem"
       @remove-item="prcProc.removeItem"
       @calc-amount="prcProc.calculateItemAmount"

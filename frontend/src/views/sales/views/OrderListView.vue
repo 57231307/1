@@ -51,7 +51,7 @@
       :form-data="olv.formData"
       :customers="olv.customers"
       :products="olv.products"
-      :submitting="olv.submitting"
+      :submitting="orderSubmitting"
       @submit="onFormSubmit"
     />
 
@@ -123,6 +123,8 @@ const olv = useOlv();
 const olvProc = useOlvProc({
   refresh: olv.refresh,
 });
+// 提到顶层绑定让模板自动解包 ref（嵌在普通对象里会被当成 Ref 对象、恒为真值）
+const orderSubmitting = olvProc.submitting;
 
 // 表单对话框可见性本地 ref
 const formDialogVisible = ref(false);

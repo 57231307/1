@@ -27,7 +27,7 @@
   <div class="system-page">
     <el-tabs
       v-model="activeTab"
-      tab-position="left"
+      :tab-position="tabPosition"
       class="system-tabs"
       @tab-change="handleTabChange"
     >
@@ -69,8 +69,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import useBreakpoint from '@/composables/useBreakpoint';
 import UserTab from './tabs/UserTab.vue';
 import RoleTab from './tabs/RoleTab.vue';
 import DepartmentTab from './tabs/DepartmentTab.vue';
@@ -84,6 +85,11 @@ import SystemUpdateTab from './tabs/SystemUpdateTab.vue';
 import CompanyTab from './tabs/CompanyTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const { width } = useBreakpoint();
+
+// 竖屏下左侧竖排 Tab 会挤占近一半内容宽度，切回顶部横排
+const tabPosition = computed(() => (width.value < 768 ? 'top' : 'left'));
 
 // 当前激活的 Tab（懒加载由各子组件 onMounted 内部处理）
 const activeTab = ref('user');
@@ -104,10 +110,21 @@ const handleTabChange = (tabName: string | number) => {
 .system-tabs {
   min-height: calc(100vh - 160px);
 }
-.system-tabs :deep(.el-tabs__header) {
+.system-tabs :deep(.el-tabs__header.is-left) {
   min-width: 140px;
 }
 .system-tabs :deep(.el-tabs__content) {
   padding: 0 0 0 20px;
+}
+@media (max-width: 768px) {
+  .system-page {
+    padding: 8px;
+  }
+  .system-tabs :deep(.el-tabs__content) {
+    padding: 12px 0 0;
+  }
+  .system-tabs :deep(.el-tabs__nav-wrap) {
+    overflow-x: auto;
+  }
 }
 </style>

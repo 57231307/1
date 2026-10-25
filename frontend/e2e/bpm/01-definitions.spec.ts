@@ -4,7 +4,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelectIn } from '../flow/ui-helpers';
+import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 01-04 编辑流程定义的前置构造：
@@ -24,19 +24,18 @@ test.afterEach(async ({ page }) => {
  * 调用方：01-02 走 UI 建定义时把首行设为「开始」、末行设为「结束」。
  * 选项文本来自 i18n bpm.definitions.nodeType（zh-CN 值 开始/审批/结束），
  * 提交值才是引擎 token，界面不裸露英文常量。
+ * 等待口径复用仓内既有下拉助手：点下拉外壳展开，把选项限定在最后打开的可见面板内，
+ * 等选项可见且稳定后再点，点完等面板收起才返回。
+ * 三行节点下拉的选项文本同名，面板又都挂到 body，跨面板取首个可见选项会命中上一行
+ * 正在收起的旧面板，表现为选项一度解析到之后一直不可见直至超时；限定到最新面板并
+ * 等收起收尾即消除该竞态。选项缺失或面板不收的真实缺陷仍会超时判红，不放宽。
  */
 async function pickRowOption(
   page: import('@playwright/test').Page,
   row: import('@playwright/test').Locator,
   text: string
 ) {
-  await row.locator('.el-select').first().click();
-  const option = page
-    .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-    .filter({ hasText: text })
-    .first();
-  await expect(option, `节点类型下拉未找到可见选项 ${text}`).toBeVisible({ timeout: 15000 });
-  await option.click();
+  await pickSelect(page, row.locator('.el-select').first(), text, { timeout: 15_000 });
 }
 
 /** 建一条流程定义，返回 { id, processKey } */
@@ -109,7 +108,7 @@ test.describe('01 流程定义', () => {
         .filter({ hasText: '节点顺序必须为：开始 → 一个或多个审批 → 结束' })
     ).toBeVisible({ timeout: 15000 });
 
-    // 正向：按界面顺序补出 开始 → 审批 → 结束 三节点，审批节点选出真实审批人后提交成功。
+    // 正向：按界面顺序补出 开始、审批、结束 三节点，审批节点选定审批人类型后提交成功。
     for (let i = 0; i < 3; i++) {
       await dlg.getByRole('button', { name: '添加节点' }).click();
     }
@@ -119,14 +118,12 @@ test.describe('01 流程定义', () => {
     // 首行改「开始」、末行改「结束」，中间行保持默认的审批节点
     await pickRowOption(page, nodeRows.nth(0), '开始');
     await pickRowOption(page, nodeRows.nth(2), '结束');
-    // 审批人列是行内第二个 el-select（第一个是节点类型列），是 remote 检索：
-    // 点开即以空关键字拉第一页候选，选第一项（真实用户 ID）
-    await nodeRows.nth(1).locator('.el-select').nth(1).click();
-    const assigneeOption = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
-    await expect(assigneeOption.first(), '审批人候选必须真实拉取到用户').toBeVisible({
-      timeout: 30000,
+    // 中间行保持默认审批节点，行内第二个 el-select 是审批人类型列，选项全量渲染，取首项。
+    // 与节点类型列走同一下拉助手，选项作用域限定在最后打开的可见面板，点完等面板收起，
+    // 避免残留面板盖住后续确定按钮；面板或候选取不到即超时判红，不放宽。
+    await pickSelect(page, nodeRows.nth(1).locator('.el-select').nth(1), undefined, {
+      timeout: 30_000,
     });
-    await assigneeOption.first().click();
 
     await dlg.getByRole('button', { name: '确定' }).click();
     // 真实成功提示走 ElMessage.success(i18n.global.t('common.message.createSuccess'))

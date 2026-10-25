@@ -3,7 +3,8 @@
 # 部署服务器地址由 App 首装手填（不烘进包）。CI 只做：安卓端变更→出可安装 APK→严格校验产物→
 # 模拟器装包跑 E2E。独立于 ci-cd.yml。本机无 Android 工具链，全部在 CI 跑。
 #
-# 安全：仅受信触发（无 pull_request）；不将任何 GitHub event 载荷拼进 shell；输入经校验。
+# 安全：仅受信触发或同仓 PR；不将任何 GitHub event 载荷拼进 shell；输入经校验。
+# PR 触发只跑 debug 构建与模拟器 E2E，签名与发布步骤由 BUILD_RELEASE 输入控制，PR 下恒为 false，不接触签名 secret。
 name: Android (Tauri)
 
 on:
@@ -34,6 +35,12 @@ on:
           - 'true'
           - 'false'
         default: 'true'
+  # PR 触发：安卓端改动过去只在本分支 push 时跑，导致权限与插件注入等步骤在 PR 里完全没有曝光。
+  # 只跑 debug 构建与模拟器 E2E；签名与发布步骤由 BUILD_RELEASE 输入控制，PR 下恒 false。
+  pull_request:
+    paths:
+      - "mobile-app/**"
+      - ".github/workflows/android.yml"
   push:
     branches:
       - "feat/android-tauri-client"
@@ -114,6 +121,44 @@ jobs:
             python3 -c "import json,sys; json.load(open(sys.argv[1])); print('JSON OK', sys.argv[1])" "$f"
           done
 
+      - name: 严格冒烟·2.1 校验 app 命令 ACL 覆盖
+        # 一旦存在 app 权限清单，远端与本地页面调用 app 命令都要 capabilities 逐条授权；
+        # 漏一条不会在构建期报错，只会在运行期被 ACL 拒绝（例如 gateway 的 remember_gateway），
+        # 故按 build.rs 的命令清单对两份 capabilities 逐条比对。
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          build = pathlib.Path("mobile-app/src-tauri/build.rs").read_text(encoding="utf-8")
+          commands = re.findall(r'"([a-z][a-z0-9_]*)"', build)
+          expected = {
+              "app_info",
+              "remember_gateway",
+              "reopen_gateway",
+              "bluetooth_request_permission",
+              "app_request_camera_permission",
+              "bluetooth_open_settings",
+              "bluetooth_list_printers",
+              "bluetooth_connect",
+              "bluetooth_print_text",
+              "bluetooth_disconnect",
+          }
+          if set(commands) != expected:
+              raise SystemExit(f"build.rs 命令清单与预期不一致，缺失 {sorted(expected - set(commands))}，多出 {sorted(set(commands) - expected)}")
+          required = ["allow-" + c.replace("_", "-") for c in commands]
+          for name in ("default.json", "remote-gateway.json"):
+              path = pathlib.Path("mobile-app/src-tauri/capabilities") / name
+              data = json.loads(path.read_text(encoding="utf-8"))
+              perms = set(data.get("permissions", []))
+              missing = sorted(set(required) - perms)
+              if missing:
+                  raise SystemExit(f"{name} 缺 app 命令权限 {missing}")
+              print(f"{name} 覆盖 {len(required)} 条 app 命令权限")
+          PY
+
       - name: 设置 JDK
         uses: actions/setup-java@v4
         with:
@@ -146,13 +191,37 @@ jobs:
         working-directory: mobile-app
         run: cargo tauri android init
 
+      - name: 注入安卓权限与蓝牙打印插件
+        # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
+        # 做什么 向 gen/android 清单补联网/相机/经典蓝牙/文件读写权限与可选硬件声明，并把
+        #        BluetoothPrintPlugin.kt（含相机权限申请命令）复制进 com.bingxi.erp 包；
+        #        模板锚点或包名变化时脚本直接判红，不静默跳过。
+        # 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库模板。
+        working-directory: mobile-app
+        run: python3 scripts/patch-android.py
+
+      - name: 放开 release 明文流量（部署地址允许 http）
+        # 调用方 后续 debug 与 release 构建。入参 无。
+        # 为什么 Tauri 模板只在 debug 构建类型把 usesCleartextTraffic 置 true，release 继承 defaultConfig 的 false，
+        # 而服务器设置页允许用户填 http 局域网地址，release 包会以 ERR_CLEARTEXT_NOT_PERMITTED 断网。
+        # 做什么 把生成工程 defaultConfig 的占位符改为 true，两种构建类型一致允许明文。
+        # 存哪里 只改 CI 现场生成的 src-tauri/gen/android/app/build.gradle.kts，不进版本库。
+        # 模板文本变化导致未命中时直接判红，避免补丁静默失效。
+        working-directory: mobile-app
+        run: |
+          set -euo pipefail
+          GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          grep -q 'manifestPlaceholders\["usesCleartextTraffic"\] = "false"' "$GRADLE" || { echo '未找到明文流量占位符默认值，Tauri 模板已变，需人工校准'; exit 1; }
+          sed -i 's/manifestPlaceholders\["usesCleartextTraffic"\] = "false"/manifestPlaceholders["usesCleartextTraffic"] = "true"/' "$GRADLE"
+          grep -q 'manifestPlaceholders\["usesCleartextTraffic"\] = "true"' "$GRADLE" || { echo '明文流量占位符改写未生效'; exit 1; }
+
       - name: 构建 debug APK
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
         run: cargo tauri android build --debug --apk
 
-      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/体积）
+      - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/权限/明文流量/插件类/体积）
         run: |
           set -euo pipefail
           APK="$(find mobile-app/src-tauri/gen/android/app/build/outputs/apk -path '*universal/debug/*.apk' | head -1)"
@@ -162,6 +231,10 @@ jobs:
           echo "$BADGE" | grep -q "package: name='${APP_ID}'" || { echo "包名不符"; exit 1; }
           echo "$BADGE" | grep -q "launchable-activity: name=" || { echo "无 launcher activity"; exit 1; }
           echo "$BADGE" | grep -Eq "sdkVersion:'(2[4-9]|[3-9][0-9])'" || { echo "minSdk 应 >=24"; exit 1; }
+          AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
+          python3 mobile-app/scripts/assert-apk-permissions.py --self-test
+          python3 mobile-app/scripts/assert-apk-permissions.py "$APK" "$AAPT2"
+          unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/BluetoothPrintPlugin;' || { echo "APK 未打包蓝牙打印插件类，注入或编译未生效"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
 
@@ -174,13 +247,19 @@ jobs:
 
       - name: 构建 release APK（未签名，发布轮必需产物）
         # 调用方 本文件的 准备签名证书 与 签名 release APK 两步，产物再进 上传签名 release APK。
-        # 入参 无。tauri v2 的 `android build` 默认即 release 档，只 --debug 是选项、--release 不是，
-        # 多传会被 CLI 判为 unexpected argument 并以退出码 2 终止。
+        # 入参 无。tauri v2 的 android build 默认即 release 档，只 --debug 是选项，多传 --release 会被 CLI 判为 unexpected argument 并以退出码 2 终止。
         if: env.BUILD_RELEASE == 'true'
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: cargo tauri android build --apk
+        run: |
+          set -euo pipefail
+          cargo tauri android build --apk
+          APK="$(find src-tauri/gen/android/app/build/outputs/apk -path '*universal/release/*.apk' | head -1)"
+          test -n "$APK" || { echo '未找到 universal release APK'; exit 1; }
+          AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
+          python3 scripts/assert-apk-permissions.py --self-test
+          python3 scripts/assert-apk-permissions.py "$APK" "$AAPT2"
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
@@ -291,7 +370,9 @@ jobs:
     # 手工 dispatch 读手填 run_e2e（默认 true，保持旧行为恒跑）。
     # push 与 release 直接触发无输入通道，判空不等于 false，恒运行，行为不变。
     if: ${{ inputs.run_e2e != 'false' && github.event.inputs.run_e2e != 'false' }}
-    name: 模拟器 E2E（装包→启动→前台→WebView进程拉起→无崩溃）
+    # CI 模拟器无 GPU，本 job 只验证装包，权限生效，前台，窗口，WebView 初始化与无崩溃，
+    # 不做像素与点击断言，真机渲染与业务交互留真机验收。
+    name: 模拟器 E2E（装包，启动，前台，WebView 初始化，无 ANR 与崩溃）
     needs: android-apk
     runs-on: ubuntu-latest
     steps:
@@ -310,12 +391,29 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: |
-            # runner 逐行以独立 sh 执行，跨行变量与续行均不保留：赋值守卫使用须同处一行
+            # runner 逐行以独立 sh 执行，跨行变量与续行均不保留。赋值守卫使用须同处一行。
+            # 设备侧只核对 API 34 上仍生效的权限。maxSdkVersion 低于平台 SDK 的 uses-permission
+            # 由 PackageParser 在解析期丢弃（BLUETOOTH 与 BLUETOOTH_ADMIN 为 30，READ_EXTERNAL_STORAGE 为 32，
+            # WRITE_EXTERNAL_STORAGE 为 28），这四条声明的完整性由 APK 静态断言 assert-apk-permissions.py 负责。
             APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
-            adb logcat -c; adb logcat -b crash -c; adb shell am start -n "${APP_ID}/.MainActivity" || adb shell monkey -p "${APP_ID}" 1
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
+            adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
+            adb logcat -c; adb logcat -b crash -c; adb logcat -b events -c
+            COMP="$(adb shell cmd package resolve-activity --brief "${APP_ID}" | tail -1 | tr -d '\r')"; case "$COMP" in "${APP_ID}"/*) echo "E2E: launcher 组件 $COMP" ;; *) echo "E2E: launcher 组件异常 $COMP"; exit 1 ;; esac; adb shell am start -W -n "$COMP" || { echo 'E2E: 启动 launcher 组件失败'; exit 1; }
             sleep 8
-            adb shell dumpsys activity activities | grep -q "${APP_ID}" || { echo 'E2E: 目标包未运行'; exit 1; }
-            i=0; WV=""; while [ "$i" -lt 15 ]; do i=$((i+1)); adb logcat -d | grep -iqE 'RustStdoutStderr|chromium' && { WV=1; break; }; sleep 4; done; test -n "$WV" || { echo 'E2E: 未观测到本 app WebView/Chromium 活动'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: WebView/Chromium 进程已拉起'; adb logcat -d | grep -iE 'RustStdoutStderr|chromium' | head -8
-            echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
-            adb logcat -d -b crash | grep -q "FATAL EXCEPTION" && { echo 'E2E: 本次启动崩溃见 crash buffer'; exit 1; } || true
-            echo 'E2E: 装包-启动-前台-WebView进程拉起-无崩溃 全部通过'
+            adb shell pidof "${APP_ID}" | tr -d '\r' | grep -q . || { echo 'E2E: 应用进程未存活'; exit 1; }
+            adb shell dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity' | grep -q "${APP_ID}/" || { echo 'E2E: 目标 Activity 未处于前台'; adb shell dumpsys activity activities | tail -40; exit 1; }
+            adb shell dumpsys window windows | grep -q "${APP_ID}/" || { echo 'E2E: 应用窗口未创建'; exit 1; }
+            adb shell run-as "${APP_ID}" true || { echo 'E2E: run-as 不可用，debug 包应可调试'; exit 1; }
+            i=0; WV=""; while [ "$i" -lt 30 ]; do i=$((i+1)); adb shell run-as "${APP_ID}" ls shared_prefs 2>/dev/null | grep -qi webview && { WV=1; break; }; sleep 3; done; test -n "$WV" || { echo 'E2E: 本应用 WebView 未初始化（shared_prefs 内无 WebView 首选项）'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: 本应用 WebView 已初始化'
+            adb logcat -d --pid="$(adb shell pidof -s "${APP_ID}" | tr -d '\r')" | tail -20
+            CRASH_BUF="$(adb logcat -d -b crash)"
+            echo '===== crash buffer 全文 ====='; printf '%s\n' "$CRASH_BUF"
+            # 无外设的 headless 模拟器上系统进程（如蓝牙栈）会自行 SIGABRT，崩溃缓冲不能整体当本应用崩溃。
+            # 判据只认本应用自身的崩溃：native 崩溃行含本应用包名，或 Java 崩溃块的 Process 行含本应用包名。
+            printf '%s\n' "$CRASH_BUF" | grep -E 'Fatal signal' | grep -q "${APP_ID}" && { echo 'E2E: 本应用发生 native 崩溃见 crash buffer'; exit 1; } || true
+            printf '%s\n' "$CRASH_BUF" | grep -A6 'FATAL EXCEPTION' | grep -q "Process: ${APP_ID}" && { echo 'E2E: 本应用发生 Java 崩溃见 crash buffer'; exit 1; } || true
+            adb logcat -d -b events | grep -q "am_anr.*${APP_ID}" && { echo 'E2E: 应用发生 ANR'; exit 1; } || true
+            adb logcat -d -b events | grep -q "am_crash.*${APP_ID}" && { echo 'E2E: 应用发生进程崩溃事件'; exit 1; } || true
+            echo 'E2E: 装包，启动，前台，WebView 初始化，无 ANR 与崩溃 全部通过'
