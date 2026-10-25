@@ -30,6 +30,7 @@
 
 mod test_common;
 
+use bingxi_backend::models::status::wage_record_status;
 use bingxi_backend::models::{
     cost_collection, process_route, process_wage_rate, production_recipe,
     production_recipe_addition, wage_record,
