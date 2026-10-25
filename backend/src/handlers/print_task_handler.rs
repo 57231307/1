@@ -197,6 +197,11 @@ pub fn docx_layout_from_template(m: &PrintTemplateModel) -> DocxPageLayout {
 
 /// 取 `doc_type` 下「启用 + 默认」的模板行（按 id 升序取首行）；查不到即 fail-visible 404
 /// （不以内置默认值代渲染，与既有渲染路径口径一致）。
+///
+/// 启用位是硬解析条件：status 不等于启用 token 的行（含默认位为真的行）永不被
+/// 打印出口选中，停用即断供、重新启用即恢复。默认位由写入侧按 doc_type 维持至多
+/// 一行（与解析查找键同口径，见 print_handler 的建/改/设默认清理逻辑）；存量库
+/// 遗留的同 doc_type 多默认行按 id 升序取首行，判定结果保持确定。
 pub async fn load_active_default_template(
     db: &DatabaseConnection,
     doc_type: &str,
@@ -210,15 +215,41 @@ pub async fn load_active_default_template(
         .await?
         .ok_or_else(|| {
             AppError::not_found(format!(
-                "单据类型 {doc_type} 没有可用（启用且默认）的打印模板"
+                "单据类型 {doc_type} 没有可用的（启用且默认）打印模板，模板停用后打印口即断供"
             ))
         })
+}
+
+/// 按显式模板 id 取「启用」模板行：出件侧只接受启用位为启用的行。
+///
+/// 行不存在与行已停用都返回 404 not_found，消息点名模板 id 与成因（不存在还是
+/// 已停用），使用者能直接看懂为什么打不出。与管理面读取函数
+/// print_handler::load_template 口径有意不同：管理面（列表/详情/预览/编辑/复制）
+/// 必须能读到停用行供运营核对待启用；本函数只用于真正出件与派发的链路。
+/// 内置模板被用户的自建默认行降位后，仍可在模板管理页经显式 id 出件，前提是其启用位
+/// 为 active（默认位只约束「按单据类型自动解析」的缺省出件，不约束显式指定）。
+pub async fn load_printable_template(
+    db: &DatabaseConnection,
+    id: i32,
+) -> Result<PrintTemplateModel, AppError> {
+    let template = print_template::Entity::find_by_id(id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AppError::not_found(format!("打印模板 {id} 不存在")))?;
+    if template.status != print_template_status::ACTIVE {
+        return Err(AppError::not_found(format!(
+            "打印模板 {id}（{}）已停用，不能作为打印出口，请先在模板管理中启用该模板",
+            template.template_name
+        )));
+    }
+    Ok(template)
 }
 
 /// 按 `doc_type` 解析渲染所用的默认模板布局（启用且默认行）。
 ///
 /// 这是 `print_handler::render_print_docx` 与打印任务派发共用的同一入口：受理时若未显式指定
-/// 模板引用，即回落到本函数的 doc_type 默认模板。
+/// 模板引用，即回落到本函数的 doc_type 默认模板；显式指定模板 id 时经
+/// [`load_printable_template`] 同样强制启用位条件。
 pub async fn resolve_print_docx_layout(
     db: &DatabaseConnection,
     doc_type: &str,
@@ -292,12 +323,11 @@ pub(crate) async fn submit_print_task(
 
     let db: Arc<DatabaseConnection> = state.db.clone();
 
-    // 适用模板：显式 template_id 优先（须存在），否则取 doc_type 的启用默认模板行。
+    // 适用模板：显式 template_id 优先（须存在且启用），否则取 doc_type 的启用默认
+    // 模板行。两条分支都以启用位为硬条件：停用模板无论经由哪条路径都不能出件
+    // （不产生 docx、不入库、不派发）。
     let template: PrintTemplateModel = match req.template_id {
-        Some(tid) => print_template::Entity::find_by_id(tid)
-            .one(&*db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("打印模板 {} 不存在", tid)))?,
+        Some(tid) => load_printable_template(&*db, tid).await?,
         None => load_active_default_template(&*db, &req.doc_type).await?,
     };
 
