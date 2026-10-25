@@ -145,7 +145,9 @@ test.describe.serial('99 采购单据族链', () => {
     expect(items.length, '两行建单后明细应为 2 行').toBe(2);
     const victim = items[0];
     const survivor = items[1];
-    expect(String(victim.product_id), `明细回读 product_id 必须等于提交物料 ${productId}`).toBe(
+    // 明细列表口的视图对象把外键序列化成 material_id（提交键也叫 material_id），
+    // 读 product_id 会恒 undefined——同键比同键才是「提交什么回读什么」这条锁的本意。
+    expect(String(victim.material_id), `明细回读 material_id 必须等于提交物料 ${productId}`).toBe(
       String(productId)
     );
 

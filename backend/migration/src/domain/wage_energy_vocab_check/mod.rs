@@ -6,7 +6,7 @@
 //! - m0103_apply_wage_energy_vocab_checks 才做存量守卫与 CHECK 施加与收尾自证，
 //!   词表外残留即拒滚，回填没干净就不许进 CHECK 的判据依据正是 m0102 留在日志里的逐值分账。
 //!
-//! 覆盖十二列，取值集合逐列取自身词表不做跨列并集，权威词表在 backend 侧 models::status::
+//! 覆盖十三列，取值集合逐列取自身词表不做跨列并集，权威词表在 backend 侧 models::status::
 //! wage_energy_chemical_business。台账名取域名，注册在 lib.rs 迁移链尾，晚于建表域。
 
 use sea_orm_migration::prelude::*;

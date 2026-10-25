@@ -198,10 +198,13 @@ test.describe.serial('117 报表增强模板生命周期真值链', () => {
       { field: '*', title: '全部字段', data_type: 'string' },
     ]);
 
-    // 静态常量档：同类型两次读取必须逐字节相同（证明该端点不查库、不受并发影响）
+    // 静态常量档：同档两次读取逐字节相同，锁的是该端点不查库、不受并发影响的确定性。
+    // 比对基准取首读原文，不取用例侧常量声明序——后端出参经 serde_json Value 构键，
+    // 对象键恒按字母序序列化，与 TS 常量的书写序不同源，拿书写序做逐字节比必假红。
+    const firstSales = await apiCallRaw<Row>(page, 'GET', '/reports/enhanced/fields/sales');
     const again = await apiCallRaw<Row>(page, 'GET', '/reports/enhanced/fields/sales');
     expect(JSON.stringify(again.fields), '字段字典同档二次读取必须与首次逐字节相同').toBe(
-      JSON.stringify(SALES_FIELDS)
+      JSON.stringify(firstSales.fields)
     );
   });
 

@@ -1,4 +1,4 @@
-//! 工资与能耗十二列状态取值 CHECK——**真库活体契约锁**（迁移原文 / 应用词表 / 活库目录三源对撞）
+//! 工资与能耗十三列状态取值 CHECK——**真库活体契约锁**（迁移原文 / 应用词表 / 活库目录三源对撞）
 //!
 //! ## 只在 CI 执行
 //! 本文件连已跑完迁移的真实 PostgreSQL（`setup_test_db` 缺 `TEST_DATABASE_URL` 直接 panic、
@@ -10,14 +10,14 @@
 //! - L1 逐值可插：每列词表内每个 token 经旁路裸 SQL 真插一行成功，并按 id 逐字符回读原文。
 //! - L2 词表外必被 DB 拒：旁路写词表外值必须由本列的 CHECK 报 SQLSTATE 23514、约束名逐字
 //!   归因到自己这条约束、零落库；负样本含大写漂移、首尾空白、空串、外来词，每列配同模板正例。
-//! - L3 目录形态：十二列 is_nullable 为 NO 且 column_default 为空（本批约定无 DEFAULT），
+//! - L3 目录形态：十三列 is_nullable 为 NO 且 column_default 为空（本批约定无 DEFAULT），
 //!   pg_constraint 里同名列的 CHECK 恰一条且 contype 为 c 且 convalidated 为真。
 //! - L4 双向逐字一致：pg_get_constraintdef 解析集 == m0103 迁移原文解析集 == 运行时词表，
 //!   集合相等不是包含，任一侧单改必红。
 //! - L5 台账不可回改：seaql_migrations 含本域台账名 m_wage_energy_vocab_check 恰一行。
 //!
 //! ## 为什么本批不建端点层空壳断言（L6）
-//! 本批十二列里 status 与 meter_type 等列没有任何客户端写入通道（handler 的 status 只进列表
+//! 本批十三列里 status 与 meter_type 等列没有任何客户端写入通道（handler 的 status 只进列表
 //! 过滤不进写参，meter_type 等由 service 校验后落库），无端点可钉。若硬造 400 端点断言即空壳，
 //! 故按裁定只在库层钉兜底，端点层待后续含 PUT 透传列的收口域再补。
 //!
@@ -230,7 +230,7 @@ async fn count_by_id(db: &DatabaseConnection, table: &str, id: i32) -> i64 {
     .await
 }
 
-/// 十二列配方，fillers 首元素必须是该表的业务号列（会被赋成 id 唯一串）。
+/// 十三列配方，fillers 首元素必须是该表的业务号列（会被赋成 id 唯一串）。
 fn col_specs() -> Vec<ColSpec> {
     let pwr_fill: &[(&str, &str)] = &[
         ("rate_no", "x"),
@@ -701,8 +701,10 @@ async fn l5_migration_ledger_contains_this_domain() {
     let db = setup_test_db().await;
     let n = one_i64(
         &db,
+        // 迁移台账的迁移名落在 version 列（该列同时是主键，故同名重复物理上不可能），
+        // 按 name 过滤会让整条计数 SQL 直接 42703 失红，取不到任何计数。
         &format!(
-            "SELECT COUNT(*) AS n FROM \"seaql_migrations\" WHERE name='{}'",
+            "SELECT COUNT(*) AS n FROM \"seaql_migrations\" WHERE version='{}'",
             LEDGER_NAME
         ),
         "n",

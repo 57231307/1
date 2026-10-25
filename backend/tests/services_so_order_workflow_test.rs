@@ -62,11 +62,11 @@ fn make_order_model(
     }
 }
 
-/// 提交、审核、完成三道状态门的判据一律走生产入口（SalesService::submit_order /
-/// approve_order / complete_order）断言，本文件不再保留把门判复制进测试的镜像函数——
-/// 镜像在生产门一改之后只会自顾自变红或变绿，不证明生产链路任何行为。
-/// 每道门的两侧状态集合见同文件 *_GATE_ALLOWED 与 *_GATE_FORBIDDEN 常量，
-/// 集合前提由 *_ZTJIHEGAILAN 三条例控制用例兜住。
+// 提交、审核、完成三道状态门的判据一律走生产入口（SalesService::submit_order /
+// approve_order / complete_order）断言，本文件不再保留把门判复制进测试的镜像函数——
+// 镜像在生产门一改之后只会自顾自变红或变绿，不证明生产链路任何行为。
+// 每道门的两侧状态集合见同文件 *_GATE_ALLOWED 与 *_GATE_FORBIDDEN 常量，
+// 集合前提由 *_ZTJIHEGAILAN 三条例控制用例兜住。
 
 // =========================================================
 // 真库播种夹具（提交门族用例专用：字段集取仓内活库已验证的最小可插集）

@@ -1,8 +1,8 @@
 //! 工资与能耗状态列值域收口，施加词表 CHECK 与收尾自证（配套 m0102 只读点名）
 //!
-//! 语义定案：本批十二列的权威词表唯一出现在 backend 侧 models::status::
+//! 语义定案：本批十三列的权威词表唯一出现在 backend 侧 models::status::
 //! wage_energy_chemical_business 下八个模块，取值集合逐列取自身词表，不做跨列并集。
-//! 十二列建表原文均为 VARCHAR(255) NOT NULL 且无 DEFAULT 无 CHECK，历史上词表只在应用层
+//! 十三列建表原文均为 VARCHAR(255) NOT NULL 且无 DEFAULT 无 CHECK，历史上词表只在应用层
 //! 防护，本迁移把取值域钉进数据库，阻止任何绕过服务层入参校验的旁路写入产生词表外脏值。
 //!
 //! 步骤顺序不可倒，每步存在理由如下。
@@ -62,7 +62,7 @@ struct ColumnCheck<'a> {
     vocab: &'a str,
 }
 
-/// 十二列逐列配方，取值集合按各列自身词表，不做跨列并集。全部 NOT NULL，
+/// 十三列逐列配方，取值集合按各列自身词表，不做跨列并集。全部 NOT NULL，
 /// CHECK 直接写列 IN (...) 不留 NULL 放行。
 const COLUMN_CHECKS: &[ColumnCheck] = &[
     ColumnCheck {
@@ -85,6 +85,13 @@ const COLUMN_CHECKS: &[ColumnCheck] = &[
         constraint: "chk_energy_meter_status",
         allowed: ENERGY_METER_STATUS_ALLOWED,
         vocab: "models::status::energy_meter_status",
+    },
+    ColumnCheck {
+        table: "energy_meter",
+        column: "meter_type",
+        constraint: "chk_energy_meter_meter_type",
+        allowed: ENERGY_TYPE_ALLOWED,
+        vocab: "models::status::energy_type",
     },
     ColumnCheck {
         table: "energy_consumption_record",
@@ -217,7 +224,7 @@ COMMENT ON COLUMN "{table}"."{col}" IS '权威词表 {vocab}，取值集与 CHEC
         let mut values_rows = String::new();
         for (idx, spec) in COLUMN_CHECKS.iter().enumerate() {
             if idx > 0 {
-                values_rows.push_str(",");
+                values_rows.push(',');
             }
             values_rows.push_str(&format!(
                 "('{}','{}','{}')",
@@ -260,10 +267,10 @@ BEGIN
             RAISE EXCEPTION 'm0103 收尾自证失败，%.% 的 is_nullable 为 %（期望 NO），NOT NULL 未真实生效', rec.tbl, rec.col, v_nullable;
         END IF;
         IF v_default <> '<NONE>' THEN
-            RAISE EXCEPTION 'm0103 收尾自证失败，%.% 存在 column_default %（本批十二列约定无 DEFAULT，默认值收敛不属本迁移职责）', rec.tbl, rec.col, v_default;
+            RAISE EXCEPTION 'm0103 收尾自证失败，%.% 存在 column_default %（本批十三列约定无 DEFAULT，默认值收敛不属本迁移职责）', rec.tbl, rec.col, v_default;
         END IF;
     END LOOP;
-    RAISE NOTICE 'm0103 收尾自证通过，十二列 CHECK 均 contype 为 c 且 convalidated 且同列唯一，且列 NOT NULL 且 column_default 为空';
+    RAISE NOTICE 'm0103 收尾自证通过，十三列 CHECK 均 contype 为 c 且 convalidated 且同列唯一，且列 NOT NULL 且 column_default 为空';
 END
 $$;
 "#,

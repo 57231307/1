@@ -174,7 +174,7 @@ fn ap_grants_are_confined_to_finance_roles() {
 
     let mut holders: Vec<&'static str> = rows
         .iter()
-        .filter(|(_, res, _)| AP_RESOURCES.contains(&res))
+        .filter(|(_, res, _)| AP_RESOURCES.contains(res))
         .map(|(role, _, _)| *role)
         .collect();
     holders.sort_unstable();

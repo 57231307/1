@@ -1,4 +1,4 @@
-//! 工资与能耗十二列「Rust 词表常量 ↔ 迁移 CHECK 取值集」纸面双向锁（不连库，CI 常规可跑）。
+//! 工资与能耗十三列「Rust 词表常量 ↔ 迁移 CHECK 取值集」纸面双向锁（不连库，CI 常规可跑）。
 //!
 //! 钉什么：
 //! 1. 两支同域迁移（点名 m0102 与收口 m0103）携带的八份 ALLOWED 常量逐字相等，
@@ -250,8 +250,8 @@ fn each_column_check_set_equals_rust_vocab_bidirectionally() {
     let rows = parse_column_checks(&m0103_src);
     assert_eq!(
         rows.len(),
-        12,
-        "m0103 的 COLUMN_CHECKS 必须是十二行，实得 {} 行",
+        13,
+        "m0103 的 COLUMN_CHECKS 必须是十三行，实得 {} 行",
         rows.len()
     );
 

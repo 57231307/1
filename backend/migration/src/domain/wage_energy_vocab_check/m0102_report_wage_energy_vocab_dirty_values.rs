@@ -1,10 +1,10 @@
 //! 工资与能耗状态列存量取值只读点名（收口前置报告，配套 m0103）
 //!
 //! 为什么单独存在一支只读迁移：process_wage_rate、wage_record、energy_meter、
-//! energy_consumption_record、energy_allocation_rule、energy_allocation_record 六张表的十二个
+//! energy_consumption_record、energy_allocation_rule、energy_allocation_record 六张表的十三个
 //! 取值列建表原文均为 VARCHAR(255) NOT NULL 且无 CHECK，词表唯一防护历史上只落在应用层，
 //! 脏值分布完全未知。m0103 在施加 CHECK 前会逐列守卫拒绝词表外残留，但那只是结果不是现场。
-//! 本迁移把十二列在收口前的逐值现状以 RAISE NOTICE 摊进迁移日志，使 CI 与人工能核对
+//! 本迁移把十三列在收口前的逐值现状以 RAISE NOTICE 摊进迁移日志，使 CI 与人工能核对
 //! 词表口径是否覆盖真实分布，日志本身成为可追溯的点名报告。
 //!
 //! 口径来源，逐字符对齐，勿在本文件另立词表。八份权威词表取自
@@ -48,7 +48,7 @@ struct ColReport<'a> {
     allowed: &'a str,
 }
 
-/// 十二列逐列配方，取值集合按各列自身词表，不做跨列并集。
+/// 十三列逐列配方，取值集合按各列自身词表，不做跨列并集。
 const COL_REPORTS: &[ColReport] = &[
     ColReport {
         table: "process_wage_rate",
@@ -64,6 +64,11 @@ const COL_REPORTS: &[ColReport] = &[
         table: "energy_meter",
         column: "status",
         allowed: ENERGY_METER_STATUS_ALLOWED,
+    },
+    ColReport {
+        table: "energy_meter",
+        column: "meter_type",
+        allowed: ENERGY_TYPE_ALLOWED,
     },
     ColReport {
         table: "energy_consumption_record",
@@ -166,7 +171,7 @@ $$;
             sql.push_str(&block);
         }
         sql.push_str(
-            r#"DO $$ BEGIN RAISE NOTICE 'm0102 点名完成，十二列现状已全部写入迁移日志，本迁移未做任何写入'; END $$;"#,
+            r#"DO $$ BEGIN RAISE NOTICE 'm0102 点名完成，十三列现状已全部写入迁移日志，本迁移未做任何写入'; END $$;"#,
         );
         manager.get_connection().execute_unprepared(&sql).await?;
         Ok(())

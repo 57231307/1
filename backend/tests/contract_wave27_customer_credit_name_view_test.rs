@@ -242,7 +242,7 @@ async fn put_json(app: &Router, uri: &str, body: Value) -> (StatusCode, Value) {
     call(app, axum::http::Method::PUT, uri, Some(body)).await
 }
 
-/// 列表出参（裸数组）中按行主键定位对象
+/// 列表出参（分页信封的 items 行数组）中按行主键定位对象
 fn find_item(items: &[Value], row_id: i32) -> Value {
     items
         .iter()
@@ -270,14 +270,16 @@ fn assert_customer_name(obj: &Value, expected: &str) {
 
 /// 列表出参锁：冗余列为 NULL 的行（A）与存着过期旧名的行（B）都必须回显 customers 真名；
 /// 同时 SQL 直查证明库内该列形态未变——真名来自读侧富化，不是落库后直读。
-/// 另锁列表仍是裸数组（ApiResponse<Vec<..>>，非分页信封），富化不得改信封形态。
+/// 另锁列表走分页信封（行数组在 data.items、总数在 data.total），富化只改名列取值来源、不改信封形态。
 #[tokio::test]
 async fn list_echoes_real_customer_name_for_null_and_stale_rows() {
     let (app, db) = seeded_app().await;
     let (status, v) = get_json(&app, "/customer-credits?page=1&page_size=50").await;
     assert_eq!(status, StatusCode::OK, "列表应 200，实际体: {v}");
 
-    let items = v["data"].as_array().expect("列表 data 必须是裸数组");
+    let items = v["data"]["items"]
+        .as_array()
+        .expect("列表 data.items 必须是行数组");
     assert_eq!(items.len(), 2, "应恰有 2 条信用行，实际: {v}");
 
     assert_customer_name(&find_item(items, ROW_PK_A), NAME_A);
@@ -338,7 +340,9 @@ async fn newly_created_credit_row_carries_real_name_on_all_read_paths() {
 
     let (lstatus, lv) = get_json(&app, "/customer-credits?page=1&page_size=50").await;
     assert_eq!(lstatus, StatusCode::OK, "列表应 200，实际体: {lv}");
-    let items = lv["data"].as_array().expect("列表 data 必须是裸数组");
+    let items = lv["data"]["items"]
+        .as_array()
+        .expect("列表 data.items 必须是行数组");
     assert_customer_name(&find_item(items, new_row_id as i32), NAME_C);
 
     let (dstatus, dv) = get_json(&app, &format!("/customer-credits/{CUST_C}")).await;
