@@ -533,6 +533,21 @@ jobs:
         working-directory: frontend
         run: node scripts/check-e2e-types.mjs
 
+      # 单据里的数量 单价 税率 金额一律纯手写输入，全项目不许带加减按钮的数字输入框。
+      # 判定器按标签层判 el-input-number 与自造的加减步进按钮，只加样式隐藏原生按钮算假修，
+      # 键盘上下键与长按仍在。存量按 文件 到 违规计数 记入 scripts/no-stepper-control-baseline.json，
+      # 只准下降；某文件已收敛但基线未下调同样判红，逼着把基线跟着收紧。
+      # 自证步骤先于主门禁执行，判定器空转时主门禁恒绿不可信。
+      - name: 禁步进数字输入框判定器自证（正例必抓 反例必不报）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-no-stepper-control.mjs --self-test
+
+      - name: 禁步进数字输入框棘轮（el-input-number 与自造加减步进按钮全禁，基线只准降）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-no-stepper-control.mjs
+
       # 每 worker 独立账号与会话态门禁（行为/结构/收口三层，纯 Node）：后端 CSRF 凭据按
       # user_id 单命名空间且一次性消费，多并发 worker 共用同一账号或同一份 storageState 会
       # 互踢凭据、成片确定性 403。本步断言配置里无全 run 静态 storageState、globalSetup 按
