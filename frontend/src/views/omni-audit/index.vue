@@ -417,6 +417,25 @@ loadStats();
   color: white;
 }
 
+@media (max-width: 768px) {
+  .app-container {
+    padding: 8px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stat-card {
+    gap: 10px;
+  }
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+}
+
 .chart-card {
   margin-bottom: 20px;
 }

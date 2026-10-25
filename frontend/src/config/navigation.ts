@@ -166,7 +166,6 @@ export const NAV_TREE: NavNode[] = [
         L('/voucher', 'layout.menu.voucher'),
         L('/account-subject', 'layout.menu.accountSubject'),
         L('/accounting-period', 'layout.menu.accountingPeriod'),
-        L('/periods', 'layout.menu.accountingPeriods'),
         L('/period-adjustments', 'layout.menu.periodAdjustments'),
         L('/assist-accounting', 'layout.menu.assistAccounting'),
       ]),

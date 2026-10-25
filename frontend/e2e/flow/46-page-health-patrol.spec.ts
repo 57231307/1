@@ -55,7 +55,7 @@ const PATROL_ROUTES: Array<{ path: string; name: string }> = [
   { path: '/period-adjustments', name: '期末调整' },
   { path: '/budgets', name: '预算审批' },
   { path: '/invoice-details', name: '发票管理' },
-  { path: '/periods', name: '会计期间' },
+  { path: '/accounting-period', name: '会计期间' },
   { path: '/labor-contracts', name: '劳动合同' },
   { path: '/social-insurance', name: '社保管理' },
   { path: '/occupational-health', name: '职业健康' },

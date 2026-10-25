@@ -83,7 +83,7 @@
     </el-form>
     <template #footer>
       <el-button @click="onClose(false)">{{ t('inventory.adjustmentDialog.cancel') }}</el-button>
-      <el-button type="primary" @click="onSubmit">{{
+      <el-button type="primary" :loading="submitting" :disabled="submitting" @click="onSubmit">{{
         t('inventory.adjustmentDialog.confirm')
       }}</el-button>
     </template>
@@ -118,6 +118,8 @@ const props = defineProps<{
   initialForm: AdjustmentForm;
   warehouses: Warehouse[];
   products: Product[];
+  // 提交在途（父组件管理）：为真时确认按钮转圈并禁用，避免重复生成调整单
+  submitting: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -141,6 +143,7 @@ const onClose = (val: boolean) => {
 };
 
 const onSubmit = () => {
+  if (props.submitting) return;
   emit('submit', deepClone(localForm));
 };
 </script>

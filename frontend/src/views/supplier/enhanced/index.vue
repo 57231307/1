@@ -4,13 +4,25 @@
       <div class="page-header">
         <h2>{{ t('supplier.enhanced.title') }}</h2>
         <div class="header-actions">
-          <el-input-number
+          <el-select
             v-model="supplierId"
-            :min="1"
-            :precision="0"
-            :placeholder="t('supplier.enhanced.idPlaceholder')"
-            style="width: 180px"
-          />
+            filterable
+            remote
+            clearable
+            :remote-method="searchSuppliers"
+            :loading="pickerLoading"
+            :no-data-text="t('supplier.enhanced.picker.noData')"
+            :placeholder="t('supplier.enhanced.picker.placeholder')"
+            style="width: 300px"
+            @change="syncPickedSupplier"
+          >
+            <el-option
+              v-for="s in supplierOptions"
+              :key="s.id"
+              :label="supplierOptionLabel(s)"
+              :value="s.id"
+            />
+          </el-select>
           <el-button type="primary" :loading="pageLoading" @click="loadAll">
             {{ t('supplier.enhanced.query') }}
           </el-button>
@@ -18,6 +30,9 @@
       </div>
 
       <el-descriptions v-if="supplier" :column="4" border class="block-gap">
+        <el-descriptions-item :label="t('supplier.enhanced.descriptions.id')">
+          {{ supplier.id }}
+        </el-descriptions-item>
         <el-descriptions-item :label="t('supplier.enhanced.descriptions.code')">
           {{ supplier.supplier_code }}
         </el-descriptions-item>
@@ -541,8 +556,19 @@ import {
   type SupplierQualificationInput,
 } from '@/api/supplier';
 import { getEvaluationIndicatorList, type EvaluationIndicator } from '@/api/supplier-evaluation';
+import { useSupplierPicker } from '@/composables/useSupplierPicker';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 供应商入口的候选数据源：关键字远程搜索、加载中标志与竞态序号都在组合式里单点持有，
+// 本页只消费它的返回状态；已选供应商的主键仍由本页 supplierId 持有并供各取数函数使用。
+const {
+  options: supplierOptions,
+  loading: pickerLoading,
+  search: searchSuppliers,
+  syncPinned: syncPickedSupplier,
+  optionLabel: supplierOptionLabel,
+} = useSupplierPicker();
 
 /** 响应解包防御：兼容数组 / { items } / { history } 包装，避免 el-table "r is not iterable" */
 const unwrapList = <T,>(payload: unknown): T[] => {
@@ -638,7 +664,7 @@ const loadHistory = async () => {
 
 const loadAll = async () => {
   if (!supplierId.value) {
-    ElMessage.warning(t('supplier.enhanced.message.inputSupplierId'));
+    ElMessage.warning(t('supplier.enhanced.message.selectSupplierFirst'));
     return;
   }
   loaded.value = true;

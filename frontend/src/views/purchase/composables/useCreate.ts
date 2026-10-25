@@ -89,6 +89,8 @@ const defaultForm = (): CreateFormData => ({
 export function useCreate(products: () => Product[], onSuccess: () => void) {
   const createDialogVisible = ref(false);
   const createFormRef = ref<FormInstance>();
+  // 建单在途：提交前要先异步校验表单，若等校验返回才置位，连点两下会各建一张采购单
+  const creating = ref(false);
   const createFormRules: FormRules = {
     supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }],
     order_date: [{ required: true, message: '请选择订单日期', trigger: 'change' }],
@@ -253,13 +255,17 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
    * 提交新建采购单
    */
   const submitCreate = async () => {
+    if (creating.value) return;
+    creating.value = true;
     try {
       await createFormRef.value?.validate();
     } catch {
+      creating.value = false;
       return;
     }
     const validItems = createForm.value.items.filter(item => item.product_id && item.quantity > 0);
     if (validItems.length === 0) {
+      creating.value = false;
       msg.warning('pleaseAddPurchaseDetail');
       return;
     }
@@ -268,6 +274,7 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
       item => item.product_id && item.color_id && !item.resolved
     );
     if (unresolved.length > 0) {
+      creating.value = false;
       msg.error('skuMappingRequired');
       return;
     }
@@ -279,6 +286,7 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
     const departmentId = createForm.value.department_id;
     if (supplierId == null || !orderDate || warehouseId == null || departmentId == null) {
       // validate() 理论上已拦截；显式兜底返回而非把 undefined 发往后端
+      creating.value = false;
       return;
     }
     try {
@@ -310,6 +318,8 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
       ElMessage.error(
         (error instanceof Error ? error.message : '') || msg.translate('createFailed')
       );
+    } finally {
+      creating.value = false;
     }
   };
 
@@ -317,6 +327,7 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
     createDialogVisible,
     createFormRef,
     createFormRules,
+    creating,
     createForm,
     handleCreate,
     addItem,

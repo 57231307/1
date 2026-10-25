@@ -6,6 +6,8 @@ use crate::models::product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+// 每匹米数与每卷米数的同源补齐与产品单条链路共用同一真源，避免批量入口各写一套语义
+use crate::services::product_service::pair_piece_roll_meters;
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::DatabaseTransaction;
@@ -58,6 +60,25 @@ pub struct BatchCreateProductRequest {
     pub finish: Option<String>,
     pub min_order_quantity: Option<rust_decimal::Decimal>,
     pub lead_time: Option<i32>,
+    // 每匹米数与每卷米数换算元数据。创建侧为两态，带值即落值。只带其中一个值时另一列由
+    // 同源补齐成同值，两个都不带时两列落 NULL（与产品单条创建链路同一语义）。
+    pub meters_per_piece: Option<rust_decimal::Decimal>,
+    pub meters_per_roll: Option<rust_decimal::Decimal>,
+}
+
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的键缺席不等于显式 null 语义所需）。
+///
+/// 为何需要。serde_json 对双层 Option 的默认反序列化在遇到 JSON null 时将外层塌成 None，
+/// 与键缺席不可区分，批量编辑清空每匹米数就无法送达后端。本适配器把字段先按内层 Option
+/// 反序列化再包一层。键缺席（配合 serde default）为 None 即保持原值，显式 null 为
+/// Some(None) 即清空该列，有值为 Some(Some(v)) 即覆盖。
+/// 与 product_handler 等处的同型私有适配器一致。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
 }
 
 /// 产品批量更新请求
@@ -74,6 +95,13 @@ pub struct BatchUpdateProductRequest {
     pub cost_price: Option<String>,
     pub description: Option<String>,
     pub status: Option<String>,
+    // 每匹米数与每卷米数换算元数据，三态部分更新。键缺席保持原值、显式 null 清空为 NULL、
+    // 有值覆盖。只声明其中一个值时另一列由同源补齐成同样的声明（与单条更新链路同一语义，
+    // 清空走显式置空，不取旧值兜底）。
+    #[serde(default, deserialize_with = "double_option")]
+    pub meters_per_piece: Option<Option<rust_decimal::Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub meters_per_roll: Option<Option<rust_decimal::Decimal>>,
 }
 
 /// 批量更新失败回滚上下文：封装 user_id/total/description/errors 等参数（批次 488 D08-1 拆分：用于 build_rollback_result 在 helper 间传递上下文）
@@ -164,6 +192,11 @@ impl BatchService {
             .as_ref()
             .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
 
+        // 米数两列先过同源补齐再落 ActiveModel，只带一个值时另一列同值落库，
+        // 两个都不带时两列落 NULL，与产品单条创建链路同一形态
+        let (meters_per_piece, meters_per_roll) =
+            pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
+
         product::ActiveModel {
             id: Default::default(),
             name: Set(req.name.clone()),
@@ -193,6 +226,8 @@ impl BatchService {
             finish: Set(req.finish.clone()),
             min_order_quantity: Set(req.min_order_quantity),
             lead_time: Set(req.lead_time),
+            meters_per_piece: Set(meters_per_piece),
+            meters_per_roll: Set(meters_per_roll),
             supplier_product_code: sea_orm::ActiveValue::NotSet,
             supplier_id: sea_orm::ActiveValue::NotSet,
             is_batch_managed: sea_orm::ActiveValue::NotSet,
@@ -377,6 +412,17 @@ impl BatchService {
         }
         if let Some(status) = &req.status {
             product.status = Set(status.clone());
+        }
+        // 米数两列先过同源补齐（只声明一边时把同一份声明复制到另一边），再按三态落库。
+        // 外层 None 即键缺席、保持原值。外层 Some 时内层值原样 Set，内层 None 清空为 NULL，
+        // 内层 Some(v) 覆盖为该值。与单条更新链路同一判据，清空不取旧值兜底。
+        let (meters_per_piece, meters_per_roll) =
+            pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
+        if let Some(piece) = meters_per_piece {
+            product.meters_per_piece = Set(piece);
+        }
+        if let Some(roll) = meters_per_roll {
+            product.meters_per_roll = Set(roll);
         }
         product.updated_at = Set(chrono::Utc::now());
         product

@@ -62,9 +62,13 @@
       <el-button @click="emit('update:modelValue', false)">{{
         t('inventoryCount.formDialogTab.buttonCancel')
       }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
-        t('inventoryCount.formDialogTab.buttonSave')
-      }}</el-button>
+      <el-button
+        type="primary"
+        :loading="submitLoading"
+        :disabled="submitLoading"
+        @click="handleSubmit"
+        >{{ t('inventoryCount.formDialogTab.buttonSave') }}</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -155,6 +159,7 @@ onMounted(() => {
 });
 
 const handleSubmit = async () => {
+  if (submitLoading.value) return;
   if (!formData.warehouse_id) {
     ElMessage.warning(t('inventoryCount.formDialogTab.warehouseRequired'));
     return;

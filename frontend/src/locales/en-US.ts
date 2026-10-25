@@ -489,7 +489,6 @@ export default {
       periodAdjustments: 'Period Adjustments',
       budgetApprovals: 'Budget Approval',
       invoiceDetails: 'Invoices',
-      accountingPeriods: 'Accounting Periods',
       systemGovernance: 'System Governance',
       laborContracts: 'Labor Contracts',
       socialInsurance: 'Social Insurance',
@@ -1587,6 +1586,10 @@ export default {
     supplierProductRequired: 'Please complete the required supplier product fields',
     supplierProductColorRequired: 'Please complete the required color fields',
     importPartialFail: 'Import completed with some failures',
+    printBluetoothSent: 'Receipt sent to the Bluetooth printer',
+    printBluetoothFailed: 'Bluetooth printing failed',
+    printBluetoothPrinterNotSelected:
+      'Select and connect a Bluetooth printer on the print targets page first',
   },
   aiExtend: {
     qualityPrediction: {
@@ -2599,6 +2602,40 @@ export default {
     yesNo: {
       yes: 'Yes',
       no: 'No',
+    },
+    bluetooth: {
+      title: 'Local Bluetooth Printing',
+      description:
+        'Connect a paired Bluetooth thermal printer on the Android client; print jobs are sent directly to the local printer.',
+      requestPermission: 'Request Bluetooth Permission',
+      openSettings: 'Open System Bluetooth Settings',
+      refresh: 'Refresh Paired Devices',
+      printer: 'Printer',
+      printerPlaceholder: 'Please select a paired printer',
+      paperWidth: 'Paper Width',
+      paper58: '58 mm',
+      paper80: '80 mm',
+      connect: 'Connect',
+      disconnect: 'Disconnect',
+      connected: 'Connected',
+      notConnected: 'Not Connected',
+      adapterUnsupported: 'This device does not support Bluetooth',
+      adapterDisabled: 'System Bluetooth is off. Enable Bluetooth in system settings first',
+      permissionDenied: 'Nearby devices permission is not granted; paired printers cannot be read',
+      noPrinters: 'No paired devices. Pair a printer in system Bluetooth settings first',
+      message: {
+        permissionGranted: 'Bluetooth permission granted',
+        permissionDenied: 'Bluetooth permission not granted; printers cannot be listed',
+        permissionFailed: 'Failed to request Bluetooth permission',
+        settingsOpened: 'System Bluetooth settings opened',
+        settingsFailed: 'Failed to open system Bluetooth settings',
+        listFailed: 'Failed to read paired printers',
+        printerRequired: 'Please select a printer first',
+        connectSuccess: 'Printer connected',
+        connectFailed: 'Failed to connect printer',
+        disconnectSuccess: 'Printer disconnected',
+        disconnectFailed: 'Failed to disconnect printer',
+      },
     },
     table: {
       ariaLabel: 'Print targets list',
@@ -3759,8 +3796,7 @@ export default {
       tipMetersPerPiece:
         'Meters per piece, used for the piece↔meter conversion view; not counted in inventory',
       labelMetersPerRoll: 'Meters per Roll',
-      tipMetersPerRoll:
-        'Meters per roll, used for the roll↔meter conversion view; not counted in inventory',
+      tipMetersPerRoll: 'Follows meters per piece; change that to adjust.',
       labelBarcode: 'Barcode',
       placeholderBarcode: 'Enter barcode',
       labelPrice: 'Price',
@@ -7240,10 +7276,15 @@ export default {
     },
     enhanced: {
       title: 'Supplier 360',
-      idPlaceholder: 'Supplier ID',
       query: 'Query',
-      emptyHint: 'Enter a supplier ID and click Query',
+      emptyHint: 'Select a supplier first, then click Query',
+      picker: {
+        placeholder: 'Search by supplier name or code',
+        optionLabel: '{name} ({code})',
+        noData: 'No matching supplier; try a longer keyword',
+      },
       descriptions: {
+        id: 'Supplier ID',
         code: 'Supplier Code',
         name: 'Supplier Name',
         grade: 'Grade',
@@ -7342,8 +7383,8 @@ export default {
         loadQualificationsFailed: 'Failed to load qualifications',
         loadBalanceFailed: 'Failed to load supplier balance',
         loadHistoryFailed: 'Failed to load purchase history',
-        inputSupplierId: 'Please enter a supplier ID',
-        queryFirst: 'Please enter a supplier ID and query first',
+        selectSupplierFirst: 'Please select a supplier',
+        queryFirst: 'Please select a supplier and query first',
         contactDeleteSuccess: 'Contact deleted',
         contactDeleteFailed: 'Failed to delete contact',
         contactUpdateSuccess: 'Contact updated',
@@ -7404,6 +7445,7 @@ export default {
         rankings: 'Supplier Rankings',
         indicators: 'Indicators',
         evaluations: 'Evaluations',
+        compare: 'Supplier Comparison',
       },
       button: {
         create: 'Create Evaluation',
@@ -7440,6 +7482,24 @@ export default {
         totalScore: 'Total Score',
         rating: 'Rating',
         rank: 'Rank',
+      },
+      compare: {
+        pickerPlaceholder: 'Search by supplier name or code, multiple selectable',
+        button: 'Compare',
+        emptyHint: 'Select the suppliers to compare, then click Compare',
+        tableAriaLabel: 'Supplier Comparison Result List',
+        pickFirst: 'Please select the suppliers to compare first',
+        partialFailed: 'Some supplier scores failed to load; see the outcome column',
+        column: {
+          outcome: 'Outcome',
+          recordCount: 'Evaluation Records',
+          latestDate: 'Latest Evaluation Date',
+        },
+        outcome: {
+          loaded: 'Has score',
+          noRecord: 'No evaluation record',
+          failed: 'Load failed',
+        },
       },
       column: {
         supplierName: 'Supplier Name',

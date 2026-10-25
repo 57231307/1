@@ -110,6 +110,10 @@ interface PrcCallbacks {
  * 采购入库流程操作方法集合
  */
 export function usePrcProc(cb: PrcCallbacks) {
+  // 提交在途标记：建单会逐行串行写明细，耗时可达数秒，期间按钮必须锁定，
+  // 否则二次点击会并发走出两套 createReceiptItem，产生重复入库单与重复分录。
+  const submitting = ref(false);
+
   /** 查询 */
   const handleSearch = () => {
     cb.page = 1;
@@ -244,6 +248,7 @@ export function usePrcProc(cb: PrcCallbacks) {
    * 提交表单（仅 API 调用 + 明细校验，表单规则校验已由 PurchaseReceiptForm 内部完成）
    */
   const handleSubmit = async () => {
+    if (submitting.value) return;
     const validItems = (cb.form.items || []).filter(e => e.product_id > 0 && e.quantity !== 0);
     if (validItems.length === 0) {
       msg.warning('pleaseAddReceiptDetail');
@@ -350,6 +355,7 @@ export function usePrcProc(cb: PrcCallbacks) {
       return patch;
     };
 
+    submitting.value = true;
     try {
       if (cb.form.id) {
         // 编辑：表头 PUT 仅提交 UpdatePurchaseReceiptRequest 契约内的字段（此前把整个 cb.form
@@ -391,6 +397,8 @@ export function usePrcProc(cb: PrcCallbacks) {
       await cb.loadData();
     } catch (error) {
       msg.error('operationFailed');
+    } finally {
+      submitting.value = false;
     }
   };
 
@@ -549,6 +557,7 @@ export function usePrcProc(cb: PrcCallbacks) {
 
   // 使用 reactive 包装，访问字段时自动解包 ref
   return reactive({
+    submitting,
     handleSearch,
     handleReset,
     openAddDialog,

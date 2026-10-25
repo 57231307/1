@@ -1,14 +1,16 @@
 /**
  * 侧边栏导航树闭合锁（vitest，无浏览器、无后端依赖）
  *
- * 功能：断言"导航树单一真相"三条不变量——
+ * 功能：断言"导航树单一真相"五条不变量——
  *   1. 集合全等：`src/config/navigation.ts` 的叶子 path 集必须与 router 里"有组件、非 hidden、
  *      非 public、非容器"的叶子路由集**双向相等**。缺项即"功能有页面却无入口"，多项即"菜单指向
  *      不存在或被标 hidden 的路由"（后者会让 canAccessMenu 恒 false，页面对所有角色不可达）。
  *   2. 唯一归属：同一 path 在树中出现且仅出现一次（杜绝同一功能挂在两个一级域下的重复入口）。
  *   3. 无第二清单：`MainLayout.vue` 源码内不得再出现逐条 `canAccessMenu('/...')` 字面清单或
  *      `visibleSubMenu` 硬编码 path 表——分组可见性必须由导航树派生，否则两份清单会漂移。
- *   4. 遍历覆盖棘轮：每个导航叶子都必须在 e2e 遍历清单 `e2e/traversal/modules.config.ts` 登记，
+ *   4. 组件唯一：同一页面组件不得同时挂在两个可见路由上，否则同一功能会出现两条入口，
+ *      且其中一条的菜单权限与另一条不一致时会出现进得去却看不到的错觉。
+ *   5. 遍历覆盖棘轮：每个导航叶子都必须在 e2e 遍历清单 `e2e/traversal/modules.config.ts` 登记，
  *      未覆盖项只能出现在下方 `KNOWN_UNTRAVERSED_NAV_PATHS` 存量表里，且该表只准缩不准增。
  *      已被合并撤除的旧入口不得再登记回遍历清单，避免重定向页被遍历误判为可用入口。
  *
@@ -20,7 +22,13 @@
 import { describe, expect, it } from 'vitest';
 import { NAV_TREE } from '@/config/navigation';
 import type { NavGroup, NavLeaf, NavNode } from '@/config/navigation';
-import { ROUTER_SRC, collectShellLeaves, readFrontendSource } from './route-source';
+import {
+  ROUTER_SRC,
+  collectShellLeaves,
+  collectShellRouteEntries,
+  readFrontendSource,
+} from './route-source';
+import type { ShellRouteEntry } from './route-source';
 
 const MAIN_LAYOUT_SRC = readFrontendSource('src/components/Layout/MainLayout.vue');
 const TRAVERSAL_SRC = readFrontendSource('e2e/traversal/modules.config.ts');
@@ -45,7 +53,6 @@ const KNOWN_UNTRAVERSED_NAV_PATHS = new Set([
   '/occupational-health',
   '/outsourcing',
   '/period-adjustments',
-  '/periods',
   '/production-recipes',
   '/purchase/sku-mapping',
   '/purchase/supplier-product',
@@ -83,6 +90,7 @@ function flatten(nodes: NavNode[]): NavLeaf[] {
 describe('导航树与路由表闭合', () => {
   const navLeaves = flatten(NAV_TREE);
   const navPaths = navLeaves.map(leaf => leaf.path);
+  const shellEntries: ShellRouteEntry[] = collectShellRouteEntries(ROUTER_SRC);
   const routable = collectShellLeaves(ROUTER_SRC);
 
   it('解析器本身有效（外壳叶子数量落在合理区间，防解析塌缩成空集）', () => {
@@ -100,6 +108,19 @@ describe('导航树与路由表闭合', () => {
   it('同一 path 不得出现两个菜单入口', () => {
     const duplicated = navPaths.filter((p, i) => navPaths.indexOf(p) !== i);
     expect(duplicated.sort()).toEqual([]);
+  });
+
+  it('同一页面组件不得挂到两个可见路由', () => {
+    const byComponent = new Map<string, string[]>();
+    for (const entry of shellEntries) {
+      const paths = byComponent.get(entry.component) ?? [];
+      paths.push(entry.path);
+      byComponent.set(entry.component, paths);
+    }
+    const duplicated = [...byComponent.entries()]
+      .filter(([, paths]) => paths.length > 1)
+      .map(([component, paths]) => `${component} 同时出现在 ${paths.sort().join(' 与 ')}`);
+    expect(duplicated).toEqual([]);
   });
 
   it('每个节点都持完整字面 i18n 键（供 check-i18n 静态判定）', () => {
