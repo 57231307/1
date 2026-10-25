@@ -5,8 +5,8 @@
 //! `ap-monthly` / `ap-statistics`）已在 `init_service::PERMISSION_RESOURCES`
 //! 与 `utils/path_utils.rs` 的 ("ap", seg) 消歧表双双在册；运行期非超管角色
 //! 只有矩阵里真实存在对应 (资源, 动作) 行才过得了
-//! `middleware/permission.rs::matches_permission`（精确串匹配 + `"*"` 通配，
-//! 见其 :670-688 实现）。除超管 `*:*` blanket（handlers/auth_handler.rs）外，
+//! `middleware/permission.rs::matches_permission`（精确串匹配 + `"*"` 通配）。
+//! 除超管 `*:*` blanket（handlers/auth_handler.rs 登录注入，不走矩阵行）外，
 //! ap-* 键的持有者集合必须恰好等于财务三岗的既定授予面，多一枚即扩权。
 //!
 //! 本锁三件事，全部直接驱动生产定义表
@@ -21,7 +21,7 @@
 //!    皆判红；并把 cashier 的 ap-* 行整体钉为恰 {ap-payments read,
 //!    ap-payments create} 两枚，任何新增键/动作都必须显式改本锁过评审；
 //! ③ 持有者集合钉死：全矩阵中持有任何 ap-* 资源行的角色码集合必须恰好是
-//!    {finance_manager, accountant, cashier}，其余角色一律不给（派工口径）。
+//!    {finance_manager, accountant, cashier}，其余角色一律不给（既定授予口径）。
 //!    accountant 侧同②钉法：ap-* 行集合恰为四枚 read/create，防止"顺手补
 //!    审批/核销面"未经申报漂移成越权授予。
 
@@ -137,7 +137,7 @@ fn finance_three_roles_hold_their_paired_ap_grants() {
     }
 }
 
-/// ② 防扩权锁（派工点名枚）：cashier 不得持 ap-invoices 的 update 与 delete。
+/// ② 防扩权锁：cashier 不得持 ap-invoices 的 update 与 delete。
 /// 判据按运行时语义取"有效放行"：显式 update/delete 行、或 "*" 通配行
 /// （matches_permission: `p.action == "*" ⇒ 任意动作放行`）三者任一在场即红。
 /// 并把 cashier 的整张 ap-* 行集合钉死为两枚，堵住换键绕行。
@@ -163,7 +163,7 @@ fn cashier_never_holds_ap_invoice_update_or_delete() {
 
     // 整体钉死：cashier 的 ap-* 行集合恰为 {ap-payments create, ap-payments read}，
     // 新增任何 ap 键/动作（含给 ap-invoices 授 read 这类"看起来无害"的扩面）
-    // 都必须显式改本锁与派工口径，不许顺手漂移。
+    // 都必须显式改本锁与授予口径，不许顺手漂移。
     assert_eq!(
         ap_rows_of(&rows, "cashier"),
         vec![("ap-payments", "create"), ("ap-payments", "read")],
@@ -171,7 +171,7 @@ fn cashier_never_holds_ap_invoice_update_or_delete() {
     );
 }
 
-/// ③ 持有者集合钉死 + accountant 面钉死（派工口径：其余角色一律不给）。
+/// ③ 持有者集合钉死 + accountant 面钉死（其余角色一律不给的既定口径）。
 #[test]
 fn ap_grants_are_confined_to_finance_three_roles() {
     let rows = matrix_rows();
