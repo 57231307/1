@@ -264,10 +264,12 @@
             :label="t('printTargets.dialog.port')"
             prop="port"
           >
+            <!-- 端口同样不用步进键，范围与必填由本项的表单级校验给 -->
             <el-input-number
               v-model="form.port"
               :min="1"
               :max="65535"
+              :controls="false"
               :placeholder="t('printTargets.dialog.portPlaceholder')"
             />
           </el-form-item>
@@ -294,7 +296,8 @@
         </template>
 
         <el-form-item :label="t('printTargets.dialog.defaultCopies')" prop="default_copies">
-          <el-input-number v-model="form.default_copies" :min="1" :max="99" />
+          <!-- 步进按钮在竖屏触控区过小且误触即改值，改为无步进键的数值输入加表单级范围校验 -->
+          <el-input-number v-model="form.default_copies" :min="1" :max="99" :controls="false" />
         </el-form-item>
         <el-form-item :label="t('printTargets.dialog.enabled')">
           <el-switch v-model="form.enabled" />
