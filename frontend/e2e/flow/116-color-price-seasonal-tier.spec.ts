@@ -52,7 +52,8 @@ import {
  * 列表口出参四键 items 与 total 与 page 与 page_size，可按 season 与 is_active 与
  * product_category_id 过滤，按 created_at 倒序。对象口按 id 命中，未命中走 SeasonalError::NotFound
  * 映射 AppError::not_found 脱敏族 404。PUT 与 POST 同三枚门，日期门是合并语义：只提交
- * valid_until 时用现存 valid_from 参与比较。DELETE 是物理删除（batch 94 P2-5 起带审计），
+ * valid_until 时用现存 valid_from 参与比较。DELETE 是物理删除且同事务写审计快照（handler 注入
+ * 真实操作人 user_id），
  * 未命中主键返回 AppError::not_found 即 404；删后对象口必须 404，不接受"删了还能读到"。
  * DB 层 chk_seasonal_type 与 chk_seasonal_adjustment_type 与 chk_seasonal_valid_range 三枚 CHECK
  * 与服务层词表同源，服务层先拦，DB 层只是兜底第二道。
