@@ -50,6 +50,14 @@ export interface GreigeFabric {
   dye_lot_no?: string;
   /** V15 P2 21.3：色号（颜色批次追溯）；白胚 = color_no 为空 */
   color_no?: string;
+  /** 缺陷 1.2：库存策略四列（kg），NULL 表示未配置该阈值，展示为 '-' 不是 0 */
+  safety_stock?: string | null;
+  reorder_point?: string | null;
+  max_stock_point?: string | null;
+  reorder_quantity?: string | null;
+  /** 缺陷 1.1：来源单据引用（NULL=手工建档未走采购流程） */
+  purchase_order_id?: number | null;
+  purchase_receipt_id?: number | null;
 }
 
 /**
@@ -157,30 +165,39 @@ export interface CreateGreigeFabricPayload {
 
 /**
  * 更新坯布载荷：对齐 UpdateGreigeFabricRequest。
+ *
+ * 三态语义（RFC 7396 口径，与本仓 `api/purchase-receipt.ts` 的 UpdatePurchaseReceiptPayload
+ * 同一形态）：键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。可清空列一律声明成
+ * `T | null`，页面把「用户清空输入框」翻译成显式 `null` 提交，绝不塌成 `undefined`
+ * （省略=不覆盖，用户会看到"改了没生效"）。
+ * `status` 不可清空（后端只接受词表内中文值，置空会让「在库不允许删除」门控失效）；
+ * `fabric_name` 与 `fabric_type` 映射 NOT NULL 列，同样不开清空。
  * 注意：该 DTO 无 fabric_no/product_id/composition/yarn_count/density/width/
- * structure/production_date/quantity_* 等键（创建后不可改），旧代码用
- * Partial<实体> 提交会被 serde 静默丢弃；status 必须为 GREIGE_STATUS 中文 token。
+ * gram_weight/structure/production_date/quantity_meters/quantity_kg/purchase_order_id/
+ * purchase_receipt_id 等键（建档后不可改），旧代码用 Partial<实体> 提交会被 serde 静默丢弃。
+ * 建单人 created_by 不是后端入参（handler 按服务端会话派生），前端不得上送。
  */
 export interface UpdateGreigeFabricPayload {
   fabric_name?: string;
   fabric_type?: string;
-  color_code?: string;
-  width_cm?: number;
-  weight_kg?: number;
-  length_m?: number;
-  supplier_id?: number;
-  batch_no?: string;
-  warehouse_id?: number;
-  location?: string;
+  color_code?: string | null;
+  width_cm?: number | null;
+  weight_kg?: number | null;
+  length_m?: number | null;
+  supplier_id?: number | null;
+  batch_no?: string | null;
+  warehouse_id?: number | null;
+  location?: string | null;
+  /** 坯布状态中文 token（GREIGE_STATUS 词表），只覆盖不清空 */
   status?: GreigeStatusValue;
-  quality_grade?: string;
-  remarks?: string;
-  safety_stock?: number;
-  reorder_point?: number;
-  max_stock_point?: number;
-  reorder_quantity?: number;
-  dye_lot_no?: string;
-  color_no?: string;
+  quality_grade?: string | null;
+  remarks?: string | null;
+  safety_stock?: number | null;
+  reorder_point?: number | null;
+  max_stock_point?: number | null;
+  reorder_quantity?: number | null;
+  dye_lot_no?: string | null;
+  color_no?: string | null;
 }
 
 export function getGreigeFabricList(

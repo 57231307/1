@@ -14,6 +14,9 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::greige_fabric;
+use crate::models::product;
+use crate::models::purchase_order;
+use crate::models::purchase_receipt;
 use crate::models::status::purchase_inventory::greige_fabric_status;
 use crate::models::supplier;
 use crate::models::warehouse;
@@ -86,26 +89,122 @@ pub struct CreateGreigeFabricRequest {
 pub struct UpdateGreigeFabricRequest {
     pub fabric_name: Option<String>,
     pub fabric_type: Option<String>,
-    pub color_code: Option<String>,
-    pub width_cm: Option<f64>,
-    pub weight_kg: Option<f64>,
-    pub length_m: Option<f64>,
-    pub supplier_id: Option<i32>,
-    pub batch_no: Option<String>,
-    pub warehouse_id: Option<i32>,
-    pub location: Option<String>,
+    /// 以下可空列按三态语义接收：键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖。
+    /// serde_json 把请求体里的显式 `null` 折叠成外层 `None`，与「未提供该键」不可区分，
+    /// 故逐个挂 `deserialize_with = "double_option"`；范式同 `asset_category_handler`。
+    /// `status` 有意不开清空（见本结构体下方注释），保持裸 `Option<String>`。
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_code: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub width_cm: Option<Option<f64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub weight_kg: Option<Option<f64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub length_m: Option<Option<f64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub supplier_id: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub batch_no: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub warehouse_id: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub location: Option<Option<String>>,
+    /// 状态只覆盖、不开清空：删除门控按 `status == 在库` 判在库不可删，出库回写也按该
+    /// token 判定。把本列置 NULL 等于让物理在库的卷失去门控（历史 NULL 行可直删属另一
+    /// 条待裁定的存量面，不在本端点里新增造 NULL 的入口）。
     pub status: Option<String>,
-    pub quality_grade: Option<String>,
-    pub remarks: Option<String>,
-    /// 缺陷 1.2：安全库存配置
-    pub safety_stock: Option<f64>,
-    pub reorder_point: Option<f64>,
-    pub max_stock_point: Option<f64>,
-    pub reorder_quantity: Option<f64>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub quality_grade: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
+    /// 缺陷 1.2：安全库存配置（三态同上）
+    #[serde(default, deserialize_with = "double_option")]
+    pub safety_stock: Option<Option<f64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub reorder_point: Option<Option<f64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub max_stock_point: Option<Option<f64>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub reorder_quantity: Option<Option<f64>>,
     /// V15 P2 21.3：缸号（染色批次追溯）
-    pub dye_lot_no: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub dye_lot_no: Option<Option<String>>,
     /// V15 P2 21.3：色号（颜色批次追溯）
-    pub color_no: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub color_no: Option<Option<String>>,
+}
+
+/// 把 JSON 值解成「外层是否存在该键」与「内层是否为 null」两层可辨的形态。
+///
+/// 键缺席（配合 `serde(default)`）得 `None`，语义是保持原值；显式 `null` 得 `Some(None)`，
+/// 语义是清空该列；有值得 `Some(Some(v))`，语义是覆盖。范式同
+/// `asset_category_handler::double_option` 与 `batch_service::double_option`。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
+/// 可空文本入参归一：去首尾空白，空串一律折成 `None`（即落 NULL）。
+///
+/// 这几列库里不存在「空串」与 NULL 的语义差别（白坯即 `color_no` 为空），落 `""` 会让同
+/// 一含义两种存法并存，并与出库侧按「是否为空」判白坯的口径漂移（见
+/// `services/inv/fabric_class.rs::validate_fabric_trace`）。
+fn blank_to_none(raw: Option<String>) -> Option<String> {
+    raw.map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+/// 可空文本列的三态落库：外层缺席由调用方跳过，`Some(None)` 清空为 NULL，
+/// `Some(Some(v))` 归一后覆盖（空串折成清空）。
+fn normalize_text(raw: Option<Option<String>>) -> Option<Option<String>> {
+    raw.map(blank_to_none)
+}
+
+/// 库存与规格类数值入参转 DECIMAL，非有限值与负值一律显式拒绝。
+///
+/// `greige_fabric` 的 width_cm/weight_kg/length_m 与四个库存策略列都是「量」，库里无 CHECK
+/// 兜负值：`stock_in` 按累加、`stock_out` 按减法维护重量与长度，负值一旦写进 weight_kg
+/// 或 length_m，出库门 `new_weight < 0` 的判定与「在库不允许删除」门控全部失真。
+/// 界面本次才把这些列第一次暴露成可录入项，故录入面必须自带拒绝，不用
+/// `unwrap_or(Decimal::ZERO)` 之类的兜底把坏值静默写成 0。
+fn stock_decimal(value: f64, field: &str) -> Result<Decimal, AppError> {
+    if !value.is_finite() {
+        return Err(AppError::validation_displayable(format!(
+            "{field}不是有效数值，请重新填写"
+        )));
+    }
+    if value < 0.0 {
+        return Err(AppError::validation_displayable(format!(
+            "{field}不能为负数"
+        )));
+    }
+    Decimal::from_f64_retain(value).ok_or_else(|| {
+        AppError::validation_displayable(format!("{field}超出可保存的数值范围"))
+    })
+}
+
+/// 可空数值列的落库：`None` 保持/不写，`Some(v)` 经 `stock_decimal` 校验后覆盖。
+/// 建单入参是裸 `Option<f64>`（无「保持原值」语义），直接复用本函数把坏值显式拒绝，
+/// 不再用 `and_then(Decimal::from_f64_retain)` 把 NaN 静默折成 NULL。
+fn stock_optional(value: Option<f64>, field: &str) -> Result<Option<Decimal>, AppError> {
+    value.map(|v| stock_decimal(v, field)).transpose()
+}
+
+/// 出入库数量入参：必须是非零有限值，转 DECIMAL 后原样上抛错误。
+///
+/// 入库传 0 或负数会让「累计入库量」与「当前库存」反向漂移（`stock_in` 是累加），出库传
+/// 负数等于凭空加库存；本函数把两类都拒成显式校验错误，不回退成默认数量。
+fn positive_decimal(value: f64, field: &str) -> Result<Decimal, AppError> {
+    let checked = stock_decimal(value, field)?;
+    if checked.is_zero() {
+        return Err(AppError::validation_displayable(format!(
+            "{field}必须大于 0"
+        )));
+    }
+    Ok(checked)
 }
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -269,6 +368,41 @@ pub async fn create_greige_fabric(
             .await?
             .ok_or_else(|| AppError::business("仓库不存在，请重新选择"))?;
     }
+    // product_id/purchase_order_id/purchase_receipt_id 三列库里没有外键约束（只有 supplier/warehouse
+    // 两条，见 system/m0002_add_crm_and_greige_tables.rs:59-60），脏 id 不会撞约束、会静默存成
+    // 悬空引用；实体侧却声明了 belongs_to（models/greige_fabric.rs:74-97）。建单面按与
+    // supplier/warehouse 同一口径预检为 400 business，缺外键约束本身另列数据层待办。
+    if let Some(pid) = req.product_id {
+        product::Entity::find_by_id(pid)
+            .one(&*state.db)
+            .await?
+            .ok_or_else(|| AppError::business("产品不存在，请重新选择"))?;
+    }
+    if let Some(oid) = req.purchase_order_id {
+        purchase_order::Entity::find_by_id(oid)
+            .one(&*state.db)
+            .await?
+            .ok_or_else(|| AppError::business("采购订单不存在，请重新选择"))?;
+    }
+    if let Some(rid) = req.purchase_receipt_id {
+        purchase_receipt::Entity::find_by_id(rid)
+            .one(&*state.db)
+            .await?
+            .ok_or_else(|| AppError::business("采购入库单不存在，请重新选择"))?;
+    }
+    // 数值入参一律走 stock_optional：非有限值与负值显式拒绝，不再用
+    // `and_then(Decimal::from_f64_retain)` 把坏值静默折成 NULL。
+    let width = stock_optional(req.width, "门幅(m)")?;
+    let gram_weight = stock_optional(req.gram_weight, "克重(g/m²)")?;
+    let quantity_meters = stock_optional(req.quantity_meters, "累计米数(m)")?;
+    let quantity_kg = stock_optional(req.quantity_kg, "累计重量(kg)")?;
+    let width_cm = stock_optional(req.width_cm, "幅宽(cm)")?;
+    let weight_kg = stock_optional(req.weight_kg, "重量(kg)")?;
+    let length_m = stock_optional(req.length_m, "长度(m)")?;
+    let safety_stock = stock_optional(req.safety_stock, "安全库存(kg)")?;
+    let reorder_point = stock_optional(req.reorder_point, "订货点(kg)")?;
+    let max_stock_point = stock_optional(req.max_stock_point, "最大库存(kg)")?;
+    let reorder_quantity = stock_optional(req.reorder_quantity, "补货量(kg)")?;
 
     let fabric = greige_fabric::ActiveModel {
         // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
@@ -277,39 +411,39 @@ pub async fn create_greige_fabric(
         fabric_name: Set(req.fabric_name.unwrap_or_else(|| "未命名坯布".to_string())),
         product_id: Set(req.product_id),
         supplier_id: Set(req.supplier_id),
-        composition: Set(req.composition),
-        yarn_count: Set(req.yarn_count),
-        density: Set(req.density),
-        width: Set(req.width.and_then(Decimal::from_f64_retain)),
-        gram_weight: Set(req.gram_weight.and_then(Decimal::from_f64_retain)),
-        structure: Set(req.structure),
+        composition: Set(blank_to_none(req.composition)),
+        yarn_count: Set(blank_to_none(req.yarn_count)),
+        density: Set(blank_to_none(req.density)),
+        width: Set(width),
+        gram_weight: Set(gram_weight),
+        structure: Set(blank_to_none(req.structure)),
         production_date: Set(req.production_date),
-        batch_no: Set(req.batch_no),
-        quantity_meters: Set(req.quantity_meters.and_then(Decimal::from_f64_retain)),
-        quantity_kg: Set(req.quantity_kg.and_then(Decimal::from_f64_retain)),
+        batch_no: Set(blank_to_none(req.batch_no)),
+        quantity_meters: Set(quantity_meters),
+        quantity_kg: Set(quantity_kg),
         warehouse_id: Set(req.warehouse_id),
         status: Set(Some(status)),
         is_deleted: Set(Some(false)),
         fabric_type: Set(fabric_type),
-        color_code: Set(req.color_code),
-        width_cm: Set(req.width_cm.and_then(Decimal::from_f64_retain)),
-        weight_kg: Set(req.weight_kg.and_then(Decimal::from_f64_retain)),
-        length_m: Set(req.length_m.and_then(Decimal::from_f64_retain)),
-        location: Set(req.location),
-        quality_grade: Set(req.quality_grade),
+        color_code: Set(blank_to_none(req.color_code)),
+        width_cm: Set(width_cm),
+        weight_kg: Set(weight_kg),
+        length_m: Set(length_m),
+        location: Set(blank_to_none(req.location)),
+        quality_grade: Set(blank_to_none(req.quality_grade)),
         purchase_date: Set(req.purchase_date),
-        remarks: Set(req.remarks),
+        remarks: Set(blank_to_none(req.remarks)),
         // 建单人取服务端会话（AuthContext.user_id），请求体不承载身份
         created_by: Set(Some(auth.user_id)),
         purchase_order_id: Set(req.purchase_order_id),
         purchase_receipt_id: Set(req.purchase_receipt_id),
-        safety_stock: Set(req.safety_stock.and_then(Decimal::from_f64_retain)),
-        reorder_point: Set(req.reorder_point.and_then(Decimal::from_f64_retain)),
-        max_stock_point: Set(req.max_stock_point.and_then(Decimal::from_f64_retain)),
-        reorder_quantity: Set(req.reorder_quantity.and_then(Decimal::from_f64_retain)),
-        // V15 P2 21.3：缸号/色号追溯字段
-        dye_lot_no: Set(req.dye_lot_no),
-        color_no: Set(req.color_no),
+        safety_stock: Set(safety_stock),
+        reorder_point: Set(reorder_point),
+        max_stock_point: Set(max_stock_point),
+        reorder_quantity: Set(reorder_quantity),
+        // V15 P2 21.3：缸号/色号追溯字段（空串折成 NULL，NULL 色号即白坯）
+        dye_lot_no: Set(blank_to_none(req.dye_lot_no)),
+        color_no: Set(blank_to_none(req.color_no)),
         created_at: Set(crate::utils::date_utils::utc_now_fixed()),
         updated_at: Set(crate::utils::date_utils::utc_now_fixed()),
     };
@@ -353,59 +487,73 @@ pub async fn update_greige_fabric(
         }
         fabric.fabric_type = Set(fabric_type);
     }
-    if let Some(color_code) = req.color_code {
-        fabric.color_code = Set(Some(color_code));
+    if let Some(color_code) = normalize_text(req.color_code) {
+        fabric.color_code = Set(color_code);
     }
     if let Some(width_cm) = req.width_cm {
-        fabric.width_cm = Set(Decimal::from_f64_retain(width_cm));
+        fabric.width_cm = Set(stock_optional(width_cm, "幅宽(cm)")?);
     }
     if let Some(weight_kg) = req.weight_kg {
-        fabric.weight_kg = Set(Decimal::from_f64_retain(weight_kg));
+        fabric.weight_kg = Set(stock_optional(weight_kg, "重量(kg)")?);
     }
     if let Some(length_m) = req.length_m {
-        fabric.length_m = Set(Decimal::from_f64_retain(length_m));
+        fabric.length_m = Set(stock_optional(length_m, "长度(m)")?);
     }
     if let Some(supplier_id) = req.supplier_id {
-        fabric.supplier_id = Set(Some(supplier_id));
+        // 与 create 同口径的外键预检：脏 id 裸抛 FK 违例会被映射成 500 DATABASE_ERROR，
+        // 调用方分不清数据错误与系统故障；清空（None）不查库。
+        if let Some(sid) = supplier_id {
+            supplier::Entity::find_by_id(sid)
+                .one(&*state.db)
+                .await?
+                .ok_or_else(|| AppError::business("供应商不存在，请重新选择"))?;
+        }
+        fabric.supplier_id = Set(supplier_id);
     }
-    if let Some(batch_no) = req.batch_no {
-        fabric.batch_no = Set(Some(batch_no));
+    if let Some(batch_no) = normalize_text(req.batch_no) {
+        fabric.batch_no = Set(batch_no);
     }
     if let Some(warehouse_id) = req.warehouse_id {
-        fabric.warehouse_id = Set(Some(warehouse_id));
+        if let Some(wid) = warehouse_id {
+            warehouse::Entity::find_by_id(wid)
+                .one(&*state.db)
+                .await?
+                .ok_or_else(|| AppError::business("仓库不存在，请重新选择"))?;
+        }
+        fabric.warehouse_id = Set(warehouse_id);
     }
-    if let Some(location) = req.location {
-        fabric.location = Set(Some(location));
+    if let Some(location) = normalize_text(req.location) {
+        fabric.location = Set(location);
     }
     if let Some(status) = req.status {
         validate_greige_status(&status)?;
         fabric.status = Set(Some(status));
     }
-    if let Some(quality_grade) = req.quality_grade {
-        fabric.quality_grade = Set(Some(quality_grade));
+    if let Some(quality_grade) = normalize_text(req.quality_grade) {
+        fabric.quality_grade = Set(quality_grade);
     }
-    if let Some(remarks) = req.remarks {
-        fabric.remarks = Set(Some(remarks));
+    if let Some(remarks) = normalize_text(req.remarks) {
+        fabric.remarks = Set(remarks);
     }
-    // 缺陷 1.2：安全库存配置更新
+    // 缺陷 1.2：安全库存配置更新（三态；清空即未配置该阈值，读取侧按未配置不预警）
     if let Some(safety) = req.safety_stock {
-        fabric.safety_stock = Set(Decimal::from_f64_retain(safety));
+        fabric.safety_stock = Set(stock_optional(safety, "安全库存(kg)")?);
     }
     if let Some(reorder) = req.reorder_point {
-        fabric.reorder_point = Set(Decimal::from_f64_retain(reorder));
+        fabric.reorder_point = Set(stock_optional(reorder, "订货点(kg)")?);
     }
     if let Some(max_stock) = req.max_stock_point {
-        fabric.max_stock_point = Set(Decimal::from_f64_retain(max_stock));
+        fabric.max_stock_point = Set(stock_optional(max_stock, "最大库存(kg)")?);
     }
     if let Some(reorder_qty) = req.reorder_quantity {
-        fabric.reorder_quantity = Set(Decimal::from_f64_retain(reorder_qty));
+        fabric.reorder_quantity = Set(stock_optional(reorder_qty, "补货量(kg)")?);
     }
-    // V15 P2 21.3：缸号/色号追溯字段更新
-    if let Some(dye_lot_no) = req.dye_lot_no {
-        fabric.dye_lot_no = Set(Some(dye_lot_no));
+    // V15 P2 21.3：缸号/色号追溯字段更新（空串归一为 NULL=白坯，见 normalize_text）
+    if let Some(dye_lot_no) = normalize_text(req.dye_lot_no) {
+        fabric.dye_lot_no = Set(dye_lot_no);
     }
-    if let Some(color_no) = req.color_no {
-        fabric.color_no = Set(Some(color_no));
+    if let Some(color_no) = normalize_text(req.color_no) {
+        fabric.color_no = Set(color_no);
     }
 
     fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
@@ -467,45 +615,41 @@ pub async fn stock_in(
         ));
     }
 
-    let mut fabric: greige_fabric::ActiveModel = fabric_entity.into();
-
-    // 累加库存而不是覆盖
-    let current_weight = fabric
-        .weight_kg
-        .as_ref()
-        .and_then(|w| w.to_string().parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let current_length = fabric
-        .length_m
-        .as_ref()
-        .and_then(|l| l.to_string().parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let current_qty_kg = fabric
-        .quantity_kg
-        .as_ref()
-        .and_then(|w| w.to_string().parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let current_qty_meters = fabric
-        .quantity_meters
-        .as_ref()
-        .and_then(|l| l.to_string().parse::<f64>().ok())
-        .unwrap_or(0.0);
-
-    let new_weight = current_weight + req.weight_kg;
-    let new_length = current_length + req.length_m;
-
-    fabric.warehouse_id = Set(Some(req.warehouse_id));
-    fabric.location = Set(req.location);
-    fabric.weight_kg = Set(Decimal::from_f64_retain(new_weight));
-    fabric.length_m = Set(Decimal::from_f64_retain(new_length));
-    fabric.quantity_kg = Set(Decimal::from_f64_retain(current_qty_kg + req.weight_kg));
-    fabric.quantity_meters = Set(Decimal::from_f64_retain(current_qty_meters + req.length_m));
-    fabric.status = Set(Some(greige_fabric_status::IN_STOCK.to_string()));
-    if let Some(grade) = req.quality_grade {
-        fabric.quality_grade = Set(Some(grade));
+    // 归属门之后才做入参校验与外键预检：越权调用必须先拿 403 且零副作用。
+    let in_weight = positive_decimal(req.weight_kg, "入库重量(kg)")?;
+    let in_length = positive_decimal(req.length_m, "入库长度(m)")?;
+    warehouse::Entity::find_by_id(req.warehouse_id)
+        .one(&*state.db)
+        .await?
+        .ok_or_else(|| AppError::business("仓库不存在，请重新选择"))?;
+    if let Some(receipt_id) = req.purchase_receipt_id {
+        // purchase_receipt_id 无库内外键（见 create 同位置注释），预检防悬空引用
+        purchase_receipt::Entity::find_by_id(receipt_id)
+            .one(&*state.db)
+            .await?
+            .ok_or_else(|| AppError::business("采购入库单不存在，请重新选择"))?;
     }
-    if let Some(remarks) = req.remarks {
-        fabric.remarks = Set(Some(remarks));
+
+    // 累加库存而不是覆盖：全程 DECIMAL 相加。原实现把 DECIMAL 经 `to_string().parse::<f64>()`
+    // 折成浮点再转回 DECIMAL，累计量大时会漂分位，且 parse 失败静默当 0。
+    let current_weight = fabric_entity.weight_kg.unwrap_or(Decimal::ZERO);
+    let current_length = fabric_entity.length_m.unwrap_or(Decimal::ZERO);
+    let current_qty_kg = fabric_entity.quantity_kg.unwrap_or(Decimal::ZERO);
+    let current_qty_meters = fabric_entity.quantity_meters.unwrap_or(Decimal::ZERO);
+
+    let mut fabric: greige_fabric::ActiveModel = fabric_entity.into();
+    fabric.warehouse_id = Set(Some(req.warehouse_id));
+    fabric.location = Set(blank_to_none(req.location));
+    fabric.weight_kg = Set(Some(current_weight + in_weight));
+    fabric.length_m = Set(Some(current_length + in_length));
+    fabric.quantity_kg = Set(Some(current_qty_kg + in_weight));
+    fabric.quantity_meters = Set(Some(current_qty_meters + in_length));
+    fabric.status = Set(Some(greige_fabric_status::IN_STOCK.to_string()));
+    if let Some(grade) = normalize_text(req.quality_grade) {
+        fabric.quality_grade = Set(grade);
+    }
+    if let Some(remarks) = normalize_text(req.remarks) {
+        fabric.remarks = Set(remarks);
     }
     // 缺陷 1.1：入库时关联采购入库单
     if let Some(receipt_id) = req.purchase_receipt_id {
@@ -562,51 +706,74 @@ pub async fn stock_out(
         ));
     }
 
-    let mut update_fabric: greige_fabric::ActiveModel = fabric.clone().into();
+    // 出库数量入参：至少一项、每项必须是正有限值。原实现两项全缺也照样走完并把状态
+    // 回写一遍（空提交会把 0 库存行的状态重算落库），现显式拒绝，不让空调用冒充出库。
+    if req.weight_kg.is_none() && req.length_m.is_none() {
+        return Err(AppError::validation_displayable(
+            "出库数量至少填写一项：重量(kg) 或 长度(m)",
+        ));
+    }
+    let out_weight = req
+        .weight_kg
+        .map(|v| positive_decimal(v, "出库重量(kg)"))
+        .transpose()?;
+    let out_length = req
+        .length_m
+        .map(|v| positive_decimal(v, "出库长度(m)"))
+        .transpose()?;
 
-    if let Some(out_weight) = req.weight_kg {
-        let current_weight = fabric.weight_kg.unwrap_or(Decimal::ZERO);
-        let new_weight =
-            current_weight - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO);
+    let current_weight = fabric.weight_kg.unwrap_or(Decimal::ZERO);
+    let current_length = fabric.length_m.unwrap_or(Decimal::ZERO);
+    let current_qty_kg = fabric.quantity_kg.unwrap_or(Decimal::ZERO);
+    let current_qty_meters = fabric.quantity_meters.unwrap_or(Decimal::ZERO);
+
+    let mut update_fabric: greige_fabric::ActiveModel = fabric.clone().into();
+    // 扣减后的余量就地跟踪，供状态判定使用（不回头读 ActiveModel 的值形态）
+    let mut final_weight = current_weight;
+    let mut final_length = current_length;
+
+    if let Some(out_weight) = out_weight {
+        let new_weight = current_weight - out_weight;
         if new_weight < Decimal::ZERO {
-            return Err(AppError::business("出库重量不能大于现有重量"));
+            return Err(AppError::business_displayable(format!(
+                "出库重量不能大于现有重量（现有 {current_weight} kg，本次 {out_weight} kg）"
+            )));
+        }
+        // 累计出库量同样不得被减成负数：quantity_kg 是入库累计口径，与当前库存同源扣减，
+        // 只挡当前库存一处的话脏数据会把累计量永久带负，成本分摊分母随之失真。
+        let new_qty_kg = current_qty_kg - out_weight;
+        if new_qty_kg < Decimal::ZERO {
+            return Err(AppError::business_displayable(format!(
+                "出库重量不能大于累计入库重量（累计 {current_qty_kg} kg，本次 {out_weight} kg）"
+            )));
         }
         update_fabric.weight_kg = Set(Some(new_weight));
-        // 同步更新 quantity_kg
-        let current_qty_kg = fabric.quantity_kg.unwrap_or(Decimal::ZERO);
-        update_fabric.quantity_kg = Set(Some(
-            current_qty_kg - Decimal::from_f64_retain(out_weight).unwrap_or(Decimal::ZERO),
-        ));
+        update_fabric.quantity_kg = Set(Some(new_qty_kg));
+        final_weight = new_weight;
     }
 
-    if let Some(out_length) = req.length_m {
-        let current_length = fabric.length_m.unwrap_or(Decimal::ZERO);
-        let new_length =
-            current_length - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO);
+    if let Some(out_length) = out_length {
+        let new_length = current_length - out_length;
         if new_length < Decimal::ZERO {
-            return Err(AppError::business("出库长度不能大于现有长度"));
+            return Err(AppError::business_displayable(format!(
+                "出库长度不能大于现有长度（现有 {current_length} m，本次 {out_length} m）"
+            )));
+        }
+        let new_qty_meters = current_qty_meters - out_length;
+        if new_qty_meters < Decimal::ZERO {
+            return Err(AppError::business_displayable(format!(
+                "出库长度不能大于累计入库米数（累计 {current_qty_meters} m，本次 {out_length} m）"
+            )));
         }
         update_fabric.length_m = Set(Some(new_length));
-        // 同步更新 quantity_meters
-        let current_qty_meters = fabric.quantity_meters.unwrap_or(Decimal::ZERO);
-        update_fabric.quantity_meters = Set(Some(
-            current_qty_meters - Decimal::from_f64_retain(out_length).unwrap_or(Decimal::ZERO),
-        ));
+        update_fabric.quantity_meters = Set(Some(new_qty_meters));
+        final_length = new_length;
     }
 
-    // 根据剩余库存决定状态
-    let final_weight = update_fabric
-        .weight_kg
-        .as_ref()
-        .and_then(|w| w.to_string().parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let final_length = update_fabric
-        .length_m
-        .as_ref()
-        .and_then(|l| l.to_string().parse::<f64>().ok())
-        .unwrap_or(0.0);
-
-    let new_status = if final_weight <= 0.0 && final_length <= 0.0 {
+    // 根据剩余库存决定状态：取扣减后的真实 DECIMAL 值比较，不再经 f64 字符串往返
+    // （`to_string().parse::<f64>()` 在 parse 失败时按 0 处理，会把仍有库存的卷误判成已出库，
+    // 而「已出库」正是删除门控放行的那一档）。
+    let new_status = if final_weight <= Decimal::ZERO && final_length <= Decimal::ZERO {
         greige_fabric_status::STOCKED_OUT.to_string()
     } else {
         greige_fabric_status::IN_STOCK.to_string()
@@ -615,9 +782,9 @@ pub async fn stock_out(
     update_fabric.status = Set(Some(new_status));
     update_fabric.updated_at = Set(crate::utils::date_utils::utc_now_fixed());
 
-    // 同步更新备注（若请求提供则覆盖，否则保留原值）
-    if let Some(remarks) = req.remarks {
-        update_fabric.remarks = Set(Some(remarks));
+    // 同步更新备注（提供则覆盖，去空白后为空即清空；未提供保留原值）
+    if req.remarks.is_some() {
+        update_fabric.remarks = Set(blank_to_none(req.remarks));
     }
 
     let updated = update_fabric.update(&*state.db).await?;
