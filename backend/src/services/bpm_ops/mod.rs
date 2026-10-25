@@ -41,6 +41,8 @@ pub mod process_key {
     pub const PURCHASE_ORDER_APPROVAL: &str = "purchase_order_approval";
     /// 生产订单审批
     pub const PRODUCTION_ORDER_APPROVAL: &str = "production_order_approval";
+    /// 敏感数据导出审批（流程定义行由 m0105 迁移登记，出厂种子待 wt-bpm-approval 合入后补）
+    pub const EXPORT_APPROVAL: &str = "export_approval";
 }
 
 /// BPM 启动失败对外文案的单源拼装（流程定义缺失/未启用族）。

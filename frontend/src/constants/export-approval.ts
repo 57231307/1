@@ -23,6 +23,8 @@ export const EXPORT_APPROVAL_STATUSES = [
   'rejected',
   'expired',
   'cancelled',
+  'consumed',
+  'exhausted',
 ] as const;
 
 export type ExportApprovalStatus = (typeof EXPORT_APPROVAL_STATUSES)[number];
@@ -38,6 +40,8 @@ export const EXPORT_APPROVAL_STATUS_LABEL_KEYS: Record<ExportApprovalStatus, str
   rejected: 'exportApprovals.rejected',
   expired: 'exportApprovals.statusExpired',
   cancelled: 'exportApprovals.cancelled',
+  consumed: 'exportApprovals.statusConsumed',
+  exhausted: 'exportApprovals.statusExhausted',
 };
 
 /** Element Plus el-tag 类型 */
@@ -49,6 +53,8 @@ export const EXPORT_APPROVAL_STATUS_TAG_TYPES: Record<ExportApprovalStatus, Expo
     rejected: 'danger',
     expired: 'info',
     cancelled: 'info',
+    consumed: 'info',
+    exhausted: 'danger',
   };
 
 /** 归一到已知状态词表；词表外取值记错误日志并抛错（禁止静默回显裸枚举） */
@@ -269,6 +275,29 @@ export function resolveExportDownloadTarget(
     filenamePrefix: cfg.filenamePrefix,
   };
 }
+
+/**
+ * 资源类型 → 应用内导出入口路由（审批通过后“去导出”的跳转目标）。
+ * 唯一事实来源为承载就地下载入口（useExportApproval.downloadApprovedExport）
+ * 的页面在 router/index.ts 的注册路径；新增资源接入时必须同步登记。
+ */
+export const EXPORT_APPROVAL_TARGET_ROUTES: Record<ExportApprovalResourceType, string> = {
+  customer: '/customer',
+  supplier: '/supplier',
+  product: '/product',
+  dye_recipe: '/dye-recipe',
+  price_list: '/sales-price',
+  finance_report: '/finance-report',
+  audit_log: '/system/audit-log',
+};
+
+/** 归一到目标路由；词外资源沿 normalize 的记日志并抛错口径，不兜底跳首页 */
+export function exportApprovalTargetRoute(resourceType: string): string {
+  return EXPORT_APPROVAL_TARGET_ROUTES[normalizeExportApprovalResourceType(resourceType)];
+}
+
+/** 审批中心（BPM 待办列表）路由，导出审批终审进度回看的正规入口 */
+export const BPM_APPROVAL_CENTER_ROUTE = '/bpm/approval';
 
 /**
  * 按注册表 paramKeys 白名单收敛申请/下载参数：只透传该资源导出端点真实读取的键，
