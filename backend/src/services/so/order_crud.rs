@@ -39,23 +39,8 @@ pub const P92_CRUD_MODULE: &str = "sales_order_crud";
 pub(crate) fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
     d.to_string().parse::<f64>().unwrap_or(0.0)
 }
-/// 订单金额累计：用于 create_order 拆分时在 helper 间传递总额
-struct OrderTotals {
-    subtotal: rust_decimal::Decimal,
-    tax_amount: rust_decimal::Decimal,
-    discount_amount: rust_decimal::Decimal,
-    total_amount: rust_decimal::Decimal,
-}
-
-/// 单行明细金额计算结果（避免 tuple 返回触发 clippy::type_complexity）
-struct SalesItemAmounts {
-    item_subtotal: rust_decimal::Decimal,
-    item_discount: rust_decimal::Decimal,
-    item_tax: rust_decimal::Decimal,
-    item_total: rust_decimal::Decimal,
-    discount_pct: rust_decimal::Decimal,
-    tax_pct: rust_decimal::Decimal,
-}
+/// 订单金额累计与单行折算结果统一取自 amounts 模块，本文件不再自持结构。
+/// 存在理由，销售订单与销售合同必须对同一组数量与单价算出同一金额，口径只能有一处。
 
 impl SalesService {
     // create_order / update_order / delete_order
@@ -348,35 +333,23 @@ impl SalesService {
     }
 
     /// 计算单行明细金额（含 round_dp(2) 防精度漂移）
+    /// 折算口径取自 amounts 模块，销售订单与销售合同共用同一算法
     fn calculate_sales_item_amounts(
         item_req: &crate::services::so::SalesOrderItemRequest,
-    ) -> SalesItemAmounts {
-        let discount_pct = item_req
-            .discount_percent
-            .unwrap_or(rust_decimal::Decimal::ZERO);
-        let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
-        let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
-        let item_discount =
-            (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-        let item_after_discount = (item_subtotal - item_discount).round_dp(2);
-        let item_tax =
-            (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-        let item_total = (item_after_discount + item_tax).round_dp(2);
-        SalesItemAmounts {
-            item_subtotal,
-            item_discount,
-            item_tax,
-            item_total,
-            discount_pct,
-            tax_pct,
-        }
+    ) -> crate::services::so::amounts::SalesLineAmounts {
+        crate::services::so::amounts::calculate_line_amounts(
+            item_req.quantity,
+            item_req.unit_price,
+            item_req.discount_percent,
+            item_req.tax_percent,
+        )
     }
 
     /// 构建单行明细 ActiveModel（含金额与所有业务字段）
     fn build_sales_order_item_active_model(
         item_req: &crate::services::so::SalesOrderItemRequest,
         order_id: i32,
-        amounts: &SalesItemAmounts,
+        amounts: &crate::services::so::amounts::SalesLineAmounts,
     ) -> sales_order_item::ActiveModel {
         let zero = rust_decimal::Decimal::ZERO;
         sales_order_item::ActiveModel {
@@ -385,12 +358,12 @@ impl SalesService {
             product_id: sea_orm::ActiveValue::Set(item_req.product_id),
             quantity: sea_orm::ActiveValue::Set(item_req.quantity),
             unit_price: sea_orm::ActiveValue::Set(item_req.unit_price),
-            discount_percent: sea_orm::ActiveValue::Set(amounts.discount_pct),
-            tax_percent: sea_orm::ActiveValue::Set(amounts.tax_pct),
-            subtotal: sea_orm::ActiveValue::Set(amounts.item_subtotal),
-            tax_amount: sea_orm::ActiveValue::Set(amounts.item_tax),
-            discount_amount: sea_orm::ActiveValue::Set(amounts.item_discount),
-            total_amount: sea_orm::ActiveValue::Set(amounts.item_total),
+            discount_percent: sea_orm::ActiveValue::Set(amounts.discount_percent),
+            tax_percent: sea_orm::ActiveValue::Set(amounts.tax_percent),
+            subtotal: sea_orm::ActiveValue::Set(amounts.subtotal),
+            tax_amount: sea_orm::ActiveValue::Set(amounts.tax_amount),
+            discount_amount: sea_orm::ActiveValue::Set(amounts.discount_amount),
+            total_amount: sea_orm::ActiveValue::Set(amounts.total_amount),
             shipped_quantity: sea_orm::ActiveValue::Set(zero),
             notes: sea_orm::ActiveValue::Set(item_req.notes.clone()),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
@@ -421,48 +394,38 @@ impl SalesService {
     }
 
     /// 创建订单明细 + 累计金额（批量 INSERT 优化）
+    /// 行金额与表头合计都由 amounts 模块产出，本函数只做门控、建模型与落库
     async fn create_order_items_and_calculate_totals(
         &self,
         items: Vec<crate::services::so::SalesOrderItemRequest>,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<OrderTotals, AppError> {
-        let mut subtotal = rust_decimal::Decimal::ZERO;
-        let mut tax_amount = rust_decimal::Decimal::ZERO;
-        let mut discount_amount = rust_decimal::Decimal::ZERO;
-        let mut total_amount = rust_decimal::Decimal::ZERO;
-        let mut item_models = Vec::new();
+    ) -> Result<crate::services::so::amounts::SalesAmountTotals, AppError> {
+        let mut lines = Vec::with_capacity(items.len());
+        let mut item_models = Vec::with_capacity(items.len());
         for item_req in items {
-            // 建单与改单都从这一个漏斗写明细行，链来源的词表门控因此只有一处：
+            // 建单与改单都从这一个漏斗写明细行，链来源的词表门控因此只有一处，
             // 词表外取值整笔中止（事务回滚），不落库、不静默归一、不代填默认值。
             item_req.validate_fulfillment_source()?;
             let amounts = Self::calculate_sales_item_amounts(&item_req);
-            subtotal += &amounts.item_subtotal;
-            discount_amount += &amounts.item_discount;
-            tax_amount += &amounts.item_tax;
-            total_amount += &amounts.item_total;
             item_models.push(Self::build_sales_order_item_active_model(
                 &item_req, order_id, &amounts,
             ));
+            lines.push(amounts);
         }
         if !item_models.is_empty() {
             sales_order_item::Entity::insert_many(item_models)
                 .exec(txn)
                 .await?;
         }
-        Ok(OrderTotals {
-            subtotal,
-            tax_amount,
-            discount_amount,
-            total_amount,
-        })
+        Ok(crate::services::so::amounts::sum_line_amounts(&lines))
     }
 
     /// 更新订单总金额（含审计日志）
     async fn update_order_totals(
         &self,
         order_entity: sales_order::Model,
-        totals: OrderTotals,
+        totals: crate::services::so::amounts::SalesAmountTotals,
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<i32, AppError> {

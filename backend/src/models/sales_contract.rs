@@ -52,6 +52,11 @@ pub struct Model {
     pub performance_period: Option<String>,
     /// V15 P2 B08-P2-7：印花税金额（购销合同 0.3‰/加工承揽合同 0.5‰）
     pub stamp_tax_amount: Option<Decimal>,
+    /// 来源销售订单 ID（m_sales_contract_source_order 迁移加列，INTEGER 可空，
+    /// 外键指向 sales_orders 主键并在订单删除时置空）。NULL 表示手工建档合同，
+    /// 非空表示由该销售订单转单生成。写入方是 sales_contract_service 的转单路径，
+    /// 读取方是合同列表按来源订单筛选与转合同入口的重复判定
+    pub source_order_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
