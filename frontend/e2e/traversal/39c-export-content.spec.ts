@@ -304,6 +304,9 @@ test.describe('39c 导出内容断言', () => {
 
     // 写：档案色卡（draft 卡 + 色号明细，状态门=可发放词表值）后发放一条
     const seed = await seedColorCardArchive(page, { context: '39c-issue' });
+    // 发放闸门要求可用库存不少于发放数量；库存登记入口是 PUT /color-cards/:id 的 stock_quantity，
+    // 新卡库存恒为 0，不先登记则会以业务门拒绝（不是导出腿的问题）。
+    await apiCall(page, 'PUT', `/color-cards/${seed.cardId}`, { stock_quantity: 10 });
     const issued = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/issues', {
       color_card_id: seed.cardId,
       customer_id: ctx.customerId,
