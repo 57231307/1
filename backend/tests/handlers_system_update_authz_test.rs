@@ -1,9 +1,10 @@
 //! 系统更新权限矩阵 HTTP 层测试（doto 2026-09-09 system-update 权限门禁缺口）
 //!
-//! 覆盖以下场景（无需真实 PG，AppState::default() mock DB）：
+//! 覆盖以下场景：拒绝类用 AppState::default()（mock DB 对角色查询 fail-closed 返回 None），
+//! 只读版本类用真库 setup_test_db（current-version 现读 system_version 取真实发布日期与说明）：
 //! 1. 未登录（无 AuthContext）→ AuthContext extractor 拒绝 → 401
 //! 2. 非 admin（role_id=999，mock DB fail-closed）→ require_admin_role 拒绝 → 403
-//! 3. 只读端点 /system-update/current-version（无权限校验）→ 200 可达
+//! 3. 只读端点 /system-update/current-version（无权限校验，真库）→ 200，无当前版本行时返回 null 未知
 //! 4. 高危端点 download_and_update / rollback_version 非 admin 全部 403
 //!
 //! 设计说明：
@@ -12,6 +13,8 @@
 //!   fail-closed 返回 None ⇒ 任何 code 都解析不到 ⇒ 非授权集合一律拒绝（403）
 //! - admin/ops 对照（真实 roles 表 code 命中允许集合）由 E2E 40-system-update-authz
 //!   真实登录链路覆盖（40 spec），本测试聚焦未认证/非授权角色拒绝语义
+
+mod test_common;
 
 use axum::{
     Router,
@@ -25,6 +28,7 @@ use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::system_update_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use serde_json::Value;
+use test_common::setup_test_db;
 use tower::ServiceExt;
 
 /// AuthContext 注入中间件（与 test_permission_rbac 相同模式）
@@ -209,9 +213,17 @@ async fn test_system_update_missing_role_403() {
 }
 
 /// 场景 5：只读端点 current-version 无权限校验，登录态可达 → 200
+/// 该端点现按 is_current 读 system_version 表返回真实发布日期与更新说明，故夹具须为真库：
+/// setup_test_db 已迁移并清空业务表，system_version 无当前版本行，接口如实返回 release_date
+/// 与 changelog 为 null（未知），这是真查库无行的结果，不是请求时刻、也不是 mock 库默认值。
 #[tokio::test]
 async fn test_system_update_version_readonly_200() {
-    let app = build_app(AppState::default(), make_auth(1, "e2e_admin", Some(1)));
+    let db = setup_test_db().await;
+    let state = AppState {
+        db: std::sync::Arc::new(db),
+        ..AppState::default()
+    };
+    let app = build_app(state, make_auth(1, "e2e_admin", Some(1)));
     let resp = app
         .oneshot(
             Request::builder()
@@ -228,9 +240,20 @@ async fn test_system_update_version_readonly_200() {
         resp.status()
     );
     let json = read_json(resp.into_body()).await;
-    let version = json
-        .get("data")
-        .and_then(|d| d.get("version"))
-        .and_then(|v| v.as_str());
-    assert!(version.is_some(), "应返回 version 字段");
+    let data = json.get("data").expect("响应应含 data 字段");
+    assert!(
+        data.get("version").and_then(|v| v.as_str()).is_some(),
+        "应返回 version 字段"
+    );
+    // 无当前版本行时发布日期与更新说明必须为 null，钉死不再回落请求当前时刻或空串。
+    assert!(
+        data.get("release_date").is_some() && data["release_date"].is_null(),
+        "查无当前版本行时 release_date 应为 null（未知），实际: {:?}",
+        data.get("release_date")
+    );
+    assert!(
+        data.get("changelog").is_some() && data["changelog"].is_null(),
+        "查无当前版本行时 changelog 应为 null（未知），实际: {:?}",
+        data.get("changelog")
+    );
 }

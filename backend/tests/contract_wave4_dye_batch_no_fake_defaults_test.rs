@@ -8,9 +8,10 @@
 //!   色号非空=染色布 ⇒ dye_lot_no 必填、color_code/color_name 由色卡档案
 //!   （color_card_items，查询形态同 `services/color_card_scan_service.rs:71-82`）反查派生。
 //! - 禁绝三处造假默认值：色号缺失不得写 "TEST"/"测试色号"、染色批号不得写 "DEFAULT"。
-//! - `frontend/src/views/fabric/tabs/DyeFormDialogTab.vue`：不得出现幽灵字段 actual_quantity
-//!   （dye_batch 域全仓无此列）；新建表单真实采集 dye_lot_no；提交显式构造
-//!   Create/UpdateDyeBatchPayload（start_date→dye_date、空值整键省略、status 仅改动才送）。
+//! - 前端染色缸号新建表单宿主（同域多入口唯一化后由 /fabric 下的 Tab 迁到独立功能页）：
+//!   不得出现幽灵字段 actual_quantity（dye_batch 域全仓无此列）；新建表单真实采集
+//!   dye_lot_no；提交显式构造 Create/UpdateDyeBatchPayload（start_date→dye_date、
+//!   空值整键省略、status 不在提交面出现，避免把未改动的状态送进后端状态机）。
 //!
 //! 违例形态回潮时必然红的机理（回归锁判据）：
 //! - 白坯用例：若 color_code/color_name 回退成测试假值/写死假色名、
@@ -423,7 +424,7 @@ fn source_scan_create_dye_batch_has_no_fake_default_literals() {
 
 #[test]
 fn source_scan_dye_form_dialog_no_ghost_field_no_cast() {
-    let vue = include_str!("../../frontend/src/views/fabric/tabs/DyeFormDialogTab.vue");
+    let vue = include_str!("../../frontend/src/views/dye-batch/index.vue");
     assert!(
         !vue.contains("formData.actual_quantity"),
         "actual_quantity 在 dye_batch 域无对应列（models/dye_batch.rs 与两个请求 DTO 均无），\
@@ -437,9 +438,19 @@ fn source_scan_dye_form_dialog_no_ghost_field_no_cast() {
         !vue.contains(" as Partial<"),
         "提交禁止类型断言绕过真实 payload 契约"
     );
+    // 回填禁止把整行出参灌进表单（行载体键与表单字段不一一对应）；
+    // Object.assign 作为赋值手段本身合法，但必须是逐字段显式映射。
     assert!(
-        !vue.contains("Object.assign(formData"),
-        "编辑回填必须显式逐字段（出参键/类型与表单不一一对应）"
+        !vue.contains("Object.assign(formData, row)"),
+        "编辑回填不得整行吞入列表出参，必须逐字段显式映射"
+    );
+    assert!(
+        !vue.contains("{ ...row"),
+        "编辑回填不得 spread 行对象（会带入后端未定义到表单的键）"
+    );
+    assert!(
+        vue.contains("planned_quantity: row.planned_quantity"),
+        "回填必须显式映射 planned_quantity（本宿主逐字段回填的判据）"
     );
     assert!(
         vue.contains("dye_lot_no"),
@@ -449,8 +460,20 @@ fn source_scan_dye_form_dialog_no_ghost_field_no_cast() {
         vue.contains("CreateDyeBatchPayload") && vue.contains("UpdateDyeBatchPayload"),
         "提交必须按真实 payload 类型显式构造"
     );
+    // 状态不在本页面提交面上（页面只读展示生命周期状态，流转走各自端点），
+    // 因此旧宿主"status 仅改动才携带"的等价判据是：更新载荷里根本不得出现 status 键。
+    let anchor = "const payload: UpdateDyeBatchPayload = {";
+    let flat = vue.replace('\r', "");
+    let start = flat
+        .find(anchor)
+        .unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
+    let tail = &flat[start..];
+    let end = tail
+        .find("};")
+        .unwrap_or_else(|| panic!("更新载荷块结束定位失败: {anchor}"));
+    let update_block = &tail[..end];
     assert!(
-        vue.contains("loadedStatus"),
-        "status 必须原值跟踪、仅改动才携带（后端提交即状态机流转校验）"
+        !update_block.contains("status"),
+        "更新载荷不得携带 status（后端提交即状态机流转校验），实际块:\n{update_block}"
     );
 }

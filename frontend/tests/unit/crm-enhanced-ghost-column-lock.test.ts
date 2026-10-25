@@ -6,7 +6,7 @@
  *    不补键），出参键集恒 ⊆ backend/src/models/crm_lead.rs 的 Model 字段名集；
  * 2) 前端 CustomerWithTags 不得声明后端该端点从不输出的聚合键
  *    （total_amount/total_orders/last_follow_up/contacts），消费视图
- *    （CustomerListTab/RfmTab）不得再绑定它们，打印表头/行单元格列数必须对齐；
+ *    （RfmTab）不得再绑定它们；
  * 3) 视图列仍在绑定的历史漂移键以钉死清单显式登记，差集只允许随视图重绑批
  *    同步收缩，不允许静默扩大。
  * 调用方：vitest（tests/unit，CI vitest job）。
@@ -32,9 +32,6 @@ function readRepoSource(absPath: string): string {
 }
 
 const CRM_ENHANCED_SRC = readRepoSource(path.join(FRONTEND_ROOT, 'src/api/crm-enhanced.ts'));
-const CUSTOMER_LIST_TAB_SRC = readRepoSource(
-  path.join(FRONTEND_ROOT, 'src/views/crm/tabs/CustomerListTab.vue')
-);
 const RFM_TAB_SRC = readRepoSource(path.join(FRONTEND_ROOT, 'src/views/crm/tabs/RfmTab.vue'));
 const LEAD_MODEL_SRC = readRepoSource(path.join(REPO_ROOT, 'backend/src/models/crm_lead.rs'));
 const LEAD_SERVICE_SRC = readRepoSource(path.join(REPO_ROOT, 'backend/src/services/crm/lead.rs'));
@@ -150,27 +147,15 @@ describe('增强客户列表幽灵聚合键形状锁（后端载体 ↔ 前端�
   });
 
   it('消费视图：绑定侧零幽灵键引用，且无 formatCurrency 假展示残留', () => {
-    for (const [viewName, viewSrc] of [
-      ['CustomerListTab.vue', CUSTOMER_LIST_TAB_SRC],
-      ['RfmTab.vue', RFM_TAB_SRC],
-    ] as const) {
-      for (const key of GHOST_AGGREGATE_KEYS) {
-        expect(viewSrc, `${viewName} 不得再绑定后端不输出的键 ${key}`).not.toContain(key);
-      }
-      // 恒空金额列的展示载体函数不得回流（两视图的金额单元格已整体删除）
-      expect(viewSrc, `${viewName} 不应再引用 formatCurrency`).not.toContain('formatCurrency');
+    const viewSrc = RFM_TAB_SRC;
+    for (const key of GHOST_AGGREGATE_KEYS) {
+      expect(viewSrc, `RfmTab 不得再绑定后端不输出的键 ${key}`).not.toContain(key);
     }
+    // 恒空金额列的展示载体函数不得回流（金额单元格已整体删除）
+    expect(viewSrc, 'RfmTab 不应再引用 formatCurrency').not.toContain('formatCurrency');
   });
 
-  it('列数对齐：主表列数、打印表头/行单元格数与删除后的定形一致', () => {
-    // CustomerListTab：11 列删 total_amount/last_follow_up 两列 → 9
-    const listColumns = (CUSTOMER_LIST_TAB_SRC.match(/<el-table-column/g) || []).length;
-    expect(listColumns).toBe(9);
-    // 打印表格：th 与 td 行数必须相等（删 total_amount 后 8→7），且不低于地板
-    const printTh = (CUSTOMER_LIST_TAB_SRC.match(/<th>/g) || []).length;
-    const printTd = (CUSTOMER_LIST_TAB_SRC.match(/<td>/g) || []).length;
-    expect(printTh).toBe(printTd);
-    expect(printTh).toBe(7);
+  it('列数对齐：主表列数与删除后的定形一致', () => {
     // RfmTab：6 列删 total_amount/total_orders 两列 → 4；再加一档位列 = 4+1。
     // 该列的数据源是后端真实出参键 `segment`（`RfmSegmentItem`，档位词表权威在
     // `RfmSegment::as_str`），不是幽灵键；`access !== 'visible'` 时后端恒回 null、
@@ -202,11 +187,11 @@ describe('增强客户列表幽灵聚合键形状锁（后端载体 ↔ 前端�
     );
     expect(driftMutated.sort()).not.toEqual([...FROZEN_VIEW_DRIFT_KEYS].sort());
     // 正例夹具 C：把金额单元格写回视图，绑定判据必须抓到
-    const mutatedView = CUSTOMER_LIST_TAB_SRC.replace(
+    const mutatedView = RFM_TAB_SRC.replace(
       'prop="customer_name"',
       'total_amount-placeholder prop="customer_name"'
     );
-    expect(mutatedView, '夹具替换本身必须生效').not.toBe(CUSTOMER_LIST_TAB_SRC);
+    expect(mutatedView, '夹具替换本身必须生效').not.toBe(RFM_TAB_SRC);
     expect(mutatedView).toContain('total_amount');
     // 反向自证：后端模型块被改名时解析必须抛错而非静默空集
     expect(() =>

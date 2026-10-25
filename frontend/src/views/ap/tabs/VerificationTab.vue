@@ -337,7 +337,7 @@ const openVerificationDialog = () => {
 };
 
 const submitVerification = async () => {
-  const valid = await verificationFormRef.value?.validate();
+  const valid = await verificationFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   verificationSubmitLoading.value = true;
   try {

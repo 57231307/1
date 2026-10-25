@@ -1,0 +1,407 @@
+<!--
+  用户管理页（路由 /users，门控 users:read）
+  调用方：MainLayout 侧栏 组织与身份 分组下的 用户管理 菜单项
+  职责：用户分页查询与新建/编辑对话框，角色候选取自角色列表接口
+-->
+<template>
+  <div class="user-tab">
+    <div class="page-header">
+      <h2 class="page-title">{{ t('system.user.title') }}</h2>
+      <el-button type="primary" @click="openUserDialog()">
+        <el-icon><Plus /></el-icon> {{ t('system.user.button.create') }}
+      </el-button>
+    </div>
+    <el-card shadow="hover" class="filter-card">
+      <el-form :inline="true" :model="userQuery" :aria-label="t('system.user.filter.ariaLabel')">
+        <el-form-item :label="t('system.user.filter.keyword')">
+          <el-input
+            v-model="userQuery.keyword"
+            :placeholder="t('system.user.filter.keywordPlaceholder')"
+            clearable
+            @keyup.enter="handleQuery"
+          />
+        </el-form-item>
+        <el-form-item :label="t('system.user.filter.status')">
+          <el-select
+            v-model="userQuery.status"
+            :placeholder="t('system.user.filter.statusPlaceholder')"
+            clearable
+          >
+            <el-option :label="t('system.user.status.active')" :value="1" />
+            <el-option :label="t('system.user.status.inactive')" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">{{
+            t('system.user.button.query')
+          }}</el-button>
+          <el-button @click="resetUserQuery">{{ t('system.user.button.reset') }}</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+    <el-card shadow="hover">
+      <el-table
+        v-loading="loading"
+        :data="users"
+        stripe
+        :aria-label="t('system.user.table.ariaLabel')"
+      >
+        <el-table-column prop="username" :label="t('system.user.table.username')" width="120" />
+        <el-table-column prop="real_name" :label="t('system.user.table.realName')" width="100" />
+        <el-table-column prop="phone" :label="t('system.user.table.phone')" width="130" />
+        <el-table-column prop="email" :label="t('system.user.table.email')" min-width="180" />
+        <el-table-column
+          prop="department_name"
+          :label="t('system.user.table.department')"
+          width="120"
+        />
+        <el-table-column :label="t('system.user.table.role')" width="150">
+          <template #default="{ row }">
+            <template v-if="row.role_names?.length">
+              <el-tag v-for="r in row.role_names" :key="r" size="small" class="mr-1">{{
+                r
+              }}</el-tag>
+            </template>
+            <span v-else class="text-gray">{{ t('system.user.role.unassigned') }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="is_active"
+          :label="t('system.user.table.status')"
+          width="80"
+          align="center"
+        >
+          <template #default="{ row }">
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+              {{
+                row.is_active ? t('system.user.status.active') : t('system.user.status.inactive')
+              }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" :label="t('system.user.table.createdAt')" width="160" />
+        <el-table-column :label="t('system.user.table.operation')" width="150" fixed="right">
+          <template #default="{ row }">
+            <!-- 编辑与删除按钮由 users 域的 update 与 delete 权限键控可见性 -->
+            <!-- 表格行按 User 类型取用，不用 any 绕开形状校验 -->
+            <el-button
+              v-permission="PERMISSIONS.USER_UPDATE"
+              size="small"
+              link
+              @click="openUserDialog(row as User)"
+              >{{ t('system.user.button.edit') }}</el-button
+            >
+            <el-button
+              v-permission="PERMISSIONS.USER_DELETE"
+              size="small"
+              link
+              type="danger"
+              @click="deleteUser(row as User)"
+              >{{ t('system.user.button.delete') }}</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="total"
+        layout="total, sizes, prev, pager, next, jumper"
+        style="margin-top: 16px; justify-content: flex-end"
+        :aria-label="t('system.user.table.paginationAriaLabel')"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
+      />
+    </el-card>
+
+    <!-- 用户编辑对话框 -->
+    <el-dialog
+      v-model="userDialogVisible"
+      :title="userForm.id ? t('system.user.dialog.editTitle') : t('system.user.dialog.createTitle')"
+      width="600px"
+      :aria-label="t('system.user.dialog.ariaLabel')"
+    >
+      <el-form
+        ref="userFormRef"
+        :model="userForm"
+        :rules="userRules"
+        label-width="100px"
+        :aria-label="t('system.user.dialog.formAriaLabel')"
+      >
+        <el-form-item :label="t('system.user.dialog.username')" prop="username">
+          <el-input v-model="userForm.username" :disabled="!!userForm.id" />
+        </el-form-item>
+        <el-form-item v-if="!userForm.id" :label="t('system.user.dialog.password')" prop="password">
+          <el-input v-model="userForm.password" type="password" show-password />
+        </el-form-item>
+        <el-form-item :label="t('system.user.dialog.phone')" prop="phone">
+          <el-input v-model="userForm.phone" />
+        </el-form-item>
+        <el-form-item :label="t('system.user.dialog.email')" prop="email">
+          <el-input v-model="userForm.email" />
+        </el-form-item>
+        <el-form-item :label="t('system.user.dialog.role')" prop="role_id">
+          <el-select
+            v-model="userForm.role_id"
+            :placeholder="t('system.user.dialog.rolePlaceholder')"
+            style="width: 100%"
+          >
+            <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="userForm.id" :label="t('system.user.dialog.status')">
+          <el-switch v-model="userForm.status" :active-value="1" :inactive-value="0" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="userDialogVisible = false">{{
+          t('system.user.button.cancel')
+        }}</el-button>
+        <el-button type="primary" :loading="userSubmitLoading" @click="submitUser">{{
+          t('system.user.button.confirm')
+        }}</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { isDialogDismissal } from '@/utils/monitor';
+import { ref, reactive } from 'vue';
+import { logAuxLoadFailure } from '@/utils/logger';
+import { useI18n } from 'vue-i18n';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Plus } from '@element-plus/icons-vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import { createUser, updateUser, deleteUser as deleteUserApi, type User } from '@/api/user';
+import { getRoleList, type Role } from '@/api/role';
+import { onMounted } from 'vue';
+import { useTableApi } from '@/composables/useTableApi';
+// 权限码统一取 PERMISSIONS 常量，与后端 users 资源键对齐
+import { PERMISSIONS } from '@/constants/permissions';
+
+// 提示文案走 i18n 键，不写硬编码中文
+const { t } = useI18n({ useScope: 'global' });
+
+const userQuery = reactive({
+  keyword: '',
+  status: undefined as number | undefined,
+});
+
+// 列表数据统一走 useTableApi，避免重复维护 users 与 userTotal 与 userLoading 与 fetchUsers
+// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+const {
+  data: users,
+  loading,
+  page,
+  pageSize,
+  total,
+  refresh: fetchUsers,
+  setQueryParam,
+} = useTableApi<User>({
+  url: '/users',
+  defaultPageSize: 10,
+  // /users 响应 data 形如 { users: [...], total }（非 items/list 包装），必须显式指定 listKey
+  listKey: 'users',
+  onError: (err: unknown) =>
+    ElMessage.error(
+      (err instanceof Error ? err.message : String(err)) || t('system.user.message.loadListFailed')
+    ),
+});
+
+// 筛选条件同步进 useTableApi.queryParams 后刷新
+const syncQueryParams = () => {
+  setQueryParam('keyword', userQuery.keyword || undefined);
+  setQueryParam('status', userQuery.status);
+};
+
+const handleQuery = () => {
+  syncQueryParams();
+  page.value = 1;
+  fetchUsers();
+};
+
+const resetUserQuery = () => {
+  userQuery.keyword = '';
+  userQuery.status = undefined;
+  syncQueryParams();
+  page.value = 1;
+  fetchUsers();
+};
+
+// 分页（useTableApi 自动 watch page/pageSize 变化触发重载）
+const handlePageChange = (p: number) => {
+  page.value = p;
+};
+
+const handleSizeChange = (s: number) => {
+  pageSize.value = s;
+  page.value = 1;
+};
+
+defineExpose({ refresh: fetchUsers });
+
+const userDialogVisible = ref(false);
+const userFormRef = ref<FormInstance>();
+const userSubmitLoading = ref(false);
+const userForm = reactive({
+  id: 0,
+  username: '',
+  password: '',
+  phone: '',
+  email: '',
+  role_id: undefined as number | undefined,
+  department_id: undefined as number | undefined,
+  status: 1,
+});
+
+// 角色下拉数据源：创建用户必须分配角色（后端 require_admin_role 校验依赖 role_id，
+// 无角色用户登录后无法执行管理操作）
+const roles = ref<Role[]>([]);
+const fetchRoles = async () => {
+  try {
+    const res = await getRoleList();
+    // 后端 list_roles 返回 RoleListResponse { roles, total }
+    roles.value = res.data.roles;
+  } catch (error) {
+    logAuxLoadFailure(t('system.user.message.loadRolesFailed'), error);
+    roles.value = [];
+  }
+};
+onMounted(fetchRoles);
+
+// validator 参数按 FormItemRule 的签名类型化
+const validateEmail = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
+  v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+    ? cb(new Error(t('system.user.validation.emailFormat')))
+    : cb();
+};
+const validatePhone = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
+  v && !/^1[3-9]\d{9}$/.test(v) ? cb(new Error(t('system.user.validation.phoneFormat'))) : cb();
+};
+const validatePassword = (_rule: unknown, v: string, cb: (error?: Error) => void) => {
+  if (userForm.id && !v) {
+    cb();
+    return;
+  }
+  v && v.length < 8
+    ? cb(new Error(t('system.user.validation.passwordMinLength')))
+    : v && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/.test(v)
+      ? cb(new Error(t('system.user.validation.passwordComplexity')))
+      : cb();
+};
+
+const userRules: FormRules = {
+  username: [
+    { required: true, message: t('system.user.validation.usernameRequired'), trigger: 'blur' },
+    // 长度与后端建单入参 username 校验一致（min 3, max 50）；前端更严会拦下后端合法的用户名，
+    // 更松则把校验错误推迟到提交后才暴露。
+    { min: 3, max: 50, message: t('system.user.validation.usernameLength'), trigger: 'blur' },
+  ],
+  password: [{ required: true, validator: validatePassword, trigger: 'blur' }],
+  email: [{ validator: validateEmail, trigger: 'blur' }],
+  phone: [{ validator: validatePhone, trigger: 'blur' }],
+  role_id: [
+    {
+      required: true,
+      message: t('system.user.dialog.rolePlaceholder'),
+      trigger: 'change',
+    },
+  ],
+};
+
+const openUserDialog = (row?: User) => {
+  userFormRef.value?.resetFields();
+  if (row) {
+    Object.assign(userForm, {
+      id: row.id,
+      username: row.username,
+      phone: row.phone || '',
+      email: row.email || '',
+      department_id: row.department_id,
+      // role_id 必填且下拉始终渲染，缺回显会让编辑保存被校验拦截（PUT 不发出）
+      role_id: row.role_id,
+      // 后端响应为 is_active (bool)，表单 switch 用 1/0
+      status: row.is_active ? 1 : 0,
+    });
+  } else {
+    Object.assign(userForm, {
+      id: 0,
+      username: '',
+      password: '',
+      phone: '',
+      email: '',
+      role_id: undefined,
+      department_id: undefined,
+      status: 1,
+    });
+  }
+  userDialogVisible.value = true;
+};
+
+const submitUser = async () => {
+  // ElForm.validate() 契约：字段全部通过时 resolve(true)，任一不通过时 reject(校验字段集合)，
+  // 并非返回 false。这里以 .catch(() => false) 归一为布尔，交由下方 if (!valid) return 短路；
+  // 校验不通过的反馈由 el-form 自身渲染字段级错误提示，不应冒泡成未捕获 rejection（否则会经
+  // Vue 异步错误处理冒泡至 ErrorBoundary 使整页崩溃），也不进 try/catch 被误当成接口错误弹提示。
+  const valid = await userFormRef.value?.validate().catch(() => false);
+  if (!valid) return;
+  userSubmitLoading.value = true;
+  try {
+    if (userForm.id) {
+      await updateUser(userForm.id, {
+        // 后端 UpdateUserRequest.email 校验 email 格式、phone 校验 length(min=1)，
+        // 空串会被序列化成 Some("") 并被这两个 validator 判 422；未填写时省略字段
+        // （契约 Option = 缺省不携带），仅在非空时提交。
+        ...(userForm.phone ? { phone: userForm.phone } : {}),
+        ...(userForm.email ? { email: userForm.email } : {}),
+        role_id: userForm.role_id,
+        department_id: userForm.department_id,
+        // 后端 UpdateUserRequest.status 为 "active"/"inactive" 字符串（非数字）
+        status: userForm.status === 1 ? 'active' : 'inactive',
+      });
+      ElMessage.success(t('settings.user.updateSuccess'));
+    } else {
+      await createUser({
+        username: userForm.username,
+        password: userForm.password,
+        // 同 updateUser：CreateUserRequest.email/phone 为 Option，validator 仅对
+        // Some(非空) 校验（email 格式、phone 长度≥1），未填写项省略以免空串触发 422。
+        ...(userForm.phone ? { phone: userForm.phone } : {}),
+        ...(userForm.email ? { email: userForm.email } : {}),
+        role_id: userForm.role_id,
+        department_id: userForm.department_id,
+      });
+      ElMessage.success(t('settings.user.createSuccess'));
+    }
+    userDialogVisible.value = false;
+    fetchUsers();
+  } catch (e: unknown) {
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
+    ElMessage.error(
+      (e instanceof Error ? e.message : String(e)) || t('system.user.message.operationFailed')
+    );
+  } finally {
+    userSubmitLoading.value = false;
+  }
+};
+
+const deleteUser = async (row: User) => {
+  try {
+    await ElMessageBox.confirm(
+      t('system.user.message.deleteConfirm', { name: row.username }),
+      t('system.user.message.deleteConfirmTitle'),
+      { type: 'warning' }
+    );
+    await deleteUserApi(row.id);
+    ElMessage.success(t('settings.user.deleteSuccess'));
+    fetchUsers();
+  } catch (e: unknown) {
+    // catch 参数按 unknown 处理并经类型守卫取消息，避免 any 掩盖异常形状
+    if (!isDialogDismissal(e))
+      ElMessage.error(
+        (e instanceof Error ? e.message : String(e)) || t('system.user.message.deleteFailed')
+      );
+  }
+};
+</script>

@@ -12,6 +12,7 @@
         <el-button
           v-permission="PERMISSIONS.SYSTEM_UPDATE_CHECK_READ"
           type="primary"
+          :loading="upd.isChecking"
           @click="upd.handleCheckUpdate"
         >
           <el-icon><Refresh /></el-icon>

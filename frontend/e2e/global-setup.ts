@@ -2,6 +2,9 @@ import { request, type FullConfig } from '@playwright/test';
 import { execSync } from 'child_process';
 import { writeFileSync, mkdirSync } from 'fs';
 import { WORKER_SESSIONS_MANIFEST_PATH, buildWorkerSessions } from './worker-auth';
+// 镜像岗位花名册（唯一名源）：本文件补建角色时用它点名权限码来源，
+// 与角色权限矩阵基线轨的 provenance 判据同源，禁止在本文件另列一份岗位名单。
+import { CI_MIRRORED_ROLES } from './traversal/permission-model';
 
 /**
  * 取 e2e 建号与登录使用的口令，只读环境变量 TEST_PASSWORD，缺失即抛错点名该变量与后果，不提供默认值。
@@ -136,7 +139,7 @@ export default async function globalSetup(config: FullConfig) {
 
   // ---- 1. 分片账号不存在时创建（e2e_admin 登录 → 建号通道）----
   if (SHARD_USERNAME !== BASE_USERNAME) {
-    await ensureShardUserViaUI();
+    await ensureShardUserViaApi();
   }
 
   // ---- 1.2 AI 限流隔离第二用户（admin 角色，与分片主用户不同 user_id → 独立 AI 限流桶）----
@@ -187,13 +190,12 @@ export default async function globalSetup(config: FullConfig) {
 }
 
 /**
- * 通过真实 UI 创建分片专属账号（不使用 API 直接创建）：
- * e2e_admin 登录 → /system 用户管理 → 新建用户 → 填用户名/密码/姓名/角色(admin) → 提交
- * 账号已存在（唯一约束冲突）时视为成功跳过。
+ * 创建分片专属账号：e2e_admin API 登录取 cookie → GET /roles 查 admin 角色 id →
+ * POST /users 建号。全程走接口，不经 UI；账号已存在（唯一约束冲突）时视为成功跳过。
  */
-async function ensureShardUserViaUI(): Promise<void> {
+async function ensureShardUserViaApi(): Promise<void> {
   // 分片账号创建属测试前置数据准备（与 ensureTestEntities 的 API 兜底同级，
-  // 不属于测试验证手段——用户管理 UI 本身由 26-system-full 的 UI 测试验证）。
+  // 不属于测试验证手段——用户管理 UI 本身由 /users 页的 UI 用例验证）。
   // 1) 基础管理员 API 登录拿 cookie
   const loginCtx = await request.newContext({
     baseURL: API_BASE,
@@ -267,7 +269,7 @@ async function ensureShardUserViaUI(): Promise<void> {
     console.log(`[globalSetup] 分片账号 ${SHARD_USERNAME} 创建成功 (HTTP ${createResp.status()})`);
   } else {
     const body = await createResp.text().catch(e => {
-      console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`);
+      console.warn(`[ensureShardUserViaApi] 创建响应体读取失败: ${(e as Error).message}`);
       return '';
     });
     // 幂等：400/409 或文案含"已存在"都视为账号已建——watchdog 重跑同一分片时
@@ -296,7 +298,7 @@ async function ensureShardUserViaUI(): Promise<void> {
   await checkCtx.dispose();
   if (!loginCheck.ok()) {
     const body = await loginCheck.text().catch(e => {
-      console.warn(`[ensureShardUserViaUI] 创建响应体读取失败: ${(e as Error).message}`);
+      console.warn(`[ensureShardUserViaApi] 创建响应体读取失败: ${(e as Error).message}`);
       return '';
     });
     throw new Error(
@@ -642,6 +644,10 @@ const SHELL_PERMISSIONS = ['dashboard:read', 'notifications:read'];
 // 的业务权限码——严格对齐后端 init_service_ops/permission.rs 中同名角色的权限集，
 // 不越界、不虚构。保密矩阵所需的**不授**purchase/sku-mappings 等对销售角色的保密面，
 // 保持负向断言（403 FORBIDDEN）真实成立。
+// 注意：本清单与 CI_MIRRORED_ROLES 花名册的交集岗位，后端既无建角也无授权分组，
+// "对齐后端同名角色"那句对它们不成立——它们是前端单方面镜像出来的读面；未在本清单列出的
+// 镜像岗位只有 SHELL 两枚键。这类岗位的角色权限矩阵基线证明不了后端授权面（基线文件的
+// provenance 字段已机读标注），不得据以判断"后端已授权"。交集内容由建角日志逐角色点名。
 const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // purchase_clerk 取后端矩阵同名角色的权限集子面（read、create、update、import，不含 delete）。
   // 覆盖 sku-mapping 用例 A、C、D1、D2b、E1、E3，即产品与供应商只读、目录、对照 CRUD、批量导入。
@@ -667,7 +673,12 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
     'products:read',
     'product-categories:read',
     'suppliers:read',
+    // 坯布采购与到货核对读坯布档案（与后端矩阵本岗分组、迁移 m0102 同口径；
+    // 只读，建档与改删属生产与仓储岗，本 SEED 面不扩写权）
+    'greige-fabrics:read',
   ],
+  // 采购经理：坯布档案只读，与后端矩阵 purchase_manager、迁移 m0102 同口径
+  purchase_manager: ['greige-fabrics:read'],
   // salesperson 对齐 permission.rs 的 sales_rep 权限集：可读销售订单（保密扫描用例
   // "响应体不含 supplier_ 键"要求 200 才有效），但绝不授任何 purchase/supplier 侧权限，
   // 保证 sku-mappings/supplier-products/supplier-product-colors 三端点 403 负向真实成立。
@@ -1099,6 +1110,17 @@ export async function ensureRoleUsers(): Promise<void> {
   const seedFailures: string[] = [];
 
   for (const role of allRolesToEnsure) {
+    // 逐角色点名权限码来源（判据取 CI_MIRRORED_ROLES 花名册，本文件不另列岗位名单）：
+    // ci-mirrored 的岗位后端既无建角也无授权分组，其权限码全数来自本文件的手写镜像清单，
+    // 由这类岗位产出的角色权限矩阵基线只证明前端镜像与前端守卫自洽，不证明后端授权面。
+    const mirrorKeys = SEED_ROLE_EXTRA_PERMISSIONS[role.code] ?? [];
+    const isMirroredRole = CI_MIRRORED_ROLES.includes(role.code);
+    console.log(
+      `[globalSetup] 待补建角色 ${role.code} 权限码来源=` +
+        (isMirroredRole
+          ? `ci-mirrored（前端手写镜像 ${mirrorKeys.length} 枚 + SHELL ${SHELL_PERMISSIONS.length} 枚；后端无此岗，其基线不证明后端授权面）`
+          : `backend-seeded（期望由后端 init 角色矩阵授权，本次按清单补授 ${role.permissions.length} 枚）`)
+    );
     const createRoleResp = await requestWithCsrfRecovery(
       loginCtx,
       'post',
@@ -2256,6 +2278,8 @@ async function ensureGlobalBusinessSeed(
               supplier_id: apSupplierId,
               invoice_type: 'PURCHASE',
               amount: '8000',
+              // 税额是写口必填声明值，无进项税显式提交 0，缺键被点名拒绝 400
+              tax_amount: '0',
               invoice_date: now.toISOString().slice(0, 10),
               due_date: due.toISOString().slice(0, 10),
             });

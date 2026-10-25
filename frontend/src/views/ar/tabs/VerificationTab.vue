@@ -242,7 +242,7 @@ const openManualDialog = async () => {
 };
 
 const submitManual = async () => {
-  const valid = await manualFormRef.value?.validate();
+  const valid = await manualFormRef.value?.validate().catch(() => false);
   if (!valid || !manualForm.invoice_id || !manualForm.payment_id) return;
   submitting.value = true;
   try {

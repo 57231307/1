@@ -348,7 +348,7 @@ const openSubjectDialog = (row?: AccountSubject) => {
 };
 
 const submitSubject = async () => {
-  const valid = await subjectFormRef.value?.validate();
+  const valid = await subjectFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   // 空方向（legacy NULL 行编辑未选）已被上面的必填规则拦下；这里仅让类型收敛到后端要求的非空值
   const balanceDirection = subjectForm.balance_direction;

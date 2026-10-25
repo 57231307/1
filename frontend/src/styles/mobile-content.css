@@ -148,6 +148,11 @@
     font-size: 13px;
   }
 
+  /* 标签数多时窄屏放不下整排，超出部分横向滑动而不是被裁掉或撑破页面 */
+  .main-content .el-tabs__nav-wrap {
+    overflow-x: auto;
+  }
+
   /* 确认框不超出视口 */
   .el-message-box {
     width: calc(100vw - 32px) !important;

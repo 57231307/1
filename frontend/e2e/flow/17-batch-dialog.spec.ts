@@ -65,60 +65,58 @@ test.describe('批量操作与弹窗确认', () => {
   });
 
   test('删除确认弹窗取消交互', async ({ page }) => {
-    // 用户管理页有删除操作
-    await page.goto(`${BASE_URL}/system`);
-    await page.waitForTimeout(3000);
+    // 入口：用户管理页 /users，操作列每行都渲染删除按钮
+    await page.goto(`${BASE_URL}/users`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '用户管理' }),
+      `未渲染用户管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
 
-    await page
-      .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card')
+    const table = page.locator('.el-table[aria-label="用户列表"]').first();
+    await table.waitFor({ state: 'visible', timeout: 30_000 });
+
+    // 删除按钮定位：作用在该页主表的行内，按按钮文案（role/文本语义），不用位置选择器
+    const deleteBtn = table
+      .locator('.el-table__body-wrapper .el-table__row')
       .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
-
-    // 查找删除按钮
-    const deleteBtn = page
-      .locator('button:has-text("删除"), .el-button--danger:has-text("删")')
+      .getByRole('button', { name: '删除' })
       .first();
     await deleteBtn.waitFor({ state: 'visible', timeout: 5000 });
-    const deleteVisible = await deleteBtn.isVisible();
-    if (deleteVisible) {
-      // 监听真实网络（非 mock/拦截）：取消后若发起了删除类请求必须让用例失败
-      const mutatingRequests: string[] = [];
-      const onRequest = (req: { method: () => string; url: () => string }) => {
-        const m = req.method();
-        if ((m === 'DELETE' || m === 'POST' || m === 'PUT') && req.url().includes('/api/v1/')) {
-          mutatingRequests.push(`${m} ${req.url()}`);
-        }
-      };
-      page.on('request', onRequest);
 
-      await deleteBtn.click();
-
-      // 验证确认弹窗
-      const popconfirm = page.locator('.el-popconfirm, .el-message-box').first();
-      await popconfirm.waitFor({ state: 'visible', timeout: 5000 });
-      const popVisible = await popconfirm.isVisible();
-      if (popVisible) {
-        // 点击取消
-        const cancelBtn = page
-          .locator(
-            '.el-popconfirm button:has-text("取消"), .el-message-box__btns button:has-text("取消")'
-          )
-          .first();
-        await cancelBtn.waitFor({ state: 'visible', timeout: 3000 });
-        const cancelVisible = await cancelBtn.isVisible();
-        if (cancelVisible) {
-          await cancelBtn.click();
-
-          // 原实现在点取消后又 waitFor(popconfirm,'visible')——弹窗已关闭，必然超时。
-          // 正确语义：断言弹窗从可见变为不可见（关闭）。
-          await popconfirm.waitFor({ state: 'hidden', timeout: 5000 });
-          expect(await popconfirm.isVisible()).toBe(false);
-        }
+    // 监听真实网络（非 mock/拦截）：取消后若发起了删除类请求必须让用例失败
+    const mutatingRequests: string[] = [];
+    const onRequest = (req: { method: () => string; url: () => string }) => {
+      const m = req.method();
+      if ((m === 'DELETE' || m === 'POST' || m === 'PUT') && req.url().includes('/api/v1/')) {
+        mutatingRequests.push(`${m} ${req.url()}`);
       }
-      page.off('request', onRequest);
-      // 取消即中止：整个过程不得发出任何删除/变更类 API 请求
-      expect(mutatingRequests, '点击取消后不应发起批量/删除请求').toEqual([]);
-    }
+    };
+    page.on('request', onRequest);
+
+    await deleteBtn.click();
+
+    // 验证确认弹窗
+    const popconfirm = page.locator('.el-popconfirm, .el-message-box').first();
+    await popconfirm.waitFor({ state: 'visible', timeout: 5000 });
+    expect(await popconfirm.isVisible(), '点击删除后应弹出删除确认弹窗').toBe(true);
+
+    // 点击取消
+    const cancelBtn = page
+      .locator(
+        '.el-popconfirm button:has-text("取消"), .el-message-box__btns button:has-text("取消")'
+      )
+      .first();
+    await cancelBtn.waitFor({ state: 'visible', timeout: 3000 });
+    expect(await cancelBtn.isVisible(), '删除确认弹窗应渲染取消按钮').toBe(true);
+    await cancelBtn.click();
+
+    // 取消的期望结果是弹窗关闭：断言弹窗从可见变为不可见
+    await popconfirm.waitFor({ state: 'hidden', timeout: 5000 });
+    expect(await popconfirm.isVisible()).toBe(false);
+
+    page.off('request', onRequest);
+    // 取消即中止：整个过程不得发出任何删除/变更类 API 请求
+    expect(mutatingRequests, '点击取消后不应发起批量/删除请求').toEqual([]);
   });
 
   test('导出功能交互', async ({ page }) => {

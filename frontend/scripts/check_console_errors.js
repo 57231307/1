@@ -39,7 +39,7 @@ const pagesToTest = [
   { url: '/system', name: '系统管理' },
   { url: '/customer', name: '客户管理' },
   { url: '/supplier', name: '供应商管理' },
-  { url: '/fabric', name: '面料管理' },
+  { url: '/greige-fabrics', name: '坯布管理' },
   { url: '/sales', name: '销售管理' },
   { url: '/purchase', name: '采购管理' },
   { url: '/inventory', name: '库存管理' },

@@ -407,11 +407,16 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
     const payable = invoiceList.find(inv => Number(inv.unpaid_amount) > 0);
     if (!payable) {
       const result = await apiCall<{ id?: number }>(page, 'POST', '/ap/invoices', {
-        // CreateApInvoiceRequest：invoice_no 非后端字段（应 inset_type），保留 amount/tax_amount/invoice_date
+        // CreateApInvoiceRequest 六要素必填（supplier_id invoice_type invoice_date due_date
+        // amount tax_amount），缺任一项后端点名拒绝且不代填。invoice_type 取实体词表
+        // PURCHASE 即采购应付，与本流程收货自动生成票的取值同源；due_date 落在发票日期
+        // 加默认账期 30 天，与后端缺省口径一致。
         supplier_id: ctx.supplierId,
+        invoice_type: 'PURCHASE',
         amount: 56500,
         tax_amount: 6500,
         invoice_date: new Date().toISOString().split('T')[0],
+        due_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
       });
       ctx.apInvoiceId = result.data?.id;
     } else {
