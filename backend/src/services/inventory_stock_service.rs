@@ -68,6 +68,10 @@ pub struct StockListFilter {
     pub dye_lot_no: Option<String>,
     pub batch_no: Option<String>,
     pub stock_status: Option<String>,
+    /// 质量状态筛选（合格/待检/不合格，取值域见
+    /// `models::status::purchase_inventory::inventory_stock_quality_status`）。
+    /// 出库候选行必须按它筛，界面上"看得见就能出"才是真口径。
+    pub quality_status: Option<String>,
     /// 产品编码/名称关键词（库存表只存 product_id，需先按关键词取候选产品再下推）
     pub keyword: Option<String>,
 }
@@ -201,6 +205,29 @@ pub struct CreateStockFabricArgs {
     pub layer_no: Option<String>,
 }
 
+/// 入库流水引用参数对象（库存直建入库写流水用）
+///
+/// 调用方是 `handlers::inventory_stock_handler::create_stock` 与
+/// `handlers::inventory_stock_handler_fabric::create_stock_fabric`，经
+/// `InventoryStockService::create_stock_fabric_with_flow` 消费。
+/// 只承载"这笔入库来自哪里、由谁登记"这类台账列装不下的信息；数量与四维由同一次调用的
+/// `CreateStockFabricArgs` 提供，两处共用同一组值，避免库存行与流水行口径分叉。
+#[derive(Debug, Clone)]
+pub struct StockInboundFlowRef {
+    /// 流水方向类型，取值域见 `models::status::purchase_inventory::inventory_transaction_type`
+    pub transaction_type: String,
+    /// 来源单据类型（与 transaction_type 同族，供流水回指上游单据族）
+    pub source_bill_type: Option<String>,
+    /// 来源单据号（入库受理侧必填，见 `services::inv::inbound_admission::require_source_bill_no`）
+    pub source_bill_no: Option<String>,
+    /// 来源单据 ID（多态松散引用，直建入口无上游主键时为 None）
+    pub source_bill_id: Option<i64>,
+    /// 备注（入库说明，落流水 notes 列）
+    pub notes: Option<String>,
+    /// 登记人（会话 user_id，落流水 created_by 列；请求体不承载身份）
+    pub created_by: Option<i32>,
+}
+
 /// 创建面料批次参数对象（缺陷 3 修复：消除 create_batch_fabric 的 too_many_arguments 警告）
 #[derive(Debug, Clone)]
 pub struct CreateBatchFabricArgs {
@@ -230,7 +257,13 @@ pub struct CreateBatchFabricArgs {
     pub expiry_date: Option<chrono::DateTime<Utc>>,
 }
 
-struct StockFabricFields {
+/// 面料库存行写入值的中间结构（`build_stock_fabric_active` 的唯一入参形状）
+///
+/// 调用方是同文件的 `create_stock_fabric` 与 `services/inventory_stock_txn.rs` 的
+/// `create_stock_fabric_txn`（两处共用同一个 ActiveModel 构造器，避免同一张表的列口径写两遍）。
+/// `final_quantity_kg` 是已由 `services::inv::inbound_admission::resolve_inbound_quantity_kg`
+/// 解析出的公斤数，本结构不再做第二次推算。
+pub(crate) struct StockFabricFields {
     warehouse_id: i32,
     product_id: i32,
     batch_no: String,
@@ -247,6 +280,24 @@ struct StockFabricFields {
 }
 
 impl InventoryStockService {
+    /// 新建库存行的初始台账状态与质量状态（全仓唯一来源）
+    ///
+    /// 调用方是 [`build_stock_fabric_active`]（面料库存行建行的两入口共用）与 handler 侧同名
+    /// 转接函数 `handlers::inventory_stock_handler::initial_stock_statuses`（契约用例按该入口钉值）。
+    /// 入参无；传给谁写 `inventory_stocks.stock_status` 与 `inventory_stocks.quality_status` 两列。
+    ///
+    /// 两列都是无 DB CHECK 的 VARCHAR，取值必须各自落在本列取值域内：可用量计算、可出库筛选
+    /// 与缺料预警一律按「正常 + 合格」过滤，写入越界值（历史上线上写过 `active`/`qualified`）
+    /// 会让该行账上有货、界面无货且永远出不了库。取值只在此处写一遍，避免建行入口与
+    /// handler 各写一份而漂移。
+    pub fn initial_stock_statuses() -> (String, String) {
+        (
+            inventory_stock_status::NORMAL.to_string(),
+            quality_status::PASS.to_string(),
+        )
+    }
+
+
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {
             db: db.clone(),
@@ -408,6 +459,19 @@ impl InventoryStockService {
                     inventory_stock::Column::StockStatus.ne(inventory_stock_status::DELETED),
                 );
             }
+        }
+
+        // 质量状态筛选：与台账状态是两列不同语义（一列说这行还在不在库、一列说质检结论），
+        // 出库候选按「正常 + 合格」下推到 SQL，不在前端过滤（本仓出过分页截断缺陷族，
+        // 前端过滤会把第 2 页之后的合格行整页截掉）。取值域校验在 handler 入口完成，
+        // 越界值在此收到之前即被拒绝，不会退化成恒零命中的假筛选。
+        if let Some(quality) = filter
+            .quality_status
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            query = query.filter(inventory_stock::Column::QualityStatus.eq(quality));
         }
 
         // 批次 97 P1-15 修复（v5 复审）：接入 SlowQueryRecorder 真实使用，
@@ -627,8 +691,12 @@ impl InventoryStockService {
         Ok(())
     }
 
-    /// 构建面料库存 ActiveModel（初始状态：正常/合格，version=0）
-    fn build_stock_fabric_active(fields: StockFabricFields) -> inventory_stock::ActiveModel {
+    /// 构建面料库存 ActiveModel（初始状态取 [`initial_stock_statuses`]，version=0）
+    ///
+    /// 调用方是本文件的 `create_stock_fabric` 与 `services/inventory_stock_txn.rs` 的
+    /// `create_stock_fabric_txn`。入参 `fields` 是已经过入库受理侧准入的列值；传给谁是
+    /// `inventory_stock::ActiveModel`，由调用方 insert 进 `inventory_stocks`。
+    pub(crate) fn build_stock_fabric_active(fields: StockFabricFields) -> inventory_stock::ActiveModel {
         let StockFabricFields {
             warehouse_id,
             product_id,
@@ -644,6 +712,7 @@ impl InventoryStockService {
             shelf_no,
             layer_no,
         } = fields;
+        let (initial_stock_status, initial_quality_status) = Self::initial_stock_statuses();
         inventory_stock::ActiveModel {
             id: Default::default(),
             warehouse_id: Set(warehouse_id),
@@ -675,8 +744,8 @@ impl InventoryStockService {
             shelf_no: Set(shelf_no),
             layer_no: Set(layer_no),
             bin_location: Set(None),
-            stock_status: Set(inventory_stock_status::NORMAL.to_string()),
-            quality_status: Set(quality_status::PASS.to_string()),
+            stock_status: Set(initial_stock_status),
+            quality_status: Set(initial_quality_status),
             version: Set(0),
             replenishment_strategy: Set("reorder_point".to_string()),
         }

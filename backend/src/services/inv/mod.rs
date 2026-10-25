@@ -9,6 +9,7 @@
 //! - `count`  库存盘点（占位模块，详见 `services/inventory_count_service.rs`）
 //! - `hold`   库存预留（占位模块，详见 `services/inventory_reservation_service.rs`）
 //! - `fabric_class` 纺织白坯/染色判定与追溯字段校验（全仓唯一实现）
+//! - `inbound_admission` 纺织成品布入库受理侧准入判定（等级、数量、双计量、来源单号，全仓唯一实现）
 //!
 //! 兼容说明：原 `crate::services::inv::*` 路径需要由上层
 //! `services/mod.rs` 通过 `pub use super::inv::*;` 重新导出以保持向后兼容。
@@ -25,6 +26,7 @@ pub mod batch;
 pub mod count;
 pub mod fabric_class;
 pub mod hold;
+pub mod inbound_admission;
 pub mod inventory_move;
 pub mod stock;
 

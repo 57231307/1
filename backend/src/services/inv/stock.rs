@@ -9,10 +9,73 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::models::inventory_stock::{self, Column as StockColumn, Entity as InventoryStockEntity};
+use crate::models::status::purchase_inventory::{
+    inventory_stock_quality_status as quality_status, inventory_stock_status,
+};
 use crate::services::inventory_deduction::{OutboundDimensions, require_outbound_dimensions};
 use crate::utils::error::AppError;
 
 use super::{InventoryTransferItemRequest, InventoryTransferService};
+
+/// 库存行的可出库性判定（全仓唯一实现）。
+///
+/// 功能：把「这行库存现在能不能出库」收成一条判定——台账状态必须是「正常」（报废与软删除行
+/// 不是可出库的在库库存），质量状态必须是「合格」（待检与不合格行未通过质检，出了就是错发）。
+/// 调用方：本文件 [`match_single_item_against_stocks`]（调拨建单预检）、
+/// `inv::batch::apply_ship_item_deduction`（调拨发运实扣），以及出库候选行的查询侧
+/// （`handlers::inventory_stock_handler::validate_quality_status_param` 与
+/// `StockListFilter` 按同一词表下推筛选）。
+/// 入参：`stock`，读出的库存行。
+/// 传给谁：返回 false 的行不进入可出量合计，调用方据此给出点名拒绝。
+/// 存什么·存哪里：只读判定，不落数据；两列取值域见
+/// `models::status::purchase_inventory::{inventory_stock_status, inventory_stock_quality_status}`。
+///
+/// 此前调拨建单与发运实扣都只按四维与数量筛候选行，报废行与不合格行照样能被扣减，
+/// 而词表注释宣称"可出库筛选按 PASS 过滤"却没有对应实现，属假文档加真放行。
+pub fn is_outbound_eligible(stock: &inventory_stock::Model) -> bool {
+    stock.stock_status == inventory_stock_status::NORMAL
+        && stock.quality_status == quality_status::PASS
+}
+
+/// 库存行不可出库的点名拒绝文案（列出每条被挡住行的状态，供建单与发运两处共用）。
+///
+/// 入参：`blocked` 是四维命中但可出库性不通过的行；`label` 是链路说法（调拨出库/调拨发运）。
+/// 传给谁：调用方原样透传，`business_displayable`（400，可外显）。
+/// 存什么·存哪里：只产文案，不落数据。
+///
+/// 与"无匹配库存"分开报，是因为两种情形的处置动作完全不同：前者是换批次或补捡验，
+/// 后者是根本没这批货。合成一条"库存不足"会把质检未过的货说成没货，用户只会去补单。
+pub fn non_outbound_rejection(
+    label: &str,
+    product_id: i32,
+    dims: &OutboundDimensions,
+    blocked: &[&inventory_stock::Model],
+) -> AppError {
+    let detail = blocked
+        .iter()
+        .take(5)
+        .map(|s| {
+            format!(
+                "库存 {}（台账状态 {}，质量状态 {}，可用 {} 米）",
+                s.id, s.stock_status, s.quality_status, s.quantity_available
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("；");
+    AppError::business_displayable(format!(
+        "{label}被拒，产品 {}（色号 {}，批次 {}）命中的库存行不可出库：{}；可出库口径为台账状态「{}」且质量状态「{}」，报废与不合格行请走报废处置或重新质检",
+        product_id,
+        if dims.color_no.is_empty() {
+            "白坯（无颜色）"
+        } else {
+            dims.color_no.as_str()
+        },
+        dims.batch_no,
+        detail,
+        inventory_stock_status::NORMAL,
+        quality_status::PASS,
+    ))
+}
 
 impl InventoryTransferService {
     /// 检查调出仓库库存是否充足（在调拨单创建事务中调用，确保所有调拨明细在源仓库有足够库存。；采用批量查询优化 N+1：先一次性查出所有相关 product 的库存记录，；再用内存匹配按追溯维度定位命中行。）
@@ -44,7 +107,20 @@ impl InventoryTransferService {
             let Some(product_id) = item.product_id else {
                 continue;
             };
-            let quantity = item.quantity.unwrap_or(Decimal::ZERO);
+            // 调拨量必填且严格大于零：此前缺键走 unwrap_or(ZERO) 静默兜底，
+            // 于是零量明细既能建出来、又在"可用量 >= 0"的比较里恒通过，
+            // 出库单出现无痕空行；负数则等价于凭空加库存并绕过出库门控。
+            let quantity = item.quantity.ok_or_else(|| {
+                AppError::validation_displayable(format!(
+                    "调拨出库明细缺少数量（产品 {product_id}，批次 {:?}），数量必填且必须大于 0，拒绝建单",
+                    item.batch_no
+                ))
+            })?;
+            if quantity <= Decimal::ZERO {
+                return Err(AppError::validation_displayable(format!(
+                    "调拨出库明细数量必须大于 0（产品 {product_id}，实为 {quantity}），零与负数不构成出库，拒绝建单"
+                )));
+            }
 
             // 复用 fabric_class 唯一判定（经出库侧包装为带单据措辞的业务错误）：
             // 白坯布归一为空色号 + 无缸号；染色布缺缸号/匹号在此返回与 fabric_class 同口径的明确 4xx 错误。
@@ -120,10 +196,18 @@ fn match_single_item_against_stocks(
         )));
     }
 
-    let available: Decimal = matched.iter().map(|s| s.quantity_available).sum();
+    // 可出库门：四维命中不等于能出。报废行与待检/不合格行在此挡下并点名，
+    // 不计入可出量合计（见 is_outbound_eligible）。
+    let eligible: Vec<&inventory_stock::Model> =
+        matched.iter().copied().filter(|s| is_outbound_eligible(s)).collect();
+    if eligible.is_empty() {
+        return Err(non_outbound_rejection("调拨出库", product_id, dims, &matched));
+    }
+
+    let available: Decimal = eligible.iter().map(|s| s.quantity_available).sum();
     if available < quantity {
         return Err(AppError::business(format!(
-            "调出仓库库存不足，产品 {}，当前库存：{}，需要调拨：{}",
+            "调出仓库库存不足，产品 {}，当前可出库：{}，需要调拨：{}",
             product_id, available, quantity
         )));
     }

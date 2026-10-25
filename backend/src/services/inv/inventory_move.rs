@@ -404,7 +404,15 @@ impl InventoryTransferService {
                 item_req.piece_no.as_deref(),
             )?;
 
-            let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+            let quantity = item_req
+                .quantity
+                .filter(|q| *q > rust_decimal::Decimal::ZERO)
+                .ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "调拨出库明细数量必填且必须大于 0（调拨单 {transfer_id}，产品 {product_id}，实为 {:?}），零与负数不构成出库，拒绝建单",
+                        item_req.quantity
+                    ))
+                })?;
             total_quantity += quantity;
             // P1 batch-18 缺陷 6.1：累计总金额（quantity × unit_cost）
             if let Some(uc) = item_req.unit_cost {
@@ -609,7 +617,15 @@ impl InventoryTransferService {
                 item_req.piece_no.as_deref(),
             )?;
 
-            let quantity = item_req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+            let quantity = item_req
+                .quantity
+                .filter(|q| *q > rust_decimal::Decimal::ZERO)
+                .ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "调拨出库明细数量必填且必须大于 0（调拨单 {transfer_id}，产品 {product_id}，实为 {:?}），零与负数不构成出库，拒绝建单",
+                        item_req.quantity
+                    ))
+                })?;
             total_quantity += quantity;
             // P1 batch-18 缺陷 6.1：累计总金额（quantity × unit_cost）
             if let Some(uc) = item_req.unit_cost {

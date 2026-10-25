@@ -18,9 +18,26 @@ use sea_orm::{
 };
 
 use crate::models::{purchase_receipt, purchase_receipt_item, status};
+use crate::services::inv::inbound_admission;
 use crate::services::purchase_receipt_dto::{CreateReceiptItemRequest, UpdateReceiptItemRequest};
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use crate::utils::error::AppError;
+
+/// 三态部分更新的"本次生效值"（键缺席=保持原值、显式 null=清空为 NULL、有值=覆盖）。
+///
+/// 功能：把 `Option<Option<T>>` 的请求字段与库里现值合成一个判定用的生效值。
+/// 调用方：本文件 `update_receipt_item` 的度量准入（等级、克重、幅宽、辅计量公斤数）。
+/// 入参：`requested` 是请求里该键的三态原文；`current` 是库里现值。
+/// 传给谁：交给 `services::inv::inbound_admission` 的判定函数，不落库。
+///
+/// 度量准入必须按生效值判定而非按"本次提交了什么"，否则一次只改数量的编辑就能把
+/// 等级与公斤数的门槛绕过去，改完再确认入账即成缺等级缺辅量的行。
+fn effective_three_state<T>(requested: Option<Option<T>>, current: Option<T>) -> Option<T> {
+    match requested {
+        None => current,
+        Some(value) => value,
+    }
+}
 
 impl PurchaseReceiptService {
     /// 添加入库明细
@@ -32,6 +49,8 @@ impl PurchaseReceiptService {
     ) -> Result<purchase_receipt_item::Model, AppError> {
         // 四维必入：追加的明细同样先过产品/批次准入，缺失即拒绝（建单入口同口径）
         PurchaseReceiptService::validate_receipt_item_dimensions(&req)?;
+        // 度量准入（数量下限、等级词表、克重幅宽为正、公斤数可解析）与建单入口同一实现
+        PurchaseReceiptService::validate_receipt_item_measures(&req)?;
 
         // 批次 19（2026-06-28）：补全事务边界，明细写与总金额重算原子化。
         // 原实现明细 insert 与 calculate_receipt_total 非原子，且均用 &*self.db 无锁，
@@ -172,6 +191,47 @@ impl PurchaseReceiptService {
             Some(v) => v,
             None => item.unit_price,
         };
+
+        // 度量准入按本次生效后的值判定（与建单/追加明细同一实现，见
+        // `PurchaseReceiptService::validate_receipt_item_measures`）：等级词表、数量下限、
+        // 克重幅宽为正、公斤数可解析。三态语义是键缺席=原值、显式 null=清空，
+        // 因此这里取"生效后"而不是"本次提交了什么"，否则改数量就能把等级与公斤数绕过去。
+        // 提前到改明细这一层拦，是因为确认入账时同样按这组判定拒绝（不再有缺省兜底），
+        // 让用户在还能改单的时候收到点名到行的错误，而不是在确认时才发现整单出不去。
+        let line = format!("入库明细 {}（入库单 {}）", item_id, item.receipt_id);
+        let effective_grade = effective_three_state(
+            req.grade
+                .as_ref()
+                .map(|inner| inner.as_deref()),
+            item.grade.as_deref(),
+        );
+        let effective_gram_weight = effective_three_state(req.gram_weight, item.gram_weight);
+        let effective_width = effective_three_state(req.width, item.width);
+        let effective_quantity_alt = effective_three_state(req.quantity_alt, item.quantity_alt);
+        inbound_admission::require_positive_quantity(
+            effective_quantity,
+            &format!("{line}入库数量"),
+        )?;
+        inbound_admission::require_stock_grade(
+            effective_grade,
+            &format!("{line}验布定级结论"),
+        )?;
+        inbound_admission::require_positive_measure_if_present(
+            effective_gram_weight,
+            &format!("{line}克重"),
+        )?;
+        inbound_admission::require_positive_measure_if_present(
+            effective_width,
+            &format!("{line}幅宽"),
+        )?;
+        inbound_admission::resolve_inbound_quantity_kg(
+            effective_quantity,
+            effective_gram_weight,
+            effective_width,
+            effective_quantity_alt,
+            &line,
+        )?;
+
         let mut item_active: purchase_receipt_item::ActiveModel = item.into();
 
         // DTO 声明的字段必须逐项落地：原实现只应用数量/辅助数量/单价/备注，

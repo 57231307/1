@@ -21,6 +21,7 @@ use crate::models::status::purchase_inventory::purchase_order as po_status;
 use crate::models::{
     product, purchase_order, purchase_order_item, purchase_receipt, purchase_receipt_item, status,
 };
+use crate::services::inv::inbound_admission;
 use crate::services::purchase_receipt_dto::{
     CreatePurchaseReceiptRequest, CreateReceiptItemRequest, UpdatePurchaseReceiptRequest,
 };
@@ -40,6 +41,7 @@ impl PurchaseReceiptService {
         // 见 validate_receipt_item_dimensions。
         for item in &req.items {
             Self::validate_receipt_item_dimensions(item)?;
+            Self::validate_receipt_item_measures(item)?;
         }
 
         let txn = (*self.db).begin().await?;
@@ -189,6 +191,53 @@ impl PurchaseReceiptService {
         .map_err(|e| {
             AppError::business(format!("入库单第 {} 行：{}，拒绝建单", item.line_no, e))
         })?;
+        Ok(())
+    }
+
+    /// 入库明细的度量准入（建单与追加明细两处共用；判定权威在
+    /// `crate::services::inv::inbound_admission`，本函数只编排不另写规则）。
+    ///
+    /// 功能：把成品布入库单上四个度量门槛按行收口——入库数量必须严格大于零；
+    /// 验布定级结论必填且必须落在库存等级词表 `inventory_stock_grade::ALL` 内；
+    /// 克重与幅宽一旦填写必须为正；公斤数必须能确定（实称公斤数优先，缺失时按克重与幅宽
+    /// 经双计量单入口推算，两条来源都给不出即拒绝）。
+    /// 调用方：同文件 `create_receipt`（对 `req.items` 逐行，紧随四维准入
+    /// [`PurchaseReceiptService::validate_receipt_item_dimensions`]）与
+    /// `purchase_receipt_ops::items::add_receipt_item`（追加单行时同口径）。
+    /// 入参：`item` 是明细请求原文；行号与产品 ID 只用于拒绝文案点名是哪一行。
+    /// 传给谁：拒绝以 `validation_displayable`（400，VALIDATION_ERROR 族，可外显）原样透传
+    /// handler 出参，时机在写 `purchase_receipt_items` 之前，整单不落库、不取号后续用。
+    /// 存什么·存哪里：通过的等级写 `purchase_receipt_item.grade`，克重与幅宽写同名列，
+    /// 公斤数在确认入库时由 `purchase_receipt_private.rs` 走同一解析入口写
+    /// `inventory_stocks.quantity_kg` 与 `inventory_transactions.quantity_kg`。
+    ///
+    /// 四条都在建单期拦而不是确认入账期拦：入库单本身要能表达行业规格（克重与门幅是决定
+    /// 成品的四个数之二，等级是验布结论），词表外的等级、零量与零公斤一旦落在单上，
+    /// 确认时台账与流水都按错值生成，事后无法回指真实验布码单。
+    pub(crate) fn validate_receipt_item_measures(
+        item: &CreateReceiptItemRequest,
+    ) -> Result<(), AppError> {
+        let line = format!("入库单第 {} 行（产品 {}）", item.line_no, item.material_id);
+        inbound_admission::require_positive_quantity(item.quantity, &format!("{line}入库数量"))?;
+        inbound_admission::require_stock_grade(
+            item.grade.as_deref(),
+            &format!("{line}验布定级结论"),
+        )?;
+        inbound_admission::require_positive_measure_if_present(
+            item.gram_weight,
+            &format!("{line}克重"),
+        )?;
+        inbound_admission::require_positive_measure_if_present(
+            item.width,
+            &format!("{line}幅宽"),
+        )?;
+        inbound_admission::resolve_inbound_quantity_kg(
+            item.quantity,
+            item.gram_weight,
+            item.width,
+            Some(item.quantity_alt),
+            &line,
+        )?;
         Ok(())
     }
 

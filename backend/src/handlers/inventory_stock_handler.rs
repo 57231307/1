@@ -9,7 +9,7 @@ use crate::models::warehouse;
 use crate::models::status::purchase_inventory::{
     inventory_stock_quality_status, inventory_stock_status,
 };
-use crate::services::inventory_stock_service::{CreateStockArgs, InventoryStockService};
+use crate::services::inventory_stock_service::InventoryStockService;
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -18,7 +18,6 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::Utc;
-use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 // 批次 357 v13 复审 baseline 清零：移除 unused import（Deserialize, Serialize 编译器报未使用）
 use validator::Validate as _; // 仅用于 `ListStockParams::validate()` 方法解析
@@ -50,6 +49,7 @@ fn stock_list_filter(
         dye_lot_no: params.dye_lot_no.clone(),
         batch_no: params.batch_no.clone(),
         stock_status: params.stock_status.clone(),
+        quality_status: params.quality_status.clone(),
         keyword: params.keyword.clone(),
     }
 }
@@ -70,6 +70,31 @@ pub fn validate_stock_status_param(raw: Option<&str>) -> Result<(), AppError> {
         "无效的库存台账状态：{}（允许值：{}）",
         value,
         inventory_stock_status::ALL.join("/")
+    )))
+}
+
+/// 质量状态筛选入参校验。
+///
+/// 功能：把 `inventory_stocks.quality_status` 的筛选值钉在本列取值域（合格/待检/不合格）内。
+/// 调用方：`list_stock` 与 `export_stock`（与 [`validate_stock_status_param`] 同批、同一入口顺序）。
+/// 入参：`raw`，query 里的 `quality_status` 原文；键缺席与空白按"不筛该列"放行。
+/// 传给谁：越界值走 `validation_displayable`（400，可外显）在查询之前拒绝。
+/// 存什么·存哪里：只读校验，不落数据。
+///
+/// 与台账状态分列判定是因为两列语义不同（一列说这行还在不在库、一列说是质检结论），
+/// 混成一个参数就会出现"用正常去筛质量状态"的恒零命中。越界值拒绝而不是原样下推，
+/// 是因为原样下推回 200 加零行，界面永远显不出"筛错了"。
+pub fn validate_quality_status_param(raw: Option<&str>) -> Result<(), AppError> {
+    let Some(value) = raw.map(|s| s.trim()).filter(|s| !s.is_empty()) else {
+        return Ok(());
+    };
+    if inventory_stock_quality_status::ALL.contains(&value) {
+        return Ok(());
+    }
+    Err(AppError::validation_displayable(format!(
+        "无效的库存质量状态：{}（允许值：{}）",
+        value,
+        inventory_stock_quality_status::ALL.join("/")
     )))
 }
 
@@ -150,40 +175,38 @@ pub async fn get_stock(
 
 pub async fn create_stock(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Json(payload): Json<CreateStockFabricRequest>,
 ) -> Result<Json<ApiResponse<StockResponse>>, AppError> {
     // DTO 校验补齐：此前复用 CreateStockFabricRequest 却从未 validate()，
     // 四维字段原样落库，"有色号无缸号"的染色布脏行入库后按四维全等永远提不出来
     payload.validate().map_err(AppError::from)?;
 
-    // 白坯/染色追溯口径（色号/缸号/批次）与 POST /inventory/stock/fabric 同一收口：
-    // 判定委托唯一权威 inv::fabric_class::validate_fabric_trace（白坯空色号合法、
-    // 染色布缺缸号返回用户可见的业务错误），本文件不另写规则
+    // 本端点与 POST /inventory/stock/fabric 是同一条业务（手工直建成品布入库），
+    // 因此两组受理收口与落库映射全部共用 fabric 侧的同名函数，本文件不另写一套规则：
+    // - 度量准入（数量下限、等级取值域、克重幅宽为正、公斤数唯一解析、来源单号必填）；
+    // - 白坯/染色三维追溯准入（判定权威 services::inv::fabric_class）；
+    // - 建行与写流水的同事务入口 InventoryStockService::create_stock_fabric_with_flow。
+    // 此前本端点只写台账行不写流水，且公斤数缺失静默塌成 0、等级不校验词号，
+    // 同仓九条出入库链路都写流水而这两条直建入库无痕，属账实不符。
+    let measures = super::inventory_stock_handler_fabric::admit_stock_fabric_measures(&payload)?;
     let trace = super::inventory_stock_handler_fabric::admit_stock_fabric_trace(
-        payload.color_no,
-        payload.dye_lot_no,
-        Some(payload.batch_no),
+        payload.color_no.clone(),
+        payload.dye_lot_no.clone(),
+        Some(payload.batch_no.clone()),
     )?;
+    let (stock_args, flow) = super::inventory_stock_handler_fabric::stock_args_from_admitted(
+        payload.warehouse_id,
+        payload.product_id,
+        trace,
+        measures,
+        // 登记人取会话身份，请求体不承载身份
+        Some(auth.user_id),
+    );
 
     let service = InventoryStockService::new(state.db.clone());
-
-    let (stock_status, quality_status) = initial_stock_statuses();
     let stock = service
-        .create_stock(CreateStockArgs {
-            warehouse_id: payload.warehouse_id,
-            product_id: payload.product_id,
-            batch_no: trace.batch_no,
-            color_no: trace.color_no,
-            quantity_meters: payload.quantity_meters,
-            quantity_kg: payload.quantity_kg.unwrap_or(Decimal::ZERO),
-            grade: payload.grade,
-            dye_lot_no: trace.dye_lot_no,
-            gram_weight: payload.gram_weight,
-            width: payload.width,
-            stock_status,
-            quality_status,
-        })
+        .create_stock_fabric_with_flow(stock_args, flow)
         .await?;
 
     let mut created_response = to_stock_response(stock);
@@ -290,6 +313,7 @@ pub async fn list_stock(
 ) -> Result<Json<ApiResponse<PaginatedResponse<serde_json::Value>>>, AppError> {
     params.validate().map_err(AppError::from)?;
     validate_stock_status_param(params.stock_status.as_deref())?;
+    validate_quality_status_param(params.quality_status.as_deref())?;
 
     let service = InventoryStockService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000);
@@ -334,6 +358,11 @@ fn to_stock_response(stock: InventoryStock) -> StockResponse {
         quality_status: stock.quality_status,
         quantity_meters: stock.quantity_meters,
         quantity_kg: stock.quantity_kg,
+        gram_weight: stock.gram_weight,
+        width: stock.width,
+        location_id: stock.location_id,
+        shelf_no: stock.shelf_no,
+        layer_no: stock.layer_no,
         product_code: None,
         product_name: None,
         warehouse_name: None,
@@ -669,6 +698,7 @@ pub async fn export_stock(
     params.validate().map_err(AppError::from)?;
     // 导出与列表同一口径，含越界台账状态一律拒绝
     validate_stock_status_param(params.stock_status.as_deref())?;
+    validate_quality_status_param(params.quality_status.as_deref())?;
 
     let service = InventoryStockService::new(state.db.clone());
     let (stock_list, _total) = service

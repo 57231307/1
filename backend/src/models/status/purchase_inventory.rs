@@ -156,6 +156,29 @@ pub mod inventory_adjustment {
     pub const REJECTED: &str = "rejected";
 }
 
+/// 库存调整方向（inventory_adjustments.adjustment_type，小写英文码值）
+///
+/// 功能：把"这次调整是加库存还是减库存"收成一个二值取值域，供写入侧校验与
+/// 数量前后值计算共用同一判定。
+/// 调用方是 `services/inventory_adjustment_service.rs` 的建单明细、追加明细与改明细三处
+/// 方向计算，以及该文件的入参校验。
+/// 入参来源是 handler 透传的 `adjustment_type` 原文。
+/// 传给谁写 `inventory_adjustments.adjustment_type` 列（VARCHAR，无 DB CHECK）。
+///
+/// 此前本列没有取值域，写入侧按 `== "increase"` 判定、否则一律视为减少，拼错一个字母
+/// （如 `increas`、`Increase`）即静默反向执行成扣库存，且不报任何错。取值只在此处写一遍，
+/// 判定改走 `ALL` 成员校验加显式分支，未知值一律拒绝。
+pub mod inventory_adjustment_type {
+    /// 增加：调整后数量高于调整前
+    pub const INCREASE: &str = "increase";
+
+    /// 减少：调整后数量低于调整前，受库存下限门约束（不得为负）
+    pub const DECREASE: &str = "decrease";
+
+    /// 本列全部合法取值：写入侧取值域校验的唯一来源
+    pub const ALL: &[&str] = &[INCREASE, DECREASE];
+}
+
 /// 库存裁片状态（inventory_piece.status，大写值）
 /// 批次 236 v13 真接入：barcode_scanner_handler.rs、piece_split_handler.rs 中裁片状态字符串字面量统一引用此模块（规则 0）
 pub mod inventory_piece {
@@ -345,6 +368,68 @@ pub mod inventory_stock_grade {
 
     /// 全部合法等级，校验与降级映射的唯一取值来源
     pub const ALL: &[&str] = &[FIRST, SECOND, OFF_GRADE];
+}
+
+/// 库存流水方向类型（inventory_transactions.transaction_type，大写英文码值）
+///
+/// 取值域来源是真实写入方，逐条核对自 `record_transaction_txn` 的全部调用点：
+/// 采购收货 `services/purchase_receipt_private.rs`、采购退货 `services/purchase_return_service.rs`、
+/// 销售退回 `services/sales_return_service.rs`、销售发货 `services/so/delivery_ops/ship.rs`、
+/// 生产领料与产出 `services/production_order_ops/completion.rs`、调拨发出与接收
+/// `services/inv/batch.rs`、库存调整 `services/inventory_adjustment_service.rs`。
+///
+/// 两条库存直建入库端点（`POST /inventory/stock` 与 `POST /inventory/stock/fabric`）的写入方
+/// 是 `services/inventory_stock_txn.rs` 的 `STOCK_DIRECT_IN`，表示"无上游单据的手工入账"，
+/// 不得冒充上面任何一条真实链路的 token（那会让流水无法回指来源）。
+///
+/// ⚠ 本列历史上没有 DB CHECK，写入侧曾长期散落裸字面量；`services/ai/detect.rs` 与
+/// `services/ai/rec.rs` 至今按中文 `销售出库`/`出库` 比较本列，与写入方的大写码值逐字符不符，
+/// 那两条聚合恒零命中（属跨层缺陷，见交接单，不在本模块内改写他域判定）。
+/// 新增写入方一律取本模块常量，不再写字面量。
+pub mod inventory_transaction_type {
+    /// 采购入库（采购收货单确认入账）
+    pub const PURCHASE_RECEIPT: &str = "PURCHASE_RECEIPT";
+
+    /// 采购退货出库
+    pub const PURCHASE_RETURN: &str = "PURCHASE_RETURN";
+
+    /// 销售退回入库
+    pub const SALES_RETURN: &str = "SALES_RETURN";
+
+    /// 销售发货出库
+    pub const SALES_DELIVERY: &str = "SALES_DELIVERY";
+
+    /// 生产领料出库
+    pub const PRODUCTION_CONSUMPTION: &str = "PRODUCTION_CONSUMPTION";
+
+    /// 生产产出入库
+    pub const PRODUCTION_OUTPUT: &str = "PRODUCTION_OUTPUT";
+
+    /// 调拨发出（调出仓扣减）
+    pub const TRANSFER_OUT: &str = "TRANSFER_OUT";
+
+    /// 调拨接收（调入仓增加）
+    pub const TRANSFER_IN: &str = "TRANSFER_IN";
+
+    /// 库存调整（增减两向共用同一 token，方向由明细数量与来源单据号区分）
+    pub const INVENTORY_ADJUSTMENT: &str = "INVENTORY_ADJUSTMENT";
+
+    /// 库存直建入库（无上游单据的手工入账，`POST /inventory/stock` 与 `/stock/fabric`）
+    pub const STOCK_DIRECT_IN: &str = "STOCK_DIRECT_IN";
+
+    /// 本列全部合法取值：写入侧取值域校验与流水筛选词表的唯一来源
+    pub const ALL: &[&str] = &[
+        PURCHASE_RECEIPT,
+        PURCHASE_RETURN,
+        SALES_RETURN,
+        SALES_DELIVERY,
+        PRODUCTION_CONSUMPTION,
+        PRODUCTION_OUTPUT,
+        TRANSFER_OUT,
+        TRANSFER_IN,
+        INVENTORY_ADJUSTMENT,
+        STOCK_DIRECT_IN,
+    ];
 }
 
 pub mod inventory_stock_status {

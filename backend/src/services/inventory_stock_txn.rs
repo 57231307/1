@@ -4,7 +4,9 @@
 
 use chrono::Utc;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, ExprTrait, QueryFilter, Set, TransactionTrait,
+};
 
 use crate::models::inventory_stock;
 use crate::models::inventory_transaction;
@@ -14,7 +16,7 @@ use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
 
 use super::inventory_stock_query::RecordTransactionArgs;
-use super::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService};
+use super::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService, StockInboundFlowRef};
 
 impl InventoryStockService {
     pub async fn update_stock_quantity_with_optimistic_lock_txn(
@@ -68,7 +70,15 @@ impl InventoryStockService {
     }
 
     /// 创建面料库存记录（事务版本）
-    /// 批次 338 v10 复审 P3 修复：签名从 14 参数改为 2 参数（txn + args），；复用 `CreateStockFabricArgs` 参数对象，消除 `clippy::too_many_arguments` 警告。
+    ///
+    /// 入参 `args` 是 `CreateStockFabricArgs` 参数对象（txn + args 两参数签名，避免
+    /// `clippy::too_many_arguments`）。
+    ///
+    /// `quantity_kg` 按调用方给出的权威辅量原样落库，不在本函数再做第二次推算。公斤数的
+    /// 解析唯一入口是 `services::inv::inbound_admission::resolve_inbound_quantity_kg`
+    /// （实称优先、缺失时按克重与幅宽经 `DualUnitConverter` 单入口推算、两条来源都缺即拒绝）。
+    /// 此前本函数推算出一个 `_final_quantity_kg` 后弃用、仍写 `quantity_kg`，等于换算结果
+    /// 从不生效而调用方以为生效，属双计量的假象口径，故删除该次无效计算。
     pub async fn create_stock_fabric_txn(
         txn: &sea_orm::DatabaseTransaction,
         args: CreateStockFabricArgs,
@@ -88,8 +98,6 @@ impl InventoryStockService {
             shelf_no,
             layer_no,
         } = args;
-        let _final_quantity_kg =
-            Self::calculate_quantity_kg(quantity_meters, gram_weight, width, quantity_kg);
 
         let active_stock = inventory_stock::ActiveModel {
             id: Default::default(),
@@ -207,5 +215,63 @@ impl InventoryStockService {
             color_no: transaction.color_no.clone(),
             created_by: transaction.created_by,
         }
+    }
+
+    /// 创建库存行并在同一事务内写入库流水（库存直建入库的唯一写入口）
+    ///
+    /// 调用方是 `handlers::inventory_stock_handler::create_stock`（POST /inventory/stock）与
+    /// `handlers::inventory_stock_handler_fabric::create_stock_fabric`（POST /inventory/stock/fabric）。
+    /// 入参 `stock_args` 是库存行的全部写入值（含已由 `inbound_admission` 解析出的公斤数），
+    /// `flow` 是这笔入库的来源单据引用与登记人（`StockInboundFlowRef`）。
+    /// 传给谁是先写 `inventory_stocks` 一行、再以同一组四维与数量写 `inventory_transactions`
+    /// 一行，事务提交成功后发布 `BusinessEvent::InventoryTransactionCreated`；任一步失败整个
+    /// 事务回滚，不留下"有台账无流水"或"有流水无台账"的半态。
+    /// 存什么存哪里是流水行的方向类型、来源单号与单 ID、四维（批次/色号/缸号/等级）、
+    /// 双计量数量与前后值。期初固定为 0，因为本入口每次新增一行而非累加既有行。
+    ///
+    /// 流水维度一律取回读到的 `stock` 行本身而不是请求原文，保证库存台账与流水逐字符同源；
+    /// 此前两条直建端点完全不写流水，入库无痕导致同仓 9 条出入库链路共用的流水视图、
+    /// 库存财务桥与批次追溯链都看不到这笔入库。
+    pub async fn create_stock_fabric_with_flow(
+        &self,
+        stock_args: CreateStockFabricArgs,
+        flow: StockInboundFlowRef,
+    ) -> Result<inventory_stock::Model, AppError> {
+        let txn = (*self.db).begin().await?;
+
+        let stock = Self::create_stock_fabric_txn(&txn, stock_args).await?;
+
+        let (_, flow_event) = Self::record_transaction_txn(
+            &txn,
+            RecordTransactionArgs {
+                transaction_type: flow.transaction_type,
+                product_id: stock.product_id,
+                warehouse_id: stock.warehouse_id,
+                batch_no: stock.batch_no.clone(),
+                color_no: stock.color_no.clone(),
+                dye_lot_no: stock.dye_lot_no.clone(),
+                grade: stock.grade.clone(),
+                quantity_meters: stock.quantity_meters,
+                quantity_kg: stock.quantity_kg,
+                source_bill_type: flow.source_bill_type,
+                source_bill_no: flow.source_bill_no,
+                source_bill_id: flow.source_bill_id,
+                quantity_before_meters: Some(Decimal::ZERO),
+                quantity_before_kg: Some(Decimal::ZERO),
+                quantity_after_meters: Some(stock.quantity_meters),
+                quantity_after_kg: Some(stock.quantity_kg),
+                notes: flow.notes,
+                created_by: flow.created_by,
+            },
+        )
+        .await?;
+
+        txn.commit().await?;
+
+        if let Some(event) = flow_event {
+            crate::services::event_bus::EVENT_BUS.publish(event);
+        }
+
+        Ok(stock)
     }
 }

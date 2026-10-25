@@ -45,6 +45,17 @@ pub struct CreateStockFabricRequest {
     /// 层号
     #[validate(length(max = 50, message = "层号长度不能超过50个字符"))]
     pub layer_no: Option<String>,
+    /// 来源单据类型（可选，取值域见 `models::status::purchase_inventory::inventory_transaction_type`；
+    /// 缺省时由受理侧按入库链路补 `STOCK_DIRECT_IN`，不接受调用方塞入其它链路的 token 冒充来源）
+    #[validate(length(max = 50, message = "来源单据类型长度不能超过50个字符"))]
+    pub source_bill_type: Option<String>,
+    /// 来源单据号（必填语义由受理侧 `inbound_admission::require_source_bill_no` 强制并点名该字段，
+    /// 本 DTO 只限格式，避免同一规则在 DTO 与准入两处各写一套而漂移）
+    #[validate(length(max = 50, message = "来源单号长度不能超过50个字符"))]
+    pub source_bill_no: Option<String>,
+    /// 入库备注（落库存流水 notes 列，库存台账无备注列）
+    #[validate(length(max = 500, message = "入库备注长度不能超过500个字符"))]
+    pub notes: Option<String>,
 }
 
 #[allow(dead_code, reason = "序列化输出字段")]
@@ -83,6 +94,18 @@ pub struct StockResponse {
     pub quantity_meters: Decimal,
     /// 数量（公斤，辅计量）
     pub quantity_kg: Decimal,
+    /// 实测克重（g/m2，`inventory_stocks.gram_weight`）。决定成品布的四个数之一，
+    /// 同一品种不同克重是两种产品，台账与出库候选都必须看得见它，否则只能报品种不能报规格。
+    pub gram_weight: Option<Decimal>,
+    /// 实测幅宽（cm，`inventory_stocks.width`）。决定成品布的四个数之一，
+    /// 与克重同为公斤数换算的入参。
+    pub width: Option<Decimal>,
+    /// 库位 ID（`inventory_stocks.location_id`，外键指向 locations；未指定库位时为空）
+    pub location_id: Option<i32>,
+    /// 货架号（`inventory_stocks.shelf_no`）
+    pub shelf_no: Option<String>,
+    /// 层号（`inventory_stocks.layer_no`）
+    pub layer_no: Option<String>,
     // ===== 主数据名称（库存表只存 ID，列表/详情/导出按名称展示）=====
     /// 产品编码
     pub product_code: Option<String>,
@@ -171,6 +194,11 @@ pub struct ListStockParams {
     /// 库存状态筛选（取 inventory_stocks.stock_status 的真实主数据值：正常/报废/已删除）；
     /// 不传时按在库口径排除软删除行
     pub stock_status: Option<String>,
+    /// 质量状态筛选（合格/待检/不合格，取值域见
+    /// `models::status::purchase_inventory::inventory_stock_quality_status`）。
+    /// 出库对话框的候选行必须按「正常 + 合格」下推筛选，报废与不合格行不得出现在可选清单里；
+    /// 走后端参数而非前端过滤，避免分页截断后前端过滤只筛已加载的那一页。
+    pub quality_status: Option<String>,
 }
 
 /// 库存预警行（GET /inventory/stock/alerts 的出参单元）
@@ -253,6 +281,17 @@ pub struct StockFabricResponse {
     pub gram_weight: Option<Decimal>,
     pub width: Option<Decimal>,
     pub bin_location: Option<String>,
+    /// 库位 ID（`inventory_stocks.location_id`，外键指向 locations）
+    pub location_id: Option<i32>,
+    /// 货架号（`inventory_stocks.shelf_no`）
+    pub shelf_no: Option<String>,
+    /// 层号（`inventory_stocks.layer_no`）
+    pub layer_no: Option<String>,
+    /// 台账状态（正常/报废/已删除，见 `inventory_stock_status`）——出库候选必须能看出
+    /// 这行是不是报废行，缺这列时界面"看得见就能出"是假象
+    pub stock_status: String,
+    /// 质量状态（合格/待检/不合格，见 `inventory_stock_quality_status`）——待检与不合格行不得出库
+    pub quality_status: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

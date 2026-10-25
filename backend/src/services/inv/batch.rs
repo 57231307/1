@@ -170,7 +170,24 @@ impl InventoryTransferService {
                 &dims,
             ));
         }
-        let plan_candidates: Vec<DeductionCandidate> = candidates
+        // 可出库门（判定与调拨建单预检同源，见 inv::stock::is_outbound_eligible）：
+        // 四维命中的行里，报废行与待检/不合格行不参与扣减。此前本查询只按四维加行锁，
+        // 报废与不合格的货能被直接发出去，且扣减成功后流水照写，账面上完全看不出违规。
+        let eligible: Vec<inventory_stock::Model> = candidates
+            .iter()
+            .filter(|s| super::stock::is_outbound_eligible(s))
+            .cloned()
+            .collect();
+        if eligible.is_empty() {
+            let blocked: Vec<&inventory_stock::Model> = candidates.iter().collect();
+            return Err(super::stock::non_outbound_rejection(
+                "调拨发运",
+                item.product_id,
+                &dims,
+                &blocked,
+            ));
+        }
+        let plan_candidates: Vec<DeductionCandidate> = eligible
             .iter()
             .map(|s| DeductionCandidate {
                 stock_id: s.id,
@@ -199,10 +216,10 @@ impl InventoryTransferService {
             )?;
 
         for alloc in allocations {
-            let stock_model = candidates
+            let stock_model = eligible
                 .iter()
                 .find(|s| s.id == alloc.stock_id)
-                .ok_or_else(|| AppError::internal("扣减规划返回了候选之外的库存行"))?;
+                .ok_or_else(|| AppError::internal("扣减规划返回了可出库候选之外的库存行"))?;
             let (new_quantity_meters, new_quantity_kg) =
                 Self::compute_ship_new_quantities(stock_model, alloc.quantity);
             Self::update_stock_with_optimistic_lock_for_ship(
@@ -1187,7 +1204,15 @@ impl InventoryTransferService {
         let product_id = req
             .product_id
             .ok_or_else(|| AppError::validation_displayable("批次缺少物料ID"))?;
-        let quantity = req.quantity.unwrap_or(rust_decimal::Decimal::ZERO);
+        let quantity = req
+            .quantity
+            .filter(|q| *q > rust_decimal::Decimal::ZERO)
+            .ok_or_else(|| {
+                AppError::validation_displayable(format!(
+                    "调拨出库明细数量必填且必须大于 0（调拨单 {transfer_id}，产品 {product_id}，实为 {:?}），零与负数不构成出库，拒绝添加明细",
+                    req.quantity
+                ))
+            })?;
 
         // 四维追溯字段（款号由 product_id 承载 + 色号 + 缸号 + 批次 + 匹号）如实校验并落库，
         // 禁止用 NotSet 丢弃入参（历史缺陷：本方法曾把三列写 NotSet → 落空值，调拨链路断链）。

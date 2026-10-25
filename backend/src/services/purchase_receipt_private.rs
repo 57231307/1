@@ -5,9 +5,10 @@
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
-use crate::models::status::purchase_inventory::inventory_stock_grade;
+use crate::models::status::purchase_inventory::inventory_transaction_type;
 use crate::models::{purchase_receipt, purchase_receipt_item};
 use crate::services::event_bus::BusinessEvent;
+use crate::services::inv::inbound_admission;
 use crate::utils::error::AppError;
 
 use super::purchase_receipt_service::PurchaseReceiptService;
@@ -240,6 +241,69 @@ impl PurchaseReceiptService {
         Ok(batch.to_string())
     }
 
+    /// 确认入账期的验布定级结论解析（判定权威在
+    /// `crate::services::inv::inbound_admission::require_stock_grade`，与库存直建入库同一实现）。
+    ///
+    /// 入参：`item` 是入库明细行；`receipt` 只用于拒绝文案点名单号与行号。
+    /// 传给谁：`upsert_stock_for_item` 写 `inventory_stocks.grade`，
+    /// `record_receipt_transaction` 写 `inventory_transactions.grade`，两处取同一次解析结果。
+    /// 存什么·存哪里：库存行与流水行的等级列，取值只能是
+    /// `inventory_stock_grade::ALL`（一等品/二等品/等外品）。
+    ///
+    /// 此前这两处都写 `item.grade.unwrap_or_else(|| 一等品)`，即"没验布就按最高等级入账"，
+    /// 同时抬高可用量口径与售价口径，并把采集缺口伪装成质检结论；词表在写入侧从未生效，
+    /// 界面上提交的历史值（如"合格品"）也原样落库，令该行对所有按等级筛选永久不可见。
+    fn resolve_receipt_grade(
+        item: &purchase_receipt_item::Model,
+        receipt: &purchase_receipt::Model,
+    ) -> Result<String, AppError> {
+        let field = format!(
+            "入库单 {} 第 {} 行（产品 {}）验布定级结论",
+            receipt.receipt_no, item.line_no, item.product_id
+        );
+        inbound_admission::require_stock_grade(item.grade.as_deref(), &field).map_err(|e| {
+            AppError::business_displayable(format!(
+                "{}，拒绝确认入库（等级缺失或越界的行不得入账）",
+                e
+            ))
+        })
+    }
+
+    /// 确认入账期的辅计量公斤数解析（判定权威在
+    /// `crate::services::inv::inbound_admission::resolve_inbound_quantity_kg`）。
+    ///
+    /// 入参：`item` 是入库明细行（实称量 `quantity_alt` 优先，缺失时按克重与幅宽经
+    /// `DualUnitConverter` 单入口推算）；`receipt` 用于拒绝文案点名单号与行号。
+    /// 传给谁：`upsert_stock_for_item` 写库存行与累加既有行，
+    /// `record_receipt_transaction` 写流水行的公斤数与前后值。
+    /// 存什么·存哪里：`inventory_stocks.quantity_kg` 与 `inventory_transactions.quantity_kg`，
+    /// 两列都是 NOT NULL。
+    ///
+    /// 此前两处都走 `item.quantity_alt.unwrap_or(Decimal::ZERO)`，缺公斤数即静默落 0，
+    /// 而成本核算、按公斤出库与双计量对账都以这列为基数，0 与"未称"在库里无法分辨。
+    fn resolve_receipt_kg(
+        item: &purchase_receipt_item::Model,
+        receipt: &purchase_receipt::Model,
+    ) -> Result<Decimal, AppError> {
+        let label = format!(
+            "入库单 {} 第 {} 行（产品 {}）",
+            receipt.receipt_no, item.line_no, item.product_id
+        );
+        inbound_admission::resolve_inbound_quantity_kg(
+            item.quantity,
+            item.gram_weight,
+            item.width,
+            item.quantity_alt,
+            &label,
+        )
+        .map_err(|e| {
+            AppError::business_displayable(format!(
+                "{}，拒绝确认入库（公斤数无法确定的行不得入账）",
+                e
+            ))
+        })
+    }
+
     pub async fn update_inventory_txn(
         &self,
         receipt: &purchase_receipt::Model,
@@ -253,24 +317,45 @@ impl PurchaseReceiptService {
             .all(txn)
             .await?;
 
-        // 整单 fail-closed：任一行批次缺失即在建库前拒绝，事务不落任何库存行。
+        // 整单 fail-closed：任一行批次缺失、验布定级缺失或越界、公斤数无法确定，
+        // 都在建库之前拒绝，事务不落任何库存行、不写任何流水。
         // 色号/缸号的「染色布必填」口径当前未在本域强制（统一的白坯布判定函数尚未落地），
         // 本域不自行按色号名称判定白色。
         for item in &items {
             Self::require_receipt_batch(item, receipt)?;
+            Self::resolve_receipt_grade(item, receipt)?;
+            Self::resolve_receipt_kg(item, receipt)?;
         }
 
         let mut stock_map = Self::fetch_stock_map(txn, &items, receipt.warehouse_id).await?;
 
         for item in items {
-            let key = Self::receipt_item_stock_key(&item);
+            // 等级与公斤数每行只解析一次，库存维度键、库存行写入与流水行写入共用同一结果，
+            // 避免同一行在三处各解析一遍而口径漂移
+            let grade = Self::resolve_receipt_grade(&item, receipt)?;
+            let quantity_kg = Self::resolve_receipt_kg(&item, receipt)?;
+            let key = Self::receipt_item_stock_key(&item, &grade);
             let existing = stock_map.get(&key).cloned();
             // 流水的期初/期末分别取本行入库前后，同产品不同缸号的行不共用库存行
-            let (stock_before, stock_after) =
-                Self::upsert_stock_for_item(txn, &item, existing.as_ref(), receipt).await?;
+            let (stock_before, stock_after) = Self::upsert_stock_for_item(
+                txn,
+                &item,
+                existing.as_ref(),
+                receipt,
+                &grade,
+                quantity_kg,
+            )
+            .await?;
             stock_map.insert(key, stock_after);
-            if let Some(ev) =
-                Self::record_receipt_transaction(txn, &item, &stock_before, receipt).await?
+            if let Some(ev) = Self::record_receipt_transaction(
+                txn,
+                &item,
+                &stock_before,
+                receipt,
+                &grade,
+                quantity_kg,
+            )
+            .await?
             {
                 pending_events.push(ev);
             }
@@ -279,8 +364,12 @@ impl PurchaseReceiptService {
     }
 
     /// 入库明细行的库存维度键：与创建库存行时写入的字段口径一致
-    /// （batch_no/color_no 空值落库为空串，grade 缺省为一等品，dye_lot_no 保持 Option）
-    fn receipt_item_stock_key(item: &purchase_receipt_item::Model) -> StockDimKey {
+    /// （batch_no/color_no 空值落库为空串，dye_lot_no 保持 Option）
+    ///
+    /// 入参 `grade` 由调用方从 [`PurchaseReceiptService::resolve_receipt_grade`] 取，
+    /// 即已经过库存等级词表校验的值——本函数不再自己兜底缺省等级，否则维度键与落库等级
+    /// 不同源会让同批次的两行落到不同库存行上。
+    fn receipt_item_stock_key(item: &purchase_receipt_item::Model, grade: &str) -> StockDimKey {
         (
             item.product_id,
             // 与 upsert_stock_for_item 落库口径一致：批次以去除首尾空白后的值定位库存行
@@ -291,9 +380,7 @@ impl PurchaseReceiptService {
                 .unwrap_or_default(),
             item.color_code.clone().unwrap_or_default(),
             item.lot_no.clone().unwrap_or_default(),
-            item.grade
-                .clone()
-                .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string()),
+            grade.to_string(),
         )
     }
 
@@ -347,13 +434,15 @@ impl PurchaseReceiptService {
         item: &purchase_receipt_item::Model,
         existing_stock: Option<&crate::models::inventory_stock::Model>,
         receipt: &purchase_receipt::Model,
+        grade: &str,
+        quantity_kg: Decimal,
     ) -> Result<StockSnapshots, AppError> {
         use crate::services::inventory_stock_service::{
             CreateStockFabricArgs, InventoryStockService,
         };
         if let Some(stock) = existing_stock {
             let new_meters = stock.quantity_meters + item.quantity;
-            let new_kg = stock.quantity_kg + item.quantity_alt.unwrap_or(Decimal::ZERO);
+            let new_kg = stock.quantity_kg + quantity_kg;
             let after = InventoryStockService::update_stock_quantity_with_optimistic_lock_txn(
                 txn,
                 stock.id,
@@ -371,10 +460,9 @@ impl PurchaseReceiptService {
             // 采购/库存统一的白坯布判定函数；该函数目前尚未落地，故色号/缸号原样落库，
             // 不在此按色号名称嗅探白色。
             let color_no = item.color_code.clone().unwrap_or_default();
-            let grade = item
-                .grade
-                .clone()
-                .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string());
+            // 等级与公斤数取调用方一次解析后的结果（见 update_inventory_txn），
+            // 本函数不再自己兜底：历史上这里是 `unwrap_or(一等品)` 与
+            // `quantity_alt.unwrap_or(0)`，即缺验布结论按最高等级入账、缺实称公斤数按 0 入账
             let stock = InventoryStockService::create_stock_fabric_txn(
                 txn,
                 CreateStockFabricArgs {
@@ -383,9 +471,9 @@ impl PurchaseReceiptService {
                     batch_no,
                     color_no,
                     dye_lot_no: item.lot_no.clone(),
-                    grade,
+                    grade: grade.to_string(),
                     quantity_meters: item.quantity,
-                    quantity_kg: item.quantity_alt.unwrap_or(Decimal::ZERO),
+                    quantity_kg,
                     gram_weight: item.gram_weight,
                     width: item.width,
                     location_id: None,
@@ -402,42 +490,43 @@ impl PurchaseReceiptService {
     }
 
     /// 记录库存流水并返回事件（由调用方在 commit 后 publish）
+    ///
+    /// 入参 `grade` 与 `quantity_kg` 是调用方对本行一次解析后的结果，与写入库存行的值同源，
+    /// 保证台账行与流水行逐字符一致；方向类型与来源单据类型取
+    /// `models::status::purchase_inventory::inventory_transaction_type::PURCHASE_RECEIPT`
+    /// 常量（此前是裸字面量，与本列取值域唯一来源脱钩）。
     async fn record_receipt_transaction(
         txn: &sea_orm::DatabaseTransaction,
         item: &purchase_receipt_item::Model,
         stock_model: &crate::models::inventory_stock::Model,
         receipt: &purchase_receipt::Model,
+        grade: &str,
+        quantity_kg: Decimal,
     ) -> Result<Option<BusinessEvent>, AppError> {
         use crate::services::inventory_stock_query::RecordTransactionArgs;
         use crate::services::inventory_stock_service::InventoryStockService;
         // 流水维度与库存行同口径：批次如实写入（建库前已校验非空），不再 unwrap 成空串
         let batch_no = Self::require_receipt_batch(item, receipt)?;
         let color_no = item.color_code.clone().unwrap_or_default();
-        let grade = item
-            .grade
-            .clone()
-            .unwrap_or_else(|| inventory_stock_grade::FIRST.to_string());
         let (_, txn_event) = InventoryStockService::record_transaction_txn(
             txn,
             RecordTransactionArgs {
-                transaction_type: "PURCHASE_RECEIPT".to_string(),
+                transaction_type: inventory_transaction_type::PURCHASE_RECEIPT.to_string(),
                 product_id: item.product_id,
                 warehouse_id: receipt.warehouse_id,
                 batch_no,
                 color_no,
                 dye_lot_no: item.lot_no.clone(),
-                grade,
+                grade: grade.to_string(),
                 quantity_meters: item.quantity,
-                quantity_kg: item.quantity_alt.unwrap_or(Decimal::ZERO),
-                source_bill_type: Some("PURCHASE_RECEIPT".to_string()),
+                quantity_kg,
+                source_bill_type: Some(inventory_transaction_type::PURCHASE_RECEIPT.to_string()),
                 source_bill_no: Some(receipt.receipt_no.clone()),
                 source_bill_id: Some(i64::from(receipt.id)),
                 quantity_before_meters: Some(stock_model.quantity_meters),
                 quantity_before_kg: Some(stock_model.quantity_kg),
                 quantity_after_meters: Some(stock_model.quantity_meters + item.quantity),
-                quantity_after_kg: Some(
-                    stock_model.quantity_kg + item.quantity_alt.unwrap_or(Decimal::ZERO),
-                ),
+                quantity_after_kg: Some(stock_model.quantity_kg + quantity_kg),
                 notes: Some("入库自动增加库存".to_string()),
                 created_by: Some(receipt.created_by),
             },

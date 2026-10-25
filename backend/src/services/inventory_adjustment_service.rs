@@ -1,4 +1,7 @@
 use crate::models::status::inventory_adjustment as adjustment_status;
+use crate::models::status::purchase_inventory::{
+    inventory_adjustment_type, inventory_transaction_type,
+};
 use crate::models::{
     inventory_adjustment, inventory_adjustment_item, inventory_stock, user, warehouse,
 };
@@ -95,6 +98,66 @@ pub struct InventoryAdjustmentService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 校验调整方向与调整量，并算出调整后数量（建单明细、追加明细、改明细三处共用的唯一口径）。
+///
+/// 功能：把"方向取值域 + 调整量下限 + 减后不得为负"三条判定收在一处，三处调用点共用，
+/// 避免同一规则写三遍而各处漂移。
+/// 入参：`adjustment_type` 单据方向原文；`stock_id` 只用于拒绝文案点名是哪一行；
+/// `quantity_before` 该库存行当前在库数量；`quantity` 本行调整量（增减的绝对值）。
+/// 传给谁：`Err` 原样透传给 handler 出参（`business_displayable`，400，可外显），
+/// 发生在写 `inventory_adjustment_items` 之前，整单不落库。
+/// 存什么·存哪里：通过时返回的 `Decimal` 写 `inventory_adjustment_items.quantity_after`。
+///
+/// 拒绝而非兜底的三条理由。方向取未知值（历史上把 `increas` 或 `Increase` 拼错即被
+/// `== "increase"` 判成假、进而静默按减少执行）不猜方向，因为猜错就是把在库扣掉。
+/// 调整量小于等于零不构成任何调整。减量后为负则库存台账出现实物不存在的负数在库量，
+/// 报废与不合格应当走批色报废流程，不靠调整单把数量写成负数。
+fn resolve_adjusted_quantity(
+    adjustment_type: &str,
+    stock_id: i32,
+    quantity_before: Decimal,
+    quantity: Decimal,
+) -> Result<Decimal, AppError> {
+    if !inventory_adjustment_type::ALL.contains(&adjustment_type) {
+        return Err(AppError::business_displayable(format!(
+            "库存调整方向 \"{adjustment_type}\" 不在取值域内（允许值 {}），无法判定本行是加库存还是减库存，拒绝写入",
+            inventory_adjustment_type::ALL.join("/")
+        )));
+    }
+    if quantity <= Decimal::ZERO {
+        return Err(AppError::business_displayable(format!(
+            "库存 ID {stock_id} 的调整量必须大于 0，实为 {quantity}，零与负数不构成任何调整，拒绝写入"
+        )));
+    }
+    if adjustment_type == inventory_adjustment_type::INCREASE {
+        return Ok(quantity_before + quantity);
+    }
+    // 上方取值域校验已保证此处只可能是减少方向
+    let quantity_after = quantity_before - quantity;
+    if quantity_after < Decimal::ZERO {
+        return Err(AppError::business_displayable(format!(
+            "库存 ID {stock_id} 减量超出在库数量（当前在库 {quantity_before}，拟减 {quantity}，结果 {quantity_after}），库存不得调成负数；不合格与报废请走批色报废流程，拒绝写入"
+        )));
+    }
+    Ok(quantity_after)
+}
+
+/// 校验调整单表头方向的取值域（建单与改单入口）。
+///
+/// 入参 `adjustment_type` 是表头原文；传给谁是在 `inventory_adjustments.insert/update` 之前
+/// 拦截，`Err` 走 `business_displayable` 外显。存什么·存哪里只校验不落数据。
+/// 明细三处的方向计算同样按本取值域判定（见 [`resolve_adjusted_quantity`]），此处提前到表头
+/// 即拒，避免建单期方向就拼错、到明细才发现导致整单已取号。
+fn require_adjustment_type(adjustment_type: &str) -> Result<(), AppError> {
+    if inventory_adjustment_type::ALL.contains(&adjustment_type) {
+        return Ok(());
+    }
+    Err(AppError::business_displayable(format!(
+        "库存调整方向 \"{adjustment_type}\" 不在取值域内（允许值 {}），拒绝建单",
+        inventory_adjustment_type::ALL.join("/")
+    )))
+}
+
 impl InventoryAdjustmentService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -106,6 +169,8 @@ impl InventoryAdjustmentService {
         &self,
         request: CreateAdjustmentRequest,
     ) -> Result<AdjustmentDetail, AppError> {
+        // 方向取值域在取号之前即校验：拼错方向的单据不该留下已占用的单号
+        require_adjustment_type(&request.adjustment_type)?;
         let txn = (*self.db).begin().await?;
         // 在调整事务内取号，锁随本事务提交才释放，与下方 adjustment.insert(&txn) 同临界区
         let adjustment_no = self.generate_adjustment_no(&txn).await?;
@@ -186,11 +251,12 @@ impl InventoryAdjustmentService {
                 AppError::not_found(format!("库存 ID {} 不存在", item_req.stock_id))
             })?;
             let quantity_before = stock.quantity_on_hand;
-            let quantity_after = if adjustment_type == "increase" {
-                quantity_before + item_req.quantity
-            } else {
-                quantity_before - item_req.quantity
-            };
+            let quantity_after = resolve_adjusted_quantity(
+                adjustment_type,
+                item_req.stock_id,
+                quantity_before,
+                item_req.quantity,
+            )?;
             let amount = item_req
                 .unit_cost
                 .map(|cost| (cost * item_req.quantity).round_dp(2));
@@ -341,6 +407,22 @@ impl InventoryAdjustmentService {
         stock_model: &inventory_stock::Model,
     ) -> Result<(), AppError> {
         let quantity_before = stock_model.quantity_on_hand;
+        // 审批写库前的两道门：目标量下限与调整前基数失效。
+        // 目标量为负即把台账写成实物不存在的负数在库量；减量方向的单据若在当前在库已低于
+        // 单据记录的调整前量（说明期间发生过出库等其它链路扣减），仍按单据目标量覆盖就会把
+        // 已被扣走的量凭空加回，两道门都在 UPDATE 之前拒绝并点名是哪一行。
+        if item.quantity_after < Decimal::ZERO {
+            return Err(AppError::business_displayable(format!(
+                "库存 ID {} 的调整目标量为 {}，库存不得为负，拒绝审批写入",
+                item.stock_id, item.quantity_after
+            )));
+        }
+        if item.quantity_after < item.quantity_before && quantity_before < item.quantity_before {
+            return Err(AppError::business_displayable(format!(
+                "库存 ID {} 自调整单建单以来在库量已由 {} 变为 {}，调整前基数已失效，拒绝按单据目标量覆盖，请驳回本单并按当前在库重新制单",
+                item.stock_id, item.quantity_before, quantity_before
+            )));
+        }
         let expected_version = stock_model.version;
         let current_quantity_kg = stock_model.quantity_kg;
         let update_result = inventory_stock::Entity::update_many()
@@ -398,7 +480,7 @@ impl InventoryAdjustmentService {
         let quantity_change = item.quantity_after - stock_model.quantity_on_hand;
         BusinessEvent::InventoryTransactionCreated {
             transaction_id: adjustment_id,
-            transaction_type: "INVENTORY_ADJUSTMENT".to_string(),
+            transaction_type: inventory_transaction_type::INVENTORY_ADJUSTMENT.to_string(),
             product_id: stock_model.product_id,
             warehouse_id,
             quantity_meters: quantity_change,
@@ -584,6 +666,31 @@ impl InventoryAdjustmentService {
             ));
         }
 
+        // 改单口的方向门：新值必须落在取值域内；且已有明细的单据不许改方向。
+        // 明细行的调整前后量是按建单时的方向算的，方向一改这些行就指向相反语义，
+        // 而审批直接取明细的 quantity_after 覆盖库存——与其静默重算或留下错向的行，
+        // 不如拒绝，让制单人驳回后按正确方向重新制单。
+        if let Some(new_adjustment_type) =
+            req.adjustment_type.as_ref().and_then(|inner| inner.as_deref())
+        {
+            require_adjustment_type(new_adjustment_type)?;
+            if new_adjustment_type != adjustment_model.adjustment_type {
+                let item_count = inventory_adjustment_item::Entity::find()
+                    .filter(inventory_adjustment_item::Column::AdjustmentId.eq(adjustment_id))
+                    .count(&txn)
+                    .await?;
+                if item_count > 0 {
+                    return Err(AppError::business_displayable(format!(
+                        "调整单 {} 已有 {} 条明细，方向不得由 {} 改为 {}：明细的数量前后值按原方向计算，改方向会让已录入行指向相反语义，请驳回本单后按新方向重新制单",
+                        adjustment_model.adjustment_no,
+                        item_count,
+                        adjustment_model.adjustment_type,
+                        new_adjustment_type
+                    )));
+                }
+            }
+        }
+
         let mut active: inventory_adjustment::ActiveModel = adjustment_model.into_active_model();
 
         // 三态写入规则：None=不 Set（列保持 Unset，UPDATE 不含该列，原值不动）；
@@ -708,11 +815,12 @@ impl InventoryAdjustmentService {
             .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", req.stock_id)))?;
 
         let quantity_before = stock.quantity_on_hand;
-        let quantity_after = if detail.adjustment.adjustment_type == "increase" {
-            quantity_before + req.quantity
-        } else {
-            quantity_before - req.quantity
-        };
+        let quantity_after = resolve_adjusted_quantity(
+            &detail.adjustment.adjustment_type,
+            req.stock_id,
+            quantity_before,
+            req.quantity,
+        )?;
         // 批次 97 P1-5 修复：补 round_dp(2) 防止精度漂移
         let amount = req.unit_cost.map(|cost| (cost * req.quantity).round_dp(2));
 
@@ -776,11 +884,12 @@ impl InventoryAdjustmentService {
             .ok_or_else(|| AppError::not_found(format!("库存 ID {} 不存在", req.stock_id)))?;
 
         let quantity_before = stock.quantity_on_hand;
-        let quantity_after = if detail.adjustment.adjustment_type == "increase" {
-            quantity_before + req.quantity
-        } else {
-            quantity_before - req.quantity
-        };
+        let quantity_after = resolve_adjusted_quantity(
+            &detail.adjustment.adjustment_type,
+            req.stock_id,
+            quantity_before,
+            req.quantity,
+        )?;
         // 批次 97 P1-5 修复：补 round_dp(2) 防止精度漂移
         let amount = req.unit_cost.map(|cost| (cost * req.quantity).round_dp(2));
 
