@@ -494,7 +494,7 @@ describe('表单源码静态锁：节点类型选项与审批人输入形态', (
       'src/views/bpm/index.vue': 1,
       'src/views/bpm/approval/composables/useBpmApProc.ts': 1,
       'src/views/system/oa-announcements/index.vue': 1,
-      'src/views/system/tabs/NotificationTab.vue': 1,
+      'src/views/notification/index.vue': 1,
       'src/views/quality/composables/useQualityLookups.ts': 1,
     };
     const walkVueTs = (dir: string, out: string[] = []): string[] => {

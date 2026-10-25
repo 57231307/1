@@ -1,9 +1,10 @@
 import { test, expect } from '../diagnose-fixture';
 import { gotoWithRetry } from './_goto';
 
-test.describe('ar-reconciliation enhanced 页面冒烟测试', () => {
+test.describe('ar-reconciliation 增强页签冒烟测试', () => {
   test('页面加载', async ({ page }) => {
-    await gotoWithRetry(page, '/ar-reconciliation/enhanced');
+    // 增强对账并入 /ar-reconciliation 第二页签，旧 /ar-reconciliation/enhanced 重定向到 ?tab=enhanced
+    await gotoWithRetry(page, '/ar-reconciliation?tab=enhanced');
     await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
     await expect(
       page

@@ -78,6 +78,21 @@ export const PERMISSIONS = {
   SUPPLIER_UPDATE: 'suppliers:update',
   SUPPLIER_DELETE: 'suppliers:delete',
 
+  // 客户信用管理（后端资源段 customer-credits，路由挂在模块前缀 crm 下，
+  // 不在 path_utils 的消歧映射表内，故资源名保留 URL 段原名）。
+  // 动作段取值逐条取自后端权限中间件的键派生规则，路径末段命中
+  // PATH_ACTION_KEYWORDS 时取末段，否则按方法派生，GET 走 read，POST 走 create，
+  // PUT 走 update，DELETE 走 delete。
+  // rating occupy adjust evaluate deactivate 五个末段都不在该关键字表内，
+  // 全部派生成 create 一枚键；release 命中关键字表，是独立键；
+  // 详情面走同资源 read 键。这四枚键与该页按钮的取值由 tests unit 下的
+  // 客户信用动作权限与信封锁三向互锁。
+  CUSTOMER_CREDIT_READ: 'customer-credits:read',
+  CUSTOMER_CREDIT_CREATE: 'customer-credits:create',
+  CUSTOMER_CREDIT_UPDATE: 'customer-credits:update',
+  CUSTOMER_CREDIT_DELETE: 'customer-credits:delete',
+  CUSTOMER_CREDIT_RELEASE: 'customer-credits:release',
+
   // 产品管理（后端资源：products）
   PRODUCT_READ: 'products:read',
   PRODUCT_CREATE: 'products:create',
@@ -318,6 +333,22 @@ export const PERMISSIONS = {
   AP_INVOICE_READ: 'ap-invoices:read',
   AP_INVOICE_EXPORT: 'ap-invoices:export',
 
+  // 应付域其余页签的入口读面键（后端资源名逐枚对齐 PERMISSION_RESOURCES 与
+  // path_utils 消歧目标；派生依据 = GET /ap/<段>，动作段按 GET→read）：
+  // /ap/payments、/ap/payment-requests、/ap/verifications、/ap/reconciliations。
+  AP_PAYMENT_READ: 'ap-payments:read',
+  AP_PAYMENT_REQUEST_READ: 'ap-payment-requests:read',
+  AP_VERIFICATION_READ: 'ap-verifications:read',
+  AP_RECONCILIATION_READ: 'ap-reconciliations:read',
+
+  // 应付报表中心四本账（GET /ap/reports/<段>：ap 与 reports 同为模块前缀，跳段后资源名落在
+  // 第五段并经消歧映射为 ap-aging / ap-daily / ap-monthly / ap-statistics，四本彼此独立，
+  // 任一枚都不代偿另一枚）。
+  AP_AGING_READ: 'ap-aging:read',
+  AP_DAILY_READ: 'ap-daily:read',
+  AP_MONTHLY_READ: 'ap-monthly:read',
+  AP_STATISTICS_READ: 'ap-statistics:read',
+
   // 应收发票（后端资源：ar-invoices，与应付同型随域改名）
   AR_INVOICE_READ: 'ar-invoices:read',
   AR_INVOICE_EXPORT: 'ar-invoices:export',
@@ -432,3 +463,39 @@ export const PERMISSIONS = {
 // 类型定义
 // ============================================================================
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+// ============================================================================
+// 应付域（/ap）门控集合
+// ============================================================================
+
+/**
+ * 应付报表中心页签的入口判据：四本账的读面键，任一命中即该页签可达。
+ * 页签内部用 el-radio-group 在四本账之间切换，本集合只决定"页签是否出现"。
+ */
+export const AP_REPORT_TAB_PERMISSIONS: readonly PermissionCode[] = [
+  PERMISSIONS.AP_AGING_READ,
+  PERMISSIONS.AP_DAILY_READ,
+  PERMISSIONS.AP_MONTHLY_READ,
+  PERMISSIONS.AP_STATISTICS_READ,
+];
+
+/**
+ * 应付域壳页（路由 /ap）的入口判据：六个页签各自入口判据的并集。
+ *
+ * 取并集而非任一单枚，是为了钉住一条不变式："壳页可达 ⇔ 至少一个页签可见"——
+ * 用单枚（如仅 ap-invoices:read）会把只持付款或只持报表读权的岗位关在门外，
+ * 用粗域键 finance:read 则反向放行整个财务域（只持工资/汇率/凭证读权的岗位
+ * 也能打开应付壳页），两端都是错的。
+ *
+ * 本集合与 router 里 /ap 的 meta.permission 字面量数组由静态锁
+ * tests/unit/ap-shell-permission-lock.test.ts 逐字互锁：router 的文本解析口径
+ * 只认单引号字面量（不解析标识符），故 router 侧必须写 literals，二者一致性由锁承担。
+ */
+export const AP_SHELL_ENTRY_PERMISSIONS: readonly PermissionCode[] = [
+  PERMISSIONS.AP_INVOICE_READ,
+  PERMISSIONS.AP_PAYMENT_READ,
+  PERMISSIONS.AP_PAYMENT_REQUEST_READ,
+  PERMISSIONS.AP_VERIFICATION_READ,
+  PERMISSIONS.AP_RECONCILIATION_READ,
+  ...AP_REPORT_TAB_PERMISSIONS,
+];

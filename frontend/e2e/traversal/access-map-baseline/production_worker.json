@@ -1,6 +1,0 @@
-{
-  "role": "production_worker",
-  "reachableRoutes": [
-    "/dashboard"
-  ]
-}

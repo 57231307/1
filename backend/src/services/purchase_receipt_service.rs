@@ -42,15 +42,21 @@ impl PurchaseReceiptService {
     }
 
     // 生成入库单号
-    // 格式：GR + 年月日 + 三位序号（GR20260315001）
+    // 格式：PR + 年月日 + 三位序号（PR20260315001）
     //
-    // 单号生成宏保留在 facade：generate_receipt_no 为 `pub`，
-    // crud 子模块的 create_receipt 通过 `self.generate_receipt_no()` 调用。
+    // 只保留「调用方事务内取号」这一种形态：`DocumentNumberGenerator::generate_no` 自开事务，
+    // 前缀 advisory 锁随那个内层事务提交即释放，与建单事务的 INSERT 之间存在并发窗口，
+    // 两次并发建单会取到同一单号并撞 receipt_no 唯一约束；txn 形态把取号并进调用方事务，
+    // 锁持有到建单事务提交。
+    // 调用方：crud 子模块 create_receipt 以 self.generate_receipt_no(&txn) 在建单事务内取号；
+    // 取号锁的作用域由 tests/contract_gr_receipt_no_lock_scope_test.rs 活体钉住，
+    // 前缀与位数口径由 tests/contract_wave2_document_no_parity_test.rs 与 handler 出参对拍。
     crate::impl_generate_no!(
         generate_receipt_no,
         "PR",
         purchase_receipt::Entity,
-        purchase_receipt::Column::ReceiptNo
+        purchase_receipt::Column::ReceiptNo,
+        txn
     );
 
     // =====================================================

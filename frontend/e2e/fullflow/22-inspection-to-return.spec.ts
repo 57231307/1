@@ -410,8 +410,25 @@ test.describe('22 质检到退货全流程契约链', () => {
         { timeout: 30_000 }
       )
       .catch(() => null);
+    // 退货提交是两段式，先建主表再逐条建明细，主表 total_quantity 由服务端汇总明细时写入，
+    // 明细未落库时回读必得 0。登记第二段的落库响应，回读前等它完成；创建成功提示与主表
+    // 响应都不构成明细已落库的证据，缺这一步回读就会跑在明细之前。
+    // 同样只绑 200 避开 CSRF 重放中间态；明细响应缺失即判红，不做宽松轮询。
+    const itemsResp = page
+      .waitForResponse(
+        r =>
+          r.request().method() === 'POST' &&
+          /\/purchase\/returns\/\d+\/items(\?|$)/.test(r.url()) &&
+          r.status() === 200,
+        { timeout: 30_000 }
+      )
+      .catch(() => null);
     await dlg.getByRole('button', { name: '确定', exact: true }).click();
-    await expect(page.getByText('创建成功')).toBeVisible({ timeout: 30_000 });
+    // 成功提示锚定真实 toast 容器，不限容器时页面任意位置的同名文案都能让它提前成立
+    // （容器与文案口径同本文件建质检单处）。
+    await expect(page.locator('.el-message').filter({ hasText: '创建成功' }).first()).toBeVisible({
+      timeout: 30_000,
+    });
     const resp = await createdResp;
     expect(resp, '未捕获 POST /purchase/returns 响应').not.toBeNull();
     const body = (await resp!.json()) as { data?: { id?: number; return_no?: string } };
@@ -419,6 +436,10 @@ test.describe('22 质检到退货全流程契约链', () => {
     const rtnNo = String(body.data?.return_no ?? '');
     if (!rtnNo) throw new Error(`退货单响应缺 return_no，实际=${JSON.stringify(body.data)}`);
     CLEANUP.push({ path: `/purchase/returns/${rtnId}`, label: `purchase_return#${rtnId}` });
+
+    // 回读前置：等明细 POST 落库响应完成，主表合计才有真值可断。
+    const itemsDone = await itemsResp;
+    expect(itemsDone, '未捕获 POST 退货明细落库响应，明细未提交成功').not.toBeNull();
 
     // 主表全键回读（models/purchase_return.rs:11-32）
     const rtn = await apiCallRaw<Record<string, unknown>>(

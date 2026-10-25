@@ -30,6 +30,12 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "departments",
     "permissions",
     "field-permissions",
+    // 数据权限配置段收编登记。七个端点（列表、详情、按角色查询、资源类型与范围类型两个下拉、
+    // 设置与删除）的派生资源名均为 data-permissions；未登记则目录勾不到、种子授不了，授权行
+    // 运行期永不命中。本波只补登记，不在角色矩阵新增授予行，也不写存量库补授权。理由：该族
+    // 写面与列表面在处理器内已由 require_admin_role 收口为管理员专用，管理员持通配可达；是否
+    // 给非 admin 岗位发放该键属扩权裁定，尚未签署，不在本修自签。
+    "data-permissions",
     // ===== 产品目录域 =====
     "products",
     "categories",

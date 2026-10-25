@@ -1,7 +1,6 @@
 {
   "role": "warehouse_manager",
   "reachableRoutes": [
-    "/bi/sales-analysis",
     "/dashboard",
     "/greige-fabrics",
     "/purchase",
@@ -13,6 +12,7 @@
     "/quotations",
     "/quotations/new",
     "/sales",
+    "/sales-analysis",
     "/sales-contract",
     "/sales-price",
     "/sales-returns",

@@ -344,6 +344,9 @@ const columns = computed<ColumnDef<AuditLogItem>[]>(() => [
   { key: 'username', title: t('auditLog.table.operator'), width: 110 },
   { key: 'resource_type', title: t('auditLog.table.resourceType'), width: 110 },
   { key: 'resource_id', title: t('auditLog.table.resourceId'), width: 110 },
+  // 资源名与资源 ID 并列展示，读自列表出参 resource_name（后端 AuditLogListItem），
+  // 标题复用同字段的既有文案键，列表与详情抽屉用同一词表
+  { key: 'resource_name', title: t('auditLog.detail.resourceName'), width: 120 },
   { key: 'ip_address', title: t('auditLog.table.clientIp'), width: 130 },
   { key: 'request_id', title: t('auditLog.table.requestTrace'), width: 130 },
   { key: 'description', title: t('auditLog.table.description'), minWidth: 200 },

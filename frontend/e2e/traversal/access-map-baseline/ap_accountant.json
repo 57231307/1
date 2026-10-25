@@ -2,5 +2,6 @@
   "role": "ap_accountant",
   "reachableRoutes": [
     "/dashboard"
-  ]
+  ],
+  "provenance": "ci-mirrored"
 }

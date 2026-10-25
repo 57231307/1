@@ -86,7 +86,8 @@ impl ArInvoiceService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))?;
 
-        let invoice_no = self.generate_invoice_no().await?;
+        // 在应收事务内取号，锁随本事务提交才释放，与下方 active_model.insert(&txn) 同临界区
+        let invoice_no = self.generate_invoice_no(&txn).await?;
         let active_model = Self::build_ar_invoice_active_model(
             req,
             invoice_no,
@@ -319,12 +320,15 @@ impl ArInvoiceService {
         Ok(invoice)
     }
 
-    // 生成应收单编号
+    // 生成应收单编号（在调用方事务内取号，令 advisory_xact_lock 持有到建单事务提交，
+    // 消除自开事务取号提交后到本事务 INSERT 之间的并发撞号窗口。前缀 "AR" 与红字路径
+    // create_red_letter 的 generate_no_with_txn 字面量保持同源，不引入第二套前缀）
     crate::impl_generate_no!(
         generate_invoice_no,
         "AR",
         ar_invoice::Entity,
-        ar_invoice::Column::InvoiceNo
+        ar_invoice::Column::InvoiceNo,
+        txn
     );
 
     pub async fn update(

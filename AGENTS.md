@@ -21,7 +21,7 @@
   从 `frontend/` 目录跑）。
 - 后端 Rust 改动**无法本地验证类型**：必须逐字段对着 `backend/src/models/*.rs` 与 DTO 手写核对，
   并保证 `cargo fmt --check` 能过（fmt 会解析，语法错能本地抓到，类型错抓不到）。
-- 必检项是 `ci-cleanup-retry`（`ci-cd.yml:3652`，`needs:` 列全 26 个 job）。**新增 job 必须同时加进它的 `needs`**。
+- 必检项是 `ci-cleanup-retry`（`ci-cd.yml:3652`，`needs:` 列全 27 个 job，2026-10-24 本支实测，含新增的 `ci-android-apk-probe`；改 needs 后须以实跑输出计数为准）。**新增 job 必须同时加进它的 `needs`**。
 - 推送需要用户明确授权；推送前必须把变更完整写进 PR 描述并重排提交序列。
 
 ## 改前后端契约时的三条判据

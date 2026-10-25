@@ -222,6 +222,8 @@ pub mod export_approval_service;
 pub mod webhook_service;
 // 消息通知模块
 pub mod data_permission_service;
+// 出参金额隐藏判定单源，与数据权限字段过滤同属出参字段可见性
+pub mod amount_visibility;
 pub mod email_service;
 pub mod event_notification_service;
 pub mod notification_scheduler;

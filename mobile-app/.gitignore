@@ -2,3 +2,5 @@
 src-tauri/gen/
 src-tauri/target/
 target/
+__pycache__/
+*.pyc

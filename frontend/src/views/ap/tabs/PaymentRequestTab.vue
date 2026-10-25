@@ -607,7 +607,7 @@ const openEditDialog = (row: APPaymentRequest) => {
 };
 
 const handleSubmit = async () => {
-  const valid = await formRef.value?.validate();
+  const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
   // 表头金额显式前置校验（el-input-number 清空会送 null/undefined，直接 .toFixed 即运行期崩；
   // 后端 validate_positive_decimal_payment :677-682 仍是最终裁决，本地只是把错误提前且不留崩溃面）

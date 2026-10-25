@@ -103,6 +103,49 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
+          <el-form-item prop="width">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelWidth') }}
+                <el-tooltip :content="t('product.productFormDialogTab.tipWidth')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.width"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item prop="gram_weight">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelGramWeight') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipGramWeight')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.gram_weight"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
           <el-form-item prop="meters_per_piece">
             <template #label>
               <span class="form-label-with-tip">
@@ -120,6 +163,7 @@
               :min="0"
               :precision="4"
               :controls="false"
+              :value-on-clear="null"
               style="width: 100%"
             />
           </el-form-item>
@@ -143,6 +187,7 @@
               :precision="4"
               :controls="false"
               style="width: 100%"
+              readonly
             />
           </el-form-item>
         </el-col>
@@ -184,9 +229,13 @@
       <el-button @click="emit('update:modelValue', false)">{{
         t('product.productFormDialogTab.buttonCancel')
       }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
-        t('product.productFormDialogTab.buttonSave')
-      }}</el-button>
+      <el-button
+        type="primary"
+        :loading="submitLoading"
+        :disabled="submitLoading"
+        @click="handleSubmit"
+        >{{ t('product.productFormDialogTab.buttonSave') }}</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -242,11 +291,31 @@ const formData = reactive({
   barcode: '',
   price: 0,
   cost_price: 0,
-  meters_per_piece: undefined as number | undefined,
-  meters_per_roll: undefined as number | undefined,
+  // 清空经 value-on-clear 归一为 null，与未触碰的 undefined 同属空值，提交前统一显式序列化为 null
+  meters_per_piece: undefined as number | null | undefined,
+  meters_per_roll: undefined as number | null | undefined,
+  width: undefined as number | null | undefined,
+  gram_weight: undefined as number | null | undefined,
   description: '',
   is_active: true,
 });
+
+// 每卷米数是每匹米数的派生只读项：一卷即一匹，两者米数同源，界面只留每匹米数一个入口。
+// 读：用户在每匹米数输入框里改动的值。写给：每卷米数的只读展示值，随提交载荷一并发给后端。
+// 存：不单独落库，由后端按同值写入 products 的每匹米数与每卷米数两列。
+// 回显时两列各按后端真实值展示，历史产品若两值不等如实可见；只有用户真正改动每匹米数才带出同值，
+// 因此打开编辑再保存不会改写历史每卷米数。echoing 抑制回显赋值误触发带出。
+// 调用方：本组件的每匹米数输入框；同步执行是因为回显与带出处在同一次赋值栈内。
+const echoing = ref(false);
+
+watch(
+  () => formData.meters_per_piece,
+  val => {
+    if (echoing.value) return;
+    formData.meters_per_roll = val;
+  },
+  { flush: 'sync' }
+);
 
 const formRules: FormRules = {
   product_code: [
@@ -297,6 +366,8 @@ const resetForm = () => {
   formData.cost_price = 0;
   formData.meters_per_piece = undefined;
   formData.meters_per_roll = undefined;
+  formData.width = undefined;
+  formData.gram_weight = undefined;
   formData.description = '';
   formData.is_active = true;
   formRef.value?.clearValidate();
@@ -307,16 +378,27 @@ watch(
   val => {
     visible.value = val;
     if (val) {
-      resetForm();
-      if (props.rowData) {
-        Object.assign(formData, props.rowData);
-        // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
-        formData.meters_per_piece =
-          props.rowData.meters_per_piece != null
-            ? Number(props.rowData.meters_per_piece)
-            : undefined;
-        formData.meters_per_roll =
-          props.rowData.meters_per_roll != null ? Number(props.rowData.meters_per_roll) : undefined;
+      // 回显区间内抑制带出：resetForm 与各列数值归一都写每匹米数，那属于回填而非用户改动
+      echoing.value = true;
+      try {
+        resetForm();
+        if (props.rowData) {
+          Object.assign(formData, props.rowData);
+          // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
+          formData.meters_per_piece =
+            props.rowData.meters_per_piece != null
+              ? Number(props.rowData.meters_per_piece)
+              : undefined;
+          formData.meters_per_roll =
+            props.rowData.meters_per_roll != null
+              ? Number(props.rowData.meters_per_roll)
+              : undefined;
+          formData.width = props.rowData.width != null ? Number(props.rowData.width) : undefined;
+          formData.gram_weight =
+            props.rowData.gram_weight != null ? Number(props.rowData.gram_weight) : undefined;
+        }
+      } finally {
+        echoing.value = false;
       }
     }
   }
@@ -326,29 +408,57 @@ watch(visible, val => {
   emit('update:modelValue', val);
 });
 
+// 提交载荷只收本表单采集的字段，不把回显进来的整行原样回传（行里的 id、分类名称、
+// 时间戳等由服务端掌管，客户端发了也会被反序列化丢弃，留着只会掩盖契约漂移）。
+// 米数两键把空值显式序列化为 null，走后端三态更新里的清空通道；键缺席的语义是
+// 保持原值，不能把用户的清空做成省略键。
+const buildSubmitPayload = (): Partial<Product> => ({
+  product_code: formData.product_code,
+  product_name: formData.product_name,
+  category_id: formData.category_id,
+  specification: formData.specification,
+  unit: formData.unit,
+  barcode: formData.barcode,
+  price: formData.price,
+  cost_price: formData.cost_price,
+  meters_per_piece: formData.meters_per_piece ?? null,
+  meters_per_roll: formData.meters_per_roll ?? null,
+  // 幅宽与克重是报价单换算米数与公斤数的取数源，后端按入参覆写这两列，
+  // 键缺席即被当成未提供，界面清空就落不回库里，故与米数同法显式发 null
+  width: formData.width ?? null,
+  gram_weight: formData.gram_weight ?? null,
+  description: formData.description,
+  is_active: formData.is_active,
+});
+
 const handleSubmit = async () => {
+  if (submitLoading.value) return;
   if (!formRef.value) return;
-  await formRef.value.validate(async valid => {
-    if (!valid) return;
-    submitLoading.value = true;
-    try {
-      if (props.mode === 'create') {
-        await createProduct(formData);
-        ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'));
-      } else {
-        await updateProduct(formData.id as number, formData);
-        ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'));
-      }
-      emit('update:modelValue', false);
-      emit('submitted');
-    } catch (error) {
-      const err = error as Error;
-      ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'));
-      logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message);
-    } finally {
-      submitLoading.value = false;
+  // 锁先于异步校验落下，避免连点两次各自通过校验后重复建档
+  submitLoading.value = true;
+  try {
+    await formRef.value.validate();
+  } catch {
+    submitLoading.value = false;
+    return;
+  }
+  try {
+    if (props.mode === 'create') {
+      await createProduct(buildSubmitPayload());
+      ElMessage.success(t('product.productFormDialogTab.messageCreateSuccess'));
+    } else {
+      await updateProduct(formData.id as number, buildSubmitPayload());
+      ElMessage.success(t('product.productFormDialogTab.messageUpdateSuccess'));
     }
-  });
+    emit('update:modelValue', false);
+    emit('submitted');
+  } catch (error) {
+    const err = error as Error;
+    ElMessage.error(err.message || t('product.productFormDialogTab.messageOperationFailed'));
+    logger.error(t('product.productFormDialogTab.messageSaveFailed'), err.message);
+  } finally {
+    submitLoading.value = false;
+  }
 };
 </script>
 

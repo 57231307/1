@@ -2,7 +2,8 @@
 //!
 //! 批次 D10 拆分：从原 `purchase_receipt_service.rs` 迁移。
 //! 包含 `PurchaseReceiptService` 的 3 个入库单 CRUD 方法 + 1 个事务内总金额更新 helper：
-//! - `create_receipt`：创建入库单（含明细），调用 facade 的 generate_receipt_no / build_receipt_active_model / build_receipt_items_and_totals
+//! - `create_receipt`：创建入库单（含明细），经 facade 的 generate_receipt_no 在本事务内取号，
+//!   主表与明细行由 build_receipt_active_model / build_receipt_items_and_totals 构造
 //! - `update_receipt`：更新入库单（仅 DRAFT，admin 可绕过 owner）
 //! - `delete_receipt`：删除入库单（仅 DRAFT + 审计日志，admin 可绕过 owner）
 //! - `update_receipt_totals`：事务内更新入库单总金额（仅 create_receipt 调用，私有）
@@ -62,8 +63,12 @@ impl PurchaseReceiptService {
             .check_supplier_not_blacklisted(&txn, req.supplier_id)
             .await?;
 
-        // 1. 生成入库单号
-        let receipt_no = self.generate_receipt_no().await?;
+        // 1. 生成入库单号（在本事务内取号）
+        // 前缀级 advisory 锁随取号事务存活，号段占用到本事务提交才释放；
+        // 早先用 facade 的自开事务形态取号，锁在那个内层事务提交时就消失，
+        // 与下面的 INSERT 之间存在并发窗口，两次并发建单会取到同一单号并撞
+        // receipt_no 唯一约束。号位被旁路或人工号占用的场景由取号自身的占用探测跳过。
+        let receipt_no = self.generate_receipt_no(&txn).await?;
 
         // 2. 创建入库单主表
         let receipt = Self::build_receipt_active_model(&req, receipt_no, user_id)

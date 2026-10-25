@@ -63,11 +63,11 @@ fn test_versionresponsehupdateresultgz() {
     // VersionResponse 构造
     let version_resp = VersionResponse {
         version: "1.0.0".to_string(),
-        release_date: "2026-07-14".to_string(),
+        release_date: Some("2026-07-14".to_string()),
         changelog: Some("修复若干问题".to_string()),
     };
     assert_eq!(version_resp.version, "1.0.0");
-    assert_eq!(version_resp.release_date, "2026-07-14");
+    assert_eq!(version_resp.release_date.as_deref(), Some("2026-07-14"));
     assert!(version_resp.changelog.is_some());
 
     // UpdateResult 成功构造
@@ -88,6 +88,43 @@ fn test_versionresponsehupdateresultgz() {
     };
     assert!(!failed_result.success);
     assert!(failed_result.new_version.is_none());
+}
+
+/// 序列化形状锁：VersionResponse 出参恒含 release_date 与 changelog 两键，
+/// 未知态为 JSON null、有值态为字符串，钉死前端消费面不缺键。无需数据库。
+#[test]
+fn versionresponse_serialization_shape_lock() {
+    // 有值态
+    let filled = VersionResponse {
+        version: "2026.1.1.0000".to_string(),
+        release_date: Some("2026-01-01".to_string()),
+        changelog: Some("说明".to_string()),
+    };
+    let v = serde_json::to_value(&filled).expect("有值态序列化应成功");
+    assert_eq!(v["version"].as_str(), Some("2026.1.1.0000"));
+    assert_eq!(v["release_date"].as_str(), Some("2026-01-01"));
+    assert_eq!(v["changelog"].as_str(), Some("说明"));
+
+    // 未知态：两键仍存在且为 null（不是缺键，也不是空串）
+    let unknown = VersionResponse {
+        version: "1.0.0".to_string(),
+        release_date: None,
+        changelog: None,
+    };
+    let u = serde_json::to_value(&unknown).expect("未知态序列化应成功");
+    assert!(
+        u.get("release_date").is_some() && u["release_date"].is_null(),
+        "release_date 未知时应为存在的 null 键，实际: {u}"
+    );
+    assert!(
+        u.get("changelog").is_some() && u["changelog"].is_null(),
+        "changelog 未知时应为存在的 null 键，实际: {u}"
+    );
+    assert_ne!(
+        u["changelog"].as_str(),
+        Some(""),
+        "changelog 未知态不得序列化成空串冒充有内容"
+    );
 }
 
 // ============================================================================

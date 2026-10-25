@@ -155,7 +155,12 @@ export interface CreatePurchaseOrderItemPayload {
   material_id?: number;
   quantity_ordered?: number;
   quantity_alt_ordered?: number;
-  unit_price?: number;
+  /**
+   * 行级单价，必填入参、系统不设缺省单价：缺值后端点名拒绝建单，显式提交 0 才是合法声明值
+   * （样布 赠品 寄售行），落库列 purchase_order_item.unit_price 为 NOT NULL DECIMAL。
+   * 前端由建单表单必填校验保证提交前已是数值，初值留空不预填 0。
+   */
+  unit_price: number;
   /**
    * 行级税率（**百分数口径**，13 表示 13%，无进项票显式提交 0），必填入参、系统不设默认档位，
    * 缺值后端直接拒绝建单，落库列 purchase_order_item.tax_percent 为 NOT NULL DECIMAL(7,4)，

@@ -27,9 +27,16 @@
     </el-form>
     <template #footer>
       <el-button @click="visible = false">{{ t('customerCredit.amount.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
-        t('customerCredit.amount.button.confirm')
-      }}</el-button>
+      <!-- 本对话框按 operationType 复用于占用与释放两个动作，指令只在挂载时求值，
+           故此处取两枚动作键的并集做二次校验，单动作的精确门禁在列表页的
+           占用与释放两个入口按钮上（占用走 create 键，释放走 release 键）。 -->
+      <el-button
+        v-permission="[PERMISSIONS.CUSTOMER_CREDIT_CREATE, PERMISSIONS.CUSTOMER_CREDIT_RELEASE]"
+        type="primary"
+        :loading="submitLoading"
+        @click="handleSubmit"
+        >{{ t('customerCredit.amount.button.confirm') }}</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -40,6 +47,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { occupyCredit, releaseCredit } from '@/api/customer-credit';
+import { PERMISSIONS } from '@/constants/permissions';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });

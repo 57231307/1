@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   ElTable,
@@ -28,8 +28,14 @@ import {
   type FullTraceChainResponse,
   type TraceChainResponse,
 } from '@/api/business-trace';
+import useBreakpoint from '@/composables/useBreakpoint';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const { width } = useBreakpoint();
+
+// 竖屏下三列描述挤压换行、横向步骤条溢出，统一切单列与纵向步骤
+const isNarrow = computed(() => width.value < 768);
 
 const traceMode = ref<'five_dimension' | 'forward' | 'backward'>('five_dimension');
 const fiveDimensionId = ref('');
@@ -143,7 +149,7 @@ const handleCreateSnapshot = async () => {
   <div class="app-container">
     <ElTabs v-model="traceMode" type="card">
       <ElTabPane :label="$t('businessTrace.tab.fiveDimension')" name="five_dimension">
-        <ElCard :title="$t('businessTrace.fiveDimensionCardTitle')" class="trace-card">
+        <ElCard :header="$t('businessTrace.fiveDimensionCardTitle')" class="trace-card">
           <ElRow :gutter="20">
             <ElCol :span="16">
               <ElInput
@@ -182,8 +188,8 @@ const handleCreateSnapshot = async () => {
         </ElCard>
 
         <div v-if="traceResult" class="trace-result">
-          <ElCard :title="$t('businessTrace.card.traceChainDetail')" class="detail-card">
-            <ElDescriptions :column="3" border>
+          <ElCard :header="$t('businessTrace.card.traceChainDetail')" class="detail-card">
+            <ElDescriptions :column="isNarrow ? 1 : 3" border>
               <ElDescriptionsItem :label="$t('businessTrace.field.traceChainId')">{{
                 traceResult.trace_chain_id
               }}</ElDescriptionsItem>
@@ -214,8 +220,12 @@ const handleCreateSnapshot = async () => {
             </ElDescriptions>
           </ElCard>
 
-          <ElCard :title="$t('businessTrace.card.traceFlow')" class="flow-card">
-            <ElSteps :space="80" align-center>
+          <ElCard :header="$t('businessTrace.card.traceFlow')" class="flow-card">
+            <ElSteps
+              :space="isNarrow ? 0 : 80"
+              :direction="isNarrow ? 'vertical' : 'horizontal'"
+              :align-center="!isNarrow"
+            >
               <ElStep
                 v-for="(stage, index) in traceResult.stages"
                 :key="stage.stage_id"
@@ -301,7 +311,7 @@ const handleCreateSnapshot = async () => {
       </ElTabPane>
 
       <ElTabPane :label="$t('businessTrace.tab.forward')" name="forward">
-        <ElCard :title="$t('businessTrace.card.supplierToCustomer')" class="trace-card">
+        <ElCard :header="$t('businessTrace.card.supplierToCustomer')" class="trace-card">
           <ElForm
             :model="forwardForm"
             label-width="100px"
@@ -387,7 +397,7 @@ const handleCreateSnapshot = async () => {
       </ElTabPane>
 
       <ElTabPane :label="$t('businessTrace.tab.backward')" name="backward">
-        <ElCard :title="$t('businessTrace.card.customerToSupplier')" class="trace-card">
+        <ElCard :header="$t('businessTrace.card.customerToSupplier')" class="trace-card">
           <ElForm
             :model="backwardForm"
             label-width="100px"

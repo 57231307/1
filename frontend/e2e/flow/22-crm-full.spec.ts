@@ -1076,8 +1076,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
   });
 
   // ===== 真实 UI 交互验证 =====
-  test('CRM 客户列表 UI：搜索+新建表单+表格渲染', async ({ page }) => {
-    await page.goto(`${BASE_URL}/crm`);
+  test('客户列表 UI：搜索+新建表单+表格渲染', async ({ page }) => {
+    await page.goto(`${BASE_URL}/customer`);
     await page.waitForTimeout(3000);
     // 等待 Tab 加载
     await page
@@ -1117,8 +1117,8 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
     }
   });
 
-  test('CRM 客户列表 UI：点击新建客户→弹窗→表单校验', async ({ page }) => {
-    await page.goto(`${BASE_URL}/crm`);
+  test('客户列表 UI：点击新建客户→弹窗→表单校验', async ({ page }) => {
+    await page.goto(`${BASE_URL}/customer`);
     await page.waitForTimeout(3000);
     await page
       .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper, .el-card, .el-tabs')
@@ -1142,7 +1142,7 @@ test.describe('CRM 模块：API 端点 + 真实 UI 交互', () => {
       const codeVisible = await codeInput.isVisible();
       expect(codeVisible).toBe(true);
       // 契约（本批只读化）：客户编码由后端自动取号，输入框只读、不再挂必填规则；
-      // 必填校验改由真必填项「客户名称」（CustomerListTab.vue formRules:456-458 required）验证。
+      // 必填校验改由客户页表单的真必填项「客户名称」验证。
       expect(await codeInput.isEditable(), '新建客户：客户编码应只读（后端自动取号）').toBe(false);
       // 直接点保存触发必填校验
       const saveBtn = dialog.locator('button:has-text("保存"), button:has-text("确定")').first();

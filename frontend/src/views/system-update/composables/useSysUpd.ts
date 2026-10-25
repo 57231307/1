@@ -31,14 +31,20 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** 系统更新 composable（集中管理 2 个 tab + 表单 + 详情的业务状态） */
 export function useSysUpd() {
-  // 当前/最新版本
-  const currentVersion = ref<{ version: string; release_date: string } | null>(null);
+  // 当前/最新版本（release_date 与 changelog 来自后端真列值，未知为 null，不以默认值掩盖缺键）
+  const currentVersion = ref<{
+    version: string;
+    release_date: string | null;
+    changelog: string | null;
+  } | null>(null);
   // 最新检查结果：直接承载后端 check 响应（含两份 release_notes 供卡片渲染）
   const latestVersion = ref<CheckUpdateResult | null>(null);
   // 是否有更新以后端权威 has_update 为准；未检查时保持 false（诚实显示"无更新"，不自算）
   const hasUpdate = ref(false);
   // 更新是否在途（不确定态）：仅由 triggerUpdate/轮询驱动，不驱动任何百分比
   const isUpdating = ref(false);
+  // 检查更新是否在途：驱动头部按钮的 loading（Element Plus 在 loading 时即禁用，防重复提交）
+  const isChecking = ref(false);
   // 应用更新结果（真实生效态，来自 POST /update 响应 + update-status 轮询）：
   // 后端重启结论 message（权威文本，原样呈现）、已落库应用版本、是否待重启生效。
   // 未触发过应用时 applyMessage 为空串，卡片不渲染结果区（诚实空态，不兜底假文案）。
@@ -101,6 +107,7 @@ export function useSysUpd() {
 
   /** 检查更新 */
   const handleCheckUpdate = async () => {
+    isChecking.value = true;
     try {
       const res = await checkForUpdates();
       latestVersion.value = res.data;
@@ -115,6 +122,8 @@ export function useSysUpd() {
         (error instanceof Error ? error.message : String(error)) ||
           msg.translate('checkUpdateFailed')
       );
+    } finally {
+      isChecking.value = false;
     }
   };
 
@@ -239,6 +248,7 @@ export function useSysUpd() {
     latestVersion,
     hasUpdate,
     isUpdating,
+    isChecking,
     applyMessage,
     appliedVersion,
     restartPending,
