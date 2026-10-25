@@ -46,7 +46,7 @@
 //!   回滚行为用 `#[ignore]` 活库用例（TEST_DATABASE_URL→已迁移 PG，ci-test-rust-ignored
 //!   执行；夹具缺 TEST_DATABASE_URL 直接 panic，禁止条件跳过假绿）。
 //! - 防回潮源码扫描（include_str!）：白名单校验必须先于任何 Set/begin；回写必须在同一
-//!   txn 且先于 commit；建单校验必须先于 generate_inspection_no 与 receipt_id 落库；
+//!   txn 且先于 commit；建单校验必须先于取号插入（insert_with_no_retry）与 receipt_id 落库；
 //!   采购质检服务不得出现通用域词表标识（quality_dyeing / from_inspection_result）。
 
 mod test_common;
@@ -714,13 +714,17 @@ fn source_scan_create_checks_receipt_before_any_db_action() {
         .find("purchase_receipt::Entity::find_by_id(receipt_id)")
         .unwrap();
     let gen_pos = block
-        .find("generate_inspection_no()")
-        .expect("建单必须走统一取号");
+        .find("DocumentNumberGenerator::insert_with_no_retry(")
+        .expect("建单必须在写入事务内经统一生成器取号插入");
     let set_pos = block
         .find("receipt_id: Set(req.receipt_id)")
         .expect("receipt_id 落库点必须存在");
     assert!(
         check_pos < gen_pos && check_pos < set_pos,
         "引用校验必须先于取号与任何写库动作（拒绝路径零脏行）"
+    );
+    assert!(
+        !block.contains("self.generate_inspection_no()"),
+        "回潮:建单退回\"自开事务取号→另插一行\"形态，取号与 INSERT 之间的撞号窗口重新打开:\n{block}"
     );
 }
