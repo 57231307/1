@@ -23,7 +23,7 @@ import { loginViaUI, BASE_URL, API_PREFIX, apiCallRaw, genCode, tryCleanup } fro
  *   打印卡片在 v-if 处即为假、断言会空跑，故按壳侧 Kotlin 插件同款命令名与返回形态
  *   注入内存桩驱动页面，桩语义逐条对齐壳侧插件，见下方安装函数的注释。
  * 还有一族壳内连续凭证失败回弹契约，同 host 连续 5 次 401 才调 reopen_gateway，
- *   前 4 次只在页内计数，登录失败以路由拦截的稳定 401 复现，不消耗真实账号锁定额度。
+ *   前 4 次只在页内计数，凭证失败由真实登录接口给出，非生产环境不做账号锁定。
  */
 
 const MOBILE_PORTRAIT = { width: 360, height: 780 };
@@ -599,9 +599,9 @@ test.describe('移动端壳内连续凭证失败回弹网关', () => {
   });
 
   test('同 host 连续 5 次 401 才调壳内回弹命令，前 4 次只在页内计数', async ({ page }) => {
-    // 为什么拦截登录 POST，真实后端按账号累计失败次数并可能触发锁定，会污染同 worker
-    // 后续用例的登录额度，本用例验证的是前端计数与发命令的时机这一既有契约，
-    // 拦截只以 401 状态稳定复现凭证失败，不伪造任何成功响应。
+    // 走真实后端取 401。非生产环境的登录接口跳过账号锁定检查（auth_handler 的
+    // check_account_lockout 按 APP_ENV 放行），错误口令只会落下 FAILED 登录记录，
+    // 不会把分片账号锁住而连累同分片其它用例。
     // 桩桥只记录壳命令名，桌面视口无真实 Tauri 桥，回弹动作以调用序列断言。
     await page.addInitScript(() => {
       const calls: string[] = [];
@@ -617,16 +617,6 @@ test.describe('移动端壳内连续凭证失败回弹网关', () => {
         },
       });
     });
-    await page.route('**/api/v1/erp/auth/login', route => {
-      if (route.request().method() !== 'POST') {
-        return route.continue();
-      }
-      return route.fulfill({
-        status: 401,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: 401, message: '用户名或密码错误' }),
-      });
-    });
 
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
@@ -634,7 +624,7 @@ test.describe('移动端壳内连续凭证失败回弹网关', () => {
     await page
       .locator('input[placeholder="用户名"], input[placeholder="Username"]')
       .first()
-      .fill('e2e-gateway-gate');
+      .fill(process.env.TEST_USERNAME ?? process.env.E2E_BASE_USERNAME ?? 'e2e_admin');
     await page
       .locator('input[placeholder="密码"], input[placeholder="Password"]')
       .first()
