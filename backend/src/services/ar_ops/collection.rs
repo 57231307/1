@@ -4,7 +4,7 @@
 //! 包含收款管理方法：
 //! - list_payments / get_payment / create_payment（公开 API）
 //! - validate_payment_amount / check_payment_period_locked / load_customer_for_payment
-//! - generate_collection_no / build_collection_active_model / build_and_insert_collection
+//! - build_collection_active_model（收款单字段装配，供事务内取号插入的构建闭包复用）
 //! - link_invoices_to_payment / allocate_payment_to_invoice / publish_payment_events
 //! - active_receipt_ledger_items / receipt_verify_totals / payment_verified_total
 //!   （收款单级"已核销分配额"读数的唯一实现，核销门与可核销列表同源引用）
@@ -33,6 +33,7 @@ use crate::utils::data_scope::{
     DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use super::json_helpers::collection_to_json;
 use super::types::{CollectionBuildContext, CreateArPaymentParams, ReconciliationItemContext};
@@ -108,8 +109,11 @@ impl ArService {
         Ok(collection_to_json(payment))
     }
 
-    /// 创建收款：金额校验→期间锁定→客户校验→单号生成→插入收款→关联发票→事件发布
-    /// 批次 488 D08-1 拆分：主函数仅做协调，细节逻辑提取到 helper
+    /// 创建收款：金额校验→期间锁定→客户校验→事务内取号并插入收款→关联发票→事件发布
+    ///
+    /// 调用方：收款 handler 与销售发货后的 AR 收款入口。入参 `params` 携客户、金额、
+    /// 收款方式与待关联发票集合，`user_id` 是服务端会话用户，写入 ar_collections.created_by。
+    /// 主函数只做协调，细节逻辑在各自 helper；事件发布在事务提交之后执行。
     pub async fn create_payment(
         &self,
         params: CreateArPaymentParams,
@@ -125,16 +129,31 @@ impl ArService {
 
         let customer = Self::load_customer_for_payment(&txn, params.customer_id).await?;
 
-        let collection_no = Self::generate_collection_no(&txn).await?;
-
+        // 单号生成与插入同事务：`insert_with_no_retry` 在 ar_collections.collection_no
+        // 的 UNIQUE 兜底上工作，撞 23505 只回滚本次保存点并重新取号重试；取号失败或
+        // 非唯一类 SQL 错误原样上抛，整事务回滚（收款单与发票侧金额不允许只写一半）。
+        // 落库存 ar_collections 表，字段装配见 build_collection_active_model。
         let now = Utc::now();
-        let collection_model = Self::build_and_insert_collection(
+        let customer_name = customer.customer_name;
+        let collection_model = DocumentNumberGenerator::insert_with_no_retry(
             &txn,
-            collection_no,
-            &params,
-            customer.customer_name,
-            user_id,
-            now,
+            "COL",
+            ar_collection::Entity,
+            ar_collection::Column::CollectionNo,
+            |collection_no| {
+                Self::build_collection_active_model(CollectionBuildContext {
+                    collection_no,
+                    payment_date: params.payment_date,
+                    customer_id: params.customer_id,
+                    customer_name: Some(customer_name.clone()),
+                    amount: params.amount,
+                    payment_method: params.payment_method.clone(),
+                    bank_account: params.bank_account.clone(),
+                    remark: params.remark.clone(),
+                    user_id,
+                    now,
+                })
+            },
         )
         .await?;
 
@@ -216,20 +235,8 @@ impl ArService {
             .ok_or_else(|| AppError::not_found(format!("客户 {} 不存在", customer_id)))
     }
 
-    /// 单号生成（事务内，advisory_xact_lock 串行化）
-    async fn generate_collection_no(
-        txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            txn,
-            "COL",
-            ar_collection::Entity,
-            ar_collection::Column::CollectionNo,
-        )
-        .await
-    }
-
-    /// 构造收款单 ActiveModel（纯函数，无 IO）
+    /// 构造收款单 ActiveModel（纯函数，无 IO；单号由调用闭包按候选号传入，
+    /// 以便取号撞唯一约束重试时可按新候选号重复构建）
     fn build_collection_active_model(ctx: CollectionBuildContext) -> ar_collection::ActiveModel {
         ar_collection::ActiveModel {
             collection_no: Set(ctx.collection_no),
@@ -246,30 +253,6 @@ impl ArService {
             updated_at: Set(ctx.now),
             ..Default::default()
         }
-    }
-
-    /// 构造收款单上下文并插入：复用 CollectionBuildContext + build_collection_active_model
-    async fn build_and_insert_collection(
-        txn: &sea_orm::DatabaseTransaction,
-        collection_no: String,
-        params: &CreateArPaymentParams,
-        customer_name: String,
-        user_id: i32,
-        now: chrono::DateTime<chrono::Utc>,
-    ) -> Result<ar_collection::Model, AppError> {
-        let ctx = CollectionBuildContext {
-            collection_no,
-            payment_date: params.payment_date,
-            customer_id: params.customer_id,
-            customer_name: Some(customer_name),
-            amount: params.amount,
-            payment_method: params.payment_method.clone(),
-            bank_account: params.bank_account.clone(),
-            remark: params.remark.clone(),
-            user_id,
-            now,
-        };
-        Ok(Self::build_collection_active_model(ctx).insert(txn).await?)
     }
 
     /// 关联多张发票：累加 received_amount、扣减 unpaid_amount、按需更新状态，并在
