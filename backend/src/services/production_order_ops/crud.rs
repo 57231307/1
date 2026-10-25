@@ -1,15 +1,17 @@
 //! 生产订单-CRUD 子模块（production_order_ops/crud）
 //!
 //! 批次 488 D10-2 拆分：从原 `production_order_service.rs` L92-624 迁移。
-//! 包含 13 个 CRUD 与状态校验方法：
+//! 本模块方法清单（另有 validate_create_references / build_create_active_model 两个私有 helper）：
 //! - validate_product_exists / validate_sales_order_exists / validate_work_center_exists（私有 &self）
-//! - generate_unique_order_no / generate_rework_order_no（私有 &self）
+//! - generate_rework_order_no（私有 &self）
 //! - validate_status_transition（`pub(crate)` associated function，测试 + approval 子模块跨 impl 块调用）
 //! - create / create_rework_order（公开 API）
 //! - get_by_id / get_order_logs / list（公开 API）
 //! - update / delete / update_status（公开 API）
 //!
 //! 业务规则：
+//! - create 的单号在写入事务内取号并插入（`DocumentNumberGenerator::insert_with_no_retry`：
+//!   advisory lock 串行化 + order_no UNIQUE 兜底 + 撞唯一约束在保存点内重取重试）
 //! - 创建订单后触发 MRP 物料需求计算（失败 warn 不阻塞）
 //! - 返工订单使用 RW 前缀，不触发 MRP
 //! - 状态转换校验基于状态机白名单（validate_status_transition）
@@ -32,6 +34,7 @@ use crate::utils::data_scope::{
     DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::pagination::paginate_with_total;
 
 use crate::models::bom::{Column as BomColumn, Entity as BomEntity};
@@ -87,21 +90,6 @@ impl ProductionOrderService {
             )));
         }
         Ok(())
-    }
-
-    /// 生成生产订单号（统一生成器：`PO{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
-    async fn generate_unique_order_no(&self) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "PO",
-            ProductionOrderEntity,
-            crate::models::production_order::Column::OrderNo,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "生产订单号生成失败");
-            AppError::business_displayable("生产订单号生成失败，请稍后重试")
-        })
     }
 
     /// 验证状态转换是否合法（`pub(crate)` 可见性：测试模块（facade）与 approval 子模块跨 impl 块调用。）
@@ -168,20 +156,39 @@ impl ProductionOrderService {
         }
     }
 
-    /// 创建生产订单（校验引用 + 服务端取号 + 写入 + 触发 MRP 计算，失败 warn 不阻塞）
+    /// 创建生产订单（校验引用 → 写入事务内取号并插入 → 触发 MRP 计算，失败 warn 不阻塞）
     ///
-    /// 单号禁手输（缺陷3）：`CreateProductionOrderRequest` 类型上不存在
-    /// `order_no` 字段，任何调用方都无法注入外部编号；单号一律经
-    /// `DocumentNumberGenerator` 取号（advisory lock 串行化 + order_no UNIQUE 兜底）。
+    /// 调用方：`handlers/production_order_handler.rs::create_production_order`。
+    /// 入参 `req` 为服务层创建请求（类型上不存在 `order_no` 字段，单号禁手输在编译期成立），
+    /// `user_id` 是服务端会话取到的建单人，写入 `created_by`。
+    ///
+    /// 单号一律由 `DocumentNumberGenerator::insert_with_no_retry` 在写入事务内生成
+    /// （`PO{YYYYMMDD}{3位流水}`）：取号与 INSERT 同事务，撞 order_no UNIQUE(23505) 时
+    /// 只回滚本次保存点、重新取号重试，不再有"自开事务提交后锁已释放、INSERT 前仍可撞号"
+    /// 的窗口；连续撞号耗尽重试后外显可重试的业务错误。
+    /// 落库行存 production_orders 表，字段装配见 build_create_active_model。
     pub async fn create(
         &self,
         req: CreateProductionOrderRequest,
         user_id: i32,
     ) -> Result<ProductionOrderModel, AppError> {
         self.validate_create_references(&req).await?;
-        let order_no = self.generate_unique_order_no().await?;
-        let active_model = Self::build_create_active_model(order_no, &req, user_id);
-        let model = self.insert_production_order(active_model).await?;
+
+        let txn = (*self.db).begin().await?;
+        let model = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "PO",
+            ProductionOrderEntity,
+            crate::models::production_order::Column::OrderNo,
+            |order_no| Self::build_create_active_model(order_no, &req, user_id),
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "生产订单取号或插入失败");
+            AppError::business_displayable("生产订单号生成失败，请稍后重试")
+        })?;
+        txn.commit().await?;
+
         self.trigger_mrp_for_order(&model, req.planned_end_date)
             .await;
         Ok(model)
@@ -253,22 +260,6 @@ impl ProductionOrderService {
             active_model.priority = Set(priority);
         }
         active_model
-    }
-
-    /// 插入生产订单（处理唯一约束冲突为 validation 错误）
-    async fn insert_production_order(
-        &self,
-        active: ActiveModel,
-    ) -> Result<ProductionOrderModel, AppError> {
-        active.insert(&*self.db).await.map_err(|e| {
-            let err_str = e.to_string();
-            if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                // 唯一性冲突（DB 约束兜底）：归业务族；文案已剔除 SQL/约束原文，只述业务事实可外显
-                AppError::business_displayable("订单号已存在，请稍后重试")
-            } else {
-                AppError::database(e.to_string())
-            }
-        })
     }
 
     /// 触发 MRP 物料需求计算（失败 warn 不阻塞主流程，订单已创建可后续重算）

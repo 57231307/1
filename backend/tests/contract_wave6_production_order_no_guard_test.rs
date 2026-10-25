@@ -8,8 +8,9 @@
 //!   无 order_no 字段(类型层面无注入口,编译期杜绝任何调用方旁路写号);
 //!   planned_quantity 为必填 Decimal(NOT NULL m0007:78,不设 Option 兜底)。
 //! - `services/production_order_ops/crud.rs::create`:一律服务端取号
-//!   (DocumentNumberGenerator,`PO{YYYYMMDD}{3位流水}`);resolve_order_no
-//!   (用户号查重后原样入库)已整体移除。
+//!   (DocumentNumberGenerator,`PO{YYYYMMDD}{3位流水}`),且取号与 INSERT 同在写入事务内
+//!   (`insert_with_no_retry`,撞 23505 在保存点内重取重试);resolve_order_no
+//!   (用户号查重后原样入库)与"自开事务取号后另插一行"的旧形态均不得回潮。
 //! - 默认值单一来源:status/priority 缺省走 DB DEFAULT(m0007:84/85),
 //!   代码侧不再 unwrap_or_default 把"未指定"塌成 0。
 //!
@@ -427,8 +428,12 @@ fn source_scan_create_always_server_side_numbering_and_no_default_swallow() {
     );
     let block = extract_block(src, "pub async fn create(");
     assert!(
-        block.contains("self.generate_unique_order_no()"),
-        "create 必须一律服务端取号,实际块:\n{block}"
+        block.contains("DocumentNumberGenerator::insert_with_no_retry("),
+        "create 必须在写入事务内经 insert_with_no_retry 取号并插入(23505 保存点内重取),实际块:\n{block}"
+    );
+    assert!(
+        !block.contains("self.generate_unique_order_no()"),
+        "回潮:create 退回\"自开事务取号→另插一行\"形态,取号与 INSERT 之间的并发窗口重新打开,实际块:\n{block}"
     );
     let builder = extract_block(src, "fn build_create_active_model(");
     assert!(
