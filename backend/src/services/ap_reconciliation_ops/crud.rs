@@ -34,7 +34,7 @@ impl ApReconciliationService {
         let txn = (*self.db).begin().await?;
 
         // 1. 生成对账单号
-        let reconciliation_no = self.generate_reconciliation_no().await?;
+        let reconciliation_no = self.generate_reconciliation_no(&txn).await?;
 
         // 2. 查询该供应商在对账期间内的应付单（草稿与已取消不计入对账口径）
         let invoices = ap_invoice::Entity::find()
