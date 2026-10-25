@@ -51,12 +51,22 @@ impl ApInvoiceService {
     }
 
     // 生成应付单号
-    // 格式：AP + 年月日 + 三位序号（AP20260315001）
+    // 格式：API + 年月日 + 三位序号（API20260315001）
+    //
+    // 只保留「调用方事务内取号」这一种形态：`DocumentNumberGenerator::generate_no` 自开事务，
+    // 前缀 advisory 锁随那个内层事务提交即释放，与建单事务的 INSERT 之间存在并发窗口，
+    // 两次并发建单会取到同一单号并撞 ap_invoice.invoice_no 唯一约束；txn 形态把取号并进
+    // 调用方事务，锁持有到建单事务提交，号段占用与插入落在同一事务。
+    // 调用方：ap_invoice_ops::crud 的 create_manual 与 ap_invoice_ops::receipt 的
+    // auto_generate_from_receipt、auto_generate_from_return 均以 self.generate_invoice_no(&txn)
+    // 在各自建单事务内取号；存入 ap_invoice.invoice_no（VARCHAR(50) NOT NULL UNIQUE）。
+    // 取号锁的作用域由 tests/contract_docno_ap_lock_scope_test.rs 活体钉住。
     crate::impl_generate_no!(
         generate_invoice_no,
         "API",
         crate::models::ap_invoice::Entity,
-        crate::models::ap_invoice::Column::InvoiceNo
+        crate::models::ap_invoice::Column::InvoiceNo,
+        txn
     );
 }
 
