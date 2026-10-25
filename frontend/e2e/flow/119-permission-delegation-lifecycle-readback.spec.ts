@@ -115,7 +115,7 @@ async function otherUserId(page: Page, selfId: number): Promise<number> {
   return num(other!.id);
 }
 
-interface DelegationBody {
+type DelegationBody = {
   delegator_id: number;
   delegatee_id: number;
   permission_code: string;
@@ -123,7 +123,7 @@ interface DelegationBody {
   valid_until: string;
   is_chain_allowed?: boolean;
   reason?: string;
-}
+};
 
 /** 自建本 worker 专属委托，返回整行；造数失败当场红并点名是建委托这一步 */
 async function createDelegation(page: Page, body: DelegationBody): Promise<Row> {
