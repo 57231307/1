@@ -3,15 +3,15 @@
 //! 批次 488 D10-2 拆分：从原 `production_order_service.rs` L92-624 迁移。
 //! 本模块方法清单（另有 validate_create_references / build_create_active_model 两个私有 helper）：
 //! - validate_product_exists / validate_sales_order_exists / validate_work_center_exists（私有 &self）
-//! - generate_rework_order_no（私有 &self）
 //! - validate_status_transition（`pub(crate)` associated function，测试 + approval 子模块跨 impl 块调用）
 //! - create / create_rework_order（公开 API）
 //! - get_by_id / get_order_logs / list（公开 API）
 //! - update / delete / update_status（公开 API）
 //!
 //! 业务规则：
-//! - create 的单号在写入事务内取号并插入（`DocumentNumberGenerator::insert_with_no_retry`：
-//!   advisory lock 串行化 + order_no UNIQUE 兜底 + 撞唯一约束在保存点内重取重试）
+//! - 两条建单腿（create 前缀 PO、create_rework_order 前缀 RW）的单号都在写入事务内
+//!   取号并插入（`DocumentNumberGenerator::insert_with_no_retry`：advisory lock 串行化
+//!   + order_no UNIQUE 兜底 + 撞唯一约束在保存点内重取重试），不存在"取号后另发 INSERT"
 //! - 创建订单后触发 MRP 物料需求计算（失败 warn 不阻塞）
 //! - 返工订单使用 RW 前缀，不触发 MRP
 //! - 状态转换校验基于状态机白名单（validate_status_transition）
@@ -294,7 +294,7 @@ impl ProductionOrderService {
     }
 
     /// V15 Batch 479 P0-F21：创建返工生产订单
-    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；自动生成订单号 RW{YYYYMMDD}{NNN}
+    /// 业务背景：bulk_color_approval customer_rework 触发，返工必须走生产订单流程；（审计报告 P0-F21：返工无工单跟踪，返工成本无法归集到原缸号）；与普通 create() 的差异：order_type = 'rework'（标记为返工订单）；original_batch_id 指向原 dye_batch（返工成本归集锚点）；不触发 MRP 物料需求计算（返工使用已有物料，不产生新采购计划）；订单号 RW{YYYYMMDD}{3位流水} 与 create() 同形态取号（写入事务内 insert_with_no_retry）
     pub async fn create_rework_order(
         &self,
         product_id: i32,
@@ -311,60 +311,47 @@ impl ProductionOrderService {
             self.validate_sales_order_exists(sales_order_id).await?;
         }
 
-        // 生成返工订单号 RW{YYYYMMDD}{NNN}（统一生成器）
-        let order_no = self.generate_rework_order_no().await?;
-
+        // 返工号与普通号同表同列（production_orders.order_no，NOT NULL UNIQUE），
+        // 前缀不同、流水互不侵占；取号与 INSERT 同事务，撞 23505 在保存点内重取重试，
+        // 与 create() 同一形态，避免"自开事务取号后另发 INSERT"的撞号窗口在本腿回潮。
         let now = Utc::now();
-        let active_model = ActiveModel {
-            order_no: Set(order_no),
-            sales_order_id: Set(sales_order_id),
-            product_id: Set(product_id),
-            planned_quantity: Set(Decimal::ZERO),
-            planned_start_date: Set(None),
-            planned_end_date: Set(None),
-            status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
-            priority: Set(1), // 返工订单优先级最高
-            work_center_id: Set(None),
-            remarks: Set(remarks),
-            created_by: Set(created_by),
-            // V15 Batch 479 P0-F21：返工订单标识
-            order_type: Set("rework".to_string()),
-            original_batch_id: Set(Some(original_batch_id)),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        };
-
-        let model = active_model.insert(&*self.db).await.map_err(|e| {
-            let err_str = e.to_string();
-            if err_str.contains("unique constraint") || err_str.contains("duplicate") {
-                // 唯一性冲突（返工单号 DB 约束兜底）：归业务族；文案不含 SQL/表名可外显
-                AppError::business_displayable("返工订单号已存在，请稍后重试")
-            } else {
-                AppError::database(e.to_string())
-            }
+        let txn = (*self.db).begin().await?;
+        let model = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "RW",
+            ProductionOrderEntity,
+            crate::models::production_order::Column::OrderNo,
+            |order_no| ActiveModel {
+                order_no: Set(order_no),
+                sales_order_id: Set(sales_order_id),
+                product_id: Set(product_id),
+                planned_quantity: Set(Decimal::ZERO),
+                planned_start_date: Set(None),
+                planned_end_date: Set(None),
+                status: Set(crate::models::status::common::STATUS_DRAFT.to_string()),
+                priority: Set(1), // 返工订单优先级最高
+                work_center_id: Set(None),
+                remarks: Set(remarks.clone()),
+                created_by: Set(created_by),
+                // V15 Batch 479 P0-F21：返工订单标识
+                order_type: Set("rework".to_string()),
+                original_batch_id: Set(Some(original_batch_id)),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "返工订单取号或插入失败");
+            AppError::business_displayable("返工订单号生成失败，请稍后重试")
         })?;
+        txn.commit().await?;
 
         // 注意：返工订单不触发 MRP 计算（返工使用已有物料，不产生新采购计划）
         // 如需物料调整，由配方调整流程单独处理
 
         Ok(model)
-    }
-
-    /// 生成返工订单号（统一生成器：`RW{YYYYMMDD}{3位流水}`，与 PO 前缀区分返工订单；
-    /// RW 与 PO 同表同列，前缀不同、流水互不侵占）
-    async fn generate_rework_order_no(&self) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "RW",
-            ProductionOrderEntity,
-            crate::models::production_order::Column::OrderNo,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "返工订单号生成失败");
-            AppError::business_displayable("返工订单号生成失败，请稍后重试")
-        })
     }
 
     /// 根据ID获取生产订单
