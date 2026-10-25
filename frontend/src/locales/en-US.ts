@@ -8465,7 +8465,8 @@ export default {
         notLoadedSaveBlocked:
           'No existing company profile was loaded; the submission is blocked to avoid overwriting current data. Reload before saving',
         logoUploaded: 'Logo uploaded',
-        logoNotPng: 'Only PNG format logos are supported',
+        logoNotPng:
+          'Logo file content is not PNG (detected format: {detected}); re-save it as PNG and upload again',
         logoTooLarge: 'Logo file size must not exceed 512KB',
         logoReadFailed: 'Failed to read logo file',
       },
@@ -8481,10 +8482,66 @@ export default {
         fieldName: 'Field Name',
         canRead: 'Readable',
         canWrite: 'Writable',
+        maskStrategy: 'Mask Strategy',
+        enabled: 'Status',
+        action: 'Action',
+      },
+      status: {
+        enabled: 'Enabled',
+        disabled: 'Disabled',
+      },
+      mask: {
+        none: 'No mask',
+        mask: 'Masked',
       },
       common: {
         yes: 'Yes',
         no: 'No',
+      },
+      button: {
+        create: 'New Field Permission',
+        edit: 'Edit',
+        delete: 'Delete',
+        cancel: 'Cancel',
+        save: 'Save',
+      },
+      filterResourcePlaceholder: 'Filter by resource',
+      unknownResourceType: 'No label for this resource token, showing the raw code:',
+      unknownMaskStrategy: 'Unknown mask strategy value, showing the raw code:',
+      loadResourceTypesFailed: 'Failed to load resource vocabulary',
+      messageResourceTypesEmpty: 'Resource vocabulary returned empty; fallback list used',
+      loadListContractBroken: 'Field permission list payload is not an array',
+      loadRolesFailed: 'Failed to load role list',
+      dialog: {
+        createTitle: 'New Field Permission',
+        editTitle: 'Edit Field Permission',
+        aria: 'Field permission edit dialog',
+        labelRole: 'Role',
+        labelResource: 'Resource',
+        labelFieldName: 'Field Name',
+        labelCanRead: 'Readable',
+        labelCanWrite: 'Writable',
+        labelMaskStrategy: 'Mask Strategy',
+        labelEnabled: 'Enabled',
+        placeholderRole: 'Select role (searchable)',
+        placeholderResource: 'Select resource',
+        placeholderFieldName: 'DB column name, e.g. cost_price',
+        ruleRoleRequired: 'Please select a role',
+        ruleResourceRequired: 'Please select a resource',
+        ruleFieldNameRequired: 'Please enter the field name',
+        ruleFieldNamePattern:
+          'Field name must use letters/digits/underscore, not start with a digit, max 100 chars',
+      },
+      message: {
+        saved: 'Field permission saved and verified by read-back',
+        saveFailed: 'Failed to save field permission',
+        verifyFailed:
+          'Submit returned success but read-back differs from what was sent; refresh and verify',
+        deleted: 'Field permission disabled (soft delete)',
+        deleteFailed: 'Failed to delete field permission',
+        deleteConfirm:
+          'Disable the rule for role {role} on field {field}? (soft delete, row kept and re-enableable)',
+        deleteTitle: 'Delete Field Permission',
       },
       loadListFailed: 'Failed to load field permission list',
     },
@@ -8584,6 +8641,7 @@ export default {
       },
       loadListFailed: 'Failed to load permission list',
       loadResourceVocabFailed: 'Failed to load resource vocabulary',
+      filterPlaceholder: 'Search resource or action (localized names and raw codes)',
       unknownResourceType: 'No label for this resource token, showing the raw code:',
       unknownAction: 'No label for this action token, showing the raw code:',
     },
@@ -8630,6 +8688,9 @@ export default {
       permissionDialog: {
         title: 'Permission Config - {name}',
         aria: 'Role permission config dialog',
+        filterPlaceholder: 'Search resource or action (localized names supported)',
+        adminReadonlyHint:
+          'Super admin permissions are maintained by the system; this view is read-only',
         button: {
           cancel: 'Cancel',
           save: 'Save',
@@ -8657,6 +8718,8 @@ export default {
         permissionReadBackInvalid:
           'Failed to read back permissions after saving: the response is not a permission list',
         fetchPermissionFailed: 'Failed to load permissions',
+        unknownResourceType: 'No label for this resource token, showing the raw code:',
+        unknownActionType: 'No label for this action token, showing the raw code:',
       },
     },
     webhook: {

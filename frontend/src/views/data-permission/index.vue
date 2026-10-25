@@ -46,7 +46,9 @@
             <el-table-column
               prop="resource_type"
               :label="t('dataPermission.index.colResourceType')"
-            />
+            >
+              <template #default="{ row }">{{ resourceTypeLabel(row.resource_type) }}</template>
+            </el-table-column>
             <el-table-column prop="scope_type" :label="t('dataPermission.index.colScopeType')">
               <template #default="{ row }">
                 <el-tag v-if="row.scope_type === 'ALL'" type="success">{{
@@ -147,13 +149,11 @@
             <el-option
               v-for="scope in scopeTypeList"
               :key="scope.value"
-              :label="scope.label"
+              :label="scopeLabel(scope.value)"
               :value="scope.value"
             >
-              <span>{{ scope.label }}</span>
-              <span style="color: #909399; font-size: 12px; margin-left: 8px">{{
-                scope.description
-              }}</span>
+              <span>{{ scopeLabel(scope.value) }}</span>
+              <span class="scope-option-desc">{{ scopeDescription(scope.value) }}</span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -252,6 +252,37 @@ const resourceTypes = ref<string[]>([]);
 const resourceTypeLabel = (value: string): string => {
   const labelKey = dataPermissionResourceTypeLabelKey(value);
   return labelKey ? t(labelKey) : value;
+};
+
+// 范围类型下拉的展示文案取前端 i18n（词表=后端 GET /data-permissions/scope-types 的
+// value 集合，后端 label/description 为中文硬编码，不参与展示，避免英文界面露中文）。
+// 后端词表若新增未映射取值，原样显示 token 并 warn 点名，不猜含义。
+const SCOPE_LABEL_KEYS: Record<string, string> = {
+  ALL: 'dataPermission.index.scopeAll',
+  DEPT: 'dataPermission.index.scopeDept',
+  DEPT_AND_BELOW: 'dataPermission.index.scopeDeptAndBelow',
+  SELF: 'dataPermission.index.scopeSelf',
+  CUSTOM: 'dataPermission.index.scopeCustom',
+};
+const SCOPE_DESC_KEYS: Record<string, string> = {
+  ALL: 'dataPermission.index.descAll',
+  DEPT: 'dataPermission.index.descDept',
+  DEPT_AND_BELOW: 'dataPermission.index.descDeptAndBelow',
+  SELF: 'dataPermission.index.descSelf',
+  CUSTOM: 'dataPermission.index.descCustom',
+};
+const warnedScopeTokens = new Set<string>();
+const scopeLabel = (value: string): string => {
+  const key = SCOPE_LABEL_KEYS[value];
+  if (!key && !warnedScopeTokens.has(value)) {
+    warnedScopeTokens.add(value);
+    logger.warn(`${t('dataPermission.index.messageUnknownScopeType')}${value}`);
+  }
+  return key ? t(key) : value;
+};
+const scopeDescription = (value: string): string => {
+  const key = SCOPE_DESC_KEYS[value];
+  return key ? t(key) : '';
 };
 
 const resourceTypeOptions = computed(() =>
@@ -438,22 +469,50 @@ const handleSavePermission = async () => {
       return;
     }
 
-    // 表单字段为 JSON 文本，提交前解析为 API 契约类型；仅在解析或类型真不符时报错并留痕
+    // 表单字段为 JSON 文本，提交前解析为 API 契约类型；仅在解析或类型真不符时报错并留痕。
+    // parseJsonLiteral 把 JSON.parse 的原生 SyntaxError（英文实现细节）收敛为具名
+    // i18n 文案，用户看到"该改成什么形态"，而不是解析器内部报错。
+    const parseJsonLiteral = (text: string, failMessage: string): unknown => {
+      try {
+        return JSON.parse(text) as unknown;
+      } catch (e) {
+        logger.warn('JSON 字面量解析失败', e);
+        throw new Error(failMessage);
+      }
+    };
     const parseJsonObject = (text: string): CustomCondition | undefined => {
       if (!text.trim()) return undefined;
-      const parsed = JSON.parse(text) as unknown;
+      const parsed = parseJsonLiteral(text, t('dataPermission.index.messageCustomConditionNotObject'));
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error(t('dataPermission.index.messageCustomConditionNotObject'));
       }
       return parsed as CustomCondition;
     };
     const parseJsonArray = (text: string): AllowedFields | undefined => {
-      if (!text.trim()) return undefined;
-      const parsed = JSON.parse(text) as unknown;
-      if (!Array.isArray(parsed)) {
-        throw new Error(t('dataPermission.index.messageFieldListNotArray'));
+      const trimmed = text.trim();
+      if (!trimmed) return undefined;
+      // 兼容两种真实输入形态：JSON 数组字面量，或逗号分隔的字段名清单
+      //（"允许字段/隐藏字段"本质是名字列表，行业通行做法是直接列名；
+      // 只收 JSON 数组会让用户按直觉填 cost_price,profit 却被判"JSON 非法"）
+      let parsed: unknown;
+      if (trimmed.startsWith('[')) {
+        parsed = parseJsonLiteral(trimmed, t('dataPermission.index.messageFieldListNotArray'));
+        if (!Array.isArray(parsed)) {
+          throw new Error(t('dataPermission.index.messageFieldListNotArray'));
+        }
+        if (!parsed.every(item => typeof item === 'string')) {
+          throw new Error(t('dataPermission.index.messageFieldListItemsNotString'));
+        }
+        return parsed as AllowedFields;
       }
-      return parsed as AllowedFields;
+      const names = trimmed
+        .split(',')
+        .map(item => item.trim())
+        .filter(item => item.length > 0);
+      if (names.length === 0) {
+        throw new Error(t('dataPermission.index.messageFieldListEmpty'));
+      }
+      return names;
     };
     let customCondition: CustomCondition | undefined;
     let allowedFields: AllowedFields | undefined;
@@ -465,7 +524,10 @@ const handleSavePermission = async () => {
     } catch (error) {
       const err = error as Error;
       logger.error(t('dataPermission.index.messageJsonInvalid'), err);
-      ElMessage.error(t('dataPermission.index.messageJsonInvalid'));
+      // 解析器抛出的都是具名 i18n 消息，直接点名；仅在消息缺失时退回泛化文案
+      ElMessage.error(
+        err.message || t('dataPermission.index.messageJsonInvalid')
+      );
       return;
     }
 

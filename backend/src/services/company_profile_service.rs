@@ -65,11 +65,16 @@ pub struct CompanyProfileDraft {
     pub description: Option<String>,
 }
 
-/// 解码并校验 logo base64 裸串:必须是合法 base64、解码后以 PNG 魔数开头且 ≤512KB。
+/// 解码并校验 logo base64:先归一(data URL 前缀剥离、剔除空白与换行),再按标准
+/// base64 解码,解码结果必须以 PNG 魔数开头且 ≤512KB。归一的意义:历史遗留或调用方
+/// 误带 `data:image/png;base64,` 前缀、MIME 变体前缀的合法 PNG 值,不应因前缀被判
+/// "非 base64"或"非 PNG";而非 PNG 内容(伪 png)拒绝时点名**实际检测到的格式**,
+/// 让"我上传的就是 png"的用户能看到真正被拒的原因。
 /// 返回 PNG 原始字节,供调用方进一步取 IHDR 尺寸或嵌入 docx。
 /// 失败一律 `validation_displayable` 中文可展示点名,调用方不得吞掉。
 pub fn decode_logo_png(logo_base64: &str) -> Result<Vec<u8>, AppError> {
-    let bytes = BASE64_STANDARD.decode(logo_base64).map_err(|e| {
+    let normalized = normalize_logo_base64(logo_base64);
+    let bytes = BASE64_STANDARD.decode(&normalized).map_err(|e| {
         warn!(error = %e, "公司档案 logo base64 解码失败");
         AppError::validation_displayable("公司 logo 不是合法的 base64 编码,请重新上传")
     })?;
@@ -85,15 +90,49 @@ pub fn decode_logo_png(logo_base64: &str) -> Result<Vec<u8>, AppError> {
         )));
     }
     if !bytes.starts_with(&PNG_MAGIC) {
+        let detected = detect_image_format(&bytes);
         warn!(
             head = ?bytes.get(..4),
+            detected,
             "公司档案 logo 非 PNG 魔数开头"
         );
-        return Err(AppError::validation_displayable(
-            "公司 logo 仅支持 PNG 图片格式,请转换后重新上传",
-        ));
+        return Err(AppError::validation_displayable(format!(
+            "公司 logo 文件内容不是 PNG 格式(实际检测为 {detected}),请另存为 PNG 后重新上传"
+        )));
     }
     Ok(bytes)
+}
+
+/// 归一 logo base64:剥离 `data:<mime>;base64,` 前缀(MIME 变体如 image/x-png 同样
+/// 覆盖),并剔除 ASCII 空白与换行(某些工具产出折行 base64)。幂等——裸串二次
+/// 调用不变。
+fn normalize_logo_base64(raw: &str) -> String {
+    let without_prefix = match raw.split_once(";base64,") {
+        Some((head, body)) if head.trim_start().starts_with("data:") => body,
+        _ => raw,
+    };
+    without_prefix
+        .chars()
+        .filter(|c| !c.is_ascii_whitespace())
+        .collect()
+}
+
+/// 按文件头魔数识别常见图片格式,用于拒绝文案点名真实格式(与前端 logo-file.ts
+/// 判据同源);识别不出返回 "未知格式",不猜测。
+fn detect_image_format(bytes: &[u8]) -> &'static str {
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "JPEG"
+    } else if bytes.starts_with(b"GIF8") {
+        "GIF"
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        "WebP"
+    } else if bytes.starts_with(b"BM") {
+        "BMP"
+    } else if bytes.starts_with(&[0x00, 0x00, 0x01, 0x00]) {
+        "ICO"
+    } else {
+        "未知格式"
+    }
 }
 
 /// 从 PNG 字节读取 IHDR 宽高(像素)。签名 8 字节 + 块长 4 + 类型 4 后,宽占
@@ -158,9 +197,10 @@ impl CompanyProfileService {
         let logo = match draft.logo.as_deref().map(str::trim) {
             None | Some("") => None,
             Some(raw) => {
-                // 解码校验通过才落库;库里永远只存在合法 PNG base64 裸串。
+                // 解码校验通过才落库；落库前归一为裸 base64（剥前缀、去折行），
+                // 库里永远只存在合法 PNG 裸串——带前缀的历史值经此写口一次即被纠正。
                 decode_logo_png(raw)?;
-                Some(raw.to_string())
+                Some(normalize_logo_base64(raw))
             }
         };
 
