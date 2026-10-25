@@ -1,5 +1,5 @@
 /**
- * 移动端首装免配置的启动与回弹判定回归。
+ * 移动端首装免配置的启动、连续失败重试与回弹判定回归。
  *
  * 被测两处，一是壳内 gateway 卡页 mobile-app/dist/gateway.js 的纯函数面，
  * 该文件是无构建产物直进 APK 的普通脚本，带 module.exports 通道，本测试经 createRequire
@@ -8,8 +8,11 @@
  * 二是 frontend/src/utils/login-failure.ts 的连续失败计数与阈值判定，
  * 它是远端 ERP 登录页在壳内回弹的同款单点，两侧共用一份口径。
  * 覆盖场景，首装手填，已存地址先探测，探测通过自动进入且先不露地址输入，
- * 探测不通回空表单不自动跳回，两条失败路径（reconfigure=1 与登录不可达）都不带旧地址，
- * 连续 5 次 401 达到回弹阈值，成功登录清零，跨 host 重计。
+ * 探测不通按连续失败计数推进，未计满 5 次只给重试面板不出配置窗，计满 5 次才重新询问，
+ * 重新询问与两条回弹路径（reconfigure=1 与卡页超限）都不回填已配置的地址，
+ * 探测成功即清零计数，连续 5 次凭证失败或不可达达到登录侧回弹阈值，成功登录清零，跨 host 重计。
+ * 卡页是壳内置顶资源，不在 e2e 可达的部署站点上，状态机迁移只能在此单点钉住；
+ * 页内交互契约（蓝牙权限用时申请与登录侧回弹时机）由 e2e 87 那条真跑页面。
  * 传给谁，vitest 报告。存什么，不新增存储，注入的内存假存储仅在本测试内。
  */
 import { describe, expect, it } from 'vitest';
@@ -27,16 +30,33 @@ import {
   type KeyValueStore,
 } from '@/utils/login-failure';
 
+/** 卡页可见视图模型的字段面，与 gateway.js 的 buildConnectView 返回形态一致。 */
+interface ConnectView {
+  savedVisible: boolean;
+  savedText: string;
+  formVisible: boolean;
+  formValue: string;
+  retryVisible: boolean;
+  retryText: string;
+  errorText: string;
+}
+
 interface GatewayApi {
   KEY: string;
+  FAIL_KEY: string;
+  FAIL_LIMIT: number;
   normalized: (raw: string) => string;
+  parseConnectFailures: (raw: string | null) => number;
+  nextConnectFailures: (prev: number, outcome: string) => number;
   decideStartup: (input: {
     reconfigureRequested: boolean;
     hasSaved: boolean;
     probeSupported: boolean;
   }) => string;
-  decideProbeOutcome: (input: { outcome: string }) => string;
+  decideProbeOutcome: (input: { outcome: string; failures: number }) => string;
   probeMessage: (outcome: string) => string;
+  connectHint: (view: string, reason: string) => string;
+  buildConnectView: (input: { view: string; saved?: string; message?: string }) => ConnectView;
   decideSubmit: (input: { valid: boolean; probeSupported: boolean; outcome?: string }) => string;
 }
 
@@ -73,10 +93,10 @@ describe('gateway 卡页启动视图决策', () => {
     ).toBe('auto-probe');
   });
 
-  it('探测通过则自动进入，不通回空表单不自动跳回', () => {
-    expect(gateway.decideProbeOutcome({ outcome: 'reachable' })).toBe('navigate');
-    expect(gateway.decideProbeOutcome({ outcome: 'refused' })).toBe('manual-empty');
-    expect(gateway.decideProbeOutcome({ outcome: 'dns' })).toBe('manual-empty');
+  it('探测通过则自动进入，不通一律不自动跳回旧地址', () => {
+    expect(gateway.decideProbeOutcome({ outcome: 'reachable', failures: 1 })).toBe('navigate');
+    expect(gateway.decideProbeOutcome({ outcome: 'refused', failures: 5 })).toBe('manual-empty');
+    expect(gateway.decideProbeOutcome({ outcome: 'dns', failures: 5 })).toBe('manual-empty');
   });
 
   it('探测失败提示按结论分因，解析失败与端口拒绝不是同一句话', () => {
@@ -125,6 +145,82 @@ describe('gateway 卡页启动视图决策', () => {
     );
     expect(gateway.normalized('javascript:alert(1)')).toBe('');
     expect(gateway.normalized('')).toBe('');
+  });
+});
+
+describe('gateway 卡页连续连接失败状态机', () => {
+  it('连续失败上限与登录侧回弹阈值同源同值，两处不许各自漂一个数', () => {
+    expect(gateway.FAIL_LIMIT).toBe(REOPEN_GATEWAY_AFTER_FAILURES);
+    expect(gateway.FAIL_LIMIT).toBe(5);
+  });
+
+  it('计数存储值解析，空值与非数字与负数都按 0 次', () => {
+    expect(gateway.parseConnectFailures(null)).toBe(0);
+    expect(gateway.parseConnectFailures('')).toBe(0);
+    expect(gateway.parseConnectFailures('不是数')).toBe(0);
+    expect(gateway.parseConnectFailures('-2')).toBe(0);
+    expect(gateway.parseConnectFailures('3')).toBe(3);
+  });
+
+  it('不可达在原值上加一，可达即归零，连续的定义是中间没有成功过', () => {
+    expect(gateway.nextConnectFailures(0, 'refused')).toBe(1);
+    expect(gateway.nextConnectFailures(3, 'dns')).toBe(4);
+    expect(gateway.nextConnectFailures(4, 'timeout')).toBe(5);
+    expect(gateway.nextConnectFailures(4, 'reachable')).toBe(0);
+  });
+
+  it('第 1 到第 4 次连不上只给重试面板，配置窗不得出现', () => {
+    for (let failures = 1; failures <= 4; failures += 1) {
+      expect(
+        gateway.decideProbeOutcome({ outcome: 'unreachable', failures }),
+        `第 ${failures} 次连不上不得要求重填地址`
+      ).toBe('retry');
+    }
+  });
+
+  it('第 5 次连不上才重新询问，配置窗出现', () => {
+    expect(gateway.decideProbeOutcome({ outcome: 'unreachable', failures: 5 })).toBe(
+      'manual-empty'
+    );
+    expect(gateway.decideProbeOutcome({ outcome: 'timeout', failures: 9 })).toBe('manual-empty');
+  });
+
+  it('重新询问与首装都不回填已配置的地址，存档地址不进输入框', () => {
+    const reask = gateway.buildConnectView({
+      view: 'manual-empty',
+      saved: 'http://192.168.1.5:3000',
+      message: '请重新填写',
+    });
+    expect(reask.formVisible).toBe(true);
+    expect(reask.formValue, '配置窗的地址框必须是空的').toBe('');
+    expect(reask.savedVisible, '重新询问时不再显示上次地址卡片').toBe(false);
+    const firstInstall = gateway.buildConnectView({ view: 'first-install', saved: '' });
+    expect(firstInstall.formVisible).toBe(true);
+    expect(firstInstall.formValue).toBe('');
+  });
+
+  it('重试面板不出地址表单，探测中不出任何可点入口，存档卡片不进地址框', () => {
+    const retry = gateway.buildConnectView({ view: 'retry', saved: 'http://a.test', message: '稍后再试' });
+    expect(retry.retryVisible).toBe(true);
+    expect(retry.retryText).toBe('稍后再试');
+    expect(retry.formVisible, '重试面板不得带出地址输入').toBe(false);
+    const probing = gateway.buildConnectView({ view: 'probing', message: '正在连接服务器…' });
+    expect(probing.formVisible).toBe(false);
+    expect(probing.retryVisible).toBe(false);
+    const card = gateway.buildConnectView({ view: 'saved-card', saved: 'http://a.test' });
+    expect(card.savedVisible).toBe(true);
+    expect(card.savedText).toContain('http://a.test');
+    expect(card.formValue, '存档卡片的地址也不写进输入框').toBe('');
+  });
+
+  it('提示句只说下一步该做什么，重试与超限两句不同且都不带出已存地址', () => {
+    const saved = 'http://192.168.1.5:3000';
+    const retryHint = gateway.connectHint('retry', 'refused');
+    const reaskHint = gateway.connectHint('manual-empty', 'refused');
+    expect(retryHint).not.toBe(reaskHint);
+    expect(retryHint, '提示句不得把已存地址显示出来').not.toContain(saved);
+    expect(reaskHint).not.toContain(saved);
+    expect(gateway.connectHint('retry', ''), '没有探测结论时也要有一句可操作的话').not.toBe('');
   });
 });
 

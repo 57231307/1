@@ -86,11 +86,17 @@
   <body>
     <div class="card">
       <h1>连接服务器</h1>
-      <p class="hint">请填写 Bingxi ERP 的部署地址（含 http/https）。登录失败会自动回到此页重填。</p>
+      <p class="hint">请填写 Bingxi ERP 的部署地址（含 http/https）。配好之后每次启动会自动连接。</p>
       <div id="saved" style="display: none">
         <p id="savedText" style="font-size: 14px; color: #334155"></p>
         <button class="btn" id="enterBtn">进入</button>
         <button class="btn secondary" id="changeBtn">更改服务器地址</button>
+      </div>
+      <!-- 连不上时的重试面板，配置窗在连续多次连不上之前不出现，改地址的入口留在页内备用户主动使用 -->
+      <div id="retry" style="display: none">
+        <p class="hint" id="retryText" style="margin-bottom: 12px"></p>
+        <button class="btn" id="retryBtn" type="button">重试连接</button>
+        <button class="btn secondary" id="retryChangeBtn" type="button">更改服务器地址</button>
       </div>
       <form id="form" style="display: none">
         <label for="url">服务器地址</label>
@@ -98,13 +104,6 @@
         <button class="btn" type="submit">保存并进入</button>
       </form>
       <div class="err" id="err"></div>
-      <div id="perm" style="display: none; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px">
-        <p class="hint" style="margin-bottom: 8px">
-          设备权限：联网为安装时自动授予，相机用于扫码，蓝牙用于热敏打印。
-        </p>
-        <button class="btn secondary" id="permBtn" type="button">申请相机与蓝牙权限</button>
-        <div class="err" id="permMsg" style="margin-top: 6px"></div>
-      </div>
     </div>
     <script src="./gateway.js"></script>
   </body>

@@ -2,8 +2,8 @@ use serde::Serialize;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::Manager;
 use tauri::plugin::{Builder, PluginHandle, TauriPlugin};
+use tauri::Manager;
 
 /// 记住 gateway（服务器地址设置页）自身的稳定基址，供登录失败回弹时精确跳回。
 /// 移动端 asset origins 因平台而异（Android 为 http://tauri.localhost 等），故不硬编码，
@@ -37,9 +37,10 @@ struct BluetoothPrintTextPayload<'a> {
 /// 形态，WebView 先载入内置 gateway（服务器地址设置页）。首装手填部署地址，卡页经
 /// probe_server_reachability 确认地址可达后持久化并同域跳转进该地址上的现有 ERP Web
 /// （复用现有 httpOnly+CSRF，Web 全部功能零改继承）。此后每次启动卡页先探测已存地址，
-/// 可达即自动进入，用户无需重复配置。登录不可达或连续凭证失败时，远端 Web 经
-/// reopen_gateway 跳回 gateway，本命令在记录的稳定基址上追加 reconfigure=1 标记，
-/// 卡页据此渲染空表单，不携带旧地址也不自动跳回。
+/// 可达即自动进入，用户无需重复配置；不可达时卡页按连续失败计数推进，未计满上限只给重试
+/// 面板不出配置窗，计满上限或远端 Web 自己数到连续失败上限后经 reopen_gateway 跳回时，
+/// 本命令在记录的稳定基址上追加 reconfigure=1 标记，卡页据此渲染空表单，不携带旧地址也不
+/// 自动跳回。计数的存放与阈值判定见 mobile-app/dist/gateway.js 与 frontend 的 login-failure。
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -149,7 +150,9 @@ fn server_endpoint(target: &str) -> Result<(String, u16), String> {
     if scheme != "http" && scheme != "https" {
         return Err(format!("不支持的地址协议 {scheme}"));
     }
-    let host = parsed.host_str().ok_or_else(|| "地址缺少主机名".to_string())?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "地址缺少主机名".to_string())?;
     let port = parsed
         .port_or_known_default()
         .ok_or_else(|| "地址缺少端口且协议无标准端口".to_string())?;
@@ -281,7 +284,7 @@ async fn bluetooth_disconnect(app: tauri::AppHandle) -> Result<serde_json::Value
 #[cfg(test)]
 mod tests {
     use super::{
-        probe_blocking, server_endpoint, BluetoothPrintTextPayload, is_safe_gateway_url,
+        is_safe_gateway_url, probe_blocking, server_endpoint, BluetoothPrintTextPayload,
         PROBE_DNS_FAILED, PROBE_REFUSED,
     };
 
@@ -345,7 +348,10 @@ mod tests {
     #[test]
     fn probe_reports_distinguishable_outcomes() {
         // .invalid 是 RFC 保留顶级域，解析必败，结论应是解析失败而不是笼统连接失败
-        assert_eq!(probe_blocking("http://invalid.invalid.").unwrap(), PROBE_DNS_FAILED);
+        assert_eq!(
+            probe_blocking("http://invalid.invalid.").unwrap(),
+            PROBE_DNS_FAILED
+        );
         // 回环 1 端口无人监听时系统立刻拒绝，与解析失败是两种可区分的结论
         assert_eq!(probe_blocking("http://127.0.0.1:1").unwrap(), PROBE_REFUSED);
     }

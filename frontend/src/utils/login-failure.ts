@@ -1,10 +1,11 @@
 /**
  * 登录连续失败计数与壳内回弹，单点判定。
  *
- * 用途，用户所填地址可达但并不是目标 ERP（例如端口开在另一个服务上）时，
- * 页面打得开、提交一直拿 401，永远不会触发不可达回弹，据此把连续凭证失败累计，
- * 达到上限就调壳内命令回弹 gateway 卡页重填地址，卡页按回弹标记渲染空表单不带旧地址。
- * 调用方 Login 视图的凭证失败路径与登录成功路径与网络不可达路径。
+ * 用途，两类失败都算一次，一是用户所填地址可达但并不是目标 ERP（例如端口开在另一个服务上），
+ * 页面打得开、提交一直拿 401；二是提交时拿不到响应或网络错，服务器此刻连不上。
+ * 两类都不该一次就把用户退回配置窗，据此把连续失败累计，达到上限才调壳内命令回弹 gateway
+ * 卡页重填地址，卡页按回弹标记渲染空表单不带旧地址；未达上限只在页内计数并保留请求层提示。
+ * 调用方 Login 视图的凭证失败与不可达分支，以及登录成功分支的清零。
  * 入参 host 为当前部署站点 origin，计数按 host 归组，换 host 从 1 重计。
  * 传给谁 recordLoginFailure 与 clearLoginFailure 管计数，invokeReopenGateway 经
  * window.__TAURI__ 调壳内 reopen_gateway，壳侧剥 query 存稳定基址并自行追加 reconfigure=1。
@@ -13,7 +14,7 @@
  */
 export const LOGIN_FAIL_COUNT_KEY = 'bingxi.login.failCount';
 
-/** 连续凭证失败达到该次数即回弹卡页重填，5 次是"多半配置不对"与"只是记性差"的分界。 */
+/** 连续失败（凭证不对或连不上）达到该次数即回弹卡页重填，5 次是"多半配置不对"与"只是记性差"的分界。 */
 export const REOPEN_GATEWAY_AFTER_FAILURES = 5;
 
 export interface LoginFailureRecord {

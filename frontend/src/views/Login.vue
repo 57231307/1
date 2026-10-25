@@ -308,19 +308,18 @@ async function handleLogin() {
       // 登录凭证错误统一呈现为友好中文：后端 401 不泄露用户名是否存在，也绝不显示 axios 裸串。
       // 其余错误（429 账号锁定 / 网络 / 5xx）已由 request.ts 拦截器按后端文案提示，此处不重复弹窗。
       const status = (error as { response?: { status?: number } }).response?.status;
-      if (status === 401) {
-        ElMessage.error(t('login.failed'));
-        // 地址可达但凭证一直不对（多半填到了端口开着的别的站点）时，
-        // 同 host 连续 401 计满 5 次回卡页重填地址，Web 端无桥则只计数不跳转。
+      if (status === 401 || status === undefined || status === 0) {
+        // 凭证不对与服务器不可达都算一次连接失败，同 host 计满 5 次才回卡页重填地址，
+        // 一次失败不催用户重配。401 在此给友好文案，无响应与网络错的提示由请求层统一给，
+        // 此处不重复弹窗。Web 端无壳桥时只计数不跳转。
+        if (status === 401) {
+          ElMessage.error(t('login.failed'));
+        }
         const record = recordLoginFailure(window.location.origin);
         if (shouldReopenGateway(record)) {
           clearLoginFailure();
           invokeReopenGateway();
         }
-      } else if (status === undefined || status === 0) {
-        // 移动端壳内，服务器不可达（地址填错/未部署，无响应或网络错）直接回 gateway 重填。
-        // 仅在 Tauri 壳内生效（Web 无 __TAURI__ 分支不进），401 凭证错与 5xx 不触发、不催扰。
-        invokeReopenGateway();
       }
       // 登录瀑布修复：删除 catch 内 refreshLockStatus 调用
       // 原因：login 401 → catch → refreshLockStatus → lock-status 401 → refreshLockStatus 循环
