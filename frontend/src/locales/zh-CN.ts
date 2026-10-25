@@ -3731,7 +3731,8 @@ export default {
       labelUnit: '单位',
       placeholderUnit: '请选择单位',
       labelWidth: '幅宽(cm)',
-      tipWidth: '产品幅宽（厘米）。报价单转销售订单按米数乘克重乘幅宽派生公斤数，缺该值转单会被拒绝',
+      tipWidth:
+        '产品幅宽（厘米）。报价单转销售订单按米数乘克重乘幅宽派生公斤数，缺该值转单会被拒绝',
       labelGramWeight: '克重(g/m²)',
       tipGramWeight: '产品克重（克/平方米）。同上，是转单派生公斤数的必需元数据',
       labelMetersPerPiece: '每匹米数',
