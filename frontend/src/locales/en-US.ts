@@ -3749,6 +3749,12 @@ export default {
       placeholderSpecification: 'Enter specification',
       labelUnit: 'Unit',
       placeholderUnit: 'Select unit',
+      labelWidth: 'Width (cm)',
+      tipWidth:
+        'Product width in centimeters. Quote-to-order conversion derives kilograms from meters times gram weight times width; conversion is rejected when missing.',
+      labelGramWeight: 'Gram Weight (g/m²)',
+      tipGramWeight:
+        'Product gram weight in g/m². Required for deriving kilograms during quote-to-order conversion.',
       labelMetersPerPiece: 'Meters per Piece',
       tipMetersPerPiece:
         'Meters per piece, used for the piece↔meter conversion view; not counted in inventory',

@@ -103,6 +103,49 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
+          <el-form-item prop="width">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelWidth') }}
+                <el-tooltip :content="t('product.productFormDialogTab.tipWidth')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.width"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item prop="gram_weight">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelGramWeight') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipGramWeight')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.gram_weight"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
           <el-form-item prop="meters_per_piece">
             <template #label>
               <span class="form-label-with-tip">
@@ -244,6 +287,8 @@ const formData = reactive({
   cost_price: 0,
   meters_per_piece: undefined as number | undefined,
   meters_per_roll: undefined as number | undefined,
+  width: undefined as number | undefined,
+  gram_weight: undefined as number | undefined,
   description: '',
   is_active: true,
 });
@@ -297,6 +342,8 @@ const resetForm = () => {
   formData.cost_price = 0;
   formData.meters_per_piece = undefined;
   formData.meters_per_roll = undefined;
+  formData.width = undefined;
+  formData.gram_weight = undefined;
   formData.description = '';
   formData.is_active = true;
   formRef.value?.clearValidate();
@@ -317,6 +364,9 @@ watch(
             : undefined;
         formData.meters_per_roll =
           props.rowData.meters_per_roll != null ? Number(props.rowData.meters_per_roll) : undefined;
+        formData.width = props.rowData.width != null ? Number(props.rowData.width) : undefined;
+        formData.gram_weight =
+          props.rowData.gram_weight != null ? Number(props.rowData.gram_weight) : undefined;
       }
     }
   }
