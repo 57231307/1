@@ -74,7 +74,7 @@ fn ap_rows_of(
 ) -> Vec<(&'static str, &'static str)> {
     let mut picked: Vec<(&str, &str)> = rows
         .iter()
-        .filter(|(_, res, _)| AP_RESOURCES.contains(res))
+        .filter(|(r, res, _)| *r == role && AP_RESOURCES.contains(res))
         .map(|(_, res, act)| (*res, *act))
         .collect();
     picked.sort_unstable();
