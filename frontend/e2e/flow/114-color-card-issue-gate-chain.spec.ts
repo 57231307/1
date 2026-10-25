@@ -19,14 +19,10 @@ import {
  * 发放记录导出口、发放明细导出口、客户台账口、订单关联口均为零覆盖。
  * 本 spec 把这些口钉成真实门禁判定加零漂移回读链。
  *
- * 载体限制（读遍后端源得出的事实，不是本用例的放宽）。色卡主表 stock_quantity 在整个后端
- * 只有建卡时写 0（services/color_card_crud_service.rs 的 create），改卡 DTO 无该列，
- * 没有任何端点能把库存补上，也没有任何种子写非零值。而发放闸门 2 要求可用数
- * （stock_quantity 减 issued_quantity）不少于发放数量且发放数量必须大于 0，
- * 于是发放成功路径在任何 e2e 载体上都不可达，发放表恒为 0 行。
- * 因此本 spec 对发放口与依赖发放记录的改判口与成本口与台账口与订单关联口
- * 一律钉"真实拒绝分支加零推进"，并在头部把不可达点名出来，不做静默跳过，
- * 也不伪造一条成功断言。发放正向与终态改判由后端集成测试覆盖（那里按库直插 stock_quantity）。
+ * 本 spec 只覆盖拒绝分支与读口。库存登记入口（PUT /color-cards/:id 的 stock_quantity）
+ * 已经存在，发放成功路径由同批库存登记与发放链路用例覆盖，因此本 spec 不假设发放表为空：
+ * 全表行数只作本用例内零漂移的基线，无记录前置一律用不存在的主键证明，
+ * 明细口按页大小口径对账，不按全表绝对 0 判定。
  *
  * 契约真相（逐段读后端源，非推测）：
  * 发放口（handlers/color_card/issue.rs 与 services/color_card_issue_service.rs）：
@@ -52,7 +48,7 @@ import {
  * 三枚口都先按发放记录主键取行，取不到即 404，文案含记录号但出参走脱敏 not_found，
  * 故只钉码。恢复口的出参在记录存在且状态非 cancelled 时走 business 拒绝，
  * 结转口对 cancelled 记录拒绝，过期损失口只对 issued 记录核算——三枚门都以发放记录为前置，
- * 在本载体上统一钉"无记录即 404 且发放表仍 0 行"。
+ * 在本 spec 上统一钉"无记录即 404 且发放表行数零漂移"。
  * 导出口（handlers/color_card/issue.rs 与 analytics.rs）：
  * 两枚出口都是 xlsx 二进制流，与发放表行数无关，0 行也产出带表头的合法工作簿，
  * content-type 为 spreadsheetml.sheet，下载名带 .xlsx，响应体是 zip 容器（头两字节 50 4B）。
@@ -145,10 +141,6 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
   }) => {
     const tag = genCode('ISS114A');
     const totalBefore = await issueTotal(page);
-    expect(
-      totalBefore,
-      '发放表在本载体必须为 0 行（非 0 说明色卡库存出现了 HTTP 写入口，应改写本用例走正向）'
-    ).toBe(0);
 
     // 前置：自建客户（信用额度为正且状态 active，使闸门 3 与 5 不是拒绝原因）与自建草稿卡
     const customer = await apiCallRaw<Row>(page, 'POST', '/crm/customers', {
@@ -381,8 +373,8 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       `损坏缺体必须 404（OptionalJson 归一后走取记录），实际 ${damagedNoBody.status}`
     ).toBe(404);
 
-    // 9) 十次拒绝之后发放表仍 0 行，一张改判记录都没被"写出来"
-    expect(await issueTotal(page), '全部拒绝分支之后发放表必须仍为 0 行').toBe(totalBefore);
+    // 9) 十次拒绝之后发放表行数必须与基线同值，一张改判记录都没被"写出来"
+    expect(await issueTotal(page), '全部拒绝分支之后发放表行数必须与基线同值').toBe(totalBefore);
   });
 
   test('T3 三枚成本口无记录即 404 制作成本口按色号数真算 两枚导出口真取 xlsx 字节', async ({
@@ -390,9 +382,8 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
   }) => {
     const tag = genCode('ISS114C');
 
-    // 前置证明：无发放行（结转与恢复与过期损失三口的记录级门都以发放行为前置）
-    const totalBefore = await issueTotal(page);
-    expect(totalBefore, '成本口测试要求发放表为 0 行').toBe(0);
+    // 前置证明：探测主键无发放行（结转与恢复与过期损失三口的记录级门都以发放行为前置），
+    // 故三枚口对探测主键必须 404；不按全表行数判定，同分片其他用例可能已有历史发放行。
 
     // 1) 结转口无记录必须 404（取记录先于色卡取数，故拒绝来自记录缺失而非库存）
     const transfer = await apiCallExpectFail(
@@ -537,7 +528,11 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
       Array.isArray(detailList),
       `发放明细报表口必须回数组，实际 ${JSON.stringify(detailList)}`
     ).toBe(true);
-    expect(detailList.length, '发放明细在无发放行时必须为 0 行').toBe(0);
+    const detailTotal = await issueTotal(page);
+    expect(
+      detailList.length,
+      '发放明细首屏行数必须等于全量发放行数与页大小的较小值（明细与列表同一份 rows）'
+    ).toBe(Math.min(detailTotal, 20));
     const detailExport = await page.request.get(apiUrl('/color-cards/reports/issue-detail/export'));
     expect(detailExport.status(), `明细导出应 200，实际 ${detailExport.status()}`).toBe(200);
     const deBytes = await detailExport.body();

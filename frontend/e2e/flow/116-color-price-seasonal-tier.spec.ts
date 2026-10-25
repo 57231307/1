@@ -402,7 +402,7 @@ test.describe.serial('116 色卡价格附属表链', () => {
     );
     expect(str(afterPut.rule_name), '改后 rule_name 必须等于提交原文').toBe(`116夏涨改${tag}`);
     expect(toNum(afterPut.adjustment_value), '改后 adjustment_value 必须落 0.15').toBe(0.15);
-    expect(afterPut.is_active === false, `改后 is_active 必须翻假（PUT 是唯一停用口）`).toBe(false);
+    expect(afterPut.is_active === false, `改后 is_active 必须翻假（PUT 是唯一停用口）`).toBe(true);
     expect(str(afterPut.season), '只改三列不许动 season').toBe('SS');
     expect(str(afterPut.adjustment_type), '只改三列不许动 adjustment_type').toBe('percentage');
 
@@ -747,11 +747,11 @@ test.describe.serial('116 色卡价格附属表链', () => {
     expect(
       created.approved_by === null,
       `approved_by 初态必须由 handler 写 null，实际 ${String(created.approved_by)}`
-    ).toBe(null);
+    ).toBe(true);
     expect(
       created.approved_at === null,
       `approved_at 初态必须由 handler 写 null，实际 ${String(created.approved_at)}`
-    ).toBe(null);
+    ).toBe(true);
 
     // 列表口回读（专属价没有对象口 按四元组里的 customer 维度过滤后逐列对表）
     const list = await apiCallRaw<PagedEnvelope<CustomerSpecialRow>>(

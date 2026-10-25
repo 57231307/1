@@ -280,11 +280,11 @@ test.describe.serial('115 色卡价格族链', () => {
     expect(
       created.approved_by === null,
       `建价 approved_by 初态必须为 null，实际 ${String(created.approved_by)}`
-    ).toBe(null);
+    ).toBe(true);
     expect(
       created.approved_at === null,
       `建价 approved_at 初态必须为 null，实际 ${String(created.approved_at)}`
-    ).toBe(null);
+    ).toBe(true);
     const createdReadback = await readPrice(page, Number(created.id));
     expect(str(createdReadback.notes), '建价 notes 必须回读提交原文').toBe(`115初建${tag}`);
 
@@ -426,7 +426,7 @@ test.describe.serial('115 色卡价格族链', () => {
     expect(
       afterDelete.is_active === false,
       `软删后 is_active 必须为假，实际 ${String(afterDelete.is_active)}`
-    ).toBe(false);
+    ).toBe(true);
     expect(
       str(afterDelete.approval_status),
       '软删不许动审批态（保持 APPROVED）'
@@ -444,7 +444,7 @@ test.describe.serial('115 色卡价格族链', () => {
     expect(
       afterReDelete.is_active === false,
       `被拒的重复删除不许把 is_active 翻回真，实际 ${String(afterReDelete.is_active)}`
-    ).toBe(false);
+    ).toBe(true);
 
     // 12) 不存在主键的三个读口与两个写口一律 404
     const getMissing = await apiCallExpectFail(page, 'GET', `/color-prices/${ABSENT_PROBE_ID}`);
@@ -540,11 +540,11 @@ test.describe.serial('115 色卡价格族链', () => {
     expect(
       p2After.approved_by === null,
       `P2 pending 分支不许写审批人，实际 ${String(p2After.approved_by)}`
-    ).toBe(null);
+    ).toBe(true);
     expect(
       p2After.approved_at === null,
       `P2 pending 分支不许写审批时间戳，实际 ${String(p2After.approved_at)}`
-    ).toBe(null);
+    ).toBe(true);
 
     const p3After = await readPrice(page, Number(p3.id));
     expect(
@@ -576,7 +576,7 @@ test.describe.serial('115 色卡价格族链', () => {
     expect(
       p2Last.approved_by === null,
       `P2 pending 历史行的审批位必须为 null，实际 ${String(p2Last.approved_by)}`
-    ).toBe(null);
+    ).toBe(true);
 
     // 4) 非法 adjust_type 走同批一合法加一非法证明整笔不落
     //    新建 P5 用于承载合法项，非法项引用同一条 P5（先建 让 fetch_prices_map 通过）
@@ -795,7 +795,7 @@ test.describe.serial('115 色卡价格族链', () => {
     expect(
       p3AfterBadDecision.approved_by === null,
       `非法决定被拒后不许写审批人，实际 ${String(p3AfterBadDecision.approved_by)}`
-    ).toBe(null);
+    ).toBe(true);
 
     // 6) P3 走正常 REJECTED 拒绝 保留 base_price 300 与 approval_status REJECTED
     const rejectP3 = await apiCallRaw<ColorPriceDetailRow>(
