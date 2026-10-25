@@ -87,7 +87,7 @@ async function readCard(page: Page, cardId: number): Promise<CardReadback> {
  * 入参是已登录的 page 与卡名，返回行定位器，交给调用方用例点行内入口，不持久化。
  * 先用关键词筛选把表压到一行，不依赖新建行落在第几页第几行，避开翻页与排序漂移带来的偶发失败。
  * 注意：搜索框占位写「卡号 / 卡名」，但后端 list 的 keyword 只 LIKE card_name
- * （color_card_crud_service.rs:122-126，主干既有实现），填卡号恒查空，故这里必须填卡名。
+ * （color_card_crud_service.rs 的 list 过滤，主干既有实现），填卡号恒查空，故这里必须填卡名。
  * 卡名由本用例自建且含唯一 tag，可精确命中单行。
  */
 async function locateCardRow(page: Page, cardName: string) {
