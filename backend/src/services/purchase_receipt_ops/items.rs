@@ -161,6 +161,17 @@ impl PurchaseReceiptService {
 
         // 5. 更新明细（update_with_audit 传 &txn 纳入事务，保证原子性）
         let linked_order_item_id = item.order_item_id;
+        // 行金额必须按本次生效后的数量与单价重算：建行的 amount 是 quantity 乘 unit_price
+        // 的派生值（建单入口同口径），本方法改了数量或单价却不写回 amount，
+        // 单头 total_amount 走 calculate_receipt_total_txn 汇总的是行 amount，
+        // 会停在旧值与明细脱钩，属出错误账的静默不一致。
+        // 生效值语义：quantity 与 unit_price 都是三态，None 保持原值、
+        // Some(None) 显式清空、Some(Some(v)) 覆盖；单价为空按 0 计，与建行口径一致。
+        let effective_quantity = req.quantity.flatten().unwrap_or(item.quantity);
+        let effective_unit_price = match req.unit_price {
+            Some(v) => v,
+            None => item.unit_price,
+        };
         let mut item_active: purchase_receipt_item::ActiveModel = item.into();
 
         // DTO 声明的字段必须逐项落地：原实现只应用数量/辅助数量/单价/备注，
@@ -231,6 +242,11 @@ impl PurchaseReceiptService {
         if let Some(unit_price) = req.unit_price {
             item_active.unit_price = Set(unit_price);
         }
+        // 行金额随生效后的数量与单价写回（DB 可空列，写 Some(派生值)），
+        // 其后 calculate_receipt_total_txn 汇总行 amount，即与各行数量乘单价之和同值
+        item_active.amount = Set(Some(
+            effective_quantity * effective_unit_price.unwrap_or_else(|| Decimal::new(0, 0)),
+        ));
         if let Some(notes) = req.notes {
             item_active.notes = Set(notes);
         }

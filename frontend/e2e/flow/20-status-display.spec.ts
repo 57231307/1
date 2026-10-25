@@ -34,7 +34,9 @@ test.describe('前端状态显示与业务逻辑验证', () => {
         break;
       }
     }
-    expect(statusColIdx, '[状态映射] 未定位到"订单状态"列').toBeGreaterThanOrEqual(0);
+    // 定位循环以 text==='订单状态' 逐字符相等取列，未命中时 statusColIdx 保持 -1：
+    // 判负一列缺失或表头文案漂移，属真实缺陷而非用例问题
+    expect(statusColIdx, '[状态映射] 未定位到"订单状态"列（表头逐字符匹配失败）').not.toBe(-1);
 
     const bodyRows = page.locator('.el-table__body-wrapper .el-table__row');
     const rowCount = await bodyRows.count();

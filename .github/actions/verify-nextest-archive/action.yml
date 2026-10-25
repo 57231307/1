@@ -31,14 +31,17 @@ runs:
           exit 0
         fi
         echo "::warning::nextest 归档 zstd 校验失败（多为下载或上传截断），按 run id 重取一次"
-        AID=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+        # 三个取数通道都带重试，避免一次连接重置被 bash 直接传导成 job 失败
+        # （实测 3.6 亿字节归档两次传输均断连，无重试时 curl 的 rc 即本步退出码，
+        # 判红被记成"归档坏"，而真相是下载截断）
+        AID=$(curl -sS --retry 3 --retry-delay 5 --retry-all-errors -H "Authorization: Bearer $GH_TOKEN" \
           "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
           | python3 -c "import sys,json;a=json.load(sys.stdin).get('artifacts',[]);print(next((x['id'] for x in a if x['name']=='$ARTIFACT_NAME'),''))")
         if [ -z "$AID" ]; then
           echo "::error::制品缺失：本 run 找不到 $ARTIFACT_NAME（上游 ci-build-test-artifacts 未产出）"
           exit 1
         fi
-        LOC=$(curl -sS -o /dev/null -w '%{redirect_url}' -H "Authorization: Bearer $GH_TOKEN" \
+        LOC=$(curl -sS --retry 3 --retry-delay 5 --retry-all-errors -o /dev/null -w '%{redirect_url}' -H "Authorization: Bearer $GH_TOKEN" \
           "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip")
         if [ -z "$LOC" ]; then
           echo "::error::制品下载地址解析失败（artifact $AID 无重定向）"
@@ -46,7 +49,20 @@ runs:
         fi
         STAGE=/tmp/nxa-$$
         rm -rf "$STAGE" && mkdir -p "$STAGE"
-        curl -sSL "$LOC" -o "$STAGE/art.zip"
+        # 下载失败与归档损坏要分开定性，所以这里显式取退出码点名网络面，不让它当本步结果
+        curl -sSL --retry 3 --retry-delay 5 --retry-all-errors -f "$LOC" -o "$STAGE/art.zip"
+        DL_RC=$?
+        if [ "$DL_RC" -ne 0 ]; then
+          echo "::error::制品重取下载失败（网络面，rc=$DL_RC，已重试 3 次），不属归档内容损坏"
+          rm -rf "$STAGE"
+          exit 1
+        fi
+        # 解包前先验 zip 自身完整性，截断的 zip 走"下载截断"分支而不是半解包后再报缺文件
+        if ! python3 -c "import sys,zipfile;z=zipfile.ZipFile(sys.argv[1]);bad=z.testzip();sys.exit(1 if bad else 0)" "$STAGE/art.zip"; then
+          echo "::error::制品重取后 zip 完整性校验失败（下载截断形态），不落盘解包"
+          rm -rf "$STAGE"
+          exit 1
+        fi
         python3 -c "import sys,zipfile;zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$STAGE/art.zip" "$STAGE"
         if [ ! -f "$STAGE/$ART" ]; then
           echo "::error::重取的 zip 里没有 $ART，实际内容: $(ls "$STAGE")"

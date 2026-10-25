@@ -71,28 +71,86 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
     await loginViaUI(page);
   });
 
-  test('44e-1 流转卡：非法跳转负例（flow_card_service.rs:66-91 转换表）', async ({ page }) => {
-    // pending 不能直跳 dyeing/completed/shipped；scheduled 不能直跳 completed
-    for (const [from, to] of [
-      ['pending', 'dyeing'],
-      ['pending', 'completed'],
-      ['scheduled', 'completed'],
-      ['dyeing', 'shipped'],
-    ] as const) {
-      const r = await apiCallExpectFail(page, 'POST', '/production/flow-cards/1/transition', {
-        from_status: from,
-        to_status: to,
-      });
-      // 端点存在性由 404 排除：非 404 且 >=400 即业务拒绝（状态门）
-      if (r.status !== 404) {
-        expectBusinessRejection(r, `流转卡 ${from}→${to} 非法跳转应被拒`);
+  test('44e-1 流转卡：pending 卡调六个越界动作全部被状态门拒绝且状态零漂移', async ({ page }) => {
+    // 流转卡没有泛化的 /transition 端点，状态门挂在各动作端点上：
+    // 每个动作自己声明目标态，服务端拿库里的真实状态去比对转换表，
+    // 因此负例必须打真实动作端点，且被拒后要回读确认状态没被改动
+    await ensureTestEntities(page);
+    const ctx = getCtx();
+    const productId = ctx.productIds[0];
+    if (!productId) {
+      throw new Error('44e-1 前置失败：ctx.productIds 为空（ensureTestEntities 未补齐产品基数）');
+    }
+    const order = await apiCall<{ id?: number }>(
+      page,
+      'POST',
+      '/production/production-orders/orders',
+      {
+        product_id: productId,
+        planned_quantity: 100,
       }
+    );
+    const orderId = order.data?.id;
+    expect(
+      orderId,
+      `前置生产工单应返回 data.id，实际响应：${JSON.stringify(order).slice(0, 300)}`
+    ).toBeTruthy();
+    CLEANUP.push({
+      path: `/production/production-orders/orders/${orderId}`,
+      label: '[44e-1] 工单',
+    });
+
+    const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+      production_order_id: orderId,
+    });
+    const cardId = card.data?.id;
+    expect(
+      cardId,
+      `流转卡建单应返回 data.id，实际响应：${JSON.stringify(card).slice(0, 300)}`
+    ).toBeTruthy();
+    CLEANUP.push({ path: `/production/flow-cards/${cardId}`, label: '[44e-1] 流转卡' });
+
+    const created = await apiCallRaw<{ status?: string; production_order_id?: number }>(
+      page,
+      'GET',
+      `/production/flow-cards/${cardId}`
+    );
+    expect(created.status, '新建流转卡的初始状态由服务端定为 pending').toBe('pending');
+    expect(created.production_order_id, '流转卡应挂在提交的生产工单上').toBe(orderId);
+
+    // pending 的合法出边只有 scheduled 与 terminated，其余动作端点全部越界
+    const illegal = [
+      { action: 'start-preparing', to: 'preparing' },
+      { action: 'start-dyeing', to: 'dyeing' },
+      { action: 'complete-dyeing', to: 'dyed' },
+      { action: 'start-inspecting', to: 'inspecting' },
+      { action: 'complete', to: 'completed' },
+      { action: 'ship', to: 'shipped' },
+    ] as const;
+    for (const t of illegal) {
+      const r = await apiCallExpectFail(
+        page,
+        'POST',
+        `/production/flow-cards/${cardId}/${t.action}`
+      );
+      expectBusinessRejection(r, `pending 流转卡调 ${t.action}（目标态 ${t.to}）应被状态门拒绝`);
+      // 流转卡状态门走 AppError::business，对外文案按本仓脱敏口径恒为固定常量「业务处理失败」，
+      // 越界动作与真实当前态只进 backend.log 的 detail（与 31b 与 44f 同口径）。
+      // 这里锁"文案不得把内部转换表外显"，真因由下面的状态零漂移回读证明。
+      expect(
+        r.message ?? '',
+        `流转卡状态门出参须走脱敏常量，实际 message=${r.message ?? '(none)'}`
+      ).toBe('业务处理失败');
+      const after = await apiCallRaw<{ status?: string }>(
+        page,
+        'GET',
+        `/production/flow-cards/${cardId}`
+      );
+      expect(after.status, `${t.action} 被拒后状态应仍是 pending（零漂移）`).toBe('pending');
     }
   });
 
-  test('44e-2 销售订单：shipped 修改/删除被拒（order_crud.rs:599-608,697-702）', async ({
-    page,
-  }) => {
+  test('44e-2 销售订单：提交与取消链路的状态落库与重复动作拒绝', async ({ page }) => {
     await ensureTestEntities(page);
     const ctx = getCtx();
     const so = await apiCall<{ id?: number }>(page, 'POST', '/sales/orders', {
@@ -101,14 +159,53 @@ test.describe.serial('44e 扩展状态机负例（9 状态机）', () => {
       items: [{ product_id: ctx.productIds[0], quantity: 1, unit_price: '1.00' }],
     });
     const id = so?.data?.id;
-    expect(id, 'SO 创建失败').toBeTruthy();
+    expect(
+      id,
+      `销售订单建单应返回 data.id，实际响应：${JSON.stringify(so).slice(0, 300)}`
+    ).toBeTruthy();
     CLEANUP.push({ path: `/sales/orders/${id}`, label: '[44e-2] SO' });
-    // draft 态可删（对照）；构造 shipped 态需要完整发货链——此处验证 draft 删除接口可达性+审批态保护
-    const sub = await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
-    expect([200, 0]).toContain((sub as { code?: number })?.code ?? 200);
-    // 审批后取消接口存在性验证
-    const r = await apiCallExpectFail(page, 'POST', `/sales/orders/${id}/cancel`);
-    void r;
+
+    // 单号由服务端取号（建单 DTO 里没有 order_no 字段），回读只校验形态不比对提交值
+    const created = await apiCallRaw<{ order_no?: string; status?: string }>(
+      page,
+      'GET',
+      `/sales/orders/${id}`
+    );
+    expect(created.order_no, '单号形态应为 SO+8位日期+至少3位流水').toMatch(/^SO\d{11,}$/);
+    expect(created.status, '建单初始状态应为 draft').toBe('draft');
+
+    await apiCall(page, 'POST', `/sales/orders/${id}/submit`);
+    const submitted = await apiCallRaw<{ status?: string; approved_by?: number | null }>(
+      page,
+      'GET',
+      `/sales/orders/${id}`
+    );
+    expect(submitted.status, '提交后状态应落到 pending').toBe('pending');
+    expect(submitted.approved_by, '提交不写审批人审计列，应仍为 null').toBeNull();
+
+    // 重复提交被状态门拒绝，且拒绝后不得把已提交单子改回草稿或推进到别态
+    const dup = await apiCallExpectFail(page, 'POST', `/sales/orders/${id}/submit`);
+    expectBusinessRejection(dup, '已提交订单重复提交应被状态门拒绝');
+    expect(
+      dup.message ?? '',
+      `拒绝文案应点名只有草稿可提交，实际 message=${dup.message ?? '(none)'}`
+    ).toContain('只有草稿状态的订单可以提交');
+    const afterDup = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
+    expect(afterDup.status, '重复提交被拒后状态应仍是 pending（零漂移）').toBe('pending');
+
+    // pending 在允许的取消前置集合内，这条是合法路径而不是负例
+    await apiCall(page, 'POST', `/sales/orders/${id}/cancel`);
+    const cancelled = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
+    expect(cancelled.status, '取消后状态应为 cancelled').toBe('cancelled');
+
+    const again = await apiCallExpectFail(page, 'POST', `/sales/orders/${id}/cancel`);
+    expectBusinessRejection(again, '已取消订单重复取消应被状态门拒绝');
+    expect(
+      again.message ?? '',
+      `拒绝文案应点名当前状态不允许取消，实际 message=${again.message ?? '(none)'}`
+    ).toContain('不允许取消');
+    const afterAgain = await apiCallRaw<{ status?: string }>(page, 'GET', `/sales/orders/${id}`);
+    expect(afterAgain.status, '重复取消被拒后状态应仍是 cancelled（零漂移）').toBe('cancelled');
   });
 
   test('44e-3 采购收货：重复确认被拒（purchase_receipt_ops/state.rs:24-33 仅 DRAFT 可确认）', async ({

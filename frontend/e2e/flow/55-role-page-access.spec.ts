@@ -311,9 +311,13 @@ test.describe('正向：有权岗位看得到真实数据（非 assertPageHealth
       const rows = parseListRows(data, `${role}→/inventory/pieces`);
       const total = listTotal(data);
       expect(
-        total,
+        typeof total,
         `${role}→/inventory/pieces：分页信封应含数值 total（证明已过权限门、非 403 直出体）`
-      ).toBeGreaterThanOrEqual(0);
+      ).toBe('number');
+      expect(
+        total,
+        `${role}→/inventory/pieces：PaginatedResponse 口径 total(${total}) 不得小于本页实读行数(${rows.length})`
+      ).toBeGreaterThanOrEqual(rows.length);
       console.error(
         `[55-role][已知较弱正向] ${role} /inventory/pieces rows=${rows.length} total=${total} ——` +
           `该岗仅 pieces:read 且无 pieces:create，受 CreatedBy 行级过滤限制，rows>=1 不作硬断言。`

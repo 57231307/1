@@ -183,7 +183,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/production/dye-recipes?page=1&page_size=1'
     );
     if (recipeList.items?.length > 0) {
-      const recipe = recipeList.items?.[0];
+      const recipe = recipeList.items[0];
       // 染色配方用 color_code
       expect(recipe.color_code !== undefined || recipe.color_no !== undefined).toBe(true);
     }
@@ -195,8 +195,17 @@ test.describe('面料单据专用字段全链路验证', () => {
       '/inventory/transfers?page=1&page_size=1'
     );
     if (transferList.items?.length > 0) {
-      // 调拨明细可能有 color_no
-      expect(true).toBe(true);
+      // 调拨列表响应形状是真断言面：items 必须是数组且每行主键可解析；面料列是否露出记为现状。
+      expect(Array.isArray(transferList.items), '库存调拨列表应返回 items 数组').toBe(true);
+      for (const row of transferList.items) {
+        expect(
+          Number.isFinite(Number(row.id)),
+          `调拨行主键应为有限数值: ${JSON.stringify(row.id)}`
+        ).toBe(true);
+      }
+      console.log(
+        `[21e][UI 现状] 调拨列表 ${transferList.items?.length ?? 0} 行，面料列露出情况由后端字段核对覆盖`
+      );
     }
   });
 
@@ -205,9 +214,14 @@ test.describe('面料单据专用字段全链路验证', () => {
   // ============================================================
   test('UI 缺失记录：销售订单列表无面料列', async ({ page }) => {
     await page.goto(`${BASE_URL}/sales`);
-    await page.waitForTimeout(3000);
 
-    const headers = page.locator('.el-table__header th, .el-table__header-wrapper th');
+    // 销售订单列表由 V2Table（el-table-v2 虚拟表格）渲染：表头单元格落在
+    // .el-table-v2__header-cell（无障碍角色 columnheader），旧 el-table 的
+    // .el-table__header th 在本页恒不存在，等它等于必超时。
+    const headers = page.locator('.el-table-v2__header-cell');
+    // 列表表头是真渲染出来的，不是固定等待几秒就能撞上：CI 上 workers=3 并发时
+    // 首屏渲染常慢过 3 秒，固定 sleep 会让下面的计数拿到 0 而误报"表头没渲染"。
+    await headers.first().waitFor({ state: 'visible', timeout: 30_000 });
     const headerCount = await headers.count();
     const headerTexts: string[] = [];
     for (let i = 0; i < headerCount; i++) {
@@ -220,9 +234,11 @@ test.describe('面料单据专用字段全链路验证', () => {
     const hasGramWeight = headerTexts.some(h => h.includes('克重'));
     const hasWidth = headerTexts.some(h => h.includes('幅宽'));
 
-    // 当前销售订单列表不显示面料字段（这是改进点）
-    // 测试记录现状，后续前端补齐后可改为 expect(true)
-    expect(true).toBe(true);
+    // 表头必须真取到（空表头会让上面的 some 判定全为假却看不见）；面料列缺失是改进点，记现状不锁死为期望。
+    expect(headerTexts.length, '销售订单列表应渲染出表头文本').toBeGreaterThan(0);
+    console.warn(
+      `[21e][UI 现状] 销售订单列表面料列缺失 色号=${!hasColorNo} 缸号=${!hasDyeLotNo} 克重=${!hasGramWeight} 幅宽=${!hasWidth}`
+    );
   });
 
   test('UI 缺失记录：库存调拨表单无面料字段', async ({ page }) => {
@@ -251,8 +267,11 @@ test.describe('面料单据专用字段全链路验证', () => {
       const hasDyeLotNo = dialogText?.includes('缸号');
       const hasBatchNo = dialogText?.includes('批次');
 
-      // 后端有 color_no/dye_lot_no/batch_no 但前端表单可能未显示
-      expect(true).toBe(true); // 记录现状
+      // 表单必须真渲染出内容；面料三字段是否露出属改进点，显式记录，不写恒真也不反向锁死。
+      expect((dialogText ?? '').trim().length, '库存调拨表单应渲染出可见文本').toBeGreaterThan(0);
+      console.warn(
+        `[21e][UI 现状] 调拨表单面料字段露出 色号=${!!hasColorNo} 缸号=${!!hasDyeLotNo} 批次=${!!hasBatchNo}`
+      );
 
       await page.locator('.el-dialog__headerbtn').first().click();
     }

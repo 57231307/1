@@ -265,7 +265,11 @@ export function useVchrLst() {
     }));
 
   /** 提交表单（新增/编辑） */
-  const handleSubmit = async () => {
+  /** 提交在途锁：建单与改单都要连写表头与分录，第二下并发进入就会落两套分录 */
+  const submitting = ref(false);
+
+  /** 校验通过后写凭证；只由 handleSubmit 调用，在途判定与释放都在外层 */
+  const submitVoucherForm = async () => {
     if (!form.voucher_no || !form.voucher_date) {
       msg.warning('requiredFieldsMissing');
       return false;
@@ -313,6 +317,17 @@ export function useVchrLst() {
       logger.error('操作失败', error);
       msg.error('operationFailed');
       return false;
+    }
+  };
+
+  /** 提交入口：在途期间直接拒绝第二次进入，无论校验早退还是异常，都在 finally 里释放 */
+  const handleSubmit = async () => {
+    if (submitting.value) return false;
+    submitting.value = true;
+    try {
+      return await submitVoucherForm();
+    } finally {
+      submitting.value = false;
     }
   };
 
@@ -369,6 +384,7 @@ export function useVchrLst() {
     openAddDialog,
     openEditDialog,
     handleSubmit,
+    submitting,
     addEntry,
     removeEntry,
     openViewDialog,

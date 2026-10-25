@@ -8,6 +8,7 @@ import {
   getCtx,
   verifyAuditLog,
   ensureTestEntities,
+  ensureBudgetPlan,
 } from './helpers';
 
 test.describe('成本核算完整流程', () => {
@@ -307,25 +308,56 @@ test.describe('成本核算完整流程', () => {
       expect(['yellow', 'red']).toContain(w.warning_level);
     }
 
-    // 查询预算列表
-    const budgets = await apiCallRaw<{ items: Array<{ id: number; status: string }> }>(
-      page,
-      'GET',
-      '/budgets?page=1&page_size=5'
-    );
+    // 预算控制读回：GET /budgets/control/{id} 的入参语义是方案 id（get_budget_control 按
+    // budget_plan 主键取整行并原样返回 budget_plan::Model），不是预算明细 id。
+    // 原写法把明细列表首行的 id 传进来、再套双层 if：明细表为空整段静默跳过（恒绿假象），
+    // 非空时靠明细 id 与方案 id 数字巧合读到另一条方案，断的 total_budget/total_executed
+    // 键根本不在出参上（parseFloat(undefined)=NaN 才能拦住，但那条在 if 内从不执行）。
+    // 现判据改为同一方案的跨端点真值一致：control 行与 GET /budgets/plans/{id} 详情逐字段相等，
+    // 并锁 control 自身契约键（id 回显、plan_no 非空、total_amount 可解析为有限数）。
+    const planId = await ensureBudgetPlan(page);
+    const control = await apiCallRaw<{
+      id: number;
+      plan_no: string;
+      plan_name: string;
+      budget_year: number;
+      total_amount: string | number;
+    }>(page, 'GET', `/budgets/control/${planId}`);
+    expect(
+      control.id,
+      `control 端点必须按方案 id 回读（原写法传明细 id 属同数字不同实体）：期望 ${planId}，实得 ${control.id}`
+    ).toBe(planId);
+    expect(
+      String(control.plan_no ?? ''),
+      `control 出参必须含非空 plan_no，实得键=${Object.keys(control)}`
+    ).not.toBe('');
+    expect(
+      Number.isFinite(Number(control.total_amount)),
+      `control.total_amount 必须可解析为有限数，raw=${JSON.stringify(control.total_amount)}`
+    ).toBe(true);
 
-    if (budgets.items && budgets.items.length > 0) {
-      const budget = budgets.items?.[0];
-      const control = await apiCallRaw<{
-        total_budget: string;
-        total_executed: string;
-        execution_rate: string;
-      }>(page, 'GET', `/budgets/control/${budget.id}`);
-
-      if (control) {
-        expect(parseFloat(control.total_budget)).toBeGreaterThanOrEqual(0);
-        expect(parseFloat(control.total_executed)).toBeGreaterThanOrEqual(0);
-      }
-    }
+    const detail = await apiCallRaw<{
+      id: number;
+      plan_no: string;
+      plan_name: string;
+      budget_year: number;
+      total_amount: string | number;
+    }>(page, 'GET', `/budgets/plans/${planId}`);
+    expect(
+      String(control.plan_no),
+      `同一方案的 control 与详情 plan_no 必须逐字符一致（control=${control.plan_no} / detail=${detail.plan_no}）`
+    ).toBe(String(detail.plan_no));
+    expect(
+      String(control.plan_name),
+      `同一方案的 control 与详情 plan_name 必须逐字符一致（control=${control.plan_name} / detail=${detail.plan_name}）`
+    ).toBe(String(detail.plan_name));
+    expect(
+      Number(control.total_amount),
+      `同一方案的 control 与详情 total_amount 必须同值（control=${control.total_amount} / detail=${detail.total_amount}）`
+    ).toBe(Number(detail.total_amount));
+    expect(
+      control.budget_year,
+      `同一方案的 control 与详情 budget_year 必须同值（control=${control.budget_year} / detail=${detail.budget_year}）`
+    ).toBe(detail.budget_year);
   });
 });

@@ -50,7 +50,13 @@ async function statusColumnTags(page: Page, table: 'purchase' | 'sales'): Promis
   const columnIndex = await headerCells.evaluateAll(cells =>
     cells.findIndex(c => /^(订单状态|Order Status)$/.test((c.textContent ?? '').trim()))
   );
-  expect(columnIndex, '采购列表表头中找不到「订单状态」列').toBeGreaterThanOrEqual(0);
+  // 主判据=该下标处表头文本逐字符命中双语词表；未找到时取到空串必红，索引即副证
+  const statusHeaderCell =
+    columnIndex >= 0 ? ((await headerCells.nth(columnIndex).textContent()) ?? '').trim() : '';
+  expect(
+    ['订单状态', 'Order Status'],
+    `采购列表第 ${columnIndex} 列表头必须逐字符为状态列词表成员，实得「${statusHeaderCell}」`
+  ).toContain(statusHeaderCell);
   const tags = rows.locator(`td:nth-child(${columnIndex + 1}) .el-tag`);
   await expect(tags.first(), '采购列表状态列未渲染出 el-tag').toBeVisible({ timeout: 30_000 });
   return tags;
