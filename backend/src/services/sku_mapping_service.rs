@@ -5,9 +5,10 @@
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
     FromQueryResult, JoinType, NotSet, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
-    RelationTrait, Set,
+    RelationTrait, Set, TransactionTrait,
 };
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::models::{
@@ -15,6 +16,7 @@ use crate::models::{
     supplier, supplier_product, supplier_product_color,
 };
 use crate::utils::error::AppError;
+use crate::utils::import_export::ImportError;
 use crate::utils::pagination::paginate_with_total;
 
 // =====================================================
@@ -121,6 +123,45 @@ pub struct ImportMappingResult {
     pub success_count: usize,
     pub error_count: usize,
     pub errors: Vec<crate::utils::import_export::ImportError>,
+}
+
+/// 批量新增结果（界面多行录入专用端点，与文件导入的 `ImportMappingResult` 语义分家）
+///
+/// 语义差异是有意为之，两条通路各自服务不同场景：
+/// - 文件导入 `import_batch`：UPSERT 幂等 + 逐行报告部分成功（5000 行闸），
+///   运维改数场景需要「好行先落、坏行点名」。
+/// - 批量新增 `batch_create`：INSERT only + **整批原子**，任一行不合格（含批内互撞、
+///   撞库中既有对照）整批零落库，`created_count` 只可能是 `total_count` 或 0。
+///   界面一次配几十到几百个色号时，用户要的是「要么全建好，要么一条都没建、
+///   并告诉我第几行哪里不对」，不是逐行吞错。
+///
+/// `errors[].row` 是请求 items 数组的 1 基行号（不是数据库行号，也不是文件物理行号），
+/// 前端按它把失败行与录入行一一对应；同一行可有多条 errors（多列不合格）。
+#[derive(Debug, Clone, Serialize)]
+pub struct BatchCreateMappingResult {
+    /// 提交行数
+    pub total_count: usize,
+    /// 实际落库行数（整批原子：等于 total_count 或 0）
+    pub created_count: usize,
+    /// 不合格的行数（按行去重，非错误条数）
+    pub failed_count: usize,
+    /// 逐行失败明细
+    pub errors: Vec<ImportError>,
+}
+
+impl BatchCreateMappingResult {
+    /// 由逐行失败明细构造「整批未写入」结果。
+    ///
+    /// `failed_count` 按行号去重计数（同一行可能多列不合格），绝不把错误条数当失败行数。
+    pub fn rejected(total_count: usize, errors: Vec<ImportError>) -> Self {
+        let failed_count = errors.iter().map(|e| e.row).collect::<HashSet<_>>().len();
+        Self {
+            total_count,
+            created_count: 0,
+            failed_count,
+            errors,
+        }
+    }
 }
 
 // =====================================================
@@ -257,6 +298,293 @@ impl SkuMappingService {
         })?;
 
         self.get(inserted.id).await
+    }
+
+    /// 批量新增对照（界面多行录入端点，整批原子）
+    ///
+    /// 调用方：`handlers::sku_mapping_handler::batch_create_mappings`（POST /sku-mappings/batch），
+    /// 入参是 handler 由请求体逐行转好的 `UpsertSkuMappingInput` 集合（十进制文本已在
+    /// handler 侧按行归因），`user_id` 落 created_by/updated_by。
+    ///
+    /// 执行次序（两阶段，缺一不可）：
+    /// 1. 事务外集合式校验（`collect_batch_failures`）：一次取回全部引用主键存在性与
+    ///    既有对照组合，再逐行内存比对。任一行不合格 → 直接返回 `created_count=0` 的
+    ///    拒绝结果，**不开事务、零写入**。
+    /// 2. 全部合格才 `begin` → `insert_many`（N 行合并为一条 INSERT，避免 N 次往返）→ `commit`。
+    ///    中途出错（含并发插队撞 `uq_psm_product_color_supplier`）时提前 return，
+    ///    未 commit 的事务随作用域结束回滚，整批不落库。
+    ///
+    /// 校验规则与单条 `validate_refs` 同五条引用规则，但实现分臂：单条臂逐行
+    /// `find_by_id`，批量臂按 id 全集一次取回。几百行录入若沿用逐行查库会放大成数千次
+    /// 往返；两臂规则成对一致由 tests/sku_mapping_batch_create_test.rs 的源码锁保证。
+    pub async fn batch_create(
+        &self,
+        rows: Vec<UpsertSkuMappingInput>,
+        user_id: i32,
+    ) -> Result<BatchCreateMappingResult, AppError> {
+        let total_count = rows.len();
+        if total_count == 0 {
+            return Err(AppError::validation_displayable("批量新增至少需要一行对照"));
+        }
+
+        let failures = self.collect_batch_failures(&rows).await?;
+        if !failures.is_empty() {
+            tracing::info!(
+                "SKU 对照表批量新增被拒绝：提交 {} 行，不合格 {} 行，整批未写入",
+                total_count,
+                failures.iter().map(|f| f.row).collect::<HashSet<_>>().len()
+            );
+            return Ok(BatchCreateMappingResult::rejected(total_count, failures));
+        }
+
+        let now = chrono::Utc::now();
+        let models: Vec<product_supplier_mapping::ActiveModel> = rows
+            .into_iter()
+            .map(|input| product_supplier_mapping::ActiveModel {
+                id: NotSet,
+                product_id: Set(input.product_id),
+                product_color_id: Set(input.product_color_id),
+                supplier_id: Set(input.supplier_id),
+                supplier_product_id: Set(input.supplier_product_id),
+                supplier_product_color_id: Set(input.supplier_product_color_id),
+                is_primary: Set(input.is_primary.unwrap_or(false)),
+                priority: Set(input.priority.unwrap_or(1)),
+                supplier_price: Set(input.supplier_price),
+                min_order_quantity: Set(input.min_order_quantity),
+                lead_time: Set(input.lead_time),
+                is_enabled: Set(input.is_enabled.unwrap_or(true)),
+                remarks: Set(input.remarks),
+                created_at: Set(now),
+                updated_at: Set(now),
+                created_by: Set(Some(user_id)),
+                updated_by: Set(Some(user_id)),
+            })
+            .collect();
+
+        let txn = (*self.db).begin().await?;
+        product_supplier_mapping::Entity::insert_many(models)
+            .exec(&txn)
+            .await
+            .map_err(|e| {
+                if is_unique_violation(&e) {
+                    // 前置查重已在同一连接上跑过，走到这里只可能是并发写入插队。
+                    // 不做「剔除冲突行、其余继续」：那会把整批原子语义降级成逐行吞错。
+                    AppError::business("批量新增未写入，存在与既有对照重复的行，请刷新对照表后重试")
+                } else {
+                    AppError::from(e)
+                }
+            })?;
+        txn.commit().await?;
+
+        tracing::info!("SKU 对照表批量新增落库完成，共 {} 行", total_count);
+        Ok(BatchCreateMappingResult {
+            total_count,
+            created_count: total_count,
+            failed_count: 0,
+            errors: Vec::new(),
+        })
+    }
+
+    /// 批量新增的集合式校验，产出逐行失败明细（`row` 为 1 基行号，同一行可多条）。
+    ///
+    /// 「行不合格」是本方法的正常产出（`Ok(Vec)`），不是错误；只有库读失败才返回 `Err`，
+    /// 由调用方归 DATABASE_ERROR 并留日志，绝不把查询失败拍平成「所有行都不合格」。
+    ///
+    /// 查询条数与行数无关：五条引用规则各一次 `IN (...)` 取全集 + 一次既有对照取全集，
+    /// 之后逐行只做内存比对（HashSet/HashMap 命中），因此一次几百行的校验仍是常数级往返。
+    async fn collect_batch_failures(
+        &self,
+        rows: &[UpsertSkuMappingInput],
+    ) -> Result<Vec<ImportError>, AppError> {
+        let product_ids = distinct_ids(rows.iter().map(|r| Some(r.product_id)));
+        let supplier_ids = distinct_ids(rows.iter().map(|r| Some(r.supplier_id)));
+        let supplier_product_ids = distinct_ids(rows.iter().map(|r| Some(r.supplier_product_id)));
+        let product_color_ids = distinct_ids(rows.iter().map(|r| r.product_color_id));
+        let supplier_color_ids = distinct_ids(rows.iter().map(|r| r.supplier_product_color_id));
+
+        // 1. 我方产品存在性（只投影主键：products 表有经 ALTER 加入的可空列但模型声明为非
+        //    Option，整行解码在稀疏行上会抛 ColumnDecode 被归一为 500；口径同 validate_refs）
+        let existing_products: HashSet<i32> = product::Entity::find()
+            .filter(product::Column::Id.is_in(product_ids.clone()))
+            .select_only()
+            .column(product::Column::Id)
+            .into_tuple::<i32>()
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .collect();
+
+        // 2. 供应商存在性（同上，只投影主键）
+        let existing_suppliers: HashSet<i32> = supplier::Entity::find()
+            .filter(supplier::Column::Id.is_in(supplier_ids.clone()))
+            .select_only()
+            .column(supplier::Column::Id)
+            .into_tuple::<i32>()
+            .all(&*self.db)
+            .await?
+            .into_iter()
+            .collect();
+
+        // 3. 供应商商品 id → 所属供应商 id（归属校验用，规则同 validate_refs 的
+        //    「供应商商品不属于指定的供应商」）
+        let supplier_product_owner: HashMap<i32, i32> = if supplier_product_ids.is_empty() {
+            HashMap::new()
+        } else {
+            supplier_product::Entity::find()
+                .filter(supplier_product::Column::Id.is_in(supplier_product_ids))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|sp| (sp.id, sp.supplier_id))
+                .collect()
+        };
+
+        // 4. 我方色号 id → 所属产品 id
+        let product_color_owner: HashMap<i32, i32> = if product_color_ids.is_empty() {
+            HashMap::new()
+        } else {
+            product_color::Entity::find()
+                .filter(product_color::Column::Id.is_in(product_color_ids))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|pc| (pc.id, pc.product_id))
+                .collect()
+        };
+
+        // 5. 供应商色号 id → 所属供应商商品 id
+        let supplier_color_owner: HashMap<i32, i32> = if supplier_color_ids.is_empty() {
+            HashMap::new()
+        } else {
+            supplier_product_color::Entity::find()
+                .filter(supplier_product_color::Column::Id.is_in(supplier_color_ids))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|spc| (spc.id, spc.supplier_product_id))
+                .collect()
+        };
+
+        // 6. 既有对照的自然键全集（对照唯一键 = product_id + product_color_id + supplier_id，
+        //    库侧由 uq_psm_product_color_supplier UNIQUE NULLS NOT DISTINCT 保证）。
+        //    取数按批内出现过的 (产品, 供应商) 组合过滤，行级比对在内存做，
+        //    不逐行 SELECT——那会把一次查重放大成与行数同量级的往返。
+        let existing_keys: HashSet<(i32, Option<i32>, i32)> =
+            product_supplier_mapping::Entity::find()
+                .filter(product_supplier_mapping::Column::ProductId.is_in(product_ids))
+                .filter(product_supplier_mapping::Column::SupplierId.is_in(supplier_ids))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|m| (m.product_id, m.product_color_id, m.supplier_id))
+                .collect();
+
+        let mut failures: Vec<ImportError> = Vec::new();
+        // 批内互撞：键 → 首次出现的行号，后续撞上的行点名「与本批第 N 行重复」
+        let mut first_row_of_key: HashMap<(i32, Option<i32>, i32), usize> = HashMap::new();
+
+        for (idx, row) in rows.iter().enumerate() {
+            let row_no = idx + 1;
+            let before = failures.len();
+            let key = (row.product_id, row.product_color_id, row.supplier_id);
+            let key_label = natural_key_label(&key);
+
+            if !existing_products.contains(&row.product_id) {
+                failures.push(row_failure(
+                    row_no,
+                    "product_id",
+                    "我方产品不存在",
+                    row.product_id.to_string(),
+                ));
+            }
+            if !existing_suppliers.contains(&row.supplier_id) {
+                failures.push(row_failure(
+                    row_no,
+                    "supplier_id",
+                    "供应商不存在",
+                    row.supplier_id.to_string(),
+                ));
+            }
+            match supplier_product_owner.get(&row.supplier_product_id) {
+                None => failures.push(row_failure(
+                    row_no,
+                    "supplier_product_id",
+                    "供应商商品不存在",
+                    row.supplier_product_id.to_string(),
+                )),
+                Some(owner) if *owner != row.supplier_id => failures.push(row_failure(
+                    row_no,
+                    "supplier_product_id",
+                    "供应商商品不属于所选供应商",
+                    row.supplier_product_id.to_string(),
+                )),
+                Some(_) => {}
+            }
+            if let Some(color_id) = row.product_color_id {
+                match product_color_owner.get(&color_id) {
+                    None => failures.push(row_failure(
+                        row_no,
+                        "product_color_id",
+                        "我方色号不存在",
+                        color_id.to_string(),
+                    )),
+                    Some(owner) if *owner != row.product_id => failures.push(row_failure(
+                        row_no,
+                        "product_color_id",
+                        "我方色号不属于所选产品",
+                        color_id.to_string(),
+                    )),
+                    Some(_) => {}
+                }
+            }
+            if let Some(supplier_color_id) = row.supplier_product_color_id {
+                match supplier_color_owner.get(&supplier_color_id) {
+                    None => failures.push(row_failure(
+                        row_no,
+                        "supplier_product_color_id",
+                        "供应商色号不存在",
+                        supplier_color_id.to_string(),
+                    )),
+                    Some(owner) if *owner != row.supplier_product_id => failures.push(row_failure(
+                        row_no,
+                        "supplier_product_color_id",
+                        "供应商色号不属于所选供应商商品",
+                        supplier_color_id.to_string(),
+                    )),
+                    Some(_) => {}
+                }
+            }
+
+            // 引用不成立的行不再判重：它的键本身不可信，报出去只会误导用户
+            if failures.len() != before {
+                continue;
+            }
+
+            match first_row_of_key.get(&key) {
+                // 批内互撞与撞库中既有行是两种成因，分开点名（修法不同：前者删掉重复行，
+                // 后者要么改色号要么改为编辑既有对照）
+                Some(first_row) => failures.push(row_failure(
+                    row_no,
+                    "product_color_id",
+                    format!("与本批第 {first_row} 行重复（同一我方产品、同一我方色号、同一供应商）"),
+                    key_label,
+                )),
+                None => {
+                    if existing_keys.contains(&key) {
+                        failures.push(row_failure(
+                            row_no,
+                            "product_color_id",
+                            "与已有对照重复（同一我方产品、同一我方色号、同一供应商已存在对照）",
+                            key_label,
+                        ));
+                    } else {
+                        first_row_of_key.insert(key, row_no);
+                    }
+                }
+            }
+        }
+
+        Ok(failures)
     }
 
     /// 更新对照
@@ -810,4 +1138,36 @@ impl SkuMappingService {
 fn is_unique_violation(err: &sea_orm::DbErr) -> bool {
     let msg = err.to_string().to_lowercase();
     msg.contains("unique") || msg.contains("duplicate key") || msg.contains("23505")
+}
+
+/// 收集去重后的引用主键全集（`None` = 该行该列未填，不参与 `IN (...)` 取数）。
+///
+/// 批量校验臂用它把「每行一次 SELECT」压成「每类引用一次 SELECT」，查询条数与行数无关。
+fn distinct_ids<I>(iter: I) -> Vec<i32>
+where
+    I: Iterator<Item = Option<i32>>,
+{
+    iter.flatten().collect::<HashSet<_>>().into_iter().collect()
+}
+
+/// 批量新增的行级失败明细（`row` 为请求 items 的 1 基行号，`column` 为请求体字段名）。
+///
+/// `message` 只描述用户自己提交的字段与公开业务规则（不含表名/约束名/他人数据/内部编号），
+/// `value` 回显用户提交的原值，供界面把失败行高亮到具体录入格。
+fn row_failure(row: usize, column: &str, message: impl Into<String>, value: impl Into<String>) -> ImportError {
+    ImportError {
+        row,
+        column: column.to_string(),
+        message: message.into(),
+        value: value.into(),
+    }
+}
+
+/// 自然键 `(product_id, product_color_id, supplier_id)` 的可读回显（重复类失败用它指出撞的是哪个组合）。
+fn natural_key_label(key: &(i32, Option<i32>, i32)) -> String {
+    let color = key
+        .1
+        .map(|id| id.to_string())
+        .unwrap_or_else(|| "未指定".to_string());
+    format!("产品 {} / 色号 {} / 供应商 {}", key.0, color, key.2)
 }

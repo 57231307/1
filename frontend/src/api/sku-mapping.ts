@@ -119,6 +119,27 @@ export interface SkuMappingImportResult {
   errors: SkuMappingImportError[];
 }
 
+/**
+ * 对齐后端 BatchCreateMappingsRequest（handlers/sku_mapping_handler.rs）：
+ * 每行与单条新建同形（后端行 DTO 就是 CreateMappingRequest），行号即 items 的 1 基下标，
+ * 上送体不带行号字段，避免「界面行序」与「上送行号」两套事实。
+ */
+export interface BatchCreateSkuMappingPayload {
+  items: CreateSkuMappingPayload[];
+}
+
+/**
+ * 对齐后端 BatchCreateMappingResult（services/sku_mapping_service.rs）。
+ * 整批原子：created_count 要么等于 total_count（全成），要么为 0（任一行不合格，零落库）。
+ * errors[].row 是 items 的 1 基下标，同一行可有多条（多列不合格）。
+ */
+export interface SkuMappingBatchResult {
+  total_count: number;
+  created_count: number;
+  failed_count: number;
+  errors: SkuMappingImportError[];
+}
+
 export function getSkuMappingList(
   params?: SkuMappingQueryParams
 ): Promise<ApiResponse<PaginatedResponse<SkuMapping>>> {
@@ -156,4 +177,14 @@ export function importSkuMappings(file: File): Promise<ApiResponse<SkuMappingImp
   return request.post('/purchase/sku-mappings/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+}
+
+/**
+ * 批量新增 SKU 对照（界面多行录入），POST /purchase/sku-mappings/batch。
+ * 后端整批原子：任一行不合格则零落库并在 data.errors 里逐行点名行号与字段。
+ */
+export function batchCreateSkuMappings(
+  data: BatchCreateSkuMappingPayload
+): Promise<ApiResponse<SkuMappingBatchResult>> {
+  return request.post('/purchase/sku-mappings/batch', data);
 }
