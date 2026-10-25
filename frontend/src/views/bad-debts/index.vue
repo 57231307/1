@@ -102,7 +102,12 @@
     </el-card>
 
     <el-dialog v-model="provisionVisible" title="运行坏账计提" width="460">
-      <el-form ref="provisionFormRef" :model="provisionForm" :rules="provisionRules" label-width="120px">
+      <el-form
+        ref="provisionFormRef"
+        :model="provisionForm"
+        :rules="provisionRules"
+        label-width="120px"
+      >
         <el-form-item label="计提年度" prop="period_year">
           <el-input v-model="provisionForm.period_year" class="w-full" inputmode="numeric" />
         </el-form-item>

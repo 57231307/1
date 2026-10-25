@@ -1,6 +1,6 @@
 {
   "note": "全项目禁步进数字输入框棘轮基线 开工时全库违规快照 只减不增 规则 tag=el-input-number 标签 hand=自造加减步进按钮",
-  "total": 311,
+  "total": 308,
   "files": {
     "src/components/AfterSalesPanel.vue": {
       "tag": 2,
@@ -31,11 +31,6 @@
       "tag": 1,
       "hand": 0,
       "count": 1
-    },
-    "src/views/accounting-period/tabs/PeriodListTab.vue": {
-      "tag": 3,
-      "hand": 0,
-      "count": 3
     },
     "src/views/advanced/components/AdvancedQualityPanel.vue": {
       "tag": 2,
