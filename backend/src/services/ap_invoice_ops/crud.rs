@@ -47,8 +47,11 @@ impl ApInvoiceService {
             }
         }
 
-        // 1. 生成应付单号
-        let invoice_no = self.generate_invoice_no().await?;
+        // 1. 生成应付单号（在本事务内取号）
+        // 前缀级 advisory 锁随本事务存活，号段占用到本事务提交才释放；
+        // 若改用自开事务形态取号，锁在内层事务提交时就消失，与下面的 INSERT 之间
+        // 存在并发窗口，两次并发建单会取到同一单号并撞 invoice_no 唯一约束。
+        let invoice_no = self.generate_invoice_no(&txn).await?;
 
         // 2. 创建应付单
         // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
