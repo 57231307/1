@@ -78,7 +78,8 @@ export interface SetCreditRatingInput {
   credit_level?: string | null;
   credit_score?: number | null;
   /** 信用额度：后端 Option<Decimal>，None=保持原值、Some(v)=显式设置（含 0） */
-  credit_limit?: number | null;
+  /** 额度线形态：控件侧是 number，提交前转十进制字符串；后端 Decimal 两种形态都接受 */
+  credit_limit?: string | number | null;
   credit_days?: number | null;
   /** 备注（后端校验 ≤500 字符）；后端键名是单数 remark，实体出参里根本没有备注键 */
   remark?: string | null;
@@ -99,7 +100,8 @@ export interface SetCreditRatingInput {
 export interface UpdateCustomerCreditInput {
   credit_level?: string | null;
   credit_score?: number | null;
-  credit_limit?: number | null;
+  /** 额度线形态：控件侧是 number，提交前转十进制字符串；后端 Decimal 两种形态都接受 */
+  credit_limit?: string | number | null;
   credit_days?: number | null;
   remark?: string | null;
 }

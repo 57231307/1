@@ -767,7 +767,7 @@ describe('客户信用列表页动作权限门与列表信封静态锁', () => {
       CREDIT_HANDLER_RS,
       '后端 list_credits 出参不再是 ApiResponse 包 PaginatedResponse，前端信封声明随之失效'
     ).toMatch(
-      /pub async fn list_credits\([\s\S]*?\) -> Result<Json<ApiResponse<PaginatedResponse<customer_credit::Model>>>, AppError>/
+      /pub async fn list_credits\([\s\S]*?\) -> Result<Json<ApiResponse<PaginatedResponse<(?:customer_credit::Model|CustomerCreditView)>>>, AppError>/
     );
   });
 

@@ -296,7 +296,7 @@ import { getCustomerList, type Customer } from '@/api/customer';
 import { PERMISSIONS } from '@/constants/permissions';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
-import { decimalWireToNumber } from '@/utils/money';
+import { decimalWireToNumber, numberToDecimalWire } from '@/utils/money';
 import { creditLevelTagType, isUnratedCreditLevel } from '@/constants/credit-level';
 import { useTableApi } from '@/composables/useTableApi';
 import RatingDialogTab from './tabs/RatingDialogTab.vue';
@@ -498,7 +498,13 @@ const handleEdit = (row: CustomerCredit) => {
   currentCustomerId.value = customerId;
   // 出参 credit_limit 是 Decimal 的十进制字符串，编辑控件需要数值：显式归一后回填当前真值。
   // 不再回填 status/valid_from/valid_to/remarks：前三个不是 PUT 的写入字段，后两个连列都不存在。
-  editForm.value = { credit_limit: decimalWireToNumber(row.credit_limit) };
+  const rawLimit = row.credit_limit;
+  editForm.value = {
+    credit_limit:
+      rawLimit === undefined || rawLimit === null || rawLimit === ''
+        ? undefined
+        : decimalWireToNumber(rawLimit),
+  };
   editDialogVisible.value = true;
 };
 
@@ -518,7 +524,9 @@ const submitEdit = async () => {
       );
       return;
     }
-    const payload: UpdateCustomerCreditInput = { credit_limit: limit };
+    const payload: UpdateCustomerCreditInput = {
+      credit_limit: numberToDecimalWire(limit) as string,
+    };
     await updateCustomerCredit(currentCustomerId.value, payload);
     ElMessage.success(t('customerCredit.index.message.updateSuccess'));
     editDialogVisible.value = false;

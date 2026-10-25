@@ -717,8 +717,9 @@ fn list_credits_returns_paginated_envelope_and_carries_total() {
     let fn_text = list_credits_fn_text(&handler_src);
 
     assert!(
-        fn_text.contains("ApiResponse<PaginatedResponse<customer_credit::Model>>"),
-        "list_credits 出参信封应为 ApiResponse 包 PaginatedResponse，供前端分页器读取总数，实际函数体：{fn_text}"
+        fn_text.contains("ApiResponse<PaginatedResponse<CustomerCreditView>>")
+            || fn_text.contains("ApiResponse<PaginatedResponse<customer_credit::Model>>"),
+        "list_credits 出参信封应为 ApiResponse 包 PaginatedResponse（实体或视图模型均可），供前端分页器读取总数，实际函数体：{fn_text}"
     );
     assert!(
         fn_text.contains("PaginatedResponse::new"),

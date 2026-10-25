@@ -242,7 +242,7 @@ describe('客户信用出参形状锁（后端实体载体 ↔ 前端声明 ↔ 
     expect(CREDIT_MODEL_SRC).not.toMatch(/rename_all|skip_serializing_if/);
     expect([...viewKeys].sort()).toEqual([...modelKeys].sort());
     // 列表处理器：data 载荷是裸数组，读模型直装
-    expect(CREDIT_HANDLER_SRC).toContain('Result<Json<ApiResponse<Vec<CustomerCreditView>>>');
+    expect(CREDIT_HANDLER_SRC).toContain('PaginatedResponse<CustomerCreditView>');
     // 详情/评分出参载体同为读模型；创建/更新经 serde_json::to_value(read_back_view(..)) 装同一模型
     expect(CREDIT_HANDLER_SRC).toContain('Result<Json<ApiResponse<CustomerCreditView>>');
     expect(CREDIT_HANDLER_SRC).toContain(
@@ -415,9 +415,12 @@ describe('客户信用出参形状锁（后端实体载体 ↔ 前端声明 ↔ 
     ).toBeGreaterThanOrEqual(8);
     expect(CREDIT_VIEW_SRC).not.toMatch(/evaluateCustomerCredit\(\{\s*\n\s*id:/);
     // 金额列参与比较必须走 Decimal 归一函数，不在模板里拿字符串跟数字比
-    expect(CREDIT_VIEW_SRC).toContain('decimalWireToNumber(row.available_credit) > 0');
+    expect(CREDIT_VIEW_SRC).toContain('isAvailableCreditPositive(row.available_credit)');
+    expect(CREDIT_VIEW_SRC).toContain('decimalWireToNumber(value) > 0');
     expect(CREDIT_VIEW_SRC).not.toMatch(/row\.available_credit > 0/);
-    expect(CREDIT_VIEW_SRC).toContain("import { decimalWireToNumber } from '@/utils/money'");
+    expect(CREDIT_VIEW_SRC).toMatch(
+      /import \{[^}]*decimalWireToNumber[^}]*\} from '@\/utils\/money'/
+    );
   });
 
   it('评级表单：未填态是 null 而不是 0，required 只拦未填、0 视为用户显式输入', () => {
@@ -552,8 +555,8 @@ describe('客户信用出参形状锁（后端实体载体 ↔ 前端声明 ↔ 
     expect(mutatedZero).not.toMatch(/creditScore: null as number \| null/);
     // 夹具 H：编辑表单再带上 PUT 不接收的 status 键，入参差集锁必须抓到
     const mutatedStatus = CREDIT_API_SRC.replace(
-      '  credit_score?: number | null;\n  credit_limit?: number | null;\n  credit_days?: number | null;\n  remark?: string | null;\n}\n\nexport interface CreditAdjustment',
-      '  credit_score?: number | null;\n  credit_limit?: number | null;\n  credit_days?: number | null;\n  remark?: string | null;\n  status?: string;\n}\n\nexport interface CreditAdjustment'
+      '  credit_limit?: string | number | null;\n  credit_days?: number | null;\n  remark?: string | null;\n}\n\nexport interface CreditAdjustment',
+      '  credit_limit?: string | number | null;\n  credit_days?: number | null;\n  remark?: string | null;\n  status?: string;\n}\n\nexport interface CreditAdjustment'
     );
     expect(mutatedStatus, '夹具替换本身必须生效').not.toBe(CREDIT_API_SRC);
     const statusKeys = tsInterfaceKeys(mutatedStatus, 'UpdateCustomerCreditInput');

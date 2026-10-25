@@ -105,21 +105,23 @@ fn ap_resources_are_registered_in_authority_table() {
     );
 }
 
-/// ① 缺键即红：三岗既定授予面逐枚点名。
+/// ① 缺键即红：财务两岗既定授予面逐枚点名（出纳与成本会计不持 AP 键，由 ② 钉死）。
 #[test]
-fn finance_three_roles_hold_their_paired_ap_grants() {
+fn finance_roles_hold_their_paired_ap_grants() {
     let rows = matrix_rows();
 
-    for resource in [
-        "ap-invoices",
-        "ap-payments",
-        "ap-payment-requests",
-        "ap-verifications",
-        "ap-reconciliations",
+    for (resource, action) in [
+        ("ap-invoices", "read"),
+        ("ap-invoices", "approve"),
+        ("ap-payments", "read"),
+        ("ap-verifications", "read"),
+        ("ap-payment-requests", "read"),
+        ("ap-reconciliations", "read"),
+        ("ap-reconciliations", "confirm"),
     ] {
         assert!(
-            actions_of(&rows, "finance_manager", resource).contains(&"*"),
-            "finance_manager 必须持有 {resource} 的 \"*\" 全动作行（应付链路审批/核销主责岗），缺行即授权死码"
+            actions_of(&rows, "finance_manager", resource).contains(&action),
+            "finance_manager 必须持有 {resource} 的 {action} 行（应付审批与核销主责岗），缺行即授权死码"
         );
     }
     for resource in ["ap-aging", "ap-daily", "ap-monthly", "ap-statistics"] {
@@ -128,59 +130,46 @@ fn finance_three_roles_hold_their_paired_ap_grants() {
             "finance_manager 必须持有 {resource} 的 read 行（报表面只读口径）"
         );
     }
-    for resource in ["ap-invoices", "ap-payments"] {
-        for action in ["read", "create"] {
-            assert!(
-                actions_of(&rows, "accountant", resource).contains(&action),
-                "accountant 必须持有 {resource} 的 {action} 行（记账岗录入面），缺键即红"
-            );
-        }
-    }
-    for action in ["read", "create"] {
+    for (resource, action) in [
+        ("ap-invoices", "read"),
+        ("ap-invoices", "create"),
+        ("ap-invoices", "update"),
+        ("ap-payments", "read"),
+        ("ap-verifications", "read"),
+        ("ap-verifications", "create"),
+        ("ap-verifications", "cancel"),
+        ("ap-payment-requests", "read"),
+        ("ap-payment-requests", "create"),
+        ("ap-payment-requests", "update"),
+        ("ap-payment-requests", "submit"),
+        ("ap-reconciliations", "read"),
+        ("ap-reconciliations", "create"),
+    ] {
         assert!(
-            actions_of(&rows, "cashier", "ap-payments").contains(&action),
-            "cashier 必须持有 ap-payments 的 {action} 行（出纳付款执行面），缺键即红"
+            actions_of(&rows, "accountant", resource).contains(&action),
+            "accountant 必须持有 {resource} 的 {action} 行（记账岗制单面），缺键即红"
         );
     }
 }
 
-/// ② 防扩权锁：cashier 不得持 ap-invoices 的 update 与 delete。
-/// 判据按运行时语义取"有效放行"：显式 update/delete 行、或 "*" 通配行
-/// （matches_permission: `p.action == "*" ⇒ 任意动作放行`）三者任一在场即红。
-/// 并把 cashier 的整张 ap-* 行集合钉死为两枚，堵住换键绕行。
+/// ② 防扩权锁：出纳与成本会计都不得持任何 ap-* 键。
+/// 判据取矩阵行集合为空集，显式 update/delete 与 "*" 通配都自然被覆盖；
+/// 一旦有人给这两个岗位补 AP 键，本锁即红，必须显式过口径评审。
 #[test]
-fn cashier_never_holds_ap_invoice_update_or_delete() {
+fn cashier_and_cost_accountant_never_hold_any_ap_grant() {
     let rows = matrix_rows();
-
-    // 前提：cashier 的 ap-payments 正向行在场（否则本锁退化为恒真的空锁，
-    // 由 ① 同样保证，这里再钉一次防止只留负例时整体被删空仍绿）。
-    let cashier_payments = actions_of(&rows, "cashier", "ap-payments");
-    assert!(
-        cashier_payments.contains(&"read") && cashier_payments.contains(&"create"),
-        "用例前提：cashier 的 ap-payments read+create 行必须在册，否则本锁失去锚点（空锁）"
-    );
-
-    let cashier_invoice = actions_of(&rows, "cashier", "ap-invoices");
-    for forbidden in ["update", "delete", "*"] {
+    for role in ["cashier", "cost_accountant"] {
+        let role_rows = ap_rows_of(&rows, role);
         assert!(
-            !cashier_invoice.contains(&forbidden),
-            "cashier 不得持有 ap-invoices 的 {forbidden} 授权行（\"*\" 在运行期同样放行 update/delete），实得 {cashier_invoice:?}"
+            role_rows.is_empty(),
+            "{role} 不得持有任何 ap-* 授权行（应付制单与审批归财务经理与记账岗），实得 {role_rows:?} 须过本锁评审"
         );
     }
-
-    // 整体钉死：cashier 的 ap-* 行集合恰为 {ap-payments create, ap-payments read}，
-    // 新增任何 ap 键/动作（含给 ap-invoices 授 read 这类"看起来无害"的扩面）
-    // 都必须显式改本锁与授予口径，不许顺手漂移。
-    assert_eq!(
-        ap_rows_of(&rows, "cashier"),
-        vec![("ap-payments", "create"), ("ap-payments", "read")],
-        "cashier 的 ap-* 授予面必须恰为 ap-payments 的 read+create 两枚，实得突变须过本锁评审"
-    );
 }
 
-/// ③ 持有者集合钉死 + accountant 面钉死（其余角色一律不给的既定口径）。
+/// ③ 持有者集合钉死 + 两岗授予面精确钉死（其余角色一律不给的既定口径）。
 #[test]
-fn ap_grants_are_confined_to_finance_three_roles() {
+fn ap_grants_are_confined_to_finance_roles() {
     let rows = matrix_rows();
 
     let mut holders: Vec<&'static str> = rows
@@ -192,38 +181,59 @@ fn ap_grants_are_confined_to_finance_three_roles() {
     holders.dedup();
     assert_eq!(
         holders,
-        vec!["accountant", "cashier", "finance_manager"],
-        "ap-* 键的矩阵持有者必须恰为财务三岗，出现第四角色即扩权（admin 走 *:* blanket，不在矩阵行内）"
+        vec!["accountant", "finance_manager"],
+        "ap-* 键的矩阵持有者必须恰为会计与财务经理两岗，出现第三角色即扩权（admin 走 *:* blanket，不在矩阵行内）"
     );
 
-    // accountant 面钉死：ap-* 行集合恰为四枚 read/create。审批（approve/reject）、
-    // 核销、对账、付款申请与四张报表面都不归记账岗。
+    let accountant_rows = ap_rows_of(&rows, "accountant");
     assert_eq!(
-        ap_rows_of(&rows, "accountant"),
-        vec![
-            ("ap-invoices", "create"),
-            ("ap-invoices", "read"),
-            ("ap-payments", "create"),
-            ("ap-payments", "read"),
-        ],
-        "accountant 的 ap-* 授予面必须恰为 ap-invoices/ap-payments 的 read+create 四枚"
+        accountant_rows.len(),
+        13,
+        "accountant 的 ap-* 授权行数必须恰为十三枚，实得 {accountant_rows:?}"
     );
+    for expected in [
+        ("ap-invoices", "create"),
+        ("ap-invoices", "read"),
+        ("ap-invoices", "update"),
+        ("ap-payment-requests", "create"),
+        ("ap-payment-requests", "read"),
+        ("ap-payment-requests", "submit"),
+        ("ap-payment-requests", "update"),
+        ("ap-payments", "read"),
+        ("ap-reconciliations", "create"),
+        ("ap-reconciliations", "read"),
+        ("ap-verifications", "cancel"),
+        ("ap-verifications", "create"),
+        ("ap-verifications", "read"),
+    ] {
+        assert!(
+            accountant_rows.contains(&expected),
+            "accountant 的 ap-* 授予面缺 {expected:?}，多授或漏授都要显式过本锁"
+        );
+    }
 
-    // finance_manager 面钉死：九枚 ap-* 全覆盖（五枚 "*" + 四枚 "read"），
-    // 多授/漏授任何一枚都要显式过本锁。
+    let manager_rows = ap_rows_of(&rows, "finance_manager");
     assert_eq!(
-        ap_rows_of(&rows, "finance_manager"),
-        vec![
-            ("ap-aging", "read"),
-            ("ap-daily", "read"),
-            ("ap-invoices", "*"),
-            ("ap-monthly", "read"),
-            ("ap-payment-requests", "*"),
-            ("ap-payments", "*"),
-            ("ap-reconciliations", "*"),
-            ("ap-statistics", "read"),
-            ("ap-verifications", "*"),
-        ],
-        "finance_manager 的 ap-* 授予面必须恰为五枚全动作 + 四枚报表只读"
+        manager_rows.len(),
+        11,
+        "finance_manager 的 ap-* 授权行数必须恰为十一枚，实得 {manager_rows:?}"
     );
+    for expected in [
+        ("ap-aging", "read"),
+        ("ap-daily", "read"),
+        ("ap-invoices", "approve"),
+        ("ap-invoices", "read"),
+        ("ap-monthly", "read"),
+        ("ap-payment-requests", "read"),
+        ("ap-payments", "read"),
+        ("ap-reconciliations", "confirm"),
+        ("ap-reconciliations", "read"),
+        ("ap-statistics", "read"),
+        ("ap-verifications", "read"),
+    ] {
+        assert!(
+            manager_rows.contains(&expected),
+            "finance_manager 的 ap-* 授予面缺 {expected:?}，多授或漏授都要显式过本锁"
+        );
+    }
 }
