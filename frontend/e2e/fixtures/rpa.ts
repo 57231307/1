@@ -14,6 +14,7 @@
  * - 与项目现有 smoke 测试的组件选择器保持一致（.el-table-v2 / .el-select 等）
  */
 import type { Locator, Page } from '@playwright/test';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 表单字段定义
@@ -74,18 +75,13 @@ export async function autoFillField(page: Page, field: FormField): Promise<void>
 
   switch (field.type) {
     case 'select':
-      // Element Plus el-select：点击触发下拉 → 选择匹配项
-      await locator.click();
-      await page.waitForSelector('.el-select-dropdown__item', {
-        state: 'visible',
-        timeout: 15_000,
-      });
-      // 选择包含目标文本的选项
-      await page
-        .locator('.el-select-dropdown__item')
-        .filter({ hasText: field.value })
-        .first()
-        .click();
+      // Element Plus el-select：委托 flow/ui-helpers 下拉交互唯一事实源
+      // （按 label 锚定 form-item、点 wrapper 触发、面板按归属钉定，无静默兜底）。
+      // 下拉字段必须给 label——selector/placeholder 推不出精确标签锚定，缺 label 直接判错。
+      if (!field.label) {
+        throw new Error('select 字段必须提供 label（下拉选择按 label 全文锚定 form-item）');
+      }
+      await pickSelectIn(page, page, field.label, { optionText: field.value });
       break;
     case 'textarea':
       await locator.fill(field.value);

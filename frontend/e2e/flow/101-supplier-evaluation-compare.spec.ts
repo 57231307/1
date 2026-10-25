@@ -7,7 +7,7 @@ import {
   BROWSER_NETWORK_NOISE,
   tryCleanup,
 } from './helpers';
-import { safeGoto } from './ui-helpers';
+import { safeGoto, openScopedDropdown, dropdownItems, expectNoVisibleDropdown } from './ui-helpers';
 
 // 覆盖前端改动：评估管理新增的供应商对比页签。
 // 用 UI 真实操作锁定：对比入口是按名称与编码向服务端远程搜索的多选下拉（不要求手填数字主键），
@@ -129,19 +129,17 @@ async function assertPickerPlaceholder(page: Page, text: string): Promise<void> 
  * 收完确认面板确不可见，避免 teleport 到 body 的面板盖住后续操作。
  */
 async function searchAndPick(page: Page, keyword: string): Promise<void> {
-  const wrapper = comparePickerShell(page).locator('.el-select__wrapper').first();
-  await wrapper.click();
-  await page.keyboard.type(keyword, { delay: 50 });
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  // 点 wrapper 后逐字输入触发远程搜索，面板由 helper 按该字段 aria-controls 钉定归属
+  const dropdown = await openScopedDropdown(comparePickerShell(page), page, { query: keyword });
   await expect(dropdown, `输入「${keyword}」后候选面板应可见`).toBeVisible();
-  const option = dropdown.locator('.el-select-dropdown__item').filter({ hasText: keyword }).first();
+  const option = dropdownItems(dropdown).filter({ hasText: keyword }).first();
   await expect(option, `应搜到含「${keyword}」的供应商候选`).toBeVisible({ timeout: 15_000 });
   await option.click();
   // 组件契约（element-plus useSelect 的 handleEsc 与 reserveKeyword 默认 true），点选后关键字仍在，
   // 第一段 Escape 清空关键字不收面板，第二段才收，与本仓 remote 多选既有用例的两段收法一致。
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
-  await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0);
+  await expectNoVisibleDropdown(page);
 }
 
 test.describe('供应商对比页签端到端', () => {

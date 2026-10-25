@@ -1763,11 +1763,11 @@ export interface PickSelectOptions {
 
 /**
  * 打开一个 el-select（点外层 .el-select/.el-select__wrapper 而非 readonly input），
- * 并从 body-level 的可见 dropdown 选取 option。
+ * 并把选项面板钉定到该触发器自己的下拉面板（经 input[role=combobox] 的 aria-controls 归属）。
  *
- * 选项面板由 EP teleport 到 body，故用 `.el-select-dropdown:visible` + `.el-select-dropdown__item`
- * 定位（对齐 ef1f6137 purchase/01、8c1adf03 ai/crm 既有写法），不再走 getByRole('option')
- * （后者在 dropdown 提前关闭时不稳）。
+ * 选项面板由 EP teleport 到 body。旧实现取「任一可见面板的最后一个」，同页存在多个
+ * el-select/el-tree-select 时会误读别字段的候选（跨字段假绿的直接来源）；现按归属 id 精确定位，
+ * EP 2.14.4 中 el-select 与 el-select-v2 均把面板 listbox 的 id 写在触发 input 的 aria-controls 上。
  *
  * 【迁移提示】本函数接收调用方已构造好的 trigger Locator，保留供既有 spec 向后兼容。
  * 新域修复改用 pickSelectIn / pickV2In / pickV2Remote（按精确 label 自管 root 作用域，无静默）。
@@ -1786,9 +1786,9 @@ export async function pickSelect(
   const wrapper = trigger.locator('.el-select__wrapper').first();
   const clickTarget = (await wrapper.count()) > 0 ? wrapper : trigger;
   await clickTarget.click({ timeout });
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  const dropdown = await ownedDropdown(trigger, page, timeout);
   await dropdown.waitFor({ state: 'visible', timeout });
-  const items = dropdown.locator('.el-select-dropdown__item');
+  const items = dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
   if (opts.openOnly) {
     await items.first().waitFor({ state: 'visible', timeout });
     return;
@@ -1875,30 +1875,102 @@ interface DropdownPickOpts {
   openOnly?: boolean;
   /** 远程搜索输入词：非空则先 click 触发器、keyboard.type 触发 remote-method 再选。 */
   query?: string;
+  /** query 输入形态：true 走 input.fill 整体替换（非 filterable 远程壳用 fill 触发回包），默认 keyboard.type 逐字。 */
+  fill?: boolean;
   /** 单步超时（默认 15_000ms；CI 并发慢）。 */
   timeout?: number;
 }
 
 /**
- * 内部核心：点下拉触发器（wrapper，非只读内层 input）→（可选 type query 触发远程）
- * → 等 body 级可见 dropdown → 精确/子串匹配 option 并点。
- *
- * 触发器由调用方（pickSelectIn/pickV2In/pickV2Remote）用 wrapper 类构造，这里只负责通用
- * 的「点 - 等面板 - 选项」时序。任何一步定位失败均直接抛错（契约第 3 条），无 catch。
- * 唯一 .catch 用于「点完后面板收起的动画收尾」（面板已确认出现过，属成功之后的软等待）。
+ * 面板项在 el-select 与 el-select-v2 下的真实渲染类名合集（唯一事实源内部常量）。
+ * EP 2.14.4 中 select-v2 与 select 共用 select 命名空间，选项 li 同为 dropdown item 类名。
  */
-async function openDropdownAndPick(
+const PANEL_ITEM_SELECTOR = '.el-select-dropdown__item, .el-select-v2__item';
+
+/**
+ * 把「当前打开的选项面板」钉定到 scope 内该字段自己名下。
+ *
+ * 判据来源（element-plus 2.14.4 源码 es/components/select/src/select2.mjs 与
+ * es/components/select-v2/src/select.mjs）：两类组件的触发 input[role=combobox] 均渲染
+ * `aria-controls: contentId`，且下拉面板 listbox（el-scrollbar 根 / 虚拟列表 ul）同带该 id。
+ * 由此 `#contentId` 得到的面板与「任一可见面板 + last()」有本质区别：并发同页另一字段的
+ * 面板残留可见时不会误读，面板项文本过滤也不会跨字段撞名（树选择器历史停用部门名与
+ * 停用矩阵正则重叠的假绿通道即由此关闭）。
+ *
+ * 定位失败（scope 内无 combobox input / 无 aria-controls）一律自然超时抛错，不吞。
+ *
+ * @param scope   含该字段触发 input 的容器（form-item、.el-select、表格行等）
+ * @param page    面板 teleport 到 body，需 page 级取 id 选择器
+ * @param timeout getAttribute 等待超时
+ */
+async function ownedDropdown(scope: Locator, page: Page, timeout: number): Promise<Locator> {
+  const combobox = scope.locator('input[role="combobox"]').first();
+  // 轮询等待归属属性真正渲染出非空值，而不是 getAttribute 单拍：input 已 attached
+  // 但 aria-controls 尚未绑定/为空时，单拍会把时序竞态误报成「EP 行为变更」。
+  await expect(
+    combobox,
+    `[ui-helpers] 字段触发 input[role=combobox] 应渲染非空 aria-controls 面板归属 id（实测 2.14.4 恒渲染；超时为空说明组件形态变更需人工核实）`
+  ).toHaveAttribute('aria-controls', /\S/, { timeout });
+  const cid = (await combobox.getAttribute('aria-controls')) ?? '';
+  // 用属性选择器而非 `#<id>`：id 以数字开头或含特殊字符时 # 插值会抛坏选择器错并伪装成功，
+  // [id="…"] 对任意合法 id 值都稳定命中。
+  return page.locator(`[id="${cid}"]`);
+}
+
+/**
+ * 面板项定位（供 spec 巡检型用例使用：数候选、读文案、过滤目标项）。
+ *
+ * @param panel ownedDropdown/openFieldDropdown 返回的该字段自己的面板 Locator
+ */
+export function dropdownItems(panel: Locator): Locator {
+  return panel.locator(PANEL_ITEM_SELECTOR);
+}
+
+/**
+ * 断言页面当前不存在任何可见下拉面板（多选/远程搜索收起后的收尾判据，
+ * 替代 waitFor({state:'hidden'}) 的单面板等待；面板 teleport 到 body，
+ * 未收起会遮挡后续点击，这里以「可见面板数为 0」真判据暴露）。
+ * 失败消息指出仍有可见面板，即浮层未收起的真实缺陷形态。
+ *
+ * 调用方：停用矩阵回读前置、MRP 计算前收面板、供应商对比两段 Escape 收起后确认、
+ * 缺料补货筛选下拉切换面板前的隔离确认。
+ */
+export async function expectDropdownClosed(page: Page, timeout = 10_000): Promise<void> {
+  await expect(page.locator('.el-select-dropdown:visible'), '应无任何可见下拉面板').toHaveCount(
+    0,
+    { timeout }
+  );
+}
+
+/**
+ * 内部核心：点下拉触发器（wrapper，非只读内层 input）→（可选 type/fill query 触发远程）
+ * → 把面板钉定到该字段自己名下（ownedDropdown）并等可见。
+ *
+ * 触发器与归属容器由调用方传入（form-item / .el-select / 表格行），这里只负责通用的
+ * 「点 - 归属面板 - 选项」时序。任何一步定位失败均直接抛错（契约第 3 条），无 catch。
+ * 唯一 .catch 用于「点完后面板收起的动画收尾」（面板已确认出现过，属成功之后的软等待）。
+ *
+ * @param scope 含该字段触发 wrapper 与 combobox input 的容器（form-item / .el-select / 行）
+ */
+async function openFieldDropdown(
+  scope: Locator,
   page: Page,
-  trigger: Locator,
   opts: DropdownPickOpts
-): Promise<void> {
+): Promise<Locator> {
   const timeout = opts.timeout ?? 15_000;
-  await trigger.waitFor({ state: 'visible', timeout });
-  // 点 wrapper（.el-select__wrapper / .el-select-v2__wrapper），不点只读 combobox 内层 input
-  // ——内层 input 被 placeholder 拦 pointer events / element not stable（既往假红根因②）。
-  await trigger.click({ timeout });
+  const wrapper = scope.locator('.el-select__wrapper').first();
+  const clickTarget = (await wrapper.count()) > 0 ? wrapper : scope;
+  await clickTarget.waitFor({ state: 'visible', timeout });
+  // 点 wrapper（EP 2.14.4 下 el-select 与 el-select-v2 触发区同为 el-select 命名空间的
+  // wrapper 类），不点只读内层 input——内层 input 被 placeholder 拦 pointer events /
+  // element not stable（既往假红根因②）。
+  await clickTarget.click({ timeout });
   if (opts.query) {
-    await page.keyboard.type(opts.query, { delay: 50 });
+    if (opts.fill) {
+      await scope.locator('input').last().fill(opts.query, { timeout });
+    } else {
+      await page.keyboard.type(opts.query, { delay: 50 });
+    }
     // 远程搜索：等 remote-method 请求回、loading 指示消失后再找项。
     // state:'detached' 对「本就无 loading 节点」立即 resolve（搜索秒回的正常态），
     // 而对「loading 卡住不消失」超时抛错（远程搜索挂起=真实红），故此处不加 .catch 吞错。
@@ -1909,10 +1981,17 @@ async function openDropdownAndPick(
       .first()
       .waitFor({ state: 'detached', timeout });
   }
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
-  await dropdown.waitFor({ state: 'visible', timeout });
-  // el-select 与 el-select-v2 虚拟列表的 option 类名不同，一并匹配
-  const items = dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
+  const panel = await ownedDropdown(scope, page, timeout);
+  await panel.waitFor({ state: 'visible', timeout });
+  return panel;
+}
+
+/**
+ * 在归属钉定的面板内选目标项（子串/正则/下标），并完成多选 Escape 或单选收起等待。
+ */
+async function pickFromPanel(page: Page, panel: Locator, opts: DropdownPickOpts): Promise<void> {
+  const timeout = opts.timeout ?? 15_000;
+  const items = dropdownItems(panel);
   if (opts.openOnly) {
     await items.first().waitFor({ state: 'visible', timeout });
     return;
@@ -1927,12 +2006,24 @@ async function openDropdownAndPick(
     await page.keyboard.press('Escape');
   } else {
     // 点完面板收起属动画收尾（option 已确认可见并点击成功），此处 .catch 不掩盖定位失败
-    await dropdown.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+    await panel.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
   }
 }
 
 /**
- * el-select（普通下拉）：按精确 label 打开并从 body 级面板选目标项。
+ * 内部核心（组合入口）：开该字段自己的面板并选项 = openFieldDropdown + pickFromPanel。
+ */
+async function openDropdownAndPick(
+  page: Page,
+  scope: Locator,
+  opts: DropdownPickOpts
+): Promise<void> {
+  const panel = await openFieldDropdown(scope, page, opts);
+  await pickFromPanel(page, panel, opts);
+}
+
+/**
+ * el-select（普通下拉）：按精确 label 打开该字段自己的面板并选目标项。
  * 契约同本区块头部三条。optionText 省略则按下标选（默认首项）。
  *
  * @param root      作用域（dialog / 页内 form 容器）
@@ -1945,13 +2036,50 @@ export async function pickSelectIn(
   labelText: string,
   opts: DropdownPickOpts = {}
 ): Promise<void> {
-  const wrapper = formItemByExactLabel(root, labelText).locator('.el-select__wrapper').first();
-  await openDropdownAndPick(page, wrapper, opts);
+  const formItem = formItemByExactLabel(root, labelText);
+  await openDropdownAndPick(page, formItem, opts);
+}
+
+/**
+ * 巡检型用例（el-select）：按精确 label 打开该字段自己的面板并交还调用方。
+ * 供「读候选文案/数候选项/过滤目标项后再点」的用例（供应商选择器、收件人候选同源、
+ * 筛选下拉词表核对等）；此后一律用 dropdownItems(panel) 取选项，spec 内不写裸面板类名。
+ *
+ * @param root      作用域（dialog / 页内 form 容器 / Page）
+ * @param page      用于等 teleport 到 body 的下拉面板
+ * @param labelText form-item 精确 label 全文
+ */
+export async function openFieldDropdownByLabel(
+  root: Locator | Page,
+  page: Page,
+  labelText: string,
+  opts: DropdownPickOpts = {}
+): Promise<Locator> {
+  const formItem = formItemByExactLabel(root, labelText);
+  return openFieldDropdown(formItem, page, opts);
+}
+
+/**
+ * 非 form-item 场景（页头选择器、表格行内下拉）：以 scope（.el-select 容器或行）为锚
+ * 打开该字段自己的面板并交还调用方。scope 内须含该字段的触发 input 与 wrapper。
+ *
+ * @param scope 含 combobox input 与 wrapper 的容器 Locator
+ * @param page  用于 keyboard/fill 与等 teleport 面板
+ */
+export async function openScopedDropdown(
+  scope: Locator,
+  page: Page,
+  opts: DropdownPickOpts = {}
+): Promise<Locator> {
+  return openFieldDropdown(scope, page, opts);
 }
 
 /**
  * el-select-v2（虚拟滚动 / 本地 filterable）：按精确 label 打开并在虚拟列表面板选目标。
  * 高基数场景 optionText 必传（不整表扫描），走转义子串/正则匹配。
+ * EP 2.14.4 下 el-select-v2 与 el-select 共用 select 命名空间（触发区与选项类名同款，
+ * 源码 es/components/select-v2/src/select.mjs 用 nsSelect），故与 pickSelectIn 同一实现，
+ * 保留独立导出名供调用方按组件语义选 API。
  *
  * @param root      作用域
  * @param page      用于等 body 级面板
@@ -1963,8 +2091,7 @@ export async function pickV2In(
   labelText: string,
   opts: DropdownPickOpts = {}
 ): Promise<void> {
-  const wrapper = formItemByExactLabel(root, labelText).locator('.el-select-v2__wrapper').first();
-  await openDropdownAndPick(page, wrapper, opts);
+  await pickSelectIn(root, page, labelText, opts);
 }
 
 /**
@@ -1986,8 +2113,45 @@ export async function pickV2Remote(
   pickText: string | RegExp,
   opts: Omit<DropdownPickOpts, 'optionText' | 'query'> = {}
 ): Promise<void> {
-  const wrapper = formItemByExactLabel(root, labelText).locator('.el-select-v2__wrapper').first();
-  await openDropdownAndPick(page, wrapper, { ...opts, query: keyword, optionText: pickText });
+  await pickSelectIn(root, page, labelText, { ...opts, query: keyword, optionText: pickText });
+}
+
+/**
+ * el-tree-select（树形下拉，如凭证分录科目、上级部门）：在 scope（表格行/form-item）内
+ * 点树选择器触发区，把面板钉定到该字段名下，等目标树节点（.el-tree-node__content）可见并点击。
+ *
+ * 竞态处置（既往 CI 形态「节点一度 resolve、之后一直不可见直至超时」）：面板在等待/点击
+ * 期间因失焦动画收起时，重开触发器再取节点重试一轮；若树根本不渲染目标节点，第二轮
+ * 仍自然超时判红，不掩盖源码缺陷。节点作用域限定在归属面板内，同名节点不会跨字段误点，
+ * 停用词表与历史停用部门名的文本重叠假绿通道由此关闭。
+ *
+ * @param scope    含树选择器 wrapper 与 combobox input 的容器（表格行 / form-item）
+ * @param page     用于等 teleport 面板
+ * @param nodeText 目标树节点文本（string 子串匹配）
+ */
+export async function pickTreeNode(
+  scope: Locator,
+  page: Page,
+  nodeText: string,
+  opts: { timeout?: number } = {}
+): Promise<void> {
+  const timeout = opts.timeout ?? 15_000;
+  const wrapper = scope.locator('.el-select__wrapper').first();
+  const panel = await ownedDropdown(scope, page, timeout);
+  const openAndPickNode = async (nodeTimeout: number): Promise<void> => {
+    await wrapper.click({ timeout });
+    await panel.waitFor({ state: 'visible', timeout });
+    const node = panel.locator('.el-tree-node__content').filter({ hasText: nodeText }).first();
+    await node.waitFor({ state: 'visible', timeout: nodeTimeout });
+    await node.click({ timeout: nodeTimeout });
+  };
+  try {
+    await openAndPickNode(8_000);
+  } catch {
+    // 面板在等待/点击期间因失焦动画收起 → 重新点开触发器再取节点；
+    // 目标节点确实不存在时第二轮仍超时抛错（真实红），不吞。
+    await openAndPickNode(timeout);
+  }
 }
 
 /**
@@ -2018,7 +2182,7 @@ export async function isFieldDisabled(
   if (containerCls.includes('is-disabled')) return true;
   // 兜底：部分版本把 is-disabled 只加在内层 __wrapper 上（getAttribute 命中失败会超时抛错）
   const wrapperCls = await container
-    .locator('.el-select__wrapper, .el-select-v2__wrapper')
+    .locator('.el-select__wrapper')
     .first()
     .getAttribute('class');
   return !!wrapperCls && wrapperCls.includes('is-disabled');
