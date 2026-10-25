@@ -251,12 +251,10 @@
           :label="t('customerCredit.index.table.column.creditLimit')"
           prop="credit_limit"
         >
-          <el-input-number
+          <el-input
             v-model="editForm.credit_limit"
-            :min="0"
-            :precision="2"
-            controls-position="right"
             style="width: 100%"
+            inputmode="decimal"
             :aria-label="t('customerCredit.index.table.column.creditLimit')"
           />
         </el-form-item>
@@ -297,6 +295,7 @@ import { PERMISSIONS } from '@/constants/permissions';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { decimalWireToNumber, numberToDecimalWire } from '@/utils/money';
+import { numberInputRules } from '@/utils/number-input';
 import { creditLevelTagType, isUnratedCreditLevel } from '@/constants/credit-level';
 import { useTableApi } from '@/composables/useTableApi';
 import RatingDialogTab from './tabs/RatingDialogTab.vue';
@@ -352,18 +351,17 @@ const editFormRef = ref<FormInstance>();
  * 的 UpdateCustomerCreditInput 说明）。未填态是 undefined，不预置 0：
  * credit_limit 在后端是 Option<Decimal>，None 表示"保持原值"，
  * 前端替用户写 0 就是替用户把额度清零。
+ * credit_limit 走 el-input 纯手写，值是十进制字符串；范围与非数字由 rules 数字校验器拦截。
  */
-const editForm = ref<{ credit_limit?: number | null }>({});
+const editForm = ref<{ credit_limit?: string }>({});
 const editRules: FormRules = {
-  credit_limit: [
-    {
-      // required 对数字 0 判为有效值（0 是"额度清零"的合法业务取值，必须由用户显式输入），
-      // 只拦 undefined/null 这两种"没填"，避免把没填当成 0 提交上去。
-      required: true,
-      message: t('customerCredit.index.edit.creditLimitRequired'),
-      trigger: 'blur',
-    },
-  ],
+  credit_limit: numberInputRules({
+    label: t('customerCredit.index.table.column.creditLimit'),
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: t('customerCredit.index.edit.creditLimitRequired') },
+  }),
 };
 
 /**
@@ -496,14 +494,13 @@ const handleEdit = (row: CustomerCredit) => {
   const customerId = requireCustomerId(row);
   if (customerId === null) return;
   currentCustomerId.value = customerId;
-  // 出参 credit_limit 是 Decimal 的十进制字符串，编辑控件需要数值：显式归一后回填当前真值。
+  // 出参 credit_limit 是 Decimal 的十进制字符串，el-input 直接按字符串回填当前真值，
+  // 不预先归一成数字再转回，避免中间浮点表示改动用户原有精度。
   // 不再回填 status/valid_from/valid_to/remarks：前三个不是 PUT 的写入字段，后两个连列都不存在。
   const rawLimit = row.credit_limit;
   editForm.value = {
     credit_limit:
-      rawLimit === undefined || rawLimit === null || rawLimit === ''
-        ? undefined
-        : decimalWireToNumber(rawLimit),
+      rawLimit === undefined || rawLimit === null || rawLimit === '' ? undefined : rawLimit,
   };
   editDialogVisible.value = true;
 };
@@ -514,8 +511,8 @@ const submitEdit = async () => {
   try {
     await editFormRef.value.validate();
     const limit = editForm.value.credit_limit;
-    if (typeof limit !== 'number') {
-      // 校验已过却仍拿不到数值 = 表单状态与校验脱节，显式失败，
+    if (limit === undefined || limit === '') {
+      // 校验已过却仍拿不到值 = 表单状态与校验脱节，显式失败，
       // 绝不替用户提交 0/null 去"凑"一个载荷（那会静默清零额度或静默保持原值）。
       ElMessage.error(t('customerCredit.index.edit.creditLimitRequired'));
       logger.warn(
@@ -525,7 +522,7 @@ const submitEdit = async () => {
       return;
     }
     const payload: UpdateCustomerCreditInput = {
-      credit_limit: numberToDecimalWire(limit) as string,
+      credit_limit: numberToDecimalWire(Number(limit)) as string,
     };
     await updateCustomerCredit(currentCustomerId.value, payload);
     ElMessage.success(t('customerCredit.index.message.updateSuccess'));
