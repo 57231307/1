@@ -6,6 +6,7 @@ fn main() {
             "app_info",
             "remember_gateway",
             "reopen_gateway",
+            "probe_server_reachability",
             "bluetooth_request_permission",
             "app_request_camera_permission",
             "bluetooth_open_settings",

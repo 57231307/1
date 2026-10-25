@@ -479,12 +479,17 @@ checkEnvironment();
 
 <style scoped>
 .setup-container {
+  /* 整屏容器按安全区避让，原 20 像素内边距与安全区相加，vh 行兜底旧内核，dvh 行在后，
+     变量口径见 theme.css */
+  box-sizing: border-box;
   min-height: 100vh;
+  min-height: 100dvh;
+  padding: calc(20px + var(--bx-safe-top)) calc(20px + var(--bx-safe-right))
+    calc(20px + var(--bx-safe-bottom)) calc(20px + var(--bx-safe-left));
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
 }
 
 .setup-card {
