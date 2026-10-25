@@ -103,3 +103,4 @@ pub mod customer_credit_remark_column;
 pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
+pub mod wage_energy_vocab_check;
