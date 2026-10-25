@@ -1,6 +1,6 @@
 {
   "note": "全项目禁步进数字输入框棘轮基线 开工时全库违规快照 只减不增 规则 tag=el-input-number 标签 hand=自造加减步进按钮",
-  "total": 303,
+  "total": 296,
   "files": {
     "src/components/AfterSalesPanel.vue": {
       "tag": 2,
@@ -122,11 +122,6 @@
       "hand": 0,
       "count": 3
     },
-    "src/views/budgets/index.vue": {
-      "tag": 2,
-      "hand": 0,
-      "count": 2
-    },
     "src/views/chemicals/index.vue": {
       "tag": 2,
       "hand": 0,
@@ -181,11 +176,6 @@
       "tag": 1,
       "hand": 0,
       "count": 1
-    },
-    "src/views/currency/tabs/CurrencyListTab.vue": {
-      "tag": 2,
-      "hand": 0,
-      "count": 2
     },
     "src/views/custom-orders/create.vue": {
       "tag": 6,
@@ -283,11 +273,6 @@
       "count": 2
     },
     "src/views/inventory/tabs/FabricStockTab.vue": {
-      "tag": 3,
-      "hand": 0,
-      "count": 3
-    },
-    "src/views/invoice-details/index.vue": {
       "tag": 3,
       "hand": 0,
       "count": 3
