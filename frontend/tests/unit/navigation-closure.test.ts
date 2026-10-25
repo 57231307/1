@@ -70,6 +70,7 @@ const WITHDRAWN_LEGACY_PATHS = [
   '/crm',
   '/bi/sales-analysis',
   '/ar-reconciliation/enhanced',
+  '/periods',
 ];
 
 function collectTraversalRoutes(src: string): Set<string> {
