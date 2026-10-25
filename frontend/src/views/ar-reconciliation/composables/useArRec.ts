@@ -57,8 +57,6 @@ export function useArRec() {
       const res = await getAutoReconciliationResults({
         page: pagination.value.page,
         page_size: pagination.value.pageSize,
-        customer_name: searchForm.value.customer_name || undefined,
-        status: searchForm.value.match_status || undefined,
         start_date: searchForm.value.start_date || undefined,
         end_date: searchForm.value.end_date || undefined,
       });

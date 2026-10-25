@@ -159,15 +159,16 @@ export interface GenerateReconciliationPayload {
   notes?: string;
 }
 
-// P2-9c 修复（批次 82 v1 复审）：自动对账结果列表查询参数强类型化
+// 自动对账结果列表查询参数，字段集严格对齐后端 ListResultsQuery
+// （handlers/ar_reconciliation_handler.rs::list_results 的 Query<ListResultsQuery>）。
+// 后端不读 customer_name、status、task_id、match_status，不要传。
 export interface AutoReconResultQueryParams {
   page?: number;
   page_size?: number;
-  task_id?: number;
-  match_status?: string;
-  customer_name?: string;
-  status?: string;
+  customer_id?: number;
+  /** YYYY-MM-DD（后端 NaiveDate） */
   start_date?: string;
+  /** YYYY-MM-DD（后端 NaiveDate） */
   end_date?: string;
 }
 
