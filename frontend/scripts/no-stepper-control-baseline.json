@@ -1,0 +1,561 @@
+{
+  "note": "全项目禁步进数字输入框棘轮基线 开工时全库违规快照 只减不增 规则 tag=el-input-number 标签 hand=自造加减步进按钮",
+  "total": 320,
+  "files": {
+    "src/components/AfterSalesPanel.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/components/ColorCardIssueForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/components/ColorItemEditor.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/components/CompleteDyeBatchDialog.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/components/Print/PrintDocumentDialog.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/components/QualityCheck.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/accounting-period/tabs/PeriodListTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/advanced/components/AdvancedQualityPanel.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/advanced/components/AdvancedRecipePanel.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/advanced/components/SubscriptionPanel.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/ai-extend/process-optimization.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/ai-extend/quality-prediction.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/ap/tabs/InvoiceTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/ap/tabs/PaymentRequestTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/ap/tabs/VerificationTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/api-gateway/components/ApiEndpointForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/ar/tabs/FundTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/ar/tabs/InvoiceTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/ar/tabs/PaymentTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/ar/tabs/ReconciliationTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/ar/tabs/VerificationTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/bad-debts/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/bom/BillOfMaterialsForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/bpm/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/budget/tabs/BudgetItemTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/budget/tabs/BudgetPlanTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/budgets/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/chemicals/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/color-cards/issues.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/color-prices/batch-adjust.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/color-prices/create.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/color-prices/detail.vue": {
+      "tag": 6,
+      "hand": 0,
+      "count": 6
+    },
+    "src/views/color-prices/tabs/CustomerSpecialTab.vue": {
+      "tag": 5,
+      "hand": 0,
+      "count": 5
+    },
+    "src/views/color-prices/tabs/SeasonalRulesTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/cost/tabs/CostCollectionTab.vue": {
+      "tag": 5,
+      "hand": 0,
+      "count": 5
+    },
+    "src/views/crm/enhanced/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/crm/opportunities/tabs/OpportunityFormTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/crm/tabs/RuleDialogTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/currency/tabs/CurrencyListTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/custom-orders/create.vue": {
+      "tag": 6,
+      "hand": 0,
+      "count": 6
+    },
+    "src/views/custom-orders/detail.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/custom-orders/edit.vue": {
+      "tag": 6,
+      "hand": 0,
+      "count": 6
+    },
+    "src/views/customer-collab/index.vue": {
+      "tag": 8,
+      "hand": 0,
+      "count": 8
+    },
+    "src/views/customer-credit/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/customer-credit/tabs/AdjustDialogTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/customer-credit/tabs/AmountDialogTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/customer-credit/tabs/RatingDialogTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/customer/tabs/CustomerFormTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/departments/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/dye-batch/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/environmental-compliance/index.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/export-compliance/index.vue": {
+      "tag": 7,
+      "hand": 0,
+      "count": 7
+    },
+    "src/views/fabric-inspections/index.vue": {
+      "tag": 10,
+      "hand": 0,
+      "count": 10
+    },
+    "src/views/finance/tabs/components/VoucherForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/fixed-assets/tabs/AssetListTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/flow-cards/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/fund/tabs/AccountTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/fund/tabs/TransferTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/greige-fabrics/index.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/inventory-adjustment/tabs/AdjustmentFormDialogTab.vue": {
+      "tag": 5,
+      "hand": 0,
+      "count": 5
+    },
+    "src/views/inventory-batch/tabs/BatchFormDialogTab.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/inventory-batch/tabs/BatchListTab.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/inventory-count/tabs/CountDetailDialogTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/inventory-transfer/tabs/TransferFormDialogTab.vue": {
+      "tag": 5,
+      "hand": 0,
+      "count": 5
+    },
+    "src/views/inventory/components/AdjustmentDialog.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/inventory/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/inventory/tabs/FabricStockTab.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/invoice-details/index.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/lab-dip/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/labor-contracts/index.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/logistics/components/LogisticsDetail.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/logistics/components/LogisticsForm.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/mrp/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/occupational-health/index.vue": {
+      "tag": 5,
+      "hand": 0,
+      "count": 5
+    },
+    "src/views/outsourcing/index.vue": {
+      "tag": 20,
+      "hand": 0,
+      "count": 20
+    },
+    "src/views/period-adjustments/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/print-targets/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/print-templates/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/product/tabs/ProductFormDialogTab.vue": {
+      "tag": 6,
+      "hand": 0,
+      "count": 6
+    },
+    "src/views/product/tabs/ProductListTab.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/production-recipes/index.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/production/components/ProductionForm.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/purchase-contract/components/PurchaseContractForm.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/purchase-inspection/components/PurchaseInspectionForm.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/purchase-price/components/PurchasePriceForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/purchase-receipt/components/PurchaseReceiptForm.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/purchase-return/components/PurchaseReturnForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/purchase/components/PurchaseCreateDialog.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/purchase/components/PurchaseReceiveDialog.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/purchase/components/PurchaseViewDialog.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/quality-8d/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/quality/index.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/quotations/components/QuotationItemEditor.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/quotations/create.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/sales-contract/components/SalesContractForm.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/sales-price/components/SalesPriceForm.vue": {
+      "tag": 2,
+      "hand": 0,
+      "count": 2
+    },
+    "src/views/sales-returns/components/ReturnDetailDialog.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/sales-returns/components/ReturnEditDialog.vue": {
+      "tag": 5,
+      "hand": 0,
+      "count": 5
+    },
+    "src/views/sales/DeliveryDialog.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/sales/OrderFormDialog.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/sales/ReservationCreateDialog.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/sku-mapping/components/SkuMappingFormDialog.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/social-insurance/index.vue": {
+      "tag": 7,
+      "hand": 0,
+      "count": 7
+    },
+    "src/views/supplier-evaluation/index.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/supplier/SupplierDialog.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/supplier/enhanced/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/system-governance/index.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    },
+    "src/views/system/slow-query/index.vue": {
+      "tag": 1,
+      "hand": 0,
+      "count": 1
+    },
+    "src/views/tax-rebates/index.vue": {
+      "tag": 15,
+      "hand": 0,
+      "count": 15
+    },
+    "src/views/wage/index.vue": {
+      "tag": 4,
+      "hand": 0,
+      "count": 4
+    },
+    "src/views/warehouse/index.vue": {
+      "tag": 3,
+      "hand": 0,
+      "count": 3
+    }
+  }
+}
