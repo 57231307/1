@@ -408,8 +408,12 @@ jobs:
             adb shell run-as "${APP_ID}" true || { echo 'E2E: run-as 不可用，debug 包应可调试'; exit 1; }
             i=0; WV=""; while [ "$i" -lt 30 ]; do i=$((i+1)); adb shell run-as "${APP_ID}" ls shared_prefs 2>/dev/null | grep -qi webview && { WV=1; break; }; sleep 3; done; test -n "$WV" || { echo 'E2E: 本应用 WebView 未初始化（shared_prefs 内无 WebView 首选项）'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: 本应用 WebView 已初始化'
             adb logcat -d --pid="$(adb shell pidof -s "${APP_ID}" | tr -d '\r')" | tail -20
-            echo '===== crash buffer 全文 ====='; adb logcat -d -b crash
-            adb logcat -d -b crash | grep -qE 'FATAL EXCEPTION|Fatal signal' && { echo 'E2E: 本次启动发生崩溃见 crash buffer'; exit 1; } || true
+            CRASH_BUF="$(adb logcat -d -b crash)"
+            echo '===== crash buffer 全文 ====='; printf '%s\n' "$CRASH_BUF"
+            # 无外设的 headless 模拟器上系统进程（如蓝牙栈）会自行 SIGABRT，崩溃缓冲不能整体当本应用崩溃。
+            # 判据只认本应用自身的崩溃：native 崩溃行含本应用包名，或 Java 崩溃块的 Process 行含本应用包名。
+            printf '%s\n' "$CRASH_BUF" | grep -E 'Fatal signal' | grep -q "${APP_ID}" && { echo 'E2E: 本应用发生 native 崩溃见 crash buffer'; exit 1; } || true
+            printf '%s\n' "$CRASH_BUF" | grep -A6 'FATAL EXCEPTION' | grep -q "Process: ${APP_ID}" && { echo 'E2E: 本应用发生 Java 崩溃见 crash buffer'; exit 1; } || true
             adb logcat -d -b events | grep -q "am_anr.*${APP_ID}" && { echo 'E2E: 应用发生 ANR'; exit 1; } || true
             adb logcat -d -b events | grep -q "am_crash.*${APP_ID}" && { echo 'E2E: 应用发生进程崩溃事件'; exit 1; } || true
             echo 'E2E: 装包，启动，前台，WebView 初始化，无 ANR 与崩溃 全部通过'
