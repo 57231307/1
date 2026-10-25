@@ -462,7 +462,10 @@ const openInvoiceDialog = () => {
 };
 
 const submitInvoice = async () => {
-  const valid = await invoiceFormRef.value?.validate();
+  // el-form 的 validate() 在校不通过时以字段对象 reject，提交入口是事件处理器，
+  // reject 冒出去会被 Vue 记为组件事件处理器运行时错误，这里就地转为 false 短路，
+  // 让校验失败只体现为字段级红字提示
+  const valid = await invoiceFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   invoiceSubmitLoading.value = true;
   try {

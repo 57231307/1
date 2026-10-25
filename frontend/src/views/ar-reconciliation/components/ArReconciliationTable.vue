@@ -21,62 +21,67 @@
       :aria-label="$t('arReconciliationModule.resultListAria')"
     >
       <el-table-column
-        prop="customer_code"
-        :label="$t('arReconciliationModule.customerCode')"
-        width="120"
+        prop="reconciliation_no"
+        :label="$t('arReconciliationModule.index.reconciliationNo')"
+        width="150"
       />
       <el-table-column
         prop="customer_name"
-        :label="$t('arReconciliationModule.customerName')"
+        :label="$t('arReconciliationModule.index.customerName')"
         width="160"
+      >
+        <template #default="scope">{{ scope.row.customer_name || '-' }}</template>
+      </el-table-column>
+      <el-table-column
+        prop="period_start"
+        :label="$t('arReconciliationModule.index.reconciliationStart')"
+        width="120"
       />
-      <el-table-column :label="$t('arReconciliationModule.matchStatus')" width="100">
-        <template #default="scope">
-          <el-tag :type="getMatchType(scope.row.match_status)" size="small">
-            {{ $t(getMatchLabel(scope.row.match_status)) }}
-          </el-tag>
-        </template>
-      </el-table-column>
       <el-table-column
-        prop="invoice_amount"
-        :label="$t('arReconciliationModule.invoiceAmount')"
+        prop="period_end"
+        :label="$t('arReconciliationModule.index.reconciliationEnd')"
+        width="120"
+      />
+      <el-table-column
+        prop="total_invoices"
+        :label="$t('arReconciliationModule.index.invoiceAmount')"
         width="130"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.invoice_amount ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.total_invoices) }}</template>
       </el-table-column>
       <el-table-column
-        prop="payment_amount"
-        :label="$t('arReconciliationModule.paymentAmount')"
+        prop="total_collections"
+        :label="$t('arReconciliationModule.index.paymentAmount')"
         width="130"
         align="right"
       >
-        <template #default="scope">{{ Number(scope.row.payment_amount ?? 0).toFixed(2) }}</template>
+        <template #default="scope">{{ fmtNum(scope.row.total_collections) }}</template>
       </el-table-column>
       <el-table-column
-        prop="difference"
-        :label="$t('arReconciliationModule.differenceAmount')"
+        prop="closing_balance"
+        :label="$t('arReconciliationModule.index.balance')"
         width="130"
         align="right"
       >
         <template #default="scope">
-          <span :style="{ color: scope.row.difference !== 0 ? '#f56c6c' : '#67c23a' }">
-            {{ Number(scope.row.difference ?? 0).toFixed(2) }}
+          <span
+            :style="{ color: Number(scope.row.closing_balance ?? 0) !== 0 ? '#f56c6c' : '#67c23a' }"
+          >
+            {{ fmtNum(scope.row.closing_balance) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column
-        prop="matched_count"
-        :label="$t('arReconciliationModule.matchedCount')"
-        width="80"
-        align="center"
-      />
-      <el-table-column
-        prop="unmatched_count"
-        :label="$t('arReconciliationModule.unmatchedCount')"
-        width="80"
-        align="center"
-      />
+      <el-table-column :label="$t('common.status')" width="110" align="center">
+        <template #default="scope">
+          <el-tag
+            :type="scope.row.reconciliation_status === 'confirmed' ? 'success' : 'info'"
+            size="small"
+          >
+            {{ statusLabel(scope.row.reconciliation_status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="created_at" :label="$t('common.createTime')" width="160" />
       <el-table-column :label="$t('common.operation')" width="240" align="center">
         <template #default="scope">
@@ -121,10 +126,20 @@
 import { useI18n } from 'vue-i18n';
 import { View, Promotion, CircleClose } from '@element-plus/icons-vue';
 import type { AutoReconciliationResult } from '@/api/ar-reconciliation-enhanced';
-import { getMatchLabel, getMatchType } from '../composables/arRecFmts';
 
 const { t } = useI18n({ useScope: 'global' });
-void t;
+
+// 后端 Decimal 序列化为字符串，统一转数字再格式化，避免直接 toFixed 崩溃
+const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
+
+// 对账状态词表写入方为后端 models/status/finance.rs 的 ar 段，
+// 展示词键当前只覆盖 draft 与 confirmed，其余状态回显原值
+const statusLabel = (v: string | null | undefined): string => {
+  if (!v) return '-';
+  if (v === 'draft') return t('arReconciliationModule.index.statusDraft');
+  if (v === 'confirmed') return t('arReconciliationModule.index.statusConfirmed');
+  return v;
+};
 
 interface ArPagination {
   page: number;

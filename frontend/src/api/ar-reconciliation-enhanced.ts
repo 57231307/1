@@ -1,5 +1,6 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
+import type { ArReconciliationEntity } from './ar-reconciliation';
 
 /**
  * 应收对账增强域列表分页信封。
@@ -46,19 +47,14 @@ export interface AgingReport {
   overall_buckets: AgingBucket[];
 }
 
-export interface AutoReconciliationResult {
-  id: number;
-  customer_id: number;
-  customer_name: string;
-  customer_code: string;
-  match_status: 'matched' | 'partial' | 'unmatched';
-  invoice_amount: number;
-  payment_amount: number;
-  difference: number;
-  matched_count: number;
-  unmatched_count: number;
-  created_at: string;
-}
+/**
+ * 自动对账结果列表行。后端不落库独立的"匹配结果"实体，
+ * GET auto-reconcile/results 复用 service.list 输出对账单记录，
+ * 行形状与 ArReconciliationEntity 同源，行操作端点均按对账单 id 定位。
+ * 原先的 customer_code、match_status、difference、matched_count 等自造键
+ * 在后端出参中不存在，绑定后恒为空列，已移除。
+ */
+export type AutoReconciliationResult = ArReconciliationEntity;
 
 /**
  * 对账明细行（对齐后端 services::ar::ReconciliationDetail）。
@@ -225,10 +221,19 @@ export function generateReconciliation(
   return request.post('/ar-reconciliations-enhanced/generate', data);
 }
 
+/**
+ * 自动对账结果列表取数。数据源是 GET auto-reconcile/results（后端 handler list_results），
+ * 该端点输出对账单分页信封 list、total、page、page_size。
+ * 此前误指向 auto-match 路径，该路径后端只注册 POST 且语义为执行自动对账动作
+ * （执行即按期间汇总发票与收款并对账，出参是裸数组且无分页），不是列表查询，
+ * GET 命中只会得到 405，因此修正路径而非把列表查询改成执行动作。
+ * 后端查询只读 page、page_size、customer_id、start_date、end_date 五个键，
+ * customer_name、status、task_id、match_status 会被后端忽略，筛选生效问题另列交接。
+ */
 export function getAutoReconciliationResults(
   params?: AutoReconResultQueryParams
 ): Promise<ApiResponse<ArListPage<AutoReconciliationResult>>> {
-  return request.get('/ar-reconciliations-enhanced/auto-match', { params });
+  return request.get('/ar-reconciliations-enhanced/auto-reconcile/results', { params });
 }
 
 /**

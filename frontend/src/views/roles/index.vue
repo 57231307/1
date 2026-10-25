@@ -215,7 +215,7 @@ const openRoleDialog = (row?: Role) => {
 };
 
 const submitRole = async () => {
-  const valid = await roleFormRef.value?.validate();
+  const valid = await roleFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   roleSubmitLoading.value = true;
   try {
