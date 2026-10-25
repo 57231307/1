@@ -57,6 +57,23 @@
   --bx-box-shadow-dark: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.12);
 }
 
+/*
+ * 安全区内嵌量（单点定义，全站经 var 引用）。
+ * 为什么需要，安卓 15 起对 targetSdk 35 的应用强制沉浸式布局，WebView 铺满到状态栏与
+ * 导航条底下，顶栏不加避让就会被系统条带压住点不动，底部同理被吃掉。
+ * 加在哪，顶部避让加在 MainLayout 顶栏与侧栏 logo 条，底部与左右避让加在主内容区、
+ * 移动端抽屉与各整屏容器（登录、初始化、404、壳内服务器设置卡片页同理）。
+ * 桌面为何不受影响，env 的 safe-area-inset 四项由浏览器按设备切口与系统条带给出，
+ * 无切口的桌面与普通窗口返回空串，这里统一以 0px 兜底，取值为 0 时布局零变化。
+ * 入参出处为 viewport meta 的 viewport-fit=cover，缺它则 env 恒为 0，见 frontend/index.html。
+ */
+:root {
+  --bx-safe-top: env(safe-area-inset-top, 0px);
+  --bx-safe-right: env(safe-area-inset-right, 0px);
+  --bx-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bx-safe-left: env(safe-area-inset-left, 0px);
+}
+
 /* 暗黑主题（V15 P1-20-16） */
 html.dark {
   /* 业务布局色 */
@@ -116,9 +133,11 @@ html.dark {
     max-width: 92vw;
   }
 
-  /* 页面主内容区窄屏收缩内边距 */
+  /* 页面主内容区窄屏收缩内边距，本行是带 important 的强制声明，故底部与左右的安全区避让
+     必须并入此处，组件层再写会被压掉，导航条底下的内容就丢了 */
   .el-main {
-    padding: 12px !important;
+    padding: 12px calc(12px + var(--bx-safe-right)) calc(12px + var(--bx-safe-bottom))
+      calc(12px + var(--bx-safe-left)) !important;
   }
 
   /* 表格容器允许横向滚动（窄屏必然溢出的场景） */
