@@ -333,7 +333,7 @@ impl ProductionOrderService {
                 work_center_id: Set(None),
                 remarks: Set(remarks.clone()),
                 created_by: Set(created_by),
-                // V15 Batch 479 P0-F21：返工订单标识
+                // 返工单以 order_type 标记，并把来源批次挂在 original_batch_id 上供追溯与列表区分。
                 order_type: Set("rework".to_string()),
                 original_batch_id: Set(Some(original_batch_id)),
                 created_at: Set(now),
