@@ -2,16 +2,30 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 补 viewport-fit=cover 后 env 安全区内嵌量才会真实下发，安卓 15 起系统强制
+         沉浸式布局，WebView 铺到状态栏底下，卡片页须自行按安全区避让 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Bingxi ERP · 服务器设置</title>
     <style>
       :root {
         color-scheme: light dark;
+        /* 安全区内嵌量，本页是壳内独立文档引不到主应用的 theme.css，
+           按同款口径自行声明，env 在无切口设备回空串故以 0px 兜底，桌面取 0 零变化 */
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
       }
       body {
         margin: 0;
         font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+        box-sizing: border-box;
+        /* vh 行在前兜底旧内核，dvh 行在后跟随可视区 */
         min-height: 100vh;
+        min-height: 100dvh;
+        /* 卡片居中排布，四周按安全区加 16 像素留白，短屏下输入框不被状态栏或导航条吃掉 */
+        padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px)
+          calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 16px);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -92,116 +106,6 @@
         <div class="err" id="permMsg" style="margin-top: 6px"></div>
       </div>
     </div>
-    <script>
-      (function () {
-        var KEY = 'bingxi_server_url';
-        var err = document.getElementById('err');
-        function rememberSelf() {
-          try {
-            if (window.__TAURI__ && window.__TAURI__.core) {
-              window.__TAURI__.core
-                .invoke('remember_gateway', { url: window.location.href })
-                .catch(function () {});
-            }
-          } catch (e) {}
-        }
-        function normalized(raw) {
-          var v = (raw || '').trim();
-          if (!v) return '';
-          if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
-          try {
-            var u = new URL(v);
-            if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
-            return u.origin + (u.pathname === '/' ? '' : u.pathname);
-          } catch (e) {
-            return '';
-          }
-        }
-        function go(target) {
-          window.location.replace(target);
-        }
-        function showSaved(saved) {
-          document.getElementById('saved').style.display = '';
-          document.getElementById('savedText').textContent = '上次地址：' + saved;
-          document.getElementById('enterBtn').onclick = function () {
-            go(saved);
-          };
-          document.getElementById('changeBtn').onclick = function () {
-            showForm();
-          };
-        }
-        function showForm(prefill) {
-          document.getElementById('saved').style.display = 'none';
-          var form = document.getElementById('form');
-          form.style.display = '';
-          var input = document.getElementById('url');
-          if (prefill) input.value = prefill;
-          input.focus();
-          form.onsubmit = function (e) {
-            e.preventDefault();
-            var ok = normalized(input.value);
-            if (!ok) {
-              err.textContent = '地址无效，请填写含 http/https 的完整地址';
-              return;
-            }
-            err.textContent = '';
-            try {
-              localStorage.setItem(KEY, ok);
-            } catch (e2) {}
-            go(ok);
-          };
-        }
-        function setupPermissions() {
-          if (!window.__TAURI__ || !window.__TAURI__.core) return;
-          var wrap = document.getElementById('perm');
-          var btn = document.getElementById('permBtn');
-          var msg = document.getElementById('permMsg');
-          wrap.style.display = '';
-          btn.onclick = function () {
-            btn.disabled = true;
-            msg.style.color = '';
-            msg.textContent = '正在申请，请在系统弹窗中选择允许';
-            var core = window.__TAURI__.core;
-            Promise.allSettled([
-              core.invoke('app_request_camera_permission'),
-              core.invoke('bluetooth_request_permission')
-            ]).then(function (results) {
-              function granted(result) {
-                return (
-                  result.status === 'fulfilled' &&
-                  result.value &&
-                  result.value.granted === true
-                );
-              }
-              var camera = granted(results[0]);
-              var bluetooth = granted(results[1]);
-              msg.style.color = camera && bluetooth ? '#15803d' : '#b45309';
-              msg.textContent =
-                '相机' +
-                (camera ? '已授权' : '未授权') +
-                '，蓝牙' +
-                (bluetooth ? '已授权' : '未授权') +
-                '，可随时在系统设置中调整';
-              btn.disabled = false;
-            });
-          };
-        }
-        rememberSelf();
-        setupPermissions();
-        var reconfigure = /[?&]reconfigure=1(&|$)/.test(window.location.search);
-        var saved = '';
-        try {
-          saved = localStorage.getItem(KEY) || '';
-        } catch (e) {}
-        if (reconfigure) {
-          showForm(saved);
-          if (saved) err.textContent = '登录失败，请确认或更改服务器地址后重试';
-        } else if (saved) {
-          showSaved(saved);
-        } else {
-          showForm('');
-        }
-      })();
-    </script>
+    <script src="./gateway.js"></script>
   </body>
 </html>

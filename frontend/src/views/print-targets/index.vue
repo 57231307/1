@@ -33,10 +33,6 @@
       </template>
       <p class="bluetooth-description">{{ t('printTargets.bluetooth.description') }}</p>
       <div class="bluetooth-actions">
-        <el-button :loading="btLoading" @click="handleBluetoothPermission">
-          <el-icon><Key /></el-icon>
-          {{ t('printTargets.bluetooth.requestPermission') }}
-        </el-button>
         <el-button :disabled="btLoading" @click="handleBluetoothSettings">
           <el-icon><Setting /></el-icon>
           {{ t('printTargets.bluetooth.openSettings') }}
@@ -57,13 +53,6 @@
       <el-alert
         v-else-if="btState && !btState.enabled"
         :title="t('printTargets.bluetooth.adapterDisabled')"
-        type="warning"
-        :closable="false"
-        show-icon
-      />
-      <el-alert
-        v-else-if="btState && !btState.granted"
-        :title="t('printTargets.bluetooth.permissionDenied')"
         type="warning"
         :closable="false"
         show-icon
@@ -100,12 +89,7 @@
       </el-form>
 
       <div class="bluetooth-actions">
-        <el-button
-          type="primary"
-          :loading="btLoading"
-          :disabled="!btSelectedAddress || !btState?.granted"
-          @click="handleBluetoothConnect"
-        >
+        <el-button type="primary" :loading="btLoading" @click="handleBluetoothConnect">
           {{ t('printTargets.bluetooth.connect') }}
         </el-button>
         <el-button :disabled="!btConnectedAddress || btLoading" @click="handleBluetoothDisconnect">
@@ -330,7 +314,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import { Plus, Refresh, Key, Setting } from '@element-plus/icons-vue';
+import { Plus, Refresh, Setting } from '@element-plus/icons-vue';
 import { isDialogDismissal } from '@/utils/monitor';
 import { msg } from '@/utils/message';
 import { logger } from '@/utils/logger';
@@ -734,26 +718,6 @@ async function refreshBluetoothState(): Promise<void> {
   }
 }
 
-async function handleBluetoothPermission(): Promise<void> {
-  btLoading.value = true;
-  try {
-    const result = await requestBluetoothPermission();
-    if (result.granted) {
-      ElMessage.success(t('printTargets.bluetooth.message.permissionGranted'));
-    } else {
-      ElMessage.warning(t('printTargets.bluetooth.message.permissionDenied'));
-    }
-    await refreshBluetoothState();
-  } catch (error) {
-    logger.error('[print-targets] 申请蓝牙权限失败', error);
-    ElMessage.error(
-      bluetoothErrorDetail(error) || t('printTargets.bluetooth.message.permissionFailed')
-    );
-  } finally {
-    btLoading.value = false;
-  }
-}
-
 async function handleBluetoothSettings(): Promise<void> {
   try {
     await openBluetoothSettings();
@@ -767,19 +731,24 @@ async function handleBluetoothSettings(): Promise<void> {
 }
 
 async function handleBluetoothConnect(): Promise<void> {
-  const address = btSelectedAddress.value;
-  if (!address) {
-    ElMessage.warning(t('printTargets.bluetooth.message.printerRequired'));
-    return;
-  }
   btLoading.value = true;
   try {
+    // 用时申请，常驻申请入口移除后，连接动作是本页面唯一能调起系统授权的入口，
+    // 因此未授权时必须先在这里申请，被拒后保留可见提示并中止本次连接。
     if (btState.value && !btState.value.granted) {
       const permission = await requestBluetoothPermission();
       if (!permission.granted) {
         ElMessage.warning(t('printTargets.bluetooth.message.permissionDenied'));
         return;
       }
+      // 壳侧的已配对列表只有授权后才可读，授权放行后立即重读一轮，
+      // 用户才能在同一张卡片里选到打印机并继续本次连接。
+      await refreshBluetoothState();
+    }
+    const address = btSelectedAddress.value;
+    if (!address) {
+      ElMessage.warning(t('printTargets.bluetooth.message.printerRequired'));
+      return;
     }
     const connection = await connectBluetoothPrinter(address);
     btConnectedAddress.value = connection.address;

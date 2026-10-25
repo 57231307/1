@@ -2607,7 +2607,6 @@ export default {
       title: 'Local Bluetooth Printing',
       description:
         'Connect a paired Bluetooth thermal printer on the Android client; print jobs are sent directly to the local printer.',
-      requestPermission: 'Request Bluetooth Permission',
       openSettings: 'Open System Bluetooth Settings',
       refresh: 'Refresh Paired Devices',
       printer: 'Printer',
@@ -2621,12 +2620,9 @@ export default {
       notConnected: 'Not Connected',
       adapterUnsupported: 'This device does not support Bluetooth',
       adapterDisabled: 'System Bluetooth is off. Enable Bluetooth in system settings first',
-      permissionDenied: 'Nearby devices permission is not granted; paired printers cannot be read',
       noPrinters: 'No paired devices. Pair a printer in system Bluetooth settings first',
       message: {
-        permissionGranted: 'Bluetooth permission granted',
         permissionDenied: 'Bluetooth permission not granted; printers cannot be listed',
-        permissionFailed: 'Failed to request Bluetooth permission',
         settingsOpened: 'System Bluetooth settings opened',
         settingsFailed: 'Failed to open system Bluetooth settings',
         listFailed: 'Failed to read paired printers',
