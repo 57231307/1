@@ -61,8 +61,8 @@ import {
  *
  * 删除门。面料入口 DELETE 不清明细，带明细的行删主表撞外键收口 500 加
  * DATABASE_ERROR，这是面料口与标准口的真实差异；标准入口 DELETE 同事务先清
- * 预留与明细再删主表，但 shipped 与 completed 状态有业务门拒删（可外显文案
- * 点名当前状态），改回 pending 后方可删——本 spec 用它收口全部自建行。
+ * 预留与明细再删主表，但 shipped 与 completed 状态有业务门拒删（脱敏 business，
+ * 只钉 HTTP 与机器码），改回 pending 后方可删——本 spec 用它收口全部自建行。
  * 两口对不存在主键都是 404 加 NOT_FOUND。
  *
  * 假绿防线。每次写都紧跟按主键独立读回逐列对表；负例一律钉 HTTP 与机器码，
@@ -584,9 +584,6 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
       failureCode(deleteBlocked),
       `删除状态门必须归因 BUSINESS_ERROR，实际 ${JSON.stringify(deleteBlocked.code)}`
     ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
-    expect(str(deleteBlocked.message), '删除状态门文案必须外显点名当前状态').toBe(
-      '订单状态为shipped，不允许删除'
-    );
     const stillThere = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${orderId}`);
     expect(str(stillThere.status), '被拒的删除不许动行').toBe('shipped');
 
@@ -631,13 +628,19 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     );
     expect(num((list.items as Row[])[0].id), '命中行主键必须等于自建订单').toBe(orderId);
 
-    // 二 页长与页码 clamp：500 收到 100，越界页码收到 1000 且出空页不报错
+    // 二 页长与页码 clamp：500 收到 100，越界页码收到 1000 且出空页不报错；
+    //    同筛选紧邻两次读取比 total，钉"越界页只空页不改计数"的口径
     const clamped = await apiCallRaw<Row>(
       page,
       'GET',
       `/sales/fabric-orders?customer_id=${ctx.customerId}&page=1&page_size=500`
     );
     expect(num(clamped.page_size), 'page_size=500 必须被 clamp 到 100 回显').toBe(100);
+    const nearPage = await apiCallRaw<Row>(
+      page,
+      'GET',
+      `/sales/fabric-orders?customer_id=${ctx.customerId}&page=1&page_size=100`
+    );
     const farPage = await apiCallRaw<Row>(
       page,
       'GET',
@@ -647,8 +650,13 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     expect((farPage.items as Row[]).length, '越界空页 items 必须为空数组').toBe(0);
     expect(
       num(farPage.total),
-      `越界页的 total 必须与第一页同口径为 ${String(num(list.total))}`
-    ).toBe(num(list.total));
+      `越界页的 total 必须与同筛选首页一致为 ${String(num(nearPage.total))}，实际 ${String(
+        num(farPage.total)
+      )}`
+    ).toBe(num(nearPage.total));
+    expect(nearPage.items, `首页结果必须包含自建订单 ${String(orderId)}`).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: orderId })])
+    );
 
     // 三 状态过滤语义：pending 过滤必须命中，shipped 过滤必须不命中同一单号
     const pendingHit = await apiCallRaw<Row>(
