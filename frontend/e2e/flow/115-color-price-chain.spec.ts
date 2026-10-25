@@ -238,7 +238,7 @@ async function readPrice(page: Page, id: number): Promise<ColorPriceDetailRow> {
   expect(
     Number(row.id) === id,
     `对象口回读主键必须等于查询值，实际 ${JSON.stringify(row)}`
-  ).toBe(id);
+  ).toBe(true);
   expect(
     typeof row.approval_status === 'string',
     `approval_status 必须存在且为字符串，实际 ${JSON.stringify(row)}`

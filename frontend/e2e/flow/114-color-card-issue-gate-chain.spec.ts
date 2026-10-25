@@ -262,8 +262,12 @@ test.describe.serial('114 色卡发放链门控与发放面读口', () => {
 
     // 清理。色卡无物理删口（DELETE 即归档），靶卡已归档；客户走延迟删通道
     await apiCall(page, 'DELETE', `/crm/customers/${customerId}`);
-    const custGone = await apiCallExpectFail(page, 'GET', `/crm/customers/${customerId}`);
-    expect(custGone.status, `客户删除后回读必须 404，实际 ${custGone.status}`).toBe(404);
+    // 客户删除是软删除（status 置 inactive），对象口仍可读回，故以状态回读证明删除生效。
+    const custAfterDelete = await apiCallRaw<Row>(page, 'GET', `/crm/customers/${customerId}`);
+    expect(
+      str(custAfterDelete.status),
+      `客户软删后状态必须落 inactive，实际 ${JSON.stringify(custAfterDelete)}`
+    ).toBe('inactive');
   });
 
   test('T2 四枚改判口无记录即 404 遗失与损坏的金额前置校验先于取记录 全链零推进', async ({

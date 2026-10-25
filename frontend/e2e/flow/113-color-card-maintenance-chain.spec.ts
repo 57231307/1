@@ -597,7 +597,7 @@ test.describe.serial('113 色卡主体与色号维护链', () => {
     ).toBe(true);
 
     // 4) 打样打印口的两因同码分辨。先建真实打样通知单（交期不早于今天）
-    const labReq = await apiCallRaw<LabDipRequestRow>(page, 'POST', '/lab-dip/requests', {
+    const labReq = await apiCallRaw<LabDipRequestRow>(page, 'POST', '/production/lab-dip/requests', {
       light_source: 'D65',
       required_date: ymd(7),
       customer_color_no: `LDN${tag}`,
@@ -619,7 +619,7 @@ test.describe.serial('113 色卡主体与色号维护链', () => {
       str(labReq.status),
       `打样单初态必须由服务端落 pending，实际 ${str(labReq.status)}`
     ).toBe('pending');
-    const reqReadback = await apiCallRaw<LabDipRequestRow>(page, 'GET', `/lab-dip/requests/${reqId}`);
+    const reqReadback = await apiCallRaw<LabDipRequestRow>(page, 'GET', `/production/lab-dip/requests/${reqId}`);
     expect(Number(reqReadback.id), '打样单对象口必须命中本单').toBe(reqId);
 
     // 单据存在但该单据类型此刻没有启用且默认的模板，装配先取数据后取模板，故仍 404
@@ -683,8 +683,8 @@ test.describe.serial('113 色卡主体与色号维护链', () => {
       `模板停用后打印必须退回 404（启用位真实生效），实际 ${afterOff.status()}`
     ).toBe(404);
 
-    await apiCall(page, 'DELETE', `/lab-dip/requests/${reqId}`);
-    const gone = await apiCallExpectFail(page, 'GET', `/lab-dip/requests/${reqId}`);
+    await apiCall(page, 'DELETE', `/production/lab-dip/requests/${reqId}`);
+    const gone = await apiCallExpectFail(page, 'GET', `/production/lab-dip/requests/${reqId}`);
     expect(gone.status, `打样单删除后按 id 回读必须 404，实际 ${gone.status}`).toBe(404);
     await apiCall(page, 'DELETE', `/print-templates/${tplId}`);
     const tplGone = await apiCallExpectFail(page, 'GET', `/print-templates/${tplId}`);

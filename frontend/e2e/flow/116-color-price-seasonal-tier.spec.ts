@@ -663,7 +663,7 @@ test.describe.serial('116 色卡价格附属表链', () => {
     ).toBe('1,3');
     expect(
       listAfterDelete.items
-        .map(t => `${toNum(t.min_quantity)}:${String(t.max_quantity)}:${toNum(t.tier_price)}`)
+        .map(t => `${toNum(t.min_quantity)}:${t.max_quantity === null ? 'null' : toNum(t.max_quantity)}:${toNum(t.tier_price)}`)
         .join(','),
       '剩余区间与价格集合必须精确等于一档与三档'
     ).toBe('1:100:60,500:null:55');
