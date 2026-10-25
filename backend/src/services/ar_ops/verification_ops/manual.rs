@@ -34,6 +34,7 @@ use tracing::{info, warn};
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use super::super::json_helpers::reconciliation_to_json;
 use super::super::types::ReconciliationItemContext;
@@ -263,8 +264,12 @@ impl ArService {
         Ok(())
     }
 
-    /// 创建核销单主记录（生成 VER 单号 + 初始化金额）。
+    /// 创建核销单主记录（在调用方事务内取 VER 单号并插入 + 初始化金额）。
     /// 核销单主记录的 crate 内唯一写入口：手动核销与收款创建直连发票路径共用。
+    /// 入参 `invoice` 提供客户归属（customer_id/customer_name 冗余自发票侧），
+    /// `amount` 同时写入 total_invoices/total_collections，`user_id` 写 created_by/confirmed_by，
+    /// `now` 决定 reconciliation_date 与时间戳列。落库存 ar_reconciliations 表，
+    /// 单号撞该列 UNIQUE(23505) 时在保存点内重新取号重试，非唯一类错误原样上抛。
     pub(crate) async fn create_reconciliation_record(
         &self,
         invoice: &ar_invoice::Model,
@@ -273,37 +278,34 @@ impl ArService {
         now: chrono::DateTime<chrono::Utc>,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<ar_reconciliation::Model, AppError> {
-        // 创建核销单
-        let verify_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+        let today = now.date_naive();
+        let reconciliation = DocumentNumberGenerator::insert_with_no_retry(
             txn,
             "VER",
             ar_reconciliation::Entity,
             ar_reconciliation::Column::ReconciliationNo,
+            |reconciliation_no| ar_reconciliation::ActiveModel {
+                reconciliation_no: Set(reconciliation_no),
+                reconciliation_date: Set(today),
+                period_start: Set(today),
+                period_end: Set(today),
+                customer_id: Set(invoice.customer_id),
+                customer_name: Set(invoice.customer_name.clone()),
+                opening_balance: Set(Decimal::ZERO),
+                total_invoices: Set(amount),
+                total_collections: Set(amount),
+                closing_balance: Set(Decimal::ZERO),
+                reconciliation_status: Set(Some(
+                    crate::models::status::ar::RECONCILIATION_CLOSED.to_string(),
+                )),
+                confirmed_by: Set(Some(user_id)),
+                confirmed_at: Set(Some(now)),
+                created_by: Set(Some(user_id)),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            },
         )
-        .await?;
-        let today = now.date_naive();
-        let reconciliation = ar_reconciliation::ActiveModel {
-            reconciliation_no: Set(verify_no),
-            reconciliation_date: Set(today),
-            period_start: Set(today),
-            period_end: Set(today),
-            customer_id: Set(invoice.customer_id),
-            customer_name: Set(invoice.customer_name.clone()),
-            opening_balance: Set(Decimal::ZERO),
-            total_invoices: Set(amount),
-            total_collections: Set(amount),
-            closing_balance: Set(Decimal::ZERO),
-            reconciliation_status: Set(Some(
-                crate::models::status::ar::RECONCILIATION_CLOSED.to_string(),
-            )),
-            confirmed_by: Set(Some(user_id)),
-            confirmed_at: Set(Some(now)),
-            created_by: Set(Some(user_id)),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        }
-        .insert(txn)
         .await?;
         Ok(reconciliation)
     }

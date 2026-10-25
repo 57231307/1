@@ -1,7 +1,7 @@
 /**
  * 侧边栏导航树闭合锁（vitest，无浏览器、无后端依赖）
  *
- * 功能：断言"导航树单一真相"四条不变量——
+ * 功能：断言"导航树单一真相"五条不变量——
  *   1. 集合全等：`src/config/navigation.ts` 的叶子 path 集必须与 router 里"有组件、非 hidden、
  *      非 public、非容器"的叶子路由集**双向相等**。缺项即"功能有页面却无入口"，多项即"菜单指向
  *      不存在或被标 hidden 的路由"（后者会让 canAccessMenu 恒 false，页面对所有角色不可达）。
@@ -10,91 +10,73 @@
  *      `visibleSubMenu` 硬编码 path 表——分组可见性必须由导航树派生，否则两份清单会漂移。
  *   4. 组件唯一：同一页面组件不得同时挂在两个可见路由上，否则同一功能会出现两条入口，
  *      且其中一条的菜单权限与另一条不一致时会出现进得去却看不到的错觉。
+ *   5. 遍历覆盖棘轮：每个导航叶子都必须在 e2e 遍历清单 `e2e/traversal/modules.config.ts` 登记，
+ *      未覆盖项只能出现在下方 `KNOWN_UNTRAVERSED_NAV_PATHS` 存量表里，且该表只准缩不准增。
+ *      已被合并撤除的旧入口不得再登记回遍历清单，避免重定向页被遍历误判为可用入口。
  *
  * 调用方：frontend vitest 单测轨（vitest.config.ts include `tests/**`），CI ci-frontend-test job 执行。
- * 入参：只读仓库内 3 个源文件，不读写后端、不起浏览器。
+ * 入参：只读仓库内 4 个源文件，不读写后端、不起浏览器。
  * 传给谁：断言结果只进 vitest 报告。
  * 存什么/存哪里：不落库。
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { NAV_TREE } from '@/config/navigation';
 import type { NavGroup, NavLeaf, NavNode } from '@/config/navigation';
+import {
+  ROUTER_SRC,
+  collectShellLeaves,
+  collectShellRouteEntries,
+  readFrontendSource,
+} from './route-source';
+import type { ShellRouteEntry } from './route-source';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FRONTEND_ROOT = path.resolve(HERE, '../..');
-
-const readSource = (absPath: string): string =>
-  readFileSync(absPath, 'utf8').replace(/\r\n/g, '\n');
-
-const ROUTER_SRC = readSource(path.join(FRONTEND_ROOT, 'src/router/index.ts'));
-const MAIN_LAYOUT_SRC = readSource(
-  path.join(FRONTEND_ROOT, 'src/components/Layout/MainLayout.vue')
-);
-
-interface ShellRouteEntry {
-  path: string;
-  component: string;
-}
+const MAIN_LAYOUT_SRC = readFrontendSource('src/components/Layout/MainLayout.vue');
+const TRAVERSAL_SRC = readFrontendSource('e2e/traversal/modules.config.ts');
 
 /**
- * router 叶子路由集合：取 `component: MainLayout` 路由的 children 数组（应用外壳内），
- * 逐个对象做括号配对解析，排除 `hidden: true` 与无 component 的项。
- * 外壳外的 /login、/setup、/terms、/privacy 属免登录页，本就不进侧边栏。
- * 返回项附带组件标识，供组件唯一性断言使用。
+ * 存量未纳入 e2e 遍历的导航叶子：历史上就没有 traversal 配置，本波不补齐，
+ * 但不得再新增。补齐某个页面后必须同步从此表移除（表内残留会被下面的断言判红）。
  */
-function collectShellRouteEntries(src: string): ShellRouteEntry[] {
-  const anchor = src.indexOf('component: MainLayout,');
-  if (anchor < 0) throw new Error('router 未找到 MainLayout 容器路由');
-  const open = src.indexOf('[', src.indexOf('children:', anchor));
-  if (open < 0) throw new Error('MainLayout 路由缺少 children 数组');
-  let depth = 0;
-  let close = -1;
-  for (let i = open; i < src.length; i += 1) {
-    if (src[i] === '[') depth += 1;
-    else if (src[i] === ']') {
-      depth -= 1;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
-  if (close < 0) throw new Error('MainLayout children 数组未闭合');
+const KNOWN_UNTRAVERSED_NAV_PATHS = new Set([
+  '/bad-debts',
+  '/budgets',
+  '/bulk-color-approval',
+  '/chemicals',
+  '/customer-collab',
+  '/environmental-compliance',
+  '/export-compliance',
+  '/fabric-inspections',
+  '/flow-cards',
+  '/invoice-details',
+  '/lab-dip',
+  '/labor-contracts',
+  '/occupational-health',
+  '/outsourcing',
+  '/period-adjustments',
+  '/production-recipes',
+  '/purchase/sku-mapping',
+  '/purchase/supplier-product',
+  '/quality-8d',
+  '/social-insurance',
+  '/supplier-enhanced',
+  '/system-governance',
+  '/system/oa-announcements',
+  '/wage',
+]);
 
-  const leaves: ShellRouteEntry[] = [];
-  let objDepth = 0;
-  let buf = '';
-  const objects: string[] = [];
-  for (const ch of src.slice(open + 1, close)) {
-    if (ch === '{') objDepth += 1;
-    if (objDepth > 0) buf += ch;
-    if (ch === '}') {
-      objDepth -= 1;
-      if (objDepth === 0) {
-        objects.push(buf);
-        buf = '';
-      }
-    }
-  }
-  for (const obj of objects) {
-    const pathMatch = obj.match(/path:\s*['"]([^'"]+)['"]/);
-    if (!pathMatch || !obj.includes('component:')) continue;
-    if (/hidden:\s*true/.test(obj) || /public:\s*true/.test(obj)) continue;
-    const raw = pathMatch[1];
-    const full = raw.startsWith('/') ? raw : `/${raw}`;
-    const componentMatch = obj.match(
-      /component:\s*(?:\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]\s*\)|([\w$.]+))/
-    );
-    leaves.push({ path: full, component: componentMatch?.[1] ?? componentMatch?.[2] ?? full });
-  }
-  return leaves;
-}
+/** 已被同域合并撤除的旧入口：只能以重定向存在，不得再登记为可遍历模块 */
+const WITHDRAWN_LEGACY_PATHS = [
+  '/fabric',
+  '/crm',
+  '/bi/sales-analysis',
+  '/ar-reconciliation/enhanced',
+  '/periods',
+];
 
-function collectShellLeaves(src: string): Set<string> {
-  return new Set(collectShellRouteEntries(src).map(entry => entry.path));
+function collectTraversalRoutes(src: string): Set<string> {
+  const routes = new Set<string>();
+  for (const match of src.matchAll(/route:\s*'([^']+)'/g)) routes.add(match[1]);
+  return routes;
 }
 
 const isLeaf = (node: NavNode): node is NavLeaf => node.kind === 'leaf';
@@ -109,7 +91,7 @@ function flatten(nodes: NavNode[]): NavLeaf[] {
 describe('导航树与路由表闭合', () => {
   const navLeaves = flatten(NAV_TREE);
   const navPaths = navLeaves.map(leaf => leaf.path);
-  const shellEntries = collectShellRouteEntries(ROUTER_SRC);
+  const shellEntries: ShellRouteEntry[] = collectShellRouteEntries(ROUTER_SRC);
   const routable = collectShellLeaves(ROUTER_SRC);
 
   it('解析器本身有效（外壳叶子数量落在合理区间，防解析塌缩成空集）', () => {
@@ -163,5 +145,46 @@ describe('导航树与路由表闭合', () => {
     expect(MAIN_LAYOUT_SRC).not.toMatch(/canAccessMenu\(\s*'/);
     expect(MAIN_LAYOUT_SRC).not.toMatch(/visibleSubMenu/);
     expect(MAIN_LAYOUT_SRC).toMatch(/<NavTree/);
+  });
+});
+
+describe('导航入口与 e2e 遍历清单覆盖棘轮', () => {
+  const navPaths = flatten(NAV_TREE).map(leaf => leaf.path);
+  const traversed = collectTraversalRoutes(TRAVERSAL_SRC);
+
+  it('遍历清单解析器本身有效（防解析塌缩成空集）', () => {
+    expect(traversed.size).toBeGreaterThan(80);
+    expect(traversed.has('/customer')).toBe(true);
+  });
+
+  it('导航叶子必须登记进遍历清单，或明确留在存量未覆盖表里', () => {
+    const uncovered = navPaths
+      .filter(p => !traversed.has(p) && !KNOWN_UNTRAVERSED_NAV_PATHS.has(p))
+      .sort();
+    expect(uncovered).toEqual([]);
+  });
+
+  it('存量未覆盖表只准缩不准增（已覆盖或已下线的 path 必须移出）', () => {
+    const stale = [...KNOWN_UNTRAVERSED_NAV_PATHS]
+      .filter(p => traversed.has(p) || !navPaths.includes(p))
+      .sort();
+    expect(stale).toEqual([]);
+  });
+
+  it('同域合并后的唯一入口必须被遍历覆盖', () => {
+    const mergedEntries = [
+      '/customer',
+      '/crm-enhanced',
+      '/sales-analysis',
+      '/ar-reconciliation',
+      '/greige-fabrics',
+      '/dye-batch',
+      '/dye-recipe',
+    ];
+    expect(mergedEntries.filter(p => !traversed.has(p)).sort()).toEqual([]);
+  });
+
+  it('已撤除的旧入口不得重新登记为可遍历模块', () => {
+    expect(WITHDRAWN_LEGACY_PATHS.filter(p => traversed.has(p)).sort()).toEqual([]);
   });
 });

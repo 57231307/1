@@ -103,6 +103,49 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
+          <el-form-item prop="width">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelWidth') }}
+                <el-tooltip :content="t('product.productFormDialogTab.tipWidth')" placement="top">
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.width"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item prop="gram_weight">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelGramWeight') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipGramWeight')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input-number
+              v-model="formData.gram_weight"
+              :min="0.01"
+              :precision="2"
+              :controls="false"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
           <el-form-item prop="meters_per_piece">
             <template #label>
               <span class="form-label-with-tip">
@@ -251,6 +294,8 @@ const formData = reactive({
   // 清空经 value-on-clear 归一为 null，与未触碰的 undefined 同属空值，提交前统一显式序列化为 null
   meters_per_piece: undefined as number | null | undefined,
   meters_per_roll: undefined as number | null | undefined,
+  width: undefined as number | null | undefined,
+  gram_weight: undefined as number | null | undefined,
   description: '',
   is_active: true,
 });
@@ -321,6 +366,8 @@ const resetForm = () => {
   formData.cost_price = 0;
   formData.meters_per_piece = undefined;
   formData.meters_per_roll = undefined;
+  formData.width = undefined;
+  formData.gram_weight = undefined;
   formData.description = '';
   formData.is_active = true;
   formRef.value?.clearValidate();
@@ -331,7 +378,7 @@ watch(
   val => {
     visible.value = val;
     if (val) {
-      // 回显区间内抑制带出：resetForm 与两列归一都写每匹米数，那属于回填而非用户改动
+      // 回显区间内抑制带出：resetForm 与各列数值归一都写每匹米数，那属于回填而非用户改动
       echoing.value = true;
       try {
         resetForm();
@@ -346,6 +393,9 @@ watch(
             props.rowData.meters_per_roll != null
               ? Number(props.rowData.meters_per_roll)
               : undefined;
+          formData.width = props.rowData.width != null ? Number(props.rowData.width) : undefined;
+          formData.gram_weight =
+            props.rowData.gram_weight != null ? Number(props.rowData.gram_weight) : undefined;
         }
       } finally {
         echoing.value = false;
@@ -373,6 +423,10 @@ const buildSubmitPayload = (): Partial<Product> => ({
   cost_price: formData.cost_price,
   meters_per_piece: formData.meters_per_piece ?? null,
   meters_per_roll: formData.meters_per_roll ?? null,
+  // 幅宽与克重是报价单换算米数与公斤数的取数源，后端按入参覆写这两列，
+  // 键缺席即被当成未提供，界面清空就落不回库里，故与米数同法显式发 null
+  width: formData.width ?? null,
+  gram_weight: formData.gram_weight ?? null,
   description: formData.description,
   is_active: formData.is_active,
 });

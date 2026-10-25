@@ -669,7 +669,7 @@ const handleSubmit = async () => {
           is_default: form.is_default,
           status: form.status,
         };
-        // Option<String> 描述空值省略该键，不落库空串（范式见 views/system UserTab）
+        // Option<String> 描述空值省略该键，不落库空串（范式同 用户管理页）
         if (form.description) payload.description = form.description;
         // 缺省打印目标只在真配置时发送键（空串会被后端归一为未配置，但键应缺席而非空值）
         if (form.default_target_name) payload.default_target_name = form.default_target_name;

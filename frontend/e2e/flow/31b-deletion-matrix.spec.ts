@@ -1075,7 +1075,7 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
   // 于是 items 恒为 undefined → 走 skip 分支，删除→回读从未真正验证过。
   // 通知为软删除（notification_service.rs:506 置 status=Deleted），get_notification 不过滤，
   // 故回读返回 200 并携带 status 字段；断言该字段以验证删除确实生效。
-  test('通知：公告直发创建→删除→回读软删标记(Deleted)', async ({ page }) => {
+  test('通知：公告直发创建→删除→回读软删标记(DELETED)', async ({ page }) => {
     // ensureTestEntities 已提为 beforeAll 整 worker 一次；本例仅 login + ms 级 API 往返，90s 相称
     test.setTimeout(90_000);
     // getCtx().userIds 由 beforeAll 的 ensureTestEntities 统一就绪，无需在此重复初始化。
@@ -1111,12 +1111,12 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
     console.log(`[31b-通知] 删除后回读 HTTP ${chk.status()}`);
     expect(
       chk.status(),
-      '[31b-通知] 软删除后详情应返回 200（记录保留，status 标记为 Deleted）'
+      '[31b-通知] 软删除后详情应返回 200（记录保留，status 标记为 DELETED）'
     ).toBe(200);
     const notifBody = await chk.json();
     expect(
       notifBody?.data?.status,
-      '[31b-通知] 软删除后回读应含 status=Deleted（NotificationStatus::Deleted，models/notification.rs:63）'
-    ).toBe('Deleted');
+      '[31b-通知] 软删除后回读应含 status=DELETED（后端通知状态出参为大写词表，与 UNREAD 与 READ 同源）'
+    ).toBe('DELETED');
   });
 });

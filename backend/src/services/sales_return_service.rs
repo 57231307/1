@@ -400,13 +400,15 @@ impl SalesReturnService {
         Ok(())
     }
 
-    // 生成退货单号
-    // 格式：SR + 年月日 + 三位序号（SR20260315001）
+    // 生成退货单号，入参 txn 为调用方建单事务句柄，前缀级咨询锁随该事务结束才释放，
+    // 消除取号与落库之间的并发撞号窗口
+    // 格式为 SR 前缀加年月日加三位流水（SR20260315001）
     crate::impl_generate_no!(
         generate_return_no,
         "SR",
         sales_return::Entity,
-        sales_return::Column::ReturnNo
+        sales_return::Column::ReturnNo,
+        txn
     );
 
     /// 创建销售退货单
@@ -417,7 +419,7 @@ impl SalesReturnService {
     ) -> Result<sales_return::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        let return_no = self.generate_return_no().await?;
+        let return_no = self.generate_return_no(&txn).await?;
 
         // 将 reason_type 和 reason_detail 组合成 reason 字段
         let reason = if let Some(detail) = &req.reason_detail {

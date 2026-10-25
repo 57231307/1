@@ -23,6 +23,34 @@ use serde_json::Value as JsonValue;
 use tracing::{info, warn};
 use validator::Validate;
 
+/// 付款申请主单（表头）在无权限配置行且非 admin（含权限查询失败）的默认处理下
+/// 必须隐藏的列集合：申请金额、外币金额、收款账号、收款银行。
+/// 列表与详情共用本表定位主单行，隐藏键以常量表为唯一出处，handler 内不再
+/// 重复书写字面量；判据源为出参即主单实体序列化键（models/ap_payment_request）。
+const DEFAULT_HIDDEN_REQUEST_FIELDS: [&str; 4] = [
+    "request_amount",
+    "request_amount_foreign",
+    "bank_account",
+    "bank_name",
+];
+
+/// 付款申请明细行在同一默认处理下必须隐藏的列集合：apply_amount 属申请金额
+/// 语义的同族键（该行为这笔申请向某一应付单申请支付的金额）。无明细时主单金额
+/// 取表头 request_amount；已补明细时各行 apply_amount 之和即该单的实际申请金额，
+/// 隐藏语义必须同步落到明细行上下文，否则摘除主单金额形同未隐。
+/// invoice_id 与 notes 属分摊归属信息、非金额类，不隐藏，明细行容器原样保留。
+const DEFAULT_HIDDEN_ITEM_FIELDS: [&str; 1] = ["apply_amount"];
+
+/// 按给定列集合对单行 JSON 对象整键移除：主单行与明细行共用的执行单元。
+/// 隐藏语义为整键移除而非置空，非对象行原样返回；调用方按行上下文传入对应列集。
+fn hide_fields(row: &mut JsonValue, fields: &[&str]) {
+    if let Some(obj) = row.as_object_mut() {
+        for field in fields {
+            obj.remove(*field);
+        }
+    }
+}
+
 /// 查询付款申请列表参数
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -113,13 +141,9 @@ pub async fn list_requests(
             //（admin_checker 内部带 5 分钟缓存，同 crm_handler::apply_opportunity_field_permission
             // 既有范式）。
             // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+            // 列表出参均为主单行，按主单列集逐行隐藏（列集定义见文件顶部常量表）
             for request in &mut items_json {
-                if let Some(obj) = request.as_object_mut() {
-                    obj.remove("request_amount");
-                    obj.remove("request_amount_foreign");
-                    obj.remove("bank_account");
-                    obj.remove("bank_name");
-                }
+                hide_fields(request, &DEFAULT_HIDDEN_REQUEST_FIELDS);
             }
         }
     }
@@ -131,6 +155,14 @@ pub async fn list_requests(
 }
 
 /// 获取付款申请详情
+///
+/// 出参由主单字段与明细行数组 items 两部分构成，字段权限对两部分同源生效：
+/// 配置了数据权限行时，主单与明细行都按同一份白名单与隐藏集合处理；无配置行时
+/// admin 放行、非 admin 按主单与明细各自的常量列集默认隐藏；权限查询失败显式记
+/// 警告后按无权限行走同一默认处理。
+/// role_id 缺失时本出口不做任何字段处理、原文发出——权限中间件在更早处已拒无角色
+/// 请求，本分支是纵深防御层而非该场景的入口门；把该形态收紧为默认隐藏属行为变更，
+/// 需另行裁定。
 pub async fn get_request(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -150,7 +182,22 @@ pub async fn get_request(
 
     let mut request_json = serde_json::to_value(request)?;
 
-    // 数据权限控制：获取角色数据权限并应用字段过滤
+    // 明细行随详情一并回读：创建契约可送 items，行落在 ap_payment_request_item；
+    // 出参不带该键时调用方无法核实行是否写入。
+    // 查询先行于权限块，明细在块内按自身行上下文与主单同一份权限结果逐行过滤，
+    // 合并对象的出参构造收尾——字段过滤是顶层操作、不递归进入数组，若明细在过滤
+    // 之后才挂上，白名单与隐藏集合都触达不到明细行，主单金额被隐的同时明细金额
+    // 会原样发出（序列化失败传播 AppError，不返回 Null）
+    let items = crate::models::ap_payment_request_item::Entity::find()
+        .filter(crate::models::ap_payment_request_item::Column::RequestId.eq(id))
+        .all(&*state.db)
+        .await?;
+    let mut items_json: Vec<JsonValue> = items
+        .into_iter()
+        .map(|item| serde_json::to_value(item).map_err(AppError::from))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // 数据权限控制：获取角色数据权限并应用字段过滤（主单与明细行同块同源）
     if let Some(role_id) = auth.role_id {
         // Err 记 warn 后同走 fail-closed 默认处理（与 list_requests 同款，不静默）
         let permission = match state
@@ -176,25 +223,23 @@ pub async fn get_request(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
+            state.data_permission_service.filter_fields_batch(
+                &mut items_json,
+                &permission.allowed_fields,
+                &permission.hidden_fields,
+            );
         } else if !admin_checker::is_admin_role(&state.db, role_id).await {
             // 与列表同一单源判定（见 list_requests 内 admin 判定注释），每请求至多一次
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = request_json.as_object_mut() {
-                obj.remove("request_amount");
-                obj.remove("request_amount_foreign");
-                obj.remove("bank_account");
-                obj.remove("bank_name");
+            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏：
+            // 主单按主单列集、明细行按明细列集，各自行上下文同源处置
+            hide_fields(&mut request_json, &DEFAULT_HIDDEN_REQUEST_FIELDS);
+            for item in &mut items_json {
+                hide_fields(item, &DEFAULT_HIDDEN_ITEM_FIELDS);
             }
         }
     }
 
-    // 明细行随详情一并回读：创建契约可送 items，行落在 ap_payment_request_item；
-    // 出参不带该键时调用方无法核实行是否写入。行级数据权限已在上面对主单生效。
-    let items = crate::models::ap_payment_request_item::Entity::find()
-        .filter(crate::models::ap_payment_request_item::Column::RequestId.eq(id))
-        .all(&*state.db)
-        .await?;
-    request_json["items"] = serde_json::to_value(items)?;
+    request_json["items"] = JsonValue::Array(items_json);
 
     Ok(Json(ApiResponse::success(request_json)))
 }

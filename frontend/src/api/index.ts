@@ -1,6 +1,5 @@
 export * from './auth';
 export * from './dashboard';
-export * from './fabric';
 export * from './inventory';
 export * from './customer';
 export * from './sales';

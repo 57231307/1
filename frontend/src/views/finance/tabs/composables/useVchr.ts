@@ -176,7 +176,7 @@ export function useVchr() {
 
   // 表单提交
   const submitVoucherForm = async () => {
-    const valid = await voucherFormRef.value?.validate();
+    const valid = await voucherFormRef.value?.validate().catch(() => false);
     if (!valid) return false;
 
     if (!isBalanced.value) {

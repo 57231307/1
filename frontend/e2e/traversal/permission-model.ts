@@ -57,9 +57,58 @@ export interface RoleAccessMap {
 }
 
 /** 基线统一 schema（读写同一份）：某角色经人工评审的可达路由全集 */
+/**
+ * 基线来源（可机读字段，不是注释）：
+ * - backend-seeded：该岗位权限码来自后端 init 角色矩阵授权，基线可达集能证明后端授权面；
+ * - ci-mirrored：该岗位在后端角色定义表与授权分组里都不存在，权限码由 e2e 侧前端手写镜像
+ *   清单补建，其可达集只证明"前端镜像权限 × 前端路由守卫"自洽——**后端改授权不会让它变红**，
+ *   因此它证明不了后端授权面。读一份基线即可看到这一层，无需翻测试源码。
+ */
+export type BaselineProvenance = 'backend-seeded' | 'ci-mirrored';
+
 export interface RoleBaseline {
   role: string;
   reachableRoutes: string[];
+  /**
+   * 来源标注。判据权威是 CI_MIRRORED_ROLES 花名册，本字段是它在文件里的自证：
+   * 花名册内岗位必须自证 ci-mirrored（缺标即判红），花名册外岗位不得自称 ci-mirrored。
+   */
+  provenance?: BaselineProvenance;
+}
+
+/**
+ * CI 自造镜像岗位花名册（唯一名源）。
+ *
+ * 入选判据（两条同时成立，均可静态核对）：
+ *   1. 角色权限矩阵 job 的分组枚举里有该码（CI 确实跑它）；
+ *   2. 后端 init_service_ops 的角色定义表与授权分组都不含该码（后端既没建角也没授过权）。
+ * 这些岗位的权限码由 e2e global-setup 的 SEED_ROLE_EXTRA_PERMISSIONS 补建，未在其中列出的
+ * 岗位只有应用外壳两枚 SHELL 键，其基线可达集近乎只剩 /dashboard。
+ *
+ * 消费方（三处同源，不得各写一套）：
+ *   - resolveRoleBaseline：基线来源校验与候选快照的 provenance 写入；
+ *   - global-setup：补建角色时的同源点名（镜像 or 后端建角缺失）；
+ *   - vitest 基线锁：花名册 ↔ 基线文件标注的对账。
+ */
+export const CI_MIRRORED_ROLES: readonly string[] = [
+  'after_sales_manager',
+  'ap_accountant',
+  'ar_accountant',
+  'budget_analyst',
+  'color_card_manager',
+  'department_manager',
+  'dyeing_technician',
+  'fixed_assets_accountant',
+  'inventory_accountant',
+  'report_viewer',
+  'salesperson',
+  'supplier_manager',
+  'tax_accountant',
+];
+
+/** 按花名册判定某岗位的基线来源（判据只此一处，不读文件里的自报值）。 */
+export function baselineProvenanceOf(role: string): BaselineProvenance {
+  return CI_MIRRORED_ROLES.includes(role) ? 'ci-mirrored' : 'backend-seeded';
 }
 
 const BASELINE_DIR = 'e2e/traversal/access-map-baseline';
@@ -73,12 +122,31 @@ const CANDIDATE_DIR = 'e2e/.auth/access-map';
  */
 export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   dashboard: 'dashboard:read',
-  system: 'users:read',
+  // 原 /system 聚合页拆成六个功能页，门控值沿用拆分前该入口的 users:read，不扩权限面
+  users: 'users:read',
+  roles: 'users:read',
+  company: 'users:read',
+  permissions: 'users:read',
+  'field-permissions': 'users:read',
+  webhooks: 'users:read',
   'system-audit-log': 'audit-logs:read',
   'system-export-approvals': 'audit-logs:read',
   'system-slow-query': 'audit-logs:read',
   finance: 'finance:read',
-  ap: 'finance:read',
+  // /ap 的门控已从粗域键收成九枚应付族细键（六页签入口判据的并集），
+  // 值顺序与 router 源文本内的字面量数组逐项对应；出纳等只持财务域其他细读权的岗位
+  // 由此不再被并集放行进入应付壳页。
+  ap: [
+    'ap-invoices:read',
+    'ap-payments:read',
+    'ap-payment-requests:read',
+    'ap-verifications:read',
+    'ap-reconciliations:read',
+    'ap-aging:read',
+    'ap-daily:read',
+    'ap-monthly:read',
+    'ap-statistics:read',
+  ],
   ar: 'finance:read',
   customer: 'customers:read',
   supplier: 'suppliers:read',
@@ -96,7 +164,11 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   'bpm-definitions': 'bpm-definitions:read',
   'bpm-templates': 'bpm-templates:read',
   'bpm-approval': ['bpm-tasks:read', 'bpm-approvals:create'],
-  crm: 'customers:read',
+  // 原 /crm 列表已并入 /customer，客户分级页签迁入 /crm-enhanced（同一 customers:read 门控）
+  'crm-enhanced': 'customers:read',
+  // 客户信用管理页的门控与其列表请求派生键同源，钉住现值防被改回粗键后派生侧跟着一起错
+  'customer-credit': 'customer-credits:read',
+  'sales-analysis': 'sales:read',
   // /workflow 是纯别名（router 里 `redirect: '/bpm'`），门控事实来源是
   // 目标路由 /bpm 的 meta——登记本条不是为了参与派生（派生走 redirect 链继承，见
   // parseRouterPermissions），而是把"workflow→bpm 的对应关系"钉进人工评审锚：
@@ -235,6 +307,15 @@ function extractBlockRedirectAlias(block: string, fullPath: string): string | un
 }
 
 /**
+ * 去掉 redirect 目标上的 query/hash：query 属目标页面的页签状态（如 ?tab=bi），
+ * 不参与路由表键匹配；门控始终继承目标路径本身的 meta.permission。
+ */
+function stripQueryAndHash(target: string): string {
+  const sep = target.search(/[?#]/);
+  return sep === -1 ? target : target.slice(0, sep);
+}
+
+/**
  * redirect 链继承：别名路由的有效门控 = 链尾真实路由的 meta.permission。
  * 目标缺失 / 成环 / 链上自指一律抛错（静默按 null 派生会复现"期望可达、实测被拒"的伪红族）。
  */
@@ -245,7 +326,7 @@ function inheritRedirectPermissions(
   const effective: Record<string, RoutePermValue> = { ...map };
   for (const [startPath, firstTarget] of Object.entries(aliases)) {
     const seen = new Set<string>([startPath]);
-    let current = firstTarget;
+    let current = stripQueryAndHash(firstTarget);
     for (;;) {
       if (seen.has(current)) {
         throw new Error(
@@ -262,7 +343,7 @@ function inheritRedirectPermissions(
       }
       const next = aliases[current];
       if (next) {
-        current = next;
+        current = stripQueryAndHash(next);
         continue;
       }
       effective[startPath] = map[current];
@@ -384,7 +465,6 @@ const COARSE_DOMAIN_RESOURCES: Record<string, string[]> = {
     'sales-analysis',
     'custom-orders',
     'fabric-orders',
-    'customer-credits',
     'customers',
     'color-cards',
     'color-prices',
@@ -557,6 +637,7 @@ export async function resolveRoleBaseline(accessMap: RoleAccessMap): Promise<Bas
     const candidate: RoleBaseline = {
       role: accessMap.role,
       reachableRoutes: currentReachableRoutes(accessMap),
+      provenance: baselineProvenanceOf(accessMap.role),
     };
     fs.writeFileSync(candidatePath, JSON.stringify(candidate, null, 2) + '\n', 'utf-8');
     return { mode: 'missing', baselinePath, candidatePath };
@@ -574,6 +655,35 @@ export async function resolveRoleBaseline(accessMap: RoleAccessMap): Promise<Bas
           0,
           80
         )}）——请人工按 permission-model.ts 的 RoleBaseline 定义修正后重跑，禁止脚本自动重建基线。`
+    );
+  }
+  // 来源标注对账：权威判据是 CI_MIRRORED_ROLES 花名册，文件里的自报值必须与之一致。
+  // 镜像岗位漏标 = 一份"看着像后端授权面证据、其实不是"的基线混进防回归轨，必须点名判红；
+  // 非镜像岗位自称镜像 = 花名册与后端授权面漂移（后端可能已补建该岗），同样交人工复核。
+  // 花名册外岗位允许不带该字段（其来源由花名册判定，无需自证），这是有意的不对称，
+  // 目的是让镜像基线自己声明局限，而不是给 22 份后端授权面基线批量加注。
+  const expectedProvenance = baselineProvenanceOf(accessMap.role);
+  const declaredProvenance = parsed.provenance;
+  if (
+    declaredProvenance !== undefined &&
+    declaredProvenance !== 'ci-mirrored' &&
+    declaredProvenance !== 'backend-seeded'
+  ) {
+    throw new Error(
+      `基线文件 ${baselinePath} 的 provenance 取值非法：${JSON.stringify(declaredProvenance)}` +
+        `——只接受 'ci-mirrored' 或 'backend-seeded'，交人工按 permission-model.ts 的 BaselineProvenance 修正。`
+    );
+  }
+  if (expectedProvenance === 'ci-mirrored' && declaredProvenance !== 'ci-mirrored') {
+    throw new Error(
+      `基线文件 ${baselinePath} 缺少来源标注 provenance='ci-mirrored'（该岗位在 CI_MIRRORED_ROLES 花名册内，` +
+        `权限码由 e2e 前端镜像清单补建，基线证明不了后端授权面，必须自证以免被当成后端授权证据使用）。`
+    );
+  }
+  if (expectedProvenance === 'backend-seeded' && declaredProvenance === 'ci-mirrored') {
+    throw new Error(
+      `基线文件 ${baselinePath} 自称 ci-mirrored，但 ${accessMap.role} 不在 CI_MIRRORED_ROLES 花名册内` +
+        `——花名册与后端授权面已漂移（该岗可能已由后端建角并授权），需人工复核后从花名册移除或补标。`
     );
   }
   return { mode: 'compare', baselinePath, baseline: parsed as RoleBaseline };

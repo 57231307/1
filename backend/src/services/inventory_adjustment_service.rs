@@ -107,7 +107,8 @@ impl InventoryAdjustmentService {
         request: CreateAdjustmentRequest,
     ) -> Result<AdjustmentDetail, AppError> {
         let txn = (*self.db).begin().await?;
-        let adjustment_no = self.generate_adjustment_no().await?;
+        // 在调整事务内取号，锁随本事务提交才释放，与下方 adjustment.insert(&txn) 同临界区
+        let adjustment_no = self.generate_adjustment_no(&txn).await?;
         let total_quantity: Decimal = request.items.iter().map(|item| item.quantity).sum();
         let adjustment_type = request.adjustment_type.clone();
         let adjustment =
@@ -526,12 +527,14 @@ impl InventoryAdjustmentService {
         Ok(AdjustmentDetail { adjustment, items })
     }
 
-    // 生成调整单号
+    // 生成调整单号（在调用方事务内取号，令 advisory_xact_lock 持有到建单事务提交，
+    // 消除自开事务取号提交后到本事务 INSERT 之间的并发撞号窗口）
     crate::impl_generate_no!(
         generate_adjustment_no,
         "ADJ",
         inventory_adjustment::Entity,
-        inventory_adjustment::Column::AdjustmentNo
+        inventory_adjustment::Column::AdjustmentNo,
+        txn
     );
 
     /// 更新调整单（仅 pending 状态可更新）

@@ -10,9 +10,10 @@ export type AllowedFields = string[];
 // 隐藏字段类型
 export type HiddenFields = string[];
 
-// GET /data-permissions 出参唯一真相：data_permission_handler::DataPermissionResponse
-// （id/role_id/resource_type/scope_type/is_enabled 后端非 Option 必填，不得标 ?；
-// custom_condition/allowed_fields/hidden_fields 为 Option → 可为 null）。
+// GET /data-permissions 出参唯一真相：data_permission_handler::DataPermissionResponse（10 字段）。
+// id/role_id/resource_type/scope_type/is_enabled/created_at 后端非 Option 必填，不得标 ?；
+// custom_condition/allowed_fields/hidden_fields 与 role_name 为 Option → 可为 null。
+// role_name 仅列表端点按 role_id LEFT JOIN roles.name 富化，其余端点走 From<Model> 恒为 null。
 export interface DataPermissionRole {
   id: number;
   role_id: number;
@@ -22,6 +23,8 @@ export interface DataPermissionRole {
   allowed_fields: AllowedFields | null;
   hidden_fields: HiddenFields | null;
   is_enabled: boolean;
+  role_name: string | null;
+  created_at: string;
 }
 
 export type DataPermissionRow = DataPermissionRole;

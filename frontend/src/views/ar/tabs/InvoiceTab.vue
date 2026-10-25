@@ -395,7 +395,7 @@ const openInvoiceDialog = () => {
 };
 
 const submitInvoice = async () => {
-  const valid = await invoiceFormRef.value?.validate();
+  const valid = await invoiceFormRef.value?.validate().catch(() => false);
   if (!valid) return;
 
   invoiceSubmitLoading.value = true;

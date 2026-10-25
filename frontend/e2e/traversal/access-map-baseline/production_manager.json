@@ -1,7 +1,6 @@
 {
   "role": "production_manager",
   "reachableRoutes": [
-    "/bi/sales-analysis",
     "/bom",
     "/bpm",
     "/bpm/approval",
@@ -23,6 +22,7 @@
     "/quotations",
     "/quotations/new",
     "/sales",
+    "/sales-analysis",
     "/sales-contract",
     "/sales-price",
     "/sales-returns",

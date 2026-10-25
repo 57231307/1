@@ -32,9 +32,15 @@
     </el-form>
     <template #footer>
       <el-button @click="visible = false">{{ t('customerCredit.adjust.button.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitLoading" @click="handleSubmit">{{
-        t('customerCredit.adjust.button.confirm')
-      }}</el-button>
+      <!-- 提交打的是调整额度写端点，路径末段 adjust 不在后端动作关键字表内，
+           按方法派生成 create 键，与列表页调整额度入口同键。 -->
+      <el-button
+        v-permission="PERMISSIONS.CUSTOMER_CREDIT_CREATE"
+        type="primary"
+        :loading="submitLoading"
+        @click="handleSubmit"
+        >{{ t('customerCredit.adjust.button.confirm') }}</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -45,6 +51,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { adjustCreditLimit } from '@/api/customer-credit';
+import { PERMISSIONS } from '@/constants/permissions';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });

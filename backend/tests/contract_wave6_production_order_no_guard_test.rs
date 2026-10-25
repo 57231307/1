@@ -8,8 +8,11 @@
 //!   无 order_no 字段(类型层面无注入口,编译期杜绝任何调用方旁路写号);
 //!   planned_quantity 为必填 Decimal(NOT NULL m0007:78,不设 Option 兜底)。
 //! - `services/production_order_ops/crud.rs::create`:一律服务端取号
-//!   (DocumentNumberGenerator,`PO{YYYYMMDD}{3位流水}`);resolve_order_no
-//!   (用户号查重后原样入库)已整体移除。
+//!   (DocumentNumberGenerator,`PO{YYYYMMDD}{3位流水}`),且取号与 INSERT 同在写入事务内
+//!   (`insert_with_no_retry`,撞 23505 在保存点内重取重试);resolve_order_no
+//!   (用户号查重后原样入库)与"自开事务取号后另插一行"的旧形态均不得回潮。
+//!   同文件写 order_no 的另一条腿 `create_rework_order`(前缀 RW,同表同列)按同一判据
+//!   逐腿各自成立,不接受"另一条腿用了新形态所以本腿也算绿"。
 //! - 默认值单一来源:status/priority 缺省走 DB DEFAULT(m0007:84/85),
 //!   代码侧不再 unwrap_or_default 把"未指定"塌成 0。
 //!
@@ -367,6 +370,35 @@ fn extract_block(src: &str, anchor: &str) -> String {
     src[i..i + j + 2].to_string()
 }
 
+/// 从源码截取**单个函数体**:anchor 起,按大括号配平到该函数自身的结束括号。
+///
+/// 为什么不能复用 `extract_block`:方法都在同一个 `impl` 块内,`\n}` 只能定位到
+/// impl 的收尾,于是取到的块把后面的兄弟方法一并吞进来——"文件里任何一条腿用了
+/// 新形态"就能让本应只判 create 的断言变绿。形态判据必须按站点各自成立,故配平截取。
+fn extract_fn(src: &str, anchor: &str) -> String {
+    let src = src.replace('\r', "");
+    let i = src
+        .find(anchor)
+        .unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
+    let open = i + src[i..]
+        .find('{')
+        .unwrap_or_else(|| panic!("函数体起始括号定位失败: {anchor}"));
+    let mut depth = 0usize;
+    for (off, ch) in src[open..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return src[i..open + off + 1].to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("函数体结束括号定位失败: {anchor}");
+}
+
 /// handler:CreateProductionOrderPayload 不存在 pub order_no 字段;
 /// create_production_order 必须残差识别 + warn(不静默),且不得把请求值传服务层
 #[test]
@@ -425,10 +457,14 @@ fn source_scan_create_always_server_side_numbering_and_no_default_swallow() {
         !src.contains("req.order_no"),
         "任何调用点不得再读取请求中的 order_no(字段已不存在)"
     );
-    let block = extract_block(src, "pub async fn create(");
+    let block = extract_fn(src, "pub async fn create(");
     assert!(
-        block.contains("self.generate_unique_order_no()"),
-        "create 必须一律服务端取号,实际块:\n{block}"
+        block.contains("DocumentNumberGenerator::insert_with_no_retry("),
+        "create 必须在写入事务内经 insert_with_no_retry 取号并插入(23505 保存点内重取),实际块:\n{block}"
+    );
+    assert!(
+        !block.contains("self.generate_unique_order_no()"),
+        "回潮:create 退回\"自开事务取号→另插一行\"形态,取号与 INSERT 之间的并发窗口重新打开,实际块:\n{block}"
     );
     let builder = extract_block(src, "fn build_create_active_model(");
     assert!(
@@ -443,4 +479,37 @@ fn source_scan_create_always_server_side_numbering_and_no_default_swallow() {
         builder.contains("priority: NotSet"),
         "priority 缺键时不进 INSERT 列由 DB DEFAULT 5 生效,不得塌 0,实际块:\n{builder}"
     );
+}
+
+/// 两条写 order_no 的建单腿（create=PO、create_rework_order=RW）必须同形态：
+/// 各自在写入事务内经 `DocumentNumberGenerator::insert_with_no_retry` 取号并插入，
+/// 前缀不串腿，取号之外不得再发一次裸 INSERT。
+/// 单腿各自成块判定（见 extract_fn 的截取理由），任何一条腿退回"自开事务取号→另插一行"
+/// 都会让本锁点名失败；文件级再钉一次自开事务取号 API 不得出现。
+#[test]
+fn source_scan_every_order_no_leg_numbers_inside_the_write_txn() {
+    let src = include_str!("../src/services/production_order_ops/crud.rs");
+    assert!(
+        !src.contains("DocumentNumberGenerator::generate_no"),
+        "crud.rs 任一建单腿都不得回到自开事务取号：号段咨询锁随取号事务提交即释放，\
+         返回的号只保证\"提交时刻未被占用\"，INSERT 前仍可被旁路写入撞号"
+    );
+    for (anchor, prefix) in [
+        ("pub async fn create(", "\"PO\""),
+        ("pub async fn create_rework_order(", "\"RW\""),
+    ] {
+        let block = extract_fn(src, anchor);
+        assert!(
+            block.contains("DocumentNumberGenerator::insert_with_no_retry("),
+            "{anchor} 必须在写入事务内经 insert_with_no_retry 取号并插入,实际块:\n{block}"
+        );
+        assert!(
+            block.contains(prefix),
+            "{anchor} 的单号前缀必须是 {prefix}（PO 与 RW 同表同列、流水互不侵占）,实际块:\n{block}"
+        );
+        assert!(
+            !block.contains(".insert(&*self.db)"),
+            "{anchor} 不得在取号之外另发一次裸 INSERT（撞号窗口由此重开）,实际块:\n{block}"
+        );
+    }
 }

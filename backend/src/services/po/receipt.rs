@@ -83,11 +83,15 @@ impl PurchaseOrderService {
     /// Set(item.color_no)`）同口径——本函数消费同一 `CreateOrderItemRequest`，
     /// 若在此丢弃 `color_no` 即为「提交了但落不了库」的同类缺陷，禁止。
     /// 本路径不是转采购链路（无来源销售订单上下文），供应商保密快照列留 DB 默认。
+    /// 数量与单价都按新建路径同一口径把关：未提交数量与 0 数量在进金额计算之前点名拒绝，
+    /// 未提交单价同样拒绝（本路径无价目可带出），系统不在这里替任何一列缺省。
     async fn build_order_item_active(
         order_id: i32,
         req: CreateOrderItemRequest,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<purchase_order_item::Model, AppError> {
+        let line_no = req.line_no.unwrap_or(1) as usize;
+        Self::validate_line_quantity(req.quantity_ordered, line_no)?;
         let amounts = Self::calculate_item_amounts(&req)?;
         let item = purchase_order_item::ActiveModel {
             id: Default::default(),
@@ -174,6 +178,8 @@ impl PurchaseOrderService {
         // `calculate_item_amounts` 按生效值重算后整列写入，写侧与读侧金额口径
         // 单点同源，禁止在更新链路另算一套。
         let current = item.clone();
+        // 编辑既有行不加正数门（历史 0 量行要能改单价），但显式提交的负数数量点名拒绝
+        Self::validate_updated_quantity(req.quantity_ordered)?;
         let effective_product_id = req.material_id.unwrap_or(current.product_id);
         let merged = CreateOrderItemRequest {
             line_no: Some(current.line_no),

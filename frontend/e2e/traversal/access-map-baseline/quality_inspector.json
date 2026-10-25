@@ -1,7 +1,6 @@
 {
   "role": "quality_inspector",
   "reachableRoutes": [
-    "/bi/sales-analysis",
     "/dashboard",
     "/dye-batch",
     "/purchase",
@@ -14,6 +13,7 @@
     "/quotations",
     "/quotations/new",
     "/sales",
+    "/sales-analysis",
     "/sales-contract",
     "/sales-price",
     "/sales-returns"

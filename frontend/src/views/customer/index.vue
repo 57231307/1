@@ -51,6 +51,14 @@
           <el-icon><Download /></el-icon>
           {{ $t('exportApprovals.downloadMine') }}
         </el-button>
+        <el-button @click="router.push('/crm/pool')">
+          <el-icon><Coin /></el-icon>
+          {{ $t('customer.index.button.pool') }}
+        </el-button>
+        <el-button @click="router.push('/crm/assignment')">
+          <el-icon><Share /></el-icon>
+          {{ $t('customer.index.button.assignment') }}
+        </el-button>
       </div>
     </div>
 
@@ -97,6 +105,10 @@
           >
             <el-option :label="$t('customer.index.filterOption.statusActive')" value="active" />
             <el-option :label="$t('customer.index.filterOption.statusInactive')" value="inactive" />
+            <el-option
+              :label="$t('customer.index.filterOption.statusBlacklist')"
+              value="blacklist"
+            />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -126,7 +138,13 @@
           :label="$t('customer.index.table.column.customerName')"
           min-width="180"
           fixed
-        />
+        >
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openDetail(row)">{{
+              row.customer_name
+            }}</el-button>
+          </template>
+        </el-table-column>
         <el-table-column
           prop="contact_person"
           :label="$t('customer.index.table.column.contactPerson')"
@@ -154,6 +172,30 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column :label="$t('customer.index.table.column.tag')" min-width="150">
+          <template #default="{ row }">
+            <template v-if="tagsCellView(row.id).state === 'ready'">
+              <el-tag
+                v-for="tag in tagsCellView(row.id).tags"
+                :key="tag.id"
+                size="small"
+                class="table-tag"
+              >
+                {{ tag.name }}
+              </el-tag>
+              <span v-if="tagsCellView(row.id).tags.length === 0" class="no-tags">-</span>
+            </template>
+            <span v-else-if="tagsCellView(row.id).state === 'loading'" class="no-tags">{{
+              $t('customer.index.table.cell.tagsLoading')
+            }}</span>
+            <span v-else class="cell-load-failed">{{
+              $t('customer.index.table.cell.tagsLoadFailed')
+            }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('customer.index.table.column.owner')" width="100">
+          <template #default="{ row }">{{ ownerDisplay(row.owner_id) }}</template>
+        </el-table-column>
         <el-table-column
           prop="province"
           :label="$t('customer.index.table.column.province')"
@@ -177,12 +219,8 @@
         />
         <el-table-column prop="status" :label="$t('customer.index.table.column.status')" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">
-              {{
-                row.status === 'active'
-                  ? $t('customer.index.statusLabel.active')
-                  : $t('customer.index.statusLabel.inactive')
-              }}
+            <el-tag :type="getStatusTag(row.status)" size="small">
+              {{ getStatusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -201,7 +239,7 @@
               @click="openEditDialog(row)"
               >{{ $t('customer.index.button.edit') }}</el-button
             >
-            <el-button type="primary" link size="small" @click="openDetailDialog(row)">{{
+            <el-button type="primary" link size="small" @click="openDetail(row)">{{
               $t('customer.index.button.detail')
             }}</el-button>
             <el-button
@@ -236,63 +274,41 @@
       :row-data="currentRow"
       @submitted="handleFormSubmitted"
     />
-
-    <!-- 客户详情对话框（getCustomerById 回源） -->
-    <el-dialog v-model="detailDialogVisible" :title="$t('customer.index.detail.title')" width="640">
-      <el-descriptions v-if="detailCustomer" :column="2" border>
-        <el-descriptions-item :label="$t('customer.index.table.column.customerCode')">{{
-          detailCustomer.customer_code
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.customerName')">{{
-          detailCustomer.customer_name
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.contactPerson')">{{
-          detailCustomer.contact_person
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.phone')">{{
-          detailCustomer.contact_phone
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.email')">{{
-          detailCustomer.contact_email || '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.type')">{{
-          getCustomerTypeLabel(detailCustomer.customer_type)
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.province')">{{
-          detailCustomer.province || '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.creditLimit')">{{
-          detailCustomer.credit_limit ? formatCurrency(detailCustomer.credit_limit) : '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.paymentTerms')">{{
-          detailCustomer.payment_terms || '-'
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('customer.index.table.column.status')">{{
-          detailCustomer.status
-        }}</el-descriptions-item>
-      </el-descriptions>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Download, Printer } from '@element-plus/icons-vue';
-import { deleteCustomer, getCustomerById, type Customer } from '@/api/customer';
+import { Plus, Download, Printer, Coin, Share } from '@element-plus/icons-vue';
+import {
+  deleteCustomer,
+  getCustomerTags,
+  type Customer,
+  type CustomerTagBrief,
+} from '@/api/customer';
+import { getSalesUserList, type SalesUser } from '@/api/crm-enhanced';
 import { formatCurrency } from '@/utils';
 import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
 import { useExportApproval } from '@/composables/useExportApproval';
 import { printData } from '@/utils/print';
-import { logger } from '@/utils/logger';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { useTableApi } from '@/composables/useTableApi';
 // Batch 468 P0-S28：引入权限码常量，与后端 customers 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 import CustomerFormTab from './tabs/CustomerFormTab.vue';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const router = useRouter();
+const hasLoaded = createLazyLoader();
+
+// 行内没有 tags / owner_name 键：标签经单客户端点逐行取数，负责人经销售用户集合联显
+type CustomerRow = Customer & { owner_id: number };
 
 const formDialogVisible = ref(false);
 const formDialogTitle = ref(t('customer.index.dialog.createTitle'));
@@ -314,7 +330,7 @@ const {
   total,
   refresh: fetchData,
   setQueryParam,
-} = useTableApi<Customer>({
+} = useTableApi<CustomerRow>({
   url: '/crm/customers',
   // 钉到后端真实键（customer_handler::list_customers → PaginatedResponse{ items, total, page, page_size }）
   listKey: 'items',
@@ -383,6 +399,93 @@ const getCustomerTypeTag = (type: string) => {
   return typeMap[type] || '';
 };
 
+// 状态词表按写入方全量覆盖（backend models/customer.rs = active/inactive/blacklist 三态）；
+// blacklist 若落进 inactive 分支会被误显为"停用"。未知历史脏值回落原始 token，不造假名。
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    active: t('customer.index.statusLabel.active'),
+    inactive: t('customer.index.statusLabel.inactive'),
+    blacklist: t('customer.index.statusLabel.blacklist'),
+  };
+  return labels[status] || status;
+};
+
+const getStatusTag = (status: string) => {
+  const typeMap: Record<string, string> = {
+    active: 'success',
+    inactive: 'info',
+    blacklist: 'danger',
+  };
+  return typeMap[status] || 'info';
+};
+
+// 标签列数据源：GET /crm/customers/{id}/tags 无批量出口，按当前页行逐 id 取数；
+// 失败标记 failed 并在单元格显式呈现，不把"取数失败"伪装成"没有标签"。
+type TagsCellState =
+  { status: 'loading' } | { status: 'failed' } | { status: 'ready'; tags: CustomerTagBrief[] };
+const tagsStates = ref(new Map<number, TagsCellState>());
+const tagsInFlight = new Set<number>();
+
+const loadTagsForRow = (id: number) => {
+  if (tagsStates.value.has(id) || tagsInFlight.has(id)) return;
+  tagsInFlight.add(id);
+  tagsStates.value.set(id, { status: 'loading' });
+  getCustomerTags(id)
+    .then(res => {
+      tagsStates.value.set(id, { status: 'ready', tags: res.data });
+    })
+    .catch((error: unknown) => {
+      tagsStates.value.set(id, { status: 'failed' });
+      logAuxLoadFailure(t('customer.index.table.cell.tagsLoadFailed'), error);
+    })
+    .finally(() => {
+      tagsInFlight.delete(id);
+    });
+};
+
+watch(
+  customers,
+  rows => {
+    rows.forEach(row => loadTagsForRow(row.id));
+  },
+  { immediate: true }
+);
+
+const tagsCellView = (
+  id: number
+): { state: 'loading' | 'failed' | 'ready'; tags: CustomerTagBrief[] } => {
+  const cell = tagsStates.value.get(id);
+  if (!cell || cell.status === 'loading') return { state: 'loading', tags: [] };
+  if (cell.status === 'failed') return { state: 'failed', tags: [] };
+  return { state: 'ready', tags: cell.tags };
+};
+
+// 负责人列：/crm/sales-users 单次拉全量后本地联显；owner_id=0 为公海未分配。
+// 非 0 但不在集合内显示 #id，让数据漂移可见而不是臆造姓名或吞成空。
+const salesUsers = ref<SalesUser[]>([]);
+const ownerLoadState = ref<'loading' | 'ready' | 'failed'>('loading');
+const ownerNameById = computed(
+  () => new Map(salesUsers.value.map(u => [u.id, u.real_name || u.username]))
+);
+
+const fetchOwners = async () => {
+  try {
+    const res = await getSalesUserList();
+    salesUsers.value = res.data;
+    ownerLoadState.value = 'ready';
+  } catch (error) {
+    ownerLoadState.value = 'failed';
+    logAuxLoadFailure(t('customer.index.table.cell.ownerLoadFailed'), error);
+  }
+};
+
+const ownerDisplay = (ownerId: number): string => {
+  if (ownerId === 0) return t('customer.index.table.cell.ownerUnassigned');
+  if (ownerLoadState.value === 'loading') return t('customer.index.table.cell.ownerLoading');
+  if (ownerLoadState.value === 'failed') return t('customer.index.table.cell.ownerLoadFailed');
+  return ownerNameById.value.get(ownerId) ?? `#${ownerId}`;
+};
+
 const openCreateDialog = () => {
   currentRow.value = null;
   formDialogTitle.value = t('customer.index.dialog.createTitle');
@@ -395,22 +498,9 @@ const openEditDialog = (row: Customer) => {
   formDialogVisible.value = true;
 };
 
-// 客户详情对话框（getCustomerById 按行 ID 回源最新数据）
-const detailDialogVisible = ref(false);
-const detailCustomer = ref<Customer | null>(null);
-
-const openDetailDialog = async (row: Customer) => {
-  detailDialogVisible.value = true;
-  detailCustomer.value = row;
-  try {
-    const res = await getCustomerById(row.id);
-    if (res.data) {
-      detailCustomer.value = res.data;
-      detailDialogVisible.value = true;
-    }
-  } catch (e) {
-    logger.error(t('customer.index.message.fetchFailure'), e);
-  }
+// 客户详情唯一入口：客户 360 路由（/crm/detail/:id），列表不再维护第二份只读详情弹窗。
+const openDetail = (row: Customer) => {
+  router.push(`/crm/detail/${row.id}`);
 };
 
 const handleFormSubmitted = () => {
@@ -483,19 +573,26 @@ const handlePrint = () => {
         formatter: v => (v == null ? '' : getCustomerTypeLabel(String(v))),
       },
       {
+        key: 'owner_id',
+        title: t('customer.index.table.column.owner'),
+        width: '80px',
+        formatter: v => (v == null ? '' : ownerDisplay(Number(v))),
+      },
+      {
         key: 'status',
         title: t('customer.index.table.column.status'),
         width: '60px',
-        formatter: v =>
-          v === 'active'
-            ? t('customer.index.statusLabel.active')
-            : t('customer.index.statusLabel.inactive'),
+        formatter: v => (typeof v === 'string' ? getStatusLabel(v) : ''),
       },
     ],
     data: customers.value as unknown as Record<string, unknown>[],
   });
   logger.info(t('customer.index.print.logGenerated'));
 };
+
+onMounted(() => {
+  loadIfNot('owners', fetchOwners, hasLoaded);
+});
 </script>
 
 <style scoped>
@@ -530,5 +627,17 @@ const handlePrint = () => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+.table-tag {
+  border: none;
+  margin-right: 4px;
+}
+.no-tags {
+  color: #909399;
+  font-size: 12px;
+}
+.cell-load-failed {
+  color: #f56c6c;
+  font-size: 12px;
 }
 </style>

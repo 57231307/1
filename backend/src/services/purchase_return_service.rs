@@ -140,13 +140,15 @@ impl PurchaseReturnService {
         Self { db }
     }
 
-    // 生成退货单号
-    // 格式：RT + 年月日 + 三位序号（RT20260315001）
+    // 生成退货单号，入参 txn 为调用方建单事务句柄，前缀级咨询锁随该事务结束才释放，
+    // 消除取号与落库之间的并发撞号窗口
+    // 格式为 RT 前缀加年月日加三位流水（RT20260315001）
     crate::impl_generate_no!(
         generate_return_no,
         "RT",
         purchase_return::Entity,
-        purchase_return::Column::ReturnNo
+        purchase_return::Column::ReturnNo,
+        txn
     );
 
     /// 创建采购退货单
@@ -157,7 +159,7 @@ impl PurchaseReturnService {
     ) -> Result<purchase_return::Model, AppError> {
         let txn = (*self.db).begin().await?;
 
-        let return_no = self.generate_return_no().await?;
+        let return_no = self.generate_return_no(&txn).await?;
 
         let return_order = purchase_return::ActiveModel {
             id: Default::default(),

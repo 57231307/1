@@ -18,7 +18,9 @@
 //! - 正向半边：这些文件必须确实出现 `admin_checker::is_admin_role` 引用——防止
 //!   "把判定整段删掉也算绿"。其中 `crm_pool_handler.rs` 的正向半边是口径注释引用
 //!   （该入口的字段脱敏委托 `crm_handler::apply_lead_field_permission`，本文件不
-//!   自持判定代码），5 个 handler 是真实调用点，`field_mask.rs` / `cust.rs` /
+//!   自持判定代码），3 个 handler 是真实调用点，采购订单与采购入库两个出口的金额
+//!   隐藏判定收编到服务层 amount_visibility 单源，其正向半边改为必须出现委托调用，
+//!   判定调用形状锁同时钉在该单源上，`field_mask.rs` / `cust.rs` /
 //!   `lead.rs` 是权威源口径文档注释 + `is_admin: bool` 判定入参形态（见
 //!   `ADMIN_PARAM_RECEIVERS`，判定本体由 async 调用方算好后显式传入，同步函数
 //!   内不得出现任何角色字面量判据）。
@@ -80,7 +82,29 @@ const SCANNED_FILES: &[(&str, &str)] = &[
         "src/services/crm/lead.rs",
         include_str!("../src/services/crm/lead.rs"),
     ),
+    (
+        "src/services/amount_visibility.rs",
+        include_str!("../src/services/amount_visibility.rs"),
+    ),
 ];
+
+/// 金额隐藏判定已收编到服务层单源的 handler。这些文件不再直连 admin_checker，
+/// 正向半边改为必须出现对单源的委托调用，删掉委托同样判失败。
+const DELEGATING_HANDLERS: &[(&str, &str)] = &[
+    (
+        "src/handlers/purchase_order_handler.rs",
+        "apply_default_amount_hiding(",
+    ),
+    (
+        "src/handlers/purchase_receipt_handler.rs",
+        "apply_default_amount_hiding(",
+    ),
+];
+
+/// 服务层单源文件与其判定调用形状。唯一权威源的调用收在这里，
+/// 一次请求至多一次判定查询，置于移除列动作的循环之外。
+const AMOUNT_SINGLE_SOURCE_FILE: &str = "src/services/amount_visibility.rs";
+const AMOUNT_SINGLE_SOURCE_CALL: &str = "admin_checker::is_admin_role(db,role_id).await";
 
 /// 同步掩码函数（拿不到 db 句柄）必须以 `is_admin: bool` 判定入参承接权威源结论，
 /// 且入参必须真实参与分支判定（防"签名留参、判定删掉也算绿"）。
@@ -117,11 +141,24 @@ fn source_scan_no_role_primary_key_literal_checks() {
 }
 
 /// 正向半边：扫描范围内文件必须引用唯一权威源——删掉判定不等于收口，防"整段删除也算绿"。
+/// 已委托给服务层单源的 handler 改为必须出现委托调用。
 #[test]
 fn source_scan_single_authority_referenced() {
     let normalized_required = normalize(REQUIRED_SINGLE_SOURCE);
     for (file, src) in SCANNED_FILES {
         let normalized = normalize(src);
+        if let Some((_, delegate_token)) = DELEGATING_HANDLERS
+            .iter()
+            .find(|(delegating_file, _)| delegating_file == file)
+        {
+            assert!(
+                normalized.contains(delegate_token),
+                "{file} 金额隐藏判定收编到服务层单源后，必须保留对单源的委托调用 \
+                 `{delegate_token}`（去空白归一后）；删除委托等于让该出口不再隐藏金额 \
+                 也不再问 admin，属于静默越权，不得以删除委托收口。"
+            );
+            continue;
+        }
         assert!(
             normalized.contains(&normalized_required),
             "{file} 必须出现 `{REQUIRED_SINGLE_SOURCE}` 引用（判定调用或权威源口径注释）。\
@@ -165,8 +202,6 @@ fn source_scan_admin_check_call_shape() {
     const CALLERS: &[&str] = &[
         "src/handlers/ap_payment_request_handler.rs",
         "src/handlers/inventory_stock_handler.rs",
-        "src/handlers/purchase_order_handler.rs",
-        "src/handlers/purchase_receipt_handler.rs",
         "src/handlers/sales_order_handler.rs",
     ];
     for (file, src) in SCANNED_FILES {
@@ -180,4 +215,15 @@ fn source_scan_admin_check_call_shape() {
              保证一次请求至多一次判定查询（admin_checker 内部另有 5 分钟缓存）。"
         );
     }
+    let single_source = SCANNED_FILES
+        .iter()
+        .find(|(name, _)| name == &AMOUNT_SINGLE_SOURCE_FILE)
+        .unwrap_or_else(|| panic!("{AMOUNT_SINGLE_SOURCE_FILE} 必须登记在 SCANNED_FILES 中"))
+        .1;
+    assert!(
+        normalize(single_source).contains(&normalize(AMOUNT_SINGLE_SOURCE_CALL)),
+        "{AMOUNT_SINGLE_SOURCE_FILE} 必须存在判定调用 `{AMOUNT_SINGLE_SOURCE_CALL}`\
+         （去空白归一后），且置于移除列的循环之外，保证一次请求至多一次判定查询。\
+         委托方 handler 只保留委托调用，判定本体收在单源内，不得改回各出口内联判定。"
+    );
 }

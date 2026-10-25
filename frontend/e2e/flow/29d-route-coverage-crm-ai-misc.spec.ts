@@ -205,8 +205,8 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
   });
 
   // ===== 其他剩余路由 =====
-  test('BI销售分析 /bi/sales-analysis', async ({ page }) => {
-    await visitPage(page, '/bi/sales-analysis');
+  test('BI销售分析页签 /sales-analysis?tab=bi', async ({ page }) => {
+    await visitPage(page, '/sales-analysis?tab=bi');
     const card = page.locator('.el-card, canvas, .echarts, body').first();
     await card.waitFor({ state: 'visible', timeout: 15_000 });
     const visible = await card.isVisible();

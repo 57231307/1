@@ -476,7 +476,8 @@ impl InventoryTransferService {
             Self::validate_transfer_initial_status(raw)?;
         }
         let txn = (*self.db).begin().await?;
-        let transfer_no = self.generate_transfer_no().await?;
+        // 在调拨事务内取号，锁随本事务提交才释放，与下方 transfer.insert(&txn) 同临界区
+        let transfer_no = self.generate_transfer_no(&txn).await?;
         Self::validate_transfer_no_uniqueness(&txn, &transfer_no).await?;
         let from_warehouse_id = request
             .from_warehouse_id
@@ -816,12 +817,14 @@ impl InventoryTransferService {
         self.get_transfer_detail(transfer_id, None).await
     }
 
-    // 生成调拨单号
+    // 生成调拨单号（在调用方事务内取号，令 advisory_xact_lock 持有到建单事务提交，
+    // 消除自开事务取号提交后到本事务 INSERT 之间的并发撞号窗口）
     crate::impl_generate_no!(
         generate_transfer_no,
         "TRF",
         inventory_transfer::Entity,
-        inventory_transfer::Column::TransferNo
+        inventory_transfer::Column::TransferNo,
+        txn
     );
 
     /// 删除调拨单（仅 pending/rejected 状态）

@@ -24,6 +24,15 @@ export interface Product {
    * 同上：Decimal→string，NULL→null，并含表单入参数值。
    */
   meters_per_roll?: number | string | null;
+  /**
+   * 幅宽（cm，可空）。报价单转销售订单按「米数 × 克重 × 幅宽」派生公斤数，缺该值转单会点名拒绝；
+   * 与 meters_per_piece 同口径：Decimal→string、NULL→null，并含表单入参数值。
+   */
+  width?: number | string | null;
+  /**
+   * 克重（g/m²，可空）。同上，是转单派生公斤数的必需元数据；Decimal→string、NULL→null。
+   */
+  gram_weight?: number | string | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
