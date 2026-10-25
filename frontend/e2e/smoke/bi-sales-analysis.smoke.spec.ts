@@ -1,9 +1,10 @@
 import { test, expect } from '../diagnose-fixture';
 import { gotoWithRetry } from './_goto';
 
-test.describe('bi sales-analysis 页面冒烟测试', () => {
+test.describe('sales-analysis BI 页签冒烟测试', () => {
   test('页面加载', async ({ page }) => {
-    await gotoWithRetry(page, '/bi/sales-analysis');
+    // BI 多维分析并入 /sales-analysis 第二页签，旧 /bi/sales-analysis 重定向到 ?tab=bi
+    await gotoWithRetry(page, '/sales-analysis?tab=bi');
     await expect(page.locator('body')).toBeVisible({ timeout: 30_000 });
     await expect(
       page

@@ -10,6 +10,9 @@ use validator::Validate;
 
 use crate::models::dto::PageRequest;
 use crate::models::sales_order;
+use crate::services::amount_visibility::{
+    DefaultAmountHiding, DefaultAmountResource, apply_default_amount_hiding,
+};
 use crate::services::so::order::SalesService;
 use crate::services::so::{CreateSalesOrderRequest, UpdateSalesOrderRequest};
 use crate::utils::admin_checker;
@@ -124,48 +127,39 @@ pub async fn list_orders(
                     );
                 }
             }
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // admin 判定走本仓唯一权威源
-            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
-            // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
-            // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
+        } else {
+            // 分工：进入本分支即该角色对 sales_order 无数据权限配置行。
+            // 金额隐藏门（admin 例外与隐藏哪些列）的判定与移除都在
+            // services::amount_visibility 单源内完成，每请求判定一次、命中与不命中都记日志。
+            // 联系方式掩码留在本调用侧：单源只管金额列，把掩码一并收进单源会给
+            // 不含这些列的采购出参新增行为，PII 门不在单源。
             let mut list_opt = orders_json.get_mut("list");
             if list_opt.is_none() {
                 list_opt = orders_json.get_mut("data");
             }
             if let Some(list) = list_opt.and_then(|v| v.as_array_mut()) {
-                for order in list {
-                    if let Some(obj) = order.as_object_mut() {
-                        obj.remove("subtotal");
-                        obj.remove("tax_amount");
-                        obj.remove("discount_amount");
-                        obj.remove("shipping_cost");
-                        obj.remove("total_amount");
-                        obj.remove("paid_amount");
-                        obj.remove("balance_amount");
-
-                        // 手机号脱敏（移除金额字段后仍需脱敏联系电话）。
-                        // sales_orders 出参由 sales_order::Model 序列化生成，
-                        // contact_phone 是真实列（models/sales_order.rs:32），
-                        // 该模型无 email 列，出参不存在 email 类键。
-                        if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
-                            if !phone.is_empty() {
-                                obj.insert(
-                                    "contact_phone".to_string(),
-                                    serde_json::Value::String(
-                                        crate::utils::field_mask::mask_phone(phone),
-                                    ),
-                                );
-                            }
-                        }
-
-                        if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
-                            for item in items {
-                                if let Some(item_obj) = item.as_object_mut() {
-                                    item_obj.remove("unit_price");
-                                    item_obj.remove("tax_rate");
-                                    item_obj.remove("total_price");
+                let hiding = apply_default_amount_hiding(
+                    &state.db,
+                    role_id,
+                    DefaultAmountResource::SalesOrder,
+                    list,
+                )
+                .await;
+                if hiding == DefaultAmountHiding::Hidden {
+                    // 手机号脱敏（移除金额字段后仍需脱敏联系电话），条件与金额隐藏门同源。
+                    // sales_orders 出参由 sales_order::Model 序列化生成，
+                    // contact_phone 是真实列（models/sales_order.rs:32），
+                    // 该模型无 email 列，出参不存在 email 类键。
+                    for order in list {
+                        if let Some(obj) = order.as_object_mut() {
+                            if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                                if !phone.is_empty() {
+                                    obj.insert(
+                                        "contact_phone".to_string(),
+                                        serde_json::Value::String(
+                                            crate::utils::field_mask::mask_phone(phone),
+                                        ),
+                                    );
                                 }
                             }
                         }
@@ -227,35 +221,29 @@ pub async fn get_order(
             // 非管理员对销售订单详情手机号/邮箱脱敏
             order_json =
                 crate::utils::field_mask::mask_contact_fields_for_role(order_json, is_admin);
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与列表同一单源判定（见 list_orders 内 admin 判定注释），每请求至多一次
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = order_json.as_object_mut() {
-                obj.remove("subtotal");
-                obj.remove("tax_amount");
-                obj.remove("discount_amount");
-                obj.remove("shipping_cost");
-                obj.remove("total_amount");
-                obj.remove("paid_amount");
-                obj.remove("balance_amount");
-
+        } else {
+            // 分工与列表同款：无数据权限配置行才进默认隐藏，金额隐藏门与列集合
+            // 都在 services::amount_visibility 单源内判定，详情出口传单元素切片。
+            // 手机号掩码属销售域出参特有，留在调用侧按单源返回的判定结果执行。
+            let hiding = apply_default_amount_hiding(
+                &state.db,
+                role_id,
+                DefaultAmountResource::SalesOrder,
+                std::slice::from_mut(&mut order_json),
+            )
+            .await;
+            if hiding == DefaultAmountHiding::Hidden {
                 // 手机号脱敏（sales_order::Model 无 email 列，
                 // contact_phone 是真实列，models/sales_order.rs:32）
-                if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
-                    if !phone.is_empty() {
-                        obj.insert(
-                            "contact_phone".to_string(),
-                            serde_json::Value::String(crate::utils::field_mask::mask_phone(phone)),
-                        );
-                    }
-                }
-
-                if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
-                    for item in items {
-                        if let Some(item_obj) = item.as_object_mut() {
-                            item_obj.remove("unit_price");
-                            item_obj.remove("tax_rate");
-                            item_obj.remove("total_price");
+                if let Some(obj) = order_json.as_object_mut() {
+                    if let Some(phone) = obj.get("contact_phone").and_then(|v| v.as_str()) {
+                        if !phone.is_empty() {
+                            obj.insert(
+                                "contact_phone".to_string(),
+                                serde_json::Value::String(crate::utils::field_mask::mask_phone(
+                                    phone,
+                                )),
+                            );
                         }
                     }
                 }

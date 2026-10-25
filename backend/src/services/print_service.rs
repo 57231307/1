@@ -4795,11 +4795,16 @@ impl PrintService {
     }
 
     /// 客户信用额度打印数据
+    ///
+    /// {id} 是 customer_credit_ratings.id 行主键（与 /customer-credits/{id} 系列
+    /// 端点的客户自然键不同义）。客户名单次 LEFT JOIN 取 customers 真值，与列表/详情
+    /// 同一条富化链路：本表冗余的 customer_name 列在写入路径从不赋值，直读它会把打印件
+    /// 的客户名印成空白。
     async fn get_customer_credit_print_data(&self, id: i32) -> Result<PrintData, AppError> {
-        use crate::models::customer_credit;
+        use crate::services::customer_credit_service::CustomerCreditService;
 
-        let record = customer_credit::Entity::find_by_id(id)
-            .one(&*self.db)
+        let record = CustomerCreditService::new(self.db.clone())
+            .get_view_by_row_id(id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("客户信用额度 {} 未找到", id)))?;
 

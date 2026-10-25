@@ -3,6 +3,7 @@
  * 封装销售订单审批/取消/发货/表单提交等业务流程
  */
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { ref } from 'vue';
 import {
   approveSalesOrder,
   cancelSalesOrder,
@@ -47,6 +48,9 @@ interface SalesShipForm {
  * 销售订单列表流程操作方法集合
  */
 export function useOlvProc(refresh: RefreshCallbacks) {
+  // 订单保存/更新在途：建单是单请求，但网络往返期间按钮不锁会落下两张同内容订单
+  const submitting = ref(false);
+
   /** 审批通过（pending → approved）：理由选填，先经 promptApprovalReason(false) 采集，取消即中止；留空时省略键，sales_orders.approval_reason 列写 NULL（不伪造空串）。 */
   const handleApprove = async (row: SalesOrder) => {
     const approvalReason = await promptApprovalReason(false);
@@ -101,6 +105,8 @@ export function useOlvProc(refresh: RefreshCallbacks) {
 
   /** 提交订单表单 */
   const handleFormSubmit = async (data: OrderForm) => {
+    if (submitting.value) return false;
+    submitting.value = true;
     try {
       if (data.id) {
         // 更新契约（后端 UpdateSalesOrderRequest）仅 required_date/status/shipping_address/
@@ -132,6 +138,8 @@ export function useOlvProc(refresh: RefreshCallbacks) {
       const err = error as { message?: string };
       ElMessage.error(err.message || msg.translate('operationFailed'));
       return false;
+    } finally {
+      submitting.value = false;
     }
   };
 
@@ -265,6 +273,7 @@ export function useOlvProc(refresh: RefreshCallbacks) {
   };
 
   return {
+    submitting,
     handleApprove,
     handleCancel,
     handleFormSubmit,

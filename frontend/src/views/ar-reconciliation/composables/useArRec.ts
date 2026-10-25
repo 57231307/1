@@ -57,12 +57,10 @@ export function useArRec() {
       const res = await getAutoReconciliationResults({
         page: pagination.value.page,
         page_size: pagination.value.pageSize,
-        customer_name: searchForm.value.customer_name || undefined,
-        status: searchForm.value.match_status || undefined,
         start_date: searchForm.value.start_date || undefined,
         end_date: searchForm.value.end_date || undefined,
       });
-      // 后端 auto-match 结果列表以 json!({"list","total",...}) 承载，按 list 显式读取
+      // 对账结果列表端点返回分页信封，列表承载在 list 键，总数在 total 键
       tableData.value = res.data.list;
       total.value = res.data.total;
     } catch {

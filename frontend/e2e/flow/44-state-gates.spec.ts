@@ -196,7 +196,7 @@ test.describe.serial('44b 采购订单状态门负例（po/contract.rs + receipt
       items: [
         {
           material_id: ctx.productIds[0],
-          quantity: 100,
+          quantity_ordered: '100',
           unit_price: '10.50',
           tax_rate: 13,
         },

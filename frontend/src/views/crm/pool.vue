@@ -21,7 +21,7 @@
           <el-icon><Plus /></el-icon>
           {{ t('crmPool.batchClaim') }}
         </el-button>
-        <el-button @click="router.push('/crm')">
+        <el-button @click="router.push('/customer')">
           <el-icon><Back /></el-icon>
           {{ t('crmPool.back') }}
         </el-button>

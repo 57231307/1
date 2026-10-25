@@ -16,6 +16,8 @@ import './styles/theme.css';
 // 列表页族移动端窄屏响应式补丁：命中各列表页共享 class 约定与 Element Plus 原语，
 // 置于 theme.css 之后以覆盖其默认宽度，桌面视口不触发本层。
 import './styles/mobile-list.css';
+// 内容层移动端补丁：弹窗、表单、确认框、描述列表等原语在窄屏下的排版，桌面不触发。
+import './styles/mobile-content.css';
 // V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
 import { initMonitor, isDialogDismissal } from './utils/monitor';
 

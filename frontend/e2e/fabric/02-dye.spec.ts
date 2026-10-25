@@ -4,6 +4,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, genDyeLotNo, tryCleanup } from '../flow/helpers';
+import { pickSelectIn } from '../flow/ui-helpers';
 
 /**
  * 02-03 造数据前置：创建一条 status='inspecting'（验布中）的染色批次。
@@ -28,11 +29,22 @@ test.afterEach(async ({ page }) => {
 });
 
 /**
- * /fabric 页面的 Tab 真实文案（fabric.index.tabDye）为「染色批次」。
- * { name: /染色|批次/ } 正则会同时命中「染色批次」与「染色配方」两个 tab
- * （二者都含「染色」）→ getByRole('tab') strict-mode 违例，故统一定位用精确名。
+ * 染色批次列表唯一入口为 /dye-batch；新建表单的「产品」下拉必选一条真实坯布，
+ * 故逐用例经 API 造一条坯布并在用例后清理。
  */
-const DYE_TAB = '染色批次';
+async function seedGreigeFabric(page: import('@playwright/test').Page): Promise<string> {
+  const suffix = genCode('E2E-DBG').slice(-6);
+  const name = `E2E染色坯布${suffix}`;
+  const res = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
+    fabric_no: `E2E-DBG${suffix}`,
+    fabric_name: name,
+    fabric_type: '梭织',
+  });
+  const id = res.data?.id;
+  if (!id) throw new Error(`创建坯布前置失败：${JSON.stringify(res)}`);
+  CLEANUP.push({ path: `/production/greige-fabrics/${id}`, label: 'greige_fabric' });
+  return name;
+}
 
 async function seedDyeBatch(
   page: import('@playwright/test').Page,
@@ -133,42 +145,33 @@ test.describe('02 染色批次', () => {
     await page.goto('/');
   });
 
-  test('02-01 染色批次 Tab 可正常加载', async ({ page }) => {
-    await page.goto('/fabric');
-    await page.getByRole('tab', { name: DYE_TAB, exact: true }).click();
-    // 染色批次表格按 aria-label（fabric.dyeTab.tableAriaLabel=「染色批次列表」）精确定位；
-    // `table, .el-table` 选择器会命中本页三个 Tab 的表格容器 → strict-mode 违例，不可用。
-    await expect(page.getByLabel('染色批次列表')).toBeVisible({ timeout: 30000 });
+  test('02-01 染色批次页可正常加载', async ({ page }) => {
+    await page.goto('/dye-batch');
+    await expect(page.getByLabel('批次列表表格')).toBeVisible({ timeout: 30000 });
   });
 
   test('02-02 新建染色批次', async ({ page }) => {
-    await page.goto('/fabric');
-    await page.getByRole('tab', { name: DYE_TAB, exact: true }).click();
-    // 新建按钮真实文案 fabric.dyeTab.buttonCreate=「新建批次」
+    const greigeName = await seedGreigeFabric(page);
+    await page.goto('/dye-batch');
     await page.getByRole('button', { name: '新建批次' }).click();
     const dialog = page.locator('.el-dialog:visible').last();
     await expect(dialog).toBeVisible({ timeout: 30000 });
-    // 批次号在打开对话框时由 generateUniqueDocNo 预生成且输入框 readonly
-    // （DyeFormDialogTab.vue:27 `<el-input readonly>`）——只读字段不可 fill（Playwright 判
-    // not editable），对只读自动单号执行 fill 属错误操作。
-    // 真实契约是「自动填充」，故断其非空而非写入，并取作回查锚点。
-    const batchNoInput = dialog.getByLabel('批次号');
-    await expect(batchNoInput).not.toHaveValue('');
-    const batchNo = await batchNoInput.inputValue();
-    // 「颜色」输入框绑定 formData.color_no（DyeFormDialogTab.vue:32），
-    // 与后端 create DTO 字段一致（CreateDyeBatchRequest.color_no，dye_batch_handler.rs:45）；
-    // 后端用它同时写 color_code/color_name/color_no（dye_batch_handler.rs:188-193）。
-    // 真实契约是「手填色号 + 真实缸号 + 色号有档案」三者齐备才允许建染色批次
-    //（dye_batch_handler.rs:203-251 染色身份归一）——先建色卡档案前置，再据其填表。
+    const batchNo = genCode('E2E-DB');
+    await dialog.getByLabel('批次号').fill(batchNo);
+    await pickSelectIn(dialog, page, '产品', { optionText: greigeName });
+    // 「色号」绑定 formData.color_no，后端用它反查色卡档案派生 color_code/color_name
     const colorNo = await seedColorCardItem(page);
-    await dialog.getByLabel('颜色').fill(colorNo);
-    await dialog.getByLabel('染色批号').fill(genDyeLotNo());
-    await dialog.getByLabel('计划数量').fill('500');
-    await dialog.getByRole('button', { name: '确定' }).click();
-    // 保存成功提示 fabric.common.success=「操作成功」
-    await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
+    await dialog.getByLabel('色号').fill(colorNo);
+    await dialog.getByLabel('缸号').fill(genDyeLotNo());
+    await dialog.getByLabel('染色日期').fill('2026-10-21');
+    await page.keyboard.press('Enter');
+    await dialog.getByLabel('数量').fill('500');
+    await page.keyboard.press('Tab');
+    await dialog.getByRole('button', { name: '确认' }).click();
+    // 保存成功提示 dyeBatch.index.messageSaveSuccess=「保存成功」
+    await expect(page.getByText('保存成功')).toBeVisible({ timeout: 30000 });
     // 真实落库回查（核心断言）：按批次号命中后端记录，断其落库 color_no/color_code
-    // 与手填逐字相等，证明「颜色」真实写入而非落系统默认色；绑定或派生漂移则此项红。
+    // 与手填逐字相等，证明「色号」真实写入而非落系统默认色；绑定或派生漂移则此项红。
     const created = await findDyeBatchByNo(page, batchNo);
     expect(created, `新建后应能按批次号 ${batchNo} 从后端回查到染色批次`).toBeTruthy();
     expect(created?.color_no, `落库 color_no 应等于用户手填值 ${colorNo}（未被默认色覆盖）`).toBe(
@@ -178,7 +181,6 @@ test.describe('02 染色批次', () => {
       created?.color_code,
       `落库 color_code 应等于用户手填值 ${colorNo}（后端按 color_no 反查色卡档案派生）`
     ).toBe(colorNo);
-    // 回查并登记清理：UI 建的批次不在 seedDyeBatch 的 CLEANUP 内，须按批次号定位删除
     const createdId = created?.id;
     expect(createdId, `回查到的批次应含 id 以便清理`).toBeTruthy();
     if (createdId)
@@ -186,16 +188,12 @@ test.describe('02 染色批次', () => {
   });
 
   test('02-03 染色批次可标记为完成', async ({ page }) => {
-    // 本用例走完整闭环、无条件断言（无数据/状态不匹配时按钮不渲染，用例直接判红，
-    // 不允许条件守卫导致零断言通过）：造 inspecting 批次 → 完成按钮渲染 → 点击 →
-    // 完工登记对话框强制采集实际产出三值（DyeTab.vue:98 handleComplete 打开的是
-    // CompleteDyeBatchDialog；后端 CompleteDyeBatchRequest 三值必填，
-    // 缺一即 400 且状态不推进）→ 提交成功提示 dyeBatch.complete.messageSuccess=「完工登记成功」。
+    // 造 inspecting 批次 → 完成按钮渲染 → 点击 → 完工登记对话框强制采集实际产出三值
+    // → 提交成功提示 dyeBatch.complete.messageSuccess=「完工登记成功」。
     const colorNo = await seedColorCardItem(page);
     const { batchNo } = await seedDyeBatch(page, 'inspecting', colorNo);
-    await page.goto('/fabric');
-    await page.getByRole('tab', { name: DYE_TAB, exact: true }).click();
-    await expect(page.getByLabel('染色批次列表')).toBeVisible({ timeout: 30000 });
+    await page.goto('/dye-batch');
+    await expect(page.getByLabel('批次列表表格')).toBeVisible({ timeout: 30000 });
     const row = page.getByRole('row').filter({ hasText: batchNo }).first();
     const completeBtn = row.getByRole('button', { name: '完成', exact: true });
     await expect(completeBtn, `批次 ${batchNo} 的「完成」按钮应渲染`).toBeVisible({

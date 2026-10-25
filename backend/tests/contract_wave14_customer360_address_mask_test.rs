@@ -9,7 +9,9 @@
 //!   （收紧误伤 admin 即在此变红）；
 //! - 纵深防御：非 admin 全响应文本不含任何种下的明文手机号/详细地址字串（防在别处又漏一份）；
 //! - 源码棘轮：`get_customer_360` 体内必须出现对该真源 `CrmService::mask_customer_pii_defaults`
-//!   的调用，且 admin 判定在行循环外算一次；不得内联第二套掩码字面量或 `unwrap_or(` 兜底。
+//!   的调用，且 admin 判定在行循环外算一次；该门所在区段内不得内联第二套掩码字面量或
+//!   unwrap_or( 兜底（禁令按地址门区段截取——recent_orders 子集同源调用另由独立棘轮钉形，
+//!   全函数体禁令会把它误伤，收窄不放松任何地址侧判据）。
 //!
 //! 通道（与既有同 handler 活体锁同源）：`test_common::setup_test_db()` 真 PostgreSQL 真跑 +
 //! 真 HTTP 装配；表结构唯一来源 = backend/migration；users/customers/customer_addresses 自种子
@@ -410,14 +412,14 @@ fn w14_360_address_gate_shares_true_source_ratchet() {
     let body = top_fn_body(&handler, "get_customer_360");
     let c = canon(&body);
 
-    // 真源调用整段结构钉桩：admin 判定在行循环外算一次（match 出 is_admin），
-    // 循环体内对每行调用 CrmService::mask_customer_pii_defaults(std::mem::take(addr), is_admin)。
+    // 真源调用整段结构钉桩（逐字符 canon 形态）：admin 判定在行循环外算一次（match 出
+    // is_admin），循环体内对每行调用 CrmService::mask_customer_pii_defaults(
+    // std::mem::take(addr), is_admin)。本串同时是下方禁令区段的定位锚。
+    let gate_struct = "{letis_admin=matchauth.role_id{Some(role_id)=>admin_checker::is_admin_role(\
+                       &state.db,role_id).await,None=>false};foraddrinaddrs.iter_mut(){\
+                       *addr=CrmService::mask_customer_pii_defaults(std::mem::take(addr),is_admin);}}";
     assert!(
-        c.contains(
-            "{letis_admin=matchauth.role_id{Some(role_id)=>admin_checker::is_admin_role(\
-             &state.db,role_id).await,None=>false};foraddrinaddrs.iter_mut(){\
-             *addr=CrmService::mask_customer_pii_defaults(std::mem::take(addr),is_admin);}}"
-        ),
+        c.contains(gate_struct),
         "回潮棘轮：360 收货地址子集不再逐行调用真源 mask_customer_pii_defaults，\
          或 admin 判定被搬进行循环/改为 clone+unwrap_or（第二口径与回落兜底复活）"
     );
@@ -434,9 +436,29 @@ fn w14_360_address_gate_shares_true_source_ratchet() {
         "回潮棘轮：admin 判定必须在行循环外算一次（现判定出现在循环内或之后，竞争放大/口径漂移）"
     );
 
-    // 内联第二套掩码 / 兜底：出现即红。真源是 mask_customer_pii_defaults，
-    // 出口不得直接手拼掩码字面量、不得直接调 utils 层的 mask_contact_fields_for_role、
-    // 不得内联 obj.remove("address")、不得 unwrap_or 兜底。
+    // 内联第二套掩码 / 兜底：在**收货地址门区段**内出现即红。真源是
+    // mask_customer_pii_defaults，地址出口不得直接手拼掩码字面量、不得直接调 utils 层的
+    // mask_contact_fields_for_role、不得内联 obj.remove("address")、不得 unwrap_or 兜底。
+    // 区段边界锚定上方逐字符钉形：前界=该门数组定位行的 canon 形态，后界=其 else 分支
+    // error 文案的 canon 形态，钉形必须落在两锚之间（任一锚漂移即红，禁令不会静默空转）。
+    // 区段不含 recent_orders 门——该子集与销单域列表/详情同源调用
+    // mask_contact_fields_for_role 是本函数合法组成，其调用形状由
+    // contract_crm360_recent_orders_mask_test 的棘轮单独钉死；本收窄不放松地址侧任何判据。
+    let addr_locator =
+        "ifletSome(addrs)=value.get_mut(\"shipping_addresses\").and_then(Value::as_array_mut){";
+    let addr_err_msg = "客户360出参未定位到shipping_addresses数组，地址字段级默认脱敏未应用";
+    let addr_start = c
+        .find(addr_locator)
+        .expect("收货地址门定位行缺失（形状漂移须同步本棘轮，禁令不得空转）");
+    let addr_err_pos = c
+        .find(addr_err_msg)
+        .expect("收货地址门 error 文案缺失（error 口径漂移须同步本棘轮）");
+    let gate_pos = c.find(gate_struct).expect("地址门钉形结构缺失");
+    assert!(
+        addr_start < gate_pos && gate_pos < addr_err_pos,
+        "收货地址门区段锚点漂移：逐字符钉形不在定位行与 error 文案之间（禁令边界失效即红）"
+    );
+    let addr_gate = &c[addr_start..addr_err_pos + addr_err_msg.len()];
     for banned in [
         "\"***\"",
         "****",
@@ -445,8 +467,8 @@ fn w14_360_address_gate_shares_true_source_ratchet() {
         "unwrap_or(",
     ] {
         assert!(
-            !body.contains(banned),
-            "回潮棘轮：360 收货地址门出现内联第二套掩码/字面量/兜底形态 → {banned}"
+            !addr_gate.contains(banned),
+            "回潮棘轮：360 收货地址门区段出现内联第二套掩码/字面量/兜底形态 → {banned}"
         );
     }
 }

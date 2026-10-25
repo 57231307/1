@@ -9,8 +9,11 @@
 
     <el-table
       v-loading="loading"
-      :data="departmentList"
+      :data="deptTreeData"
       border
+      row-key="id"
+      default-expand-all
+      :tree-props="{ children: 'children' }"
       :aria-label="t('departments.index.ariaTable')"
     >
       <el-table-column prop="name" :label="t('departments.index.colName')" />
@@ -38,14 +41,14 @@
           <el-button
             v-permission="PERMISSIONS.DEPARTMENT_UPDATE"
             size="small"
-            @click="handleEdit(row as Department)"
+            @click="handleEdit(row as DepartmentTreeNode)"
             >{{ t('departments.index.buttonEdit') }}</el-button
           >
           <el-button
             v-permission="PERMISSIONS.DEPARTMENT_DELETE"
             size="small"
             type="danger"
-            @click="handleDelete(row as Department)"
+            @click="handleDelete(row as DepartmentTreeNode)"
             >{{ t('departments.index.buttonDelete') }}</el-button
           >
         </template>
@@ -126,12 +129,12 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { PERMISSIONS } from '@/constants/permissions';
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
-  getDepartmentList,
+  getDepartment,
   createDepartment,
   updateDepartment,
   deleteDepartment,
@@ -149,10 +152,22 @@ const submitLoading = ref(false);
 const dialogVisible = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const formRef = ref<FormInstance>();
-// v11 批次 170 P2-1 修复：any[] 改为 Department[]
-const departmentList = ref<Department[]>([]);
-// 树出参载体是 DepartmentTreeNode（六键），仅作上级部门 tree-select 数据源（label=name/value=id）
+// 表格数据源与上级选择器共用同一份后端树出参：DepartmentTreeNode 自带 children 与
+// code/sort_order/is_active，同级先后由后端按 sort_order,id 定序，前端不再组装也不再排序
 const deptTreeData = ref<DepartmentTreeNode[]>([]);
+// id → name 的全量映射（从树扁平化一次得到），供"上级"列取名：树形下按 parent_id 查父级名
+// 不能只查当前层，故必须在扁平映射上查
+const deptNameById = computed<Map<number, string>>(() => {
+  const map = new Map<number, string>();
+  const walk = (nodes: DepartmentTreeNode[]) => {
+    for (const node of nodes) {
+      map.set(node.id, node.name);
+      if (node.children.length > 0) walk(node.children);
+    }
+  };
+  walk(deptTreeData.value);
+  return map;
+});
 
 // v11 批次 170 P2-1 修复：reactive<any> 改为具体类型
 interface DeptFormData {
@@ -188,13 +203,11 @@ const formRules: FormRules = {
 const loadDepartments = async () => {
   loading.value = true;
   try {
-    const [listRes, treeRes] = await Promise.all([getDepartmentList(), getDepartmentTree()]);
-    // 后端 list 返回 PaginatedResponse { items, total }（getDepartmentList 已按真实信封声明）
-    departmentList.value = listRes.data.items;
-    // 后端 get_department_tree 返回 Vec<DepartmentTreeNode>（data 为裸数组）
+    // 后端 get_department_tree 返回 Vec<DepartmentTreeNode>（data 为裸数组）：一次取全量，
+    // 出参已含 code/sort_order/is_active 与 children，父级缺席或成环的部门由后端按根节点补回并记 WARN
+    const treeRes = await getDepartmentTree();
     deptTreeData.value = treeRes.data;
   } catch (error: unknown) {
-    // 批次 98 P2-D 修复（v5 复审）：原 catch (error: any) 改为 unknown + 类型守卫
     ElMessage.error(
       (error instanceof Error ? error.message : String(error)) ||
         t('departments.index.messageLoadListFailed')
@@ -205,9 +218,12 @@ const loadDepartments = async () => {
 };
 
 const getParentName = (parentId: number | null): string => {
-  if (!parentId) return t('departments.index.placeholderNoParent');
-  const dept = departmentList.value.find((d: Department) => d.id === parentId);
-  return dept?.name || t('departments.index.placeholderNoParent');
+  // 顶级部门 parent_id 为 null：如实显示"无上级"
+  if (parentId == null) return t('departments.index.placeholderNoParent');
+  const parentName = deptNameById.value.get(parentId);
+  // 上级 id 存在但不在后端树出参的任何一层（数据悬挂外键，或父级成环后该子树未被回收）：
+  // 显示"未在部门档案中"这一可区分的真实语义，绝不复用"无上级"——那会把确有父级的部门谎报成顶级部门
+  return parentName ?? t('departments.index.parentNotInArchive');
 };
 
 const handleCreate = () => {
@@ -224,21 +240,35 @@ const handleCreate = () => {
   dialogVisible.value = true;
 };
 
-const handleEdit = (row: Department) => {
+const handleEdit = async (row: DepartmentTreeNode) => {
   dialogMode.value = 'edit';
+  // 编辑初值唯一真源 = 详情端点（department::Model 全列出参）：以 row.id 拉全量详情回填，
+  // 不从列表/树行载体直读字段，避免行载体缺项时改动静默丢失；取数失败显式报错并中止打开
+  let detail: Department;
+  try {
+    detail = (await getDepartment(row.id)).data;
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('departments.index.messageLoadDetailFailed')
+    );
+    return;
+  }
   Object.assign(formData, {
-    id: row.id,
-    name: row.name,
-    code: row.code,
-    parent_id: row.parent_id,
-    manager_name: row.manager_name,
-    sort_order: row.sort_order || 0,
-    is_active: row.is_active,
+    id: detail.id,
+    name: detail.name,
+    code: detail.code,
+    // parent_id 为可空外键：详情出参 null 归一为 tree-select 空态 undefined
+    parent_id: detail.parent_id ?? undefined,
+    // manager_name 为后端回填展示瞬态字段：未指派为 null，表单绑 string 归一为空串
+    manager_name: detail.manager_name ?? '',
+    sort_order: detail.sort_order,
+    is_active: detail.is_active,
   });
   dialogVisible.value = true;
 };
 
-const handleDelete = async (row: Department) => {
+const handleDelete = async (row: DepartmentTreeNode) => {
   if (!row.id) return;
 
   try {

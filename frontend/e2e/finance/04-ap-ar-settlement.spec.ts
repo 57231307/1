@@ -141,10 +141,13 @@ test.describe('04 AP/AR 核销金额级回读', () => {
     const today = new Date().toISOString().slice(0, 10);
 
     // 建应付单：amount=1000 → 默认 paid=0、unpaid=1000、status=DRAFT。
+    // tax_amount 显式提交 0：后端对税额缺键是点名拒绝，0 只能由建单方显式声明；
+    // 本用例只验结算金额回写，票面按"无进项税"建，故这里是声明值而不是留空凑门。
     const inv = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/invoices', {
       supplier_id: supplierId,
       invoice_type: 'PURCHASE',
       amount: 1000,
+      tax_amount: 0,
       invoice_date: today,
       due_date: today,
     });
@@ -153,6 +156,7 @@ test.describe('04 AP/AR 核销金额级回读', () => {
     CLEANUP.push({ path: `/ap/invoices/${invoiceId}`, label: 'ap_invoice' });
     expectMoney(readAmount(inv, 'paid_amount', '建单后'), 0, '建单 paid_amount');
     expectMoney(readAmount(inv, 'unpaid_amount', '建单后'), 1000, '建单 unpaid_amount');
+    expectMoney(readAmount(inv, 'tax_amount', '建单后'), 0, '建单 tax_amount（显式声明无进项税）');
 
     // 应付单须先审核（DRAFT→AUDITED）方能被付款申请引用（validate_invoice_items_txn 拒绝 DRAFT）。
     await apiCall(page, 'POST', `/ap/invoices/${invoiceId}/approve`);
@@ -203,6 +207,8 @@ test.describe('04 AP/AR 核销金额级回读', () => {
     );
     expectMoney(readAmount(after, 'paid_amount', '付款确认后'), 400, 'paid_amount');
     expectMoney(readAmount(after, 'unpaid_amount', '付款确认后'), 600, 'unpaid_amount');
+    // 税额属票面声明值，不参与付款回写：库里终态仍等于建单时显式提交的 0
+    expectMoney(readAmount(after, 'tax_amount', '付款确认后'), 0, 'tax_amount 不因付款回写而变动');
     expectMoney(
       readAmount(after, 'amount', '应付原额') - readAmount(after, 'paid_amount', '已付'),
       readAmount(after, 'unpaid_amount', '未付'),

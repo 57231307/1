@@ -84,6 +84,13 @@
         <button class="btn" type="submit">保存并进入</button>
       </form>
       <div class="err" id="err"></div>
+      <div id="perm" style="display: none; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 12px">
+        <p class="hint" style="margin-bottom: 8px">
+          设备权限：联网为安装时自动授予，相机用于扫码，蓝牙用于热敏打印。
+        </p>
+        <button class="btn secondary" id="permBtn" type="button">申请相机与蓝牙权限</button>
+        <div class="err" id="permMsg" style="margin-top: 6px"></div>
+      </div>
     </div>
     <script>
       (function () {
@@ -144,7 +151,43 @@
             go(ok);
           };
         }
+        function setupPermissions() {
+          if (!window.__TAURI__ || !window.__TAURI__.core) return;
+          var wrap = document.getElementById('perm');
+          var btn = document.getElementById('permBtn');
+          var msg = document.getElementById('permMsg');
+          wrap.style.display = '';
+          btn.onclick = function () {
+            btn.disabled = true;
+            msg.style.color = '';
+            msg.textContent = '正在申请，请在系统弹窗中选择允许';
+            var core = window.__TAURI__.core;
+            Promise.allSettled([
+              core.invoke('app_request_camera_permission'),
+              core.invoke('bluetooth_request_permission')
+            ]).then(function (results) {
+              function granted(result) {
+                return (
+                  result.status === 'fulfilled' &&
+                  result.value &&
+                  result.value.granted === true
+                );
+              }
+              var camera = granted(results[0]);
+              var bluetooth = granted(results[1]);
+              msg.style.color = camera && bluetooth ? '#15803d' : '#b45309';
+              msg.textContent =
+                '相机' +
+                (camera ? '已授权' : '未授权') +
+                '，蓝牙' +
+                (bluetooth ? '已授权' : '未授权') +
+                '，可随时在系统设置中调整';
+              btn.disabled = false;
+            });
+          };
+        }
         rememberSelf();
+        setupPermissions();
         var reconfigure = /[?&]reconfigure=1(&|$)/.test(window.location.search);
         var saved = '';
         try {

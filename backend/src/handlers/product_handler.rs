@@ -15,6 +15,9 @@ use crate::models::product_color;
 use crate::models::status::master_data;
 use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
+// 同源补齐函数的真源在服务层（批量链路与本链路共用一份语义），这里再导出，
+// 保持既有引用路径 handlers 下 product_handler 下的 pair_piece_roll_meters 仍可用。
+pub use crate::services::product_service::pair_piece_roll_meters;
 use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -83,6 +86,8 @@ pub struct CreateProductRequest {
 }
 
 /// 更新产品请求（面料行业版）
+/// 每匹米数与每卷米数为三态部分更新，键缺席保持原值、显式 null 清空为 NULL、有值覆盖。
+/// 其余字段维持单层 Option 的条件 Set 语义，键缺席即不更新该列。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateProductRequest {
@@ -126,9 +131,12 @@ pub struct UpdateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
-    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
-    pub meters_per_piece: Option<Decimal>,
-    pub meters_per_roll: Option<Decimal>,
+    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）。
+    // 三态部分更新：键缺席保持原值、显式 null 清空为 NULL、有值覆盖（清空通道即本形态存在的理由）。
+    #[serde(default, deserialize_with = "double_option")]
+    pub meters_per_piece: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub meters_per_roll: Option<Option<Decimal>>,
 }
 
 // ========== 色号管理相关结构体 ==========
@@ -353,6 +361,21 @@ pub async fn get_product(
     Ok(Json(ApiResponse::success(product_json)))
 }
 
+/// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的键缺席不等于显式 null 语义所需）。
+///
+/// 为何需要。serde_json 对双层 Option 的默认反序列化在遇到 JSON null 时将外层塌成 None，
+/// 与键缺席不可区分，用户清空每匹米数就无法送达后端。本适配器把字段先按内层 Option
+/// 反序列化再包一层。键缺席（配合 serde default）为 None 即保持原值，显式 null 为
+/// Some(None) 即清空该列，有值为 Some(Some(v)) 即覆盖。
+/// 与 ar_payment_handler 及 department_handler 等处的同型私有适配器一致。
+fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
+
 /// 创建产品
 pub async fn create_product(
     State(state): State<AppState>,
@@ -371,6 +394,9 @@ pub async fn create_product(
         Some(c) if !c.is_empty() => c,
         _ => product_service.generate_product_code().await?,
     };
+
+    let (meters_per_piece, meters_per_roll) =
+        pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
 
     let product = product_service
         .create_product(CreateProductArgs {
@@ -404,8 +430,8 @@ pub async fn create_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
-            meters_per_piece: req.meters_per_piece,
-            meters_per_roll: req.meters_per_roll,
+            meters_per_piece,
+            meters_per_roll,
         })
         .await?;
 
@@ -428,6 +454,9 @@ pub async fn update_product(
     }
 
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
+
+    let (meters_per_piece, meters_per_roll) =
+        pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
 
     let product = product_service
         .update_product(UpdateProductArgs {
@@ -454,8 +483,8 @@ pub async fn update_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
-            meters_per_piece: req.meters_per_piece,
-            meters_per_roll: req.meters_per_roll,
+            meters_per_piece,
+            meters_per_roll,
             // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
             user_id: auth.user_id,
         })

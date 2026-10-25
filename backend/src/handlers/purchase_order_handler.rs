@@ -6,12 +6,12 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::purchase_order;
 use crate::models::supplier;
+use crate::services::amount_visibility::{DefaultAmountResource, apply_default_amount_hiding};
 use crate::services::po::order::PurchaseOrderService;
 use crate::services::po::{
     CreateOrderItemRequest, CreatePurchaseOrderRequest, UpdateOrderItemRequest,
     UpdatePurchaseOrderRequest,
 };
-use crate::utils::admin_checker;
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::optional_json::OptionalJson;
@@ -81,35 +81,18 @@ pub async fn list_orders(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // admin 判定走本仓唯一权威源
-            // `admin_checker::is_admin_role`（roles.code='admin'，查询失败 fail-closed=false），
-            // 禁止角色主键字面量判定（播种漂移时静默剔权/静默扩权）；判定在循环外的分支
-            // 条件处、每请求至多一次（admin_checker 内部带 5 分钟缓存，同 crm_handler 既有范式）。
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            for order in &mut orders_json {
-                if let Some(obj) = order.as_object_mut() {
-                    obj.remove("total_amount");
-                    obj.remove("total_amount_foreign");
-                    obj.remove("total_quantity");
-                    obj.remove("total_quantity_alt");
-                    obj.remove("paid_amount");
-                    obj.remove("balance_amount");
-
-                    if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
-                        for item in items {
-                            if let Some(item_obj) = item.as_object_mut() {
-                                item_obj.remove("unit_price");
-                                item_obj.remove("unit_price_foreign");
-                                item_obj.remove("subtotal");
-                                item_obj.remove("tax_amount");
-                                item_obj.remove("discount_amount");
-                                item_obj.remove("total_amount");
-                            }
-                        }
-                    }
-                }
-            }
+        } else {
+            // 分工：进入本分支即该角色对 purchase_order 无数据权限配置行。
+            // 金额隐藏门（admin 例外与隐藏哪些列）的判定与移除都在
+            // services::amount_visibility 单源内完成，每请求判定一次、命中与不命中都记日志。
+            // 采购出参不含联系方式列，故调用侧无后续处理，忽略返回值。
+            apply_default_amount_hiding(
+                &state.db,
+                role_id,
+                DefaultAmountResource::PurchaseOrder,
+                &mut orders_json,
+            )
+            .await;
         }
     }
 
@@ -176,30 +159,16 @@ pub async fn get_order(
                 &permission.allowed_fields,
                 &permission.hidden_fields,
             );
-        } else if !admin_checker::is_admin_role(&state.db, role_id).await {
-            // 与列表同一单源判定（见 list_orders 内 D-4 收口注释），每请求至多一次
-            // 如果没有配置数据权限且不是管理员，使用默认字段隐藏
-            if let Some(obj) = order_json.as_object_mut() {
-                obj.remove("total_amount");
-                obj.remove("total_amount_foreign");
-                obj.remove("total_quantity");
-                obj.remove("total_quantity_alt");
-                obj.remove("paid_amount");
-                obj.remove("balance_amount");
-
-                if let Some(items) = obj.get_mut("items").and_then(|i| i.as_array_mut()) {
-                    for item in items {
-                        if let Some(item_obj) = item.as_object_mut() {
-                            item_obj.remove("unit_price");
-                            item_obj.remove("unit_price_foreign");
-                            item_obj.remove("subtotal");
-                            item_obj.remove("tax_amount");
-                            item_obj.remove("discount_amount");
-                            item_obj.remove("total_amount");
-                        }
-                    }
-                }
-            }
+        } else {
+            // 分工与列表同款：无数据权限配置行才进默认隐藏，金额隐藏门与列集合
+            // 都在 services::amount_visibility 单源内判定，详情出口传单元素切片。
+            apply_default_amount_hiding(
+                &state.db,
+                role_id,
+                DefaultAmountResource::PurchaseOrder,
+                std::slice::from_mut(&mut order_json),
+            )
+            .await;
         }
     }
 

@@ -98,8 +98,17 @@ test.describe('100% 前端路由 UI 交互全覆盖', () => {
     await visitPage(page, '/quality-standards');
     await verifyTable(page);
   });
-  test('面料管理 /fabric', async ({ page }) => {
-    await visitPage(page, '/fabric');
+  // 面料域由 /fabric 单页拆为三个独立页，原三个页签各自成为唯一入口
+  test('坯布管理 /greige-fabrics', async ({ page }) => {
+    await visitPage(page, '/greige-fabrics');
+    await verifyTable(page);
+  });
+  test('染色配方 /dye-recipe', async ({ page }) => {
+    await visitPage(page, '/dye-recipe');
+    await verifyTable(page);
+  });
+  test('染色批次 /dye-batch', async ({ page }) => {
+    await visitPage(page, '/dye-batch');
     await verifyTable(page);
   });
 });

@@ -64,9 +64,10 @@ async function seedApprovedPaymentRequest(
  * - 应付为 /ap 扁平 Tab 页（apModule.tabs）：'应付发票'(invoice，默认激活) / '付款管理'(payment) /
  *   '付款申请' / '核销管理' / '对账管理' / '应付报表'。
  *   采购订单查看对话框 PurchaseViewDialog 无“内嵌应付单 tab”，原 05-01/05-02 系按不存在的 UI 编写。
- * - InvoiceTab：页标题 '应付发票'、按钮 '新建发票'、列表列 发票编号/供应商/发票金额/税额/已付/未付/状态、
+ * - InvoiceTab：页标题 '应付发票'、按钮 '新建发票'、列表列 发票编号/供应商/发票金额/税额/已付/未付/到期日期/状态、
  *   行内 '详情' / DRAFT 行 '审核' / '取消'。新建应付发票对话框（createAria '新建应付发票对话框'）
- *   字段：供应商 select / 发票日期 / 到期日期 / 发票金额 spinbutton / 税额 spinbutton；底部 '取消' / '确认'。
+ *   字段：供应商 select / 应付类型 select / 发票日期 / 到期日期 / 发票金额 spinbutton /
+ *   税额 spinbutton，其中 应付类型 到期日期 税额 为必填；底部 '取消' / '确认'。
  *   发票编号由后端 generate_invoice_no 自生成（CreateAPInvoiceRequest 无 invoice_no 字段，见 ddcf51ca），
  *   新建对话框不采集发票编号；提交成功 '操作成功'(common.success)。
  * - PaymentTab：'新建付款' → 对话框(createAria '新建付款对话框') 供应商 select / 付款日期 /
@@ -93,6 +94,9 @@ test.describe('05 AP 应付发票与付款', () => {
     await expect(dialog).toBeVisible();
     // 供应商（el-select，对话框内 label '供应商'；pickSelectIn 按精确 label 点 wrapper→选首项）
     await pickSelectIn(dialog, page, '供应商');
+    // 应付类型（InvoiceTab 新增必填 el-select，label '应付类型'，选项值 PURCHASE 的
+    // 展示文案为 采购应付；按文案精确点选，缺项会被前端必填门拦下导致请求不发）
+    await pickSelectIn(dialog, page, '应付类型', { optionText: '采购应付' });
     // 发票编号由后端 generate_invoice_no 自生成、对话框不采集（见 ddcf51ca），故此处不填发票编号，
     // 对齐 AR 侧同类已修用例 2350a23c（应收用例同样去填 invoice_no）。
     // 发票日期为前端必填（InvoiceTab invoiceRules.invoice_date required），据实填写
@@ -100,7 +104,15 @@ test.describe('05 AP 应付发票与付款', () => {
     await dateInput.click();
     await dateInput.fill('2026-08-01');
     await page.keyboard.press('Enter');
+    // 到期日期为前端必填（invoiceRules.due_date required），取发票日期加 30 天默认账期
+    const dueInput = dialog.getByLabel('到期日期');
+    await dueInput.click();
+    await dueInput.fill('2026-08-31');
+    await page.keyboard.press('Enter');
+    // 发票金额是对话框内第 0 个 spinbutton，税额是第 1 个（税额必填且初值不预置，
+    // 显式提交 0 代表本票无进项税这条声明）
     await dialog.getByRole('spinbutton').first().fill('8000');
+    await dialog.getByRole('spinbutton').nth(1).fill('0');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
     // 建单成功真断：① 成功 toast 锚定 ElMessage teleport 容器（不放宽为裸 getByText）
     await expect(page.locator('.el-message').filter({ hasText: '操作成功' })).toBeVisible({

@@ -114,10 +114,13 @@ async function seedApprovedApInvoice(
   supplierId: number,
   amount: number
 ): Promise<number> {
+  // tax_amount 显式提交 0：后端对税额缺键点名拒绝，0 是建单方的声明值
+  // （本套件的核销/对账口径只看 amount 与 paid/unpaid，票面不涉及进项税）。
   const inv = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/invoices', {
     supplier_id: supplierId,
     invoice_type: 'PURCHASE',
     amount,
+    tax_amount: 0,
     invoice_date: today(),
     due_date: today(),
   });
@@ -215,6 +218,8 @@ test.describe('11 AP/AR 核销闭环 + AP 对账 + 付款申请提交门控', ()
     );
     expectMoney(readAmount(bBefore, 'paid_amount', '核销前 B'), 0, 'B 核销前 paid');
     expectMoney(readAmount(bBefore, 'unpaid_amount', '核销前 B'), 600, 'B 核销前 unpaid');
+    // 票面税额为建单时显式声明的 0：核销与付款都不回写 tax_amount 列
+    expectMoney(readAmount(bBefore, 'tax_amount', '核销前 B'), 0, 'B 票面税额=声明值 0');
     expect(String(bBefore.invoice_status), 'B approve 后应为 AUDITED').toBe('AUDITED');
 
     // 未核销清单：付款与发票 B 都应可见（核销关系尚未建立）。

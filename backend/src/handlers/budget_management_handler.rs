@@ -347,8 +347,17 @@ pub async fn create_plan(
     let plan = service
         .create_plan(
             crate::services::budget_management_service::CreateBudgetPlanRequest {
-                plan_no: req.plan_no.unwrap_or_default(),
-                plan_name: req.plan_name.unwrap_or_default(),
+                // 方案编号、方案名称、总金额缺键时点名拒绝。budget_plans 的 plan_no、
+                // plan_name、total_amount 三列 NOT NULL 且无列默认，空串或 0 代填会让
+                // 没录与录了该值在台账里不可分。错误族与下方部门 ID 点名拒绝
+                // 一致（validation_displayable，VALIDATION_ERROR 且出参外显），
+                // 文案只说缺什么该补什么，不内插记录标识。
+                plan_no: req
+                    .plan_no
+                    .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少方案编号"))?,
+                plan_name: req
+                    .plan_name
+                    .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少方案名称"))?,
                 budget_year: req
                     .budget_year
                     .unwrap_or_else(|| chrono::Utc::now().date_naive().year()),
@@ -357,7 +366,12 @@ pub async fn create_plan(
                 department_id: req
                     .department_id
                     .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少部门ID"))?,
-                total_amount: req.total_amount.unwrap_or(Decimal::ZERO),
+                // 显式 0 是合法声明值。零基预算草稿由服务层建账时总额即为 0
+                // （create_budget_with_mode 的 ZeroBased 分支同口径），列无正数 CHECK，
+                // 故只拒缺键、不拒 0。
+                total_amount: req
+                    .total_amount
+                    .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少总金额"))?,
                 remark: req.remark,
             },
             auth.user_id,
@@ -1025,7 +1039,12 @@ pub async fn create_budget_with_mode(
     let target_year = req
         .target_year
         .unwrap_or_else(|| chrono::Utc::now().date_naive().year() + 1);
-    let department_id = req.department_id.unwrap_or(1);
+    // 部门缺键点名拒绝。此前缺省代填为真实部门 1（硬编码兜底），能建成功、无报错、
+    // 静默把预算记到别的部门名下，占用与考核随之错档。错误族与文案同 create_plan
+    // 的部门 ID 点名拒绝（validation_displayable，VALIDATION_ERROR 且出参外显）。
+    let department_id = req
+        .department_id
+        .ok_or_else(|| AppError::validation_displayable("预算编制请求缺少部门ID"))?;
     let budget_mode = match mode {
         "zero_based" => crate::services::budget_management_service::BudgetMode::ZeroBased,
         "rolling" => crate::services::budget_management_service::BudgetMode::Rolling,

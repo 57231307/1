@@ -142,6 +142,7 @@
               :min="0"
               :precision="2"
               class="col-price"
+              :placeholder="t('purchase.createDlg.unitPricePlaceholder')"
               @change="onCalculateSubtotal(item)"
             />
             <el-input-number
@@ -184,7 +185,7 @@
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="onCancel">{{ t('purchase.createDlg.cancel') }}</el-button>
-        <el-button type="primary" @click="onSubmit">{{
+        <el-button type="primary" :loading="creating" :disabled="creating" @click="onSubmit">{{
           t('purchase.createDlg.confirm')
         }}</el-button>
       </span>
@@ -214,6 +215,8 @@ const props = defineProps<{
   products: Product[];
   warehouses: Warehouse[];
   departments: Department[];
+  // 建单在途（父组件管理）：为真时确认按钮转圈并禁用，避免连点重复建单
+  creating: boolean;
   onSubmit: () => void;
   onCancel: () => void;
   onAddItem: () => void;
@@ -354,6 +357,44 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  /* 明细行在竖屏改为逐字段堆叠，固定列宽会撑破弹窗内容区 */
+  .items-header {
+    display: none;
+  }
+
+  .items-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+  .items-row > * {
+    margin-right: 0;
+  }
+
+  .col-product,
+  .col-color,
+  .col-qty,
+  .col-price,
+  .col-amount,
+  .col-supplier-info {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .col-supplier-info {
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .items-row > .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 .resolved-text {

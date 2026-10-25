@@ -17,14 +17,14 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, Set,
-    TransactionTrait,
+    ColumnTrait, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::json;
 use tracing::info;
 
 use crate::models::{ar_collection, ar_invoice, ar_reconciliation, ar_reconciliation_item};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 
 use super::super::types::{AutoVerifyData, VerifyTotals};
 use crate::services::ar_service::ArService;
@@ -170,7 +170,12 @@ impl ArService {
         Ok(())
     }
 
-    /// 创建收款核销单主记录（生成 VER 单号 + 初始化金额）
+    /// 创建收款核销单主记录（在调用方事务内取 VER 单号并插入 + 初始化金额）
+    ///
+    /// 入参 `matched_items` 是本笔收款匹配到的 (发票 ID, 核销金额) 集合，其金额合计写入
+    /// total_invoices/total_collections；`customer_id`/`customer_name` 冗余自发票侧；
+    /// `user_id` 写 created_by/confirmed_by。落库存 ar_reconciliations 表，
+    /// 单号撞该列 UNIQUE(23505) 时在保存点内重新取号重试，非唯一类错误原样上抛。
     async fn create_payment_reconciliation_record(
         &self,
         customer_id: i32,
@@ -179,38 +184,36 @@ impl ArService {
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<ar_reconciliation::Model, AppError> {
-        let verify_no = crate::utils::number_generator::DocumentNumberGenerator::generate_no(
+        let now = Utc::now();
+        let today = now.date_naive();
+        let total_amount: Decimal = matched_items.iter().map(|(_, a)| *a).sum();
+        let reconciliation = DocumentNumberGenerator::insert_with_no_retry(
             txn,
             "VER",
             ar_reconciliation::Entity,
             ar_reconciliation::Column::ReconciliationNo,
+            |reconciliation_no| ar_reconciliation::ActiveModel {
+                reconciliation_no: Set(reconciliation_no),
+                reconciliation_date: Set(today),
+                period_start: Set(today),
+                period_end: Set(today),
+                customer_id: Set(customer_id),
+                customer_name: Set(customer_name.clone()),
+                opening_balance: Set(Decimal::ZERO),
+                total_invoices: Set(total_amount),
+                total_collections: Set(total_amount),
+                closing_balance: Set(Decimal::ZERO),
+                reconciliation_status: Set(Some(
+                    crate::models::status::ar::RECONCILIATION_CLOSED.to_string(),
+                )),
+                confirmed_by: Set(Some(user_id)),
+                confirmed_at: Set(Some(now)),
+                created_by: Set(Some(user_id)),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            },
         )
-        .await?;
-        let now = Utc::now();
-        let today = now.date_naive();
-        let total_amount: Decimal = matched_items.iter().map(|(_, a)| *a).sum();
-        let reconciliation = ar_reconciliation::ActiveModel {
-            reconciliation_no: Set(verify_no),
-            reconciliation_date: Set(today),
-            period_start: Set(today),
-            period_end: Set(today),
-            customer_id: Set(customer_id),
-            customer_name: Set(customer_name),
-            opening_balance: Set(Decimal::ZERO),
-            total_invoices: Set(total_amount),
-            total_collections: Set(total_amount),
-            closing_balance: Set(Decimal::ZERO),
-            reconciliation_status: Set(Some(
-                crate::models::status::ar::RECONCILIATION_CLOSED.to_string(),
-            )),
-            confirmed_by: Set(Some(user_id)),
-            confirmed_at: Set(Some(now)),
-            created_by: Set(Some(user_id)),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        }
-        .insert(txn)
         .await?;
         Ok(reconciliation)
     }

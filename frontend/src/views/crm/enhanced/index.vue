@@ -5,7 +5,7 @@
         <h2>CRM 高级分析</h2>
       </div>
 
-      <el-tabs v-model="activeTab">
+      <el-tabs v-model="activeTab" @tab-change="handleTabChange">
         <!-- 页签一：销售漏斗 -->
         <el-tab-pane label="销售漏斗" name="funnel">
           <div class="toolbar">
@@ -321,6 +321,11 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
+
+        <!-- 页签四：客户分级（原 /crm 的 RFM 页签迁入，保留唯一入口） -->
+        <el-tab-pane label="客户分级" name="rfm">
+          <RfmTab />
+        </el-tab-pane>
       </el-tabs>
     </el-card>
 
@@ -400,7 +405,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
@@ -436,8 +442,30 @@ import {
   type RfmScore,
   type AssignmentRecord,
 } from '@/api/crm-enhanced';
+import RfmTab from '../tabs/RfmTab.vue';
 
-const activeTab = ref('funnel');
+const CRM_ENHANCED_TABS = ['funnel', 'tools', 'clv', 'rfm'] as const;
+type CrmEnhancedTab = (typeof CRM_ENHANCED_TABS)[number];
+
+const route = useRoute();
+const router = useRouter();
+
+const normalizeTab = (tab: unknown): CrmEnhancedTab =>
+  CRM_ENHANCED_TABS.includes(tab as CrmEnhancedTab) ? (tab as CrmEnhancedTab) : 'funnel';
+
+// 页签状态以 route.query.tab 为唯一真相；客户分级页签由已撤销的 /crm 容器迁入
+const activeTab = ref<CrmEnhancedTab>(normalizeTab(route.query.tab));
+
+watch(
+  () => route.query.tab,
+  tab => {
+    activeTab.value = normalizeTab(tab);
+  }
+);
+
+const handleTabChange = (tab: string | number) => {
+  router.replace({ query: { ...route.query, tab: String(tab) } });
+};
 
 /** 响应解包防御：兼容数组 / { items } / { history } 包装，避免 el-table "r is not iterable" */
 const unwrapList = <T,>(payload: unknown): T[] => {

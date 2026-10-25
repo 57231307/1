@@ -10,11 +10,12 @@
 //! - 在销售订单 `ship_order` 提交且库存扣减成功后被调用
 //! - 复用调用方传入的数据库事务，保证库存扣减、AR 单、订单状态三者原子提交
 //! - 按 `source_type=SALES_ORDER` + `source_bill_id=order_id` 幂等去重
-//! - 应收单号复用 `DocumentNumberGenerator`，保证全局连续
+//! - 应收单号复用 `DocumentNumberGenerator::insert_with_no_retry`，在调用方事务内
+//!   取号并插入（撞唯一约束在保存点内重取重试，不另开事务取号）
 
 use chrono::{Duration, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 
 use crate::models::ar_invoice::{
     ActiveModel as ArInvoiceActive, Column as ArInvoiceColumn, Entity as ArInvoiceEntity,
@@ -143,27 +144,29 @@ impl ArReconciliationService {
         // 6. 计算日期：发票日期 = 今日；到期日 = 发票日期 + 账期天数
         let invoice_date = Utc::now().date_naive();
         let due_date = invoice_date + Duration::days(terms as i64);
-        // 7. 生成应收单号（与销售订单/采购订单/对账单共用流水号生成器）
-        let invoice_no = DocumentNumberGenerator::generate_no(
+        // 7-8. 取号与写入同在调用方事务内：`insert_with_no_retry` 生成应收单号并插入，
+        // 撞 ar_invoices.invoice_no 的 UNIQUE(23505) 时只回滚本次保存点、重新取号重试；
+        // 非唯一类 SQL 错误原样上抛，整事务随调用方回滚。落库存 ar_invoices 表。
+        let invoice = DocumentNumberGenerator::insert_with_no_retry(
             txn,
             "AR",
             ArInvoiceEntity,
             ArInvoiceColumn::InvoiceNo,
+            |invoice_no| {
+                Self::build_receivable_active(
+                    invoice_no,
+                    invoice_date,
+                    due_date,
+                    customer_id,
+                    order_id,
+                    total_amount,
+                    user_id,
+                    &order,
+                    &cust,
+                )
+            },
         )
         .await?;
-        // 8. 写入 ar_invoices 表（DRAFT 待审，由 AR 审批节点确认后转 APPROVED）
-        let active = Self::build_receivable_active(
-            invoice_no,
-            invoice_date,
-            due_date,
-            customer_id,
-            order_id,
-            total_amount,
-            user_id,
-            &order,
-            &cust,
-        );
-        let invoice = active.insert(txn).await?;
         tracing::info!(
             "P0-2 销售→AR：应收单创建成功，invoice_no={}, amount={}, 账期={}天, 客户={}",
             invoice.invoice_no,

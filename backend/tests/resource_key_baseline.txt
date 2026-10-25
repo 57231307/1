@@ -26,7 +26,6 @@ customer-ledger
 customer-shares
 customer-special
 customer-team-members
-data-permissions
 detect-anomalies
 device-connections
 doc-types
@@ -92,7 +91,6 @@ reminders
 reorder-dye-lot
 report
 report-templates
-resource-types
 role-relations
 sales-forecast
 sales-orders
@@ -102,7 +100,6 @@ scan-by-id
 scan-inventory
 scan-statistics
 scan-to-ship
-scope-types
 seasonal-rules
 security-alerts
 send

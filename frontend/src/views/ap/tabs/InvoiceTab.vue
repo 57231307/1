@@ -155,6 +155,24 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <!-- 应付类型是后端 NOT NULL 无默认列，且后端不代填：必须由建单人选择声明，
+                 选项取自 models/ap_invoice.rs 对该列的既有说明，后端本批不做值域校验 -->
+            <el-form-item :label="$t('apModule.invoice.invoiceType')" prop="invoice_type">
+              <el-select
+                v-model="invoiceForm.invoice_type"
+                :placeholder="$t('apModule.invoice.invoiceTypePlaceholder')"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="opt in invoiceTypeOptions"
+                  :key="opt.value"
+                  :label="$t(opt.labelKey)"
+                  :value="opt.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -169,7 +187,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('apModule.invoice.dueDate')">
+            <el-form-item :label="$t('apModule.invoice.dueDate')" prop="due_date">
               <el-date-picker
                 v-model="invoiceForm.due_date"
                 type="date"
@@ -192,11 +210,13 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item :label="$t('apModule.invoice.taxAmount')">
+            <!-- 税额不预置 0：0 只能由建单人显式敲出，代表"本票无进项税"这条声明 -->
+            <el-form-item :label="$t('apModule.invoice.taxAmount')" prop="tax_amount">
               <el-input-number
                 v-model="invoiceForm.tax_amount"
                 :min="0"
                 :precision="2"
+                :placeholder="$t('apModule.invoice.taxAmountPlaceholder')"
                 style="width: 100%"
               />
             </el-form-item>
@@ -384,12 +404,28 @@ const resetInvoiceQuery = () => {
 const invoiceDialogVisible = ref(false);
 const invoiceFormRef = ref<FormInstance>();
 const invoiceSubmitLoading = ref(false);
+/**
+ * 应付类型选项：值域取自后端实体对 invoice_type 列的既有说明
+ * （backend/src/models/ap_invoice.rs「PURCHASE=采购应付，EXPENSE=费用应付，OTHER=其他」）。
+ * 后端本批只把"缺键"改成点名拒绝、不做值域校验，因此这里的取值是建单人的声明项，
+ * 不是第二套受控词表；词表要不要落到后端属另立挂账项。
+ */
+const invoiceTypeOptions = [
+  { value: 'PURCHASE', labelKey: 'apModule.invoice.typePurchase' },
+  { value: 'EXPENSE', labelKey: 'apModule.invoice.typeExpense' },
+  { value: 'OTHER', labelKey: 'apModule.invoice.typeOther' },
+];
 const invoiceForm = reactive({
   supplier_id: undefined as number | undefined,
+  invoice_type: undefined as string | undefined,
   invoice_date: '',
   due_date: '',
   invoice_amount: 0,
-  tax_amount: 0,
+  /**
+   * 税额：undefined=未填写（提交前由必填规则拦下），0 是建单人显式敲出的合法声明值
+   * （本票无进项税）。初值不预置 0：预置等于替用户做了"无税"这条他没说过的声明。
+   */
+  tax_amount: undefined as number | undefined,
   remark: '',
 });
 
@@ -397,42 +433,58 @@ const invoiceRules: FormRules = {
   supplier_id: [
     { required: true, message: t('apModule.invoice.supplierRequired'), trigger: 'change' },
   ],
+  invoice_type: [
+    { required: true, message: t('apModule.invoice.invoiceTypeRequired'), trigger: 'change' },
+  ],
   invoice_date: [
     { required: true, message: t('apModule.invoice.invoiceDateRequired'), trigger: 'change' },
   ],
+  due_date: [{ required: true, message: t('apModule.invoice.dueDateRequired'), trigger: 'change' }],
   invoice_amount: [
     { required: true, message: t('apModule.invoice.invoiceAmountRequired'), trigger: 'blur' },
+  ],
+  tax_amount: [
+    { required: true, message: t('apModule.invoice.taxAmountRequired'), trigger: 'blur' },
   ],
 };
 
 const openInvoiceDialog = () => {
   Object.assign(invoiceForm, {
     supplier_id: undefined,
+    invoice_type: undefined,
     invoice_date: '',
     due_date: '',
     invoice_amount: 0,
-    tax_amount: 0,
+    tax_amount: undefined,
     remark: '',
   });
   invoiceDialogVisible.value = true;
 };
 
 const submitInvoice = async () => {
-  const valid = await invoiceFormRef.value?.validate();
+  // el-form 的 validate() 在校不通过时以字段对象 reject，提交入口是事件处理器，
+  // reject 冒出去会被 Vue 记为组件事件处理器运行时错误，这里就地转为 false 短路，
+  // 让校验失败只体现为字段级红字提示
+  const valid = await invoiceFormRef.value?.validate().catch(() => false);
   if (!valid) return;
   invoiceSubmitLoading.value = true;
   try {
     // 契约对齐后端 CreateApInvoiceRequest（services/ap_invoice_ops/types.rs:24）：
     // 金额键为 amount（非表单本地键 invoice_amount）、备注键为 notes（非 remark）；
     // invoice_no 由后端 generate_invoice_no() 生成，不入请求体。
+    // 应付类型/发票日期/到期日期/税额四项后端一律必填且缺键即点名拒绝，
+    // 前端必填规则先拦在这里，不把缺键发给后端。
     await createAPInvoice({
       supplier_id: invoiceForm.supplier_id,
+      invoice_type: invoiceForm.invoice_type,
       invoice_date: invoiceForm.invoice_date,
-      due_date: invoiceForm.due_date || undefined,
+      due_date: invoiceForm.due_date,
       // 后端 CreateApInvoiceRequest.amount/tax_amount 为 Option<rust_decimal>（serde-floats
       // 未启用，JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
       amount: invoiceForm.invoice_amount.toFixed(2),
-      tax_amount: invoiceForm.tax_amount.toFixed(2),
+      // 税额只在有值时下发：对 undefined 调 toFixed 会送出字符串 "NaN"，
+      // 而后端把缺键与显式 0 视为两回事，这里不做任何代填
+      tax_amount: invoiceForm.tax_amount == null ? undefined : invoiceForm.tax_amount.toFixed(2),
       notes: invoiceForm.remark || undefined,
     });
     ElMessage.success(t('common.success'));

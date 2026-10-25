@@ -140,27 +140,17 @@ impl InitService {
     }
 
     fn build_front_business_roles(now: chrono::DateTime<chrono::Utc>) -> Vec<role::ActiveModel> {
+        // 角色码必须与 init_service_ops/permission.rs 的矩阵分组同码：只在这里播种、
+        // 矩阵里没有分组，该角色就是零授权面——超管旁路只认 code == admin，is_system 不授予
+        // 任何权限，连 dashboard/notifications 这两枚应用外壳码也只随分组下发，
+        // 被指派该角色的用户登录即停在 /403。
         let tuples: &[(&str, &str, &str, &str)] = &[
             // 管理层 → all
             ("总经理", "gm", "全公司最高管理权限", "all"),
             ("副总经理", "deputy_gm", "分管副总管理权限", "all"),
-            // V15 P1 Batch-10 12.1：补齐 super_admin 角色（系统配置与运维，区别于业务 admin）
-            (
-                "超级管理员",
-                "super_admin",
-                "系统级配置与运维管理（仅用于系统配置）",
-                "all",
-            ),
             // 销售域
             ("销售经理", "sales_manager", "销售业务管理与审批", "dept"),
             ("销售代表", "sales_rep", "销售订单录入与客户跟进", "self"),
-            // V15 P1 Batch-10 12.1：补齐 sales 角色（审计计划 12.1.4 要求的简短别名）
-            (
-                "销售员",
-                "sales",
-                "销售基础操作（订单录入与客户跟进）",
-                "self",
-            ),
             // V15 P1 Batch-10 12.1：补齐 customer_service 角色
             ("客户服务", "customer_service", "客户服务与售后跟进", "self"),
             // 采购域
@@ -190,14 +180,13 @@ impl InitService {
                 "仓库收发货与库存操作",
                 "self",
             ),
-            // V15 P1 Batch-10 12.1：补齐 warehouse_manager / warehouse 简短别名
+            // 仓库执行岗用 warehouse_keeper（仓库管理员）与矩阵分组同码，不再另建 warehouse 别名
             (
                 "仓库经理",
                 "warehouse_manager",
                 "仓库业务管理与调拨审批",
                 "dept",
             ),
-            ("仓库员", "warehouse", "仓库收发货与库存操作", "self"),
             // 生产域（面料行业深化）
             (
                 "生产经理",

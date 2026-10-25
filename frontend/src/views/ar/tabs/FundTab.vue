@@ -307,7 +307,7 @@ const openFundDialog = () => {
 };
 
 const submitFund = async () => {
-  const valid = await fundFormRef.value?.validate();
+  const valid = await fundFormRef.value?.validate().catch(() => false);
   if (!valid) return;
 
   fundSubmitLoading.value = true;

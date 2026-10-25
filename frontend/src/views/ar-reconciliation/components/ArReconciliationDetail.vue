@@ -13,30 +13,27 @@
   >
     <div v-if="currentReconciliation" class="detail-header">
       <el-descriptions :column="4" border>
-        <el-descriptions-item :label="$t('arReconciliationModule.customerCode')">{{
-          currentReconciliation.customer_code
+        <el-descriptions-item :label="$t('arReconciliationModule.index.reconciliationNo')">{{
+          currentReconciliation.reconciliation_no
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.customerName')">{{
-          currentReconciliation.customer_name
+          currentReconciliation.customer_name || '-'
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.invoiceAmount')">{{
-          currentReconciliation.invoice_amount != null
-            ? formatCurrency(currentReconciliation.invoice_amount)
-            : '-'
+          fmtNum(currentReconciliation.total_invoices)
         }}</el-descriptions-item>
         <el-descriptions-item :label="$t('arReconciliationModule.paymentAmount')">{{
-          currentReconciliation.payment_amount != null
-            ? formatCurrency(currentReconciliation.payment_amount)
-            : '-'
+          fmtNum(currentReconciliation.total_collections)
         }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('arReconciliationModule.differenceAmount')">{{
-          currentReconciliation.difference != null
-            ? formatCurrency(currentReconciliation.difference)
-            : '-'
+        <el-descriptions-item :label="$t('arReconciliationModule.index.balance')">{{
+          fmtNum(currentReconciliation.closing_balance)
         }}</el-descriptions-item>
-        <el-descriptions-item :label="$t('arReconciliationModule.matchStatus')">
-          <el-tag :type="getMatchType(currentReconciliation.match_status)" size="small">
-            {{ $t(getMatchLabel(currentReconciliation.match_status)) }}
+        <el-descriptions-item :label="$t('common.status')">
+          <el-tag
+            :type="currentReconciliation.reconciliation_status === 'confirmed' ? 'success' : 'info'"
+            size="small"
+          >
+            {{ statusLabel(currentReconciliation.reconciliation_status) }}
           </el-tag>
         </el-descriptions-item>
       </el-descriptions>
@@ -103,7 +100,6 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { formatCurrency } from '@/utils';
 import type {
   AutoReconciliationResult,
   ReconciliationDetailItem,
@@ -114,7 +110,15 @@ import { getMatchLabel, getMatchType } from '../composables/arRecFmts';
 const fmtNum = (v: unknown): string => Number(v ?? 0).toFixed(2);
 
 const { t } = useI18n({ useScope: 'global' });
-void t;
+
+// 对账状态词表写入方为后端 models/status/finance.rs 的 ar 段，
+// 展示词键当前只覆盖 draft 与 confirmed，其余状态回显原值
+const statusLabel = (v: string | null | undefined): string => {
+  if (!v) return '-';
+  if (v === 'draft') return t('arReconciliationModule.index.statusDraft');
+  if (v === 'confirmed') return t('arReconciliationModule.index.statusConfirmed');
+  return v;
+};
 
 /**
  * 对账明细对话框组件

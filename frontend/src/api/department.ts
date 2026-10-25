@@ -20,22 +20,30 @@ export interface Department {
 
 /**
  * 部门树节点：出参载体 = 后端 services/department_service.rs 的 DepartmentTreeNode
- * （Serialize 结构体，无 rename，六键 id/name/description/parent_id/manager_name/children）。
+ * （Serialize 结构体，无 rename，九键 id/name/code/description/parent_id/manager_name/
+ * sort_order/is_active/children）。
  * 与 department::Model（列表/详情载体）是两个不同类型：树节点不携带
- * code/manager_id/sort_order/is_active/created_at/updated_at，按 Model 形状消费树出参会在假字段上取值。
+ * manager_id/created_at/updated_at，也不携带 Model 的 is_deleted，按 Model 形状消费树出参会在假字段上取值。
+ * 同级顺序由后端显式定序（sort_order 升序、id 升序，根级与各层一致），前端不再自行排序。
  */
 export interface DepartmentTreeNode {
   id: number;
   name: string;
+  /** DB NOT NULL 列 code（部门编码，查重由后端 service 负责） */
+  code: string;
   /** DB 可空列 description：后端出参键恒存在，真实空值为 null */
   description: string | null;
-  /** DB 可空列 parent_id（自引用外键）：键恒存在，顶级部门为 null */
+  /** DB 可空列 parent_id（自引用外键）：键恒存在，顶级部门为 null；父级行缺席时保持原值不改写 */
   parent_id: number | null;
   /**
    * 负责人姓名：非数据库列（Model 上 #[sea_orm(ignore)] 瞬态字段），
    * 由 service 按 manager_id 批量查 users.username 回填；未指派或回填失败为 null，禁止提交
    */
   manager_name: string | null;
+  /** 排序号：后端出参按它定同级先后 */
+  sort_order: number;
+  /** 启用状态：树端点不过滤该列，停用部门同样出现在出参里 */
+  is_active: boolean;
   /** 后端序列化为 Vec 且无 skip_serializing_if：键恒存在，叶子节点为空数组 */
   children: DepartmentTreeNode[];
 }

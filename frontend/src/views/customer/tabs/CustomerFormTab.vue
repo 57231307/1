@@ -417,10 +417,13 @@ const handleClose = () => {
 };
 
 const handleSubmit = async () => {
+  if (submitLoading.value) return;
   if (!formRef.value) return;
+  // 锁先于异步校验落下：等 validate 返回再置位时，两次连点会先后穿过守卫，
+  // 各建一条客户档案。
+  submitLoading.value = true;
   try {
     await formRef.value.validate();
-    submitLoading.value = true;
     // 载荷键集逐键对齐后端 customer_handler.rs：CreateCustomerRequest(:23-72)/
     // UpdateCustomerRequest(:93-139)。此前整表单 rest 展开把 id/created_at/updated_at
     // 只读生成列（以及更新侧的 customer_code——编辑 DTO 无此键，编码建档即定）

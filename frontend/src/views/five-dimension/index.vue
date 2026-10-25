@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { computed, ref, reactive } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import {
@@ -31,8 +31,14 @@ import {
   type AssistRecordResponse,
 } from '@/api/assist-accounting';
 import { useTableApi } from '@/composables/useTableApi';
+import useBreakpoint from '@/composables/useBreakpoint';
 
 const { t } = useI18n({ useScope: 'global' });
+
+const { width } = useBreakpoint();
+
+// 五列描述在竖屏每列只剩几十像素，改为单列纵向堆叠
+const isNarrow = computed(() => width.value < 768);
 
 const searchForm = ref({
   product_id: '',
@@ -238,7 +244,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
         </ElRow>
         <div v-if="parseResult" class="parse-result">
           <ElDivider />
-          <ElDescriptions :column="5" border>
+          <ElDescriptions :column="isNarrow ? 1 : 5" border>
             <ElDescriptionsItem :label="t('fiveDimension.index.labelProductId')">{{
               parseResult.product_id
             }}</ElDescriptionsItem>
@@ -384,7 +390,7 @@ const selectFromSearch = (item: FiveDimensionItem) => {
       @close="viewDialogVisible = false"
     >
       <div v-if="viewData">
-        <ElDescriptions :column="3" border>
+        <ElDescriptions :column="isNarrow ? 1 : 3" border>
           <ElDescriptionsItem :label="t('fiveDimension.index.labelProductId')">{{
             viewData.product_id
           }}</ElDescriptionsItem>
