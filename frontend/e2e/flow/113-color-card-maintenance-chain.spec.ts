@@ -622,11 +622,14 @@ test.describe.serial('113 色卡主体与色号维护链', () => {
     const reqReadback = await apiCallRaw<LabDipRequestRow>(page, 'GET', `/production/lab-dip/requests/${reqId}`);
     expect(Number(reqReadback.id), '打样单对象口必须命中本单').toBe(reqId);
 
-    // 单据存在但该单据类型此刻没有启用且默认的模板，装配先取数据后取模板，故仍 404
-    const beforeTpl = await page.request.get(printUrl(`/color-cards/${reqId}/lab-dip/print`));
+    // 打样单打印口对不存在的主键必须 404：装配先取数据后取模板，单据无行时在数据装配段即拒，
+    // 不依赖该 doc_type 是否已有启用默认模板（共享库可能已有模板，不能把"模板缺失"当成前提）。
+    const absentLabPrint = await page.request.get(
+      printUrl(`/color-cards/${ABSENT_PROBE_ID}/lab-dip/print`)
+    );
     expect(
-      beforeTpl.status(),
-      `单据存在而模板缺失时打印必须 404，实际 ${beforeTpl.status()}`
+      absentLabPrint.status(),
+      `打样单打印口对无行单据必须 404，实际 ${absentLabPrint.status()}`
     ).toBe(404);
 
     // 建本用例私有 module 的启用默认模板（is_default 只清同 module 的默认位，不碰既有模块）
