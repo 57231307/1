@@ -117,6 +117,9 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let mut sql = String::new();
         for spec in COL_REPORTS {
+            // NOTICE 的展示串去掉 SQL 单引号：带引号的词表字面量只用于 ARRAY[...]，
+            // 插进 RAISE 的字符串里会提前闭合字面量并让 DO 块解析失败。
+            let allowed_display = spec.allowed.replace('\'', "");
             // 每列一个只读 DO 块。三段点名全走 SELECT 聚合与 RAISE NOTICE。
             let block = format!(
                 r#"
@@ -127,7 +130,7 @@ DECLARE
     bad_rows INTEGER;
 BEGIN
     SELECT COUNT(*) INTO total_rows FROM "{table}";
-    RAISE NOTICE 'm0102 点名 {table}.{col} 全表 % 行，词表清单 {allowed}，以下逐值分账', total_rows;
+    RAISE NOTICE 'm0102 点名 {table}.{col} 全表 % 行，词表清单 {allowed_display}，以下逐值分账', total_rows;
 
     FOR rec IN
         SELECT vocab.val AS val, COUNT(matched."{col}") AS cnt
@@ -158,6 +161,7 @@ $$;
                 table = spec.table,
                 col = spec.column,
                 allowed = spec.allowed,
+                allowed_display = allowed_display,
             );
             sql.push_str(&block);
         }
