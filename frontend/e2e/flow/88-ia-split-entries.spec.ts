@@ -16,7 +16,11 @@
  */
 import { test, expect, type Locator } from '../diagnose-fixture';
 import { loginViaUI, apiCallRaw, BASE_URL } from './helpers';
-import { formItemByExactLabel, pickSelectIn } from './ui-helpers';
+import {
+  formItemByExactLabel,
+  openFieldDropdownByLabel,
+  dropdownItems,
+} from './ui-helpers';
 import { columnCellTexts, rowCount } from './table-column';
 
 /**
@@ -152,10 +156,9 @@ test.describe('系统设置拆分后的入口唯一性与回补能力', () => {
     );
     expect(users.users.length, '用户列表为空，无法验证收件人候选').toBeGreaterThan(0);
     const candidate = users.users[0].username;
-    await pickSelectIn(card, page, '收件人', { openOnly: true });
-    const dropdown = page.locator('.el-select-dropdown:visible').last();
+    const dropdown = await openFieldDropdownByLabel(card, page, '收件人');
     await expect(
-      dropdown.locator('.el-select-dropdown__item').filter({ hasText: candidate }).first(),
+      dropdownItems(dropdown).filter({ hasText: candidate }).first(),
       `收件人下拉未出真实候选 ${candidate}`
     ).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press('Escape');
