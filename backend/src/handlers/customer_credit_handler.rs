@@ -1,12 +1,11 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::customer_credit;
 use crate::services::customer_credit_service::{
     CreditEvaluationResult, CreditLimitAdjustmentRequest, CreditQueryParams, CreditRatingRequest,
-    CustomerCreditService,
+    CustomerCreditService, CustomerCreditView,
 };
-use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
+use crate::utils::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -84,35 +83,74 @@ pub struct CreditAmountRequest {
     pub amount: Decimal,
 }
 
+/// 写后回读：按客户自然键取富化视图，使创建/更新/设级三个端点的出参与列表、详情
+/// 同一条 JOIN 链路（customer_name 只有一个来源）。
+///
+/// 刚写入的行回读不到属库内不一致，如实报内部错误并点名客户，绝不返回 None、
+/// 也不降级成"未富化"的另一套出参。
+async fn read_back_view(
+    service: &CustomerCreditService,
+    customer_id: i32,
+) -> Result<CustomerCreditView, AppError> {
+    service
+        .get_view_by_customer_id(customer_id)
+        .await?
+        .ok_or_else(|| AppError::internal(format!("客户 {} 的信用评级写入后回读缺失", customer_id)))
+}
+
 /// 获取客户信用列表
+///
+/// 调用方为前端客户信用列表页，入参为查询条件与分页键 page 与 page_size；
+/// 出参为分页信封 PaginatedResponse，字段 items 与 total 与 page 与 page_size 四键齐全，
+/// 供前端分页器读取总数。items 的行载体与详情同一条 LEFT JOIN 富化链路
+/// （CustomerCreditView，customer_name 唯一来源是 customers 真值），信封不改变行形状。
 pub async fn list_credits(
     Query(params): Query<CreditQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<customer_credit::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<PaginatedResponse<CustomerCreditView>>>, AppError> {
     info!("用户 {} 正在查询客户信用列表", auth.user_id);
+
+    let page = CustomerCreditService::clamp_page(params.page.unwrap_or(1));
+    let page_size = params.page_size.unwrap_or(10).clamp(1, 100);
 
     let service = CustomerCreditService::new(state.db.clone());
     let query_params = CreditQueryParams {
         customer_id: params.customer_id,
         credit_level: params.credit_level,
         status: params.status,
-        page: params.page.unwrap_or(1).clamp(1, 1000),
-        page_size: params.page_size.unwrap_or(10).clamp(1, 100),
+        page,
+        page_size,
     };
 
-    let (credits, _total) = service.get_list(query_params).await?;
-    info!("客户信用列表查询成功，共 {} 条记录", credits.len());
+    let (credits, total) = service.get_list(query_params).await?;
+    info!(
+        "客户信用列表查询成功，共 {} 条记录，当前页 {} 条",
+        total,
+        credits.len()
+    );
 
-    Ok(Json(ApiResponse::success(credits)))
+    Ok(Json(ApiResponse::success(PaginatedResponse::new(
+        credits,
+        total,
+        page as u64,
+        page_size as u64,
+    ))))
 }
 
 /// 获取客户信用详情
+///
+/// 路径参数 {id} 是本资源的**客户自然键**，即 customer_credit_ratings.customer_id
+/// （= customers.id；该列由迁移 m0082 施加全表唯一 + 外键，读写契约为每客户恒一行），
+/// **不是** customer_credit_ratings.id 行主键。正因取客户自然键，本 handler 才能同时
+/// 挂在 GET /customers/{id}/credit 与 GET /customer-credits/{id} 两个前缀下且两处
+/// {id} 同义；GET /customer-credits/{id}/print 的 {id} 是行主键（print_service
+/// 按 find_by_id 取单行），与本端点不同义，勿按本端点口径互改。
 pub async fn get_credit(
     Path(customer_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<customer_credit::Model>>, AppError> {
+) -> Result<Json<ApiResponse<CustomerCreditView>>, AppError> {
     info!(
         "用户 {} 正在查询客户 {} 的信用详情",
         auth.user_id, customer_id
@@ -120,7 +158,7 @@ pub async fn get_credit(
 
     let service = CustomerCreditService::new(state.db.clone());
     let credit = service
-        .get_by_customer_id(customer_id)
+        .get_view_by_customer_id(customer_id)
         .await?
         .ok_or_else(|| AppError::not_found(format!("客户 {} 的信用评级不存在", customer_id)))?;
     info!(
@@ -133,12 +171,16 @@ pub async fn get_credit(
 }
 
 /// 设置客户信用评级
+///
+/// 客户由请求体 customer_id 指定；路径 {id} 只是路由占位，本 handler 不读取它。
+/// 出参 customer_name 与列表/详情同一条富化链路（写后按 customer_id 回读），
+/// 不在构造点填 None 或拼装名。
 #[axum::debug_handler]
 pub async fn set_credit_rating(
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<CreditRatingRequestDto>,
-) -> Result<Json<ApiResponse<customer_credit::Model>>, AppError> {
+) -> Result<Json<ApiResponse<CustomerCreditView>>, AppError> {
     info!(
         "用户 {} 正在设置客户 {} 的信用评级",
         auth.user_id, req.customer_id
@@ -149,7 +191,7 @@ pub async fn set_credit_rating(
         customer_id: req.customer_id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
-        // 批次 414：credit_limit 直接透传 Option<Decimal>
+        // credit_limit 直接透传 Option<Decimal>：None=保持原值，Some(v)=显式设置
         credit_limit: req.credit_limit,
         credit_days: req.credit_days,
         remark: req.remark,
@@ -158,10 +200,15 @@ pub async fn set_credit_rating(
     let credit = service.set_credit_rating(rating_req, auth.user_id).await?;
     info!("客户 {} 信用评级设置成功", req.customer_id);
 
-    Ok(Json(ApiResponse::success(credit)))
+    Ok(Json(ApiResponse::success(
+        read_back_view(&service, credit.customer_id).await?,
+    )))
 }
 
 /// 占用信用额度
+///
+/// 路径参数 {id} 是**客户自然键** customer_credit_ratings.customer_id
+/// （= customers.id），**不是** customer_credit_ratings.id 行主键（与 [get_credit] 同口径）。
 #[axum::debug_handler]
 pub async fn occupy_credit(
     Path(customer_id): Path<i32>,
@@ -188,6 +235,9 @@ pub async fn occupy_credit(
 }
 
 /// 释放信用额度
+///
+/// 路径参数 {id} 是**客户自然键** customer_credit_ratings.customer_id
+/// （= customers.id），**不是** customer_credit_ratings.id 行主键（与 [get_credit] 同口径）。
 #[axum::debug_handler]
 pub async fn release_credit(
     Path(customer_id): Path<i32>,
@@ -214,6 +264,9 @@ pub async fn release_credit(
 }
 
 /// 调整信用额度
+///
+/// 路径参数 {id} 是**客户自然键** customer_credit_ratings.customer_id
+/// （= customers.id），**不是** customer_credit_ratings.id 行主键（与 [get_credit] 同口径）。
 #[axum::debug_handler]
 pub async fn adjust_credit_limit(
     Path(customer_id): Path<i32>,
@@ -247,6 +300,9 @@ pub async fn adjust_credit_limit(
 }
 
 /// 停用客户信用
+///
+/// 路径参数 {id} 是**客户自然键** customer_credit_ratings.customer_id
+/// （= customers.id），**不是** customer_credit_ratings.id 行主键（与 [get_credit] 同口径）。
 pub async fn deactivate_credit(
     Path(customer_id): Path<i32>,
     State(state): State<AppState>,
@@ -263,7 +319,10 @@ pub async fn deactivate_credit(
     Ok(Json(ApiResponse::success(message)))
 }
 
-/// POST /api/v1/erp/customer-credits - 创建客户信用
+/// POST /api/v1/erp/crm/customer-credits - 创建客户信用
+///
+/// 客户由请求体 customer_id 指定。出参 customer_name 与列表/详情同一条富化链路
+/// （写后按 customer_id 回读），不落在实体冗余列上。
 pub async fn create_credit(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -271,7 +330,7 @@ pub async fn create_credit(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     info!("用户 {} 创建客户信用", auth.username);
 
-    // P1-2b 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 强类型 DTO + validator 校验入参（不接受 Json<Value> 松类型）
     req.validate().map_err(AppError::from)?;
 
     let service = CustomerCreditService::new(state.db.clone());
@@ -280,7 +339,7 @@ pub async fn create_credit(
         customer_id: req.customer_id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
-        // 批次 414：credit_limit 直接透传 Option<Decimal>
+        // credit_limit 直接透传 Option<Decimal>
         credit_limit: req.credit_limit,
         credit_days: req.credit_days,
         remark: req.remark,
@@ -289,30 +348,35 @@ pub async fn create_credit(
     let credit = service.set_credit_rating(rating_req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(credit)?,
+        serde_json::to_value(read_back_view(&service, credit.customer_id).await?)?,
         "客户信用创建成功",
     )))
 }
 
-/// PUT /api/v1/erp/customer-credits/:id - 更新客户信用
+/// PUT /api/v1/erp/customer-credits/{id} - 更新客户信用
+///
+/// 路径参数 {id} 是**客户自然键** customer_credit_ratings.customer_id
+/// （= customers.id，本表每客户恒一行），**不是** customer_credit_ratings.id
+/// 行主键——与 [get_credit] 同口径；写侧一律按客户键定位唯一评级行。
+/// 出参 customer_name 与列表/详情同一条富化链路（写后回读）。
 pub async fn update_credit(
-    Path(id): Path<i32>,
+    Path(customer_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
     Json(req): Json<UpdateCreditDto>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    info!("用户 {} 更新客户信用: ID={}", auth.username, id);
+    info!("用户 {} 更新客户 {} 的信用额度", auth.username, customer_id);
 
-    // P1-2b 修复（批次 81 v1 复审）：强类型 DTO + validator 替代 Json<Value>
+    // 强类型 DTO + validator 校验入参（不接受 Json<Value> 松类型）
     req.validate().map_err(AppError::from)?;
 
     let service = CustomerCreditService::new(state.db.clone());
 
     let rating_req = crate::services::customer_credit_service::CreditRatingRequest {
-        customer_id: id,
+        customer_id,
         credit_level: req.credit_level,
         credit_score: req.credit_score,
-        // 批次 414 技术债务修复：credit_limit 直接透传 Option<Decimal>，
+        // credit_limit 直接透传 Option<Decimal>，
         // service 层区分 None（保持原值）与 Some(v)（显式设置，含 Some(0)）
         credit_limit: req.credit_limit,
         credit_days: req.credit_days,
@@ -322,21 +386,26 @@ pub async fn update_credit(
     let credit = service.set_credit_rating(rating_req, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
-        serde_json::to_value(credit)?,
+        serde_json::to_value(read_back_view(&service, credit.customer_id).await?)?,
         "客户信用更新成功",
     )))
 }
 
-/// DELETE /api/v1/erp/customer-credits/:id - 删除客户信用
+/// DELETE /api/v1/erp/customer-credits/{id} - 删除客户信用
+///
+/// 路径参数 {id} 是**客户自然键** customer_credit_ratings.customer_id，
+/// **不是** customer_credit_ratings.id 行主键（与 [get_credit] 同口径）。
+/// 实际动作是软停用（status → inactive、保留原行），故本端点与
+/// POST /customer-credits/{id}/deactivate 等价。
 pub async fn delete_credit(
-    Path(id): Path<i32>,
+    Path(customer_id): Path<i32>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-    info!("用户 {} 删除客户信用: ID={}", auth.username, id);
+    info!("用户 {} 删除客户 {} 的信用", auth.username, customer_id);
 
     let service = CustomerCreditService::new(state.db.clone());
-    service.deactivate(id, auth.user_id).await?;
+    service.deactivate(customer_id, auth.user_id).await?;
 
     Ok(Json(ApiResponse::success_with_message(
         (),

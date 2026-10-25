@@ -30,6 +30,7 @@ import {
   loginViaUI,
   tryCleanup,
 } from './helpers';
+import { columnIndex, rowCellText } from './table-column';
 
 interface RoleRow {
   id: number;
@@ -125,27 +126,17 @@ function trackGrantRequests(page: Page): {
   };
 }
 
-/** 进系统设置-角色管理 Tab，按角色名打开其权限配置对话框 */
+/** 进角色管理页，按角色名打开其权限配置对话框 */
 async function openPermissionDialog(page: Page, roleName: string): Promise<Locator> {
-  await page.goto(`${BASE_URL}/system`);
-  await page.locator('.el-tabs__item').first().waitFor({ state: 'visible', timeout: 30_000 });
-  await page
-    .locator('.el-tabs__item')
-    .filter({ hasText: /^角色管理$/ })
-    .first()
-    .click();
-  const table = page.locator('.el-tab-pane:visible .el-table').first();
+  await page.goto(`${BASE_URL}/roles`);
+  const table = page.locator('.el-table[aria-label="角色列表"]').first();
   await table.waitFor({ state: 'visible', timeout: 30_000 });
   const row = table
     .locator('.el-table__body-wrapper .el-table__row')
     .filter({ hasText: roleName })
     .first();
   await row.waitFor({ state: 'visible', timeout: 30_000 });
-  await row
-    .locator('button.el-button')
-    .filter({ hasText: /^权限$/ })
-    .first()
-    .click();
+  await row.getByRole('button', { name: '权限', exact: true }).click();
   // 对话框标题含角色名，用它把权限配置对话框与同页其它对话框区分开
   const dialog = page.locator('.el-dialog:visible').filter({ hasText: roleName }).first();
   await dialog.waitFor({ state: 'visible', timeout: 30_000 });
@@ -398,10 +389,7 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
         .join(',')}`
     ).toBeTruthy();
     const systemRole = target as RoleRow;
-    expect(
-      systemRole.is_system,
-      '审计员必须是内置角色，否则本用例的拒绝判据不成立'
-    ).toBe(true);
+    expect(systemRole.is_system, '审计员必须是内置角色，否则本用例的拒绝判据不成立').toBe(true);
 
     const before = await readRoleGrants(page, systemRole.id);
     const tracker = trackGrantRequests(page);
@@ -517,14 +505,12 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
     expect(Array.isArray(vocab), '资源词表端点应返回裸数组').toBe(true);
     const vocabSet = new Set(vocab);
 
-    await page.goto(`${BASE_URL}/system`);
-    await page.locator('.el-tabs__item').first().waitFor({ state: 'visible', timeout: 30_000 });
-    await page
-      .locator('.el-tabs__item')
-      .filter({ hasText: /^权限管理$/ })
-      .first()
-      .click();
-    const table = page.locator('.el-tab-pane:visible .el-table').first();
+    await page.goto(`${BASE_URL}/permissions`);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '权限管理' }),
+      `未渲染权限管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible({ timeout: 30_000 });
+    const table = page.locator('.el-table[aria-label="权限列表"]').first();
     await table.waitFor({ state: 'visible', timeout: 30_000 });
 
     const headers = table.locator('.el-table__header-wrapper thead th.el-table__cell');
@@ -538,12 +524,14 @@ test.describe('角色授权整批替换契约与权限目录词表化', () => {
       Math.min(catalog.length, 20)
     );
     const probeCount = Math.min(20, catalog.length, rendered);
+    // 资源/动作两列的下标由列头文案求得，不写死位置：列顺序变化时读到的仍是这两列本身
+    const resourceIdx = await columnIndex(table, '资源类型');
+    const actionIdx = await columnIndex(table, '操作');
 
     for (let i = 0; i < probeCount; i++) {
       const row = rows.nth(i);
-      const cells = row.locator('td.el-table__cell');
-      const resourceCell = (await cells.nth(0).innerText()).trim();
-      const actionCell = (await cells.nth(1).innerText()).trim();
+      const resourceCell = await rowCellText(row, resourceIdx);
+      const actionCell = await rowCellText(row, actionIdx);
       const token = catalog[i];
 
       expect(resourceCell, `第 ${i} 行资源列不应为空`).not.toBe('');

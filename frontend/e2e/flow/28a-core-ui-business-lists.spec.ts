@@ -6,6 +6,7 @@ import {
   clickNewAndVerifyDialog,
   verifyRequiredValidation,
   closeDialogByX,
+  formItemByExactLabel,
 } from './ui-helpers';
 
 test.describe('核心业务流程真实 UI 交互验证', () => {
@@ -291,29 +292,26 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   });
 
   // ================================================================
-  // 系统管理流程 UI
+  // 用户管理页 UI
   // ================================================================
-  test('系统管理 UI：用户列表+搜索+新建+审计日志', async ({ page }) => {
-    const table = await visitAndVerifyTable(page, '/system');
+  test('用户管理页 UI：列表+搜索+新建用户', async ({ page }) => {
+    const table = await visitAndVerifyTable(page, '/users');
     const tableVisible = await table.isVisible();
     expect(tableVisible).toBe(true);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '用户管理' }),
+      `未渲染用户管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible();
 
-    // 搜索
-    const searchInput = page
-      .locator('input[placeholder*="用户名"], input[placeholder*="姓名"]')
-      .first();
+    // 搜索：关键词框按表单 label 锚定（不用 placeholder 子串/位置选择器）
+    const searchInput = formItemByExactLabel(page, '关键词').locator('input').first();
     await searchInput.waitFor({ state: 'visible', timeout: 5000 });
-    const searchVisible = await searchInput.isVisible();
-    if (searchVisible) {
-      await searchInput.fill('admin');
-      const queryBtn = page.locator('button:has-text("查询")').first();
-      await queryBtn.waitFor({ state: 'visible', timeout: 3000 });
-      const queryVisible = await queryBtn.isVisible();
-      if (queryVisible) {
-        await queryBtn.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    await searchInput.fill('admin');
+    const queryBtn = page.getByRole('button', { name: '查询' }).first();
+    await queryBtn.waitFor({ state: 'visible', timeout: 3000 });
+    await queryBtn.click();
+    await page.waitForTimeout(2000);
+    expect(await table.isVisible(), '按关键词查询后用户列表应仍渲染').toBe(true);
 
     // 新建用户
     await clickNewAndVerifyDialog(page, '新建用户');
@@ -322,28 +320,26 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
       expect(hasError).toBe(true);
       await closeDialogByX(page);
     }
+  });
 
-    // 审计日志 Tab（部分系统页可能无审计/日志 Tab，非阻断：不可见则跳过）
-    const auditTab = page
-      .locator('.el-tabs__item:has-text("审计"), .el-tabs__item:has-text("日志")')
-      .first();
-    const auditTabVisible = await auditTab
-      .waitFor({ state: 'visible', timeout: 3000 })
-      .then(() => true)
-      .catch(() => false);
-    if (auditTabVisible) {
-      await auditTab.click();
-      await page.waitForTimeout(2000);
-      const auditTable = page
-        .locator('.el-table, .el-table-v2, [role="table"], .v2-table-wrapper')
-        .first();
-      const auditTableVisible = await auditTable
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch(() => false);
-      // 审计表不可见不算硬失败（仅记录）
-      console.log(`[28a] 审计日志 Tab 表格可见: ${auditTableVisible}`);
-    }
+  // ================================================================
+  // 审计日志页 UI
+  // ================================================================
+  test('审计日志页 UI：筛选表单+查询+列表', async ({ page }) => {
+    await page.goto(`${BASE_URL}/system/audit-log`);
+    const filterForm = page.locator('[aria-label="审计日志筛选表单"]');
+    await filterForm.waitFor({ state: 'visible', timeout: 30_000 });
+    const table = page.locator('.el-table-v2').first();
+    await table.waitFor({ state: 'visible', timeout: 30_000 });
+
+    const queryBtn = page.getByRole('button', { name: '查询' }).first();
+    await queryBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await queryBtn.click();
+    await page.waitForTimeout(2000);
+    expect(await table.isVisible(), '点击查询后审计日志列表应仍渲染').toBe(true);
+    expect(await page.locator('.el-message--error').count(), '审计日志查询不得以错误提示收场').toBe(
+      0
+    );
   });
 
   // ================================================================
@@ -384,33 +380,25 @@ test.describe('核心业务流程真实 UI 交互验证', () => {
   });
 
   // ================================================================
-  // 权限管理流程 UI
+  // 角色管理页 UI
   // ================================================================
-  test('角色管理 UI：列表+权限分配', async ({ page }) => {
-    await page.goto(`${BASE_URL}/system`);
-    await page.waitForTimeout(3000);
-    await page
-      .locator('.el-tabs, .el-table, .el-card')
-      .first()
-      .waitFor({ state: 'visible', timeout: 30_000 });
-    // 切换到角色 Tab
-    const roleTab = page.locator('.el-tabs__item:has-text("角色")').first();
-    await roleTab.waitFor({ state: 'visible', timeout: 5000 });
-    const roleTabVisible = await roleTab.isVisible();
-    if (roleTabVisible) {
-      await roleTab.click();
-      await page.waitForTimeout(2000);
-      // Element Plus 非活动 TabPane 仍留在 DOM（display:none），不加 :visible
-      // 时 .first() 会命中用户 Tab 的隐藏表格导致断言恒假（同 26-system-full 修复）
-      const table = page
-        .locator(
-          '.el-table:visible, .el-table-v2:visible, [role="table"]:visible, .v2-table-wrapper:visible'
-        )
-        .first();
-      await table.waitFor({ state: 'visible', timeout: 5000 });
-      const tableVisible = await table.isVisible();
-      expect(tableVisible).toBe(true);
-    }
+  test('角色管理页 UI：列表+权限分配入口', async ({ page }) => {
+    const table = await visitAndVerifyTable(page, '/roles');
+    expect(await table.isVisible(), '角色列表未渲染').toBe(true);
+    await expect(
+      page.getByRole('heading', { level: 2, name: '角色管理' }),
+      `未渲染角色管理页标题，实际落点 ${page.url()}`
+    ).toBeVisible();
+
+    // 列头按文案锚定：角色名称与角色编码两列存在
+    const headers = table.locator('.el-table__header-wrapper thead th.el-table__cell');
+    await expect(headers.filter({ hasText: /^角色名称$/ }).first()).toBeVisible();
+    await expect(headers.filter({ hasText: /^角色编码$/ }).first()).toBeVisible();
+
+    // 权限分配入口渲染在角色行的操作列内
+    const rows = table.locator('.el-table__body-wrapper .el-table__row');
+    await expect(rows.first()).toBeVisible({ timeout: 30_000 });
+    await expect(rows.first().getByRole('button', { name: '权限', exact: true })).toBeVisible();
   });
 
   // ================================================================

@@ -10,8 +10,9 @@ test.describe('01 客户管理', () => {
     await page.goto('/');
   });
 
-  test('01-01 进入 CRM 客户管理页面', async ({ page }) => {
-    await page.goto('/crm');
+  test('01-01 进入客户管理页面', async ({ page }) => {
+    // 客户列表唯一入口 /customer（原 /crm 列表已合并迁入，/crm 仅保留重定向）
+    await page.goto('/customer');
     await expect(page.getByRole('heading', { name: /客户管理|客户列表/ })).toBeVisible({
       timeout: 30000,
     });
@@ -19,8 +20,8 @@ test.describe('01 客户管理', () => {
   });
 
   test('01-02 创建客户', async ({ page }) => {
-    await page.goto('/crm');
-    // 真实新建按钮文案「新建客户」（crmCustomer.create），页头另有「打印/导出/公海池/客户分配」按钮，
+    await page.goto('/customer');
+    // 真实新建按钮文案「新建客户」（customer.index.button.create），页头另有「打印/导出/公海池/客户分配」按钮，
     // /创建|新建/ 正则会命中多个 → 加 .first() 收敛（不放宽存在性）。
     await page
       .getByRole('button', { name: /创建|新建/ })
@@ -35,7 +36,7 @@ test.describe('01 客户管理', () => {
     expect(await codeInput.isEditable(), '新建客户：客户编码应只读（后端自动取号）').toBe(false);
     await dlg.getByLabel('客户名称').fill(`E2E 测试客户 ${Date.now()}`);
     await dlg.getByLabel('联系人').fill('张三');
-    await dlg.getByLabel('电话').fill('13800138000');
+    await dlg.getByLabel('联系电话').fill('13800138000');
     await dlg.getByLabel('邮箱').fill('test@example.com');
     // 抓取前端真实提交请求体 + 响应（跳过 CSRF 瞬态 403 重放，同 flow/68 captureUiSubmit 口径；
     // 持续真 403 会因等不到非 403 响应而超时判红，不被掩盖）
@@ -66,19 +67,18 @@ test.describe('01 客户管理', () => {
     const json = (await resp.json()) as { code?: number };
     expect(json.code, `[01-02] 成功信封 code=200，实际请求体=${raw}`).toBe(200);
     // 只读化要点已由 isEditable=false + 请求省略 customer_code 键 + 成功 200 充分证明；
-    // 本 CRM 建档走线索域端点，customer_code 于 lead→客户转换时由后端赋值，该响应不含此键，
-    // 故不在此断言生成编码（读回编码属转换流，另用例覆盖）。
+    // 建码由后端 CustomerFormTab 提交路径触发服务端取号，响应回读属列表用例覆盖。
     await expect(page.getByText(/创建成功|保存成功/)).toBeVisible({
       timeout: 30000,
     });
   });
 
   test('01-03 客户列表支持筛选', async ({ page }) => {
-    await page.goto('/crm');
+    await page.goto('/customer');
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
     // 列表页筛选栏并无「客户名称」可访问 label（客户名称仅存在于新建对话框，此页未打开对话框）；
-    // 真实搜索框是 keyword 输入（CustomerListTab.vue:51-58），其 placeholder=
-    // crmCustomer.filter.keywordPlaceholder「客户编码/名称/联系人」（zh-CN.ts:3787）。按 placeholder 锚定。
+    // 真实搜索框是 keyword 输入（views/customer/index.vue），其 placeholder=
+    // customer.index.filter.keywordPlaceholder「客户编码/名称/联系人」。按 placeholder 锚定。
     await page.getByPlaceholder(/客户编码/).fill('E2E');
     await page.getByRole('button', { name: /查询|搜索/ }).click();
     await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });

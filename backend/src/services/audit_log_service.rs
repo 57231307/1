@@ -148,8 +148,9 @@ impl AuditLogService {
             // 启动后台消费者 task（全局唯一，不会被 drop 关闭）
             let db_clone = db.clone();
             let handle = tokio::spawn(async move {
-                while let Some((event, ctx)) = receiver.recv().await {
+                while let Some((mut event, ctx)) = receiver.recv().await {
                     let result = AssertUnwindSafe(async {
+                        Self::resolve_username(db_clone.as_ref(), &mut event).await;
                         let log = build_active_model(&event, ctx.as_ref());
                         match log.insert(db_clone.as_ref()).await {
                             Ok(_) => true,
@@ -361,6 +362,23 @@ impl AuditLogService {
         }
     }
 
+    /// 写侧快照补全：AuditEvent 未携带 username 且有操作人 user_id 时按 users 表反查一次，
+    /// 补齐口径与 update_with_audit 落库前取名一致；反查失败不阻断落库，保持 NULL 表示未补录并留警告日志
+    async fn resolve_username<C: ConnectionTrait>(db: &C, event: &mut AuditEvent) {
+        if event.username.is_some() || event.user_id.is_none() {
+            return;
+        }
+        match Self::fetch_username(db, event.user_id).await {
+            Ok(name) => event.username = name,
+            Err(e) => tracing::warn!(
+                user_id = ?event.user_id,
+                operation = event.operation_type.as_str(),
+                error = %e,
+                "审计事件 username 反查失败，该列按 NULL 落库"
+            ),
+        }
+    }
+
     /// 构建 UPDATE 审计日志 ActiveModel（双写 old/new 与 before/after 快照）
     fn build_update_audit_log(
         resource_type: &str,
@@ -486,10 +504,12 @@ impl AuditLogService {
     where
         C: ConnectionTrait,
     {
+        // 删除快照与 update 路径同口径：落库前按操作人 user_id 反查取名，无操作人保持 NULL
+        let username = Self::fetch_username(db, user_id).await?;
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
-            username: ActiveValue::Set(None),
+            username: ActiveValue::Set(username),
             action: ActiveValue::Set("DELETE".to_string()),
             resource_type: ActiveValue::Set(Some(resource_type.to_string())),
             resource_id: ActiveValue::Set(Some(record_id_str.to_string())),
@@ -521,9 +541,10 @@ impl AuditLogService {
     /// 同步记录审计事件（不接管业务事务）（调用方负责异常处理；推荐使用 `record_async` 在 tokio runtime 中异步落库。）
     pub async fn record(
         &self,
-        event: AuditEvent,
+        mut event: AuditEvent,
         ctx: Option<&AuditContext>,
     ) -> Result<(), AppError> {
+        Self::resolve_username(self.db.as_ref(), &mut event).await;
         let log = build_active_model(&event, ctx);
         log.insert(self.db.as_ref()).await?;
         Ok(())

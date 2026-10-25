@@ -62,14 +62,20 @@ test.describe('异常处理与边界条件', () => {
       const updateData1 = { notes: `并发修改1-${Date.now()}` };
       const updateData2 = { notes: `并发修改2-${Date.now()}` };
 
-      // 第一个 page 先更新（apiCall 非 200/0 即抛，走到下一行即代表首次编辑成功）
-      const result1 = await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1);
-      expect(
-        result1.code === 200 || result1.code === 0,
-        `首次编辑应成功，实际：${JSON.stringify(result1)}`
-      ).toBe(true);
+      // 第一次编辑：apiCall 对非成功码直接抛错，走到下一行即代表服务端已接受；
+      // 再读回一次，确认 notes 真的进了库而不是只回了个成功码
+      await apiCall(page, 'PUT', `/purchase/orders/${poId}`, updateData1);
+      const afterFirst = await apiCallRaw<{ notes?: string | null; status?: string }>(
+        page,
+        'GET',
+        `/purchase/orders/${poId}`
+      );
+      expect(afterFirst.notes, '首次编辑应把备注写进库').toBe(updateData1.notes);
+      expect(afterFirst.status, '编辑备注不得改变单据状态').toBe('DRAFT');
 
-      // 第二个 page 也尝试更新（可能因乐观锁/版本号冲突被拒）
+      // 第二个会话（同一登录用户）随后编辑同一张草稿单：purchase_orders 没有 version 列，
+      // update_order 也不比对 updated_at，本域既有口径是后写覆盖前写，不存在冲突拒绝码。
+      // 这里把该口径钉死：第二次必须 200，且库里取第二次的备注。
       const csrf2 = (await context.cookies()).find(c => c.name === 'csrf_token')?.value || '';
       const resp2 = await page2.request.fetch(`${API_BASE}${API_PREFIX}/purchase/orders/${poId}`, {
         method: 'PUT',
@@ -80,10 +86,16 @@ test.describe('异常处理与边界条件', () => {
         },
         data: JSON.stringify(updateData2),
       });
-
-      // 至少一个应成功，另一个可能因乐观锁被拒（4xx），但不得 5xx 崩溃
-      const status2 = resp2.status();
-      expect(status2 >= 200 && status2 < 500).toBe(true);
+      expect(
+        resp2.status(),
+        `同一用户的后写应覆盖前写而非冲突拒绝，实际 status=${resp2.status()}`
+      ).toBe(200);
+      const afterSecond = await apiCallRaw<{ notes?: string | null }>(
+        page,
+        'GET',
+        `/purchase/orders/${poId}`
+      );
+      expect(afterSecond.notes, '库里应取最后一次提交的备注').toBe(updateData2.notes);
     } finally {
       await page2.close();
       // 草稿单可删除（delete_order 仅放行 DRAFT），清理避免 pool 堆积
@@ -99,71 +111,146 @@ test.describe('异常处理与边界条件', () => {
     expect(supplierResult.status === 404 || supplierResult.status === 403).toBe(true);
   });
 
-  test('非法字符输入不导致后端 500', async ({ page }) => {
+  test('可疑字符作为数据原样落库可读回，不吞不改写也不 500', async ({ page }) => {
     const ctx = getCtx();
-
-    const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
-      order_no: '<script>alert("xss")</script>',
+    // 原用例发的是空明细（items: []）与不在建单 DTO 里的 order_no，只判 status < 500
+    // （连 404 都算通过），实际测的是"空明细被拒"而不是字符面。改为真实建单：
+    // 可疑串放进主表备注（notes，TEXT 列，validator 上限 1000），读回证明它按字面存住。
+    // 脚本是否被执行属前端渲染职责，本用例锁的是后端存储面不吞不改写。
+    const hostile = '<script>alert("xss")</script> & <img src=x onerror=alert(1)> \\ 单引号 \'';
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
       supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
-      items: [],
-    });
-
-    expect(result.status < 500).toBe(true);
-  });
-
-  test('数量为 0 的明细被拒', async ({ page }) => {
-    const ctx = getCtx();
-
-    const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
-      order_no: genCode('PO'),
-      supplier_id: ctx.supplierId,
-      warehouse_id: ctx.warehouseIds[0],
-      order_date: new Date().toISOString().slice(0, 10),
+      notes: hostile,
       items: [
         {
-          product_id: ctx.productIds[0],
-          quantity: 0,
-          unit_price: 10,
+          material_id: ctx.productIds[0],
+          quantity_ordered: '1',
+          unit_price: '1.00',
           tax_rate: 13,
         },
       ],
     });
-
-    // 拒绝判据（与 :265 同风格）：4xx + 业务机器码，排除 5xx 裸崩
-    const rejectCode = failureCode(result);
-    const rejectedByGate =
-      result.status >= 400 &&
-      result.status < 500 &&
-      (rejectCode === APP_ERROR_CODES.VALIDATION_ERROR ||
-        rejectCode === APP_ERROR_CODES.BUSINESS_ERROR ||
-        rejectCode === APP_ERROR_CODES.BAD_REQUEST);
+    const poId = created.data?.id;
     expect(
-      rejectedByGate,
-      `零数量应被业务/校验拒绝（4xx + 业务码），实际 status=${result.status} code=${rejectCode ?? ''} message=${result.message ?? ''}`
+      poId,
+      `可疑串建单应正常落库，实际响应：${JSON.stringify(created).slice(0, 300)}`
     ).toBeTruthy();
+    try {
+      const detail = await apiCallRaw<{ notes?: string | null; status?: string }>(
+        page,
+        'GET',
+        `/purchase/orders/${poId}`
+      );
+      expect(detail.notes, `备注应逐字等于提交值，实际回读：${JSON.stringify(detail.notes)}`).toBe(
+        hostile
+      );
+      expect(detail.status, '可疑串不应改变单据状态').toBe('DRAFT');
+    } finally {
+      await tryCleanup(page, 'DELETE', `/purchase/orders/${poId}`, '可疑字符采购单');
+    }
   });
 
-  test('金额精度：小数点后 4 位处理', async ({ page }) => {
+  test('明细数量非正数或缺失被拒，不按 0 落成空量单', async ({ page }) => {
     const ctx = getCtx();
-
-    const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
-      order_no: genCode('PO'),
+    // 键名必须是建单 DTO 的真实字段 material_id 与 quantity_ordered：
+    // 旧用例发 product_id 与 quantity（都不在 DTO 里，serde 静默丢弃），
+    // 当时命中的拒绝其实是"缺少物料ID"，而数量 0 本身会被按 0 落库成一张"成功"的空量单。
+    const baseBody = {
       supplier_id: ctx.supplierId,
       warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
+      order_date: new Date().toISOString().slice(0, 10),
+    };
+    for (const quantity of ['0', '-1']) {
+      const result = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
+        ...baseBody,
+        items: [
+          {
+            material_id: ctx.productIds[0],
+            quantity_ordered: quantity,
+            unit_price: '1.00',
+            tax_rate: 13,
+          },
+        ],
+      });
+      expect(
+        failureCode(result),
+        `数量 ${quantity} 应被入参校验拒绝（VALIDATION_ERROR），实际 status=${result.status} message=${result.message ?? ''}`
+      ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+      expect(
+        result.message ?? '',
+        `拒绝文案应点名数量口径，实际 message=${result.message ?? '(none)'}`
+      ).toContain('必须大于 0');
+    }
+
+    const absent = await apiCallExpectFail(page, 'POST', '/purchase/orders', {
+      ...baseBody,
+      items: [{ material_id: ctx.productIds[0], unit_price: '1.00', tax_rate: 13 }],
+    });
+    expect(
+      failureCode(absent),
+      `未提交数量应被入参校验拒绝，实际 status=${absent.status} message=${absent.message ?? ''}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      absent.message ?? '',
+      `未提交数量的文案应点名缺字段，实际 message=${absent.message ?? '(none)'}`
+    ).toContain('缺少数量');
+  });
+
+  test('单价 4 位小数按落库列标度原样存住可读回', async ({ page }) => {
+    const ctx = getCtx();
+    // 原用例只判 status < 500，而这条路径其实一直成功：unit_price 列是 DECIMAL(18,6)，
+    // 123.4567 由 PG 补零存成 123.456700，不回舍到 2 位（只有派生金额列按两位归一）。
+    // 断言改成正例读回，把列标度口径钉住，而不是对一个永不为真的"被拒"假设兜底。
+    const created = await apiCall<{ id?: number }>(page, 'POST', '/purchase/orders', {
+      supplier_id: ctx.supplierId,
+      warehouse_id: ctx.warehouseIds[0],
+      department_id: ctx.departmentIds[0],
       order_date: new Date().toISOString().slice(0, 10),
       items: [
         {
-          product_id: ctx.productIds[0],
-          quantity: 1,
-          unit_price: 123.4567,
+          material_id: ctx.productIds[0],
+          quantity_ordered: '1',
+          unit_price: '123.4567',
           tax_rate: 13,
         },
       ],
     });
-
-    expect(result.status < 500).toBe(true);
+    const poId = created.data?.id;
+    expect(
+      poId,
+      `4 位小数单价应建单成功，实际响应：${JSON.stringify(created).slice(0, 300)}`
+    ).toBeTruthy();
+    try {
+      const detail = await apiCallRaw<{
+        order_no?: string;
+        status?: string;
+        items?: Array<{
+          product_id?: number;
+          quantity?: string | number;
+          unit_price?: string | number;
+        }>;
+      }>(page, 'GET', `/purchase/orders/${poId}`);
+      expect(detail.order_no, '单号由服务端取号，形态为 PO 加 8 位日期加至少 3 位流水').toMatch(
+        /^PO\d{11,}$/
+      );
+      expect(detail.status, '新建采购单初始状态应为 DRAFT').toBe('DRAFT');
+      const line = detail.items?.[0];
+      if (!line) {
+        throw new Error(`采购单详情应回读出明细行，实际 ${JSON.stringify(detail).slice(0, 300)}`);
+      }
+      expect(
+        String(line.unit_price),
+        '单价列标度是 DECIMAL(18,6)，四位小数应补零存住而不是回舍到两位'
+      ).toBe('123.456700');
+      expect(Number(line.quantity), '明细数量应等于提交值').toBe(1);
+      expect(line.product_id, '明细物料应等于提交物料').toBe(ctx.productIds[0]);
+    } finally {
+      await tryCleanup(page, 'DELETE', `/purchase/orders/${poId}`, '单价精度采购单');
+    }
   });
 
   test('未认证请求返回 401', async ({ browser }) => {
@@ -404,7 +491,7 @@ test.describe('异常处理与边界条件', () => {
     }
   });
 
-  test('超长字符串输入处理', async ({ page }) => {
+  test('超长备注不炸后端，空明细按校验拒绝', async ({ page }) => {
     const ctx = getCtx();
     const longString = 'A'.repeat(10000);
 
@@ -417,6 +504,20 @@ test.describe('异常处理与边界条件', () => {
       items: [],
     });
 
-    expect(result.status < 500).toBe(true);
+    // 原用例只判 status < 500（404 也算通过）。这里钉真实拒因：
+    // 明细行数下限在反序列化后的 validate() 阶段就拒绝，超长备注不参与判定也不触发 5xx，
+    // 出参为 400 VALIDATION_ERROR，文案外显（validator 族不脱敏）。
+    expect(
+      result.status,
+      `空明细建单应恰为 400，实际 status=${result.status} message=${result.message ?? ''}`
+    ).toBe(400);
+    expect(
+      failureCode(result),
+      `空明细建单的机器码应为 VALIDATION_ERROR，实际 raw code=${JSON.stringify(result.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      result.message ?? '',
+      `拒绝文案应点名缺明细，实际 message=${result.message ?? '(none)'}`
+    ).toContain('订单至少需要一行明细');
   });
 });

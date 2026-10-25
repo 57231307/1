@@ -24,7 +24,12 @@ export interface CreateItem {
   product_id: number | undefined;
   color_id: number | null;
   quantity: number;
-  unit_price: number;
+  /**
+   * 行级单价，undefined 或 null 表示未填写，0 是人工显式声明的合法值（样布 赠品 寄售行）；
+   * 提交前由 items 必填规则拦截未填写行，落库列 purchase_order_item.unit_price（NOT NULL）。
+   * 初值留空而不是 0：把未填预置成 0 会让"漏录单价"与"声明 0 价"在进项与成本台账里不可区分。
+   */
+  unit_price: number | undefined;
   /**
    * 行级税率（百分数口径，13 表示 13%），undefined/null=未填写，0=显式"无进项票"为合法提交值，
    * 提交前由 items 必填规则拦截未填写行，落库列 purchase_order_item.tax_percent（NOT NULL）。
@@ -59,7 +64,8 @@ const defaultItem = (): CreateItem => ({
   product_id: undefined,
   color_id: null,
   quantity: 1,
-  unit_price: 0,
+  // 单价不预填 0，新建时留空由人工填写（0 只能由人工显式敲出）
+  unit_price: undefined,
   // 税率不预填任何档位，新建时留空由人工填写（无默认 13 之类硬编）
   tax_rate: undefined,
   subtotal: 0,
@@ -104,12 +110,17 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
     ],
     items: [
       {
-        // 行级税率就地必填校验（不靠后端 400 兜回），口径与 submitCreate 的 validItems 一致，
-        // 仅对已选产品且有数量的行要求税率，0 是合法值，只有 undefined/null 才算未填
+        // 行级单价与税率就地必填校验（不靠后端 400 兜回），口径与 submitCreate 的 validItems 一致，
+        // 仅对已选产品且有数量的行要求；0 是合法值，只有 undefined/null 才算未填。
+        // 先点名单价再点名税率：漏录单价是本表最容易被当成"已填 0"的一列，提示要指名。
         validator: (_rule: unknown, value: CreateItem[], cb: (error?: Error) => void) => {
-          const missingTaxRate = value.find(
-            i => i.product_id && i.quantity > 0 && i.tax_rate == null
-          );
+          const filled = value.filter(i => i.product_id && i.quantity > 0);
+          const missingUnitPrice = filled.find(i => i.unit_price == null);
+          if (missingUnitPrice) {
+            cb(new Error(i18n.global.t('purchase.createDlg.unitPriceRequired')));
+            return;
+          }
+          const missingTaxRate = filled.find(i => i.tax_rate == null);
           if (missingTaxRate) {
             cb(new Error(i18n.global.t('purchase.createDlg.taxRateRequired')));
             return;
@@ -147,12 +158,13 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
   };
 
   /**
-   * 选择产品时自动填入单价，清空色号相关
+   * 选择产品时带出物料参考价填入单价，清空色号相关
+   * 物料无参考价就留空（交 items 必填校验拦），不补 0：补 0 等于替用户声明这是一张 0 价行
    */
   const handleProductSelect = (index: number) => {
     const product = products().find(p => p.id === createForm.value.items[index].product_id);
     if (product) {
-      createForm.value.items[index].unit_price = product.price || 0;
+      createForm.value.items[index].unit_price = product.price ?? undefined;
       calculateSubtotal(createForm.value.items[index]);
     }
     // 换产品时清色号和已解析映射
@@ -184,10 +196,14 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
           supplier_color_no: m.supplier_color_no ?? '',
           supplier_price: m.supplier_price,
         };
-        // 默认单价取协议价，允许现谈覆盖
-        if (m.supplier_price) {
-          item.unit_price = Number(m.supplier_price) || 0;
-          calculateSubtotal(item);
+        // 默认单价取协议价，允许现谈覆盖；协议价取不到有限数值就保持留空，
+        // 由 items 必填校验拦，不静默补 0（显式 0 只能由人工敲）
+        if (m.supplier_price != null) {
+          const mappedPrice = Number(m.supplier_price);
+          if (Number.isFinite(mappedPrice)) {
+            item.unit_price = mappedPrice;
+            calculateSubtotal(item);
+          }
         }
       }
     } catch (error: unknown) {
@@ -285,7 +301,9 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
           line_no: idx + 1,
           material_id: item.product_id!,
           quantity_ordered: item.quantity,
-          unit_price: item.unit_price,
+          // unit_price 已由上方 items 必填校验保证为数值（0 为人工显式声明的合法值），
+          // ! 仅收敛类型不设默认
+          unit_price: item.unit_price!,
           // tax_rate 已由上方 items 必填校验保证为数值（0 为合法提交值），! 仅收敛类型不设默认
           tax_rate: item.tax_rate!,
           ...(item.quantity_tolerance_pct != null

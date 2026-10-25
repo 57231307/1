@@ -8,6 +8,7 @@ use crate::models::status::purchase_inspection as pis_status;
 use crate::models::status::purchase_inventory::purchase_inspection_result;
 use crate::models::{purchase_receipt, supplier, user};
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 // 批次 258 修复：接入 paginate_with_total 统一分页逻辑
 use crate::utils::pagination::paginate_with_total;
 use crate::utils::sql_escape::safe_like_pattern;
@@ -71,16 +72,14 @@ impl PurchaseInspectionService {
         Self { db }
     }
 
-    // 生成质检单号
-    // 格式：IQ + 年月日 + 三位序号（IQ20260315001）
-    crate::impl_generate_no!(
-        generate_inspection_no,
-        "PI",
-        purchase_inspection::Entity,
-        purchase_inspection::Column::InspectionNo
-    );
-
     /// 创建采购质检单
+    ///
+    /// 调用方：`handlers/purchase_inspection_handler.rs` 的建单入口。
+    /// 入参 `req` 携 receipt_id / order_id / supplier_id / inspection_date 等引用与备注；
+    /// 单号一律由 `DocumentNumberGenerator::insert_with_no_retry` 在写入事务内生成，
+    /// 格式 `PI{YYYYMMDD}{3位流水}`（前缀常量与 purchase_inspection.inspection_no 的
+    /// 实际取值同源），撞该列 UNIQUE(23505) 时在保存点内重新取号重试。
+    /// 落库存 purchase_inspection 表，新单恒 PENDING。
     pub async fn create_inspection(
         &self,
         req: CreatePurchaseInspectionRequest,
@@ -105,39 +104,49 @@ impl PurchaseInspectionService {
             None => None,
         };
 
-        let inspection_no = self.generate_inspection_no().await?;
+        // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录；
+        // 该拒绝在事务开启与取号之前完成，被拒请求零写入。
+        let supplier_id = req
+            .supplier_id
+            .ok_or_else(|| AppError::validation_displayable("采购验收单缺少供应商ID"))?;
 
-        let inspection = purchase_inspection::ActiveModel {
-            id: Default::default(),
-            inspection_no: Set(inspection_no),
-            receipt_id: Set(req.receipt_id),
-            order_id: Set(req.order_id.or(receipt_order_id)),
-            // 供应商 ID 缺失时拒绝创建，避免脏 supplier_id=0 记录
-            supplier_id: Set(req
-                .supplier_id
-                .ok_or_else(|| AppError::validation_displayable("采购验收单缺少供应商ID"))?),
-            inspection_date: Set(req
-                .inspection_date
-                .unwrap_or_else(|| Utc::now().date_naive())),
-            inspector_id: Set(req.inspector_id),
-            inspection_type: Set(req.inspection_type),
-            sample_size: Set(req.sample_size),
-            defect_count: Set(Some(0)),
-            pass_quantity: Set(None),
-            reject_quantity: Set(None),
-            inspection_status: Set(Some(pis_status::PENDING.to_string())),
-            inspection_result: Set(None),
-            quality_score: Set(None),
-            defect_description: Set(None),
-            attachment_urls: Set(None),
-            notes: Set(req.notes),
-            completed_at: Set(None),
-            completed_by: Set(None),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-        };
-
-        let inspection = inspection.insert(&*self.db).await?;
+        // 取号与 INSERT 同事务：自开事务取号在提交后即释放咨询锁，返回的号只保证
+        // "提交时刻未被占用"，落库前仍可能被旁路写入撞号（裸 23505 或静默重号）。
+        let txn = (*self.db).begin().await?;
+        let inspection = DocumentNumberGenerator::insert_with_no_retry(
+            &txn,
+            "PI",
+            purchase_inspection::Entity,
+            purchase_inspection::Column::InspectionNo,
+            |inspection_no| purchase_inspection::ActiveModel {
+                id: Default::default(),
+                inspection_no: Set(inspection_no),
+                receipt_id: Set(req.receipt_id),
+                order_id: Set(req.order_id.or(receipt_order_id)),
+                supplier_id: Set(supplier_id),
+                inspection_date: Set(req
+                    .inspection_date
+                    .unwrap_or_else(|| Utc::now().date_naive())),
+                inspector_id: Set(req.inspector_id),
+                inspection_type: Set(req.inspection_type.clone()),
+                sample_size: Set(req.sample_size),
+                defect_count: Set(Some(0)),
+                pass_quantity: Set(None),
+                reject_quantity: Set(None),
+                inspection_status: Set(Some(pis_status::PENDING.to_string())),
+                inspection_result: Set(None),
+                quality_score: Set(None),
+                defect_description: Set(None),
+                attachment_urls: Set(None),
+                notes: Set(req.notes.clone()),
+                completed_at: Set(None),
+                completed_by: Set(None),
+                created_at: Set(Utc::now()),
+                updated_at: Set(Utc::now()),
+            },
+        )
+        .await?;
+        txn.commit().await?;
 
         Ok(inspection)
     }

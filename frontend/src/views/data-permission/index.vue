@@ -11,6 +11,9 @@
         <div class="role-panel">
           <h3>{{ t('dataPermission.index.titleRoleList') }}</h3>
           <el-menu :default-active="selectedRoleId" class="role-menu" @select="handleSelectRole">
+            <el-menu-item :index="ALL_ROLES_KEY">{{
+              t('dataPermission.index.menuAllRoles')
+            }}</el-menu-item>
             <el-menu-item v-for="role in roleList" :key="role.id" :index="String(role.id)">
               {{ role.name }}
             </el-menu-item>
@@ -19,11 +22,14 @@
 
         <div class="permission-panel">
           <div class="panel-header">
-            <h3>{{ currentRoleName }} - {{ t('dataPermission.index.titlePermission') }}</h3>
-            <el-button v-if="isAdmin" type="primary" @click="handleAddPermission">{{
+            <h3 v-if="isOverview">{{ t('dataPermission.index.titleAllRoles') }}</h3>
+            <h3 v-else>{{ currentRoleName }} - {{ t('dataPermission.index.titlePermission') }}</h3>
+            <el-button v-if="isAdmin && !isOverview" type="primary" @click="handleAddPermission">{{
               t('dataPermission.index.buttonAddPermission')
             }}</el-button>
           </div>
+
+          <p class="scope-note">{{ t('dataPermission.index.noteEnabledOnly') }}</p>
 
           <el-table
             :data="permissionList"
@@ -31,6 +37,12 @@
             stripe
             :aria-label="t('dataPermission.index.ariaTable')"
           >
+            <el-table-column
+              v-if="isOverview"
+              prop="role_name"
+              :label="t('dataPermission.index.colRole')"
+              width="140"
+            />
             <el-table-column
               prop="resource_type"
               :label="t('dataPermission.index.colResourceType')"
@@ -64,7 +76,14 @@
                 <el-tag v-else type="danger">{{ t('dataPermission.index.statusDisabled') }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column :label="t('dataPermission.index.colOperation')" width="150">
+            <el-table-column :label="t('dataPermission.index.colCreatedAt')" width="180">
+              <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column
+              v-if="!isOverview"
+              :label="t('dataPermission.index.colOperation')"
+              width="150"
+            >
               <template #default="{ row }">
                 <el-button
                   v-if="isAdmin"
@@ -189,6 +208,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { useUserStore } from '@/store/user';
 import {
+  getDataPermissionList,
   getRoleDataPermissionList,
   getDataPermission,
   setDataPermission,
@@ -220,7 +240,10 @@ const isAdmin = computed(() =>
 );
 
 const roleList = ref<Array<{ id: number; name: string }>>([]);
+// 左侧菜单首项为跨角色只读概览，用非数字哨兵与真实角色主键区分
+const ALL_ROLES_KEY = 'all';
 const selectedRoleId = ref('1');
+const isOverview = computed(() => selectedRoleId.value === ALL_ROLES_KEY);
 const permissionList = ref<DataPermissionRole[]>([]);
 const scopeTypeList = ref<ScopeType[]>([]);
 // resource_type 下拉候选，来自后端资源类型接口（失败时以兜底常量填充）
@@ -294,15 +317,23 @@ const currentRoleName = computed(() => {
 
 const fetchPermissions = async () => {
   try {
-    const res = await getRoleDataPermissionList(parseInt(selectedRoleId.value));
+    // 两个视图的后端出参都只含启用记录：概览走 GET /data-permissions（按 role_id LEFT JOIN 富化
+    // role_name），单角色走 GET /data-permissions/roles/{id}（该端点不富化，role_name 恒为 null，
+    // 归属由左侧选中项表达）。两端点都先过 require_admin_role，非管理员拿到的是 403。
+    const res = isOverview.value
+      ? await getDataPermissionList()
+      : await getRoleDataPermissionList(parseInt(selectedRoleId.value));
     if (res.data) {
-      // 后端按角色列表返回裸数组，data 非空时直接使用
+      // 两端点均返回裸数组载荷
       permissionList.value = res.data;
     }
   } catch {
     ElMessage.error(t('dataPermission.index.messageLoadPermissionsFailed'));
   }
 };
+
+// 后端 created_at 为 UTC RFC3339，概览按浏览器本地时区展示
+const formatDateTime = (value: string): string => new Date(value).toLocaleString();
 
 const fetchScopeTypes = async () => {
   try {
@@ -551,6 +582,12 @@ onMounted(async () => {
 .data-permission .layout .permission-panel .panel-header h3 {
   font-size: 16px;
   margin: 0;
+}
+
+.data-permission .layout .permission-panel .scope-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #909399;
 }
 
 @media (max-width: 768px) {

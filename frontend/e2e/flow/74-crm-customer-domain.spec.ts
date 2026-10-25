@@ -7,6 +7,7 @@ import {
   fillFieldByLabel,
   submitDialog,
   findTableRow,
+  formItemByExactLabel,
 } from './ui-helpers';
 
 /**
@@ -149,15 +150,30 @@ test.describe('74 CRM 客户域改接（BUG-005/004 回归护栏）', () => {
     const contactPerson = `联系人${tag}`;
     const phone = uniquePhone();
 
-    await safeGoto(page, '/crm');
+    // 客户列表唯一入口 /customer（原 /crm 列表已合并迁入）
+    await safeGoto(page, '/customer');
     await page.locator('.filter-card').first().waitFor({ state: 'visible', timeout: 15_000 });
 
-    // 打开新建客户弹窗（按钮文案 = crmCustomer.create）
+    // 打开新建客户弹窗（按钮文案 = customer.index.button.create）
     await page.getByRole('button', { name: '新建客户' }).click();
     const dialog = await waitForDialog(page);
+    // 弹窗字段文案取本页真实渲染的 i18n 键：views/customer/tabs/CustomerFormTab.vue 的
+    // el-form-item label 绑 customer.form.label.*（customerName=客户名称、contactPerson=联系人、
+    // contactPhone=**联系电话**）。fillFieldByLabel 走 formItemByExactLabel 的行首尾锚定精确匹配，
+    // 少一个字都不命中，故弹窗内只能用「联系电话」。
+    // 列表列头是另一套键（customer/index.vue 的 column.phone 绑 customer.index.table.column.phone=电话），
+    // 下方按列头读单元格仍用「电话」——两套文案不可互换。
     await fillFieldByLabel(dialog, page, '客户名称', tag);
     await fillFieldByLabel(dialog, page, '联系人', contactPerson);
-    await fillFieldByLabel(dialog, page, '电话', phone);
+    await fillFieldByLabel(dialog, page, '联系电话', phone);
+    // 硬断言「联系电话」这项真收到了值：弹窗项文案是 customer.form.label.contactPhone（联系电话），
+    // 与列表列头 customer.index.table.column.phone（电话）是两套键，按列头文案在弹窗内锚定恒 0 命中。
+    // 只断"点了保存、请求发了"不足以区分"填进去的是空串"，故按同一精确 label 回读控件值；
+    // 该项控件是 el-input（真 <input>），值须与提交原文逐字符相等。
+    await expect(
+      formItemByExactLabel(dialog, '联系电话').locator('input').first(),
+      '「联系电话」输入框必须收到用例填入的手机号原文，否则提交体里的 contact_phone 不可能等于它'
+    ).toHaveValue(phone);
 
     // 抓前端真实请求：POST 且 pathname 精确等于 ${API_PREFIX}/crm/customers
     // （精确等式排除 /crm/customers/enhanced 与 /crm/customers/{id}/... 子路径——
@@ -210,9 +226,27 @@ test.describe('74 CRM 客户域改接（BUG-005/004 回归护栏）', () => {
     ).toBe(true);
 
     // reload 强制重新拉取后端（模拟用户刷新，清空 SPA 内存态）→ 关键字过滤 → 逐列断真值
+    // 关键字必须点「查询」按钮（customer.index.button.query）才生效：本页关键词输入框
+    // （customer/index.vue 的关键词输入项）没绑 @keyup.enter/@change，回车不发带 keyword 的请求；
+    // 后端 keyword 对 customer_name/customer_code contains 过滤
+    // （services/customer_ops/query.rs 的关键词分支），过滤后目标行必落在第 1 页，不靠分页碰运气。
     await page.reload();
     await page.locator('.filter-card').first().waitFor({ state: 'visible', timeout: 15_000 });
-    const row = await findTableRow(page, tag, 1, tag);
+    await fillFieldByLabel(page, page, '关键词', tag);
+    const filteredList = page.waitForResponse(
+      res => {
+        if (res.request().method() !== 'GET' || !res.url().includes('keyword=')) return false;
+        try {
+          return new URL(res.url()).pathname === `${API_PREFIX}/crm/customers`;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 30_000 }
+    );
+    await page.getByRole('button', { name: '查询' }).first().click();
+    await filteredList;
+    const row = await findTableRow(page, tag);
     expect(
       row,
       `刷新后列表应仍能按关键字 ${tag} 查到目标行（写入真实落库 + 列表同源）`

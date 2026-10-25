@@ -327,7 +327,7 @@ ALTER TABLE "work_centers" ADD COLUMN IF NOT EXISTS "worker_count" INTEGER;
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 依次回滚所有迁移（逆序）
-        // 坯布建档三岗补授：最后应用者最先回滚
+        // 坯布建档三岗补授
         m0097_grant_greige_create_and_suppliers_read::Migration
             .down(manager)
             .await?;

@@ -25,12 +25,14 @@ impl ApReconciliationService {
         Self { db }
     }
 
-    // 生成对账单号
-    // 格式：REC + 年月日 + 三位序号（REC20260315001）
+    // 生成对账单号，入参 txn 为调用方建单事务句柄，前缀级咨询锁随该事务结束才释放，
+    // 消除取号与落库之间的并发撞号窗口
+    // 格式为 REC 前缀加年月日加三位流水（REC20260315001）
     crate::impl_generate_no!(
         generate_reconciliation_no,
         "REC",
         ap_reconciliation::Entity,
-        ap_reconciliation::Column::ReconciliationNo
+        ap_reconciliation::Column::ReconciliationNo,
+        txn
     );
 }

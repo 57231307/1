@@ -408,9 +408,16 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
       'POST',
       '/ap/invoices',
       {
+        // CreateApInvoiceRequest 六要素必填（supplier_id invoice_type invoice_date
+        // due_date amount tax_amount），缺任一项后端点名拒绝且不代填。invoice_type
+        // 取实体词表 PURCHASE 即采购应付；due_date 落在发票日期加默认账期 30 天，
+        // 与后端缺省口径一致；本链路面额与税额按全局种子的同额免税声明口径提交。
         supplier_id: ctx.supplierId,
+        invoice_type: 'PURCHASE',
         amount: 8000,
+        tax_amount: 0,
         invoice_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
       }
     );
     expect(invoice?.id, '[31d-F] 应付单创建失败，付款申请前置不成立').toBeTruthy();

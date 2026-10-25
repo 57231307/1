@@ -397,7 +397,7 @@ const buildVisibleScopeConfig = () => {
 };
 
 const submitForm = async () => {
-  const valid = await formRef.value?.validate();
+  const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
   submitLoading.value = true;
   const payload = {

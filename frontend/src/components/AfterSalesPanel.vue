@@ -395,8 +395,8 @@ function showCreateDialog() {
 
 /** payload 逐字段对照后端 CreateAfterSalesDto 构造：
  * - 不发送 custom_order_id（归属由路由 path 权威提供，后端 DTO 已无该字段）；
- * - 后端 Option 字符串字段空值必须**省略该键**（Some("") 过不了 validator，
- *   范式见 views/system/tabs/UserTab.vue:358-359），不发送空串占位。 */
+ * - 后端 Option 字符串字段空值必须**省略该键**（Some("") 过不了 validator），
+ *   不发送空串占位。 */
 function buildCreatePayload(): AfterSalesCreateDto {
   return {
     customer_id: form.value.customer_id as number,

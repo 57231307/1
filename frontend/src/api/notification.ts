@@ -10,16 +10,26 @@ export interface NotificationQueryParams {
   notification_type?: string;
 }
 
+// 列表/详情出参实体：键名与取值逐字段对齐 backend/src/models/notification.rs 的 Model
+// （snake_case 键；status/notification_type/priority 出参为大写词表 UNREAD/INTERNAL/SYSTEM 等）；
+// NOT NULL 列不设可选标记，可空列以 null 表示未填。
 export interface Notification {
-  id?: number;
-  title?: string;
-  content?: string;
-  status?: string;
-  notificationType?: string;
-  businessType?: string;
-  businessId?: number;
-  createdAt?: string;
-  readAt?: string;
+  id: number;
+  user_id: number;
+  notification_type: string;
+  title: string;
+  content: string;
+  priority: string;
+  status: string;
+  business_type?: string | null;
+  business_id?: number | null;
+  action_url?: string | null;
+  sender_id?: number | null;
+  sender_name?: string | null;
+  read_at?: string | null;
+  processed_at?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface NotificationSetting {
@@ -60,8 +70,10 @@ export interface CreateAnnouncementRequest {
   content: string;
 }
 
+// 公告发送结果：出参键对齐后端投递结果结构体的 delivered_count（snake_case，无 rename，
+// 且该字段恒出键，故为非可选 number，不标问号那属掩盖缺键）
 export interface AnnouncementResult {
-  deliveredCount: number;
+  delivered_count: number;
 }
 
 // 后端 notification_handler::list_notifications 返回 ApiResponse<serde_json::Value>，
