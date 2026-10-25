@@ -161,7 +161,10 @@ fn update_req_none() -> print_handler::UpdatePrintTemplateRequest {
 fn assert_not_found(err: AppError, expect_in_msg: &[&str]) {
     let rendered = format!("{err}");
     assert!(
-        matches!(err, AppError::NotFound(_) | AppError::NotFoundDisplayable(_)),
+        matches!(
+            err,
+            AppError::NotFound(_) | AppError::NotFoundDisplayable(_)
+        ),
         "必须返回 404 not_found 族，实际渲染文本: {rendered}"
     );
     for token in expect_in_msg {
@@ -250,11 +253,7 @@ async fn new_active_default_demotes_builtin_style_default_of_same_doc_type() {
     )
     .await
     .expect("建种子形态默认模板必须成功");
-    let seed_id = seed_resp
-        .0
-        .data
-        .expect("建模板返回体必须携带模板行")
-        .id;
+    let seed_id = seed_resp.0.data.expect("建模板返回体必须携带模板行").id;
 
     // 再建用户私有 module 的启用默认行：竞位必须按 doc_type 把种子形态行降位，
     // 否则解析按最小 id 恒命中种子行，用户行的停用/启用对出件无效（判红根因）。
@@ -289,20 +288,12 @@ async fn new_active_default_demotes_builtin_style_default_of_same_doc_type() {
     // 停用用户行：该 doc_type 再无「启用且默认」行，打印口必须 404（种子形态行已无默认位）。
     let mut off = update_req_none();
     off.status = Some(print_template_status::INACTIVE.to_string());
-    let rec_off = print_handler::update_print_template(
-        AxPath(user_id),
-        State(st.clone()),
-        auth(),
-        Json(off),
-    )
-    .await
-    .expect("停用用户默认模板必须成功");
+    let rec_off =
+        print_handler::update_print_template(AxPath(user_id), State(st.clone()), auth(), Json(off))
+            .await
+            .expect("停用用户默认模板必须成功");
     assert_eq!(
-        rec_off
-            .0
-            .data
-            .expect("停用更新返回体必须携带模板行")
-            .status,
+        rec_off.0.data.expect("停用更新返回体必须携带模板行").status,
         print_template_status::INACTIVE,
         "停用更新必须回读 inactive 状态"
     );
@@ -314,20 +305,12 @@ async fn new_active_default_demotes_builtin_style_default_of_same_doc_type() {
     // 重新启用用户行：同一行恢复出件；已降位的种子形态行不得借机抢回默认位。
     let mut on = update_req_none();
     on.status = Some(print_template_status::ACTIVE.to_string());
-    let rec_on = print_handler::update_print_template(
-        AxPath(user_id),
-        State(st.clone()),
-        auth(),
-        Json(on),
-    )
-    .await
-    .expect("重新启用用户默认模板必须成功");
+    let rec_on =
+        print_handler::update_print_template(AxPath(user_id), State(st.clone()), auth(), Json(on))
+            .await
+            .expect("重新启用用户默认模板必须成功");
     assert_eq!(
-        rec_on
-            .0
-            .data
-            .expect("重新启用返回体必须携带模板行")
-            .status,
+        rec_on.0.data.expect("重新启用返回体必须携带模板行").status,
         print_template_status::ACTIVE,
         "重新启用更新必须回读 active 状态"
     );
@@ -405,11 +388,7 @@ async fn inactive_row_never_demotes_in_position_default() {
     .await
     .expect("重新启用带默认位的模板行必须成功");
     assert_eq!(
-        rec_on
-            .0
-            .data
-            .expect("重新启用返回体必须携带模板行")
-            .status,
+        rec_on.0.data.expect("重新启用返回体必须携带模板行").status,
         print_template_status::ACTIVE,
         "重新启用必须回读 active"
     );
