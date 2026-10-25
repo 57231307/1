@@ -287,7 +287,7 @@ fn insert_anchor_key_forms(body: &str) -> Vec<String> {
         .into_iter()
         .map(|p| {
             let end = body[p..]
-                .find(|c| matches!(c, ',' | ')' | ';' | '\n' | '\r'))
+                .find(&[',', ')', ';', '\n', '\r'][..])
                 .map_or(body.len(), |off| p + off);
             body[p..end].trim_end().to_string()
         })
