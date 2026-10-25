@@ -10,6 +10,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr, TransactionTrait,
 };
 
 use crate::models::production_recipe::{
@@ -63,12 +64,18 @@ impl ProductionRecipeService {
             }
         }
 
-        let recipe_no = self.generate_recipe_no().await?;
+        // 取号与插入同一临界区：自开新事务内经带事务臂生成器取号（前缀级 advisory 锁
+        // 持到本事务提交，同前缀并发取号在锁上串行化），再在同一事务插入
+        // production_recipe。撞 recipe_no 活跃行部分唯一索引（m0104）时映射为单号冲突
+        // 的专属可外显错误、整事务回滚不留半行；非唯一类 SQL 错误按 From<DbErr> 照常
+        // 归类上抛，不裸贴驱动文本。
+        let txn = (*self.db).begin().await?;
+        let recipe_no = self.generate_recipe_no(&txn).await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RecipeActiveModel {
             id: Default::default(),
-            recipe_no: Set(recipe_no),
+            recipe_no: Set(recipe_no.clone()),
             work_order_id: Set(req.work_order_id),
             dye_batch_id: Set(req.dye_batch_id),
             source_recipe_id: Set(req.source_recipe_id),
@@ -102,10 +109,22 @@ impl ProductionRecipeService {
             updated_at: Set(now),
         };
 
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("大货处方单创建失败: {}", e)))?;
+        let result = active.insert(&txn).await.map_err(|e| {
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    error = %e,
+                    recipe_no = %recipe_no,
+                    "大货处方建单撞 recipe_no 唯一索引（并发撞号或旁路重复号），整事务回滚"
+                );
+                AppError::business_displayable(format!(
+                    "大货处方单号 {} 已存在，本次建单未落库，请重新提交",
+                    recipe_no
+                ))
+            } else {
+                AppError::from(e)
+            }
+        })?;
+        txn.commit().await?;
         Ok(result)
     }
 

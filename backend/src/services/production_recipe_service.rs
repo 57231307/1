@@ -121,19 +121,21 @@ impl ProductionRecipeService {
         Self { db }
     }
 
-    /// 生成大货处方单号（统一生成器：`PR{YYYYMMDD}{3位流水}`，`pub(crate)`：production_recipe_ops::recipe_crud 的 create 方法调用。）
-    pub(crate) async fn generate_recipe_no(&self) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &*self.db,
+    /// 生成大货处方单号（统一生成器带事务臂：`PR{YYYYMMDD}{3位流水}`，前缀级 advisory
+    /// 锁占用在传入事务上、持到该事务提交；`pub(crate)`：production_recipe_ops::recipe_crud
+    /// 的 create 在自开建单事务内调用并同事务插入。取号失败原样上抛真实 AppError，
+    /// 不再拍平为可直接外显的业务文案。）
+    pub(crate) async fn generate_recipe_no(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+            txn,
             "PR",
             crate::models::production_recipe::Entity,
             crate::models::production_recipe::Column::RecipeNo,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "大货处方单号生成失败");
-            AppError::business_displayable("大货处方单号生成失败，请稍后重试")
-        })
     }
 
     /// 解析浴比字符串（如 "1:8"）为浴比数值（8.0）（真实业务：浴比格式为 "1:N"，N 通常为 5-20）
@@ -285,19 +287,21 @@ impl ProductionRecipeAdditionService {
         Self { db }
     }
 
-    /// 生成加料处方单号（统一生成器：`PA{YYYYMMDD}{3位流水}`，`pub(crate)`：production_recipe_ops::addition 的 create 方法调用。）
-    pub(crate) async fn generate_addition_no(&self) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &*self.db,
+    /// 生成加料处方单号（统一生成器带事务臂：`PA{YYYYMMDD}{3位流水}`，前缀级 advisory
+    /// 锁占用在传入事务上、持到该事务提交；`pub(crate)`：production_recipe_ops::addition
+    /// 的 create 在自开建单事务内调用并同事务插入。取号失败原样上抛真实 AppError，
+    /// 不再拍平为可直接外显的业务文案。）
+    pub(crate) async fn generate_addition_no(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+            txn,
             "PA",
             crate::models::production_recipe_addition::Entity,
             crate::models::production_recipe_addition::Column::AdditionNo,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "加料处方单号生成失败");
-            AppError::business_displayable("加料处方单号生成失败，请稍后重试")
-        })
     }
 
     // ===== 状态流转校验 =====

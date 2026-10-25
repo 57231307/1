@@ -2,10 +2,11 @@
 //!
 //! 批次 490 D10-4a 拆分：从原 `wage_service.rs` L265-587 迁移。
 //! 包含 WageRateService 的 11 个方法（new 留在 facade）：
-//! - generate_rate_no（私有，统一生成器生成单号 PWR{YYYYMMDD}{NNN}）
-//! - create / update / delete（CRUD + 业务校验）
+//! - generate_rate_no（私有带事务臂，统一生成器生成单号 PWR{YYYYMMDD}{NNN}，
+//!   advisory 锁占用在 create 自开的建单事务上）
+//! - create / update / delete（CRUD + 业务校验；create 取号与插入同一自开事务）
 //! - activate / disable / transition_status（状态机 draft→active→disabled）
-//! - get_by_id / get_by_no / get_effective_by_route / list（查询）
+//! - get_by_id / get_by_no / get_effective_by_route / list（查询；get_by_no 先判重再取行）
 //!
 //! 业务规则：
 //! - 工价类型合法（piece/time/mixed），计件必填 piece_price>0，计时必填 time_price>0
@@ -16,6 +17,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr, TransactionTrait,
 };
 
 use crate::models::process_route::Entity as RouteEntity;
@@ -31,22 +33,24 @@ use crate::services::wage_service::{
 };
 
 impl WageRateService {
-    /// 生成工价单号（统一生成器：`PWR{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
-    async fn generate_rate_no(&self) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &*self.db,
+    /// 生成工价单号（统一生成器带事务臂：`PWR{YYYYMMDD}{3位流水}`，前缀级 advisory 锁
+    /// 占用在传入事务上、持到该事务提交；create 在自开建单事务内调用并同事务插入。
+    /// 取号失败原样上抛真实 AppError，不再拍平为可直接外显的业务文案。）
+    async fn generate_rate_no(&self, txn: &sea_orm::DatabaseTransaction) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+            txn,
             "PWR",
             RateEntity,
             process_wage_rate::Column::RateNo,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "工价单号生成失败");
-            AppError::business_displayable("工价单号生成失败，请稍后重试")
-        })
     }
 
     /// 创建工价；建单人取服务端会话身份，请求体不承载身份
+    ///
+    /// 取号与插入同一临界区：自开新事务内取号（advisory 锁持到提交，同前缀并发取号
+    /// 在锁上串行化）并插入 process_wage_rate；撞 rate_no 活跃行部分唯一索引（m0104）
+    /// 时映射为单号冲突的专属可外显错误、整事务回滚；非唯一类 SQL 错误照常归类上抛。
     pub async fn create(
         &self,
         req: CreateWageRateRequest,
@@ -78,9 +82,11 @@ impl WageRateService {
 
         let route_code = route.route_code.clone();
         let route_name = route.route_name.clone();
-        let rate_no = self.generate_rate_no().await?;
+
+        let txn = (*self.db).begin().await?;
+        let rate_no = self.generate_rate_no(&txn).await?;
         let active = Self::build_rate_active_model(
-            rate_no,
+            rate_no.clone(),
             &req,
             user_id,
             &route_code,
@@ -93,10 +99,23 @@ impl WageRateService {
             grade_c_ratio,
         );
 
-        active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("工价创建失败: {}", e)))
+        let model = active.insert(&txn).await.map_err(|e| {
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    error = %e,
+                    rate_no = %rate_no,
+                    "工价建单撞 rate_no 唯一索引（并发撞号或旁路重复号），整事务回滚"
+                );
+                AppError::business_displayable(format!(
+                    "工价单号 {} 已存在，本次建单未落库，请重新提交",
+                    rate_no
+                ))
+            } else {
+                AppError::from(e)
+            }
+        })?;
+        txn.commit().await?;
+        Ok(model)
     }
 
     /// 校验工价类型合法
@@ -353,15 +372,31 @@ impl WageRateService {
         Ok(model)
     }
 
-    /// 按单号查询
+    /// 按单号查询（先判重再取行：`.one()` 在重复行存在时静默任选一行，属假单行；
+    /// m0104 部分唯一索引生效后新重复无法落库，存量重复由迁移守卫点名中止，
+    /// 此处仍显式判重，撞多行报数据异常归口 database，不外抛裸 SQL）
     pub async fn get_by_no(&self, rate_no: &str) -> Result<RateModel, AppError> {
-        let model = RateEntity::find()
+        let models = RateEntity::find()
             .filter(process_wage_rate::Column::RateNo.eq(rate_no))
             .filter(process_wage_rate::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工价单号 {} 不存在", rate_no)))?;
-        Ok(model)
+            .all(&*self.db)
+            .await?;
+        match models.as_slice() {
+            [] => Err(AppError::not_found(format!("工价单号 {} 不存在", rate_no))),
+            [one] => Ok(one.clone()),
+            many => {
+                tracing::error!(
+                    rate_no = %rate_no,
+                    dup_rows = many.len(),
+                    "process_wage_rate.rate_no 存在多条活跃行（数据异常，需人工定性处置）"
+                );
+                Err(AppError::database(format!(
+                    "工价单号 {} 存在 {} 条活跃记录，数据异常",
+                    rate_no,
+                    many.len()
+                )))
+            }
+        }
     }
 
     /// 查询工序当前生效的工价

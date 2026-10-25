@@ -14,6 +14,7 @@
 //!   → customer_credit_family_grant
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
+//!   → m0104_add_document_no_partial_unique_four_tables
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -116,6 +117,13 @@
 //!    见 batch_no 与 owner_id/m0070）回填成文缺省（status 'active'，payment_terms 30，
 //!    词表与默认值证据全量写在域文件头），置于链尾为新的顶层条目（并域会被台账跳过），
 //!    依赖 system 建的两列，down 恢复可空无默认（数据无损论证见域文件头）
+//! 23. m0104_add_document_no_partial_unique_four_tables: 单据号四列活跃行部分唯一索引
+//!    （production_recipe.recipe_no / production_recipe_addition.addition_no /
+//!    process_wage_rate.rate_no / wage_record.record_no，形态照 m0068 部分唯一 +
+//!    fail-visible 存量重复探测，谓词与读路径判重同源 is_deleted = false）——服务侧
+//!    取号改「与插入同一事务」形态的 DB 先决约束，先补约束再收临界区；四表均由 v15 域
+//!    建表（v15:3405/:3439/:3346/:3564），置于链尾为新的顶层条目：链尾晚于 v15 执行，
+//!    表必然已存在、无跨域尾调问题，复用库上也必然执行（并入已应用域会被台账整体跳过）
 
 pub use sea_orm_migration::prelude::*;
 
@@ -162,6 +170,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customers_nullable_columns_norm::Migration),
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
+            Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
         ]
     }
 }

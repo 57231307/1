@@ -68,6 +68,12 @@
 //! - customers_nullable_columns_norm: customers 的 status/payment_terms 两列可空无默认 →
 //!   回填成文缺省（'active' / 30）+ SET DEFAULT + SET NOT NULL，与模型非 Option 对齐；
 //!   置于链尾为新的顶层条目，复用库上也必然执行（并入已应用的 system 域会被台账跳过）
+//! - m0104_add_document_no_partial_unique_four_tables: 单据号四列（production_recipe.recipe_no /
+//!   production_recipe_addition.addition_no / process_wage_rate.rate_no / wage_record.record_no）
+//!   补活跃行部分唯一索引（谓词与读路径判重同源 is_deleted = false），先于服务侧取号-插入
+//!   同事务改造的 DB 先决约束；存量重复 fail-visible 中止不洗数据，down 显式 DROP INDEX；
+//!   四表均由 v15 域建表，置于链尾为新的顶层条目（链尾执行时表必然已存在，无跨域尾调问题；
+//!   并入已应用域会被台账整体跳过，复用库永不生效），复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -104,3 +110,4 @@ pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
+pub mod m0104_add_document_no_partial_unique_four_tables;
