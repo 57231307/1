@@ -56,7 +56,11 @@ fn matrix_rows() -> Vec<(&'static str, &'static str, &'static str)> {
 
 /// 某角色在某资源上的全部矩阵行动作（按 `matches_permission` 语义，
 /// `"*"` 通配视为覆盖任何具体动作）。
-fn actions_of(rows: &[(&str, &str, &str)], role: &str, resource: &str) -> Vec<&'static str> {
+fn actions_of(
+    rows: &[(&'static str, &'static str, &'static str)],
+    role: &str,
+    resource: &str,
+) -> Vec<&'static str> {
     rows.iter()
         .filter(|(r, res, _)| *r == role && *res == resource)
         .map(|(_, _, act)| *act)
@@ -64,10 +68,13 @@ fn actions_of(rows: &[(&str, &str, &str)], role: &str, resource: &str) -> Vec<&'
 }
 
 /// 某角色在 AP 族全部资源上的 (资源, 动作) 行集合（排序后逐条可比）。
-fn ap_rows_of(rows: &[(&str, &str, &str)], role: &str) -> Vec<(&'static str, &'static str)> {
+fn ap_rows_of(
+    rows: &[(&'static str, &'static str, &'static str)],
+    role: &str,
+) -> Vec<(&'static str, &'static str)> {
     let mut picked: Vec<(&str, &str)> = rows
         .iter()
-        .filter(|(_, res, _)| AP_RESOURCES.contains(&res))
+        .filter(|(_, res, _)| AP_RESOURCES.contains(res))
         .map(|(_, res, act)| (*res, *act))
         .collect();
     picked.sort_unstable();
