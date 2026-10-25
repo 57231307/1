@@ -2589,7 +2589,6 @@ export default {
     bluetooth: {
       title: '本机蓝牙打印',
       description: '在安卓客户端连接已配对的蓝牙热敏打印机，打印时直接发送到本机打印机。',
-      requestPermission: '申请蓝牙权限',
       openSettings: '打开系统蓝牙设置',
       refresh: '刷新已配对设备',
       printer: '打印机',
@@ -2603,12 +2602,9 @@ export default {
       notConnected: '未连接',
       adapterUnsupported: '本机不支持蓝牙',
       adapterDisabled: '系统蓝牙未开启，请先在系统设置中开启蓝牙',
-      permissionDenied: '未获得附近设备权限，无法读取已配对打印机',
       noPrinters: '没有已配对的设备，请先在系统蓝牙设置中配对打印机',
       message: {
-        permissionGranted: '蓝牙权限已授予',
         permissionDenied: '蓝牙权限未授予，无法列出打印机',
-        permissionFailed: '申请蓝牙权限失败',
         settingsOpened: '已打开系统蓝牙设置',
         settingsFailed: '打开系统蓝牙设置失败',
         listFailed: '读取已配对打印机失败',
