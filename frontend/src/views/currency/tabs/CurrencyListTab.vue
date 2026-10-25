@@ -98,8 +98,8 @@
         <el-form-item :label="t('currency.dialog.symbol')">
           <el-input v-model="form.symbol" :placeholder="t('currency.dialog.symbolPlaceholder')" />
         </el-form-item>
-        <el-form-item :label="t('currency.dialog.precision')">
-          <el-input-number v-model="form.precision" :min="0" :max="6" style="width: 100%" />
+        <el-form-item :label="t('currency.dialog.precision')" prop="precision">
+          <el-input v-model="form.precision" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('currency.dialog.isBase')">
           <el-switch v-model="form.is_base" />
@@ -155,13 +155,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('currency.rateDialog.rate')" prop="rate">
-          <el-input-number
-            v-model="rateForm.rate"
-            :min="0"
-            :precision="6"
-            :step="0.0001"
-            style="width: 100%"
-          />
+          <el-input v-model="rateForm.rate" inputmode="decimal" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('currency.rateDialog.effectiveDate')" prop="effective_date">
           <el-date-picker
@@ -189,6 +183,7 @@
 import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import {
@@ -212,24 +207,32 @@ const currencyList = ref<Currency[]>([]);
 const formRef = ref<FormInstance>();
 const rateFormRef = ref<FormInstance>();
 
-const form = reactive<CreateCurrencyRequest>({
+// 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约类型
+const form = reactive<Omit<CreateCurrencyRequest, 'precision'> & { precision: string }>({
   code: '',
   name: '',
   symbol: '',
   is_base: false,
-  precision: 2,
+  precision: '2',
 });
 
-const rateForm = reactive<CreateExchangeRateRequest>({
+const rateForm = reactive<Omit<CreateExchangeRateRequest, 'rate'> & { rate: string }>({
   from_currency: '',
   to_currency: '',
-  rate: 1,
+  rate: '1',
   effective_date: new Date().toISOString().split('T')[0],
 });
 
 const rules: FormRules = {
   code: [{ required: true, message: t('currency.dialog.codeRequired'), trigger: 'blur' }],
   name: [{ required: true, message: t('currency.dialog.nameRequired'), trigger: 'blur' }],
+  precision: numberInputRules({
+    label: t('currency.dialog.precision'),
+    required: true,
+    min: 0,
+    max: 6,
+    integer: true,
+  }),
 };
 
 const rateRules: FormRules = {
@@ -239,7 +242,13 @@ const rateRules: FormRules = {
   to_currency: [
     { required: true, message: t('currency.rateDialog.toCurrencyRequired'), trigger: 'change' },
   ],
-  rate: [{ required: true, message: t('currency.rateDialog.rateRequired'), trigger: 'blur' }],
+  rate: numberInputRules({
+    label: t('currency.rateDialog.rate'),
+    required: true,
+    min: 0,
+    precision: 6,
+    messages: { empty: t('currency.rateDialog.rateRequired') },
+  }),
   effective_date: [
     { required: true, message: t('currency.rateDialog.effectiveDateRequired'), trigger: 'change' },
   ],
@@ -271,7 +280,7 @@ const openDialog = () => {
   form.name = '';
   form.symbol = '';
   form.is_base = false;
-  form.precision = 2;
+  form.precision = '2';
   dialogVisible.value = true;
 };
 
@@ -281,7 +290,8 @@ const handleSubmit = async () => {
     if (!valid) return;
     submitLoading.value = true;
     try {
-      await createCurrency(form);
+      // 契约字段 precision 为数字：视图态字符串在提交边界显式转回
+      await createCurrency({ ...form, precision: Number(form.precision) });
       ElMessage.success(t('currency.message.createSuccess'));
       dialogVisible.value = false;
       fetchCurrencies();
@@ -298,7 +308,7 @@ const openRateDialog = (defaultFromCode?: string) => {
   rateFormRef.value?.resetFields();
   rateForm.from_currency = defaultFromCode || '';
   rateForm.to_currency = '';
-  rateForm.rate = 1;
+  rateForm.rate = '1';
   rateForm.effective_date = new Date().toISOString().split('T')[0];
   rateDialogVisible.value = true;
 };
@@ -309,7 +319,8 @@ const handleRateSubmit = async () => {
     if (!valid) return;
     rateSubmitLoading.value = true;
     try {
-      await createExchangeRate(rateForm);
+      // 契约字段 rate 为数字：视图态字符串在提交边界显式转回
+      await createExchangeRate({ ...rateForm, rate: Number(rateForm.rate) });
       ElMessage.success(t('currency.message.rateCreateSuccess'));
       rateDialogVisible.value = false;
     } catch (e) {
