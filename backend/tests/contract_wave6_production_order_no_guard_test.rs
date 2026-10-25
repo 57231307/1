@@ -380,10 +380,9 @@ fn extract_fn(src: &str, anchor: &str) -> String {
     let i = src
         .find(anchor)
         .unwrap_or_else(|| panic!("源码锚点丢失: {anchor}"));
-    let open = i
-        + src[i..]
-            .find('{')
-            .unwrap_or_else(|| panic!("函数体起始括号定位失败: {anchor}"));
+    let open = i + src[i..]
+        .find('{')
+        .unwrap_or_else(|| panic!("函数体起始括号定位失败: {anchor}"));
     let mut depth = 0usize;
     for (off, ch) in src[open..].char_indices() {
         match ch {
