@@ -61,10 +61,10 @@ import {
  * POST send 先按主键取行（缺行 404 加"订阅不存在"语义的 NOT_FOUND），
  * 再调同一 trigger，出参回显 subscription_id 与 name 与 recipients 与 export_format
  * 四键，全部读自库中该行，因此可用它与建行提交值逐键对表。
- * 启停 toggle 入参 ToggleSubscriptionDto 的 enabled 为必填布尔，缺键即请求解码拒，
- * 它只翻 is_enabled 位，故本 spec 只钉状态位翻转这一条稳定不变量。
+ * 启停 toggle 入参 ToggleSubscriptionDto 的 enabled 为必填布尔，缺键即请求解码拒；
+ * 置为启用时按该实体频率重算下次执行时间，停用与触发只动排期与开关列族。
  * 下次执行时间属可被其它分支按实体频率重算口径调整的派生值，
- * 本 spec 对其只断非空且可解析，不断具体时刻。
+ * 本 spec 对其只断非空且可解析，不断具体时刻，状态判据钉在启用位翻转本身。
  *
  * 假绿防线。五枚端点每次都真发动作并紧跟一次按主键的独立读回，
  * 订阅的身份列逐键对表建行提交值，导出拒绝后回读模板证明版本与列定义零漂移；
