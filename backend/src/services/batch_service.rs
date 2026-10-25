@@ -8,6 +8,9 @@ use crate::models::status::master_data;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 // 每匹米数与每卷米数的同源补齐与产品单条链路共用同一真源，避免批量入口各写一套语义
 use crate::services::product_service::pair_piece_roll_meters;
+// 建品必录校验（产品类型显式 + 面料类幅宽/克重/成分）与单条、CSV 导入共用同一判据函数，
+// 批量入口不得绕过，否则「按品类分级必填」在批量面失守
+use crate::services::product_service::validate_product_create_fields;
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::DatabaseTransaction;
@@ -135,6 +138,34 @@ impl BatchService {
         let mut errors = Vec::new();
 
         for (index, req) in requests.iter().enumerate() {
+            // 建品必录校验（产品类型显式 + 面料类幅宽/克重/成分）与单条 HTTP、CSV 导入共用
+            // 同一判据函数 validate_product_create_fields；批量入口逐行先校验，任一不过即整体回滚，
+            // 与下方插入失败的整单回滚语义一致，避免部分写入。
+            // 批量入参 width/gram_weight 本就是 Decimal，直接透传比较，不做 f64 往返、不兜底。
+            if let Err(e) = validate_product_create_fields(
+                req.product_type.as_deref(),
+                req.width,
+                req.gram_weight,
+                req.fabric_composition.as_deref(),
+            ) {
+                txn.rollback().await.ok();
+                errors.push(BatchError {
+                    index,
+                    message: e.to_string(),
+                });
+                let failed = errors.len();
+                Self::record_batch_create_audit(&self.db, user_id, &requests, 0, &errors, true);
+                return Ok(BatchResult {
+                    success: false,
+                    total: requests.len(),
+                    created: 0,
+                    updated: 0,
+                    failed,
+                    data: vec![],
+                    errors,
+                });
+            }
+
             let product = Self::build_product_active_model(req);
 
             match product.insert(&txn).await {
@@ -213,10 +244,13 @@ impl BatchService {
             created_at: Set(chrono::Utc::now()),
             updated_at: Set(chrono::Utc::now()),
             // 面料行业特色字段
+            // 产品类型已由上方 validate_product_create_fields 保证显式提交且非空白，这里落规范值，
+            // 不再缺省成成品布（缺省会绕过「按品类分级必填」，且原处是硬编码中文副本，违反词表唯一源）。
             product_type: Set(req
                 .product_type
                 .clone()
-                .unwrap_or_else(|| "成品布".to_string())),
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()),
             fabric_composition: Set(req.fabric_composition.clone()),
             yarn_count: Set(req.yarn_count.clone()),
             density: Set(req.density.clone()),

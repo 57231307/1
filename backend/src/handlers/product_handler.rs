@@ -4,6 +4,7 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
+use std::str::FromStr;
 use validator::Validate;
 
 use crate::container::AppState;
@@ -13,12 +14,12 @@ use crate::models::product_category;
 use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
-use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
 // 同源补齐函数的真源在服务层（批量链路与本链路共用一份语义），这里再导出，
 // 保持既有引用路径 handlers 下 product_handler 下的 pair_piece_roll_meters 仍可用。
 pub use crate::services::product_service::pair_piece_roll_meters;
 use crate::utils::admin_checker;
+use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -48,8 +49,10 @@ pub struct CreateProductRequest {
     pub specification: Option<String>,
     #[validate(length(max = 20, message = "计量单位长度不能超过20个字符"))]
     pub unit: Option<String>,
-    pub standard_price: Option<f64>,
-    pub cost_price: Option<f64>,
+    // DECIMAL 列入参统一用 Decimal：rust_decimal 的反序列化同时接受 JSON 数字与十进制字符串
+    // （出参即字符串形态，编辑回显原样回传必须可用），价格两键与米数键同口径，不走 f64 往返。
+    pub standard_price: Option<Decimal>,
+    pub cost_price: Option<Decimal>,
     #[validate(length(max = 1000, message = "产品描述长度不能超过1000个字符"))]
     pub description: Option<String>,
     #[validate(length(max = 20, message = "状态长度不能超过20个字符"))]
@@ -63,13 +66,13 @@ pub struct CreateProductRequest {
     pub yarn_count: Option<String>,
     #[validate(length(max = 50, message = "密度长度不能超过50个字符"))]
     pub density: Option<String>,
-    pub width: Option<f64>,
-    pub gram_weight: Option<f64>,
+    pub width: Option<Decimal>,
+    pub gram_weight: Option<Decimal>,
     #[validate(length(max = 50, message = "组织结构长度不能超过50个字符"))]
     pub structure: Option<String>,
     #[validate(length(max = 100, message = "后整理长度不能超过100个字符"))]
     pub finish: Option<String>,
-    pub min_order_quantity: Option<f64>,
+    pub min_order_quantity: Option<Decimal>,
     pub lead_time: Option<i32>,
     // V15 P1 合规字段（《产品质量法》第 27 条）
     #[validate(length(max = 50, message = "执行标准号长度不能超过50个字符"))]
@@ -86,7 +89,10 @@ pub struct CreateProductRequest {
 }
 
 /// 更新产品请求（面料行业版）
-/// 每匹米数与每卷米数为三态部分更新，键缺席保持原值、显式 null 清空为 NULL、有值覆盖。
+/// 每匹米数、每卷米数与五个 DECIMAL 数值列（价格两列、幅宽、克重、最小起订量）为三态部分更新，
+/// 键缺席保持原值、显式 null 清空为 NULL、有值覆盖。
+/// DECIMAL 列走三态的原因与米数同由：这些列的出参是十进制字符串，编辑清空若只发 null，
+/// 单层 Option 下与键缺席不可区分，清空会被静默丢弃、落不回库里。
 /// 其余字段维持单层 Option 的条件 Set 语义，键缺席即不更新该列。
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize, Validate)]
@@ -99,8 +105,13 @@ pub struct UpdateProductRequest {
     pub specification: Option<String>,
     #[validate(length(max = 20, message = "计量单位长度不能超过20个字符"))]
     pub unit: Option<String>,
-    pub standard_price: Option<f64>,
-    pub cost_price: Option<f64>,
+    // DECIMAL 列入参统一用 Decimal：rust_decimal 的反序列化同时接受 JSON 数字与十进制字符串，
+    // 编辑回显原样回传不再被「invalid type: string, expected f64」拒（与创建 DTO 同口径）。
+    // 三态部分更新：键缺席保持原值、显式 null 清空为 NULL、有值覆盖。
+    #[serde(default, deserialize_with = "double_option")]
+    pub standard_price: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub cost_price: Option<Option<Decimal>>,
     #[validate(length(max = 1000, message = "产品描述长度不能超过1000个字符"))]
     pub description: Option<String>,
     #[validate(length(max = 20, message = "状态长度不能超过20个字符"))]
@@ -114,14 +125,19 @@ pub struct UpdateProductRequest {
     pub yarn_count: Option<String>,
     #[validate(length(max = 50, message = "密度长度不能超过50个字符"))]
     pub density: Option<String>,
-    pub width: Option<f64>,
-    pub gram_weight: Option<f64>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub width: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub gram_weight: Option<Option<Decimal>>,
     #[validate(length(max = 50, message = "组织结构长度不能超过50个字符"))]
     pub structure: Option<String>,
     #[validate(length(max = 100, message = "后整理长度不能超过100个字符"))]
     pub finish: Option<String>,
-    pub min_order_quantity: Option<f64>,
-    pub lead_time: Option<i32>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub min_order_quantity: Option<Option<Decimal>>,
+    // 交货期为数值列，清空诉求与 DECIMAL 各列同型，一并走三态：键缺席保持原值、显式 null 清空、有值覆盖。
+    #[serde(default, deserialize_with = "double_option")]
+    pub lead_time: Option<Option<i32>>,
     // V15 P1 合规字段（《产品质量法》第 27 条）
     #[validate(length(max = 50, message = "执行标准号长度不能超过50个字符"))]
     pub execution_standard: Option<String>,
@@ -212,6 +228,41 @@ fn append_frontend_aliases(obj: &mut serde_json::Value) {
         .map(|status| status == master_data::ACTIVE);
     if let Some(is_active) = is_active {
         map.insert("is_active".to_string(), serde_json::json!(is_active));
+    }
+}
+
+/// 派生只读键「每公斤出米数」（meters_per_kg）：由已下发的 gram_weight 与 width 两值算出，
+/// 不可手输、不入库，随产品列表与详情出参下发。
+/// 单一事实来源在服务层 DualUnitConverter::meters_per_kg，handler 只读字段过滤后的对象取值再调用，
+/// 不在此重抄公式，避免换算面与出参面两处漂移。
+/// 读的是本对象里经字段级权限过滤后的 gram_weight、width 两值；写给同一对象新增的只读键
+/// meters_per_kg（serde_json 把 Decimal 序列化为字符串、None 序列化为 null）。
+/// 为什么放在字段级权限过滤之后：与 append_frontend_aliases 同段，取的是过滤后的值，
+/// 禁止用派生键位绕过 hidden_fields 把已隐藏的克重或幅宽反向重新暴露出去。
+/// 缺任一列或值 ≤0 时该换算器返回 None，出参即为 null（不算成 0，避免把未录入当 0 米）。
+/// pub：出参形状契约锁需以真实 JSON 对象直测本注入面（键存在、取值关系、缺值形态），
+/// 形状照 map_product_fk_error 以生产入口直测的先例。
+pub fn append_meters_per_kg(obj: &mut serde_json::Value) {
+    // Decimal 序列化为字符串（rust_decimal 仅启 serde、未启 serde-float），这里反解回 Decimal 供换算器消费
+    let (gram_weight, width) = match obj.as_object() {
+        Some(map) => {
+            let gram_weight = map
+                .get("gram_weight")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            let width = map
+                .get("width")
+                .and_then(|v| v.as_str())
+                .and_then(|s| Decimal::from_str(s).ok());
+            (gram_weight, width)
+        }
+        None => return,
+    };
+    let meters = DualUnitConverter::meters_per_kg(gram_weight, width);
+    // 派生键以对象补丁形态并入出参：键名在此显式声明，前端契约与出参真相同一处可查
+    let patch = serde_json::json!({ "meters_per_kg": meters });
+    if let (Some(map), Some(patch_map)) = (obj.as_object_mut(), patch.as_object()) {
+        map.extend(patch_map.clone());
     }
 }
 
@@ -320,6 +371,7 @@ pub async fn list_products(
     // 权限过滤完成后再补前端契约别名，避免别名键绕过 hidden_fields 暴露被隐藏字段
     for item in masked_products.iter_mut() {
         append_frontend_aliases(item);
+        append_meters_per_kg(item);
     }
     attach_category_names(&state.db, &mut masked_products).await;
 
@@ -356,6 +408,7 @@ pub async fn get_product(
     }
 
     append_frontend_aliases(&mut product_json);
+    append_meters_per_kg(&mut product_json);
     attach_category_names(&state.db, std::slice::from_mut(&mut product_json)).await;
 
     Ok(Json(ApiResponse::success(product_json)))
@@ -414,9 +467,11 @@ pub async fn create_product(
             status: req
                 .status
                 .unwrap_or_else(|| master_data::ACTIVE.to_string()),
-            product_type: req
-                .product_type
-                .unwrap_or_else(|| product_type::FINISHED.to_string()),
+            // 产品类型不再缺省成成品布：新建必须显式提交，缺省会被 create_product 入口拒绝。
+            // 停掉静默缺省是为了让「面料类才要求幅宽/克重/成分」的分级必填不被缺省绕过——
+            // 没选类型的建单若当成面料会撞上必填、若当成非面料又漏掉真正的面料。
+            // 必录判据（类型显式提交 + 面料类三列）统一落服务层 create_product，此处只透传请求值。
+            product_type: req.product_type,
             fabric_composition: req.fabric_composition,
             yarn_count: req.yarn_count,
             density: req.density,

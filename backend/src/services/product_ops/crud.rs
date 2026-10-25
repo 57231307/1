@@ -15,7 +15,6 @@
 //! - `import_export` 子模块跨模块调用 `list_products` / `create_product`（保持 `pub`）
 
 use chrono::Utc;
-use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, NotSet, Order, PaginatorTrait,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
@@ -23,7 +22,10 @@ use sea_orm::{
 
 use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_category;
-use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
+use crate::services::product_service::{
+    CreateProductArgs, ProductService, UpdateProductArgs, validate_product_create_fields,
+    validate_product_numeric_domains,
+};
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -189,6 +191,35 @@ impl ProductService {
             meters_per_piece,
             meters_per_roll,
         } = args;
+        // 新建建品必录校验（面料类三列 + 产品类型显式提交）落在此服务层唯一入口：
+        // 单条 HTTP 建品与 CSV 导入建品都汇到本函数，共用判据函数 validate_product_create_fields，任一路径都无法绕过。
+        // 批量建品走 batch_service，另在彼处调用同一函数，判据仍是同一份。
+        // 幅宽与克重入参到落库全程 Decimal（DECIMAL(10,2) 列真相形态），与批量侧同型直接比较，无 f64 往返。
+        validate_product_create_fields(
+            product_type.as_deref(),
+            width,
+            gram_weight,
+            fabric_composition.as_deref(),
+        )?;
+        // 取值域校验与必录门分权：必录门管「面料类这三列必须有值」，本函数管「提交了就必须合法」
+        // （类型在词表内、幅宽克重>0、量价不为负）。辅料类提交非法数值同样在这里被点名拒绝。
+        validate_product_numeric_domains(
+            product_type.as_deref(),
+            width,
+            gram_weight,
+            min_order_quantity,
+            lead_time,
+            standard_price,
+            cost_price,
+        )?;
+        // 校验已保证类型非空且去空白，落库取校验后的规范值（products.product_type 为 NOT NULL）。
+        // 缺省即被拒，不再回落成成品布，与 validate_product_create_fields 的显式类型判据同源。
+        let product_type = product_type
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                AppError::validation_displayable("新建产品必须显式提交产品类型，不允许缺省")
+            })?;
         // 外键预校验：products.category_id REFERENCES product_categories(id)，
         // 无 ON DELETE 动作。若未预校验，非法 category_id 会在 insert 时抛出
         // "violates foreign key constraint fk_products_category" 并被映射成 500 DATABASE_ERROR，
@@ -208,12 +239,9 @@ impl ProductService {
             category_id: Set(category_id),
             specification: Set(specification),
             unit: Set(unit),
-            standard_price: Set(
-                standard_price.map(|p| Decimal::from_f64_retain(p).unwrap_or(Decimal::ZERO))
-            ),
-            cost_price: Set(
-                cost_price.map(|p| Decimal::from_f64_retain(p).unwrap_or(Decimal::ZERO))
-            ),
+            // DECIMAL 列透传入参原值：入参已是 Decimal，去掉 from_f64_retain 往返与 unwrap_or(ZERO) 静默落 0
+            standard_price: Set(standard_price),
+            cost_price: Set(cost_price),
             description: Set(description),
             status: Set(status),
             is_deleted: Set(false),
@@ -222,15 +250,12 @@ impl ProductService {
             fabric_composition: Set(fabric_composition),
             yarn_count: Set(yarn_count),
             density: Set(density),
-            width: Set(width.map(|w| Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO))),
-            gram_weight: Set(
-                gram_weight.map(|g| Decimal::from_f64_retain(g).unwrap_or(Decimal::ZERO))
-            ),
+            // DECIMAL 列透传入参原值（入参已是 Decimal，不做 f64 往返、不以 0 兜底掩盖缺值）
+            width: Set(width),
+            gram_weight: Set(gram_weight),
             structure: Set(structure),
             finish: Set(finish),
-            min_order_quantity: Set(
-                min_order_quantity.map(|q| Decimal::from_f64_retain(q).unwrap_or(Decimal::ZERO))
-            ),
+            min_order_quantity: Set(min_order_quantity),
             lead_time: Set(lead_time),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -382,6 +407,18 @@ impl ProductService {
         let id = args.id;
         let user_id = args.user_id;
 
+        // 更新侧取值域校验：只判「本次带了的值必须合法」（类型词表内、幅宽克重>0、量价不为负），
+        // 键缺席与显式空的语义（保持原值/清空）不归本判据管；与创建侧共用同一函数，不抄第二套。
+        validate_product_numeric_domains(
+            args.product_type.as_deref(),
+            args.width.flatten(),
+            args.gram_weight.flatten(),
+            args.min_order_quantity.flatten(),
+            args.lead_time.flatten(),
+            args.standard_price.flatten(),
+            args.cost_price.flatten(),
+        )?;
+
         let mut product = self.fetch_product_active(id).await?;
         Self::apply_product_basic_fields(&mut product, &mut args);
         Self::apply_product_fabric_fields(&mut product, &mut args);
@@ -419,11 +456,11 @@ impl ProductService {
             product.unit = Set(u);
         }
         if let Some(sp) = args.standard_price.take() {
-            product.standard_price =
-                Set(Some(Decimal::from_f64_retain(sp).unwrap_or(Decimal::ZERO)));
+            // 三态：外层 Some 即本次带了这个键，内层 None 即显式 null 清空、Some(v) 即覆盖
+            product.standard_price = Set(sp);
         }
         if let Some(cp) = args.cost_price.take() {
-            product.cost_price = Set(Some(Decimal::from_f64_retain(cp).unwrap_or(Decimal::ZERO)));
+            product.cost_price = Set(cp);
         }
         if let Some(d) = args.description.take() {
             product.description = Set(Some(d));
@@ -451,10 +488,11 @@ impl ProductService {
             product.density = Set(Some(den));
         }
         if let Some(w) = args.width.take() {
-            product.width = Set(Some(Decimal::from_f64_retain(w).unwrap_or(Decimal::ZERO)));
+            // 三态：显式 null 清空为 NULL、有值覆盖、键缺席不动（清空通道与米数两列同法）
+            product.width = Set(w);
         }
         if let Some(gw) = args.gram_weight.take() {
-            product.gram_weight = Set(Some(Decimal::from_f64_retain(gw).unwrap_or(Decimal::ZERO)));
+            product.gram_weight = Set(gw);
         }
         if let Some(st) = args.structure.take() {
             product.structure = Set(Some(st));
@@ -463,11 +501,11 @@ impl ProductService {
             product.finish = Set(Some(fi));
         }
         if let Some(moq) = args.min_order_quantity.take() {
-            product.min_order_quantity =
-                Set(Some(Decimal::from_f64_retain(moq).unwrap_or(Decimal::ZERO)));
+            product.min_order_quantity = Set(moq);
         }
         if let Some(lt) = args.lead_time.take() {
-            product.lead_time = Set(Some(lt));
+            // 三态：内层 None 即显式 null 清空该列
+            product.lead_time = Set(lt);
         }
         // V15 P1 合规字段（《产品质量法》第 27 条）
         if let Some(es) = args.execution_standard.take() {

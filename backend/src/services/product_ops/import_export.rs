@@ -7,7 +7,7 @@
 //! - `process_csv_import_row`：单行处理（跨模块调用 `crud::create_product`）
 //! - 静态/私有 helper：build_product_csv_headers / build_product_csv_row /
 //!  generate_product_import_template / get_required_field_value /
-//!  parse_optional_csv_{string,f64,i32} / parse_csv_status_field /
+//!  parse_optional_csv_{string,decimal,i32} / parse_csv_status_field /
 //!  validate_csv_{code,name,product_type,unit}_field / validate_csv_import_row /
 //!  build_csv_create_args
 //!
@@ -19,7 +19,9 @@ use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService};
 use crate::utils::error::AppError;
 use crate::utils::import_export::{CsvImporter, FieldValidator, ImportResult, XlsxImporter};
+use rust_decimal::Decimal;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 /// CSV 导入行校验后的必填字段
 /// D08-1 第二梯队拆分：用于封装 import_products_from_csv 中校验后的 4 个必填字段；（产品编码、产品名称、产品类型、计量单位），避免 validate_import_row 返回 4-tuple。
@@ -229,16 +231,16 @@ impl ProductService {
         row.get(field).filter(|v| !v.is_empty()).cloned()
     }
 
-    /// 解析可选 f64 字段（缺失、空字符串或解析失败均为 None）（D08-1 第二梯队拆分：提取 import_products_from_csv 中重复的 f64 解析模式。）
-    fn parse_optional_csv_f64(
+    /// 解析可选十进制字段（缺失、空字符串或解析失败均为 None）。DECIMAL 列按十进制直接解析，不做 f64 往返。
+    fn parse_optional_csv_decimal(
         row: &std::collections::HashMap<String, String>,
         field: &str,
-    ) -> Option<f64> {
+    ) -> Option<Decimal> {
         row.get(field).and_then(|v| {
             if v.is_empty() {
                 None
             } else {
-                v.parse::<f64>().ok()
+                Decimal::from_str(v).ok()
             }
         })
     }
@@ -359,17 +361,17 @@ impl ProductService {
     ) -> CreateProductArgs {
         let category_id = Self::parse_optional_csv_i32(row, "类别ID");
         let barcode = Self::parse_optional_csv_string(row, "条码");
-        let standard_price = Self::parse_optional_csv_f64(row, "标准价格");
-        let cost_price = Self::parse_optional_csv_f64(row, "成本价格");
+        let standard_price = Self::parse_optional_csv_decimal(row, "标准价格");
+        let cost_price = Self::parse_optional_csv_decimal(row, "成本价格");
         let specification = Self::parse_optional_csv_string(row, "规格型号");
         let fabric_composition = Self::parse_optional_csv_string(row, "面料成分");
         let yarn_count = Self::parse_optional_csv_string(row, "纱支");
         let density = Self::parse_optional_csv_string(row, "密度");
-        let width = Self::parse_optional_csv_f64(row, "幅宽");
-        let gram_weight = Self::parse_optional_csv_f64(row, "克重");
+        let width = Self::parse_optional_csv_decimal(row, "幅宽");
+        let gram_weight = Self::parse_optional_csv_decimal(row, "克重");
         let structure = Self::parse_optional_csv_string(row, "组织结构");
         let finish = Self::parse_optional_csv_string(row, "后整理");
-        let min_order_quantity = Self::parse_optional_csv_f64(row, "最小起订量");
+        let min_order_quantity = Self::parse_optional_csv_decimal(row, "最小起订量");
         let lead_time = Self::parse_optional_csv_i32(row, "交货期");
         let description = Self::parse_optional_csv_string(row, "产品描述");
         let status = Self::parse_csv_status_field(row);
@@ -389,7 +391,9 @@ impl ProductService {
             cost_price,
             description,
             status,
-            product_type: validated.product_type.clone(),
+            // CSV 行的产品类型列已由 validate_csv_product_type_field 校验为必填且在枚举词表内，
+            // 这里包成 Option 交给 create_product 的统一必录校验（面料类再要求幅宽/克重/成分）。
+            product_type: Some(validated.product_type.clone()),
             fabric_composition,
             yarn_count,
             density,

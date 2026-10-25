@@ -370,7 +370,9 @@ const handleProductSelect = async (index: number, productId: number) => {
   if (product) {
     row.product_name = product.product_name;
     row.product_code = product.product_code;
-    row.unit_price = product.price || 0;
+    // 出参 price 是 DECIMAL 字符串（NULL→null）：Number 归一后落单价，缺值与非数字保持 0（与原 price||0 同口径）
+    const parsedPrice = Number(product.price);
+    row.unit_price = Number.isFinite(parsedPrice) ? parsedPrice : 0;
     calculateSubtotal(row);
   }
   await ensureColorOptions(row.product_id);

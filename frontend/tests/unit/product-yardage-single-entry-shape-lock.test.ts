@@ -44,10 +44,10 @@ const unitSrc = readRepoSource(path.join(FRONTEND_ROOT, 'src/constants/quotation
 const handlerSrc = readRepoSource(path.join(REPO_ROOT, 'backend/src/handlers/product_handler.rs'));
 const zhSrc = readRepoSource(path.join(FRONTEND_ROOT, 'src/locales/zh-CN.ts'));
 
-/** 取某个 v-model 绑定所在的 el-input-number 块（绑定点到最近的自闭合标签结尾） */
-function inputNumberBlock(model: string): string {
+/** 取某个 v-model 绑定所在的输入控件块（绑定点到最近的自闭合标签结尾） */
+function inputBlock(model: string): string {
   const block = formSrc.match(new RegExp(`v-model="${model}"[\\s\\S]*?/>`));
-  expect(block, `找不到绑定 ${model} 的 el-input-number 块`).toBeTruthy();
+  expect(block, `找不到绑定 ${model} 的输入控件块`).toBeTruthy();
   return block![0];
 }
 
@@ -61,13 +61,13 @@ describe('产品米数单入口形状锁', () => {
   });
 
   it('每匹米数保持可编辑，不带只读或禁用标记', () => {
-    const block = inputNumberBlock('formData.meters_per_piece');
+    const block = inputBlock('formData.meters_per_piece');
     expect(block.includes('readonly'), '每匹米数是唯一入口，不得被改成只读').toBe(false);
     expect(block.includes('disabled'), '每匹米数是唯一入口，不得被改成禁用').toBe(false);
   });
 
   it('每卷米数是只读派生项', () => {
-    const block = inputNumberBlock('formData.meters_per_roll');
+    const block = inputBlock('formData.meters_per_roll');
     expect(block.includes('readonly'), '每卷米数必须标记只读，用户不再直接输入').toBe(true);
   });
 
@@ -102,9 +102,26 @@ describe('产品米数单入口形状锁', () => {
       ).toBe(true);
     }
     const tristate = handlerSrc.match(/deserialize_with = "double_option"/g) || [];
-    expect(tristate.length, `更新 DTO 两字段都应挂三态反序列化适配器，实际 ${tristate.length} 处`).toBe(
-      2
-    );
+    expect(
+      tristate.length,
+      `更新 DTO 的米数两键与价格两列、幅宽、克重、最小起订量、交货期六个主档列都应挂三态反序列化适配器，实际 ${tristate.length} 处`
+    ).toBe(8);
+    // 三态面逐列点名，防止某一列塌回单层后清空通道静默失效
+    for (const field of [
+      'meters_per_piece',
+      'meters_per_roll',
+      'standard_price',
+      'cost_price',
+      'width',
+      'gram_weight',
+      'min_order_quantity',
+      'lead_time',
+    ]) {
+      expect(
+        handlerSrc.includes(`pub ${field}: Option<Option<`),
+        `后端更新 DTO 的 ${field} 应为双层三态，塌回单层即清空通道复发`
+      ).toBe(true);
+    }
 
     // 请求边界不得把这两键改名或并进别的键：toProductPayload 只映射四个别名
     const mapper = apiSrc.match(/function toProductPayload[\s\S]*?\n}/);
@@ -136,10 +153,14 @@ describe('产品米数单入口形状锁', () => {
     ).toBe(false);
     for (const field of ['meters_per_piece', 'meters_per_roll']) {
       expect(
-        formSrc.includes(`${field}: formData.${field} ?? null`),
-        `提交载荷里 ${field} 应把空值显式序列化为 null（省略键在后端是保持原值，清空会失效）`
+        formSrc.includes(`${field}: toSubmitNumber(formData.${field})`),
+        `提交载荷里 ${field} 应经 toSubmitNumber 归一后显式送 null（省略键在后端是保持原值，清空会失效）`
       ).toBe(true);
     }
+    expect(
+      formSrc.includes("return text === '' ? null : Number(text)"),
+      'toSubmitNumber 必须把空文本归一为显式 null，清空通道不得塌回键缺席'
+    ).toBe(true);
     expect(
       formSrc.includes('buildSubmitPayload'),
       '提交前应经显式载荷构造，字段清单即表单采集面'

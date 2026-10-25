@@ -252,7 +252,8 @@
           <el-input v-model="colorForm.color_name" style="width: 160px" />
         </el-form-item>
         <el-form-item :label="t('product.productListTab.colColorExtraCost')">
-          <el-input-number v-model="colorForm.extra_cost" :min="0" :precision="2" />
+          <!-- 数值录入用纯文本输入框（全项目禁加减步进控件），范围与精度由提交前校验点名拒绝 -->
+          <el-input v-model="colorForm.extra_cost" style="width: 140px" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="colorSubmitting" @click="submitColor">
@@ -518,9 +519,11 @@ const stats = reactive({
 watch(products, () => {
   stats.totalProducts = total.value;
   stats.activeProducts = products.value.filter(p => p.is_active).length;
+  // 出参 price 是 DECIMAL 字符串（NULL→null），聚合前先 Number 归一再求和；
+  // 缺值与非数字归 0，与原来 price||0 的口径一致，避免字符串混进加法把均价算成 NaN
   stats.avgPrice =
     products.value.length > 0
-      ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
+      ? products.value.reduce((sum, p) => sum + (Number(p.price) || 0), 0) / products.value.length
       : 0;
 });
 
@@ -758,9 +761,12 @@ const colorRows = ref<ProductColor[]>([]);
 // 后端 CreateProductColorRequest 必填 color_no/color_name/color_type/extra_cost，
 // 建单请求此前缺 color_type/extra_cost 必 422（缺非 Option 必填）。
 // color_type 全仓唯一确证取值为 DB 列默认 'STANDARD'（无后端枚举/迁移种子给出其余取值，
-// 完整取值域已列待决策），建/改固定提交 'STANDARD'；extra_cost 表单以数值真实采集（默认 0）。
+// 完整取值域已列待决策），建/改固定提交 'STANDARD'；extra_cost 表单以输入框文本采集（默认 '0'），
+// 提交前经校验器点名拒绝非数字与超位小数，再归一为 Number 发给后端 f64 入参。
 const COLOR_TYPE_STANDARD = 'STANDARD';
-const colorForm = reactive({ color_no: '', color_name: '', extra_cost: 0 });
+const colorForm = reactive({ color_no: '', color_name: '', extra_cost: '0' });
+// 加价文本判据：非负十进制、最多两位小数（与后端 extra_cost DECIMAL 列精度一致），负号与非法字符直接判不合格
+const COLOR_EXTRA_COST_PATTERN = /^\d+(\.\d{1,2})?$/;
 const colorEditingId = ref<number | null>(null);
 const colorSubmitting = ref(false);
 
@@ -769,7 +775,7 @@ const openColorDialog = async (row: Product) => {
   colorEditingId.value = null;
   colorForm.color_no = '';
   colorForm.color_name = '';
-  colorForm.extra_cost = 0;
+  colorForm.extra_cost = '0';
   colorDialogVisible.value = true;
   try {
     const { getProductColorList } = await import('@/api/product');
@@ -787,6 +793,12 @@ const submitColor = async () => {
     ElMessage.warning(t('product.productListTab.messageColorNoRequired'));
     return;
   }
+  const extraCostText = colorForm.extra_cost.trim();
+  if (extraCostText === '' || !COLOR_EXTRA_COST_PATTERN.test(extraCostText)) {
+    ElMessage.warning(t('product.productListTab.messageColorExtraCostInvalid'));
+    return;
+  }
+  const extraCost = Number(extraCostText);
   colorSubmitting.value = true;
   try {
     if (colorEditingId.value) {
@@ -794,21 +806,21 @@ const submitColor = async () => {
       // 省略即不改，避免把已有色号的非标准 color_type 覆盖成 STANDARD
       await updateProductColor(colorProduct.value.id, colorEditingId.value, {
         color_name: colorForm.color_name,
-        extra_cost: colorForm.extra_cost,
+        extra_cost: extraCost,
       });
     } else {
       await createProductColor(colorProduct.value.id, {
         color_no: colorForm.color_no,
         color_name: colorForm.color_name,
         color_type: COLOR_TYPE_STANDARD,
-        extra_cost: colorForm.extra_cost,
+        extra_cost: extraCost,
       });
     }
     ElMessage.success(t('common.success'));
     colorEditingId.value = null;
     colorForm.color_no = '';
     colorForm.color_name = '';
-    colorForm.extra_cost = 0;
+    colorForm.extra_cost = '0';
     const { getProductColorList } = await import('@/api/product');
     const res = await getProductColorList(colorProduct.value.id);
     colorRows.value = (res.data as unknown as ProductColor[]) || [];
@@ -824,8 +836,8 @@ const editColor = (row: ProductColor) => {
   colorEditingId.value = row.id;
   colorForm.color_no = row.color_no || '';
   colorForm.color_name = row.color_name || '';
-  // extra_cost 为 rust_decimal 出参字符串（"0.00"），绑定 el-input-number 前 Number() 归一
-  colorForm.extra_cost = Number(row.extra_cost);
+  // extra_cost 为 rust_decimal 出参字符串（"0.00"），原样转文本回填输入框，不做数值往返
+  colorForm.extra_cost = String(row.extra_cost ?? '0');
 };
 
 // 删除色号（deleteProductColor）

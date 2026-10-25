@@ -300,7 +300,10 @@ async fn create_product_with(
             cost_price: None,
             description: None,
             status: master_data::ACTIVE.to_string(),
-            product_type: "坯布".to_string(),
+            // 夹具入参形态随动：product_type 改为显式 Option 后此位必须给值；
+            // 本用例断言面是米数两列同源补齐，取非面料类「辅料」以避开面料类幅宽/克重/成分必录门，
+            // 不影响米数双写判据本身。
+            product_type: Some("辅料".to_string()),
             fabric_composition: None,
             yarn_count: None,
             density: None,

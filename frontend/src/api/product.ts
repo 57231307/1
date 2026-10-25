@@ -8,15 +8,51 @@ export interface Product {
   category_id: number;
   category_name?: string;
   unit?: string;
-  price?: number;
-  cost_price?: number;
+  /** 售价（standard_price 出参别名；DECIMAL 列 NULL→null，入参可为数字或十进制字符串） */
+  price?: number | string | null;
+  /** 成本价（cost_price，DECIMAL 列 NULL→null，同上） */
+  cost_price?: number | string | null;
   barcode?: string;
   specification?: string;
   description?: string;
   /**
+   * 产品类型（面料行业字段，products.product_type，NOT NULL，存中文词表值：坯布/成品布/辅料）。
+   * 词表与后端 models/status/general.rs::product_type 同源，前端经 constants/product-type.ts 消费。
+   */
+  product_type?: string | null;
+  /** 面料成分（fabric_composition，可空文本主档列） */
+  fabric_composition?: string | null;
+  /** 纱支（yarn_count，可空文本主档列） */
+  yarn_count?: string | null;
+  /** 密度（density，可空文本主档列） */
+  density?: string | null;
+  /** 组织结构（structure，可空文本主档列） */
+  structure?: string | null;
+  /** 后整理（finish，可空文本主档列） */
+  finish?: string | null;
+  /** 最小起订量（min_order_quantity，DECIMAL 列：出参字符串、入参数值，空值 null） */
+  min_order_quantity?: number | string | null;
+  /** 交货期（天，lead_time，i32 列，JSON number，NULL→null） */
+  lead_time?: number | null;
+  /** 执行标准号（execution_standard，可空文本合规列） */
+  execution_standard?: string | null;
+  /** 生产厂名（factory_name，可空文本合规列） */
+  factory_name?: string | null;
+  /** 生产厂址（factory_address，可空文本合规列） */
+  factory_address?: string | null;
+  /** 产品等级（product_grade，可空文本合规列） */
+  product_grade?: string | null;
+  /**
+   * 每公斤出米数（派生只读键 meters_per_kg，不入库、不回传后端）。
+   * 由后端 DualUnitConverter::meters_per_kg 按克重与幅宽算出并随出参下发，
+   * Decimal 序列化为字符串（如 "3.3"）、不可算（缺列或非正）为 null；
+   * 表单即时值走 utils/fabric-yardage.ts 同源计算，两处同一口径。
+   */
+  meters_per_kg?: string | null;
+  /**
    * 每匹米数（匹↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:70）。
    * 后端 rust_decimal 序列化为字符串（如 "100.00"）、NULL→null；本接口亦用于创建/更新入参（表单数值），
-   * 故取并集。消费点：ProductFormDialogTab 编辑回显需 Number() 归一后绑定 el-input-number。
+   * 故取并集。消费点：ProductFormDialogTab 编辑回显经 toInputText 归一为 el-input 文本、提交经 toSubmitNumber 归一。
    */
   meters_per_piece?: number | string | null;
   /**
@@ -183,10 +219,13 @@ export const getProductById = (id: number) => request.get<ApiResponse<Product>>(
  * standard_price。此前直接提交导致后端把名称当成缺省值（handler 里 name 缺省为
  * "产品_<时间戳>"），UI 新建的产品名称全被丢掉。这里在请求边界做一次完整映射，
  * 未提供的字段保持不发送（由后端按自身默认值处理），不做任何取值兜底。
+ * meters_per_kg 是后端随查询出参下发的派生只读键（写侧 DTO 不收该键、列里也不存它），
+ * 提交前摘除，避免把出参键当入参回传造成契约噪声。
  */
 function toProductPayload(data: Partial<Product>) {
   const { product_name, product_code, is_active, price, ...rest } = data;
   const payload: Record<string, unknown> = { ...rest };
+  delete payload.meters_per_kg;
   if (product_name !== undefined) payload.name = product_name;
   if (product_code !== undefined) payload.code = product_code;
   if (is_active !== undefined) payload.status = is_active ? 'active' : 'inactive';

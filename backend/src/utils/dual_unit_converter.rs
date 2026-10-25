@@ -94,6 +94,23 @@ impl DualUnitConverter {
         Ok(rate.round_dp(4))
     }
 
+    /// 每公斤出米数（面料主数据出米数派生只读值）：向下取整保留一位小数（floor，非四舍五入）。
+    /// 算式与 kg_to_meters 与 calculate_conversion_rate 同源，由 1 公斤代入即得：
+    /// 米 = 1000 ÷ (克重 × 幅宽m)，幅宽m = 幅宽cm ÷ 100，代入化简即 100000 ÷ (克重 × 幅宽cm)。
+    /// 只由克重与幅宽两列决定，不引入新列与新入参；作为产品出参只读键 meters_per_kg 的唯一算式源。
+    /// 取整口径与 kg_to_meters（保留两位）不同：本函数按产品出米数要求向下截断到一位小数，
+    /// 不改动 kg_to_meters 的既有精度。任一入参为 None 或 ≤0 时返回 None（未录入不可算，不得下发 0）。
+    pub fn meters_per_kg(
+        gram_weight: Option<Decimal>,
+        width_cm: Option<Decimal>,
+    ) -> Option<Decimal> {
+        let gram = gram_weight.filter(|g| *g > Decimal::ZERO)?;
+        let width = width_cm.filter(|w| *w > Decimal::ZERO)?;
+        let width_m = width / Decimal::from(100);
+        let meters = Decimal::from(1000) / (gram * width_m);
+        Some((meters * Decimal::from(10)).floor() / Decimal::from(10))
+    }
+
     /// 码↔米固定换算率（单一真源）：1 米 = 1.0936 码。
     /// 该率为行业定长换算，与克重/幅宽无关；作为报价/订单「码」单位换算视图的唯一入参，
     /// 禁止调用方各自散落字面量。米↔公斤走 meters_to_kg/kg_to_meters（克重×幅宽），二者语义不同。
