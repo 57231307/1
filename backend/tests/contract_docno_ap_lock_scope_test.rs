@@ -58,8 +58,8 @@ use bingxi_backend::utils::number_generator::DocumentNumberGenerator;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection,
-    DatabaseTransaction, DbBackend, Set, Statement, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectOptions, ConnectionTrait, Database, DatabaseConnection,
+    DatabaseTransaction, DbBackend, EntityTrait, QueryFilter, Set, Statement, TransactionTrait,
 };
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -202,17 +202,15 @@ async fn query_blocked_insert(
     let row = probe
         .query_one_raw(Statement::from_sql_and_values(
             DbBackend::Postgres,
-            format!(
-                "SELECT w.pid, w.virtualtransaction::text, a.query, \
-                        EXISTS (SELECT 1 FROM pg_locks k \
-                                WHERE k.pid = w.pid AND k.locktype = 'advisory' AND k.granted \
-                                  AND k.virtualtransaction = w.virtualtransaction) \
+            "SELECT w.pid, w.virtualtransaction::text, a.query, \
+                    EXISTS (SELECT 1 FROM pg_locks k \
+                            WHERE k.pid = w.pid AND k.locktype = 'advisory' AND k.granted \
+                              AND k.virtualtransaction = w.virtualtransaction) \
                  FROM pg_locks w \
                  JOIN pg_class c ON c.oid = w.relation \
                  JOIN pg_stat_activity a ON a.pid = w.pid \
                  WHERE c.relname = $1 AND w.locktype = 'relation' AND NOT w.granted \
-                   AND a.application_name = $2"
-            ),
+                   AND a.application_name = $2",
             [
                 table.to_string().into(),
                 SERVICE_APP_NAME.to_string().into(),
@@ -224,8 +222,8 @@ async fn query_blocked_insert(
         return Ok(None);
     };
     let pid = row
-        .try_get_by_index::<i64>(0)
-        .map_err(|e| format!("等待插入会话的 pid 解码失败: {e}"))?;
+        .try_get_by_index::<i32>(0)
+        .map_err(|e| format!("等待插入会话的 pid 解码失败: {e}"))? as i64;
     let virtual_transaction = row
         .try_get_by_index::<Option<String>>(1)
         .map_err(|e| format!("virtualtransaction 解码失败: {e}"))?
@@ -330,10 +328,20 @@ async fn seed_operator(admin: &DatabaseConnection) {
     .expect("种子操作人失败");
 }
 
-/// 种子供应商：suppliers 属封存参照表跨例不清空，自增插入后回读真实主键，不用显式 id
+/// 种子供应商。suppliers 属封存参照表跨例不清空，故按编码先读回，缺行才插，
+/// 同一库上重复运行不会撞编码唯一约束
 async fn seed_supplier(admin: &DatabaseConnection, tag: &str) -> i32 {
+    let supplier_code = format!("SUP-{tag}");
+    if let Some(existing) = supplier::Entity::find()
+        .filter(supplier::Column::SupplierCode.eq(supplier_code.clone()))
+        .one(admin)
+        .await
+        .expect("按编码读回供应商失败")
+    {
+        return existing.id;
+    }
     let s = supplier::ActiveModel {
-        supplier_code: Set(format!("SUP-{tag}")),
+        supplier_code: Set(supplier_code),
         supplier_name: Set("应付取号锁契约锁供应商".to_string()),
         supplier_short_name: Set("应锁".to_string()),
         supplier_type: Set("面料供应商".to_string()),
@@ -514,14 +522,14 @@ async fn manual_ap_invoice_create_numbers_and_inserts_in_one_uncommitted_transac
 
     let req = CreateApInvoiceRequest {
         supplier_id: Some(supplier_id),
-        invoice_type: None,
+        invoice_type: Some("PURCHASE".to_string()),
         invoice_date: Some(today()),
         due_date: Some(today()),
         payment_terms: Some(DEFAULT_PAYMENT_TERMS_DAYS),
         amount: Some(dec("100.00")),
         currency: None,
         exchange_rate: None,
-        tax_amount: None,
+        tax_amount: Some(Decimal::ZERO),
         notes: None,
         attachment_urls: None,
     };
