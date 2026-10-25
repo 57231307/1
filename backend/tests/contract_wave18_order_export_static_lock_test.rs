@@ -318,7 +318,8 @@ fn clue_list(items: &[String]) -> String {
 /// 入参 row_body，由 fn_body 切出的行构造函数体；headers，该侧表头的 token 序列。
 /// 传给谁 只回调用它的断言。
 /// 存什么 不写库，返回失败线索，内含三方实际枚数、被静默跳过的锚点写法、表头有而键缺的
-/// 差集与键有而表头缺的差集；三方对齐时返回空。
+/// 差集与键有而表头缺的差集；锚点之后到串尾只剩空白时该枚写法以汉字说明呈现，不留空白；
+/// 三方对齐时返回空。
 /// 存哪里 不落地，线索只进断言消息。
 fn live_control_report(row_body: &str, headers: &[String]) -> Option<String> {
     let anchor_count = insert_anchor_positions(row_body).len();
@@ -331,6 +332,13 @@ fn live_control_report(row_body: &str, headers: &[String]) -> Option<String> {
     let skipped: Vec<String> = insert_anchor_key_forms(row_body)
         .into_iter()
         .filter(|form| !form.starts_with('"'))
+        .map(|form| {
+            if form.is_empty() {
+                "锚点后到串尾只剩空白".to_string()
+            } else {
+                form
+            }
+        })
         .collect();
     let mut pool = keys;
     let mut header_only = Vec::new();
@@ -372,7 +380,7 @@ fn quoted_tokens(seg: &str) -> Vec<String> {
     out
 }
 
-// ---- 夹具自证：注入旧形态必须被同一判据抓到（七件都在，缺一即假锁）----
+// ---- 夹具自证：注入旧形态必须被同一判据抓到（八件都在，缺一即假锁）----
 
 /// 夹具一：旧取数腿形态 `self.list_orders(1, 10000, ...)` 与被丢的 `_total` 必须点名
 #[test]
@@ -553,5 +561,65 @@ fn mutation_constant_key_reference_is_dropped_and_anchor_control_catches_it() {
         diff_clue.contains("键 4 枚") && diff_clue.contains("表头 5 枚"),
         "两侧枚数对不上时线索要同时报出键侧与表头侧枚数，实际线索 {clue}",
         clue = diff_clue
+    );
+}
+
+/// 夹具八，末枚锚点之后只剩空白到串尾
+/// 功能 让锚点定位与键写法摘要的 map_or(body.len()) 钳位与取窗自证有检测力。行构造锚点落在
+/// 函数体最后一段、其后只剩空白与换行时，锚点位置必须钳到串尾而不是越界，键写法摘要必须钳
+/// 成空文本，采集侧因该枚不以双引号开头而跳过它，活体控制再把这枚缺口连同三方实际枚数点名
+/// 出来。与夹具五分工明确：夹具五钉尾键距串尾不足一枚窗口长度时被完整捕获，本件钉尾锚点后
+/// 无键时不越界且缺口显形，两件合起来覆盖定长取窗的首尾两个炸点。本件不替代也不放宽表头
+/// 逐枚有序序列那条判据的 21 枚断言。
+/// 调用方 CI backend 测试 target 非 db 组，与夹具五、夹具七同属检测力自证。
+/// 入参 本测试就地写出的两枚锚点片段，第二枚之后只剩空白与换行。
+/// 传给谁 只回本测试断言。
+/// 存什么 不写库，断言末枚锚点位置等于函数体长度、末枚键写法摘要为空、采到的键只剩前一枚
+/// 字面量、失败线索同时带出三方枚数与这枚空白锚点的点名。
+/// 存哪里 夹具片段就地写在本文件。
+#[test]
+fn tail_anchor_followed_only_by_blanks_stays_in_bounds() {
+    let body = "    row.insert(\"订单编号\", a);\n    row.insert(   \n";
+
+    let positions = insert_anchor_positions(body);
+    assert_eq!(positions.len(), 2, "两枚行构造锚点都必须数到");
+    assert_eq!(
+        positions[1],
+        body.len(),
+        "末枚锚点之后只剩空白，位置必须钳到串尾 {}，实得 {}",
+        body.len(),
+        positions[1]
+    );
+
+    let forms = insert_anchor_key_forms(body);
+    assert_eq!(
+        forms.len(),
+        positions.len(),
+        "键写法摘要必须与锚点同序同枚数"
+    );
+    assert!(
+        forms[1].is_empty(),
+        "末枚摘要钳到串尾后必须是空文本，实得 {got:?}，非空即取窗读到了串尾之外",
+        got = forms[1]
+    );
+
+    let keys = insert_keys(body);
+    assert_eq!(
+        keys,
+        vec!["订单编号".to_string()],
+        "尾锚点之后只剩空白时只能采到前一枚字面量键，实得 {joined}",
+        joined = keys.join("、")
+    );
+
+    let headers = vec!["订单编号".to_string()];
+    let clue = live_control_report(body, &headers)
+        .unwrap_or_else(|| panic!("末枚锚点被静默跳过而活体控制放绿，枚数对齐判据没读到这枚缺口"));
+    assert!(
+        clue.contains("锚点 2 枚") && clue.contains("键 1 枚") && clue.contains("表头 1 枚"),
+        "线索必须带出三方实际枚数，实际线索 {clue}"
+    );
+    assert!(
+        clue.contains("锚点后到串尾只剩空白"),
+        "线索必须点名被跳过的是末枚空白锚点，实际线索 {clue}"
     );
 }
