@@ -1518,12 +1518,14 @@ export default {
     lotNoRequiredForColor: 'Lines with a color code must also record a lot number',
     receiptItemAltQtyRequired:
       'Line {line}: no weighed kg entered — receiving must record the weighed kilogram amount; without a weight slip, use gram weight and width on the full receipt page to derive it',
-    receiptItemAltQtyInvalid: 'Line {line}: the weighed kg value is not a valid number, enter it from the weight slip',
+    receiptItemAltQtyInvalid:
+      'Line {line}: the weighed kg value is not a valid number, enter it from the weight slip',
     receiptItemAltQtyMustBePositive:
       'Line {line}: weighed kg must be greater than 0 — 0 is not an actual weigh; without a weight slip, use gram weight and width on the full receipt page',
     receiptItemKgUnresolvable:
       'Line {line}: kilogram amount cannot be determined — enter a weighed kg greater than 0, or both gram weight and width for the system to convert',
-    receiveQtyInvalid: 'Line {line}: the received-meters value is not a valid number, enter it from the count sheet',
+    receiveQtyInvalid:
+      'Line {line}: the received-meters value is not a valid number, enter it from the count sheet',
     receiveQtyExceedsReceivable:
       'Line {line}: this receipt exceeds the remaining receivable {remaining}; enter the actual received meters',
     addReceiptTitle: 'Add Receipt',
@@ -9464,9 +9466,11 @@ export default {
         submit: 'Confirm',
       },
       message: {
-        qtyInvalid: 'Receipt line {line}: quantity must be a number greater than 0; zero and negative are not a valid receipt',
+        qtyInvalid:
+          'Receipt line {line}: quantity must be a number greater than 0; zero and negative are not a valid receipt',
         priceInvalid: 'Receipt line {line}: unit price must be a number >= 0',
-        qtyAltInvalid: 'Receipt line {line}: alt quantity must be a number greater than 0 when filled; blank means not weighed',
+        qtyAltInvalid:
+          'Receipt line {line}: alt quantity must be a number greater than 0 when filled; blank means not weighed',
         gramInvalid: 'Receipt line {line}: gram weight must be a number greater than 0 when filled',
         widthInvalid: 'Receipt line {line}: width must be a number greater than 0 when filled',
         kgUnresolvable:
@@ -12003,7 +12007,8 @@ export default {
       stockRequired: 'Select the stock row to adjust',
       stockLoadFailed: 'Failed to load stock rows',
       qtyPositive: 'Adjustment quantity must be a number greater than 0',
-      priceNonNegative: 'Leave unit cost empty if not collected; if filled it must be a number >= 0',
+      priceNonNegative:
+        'Leave unit cost empty if not collected; if filled it must be a number >= 0',
       colBatchNo: 'Batch',
       colColorNo: 'Color',
       availableQty: 'Available',
