@@ -179,14 +179,10 @@
           ><el-date-picker v-model="declForm.export_date" type="date" value-format="YYYY-MM-DD"
         /></el-form-item>
         <el-form-item label="总金额" required
-          ><el-input
-            v-model="declTotalAmountField.text"
-            @blur="declTotalAmountField.normalize()"
+          ><el-input v-model="declTotalAmountField.text" @blur="declTotalAmountField.normalize()"
         /></el-form-item>
         <el-form-item label="汇率"
-          ><el-input
-            v-model="declExchangeField.text"
-            @blur="declExchangeField.normalize()"
+          ><el-input v-model="declExchangeField.text" @blur="declExchangeField.normalize()"
         /></el-form-item>
       </el-form>
       <template #footer>

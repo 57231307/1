@@ -9,13 +9,22 @@
       </template>
       <el-form inline class="mb">
         <el-form-item label="年度"
-          ><el-input v-model="queryYearField.text" @change="onQueryYearChange" @blur="queryYearField.normalize()"
+          ><el-input
+            v-model="queryYearField.text"
+            @change="onQueryYearChange"
+            @blur="queryYearField.normalize()"
         /></el-form-item>
         <el-form-item label="月份"
-          ><el-input v-model="queryMonthField.text" @change="onQueryMonthChange" @blur="queryMonthField.normalize()"
+          ><el-input
+            v-model="queryMonthField.text"
+            @change="onQueryMonthChange"
+            @blur="queryMonthField.normalize()"
         /></el-form-item>
         <el-form-item label="员工ID"
-          ><el-input v-model="queryWorkerField.text" @change="onQueryWorkerChange" @blur="queryWorkerField.normalize()"
+          ><el-input
+            v-model="queryWorkerField.text"
+            @change="onQueryWorkerChange"
+            @blur="queryWorkerField.normalize()"
         /></el-form-item>
       </el-form>
       <el-table v-loading="loading" :data="records" border>
@@ -61,13 +70,19 @@
     <el-dialog v-model="dialogVisible" title="新建参保记录" width="480">
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工ID" required
-          ><el-input v-model="formWorkerField.text" class="w-full" @blur="formWorkerField.normalize()"
+          ><el-input
+            v-model="formWorkerField.text"
+            class="w-full"
+            @blur="formWorkerField.normalize()"
         /></el-form-item>
         <el-form-item label="年度" required
           ><el-input v-model="formYearField.text" class="w-full" @blur="formYearField.normalize()"
         /></el-form-item>
         <el-form-item label="月份" required
-          ><el-input v-model="formMonthField.text" class="w-full" @blur="formMonthField.normalize()"
+          ><el-input
+            v-model="formMonthField.text"
+            class="w-full"
+            @blur="formMonthField.normalize()"
         /></el-form-item>
         <el-form-item label="缴费基数" required
           ><el-input v-model="formBaseField.text" class="w-full" @blur="formBaseField.normalize()"
@@ -157,18 +172,10 @@ const formBaseSpec: NumberFieldSpec = {
   min: 0,
   precision: 2,
 };
-const formWorkerField = useNumberField(
-  toRef(form, 'worker_id'),
-  formWorkerSpec,
-  'undefined'
-);
+const formWorkerField = useNumberField(toRef(form, 'worker_id'), formWorkerSpec, 'undefined');
 const formYearField = useNumberField(toRef(form, 'period_year'), formYearSpec);
 const formMonthField = useNumberField(toRef(form, 'period_month'), formMonthSpec);
-const formBaseField = useNumberField(
-  toRef(form, 'base_amount'),
-  formBaseSpec,
-  'undefined'
-);
+const formBaseField = useNumberField(toRef(form, 'base_amount'), formBaseSpec, 'undefined');
 
 const onQueryYearChange = () => {
   queryYearField.normalize();

@@ -228,11 +228,7 @@
           <el-input v-model="rateForm.process_name" />
         </el-form-item>
         <el-form-item label="费率">
-          <el-input
-            v-model="wageRateField.text"
-            class="w-full"
-            @blur="wageRateField.normalize()"
-          />
+          <el-input v-model="wageRateField.text" class="w-full" @blur="wageRateField.normalize()" />
         </el-form-item>
         <el-form-item label="生效日期">
           <el-date-picker
@@ -508,11 +504,7 @@ const rateRouteSpec: NumberFieldSpec = {
   precision: 0,
 };
 const wageRateSpec: NumberFieldSpec = { label: '费率', min: 0, precision: 2 };
-const rateRouteField = useNumberField(
-  toRef(rateForm, 'route_id'),
-  rateRouteSpec,
-  'undefined'
-);
+const rateRouteField = useNumberField(toRef(rateForm, 'route_id'), rateRouteSpec, 'undefined');
 const wageRateField = useNumberField(toRef(rateForm, 'wage_rate'), wageRateSpec);
 
 const loadRates = async () => {

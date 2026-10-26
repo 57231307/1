@@ -7,7 +7,16 @@
 // watch 模型被外部改写（对话框回填 resetFields 编辑回显）时自动清草稿 防陈旧输入残留
 // validateNumberValue 与 numberFieldRule 单独导出 供提交前手工守门与行内单元格复用
 
-import { computed, effectScope, onScopeDispose, ref, toRef, watch, type Ref, type WritableComputedRef } from 'vue';
+import {
+  computed,
+  effectScope,
+  onScopeDispose,
+  ref,
+  toRef,
+  watch,
+  type Ref,
+  type WritableComputedRef,
+} from 'vue';
 import type { FormItemRule } from 'element-plus';
 
 export interface NumberFieldSpec {
@@ -75,9 +84,7 @@ export function displayNumberText(value: NumModel): string {
 /** 值校验单点实现 返回错误消息 合法返回 null */
 export function validateNumberValue(value: unknown, spec: NumberFieldSpec): string | null {
   if (value === null || value === undefined || value === '') {
-    return spec.required
-      ? spec.requiredMessage ?? `请输入${spec.label}`
-      : null;
+    return spec.required ? (spec.requiredMessage ?? `请输入${spec.label}`) : null;
   }
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) {

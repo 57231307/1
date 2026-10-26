@@ -273,10 +273,7 @@ const submitReconciliation = async () => {
     ElMessage.warning(t('arModule.reconciliation.selectCustomer'));
     return;
   }
-  const invoicesInvalid = validateNumberValue(
-    reconciliationForm.total_invoices,
-    totalInvoicesSpec
-  );
+  const invoicesInvalid = validateNumberValue(reconciliationForm.total_invoices, totalInvoicesSpec);
   if (invoicesInvalid) {
     ElMessage.warning(invoicesInvalid);
     return;

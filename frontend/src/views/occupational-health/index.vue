@@ -70,7 +70,10 @@
     <el-dialog v-model="examDialogVisible" title="新建体检记录" width="520">
       <el-form :model="examForm" label-width="100px">
         <el-form-item label="员工ID" required
-          ><el-input v-model="examWorkerField.text" class="w-full" @blur="examWorkerField.normalize()"
+          ><el-input
+            v-model="examWorkerField.text"
+            class="w-full"
+            @blur="examWorkerField.normalize()"
         /></el-form-item>
         <el-form-item label="体检类型" required>
           <el-select v-model="examForm.exam_type" class="w-full">
@@ -176,7 +179,10 @@
     <el-dialog v-model="ppeDialogVisible" title="新建发放记录" width="520">
       <el-form :model="ppeForm" label-width="110px">
         <el-form-item label="员工ID" required
-          ><el-input v-model="ppeWorkerField.text" class="w-full" @blur="ppeWorkerField.normalize()"
+          ><el-input
+            v-model="ppeWorkerField.text"
+            class="w-full"
+            @blur="ppeWorkerField.normalize()"
         /></el-form-item>
         <el-form-item label="用品名称" required
           ><el-input v-model="ppeForm.ppe_name"
@@ -338,11 +344,7 @@ const examForm = reactive({
 
 // 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
 const examWorkerSpec: NumberFieldSpec = { label: '员工ID', required: true, min: 1, precision: 0 };
-const examWorkerField = useNumberField(
-  toRef(examForm, 'worker_id'),
-  examWorkerSpec,
-  'undefined'
-);
+const examWorkerField = useNumberField(toRef(examForm, 'worker_id'), examWorkerSpec, 'undefined');
 
 async function loadExams() {
   loading.value = true;

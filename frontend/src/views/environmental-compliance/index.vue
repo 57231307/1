@@ -96,10 +96,7 @@
           <el-input v-model="permitForm.issuing_authority" />
         </el-form-item>
         <el-form-item label="许可量">
-          <el-input
-            v-model="permitCapacityField.text"
-            @blur="permitCapacityField.normalize()"
-          />
+          <el-input v-model="permitCapacityField.text" @blur="permitCapacityField.normalize()" />
         </el-form-item>
         <el-form-item label="许可量单位">
           <el-input v-model="permitForm.capacity_unit" placeholder="如：t/a" />
@@ -298,10 +295,7 @@ const recordForm = reactive({
 const measuredValueSpec = { label: '实测值', required: true, min: 0, precision: 3 } as const;
 const limitValueSpec = { label: '限值', required: true, min: 0, precision: 3 } as const;
 const equipmentIdSpec = { label: '设备 ID', min: 1, precision: 0 } as const;
-const measuredValueField = useNumberField(
-  toRef(recordForm, 'measured_value'),
-  measuredValueSpec
-);
+const measuredValueField = useNumberField(toRef(recordForm, 'measured_value'), measuredValueSpec);
 const limitValueField = useNumberField(toRef(recordForm, 'limit_value'), limitValueSpec);
 const equipmentIdField = useNumberField(
   toRef(recordForm, 'equipment_id'),
