@@ -35,7 +35,7 @@ export interface SalesPrice {
 // 写接口入参：逐字段对齐后端 CreateSalesPriceInput / UpdateSalesPriceInput，
 // 不声明后端不接收的键（status/remark(s) 等在 DTO 中不存在，发出即死键）。
 // price/min_order_qty 写线格式 = string：后端 Decimal 对整数也精确、对浮点不拒但丢精度，
-// 十进制字符串是唯一精确且全域的形态；编辑态（el-input-number）为 number，
+// 十进制字符串是唯一精确且全域的形态；编辑态数值录入为 number，
 // 由 composables/useSp.ts 在提交边界转十进制字符串；缺值必须省略键（不许伪造 0/''）。
 export interface SalesPriceCreateInput {
   product_id: number;
