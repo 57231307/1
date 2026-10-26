@@ -2,7 +2,6 @@ package com.bingxi.erp
 
 import android.app.Activity
 import android.content.Context
-import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
@@ -14,7 +13,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.annotation.RequiresApi
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -165,11 +163,6 @@ class SystemPrintPlugin(private val activity: Activity) : Plugin(activity) {
         callback: PrintDocumentAdapter.WriteResultCallback
       ) {
         inner.onWrite(pages, destination, cancellationSignal, callback)
-      }
-
-      @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-      override fun onFeatureFailed(exception: PrintDocumentAdapter.FeatureFailedException) {
-        inner.onFeatureFailed(exception)
       }
 
       override fun onFinish() {
