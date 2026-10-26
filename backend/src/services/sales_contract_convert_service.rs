@@ -14,10 +14,14 @@
 //!   依据：作废/驳回合同不承载有效权利义务，重试转换是行业常态（重新签约）；
 //!   部分成交拆签（一单两约）亦为纺织外贸常见诉求，故不做订单级硬唯一约束。
 //!   回退：若业务裁定"一单一号"，只需在判据处把状态集合收窄或补部分唯一索引。
-//! - 订单状态门：仅 cancelled/rejected 终态不可转，其余（draft/pending/approved/
-//!   partial_shipped/shipped/completed）可转。依据：本链路产出的是 draft 合同，
-//!   仍需走合同审批链，无不可逆效果；事后补签合同真实存在。回退：收窄门为
-//!   approved 起转只改 is_convertible_status 一处 matches!。
+//! - 订单状态门（与销售订单生产入口门同源，见 ensure_convertible_status）：只放行
+//!   已审核起的活跃态 approved/partial_shipped/shipped/completed，draft/pending（未审核）
+//!   与 cancelled/rejected（失效）一律拒绝。依据：本仓订单进入下游履约的统一前置是
+//!   「已审核」，发货门要 approved/partial_shipped、拒绝取消门只认活跃态，转合同与之
+//!   同为审核通过后才允许推进的动作，门须逐态一致，避免未审核草稿已能签约却连货都不能发
+//!   的自相矛盾；含 shipped/completed 是事后补签真实存在，合同仍走自身审批链无不可逆效果。
+//!   回退：若业务裁定未审核也允许预签，只需放开 ensure_convertible_status 的放行集一处
+//!   matches!，但须同步重开发货侧门以维持同源。
 //!
 //! 金额同源：行折算与表头合计一律走 `crate::services::so::amounts`，与订单建单
 //! 链共用同一实现；本文件零自算金额。
@@ -158,15 +162,39 @@ impl SalesContractConvertService {
         Self { db: state.db.clone() }
     }
 
-    /// 可转状态门：终态（cancelled/rejected）订单不可转，其余放行。
+    /// 可转状态门（与销售订单生产入口门同源）。
+    ///
+    /// 存在理由：本仓销售订单进入下游履约的统一前置是「已审核」，发货门
+    /// （services/so/delivery_ops/ship.rs）判定 order.status 为 approved 或
+    /// partial_shipped 才放行，拒绝与取消门（services/so/order_workflow.rs）也只
+    /// 认 draft/pending/approved/partial_shipped 这一组活跃态。转合同与发货同属
+    /// 「订单审核通过之后才允许推进的下游动作」，前置门必须与之逐态一致，否则会出现
+    /// 一张尚未审核通过的草稿订单已能签出合同、而它连货都还不能发的自相矛盾。
+    ///
+    /// 因此放行集取「已审核且尚未了结的活跃态」approved/partial_shipped/shipped/
+    /// completed（含 shipped/completed 是纺织外贸事后补签合同真实存在，与发货门不冲突，
+    /// 合同仍需走自身审批链）；draft/pending（未审核）与 cancelled/rejected（失效）一律
+    /// 拒绝。取值只引用 sales_order 词表常量，门内不写第二套字面量。
     fn ensure_convertible_status(status: &str) -> Result<(), AppError> {
-        if matches!(status, so_status::CANCELLED | so_status::REJECTED) {
+        if matches!(
+            status,
+            so_status::APPROVED
+                | so_status::PARTIAL_SHIPPED
+                | so_status::SHIPPED
+                | so_status::COMPLETED
+        ) {
+            return Ok(());
+        }
+        if matches!(status, so_status::DRAFT | so_status::PENDING) {
             return Err(AppError::business(format!(
-                "销售订单状态为 {}，已了结或失效，不能转销售合同",
+                "销售订单状态为 {}，尚未审核通过，不能转销售合同；请先完成订单审核",
                 status
             )));
         }
-        Ok(())
+        Err(AppError::business(format!(
+            "销售订单状态为 {}，已了结或失效，不能转销售合同",
+            status
+        )))
     }
 
     /// 读取订单全部明细行并按主键升序返回（preview 与 convert 共用形态）

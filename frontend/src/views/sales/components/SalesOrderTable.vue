@@ -46,6 +46,18 @@ const canCreateBulkColor = computed(() =>
   hasRoutePermission(PERMISSIONS.INVENTORY_READ, userStore.userInfo?.permissions || [])
 );
 
+// 「转合同」入口与后端转换门同源的可见性判定：
+// 1) 权限：转换端点运行期派生 sales-contracts:create（POST /sales/sales-contracts/from-order/{id}，
+//    末段非动作关键字按方法派生 create），无该键者不渲染（点了必 403 的死入口）。
+// 2) 状态：仅放行「已审核起活跃态」approved/partial_shipped/shipped/completed，与后端
+//    sales_contract_convert_service::ensure_convertible_status 逐态一致（draft/pending 未审核、
+//    cancelled/rejected 失效均不给入口）。是否已转（重复转换）由对话框打开 preview 后按
+//    existing_contract 提示，按钮侧不预判（避免列表多打一次 preview）。
+const CONVERTIBLE_STATUSES = ['approved', 'partial_shipped', 'shipped', 'completed'];
+const canConvertContract = computed(() =>
+  hasRoutePermission(PERMISSIONS.SALES_CONTRACT_CREATE, userStore.userInfo?.permissions || [])
+);
+
 /**
  * 销售订单列表 V2Table 包装组件
  * - 列定义由父组件通过 columns prop 传入（来自 useOlv.composables）
@@ -79,6 +91,7 @@ const emit = defineEmits<{
   reject: [row: SalesOrder];
   deleteOrder: [row: SalesOrder];
   detail: [row: SalesOrder];
+  convertContract: [row: SalesOrder];
 }>();
 
 /** 组装完整列定义：父列 + 操作列 */
@@ -89,8 +102,9 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
     title: t('sales.table.operation'),
     // 操作列按钮按状态条件渲染且同行并列：已审批/部分发货态最多 6 个按钮
     // （查看/详情/发货/预留库存/发起批色/取消），其中「预留库存」「发起批色」为四字标签；
-    // 原 430 按旧最多按钮行取值，新增「发起批色」入口后需再加宽避免 fixed 列内溢出换行
-    width: 510,
+    // 原 430 按旧最多按钮行取值，新增「发起批色」入口后需再加宽避免 fixed 列内溢出换行；
+    // 再叠加「转合同」三字入口，活跃态最多 7 个按钮，宽度续加。
+    width: 600,
     fixed: 'right',
     renderCell: (row: SalesOrder) => {
       const buttons = [
@@ -222,6 +236,22 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               onClick: () => emit('cancel', row),
             },
             { default: () => t('sales.table.cancel') }
+          )
+        );
+      }
+      // 转合同入口：仅「已审核起活跃态」且持 sales-contracts:create 才渲染，与后端转换门同源。
+      // 重复转换不在这里预判，点开后 preview 命中既有非终态合同会给跳转提示并禁用提交。
+      if (canConvertContract.value && CONVERTIBLE_STATUSES.includes(row.status)) {
+        buttons.push(
+          h(
+            ElButton,
+            {
+              size: 'small',
+              link: true,
+              type: 'primary',
+              onClick: () => emit('convertContract', row),
+            },
+            { default: () => t('sales.table.convertContract') }
           )
         );
       }

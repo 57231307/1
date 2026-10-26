@@ -620,6 +620,14 @@ impl InitService {
                     ("fabric-orders", "create"),
                     ("quotations", "read"),
                     ("quotations", "create"),
+                    // 销售合同建单与订单转合同：本岗负责起草合同（手工建单 POST
+                    // /sales/sales-contracts 与销售订单转合同 POST /sales/sales-contracts/
+                    // from-order/{id} 运行期同派生为 sales-contracts:create；转合同预填读口
+                    // GET /sales/sales-contracts/preview-from-order/{id} 派生 sales-contracts:read）。
+                    // 审批通过/拒绝仍归 sales_manager（SoD 建审分离，与 quotations 同口径），
+                    // 本岗不授 approve/reject，成对性锁见 tests/contract_wave11_approve_reject_pairing_test.rs。
+                    ("sales-contracts", "read"),
+                    ("sales-contracts", "create"),
                     ("customers", "read"),
                     ("customers", "create"),
                     // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键，

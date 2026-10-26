@@ -240,3 +240,97 @@ export function executeSalesContract(
 export function cancelSalesContract(id: number, reason: string): Promise<ApiResponse<void>> {
   return request.put(`/sales/sales-contracts/${id}/cancel`, { reason });
 }
+
+/* ------------------------------------------------------------------ *
+ * 销售订单 → 销售合同 转换（预填带出 + 事务化建单）
+ * 对齐后端 services/sales_contract_convert_service.rs 与 handlers 的 preview/convert 端点。
+ * 金额口径：preview 各金额/折扣/税列为来源订单行存量值（后端经 so/amounts 产出，Decimal⇒string）；
+ * 提交转换时前端只回传可编辑白名单（数量、单价、色号、允差、备注、交期、表头口径字段），
+ * 折扣率/税率/金额一律不送，由后端回读订单行原值重算。
+ * ------------------------------------------------------------------ */
+
+/** 转换预填单行（后端 ContractPreviewItem，逐字段对齐；Decimal 序列化为 string） */
+export interface ContractPreviewItem {
+  order_item_id: number;
+  product_id: number;
+  product_code: string;
+  product_name: string;
+  product_spec: string | null;
+  unit: string;
+  quantity: string;
+  unit_price: string;
+  discount_percent: string;
+  discount_amount: string;
+  tax_percent: string;
+  tax_amount: string;
+  subtotal: string;
+  total_amount: string;
+  color_no: string;
+  width: string | null;
+  gram_weight: string | null;
+  fabric_composition: string | null;
+  quantity_tolerance_pct: string | null;
+  delivery_date: string | null;
+  remarks: string | null;
+}
+
+/** 该订单既有非终态转换合同指针（存在则前端给跳转提示、不再重复转换） */
+export interface ExistingContract {
+  id: number;
+  contract_no: string;
+  status: string;
+}
+
+/** 转换预填出参（后端 ContractPreview） */
+export interface ContractPreview {
+  order_id: number;
+  order_no: string;
+  customer_id: number;
+  customer_name: string | null;
+  default_contract_name: string;
+  default_delivery_date: string | null;
+  default_remark: string | null;
+  items: ContractPreviewItem[];
+  existing_contract: ExistingContract | null;
+}
+
+/** 转换提交单行（后端 ConvertItemDto 可编辑白名单；无折扣/税率/金额通道） */
+export interface ConvertItemPayload {
+  order_item_id: number;
+  quantity: number;
+  unit_price: number;
+  delivery_date?: string | null;
+  color_no?: string | null;
+  quantity_tolerance_pct?: number | null;
+  remarks?: string | null;
+}
+
+/** 转换提交表头（后端 ConvertFromOrderDto；客户不在入参内，签约主体与订单一致） */
+export interface ConvertFromOrderPayload {
+  contract_name: string;
+  contract_type?: string | null;
+  payment_terms?: string | null;
+  payment_method?: string | null;
+  signed_date?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  delivery_date?: string | null;
+  delivery_location?: string | null;
+  remark?: string | null;
+  items: ConvertItemPayload[];
+}
+
+/** 预填读取：按销售订单 id 带出合同预填数据（GET /sales/sales-contracts/preview-from-order/{id}） */
+export function previewConvertFromOrder(
+  orderId: number
+): Promise<ApiResponse<ContractPreview>> {
+  return request.get(`/sales/sales-contracts/preview-from-order/${orderId}`);
+}
+
+/** 提交转换：由销售订单建销售合同草稿（POST /sales/sales-contracts/from-order/{id}），返回合同头 */
+export function convertOrderToContract(
+  orderId: number,
+  data: ConvertFromOrderPayload
+): Promise<ApiResponse<SalesContract>> {
+  return request.post(`/sales/sales-contracts/from-order/${orderId}`, data);
+}

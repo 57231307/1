@@ -136,7 +136,14 @@ impl SalesContractService {
     /// - 购销合同（sale / purchase_sale）：总金额 * 0.3‰
     /// - 加工承揽合同（processing / processing_contract）：总金额 * 0.5‰
     /// - 其他类型：不计算
-    fn calculate_stamp_tax(contract_type: Option<&str>, total_amount: Decimal) -> Option<Decimal> {
+    ///
+    /// 可见性 pub(crate)：手工建单（本文件 create）与销售订单转合同
+    /// （sales_contract_convert_service）两条链路共用同一印花税算法，税率与
+    /// 取值口径只能有一处，转单侧不得复刻一份。
+    pub(crate) fn calculate_stamp_tax(
+        contract_type: Option<&str>,
+        total_amount: Decimal,
+    ) -> Option<Decimal> {
         let rate = match contract_type? {
             "sale" | "purchase_sale" => Decimal::new(3, 4), // 0.0003 = 0.3‰
             "processing" | "processing_contract" => Decimal::new(5, 4), // 0.0005 = 0.5‰
@@ -230,7 +237,10 @@ impl SalesContractService {
 
     /// 构建销售合同 ActiveModel（人工编号与自动取号两条路径共用字段装配，仅编号来源不同；
     /// `insert_with_no_retry` 的重试闭包要求可按候选号重复构建）
-    fn build_sales_contract_active_model(
+    ///
+    /// 可见性 pub(crate)：销售订单转合同链路（sales_contract_convert_service）复用同一
+    /// 字段装配建合同头，编号来源与手工链路一致，表头字段口径不得有两套。
+    pub(crate) fn build_sales_contract_active_model(
         contract_no: String,
         req: &CreateSalesContractRequest,
         customer_name: String,
@@ -256,6 +266,11 @@ impl SalesContractService {
             remark: Set(req.remark.clone()),
             stamp_tax_amount: Set(stamp_tax),
             created_by: Set(user_id),
+            // 溯源列必须在此显式落值。手工建档链路 req.source_order_id 恒 None，落 NULL
+            // 即"无来源订单"；转单链路传入真实订单 ID，若漏本行则 ..Default::default() 会把
+            // 该列留成 Unset，INSERT 落库恒 NULL，转单来源指向静默丢失（重复判定与按来源
+            // 筛选随之全部失效）。这是转单通路的核心回指关系，不得依赖默认值。
+            source_order_id: Set(req.source_order_id),
             ..Default::default()
         }
     }
