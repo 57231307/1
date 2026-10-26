@@ -551,17 +551,18 @@ async fn judge_is_table_driven_under_limit_mutation() {
         .expect("结果行必须含 HCHO");
     assert_eq!(before.verdict, "fail", "变异前 90 对 75 必须 fail");
 
-    // 变异：B 类甲醛上限 75 → 100
-    let mut rule = LimitRule::find()
+    // 变异：B 类甲醛上限 75 → 100，Model 需转 ActiveModel 后才能写回
+    let fresh = LimitRule::find()
         .filter(LimitColumn::ItemId.eq(item.id))
         .filter(LimitColumn::SafetyCategory.eq(textile_safety_category::CLASS_B))
         .one(&*db)
         .await
         .unwrap()
         .expect("种子必须含 B 类甲醛行");
-    let original_high = rule.limit_high;
-    rule.limit_high = Set(Some(dec("100")));
-    rule.update(&*db).await.unwrap();
+    let original_high = fresh.limit_high;
+    let mut mutate: LimitActiveModel = fresh.into();
+    mutate.limit_high = Set(Some(dec("100")));
+    mutate.update(&*db).await.unwrap();
     let service = TextileSafetyReportService::new(db.clone());
     let reports = service.list_by_submission(sid).await.unwrap();
     let judged = service
