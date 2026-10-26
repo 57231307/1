@@ -4,23 +4,19 @@
       <div class="page-header">
         <h2>出口退税管理</h2>
         <div class="header-actions">
-          <el-input-number
-            v-model="queryYear"
+          <el-input
+            v-model="queryYearField.text"
             placeholder="年份"
-            :min="2000"
-            :max="2100"
-            :controls="false"
             style="width: 110px"
-            @change="handleFilter"
+            @change="onQueryYearChange"
+            @blur="queryYearField.normalize()"
           />
-          <el-input-number
-            v-model="queryMonth"
+          <el-input
+            v-model="queryMonthField.text"
             placeholder="月份"
-            :min="1"
-            :max="12"
-            :controls="false"
             style="width: 90px"
-            @change="handleFilter"
+            @change="onQueryMonthChange"
+            @blur="queryMonthField.normalize()"
           />
           <el-button type="primary" @click="createVisible = true">生成申报表</el-button>
           <el-button type="primary" plain @click="declarationVisible = true">新建报关单</el-button>
@@ -78,47 +74,38 @@
     >
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="120px">
         <el-form-item label="所属年份" prop="period_year">
-          <el-input-number
-            v-model="createForm.period_year"
-            :min="2000"
-            :max="2100"
-            :precision="0"
+          <el-input
+            v-model="createYearField.text"
             style="width: 100%"
+            @blur="createYearField.normalize()"
           />
         </el-form-item>
         <el-form-item label="所属月份" prop="period_month">
-          <el-input-number
-            v-model="createForm.period_month"
-            :min="1"
-            :max="12"
-            :precision="0"
+          <el-input
+            v-model="createMonthField.text"
             style="width: 100%"
+            @blur="createMonthField.normalize()"
           />
         </el-form-item>
         <el-form-item label="退税率" prop="refund_rate">
-          <el-input-number
-            v-model="createForm.refund_rate"
-            :min="0"
-            :max="1"
-            :precision="4"
-            :step="0.01"
+          <el-input
+            v-model="createRateField.text"
             style="width: 100%"
+            @blur="createRateField.normalize()"
           />
         </el-form-item>
         <el-form-item label="进项税额" prop="input_vat_amount">
-          <el-input-number
-            v-model="createForm.input_vat_amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="createInputVatField.text"
             style="width: 100%"
+            @blur="createInputVatField.normalize()"
           />
         </el-form-item>
         <el-form-item label="上期留抵税额" prop="carryforward_from_prev">
-          <el-input-number
-            v-model="createForm.carryforward_from_prev"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="createCarryField.text"
             style="width: 100%"
+            @blur="createCarryField.normalize()"
           />
         </el-form-item>
       </el-form>
@@ -144,11 +131,10 @@
           <el-input v-model="declarationForm.declaration_no" placeholder="必填" />
         </el-form-item>
         <el-form-item label="销售订单 ID" prop="sales_order_id">
-          <el-input-number
-            v-model="declarationForm.sales_order_id"
-            :min="1"
-            :precision="0"
+          <el-input
+            v-model="declSalesOrderField.text"
             style="width: 100%"
+            @blur="declSalesOrderField.normalize()"
           />
         </el-form-item>
         <el-form-item label="出口日期" prop="export_date">
@@ -167,19 +153,17 @@
           <el-input v-model="declarationForm.currency_code" placeholder="如 USD" />
         </el-form-item>
         <el-form-item label="总金额" prop="total_amount">
-          <el-input-number
-            v-model="declarationForm.total_amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="declTotalAmountField.text"
             style="width: 100%"
+            @blur="declTotalAmountField.normalize()"
           />
         </el-form-item>
         <el-form-item label="汇率" prop="exchange_rate">
-          <el-input-number
-            v-model="declarationForm.exchange_rate"
-            :min="0"
-            :precision="6"
+          <el-input
+            v-model="declExchangeField.text"
             style="width: 100%"
+            @blur="declExchangeField.normalize()"
           />
         </el-form-item>
         <el-form-item label="海关编码" prop="customs_code">
@@ -200,37 +184,31 @@
     <el-dialog v-model="calcVisible" title="免抵退税额试算" width="520px">
       <el-form :model="calcForm" label-width="120px">
         <el-form-item label="出口销售额">
-          <el-input-number
-            v-model="calcForm.export_sales_amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="calcSalesField.text"
             style="width: 100%"
+            @blur="calcSalesField.normalize()"
           />
         </el-form-item>
         <el-form-item label="退税率">
-          <el-input-number
-            v-model="calcForm.refund_rate"
-            :min="0"
-            :max="1"
-            :precision="4"
-            :step="0.01"
+          <el-input
+            v-model="calcRateField.text"
             style="width: 100%"
+            @blur="calcRateField.normalize()"
           />
         </el-form-item>
         <el-form-item label="进项税额">
-          <el-input-number
-            v-model="calcForm.input_vat_amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="calcInputVatField.text"
             style="width: 100%"
+            @blur="calcInputVatField.normalize()"
           />
         </el-form-item>
         <el-form-item label="上期留抵税额">
-          <el-input-number
-            v-model="calcForm.carryforward_from_prev"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="calcCarryField.text"
             style="width: 100%"
+            @blur="calcCarryField.normalize()"
           />
         </el-form-item>
         <el-form-item>
@@ -259,7 +237,11 @@
     <el-dialog v-model="verifyVisible" title="单证齐全校验" width="420px">
       <el-form label-width="120px">
         <el-form-item label="销售订单 ID">
-          <el-input-number v-model="verifyOrderId" :min="1" :precision="0" style="width: 100%" />
+          <el-input
+            v-model="verifyOrderField.text"
+            style="width: 100%"
+            @blur="verifyOrderField.normalize()"
+          />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="submitLoading" @click="submitVerify">校验</el-button>
@@ -279,9 +261,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, toRef } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { useNumberField } from '@/composables/useNumberField';
 import {
   getRefundDeclarationList,
   generateRefundDeclaration,
@@ -320,6 +303,18 @@ const verifyResult = ref<boolean | null>(null);
 const createFormRef = ref<FormInstance>();
 const declarationFormRef = ref<FormInstance>();
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const queryYearField = useNumberField(
+  queryYear,
+  { label: '年份', min: 2000, max: 2100, precision: 0 },
+  'undefined'
+);
+const queryMonthField = useNumberField(
+  queryMonth,
+  { label: '月份', min: 1, max: 12, precision: 0 },
+  'undefined'
+);
+
 const createForm = reactive<{
   period_year: number | undefined;
   period_month: number | undefined;
@@ -334,11 +329,48 @@ const createForm = reactive<{
   carryforward_from_prev: 0,
 });
 
+const createYearField = useNumberField(toRef(createForm, 'period_year'), {
+  label: '所属年份',
+  required: true,
+  min: 2000,
+  max: 2100,
+  precision: 0,
+  requiredMessage: '请输入所属年份',
+});
+const createMonthField = useNumberField(toRef(createForm, 'period_month'), {
+  label: '所属月份',
+  required: true,
+  min: 1,
+  max: 12,
+  precision: 0,
+  requiredMessage: '请输入所属月份',
+});
+const createRateField = useNumberField(toRef(createForm, 'refund_rate'), {
+  label: '退税率',
+  required: true,
+  min: 0,
+  max: 1,
+  precision: 4,
+  requiredMessage: '请输入退税率',
+});
+const createInputVatField = useNumberField(toRef(createForm, 'input_vat_amount'), {
+  label: '进项税额',
+  required: true,
+  min: 0,
+  precision: 2,
+  requiredMessage: '请输入进项税额',
+});
+const createCarryField = useNumberField(toRef(createForm, 'carryforward_from_prev'), {
+  label: '上期留抵税额',
+  min: 0,
+  precision: 2,
+});
+
 const createRules: FormRules = {
-  period_year: [{ required: true, message: '请输入所属年份', trigger: 'blur' }],
-  period_month: [{ required: true, message: '请输入所属月份', trigger: 'blur' }],
-  refund_rate: [{ required: true, message: '请输入退税率', trigger: 'blur' }],
-  input_vat_amount: [{ required: true, message: '请输入进项税额', trigger: 'blur' }],
+  period_year: [createYearField.rule],
+  period_month: [createMonthField.rule],
+  refund_rate: [createRateField.rule],
+  input_vat_amount: [createInputVatField.rule],
 };
 
 const declarationForm = reactive<{
@@ -363,11 +395,31 @@ const declarationForm = reactive<{
   remarks: '',
 });
 
+const declSalesOrderField = useNumberField(
+  toRef(declarationForm, 'sales_order_id'),
+  { label: '销售订单 ID', min: 1, precision: 0 },
+  'undefined'
+);
+const declTotalAmountField = useNumberField(toRef(declarationForm, 'total_amount'), {
+  label: '总金额',
+  required: true,
+  min: 0,
+  precision: 2,
+  requiredMessage: '请输入总金额',
+});
+const declExchangeField = useNumberField(toRef(declarationForm, 'exchange_rate'), {
+  label: '汇率',
+  required: true,
+  min: 0,
+  precision: 6,
+  requiredMessage: '请输入汇率',
+});
+
 const declarationRules: FormRules = {
   declaration_no: [{ required: true, message: '请输入报关单号', trigger: 'blur' }],
   export_date: [{ required: true, message: '请选择出口日期', trigger: 'change' }],
-  total_amount: [{ required: true, message: '请输入总金额', trigger: 'blur' }],
-  exchange_rate: [{ required: true, message: '请输入汇率', trigger: 'blur' }],
+  total_amount: [declTotalAmountField.rule],
+  exchange_rate: [declExchangeField.rule],
 };
 
 const calcForm = reactive({
@@ -376,6 +428,33 @@ const calcForm = reactive({
   input_vat_amount: undefined as number | undefined,
   carryforward_from_prev: 0,
 });
+
+const calcSalesField = useNumberField(
+  toRef(calcForm, 'export_sales_amount'),
+  { label: '出口销售额', min: 0, precision: 2 },
+  'undefined'
+);
+const calcRateField = useNumberField(
+  toRef(calcForm, 'refund_rate'),
+  { label: '退税率', min: 0, max: 1, precision: 4 },
+  'undefined'
+);
+const calcInputVatField = useNumberField(
+  toRef(calcForm, 'input_vat_amount'),
+  { label: '进项税额', min: 0, precision: 2 },
+  'undefined'
+);
+const calcCarryField = useNumberField(toRef(calcForm, 'carryforward_from_prev'), {
+  label: '上期留抵税额',
+  min: 0,
+  precision: 2,
+});
+
+const verifyOrderField = useNumberField(
+  verifyOrderId,
+  { label: '销售订单 ID', min: 1, precision: 0 },
+  'undefined'
+);
 
 /** 响应解包防御：兼容数组 / { items } / { list } 分页包装，避免 el-table "r is not iterable" */
 const unwrapList = (payload: unknown): ExportRefundDeclaration[] => {
@@ -411,6 +490,16 @@ const loadList = async () => {
 
 const handleFilter = () => {
   loadList();
+};
+
+const onQueryYearChange = () => {
+  queryYearField.normalize();
+  handleFilter();
+};
+
+const onQueryMonthChange = () => {
+  queryMonthField.normalize();
+  handleFilter();
 };
 
 const resetCreateForm = () => {
