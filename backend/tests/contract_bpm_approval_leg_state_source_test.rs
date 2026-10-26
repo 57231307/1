@@ -300,22 +300,22 @@ async fn pending_task(db: &DatabaseConnection, instance_id: i32) -> bpm_task::Mo
         .expect("实例下必须有待办任务")
 }
 
-/// 正向等价：同一报价单分别经「流程审批中心（execute_approval 等价 approve_task）」与
-/// 「快捷审批（QuotationApprovalService::approve）」办理同一意见后，落库的业务状态、
-/// 审批人记录、时间戳、审批历史轨迹逐字段完全同源。
+/// 双向往等价（正向通过 + 反向驳回）合并成单用例：
+/// 同一测试二进制并行两 tokio 会撞 `bpm_process_definition_code_key` 唯一约束
+/// （两 test 都要 seed 同 code 定义，cargo 并行线程 setup_test_db 各自 TRUNCATE 会互相拆台）；
+/// 合入一条 test 内顺序执行即可完全避锋，正向与反向断言逻辑不变。
 #[tokio::test]
-async fn forward_center_and_quick_are_state_identical_live() {
+async fn center_and_quick_are_state_identical_live() {
     let db = Arc::new(test_common::setup_test_db().await);
-    let initiator = seed_user(&db, "src_forward_initiator").await;
-    let approver = seed_user(&db, "src_forward_approver").await;
+    let initiator = seed_user(&db, "src_initiator").await;
+    let approver = seed_user(&db, "src_approver").await;
     let customer_id = seed_customer(&db, initiator).await;
     seed_active_definition(&db, "quotation_approval", approver).await;
-
-    let opinion = "同意：单价符合协议区间与报价口径";
-
-    // 单据 A：流程审批中心入口。提交建实例 → 直接经 approve_task 办理（等价 execute_approval）。
-    let a_id = seed_quotation(&db, customer_id, initiator).await;
     let svc = QuotationApprovalService::new(db.clone());
+
+    // ---------- 正向（通过）----------
+    let opinion = "同意：单价符合协议区间与报价口径";
+    let a_id = seed_quotation(&db, customer_id, initiator).await;
     let a_sub = svc
         .submit(a_id, initiator)
         .await
@@ -337,12 +337,10 @@ async fn forward_center_and_quick_are_state_identical_live() {
         )
         .await
         .expect("中心办理通过失败");
-    // 中心侧业务写口（事件回写等价）：approve_via_bpm 与快捷共用同一 builder
     svc.approve_via_bpm(a_id, approver)
         .await
         .expect("中心侧业务回写通过失败");
 
-    // 单据 B：快捷审批入口。提交 → svc.approve(带意见)。
     let b_id = seed_quotation(&db, customer_id, initiator).await;
     let b_sub = svc
         .submit(b_id, initiator)
@@ -354,20 +352,19 @@ async fn forward_center_and_quick_are_state_identical_live() {
         .await
         .expect("快捷审批通过失败");
 
-    // 读取两单据的 BPM 任务轨迹并逐字段比对
     let a_task = bpm_task::Entity::find_by_id(a_task.id)
         .one(&*db)
         .await
         .unwrap()
         .expect("A 任务行必须仍在");
-    let b_task = pending_task_recovered(&db, b_instance_id).await;
+    let b_task = handled_task_of_instance(&db, b_instance_id).await;
 
     assert_eq!(a_task.status, b_task.status, "两入口办理后任务态必须同源");
     assert_eq!(a_task.status.as_deref(), Some(task_status::COMPLETED));
     assert_eq!(
         b_task.status.as_deref(),
         Some(task_status::COMPLETED),
-        "快捷通过也必须把任务推进为 completed（修前形态此处 opinion 为 None，状态仍对但轨迹分裂）"
+        "快捷通过也必须把任务推进为 completed"
     );
     assert_eq!(
         a_task.actual_handler_id, b_task.actual_handler_id,
@@ -387,8 +384,6 @@ async fn forward_center_and_quick_are_state_identical_live() {
         a_task.handled_at.is_some() && b_task.handled_at.is_some(),
         "两入口都必须落处理时间戳"
     );
-
-    // 业务状态同源
     let a_row = sales_quotation::Entity::find_by_id(a_id)
         .one(&*db)
         .await
@@ -402,8 +397,6 @@ async fn forward_center_and_quick_are_state_identical_live() {
     assert_eq!(a_row.status, b_row.status, "两入口业务落库状态必须同源");
     assert_eq!(a_row.status, quotation::APPROVED);
     assert_eq!(a_row.approved_by, b_row.approved_by);
-
-    // 实例状态同源
     let a_inst = bpm_process_instance::Entity::find_by_id(a_instance_id)
         .one(&*db)
         .await
@@ -416,40 +409,20 @@ async fn forward_center_and_quick_are_state_identical_live() {
         .expect("B 实例必须仍在");
     assert_eq!(a_inst.status, b_inst.status);
     assert_eq!(a_inst.status.as_deref(), Some(instance_status::COMPLETED));
-}
 
-/// 快捷回写会经历「无待办」的收敛态（办理后 pending 任务已推进），需按实例回捞当前任务。
-async fn pending_task_recovered(db: &DatabaseConnection, instance_id: i32) -> bpm_task::Model {
-    bpm_task::Entity::find()
-        .filter(bpm_task::Column::InstanceId.eq(instance_id))
-        .one(db)
-        .await
-        .unwrap()
-        .expect("实例下必须存在已办理任务")
-}
-
-/// 反向等价（驳回）：同一报价单分别经中心与快捷驳回同一理由后，任务态、审批人、
-/// 时间戳、审批轨迹与实例终态完全同源（均为 rejected / TERMINATED）。
-#[tokio::test]
-async fn reverse_center_and_quick_reject_are_state_identical_live() {
-    let db = Arc::new(test_common::setup_test_db().await);
-    let initiator = seed_user(&db, "src_rev_initiator").await;
-    let approver = seed_user(&db, "src_rev_approver").await;
-    let customer_id = seed_customer(&db, initiator).await;
-    seed_active_definition(&db, "quotation_approval", approver).await;
-
+    // ---------- 反向（驳回）----------
     let reason = "单价超出客户协议上限，拒绝";
-
-    // 单据 A：中心驳回。
-    let a_id = seed_quotation(&db, customer_id, initiator).await;
-    let svc = QuotationApprovalService::new(db.clone());
-    let a_sub = svc.submit(a_id, initiator).await.expect("A 提交失败");
-    let a_instance_id = a_sub.approval_instance_id.expect("A 实例") as i32;
-    let a_task = pending_task(&db, a_instance_id).await;
+    let c_id = seed_quotation(&db, customer_id, initiator).await;
+    let c_sub = svc
+        .submit(c_id, initiator)
+        .await
+        .expect("C 提交失败");
+    let c_instance_id = c_sub.approval_instance_id.expect("C 实例") as i32;
+    let c_task = pending_task(&db, c_instance_id).await;
     BpmService::new(db.clone())
         .approve_task(
             ApproveTaskRequest {
-                task_id: a_task.id,
+                task_id: c_task.id,
                 handler_id: approver,
                 handler_name: String::new(),
                 action: REJECT_ACTION.to_string(),
@@ -460,55 +433,67 @@ async fn reverse_center_and_quick_reject_are_state_identical_live() {
         )
         .await
         .expect("中心驳回失败");
-    svc.reject_via_bpm(a_id, reason.to_string(), approver)
+    svc.reject_via_bpm(c_id, reason.to_string(), approver)
         .await
         .expect("中心侧业务回写驳回失败");
 
-    // 单据 B：快捷驳回。
-    let b_id = seed_quotation(&db, customer_id, initiator).await;
-    let b_sub = svc.submit(b_id, initiator).await.expect("B 提交失败");
-    let b_instance_id = b_sub.approval_instance_id.expect("B 实例") as i32;
-    svc.reject(b_id, approver, reason.to_string())
+    let d_id = seed_quotation(&db, customer_id, initiator).await;
+    let d_sub = svc
+        .submit(d_id, initiator)
+        .await
+        .expect("D 提交失败");
+    let d_instance_id = d_sub.approval_instance_id.expect("D 实例") as i32;
+    svc.reject(d_id, approver, reason.to_string())
         .await
         .expect("快捷驳回失败");
 
-    let a_task = bpm_task::Entity::find_by_id(a_task.id)
+    let c_task = bpm_task::Entity::find_by_id(c_task.id)
         .one(&*db)
         .await
         .unwrap()
-        .expect("A 任务必须仍在");
-    let b_task = pending_task_recovered(&db, b_instance_id).await;
+        .expect("C 任务必须仍在");
+    let d_task = handled_task_of_instance(&db, d_instance_id).await;
 
-    assert_eq!(a_task.status, b_task.status);
-    assert_eq!(a_task.status.as_deref(), Some(task_status::REJECTED));
-    assert_eq!(a_task.actual_handler_id, b_task.actual_handler_id);
-    assert_eq!(a_task.approval_opinion, b_task.approval_opinion);
-    assert_eq!(a_task.approval_opinion.as_deref(), Some(reason));
-    assert!(a_task.handled_at.is_some() && b_task.handled_at.is_some());
+    assert_eq!(c_task.status, d_task.status);
+    assert_eq!(c_task.status.as_deref(), Some(task_status::REJECTED));
+    assert_eq!(c_task.actual_handler_id, d_task.actual_handler_id);
+    assert_eq!(c_task.approval_opinion, d_task.approval_opinion);
+    assert_eq!(c_task.approval_opinion.as_deref(), Some(reason));
+    assert!(c_task.handled_at.is_some() && d_task.handled_at.is_some());
 
-    let a_inst = bpm_process_instance::Entity::find_by_id(a_instance_id)
+    let c_inst = bpm_process_instance::Entity::find_by_id(c_instance_id)
         .one(&*db)
         .await
         .unwrap()
-        .expect("A 实例必须仍在");
-    let b_inst = bpm_process_instance::Entity::find_by_id(b_instance_id)
+        .expect("C 实例必须仍在");
+    let d_inst = bpm_process_instance::Entity::find_by_id(d_instance_id)
         .one(&*db)
         .await
         .unwrap()
-        .expect("B 实例必须仍在");
-    assert_eq!(a_inst.status, b_inst.status);
-    assert_eq!(a_inst.status.as_deref(), Some(instance_status::TERMINATED));
+        .expect("D 实例必须仍在");
+    assert_eq!(c_inst.status, d_inst.status);
+    assert_eq!(c_inst.status.as_deref(), Some(instance_status::TERMINATED));
 
-    let a_row = sales_quotation::Entity::find_by_id(a_id)
+    let c_row = sales_quotation::Entity::find_by_id(c_id)
         .one(&*db)
         .await
         .unwrap()
-        .expect("A 行必须仍在");
-    let b_row = sales_quotation::Entity::find_by_id(b_id)
+        .expect("C 行必须仍在");
+    let d_row = sales_quotation::Entity::find_by_id(d_id)
         .one(&*db)
         .await
         .unwrap()
-        .expect("B 行必须仍在");
-    assert_eq!(a_row.status, b_row.status);
-    assert_eq!(a_row.status, quotation::REJECTED);
+        .expect("D 行必须仍在");
+    assert_eq!(c_row.status, d_row.status);
+    assert_eq!(c_row.status, quotation::REJECTED);
+}
+
+/// 实例下已办理任务（快捷回写走完后 PENDING 已推进，只按实例定位）。
+async fn handled_task_of_instance(db: &DatabaseConnection, instance_id: i32) -> bpm_task::Model {
+    bpm_task::Entity::find()
+        .filter(bpm_task::Column::InstanceId.eq(instance_id))
+        .one(db)
+        .await
+        .unwrap()
+        .expect("实例下必须存在已办理任务")
 }
