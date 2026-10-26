@@ -2,13 +2,14 @@
  * 安卓客户端蓝牙热敏打印桥。
  *
  * 调用方 全局打印工具在安卓壳内改走本模块，打印目标页负责打印机选择与连接。
- * 入参 小票标题、元信息、列定义与已格式化的数据行。
+ * 入参 小票标题、元信息、列定义与已格式化的数据行，可按单据或标签带打印机路由键。
  * 传给谁 经 window.__TAURI__ 调壳内 Rust 命令，最终由 Kotlin 插件写 SPP 蓝牙 socket。
- * 存什么 仅存用户选择的打印机名称地址与纸张宽度。
+ * 存什么 默认打印机、按单据与标签分配的打印机名称地址，以及纸张宽度。
  * 存哪里 浏览器 localStorage。
  */
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
+import { lineWidthForPaperWidth } from '@/utils/print-settings';
 
 export interface BluetoothPrinter {
   name: string;
@@ -56,11 +57,64 @@ export interface ReceiptContent {
 
 export interface ReceiptPrintOptions {
   paperWidth?: ReceiptPaperWidth;
+  /** 自定义纸张宽度，毫米，优先于 58 与 80 两档预设 */
+  paperWidthMm?: number;
   cut?: boolean;
   feedLines?: number;
+  target?: PrintRouteKey;
+  /** 成功提示的 message 命名空间键，缺省为小票文案 */
+  successMessage?: string;
+}
+
+/** 支持按单据选择打印机的打印入口。 */
+export type DocumentPrintType =
+  | 'purchase_order'
+  | 'voucher'
+  | 'inventory_stock'
+  | 'ap_invoice'
+  | 'ar_invoice'
+  | 'finance_subject'
+  | 'customer'
+  | 'supplier'
+  | 'warehouse';
+
+/** 支持按标签选择打印机的标签类型。 */
+export type LabelPrintType = 'fabric_piece';
+
+/** 打印机路由键，doc 前缀为单据，label 前缀为标签。 */
+export type PrintRouteKey = `doc:${DocumentPrintType}` | `label:${LabelPrintType}`;
+
+/** 单据与标签到打印机的对照表，未出现的键沿用默认打印机。 */
+export type PrintRouteTable = Partial<Record<PrintRouteKey, BluetoothPrinter>>;
+
+/** 打印目标页与各单据入口共用的单据类型清单。 */
+export const DOCUMENT_PRINT_TYPES: readonly DocumentPrintType[] = [
+  'purchase_order',
+  'voucher',
+  'inventory_stock',
+  'ap_invoice',
+  'ar_invoice',
+  'finance_subject',
+  'customer',
+  'supplier',
+  'warehouse',
+];
+
+/** 标签类型清单，路由键与标签打印入口共用。 */
+export const LABEL_PRINT_TYPES: readonly LabelPrintType[] = ['fabric_piece'];
+
+/** 单据类型换成路由键，供读取与保存打印机分配。 */
+export function documentPrintRoute(type: DocumentPrintType): PrintRouteKey {
+  return `doc:${type}`;
+}
+
+/** 标签类型换成路由键，与单据键共用一个存储表。 */
+export function labelPrintRoute(type: LabelPrintType): PrintRouteKey {
+  return `label:${type}`;
 }
 
 const PRINTER_STORAGE_KEY = 'bingxi.bluetooth.printer';
+const ROUTES_STORAGE_KEY = 'bingxi.bluetooth.routes';
 const PAPER_STORAGE_KEY = 'bingxi.bluetooth.paper';
 const LINE_WIDTH: Record<ReceiptPaperWidth, number> = { '58': 32, '80': 48 };
 const MIN_COLUMN_WIDTH = 6;
@@ -73,7 +127,8 @@ export function isAndroidClient(): boolean {
   return /Android/i.test(window.navigator.userAgent);
 }
 
-function invokeBridge<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+/** 供系统打印等其它壳内桥共用同一套 Tauri 注入形态识别。 */
+export function invokeBridge<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const bridge = typeof window === 'undefined' ? undefined : window.__TAURI__;
   if (bridge?.core?.invoke) {
     return bridge.core.invoke<T>(command, args);
@@ -81,7 +136,7 @@ function invokeBridge<T>(command: string, args?: Record<string, unknown>): Promi
   if (bridge?.invoke) {
     return bridge.invoke<T>(command, args) as Promise<T>;
   }
-  return Promise.reject(new Error('当前环境没有安卓蓝牙打印桥'));
+  return Promise.reject(new Error('当前环境没有可用的原生打印桥'));
 }
 
 export function requestBluetoothPermission(): Promise<BluetoothPermissionResult> {
@@ -106,12 +161,13 @@ export function disconnectBluetoothPrinter(): Promise<void> {
 
 export function sendBluetoothText(
   text: string,
-  options: { cut?: boolean; feedLines?: number } = {}
+  options: { cut?: boolean; feedLines?: number; address?: string } = {}
 ): Promise<BluetoothPrintResult> {
   return invokeBridge<BluetoothPrintResult>('bluetooth_print_text', {
     text,
     cut: options.cut,
     feedLines: options.feedLines,
+    address: options.address,
   });
 }
 
@@ -140,6 +196,50 @@ export function savePrinterPreference(printer: BluetoothPrinter | null): void {
   } catch {
     // 隐私模式下存储不可用，本次连接仍然有效，仅重启后需重新选择
   }
+}
+
+/** 读取全部打印机分配，损坏条目直接跳过。 */
+export function loadPrintRoutes(): PrintRouteTable {
+  try {
+    const raw = window.localStorage.getItem(ROUTES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, Partial<BluetoothPrinter>>;
+    const routes: PrintRouteTable = {};
+    for (const [key, value] of Object.entries(parsed ?? {})) {
+      if (!value?.address) continue;
+      routes[key as PrintRouteKey] = {
+        name: value.name || value.address,
+        address: value.address,
+      };
+    }
+    return routes;
+  } catch {
+    return {};
+  }
+}
+
+/** 保存一个单据或标签的打印机，传空表示取消分配并回退默认。 */
+export function savePrintRoute(key: PrintRouteKey, printer: BluetoothPrinter | null): void {
+  try {
+    const routes = loadPrintRoutes();
+    if (printer) {
+      routes[key] = { name: printer.name || printer.address, address: printer.address };
+    } else {
+      delete routes[key];
+    }
+    window.localStorage.setItem(ROUTES_STORAGE_KEY, JSON.stringify(routes));
+  } catch {
+    // 存储不可用时仅本次分配不落盘，后续打印仍按默认打印机发送
+  }
+}
+
+/** 按单据或标签取打印机，该类型未单独分配时回退默认打印机。 */
+export function resolvePrinterForTarget(target?: PrintRouteKey): BluetoothPrinter | null {
+  if (target) {
+    const routed = loadPrintRoutes()[target];
+    if (routed) return routed;
+  }
+  return loadPrinterPreference();
 }
 
 export function loadPaperWidth(): ReceiptPaperWidth {
@@ -305,9 +405,13 @@ function formatRecordBlock(
   return lines;
 }
 
-/** 将已格式化的表格内容排成热敏小票纯文本，宽度按纸张换算。 */
-export function formatReceiptText(content: ReceiptContent, paperWidth: ReceiptPaperWidth): string {
-  const lineWidth = LINE_WIDTH[paperWidth];
+/** 将已格式化的表格内容排成热敏小票纯文本，宽度按纸张换算，可另行指定行宽。 */
+export function formatReceiptText(
+  content: ReceiptContent,
+  paperWidth: ReceiptPaperWidth,
+  lineWidthOverride?: number
+): string {
+  const lineWidth = lineWidthOverride ?? LINE_WIDTH[paperWidth];
   const separator = '-'.repeat(lineWidth);
   const lines: string[] = [];
 
@@ -349,25 +453,65 @@ export function formatReceiptText(content: ReceiptContent, paperWidth: ReceiptPa
   return lines.join('\n');
 }
 
-/** 发送小票到已连接或已保存的蓝牙打印机，结果以消息提示，不向调用方抛错。 */
+/**
+ * 发送小票到蓝牙打印机，结果以消息提示，不向调用方抛错。
+ * 带路由键时先按单据或标签找打印机，未分配该类型则用默认打印机；
+ * 每次打印前确认蓝牙权限并把打印机地址一并下发，壳侧据此在会话失效或换机时重连。
+ */
 export async function printReceiptToBluetooth(
   content: ReceiptContent,
   options: ReceiptPrintOptions = {}
 ): Promise<boolean> {
-  const printer = loadPrinterPreference();
+  const printer = resolvePrinterForTarget(options.target);
   if (!printer) {
     msg.warning('printBluetoothPrinterNotSelected');
     return false;
   }
-  const paperWidth = options.paperWidth ?? loadPaperWidth();
-  const text = formatReceiptText(content, paperWidth);
   try {
-    await sendBluetoothText(text, { cut: options.cut, feedLines: options.feedLines });
-    msg.success('printBluetoothSent');
+    const permission = await requestBluetoothPermission();
+    if (!permission.granted) {
+      msg.warning('printBluetoothPermissionDenied');
+      return false;
+    }
+    const paperWidth = options.paperWidth ?? loadPaperWidth();
+    const text = formatReceiptText(
+      content,
+      paperWidth,
+      options.paperWidthMm != null ? lineWidthForPaperWidth(options.paperWidthMm) : undefined
+    );
+    await sendBluetoothText(text, {
+      cut: options.cut,
+      feedLines: options.feedLines,
+      address: printer.address,
+    });
+    msg.success(options.successMessage ?? 'printBluetoothSent');
     return true;
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     ElMessage.error(`${msg.translate('printBluetoothFailed')}，${detail}`);
     return false;
   }
+}
+
+export interface BluetoothLabelField {
+  label: string;
+  value: string;
+}
+
+/** 把标签字段排成热敏文本发送到标签打印机，标题居中、字段逐行左对齐。 */
+export async function printLabelToBluetooth(
+  title: string,
+  fields: BluetoothLabelField[],
+  options: ReceiptPrintOptions = {}
+): Promise<boolean> {
+  return printReceiptToBluetooth(
+    {
+      title,
+      meta: [],
+      columns: [],
+      rows: [],
+      footer: fields.map(field => `${field.label} ${field.value}`),
+    },
+    { successMessage: 'printBluetoothSent', ...options }
+  );
 }

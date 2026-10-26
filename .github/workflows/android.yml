@@ -192,10 +192,10 @@ jobs:
         working-directory: mobile-app
         run: cargo tauri android init
 
-      - name: 注入安卓权限与蓝牙打印插件
+      - name: 注入安卓权限与打印插件
         # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
         # 做什么 向 gen/android 清单补联网/相机/经典蓝牙/文件读写权限与可选硬件声明，并把
-        #        BluetoothPrintPlugin.kt（含相机权限申请命令）复制进 com.bingxi.erp 包；
+        #        BluetoothPrintPlugin.kt 与 SystemPrintPlugin.kt 复制进 com.bingxi.erp 包；
         #        模板锚点或包名变化时脚本直接判红，不静默跳过。
         # 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库模板。
         working-directory: mobile-app
@@ -236,6 +236,7 @@ jobs:
           python3 mobile-app/scripts/assert-apk-permissions.py --self-test
           python3 mobile-app/scripts/assert-apk-permissions.py "$APK" "$AAPT2"
           unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/BluetoothPrintPlugin;' || { echo "APK 未打包蓝牙打印插件类，注入或编译未生效"; exit 1; }
+          unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/SystemPrintPlugin;' || { echo "APK 未打包系统打印插件类，注入或编译未生效"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
 

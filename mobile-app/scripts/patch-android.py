@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""在 cargo tauri android init 生成的工程上注入权限与蓝牙打印插件。
+"""在 cargo tauri android init 生成的工程上注入权限与打印插件。
 
-调用方 .github/workflows/android.yml 的 注入安卓权限与蓝牙打印插件 步。
+调用方 .github/workflows/android.yml 的 注入安卓权限与打印插件 步。
 入参 无参数，工作目录为 mobile-app。
 做什么 1) 向 AndroidManifest.xml 补齐联网/相机/经典蓝牙/文件读写权限与可选用硬件声明
-      2) 把 android/BluetoothPrintPlugin.kt 复制进生成工程的 com.bingxi.erp 包目录
+      2) 把 android/BluetoothPrintPlugin.kt 与 android/SystemPrintPlugin.kt 复制进
+         生成工程的 com.bingxi.erp 包目录
       3) 逐项断言注入结果，模板变化时判红而不是静默跳过。
 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库里的模板。
 """
@@ -16,11 +17,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
-PLUGIN_SRC = ROOT / "android/BluetoothPrintPlugin.kt"
-PLUGIN_DST = (
-    ROOT
-    / "src-tauri/gen/android/app/src/main/java/com/bingxi/erp/BluetoothPrintPlugin.kt"
-)
+PACKAGE_DIR = ROOT / "src-tauri/gen/android/app/src/main/java/com/bingxi/erp"
+
+# 源文件, 文件名, 必含的类定义, 必含的命令，缺任一项说明模板与壳侧代码已脱节。
+PLUGINS = [
+    (
+        ROOT / "android/BluetoothPrintPlugin.kt",
+        "BluetoothPrintPlugin.kt",
+        "class BluetoothPrintPlugin",
+        ["fun requestCameraPermission", "fun printText"],
+    ),
+    (
+        ROOT / "android/SystemPrintPlugin.kt",
+        "SystemPrintPlugin.kt",
+        "class SystemPrintPlugin",
+        ["fun printHtml", "fun printCurrentPage"],
+    ),
+]
 
 # 权限逐条给用途，避免以后有人把某条当冗余删掉。
 # 元组依次为 权限名, maxSdkVersion, 额外属性, 用途说明。
@@ -123,29 +136,32 @@ def patch_manifest() -> None:
     print("清单权限注入完成，新增：" + (", ".join(added) if added else "无（已齐备）"))
 
 
-def copy_plugin() -> None:
-    if not PLUGIN_SRC.is_file():
-        fail(f"未找到插件源文件：{PLUGIN_SRC}")
-    source = PLUGIN_SRC.read_text(encoding="utf-8")
-    if "class BluetoothPrintPlugin" not in source:
-        fail("BluetoothPrintPlugin.kt 缺 BluetoothPrintPlugin 类定义")
-    if "fun requestCameraPermission" not in source:
-        fail("BluetoothPrintPlugin.kt 缺相机权限申请命令，前端扫码前会调用失败")
-    if not PLUGIN_DST.parent.is_dir():
-        fail(
-            f"生成的工程缺包目录 {PLUGIN_DST.parent}，"
-            "Tauri 模板包名与 com.bingxi.erp 不一致，需人工校准"
-        )
-    shutil.copyfile(PLUGIN_SRC, PLUGIN_DST)
-    copied = PLUGIN_DST.read_text(encoding="utf-8")
-    if "class BluetoothPrintPlugin" not in copied or "fun requestCameraPermission" not in copied:
-        fail("插件复制后校验失败")
-    print(f"蓝牙打印与权限插件已复制到 {PLUGIN_DST}")
+def copy_plugins() -> None:
+    for source_path, file_name, class_marker, command_markers in PLUGINS:
+        if not source_path.is_file():
+            fail(f"未找到插件源文件：{source_path}")
+        source = source_path.read_text(encoding="utf-8")
+        if class_marker not in source:
+            fail(f"{file_name} 缺 {class_marker} 类定义")
+        for marker in command_markers:
+            if marker not in source:
+                fail(f"{file_name} 缺 {marker}，前端对应命令会调用失败")
+        if not PACKAGE_DIR.is_dir():
+            fail(
+                f"生成的工程缺包目录 {PACKAGE_DIR}，"
+                "Tauri 模板包名与 com.bingxi.erp 不一致，需人工校准"
+            )
+        destination = PACKAGE_DIR / file_name
+        shutil.copyfile(source_path, destination)
+        copied = destination.read_text(encoding="utf-8")
+        if class_marker not in copied:
+            fail(f"{file_name} 复制后校验失败")
+        print(f"打印插件已复制到 {destination}")
 
 
 def main() -> None:
     patch_manifest()
-    copy_plugin()
+    copy_plugins()
 
 
 if __name__ == "__main__":
