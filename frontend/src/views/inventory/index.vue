@@ -93,9 +93,9 @@
     <el-dialog
       v-model="stockDialogVisible"
       :title="stockEditingId ? t('inventory.stockTab.edit') : t('inventory.stockTab.create')"
-      width="520px"
+      width="640px"
     >
-      <el-form :model="stockForm" label-width="110px">
+      <el-form ref="stockFormRef" :model="stockForm" :rules="stockFormRules" label-width="120px">
         <!-- 编辑走 PUT /inventory/stock/{id}：该端点只接收数量纠偏与库位，
              产品/仓库/批次/色号提交也不会被后端读取——置灰并在表单内如实说明，
              不做"改了会被静默丢弃"的假可编辑。四维/归属变更走库存调整/出入库流程 -->
@@ -113,11 +113,29 @@
           :title="t('inventory.stockDialog.createLocationHint')"
           class="stock-edit-hint"
         />
-        <el-form-item :label="t('inventory.stockTab.colProductCode')">
-          <el-input-number v-model="stockForm.product_id" :min="1" :disabled="!!stockEditingId" />
+        <el-form-item :label="t('inventory.fabricStock.product')" prop="product_id">
+          <el-select
+            v-model="stockForm.product_id"
+            filterable
+            :disabled="!!stockEditingId"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="p in products"
+              :key="p.id"
+              :label="`${p.product_code} - ${p.product_name}`"
+              :value="p.id"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colWarehouse')">
-          <el-select v-model="stockForm.warehouse_id" filterable :disabled="!!stockEditingId">
+        <el-form-item :label="t('inventory.stockTab.colWarehouse')" prop="warehouse_id">
+          <el-select
+            v-model="stockForm.warehouse_id"
+            filterable
+            :disabled="!!stockEditingId"
+            style="width: 100%"
+            @change="onStockWarehouseChange"
+          >
             <el-option
               v-for="wh in warehouses"
               :key="wh.id"
@@ -126,15 +144,19 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colBatchNo')">
+        <el-form-item :label="t('inventory.stockTab.colBatchNo')" prop="batch_no">
           <el-input v-model="stockForm.batch_no" :disabled="!!stockEditingId" />
         </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colColorCode')">
+        <el-form-item :label="t('inventory.stockTab.colColorCode')" prop="color_code">
           <el-input v-model="stockForm.color_code" :disabled="!!stockEditingId" />
+        </el-form-item>
+        <!-- 缸号（后端 DTO 早支持，此前前端零入口）：白坯可空，染色布由后端 fabric_class 强校验 -->
+        <el-form-item v-if="!stockEditingId" :label="t('inventory.fabricStock.dyeLot')">
+          <el-input v-model="stockForm.dye_lot_no" />
         </el-form-item>
         <!-- 等级词表唯一来源 constants/stock-grade.ts（一等品/二等品/等外品）；
              PUT 不接收 grade → 编辑态禁用；提交值本身、label 走 i18n 键 -->
-        <el-form-item :label="t('inventory.stockTab.colGrade')">
+        <el-form-item :label="t('inventory.stockTab.colGrade')" prop="grade">
           <el-select v-model="stockForm.grade" :disabled="!!stockEditingId">
             <el-option
               v-for="g in STOCK_GRADE_VALUES"
@@ -144,11 +166,73 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colLocation')">
-          <el-input v-model="stockForm.location" :disabled="!stockEditingId" />
+        <!-- 新建主计量：进 POST 契约 quantity_meters（米），必须大于 0 -->
+        <el-form-item
+          v-if="!stockEditingId"
+          :label="t('inventory.fabricStock.meters')"
+          prop="quantity_meters"
+        >
+          <el-input v-model="stockForm.quantity_meters" />
         </el-form-item>
-        <el-form-item :label="t('inventory.stockTab.colQuantity')">
-          <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
+        <!-- 新建辅计量公斤数：实称优先，留空则须同时填克重与幅宽由后端换算（提交前合并校验） -->
+        <el-form-item
+          v-if="!stockEditingId"
+          :label="t('inventory.fabricStock.kg')"
+          prop="quantity_kg"
+        >
+          <el-input
+            v-model="stockForm.quantity_kg"
+            :placeholder="t('inventory.fabricStock.kgOrMeasure')"
+          />
+        </el-form-item>
+        <!-- 克重与幅宽：决定成品的四个数之二，同作公斤数换算入参（后端 DTO 已支持，此前零入口） -->
+        <el-form-item v-if="!stockEditingId" :label="t('inventory.fabricStock.gramWeight')">
+          <el-input v-model="stockForm.gram_weight" />
+        </el-form-item>
+        <el-form-item v-if="!stockEditingId" :label="t('inventory.fabricStock.width')">
+          <el-input v-model="stockForm.width" />
+        </el-form-item>
+        <!-- 来源单号：后端 inbound_admission 业务必填，缺失即入库无痕，直建入库必须登记 -->
+        <el-form-item
+          v-if="!stockEditingId"
+          :label="t('inventory.fabricStock.sourceBillNo')"
+          prop="source_bill_no"
+        >
+          <el-input v-model="stockForm.source_bill_no" />
+        </el-form-item>
+        <!-- 库位：新建走可搜索名称选择（location_id），编辑走 PUT bin_location 文本纠偏 -->
+        <el-form-item v-if="!stockEditingId" :label="t('inventory.stockTab.colLocation')">
+          <el-select
+            v-model="stockForm.location_id"
+            clearable
+            filterable
+            :disabled="!stockForm.warehouse_id"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="loc in stockLocations"
+              :key="loc.id"
+              :label="loc.location_code"
+              :value="loc.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="!stockEditingId" :label="t('inventory.fabricStock.shelfNo')">
+          <el-input v-model="stockForm.shelf_no" />
+        </el-form-item>
+        <el-form-item v-if="!stockEditingId" :label="t('inventory.fabricStock.layerNo')">
+          <el-input v-model="stockForm.layer_no" />
+        </el-form-item>
+        <!-- 编辑态：PUT 只纠偏在库量与库位文本 -->
+        <el-form-item
+          v-if="stockEditingId"
+          :label="t('inventory.stockTab.colQuantity')"
+          prop="quantity"
+        >
+          <el-input v-model="stockForm.quantity" />
+        </el-form-item>
+        <el-form-item v-if="stockEditingId" :label="t('inventory.stockTab.colLocation')">
+          <el-input v-model="stockForm.location" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -165,6 +249,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue';
 import printJS from 'print-js';
@@ -175,7 +260,7 @@ import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 const { t } = useI18n({ useScope: 'global' });
 import { exportFromBackend } from '@/utils/export';
 import type { InventoryStock, StockAlert } from '@/api/inventory';
-import type { Warehouse } from '@/api/warehouse';
+import { getWarehouseLocationList, type Warehouse, type WarehouseLocation } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 import InventoryStockTab, { type StockQuery } from './tabs/InventoryStockTab.vue';
 import InventoryAlertTab from './tabs/InventoryAlertTab.vue';
@@ -185,7 +270,7 @@ import FabricStockTab from './tabs/FabricStockTab.vue';
 import StatCards from './components/StatCards.vue';
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
 import { PERMISSIONS } from '@/constants/permissions';
-import { STOCK_GRADE, STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
+import { STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 import { logger } from '@/utils/logger';
 
@@ -384,18 +469,113 @@ const goToTransferPage = () => {
 const stockDialogVisible = ref(false);
 const stockEditingId = ref<number | null>(null);
 const stockSubmitLoading = ref(false);
+const stockFormRef = ref<FormInstance>();
 // 编辑整行引用：version（乐观锁）等只读上下文取自 GET 出参真实列，禁止假值
 const stockEditingRow = ref<InventoryStock | null>(null);
+// 新建态库位候选（按所选仓库下推 /warehouses/locations，库位走名称选择而非手输主键）
+const stockLocations = ref<WarehouseLocation[]>([]);
 const stockForm = reactive({
   product_id: undefined as number | undefined,
   warehouse_id: undefined as number | undefined,
   batch_no: '',
   color_code: '',
-  // 等级取值域唯一来源 constants/stock-grade.ts（NOT NULL 列，新建必须显式给值）
-  grade: STOCK_GRADE.first as string,
+  dye_lot_no: '',
+  // 等级取值域唯一来源 constants/stock-grade.ts（NOT NULL 列）。新建空起步、必须显式选：
+  // 直建 POST 即时写真库存行，grade 即验布定级结论，预置任一档都等于把未定级伪装成质检结论
+  grade: '' as string,
+  // 新建主计量（米）与辅计量（公斤）：十进制串，实称公斤数缺失时按克重与幅宽换算
+  quantity_meters: '',
+  quantity_kg: '',
+  gram_weight: '',
+  width: '',
+  source_bill_no: '',
+  location_id: undefined as number | undefined,
+  shelf_no: '',
+  layer_no: '',
+  // 编辑态：PUT 只纠偏在库量与库位文本（quantity 为串入参）
   location: '',
-  quantity: 0,
+  quantity: '',
 });
+
+// 十进制正数校验器：留空是否放行由 allowEmpty 决定；填了必须是有限正数（>0）
+const stockPositiveRule = (emptyMsg: string, allowEmpty: boolean) => ({
+  validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+    const raw = (value ?? '').trim();
+    if (raw === '') {
+      callback(allowEmpty ? undefined : new Error(emptyMsg));
+      return;
+    }
+    const n = Number(raw);
+    callback(Number.isFinite(n) && n > 0 ? undefined : new Error(emptyMsg));
+  },
+});
+
+const stockFormRules: FormRules = {
+  product_id: [
+    { required: true, message: t('inventory.fabricStock.productRequired'), trigger: 'change' },
+  ],
+  warehouse_id: [
+    { required: true, message: t('inventory.reservation.warehouseRequired'), trigger: 'change' },
+  ],
+  // 等级：新建直建入库即时写库存行，必须显式选词表值（编辑态 PUT 不接收 grade，规则跳过）
+  grade: [
+    {
+      validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+        if (stockEditingId.value) {
+          callback();
+          return;
+        }
+        callback(
+          (value ?? '').trim() ? undefined : new Error(t('inventory.fabricStock.gradeRequired'))
+        );
+      },
+      trigger: 'change',
+    },
+  ],
+  // 新建主计量必须 >0；编辑态 quantity（在库量纠偏）非新建必填项，规则只在对应模式渲染的字段生效
+  quantity_meters: [
+    {
+      validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+        if (stockEditingId.value) {
+          callback();
+          return;
+        }
+        const n = Number((value ?? '').trim());
+        callback(
+          Number.isFinite(n) && n > 0
+            ? undefined
+            : new Error(t('inventory.fabricStock.metersPositive'))
+        );
+      },
+      trigger: 'blur',
+    },
+  ],
+  source_bill_no: [
+    {
+      validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+        if (stockEditingId.value) {
+          callback();
+          return;
+        }
+        callback(
+          (value ?? '').trim()
+            ? undefined
+            : new Error(t('inventory.fabricStock.sourceBillRequired'))
+        );
+      },
+      trigger: 'blur',
+    },
+  ],
+  quantity_kg: [
+    { ...stockPositiveRule(t('inventory.fabricStock.measurePositive'), true), trigger: 'blur' },
+  ],
+  gram_weight: [
+    { ...stockPositiveRule(t('inventory.fabricStock.measurePositive'), true), trigger: 'blur' },
+  ],
+  width: [
+    { ...stockPositiveRule(t('inventory.fabricStock.measurePositive'), true), trigger: 'blur' },
+  ],
+};
 
 const openStockDialog = (row?: InventoryStock) => {
   stockEditingId.value = row ? row.id : null;
@@ -404,12 +584,60 @@ const openStockDialog = (row?: InventoryStock) => {
   stockForm.warehouse_id = row?.warehouse_id;
   stockForm.batch_no = row?.batch_no || '';
   stockForm.color_code = row?.color_no || '';
-  stockForm.grade = row?.grade || STOCK_GRADE.first;
+  stockForm.grade = row?.grade || '';
   stockForm.location = row?.bin_location || '';
   // 新建的「数量」按 POST 契约进主计量 quantity_meters；编辑按 PUT 纠偏口径读写在库量
   // quantity_on_hand（该端点不接收 quantity_meters，两列在后端各自独立，不混写）
-  stockForm.quantity = row ? Number(row.quantity_on_hand) : 0;
+  stockForm.quantity = row ? String(row.quantity_on_hand) : '';
+  // 新建态四维与度量字段归零（不复用上一次打开的残留）
+  stockForm.dye_lot_no = '';
+  stockForm.quantity_meters = '';
+  stockForm.quantity_kg = '';
+  stockForm.gram_weight = '';
+  stockForm.width = '';
+  stockForm.source_bill_no = '';
+  stockForm.location_id = undefined;
+  stockForm.shelf_no = '';
+  stockForm.layer_no = '';
+  stockLocations.value = [];
+  if (row?.warehouse_id) void loadStockLocations(row.warehouse_id);
   stockDialogVisible.value = true;
+};
+
+const loadStockLocations = async (warehouseId?: number) => {
+  stockLocations.value = [];
+  if (!warehouseId) return;
+  try {
+    const res = await getWarehouseLocationList(warehouseId);
+    stockLocations.value = res.data?.items || [];
+  } catch (error: unknown) {
+    ElMessage.error(
+      (error instanceof Error ? error.message : String(error)) ||
+        t('inventory.message.fetchWarehouseFailed')
+    );
+    stockLocations.value = [];
+  }
+};
+
+// 新建切换仓库：库位候选随仓库重取，已选库位作废
+const onStockWarehouseChange = (warehouseId?: number) => {
+  stockForm.location_id = undefined;
+  void loadStockLocations(warehouseId);
+};
+
+// 公斤数能否确定的合并判定（与后端 resolve_inbound_quantity_kg 同口径）：实称>0，或克重与幅宽同时>0
+const canResolveStockKg = (): boolean => {
+  const kg = Number((stockForm.quantity_kg ?? '').trim());
+  if (Number.isFinite(kg) && kg > 0) return true;
+  const gram = Number((stockForm.gram_weight ?? '').trim());
+  const width = Number((stockForm.width ?? '').trim());
+  return Number.isFinite(gram) && gram > 0 && Number.isFinite(width) && width > 0;
+};
+
+// 可选字段留空即省略键（不送空串占位，后端 Option 缺席即不写）
+const stockOptionalStr = (v: string): string | undefined => {
+  const s = (v ?? '').trim();
+  return s === '' ? undefined : s;
 };
 
 const submitStock = async () => {
@@ -417,6 +645,8 @@ const submitStock = async () => {
     ElMessage.warning(t('inventory.message.productWarehouseRequired'));
     return;
   }
+  const valid = await stockFormRef.value?.validate().catch(() => false);
+  if (!valid) return;
   stockSubmitLoading.value = true;
   try {
     if (stockEditingRow.value) {
@@ -441,17 +671,30 @@ const submitStock = async () => {
       fetchData();
       return;
     }
+    // 直建入库：公斤数无法确定（既无实称>0 又无克重与幅宽齐全）即在提交前点名拒绝，
+    // 与后端受理侧同口径，不让整单到后端才 400
+    if (!canResolveStockKg()) {
+      ElMessage.warning(t('inventory.fabricStock.kgOrMeasure'));
+      return;
+    }
     const { createStock } = await import('@/api/inventory');
-    // POST /inventory/stock（CreateStockFabricRequest）不接收 bin_location——
-    // 库位只能在保存后经编辑 PUT 写入（表单已在创建态禁用该输入并提示）；
-    // grade 取 constants/stock-grade.ts 词表值（此前硬编码 'A' 落在取值域之外）
+    // POST /inventory/stock（CreateStockFabricRequest）：grade 取 constants/stock-grade.ts 词表值；
+    // 数量传十进制串保精度；来源单号后端业务必填；六列行业规格入口此前零入口，本轮补齐
     await createStock({
       warehouse_id: stockForm.warehouse_id,
       product_id: stockForm.product_id,
-      batch_no: stockForm.batch_no,
-      color_no: stockForm.color_code,
+      batch_no: stockForm.batch_no.trim(),
+      color_no: stockForm.color_code.trim(),
+      dye_lot_no: stockOptionalStr(stockForm.dye_lot_no),
       grade: stockForm.grade,
-      quantity_meters: stockForm.quantity,
+      quantity_meters: stockForm.quantity_meters.trim(),
+      quantity_kg: stockOptionalStr(stockForm.quantity_kg),
+      gram_weight: stockOptionalStr(stockForm.gram_weight),
+      width: stockOptionalStr(stockForm.width),
+      location_id: stockForm.location_id,
+      shelf_no: stockOptionalStr(stockForm.shelf_no),
+      layer_no: stockOptionalStr(stockForm.layer_no),
+      source_bill_no: stockForm.source_bill_no.trim(),
     });
     ElMessage.success(t('common.success'));
     stockDialogVisible.value = false;

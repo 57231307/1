@@ -160,6 +160,12 @@ export interface InventoryQueryParams {
   product_id?: number;
   /** 台账状态筛选：取后端 stock_status 主数据值（见 constants/inventory-stock-status），越界值后端 400 */
   stock_status?: string;
+  /**
+   * 质量状态筛选（合格/待检/不合格，取值域见后端
+   * models/status/purchase_inventory.rs::inventory_stock_quality_status），越界值后端 400。
+   * 出库候选行必须与 stock_status 一起下推「正常 + 合格」，不得前端过滤（分页截断会整页丢合格行）。
+   */
+  quality_status?: string;
   /** 色号筛选（后端下推 SQL） */
   color_no?: string;
   /** 缸号筛选（后端下推 SQL） */
@@ -397,7 +403,14 @@ export const getInventoryReport = (params: InventorySummaryQueryParams) =>
 
 // ============== 库存创建/导出/面料/流水/预留锁定（Batch 补齐 API 封装）==============
 
-/** 库存创建请求（对应后端 inventory_stock_handler_dto.rs::CreateStockFabricRequest） */
+/**
+ * 库存创建请求（对应后端 inventory_stock_handler_dto.rs::CreateStockFabricRequest）。
+ * 数量类为后端 Rust Decimal 入参：一律传十进制字符串（rust_decimal 反序列化接受串且末位精确，
+ * 传 number 只有约 17 位有效数字、超长小数静默失真），展示前 Number() 归一。
+ * 六列行业规格入口（缸号/克重/幅宽/库位/货架/层号）后端 DTO 早已支持，此前前端零入口。
+ * source_bill_no 为业务必填：受理侧 inbound_admission::require_source_bill_no 缺键即 400，
+ * 直建入库必须登记来源单号（验布码单号/生产工单号/收货单号），否则流水无法回指上游、入库无痕。
+ */
 export interface CreateStockRequest {
   warehouse_id: number;
   product_id: number;
@@ -405,13 +418,16 @@ export interface CreateStockRequest {
   color_no: string;
   dye_lot_no?: string;
   grade: string;
-  quantity_meters: number;
-  quantity_kg?: number;
-  gram_weight?: number;
-  width?: number;
+  quantity_meters: string;
+  quantity_kg?: string;
+  gram_weight?: string;
+  width?: string;
   location_id?: number;
   shelf_no?: string;
   layer_no?: string;
+  source_bill_type?: string;
+  source_bill_no: string;
+  notes?: string;
 }
 
 /** 库存基础响应（对应后端 inventory_stock_handler_dto.rs::StockResponse）。
@@ -449,6 +465,16 @@ export interface StockFabricResponse {
   gram_weight?: string | null;
   width?: string | null;
   bin_location?: string;
+  /** 库位 ID（后端 location_id，可空） */
+  location_id?: number | null;
+  /** 货架号（后端 shelf_no，可空） */
+  shelf_no?: string | null;
+  /** 层号（后端 layer_no，可空） */
+  layer_no?: string | null;
+  /** 台账状态（正常/报废/已删除）——出库候选必须看得出这行是不是报废行 */
+  stock_status: string;
+  /** 质量状态（合格/待检/不合格）——待检与不合格行不得出库 */
+  quality_status: string;
   created_at: string;
   updated_at: string;
 }
