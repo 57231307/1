@@ -1817,9 +1817,9 @@ async fn fetch_admin_manager_user_ids(db: &DatabaseConnection) -> Vec<i32> {
     use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
     let target_role_ids: Vec<i32> = crate::models::role::Entity::find()
         .filter(
-            crate::models::role::Column::Code
-                .eq(ADMIN_ROLE_CODE)
-                .or(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
+            sea_orm::Condition::any()
+                .add(crate::models::role::Column::Code.eq(ADMIN_ROLE_CODE))
+                .add(crate::models::role::Column::Code.eq(MANAGER_ROLE_CODE)),
         )
         .all(db)
         .await

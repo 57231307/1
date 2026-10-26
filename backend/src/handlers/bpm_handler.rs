@@ -352,11 +352,11 @@ pub struct ExecuteApprovalRequest {
 
 /// 执行审批响应（含导航所需的单据定位信息）
 #[derive(serde::Serialize)]
-struct ExecuteApprovalResponse {
-    message: String,
-    business_type: String,
-    business_id: i64,
-    instance_id: i32,
+pub struct ExecuteApprovalResponse {
+    pub message: String,
+    pub business_type: String,
+    pub business_id: i64,
+    pub instance_id: i32,
 }
 
 /// 执行审批
