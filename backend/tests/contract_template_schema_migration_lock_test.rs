@@ -279,9 +279,6 @@ fn vocab_tokens_are_lowercase_ascii_and_non_empty() {
 /// 越界 token 的字面值，与本文件其余断言共用一份，防止比对对象自己漂。
 const BANNED_KIND: &str = "labor";
 
-/// 越界 token 的字面值，与本文件其余断言共用一份，防止比对对象自己漂。
-const BANNED_KIND: &str = "labor";
-
 /// 本域五支子迁移的相对文件名（与域内 mod.rs 的声明同名，改名即红）。
 const CHILD_MIGRATIONS: &[&str] = &[
     "m0114_create_contract_templates",

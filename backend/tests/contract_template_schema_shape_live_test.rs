@@ -1181,7 +1181,7 @@ async fn template_revision_never_rewrites_frozen_snapshot() {
         ))
         .await
         .unwrap_or_else(|e| panic!("回读快照失败: {e}"))
-        .unwrap_or_else(|| panic("改版后快照行必须仍在，绝不因模板侧改动而消失".to_string()));
+        .unwrap_or_else(|| panic!("改版后快照行必须仍在，绝不因模板侧改动而消失"));
     let body_back: String = row
         .try_get("", "body_rendered")
         .unwrap_or_else(|e| panic!("body_rendered 解码失败: {e}"));
