@@ -1,7 +1,7 @@
 /**
- * 数字录入校验器 供把 el-input-number 换成 el-input 的表单复用
+ * 数字录入校验器 供把步进控件换成手写 el-input 的表单复用
  *
- * 背景 全项目禁止带加减按钮的数字输入框 el-input-number 一律换 el-input
+ * 背景 全项目禁止带加减按钮的数字输入框 步进数字控件一律换 el-input
  * 换控件不许把数字约束一起丢掉 原来控件上的 min max precision step 每一项都要在
  * rules 里有对应校验 失败消息点名是哪个字段
  * 这里只消费调用方给的边界词表 不做默认值兜底 不收任意文本
@@ -22,7 +22,7 @@ export interface NumberInputRuleOptions {
   min?: number;
   /** 上界 含 值不得大于它 */
   max?: number;
-  /** 小数位数 等价于 el-input-number 的 precision 未给则不做位数限制 */
+  /** 小数位数 等价于步进控件的 precision 未给则不做位数限制 */
   precision?: number;
   /** 只允许整数 等价 precision 为 0 */
   integer?: boolean;
@@ -111,4 +111,95 @@ export function numberInputRules(opts: NumberInputRuleOptions): FormItemRule[] {
     trigger: 'blur',
   });
   return rules;
+}
+
+/**
+ * 数值绑定校验器 供「保持 number 模型的 el-input 手写录入」在 update 边界单源复用
+ *
+ * 背景 全项目禁止带加减按钮的数字输入框 但既有表单模型多为 number 且提交面直接对模型做算术
+ * 若把模型整体改字符串 需逐点找全算术与提交消费面 改动面失控且易漏
+ * 这里把原控件的边界语义收进纯函数 min 钳下界 max 钳上界 precision 截位 integer 取整
+ * el-input 吐出的文本经它归一成 number 后才写回模型 模型始终是 number 提交与算术不受污染
+ * 空串对可选模型回 undefined 对必填 number 模型回下界 缺界回 0 越界由 rules 在提交时点名
+ * 非法文本回当前值 即拒绝写入 模型永不被塞进 NaN 或字母
+ *
+ * 调用方 各表单与表格行内 el-input 经统一换控件工装生成的 @update:model-value 处理器
+ * 入参 用户原始文本 当前模型值 边界词表（min max 可为行内动态表达式）
+ * 传给谁 返回值写回原模型字段 提交与算术消费面因此无需逐点改写
+ * 存什么 不存储 仅做录入边界的校验与归一
+ */
+export interface NumericBindOptions {
+  /** 下界 含 低于它取它 等价原控件 min 的失焦钳制 支持动态表达式 */
+  min?: number;
+  /** 上界 含 高于它取它 等价原控件 max 的失焦钳制 支持行内动态表达式 */
+  max?: number;
+  /** 小数位数 超出按四舍五入截断 等价原控件 precision */
+  precision?: number;
+  /** 只允许整数 等价 precision 为 0 */
+  integer?: boolean;
+}
+
+/** 接受纯十进制文本与输入中间态（1. 负号 单独小数点）其余视为非法 */
+const ACCEPT_INPUT_RE = /^-?(\d+(\.\d*)?|\.)$/;
+
+function resolveNumeric(
+  raw: string,
+  current: number | undefined,
+  opts: NumericBindOptions
+): number | undefined {
+  const text = (raw ?? '').trim();
+  if (text === '') {
+    // 可选模型清空即 undefined 触发必填规则；必填 number 模型回下界，避免塞 NaN
+    return current === undefined ? undefined : (opts.min ?? 0);
+  }
+  if (text === '-' || text === '.') {
+    return current;
+  }
+  if (!ACCEPT_INPUT_RE.test(text)) {
+    return current;
+  }
+  const num = Number(text);
+  if (!Number.isFinite(num)) {
+    return current;
+  }
+  let value = num;
+  if (opts.integer) {
+    value = Math.trunc(value);
+  } else if (opts.precision !== undefined) {
+    value = Number(value.toFixed(opts.precision));
+  }
+  if (opts.min !== undefined && value < opts.min) {
+    value = opts.min;
+  }
+  if (opts.max !== undefined && value > opts.max) {
+    value = opts.max;
+  }
+  return value;
+}
+
+/** 必填 number 模型版 返回恒为 number 写回 number 字段不产生可空类型错 */
+export function bindNumeric(raw: string, current: number, opts: NumericBindOptions): number;
+/** 可选模型版 允许清空回 undefined */
+export function bindNumeric(
+  raw: string,
+  current: number | undefined,
+  opts: NumericBindOptions
+): number | undefined;
+export function bindNumeric(
+  raw: string,
+  current: number | undefined,
+  opts: NumericBindOptions
+): number | undefined {
+  const resolved = resolveNumeric(raw, current, opts);
+  // 必填 number 模型（current 为 number）不接受 undefined 回落 兜到下界或当前值
+  if (current !== undefined && resolved === undefined) {
+    return opts.min ?? current;
+  }
+  return resolved;
+}
+
+/** 数字模型到录入框回显文本的归一 空值出空串 给定精度时按小数位显示 供 :model-value 复用 */
+export function numericView(v: number | null | undefined, precision?: number): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '';
+  return precision !== undefined ? v.toFixed(precision) : String(v);
 }
