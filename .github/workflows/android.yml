@@ -458,7 +458,11 @@ jobs:
             # 设备侧只核对 API 34 上仍生效的权限。maxSdkVersion 低于平台 SDK 的 uses-permission
             # 由 PackageParser 在解析期丢弃（BLUETOOTH 与 BLUETOOTH_ADMIN 为 30，READ_EXTERNAL_STORAGE 为 32，
             # WRITE_EXTERNAL_STORAGE 为 28），这四条声明的完整性由 APK 静态断言 assert-apk-permissions.py 负责。
-            APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
+            APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }
+            # sys.boot_completed 置 1 早于 package 服务可用，此时装包只会得到找不到 package 服务的报错。
+            # 装包前先轮询 package 服务，装包本身再做有界重试，把启动竞态与真正的装包失败区分开。
+            i=0; until adb shell service check package 2>/dev/null | grep -q found; do i=$((i+1)); if [ "$i" -ge 40 ]; then echo 'E2E: package 服务 120 秒内未就绪'; adb shell service list | head -20; exit 1; fi; sleep 3; done; echo 'E2E: package 服务已就绪'
+            i=0; OK=""; while [ "$i" -lt 5 ]; do i=$((i+1)); OUT="$(adb install -r "$APK" 2>&1)" && { OK=1; break; }; printf '%s\n' "$OUT"; printf '%s\n' "$OUT" | grep -qE "Can't find service|Broken pipe|device offline|closed" || { echo 'E2E: 装包失败且不属于瞬时故障'; exit 1; }; sleep 5; done; test -n "$OK" || { echo 'E2E: 装包重试 5 次仍失败'; exit 1; }; echo 'E2E: APK 安装完成'
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
