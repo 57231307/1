@@ -187,16 +187,15 @@ async fn find_row(db: &sea_orm::DatabaseConnection, id: i32) -> greige_fabric::M
 
 #[test]
 fn dto_absent_key_is_keep_and_explicit_null_is_clear() {
-    let absent: Value = serde_json::to_value(
-        serde_json::from_str::<greige_fabric_handler::UpdateGreigeFabricRequest>("{}")
-            .expect("空对象应能反序列化为更新请求"),
-    )
-    .unwrap();
-    // 序列化回 JSON 只为拿到可读的判定面：键缺席 = 外层 None
-    assert_eq!(
-        absent.get("color_code"),
-        None,
-        "键缺席时 color_code 应是外层 None（保持原值），实际 {absent}"
+    // 键缺席的三态直接判定反序列化后的 Rust 字段：`color_code` 声明为 `Option<Option<String>>`
+    // 且挂 `serde(default)`，键缺席即外层 None（保持原值）。不借助回序列化——Update 是入参
+    // DTO，只派生 Deserialize，本用例与同组 Some(None)/Some(Some) 断言同源，一律直接读字段。
+    let absent = serde_json::from_str::<greige_fabric_handler::UpdateGreigeFabricRequest>("{}")
+        .expect("空对象应能反序列化为更新请求");
+    assert!(
+        absent.color_code.is_none(),
+        "键缺席时 color_code 应是外层 None（保持原值），实际 {:?}",
+        absent.color_code
     );
 
     let cleared =
