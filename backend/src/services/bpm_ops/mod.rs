@@ -27,46 +27,38 @@ const BPM_APPROVAL_PATH: &str = "/bpm/approval";
 
 /// 流程标识（process_key，即 `bpm_process_definition.code`）取值的唯一事实来源。
 ///
-/// 四个业务发起点（报价 / 销售订单 / 采购订单 / 生产订单）构造
-/// `StartProcessRequest` 与拼装 BPM 启动失败文案都必须取本模块常量，禁止再复制
-/// 字面量；流程定义种子的 `code` 落库值同样须与本模块逐字符一致，否则
-/// `start_process` 的 `Code.eq(process_key)` 查询恒不命中，表现为每次提交都
-/// "审批流程启动失败"（与 `bpm_task` 状态词表大小写不同源的静默空转同一机理）。
+/// 收录口径（出厂内置流程的「真实可发起」判定）：只允许 **业务发起侧服务层已有
+/// `start_process` 调用点** 或 **本仓已声明由权威族别承载（导出审批，令牌与分级
+/// 生命周期归导出车道）** 的编码进入本模块——发起入口缺位时该流程定义只有
+/// 超管经 `/bpm/process/start` 手工建实例一条路，属「只有超管能用的假可供流程」，
+/// 禁止入表。业务发起点接入 BPM 时同步在此登记编码，并同步
+/// `bpm_definition_seed.rs` 出厂清单与 `event_bus_ops/listener.rs` 的
+/// business_type 回写分支，三者逐字符一致（契约锁
+/// `tests/contract_bpm_builtin_definitions_single_source_test.rs` 钉死）。
 pub mod process_key {
-    /// 销售报价单审批
+    /// 销售报价单审批（发起点 quotation_approval_service::submit_to_bpm）
     pub const QUOTATION_APPROVAL: &str = "quotation_approval";
-    /// 销售订单审批
+    /// 销售订单审批（发起点 so/order_workflow.rs 提交路径）
     pub const SALES_ORDER_APPROVAL: &str = "sales_order_approval";
-    /// 采购订单审批
+    /// 采购订单审批（发起点 po/contract.rs 提交路径）
     pub const PURCHASE_ORDER_APPROVAL: &str = "purchase_order_approval";
-    /// 生产订单审批
+    /// 生产订单审批（发起点 production_order_ops/approval.rs::submit_for_approval）
     pub const PRODUCTION_ORDER_APPROVAL: &str = "production_order_approval";
-    /// 库存调拨审批
-    pub const INVENTORY_TRANSFER_APPROVAL: &str = "inventory_transfer_approval";
-    /// 库存调整审批
-    pub const INVENTORY_ADJUSTMENT_APPROVAL: &str = "inventory_adjustment_approval";
-    /// 库存盘点审批
-    pub const INVENTORY_COUNT_APPROVAL: &str = "inventory_count_approval";
-    /// 预算管理审批
-    pub const BUDGET_APPROVAL: &str = "budget_approval";
-    /// 应付发票审批
-    pub const AP_INVOICE_APPROVAL: &str = "ap_invoice_approval";
-    /// 付款申请审批
+    /// 付款申请审批（发起点 ap_payment_request_service::submit）
     pub const AP_PAYMENT_REQUEST_APPROVAL: &str = "ap_payment_request_approval";
-    /// 采购退货审批
+    /// 采购退货审批（发起点 purchase_return_service::submit_return）
     pub const PURCHASE_RETURN_APPROVAL: &str = "purchase_return_approval";
-    /// 销售退货审批
+    /// 销售退货审批（发起点 sales_return_service::submit_return）
     pub const SALES_RETURN_APPROVAL: &str = "sales_return_approval";
-    /// 色价审批
-    pub const COLOR_PRICE_APPROVAL: &str = "color_price_approval";
-    /// BOM 审批
-    pub const BOM_APPROVAL: &str = "bom_approval";
+    /// 导出审批（审批链条上的一族单据；令牌与分级生命周期归导出车道，
+    /// 本车道承载流程定义与办理腿回写）
+    pub const EXPORT_APPROVAL_APPROVAL: &str = "export_approval_approval";
 }
 
 /// BPM 启动失败对外文案的单源拼装（流程定义缺失/未启用族）。
 ///
 /// 调用方：`bpm_ops::instance::start_process` 的缺定义分支（经
-/// `AppError::not_found_displayable` 出参，404）与四个业务发起点的 catch 分支
+/// `AppError::not_found_displayable` 出参，404）与各业务发起点的 catch 分支
 /// （经 `AppError::business_displayable` 出参，400）。HTTP 出参 message 只准由
 /// 本函数产出，禁止各点各写拼接变体（防文案漂移，契约锁按本函数句式的子串断言）。
 ///
@@ -102,7 +94,8 @@ fn bpm_start_failure_system(process_key: &str, document_state: &str) -> String {
 
 /// 业务发起点对 `start_process` 失败的统一出参构造（单源，按内层族别如实分支）。
 ///
-/// 调用方：报价 / 销售订单 / 采购订单 / 生产订单四个发起点的 catch 分支。
+/// 调用方：各业务发起点（报价 / 销售订单 / 采购订单 / 生产订单 / 付款申请 /
+/// 采购退货 / 销售退货）的 catch 分支。
 /// 判责口径：出参责任在引擎真实失败的那一族，本函数不吞内层、也不把内层原文
 /// 整串外推：
 /// - 内层 NotFoundDisplayable（缺 ACTIVE 定义，出厂主因）时，出参点名流程标识的
@@ -112,7 +105,7 @@ fn bpm_start_failure_system(process_key: &str, document_state: &str) -> String {
 /// - 其余（数据库/内部错误等脱敏族）给固定引导句，不猜原因也不外透原文；
 ///   根因原文必须由调用方以 error 级日志全量落盘后方可返回。
 ///
-/// 出参恒为 `business_displayable`：HTTP 400 与 code BUSINESS_ERROR 与四个
+/// 出参恒为 `business_displayable`：HTTP 400 与 code BUSINESS_ERROR 与各
 /// 发起点既有契约一致（状态码语义不变），唯一变化是 message 由固定句式
 /// 换成分支后的如实文案。
 ///

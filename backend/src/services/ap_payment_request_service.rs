@@ -4,6 +4,10 @@
 //! 包含付款申请创建、提交、审批、拒绝等全流程管理
 
 use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
+use crate::models::dto::bpm_dto::StartProcessRequest;
+use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
+use crate::services::bpm_ops::{bpm_start_failure_error, process_key};
+use crate::services::bpm_service::BpmService;
 use crate::utils::admin_checker::{ADMIN_ROLE_CODE, MANAGER_ROLE_CODE};
 // V15 P0-S01：行级数据权限工具
 use crate::utils::data_scope::{
@@ -437,7 +441,111 @@ impl ApPaymentRequestService {
 
         txn.commit().await?;
 
+        // 提交审批接入 BPM：单据进入 APPROVING 后启动付款申请审批流程
+        // （process_key 与 business_type 与 bpm_ops::process_key、事件总线回写分支
+        // 逐字符同源）。启动失败补偿回滚 approval_status 至 DRAFT 并把真实失败
+        // 文案返回提交人——不允许单据停在「审批中」而系统里没有工单
+        // （与采购订单提交腿同一死单禁令）。
+        if let Err(e) = self
+            .start_ap_payment_request_bpm(id, &request.request_no, user_id)
+            .await
+        {
+            let document_state = match self.rollback_payment_request_to_draft(id, user_id).await {
+                Ok(()) => "付款申请已退回草稿状态",
+                Err(rb_err) => {
+                    tracing::error!(
+                        error = %rb_err,
+                        request_id = id,
+                        user_id = user_id,
+                        "付款申请 BPM 启动失败后的补偿回滚未完成，单据状态需人工核对"
+                    );
+                    "付款申请状态回退未完成，请按单据当前状态核对处理"
+                }
+            };
+            // 引擎失败原文只进日志不外显（utils/error.rs 安全边界），根因字段落齐
+            tracing::error!(
+                error = %e,
+                request_id = id,
+                user_id = user_id,
+                process_key = process_key::AP_PAYMENT_REQUEST_APPROVAL,
+                business_type = "ap_payment_request",
+                business_id = id,
+                "BPM 启动付款申请审批流程失败，根因如上"
+            );
+            return Err(bpm_start_failure_error(
+                process_key::AP_PAYMENT_REQUEST_APPROVAL,
+                document_state,
+                &e,
+            ));
+        }
+
         Ok(request)
+    }
+
+    /// 事务外启动付款申请 BPM 审批流程。
+    ///
+    /// 入参：request_id 付款申请主键、request_no 单号（拼流程 title）、
+    /// user_id 已认证提交人（发起人身份）。传给谁：BpmService::start_process
+    /// （定义查找、建实例与首任务见 bpm_ops/instance.rs）。
+    async fn start_ap_payment_request_bpm(
+        &self,
+        request_id: i32,
+        request_no: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let bpm_service = BpmService::new(self.db.clone());
+        let req = StartProcessRequest {
+            process_key: process_key::AP_PAYMENT_REQUEST_APPROVAL.to_string(),
+            business_type: "ap_payment_request".to_string(),
+            business_id: i64::from(request_id),
+            title: format!("付款申请审批 - {}", request_no),
+            initiator_id: user_id,
+            initiator_name: String::new(),
+            initiator_department_id: None,
+            priority: None,
+            form_data: None,
+            variables: None,
+        };
+        bpm_service.start_process(req).await.map(|_| ())
+    }
+
+    /// 补偿回滚：把审批中（APPROVING）的付款申请退回草稿。
+    /// 窗口内若已被并发审批改走，覆盖会把已生效的裁决静默抹掉，此时报冲突让
+    /// 调用方如实陈述（不回退）。
+    async fn rollback_payment_request_to_draft(
+        &self,
+        request_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let request = ap_payment_request::Entity::find_by_id(request_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("补偿回滚时付款申请 {} 不存在", request_id))
+            })?;
+        if request.approval_status
+            != crate::models::status::ap_payment_request::APPROVAL_APPROVING
+        {
+            return Err(AppError::business_displayable(format!(
+                "付款申请 {} 的状态已被其他操作改为 {}，本次提交不再回退状态，请按当前状态处理",
+                request_id, request.approval_status
+            )));
+        }
+        let mut active: ap_payment_request::ActiveModel = request.into();
+        active.approval_status =
+            Set(crate::models::status::common::STATUS_DRAFT.to_string());
+        active.updated_at = Set(Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(())
     }
 
     /// 审批付款申请（按金额分级审批）
@@ -488,6 +596,18 @@ impl ApPaymentRequestService {
 
         txn.commit().await?;
 
+        // 快捷审批回写 BPM 待办：单据在业务侧被批准后关闭该申请对应的 BPM pending
+        // 任务，与审批中心共用同一条引擎办理腿（approve_task），消除两入口状态分裂。
+        BpmService::new(self.db.clone())
+            .close_pending_tasks_for_business(
+                "ap_payment_request",
+                i64::from(id),
+                APPROVE_ACTION,
+                None,
+                user_id,
+            )
+            .await;
+
         Ok(request)
     }
 
@@ -536,6 +656,19 @@ impl ApPaymentRequestService {
         .await?;
 
         txn.commit().await?;
+
+        // 快捷审批回写 BPM 待办：拒绝时关闭该申请对应的 BPM pending 任务；
+        // 理由以落库后的 rejected_reason 真值转交引擎（审批中心侧理由的权威
+        // 载体是 bpm_task.approval_opinion，两侧各记各的，不互写）。
+        BpmService::new(self.db.clone())
+            .close_pending_tasks_for_business(
+                "ap_payment_request",
+                i64::from(id),
+                REJECT_ACTION,
+                Some(request.rejected_reason.clone().unwrap_or_default()),
+                user_id,
+            )
+            .await;
 
         Ok(request)
     }

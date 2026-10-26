@@ -2959,12 +2959,6 @@ export default {
         operation: 'Operation',
         viewChain: 'View Chain',
       },
-      taskStatus: {
-        pending: 'Pending',
-        completed: 'Completed',
-        rejected: 'Rejected',
-        cancelled: 'Cancelled',
-      },
     },
     definitions: {
       title: 'Process Definitions',

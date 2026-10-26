@@ -30,24 +30,21 @@ import {
 import { logger } from '@/utils/logger';
 
 /**
- * 单据类型到前端路由路径的映射（BPM 审批完成后回跳来源单据）。
- * 未收录的类型回退到审批中心本身（不做无效跳转）。
+ * 单据类型到前端路由路径的映射（BPM 审批完成后回跳来源单据上下文）。
+ * 收录口径 = 后端 event_bus_ops/listener.rs `handle_bpm_process_finished` 的
+ * business_type 分发清单（两入口同源收敛的真实族别），逐一对应前端真实存在的
+ * 路由；词表外的类型（含历史假可供族别残留数据）不回跳，避免跳进不存在的页面
+ * 落 404 空白页，用户留在审批中心由已办列表与审批链追溯单据上下文。
  */
 const BUSINESS_ROUTE_MAP: Record<string, (id: number) => string> = {
   purchase_order: () => '/purchase',
   sales_order: (id) => `/sales/orders/${id}`,
   production_order: () => '/production',
   quotation: (id) => `/quotations/${id}`,
-  inventory_transfer: () => '/inventory-transfer',
-  inventory_adjustment: () => '/inventory',
-  inventory_count: () => '/inventory',
-  budget: () => '/budget',
-  ap_invoice: () => '/ap',
   ap_payment_request: () => '/ap',
   purchase_return: () => '/purchase-return',
   sales_return: () => '/sales-returns',
-  color_price: () => '/color-price',
-  bom: () => '/bom',
+  export_approval: () => '/system/export-approvals',
 };
 
 /**

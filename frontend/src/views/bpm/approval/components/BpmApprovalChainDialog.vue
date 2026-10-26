@@ -18,7 +18,16 @@
           <div class="node-order">{{ index + 1 }}</div>
           <div class="node-content">
             <div class="node-name">{{ node.node_name }}</div>
-            <div class="node-type">{{ getNodeTypeNameFmt(node.node_type) }}</div>
+            <div class="node-type">
+              {{ getNodeTypeNameFmt(node.node_type) }}
+              <!-- 状态文案与待办/已办列表同源（@/constants/bpm-status），
+                   不再只靠边框颜色表达状态（色盲与读屏用户读不到颜色）。
+                   仅 user_task 有真实工单状态；start/end 节点后端透传的是
+                   "无工单默认 pending"占位，展示它反而误导，不渲染。 -->
+              <span v-if="node.node_type === 'user_task'" class="node-status">
+                {{ getTaskStatusLabel(node.status) }}
+              </span>
+            </div>
             <div v-if="node.assignee_name" class="node-approver">
               {{ $t('bpm.approval.chainDialog.approver') }}：{{ node.assignee_name }}
             </div>
@@ -42,6 +51,7 @@ import { useI18n } from 'vue-i18n';
 import { ArrowDown } from '@element-plus/icons-vue';
 import type { ApprovalChainNode } from '@/api/bpm-enhanced';
 import { getNodeStatusClass } from '../composables/bpmApFmts';
+import { getTaskStatusLabel } from '@/constants/bpm-status';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -63,14 +73,13 @@ const emit = defineEmits<{
 const getNodeStatusClassFmt = getNodeStatusClass;
 
 // 节点类型名称（响应式求值，随语言切换更新）
-// 取值域 = 流程定义 config.nodes[].type（start_event/end_event/user_task/condition）
+// 取值域 = 审批引擎节点类型词表（api/bpm-enhanced.ts BpmNodeType：start_event/end_event/user_task）；
+// 词表外取值（历史脏定义）回退原文，不猜语义。
 const getNodeTypeNameFmt = (type: string) => {
   const map: Record<string, string> = {
     start_event: t('bpm.nodeType.start'),
     end_event: t('bpm.nodeType.end'),
     user_task: t('bpm.nodeType.approval'),
-    condition: t('bpm.nodeType.condition'),
-    notify: t('bpm.nodeType.notify'),
   };
   return map[type] || type;
 };

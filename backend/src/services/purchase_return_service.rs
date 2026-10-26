@@ -8,10 +8,14 @@
 
 use crate::models::status::purchase_order as po_status;
 use crate::models::status::purchase_return as pr_status;
+use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::{
     inventory_stock, product, purchase_order, purchase_order_item, purchase_return,
     purchase_return_item, supplier, user,
 };
+use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
+use crate::services::bpm_ops::{bpm_start_failure_error, process_key};
+use crate::services::bpm_service::BpmService;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::services::inventory_stock_query::RecordTransactionArgs;
 // V15 P0-S01：行级数据权限工具
@@ -296,7 +300,105 @@ impl PurchaseReturnService {
 
         txn.commit().await?;
 
+        // 提交审批接入 BPM：退货单进入 SUBMITTED 后启动采购退货审批流程
+        // （process_key 与 business_type 与 bpm_ops::process_key、事件总线回写分支
+        // 逐字符同源）。启动失败补偿回滚 return_status 至 DRAFT 并把真实失败文案
+        // 返回提交人——不允许单据停在「已提交待审」而系统里没有工单。
+        if let Err(e) = self
+            .start_purchase_return_bpm(return_id, &return_order.return_no, user_id)
+            .await
+        {
+            let document_state = match self.rollback_purchase_return_to_draft(return_id, user_id).await
+            {
+                Ok(()) => "采购退货单已退回草稿状态",
+                Err(rb_err) => {
+                    tracing::error!(
+                        error = %rb_err,
+                        return_id = return_id,
+                        user_id = user_id,
+                        "采购退货 BPM 启动失败后的补偿回滚未完成，单据状态需人工核对"
+                    );
+                    "采购退货单状态回退未完成，请按单据当前状态核对处理"
+                }
+            };
+            tracing::error!(
+                error = %e,
+                return_id = return_id,
+                user_id = user_id,
+                process_key = process_key::PURCHASE_RETURN_APPROVAL,
+                business_type = "purchase_return",
+                business_id = return_id,
+                "BPM 启动采购退货审批流程失败，根因如上"
+            );
+            return Err(bpm_start_failure_error(
+                process_key::PURCHASE_RETURN_APPROVAL,
+                document_state,
+                &e,
+            ));
+        }
+
         Ok(return_order)
+    }
+
+    /// 事务外启动采购退货 BPM 审批流程。
+    ///
+    /// 入参：return_id 退货单主键、return_no 单号（拼流程 title）、user_id 已认证
+    /// 提交人。传给谁：BpmService::start_process（定义查找与建单见 bpm_ops/instance.rs）。
+    async fn start_purchase_return_bpm(
+        &self,
+        return_id: i32,
+        return_no: &str,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let bpm_service = BpmService::new(self.db.clone());
+        let req = StartProcessRequest {
+            process_key: process_key::PURCHASE_RETURN_APPROVAL.to_string(),
+            business_type: "purchase_return".to_string(),
+            business_id: i64::from(return_id),
+            title: format!("采购退货审批 - {}", return_no),
+            initiator_id: user_id,
+            initiator_name: String::new(),
+            initiator_department_id: None,
+            priority: None,
+            form_data: None,
+            variables: None,
+        };
+        bpm_service.start_process(req).await.map(|_| ())
+    }
+
+    /// 补偿回滚：把已提交（SUBMITTED）的采购退货单退回草稿。
+    /// 窗口内若已被并发审批改走，覆盖会把已生效的裁决静默抹掉，此时报冲突不回退。
+    async fn rollback_purchase_return_to_draft(
+        &self,
+        return_id: i32,
+        user_id: i32,
+    ) -> Result<(), AppError> {
+        let txn = (*self.db).begin().await?;
+        let return_order = purchase_return::Entity::find_by_id(return_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("补偿回滚时采购退货单 {} 不存在", return_id))
+            })?;
+        if return_order.return_status.as_deref() != Some(pr_status::SUBMITTED) {
+            return Err(AppError::business_displayable(format!(
+                "采购退货单 {} 的状态已被其他操作改为 {:?}，本次提交不再回退状态，请按当前状态处理",
+                return_id, return_order.return_status
+            )));
+        }
+        let mut active: purchase_return::ActiveModel = return_order.into();
+        active.return_status = Set(Some(pr_status::DRAFT.to_string()));
+        active.updated_at = Set(Utc::now());
+        crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        Ok(())
     }
 
     /// 审批采购退货单
@@ -351,6 +453,18 @@ impl PurchaseReturnService {
 
         // 4. 自动生成应付红字账单（冲销）- 在事务外执行，失败不影响库存扣减
         self.try_generate_ap_invoice_from_return(return_id, user_id, &return_order.return_no)
+            .await;
+
+        // 快捷审批回写 BPM 待办：单据在业务侧被批准后关闭该退货单对应的 BPM pending
+        // 任务，与审批中心共用同一条引擎办理腿（approve_task），消除两入口状态分裂。
+        BpmService::new(self.db.clone())
+            .close_pending_tasks_for_business(
+                "purchase_return",
+                i64::from(return_id),
+                APPROVE_ACTION,
+                None,
+                user_id,
+            )
             .await;
 
         Ok(return_order)
@@ -882,6 +996,24 @@ impl PurchaseReturnService {
         .await?;
 
         txn.commit().await?;
+
+        // 快捷审批回写 BPM 待办：拒绝时关闭该退货单对应的 BPM pending 任务；
+        // 理由以落库后的 rejected_reason 真值转交引擎（中心侧理由的权威载体是
+        // bpm_task.approval_opinion，两侧各记各的，不互写）。
+        BpmService::new(self.db.clone())
+            .close_pending_tasks_for_business(
+                "purchase_return",
+                i64::from(return_id),
+                REJECT_ACTION,
+                Some(
+                    return_order
+                        .rejected_reason
+                        .clone()
+                        .unwrap_or_default(),
+                ),
+                user_id,
+            )
+            .await;
 
         Ok(return_order)
     }

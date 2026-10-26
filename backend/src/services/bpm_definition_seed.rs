@@ -1,9 +1,15 @@
 //! 出厂内置 BPM 审批流程定义种子落库
 //!
-//! 报价单/销售订单/采购订单/生产订单/库存调拨/库存调整/库存盘点/预算/应付发票/
-//! 付款申请/采购退货/销售退货/色价/BOM 共十四枚提交审批流程编码都以
-//! `start_process(process_key=...)` 查找 ACTIVE 流程定义为前置门。系统出厂时该表为空，
-//! 提交审批入口必然失败——本模块把「出厂即可用」的流程定义以幂等方式补种到位。
+//! 报价单/销售订单/采购订单/生产订单/付款申请/采购退货/销售退货/导出审批
+//! 共八枚提交审批流程编码都以 `start_process(process_key=...)` 查找 ACTIVE 流程定义为
+//! 前置门。系统出厂时该表为空，提交审批入口必然失败——本模块把「出厂即可用」的流程
+//! 定义以幂等方式补种到位。
+//!
+//! 收录口径（与 `bpm_ops::process_key` 模块头注释同源）：只种**业务发起侧服务层已有
+//! start_process 调用点**（或本仓已裁定由权威族别承载发起的导出审批）的族别；
+//! 发起入口缺位的族别（库存调拨/调整/盘点、应付发票、预算、色价、BOM 等）其单据提交
+//! 腿从不调用引擎，普通角色根本建不出实例，种了就是「只有超管能用的假可供流程」，
+//! 一律不种——待各业务域发起腿接入后由对应车道补种。
 //!
 //! 幂等口径与内置打印模板种子一致：`INSERT ... ON CONFLICT (code) DO NOTHING`，仅补缺失编码，
 //! **绝不覆盖**既有行（用户在流程定义页对节点/审批人的任何调整永不受启动重跑影响）。
@@ -39,9 +45,10 @@ struct BuiltinApprovalDefinition {
     description: &'static str,
 }
 
-/// 四个提交审批入口对应的出厂流程定义：编码来源为业务发起侧
-/// （报价单提交、销售订单提交、采购订单提交、生产订单提交各自的 start_process 调用），
-/// 名称/分类与既有测试种子与业务标题口径一致。
+/// 八个提交审批入口对应的出厂流程定义：编码来源为业务发起侧
+/// （报价单提交、销售订单提交、采购订单提交、生产订单提交、付款申请提交、
+/// 采购退货提交、销售退货提交各自的 start_process 调用，导出审批为裁定承载族）
+/// 与 `bpm_ops::process_key` 常量逐字符同源，名称/分类与既有测试种子与业务标题口径一致。
 const BUILTIN_APPROVAL_DEFINITIONS: &[BuiltinApprovalDefinition] = &[
     BuiltinApprovalDefinition {
         code: "quotation_approval",
@@ -68,36 +75,6 @@ const BUILTIN_APPROVAL_DEFINITIONS: &[BuiltinApprovalDefinition] = &[
         description: "出厂内置：生产订单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
     },
     BuiltinApprovalDefinition {
-        code: "inventory_transfer_approval",
-        name: "库存调拨审批流程",
-        category: "inventory",
-        description: "出厂内置：库存调拨单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
-    },
-    BuiltinApprovalDefinition {
-        code: "inventory_adjustment_approval",
-        name: "库存调整审批流程",
-        category: "inventory",
-        description: "出厂内置：库存调整单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
-    },
-    BuiltinApprovalDefinition {
-        code: "inventory_count_approval",
-        name: "库存盘点审批流程",
-        category: "inventory",
-        description: "出厂内置：库存盘点单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
-    },
-    BuiltinApprovalDefinition {
-        code: "budget_approval",
-        name: "预算审批流程",
-        category: "finance",
-        description: "出厂内置：预算单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
-    },
-    BuiltinApprovalDefinition {
-        code: "ap_invoice_approval",
-        name: "应付发票审批流程",
-        category: "finance",
-        description: "出厂内置：应付发票提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
-    },
-    BuiltinApprovalDefinition {
         code: "ap_payment_request_approval",
         name: "付款申请审批流程",
         category: "finance",
@@ -116,16 +93,10 @@ const BUILTIN_APPROVAL_DEFINITIONS: &[BuiltinApprovalDefinition] = &[
         description: "出厂内置：销售退货单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
     },
     BuiltinApprovalDefinition {
-        code: "color_price_approval",
-        name: "色价审批流程",
-        category: "production",
-        description: "出厂内置：色价调整提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
-    },
-    BuiltinApprovalDefinition {
-        code: "bom_approval",
-        name: "BOM审批流程",
-        category: "production",
-        description: "出厂内置：物料清单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
+        code: "export_approval_approval",
+        name: "导出审批流程",
+        category: "other",
+        description: "出厂内置：导出审批单据在审批链上的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户；导出令牌与分级生命周期由导出车道域服务承载，本流程只承载审批办理",
     },
 ];
 
@@ -220,7 +191,7 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
             inserted = 0usize,
             skipped = total,
             assignee_user_id = approver.id,
-            "BPM 出厂审批流程定义种子无需写入（四枚编码均已在册，既有定义与用户调整不覆盖）"
+            "BPM 出厂审批流程定义种子无需写入（出厂编码均已在册，既有定义与用户调整不覆盖）"
         );
         return Ok(());
     }

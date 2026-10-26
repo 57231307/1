@@ -28,28 +28,10 @@ import { ElButton, ElTag } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { ApprovalTask } from '@/api/bpm-enhanced';
-import {
-  isOverdue,
-  getPriorityType,
-  getTaskStatusType,
-  formatDateTime,
-  TASK_STATUSES,
-} from '../composables/bpmApFmts';
+import { getPriorityType, formatDateTime, isOverdue } from '../composables/bpmApFmts';
+import { getTaskStatusLabel, getTaskStatusType } from '@/constants/bpm-status';
 
 const { t } = useI18n({ useScope: 'global' });
-
-/** 任务状态显示文本（取值域与后端 bpm_task 词表同源，见 TASK_STATUSES） */
-const TASK_STATUS_LABEL_KEYS: Record<(typeof TASK_STATUSES)[number], string> = {
-  pending: 'bpm.approval.taskStatus.pending',
-  completed: 'bpm.approval.taskStatus.completed',
-  rejected: 'bpm.approval.taskStatus.rejected',
-  cancelled: 'bpm.approval.taskStatus.cancelled',
-};
-
-const getTaskStatusLabel = (status: string) => {
-  const key = TASK_STATUS_LABEL_KEYS[status as (typeof TASK_STATUSES)[number]];
-  return key ? t(key) : status;
-};
 
 /**
  * 审批待办任务表组件

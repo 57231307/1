@@ -2940,12 +2940,6 @@ export default {
         operation: '操作',
         viewChain: '审批链',
       },
-      taskStatus: {
-        pending: '待处理',
-        completed: '已完成',
-        rejected: '已拒绝',
-        cancelled: '已取消',
-      },
     },
     definitions: {
       title: '流程定义',

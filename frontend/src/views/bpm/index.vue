@@ -167,7 +167,7 @@
             <el-table-column :label="$t('bpm.processedTable.status')" width="100">
               <template #default="{ row }">
                 <el-tag :type="getTaskStatusType(row.status)" size="small">
-                  {{ getTaskStatusText(row.status) }}
+                  {{ getTaskStatusLabel(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -227,7 +227,7 @@
             <el-table-column prop="status" :label="$t('bpm.monitorTable.status')" width="120">
               <template #default="{ row }">
                 <el-tag :type="getProcessStatusType(row.status)" size="small">
-                  {{ getProcessStatusText(row.status) }}
+                  {{ getProcessStatusLabel(row.status) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -358,7 +358,7 @@
             businessRelation.result.instance_no
           }}</el-descriptions-item>
           <el-descriptions-item :label="$t('bpm.businessRelationDialog.status')">{{
-            getProcessStatusText(businessRelation.result.process_status)
+            getProcessStatusLabel(businessRelation.result.process_status)
           }}</el-descriptions-item>
           <el-descriptions-item :label="$t('bpm.businessRelationDialog.startTime')">{{
             businessRelation.result.started_at
@@ -441,8 +441,13 @@ import type {
   BPMInstance,
   BpmBusinessRelation,
   BpmInstanceDetail,
-  BPMTaskStatus,
 } from '@/api/bpm';
+import {
+  getProcessStatusLabel,
+  getProcessStatusType,
+  getTaskStatusLabel,
+  getTaskStatusType,
+} from '@/constants/bpm-status';
 import { useUserStore } from '@/store/user';
 import { getUserList, type User } from '@/api/user';
 import { logger } from '@/utils/logger';
@@ -528,47 +533,7 @@ const getPriorityText = (priority: string) => {
   return map[priority] || priority;
 };
 
-// 流程实例状态词表为大写（models/status/bpm_crm_contract.rs bpm_instance）
-const getProcessStatusType = (status: string): TagType => {
-  const map: Record<string, TagType> = {
-    PROCESSING: 'primary',
-    COMPLETED: 'success',
-    TERMINATED: 'danger',
-    CANCELLED: 'info',
-  };
-  return map[status] || 'info';
-};
-
-const getProcessStatusText = (status: string) => {
-  const map: Record<string, string> = {
-    PROCESSING: t('bpm.processStatus.processing'),
-    COMPLETED: t('bpm.processStatus.completed'),
-    TERMINATED: t('bpm.processStatus.terminated'),
-    CANCELLED: t('bpm.processStatus.cancelled'),
-  };
-  return map[status] || status;
-};
-
-// 任务状态词表为小写（models/status/bpm_crm_contract.rs bpm_task）
-const getTaskStatusType = (status: string | null | undefined): TagType => {
-  const map: Record<BPMTaskStatus, TagType> = {
-    pending: 'warning',
-    completed: 'success',
-    rejected: 'danger',
-    cancelled: 'info',
-  };
-  return status ? map[status as BPMTaskStatus] || 'info' : 'info';
-};
-
-const getTaskStatusText = (status: string | null | undefined) => {
-  const map: Record<BPMTaskStatus, string> = {
-    pending: t('bpm.taskStatus.pending'),
-    completed: t('bpm.taskStatus.completed'),
-    rejected: t('bpm.taskStatus.rejected'),
-    cancelled: t('bpm.taskStatus.cancelled'),
-  };
-  return status ? map[status as BPMTaskStatus] || status : status || '';
-};
+// 状态标签单源：@/constants/bpm-status（与审批中心待办/已办、审批链共用同一枚举与文案键）
 
 const isOverdue = (dueDate: string) => {
   return new Date(dueDate) < new Date();
@@ -778,7 +743,7 @@ const buildDetailLines = (d: BpmInstanceDetail): string[] => [
   `${t('bpm.detail.startUser')}：${d.instance.initiator_name}`,
   `${t('bpm.detail.startTime')}：${d.instance.started_at ?? ''}`,
   `${t('bpm.detail.endTime')}：${d.instance.completed_at ?? ''}`,
-  `${t('bpm.detail.currentStatus')}：${getProcessStatusText(d.instance.status ?? '')}`,
+  `${t('bpm.detail.currentStatus')}：${getProcessStatusLabel(d.instance.status ?? '')}`,
   `${t('bpm.detail.currentNode')}：${d.instance.current_node_name ?? ''}`,
 ];
 
@@ -901,7 +866,7 @@ const handleTrace = async (row: BPMTask | BPMInstance) => {
     // 序号由前端按下标生成，处理人=assignee_name，完成时间=completed_at
     const lines = chain.map(
       (item, index) =>
-        `${index + 1}. ${item.node_name}${item.assignee_name ? `（${item.assignee_name}）` : ''} - ${item.status}${item.comment ? `（${item.comment}）` : ''}${item.completed_at ? ` @ ${item.completed_at}` : ''}`
+        `${index + 1}. ${item.node_name}${item.assignee_name ? `（${item.assignee_name}）` : ''} - ${getTaskStatusLabel(item.status)}${item.comment ? `（${item.comment}）` : ''}${item.completed_at ? ` @ ${item.completed_at}` : ''}`
     );
     await ElMessageBox.alert(lines.join('\n'), t('bpm.detail.traceTitle', { instanceId }), {
       confirmButtonText: t('bpm.message.close'),
@@ -977,7 +942,7 @@ const handleProcessImage = async (row: BPMInstance) => {
     const lines = [
       `${t('bpm.detail.instanceId')}：${d.instance.instance_no}`,
       `${t('bpm.detail.processName')}：${d.definition?.name ?? ''}`,
-      `${t('bpm.detail.currentStatus')}：${getProcessStatusText(d.instance.status ?? '')}`,
+      `${t('bpm.detail.currentStatus')}：${getProcessStatusLabel(d.instance.status ?? '')}`,
       `${t('bpm.detail.activityHistory')}：${d.tasks.map(node => node.node_name).join(' → ')}`,
     ];
     await ElMessageBox.alert(

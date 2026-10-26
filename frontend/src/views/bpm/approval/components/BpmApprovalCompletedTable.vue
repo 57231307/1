@@ -28,20 +28,10 @@ import { ElButton, ElTag } from 'element-plus';
 import V2Table from '@/components/V2Table/index.vue';
 import type { ColumnDef } from '@/components/V2Table/types';
 import type { ApprovalTask } from '@/api/bpm-enhanced';
-import { getTaskStatusType, formatDateTime } from '../composables/bpmApFmts';
+import { formatDateTime } from '../composables/bpmApFmts';
+import { getTaskStatusLabel, getTaskStatusType } from '@/constants/bpm-status';
 
 const { t } = useI18n({ useScope: 'global' });
-
-/** 已办任务状态（completed/rejected/cancelled）显示文本，取值域与后端 bpm_task 词表同源 */
-const getTaskStatusLabel = (status: string) => {
-  const map: Record<string, string> = {
-    completed: t('bpm.approval.taskStatus.completed'),
-    rejected: t('bpm.approval.taskStatus.rejected'),
-    cancelled: t('bpm.approval.taskStatus.cancelled'),
-    pending: t('bpm.approval.taskStatus.pending'),
-  };
-  return map[status] || status;
-};
 
 /**
  * 审批已办任务表组件

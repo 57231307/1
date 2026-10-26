@@ -17,7 +17,7 @@ use crate::services::event_bus::{
 use crate::utils::error::AppError;
 use futures::FutureExt;
 use sea_orm::DatabaseConnection;
-use sea_orm::{ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, ExprTrait, QueryFilter, Statement};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
@@ -1292,35 +1292,17 @@ async fn handle_bpm_process_finished(
         "quotation" => {
             handle_bpm_quotation(db, business_id, approved, approver_id).await;
         }
-        "inventory_transfer" => {
-            handle_bpm_generic_status_update(db, "inventory_transfer", business_id, approved, approver_id).await;
-        }
-        "inventory_adjustment" => {
-            handle_bpm_generic_status_update(db, "inventory_adjustment", business_id, approved, approver_id).await;
-        }
-        "budget" => {
-            handle_bpm_generic_status_update(db, "budget", business_id, approved, approver_id).await;
-        }
-        "ap_invoice" => {
-            handle_bpm_generic_status_update(db, "ap_invoice", business_id, approved, approver_id).await;
-        }
         "ap_payment_request" => {
-            handle_bpm_generic_status_update(db, "ap_payment_request", business_id, approved, approver_id).await;
+            handle_bpm_ap_payment_request(db, business_id, approved, approver_id).await;
         }
         "purchase_return" => {
-            handle_bpm_generic_status_update(db, "purchase_return", business_id, approved, approver_id).await;
+            handle_bpm_purchase_return(db, business_id, approved, approver_id).await;
         }
         "sales_return" => {
-            handle_bpm_generic_status_update(db, "sales_return", business_id, approved, approver_id).await;
+            handle_bpm_sales_return(db, business_id, approved, approver_id).await;
         }
-        "color_price" => {
-            handle_bpm_generic_status_update(db, "color_price", business_id, approved, approver_id).await;
-        }
-        "bom" => {
-            handle_bpm_generic_status_update(db, "bom", business_id, approved, approver_id).await;
-        }
-        "inventory_count" => {
-            handle_bpm_generic_status_update(db, "inventory_count", business_id, approved, approver_id).await;
+        "export_approval" => {
+            handle_bpm_export_approval(db, business_id, approved, approver_id).await;
         }
         other => tracing::warn!("未识别的 BPM business_type: {}", other),
     }
@@ -1476,61 +1458,193 @@ async fn handle_bpm_quotation(
     }
 }
 
-/// BPM 回写通用状态更新：按 business_type 定位表与状态列，
-/// 将 pending/pending_approval 更新为 approved/rejected（容错，失败只记日志）。
+/// 处理付款申请 BPM 审批结果回写（`ApPaymentRequestService::approve/reject`）。
 ///
-/// 调用方：handle_bpm_process_finished 各新增 business_type 分支。
-/// 入参：db、business_type（单据类型串）、business_id（单据主键）、
-/// approved（是否通过）、approver_id（审批人）。
-async fn handle_bpm_generic_status_update(
+/// 与单据快捷审批共用同一条域 service 办理腿：状态词表（APPROVING→APPROVED/REJECTED）、
+/// 状态门、金额分级审批权限与审计写入全部收敛在 ap_payment_request_service 一处；
+/// 事件侧不裸 SQL 直写业务表（历史 generic 分支按猜想的 pending_approval/approved
+/// 字面量更新，与真实词表不同源，属静默空转的第二写口，已移除）。
+async fn handle_bpm_ap_payment_request(
     db: Arc<DatabaseConnection>,
-    business_type: &str,
     business_id: i64,
     approved: bool,
-    _approver_id: i32,
+    approver_id: i32,
 ) {
-    // 每个 business_type 映射到真实表名、状态列名与审批前状态取值
-    let (table, status_col, pending_val, approved_val, rejected_val) = match business_type {
-        "inventory_transfer" => ("inventory_transfers", "status", "pending", "approved", "rejected"),
-        "inventory_adjustment" => ("inventory_adjustments", "status", "pending", "approved", "rejected"),
-        "inventory_count" => ("inventory_counts", "status", "pending", "approved", "rejected"),
-        "budget" => ("budgets", "status", "pending_approval", "approved", "rejected"),
-        "ap_invoice" => ("ap_invoices", "status", "pending_approval", "approved", "rejected"),
-        "ap_payment_request" => ("ap_payment_requests", "status", "pending_approval", "approved", "rejected"),
-        "purchase_return" => ("purchase_returns", "status", "pending_approval", "approved", "rejected"),
-        "sales_return" => ("sales_returns", "status", "pending_approval", "approved", "rejected"),
-        "color_price" => ("color_prices", "status", "pending_approval", "approved", "rejected"),
-        "bom" => ("boms", "status", "pending_approval", "approved", "rejected"),
-        _ => {
-            tracing::warn!("BPM 通用回写：未映射的 business_type: {}", business_type);
-            return;
-        }
+    let Ok(request_id) = i32::try_from(business_id) else {
+        tracing::error!(
+            business_id,
+            "BPM 审批回写中止：ap_payment_request 主键超出 INTEGER 范围，与付款申请主键类型不符，判定为数据异常，不做窄化回写"
+        );
+        return;
     };
-    let target = if approved { approved_val } else { rejected_val };
-    let sql = format!(
-        "UPDATE {table} SET {status_col} = '{target}' WHERE id = $1 AND {status_col} = '{pending_val}'"
-    );
-    let stmt = Statement::from_sql_and_values(
-        DbBackend::Postgres,
-        &sql,
-        vec![business_id.into()],
-    );
-    match db.execute(stmt).await {
-        Ok(res) if res.rows_affected() > 0 => {
-            tracing::info!(
-                "BPM 通用回写成功：{business_type} id={business_id} {pending_val} -> {target}"
-            );
+    let svc = crate::services::ap_payment_request_service::ApPaymentRequestService::new(db);
+    if approved {
+        match svc.approve(request_id, approver_id).await {
+            Ok(r) => tracing::info!(
+                "Successfully approved ap_payment_request {} via BPM (approval_status={})",
+                request_id,
+                r.approval_status
+            ),
+            Err(e) => tracing::error!(
+                "Failed to approve ap_payment_request {} via BPM: {}",
+                request_id,
+                e
+            ),
         }
-        Ok(_) => {
-            tracing::debug!(
-                "BPM 通用回写跳过：{business_type} id={business_id} 不处于 {pending_val} 状态（可能已被快捷审批回写）"
+    } else {
+        match svc
+            .reject(request_id, "BPM审批拒绝".to_string(), approver_id)
+            .await
+        {
+            Ok(_) => tracing::info!("Successfully rejected ap_payment_request {} via BPM", request_id),
+            Err(e) => tracing::error!(
+                "Failed to reject ap_payment_request {} via BPM: {}",
+                request_id,
+                e
+            ),
+        }
+    }
+}
+
+/// 处理采购退货单 BPM 审批结果回写（`PurchaseReturnService::approve_return/reject_return`）。
+///
+/// 审批通过会真实扣减库存并回写来源采购订单进度（域服务事务内原子完成），
+/// 事件侧只负责把裁决送到唯一的业务写口，库存与账实动作一概不在这里复制第二套。
+async fn handle_bpm_purchase_return(
+    db: Arc<DatabaseConnection>,
+    business_id: i64,
+    approved: bool,
+    approver_id: i32,
+) {
+    let Ok(return_id) = i32::try_from(business_id) else {
+        tracing::error!(
+            business_id,
+            "BPM 审批回写中止：purchase_return 主键超出 INTEGER 范围，与采购退货单主键类型不符，判定为数据异常，不做窄化回写"
+        );
+        return;
+    };
+    let svc = crate::services::purchase_return_service::PurchaseReturnService::new(db);
+    if approved {
+        // BPM 裁决意见唯一载体仍是 bpm_task.approval_opinion（本域口径与 PO/SO 一致），
+        // 业务列 approval_reason 只承载快捷审批采集通道的值，不互写、不伪造。
+        match svc.approve_return(return_id, approver_id, None).await {
+            Ok(_) => tracing::info!("Successfully approved purchase_return {} via BPM", return_id),
+            Err(e) => tracing::error!(
+                "Failed to approve purchase_return {} via BPM: {}",
+                return_id,
+                e
+            ),
+        }
+    } else {
+        match svc
+            .reject_return(return_id, "BPM审批拒绝".to_string(), approver_id)
+            .await
+        {
+            Ok(_) => tracing::info!("Successfully rejected purchase_return {} via BPM", return_id),
+            Err(e) => tracing::error!(
+                "Failed to reject purchase_return {} via BPM: {}",
+                return_id,
+                e
+            ),
+        }
+    }
+}
+
+/// 处理销售退货单 BPM 审批结果回写（`SalesReturnService::approve_return/reject_return`）。
+///
+/// 审批通过会真实批量入库并生成红字应收（域服务事务内原子完成），事件侧只投递裁决。
+async fn handle_bpm_sales_return(
+    db: Arc<DatabaseConnection>,
+    business_id: i64,
+    approved: bool,
+    approver_id: i32,
+) {
+    let Ok(return_id) = i32::try_from(business_id) else {
+        tracing::error!(
+            business_id,
+            "BPM 审批回写中止：sales_return 主键超出 INTEGER 范围，与销售退货单主键类型不符，判定为数据异常，不做窄化回写"
+        );
+        return;
+    };
+    let svc = crate::services::sales_return_service::SalesReturnService::new(db);
+    if approved {
+        match svc.approve_return(return_id, approver_id).await {
+            Ok(_) => tracing::info!("Successfully approved sales_return {} via BPM", return_id),
+            Err(e) => tracing::error!("Failed to approve sales_return {} via BPM: {}", return_id, e),
+        }
+    } else {
+        match svc
+            .reject_return(return_id, "BPM审批拒绝".to_string(), approver_id)
+            .await
+        {
+            Ok(_) => tracing::info!("Successfully rejected sales_return {} via BPM", return_id),
+            Err(e) => tracing::error!("Failed to reject sales_return {} via BPM: {}", return_id, e),
+        }
+    }
+}
+
+/// 处理导出审批 BPM 裁决回写（`ExportApprovalService::approve/reject`）。
+///
+/// 导出审批是审批链条上的一族单据：域服务自身持有分级语义（pending→pending_l2→
+/// approved）、通过时生成下载令牌与拒绝时留痕的写口都在本 service，事件侧只把
+/// 中心裁决投递到该单源写口；令牌生命周期规则不在本文件复制。
+/// 处理人姓名从 users 表按已认证 approver_id 解析真实值（查不到即中止回写并点名，
+/// 不伪造姓名）。
+async fn handle_bpm_export_approval(
+    db: Arc<DatabaseConnection>,
+    business_id: i64,
+    approved: bool,
+    approver_id: i32,
+) {
+    let approver = match crate::models::user::Entity::find_by_id(approver_id).one(&*db).await {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            tracing::error!(
+                approver_id,
+                business_id,
+                "导出审批 BPM 回写中止：办理人用户记录不存在，无法记录真实审批人姓名，不做回写"
             );
+            return;
         }
         Err(e) => {
             tracing::error!(
-                "BPM 通用回写失败：{business_type} id={business_id}: {e}"
+                error = %e,
+                approver_id,
+                business_id,
+                "导出审批 BPM 回写中止：查询办理人失败，不做回写"
             );
+            return;
         }
+    };
+    let approver_username = approver
+        .real_name
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(approver.username);
+    let svc = crate::services::export_approval_service::ExportApprovalService::new(db);
+    let req = crate::services::export_approval_service::ApproveRequest {
+        comments: Some("BPM审批中心办理".to_string()),
+    };
+    let outcome = if approved {
+        svc.approve(business_id, approver_id, approver_username, None, req)
+            .await
+            .map(|m| m.status)
+    } else {
+        svc.reject(business_id, approver_id, approver_username, None, req)
+            .await
+            .map(|m| m.status)
+    };
+    match outcome {
+        Ok(status) => tracing::info!(
+            "导出审批 {} 经 BPM {} 回写完成，单据当前状态 {}",
+            business_id,
+            if approved { "通过" } else { "拒绝" },
+            status
+        ),
+        Err(e) => tracing::error!(
+            "Failed to write back export_approval {} via BPM: {}",
+            business_id,
+            e
+        ),
     }
 }
 
