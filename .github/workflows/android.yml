@@ -146,6 +146,8 @@ jobs:
               "bluetooth_connect",
               "bluetooth_print_text",
               "bluetooth_disconnect",
+              "system_print_html",
+              "system_print_page",
           }
           if set(commands) != expected:
               raise SystemExit(f"build.rs 命令清单与预期不一致，缺失 {sorted(expected - set(commands))}，多出 {sorted(set(commands) - expected)}")
