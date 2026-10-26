@@ -123,7 +123,7 @@ DECLARE
     bad_rows INTEGER;
 BEGIN
     SELECT COUNT(*) INTO total_rows FROM "{table}";
-    RAISE NOTICE 'm0107 点名 {table}.{col} 全表 % 行，收口口径 {domain}';
+    RAISE NOTICE 'm0107 点名 {table}.{col} 全表 % 行，收口口径 {domain}', total_rows;
 
     SELECT COUNT(*) INTO bad_rows FROM "{table}"
       WHERE NOT ({legal});
