@@ -2,6 +2,7 @@ package com.bingxi.erp
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
@@ -13,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.annotation.RequiresApi
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -142,23 +144,32 @@ class SystemPrintPlugin(private val activity: Activity) : Plugin(activity) {
   /** 包一层只为本插件补回收动作，打印框架结束任务时连离屏 WebView 一起销毁。 */
   private fun wrapAdapter(inner: PrintDocumentAdapter): PrintDocumentAdapter {
     return object : PrintDocumentAdapter() {
+      override fun onStart() {
+        inner.onStart()
+      }
+
       override fun onLayout(
         oldAttributes: PrintAttributes?,
         newAttributes: PrintAttributes?,
         cancellationSignal: CancellationSignal?,
-        callback: LayoutResultCallback?,
+        callback: PrintDocumentAdapter.LayoutResultCallback?,
         extras: Bundle?
       ) {
         inner.onLayout(oldAttributes, newAttributes, cancellationSignal, callback, extras)
       }
 
       override fun onWrite(
-        pages: MutableList<PageRange>?,
-        destination: ParcelFileDescriptor?,
-        cancellationSignal: CancellationSignal?,
-        callback: WriteResultCallback?
+        pages: Array<PageRange>,
+        destination: ParcelFileDescriptor,
+        cancellationSignal: CancellationSignal,
+        callback: PrintDocumentAdapter.WriteResultCallback
       ) {
         inner.onWrite(pages, destination, cancellationSignal, callback)
+      }
+
+      @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+      override fun onFeatureFailed(exception: PrintDocumentAdapter.FeatureFailedException) {
+        inner.onFeatureFailed(exception)
       }
 
       override fun onFinish() {
