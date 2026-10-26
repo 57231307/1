@@ -566,7 +566,9 @@ impl SkuMappingService {
                 Some(first_row) => failures.push(row_failure(
                     row_no,
                     "product_color_id",
-                    format!("与本批第 {first_row} 行重复（同一我方产品、同一我方色号、同一供应商）"),
+                    format!(
+                        "与本批第 {first_row} 行重复（同一我方产品、同一我方色号、同一供应商）"
+                    ),
                     key_label,
                 )),
                 None => {
@@ -1154,7 +1156,12 @@ where
 ///
 /// `message` 只描述用户自己提交的字段与公开业务规则（不含表名/约束名/他人数据/内部编号），
 /// `value` 回显用户提交的原值，供界面把失败行高亮到具体录入格。
-fn row_failure(row: usize, column: &str, message: impl Into<String>, value: impl Into<String>) -> ImportError {
+fn row_failure(
+    row: usize,
+    column: &str,
+    message: impl Into<String>,
+    value: impl Into<String>,
+) -> ImportError {
     ImportError {
         row,
         column: column.to_string(),

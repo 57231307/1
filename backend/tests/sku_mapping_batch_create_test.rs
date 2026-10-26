@@ -21,11 +21,9 @@ use std::sync::Arc;
 const SERVICE_SRC: &str = include_str!("../src/services/sku_mapping_service.rs");
 const HANDLER_SRC: &str = include_str!("../src/handlers/sku_mapping_handler.rs");
 const ROUTES_SRC: &str = include_str!("../src/routes/purchase.rs");
-const FRONTEND_API_SRC: &str =
-    include_str!("../../frontend/src/api/sku-mapping.ts");
-const FRONTEND_BATCH_VIEW_SRC: &str = include_str!(
-    "../../frontend/src/views/sku-mapping/components/SkuMappingBatchDialog.vue"
-);
+const FRONTEND_API_SRC: &str = include_str!("../../frontend/src/api/sku-mapping.ts");
+const FRONTEND_BATCH_VIEW_SRC: &str =
+    include_str!("../../frontend/src/views/sku-mapping/components/SkuMappingBatchDialog.vue");
 
 // ---------------------------------------------------------------------------
 // 一，出参形状与整批原子的源码锁（无库）
@@ -69,10 +67,17 @@ fn rejected_counts_distinct_rows_not_error_items() {
     };
     let res = BatchCreateMappingResult::rejected(
         5,
-        vec![mk(2, "product_id"), mk(2, "supplier_id"), mk(4, "product_color_id")],
+        vec![
+            mk(2, "product_id"),
+            mk(2, "supplier_id"),
+            mk(4, "product_color_id"),
+        ],
     );
     assert_eq!(res.created_count, 0, "被拒批次必须零写入");
-    assert_eq!(res.failed_count, 2, "失败行数按行去重，应为 2 而不是错误条数 3");
+    assert_eq!(
+        res.failed_count, 2,
+        "失败行数按行去重，应为 2 而不是错误条数 3"
+    );
     assert_eq!(res.errors.len(), 3, "错误明细逐条保留，不合并也不吞");
 }
 
@@ -148,10 +153,7 @@ fn both_validation_arms_cover_the_same_five_reference_rules() {
         "product_color::Column::ProductId",
         "supplier_product_color::Column::SupplierProductId",
     ] {
-        assert!(
-            canon_contains(single, needle),
-            "单条臂缺引用规则 {needle}"
-        );
+        assert!(canon_contains(single, needle), "单条臂缺引用规则 {needle}");
         assert!(
             canon_contains(batch, needle),
             "批量臂缺引用规则 {needle}，两臂口径会漂移"
@@ -215,7 +217,10 @@ fn handler_gates_rows_before_write() {
         "批量新增应有行数闸门，避免超大批次把单事务撑大"
     );
     assert!(
-        canon_contains(body, "to_batch_upsert_input(item, idx + 1, &mut text_failures)"),
+        canon_contains(
+            body,
+            "to_batch_upsert_input(item, idx + 1, &mut text_failures)"
+        ),
         "数值文本不合格必须按行归因，不能整批 400 也不能静默丢列"
     );
     assert!(
@@ -429,9 +434,7 @@ fn row_input(
 #[allow(dead_code)]
 async fn mapping_count(db: &sea_orm::DatabaseConnection, product_id: i32) -> u64 {
     bingxi_backend::models::product_supplier_mapping::Entity::find()
-        .filter(
-            bingxi_backend::models::product_supplier_mapping::Column::ProductId.eq(product_id),
-        )
+        .filter(bingxi_backend::models::product_supplier_mapping::Column::ProductId.eq(product_id))
         .count(db)
         .await
         .expect("回读对照条数应成功")
@@ -448,10 +451,34 @@ async fn batch_is_atomic_when_one_row_is_invalid() {
         seed_sku_chain(&db).await;
 
     let rows = vec![
-        row_input(product_id, Some(colors[0]), supplier_id, supplier_product_id, Some(sc), Some("12.34"), Some(7)),
+        row_input(
+            product_id,
+            Some(colors[0]),
+            supplier_id,
+            supplier_product_id,
+            Some(sc),
+            Some("12.34"),
+            Some(7),
+        ),
         // 该色号真实存在，但属于另一个产品，引用归属不成立
-        row_input(product_id, Some(other_colors[0]), supplier_id, supplier_product_id, None, None, None),
-        row_input(product_id, Some(colors[1]), supplier_id, supplier_product_id, None, None, None),
+        row_input(
+            product_id,
+            Some(other_colors[0]),
+            supplier_id,
+            supplier_product_id,
+            None,
+            None,
+            None,
+        ),
+        row_input(
+            product_id,
+            Some(colors[1]),
+            supplier_id,
+            supplier_product_id,
+            None,
+            None,
+            None,
+        ),
     ];
 
     let res = svc
@@ -464,7 +491,10 @@ async fn batch_is_atomic_when_one_row_is_invalid() {
     assert_eq!(res.failed_count, 1, "失败行数应为 1");
     assert_eq!(res.errors.len(), 1, "应给出那条失败明细");
     assert_eq!(res.errors[0].row, 2, "行号应指向提交行序的第 2 行");
-    assert_eq!(res.errors[0].column, "product_color_id", "应点名不合格的字段");
+    assert_eq!(
+        res.errors[0].column, "product_color_id",
+        "应点名不合格的字段"
+    );
 
     let stored = mapping_count(&db, product_id).await;
     assert_eq!(stored, 0, "不合格批次落库条数必须为 0，一行都不许留下");
@@ -478,12 +508,37 @@ async fn batch_is_atomic_when_one_row_is_invalid() {
 async fn batch_within_batch_duplicate_names_both_rows() {
     let db = bingxi_backend::services::test_common::setup_test_db().await;
     let svc = SkuMappingService::new(Arc::new(db.clone()));
-    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) = seed_sku_chain(&db).await;
+    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) =
+        seed_sku_chain(&db).await;
 
     let rows = vec![
-        row_input(product_id, Some(colors[0]), supplier_id, supplier_product_id, Some(sc), None, None),
-        row_input(product_id, Some(colors[1]), supplier_id, supplier_product_id, None, None, None),
-        row_input(product_id, Some(colors[0]), supplier_id, supplier_product_id, None, None, None),
+        row_input(
+            product_id,
+            Some(colors[0]),
+            supplier_id,
+            supplier_product_id,
+            Some(sc),
+            None,
+            None,
+        ),
+        row_input(
+            product_id,
+            Some(colors[1]),
+            supplier_id,
+            supplier_product_id,
+            None,
+            None,
+            None,
+        ),
+        row_input(
+            product_id,
+            Some(colors[0]),
+            supplier_id,
+            supplier_product_id,
+            None,
+            None,
+            None,
+        ),
     ];
 
     let res = svc
@@ -503,7 +558,11 @@ async fn batch_within_batch_duplicate_names_both_rows() {
         !res.errors[0].message.contains("与已有对照重复"),
         "批内互撞不该被说成撞库里既有对照，成因不同修法也不同"
     );
-    assert_eq!(mapping_count(&db, product_id).await, 0, "库里不该有半行落库");
+    assert_eq!(
+        mapping_count(&db, product_id).await,
+        0,
+        "库里不该有半行落库"
+    );
 }
 
 /// 撞库里已有对照，要按行点名且成因文案与批内互撞不同，已有那行不被覆盖也不新增。
@@ -512,7 +571,8 @@ async fn batch_within_batch_duplicate_names_both_rows() {
 async fn batch_existing_duplicate_names_row_and_keeps_old_row() {
     let db = bingxi_backend::services::test_common::setup_test_db().await;
     let svc = SkuMappingService::new(Arc::new(db.clone()));
-    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) = seed_sku_chain(&db).await;
+    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) =
+        seed_sku_chain(&db).await;
 
     let existing = svc
         .create(
@@ -531,7 +591,15 @@ async fn batch_existing_duplicate_names_row_and_keeps_old_row() {
         .expect("夹具应先建出一条已有对照");
 
     let rows = vec![
-        row_input(product_id, Some(colors[1]), supplier_id, supplier_product_id, None, None, None),
+        row_input(
+            product_id,
+            Some(colors[1]),
+            supplier_id,
+            supplier_product_id,
+            None,
+            None,
+            None,
+        ),
         row_input(
             product_id,
             Some(colors[0]),
@@ -572,7 +640,8 @@ async fn batch_existing_duplicate_names_row_and_keeps_old_row() {
 async fn batch_success_reads_back_exact_rows_and_values() {
     let db = bingxi_backend::services::test_common::setup_test_db().await;
     let svc = SkuMappingService::new(Arc::new(db.clone()));
-    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) = seed_sku_chain(&db).await;
+    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) =
+        seed_sku_chain(&db).await;
 
     let rows: Vec<UpsertSkuMappingInput> = colors
         .iter()
@@ -591,7 +660,10 @@ async fn batch_success_reads_back_exact_rows_and_values() {
         .collect();
     let expected = rows.len();
 
-    let res = svc.batch_create(rows, 100).await.expect("合格批次应写库成功");
+    let res = svc
+        .batch_create(rows, 100)
+        .await
+        .expect("合格批次应写库成功");
     assert_eq!(res.total_count, expected);
     assert_eq!(res.created_count, expected, "全部合格时应整批写入");
     assert_eq!(res.failed_count, 0);
@@ -601,21 +673,29 @@ async fn batch_success_reads_back_exact_rows_and_values() {
     assert_eq!(stored, expected as u64, "库里真值条数应与提交行数一致");
 
     let (listed, total) = svc
-        .list(bingxi_backend::services::sku_mapping_service::SkuMappingQueryParams {
-            product_id: Some(product_id),
-            supplier_id: Some(supplier_id),
-            is_enabled: None,
-            keyword: None,
-            page: Some(1),
-            page_size: Some(100),
-        })
+        .list(
+            bingxi_backend::services::sku_mapping_service::SkuMappingQueryParams {
+                product_id: Some(product_id),
+                supplier_id: Some(supplier_id),
+                is_enabled: None,
+                keyword: None,
+                page: Some(1),
+                page_size: Some(100),
+            },
+        )
         .await
         .expect("列表回读应成功");
     assert_eq!(total as usize, expected, "列表总数应等于写入行数");
     assert_eq!(listed.len(), expected, "首页应一次取回全部写入行");
     for item in &listed {
-        let price = item.supplier_price.map(|v| v.to_string()).unwrap_or_default();
-        assert!(price.starts_with('1'), "每行价格应按提交值落库，实得 {price}");
+        let price = item
+            .supplier_price
+            .map(|v| v.to_string())
+            .unwrap_or_default();
+        assert!(
+            price.starts_with('1'),
+            "每行价格应按提交值落库，实得 {price}"
+        );
         assert!(item.is_enabled, "启用状态应沿用提交值");
     }
 
@@ -679,7 +759,17 @@ async fn batch_two_hundred_rows_completes_with_exact_readback() {
 
     let rows: Vec<UpsertSkuMappingInput> = color_ids
         .iter()
-        .map(|cid| row_input(product_id, Some(*cid), supplier_id, supplier_product_id, Some(sc), Some("5.00"), Some(10)))
+        .map(|cid| {
+            row_input(
+                product_id,
+                Some(*cid),
+                supplier_id,
+                supplier_product_id,
+                Some(sc),
+                Some("5.00"),
+                Some(10),
+            )
+        })
         .collect();
 
     let started = std::time::Instant::now();
@@ -690,7 +780,11 @@ async fn batch_two_hundred_rows_completes_with_exact_readback() {
     let elapsed = started.elapsed();
 
     assert_eq!(res.created_count, 200, "200 行应整批写入");
-    assert_eq!(mapping_count(&db, product_id).await, 200, "回读条数应为 200");
+    assert_eq!(
+        mapping_count(&db, product_id).await,
+        200,
+        "回读条数应为 200"
+    );
     println!(
         "批量新增 200 行耗时 {} 毫秒（校验加写入，单事务一次 insert_many）",
         elapsed.as_millis()
@@ -702,7 +796,17 @@ async fn batch_two_hundred_rows_completes_with_exact_readback() {
             color_ids
                 .iter()
                 .take(200)
-                .map(|cid| row_input(product_id, Some(*cid), supplier_id, supplier_product_id, None, None, None))
+                .map(|cid| {
+                    row_input(
+                        product_id,
+                        Some(*cid),
+                        supplier_id,
+                        supplier_product_id,
+                        None,
+                        None,
+                        None,
+                    )
+                })
                 .collect(),
             100,
         )
@@ -710,7 +814,11 @@ async fn batch_two_hundred_rows_completes_with_exact_readback() {
         .expect("重复提交应返回校验结果");
     assert_eq!(again.created_count, 0, "重复的 200 行不该落库");
     assert_eq!(again.failed_count, 200, "200 行应逐行点名");
-    assert_eq!(mapping_count(&db, product_id).await, 200, "被拒后库内条数不变");
+    assert_eq!(
+        mapping_count(&db, product_id).await,
+        200,
+        "被拒后库内条数不变"
+    );
 }
 
 /// 事务臂写入的是新增语义，撞库唯一键时不得退化为覆盖既有行（UPSERT 属于文件导入臂）。
@@ -725,10 +833,19 @@ async fn batch_arm_does_not_reuse_file_import_upsert() {
         "批量新增不应调用文件导入的 UPSERT 执行体，那会把撞键变成静默覆盖既有对照"
     );
     let svc = SkuMappingService::new(Arc::new(db.clone()));
-    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) = seed_sku_chain(&db).await;
+    let (product_id, _, supplier_id, supplier_product_id, colors, _, sc) =
+        seed_sku_chain(&db).await;
     let res = svc
         .batch_create(
-            vec![row_input(product_id, Some(colors[0]), supplier_id, supplier_product_id, Some(sc), None, None)],
+            vec![row_input(
+                product_id,
+                Some(colors[0]),
+                supplier_id,
+                supplier_product_id,
+                Some(sc),
+                None,
+                None,
+            )],
             100,
         )
         .await

@@ -684,7 +684,9 @@ fn cell<'r>(record: &'r HashMap<String, String>, column: &str) -> Option<&'r str
 /// 判据与文件导入臂 `cell`、批量新增臂 `parse_batch_decimal` 同源（空即不写，不兜底成 0）。
 /// 写成带命名生命周期的自由函数而非闭包：闭包无法推断「返回借用随入参生命周期」的高阶约束。
 fn trimmed_cell<'a>(raw: &'a Option<String>) -> Option<&'a str> {
-    raw.as_deref().map(str::trim).filter(|value| !value.is_empty())
+    raw.as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 /// 行级解析失败：冠以文件行号后透传 FieldValidator 的公开规则文案
@@ -752,8 +754,12 @@ fn to_batch_upsert_input(
     failures: &mut Vec<ImportError>,
 ) -> Option<UpsertSkuMappingInput> {
     let before = failures.len();
-    let supplier_price =
-        parse_batch_decimal(item.supplier_price.as_deref(), "supplier_price", row_no, failures);
+    let supplier_price = parse_batch_decimal(
+        item.supplier_price.as_deref(),
+        "supplier_price",
+        row_no,
+        failures,
+    );
     let min_order_quantity = parse_batch_decimal(
         item.min_order_quantity.as_deref(),
         "min_order_quantity",
