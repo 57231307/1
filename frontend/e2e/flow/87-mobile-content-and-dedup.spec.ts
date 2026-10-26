@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL, API_PREFIX, apiCallRaw, genCode, tryCleanup } from './helpers';
+import { openScopedDropdown, dropdownItems } from './ui-helpers';
 
 /**
  * 移动端内容层适配与重复提交防重
@@ -574,9 +575,10 @@ test.describe('打印目标页蓝牙权限用时申请契约', () => {
     await expect(page.getByText('打印机已连接')).toBeVisible();
 
     // 真实可达链路断言，授权放行后已配对列表可用，下拉里能列出这台打印机
-    await page.locator('.bluetooth-form .el-select').click();
-    await expect(page.locator('.el-select-dropdown__item')).toHaveCount(1);
-    await expect(page.locator('.el-select-dropdown__item').first()).toContainText('e2e 热敏打印机');
+    // 面板按该字段 aria-controls 归属钉定后数项，不用页面级裸面板词元（跨字段撞名风险）
+    const printerPanel = await openScopedDropdown(page.locator('.bluetooth-form .el-select'), page);
+    await expect(dropdownItems(printerPanel)).toHaveCount(1);
+    await expect(dropdownItems(printerPanel).first()).toContainText('e2e 热敏打印机');
 
     const calls = await readBridgeCalls(page);
     const requestIndex = calls.indexOf('bluetooth_request_permission');
