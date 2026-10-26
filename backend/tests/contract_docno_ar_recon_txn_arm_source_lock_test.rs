@@ -54,7 +54,10 @@ fn ar_reconciliation_create_numbering_and_insert_share_txn() {
     let text = src("src/services/ar/vfy_ops/reconciliation.rs");
     for (needle, desc) in [
         ("(*self.db).begin().await?", "建单事务自开在场"),
-        ("generate_reconciliation_no(&txn)", "取号走事务内 helper 实参形态"),
+        (
+            "generate_reconciliation_no(&txn)",
+            "取号走事务内 helper 实参形态",
+        ),
         ("reconciliation.insert(&txn)", "对账单主行插入落在同一事务"),
         ("txn.commit().await?", "建单事务显式提交"),
     ] {
@@ -76,8 +79,14 @@ fn ar_auto_match_numbering_and_insert_share_txn() {
     let text = src("src/services/ar/vfy_ops/match.rs");
     for (needle, desc) in [
         ("(*self.db).begin().await?", "自动对账主流程自开事务在场"),
-        ("txn: &sea_orm::DatabaseTransaction", "匹配子流程签名收事务形参"),
-        ("generate_reconciliation_no(txn)", "取号在事务内以事务实参调用 helper"),
+        (
+            "txn: &sea_orm::DatabaseTransaction",
+            "匹配子流程签名收事务形参",
+        ),
+        (
+            "generate_reconciliation_no(txn)",
+            "取号在事务内以事务实参调用 helper",
+        ),
         ("reconciliation.insert(txn)", "对账单主行插入落在同一事务"),
         ("txn.commit().await?", "自动对账事务显式提交"),
     ] {
