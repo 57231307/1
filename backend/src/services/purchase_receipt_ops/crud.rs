@@ -229,10 +229,7 @@ impl PurchaseReceiptService {
             item.gram_weight,
             &format!("{line}克重"),
         )?;
-        inbound_admission::require_positive_measure_if_present(
-            item.width,
-            &format!("{line}幅宽"),
-        )?;
+        inbound_admission::require_positive_measure_if_present(item.width, &format!("{line}幅宽"))?;
         inbound_admission::resolve_inbound_quantity_kg(
             item.quantity,
             item.gram_weight,

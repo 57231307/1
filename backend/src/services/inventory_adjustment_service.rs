@@ -670,8 +670,10 @@ impl InventoryAdjustmentService {
         // 明细行的调整前后量是按建单时的方向算的，方向一改这些行就指向相反语义，
         // 而审批直接取明细的 quantity_after 覆盖库存——与其静默重算或留下错向的行，
         // 不如拒绝，让制单人驳回后按正确方向重新制单。
-        if let Some(new_adjustment_type) =
-            req.adjustment_type.as_ref().and_then(|inner| inner.as_deref())
+        if let Some(new_adjustment_type) = req
+            .adjustment_type
+            .as_ref()
+            .and_then(|inner| inner.as_deref())
         {
             require_adjustment_type(new_adjustment_type)?;
             if new_adjustment_type != adjustment_model.adjustment_type {

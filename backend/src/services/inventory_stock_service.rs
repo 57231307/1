@@ -297,7 +297,6 @@ impl InventoryStockService {
         )
     }
 
-
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self {
             db: db.clone(),
@@ -696,7 +695,9 @@ impl InventoryStockService {
     /// 调用方是本文件的 `create_stock_fabric` 与 `services/inventory_stock_txn.rs` 的
     /// `create_stock_fabric_txn`。入参 `fields` 是已经过入库受理侧准入的列值；传给谁是
     /// `inventory_stock::ActiveModel`，由调用方 insert 进 `inventory_stocks`。
-    pub(crate) fn build_stock_fabric_active(fields: StockFabricFields) -> inventory_stock::ActiveModel {
+    pub(crate) fn build_stock_fabric_active(
+        fields: StockFabricFields,
+    ) -> inventory_stock::ActiveModel {
         let StockFabricFields {
             warehouse_id,
             product_id,

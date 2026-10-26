@@ -198,10 +198,18 @@ fn match_single_item_against_stocks(
 
     // 可出库门：四维命中不等于能出。报废行与待检/不合格行在此挡下并点名，
     // 不计入可出量合计（见 is_outbound_eligible）。
-    let eligible: Vec<&inventory_stock::Model> =
-        matched.iter().copied().filter(|s| is_outbound_eligible(s)).collect();
+    let eligible: Vec<&inventory_stock::Model> = matched
+        .iter()
+        .copied()
+        .filter(|s| is_outbound_eligible(s))
+        .collect();
     if eligible.is_empty() {
-        return Err(non_outbound_rejection("调拨出库", product_id, dims, &matched));
+        return Err(non_outbound_rejection(
+            "调拨出库",
+            product_id,
+            dims,
+            &matched,
+        ));
     }
 
     let available: Decimal = eligible.iter().map(|s| s.quantity_available).sum();

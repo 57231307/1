@@ -277,7 +277,6 @@ pub async fn create_stock_fabric(
     })))
 }
 
-
 /// 面料库存直建（POST /inventory/stock 与 POST /inventory/stock/fabric 两条端点共用）
 /// 写入前的四维追溯准入。
 ///

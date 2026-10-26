@@ -202,9 +202,7 @@ impl PurchaseReceiptService {
         // 让用户在还能改单的时候收到点名到行的错误，而不是在确认时才发现整单出不去。
         let line = format!("入库明细 {}（入库单 {}）", item_id, item.receipt_id);
         let effective_grade = effective_three_state(
-            req.grade
-                .as_ref()
-                .map(|inner| inner.as_deref()),
+            req.grade.as_ref().map(|inner| inner.as_deref()),
             item.grade.as_deref(),
         );
         let effective_gram_weight = effective_three_state(req.gram_weight, item.gram_weight);

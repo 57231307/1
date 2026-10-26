@@ -16,7 +16,9 @@ use crate::services::event_bus::BusinessEvent;
 use crate::utils::error::AppError;
 
 use super::inventory_stock_query::RecordTransactionArgs;
-use super::inventory_stock_service::{CreateStockFabricArgs, InventoryStockService, StockInboundFlowRef};
+use super::inventory_stock_service::{
+    CreateStockFabricArgs, InventoryStockService, StockInboundFlowRef,
+};
 
 impl InventoryStockService {
     pub async fn update_stock_quantity_with_optimistic_lock_txn(
