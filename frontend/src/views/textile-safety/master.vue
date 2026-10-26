@@ -346,15 +346,15 @@
         <el-form-item label="下限">
           <el-input
             v-model="limitForm.limit_low"
-            @input="onBoundInput('limit_low', $event)"
             placeholder="数值或半级编码值（3-4 级记 3.5）"
+            @input="onBoundInput('limit_low', $event)"
           />
         </el-form-item>
         <el-form-item label="上限">
           <el-input
             v-model="limitForm.limit_high"
-            @input="onBoundInput('limit_high', $event)"
             placeholder="数值或半级编码值"
+            @input="onBoundInput('limit_high', $event)"
           />
         </el-form-item>
         <el-form-item label="条款引用"
@@ -645,7 +645,7 @@ const limitRules: FormRules = {
 };
 
 function onBoundInput(field: 'limit_low' | 'limit_high', v: string) {
-  limitForm[field] = v.replace(/[^\d.\-]/g, '');
+  limitForm[field] = v.replace(/[^\d.-]/g, '');
 }
 
 function openLimitDialog(row?: TextileLimitRule) {

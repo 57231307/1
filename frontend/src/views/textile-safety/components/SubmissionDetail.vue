@@ -48,9 +48,9 @@
       <div class="section-head">
         <h3>检测项目清单</h3>
         <el-button
+          v-permission="'textile-submissions:update'"
           size="small"
           type="primary"
-          v-permission="'textile-submissions:update'"
           :disabled="!editable"
           @click="regenerateItems"
         >
@@ -78,9 +78,9 @@
       <div class="section-head">
         <h3>婴童加考核查（GB 31701）</h3>
         <el-button
+          v-permission="'textile-submissions:update'"
           size="small"
           type="primary"
-          v-permission="'textile-submissions:update'"
           :disabled="!reportable"
           @click="openCheckDialog"
         >
@@ -112,9 +112,9 @@
       <div class="section-head">
         <h3>第三方检测报告</h3>
         <el-button
+          v-permission="'textile-reports:create'"
           size="small"
           type="primary"
-          v-permission="'textile-reports:create'"
           :disabled="!canRegisterReport"
           @click="openReportDialog"
         >
@@ -164,23 +164,23 @@
         <el-table-column label="操作" width="270" fixed="right">
           <template #default="{ row }">
             <el-button
+              v-permission="'textile-reports:update'"
               link
               type="primary"
-              v-permission="'textile-reports:update'"
               @click="runGate(row)"
               >过完整性门</el-button
             >
             <el-button
+              v-permission="'textile-reports:update'"
               link
               type="primary"
-              v-permission="'textile-reports:update'"
               @click="openResultsDialog(row)"
               >录入实测</el-button
             >
             <el-button
+              v-permission="'textile-reports:update'"
               link
               type="success"
-              v-permission="'textile-reports:update'"
               @click="judgeReport(row)"
               >报告判定</el-button
             >
@@ -189,8 +189,8 @@
       </el-table>
       <div class="judge-bar">
         <el-button
-          type="warning"
           v-permission="'textile-submissions:update'"
+          type="warning"
           :disabled="detail?.submission.status !== 'reported'"
           :loading="judging"
           @click="judgeSubmission"

@@ -81,9 +81,9 @@
             <el-button
               v-for="next in legalNext(row.status)"
               :key="next"
+              v-permission="'textile-submissions:update'"
               link
               type="success"
-              v-permission="'textile-submissions:update'"
               @click="advance(row, next)"
             >
               {{ actionLabel(row.status, next) }}

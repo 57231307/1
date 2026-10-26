@@ -1,5 +1,5 @@
 import { test, expect } from '../diagnose-fixture';
-import { loginViaUI, apiCall, apiCallRaw, apiCallExpectFail } from './helpers';
+import { loginViaUI, apiCallRaw, apiCallExpectFail } from './helpers';
 
 /**
  * 121 纺织品安全送检判定链写后读回（textile_safety 域，textile-submissions 与 textile-reports 族）
@@ -60,8 +60,6 @@ type ReportRow = {
   rejection_detail: string;
   valid_until: string | null;
 };
-
-type Page_ = { items: Submission[]; total: number; page: number; page_size: number };
 
 function uniq(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
