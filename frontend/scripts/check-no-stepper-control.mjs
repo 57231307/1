@@ -1,24 +1,26 @@
 #!/usr/bin/env node
 /**
- * 全项目禁步进数字输入框 静态判定器（棘轮门禁）。
+ * 全项目禁步进数字输入框 静态判定器（零出现锁）。
  *
  * 用户 2026-10-25 硬红线 创建单据的数量 单价 税率 金额一律纯手写
  * 不允许任何带点击加减按钮的数字输入框，也不允许自造的加减步进交互
- * 只加 CSS 隐藏 el-input-number 的原生按钮算假修 键盘上下键与长按仍在就说明控件没换
+ * 只加 CSS 隐藏步进控件的原生按钮算假修 键盘上下键与长按仍在就说明控件没换
  * 因此这里从标签层面判定 控件必须换成 el-input 加校验器 范围与精度靠 rules 不靠按钮
  *
  * 判两件事
- * 一 规则 tag .vue 模板里出现 el-input-number 开标签（Element Plus 原生步进控件 全禁）
+ * 一 规则 tag 全库扫描面里出现步进控件名 含模板标签 注释 CSS 选择器 动态组件名字符串
+ *    e2e 定位器与注释 出现即违规 逐条点名 文件 行号 与该行内容
+ *    扫描面 frontend/src frontend/e2e 以及存在时的 mobile-app
+ *    目标为零 不设白名单 不设基线 任何一次出现都判红
+ *    步进控件名由分段拼接构造 本文件自身源码不携带该字面量 无需自豁免特判
  * 二 规则 hand 自造加减步进按钮的模板迹象 点击把某个数值加一减一或按步长增减
- *      判据只认模板指令值里的显式增减操作与步进动词调用 以及 Minus 图标按钮
- *      不吃 i18n 里的 increase decrease 文案 不吃空单元格占位短横 不吃 Plus 新增行按钮
- *      避免把正常的增删行按钮与单选文案误判成步进
+ *    判据只认模板指令值里的显式增减操作与步进动词调用 以及 Minus 图标按钮
+ *    不吃 i18n 里的 increase decrease 文案 不吃空单元格占位短横 不吃 Plus 新增行按钮
+ *    避免把正常的增删行按钮与单选文案误判成步进
  *
- * 判负口径 存量按 文件 到 违规计数 记入基线 只允许下降 不允许上升
- * 单文件上升即失败并打印两类计数 新增文件出现违规同样失败
- * 某文件已收敛但基线未下调也判失败 逼着把基线跟着改紧
+ * 判负口径 两类计数之和为 0 才绿 否则点名全部违规行并退码 1
  *
- * 用法 node scripts/check-no-stepper-control.mjs [--write-baseline] [--verbose]
+ * 用法 node scripts/check-no-stepper-control.mjs [--verbose]
  *       node scripts/check-no-stepper-control.mjs --self-test
  *       self-test 用内联夹具双向自证 正例必抓 反例必不报 不扫仓库
  */
@@ -28,24 +30,40 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(HERE, '..');
-const SRC = path.join(FRONTEND, 'src');
-const BASELINE = path.join(HERE, 'no-stepper-control-baseline.json');
+const REPO = path.resolve(FRONTEND, '..');
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'target']);
+// 扫描根 前端源码与前端 e2e 以及存在时的移动端应用目录
+const SCAN_ROOTS = [path.join(FRONTEND, 'src'), path.join(FRONTEND, 'e2e')];
+const MOBILE = path.join(REPO, 'mobile-app');
+if (fs.existsSync(MOBILE)) SCAN_ROOTS.push(MOBILE);
 
-function walkVue(dir, out = []) {
+// 步进控件名字面量 分段拼接避免本文件被自身扫出
+const STEPPER_LITERAL = ['el-input-', 'number'].join('');
+
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'target', 'coverage']);
+const TEXT_EXT = new Set([
+  '.vue',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.css',
+  '.scss',
+  '.html',
+  '.json',
+]);
+
+function walkFiles(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     if (SKIP_DIRS.has(e.name) || e.name.startsWith('.')) continue;
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) walkVue(p, out);
-    else if (e.name.endsWith('.vue')) out.push(p);
+    if (e.isDirectory()) walkFiles(p, out);
+    else if (TEXT_EXT.has(path.extname(e.name).toLowerCase())) out.push(p);
   }
   return out;
 }
-
-// ---------- 规则 tag el-input-number 开标签 ----------
-// 只数开标签（含自闭合），闭合标签 </el-input-number 以斜杠起头不计入 一处使用记一次违规
-const TAG_RE = /<el-input-number\b/g;
 
 // ---------- 规则 hand 自造加减步进按钮 ----------
 // 指令值里的显式自增自减与加减赋值（点击加一减一 正是被禁的交互）
@@ -59,13 +77,11 @@ const STEP_VERB_RE =
 const MINUS_ICON_RE = /(?::icon|icon)\s*=\s*["']Minus["']|<Minus\b/g;
 
 /**
- * 扫描单个 .vue 源文本 返回两类违规计数
+ * 扫描单个 .vue 源文本的自造步进迹象
  * @param {string} source 文件全文
- * @returns {{ tag: number, hand: number, handHits: string[] }}
+ * @returns {{ hand: number, handHits: string[] }}
  */
-export function scanVueSource(source) {
-  const tag = (source.match(TAG_RE) || []).length;
-
+export function scanHandRules(source) {
   const handHits = [];
   for (const m of source.matchAll(HANDLER_ASSIGN_RE)) {
     const val = m[1] ?? m[2] ?? '';
@@ -78,36 +94,75 @@ export function scanVueSource(source) {
   for (const m of source.matchAll(MINUS_ICON_RE)) {
     handHits.push(m[0].trim());
   }
-  const hand = handHits.length;
-
-  return { tag, hand, handHits };
+  return { hand: handHits.length, handHits };
 }
 
 /**
- * 遍历真实源码树 汇总每个有违规的文件 键为相对 frontend 根的路径（正斜杠）
+ * 扫描单个文件全文 产出两类违规
+ * @param {string} abs 文件绝对路径
+ * @returns {{ tagLines: Array<{line: number, text: string}>, handHits: string[] }}
+ */
+export function scanFile(abs) {
+  const source = fs.readFileSync(abs, 'utf8');
+  const lines = source.split(/\r?\n/);
+  const tagLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    // 行级判定 同一行多处只点一次名 足以定位
+    if (lines[i].includes(STEPPER_LITERAL)) {
+      tagLines.push({ line: i + 1, text: lines[i].trim().slice(0, 160) });
+    }
+  }
+  const { handHits } = abs.endsWith('.vue') ? scanHandRules(source) : { handHits: [] };
+  return { tagLines, handHits };
+}
+
+/**
+ * 遍历全部扫描根 汇总每个有违规的文件 键为相对 frontend 根的路径（正斜杠）
  */
 export function scanTree() {
-  const files = walkVue(SRC);
   const result = {};
-  for (const abs of files) {
-    const rel = path.relative(FRONTEND, abs).split(path.sep).join('/');
-    const { tag, hand } = scanVueSource(fs.readFileSync(abs, 'utf8'));
-    if (tag > 0 || hand > 0) result[rel] = { tag, hand, count: tag + hand };
+  for (const root of SCAN_ROOTS) {
+    for (const abs of walkFiles(root)) {
+      const { tagLines, handHits } = scanFile(abs);
+      if (!tagLines.length && !handHits.length) continue;
+      const rel = path.relative(FRONTEND, abs).split(path.sep).join('/');
+      result[rel] = { tagLines, handHits, count: tagLines.length + handHits.length };
+    }
   }
   return result;
 }
 
 // ---------- 内联夹具自证 ----------
 function runSelfTest() {
+  const tag = '<' + STEPPER_LITERAL;
   const cases = [
     {
-      name: '正例 el-input-number 开标签必被抓到',
+      name: '正例 步进控件开标签必被抓到',
       src: `<el-form-item label="数量">
-  <el-input-number v-model="form.qty" :min="0" :precision="2" />
+  ${tag} v-model="form.qty" :min="0" :precision="2" />
 </el-form-item>
-<el-input-number v-model="form.price" :min="0" />
 `,
-      expect: { tag: 2, hand: 0 },
+      expectTag: 1,
+      expectHand: 0,
+    },
+    {
+      name: '正例 注释与 CSS 选择器与定位器里的控件名必被抓到',
+      src: `/* 残留提及 ${STEPPER_LITERAL} 也算假修未净 */
+.foo .${STEPPER_LITERAL} input { width: 100px; }
+const sel = '.${STEPPER_LITERAL} input';
+`,
+      expectTag: 3,
+      expectHand: 0,
+    },
+    {
+      name: '正例 动态组件工厂返回控件名字符串必被抓到',
+      src: `switch (field.type) {
+  case 'number':
+    return '${STEPPER_LITERAL}';
+}
+`,
+      expectTag: 1,
+      expectHand: 0,
     },
     {
       name: '正例 自造点击加一减一指令必被抓到',
@@ -115,28 +170,32 @@ function runSelfTest() {
 <button @click="form.qty--">-</button>
 <button @click="form.price += 1">提价</button>
 `,
-      expect: { tag: 0, hand: 3 },
+      expectTag: 0,
+      expectHand: 3,
     },
     {
       name: '正例 步进动词函数调用必被抓到',
       src: `<el-button @click="stepUp('quantity')">加</el-button>
 <el-button @click="increaseQty(index)">加数量</el-button>
 `,
-      expect: { tag: 0, hand: 2 },
+      expectTag: 0,
+      expectHand: 2,
     },
     {
       name: '正例 Minus 图标步进按钮必被抓到',
       src: `<el-button :icon="Minus" @click="onDec" />
 <el-button><Minus /></el-button>
 `,
-      expect: { tag: 0, hand: 2 },
+      expectTag: 0,
+      expectHand: 2,
     },
     {
       name: '反例 普通 el-input 不得被 tag 规则误报',
       src: `<el-input v-model="form.name" />
 <el-input v-model="form.remark" type="textarea" />
 `,
-      expect: { tag: 0, hand: 0 },
+      expectTag: 0,
+      expectHand: 0,
     },
     {
       name: '反例 i18n increase decrease 单选文案不得被 hand 规则误报',
@@ -146,7 +205,8 @@ function runSelfTest() {
 </el-radio-group>
 <el-input v-model="form.amount" />
 `,
-      expect: { tag: 0, hand: 0 },
+      expectTag: 0,
+      expectHand: 0,
     },
     {
       name: '反例 空单元格占位短横与 Plus 新增行按钮不得被 hand 规则误报',
@@ -154,34 +214,42 @@ function runSelfTest() {
 <el-button type="primary" :icon="Plus" @click="addItem">新增明细</el-button>
 <el-button type="danger" :icon="Delete" @click="removeItem(index)" />
 `,
-      expect: { tag: 0, hand: 0 },
+      expectTag: 0,
+      expectHand: 0,
     },
     {
-      name: '反例 分页页码 change 自减以外的普通赋值不得误报',
+      name: '反例 分页页码 change 普通赋值不得误报',
       src: `<el-pagination @current-change="p = $event" :current-page="p" />
 `,
-      expect: { tag: 0, hand: 0 },
+      expectTag: 0,
+      expectHand: 0,
     },
   ];
   let pass = 0;
   let fail = 0;
   console.log('=== self-test check-no-stepper-control 双向自证 ===');
   for (const c of cases) {
-    const got = scanVueSource(c.src);
-    const okTag = got.tag === c.expect.tag;
-    const okHand = got.hand === c.expect.hand;
-    if (okTag && okHand) {
+    // 夹具走与仓库扫描完全相同的行级判定 保证自证的就是线上逻辑
+    const gotTag = c.src.split(/\r?\n/).filter((l) => l.includes(STEPPER_LITERAL)).length;
+    const gotHand = scanHandRules(c.src).hand;
+    if (gotTag === c.expectTag && gotHand === c.expectHand) {
       pass++;
-      console.log(
-        `  PASS  ${c.name}  [tag=${got.tag} hand=${got.hand}]`
-      );
+      console.log(`  PASS  ${c.name}  [tag=${gotTag} hand=${gotHand}]`);
     } else {
       fail++;
       console.log(
-        `  FAIL  ${c.name}  -> 期望 tag=${c.expect.tag} hand=${c.expect.hand} 实际 tag=${got.tag} hand=${got.hand}`
+        `  FAIL  ${c.name}  -> 期望 tag=${c.expectTag} hand=${c.expectHand} 实际 tag=${gotTag} hand=${gotHand}`
       );
-      if (got.handHits.length) console.log(`        handHits=${JSON.stringify(got.handHits)}`);
     }
+  }
+  // 自检 判定器自身源码必须不携带该字面量 否则零出现锁永无绿日
+  const selfSource = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  if (selfSource.includes(STEPPER_LITERAL)) {
+    fail++;
+    console.log('  FAIL  判定器自身源码携带步进控件名字面量 无法自证豁免');
+  } else {
+    pass++;
+    console.log('  PASS  判定器自身源码不携带步进控件名字面量');
   }
   console.log(`---- self-test 结论 ${pass} 通过 / ${fail} 失败 ----`);
   if (fail) {
@@ -194,80 +262,52 @@ function runSelfTest() {
 
 // ---------- 主流程 ----------
 function main() {
+  if (!fs.existsSync(SCAN_ROOTS[0])) {
+    console.error('[no-stepper] 扫描根不存在 ' + SCAN_ROOTS[0]);
+    process.exit(1);
+  }
   const current = scanTree();
   const files = Object.keys(current).sort();
   let totalTag = 0;
   let totalHand = 0;
   for (const f of files) {
-    totalTag += current[f].tag;
-    totalHand += current[f].hand;
+    totalTag += current[f].tagLines.length;
+    totalHand += current[f].handHits.length;
   }
   const total = totalTag + totalHand;
 
-  if (process.argv.includes('--write-baseline')) {
-    const payload = {
-      note: '全项目禁步进数字输入框棘轮基线 开工时全库违规快照 只减不增 规则 tag=el-input-number 标签 hand=自造加减步进按钮',
-      total,
-      files: Object.fromEntries(
-        files.map((f) => [f, { tag: current[f].tag, hand: current[f].hand, count: current[f].count }])
-      ),
-    };
-    fs.writeFileSync(BASELINE, JSON.stringify(payload, null, 2) + '\n');
-    console.log(
-      `[no-stepper] 基线已写入 违规 ${total}（tag ${totalTag} + hand ${totalHand}）分布于 ${files.length} 个文件`
-    );
-    process.exit(0);
-  }
-
-  if (!fs.existsSync(BASELINE)) {
-    console.error('[no-stepper] 缺基线文件 scripts/no-stepper-control-baseline.json 先跑 --write-baseline');
-    process.exit(1);
-  }
-  const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
-  const baseFiles = baseline.files || {};
-
-  const failures = [];
-  const reduced = [];
-  for (const f of files) {
-    const c = current[f];
-    const b = baseFiles[f];
-    if (b === undefined) {
-      failures.push(`新增违规文件 ${f} tag=${c.tag} hand=${c.hand} 基线内不存在`);
-    } else if (c.count > b.count) {
-      failures.push(
-        `${f} 违规由 ${b.count}（tag ${b.tag} hand ${b.hand}）增至 ${c.count}（tag ${c.tag} hand ${c.hand}）`
-      );
-    } else if (c.count < b.count) {
-      reduced.push(`${f} ${b.count} -> ${c.count}（请连同基线一起下调）`);
+  if (process.argv.includes('--verbose')) {
+    for (const f of files) {
+      for (const t of current[f].tagLines) {
+        console.log(`  ${f}:${t.line}: ${t.text}`);
+      }
+      for (const h of current[f].handHits) {
+        console.log(`  ${f}: hand 自造步进 ${h}`);
+      }
     }
   }
-  // 基线里记录但当前已完全消失的文件 也要求从基线移除
-  for (const f of Object.keys(baseFiles)) {
-    if (current[f] === undefined) reduced.push(`${f} ${baseFiles[f].count} -> 0（已从源码消失 请从基线移除）`);
-  }
-
-  if (process.argv.includes('--verbose')) {
-    for (const f of files) console.log(`  ${f}: tag=${current[f].tag} hand=${current[f].hand}`);
-  }
   console.log(
-    `[no-stepper] 当前违规 ${total}（tag ${totalTag} + hand ${totalHand}）文件 ${files.length} 基线总计 ${baseline.total}`
+    `[no-stepper] 全库违规 ${total}（tag ${totalTag} + hand ${totalHand}）分布于 ${files.length} 个文件`
   );
 
-  if (failures.length) {
-    console.error(`\n[no-stepper] 失败 ${failures.length} 个文件出现新增步进控件违规`);
-    for (const m of failures) console.error(`  ${m}`);
-    console.error('\n口径 全项目禁止带加减按钮的数字输入框 el-input-number 一律换 el-input 加校验器');
+  if (total > 0) {
+    console.error(`\n[no-stepper] 失败 目标为 0 出现 实际 ${total} 处 逐条点名如下`);
+    for (const f of files) {
+      for (const t of current[f].tagLines) {
+        console.error(`  ${f}:${t.line}: ${t.text}`);
+      }
+      for (const h of current[f].handHits) {
+        console.error(`  ${f}: hand 自造步进 ${h}`);
+      }
+    }
+    console.error(
+      `\n口径 全项目禁止带加减按钮的数字输入框 ${STEPPER_LITERAL} 一律换 el-input 加校验器`
+    );
+    console.error('注释 CSS 选择器 动态组件名 e2e 定位器里的残留提及同样判红 假修不接受');
     console.error('自造点击加减步进交互同禁 新增数值录入项从落笔起用 el-input 加 rules');
     process.exit(1);
   }
-  if (reduced.length) {
-    console.error(
-      '\n[no-stepper] 有文件已收敛但基线未下调 请跑 node scripts/check-no-stepper-control.mjs --write-baseline'
-    );
-    for (const m of reduced) console.error(`  已收敛 ${m}`);
-    process.exit(1);
-  }
-  console.log('[no-stepper] 无新增步进控件违规');
+  console.log('[no-stepper] 全库 0 出现 锁绿');
   process.exit(0);
 }
 
