@@ -11918,7 +11918,6 @@ export default {
       labelReason: '调整原因',
       placeholderReason: '请输入调整原因',
       dividerItems: '调整明细',
-      placeholderProduct: '选择产品',
       placeholderQuantity: '数量',
       placeholderPrice: '单价',
       placeholderRemark: '备注',

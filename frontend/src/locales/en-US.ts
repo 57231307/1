@@ -11970,7 +11970,6 @@ export default {
       labelReason: 'Reason',
       placeholderReason: 'Please enter reason',
       dividerItems: 'Adjustment Items',
-      placeholderProduct: 'Select product',
       placeholderQuantity: 'Quantity',
       placeholderPrice: 'Unit Price',
       placeholderRemark: 'Remark',
