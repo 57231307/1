@@ -565,47 +565,44 @@ impl OutsourcingReceiptService {
                 tracing::error!(error = %e, "委外损耗凭证号生成失败");
                 AppError::business_displayable("委外损耗凭证号生成失败，请稍后重试")
             })?;
-            // 进项税率只从本单据已记录的进项税额与对应费基反推（百分数口径），
-            // 不引入任何税率档位字面量，费基口径与 processing_ratio 的分子同源。
-            // 转出额只随单据已落库的 order.tax_amount 反推，不按任何假定档位计算，
-            // 税额为 0 的单据（免税或未按票入账）反推出 0，转出额随之为 0，
-            // 税额与费基不自洽（费基 0 而税额非 0）的单据在下方点名拒绝。
+            // 进项税率的**观察**只从本单据已记录的进项税额与对应费基反推（百分数口径），
+            // 用途是核对单据口径是否自洽，不生成任何待落库的税额：费基 0 而税额非 0 的
+            // 单据自相矛盾，点名拒绝。转出额本身不再用「费基 × 税率」重算，见下方分摊。
             let fee_base = order.processing_fee + order.freight_fee;
-            let vat_percent = match crate::utils::tax::derive_tax_percent(
-                order.tax_amount,
-                fee_base,
-            ) {
-                Some(percent) => percent,
-                None => {
-                    if order.tax_amount > Decimal::ZERO {
-                        tracing::error!(
-                            order_no = %order.order_no,
-                            tax_amount = %order.tax_amount,
-                            "委外损耗进项税转出失败：已记进项税额但加工费/运费基为 0，单据口径自相矛盾"
-                        );
-                        return Err(AppError::business_displayable(format!(
-                            "委外订单 {} 进项税转出无法计算：已记进项税额 {} 但加工费与运费之和为 0，无法反推适用税率，请核对单据税额",
-                            order.order_no, order.tax_amount
-                        )));
-                    }
-                    // 费基为 0 且未记进项税额，无可转出的进项税，转出额按算术事实为 0（非默认档位）
-                    tracing::warn!(
+            if crate::utils::tax::derive_tax_percent(order.tax_amount, fee_base).is_none() {
+                if order.tax_amount > Decimal::ZERO {
+                    tracing::error!(
                         order_no = %order.order_no,
-                        "委外损耗进项税转出按 0 计：该单加工费/运费基为 0 且未记进项税额"
+                        tax_amount = %order.tax_amount,
+                        "委外损耗进项税转出失败：已记进项税额但加工费/运费基为 0，单据口径自相矛盾"
                     );
-                    Decimal::ZERO
+                    return Err(AppError::business_displayable(format!(
+                        "委外订单 {} 进项税转出无法计算：已记进项税额 {} 但加工费与运费之和为 0，无法核对适用税率，请核对单据税额",
+                        order.order_no, order.tax_amount
+                    )));
                 }
-            };
+                // 费基为 0 且未记进项税额，无可转出的进项税，转出额按算术事实为 0（非默认档位）
+                tracing::warn!(
+                    order_no = %order.order_no,
+                    "委外损耗进项税转出按 0 计：该单加工费/运费基为 0 且未记进项税额"
+                );
+            }
+            // 转出额 = 该单已记进项税额 × 非正常损耗额 ÷ 总成本基（utils tax 的分摊单源）。
+            // 与旧的「损耗额 × 费基占比 × 观察税率」数值同口径（已记税额本身就是费基的税），
+            // 但算式里不再出现税率，因此不可能造出大于原票进项的转出额，也不会因
+            // 二次舍入与原票脱钩。总成本基为 0 时无法分摊，点名拒绝（不返回 0 冒充算得）。
             let total_cost_basis = order.material_cost + fee_base;
-            let processing_ratio = if total_cost_basis > Decimal::ZERO {
-                fee_base / total_cost_basis
-            } else {
-                Decimal::ZERO
-            };
-            let tax_transfer_amount = crate::utils::tax::percent_of(
-                calc.abnormal_loss_amount * processing_ratio,
-                vat_percent,
-            );
+            let tax_transfer_amount = crate::utils::tax::prorate_tax(
+                order.tax_amount,
+                calc.abnormal_loss_amount,
+                total_cost_basis,
+            )
+            .ok_or_else(|| {
+                AppError::business_displayable(format!(
+                    "委外订单 {} 进项税转出无法计算：材料成本与加工费运费之和为 0，无法按占比分摊已记进项税额",
+                    order.order_no
+                ))
+            })?;
 
             let loss_voucher = VoucherActiveModel {
                 id: Default::default(),

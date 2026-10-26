@@ -1089,7 +1089,7 @@ async fn live_sales_return_item_update_tri_state_on_postgres() {
 
     // 1) 键缺席=保持：只改 reason（有值=覆盖），quantity/unit_price 原值不动
     service
-        .update_return_item(item_id, None, None, Some(Some("新原因".to_string())), 9101)
+        .update_return_item(item_id, None, None, None, Some(Some("新原因".to_string())), 9101)
         .await
         .unwrap();
     let row = reload().await;
@@ -1098,7 +1098,7 @@ async fn live_sales_return_item_update_tri_state_on_postgres() {
 
     // 2) 显式 null=落 NULL（与"缺席→保持"两种不同结果的同列闭环）
     service
-        .update_return_item(item_id, None, None, Some(None), 9101)
+        .update_return_item(item_id, None, None, None, Some(None), 9101)
         .await
         .unwrap();
     let row = reload().await;
@@ -1109,6 +1109,7 @@ async fn live_sales_return_item_update_tri_state_on_postgres() {
         .update_return_item(
             item_id,
             Some(None),
+            None,
             None,
             Some(Some("不应落库".to_string())),
             9101,
@@ -1122,7 +1123,15 @@ async fn live_sales_return_item_update_tri_state_on_postgres() {
 
     // 4) 单价覆盖→金额重算（与 add_return_item 同口径）且行数恒为 1（插行回归锁）
     service
-        .update_return_item(item_id, None, Some(Some(dec("12.00"))), None, 9101)
+        .update_return_item(
+            item_id,
+            None,
+            Some(Some(dec("12.00"))),
+            // 本行税率 0（免税声明），含税单价与不含税单价是同一个数，两者同值提交才钩稽
+            Some(Some(dec("12.00"))),
+            None,
+            9101,
+        )
         .await
         .unwrap();
     let row = reload().await;

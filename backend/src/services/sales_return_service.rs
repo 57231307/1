@@ -96,7 +96,11 @@ pub struct CreateSalesReturnItemRequest {
     pub line_no: Option<i32>,
     pub product_id: i32,
     pub quantity: Decimal,
+    /// 不含税单价（派生值，提交则须与含税单价反算值分位一致）
     pub unit_price: Decimal,
+    /// 含税单价（退货录入事实）。税率非 0 而缺本字段时，服务层先按关联销售订单行的
+    /// 已落库含税额**除法还原**，还原不出即点名拒绝；系统不用 `不含税 × (1 + 税率)` 倒造。
+    pub unit_price_with_tax: Option<Decimal>,
     /// 税率（百分比，如 13 表示 13%）。缺省时后端按关联销售订单同商品明细的权威税率回填；
     /// 无权威来源时拒绝写入（不静默默认为 0）。
     pub tax_percent: Option<Decimal>,
@@ -335,27 +339,33 @@ impl SalesReturnService {
         }
     }
 
-    /// 计算销售退货明细四个 NOT NULL 金额列。
-    /// 算法与同族保持一致：采购退货 purchase_return_service::compute_item_amounts、
-    /// 销售订单 so/order_crud.rs::calculate_sales_item_amounts——
-    /// subtotal=qty*price；discount=subtotal*折扣率；taxable=subtotal-discount；
-    /// tax=taxable*税率；total=taxable+tax，均 round_dp(2) 防精度漂移。
+    /// 计算销售退货明细四个 NOT NULL 金额列（价税分离只允许除法反算这一条腿）。
+    ///
+    /// 入参 `inclusive_unit_price` 是**含税单价**事实（不是不含税单价）、quantity 是退货数量、
+    /// discount_percent 与 tax_percent 都是百分数口径。算法与同族完全同源：
+    /// 采购退货 purchase_return_service::compute_item_amounts、
+    /// 销售订单 so/order_crud.rs::calculate_sales_item_amounts 都调同一枚
+    /// `utils::tax::line_split`（subtotal = 反算净额；discount_amount = 折扣前后两次反算的差额；
+    /// tax_amount = 成交含税额 − 折后净额；total_amount = 成交含税额，均 round_dp(2)）。
+    /// 因此恒等式 `subtotal − discount_amount + tax_amount == total_amount` 逐分成立，
+    /// 本函数不存在 `× 税率` 或 `× (1 + 税率)` 的正向公式。
     fn compute_return_item_amounts(
         quantity: Decimal,
-        unit_price: Decimal,
+        inclusive_unit_price: Decimal,
         discount_percent: Decimal,
         tax_percent: Decimal,
     ) -> ReturnItemAmounts {
-        let subtotal = (quantity * unit_price).round_dp(2);
-        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
-        let taxable_amount = (subtotal - discount_amount).round_dp(2);
-        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
-        let total_amount = (taxable_amount + tax_amount).round_dp(2);
+        let split = crate::utils::tax::line_split(
+            inclusive_unit_price,
+            quantity,
+            Some(discount_percent),
+            tax_percent,
+        );
         ReturnItemAmounts {
-            subtotal,
-            discount_amount,
-            tax_amount,
-            total_amount,
+            subtotal: split.list_net,
+            discount_amount: split.discount_net,
+            tax_amount: split.tax,
+            total_amount: split.deal_inclusive,
         }
     }
 
@@ -373,13 +383,11 @@ impl SalesReturnService {
 
         let mut total = rust_decimal::Decimal::new(0, 0);
         for item in items {
-            // Because sales_return_item might not have `amount`, we multiply quantity by a unit price or assume it's pre-calculated if the field exists.
-            // Let's check what fields are actually in sales_return_item
-            // Wait, sales_return_item doesn't have an `amount` field. We must use unit_price * quantity.
-            let qty = item.quantity;
-            let price = item.unit_price;
-            // 金额累加补 round_dp(2) 防止精度漂移
-            total += (qty * price).round_dp(2);
+            // 单头总额取行上的**成交含税额**（total_amount 列），与同族采购退货
+            // purchase_return_service::update_return_totals 同一口径：
+            // 行含税额由 utils tax 的价税分离构造，天然满足「净额 + 税额 = 含税」，
+            // 表头只是逐行累加，不再各自用 数量 × 不含税单价 拼一套（那会把税额与折扣丢掉）。
+            total += item.total_amount;
         }
 
         let return_order = crate::models::sales_return::Entity::find_by_id(return_id)
@@ -489,29 +497,62 @@ impl SalesReturnService {
         };
         // 税率权威来源解析（不做静默默认 0）：请求显式提供优先，否则取关联销售订单
         // 同商品明细的税率；两处都取不到则报错，暴露缺失字段由调用方/数据层修正。
-        let order_item_tax = match return_order.sales_order_id {
+        let order_line = match return_order.sales_order_id {
             Some(order_id) => sales_order_item::Entity::find()
                 .filter(sales_order_item::Column::OrderId.eq(order_id))
                 .filter(sales_order_item::Column::ProductId.eq(req.product_id))
                 .one(&txn)
-                .await?
-                .map(|oi| oi.tax_percent),
+                .await?,
             None => None,
         };
+        let order_item_tax = order_line.as_ref().map(|oi| oi.tax_percent);
         let tax_percent = Self::resolve_tax_percent(
             req.tax_percent,
             order_item_tax,
             return_order.sales_order_id,
             req.product_id,
         )?;
-        // 折扣率缺省为 0（无折扣为合法业务默认），含税明细金额四元组按同族算法计算
+        // 含税单价是价税分离的起点：提交值优先，未提交时按关联订单行已落库的含税额
+        // 除法还原（还原不出即点名拒绝，见 utils tax 的 recover_inclusive_unit_price），
+        // 本服务绝不用 `不含税单价 × (1 + 税率)` 倒造一个含税额。
+        let inclusive_unit_price = match req.unit_price_with_tax {
+            Some(price) => price,
+            None => {
+                let oi = order_line.as_ref().ok_or_else(|| {
+                    AppError::business_displayable(format!(
+                        "退货行缺少含税单价 unit_price_with_tax，且产品 {} 在本退货单关联的销售订单上没有可还原的行，请按含税单价录入后重试",
+                        req.product_id
+                    ))
+                })?;
+                crate::utils::tax::recover_inclusive_unit_price(
+                    oi.total_amount,
+                    oi.quantity,
+                    oi.discount_amount,
+                    "销售退货行",
+                )?
+            }
+        };
+        // 提交的不含税单价必须与反算值分位一致，落库一律采信反算值
+        let unit_price = crate::utils::tax::ensure_unit_price_reconciles(
+            req.unit_price,
+            inclusive_unit_price,
+            tax_percent,
+            "销售退货行",
+        )?;
+        // 折扣率缺省为 0（无折扣为合法业务默认），含税明细金额四元组按同族内核单源计算
         let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
         let amounts = Self::compute_return_item_amounts(
             req.quantity,
-            req.unit_price,
+            inclusive_unit_price,
             discount_percent,
             tax_percent,
         );
+        // 落库前三值自检：破坏「净额 + 税额 = 含税」的任何改动都会在这里炸成业务错误
+        crate::utils::tax::ensure_reconciled(
+            amounts.subtotal - amounts.discount_amount,
+            amounts.tax_amount,
+            amounts.total_amount,
+        )?;
         // 追溯三列（色号/缸号/批次）从权威来源回写：取不到即业务错误，绝不落空串。
         let trace =
             Self::fetch_return_item_trace(&txn, return_order.sales_order_id, req.product_id)
@@ -522,7 +563,8 @@ impl SalesReturnService {
             line_no: Set(line_no),
             product_id: Set(req.product_id),
             quantity: Set(req.quantity),
-            unit_price: Set(req.unit_price),
+            // 落库单价是内核反算值（含税单价才是录入事实，不含税单价是派生只读）
+            unit_price: Set(unit_price),
             unit_price_foreign: Set(Decimal::ZERO),
             discount_percent: Set(discount_percent),
             tax_percent: Set(tax_percent),
@@ -1272,6 +1314,7 @@ impl SalesReturnService {
         item_id: i32,
         quantity: Option<Option<Decimal>>,
         unit_price: Option<Option<Decimal>>,
+        unit_price_with_tax: Option<Option<Decimal>>,
         reason: Option<Option<String>>,
         user_id: i32,
     ) -> Result<sales_return_item::Model, AppError> {
@@ -1299,9 +1342,13 @@ impl SalesReturnService {
         // 重算所需原值在 into ActiveModel 之前捕获（Move 语义）。
         // NOT NULL 列的 Some(None) 已入口拒绝，flatten 后仅剩 覆盖/保持 两态
         let new_qty = quantity.flatten().unwrap_or(item.quantity);
-        let new_price = unit_price.flatten().unwrap_or(item.unit_price);
+        let submitted_net = unit_price.flatten().unwrap_or(item.unit_price);
         let discount_percent = item.discount_percent;
         let tax_percent = item.tax_percent;
+        // item 之后要 into ActiveModel（Move 语义），还原含税单价用的三个现值先捕获
+        let stored_total = item.total_amount;
+        let stored_quantity = item.quantity;
+        let stored_discount = item.discount_amount;
         let amounts_dirty =
             matches!(quantity, Some(Some(_))) || matches!(unit_price, Some(Some(_)));
 
@@ -1309,23 +1356,46 @@ impl SalesReturnService {
         if let Some(qty) = quantity.flatten() {
             active_model.quantity = Set(qty);
         }
-        if let Some(price) = unit_price.flatten() {
-            active_model.unit_price = Set(price);
-        }
         // reason 映射 DB 可空列 notes（sales_return_item.notes，m0011 DDL）：
         // Some(inner)=Set(inner)，显式 null 直落 NULL
         if let Some(r) = reason {
             active_model.notes = Set(r);
         }
-        // 数量/单价任一变化：按行内税率/折扣率重算 subtotal/tax_amount/discount_amount/total_amount，
-        // 与 add_return_item 使用同一 compute_return_item_amounts，保证口径一致。
+        // 只有数量/单价任一变化才进价税分离腿：只改备注这类编辑不得被单价钩稽门拦下。
+        // 含税单价是这一步的唯一起点：提交值优先，未提交时按本行已落库含税额除法还原
+        // （还原不出即拒绝，见 utils tax 的 recover_inclusive_unit_price），
+        // 本服务绝不用 `不含税单价 × (1 + 税率)` 倒造含税额。
         if amounts_dirty {
+            let inclusive_unit_price = match unit_price_with_tax.flatten() {
+                Some(price) => price,
+                None => crate::utils::tax::recover_inclusive_unit_price(
+                    stored_total,
+                    stored_quantity,
+                    stored_discount,
+                    "销售退货行",
+                )?,
+            };
+            // 反算单价与提交单价必须分位一致，落库一律采信反算值
+            let new_price = crate::utils::tax::ensure_unit_price_reconciles(
+                submitted_net,
+                inclusive_unit_price,
+                tax_percent,
+                "销售退货行",
+            )?;
+            if unit_price.flatten().is_some() {
+                active_model.unit_price = Set(new_price);
+            }
             let amounts = Self::compute_return_item_amounts(
                 new_qty,
-                new_price,
+                inclusive_unit_price,
                 discount_percent,
                 tax_percent,
             );
+            crate::utils::tax::ensure_reconciled(
+                amounts.subtotal - amounts.discount_amount,
+                amounts.tax_amount,
+                amounts.total_amount,
+            )?;
             active_model.subtotal = Set(amounts.subtotal);
             active_model.discount_amount = Set(amounts.discount_amount);
             active_model.tax_amount = Set(amounts.tax_amount);
@@ -1438,33 +1508,39 @@ mod tests {
 
     #[test]
     fn test_return_amounts_basic_tax_inclusive() {
-        // 100m × 25.50 = 2550.00；税率 13%、无折扣 → tax=331.50、total=2881.50
+        // 含税单价 25.50 × 100 = 成交含税额 2550.00（事实）；税率 13%、无折扣
+        // 净额 = 2550.00 ÷ 1.13 = 2256.6371681 收敛 2256.64；税额 = 2550.00 − 2256.64 = 293.36
+        // （旧写法 2550 × 13% = 331.50 是「乘税率造税额」，含税总额会被抬成 2881.50，已废）
         let a = SalesReturnService::compute_return_item_amounts(
             dec("100"),
             dec("25.50"),
             dec("0"),
             dec("13"),
         );
-        assert_eq!(a.subtotal, dec("2550.00"));
+        assert_eq!(a.subtotal, dec("2256.64"));
         assert_eq!(a.discount_amount, dec("0.00"));
-        assert_eq!(a.tax_amount, dec("331.50"));
-        assert_eq!(a.total_amount, dec("2881.50"));
+        assert_eq!(a.tax_amount, dec("293.36"));
+        assert_eq!(a.total_amount, dec("2550.00"));
+        // 钩稽恒等式：净额 + 税额 = 含税额，逐分相等
+        assert_eq!(a.subtotal + a.tax_amount, a.total_amount);
     }
 
     #[test]
     fn test_return_amounts_with_discount() {
-        // 200 × 10 = 2000；折扣 5% → discount=100，taxable=1900；税 9% → tax=171；total=2071
+        // 含税单价 10 × 200 = 标价含税额 2000.00；折扣 5% ⇒ 折扣 100.00（含税口径），
+        // 成交含税额 1900.00；税率 9% ⇒ 折前净额 1834.86、折后净额 1743.12、
+        // 净额口径折扣 91.74、税额 156.88。表里四列必须满足
+        // subtotal − discount_amount + tax_amount == total_amount（恒等式，不是巧合）
         let a = SalesReturnService::compute_return_item_amounts(
             dec("200"),
             dec("10"),
             dec("5"),
             dec("9"),
         );
-        assert_eq!(a.subtotal, dec("2000.00"));
-        assert_eq!(a.discount_amount, dec("100.00"));
-        assert_eq!(a.tax_amount, dec("171.00"));
-        assert_eq!(a.total_amount, dec("2071.00"));
-        // 守恒不变量：total = subtotal - discount + tax
+        assert_eq!(a.subtotal, dec("1834.86"));
+        assert_eq!(a.discount_amount, dec("91.74"));
+        assert_eq!(a.tax_amount, dec("156.88"));
+        assert_eq!(a.total_amount, dec("1900.00"));
         assert_eq!(
             a.total_amount,
             a.subtotal - a.discount_amount + a.tax_amount
@@ -1473,8 +1549,8 @@ mod tests {
 
     #[test]
     fn test_return_amounts_zero_tax_and_rounding() {
-        // 税率 0（免税行合法）：total == subtotal；并验证 round_dp(2) 收敛
-        // 7 × 3.333 = 23.331 → 23.33
+        // 税率 0（免税行合法）：除法退化为等值，total == subtotal，不开例外分支；
+        // 并验证 round_dp(2) 收敛：7 × 3.333 = 23.331 → 23.33
         let a = SalesReturnService::compute_return_item_amounts(
             dec("7"),
             dec("3.333"),
@@ -1484,6 +1560,46 @@ mod tests {
         assert_eq!(a.subtotal, dec("23.33"));
         assert_eq!(a.tax_amount, dec("0.00"));
         assert_eq!(a.total_amount, dec("23.33"));
+    }
+
+    /// 税额方向锁：逐档税率（含 0 与小数税率）都必须满足「净额 + 税额 = 含税」，
+    /// 且税额不得大于含税额、净额不得大于含税额。这一条把「两处各自舍入产生 1 分差」
+    /// 与「乘 (1 + 税率) 造含税导致税额虚增」两种复发形态都钉在构造上。
+    #[test]
+    fn test_return_amounts_reconcile_for_every_rate_tier() {
+        for tax_percent in [
+            dec("0"),
+            dec("13"),
+            dec("9"),
+            dec("6"),
+            dec("5.5"),
+            dec("0.26"),
+            dec("17.5"),
+        ] {
+            for (quantity, inclusive_price) in [
+                (dec("3"), dec("10.01")),
+                (dec("7"), dec("3.333")),
+                (dec("200"), dec("12.345")),
+            ] {
+                let a = SalesReturnService::compute_return_item_amounts(
+                    quantity,
+                    inclusive_price,
+                    dec("0"),
+                    tax_percent,
+                );
+                assert_eq!(
+                    a.subtotal + a.tax_amount,
+                    a.total_amount,
+                    "税率 {tax_percent} 数量 {quantity} 含税单价 {inclusive_price} 钩稽失败: {:?}",
+                    (a.subtotal, a.tax_amount, a.total_amount)
+                );
+                assert!(
+                    a.tax_amount <= a.total_amount && a.subtotal <= a.total_amount,
+                    "税率 {tax_percent} 下税额或净额超过含税额: {:?}",
+                    (a.subtotal, a.tax_amount, a.total_amount)
+                );
+            }
+        }
     }
 
     // ===== resolve_tax_percent：权威来源解析（不静默默认 0）=====

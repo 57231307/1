@@ -93,6 +93,20 @@ struct ItemAmounts {
     total_amount: Decimal,
 }
 
+/// 改行时的生效值合流结果（四个 NOT NULL 金额相关列的生效值 + 含税单价事实）。
+///
+/// `inclusive_unit_price` 是价税分离的唯一起点：提交值优先，未提交时由已落库含税额
+/// 除法还原；`unit_price` 是内核反算并经钩稽门放行的不含税单价（落 unit_price 列）。
+/// 调用方是 update_item 的 resolve_item_params 与 compute_item_amounts 与
+/// build_update_item_active 三处，产出写 purchase_return_item 的金额列。
+struct ReturnItemInputs {
+    quantity: Decimal,
+    unit_price: Decimal,
+    inclusive_unit_price: Decimal,
+    discount_percent: Decimal,
+    tax_percent: Decimal,
+}
+
 /// 库存四维定位键：产品 + 色号 + 缸号 + 批次（仓库由退货单 `warehouse_id` 统一约束）。
 ///
 /// 与采购收货侧 `purchase_receipt_private::StockDimKey`（产品+批次+色号+缸号+等级）同口径的
@@ -1053,7 +1067,12 @@ pub struct CreateReturnItemRequest {
     pub material_id: i32,
     pub quantity_ordered: Option<Decimal>,
     pub quantity_returned: Decimal,
+    /// 不含税单价（派生值，提交则须与含税单价反算值分位一致）
     pub unit_price: Decimal,
+    /// 含税单价（退货录入事实）。退货开红字票，票面含税金额才是事实，
+    /// 税率非 0 而缺本字段时服务层点名拒绝，不用 `不含税 × (1 + 税率)` 倒造含税额。
+    /// 0 税率（免税退货/无票红冲）行可不提交，此时不含税单价即含税单价。
+    pub unit_price_with_tax: Option<Decimal>,
     pub tax_rate: Option<Decimal>,
     pub discount_percent: Option<Decimal>,
     pub notes: Option<String>,
@@ -1086,6 +1105,11 @@ pub struct UpdateReturnItemRequest {
     /// NOT NULL 列 unit_price——显式 null 被 service 拒绝
     #[serde(default, deserialize_with = "double_option")]
     pub unit_price: Option<Option<Decimal>>,
+    /// 含税单价（派生列的输入事实，本表无对应列，只在写侧参与价税分离）：
+    /// 显式 null 与缺键同义（= 未提交），此时服务层按已落库含税额除法还原，
+    /// 还原不出来（本行有折扣或 0 量）即点名拒绝，绝不用税率倒造。
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_price_with_tax: Option<Option<Decimal>>,
     /// NOT NULL 列 tax_percent——显式 null 被 service 拒绝
     #[serde(default, deserialize_with = "double_option")]
     pub tax_rate: Option<Option<Decimal>>,
@@ -1175,16 +1199,38 @@ impl PurchaseReturnService {
         }
 
         let quantity = req.quantity_returned;
-        let unit_price = req.unit_price;
         let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
         let tax_percent = req.tax_rate.unwrap_or(Decimal::ZERO);
 
-        // 批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移
-        let subtotal = (quantity * unit_price).round_dp(2);
-        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
-        let taxable_amount = (subtotal - discount_amount).round_dp(2);
-        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
-        let total_amount = (taxable_amount + tax_amount).round_dp(2);
+        // 价税分离只允许除法反算这一条腿（utils tax 内核单源）：
+        // 含税单价是录入事实，缺它时只有 0 税率可按算术事实把不含税单价原样当含税额；
+        // 提交的不含税单价必须与反算值分位一致（防调用方自己乘了 1 + 税率）。
+        let inclusive_unit_price = crate::utils::tax::require_inclusive_unit_price(
+            req.unit_price_with_tax,
+            req.unit_price,
+            tax_percent,
+            "unit_price_with_tax",
+        )?;
+        let unit_price = crate::utils::tax::ensure_unit_price_reconciles(
+            req.unit_price,
+            inclusive_unit_price,
+            tax_percent,
+            "采购退货行",
+        )?;
+        // 金额计算走内核行级单源：subtotal 是反算净额、tax_amount 是差额、
+        // total_amount 是成交含税额，subtotal − discount_amount + tax_amount 逐分等于
+        // total_amount，与本服务 update_item 与应付红字腿共用同一枚函数。
+        let split = crate::utils::tax::line_split(
+            inclusive_unit_price,
+            quantity,
+            Some(discount_percent),
+            tax_percent,
+        );
+        crate::utils::tax::ensure_reconciled(split.deal_net, split.tax, split.deal_inclusive)?;
+        let subtotal = split.list_net;
+        let discount_amount = split.discount_net;
+        let tax_amount = split.tax;
+        let total_amount = split.deal_inclusive;
 
         let item = purchase_return_item::ActiveModel {
             id: Default::default(),
@@ -1263,19 +1309,22 @@ impl PurchaseReturnService {
         Self::validate_update_item(&return_record)?;
 
         // 解析请求字段并计算金额
-        let (quantity, unit_price, discount_percent, tax_percent) =
-            Self::resolve_item_params(&req, &item);
-        let amounts =
-            Self::compute_item_amounts(quantity, unit_price, discount_percent, tax_percent);
+        let inputs = Self::resolve_item_params(&req, &item)?;
+        let amounts = Self::compute_item_amounts(
+            inputs.quantity,
+            inputs.inclusive_unit_price,
+            inputs.discount_percent,
+            inputs.tax_percent,
+        );
 
         // 构建 ActiveModel
         let active_item = Self::build_update_item_active(
             item,
             req,
-            quantity,
-            unit_price,
-            discount_percent,
-            tax_percent,
+            inputs.quantity,
+            inputs.unit_price,
+            inputs.discount_percent,
+            inputs.tax_percent,
             amounts,
         );
 
@@ -1306,11 +1355,17 @@ impl PurchaseReturnService {
     }
 
     /// 解析请求中的明细参数：NOT NULL 列的显式 null 已在 update_item 入口拒绝，
-    /// flatten 后仅剩 覆盖/保持 两态（保持=用原值参与重算，不落库为 0 假值）
+    /// flatten 后仅剩 覆盖/保持 两态（保持=用原值参与重算，不落库为 0 假值）。
+    ///
+    /// 含税单价的生效值口径：提交了就取提交值；未提交时按本行已落库的成交含税额
+    /// **除以数量**还原（除法还原，不是按税率倒造），还原不出（本行有折扣或数量为 0）
+    /// 即点名拒绝并要求重新提交含税单价。
+    /// 不含税单价取合流后的提交/现值，但必须与含税单价按税率反算的结果分位一致，
+    /// 不符即拒绝（防止调用方带着乘 1 + 税率 的旧公式改一次行就把两套口径写进同一行）。
     fn resolve_item_params(
         req: &UpdateReturnItemRequest,
         item: &purchase_return_item::Model,
-    ) -> (Decimal, Decimal, Decimal, Decimal) {
+    ) -> Result<ReturnItemInputs, AppError> {
         let quantity = req.quantity_returned.flatten().unwrap_or(item.quantity);
         let unit_price = req.unit_price.flatten().unwrap_or(item.unit_price);
         let discount_percent = req
@@ -1318,26 +1373,56 @@ impl PurchaseReturnService {
             .flatten()
             .unwrap_or(item.discount_percent);
         let tax_percent = req.tax_rate.flatten().unwrap_or(item.tax_percent);
-        (quantity, unit_price, discount_percent, tax_percent)
+        let inclusive_unit_price = match req.unit_price_with_tax.flatten() {
+            Some(price) => price,
+            None => crate::utils::tax::recover_inclusive_unit_price(
+                item.total_amount,
+                item.quantity,
+                item.discount_amount,
+                "采购退货行",
+            )?,
+        };
+        let unit_price = crate::utils::tax::ensure_unit_price_reconciles(
+            unit_price,
+            inclusive_unit_price,
+            tax_percent,
+            "采购退货行",
+        )?;
+        Ok(ReturnItemInputs {
+            quantity,
+            unit_price,
+            inclusive_unit_price,
+            discount_percent,
+            tax_percent,
+        })
     }
 
-    /// 计算明细金额（含 round_dp(2) 防精度漂移）（批次 97 P1-4 修复（v5 复审）：金额计算补 round_dp(2) 防止精度漂移）
+    /// 计算明细金额：价税分离只允许 utils tax 内核的除法反算腿。
+    ///
+    /// 入参 inclusive_unit_price 是**含税单价**事实（不是不含税单价），quantity 是退货数量，
+    /// discount_percent 与 tax_percent 都是百分数口径。出参 ItemAmounts 的四值分别落
+    /// purchase_return_item 的 subtotal（反算净额）、discount_amount（净额口径折扣差额）、
+    /// tax_amount（成交含税 − 折后净额）与 total_amount（成交含税额）四列，
+    /// 恒等式 subtotal − discount_amount + tax_amount == total_amount 由构造保证，
+    /// 下游应付红字腿（services/ap_invoice_ops/receipt.rs）按 amount − tax_amount 取净额
+    /// 因此与本页逐分对得上。本函数内不存在任何乘 (1 + 税率) 的写法。
     fn compute_item_amounts(
         quantity: Decimal,
-        unit_price: Decimal,
+        inclusive_unit_price: Decimal,
         discount_percent: Decimal,
         tax_percent: Decimal,
     ) -> ItemAmounts {
-        let subtotal = (quantity * unit_price).round_dp(2);
-        let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
-        let taxable_amount = (subtotal - discount_amount).round_dp(2);
-        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
-        let total_amount = (taxable_amount + tax_amount).round_dp(2);
+        let split = crate::utils::tax::line_split(
+            inclusive_unit_price,
+            quantity,
+            Some(discount_percent),
+            tax_percent,
+        );
         ItemAmounts {
-            subtotal,
-            discount_amount,
-            tax_amount,
-            total_amount,
+            subtotal: split.list_net,
+            discount_amount: split.discount_net,
+            tax_amount: split.tax,
+            total_amount: split.deal_inclusive,
         }
     }
 

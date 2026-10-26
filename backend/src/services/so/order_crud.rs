@@ -49,6 +49,8 @@ struct OrderTotals {
 
 /// 单行明细金额计算结果（避免 tuple 返回触发 clippy::type_complexity）
 struct SalesItemAmounts {
+    /// 落 sales_order_item.unit_price 列的不含税单价（由含税单价反算，不是采信提交值）
+    unit_price: rust_decimal::Decimal,
     item_subtotal: rust_decimal::Decimal,
     item_discount: rust_decimal::Decimal,
     item_tax: rust_decimal::Decimal,
@@ -347,29 +349,50 @@ impl SalesService {
         Ok(())
     }
 
-    /// 计算单行明细金额（含 round_dp(2) 防精度漂移）
+    /// 计算单行明细金额（价税分离只允许除法反算，含 round_dp(2) 防精度漂移）
+    ///
+    /// 入参 item_req 是销售订单行请求：含税单价 unit_price_with_tax 是录入事实，
+    /// unit_price 是提交的不含税单价（必须与反算值分位一致，落库采信反算值），
+    /// tax_percent 是百分数口径税率（缺省按 0 = 免税/不含税声明，与既有口径一致）。
+    /// 出参 SalesItemAmounts 五个金额字段分别写 sales_order_item 的 unit_price、subtotal、
+    /// discount_amount、tax_amount、total_amount 列，其中税额是「成交含税 − 折后净额」的差额，
+    /// 恒等式 subtotal − discount_amount + tax_amount == total_amount 逐分成立。
+    /// 税率非 0 而缺含税单价时点名拒绝：本函数不用 `单价 × (1 + 税率)` 造含税额。
     fn calculate_sales_item_amounts(
         item_req: &crate::services::so::SalesOrderItemRequest,
-    ) -> SalesItemAmounts {
+    ) -> Result<SalesItemAmounts, AppError> {
         let discount_pct = item_req
             .discount_percent
             .unwrap_or(rust_decimal::Decimal::ZERO);
         let tax_pct = item_req.tax_percent.unwrap_or(rust_decimal::Decimal::ZERO);
-        let item_subtotal = (item_req.quantity * item_req.unit_price).round_dp(2);
-        let item_discount =
-            (item_subtotal * (discount_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-        let item_after_discount = (item_subtotal - item_discount).round_dp(2);
-        let item_tax =
-            (item_after_discount * (tax_pct / rust_decimal::Decimal::new(100, 0))).round_dp(2);
-        let item_total = (item_after_discount + item_tax).round_dp(2);
-        SalesItemAmounts {
-            item_subtotal,
-            item_discount,
-            item_tax,
-            item_total,
+        let inclusive_unit_price = crate::utils::tax::require_inclusive_unit_price(
+            item_req.unit_price_with_tax,
+            item_req.unit_price,
+            tax_pct,
+            "unit_price_with_tax",
+        )?;
+        let unit_price = crate::utils::tax::ensure_unit_price_reconciles(
+            item_req.unit_price,
+            inclusive_unit_price,
+            tax_pct,
+            "销售订单行",
+        )?;
+        let split = crate::utils::tax::line_split(
+            inclusive_unit_price,
+            item_req.quantity,
+            Some(discount_pct),
+            tax_pct,
+        );
+        crate::utils::tax::ensure_reconciled(split.deal_net, split.tax, split.deal_inclusive)?;
+        Ok(SalesItemAmounts {
+            unit_price,
+            item_subtotal: split.list_net,
+            item_discount: split.discount_net,
+            item_tax: split.tax,
+            item_total: split.deal_inclusive,
             discount_pct,
             tax_pct,
-        }
+        })
     }
 
     /// 构建单行明细 ActiveModel（含金额与所有业务字段）
@@ -384,7 +407,7 @@ impl SalesService {
             order_id: sea_orm::ActiveValue::Set(order_id),
             product_id: sea_orm::ActiveValue::Set(item_req.product_id),
             quantity: sea_orm::ActiveValue::Set(item_req.quantity),
-            unit_price: sea_orm::ActiveValue::Set(item_req.unit_price),
+            unit_price: sea_orm::ActiveValue::Set(amounts.unit_price),
             discount_percent: sea_orm::ActiveValue::Set(amounts.discount_pct),
             tax_percent: sea_orm::ActiveValue::Set(amounts.tax_pct),
             subtotal: sea_orm::ActiveValue::Set(amounts.item_subtotal),
@@ -436,7 +459,7 @@ impl SalesService {
             // 建单与改单都从这一个漏斗写明细行，链来源的词表门控因此只有一处：
             // 词表外取值整笔中止（事务回滚），不落库、不静默归一、不代填默认值。
             item_req.validate_fulfillment_source()?;
-            let amounts = Self::calculate_sales_item_amounts(&item_req);
+            let amounts = Self::calculate_sales_item_amounts(&item_req)?;
             subtotal += &amounts.item_subtotal;
             discount_amount += &amounts.item_discount;
             tax_amount += &amounts.item_tax;

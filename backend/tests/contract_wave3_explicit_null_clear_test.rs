@@ -774,12 +774,12 @@ async fn sales_return_header_and_item_explicit_null_rejected_before_db() {
     expect_cleared_business_error(err, "退货原因详情不能单独清空", "reason_detail");
 
     let err2 = service
-        .update_return_item(999_999, Some(None), None, None, 9101)
+        .update_return_item(999_999, Some(None), None, None, None, 9101)
         .await
         .expect_err("NOT NULL 列 quantity 显式 null 必须被拒绝");
     expect_cleared_business_error(err2, "退货数量不能清空", "quantity");
     let err3 = service
-        .update_return_item(999_999, None, Some(None), None, 9101)
+        .update_return_item(999_999, None, Some(None), None, None, 9101)
         .await
         .expect_err("NOT NULL 列 unit_price 显式 null 必须被拒绝");
     expect_cleared_business_error(err3, "退货单价不能清空", "unit_price");
@@ -857,6 +857,7 @@ async fn purchase_return_item_explicit_null_on_not_null_columns_rejected_before_
         material_id,
         quantity_returned,
         unit_price,
+        unit_price_with_tax: None,
         tax_rate,
         discount_percent,
         notes: None,

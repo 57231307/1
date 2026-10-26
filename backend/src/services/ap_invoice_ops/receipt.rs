@@ -29,8 +29,6 @@ use crate::models::{
     ap_invoice, purchase_order_item, purchase_receipt, purchase_receipt_item, purchase_return,
     voucher,
 };
-use crate::services::po::CreateOrderItemRequest;
-use crate::services::po::order::PurchaseOrderService;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -281,20 +279,23 @@ impl ApInvoiceService {
                     "收货行未记录单价，计税基与不含税基同为 0，本行不计进项税"
                 );
             }
-            // 只取权威实现的税额列：不含税基已由收货主表合计给出，折扣不参与本处取值
-            let amounts = PurchaseOrderService::calculate_item_amounts(&CreateOrderItemRequest {
-                line_no: Some(item.line_no),
-                material_id: Some(item.product_id),
-                unit_price: item.unit_price,
-                quantity_ordered: Some(item.quantity),
-                quantity_alt_ordered: item.quantity_alt,
-                tax_rate: Some(order_item.tax_percent),
-                discount_percent: Some(order_item.discount_percent),
-                quantity_tolerance_pct: order_item.quantity_tolerance_pct,
-                color_no: item.color_code.clone(),
-                notes: item.notes.clone(),
+            // 进项税额只从**订单行已落库的税额事实**按实收数量占比分摊得到
+            // （utils tax 的 prorate_tax，见该函数文档）：本行不含税基已由收货主表合计给出，
+            // 折扣与税率都已包含在订单行那条价税分离腿的产出里，这里绝不重算税率、
+            // 也不按 `不含税基 × 税率` 另造一枚税额，否则同一笔进项会有两个数，
+            // 且收货分摊可能超过订单已记税额。
+            let tax_for_line = crate::utils::tax::prorate_tax(
+                order_item.tax_amount,
+                item.quantity,
+                order_item.quantity,
+            )
+            .ok_or_else(|| {
+                AppError::business(format!(
+                    "收货行 {} 回指的采购订单行 {} 订购数量为 0，无法按占比分摊已记进项税额",
+                    item.id, order_item.id
+                ))
             })?;
-            tax_total += amounts.tax_amount;
+            tax_total += tax_for_line;
         }
 
         Ok(tax_total)

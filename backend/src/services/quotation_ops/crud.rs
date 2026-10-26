@@ -56,7 +56,7 @@ impl QuotationService {
         // 报价行单位跟随产品主数据交易单位（单一真源）：前端传入与产品不一致即拒创建，
         // 不静默覆盖，杜绝「报价/订单/库存单位各写一套」的自由文本漂移
         Self::validate_item_units_against_products(&txn, &dto.items).await?;
-        Self::insert_new_quotation_items(&txn, &dto.items, result.id).await?;
+        Self::insert_new_quotation_items(&txn, &dto.items, result.id, dto.tax_rate).await?;
         Self::insert_new_quotation_terms(&txn, dto.terms, result.id).await?;
         txn.commit().await?;
         Ok(result)
@@ -149,16 +149,23 @@ impl QuotationService {
     }
 
     /// 批量插入报价单明细（insert_many，N 条合并为 1 次 INSERT）
+    ///
+    /// 入参 tax_percent 是本张报价单的税率（百分数口径，取 dto.tax_rate），
+    /// 行金额一律经 [`Self::quotation_line_amounts`] 单源反算，与表头 calculate_totals
+    /// 走同一枚函数：含税单价是录入事实，不含税单价与两个金额都是派生值，
+    /// 本函数不出现任何乘 (1 + 税率) 的正向公式。
     pub(crate) async fn insert_new_quotation_items(
         txn: &sea_orm::DatabaseTransaction,
         items: &[CreateQuotationItemDto],
         quotation_id: i64,
+        tax_percent: Decimal,
     ) -> Result<(), ServiceError> {
-        let item_active_models: Vec<ItemActive> =
-            items
-                .iter()
-                .enumerate()
-                .map(|(idx, item_dto)| ItemActive {
+        let item_active_models: Vec<ItemActive> = items
+            .iter()
+            .enumerate()
+            .map(|(idx, item_dto)| {
+                let line = Self::quotation_line_amounts(item_dto, tax_percent);
+                ItemActive {
                     id: Default::default(),
                     quotation_id: Set(quotation_id),
                     product_id: Set(item_dto.product_id),
@@ -169,26 +176,21 @@ impl QuotationService {
                     specification: Set(item_dto.specification.clone()),
                     unit: Set(item_dto.unit.clone()),
                     quantity: Set(item_dto.quantity),
-                    unit_price: Set(item_dto.unit_price),
-                    unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                    // 批次 87：金额计算补 round_dp(2) 精度归一化
-                    amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
-                    amount_with_tax: Set(
-                        (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2)
-                    ),
+                    unit_price: Set(line.unit_price),
+                    unit_price_with_tax: Set(line.unit_price_with_tax),
+                    amount: Set(line.amount),
+                    amount_with_tax: Set(line.amount_with_tax),
                     tier_pricing: Set(item_dto
                         .tier_pricing
                         .as_ref()
                         .and_then(|v| serde_json::from_value(v.clone()).ok())),
                     discount_rate: Set(item_dto.discount_rate),
-                    discount_amount: Set(item_dto.discount_rate.map(|r| {
-                        (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100))
-                            .round_dp(2)
-                    })),
+                    discount_amount: Set(Some(line.discount_amount)),
                     notes: Set(item_dto.notes.clone()),
                     sequence: Set(idx as i32),
-                })
-                .collect();
+                }
+            })
+            .collect();
         if !item_active_models.is_empty() {
             ItemEntity::insert_many(item_active_models)
                 .exec(txn)

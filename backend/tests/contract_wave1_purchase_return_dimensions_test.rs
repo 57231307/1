@@ -433,6 +433,9 @@ async fn run_return_approve(
             quantity_ordered: None,
             quantity_returned: dec(qty),
             unit_price: dec("8.50"),
+            // 本夹具不提交税率（缺省按 0 声明），0 税率下含税单价与不含税单价是同一个数，
+            // 故含税单价留空由服务层按算术事实取不含税单价，不走还原分支
+            unit_price_with_tax: None,
             tax_rate: None,
             discount_percent: None,
             notes: None,

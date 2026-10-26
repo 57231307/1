@@ -275,13 +275,50 @@ impl SalesService {
         let mut delivery_total_amount = Decimal::ZERO;
         let mut delivery_total_tax = Decimal::ZERO;
         for item in &request.items {
-            let (unit_price, tax_percent) = Self::lookup_line_price(&order_item_map, item);
+            let order_line = Self::lookup_order_line(&order_item_map, item);
+            let unit_price = order_line.map(|oi| oi.unit_price).unwrap_or(Decimal::ZERO);
+            if order_line.is_none() {
+                // 出库行在产品维度上找不到对应订单行（订单同产品多行时按最后一行取，
+                // 属既有口径）：金额与税额都按 0 计并留痕，不臆造税率、也不按乘税率补税额。
+                tracing::warn!(
+                    order_id = request.order_id,
+                    product_id = item.product_id,
+                    "出库行未匹配到销售订单行，本行金额与税额按订单行缺省 0 计入出库合计"
+                );
+            }
             let reductions = self
                 .reduce_inventory_four_dim(item, ctx.warehouse.id, request.order_id, user_id, txn)
                 .await?;
             for reduction in reductions {
-                let line_amount = (reduction.quantity * unit_price).round_dp(2);
-                let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+                // 出库行的含税与税额一律从**订单行已落库的金额事实**按实发数量占比分摊
+                // （utils tax 的 prorate_tax），不含税额取两者差额，因此
+                // 「出库净额 + 出库税额 = 出库含税额」逐分成立，
+                // 不存在按行金额再乘一次税率造税额的写法（那会让出库税额与订单税额脱钩）。
+                let (line_gross, line_tax) = match order_line {
+                    Some(oi) => {
+                        let gross = crate::utils::tax::prorate_tax(
+                            oi.total_amount,
+                            reduction.quantity,
+                            oi.quantity,
+                        );
+                        let tax = crate::utils::tax::prorate_tax(
+                            oi.tax_amount,
+                            reduction.quantity,
+                            oi.quantity,
+                        );
+                        match (gross, tax) {
+                            (Some(gross), Some(tax)) => (gross, tax),
+                            _ => {
+                return Err(AppError::business(format!(
+                                    "销售订单行 {} 的订购数量为 0，无法按实发数量 {} 分摊订单已记金额与税额，出库中止",
+                                    oi.id, reduction.quantity
+                                )))
+                            }
+                        }
+                    }
+                    None => (Decimal::ZERO, Decimal::ZERO),
+                };
+                let line_amount = (line_gross - line_tax).round_dp(2);
                 delivery_total_amount += line_amount;
                 delivery_total_tax += line_tax;
                 delivery_items_to_insert.push(Self::build_delivery_item(
@@ -401,14 +438,13 @@ impl SalesService {
     }
 
     /// 取订单行的单价与税率（行缺失按 0 处理）
-    fn lookup_line_price(
-        order_item_map: &std::collections::HashMap<i32, &sales_order_item::Model>,
+    /// 按产品取回出库行对应的销售订单行（金额与税额分摊的取值源）。
+    /// 同产品多行时取映射里的最后一行（既有口径），取不到返回 None 由调用方留痕按 0 计。
+    fn lookup_order_line<'a>(
+        order_item_map: &'a std::collections::HashMap<i32, &sales_order_item::Model>,
         item: &ShipOrderItemRequest,
-    ) -> (Decimal, Decimal) {
-        order_item_map
-            .get(&item.product_id)
-            .map(|oi| (oi.unit_price, oi.tax_percent))
-            .unwrap_or((Decimal::ZERO, Decimal::ZERO))
+    ) -> Option<&'a sales_order_item::Model> {
+        order_item_map.get(&item.product_id).copied()
     }
 
     /// 构建出库明细行：色号/缸号/批次记录**实际被扣库存行**的维度（跨缸回退时为其他缸）

@@ -42,7 +42,7 @@ impl QuotationService {
         )
         .await?;
         if let Some(items) = dto.items {
-            Self::replace_items(&txn, id, items).await?;
+            Self::replace_items(&txn, id, items, updated.tax_rate).await?;
         }
         if let Some(terms) = dto.terms {
             Self::replace_terms(&txn, id, terms).await?;
@@ -157,10 +157,15 @@ impl QuotationService {
     }
 
     /// 全量替换报价单明细（删除旧明细 + 批量插入新明细）
+    ///
+    /// 入参 tax_percent 取本张报价单更新后的税率（百分数口径），行金额一律
+    /// 走 quotation_ops/calc.rs 的 [`QuotationService::quotation_line_amounts`] 反算腿，
+    /// 与创建路径同源，不出现第二套公式。
     pub(crate) async fn replace_items(
         txn: &sea_orm::DatabaseTransaction,
         id: i64,
         items: Vec<CreateQuotationItemDto>,
+        tax_percent: Decimal,
     ) -> Result<(), AppError> {
         if items.is_empty() {
             return Err(AppError::validation_displayable(
@@ -173,7 +178,7 @@ impl QuotationService {
             .filter(sales_quotation_item::Column::QuotationId.eq(id))
             .exec(txn)
             .await?;
-        let item_active_models = Self::items_to_active_models(items, id);
+        let item_active_models = Self::items_to_active_models(items, id, tax_percent);
         if !item_active_models.is_empty() {
             ItemEntity::insert_many(item_active_models)
                 .exec(txn)
@@ -182,37 +187,40 @@ impl QuotationService {
         Ok(())
     }
 
-    fn items_to_active_models(items: Vec<CreateQuotationItemDto>, id: i64) -> Vec<ItemActive> {
+    fn items_to_active_models(
+        items: Vec<CreateQuotationItemDto>,
+        id: i64,
+        tax_percent: Decimal,
+    ) -> Vec<ItemActive> {
         items
             .into_iter()
             .enumerate()
-            .map(|(idx, item_dto)| ItemActive {
-                id: Default::default(),
-                quotation_id: Set(id),
-                product_id: Set(item_dto.product_id),
-                color_id: Set(item_dto.color_id),
-                color_code: Set(None),
-                pantone_code: Set(None),
-                cncs_code: Set(None),
-                specification: Set(item_dto.specification.clone()),
-                unit: Set(item_dto.unit.clone()),
-                quantity: Set(item_dto.quantity),
-                unit_price: Set(item_dto.unit_price),
-                unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
-                amount_with_tax: Set(
-                    (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
-                ),
-                tier_pricing: Set(item_dto
-                    .tier_pricing
-                    .as_ref()
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())),
-                discount_rate: Set(item_dto.discount_rate),
-                discount_amount: Set(item_dto.discount_rate.map(|r| {
-                    (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100)).round_dp(2)
-                })),
-                notes: Set(item_dto.notes.clone()),
-                sequence: Set(idx as i32),
+            .map(|(idx, item_dto)| {
+                let line = Self::quotation_line_amounts(&item_dto, tax_percent);
+                ItemActive {
+                    id: Default::default(),
+                    quotation_id: Set(id),
+                    product_id: Set(item_dto.product_id),
+                    color_id: Set(item_dto.color_id),
+                    color_code: Set(None),
+                    pantone_code: Set(None),
+                    cncs_code: Set(None),
+                    specification: Set(item_dto.specification.clone()),
+                    unit: Set(item_dto.unit.clone()),
+                    quantity: Set(item_dto.quantity),
+                    unit_price: Set(line.unit_price),
+                    unit_price_with_tax: Set(line.unit_price_with_tax),
+                    amount: Set(line.amount),
+                    amount_with_tax: Set(line.amount_with_tax),
+                    tier_pricing: Set(item_dto
+                        .tier_pricing
+                        .as_ref()
+                        .and_then(|v| serde_json::from_value(v.clone()).ok())),
+                    discount_rate: Set(item_dto.discount_rate),
+                    discount_amount: Set(Some(line.discount_amount)),
+                    notes: Set(item_dto.notes.clone()),
+                    sequence: Set(idx as i32),
+                }
             })
             .collect()
     }
@@ -247,6 +255,11 @@ impl QuotationService {
     }
 
     /// 重算 subtotal/tax/total 并更新主表（在 txn 内查询和 update，保证原子性）
+    ///
+    /// 口径：subtotal 取各行不含税金额之和（该列由含税事实反算得到），
+    /// total_amount 取各行成交含税额之和，tax_amount 取两者差额，
+    /// 因此恒等式「不含税 + 税额 = 含税」逐分成立，不存在两处各自舍入的 1 分差。
+    /// 本函数不乘税率；行上含税额小于不含税额（脏数据）时点名拒绝，不静默吞成 0 税额。
     pub(crate) async fn recalculate_totals_and_update(
         txn: &sea_orm::DatabaseTransaction,
         updated: &sales_quotation::Model,
@@ -255,13 +268,23 @@ impl QuotationService {
             .filter(sales_quotation_item::Column::QuotationId.eq(updated.id))
             .all(txn)
             .await?;
-        let subtotal: Decimal = recalc_items.iter().map(|i| i.amount).sum();
-        let tax_amount = if updated.tax_inclusive {
-            Decimal::ZERO
-        } else {
-            subtotal * updated.tax_rate / Decimal::from(100)
-        };
-        let total_amount = subtotal + tax_amount;
+        let mut subtotal = Decimal::ZERO;
+        let mut total_amount = Decimal::ZERO;
+        for item in &recalc_items {
+            if item.amount_with_tax < item.amount {
+                return Err(AppError::business_displayable(format!(
+                    "报价单第 {} 行价税不钩稽：含税额 {} 小于不含税额 {}，无法按差额算税额，请核对该行含税单价与折扣",
+                    item.sequence, item.amount_with_tax, item.amount
+                )));
+            }
+            subtotal += item.amount;
+            total_amount += item.amount_with_tax;
+        }
+        let subtotal = subtotal.round_dp(2);
+        let total_amount = total_amount.round_dp(2);
+        let tax_amount = (total_amount - subtotal).round_dp(2);
+        // 落库前自证钩稽：三值由差额构造，本步是把断言显式化，任何后续改动破坏恒等式都会在这里炸
+        crate::utils::tax::ensure_reconciled(subtotal, tax_amount, total_amount)?;
 
         let mut re_active: QuotationActive = updated.clone().into();
         re_active.subtotal = Set(subtotal);

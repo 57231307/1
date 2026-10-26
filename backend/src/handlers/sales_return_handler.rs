@@ -260,6 +260,7 @@ pub async fn update_return_item(
             item_id,
             req.quantity,
             req.unit_price,
+            req.unit_price_with_tax,
             req.reason,
             auth.user_id,
         )
@@ -310,6 +311,10 @@ pub struct UpdateReturnItemRequest {
     /// 单价：NOT NULL 列——显式 null 被 service 拒绝
     #[serde(default, deserialize_with = "double_option")]
     pub unit_price: Option<Option<rust_decimal::Decimal>>,
+    /// 含税单价（价税分离的输入事实）：显式 null 与缺键同义（= 未提交），
+    /// 由服务层按本行已落库含税额除法还原，还原不出即点名拒绝
+    #[serde(default, deserialize_with = "double_option")]
+    pub unit_price_with_tax: Option<Option<rust_decimal::Decimal>>,
     /// 退货原因（落 notes 列，可空）——显式 null 清空
     #[serde(default, deserialize_with = "double_option")]
     pub reason: Option<Option<String>>,

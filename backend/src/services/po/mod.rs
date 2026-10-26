@@ -115,8 +115,15 @@ pub struct CreateOrderItemRequest {
     /// 物料 ID
     pub material_id: Option<i32>,
 
-    /// 单价
+    /// 不含税单价（派生值，不是计算起点）：税率非 0 时由服务端按含税单价反算，
+    /// 提交值与反算值不符即点名拒绝；税率为 0 时可与含税单价等值直录。
     pub unit_price: Option<Decimal>,
+
+    /// 含税单价（采购录入事实）。税率非 0 的行必须提交本字段：价税分离只允许
+    /// 「净额 = 含税 ÷ (1 + 税率% ÷ 100)、税额 = 含税 − 净额」这一个方向，
+    /// 缺本字段又带非 0 税率的请求由服务层点名拒绝，服务端绝不用 `单价 × (1 + 税率)`
+    /// 替调用方造一个含税额出来。
+    pub unit_price_with_tax: Option<Decimal>,
 
     /// 订购数量（主单位）
     pub quantity_ordered: Option<Decimal>,
@@ -153,7 +160,12 @@ pub struct CreateOrderItemRequest {
 #[derive(Debug, Default, Deserialize, Serialize, Validate)]
 pub struct UpdateOrderItemRequest {
     pub material_id: Option<i32>,
+    /// 不含税单价（派生值，口径同 [`CreateOrderItemRequest::unit_price`]）
     pub unit_price: Option<Decimal>,
+    /// 含税单价（录入事实，口径同 [`CreateOrderItemRequest::unit_price_with_tax`]）：
+    /// 「缺省即不改」语义下 None = 不改本行价格；一旦提交单价或税率，
+    /// 服务层按合流后的生效税率要求生效含税单价，缺它且税率非 0 即点名拒绝。
+    pub unit_price_with_tax: Option<Decimal>,
     pub quantity_ordered: Option<Decimal>,
 
     /// 订购数量（辅助单位）

@@ -75,15 +75,15 @@ pub struct TierPrice {
 /// 定价结果
 #[derive(Debug, Clone, Serialize)]
 pub struct PricingResult {
-    /// 不含税单价
+    /// 不含税单价（由含税单价经税额内核除法反算派生，不是录入事实，只读展示与核对用）
     pub unit_price: Decimal,
-    /// 含税单价
+    /// 含税单价（色号价格表带入的录入事实，折扣已扣）
     pub unit_price_with_tax: Decimal,
     /// 匹配的阶梯价
     pub tier_breakdown: Vec<TierPrice>,
-    /// 折扣金额（每单位）
+    /// 折扣金额（每单位，含税口径）
     pub discount_applied: Decimal,
-    /// 最终金额（不含税）
+    /// 最终金额（不含税，由含税总额价税分离反算得到）
     pub final_amount: Decimal,
     /// 价格来源
     pub price_source: PriceSource,
@@ -170,24 +170,30 @@ impl QuotationPricingService {
         // 2. 阶梯价匹配（按 min_quantity 阈值）
         let tier = Self::match_tier(base_price, ctx.quantity, cp.min_quantity);
 
-        // 3. 客户等级折扣
-        // P3 维度 4 修复（批次 87）：金额计算补 round_dp(2) 精度归一化
+        // 3. 客户等级折扣：折扣作用在采价时定妥的含税价上（每单位），折扣额与折后价都是含税口径
+        //    金额计算 round_dp(2) 精度归一化
         let discount_rate = ctx.customer_level.discount_rate();
-        let discount_amount = (tier.unit_price * discount_rate).round_dp(2);
-        let unit_price = (tier.unit_price - discount_amount).round_dp(2);
+        let discount_applied = (tier.unit_price * discount_rate).round_dp(2);
+        let unit_price_with_tax = (tier.unit_price - discount_applied).round_dp(2);
 
-        // 4. 含税换算，税率取本张报价单自身的 tax_rate（百分数口径），
-        //    经税额内核换算，本服务不持有、也不回落任何税率档位。
-        let unit_price_with_tax = crate::utils::tax::unit_price_with_tax(unit_price, ctx.tax_rate);
+        // 4. 价税分离：色号价格表的 base_price 是采价录入事实（该表只有一个价格列、
+        //    无税率位，采到的就是对外报价用的含税价），因此含税单价是带入事实，
+        //    不含税单价经 utils tax 内核由除法反算得到。本服务不乘 (1 + 税率)，
+        //    也不持有、不回落任何税率档位，税率取本张报价单自身的 tax_rate（百分数口径）。
+        let unit_price = crate::utils::tax::net_from_inclusive(unit_price_with_tax, ctx.tax_rate);
 
-        // 5. 最终金额
-        let final_amount = (unit_price * ctx.quantity).round_dp(2);
+        // 5. 最终金额：先按含税单价与数量聚合出含税事实，再做价税分离，
+        //    final_amount 出的是反算净额（不含税金额），税额与含税额同时由 split 带出，
+        //    三者天然满足「净额 + 税额 = 含税额」，供前端预览与落库核对同源。
+        let inclusive_amount = crate::utils::tax::inclusive_amount(unit_price_with_tax, ctx.quantity);
+        let split = crate::utils::tax::split_from_inclusive(inclusive_amount, ctx.tax_rate);
+        let final_amount = split.net;
 
         Ok(PricingResult {
             unit_price,
             unit_price_with_tax,
             tier_breakdown: vec![tier],
-            discount_applied: discount_amount,
+            discount_applied,
             final_amount,
             price_source: PriceSource::ColorPrice,
         })

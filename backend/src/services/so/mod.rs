@@ -190,7 +190,14 @@ pub struct SalesOrderItemRequest {
     #[validate(range(min = 1, message = "产品ID必须大于0"))]
     pub product_id: i32,
     pub quantity: rust_decimal::Decimal,
+    /// 不含税单价（派生值）：提交则必须与按含税单价反算出的净额单价分位一致，
+    /// 不符即点名拒绝，服务端采信的是反算值（落 sales_order_item.unit_price 列）。
     pub unit_price: rust_decimal::Decimal,
+    /// 含税单价（销售录入事实）。税率非 0 时必须提交：价税分离只允许
+    /// 「净额 = 含税 ÷ (1 + 税率% ÷ 100)、税额 = 含税 − 净额」，
+    /// 缺本字段又带非 0 税率由服务层点名拒绝，服务端不用 `单价 × (1 + 税率)` 造含税价。
+    /// 0 税率（内销不含税/免税）行可不提交，此时不含税单价与含税单价是同一个数。
+    pub unit_price_with_tax: Option<rust_decimal::Decimal>,
     pub discount_percent: Option<rust_decimal::Decimal>,
     pub tax_percent: Option<rust_decimal::Decimal>,
     #[validate(length(max = 500, message = "备注长度不能超过500个字符"))]

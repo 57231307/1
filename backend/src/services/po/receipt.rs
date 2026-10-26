@@ -181,10 +181,27 @@ impl PurchaseOrderService {
         // 编辑既有行不加正数门（历史 0 量行要能改单价），但显式提交的负数数量点名拒绝
         Self::validate_updated_quantity(req.quantity_ordered)?;
         let effective_product_id = req.material_id.unwrap_or(current.product_id);
+        // 含税单价是价税分离的起点，生效值口径：
+        // - 提交了就取提交值；
+        // - 没提交且该行有折扣时，已落库列还原不出**标价含税额**（折扣列存的是净额口径，
+        //   而本函数无论如何都会重算并整列写回金额），必须重新提交含税单价，点名拒绝，
+        //   绝不返回去用 `不含税 × (1 + 税率)` 造一个；
+        // - 没提交且该行无折扣时，按已落库成交含税额除以数量还原（这是除法还原，不是造数），
+        //   数量为 0 的历史行除不动，同样点名拒绝。
+        let effective_unit_price_with_tax = match req.unit_price_with_tax {
+            Some(price) => price,
+            None => crate::utils::tax::recover_inclusive_unit_price(
+                current.total_amount,
+                current.quantity,
+                current.discount_amount,
+                "采购订单行",
+            )?,
+        };
         let merged = CreateOrderItemRequest {
             line_no: Some(current.line_no),
             material_id: Some(effective_product_id),
             unit_price: Some(req.unit_price.unwrap_or(current.unit_price)),
+            unit_price_with_tax: Some(effective_unit_price_with_tax),
             quantity_ordered: Some(req.quantity_ordered.unwrap_or(current.quantity)),
             quantity_alt_ordered: Some(req.quantity_alt_ordered.unwrap_or(current.quantity_alt)),
             tax_rate: Some(req.tax_rate.unwrap_or(current.tax_percent)),

@@ -383,27 +383,102 @@ fn no_vat_rate_tier_literal_can_return_to_service_sources() {
 }
 
 #[test]
-fn vat_tax_kernel_computes_in_percent_unit() {
-    // 百分数口径，13 表示 13%，1000 乘 13 除 100 得 130
-    assert_eq!(tax::tax_amount(dec("1000"), dec("13")), dec("130"));
-    // 免税行传 0 得 0（入参口径，不是缺省兜底）
-    assert_eq!(
-        tax::tax_amount(dec("1000"), Decimal::ZERO),
-        Decimal::ZERO,
-        "税率 0（免税）税额必须为 0"
+fn vat_tax_kernel_reverses_from_inclusive_in_percent_unit() {
+    // 方向口径：含税金额是事实，净额一律由除法反算、税额一律由差额得到。
+    // 百分数口径 13（即 13%）：含税额 1130.00 ÷ 1.13 = 净额 1000.00、税额 = 差额 130.00
+    let split = tax::split_from_inclusive(dec("1130"), dec("13"));
+    assert_eq!(split.inclusive, dec("1130.00"));
+    assert_eq!(split.net, dec("1000.00"));
+    assert_eq!(split.tax, dec("130.00"));
+    assert_eq!(split.net + split.tax, split.inclusive, "钩稽恒等式必须逐分成立");
+
+    // 含税 1000.00 按 13% 反算：净额 884.9557… 收敛 884.96，税额取差额 115.04。
+    // 旧写法「1000 × 13% = 130、总额 1130」是乘法造税额，会把应开票额抬高一档，已废。
+    let raw = tax::split_from_inclusive(dec("1000"), dec("13"));
+    assert_eq!(raw.net, dec("884.96"));
+    assert_eq!(raw.tax, dec("115.04"));
+    assert_eq!(raw.net + raw.tax, raw.inclusive);
+    // 0 税率与免税走同一枚除法（退化为等值），不开例外分支
+    let exempt = tax::split_from_inclusive(dec("1000"), Decimal::ZERO);
+    assert_eq!(exempt.net, dec("1000.00"));
+    assert_eq!(exempt.tax, Decimal::ZERO);
+    // 单价聚合只含「单价 × 数量」，税率不进算式
+    assert_eq!(tax::inclusive_amount(dec("100"), dec("10")), dec("1000.00"));
+    // 行级单源：含税单价 16.95 × 20 = 339.00 含税，13% 反算净额 300.00、税额 39.00
+    let line = tax::line_split(dec("16.95"), dec("20"), Some(Decimal::ZERO), dec("13"));
+    assert_eq!(line.list_net, dec("300.00"));
+    assert_eq!(line.tax, dec("39.00"));
+    assert_eq!(line.unit_price, dec("15.00"));
+    assert_eq!(line.deal_inclusive, line.deal_net + line.tax);
+    // 钩稽校验：分位一致放行，差一分即点名
+    tax::ensure_reconciled(dec("884.96"), dec("115.04"), dec("1000.00"))
+        .expect("净额加税额等于含税额必须放行");
+    let err = tax::ensure_reconciled(dec("884.95"), dec("115.04"), dec("1000.00"))
+        .expect_err("1 分差必须拒绝，不许静默凑平");
+    assert!(
+        err.to_response().message.contains("价税不钩稽"),
+        "拒绝文案必须点名不钩稽，实际: {}",
+        err.to_response().message
     );
-    // 含税单价 100 乘 (1 + 13%) 得 113
-    assert_eq!(tax::unit_price_with_tax(dec("100"), dec("13")), dec("113"));
-    // 凭证口径不舍入，100 乘 13 除 100 得 13
-    assert_eq!(tax::percent_of(dec("100"), dec("13")), dec("13"));
-    // 由单据已记税额与费基反推税率（百分数），130 除 1000 得 13
+    // 单价钩稽门：一分以内算同源，超一分说明调用方自己乘了税率
+    assert!(tax::unit_price_matches(dec("15.00"), dec("15.00")));
+    assert!(!tax::unit_price_matches(dec("16.00"), dec("15.00")));
+    // 分摊腿：已记税额按占比分摊，税率不进算式；分母为 0 返回 None 由调用方点名处理
+    assert_eq!(tax::prorate_tax(dec("130"), dec("5"), dec("10")), Some(dec("65.00")));
+    assert_eq!(tax::prorate_tax(dec("130"), dec("5"), Decimal::ZERO), None);
+    // 由单据已记税额与费基**观察**适用税率（百分数），130 除 1000 得 13
     assert_eq!(
         tax::derive_tax_percent(dec("130"), dec("1000")),
         Some(dec("13"))
     );
-    // 费基非正无法反推，返回 None，由调用方点名处理（内核绝不回落档位）
+    // 费基非正无法观察，返回 None，由调用方点名处理（内核绝不回落档位）
     assert_eq!(tax::derive_tax_percent(dec("13"), Decimal::ZERO), None);
     assert_eq!(tax::derive_tax_percent(dec("13"), dec("-1")), None);
+    // 缺含税单价时：0 税率按算术事实退化放行，非 0 税率点名拒绝（不造含税价）
+    assert_eq!(
+        tax::require_inclusive_unit_price(None, dec("100"), Decimal::ZERO, "unit_price_with_tax")
+            .expect("0 税率行不含税价即含税价，应放行"),
+        dec("100")
+    );
+    let missing = tax::require_inclusive_unit_price(None, dec("100"), dec("13"), "unit_price_with_tax")
+        .expect_err("税率非 0 缺含税单价必须拒绝");
+    assert!(missing.to_response().message.contains("缺少含税单价"));
+}
+
+/// 方向锁：内核源码里不得存在「乘 (1 + 税率)」或「净额 × 税率」造含税/造税额的公式。
+/// 只允许 `÷ (1 + 税率/100)` 与 `含税 − 净额` 两种写法，加上 `单价 × 数量`（事实聚合）
+/// 与 `税额 × 分子 ÷ 分母`（分摊）。逐行遍历内核源码，不只看首个匹配。
+#[test]
+fn vat_tax_kernel_has_no_forward_multiply_formula() {
+    let kernel = include_str!("../src/utils/tax.rs").replace('\r', "");
+    for (idx, line) in kernel.lines().enumerate() {
+        let code = line.trim_start();
+        if code.starts_with("//") || code.starts_with("//!") {
+            continue;
+        }
+        // 造含税：× (1 + 税率/100) —— 反向公式只允许出现在除号右侧
+        assert!(
+            !code.contains("* (Decimal::ONE +") && !code.contains("*(Decimal::ONE +"),
+            "utils/tax.rs 第 {} 行出现乘 (1 + 税率) 造含税的正向公式: {}",
+            idx + 1,
+            code
+        );
+        // 造税额：净额 × 税率 / 100（除 100 与乘税率同行出现）
+        if code.contains("tax_percent") || code.contains("rate") {
+            assert!(
+                !(code.contains("* tax_percent") || code.contains("* rate")),
+                "utils/tax.rs 第 {} 行出现乘税率造税额的写法: {}",
+                idx + 1,
+                code
+            );
+        }
+        assert!(
+            !code.contains("1.13") && !code.contains("0.13"),
+            "utils/tax.rs 第 {} 行出现硬编码税率档位: {}",
+            idx + 1,
+            code
+        );
+    }
 }
 
 /// 自动补货/人工建单两条链路的税率行为锁共用的主数据前置，
@@ -495,7 +570,10 @@ fn po_create_request(
         items: Some(vec![CreateOrderItemRequest {
             line_no: Some(1),
             material_id: Some(product_id),
+            // 含税单价 113 是录入事实，数量 10 ⇒ 成交含税额 1130.00，
+            // 按 13% 除法反算得净额 1000.00、税额 130.00（与不含税单价 100 钩稽一致）
             unit_price: Some(dec("100")),
+            unit_price_with_tax: Some(dec("113")),
             quantity_ordered: Some(dec("10")),
             quantity_alt_ordered: None,
             tax_rate,
@@ -552,8 +630,8 @@ async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
         "被拒的建单不得留下明细行"
     );
 
-    // 同一条链路的反面判据，合法百分数税率必须能建单落库（13 得 tax_percent 13、
-    // 税额 1000 乘 13 除 100 得 130），防止把"拒缺值"实现成"拒一切"。
+    // 同一条链路的反面判据，合法百分数税率必须能建单落库（含税 1130.00 按 13% 除法反算
+    // 得净额 1000.00、税额 130.00），防止把"拒缺值"实现成"拒一切"。
     let order = PurchaseOrderService::new(Arc::new(db.clone()))
         .create_order(
             po_create_request(supplier_id, warehouse_id, product_id, Some(dec("13"))),
@@ -568,7 +646,13 @@ async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
         .expect("回查明细失败")
         .expect("合法建单应已落明细行");
     assert_eq!(item.tax_percent, dec("13"), "百分数口径必须原样落库");
-    assert_eq!(item.tax_amount, dec("130"), "1000×13÷100 必须是 130");
+    assert_eq!(item.subtotal, dec("1000"), "净额必须是含税额 1130 除以 1.13 的反算值");
+    assert_eq!(item.tax_amount, dec("130"), "税额必须是 1130 − 1000 的差额");
+    assert_eq!(
+        item.subtotal + item.tax_amount,
+        item.total_amount,
+        "落库三值必须逐分钩稽（净额 + 税额 = 含税）"
+    );
 }
 
 /// 自动补货链路的行为锁，真调生产入口 create_purchase_suggestion_from_shortage

@@ -180,17 +180,22 @@ impl PurchaseOrderService {
         quantity: Decimal,
         tax_percent: Decimal,
     ) -> ItemAmounts {
+        // 物料成本价是本链路唯一的价格事实；入参税率恒为内核常量「无进项税 0」（两条建单
+        // 入口都显式取 NO_INPUT_TAX_PERCENT），0 税率下含税价与不含税价等值，成本价原样
+        // 落 unit_price 列即同时是净额单价与含税单价，不存在第二次舍入。
+        // 税额由 utils tax 的价税分离取差额得到（除法退化后为 0），与人工建单腿共用同一枚
+        // 内核函数，本处不出现任何乘税率造税额的公式；带真实税率的人工行不得走本函数。
         let unit_price = product.cost_price.unwrap_or(Decimal::ZERO);
-        let amount = (quantity * unit_price).round_dp(2);
-        let tax_amount = crate::utils::tax::tax_amount(amount, tax_percent);
+        let inclusive = crate::utils::tax::inclusive_amount(unit_price, quantity);
+        let split = crate::utils::tax::split_from_inclusive(inclusive, tax_percent);
         ItemAmounts {
             quantity_ordered: quantity,
             unit_price,
             quantity_alt_ordered: Decimal::ZERO,
             tax_percent,
             discount_percent: Decimal::ZERO,
-            amount,
-            tax_amount,
+            amount: split.net,
+            tax_amount: split.tax,
             discount_amount: Decimal::ZERO,
         }
     }
