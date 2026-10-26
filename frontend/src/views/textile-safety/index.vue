@@ -40,7 +40,9 @@
         <el-table-column prop="submission_no" label="送检单号" min-width="150" />
         <el-table-column label="安全类别" width="150">
           <template #default="{ row }">
-            <el-tag size="small">{{ SAFETY_CATEGORY_LABELS[row.safety_category] ?? row.safety_category }}</el-tag>
+            <el-tag size="small">{{
+              SAFETY_CATEGORY_LABELS[row.safety_category] ?? row.safety_category
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="batch_no" label="批次" min-width="110" show-overflow-tooltip>
@@ -54,11 +56,15 @@
           </template>
         </el-table-column>
         <el-table-column label="市场" width="90">
-          <template #default="{ row }">{{ TARGET_MARKET_LABELS[row.target_market] ?? row.target_market }}</template>
+          <template #default="{ row }">{{
+            TARGET_MARKET_LABELS[row.target_market] ?? row.target_market
+          }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)">{{ SUBMISSION_STATUS_LABELS[row.status] ?? row.status }}</el-tag>
+            <el-tag :type="statusTagType(row.status)">{{
+              SUBMISSION_STATUS_LABELS[row.status] ?? row.status
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="整单结论" width="100">
@@ -111,7 +117,10 @@
           />
         </el-form-item>
         <el-form-item label="批次号" prop="batch_no">
-          <el-input v-model="createForm.batch_no" placeholder="留空表示工艺级送检，不联动冻结具体批次库存" />
+          <el-input
+            v-model="createForm.batch_no"
+            placeholder="留空表示工艺级送检，不联动冻结具体批次库存"
+          />
         </el-form-item>
         <el-form-item label="色号" prop="color_no">
           <el-input v-model="createForm.color_no" placeholder="取样口径为同品种同色号同工艺" />
@@ -121,41 +130,87 @@
         </el-form-item>
         <el-form-item label="终端人群" prop="end_user_group">
           <el-select v-model="createForm.end_user_group" style="width: 100%">
-            <el-option v-for="o in optionList(END_USER_GROUP_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(END_USER_GROUP_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="接触方式" prop="contact_type">
           <el-select v-model="createForm.contact_type" style="width: 100%">
-            <el-option v-for="o in optionList(CONTACT_TYPE_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(CONTACT_TYPE_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="安全类别" prop="safety_category">
           <el-select v-model="createForm.safety_category" style="width: 100%">
-            <el-option v-for="o in optionList(SAFETY_CATEGORY_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(SAFETY_CATEGORY_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="产品形态" prop="product_form">
           <el-select v-model="createForm.product_form" style="width: 100%">
-            <el-option v-for="o in optionList(PRODUCT_FORM_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(PRODUCT_FORM_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="目标市场" prop="target_market">
           <el-select v-model="createForm.target_market" style="width: 100%">
-            <el-option v-for="o in optionList(TARGET_MARKET_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(TARGET_MARKET_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="色号角色" prop="color_role">
           <el-select v-model="createForm.color_role" style="width: 100%">
-            <el-option v-for="o in optionList(COLOR_ROLE_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(COLOR_ROLE_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="豁免标签">
-          <el-select v-model="createForm.exemption_tags" multiple style="width: 100%" placeholder="仅当法定豁免情形成立时选择">
-            <el-option v-for="o in optionList(EXEMPTION_TAG_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+          <el-select
+            v-model="createForm.exemption_tags"
+            multiple
+            style="width: 100%"
+            placeholder="仅当法定豁免情形成立时选择"
+          >
+            <el-option
+              v-for="o in optionList(EXEMPTION_TAG_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="createForm.remarks" type="textarea" :rows="2" maxlength="500" show-word-limit />
+          <el-input
+            v-model="createForm.remarks"
+            type="textarea"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -165,11 +220,7 @@
     </el-dialog>
 
     <el-drawer v-model="detailVisible" title="送检单详情" size="72%" destroy-on-close>
-      <SubmissionDetail
-        v-if="detailId"
-        :submission-id="detailId"
-        @changed="onDetailChanged"
-      />
+      <SubmissionDetail v-if="detailId" :submission-id="detailId" @changed="onDetailChanged" />
     </el-drawer>
   </div>
 </template>
@@ -241,8 +292,12 @@ const createRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  color_no: [{ required: true, message: '色号必填（取样按同品种同色号同工艺一批）', trigger: 'blur' }],
-  process_no: [{ required: true, message: '工艺号必填（取样按同品种同色号同工艺一批）', trigger: 'blur' }],
+  color_no: [
+    { required: true, message: '色号必填（取样按同品种同色号同工艺一批）', trigger: 'blur' },
+  ],
+  process_no: [
+    { required: true, message: '工艺号必填（取样按同品种同色号同工艺一批）', trigger: 'blur' },
+  ],
 };
 
 function onProductIdInput(v: string) {

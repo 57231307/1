@@ -4,29 +4,63 @@
       <el-tabs v-model="activeTab">
         <el-tab-pane label="检测项目主数据" name="items">
           <div class="toolbar">
-            <el-select v-model="itemBasis" placeholder="全部依据" clearable style="width: 220px" @change="loadItems">
-              <el-option v-for="o in optionList(BASIS_STANDARD_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-select
+              v-model="itemBasis"
+              placeholder="全部依据"
+              clearable
+              style="width: 220px"
+              @change="loadItems"
+            >
+              <el-option
+                v-for="o in optionList(BASIS_STANDARD_LABELS)"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
             </el-select>
-            <el-button v-permission="'textile-test-items:create'" type="primary" @click="openItemDialog()">新建项目</el-button>
+            <el-button
+              v-permission="'textile-test-items:create'"
+              type="primary"
+              @click="openItemDialog()"
+              >新建项目</el-button
+            >
           </div>
           <el-table v-loading="itemsLoading" :data="items" border size="small">
             <el-table-column prop="item_code" label="编码" width="150" />
             <el-table-column prop="item_name" label="名称" min-width="160" />
             <el-table-column label="测量类型" width="100">
-              <template #default="{ row }">{{ ITEM_KIND_LABELS[row.item_kind] ?? row.item_kind }}</template>
+              <template #default="{ row }">{{
+                ITEM_KIND_LABELS[row.item_kind] ?? row.item_kind
+              }}</template>
             </el-table-column>
             <el-table-column label="依据" width="180">
-              <template #default="{ row }">{{ BASIS_STANDARD_LABELS[row.basis_standard] ?? row.basis_standard }}</template>
+              <template #default="{ row }">{{
+                BASIS_STANDARD_LABELS[row.basis_standard] ?? row.basis_standard
+              }}</template>
             </el-table-column>
             <el-table-column label="核查形态" width="100">
-              <template #default="{ row }">{{ CHECK_KIND_LABELS[row.check_kind] ?? row.check_kind }}</template>
+              <template #default="{ row }">{{
+                CHECK_KIND_LABELS[row.check_kind] ?? row.check_kind
+              }}</template>
             </el-table-column>
             <el-table-column prop="method_standard" label="方法标准" width="140" />
             <el-table-column prop="unit" label="单位" width="80" />
             <el-table-column label="操作" width="140" fixed="right">
               <template #default="{ row }">
-                <el-button v-permission="'textile-test-items:update'" link type="primary" @click="openItemDialog(row)">编辑</el-button>
-                <el-button v-permission="'textile-test-items:delete'" link type="danger" @click="removeItem(row)">删除</el-button>
+                <el-button
+                  v-permission="'textile-test-items:update'"
+                  link
+                  type="primary"
+                  @click="openItemDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-permission="'textile-test-items:delete'"
+                  link
+                  type="danger"
+                  @click="removeItem(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -34,24 +68,49 @@
 
         <el-tab-pane label="限值判定表" name="limits">
           <div class="toolbar">
-            <el-select v-model="limitCategory" placeholder="全部安全类别" clearable style="width: 200px" @change="loadLimits">
-              <el-option v-for="o in [...optionList(SAFETY_CATEGORY_LABELS), { value: 'any', label: '通配 any' }]" :key="o.value" :label="o.label" :value="o.value" />
+            <el-select
+              v-model="limitCategory"
+              placeholder="全部安全类别"
+              clearable
+              style="width: 200px"
+              @change="loadLimits"
+            >
+              <el-option
+                v-for="o in [
+                  ...optionList(SAFETY_CATEGORY_LABELS),
+                  { value: 'any', label: '通配 any' },
+                ]"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
             </el-select>
-            <el-button v-permission="'textile-limit-rules:create'" type="primary" @click="openLimitDialog()">新增限值行</el-button>
+            <el-button
+              v-permission="'textile-limit-rules:create'"
+              type="primary"
+              @click="openLimitDialog()"
+              >新增限值行</el-button
+            >
           </div>
           <el-table v-loading="limitsLoading" :data="limits" border size="small">
             <el-table-column label="项目" min-width="170">
               <template #default="{ row }">{{ itemName(row.item_id) }}</template>
             </el-table-column>
             <el-table-column label="类别" width="120">
-              <template #default="{ row }">{{ SAFETY_CATEGORY_LABELS[row.safety_category] ?? row.safety_category }}</template>
+              <template #default="{ row }">{{
+                SAFETY_CATEGORY_LABELS[row.safety_category] ?? row.safety_category
+              }}</template>
             </el-table-column>
             <el-table-column label="形态" width="100">
-              <template #default="{ row }">{{ PRODUCT_FORM_LABELS[row.product_form] ?? row.product_form }}</template>
+              <template #default="{ row }">{{
+                PRODUCT_FORM_LABELS[row.product_form] ?? row.product_form
+              }}</template>
             </el-table-column>
             <el-table-column prop="condition_tag" label="条件" width="120" />
             <el-table-column label="比较器" width="110">
-              <template #default="{ row }">{{ COMPARATOR_LABELS[row.comparator] ?? row.comparator }}</template>
+              <template #default="{ row }">{{
+                COMPARATOR_LABELS[row.comparator] ?? row.comparator
+              }}</template>
             </el-table-column>
             <el-table-column prop="limit_low" label="下限" width="80" />
             <el-table-column prop="limit_high" label="上限" width="80" />
@@ -59,8 +118,20 @@
             <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
             <el-table-column label="操作" width="140" fixed="right">
               <template #default="{ row }">
-                <el-button v-permission="'textile-limit-rules:update'" link type="primary" @click="openLimitDialog(row)">编辑</el-button>
-                <el-button v-permission="'textile-limit-rules:delete'" link type="danger" @click="removeLimit(row)">删除</el-button>
+                <el-button
+                  v-permission="'textile-limit-rules:update'"
+                  link
+                  type="primary"
+                  @click="openLimitDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-permission="'textile-limit-rules:delete'"
+                  link
+                  type="danger"
+                  @click="removeLimit(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -68,31 +139,70 @@
 
         <el-tab-pane label="出口市场要求登记" name="requirements">
           <div class="toolbar">
-            <el-select v-model="reqMarket" placeholder="全部市场" clearable style="width: 160px" @change="loadRequirements">
-              <el-option v-for="o in optionList(TARGET_MARKET_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-select
+              v-model="reqMarket"
+              placeholder="全部市场"
+              clearable
+              style="width: 160px"
+              @change="loadRequirements"
+            >
+              <el-option
+                v-for="o in optionList(TARGET_MARKET_LABELS)"
+                :key="o.value"
+                :label="o.label"
+                :value="o.value"
+              />
             </el-select>
-            <el-button v-permission="'textile-export-requirements:create'" type="primary" @click="openReqDialog()">登记要求</el-button>
+            <el-button
+              v-permission="'textile-export-requirements:create'"
+              type="primary"
+              @click="openReqDialog()"
+              >登记要求</el-button
+            >
           </div>
           <el-table v-loading="reqLoading" :data="requirements" border size="small">
             <el-table-column prop="requirement_code" label="编码" width="180" />
             <el-table-column label="市场" width="90">
-              <template #default="{ row }">{{ TARGET_MARKET_LABELS[row.market] ?? row.market }}</template>
+              <template #default="{ row }">{{
+                TARGET_MARKET_LABELS[row.market] ?? row.market
+              }}</template>
             </el-table-column>
             <el-table-column label="类型" width="150">
-              <template #default="{ row }">{{ REQUIREMENT_TYPE_LABELS[row.requirement_type] ?? row.requirement_type }}</template>
+              <template #default="{ row }">{{
+                REQUIREMENT_TYPE_LABELS[row.requirement_type] ?? row.requirement_type
+              }}</template>
             </el-table-column>
             <el-table-column label="OEKO 分级" width="130">
-              <template #default="{ row }">{{ OEKO_CLASS_LABELS[row.oeko_tex_class ?? ''] ?? '—' }}</template>
+              <template #default="{ row }">{{
+                OEKO_CLASS_LABELS[row.oeko_tex_class ?? ''] ?? '—'
+              }}</template>
             </el-table-column>
-            <el-table-column prop="standard_ref" label="标准依据" min-width="170" show-overflow-tooltip />
+            <el-table-column
+              prop="standard_ref"
+              label="标准依据"
+              min-width="170"
+              show-overflow-tooltip
+            />
             <el-table-column prop="detail" label="细则" min-width="240" show-overflow-tooltip />
             <el-table-column label="强制" width="70">
               <template #default="{ row }">{{ row.mandatory ? '强制' : '自愿' }}</template>
             </el-table-column>
             <el-table-column label="操作" width="140" fixed="right">
               <template #default="{ row }">
-                <el-button v-permission="'textile-export-requirements:update'" link type="primary" @click="openReqDialog(row)">编辑</el-button>
-                <el-button v-permission="'textile-export-requirements:delete'" link type="danger" @click="removeReq(row)">删除</el-button>
+                <el-button
+                  v-permission="'textile-export-requirements:update'"
+                  link
+                  type="primary"
+                  @click="openReqDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-permission="'textile-export-requirements:delete'"
+                  link
+                  type="danger"
+                  @click="removeReq(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
@@ -100,28 +210,66 @@
       </el-tabs>
     </el-card>
 
-    <el-dialog v-model="itemDialogVisible" :title="itemForm.id ? '编辑检测项目' : '新建检测项目'" width="620px" destroy-on-close>
+    <el-dialog
+      v-model="itemDialogVisible"
+      :title="itemForm.id ? '编辑检测项目' : '新建检测项目'"
+      width="620px"
+      destroy-on-close
+    >
       <el-form ref="itemFormRef" :model="itemForm" :rules="itemRules" label-width="110px">
-        <el-form-item label="项目编码" prop="item_code"><el-input v-model="itemForm.item_code" :disabled="!!itemForm.id" placeholder="大写蛇形，例如 HCHO" /></el-form-item>
-        <el-form-item label="项目名称" prop="item_name"><el-input v-model="itemForm.item_name" /></el-form-item>
+        <el-form-item label="项目编码" prop="item_code"
+          ><el-input
+            v-model="itemForm.item_code"
+            :disabled="!!itemForm.id"
+            placeholder="大写蛇形，例如 HCHO"
+        /></el-form-item>
+        <el-form-item label="项目名称" prop="item_name"
+          ><el-input v-model="itemForm.item_name"
+        /></el-form-item>
         <el-form-item label="测量类型" prop="item_kind">
           <el-select v-model="itemForm.item_kind" style="width: 100%">
-            <el-option v-for="o in optionList(ITEM_KIND_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(ITEM_KIND_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="依据标准" prop="basis_standard">
           <el-select v-model="itemForm.basis_standard" style="width: 100%">
-            <el-option v-for="o in optionList(BASIS_STANDARD_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(BASIS_STANDARD_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="核查形态" prop="check_kind">
           <el-select v-model="itemForm.check_kind" style="width: 100%">
-            <el-option v-for="o in optionList(CHECK_KIND_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(CHECK_KIND_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="方法标准"><el-input v-model="itemForm.method_standard" placeholder="例如 GB/T 2912.1" /></el-form-item>
-        <el-form-item label="单位"><el-input v-model="itemForm.unit" placeholder="例如 mg/kg 或 级" /></el-form-item>
-        <el-form-item label="说明"><el-input v-model="itemForm.description" type="textarea" :rows="2" maxlength="500" show-word-limit /></el-form-item>
+        <el-form-item label="方法标准"
+          ><el-input v-model="itemForm.method_standard" placeholder="例如 GB/T 2912.1"
+        /></el-form-item>
+        <el-form-item label="单位"
+          ><el-input v-model="itemForm.unit" placeholder="例如 mg/kg 或 级"
+        /></el-form-item>
+        <el-form-item label="说明"
+          ><el-input
+            v-model="itemForm.description"
+            type="textarea"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="itemDialogVisible = false">取消</el-button>
@@ -129,42 +277,97 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="limitDialogVisible" :title="limitForm.editId ? '编辑限值行' : '新增限值行'" width="620px" destroy-on-close>
+    <el-dialog
+      v-model="limitDialogVisible"
+      :title="limitForm.editId ? '编辑限值行' : '新增限值行'"
+      width="620px"
+      destroy-on-close
+    >
       <el-form ref="limitFormRef" :model="limitForm" :rules="limitRules" label-width="110px">
         <el-form-item label="检测项目" prop="item_code">
-          <el-select v-model="limitForm.item_code" filterable style="width: 100%" :disabled="!!limitForm.editId">
-            <el-option v-for="it in items" :key="it.item_code" :label="`${it.item_code} ${it.item_name}`" :value="it.item_code" />
+          <el-select
+            v-model="limitForm.item_code"
+            filterable
+            style="width: 100%"
+            :disabled="!!limitForm.editId"
+          >
+            <el-option
+              v-for="it in items"
+              :key="it.item_code"
+              :label="`${it.item_code} ${it.item_name}`"
+              :value="it.item_code"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="安全类别" prop="safety_category">
           <el-select v-model="limitForm.safety_category" style="width: 100%">
-            <el-option v-for="o in [...optionList(SAFETY_CATEGORY_LABELS), { value: 'any', label: '通配 any（全类别同一限档）' }]" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in [
+                ...optionList(SAFETY_CATEGORY_LABELS),
+                { value: 'any', label: '通配 any（全类别同一限档）' },
+              ]"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="产品形态" prop="product_form">
           <el-select v-model="limitForm.product_form" style="width: 100%">
-            <el-option v-for="o in [...optionList(PRODUCT_FORM_LABELS), { value: 'any', label: '通配 any' }]" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in [...optionList(PRODUCT_FORM_LABELS), { value: 'any', label: '通配 any' }]"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="条件标志" prop="condition_tag">
           <el-select v-model="limitForm.condition_tag" style="width: 100%">
             <el-option label="无豁免 none" value="none" />
-            <el-option v-for="o in optionList(EXEMPTION_TAG_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(EXEMPTION_TAG_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="比较器" prop="comparator">
           <el-select v-model="limitForm.comparator" style="width: 100%">
-            <el-option v-for="o in optionList(COMPARATOR_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(COMPARATOR_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="下限">
-          <el-input v-model="limitForm.limit_low" @input="onBoundInput('limit_low', $event)" placeholder="数值或半级编码值（3-4 级记 3.5）" />
+          <el-input
+            v-model="limitForm.limit_low"
+            @input="onBoundInput('limit_low', $event)"
+            placeholder="数值或半级编码值（3-4 级记 3.5）"
+          />
         </el-form-item>
         <el-form-item label="上限">
-          <el-input v-model="limitForm.limit_high" @input="onBoundInput('limit_high', $event)" placeholder="数值或半级编码值" />
+          <el-input
+            v-model="limitForm.limit_high"
+            @input="onBoundInput('limit_high', $event)"
+            placeholder="数值或半级编码值"
+          />
         </el-form-item>
-        <el-form-item label="条款引用"><el-input v-model="limitForm.clause_ref" placeholder="例如 GB 18401-2010" /></el-form-item>
-        <el-form-item label="备注"><el-input v-model="limitForm.remark" type="textarea" :rows="2" maxlength="500" show-word-limit /></el-form-item>
+        <el-form-item label="条款引用"
+          ><el-input v-model="limitForm.clause_ref" placeholder="例如 GB 18401-2010"
+        /></el-form-item>
+        <el-form-item label="备注"
+          ><el-input
+            v-model="limitForm.remark"
+            type="textarea"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="limitDialogVisible = false">取消</el-button>
@@ -172,26 +375,55 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="reqDialogVisible" :title="reqForm.id ? '编辑出口要求' : '登记出口要求'" width="620px" destroy-on-close>
+    <el-dialog
+      v-model="reqDialogVisible"
+      :title="reqForm.id ? '编辑出口要求' : '登记出口要求'"
+      width="620px"
+      destroy-on-close
+    >
       <el-form ref="reqFormRef" :model="reqForm" :rules="reqRules" label-width="110px">
-        <el-form-item label="要求编码" prop="requirement_code"><el-input v-model="reqForm.requirement_code" :disabled="!!reqForm.id" /></el-form-item>
+        <el-form-item label="要求编码" prop="requirement_code"
+          ><el-input v-model="reqForm.requirement_code" :disabled="!!reqForm.id"
+        /></el-form-item>
         <el-form-item label="市场" prop="market">
           <el-select v-model="reqForm.market" style="width: 100%">
-            <el-option v-for="o in optionList(TARGET_MARKET_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(TARGET_MARKET_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="要求类型" prop="requirement_type">
           <el-select v-model="reqForm.requirement_type" style="width: 100%">
-            <el-option v-for="o in optionList(REQUIREMENT_TYPE_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(REQUIREMENT_TYPE_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="OEKO 分级">
           <el-select v-model="reqForm.oeko_tex_class" clearable style="width: 100%">
-            <el-option v-for="o in optionList(OEKO_CLASS_LABELS)" :key="o.value" :label="o.label" :value="o.value" />
+            <el-option
+              v-for="o in optionList(OEKO_CLASS_LABELS)"
+              :key="o.value"
+              :label="o.label"
+              :value="o.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="标准依据"><el-input v-model="reqForm.standard_ref" /></el-form-item>
-        <el-form-item label="细则" prop="detail"><el-input v-model="reqForm.detail" type="textarea" :rows="3" maxlength="1000" show-word-limit /></el-form-item>
+        <el-form-item label="细则" prop="detail"
+          ><el-input
+            v-model="reqForm.detail"
+            type="textarea"
+            :rows="3"
+            maxlength="1000"
+            show-word-limit
+        /></el-form-item>
         <el-form-item label="强制项">
           <el-switch v-model="reqForm.mandatory" />
         </el-form-item>
@@ -253,7 +485,7 @@ const reqLoading = ref(false);
 const reqMarket = ref('');
 
 function itemName(id: number): string {
-  const it = items.value.find((i) => i.id === id);
+  const it = items.value.find(i => i.id === id);
   return it ? `${it.item_code} ${it.item_name}` : `#${id}`;
 }
 
@@ -369,7 +601,11 @@ async function saveItem() {
 
 async function removeItem(row: TextileTestItem) {
   try {
-    await ElMessageBox.confirm(`删除项目 ${row.item_code}？被送检清单引用时后端会拒绝并点名原因`, '删除确认', { type: 'warning' });
+    await ElMessageBox.confirm(
+      `删除项目 ${row.item_code}？被送检清单引用时后端会拒绝并点名原因`,
+      '删除确认',
+      { type: 'warning' }
+    );
     await deleteTestItem(row.id);
     ElMessage.success('已删除');
     await loadItems();
@@ -396,7 +632,8 @@ const limitForm = reactive({
 const numericField = (label: string) => ({
   validator: (_r: unknown, value: string, cb: (e?: Error) => void) => {
     if (value === '' || value === null || value === undefined) return cb();
-    if (Number.isNaN(Number(value))) return cb(new Error(`${label}必须是合法数字（等级型按半级编码值录入）`));
+    if (Number.isNaN(Number(value)))
+      return cb(new Error(`${label}必须是合法数字（等级型按半级编码值录入）`));
     return cb();
   },
   trigger: 'blur',
@@ -413,7 +650,7 @@ function onBoundInput(field: 'limit_low' | 'limit_high', v: string) {
 
 function openLimitDialog(row?: TextileLimitRule) {
   if (row) {
-    const it = items.value.find((i) => i.id === row.item_id);
+    const it = items.value.find(i => i.id === row.item_id);
     Object.assign(limitForm, {
       editId: row.id,
       item_code: it?.item_code ?? '',
@@ -473,7 +710,11 @@ async function saveLimit() {
 
 async function removeLimit(row: TextileLimitRule) {
   try {
-    await ElMessageBox.confirm(`删除 ${itemName(row.item_id)} 的这条限值行？删除后该组合判定将报"矩阵无行"`, '删除确认', { type: 'warning' });
+    await ElMessageBox.confirm(
+      `删除 ${itemName(row.item_id)} 的这条限值行？删除后该组合判定将报"矩阵无行"`,
+      '删除确认',
+      { type: 'warning' }
+    );
     await deleteLimitRule(row.id);
     ElMessage.success('已删除');
     await loadLimits();
@@ -554,7 +795,9 @@ async function saveReq() {
 
 async function removeReq(row: TextileExportRequirement) {
   try {
-    await ElMessageBox.confirm(`删除要求 ${row.requirement_code}？`, '删除确认', { type: 'warning' });
+    await ElMessageBox.confirm(`删除要求 ${row.requirement_code}？`, '删除确认', {
+      type: 'warning',
+    });
     await deleteExportRequirement(row.id);
     ElMessage.success('已删除');
     await loadRequirements();
