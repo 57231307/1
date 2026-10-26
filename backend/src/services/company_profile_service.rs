@@ -30,9 +30,11 @@ pub const COMPANY_PROFILE_ID: i32 = 1;
 /// 不截断、不回落——防止巨型二进制借 base64 通道挤进单例 TEXT 列拖垮读路径。
 pub const LOGO_MAX_BYTES: usize = 512 * 1024;
 
-/// PNG 文件魔数前 4 字节(89 50 4E 47)。docx-rs 0.4 的 image_collector 仅收 PNG,
-/// 故 logo 在写入口就按 PNG 校验,坏数据根本进不了库。
-const PNG_MAGIC: [u8; 4] = [0x89, 0x50, 0x4E, 0x47];
+/// PNG 文件签名 8 字节(89 50 4E 47 0D 0A 1A 0A)。docx-rs 0.4 的 image_collector 仅
+/// 收 PNG,故 logo 在写入口就按 PNG 校验,坏数据根本进不了库。这里取**完整 8 字节签名**
+/// 而非仅前 4 字节,判据与前端 logo-file.ts 的 PNG_SIGNATURE 严格同源,防止只带前 4 字节
+/// 的畸形/伪造头被 4 字节前缀误放。
+const PNG_MAGIC: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// 打印页眉 logo 的固定缩放宽(像素):超宽者等比压到此宽,窄者不放大。
 /// 抬头是辅助物料,不该抢正文版面;高度按 IHDR 原比例折算,docx-rs 内部换算 EMU。

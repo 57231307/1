@@ -35,8 +35,11 @@ describe('detectImageFormat 按文件头魔数判类型', () => {
     );
   });
 
-  it('截断的 PNG 前 4 字节签名仍判 png（与后端 starts_with 前缀判据同宽）', () => {
-    expect(detectImageFormat(PNG_HEAD.slice(0, 4))).toBe('png');
+  it('仅前 4 字节对但缺完整签名后 4 字节的畸形头判 unknown（与后端 8 字节签名判据同宽）', () => {
+    // PNG 规范签名固定 8 字节 89 50 4E 47 0D 0A 1A 0A，只带前 4 字节不是合法 PNG，
+    // 必须与后端 company_profile_service 的完整签名 starts_with 一样拒出，不得放宽
+    expect(detectImageFormat(PNG_HEAD.slice(0, 4))).toBe('unknown');
+    expect(detectImageFormat(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]))).toBe('unknown');
   });
 });
 

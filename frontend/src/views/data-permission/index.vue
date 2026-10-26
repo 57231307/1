@@ -482,7 +482,10 @@ const handleSavePermission = async () => {
     };
     const parseJsonObject = (text: string): CustomCondition | undefined => {
       if (!text.trim()) return undefined;
-      const parsed = parseJsonLiteral(text, t('dataPermission.index.messageCustomConditionNotObject'));
+      const parsed = parseJsonLiteral(
+        text,
+        t('dataPermission.index.messageCustomConditionNotObject')
+      );
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error(t('dataPermission.index.messageCustomConditionNotObject'));
       }
@@ -525,9 +528,7 @@ const handleSavePermission = async () => {
       const err = error as Error;
       logger.error(t('dataPermission.index.messageJsonInvalid'), err);
       // 解析器抛出的都是具名 i18n 消息，直接点名；仅在消息缺失时退回泛化文案
-      ElMessage.error(
-        err.message || t('dataPermission.index.messageJsonInvalid')
-      );
+      ElMessage.error(err.message || t('dataPermission.index.messageJsonInvalid'));
       return;
     }
 

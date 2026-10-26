@@ -84,6 +84,11 @@ fn fake_png_is_rejected_with_actual_format_named() {
         ),
         ("BMP 伪装 png", b"BMxxxx".to_vec(), "BMP"),
         ("ICO 伪装 png", vec![0x00, 0x00, 0x01, 0x00, 1, 1], "ICO"),
+        (
+            "仅前 4 字节对但签名后 4 字节畸形的伪 png",
+            vec![0x89, 0x50, 0x4E, 0x47, 0x00, 0x00, 0x00, 0x00],
+            "未知格式",
+        ),
     ];
     for (label, bytes, expected_name) in cases {
         let payload = b64(&bytes);

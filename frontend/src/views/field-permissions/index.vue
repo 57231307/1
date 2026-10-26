@@ -115,7 +115,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="t('system.fieldPermission.column.action')" width="150" fixed="right">
+        <el-table-column
+          :label="t('system.fieldPermission.column.action')"
+          width="150"
+          fixed="right"
+        >
           <template #default="{ row }">
             <el-button
               v-permission="PERMISSIONS.FIELD_PERMISSION_UPDATE"
@@ -143,7 +147,9 @@
     <el-dialog
       v-model="dialogVisible"
       :title="
-        isEdit ? t('system.fieldPermission.dialog.editTitle') : t('system.fieldPermission.dialog.createTitle')
+        isEdit
+          ? t('system.fieldPermission.dialog.editTitle')
+          : t('system.fieldPermission.dialog.createTitle')
       "
       width="560px"
       :aria-label="t('system.fieldPermission.dialog.aria')"
@@ -157,13 +163,21 @@
             :placeholder="t('system.fieldPermission.dialog.placeholderRole')"
             style="width: 100%"
           >
-            <el-option v-for="role in roleOptions" :key="role.id" :label="role.name" :value="role.id">
+            <el-option
+              v-for="role in roleOptions"
+              :key="role.id"
+              :label="role.name"
+              :value="role.id"
+            >
               <span>{{ role.name }}</span>
               <span class="role-option-code">{{ role.code }}</span>
             </el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('system.fieldPermission.dialog.labelResource')" prop="resource_type">
+        <el-form-item
+          :label="t('system.fieldPermission.dialog.labelResource')"
+          prop="resource_type"
+        >
           <el-select
             v-model="form.resource_type"
             filterable
@@ -187,10 +201,16 @@
           />
         </el-form-item>
         <el-form-item :label="t('system.fieldPermission.dialog.labelCanRead')">
-          <el-switch v-model="form.can_read" :aria-label="t('system.fieldPermission.dialog.labelCanRead')" />
+          <el-switch
+            v-model="form.can_read"
+            :aria-label="t('system.fieldPermission.dialog.labelCanRead')"
+          />
         </el-form-item>
         <el-form-item :label="t('system.fieldPermission.dialog.labelCanWrite')">
-          <el-switch v-model="form.can_write" :aria-label="t('system.fieldPermission.dialog.labelCanWrite')" />
+          <el-switch
+            v-model="form.can_write"
+            :aria-label="t('system.fieldPermission.dialog.labelCanWrite')"
+          />
         </el-form-item>
         <el-form-item :label="t('system.fieldPermission.dialog.labelMaskStrategy')">
           <el-select v-model="form.mask_strategy" style="width: 100%">
@@ -210,7 +230,9 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ t('system.fieldPermission.button.cancel') }}</el-button>
+        <el-button @click="dialogVisible = false">{{
+          t('system.fieldPermission.button.cancel')
+        }}</el-button>
         <el-button type="primary" :loading="submitLoading" @click="submitForm">{{
           t('system.fieldPermission.button.save')
         }}</el-button>
@@ -343,7 +365,11 @@ const form = reactive({
 const FIELD_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,99}$/;
 const formRules: FormRules = {
   role_id: [
-    { required: true, message: t('system.fieldPermission.dialog.ruleRoleRequired'), trigger: 'change' },
+    {
+      required: true,
+      message: t('system.fieldPermission.dialog.ruleRoleRequired'),
+      trigger: 'change',
+    },
   ],
   resource_type: [
     {
@@ -449,17 +475,17 @@ const submitForm = async () => {
         `[字段权限] 写后读回不一致，${isEdit.value ? `id=${editId.value}` : form.field_name}`,
         fieldPermissionList.value
       );
-      ElMessage.error(t('system.fieldPermission.messageVerifyFailed'));
+      ElMessage.error(t('system.fieldPermission.message.verifyFailed'));
       return;
     }
-    ElMessage.success(t('system.fieldPermission.messageSaved'));
+    ElMessage.success(t('system.fieldPermission.message.saved'));
     dialogVisible.value = false;
   } catch (e: unknown) {
     const detail = backendMessageOf(e);
     ElMessage.error(
       detail
-        ? `${t('system.fieldPermission.messageSaveFailed')}: ${detail}`
-        : t('system.fieldPermission.messageSaveFailed')
+        ? `${t('system.fieldPermission.message.saveFailed')}: ${detail}`
+        : t('system.fieldPermission.message.saveFailed')
     );
   } finally {
     submitLoading.value = false;
@@ -488,11 +514,11 @@ const backendMessageOf = (error: unknown): string => {
 const removeFieldPermission = async (row: FieldPermissionRow) => {
   try {
     await ElMessageBox.confirm(
-      t('system.fieldPermission.messageDeleteConfirm', {
+      t('system.fieldPermission.message.deleteConfirm', {
         role: row.role_name || `#${row.role_id}`,
         field: `${resourceTypeLabel(row.resource_type)}.${row.field_name}`,
       }),
-      t('system.fieldPermission.messageDeleteTitle'),
+      t('system.fieldPermission.message.deleteTitle'),
       { type: 'warning' }
     );
   } catch (error: unknown) {
@@ -506,16 +532,16 @@ const removeFieldPermission = async (row: FieldPermissionRow) => {
     // 仍存在且仍启用则点名失败，不空口报成功
     const stillActive = fieldPermissionList.value.find(r => r.id === row.id && r.is_enabled);
     if (stillActive) {
-      ElMessage.error(t('system.fieldPermission.messageVerifyFailed'));
+      ElMessage.error(t('system.fieldPermission.message.verifyFailed'));
       return;
     }
-    ElMessage.success(t('system.fieldPermission.messageDeleted'));
+    ElMessage.success(t('system.fieldPermission.message.deleted'));
   } catch (e: unknown) {
     const detail = backendMessageOf(e);
     ElMessage.error(
       detail
-        ? `${t('system.fieldPermission.messageDeleteFailed')}: ${detail}`
-        : t('system.fieldPermission.messageDeleteFailed')
+        ? `${t('system.fieldPermission.message.deleteFailed')}: ${detail}`
+        : t('system.fieldPermission.message.deleteFailed')
     );
   }
 };
