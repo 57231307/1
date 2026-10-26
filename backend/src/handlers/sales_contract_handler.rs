@@ -317,6 +317,9 @@ pub async fn list_contracts(
         keyword: params.keyword,
         status: params.status,
         customer_id: params.customer_id,
+        // 列表入口暂不按来源订单筛选：查询 DTO 无该入参，转合同的重复判定走
+        // preview 端点的 existing_contract，不经本列表参数通道。
+        source_order_id: None,
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
@@ -803,6 +806,8 @@ pub async fn export_contracts(
         keyword: query.keyword,
         status: query.status,
         customer_id: query.customer_id,
+        // 与列表入口同口径：查询 DTO 无来源订单入参，导出不过滤该维。
+        source_order_id: None,
         page: 1,
         page_size: 10000,
     };

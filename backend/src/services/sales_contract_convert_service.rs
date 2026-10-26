@@ -31,8 +31,8 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter,
+    QuerySelect, Set, TransactionTrait,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -204,7 +204,7 @@ impl SalesContractConvertService {
     ) -> Result<Vec<sales_order_item::Model>, AppError> {
         Ok(sales_order_item::Entity::find()
             .filter(sales_order_item::Column::OrderId.eq(order_id))
-            .order_by(sales_order_item::Column::Id, QueryOrder::Asc)
+            .order_by(sales_order_item::Column::Id, Order::Asc)
             .all(conn)
             .await?)
     }
@@ -240,7 +240,7 @@ impl SalesContractConvertService {
                     contract_status::ACTIVE,
                 ]),
             )
-            .order_by(sales_contract::Column::Id, QueryOrder::Asc)
+            .order_by(sales_contract::Column::Id, Order::Asc)
             .one(conn)
             .await?)
     }
