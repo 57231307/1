@@ -482,6 +482,8 @@ export default {
       fabricInspections: 'Fabric Inspections',
       chemicals: 'Chemicals',
       exportCompliance: 'Export Compliance',
+      textileSafety: 'Textile Safety Submissions',
+      textileSafetyMaster: 'Textile Safety Judgement Master',
       supplierEnhanced: 'Supplier 360',
       crmEnhanced: 'CRM Analytics',
       customerCollab: 'Signatures & Sharing',
