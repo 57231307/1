@@ -859,3 +859,178 @@ async fn stock_out_rejects_overdraft_on_both_current_and_cumulative() {
         "被拒出库不得动现有量"
     );
 }
+
+// ============================================================
+// F) 米数与公斤数双单位一致性（单源 utils/dual_unit_converter）
+// ============================================================
+
+/// 种一条配了线密度（克重 g/m² 与幅宽 cm 均正）的坯布，双单位换算才有可核对口径。
+/// 功能：为双单位一致性用例准备克重=200、幅宽=180 的档案；米↔公斤换算率随之固定为
+///      每公斤 = 1000 / (200 * 1.8) = 2.7778 米。
+/// 调用方：本文件 F 组三个双单位用例。
+/// 入参：db 活库连接，id 主键。
+/// 传给谁：直接 insert 到 greige_fabric 表。
+/// 存什么：一条在库、created_by=100、带克重与幅宽的坯布，库存与累计量给足正数。
+/// 存哪里：greige_fabric 表，夹具自身 TRUNCATE 清理。
+async fn seed_greige_with_density(db: &sea_orm::DatabaseConnection, id: i32) {
+    greige_fabric::ActiveModel {
+        id: Set(id),
+        fabric_no: Set(format!("GF-DENS-{id:04}")),
+        fabric_name: Set(format!("密度坯布-{id}")),
+        fabric_type: Set("针织".to_string()),
+        status: Set(Some("在库".to_string())),
+        is_deleted: Set(Some(false)),
+        created_by: Set(Some(100)),
+        warehouse_id: Set(Some(1)),
+        gram_weight: Set(Some(dec("200.00"))),
+        width_cm: Set(Some(dec("180.00"))),
+        weight_kg: Set(Some(dec("100.00"))),
+        length_m: Set(Some(dec("200.00"))),
+        quantity_kg: Set(Some(dec("100.00"))),
+        quantity_meters: Set(Some(dec("200.00"))),
+        created_at: Set(Utc::now().fixed_offset()),
+        updated_at: Set(Utc::now().fixed_offset()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+}
+
+/// 正向：入库米数与公斤数按档案克重幅宽自洽（10m×200g/m²×1.8m=3.6kg），应放行并累加。
+#[tokio::test]
+async fn stock_in_accepts_consistent_dual_unit() {
+    let db = setup_test_db().await;
+    seed_warehouse(&db, 1).await;
+    seed_greige_with_density(&db, 1).await;
+
+    let app = build_app(db.clone(), make_auth(100));
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/greige-fabrics/1/stock-in",
+        Some(json!({"warehouse_id": 1, "weight_kg": 3.6, "length_m": 10.0})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "自洽的双单位入库应放行，实际 {status} {v}"
+    );
+    // 100.00 + 3.6 精确累加，回读落库真值
+    let row = find_row(&db, 1).await;
+    assert_eq!(row.weight_kg, Some(dec("103.60")), "入库重量应累加：{row:?}");
+    assert_eq!(row.length_m, Some(dec("210.00")), "入库长度应累加：{row:?}");
+}
+
+/// 反向：入库米数与公斤数明显对不上线密度（10m 却报 50kg），应拒成校验错误且零副作用。
+/// 变异自证：若把 ensure_dual_unit_consistent 的拒绝改成恒 Ok 或删除，本用例必转 200 而失败。
+#[tokio::test]
+async fn stock_in_rejects_inconsistent_dual_unit() {
+    let db = setup_test_db().await;
+    seed_warehouse(&db, 1).await;
+    seed_greige_with_density(&db, 1).await;
+
+    let app = build_app(db.clone(), make_auth(100));
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/greige-fabrics/1/stock-in",
+        Some(json!({"warehouse_id": 1, "weight_kg": 50.0, "length_m": 10.0})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "矛盾的双单位入库应被拒成 400，实际 {status} {v}"
+    );
+    assert_eq!(v["code"], "VALIDATION_ERROR", "错误码应为校验码：{v}");
+    assert!(
+        v["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("米数") && m.contains("公斤数")),
+        "拒绝文案须点名米数与公斤数不一致，实际 {v}"
+    );
+    // 零副作用：库存与累计量都不得被这次被拒调用改动
+    let row = find_row(&db, 1).await;
+    assert_eq!(row.weight_kg, Some(dec("100.00")), "被拒入库不得改库存");
+    assert_eq!(row.length_m, Some(dec("200.00")), "被拒入库不得改库存长度");
+    assert_eq!(
+        row.quantity_kg,
+        Some(dec("100.00")),
+        "被拒入库不得改累计量"
+    );
+}
+
+/// 边界：档案未配克重（gram_weight 为 NULL）时米与公斤是两个无从互推的独立量，
+/// 即便录入值对不上任何换算率也必须放行，不臆造线密度把正常录入判成非法。
+/// 变异自证：若把 ensure_dual_unit_consistent 的「克重缺席即跳过」去掉，本用例会被误拒而失败。
+#[tokio::test]
+async fn stock_in_skips_dual_unit_check_when_density_absent() {
+    let db = setup_test_db().await;
+    seed_warehouse(&db, 1).await;
+    // seed_full_greige 配了 width_cm=180 但克重缺省为 NULL
+    seed_full_greige(&db, 1).await;
+
+    let app = build_app(db.clone(), make_auth(100));
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/greige-fabrics/1/stock-in",
+        Some(json!({"warehouse_id": 1, "weight_kg": 50.0, "length_m": 10.0})),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "克重未配时无从换算，双单位校验必须跳过并放行，实际 {status} {v}"
+    );
+}
+
+/// 反向：建单累计量米数与公斤数对不上已配线密度，应拒成校验错误且不落库。
+/// 变异自证：删除 create 里的累计量一致性检查会让本用例建单成功（返回 200）而失败。
+#[tokio::test]
+async fn create_rejects_inconsistent_cumulative_dual_unit() {
+    let db = setup_test_db().await;
+    let app = build_app(db.clone(), make_auth(100));
+    let (status, v) = call(
+        &app,
+        Method::POST,
+        "/greige-fabrics",
+        Some(json!({
+            "fabric_type": "针织",
+            "gram_weight": 200.0,
+            "width_cm": 180.0,
+            "quantity_meters": 100.0,
+            "quantity_kg": 90.0,
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "建单累计量米↔公斤不自洽应被拒成 400，实际 {status} {v}"
+    );
+    assert_eq!(v["code"], "VALIDATION_ERROR", "错误码应为校验码：{v}");
+
+    // 自洽的累计量（100m×200g/m²×1.8m=36kg）应放行
+    let (ok_status, ok_v) = call(
+        &app,
+        Method::POST,
+        "/greige-fabrics",
+        Some(json!({
+            "fabric_type": "针织",
+            "gram_weight": 200.0,
+            "width_cm": 180.0,
+            "quantity_meters": 100.0,
+            "quantity_kg": 36.0,
+        })),
+    )
+    .await;
+    assert_eq!(
+        ok_status,
+        StatusCode::OK,
+        "自洽的建单累计量应放行，实际 {ok_status} {ok_v}"
+    );
+}
+

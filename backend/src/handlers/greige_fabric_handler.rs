@@ -21,6 +21,7 @@ use crate::models::status::purchase_inventory::greige_fabric_status;
 use crate::models::supplier;
 use crate::models::warehouse;
 use crate::utils::data_scope;
+use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 
@@ -258,6 +259,48 @@ fn validate_greige_status_param(raw: Option<&str>) -> Result<(), AppError> {
     validate_greige_status(value)
 }
 
+/// 米数与公斤数双单位一致性校验，换算率与容差的唯一真源是
+/// `utils/dual_unit_converter::DualUnitConverter`，此处不得再写第二套换算式。
+///
+/// 坯布同时存 length_m/weight_kg（当前库存）与 quantity_meters/quantity_kg（累计入库），
+/// 入库按累加、出库按扣减，两栏若彼此矛盾（米数与公斤数对不上同一线密度），成本分摊分母
+/// 与出库门控判定都会失真。当坯布已配克重(g/m²)与幅宽(cm)且均为正时，米↔公斤存在可换算
+/// 口径，越界即显式拒绝，不静默写库；克重或幅宽未配（非正或缺席）时米与公斤是两个无从互推
+/// 的独立量，跳过校验，不臆造线密度把正常录入判成非法。
+fn ensure_dual_unit_consistent(
+    length: Option<Decimal>,
+    weight: Option<Decimal>,
+    gram_weight: Option<Decimal>,
+    width_cm: Option<Decimal>,
+    label: &str,
+) -> Result<(), AppError> {
+    // 米数与公斤数都填了才构成一组可比的双单位；缺一项无从交叉核对
+    let (Some(length), Some(weight)) = (length, weight) else {
+        return Ok(());
+    };
+    // 克重与幅宽都配了正线密度才存在可换算口径，否则跳过（见函数头注释）
+    let (Some(gram_weight), Some(width_cm)) = (gram_weight, width_cm) else {
+        return Ok(());
+    };
+    if gram_weight <= Decimal::ZERO || width_cm <= Decimal::ZERO {
+        return Ok(());
+    }
+    let consistent =
+        DualUnitConverter::validate_dual_unit(length, weight, gram_weight, width_cm, None).map_err(
+            |_| {
+                AppError::validation_displayable(format!(
+                    "{label}的米数与公斤数无法核对，请检查克重与门幅后重新填写"
+                ))
+            },
+        )?;
+    if !consistent {
+        return Err(AppError::validation_displayable(format!(
+            "{label}的米数与公斤数不一致，请按克重与门幅核对后重新填写"
+        )));
+    }
+    Ok(())
+}
+
 /// 错误类型从 StatusCode 改为 AppError，并使用 `?` 运算符简化错误传播；
 /// `AppError: From<sea_orm::DbErr>` 已实现自动转换。
 pub async fn list_greige_fabrics(
@@ -403,6 +446,16 @@ pub async fn create_greige_fabric(
     let reorder_point = stock_optional(req.reorder_point, "订货点(kg)")?;
     let max_stock_point = stock_optional(req.max_stock_point, "最大库存(kg)")?;
     let reorder_quantity = stock_optional(req.reorder_quantity, "补货量(kg)")?;
+
+    // 双单位一致性：累计入库量与当前存量两组，按已配克重与幅宽用换算率单源自检
+    ensure_dual_unit_consistent(
+        quantity_meters,
+        quantity_kg,
+        gram_weight,
+        width_cm,
+        "累计入库量",
+    )?;
+    ensure_dual_unit_consistent(length_m, weight_kg, gram_weight, width_cm, "当前库存")?;
 
     let fabric = greige_fabric::ActiveModel {
         // id 交由 SERIAL 序列生成；显式 Set(0) 会写入主键 0 并在第二次插入时主键冲突
@@ -629,6 +682,16 @@ pub async fn stock_in(
             .await?
             .ok_or_else(|| AppError::business("采购入库单不存在，请重新选择"))?;
     }
+
+    // 本次入库的米数与公斤数按坯布档案上已配的克重与幅宽做双单位一致性自检（单源见
+    // ensure_dual_unit_consistent）；档案未配线密度时跳过，不臆造换算把正常入库判成非法。
+    ensure_dual_unit_consistent(
+        Some(in_length),
+        Some(in_weight),
+        fabric_entity.gram_weight,
+        fabric_entity.width_cm,
+        "本次入库量",
+    )?;
 
     // 累加库存而不是覆盖：全程 DECIMAL 相加。原实现把 DECIMAL 经 `to_string().parse::<f64>()`
     // 折成浮点再转回 DECIMAL，累计量大时会漂分位，且 parse 失败静默当 0。
