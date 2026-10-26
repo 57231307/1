@@ -1,7 +1,7 @@
 //! m0104 四表活跃行部分唯一索引与 cost_collections 全表唯一兜底的活库契约锁
 //!
 //! 钉数据库层唯一约束真实在场，服务侧取号同临界区改造以它为先决。
-//! 正向四件事。一，m0104 迁移源文本形态锁，四条部分唯一索引
+//! 正向五件事。一，m0104 迁移源文本形态锁，四条部分唯一索引
 //! （WHERE "is_deleted" = false）、四条 fail-visible 重复探测 RAISE EXCEPTION
 //! 守卫、down 四条显式 DROP INDEX（不留空 down 且与 up 对称）逐条在场。
 //! 二，活库 pg_indexes 回读，四条索引真实存在且索引定义含单号列与
@@ -11,6 +11,8 @@
 //! cost_collections 的 m0063 全表唯一兜底同样钉住。
 //! 四，软删复用行为钉，哨兵行置 is_deleted 为 true 后同号活跃行插入必须成功
 //! （部分索引谓词与既定复用语义同源的反向钉，防止有人改成全表 UNIQUE）。
+//! 五，存量重复只读探测计数钉，四表未删行同号重复组计数必须为 0，
+//! 探测 SQL 与 m0104 迁移守卫同口径（命中非 0 即迁移先中止，走到用例属异常）。
 //! 读路径谓词同源的反向源码钉，四个读侧文件必须按 IsDeleted.eq(false) 过滤
 //! 且单号读口逐处带未删谓词，与部分索引谓词互锁漂移。
 //! 调用方为集成测试 crate，仅在 CI 对已跑完迁移链（含 m0104）的 PostgreSQL
@@ -113,6 +115,41 @@ fn m0104_migration_text_pins_partial_unique_shape() {
         "cost_collections 已由 m0063 全表 UNIQUE 兜底（该表无 is_deleted 列），\
          m0104 不得为它重复建活跃行索引制造第二套口径"
     );
+}
+
+/// 存量重复只读探测计数钉，四表未删行同号重复组总数必须为 0，
+/// 探测 SQL 与 m0104 迁移守卫逐字同口径（命中非 0 即点名表列并输出样例号）
+#[tokio::test]
+async fn live_db_has_no_existing_active_duplicate_doc_no() {
+    let db = setup_test_db().await;
+    let probes: [(&str, &str); 4] = [
+        ("production_recipe", "recipe_no"),
+        ("production_recipe_addition", "addition_no"),
+        ("process_wage_rate", "rate_no"),
+        ("wage_record", "record_no"),
+    ];
+    for (table, column) in probes {
+        let sql = format!(
+            "SELECT COUNT(*) FROM (SELECT \"{col}\" FROM \"{tbl}\" \
+             WHERE \"is_deleted\" = false GROUP BY \"{col}\" HAVING COUNT(*) > 1) d",
+            col = column,
+            tbl = table
+        );
+        let row = db
+            .query_one_raw(Statement::from_string(DbBackend::Postgres, sql))
+            .await
+            .unwrap_or_else(|e| panic!("{} 表 {} 列重复探测查询失败: {e}", table, column));
+        let dup_groups = row
+            .and_then(|r| r.try_get_by_index::<i64>(0).ok())
+            .expect("重复探测计数解码失败");
+        assert_eq!(
+            dup_groups, 0,
+            "{} 表 {} 列存在 {} 组活跃重复单号，m0104 守卫应已拒绝建索引，走到这里说明约束缺失或数据被旁路洗过",
+            table,
+            column,
+            dup_groups
+        );
+    }
 }
 
 /// 读路径与索引谓词同源的双向锁，单号读口必须按未删行过滤

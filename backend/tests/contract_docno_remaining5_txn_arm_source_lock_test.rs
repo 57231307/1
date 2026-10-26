@@ -61,27 +61,27 @@ fn deny_defect_shapes(file: &str, text: &str, bare_gen_call: &str) {
 #[test]
 fn cost_collection_create_is_txn_scoped_and_macro_invocation_uses_txn_arm() {
     let text = src("src/services/cost_collection_service.rs");
-    assert_txn_scoped_create(&"cost_collection_service.rs", &text, "self.generate_collection_no(&txn)");
+    assert_txn_scoped_create("cost_collection_service.rs", &text, "self.generate_collection_no(&txn)");
     assert!(
         text.contains("cost_collection::Column::CollectionNo,\n        txn\n    );"),
         "cost_collection_service.rs 的 impl_generate_no 调用必须是带 txn 形参的宏臂，\
          实参表末位应是独立成行的 txn"
     );
-    deny_defect_shapes(&"cost_collection_service.rs", &text, "self.generate_collection_no()");
+    deny_defect_shapes("cost_collection_service.rs", &text, "self.generate_collection_no()");
 }
 
 #[test]
 fn recipe_crud_create_is_txn_scoped() {
     let text = src("src/services/production_recipe_ops/recipe_crud.rs");
-    assert_txn_scoped_create(&"recipe_crud.rs", &text, "self.generate_recipe_no(&txn)");
-    deny_defect_shapes(&"recipe_crud.rs", &text, "self.generate_recipe_no()");
+    assert_txn_scoped_create("recipe_crud.rs", &text, "self.generate_recipe_no(&txn)");
+    deny_defect_shapes("recipe_crud.rs", &text, "self.generate_recipe_no()");
 }
 
 #[test]
 fn addition_create_is_txn_scoped() {
     let text = src("src/services/production_recipe_ops/addition.rs");
-    assert_txn_scoped_create(&"addition.rs", &text, "self.generate_addition_no(&txn)");
-    deny_defect_shapes(&"addition.rs", &text, "self.generate_addition_no()");
+    assert_txn_scoped_create("addition.rs", &text, "self.generate_addition_no(&txn)");
+    deny_defect_shapes("addition.rs", &text, "self.generate_addition_no()");
 }
 
 #[test]
@@ -97,13 +97,13 @@ fn recipe_facade_generators_use_txn_arm_generator() {
         text.contains("txn: &sea_orm::DatabaseTransaction"),
         "facade 生成器签名必须收 &DatabaseTransaction 形参"
     );
-    deny_defect_shapes(&"production_recipe_service.rs", &text, "self.generate_recipe_no()");
+    deny_defect_shapes("production_recipe_service.rs", &text, "self.generate_recipe_no()");
 }
 
 #[test]
 fn wage_rate_create_is_txn_scoped_and_get_by_no_dedups() {
     let text = src("src/services/wage_ops/rate.rs");
-    assert_txn_scoped_create(&"rate.rs", &text, "self.generate_rate_no(&txn)");
+    assert_txn_scoped_create("rate.rs", &text, "self.generate_rate_no(&txn)");
     assert!(
         text.contains("DocumentNumberGenerator::generate_no_with_txn("),
         "rate.rs 的生成器必须走带事务臂"
@@ -112,13 +112,13 @@ fn wage_rate_create_is_txn_scoped_and_get_by_no_dedups() {
         text.contains("条活跃记录，数据异常"),
         "rate.rs 的 get_by_no 必须先判重再取行，撞重复显式报数据异常"
     );
-    deny_defect_shapes(&"rate.rs", &text, "self.generate_rate_no()");
+    deny_defect_shapes("rate.rs", &text, "self.generate_rate_no()");
 }
 
 #[test]
 fn wage_record_create_is_txn_scoped_and_get_by_no_dedups() {
     let text = src("src/services/wage_ops/record.rs");
-    assert_txn_scoped_create(&"record.rs", &text, "self.generate_record_no(&txn)");
+    assert_txn_scoped_create("record.rs", &text, "self.generate_record_no(&txn)");
     assert!(
         text.contains("DocumentNumberGenerator::generate_no_with_txn("),
         "record.rs 的生成器必须走带事务臂"
@@ -127,5 +127,5 @@ fn wage_record_create_is_txn_scoped_and_get_by_no_dedups() {
         text.contains("条活跃记录，数据异常"),
         "record.rs 的 get_by_no 必须先判重再取行，撞重复显式报数据异常"
     );
-    deny_defect_shapes(&"record.rs", &text, "self.generate_record_no()");
+    deny_defect_shapes("record.rs", &text, "self.generate_record_no()");
 }
