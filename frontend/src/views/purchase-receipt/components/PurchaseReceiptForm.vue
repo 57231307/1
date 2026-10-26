@@ -78,12 +78,12 @@
               >
                 <el-option v-for="p in products" :key="p.value" :label="p.label" :value="p.value" />
               </el-select>
-              <el-input-number
+              <el-input
                 :model-value="item.quantity"
                 class="col-qty"
                 @update:model-value="
-                  (v: number | undefined) => {
-                    item.quantity = v ?? 0;
+                  (v: string) => {
+                    item.quantity = v === '' ? 0 : Number(v);
                     emit('calc-amount', item);
                   }
                 "
@@ -93,35 +93,29 @@
                 DB 可空列（models/purchase_receipt_item 的 quantity_alt: Option<Decimal>）——留空=未采集
                 （undefined，不得 ?? 0 伪装成实测量）；更新契约行留空按三态处理（usePrcProc）。
               -->
-              <el-input-number
+              <el-input
                 :model-value="item.quantity_alt"
                 class="col-qty"
                 :placeholder="t('purchaseReceipt.form.placeholder.quantityAlt')"
                 @update:model-value="
-                  (v: number | undefined) => {
-                    item.quantity_alt = v ?? undefined;
+                  (v: string) => {
+                    item.quantity_alt = v === '' ? undefined : Number(v);
                   }
                 "
               />
               <!-- 主单位取自产品档案，不可手工录入（后端 unit_master 为必填契约字段） -->
               <span class="col-unit">{{ item.unit_master || '-' }}</span>
-              <el-input-number
+              <el-input
                 :model-value="item.unit_price"
-                :precision="2"
                 class="col-price"
                 @update:model-value="
-                  (v: number | undefined) => {
-                    item.unit_price = v ?? 0;
+                  (v: string) => {
+                    item.unit_price = v === '' ? 0 : Number(v);
                     emit('calc-amount', item);
                   }
                 "
               />
-              <el-input-number
-                :model-value="item.amount"
-                :precision="2"
-                class="col-amount"
-                readonly
-              />
+              <el-input :model-value="item.amount" class="col-amount" readonly />
               <el-button
                 v-if="(localForm.items || []).length > 1"
                 size="small"

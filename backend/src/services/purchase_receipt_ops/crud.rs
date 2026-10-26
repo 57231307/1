@@ -198,9 +198,10 @@ impl PurchaseReceiptService {
     /// `crate::services::inv::inbound_admission`，本函数只编排不另写规则）。
     ///
     /// 功能：把成品布入库单上四个度量门槛按行收口——入库数量必须严格大于零；
-    /// 验布定级结论必填且必须落在库存等级词表 `inventory_stock_grade::ALL` 内；
-    /// 克重与幅宽一旦填写必须为正；公斤数必须能确定（实称公斤数优先，缺失时按克重与幅宽
-    /// 经双计量单入口推算，两条来源都给不出即拒绝）。
+    /// 验布定级结论有值时必须落在库存等级词表 `inventory_stock_grade::ALL` 内（建单期允许为空，
+    /// 该单走既有 inspection_status 待检通道，"必须定级"的门留到确认入账那一步，见
+    /// `purchase_receipt_private::resolve_receipt_grade`）；克重与幅宽一旦填写必须为正；
+    /// 公斤数必须能确定（实称公斤数优先，缺失时按克重与幅宽经双计量单入口推算，两条来源都给不出即拒绝）。
     /// 调用方：同文件 `create_receipt`（对 `req.items` 逐行，紧随四维准入
     /// [`PurchaseReceiptService::validate_receipt_item_dimensions`]）与
     /// `purchase_receipt_ops::items::add_receipt_item`（追加单行时同口径）。
@@ -211,15 +212,16 @@ impl PurchaseReceiptService {
     /// 公斤数在确认入库时由 `purchase_receipt_private.rs` 走同一解析入口写
     /// `inventory_stocks.quantity_kg` 与 `inventory_transactions.quantity_kg`。
     ///
-    /// 四条都在建单期拦而不是确认入账期拦：入库单本身要能表达行业规格（克重与门幅是决定
-    /// 成品的四个数之二，等级是验布结论），词表外的等级、零量与零公斤一旦落在单上，
-    /// 确认时台账与流水都按错值生成，事后无法回指真实验布码单。
+    /// 数量、克重幅宽、公斤数三条在建单期就拦：入库单本身要能表达行业规格（克重与门幅是决定
+    /// 成品的四个数之二），零量与既无实称又无克重幅宽的假辅量一旦落在单上，确认时台账与流水都按
+    /// 错值生成。等级一条只拦"填错"不拦"未填"：建单期给免检快录留口，真入账再强制定级，
+    /// 且不设任何缺省等级兜底。
     pub(crate) fn validate_receipt_item_measures(
         item: &CreateReceiptItemRequest,
     ) -> Result<(), AppError> {
         let line = format!("入库单第 {} 行（产品 {}）", item.line_no, item.material_id);
         inbound_admission::require_positive_quantity(item.quantity, &format!("{line}入库数量"))?;
-        inbound_admission::require_stock_grade(
+        inbound_admission::check_stock_grade_if_present(
             item.grade.as_deref(),
             &format!("{line}验布定级结论"),
         )?;

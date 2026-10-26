@@ -47,6 +47,31 @@ pub fn require_stock_grade(raw: Option<&str>, field: &str) -> Result<String, App
     Ok(value.to_string())
 }
 
+/// 验布定级结论「有值才校验词表」的准入（建单期与改单期用，等级允许为空走待检通道）。
+///
+/// 入参 `raw` 是明细提交的等级原文；`None`、缺键与纯空白按"本次未定级"放行（建单/暂存期合法，
+/// 该收货单走既有 inspection_status 待检通道，货尚未入账、不进库存行、也就进不了可出库候选）。
+/// 一旦提交了值，就必须落在库存等级词表 [`inventory_stock_grade::ALL`] 内，越界即
+/// `validation_displayable`（400，可外显）点名该值与允许值。`field` 是文案里的字段说法。
+///
+/// 与 [`require_stock_grade`] 的分工：本函数只管"填了别填错"，把"必须填"的门留给真入账那一步
+/// （库存直建入库 [`require_stock_grade`]、采购收货确认入账 `purchase_receipt_private` 同名解析）。
+/// 建单期不强制等级，是为免检快录收货口能在质检前先把单建出来；但不放宽真入账门，
+/// 绝不允许词表外的等级或把未定级伪装成任何一档。
+pub fn check_stock_grade_if_present(raw: Option<&str>, field: &str) -> Result<(), AppError> {
+    let value = raw.map(str::trim).unwrap_or_default();
+    if value.is_empty() {
+        return Ok(());
+    }
+    if !inventory_stock_grade::ALL.contains(&value) {
+        return Err(AppError::validation_displayable(format!(
+            "{field} \"{value}\" 不在库存等级取值域内（允许值 {}）",
+            inventory_stock_grade::ALL.join(",")
+        )));
+    }
+    Ok(())
+}
+
 /// 入库数量必须严格大于零，入参 `quantity` 是主计量米数，`label` 是界面字段说法（如"入库米数"）。
 ///
 /// 传给谁是由调用方拼行号后作为 `AppError::validation_displayable` 出参，在写库之前拒绝。

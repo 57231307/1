@@ -193,9 +193,11 @@ impl PurchaseReceiptService {
         };
 
         // 度量准入按本次生效后的值判定（与建单/追加明细同一实现，见
-        // `PurchaseReceiptService::validate_receipt_item_measures`）：等级词表、数量下限、
-        // 克重幅宽为正、公斤数可解析。三态语义是键缺席=原值、显式 null=清空，
-        // 因此这里取"生效后"而不是"本次提交了什么"，否则改数量就能把等级与公斤数绕过去。
+        // `PurchaseReceiptService::validate_receipt_item_measures`）：数量下限、克重幅宽为正、
+        // 公斤数可解析，等级只在"本次生效后已填"时校验词表（改单期同样允许留空走待检通道，
+        // "必须定级"的门在确认入账 resolve_receipt_grade 那一步）。三态语义是键缺席=原值、
+        // 显式 null=清空，因此这里取"生效后"而不是"本次提交了什么"，否则改数量就能把
+        // 已填的错等级或公斤数绕过去。
         // 提前到改明细这一层拦，是因为确认入账时同样按这组判定拒绝（不再有缺省兜底），
         // 让用户在还能改单的时候收到点名到行的错误，而不是在确认时才发现整单出不去。
         let line = format!("入库明细 {}（入库单 {}）", item_id, item.receipt_id);
@@ -212,7 +214,7 @@ impl PurchaseReceiptService {
             effective_quantity,
             &format!("{line}入库数量"),
         )?;
-        inbound_admission::require_stock_grade(
+        inbound_admission::check_stock_grade_if_present(
             effective_grade,
             &format!("{line}验布定级结论"),
         )?;
