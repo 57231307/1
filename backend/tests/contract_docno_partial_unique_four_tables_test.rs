@@ -105,10 +105,12 @@ fn m0104_migration_text_pins_partial_unique_shape() {
         );
     }
     assert_eq!(
-        text.matches("RAISE EXCEPTION").count(),
+        // 只数代码形态守卫（RAISE EXCEPTION 后紧跟消息单引号）。文件头文档里
+        // 也出现“RAISE EXCEPTION 中止迁移”的说明文字，数裸串会把文档计入导致假红。
+        text.matches("RAISE EXCEPTION '").count(),
         4,
         "m0104 应有四条存量重复拒绝消息（命中重复即中止不洗数据），实得 {} 条",
-        text.matches("RAISE EXCEPTION").count()
+        text.matches("RAISE EXCEPTION '").count()
     );
     assert!(
         !text.contains("uq_cost_collections_collection_no"),
