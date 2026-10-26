@@ -1,6 +1,6 @@
 //! 工资记录 Service impl 子模块（wage_ops/record）
 //!
-//! 批次 490 D10-4a 拆分：从原 `wage_service.rs` L634-848 迁移。
+//! 由原 wage_service 的工资记录操作部分拆分而来。
 //! 包含 WageRecordService 的 10 个方法（new 留在 facade）：
 //! - generate_record_no（私有带事务臂，统一生成器生成单号 WR{YYYYMMDD}{NNN}，
 //!   advisory 锁占用在 create 自开的建单事务上）

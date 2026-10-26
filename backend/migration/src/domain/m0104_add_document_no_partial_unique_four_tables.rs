@@ -1,12 +1,10 @@
 //! 单据号四列「部分唯一索引」DB 兜底（取号-插入同临界区缺陷族的先决约束）
 //!
-//! 覆盖四列（建表 DDL 实测，均为裸 `VARCHAR(255) NOT NULL`、无任何 UNIQUE/索引）：
-//! - `production_recipe.recipe_no`                  `domain/v15/mod.rs:3405-3407`
-//! - `production_recipe_addition.addition_no`       `domain/v15/mod.rs:3439-3441`
-//! - `process_wage_rate.rate_no`                    `domain/v15/mod.rs:3346-3348`
-//! - `wage_record.record_no`                        `domain/v15/mod.rs:3564-3566`
-//! 对照：`cost_collections.collection_no` 已由 `domain/production/m0063`
-//! 补齐全表 UNIQUE（`uq_cost_collections_collection_no`，m0063:305-306），不在本迁移范围。
+//! 覆盖四列（v15 域建表 DDL 实测，均为裸 `VARCHAR(255) NOT NULL` 列，无任何 UNIQUE
+//! 约束或索引）：`production_recipe.recipe_no`、`production_recipe_addition.addition_no`、
+//! `process_wage_rate.rate_no`、`wage_record.record_no`。
+//! 对照：`cost_collections.collection_no` 已由 `domain/production/m0063_add_document_no_unique_constraints`
+//! 补齐全表 UNIQUE（约束名 `uq_cost_collections_collection_no`），不在本迁移范围。
 //!
 //! 为什么要补这层约束（缺陷族前提）：单据号生成器自开事务形态（`generate_no`）
 //! 提交即释放前缀级 advisory 锁，取号与调用方 INSERT 之间存在并发窗口，两次并发
