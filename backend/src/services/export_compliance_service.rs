@@ -205,8 +205,18 @@ impl ExportComplianceService {
     /// 规则 2：大批量导出检测（导出条数 > 上限 80%）
     fn detect_large_exports(&self, logs: &[audit_log::Model], alerts: &mut Vec<ComplianceAlert>) {
         for log in logs {
-            if let Some(count) = log.export_record_count {
-                if count > LARGE_EXPORT_THRESHOLD {
+            // export_record_count 列现无任何链路写入，读回恒为 NULL 属常态；
+            // 导出条数以 after_snapshot 里的 total 键为兜底数据源，
+            // 该键是各导出 handler 留痕时写入的真实导出条数，
+            // 打印留痕快照不含 total 键，回读只命中导出日志，不会误报。
+            let record_count = log.export_record_count.map(i64::from).or_else(|| {
+                log.after_snapshot
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.0.get("total"))
+                    .and_then(|total| total.as_i64())
+            });
+            if let Some(count) = record_count {
+                if count > i64::from(LARGE_EXPORT_THRESHOLD) {
                     alerts.push(ComplianceAlert {
                         alert_type: "large_export".to_string(),
                         user_id: log.user_id,

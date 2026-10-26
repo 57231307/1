@@ -9,7 +9,9 @@
 //! - JSON 快照：使用 `audit_log::AuditValue` 包装，PostgreSQL 自动用 JSONB 列存储
 //!
 //! 异步落库使用 mpsc channel 加单消费者模式，避免每次调用 record_async 都创建
-//! detached spawn task。通道与消费者由全局单例持有，与进程同生命周期。
+//! detached spawn task。通道与消费者由全局单例持有，与进程同生命周期；落库连接随
+//! 事件自带，record_async 把本实例持有的连接放进事件载荷，消费者落库时用载荷里那枚，
+//! 不使用任何调用方初始化单例时传入的连接，因此单例由谁先建立都不决定事件落到哪座库。
 //! 关停分两步：关停链先调用 flush 等待积压事件全部落库（未排空条数如实上报），
 //! 再经 shutdown 从全局单例取出消费者 JoinHandle 真实 abort（take 后置空，天然防二次
 //! abort），并返回句柄供调用方 await 确认消费者已终止，不靠 sleep 猜时序。
@@ -31,19 +33,31 @@ use tokio::sync::mpsc;
 
 /// 审计日志服务。
 ///
-/// 持库连接供同步写路径使用，持全局发送端供异步落库路径使用。
+/// 持库连接供同步写路径使用，异步落库路径把同一枚连接放进事件载荷交给全局消费者。
 #[derive(Debug)]
 pub struct AuditLogService {
     db: Arc<DatabaseConnection>,
     /// 事件发送端（全局单例，避免每次 new() 创建新 channel 后旧消费者退出）
-    sender: &'static mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
+    /// 入参 每次发送一枚 AuditEnvelope，内含本实例的连接、审计事件与请求上下文
+    /// 传给谁 全局唯一消费者 task，落库用的是载荷里那枚连接
+    sender: &'static mpsc::UnboundedSender<AuditEnvelope>,
 }
+
+/// 异步落库通道的事件载荷
+/// 功能 把落库所用的连接与审计数据一起交给消费者，消费者不需要知道任何调用方的连接，
+/// 也不会被单例首次初始化者钉死在某一座库上。
+/// 调用方 record_async 构造，全局消费者 task 拆解消费。
+/// 入参 本实例的库连接、待落库的审计事件、可选请求上下文。
+/// 传给谁 只在本文件内的 channel 与消费者之间流转，不对外暴露。
+/// 存什么 不落库、不进全局态，只作为 channel 的一次性消息体。
+/// 存哪里 只在内存里的 channel 队列中短暂存在。
+type AuditEnvelope = (Arc<DatabaseConnection>, AuditEvent, Option<AuditContext>);
 
 /// 全局单例：channel + 消费者只创建一次，避免每次 AuditLogService::new() 创建新 channel
 /// 导致旧消费者退出（sender drop → receiver None → 消费者退出 → 审计日志丢失）
-static AUDIT_SENDER: std::sync::OnceLock<
-    mpsc::UnboundedSender<(AuditEvent, Option<AuditContext>)>,
-> = std::sync::OnceLock::new();
+/// 单例只拥有通道与消费者，不拥有落库连接；连接逐枚来自事件载荷。
+static AUDIT_SENDER: std::sync::OnceLock<mpsc::UnboundedSender<AuditEnvelope>> =
+    std::sync::OnceLock::new();
 
 /// 总线原子计数器，与 channel 同生命周期。
 /// 消费者每处理完一条（无论成失）递增对应计数并唤醒 flush 等待者。
@@ -140,19 +154,23 @@ static AUDIT_CONSUMER_HANDLE: std::sync::OnceLock<
 
 impl AuditLogService {
     /// 创建审计日志服务（全局单例 channel，消费者只启动一次）
+    ///
+    /// 入参 db 本实例的库连接，供同步写路径直接用，并在每次异步落库时随事件载荷交给
+    /// 消费者；本方法不会把这枚连接交给全局消费者长期持有，全局消费者不属于某个实例。
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         let sender = AUDIT_SENDER.get_or_init(|| {
-            let (sender, mut receiver) =
-                mpsc::unbounded_channel::<(AuditEvent, Option<AuditContext>)>();
+            let (sender, mut receiver) = mpsc::unbounded_channel::<AuditEnvelope>();
 
             // 启动后台消费者 task（全局唯一，不会被 drop 关闭）
-            let db_clone = db.clone();
+            // 落库连接逐事件取自载荷，不在此捕获本次调用的 db：消费者是进程级唯一的，
+            // 一旦捕获了首个调用方传入的连接，整座总线就永久钉在那座库上，后续换实例的
+            // 调用方事件会落到别人的库或已关闭的池上。
             let handle = tokio::spawn(async move {
-                while let Some((mut event, ctx)) = receiver.recv().await {
+                while let Some((db, mut event, ctx)) = receiver.recv().await {
                     let result = AssertUnwindSafe(async {
-                        Self::resolve_username(db_clone.as_ref(), &mut event).await;
+                        Self::resolve_username(db.as_ref(), &mut event).await;
                         let log = build_active_model(&event, ctx.as_ref());
-                        match log.insert(db_clone.as_ref()).await {
+                        match log.insert(db.as_ref()).await {
                             Ok(_) => true,
                             Err(e) => {
                                 tracing::error!(
@@ -553,7 +571,11 @@ impl AuditLogService {
     /// 异步记录审计事件（推荐使用）
     /// L-32 修复（批次 380 v13 复审）：改为通过 mpsc channel 发送事件，；由后台单消费者 task 落库，避免每次调用都创建 detached spawn task。；写库失败由消费者 task 内部 catch_unwind + error 日志处理。
     pub fn record_async(self: Arc<Self>, event: AuditEvent, ctx: Option<AuditContext>) {
-        if let Err(e) = self.sender.send((event.clone(), ctx.clone())) {
+        // 载荷带本实例的连接：落库用哪个库由发事件的调用方决定，不由谁先初始化全局单例决定。
+        if let Err(e) = self
+            .sender
+            .send((self.db.clone(), event.clone(), ctx.clone()))
+        {
             tracing::warn!(
                 user_id = ?event.user_id,
                 operation = event.operation_type.as_str(),
