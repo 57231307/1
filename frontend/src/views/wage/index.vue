@@ -160,7 +160,12 @@
 
     <el-dialog v-model="detailsVisible" title="工资明细" width="720">
       <div class="toolbar" style="margin-bottom: 8px">
-        <el-input-number v-model="workerId" :min="1" placeholder="工人ID" style="width: 140px" />
+        <el-input
+          v-model="workerIdField.text"
+          placeholder="工人ID"
+          style="width: 140px"
+          @blur="workerIdField.normalize()"
+        />
         <el-button type="primary" plain :loading="workerLoading" @click="onWorkerDetails">
           按工人查询工资历史
         </el-button>
@@ -196,7 +201,11 @@
     <!-- 生效费率查询（getEffectiveWageRate） -->
     <el-dialog v-model="effectiveVisible" title="生效费率查询" width="440">
       <div class="toolbar" style="margin-bottom: 8px">
-        <el-input-number v-model="effectiveForm.route_id" :min="1" placeholder="工序路线ID" />
+        <el-input
+          v-model="effectiveRouteField.text"
+          placeholder="工序路线ID"
+          @blur="effectiveRouteField.normalize()"
+        />
         <el-input v-model="effectiveForm.date" placeholder="日期 2026-01-01" style="width: 160px" />
         <el-button type="primary" :loading="effectiveLoading" @click="onQueryEffective">
           查询
@@ -209,13 +218,21 @@
     <el-dialog v-model="rateDialogVisible" title="工资费率" width="440">
       <el-form :model="rateForm" label-width="90px">
         <el-form-item label="工序路线" required>
-          <el-input-number v-model="rateForm.route_id" :min="1" class="w-full" />
+          <el-input
+            v-model="rateRouteField.text"
+            class="w-full"
+            @blur="rateRouteField.normalize()"
+          />
         </el-form-item>
         <el-form-item label="工序名称" required>
           <el-input v-model="rateForm.process_name" />
         </el-form-item>
         <el-form-item label="费率">
-          <el-input-number v-model="rateForm.wage_rate" :min="0" :precision="2" class="w-full" />
+          <el-input
+            v-model="wageRateField.text"
+            class="w-full"
+            @blur="wageRateField.normalize()"
+          />
         </el-form-item>
         <el-form-item label="生效日期">
           <el-date-picker
@@ -235,8 +252,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, toRef } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { logAuxLoadFailure } from '@/utils/logger';
 import type { ApiResponse } from '@/types/api';
@@ -401,7 +423,16 @@ async function onExportDetails(row: WageRecord) {
 const workerId = ref(1);
 const workerLoading = ref(false);
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const workerIdSpec: NumberFieldSpec = { label: '工人ID', required: true, min: 1, precision: 0 };
+const workerIdField = useNumberField(workerId, workerIdSpec);
+
 async function onWorkerDetails() {
+  const invalid = validateNumberValue(workerId.value, workerIdSpec);
+  if (invalid) {
+    ElMessage.warning(invalid);
+    return;
+  }
   workerLoading.value = true;
   try {
     const payload = await getWageDetailsByWorker(workerId.value);
@@ -420,10 +451,22 @@ const effectiveVisible = ref(false);
 const effectiveLoading = ref(false);
 const effectiveResult = ref('');
 const effectiveForm = reactive({ route_id: 1, date: '' });
+const effectiveRouteSpec: NumberFieldSpec = {
+  label: '工序路线ID',
+  required: true,
+  min: 1,
+  precision: 0,
+};
+const effectiveRouteField = useNumberField(toRef(effectiveForm, 'route_id'), effectiveRouteSpec);
 
 async function onQueryEffective() {
   if (!effectiveForm.date) {
     ElMessage.warning('请输入查询日期');
+    return;
+  }
+  const routeInvalid = validateNumberValue(effectiveForm.route_id, effectiveRouteSpec);
+  if (routeInvalid) {
+    ElMessage.warning(routeInvalid);
     return;
   }
   effectiveLoading.value = true;
@@ -457,6 +500,21 @@ const rateForm = reactive({
   status: 'active',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const rateRouteSpec: NumberFieldSpec = {
+  label: '工序路线',
+  required: true,
+  min: 1,
+  precision: 0,
+};
+const wageRateSpec: NumberFieldSpec = { label: '费率', min: 0, precision: 2 };
+const rateRouteField = useNumberField(
+  toRef(rateForm, 'route_id'),
+  rateRouteSpec,
+  'undefined'
+);
+const wageRateField = useNumberField(toRef(rateForm, 'wage_rate'), wageRateSpec);
+
 const loadRates = async () => {
   rateLoading.value = true;
   try {
@@ -475,6 +533,16 @@ const loadRates = async () => {
 const onSaveRate = async () => {
   if (!rateForm.route_id || !rateForm.process_name) {
     ElMessage.warning('工序路线与工序名称必填');
+    return;
+  }
+  const routeInvalid = validateNumberValue(rateForm.route_id, rateRouteSpec);
+  if (routeInvalid) {
+    ElMessage.warning(routeInvalid);
+    return;
+  }
+  const rateInvalid = validateNumberValue(rateForm.wage_rate, wageRateSpec);
+  if (rateInvalid) {
+    ElMessage.warning(rateInvalid);
     return;
   }
   rateSaving.value = true;
