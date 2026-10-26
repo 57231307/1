@@ -48,9 +48,7 @@ use bingxi_backend::models::status::{master_data, sales_fabric_order};
 use bingxi_backend::models::{
     customer, product, role, role_permission, sales_order, sales_order_item, user,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -335,12 +333,7 @@ fn fo_app(db: Arc<DatabaseConnection>, role_id: i32) -> Router {
         .with_state(state)
 }
 
-async fn send(
-    app: &Router,
-    method: Method,
-    uri: &str,
-    body: Option<Value>,
-) -> (StatusCode, Value) {
+async fn send(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
     let builder = Request::builder()
         .method(method)
         .uri(uri)
@@ -400,9 +393,7 @@ async fn reload_order(db: &DatabaseConnection, id: i32) -> sales_order::Model {
 }
 
 /// 每用例统一前置，清残留、种身份与参照行，返回（更新腿角色，审批腿角色，删除腿角色，陌生人角色）
-async fn setup_fo_fixture(
-    db: &DatabaseConnection,
-) -> (i32, i32, i32, i32) {
+async fn setup_fo_fixture(db: &DatabaseConnection) -> (i32, i32, i32, i32) {
     cleanup_fo_roles(db).await;
     seed_user(db).await;
     seed_customer(db).await;
