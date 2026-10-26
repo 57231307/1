@@ -130,11 +130,10 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('flowCards.index.labelProductId')" prop="product_id">
-          <el-input-number
-            v-model="formData.product_id"
-            :min="1"
-            :precision="0"
-            :disabled="true"
+          <!-- 产品由所选生产订单带出，只读展示，不允许手改 -->
+          <el-input
+            :model-value="numericView(formData.product_id)"
+            disabled
             style="width: 100%"
           />
         </el-form-item>
@@ -152,10 +151,9 @@
           />
         </el-form-item>
         <el-form-item :label="t('flowCards.index.colPlannedWeight')" prop="planned_fabric_weight">
-          <el-input-number
+          <el-input
             v-model="formData.planned_fabric_weight"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             style="width: 100%"
           />
         </el-form-item>
@@ -230,6 +228,7 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { numberInputRules, numericView } from '@/utils/number-input';
 import { useI18n } from 'vue-i18n';
 import { getProductionOrderList, type ProductionOrder } from '@/api/production';
 import { logAuxLoadFailure } from '@/utils/logger';
@@ -332,21 +331,27 @@ const detailVisible = ref(false);
 const detailRow = ref<FlowCard | null>(null);
 const formRef = ref<FormInstance>();
 
+// 计划克重为手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值；
+// product_id 由所选生产订单带出保持数值模型，只读展示经 numericView 归一
 const formData = reactive<{
   production_order_id: number | undefined;
   product_id: number | undefined;
   product_name: string;
   color_no: string;
-  planned_fabric_weight: number | undefined;
+  planned_fabric_weight: string;
   dyeing_requirements: string;
 }>({
   production_order_id: undefined,
   product_id: undefined,
   product_name: '',
   color_no: '',
-  planned_fabric_weight: undefined,
+  planned_fabric_weight: '',
   dyeing_requirements: '',
 });
+
+/** 手写文本模型转契约数值：空串回 undefined（可选键省略=不采集） */
+const numOpt = (text: string): number | undefined =>
+  text.trim() === '' ? undefined : Number(text);
 
 const formRules: FormRules = {
   production_order_id: [
@@ -356,6 +361,12 @@ const formRules: FormRules = {
       trigger: 'change',
     },
   ],
+  // 范围与精度靠校验器（numberInputRules 单源），不靠步进按钮
+  planned_fabric_weight: numberInputRules({
+    label: t('flowCards.index.colPlannedWeight'),
+    min: 0,
+    precision: 2,
+  }),
 };
 
 // 新建流转卡必须挂在真实生产订单上，选择订单即带出它的产品，避免手填对不上的 ID。
@@ -489,7 +500,7 @@ const resetForm = () => {
   formData.product_id = undefined;
   formData.product_name = '';
   formData.color_no = '';
-  formData.planned_fabric_weight = undefined;
+  formData.planned_fabric_weight = '';
   formData.dyeing_requirements = '';
   orderQuery.value = '';
   formRef.value?.resetFields();
@@ -512,7 +523,7 @@ const submitCreate = async () => {
         product_id: formData.product_id,
         product_name: formData.product_name || undefined,
         color_no: formData.color_no || undefined,
-        planned_fabric_weight: formData.planned_fabric_weight,
+        planned_fabric_weight: numOpt(formData.planned_fabric_weight),
         dyeing_requirements: formData.dyeing_requirements || undefined,
       });
       ElMessage.success(t('flowCards.index.messageCreateSuccess'));
