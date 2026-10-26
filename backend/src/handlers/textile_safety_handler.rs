@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! 纺织品安全送检单处理器（建单、要素修改、状态机、项目清单推导、童装核查登记、整单判定）
 //!
 //! 判据全部在 `services/textile_safety_submission_service.rs` 与

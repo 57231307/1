@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! 纺织品安全送检单服务（建单校验、状态机、项目集推导、童装核查登记、整单判定汇总）
 //!
 //! 送检流程真实口径：建单 → 按人群与接触方式与市场推项目清单 → 取样（同品种同色号同工艺
@@ -485,6 +484,7 @@ impl TextileSafetySubmissionService {
             updated = updated.len(),
             "纺织品安全合规联动库存质量状态完成"
         );
+        let updated_count = updated.len();
         Ok(StockLinkResult {
             matched,
             updated_stock_ids: updated,
@@ -494,7 +494,7 @@ impl TextileSafetySubmissionService {
                 model.product_id,
                 batch,
                 matched,
-                updated.len()
+                updated_count
             ),
         })
     }

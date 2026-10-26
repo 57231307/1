@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! 第三方检测报告处理器（登记、要素修正、完整性门、逐项目结果录入、报告级判定）
 //!
 //! 完整性门与判定链路的判据在 `services/textile_safety_report_service.rs` 与

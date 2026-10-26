@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! 纺织品安全主数据处理器（检测项目、限值判定表维护通道、出口市场要求登记）
 //!
 //! 判据与词表校验在 `services/textile_safety_master_service.rs`；本文件只拆装请求。
