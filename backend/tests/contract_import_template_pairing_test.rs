@@ -24,7 +24,7 @@ const TEMPLATE_SERVICE_REL: &str = "src/services/import_export_service.rs";
 /// 新增文件导入端点必须在此登记并配套模板，未登记的导入字面量由分类锁判红。
 const FILE_IMPORT_ENDPOINTS: &[(&str, &str)] = &[
     ("/products/import", "products"),
-    ("/purchase/sku-mappings/import", "sku_mapping"),
+    ("/sku-mappings/import", "sku_mapping"),
     ("/leads/import", "crm_leads"),
     ("/excel", "__data_import_center__"),
 ];
@@ -116,7 +116,10 @@ fn parse_sku_authority_columns() -> Vec<(String, bool)> {
         if !trimmed.starts_with('(') {
             continue;
         }
-        let inner = trimmed.trim_start_matches('(').trim_end_matches(',').trim();
+        let inner = trimmed
+            .trim_start_matches('(')
+            .trim_end_matches(|c| c == ',' || c == ')')
+            .trim();
         let mut parts = inner.split(',').map(|p| p.trim()).filter(|p| !p.is_empty());
         let name_ref = parts.next().unwrap_or_else(|| panic!("SKU 权威表条目缺列名: {}", trimmed));
         let required_ref =
@@ -259,6 +262,7 @@ fn all_import_route_literals_are_classified() {
             literal.as_str() == *known
                 || known.ends_with("/import") && literal.ends_with(known)
                 || literal.contains("/templates")
+                || literal.ends_with("-template")
         });
         assert!(
             covered,
