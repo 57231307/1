@@ -215,8 +215,11 @@ pub async fn set_submission_status(
     Json(body): Json<StatusBody>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
-    let saved = service.set_status(id, &body.status, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
+    let (saved, stock_link) = service.set_status(id, &body.status, auth.user_id).await?;
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "submission": saved,
+        "stock_link": stock_link,
+    }))))
 }
 
 /// 生成（重生成）送检项目清单：按人群与接触方式与市场推项目集，可带客户点名项。
@@ -277,12 +280,16 @@ pub async fn judge_submission(
     Path(id): Path<i32>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
-    let saved = service.judge_submission(id, auth.user_id).await?;
+    let outcome = service.judge_submission(id, auth.user_id).await?;
     tracing::info!(
         submission_id = id,
-        overall = saved.overall_verdict.as_deref().unwrap_or(""),
+        overall = outcome.submission.overall_verdict.as_deref().unwrap_or(""),
         operator = auth.user_id,
         "纺织品安全送检单整单判定完成"
     );
-    Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "submission": outcome.submission,
+        "stock_link": outcome.stock_link,
+        "expired_reports_named": outcome.expired_reports_named,
+    }))))
 }

@@ -26,7 +26,10 @@ use crate::models::textile_test_item::{
 };
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder,
+};
 use std::sync::Arc;
 
 /// 检测项目写入参。
@@ -91,7 +94,7 @@ impl TextileSafetyMasterService {
             }
             query = query.filter(ItemColumn::BasisStandard.eq(basis));
         }
-        Ok(query.order_by(ItemColumn::ItemCode, QueryOrder::Asc).all(self.db.as_ref()).await?)
+        Ok(query.order_by(ItemColumn::ItemCode, Order::Asc).all(self.db.as_ref()).await?)
     }
 
     pub async fn create_test_item(&self, req: TestItemReq) -> Result<ItemModel, AppError> {
@@ -197,8 +200,8 @@ impl TextileSafetyMasterService {
             query = query.filter(LimitColumn::SafetyCategory.eq(cat));
         }
         Ok(query
-            .order_by(LimitColumn::ItemId, QueryOrder::Asc)
-            .order_by(LimitColumn::SafetyCategory, QueryOrder::Asc)
+            .order_by(LimitColumn::ItemId, Order::Asc)
+            .order_by(LimitColumn::SafetyCategory, Order::Asc)
             .all(self.db.as_ref())
             .await?)
     }
@@ -304,8 +307,8 @@ impl TextileSafetyMasterService {
             query = query.filter(ReqColumn::Market.eq(market));
         }
         Ok(query
-            .order_by(ReqColumn::Market, QueryOrder::Asc)
-            .order_by(ReqColumn::RequirementCode, QueryOrder::Asc)
+            .order_by(ReqColumn::Market, Order::Asc)
+            .order_by(ReqColumn::RequirementCode, Order::Asc)
             .all(self.db.as_ref())
             .await?)
     }
@@ -447,7 +450,7 @@ impl TextileSafetyMasterService {
             cmp::BETWEEN if req.limit_low.is_none() || req.limit_high.is_none() => {
                 Err(AppError::validation_displayable("between 行必须同时给出上下界"))
             }
-            cmp::FORBIDDEN | cmp::MUST_NONE | cmp::NA => {
+            cmp::FORBIDDEN | cmp::MUST_NONE | cmp::NOT_APPLICABLE => {
                 if req.limit_low.is_some() || req.limit_high.is_some() {
                     return Err(AppError::validation_displayable(
                         "禁用、必须为无、不考核三型不消费数值界，给了只会误导维护",

@@ -26,10 +26,17 @@ use crate::models::textile_safety_submission_item::{
 use crate::models::textile_test_item::{
     Column as ItemMasterColumn, Entity as TestItem, Model as TestItemModel,
 };
+use crate::models::inventory_stock::{
+    ActiveModel as StockActiveModel, Column as StockColumn, Entity as InventoryStock,
+};
+use crate::models::product::Entity as ProductEntity;
+use crate::models::status::purchase_inventory::{
+    inventory_stock_quality_status as stock_quality, inventory_stock_status as stock_status,
+};
 use crate::models::textile_third_party_report::{
     Column as ReportColumn, Entity as ThirdPartyReport,
 };
-use crate::models::product::Entity as ProductEntity;
+use crate::services::audit_log_service::AuditLogService;
 use crate::services::textile_safety_limit_judge::{
     fetch_rules_for_item, resolve_verdict, CandidateRule, JudgeDims, MeasuredInput,
 };
@@ -37,8 +44,8 @@ use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveValue, ColumnTrait, Condition, DatabaseConnection, DeleteMany, EntityTrait, QueryFilter,
-    QueryOrder,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DatabaseConnection, DeleteMany,
+    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::sync::Arc;
 
@@ -91,6 +98,55 @@ pub struct ChildCheckUpsertReq {
     pub measured_flag: Option<String>,
     pub check_desc: Option<String>,
     pub manual_conclusion: Option<String>,
+}
+
+/// 库存联动的动作语义（判定与状态机对 inventory_stocks.quality_status 的四种合法改写）。
+///
+/// 依据既有裁定"待检与不合格不出库"：可出库量筛选只认 quality_status 为合格，因此本域
+/// 把送检流程的三个阶段映射到同一质量状态列（裁定一"质量状态列保持关闭不新建重复列"），
+/// 不新建列、不改库存域文件，只经统一审计通道写本列。
+#[derive(Clone, Copy, Debug)]
+pub enum StockLinkAction {
+    /// 送检出样（sampling→sent）：范围内合格行降为待检，取样批次送检期间不得出库
+    HoldOnSent,
+    /// 撤回已送检/已收报告的单据：待检行回合格（撤回不代表结论，解除的是送检预防性挂起）
+    ReleaseOnWithdraw,
+    /// 整单判定 fail：范围内合格与待检行一律降为不合格（批次冻结，出库门自然拦下）
+    FreezeOnFail,
+    /// 整单判定 pass：范围内待检与不合格行回到合格（本域最新权威检验结论放行）
+    ReleaseOnPass,
+}
+
+impl StockLinkAction {
+    /// 回显与日志用的动作文案（单源，避免三处手写漂移）。
+    fn label(self) -> &'static str {
+        match self {
+            StockLinkAction::HoldOnSent => "送检挂起",
+            StockLinkAction::ReleaseOnWithdraw => "撤回解除挂起",
+            StockLinkAction::FreezeOnFail => "不合格冻结",
+            StockLinkAction::ReleaseOnPass => "合格放行",
+        }
+    }
+}
+
+/// 库存联动回显（写了吗、写了谁、为什么没写，全部点名回给调用方，不静默）。
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct StockLinkResult {
+    /// 品种乘批次命中且在库（正常台账状态）的库存行数
+    pub matched: u64,
+    /// 本次实际改写质量状态的库存行 id
+    pub updated_stock_ids: Vec<i32>,
+    /// 未联动或联动口径的人类可读说明（无批次号、零命中、na 结论不解除挂起等都要在这里点名）
+    pub scope_note: String,
+}
+
+/// 整单判定产出（单据本体加联动与告警回显；判定成功但联动细节不可见就是假绿）。
+#[derive(serde::Serialize)]
+pub struct JudgementOutcome {
+    pub submission: Model,
+    pub stock_link: StockLinkResult,
+    /// 已受理但有效期已过或被复检替代而排除出本次汇总口径的报告编号（点名告警面）
+    pub expired_reports_named: Vec<String>,
 }
 
 pub struct TextileSafetySubmissionService {
@@ -293,7 +349,14 @@ impl TextileSafetySubmissionService {
     /// 判据：reported 由报告登记动作自动产出、judged 由整单判定动作自动产出，本入口只承接
     /// 人工可推进的相邻档（draft→sampling 要求清单非空、sampling→sent）与撤回；
     /// judged 不允许手工直达（否则绕过判定汇总产出无依据结论）。
-    pub async fn set_status(&self, id: i32, to: &str, operator: i32) -> Result<Model, AppError> {
+    /// 库存联动：推进到 sent 即取样批次进入送检期间，按"待检不出库"把范围内合格行降为待检；
+    /// 从 sent 或 reported 撤回则解除该预防性挂起。返回（单据, 联动回显）。
+    pub async fn set_status(
+        &self,
+        id: i32,
+        to: &str,
+        operator: i32,
+    ) -> Result<(Model, StockLinkResult), AppError> {
         if !submission_status::is_valid(to) {
             return Err(AppError::validation_displayable(format!(
                 "目标状态 {} 不在送检单状态词表内（合法值 {}）",
@@ -302,8 +365,8 @@ impl TextileSafetySubmissionService {
             )));
         }
         let model = self.get(id).await?;
-        let from = model.status.as_str();
-        if !ALLOWED_TRANSITIONS.contains(&(from, to)) {
+        let from = model.status.clone();
+        if !ALLOWED_TRANSITIONS.contains(&(from.as_str(), to)) {
             return Err(AppError::business(format!(
                 "送检单 {} 不允许从 {} 迁移到 {}；reported 由报告登记自动产出，judged 由整单判定自动产出，其余非法迁移拒绝",
                 id, from, to
@@ -325,14 +388,115 @@ impl TextileSafetySubmissionService {
         active.status = ActiveValue::Set(to.to_string());
         active.updated_at = ActiveValue::Set(chrono::Utc::now());
         let saved = active.update(self.db.as_ref()).await?;
+        let link = match (from.as_str(), to) {
+            (_, submission_status::SENT) => {
+                self.apply_stock_link(&saved, StockLinkAction::HoldOnSent, operator)
+                    .await?
+            }
+            (submission_status::SENT, submission_status::WITHDRAWN)
+            | (submission_status::REPORTED, submission_status::WITHDRAWN) => {
+                self.apply_stock_link(&saved, StockLinkAction::ReleaseOnWithdraw, operator)
+                    .await?
+            }
+            _ => StockLinkResult {
+                matched: 0,
+                updated_stock_ids: Vec::new(),
+                scope_note: "本次状态迁移不触及库存联动档位（仅 sent 推进与 sent 或 reported 的撤回改写质量状态）".to_string(),
+            },
+        };
         tracing::info!(
             submission_id = id,
             from,
             to,
             operator,
+            link = link.scope_note.as_str(),
             "纺织品安全送检单状态已迁移"
         );
-        Ok(saved)
+        Ok((saved, link))
+    }
+
+    /// 库存质量状态联动原语：按品种乘批次命中在库（正常）行，依动作语义改写 quality_status，
+    /// 全部经 `AuditLogService::update_with_audit` 留痕。
+    ///
+    /// 判据：无批次号的送检单无法点名库存行，返回 matched 0 并在 scope_note 显式说明，
+    /// 由调用方回显给操作者（不静默）；词表外的 quality_status 残值不改写（那是别的域的
+    /// 脏数据，交各自域定性，本域不越权清洗）。
+    async fn apply_stock_link(
+        &self,
+        model: &Model,
+        action: StockLinkAction,
+        operator: i32,
+    ) -> Result<StockLinkResult, AppError> {
+        let batch = model
+            .batch_no
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .to_string();
+        if batch.is_empty() {
+            return Ok(StockLinkResult {
+                matched: 0,
+                updated_stock_ids: Vec::new(),
+                scope_note: "送检单未登记批次号，库存行无法按品种乘批次点名联动；本次只记录单据级结论，如需冻结库存请按库存端点人工处置并在补录批次后重送判定".to_string(),
+            });
+        }
+        let rows = InventoryStock::find()
+            .filter(StockColumn::ProductId.eq(model.product_id))
+            .filter(StockColumn::BatchNo.eq(batch.as_str()))
+            .filter(StockColumn::StockStatus.eq(stock_status::NORMAL))
+            .all(self.db.as_ref())
+            .await?;
+        let matched = rows.len() as u64;
+        let mut updated: Vec<i32> = Vec::new();
+        for row in rows {
+            let target: Option<&'static str> = match (action, row.quality_status.as_str()) {
+                (StockLinkAction::HoldOnSent, stock_quality::PASS) => Some(stock_quality::PENDING),
+                (StockLinkAction::ReleaseOnWithdraw, stock_quality::PENDING) => {
+                    Some(stock_quality::PASS)
+                }
+                (StockLinkAction::FreezeOnFail, stock_quality::PASS)
+                | (StockLinkAction::FreezeOnFail, stock_quality::PENDING) => {
+                    Some(stock_quality::FAIL)
+                }
+                (StockLinkAction::ReleaseOnPass, stock_quality::PENDING)
+                | (StockLinkAction::ReleaseOnPass, stock_quality::FAIL) => {
+                    Some(stock_quality::PASS)
+                }
+                    _ => None,
+            };
+            if let Some(target_value) = target {
+                let mut active: StockActiveModel = row.into();
+                active.quality_status = ActiveValue::Set(target_value.to_string());
+                active.updated_at = ActiveValue::Set(chrono::Utc::now());
+                let saved = AuditLogService::update_with_audit::<InventoryStock, _, _>(
+                    &*self.db,
+                    "inventory_stock",
+                    active,
+                    Some(operator),
+                )
+                .await?;
+                updated.push(saved.id);
+            }
+        }
+        tracing::info!(
+            submission_id = model.id,
+            action = action.label(),
+            matched,
+            updated = updated.len(),
+            "纺织品安全合规联动库存质量状态完成"
+        );
+        Ok(StockLinkResult {
+            matched,
+            updated_stock_ids: updated,
+            scope_note: format!(
+                "动作 {}：品种 {} 批次 {} 命中在库行 {} 行，实际改写质量状态 {} 行",
+                action.label(),
+                model.product_id,
+                batch,
+                matched,
+                updated.len()
+            ),
+        })
     }
 
     /// 生成（重生成）送检项目清单：按人群与接触方式与市场推项目集。
@@ -462,9 +626,9 @@ impl TextileSafetySubmissionService {
 
     fn auto_rows_delete(&self, submission_id: i32) -> DeleteMany<SubmissionItem> {
         SubmissionItem::delete_many().filter(
-            Condition::All
+            Condition::all()
                 .add(ItemColumn::SubmissionId.eq(submission_id))
-                .add(ItemColumn::Source.neq(textile_item_source::CUSTOMER)),
+                .add(ItemColumn::Source.ne(textile_item_source::CUSTOMER)),
         )
     }
 
@@ -566,13 +730,21 @@ impl TextileSafetySubmissionService {
 
     /// 整单判定汇总：判童装 measurable 行、搬运 manual 结论、按已受理报告的逐项目结果汇总整单。
     ///
-    /// 前置（任一不满足即拒绝，不落半态）：状态为 reported；至少一份已受理报告；
-    /// 全部已受理报告的逐项目结果均已判定；全部童装核查行均已判定（manual 缺结论即拒绝
-    /// 完成，不许假称自动判定）。
+    /// 前置（任一不满足即拒绝，不落半态）：状态为 reported；至少一份已受理且在有效期内的
+    /// 报告；全部在有效期内已受理报告的逐项目结果均已判定；全部童装核查行均已判定（manual
+    /// 缺结论即拒绝完成，不许假称自动判定）。
+    /// 过期点名：已受理但有效期已过（或缺有效期这类无法核验的行）的报告排除出汇总口径并
+    /// 逐枚点名回给调用方，绝不静默消费过期结论。
     /// 汇总三态：任一行 fail 则整单 fail；无 fail 且存在 pass 则整单 pass；
     /// 全部 na 则整单 na（无一项适用的极端形态如实呈现，不折算成合格）。
-    /// 产出：童装 measurable 行与 manual 行的 verdict、送检单 overall_verdict 与 judged 态。
-    pub async fn judge_submission(&self, id: i32, operator: i32) -> Result<Model, AppError> {
+    /// 库存联动：fail 冻结批次库存（不合格不出库），pass 放行，na 维持送检挂起并点名。
+    /// 产出：童装 measurable 行与 manual 行的 verdict、送检单 overall_verdict 与 judged 态、
+    /// 联动回显与过期告警清单。
+    pub async fn judge_submission(
+        &self,
+        id: i32,
+        operator: i32,
+    ) -> Result<JudgementOutcome, AppError> {
         let model = self.get(id).await?;
         if model.status != submission_status::REPORTED {
             return Err(AppError::business(format!(
@@ -584,17 +756,43 @@ impl TextileSafetySubmissionService {
             .filter(ReportColumn::SubmissionId.eq(id))
             .all(self.db.as_ref())
             .await?;
-        let accepted: Vec<_> = reports
+        let accepted_all: Vec<_> = reports
             .iter()
             .filter(|r| {
                 r.acceptance_status == crate::models::status::report_acceptance_status::ACCEPTED
             })
             .collect();
-        if accepted.is_empty() {
+        if accepted_all.is_empty() {
             return Err(AppError::business(format!(
                 "送检单 {} 没有已受理的第三方报告，完整性门未放行前不得出整单结论",
                 id
             )));
+        }
+        let today = chrono::Utc::now().date_naive();
+        let mut expired_reports_named: Vec<String> = Vec::new();
+        let accepted: Vec<_> = accepted_all
+            .into_iter()
+            .filter(|r| match r.valid_until {
+                Some(vu) if today <= vu => true,
+                _ => {
+                    expired_reports_named.push(r.report_no.clone());
+                    false
+                }
+            })
+            .collect();
+        if accepted.is_empty() {
+            return Err(AppError::business(format!(
+                "送检单 {} 的已受理报告全部超过有效期或缺有效期登记（点名 {}），过期结论不得作为归档依据；请取得有效报告或走复检更新报告后再判定",
+                id,
+                expired_reports_named.join("、")
+            )));
+        }
+        if !expired_reports_named.is_empty() {
+            tracing::warn!(
+                submission_id = id,
+                expired = expired_reports_named.join("|"),
+                "整单判定已受理但过期的报告被排除出汇总口径（点名告警，不静默）"
+            );
         }
         let mut verdicts: Vec<String> = Vec::new();
         for report in &accepted {
@@ -617,7 +815,6 @@ impl TextileSafetySubmissionService {
             .filter(CheckColumn::SubmissionId.eq(id))
             .all(self.db.as_ref())
             .await?;
-        let tags_snapshot = dims.condition_tags.clone();
         for row in checks {
             let item = TestItem::find_by_id(row.item_id)
                 .one(self.db.as_ref())
@@ -656,6 +853,7 @@ impl TextileSafetySubmissionService {
                 }
                 crate::services::textile_safety_limit_judge::judge_conjunction(&selected, &measured)?
                     .into_verdict_token()
+                    .to_string()
             };
             let now = chrono::Utc::now();
             let mut active: CheckActiveModel = row.into();
@@ -684,13 +882,34 @@ impl TextileSafetySubmissionService {
         active.status = ActiveValue::Set(submission_status::JUDGED.to_string());
         active.updated_at = ActiveValue::Set(now);
         let saved = active.update(self.db.as_ref()).await?;
+        let stock_link = match overall {
+            textile_verdict::FAIL => {
+                self.apply_stock_link(&saved, StockLinkAction::FreezeOnFail, operator)
+                    .await?
+            }
+            textile_verdict::PASS => {
+                self.apply_stock_link(&saved, StockLinkAction::ReleaseOnPass, operator)
+                    .await?
+            }
+            _ => StockLinkResult {
+                matched: 0,
+                updated_stock_ids: Vec::new(),
+                scope_note: "整单结论为全部不适用（na），送检期间的待检挂起不解除；请质量岗复核豁免口径后经库存端点人工改判".to_string(),
+            },
+        };
         tracing::info!(
             submission_id = id,
             overall,
             operator,
+            link = stock_link.scope_note.as_str(),
+            expired = expired_reports_named.join("|"),
             "纺织品安全送检单整单判定完成"
         );
-        Ok(saved)
+        Ok(JudgementOutcome {
+            submission: saved,
+            stock_link,
+            expired_reports_named,
+        })
     }
 
     /// 查询送检项目清单（带项目主数据快照供展示，join 由两趟查询完成，SeaORM 无定义关系）。

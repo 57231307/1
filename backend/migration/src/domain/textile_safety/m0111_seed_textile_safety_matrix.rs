@@ -26,7 +26,7 @@
 //!   B 4.0~8.5、C 4.0~9.0，后续湿处理的中间产品 pH 放宽到 4.0~10.5（放宽行只建在
 //!   intermediate 形态加 wet_processing 条件上，最终产品沿用该档时矩阵无行可查，判定器
 //!   显式报错）；耐水与耐酸汗渍与耐碱汗渍色牢度 A 不低于 3-4 级、B 与 C 不低于 3 级；
-//!   耐干摩擦 A 不低于 4 级、B 与 C 不低于 3 级；耐湿摩擦按标准表格仅 A 类不考核（na 行）；
+//!   耐干摩擦 A 不低于 4 级、B 与 C 不低于 3 级；耐湿摩擦 A 不低于 3-4 级、B 与 C 不低于 3 级；
 //!   耐唾液 A 不低于 4 级、B 与 C 不考核（na 行）；可分解致癌芳香胺染料禁用且不大于
 //!   20 mg/kg（forbidden 与 lte 两行并存，判定取合取）；异味必须为无。需洗涤褪色的非
 //!   最终产品与本色漂白与扎染蜡染不考核色牢度（三枚豁免标签乘六个色牢度项目的 na 行）。
@@ -94,7 +94,7 @@ INSERT INTO textile_test_item (item_code, item_name, item_kind, basis_standard, 
     ('FAST_ACID_SWEAT', '耐酸汗渍色牢度', 'grade', 'GB18401', 'measurable', 'GB/T 3921', '级', '耐酸汗渍色牢度等级，A 类不低于 3-4 级、B 与 C 类不低于 3 级'),
     ('FAST_ALKALI_SWEAT', '耐碱汗渍色牢度', 'grade', 'GB18401', 'measurable', 'GB/T 3921', '级', '耐碱汗渍色牢度等级，A 类不低于 3-4 级、B 与 C 类不低于 3 级'),
     ('FAST_DRY_RUB', '耐干摩擦色牢度', 'grade', 'GB18401', 'measurable', 'GB/T 3920', '级', '耐干摩擦色牢度等级，A 类不低于 4 级、B 与 C 类不低于 3 级'),
-    ('FAST_WET_RUB', '耐湿摩擦色牢度', 'grade', 'GB18401', 'measurable', 'GB/T 3920', '级', '耐湿摩擦色牢度等级，A 类不考核、B 与 C 类不低于 3 级'),
+    ('FAST_WET_RUB', '耐湿摩擦色牢度', 'grade', 'GB18401', 'measurable', 'GB/T 3920', '级', '耐湿摩擦色牢度等级，A 类不低于 3-4 级、B 与 C 类不低于 3 级'),
     ('FAST_SALIVA', '耐唾液色牢度', 'grade', 'GB18401', 'measurable', 'GB/T 18886', '级', '耐唾液色牢度等级，仅 A 类考核且不低于 4 级'),
     ('LEAD', '铅含量', 'numeric', 'GB31701', 'measurable', NULL, 'mg/kg', 'GB 31701-2015 儿童纺织品铅限量，不大于 90 mg/kg；方法标准号按检测机构报告承载'),
     ('CADMIUM', '镉含量', 'numeric', 'GB31701', 'measurable', NULL, 'mg/kg', 'GB 31701-2015 儿童纺织品镉限量，不大于 100 mg/kg；方法标准号按检测机构报告承载'),
@@ -168,6 +168,8 @@ SELECT id, 'GB18401_B', 'any', 'none', 'gte', 3.0, 'GB 18401-2010', '耐干摩�
 UNION ALL
 SELECT id, 'GB18401_C', 'any', 'none', 'gte', 3.0, 'GB 18401-2010', '耐干摩擦 C 类不低于 3 级' FROM textile_test_item WHERE item_code = 'FAST_DRY_RUB'
 UNION ALL
+SELECT id, 'GB18401_A', 'any', 'none', 'gte', 3.5, 'GB 18401-2010', '耐湿摩擦 A 类不低于 3-4 级' FROM textile_test_item WHERE item_code = 'FAST_WET_RUB'
+UNION ALL
 SELECT id, 'GB18401_B', 'any', 'none', 'gte', 3.0, 'GB 18401-2010', '耐湿摩擦 B 类不低于 3 级' FROM textile_test_item WHERE item_code = 'FAST_WET_RUB'
 UNION ALL
 SELECT id, 'GB18401_C', 'any', 'none', 'gte', 3.0, 'GB 18401-2010', '耐湿摩擦 C 类不低于 3 级' FROM textile_test_item WHERE item_code = 'FAST_WET_RUB'
@@ -175,10 +177,8 @@ UNION ALL
 SELECT id, 'GB18401_A', 'any', 'none', 'gte', 4.0, 'GB 18401-2010', '耐唾液 A 类不低于 4 级' FROM textile_test_item WHERE item_code = 'FAST_SALIVA'
 ON CONFLICT (item_id, safety_category, product_form, condition_tag, comparator) DO NOTHING;
 
--- 耐湿摩擦 A 类不考核、耐唾液 B 与 C 类不考核（法定第三态用 na 行表达）
+-- 耐唾液 B 与 C 类不考核（法定第三态用 na 行表达；耐湿摩擦全类别考核，A 类 3-4 级档见上）
 INSERT INTO textile_limit_rule (item_id, safety_category, product_form, condition_tag, comparator, clause_ref, remark)
-SELECT id, 'GB18401_A', 'any', 'none', 'na', 'GB 18401-2010', 'A 类不考核耐湿摩擦色牢度' FROM textile_test_item WHERE item_code = 'FAST_WET_RUB'
-UNION ALL
 SELECT id, 'GB18401_B', 'any', 'none', 'na', 'GB 18401-2010', 'B 类不考核耐唾液色牢度' FROM textile_test_item WHERE item_code = 'FAST_SALIVA'
 UNION ALL
 SELECT id, 'GB18401_C', 'any', 'none', 'na', 'GB 18401-2010', 'C 类不考核耐唾液色牢度' FROM textile_test_item WHERE item_code = 'FAST_SALIVA'

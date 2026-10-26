@@ -15,7 +15,7 @@ use crate::models::textile_report_item_result::{
     ActiveModel, Column, Entity as ReportResult, Model,
 };
 use crate::models::textile_safety_submission::{
-    ActiveModel as SubmissionActiveModel, Column as SubColumn, Entity as Submission,
+    ActiveModel as SubmissionActiveModel, Entity as Submission,
 };
 use crate::models::textile_safety_submission_item::{
     Column as ListItemColumn, Entity as SubmissionItem,
@@ -29,7 +29,10 @@ use crate::services::textile_safety_limit_judge::{JudgeDims, MeasuredInput};
 use crate::services::textile_safety_submission_service::TextileSafetySubmissionService;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    QueryFilter, QueryOrder,
+};
 use std::sync::Arc;
 
 /// 报告登记入参（六项要素与资质位与日期；受理态由门产出，请求体不得直达 accepted）。
@@ -209,7 +212,7 @@ impl TextileSafetyReportService {
     ) -> Result<Vec<ReportModel>, AppError> {
         Ok(ThirdPartyReport::find()
             .filter(ReportColumn::SubmissionId.eq(submission_id))
-            .order_by(ReportColumn::CreatedAt, QueryOrder::Desc)
+            .order_by(ReportColumn::CreatedAt, Order::Desc)
             .all(self.db.as_ref())
             .await?)
     }
@@ -217,7 +220,7 @@ impl TextileSafetyReportService {
     pub async fn list_results(&self, report_id: i32) -> Result<Vec<Model>, AppError> {
         Ok(ReportResult::find()
             .filter(Column::ReportId.eq(report_id))
-            .order_by(Column::ItemId, QueryOrder::Asc)
+            .order_by(Column::ItemId, Order::Asc)
             .all(self.db.as_ref())
             .await?)
     }

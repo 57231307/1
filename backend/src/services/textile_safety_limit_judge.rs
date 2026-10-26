@@ -22,7 +22,7 @@ use crate::models::textile_limit_rule::{ActiveModel as LimitActiveModel, Column 
 use crate::models::textile_test_item::Model as TestItemModel;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::sync::Arc;
 
 /// 判定维度输入：一次判定所需的申报要素与实测承载（结构体而非长参数列表，调用点可读）。
