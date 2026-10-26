@@ -68,6 +68,12 @@
 //! - customers_nullable_columns_norm: customers 的 status/payment_terms 两列可空无默认 →
 //!   回填成文缺省（'active' / 30）+ SET DEFAULT + SET NOT NULL，与模型非 Option 对齐；
 //!   置于链尾为新的顶层条目，复用库上也必然执行（并入已应用的 system 域会被台账跳过）
+//! - textile_safety: 纺织品安全合规域三支同域迁移（m0109 建八张表、m0110 词表 CHECK 收口、
+//!   m0111 GB 18401 与 GB 31701 限值矩阵与出口要求播种）；新建顶层域，与既有七张检验表零
+//!   交集，仅外键只读关联 products（依赖 system 建表，置于链尾为新的顶层条目）
+//! - purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口两支
+//!   同域迁移（m0112a 严格只读逐值点名、m0112b 守卫后施加 CHECK），词表权威在
+//!   models::status::purchase_inventory::purchase_inspection_result；置于链尾为新的顶层条目
 
 pub mod system;
 pub mod business;
@@ -104,3 +110,5 @@ pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
+pub mod textile_safety;
+pub mod purchase_inspection_result_check;

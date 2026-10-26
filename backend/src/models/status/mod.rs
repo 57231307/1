@@ -38,6 +38,8 @@ pub mod quality_dyeing;
 pub mod wage_energy_chemical_business;
 pub mod export_inspection;
 pub mod print;
+// 纺织品安全合规域词表（GB 18401 基本安全、GB 31701 童装加考、第三方报告完整性门与送检流程）
+pub mod textile_safety;
 
 pub use bpm_crm_contract::*;
 pub use export_inspection::*;
@@ -48,4 +50,5 @@ pub use production::*;
 pub use purchase_inventory::*;
 pub use quality_dyeing::*;
 pub use sales::*;
+pub use textile_safety::*;
 pub use wage_energy_chemical_business::*;

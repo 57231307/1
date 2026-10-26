@@ -1017,6 +1017,13 @@ impl InitService {
                     ("production-orders", "read"),
                     ("reports", "read"),
                     ("business-trace", "read"),
+                    // 纺织品安全合规域：质量经理持有判定表维护权（限值矩阵可维护是裁定
+                    // 硬要求）与送检、报告、主数据、出口要求全集；写口审计靠会话注入。
+                    ("textile-submissions", "*"),
+                    ("textile-reports", "*"),
+                    ("textile-test-items", "*"),
+                    ("textile-limit-rules", "*"),
+                    ("textile-export-requirements", "*"),
                 ],
             ),
             (
@@ -1035,6 +1042,18 @@ impl InitService {
                     // 验布打卷产出成品布 → 标签面板读匹行并可打印
                     ("pieces", "read"),
                     ("pieces", "print"),
+                    // 纺织品安全合规域：质检员执行送检与报告登记与童装核查录入与判定，
+                    // 但判定表与项目主数据的维护权不授（改限值不能经手执行人，qc_manager 独持）；
+                    // 出口要求只读（对单时核对客户加验口径）。
+                    ("textile-submissions", "read"),
+                    ("textile-submissions", "create"),
+                    ("textile-submissions", "update"),
+                    ("textile-reports", "read"),
+                    ("textile-reports", "create"),
+                    ("textile-reports", "update"),
+                    ("textile-test-items", "read"),
+                    ("textile-limit-rules", "read"),
+                    ("textile-export-requirements", "read"),
                 ],
             ),
             (

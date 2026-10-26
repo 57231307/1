@@ -399,6 +399,13 @@ fn is_misc_direct_resource(part: &str) -> bool {
         | "ai-models"
         // V16 P0：外贸/职业健康/物流域直接资源（37-print 矩阵 403 修复）
         | "export-inspections"
+        // 纺织品安全合规域直接资源（seg3 即权限资源名；未登记段会被白名单层
+        // fail-closed 403 含 admin，登记后派生键与 PERMISSION_RESOURCES 及角色种子同词表）
+        | "textile-submissions"
+        | "textile-reports"
+        | "textile-test-items"
+        | "textile-limit-rules"
+        | "textile-export-requirements"
         | "export-refunds"
         | "labor-contracts"
         | "logistics-tracking"
