@@ -330,7 +330,6 @@ $$;
                 constraint = spec.constraint,
                 predicate = predicate,
                 note = null_note,
-                allowed = spec.allowed,
                 vocab = spec.vocab,
             ));
         }

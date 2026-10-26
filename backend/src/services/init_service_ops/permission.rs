@@ -594,6 +594,9 @@ impl InitService {
                     ("color-prices", "*"),
                     ("customers", "*"),
                     ("customer-credits", "read"),
+                    // 纺织品安全合规域：报价与订单侧只读出口市场要求登记面
+                    // （裁定六面之一"能被报价与订单侧读到"；送检与报告明细不给销售）
+                    ("textile-export-requirements", "read"),
                     ("reports", "read"),
                     ("sales-analysis", "read"),
                     // BPM 审批面：键由 `/api/v1/erp/bpm/{第四段}` 经消歧派生。审批提交端点是
@@ -634,6 +637,8 @@ impl InitService {
                     // 出口商检：销售代表可读自己出口订单对应的商检单与结论（只读，
                     // 建单/登记结果属报关岗，不越界授予）。
                     ("export-inspections", "read"),
+                    // 纺织品安全合规域：报价前核对目标市场加验口径，只读登记面。
+                    ("textile-export-requirements", "read"),
                 ],
             ),
         ]
