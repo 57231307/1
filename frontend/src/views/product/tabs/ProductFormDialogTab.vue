@@ -353,6 +353,108 @@
             />
           </el-form-item>
         </el-col>
+        <el-col :span="12">
+          <el-form-item prop="safety_category">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelSafetyCategory') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipSafetyCategory')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <!-- 安全类别词表与后端 product_safety_category 同源（GB 18401 A/B/C），value 为字母落库真相，label 走 i18n -->
+            <el-select
+              v-model="formData.safety_category"
+              clearable
+              :placeholder="t('product.productFormDialogTab.placeholderSafetyCategory')"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in safetyCategoryOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item prop="width_needle_included_cm">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelWidthNeedleIncluded') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipWidthNeedleIncluded')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <!-- 数字列一律 el-input 加校验，禁带加减按钮的数字输入框；空文本提交即 null 走三态清空 -->
+            <el-input
+              v-model="formData.width_needle_included_cm"
+              :placeholder="t('product.productFormDialogTab.placeholderWidthNeedleIncluded')"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item prop="weight_tolerance">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelWeightTolerance') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipWeightTolerance')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input
+              v-model="formData.weight_tolerance"
+              :placeholder="t('product.productFormDialogTab.placeholderWeightTolerance')"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item prop="spandex_percent">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelSpandexPercent') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipSpandexPercent')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <el-input
+              v-model="formData.spandex_percent"
+              :placeholder="t('product.productFormDialogTab.placeholderSpandexPercent')"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item
+            :label="t('product.productFormDialogTab.labelUsage')"
+            prop="usage"
+          >
+            <el-input
+              v-model="formData.usage"
+              :placeholder="t('product.productFormDialogTab.placeholderUsage')"
+            />
+          </el-form-item>
+        </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
@@ -417,10 +519,22 @@ import {
   PRODUCT_TYPE_LABEL_KEY,
   isFabricProductType,
 } from '@/constants/product-type';
+import {
+  PRODUCT_SAFETY_CATEGORY_VALUES,
+  PRODUCT_SAFETY_CATEGORY_LABEL_KEY,
+} from '@/constants/product-spec-vocab';
 import { computeMetersPerKg } from '@/utils/fabric-yardage';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// 安全类别下拉：value 用字母落库真相（A/B/C），label 走 i18n；词表与后端 product_safety_category 同源
+const safetyCategoryOptions = computed(() =>
+  PRODUCT_SAFETY_CATEGORY_VALUES.map(value => ({
+    value,
+    label: t(PRODUCT_SAFETY_CATEGORY_LABEL_KEY[value]),
+  }))
+);
 
 // 交易单位下拉：value 用库里稳定的中文单位 token，label 走 i18n；报价行单位随此值带出
 const unitOptions = computed(() =>
@@ -482,6 +596,12 @@ const formData = reactive({
   density: '',
   structure: '',
   finish: '',
+  // m0106 扩的规格列，数字列以输入框文本形态存（el-input，禁带加减按钮），提交前经 toSubmitNumber 归一
+  width_needle_included_cm: '',
+  weight_tolerance: '',
+  spandex_percent: '',
+  usage: '',
+  safety_category: '',
   min_order_quantity: '',
   lead_time: '',
   execution_standard: '',
@@ -606,6 +726,16 @@ const formRules = computed<FormRules>(() => {
     ],
     width: [numericFormatRule('product.productFormDialogTab.validateWidthFormat', 2)],
     gram_weight: [numericFormatRule('product.productFormDialogTab.validateGramWeightFormat', 2)],
+    // 带针幅宽严格为正（口径同后端 CHECK），克重公差与氨纶含量非负（0 到 100 上限由后端 CHECK 拒）
+    width_needle_included_cm: [
+      numericFormatRule('product.productFormDialogTab.validateWidthNeedleFormat', 2, true),
+    ],
+    weight_tolerance: [
+      numericFormatRule('product.productFormDialogTab.validateWeightToleranceFormat', 2),
+    ],
+    spandex_percent: [
+      numericFormatRule('product.productFormDialogTab.validateSpandexPercentFormat', 2),
+    ],
     meters_per_piece: [
       numericFormatRule('product.productFormDialogTab.validateMetersPerPieceFormat', 4),
     ],
@@ -677,6 +807,11 @@ const resetForm = () => {
   formData.density = '';
   formData.structure = '';
   formData.finish = '';
+  formData.width_needle_included_cm = '';
+  formData.weight_tolerance = '';
+  formData.spandex_percent = '';
+  formData.usage = '';
+  formData.safety_category = '';
   formData.min_order_quantity = '';
   formData.lead_time = '';
   formData.execution_standard = '';
@@ -707,6 +842,11 @@ watch(
           formData.meters_per_roll = toInputText(props.rowData.meters_per_roll);
           formData.width = toInputText(props.rowData.width);
           formData.gram_weight = toInputText(props.rowData.gram_weight);
+          formData.width_needle_included_cm = toInputText(props.rowData.width_needle_included_cm);
+          formData.weight_tolerance = toInputText(props.rowData.weight_tolerance);
+          formData.spandex_percent = toInputText(props.rowData.spandex_percent);
+          formData.usage = props.rowData.usage ?? '';
+          formData.safety_category = props.rowData.safety_category ?? '';
           formData.min_order_quantity = toInputText(props.rowData.min_order_quantity);
           formData.lead_time = toInputText(props.rowData.lead_time);
         }
@@ -748,6 +888,15 @@ const buildSubmitPayload = (): Partial<Product> => ({
   density: formData.density,
   structure: formData.structure,
   finish: formData.finish,
+  // 带针幅宽/克重公差/氨纶含量为 DECIMAL，经 toSubmitNumber 归一：空文本显式发 null 走后端三态清空通道
+  width_needle_included_cm: toSubmitNumber(formData.width_needle_included_cm),
+  weight_tolerance: toSubmitNumber(formData.weight_tolerance),
+  spandex_percent: toSubmitNumber(formData.spandex_percent),
+  // 用途为自由文本单层条件更新，直发采集值（空串即清空文本，与其余文本列同口径）
+  usage: formData.usage,
+  // 安全类别为受 DB CHECK 约束的封闭枚举，空值发 undefined 让该键从载荷摘除（后端单层更新键缺席即不改），
+  // 不能发空串撞 CHECK；清空定级交后端词表判据，界面清空即回未定级由下次显式选择覆盖
+  safety_category: formData.safety_category || undefined,
   min_order_quantity: toSubmitNumber(formData.min_order_quantity),
   lead_time: toSubmitNumber(formData.lead_time),
   execution_standard: formData.execution_standard,

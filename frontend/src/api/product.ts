@@ -30,6 +30,23 @@ export interface Product {
   structure?: string | null;
   /** 后整理（finish，可空文本主档列） */
   finish?: string | null;
+  /**
+   * 带针幅宽（cm，含针边，可空）。与 width（有效幅宽，净幅，不含针边）两列独立；
+   * 开幅与预缩交付参考用本列，米↔公斤换算一律以 width 为源、本列不参与换算。
+   * Decimal→string、NULL→null，并含表单入参数值。
+   */
+  width_needle_included_cm?: number | string | null;
+  /** 克重公差（±g/m²，非负，可空）。目标值在 gram_weight，本列记允差幅度；Decimal→string、NULL→null。 */
+  weight_tolerance?: number | string | null;
+  /** 氨纶含量（%，0 到 100，可空）。弹性要求的行业口径；Decimal→string、NULL→null。 */
+  spandex_percent?: number | string | null;
+  /** 用途（自由文本，如 服装面料/家纺/产业用，可空） */
+  usage?: string | null;
+  /**
+   * 安全类别（GB 18401-2010 的 A/B/C，可空即未定级）。A 类婴幼儿另须满足 GB 31701-2015。
+   * 取值以 constants/product-spec-vocab.ts 与后端 product_safety_category 词表同源。
+   */
+  safety_category?: string | null;
   /** 最小起订量（min_order_quantity，DECIMAL 列：出参字符串、入参数值，空值 null） */
   min_order_quantity?: number | string | null;
   /** 交货期（天，lead_time，i32 列，JSON number，NULL→null） */
@@ -95,6 +112,11 @@ export interface ProductColor {
   dye_formula: string | null;
   /** 特殊色号加价，rust_decimal 出参为字符串（"0.00"），Number() 归一后再展示/运算 */
   extra_cost: string;
+  /**
+   * 色牢度等级（GB 18401 九档，含半级；可空即未考核或未录入）。
+   * 取值以 constants/product-spec-vocab.ts 与后端 color_fastness 词表同源。
+   */
+  color_fastness_grade: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -113,6 +135,8 @@ export interface CreateProductColorPayload {
   extra_cost: number;
   pantone_code?: string;
   dye_formula?: string;
+  /** 色牢度等级（可空即未录入），值为 GB 18401 九档之一 */
+  color_fastness_grade?: string;
 }
 
 /**
@@ -126,6 +150,8 @@ export interface UpdateProductColorPayload {
   pantone_code?: string;
   dye_formula?: string;
   is_active?: boolean;
+  /** 色牢度等级（键缺席即不改；空串按清空该列处理） */
+  color_fastness_grade?: string;
 }
 
 /**
